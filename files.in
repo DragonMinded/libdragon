@@ -1,0 +1,27 @@
+OFILES  = $(CURDIR)/build/dragonfs.o
+OFILES += $(CURDIR)/build/audio.o
+OFILES += $(CURDIR)/build/display.o
+OFILES += $(CURDIR)/build/console.o
+OFILES += $(CURDIR)/build/controller.o
+OFILES += $(CURDIR)/build/graphics.o
+
+# Rules for compiling filesystem
+$(CURDIR)/build/dragonfs.o: $(CURDIR)/src/dragonfs.c
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/dragonfs.o $(CURDIR)/src/dragonfs.c
+
+# Rules for compiling audio system
+$(CURDIR)/build/audio.o: $(CURDIR)/src/audio.c
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/audio.o $(CURDIR)/src/audio.c
+
+# Rules for compiling video system
+$(CURDIR)/build/display.o: $(CURDIR)/src/display.c
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/display.o $(CURDIR)/src/display.c
+$(CURDIR)/build/console.o: $(CURDIR)/src/console.c
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/console.o $(CURDIR)/src/console.c
+$(CURDIR)/build/graphics.o: $(CURDIR)/src/graphics.c
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/graphics.o $(CURDIR)/src/graphics.c
+
+# Rules for compiling controller system
+$(CURDIR)/build/controller.o: $(CURDIR)/src/controller.c
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/controller.o $(CURDIR)/src/controller.c
+
