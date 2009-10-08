@@ -34,6 +34,11 @@ install: libdragon.a
 	install -D --mode=644 include/controller.h $(INSTALLDIR)/include/controller.h
 	install -D --mode=644 include/graphics.h $(INSTALLDIR)/include/graphics.h
 
+install-tools: tools
+	install -D --mode=755 tools/dumpdfs/dumpdfs $(INSTALLDIR)/bin/dumpdfs
+	install -D --mode=755 tools/mksprite/mksprite $(INSTALLDIR)/bin/mksprite
+	install -D --mode=755 tools/mkdfs/mkdfs $(INSTALLDIR)/bin/mkdfs
+
 clean:
 	rm -f *.o *.a
 	rm -f $(CURDIR)/build/*
