@@ -14,7 +14,6 @@
 
 #define UNCACHED_ADDR(x)    ((void *)(((uint32_t)(x)) | 0xA0000000))
 #define ALIGN_16BYTE(x)     ((void *)(((uint32_t)(x)+15) & 0xFFFFFFF0))
-#define ALIGN_4KBYTE(x)     ((void *)(((uint32_t)(x)+4095) & 0xFFFFF000))
 
 /* Presets for video modes */
 static uint32_t ntsc_320[] = {
@@ -196,8 +195,8 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     {
         /* Set parameters necessary for drawing */
         /* Grab a location to render to */
-        buffer[i] = malloc( __width * __height * __bitdepth + 4095 );
-        __safe_buffer[i] = ALIGN_4KBYTE( UNCACHED_ADDR( buffer[i] ) );
+        buffer[i] = malloc( __width * __height * __bitdepth + 15 );
+        __safe_buffer[i] = ALIGN_16BYTE( UNCACHED_ADDR( buffer[i] ) );
         
         /* Baseline is blank */
         memset( __safe_buffer[i], 0, __width * __height * __bitdepth );
@@ -285,9 +284,6 @@ void display_show( display_context_t disp )
     /* This should match, or something went awry */
     if( i == now_drawing )
     {
-        /* Write back cache in case they used some RDP functions */
-        data_cache_writeback_invalidate( __safe_buffer[now_drawing], __width * __height * __bitdepth );
-
         /* Ensure we display this next time */
         now_drawing = -1;
         show_next = i;
