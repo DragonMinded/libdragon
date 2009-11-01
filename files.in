@@ -1,9 +1,11 @@
-OFILES  = $(CURDIR)/build/dragonfs.o
-OFILES += $(CURDIR)/build/audio.o
-OFILES += $(CURDIR)/build/display.o
-OFILES += $(CURDIR)/build/console.o
-OFILES += $(CURDIR)/build/controller.o
-OFILES += $(CURDIR)/build/graphics.o
+OFILES_LD  = $(CURDIR)/build/dragonfs.o
+OFILES_LD += $(CURDIR)/build/audio.o
+OFILES_LD += $(CURDIR)/build/display.o
+OFILES_LD += $(CURDIR)/build/console.o
+OFILES_LD += $(CURDIR)/build/controller.o
+OFILES_LD += $(CURDIR)/build/graphics.o
+
+OFILES_LDS  = $(CURDIR)/build/system.o
 
 # Rules for compiling filesystem
 $(CURDIR)/build/dragonfs.o: $(CURDIR)/src/dragonfs.c
@@ -25,3 +27,6 @@ $(CURDIR)/build/graphics.o: $(CURDIR)/src/graphics.c
 $(CURDIR)/build/controller.o: $(CURDIR)/src/controller.c
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/controller.o $(CURDIR)/src/controller.c
 
+# Rules for compiling newlib interface
+$(CURDIR)/build/system.o: $(CURDIR)/src/system.c
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/system.o $(CURDIR)/src/system.c

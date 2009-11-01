@@ -644,6 +644,9 @@ int dfs_seek(uint32_t handle, int offset, int origin)
 
             break;
         }
+        default:
+            /* Impossible */
+            return DFS_EBADINPUT;
     }
 
     /* Lets get some bounds checking */

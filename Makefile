@@ -15,18 +15,22 @@ tools:
 	make -C tools/mkdfs
 	make -C tools/mksprite
 
-libdragon: libdragon.a
+libdragon: libdragon.a libdragonsys.a
 
 include files.in
 
-libdragon.a: $(OFILES)
-	$(AR) -rcs -o libdragon.a $(OFILES)
+libdragon.a: $(OFILES_LD)
+	$(AR) -rcs -o libdragon.a $(OFILES_LD)
+
+libdragonsys.a: $(OFILES_LDS)
+	$(AR) -rcs -o libdragonsys.a $(OFILES_LDS)
 
 (CURDIR)/build/:
 	mkdir $(CURDIR)/build
 
-install: libdragon.a
+install: libdragon.a libdragonsys.a
 	install -D --mode=644 libdragon.a $(INSTALLDIR)/lib/libdragon.a
+	install -D --mode=644 libdragonsys.a $(INSTALLDIR)/lib/libdragonsys.a
 	install -D --mode=644 include/dragonfs.h $(INSTALLDIR)/include/dragonfs.h
 	install -D --mode=644 include/audio.h $(INSTALLDIR)/include/audio.h
 	install -D --mode=644 include/display.h $(INSTALLDIR)/include/display.h
