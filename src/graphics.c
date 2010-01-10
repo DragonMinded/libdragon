@@ -46,7 +46,10 @@ uint32_t graphics_convert_color( color_t color )
         int g = color.g >> 3;
         int b = color.b >> 3;
 
-        return ((r & 0x1F) << 11) | ((g & 0x1F) << 6) | ((b & 0x1F) << 1) | (color.a >> 7);
+        // Pack twice for compatibility with RDP packed colors
+        uint32_t conv = ((r & 0x1F) << 11) | ((g & 0x1F) << 6) | ((b & 0x1F) << 1) | (color.a >> 7);
+
+        return conv | (conv << 16);
     }
     else
     {

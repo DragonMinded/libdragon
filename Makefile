@@ -37,6 +37,7 @@ install: libdragon.a libdragonsys.a
 	install -D --mode=644 include/console.h $(INSTALLDIR)/include/console.h
 	install -D --mode=644 include/controller.h $(INSTALLDIR)/include/controller.h
 	install -D --mode=644 include/graphics.h $(INSTALLDIR)/include/graphics.h
+	install -D --mode=644 include/rdp.h $(INSTALLDIR)/include/rdp.h
 
 install-tools: tools
 	install -D --mode=755 tools/dumpdfs/dumpdfs $(INSTALLDIR)/bin/dumpdfs

@@ -69,3 +69,53 @@ struct controller_data get_keys_held()
     return ret;
 }
 
+struct controller_data get_keys_pressed()
+{
+    return current;
+}
+
+int get_dpad_direction( int controller )
+{
+    /* Diagonals first because it could only be right angles otherwise */
+    if( current.c[controller & 0x3].up && current.c[controller & 0x3].left ) 
+    {
+        return 3;
+    }
+    
+    if( current.c[controller & 0x3].up && current.c[controller & 0x3].right ) 
+    {
+        return 1;
+    }
+
+    if( current.c[controller & 0x3].down && current.c[controller & 0x3].left ) 
+    {
+        return 5;
+    }
+
+    if( current.c[controller & 0x3].down && current.c[controller & 0x3].right ) 
+    {
+        return 7;
+    }
+
+    if( current.c[controller & 0x3].right )
+    {
+        return 0;
+    }
+
+    if( current.c[controller & 0x3].up )
+    {
+        return 2;
+    }
+
+    if( current.c[controller & 0x3].left )
+    {
+        return 4;
+    }
+
+    if( current.c[controller & 0x3].down )
+    {
+        return 6;
+    }
+
+    return -1;
+}

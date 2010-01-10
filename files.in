@@ -4,6 +4,7 @@ OFILES_LD += $(CURDIR)/build/display.o
 OFILES_LD += $(CURDIR)/build/console.o
 OFILES_LD += $(CURDIR)/build/controller.o
 OFILES_LD += $(CURDIR)/build/graphics.o
+OFILES_LD += $(CURDIR)/build/rdp.o
 
 OFILES_LDS  = $(CURDIR)/build/system.o
 
@@ -22,6 +23,8 @@ $(CURDIR)/build/console.o: $(CURDIR)/src/console.c
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/console.o $(CURDIR)/src/console.c
 $(CURDIR)/build/graphics.o: $(CURDIR)/src/graphics.c
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/graphics.o $(CURDIR)/src/graphics.c
+$(CURDIR)/build/rdp.o: $(CURDIR)/src/rdp.c
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/rdp.o $(CURDIR)/src/rdp.c
 
 # Rules for compiling controller system
 $(CURDIR)/build/controller.o: $(CURDIR)/src/controller.c

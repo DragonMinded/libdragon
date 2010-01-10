@@ -24,4 +24,13 @@ struct controller_data get_keys_up();
    at least one controller_scan() query. */
 struct controller_data get_keys_held();
 
+/* Returns any key that is currently held down, regardless of the previous
+   state. */
+struct controller_data get_keys_pressed();
+
+/* Return the direction of the DPAD specified in controller.  Follows standard
+   polar coordinates, where 0 = 0, pi/4 = 1, pi/2 = 2, etc...  Returns -1 when
+   not pressed. */
+int get_dpad_direction( int controller );
+
 #endif
