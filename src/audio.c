@@ -107,6 +107,11 @@ void audio_write_silence()
     now_writing = (now_writing + 1) % NUM_BUFFERS;
 }
 
+int audio_can_write()
+{
+    return !(now_playing == now_writing);
+}
+
 int audio_get_frequency()
 {
     return _frequency;

@@ -34,7 +34,7 @@ static void rdp_interrupt()
     wait_intr++;
 }
 
-static uint32_t rdp_round_to_power( uint32_t number )
+static inline uint32_t rdp_round_to_power( uint32_t number )
 {
     if( number <= 4   ) { return 4;   }
     if( number <= 8   ) { return 8;   }
@@ -47,7 +47,7 @@ static uint32_t rdp_round_to_power( uint32_t number )
     return 256;
 }
 
-static uint32_t rdp_log2( uint32_t number )
+static inline uint32_t rdp_log2( uint32_t number )
 {
     switch( number )
     {
@@ -69,7 +69,7 @@ static uint32_t rdp_log2( uint32_t number )
     }
 }
 
-static uint32_t rdp_ringbuffer_size( void )
+static inline uint32_t rdp_ringbuffer_size( void )
 {
     /* Normal length */
     return rdp_end - rdp_start;
@@ -183,6 +183,14 @@ void rdp_set_default_clipping( void )
     rdp_set_clipping( 0, 0, __width, __height );
 }
 
+void rdp_enable_primitive_fill( void )
+{
+    /* Set other modes to fill and other defaults */
+    rdp_ringbuffer_queue( 0xEFB000FF );
+    rdp_ringbuffer_queue( 0x00004000 );
+    rdp_ringbuffer_send();
+}
+
 void rdp_enable_texture_copy( void )
 {
     /* Set other modes to copy and other defaults */
@@ -260,5 +268,23 @@ void rdp_draw_sprite( uint32_t texslot, int x, int y )
 {
     /* Just draw a rectangle the size of the sprite */
     rdp_draw_textured_rectangle( texslot, x, y, x + cache[texslot & 0x7].width, y + cache[texslot & 0x7].height );
+}
+
+void rdp_set_primitive_color( uint32_t color )
+{
+    /* Set packed color */
+    rdp_ringbuffer_queue( 0xF7000000 );
+    rdp_ringbuffer_queue( color );
+    rdp_ringbuffer_send();
+}
+
+void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by )
+{
+    if( tx < 0 ) { tx = 0; }
+    if( ty < 0 ) { ty = 0; }
+
+    rdp_ringbuffer_queue( 0xF6000000 | ( bx << 14 ) | ( by << 2 ) ); 
+    rdp_ringbuffer_queue( ( tx << 14 ) | ( ty << 2 ) );
+    rdp_ringbuffer_send();
 }
 
