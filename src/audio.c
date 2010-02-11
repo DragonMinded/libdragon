@@ -1,18 +1,34 @@
 #include <stdio.h>
 #include <string.h>
 #include <malloc.h>
-#include <libn64.h>
-#include "audio.h"
+#include "libdragon.h"
+#include "regsinternal.h"
+
+#define AI_NTSC_DACRATE 48681812
+#define AI_STATUS_BUSY  ( 1 << 30 )
+#define AI_STATUS_FULL  ( 1 << 31 )
 
 #define NUM_BUFFERS     4
-#define CALC_BUFFER(x)  ((((x)/25)>>3)<<3)
+#define CALC_BUFFER(x)  ( ( ( ( x ) / 25 ) >> 3 ) << 3 )
 
 static int _frequency = 0;
 static int _buf_size = 0;
 static short **buffers = NULL;
 
-static int now_playing = 0;
-static int now_writing = 0;
+static volatile int now_playing = 0;
+static volatile int now_writing = 0;
+
+static volatile struct AI_regs_s * const AI_regs = (struct AI_regs_s *)0xa4500000;
+
+static volatile inline int __busy() 
+{
+    return AI_regs->status & AI_STATUS_BUSY;
+}
+
+static volatile inline int __full() 
+{
+    return AI_regs->status & AI_STATUS_FULL;
+}
 
 /* Called whenever internal buffers are running low */
 static void audio_callback()
@@ -21,25 +37,34 @@ static void audio_callback()
     if(!buffers) { return; }
 
     /* Copy in as many buffers as can fit (up to 2) */
-    while(!AI_full()) 
+    while(!__full()) 
     {
+        /* Set up DMA */
         now_playing = (now_playing + 1) % NUM_BUFFERS;
-        AI_add_buffer(buffers[now_playing], _buf_size);
+
+        AI_regs->address = UncachedAddr( buffers[now_playing] );
+        AI_regs->length = (_buf_size * 2 * 2 ) & ( ~7 );
+
+         /* Start DMA */
+        AI_regs->control = 1;
     }
 }
 
 void audio_init(const int frequency)
 {
     /* Remember frequency */
-    _frequency = frequency;
-    AI_set_frequency(_frequency);
+    AI_regs->dacrate = AI_NTSC_DACRATE / frequency;
+    AI_regs->samplesize = 15;
+
+    /* Real frequency */
+    _frequency = AI_NTSC_DACRATE / (AI_NTSC_DACRATE / frequency);
 
     /* Set up hardware to notify us when it needs more data */
-    registerAIhandler(audio_callback);
+    register_AI_handler(audio_callback);
     set_AI_interrupt(1);
 
     /* Set up buffers */
-    _buf_size = CALC_BUFFER(frequency);
+    _buf_size = CALC_BUFFER(_frequency);
     buffers = malloc(sizeof(short *) * NUM_BUFFERS);
 
     for(int i = 0; i < NUM_BUFFERS; i++)
@@ -84,7 +109,7 @@ void audio_write(const short * const buffer)
     /* Wait until there is a buffer to write to */
     while(now_playing == now_writing) 
     {
-        if(!AI_busy()) audio_callback();
+        if(!__busy()) audio_callback();
     }
 
     /* Copy buffer into local buffers */
@@ -99,7 +124,7 @@ void audio_write_silence()
     /* Wait until there is a buffer to write to */
     while(now_playing == now_writing) 
     {
-        if(!AI_busy()) audio_callback();
+        if(!__busy()) audio_callback();
     }
 
     /* Copy silence into local buffers */
@@ -107,7 +132,7 @@ void audio_write_silence()
     now_writing = (now_writing + 1) % NUM_BUFFERS;
 }
 
-int audio_can_write()
+volatile int audio_can_write()
 {
     return !(now_playing == now_writing);
 }

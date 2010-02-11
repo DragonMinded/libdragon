@@ -1,11 +1,8 @@
 #include <stdio.h>
 #include <malloc.h>
 #include <string.h>
-#include <libn64.h>
 #include <stdarg.h>
-#include "display.h"
-#include "graphics.h"
-#include "console.h"
+#include "libdragon.h"
 
 #define CONSOLE_SIZE        ((sizeof(char) * CONSOLE_WIDTH * CONSOLE_HEIGHT) + sizeof(char))
 

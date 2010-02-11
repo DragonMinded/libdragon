@@ -1,8 +1,7 @@
 #include <stdint.h>
 #include <malloc.h>
 #include <string.h>
-#include <libn64.h>
-#include "display.h"
+#include "libdragon.h"
 
 /* Constants for easier code management */
 #define NUM_BUFFERS         3
@@ -212,7 +211,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     enable_interrupts();
 
     /* Set which line to call back on in order to flip screens */
-    registerVIhandler( __display_callback );
+    register_VI_handler( __display_callback );
     set_VI_interrupt( 1, 0x200 );
 }
 

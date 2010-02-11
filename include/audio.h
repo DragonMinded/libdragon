@@ -12,7 +12,7 @@ void audio_init(const int frequency);
 void audio_write(const short * const buffer);
 
 /* Return whether or not there is room to write another sample */
-int audio_can_write();
+volatile int audio_can_write();
 
 /* Write silence to the audio system.  This is provided as a convenience so the
    programmer does not have to allocate a buffer, zero it and then pass it in.  */

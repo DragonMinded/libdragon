@@ -1,8 +1,7 @@
 #include <stdint.h>
 #include <malloc.h>
 #include <string.h>
-#include <libn64.h>
-#include "rdp.h"
+#include "libdragon.h"
 
 #define __get_buffer( x ) __safe_buffer[(x)-1]
 
@@ -122,7 +121,7 @@ void rdp_init( void )
     /* Set up interrupt for SYNC_FULL */
     enable_interrupts();
 
-    registerDPhandler( rdp_interrupt );
+    register_DP_handler( rdp_interrupt );
     set_DP_interrupt( 1 );
 }
 

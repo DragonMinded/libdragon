@@ -1,7 +1,6 @@
 #include <stdint.h>
 #include <malloc.h>
 #include <string.h>
-#include <libn64.h>
 #include "display.h"
 #include "graphics.h"
 

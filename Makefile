@@ -30,7 +30,12 @@ libdragonsys.a: $(OFILES_LDS)
 
 install: libdragon.a libdragonsys.a
 	install -D --mode=644 libdragon.a $(INSTALLDIR)/lib/libdragon.a
+	install -D --mode=644 n64ld.x $(INSTALLDIR)/lib/n64ld.x
+	install -D --mode=644 header $(INSTALLDIR)/lib/header
 	install -D --mode=644 libdragonsys.a $(INSTALLDIR)/lib/libdragonsys.a
+	install -D --mode=644 include/n64sys.h $(INSTALLDIR)/include/n64sys.h
+	install -D --mode=644 include/interrupt.h $(INSTALLDIR)/include/interrupt.h
+	install -D --mode=644 include/dma.h $(INSTALLDIR)/include/dma.h
 	install -D --mode=644 include/dragonfs.h $(INSTALLDIR)/include/dragonfs.h
 	install -D --mode=644 include/audio.h $(INSTALLDIR)/include/audio.h
 	install -D --mode=644 include/display.h $(INSTALLDIR)/include/display.h
@@ -38,6 +43,7 @@ install: libdragon.a libdragonsys.a
 	install -D --mode=644 include/controller.h $(INSTALLDIR)/include/controller.h
 	install -D --mode=644 include/graphics.h $(INSTALLDIR)/include/graphics.h
 	install -D --mode=644 include/rdp.h $(INSTALLDIR)/include/rdp.h
+	install -D --mode=644 include/libdragon.h $(INSTALLDIR)/include/libdragon.h
 
 install-tools: tools
 	install -D --mode=755 tools/dumpdfs/dumpdfs $(INSTALLDIR)/bin/dumpdfs
