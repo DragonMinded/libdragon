@@ -27,7 +27,7 @@
 #define FLAGS_DIR           0x1
 #define FLAGS_EOF           0x2
 
-int dfs_init(uint32_t base_fs_loc, int tries);
+int dfs_init(uint32_t base_fs_loc);
 int dfs_chdir(const char * const path);
 int dfs_dir_findfirst(const char * const path, char *buf);
 int dfs_dir_findnext(char *buf);

@@ -8,6 +8,12 @@
 #include "dragonfs.h"
 #include "dfsinternal.h"
 
+#if BYTE_ORDER == BIG_ENDIAN
+#define SWAPLONG(i) (i)
+#else
+#define SWAPLONG(i) (((uint32_t)(i & 0xFF000000) >> 24) | ((uint32_t)(i & 0x00FF0000) >>  8) | ((uint32_t)(i & 0x0000FF00) <<  8) | ((uint32_t)(i & 0x000000FF) << 24))
+#endif
+
 uint8_t *dfs = NULL;
 uint32_t fs_size = 0;
 
@@ -97,7 +103,7 @@ uint32_t add_file(const char * const file, uint32_t *size)
             fclose(fp);
             return 0;
         }
-        
+
         if(num_read > 0)
         {
             file_entry_t *tmp_sector = 0;
@@ -113,7 +119,7 @@ uint32_t add_file(const char * const file, uint32_t *size)
             if(cur_sector)
             {
                 tmp_sector = sector_to_memory(cur_sector);
-                tmp_sector->next_sector = new_node;
+                tmp_sector->next_sector = SWAPLONG(new_node);
             }
 
             cur_sector = new_node;
@@ -179,7 +185,7 @@ uint32_t add_directory(const char * const path)
 
                 strcat(file, dp->d_name);
 
-                /* Figure out if it is a directory or regular (windows doesn't include d_type in dirent */
+                /* Figure out if it is a directory or regular (windows doesn't include d_type in dirent) */
                 stat( file, &stats );
 
                 if(S_ISREG(stats.st_mode))
@@ -203,17 +209,15 @@ uint32_t add_directory(const char * const path)
                     }
 
                     tmp_entry = sector_to_memory(new_entry);
-                    tmp_entry->file_pointer = new_file;
+                    tmp_entry->file_pointer = SWAPLONG(new_file);
 
-                    tmp_entry->flags = file_size;
-                    tmp_entry->flags &= 0x00FFFFFF; /* Room for flags */
-                    tmp_entry->flags |= ((FLAGS_FILE) << 24) & 0xFF000000; /* Make sure it is a file */
+                    tmp_entry->flags = SWAPLONG(((FLAGS_FILE << 24) | (file_size & 0x00FFFFFF)));
 
                     if(cur_entry)
                     {
                         /* Link up! */
                         tmp_entry = sector_to_memory(cur_entry);
-                        tmp_entry->next_entry = new_entry;
+                        tmp_entry->next_entry = SWAPLONG(new_entry);
                     }
 
                     /* This is now the current working entry */
@@ -222,10 +226,10 @@ uint32_t add_directory(const char * const path)
                 else if(S_ISDIR(stats.st_mode))
                 {
                     uint32_t new_entry = new_sector();
-                    
+
                     tmp_entry = sector_to_memory(new_entry);
 
-                    tmp_entry->flags = FLAGS_DIR << 24; /* Size doesn't matter for directories */
+                    tmp_entry->flags = SWAPLONG(FLAGS_DIR << 24); /* Size doesn't matter for directories */
                     tmp_entry->next_entry = 0;
 
                     /* Copy over filename */
@@ -241,13 +245,13 @@ uint32_t add_directory(const char * const path)
                     }
 
                     tmp_entry = sector_to_memory(new_entry);
-                    tmp_entry->file_pointer = new_directory;
+                    tmp_entry->file_pointer = SWAPLONG(new_directory);
 
                     if(cur_entry)
                     {
                         /* Link up! */
                         tmp_entry = sector_to_memory(cur_entry);
-                        tmp_entry->next_entry = new_entry;
+                        tmp_entry->next_entry = SWAPLONG(new_entry);
                     }
 
                     /* This is now the current working entry */
@@ -289,8 +293,8 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    id->flags = FLAGS_ID;
-    id->next_entry = NEXTENTRY_ID;
+    id->flags = SWAPLONG(FLAGS_ID);
+    id->next_entry = SWAPLONG(NEXTENTRY_ID);
     strcpy(id->path, "DragonFS 1.0");
 
     if(!add_directory(argv[2]))

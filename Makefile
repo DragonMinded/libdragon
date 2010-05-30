@@ -1,5 +1,5 @@
 ROOTDIR = $(N64_INST)
-CFLAGS = -std=gnu99 -O2 -G0 -Wall -Werror -mtune=vr4300 -march=vr4300 -I$(CURDIR)/include -I$(ROOTDIR)/include -I$(ROOTDIR)/mips64-elf/include
+CFLAGS = -std=gnu99 -O1 -G0 -Wall -Werror -mtune=vr4300 -march=vr4300 -I$(CURDIR)/include -I$(ROOTDIR)/include -I$(ROOTDIR)/mips64-elf/include
 ASFLAGS = -mtune=vr4300 -march=vr4300
 N64PREFIX = $(N64_INST)/bin/mips64-elf-
 INSTALLDIR = $(N64_INST)
@@ -8,12 +8,7 @@ AS = $(N64PREFIX)as
 LD = $(N64PREFIX)ld
 AR = $(N64PREFIX)ar
 
-all: tools libdragon
-
-tools: 
-	make -C tools/dumpdfs
-	make -C tools/mkdfs
-	make -C tools/mksprite
+all: libdragon
 
 libdragon: libdragon.a libdragonsys.a
 
@@ -54,12 +49,4 @@ clean:
 	rm -f *.o *.a
 	rm -f $(CURDIR)/build/*
 
-rclean: clean
-	rm -f $(CURDIR)/tools/dumpdfs/dumpdfs
-	rm -f $(CURDIR)/tools/dumpdfs/dumpdfs.exe
-	rm -f $(CURDIR)/tools/mkdfs/mkdfs
-	rm -f $(CURDIR)/tools/mkdfs/mkdfs.exe
-	rm -f $(CURDIR)/tools/mksprite/mksprite
-	rm -f $(CURDIR)/tools/mksprite/mksprite.exe
-
-.PHONY : clean rclean tools
+.PHONY : clean

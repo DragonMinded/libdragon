@@ -433,32 +433,36 @@ static int recurse_path(const char * const path, int mode, directory_entry_t **d
     return ret;
 }
 
-/* Initialize the filesystem.  */
-int dfs_init(uint32_t base_fs_loc, int tries)
+int __dfs_init(uint32_t base_fs_loc)
 {
     /* Check to see if it passes the check */
-    while(tries != 0)
+    directory_entry_t id_node;
+    grab_sector((void *)base_fs_loc, &id_node);
+
+    if(id_node.flags == FLAGS_ID && id_node.next_entry == NEXTENTRY_ID)
     {
-        directory_entry_t id_node;
-        grab_sector((void *)base_fs_loc, &id_node);
+        /* Passes, set up the FS */
+        base_ptr = base_fs_loc;
+        clear_directory();
 
-        if(id_node.flags == FLAGS_ID && id_node.next_entry == NEXTENTRY_ID)
-        {
-            /* Passes, set up the FS */
-            base_ptr = base_fs_loc;
-            clear_directory();
+        memset(open_files, 0, sizeof(open_files));
 
-            memset(open_files, 0, sizeof(open_files));
-
-            /* Good FS */
-            return DFS_ESUCCESS;
-        }
-
-        tries--;
+        /* Good FS */
+        return DFS_ESUCCESS;
     }
 
     /* Failed! */
     return DFS_EBADFS;
+}
+
+/* Initialize the filesystem.  */
+int dfs_init(uint32_t base_fs_loc)
+{
+    /* Try normal (works on doctor v64) */
+    if( __dfs_init( base_fs_loc ) == DFS_ESUCCESS ) { return DFS_ESUCCESS; }
+
+    /* For some reason, the Neo Myth wants this initialized at 0x1000 offset. */
+    return __dfs_init( base_fs_loc + 0x1000 );
 }
 
 /* Change directories to the specified path.  Supports absolute and relative */
