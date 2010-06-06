@@ -1,6 +1,15 @@
 #ifndef __LIBDRAGON_CONTROLLER_H
 #define __LIBDRAGON_CONTROLLER_H
 
+#define CONTROLLER_1_INSERTED   0xF000
+#define CONTROLLER_2_INSERTED   0x0F00
+#define CONTROLLER_3_INSERTED   0x00F0
+#define CONTROLLER_4_INSERTED   0x000F
+
+#define ACCESSORY_NONE          0
+#define ACCESSORY_MEMPAK        1
+#define ACCESSORY_RUMBLEPAK     2
+
 typedef struct SI_condat 
 {
     unsigned : 16;
@@ -11,8 +20,7 @@ typedef struct SI_condat
     {
         struct 
         {
-            unsigned buttons : 16;
-            unsigned : 16;
+            unsigned int data : 32;
         };
         struct 
         {
@@ -50,8 +58,18 @@ typedef struct controller_data
 void controller_init();
 
 /* Read the controller status immediately and return results to data.  If
-   calling this function, one should not also call controller_scan */
+   calling this function, one should not also call controller_scan as this
+   does not update the internal state of controllers. */
 void controller_read( struct controller_data * data);
+
+/* Read the controller status immediately and return a bitmask representing
+   which controllers are present in the system.  Note that this does not update
+   the current internal state of the controllers. */
+int get_controllers_present();
+
+/* Read the controller status immediately and return a bitmask representing
+   which controllers have inserted accessories */
+int get_accessories_present();
 
 /* Scan the four controller ports and calculate the buttons state.  This
    must be called before calling any of the below functions. */
@@ -76,7 +94,24 @@ struct controller_data get_keys_pressed();
 
 /* Return the direction of the DPAD specified in controller.  Follows standard
    polar coordinates, where 0 = 0, pi/4 = 1, pi/2 = 2, etc...  Returns -1 when
-   not pressed. */
+   not pressed.  Must be used in conjunction with controller_scan() */
 int get_dpad_direction( int controller );
+
+/* Reads a 32 byte aligned address from a controller and places 32 read bytes
+   into data */
+int read_mempak_address( int controller, uint16_t address, uint8_t *data );
+
+/* Writes 32 bytes to a 32 byte aligned address */
+int write_mempak_address( int controller, uint16_t address, uint8_t *data );
+
+/* Given a controller, identify the particular accessory type inserted.  See
+   accessory defines above */
+int identify_accessory( int controller );
+
+/* Start rumble on a particular controller */
+void rumble_start( int controller );
+
+/* Stop rumble on a particular controller */
+void rumble_stop( int controller );
 
 #endif
