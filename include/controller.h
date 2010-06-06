@@ -10,6 +10,10 @@
 #define ACCESSORY_MEMPAK        1
 #define ACCESSORY_RUMBLEPAK     2
 
+#define ERROR_NONE          0x0
+#define ERROR_BAD_COMMAND   0x1
+#define ERROR_NOT_PRESENT   0x2
+
 typedef struct SI_condat 
 {
     unsigned : 16;
@@ -53,6 +57,17 @@ typedef struct controller_data
         unsigned long unused[4*8]; // to map directly to PIF block
     };
 } _controller_data;
+
+typedef struct entry_structure
+{
+    uint32_t vendor;
+    uint16_t game_id;
+    uint16_t inode;
+    uint8_t region;
+    uint8_t blocks;
+    uint16_t valid;
+    char name[19];
+} entry_structure_t;
 
 /* Initialize the controller system. */
 void controller_init();
@@ -113,5 +128,21 @@ void rumble_start( int controller );
 
 /* Stop rumble on a particular controller */
 void rumble_stop( int controller );
+
+/* Read a sector off of a memory card.  Valid sector numbers are 0-127 */
+int read_mempak_sector( int controller, int sector, uint8_t *sector_data );
+
+/* Write a sector to a memory card.  Same restriction as above */
+int write_mempak_sector( int controller, int sector, uint8_t *sector_data );
+
+/* Return whether a mempak is formatted and valid */
+int validate_mempak( int controller );
+
+/* Return the number of blocks free on the mempak */
+int get_mempak_free_space( int controller );
+
+/* Given an entry index (0-15), return the entry as found on the mempak.  If
+   the entry is blank or invalid, the valid flag is cleared. */
+int get_mempak_entry( int controller, int entry, entry_structure_t *entry_data );
 
 #endif

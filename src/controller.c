@@ -5,10 +5,6 @@
 #define SI_STATUS_DMA_BUSY  ( 1 << 0 )
 #define SI_STATUS_IO_BUSY   ( 1 << 1 )
 
-#define ERROR_NONE          0x0
-#define ERROR_BAD_COMMAND   0x1
-#define ERROR_NOT_PRESENT   0x2
-
 static volatile struct SI_regs_s * const SI_regs = (struct SI_regs_s *)0xa4800000;
 static void * const PIF_RAM = (void *)0x1fc007c0;
 
@@ -50,7 +46,6 @@ static void __controller_exec_PIF( void *inblock, void *outblock )
 
     memcpy(outblock, UncachedAddr(outblock_temp), 64);
 }
-
 
 void controller_read(struct controller_data * output) 
 {
@@ -454,4 +449,445 @@ void rumble_stop( int controller )
     write_mempak_address( controller, 0xC000, data );
     write_mempak_address( controller, 0xC000, data );
     write_mempak_address( controller, 0xC000, data );
+}
+
+int read_mempak_sector( int controller, int sector, uint8_t *sector_data )
+{
+    if( sector < 0 || sector >= 128 ) { return -1; }
+    if( sector_data == 0 ) { return -1; }
+
+    /* Sectors are 256 bytes, a mempak reads 32 bytes at a time */
+    for( int i = 0; i < 8; i++ )
+    {
+        if( read_mempak_address( controller, (sector * 256) + (i * 32), sector_data + (i * 32) ) )
+        {
+            /* Failed to read a block */
+            return -2;
+        }
+    }
+
+    return 0;
+}
+
+int write_mempak_sector( int controller, int sector, uint8_t *sector_data )
+{
+    if( sector < 0 || sector >= 128 ) { return -1; }
+    if( sector_data == 0 ) { return -1; }
+
+    /* Sectors are 256 bytes, a mempak reads 32 bytes at a time */
+    for( int i = 0; i < 8; i++ )
+    {
+        if( write_mempak_address( controller, (sector * 256) + (i * 32), sector_data + (i * 32) ) )
+        {
+            /* Failed to read a block */
+            return -2;
+        }
+    }
+
+    return 0;
+}
+
+static int __validate_header( uint8_t *sector )
+{
+    if( !sector ) { return -1; }
+
+    /* Header is first sector */
+    if( memcmp( &sector[0x20], &sector[0x60], 16 ) != 0 ) { return -1; }
+    if( memcmp( &sector[0x80], &sector[0xC0], 16 ) != 0 ) { return -1; }
+    if( memcmp( &sector[0x20], &sector[0x80], 16 ) != 0 ) { return -1; }
+
+    return 0;
+}
+
+static int __validate_toc( uint8_t *sector )
+{
+    uint32_t sum = 0;
+
+    /* Rudimentary checksum */
+    for( int i = 5; i < 128; i++ )
+    {
+        sum += sector[(i << 1) + 1];
+    }
+
+    /* True checksum is sum % 256 */
+    if( (sum & 0xFF) == sector[1] )
+    {
+        return 0;
+    }
+    else
+    {
+        return -1;
+    }
+
+    return -1;
+}
+
+static char __n64_to_ascii( char c )
+{
+    /* Miscelaneous chart */
+    switch( c )
+    {
+        case 0x00:
+            return 0;
+        case 0x0F:
+            return ' ';
+        case 0x34:
+            return '!';
+        case 0x35:
+            return '\"';
+        case 0x36:
+            return '#';
+        case 0x37:
+            return '`';
+        case 0x38:
+            return '*';
+        case 0x39:
+            return '+';
+        case 0x3A:
+            return ',';
+        case 0x3B:
+            return '-';
+        case 0x3C:
+            return '.';
+        case 0x3D:
+            return '/';
+        case 0x3E:
+            return ':';
+        case 0x3F:
+            return '=';
+        case 0x40:
+            return '?';
+        case 0x41:
+            return '@';
+    }
+
+    /* Numbers */
+    if( c >= 0x10 && c <= 0x19 )
+    {
+        return '0' + (c - 0x10);
+    }
+
+    /* Uppercase ASCII */
+    if( c >= 0x1A && c <= 0x33 )
+    {
+        return 'A' + (c - 0x1A);
+    }
+
+    /* Default to space for unprintables */
+    return ' ';
+}
+
+static int __read_note( uint8_t *sector, int index, entry_structure_t *note )
+{
+    if( !sector || !note ) { return -1; }
+    if( index < 0 || index > 16 ) { return -1; }
+
+    uint8_t *tnote = &sector[index << 5];
+
+    /* Easy stuff */
+    note->vendor = (tnote[0] << 16) | (tnote[1] << 8) | (tnote[2]);
+    note->region = tnote[3];
+
+    /* Important stuff */
+    note->game_id = (tnote[4] << 8) | (tnote[5]);
+    note->inode = (tnote[6] << 8) | (tnote[7]);
+
+    /* Don't know number of blocks */
+    note->blocks = 0;
+    note->valid = 0;
+
+    /* Translate n64 to ascii */
+    memset( note->name, 0, sizeof( note->name ) );
+
+    for( int i = 0; i < 16; i++ )
+    {
+        note->name[i] = __n64_to_ascii( tnote[0x10 + i] );
+    }
+
+    /* Find the last position */
+    for( int i = 0; i < 17; i++ )
+    {
+        if( note->name[i] == 0 )
+        {
+            /* Here it is! */
+            note->name[i]   = '.';
+            note->name[i+1] = __n64_to_ascii( tnote[0xC] );
+            break;
+        }
+    }
+
+    /* Validate entries */
+    if( note->inode < 5 || note->inode >= 128 )
+    {
+        /* Invalid inode */
+        return -2;
+    }
+
+    switch( note->region )
+    {
+        case 0x00:
+        case 0x37:
+        case 0x41:
+        case 0x44:
+        case 0x45:
+        case 0x46:
+        case 0x49:
+        case 0x4A:
+        case 0x50:
+        case 0x53:
+        case 0x55:
+        case 0x58:
+        case 0x59:
+            break;
+        default:
+            /* Invalid region */
+            return -3;
+
+    }
+
+    /* Checks out */
+    note->valid = 1;
+    return 0;
+}
+
+static int __get_num_pages( uint8_t *sector, int inode )
+{
+    if( inode < 5 || inode >= 128 ) { return -1; }
+
+    int tally = 0;
+    int last = inode;
+    int rcount = 0;
+
+    /* If we go over this, something is wrong */
+    while( rcount < 123 )
+    {
+        switch( sector[(last << 1) + 1] )
+        {
+            case 0x01:
+                /* Last block */
+                return tally + 1;
+            case 0x03:
+                /* Error, can't have free blocks! */
+                return -2;
+            default:
+                last = sector[(last << 1) + 1];
+                tally++;
+
+                /* Failed to point to valid next block */
+                if( last < 5 || last >= 128 ) { return -3; }
+                break;
+        }
+
+        rcount++;
+    }
+
+    /* Invalid filesystem */
+    return -3;
+}
+
+static int __get_free_space( uint8_t *sector )
+{
+    int space = 0;
+
+    for( int i = 5; i < 128; i++ )
+    {
+        if( sector[(i << 1) + 1] == 0x03 )
+        {
+            space++;
+        }
+    }
+
+    return space;
+}
+
+static int __get_note_block( uint8_t *sector, int inode, int block )
+{
+    if( inode < 5 || inode >= 128 ) { return -1; }
+    if( block < 0 || block > 123 ) { return -1; }
+
+    int tally = block + 1;
+    int last = inode;
+
+    /* Only going through until we hit the requested node */
+    while( tally > 0 )
+    {
+        /* Count down to zero, when zero is hit, this is the node we want */
+        tally--;
+
+        if( !tally )
+        {
+            return last;
+        }
+        else
+        {
+            switch( sector[(last << 1) + 1] )
+            {
+                case 0x01:
+                    /* Last block, couldn't find block number */
+                    return -2;
+                case 0x03:
+                    /* Error, can't have free blocks! */
+                    return -2;
+                default:
+                    last = sector[(last << 1) + 1];
+
+                    /* Failed to point to valid next block */
+                    if( last < 5 || last >= 128 ) { return -3; }
+                    break;
+            }
+        }
+    }
+
+    /* Invalid filesystem */
+    return -3;
+}
+
+int __get_valid_toc( int controller )
+{
+    /* We will need only one sector at a time */
+    uint8_t data[256];
+
+    /* First check to see that the header block is valid */
+    if( read_mempak_sector( controller, 0, data ) )
+    {
+        /* Couldn't read header */
+        return -2;
+    }
+
+    if( __validate_header( data ) )
+    {
+        /* Header is invalid or unformatted */
+        return -3;
+    }
+
+    /* Try to read the first TOC */
+    if( read_mempak_sector( controller, 1, data ) )
+    {
+        /* Couldn't read header */
+        return -2;
+    }
+
+    if( __validate_toc( data ) )
+    {
+        /* First TOC is bad.  Maybe the second works? */
+        if( read_mempak_sector( controller, 2, data ) )
+        {
+            /* Couldn't read header */
+            return -2;
+        }
+
+        if( __validate_toc( data ) )
+        {
+            /* Second TOC is bad, nothing good on this memcard */
+            return -3;
+        }
+        else
+        {
+            /* Found a good TOC! */
+            return 2;
+        }
+    }
+    else
+    {
+        /* Found a good TOC! */
+        return 1;
+    }
+}
+
+int validate_mempak( int controller )
+{
+    int toc = __get_valid_toc( controller );
+
+    if( toc == 1 || toc == 2 )
+    {
+        /* Found a valid TOC */
+        return 0;
+    }
+    else
+    {
+        /* Pass on return code */
+        return toc;
+    }
+}
+
+int get_mempak_entry( int controller, int entry, entry_structure_t *entry_data )
+{
+    uint8_t data[256];
+    int toc;
+
+    if( entry < 0 || entry > 15 ) { return -1; }
+    if( entry_data == 0 ) { return -1; }
+
+    /* Make sure mempak is valid */
+    if( (toc = __get_valid_toc( controller )) <= 0 )
+    {
+        /* Bad mempak or was removed, return */
+        return -2;
+    }
+
+    /* Entries are spread across two sectors */
+    if( read_mempak_sector( controller, (entry >= 8) ? 4 : 3, data ) )
+    {
+        /* Couldn't read note database */
+        return -2;
+    }
+
+    /* Only eight notes per sector */
+    if( __read_note( data, entry & 0x7, entry_data ) )
+    {
+        /* Note is most likely empty, don't bother getting length */
+        return 0;
+    }
+
+    /* Grab the TOC sector */
+    if( read_mempak_sector( controller, toc, data ) )
+    {
+        /* Couldn't read TOC */
+        return -2;
+    }
+
+    /* Get the length of the entry */
+    int blocks = __get_num_pages( data, entry_data->inode );
+
+    if( blocks > 0 )
+    {
+        /* Valid entry */
+        entry_data->blocks = blocks;
+        return 0;
+    }
+    else
+    {
+        /* Invalid TOC */
+        entry_data->valid = 0;
+        return 0;
+    }
+}
+
+int get_mempak_free_space( int controller )
+{
+    uint8_t data[256];
+    int toc;
+
+    /* Make sure mempak is valid */
+    if( (toc = __get_valid_toc( controller )) <= 0 )
+    {
+        /* Bad mempak or was removed, return */
+        return -2;
+    }
+
+    /* Grab the valid TOC to get free space */
+    if( read_mempak_sector( controller, toc, data ) )
+    {
+        /* Couldn't read TOC */
+        return -2;
+    }
+    
+    return __get_free_space( data );
+}
+
+int test()
+{
+    __get_note_block( 0, 0, 0 );
+
+    return 0;
 }
