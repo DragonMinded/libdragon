@@ -18,6 +18,20 @@ volatile unsigned long get_ticks_ms(void)
     return count / (COUNTS_PER_SECOND / 1000);
 }
 
+void wait_ticks( unsigned long wait )
+{
+    unsigned int stop = wait + get_ticks();
+
+    while( stop > get_ticks() );
+}
+
+void wait_ms( unsigned long wait )
+{
+    unsigned int stop = wait + get_ticks_ms();
+
+    while( stop > get_ticks_ms() );
+}
+
 #define cache_op(op) \
     addr=(void*)(((unsigned long)addr)&(~3));\
     for (;length>0;length-=4,addr+=4) \

@@ -9,14 +9,18 @@
 
 #define CachedAddr(_addr) (((void *)(((unsigned long)(_addr))&~0x20000000))
 
-volatile unsigned long get_ticks(void);
-volatile unsigned long get_ticks_ms(void);
+volatile unsigned long get_ticks( void );
+volatile unsigned long get_ticks_ms( void );
+void wait_ticks( unsigned long wait );
+void wait_ms( unsigned long wait );
+
 void data_cache_invalidate(volatile void *, unsigned long);
 void data_cache_writeback(volatile void *, unsigned long);
 void data_cache_writeback_invalidate(volatile void *, unsigned long);
 void inst_cache_invalidate(volatile void *, unsigned long);
 void inst_cache_writeback(volatile void *, unsigned long);
 void inst_cache_writeback_invalidate(volatile void *, unsigned long);
+
 void enable_interrupts();
 void disable_interrupts();
 

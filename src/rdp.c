@@ -233,7 +233,7 @@ uint32_t rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror_en
     return real_width * real_height * sprite->bitdepth;
 }
 
-void rdp_draw_textured_rectangle( uint32_t texslot, int tx, int ty, int bx, int by )
+void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int bx, int by, double x_scale, double y_scale )
 {
     uint16_t s = 0;
     uint16_t t = 0;
@@ -251,24 +251,43 @@ void rdp_draw_textured_rectangle( uint32_t texslot, int tx, int ty, int bx, int 
         ty = 0;
     }
 
+    /* Calculate the scaling constants based on a 6.10 fixed point system */
+    int xs = (int)((1.0 / x_scale) * 4096.0);
+    int ys = (int)((1.0 / y_scale) * 1024.0);
+
     /* Set up rectangle position in screen space */
     rdp_ringbuffer_queue( 0xE4000000 | (bx << 14) | (by << 2) );
     rdp_ringbuffer_queue( ((texslot & 0x7) << 24) | (tx << 14) | (ty << 2) );
 
     /* Set up texture position and scaling to 1:1 copy */
     rdp_ringbuffer_queue( (s << 21) | (t << 5) );
-    rdp_ringbuffer_queue( ((4 << 10) & 0xFFFF) << 16 | ((1 << 10) & 0xFFFF) );
+    rdp_ringbuffer_queue( (xs & 0xFFFF) << 16 | (ys & 0xFFFF) );
 
     /* Send command */
     rdp_ringbuffer_send();
 }
 
+void rdp_draw_textured_rectangle( uint32_t texslot, int tx, int ty, int bx, int by )
+{
+    /* Simple wrapper */
+    rdp_draw_textured_rectangle_scaled( texslot, tx, ty, bx, by, 1.0, 1.0 );
+}
+
 void rdp_draw_sprite( uint32_t texslot, int x, int y )
 {
     /* Just draw a rectangle the size of the sprite */
-    rdp_draw_textured_rectangle( texslot, x, y, x + cache[texslot & 0x7].width, y + cache[texslot & 0x7].height );
+    rdp_draw_textured_rectangle_scaled( texslot, x, y, x + cache[texslot & 0x7].width, y + cache[texslot & 0x7].height, 1.0, 1.0 );
 }
 
+void rdp_draw_sprite_scaled( uint32_t texslot, int x, int y, double x_scale, double y_scale )
+{
+    /* Since we want to still view the whole sprite, we must resize the rectangle area too */
+    int new_width = (int)(((double)cache[texslot & 0x7].width * x_scale) + 0.5);
+    int new_height = (int)(((double)cache[texslot & 0x7].height * y_scale) + 0.5);
+    
+    /* Draw a rectangle the size of the new sprite */
+    rdp_draw_textured_rectangle_scaled( texslot, x, y, x + new_width, y + new_height, x_scale, y_scale );
+}
 void rdp_set_primitive_color( uint32_t color )
 {
     /* Set packed color */
