@@ -14,6 +14,8 @@
 #define ERROR_BAD_COMMAND   0x1
 #define ERROR_NOT_PRESENT   0x2
 
+#define MEMPAK_BLOCK_SIZE   256
+
 typedef struct SI_condat 
 {
     unsigned : 16;
@@ -65,7 +67,8 @@ typedef struct entry_structure
     uint16_t inode;
     uint8_t region;
     uint8_t blocks;
-    uint16_t valid;
+    uint8_t valid;
+    uint8_t entry_id;
     char name[19];
 } entry_structure_t;
 
@@ -144,5 +147,26 @@ int get_mempak_free_space( int controller );
 /* Given an entry index (0-15), return the entry as found on the mempak.  If
    the entry is blank or invalid, the valid flag is cleared. */
 int get_mempak_entry( int controller, int entry, entry_structure_t *entry_data );
+
+/* Formats a mempak.  Should only be done to wipe a mempak or to initialize
+   the filesystem in case of a blank or corrupt mempak */
+int format_mempak( int controller );
+
+/* Given a valid mempak entry fetched by get_mempak_entry, retrieves the contents
+   of the entry.  The calling function must ensure that enough room is available in
+   the passed in buffer for the entire entry.  The entry structure itself contains
+   the number of blocks used to store the data which can be multiplied by 
+   MEMPAK_BLOCK_SIZE to calculate the size of the buffer needed */
+int read_mempak_entry_data( int controller, entry_structure_t *entry, uint8_t *data );
+
+/* Given a mempak entry structure with a valid region, name and block count, writes the
+   data to a free entry on the mempak.  All other values on the entry structure are
+   assumed to be uninitialized.  This function does no checking for existing entries
+   of the same name.  To remove an old record, use the delete_mempak_entry function. */
+int write_mempak_entry_data( int controller, entry_structure_t *entry, uint8_t *data );
+
+/* Given a valid mempak entry fetched by get_mempak_entry, removes the entry and frees
+   all associated blocks. */
+int delete_mempak_entry( int controller, entry_structure_t *entry );
 
 #endif
