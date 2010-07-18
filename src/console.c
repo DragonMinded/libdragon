@@ -87,7 +87,7 @@ void console_render()
     memmove(render_buffer, render_buffer + (sizeof(char) * CONSOLE_WIDTH), CONSOLE_SIZE - (CONSOLE_WIDTH * sizeof(char))); \
     pos -= CONSOLE_WIDTH;
 
-void console_printf(char *format, ...)
+void console_printf(const char * const format, ...)
 {
     static char buf[1024];
     va_list args;

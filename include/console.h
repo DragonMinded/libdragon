@@ -40,6 +40,6 @@ void console_render();
 
 /* Print to console.  Supports all modes standard printf supports.  The mode of
    rendering is affected by console_set_render_mode(). */
-void console_printf(char *format, ...);
+void console_printf(const char * const format, ...);
 
 #endif
