@@ -36,7 +36,7 @@ void one_shot(int ovfl)
 int main(void)
 {
 	_timer_link *one_shot_t;
-	long start, end;
+	long long start, end;
 
     /* enable MI interrupts (on the CPU) */
     set_MI_interrupt(1,1);

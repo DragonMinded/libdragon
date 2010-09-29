@@ -14,8 +14,11 @@ typedef struct timer_link
 #define TF_ONE_SHOT   0
 #define TF_CONTINUOUS 1
 
-#define TIMER_TICKS(us) ((int)((long)(us) * 46875LL / 1000LL))
-#define TIMER_MICROS(tk) ((int)((long)(tk) * 1000LL / 46875LL))
+#define TIMER_TICKS(us) ((int)((long long)(us) * 46875LL / 1000LL))
+#define TIMER_MICROS(tk) ((int)((long long)(tk) * 1000LL / 46875LL))
+
+#define TIMER_TICKS_LL(us) ((long long)(us) * 46875LL / 1000LL)
+#define TIMER_MICROS_LL(tk) ((long long)(tk) * 1000LL / 46875LL)
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,7 +37,7 @@ void delete_timer(_timer_link *timer);
 /* delete all timers in list */
 void timer_close(void);
 /* return total ticks since timer was initialized */
-long timer_ticks(void);
+long long timer_ticks(void);
 
 #ifdef __cplusplus
 }

@@ -4,7 +4,7 @@
 
 /* Timer linked list */
 static _timer_link *TI_timers = 0;
-static long total_ticks;
+static long long total_ticks;
 
 #define read_count(x) asm volatile("mfc0 %0,$9\n\t nop \n\t" : "=r" (x) : )
 #define write_count(x) asm volatile("mtc0 %0,$9\n\t nop \n\t" :  : "r" (x) )
@@ -78,12 +78,16 @@ static int __proc_timers(_timer_link * head)
 static void timer_callback(void)
 {
 	if (TI_timers)
+	{
 		while (__proc_timers(TI_timers)) ;
+	}
 	else
 	{
 		int now;
 		read_count(now);
 		total_ticks += now;
+		write_count(0);
+		write_compare(0x7FFFFFFF);
 	}
 }
 
@@ -91,6 +95,8 @@ static void timer_callback(void)
 void timer_init(void)
 {
 	total_ticks = 0;
+	write_count(0);
+	write_compare(0x7FFFFFFF);
     register_TI_handler(timer_callback);
 }
 
@@ -207,7 +213,10 @@ void timer_close(void)
 }
 
 /* return total ticks since timer was initialized */
-long timer_ticks(void)
+long long timer_ticks(void)
 {
+	disable_interrupts();
+	timer_callback();					// force processing the timers
+	enable_interrupts();
 	return total_ticks;
 }

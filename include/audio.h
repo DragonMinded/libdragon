@@ -7,7 +7,7 @@ extern "C" {
 
 /* Initialize the audio subsystem to a desired frequency. Do not call this
    twice without a call to audio_close as this will result in a memory leak */
-void audio_init(const int frequency);
+void audio_init(const int frequency, int numbuffers);
 
 /* Write a buffer to the audio system.  To find out the proper length of the
    buffer to pass to this function, call audio_get_buffer_length().  This

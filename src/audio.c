@@ -17,11 +17,14 @@
 #define CALC_BUFFER(x)  ( ( ( ( x ) / 25 ) >> 3 ) << 3 )
 
 static int _frequency = 0;
+static int _num_buf = NUM_BUFFERS;
 static int _buf_size = 0;
 static short **buffers = NULL;
 
 static volatile int now_playing = 0;
 static volatile int now_writing = 0;
+static volatile int buf_full = 0;
+
 
 static volatile struct AI_regs_s * const AI_regs = (struct AI_regs_s *)0xa4500000;
 
@@ -39,13 +42,26 @@ static volatile inline int __full()
 static void audio_callback()
 {
     /* Do not copy more data if we've freed the audio system */
-    if(!buffers) { return; }
+    if(!buffers)
+    {
+        return;
+    }
 
     /* Copy in as many buffers as can fit (up to 2) */
     while(!__full())
     {
+        /* check if next buffer is full */
+        int next = (now_playing + 1) % _num_buf;
+        if (!(buf_full & (1<<next)))
+        {
+            break;
+        }
+
+        /* clear buffer full flag */
+        buf_full &= ~(1<<next);
+
         /* Set up DMA */
-        now_playing = (now_playing + 1) % NUM_BUFFERS;
+        now_playing = next;
 
         AI_regs->address = UncachedAddr( buffers[now_playing] );
         AI_regs->length = (_buf_size * 2 * 2 ) & ( ~7 );
@@ -55,25 +71,26 @@ static void audio_callback()
     }
 }
 
-void audio_init(const int frequency)
+void audio_init(const int frequency, int numbuffers)
 {
-	int clockrate;
-	switch (*(unsigned int*)TV_TYPE_LOC)
-	{
-		case 0:
-		/* PAL */
-		clockrate = AI_PAL_DACRATE;
-		break;
-		case 2:
-		/* MPAL */
-		clockrate = AI_MPAL_DACRATE;
-		break;
-		case 1:
-		default:
-		/* NTSC */
-		clockrate = AI_NTSC_DACRATE;
-		break;
-	}
+    int clockrate;
+
+    switch (*(unsigned int*)TV_TYPE_LOC)
+    {
+        case 0:
+            /* PAL */
+            clockrate = AI_PAL_DACRATE;
+            break;
+        case 2:
+            /* MPAL */
+            clockrate = AI_MPAL_DACRATE;
+            break;
+        case 1:
+        default:
+            /* NTSC */
+            clockrate = AI_NTSC_DACRATE;
+            break;
+    }
 
     /* Remember frequency */
     AI_regs->dacrate = ((2 * clockrate / frequency) + 1) / 2 - 1;
@@ -88,9 +105,10 @@ void audio_init(const int frequency)
 
     /* Set up buffers */
     _buf_size = CALC_BUFFER(_frequency);
-    buffers = malloc(sizeof(short *) * NUM_BUFFERS);
+    _num_buf = (numbuffers > 1) ? numbuffers : NUM_BUFFERS;
+    buffers = malloc(_num_buf * sizeof(short *));
 
-    for(int i = 0; i < NUM_BUFFERS; i++)
+    for(int i = 0; i < _num_buf; i++)
     {
         /* Stereo buffers, interleaved */
         buffers[i] = malloc(sizeof(short) * 2 * _buf_size);
@@ -100,13 +118,14 @@ void audio_init(const int frequency)
     /* Set up ring buffer pointers */
     now_playing = 0;
     now_writing = 0;
+    buf_full = 0;
 }
 
 void audio_close()
 {
     if(buffers)
     {
-        for(int i = 0; i < NUM_BUFFERS; i++)
+        for(int i = 0; i < _num_buf; i++)
         {
             /* Nuke anything that isn't freed */
             if(buffers[i])
@@ -127,37 +146,68 @@ void audio_close()
 
 void audio_write(const short * const buffer)
 {
-    if(!buffers) { return; }
-
-    /* Wait until there is a buffer to write to */
-    while(now_playing == now_writing)
+    if(!buffers)
     {
-        if(!__busy()) audio_callback();
+        return;
+    }
+
+    disable_interrupts();
+
+    /* check for empty buffer */
+    int next = (now_writing + 1) % _num_buf;
+    while (buf_full & (1<<next))
+    {
+        // buffers full
+        audio_callback();
+        enable_interrupts();
+        disable_interrupts();
     }
 
     /* Copy buffer into local buffers */
+    buf_full |= (1<<next);
+    now_writing = next;
     memcpy(UncachedShortAddr(buffers[now_writing]), buffer, _buf_size * 2 * sizeof(short));
-    now_writing = (now_writing + 1) % NUM_BUFFERS;
+    audio_callback();
+    enable_interrupts();
 }
 
 void audio_write_silence()
 {
-    if(!buffers) { return; }
-
-    /* Wait until there is a buffer to write to */
-    while(now_playing == now_writing)
+    if(!buffers)
     {
-        if(!__busy()) audio_callback();
+        return;
+    }
+
+    disable_interrupts();
+
+    /* check for empty buffer */
+    int next = (now_writing + 1) % _num_buf;
+    while (buf_full & (1<<next))
+    {
+        // buffers full
+        audio_callback();
+        enable_interrupts();
+        disable_interrupts();
     }
 
     /* Copy silence into local buffers */
+    buf_full |= (1<<next);
+    now_writing = next;
     memset(UncachedShortAddr(buffers[now_writing]), 0, _buf_size * 2 * sizeof(short));
-    now_writing = (now_writing + 1) % NUM_BUFFERS;
+    audio_callback();
+    enable_interrupts();
 }
 
 volatile int audio_can_write()
 {
-    return !(now_playing == now_writing);
+    if(!buffers)
+    {
+        return 0;
+    }
+
+    /* check for empty buffer */
+    int next = (now_writing + 1) % _num_buf;
+    return (buf_full & (1<<next)) ? 0 : 1;
 }
 
 int audio_get_frequency()
@@ -169,4 +219,3 @@ int audio_get_buffer_length()
 {
     return _buf_size;
 }
-
