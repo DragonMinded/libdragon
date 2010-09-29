@@ -154,20 +154,33 @@ readlink( const char *path, char *buf, size_t bufsize )
     return -1;
 }
 
+/* Dirty hack, should investigate this further */
+#define STACK_SIZE 0x10000
+
 void *
 sbrk( int incr )
 {
     extern char   end; /* Set by linker.  */
-    static char * heap_end;
+    static char * heap_end, * heap_top;
     char *        prev_heap_end;
+    int           osMemSize = *(int*)0xA0000318;
 
     if( heap_end == 0 )
     {
         heap_end = &end;
+        heap_top = (char*)0x80000000 + osMemSize - STACK_SIZE;
     }
 
     prev_heap_end = heap_end;
     heap_end += incr;
+
+    // check if out of memory
+    if (heap_end > heap_top)
+    {
+        heap_end -= incr;
+        prev_heap_end = (char *)-1;
+        errno = ENOMEM;
+    }
 
     return (void *)prev_heap_end;
 }
