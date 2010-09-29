@@ -22,12 +22,12 @@ void controller_init()
     memset(&last, 0, sizeof(last));
 }
 
-static void __SI_DMA_wait(void) 
+static void __SI_DMA_wait(void)
 {
     while (SI_regs->status & (SI_STATUS_DMA_BUSY | SI_STATUS_IO_BUSY)) ;
 }
 
-static void __controller_exec_PIF( void *inblock, void *outblock ) 
+static void __controller_exec_PIF( void *inblock, void *outblock )
 {
     volatile uint64_t inblock_temp[8];
     volatile uint64_t outblock_temp[8];
@@ -52,9 +52,69 @@ static void __controller_exec_PIF( void *inblock, void *outblock )
     memcpy(outblock, UncachedAddr(outblock_temp), 64);
 }
 
-void controller_read(struct controller_data * output) 
+unsigned int eeprom_status()
 {
-    static unsigned long long SI_read_con_block[8] = 
+    static unsigned long long SI_eeprom_status_block[8] =
+    {
+        0x00000000ff010300,
+        0xfffffffffe000000,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+    };
+    static unsigned long long output[8];
+
+    __controller_exec_PIF(SI_eeprom_status_block,output);
+	return (unsigned int)(output[1] >> 32);
+}
+
+unsigned long long eeprom_read(int block)
+{
+    static unsigned long long SI_eeprom_read_block[8] =
+    {
+        0x0000000002080400,				// LSB is block
+        0xfffffffffe000000,				// return data will be this quad
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+    };
+    static unsigned long long output[8];
+
+	SI_eeprom_read_block[0] = 0x0000000002080400 | (block & 255);
+    __controller_exec_PIF(SI_eeprom_read_block,output);
+	return output[1];
+}
+
+unsigned int eeprom_write(int block, unsigned long long data)
+{
+    static unsigned long long SI_eeprom_write_block[8] =
+    {
+        0x000000000a010500,				// LSB is block
+        0x0000000000000000,				// send data is this quad
+        0xfffffffffe000000,				// MSB will be status of write
+        0,
+        0,
+        0,
+        0,
+        1
+    };
+    static unsigned long long output[8];
+
+	SI_eeprom_write_block[0] = 0x000000000a010500 | (block & 255);
+	SI_eeprom_write_block[1] = data;
+    __controller_exec_PIF(SI_eeprom_write_block,output);
+	return (unsigned int)(output[2] >> 32);
+}
+
+void controller_read(struct controller_data * output)
+{
+    static unsigned long long SI_read_con_block[8] =
     {
         0xff010401ffffffff,
         0xff010401ffffffff,
@@ -135,22 +195,22 @@ struct controller_data get_keys_pressed()
 int get_dpad_direction( int controller )
 {
     /* Diagonals first because it could only be right angles otherwise */
-    if( current.c[controller & 0x3].up && current.c[controller & 0x3].left ) 
+    if( current.c[controller & 0x3].up && current.c[controller & 0x3].left )
     {
         return 3;
     }
-    
-    if( current.c[controller & 0x3].up && current.c[controller & 0x3].right ) 
+
+    if( current.c[controller & 0x3].up && current.c[controller & 0x3].right )
     {
         return 1;
     }
 
-    if( current.c[controller & 0x3].down && current.c[controller & 0x3].left ) 
+    if( current.c[controller & 0x3].down && current.c[controller & 0x3].left )
     {
         return 5;
     }
 
-    if( current.c[controller & 0x3].down && current.c[controller & 0x3].right ) 
+    if( current.c[controller & 0x3].down && current.c[controller & 0x3].right )
     {
         return 7;
     }
@@ -200,7 +260,7 @@ int get_controllers_present()
     if( output.c[1].err == ERROR_NONE ) { ret |= CONTROLLER_2_INSERTED; }
     if( output.c[2].err == ERROR_NONE ) { ret |= CONTROLLER_3_INSERTED; }
     if( output.c[3].err == ERROR_NONE ) { ret |= CONTROLLER_4_INSERTED; }
-   
+
     return ret;
 }
 
@@ -208,7 +268,7 @@ int get_accessories_present()
 {
     int ret = 0;
     struct controller_data output;
-    static unsigned long long SI_read_status_block[8] = 
+    static unsigned long long SI_read_status_block[8] =
     {
         0xff010300ffffffff,
         0xff010300ffffffff,
@@ -246,7 +306,7 @@ static uint16_t __calc_address_crc( uint16_t address )
         /* Is this bit set? */
         if( ((address >> i) & 0x1) )
         {
-           crc ^= xor_table[i]; 
+           crc ^= xor_table[i];
         }
     }
 
@@ -314,7 +374,7 @@ int read_mempak_address( int controller, uint16_t address, uint8_t *data )
     SI_read_mempak_block[controller + 4] = read_address & 0xFF;
 
     /* Leave room for 33 bytes (32 bytes + CRC) to come back */
-    memset( &SI_read_mempak_block[controller + 5], 0xFF, 33 ); 
+    memset( &SI_read_mempak_block[controller + 5], 0xFF, 33 );
 
     __controller_exec_PIF(SI_read_mempak_block,&output);
 
@@ -371,7 +431,7 @@ int write_mempak_address( int controller, uint16_t address, uint8_t *data )
     SI_write_mempak_block[controller + 4] = write_address & 0xFF;
 
     /* Place the data to be written */
-    memcpy( &SI_write_mempak_block[controller + 5], data, 32 ); 
+    memcpy( &SI_write_mempak_block[controller + 5], data, 32 );
 
     /* Leave room for CRC to come back */
     SI_write_mempak_block[controller + 5 + 32] = 0xFF;
@@ -410,7 +470,7 @@ int identify_accessory( int controller )
     /* Init string one */
     memset( data, 0xfe, 32 );
     write_mempak_address( controller, 0x8000, data );
-    
+
     /* Init string two */
     memset( data, 0x80, 32 );
     write_mempak_address( controller, 0x8000, data );
@@ -439,7 +499,7 @@ void rumble_start( int controller )
     uint8_t data[32];
 
     /* Unsure of why we have to do this multiple times */
-    memset( data, 0x01, 32 );    
+    memset( data, 0x01, 32 );
     write_mempak_address( controller, 0xC000, data );
     write_mempak_address( controller, 0xC000, data );
     write_mempak_address( controller, 0xC000, data );
@@ -662,7 +722,7 @@ static int __validate_region( uint8_t region )
             /* Acceptible region */
             return 0;
     }
-    
+
     /* Invalid region */
     return -3;
 }
@@ -1002,7 +1062,7 @@ int get_mempak_free_space( int controller )
         /* Couldn't read TOC */
         return -2;
     }
-    
+
     return __get_free_space( data );
 }
 
@@ -1044,7 +1104,7 @@ int format_mempak( int controller )
                             0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
                             0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
                             0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00 };
-    
+
     if( write_mempak_sector( controller, 0, sector ) )
     {
         /* Couldn't write initial sector */
@@ -1368,6 +1428,6 @@ int delete_mempak_entry( int controller, entry_structure_t *entry )
         /* Failed to write alternate TOC */
         return -2;
     }
-    
+
     return 0;
 }

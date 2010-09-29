@@ -173,6 +173,15 @@ int write_mempak_entry_data( int controller, entry_structure_t *entry, uint8_t *
    all associated blocks. */
 int delete_mempak_entry( int controller, entry_structure_t *entry );
 
+/* Read the eeprom status */
+unsigned int eeprom_status();
+
+/* read block from eeprom */
+unsigned long long eeprom_read(int block);
+
+/* write block to eeprom */
+unsigned int eeprom_write(int block, unsigned long long data);
+
 #ifdef __cplusplus
 }
 #endif

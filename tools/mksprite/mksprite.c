@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <errno.h>
 #include <png.h>
+#include <sys/types.h>
+#include <sys/param.h>
 
 #define BITDEPTH_16BPP      16
 #define BITDEPTH_32BPP      32
