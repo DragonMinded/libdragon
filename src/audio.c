@@ -4,7 +4,7 @@
 #include "libdragon.h"
 #include "regsinternal.h"
 
-#define TV_TYPE_LOC   0x80000300 // uint32 => 0 = NTSC, 1 = PAL, 2 = MPAL
+#define TV_TYPE_LOC   0x80000300 // uint32 => 0 = PAL, 1 = NTSC, 2 = MPAL
 
 #define AI_NTSC_DACRATE 48681812
 #define AI_PAL_DACRATE  49656530
@@ -60,7 +60,7 @@ void audio_init(const int frequency)
 	int clockrate;
 	switch (*(unsigned int*)TV_TYPE_LOC)
 	{
-		case 1:
+		case 0:
 		/* PAL */
 		clockrate = AI_PAL_DACRATE;
 		break;
@@ -68,7 +68,7 @@ void audio_init(const int frequency)
 		/* MPAL */
 		clockrate = AI_MPAL_DACRATE;
 		break;
-		case 0:
+		case 1:
 		default:
 		/* NTSC */
 		clockrate = AI_NTSC_DACRATE;

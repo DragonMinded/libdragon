@@ -31,10 +31,12 @@ SECTIONS {
 	. = 0x80000400;
 
    .text : {
+      *(.boot)
+	  . = ALIGN(16);
       __text_start = . ;
-      *(.init)
 	  *(.text)
       *(.text.*)
+      *(.init)
       *(.fini)
 	  *(.gnu.linkonce.t.*)
       __text_end  = . ;

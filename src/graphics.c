@@ -52,7 +52,7 @@ uint32_t graphics_convert_color( color_t color )
     }
     else
     {
-        return (color.r << 24) | (color.g << 16) | (color.b << 8) | (color.a);  
+        return (color.r << 24) | (color.g << 16) | (color.b << 8) | (color.a);
     }
 }
 
@@ -74,6 +74,64 @@ void graphics_draw_pixel( display_context_t disp, int x, int y, uint32_t color )
     {
         __set_pixel( (uint32_t *)__get_buffer( disp ), x, y, color );
     }
+}
+
+void graphics_draw_line( display_context_t disp, int x0, int y0, int x1, int y1, uint32_t color )
+{
+	int dy = y1 - y0;
+	int dx = x1 - x0;
+	int sx, sy;
+
+	if(dy < 0)
+	{
+		dy = -dy;
+		sy = -1;
+	}
+	else
+		sy = 1;
+
+	if(dx < 0)
+	{
+		dx = -dx;
+		sx = -1;
+	}
+	else
+		sx = 1;
+
+	dy <<= 1;
+	dx <<= 1;
+
+	graphics_draw_pixel(disp, x0, y0, color);
+	if(dx > dy)
+	{
+		int frac = dy - (dx >> 1);
+		while(x0 != x1)
+		{
+			if(frac >= 0)
+			{
+				y0 += sy;
+				frac -= dx;
+			}
+			x0 += sx;
+			frac += dy;
+			graphics_draw_pixel(disp, x0, y0 , color);
+		}
+	}
+	else
+	{
+		int frac = dx - (dy >> 1);
+		while(y0 != y1)
+		{
+			if(frac >= 0)
+			{
+				x0 += sx;
+				frac -= dy;
+			}
+			y0 += sy;
+			frac += dx;
+			graphics_draw_pixel(disp, x0, y0 , color);
+		}
+	}
 }
 
 void graphics_draw_box( display_context_t disp, int x, int y, int width, int height, uint32_t color )
@@ -159,11 +217,11 @@ void graphics_draw_character( display_context_t disp, int x, int y, uint32_t fc,
     {
         uint16_t *buffer = (uint16_t *)__get_buffer( disp );
 
-        for( int row = 0; row < 8; row++ ) 
+        for( int row = 0; row < 8; row++ )
         {
             unsigned char c = __font_data[(ch * 8) + row];
 
-            for( int col = 0; col < 8; col++ ) 
+            for( int col = 0; col < 8; col++ )
             {
                 if( trans )
                 {
@@ -187,11 +245,11 @@ void graphics_draw_character( display_context_t disp, int x, int y, uint32_t fc,
     {
         uint32_t *buffer = (uint32_t *)__get_buffer( disp );
 
-        for( int row = 0; row < 8; row++ ) 
+        for( int row = 0; row < 8; row++ )
         {
             unsigned char c = __font_data[(ch * 8) + row];
 
-            for( int col = 0; col < 8; col++ ) 
+            for( int col = 0; col < 8; col++ )
             {
                 if( trans )
                 {
@@ -285,7 +343,7 @@ void graphics_draw_sprite( display_context_t disp, int x, int y, sprite_t *sprit
     {
         ex = __width - x;
     }
-    
+
     /* Clipping bottom */
     if( (y + ey) >= __height )
     {
@@ -364,7 +422,7 @@ void graphics_draw_sprite_trans( display_context_t disp, int x, int y, sprite_t 
     {
         ex = __width - x;
     }
-    
+
     /* Clipping bottom */
     if( (y + ey) >= __height )
     {
@@ -436,4 +494,3 @@ void graphics_draw_sprite_trans( display_context_t disp, int x, int y, sprite_t 
         }
     }
 }
-

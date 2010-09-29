@@ -37,8 +37,9 @@ SECTIONS {
    .text : {
       FILL (0)
 
-      __text_start = . ;
       *(.boot)
+	  . = ALIGN(16);
+      __text_start = . ;
       *(.text)
       *(.ctors)
       *(.dtors)
@@ -65,6 +66,7 @@ SECTIONS {
 
       FILL (0xaa)
 
+	  . = ALIGN(16);
       __data_start = . ;
          *(.data)
          *(.lit8)

@@ -19,31 +19,52 @@ _start:
 	mtc0 v0,C0_SR
 	mtc0 $0,C0_CAUSE
 
+	/* copy code and data */
+	la a0, __text_start
+	la a1, __data_end
+	subu a2,a0,0x80000400		/* skip over .boot section */
+	addu a2,a2,0xB0001000		/* address in rom */
+data_init:
+	lw t0,(a2)
+	addiu a2,4
+	sw t0,(a0)
+	addiu a0,4
+	bltu a0,a1, data_init
+	nop
+
+	/* make sure code and data are actually written */
+	la a0,__text_start
+	la a1,__data_end
+	sub a1,a0
+	jal data_cache_writeback_invalidate
+	nop
+
 	/* fill .sbss with 0s */
 	la a0, __sbss_start
-	la a1, __sbss_end-8
+	la a1, __sbss_end
 sbss_init:
 	sd $0,(a0)
 	addiu a0,8
 	bltu a0,a1, sbss_init
 	nop
 
-	/* fill .bss with 0s */
-	la a0, __bss_start
-	la a1, __bss_end-8
-bss_init:
-	sd $0,(a0)
-	addiu a0,8
-	bltu a0,a1, bss_init
-	nop
-
-	/* make sure the zeroes are actually written */
+	/* make sure .sbss is actually written */
 	la a0,__sbss_start
 	la a1,__sbss_end
 	sub a1,a0
 	jal data_cache_writeback_invalidate
 	nop
 
+	/* fill .bss with 0s */
+	la a0, __bss_start
+	la a1, __bss_end
+bss_init:
+	sd $0,(a0)
+	addiu a0,8
+	bltu a0,a1, bss_init
+	nop
+
+	/* make sure .bss is actually written */
 	la a0,__bss_start
 	la a1,__bss_end
 	sub a1,a0

@@ -33,6 +33,9 @@ uint32_t graphics_convert_color( color_t color );
 /* Draw a pixel to a particular display context */
 void graphics_draw_pixel( display_context_t disp, int x, int y, uint32_t c );
 
+/* Draw a line to a particular display context */
+void graphics_draw_line( display_context_t disp, int x0, int y0, int x1, int y1, uint32_t c );
+
 /* Draw a filled box to a particular display context */
 void graphics_draw_box( display_context_t disp, int x, int y, int width, int height, uint32_t color );
 

@@ -34,19 +34,49 @@ static uint32_t ntsc_640[] = {
     0x00000000, 0x00000000, 0x00000280, 0x00000200,
     0x00000000, 0x03e52239, 0x0000020c, 0x00000c15,
     0x0c150c15, 0x006c02ec, 0x002301fd, 0x000e0204,
-    0x00000400, 0x00000800 };
+    0x00000400, 0x02000800 };
 static uint32_t pal_640[] = {
     0x00000000, 0x00000000, 0x00000280, 0x00000200,
     0x00000000, 0x0404233a, 0x00000270, 0x00150c69,
     0x0c6f0c6e, 0x00800300, 0x005d0237, 0x0009026b,
-    0x00000400, 0x00000800 };
+    0x00000400, 0x02000800 };
 static uint32_t mpal_640[] = {
     0x00000000, 0x00000000, 0x00000280, 0x00000200,
     0x00000000, 0x04651e39, 0x0000020c, 0x00000c10,
     0x0c1c0c1c, 0x006c02ec, 0x002301fd, 0x000b0202,
-    0x00000400, 0x00000800 };
+    0x00000400, 0x02000800 };
+static uint32_t ntsc_256[] = {
+    0x00000000, 0x00000000, 0x00000100, 0x00000200,
+    0x00000000, 0x03e52239, 0x0000020d, 0x00000c15,
+    0x0c150c15, 0x006c02ec, 0x002501ff, 0x000e0204,
+    0x0000019A, 0x00000400 };
+static uint32_t pal_256[] = {
+    0x00000000, 0x00000000, 0x00000100, 0x00000200,
+    0x00000000, 0x0404233a, 0x00000271, 0x00150c69,
+    0x0c6f0c6e, 0x00800300, 0x005f0239, 0x0009026b,
+    0x0000019A, 0x00000400 };
+static uint32_t mpal_256[] = {
+    0x00000000, 0x00000000, 0x00000100, 0x00000200,
+    0x00000000, 0x04651e39, 0x0000020d, 0x00040c11,
+    0x0c190c1a, 0x006c02ec, 0x002501ff, 0x000e0204,
+    0x0000019A, 0x00000400 };
+static uint32_t ntsc_512[] = {
+    0x00000000, 0x00000000, 0x00000200, 0x00000200,
+    0x00000000, 0x03e52239, 0x0000020c, 0x00000c15,
+    0x0c150c15, 0x006c02ec, 0x002301fd, 0x000e0204,
+    0x00000334, 0x02000800 };
+static uint32_t pal_512[] = {
+    0x00000000, 0x00000000, 0x00000200, 0x00000200,
+    0x00000000, 0x0404233a, 0x00000270, 0x00150c69,
+    0x0c6f0c6e, 0x00800300, 0x005d0237, 0x0009026b,
+    0x00000334, 0x02000800 };
+static uint32_t mpal_512[] = {
+    0x00000000, 0x00000000, 0x00000200, 0x00000200,
+    0x00000000, 0x04651e39, 0x0000020c, 0x00000c10,
+    0x0c1c0c1c, 0x006c02ec, 0x002301fd, 0x000b0202,
+    0x00000334, 0x02000800 };
 
-static uint32_t *reg_values[] = { pal_320, ntsc_320, mpal_320, pal_640, ntsc_640, mpal_640 };
+static uint32_t *reg_values[] = { pal_320, ntsc_320, mpal_320, pal_640, ntsc_640, mpal_640, pal_256, ntsc_256, mpal_256, pal_512, ntsc_512, mpal_512 };
 static void *buffer[NUM_BUFFERS];
 uint32_t __bitdepth;
 uint32_t __width;
@@ -119,14 +149,25 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     {
         __buffers = num_buffers;
     }
-    
-    /* Switch to high resolution type if needed */
-    if( res == RESOLUTION_640x480 ) 
-    { 
-        /* Serrate on to stop vertical jitter */
-        control |= 0x40;
 
-        tv_type += 3; 
+	switch( res )
+	{
+		case RESOLUTION_640x480:
+			/* Serrate on to stop vertical jitter */
+			control |= 0x40;
+			tv_type += 3;
+			break;
+		case RESOLUTION_256x240:
+			tv_type += 6;
+			break;
+		case RESOLUTION_512x480:
+			/* Serrate on to stop vertical jitter */
+			control |= 0x40;
+			tv_type += 9;
+			break;
+		case RESOLUTION_320x240:
+		default:
+			break;
     }
 
     /* Copy over to temporary for extra initializations */
@@ -136,7 +177,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     switch( bit )
     {
         case DEPTH_16_BPP:
-            /* We enable divot filter in 16bpp mode to give our gradients 
+            /* We enable divot filter in 16bpp mode to give our gradients
                a slightly smoother look */
             control |= 0x10002;
             break;
@@ -185,8 +226,25 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     __write_registers( registers );
 
     /* Set up the display */
-    __width = ( res == RESOLUTION_320x240 ) ? 320 : 640;
-    __height = ( res == RESOLUTION_320x240) ? 240 : 480;
+	switch( res )
+	{
+		case RESOLUTION_320x240:
+			__width = 320;
+			__height = 240;
+			break;
+		case RESOLUTION_640x480:
+			__width = 640;
+			__height = 480;
+			break;
+		case RESOLUTION_256x240:
+			__width = 256;
+			__height = 240;
+			break;
+		case RESOLUTION_512x480:
+			__width = 512;
+			__height = 480;
+			break;
+	}
     __bitdepth = ( bit == DEPTH_16_BPP ) ? 2 : 4;
 
     /* Initialize buffers and set parameters */
@@ -196,7 +254,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
         /* Grab a location to render to */
         buffer[i] = malloc( __width * __height * __bitdepth + 15 );
         __safe_buffer[i] = ALIGN_16BYTE( UNCACHED_ADDR( buffer[i] ) );
-        
+
         /* Baseline is blank */
         memset( __safe_buffer[i], 0, __width * __height * __bitdepth );
     }
@@ -219,11 +277,11 @@ void display_close()
 {
     /* Can't have the video interrupt happening here */
     disable_interrupts();
-    
+
     now_showing = -1;
     now_drawing = -1;
     show_next = -1;
-    
+
     __width = 0;
     __height = 0;
 
@@ -236,11 +294,11 @@ void display_close()
         {
             free( buffer[i]);
         }
-            
+
         buffer[i] = 0;
         __safe_buffer[i] = 0;
     }
-    
+
     enable_interrupts();
 }
 
@@ -250,7 +308,7 @@ display_context_t display_lock()
 
     /* Can't have the video interrupt happening here */
     disable_interrupts();
-    
+
     for( int i = 0; i < __buffers; i++ )
     {
         if( i != now_showing && i != now_drawing && i != show_next )

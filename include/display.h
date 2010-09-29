@@ -6,7 +6,9 @@
 typedef enum
 {
     RESOLUTION_320x240,
-    RESOLUTION_640x480
+    RESOLUTION_640x480,
+    RESOLUTION_256x240,
+    RESOLUTION_512x480
 } resolution_t;
 
 typedef enum
