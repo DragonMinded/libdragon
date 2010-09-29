@@ -10,12 +10,14 @@
 
 #define FORMAT_UNCOMPRESSED 0
 
+#define SWAP_WORD(x) ((((x)>>8) & 0x00FF) | (((x)<<8) & 0xFF00))
+
 void write_value( uint8_t *colorbuf, FILE *fp, int bitdepth )
 {
     if( bitdepth == BITDEPTH_16BPP )
     {
-        uint16_t out = (((colorbuf[0] >> 3) & 0x1F) << 11) | (((colorbuf[1] >> 3) & 0x1F) << 6) |
-                       (((colorbuf[2] >> 3) & 0x1F) << 1) | (colorbuf[3] >> 7);
+        uint16_t out = SWAP_WORD((((colorbuf[0] >> 3) & 0x1F) << 11) | (((colorbuf[1] >> 3) & 0x1F) << 6) |
+                                 (((colorbuf[2] >> 3) & 0x1F) << 1) | (colorbuf[3] >> 7));
 
         fwrite( &out, 1, 2, fp );
     }
