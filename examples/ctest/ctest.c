@@ -1,0 +1,98 @@
+#include <stdio.h>
+#include <malloc.h>
+#include <string.h>
+#include <stdint.h>
+#include <libdragon.h>
+
+static resolution_t res = RESOLUTION_320x240;
+static bitdepth_t bit = DEPTH_32_BPP;
+
+char *format_type( int accessory )
+{
+    switch( accessory )
+    {
+        case ACCESSORY_RUMBLEPAK:
+            return "(rumble)";
+        case ACCESSORY_MEMPAK:
+            return "(memory)";
+        default:
+            return "(none)";
+    }
+}
+
+int main(void)
+{
+    /* enable MI interrupts (on the CPU) */
+    set_MI_interrupt(1,1);
+
+    /* Initialize peripherals */
+    display_init( res, bit, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
+    console_init();
+    controller_init();
+
+    console_set_render_mode(RENDER_MANUAL);
+
+    int testv = 0;
+    int press = 0;
+    uint8_t data[32];
+    memset( data, 0, 32 );
+
+    /* Main loop test */
+    while(1) 
+    {
+        console_clear();
+
+        /* To do initialize routines */
+        controller_scan();
+
+        struct controller_data keys = get_keys_down();
+
+        for( int i = 0; i < 4; i++ )
+        {
+            if( keys.c[i].A )
+            {
+                rumble_start( i );
+            }
+
+            if( keys.c[i].B )
+            {
+                rumble_stop( i );
+            }
+
+            if( keys.c[i].Z )
+            {
+                press = read_mempak_address( i, 0x0000, data );
+            }
+        }
+
+        int controllers = get_controllers_present();
+
+        console_printf( "Controller 1 %spresent\n", (controllers & CONTROLLER_1_INSERTED) ? "" : "not " );
+        console_printf( "Controller 2 %spresent\n", (controllers & CONTROLLER_2_INSERTED) ? "" : "not " );
+        console_printf( "Controller 3 %spresent\n", (controllers & CONTROLLER_3_INSERTED) ? "" : "not " );
+        console_printf( "Controller 4 %spresent\n", (controllers & CONTROLLER_4_INSERTED) ? "" : "not " );
+
+        int accessories = get_accessories_present();
+
+        console_printf( "Mempak 1 %spresent %s\n", (accessories & CONTROLLER_1_INSERTED) ? "" : "not ", 
+                                                  (accessories & CONTROLLER_1_INSERTED) ? format_type( identify_accessory( 0 ) ) : "" );
+        console_printf( "Mempak 2 %spresent %s\n", (accessories & CONTROLLER_2_INSERTED) ? "" : "not ",
+                                                  (accessories & CONTROLLER_2_INSERTED) ? format_type( identify_accessory( 1 ) ) : "" );
+        console_printf( "Mempak 3 %spresent %s\n", (accessories & CONTROLLER_3_INSERTED) ? "" : "not ",
+                                                  (accessories & CONTROLLER_3_INSERTED) ? format_type( identify_accessory( 2 ) ) : "" );
+        console_printf( "Mempak 4 %spresent %s\n", (accessories & CONTROLLER_4_INSERTED) ? "" : "not ",
+                                                  (accessories & CONTROLLER_4_INSERTED) ? format_type( identify_accessory( 3 ) ) : "" );
+
+        console_printf("\n%d\n\n", testv++ );
+
+        for( int i = 0; i < 32; i++ )
+        {
+            console_printf( "%02X", data[i] );
+        }
+
+        console_printf( "\n\n" );
+        console_printf( "Operation returned: %d\n", press );
+
+        console_render();
+    }
+}

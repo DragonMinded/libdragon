@@ -67,7 +67,8 @@
 #define PHYS_TO_K1(a)   ((unsigned)(a) | K1BASE)
 
 /* Standard Co-Processor 0 registers */
-#define C0_COUNT	$9		/* Count Register */
+#define C0_COUNT	$9		/* Timer Count Register */
+#define C0_COMPARE	$11		/* Timer Compare Register */
 #define C0_SR		$12		/* Status Register */
 #define C0_CAUSE	$13		/* last exception description */
 #define C0_EPC		$14		/* Exception error address */

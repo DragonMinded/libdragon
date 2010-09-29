@@ -10,8 +10,24 @@ OFILES_LD += $(CURDIR)/build/controller.o
 OFILES_LD += $(CURDIR)/build/graphics.o
 OFILES_LD += $(CURDIR)/build/rdp.o
 OFILES_LD += $(CURDIR)/build/dma.o
+OFILES_LD += $(CURDIR)/build/timer.o
 
 OFILES_LDS  = $(CURDIR)/build/system.o
+
+OFILES_LDP  = $(CURDIR)/build/n64sys.o
+OFILES_LDP += $(CURDIR)/build/interrupt.o
+OFILES_LDP += $(CURDIR)/build/inthandler.o
+OFILES_LDP += $(CURDIR)/build/entrypoint_2.o
+OFILES_LDP += $(CURDIR)/build/dragonfs.o
+OFILES_LDP += $(CURDIR)/build/audio.o
+OFILES_LDP += $(CURDIR)/build/display.o
+OFILES_LDP += $(CURDIR)/build/console.o
+OFILES_LDP += $(CURDIR)/build/controller.o
+OFILES_LDP += $(CURDIR)/build/graphics.o
+OFILES_LDP += $(CURDIR)/build/rdp.o
+OFILES_LDP += $(CURDIR)/build/dma.o
+OFILES_LDP += $(CURDIR)/build/timer.o
+OFILES_LDP += $(CURDIR)/build/do_ctors.o
 
 # Rules for compiling system stuff
 $(CURDIR)/build/n64sys.o: $(CURDIR)/src/n64sys.c
@@ -47,6 +63,16 @@ $(CURDIR)/build/rdp.o: $(CURDIR)/src/rdp.c
 $(CURDIR)/build/controller.o: $(CURDIR)/src/controller.c
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/controller.o $(CURDIR)/src/controller.c
 
+# Rules for compiling timer system
+$(CURDIR)/build/timer.o: $(CURDIR)/src/timer.c
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/timer.o $(CURDIR)/src/timer.c
+
 # Rules for compiling newlib interface
 $(CURDIR)/build/system.o: $(CURDIR)/src/system.c
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/system.o $(CURDIR)/src/system.c
+
+# Rules for compiling c++ extras
+$(CURDIR)/build/entrypoint_2.o: $(CURDIR)/src/entrypoint_2.S
+	$(CC) -c -o $(CURDIR)/build/entrypoint_2.o $(CURDIR)/src/entrypoint_2.S
+$(CURDIR)/build/do_ctors.o: $(CURDIR)/src/do_ctors.c
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/do_ctors.o $(CURDIR)/src/do_ctors.c

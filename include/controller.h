@@ -16,19 +16,19 @@
 
 #define MEMPAK_BLOCK_SIZE   256
 
-typedef struct SI_condat 
+typedef struct SI_condat
 {
     unsigned : 16;
     unsigned err : 2; // error status
     unsigned : 14;
 
-    union 
+    union
     {
-        struct 
+        struct
         {
             unsigned int data : 32;
         };
-        struct 
+        struct
         {
             unsigned A : 1;
             unsigned B : 1;
@@ -51,9 +51,9 @@ typedef struct SI_condat
     };
 } _SI_condat;
 
-typedef struct controller_data 
+typedef struct controller_data
 {
-    struct 
+    struct
     {
         struct SI_condat c[4];
         unsigned long unused[4*8]; // to map directly to PIF block
@@ -71,6 +71,10 @@ typedef struct entry_structure
     uint8_t entry_id;
     char name[19];
 } entry_structure_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* Initialize the controller system. */
 void controller_init();
@@ -155,7 +159,7 @@ int format_mempak( int controller );
 /* Given a valid mempak entry fetched by get_mempak_entry, retrieves the contents
    of the entry.  The calling function must ensure that enough room is available in
    the passed in buffer for the entire entry.  The entry structure itself contains
-   the number of blocks used to store the data which can be multiplied by 
+   the number of blocks used to store the data which can be multiplied by
    MEMPAK_BLOCK_SIZE to calculate the size of the buffer needed */
 int read_mempak_entry_data( int controller, entry_structure_t *entry, uint8_t *data );
 
@@ -168,5 +172,9 @@ int write_mempak_entry_data( int controller, entry_structure_t *entry, uint8_t *
 /* Given a valid mempak entry fetched by get_mempak_entry, removes the entry and frees
    all associated blocks. */
 int delete_mempak_entry( int controller, entry_structure_t *entry );
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

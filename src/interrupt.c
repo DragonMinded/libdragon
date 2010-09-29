@@ -31,7 +31,7 @@
 
 #define PI_CLEAR_INTERRUPT ( 1 << 1 )
 
-typedef struct callback_link 
+typedef struct callback_link
 {
     void (*callback)();
     struct callback_link * next;
@@ -48,11 +48,12 @@ struct callback_link * AI_callback = 0;
 struct callback_link * VI_callback = 0;
 struct callback_link * PI_callback = 0;
 struct callback_link * DP_callback = 0;
+struct callback_link * TI_callback = 0;
 
 static void __call_callback( struct callback_link * head )
 {
     /* Call each registered callback */
-    while( head ) 
+    while( head )
     {
         if( head->callback )
         {
@@ -64,21 +65,21 @@ static void __call_callback( struct callback_link * head )
     }
 }
 
-void __MI_handler(void) 
+void __MI_handler(void)
 {
     unsigned long status = MI_regs->intr & MI_regs->mask;
 
-    if( status & MI_INTR_SP ) 
+    if( status & MI_INTR_SP )
     {
         /* TODO: handle SP */
     }
 
-    if( status & MI_INTR_SI ) 
+    if( status & MI_INTR_SI )
     {
         /* TODO: handle SI */
     }
 
-    if( status & MI_INTR_AI ) 
+    if( status & MI_INTR_AI )
     {
         /* Clear interrupt */
     	AI_regs->status=0;
@@ -94,15 +95,15 @@ void __MI_handler(void)
     	__call_callback(VI_callback);
     }
 
-    if( status & MI_INTR_PI ) 
+    if( status & MI_INTR_PI )
     {
         /* Clear interrupt */
         PI_regs->status=PI_CLEAR_INTERRUPT;
-    
+
         __call_callback(PI_callback);
     }
 
-    if( status & MI_INTR_DP ) 
+    if( status & MI_INTR_DP )
     {
         /* Clear interrupt */
         MI_regs->mode=0x0800;
@@ -111,7 +112,13 @@ void __MI_handler(void)
     }
 }
 
-static void __register_callback( struct callback_link ** head, void (*callback)() ) 
+void __TI_handler(void)
+{
+	/* timer int cleared in int handler */
+    __call_callback(TI_callback);
+}
+
+static void __register_callback( struct callback_link ** head, void (*callback)() )
 {
     if( head )
     {
@@ -127,12 +134,12 @@ static void __register_callback( struct callback_link ** head, void (*callback)(
     }
 }
 
-void register_AI_handler( void (*callback)() ) 
+void register_AI_handler( void (*callback)() )
 {
     __register_callback(&AI_callback,callback);
 }
 
-void register_VI_handler( void (*callback)() ) 
+void register_VI_handler( void (*callback)() )
 {
     __register_callback(&VI_callback,callback);
 }
@@ -147,7 +154,12 @@ void register_DP_handler( void (*callback)() )
     __register_callback(&DP_callback,callback);
 }
 
-void set_AI_interrupt(int active) 
+void register_TI_handler( void (*callback)() )
+{
+    __register_callback(&TI_callback,callback);
+}
+
+void set_AI_interrupt(int active)
 {
     if( active )
     {
@@ -159,7 +171,7 @@ void set_AI_interrupt(int active)
     }
 }
 
-void set_VI_interrupt(int active, unsigned long line) 
+void set_VI_interrupt(int active, unsigned long line)
 {
     if( active )
     {
@@ -172,7 +184,7 @@ void set_VI_interrupt(int active, unsigned long line)
     }
 }
 
-void set_PI_interrupt(int active) 
+void set_PI_interrupt(int active)
 {
     if ( active )
     {
@@ -184,7 +196,7 @@ void set_PI_interrupt(int active)
     }
 }
 
-void set_DP_interrupt(int active) 
+void set_DP_interrupt(int active)
 {
     if( active )
     {
@@ -196,9 +208,9 @@ void set_DP_interrupt(int active)
     }
 }
 
-void set_MI_interrupt(int active, int clear) 
+void set_MI_interrupt(int active, int clear)
 {
-    if( clear ) 
+    if( clear )
     {
         MI_regs->mask=MI_MASK_CLR_SP|MI_MASK_CLR_SI|MI_MASK_CLR_AI|MI_MASK_CLR_VI|MI_MASK_CLR_PI|MI_MASK_CLR_PI|MI_MASK_CLR_DP;
     }

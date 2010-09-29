@@ -1,6 +1,10 @@
 #ifndef __LIBDRAGON_AUDIO_H
 #define __LIBDRAGON_AUDIO_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Initialize the audio subsystem to a desired frequency. Do not call this
    twice without a call to audio_close as this will result in a memory leak */
 void audio_init(const int frequency);
@@ -29,5 +33,9 @@ int audio_get_frequency();
    length.  This returns the length in number of samples.  Remember that N64
    audio is stereo interleaved. */
 int audio_get_buffer_length();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

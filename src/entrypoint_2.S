@@ -19,6 +19,15 @@ _start:
 	mtc0 v0,C0_SR
 	mtc0 $0,C0_CAUSE
 
+	/* fill .sbss with 0s */
+	la a0, __sbss_start
+	la a1, __sbss_end-8
+sbss_init:
+	sd $0,(a0)
+	addiu a0,8
+	bltu a0,a1, sbss_init
+	nop
+
 	/* fill .bss with 0s */
 	la a0, __bss_start
 	la a1, __bss_end-8
@@ -29,6 +38,12 @@ bss_init:
 	nop
 
 	/* make sure the zeroes are actually written */
+	la a0,__sbss_start
+	la a1,__sbss_end
+	sub a1,a0
+	jal data_cache_writeback_invalidate
+	nop
+
 	la a0,__bss_start
 	la a1,__bss_end
 	sub a1,a0
@@ -56,6 +71,8 @@ loadintvectorloop:
 	bnez t2,loadintvectorloop
 	nop
 
+	jal __do_global_ctors		/* call global constructors */
+	nop
 	jal main					/* call main app */
 	nop
 
@@ -67,3 +84,9 @@ intvector:
 	la k1,inthandler
 	jr k1
 	nop
+
+	.section .data
+	.global __dso_handle
+	.weak   __dso_handle
+__dso_handle:
+	.long	0

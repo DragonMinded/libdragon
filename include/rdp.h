@@ -18,6 +18,10 @@ typedef enum
     SYNC_TILE
 } sync_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void rdp_init( void );
 void rdp_attach_display( display_context_t disp );
 void rdp_detach_display( void );
@@ -33,5 +37,9 @@ void rdp_draw_sprite( uint32_t texslot, int x, int y );
 void rdp_draw_sprite_scaled( uint32_t texslot, int x, int y, double x_scale, double y_scale );
 void rdp_set_primitive_color( uint32_t color );
 void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by );
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

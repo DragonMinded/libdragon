@@ -14,6 +14,10 @@
 /* Tab width (needs to divide evenly into CONSOLE_WIDTH */
 #define TAB_WIDTH           5
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Initialize the console system.  This will initialize the video properly, so
    a call to the display_init() fuction is not necessary */
 void console_init();
@@ -40,6 +44,10 @@ void console_render();
 
 /* Print to console.  Supports all modes standard printf supports.  The mode of
    rendering is affected by console_set_render_mode(). */
-void console_printf(const char * const format, ...);
+void console_printf(char *format, ...);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

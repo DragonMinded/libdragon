@@ -10,14 +10,18 @@
 
 #define FORMAT_UNCOMPRESSED 0
 
+#if BYTE_ORDER == BIG_ENDIAN
+#define SWAP_WORD(x) (x)
+#else
 #define SWAP_WORD(x) ((((x)>>8) & 0x00FF) | (((x)<<8) & 0xFF00))
+#endif
 
 void write_value( uint8_t *colorbuf, FILE *fp, int bitdepth )
 {
     if( bitdepth == BITDEPTH_16BPP )
     {
         uint16_t out = SWAP_WORD((((colorbuf[0] >> 3) & 0x1F) << 11) | (((colorbuf[1] >> 3) & 0x1F) << 6) |
-                                 (((colorbuf[2] >> 3) & 0x1F) << 1) | (colorbuf[3] >> 7));
+                       (((colorbuf[2] >> 3) & 0x1F) << 1) | (colorbuf[3] >> 7));
 
         fwrite( &out, 1, 2, fp );
     }
@@ -92,11 +96,11 @@ int read_png( char *png_file, char *spr_file, int depth )  /* We need to open th
     fwrite( &wval, 1, 1, op );
     wval = height;
     fwrite( &wval, 1, 1, op );
-    
+
     /* Bitdepth */
     wval = (depth == BITDEPTH_32BPP) ? 4 : 2;
     fwrite( &wval, 1, 1, op );
-    
+
     /* Format */
     wval = FORMAT_UNCOMPRESSED;
     fwrite( &wval, 1, 1, op );
@@ -106,15 +110,15 @@ int read_png( char *png_file, char *spr_file, int depth )  /* We need to open th
         png_set_palette_to_rgb(png_ptr);
 
     /* Change bit-packed grayscale images to 8bit */
-    if(color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8) 
+    if(color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8)
         png_set_gray_1_2_4_to_8(png_ptr);
-    
+
     /* Go from 16 to 8 bits per channel */
     if(bit_depth == 16)
         png_set_strip_16(png_ptr);
 
     /* Change transparency to alpha value */
-    if (png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS)) 
+    if (png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS))
         png_set_tRNS_to_alpha(png_ptr);
 
     /* Convert single channel grayscale to RGB */
@@ -123,7 +127,7 @@ int read_png( char *png_file, char *spr_file, int depth )  /* We need to open th
     /* Ensure interlacing works and then update the color info since we changed things */
     png_set_interlace_handling(png_ptr);
     png_read_update_info(png_ptr, info_ptr);
-        
+
     /* Update the color type from the above re-read */
     color_type = info_ptr->color_type;
     bit_depth = info_ptr->bit_depth;
@@ -183,7 +187,7 @@ int read_png( char *png_file, char *spr_file, int depth )  /* We need to open th
                     }
                 }
 
-                break;    
+                break;
         }
 
 exitmem:
@@ -212,7 +216,7 @@ exitfiles:
 
 void print_args( char * name )
 {
-    fprintf( stderr, "Usage: %s <bit depth> <input png> <output file>\n", name ); 
+    fprintf( stderr, "Usage: %s <bit depth> <input png> <output file>\n", name );
     fprintf( stderr, "\t<bit depth> should be 16 or 32.\n" );
     fprintf( stderr, "\t<input png> should be any valid PNG file.\n" );
     fprintf( stderr, "\t<output file> will be written in binary for inclusion using DragonFS.\n" );
@@ -222,10 +226,10 @@ int main( int argc, char *argv[] )
 {
     int bitdepth;
 
-    if( argc != 4 ) 
-    { 
+    if( argc != 4 )
+    {
         print_args( argv[0] );
-        return -EINVAL; 
+        return -EINVAL;
     }
 
     /* Covert bitdepth argument */

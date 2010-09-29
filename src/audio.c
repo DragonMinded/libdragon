@@ -4,7 +4,12 @@
 #include "libdragon.h"
 #include "regsinternal.h"
 
+#define TV_TYPE_LOC   0x80000300 // uint32 => 0 = NTSC, 1 = PAL, 2 = MPAL
+
 #define AI_NTSC_DACRATE 48681812
+#define AI_PAL_DACRATE  49656530
+#define AI_MPAL_DACRATE 48628316
+
 #define AI_STATUS_BUSY  ( 1 << 30 )
 #define AI_STATUS_FULL  ( 1 << 31 )
 
@@ -20,12 +25,12 @@ static volatile int now_writing = 0;
 
 static volatile struct AI_regs_s * const AI_regs = (struct AI_regs_s *)0xa4500000;
 
-static volatile inline int __busy() 
+static volatile inline int __busy()
 {
     return AI_regs->status & AI_STATUS_BUSY;
 }
 
-static volatile inline int __full() 
+static volatile inline int __full()
 {
     return AI_regs->status & AI_STATUS_FULL;
 }
@@ -37,7 +42,7 @@ static void audio_callback()
     if(!buffers) { return; }
 
     /* Copy in as many buffers as can fit (up to 2) */
-    while(!__full()) 
+    while(!__full())
     {
         /* Set up DMA */
         now_playing = (now_playing + 1) % NUM_BUFFERS;
@@ -52,12 +57,30 @@ static void audio_callback()
 
 void audio_init(const int frequency)
 {
+	int clockrate;
+	switch (*(unsigned int*)TV_TYPE_LOC)
+	{
+		case 1:
+		/* PAL */
+		clockrate = AI_PAL_DACRATE;
+		break;
+		case 2:
+		/* MPAL */
+		clockrate = AI_MPAL_DACRATE;
+		break;
+		case 0:
+		default:
+		/* NTSC */
+		clockrate = AI_NTSC_DACRATE;
+		break;
+	}
+
     /* Remember frequency */
-    AI_regs->dacrate = AI_NTSC_DACRATE / frequency;
+    AI_regs->dacrate = ((2 * clockrate / frequency) + 1) / 2 - 1;
     AI_regs->samplesize = 15;
 
     /* Real frequency */
-    _frequency = AI_NTSC_DACRATE / (AI_NTSC_DACRATE / frequency);
+    _frequency = 2 * clockrate / ((2 * clockrate / frequency) + 1);
 
     /* Set up hardware to notify us when it needs more data */
     register_AI_handler(audio_callback);
@@ -107,7 +130,7 @@ void audio_write(const short * const buffer)
     if(!buffers) { return; }
 
     /* Wait until there is a buffer to write to */
-    while(now_playing == now_writing) 
+    while(now_playing == now_writing)
     {
         if(!__busy()) audio_callback();
     }
@@ -122,7 +145,7 @@ void audio_write_silence()
     if(!buffers) { return; }
 
     /* Wait until there is a buffer to write to */
-    while(now_playing == now_writing) 
+    while(now_playing == now_writing)
     {
         if(!__busy()) audio_callback();
     }

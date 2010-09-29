@@ -22,6 +22,10 @@ typedef struct
     uint32_t data[0];
 } sprite_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Convert a RGBA color to a valid color of the current bitdepth */
 uint32_t graphics_make_color( int r, int g, int b, int a );
 uint32_t graphics_convert_color( color_t color );
@@ -43,5 +47,9 @@ void graphics_draw_text( display_context_t disp, int x, int y, char *msg );
 /* Draw sprite to the screen */
 void graphics_draw_sprite( display_context_t disp, int x, int y, sprite_t *sprite );
 void graphics_draw_sprite_trans( display_context_t disp, int x, int y, sprite_t *sprite );
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

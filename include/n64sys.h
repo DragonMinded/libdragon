@@ -9,6 +9,10 @@
 
 #define CachedAddr(_addr) (((void *)(((unsigned long)(_addr))&~0x20000000))
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 volatile unsigned long get_ticks( void );
 volatile unsigned long get_ticks_ms( void );
 void wait_ticks( unsigned long wait );
@@ -23,6 +27,10 @@ void inst_cache_writeback_invalidate(volatile void *, unsigned long);
 
 void enable_interrupts();
 void disable_interrupts();
+
+#ifdef __cplusplus
+}
+#endif
 
 /* Count register updates at "half maximum instruction issue rate".
  * This appears to be half the CPU clock.

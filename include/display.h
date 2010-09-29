@@ -32,6 +32,10 @@ typedef enum
 
 typedef int display_context_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Initialize video system.  This sets up a triple buffered drawing surface which can
    be blitted or rendered to. */
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, antialias_t aa );
@@ -47,5 +51,9 @@ void display_show(display_context_t disp);
 
 /* Close a display and free buffer memory associated with it */
 void display_close();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

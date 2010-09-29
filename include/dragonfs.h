@@ -27,6 +27,10 @@
 #define FLAGS_DIR           0x1
 #define FLAGS_EOF           0x2
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dfs_init(uint32_t base_fs_loc);
 int dfs_chdir(const char * const path);
 int dfs_dir_findfirst(const char * const path, char *buf);
@@ -39,5 +43,9 @@ int dfs_tell(uint32_t handle);
 int dfs_close(uint32_t handle);
 int dfs_eof(uint32_t handle);
 int dfs_size(uint32_t handle);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

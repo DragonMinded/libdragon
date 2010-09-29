@@ -9,7 +9,7 @@ volatile unsigned long get_ticks(void)
     return count;
 }
 
-volatile unsigned long get_ticks_ms(void) 
+volatile unsigned long get_ticks_ms(void)
 {
     unsigned long count;
     // reg $9 on COP0 is count
@@ -37,37 +37,37 @@ void wait_ms( unsigned long wait )
     for (;length>0;length-=4,addr+=4) \
 	asm ("\tcache %0,(%1)\n"::"i" (op), "r" (addr))
 
-void data_cache_writeback(volatile void * addr, unsigned long length) 
+void data_cache_writeback(volatile void * addr, unsigned long length)
 {
     cache_op(0x19);
 }
-void data_cache_invalidate(volatile void * addr, unsigned long length) 
+void data_cache_invalidate(volatile void * addr, unsigned long length)
 {
     cache_op(0x11);
 }
-void data_cache_writeback_invalidate(volatile void * addr, unsigned long length) 
+void data_cache_writeback_invalidate(volatile void * addr, unsigned long length)
 {
     cache_op(0x15);
 }
-void inst_cache_writeback(volatile void * addr, unsigned long length) 
+void inst_cache_writeback(volatile void * addr, unsigned long length)
 {
     cache_op(0x18);
 }
-void inst_cache_invalidate(volatile void * addr, unsigned long length) 
+void inst_cache_invalidate(volatile void * addr, unsigned long length)
 {
     cache_op(0x10);
 }
-void inst_cache_writeback_invalidate(volatile void * addr, unsigned long length) 
+void inst_cache_writeback_invalidate(volatile void * addr, unsigned long length)
 {
     cache_op(0x14);
 }
 
-void disable_interrupts() 
+void disable_interrupts()
 {
 	asm("\tmfc0 $8,$12\n\tla $9,~1\n\tand $8,$9\n\tmtc0 $8,$12\n\tnop":::"$8","$9");
 }
 
-void enable_interrupts() 
+void enable_interrupts()
 {
 	asm("\tmfc0 $8,$12\n\tori $8,1\n\tmtc0 $8,$12\n\tnop":::"$8");
 }

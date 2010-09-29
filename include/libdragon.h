@@ -12,5 +12,6 @@
 #include "interrupt.h"
 #include "n64sys.h"
 #include "rdp.h"
+#include "timer.h"
 
 #endif

@@ -11,13 +11,13 @@
 #include "regs.S"
 
 inthandler:
-	.globl inthandler
+	.global inthandler
 
 	.set noat
 	la k1,save01
 	sd $1,(k1)
 
-    	mfc0 k1,C0_SR
+	mfc0 k1,C0_SR
 	la $1,saveSR
 	sw k1,($1)
 	la $1, ~1
@@ -127,7 +127,9 @@ notprenmi:
 	beqz $30,notcount
 	nop
 	mtc0 $0,$11
-	/* TODO: handle compare exception */
+	/* handle timer exception */
+	jal __TI_handler
+	nop
 
 	j endint
 	nop
@@ -136,7 +138,7 @@ notcount:
 	/* pass anything else along to handler */
 	jal __MI_handler
 	nop
-	
+
 endint:
 	/* restore GPRs */
 	ld $2,save02
@@ -222,8 +224,8 @@ endint:
 	eret
 	nop
 	.set at
-	
-.section .bss
+
+	.section .bss
 	.lcomm save01, 8
 	.lcomm save02, 8
 	.lcomm save03, 8

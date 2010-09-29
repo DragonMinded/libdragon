@@ -1,0 +1,79 @@
+#! /bin/bash
+# N64 toolchain install script for Unix distributions by Shaun Taylor.
+# Tested working on Ubuntu 9.04 ia32 and Debian sparc64.
+
+# You may be prompted for your password for installation steps.
+# If the script tells you that writing failed on chksum64 and n64tool,
+# this does not mean it failed.  The script simply retried with sudo
+# and your password was cached.
+
+# Exit on error
+set -e
+
+# EDIT THIS LINE TO CHANGE YOUR INSTALL PATH!
+export INSTALL_PATH=/home/jlfenton/Tools/dragon/mips64-elf
+
+# Set up path for newlib to compile later
+export PATH=$PATH:$INSTALL_PATH/bin
+
+# Versions
+export BINUTILS_V=2.19.51
+export GCC_V=4.4.0
+export NEWLIB_V=1.17.0
+
+# Download stage
+#wget -c ftp://sourceware.org/pub/binutils/snapshots/binutils-$BINUTILS_V.tar.bz2
+#wget -c http://mirrors.ibiblio.org/pub/mirrors/gnu/ftp/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz
+#wget -c ftp://sources.redhat.com/pub/newlib/newlib-$NEWLIB_V.tar.gz
+
+# Extract stage
+#tar -xvjf binutils-$BINUTILS_V.tar.bz2
+#tar -xvzf gcc-$GCC_V.tar.gz
+#tar -xvzf newlib-$NEWLIB_V.tar.gz
+
+# Binutils and newlib support compiling in source directory, GCC does not
+mkdir gcc_compile
+
+# Compile binutils
+cd binutils-$BINUTILS_V
+./configure --prefix=${INSTALL_PATH} --target=mips64-elf --with-cpu=mips64vr4300
+make
+make install || sudo make install || su -c "make install"
+
+# Compile gcc (pass 1)
+cd ../gcc_compile
+../gcc-$GCC_V/configure --prefix=${INSTALL_PATH} --target=mips64-elf --enable-languages=c --without-headers --with-newlib --disable-libssp --enable-multilib --disable-shared --with-gcc --with-gnu-ld --with-gnu-as --disable-threads --disable-win32-registry --disable-nls --disable-debug --disable-libmudflap
+make
+make install || sudo make install || su -c "make install"
+
+# Compile newlib
+cd ../newlib-$NEWLIB_V
+CFLAGS="-G0 -O2" ./configure --target=mips64-elf --prefix=${INSTALL_PATH} --with-cpu=mips64vr4300 --disable-threads --disable-libssp
+make
+make install || sudo env PATH="$PATH" make install || su -c "env PATH=$PATH make install"
+
+# Compile gcc (pass 2)
+cd ../gcc_compile
+../gcc-$GCC_V/configure --prefix=${INSTALL_PATH} --target=mips64-elf --enable-languages=c,c++,objc,obj-c++ --with-newlib --disable-libssp --enable-multilib --disable-shared --with-gcc --with-gnu-ld --with-gnu-as --disable-threads --disable-win32-registry --disable-nls --disable-debug --disable-libmudflap
+make
+make install || sudo make install || su -c "make install"
+
+# Compile chksum64.c and n64tool.c
+cd ..
+gcc -o chksum64 chksum64.c
+gcc -o n64tool n64tool.c
+
+cp chksum64 ${INSTALL_PATH}/bin || sudo cp chksum64 ${INSTALL_PATH}/bin
+cp n64tool ${INSTALL_PATH}/bin || sudo cp n64tool ${INSTALL_PATH}/bin
+
+# Compile mkdfs.c and mksprite.c
+cd mkdfs
+make
+cp mkdfs ${INSTALL_PATH}/bin || sudo cp mkdfs ${INSTALL_PATH}/bin
+
+cd ../mksprite
+make
+cp mksprite ${INSTALL_PATH}/bin || sudo cp mksprite ${INSTALL_PATH}/bin
+
+cd ..
+

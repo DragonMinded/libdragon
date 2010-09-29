@@ -38,11 +38,12 @@ SECTIONS {
       FILL (0)
 
       __text_start = . ;
-      *(.init)
+      *(.boot)
       *(.text)
       *(.ctors)
       *(.dtors)
       *(.rodata)
+	  *(.init)
       *(.fini)
       __text_end  = . ;
    }
@@ -57,7 +58,7 @@ SECTIONS {
       /* Gather all initialised data together.  The memory layout
        * will place the global initialised data at the lowest addrs.
        * The lit8, lit4, sdata and sbss sections have to be placed
-       * together in that order from low to high addrs with the _gp symbol 
+       * together in that order from low to high addrs with the _gp symbol
        * positioned (aligned) at the start of the sdata section.
        * We then finish off with the standard bss section
        */
@@ -85,7 +86,7 @@ SECTIONS {
       __bss_end = . ;
 */
    }
-   
+
    .bss (NOLOAD) :  {
        	__bss_start = . ;
        	*(.scommon)
