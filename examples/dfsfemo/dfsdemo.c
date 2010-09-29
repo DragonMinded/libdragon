@@ -174,7 +174,7 @@ int main(void)
     set_MI_interrupt(1,1);
 
     /* Initialize audio and video */
-    audio_init(44100);
+    audio_init(44100,2);
     console_init();
 
     /* Initialize key detection */
