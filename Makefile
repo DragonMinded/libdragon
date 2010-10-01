@@ -45,6 +45,7 @@ install: libdragon.a libdragonsys.a
 	install -D --mode=644 include/graphics.h $(INSTALLDIR)/include/graphics.h
 	install -D --mode=644 include/rdp.h $(INSTALLDIR)/include/rdp.h
 	install -D --mode=644 include/timer.h $(INSTALLDIR)/include/timer.h
+	install -D --mode=644 include/exception.h $(INSTALLDIR)/include/exception.h
 	install -D --mode=644 include/libdragon.h $(INSTALLDIR)/include/libdragon.h
 
 install-tools: tools

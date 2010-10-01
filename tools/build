@@ -11,7 +11,7 @@
 set -e
 
 # EDIT THIS LINE TO CHANGE YOUR INSTALL PATH!
-export INSTALL_PATH=/home/jlfenton/Tools/dragon/mips64-elf
+export INSTALL_PATH=/home/your_uname_here/dev/n64/mips64-elf
 
 # Set up path for newlib to compile later
 export PATH=$PATH:$INSTALL_PATH/bin
@@ -27,9 +27,9 @@ export NEWLIB_V=1.17.0
 #wget -c ftp://sources.redhat.com/pub/newlib/newlib-$NEWLIB_V.tar.gz
 
 # Extract stage
-#tar -xvjf binutils-$BINUTILS_V.tar.bz2
-#tar -xvzf gcc-$GCC_V.tar.gz
-#tar -xvzf newlib-$NEWLIB_V.tar.gz
+tar -xvjf binutils-$BINUTILS_V.tar.bz2
+tar -xvzf gcc-$GCC_V.tar.gz
+tar -xvzf newlib-$NEWLIB_V.tar.gz
 
 # Binutils and newlib support compiling in source directory, GCC does not
 mkdir gcc_compile

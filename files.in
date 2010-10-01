@@ -11,6 +11,7 @@ OFILES_LD += $(CURDIR)/build/graphics.o
 OFILES_LD += $(CURDIR)/build/rdp.o
 OFILES_LD += $(CURDIR)/build/dma.o
 OFILES_LD += $(CURDIR)/build/timer.o
+OFILES_LD += $(CURDIR)/build/exception.o
 
 OFILES_LDS  = $(CURDIR)/build/system.o
 
@@ -27,6 +28,7 @@ OFILES_LDP += $(CURDIR)/build/graphics.o
 OFILES_LDP += $(CURDIR)/build/rdp.o
 OFILES_LDP += $(CURDIR)/build/dma.o
 OFILES_LDP += $(CURDIR)/build/timer.o
+OFILES_LDP += $(CURDIR)/build/exception.o
 OFILES_LDP += $(CURDIR)/build/do_ctors.o
 
 # Rules for compiling system stuff
@@ -66,6 +68,10 @@ $(CURDIR)/build/controller.o: $(CURDIR)/src/controller.c
 # Rules for compiling timer system
 $(CURDIR)/build/timer.o: $(CURDIR)/src/timer.c
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/timer.o $(CURDIR)/src/timer.c
+
+# Rules for compiling exception system
+$(CURDIR)/build/exception.o: $(CURDIR)/src/exception.c
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/exception.o $(CURDIR)/src/exception.c
 
 # Rules for compiling newlib interface
 $(CURDIR)/build/system.o: $(CURDIR)/src/system.c

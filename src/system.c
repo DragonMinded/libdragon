@@ -10,6 +10,9 @@
 
 #undef errno
 
+/* Dirty hack, should investigate this further */
+#define STACK_SIZE 0x10000
+
 /* No idea what this is for */
 char *__env[1] = { 0 };
 char **environ = __env;
@@ -17,6 +20,9 @@ struct timeval;
 
 /* Not otherwise supplied */
 int errno;
+
+/* bootchip set in n64sys.c */
+extern int __bootcic;
 
 int
 chown( const char *path, uid_t owner, gid_t group )
@@ -154,16 +160,13 @@ readlink( const char *path, char *buf, size_t bufsize )
     return -1;
 }
 
-/* Dirty hack, should investigate this further */
-#define STACK_SIZE 0x10000
-
 void *
 sbrk( int incr )
 {
     extern char   end; /* Set by linker.  */
     static char * heap_end, * heap_top;
     char *        prev_heap_end;
-    int           osMemSize = *(int*)0xA0000318;
+    const int     osMemSize = (__bootcic != 6105) ? (*(int*)0xA0000318) : (*(int*)0xA00003F0);
 
     if( heap_end == 0 )
     {

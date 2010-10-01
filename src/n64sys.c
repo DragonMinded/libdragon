@@ -1,5 +1,18 @@
 #include "n64sys.h"
 
+/* Bootcic */
+int __bootcic = 6102; /*defaults to 6102*/
+
+int sys_get_boot_cic()
+{
+    return __bootcic;
+}
+
+void sys_set_boot_cic(int bc)
+{
+    __bootcic = ( (bc >= 6102) && (bc <= 6106) ) ? bc : 6102;
+}
+
 volatile unsigned long get_ticks(void)
 {
     unsigned long count;
@@ -41,22 +54,27 @@ void data_cache_writeback(volatile void * addr, unsigned long length)
 {
     cache_op(0x19);
 }
+
 void data_cache_invalidate(volatile void * addr, unsigned long length)
 {
     cache_op(0x11);
 }
+
 void data_cache_writeback_invalidate(volatile void * addr, unsigned long length)
 {
     cache_op(0x15);
 }
+
 void inst_cache_writeback(volatile void * addr, unsigned long length)
 {
     cache_op(0x18);
 }
+
 void inst_cache_invalidate(volatile void * addr, unsigned long length)
 {
     cache_op(0x10);
 }
+
 void inst_cache_writeback_invalidate(volatile void * addr, unsigned long length)
 {
     cache_op(0x14);

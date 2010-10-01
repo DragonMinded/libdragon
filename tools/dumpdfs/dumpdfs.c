@@ -335,16 +335,10 @@ static int recurse_path(const char * const path, int mode, directory_entry_t **d
         if(!ignore) { cur_path = get_next_token(cur_path, token); }
         ignore = 0;
 
-        if(strcmp(token, "/") == 0 || 
-           strcmp(token, ".") == 0)
+        if( (token[0] == '/' || token[0] == '.') )
         {
-            /* Ignore, this is current directory */
-            last_type = TYPE_DIR;
-        }
-        else if(strcmp(token, "..") == 0)
-        {
-            /* Up one directory */
-            pop_directory();
+	    if(token[1] == '.')
+		pop_directory();/* Up one directory */
 
             last_type = TYPE_DIR;
         }

@@ -4,8 +4,6 @@
 
    It is not reentrant, so interrupts are disabled for the duration.
    Safe for doing most things, including FPU operations, within handlers.
-
-   TODO: Doesn't yet produce a "crash screen", which will be very helpful.
 */
 
 #include "regs.S"
@@ -13,7 +11,14 @@
 inthandler:
 	.global inthandler
 
+	/*Save $2 before using*/
+	sd $2,save02
+
 	.set noat
+	/*Fetch exception pc off cop#0*/
+	mfc0 $2,C0_EPC
+	nop
+
 	la k1,save01
 	sd $1,(k1)
 
@@ -25,8 +30,11 @@ inthandler:
 	mtc0 k1,C0_SR
 	.set at
 
+	/*Save EPC now*/
+	sw $2,saveEPC
+
 	/* save GPRs */
-	sd $2,save02
+	/*sd $2,save02 - removed , saved already.At this point it contains epc*/
 	sd $3,save03
 	sd $4,save04
 	sd $5,save05
@@ -64,7 +72,6 @@ inthandler:
 	nop
 	sd $30,saveFC31
 
-
 	sdc1 $f0,saveFR00
 	sdc1 $f1,saveFR01
 	sdc1 $f2,saveFR02
@@ -98,7 +105,7 @@ inthandler:
 	sdc1 $f30,saveFR30
 	sdc1 $f31,saveFR31
 
-	la sp,(exception_stack+64*1024-8)
+	la sp,(exception_stack+65*1024-8)
 	//lui t0,0xa000
 	//or sp,t0
 	//or gp,t0
@@ -110,14 +117,21 @@ inthandler:
 	andi $30,k1,0xff
 	beqz $30, justaninterrupt
 	nop
-	/* TODO: print crash screen */
+
+	/*:(*/
+	jal __onCriticalException
+	nop
 
 justaninterrupt:
 	/* check for "pre-NMI" (reset) */
 	andi $30,k1,0x1000
 	beqz $30, notprenmi
 	nop
-	/* TODO: handle reset */
+
+	/* handle reset */
+	jal __onResetException
+	nop
+
 	j endint
 	nop
 notprenmi:
@@ -127,6 +141,7 @@ notprenmi:
 	beqz $30,notcount
 	nop
 	mtc0 $0,$11
+
 	/* handle timer exception */
 	jal __TI_handler
 	nop
@@ -210,7 +225,6 @@ endint:
 	ldc1 $f30,saveFR30
 	ldc1 $f31,saveFR31
 
-
 	ld $30,saveFC31
 	nop
 
@@ -226,6 +240,11 @@ endint:
 	.set at
 
 	.section .bss
+	.global __baseRegAddr
+	.long __baseRegAddr
+
+	.align 8
+	__baseRegAddr:
 	.lcomm save01, 8
 	.lcomm save02, 8
 	.lcomm save03, 8
@@ -258,7 +277,7 @@ endint:
 	.lcomm save30, 8
 	.lcomm save31, 8
 	.lcomm saveSR, 4
-	.align 8
+	.lcomm saveEPC, 4
 	.lcomm saveHI, 8
 	.lcomm saveLO, 8
 	.lcomm saveFC31, 8
@@ -294,5 +313,5 @@ endint:
 	.lcomm saveFR29, 8
 	.lcomm saveFR30, 8
 	.lcomm saveFR31, 8
+	.lcomm exception_stack, 65*1024
 
-	.lcomm exception_stack, 64*1024

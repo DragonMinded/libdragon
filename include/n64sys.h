@@ -13,6 +13,8 @@
 extern "C" {
 #endif
 
+int sys_get_boot_cic();
+void sys_set_boot_cic(int bc);
 volatile unsigned long get_ticks( void );
 volatile unsigned long get_ticks_ms( void );
 void wait_ticks( unsigned long wait );

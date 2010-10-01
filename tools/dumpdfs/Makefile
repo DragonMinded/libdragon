@@ -1,4 +1,4 @@
-CFLAGS = -std=gnu99 -O2 -Wall -Werror -I../../include
+CFLAGS = -std=gnu99 -O2 -Wall -I../../include
 
 all: dumpdfs
 

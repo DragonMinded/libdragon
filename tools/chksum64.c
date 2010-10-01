@@ -60,8 +60,8 @@ int main(int argc, char *argv[])
   FILE *file1;
   char *fname1=NULL, *progname=argv[0];
   unsigned char buffer1[BUFSIZE];
-  long flen1;
-  unsigned long sum1, sum2;
+  unsigned int flen1;
+  unsigned int sum1, sum2;
   int swapped=-1;
   int readonly = 0;
 
@@ -150,13 +150,13 @@ int main(int argc, char *argv[])
   }
   fseek(file1, CHECKSUM_START, SEEK_SET);
   {
-    unsigned long i;
-    unsigned long c1, k1, k2;
-    unsigned long t1, t2, t3, t4;
-    unsigned long t5, t6;
+    unsigned int i;
+    unsigned int c1, k1, k2;
+    unsigned int t1, t2, t3, t4;
+    unsigned int t5, t6;
     unsigned int n;
-    long clen = CHECKSUM_LENGTH;
-    long rlen = flen1 - CHECKSUM_START;
+    unsigned clen = CHECKSUM_LENGTH;
+    unsigned rlen = flen1 - CHECKSUM_START;
 
     /* Below is the actual checksum calculation algorithm, which was
        reverse engineered out of Nagra's program.
