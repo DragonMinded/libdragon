@@ -50,7 +50,7 @@ void graphics_fill_screen( display_context_t disp, uint32_t c );
 /* Draw text to the screen */
 void graphics_set_color( uint32_t forecolor, uint32_t backcolor );
 void graphics_draw_character( display_context_t disp, int x, int y, uint32_t fc, uint32_t bc, char c );
-void graphics_draw_text( display_context_t disp, int x, int y, char *msg );
+void graphics_draw_text( display_context_t disp, int x, int y, const char * const msg );
 
 /* Draw sprite to the screen */
 void graphics_draw_sprite( display_context_t disp, int x, int y, sprite_t *sprite );

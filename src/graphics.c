@@ -437,17 +437,18 @@ void graphics_draw_character( display_context_t disp, int x, int y, uint32_t fc,
     }
 }
 
-void graphics_draw_text( display_context_t disp, int x, int y, char *msg )
+void graphics_draw_text( display_context_t disp, int x, int y, const char * const msg )
 {
     if( disp == 0 ) { return; }
     if( msg == 0 ) { return; }
 
     int tx = x;
     int ty = y;
+    const char *text = (const char *)msg;
 
-    while( *msg )
+    while( *text )
     {
-        switch( *msg )
+        switch( *text )
         {
             case '\r':
             case '\n':
@@ -461,12 +462,12 @@ void graphics_draw_text( display_context_t disp, int x, int y, char *msg )
                 tx += 8 * 5;
                 break;
             default:
-                graphics_draw_character( disp, tx, ty, f_color, b_color, *msg );
+                graphics_draw_character( disp, tx, ty, f_color, b_color, *text );
                 tx += 8;
                 break;
         }
 
-        msg++;
+        text++;
     }
 }
 
