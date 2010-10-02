@@ -472,13 +472,38 @@ void graphics_draw_text( display_context_t disp, int x, int y, char *msg )
 
 void graphics_draw_sprite( display_context_t disp, int x, int y, sprite_t *sprite )
 {
+    /* Simply a wrapper to call the original functionality */
+    graphics_draw_sprite_stride( disp, x, y, sprite, -1 );
+}
+
+void graphics_draw_sprite_stride( display_context_t disp, int x, int y, sprite_t *sprite, int offset )
+{
+    /* Sanity checking */
     if( disp == 0 ) { return; }
     if( sprite == 0 ) { return; }
 
-    int sx = 0;
-    int sy = 0;
-    int ex = sprite->width;
-    int ey = sprite->height;
+    /* Calculate the location size of the actual sprite we will be blitting */
+    int sx, sy, ex, ey;
+
+    if( offset >= 0 )
+    {
+        /* For sprites that are not spritemaps, this evaluates to the original */
+        int twidth = sprite->width / sprite->hslices;
+        int theight = sprite->height / sprite->vslices;
+
+        sx = (offset % sprite->hslices) * twidth;
+        sy = (offset / sprite->hslices) * theight;
+        ex = sx + twidth;
+        ey = sy + theight;
+    }
+    else
+    {
+        /* Retain original functionality */
+        sx = 0;
+        sy = 0;
+        ex = sprite->width;
+        ey = sprite->height;
+    }
 
     /* Too far left */
     if( (x + ex) <= 0 ) { return; }
@@ -495,13 +520,13 @@ void graphics_draw_sprite( display_context_t disp, int x, int y, sprite_t *sprit
     /* Clipping left */
     if( x < 0 )
     {
-        sx = x * -1;
+        sx += (x * -1);
     }
 
     /* Clipping top */
     if( y < 0 )
     {
-        sy = y * -1;
+        sy += (y * -1);
     }
 
     /* Clipping right */
@@ -551,13 +576,38 @@ void graphics_draw_sprite( display_context_t disp, int x, int y, sprite_t *sprit
 
 void graphics_draw_sprite_trans( display_context_t disp, int x, int y, sprite_t *sprite )
 {
+    /* Simply a wrapper to call the original functionality */
+    graphics_draw_sprite_trans_stride( disp, x, y, sprite, -1 );
+}
+
+void graphics_draw_sprite_trans_stride( display_context_t disp, int x, int y, sprite_t *sprite, int offset )
+{
+    /* Sanity checking */
     if( disp == 0 ) { return; }
     if( sprite == 0 ) { return; }
 
-    int sx = 0;
-    int sy = 0;
-    int ex = sprite->width;
-    int ey = sprite->height;
+    /* Calculate the location size of the actual sprite we will be blitting */
+    int sx, sy, ex, ey;
+
+    if( offset >= 0 )
+    {
+        /* For sprites that are not spritemaps, this evaluates to the original */
+        int twidth = sprite->width / sprite->hslices;
+        int theight = sprite->height / sprite->vslices;
+
+        sx = (offset % sprite->hslices) * twidth;
+        sy = (offset / sprite->hslices) * theight;
+        ex = sx + twidth;
+        ey = sy + theight;
+    }
+    else
+    {
+        /* Retain original functionality */
+        sx = 0;
+        sy = 0;
+        ex = sprite->width;
+        ey = sprite->height;
+    }
 
     /* Too far left */
     if( (x + ex) <= 0 ) { return; }
@@ -574,13 +624,13 @@ void graphics_draw_sprite_trans( display_context_t disp, int x, int y, sprite_t 
     /* Clipping left */
     if( x < 0 )
     {
-        sx = x * -1;
+        sx += (x * -1);
     }
 
     /* Clipping top */
     if( y < 0 )
     {
-        sy = y * -1;
+        sy += (y * -1);
     }
 
     /* Clipping right */

@@ -34,13 +34,14 @@ void write_value( uint8_t *colorbuf, FILE *fp, int bitdepth )
     }
 }
 
-int read_png( char *png_file, char *spr_file, int depth )  /* We need to open the file */
+int read_png( char *png_file, char *spr_file, int depth, int hslices, int vslices )
 {
     png_structp png_ptr;
     png_infop info_ptr;
     png_uint_32 width, height;
     int bit_depth, color_type, interlace_type;
-    uint8_t wval;
+    uint8_t wval8;
+    uint16_t wval16;
     FILE *fp;
     FILE *op;
     int err = 0;
@@ -94,18 +95,24 @@ int read_png( char *png_file, char *spr_file, int depth )  /* We need to open th
     png_get_IHDR(png_ptr, info_ptr, &width, &height, &bit_depth, &color_type, &interlace_type, NULL, NULL);
 
     /* Write sprite header widht and height */
-    wval = width;
-    fwrite( &wval, 1, 1, op );
-    wval = height;
-    fwrite( &wval, 1, 1, op );
+    wval16 = SWAP_WORD((uint16_t)width);
+    fwrite( &wval16, sizeof( wval16 ), 1, op );
+    wval16 = SWAP_WORD((uint16_t)height);
+    fwrite( &wval16, sizeof( wval16 ), 1, op );
 
     /* Bitdepth */
-    wval = (depth == BITDEPTH_32BPP) ? 4 : 2;
-    fwrite( &wval, 1, 1, op );
+    wval8 = (depth == BITDEPTH_32BPP) ? 4 : 2;
+    fwrite( &wval8, sizeof( wval8 ), 1, op );
 
     /* Format */
-    wval = FORMAT_UNCOMPRESSED;
-    fwrite( &wval, 1, 1, op );
+    wval8 = FORMAT_UNCOMPRESSED;
+    fwrite( &wval8, sizeof( wval8 ), 1, op );
+
+    /* Horizontal and vertical slices */
+    wval8 = hslices;
+    fwrite( &wval8, sizeof( wval8 ), 1, op );
+    wval8 = vslices;
+    fwrite( &wval8, sizeof( wval8 ), 1, op );
 
     /* Change pallete to RGB */
     if(color_type == PNG_COLOR_TYPE_PALETTE)
@@ -218,8 +225,10 @@ exitfiles:
 
 void print_args( char * name )
 {
-    fprintf( stderr, "Usage: %s <bit depth> <input png> <output file>\n", name );
+    fprintf( stderr, "Usage: %s <bit depth> [<horizontal slices> <vertical slices>] <input png> <output file>\n", name );
     fprintf( stderr, "\t<bit depth> should be 16 or 32.\n" );
+    fprintf( stderr, "\t<horizontal slices> should be a number two or greater signifying how many images are in this spritemap horizontally.\n" );
+    fprintf( stderr, "\t<vertical slices> should be a number two or greater signifying how many images are in this spritemap vertically.\n" );
     fprintf( stderr, "\t<input png> should be any valid PNG file.\n" );
     fprintf( stderr, "\t<output file> will be written in binary for inclusion using DragonFS.\n" );
 }
@@ -228,7 +237,7 @@ int main( int argc, char *argv[] )
 {
     int bitdepth;
 
-    if( argc != 4 )
+    if( argc != 4 && argc != 6 )
     {
         print_args( argv[0] );
         return -EINVAL;
@@ -251,6 +260,17 @@ int main( int argc, char *argv[] )
         return -EINVAL;
     }
 
-    /* Translate, return result */
-    return read_png( argv[2], argv[3], bitdepth );
+    if( argc == 4 )
+    {
+        /* Translate, return result */
+        return read_png( argv[2], argv[3], bitdepth, 1, 1 );
+    }
+    else
+    {
+        int hslices = atoi( argv[2] );
+        int vslices = atoi( argv[3] );
+
+        /* Translate, return result */
+        return read_png( argv[4], argv[5], bitdepth, hslices, vslices );
+    }
 }

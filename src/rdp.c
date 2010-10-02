@@ -233,6 +233,51 @@ uint32_t rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror_en
     return real_width * real_height * sprite->bitdepth;
 }
 
+uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mirror_enabled, sprite_t *sprite, int offset )
+{
+    if( !sprite ) { return 0; }
+
+    /* Invalidate data associated with sprite in cache */
+    data_cache_writeback_invalidate( sprite->data, sprite->width * sprite->height * sprite->bitdepth );
+
+    /* Point the RDP at the actual sprite data */
+    rdp_ringbuffer_queue( 0xFD000000 | ((sprite->bitdepth == 2) ? 0x00100000 : 0x00180000) | (sprite->width - 1) );
+    rdp_ringbuffer_queue( (uint32_t)sprite->data );
+    rdp_ringbuffer_send();
+
+    /* Figure out the s,t coordinates of the sprite we are copying out of */
+    int twidth = sprite->width / sprite->hslices;
+    int theight = sprite->height / sprite->vslices;
+
+    int sl = (offset % sprite->hslices) * twidth;
+    int tl = (offset / sprite->hslices) * theight;
+    int sh = sl + twidth;
+    int th = tl + theight;
+
+    /* Figure out the power of two this sprite fits into */
+    uint32_t real_width  = rdp_round_to_power( twidth );
+    uint32_t real_height = rdp_round_to_power( theight );
+    uint32_t wbits = rdp_log2( real_width );
+    uint32_t hbits = rdp_log2( real_height );
+
+    /* Instruct the RDP to copy the sprite data out */
+    rdp_ringbuffer_queue( 0xF5000000 | ((sprite->bitdepth == 2) ? 0x00100000 : 0x00180000) | (((real_width / 4) & 0x1FF) << 9) | ((texloc / 4) & 0x1FF) );
+    rdp_ringbuffer_queue( ((texslot & 0x7) << 24) | (mirror_enabled == MIRROR_ENABLED ? 0x40100 : 0) | (hbits << 14 ) | (wbits << 4) );
+    rdp_ringbuffer_send();
+
+    /* Copying out only a chunk this time */
+    rdp_ringbuffer_queue( 0xF4000000 | (((sl << 2) & 0xFFF) << 12) | ((tl << 2) & 0xFFF) );
+    rdp_ringbuffer_queue( (((sh << 2) & 0xFFF) << 12) | ((th << 2) & 0xFFF) );
+    rdp_ringbuffer_send();
+
+    /* Save sprite width and height for managed sprite commands */
+    cache[texslot & 0x7].width = sprite->width - 1;
+    cache[texslot & 0x7].height = sprite->height - 1;
+    
+    /* Return the amount of texture memory consumed by this texture */
+    return real_width * real_height * sprite->bitdepth;
+}
+
 void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int bx, int by, double x_scale, double y_scale )
 {
     uint16_t s = 0;

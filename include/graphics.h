@@ -13,10 +13,12 @@ typedef struct
 
 typedef struct
 {
-    uint8_t width;
-    uint8_t height;
+    uint16_t width;
+    uint16_t height;
     uint8_t bitdepth;
     uint8_t format;
+    uint8_t hslices;
+    uint8_t vslices;
 
     /* Start of graphics data */
     uint32_t data[0];
@@ -52,7 +54,9 @@ void graphics_draw_text( display_context_t disp, int x, int y, char *msg );
 
 /* Draw sprite to the screen */
 void graphics_draw_sprite( display_context_t disp, int x, int y, sprite_t *sprite );
+void graphics_draw_sprite_stride( display_context_t disp, int x, int y, sprite_t *sprite, int offset );
 void graphics_draw_sprite_trans( display_context_t disp, int x, int y, sprite_t *sprite );
+void graphics_draw_sprite_trans_stride( display_context_t disp, int x, int y, sprite_t *sprite, int offset );
 
 #ifdef __cplusplus
 }
