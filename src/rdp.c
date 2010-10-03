@@ -10,6 +10,8 @@
 
 typedef struct
 {
+    uint32_t s;
+    uint32_t t;
     uint32_t width;
     uint32_t height;
 } sprite_cache;
@@ -198,45 +200,8 @@ void rdp_enable_texture_copy( void )
     rdp_ringbuffer_send();
 }
 
-uint32_t rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror_enabled, sprite_t *sprite )
+uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror_enabled, sprite_t *sprite, int sl, int tl, int sh, int th )
 {
-    if( !sprite ) { return 0; }
-
-    /* Invalidate data associated with sprite in cache */
-    data_cache_writeback_invalidate( sprite->data, sprite->width * sprite->height * sprite->bitdepth );
-
-    /* Point the RDP at the actual sprite data */
-    rdp_ringbuffer_queue( 0xFD000000 | ((sprite->bitdepth == 2) ? 0x00100000 : 0x00180000) | (sprite->width - 1) );
-    rdp_ringbuffer_queue( (uint32_t)sprite->data );
-    rdp_ringbuffer_send();
-
-    /* Figure out the power of two this sprite fits into */
-    uint32_t real_width  = rdp_round_to_power( sprite->width );
-    uint32_t real_height = rdp_round_to_power( sprite->height );
-    uint32_t wbits = rdp_log2( real_width );
-    uint32_t hbits = rdp_log2( real_height );
-
-    /* Instruct the RDP to copy the sprite data out */
-    rdp_ringbuffer_queue( 0xF5000000 | ((sprite->bitdepth == 2) ? 0x00100000 : 0x00180000) | (((real_width / 4) & 0x1FF) << 9) | ((texloc / 4) & 0x1FF) );
-    rdp_ringbuffer_queue( ((texslot & 0x7) << 24) | (mirror_enabled == MIRROR_ENABLED ? 0x40100 : 0) | (hbits << 14 ) | (wbits << 4) );
-    rdp_ringbuffer_send();
-
-    rdp_ringbuffer_queue( 0xF4000000 );
-    rdp_ringbuffer_queue( ((((sprite->width) << 2) & 0xFFF) << 12) | (((sprite->height) << 2) & 0xFFF) );
-    rdp_ringbuffer_send();
-
-    /* Save sprite width and height for managed sprite commands */
-    cache[texslot & 0x7].width = sprite->width - 1;
-    cache[texslot & 0x7].height = sprite->height - 1;
-    
-    /* Return the amount of texture memory consumed by this texture */
-    return real_width * real_height * sprite->bitdepth;
-}
-
-uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mirror_enabled, sprite_t *sprite, int offset )
-{
-    if( !sprite ) { return 0; }
-
     /* Invalidate data associated with sprite in cache */
     data_cache_writeback_invalidate( sprite->data, sprite->width * sprite->height * sprite->bitdepth );
 
@@ -246,13 +211,8 @@ uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mi
     rdp_ringbuffer_send();
 
     /* Figure out the s,t coordinates of the sprite we are copying out of */
-    int twidth = sprite->width / sprite->hslices;
-    int theight = sprite->height / sprite->vslices;
-
-    int sl = (offset % sprite->hslices) * twidth;
-    int tl = (offset / sprite->hslices) * theight;
-    int sh = sl + twidth;
-    int th = tl + theight;
+    int twidth = sh - sl + 1;
+    int theight = th - tl + 1;
 
     /* Figure out the power of two this sprite fits into */
     uint32_t real_width  = rdp_round_to_power( twidth );
@@ -260,8 +220,12 @@ uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mi
     uint32_t wbits = rdp_log2( real_width );
     uint32_t hbits = rdp_log2( real_height );
 
+    /* Because we are dividing by 8, we want to round up if we have a remainder */
+    int round_amount = (real_width % 8) ? 1 : 0;
+
     /* Instruct the RDP to copy the sprite data out */
-    rdp_ringbuffer_queue( 0xF5000000 | ((sprite->bitdepth == 2) ? 0x00100000 : 0x00180000) | (((real_width / 4) & 0x1FF) << 9) | ((texloc / 4) & 0x1FF) );
+    rdp_ringbuffer_queue( 0xF5000000 | ((sprite->bitdepth == 2) ? 0x00100000 : 0x00180000) | 
+                                       (((((real_width / 8) + round_amount) * sprite->bitdepth) & 0x1FF) << 9) | ((texloc / 8) & 0x1FF) );
     rdp_ringbuffer_queue( ((texslot & 0x7) << 24) | (mirror_enabled == MIRROR_ENABLED ? 0x40100 : 0) | (hbits << 14 ) | (wbits << 4) );
     rdp_ringbuffer_send();
 
@@ -271,28 +235,53 @@ uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mi
     rdp_ringbuffer_send();
 
     /* Save sprite width and height for managed sprite commands */
-    cache[texslot & 0x7].width = sprite->width - 1;
-    cache[texslot & 0x7].height = sprite->height - 1;
+    cache[texslot & 0x7].width = twidth - 1;
+    cache[texslot & 0x7].height = theight - 1;
+    cache[texslot & 0x7].s = sl;
+    cache[texslot & 0x7].t = tl;
     
     /* Return the amount of texture memory consumed by this texture */
-    return real_width * real_height * sprite->bitdepth;
+    return ((real_width / 8) + round_amount) * 8 * real_height * sprite->bitdepth;
+}
+
+uint32_t rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror_enabled, sprite_t *sprite )
+{
+    if( !sprite ) { return 0; }
+
+    return __rdp_load_texture( texslot, texloc, mirror_enabled, sprite, 0, 0, sprite->width - 1, sprite->height - 1 );
+}
+
+uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mirror_enabled, sprite_t *sprite, int offset )
+{
+    if( !sprite ) { return 0; }
+
+    /* Figure out the s,t coordinates of the sprite we are copying out of */
+    int twidth = sprite->width / sprite->hslices;
+    int theight = sprite->height / sprite->vslices;
+
+    int sl = (offset % sprite->hslices) * twidth;
+    int tl = (offset / sprite->hslices) * theight;
+    int sh = sl + twidth - 1;
+    int th = tl + theight - 1;
+
+    return __rdp_load_texture( texslot, texloc, mirror_enabled, sprite, sl, tl, sh, th );
 }
 
 void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int bx, int by, double x_scale, double y_scale )
 {
-    uint16_t s = 0;
-    uint16_t t = 0;
+    uint16_t s = cache[texslot & 0x7].s << 5;
+    uint16_t t = cache[texslot & 0x7].t << 5;
 
     /* Cant display < 0, so must clip size and move S,T coord accordingly */
     if( tx < 0 )
     {
-        s = -tx;
+        s += (int)((double)((-tx) << 5) * (1.0 / x_scale));
         tx = 0;
     }
 
     if( ty < 0 )
     {
-        t = -ty;
+        t += (int)((double)((-ty) << 5) * (1.0 / y_scale));
         ty = 0;
     }
 
@@ -305,7 +294,7 @@ void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int b
     rdp_ringbuffer_queue( ((texslot & 0x7) << 24) | (tx << 14) | (ty << 2) );
 
     /* Set up texture position and scaling to 1:1 copy */
-    rdp_ringbuffer_queue( (s << 21) | (t << 5) );
+    rdp_ringbuffer_queue( (s << 16) | t );
     rdp_ringbuffer_queue( (xs & 0xFFFF) << 16 | (ys & 0xFFFF) );
 
     /* Send command */
