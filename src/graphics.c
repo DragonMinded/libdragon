@@ -483,6 +483,10 @@ void graphics_draw_sprite_stride( display_context_t disp, int x, int y, sprite_t
     if( disp == 0 ) { return; }
     if( sprite == 0 ) { return; }
 
+    /* For spritemaps */
+    int tx = x;
+    int ty = y;
+
     /* Calculate the location size of the actual sprite we will be blitting */
     int sx, sy, ex, ey;
 
@@ -496,6 +500,9 @@ void graphics_draw_sprite_stride( display_context_t disp, int x, int y, sprite_t
         sy = (offset / sprite->hslices) * theight;
         ex = sx + twidth;
         ey = sy + theight;
+
+        tx -= sx;
+        ty -= sy;
     }
     else
     {
@@ -507,16 +514,16 @@ void graphics_draw_sprite_stride( display_context_t disp, int x, int y, sprite_t
     }
 
     /* Too far left */
-    if( (x + ex) <= 0 ) { return; }
+    if( (tx + ex) <= 0 ) { return; }
 
     /* Too far up */
-    if( (y + ey) <= 0 ) { return; }
+    if( (ty + ey) <= 0 ) { return; }
 
     /* Too far right */
-    if( x >= (int)__width ) { return; }
+    if( tx >= (int)__width ) { return; }
 
     /* Too far down */
-    if( y >= (int)__height ) { return; }
+    if( ty >= (int)__height ) { return; }
 
     /* Clipping left */
     if( x < 0 )
@@ -531,15 +538,15 @@ void graphics_draw_sprite_stride( display_context_t disp, int x, int y, sprite_t
     }
 
     /* Clipping right */
-    if( (x + ex) >= (int)__width )
+    if( (tx + ex) >= (int)__width )
     {
-        ex = __width - x;
+        ex = __width - tx;
     }
 
     /* Clipping bottom */
-    if( (y + ey) >= __height )
+    if( (ty + ey) >= __height )
     {
-        ey = __height - y;
+        ey = __height - ty;
     }
 
     /* Only display sprite if it matches the bitdepth */
@@ -554,7 +561,7 @@ void graphics_draw_sprite_stride( display_context_t disp, int x, int y, sprite_t
 
             for( int xp = sx; xp < ex; xp++ )
             {
-                __set_pixel( buffer, x + xp, y + yp, sp_data[xp + run] );
+                __set_pixel( buffer, tx + xp, ty + yp, sp_data[xp + run] );
             }
         }
     }
@@ -569,7 +576,7 @@ void graphics_draw_sprite_stride( display_context_t disp, int x, int y, sprite_t
 
             for( int xp = sx; xp < ex; xp++ )
             {
-                __set_pixel( buffer, x + xp, y + yp, sp_data[xp + run] );
+                __set_pixel( buffer, tx + xp, ty + yp, sp_data[xp + run] );
             }
         }
     }
@@ -586,6 +593,10 @@ void graphics_draw_sprite_trans_stride( display_context_t disp, int x, int y, sp
     /* Sanity checking */
     if( disp == 0 ) { return; }
     if( sprite == 0 ) { return; }
+    
+    /* For spritemaps */
+    int tx = x;
+    int ty = y;
 
     /* Calculate the location size of the actual sprite we will be blitting */
     int sx, sy, ex, ey;
@@ -600,6 +611,9 @@ void graphics_draw_sprite_trans_stride( display_context_t disp, int x, int y, sp
         sy = (offset / sprite->hslices) * theight;
         ex = sx + twidth;
         ey = sy + theight;
+
+        tx -= sx;
+        ty -= sy;
     }
     else
     {
@@ -611,16 +625,16 @@ void graphics_draw_sprite_trans_stride( display_context_t disp, int x, int y, sp
     }
 
     /* Too far left */
-    if( (x + ex) <= 0 ) { return; }
+    if( (tx + ex) <= 0 ) { return; }
 
     /* Too far up */
-    if( (y + ey) <= 0 ) { return; }
+    if( (ty + ey) <= 0 ) { return; }
 
     /* Too far right */
-    if( x >= (int)__width ) { return; }
+    if( tx >= (int)__width ) { return; }
 
     /* Too far down */
-    if( y >= (int)__height ) { return; }
+    if( ty >= (int)__height ) { return; }
 
     /* Clipping left */
     if( x < 0 )
@@ -635,15 +649,15 @@ void graphics_draw_sprite_trans_stride( display_context_t disp, int x, int y, sp
     }
 
     /* Clipping right */
-    if( (x + ex) >= (int)__width )
+    if( (tx + ex) >= (int)__width )
     {
-        ex = __width - x;
+        ex = __width - tx;
     }
 
     /* Clipping bottom */
-    if( (y + ey) >= __height )
+    if( (ty + ey) >= __height )
     {
-        ey = __height - y;
+        ey = __height - ty;
     }
 
     /* Only display sprite if it matches the bitdepth */
@@ -661,7 +675,7 @@ void graphics_draw_sprite_trans_stride( display_context_t disp, int x, int y, sp
                 /* Only display the pixel if alpha bit is set */
                 if( !__is_transparent( 2, sp_data[xp + run] ) )
                 {
-                    __set_pixel( buffer, x + xp, y + yp, sp_data[xp + run] );
+                    __set_pixel( buffer, tx + xp, ty + yp, sp_data[xp + run] );
                 }
             }
         }
@@ -679,7 +693,7 @@ void graphics_draw_sprite_trans_stride( display_context_t disp, int x, int y, sp
             {
                 /* Get 32bit representations */
                 uint8_t *new_color = (uint8_t *)(&sp_data[xp + run]);
-                uint32_t cur_color = __get_pixel( buffer, x + xp, y + yp );
+                uint32_t cur_color = __get_pixel( buffer, tx + xp, ty + yp );
 
                 /* Get current color */
                 uint32_t cr = (cur_color >> 24) & 0xFF;
@@ -706,7 +720,7 @@ void graphics_draw_sprite_trans_stride( display_context_t disp, int x, int y, sp
                 /* Since we are doing mixing anyway */
                 final_color[3] = 255;
 
-                __set_pixel( buffer, x + xp, y + yp, mixed_color );
+                __set_pixel( buffer, tx + xp, ty + yp, mixed_color );
             }
         }
     }

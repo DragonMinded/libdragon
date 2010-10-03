@@ -4,10 +4,16 @@
 #include <stdint.h>
 #include <libdragon.h>
 
+static volatile uint32_t animcounter = 0;
+
+void update_counter( int ovfl )
+{
+    animcounter++;
+}
+
 int main(void)
 {
     int mode = 0;
-    int animcounter = 0;
 
     /* enable MI interrupts (on the CPU) */
     set_MI_interrupt(1,1);
@@ -17,6 +23,7 @@ int main(void)
     dfs_init(0xB0100000);
     rdp_init();
     controller_init();
+    timer_init();
 
     /* Read in single sprite */
     int fp = dfs_open("/mudkip.sprite");
@@ -33,6 +40,9 @@ int main(void)
     sprite_t *plane = malloc( dfs_size( fp ) );
     dfs_read( plane, 1, dfs_size( fp ), fp );
     dfs_close( fp );
+
+    /* Kick off animation update timer to fire thirty times a second */
+    new_timer(TIMER_TICKS(1000000 / 30), TF_CONTINUOUS, update_counter);
 
     /* Main loop test */
     while(1) 
@@ -59,6 +69,13 @@ int main(void)
 
                 /* Display a stationary sprite to demonstrate backwards compatibility */
                 graphics_draw_sprite_trans( disp, 50, 50, mudkip );
+
+                /* Display walking NESS animation */
+                graphics_draw_sprite_stride( disp, 20, 100, earthbound, ((animcounter / 15) & 1) ? 1: 0 );
+
+                /* Display rotating NESS animation */
+                graphics_draw_sprite_stride( disp, 50, 100, earthbound, ((animcounter / 8) & 0x7) * 2 );
+
                 break;
             case 1:
             {
@@ -99,7 +116,25 @@ int main(void)
                     /* Display a stationary sprite to demonstrate backwards compatibility */
                     rdp_draw_sprite( 0, 50 + (20 * (i % 2)), 50 + (20 * (i / 2)) );
                 }
-                    
+
+                /* Ensure the RDP is ready to receive sprites */
+                rdp_sync( SYNC_PIPE );
+
+                /* Load the sprite into texture slot 0, at the beginning of memory, without mirroring */
+                rdp_load_texture_stride( 0, 0, MIRROR_DISABLED, earthbound, ((animcounter / 15) & 1) ? 1: 0 );
+                
+                /* Display walking NESS animation */
+                rdp_draw_sprite( 0, 20, 100 );
+
+                /* Ensure the RDP is ready to receive sprites */
+                rdp_sync( SYNC_PIPE );
+
+                /* Load the sprite into texture slot 0, at the beginning of memory, without mirroring */
+                rdp_load_texture_stride( 0, 0, MIRROR_DISABLED, earthbound, ((animcounter / 8) & 0x7) * 2 );
+                
+                /* Display rotating NESS animation */
+                rdp_draw_sprite( 0, 50, 100 );
+
                 /* Inform the RDP we are finished drawing and that any pending operations should be flushed */
                 rdp_detach_display();
 
@@ -109,9 +144,6 @@ int main(void)
 
         /* Force backbuffer flip */
         display_show(disp);
-
-        /* Update the animation count */
-        animcounter++;
 
         /* Do we need to switch video displays? */
         controller_scan();
