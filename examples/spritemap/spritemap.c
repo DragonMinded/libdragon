@@ -29,6 +29,11 @@ int main(void)
     dfs_read( earthbound, 1, dfs_size( fp ), fp );
     dfs_close( fp );
 
+    fp = dfs_open("/plane.sprite");
+    sprite_t *plane = malloc( dfs_size( fp ) );
+    dfs_read( plane, 1, dfs_size( fp ), fp );
+    dfs_close( fp );
+
     /* Main loop test */
     while(1) 
     {
@@ -49,8 +54,11 @@ int main(void)
                 /* Software spritemap test */
                 graphics_draw_text( disp, 20, 20, "Software spritemap test" );
 
+                /* Display a stationary sprite of adequate size to fit in TMEM */
+                graphics_draw_sprite_trans( disp, 20, 50, plane );
+
                 /* Display a stationary sprite to demonstrate backwards compatibility */
-                graphics_draw_sprite_trans( disp, 20, 50, mudkip );
+                graphics_draw_sprite_trans( disp, 50, 50, mudkip );
                 break;
             case 1:
             {
@@ -68,6 +76,15 @@ int main(void)
 
                 /* Attach RDP to display */
                 rdp_attach_display( disp );
+                    
+                /* Ensure the RDP is ready to receive sprites */
+                rdp_sync( SYNC_PIPE );
+
+                /* Load the sprite into texture slot 0, at the beginning of memory, without mirroring */
+                rdp_load_texture( 0, 0, MIRROR_DISABLED, plane );
+                
+                /* Display a stationary sprite of adequate size to fit in TMEM */
+                rdp_draw_sprite( 0, 20, 50 );
 
                 /* Since the RDP is very very limited in texture memory, we will use the spritemap feature to display
                    all four pieces of this sprite individually in order to use the RDP at all */
@@ -80,7 +97,7 @@ int main(void)
                     rdp_load_texture_stride( 0, 0, MIRROR_DISABLED, mudkip, i );
                 
                     /* Display a stationary sprite to demonstrate backwards compatibility */
-                    rdp_draw_sprite( 0, 20 + (20 * (i % 2)), 50 + (20 * (i / 2)) );
+                    rdp_draw_sprite( 0, 50 + (20 * (i % 2)), 50 + (20 * (i / 2)) );
                 }
                     
                 /* Inform the RDP we are finished drawing and that any pending operations should be flushed */

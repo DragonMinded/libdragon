@@ -26,7 +26,7 @@ libdragonpp.a: $(OFILES_LDP)
 (CURDIR)/build/:
 	mkdir $(CURDIR)/build
 
-install: libdragon.a libdragonsys.a
+install: libdragon.a libdragonsys.a libdragonpp.a
 	install -D --mode=644 libdragon.a $(INSTALLDIR)/lib/libdragon.a
 	install -D --mode=644 n64ld.x $(INSTALLDIR)/lib/n64ld.x
 	install -D --mode=644 n64ld_cpp.x $(INSTALLDIR)/lib/n64ld_cpp.x
