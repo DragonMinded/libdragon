@@ -14,5 +14,6 @@
 #include "rdp.h"
 #include "timer.h"
 #include "exception.h"
+#include "dir.h"
 
 #endif

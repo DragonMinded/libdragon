@@ -625,10 +625,9 @@ int write( int file, char *ptr, int len )
     return fs->write( handle, (uint8_t *)ptr, len );
 }
 
-int getdents( int fd, void *dp, int count )
+int dir_findfirst( const char * const path, dir_t *dir )
 {
-    filesystem_t *fs = __get_fs_pointer_by_handle( fd );
-    void *handle = __get_fs_handle( fd );
+    filesystem_t *fs = __get_fs_pointer_by_name( path );
 
     if( fs == 0 )
     {
@@ -636,12 +635,32 @@ int getdents( int fd, void *dp, int count )
         return -1;
     }
 
-    if( fs->getdents == 0 )
+    if( fs->findfirst == 0 )
     {
-        /* Filesystem doesn't support getdents */
+        /* Filesystem doesn't support findfirst */
         errno = ENOSYS;
         return -1;
     }
 
-    return fs->getdents( handle, dp, count );
+    return fs->findfirst( (char *)path, dir );
+}
+
+int dir_findnext( const char * const path, dir_t *dir )
+{
+    filesystem_t *fs = __get_fs_pointer_by_name( path );
+
+    if( fs == 0 )
+    {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if( fs->findnext == 0 )
+    {
+        /* Filesystem doesn't support findfirst */
+        errno = ENOSYS;
+        return -1;
+    }
+
+    return fs->findnext( dir );
 }

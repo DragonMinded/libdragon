@@ -818,6 +818,58 @@ int __close( void *file )
     return dfs_close( (uint32_t)file );
 }
 
+int __findfirst( char *path, dir_t *dir )
+{
+    if( !path || !dir ) { return -1; }
+
+    /* Grab first entry, return if bad */
+    int flags = dfs_dir_findfirst( path, dir->d_name );
+    if( flags < 0 ) { return -1; }
+
+    if( flags == FLAGS_FILE )
+    {
+        dir->d_type = DT_REG;
+    }
+    else if( flags == FLAGS_DIR )
+    {
+        dir->d_type = DT_DIR;
+    }
+    else
+    {
+        /* Unknown type */
+        return -1;
+    }
+
+    /* Success */
+    return 0;
+}
+
+int __findnext( dir_t *dir )
+{
+    if( !dir ) { return -1; }
+
+    /* Grab first entry, return if bad */
+    int flags = dfs_dir_findnext( dir->d_name );
+    if( flags < 0 ) { return -1; }
+
+    if( flags == FLAGS_FILE )
+    {
+        dir->d_type = DT_REG;
+    }
+    else if( flags == FLAGS_DIR )
+    {
+        dir->d_type = DT_DIR;
+    }
+    else
+    {
+        /* Unknown type */
+        return -1;
+    }
+
+    /* Success */
+    return 0;
+}
+
 /* The following section of code is for bridging into newlib's filesystem hooks to allow posix access to libdragon filesystem */
 static filesystem_t dragon_fs = {
     __open,
@@ -826,7 +878,9 @@ static filesystem_t dragon_fs = {
     __read,
     0,
     __close,
-    0
+    0,
+    __findfirst,
+    __findnext
 };
 
 /* Initialize the filesystem.  */

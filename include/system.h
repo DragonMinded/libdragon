@@ -8,6 +8,8 @@
 extern "C" {
 #endif
 
+#include <dir.h>
+
 typedef struct
 {
     void *(*open)( char *name, int flags );
@@ -17,7 +19,8 @@ typedef struct
     int (*write)( void *file, uint8_t *ptr, int len );
     int (*close)( void *file );
     int (*unlink)( char *name );
-    int (*getdents)( void *file, void *dp, int count );
+    int (*findfirst)( char *path, dir_t *dir );
+    int (*findnext)( dir_t *dir );
 } filesystem_t;
 
 int attach_filesystem( const char * const prefix, filesystem_t *filesystem );

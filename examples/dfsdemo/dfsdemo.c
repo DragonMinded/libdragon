@@ -14,18 +14,54 @@ typedef struct
     char filename[MAX_FILENAME_LEN+1];
 } direntry_t;
 
+char dir[512] = "rom://";
+
+void chdir( const char * const dirent )
+{
+    /* Ghetto implementation */
+    if( strcmp( dirent, ".." ) == 0 )
+    {
+        /* Go up one */
+        int len = strlen( dir ) - 1;
+        
+        /* Stop going past the min */
+        if( dir[len] == '/' && dir[len-1] == '/' && dir[len-2] == ':' )
+        {
+            return;
+        }
+
+        if( dir[len] == '/' )
+        {
+            dir[len] = 0;
+            len--;
+        }
+
+        while( dir[len] != '/')
+        {
+            dir[len] = 0;
+            len--;
+        }
+    }
+    else
+    {
+        /* Add to end */
+        strcat( dir, dirent );
+        strcat( dir, "/" );
+    }
+}
+
 int compare(const void * a, const void * b)
 {
     direntry_t *first = (direntry_t *)a;
     direntry_t *second = (direntry_t *)b;
 
-    if(first->type == FLAGS_DIR && second->type != FLAGS_DIR)
+    if(first->type == DT_DIR && second->type != DT_DIR)
     {
         /* First should be first */
         return -1;
     }
 
-    if(first->type != FLAGS_DIR && second->type == FLAGS_DIR)
+    if(first->type != DT_DIR && second->type == DT_DIR)
     {
         /* First should be second */
         return 1;
@@ -34,18 +70,17 @@ int compare(const void * a, const void * b)
     return strcmp(first->filename, second->filename);
 }
 
-direntry_t *populate_dir(const char * const dir, int *count)
+direntry_t *populate_dir(int *count)
 {
-    char buf[MAX_FILENAME_LEN+1];
-
     /* Grab a slot */
     direntry_t *list = malloc(sizeof(direntry_t));
     *count = 1;
 
     /* Grab first */
-    int flags = dfs_dir_findfirst(dir, buf);
+    dir_t buf;
+    int ret = dir_findfirst(dir, &buf);
 
-    if(flags < 0 || flags == FLAGS_EOF)
+    if( ret != 0 ) 
     {
         /* Free stuff */
         free(list);
@@ -55,15 +90,15 @@ direntry_t *populate_dir(const char * const dir, int *count)
     }
 
     /* Copy in loop */
-    while(flags == FLAGS_FILE || flags == FLAGS_DIR)
+    while( ret == 0 )
     {
-        list[(*count)-1].type = flags;
-        strcpy(list[(*count)-1].filename, buf);
+        list[(*count)-1].type = buf.d_type;
+        strcpy(list[(*count)-1].filename, buf.d_name);
 
         /* Grab next */
-        flags = dfs_dir_findnext(buf);
+        ret = dir_findnext(dir,&buf);
 
-        if(flags == FLAGS_DIR || flags == FLAGS_FILE)
+        if( ret == 0 )
         {
             (*count)++;
             list = realloc(list, sizeof(direntry_t) * (*count));
@@ -147,7 +182,7 @@ void display_dir(direntry_t *list, int cursor, int page, int max, int count)
             console_printf("  ");
         }
 
-        if(list[i].type == FLAGS_DIR)
+        if(list[i].type == DT_DIR)
         {
             char tmpdir[(CONSOLE_WIDTH-5)+1];
 
@@ -207,8 +242,7 @@ int main(void)
         console_set_render_mode(RENDER_MANUAL);
         console_clear();
 
-        dfs_chdir("/");
-        list = populate_dir(".", &count);
+        list = populate_dir(&count);
 
         while(1)
         {
@@ -231,12 +265,18 @@ int main(void)
                 new_scroll_pos(&cursor, &page, MAX_LIST, count);
             }
 
-            if(keys.c[0].C_right && list[cursor].type == FLAGS_FILE)
+            if(keys.c[0].C_right && list[cursor].type == DT_REG)
             {
                 /* Module playing loop */
                 MODULE *module = NULL;
 
-                module = Player_Load(list[cursor].filename, 256, 0);
+                /* Concatenate to make file */
+                char path[512];
+
+                strcpy( path, dir );
+                strcat( path, list[cursor].filename );
+
+                module = Player_Load(path, 256, 0);
                 
                 /* Ensure that first part of module doesn't get cut off */
                 audio_write_silence();
@@ -303,14 +343,14 @@ int main(void)
                 }
             }
 
-            if(keys.c[0].A && list[cursor].type == FLAGS_DIR)
+            if(keys.c[0].A && list[cursor].type == DT_DIR)
             {
                 /* Change directories */
-                dfs_chdir(list[cursor].filename);
+                chdir(list[cursor].filename);
        
                 /* Populate new directory */
                 free_dir(list);
-                list = populate_dir(".", &count);
+                list = populate_dir(&count);
 
                 page = 0;
                 cursor = 0;
@@ -319,11 +359,11 @@ int main(void)
             if(keys.c[0].B)
             {
                 /* Up! */
-                dfs_chdir("..");
+                chdir("..");
        
                 /* Populate new directory */
                 free_dir(list);
-                list = populate_dir(".", &count);
+                list = populate_dir(&count);
 
                 page = 0;
                 cursor = 0;
