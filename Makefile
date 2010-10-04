@@ -46,12 +46,8 @@ install: libdragon.a libdragonsys.a libdragonpp.a
 	install -D --mode=644 include/rdp.h $(INSTALLDIR)/include/rdp.h
 	install -D --mode=644 include/timer.h $(INSTALLDIR)/include/timer.h
 	install -D --mode=644 include/exception.h $(INSTALLDIR)/include/exception.h
+	install -D --mode=644 include/system.h $(INSTALLDIR)/include/system.h
 	install -D --mode=644 include/libdragon.h $(INSTALLDIR)/include/libdragon.h
-
-install-tools: tools
-	install -D --mode=755 tools/dumpdfs/dumpdfs $(INSTALLDIR)/bin/dumpdfs
-	install -D --mode=755 tools/mksprite/mksprite $(INSTALLDIR)/bin/mksprite
-	install -D --mode=755 tools/mkdfs/mkdfs $(INSTALLDIR)/bin/mkdfs
 
 clean:
 	rm -f *.o *.a

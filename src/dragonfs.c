@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <sys/stat.h>
 #include "libdragon.h"
+#include "system.h"
 #include "dfsinternal.h"
 
 /* Directory walking flags */
@@ -455,16 +457,6 @@ int __dfs_init(uint32_t base_fs_loc)
     return DFS_EBADFS;
 }
 
-/* Initialize the filesystem.  */
-int dfs_init(uint32_t base_fs_loc)
-{
-    /* Try normal (works on doctor v64) */
-    if( __dfs_init( base_fs_loc ) == DFS_ESUCCESS ) { return DFS_ESUCCESS; }
-
-    /* For some reason, the Neo Myth wants this initialized at 0x1000 offset. */
-    return __dfs_init( base_fs_loc + 0x1000 );
-}
-
 /* Change directories to the specified path.  Supports absolute and relative */
 int dfs_chdir(const char * const path)
 {
@@ -780,3 +772,83 @@ int dfs_eof(uint32_t handle)
     return 0;
 }
 
+void *__open( char *name, int flags )
+{
+    /* Always want a consistent interface */
+    dfs_chdir("/");
+
+    /* We disregard flags here */
+    return (void *)dfs_open( name );
+}
+
+int __fstat( void *file, struct stat *st )
+{
+    st->st_dev = 0;
+    st->st_ino = 0;
+    st->st_mode = S_IFREG;
+    st->st_nlink = 1;
+    st->st_uid = 0;
+    st->st_gid = 0;
+    st->st_rdev = 0;
+    st->st_size = dfs_size( (uint32_t)file );
+    st->st_atime = 0;
+    st->st_mtime = 0;
+    st->st_ctime = 0;
+    st->st_blksize = 0;
+    st->st_blocks = 0;
+    //st->st_attr = S_IAREAD | S_IAREAD;
+
+    return 0;
+}
+
+int __lseek( void *file, int ptr, int dir )
+{
+    dfs_seek( (uint32_t)file, ptr, dir );
+
+    return dfs_tell( (uint32_t)file );
+}
+
+int __read( void *file, uint8_t *ptr, int len )
+{
+    return dfs_read( ptr, 1, len, (uint32_t)file );
+}
+
+int __close( void *file )
+{
+    return dfs_close( (uint32_t)file );
+}
+
+/* The following section of code is for bridging into newlib's filesystem hooks to allow posix access to libdragon filesystem */
+static filesystem_t dragon_fs = {
+    __open,
+    __fstat,
+    __lseek,
+    __read,
+    0,
+    __close,
+    0
+};
+
+/* Initialize the filesystem.  */
+int dfs_init(uint32_t base_fs_loc)
+{
+    /* Try normal (works on doctor v64) */
+    int ret = __dfs_init( base_fs_loc );
+
+    if( ret != DFS_ESUCCESS )
+    {
+        /* For some reason, the Neo Myth wants this initialized at 0x1000 offset. */
+        ret = __dfs_init( base_fs_loc + 0x1000 );
+    }
+
+    if( ret != DFS_ESUCCESS )
+    {
+        /* Failed, return so */
+        return ret;
+    }
+
+    /* Succeeded, push our filesystem into newlib */
+    attach_filesystem( "rom:/", &dragon_fs );
+
+    return DFS_ESUCCESS;
+}

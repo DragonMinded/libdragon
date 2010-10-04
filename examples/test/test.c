@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <malloc.h>
 #include <string.h>
 #include <stdint.h>
@@ -6,6 +7,33 @@
 
 static resolution_t res = RESOLUTION_320x240;
 static bitdepth_t bit = DEPTH_32_BPP;
+
+int filesize( FILE *pFile )
+{
+    fseek( pFile, 0, SEEK_END );
+    int lSize = ftell( pFile );
+    rewind( pFile );
+
+    return lSize;
+}
+
+sprite_t *read_sprite( const char * const spritename )
+{
+    FILE *fp = fopen( spritename, "r" );
+
+    if( fp )
+    {
+        sprite_t *sp = malloc( filesize( fp ) );
+        fread( sp, 1, filesize( fp ), fp );
+        fclose( fp );
+
+        return sp;
+    }
+    else
+    {
+        return 0;
+    }
+}
 
 int main(void)
 {
@@ -17,57 +45,20 @@ int main(void)
     dfs_init(0xB0100000);
 
     /* Read in sprite */
-    int fp = dfs_open("/mario.sprite");
-    sprite_t *mario = malloc( dfs_size( fp ) );
-    dfs_read( mario, 1, dfs_size( fp ), fp );
-    dfs_close( fp );
-    
-    fp = dfs_open("/mariotrans.sprite");
-    sprite_t *mariotrans = malloc( dfs_size( fp ) );
-    dfs_read( mariotrans, 1, dfs_size( fp ), fp );
-    dfs_close( fp );
-
-    fp = dfs_open("/mario16.sprite");
-    sprite_t *mario16 = malloc( dfs_size( fp ) );
-    dfs_read( mario16, 1, dfs_size( fp ), fp );
-    dfs_close( fp );
-
-    fp = dfs_open("/mariotrans16.sprite");
-    sprite_t *mariotrans16 = malloc( dfs_size( fp ) );
-    dfs_read( mariotrans16, 1, dfs_size( fp ), fp );
-    dfs_close( fp );
+    sprite_t *mario = read_sprite( "rom://mario.sprite" );
+    sprite_t *mariotrans = read_sprite( "rom://mariotrans.sprite" ); 
+    sprite_t *mario16 = read_sprite( "rom://mario16.sprite" );
+    sprite_t *mariotrans16 = read_sprite( "rom://mariotrans16.sprite" );
 
     /* Alpha test sprites */
-    fp = dfs_open("/red.sprite");
-    sprite_t *red = malloc( dfs_size( fp ) );
-    dfs_read( red, 1, dfs_size( fp ), fp );
-    dfs_close( fp );
-
-    fp = dfs_open("/green.sprite");
-    sprite_t *green = malloc( dfs_size( fp ) );
-    dfs_read( green, 1, dfs_size( fp ), fp );
-    dfs_close( fp );
-
-    fp = dfs_open("/blue.sprite");
-    sprite_t *blue = malloc( dfs_size( fp ) );
-    dfs_read( blue, 1, dfs_size( fp ), fp );
-    dfs_close( fp );
+    sprite_t *red = read_sprite( "rom://red.sprite" );
+    sprite_t *green = read_sprite( "rom://green.sprite" );
+    sprite_t *blue = read_sprite( "rom://blue.sprite" );
 
     /* Trans test sprites */
-    fp = dfs_open("/red16.sprite");
-    sprite_t *red16 = malloc( dfs_size( fp ) );
-    dfs_read( red16, 1, dfs_size( fp ), fp );
-    dfs_close( fp );
-
-    fp = dfs_open("/green16.sprite");
-    sprite_t *green16 = malloc( dfs_size( fp ) );
-    dfs_read( green16, 1, dfs_size( fp ), fp );
-    dfs_close( fp );
-
-    fp = dfs_open("/blue16.sprite");
-    sprite_t *blue16 = malloc( dfs_size( fp ) );
-    dfs_read( blue16, 1, dfs_size( fp ), fp );
-    dfs_close( fp );
+    sprite_t *red16 = read_sprite( "rom://red16.sprite" );
+    sprite_t *green16 = read_sprite( "rom://green16.sprite" );
+    sprite_t *blue16 = read_sprite( "rom://blue16.sprite" );
 
     /* Main loop test */
     while(1) 
