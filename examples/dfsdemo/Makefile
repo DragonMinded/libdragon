@@ -17,7 +17,7 @@ OBJCOPY = $(GCCN64PREFIX)objcopy
 $(PROG_NAME).v64: $(PROG_NAME).elf test.dfs
 	$(OBJCOPY) $(PROG_NAME).elf $(PROG_NAME).bin -O binary
 	rm -f $(PROG_NAME).v64
-	$(N64TOOL) -b -l 16M -t "DragonFS Demo" -h $(HEADERPATH)/$(HEADERNAME) -o $(PROG_NAME).v64 $(PROG_NAME).bin -s 1M test.dfs
+	$(N64TOOL) -b -l 8M -t "DragonFS Demo" -h $(HEADERPATH)/$(HEADERNAME) -o $(PROG_NAME).v64 $(PROG_NAME).bin -s 1M test.dfs
 	$(CHKSUM64PATH) $(PROG_NAME).v64
 
 $(PROG_NAME).elf : $(PROG_NAME).o

@@ -84,6 +84,7 @@ direntry_t *populate_dir(int *count)
     {
         /* Free stuff */
         free(list);
+        *count = 0;
 
         /* Dir was bad! */
         return 0;
@@ -169,6 +170,11 @@ void display_dir(direntry_t *list, int cursor, int page, int max, int count)
     if(cursor < page)
     {
         cursor = page;
+    }
+
+    if( max == 0 )
+    {
+        console_printf( "No files in this dir..." );
     }
 
     for(int i = page; i < (page + max); i++)
@@ -341,6 +347,32 @@ int main(void)
                     Player_Stop();
                     Player_Free(module);
                 }
+            }
+
+            if(keys.c[0].L)
+            {
+                /* Open the SD card */
+                strcpy( dir, "sd://" );
+
+                /* Populate new directory */
+                free_dir(list);
+                list = populate_dir(&count);
+
+                page = 0;
+                cursor = 0;
+            }
+
+            if(keys.c[0].R)
+            {
+                /* Open the ROM FS card */
+                strcpy( dir, "rom://" );
+
+                /* Populate new directory */
+                free_dir(list);
+                list = populate_dir(&count);
+
+                page = 0;
+                cursor = 0;
             }
 
             if(keys.c[0].A && list[cursor].type == DT_DIR)
