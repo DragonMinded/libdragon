@@ -238,6 +238,27 @@ int get_dpad_direction( int controller )
     return -1;
 }
 
+void execute_raw_command( int controller, int command, int bytesout, int bytesin, unsigned char *out, unsigned char *in )
+{
+    unsigned long long SI_debug[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    unsigned long long SI_read_controllers_block[8] = { 0, 0, 0, 0, 0, 0, 0, 1 };
+    uint8_t *data = (uint8_t *)SI_read_controllers_block;
+
+    // Room for command itself
+    data[controller + 0] = bytesout + 1;
+    data[controller + 1] = bytesin;
+    data[controller + 2] = command;
+
+    memcpy( &data[controller + 3], out, bytesout );
+    memset( &data[controller + 3 + bytesout], 0xFF, bytesin );
+    data[controller + 3 + bytesout + bytesin] = 0xFE;
+
+    __controller_exec_PIF(SI_read_controllers_block,SI_debug);
+
+    data = (uint8_t *)SI_debug;
+    memcpy( in, &data[controller + 3 + bytesout], bytesin );
+}
+
 int get_controllers_present()
 {
     int ret = 0;
@@ -264,10 +285,24 @@ int get_controllers_present()
     return ret;
 }
 
-int get_accessories_present()
+static int __is_valid_accessory( uint32_t data )
 {
-    int ret = 0;
-    struct controller_data output;
+    if( ((data >> 8) & 0xFFFF) == 0x0001 )
+    {
+        /* This is a rumble pak, mem pak or transfer pak */
+        return 1;
+    }
+    else if( ((data >> 8) & 0xFFFF) == 0x0100 )
+    {
+        /* This is a VRU */
+        return 1;
+    }
+
+    return 0;
+}
+
+static void __get_accessories_present( struct controller_data *output )
+{
     static unsigned long long SI_read_status_block[8] =
     {
         0xff010300ffffffff,
@@ -280,13 +315,22 @@ int get_accessories_present()
         1
     };
 
-    __controller_exec_PIF(SI_read_status_block,&output);
+    __controller_exec_PIF(SI_read_status_block,output);
+}
 
-    /* The only significant value is the third byte */
-    if( (output.c[0].err == ERROR_NONE) && (((output.c[0].data >> 8) & 0xFF) == 0x01) ) { ret |= CONTROLLER_1_INSERTED; }
-    if( (output.c[1].err == ERROR_NONE) && (((output.c[1].data >> 8) & 0xFF) == 0x01) ) { ret |= CONTROLLER_2_INSERTED; }
-    if( (output.c[2].err == ERROR_NONE) && (((output.c[2].data >> 8) & 0xFF) == 0x01) ) { ret |= CONTROLLER_3_INSERTED; }
-    if( (output.c[3].err == ERROR_NONE) && (((output.c[3].data >> 8) & 0xFF) == 0x01) ) { ret |= CONTROLLER_4_INSERTED; }
+int get_accessories_present()
+{
+    struct controller_data output;
+    int ret = 0;
+
+    /* Grab the actual accessory data */
+    __get_accessories_present( &output );
+
+    /* The third byte means something only if this is a standard controller, the VRU will return on the second byte */
+    if( (output.c[0].err == ERROR_NONE) && __is_valid_accessory( output.c[0].data ) ) { ret |= CONTROLLER_1_INSERTED; }
+    if( (output.c[1].err == ERROR_NONE) && __is_valid_accessory( output.c[1].data ) ) { ret |= CONTROLLER_2_INSERTED; }
+    if( (output.c[2].err == ERROR_NONE) && __is_valid_accessory( output.c[2].data ) ) { ret |= CONTROLLER_3_INSERTED; }
+    if( (output.c[3].err == ERROR_NONE) && __is_valid_accessory( output.c[3].data ) ) { ret |= CONTROLLER_4_INSERTED; }
 
     return ret;
 }
@@ -466,32 +510,51 @@ int write_mempak_address( int controller, uint16_t address, uint8_t *data )
 int identify_accessory( int controller )
 {
     uint8_t data[32];
+    struct controller_data output;
 
-    /* Init string one */
-    memset( data, 0xfe, 32 );
-    write_mempak_address( controller, 0x8000, data );
+    /* Grab the actual accessory data */
+    __get_accessories_present( &output );
 
-    /* Init string two */
-    memset( data, 0x80, 32 );
-    write_mempak_address( controller, 0x8000, data );
-
-    /* Get register contents */
-    if( read_mempak_address( controller, 0x8000, data ) == 0 )
+    if( __is_valid_accessory( output.c[controller].data ) )
     {
-        /* Should really check all bytes, but this should suffice */
-        if( data[0] == 0x80 )
+        switch( ( output.c[controller].data >> 8 ) & 0xFFFF )
         {
-            return ACCESSORY_RUMBLEPAK;
-        }
-        else
-        {
-            return ACCESSORY_MEMPAK;
+            case 0x0001: /* Mempak/rumblepak/transferpak */
+            {
+                /* Init string one */
+                memset( data, 0xfe, 32 );
+                write_mempak_address( controller, 0x8000, data );
+
+                /* Init string two */
+                memset( data, 0x80, 32 );
+                write_mempak_address( controller, 0x8000, data );
+
+                /* Get register contents */
+                if( read_mempak_address( controller, 0x8000, data ) == 0 )
+                {
+                    /* Should really check all bytes, but this should suffice */
+                    if( data[0] == 0x80 )
+                    {
+                        return ACCESSORY_RUMBLEPAK;
+                    }
+                    else
+                    {
+                        return ACCESSORY_MEMPAK;
+                    }
+                }
+
+                /* For good measure */
+                break;
+            }
+            case 0x0100: /* VRU! */
+            {
+                return ACCESSORY_VRU;
+            }
         }
     }
-    else
-    {
-        return ACCESSORY_NONE;
-    }
+
+    /* Couldn't identify */
+    return ACCESSORY_NONE;
 }
 
 void rumble_start( int controller )

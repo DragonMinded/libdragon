@@ -15,6 +15,8 @@ char *format_type( int accessory )
             return "(rumble)";
         case ACCESSORY_MEMPAK:
             return "(memory)";
+        case ACCESSORY_VRU:
+            return "(vru)";
         default:
             return "(none)";
     }
@@ -74,14 +76,14 @@ int main(void)
 
         int accessories = get_accessories_present();
 
-        console_printf( "Mempak 1 %spresent %s\n", (accessories & CONTROLLER_1_INSERTED) ? "" : "not ", 
-                                                  (accessories & CONTROLLER_1_INSERTED) ? format_type( identify_accessory( 0 ) ) : "" );
-        console_printf( "Mempak 2 %spresent %s\n", (accessories & CONTROLLER_2_INSERTED) ? "" : "not ",
-                                                  (accessories & CONTROLLER_2_INSERTED) ? format_type( identify_accessory( 1 ) ) : "" );
-        console_printf( "Mempak 3 %spresent %s\n", (accessories & CONTROLLER_3_INSERTED) ? "" : "not ",
-                                                  (accessories & CONTROLLER_3_INSERTED) ? format_type( identify_accessory( 2 ) ) : "" );
-        console_printf( "Mempak 4 %spresent %s\n", (accessories & CONTROLLER_4_INSERTED) ? "" : "not ",
-                                                  (accessories & CONTROLLER_4_INSERTED) ? format_type( identify_accessory( 3 ) ) : "" );
+        console_printf( "Accessory 1 %spresent %s\n", (accessories & CONTROLLER_1_INSERTED) ? "" : "not ", 
+                                                      (accessories & CONTROLLER_1_INSERTED) ? format_type( identify_accessory( 0 ) ) : "" );
+        console_printf( "Accessory 2 %spresent %s\n", (accessories & CONTROLLER_2_INSERTED) ? "" : "not ",
+                                                      (accessories & CONTROLLER_2_INSERTED) ? format_type( identify_accessory( 1 ) ) : "" );
+        console_printf( "Accessory 3 %spresent %s\n", (accessories & CONTROLLER_3_INSERTED) ? "" : "not ",
+                                                      (accessories & CONTROLLER_3_INSERTED) ? format_type( identify_accessory( 2 ) ) : "" );
+        console_printf( "Accessory 4 %spresent %s\n", (accessories & CONTROLLER_4_INSERTED) ? "" : "not ",
+                                                      (accessories & CONTROLLER_4_INSERTED) ? format_type( identify_accessory( 3 ) ) : "" );
 
         console_printf("\n%d\n\n", testv++ );
 

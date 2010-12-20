@@ -9,6 +9,7 @@
 #define ACCESSORY_NONE          0
 #define ACCESSORY_MEMPAK        1
 #define ACCESSORY_RUMBLEPAK     2
+#define ACCESSORY_VRU           3
 
 #define ERROR_NONE          0x0
 #define ERROR_BAD_COMMAND   0x1
@@ -135,6 +136,9 @@ void rumble_start( int controller );
 
 /* Stop rumble on a particular controller */
 void rumble_stop( int controller );
+
+/* Send an arbitrary command to a controller and receive arbitrary data back */
+void execute_raw_command( int controller, int command, int bytesout, int bytesin, unsigned char *out, unsigned char *in );
 
 /* Read a sector off of a memory card.  Valid sector numbers are 0-127 */
 int read_mempak_sector( int controller, int sector, uint8_t *sector_data );
