@@ -11,7 +11,7 @@
 set -e
 
 # EDIT THIS LINE TO CHANGE YOUR INSTALL PATH!
-export INSTALL_PATH=/home/your_uname_here/dev/n64/mips64-elf
+export INSTALL_PATH=/usr/mips64-elf
 
 # Set up path for newlib to compile later
 export PATH=$PATH:$INSTALL_PATH/bin
@@ -22,9 +22,9 @@ export GCC_V=4.4.0
 export NEWLIB_V=1.17.0
 
 # Download stage
-#wget -c ftp://sourceware.org/pub/binutils/snapshots/binutils-$BINUTILS_V.tar.bz2
-#wget -c http://mirrors.ibiblio.org/pub/mirrors/gnu/ftp/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz
-#wget -c ftp://sources.redhat.com/pub/newlib/newlib-$NEWLIB_V.tar.gz
+wget -c ftp://sourceware.org/pub/binutils/snapshots/binutils-$BINUTILS_V.tar.bz2
+wget -c http://mirrors.ibiblio.org/pub/mirrors/gnu/ftp/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz
+wget -c ftp://sources.redhat.com/pub/newlib/newlib-$NEWLIB_V.tar.gz
 
 # Extract stage
 tar -xvjf binutils-$BINUTILS_V.tar.bz2
@@ -48,13 +48,16 @@ make install || sudo make install || su -c "make install"
 
 # Compile newlib
 cd ../newlib-$NEWLIB_V
-CFLAGS="-G0 -O2" ./configure --target=mips64-elf --prefix=${INSTALL_PATH} --with-cpu=mips64vr4300 --disable-threads --disable-libssp
+CFLAGS="-G0 -O2" CXXFLAGS="-G0 -O2" ./configure --target=mips64-elf --prefix=${INSTALL_PATH} --with-cpu=mips64vr4300 --disable-threads --disable-libssp
 make
 make install || sudo env PATH="$PATH" make install || su -c "env PATH=$PATH make install"
 
 # Compile gcc (pass 2)
-cd ../gcc_compile
-../gcc-$GCC_V/configure --prefix=${INSTALL_PATH} --target=mips64-elf --enable-languages=c,c++,objc,obj-c++ --with-newlib --disable-libssp --enable-multilib --disable-shared --with-gcc --with-gnu-ld --with-gnu-as --disable-threads --disable-win32-registry --disable-nls --disable-debug --disable-libmudflap
+cd ..
+rm -rf gcc_compile
+mkdir gcc_compile
+cd gcc_compile
+CFLAGS_FOR_TARGET="-G0 -O2" CXXFLAGS_FOR_TARGET="-G0 -O2" ../gcc-$GCC_V/configure --prefix=${INSTALL_PATH} --target=mips64-elf --enable-languages=c,c++,objc,obj-c++ --with-newlib --disable-libssp --enable-multilib --disable-shared --with-gcc --with-gnu-ld --with-gnu-as --disable-threads --disable-win32-registry --disable-nls --disable-debug --disable-libmudflap
 make
 make install || sudo make install || su -c "make install"
 
