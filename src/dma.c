@@ -28,3 +28,15 @@ void dma_write(void * ram_address, unsigned long pi_address, unsigned long len) 
     PI_regs->read_length = len-1;
     while (dma_busy()) ;
 }
+
+uint32_t io_read(uint32_t pi_address) {
+    volatile uint32_t *uncached_address = (uint32_t *)(pi_address | 0xa0000000);
+    while (dma_busy()) ;
+    return *uncached_address;
+}
+
+void io_write(uint32_t pi_address, uint32_t data) {
+    volatile uint32_t *uncached_address = (uint32_t *)(pi_address | 0xa0000000);
+    while (dma_busy()) ;
+    *uncached_address = data;
+}
