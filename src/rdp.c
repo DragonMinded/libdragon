@@ -25,6 +25,8 @@ static uint32_t rdp_ringbuffer[RINGBUFFER_SIZE / 4];
 static uint32_t rdp_start = 0;
 static uint32_t rdp_end = 0;
 
+static flush_t flush_strategy = FLUSH_STRATEGY_AUTOMATIC;
+
 static volatile uint32_t wait_intr = 0;
 
 static sprite_cache cache[8];
@@ -120,6 +122,9 @@ static void rdp_ringbuffer_send( void )
 
 void rdp_init( void )
 {
+    /* Default to flushing automatically */
+    flush_strategy = FLUSH_STRATEGY_AUTOMATIC;
+
     /* Set up interrupt for SYNC_FULL */
     enable_interrupts();
 
@@ -203,7 +208,10 @@ void rdp_enable_texture_copy( void )
 uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror_enabled, sprite_t *sprite, int sl, int tl, int sh, int th )
 {
     /* Invalidate data associated with sprite in cache */
-    data_cache_writeback_invalidate( sprite->data, sprite->width * sprite->height * sprite->bitdepth );
+    if( flush_strategy == FLUSH_STRATEGY_AUTOMATIC )
+    {
+        data_cache_writeback_invalidate( sprite->data, sprite->width * sprite->height * sprite->bitdepth );
+    }
 
     /* Point the RDP at the actual sprite data */
     rdp_ringbuffer_queue( 0xFD000000 | ((sprite->bitdepth == 2) ? 0x00100000 : 0x00180000) | (sprite->width - 1) );
@@ -338,5 +346,10 @@ void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by )
     rdp_ringbuffer_queue( 0xF6000000 | ( bx << 14 ) | ( by << 2 ) ); 
     rdp_ringbuffer_queue( ( tx << 14 ) | ( ty << 2 ) );
     rdp_ringbuffer_send();
+}
+
+void rdp_set_texture_flush( flush_t flush )
+{
+    flush_strategy = flush;
 }
 
