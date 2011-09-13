@@ -7,6 +7,13 @@
 # this does not mean it failed.  The script simply retried with sudo
 # and your password was cached.
 
+# Before calling this script, make sure you have GMP, MPFR and TexInfo
+# packages installed in your system.  On a Debian-based system this is
+# achieved by typing the following commands:
+#
+# sudo apt-get install libmpfr-dev
+# sudo apt-get install texinfo
+
 # Exit on error
 set -e
 
@@ -23,7 +30,7 @@ export NEWLIB_V=1.17.0
 
 # Download stage
 wget -c ftp://sourceware.org/pub/binutils/snapshots/binutils-$BINUTILS_V.tar.bz2
-wget -c http://mirrors.ibiblio.org/pub/mirrors/gnu/ftp/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz
+wget -c http://mirror.anl.gov/pub/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz
 wget -c ftp://sources.redhat.com/pub/newlib/newlib-$NEWLIB_V.tar.gz
 
 # Extract stage
