@@ -23,9 +23,6 @@ libdragonsys.a: $(OFILES_LDS)
 libdragonpp.a: $(OFILES_LDP)
 	$(AR) -rcs -o libdragonpp.a $(OFILES_LDP)
 
-(CURDIR)/build/:
-	mkdir $(CURDIR)/build
-
 install: libdragon.a libdragonsys.a libdragonpp.a
 	install -D --mode=644 libdragon.a $(INSTALLDIR)/lib/libdragon.a
 	install -D --mode=644 n64ld.x $(INSTALLDIR)/lib/n64ld.x
@@ -52,6 +49,6 @@ install: libdragon.a libdragonsys.a libdragonpp.a
 
 clean:
 	rm -f *.o *.a
-	rm -f $(CURDIR)/build/*
+	rm -rf $(CURDIR)/build
 
 .PHONY : clean
