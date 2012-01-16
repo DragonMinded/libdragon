@@ -1,75 +1,155 @@
+/**
+ * @file controller.h
+ * @brief Controller Subsystem
+ * @ingroup controller
+ */
+
 #ifndef __LIBDRAGON_CONTROLLER_H
 #define __LIBDRAGON_CONTROLLER_H
 
+/**
+ * @addtogroup controller
+ * @{
+ */
+
+/**
+ * @name Bitmasks for controller status
+ * @see #get_controllers_present
+ * @{
+ */
+
+/** @brief Controller 1 Inserted */
 #define CONTROLLER_1_INSERTED   0xF000
+/** @brief Controller 2 Inserted */
 #define CONTROLLER_2_INSERTED   0x0F00
+/** @brief Controller 3 Inserted */
 #define CONTROLLER_3_INSERTED   0x00F0
+/** @brief Controller 4 Inserted */
 #define CONTROLLER_4_INSERTED   0x000F
+/** @} */
 
+/**
+ * @name Accessory ID Values
+ * @{
+ */
+
+/** @brief No accessory present */
 #define ACCESSORY_NONE          0
+/** @brief Mempak present */
 #define ACCESSORY_MEMPAK        1
+/** @brief Rumblepak present */
 #define ACCESSORY_RUMBLEPAK     2
+/** @brief VRU present */
 #define ACCESSORY_VRU           3
+/** @} */
 
+/**
+ * @name SI Error Values
+ * @{
+ */
+
+/** @brief No error occured */
 #define ERROR_NONE          0x0
+/** @brief Command not recognized or malformed */
 #define ERROR_BAD_COMMAND   0x1
+/** @brief Controller not present */
 #define ERROR_NOT_PRESENT   0x2
+/** @} */
 
+/** @brief Size in bytes of a Mempak block */
 #define MEMPAK_BLOCK_SIZE   256
 
+/** @brief SI Controller Data */
 typedef struct SI_condat
 {
+    /** @brief Unused padding bits */
     unsigned : 16;
-    unsigned err : 2; // error status
+    /** @brief Status of the last command */
+    unsigned err : 2;
+    /** @brief Unused padding bits */
     unsigned : 14;
 
     union
     {
         struct
         {
+            /** @brief 32-bit data sent to or returned from SI */
             unsigned int data : 32;
         };
         struct
         {
+            /** @brief State of the A button */
             unsigned A : 1;
+            /** @brief State of the B button */
             unsigned B : 1;
+            /** @brief State of the Z button */
             unsigned Z : 1;
+            /** @brief State of the start button */
             unsigned start : 1;
+            /** @brief State of the up button */
             unsigned up : 1;
+            /** @brief State of the down button */
             unsigned down : 1;
+            /** @brief State of the left button */
             unsigned left : 1;
+            /** @brief State of the right button */
             unsigned right : 1;
+            /** @brief Unused padding bits */
             unsigned : 2;
+            /** @brief State of the L button */
             unsigned L : 1;
+            /** @brief State of the R button */
             unsigned R : 1;
+            /** @brief State of the C up button */
             unsigned C_up : 1;
+            /** @brief State of the C down button */
             unsigned C_down : 1;
+            /** @brief State of the C left button */
             unsigned C_left : 1;
+            /** @brief State of the C right button */
             unsigned C_right : 1;
+            /** @brief State of the X button */
             signed x : 8;
+            /** @brief State of the Y button */
             signed y : 8;
         };
     };
 } _SI_condat;
 
+/**
+ * @brief Structure for interpreting SI responses
+ */
 typedef struct controller_data
 {
-    struct
-    {
-        struct SI_condat c[4];
-        unsigned long unused[4*8]; // to map directly to PIF block
-    };
+    /** @brief Controller Data */
+    struct SI_condat c[4];
+    /** @brief Padding to allow mapping directly to a PIF block */
+    unsigned long unused[4*8];
 } _controller_data;
 
+/**
+ * @brief Structure representing a save entry in a mempak
+ */
 typedef struct entry_structure
 {
+    /** @brief Vendor ID */
     uint32_t vendor;
+    /** @brief Game ID */
     uint16_t game_id;
+    /** @brief Inode pointer */
     uint16_t inode;
+    /** @brief Intended region */
     uint8_t region;
+    /** @brief Number of blocks used by this entry */
     uint8_t blocks;
+    /** @brief Validity of this entry. */
     uint8_t valid;
+    /** @brief ID of this entry */
     uint8_t entry_id;
+    /**
+     * @brief Name of this entry
+     * @see #__n64_to_ascii and #__ascii_to_n64
+     */
     char name[19];
 } entry_structure_t;
 
@@ -77,47 +157,15 @@ typedef struct entry_structure
 extern "C" {
 #endif
 
-/* Initialize the controller system. */
 void controller_init();
-
-/* Read the controller status immediately and return results to data.  If
-   calling this function, one should not also call controller_scan as this
-   does not update the internal state of controllers. */
 void controller_read( struct controller_data * data);
-
-/* Read the controller status immediately and return a bitmask representing
-   which controllers are present in the system.  Note that this does not update
-   the current internal state of the controllers. */
 int get_controllers_present();
-
-/* Read the controller status immediately and return a bitmask representing
-   which controllers have inserted accessories */
 int get_accessories_present();
-
-/* Scan the four controller ports and calculate the buttons state.  This
-   must be called before calling any of the below functions. */
 void controller_scan();
-
-/* Return keys pressed since last detection.  This returns a standard
-   controller_data struct identical to controller_read.  However, buttons
-   are only set if they were pressed down since the last controller_scan() */
 struct controller_data get_keys_down();
-
-/* Similar to get_keys_down, except reports keys that were let go since the
-   last controller_scan(). */
 struct controller_data get_keys_up();
-
-/* Similar to get_keys_down, except reports keys that have been held down for
-   at least one controller_scan() query. */
 struct controller_data get_keys_held();
-
-/* Returns any key that is currently held down, regardless of the previous
-   state. */
 struct controller_data get_keys_pressed();
-
-/* Return the direction of the DPAD specified in controller.  Follows standard
-   polar coordinates, where 0 = 0, pi/4 = 1, pi/2 = 2, etc...  Returns -1 when
-   not pressed.  Must be used in conjunction with controller_scan() */
 int get_dpad_direction( int controller );
 
 /* Reads a 32 byte aligned address from a controller and places 32 read bytes
@@ -136,8 +184,6 @@ void rumble_start( int controller );
 
 /* Stop rumble on a particular controller */
 void rumble_stop( int controller );
-
-/* Send an arbitrary command to a controller and receive arbitrary data back */
 void execute_raw_command( int controller, int command, int bytesout, int bytesin, unsigned char *out, unsigned char *in );
 
 /* Read a sector off of a memory card.  Valid sector numbers are 0-127 */
@@ -176,18 +222,14 @@ int write_mempak_entry_data( int controller, entry_structure_t *entry, uint8_t *
 /* Given a valid mempak entry fetched by get_mempak_entry, removes the entry and frees
    all associated blocks. */
 int delete_mempak_entry( int controller, entry_structure_t *entry );
-
-/* Read the eeprom status */
 unsigned int eeprom_status();
-
-/* read block from eeprom */
 unsigned long long eeprom_read(int block);
-
-/* write block to eeprom */
 unsigned int eeprom_write(int block, unsigned long long data);
 
 #ifdef __cplusplus
 }
 #endif
+
+/** @} */ /* controller */
 
 #endif

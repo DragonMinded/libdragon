@@ -1,44 +1,106 @@
+/**
+ * @file audio.c
+ * @brief Audio Subsystem
+ * @ingroup audio
+ */
 #include <stdio.h>
 #include <string.h>
 #include <malloc.h>
 #include "libdragon.h"
 #include "regsinternal.h"
 
+/**
+ * @defgroup audio Audio Subsystem
+ * @ingroup libdragon
+ * @{
+ */
+
+/**
+ * @brief Memory location to read which determines the TV type
+ *
+ * Values read include 0 for PAL, 1 for NTSC and 2 for MPAL
+ */
 #define TV_TYPE_LOC   0x80000300 // uint32 => 0 = PAL, 1 = NTSC, 2 = MPAL
 
+/**
+ * @name DAC rates for different regions
+ * @{
+ */
+/** @brief NTSC DAC rate */
 #define AI_NTSC_DACRATE 48681812
+/** @brief PAL DAC rate */
 #define AI_PAL_DACRATE  49656530
+/** @brief MPAL DAC rate */
 #define AI_MPAL_DACRATE 48628316
+/** @} */
 
+/**
+ * @name AI Status Register Values
+ * @{
+ */
+/** @brief Bit representing that the AI is busy */
 #define AI_STATUS_BUSY  ( 1 << 30 )
+/** @brief Bit representing that the AI is full */
 #define AI_STATUS_FULL  ( 1 << 31 )
+/** @} */
 
+/** @brief Number of buffers the audio subsytem allocates and manages */
 #define NUM_BUFFERS     4
+/** 
+ * @brief Macro that calculates the size of a buffer based on frequency
+ *
+ * @param[in] x 
+ *            Frequency the AI is running at
+ *
+ * @return The size of the buffer in bytes rounded to an 8 byte boundary
+ */
 #define CALC_BUFFER(x)  ( ( ( ( x ) / 25 ) >> 3 ) << 3 )
 
+/** @brief The actual frequency the AI will run at */
 static int _frequency = 0;
+/** @brief The number of buffers currently allocated */
 static int _num_buf = NUM_BUFFERS;
+/** @brief The buffer size in bytes for each buffer allocated */
 static int _buf_size = 0;
+/** @brief Array of pointers to the allocated buffers */
 static short **buffers = NULL;
 
+/** @brief Index of the current playing buffer */
 static volatile int now_playing = 0;
+/** @brief Index pf the currently being written buffer */
 static volatile int now_writing = 0;
+/** @brief Bitmask of buffers indicating which buffers are full */
 static volatile int buf_full = 0;
 
-
+/** @brief Structure used to interact with the AI registers */
 static volatile struct AI_regs_s * const AI_regs = (struct AI_regs_s *)0xa4500000;
 
+/**
+ * @brief Return whether the AI is currently busy
+ *
+ * @return nonzero if the AI is busy, zero otherwise
+ */
 static volatile inline int __busy()
 {
     return AI_regs->status & AI_STATUS_BUSY;
 }
 
+/**
+ * @beief Return whether the AI is currently full
+ *
+ * @return nonzero if the AI is full, zero otherwise
+ */
 static volatile inline int __full()
 {
     return AI_regs->status & AI_STATUS_FULL;
 }
 
-/* Called whenever internal buffers are running low */
+/**
+ * @brief Send next available chunks of audio data to the AI
+ *
+ * This function is called whenever internal buffers are running low.  It will
+ * send as many buffers as possible to the AI until the AI is full.
+ */
 static void audio_callback()
 {
     /* Do not copy more data if we've freed the audio system */
@@ -71,6 +133,20 @@ static void audio_callback()
     }
 }
 
+/**
+ * @brief Initialize the audio subsystem
+ *
+ * This function will set up the AI to play at a given frequency and 
+ * allocate a number of back buffers to write data to.
+ *
+ * @note Before re-initializing the audio subsystem to a new playback
+ *       frequency, remember to call #audio_close.
+ *
+ * @param[in] frequency
+ *            The frequency in Hz to play back samples at
+ * @param[in] numbuffers
+ *            The number of buffers to allocate internally
+ */
 void audio_init(const int frequency, int numbuffers)
 {
     int clockrate;
@@ -121,6 +197,12 @@ void audio_init(const int frequency, int numbuffers)
     buf_full = 0;
 }
 
+/**
+ * @brief Close the audio subsystem
+ *
+ * This function closes the audio system and cleans up any internal
+ * memory allocated by #audio_init.
+ */
 void audio_close()
 {
     if(buffers)
@@ -144,6 +226,21 @@ void audio_close()
     _buf_size = 0;
 }
 
+/**
+ * @brief Write a chunk of audio data
+ *
+ * This function takes a chunk of audio data and writes it to an internal
+ * buffer which will be played back by the audio system as soon as room
+ * becomes available in the AI.  The buffer should contain stereo interleaved
+ * samples and be exactly #audio_get_buffer_length stereo samples long.
+ *
+ * @note This function will block until there is room to write an audio sample.
+ *       If you do not want to block, check to see if there is room by calling
+ *       #audio_can_write.
+ *
+ * @param[in] buffer
+ *            Buffer containing stereo samples to be played
+ */
 void audio_write(const short * const buffer)
 {
     if(!buffers)
@@ -171,6 +268,16 @@ void audio_write(const short * const buffer)
     enable_interrupts();
 }
 
+/**
+ * @brief Write a chunk of silence
+ *
+ * This function will write silence to be played back by the audio system.
+ * It writes exactly #audio_get_buffer_length stereo samples.
+ *
+ * @note This function will block until there is room to write an audio sample.
+ *       If you do not want to block, check to see if there is room by calling
+ *       #audio_can_write.
+ */
 void audio_write_silence()
 {
     if(!buffers)
@@ -198,6 +305,13 @@ void audio_write_silence()
     enable_interrupts();
 }
 
+/**
+ * @brief Return whether there is an empty buffer to write to
+ *
+ * This function will check to see if there are any buffers that are not full to
+ * write data to.  If all buffers are full, wait until the AI has played back
+ * the next buffer in its queue and try writing again.
+ */
 volatile int audio_can_write()
 {
     if(!buffers)
@@ -210,12 +324,27 @@ volatile int audio_can_write()
     return (buf_full & (1<<next)) ? 0 : 1;
 }
 
+/**
+ * @brief Return actual frequency of audio playback
+ *
+ * @return Frequency in Hz of the audio playback
+ */
 int audio_get_frequency()
 {
     return _frequency;
 }
 
+/**
+ * @brief Get the number of stereo samples that fit into an allocated buffer
+ *
+ * @note To get the number of bytes to allocate, multiply the return by 
+ *       2 * sizeof( short )
+ *
+ * @return The number of stereo samples in an allocated buffer
+ */
 int audio_get_buffer_length()
 {
     return _buf_size;
 }
+
+/** @} */ /* audio */

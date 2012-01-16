@@ -1,32 +1,80 @@
+/**
+ * @file controller.c
+ * @brief Controller Subsystem
+ * @ingroup controller
+ */
+
 #include <string.h>
 #include "libdragon.h"
 #include "regsinternal.h"
 
+/**
+ * @defgroup controller Controller Subsystem
+ * @ingroup libdragon
+ * @{
+ */
+
+/**
+ * @name SI status register bit definitions
+ * @{
+ */
+
+/** @brief SI DMA busy */
 #define SI_STATUS_DMA_BUSY  ( 1 << 0 )
+/** @brief SI IO busy */
 #define SI_STATUS_IO_BUSY   ( 1 << 1 )
+/** @} */
 
+/**
+ * @name Inode values
+ * @{
+ */
+
+/** @brief This block is empty */
 #define BLOCK_EMPTY         0x03
+/** @brief This is the last block in the note */
 #define BLOCK_LAST          0x01
+/** @brief First valid block that can contain user data */
 #define BLOCK_VALID_FIRST   0x05
+/** @brief Last valid block that can contain user data */
 #define BLOCK_VALID_LAST    0x7F
+/** @} */
 
+/** @brief Structure used to interact with SI registers */
 static volatile struct SI_regs_s * const SI_regs = (struct SI_regs_s *)0xa4800000;
+/** @brief Location of the PIF RAM */
 static void * const PIF_RAM = (void *)0x1fc007c0;
 
+/** @brief The current sampled controller data */
 static struct controller_data current;
+/** @brief The previously sampled controller data */
 static struct controller_data last;
 
+/** 
+ * @brief Initialize the controller subsystem 
+ */
 void controller_init()
 {
     memset(&current, 0, sizeof(current));
     memset(&last, 0, sizeof(last));
 }
 
+/**
+ * @brief Wait until the SI is finished with a DMA request
+ */
 static void __SI_DMA_wait(void)
 {
     while (SI_regs->status & (SI_STATUS_DMA_BUSY | SI_STATUS_IO_BUSY)) ;
 }
 
+/**
+ * @brief Send a block of data to the PIF and fetch the result
+ *
+ * @param[in]  inblock
+ *             The formatted block to send to the PIF
+ * @param[out] outblock
+ *             The buffer to place the output from the PIF
+ */
 static void __controller_exec_PIF( void *inblock, void *outblock )
 {
     volatile uint64_t inblock_temp[8];
@@ -52,6 +100,13 @@ static void __controller_exec_PIF( void *inblock, void *outblock )
     memcpy(outblock, UncachedAddr(outblock_temp), 64);
 }
 
+/**
+ * @brief Read the EEPROM status
+ *
+ * @todo NeoFlash needs to provide additional details as to the expected return values
+ *
+ * @return The status of the EEPROM
+ */
 unsigned int eeprom_status()
 {
     static unsigned long long SI_eeprom_status_block[8] =
@@ -71,6 +126,16 @@ unsigned int eeprom_status()
 	return (unsigned int)(output[1] >> 32);
 }
 
+/**
+ * @brief Read a block from EEPROM
+ * 
+ * @todo Need to return a proper value without internal PIF data leaking out
+ *
+ * @param[in] block
+ *            Block to read data from
+ *
+ * @return The result of the EEPROM read
+ */
 unsigned long long eeprom_read(int block)
 {
     static unsigned long long SI_eeprom_read_block[8] =
@@ -91,6 +156,19 @@ unsigned long long eeprom_read(int block)
 	return output[1];
 }
 
+/**
+ * @brief Write a block to EEPROM
+ *
+ * @todo Need to format input data properly so as not to require PIF data in input
+ * @todo Need to convert and return a proper return code
+ *
+ * @param[in] block
+ *            Block to write data to
+ * @param[in] data
+ *            Data to write to block specified
+ *
+ * @return The result of the EEPROM write
+ */
 unsigned int eeprom_write(int block, unsigned long long data)
 {
     static unsigned long long SI_eeprom_write_block[8] =
@@ -112,6 +190,16 @@ unsigned int eeprom_write(int block, unsigned long long data)
 	return (unsigned int)(output[2] >> 32);
 }
 
+/**
+ * @brief Read the controller button status for all controllers
+ *
+ * Read the controller button status immediately and return results to data.  If
+ * calling this function, one should not also call #controller_scan as this
+ * does not update the internal state of controllers.
+ *
+ * @param[out] output
+ *             Structure to place the returned controller button status
+ */
 void controller_read(struct controller_data * output)
 {
     static unsigned long long SI_read_con_block[8] =
@@ -129,6 +217,13 @@ void controller_read(struct controller_data * output)
     __controller_exec_PIF(SI_read_con_block,output);
 }
 
+/**
+ * @brief Scan the controllers to determine the current button state
+ *
+ * Scan the four controller ports and calculate the buttons state.  This
+ * must be called before calling #get_keys_down, #get_keys_up, 
+ * #get_keys_held, #get_keys_pressed or #get_dpad_direction.
+ */
 void controller_scan()
 {
     /* Remember last */
@@ -139,6 +234,15 @@ void controller_scan()
     controller_read(&current);
 }
 
+/**
+ * @brief Get keys that were pressed since the last inspection
+ *
+ * Return keys pressed since last detection.  This returns a standard
+ * #controller_data struct identical to #controller_read.  However, buttons
+ * are only set if they were pressed down since the last #controller_scan.
+ *
+ * @return A structure representing which buttons were just pressed down
+ */
 struct controller_data get_keys_down()
 {
     struct controller_data ret;
@@ -155,6 +259,15 @@ struct controller_data get_keys_down()
     return ret;
 }
 
+/**
+ * @brief Get keys that were released since the last inspection
+ *
+ * Return keys released since last detection.  This returns a standard
+ * #controller_data struct identical to #controller_read.  However, buttons
+ * are only set if they were released since the last #controller_scan.
+ *
+ * @return A structure representing which buttons were just released
+ */
 struct controller_data get_keys_up()
 {
     struct controller_data ret;
@@ -171,6 +284,15 @@ struct controller_data get_keys_up()
     return ret;
 }
 
+/**
+ * @brief Get keys that were held since the last inspection
+ *
+ * Return keys held since last detection.  This returns a standard
+ * #controller_data struct identical to #controller_read.  However, buttons
+ * are only set if they were held since the last #controller_scan.
+ *
+ * @return A structure representing which buttons were held
+ */
 struct controller_data get_keys_held()
 {
     struct controller_data ret;
@@ -187,11 +309,31 @@ struct controller_data get_keys_held()
     return ret;
 }
 
+/**
+ * @brief Get keys that are currently pressed, regardless of previous state
+ *
+ * This function works identically to #controller_read except for it is safe
+ * to call when using #controller_scan.
+ *
+ * @return A structure representing which buttons were pressed
+ */
 struct controller_data get_keys_pressed()
 {
     return current;
 }
 
+/**
+ * @brief Return the DPAD calculated direction
+ *
+ * Return the direction of the DPAD specified in controller.  Follows standard
+ * polar coordinates, where 0 = 0, pi/4 = 1, pi/2 = 2, etc...  Returns -1 when
+ * not pressed.  Must be used in conjunction with #controller_scan
+ *
+ * @param[in] controller
+ *            The controller (0-3) to inspect
+ *
+ * @return A value 0-7 to represent which direction is held, or -1 when not pressed
+ */
 int get_dpad_direction( int controller )
 {
     /* Diagonals first because it could only be right angles otherwise */
@@ -238,6 +380,24 @@ int get_dpad_direction( int controller )
     return -1;
 }
 
+/**
+ * @brief Execute a raw PIF command
+ *
+ * Send an arbitrary command to a controller and receive arbitrary data back
+ *
+ * @param[in]  controller
+ *             The controller (0-3) to send the command to
+ * @param[in]  command
+ *             The command byte to send
+ * @param[in]  bytesout
+ *             The number of parameter bytes the command requires
+ * @param[in]  bytesin
+ *             The number of result bytes expected
+ * @param[in]  out
+ *             The parameter bytes to send with the command
+ * @param[out] in
+ *             The result bytes returned by the operation
+ */
 void execute_raw_command( int controller, int command, int bytesout, int bytesin, unsigned char *out, unsigned char *in )
 {
     unsigned long long SI_debug[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -259,6 +419,15 @@ void execute_raw_command( int controller, int command, int bytesout, int bytesin
     memcpy( in, &data[controller + 3 + bytesout], bytesin );
 }
 
+/**
+ * @brief Return a bitmask representing which controllers are present
+ *
+ * Queries the controller interface and returns a bitmask specifying which
+ * controllers are present.  See #CONTROLLER_1_INSERTED, #CONTROLLER_2_INSERTED,
+ * #CONTROLLER_3_INSERTED and #CONTROLLER_4_INSERTED.
+ *
+ * @return A bitmask representing controllers present
+ */
 int get_controllers_present()
 {
     int ret = 0;
@@ -285,6 +454,14 @@ int get_controllers_present()
     return ret;
 }
 
+/**
+ * @brief Return whether the given accessory is recognized
+ *
+ * @param[in] data
+ *            Data as returned from PIF for a given controller
+ *
+ * @return Nonzero if valid accessory, zero otherwise
+ */
 static int __is_valid_accessory( uint32_t data )
 {
     if( ((data >> 8) & 0xFFFF) == 0x0001 )
@@ -301,6 +478,12 @@ static int __is_valid_accessory( uint32_t data )
     return 0;
 }
 
+/**
+ * @brief Query the PIF as to the status of accessories
+ *
+ * @param[out] output
+ *             Structure to place the result of the accessory query
+ */
 static void __get_accessories_present( struct controller_data *output )
 {
     static unsigned long long SI_read_status_block[8] =
@@ -318,6 +501,15 @@ static void __get_accessories_present( struct controller_data *output )
     __controller_exec_PIF(SI_read_status_block,output);
 }
 
+/**
+ * @brief Return a bitmask specifying which controllers have recognized accessories
+ *
+ * Queries the controller interface and returns a bitmask specifying which
+ * controllers have recognized accessories present.  See #CONTROLLER_1_INSERTED, 
+ * #CONTROLLER_2_INSERTED, #CONTROLLER_3_INSERTED and #CONTROLLER_4_INSERTED.
+ *
+ * @return A bitmask representing accessories recognized
+ */
 int get_accessories_present()
 {
     struct controller_data output;
@@ -1494,3 +1686,5 @@ int delete_mempak_entry( int controller, entry_structure_t *entry )
 
     return 0;
 }
+
+/* @} */ /* controller */

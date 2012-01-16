@@ -14,6 +14,10 @@ libdragon: libdragon.a libdragonsys.a libdragonpp.a
 
 include files.in
 
+doxygen: doxygen.conf
+	mkdir -p doxygen/
+	doxygen doxygen.conf
+
 libdragon.a: $(OFILES_LD)
 	$(AR) -rcs -o libdragon.a $(OFILES_LD)
 
@@ -51,4 +55,7 @@ clean:
 	rm -f *.o *.a
 	rm -rf $(CURDIR)/build
 
-.PHONY : clean
+doxyclean:
+	rm -rf $(CURDIR)/doxygen
+
+.PHONY : clean doxyclean doxygen
