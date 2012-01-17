@@ -14,20 +14,31 @@ libdragon: libdragon.a libdragonsys.a libdragonpp.a
 
 include files.in
 
+examples:
+	make -C examples
+examples-clean:
+	make -C examples clean
+
 doxygen: doxygen.conf
 	mkdir -p doxygen/
 	doxygen doxygen.conf
-
 doxygen-api: doxygen-public.conf
 	mkdir -p doxygen/
 	doxygen doxygen-public.conf
+doxygen-clean:
+	rm -rf $(CURDIR)/doxygen
+
+tools:
+	make -C tools
+tools-install:
+	make -C tools install
+tools-clean:
+	make -C tools clean
 
 libdragon.a: $(OFILES_LD)
 	$(AR) -rcs -o libdragon.a $(OFILES_LD)
-
 libdragonsys.a: $(OFILES_LDS)
 	$(AR) -rcs -o libdragonsys.a $(OFILES_LDS)
-
 libdragonpp.a: $(OFILES_LDP)
 	$(AR) -rcs -o libdragonpp.a $(OFILES_LDP)
 
@@ -59,7 +70,6 @@ clean:
 	rm -f *.o *.a
 	rm -rf $(CURDIR)/build
 
-doxyclean:
-	rm -rf $(CURDIR)/doxygen
+clobber: clean doxygen-clean examples-clean tools-clean
 
-.PHONY : clean doxyclean doxygen doxygen-api
+.PHONY : clobber clean doxygen-clean doxygen doxygen-api examples examples-clean tools tools-clean tools-install

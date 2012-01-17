@@ -12,7 +12,7 @@
 
 /**
  * @defgroup console Console Support
- * @ingroup libdragon
+ * @ingroup display
  * @{
  */
 

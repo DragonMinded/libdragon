@@ -67,23 +67,3 @@ cd gcc_compile
 CFLAGS_FOR_TARGET="-G0 -O2" CXXFLAGS_FOR_TARGET="-G0 -O2" ../gcc-$GCC_V/configure --prefix=${INSTALL_PATH} --target=mips64-elf --enable-languages=c,c++,objc,obj-c++ --with-newlib --disable-libssp --enable-multilib --disable-shared --with-gcc --with-gnu-ld --with-gnu-as --disable-threads --disable-win32-registry --disable-nls --disable-debug --disable-libmudflap
 make
 make install || sudo make install || su -c "make install"
-
-# Compile chksum64.c and n64tool.c
-cd ..
-gcc -o chksum64 chksum64.c
-gcc -o n64tool n64tool.c
-
-cp chksum64 ${INSTALL_PATH}/bin || sudo cp chksum64 ${INSTALL_PATH}/bin
-cp n64tool ${INSTALL_PATH}/bin || sudo cp n64tool ${INSTALL_PATH}/bin
-
-# Compile mkdfs.c and mksprite.c
-cd mkdfs
-make
-cp mkdfs ${INSTALL_PATH}/bin || sudo cp mkdfs ${INSTALL_PATH}/bin
-
-cd ../mksprite
-make
-cp mksprite ${INSTALL_PATH}/bin || sudo cp mksprite ${INSTALL_PATH}/bin
-
-cd ..
-

@@ -31,6 +31,8 @@
 
 #define PI_CLEAR_INTERRUPT ( 1 << 1 )
 
+/** @todo Need to allow unregistering of callbacks */
+
 typedef struct callback_link
 {
     void (*callback)();
