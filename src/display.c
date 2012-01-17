@@ -1,98 +1,147 @@
+/**
+ * @file display.c
+ * @brief Display Subsystem
+ * @ingroup display
+ */
 #include <stdint.h>
 #include <malloc.h>
 #include <string.h>
 #include "libdragon.h"
 
-/* Constants for easier code management */
+/**
+ * @defgroup display Display Subsystem
+ * @ingroup libdragon
+ * @{
+ */
+
+/** @brief Maximum number of video backbuffers */
 #define NUM_BUFFERS         3
 
+/** @brief Register location in memory of VI */
 #define REGISTER_BASE       0xA4400000
+/** @brief Number of 32-bit registers at the register base */
 #define REGISTER_COUNT      14
 
+/** @brief Memory location to read which determines the TV type. */
 #define TV_TYPE_LOC         0x80000300
 
+/** 
+ * @brief Return the uncached memory address of a cached address
+ *
+ * @param[in] x 
+ *            The cached address
+ *
+ * @return The uncached address
+ */
 #define UNCACHED_ADDR(x)    ((void *)(((uint32_t)(x)) | 0xA0000000))
+
+/**
+ * @brief Align a memory address to 16 byte offset
+ * 
+ * @param[in] x
+ *            Unaligned memory address
+ *
+ * @return An aligned address guaranteed to be >= the unaligned address
+ */
 #define ALIGN_16BYTE(x)     ((void *)(((uint32_t)(x)+15) & 0xFFFFFFF0))
 
-/* Presets for video modes */
-static uint32_t ntsc_320[] = {
+/**
+ * @name Video Mode Register Presets
+ * @brief Presets to use when setting a particular video mode
+ * @{
+ */
+static const uint32_t ntsc_320[] = {
     0x00000000, 0x00000000, 0x00000140, 0x00000200,
     0x00000000, 0x03e52239, 0x0000020d, 0x00000c15,
     0x0c150c15, 0x006c02ec, 0x002501ff, 0x000e0204,
     0x00000200, 0x00000400 };
-static uint32_t pal_320[] = {
+static const uint32_t pal_320[] = {
     0x00000000, 0x00000000, 0x00000140, 0x00000200,
     0x00000000, 0x0404233a, 0x00000271, 0x00150c69,
     0x0c6f0c6e, 0x00800300, 0x005f0239, 0x0009026b,
     0x00000200, 0x00000400 };
-static uint32_t mpal_320[] = {
+static const uint32_t mpal_320[] = {
     0x00000000, 0x00000000, 0x00000140, 0x00000200,
     0x00000000, 0x04651e39, 0x0000020d, 0x00040c11,
     0x0c190c1a, 0x006c02ec, 0x002501ff, 0x000e0204,
     0x00000200, 0x00000400 };
-static uint32_t ntsc_640[] = {
+static const uint32_t ntsc_640[] = {
     0x00000000, 0x00000000, 0x00000280, 0x00000200,
     0x00000000, 0x03e52239, 0x0000020c, 0x00000c15,
     0x0c150c15, 0x006c02ec, 0x002301fd, 0x000e0204,
     0x00000400, 0x02000800 };
-static uint32_t pal_640[] = {
+static const uint32_t pal_640[] = {
     0x00000000, 0x00000000, 0x00000280, 0x00000200,
     0x00000000, 0x0404233a, 0x00000270, 0x00150c69,
     0x0c6f0c6e, 0x00800300, 0x005d0237, 0x0009026b,
     0x00000400, 0x02000800 };
-static uint32_t mpal_640[] = {
+static const uint32_t mpal_640[] = {
     0x00000000, 0x00000000, 0x00000280, 0x00000200,
     0x00000000, 0x04651e39, 0x0000020c, 0x00000c10,
     0x0c1c0c1c, 0x006c02ec, 0x002301fd, 0x000b0202,
     0x00000400, 0x02000800 };
-static uint32_t ntsc_256[] = {
+static const uint32_t ntsc_256[] = {
     0x00000000, 0x00000000, 0x00000100, 0x00000200,
     0x00000000, 0x03e52239, 0x0000020d, 0x00000c15,
     0x0c150c15, 0x006c02ec, 0x002501ff, 0x000e0204,
     0x0000019A, 0x00000400 };
-static uint32_t pal_256[] = {
+static const uint32_t pal_256[] = {
     0x00000000, 0x00000000, 0x00000100, 0x00000200,
     0x00000000, 0x0404233a, 0x00000271, 0x00150c69,
     0x0c6f0c6e, 0x00800300, 0x005f0239, 0x0009026b,
     0x0000019A, 0x00000400 };
-static uint32_t mpal_256[] = {
+static const uint32_t mpal_256[] = {
     0x00000000, 0x00000000, 0x00000100, 0x00000200,
     0x00000000, 0x04651e39, 0x0000020d, 0x00040c11,
     0x0c190c1a, 0x006c02ec, 0x002501ff, 0x000e0204,
     0x0000019A, 0x00000400 };
-static uint32_t ntsc_512[] = {
+static const uint32_t ntsc_512[] = {
     0x00000000, 0x00000000, 0x00000200, 0x00000200,
     0x00000000, 0x03e52239, 0x0000020c, 0x00000c15,
     0x0c150c15, 0x006c02ec, 0x002301fd, 0x000e0204,
     0x00000334, 0x02000800 };
-static uint32_t pal_512[] = {
+static const uint32_t pal_512[] = {
     0x00000000, 0x00000000, 0x00000200, 0x00000200,
     0x00000000, 0x0404233a, 0x00000270, 0x00150c69,
     0x0c6f0c6e, 0x00800300, 0x005d0237, 0x0009026b,
     0x00000334, 0x02000800 };
-static uint32_t mpal_512[] = {
+static const uint32_t mpal_512[] = {
     0x00000000, 0x00000000, 0x00000200, 0x00000200,
     0x00000000, 0x04651e39, 0x0000020c, 0x00000c10,
     0x0c1c0c1c, 0x006c02ec, 0x002301fd, 0x000b0202,
     0x00000334, 0x02000800 };
+/** @} */
 
-static uint32_t *reg_values[] = { pal_320, ntsc_320, mpal_320, pal_640, ntsc_640, mpal_640, pal_256, ntsc_256, mpal_256, pal_512, ntsc_512, mpal_512 };
+/** @brief Register initial value array */
+static const uint32_t * const reg_values[] = { pal_320, ntsc_320, mpal_320, pal_640, ntsc_640, mpal_640, pal_256, ntsc_256, mpal_256, pal_512, ntsc_512, mpal_512 };
+/** @brief Video buffer pointers */
 static void *buffer[NUM_BUFFERS];
+/** @brief Currently active bit depth */
 uint32_t __bitdepth;
+/** @brief Currently active video width (calculated) */
 uint32_t __width;
+/** @brief Currently active video height (calculated) */
 uint32_t __height;
+/** @brief Number of active buffers */
 uint32_t __buffers = NUM_BUFFERS;
+/** @brief Pointer to uncached 16-bit aligned version of buffers */
 void *__safe_buffer[NUM_BUFFERS];
 
-/* currently displayed buffer */
+/** @brief Currently displayed buffer */
 static int now_showing = -1;
 
-/* complete drawn buffer to display next */
+/** @brief Complete drawn buffer to display next */
 static int show_next = -1;
 
-/* buffer currently being drawn on */
+/** @brief Buffer currently being drawn on */
 static int now_drawing = -1;
 
+/**
+ * @brief Write a set of video registers to the VI
+ *
+ * @param[in] registers
+ *            A pointer to a set of register values to be written
+ */
 static void __write_registers( uint32_t const * const registers )
 {
     uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
@@ -111,6 +160,12 @@ static void __write_registers( uint32_t const * const registers )
     }
 }
 
+/**
+ * @brief Update the framebuffer pointer in the VI
+ *
+ * @param[in] dram_val
+ *            The new framebuffer to use for display.  Should be aligned and uncached.
+ */
 static void __write_dram_register( void const * const dram_val )
 {
     uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
@@ -118,6 +173,11 @@ static void __write_dram_register( void const * const dram_val )
     reg_base[1] = (uint32_t)dram_val;
 }
 
+/**
+ * @brief Interrupt handler for vertical blank
+ *
+ * If there is another frame to display, display the frame
+ */
 static void __display_callback()
 {
     /* Only swap frames if we have a new frame to swap, otherwise just
@@ -131,6 +191,23 @@ static void __display_callback()
     }
 }
 
+/**
+ * @brief Initialize the display to a particular resolution and bit depth
+ *
+ * Initialize video system.  This sets up a double or triple buffered drawing surface which can
+ * be blitted or rendered to using software or hardware.
+ *
+ * @param[in] res
+ *            The requested resolution
+ * @param[in] bit
+ *            The requested bit depth
+ * @param[in] num_buffers
+ *            Number of buffers (2 or 3)
+ * @param[in] gamma
+ *            The requested gamma setting
+ * @param[in] aa
+ *            The requested anti-aliasing setting
+ */
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, antialias_t aa )
 {
     uint32_t registers[REGISTER_COUNT];
@@ -273,6 +350,11 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     set_VI_interrupt( 1, 0x200 );
 }
 
+/**
+ * @brief Close the display
+ *
+ * Close a display and free buffer memory associated with it.
+ */
 void display_close()
 {
     /* Can't have the video interrupt happening here */
@@ -302,6 +384,15 @@ void display_close()
     enable_interrupts();
 }
 
+/**
+ * @brief Lock a display buffer for rendering
+ *
+ * Grab a display context that is safe for drawing.  If none is available
+ * then this will return 0.  Do not check out more than one display
+ * context at a time.
+ *
+ * @return A valid display context to render to or 0 if none is available.
+ */
 display_context_t display_lock()
 {
     display_context_t retval = 0;
@@ -327,6 +418,15 @@ display_context_t display_lock()
     return retval;
 }
 
+/**
+ * @brief Display a previously locked buffer
+ *
+ * Display a valid display context to the screen on the next vblank.  Display
+ * contexts should be locked via #display_lock.
+ *
+ * @param[in] disp
+ *            A display context retrieved using #display_lock
+ */
 void display_show( display_context_t disp )
 {
     /* They tried drawing on a bad context */
@@ -349,3 +449,4 @@ void display_show( display_context_t disp )
     enable_interrupts();
 }
 
+/** @} */ /* display */

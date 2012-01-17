@@ -18,6 +18,10 @@ doxygen: doxygen.conf
 	mkdir -p doxygen/
 	doxygen doxygen.conf
 
+doxygen-api: doxygen-public.conf
+	mkdir -p doxygen/
+	doxygen doxygen-public.conf
+
 libdragon.a: $(OFILES_LD)
 	$(AR) -rcs -o libdragon.a $(OFILES_LD)
 
@@ -58,4 +62,4 @@ clean:
 doxyclean:
 	rm -rf $(CURDIR)/doxygen
 
-.PHONY : clean doxyclean doxygen
+.PHONY : clean doxyclean doxygen doxygen-api

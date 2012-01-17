@@ -3,7 +3,6 @@
  * @brief Controller Subsystem
  * @ingroup controller
  */
-
 #ifndef __LIBDRAGON_CONTROLLER_H
 #define __LIBDRAGON_CONTROLLER_H
 
@@ -15,9 +14,9 @@
 /**
  * @name Bitmasks for controller status
  * @see #get_controllers_present
+ * @see #get_accessories_present    
  * @{
  */
-
 /** @brief Controller 1 Inserted */
 #define CONTROLLER_1_INSERTED   0xF000
 /** @brief Controller 2 Inserted */
@@ -30,9 +29,9 @@
 
 /**
  * @name Accessory ID Values
+ * @see #identify_accessory
  * @{
  */
-
 /** @brief No accessory present */
 #define ACCESSORY_NONE          0
 /** @brief Mempak present */
@@ -47,7 +46,6 @@
  * @name SI Error Values
  * @{
  */
-
 /** @brief No error occured */
 #define ERROR_NONE          0x0
 /** @brief Command not recognized or malformed */
@@ -167,60 +165,20 @@ struct controller_data get_keys_up();
 struct controller_data get_keys_held();
 struct controller_data get_keys_pressed();
 int get_dpad_direction( int controller );
-
-/* Reads a 32 byte aligned address from a controller and places 32 read bytes
-   into data */
 int read_mempak_address( int controller, uint16_t address, uint8_t *data );
-
-/* Writes 32 bytes to a 32 byte aligned address */
 int write_mempak_address( int controller, uint16_t address, uint8_t *data );
-
-/* Given a controller, identify the particular accessory type inserted.  See
-   accessory defines above */
 int identify_accessory( int controller );
-
-/* Start rumble on a particular controller */
 void rumble_start( int controller );
-
-/* Stop rumble on a particular controller */
 void rumble_stop( int controller );
 void execute_raw_command( int controller, int command, int bytesout, int bytesin, unsigned char *out, unsigned char *in );
-
-/* Read a sector off of a memory card.  Valid sector numbers are 0-127 */
 int read_mempak_sector( int controller, int sector, uint8_t *sector_data );
-
-/* Write a sector to a memory card.  Same restriction as above */
 int write_mempak_sector( int controller, int sector, uint8_t *sector_data );
-
-/* Return whether a mempak is formatted and valid */
 int validate_mempak( int controller );
-
-/* Return the number of blocks free on the mempak */
 int get_mempak_free_space( int controller );
-
-/* Given an entry index (0-15), return the entry as found on the mempak.  If
-   the entry is blank or invalid, the valid flag is cleared. */
 int get_mempak_entry( int controller, int entry, entry_structure_t *entry_data );
-
-/* Formats a mempak.  Should only be done to wipe a mempak or to initialize
-   the filesystem in case of a blank or corrupt mempak */
 int format_mempak( int controller );
-
-/* Given a valid mempak entry fetched by get_mempak_entry, retrieves the contents
-   of the entry.  The calling function must ensure that enough room is available in
-   the passed in buffer for the entire entry.  The entry structure itself contains
-   the number of blocks used to store the data which can be multiplied by
-   MEMPAK_BLOCK_SIZE to calculate the size of the buffer needed */
 int read_mempak_entry_data( int controller, entry_structure_t *entry, uint8_t *data );
-
-/* Given a mempak entry structure with a valid region, name and block count, writes the
-   data to a free entry on the mempak.  All other values on the entry structure are
-   assumed to be uninitialized.  This function does no checking for existing entries
-   of the same name.  To remove an old record, use the delete_mempak_entry function. */
 int write_mempak_entry_data( int controller, entry_structure_t *entry, uint8_t *data );
-
-/* Given a valid mempak entry fetched by get_mempak_entry, removes the entry and frees
-   all associated blocks. */
 int delete_mempak_entry( int controller, entry_structure_t *entry );
 unsigned int eeprom_status();
 unsigned long long eeprom_read(int block);

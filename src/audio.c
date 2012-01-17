@@ -86,7 +86,7 @@ static volatile inline int __busy()
 }
 
 /**
- * @beief Return whether the AI is currently full
+ * @brief Return whether the AI is currently full
  *
  * @return nonzero if the AI is full, zero otherwise
  */
