@@ -1,26 +1,55 @@
+/**
+ * @file graphics.h
+ * @brief 2D Graphics Subsystem
+ * @ingroup graphics
+ */
 #ifndef __LIBDRAGON_GRAPHICS_H
 #define __LIBDRAGON_GRAPHICS_H
 
 #include "display.h"
 
+/**
+ * @addtogroup graphics
+ * @{
+ */
+
+/** @brief Generic color structure */
 typedef struct
 {
+    /** @brief Red component */
     uint8_t r;
+    /** @brief Green component */
     uint8_t g;
+    /** @brief Blue component */
     uint8_t b;
+    /** @brief Alpha component */
     uint8_t a;
 } color_t;
 
+/** @brief Sprite structure */
 typedef struct
 {
+    /** @brief Width in pixels */
     uint16_t width;
+    /** @brief Height in pixels */
     uint16_t height;
+    /** 
+     * @brief Bit depth expressed in bytes
+     *
+     * A 32 bit sprite would have a value of '4' here
+     */
     uint8_t bitdepth;
+    /** 
+     * @brief Sprite format
+     * @note Currently unused
+     */
     uint8_t format;
+    /** @brief Number of horizontal slices for spritemaps */
     uint8_t hslices;
+    /** @brief Number of vertical slices for spritemaps */
     uint8_t vslices;
 
-    /* Start of graphics data */
+    /** @brief Start of graphics data */
     uint32_t data[0];
 } sprite_t;
 
@@ -61,5 +90,7 @@ void graphics_draw_sprite_trans_stride( display_context_t disp, int x, int y, sp
 #ifdef __cplusplus
 }
 #endif
+
+/** @} */ /* graphics */
 
 #endif

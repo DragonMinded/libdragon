@@ -1,11 +1,20 @@
+/**
+ * @file graphics.c
+ * @brief 2D Graphics Subsystem
+ * @ingroup graphics
+ */
 #include <stdint.h>
 #include <malloc.h>
 #include <string.h>
 #include "display.h"
 #include "graphics.h"
+#include "font.h"
 
-/* @todo DO THIS RIGHT */
-#include "font.c"
+/**
+ * @defgroup graphics 2D Graphics Subsystem
+ * @ingroup display
+ * @{
+ */
 
 #define __set_pixel( buffer, x, y, color ) \
     (buffer)[(x) + ((y) * __width)] = color
@@ -20,8 +29,17 @@ extern uint32_t __width;
 extern uint32_t __height;
 extern void *__safe_buffer[];
 
-/* White on both bitdepths, transparent on both bitdepths */
+/**
+ * @brief Generic foreground color
+ *
+ * This is white on 16 and 32 BPP modes 
+ */
 static uint32_t f_color = 0xFFFFFFFF;
+/** 
+ * @brief Generic background color
+ *
+ * This is transparent on 16 and 32 BPP modes 
+ */
 static uint32_t b_color = 0x00000000;
 
 uint32_t graphics_make_color( int r, int g, int b, int a )
@@ -725,3 +743,5 @@ void graphics_draw_sprite_trans_stride( display_context_t disp, int x, int y, sp
         }
     }
 }
+
+/** @} */ /* graphics */
