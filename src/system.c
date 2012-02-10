@@ -21,43 +21,95 @@
  * @{
  */
 
-/* Dirty hack, should investigate this further */
+/**
+ * @brief Stack size
+ *
+ * @todo Dirty hack, should investigate this further
+ */
 #define STACK_SIZE 0x10000
 
+/**
+ * @brief Write to the MESS debug register
+ *
+ * @param[in] x
+ *            32-bit value to write to the MESS debug register
+ */
 #define DEBUG_OUT( x ) ((uint32_t *)0xA4400044)[0] = ((uint32_t)(x))
 
-/* No idea what this is for */
+/**
+ * @brief Environment variables
+ */
 char *__env[1] = { 0 };
+
+/** 
+ * @brief Environment variables
+ */
 char **environ = __env;
+
+/** 
+ * @brief Dummy declaration of timeval
+ */
 struct timeval;
 
-/* Not otherwise supplied */
+/**
+ * @brief Master definition of errno
+ */
 int errno;
 
-/* bootchip set in n64sys.c */
 extern int __bootcic;
 
-/* For dealing with multiple filesystems */
+/**
+ * @brief Filesystem mapping structure
+ *
+ * This is used to look up what filesystem to use when passed
+ * a generic path.
+ */
 typedef struct
 {
+    /** @brief Filesystem prefix
+     *
+     * This controls what filesystem prefix should link to this filesystem
+     * (eg. 'rom:/' or 'cf:/') 
+     */
     char *prefix;
+    /** @brief Filesystem callback pointers */
     filesystem_t *fs;
 } fs_mapping_t;
 
+/**
+ * @brief Filesystem open handle structure
+ *
+ * This is used to look up the correct filesystem function to call
+ * when working with an open file handle
+ */
 typedef struct
 {
+    /** @brief Index into #filesystems */
     int fs_mapping;
+    /** @brief The handle assigned to this open file */
     void *handle;
+    /** @brief The internal handle assigned by the filesystem code */
     int fileno;
 } fs_handle_t;
 
+/** @brief Array of filesystems registered */
 fs_mapping_t filesystems[MAX_FILESYSTEMS] = { { 0 } };
+/** @brief Array of open handles tracked */
 fs_handle_t handles[MAX_OPEN_HANDLES] = { { 0 } };
 
 /* Forward definitions */
 int close( int fildes );
 
-/* Simple versions of functions we can't link against */
+/**
+ * @brief Simple implementation of strlen
+ *
+ * @note We can't link against regular libraries, so this is reimplemented
+ *
+ * @param[in] str
+ *            Pointer to null-terminated string
+ *
+ * @return Length of string
+ */
 int __strlen( const char * const str )
 {
     if( !str ) { return 0; }
@@ -71,6 +123,18 @@ int __strlen( const char * const str )
     return len;
 }
 
+/**
+ * @brief Simple implementation of memcpy
+ *
+ * @note We can't link against regular libraries, so this is reimplemented
+ *
+ * @param[out] a
+ *             Destination pointer to copy to
+ * @param[in]  b
+ *             Source pointer to copy from
+ * @param[in]  len
+ *             Length in bytes to copy
+ */
 void __memcpy( char * const a, const char * const b, int len )
 {
     for( int i = 0; i < len; i++ )
@@ -79,6 +143,16 @@ void __memcpy( char * const a, const char * const b, int len )
     }
 }
 
+/**
+ * @brief Simple implementation of strdup
+ *
+ * @note We can't link against regular libraries, so this is reimplemented
+ *
+ * @param[in] in
+ *            String to duplicate
+ *
+ * @return Pointer to newly allocate memory containing a copy of the input string
+ */
 char *__strdup( const char * const in )
 {
     if( !in ) { return 0; }
@@ -89,6 +163,20 @@ char *__strdup( const char * const in )
     return ret;
 }
 
+/**
+ * @brief Simple iplementation of strncmp
+ *
+ * @note We can't link against regular libraries, so this is reimplemented
+ *
+ * @param[in] a
+ *            First string to compare against
+ * @param[in] b
+ *            Second string to compare against
+ * @param[in] len
+ *            Number of relevant characters.  Specify -1 for infinite
+ *
+ * @return 0 if the two strings match or nonzero otherwise
+ */
 int __strncmp( const char * const a, const char * const b, int len )
 {
     if( !a || !b ) { return 0; }
@@ -109,12 +197,30 @@ int __strncmp( const char * const a, const char * const b, int len )
     return 0;
 }
 
+/**
+ * @brief Simple implementation of strcmp
+ *
+ * @note We can't link against regular libraries, so this is reimplemented
+ *
+ * @param[in] a
+ *            First string to compare against
+ * @param[in] b
+ *            Second string to compare against
+ *
+ * @return 0 if the two strings match or nonzero otherwise
+ */
 int __strcmp( const char * const a, const char * const b )
 {
     return __strncmp( a, b, -1 );
 }
 
-/* TODO: Make this function atomic */
+/**
+ * @brief Return a unique filesystem handle
+ *
+ * @todo Make this function atomic
+ *
+ * @return A unique 32-bit value usable as a filesystem handle
+ */
 int get_new_handle()
 {
     /* Always give out a nonzero handle unique to the system */
@@ -391,7 +497,6 @@ int getpid( void )
     errno = ENOSYS;
     return -1;
 }
-
 
 int gettimeofday( struct timeval *ptimeval, void *ptimezone )
 {
