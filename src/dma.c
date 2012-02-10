@@ -8,7 +8,7 @@
 
 /**
  * @defgroup dma DMA Controller
- * @ingroup libdragon
+ * @ingroup lowlevel
  * @{
  */
 

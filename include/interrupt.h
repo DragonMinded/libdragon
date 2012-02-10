@@ -1,3 +1,8 @@
+/**
+ * @file interrupt.h
+ * @brief Interrupt Controller
+ * @ingroup interrupt
+ */
 #ifndef __LIBDRAGON_INTERRUPT_H
 #define __LIBDRAGON_INTERRUPT_H
 

@@ -17,7 +17,8 @@ const char* __get_exception_name(uint32_t etype)
 		NULL,
 	};
 
-	etype = 0;//TODO :: Implement exceptionMap , then calculate the offset
+    /** @todo Implement exceptionMap , then calculate the offset */
+	etype = 0;
 
 	return exceptionMap[(int32_t)etype];
 }

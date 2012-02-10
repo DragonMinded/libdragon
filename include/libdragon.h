@@ -1,5 +1,15 @@
+/**
+ * @file libdragon.h
+ * @brief Main include file for programs seeking to link against libdragon
+ * @ingroup libdragon
+ */
 #ifndef __LIBDRAGON_LIBDRAGON_H
 #define __LIBDRAGON_LIBDRAGON_H
+
+/**
+ * @defgroup libdragon libdragon
+ * @brief Low level runtime for homebrew development on the N64 platform.
+ */
 
 /* Easy include wrapper */
 #include "audio.h"
