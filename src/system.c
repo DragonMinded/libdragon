@@ -1,3 +1,8 @@
+/**
+ * @file system.c
+ * @brief newlib Interface Hooks
+ * @ingroup system
+ */
 #include <_ansi.h>
 #include <_syslist.h>
 #include <limits.h>
@@ -10,6 +15,11 @@
 #include "system.h"
 
 #undef errno
+
+/** 
+ * @defgroup system newlib Interface Hooks
+ * @{
+ */
 
 /* Dirty hack, should investigate this further */
 #define STACK_SIZE 0x10000
@@ -665,3 +675,5 @@ int dir_findnext( const char * const path, dir_t *dir )
 
     return fs->findnext( dir );
 }
+
+/** @} */
