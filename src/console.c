@@ -104,6 +104,8 @@ void console_clear()
  * Render the console to the screen.  This should be called when in manual
  * rendering mode to display the console to the screen.  In automatic mode
  * it is not necessary to call.
+ *
+ * The color that is used to draw the text can be set using #graphics_set_color.
  */
 void console_render()
 {
@@ -129,8 +131,9 @@ void console_render()
                 return;
             }
 
-            /* White foreground, transparent background */
-            graphics_draw_character( dc, 20 + 8 * x, 16 + 8 * y, 0xFFFFFFFF, 0x0, t_buf );
+            /* Draw to the screen using the forecolor and backcolor set in the graphics
+             * subsystem */
+            graphics_draw_character( dc, 20 + 8 * x, 16 + 8 * y, t_buf );
         }
     }
 
