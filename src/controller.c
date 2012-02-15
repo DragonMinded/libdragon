@@ -1423,7 +1423,7 @@ static int __get_note_block( uint8_t *sector, int inode, int block )
  * @retval 1 the first sector has a valid TOC
  * @retval 2 the second sector has a valid TOC
  */
-int __get_valid_toc( int controller )
+static int __get_valid_toc( int controller )
 {
     /* We will need only one sector at a time */
     uint8_t data[MEMPAK_BLOCK_SIZE];

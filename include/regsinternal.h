@@ -116,7 +116,7 @@ typedef struct SI_regs_s {
     /** @brief Address to read when copying from PIF RAM */
     volatile void * PIF_addr_read;
     /** @brief Reserved word */
-    unsigned long reserved1
+    unsigned long reserved1;
     /** @brief Reserved word */
     unsigned long reserved2;
     /** @brief Address to write when copying to PIF RAM */

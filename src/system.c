@@ -86,16 +86,20 @@ typedef struct
 {
     /** @brief Index into #filesystems */
     int fs_mapping;
-    /** @brief The handle assigned to this open file */
+    /** @brief The handle assigned to this open file as returned by the 
+     *         filesystem code called to handle the open operation.  Will
+     *         be passed to all subsequent file operations on the file. */
     void *handle;
-    /** @brief The internal handle assigned by the filesystem code */
+    /** @brief The handle assigned by the filesystem code that will be returned
+     *         to newlib.  All subsequent newlib calls will use this handle which
+     *         will be used to look up the internal reference. */
     int fileno;
 } fs_handle_t;
 
 /** @brief Array of filesystems registered */
-fs_mapping_t filesystems[MAX_FILESYSTEMS] = { { 0 } };
+static fs_mapping_t filesystems[MAX_FILESYSTEMS] = { { 0 } };
 /** @brief Array of open handles tracked */
-fs_handle_t handles[MAX_OPEN_HANDLES] = { { 0 } };
+static fs_handle_t handles[MAX_OPEN_HANDLES] = { { 0 } };
 
 /* Forward definitions */
 int close( int fildes );
@@ -110,7 +114,7 @@ int close( int fildes );
  *
  * @return Length of string
  */
-int __strlen( const char * const str )
+static int __strlen( const char * const str )
 {
     if( !str ) { return 0; }
 
@@ -135,7 +139,7 @@ int __strlen( const char * const str )
  * @param[in]  len
  *             Length in bytes to copy
  */
-void __memcpy( char * const a, const char * const b, int len )
+static void __memcpy( char * const a, const char * const b, int len )
 {
     for( int i = 0; i < len; i++ )
     {
@@ -153,7 +157,7 @@ void __memcpy( char * const a, const char * const b, int len )
  *
  * @return Pointer to newly allocate memory containing a copy of the input string
  */
-char *__strdup( const char * const in )
+static char *__strdup( const char * const in )
 {
     if( !in ) { return 0; }
 
@@ -177,7 +181,7 @@ char *__strdup( const char * const in )
  *
  * @return 0 if the two strings match or nonzero otherwise
  */
-int __strncmp( const char * const a, const char * const b, int len )
+static int __strncmp( const char * const a, const char * const b, int len )
 {
     if( !a || !b ) { return 0; }
 
@@ -209,7 +213,7 @@ int __strncmp( const char * const a, const char * const b, int len )
  *
  * @return 0 if the two strings match or nonzero otherwise
  */
-int __strcmp( const char * const a, const char * const b )
+static int __strcmp( const char * const a, const char * const b )
 {
     return __strncmp( a, b, -1 );
 }
@@ -221,7 +225,7 @@ int __strcmp( const char * const a, const char * const b )
  *
  * @return A unique 32-bit value usable as a filesystem handle
  */
-int get_new_handle()
+static int __get_new_handle()
 {
     /* Always give out a nonzero handle unique to the system */
     static int handle = 1;
@@ -229,6 +233,30 @@ int get_new_handle()
     return handle++;
 }
 
+/**
+ * @brief Register a filesystem with newlib
+ *
+ * This function will take a prefix in the form of 'prefix:/' and a pointer
+ * to a filesystem structure of relevant callbacks and register it with newlib.
+ * Any standard open/fopen calls with the registered prefix will be passed
+ * to this filesystem.  Userspace code does not need to know the underlying
+ * filesystem, only the prefix that it has been registered under.
+ *
+ * The filesystem pointer passed in to this function should not go out of scope
+ * for the lifetime of the filesystem.
+ *
+ * @param[in] prefix
+ *            Prefix of the filesystem
+ * @param[in] filesystem
+ *            Structure of callbacks for various functions in the filesystem.
+ *            If the registered filesystem doesn't support an operation, it
+ *            should leave the callback null.
+ * 
+ * @retval -1 if the parameters are invalid
+ * @retval -2 if the prefix is already in use
+ * @retval -3 if there are no more slots for filesystems
+ * @retval 0 if the filesystem was registered successfully
+ */
 int attach_filesystem( const char * const prefix, filesystem_t *filesystem )
 {
     /* Sanity checking */
@@ -290,6 +318,19 @@ int attach_filesystem( const char * const prefix, filesystem_t *filesystem )
     return 0;
 }
 
+/**
+ * @brief Unregister a filesystem from newlib
+ *
+ * @note This function will make sure all files are closed before unregistering
+ *       the filesystem.
+ *
+ * @param[in] prefix
+ *            The prefix that was used to register the filesystem
+ *
+ * @retval -1 if the parameters were invalid
+ * @retval -2 if the filesystem couldn't be found
+ * @retval 0 if the filesystem was successfully unregistered
+ */
 int detach_filesystem( const char * const prefix )
 {
     /* Sanity checking */
@@ -327,10 +368,20 @@ int detach_filesystem( const char * const prefix )
 
     /* Couldn't find the filesystem to free */
     errno = EPERM;
-    return -1;
+    return -2;
 }
 
-filesystem_t *__get_fs_pointer_by_handle( int fileno )
+/**
+ * @brief Get a filesystem pointer by handle
+ *
+ * Given a file handle, return the filesystem callback structure.
+ *
+ * @param[in] fileno
+ *            File handle
+ * 
+ * @return Pointer to a filesystem callback structure or null if not found.
+ */
+static filesystem_t *__get_fs_pointer_by_handle( int fileno )
 {
     /* Invalid */
     if( fileno <= 0 )
@@ -351,7 +402,15 @@ filesystem_t *__get_fs_pointer_by_handle( int fileno )
     return 0;
 }
 
-int __get_fs_link_by_name( const char * const name )
+/**
+ * @brief Get the index of the registered filesystem based on fully qualified filename
+ *
+ * @param[in] name
+ *            The filename of the file being opened including the prefix
+ *
+ * @return The index of the registered filesystem if found or -1 if not found.
+ */
+static int __get_fs_link_by_name( const char * const name )
 {
     /* Invalid */
     if( !name )
@@ -375,7 +434,16 @@ int __get_fs_link_by_name( const char * const name )
     return -1;
 
 }
-filesystem_t *__get_fs_pointer_by_name( const char * const name )
+
+/**
+ * @brief Get the filesystem callback structure based on a fully qualified filename
+ *
+ * @param[in] name
+ *            The filename of the file being opened including the prefix
+ *
+ * @return Pointer to a filesystem callback structure or null if not found.
+ */
+static filesystem_t *__get_fs_pointer_by_name( const char * const name )
 {
     int fs = __get_fs_link_by_name( name );
 
@@ -389,7 +457,15 @@ filesystem_t *__get_fs_pointer_by_name( const char * const name )
     }
 }
 
-void *__get_fs_handle( int fileno )
+/**
+ * @brief Look up the internal handle of a file given a file handle
+ *
+ * @param[in] fileno
+ *            File handle
+ *
+ * @return The internal file handle to be passed to the filesystem function or null if not found.
+ */
+static void *__get_fs_handle( int fileno )
 {
     /* Invalid */
     if( fileno <= 0 )
@@ -410,6 +486,20 @@ void *__get_fs_handle( int fileno )
     return 0;
 }
 
+/**
+ * @brief Change ownership on a file or directory
+ *
+ * @note Not supported in libdragon
+ *
+ * @param[in] path
+ *            Path of the file or directory to operate on
+ * @param[in] owner
+ *            New owner of the file
+ * @param[in] group
+ *            New group of the file
+ *
+ * @return 0 on success or a negative value on error.
+ */
 int chown( const char *path, uid_t owner, gid_t group )
 {
     /* No permissions support in libdragon */
@@ -417,6 +507,14 @@ int chown( const char *path, uid_t owner, gid_t group )
     return -1;
 }
 
+/**
+ * @brief Close a file
+ *
+ * @param[in] fildes
+ *            File handle of the file to close
+ *
+ * @return 0 on success or a negative value on error.
+ */
 int close( int fildes )
 {
     filesystem_t *fs = __get_fs_pointer_by_handle( fildes );
@@ -438,6 +536,20 @@ int close( int fildes )
     return fs->close( handle );
 }
 
+/**
+ * @brief Load and execute an executable given a path
+ *
+ * @note Not supported in libdragon
+ *
+ * @param[in] name
+ *            Filename of the executable
+ * @param[in] argv
+ *            Array of pointers to arguments
+ * @param[in] env
+ *            Array of pointers to environment variables
+ *
+ * @return 0 on success or a negative value on error.
+ */
 int execve( char *name, char **argv, char **env )
 {
     /* No threads (yet??) */
@@ -445,6 +557,15 @@ int execve( char *name, char **argv, char **env )
     return -1;
 }
 
+/**
+ * @brief End execution on current thread
+ *
+ * @note This function does not exit.  If this is the last thread, the
+ *       system will hang.
+ *
+ * @param[in] rc
+ *            Return value of the exiting program
+ */
 void exit( int rc )
 {
     /* Default stub just causes a divide by 0 exception.  */
@@ -455,6 +576,13 @@ void exit( int rc )
     for( ;; );
 }
 
+/**
+ * @brief Fork execution into two threads
+ *
+ * @note Not supported in libdragon.
+ *
+ * @return PID of child process if parent, 0 if child, negative value on failure.
+ */
 int fork( void )
 {
     /* No threads (yet??) */
@@ -462,6 +590,16 @@ int fork( void )
     return -1;
 }
 
+/**
+ * @brief Return stats on an open file handle
+ *
+ * @param[in]  fildes
+ *             File handle
+ * @param[out] st
+ *             Pointer to stat struct to be filled
+ *
+ * @return 0 on success or a negative value on error.
+ */
 int fstat( int fildes, struct stat *st )
 {
     if( st == NULL )
@@ -491,6 +629,13 @@ int fstat( int fildes, struct stat *st )
     }
 }
 
+/**
+ * @brief Return the PID of the current thread
+ *
+ * @note Not supported in libdragon.
+ *
+ * @return The PID on success or a negative value on error.
+ */
 int getpid( void )
 {
     /* No threads (yet??) */
@@ -498,18 +643,54 @@ int getpid( void )
     return -1;
 }
 
+/**
+ * @brief Return the current time
+ *
+ * @note Not supported in libdragon.
+ *
+ * @param[out] ptimeval
+ *             Time structure to be filled with current time.
+ * @param[out] ptimezone
+ *             Timezone information to be filled.
+ *
+ * @return 0 on success or a negative value on error.
+ */
 int gettimeofday( struct timeval *ptimeval, void *ptimezone )
 {
     errno = ENOSYS;
     return -1;
 }
 
+/**
+ * @brief Return whether a file is a TTY or a regular file
+ *
+ * @todo Make this recognize stdin/stdout/stderr so that printf and derivatives work.
+ *
+ * @note Not supported in libdragon.
+ *
+ * @param[in] file
+ *            File handle
+ *
+ * @return 1 if the file is a TTY, or 0 if not.
+ */
 int isatty( int file )
 {
     errno = ENOSYS;
     return 0;
 }
 
+/**
+ * @brief Send a signal to a PID
+ *
+ * @note Not supported in libdragon.
+ *
+ * @param[in] pid
+ *            The PID of the process
+ * @param[in] sig
+ *            The signal to send
+ *
+ * @return 0 on success or a negative value on error.
+ */
 int kill( int pid, int sig )
 {
     /* No threads (yet??) */
@@ -517,6 +698,18 @@ int kill( int pid, int sig )
     return -1;
 }
 
+/**
+ * @brief Link a new file to an existing file
+ *
+ * @note Not supported in libdragon.
+ *
+ * @param[in] existing
+ *            The path of the existing file
+ * @param[in] new
+ *            The path of the new file
+ *
+ * @return 0 on success or a negative value on error.
+ */
 int link( char *existing, char *new )
 {
     /* No symbolic links in libdragon */
@@ -524,6 +717,20 @@ int link( char *existing, char *new )
     return -1;
 }
 
+/**
+ * @brief Seek to a location in a file
+ *
+ * @param[in] file
+ *            The file handle of the file to seek
+ * @param[in] ptr
+ *            The offset in bytes to seek to, given the direction in dir
+ * @param[in] dir
+ *            The direction to seek.  Use SEEK_SET to start from the beginning.
+ *            Use SEEK_CUR to seek based on the current offset.  Use SEEK_END
+ *            to seek starting at the end of the file.
+ *
+ * @return The new location of the file in bytes or -1 on error.
+ */
 int lseek( int file, int ptr, int dir )
 {
     filesystem_t *fs = __get_fs_pointer_by_handle( file );
@@ -545,6 +752,18 @@ int lseek( int file, int ptr, int dir )
     return fs->lseek( handle, ptr, dir );
 }
 
+/**
+ * @brief Open a file given a path
+ *
+ * @param[in] file
+ *            File name of the file to open
+ * @param[in] flags
+ *            Flags specifying open flags, such as binary, append.
+ * @param[in] mode
+ *            Mode of the file.
+ *
+ * @return File handle to refer to this file on success, or a negative value on error.
+ */
 int open( char *file, int flags, int mode )
 {
     filesystem_t *fs = __get_fs_pointer_by_name( file );
@@ -581,7 +800,7 @@ int open( char *file, int flags, int mode )
             if( ptr )
             {
                 /* Create new internal handle */
-                handles[i].fileno = get_new_handle();
+                handles[i].fileno = __get_new_handle();
                 handles[i].handle = ptr;
                 handles[i].fs_mapping = mapping;
 
@@ -602,6 +821,20 @@ int open( char *file, int flags, int mode )
     return -1;
 }
 
+/**
+ * @brief Read data from a file
+ *
+ * @todo Make this recognize stdin/stdout/stderr and return nothing read.
+ *
+ * @param[in]  file
+ *             File handle
+ * @param[out] ptr
+ *             Data pointer to read data to
+ * @param[in]  len
+ *             Length in bytes of data to read
+ *
+ * @return Actual number of bytes read or a negative value on error.
+ */
 int read( int file, char *ptr, int len )
 {
     filesystem_t *fs = __get_fs_pointer_by_handle( file );
@@ -623,6 +856,20 @@ int read( int file, char *ptr, int len )
     return fs->read( handle, (uint8_t *)ptr, len );
 }
 
+/**
+ * @brief Read a link
+ *
+ * @note Not supported in libdragon.
+ *
+ * @param[in]  path
+ *             Path of the link
+ * @param[in]  buf
+ *             Buffer to read the link into
+ * @param[in]  bufsize
+ *             Size of the buffer
+ * 
+ * @return 0 on success or a negative value on error.
+ */
 int readlink( const char *path, char *buf, size_t bufsize )
 {
     /* No symlinks in libdragon */
@@ -630,7 +877,16 @@ int readlink( const char *path, char *buf, size_t bufsize )
     return -1;
 }
 
-/* TODO: Make this function atomic */
+/**
+ * @brief Return a new chunk of memory to be used as heap
+ *
+ * @todo Make this function atomic
+ *
+ * @param[in] incr
+ *            The amount of memory needed in bytes
+ *
+ * @return A pointer to the memory or null on error allocating.
+ */
 void *sbrk( int incr )
 {
     extern char   end; /* Set by linker.  */
@@ -658,6 +914,16 @@ void *sbrk( int incr )
     return (void *)prev_heap_end;
 }
 
+/**
+ * @brief Return file stats based on a file name
+ *
+ * @param[in]  file
+ *             File name of the file in question
+ * @param[out] st
+ *             Stat struct to populate with information from the file
+ *
+ * @return 0 on success or a negative value on error.
+ */
 int stat( const char *file, struct stat *st )
 {
     /* Dirty hack, open read only */
@@ -677,6 +943,18 @@ int stat( const char *file, struct stat *st )
     }
 }
 
+/**
+ * @brief Create a symbolic link to a file
+ *
+ * @note Not supported in libdragon.
+ *
+ * @param[in] path1
+ *            Path to symlink to
+ * @param[in] path2
+ *            Path to symlink from
+ *
+ * @return 0 on success or a negative value on error.
+ */
 int symlink( const char *path1, const char *path2 )
 {
     /* No symlinks in libdragon */
@@ -684,12 +962,30 @@ int symlink( const char *path1, const char *path2 )
     return -1;
 }
 
+/**
+ * @brief Return time information on the current process
+ *
+ * @note Not supported in libdragon.
+ *
+ * @param[out] buf
+ *             Buffer to place timing information
+ *
+ * @return Timing information or a negative value on error.
+ */
 clock_t times( struct tms *buf )
 {
     errno = ENOSYS;
     return -1;
 }
 
+/**
+ * @brief Remove a file based on filename
+ *
+ * @param[in] name
+ *            Name of the file to remove
+ *
+ * @return 0 on success or a negative value on error.
+ */
 int unlink( char *name )
 {
     filesystem_t *fs = __get_fs_pointer_by_name( name );
@@ -712,6 +1008,16 @@ int unlink( char *name )
     return fs->unlink( name + __strlen( filesystems[mapping].prefix ) );
 }
 
+/**
+ * @brief Wait for a child process
+ *
+ * @note Not supported in libdragon.
+ *
+ * @param[out] status
+ *             Status of the wait operation
+ *
+ * @return 0 on success or a negative value on error.
+ */
 int wait( int *status )
 {
     /* No threads (yet??) */
@@ -719,6 +1025,20 @@ int wait( int *status )
     return -1;
 }
 
+/**
+ * @brief Write data to a file
+ *
+ * @todo Make this aware of stdin/stdout/stderr so that printf makes it to the console
+ *
+ * @param[in] file
+ *            File handle
+ * @param[in] ptr
+ *            Pointer to buffer to write to file
+ * @param[in] len
+ *            Length of data in bytes to be written
+ *
+ * @return The actual number of bytes written, or a negative value on error.
+ */
 int write( int file, char *ptr, int len )
 {
     filesystem_t *fs = __get_fs_pointer_by_handle( file );
@@ -740,6 +1060,19 @@ int write( int file, char *ptr, int len )
     return fs->write( handle, (uint8_t *)ptr, len );
 }
 
+/**
+ * @brief Find the first file in a directory
+ *
+ * This function should be called to start enumerating a directory or whenever
+ * a directory enumeration should be restarted.
+ *
+ * @param[in]  path
+ *             Path to the directory structure
+ * @param[out] dir
+ *             Directory entry structure to populate with first entry
+ *
+ * @return 0 on successful lookup or a negative value on error.
+ */
 int dir_findfirst( const char * const path, dir_t *dir )
 {
     filesystem_t *fs = __get_fs_pointer_by_name( path );
@@ -761,6 +1094,20 @@ int dir_findfirst( const char * const path, dir_t *dir )
     return fs->findfirst( (char *)path + + __strlen( filesystems[mapping].prefix ), dir );
 }
 
+/**
+ * @brief Find the next file in a directory
+ *
+ * After finding the first file in a directory using #dir_findfirst, call this to retrieve
+ * the rest of the directory entries.  Call this repeatedly until a negative error is returned
+ * signifying that there are no more directory entries in the directory.
+ *
+ * @param[in]  path
+ *             Path to the directory structure
+ * @param[out] dir
+ *             Directory entry structure to populate with next entry
+ *
+ * @return 0 on successful lookup or a negative value on error.
+ */
 int dir_findnext( const char * const path, dir_t *dir )
 {
     filesystem_t *fs = __get_fs_pointer_by_name( path );

@@ -171,7 +171,7 @@ void graphics_set_color( uint32_t forecolor, uint32_t backcolor )
  * @retval 1 if the color is fully transparent
  * @retval 0 if the color is translucent or opaque
  */
-int __is_transparent( int bitdepth, uint32_t color )
+static int __is_transparent( int bitdepth, uint32_t color )
 {
     if( bitdepth == 2 )
     {
