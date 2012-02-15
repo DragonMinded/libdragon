@@ -1,19 +1,67 @@
+/**
+ * @file timer.c
+ * @brief Timer Subsystem
+ * @ingroup timer
+ */
 #include <malloc.h>
 #include "libdragon.h"
 #include "regsinternal.h"
 
-/* Timer linked list */
-static _timer_link *TI_timers = 0;
+/**
+ * @defgroup timer Timer Subsystem
+ * @ingroup libdragon
+ *
+ * @todo Consoder changing timer system to return timer handles instead
+ *       of the internal timer reference.
+ *
+ * @{
+ */
+
+/** @brief Internal linked list of timers */
+static timer_link_t *TI_timers = 0;
+/** @brief Total ticks elapsed since timer subsystem initialization */
 static long long total_ticks;
 
+/**
+ * @brief Read the count out of the count register
+ *
+ * @param[out] x
+ *             Variable to place count into
+ */
 #define read_count(x) asm volatile("mfc0 %0,$9\n\t nop \n\t" : "=r" (x) : )
+/**
+ * @brief Write the count to the count register
+ *
+ * @param[in] x
+ *            Value to write into the count register
+ */
 #define write_count(x) asm volatile("mtc0 %0,$9\n\t nop \n\t" :  : "r" (x) )
+/**
+ * @brief Set the compare register
+ *
+ * This sets up the compare register so that when the count register equals the compare
+ * register, an interrupt will be generated.
+ *
+ * @param[in] x
+ *            Value to write into the compare register
+ */
 #define write_compare(x) asm volatile("mtc0 %0,$11\n\t nop \n\t" :  : "r" (x) )
 
-/* Process linked list of timers */
-static int __proc_timers(_timer_link * head)
+/**
+ * @brief Process linked list of timers
+ *
+ * Walk the linked list of timers and call the callbacks of any that
+ * have expired.
+ *
+ * @param[in] head
+ *            Head of the linked list of timers
+ *
+ * @retval 1 The list needs reprocessing
+ * @retval 0 All timer operations were handled successfully
+ */
+static int __proc_timers(timer_link_t * head)
 {
-	_timer_link *last = 0;
+	timer_link_t *last = 0;
     int smallest = 0x3FFFFFFF;			// ~ 22.9 secs
 	int start, now;
 
@@ -74,7 +122,12 @@ static int __proc_timers(_timer_link * head)
 	return 0;							// exit timer callback
 }
 
-/* Called whenever Compare == Count */
+/**
+ * @brief Timer callback function
+ *
+ * This function is called by the interrupt controller whenever 
+ * compare == count.
+ */
 static void timer_callback(void)
 {
 	if (TI_timers)
@@ -91,7 +144,9 @@ static void timer_callback(void)
 	}
 }
 
-/* initialize timer subsystem - register timer callback */
+/**
+ * @brief Initialize the timer subsystem
+ */
 void timer_init(void)
 {
 	total_ticks = 0;
@@ -100,10 +155,21 @@ void timer_init(void)
     register_TI_handler(timer_callback);
 }
 
-/* create a new timer and add to list */
-_timer_link *new_timer(int ticks, int flags, void (*callback)(int ovfl))
+/**
+ * @brief Create a new timer and add to list
+ *
+ * @param[in] ticks
+ *            Number of ticks before the timer should fire
+ * @param[in] flags
+ *            Timer flags.  See #TF_ONE_SHOT and #TF_CONTINUOUS
+ * @param[in] callback
+ *            Callback function to call when the timer expires
+ *
+ * @return A pointer to the timer structure created
+ */
+timer_link_t *new_timer(int ticks, int flags, void (*callback)(int ovfl))
 {
-	_timer_link *timer = malloc(sizeof(_timer_link));
+	timer_link_t *timer = malloc(sizeof(timer_link_t));
 	if (timer)
 	{
 		timer->left = ticks;
@@ -129,8 +195,19 @@ _timer_link *new_timer(int ticks, int flags, void (*callback)(int ovfl))
 	return timer;
 }
 
-/* start a timer not currently in the list */
-void start_timer(_timer_link *timer, int ticks, int flags, void (*callback)(int ovfl))
+/**
+ * @brief Start a timer not currently in the list
+ *
+ * @param[in] timer
+ *            Pointer to timer structure to reinsert and start
+ * @param[in] ticks
+ *            Number of ticks before the timer should fire
+ * @param[in] flags
+ *            Timer flags.  See #TF_ONE_SHOT and #TF_CONTINUOUS
+ * @param[in] callback
+ *            Callback function to call when the timer expires
+ */
+void start_timer(timer_link_t *timer, int ticks, int flags, void (*callback)(int ovfl))
 {
 	if (timer)
 	{
@@ -156,11 +233,19 @@ void start_timer(_timer_link *timer, int ticks, int flags, void (*callback)(int 
 	}
 }
 
-/* remove a timer from the list */
-void stop_timer(_timer_link *timer)
+/**
+ * @brief Stop a timer and remove it from the list
+ *
+ * @note This function does not free a timer structure, use #delete_timer
+ *       to do this.
+ *
+ * @param[in] timer
+ *            Timer structure to stop and remove
+ */
+void stop_timer(timer_link_t *timer)
 {
-	_timer_link *head;
-	_timer_link *last = 0;
+	timer_link_t *head;
+	timer_link_t *last = 0;
 
 	if (timer)
 	{
@@ -176,8 +261,7 @@ void stop_timer(_timer_link *timer)
 				else
 					TI_timers = head->next;
 
-				enable_interrupts();
-				return;
+                break;
 			}
 
 			last = head;
@@ -187,8 +271,13 @@ void stop_timer(_timer_link *timer)
 	}
 }
 
-/* remove a timer from the list and delete it */
-void delete_timer(_timer_link *timer)
+/**
+ * @brief Remove a timer from the list and delete it
+ *
+ * @param[in] timer
+ *            Timer structure to stop, remove and free
+ */
+void delete_timer(timer_link_t *timer)
 {
 	if (timer)
 	{
@@ -197,14 +286,18 @@ void delete_timer(_timer_link *timer)
 	}
 }
 
-/* delete all timers in list */
+/**
+ * @brief Free and close the timer subsystem
+ *
+ * This function will ensure all timers are deleted from the list before closing.
+ */
 void timer_close(void)
 {
 	disable_interrupts();
-	_timer_link *head = TI_timers;
+	timer_link_t *head = TI_timers;
 	while (head)
 	{
-		_timer_link *last = head;
+		timer_link_t *last = head;
 		head = head->next;
 		free(last);
 	}
@@ -212,7 +305,11 @@ void timer_close(void)
 	enable_interrupts();
 }
 
-/* return total ticks since timer was initialized */
+/**
+ * @brief Return total ticks since timer was initialized
+ *
+ * @return Then number of ticks since the timer was initialized
+ */
 long long timer_ticks(void)
 {
 	disable_interrupts();
@@ -220,3 +317,5 @@ long long timer_ticks(void)
 	enable_interrupts();
 	return total_ticks;
 }
+
+/** @} */
