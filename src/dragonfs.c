@@ -1,3 +1,8 @@
+/**
+ * @file dragonfs.c
+ * @brief DragonFS
+ * @ingroup dfs
+ */
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
@@ -6,29 +11,57 @@
 #include "system.h"
 #include "dfsinternal.h"
 
-/* Directory walking flags */
+/**
+ * @defgroup dfs DragonFS
+ * @{
+ */
+
+/**
+ * @brief Directory walking flags 
+ */
 enum
 {
+    /** @brief Walk the directory structure for the purpose of changing directories */
     WALK_CHDIR,
+    /** @brief Walk the directory structure for the purpose of opening a file or directory */
     WALK_OPEN
 };
 
-/* Directory walking return flags */
+/**
+ * @brief Directory walking return flags 
+ */
 enum
 {
+    /** @brief Return any file or directory found */
     TYPE_ANY,
+    /** @brief Return a file from directory walk */
     TYPE_FILE,
+    /** @brief Return a directory from a directory walk */
     TYPE_DIR
 };
 
-/* Internal filesystem stuff */
+/** @brief Base filesystem pointer */
 static uint32_t base_ptr = 0;
+/** @brief Open file tracking */
 static open_file_t open_files[MAX_OPEN_FILES];
+/** @brief Directory pointer stack */
 static uint32_t directories[MAX_DIRECTORY_DEPTH];
+/** @brief Depth into directory pointer stack */
 static uint32_t directory_top = 0;
+/** @brief Pointer to next directory entry set when doing a directory walk */
 static directory_entry_t *next_entry = 0;
 
-/* Handling DMA from ROM to RAM */
+/**
+ * @brief Read a sector from cartspace
+ *
+ * This function handles fetching a sector from cartspace into RDRAM using
+ * DMA.
+ *
+ * @param[in]  cart_loc
+ *             Pointer to cartridge location
+ * @param[out] ram_loc
+ *             Pointer to RAM buffer to place the read sector
+ */
 static inline void grab_sector(void *cart_loc, void *ram_loc)
 {
     /* Make sure we have fresh cache */
@@ -40,7 +73,11 @@ static inline void grab_sector(void *cart_loc, void *ram_loc)
     data_cache_writeback_invalidate(ram_loc, SECTOR_SIZE);
 }
 
-/* File lookup*/
+/**
+ * @brief Find a free open file structure
+ *
+ * @return A pointer to an open file structure or NULL if no more open file structures.
+ */
 static open_file_t *find_free_file()
 {
     for(int i = 0; i < MAX_OPEN_FILES; i++)
@@ -56,6 +93,14 @@ static open_file_t *find_free_file()
     return 0;
 }
 
+/**
+ * @brief Find an open file structure based on a handle
+ *
+ * @param[in] x
+ *            The file handle given to the open file
+ *
+ * @return A pointer to an open file structure or NULL if no file matches the handle
+ */
 static open_file_t *find_open_file(uint32_t x)
 {
     if(x == 0) { return 0; }
@@ -73,56 +118,149 @@ static open_file_t *find_open_file(uint32_t x)
     return 0;
 }
 
-/* Sector offset code for file reading */
+/**
+ * @brief Look up a sector number based on offset
+ *
+ * Given a byte offset from the start of a filesystem, this
+ * function will return the sector that this byte offset falls
+ * into.
+ * 
+ * @param[in] loc
+ *            Offset in bytes
+ *
+ * @return The sector number corresponding to the offset
+ */
 static inline int sector_from_loc(uint32_t loc)
 {
     return (loc / SECTOR_PAYLOAD);
 }
 
+/**
+ * @brief Look up a byte offset into a sector
+ *
+ * Given a byte offset from the start of a filesystem, this
+ * function will return the offset into the current sector.
+ * This essentially clamps the ouput from 0 to #SECTOR_PAYLOAD.
+ *
+ * @param[in] loc
+ *            Offset in bytes
+ *
+ * @return The offset into a sector
+ */
 static inline int offset_into_sector(uint32_t loc)
 {
     return loc % SECTOR_PAYLOAD;
 }
 
+/**
+ * @brief Look up the remaining data size in a sector
+ *
+ * Given a byte offset from the start of a filesystem, this
+ * function will return the number of bytes from the current
+ * location to the end of the sector.
+ *
+ * @param[in] loc
+ *            Offset in bytes
+ *
+ * @return The number of bytes left in a sector based on an offset
+ */
 static inline int data_left_in_sector(uint32_t loc)
 {
     return SECTOR_PAYLOAD - offset_into_sector(loc);
 }
 
-/* Easier decoding of directory information */
+/**
+ * @brief Return the file flags given a directory entry
+ *
+ * @param[in] dirent
+ *            Directory entry to retrieve flags from
+ *
+ * @return The flags portion of a directory entry
+ */
 static inline uint32_t get_flags(directory_entry_t *dirent)
 {
     return (dirent->flags >> 24) & 0x000000FF;
 }
 
+/**
+ * @brief Return the file size given a directory entry
+ *
+ * @param[in] dirent
+ *            Directory entry to retrieve size from
+ *
+ * @return The size of the file represented by the directory entry
+ */
 static inline uint32_t get_size(directory_entry_t *dirent)
 {
     return dirent->flags & 0x00FFFFFF;
 }
 
-/* Functions for easier traversal of directories */
+/**
+ * @brief Get the directory pointer from a directory entry
+ *
+ * This function is used to grab the first directory entry of a subdirectory given
+ * the current directory pointer.
+ *
+ * @param[in] dirent
+ *            Directory entry to retrieve directory pointer from
+ *
+ * @return A pointer to the directory represented by the directory entry.
+ */
 static inline directory_entry_t *get_first_entry(directory_entry_t *dirent)
 {
     return (directory_entry_t *)(dirent->file_pointer ? (dirent->file_pointer + base_ptr) : 0);
 }
 
+/**
+ * @brief Get the next directory entry
+ *
+ * @param[in] dirent
+ *            Directory entry to retrieve next entry from
+ *
+ * @return A pointer to the next directory entry after the current directory entry.
+ */
 static inline directory_entry_t *get_next_entry(directory_entry_t *dirent)
 {
     return (directory_entry_t *)(dirent->next_entry ? (dirent->next_entry + base_ptr) : 0);
 }
 
-/* Functions for easier traversal of fiels */
+/**
+ * @brief Get the file pointer from a directory entry
+ *
+ * This function is used to grab the first sector of a file given the current
+ * directory pointer.
+ *
+ * @param[in] dirent
+ *            Directory entry to retrieve file pointer from
+ *
+ * @return A pointer to the first sector of a file.
+ */
 static inline file_entry_t *get_first_sector(directory_entry_t *dirent)
 {
     return (file_entry_t *)(dirent->file_pointer ? (dirent->file_pointer + base_ptr) : 0);
 }
 
+/**
+ * @brief Get the next file sector given a current file sector
+ *
+ * @param[in] fileent
+ *            File entry structure to retrieve next sector from
+ *
+ * @return A pointer to the next sector of a file.
+ */
 static inline file_entry_t *get_next_sector(file_entry_t *fileent)
 {
     return (file_entry_t *)(fileent->next_sector ? (fileent->next_sector + base_ptr) : 0);
 }
 
-/* Sector walking */
+/**
+ * @brief Walk forward in a file a specified number of sectors
+ *
+ * @param[in] file
+ *            Open file structure
+ * @param[in] num_sectors
+ *            Number of sectors to advance the file
+ */
 static void walk_sectors(open_file_t *file, uint32_t num_sectors)
 {
     /* Update the sector number */
@@ -138,12 +276,20 @@ static void walk_sectors(open_file_t *file, uint32_t num_sectors)
     }
 }
 
-/* For directory stack */
+/**
+ * @brief Reset the directory stack to the root
+ */
 static inline void clear_directory()
 {
     directory_top = 0;
 }
 
+/**
+ * @brief Push a directory onto the stack
+ *
+ * @param[in] dirent
+ *            Directory entry to push onto the stack
+ */
 static inline void push_directory(directory_entry_t *dirent)
 {
     if(directory_top < MAX_DIRECTORY_DEPTH)
@@ -155,6 +301,11 @@ static inline void push_directory(directory_entry_t *dirent)
     }
 }
 
+/**
+ * @brief Pop a directory from the stack
+ *
+ * @return The directory entry on the top of the stack
+ */
 static inline directory_entry_t *pop_directory()
 {
     if(directory_top > 0)
@@ -169,6 +320,11 @@ static inline directory_entry_t *pop_directory()
     return (directory_entry_t *)(base_ptr + SECTOR_SIZE);
 }
 
+/**
+ * @brief Peek at the top directory on the stack
+ *
+ * @return The directory entry on the top of the stack
+ */
 static inline directory_entry_t *peek_directory()
 {
     if(directory_top > 0)
@@ -179,7 +335,16 @@ static inline directory_entry_t *peek_directory()
     return (directory_entry_t *)(base_ptr + SECTOR_SIZE);
 }
 
-/* Parse out the next token in a path delimited by '\' */
+/**
+ * @brief Parse out the next token in a path delimited by '\\'
+ *
+ * @param[in]  path
+ *             Current path to extract next token from
+ * @param[out] token
+ *             String buffer to place the extracted token
+ *
+ * @return The rest of path that was not parsed.
+ */
 static char *get_next_token(char *path, char *token)
 {
     if(!path)
@@ -270,7 +435,16 @@ static char *get_next_token(char *path, char *token)
     }
 }
 
-/* Find a directory node in the current path given a name */
+/**
+ * @brief Find a directory node in the current path given a name
+ *
+ * @param[in] name
+ *            Name of the file or directory in question
+ * @param[in] cur_node
+ *            Directory entry to start search from
+ *
+ * @return The directory entry matching the name requested or NULL if not found.
+ */
 static directory_entry_t *find_dirent(char *name, directory_entry_t *cur_node)
 {
     while(cur_node)
@@ -294,19 +468,32 @@ static directory_entry_t *find_dirent(char *name, directory_entry_t *cur_node)
     return 0;
 }
 
-/* Walk a path string, either changing directories or finding the right path
-
-   If mode is WALK_CHDIR, the result of this function is entering into the new
-   directory on success, or the old directory being returned on failure.
-
-   If mode is WALK_OPEN, the result of this function is the directory remains
-   unchanged and a pointer to the directory entry for the requested file or
-   directory is returned.  If it is a file, the directory entry for the file
-   itself is returned.  If it is a directory, the directory entry of the first
-   file or directory inside that directory is returned. 
- 
-   The type specifier allows a person to specify that only a directory or file
-   should be returned.  This works for WALK_OPEN only. */
+/**
+ * @brief Walk a path string, either changing directories or finding the right path
+ *
+ * If mode is WALK_CHDIR, the result of this function is entering into the new
+ * directory on success, or the old directory being returned on failure.
+ *
+ * If mode is WALK_OPEN, the result of this function is the directory remains
+ * unchanged and a pointer to the directory entry for the requested file or
+ * directory is returned.  If it is a file, the directory entry for the file
+ * itself is returned.  If it is a directory, the directory entry of the first
+ * file or directory inside that directory is returned. 
+ *
+ * The type specifier allows a person to specify that only a directory or file
+ * should be returned.  This works for WALK_OPEN only.
+ * 
+ * @param[in]     path
+ *                The path to walk through
+ * @param[in]     mode
+ *                Either #WALK_CHDIR or #WALK_OPEN.
+ * @param[in,out] dirent
+ *                Directory entry to start at, directory entry finished at
+ * @param[in]     type
+ *                Either #TYPE_ANY, #TYPE_FILE, or #TYPE_DIR.
+ *
+ * @return DFS_ESUCCESS on successful recurse, or a negative error on failure.
+ */
 static int recurse_path(const char * const path, int mode, directory_entry_t **dirent, int type)
 {
     int ret = DFS_ESUCCESS;
@@ -435,7 +622,15 @@ static int recurse_path(const char * const path, int mode, directory_entry_t **d
     return ret;
 }
 
-int __dfs_init(uint32_t base_fs_loc)
+/**
+ * @brief Helper functioner to initialize the filesystem
+ *
+ * @param[in] base_fs_loc
+ *            Location of the filesystem
+ *
+ * @return DFS_ESUCCESS on successful initialization or a negative error on failure.
+ */
+static int __dfs_init(uint32_t base_fs_loc)
 {
     /* Check to see if it passes the check */
     directory_entry_t id_node;
@@ -457,7 +652,16 @@ int __dfs_init(uint32_t base_fs_loc)
     return DFS_EBADFS;
 }
 
-/* Change directories to the specified path.  Supports absolute and relative */
+/**
+ * @brief Change directories to the specified path.  
+ *
+ * Supports absolute and relative 
+ *
+ * @param[in] path
+ *            Relative or absolute path to change directories to
+ * 
+ * @return DFS_ESUCCESS on success or a negative value on error.
+ */
 int dfs_chdir(const char * const path)
 {
     /* Reset directory listing */
@@ -472,10 +676,19 @@ int dfs_chdir(const char * const path)
     return recurse_path(path, WALK_CHDIR, 0, TYPE_ANY);
 }
 
-/* Find the first file or directory in a directory listing.  Supports absolute
-   and relative.  If the path is invalid, returns a negative DFS_errno.  If
-   a file or directory is found, returns the flags of the entry and copies the
-   name into buf. */
+/**
+ * @brief Find the first file or directory in a directory listing.
+ *
+ * Supports absolute and relative.  If the path is invalid, returns a negative DFS_errno.  If
+ * a file or directory is found, returns the flags of the entry and copies the name into buf.
+ *
+ * @param[in]  path
+ *             The path to look for files in
+ * @param[out] buf
+ *             Buffer to place the name of the file or directory found
+ *
+ * @return The flags (#FLAGS_FILE, #FLAGS_DIR, #FLAGS_EOF) or a negative value on error.
+ */
 int dfs_dir_findfirst(const char * const path, char *buf)
 {
     directory_entry_t *dirent;
@@ -505,8 +718,16 @@ int dfs_dir_findfirst(const char * const path, char *buf)
     return get_flags(&t_node);
 }
 
-/* Find the next file or directory in a directory listing.  Should be called
-   after doing a dfs_dir_findfirst. */
+/**
+ * @brief Find the next file or directory in a directory listing. 
+ *
+ * @note Should be called after doing a #dfs_dir_findfirst.
+ *
+ * @param[out] buf
+ *             Buffer to place the name of the next file or directory found
+ *
+ * @return The flags (#FLAGS_FILE, #FLAGS_DIR, #FLAGS_EOF) or a negative value on error.
+ */
 int dfs_dir_findnext(char *buf)
 {
     if(!next_entry)
@@ -530,9 +751,18 @@ int dfs_dir_findnext(char *buf)
     return get_flags(&t_node);
 }
 
-/* Check if we have any free file handles, and if we do, try
-   to open the file specified.  Supports absolute and relative
-   paths */
+/**
+ * @brief Open a file given a path
+ *
+ * Check if we have any free file handles, and if we do, try
+ * to open the file specified.  Supports absolute and relative
+ * paths
+ *
+ * @param[in] path
+ *            Path of the file to open
+ *
+ * @return A valid file handle to reference the file by or a negative error on failure.
+ */
 int dfs_open(const char * const path)
 {
     /* Ensure we always open with a unique handle */
@@ -571,8 +801,14 @@ int dfs_open(const char * const path)
     return file->handle;
 }
 
-/* Close an already open file handle.  Basically just frees up the
-   file structure. */
+/**
+ * @brief Close an already open file handle.
+ *
+ * @param[in] handle
+ *            A valid file handle as returned from #dfs_open.
+ *
+ * @return DFS_ESUCCESS on success or a negative value on error.
+ */
 int dfs_close(uint32_t handle)
 {
     open_file_t *file = find_open_file(handle);
@@ -588,6 +824,18 @@ int dfs_close(uint32_t handle)
     return DFS_ESUCCESS;
 }
 
+/**
+ * @brief Seek to an offset in the file
+ *
+ * @param[in] handle
+ *            A valid file handle as returned from #dfs_open.
+ * @param[in] offset
+ *            A byte offset from the origin to seek from.
+ * @param[in] origin
+ *            An offset to seek from.  Either #SEEK_SET, #SEEK_CUR or #SEEK_END.
+ *  
+ * @return DFS_ESUCCESS on success or a negative value on error.
+ */
 int dfs_seek(uint32_t handle, int offset, int origin)
 {
     open_file_t *file = find_open_file(handle);
@@ -653,6 +901,14 @@ int dfs_seek(uint32_t handle, int offset, int origin)
     return DFS_ESUCCESS;
 }
 
+/**
+ * @brief Return the current offset into a file
+ *
+ * @param[in] handle
+ *            A valid file handle as returned from #dfs_open.
+ *
+ * @return The current byte offset into a file or a negative error on failure.
+ */
 int dfs_tell(uint32_t handle)
 {
     /* The good thing is that the location is always in the file structure */
@@ -666,6 +922,20 @@ int dfs_tell(uint32_t handle)
     return file->loc;
 }
 
+/**
+ * @brief Read data from a file
+ *
+ * @param[out] buf
+ *             Buffer to read into
+ * @param[in]  size
+ *             Size of each element to read
+ * @param[in]  count
+ *             Number of elements to read
+ * @param[in]  handle
+ *             A valid file handle as returned from #dfs_open.
+ *
+ * @return The actual number of bytes read or a negative value on failure.
+ */
 int dfs_read(void * const buf, int size, int count, uint32_t handle)
 {
     /* This is where we do all the work */
@@ -739,6 +1009,14 @@ int dfs_read(void * const buf, int size, int count, uint32_t handle)
     return did_read;
 }
 
+/**
+ * @brief Return the file size of an open file
+ *
+ * @param[in] handle
+ *            A valid file handle as returned from #dfs_open.
+ *
+ * @return The file size in bytes or a negative value on failure.
+ */
 int dfs_size(uint32_t handle)
 {
     open_file_t *file = find_open_file(handle);
@@ -752,6 +1030,14 @@ int dfs_size(uint32_t handle)
     return file->size;
 }
 
+/**
+ * @brief Return whether the end of file has been reached
+ *
+ * @param[in] handle
+ *            A valid file handle as returned from #dfs_open.
+ *
+ * @return 1 if the end of file is reached, 0 if not, and a negative value on error.
+ */
 int dfs_eof(uint32_t handle)
 {
     open_file_t *file = find_open_file(handle);
@@ -772,7 +1058,17 @@ int dfs_eof(uint32_t handle)
     return 0;
 }
 
-void *__open( char *name, int flags )
+/**
+ * @brief Newlib-compatible open
+ *
+ * @param[in] name
+ *            Absolute path of the file to open
+ * @param[in] flags
+ *            POSIX file flags
+ *
+ * @return A newlib-compatible file handle.
+ */
+static void *__open( char *name, int flags )
 {
     /* Always want a consistent interface */
     dfs_chdir("/");
@@ -781,7 +1077,17 @@ void *__open( char *name, int flags )
     return (void *)dfs_open( name );
 }
 
-int __fstat( void *file, struct stat *st )
+/**
+ * @brief Newlib-compatible fstat
+ *
+ * @param[in]  file
+ *             File pointer as returned by #__open
+ * @param[out] st
+ *             Stat structure to populate
+ *
+ * @return 0.
+ */
+static int __fstat( void *file, struct stat *st )
 {
     st->st_dev = 0;
     st->st_ino = 0;
@@ -801,24 +1107,66 @@ int __fstat( void *file, struct stat *st )
     return 0;
 }
 
-int __lseek( void *file, int ptr, int dir )
+/**
+ * @brief Newlib-compatible lseek
+ *
+ * @param[in] file
+ *            File pointer as returned by #__open
+ * @param[in] ptr
+ *            Offset based on dir
+ * @param[in] dir
+ *            A direction to seek from.  Either #SEEK_SET, #SEEK_CUR or #SEEK_END
+ *
+ * @return The new position in the file after the seek.
+ */
+static int __lseek( void *file, int ptr, int dir )
 {
     dfs_seek( (uint32_t)file, ptr, dir );
 
     return dfs_tell( (uint32_t)file );
 }
 
-int __read( void *file, uint8_t *ptr, int len )
+/**
+ * @brief Newlib-compatible read
+ *
+ * @param[in]  file
+ *             File pointer as returned by #__open
+ * @param[out] ptr
+ *             Pointer to buffer to read to
+ * @param[in]  len
+ *             Length in bytes to read
+ *
+ * @return The actual amount of data read.
+ */
+static int __read( void *file, uint8_t *ptr, int len )
 {
     return dfs_read( ptr, 1, len, (uint32_t)file );
 }
 
-int __close( void *file )
+/**
+ * @brief Newlib-compatible close
+ *
+ * @param[in] file
+ *            File pointer as returned by #__open
+ *
+ * @return 0 on success or a negative error otherwise.
+ */
+static int __close( void *file )
 {
     return dfs_close( (uint32_t)file );
 }
 
-int __findfirst( char *path, dir_t *dir )
+/**
+ * @brief Newlib-compatible findfirst
+ *
+ * @param[in]  path
+ *             Absolute path of the directory to walk
+ * @param[out] dir
+ *             Directory structure to populate with information on the first entry found
+ *
+ * @return 0 on success or a negative value on failure.
+ */
+static int __findfirst( char *path, dir_t *dir )
 {
     if( !path || !dir ) { return -1; }
 
@@ -844,7 +1192,15 @@ int __findfirst( char *path, dir_t *dir )
     return 0;
 }
 
-int __findnext( dir_t *dir )
+/**
+ * @brief Newlib-compatible findnext
+ *
+ * @param[out] dir
+ *              Directory structure to populate with information on the next entry found
+ *
+ * @return 0 on success or a negative value on failure.
+ */
+static int __findnext( dir_t *dir )
 {
     if( !dir ) { return -1; }
 
@@ -870,7 +1226,12 @@ int __findnext( dir_t *dir )
     return 0;
 }
 
-/* The following section of code is for bridging into newlib's filesystem hooks to allow posix access to libdragon filesystem */
+/**
+ * @brief Structure used for hooking DragonFS into newlib
+ *
+ * The following section of code is for bridging into newlib's filesystem hooks 
+ * to allow posix access to DragonFS filesystem.
+ */
 static filesystem_t dragon_fs = {
     __open,
     __fstat,
@@ -883,7 +1244,20 @@ static filesystem_t dragon_fs = {
     __findnext
 };
 
-/* Initialize the filesystem.  */
+/**
+ * @brief Initialize the filesystem.
+ *
+ * Given a base offset where the filesystem should be found, this function will
+ * initialize the filesystem to read from cartridge space.  This function will
+ * also register DragonFS with newlib so that standard POSIX file operations
+ * work with DragonFS.
+ *
+ * @param[in] base_fs_loc
+ *            Memory mapped location at which to find the filesystem.  This is normally
+ *            0xB0000000 + the offset used when building your ROM.
+ *
+ * @return DFS_ESUCCESS on success or a negative error otherwise.
+ */
 int dfs_init(uint32_t base_fs_loc)
 {
     /* Try normal (works on doctor v64) */
@@ -906,3 +1280,5 @@ int dfs_init(uint32_t base_fs_loc)
 
     return DFS_ESUCCESS;
 }
+
+/** @} */

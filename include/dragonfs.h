@@ -1,31 +1,81 @@
+/**
+ * @file dragonfs.h
+ * @brief DragonFS
+ * @ingroup dfs
+ */
 #ifndef __LIBDRAGON_DRAGONFS_H
 #define __LIBDRAGON_DRAGONFS_H
 
-/* Default is 1MB into the ROM space */
+/** 
+ * @addtogroup dfs
+ * @{
+ */
+
+/**
+ * @brief Default filesystem location 
+ *
+ * The default is 1MB into the ROM space
+ */
 #define DEFAULT_LOCATION    0xB0100000;
 
-/* 4 files ought to be enough for anyone! */
+/**
+ * @brief Maximum open files in DragonFS
+ */
 #define MAX_OPEN_FILES      4
 
-/* Due to direcory structure, max filename length */
+/**
+ * @brief Maximum filename length
+ *
+ * This value is due to the direcory structure
+ */
 #define MAX_FILENAME_LEN    243
 
-/* Maximum number of directories supported */
+/**
+ * @brief Maximum depth of directories supported
+ */
 #define MAX_DIRECTORY_DEPTH 100
 
-/* Return values */
+/**
+ * @name DragonFS Return values
+ * @{
+ */
+/** @brief Success */
 #define DFS_ESUCCESS        0
+/** @brief Input parameters invalid */
 #define DFS_EBADINPUT       -1
+/** @brief File does not exist */
 #define DFS_ENOFILE         -2
+/** @brief Bad filesystem */
 #define DFS_EBADFS          -3
+/** @brief No memory for operation */
 #define DFS_ENOMEM          -4
+/** @brief Invalid file handle */
 #define DFS_EBADHANDLE      -5
+/** @} */
 
-/* File flags */
+/**
+ * @brief Macro to extract the file type from a DragonFS file flag
+ *
+ * @param[in] x
+ *            File flags from DFS entry
+ *
+ * @return The file type flag
+ */
 #define FILETYPE(x)         ((x) & 3)
+
+/**
+ * @name DragonFS file type flags
+ * @{
+ */
+/** @brief This is a file entry */
 #define FLAGS_FILE          0x0
+/** @brief This is a directory entry */
 #define FLAGS_DIR           0x1
+/** @brief This is the end of a directory list */
 #define FLAGS_EOF           0x2
+/** @} */
+
+/** @} */
 
 #ifdef __cplusplus
 extern "C" {
