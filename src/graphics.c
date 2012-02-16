@@ -777,6 +777,16 @@ void graphics_draw_sprite( display_context_t disp, int x, int y, sprite_t *sprit
  * to the display context with clipping support.  This function is useful for software
  * tilemapping.  If a sprite was generated as a spritemap (it has more than one horizontal 
  * or vertical slice), this function can display a slice of the sprite as a standalone sprite.
+ * 
+ * Given a sprite with 3 horizontal slices and 2 vertical slices, the offsets would be as follows:
+ *
+ * <pre>
+ * *---*---*---*
+ * | 0 | 1 | 2 |
+ * *---*---*---*
+ * | 3 | 4 | 5 |
+ * *---*---*---*
+ * </pre>
  *
  * @note This function does not support alpha blending for speed purposes.  For
  * alpha blending support, please see #graphics_draw_sprite_stride_trans
@@ -934,6 +944,16 @@ void graphics_draw_sprite_trans( display_context_t disp, int x, int y, sprite_t 
  * to the display context with clipping support.  This function is useful for software
  * tilemapping.  If a sprite was generated as a spritemap (it has more than one horizontal 
  * or vertical slice), this function can display a slice of the sprite as a standalone sprite.
+ *
+ * Given a sprite with 3 horizontal slices and 2 vertical slices, the offsets would be as follows:
+ *
+ * <pre>
+ * *---*---*---*
+ * | 0 | 1 | 2 |
+ * *---*---*---*
+ * | 3 | 4 | 5 |
+ * *---*---*---*
+ * </pre>
  *
  * @note This function supports alpha blending and is much slower for 32-bit sprites. 
  * If you do not need alpha blending support, please see #graphics_draw_sprite_stride.
