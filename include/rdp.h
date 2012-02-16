@@ -1,28 +1,57 @@
+/**
+ * @file rdp.h
+ * @brief Hardware Display Interface
+ * @ingroup rdp
+ */
 #ifndef __LIBDRAGON_RDP_H
 #define __LIBDRAGON_RDP_H
 
 #include "display.h"
 #include "graphics.h"
 
+/**
+ * @addtogroup rdp
+ * @{
+ */
+
+/**
+ * @brief Mirror settings for textures
+ */
 typedef enum
 {
+    /** @brief Disable texture mirroring */
     MIRROR_DISABLED,
+    /** @brief Enable texture mirroring */
     MIRROR_ENABLED
 } mirror_t;
 
+/**
+ * @brief RDP sync operations
+ */
 typedef enum
 {
+    /** @brief Wait for any operation to complete before causing a DP interrupt */
     SYNC_FULL,
+    /** @brief Sync the RDP pipeline */
     SYNC_PIPE,
+    /** @brief Block until all texture load operations are complete */
     SYNC_LOAD,
+    /** @brief Block until all tile operations are complete */
     SYNC_TILE
 } sync_t;
 
+/**
+ * @brief Caching strategy for loaded textures
+ */
 typedef enum
 {
+    /** @brief Textures are assumed to be pre-flushed */
     FLUSH_STRATEGY_NONE,
+    /** @brief Cache will be flushed on all incoming textures */
     FLUSH_STRATEGY_AUTOMATIC
 } flush_t;
+
+/** @} */
 
 #ifdef __cplusplus
 extern "C" {

@@ -1,6 +1,6 @@
 /**
  * @file graphics.h
- * @brief 2D Graphics Subsystem
+ * @brief 2D Graphics
  * @ingroup graphics
  */
 #ifndef __LIBDRAGON_GRAPHICS_H

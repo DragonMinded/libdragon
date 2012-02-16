@@ -1,15 +1,44 @@
+/**
+ * @file exception.c
+ * @brief Exception Handler
+ * @ingroup exceptions
+ */
 #include "exception.h"
 #include <string.h>
 
-static void (*__exception_handler)(TExceptionBlock*) = NULL;
+/**
+ * @defgroup exceptions Exception Handler
+ * @ingroup lowlevel
+ * @{
+ */
+
+/** @brief Exception handler currently registered with exception system */
+static void (*__exception_handler)(exception_t*) = NULL;
+/** @brief Base register offset as defined by the interrupt controller */
 extern const unsigned char* __baseRegAddr;
 
-void register_exception_handler( void (*cb)(TExceptionBlock*))
+/**
+ * @brief Register an exception handler to handle exceptions
+ *
+ * @param[in] cb
+ *            Callback function to call when exceptions happen
+ */
+void register_exception_handler( void (*cb)(exception_t*))
 {
 	__exception_handler = cb;
 }
 
-const char* __get_exception_name(uint32_t etype)
+/**
+ * @brief Fetch the string name of the exception
+ *
+ * @todo Implement exceptionMap , then calculate the offset
+ *
+ * @param[in] etype
+ *            Exception type
+ *
+ * @return String representation of the exception
+ */
+static const char* __get_exception_name(uint32_t etype)
 {
 	static const char* exceptionMap[] =
 	{
@@ -17,22 +46,33 @@ const char* __get_exception_name(uint32_t etype)
 		NULL,
 	};
 
-    /** @todo Implement exceptionMap , then calculate the offset */
 	etype = 0;
 
 	return exceptionMap[(int32_t)etype];
 }
 
-void __fetch_regs(TExceptionBlock* e,int32_t type)
+/**
+ * @brief Fetch relevant registers
+ *
+ * @param[out] e
+ *             Pointer to structure describing the exception
+ * @param[in]  type
+ *             Exception type.  Either #EXCEPTION_TYPE_CRITICAL or 
+ *             #EXCEPTION_TYPE_RESET
+ */
+static void __fetch_regs(exception_t* e,int32_t type)
 {
-	e->regs = (volatile const TRegBlock*) __baseRegAddr;
+	e->regs = (volatile const reg_block_t*) __baseRegAddr;
 	e->type = type;
 	e->info = __get_exception_name((uint32_t)e->regs->gpr[30]);
 }
 
+/**
+ * @brief Respond to a critical exception
+ */
 void __onCriticalException()
 {
-	TExceptionBlock e;
+	exception_t e;
 	
 	if(!__exception_handler) { return; }
 
@@ -40,9 +80,12 @@ void __onCriticalException()
 	__exception_handler(&e);
 }
 
+/**
+ * @brief Respond to a reset exception
+ */
 void __onResetException()
 {
-	TExceptionBlock e;
+	exception_t e;
 	
 	if(!__exception_handler) { return; }
 
@@ -50,3 +93,4 @@ void __onResetException()
 	__exception_handler(&e);
 }
 
+/** @} */

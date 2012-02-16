@@ -1,6 +1,6 @@
 /**
  * @file graphics.c
- * @brief 2D Graphics Subsystem
+ * @brief 2D Graphics
  * @ingroup graphics
  */
 #include <stdint.h>
@@ -11,7 +11,7 @@
 #include "font.h"
 
 /**
- * @defgroup graphics 2D Graphics Subsystem
+ * @defgroup graphics 2D Graphics
  * @ingroup display
  * @{
  */
