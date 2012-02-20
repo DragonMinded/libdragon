@@ -13,6 +13,32 @@
 
 /**
  * @defgroup dfs DragonFS
+ *
+ * DragonFS is a read only ROM filesystem for the N64.  It provides an interface
+ * that homebrew developers can use to load resources from cartridge space that
+ * were not available at compile time.  This can mean sprites or other game assets,
+ * or the filesystem can be appended at a later time if the homebrew developer wishes
+ * end users to be able to insert custom levels, music or other assets.  It is loosely
+ * based off of FAT with consideration into application and limitations of the N64.
+ *
+ * The filesystem can be generated using 'mkdfs' which is included in the 'tools'
+ * directory of libdragon.  Due to the read-only nature, DFS does not support empty
+ * files or empty directories.  Attempting to create a filesystem with either of
+ * these using 'mkdfs' will result in an error.  If a filesystem contains either empty
+ * files or empty directories, the result of manipulating the filesystem is undefined.
+ *
+ * DragonFS does not support writing, renaming or symlinking of files.  It supports only
+ * file and directory types.
+ *
+ * DFS files have a maximum size of 16,777,216 bytes.  Directories can have an unlimited
+ * number of files in them.  Each token (separated by a / in the path) can be 243 characters
+ * maximum.  Directories can be 100 levels deep at maximum.  There can be 4 files open
+ * simultaneously.
+ *
+ * When DFS is initialized, it will register itself with newlib using 'rom:/' as a prefix.
+ * Files can be accessed either with standard POSIX functions and the 'rom:/' prefix or
+ * with DFS API calls and no prefix.  Files can be opened using both sets of API calls
+ * simultaneously as long as no more than four files are open at any one time.
  * @{
  */
 

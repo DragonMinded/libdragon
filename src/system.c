@@ -18,6 +18,35 @@
 
 /** 
  * @defgroup system newlib Interface Hooks
+ *
+ * newlib provides all of the standard C libraries for homebrew development.
+ * In addition to standard C libraries, newlib provides some additional bridging
+ * functionality to allow POSIX function calls to be tied into libdragon.
+ * Currently this is used only for filesystems.  The newlib interface hooks here
+ * are mostly stubs that allow homebrew applications to compile.
+ *
+ * The sbrk function is responsible for allowing newlib to find the next chunk
+ * of free space for use with malloc calls.  This is made somewhat complicated
+ * on the N64 by the fact that precompiled code doesn't know in advance if
+ * expanded memory is available.  libdragon attempts to determine if this additional
+ * memory is available and return accordingly but can only do so if it knows what
+ * type of CIC/bootcode was used.  If you are using a 6102, this has been set for
+ * you already.  If you are using a 6105 for some reason, you will need to use
+ * #sys_set_boot_cic to notify libdragon or malloc will not work properly!
+ *
+ * libdragon has defined a custom callback structure for filesystems to use.
+ * Providing relevant hooks for calls that your filesystem supports and passing
+ * the resulting structure to #attach_filesystem will hook your filesystem into
+ * newlib.  Calls to POSIX file operations will be passed on to your filesystem
+ * code if the file prefix matches, allowing code to make use of your filesystyem
+ * without being rewritten.
+ *
+ * For example, your filesystem provides libdragon an interface to access a 
+ * homebrew SD card interface.  You register a filesystem with "sd:/" as the prefix
+ * and then attempt to open "sd://directory/file.txt".  The open callback for your
+ * filesystem will be passed the file "/directory/file.txt".  The file handle returned
+ * will be passed into all subsequent calls to your filesystem until the file is
+ * closed.
  * @{
  */
 
