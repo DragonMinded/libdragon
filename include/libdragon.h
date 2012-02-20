@@ -9,6 +9,19 @@
 /**
  * @defgroup libdragon libdragon
  * @brief Low level runtime for homebrew development on the N64 platform.
+ *
+ * libdragon handles the hardware interfaces to the various systems in the N64.
+ * The audio interface is handled by the @ref audio.  The controller interface,
+ * controller peripheral interface and EEPROM interface are handled by the
+ * @ref controller.  The display interface and RDP rasterizer are handled by
+ * the @ref display.  System timers are handled by the @ref timer.
+ * Low level interfaces such as interrupts, caching operations, exceptions and 
+ * the DMA controller are handled by the @ref lowlevel.
+ *
+ * libdragon makes every effort to be self-sufficient and self-configured.  However,
+ * when operating in unexpected environments such as with a non-6102 CIC, additional
+ * setup may be required.  Please see the documentation for #sys_set_boot_cic to
+ * inform libdragon of a nonstandard CIC.
  */
 
 /**
