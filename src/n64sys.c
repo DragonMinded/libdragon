@@ -199,20 +199,4 @@ void inst_cache_writeback_invalidate(volatile void * addr, unsigned long length)
     cache_op(0x14);
 }
 
-/**
- * @brief Disable interrupts systemwide
- */
-void disable_interrupts()
-{
-	asm("\tmfc0 $8,$12\n\tla $9,~1\n\tand $8,$9\n\tmtc0 $8,$12\n\tnop":::"$8","$9");
-}
-
-/**
- * @brief Enable interrupts systemwide
- */
-void enable_interrupts()
-{
-	asm("\tmfc0 $8,$12\n\tori $8,1\n\tmtc0 $8,$12\n\tnop":::"$8");
-}
-
 /** @} */

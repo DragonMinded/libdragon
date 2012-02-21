@@ -341,6 +341,9 @@ void set_DP_interrupt(int active)
 /**
  * @brief Enable or disable the MI interrupt
  *
+ * @todo Get rid of this function and make enable/disable interrupts more robust.  Possibly
+ *       convert this function to init_interrupts and add a close_interrupts?
+ *
  * @param[in] active
  *            Flag to specify whether the VI interupt should be active
  * @param[in] clear
@@ -361,6 +364,26 @@ void set_MI_interrupt(int active, int clear)
     {
         asm("\tmfc0 $8,$12\n\tla $9,~0x400\n\tand $8,$9\n\tmtc0 $8,$12\n\tnop":::"$8","$9");
     }
+}
+
+/**
+ * @brief Disable interrupts systemwide
+ *
+ * @todo This function needs to return the old interrupt state in the system.
+ */
+void disable_interrupts()
+{
+    asm("\tmfc0 $8,$12\n\tla $9,~1\n\tand $8,$9\n\tmtc0 $8,$12\n\tnop":::"$8","$9");
+}
+
+/**
+ * @brief Enable interrupts systemwide
+ *
+ * @todo This function needs to take the old interrupt state and restore it.
+ */
+void enable_interrupts()
+{
+    asm("\tmfc0 $8,$12\n\tori $8,1\n\tmtc0 $8,$12\n\tnop":::"$8");
 }
 
 /** @} */

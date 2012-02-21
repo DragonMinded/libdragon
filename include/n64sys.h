@@ -89,9 +89,6 @@ void inst_cache_invalidate(volatile void *, unsigned long);
 void inst_cache_writeback(volatile void *, unsigned long);
 void inst_cache_writeback_invalidate(volatile void *, unsigned long);
 
-void enable_interrupts();
-void disable_interrupts();
-
 #ifdef __cplusplus
 }
 #endif
