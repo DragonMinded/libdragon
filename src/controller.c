@@ -10,6 +10,54 @@
 /**
  * @defgroup controller Controller Subsystem
  * @ingroup libdragon
+ *
+ * @todo Consider subgroups for accessories.
+ *
+ * The controller subsystem is in charge of communication with all controllers 
+ * and accessories plugged into the N64.  The controller subsystem is responsible
+ * for interfacing with the serial interface (SI) registers to provide controller
+ * data, mempak and rumblepak interfacing, and EEPROM interfacing.
+ *
+ * Code wishing to communicate with a controller or an accessory should first call
+ * #controller_init.  Once the controller subsystem has been initialized, code can
+ * either scan the controller interface for changes or perform direct reads from
+ * the controller interface.  Controllers can be enumerated with 
+ * #get_controllers_present.  Similarly, accessories can be enumerated with
+ * #get_accessories_present and #identify_accesory.
+ *
+ * To read controllers in a managed fashion, call #controller_scan at the beginning
+ * of each frame.  From there, #get_keys_down, #get_keys_up, #get_keys_held and
+ * #get_keys_pressed will return the status of all keys relative to the last scan.
+ * #get_dpad_direction will return a number signifying the polar direction that the
+ * D-Pad is being pressed in.
+ *
+ * To read controllers in a non-managed fashion, call #controller_read.  This will
+ * return a structure consisting of all button states on all controllers currently
+ * inserted.
+ *
+ * To enable or disable rumbling on a controller, use #rumble_start and #rumble_stop.
+ * These functions will turn rumble on and off at full speed respectively, so if
+ * different rumble effects are desired, consider using the @ref timer for accurate
+ * timing.
+ *
+ * A mempak attached to a controller can be treated in one of two ways: as a raw binary
+ * string, or as a formatted mempak with notes.  The former allows storage of any
+ * data as long as it fits, in any format convenient to the coder, but destroys any
+ * non-homebrew data on the mempak.  The latter is recommended as it is completely
+ * compatible with official N64 games, though it allows less data to be stored due to
+ * filesystem overhead.  To read and write raw sectors, use #read_mempak_address and
+ * #write_mempak_address.
+ *
+ * To read and write to the mempak in an organized way compatible with official software,
+ * first check that the mempak is valid using #validate_mempak.  If the mempack is
+ * invalid, it will need to be formatted using #format_mempak.  Once the mempak is
+ * considered valid, existing notes can be enumerated using #get_mempak_entry.  To
+ * read the data associated with a note, use #read_mempak_entry_data.  To write a
+ * new note to the mempak, use #write_mempak_entry_data.  Note that there is no append
+ * functionality so if a note is being updated, ensure you have deleted the old note
+ * first using #delete_mempak_entry.  Code should be careful to check how many blocks
+ * are free before writing using #get_mempak_free_space.
+ *
  * @{
  */
 

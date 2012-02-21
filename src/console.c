@@ -13,6 +13,24 @@
 /**
  * @defgroup console Console Support
  * @ingroup display
+ *
+ * Console support is provided as a poor-man's console for simple debugging on
+ * the N64.  It does not respect common escape sequences and is nonstandard in
+ * size.  When using the console, code should be careful to make sure that the
+ * display system has not been initialized.  Similarly, if the display system
+ * is needed, code should be sure that the console is not initialized.
+ *
+ * Code wishing to use the console should first initialize the console support in
+ * libdragon with #console_init.  Once the console has been initialized, it wil
+ * operate in one of two modes.  In automatic mode, every write to the console will
+ * be immediately displayed on the screen.  The console will be scrolled when the
+ * buffer fills.  In manual mode, the console will only be displayed after calling
+ * #console_render.  To set the render mode, use #console_set_render_mode.  To
+ * add data to the console, use #console_printf.  To clear the console and reset
+ * the scroll, use #console_clear.  Once the console is not needed or when the
+ * code wishes to switch to the display subsystem, #console_clear should be called
+ * to cleanly shut down the console support.
+ *
  * @{
  */
 

@@ -11,6 +11,25 @@
 /**
  * @defgroup display Display Subsystem
  * @ingroup libdragon
+ *
+ * The display subsystem handles interfacing with the video interface (VI)
+ * and the hardware rasterizer (RDP) to allow software and hardware graphics
+ * operations.  It consists of the @ref display, the @ref graphics and the
+ * @ref rdp modules.  A separate module, the @ref console, provides a rudimentary
+ * console for developers.  Only the display subsystem or the console can be
+ * used at the same time.  However, commands to draw console text to the display
+ * subsystem are available.
+ *
+ * The display subsystem module is responsible for initializing the proper video
+ * mode for displaying 2D, 3D and softward graphics.  To set up video on the N64,
+ * code should call #display_init with the appropriate options.  Once the display
+ * has been set, a display context can be requested from the display subsystem using
+ * #display_lock.  To draw to the acquired display context, code should use functions
+ * present in the @ref graphics and the @ref rdp modules.  Once drawing to a display
+ * context is complete, the rendered graphic can be displayed to the screen using 
+ * #display_show.  Once code has finished rendering all graphics, #display_close can 
+ * be used to shut down the display subsystem.
+ *
  * @{
  */
 

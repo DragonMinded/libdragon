@@ -11,9 +11,29 @@
  * @defgroup timer Timer Subsystem
  * @ingroup libdragon
  *
- * @todo Consoder changing timer system to return timer handles instead
+ * @todo Consider changing timer system to return timer handles instead
  *       of the internal timer reference.
  *
+ * @todo There is a race condition where one-shot timers that have not 
+ *       expired are deleted by timer_free.  Consider adding a valid
+ *       flag to the timer structure and not deleting it if the flag
+ *       does not exist.
+ *
+ * The timer subsystem allows code to receive a callback after a specified
+ * number of ticks or microseconds.  It interfaces with the MIPS
+ * coprocessor 0 to handle the timer interrupt and provide useful timing
+ * services.
+ *
+ * Before attempting to use the timer subsystem, code should call #timer_init.
+ * After the timer subsystem has been initialized, a new one-shot or
+ * continuous timer can be created with #new_timer.  To remove an expired
+ * one-shot timer or a recurring timer, use #delete_timer.  To temporarily
+ * stop a timer, use #stop_timer.  To restart a stopped timer or an expired
+ * one-shot timer, use #start_timer.  Once code no longer needs the timer
+ * subsystem, a call to #timer_close will free all active timers and shut
+ * down the timer subsystem.  Note that timers removed with #stop_timer or
+ * expired one-short timers will not be removed automatically and are the
+ * responsibility of the calling code.
  * @{
  */
 
@@ -52,6 +72,9 @@ static long long total_ticks;
  *
  * Walk the linked list of timers and call the callbacks of any that
  * have expired.
+ *
+ * @note This function will remove one-shot timers from the list after
+ *       they have fired.
  *
  * @param[in] head
  *            Head of the linked list of timers
@@ -289,7 +312,9 @@ void delete_timer(timer_link_t *timer)
 /**
  * @brief Free and close the timer subsystem
  *
- * This function will ensure all timers are deleted from the list before closing.
+ * This function will ensure all recurring timers are deleted from the list 
+ * before closing.  One-shot timers that have expired will need to be
+ * manually deleted with #delete_timer.
  */
 void timer_close(void)
 {

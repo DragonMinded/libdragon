@@ -138,7 +138,8 @@ typedef struct entry_structure
     uint16_t inode;
     /** @brief Intended region */
     uint8_t region;
-    /** @brief Number of blocks used by this entry */
+    /** @brief Number of blocks used by this entry.
+     * @see MEMPAK_BLOCK_SIZE */
     uint8_t blocks;
     /** @brief Validity of this entry. */
     uint8_t valid;
@@ -146,6 +147,16 @@ typedef struct entry_structure
     uint8_t entry_id;
     /**
      * @brief Name of this entry
+     *
+     * The complete list of valid ASCII characters in a note name is:
+     *
+     * <pre>
+     * ABCDEFGHIJKLMNOPQRSTUVWXYZ!"#`*+,-./:=?\@
+     * </pre>
+     *
+     * The space character is also allowed.  Any other character will be
+     * converted to a space before writing to the mempak.
+     *
      * @see #__n64_to_ascii and #__ascii_to_n64
      */
     char name[19];

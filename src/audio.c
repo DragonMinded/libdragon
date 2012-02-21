@@ -12,6 +12,35 @@
 /**
  * @defgroup audio Audio Subsystem
  * @ingroup libdragon
+ *
+ * The audio subsystem handles queueing up chunks of audio data for
+ * playback using the N64 audio DAC.  The audio subsystem handles
+ * DMAing chunks of data to the audio DAC as well as audio callbacks
+ * when there is room for another chunk to be written.  Buffer size
+ * is calculated automatically based on the requested audio frequency.
+ * The audio subsystem accomplishes this by interfacing with the audio
+ * interface (AI) registers.
+ *
+ * Because the audio DAC is timed off of the master clock of the N64,
+ * the audio subsystem needs to know what region the N64 is from.  This
+ * is due to the fact that the master clock is timed differently for
+ * PAL, NTSC and MPAL regions.  This is handled automatically by the
+ * audio subsystem based on settings left by the bootloader.
+ *
+ * Code attempting to output audio on the N64 should initialize the
+ * audio subsystem at the desired frequency and with the desired number
+ * of buffers using #audio_init.  More audio buffers allows for smaller
+ * chances of audio glitches but means that there will be more latency
+ * in sound output.  When new data is available to be output, code should
+ * check to see if there is room in the output buffers using 
+ * #audio_can_write.  Code can probe the current frequency and buffer
+ * size using #audio_get_frequency and #audio_get_buffer_length respectively.
+ * When there is additional room, code can add new data to the output
+ * buffers using #audio_write.  Be careful as this is a blocking operation,
+ * so if code doesn't check for adequate room first, this function will
+ * not return until there is room and the samples have been written.
+ * When all audio has been written, code should call #audio_close to shut
+ * down the audio subsystem cleanly.
  * @{
  */
 
