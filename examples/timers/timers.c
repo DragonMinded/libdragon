@@ -68,7 +68,7 @@ int main(void)
 	end = timer_ticks();
 	timer_close();
 	// one-shot timers have to be explicitly freed
-	free(one_shot_t);
+	delete_timer(one_shot_t);
 
     console_clear();
 
