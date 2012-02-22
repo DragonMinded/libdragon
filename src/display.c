@@ -11,6 +11,8 @@
 /**
  * @defgroup display Display Subsystem
  * @ingroup libdragon
+ * @brief Video interface system for configuring video output modes and displaying rendered
+ *        graphics.
  *
  * The display subsystem handles interfacing with the video interface (VI)
  * and the hardware rasterizer (RDP) to allow software and hardware graphics

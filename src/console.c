@@ -13,6 +13,7 @@
 /**
  * @defgroup console Console Support
  * @ingroup display
+ * @brief Software console emulation for debugging and simple text output.
  *
  * Console support is provided as a poor-man's console for simple debugging on
  * the N64.  It does not respect common escape sequences and is nonstandard in

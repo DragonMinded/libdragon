@@ -10,6 +10,7 @@
 /**
  * @defgroup controller Controller Subsystem
  * @ingroup libdragon
+ * @brief Controller and accessory interface.
  *
  * @todo Consider subgroups for accessories.
  *

@@ -13,6 +13,7 @@
 
 /**
  * @defgroup dfs DragonFS
+ * @brief DragonFS filesystem implementation and newlib hooks.
  *
  * DragonFS is a read only ROM filesystem for the N64.  It provides an interface
  * that homebrew developers can use to load resources from cartridge space that

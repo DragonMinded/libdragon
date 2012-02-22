@@ -12,6 +12,7 @@
 /**
  * @defgroup audio Audio Subsystem
  * @ingroup libdragon
+ * @brief Interface to the N64 audio hardware.
  *
  * The audio subsystem handles queueing up chunks of audio data for
  * playback using the N64 audio DAC.  The audio subsystem handles

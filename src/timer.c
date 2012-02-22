@@ -10,6 +10,7 @@
 /**
  * @defgroup timer Timer Subsystem
  * @ingroup libdragon
+ * @brief Interface to the timer module in the MIPS r4300 processor.
  *
  * @todo Consider changing timer system to return timer handles instead
  *       of the internal timer reference.

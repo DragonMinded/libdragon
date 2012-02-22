@@ -26,6 +26,7 @@
 
 /**
  * @mainpage libdragon
+ * @author Shaun Taylor
  *
  * libdragon provides a low level API for all hardware features of the N64. 
  * Currently, it provides basic console support, rudimentary higher level controller functions, 

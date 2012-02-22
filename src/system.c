@@ -18,6 +18,7 @@
 
 /** 
  * @defgroup system newlib Interface Hooks
+ * @brief System hooks to provide low level threading and filesystem functionality to newlib.
  *
  * newlib provides all of the standard C libraries for homebrew development.
  * In addition to standard C libraries, newlib provides some additional bridging
