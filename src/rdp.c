@@ -11,6 +11,42 @@
 /**
  * @defgroup rdp Hardware Display Interface
  * @ingroup display
+ * @brief Interface to the hardware sprite/triangle rasterizer (RDP).
+ *
+ * The hardware display interface sets up and talks with the RDP in order to render
+ * hardware sprites, triangles and rectangles.  The RDP is a very low level rasterizer
+ * and needs data in a very specific format.  The hardware display interface handles
+ * this by building commands to be sent to the RDP.
+ *
+ * Before attempting to draw anything using the RDP, the hardware display interface
+ * should be initialized with #rdp_init.
+ *
+ * Code wishing to use the hardware rasterizer should first acquire a display context
+ * using #display_lock.  Once a display context has been acquired, the RDP can be
+ * attached to the display context with #rdp_attach_display.  Once the display has been
+ * attached, the RDP can be used to draw sprites, rectangles and textured/untextured
+ * triangles to the display context.  Note that some functions require additional setup,
+ * so read the descriptions for each function before use.  After code has finished
+ * rendering hardware assisted graphics to the display context, the RDP can be detached
+ * from the context using #rdp_detach_display.  After calling thie function, it is safe
+ * to immediately display the rendered graphics to the screen using #display_show, or
+ * additional software graphics manipulation can take place using functions from the
+ * @ref graphics.
+ *
+ * Careful use of the #rdp_sync operation is required for proper rasterization.  Before
+ * performing settings changes such as clipping changes or setting up texture or solid
+ * fill modes, code should perform a #SYNC_PIPE.  A #SYNC_PIPE should be performed again
+ * before any new texture load.  This is to ensure that the last texture operation is
+ * completed before attempting to change texture memory.  Careful execution of texture
+ * operations can allow code to skip some sync operations.  Be careful with excessive
+ * sync operations as it can stall the pipeline and cause triangles/rectangles to be
+ * drawn on the next display context instead of the current.
+ *
+ * #rdp_detach_display will automatically perform a #SYNC_FULL to ensure that everything
+ * has been completed in the RDP.  This call generates an interrupt when complete which
+ * signals the main thread that it is safe to detach.  Consequently, interrupts must be
+ * enabled for proper operation.  This also means that code should under normal circumstances
+ * never use #SYNC_FULL.
  * @{
  */
 
@@ -26,6 +62,7 @@
 
 /** @brief Size of the internal ringbuffer that holds pending RDP commands */
 #define RINGBUFFER_SIZE  4096
+
 /** 
  * @brief Size of the slack are of the ring buffer
  *
@@ -204,6 +241,8 @@ static void __rdp_ringbuffer_send( void )
 
 /**
  * @brief Initialize the RDP system
+ *
+ * @todo This should not explicitly enable interrupts.
  */
 void rdp_init( void )
 {
@@ -239,6 +278,8 @@ void rdp_attach_display( display_context_t disp )
 
 /**
  * @brief Detach the RDP from a display context
+ *
+ * @note This function requires interrupts to be enabled to operate properly.
  *
  * This function will ensure that all hardware operations have completed on an output buffer
  * before detaching the display context.  This should be performed before displaying the finished

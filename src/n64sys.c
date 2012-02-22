@@ -8,6 +8,18 @@
 /**
  * @defgroup n64sys N64 System Interface
  * @ingroup lowlevel
+ * @brief N64 bootup and cache interfaces.
+ *
+ * The N64 system interface provides a way for code to interact with
+ * the memory setup on the system.  This includes cache operations to
+ * invalidate or flush regions and the ability to set the boot CIC.
+ * The @ref system use the knowledge of the boot CIC to properly determine
+ * if the expansion pak is present, giving 4MB of additional memory.  Aside
+ * from this, the MIPS r4300 uses a manual cache management strategy, where
+ * SW that requires passing buffers to and from hardware components using
+ * DMA controllers needs to ensure that cache and RDRAM are in sync.  A
+ * set of operations to invalidate and/or write back cache is provided for
+ * both instruction cache and data cache.
  * @{
  */
 

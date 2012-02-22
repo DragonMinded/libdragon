@@ -10,6 +10,17 @@
  * @defgroup lowlevel Low Level Hardware Interfaces
  * @ingroup libdragon
  * @brief Low level hardware interface descriptions and functionality
+ *
+ * The low level hardware interfaces handle several functions in the N64 that
+ * would otherwise be handled by a kernel or RTOS.  This includes the @ref dma,
+ * the @ref exceptions, the @ref interrupt and the @ref n64sys.  The DMA controller
+ * handles DMA requests between the cartridge and the N64 RDRAM.  Other systems
+ * in the N64 have their own DMA controllers that are handled in the relevant
+ * subsystems.  The exception handler traps any exceptions raised by the N64,
+ * including the reset exception.  The interrupt handler sets up the MIPS
+ * interface (MI) which handles low level interrupt functionality for all other
+ * systems in the N64.  The N64 system interface provides the ability for code to
+ * manipulate cache and boot options.
  */
 
 /**

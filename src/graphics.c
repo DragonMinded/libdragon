@@ -13,6 +13,30 @@
 /**
  * @defgroup graphics 2D Graphics
  * @ingroup display
+ * @brief Software routines for manipulating graphics in a display context.
+ *
+ * The graphics subsystem is responsible for software manipulation of a display
+ * context as returned from the @ref display.  All of the functions use a pure
+ * software drawing method and are thus much slower than hardware sprite support.
+ * However, they are slightly more flexible and offer no hardware limitations
+ * in terms of sprite size.
+ *
+ * Code wishing to draw to the screen should first acquire a display contect
+ * using #display_lock.  Once the display context is acquired, code may draw to
+ * the context using any of the graphics functions present.  Wherever practical,
+ * two versions of graphics functions are available: a transparent variety and
+ * a non-transparent variety.  Code that wishes to display sprites without
+ * transparency can get a slight performance boost by using the non-transparent
+ * viariety of calls since no software alpha blending needs to occur.  Once
+ * code has finished drawing to the display context, it can be displayed to the
+ * screen using #display_show.
+ *
+ * The graphics subsystem makes use of the same contexts as the @ref rdp.  Thus,
+ * with careful coding, both hardware and software routines can be used to draw
+ * to the display context with no ill effects.  The colors returned by 
+ * #graphics_make_color and #graphics_convert_color are also compatible with both
+ * hardware and software graphics routines.
+ *
  * @{
  */
 

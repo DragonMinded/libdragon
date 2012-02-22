@@ -9,6 +9,21 @@
 /**
  * @defgroup dma DMA Controller
  * @ingroup lowlevel
+ * @brief DMA functionality for transfers between cartridge space and RDRAM
+ *
+ * The DMA controller is responsible for handling block and word accesses from
+ * the catridge domain.  Because of the nature of the catridge interface, code
+ * cannot use memcpy or standard pointer accesses on memory mapped to the catridge.
+ * Consequently, the peripheral interface (PI) provides a DMA controller for
+ * accessing data.
+ *
+ * The DMA controller requires no initialization.  Using #dma_read and #dma_write
+ * will allow reading from the cartridge and writing to the catridge respectively
+ * in block mode.  #io_read and #io_write will allow a single 32-bit integer to
+ * be read from or written to the cartridge.  These are especially useful for
+ * manipulating registers on a cartridge such as a gameshark.  Code should never
+ * make raw 32-bit reads or writes in the cartridge domain as it could collide with
+ * an in-progress DMA transfer or run into caching issues.
  * @{
  */
 
