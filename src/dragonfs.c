@@ -92,12 +92,12 @@ static directory_entry_t *next_entry = 0;
 static inline void grab_sector(void *cart_loc, void *ram_loc)
 {
     /* Make sure we have fresh cache */
-    data_cache_writeback_invalidate(ram_loc, SECTOR_SIZE);
+    data_cache_hit_writeback_invalidate(ram_loc, SECTOR_SIZE);
 
     dma_read((void *)(((uint32_t)ram_loc) & 0x1FFFFFFF), (uint32_t)cart_loc, SECTOR_SIZE);
     
     /* Fresh cache again */
-    data_cache_writeback_invalidate(ram_loc, SECTOR_SIZE);
+    data_cache_hit_invalidate(ram_loc, SECTOR_SIZE);
 }
 
 /**

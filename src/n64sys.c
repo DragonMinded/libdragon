@@ -131,7 +131,7 @@ void wait_ms( unsigned long wait )
  * @param[in] length
  *            Length in bytes of the data pointed at by addr
  */
-void data_cache_writeback(volatile void * addr, unsigned long length)
+void data_cache_hit_writeback(volatile void * addr, unsigned long length)
 {
     cache_op(0x19);
 }
@@ -146,7 +146,7 @@ void data_cache_writeback(volatile void * addr, unsigned long length)
  * @param[in] length
  *            Length in bytes of the data pointed at by addr
  */
-void data_cache_invalidate(volatile void * addr, unsigned long length)
+void data_cache_hit_invalidate(volatile void * addr, unsigned long length)
 {
     cache_op(0x11);
 }
@@ -161,9 +161,22 @@ void data_cache_invalidate(volatile void * addr, unsigned long length)
  * @param[in] length
  *            Length in bytes of the data pointed at by addr
  */
-void data_cache_writeback_invalidate(volatile void * addr, unsigned long length)
+void data_cache_hit_writeback_invalidate(volatile void * addr, unsigned long length)
 {
     cache_op(0x15);
+}
+
+/**
+ * @brief Force a data cache index writeback invalidate over a memory region
+ *
+ * @param[in] addr
+ *            Pointer to memory in question
+ * @param[in] length
+ *            Length in bytes of the data pointed at by addr
+ */
+void data_cache_index_writeback_invalidate(volatile void * addr, unsigned long length)
+{
+    cache_op(0x01);
 }
 
 /**
@@ -176,7 +189,7 @@ void data_cache_writeback_invalidate(volatile void * addr, unsigned long length)
  * @param[in] length
  *            Length in bytes of the data pointed at by addr
  */
-void inst_cache_writeback(volatile void * addr, unsigned long length)
+void inst_cache_hit_writeback(volatile void * addr, unsigned long length)
 {
     cache_op(0x18);
 }
@@ -197,18 +210,16 @@ void inst_cache_invalidate(volatile void * addr, unsigned long length)
 }
 
 /**
- * @brief Force an instruction cache writeback invalidate over a memory region
- *
- * Use this to force cached memory to be written to RDRAM and then cache updated.
+ * @brief Force an instruction cache index invalidate over a memory region
  *
  * @param[in] addr
  *            Pointer to memory in question
  * @param[in] length
  *            Length in bytes of the data pointed at by addr
  */
-void inst_cache_writeback_invalidate(volatile void * addr, unsigned long length)
+void inst_cache_index_invalidate(volatile void * addr, unsigned long length)
 {
-    cache_op(0x14);
+    cache_op(0x00);
 }
 
 /** @} */

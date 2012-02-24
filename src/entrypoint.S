@@ -36,7 +36,7 @@ data_init:
 	la a0,__text_start
 	la a1,__data_end
 	sub a1,a0
-	jal data_cache_writeback_invalidate
+	jal data_cache_hit_writeback_invalidate
 	nop
 
 	/* fill .bss with 0s */
@@ -52,7 +52,7 @@ bss_init:
 	la a0,__bss_start
 	la a1,__bss_end
 	sub a1,a0
-	jal data_cache_writeback_invalidate
+	jal data_cache_hit_writeback_invalidate
 	nop
 
 	/* load interrupt vector */

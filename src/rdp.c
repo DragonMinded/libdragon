@@ -214,7 +214,7 @@ static void __rdp_ringbuffer_send( void )
     if( __rdp_ringbuffer_size() == 0 ) { return; }
 
     /* Ensure the cache is fixed up */
-    data_cache_writeback_invalidate(&rdp_ringbuffer[rdp_start / 4], __rdp_ringbuffer_size());
+    data_cache_hit_writeback_invalidate(&rdp_ringbuffer[rdp_start / 4], __rdp_ringbuffer_size());
 
     /* Clear XBUS/Flush/Freeze */
     ((uint32_t *)0xA4100000)[3] = 0x15;
@@ -437,7 +437,7 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     /* Invalidate data associated with sprite in cache */
     if( flush_strategy == FLUSH_STRATEGY_AUTOMATIC )
     {
-        data_cache_writeback_invalidate( sprite->data, sprite->width * sprite->height * sprite->bitdepth );
+        data_cache_hit_writeback_invalidate( sprite->data, sprite->width * sprite->height * sprite->bitdepth );
     }
 
     /* Point the RDP at the actual sprite data */

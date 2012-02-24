@@ -128,7 +128,7 @@ static void __controller_exec_PIF( void *inblock, void *outblock )
     volatile uint64_t inblock_temp[8];
     volatile uint64_t outblock_temp[8];
 
-    data_cache_writeback_invalidate(inblock_temp, 64);
+    data_cache_hit_writeback_invalidate(inblock_temp, 64);
     memcpy(UncachedAddr(inblock_temp), inblock, 64);
 
     __SI_DMA_wait();
@@ -138,7 +138,7 @@ static void __controller_exec_PIF( void *inblock, void *outblock )
 
     __SI_DMA_wait();
 
-    data_cache_writeback_invalidate(outblock_temp, 64);
+    data_cache_hit_writeback_invalidate(outblock_temp, 64);
 
     SI_regs->DRAM_addr = outblock_temp;
     SI_regs->PIF_addr_read = PIF_RAM;
