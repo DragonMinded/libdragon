@@ -86,7 +86,10 @@ struct timeval;
  */
 int errno;
 
+/* Externs from libdragon */
 extern int __bootcic;
+extern void enable_interrupts();
+extern void disable_interrupts();
 
 /**
  * @brief Filesystem mapping structure
@@ -251,16 +254,21 @@ static int __strcmp( const char * const a, const char * const b )
 /**
  * @brief Return a unique filesystem handle
  *
- * @todo Make this function atomic
- *
  * @return A unique 32-bit value usable as a filesystem handle
  */
 static int __get_new_handle()
 {
-    /* Always give out a nonzero handle unique to the system */
     static int handle = 1;
+    int newhandle;
 
-    return handle++;
+    disable_interrupts();
+
+    /* Always give out a nonzero handle unique to the system */
+    newhandle = handle++;
+
+    enable_interrupts();
+
+    return newhandle;
 }
 
 /**
@@ -910,8 +918,6 @@ int readlink( const char *path, char *buf, size_t bufsize )
 /**
  * @brief Return a new chunk of memory to be used as heap
  *
- * @todo Make this function atomic
- *
  * @param[in] incr
  *            The amount of memory needed in bytes
  *
@@ -923,6 +929,8 @@ void *sbrk( int incr )
     static char * heap_end, * heap_top;
     char *        prev_heap_end;
     const int     osMemSize = (__bootcic != 6105) ? (*(int*)0xA0000318) : (*(int*)0xA00003F0);
+
+    disable_interrupts();
 
     if( heap_end == 0 )
     {
@@ -940,6 +948,8 @@ void *sbrk( int incr )
         prev_heap_end = (char *)-1;
         errno = ENOMEM;
     }
+
+    enable_interrupts();
 
     return (void *)prev_heap_end;
 }

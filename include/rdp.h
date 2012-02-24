@@ -74,6 +74,7 @@ void rdp_draw_sprite_scaled( uint32_t texslot, int x, int y, double x_scale, dou
 void rdp_set_primitive_color( uint32_t color );
 void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by );
 void rdp_set_texture_flush( flush_t flush );
+void rdp_close( void );
 
 #ifdef __cplusplus
 }

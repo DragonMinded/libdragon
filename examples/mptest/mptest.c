@@ -8,8 +8,8 @@ static uint8_t mempak_data[128 * MEMPAK_BLOCK_SIZE];
 
 int main(void)
 {
-    /* enable MI interrupts (on the CPU) */
-    set_MI_interrupt(1,1);
+    /* enable interrupts (on the CPU) */
+    init_interrupts();
 
     /* Initialize peripherals */
     console_init();

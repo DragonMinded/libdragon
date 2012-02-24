@@ -16,7 +16,7 @@
  *       of the internal timer reference.
  *
  * @todo There is a race condition where one-shot timers that have not 
- *       expired are deleted by timer_free.  Consider adding a valid
+ *       expired are deleted by timer_close.  Consider adding a valid
  *       flag to the timer structure and not deleting it if the flag
  *       does not exist.
  *
@@ -320,6 +320,9 @@ void delete_timer(timer_link_t *timer)
 void timer_close(void)
 {
 	disable_interrupts();
+    
+    unregister_TI_handler(timer_callback);
+
 	timer_link_t *head = TI_timers;
 	while (head)
 	{

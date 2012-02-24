@@ -235,6 +235,9 @@ void audio_init(const int frequency, int numbuffers)
  */
 void audio_close()
 {
+    set_AI_interrupt(0);
+    unregister_AI_handler(audio_callback);
+
     if(buffers)
     {
         for(int i = 0; i < _num_buf; i++)

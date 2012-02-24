@@ -381,6 +381,9 @@ void display_close()
     /* Can't have the video interrupt happening here */
     disable_interrupts();
 
+    set_VI_interrupt( 0, 0 );
+    unregister_VI_handler( __display_callback );
+
     now_showing = -1;
     now_drawing = -1;
     show_next = -1;

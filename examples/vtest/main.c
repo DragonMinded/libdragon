@@ -102,8 +102,8 @@ void delay(int cnt)
 /* initialize console hardware */
 void init_n64(void)
 {
-    /* enable MI interrupts (on the CPU) */
-    set_MI_interrupt(1,1);
+    /* enable interrupts (on the CPU) */
+    init_interrupts();
 
     /* Initialize peripherals */
     display_init( RESOLUTION_320x240, DEPTH_32_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );

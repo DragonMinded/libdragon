@@ -38,8 +38,8 @@ int main(void)
 	timer_link_t *one_shot_t;
 	long long start, end;
 
-    /* enable MI interrupts (on the CPU) */
-    set_MI_interrupt(1,1);
+    /* enable interrupts (on the CPU) */
+    init_interrupts();
 
     /* Initialize peripherals */
     display_init( res, bit, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );

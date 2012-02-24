@@ -12,8 +12,6 @@
  * @ingroup lowlevel
  * @brief N64 interrupt registering and servicing routines.
  *
- * @todo Need to allow unregistering of callbacks
- *
  * The N64 interrupt controller provides a software interface to
  * register for interrupts from the various systems in the N64.
  * Most interrupts on the N64 coordinate through the MIPS interface
@@ -22,7 +20,7 @@
  * r4300 itself and not the N64 hardware.
  *
  * Before interrupts can be used on the system, the interrupt controller
- * should be configured using #set_MI_interrupt.  Once this is done,
+ * should be configured using #init_interrupts.  Once this is done,
  * interrupts are enabled and any registered callback can be called
  * when an interrupt occurs.  Each of the N64-generated interrupts is
  * maskable using the various set accessors.
@@ -96,6 +94,16 @@
 /** @brief Bit to set to clear the PI interrupt */
 #define PI_CLEAR_INTERRUPT ( 1 << 1 )
 
+/** @brief Number of nested disable interrupt calls
+ *
+ * This will represent the number of disable interrupt calls made on the system.
+ * If this is set to 0, interrupts are enabled.  A number higher than 0 represents
+ * that many disable calls that were nested, and consequently the number of
+ * interrupt enable calls that need to be made to re-enable interrupts.  A negative
+ * number means that the interrupt system hasn't been initialized yet.
+ */
+static int __interrupt_depth = -1;
+
 /**
  * @brief Structure of an interrupt callback
  */
@@ -145,6 +153,76 @@ static void __call_callback( struct callback_link * head )
 
         /* Go to next */
 	    head=head->next;
+    }
+}
+
+/**
+ * @brief Add a callback to a linked list of callbacks
+ *
+ * @param[in,out] head
+ *                Pointer to the head of a linked list to add to
+ * @param[in]     callback
+ *                Function to call when executing callbacks in this linked list
+ */
+static void __register_callback( struct callback_link ** head, void (*callback)() )
+{
+    if( head )
+    {
+        /* Add to beginning of linked list */
+        struct callback_link *next = *head;
+        (*head) = malloc(sizeof(struct callback_link));
+
+        if( *head )
+        {
+            (*head)->next=next;
+            (*head)->callback=callback;
+        }
+    }
+}
+
+/**
+ * @brief Remove a callback from a linked list of callbacks
+ *
+ * @param[in,out] head
+ *                Pointer to the head of a linked list to remove from
+ * @param[in]     callback
+ *                Function to search for and remove from callback list
+ */
+static void __unregister_callback( struct callback_link ** head, void (*callback)() )
+{
+    if( head )
+    {
+        /* Try to find callback this matches */
+        struct callback_link *last = 0;
+        struct callback_link *cur  = *head;
+
+        while( cur )
+        {
+            if( cur->callback == callback )
+            {
+                /* We found it!  Try to remove it from the list */
+                if( last )
+                {
+                    /* This is somewhere in the linked list */
+                    last->next = cur->next;
+                }
+                else
+                {
+                    /* This is the first node */
+                    *head = cur->next;
+                }
+
+                /* Free memory */
+                free( cur );
+
+                /* Exit early */
+                break;
+            }
+
+            /* Go to next entry */
+            last = cur;
+            cur = cur->next;
+        }
     }
 }
 
@@ -211,30 +289,6 @@ void __TI_handler(void)
 }
 
 /**
- * @brief Add a callback to a linked list of callbacks
- *
- * @param[in,out] head
- *                Pointer to the head of a linked list to add to
- * @param[in]     callback
- *                Function to call when executing callbacks in this linked list
- */
-static void __register_callback( struct callback_link ** head, void (*callback)() )
-{
-    if( head )
-    {
-        /* Add to beginning of linked list */
-        struct callback_link * next=*head;
-        (*head) = malloc(sizeof(struct callback_link));
-
-        if( *head )
-        {
-            (*head)->next=next;
-            (*head)->callback=callback;
-        }
-    }
-}
-
-/**
  * @brief Register an AI callback
  *
  * @param[in] callback
@@ -243,6 +297,17 @@ static void __register_callback( struct callback_link ** head, void (*callback)(
 void register_AI_handler( void (*callback)() )
 {
     __register_callback(&AI_callback,callback);
+}
+
+/**
+ * @brief Unregister an AI callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on AI interrupts
+ */
+void unregister_AI_handler( void (*callback)() )
+{
+    __unregister_callback(&AI_callback,callback);
 }
 
 /**
@@ -257,6 +322,17 @@ void register_VI_handler( void (*callback)() )
 }
 
 /**
+ * @brief Unregister a VI callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on VI interrupts
+ */
+void unregister_VI_handler( void (*callback)() )
+{
+    __unregister_callback(&VI_callback,callback);
+}
+
+/**
  * @brief Register a PI callback
  *
  * @param[in] callback
@@ -265,6 +341,17 @@ void register_VI_handler( void (*callback)() )
 void register_PI_handler( void (*callback)() )
 {
     __register_callback(&PI_callback,callback);
+}
+
+/**
+ * @brief Unegister a PI callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on PI interrupts
+ */
+void unregister_PI_handler( void (*callback)() )
+{
+    __unregister_callback(&PI_callback,callback);
 }
 
 /**
@@ -279,6 +366,17 @@ void register_DP_handler( void (*callback)() )
 }
 
 /**
+ * @brief Unregister a DP callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on DP interrupts
+ */
+void unregister_DP_handler( void (*callback)() )
+{
+    __unregister_callback(&DP_callback,callback);
+}
+
+/**
  * @brief Register a TI callback
  *
  * @param[in] callback
@@ -287,6 +385,17 @@ void register_DP_handler( void (*callback)() )
 void register_TI_handler( void (*callback)() )
 {
     __register_callback(&TI_callback,callback);
+}
+
+/**
+ * @brief Unegister a TI callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on TI interrupts
+ */
+void unregister_TI_handler( void (*callback)() )
+{
+    __unregister_callback(&TI_callback,callback);
 }
 
 /**
@@ -366,51 +475,88 @@ void set_DP_interrupt(int active)
 }
 
 /**
- * @brief Enable or disable the MI interrupt
- *
- * @todo Get rid of this function and make enable/disable interrupts more robust.  Possibly
- *       convert this function to init_interrupts and add a close_interrupts?
- *
- * @param[in] active
- *            Flag to specify whether the VI interupt should be active
- * @param[in] clear
- *            Flag to specify if the interrupt mask should be cleared
+ * @brief Initialize the interrupt controller
  */
-void set_MI_interrupt(int active, int clear)
+void init_interrupts()
 {
-    if( clear )
+    /* Make sure that we aren't initializing interrupts when they are already enabled */
+    if( __interrupt_depth < 0 )
     {
-        MI_regs->mask=MI_MASK_CLR_SP|MI_MASK_CLR_SI|MI_MASK_CLR_AI|MI_MASK_CLR_VI|MI_MASK_CLR_PI|MI_MASK_CLR_PI|MI_MASK_CLR_DP;
-    }
+        /* Clear and mask all interrupts on the system so we start with a clean slate */
+        MI_regs->mask=MI_MASK_CLR_SP|MI_MASK_CLR_SI|MI_MASK_CLR_AI|MI_MASK_CLR_VI|MI_MASK_CLR_PI|MI_MASK_CLR_DP;
 
-    if( active )
-    {
+        /* Set that we are enabled */
+        __interrupt_depth = 0;
+
+        /* Enable interrupts systemwide */
         asm("\tmfc0 $8,$12\n\tori $8,0x401\n\tmtc0 $8,$12\n\tnop":::"$8");
-    }
-    else
-    {
-        asm("\tmfc0 $8,$12\n\tla $9,~0x400\n\tand $8,$9\n\tmtc0 $8,$12\n\tnop":::"$8","$9");
     }
 }
 
 /**
  * @brief Disable interrupts systemwide
  *
- * @todo This function needs to return the old interrupt state in the system.
+ * @note If interrupts are already disabled on the system or interrupts have not
+ *       been initialized, this function will not modify the system state.
  */
 void disable_interrupts()
 {
-    asm("\tmfc0 $8,$12\n\tla $9,~1\n\tand $8,$9\n\tmtc0 $8,$12\n\tnop":::"$8","$9");
+    /* Don't do anything if we haven't initialized */
+    if( __interrupt_depth < 0 ) { return; }
+
+    if( __interrupt_depth == 0 )
+    {
+        /* Interrupts are enabled, so its safe to disable them */
+        asm("\tmfc0 $8,$12\n\tla $9,~1\n\tand $8,$9\n\tmtc0 $8,$12\n\tnop":::"$8","$9");
+    }
+
+    /* Ensure that we remember nesting levels */
+    __interrupt_depth++;
 }
 
 /**
  * @brief Enable interrupts systemwide
  *
- * @todo This function needs to take the old interrupt state and restore it.
+ * @note If this is called inside a nested disable call, it will have no effect on the
+ *       system.  Therefore it is safe to nest disable/enable calls.  After the last
+ *       nested interrupt is enabled, systemwide interrupts will be reenabled.
  */
 void enable_interrupts()
 {
-    asm("\tmfc0 $8,$12\n\tori $8,1\n\tmtc0 $8,$12\n\tnop":::"$8");
+    /* Don't do anything if we've hosed up or aren't initialized */
+    if( __interrupt_depth < 0 ) { return; }
+
+    /* Decrement the nesting level now that we are enabling interrupts */
+    __interrupt_depth--;
+
+    if( __interrupt_depth == 0 )
+    {
+        /* Interrupts are disabled but we hit the base nesting level, time to enable */
+        asm("\tmfc0 $8,$12\n\tori $8,1\n\tmtc0 $8,$12\n\tnop":::"$8");
+    }
+}
+
+/**
+ * @brief Return the current state of interrupts
+ *
+ * @retval INTERRUPTS_UNINITIALIZED if the interrupt system has not been initialized yet.
+ * @retval INTERRUPTS_DISABLED if interrupts have been disabled for some reason.
+ * @retval INTERRUPTS_ENABLED if interrupts are currently enabled.
+ */
+interrupt_state_t get_interrupts_state()
+{
+    if( __interrupt_depth < 0 )
+    {
+        return INTERRUPTS_UNINITIALIZED;
+    }
+    else if( __interrupt_depth == 0 )
+    {
+        return INTERRUPTS_ENABLED;
+    }
+    else
+    {
+        return INTERRUPTS_DISABLED;
+    }
 }
 
 /** @} */

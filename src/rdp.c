@@ -19,7 +19,8 @@
  * this by building commands to be sent to the RDP.
  *
  * Before attempting to draw anything using the RDP, the hardware display interface
- * should be initialized with #rdp_init.
+ * should be initialized with #rdp_init.  After the RDP is no longer needed, be sure
+ * to free all resources using #rdp_close.
  *
  * Code wishing to use the hardware rasterizer should first acquire a display context
  * using #display_lock.  Once a display context has been acquired, the RDP can be
@@ -241,19 +242,31 @@ static void __rdp_ringbuffer_send( void )
 
 /**
  * @brief Initialize the RDP system
- *
- * @todo This should not explicitly enable interrupts.
  */
 void rdp_init( void )
 {
     /* Default to flushing automatically */
     flush_strategy = FLUSH_STRATEGY_AUTOMATIC;
 
-    /* Set up interrupt for SYNC_FULL */
-    enable_interrupts();
+    /* Set the ringbuffer up */
+    rdp_start = 0;
+    rdp_end = 0;
 
+    /* Set up interrupt for SYNC_FULL */
     register_DP_handler( __rdp_interrupt );
     set_DP_interrupt( 1 );
+}
+
+/**
+ * @brief Close the RDP system
+ *
+ * This function closes out the RDP system and cleans up any internal memory
+ * allocated by #rdp_init.
+ */
+void rdp_close( void )
+{
+    set_DP_interrupt( 0 );
+    unregister_DP_handler( __rdp_interrupt );
 }
 
 /**
@@ -290,10 +303,16 @@ void rdp_detach_display( void )
     /* Wait for SYNC_FULL to finish */
     wait_intr = 0;
 
+    /* Force the RDP to rasterize everything and then interrupt us */
     rdp_sync( SYNC_FULL );
-    while( !wait_intr ) { ; }
 
-    /* Set back to zero */
+    if( INTERRUPTS_ENABLED == get_interrupts_state() )
+    {
+        /* Only wait if interrupts are enabled */
+        while( !wait_intr ) { ; }
+    }
+
+    /* Set back to zero for next detach */
     wait_intr = 0;
 }
 

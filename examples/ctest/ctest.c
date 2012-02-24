@@ -24,8 +24,8 @@ char *format_type( int accessory )
 
 int main(void)
 {
-    /* enable MI interrupts (on the CPU) */
-    set_MI_interrupt(1,1);
+    /* enable interrupts (on the CPU) */
+    init_interrupts();
 
     /* Initialize peripherals */
     display_init( res, bit, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );

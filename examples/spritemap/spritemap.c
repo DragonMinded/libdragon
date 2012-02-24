@@ -15,8 +15,8 @@ int main(void)
 {
     int mode = 0;
 
-    /* enable MI interrupts (on the CPU) */
-    set_MI_interrupt(1,1);
+    /* enable interrupts (on the CPU) */
+    init_interrupts();
 
     /* Initialize peripherals */
     display_init( RESOLUTION_320x240, DEPTH_16_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
