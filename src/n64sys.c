@@ -204,7 +204,7 @@ void inst_cache_hit_writeback(volatile void * addr, unsigned long length)
  * @param[in] length
  *            Length in bytes of the data pointed at by addr
  */
-void inst_cache_invalidate(volatile void * addr, unsigned long length)
+void inst_cache_hit_invalidate(volatile void * addr, unsigned long length)
 {
     cache_op(0x10);
 }
