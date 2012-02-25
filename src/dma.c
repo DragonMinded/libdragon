@@ -68,7 +68,7 @@ void dma_read(void * ram_address, unsigned long pi_address, unsigned long len)
 {
     while (dma_busy()) ;
     PI_regs->ram_address = ram_address;
-    PI_regs->pi_address = pi_address;
+    PI_regs->pi_address = (pi_address | 0x10000000) & 0x1FFFFFFF;
     PI_regs->write_length = len-1;
     while (dma_busy()) ;
 }
@@ -88,7 +88,7 @@ void dma_read(void * ram_address, unsigned long pi_address, unsigned long len)
 void dma_write(void * ram_address, unsigned long pi_address, unsigned long len) {
     while (dma_busy()) ;
     PI_regs->ram_address = ram_address;
-    PI_regs->pi_address = pi_address;
+    PI_regs->pi_address = (pi_address | 0x10000000) & 0x1FFFFFFF;
     PI_regs->read_length = len-1;
     while (dma_busy()) ;
 }

@@ -1281,7 +1281,8 @@ static filesystem_t dragon_fs = {
  *
  * @param[in] base_fs_loc
  *            Memory mapped location at which to find the filesystem.  This is normally
- *            0xB0000000 + the offset used when building your ROM.
+ *            0xB0000000 + the offset used when building your ROM + the size of the header
+ *            file used.
  *
  * @return DFS_ESUCCESS on success or a negative error otherwise.
  */
@@ -1289,12 +1290,6 @@ int dfs_init(uint32_t base_fs_loc)
 {
     /* Try normal (works on doctor v64) */
     int ret = __dfs_init( base_fs_loc );
-
-    if( ret != DFS_ESUCCESS )
-    {
-        /* For some reason, the Neo Myth wants this initialized at 0x1000 offset. */
-        ret = __dfs_init( base_fs_loc + 0x1000 );
-    }
 
     if( ret != DFS_ESUCCESS )
     {

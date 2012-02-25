@@ -234,7 +234,7 @@ int main(void)
 
     MikMod_Init("");
 
-    if(dfs_init(0xB0100000) != DFS_ESUCCESS)
+    if(dfs_init( DFS_DEFAULT_LOCATION ) != DFS_ESUCCESS)
     {
         console_printf("Filesystem failed to start!\n");
     }
