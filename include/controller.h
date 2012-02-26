@@ -142,9 +142,9 @@ int identify_accessory( int controller );
 void rumble_start( int controller );
 void rumble_stop( int controller );
 void execute_raw_command( int controller, int command, int bytesout, int bytesin, unsigned char *out, unsigned char *in );
-unsigned int eeprom_status();
-unsigned long long eeprom_read(int block);
-unsigned int eeprom_write(int block, unsigned long long data);
+int eeprom_present();
+void eeprom_read(int block, uint8_t * const buf);
+void eeprom_write(int block, const uint8_t * const data);
 
 #ifdef __cplusplus
 }

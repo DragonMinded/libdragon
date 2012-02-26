@@ -129,13 +129,13 @@ static void __controller_exec_PIF( void *inblock, void *outblock )
 }
 
 /**
- * @brief Read the EEPROM status
+ * @brief Probe the EEPROM interface
  *
- * @todo NeoFlash needs to provide additional details as to the expected return values
+ * Prove the EEPROM to see if it exists on this cartridge.
  *
- * @return The status of the EEPROM
+ * @return Nonzero if EEPROM present, zero if EEPROM not present
  */
-unsigned int eeprom_status()
+int eeprom_present()
 {
     static unsigned long long SI_eeprom_status_block[8] =
     {
@@ -151,26 +151,36 @@ unsigned int eeprom_status()
     static unsigned long long output[8];
 
     __controller_exec_PIF(SI_eeprom_status_block,output);
-	return (unsigned int)(output[1] >> 32);
+
+    /* We are looking for 0x80 in the second byte returned, which
+     * signifies that there is an EEPROM present.*/
+    if( ((output[1] >> 48) & 0xFF) == 0x80 )
+    {
+        /* EEPROM found! */
+        return 1;
+    }
+    else
+    {
+        /* EEPROM not found! */
+        return 0;
+    }
 }
 
 /**
  * @brief Read a block from EEPROM
  * 
- * @todo Need to return a proper value without internal PIF data leaking out
- *
- * @param[in] block
- *            Block to read data from
- *
- * @return The result of the EEPROM read
+ * @param[in]  block
+ *             Block to read data from.  The N64 accesses eeprom in 8 byte blocks.
+ * @param[out] buf
+ *             Buffer to place the eight bytes read from EEPROM.
  */
-unsigned long long eeprom_read(int block)
+void eeprom_read(int block, uint8_t * const buf)
 {
     static unsigned long long SI_eeprom_read_block[8] =
     {
         0x0000000002080400,				// LSB is block
-        0xfffffffffe000000,				// return data will be this quad
-        0,
+        0xffffffffffffffff,				// return data will be this quad
+        0xfe00000000000000,
         0,
         0,
         0,
@@ -181,29 +191,24 @@ unsigned long long eeprom_read(int block)
 
 	SI_eeprom_read_block[0] = 0x0000000002080400 | (block & 255);
     __controller_exec_PIF(SI_eeprom_read_block,output);
-	return output[1];
+    memcpy( buf, &output[1], 8 );
 }
 
 /**
  * @brief Write a block to EEPROM
  *
- * @todo Need to format input data properly so as not to require PIF data in input
- * @todo Need to convert and return a proper return code
- *
  * @param[in] block
- *            Block to write data to
+ *            Block to write data to.  The N64 accesses eeprom in 8 byte blocks.
  * @param[in] data
- *            Data to write to block specified
- *
- * @return The result of the EEPROM write
+ *            Eight bytes of data to write to block specified
  */
-unsigned int eeprom_write(int block, unsigned long long data)
+void eeprom_write(int block, const uint8_t * const data)
 {
     static unsigned long long SI_eeprom_write_block[8] =
     {
         0x000000000a010500,				// LSB is block
         0x0000000000000000,				// send data is this quad
-        0xfffffffffe000000,				// MSB will be status of write
+        0xfffe000000000000,				// MSB will be status of write
         0,
         0,
         0,
@@ -213,9 +218,8 @@ unsigned int eeprom_write(int block, unsigned long long data)
     static unsigned long long output[8];
 
 	SI_eeprom_write_block[0] = 0x000000000a010500 | (block & 255);
-	SI_eeprom_write_block[1] = data;
+    memcpy( &SI_eeprom_write_block[1], data, 8 );
     __controller_exec_PIF(SI_eeprom_write_block,output);
-	return (unsigned int)(output[2] >> 32);
 }
 
 /**
