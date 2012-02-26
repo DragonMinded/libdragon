@@ -139,6 +139,9 @@ static void audio_callback()
         return;
     }
 
+    /* Disable interrupts so we don't get a race condition with writes */
+    disable_interrupts();
+
     /* Copy in as many buffers as can fit (up to 2) */
     while(!__full())
     {
@@ -161,6 +164,9 @@ static void audio_callback()
          /* Start DMA */
         AI_regs->control = 1;
     }
+
+    /* Safe to enable interrupts here */
+    enable_interrupts();
 }
 
 /**
@@ -196,6 +202,14 @@ void audio_init(const int frequency, int numbuffers)
             /* NTSC */
             clockrate = AI_NTSC_DACRATE;
             break;
+    }
+
+    /* Make sure we don't choose too many buffers */
+    if( numbuffers > (sizeof(buf_full) * 8) )
+    {
+        /* This is a bit mask, so we can only have as many
+         * buffers as we have bits. */
+        numbuffers = sizeof(buf_full) * 8;
     }
 
     /* Remember frequency */

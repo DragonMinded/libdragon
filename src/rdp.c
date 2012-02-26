@@ -215,16 +215,27 @@ static void __rdp_ringbuffer_send( void )
 
     /* Ensure the cache is fixed up */
     data_cache_hit_writeback_invalidate(&rdp_ringbuffer[rdp_start / 4], __rdp_ringbuffer_size());
+    
+    /* Best effort to be sure we can write once we disable interrupts */
+    while( (((volatile uint32_t *)0xA4100000)[3] & 0x600) ) ;
+
+    /* Make sure another thread doesn't attempt to render */
+    disable_interrupts();
 
     /* Clear XBUS/Flush/Freeze */
     ((uint32_t *)0xA4100000)[3] = 0x15;
 
-    /* Don't saturate the RDP command buffer */
+    /* Don't saturate the RDP command buffer.  Another command could have been written
+     * since we checked before disabling interrupts, but it is unlikely, so we probably
+     * won't stall in this critical section long. */
     while( (((volatile uint32_t *)0xA4100000)[3] & 0x600) ) ;
 
     /* Send start and end of buffer location to kick off the command transfer */
     ((volatile uint32_t *)0xA4100000)[0] = ((uint32_t)rdp_ringbuffer | 0xA0000000) + rdp_start;
     ((volatile uint32_t *)0xA4100000)[1] = ((uint32_t)rdp_ringbuffer | 0xA0000000) + rdp_end;
+
+    /* We are good now */
+    enable_interrupts();
 
     /* Commands themselves can't wrap around */
     if( rdp_end > (RINGBUFFER_SIZE - RINGBUFFER_SLACK) )

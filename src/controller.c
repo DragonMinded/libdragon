@@ -131,6 +131,9 @@ static void __controller_exec_PIF( void *inblock, void *outblock )
     data_cache_hit_writeback_invalidate(inblock_temp, 64);
     memcpy(UncachedAddr(inblock_temp), inblock, 64);
 
+    /* Be sure another thread doesn't get into a resource fight */
+    disable_interrupts();
+
     __SI_DMA_wait();
 
     SI_regs->DRAM_addr = inblock_temp; // only cares about 23:0
@@ -144,6 +147,9 @@ static void __controller_exec_PIF( void *inblock, void *outblock )
     SI_regs->PIF_addr_read = PIF_RAM;
 
     __SI_DMA_wait();
+
+    /* Now that we've copied, its safe to let other threads go */
+    enable_interrupts();
 
     memcpy(outblock, UncachedAddr(outblock_temp), 64);
 }

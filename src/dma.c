@@ -66,11 +66,15 @@ volatile int dma_busy()
  */
 void dma_read(void * ram_address, unsigned long pi_address, unsigned long len) 
 {
+    disable_interrupts();
+
     while (dma_busy()) ;
     PI_regs->ram_address = ram_address;
     PI_regs->pi_address = (pi_address | 0x10000000) & 0x1FFFFFFF;
     PI_regs->write_length = len-1;
     while (dma_busy()) ;
+
+    enable_interrupts();
 }
 
 /**
@@ -85,12 +89,17 @@ void dma_read(void * ram_address, unsigned long pi_address, unsigned long len)
  * @param[in] len
  *            Length in bytes to write to peripheral
  */
-void dma_write(void * ram_address, unsigned long pi_address, unsigned long len) {
+void dma_write(void * ram_address, unsigned long pi_address, unsigned long len) 
+{
+    disable_interrupts();
+
     while (dma_busy()) ;
     PI_regs->ram_address = ram_address;
     PI_regs->pi_address = (pi_address | 0x10000000) & 0x1FFFFFFF;
     PI_regs->read_length = len-1;
     while (dma_busy()) ;
+
+    enable_interrupts();
 }
 
 /**
@@ -101,10 +110,20 @@ void dma_write(void * ram_address, unsigned long pi_address, unsigned long len) 
  *
  * @return The 32 bit value read from the peripheral
  */
-uint32_t io_read(uint32_t pi_address) {
+uint32_t io_read(uint32_t pi_address)
+{
     volatile uint32_t *uncached_address = (uint32_t *)(pi_address | 0xa0000000);
+    uint32_t retval = 0;
+
+    disable_interrupts();
+
+    /* Wait until there isn't a DMA transfer and grab a word */
     while (dma_busy()) ;
-    return *uncached_address;
+    retval = *uncached_address;
+
+    enable_interrupts();
+
+    return retval;
 }
 
 /**
@@ -115,10 +134,16 @@ uint32_t io_read(uint32_t pi_address) {
  * @param[in] data
  *            32 bit value to write to peripheral
  */
-void io_write(uint32_t pi_address, uint32_t data) {
+void io_write(uint32_t pi_address, uint32_t data) 
+{
     volatile uint32_t *uncached_address = (uint32_t *)(pi_address | 0xa0000000);
+
+    disable_interrupts();
+
     while (dma_busy()) ;
     *uncached_address = data;
+
+    enable_interrupts();
 }
 
 /** @} */ /* dma */

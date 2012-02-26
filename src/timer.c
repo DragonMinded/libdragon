@@ -12,14 +12,6 @@
  * @ingroup libdragon
  * @brief Interface to the timer module in the MIPS r4300 processor.
  *
- * @todo Consider changing timer system to return timer handles instead
- *       of the internal timer reference.
- *
- * @todo There is a race condition where one-shot timers that have not 
- *       expired are deleted by timer_close.  Consider adding a valid
- *       flag to the timer structure and not deleting it if the flag
- *       does not exist.
- *
  * The timer subsystem allows code to receive a callback after a specified
  * number of ticks or microseconds.  It interfaces with the MIPS
  * coprocessor 0 to handle the timer interrupt and provide useful timing
@@ -31,10 +23,11 @@
  * one-shot timer or a recurring timer, use #delete_timer.  To temporarily
  * stop a timer, use #stop_timer.  To restart a stopped timer or an expired
  * one-shot timer, use #start_timer.  Once code no longer needs the timer
- * subsystem, a call to #timer_close will free all active timers and shut
+ * subsystem, a call to #timer_close will free all continuous timers and shut
  * down the timer subsystem.  Note that timers removed with #stop_timer or
  * expired one-short timers will not be removed automatically and are the
- * responsibility of the calling code.
+ * responsibility of the calling code to be freed, regardless of a call to
+ * #timer_close.
  * @{
  */
 
@@ -328,7 +321,18 @@ void timer_close(void)
 	{
 		timer_link_t *last = head;
 		head = head->next;
-		free(last);
+
+        if (last->flags & TF_CONTINUOUS)
+        {
+            /* Only free if it is a continuous timer as one-shot timers are
+             * freed by the user.  If we free a timer here, the user will
+             * never know if a one shot expired and needs to be removed or
+             * was removed automatically by timer_close.  We avoid this race
+             * condition by ensuring that the timer system never frees a 
+             * one shot timer.
+             */
+    		free(last);
+        }
 	}
 	TI_timers = 0;
 	enable_interrupts();
