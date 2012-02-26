@@ -590,13 +590,13 @@ void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int b
     /* Cant display < 0, so must clip size and move S,T coord accordingly */
     if( tx < 0 )
     {
-        s += (int)((double)((-tx) << 5) * (1.0 / x_scale));
+        s += (int)(((double)((-tx) << 5)) * (1.0 / x_scale));
         tx = 0;
     }
 
     if( ty < 0 )
     {
-        t += (int)((double)((-ty) << 5) * (1.0 / y_scale));
+        t += (int)(((double)((-ty) << 5)) * (1.0 / y_scale));
         ty = 0;
     }
 
