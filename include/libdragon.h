@@ -47,6 +47,7 @@
 #include "audio.h"
 #include "console.h"
 #include "controller.h"
+#include "mempak.h"
 #include "display.h"
 #include "dma.h"
 #include "dragonfs.h"

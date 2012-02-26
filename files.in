@@ -7,6 +7,7 @@ OFILES_LD += $(CURDIR)/build/audio.o
 OFILES_LD += $(CURDIR)/build/display.o
 OFILES_LD += $(CURDIR)/build/console.o
 OFILES_LD += $(CURDIR)/build/controller.o
+OFILES_LD += $(CURDIR)/build/mempak.o
 OFILES_LD += $(CURDIR)/build/graphics.o
 OFILES_LD += $(CURDIR)/build/rdp.o
 OFILES_LD += $(CURDIR)/build/dma.o
@@ -76,6 +77,9 @@ $(CURDIR)/build/rdp.o: $(CURDIR)/src/rdp.c
 $(CURDIR)/build/controller.o: $(CURDIR)/src/controller.c
 	mkdir -p $(CURDIR)/build
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/controller.o $(CURDIR)/src/controller.c
+$(CURDIR)/build/mempak.o: $(CURDIR)/src/mempak.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/mempak.o $(CURDIR)/src/mempak.c
 
 # Rules for compiling timer system
 $(CURDIR)/build/timer.o: $(CURDIR)/src/timer.c

@@ -57,6 +57,7 @@ install: libdragon.a libdragonsys.a libdragonpp.a
 	install -D --mode=644 include/audio.h $(INSTALLDIR)/include/audio.h
 	install -D --mode=644 include/display.h $(INSTALLDIR)/include/display.h
 	install -D --mode=644 include/console.h $(INSTALLDIR)/include/console.h
+	install -D --mode=644 include/mempak.h $(INSTALLDIR)/include/mempak.h
 	install -D --mode=644 include/controller.h $(INSTALLDIR)/include/controller.h
 	install -D --mode=644 include/graphics.h $(INSTALLDIR)/include/graphics.h
 	install -D --mode=644 include/rdp.h $(INSTALLDIR)/include/rdp.h
