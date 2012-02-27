@@ -52,6 +52,22 @@
  */
 
 /**
+ * @name STDIN/STDOUT/STDERR definitions from unistd.h
+ *
+ * We can't just include unistd.h as it redefines several of the functions
+ * here that we are attempting to replace.
+ *
+ * @{
+ */
+/** @brief Standard input file descriptor */
+#define STDIN_FILENO    0
+/** @brief Standard output file descriptor */
+#define STDOUT_FILENO   1
+/** @brief Standard error file descriptor */
+#define STDERR_FILENO   2
+/** @} */
+
+/**
  * @brief Stack size
  *
  * @todo Dirty hack, should investigate this further
@@ -133,6 +149,8 @@ typedef struct
 static fs_mapping_t filesystems[MAX_FILESYSTEMS] = { { 0 } };
 /** @brief Array of open handles tracked */
 static fs_handle_t handles[MAX_OPEN_HANDLES] = { { 0 } };
+/** @brief Current stdio hook structure */
+static stdio_t stdio_hooks = { 0 };
 
 /* Forward definitions */
 int close( int fildes );
@@ -258,7 +276,8 @@ static int __strcmp( const char * const a, const char * const b )
  */
 static int __get_new_handle()
 {
-    static int handle = 1;
+    /* Start past STDIN, STDOUT, STDERR file handles */
+    static int handle = 3;
     int newhandle;
 
     disable_interrupts();
@@ -702,10 +721,6 @@ int gettimeofday( struct timeval *ptimeval, void *ptimezone )
 /**
  * @brief Return whether a file is a TTY or a regular file
  *
- * @todo Make this recognize stdin/stdout/stderr so that printf and derivatives work.
- *
- * @note Not supported in libdragon.
- *
  * @param[in] file
  *            File handle
  *
@@ -713,8 +728,19 @@ int gettimeofday( struct timeval *ptimeval, void *ptimezone )
  */
 int isatty( int file )
 {
-    errno = ENOSYS;
-    return 0;
+    if( file == STDIN_FILENO ||
+        file == STDOUT_FILENO ||
+        file == STDERR_FILENO )
+    {
+        /* This is a TTY for libdragon's purposes */
+        return 1;
+    }
+    else
+    {
+        /* Not a TTY */
+        errno = EBADF;
+        return 0;
+    }
 }
 
 /**
@@ -862,8 +888,6 @@ int open( char *file, int flags, int mode )
 /**
  * @brief Read data from a file
  *
- * @todo Make this recognize stdin/stdout/stderr and return nothing read.
- *
  * @param[in]  file
  *             File handle
  * @param[out] ptr
@@ -875,23 +899,47 @@ int open( char *file, int flags, int mode )
  */
 int read( int file, char *ptr, int len )
 {
-    filesystem_t *fs = __get_fs_pointer_by_handle( file );
-    void *handle = __get_fs_handle( file );
-
-    if( fs == 0 )
+    if( file == STDIN_FILENO )
     {
-        errno = EINVAL;
+        if( stdio_hooks.stdin_read )
+        {
+            return stdio_hooks.stdin_read( ptr, len );
+        }
+        else
+        {
+            /* No hook for this */
+            errno = EBADF;
+            return -1;
+        }
+    }
+    else if( file == STDOUT_FILENO ||
+             file == STDERR_FILENO )
+    {
+        /* Can't read from output buffers */
+        errno = EBADF;
         return -1;
     }
-
-    if( fs->read == 0 )
+    else
     {
-        /* Filesystem doesn't support read */
-        errno = ENOSYS;
-        return -1;
-    }
+        /* Read from file */
+        filesystem_t *fs = __get_fs_pointer_by_handle( file );
+        void *handle = __get_fs_handle( file );
 
-    return fs->read( handle, (uint8_t *)ptr, len );
+        if( fs == 0 )
+        {
+            errno = EINVAL;
+            return -1;
+        }
+
+        if( fs->read == 0 )
+        {
+            /* Filesystem doesn't support read */
+            errno = ENOSYS;
+            return -1;
+        }
+
+        return fs->read( handle, (uint8_t *)ptr, len );
+    }
 }
 
 /**
@@ -1068,8 +1116,6 @@ int wait( int *status )
 /**
  * @brief Write data to a file
  *
- * @todo Make this aware of stdin/stdout/stderr so that printf makes it to the console
- *
  * @param[in] file
  *            File handle
  * @param[in] ptr
@@ -1081,23 +1127,57 @@ int wait( int *status )
  */
 int write( int file, char *ptr, int len )
 {
-    filesystem_t *fs = __get_fs_pointer_by_handle( file );
-    void *handle = __get_fs_handle( file );
-
-    if( fs == 0 )
+    if( file == STDIN_FILENO )
     {
-        errno = EINVAL;
+        /* Can't write to input buffers */
+        errno = EBADF;
         return -1;
     }
-
-    if( fs->write == 0 )
+    else if( file == STDOUT_FILENO )
     {
-        /* Filesystem doesn't support write */
-        errno = ENOSYS;
-        return -1;
+        if( stdio_hooks.stdout_write )
+        {
+            return stdio_hooks.stdout_write( ptr, len );
+        }
+        else
+        {
+            errno = EBADF;
+            return -1;
+        }
     }
+    else if( file == STDERR_FILENO )
+    {
+        if( stdio_hooks.stderr_write )
+        {
+            return stdio_hooks.stderr_write( ptr, len );
+        }
+        else
+        {
+            errno = EBADF;
+            return -1;
+        }
+    }
+    else
+    {
+        /* Filesystem write */
+        filesystem_t *fs = __get_fs_pointer_by_handle( file );
+        void *handle = __get_fs_handle( file );
 
-    return fs->write( handle, (uint8_t *)ptr, len );
+        if( fs == 0 )
+        {
+            errno = EINVAL;
+            return -1;
+        }
+
+        if( fs->write == 0 )
+        {
+            /* Filesystem doesn't support write */
+            errno = ENOSYS;
+            return -1;
+        }
+
+        return fs->write( handle, (uint8_t *)ptr, len );
+    }
 }
 
 /**
@@ -1166,6 +1246,47 @@ int dir_findnext( const char * const path, dir_t *dir )
     }
 
     return fs->findnext( dir );
+}
+
+/**
+ * @brief Hook into stdio for STDIN, STDOUT and STDERR callbacks
+ *
+ * @param[in] stdio_calls
+ *            Pointer to structure containing callbacks for stdio functions
+ *
+ * @return 0 on successful hook or a negative value on failure.
+ */
+int hook_stdio_calls( stdio_t *stdio_calls )
+{
+    if( stdio_calls == NULL )
+    {
+        /* Failed to hook, bad input */
+        return -1;
+    }
+
+    /* Safe to hook */
+    stdio_hooks.stdin_read = stdio_calls->stdin_read;
+    stdio_hooks.stdout_write = stdio_calls->stdout_write;
+    stdio_hooks.stderr_write = stdio_calls->stderr_write;
+
+    /* Success */
+    return 0;
+}
+
+/**
+ * @brief Unhook from stdio
+ *
+ * @return 0 on successful hook or a negative value on failure.
+ */
+int unhook_stdio_calls()
+{
+    /* Just wipe out internal variable */
+    stdio_hooks.stdin_read = 0;
+    stdio_hooks.stdout_write = 0;
+    stdio_hooks.stderr_write = 0;
+
+    /* Always successful for now */
+    return 0;
 }
 
 /** @} */

@@ -62,7 +62,6 @@ void console_close();
 void console_set_render_mode(int mode);
 void console_clear();
 void console_render();
-void console_printf( const char * const format, ...);
 
 #ifdef __cplusplus
 }

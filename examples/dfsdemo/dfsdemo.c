@@ -174,18 +174,18 @@ void display_dir(direntry_t *list, int cursor, int page, int max, int count)
 
     if( max == 0 )
     {
-        console_printf( "No files in this dir..." );
+        printf( "No files in this dir..." );
     }
 
     for(int i = page; i < (page + max); i++)
     {
         if(i == cursor)
         {
-            console_printf("> ");
+            printf("> ");
         }
         else
         {
-            console_printf("  ");
+            printf("  ");
         }
 
         if(list[i].type == DT_DIR)
@@ -195,7 +195,7 @@ void display_dir(direntry_t *list, int cursor, int page, int max, int count)
             strncpy(tmpdir, list[i].filename, CONSOLE_WIDTH-5);
             tmpdir[CONSOLE_WIDTH-5] = 0;
 
-            console_printf("[%s]\n", tmpdir);
+            printf("[%s]\n", tmpdir);
         }
         else
         {
@@ -204,7 +204,7 @@ void display_dir(direntry_t *list, int cursor, int page, int max, int count)
             strncpy(tmpdir, list[i].filename, CONSOLE_WIDTH-3);
             tmpdir[CONSOLE_WIDTH-3] = 0;
 
-            console_printf("%s\n", tmpdir);
+            printf("%s\n", tmpdir);
         }
     }
 }
@@ -236,7 +236,7 @@ int main(void)
 
     if(dfs_init( DFS_DEFAULT_LOCATION ) != DFS_ESUCCESS)
     {
-        console_printf("Filesystem failed to start!\n");
+        printf("Filesystem failed to start!\n");
     }
     else
     {
@@ -319,7 +319,7 @@ int main(void)
                                     break;
                             }
     
-                            console_printf("\n\n\n%c Playing module", c);                        
+                            printf("\n\n\n%c Playing module", c);                        
                             console_render();
                         }
                         else

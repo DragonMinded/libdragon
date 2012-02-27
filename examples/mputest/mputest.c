@@ -17,7 +17,7 @@ int main(void)
 
     console_clear();
 
-    console_printf( "Press A on a controller\n"
+    printf( "Press A on a controller\n"
                     "to read that controller's\n"
                     "mempak.\n\n"
                     "Press B to format mempak.\n\n"
@@ -52,7 +52,7 @@ int main(void)
                     switch( identify_accessory( i ) )
                     {
                         case ACCESSORY_NONE:
-                            console_printf( "No accessory inserted!" );
+                            printf( "No accessory inserted!" );
                             break;
                         case ACCESSORY_MEMPAK:
                         {
@@ -61,11 +61,11 @@ int main(void)
                             {
                                 if( err == -3 )
                                 {
-                                    console_printf( "Mempak is not formatted!" );
+                                    printf( "Mempak is not formatted!" );
                                 }
                                 else
                                 {
-                                    console_printf( "Mempak bad or removed during read!" );
+                                    printf( "Mempak bad or removed during read!" );
                                 }
                             }
                             else
@@ -78,21 +78,21 @@ int main(void)
 
                                     if( entry.valid )
                                     {
-                                        console_printf( "%s - %d blocks\n", entry.name, entry.blocks );
+                                        printf( "%s - %d blocks\n", entry.name, entry.blocks );
                                     }
                                     else
                                     {
-                                        console_printf( "(EMPTY)\n" );
+                                        printf( "(EMPTY)\n" );
                                     }
                                 }
 
-                                console_printf( "\nFree space: %d blocks", get_mempak_free_space( i ) );
+                                printf( "\nFree space: %d blocks", get_mempak_free_space( i ) );
                             }
 
                             break;
                         }
                         case ACCESSORY_RUMBLEPAK:
-                            console_printf( "Cannot read data off of rumblepak!" );
+                            printf( "Cannot read data off of rumblepak!" );
                             break;
                     }
 
@@ -106,21 +106,21 @@ int main(void)
                     switch( identify_accessory( i ) )
                     {
                         case ACCESSORY_NONE:
-                            console_printf( "No accessory inserted!" );
+                            printf( "No accessory inserted!" );
                             break;
                         case ACCESSORY_MEMPAK:
                             if( format_mempak( i ) )
                             {
-                                console_printf( "Error formatting mempak!" );
+                                printf( "Error formatting mempak!" );
                             }
                             else
                             {
-                                console_printf( "Memory card formatted!" );
+                                printf( "Memory card formatted!" );
                             }
 
                             break;
                         case ACCESSORY_RUMBLEPAK:
-                            console_printf( "Cannot format rumblepak!" );
+                            printf( "Cannot format rumblepak!" );
                             break;
                     }
 
@@ -134,7 +134,7 @@ int main(void)
                     switch( identify_accessory( i ) )
                     {
                         case ACCESSORY_NONE:
-                            console_printf( "No accessory inserted!" );
+                            printf( "No accessory inserted!" );
                             break;
                         case ACCESSORY_MEMPAK:
                         {
@@ -143,11 +143,11 @@ int main(void)
                             {
                                 if( err == -3 )
                                 {
-                                    console_printf( "Mempak is not formatted!" );
+                                    printf( "Mempak is not formatted!" );
                                 }
                                 else
                                 {
-                                    console_printf( "Mempak bad or removed during read!" );
+                                    printf( "Mempak bad or removed during read!" );
                                 }
                             }
                             else
@@ -162,18 +162,18 @@ int main(void)
                                     {
                                         uint8_t *data = malloc( entry.blocks * MEMPAK_BLOCK_SIZE );
 
-                                        console_printf( "Reading %s - %d blocks\n", entry.name, entry.blocks );
-                                        console_printf( "Return: %d\n", read_mempak_entry_data( i, &entry, data ) );
+                                        printf( "Reading %s - %d blocks\n", entry.name, entry.blocks );
+                                        printf( "Return: %d\n", read_mempak_entry_data( i, &entry, data ) );
 
                                         int new = 0;
                                         for( int k = 0; k < (12 * 12); k++ )
                                         {
-                                            console_printf( "%02X", data[k] );
+                                            printf( "%02X", data[k] );
 
                                             new++;
                                             if( new == 12 ) 
                                             { 
-                                                console_printf( "\n" ); new = 0; 
+                                                printf( "\n" ); new = 0; 
                                             }
                                         }
 
@@ -186,7 +186,7 @@ int main(void)
                             break;
                         }
                         case ACCESSORY_RUMBLEPAK:
-                            console_printf( "Cannot erase data off of rumblepak!" );
+                            printf( "Cannot erase data off of rumblepak!" );
                             break;
                     }
 
@@ -200,7 +200,7 @@ int main(void)
                     switch( identify_accessory( i ) )
                     {
                         case ACCESSORY_NONE:
-                            console_printf( "No accessory inserted!" );
+                            printf( "No accessory inserted!" );
                             break;
                         case ACCESSORY_MEMPAK:
                         {
@@ -209,11 +209,11 @@ int main(void)
                             {
                                 if( err == -3 )
                                 {
-                                    console_printf( "Mempak is not formatted!" );
+                                    printf( "Mempak is not formatted!" );
                                 }
                                 else
                                 {
-                                    console_printf( "Mempak bad or removed during write!" );
+                                    printf( "Mempak bad or removed during write!" );
                                 }
                             }
                             else
@@ -236,8 +236,8 @@ int main(void)
                                         entry.blocks = 1;
                                         entry.region = 0x45;
 
-                                        console_printf( "Writing %s - %d blocks\n", entry.name, entry.blocks );
-                                        console_printf( "Return: %d\n", write_mempak_entry_data( i, &entry, data ) );
+                                        printf( "Writing %s - %d blocks\n", entry.name, entry.blocks );
+                                        printf( "Return: %d\n", write_mempak_entry_data( i, &entry, data ) );
 
                                         free( data );
                                         break;
@@ -248,7 +248,7 @@ int main(void)
                             break;
                         }
                         case ACCESSORY_RUMBLEPAK:
-                            console_printf( "Cannot erase data off of rumblepak!" );
+                            printf( "Cannot erase data off of rumblepak!" );
                             break;
                     }
 
@@ -262,7 +262,7 @@ int main(void)
                     switch( identify_accessory( i ) )
                     {
                         case ACCESSORY_NONE:
-                            console_printf( "No accessory inserted!" );
+                            printf( "No accessory inserted!" );
                             break;
                         case ACCESSORY_MEMPAK:
                         {
@@ -271,11 +271,11 @@ int main(void)
                             {
                                 if( err == -3 )
                                 {
-                                    console_printf( "Mempak is not formatted!" );
+                                    printf( "Mempak is not formatted!" );
                                 }
                                 else
                                 {
-                                    console_printf( "Mempak bad or removed during erase!" );
+                                    printf( "Mempak bad or removed during erase!" );
                                 }
                             }
                             else
@@ -288,8 +288,8 @@ int main(void)
 
                                     if( entry.valid )
                                     {
-                                        console_printf( "Deleting %s - %d blocks\n", entry.name, entry.blocks );
-                                        console_printf( "Return: %d\n", delete_mempak_entry( i, &entry ) );
+                                        printf( "Deleting %s - %d blocks\n", entry.name, entry.blocks );
+                                        printf( "Return: %d\n", delete_mempak_entry( i, &entry ) );
 
                                         break;
                                     }
@@ -299,7 +299,7 @@ int main(void)
                             break;
                         }
                         case ACCESSORY_RUMBLEPAK:
-                            console_printf( "Cannot erase data off of rumblepak!" );
+                            printf( "Cannot erase data off of rumblepak!" );
                             break;
                     }
 

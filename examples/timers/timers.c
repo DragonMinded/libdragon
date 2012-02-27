@@ -59,9 +59,9 @@ int main(void)
     {
         console_clear();
 
-        console_printf( "\n Every msec    : %f", t1 );
-        console_printf( "\n Every half sec: %f", t2 );
-        console_printf( "\n Every sec     : %f", t3 );
+        printf( "\n Every msec    : %f", t1 );
+        printf( "\n Every half sec: %f", t2 );
+        printf( "\n Every sec     : %f", t3 );
 
         console_render();
     }
@@ -72,10 +72,10 @@ int main(void)
 
     console_clear();
 
-    console_printf( "\n Every msec    : %f", t1 );
-    console_printf( "\n Every half sec: %f", t2 );
-    console_printf( "\n Every sec     : %f", t3 );
-    console_printf( "\n\n Done in %f", (double)(end-start)*0.021333333/1000000.0);
+    printf( "\n Every msec    : %f", t1 );
+    printf( "\n Every half sec: %f", t2 );
+    printf( "\n Every sec     : %f", t3 );
+    printf( "\n\n Done in %f", (double)(end-start)*0.021333333/1000000.0);
 
     console_render();
 

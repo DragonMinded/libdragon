@@ -19,7 +19,7 @@ int main(void)
 
     console_clear();
 
-    console_printf( "Press A on a controller\n"
+    printf( "Press A on a controller\n"
                     "to read that controller's\n"
                     "mempak.\n\n"
                     "Press B to format mempak.\n\n"
@@ -54,7 +54,7 @@ int main(void)
                     switch( identify_accessory( i ) )
                     {
                         case ACCESSORY_NONE:
-                            console_printf( "No accessory inserted!" );
+                            printf( "No accessory inserted!" );
                             break;
                         case ACCESSORY_MEMPAK:
                         {
@@ -63,11 +63,11 @@ int main(void)
                             {
                                 if( err == -3 )
                                 {
-                                    console_printf( "Mempak is not formatted!" );
+                                    printf( "Mempak is not formatted!" );
                                 }
                                 else
                                 {
-                                    console_printf( "Mempak bad or removed during read!" );
+                                    printf( "Mempak bad or removed during read!" );
                                 }
                             }
                             else
@@ -80,21 +80,21 @@ int main(void)
 
                                     if( entry.valid )
                                     {
-                                        console_printf( "%s - %d blocks\n", entry.name, entry.blocks );
+                                        printf( "%s - %d blocks\n", entry.name, entry.blocks );
                                     }
                                     else
                                     {
-                                        console_printf( "(EMPTY)\n" );
+                                        printf( "(EMPTY)\n" );
                                     }
                                 }
 
-                                console_printf( "\nFree space: %d blocks", get_mempak_free_space( i ) );
+                                printf( "\nFree space: %d blocks", get_mempak_free_space( i ) );
                             }
 
                             break;
                         }
                         case ACCESSORY_RUMBLEPAK:
-                            console_printf( "Cannot read data off of rumblepak!" );
+                            printf( "Cannot read data off of rumblepak!" );
                             break;
                     }
 
@@ -108,21 +108,21 @@ int main(void)
                     switch( identify_accessory( i ) )
                     {
                         case ACCESSORY_NONE:
-                            console_printf( "No accessory inserted!" );
+                            printf( "No accessory inserted!" );
                             break;
                         case ACCESSORY_MEMPAK:
                             if( format_mempak( i ) )
                             {
-                                console_printf( "Error formatting mempak!" );
+                                printf( "Error formatting mempak!" );
                             }
                             else
                             {
-                                console_printf( "Memory card formatted!" );
+                                printf( "Memory card formatted!" );
                             }
 
                             break;
                         case ACCESSORY_RUMBLEPAK:
-                            console_printf( "Cannot format rumblepak!" );
+                            printf( "Cannot format rumblepak!" );
                             break;
                     }
 
@@ -136,7 +136,7 @@ int main(void)
                     switch( identify_accessory( i ) )
                     {
                         case ACCESSORY_NONE:
-                            console_printf( "No accessory inserted!" );
+                            printf( "No accessory inserted!" );
                             break;
                         case ACCESSORY_MEMPAK:
                         {
@@ -153,17 +153,17 @@ int main(void)
 
                             if( err )
                             {
-                                console_printf( "Error corrupting data!" );
+                                printf( "Error corrupting data!" );
                             }
                             else
                             {
-                                console_printf( "Data corrupted on memory card!" );
+                                printf( "Data corrupted on memory card!" );
                             }
 
                             break;
                         }
                         case ACCESSORY_RUMBLEPAK:
-                            console_printf( "Cannot erase data off of rumblepak!" );
+                            printf( "Cannot erase data off of rumblepak!" );
                             break;
                     }
 
@@ -177,7 +177,7 @@ int main(void)
                     switch( identify_accessory( i ) )
                     {
                         case ACCESSORY_NONE:
-                            console_printf( "No accessory inserted!" );
+                            printf( "No accessory inserted!" );
                             break;
                         case ACCESSORY_MEMPAK:
                         {
@@ -190,17 +190,17 @@ int main(void)
 
                             if( err )
                             {
-                                console_printf( "Error loading data!" );
+                                printf( "Error loading data!" );
                             }
                             else
                             {
-                                console_printf( "Data loaded into RAM!" );
+                                printf( "Data loaded into RAM!" );
                             }
 
                             break;
                         }
                         case ACCESSORY_RUMBLEPAK:
-                            console_printf( "Cannot erase data off of rumblepak!" );
+                            printf( "Cannot erase data off of rumblepak!" );
                             break;
                     }
 
@@ -214,7 +214,7 @@ int main(void)
                     switch( identify_accessory( i ) )
                     {
                         case ACCESSORY_NONE:
-                            console_printf( "No accessory inserted!" );
+                            printf( "No accessory inserted!" );
                             break;
                         case ACCESSORY_MEMPAK:
                         {
@@ -227,17 +227,17 @@ int main(void)
 
                             if( err )
                             {
-                                console_printf( "Error saving data!" );
+                                printf( "Error saving data!" );
                             }
                             else
                             {
-                                console_printf( "Data saved into mempak!" );
+                                printf( "Data saved into mempak!" );
                             }
 
                             break;
                         }
                         case ACCESSORY_RUMBLEPAK:
-                            console_printf( "Cannot erase data off of rumblepak!" );
+                            printf( "Cannot erase data off of rumblepak!" );
                             break;
                     }
 

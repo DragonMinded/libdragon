@@ -11,20 +11,20 @@ void print_request( int len, uint8_t *res )
 {
     for( int i = 0; i < len; i++ )
     {
-        console_printf( "%02X", res[i] );
+        printf( "%02X", res[i] );
     }
 
-    console_printf( " " );
+    printf( " " );
 }
 
 void print_result( int len, uint8_t *res )
 {
     for( int i = 0; i < len; i++ )
     {
-        console_printf( "%02X", res[i] );
+        printf( "%02X", res[i] );
     }
 
-    console_printf( "\n" );
+    printf( "\n" );
 }
 
 int main(void)
@@ -154,12 +154,12 @@ int main(void)
             }
             else
             {
-                console_printf( "Please insert a VRU into slot 4.\n" );
+                printf( "Please insert a VRU into slot 4.\n" );
             }
         }
         else
         {
-            console_printf( "Please insert a standard\ncontroller into slot 1.\n" );
+            printf( "Please insert a standard\ncontroller into slot 1.\n" );
         }
 
         console_render();
