@@ -178,6 +178,7 @@ static void __write_registers( uint32_t const * const registers )
         if( i == 4 ) { continue; }
 
         reg_base[i] = registers[i];
+        MEMORY_BARRIER();
     }
 }
 
@@ -192,6 +193,7 @@ static void __write_dram_register( void const * const dram_val )
     uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
 
     reg_base[1] = (uint32_t)dram_val;
+    MEMORY_BARRIER();
 }
 
 /**

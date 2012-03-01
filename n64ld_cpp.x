@@ -56,8 +56,9 @@ SECTIONS {
 
    .ctors : {
 	  . = ALIGN(8);
+ 	  __CTOR_LIST_SIZE__ = .;
+	    LONG((__CTOR_END__ - __CTOR_LIST__) / 4 - 1)
  	  __CTOR_LIST__ = .;
-	    LONG((__CTOR_END__ - __CTOR_LIST__) / 4 - 2)
 	    *(.ctors)
 	    LONG(0)
 	  __CTOR_END__ = .;

@@ -224,6 +224,7 @@ static void __rdp_ringbuffer_send( void )
 
     /* Clear XBUS/Flush/Freeze */
     ((uint32_t *)0xA4100000)[3] = 0x15;
+    MEMORY_BARRIER();
 
     /* Don't saturate the RDP command buffer.  Another command could have been written
      * since we checked before disabling interrupts, but it is unlikely, so we probably
@@ -231,8 +232,11 @@ static void __rdp_ringbuffer_send( void )
     while( (((volatile uint32_t *)0xA4100000)[3] & 0x600) ) ;
 
     /* Send start and end of buffer location to kick off the command transfer */
+    MEMORY_BARRIER();
     ((volatile uint32_t *)0xA4100000)[0] = ((uint32_t)rdp_ringbuffer | 0xA0000000) + rdp_start;
+    MEMORY_BARRIER();
     ((volatile uint32_t *)0xA4100000)[1] = ((uint32_t)rdp_ringbuffer | 0xA0000000) + rdp_end;
+    MEMORY_BARRIER();
 
     /* We are good now */
     enable_interrupts();

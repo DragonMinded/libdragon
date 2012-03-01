@@ -111,14 +111,18 @@ static void __controller_exec_PIF( void *inblock, void *outblock )
     __SI_DMA_wait();
 
     SI_regs->DRAM_addr = inblock_temp; // only cares about 23:0
+    MEMORY_BARRIER();
     SI_regs->PIF_addr_write = PIF_RAM; // is it really ever anything else?
+    MEMORY_BARRIER();
 
     __SI_DMA_wait();
 
     data_cache_hit_writeback_invalidate(outblock_temp, 64);
 
     SI_regs->DRAM_addr = outblock_temp;
+    MEMORY_BARRIER();
     SI_regs->PIF_addr_read = PIF_RAM;
+    MEMORY_BARRIER();
 
     __SI_DMA_wait();
 

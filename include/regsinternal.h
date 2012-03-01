@@ -29,7 +29,7 @@
  */
 typedef struct AI_regs_s {
     /** @brief Pointer to uncached memory buffer of samples to play */
-    void * address;
+    volatile void * address;
     /** @brief Size in bytes of the buffer to be played.  Should be
      *         number of stereo samples * 2 * sizeof( uint16_t ) 
      */
@@ -106,7 +106,7 @@ typedef struct VI_regs_s {
  */
 typedef struct PI_regs_s {
     /** @brief Uncached address in RAM where data should be found */
-    void * ram_address;
+    volatile void * ram_address;
     /** @brief Address of data on peripheral */
     uint32_t pi_address;
     /** @brief How much data to read from RAM into the peripheral */

@@ -106,12 +106,6 @@ inthandler:
 	sdc1 $f31,saveFR31
 
 	la sp,(exception_stack+65*1024-8)
-	//lui t0,0xa000
-	//or sp,t0
-	//or gp,t0
-
-	//j notcount
-	//nop
 
 	mfc0 k1,C0_CAUSE
 	andi $30,k1,0xff

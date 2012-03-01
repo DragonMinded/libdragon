@@ -69,9 +69,13 @@ void dma_read(void * ram_address, unsigned long pi_address, unsigned long len)
     disable_interrupts();
 
     while (dma_busy()) ;
+    MEMORY_BARRIER();
     PI_regs->ram_address = ram_address;
+    MEMORY_BARRIER();
     PI_regs->pi_address = (pi_address | 0x10000000) & 0x1FFFFFFF;
+    MEMORY_BARRIER();
     PI_regs->write_length = len-1;
+    MEMORY_BARRIER();
     while (dma_busy()) ;
 
     enable_interrupts();
@@ -94,9 +98,13 @@ void dma_write(void * ram_address, unsigned long pi_address, unsigned long len)
     disable_interrupts();
 
     while (dma_busy()) ;
+    MEMORY_BARRIER();
     PI_regs->ram_address = ram_address;
+    MEMORY_BARRIER();
     PI_regs->pi_address = (pi_address | 0x10000000) & 0x1FFFFFFF;
+    MEMORY_BARRIER();
     PI_regs->read_length = len-1;
+    MEMORY_BARRIER();
     while (dma_busy()) ;
 
     enable_interrupts();
@@ -119,7 +127,9 @@ uint32_t io_read(uint32_t pi_address)
 
     /* Wait until there isn't a DMA transfer and grab a word */
     while (dma_busy()) ;
+    MEMORY_BARRIER();
     retval = *uncached_address;
+    MEMORY_BARRIER();
 
     enable_interrupts();
 
@@ -141,7 +151,9 @@ void io_write(uint32_t pi_address, uint32_t data)
     disable_interrupts();
 
     while (dma_busy()) ;
+    MEMORY_BARRIER();
     *uncached_address = data;
+    MEMORY_BARRIER();
 
     enable_interrupts();
 }

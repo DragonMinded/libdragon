@@ -159,10 +159,13 @@ static void audio_callback()
         now_playing = next;
 
         AI_regs->address = UncachedAddr( buffers[now_playing] );
+        MEMORY_BARRIER();
         AI_regs->length = (_buf_size * 2 * 2 ) & ( ~7 );
+        MEMORY_BARRIER();
 
          /* Start DMA */
         AI_regs->control = 1;
+        MEMORY_BARRIER();
     }
 
     /* Safe to enable interrupts here */
