@@ -70,7 +70,10 @@
 /**
  * @brief Stack size
  *
- * @todo Dirty hack, should investigate this further
+ * This is the maximum stack size for the purpose of malloc.  Any malloc
+ * call that tries to allocate data will not allocate within this range.
+ * However, there is no guarantee that user code won't blow the stack and
+ * cause heap corruption.  Use this as loose protection at best.
  */
 #define STACK_SIZE 0x10000
 
@@ -974,14 +977,16 @@ int readlink( const char *path, char *buf, size_t bufsize )
 void *sbrk( int incr )
 {
     extern char   end; /* Set by linker.  */
-    static char * heap_end, * heap_top;
+    static char * heap_end = 0;
+    static char * heap_top = 0;
     char *        prev_heap_end;
-    const int     osMemSize = (__bootcic != 6105) ? (*(int*)0xA0000318) : (*(int*)0xA00003F0);
 
     disable_interrupts();
 
     if( heap_end == 0 )
     {
+        int osMemSize = (__bootcic != 6105) ? (*(int*)0xA0000318) : (*(int*)0xA00003F0);
+
         heap_end = &end;
         heap_top = (char*)0x80000000 + osMemSize - STACK_SIZE;
     }
