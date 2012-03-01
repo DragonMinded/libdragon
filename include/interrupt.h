@@ -35,17 +35,23 @@ void register_VI_handler( void (*callback)() );
 void register_PI_handler( void (*callback)() );
 void register_DP_handler( void (*callback)() );
 void register_TI_handler( void (*callback)() );
+void register_SI_handler( void (*callback)() );
+void register_SP_handler( void (*callback)() );
 
 void unregister_AI_handler( void (*callback)() );
 void unregister_VI_handler( void (*callback)() );
 void unregister_PI_handler( void (*callback)() );
 void unregister_DP_handler( void (*callback)() );
 void unregister_TI_handler( void (*callback)() );
+void unregister_SI_handler( void (*callback)() );
+void unregister_SP_handler( void (*callback)() );
 
 void set_AI_interrupt( int active );
 void set_VI_interrupt( int active, unsigned long line );
 void set_PI_interrupt( int active );
 void set_DP_interrupt( int active );
+void set_SI_interrupt( int active );
+void set_SP_interrupt( int active );
 
 void init_interrupts();
 

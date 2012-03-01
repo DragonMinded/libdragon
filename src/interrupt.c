@@ -92,7 +92,15 @@
 #define MI_MASK_SET_DP 0x0800
 
 /** @brief Bit to set to clear the PI interrupt */
-#define PI_CLEAR_INTERRUPT ( 1 << 1 )
+#define PI_CLEAR_INTERRUPT 0x02
+/** @brief Bit to set to clear the SI interrupt */
+#define SI_CLEAR_INTERRUPT 0
+/** @brief Bit to set to clear the SP interrupt */
+#define SP_CLEAR_INTERRUPT 0x08
+/** @brief Bit to set to clear the DP interrupt */
+#define DP_CLEAR_INTERRUPT 0x0800
+/** @brief Bit to set to clear the AI interrupt */
+#define AI_CLEAR_INTERRUPT 0
 
 /** @brief Number of nested disable interrupt calls
  *
@@ -123,6 +131,10 @@ static volatile struct MI_regs_s * const MI_regs = (struct MI_regs_s *)0xa430000
 static volatile struct VI_regs_s * const VI_regs = (struct VI_regs_s *)0xa4400000;
 /** @brief Static structure to address PI registers */
 static volatile struct PI_regs_s * const PI_regs = (struct PI_regs_s *)0xa4600000;
+/** @brief Static structure to address SI registers */
+static volatile struct SI_regs_s * const SI_regs = (struct SI_regs_s *)0xa4800000;
+/** @brief Static structure to address SP registers */
+static volatile struct SP_regs_s * const SP_regs = (struct SP_regs_s *)0xa4040000;
 
 /** @brief Linked list of AI callbacks */
 struct callback_link * AI_callback = 0;
@@ -134,6 +146,10 @@ struct callback_link * PI_callback = 0;
 struct callback_link * DP_callback = 0;
 /** @brief Linked list of TI callbacks */
 struct callback_link * TI_callback = 0;
+/** @brief Linked list of SI callbacks */
+struct callback_link * SI_callback = 0;
+/** @brief Linked list of SP callbacks */
+struct callback_link * SP_callback = 0;
 
 /** 
  * @brief Call each callback in a linked list of callbacks
@@ -238,18 +254,24 @@ void __MI_handler(void)
 
     if( status & MI_INTR_SP )
     {
-        /** @todo handle SP */
+        /* Clear interrupt */
+        SP_regs->status=SP_CLEAR_INTERRUPT;
+
+        __call_callback(SP_callback);
     }
 
     if( status & MI_INTR_SI )
     {
-        /** @todo handle SI */
+        /* Clear interrupt */
+        SI_regs->status=SI_CLEAR_INTERRUPT;
+
+        __call_callback(SI_callback);
     }
 
     if( status & MI_INTR_AI )
     {
         /* Clear interrupt */
-    	AI_regs->status=0;
+    	AI_regs->status=AI_CLEAR_INTERRUPT;
 
 	    __call_callback(AI_callback);
     }
@@ -273,7 +295,7 @@ void __MI_handler(void)
     if( status & MI_INTR_DP )
     {
         /* Clear interrupt */
-        MI_regs->mode=0x0800;
+        MI_regs->mode=DP_CLEAR_INTERRUPT;
 
         __call_callback(DP_callback);
     }
@@ -399,6 +421,50 @@ void unregister_TI_handler( void (*callback)() )
 }
 
 /**
+ * @brief Register a SI callback
+ *
+ * @param[in] callback
+ *            Function to call when a SI interrupt occurs
+ */
+void register_SI_handler( void (*callback)() )
+{
+    __register_callback(&SI_callback,callback);
+}
+
+/**
+ * @brief Unegister a SI callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on SI interrupts
+ */
+void unregister_SI_handler( void (*callback)() )
+{
+    __unregister_callback(&SI_callback,callback);
+}
+
+/**
+ * @brief Register a SP callback
+ *
+ * @param[in] callback
+ *            Function to call when a SP interrupt occurs
+ */
+void register_SP_handler( void (*callback)() )
+{
+    __register_callback(&SP_callback,callback);
+}
+
+/**
+ * @brief Unegister a SP callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on SP interrupts
+ */
+void unregister_SP_handler( void (*callback)() )
+{
+    __unregister_callback(&SP_callback,callback);
+}
+
+/**
  * @brief Enable or disable the AI interrupt
  *
  * @param[in] active
@@ -471,6 +537,42 @@ void set_DP_interrupt(int active)
     else
     {
         MI_regs->mask=MI_MASK_CLR_DP;
+    }
+}
+
+/**
+ * @brief Enable or disable the SI interrupt
+ *
+ * @param[in] active
+ *            Flag to specify whether the SI interupt should be active
+ */
+void set_SI_interrupt(int active)
+{
+    if( active )
+    {
+        MI_regs->mask=MI_MASK_SET_SI;
+    }
+    else
+    {
+        MI_regs->mask=MI_MASK_CLR_SI;
+    }
+}
+
+/**
+ * @brief Enable or disable the SP interrupt
+ *
+ * @param[in] active
+ *            Flag to specify whether the SP interupt should be active
+ */
+void set_SP_interrupt(int active)
+{
+    if( active )
+    {
+        MI_regs->mask=MI_MASK_SET_SP;
+    }
+    else
+    {
+        MI_regs->mask=MI_MASK_CLR_SP;
     }
 }
 

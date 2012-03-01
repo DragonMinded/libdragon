@@ -29,24 +29,24 @@
  */
 typedef struct AI_regs_s {
     /** @brief Pointer to uncached memory buffer of samples to play */
-    short * address;
+    void * address;
     /** @brief Size in bytes of the buffer to be played.  Should be
      *         number of stereo samples * 2 * sizeof( uint16_t ) 
      */
-    unsigned long length;
+    uint32_t length;
     /** @brief DMA start register.  Write a 1 to this register to start
      *         playing back an audio sample. */
-    unsigned long control;
+    uint32_t control;
     /** @brief AI status register.  Bit 31 is the full bit, bit 30 is the busy bit. */
-    unsigned long status;
+    uint32_t status;
     /** @brief Rate at which the buffer should be played.
      *
      * Use the following formula to calculate the value: ((2 * clockrate / frequency) + 1) / 2 - 1
      */
-    unsigned long dacrate;
+    uint32_t dacrate;
     /** @brief The size of a single sample in bits. */
-    unsigned long samplesize;
-} _AI_regs_s;
+    uint32_t samplesize;
+} AI_regs_t;
 
 /**
  * @brief Register definition for the MI interface
@@ -54,14 +54,14 @@ typedef struct AI_regs_s {
  */
 typedef struct MI_regs_s {
     /** @brief Mode register */
-    unsigned long mode;
+    uint32_t mode;
     /** @brief Version register */
-    unsigned long version;
+    uint32_t version;
     /** @brief Current interrupts on the system */
-    unsigned long intr;
+    uint32_t intr;
     /** @brief Interrupt mask */
-    unsigned long mask;
-} _MI_regs_s;
+    uint32_t mask;
+} MI_regs_t;
 
 /**
  * @brief Register definition for the VI interface
@@ -69,36 +69,36 @@ typedef struct MI_regs_s {
  */
 typedef struct VI_regs_s {
     /** @brief VI control register.  Sets up various rasterization modes */
-    unsigned long control;
+    uint32_t control;
     /** @brief Pointer to uncached buffer in memory to rasterize */
-    unsigned short int * framebuffer;
+    void * framebuffer;
     /** @brief Width of the buffer in pixels */
-    unsigned long width;
+    uint32_t width;
     /** @brief Vertical interrupt control register.  Controls which horizontal
      *         line must be hit to generate a VI interrupt
      */
-    unsigned long v_int;
+    uint32_t v_int;
     /** @brief Current vertical line counter. */
-    unsigned long cur_line;
+    uint32_t cur_line;
     /** @brief Timing generation register for PAL/NTSC signals */
-    unsigned long timing;
+    uint32_t timing;
     /** @brief Number of lines per frame */
-    unsigned long v_sync;
+    uint32_t v_sync;
     /** @brief Number of pixels in line and leap pattern */
-    unsigned long h_sync;
+    uint32_t h_sync;
     /** @brief Number of pixels in line, set identically to h_sync */
-    unsigned long h_sync2;
+    uint32_t h_sync2;
     /** @brief Beginning and end of video horizontally */
-    unsigned long h_limits;
+    uint32_t h_limits;
     /** @brief Beginning and end of video vertically */
-    unsigned long v_limits;
+    uint32_t v_limits;
     /** @brief Beginning and end of color burst in vertical lines */
-    unsigned long color_burst;
+    uint32_t color_burst;
     /** @brief Horizontal scaling factor from buffer to screen */
-    unsigned long h_scale;
+    uint32_t h_scale;
     /** @brief Vertical scaling factor from buffer to screen */
-    unsigned long v_scale;
-} _VI_regs_s;
+    uint32_t v_scale;
+} VI_regs_t;
 
 /**
  * @brief Register definition for the PI interface
@@ -108,14 +108,14 @@ typedef struct PI_regs_s {
     /** @brief Uncached address in RAM where data should be found */
     void * ram_address;
     /** @brief Address of data on peripheral */
-    unsigned long pi_address;
+    uint32_t pi_address;
     /** @brief How much data to read from RAM into the peripheral */
-    unsigned long read_length;
+    uint32_t read_length;
     /** @brief How much data to write to RAM from the peripheral */
-    unsigned long write_length;
+    uint32_t write_length;
     /** @brief Status of the PI, including DMA busy */
-    unsigned long status;
-} _PI_regs_s;
+    uint32_t status;
+} PI_regs_t;
 
 /** 
  * @brief Register definition for the SI interface
@@ -127,15 +127,38 @@ typedef struct SI_regs_s {
     /** @brief Address to read when copying from PIF RAM */
     volatile void * PIF_addr_read;
     /** @brief Reserved word */
-    unsigned long reserved1;
+    uint32_t reserved1;
     /** @brief Reserved word */
-    unsigned long reserved2;
+    uint32_t reserved2;
     /** @brief Address to write when copying to PIF RAM */
     volatile void * PIF_addr_write;
     /** @brief Reserved word */
-    unsigned long reserved3;
+    uint32_t reserved3;
     /** @brief SI status, including DMA busy and IO busy */
-    unsigned long status;
-} _SI_regs_s;
+    uint32_t status;
+} SI_regs_t;
+
+/**
+ * @brief Register definition for the SP interface
+ * @ingroup lowlevel
+ */
+typedef struct SP_regs_s {
+    /** @brief RSP memory address (IMEM/DMEM) */
+    volatile void * RSP_addr;
+    /** @brief RDRAM memory address */
+    volatile void * RDAM_addr;
+    /** @brief RDRAM->RSP DMA length */
+    uint32_t rsp_read_length;
+    /** @brief RDP->RDRAM DMA length */
+    uint32_t rsp_write_length;
+    /** @brief RSP status */
+    uint32_t status;
+    /** @brief RSP DMA full */
+    uint32_t rsp_dma_full;
+    /** @brief RSP DMA busy */
+    uint32_t rsp_dma_busy;
+    /** @brief RSP Semaphore */
+    uint32_t rsp_semaphore;
+} SP_regs_t;
 
 #endif
