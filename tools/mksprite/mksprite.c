@@ -80,7 +80,7 @@ int read_png( char *png_file, char *spr_file, int depth, int hslices, int vslice
     }
 
     /* Error handler to gracefully exit */
-    if (setjmp(png_ptr->jmpbuf))
+    if (setjmp(png_jmpbuf(png_ptr)))
     {
         /* Free all of the memory associated with the png_ptr and info_ptr */
         err = -EINTR;
@@ -120,7 +120,7 @@ int read_png( char *png_file, char *spr_file, int depth, int hslices, int vslice
 
     /* Change bit-packed grayscale images to 8bit */
     if(color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8)
-        png_set_gray_1_2_4_to_8(png_ptr);
+        png_set_expand_gray_1_2_4_to_8(png_ptr);
 
     /* Go from 16 to 8 bits per channel */
     if(bit_depth == 16)
@@ -138,8 +138,8 @@ int read_png( char *png_file, char *spr_file, int depth, int hslices, int vslice
     png_read_update_info(png_ptr, info_ptr);
 
     /* Update the color type from the above re-read */
-    color_type = info_ptr->color_type;
-    bit_depth = info_ptr->bit_depth;
+    color_type = png_get_color_type(png_ptr, info_ptr);
+    bit_depth = png_get_bit_depth(png_ptr, info_ptr);
 
     /* Keep the variably sized array scoped so we can goto past it */
     {
