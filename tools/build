@@ -30,7 +30,7 @@ export NEWLIB_V=1.17.0
 
 # Download stage
 wget -c ftp://sourceware.org/pub/binutils/snapshots/binutils-$BINUTILS_V.tar.bz2
-wget -c http://mirror.anl.gov/pub/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz
+wget -c ftp://mirrors-usa.go-parts.com/gcc/releases/gcc-$GCC_V/gcc-$GCC_V.tar.gz
 wget -c ftp://sources.redhat.com/pub/newlib/newlib-$NEWLIB_V.tar.gz
 
 # Extract stage
