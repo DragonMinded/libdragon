@@ -20,9 +20,9 @@ uint8_t *dfs = NULL;
 uint32_t fs_size = 0;
 
 /* Offset from start of filesystem */
-inline int32_t sector_offset(void *sector)
+inline uint32_t sector_offset(void *sector)
 {
-    uint32_t x = (uint32_t)sector - (uint32_t)dfs;
+    uint32_t x = (uint8_t *)sector - dfs;
 
     return x;
 }
