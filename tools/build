@@ -24,13 +24,13 @@ export INSTALL_PATH=/usr/mips64-elf
 export PATH=$PATH:$INSTALL_PATH/bin
 
 # Versions
-export BINUTILS_V=2.19.51
-export GCC_V=4.4.0
+export BINUTILS_V=2.24.51
+export GCC_V=4.8.2
 export NEWLIB_V=1.17.0
 
 # Download stage
 wget -c ftp://sourceware.org/pub/binutils/snapshots/binutils-$BINUTILS_V.tar.bz2
-wget -c http://mirror.anl.gov/pub/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz
+wget -c ftp://mirrors-usa.go-parts.com/gcc/releases/gcc-$GCC_V/gcc-$GCC_V.tar.gz
 wget -c ftp://sources.redhat.com/pub/newlib/newlib-$NEWLIB_V.tar.gz
 
 # Extract stage
@@ -39,6 +39,7 @@ tar -xvzf gcc-$GCC_V.tar.gz
 tar -xvzf newlib-$NEWLIB_V.tar.gz
 
 # Binutils and newlib support compiling in source directory, GCC does not
+rm -rf gcc_compile
 mkdir gcc_compile
 
 # Compile binutils
@@ -49,7 +50,7 @@ make install || sudo make install || su -c "make install"
 
 # Compile gcc (pass 1)
 cd ../gcc_compile
-../gcc-$GCC_V/configure --prefix=${INSTALL_PATH} --target=mips64-elf --enable-languages=c --without-headers --with-newlib --disable-libssp --enable-multilib --disable-shared --with-gcc --with-gnu-ld --with-gnu-as --disable-threads --disable-win32-registry --disable-nls --disable-debug --disable-libmudflap  --disable-werror
+../gcc-$GCC_V/configure --prefix=${INSTALL_PATH} --target=mips64-elf --enable-languages=c --without-headers --with-newlib --disable-libssp --enable-multilib --disable-shared --with-gcc --with-gnu-ld --with-gnu-as --disable-threads --disable-win32-registry --disable-nls --disable-debug --disable-libmudflap --disable-werror
 make
 make install || sudo make install || su -c "make install"
 
