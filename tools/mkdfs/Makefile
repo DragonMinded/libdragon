@@ -6,7 +6,7 @@ all: mkdfs
 mkdfs: mkdfs.c
 
 install: mkdfs
-	install -D --mode=755 mkdfs $(INSTALLDIR)/bin
+	install -m 0755 mkdfs $(INSTALLDIR)/bin
 
 .PHONY: clean install
 

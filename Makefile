@@ -43,29 +43,29 @@ libdragonpp.a: $(OFILES_LDP)
 	$(AR) -rcs -o libdragonpp.a $(OFILES_LDP)
 
 install: libdragon.a libdragonsys.a libdragonpp.a
-	install -D --mode=644 libdragon.a $(INSTALLDIR)/lib/libdragon.a
-	install -D --mode=644 n64ld.x $(INSTALLDIR)/lib/n64ld.x
-	install -D --mode=644 n64ld_cpp.x $(INSTALLDIR)/lib/n64ld_cpp.x
-	install -D --mode=644 n64ld_exp_cpp.x $(INSTALLDIR)/lib/n64ld_exp_cpp.x
-	install -D --mode=644 header $(INSTALLDIR)/lib/header
-	install -D --mode=644 libdragonsys.a $(INSTALLDIR)/lib/libdragonsys.a
-	install -D --mode=644 libdragonpp.a $(INSTALLDIR)/lib/libdragonpp.a
-	install -D --mode=644 include/n64sys.h $(INSTALLDIR)/include/n64sys.h
-	install -D --mode=644 include/interrupt.h $(INSTALLDIR)/include/interrupt.h
-	install -D --mode=644 include/dma.h $(INSTALLDIR)/include/dma.h
-	install -D --mode=644 include/dragonfs.h $(INSTALLDIR)/include/dragonfs.h
-	install -D --mode=644 include/audio.h $(INSTALLDIR)/include/audio.h
-	install -D --mode=644 include/display.h $(INSTALLDIR)/include/display.h
-	install -D --mode=644 include/console.h $(INSTALLDIR)/include/console.h
-	install -D --mode=644 include/mempak.h $(INSTALLDIR)/include/mempak.h
-	install -D --mode=644 include/controller.h $(INSTALLDIR)/include/controller.h
-	install -D --mode=644 include/graphics.h $(INSTALLDIR)/include/graphics.h
-	install -D --mode=644 include/rdp.h $(INSTALLDIR)/include/rdp.h
-	install -D --mode=644 include/timer.h $(INSTALLDIR)/include/timer.h
-	install -D --mode=644 include/exception.h $(INSTALLDIR)/include/exception.h
-	install -D --mode=644 include/system.h $(INSTALLDIR)/include/system.h
-	install -D --mode=644 include/dir.h $(INSTALLDIR)/include/dir.h
-	install -D --mode=644 include/libdragon.h $(INSTALLDIR)/include/libdragon.h
+	install -m 0644 libdragon.a $(INSTALLDIR)/lib/libdragon.a
+	install -m 0644 n64ld.x $(INSTALLDIR)/lib/n64ld.x
+	install -m 0644 n64ld_cpp.x $(INSTALLDIR)/lib/n64ld_cpp.x
+	install -m 0644 n64ld_exp_cpp.x $(INSTALLDIR)/lib/n64ld_exp_cpp.x
+	install -m 0644 header $(INSTALLDIR)/lib/header
+	install -m 0644 libdragonsys.a $(INSTALLDIR)/lib/libdragonsys.a
+	install -m 0644 libdragonpp.a $(INSTALLDIR)/lib/libdragonpp.a
+	install -m 0644 include/n64sys.h $(INSTALLDIR)/include/n64sys.h
+	install -m 0644 include/interrupt.h $(INSTALLDIR)/include/interrupt.h
+	install -m 0644 include/dma.h $(INSTALLDIR)/include/dma.h
+	install -m 0644 include/dragonfs.h $(INSTALLDIR)/include/dragonfs.h
+	install -m 0644 include/audio.h $(INSTALLDIR)/include/audio.h
+	install -m 0644 include/display.h $(INSTALLDIR)/include/display.h
+	install -m 0644 include/console.h $(INSTALLDIR)/include/console.h
+	install -m 0644 include/mempak.h $(INSTALLDIR)/include/mempak.h
+	install -m 0644 include/controller.h $(INSTALLDIR)/include/controller.h
+	install -m 0644 include/graphics.h $(INSTALLDIR)/include/graphics.h
+	install -m 0644 include/rdp.h $(INSTALLDIR)/include/rdp.h
+	install -m 0644 include/timer.h $(INSTALLDIR)/include/timer.h
+	install -m 0644 include/exception.h $(INSTALLDIR)/include/exception.h
+	install -m 0644 include/system.h $(INSTALLDIR)/include/system.h
+	install -m 0644 include/dir.h $(INSTALLDIR)/include/dir.h
+	install -m 0644 include/libdragon.h $(INSTALLDIR)/include/libdragon.h
 
 clean:
 	rm -f *.o *.a
