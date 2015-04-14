@@ -30,12 +30,12 @@ export NEWLIB_V=1.17.0
 
 # Download stage
 wget -c ftp://sourceware.org/pub/binutils/snapshots/binutils-$BINUTILS_V.tar.bz2
-wget -c ftp://mirrors-usa.go-parts.com/gcc/releases/gcc-$GCC_V/gcc-$GCC_V.tar.gz
+wget -c ftp://mirrors-usa.go-parts.com/gcc/releases/gcc-$GCC_V/gcc-$GCC_V.tar.bz2
 wget -c ftp://sources.redhat.com/pub/newlib/newlib-$NEWLIB_V.tar.gz
 
 # Extract stage
 tar -xvjf binutils-$BINUTILS_V.tar.bz2
-tar -xvzf gcc-$GCC_V.tar.gz
+tar -xvjf gcc-$GCC_V.tar.bz2
 tar -xvzf newlib-$NEWLIB_V.tar.gz
 
 # Binutils and newlib support compiling in source directory, GCC does not
