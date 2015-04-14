@@ -24,9 +24,9 @@ export INSTALL_PATH=${N64_INST:-/usr/mips64-elf}
 export PATH=$PATH:$INSTALL_PATH/bin
 
 # Versions
-export BINUTILS_V=2.24.51
-export GCC_V=4.8.2
-export NEWLIB_V=1.17.0
+export BINUTILS_V=2.24.90
+export GCC_V=4.8.4
+export NEWLIB_V=1.20.0
 
 # Download stage
 wget -c ftp://sourceware.org/pub/binutils/snapshots/binutils-$BINUTILS_V.tar.bz2
