@@ -34,9 +34,9 @@ wget -c ftp://mirrors-usa.go-parts.com/gcc/releases/gcc-$GCC_V/gcc-$GCC_V.tar.bz
 wget -c ftp://sources.redhat.com/pub/newlib/newlib-$NEWLIB_V.tar.gz
 
 # Extract stage
-tar -xvjf binutils-$BINUTILS_V.tar.bz2
-tar -xvjf gcc-$GCC_V.tar.bz2
-tar -xvzf newlib-$NEWLIB_V.tar.gz
+test -d binutils-$BINUTILS_V || tar -xvjf binutils-$BINUTILS_V.tar.bz2
+test -d gcc-$GCC_V || tar -xvjf gcc-$GCC_V.tar.bz2
+test -d newlib-$NEWLIB_V || tar -xvzf newlib-$NEWLIB_V.tar.gz
 
 # Binutils and newlib support compiling in source directory, GCC does not
 rm -rf gcc_compile
