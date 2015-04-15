@@ -65,6 +65,6 @@ cd ..
 rm -rf gcc_compile
 mkdir gcc_compile
 cd gcc_compile
-CFLAGS_FOR_TARGET="-G0 -O2" CXXFLAGS_FOR_TARGET="-G0 -O2" ../gcc-$GCC_V/configure --prefix=${INSTALL_PATH} --target=mips64-elf --enable-languages=c,c++,objc,obj-c++ --with-newlib --disable-libssp --enable-multilib --disable-shared --with-gcc --with-gnu-ld --with-gnu-as --disable-threads --disable-win32-registry --disable-nls --disable-debug --disable-libmudflap
+CFLAGS_FOR_TARGET="-G0 -O2" CXXFLAGS_FOR_TARGET="-G0 -O2" ../gcc-$GCC_V/configure --prefix=${INSTALL_PATH} --target=mips64-elf --enable-languages=c,c++ --with-newlib --disable-libssp --enable-multilib --disable-shared --with-gcc --with-gnu-ld --with-gnu-as --disable-threads --disable-win32-registry --disable-nls --disable-debug --disable-libmudflap
 make
 make install || sudo make install || su -c "make install"
