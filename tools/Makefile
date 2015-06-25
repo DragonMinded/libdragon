@@ -36,8 +36,8 @@ mksprite-clean:
 	make -C mksprite clean
 
 install: dumpdfs-install mkdfs-install mksprite-install
-	install -D --mode=755 chksum64 $(INSTALLDIR)/bin
-	install -D --mode=755 n64tool $(INSTALLDIR)/bin
+	install -m 0755 chksum64 $(INSTALLDIR)/bin
+	install -m 0755 n64tool $(INSTALLDIR)/bin
 
 .PHONY: dumpdfs mkdfs mksprite dumpdfs-install mkdfs-install mksprite-install chksum64-clean n64tool-clean 
 .PHONY: dumpdfs-clean mkdfs-clean mksprite-clean

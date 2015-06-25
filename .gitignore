@@ -1,0 +1,20 @@
+## Build files
+*.a
+build/
+build_gcc/
+tools/chksum64
+tools/dumpdfs/dumpdfs
+tools/mkdfs/mkdfs
+tools/mksprite/convtool
+tools/mksprite/mksprite
+tools/n64tool
+
+## OSX junk
+.DS_Store
+.Trashes
+._*
+
+## Temporary files
+*.tmp
+*.swp
+*~

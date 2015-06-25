@@ -7,8 +7,8 @@ mksprite: mksprite.c
 convtool: convtool.c
 
 install: mksprite convtool
-	install -D --mode=755 mksprite $(INSTALLDIR)/bin
-	install -D --mode=755 convtool $(INSTALLDIR)/bin
+	install -m 0755 mksprite $(INSTALLDIR)/bin
+	install -m 0755 convtool $(INSTALLDIR)/bin
 
 .PHONY: clean install
 

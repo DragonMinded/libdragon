@@ -6,7 +6,7 @@ all: dumpdfs
 dumpdfs: dumpdfs.c
 
 install: dumpdfs
-	install -D --mode=755 dumpdfs $(INSTALLDIR)/bin
+	install -m 0755 dumpdfs $(INSTALLDIR)/bin
 
 .PHONY: clean install
 

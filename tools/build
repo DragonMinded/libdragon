@@ -18,25 +18,25 @@
 set -e
 
 # EDIT THIS LINE TO CHANGE YOUR INSTALL PATH!
-export INSTALL_PATH=/usr/mips64-elf
+export INSTALL_PATH=${N64_INST:-/usr/mips64-elf}
 
 # Set up path for newlib to compile later
 export PATH=$PATH:$INSTALL_PATH/bin
 
 # Versions
-export BINUTILS_V=2.24.51
-export GCC_V=4.8.2
-export NEWLIB_V=1.17.0
+export BINUTILS_V=2.24.90
+export GCC_V=4.8.4
+export NEWLIB_V=1.20.0
 
 # Download stage
 wget -c ftp://sourceware.org/pub/binutils/snapshots/binutils-$BINUTILS_V.tar.bz2
-wget -c ftp://mirrors-usa.go-parts.com/gcc/releases/gcc-$GCC_V/gcc-$GCC_V.tar.gz
+wget -c ftp://mirrors-usa.go-parts.com/gcc/releases/gcc-$GCC_V/gcc-$GCC_V.tar.bz2
 wget -c ftp://sources.redhat.com/pub/newlib/newlib-$NEWLIB_V.tar.gz
 
 # Extract stage
-tar -xvjf binutils-$BINUTILS_V.tar.bz2
-tar -xvzf gcc-$GCC_V.tar.gz
-tar -xvzf newlib-$NEWLIB_V.tar.gz
+test -d binutils-$BINUTILS_V || tar -xvjf binutils-$BINUTILS_V.tar.bz2
+test -d gcc-$GCC_V || tar -xvjf gcc-$GCC_V.tar.bz2
+test -d newlib-$NEWLIB_V || tar -xvzf newlib-$NEWLIB_V.tar.gz
 
 # Binutils and newlib support compiling in source directory, GCC does not
 rm -rf gcc_compile
@@ -65,6 +65,6 @@ cd ..
 rm -rf gcc_compile
 mkdir gcc_compile
 cd gcc_compile
-CFLAGS_FOR_TARGET="-G0 -O2" CXXFLAGS_FOR_TARGET="-G0 -O2" ../gcc-$GCC_V/configure --prefix=${INSTALL_PATH} --target=mips64-elf --enable-languages=c,c++,objc,obj-c++ --with-newlib --disable-libssp --enable-multilib --disable-shared --with-gcc --with-gnu-ld --with-gnu-as --disable-threads --disable-win32-registry --disable-nls --disable-debug --disable-libmudflap
+CFLAGS_FOR_TARGET="-G0 -O2" CXXFLAGS_FOR_TARGET="-G0 -O2" ../gcc-$GCC_V/configure --prefix=${INSTALL_PATH} --target=mips64-elf --enable-languages=c,c++ --with-newlib --disable-libssp --enable-multilib --disable-shared --with-gcc --with-gnu-ld --with-gnu-as --disable-threads --disable-win32-registry --disable-nls --disable-debug --disable-libmudflap
 make
 make install || sudo make install || su -c "make install"
