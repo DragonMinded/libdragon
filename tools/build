@@ -18,7 +18,7 @@
 set -e
 
 # EDIT THIS LINE TO CHANGE YOUR INSTALL PATH!
-export INSTALL_PATH=${N64_INST:-/usr/mips64-elf}
+export INSTALL_PATH=${N64_INST:-/usr/local}
 
 # Set up path for newlib to compile later
 export PATH=$PATH:$INSTALL_PATH/bin
