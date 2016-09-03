@@ -24,9 +24,9 @@ export INSTALL_PATH=${N64_INST:-/usr/local}
 export PATH=$PATH:$INSTALL_PATH/bin
 
 # Versions
-export BINUTILS_V=2.25
-export GCC_V=5.1.0
-export NEWLIB_V=2.2.0
+export BINUTILS_V=2.27
+export GCC_V=6.2.0
+export NEWLIB_V=2.4.0
 
 # Download stage
 wget -c ftp://sourceware.org/pub/binutils/releases/binutils-$BINUTILS_V.tar.bz2
