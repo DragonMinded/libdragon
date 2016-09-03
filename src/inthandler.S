@@ -235,7 +235,6 @@ endint:
 
 	.section .bss
 	.global __baseRegAddr
-	.long __baseRegAddr
 
 	.align 8
 	__baseRegAddr:
