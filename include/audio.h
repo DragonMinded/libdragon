@@ -6,11 +6,27 @@
 #ifndef __LIBDRAGON_AUDIO_H
 #define __LIBDRAGON_AUDIO_H
 
+#include <stdbool.h>
+#include <stddef.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void audio_init(const int frequency, int numbuffers);
+/**
+ * @brief Will be called periodically when more sample data is needed.
+ *
+ * @param[in] buffer
+ *            The address to write the sample data to
+ * @param[in] numsamples
+ *            The number of samples to write to the buffer
+ *            Note: this is the number of samples per channel, so clients
+ *            should write twice this number of samples (interleaved).
+ */
+typedef void(*audio_fill_buffer_callback)(short *buffer, size_t numsamples);
+
+void audio_init(const int frequency, int numbuffers, audio_fill_buffer_callback fill_buffer_callback);
+void audio_pause(bool pause);
 void audio_write(const short * const buffer);
 volatile int audio_can_write();
 void audio_write_silence();
