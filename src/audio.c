@@ -259,7 +259,10 @@ void audio_init(const int frequency, int numbuffers)
 void audio_set_buffer_callback(audio_fill_buffer_callback fill_buffer_callback)
 {
     disable_interrupts();
-    _fill_buffer_callback = _orig_fill_buffer_callback = fill_buffer_callback;
+    _orig_fill_buffer_callback = fill_buffer_callback;
+    if (!_paused) {
+        _fill_buffer_callback = fill_buffer_callback;
+    }
     enable_interrupts();
 }
 
