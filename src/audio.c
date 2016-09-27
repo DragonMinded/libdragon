@@ -197,7 +197,7 @@ static void audio_callback()
  * @param[in] fill_buffer_callback
  *            A function to be called when more sample data is needed
  */
-void audio_init(const int frequency, int numbuffers, audio_fill_buffer_callback fill_buffer_callback)
+void audio_init(const int frequency, int numbuffers)
 {
     int clockrate;
 
@@ -217,8 +217,6 @@ void audio_init(const int frequency, int numbuffers, audio_fill_buffer_callback 
             clockrate = AI_NTSC_DACRATE;
             break;
     }
-
-    _fill_buffer_callback = fill_buffer_callback;
 
     /* Make sure we don't choose too many buffers */
     if( numbuffers > (sizeof(buf_full) * 8) )
@@ -256,6 +254,13 @@ void audio_init(const int frequency, int numbuffers, audio_fill_buffer_callback 
     now_writing = 0;
     buf_full = 0;
     _paused = false;
+}
+
+void audio_set_buffer_callback(audio_fill_buffer_callback fill_buffer_callback)
+{
+    disable_interrupts();
+    _fill_buffer_callback = _orig_fill_buffer_callback = fill_buffer_callback;
+    enable_interrupts();
 }
 
 /**
@@ -303,7 +308,7 @@ static void audio_paused_callback(short *buffer, size_t numsamples)
  * Silence will be generated while playback is paused.
  */
 void audio_pause(bool pause) {
-    if (pause != _paused) {
+    if (pause != _paused && _fill_buffer_callback) {
         disable_interrupts();
 
         _paused = pause;

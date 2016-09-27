@@ -25,7 +25,8 @@ extern "C" {
  */
 typedef void(*audio_fill_buffer_callback)(short *buffer, size_t numsamples);
 
-void audio_init(const int frequency, int numbuffers, audio_fill_buffer_callback fill_buffer_callback);
+void audio_init(const int frequency, int numbuffers);
+void audio_set_buffer_callback(audio_fill_buffer_callback fill_buffer_callback);
 void audio_pause(bool pause);
 void audio_write(const short * const buffer);
 volatile int audio_can_write();
