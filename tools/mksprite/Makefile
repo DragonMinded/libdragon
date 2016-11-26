@@ -1,5 +1,5 @@
 INSTALLDIR = $(N64_INST)
-CFLAGS = -std=gnu99 -O2 -Wall -Werror -I../../include -lpng
+CFLAGS = -std=gnu99 -O2 -Wall -I../../include -lpng
 
 all: mksprite convtool
 
