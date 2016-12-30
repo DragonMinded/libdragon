@@ -26,7 +26,7 @@ $(PROG_NAME).elf : $(PROG_NAME).o
 copy: $(PROG_NAME).z64
 	cp $(PROG_NAME).z64 ~/public_html/
 
-spritemap.dfs:
+spritemap.dfs: filesystem
 	$(MKDFSPATH) spritemap.dfs ./filesystem/
 
 all: $(PROG_NAME).z64
