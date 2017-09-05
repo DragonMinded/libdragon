@@ -120,12 +120,15 @@ int write_mempak_sector( int controller, int sector, uint8_t *sector_data )
  *
  * @param[in] sector
  *            A sector containing a mempak header
- * 
+ *
  * @retval 0 if the header is valid
  * @retval -1 if the header is invalid
  */
 static int __validate_header( uint8_t *sector )
 {
+    uint16_t checksum = 0;
+    uint8_t current_block = 0x0;
+
     if( !sector ) { return -1; }
 
     /* Header is first sector */
@@ -133,7 +136,41 @@ static int __validate_header( uint8_t *sector )
     if( memcmp( &sector[0x80], &sector[0xC0], 16 ) != 0 ) { return -1; }
     if( memcmp( &sector[0x20], &sector[0x80], 16 ) != 0 ) { return -1; }
 
+    /* Check 4 checksums of copied header data */
+    current_block = 0x20;
+    checksum = __get_header_checksum((uint16_t *)&sector[current_block]);
+    if( (checksum != (uint16_t)(sector[current_block + 0x1C])) && (checksum != 0xFFF2 - (uint16_t)(sector[current_block + 0x1E])) ) { return -1; }
+    current_block = 0x60;
+    checksum = __get_header_checksum((uint16_t *)&sector[current_block]);
+    if( (checksum != (uint16_t)(sector[current_block + 0x1C])) && (checksum != 0xFFF2 - (uint16_t)(sector[current_block + 0x1E])) ) { return -1; }
+    current_block = 0x80;
+    checksum = __get_header_checksum((uint16_t *)&sector[current_block]);
+    if( (checksum != (uint16_t)(sector[current_block + 0x1C])) && (checksum != 0xFFF2 - (uint16_t)(sector[current_block + 0x1E])) ) { return -1; }
+    current_block = 0xC0;
+    checksum = __get_header_checksum((uint16_t *)&sector[current_block]);
+    if( (checksum != (uint16_t)(sector[current_block + 0x1C])) && (checksum != 0xFFF2 - (uint16_t)(sector[current_block + 0x1E])) ) { return -1; }
+
     return 0;
+}
+
+/**
+ * @brief Calculate the checksum of a header
+ *
+ * @param[in] block
+ *            A block at the start of a header
+ *
+ * @return The 16 bit checksum over the header
+ */
+static uint16_t __get_header_checksum( uint16_t *block )
+{
+  uint32_t sum = 0;
+
+  for ( int i = 0; i < 14; i++ )
+  {
+    sum += *(block++);
+  }
+
+  return sum & 0xFFFF;
 }
 
 /**
@@ -558,7 +595,7 @@ static int __get_free_space( uint8_t *sector )
  *            The starting inode of the note
  * @param[in] block
  *            The block offset (starting from 0) to retrieve
- * 
+ *
  * @retval -2 if there were free blocks in the file
  * @retval -3 if the filesystem was invalid
  * @return The inode of the n'th block
