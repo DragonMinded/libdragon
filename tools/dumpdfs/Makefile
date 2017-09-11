@@ -1,5 +1,5 @@
 INSTALLDIR = $(N64_INST)
-CFLAGS = -std=gnu99 -O2 -Wall -I../../include
+CFLAGS = -std=gnu99 -O2 -Wall -Wno-unused-result -Wno-pointer-to-int-cast -Wno-int-to-pointer-cast -I../../include
 
 all: dumpdfs
 
