@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
       fprintf(stderr, "%s: File length is not a multiple of four, cannot calculate checksum.\n", progname);
       exit(1);
     }
-    printf("File is only %ld bytes long, remaining %ld to be checksummed will be assumed 0.\n", flen1, CHECKSUM_END - flen1);
+    printf("File is only %d bytes long, remaining %ld to be checksummed will be assumed 0.\n", flen1, CHECKSUM_END - flen1);
   }
   fseek(file1, CHECKSUM_START, SEEK_SET);
   {
