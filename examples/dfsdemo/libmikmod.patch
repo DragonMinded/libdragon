@@ -1,0 +1,21 @@
+diff --git a/n64/Makefile b/n64/Makefile
+index 10f0bee..225ba0b 100644
+--- a/n64/Makefile
++++ b/n64/Makefile
+@@ -1,4 +1,4 @@
+-CFLAGS = -std=gnu99 -O2 -G0 -Wall -mtune=vr4300 -march=vr4300 -I$(N64_INST)/include -I$(N64_INST)/mips64-elf/include -I$(CURDIR)/../include/ -I$(CURDIR)/ 
++CFLAGS = -std=gnu99 -O2 -G0 -Wall -mtune=vr4300 -march=vr4300 -I$(N64_INST)/mips64-elf/include -I$(CURDIR)/../include/ -I$(CURDIR)/
+ CFLAGS += -DDRV_N64
+ 
+ ASFLAGS = -mtune=vr4300 -march=vr4300
+@@ -20,8 +20,8 @@ createdir:
+ 	@mkdir -p $(CURDIR)/build/
+ 
+ install: libmikmod.a $(CURDIR)/../include/mikmod.h
+-	install -m 0644 libmikmod.a $(INSTALLDIR)/lib/libmikmod.a
+-	install -m 0644 $(CURDIR)/../include/mikmod.h $(INSTALLDIR)/include/mikmod.h
++	install -m 0644 libmikmod.a $(INSTALLDIR)/mips64-elf/lib/libmikmod.a
++	install -m 0644 $(CURDIR)/../include/mikmod.h $(INSTALLDIR)/mips64-elf/include/mikmod.h
+ 
+ .PHONY: clean
+ clean:
