@@ -29,7 +29,7 @@ doxygen-clean:
 	rm -rf $(CURDIR)/doxygen
 
 tools:
-	make -C tools
+	+make -C tools
 tools-install:
 	make -C tools install
 tools-clean:
