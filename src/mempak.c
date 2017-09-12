@@ -174,26 +174,6 @@ static int __validate_header( uint8_t *sector )
 }
 
 /**
- * @brief Calculate the checksum of a header
- *
- * @param[in] block
- *            A block at the start of a header
- *
- * @return The 16 bit checksum over the header
- */
-static uint16_t __get_header_checksum( uint16_t *block )
-{
-  uint32_t sum = 0;
-
-  for ( int i = 0; i < 14; i++ )
-  {
-    sum += *(block++);
-  }
-
-  return sum & 0xFFFF;
-}
-
-/**
  * @brief Calculate the checksum over a TOC sector
  *
  * @param[in] sector
