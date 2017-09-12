@@ -116,6 +116,26 @@ int write_mempak_sector( int controller, int sector, uint8_t *sector_data )
 }
 
 /**
+ * @brief Calculate the checksum of a header
+ *
+ * @param[in] block
+ *            A block at the start of a header
+ *
+ * @return The 16 bit checksum over the header
+ */
+static uint16_t __get_header_checksum( uint16_t *block )
+{
+  uint32_t sum = 0;
+
+  for ( int i = 0; i < 14; i++ )
+  {
+    sum += *(block++);
+  }
+
+  return sum & 0xFFFF;
+}
+
+/**
  * @brief Check a mempak header for validity
  *
  * @param[in] sector
@@ -151,26 +171,6 @@ static int __validate_header( uint8_t *sector )
     if( (checksum != (uint16_t)(sector[current_block + 0x1C])) && (checksum != 0xFFF2 - (uint16_t)(sector[current_block + 0x1E])) ) { return -1; }
 
     return 0;
-}
-
-/**
- * @brief Calculate the checksum of a header
- *
- * @param[in] block
- *            A block at the start of a header
- *
- * @return The 16 bit checksum over the header
- */
-static uint16_t __get_header_checksum( uint16_t *block )
-{
-  uint32_t sum = 0;
-
-  for ( int i = 0; i < 14; i++ )
-  {
-    sum += *(block++);
-  }
-
-  return sum & 0xFFFF;
 }
 
 /**
