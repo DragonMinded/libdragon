@@ -19,6 +19,11 @@ examples:
 examples-clean:
 	make -C examples clean
 
+ucode:
+	make -C ucode
+ucode-clean:
+	make -C ucode clean
+
 doxygen: doxygen.conf
 	mkdir -p doxygen/
 	doxygen doxygen.conf
@@ -61,11 +66,14 @@ install: libdragon.a libdragonsys.a libdragonpp.a
 	install -m 0644 include/controller.h $(INSTALLDIR)/mips64-elf/include/controller.h
 	install -m 0644 include/graphics.h $(INSTALLDIR)/mips64-elf/include/graphics.h
 	install -m 0644 include/rdp.h $(INSTALLDIR)/mips64-elf/include/rdp.h
+	install -m 0644 include/rsp.h $(INSTALLDIR)/mips64-elf/include/rsp.h
 	install -m 0644 include/timer.h $(INSTALLDIR)/mips64-elf/include/timer.h
 	install -m 0644 include/exception.h $(INSTALLDIR)/mips64-elf/include/exception.h
 	install -m 0644 include/system.h $(INSTALLDIR)/mips64-elf/include/system.h
 	install -m 0644 include/dir.h $(INSTALLDIR)/mips64-elf/include/dir.h
 	install -m 0644 include/libdragon.h $(INSTALLDIR)/mips64-elf/include/libdragon.h
+	install -m 0644 include/ucode.h $(INSTALLDIR)/mips64-elf/include/ucode.h
+	install -m 0644 src/regs.S $(INSTALLDIR)/mips64-elf/include/regs.S
 
 clean:
 	rm -f *.o *.a
@@ -73,4 +81,4 @@ clean:
 
 clobber: clean doxygen-clean examples-clean tools-clean
 
-.PHONY : clobber clean doxygen-clean doxygen doxygen-api examples examples-clean tools tools-clean tools-install
+.PHONY : clobber clean doxygen-clean doxygen doxygen-api examples examples-clean tools tools-clean tools-install ucode ucode-clean

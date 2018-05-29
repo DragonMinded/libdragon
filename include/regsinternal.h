@@ -146,7 +146,7 @@ typedef struct SP_regs_s {
     /** @brief RSP memory address (IMEM/DMEM) */
     volatile void * RSP_addr;
     /** @brief RDRAM memory address */
-    volatile void * RDAM_addr;
+    volatile void * DRAM_addr;
     /** @brief RDRAM->RSP DMA length */
     uint32_t rsp_read_length;
     /** @brief RDP->RDRAM DMA length */

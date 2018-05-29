@@ -10,6 +10,7 @@ OFILES_LD += $(CURDIR)/build/controller.o
 OFILES_LD += $(CURDIR)/build/mempak.o
 OFILES_LD += $(CURDIR)/build/graphics.o
 OFILES_LD += $(CURDIR)/build/rdp.o
+OFILES_LD += $(CURDIR)/build/rsp.o
 OFILES_LD += $(CURDIR)/build/dma.o
 OFILES_LD += $(CURDIR)/build/timer.o
 OFILES_LD += $(CURDIR)/build/exception.o
@@ -27,6 +28,7 @@ OFILES_LDP += $(CURDIR)/build/console.o
 OFILES_LDP += $(CURDIR)/build/controller.o
 OFILES_LDP += $(CURDIR)/build/graphics.o
 OFILES_LDP += $(CURDIR)/build/rdp.o
+OFILES_LDP += $(CURDIR)/build/rsp.o
 OFILES_LDP += $(CURDIR)/build/dma.o
 OFILES_LDP += $(CURDIR)/build/timer.o
 OFILES_LDP += $(CURDIR)/build/exception.o
@@ -72,6 +74,9 @@ $(CURDIR)/build/graphics.o: $(CURDIR)/src/graphics.c
 $(CURDIR)/build/rdp.o: $(CURDIR)/src/rdp.c
 	mkdir -p $(CURDIR)/build
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/rdp.o $(CURDIR)/src/rdp.c
+$(CURDIR)/build/rsp.o: $(CURDIR)/src/rsp.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/rsp.o $(CURDIR)/src/rsp.c
 
 # Rules for compiling controller system
 $(CURDIR)/build/controller.o: $(CURDIR)/src/controller.c
