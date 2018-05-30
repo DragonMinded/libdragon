@@ -26,9 +26,6 @@ $(PROG_NAME).v64: $(PROG_NAME).elf
 $(PROG_NAME).elf : $(OBJS)
 	$(LD) -o $(PROG_NAME).elf $(OBJS) $(LINK_FLAGS)
 
-copy: $(PROG_NAME).v64
-	cp $(PROG_NAME).v64 ~/public_html/
-
 all: $(PROG_NAME).v64
 
 clean:

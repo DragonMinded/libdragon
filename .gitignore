@@ -18,3 +18,11 @@ tools/n64tool
 *.tmp
 *.swp
 *~
+
+*.v64
+*.elf
+*.bin
+*.o
+*.dfs
+
+node_modules

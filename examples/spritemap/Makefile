@@ -23,9 +23,6 @@ $(PROG_NAME).v64: $(PROG_NAME).elf spritemap.dfs
 $(PROG_NAME).elf : $(PROG_NAME).o
 	$(LD) -o $(PROG_NAME).elf $(PROG_NAME).o $(LINK_FLAGS)
 
-copy: $(PROG_NAME).v64
-	cp $(PROG_NAME).v64 ~/public_html/
-
 spritemap.dfs:
 	$(MKDFSPATH) spritemap.dfs ./filesystem/
 
