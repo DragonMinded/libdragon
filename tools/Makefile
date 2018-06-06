@@ -15,21 +15,21 @@ n64tool-clean:
 	rm -rf n64tool
 
 dumpdfs:
-	make -C dumpdfs
+	+make -C dumpdfs
 dumpdfs-install:
 	make -C dumpdfs install
 dumpdfs-clean:
 	make -C dumpdfs clean
 
 mkdfs:
-	make -C mkdfs
+	+make -C mkdfs
 mkdfs-install:
 	make -C mkdfs install
 mkdfs-clean:
 	make -C mkdfs clean
 
 mksprite:
-	make -C mksprite
+	+make -C mksprite
 mksprite-install:
 	make -C mksprite install
 mksprite-clean:

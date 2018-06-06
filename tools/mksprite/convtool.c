@@ -12,27 +12,26 @@ int main( int argc, char *argv[] )
 {
     uint8_t zero = 0;
     uint8_t val;
-    int ret;
 
     /* Read in old width */
-    ret = fread( &val, sizeof( val ), 1, stdin );
+    fread( &val, sizeof( val ), 1, stdin );
 
     /* Write empty value and then new */
     fwrite( &zero, sizeof( zero ), 1, stdout );
     fwrite( &val, sizeof( val ), 1, stdout );
     
     /* Read in old height */
-    ret = fread( &val, sizeof( val ), 1, stdin );
+    fread( &val, sizeof( val ), 1, stdin );
 
     /* Write empty value and then new */
     fwrite( &zero, sizeof( zero ), 1, stdout );
     fwrite( &val, sizeof( val ), 1, stdout );
 
     /* Straight copy of bitdepth and format */
-    ret = fread( &val, sizeof( val ), 1, stdin );
+    fread( &val, sizeof( val ), 1, stdin );
     fwrite( &val, sizeof( val ), 1, stdout );
 
-    ret = fread( &val, sizeof( val ), 1, stdin );
+    fread( &val, sizeof( val ), 1, stdin );
     fwrite( &val, sizeof( val ), 1, stdout );
 
     /* Assuming horizontal and vertical stride of 1 */
@@ -43,7 +42,7 @@ int main( int argc, char *argv[] )
     /* Now just byte copy until end of stream */
     while( !feof( stdin ) )
     {
-        ret = fread( &val, sizeof( val ), 1, stdin );
+        fread( &val, sizeof( val ), 1, stdin );
         
         if( !feof( stdin ) )
         {

@@ -20,6 +20,8 @@ set -e
 # EDIT THIS LINE TO CHANGE YOUR INSTALL PATH!
 export INSTALL_PATH=${N64_INST:-/usr/local}
 
+export JOBS=${JOBS:-1}
+
 # Set up path for newlib to compile later
 export PATH=$PATH:$INSTALL_PATH/bin
 
@@ -45,19 +47,19 @@ mkdir gcc_compile
 # Compile binutils
 cd binutils-$BINUTILS_V
 ./configure --prefix=${INSTALL_PATH} --target=mips64-elf --with-cpu=mips64vr4300 --disable-werror
-make
+make --jobs $JOBS
 make install || sudo make install || su -c "make install"
 
 # Compile gcc (pass 1)
 cd ../gcc_compile
-../gcc-$GCC_V/configure --prefix=${INSTALL_PATH} --target=mips64-elf --enable-languages=c --without-headers --with-newlib --disable-libssp --enable-multilib --disable-shared --with-gcc --with-gnu-ld --with-gnu-as --disable-threads --disable-win32-registry --disable-nls --disable-debug --disable-libmudflap --disable-werror
-make
+../gcc-$GCC_V/configure --prefix=${INSTALL_PATH} --target=mips64-elf --enable-languages=c --without-headers --with-newlib --disable-libssp --enable-multilib --disable-shared --with-gcc --with-gnu-ld --with-gnu-as --disable-threads --disable-win32-registry --disable-nls --disable-debug --disable-libmudflap --disable-werror --with-system-zlib
+make --jobs $JOBS
 make install || sudo make install || su -c "make install"
 
 # Compile newlib
 cd ../newlib-$NEWLIB_V
 CFLAGS="-O2" CXXFLAGS="-O2" ./configure --target=mips64-elf --prefix=${INSTALL_PATH} --with-cpu=mips64vr4300 --disable-threads --disable-libssp  --disable-werror
-make
+make --jobs $JOBS
 make install || sudo env PATH="$PATH" make install || su -c "env PATH=$PATH make install"
 
 # Compile gcc (pass 2)
@@ -65,6 +67,6 @@ cd ..
 rm -rf gcc_compile
 mkdir gcc_compile
 cd gcc_compile
-CFLAGS_FOR_TARGET="-G0 -O2" CXXFLAGS_FOR_TARGET="-G0 -O2" ../gcc-$GCC_V/configure --prefix=${INSTALL_PATH} --target=mips64-elf --enable-languages=c,c++ --with-newlib --disable-libssp --enable-multilib --disable-shared --with-gcc --with-gnu-ld --with-gnu-as --disable-threads --disable-win32-registry --disable-nls --disable-debug --disable-libmudflap
-make
+CFLAGS_FOR_TARGET="-G0 -O2" CXXFLAGS_FOR_TARGET="-G0 -O2" ../gcc-$GCC_V/configure --prefix=${INSTALL_PATH} --target=mips64-elf --enable-languages=c,c++ --with-newlib --disable-libssp --enable-multilib --disable-shared --with-gcc --with-gnu-ld --with-gnu-as --disable-threads --disable-win32-registry --disable-nls --disable-debug --disable-libmudflap --with-system-zlib
+make --jobs $JOBS
 make install || sudo make install || su -c "make install"

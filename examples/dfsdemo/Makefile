@@ -5,9 +5,9 @@ MKDFSPATH = $(ROOTDIR)/bin/mkdfs
 HEADERPATH = $(ROOTDIR)/mips64-elf/lib
 N64TOOL = $(ROOTDIR)/bin/n64tool
 HEADERNAME = header
-LINK_FLAGS = -G0 -L$(ROOTDIR)/mips64-elf/lib -ldragon -lmikmod -lc -lm -ldragonsys -Tn64ld.x
+LINK_FLAGS = -G0 -L$(ROOTDIR)/mips64-elf/lib -L$(ROOTDIR)/lib -ldragon -lmikmod -lc -lm -ldragonsys -Tn64ld.x
 PROG_NAME = dfsdemo
-CFLAGS = -std=gnu99 -march=vr4300 -mtune=vr4300 -O2 -G0 -Wall -Werror -I$(ROOTDIR)/mips64-elf/include
+CFLAGS = -std=gnu99 -march=vr4300 -mtune=vr4300 -O2 -G0 -Wall -Werror -I$(ROOTDIR)/mips64-elf/include -I$(ROOTDIR)/include
 ASFLAGS = -mtune=vr4300 -march=vr4300
 CC = $(GCCN64PREFIX)gcc
 AS = $(GCCN64PREFIX)as
@@ -22,9 +22,6 @@ $(PROG_NAME).v64: $(PROG_NAME).elf test.dfs
 
 $(PROG_NAME).elf : $(PROG_NAME).o
 	$(LD) -o $(PROG_NAME).elf $(PROG_NAME).o $(LINK_FLAGS)
-
-copy: $(PROG_NAME).v64
-	cp $(PROG_NAME).v64 ~/public_html/
 
 test.dfs:
 	$(MKDFSPATH) test.dfs ./filesystem/
