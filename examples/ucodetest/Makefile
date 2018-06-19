@@ -15,15 +15,23 @@ AS = $(GCCN64PREFIX)as
 LD = $(GCCN64PREFIX)ld
 OBJCOPY = $(GCCN64PREFIX)objcopy
 
+ifeq ($(N64_BYTE_SWAP),true)
+ROM_EXTENSION = .v64
+N64_FLAGS = -b -l 2M -h $(HEADERPATH)/$(HEADERNAME) -o $(PROG_NAME)$(ROM_EXTENSION) $(PROG_NAME).bin
+else
+ROM_EXTENSION = .z64
+N64_FLAGS = -l 2M -h $(HEADERPATH)/$(HEADERNAME) -o $(PROG_NAME)$(ROM_EXTENSION) $(PROG_NAME).bin
+endif
+
 PROG_NAME = ucodetest
 
-all: $(PROG_NAME).v64
+all: $(PROG_NAME)$(ROM_EXTENSION)
 
-$(PROG_NAME).v64: $(PROG_NAME).elf
+$(PROG_NAME)$(ROM_EXTENSION): $(PROG_NAME).elf
 	$(OBJCOPY) $(PROG_NAME).elf $(PROG_NAME).bin -O binary
-	rm -f $(PROG_NAME).v64
-	$(N64TOOL) -b -l 2M -t "Controller Test" -h $(HEADERPATH)/$(HEADERNAME) -o $(PROG_NAME).v64 $(PROG_NAME).bin
-	$(CHKSUM64PATH) $(PROG_NAME).v64
+	rm -f $(PROG_NAME)$(ROM_EXTENSION)
+	$(N64TOOL) $(N64_FLAGS) -t "ucode Test"
+	$(CHKSUM64PATH) $(PROG_NAME)$(ROM_EXTENSION)
 
 $(PROJECT_ROOT)/ucode/basic.o:
 	make -C $(PROJECT_ROOT) ucode
@@ -33,6 +41,6 @@ $(PROG_NAME).elf : $(PROG_NAME).o $(PROJECT_ROOT)/ucode/basic.o
 
 clean:
 	make -C $(PROJECT_ROOT) ucode-clean
-	rm -f *.v64 *.elf *.o *.bin
+	rm -f *.v64 *.z64 *.elf *.o *.bin
 
 .PHONY : clean

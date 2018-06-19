@@ -14,11 +14,19 @@ AS = $(GCCN64PREFIX)as
 LD = $(GCCN64PREFIX)ld
 OBJCOPY = $(GCCN64PREFIX)objcopy
 
-$(PROG_NAME).v64: $(PROG_NAME).elf test.dfs
+ifeq ($(N64_BYTE_SWAP),true)
+ROM_EXTENSION = .v64
+N64_FLAGS = -b -l 2M -h $(HEADERPATH)/$(HEADERNAME) -o $(PROG_NAME)$(ROM_EXTENSION) $(PROG_NAME).bin
+else
+ROM_EXTENSION = .z64
+N64_FLAGS = -l 2M -h $(HEADERPATH)/$(HEADERNAME) -o $(PROG_NAME)$(ROM_EXTENSION) $(PROG_NAME).bin
+endif
+
+$(PROG_NAME)$(ROM_EXTENSION): $(PROG_NAME).elf test.dfs
 	$(OBJCOPY) $(PROG_NAME).elf $(PROG_NAME).bin -O binary
-	rm -f $(PROG_NAME).v64
-	$(N64TOOL) -b -l 2M -t "Video Test" -h $(HEADERPATH)/$(HEADERNAME) -o $(PROG_NAME).v64 $(PROG_NAME).bin -s 1M test.dfs
-	$(CHKSUM64PATH) $(PROG_NAME).v64
+	rm -f $(PROG_NAME)$(ROM_EXTENSION)
+	$(N64TOOL) $(N64_FLAGS) -t "Video Test" -s 1M test.dfs
+	$(CHKSUM64PATH) $(PROG_NAME)$(ROM_EXTENSION)
 
 $(PROG_NAME).elf : $(PROG_NAME).o
 	$(LD) -o $(PROG_NAME).elf $(PROG_NAME).o $(LINK_FLAGS)
@@ -26,7 +34,7 @@ $(PROG_NAME).elf : $(PROG_NAME).o
 test.dfs:
 	$(MKDFSPATH) test.dfs ./filesystem/
 
-all: $(PROG_NAME).v64
+all: $(PROG_NAME)$(ROM_EXTENSION)
 
 clean:
-	rm -f *.v64 *.elf *.o *.bin *.dfs
+	rm -f *.v64 *.z64 *.elf *.o *.bin *.dfs

@@ -5,7 +5,6 @@
 
 #include <libdragon.h>
 #include <rsp.h>
-#include <exception.h>
 
 extern const char basic_ucode_start;
 extern const char basic_ucode_end;
@@ -16,7 +15,7 @@ static bitdepth_t bit = DEPTH_32_BPP;
 
 static volatile bool broke = false;
 
-static void sp_handler(exception_t* e) {
+static void sp_handler() {
     broke = true;
 }
 
@@ -35,6 +34,7 @@ int main(void)
     register_SP_handler(&sp_handler);
     set_SP_interrupt(1);
 
+    // Size must be multiple of 8 and start & end must be aligned to 8 bytes
     // unsigned long size = (unsigned long)&basic_ucode_size;
     unsigned long size = 8;
     load_ucode((void*)&basic_ucode_start, size);

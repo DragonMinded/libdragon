@@ -1,5 +1,8 @@
 const { exec } = require('child_process');
 
+const PROJECT_NAME = 'libdragon';
+const BYTE_SWAP = false;
+
 function runCommand(cmd) {
   return new Promise((resolve, reject) => {
     const command = exec(cmd, {}, (err, stdout, stderr) => {
@@ -22,7 +25,7 @@ function runCommand(cmd) {
 }
 
 async function startToolchain() {
-  await runCommand('docker run --name=libdragon -d --mount type=bind,source="' + __dirname + '",target=/libdragon anacierdem/libdragon tail -f /dev/null');
+  await runCommand('docker run --name=' + PROJECT_NAME + (BYTE_SWAP ? ' -e N64_BYTE_SWAP=true' : '') + ' -d --mount type=bind,source="' + __dirname + '",target=/' + PROJECT_NAME + ' -w="/' + PROJECT_NAME + '" anacierdem/libdragon tail -f /dev/null');
 }
 
 const availableActions = {
@@ -36,15 +39,15 @@ const availableActions = {
     startToolchain();
   },
   make: async function make(param) {
-    await runCommand('docker start libdragon');
-    await runCommand('docker exec libdragon make ' + param);
+    await runCommand('docker start ' + PROJECT_NAME);
+    await runCommand('docker exec ' + PROJECT_NAME + ' make ' + param);
   },
   stop: async function stop() {
-    const list = await runCommand('docker ps -a -q');
+    const list = await runCommand('docker ps -a -q -f name=' + PROJECT_NAME);
     if (!list) {
       await Promise.reject('Toolchain is not running.');
     }
-    await runCommand('docker rm -f libdragon');
+    await runCommand('docker rm -f ' + PROJECT_NAME);
   }
 }
 
@@ -69,4 +72,3 @@ process.argv.forEach(function (val, index, array) {
     });
   }
 });
-
