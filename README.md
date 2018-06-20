@@ -1,6 +1,6 @@
 # Libdragon
 
-This is a fork of a simple library for N64 that allows one to code using the gcc compiler suite and nothing else. No proprietary library is needed.
+This is a simple library for N64 that allows one to code using the gcc compiler suite and nothing else. No proprietary library is needed.
 
 To make managing the toolcain easier, a docker container is used. Node.js is used to interact with the docker container for multi-platform support. You can inspect index.js if you prefer not to use node, but it makes things easier in general when working with docker.
 
@@ -36,10 +36,21 @@ The toolchain make command will be only run at the root-level. Use -C flag to ma
 
     npm run tc -- make -C your/path
 
+Please note that the path should be unix-compatible, so you should not use auto completion on non-unix systems.
+
+If you export `N64_BYTE_SWAP` environment variable with a value of true (`export N64_BYTE_SWAP=true`), you can generate byte-swapped `.v64` rom files. If this is not present the Makefiles will default to not swapped `.z64` files.
+
+To use the toolchain's host make command with byte swap enabled, pass a make variable like so;
+
+    npm run tc -- make examples N64_BYTE_SWAP=true
+
+You can also permanently set `BYTE_SWAP` for docker container in `index.js` and stop/start it for changes to take effect.
+
 If you need more control over the toolchain container bash into it with;
 
     docker exec -i -t libdragon /bin/bash
 
+You can copy `index.js` and `package.json` to your root path in order to use docker in your other N64 projects. Simply change `PROJECT_NAME` variable and toolchain will be available as a new container for your project when you run `npm run tc -- start` in ypur project root.
 
 # Original documentation for reference
 

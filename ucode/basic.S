@@ -1,5 +1,4 @@
-#include "../include/ucode.h"
-
+#include <ucode.h>
 
 break
 break
