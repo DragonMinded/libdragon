@@ -1,7 +1,8 @@
-#include <ucode.h>
+#include <ucode.S>
 
 .set noat
 
-loadVector v1, BV(0, 0), s1
-vectorOp ABS(0, v1, v2, v3)
+vabs v1, v2, v3, 0
+swv v1, 0, 0, s2
+
 break
