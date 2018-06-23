@@ -203,19 +203,39 @@ makeNotImplemented tnei
 
 .macro makeOpInstruction name, opcode
     .macro \name vd, vs, vt, element
-        vectorOp \opcode, \vd, \vs, \vt, \element
+        .ifgt (\element >> 4)
+            .error "Invalid element"
+        .else
+            vectorOp \opcode, \vd, \vs, \vt, \element
+        .endif
     .endm
 .endm
 
 .macro makeLoadInstruction name, opcode
     .macro \name vt, element, offset, base
-        loadVector \opcode, \vt, \element, \offset, \base
+        .ifgt (\element >> 4)
+            .error "Invalid element"
+        .else
+            .ifgt (\offset >> 7)
+                .error "Invalid offset"
+            .else
+                loadVector \opcode, \vt, \element, \offset, \base
+            .endif
+        .endif
     .endm
 .endm
 
 .macro makeStoreInstruction name, opcode
     .macro \name vt, element, offset, base
-        storeVector \opcode, \vt, \element, \offset, \base
+        .ifgt (\element >> 4)
+            .error "Invalid element"
+        .else
+            .ifgt (\offset >> 7)
+                .error "Invalid offset"
+            .else
+                storeVector \opcode, \vt, \element, \offset, \base
+            .endif
+        .endif
     .endm
 .endm
 
@@ -355,3 +375,5 @@ makeStoreInstruction stv, 0b01011,
 makeStoreInstruction suv, 0b00111,
 /** @brief Store Wrapped vector from Vector Register */
 makeStoreInstruction swv, 0b00111,
+
+.set noat

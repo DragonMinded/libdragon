@@ -1,8 +1,8 @@
 #include <ucode.S>
 
-.set noat
-
-vabs v1, v2, v3, 0
-swv v1, 0, 0, s2
-
+vabs v1, v2, v3, 1
+lhv v1, 15, 0, s2
 break
+
+# Fill with zeros
+.org 2048, 0
