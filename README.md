@@ -50,7 +50,31 @@ If you need more control over the toolchain container bash into it with;
 
     docker exec -i -t libdragon /bin/bash
 
-You can copy `index.js` and `package.json` to your root path in order to use docker in your other N64 projects. Simply change `PROJECT_NAME` variable and toolchain will be available as a new container for your project when you run `npm run tc -- start` in ypur project root.
+You can copy `index.js` and `package.json` to your root path in order to use docker in your other N64 projects. Simply change `PROJECT_NAME` variable and toolchain will be available as a new container for your project when you run `npm run tc -- start` in your project root.
+
+# RSP assembly
+
+Libdragon uses assembly macros to program the RSP chip defined in `ucode.S`. These mainly wrap `cop2`, `lwc2` and `swc2` instructions.
+
+The syntax is similar to that of Nintendo's but with a few changes. For example if we take `vabs` instruction;
+
+    vabs vd, vs, vt[e]
+
+it becomes;
+
+    vabs vd, vs, vt, e
+
+and element (`e`) is always required. It is also similar for load/store instructions. As an example, `sbv` instruction;
+
+    sbv vt[element], offset(base)
+
+becomes;
+
+    sbv vt, element, offset, base
+
+Basically all operands are required and separated by commas.
+
+While using these custom instructions, you should use `v0`-`v31`for naming vector registers and `s0`-`s31` for naming scalar registers.
 
 # Original documentation for reference
 

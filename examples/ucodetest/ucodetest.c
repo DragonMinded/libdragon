@@ -35,8 +35,7 @@ int main(void)
     set_SP_interrupt(1);
 
     // Size must be multiple of 8 and start & end must be aligned to 8 bytes
-    // unsigned long size = (unsigned long)&basic_ucode_size;
-    unsigned long size = 8;
+    unsigned long size = (unsigned long)&basic_ucode_size;
     load_ucode((void*)&basic_ucode_start, size);
 
     char* up = malloc(size);
