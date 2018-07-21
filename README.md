@@ -54,9 +54,9 @@ You can copy `index.js` and `package.json` to your root path in order to use doc
 
 # RSP assembly
 
-Libdragon uses assembly macros to program the RSP chip defined in `ucode.S`. These mainly wrap `cop2`, `lwc2` amd `swc2` instructions.
+Libdragon uses assembly macros to program the RSP chip defined in `ucode.S`. These mainly wrap `cop2`, `lwc2` and `swc2` instructions.
 
-The syntax is similaar to that of Nintendo's but with a few changes. For example if we take `vabs` instruction;
+The syntax is similar to that of Nintendo's but with a few changes. For example if we take `vabs` instruction;
 
     vabs vd, vs, vt[e]
 
