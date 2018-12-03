@@ -57,14 +57,14 @@
 #define UNCACHED_ADDR(x)    ((void *)(((uint32_t)(x)) | 0xA0000000))
 
 /**
- * @brief Align a memory address to 16 byte offset
+ * @brief Align a memory address to 64 byte offset
  * 
  * @param[in] x
  *            Unaligned memory address
  *
  * @return An aligned address guaranteed to be >= the unaligned address
  */
-#define ALIGN_16BYTE(x)     ((void *)(((uint32_t)(x)+15) & 0xFFFFFFF0))
+#define ALIGN_64BYTE(x)     ((void *)(((uint32_t)(x)+63) & 0xFFFFFFC0))
 
 /**
  * @name Video Mode Register Presets
@@ -352,8 +352,8 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     {
         /* Set parameters necessary for drawing */
         /* Grab a location to render to */
-        buffer[i] = malloc( __width * __height * __bitdepth + 15 );
-        __safe_buffer[i] = ALIGN_16BYTE( UNCACHED_ADDR( buffer[i] ) );
+        buffer[i] = malloc( __width * __height * __bitdepth + 63 );
+        __safe_buffer[i] = ALIGN_64BYTE( UNCACHED_ADDR( buffer[i] ) );
 
         /* Baseline is blank */
         memset( __safe_buffer[i], 0, __width * __height * __bitdepth );
