@@ -365,6 +365,10 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     /* Set the control register in our template */
     registers[0] = control;
 
+    /* Black screen please, the clearing takes a couple frames, and
+       garbage would be visible. */
+    registers[9] = 0;
+
     /* Set up initial registers */
     __write_registers( registers );
 
@@ -411,11 +415,14 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     }
 
     /* Set the first buffer as the displaying buffer */
-    __write_dram_register( __safe_buffer[0] );
-
     now_showing = 0;
     now_drawing = -1;
     show_next = -1;
+
+    /* Show our screen normally */
+    registers[1] = (uintptr_t) __safe_buffer[0];
+    registers[9] = reg_values[tv_type][9];
+    __write_registers( registers );
 
     enable_interrupts();
 
