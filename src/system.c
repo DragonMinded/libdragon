@@ -626,7 +626,7 @@ int execve( char *name, char **argv, char **env )
  * @param[in] rc
  *            Return value of the exiting program
  */
-void exit( int rc )
+void _exit( int rc )
 {
     /* Default stub just causes a divide by 0 exception.  */
     int x = rc / INT_MAX;
