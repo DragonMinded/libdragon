@@ -41,9 +41,11 @@ SECTIONS {
 	  . = ALIGN(16);
       __text_start = . ;
       *(.text)
+      *(.text.*)
       *(.ctors)
       *(.dtors)
       *(.rodata)
+      *(.rodata.*)
 	  *(.init)
       *(.fini)
       __text_end  = . ;
@@ -76,6 +78,7 @@ SECTIONS {
 	 . = ALIGN(16);
 	 _gp = . ;
          *(.sdata)
+	 . = ALIGN(4);
       __data_end = . ;
 /*
       __bss_start = . ;
@@ -83,7 +86,7 @@ SECTIONS {
          *(.sbss)
          *(COMMON)
          *(.bss)
-      /* XXX Force 8-byte end alignment and update startup code */
+      XXX Force 8-byte end alignment and update startup code
 
       __bss_end = . ;
 */
@@ -95,6 +98,7 @@ SECTIONS {
 	*(.sbss)
 	*(COMMON)
 	*(.bss)
+	 . = ALIGN(4);
 	__bss_end = . ;
 	end = . ;
    }
