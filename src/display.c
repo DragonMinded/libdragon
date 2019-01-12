@@ -57,14 +57,14 @@
 #define UNCACHED_ADDR(x)    ((void *)(((uint32_t)(x)) | 0xA0000000))
 
 /**
- * @brief Align a memory address to 16 byte offset
+ * @brief Align a memory address to 64 byte offset
  * 
  * @param[in] x
  *            Unaligned memory address
  *
  * @return An aligned address guaranteed to be >= the unaligned address
  */
-#define ALIGN_16BYTE(x)     ((void *)(((uint32_t)(x)+15) & 0xFFFFFFF0))
+#define ALIGN_64BYTE(x)     ((void *)(((uint32_t)(x)+63) & 0xFFFFFFC0))
 
 /**
  * @name Video Mode Register Presets
@@ -131,10 +131,47 @@ static const uint32_t mpal_512[] = {
     0x00000000, 0x04651e39, 0x0000020c, 0x00000c10,
     0x0c1c0c1c, 0x006c02ec, 0x002301fd, 0x000b0202,
     0x00000334, 0x02000800 };
+static const uint32_t ntsc_512p[] = {
+    0x00000000, 0x00000000, 0x00000200, 0x00000200,
+    0x00000000, 0x03e52239, 0x0000020d, 0x00000c15,
+    0x0c150c15, 0x006c02ec, 0x002501ff, 0x000e0204,
+    0x00000333, 0x00000400 };
+static const uint32_t pal_512p[] = {
+    0x00000000, 0x00000000, 0x00000200, 0x00000200,
+    0x00000000, 0x0404233a, 0x00000271, 0x00150c69,
+    0x0c6f0c6e, 0x00800300, 0x005f0239, 0x0009026b,
+    0x00000333, 0x00000400 };
+static const uint32_t mpal_512p[] = {
+    0x00000000, 0x00000000, 0x00000200, 0x00000200,
+    0x00000000, 0x04651e39, 0x0000020d, 0x00040c11,
+    0x0c190c1a, 0x006c02ec, 0x002501ff, 0x000e0204,
+    0x00000333, 0x00000400 };
+static const uint32_t ntsc_640p[] = {
+    0x00000000, 0x00000000, 0x00000280, 0x00000200,
+    0x00000000, 0x03e52239, 0x0000020d, 0x00000c15,
+    0x0c150c15, 0x006c02ec, 0x002501ff, 0x000e0204,
+    0x00000400, 0x00000400 };
+static const uint32_t pal_640p[] = {
+    0x00000000, 0x00000000, 0x00000280, 0x00000200,
+    0x00000000, 0x0404233a, 0x00000271, 0x00150c69,
+    0x0c6f0c6e, 0x00800300, 0x005f0239, 0x0009026b,
+    0x00000400, 0x00000400 };
+static const uint32_t mpal_640p[] = {
+    0x00000000, 0x00000000, 0x00000280, 0x00000200,
+    0x00000000, 0x04651e39, 0x0000020d, 0x00040c11,
+    0x0c190c1a, 0x006c02ec, 0x002501ff, 0x000e0204,
+    0x00000400, 0x00000400 };
 /** @} */
 
 /** @brief Register initial value array */
-static const uint32_t * const reg_values[] = { pal_320, ntsc_320, mpal_320, pal_640, ntsc_640, mpal_640, pal_256, ntsc_256, mpal_256, pal_512, ntsc_512, mpal_512 };
+static const uint32_t * const reg_values[] = {
+    pal_320, ntsc_320, mpal_320,
+    pal_640, ntsc_640, mpal_640,
+    pal_256, ntsc_256, mpal_256,
+    pal_512, ntsc_512, mpal_512,
+    pal_512p, ntsc_512p, mpal_512p,
+    pal_640p, ntsc_640p, mpal_640p,
+};
 /** @brief Video buffer pointers */
 static void *buffer[NUM_BUFFERS];
 /** @brief Currently active bit depth */
@@ -265,6 +302,12 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
 			control |= 0x40;
 			tv_type += 9;
 			break;
+		case RESOLUTION_512x240:
+			tv_type += 12;
+			break;
+		case RESOLUTION_640x240:
+			tv_type += 15;
+			break;
 		case RESOLUTION_320x240:
 		default:
 			break;
@@ -322,6 +365,10 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     /* Set the control register in our template */
     registers[0] = control;
 
+    /* Black screen please, the clearing takes a couple frames, and
+       garbage would be visible. */
+    registers[9] = 0;
+
     /* Set up initial registers */
     __write_registers( registers );
 
@@ -344,6 +391,14 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
 			__width = 512;
 			__height = 480;
 			break;
+		case RESOLUTION_512x240:
+			__width = 512;
+			__height = 240;
+			break;
+		case RESOLUTION_640x240:
+			__width = 640;
+			__height = 240;
+			break;
 	}
     __bitdepth = ( bit == DEPTH_16_BPP ) ? 2 : 4;
 
@@ -352,19 +407,22 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     {
         /* Set parameters necessary for drawing */
         /* Grab a location to render to */
-        buffer[i] = malloc( __width * __height * __bitdepth + 15 );
-        __safe_buffer[i] = ALIGN_16BYTE( UNCACHED_ADDR( buffer[i] ) );
+        buffer[i] = malloc( __width * __height * __bitdepth + 63 );
+        __safe_buffer[i] = ALIGN_64BYTE( UNCACHED_ADDR( buffer[i] ) );
 
         /* Baseline is blank */
         memset( __safe_buffer[i], 0, __width * __height * __bitdepth );
     }
 
     /* Set the first buffer as the displaying buffer */
-    __write_dram_register( __safe_buffer[0] );
-
     now_showing = 0;
     now_drawing = -1;
     show_next = -1;
+
+    /* Show our screen normally */
+    registers[1] = (uintptr_t) __safe_buffer[0];
+    registers[9] = reg_values[tv_type][9];
+    __write_registers( registers );
 
     enable_interrupts();
 

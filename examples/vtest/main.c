@@ -126,8 +126,8 @@ int main(void)
     while (1)
     {
 		int j;
-		int width[4] = { 320, 640, 256, 512 };
-		int height[4] = { 240, 480, 240, 480 };
+		int width[6] = { 320, 640, 256, 512, 512, 640 };
+		int height[6] = { 240, 480, 240, 480, 240, 240 };
 		unsigned int color;
 
         _dc = lockVideo(1);
@@ -150,16 +150,22 @@ int main(void)
 		switch (res)
 		{
 			case 0:
-				printText(_dc, "320x240", width[res]/16 - 3, 5);
+				printText(_dc, "320x240p", width[res]/16 - 3, 5);
 				break;
 			case 1:
-				printText(_dc, "640x480", width[res]/16 - 3, 5);
+				printText(_dc, "640x480i", width[res]/16 - 3, 5);
 				break;
 			case 2:
-				printText(_dc, "256x240", width[res]/16 - 3, 5);
+				printText(_dc, "256x240p", width[res]/16 - 3, 5);
 				break;
 			case 3:
-				printText(_dc, "512x480", width[res]/16 - 3, 5);
+				printText(_dc, "512x480i", width[res]/16 - 3, 5);
+				break;
+			case 4:
+				printText(_dc, "512x240p", width[res]/16 - 3, 5);
+				break;
+			case 5:
+				printText(_dc, "640x240p", width[res]/16 - 3, 5);
 				break;
 		}
 
@@ -189,8 +195,16 @@ int main(void)
             // A changed
             if (!A_BUTTON(buttons))
 			{
-				resolution_t mode[4] = { RESOLUTION_320x240, RESOLUTION_640x480, RESOLUTION_256x240, RESOLUTION_512x480 };
-				res = (res+1) & 3;
+				resolution_t mode[6] = {
+					RESOLUTION_320x240,
+					RESOLUTION_640x480,
+					RESOLUTION_256x240,
+					RESOLUTION_512x480,
+					RESOLUTION_512x240,
+					RESOLUTION_640x240,
+				};
+				res++;
+				res %= 6;
 				display_close();
 				display_init(mode[res], DEPTH_16_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE);
 			}
