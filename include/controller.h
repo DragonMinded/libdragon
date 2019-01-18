@@ -111,6 +111,50 @@ typedef struct SI_condat
     };
 } _SI_condat;
 
+/** @brief SI Controller Data, GC */
+typedef struct SI_condat_gc
+{
+    union
+    {
+        struct
+        {
+            /** @brief 64-bit data sent to or returned from SI */
+            uint64_t data;
+        };
+        struct
+        {
+            unsigned err : 2;
+            unsigned origin_unchecked : 1;
+            unsigned start : 1;
+            unsigned y : 1;
+            unsigned x : 1;
+            unsigned b : 1;
+            unsigned a : 1;
+            unsigned unused2 : 1;
+            unsigned l : 1;
+            unsigned r : 1;
+            unsigned z : 1;
+            unsigned up : 1;
+            unsigned down : 1;
+            unsigned right : 1;
+            unsigned left : 1;
+            unsigned stick_x : 8;
+            unsigned stick_y : 8;
+
+            unsigned cstick_x : 8;
+            unsigned cstick_y : 8;
+            unsigned analog_l : 8;
+            unsigned analog_r : 8;
+        };
+    };
+} _SI_condat_gc;
+
+struct SI_origdat_gc {
+    struct SI_condat_gc data;
+    uint8_t deadzone0;
+    uint8_t deadzone1;
+};
+
 /**
  * @brief Structure for interpreting SI responses
  */
@@ -118,9 +162,14 @@ typedef struct controller_data
 {
     /** @brief Controller Data */
     struct SI_condat c[4];
-    /** @brief Padding to allow mapping directly to a PIF block */
-    unsigned long unused[4*8];
+    /** @brief Padding or GC data to allow mapping directly to a PIF block */
+    struct SI_condat_gc gc[4];
 } _controller_data;
+
+struct controller_origin_data
+{
+    struct SI_origdat_gc gc[4];
+};
 
 #ifdef __cplusplus
 extern "C" {
@@ -128,8 +177,10 @@ extern "C" {
 
 void controller_init();
 void controller_read( struct controller_data * data);
+void controller_read_gc( struct controller_data * data, const uint8_t rumble[4]);
+void controller_read_gc_origin( struct controller_origin_data * data);
 int get_controllers_present();
-int get_accessories_present();
+int get_accessories_present(struct controller_data * data);
 void controller_scan();
 struct controller_data get_keys_down();
 struct controller_data get_keys_up();
