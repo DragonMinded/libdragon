@@ -97,7 +97,7 @@ static void __SI_DMA_wait(void)
  * @param[out] outblock
  *             The buffer to place the output from the PIF
  */
-static void __controller_exec_PIF( void *inblock, void *outblock )
+static void __controller_exec_PIF( const void *inblock, void *outblock )
 {
     volatile uint64_t inblock_temp[8];
     volatile uint64_t outblock_temp[8];
@@ -141,7 +141,7 @@ static void __controller_exec_PIF( void *inblock, void *outblock )
  */
 int eeprom_present()
 {
-    static unsigned long long SI_eeprom_status_block[8] =
+    static const unsigned long long SI_eeprom_status_block[8] =
     {
         0x00000000ff010300,
         0xfffffffffe000000,
@@ -238,7 +238,7 @@ void eeprom_write(int block, const uint8_t * const data)
  */
 void controller_read(struct controller_data * output)
 {
-    static unsigned long long SI_read_con_block[8] =
+    static const unsigned long long SI_read_con_block[8] =
     {
         0xff010401ffffffff,
         0xff010401ffffffff,
@@ -468,7 +468,7 @@ int get_controllers_present()
 {
     int ret = 0;
     struct controller_data output;
-    static unsigned long long SI_read_controllers_block[8] =
+    static const unsigned long long SI_read_controllers_block[8] =
     {
         0xff010401ffffffff,
         0xff010401ffffffff,
@@ -522,7 +522,7 @@ static int __is_valid_accessory( uint32_t data )
  */
 static void __get_accessories_present( struct controller_data *output )
 {
-    static unsigned long long SI_read_status_block[8] =
+    static const unsigned long long SI_read_status_block[8] =
     {
         0xff010300ffffffff,
         0xff010300ffffffff,
