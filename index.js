@@ -75,8 +75,10 @@ process.argv.forEach(function (val, index, array) {
 
     functionToRun(param).then((r) => {
       console.log('Completed task: ' + val);
+      process.exit(0);
     }).catch((e) => {
       console.error(e);
+      process.exit(1);
     });
   }
 });
