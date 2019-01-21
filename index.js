@@ -33,7 +33,7 @@ function runCommand(cmd) {
 }
 
 async function startToolchain() {
-  await runCommand('docker run --name=' + options.PROJECT_NAME + (options.BYTE_SWAP ? ' -e N64_BYTE_SWAP=true' : '') + ' -d --mount type=bind,source="' + __dirname + '",target=/' + options.PROJECT_NAME + ' -w="/' + options.PROJECT_NAME + '" anacierdem/libdragon tail -f /dev/null');
+  await runCommand('docker run --name=' + options.PROJECT_NAME + (options.BYTE_SWAP ? ' -e N64_BYTE_SWAP=true' : '') + ' -d --mount type=bind,source="' + process.cwd() + '",target=/' + options.PROJECT_NAME + ' -w="/' + options.PROJECT_NAME + '" anacierdem/libdragon tail -f /dev/null');
 }
 
 const availableActions = {
