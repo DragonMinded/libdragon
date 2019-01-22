@@ -33,7 +33,10 @@ function runCommand(cmd) {
 }
 
 async function startToolchain() {
-  await runCommand('docker run --name=' + options.PROJECT_NAME + (options.BYTE_SWAP ? ' -e N64_BYTE_SWAP=true' : '') + ' -d --mount type=bind,source="' + process.cwd() + '",target=/' + options.PROJECT_NAME + ' -w="/' + options.PROJECT_NAME + '" anacierdem/libdragon tail -f /dev/null');
+  const list = await runCommand('docker container ls -f name=' + options.PROJECT_NAME);
+  if (!list) {
+    await runCommand('docker run --name=' + options.PROJECT_NAME + (options.BYTE_SWAP ? ' -e N64_BYTE_SWAP=true' : '') + ' -d --mount type=bind,source="' + process.cwd() + '",target=/' + options.PROJECT_NAME + ' -w="/' + options.PROJECT_NAME + '" anacierdem/libdragon tail -f /dev/null');
+  }
 }
 
 const availableActions = {
@@ -43,7 +46,7 @@ const availableActions = {
     startToolchain();
   },
   init: async function initialize() {
-    await runCommand('docker build -t anacierdem/libdragon:latest ./');
+    await runCommand('docker build -q -t anacierdem/libdragon:latest ./');
     startToolchain();
   },
   make: async function make(param) {
