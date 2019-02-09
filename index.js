@@ -35,18 +35,18 @@ function runCommand(cmd) {
 async function startToolchain() {
   const list = await runCommand('docker container ls -q -f name=' + options.PROJECT_NAME);
   if (!list) {
-    await runCommand('docker run --name=' + options.PROJECT_NAME + (options.BYTE_SWAP ? ' -e N64_BYTE_SWAP=true' : '') + ' -d --mount type=bind,source="' + process.cwd() + '",target=/' + options.PROJECT_NAME + ' -w="/' + options.PROJECT_NAME + '" anacierdem/libdragon tail -f /dev/null');
+    await runCommand('docker run --name=' + options.PROJECT_NAME + (options.BYTE_SWAP ? ' -e N64_BYTE_SWAP=true' : '') + ' -d --mount type=bind,source="' + process.cwd() + '",target=/' + options.PROJECT_NAME + ' -w="/' + options.PROJECT_NAME + '" anacierdem/libdragon:' + process.env.npm_package_version + ' tail -f /dev/null');
   }
 }
 
 const availableActions = {
   start: startToolchain,
   download: async function download() {
-    await runCommand('docker pull anacierdem/libdragon:latest');
+    await runCommand('docker pull anacierdem/libdragon:' + process.env.npm_package_version);
     startToolchain();
   },
   init: async function initialize() {
-    await runCommand('docker build -q -t anacierdem/libdragon:latest ./');
+    await runCommand('docker build -q -t anacierdem/libdragon:' + process.env.npm_package_version + ' ./');
     startToolchain();
   },
   make: async function make(param) {
@@ -59,7 +59,14 @@ const availableActions = {
       await Promise.reject('Toolchain is not running.');
     }
     await runCommand('docker rm -f ' + options.PROJECT_NAME);
-  }
+  },
+  // This requires docker login
+  update: async function update() {
+    await runCommand('docker build -q -t anacierdem/libdragon:' + process.env.npm_package_version + ' -f ./update/Dockerfile ./');
+    await runCommand('docker tag anacierdem/libdragon:' + process.env.npm_package_version + ' anacierdem/libdragon:latest');
+    await runCommand('docker push anacierdem/libdragon:' + process.env.npm_package_version);
+    await runCommand('docker push anacierdem/libdragon:latest');
+  },
 }
 
 process.argv.forEach(function (val, index, array) {
