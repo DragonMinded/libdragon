@@ -33,15 +33,17 @@ function runCommand(cmd) {
 }
 
 async function startToolchain() {
-  const list = await runCommand('docker container ls -q -f name=' + options.PROJECT_NAME);
-  if (!list) {
-    await runCommand('docker run --name=' + options.PROJECT_NAME + (options.BYTE_SWAP ? ' -e N64_BYTE_SWAP=true' : '') + ' -d --mount type=bind,source="' + process.cwd() + '",target=/' + options.PROJECT_NAME + ' -w="/' + options.PROJECT_NAME + '" anacierdem/libdragon:' + process.env.npm_package_version + ' tail -f /dev/null');
+  const containerID = await runCommand('docker container ls -q -f name=' + options.PROJECT_NAME);
+  if (containerID) {
+    await runCommand('docker container rm -f ' + containerID);
   }
+  await runCommand('docker run --name=' + options.PROJECT_NAME + (options.BYTE_SWAP ? ' -e N64_BYTE_SWAP=true' : '') + ' -d --mount type=bind,source="' + process.cwd() + '",target=/' + options.PROJECT_NAME + ' -w="/' + options.PROJECT_NAME + '" anacierdem/libdragon:' + process.env.npm_package_version + ' tail -f /dev/null');
 }
 
 const availableActions = {
   start: startToolchain,
   download: async function download() {
+    await runCommand('docker pull anacierdem/libdragon:base');
     await runCommand('docker pull anacierdem/libdragon:' + process.env.npm_package_version);
     startToolchain();
   },
