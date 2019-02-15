@@ -2,6 +2,7 @@
 
 const { exec } = require('child_process');
 const path = require('path');
+const _ = require('lodash');
 const { version } = require('./package.json'); // Always use self version for docker image
 
 // Default options
@@ -69,25 +70,26 @@ const availableActions = {
         const npmPath = await runCommand('npm ls ' + dep + ' --parseable=true');
         return {
           name: dep,
-          paths: npmPath.split('\n').filter(f => f)
+          paths: _.uniq(npmPath.split('\n').filter(f => f))
         }
       }));
 
     await Promise.all(
-      deps.map(({ name, paths }) => Promise.all(
-        paths.map(async (p) => {
-          return new Promise(async (resolve, reject) => {
-            try {
-              await runCommand('docker exec ' + options.PROJECT_NAME + ' mkdir -p /' + options.PROJECT_NAME + '/.tmp/' + name + '/');
-              await runCommand('docker cp ' + p + '/. ' + options.PROJECT_NAME + ':/' + options.PROJECT_NAME + '/.tmp/' + name + '/');
-              await runCommand('docker exec ' + options.PROJECT_NAME + '[ -f /' + options.PROJECT_NAME + '/.tmp/' + name + '/Makefile ] &&  make -C ./.tmp/' + name + '/ && make -C ./.tmp/' + name + '/ install');
-              resolve();
-            } catch(e) {
-              reject(e);
-            }
-          });
-        })
-      ))
+      deps.map(({ name, paths }) => {
+        if (paths.length > 1) {
+          return Promise.reject('Using same dependency with different versions is not supported!');
+        }
+        return new Promise(async (resolve, reject) => {
+          try {
+            await runCommand('docker exec ' + options.PROJECT_NAME + ' mkdir -p /' + options.PROJECT_NAME + '/.tmp/' + name + '/');
+            await runCommand('docker cp ' + p + '/. ' + options.PROJECT_NAME + ':/' + options.PROJECT_NAME + '/.tmp/' + name + '/');
+            await runCommand('docker exec ' + options.PROJECT_NAME + '[ -f /' + options.PROJECT_NAME + '/.tmp/' + name + '/Makefile ] &&  make -C ./.tmp/' + name + '/ && make -C ./.tmp/' + name + '/ install');
+            resolve();
+          } catch(e) {
+            reject(e);
+          }
+        });
+      })
     );
   },
   make: make,

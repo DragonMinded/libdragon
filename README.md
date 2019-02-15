@@ -95,7 +95,7 @@ For example this package.json;
         }
     }
 
-will download the docker image, run it with the name `libdragonDependentProject` and run `make && make install` for ed64 upon running `npm install`. This is an experimental dependency management and only handle root level dependencies.
+will download the docker image, run it with the name `libdragonDependentProject` and run `make && make install` for ed64 upon running `npm install`. This is an experimental dependency management.
 
 # RSP assembly
 
