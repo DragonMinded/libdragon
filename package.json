@@ -1,13 +1,24 @@
 {
   "name": "libdragon",
-  "version": "1.0.6",
+  "version": "1.1.1",
   "description": "This is a simple library for N64 that allows one to code using the gcc compiler suite and nothing else.  No proprietary library is needed.  For more information, visit http://www.dragonminded.com/n64dev/",
   "main": "index.js",
+  "engines": {
+    "node": ">=7.6"
+  },
   "directories": {
     "example": "examples"
   },
+  "bin": {
+    "libdragon": "./index.js"
+  },
   "scripts": {
     "tc": "node index.js",
+    "start": "npm run tc -- start",
+    "stop": "npm run tc -- stop",
+    "make": "npm run tc -- make",
+    "download": "npm run tc -- download",
+    "init": "npm run tc -- init",
     "prepublishOnly": "npm run tc -- update"
   },
   "repository": {
@@ -19,5 +30,8 @@
   "bugs": {
     "url": "https://github.com/anacierdem/libdragon/issues"
   },
-  "homepage": "https://github.com/anacierdem/libdragon#readme"
+  "homepage": "https://github.com/anacierdem/libdragon#readme",
+  "dependencies": {
+    "lodash": "^4.17.11"
+  }
 }

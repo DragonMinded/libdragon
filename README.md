@@ -4,13 +4,13 @@ This is a simple library for N64 that allows one to code using the gcc compiler 
 
 To make managing the toolcain easier, a docker container is used. Node.js is used to interact with the docker container for multi-platform support. You can inspect index.js if you prefer not to use node, but it makes things easier in general when working with docker.
 
-On a machine with node.js (>= 7.6) & docker you can simply do;
+On a machine with node.js (>= 7.6) & docker you can simply do in this repository's root;
 
-    npm run tc -- download
+    npm run download
 
-to download the toolchain image from docker repository. The `--` is necessary for npm parameters to work. If you instead prefer to build it on your computer do;
+to download the toolchain image from docker repository. If you instead prefer to build it on your computer do;
 
-    npm run tc -- init
+    npm run init
 
 This will build and start the container and may take a while as it will initialize the docker container and build the toolchain from scratch.
 
@@ -19,22 +19,22 @@ You will need to share your working drive from docker UI for it to be able to ac
 
 You can also start / stop the docker container using;
 
-    npm run tc -- start
-    npm run tc -- stop
+    npm start
+    npm stop
 
 To build the examples do;
 
-    npm run tc -- make examples
+    npm run make examples
 
 Toolchain wrapper can also run make inside the container for you with the make command;
 
 e.g to run clean all on root;
 
-    npm run tc -- make clean
+    npm run make clean
 
 The toolchain make command will be only run at the root-level. Use -C flag to make a directory instead;
 
-    npm run tc -- make -C your/path
+    npm run make -C your/path
 
 Please note that the path should be unix-compatible, so you should not use auto completion on non-unix systems.
 
@@ -42,7 +42,7 @@ If you export `N64_BYTE_SWAP` environment variable with a value of true (`export
 
 To use the toolchain's host make command with byte swap enabled, pass a make variable like so;
 
-    npm run tc -- make examples N64_BYTE_SWAP=true
+    npm run make examples N64_BYTE_SWAP=true
 
 You can also permanently set `BYTE_SWAP` for docker container in `index.js` and stop/start it for changes to take effect.
 
@@ -50,7 +50,52 @@ If you need more control over the toolchain container bash into it with;
 
     docker exec -i -t libdragon /bin/bash
 
-You can copy `index.js` and `package.json` to your root path in order to use docker in your other N64 projects. Simply change `PROJECT_NAME` variable and toolchain will be available as a new container for your project when you run `npm run tc -- start` in your project root.
+It is also possible to install libdragon as a global NPM module, making it possible to invoke it as;
+
+    libdragon download
+    libdragon init
+    libdragon start
+    libdragon stop
+    libdragon make [...params]
+
+Keep in mind that the same docker container (with the default name of libdragon) will be used for the global and git cloned libdragon instances.
+
+You can install libdragon as an NPM dependency by `npm install libdragon --save` in order to use docker in your other N64 projects. In this case, your project name will be used as the container name and this is shared among all NPM projects using that name. Again, your project's root is mounted on the docker image. Then above commands become;
+
+    ./node_modules/.bin/libdragon download
+
+When using them in your package.json scripts, it is possible to omit `./node_modules/.bin/` such as;
+
+    "scripts": {
+        "init": "libdragon download",
+        "build": "libdragon make",
+        "clean": "libdragon make clean"
+    }
+
+Finally, you can make an NPM package that a `libdragon` project can depend on. Just include a Makefile on the repository root with recipes for `all` and `install`. On the depending project, after installing libdragon and the dependency with `npm install [dep name]`, one can install libdragon dependencies on the current docker container by;
+
+    ./node_modules/.bin/libdragon install
+
+or using package.json scripts.
+
+For example this package.json;
+
+    {
+        "name": "libdragonDependentProject",
+        "version": "1.0.0",
+        "description": "",
+        "scripts": {
+            "build": "libdragon make",
+            "clean": "libdragon make clean",
+            "install": "libdragon install"
+        },
+        "dependencies": {
+            "ed64": [version],
+            "libdragon": [version]
+        }
+    }
+
+will download the docker image, run it with the name `libdragonDependentProject` and run `make && make install` for ed64 upon running `npm install`. This is an experimental dependency management.
 
 # RSP assembly
 
