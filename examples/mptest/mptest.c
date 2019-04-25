@@ -48,7 +48,8 @@ int main(void)
                     /* Read accessories present, throwing away return.  If we don't do this, then
                        initialization routines in the identify_accessory() call will fail once we
                        remove and insert a new accessory while running */
-                    get_accessories_present();
+                    struct controller_data output;
+                    get_accessories_present( &output );
 
                     /* Make sure they don't have a rumble pak inserted instead */
                     switch( identify_accessory( i ) )

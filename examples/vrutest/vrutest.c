@@ -51,7 +51,8 @@ int main(void)
 
         if( controllers & CONTROLLER_1_INSERTED )
         {
-            int accessories = get_accessories_present();
+            struct controller_data output;
+            int accessories = get_accessories_present( &output );
 
             if( (accessories & CONTROLLER_4_INSERTED) && identify_accessory( 3 ) == ACCESSORY_VRU )
             {
