@@ -82,8 +82,8 @@ const availableActions = {
         return new Promise(async (resolve, reject) => {
           try {
             await runCommand('docker exec ' + options.PROJECT_NAME + ' mkdir -p /' + options.PROJECT_NAME + '/.tmp/' + name + '/');
-            await runCommand('docker cp ' + p + '/. ' + options.PROJECT_NAME + ':/' + options.PROJECT_NAME + '/.tmp/' + name + '/');
-            await runCommand('docker exec ' + options.PROJECT_NAME + '[ -f /' + options.PROJECT_NAME + '/.tmp/' + name + '/Makefile ] &&  make -C ./.tmp/' + name + '/ && make -C ./.tmp/' + name + '/ install');
+            await runCommand('docker cp "' + paths[0] + '/." ' + options.PROJECT_NAME + ':/' + options.PROJECT_NAME + '/.tmp/' + name + '/');
+            await runCommand('docker exec ' + options.PROJECT_NAME + ' /bin/bash -c "[ -f /' + options.PROJECT_NAME + '/.tmp/' + name + '/Makefile ] &&  make -C ./.tmp/' + name + '/ && make -C ./.tmp/' + name + '/ install"');
             resolve();
           } catch(e) {
             reject(e);
