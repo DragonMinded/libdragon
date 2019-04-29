@@ -60,11 +60,7 @@ It is also possible to install libdragon as a global NPM module, making it possi
 
 Keep in mind that the same docker container (with the default name of libdragon) will be used for the global and git cloned libdragon instances.
 
-You can install libdragon as an NPM dependency by `npm install libdragon --save` in order to use docker in your other N64 projects. In this case, your project name will be used as the container name and this is shared among all NPM projects using that name. Again, your project's root is mounted on the docker image. Then above commands become;
-
-    ./node_modules/.bin/libdragon download
-
-When using them in your package.json scripts, it is possible to omit `./node_modules/.bin/` such as;
+You can install libdragon as an NPM dependency by `npm install libdragon --save` in order to use docker in your other N64 projects. In this case, your project name will be used as the container name and this is shared among all NPM projects using that name. Again, your project's root is mounted on the docker image. Then above commands can only be used as NPM scripts in your package.json, such as;
 
     "scripts": {
         "init": "libdragon download",
@@ -72,11 +68,7 @@ When using them in your package.json scripts, it is possible to omit `./node_mod
         "clean": "libdragon make clean"
     }
 
-Finally, you can make an NPM package that a `libdragon` project can depend on. Just include a Makefile on the repository root with recipes for `all` and `install`. On the depending project, after installing libdragon and the dependency with `npm install [dep name]`, one can install libdragon dependencies on the current docker container by;
-
-    ./node_modules/.bin/libdragon install
-
-or using package.json scripts.
+Finally, you can make an NPM package that a `libdragon` project can depend on. Just include a Makefile on the repository root with recipes for `all` and `install`. On the depending project, after installing libdragon and the dependency with `npm install [dep name]`, one can install libdragon dependencies on the current docker container using package.json scripts.
 
 For example this package.json;
 
