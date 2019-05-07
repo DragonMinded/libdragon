@@ -6,9 +6,9 @@
 #include <libdragon.h>
 #include <rsp.h>
 
-extern const char basic_ucode_start;
-extern const char basic_ucode_end;
-extern const char basic_ucode_size;
+extern const char basic_ucode_start __attribute__((section(".data")));
+extern const char basic_ucode_end __attribute__((section(".data")));
+extern const char basic_ucode_size __attribute__((section(".data")));
 
 static resolution_t res = RESOLUTION_320x240;
 static bitdepth_t bit = DEPTH_32_BPP;

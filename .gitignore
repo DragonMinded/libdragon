@@ -27,3 +27,6 @@ tools/n64tool
 *.dfs
 
 node_modules
+
+## Editors
+.vscode
