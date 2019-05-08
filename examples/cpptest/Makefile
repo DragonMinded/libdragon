@@ -27,11 +27,15 @@ PROG_NAME = cpptest
 $(PROG_NAME)$(ROM_EXTENSION): $(PROG_NAME).elf
 	$(OBJCOPY) $(PROG_NAME).elf $(PROG_NAME).bin -O binary
 	rm -f $(PROG_NAME)$(ROM_EXTENSION)
-	$(N64TOOL) $(N64_FLAGS) -t "Controller Test"
+	$(N64TOOL) $(N64_FLAGS) -t "C++ Test"
 	$(CHKSUM64PATH) $(PROG_NAME)$(ROM_EXTENSION)
 
-$(PROG_NAME).elf: $(PROG_NAME).cpp
-	$(CC) $(PROG_NAME).cpp -o $(PROG_NAME).elf $(LINK_FLAGS) $(C_FLAGS)
+# Could not find a single step method?
+$(PROG_NAME).o: $(PROG_NAME).cpp
+	$(CC) -c -o $(PROG_NAME).o $(PROG_NAME).cpp $(CFLAGS)
+
+$(PROG_NAME).elf: $(PROG_NAME).o
+	$(LD) -o $(PROG_NAME).elf $(PROG_NAME).o $(LINK_FLAGS)
 
 all: $(PROG_NAME)$(ROM_EXTENSION)
 
