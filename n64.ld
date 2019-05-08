@@ -28,8 +28,15 @@ MEMORY
 }
 
 SECTIONS {
+   /* Start address of code is 1K up in uncached, unmapped RAM.  We have
+    * to be at least this far up in order to not interfere with the cart
+    * boot code which is copying it down from the cart
+    */
     . = 0x80000400;
 
+    /* The text section carries the app code and its relocation addr is
+    * the first byte of the cart domain in cached, unmapped memory
+    */
     .text : {
         *(.boot)
         . = ALIGN(16);
@@ -77,6 +84,16 @@ SECTIONS {
 
     . = ALIGN(8);
 
+    /* Data section has relocation address at start of RAM in cached,
+    * unmapped memory, but is loaded just at the end of the text segment,
+    * and must be copied to the correct location at startup
+    * Gather all initialised data together.  The memory layout
+    * will place the global initialised data at the lowest addrs.
+    * The lit8, lit4, sdata and sbss sections have to be placed
+    * together in that order from low to high addrs with the _gp symbol
+    * positioned (aligned) at the start of the sdata section.
+    * We then finish off with the standard bss section
+    */
     .data : {
         __data_start = .;
         *(.data)
@@ -93,8 +110,7 @@ SECTIONS {
 
     . = ALIGN(8);
     .sdata : {
-        /* Ideally, this should be _gp = . + 0x8000 - GCC is complaining about small data not being smaller than 64k - Any ideas? */
-        _gp = . + 0x7000;
+        _gp = .;
         *(.sdata)
         *(.sdata.*)
         *(.gnu.linkonce.s.*)
@@ -111,7 +127,6 @@ SECTIONS {
         *(.scommon)
         *(.scommon.*)
     } > mem
-
 
     . = ALIGN(8);
     .bss (NOLOAD) : {
