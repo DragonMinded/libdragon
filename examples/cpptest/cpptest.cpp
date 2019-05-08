@@ -10,9 +10,12 @@ static bitdepth_t bit = DEPTH_32_BPP;
 class TestClass
 {
     private:
-        int d = 2;
+        int d;
 
     public:
+        TestClass() {
+            d = 2;
+        }
         int f1()
         {
             return d;
