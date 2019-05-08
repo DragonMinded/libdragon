@@ -39,6 +39,22 @@ data_init:
 	jal data_cache_hit_writeback_invalidate
 	nop
 
+	/* fill .bss with 0s */
+	la a0, __bss_start
+	la a1, __bss_end
+bss_init:
+	sd $0,(a0)
+	addiu a0,8
+	bltu a0,a1, bss_init
+	nop
+
+	/* make sure .bss is actually written */
+	la a0,__bss_start
+	la a1,__bss_end
+	sub a1,a0
+	jal data_cache_hit_writeback_invalidate
+	nop
+
 	/* load interrupt vector */
 	la t0,intvector
 	la t1,0xa0000000

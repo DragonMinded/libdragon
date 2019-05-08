@@ -30,7 +30,6 @@ int main(void)
     init_interrupts();
 
     console_init();
-    controller_init();
 
     console_set_render_mode(RENDER_MANUAL);
 

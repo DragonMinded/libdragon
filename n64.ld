@@ -24,7 +24,7 @@ ENTRY (_start)
 
 MEMORY
 {
-    mem : ORIGIN = 0x80000400, LENGTH = 2M-0x0400
+    mem : ORIGIN = 0x80000400, LENGTH = 4M-0x0400
 }
 
 SECTIONS {
@@ -54,8 +54,9 @@ SECTIONS {
         *(.gnu.linkonce.r.*)
     } > mem
 
+    . = ALIGN(8);
+
     .ctors : {
-        . = ALIGN(8);
         __CTOR_LIST_SIZE__ = .;
         LONG((__CTOR_END__ - __CTOR_LIST__) / 4 - 1)
         __CTOR_LIST__ = .;
@@ -63,6 +64,8 @@ SECTIONS {
         LONG(0)
         __CTOR_END__ = .;
     } > mem
+
+    . = ALIGN(8);
 
     .dtors : {
         __DTOR_LIST__ = .;
@@ -72,12 +75,20 @@ SECTIONS {
         __DTOR_END__ = .;
     } > mem
 
+    . = ALIGN(8);
+
     .data : {
-        . = ALIGN(8);
         __data_start = .;
         *(.data)
         *(.data.*)
         *(.gnu.linkonce.d.*)
+    } > mem
+
+    .lit8 : {
+        *(.lit8)
+    } > mem
+    .lit4 : {
+        *(.lit4)
     } > mem
 
     . = ALIGN(8);
@@ -89,37 +100,27 @@ SECTIONS {
         *(.gnu.linkonce.s.*)
     } > mem
 
+    __data_end = .;
+
+    . = ALIGN(8);
     .sbss (NOLOAD) : {
+         __bss_start = .;
         *(.sbss)
         *(.sbss.*)
-    } > mem = 0x0
-
-    .scommon : {
+        *(.gnu.linkonce.sb.*)
         *(.scommon)
         *(.scommon.*)
     } > mem
 
-    .got : {
-        *(.got.plt)
-        *(.got)
-    } > mem
 
-    .lit8 : {
-        *(.lit8)
-    } > mem
-    .lit4 : {
-        *(.lit4)
-    } > mem
-
-    . = ALIGN(4);
+    . = ALIGN(8);
     .bss (NOLOAD) : {
         *(.bss)
         *(.bss*)
         *(.gnu.linkonce.b.*)
         *(COMMON)
-    } > mem = 0x0
-
-    __data_end = .;
+        __bss_end = .;
+    } > mem
 
     . = ALIGN(8);
     end = .;
