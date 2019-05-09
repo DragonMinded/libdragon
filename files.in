@@ -13,6 +13,7 @@ OFILES_LD += $(CURDIR)/build/rdp.o
 OFILES_LD += $(CURDIR)/build/rsp.o
 OFILES_LD += $(CURDIR)/build/dma.o
 OFILES_LD += $(CURDIR)/build/timer.o
+OFILES_LD += $(CURDIR)/build/version.o
 OFILES_LD += $(CURDIR)/build/exception.o
 OFILES_LD += $(CURDIR)/build/do_ctors.o
 
@@ -84,6 +85,11 @@ $(CURDIR)/build/exception.o: $(CURDIR)/src/exception.c
 $(CURDIR)/build/system.o: $(CURDIR)/src/system.c
 	mkdir -p $(CURDIR)/build
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/system.o $(CURDIR)/src/system.c
+
+# Rules for injecting version
+$(CURDIR)/build/version.o: $(CURDIR)/src/version.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/version.o $(CURDIR)/src/version.c
 
 # Rules for compiling c++ extras
 $(CURDIR)/build/do_ctors.o: $(CURDIR)/src/do_ctors.c

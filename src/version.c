@@ -1,0 +1,19 @@
+
+#ifndef LIBDRAGON_VERSION_MAJOR
+#define LIBDRAGON_VERSION_MAJOR -1
+#endif
+
+#ifndef LIBDRAGON_VERSION_MINOR
+#define LIBDRAGON_VERSION_MINOR -1
+#endif
+
+#ifndef LIBDRAGON_VERSION_REVISION
+#define LIBDRAGON_VERSION_REVISION -1
+#endif
+
+struct version
+{
+    int major;
+    int minor;
+    int revision;
+} libdragon_version = { LIBDRAGON_VERSION_MAJOR, LIBDRAGON_VERSION_MINOR, LIBDRAGON_VERSION_REVISION };
