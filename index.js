@@ -52,6 +52,13 @@ async function download() {
   await startToolchain();
 }
 
+async function stop() {
+  const list = await runCommand('docker ps -a -q -f name=' + options.PROJECT_NAME);
+  if (list) {
+    await runCommand('docker rm -f ' + options.PROJECT_NAME);
+  }
+}
+
 const availableActions = {
   start: startToolchain,
   download: download,
@@ -94,19 +101,15 @@ const availableActions = {
     );
   },
   make: make,
-  stop: async function stop() {
-    const list = await runCommand('docker ps -a -q -f name=' + options.PROJECT_NAME);
-    if (!list) {
-      await Promise.reject('Toolchain is not running.');
-    }
-    await runCommand('docker rm -f ' + options.PROJECT_NAME);
-  },
+  stop: stop,
   // This requires docker login
   update: async function update() {
+    await stop();
     await runCommand('docker build -q -t anacierdem/libdragon:' + version + ' -f ./update/Dockerfile ./');
     await runCommand('docker tag anacierdem/libdragon:' + version + ' anacierdem/libdragon:latest');
     await runCommand('docker push anacierdem/libdragon:' + version);
     await runCommand('docker push anacierdem/libdragon:latest');
+    await startToolchain();
   },
 }
 

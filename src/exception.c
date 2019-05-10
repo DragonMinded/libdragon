@@ -23,7 +23,9 @@
 /** @brief Exception handler currently registered with exception system */
 static void (*__exception_handler)(exception_t*) = NULL;
 /** @brief Base register offset as defined by the interrupt controller */
-extern const unsigned char* __baseRegAddr;
+extern const unsigned char* __baseRegAddr __attribute__((section (".data")));
+// Do not allow this in small data or it will seem larger than it actually is
+// Linker is using the undefined section here instead of using .bss from inthandler.S?
 
 /**
  * @brief Register an exception handler to handle exceptions
