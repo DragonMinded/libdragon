@@ -38,6 +38,7 @@ int main(void)
     while(1)
     {
         console_clear();
+        printf("Libdragon v%d.%d.%d", libdragon_version.major, libdragon_version.minor, libdragon_version.revision);
         printf("Test: %d", o1.f1());
         console_render();
     }

@@ -1,4 +1,6 @@
 
+#include "libdragon.h"
+
 #ifndef LIBDRAGON_VERSION_MAJOR
 #define LIBDRAGON_VERSION_MAJOR -1
 #endif
@@ -11,9 +13,4 @@
 #define LIBDRAGON_VERSION_REVISION -1
 #endif
 
-struct version
-{
-    int major;
-    int minor;
-    int revision;
-} libdragon_version = { LIBDRAGON_VERSION_MAJOR, LIBDRAGON_VERSION_MINOR, LIBDRAGON_VERSION_REVISION };
+libdragon_version_t libdragon_version = { LIBDRAGON_VERSION_MAJOR, LIBDRAGON_VERSION_MINOR, LIBDRAGON_VERSION_REVISION };
