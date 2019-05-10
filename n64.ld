@@ -101,19 +101,21 @@ SECTIONS {
         *(.gnu.linkonce.d.*)
     } > mem
 
+    /* Small data START */
+
+    . = ALIGN(8);
+    .sdata : {
+        _gp = . + 0x8000;
+        *(.sdata)
+        *(.sdata.*)
+        *(.gnu.linkonce.s.*)
+    } > mem
+
     .lit8 : {
         *(.lit8)
     } > mem
     .lit4 : {
         *(.lit4)
-    } > mem
-
-    . = ALIGN(8);
-    .sdata : {
-        _gp = .;
-        *(.sdata)
-        *(.sdata.*)
-        *(.gnu.linkonce.s.*)
     } > mem
 
     __data_end = .;
@@ -127,6 +129,8 @@ SECTIONS {
         *(.scommon)
         *(.scommon.*)
     } > mem
+
+    /* Small data END */
 
     . = ALIGN(8);
     .bss (NOLOAD) : {
