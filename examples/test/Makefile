@@ -5,7 +5,7 @@ MKDFSPATH = $(ROOTDIR)/bin/mkdfs
 HEADERPATH = $(ROOTDIR)/mips64-elf/lib
 N64TOOL = $(ROOTDIR)/bin/n64tool
 HEADERNAME = header
-LINK_FLAGS = -L$(ROOTDIR)/mips64-elf/lib -ldragon -lc -lm -ldragonsys -Tn64ld.x
+LINK_FLAGS = -L$(ROOTDIR)/mips64-elf/lib -ldragon -lc -lm -ldragonsys -Tn64.ld
 PROG_NAME = test
 CFLAGS = -std=gnu99 -march=vr4300 -mtune=vr4300 -O2 -Wall -Werror -I$(ROOTDIR)/mips64-elf/include
 ASFLAGS = -mtune=vr4300 -march=vr4300

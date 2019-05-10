@@ -58,7 +58,7 @@ It is also possible to install libdragon as a global NPM module, making it possi
     libdragon stop
     libdragon make [...params]
 
-Keep in mind that the same docker container (with the default name of libdragon) will be used for the global and git cloned libdragon instances.
+Keep in mind that the same docker container (with the default name of libdragon) will be used for the global and git cloned libdragon instances. Also successive `libdragon` commands can remove the old containers. **BE CAREFUL** containers are temporary assets in this context.
 
 You can install libdragon as an NPM dependency by `npm install libdragon --save` in order to use docker in your other N64 projects. In this case, your project name will be used as the container name and this is shared among all NPM projects using that name. Again, your project's root is mounted on the docker image. Then above commands can only be used as NPM scripts in your package.json, such as;
 

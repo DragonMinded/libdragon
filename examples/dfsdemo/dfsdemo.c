@@ -8,6 +8,11 @@
 
 #define MAX_LIST            20
 
+// Hint linker on it is OK to put these on .data section
+// This is ugly, there must be a better way?
+MIKMODAPI extern UWORD md_mode __attribute__((section (".data")));
+MIKMODAPI extern UWORD md_mixfreq __attribute__((section (".data")));
+
 typedef struct
 {
     uint32_t type;
@@ -224,7 +229,6 @@ int main(void)
     MikMod_RegisterAllDrivers();
     MikMod_RegisterAllLoaders();
 
-    md_mode = 0;
     md_mode |= DMODE_16BITS;
     md_mode |= DMODE_SOFT_MUSIC;
     md_mode |= DMODE_SOFT_SNDFX;
