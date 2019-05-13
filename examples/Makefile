@@ -56,5 +56,5 @@ ucodetest:
 ucodetest-clean:
 	make -C ucodetest clean
 
-.PHONY: ctest ctest-clean dfsdemo dfsdemo-clean mptest mptest-clean mputest mputest-clean spritemap spritemap-clean
+.PHONY: cpptest cpptest-clean ctest ctest-clean dfsdemo dfsdemo-clean mptest mptest-clean mputest mputest-clean spritemap spritemap-clean
 .PHONY: test test-clean timers timers-clean vrutest vrutest-clean vtest vtest-clean ucodetest ucodetest-clean

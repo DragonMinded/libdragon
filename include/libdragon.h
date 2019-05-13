@@ -67,6 +67,6 @@ typedef struct
     int revision;
 } libdragon_version_t;
 
-libdragon_version_t libdragon_version;
+extern libdragon_version_t libdragon_version;
 
 #endif
