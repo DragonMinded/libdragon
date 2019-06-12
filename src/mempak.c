@@ -159,16 +159,16 @@ static int __validate_header( uint8_t *sector )
     /* Check 4 checksums of copied header data */
     current_block = 0x20;
     checksum = __get_header_checksum((uint16_t *)&sector[current_block]);
-    if( (checksum != *(uint16_t *)(&sector[current_block + 0x1C])) && (checksum != 0xFFF2 - *(uint16_t *)(&sector[current_block + 0x1E])) ) { return -1; }
+    if( (checksum != *(uint16_t *)(&sector[current_block + 0x1C])) || (checksum != 0xFFF2 - *(uint16_t *)(&sector[current_block + 0x1E])) ) { return -1; }
     current_block = 0x60;
     checksum = __get_header_checksum((uint16_t *)&sector[current_block]);
-    if( (checksum != *(uint16_t *)(&sector[current_block + 0x1C])) && (checksum != 0xFFF2 - *(uint16_t *)(&sector[current_block + 0x1E])) ) { return -1; }
+    if( (checksum != *(uint16_t *)(&sector[current_block + 0x1C])) || (checksum != 0xFFF2 - *(uint16_t *)(&sector[current_block + 0x1E])) ) { return -1; }
     current_block = 0x80;
     checksum = __get_header_checksum((uint16_t *)&sector[current_block]);
-    if( (checksum != *(uint16_t *)(&sector[current_block + 0x1C])) && (checksum != 0xFFF2 - *(uint16_t *)(&sector[current_block + 0x1E])) ) { return -1; }
+    if( (checksum != *(uint16_t *)(&sector[current_block + 0x1C])) || (checksum != 0xFFF2 - *(uint16_t *)(&sector[current_block + 0x1E])) ) { return -1; }
     current_block = 0xC0;
     checksum = __get_header_checksum((uint16_t *)&sector[current_block]);
-    if( (checksum != *(uint16_t *)(&sector[current_block + 0x1C])) && (checksum != 0xFFF2 - *(uint16_t *)(&sector[current_block + 0x1E])) ) { return -1; }
+    if( (checksum != *(uint16_t *)(&sector[current_block + 0x1C])) || (checksum != 0xFFF2 - *(uint16_t *)(&sector[current_block + 0x1E])) ) { return -1; }
 
     return 0;
 }
