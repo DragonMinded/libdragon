@@ -21,7 +21,6 @@ script:
   - npm run make examples
 
 deploy:
-  - provider: script
-    script: npm publish
-    on:
-      branch: master
+  provider: npm
+  on:
+    branch: master
