@@ -10,7 +10,8 @@ const options = {
   PROJECT_NAME: process.env.npm_package_name || 'libdragon', // Use active package name when available
   BYTE_SWAP: false,
   MOUNT_PATH: process.cwd(),
-  VERSION: version.split('.') // libdragon version
+  VERSION: version.split('.'), // libdragon version
+  IS_CI: process.env.CI === 'true'
 }
 
 function runCommand(cmd) {
@@ -46,14 +47,17 @@ async function startToolchain() {
     await runCommand('docker container rm -f ' + containerID);
   }
 
+  const versionEnv = ' -e LIBDRAGON_VERSION_MAJOR=' + options.VERSION[0]
+  + ' -e LIBDRAGON_VERSION_MINOR=' + options.VERSION[1]
+  + ' -e LIBDRAGON_VERSION_REVISION=' + options.VERSION[2];
+
+  // Use only base version on CI to test make && make install only
   await runCommand('docker run --name=' + options.PROJECT_NAME
     + (options.BYTE_SWAP ? ' -e N64_BYTE_SWAP=true' : '')
     + ' -e IS_DOCKER=true'
-    + ' -e LIBDRAGON_VERSION_MAJOR=' + options.VERSION[0]
-    + ' -e LIBDRAGON_VERSION_MINOR=' + options.VERSION[1]
-    + ' -e LIBDRAGON_VERSION_REVISION=' + options.VERSION[2]
+    + options.IS_CI ? '' : versionEnv
     + ' -d --mount type=bind,source="' + options.MOUNT_PATH + '",target=/' + options.PROJECT_NAME
-    + ' -w="/' + options.PROJECT_NAME + '" anacierdem/libdragon:' + version + ' tail -f /dev/null');
+    + ' -w="/' + options.PROJECT_NAME + '" anacierdem/libdragon:' + options.IS_CI ? 'base' : version + ' tail -f /dev/null');
 }
 
 async function make(param) {
@@ -72,7 +76,12 @@ async function download() {
     return;
   }
   await runCommand('docker pull anacierdem/libdragon:base');
-  await runCommand('docker pull anacierdem/libdragon:' + version);
+
+  // Use only base version on CI to test make && make install only
+  if (!options.IS_CI) {
+    await runCommand('docker pull anacierdem/libdragon:' + version);
+  }
+
   await startToolchain();
 }
 

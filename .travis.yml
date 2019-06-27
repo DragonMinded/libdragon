@@ -1,0 +1,27 @@
+language: node_js
+
+services:
+  - docker
+
+node_js:
+  - "node"
+
+sudo: false
+
+os:
+  - linux
+
+install:
+  - npm install
+
+script:
+  - npm run download
+  - npm run make
+  - npm run make install
+  - npm run make examples
+
+deploy:
+  - provider: script
+    script: npm publish
+    on:
+      branch: master
