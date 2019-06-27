@@ -55,9 +55,9 @@ async function startToolchain() {
   await runCommand('docker run --name=' + options.PROJECT_NAME
     + (options.BYTE_SWAP ? ' -e N64_BYTE_SWAP=true' : '')
     + ' -e IS_DOCKER=true'
-    + options.IS_CI ? '' : versionEnv
+    + (options.IS_CI ? '' : versionEnv)
     + ' -d --mount type=bind,source="' + options.MOUNT_PATH + '",target=/' + options.PROJECT_NAME
-    + ' -w="/' + options.PROJECT_NAME + '" anacierdem/libdragon:' + options.IS_CI ? 'base' : version + ' tail -f /dev/null');
+    + ' -w="/' + options.PROJECT_NAME + '" anacierdem/libdragon:' + (options.IS_CI ? 'base' : version) + ' tail -f /dev/null');
 }
 
 async function make(param) {
