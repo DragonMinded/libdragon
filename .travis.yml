@@ -23,7 +23,9 @@ script:
 deploy:
   skip_cleanup: true
   provider: script
-  script: npm publish
+  script:
+    - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+    - npm publish
   on:
     branch: master
     repo: anacierdem/libdragon
