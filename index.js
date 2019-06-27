@@ -160,7 +160,7 @@ const availableActions = {
     + ' --build-arg LIBDRAGON_VERSION_MAJOR=' + options.VERSION[0]
     + ' --build-arg LIBDRAGON_VERSION_MINOR=' + options.VERSION[1]
     + ' --build-arg LIBDRAGON_VERSION_REVISION=' + options.VERSION[2]
-    + ' -t anacierdem/libdragon:' + version + ' -f ./update/Dockerfile ./');
+    + ' -t anacierdem/libdragon:' + version + ' -f ./update.Dockerfile ./');
     await runCommand('docker tag anacierdem/libdragon:' + version + ' anacierdem/libdragon:latest');
     await runCommand('docker push anacierdem/libdragon:' + version);
     await runCommand('docker push anacierdem/libdragon:latest');
