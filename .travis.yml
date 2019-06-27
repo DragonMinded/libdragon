@@ -27,3 +27,4 @@ deploy:
   on:
     branch: master
     repo: anacierdem/libdragon
+    tags: true
