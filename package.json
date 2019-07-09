@@ -1,6 +1,6 @@
 {
   "name": "libdragon",
-  "version": "1.2.11",
+  "version": "1.3.0",
   "description": "This is a simple library for N64 that allows one to code using the gcc compiler suite and nothing else.  No proprietary library is needed.  For more information, visit http://www.dragonminded.com/n64dev/",
   "main": "index.js",
   "engines": {
