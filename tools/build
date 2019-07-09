@@ -64,7 +64,7 @@ if [ ! $(gcc --version | grep $GCC_V) ] && [ $FORCE_DEFAULT_GCC == 'false' ]; th
 
     # Use new compiler
     export PATH="${INSTALL_PATH}/gcc-$GCC_V/bin:${PATH}"
-
+    export COMPILED_CUSTOM_NATIVE_GCC="true"
     cd ..
 fi
 
@@ -100,3 +100,7 @@ cd gcc_compile
 CFLAGS_FOR_TARGET="-G0 -O2" CXXFLAGS_FOR_TARGET="-G0 -O2" ../gcc-$GCC_V/configure --prefix=${INSTALL_PATH} --target=mips64-elf --with-arch=vr4300 --with-tune=vr4300 --enable-languages=c,c++ --with-newlib --disable-libssp --enable-multilib --disable-shared --with-gcc --disable-threads --disable-win32-registry --disable-nls --with-system-zlib
 make -j$JOBS
 make install || sudo make install || su -c "make install"
+
+if [ $COMPILED_CUSTOM_NATIVE_GCC == "true" ]; then
+    rm -rf ${INSTALL_PATH}/gcc-$GCC_V
+fi
