@@ -18,7 +18,7 @@ function runCommand(cmd) {
   return new Promise((resolve, reject) => {
     const command = exec(cmd, {}, (err, stdout, stderr) => {
       if (err === null) {
-        console.log('Finished running ' + cmd);
+        console.log('Finished running ' + cmd, stdout);
         resolve(stdout);
       } else {
         reject(err);
