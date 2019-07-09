@@ -41,7 +41,7 @@ async function startToolchain() {
     return;
   }
 
-  const containerID = await runCommand('docker container ls -q -f name=^' + options.PROJECT_NAME + '');
+  const containerID = await runCommand('docker container ls -q -f name=^/' + options.PROJECT_NAME + '$');
 
   if (containerID) {
     await runCommand('docker container rm -f ' + containerID);
