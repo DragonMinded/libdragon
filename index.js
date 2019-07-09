@@ -48,8 +48,8 @@ async function startToolchain() {
   }
 
   const versionEnv = ' -e LIBDRAGON_VERSION_MAJOR=' + options.VERSION[0]
-  + ' -e LIBDRAGON_VERSION_MINOR=' + options.VERSION[1]
-  + ' -e LIBDRAGON_VERSION_REVISION=' + options.VERSION[2];
+    + ' -e LIBDRAGON_VERSION_MINOR=' + options.VERSION[1]
+    + ' -e LIBDRAGON_VERSION_REVISION=' + options.VERSION[2];
 
   // Use only base version on CI to test make && make install only
   await runCommand('docker run --name=' + options.PROJECT_NAME
@@ -104,7 +104,11 @@ const availableActions = {
     if (process.env.IS_DOCKER === 'true') {
       return;
     }
-    await runCommand('docker build -t anacierdem/libdragon:' + version + ' ./');
+    await runCommand('docker build'
+      + ' --build-arg LIBDRAGON_VERSION_MAJOR=' + options.VERSION[0]
+      + ' --build-arg LIBDRAGON_VERSION_MINOR=' + options.VERSION[1]
+      + ' --build-arg LIBDRAGON_VERSION_REVISION=' + options.VERSION[2]
+      + ' -t anacierdem/libdragon:' + version + ' ./');
     await startToolchain();
   },
   install: async function install() {
@@ -156,11 +160,11 @@ const availableActions = {
       return;
     }
     await stop();
-    await runCommand('docker build' 
-    + ' --build-arg LIBDRAGON_VERSION_MAJOR=' + options.VERSION[0]
-    + ' --build-arg LIBDRAGON_VERSION_MINOR=' + options.VERSION[1]
-    + ' --build-arg LIBDRAGON_VERSION_REVISION=' + options.VERSION[2]
-    + ' -t anacierdem/libdragon:' + version + ' -f ./update.Dockerfile ./');
+    await runCommand('docker build'
+      + ' --build-arg LIBDRAGON_VERSION_MAJOR=' + options.VERSION[0]
+      + ' --build-arg LIBDRAGON_VERSION_MINOR=' + options.VERSION[1]
+      + ' --build-arg LIBDRAGON_VERSION_REVISION=' + options.VERSION[2]
+      + ' -t anacierdem/libdragon:' + version + ' -f ./update.Dockerfile ./');
     await runCommand('docker tag anacierdem/libdragon:' + version + ' anacierdem/libdragon:latest');
     await runCommand('docker push anacierdem/libdragon:' + version);
     await runCommand('docker push anacierdem/libdragon:latest');
