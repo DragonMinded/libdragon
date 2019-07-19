@@ -10,7 +10,7 @@ CFLAGS = -std=c++11 -march=vr4300 -mtune=vr4300 -O2 -Wall -Werror -I$(ROOTDIR)/m
 ASFLAGS = -mtune=vr4300 -march=vr4300
 CC = $(GCCN64PREFIX)gcc
 AS = $(GCCN64PREFIX)as
-LD = $(GCCN64PREFIX)ld
+LD = $(GCCN64PREFIX)g++
 OBJCOPY = $(GCCN64PREFIX)objcopy
 OBJDUMP = $(GCCN64PREFIX)objdump
 
