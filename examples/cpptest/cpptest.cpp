@@ -27,6 +27,8 @@ TestClass o1;
 
 int main(void)
 {
+    int* a = new int(2);
+
     init_interrupts();
 
     console_init();
@@ -42,4 +44,6 @@ int main(void)
         printf("Test: %d\n", o1.f1());
         console_render();
     }
+
+    delete a;
 }
