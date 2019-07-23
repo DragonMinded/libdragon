@@ -82,6 +82,23 @@ void load_ucode(void* start, unsigned long size)
     return;
 }
 
+void load_data(void* start, unsigned long size)
+{
+    disable_interrupts();
+    __SP_DMA_wait();
+
+    SP_regs->DRAM_addr = start;
+    MEMORY_BARRIER();
+    SP_regs->RSP_addr = (void*)SP_DMA_DMEM;
+    MEMORY_BARRIER();
+    SP_regs->rsp_read_length = size - 1;
+    MEMORY_BARRIER();
+
+    __SP_DMA_wait();
+    enable_interrupts();
+    return;
+}
+
 void read_ucode(void* start, unsigned long size)
 {
     disable_interrupts();
@@ -99,6 +116,26 @@ void read_ucode(void* start, unsigned long size)
     enable_interrupts();
     return;
 }
+
+
+void read_data(void* start, unsigned long size)
+{
+    disable_interrupts();
+    __SP_DMA_wait();
+
+    SP_regs->DRAM_addr = start;
+    MEMORY_BARRIER();
+    SP_regs->RSP_addr = (void*)SP_DMA_DMEM;
+    MEMORY_BARRIER();
+    SP_regs->rsp_write_length = size - 1;
+    MEMORY_BARRIER();
+    __SP_DMA_wait();
+    data_cache_hit_invalidate(start, size);
+
+    enable_interrupts();
+    return;
+}
+
 
 void run_ucode()
 {
