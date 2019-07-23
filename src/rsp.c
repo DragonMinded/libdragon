@@ -67,8 +67,6 @@ void rsp_init()
 
 void load_ucode(void* start, unsigned long size)
 {
-    data_cache_hit_writeback_invalidate(start, size);
-
     disable_interrupts();
     __SP_DMA_wait();
 
@@ -81,15 +79,11 @@ void load_ucode(void* start, unsigned long size)
 
     __SP_DMA_wait();
     enable_interrupts();
-
-    data_cache_hit_invalidate(start, size);
     return;
 }
 
 void read_ucode(void* start, unsigned long size)
 {
-    data_cache_hit_writeback_invalidate(start, size);
-
     disable_interrupts();
     __SP_DMA_wait();
 
