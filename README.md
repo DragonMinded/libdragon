@@ -6,6 +6,10 @@ To make managing the toolcain easier, a docker container is used. Node.js is use
 
 On a machine with node.js (>= 7.6) & docker you can simply do in this repository's root;
 
+    npm install
+
+to install all necessary dependencies and;
+
     npm run download
 
 to download the toolchain image from docker repository. If you instead prefer to build it on your computer do;
