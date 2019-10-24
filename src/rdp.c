@@ -87,6 +87,10 @@ typedef struct
     uint32_t width;
     /** @brief Height of the texture */
     uint32_t height;
+    /** @brief Width of the texture rounded up to next power of 2 */
+    uint16_t real_width;
+    /** @brief Height of the texture rounded up to next power of 2 */
+    uint16_t real_height;
 } sprite_cache;
 
 extern uint32_t __bitdepth;
@@ -488,7 +492,7 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     /* Instruct the RDP to copy the sprite data out */
     __rdp_ringbuffer_queue( 0xF5000000 | ((sprite->bitdepth == 2) ? 0x00100000 : 0x00180000) | 
                                        (((((real_width / 8) + round_amount) * sprite->bitdepth) & 0x1FF) << 9) | ((texloc / 8) & 0x1FF) );
-    __rdp_ringbuffer_queue( ((texslot & 0x7) << 24) | (mirror_enabled == MIRROR_ENABLED ? 0x40100 : 0) | (hbits << 14 ) | (wbits << 4) );
+    __rdp_ringbuffer_queue( ((texslot & 0x7) << 24) | (mirror_enabled != MIRROR_DISABLED ? 0x40100 : 0) | (hbits << 14 ) | (wbits << 4) );
     __rdp_ringbuffer_send();
 
     /* Copying out only a chunk this time */
@@ -501,6 +505,8 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     cache[texslot & 0x7].height = theight - 1;
     cache[texslot & 0x7].s = sl;
     cache[texslot & 0x7].t = tl;
+    cache[texslot & 0x7].real_width = real_width;
+    cache[texslot & 0x7].real_height = real_height;
     
     /* Return the amount of texture memory consumed by this texture */
     return ((real_width / 8) + round_amount) * 8 * real_height * sprite->bitdepth;
@@ -513,18 +519,18 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
  *            The RDP texture slot to load this sprite into (0-7)
  * @param[in] texloc
  *            The RDP TMEM offset to place the texture at
- * @param[in] mirror_enabled
+ * @param[in] mirror
  *            Whether the sprite should be mirrored when displaying past boundaries
  * @param[in] sprite
  *            Pointer to sprite structure to load the texture from
  *
  * @return The number of bytes consumed in RDP TMEM by loading this sprite
  */
-uint32_t rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror_enabled, sprite_t *sprite )
+uint32_t rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror, sprite_t *sprite )
 {
     if( !sprite ) { return 0; }
 
-    return __rdp_load_texture( texslot, texloc, mirror_enabled, sprite, 0, 0, sprite->width - 1, sprite->height - 1 );
+    return __rdp_load_texture( texslot, texloc, mirror, sprite, 0, 0, sprite->width - 1, sprite->height - 1 );
 }
 
 /**
@@ -547,7 +553,7 @@ uint32_t rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror_en
  *            The RDP texture slot to load this sprite into (0-7)
  * @param[in] texloc
  *            The RDP TMEM offset to place the texture at
- * @param[in] mirror_enabled
+ * @param[in] mirror
  *            Whether the sprite should be mirrored when displaying past boundaries
  * @param[in] sprite
  *            Pointer to sprite structure to load the texture from
@@ -556,7 +562,7 @@ uint32_t rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror_en
  *
  * @return The number of bytes consumed in RDP TMEM by loading this sprite
  */
-uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mirror_enabled, sprite_t *sprite, int offset )
+uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mirror, sprite_t *sprite, int offset )
 {
     if( !sprite ) { return 0; }
 
@@ -569,7 +575,7 @@ uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mi
     int sh = sl + twidth - 1;
     int th = tl + theight - 1;
 
-    return __rdp_load_texture( texslot, texloc, mirror_enabled, sprite, sl, tl, sh, th );
+    return __rdp_load_texture( texslot, texloc, mirror, sprite, sl, tl, sh, th );
 }
 
 /**
@@ -597,24 +603,40 @@ uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mi
  *            Horizontal scaling factor
  * @param[in] y_scale
  *            Vertical scaling factor
+ * @param[in] mirror
+ *            Whether the texture should be mirrored
  */
-void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int bx, int by, double x_scale, double y_scale )
+void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int bx, int by, double x_scale, double y_scale,  mirror_t mirror)
 {
     uint16_t s = cache[texslot & 0x7].s << 5;
     uint16_t t = cache[texslot & 0x7].t << 5;
-
+    uint32_t width = cache[texslot & 0x7].width;
+    uint32_t height = cache[texslot & 0x7].height;
+   
     /* Cant display < 0, so must clip size and move S,T coord accordingly */
     if( tx < 0 )
     {
+        if ( tx < -width * x_scale) { return; }
         s += (int)(((double)((-tx) << 5)) * (1.0 / x_scale));
         tx = 0;
     }
 
     if( ty < 0 )
     {
+        if ( ty < -height * y_scale ) { return; }
         t += (int)(((double)((-ty) << 5)) * (1.0 / y_scale));
         ty = 0;
     }
+
+     // mirror horizontally or vertically
+    if (mirror != MIRROR_DISABLED)
+    {	
+        if (mirror == MIRROR_X || mirror == MIRROR_XY)
+            s += ( (width+1) + ((cache[texslot & 0x7].real_width-(width+1))<<1) ) << 5;
+	
+        if (mirror == MIRROR_Y || mirror == MIRROR_XY)
+            t += ( (height+1) + ((cache[texslot & 0x7].real_height-(height+1))<<1) ) << 5;	
+    }	
 
     /* Calculate the scaling constants based on a 6.10 fixed point system */
     int xs = (int)((1.0 / x_scale) * 4096.0);
@@ -652,11 +674,13 @@ void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int b
  *            The pixel X location of the bottom right of the rectangle
  * @param[in] by
  *            The pixel Y location of the bottom right of the rectangle
+ * @param[in] mirror
+ *            Whether the texture should be mirrored
  */
-void rdp_draw_textured_rectangle( uint32_t texslot, int tx, int ty, int bx, int by )
+void rdp_draw_textured_rectangle( uint32_t texslot, int tx, int ty, int bx, int by, mirror_t mirror )
 {
     /* Simple wrapper */
-    rdp_draw_textured_rectangle_scaled( texslot, tx, ty, bx, by, 1.0, 1.0 );
+    rdp_draw_textured_rectangle_scaled( texslot, tx, ty, bx, by, 1.0, 1.0, mirror );
 }
 
 /**
@@ -673,11 +697,13 @@ void rdp_draw_textured_rectangle( uint32_t texslot, int tx, int ty, int bx, int 
  *            The pixel X location of the top left of the sprite
  * @param[in] y
  *            The pixel Y location of the top left of the sprite
+ * @param[in] mirror
+ *            Whether the texture should be mirrored
  */
-void rdp_draw_sprite( uint32_t texslot, int x, int y )
+void rdp_draw_sprite( uint32_t texslot, int x, int y, mirror_t mirror )
 {
     /* Just draw a rectangle the size of the sprite */
-    rdp_draw_textured_rectangle_scaled( texslot, x, y, x + cache[texslot & 0x7].width, y + cache[texslot & 0x7].height, 1.0, 1.0 );
+    rdp_draw_textured_rectangle_scaled( texslot, x, y, x + cache[texslot & 0x7].width, y + cache[texslot & 0x7].height, 1.0, 1.0, mirror );
 }
 
 /**
@@ -698,15 +724,17 @@ void rdp_draw_sprite( uint32_t texslot, int x, int y )
  *            Horizontal scaling factor
  * @param[in] y_scale
  *            Vertical scaling factor
+ * @param[in] mirror
+ *            Whether the texture should be mirrored
  */
-void rdp_draw_sprite_scaled( uint32_t texslot, int x, int y, double x_scale, double y_scale )
+void rdp_draw_sprite_scaled( uint32_t texslot, int x, int y, double x_scale, double y_scale, mirror_t mirror )
 {
     /* Since we want to still view the whole sprite, we must resize the rectangle area too */
     int new_width = (int)(((double)cache[texslot & 0x7].width * x_scale) + 0.5);
     int new_height = (int)(((double)cache[texslot & 0x7].height * y_scale) + 0.5);
     
     /* Draw a rectangle the size of the new sprite */
-    rdp_draw_textured_rectangle_scaled( texslot, x, y, x + new_width, y + new_height, x_scale, y_scale );
+    rdp_draw_textured_rectangle_scaled( texslot, x, y, x + new_width, y + new_height, x_scale, y_scale, mirror );
 }
 
 /**
