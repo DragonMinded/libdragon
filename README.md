@@ -1,5 +1,7 @@
 # Libdragon
 
+[![Build Status](https://travis-ci.org/DragonMinded/libdragon.svg?branch=master)](https://travis-ci.org/DragonMinded/libdragon)
+
 This is a simple library for N64 that allows one to code using the gcc compiler suite and nothing else. No proprietary library is needed.
 
 To make managing the toolcain easier, a docker container is used. Node.js is used to interact with the docker container for multi-platform support. You can inspect index.js if you prefer not to use node, but it makes things easier in general when working with docker.
