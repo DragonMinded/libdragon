@@ -38,9 +38,9 @@ e.g to run clean all on root;
 
     npm run make clean
 
-The toolchain make command will be only run at the root-level. Use -C flag to make a directory instead;
+The toolchain make command will be only run at the root-level. Additonal parameters are passed down to the make command. Also keep in mind that `--` is necessary for anything more complicated. For example use -C flag to make a directory instead;
 
-    npm run make -C your/path
+    npm run make -- -C your/path
 
 Please note that the path should be unix-compatible, so you should not use auto completion on non-unix systems.
 
