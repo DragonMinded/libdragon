@@ -16,9 +16,8 @@ const options = {
 
 function runCommand(cmd) {
   return new Promise((resolve, reject) => {
-    const command = exec(cmd, {}, (err, stdout, stderr) => {
+    const command = exec(cmd, {}, (err, stdout) => {
       if (err === null) {
-        console.log('Finished running ' + cmd, stdout);
         resolve(stdout);
       } else {
         reject(err);
@@ -30,7 +29,7 @@ function runCommand(cmd) {
     });
 
     command.stderr.on('data', function (data) {
-      console.log(data.toString());
+      console.error(data.toString());
     });
   })
 }
@@ -173,7 +172,7 @@ const availableActions = {
 }
 
 process.argv.forEach(function (val, index) {
-  if (index < 2) {
+  if (index < 1) {
     return;
   }
 
@@ -197,10 +196,8 @@ process.argv.forEach(function (val, index) {
     const param = params.join(' ');
 
     functionToRun(param).then((r) => {
-      console.log('Completed task: ' + val);
       process.exit(0);
     }).catch((e) => {
-      console.error(e);
       process.exit(1);
     });
   }

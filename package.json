@@ -1,6 +1,6 @@
 {
   "name": "libdragon",
-  "version": "1.3.10",
+  "version": "1.3.12",
   "description": "This is a simple library for N64 that allows one to code using the gcc compiler suite and nothing else.  No proprietary library is needed.  For more information, visit http://www.dragonminded.com/n64dev/",
   "main": "index.js",
   "engines": {
@@ -14,12 +14,12 @@
   },
   "scripts": {
     "tc": "node index.js",
-    "start": "npm run tc -- start",
-    "stop": "npm run tc -- stop",
-    "make": "npm run tc -- make",
-    "download": "npm run tc -- download",
-    "init": "npm run tc -- init",
-    "prepublishOnly": "npm run tc -- update"
+    "start": "node index.js start",
+    "stop": "node index.js stop",
+    "make": "node index.js make",
+    "download": "node index.js download",
+    "init": "node index.js init",
+    "prepublishOnly": "node index.js update"
   },
   "repository": {
     "type": "git",
