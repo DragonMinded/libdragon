@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.3.14] - 2019-31-10
+### Changed
+
+- Skip make install if no Makefile is found.
+
 ## [1.3.12] - 2019-29-10
 ### Changed
 
