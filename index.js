@@ -2,6 +2,7 @@
 
 const { exec } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 const _ = require('lodash');
 const { version } = require('./package.json'); // Always use self version for docker image
 
@@ -130,22 +131,30 @@ const availableActions = {
         if (paths.length > 1) {
           return Promise.reject('Using same dependency with different versions is not supported!');
         }
-        return new Promise(async (resolve, reject) => {
-          try {
-            const relativePath = path.relative(options.MOUNT_PATH, paths[0]).replace(new RegExp('\\' + path.sep), path.posix.sep);
-            const containerPath = path.posix.join('/', options.PROJECT_NAME, relativePath, '/');
-            const makePath = path.posix.join(containerPath, 'Makefile');
-
-            // Do not try to run docker if already in container
-            if (process.env.IS_DOCKER === 'true') {
-              await runCommand('[ -f ' + makePath + ' ] &&  make -C ' + containerPath + ' && make -C ' + containerPath + ' install');
-            } else {
-              await runCommand('docker exec ' + options.PROJECT_NAME + ' /bin/bash -c "[ -f ' + makePath + ' ] &&  make -C ' + containerPath + ' && make -C ' + containerPath + ' install"');
+        return new Promise((resolve, reject) => {
+          fs.access(path.join(paths[0], 'Makefile'), fs.F_OK, async (e) => {
+            if (e) {
+              // File does not exist - skip
+              resolve();
+              return;
             }
-            resolve();
-          } catch(e) {
-            reject(e);
-          }
+
+            try {
+              const relativePath = path.relative(options.MOUNT_PATH, paths[0]).replace(new RegExp('\\' + path.sep), path.posix.sep);
+              const containerPath = path.posix.join('/', options.PROJECT_NAME, relativePath, '/');
+              const makePath = path.posix.join(containerPath, 'Makefile');
+
+              // Do not try to run docker if already in container
+              if (process.env.IS_DOCKER === 'true') {
+                await runCommand('[ -f ' + makePath + ' ] &&  make -C ' + containerPath + ' && make -C ' + containerPath + ' install');
+              } else {
+                await runCommand('docker exec ' + options.PROJECT_NAME + ' /bin/bash -c "[ -f ' + makePath + ' ] &&  make -C ' + containerPath + ' && make -C ' + containerPath + ' install"');
+              }
+              resolve();
+            } catch(e) {
+              reject(e);
+            }
+          });
         });
       })
     );
