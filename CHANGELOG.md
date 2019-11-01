@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.3.15] - 2019-01-11
+### Changed
+
+- `libdragon install` should skip CI checks.
+
 ## [1.3.14] - 2019-31-10
 ### Changed
 
