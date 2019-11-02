@@ -69,7 +69,7 @@
  * 
  * @return A void pointer to the cached memory address in RAM
  */
-#define CachedAddr(_addr) (((void *)(((unsigned long)(_addr))&~0x20000000))
+#define CachedAddr(_addr) ((void *)(((unsigned long)(_addr))&~0x20000000))
 
 /**
  * @brief Memory barrier to ensure in-order execution
