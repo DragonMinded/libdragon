@@ -27,7 +27,7 @@ export FORCE_DEFAULT_GCC=${FORCE_DEFAULT_GCC:-false}
 export PATH=$PATH:$INSTALL_PATH/bin
 
 # Versions
-export BINUTILS_V=2.32
+export BINUTILS_V=2.33.1
 export GCC_V=9.1.0
 export NEWLIB_V=3.1.0
 
