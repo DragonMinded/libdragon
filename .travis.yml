@@ -1,10 +1,7 @@
-language: node_js
+language: C
 
 services:
   - docker
-
-node_js:
-  - "node"
 
 sudo: false
 
@@ -15,16 +12,6 @@ install:
   - npm install
 
 script:
-  - npm run download
-  - npm run make
-  - npm run make install
-  - npm run make examples
-
-deploy:
-  skip_cleanup: true
-  provider: script
-  script: npm config set '//registry.npmjs.org/:_authToken' "${NPM_TOKEN}" && echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin && npm publish
-  on:
-    branch: master
-    repo: anacierdem/libdragon
-    tags: true
+  - docker pull anacierdem/libdragon:toolchain
+  - docker run --name=libdragon -d --mount type=bind,source=$(pwd),target=/libdragon -w=/libdragon anacierdem/libdragon:toolchain tail -f /dev/null
+  - docker exec libdragon /bin/bash ./build.sh

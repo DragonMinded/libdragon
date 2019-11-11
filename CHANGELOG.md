@@ -1,22 +1,11 @@
 # Change Log
 
+## [2.0.0]
+### Changed
+
+- Separated docker and deployment process.
+
 ## [1.3.15] - 2019-01-11
-### Changed
-
-- `libdragon install` should skip CI checks.
-
-## [1.3.14] - 2019-31-10
-### Changed
-
-- Skip make install if no Makefile is found.
-
-## [1.3.12] - 2019-29-10
-### Changed
-
-- Reduce response time for NPM commands.
-- Remove unnecessary console statements and double logs.
-
-## [1.3.11] - 2019-29-10
 ### Fixed
 
 - Fix problem with wait ticks. They do not lock the system now.
