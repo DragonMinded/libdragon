@@ -1,3 +1,4 @@
+N64_INST = /home/joeldipops/Projects/tools/n64inst
 ROOTDIR = $(N64_INST)
 CFLAGS = -std=gnu99 -O2 -G0 -Wall -Werror -mtune=vr4300 -march=vr4300 -I$(CURDIR)/include -I$(ROOTDIR)/mips64-elf/include
 ASFLAGS = -mtune=vr4300 -march=vr4300

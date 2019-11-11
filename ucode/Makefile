@@ -1,6 +1,7 @@
 ASFLAGS = -mtune=vr4300 -march=vr4300
 CFLAGS = -std=gnu99 -O2 -G0 -Wall -Werror -mtune=vr4300 -march=vr4300
 LINK_FLAGS = -L$(ROOTDIR)/mips64-elf/lib -ldragon -lc -lm -ldragonsys -Tn64ld.x
+N64_INST = /home/joeldipops/Projects/tools/n64inst
 N64PREFIX = $(N64_INST)/bin/mips64-elf-
 CC = $(N64PREFIX)gcc
 AS = $(N64PREFIX)as
