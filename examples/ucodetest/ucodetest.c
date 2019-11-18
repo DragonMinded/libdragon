@@ -6,9 +6,8 @@
 #include <libdragon.h>
 #include <rsp.h>
 
-extern const char basic_ucode_start __attribute__((section(".data")));
-extern const char basic_ucode_end __attribute__((section(".data")));
-extern const char basic_ucode_size __attribute__((section(".data")));
+extern const void __basic_ucode_start;
+extern const void __basic_ucode_end;
 
 static resolution_t res = RESOLUTION_320x240;
 static bitdepth_t bit = DEPTH_32_BPP;
@@ -35,15 +34,15 @@ int main(void)
     set_SP_interrupt(1);
 
     // Size must be multiple of 8 and start & end must be aligned to 8 bytes
-    unsigned long size = (unsigned long)&basic_ucode_size;
-    load_ucode((void*)&basic_ucode_start, size);
+    unsigned long size = (unsigned long) (&__basic_ucode_end - &__basic_ucode_start);
+    load_data((void*)&__basic_ucode_start, size);
 
     char* up = malloc(size);
-    read_ucode((void*)up, size);
+    read_data((void*)up, size);
 
     console_clear();
 
-    const char* orig = &basic_ucode_start;
+    const char* orig = &__basic_ucode_start;
 
     unsigned long i = 0;
     while(i < size)
