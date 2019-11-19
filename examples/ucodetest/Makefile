@@ -33,14 +33,20 @@ $(PROG_NAME)$(ROM_EXTENSION): $(PROG_NAME).elf
 	$(N64TOOL) $(N64_FLAGS) -t "ucode Test"
 	$(CHKSUM64PATH) $(PROG_NAME)$(ROM_EXTENSION)
 
-$(PROJECT_ROOT)/ucode/basic.o:
-	make -C $(PROJECT_ROOT) ucode
+$(PROG_NAME).elf : $(PROG_NAME).o basic.o
+	$(LD) -o $(PROG_NAME).elf $(PROG_NAME).o basic.o $(LINK_FLAGS)
 
-$(PROG_NAME).elf : $(PROG_NAME).o $(PROJECT_ROOT)/ucode/basic.o
-	$(LD) -o $(PROG_NAME).elf $(PROG_NAME).o $(PROJECT_ROOT)/ucode/basic.o $(LINK_FLAGS)
+text.section.bin data.section.bin: basic.S
+	$(CC) -c -o tmp.o $^
+	$(OBJCOPY) \
+		--dump-section .text=text.section.bin \
+		--dump-section .data=data.section.bin \
+		tmp.o
+
+basic.o: loader.S text.section.bin data.section.bin
+	$(CC) -c -o basic.o loader.S
 
 clean:
-	make -C $(PROJECT_ROOT) ucode-clean
 	rm -f *.v64 *.z64 *.elf *.o *.bin
 
 .PHONY : clean

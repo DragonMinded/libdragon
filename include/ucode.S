@@ -352,28 +352,26 @@ makeLoadInstruction ltv, 0b01011
 makeLoadInstruction luv, 0b00111
 
 /** @brief Store Byte from Vector Register */
-makeStoreInstruction sbv, 0b00000,
+makeStoreInstruction sbv, 0b00000
 /** @brief Store Double from Vector Register */
-makeStoreInstruction sdv, 0b00011,
+makeStoreInstruction sdv, 0b00011
 /** @brief Store Packed Fourth from Vector Register */
-makeStoreInstruction sfv, 0b01001,
+makeStoreInstruction sfv, 0b01001
 /** @brief Store Packed Half from Vector Register */
-makeStoreInstruction shv, 0b01000,
+makeStoreInstruction shv, 0b01000
 /** @brief Store Long from Vector Register */
-makeStoreInstruction slv, 0b00010,
+makeStoreInstruction slv, 0b00010
 /** @brief Store Packed Bytes from Vector Register */
-makeStoreInstruction spv, 0b00110,
+makeStoreInstruction spv, 0b00110
 /** @brief Store Quad from Vector Register */
-makeStoreInstruction sqv, 0b00100,
+makeStoreInstruction sqv, 0b00100
 /** @brief Store Quad (Rest) from Vector Register */
-makeStoreInstruction srv, 0b00101,
+makeStoreInstruction srv, 0b00101
 /** @brief Store Short from Vector Register */
-makeStoreInstruction ssv, 0b00001,
+makeStoreInstruction ssv, 0b00001
 /** @brief Store Transpose from Vector Register */
-makeStoreInstruction stv, 0b01011,
+makeStoreInstruction stv, 0b01011
 /** @brief Store Unsigned Packed from Vector Register */
-makeStoreInstruction suv, 0b00111,
+makeStoreInstruction suv, 0b00111
 /** @brief Store Wrapped vector from Vector Register */
-makeStoreInstruction swv, 0b00111,
-
-.set noat
+makeStoreInstruction swv, 0b00111
