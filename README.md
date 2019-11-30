@@ -47,4 +47,4 @@ becomes;
 
 Basically all operands are required and separated by commas.
 
-While using these custom instructions, you should use `v0`-`v31`for naming vector registers and `s0`-`s31` for naming scalar registers.
+While using these custom instructions, you should use `$v00`-`$v31` when naming vector registers and `$0`-`$31` when naming scalar registers.
