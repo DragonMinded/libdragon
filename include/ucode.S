@@ -210,7 +210,7 @@ makeOpInstruction vadd, 0b010000
 /** @brief Vector Add Short Elements With Carry */
 makeOpInstruction vaddc, 0b010100
 /** @brief Vector AND of Short Elements */
-makeOpInstruction vand, 0b010100
+makeOpInstruction vand, 0b101000
 /** @brief Vector Select Clip Test High */
 makeOpInstruction vch, 0b100101
 /** @brief Vector Select Clip Test Low */
