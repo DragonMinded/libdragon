@@ -13,6 +13,8 @@ extern "C" {
 void rsp_init();
 void load_ucode(void * start, unsigned long size);
 void read_ucode(void* start, unsigned long size);
+void load_data(void * start, unsigned long size);
+void read_data(void* start, unsigned long size);
 void run_ucode();
 
 #ifdef __cplusplus

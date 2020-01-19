@@ -7,8 +7,8 @@ MKDFSPATH = /home/joeldipops/Projects/tools/libdragon/tools/mkdfs/mkdfs
 HEADERPATH = $(ROOTDIR)/mips64-elf/lib
 N64TOOL = /home/joeldipops/Projects/tools/libdragon/tools/n64tool
 HEADERNAME = header
-LINK_FLAGS = -L$(ROOTDIR)/mips64-elf/lib -ldragon -lc -lm -ldragonsys -Tn64ld.x
-CFLAGS = -std=gnu99 -march=vr4300 -mtune=vr4300 -O2 -G0 -Wall -Werror -I$(ROOTDIR)/mips64-elf/include
+LINK_FLAGS = -L$(ROOTDIR)/mips64-elf/lib -ldragon -lc -lm -ldragonsys -Tn64.ld
+CFLAGS = -std=gnu99 -march=vr4300 -mtune=vr4300 -O2 -Wall -Werror -I$(ROOTDIR)/mips64-elf/include
 ASFLAGS = -mtune=vr4300 -march=vr4300
 CC = $(GCCN64PREFIX)gcc
 AS = $(GCCN64PREFIX)as
@@ -33,14 +33,20 @@ $(PROG_NAME)$(ROM_EXTENSION): $(PROG_NAME).elf
 	$(N64TOOL) $(N64_FLAGS) -t "ucode Test"
 	$(CHKSUM64PATH) $(PROG_NAME)$(ROM_EXTENSION)
 
-$(PROJECT_ROOT)/ucode/basic.o:
-	make -C $(PROJECT_ROOT) ucode
+$(PROG_NAME).elf : $(PROG_NAME).o basic.o
+	$(LD) -o $(PROG_NAME).elf $(PROG_NAME).o basic.o $(LINK_FLAGS)
 
-$(PROG_NAME).elf : $(PROG_NAME).o $(PROJECT_ROOT)/ucode/basic.o
-	$(LD) -o $(PROG_NAME).elf $(PROG_NAME).o $(PROJECT_ROOT)/ucode/basic.o $(LINK_FLAGS)
+text.section.bin data.section.bin: basic.S
+	$(CC) -c -o tmp.o $^
+	$(OBJCOPY) \
+		--dump-section .text=text.section.bin \
+		--dump-section .data=data.section.bin \
+		tmp.o
+
+basic.o: loader.S text.section.bin data.section.bin
+	$(CC) -c -o basic.o loader.S
 
 clean:
-	make -C $(PROJECT_ROOT) ucode-clean
 	rm -f *.v64 *.z64 *.elf *.o *.bin
 
 .PHONY : clean

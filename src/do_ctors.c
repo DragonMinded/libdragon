@@ -14,7 +14,7 @@
 typedef void (*func_ptr)(void);
 
 /** @brief Pointer to the size of the constructor list */
-extern uint32_t __CTOR_LIST_SIZE__;
+extern uint32_t __CTOR_LIST_SIZE__  __attribute__((section (".data")));
 /** @brief Pointer to the beginning of the constructor list */
 extern func_ptr __CTOR_LIST__[];
 /** @brief Pointer to the end of the constructor list */

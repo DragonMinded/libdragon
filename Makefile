@@ -1,6 +1,12 @@
 N64_INST = /home/joeldipops/Projects/tools/n64inst
 ROOTDIR = $(N64_INST)
-CFLAGS = -std=gnu99 -O2 -G0 -Wall -Werror -mtune=vr4300 -march=vr4300 -I$(CURDIR)/include -I$(ROOTDIR)/mips64-elf/include
+
+ifndef LIBDRAGON_VERSION_MAJOR
+CFLAGS = -std=gnu99 -O2 -Wall -Werror -mtune=vr4300 -march=vr4300 -I$(CURDIR)/include -I$(ROOTDIR)/mips64-elf/include
+else
+CFLAGS = -std=gnu99 -O2 -Wall -Werror -DLIBDRAGON_VERSION_MAJOR=$(LIBDRAGON_VERSION_MAJOR) -DLIBDRAGON_VERSION_MINOR=$(LIBDRAGON_VERSION_MINOR) -DLIBDRAGON_VERSION_REVISION=$(LIBDRAGON_VERSION_REVISION) -mtune=vr4300 -march=vr4300 -I$(CURDIR)/include -I$(ROOTDIR)/mips64-elf/include
+endif
+
 ASFLAGS = -mtune=vr4300 -march=vr4300
 N64PREFIX = $(N64_INST)/bin/mips64-elf-
 INSTALLDIR = $(N64_INST)
@@ -11,7 +17,7 @@ AR = $(N64PREFIX)ar
 
 all: libdragon
 
-libdragon: libdragon.a libdragonsys.a libdragonpp.a
+libdragon: libdragon.a libdragonsys.a
 
 include files.in
 
@@ -45,17 +51,12 @@ libdragon.a: $(OFILES_LD)
 	$(AR) -rcs -o libdragon.a $(OFILES_LD)
 libdragonsys.a: $(OFILES_LDS)
 	$(AR) -rcs -o libdragonsys.a $(OFILES_LDS)
-libdragonpp.a: $(OFILES_LDP)
-	$(AR) -rcs -o libdragonpp.a $(OFILES_LDP)
 
-install: libdragon.a libdragonsys.a libdragonpp.a
+install: libdragon.a libdragonsys.a
 	install -m 0644 libdragon.a $(INSTALLDIR)/mips64-elf/lib/libdragon.a
-	install -m 0644 n64ld.x $(INSTALLDIR)/mips64-elf/lib/n64ld.x
-	install -m 0644 n64ld_cpp.x $(INSTALLDIR)/mips64-elf/lib/n64ld_cpp.x
-	install -m 0644 n64ld_exp_cpp.x $(INSTALLDIR)/mips64-elf/lib/n64ld_exp_cpp.x
+	install -m 0644 n64.ld $(INSTALLDIR)/mips64-elf/lib/n64.ld
 	install -m 0644 header $(INSTALLDIR)/mips64-elf/lib/header
 	install -m 0644 libdragonsys.a $(INSTALLDIR)/mips64-elf/lib/libdragonsys.a
-	install -m 0644 libdragonpp.a $(INSTALLDIR)/mips64-elf/lib/libdragonpp.a
 	install -m 0644 include/n64sys.h $(INSTALLDIR)/mips64-elf/include/n64sys.h
 	install -m 0644 include/interrupt.h $(INSTALLDIR)/mips64-elf/include/interrupt.h
 	install -m 0644 include/dma.h $(INSTALLDIR)/mips64-elf/include/dma.h

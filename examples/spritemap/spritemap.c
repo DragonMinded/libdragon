@@ -101,7 +101,7 @@ int main(void)
                 rdp_load_texture( 0, 0, MIRROR_DISABLED, plane );
                 
                 /* Display a stationary sprite of adequate size to fit in TMEM */
-                rdp_draw_sprite( 0, 20, 50 );
+                rdp_draw_sprite( 0, 20, 50, MIRROR_DISABLED );
 
                 /* Since the RDP is very very limited in texture memory, we will use the spritemap feature to display
                    all four pieces of this sprite individually in order to use the RDP at all */
@@ -114,7 +114,7 @@ int main(void)
                     rdp_load_texture_stride( 0, 0, MIRROR_DISABLED, mudkip, i );
                 
                     /* Display a stationary sprite to demonstrate backwards compatibility */
-                    rdp_draw_sprite( 0, 50 + (20 * (i % 2)), 50 + (20 * (i / 2)) );
+                    rdp_draw_sprite( 0, 50 + (20 * (i % 2)), 50 + (20 * (i / 2)), MIRROR_DISABLED );
                 }
 
                 /* Ensure the RDP is ready to receive sprites */
@@ -124,7 +124,7 @@ int main(void)
                 rdp_load_texture_stride( 0, 0, MIRROR_DISABLED, earthbound, ((animcounter / 15) & 1) ? 1: 0 );
                 
                 /* Display walking NESS animation */
-                rdp_draw_sprite( 0, 20, 100 );
+                rdp_draw_sprite( 0, 20, 100, MIRROR_DISABLED );
 
                 /* Ensure the RDP is ready to receive sprites */
                 rdp_sync( SYNC_PIPE );
@@ -133,7 +133,7 @@ int main(void)
                 rdp_load_texture_stride( 0, 0, MIRROR_DISABLED, earthbound, ((animcounter / 8) & 0x7) * 2 );
                 
                 /* Display rotating NESS animation */
-                rdp_draw_sprite( 0, 50, 100 );
+                rdp_draw_sprite( 0, 50, 100, MIRROR_DISABLED );
 
                 /* Inform the RDP we are finished drawing and that any pending operations should be flushed */
                 rdp_detach_display();

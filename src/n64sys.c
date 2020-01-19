@@ -65,7 +65,7 @@ volatile unsigned long get_ticks(void)
 {
     unsigned long count;
     // reg $9 on COP0 is count
-    asm("\tmfc0 %0,$9\n\tnop":"=r"(count));
+    asm volatile("\tmfc0 %0,$9\n\tnop":"=r"(count));
 
     return count;
 }
@@ -79,7 +79,7 @@ volatile unsigned long get_ticks_ms(void)
 {
     unsigned long count;
     // reg $9 on COP0 is count
-    asm("\tmfc0 %0,$9\n\tnop":"=r"(count));
+    asm volatile("\tmfc0 %0,$9\n\tnop":"=r"(count));
 
     return count / (COUNTS_PER_SECOND / 1000);
 }

@@ -77,110 +77,74 @@ makeNotImplemented tltiu
 makeNotImplemented teqi
 makeNotImplemented tnei
 
-.macro scalarRegisters
-    .set s0, $0
-    .set s1, $1
-    .set s2, $2
-    .set s3, $3
-    .set s4, $4
-    .set s5, $5
-    .set s6, $6
-    .set s7, $7
-    .set s8, $8
-    .set s9, $9
-    .set s10, $10
-    .set s11, $11
-    .set s12, $12
-    .set s13, $13
-    .set s14, $14
-    .set s15, $15
-    .set s16, $16
-    .set s17, $17
-    .set s18, $18
-    .set s19, $19
-    .set s20, $20
-    .set s21, $21
-    .set s22, $22
-    .set s23, $23
-    .set s24, $24
-    .set s25, $25
-    .set s26, $26
-    .set s27, $27
-    .set s28, $28
-    .set s29, $29
-    .set s30, $30
-    .set s31, $31
-.endm
-
 .macro hexRegisters
-    .set v0, 0x0
-    .set v1, 0x1
-    .set v2, 0x2
-    .set v3, 0x3
-    .set v4, 0x4
-    .set v5, 0x5
-    .set v6, 0x6
-    .set v7, 0x7
-    .set v8, 0x8
-    .set v9, 0x9
-    .set v10, 0xA
-    .set v11, 0xB
-    .set v12, 0xC
-    .set v13, 0xD
-    .set v14, 0xE
-    .set v15, 0xF
-    .set v16, 0x10
-    .set v17, 0x11
-    .set v18, 0x12
-    .set v19, 0x13
-    .set v20, 0x14
-    .set v21, 0x15
-    .set v22, 0x16
-    .set v23, 0x17
-    .set v24, 0x18
-    .set v25, 0x19
-    .set v26, 0x1A
-    .set v27, 0x1B
-    .set v28, 0x1C
-    .set v29, 0x1D
-    .set v30, 0x1E
-    .set v31, 0x1F
+    .set $v00, 0x0
+    .set $v01, 0x1
+    .set $v02, 0x2
+    .set $v03, 0x3
+    .set $v04, 0x4
+    .set $v05, 0x5
+    .set $v06, 0x6
+    .set $v07, 0x7
+    .set $v08, 0x8
+    .set $v09, 0x9
+    .set $v10, 0xA
+    .set $v11, 0xB
+    .set $v12, 0xC
+    .set $v13, 0xD
+    .set $v14, 0xE
+    .set $v15, 0xF
+    .set $v16, 0x10
+    .set $v17, 0x11
+    .set $v18, 0x12
+    .set $v19, 0x13
+    .set $v20, 0x14
+    .set $v21, 0x15
+    .set $v22, 0x16
+    .set $v23, 0x17
+    .set $v24, 0x18
+    .set $v25, 0x19
+    .set $v26, 0x1A
+    .set $v27, 0x1B
+    .set $v28, 0x1C
+    .set $v29, 0x1D
+    .set $v30, 0x1E
+    .set $v31, 0x1F
 .endm
 
 .macro renameRegisters
-    .set v0, $0
-    .set v1, $1
-    .set v2, $2
-    .set v3, $3
-    .set v4, $4
-    .set v5, $5
-    .set v6, $6
-    .set v7, $7
-    .set v8, $8
-    .set v9, $9
-    .set v10, $10
-    .set v11, $11
-    .set v12, $12
-    .set v13, $13
-    .set v14, $14
-    .set v15, $15
-    .set v16, $16
-    .set v17, $17
-    .set v18, $18
-    .set v19, $19
-    .set v20, $20
-    .set v21, $21
-    .set v22, $22
-    .set v23, $23
-    .set v24, $24
-    .set v25, $25
-    .set v26, $26
-    .set v27, $27
-    .set v28, $28
-    .set v29, $29
-    .set v30, $30
-    .set v31, $31
-    scalarRegisters
+    .set $v00, $0
+    .set $v01, $1
+    .set $v02, $2
+    .set $v03, $3
+    .set $v04, $4
+    .set $v05, $5
+    .set $v06, $6
+    .set $v07, $7
+    .set $v08, $8
+    .set $v09, $9
+    .set $v10, $10
+    .set $v11, $11
+    .set $v12, $12
+    .set $v13, $13
+    .set $v14, $14
+    .set $v15, $15
+    .set $v16, $16
+    .set $v17, $17
+    .set $v18, $18
+    .set $v19, $19
+    .set $v20, $20
+    .set $v21, $21
+    .set $v22, $22
+    .set $v23, $23
+    .set $v24, $24
+    .set $v25, $25
+    .set $v26, $26
+    .set $v27, $27
+    .set $v28, $28
+    .set $v29, $29
+    .set $v30, $30
+    .set $v31, $31
 .endm
 
 /** @brief Syntactic sugar for cop2 instuctions */
@@ -246,7 +210,7 @@ makeOpInstruction vadd, 0b010000
 /** @brief Vector Add Short Elements With Carry */
 makeOpInstruction vaddc, 0b010100
 /** @brief Vector AND of Short Elements */
-makeOpInstruction vand, 0b010100
+makeOpInstruction vand, 0b101000
 /** @brief Vector Select Clip Test High */
 makeOpInstruction vch, 0b100101
 /** @brief Vector Select Clip Test Low */
@@ -352,28 +316,26 @@ makeLoadInstruction ltv, 0b01011
 makeLoadInstruction luv, 0b00111
 
 /** @brief Store Byte from Vector Register */
-makeStoreInstruction sbv, 0b00000,
+makeStoreInstruction sbv, 0b00000
 /** @brief Store Double from Vector Register */
-makeStoreInstruction sdv, 0b00011,
+makeStoreInstruction sdv, 0b00011
 /** @brief Store Packed Fourth from Vector Register */
-makeStoreInstruction sfv, 0b01001,
+makeStoreInstruction sfv, 0b01001
 /** @brief Store Packed Half from Vector Register */
-makeStoreInstruction shv, 0b01000,
+makeStoreInstruction shv, 0b01000
 /** @brief Store Long from Vector Register */
-makeStoreInstruction slv, 0b00010,
+makeStoreInstruction slv, 0b00010
 /** @brief Store Packed Bytes from Vector Register */
-makeStoreInstruction spv, 0b00110,
+makeStoreInstruction spv, 0b00110
 /** @brief Store Quad from Vector Register */
-makeStoreInstruction sqv, 0b00100,
+makeStoreInstruction sqv, 0b00100
 /** @brief Store Quad (Rest) from Vector Register */
-makeStoreInstruction srv, 0b00101,
+makeStoreInstruction srv, 0b00101
 /** @brief Store Short from Vector Register */
-makeStoreInstruction ssv, 0b00001,
+makeStoreInstruction ssv, 0b00001
 /** @brief Store Transpose from Vector Register */
-makeStoreInstruction stv, 0b01011,
+makeStoreInstruction stv, 0b01011
 /** @brief Store Unsigned Packed from Vector Register */
-makeStoreInstruction suv, 0b00111,
+makeStoreInstruction suv, 0b00111
 /** @brief Store Wrapped vector from Vector Register */
-makeStoreInstruction swv, 0b00111,
-
-.set noat
+makeStoreInstruction swv, 0b00111

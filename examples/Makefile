@@ -1,5 +1,10 @@
-all: ctest dfsdemo mptest mputest spritemap test timers vrutest vtest ucodetest
+all: cpptest ctest dfsdemo mptest mputest spritemap test timers vrutest vtest ucodetest
 clean: ctest-clean dfsdemo-clean mptest-clean mputest-clean spritemap-clean test-clean timers-clean vrutest-clean vtest-clean ucodetest-clean
+
+cpptest:
+	+make -C cpptest
+cpptest-clean:
+	make -C cpptest clean
 
 ctest:
 	+make -C ctest
@@ -51,5 +56,5 @@ ucodetest:
 ucodetest-clean:
 	make -C ucodetest clean
 
-.PHONY: ctest ctest-clean dfsdemo dfsdemo-clean mptest mptest-clean mputest mputest-clean spritemap spritemap-clean
+.PHONY: cpptest cpptest-clean ctest ctest-clean dfsdemo dfsdemo-clean mptest mptest-clean mputest mputest-clean spritemap spritemap-clean
 .PHONY: test test-clean timers timers-clean vrutest vrutest-clean vtest vtest-clean ucodetest ucodetest-clean
