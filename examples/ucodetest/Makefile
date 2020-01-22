@@ -1,11 +1,10 @@
 PROJECT_ROOT = $(CURDIR)/../..
-N64_INST = /home/joeldipops/Projects/tools/n64inst
 ROOTDIR = $(N64_INST)
 GCCN64PREFIX = $(ROOTDIR)/bin/mips64-elf-
-CHKSUM64PATH =/home/joeldipops/Projects/tools/libdragon/tools/chksum64
-MKDFSPATH = /home/joeldipops/Projects/tools/libdragon/tools/mkdfs/mkdfs
+CHKSUM64PATH = $(ROOTDIR)/bin//chksum64
+MKDFSPATH =  $(ROOTDIR)/bin//mkdfs
 HEADERPATH = $(ROOTDIR)/mips64-elf/lib
-N64TOOL = /home/joeldipops/Projects/tools/libdragon/tools/n64tool
+N64TOOL =  $(ROOTDIR)/bin/n64tool
 HEADERNAME = header
 LINK_FLAGS = -L$(ROOTDIR)/mips64-elf/lib -ldragon -lc -lm -ldragonsys -Tn64.ld
 CFLAGS = -std=gnu99 -march=vr4300 -mtune=vr4300 -O2 -Wall -Werror -I$(ROOTDIR)/mips64-elf/include

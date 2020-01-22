@@ -1,4 +1,3 @@
-N64_INST = /home/joeldipops/Projects/tools/n64inst
 ROOTDIR = $(N64_INST)
 
 ifndef LIBDRAGON_VERSION_MAJOR
