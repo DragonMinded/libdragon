@@ -27,17 +27,17 @@ typedef enum __attribute__ ((packed)) {
     GBC_NOT_SUPPORTED = 0x00,
     GBC_DMG_SUPPORTED = 0x80,
     GBC_ONLY_SUPPORTED = 0xC0
-} gbc_support;
+} gbc_support_type;
 
 struct old_gbc_title {
     uint8_t title[15];
-    gbc_support gbc_support;
+    gbc_support_type gbc_support;
 };
 
 struct new_gbc_title {
     uint8_t title[11];
     uint8_t manufacturer_code[4];
-    gbc_support gbc_support;
+    gbc_support_type gbc_support;
 };
 
 struct gameboy_cartridge_header {
