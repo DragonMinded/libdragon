@@ -77,6 +77,41 @@ makeNotImplemented tltiu
 makeNotImplemented teqi
 makeNotImplemented tnei
 
+.macro hexGeneralRegisters
+    .equ hex.zero, 0
+    .equ hex.at, 1
+    .equ hex.v0, 2
+    .equ hex.v1, 3
+    .equ hex.a0, 4
+    .equ hex.a1, 5
+    .equ hex.a2, 6
+    .equ hex.a3, 7
+    .equ hex.t0, 8
+    .equ hex.t1, 9
+    .equ hex.t2, 10
+    .equ hex.t3, 11
+    .equ hex.t4, 12
+    .equ hex.t5, 13
+    .equ hex.t6, 14
+    .equ hex.t7, 15
+    .equ hex.s0, 16
+    .equ hex.s1, 17
+    .equ hex.s2, 18
+    .equ hex.s3, 19
+    .equ hex.s4, 20
+    .equ hex.s5, 21
+    .equ hex.s6, 22
+    .equ hex.s7, 23
+    .equ hex.t8, 24
+    .equ hex.t9, 25
+    .equ hex.k0, 26
+    .equ hex.k1, 27
+    .equ hex.gp, 28
+    .equ hex.sp, 29
+    .equ hex.fp, 30
+    .equ hex.ra, 31
+.endm
+
 .macro hexRegisters
     .set $v00, 0x0
     .set $v01, 0x1
@@ -339,3 +374,15 @@ makeStoreInstruction stv, 0b01011
 makeStoreInstruction suv, 0b00111
 /** @brief Store Wrapped vector from Vector Register */
 makeStoreInstruction swv, 0b00111
+
+.macro mtc2 reg, vreg, element
+    hexRegisters
+    hexGeneralRegisters
+    .long (0x12 << 26 | 0x4 << 21 | \vreg << 11 | hex.\reg << 16 | \element << 7)
+.endm
+
+.macro mfc2 reg, vreg, element
+    hexRegisters
+    hexGeneralRegisters
+    .long (0x12 << 26 | 0x0 << 21 | \vreg << 11 | hex.\reg << 16 | \element << 7)
+.endm
