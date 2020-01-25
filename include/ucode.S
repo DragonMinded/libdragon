@@ -1,7 +1,7 @@
 # Not implemented
 .macro makeNotImplemented name
     .macro \name _:vararg
-        \name\()_na
+        .error "\name is not supported by RSP"
     .endm
 .endm
 
