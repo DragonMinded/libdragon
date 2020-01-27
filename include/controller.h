@@ -40,6 +40,8 @@
 #define ACCESSORY_RUMBLEPAK     2
 /** @brief VRU present */
 #define ACCESSORY_VRU           3
+/** @brief Transferpak present */
+#define ACCESSORY_TRANSFERPAK    4
 /** @} */
 
 /**

@@ -878,6 +878,30 @@ int write_mempak_address( int controller, uint16_t address, uint8_t *data )
 }
 
 /**
+ * @brief Check if connected accesory is transfer pak by setting power to the device on and off and checking that it responds as expected.
+ *
+ * @param[in] controller
+ *            The controller (0-3) to identify accessories on
+ *
+ * @return true if accessory behaves like a transfer pak, false otherwise.
+ */
+static bool __is_transfer_pak( int controller )
+{
+    uint8_t data[32];
+    memset( data, 0x84, 32 );
+    write_mempak_address(controller, 0x8000, data);
+    read_mempak_address(controller, 0x8000, data);
+
+    bool result = (data[0] == 0x84);
+
+    memset( data, 0xFE, 32 );
+    write_mempak_address(controller, 0x8000, data);
+    read_mempak_address(controller, 0x8000, data);
+
+    return result & (data[0] == 0x00);
+}
+
+/**
  * @brief Identify the accessory connected to a controller
  *
  * Given a controller, identify the particular accessory type inserted.
@@ -887,6 +911,7 @@ int write_mempak_address( int controller, uint16_t address, uint8_t *data )
  *
  * @retval #ACCESSORY_RUMBLEPAK The accessory connected is a rumblepak
  * @retval #ACCESSORY_MEMPAK The accessory connected is a mempak
+ * @retval #ACCESSORY_TRANSFERPAK The accessory connected is a transferpak
  * @retval #ACCESSORY_VRU The accessory connected is a VRU
  * @retval #ACCESSORY_NONE The accessory was not recognized
  */
@@ -922,7 +947,7 @@ int identify_accessory( int controller )
                     }
                     else
                     {
-                        return ACCESSORY_MEMPAK;
+                        return __is_transfer_pak( controller ) ? ACCESSORY_TRANSFERPAK : ACCESSORY_MEMPAK;
                     }
                 }
 

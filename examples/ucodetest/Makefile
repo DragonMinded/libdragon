@@ -1,5 +1,4 @@
 PROJECT_ROOT = $(CURDIR)/../..
-
 ROOTDIR = $(N64_INST)
 GCCN64PREFIX = $(ROOTDIR)/bin/mips64-elf-
 CHKSUM64PATH = $(ROOTDIR)/bin/chksum64
