@@ -222,4 +222,15 @@ void inst_cache_index_invalidate(volatile void * addr, unsigned long length)
     cache_op(0x00);
 }
 
+/**
+ * @brief Check whether the memory expansion pak is in use.
+ *
+ * @return true if expansion pak detected, false otherwise.
+ */
+bool is_expak_present()
+{
+    int memsize = *(int*)(0x80000318);
+    return memsize == 0x800000;
+}
+
 /** @} */
