@@ -223,11 +223,13 @@ void inst_cache_index_invalidate(volatile void * addr, unsigned long length)
 }
 
 /**
- * @brief Check whether the memory expansion pak is in use.
+ * @brief Is expansion pak in use.
+ *
+ * Checks whether the maximum available memory has been expanded to 8MB
  *
  * @return true if expansion pak detected, false otherwise.
  */
-bool is_expak_present()
+bool is_memory_expanded()
 {
     int memsize = *(int*)(0x80000318);
     return memsize == 0x800000;

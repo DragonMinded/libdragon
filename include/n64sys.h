@@ -100,7 +100,7 @@ void data_cache_index_writeback_invalidate(volatile void *, unsigned long);
 void inst_cache_hit_writeback(volatile void *, unsigned long);
 void inst_cache_hit_invalidate(volatile void *, unsigned long);
 void inst_cache_index_invalidate(volatile void *, unsigned long);
-bool is_expak_present();
+bool is_memory_expanded();
 
 #ifdef __cplusplus
 }
