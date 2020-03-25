@@ -222,4 +222,26 @@ void inst_cache_index_invalidate(volatile void * addr, unsigned long length)
     cache_op(0x00);
 }
 
+/**
+ * @brief Get amount of available memory.
+ *
+ * @return amount of total available memory in bytes.
+ */
+int get_memory_size()
+{
+    return (__bootcic != 6105) ? (*(int*)0xA0000318) : (*(int*)0xA00003F0);
+}
+
+/**
+ * @brief Is expansion pak in use.
+ *
+ * Checks whether the maximum available memory has been expanded to 8MB
+ *
+ * @return true if expansion pak detected, false otherwise.
+ */
+bool is_memory_expanded()
+{
+    return get_memory_size() == 0x800000;
+}
+
 /** @} */
