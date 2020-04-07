@@ -9,10 +9,30 @@
 #include "display.h"
 #include "graphics.h"
 
+
 /**
  * @addtogroup rdp
  * @{
  */
+
+/**
+ * @brief Bitmask flags for rdp_texture_cycle()'s mode parameter.
+ */
+#define ATOMIC_PRIM 0x80000000000000
+#define PERSP_TEX_EN 0x08000000000000
+#define SAMPLE_TYPE 0x00200000000000
+#define IMAGE_READ_EN  0x00000000000040
+
+/**
+ * @brief Cycle mode type
+ */
+typedef enum
+{
+    /** @brief 1 Cycle */
+    _1CYCLE,
+    /** @brief 2 Cycle */
+    _2CYCLE
+} cycle_mode_t;
 
 /**
  * @brief Mirror settings for textures
@@ -77,9 +97,14 @@ void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int b
 void rdp_draw_sprite( uint32_t texslot, int x, int y ,  mirror_t mirror);
 void rdp_draw_sprite_scaled( uint32_t texslot, int x, int y, double x_scale, double y_scale,  mirror_t mirror);
 void rdp_set_primitive_color( uint32_t color );
+void rdp_set_tri_prim_color( uint32_t color );
 void rdp_set_blend_color( uint32_t color );
+void rdp_texture_cycle( cycle_mode_t cycle, uint64_t mode );
 void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by );
 void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3, float y3 );
+void rdp_draw_textured_triangle( uint32_t texslot, float x1, float y1, float w1, float s1, float t1, 
+                                    float x2, float y2, float w2, float s2, float t2, 
+                                    float x3, float y3, float w3, float s3, float t3 );
 void rdp_set_texture_flush( flush_t flush );
 void rdp_close( void );
 

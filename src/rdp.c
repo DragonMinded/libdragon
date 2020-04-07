@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <malloc.h>
 #include <string.h>
+#include <math.h>
 #include "libdragon.h"
 
 /**
@@ -113,6 +114,9 @@ static volatile uint32_t wait_intr = 0;
 
 /** @brief Array of cached textures in RDP TMEM indexed by the RDP texture slot */
 static sprite_cache cache[8];
+
+/** @brief Keep track of the 'Other' cycle mode used for triangle rendering */
+static uint64_t other_mode = 0;
 
 /**
  * @brief RDP interrupt handler
@@ -578,6 +582,7 @@ uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mi
     return __rdp_load_texture( texslot, texloc, mirror, sprite, sl, tl, sh, th );
 }
 
+
 /**
  * @brief Draw a textured rectangle with a scaled texture
  *
@@ -757,6 +762,21 @@ void rdp_set_primitive_color( uint32_t color )
 }
 
 /**
+ * @brief Set the primitive draw color for subsequent filled primitive operations
+ *
+ * This function sets the color of all #rdp_draw_textured_triangle operations that follow.
+ *
+ * @param[in] color
+ *            Color to draw triangle primitives in
+ */
+void rdp_set_tri_prim_color( uint32_t color )
+{
+    __rdp_ringbuffer_queue( 0x3A000000 );
+    __rdp_ringbuffer_queue( color );
+    __rdp_ringbuffer_send();	
+}
+
+/**
  * @brief Set the blend draw color for subsequent filled primitive operations
  *
  * This function sets the color of all #rdp_draw_filled_triangle operations that follow.
@@ -770,6 +790,49 @@ void rdp_set_blend_color( uint32_t color )
     __rdp_ringbuffer_queue( color );
     __rdp_ringbuffer_send();
 }
+
+
+/* Set cycle (Point sampled default)
+   Compatible with: X/Y Scale, Prim color, Alpha blending */
+   
+/**
+ * @brief Set the cycle mode for subsequent filled primitive operations
+ *
+ * This function sets the cycle mode of all #rdp_draw_textured_triangle operations that follow.
+ *
+ * @param[in] cycle
+ *            The cycle type. Default to _1CYCLE.
+ * @param[in] enable_alpha
+ *            Boolean for alpha blending enabling
+ * @param[in] mode
+ *            Bitmask of flags for the cycle mode. For default texturing use "ATOMIC_PRIM | SAMPLE_TYPE | IMAGE_READ_EN"
+ */
+void rdp_texture_cycle( cycle_mode_t cycle, uint64_t mode )
+{
+    uint32_t mode_hi = mode >> 32;
+    uint32_t mode_lo = mode & 0xFFFFFFFF;
+    other_mode = mode;
+	
+    // Draw cycle
+    if (cycle == _2CYCLE)
+    {
+        cycle=1;
+    }
+    else
+    {
+        cycle=0;
+    }
+
+    // Set Other Modes	
+    __rdp_ringbuffer_queue( 0xEF000800 | cycle << 20 | mode_hi );
+    __rdp_ringbuffer_queue( 0x00004040 | mode_lo );
+    __rdp_ringbuffer_send();
+	
+    // Set Combine Mode
+    __rdp_ringbuffer_queue( 0x3C000061 );
+    __rdp_ringbuffer_queue( 0x082C01C0 );
+    __rdp_ringbuffer_send();
+}	
 
 /**
  * @brief Draw a filled rectangle
@@ -864,6 +927,207 @@ void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3,
     __rdp_ringbuffer_queue( dxmdy );
     __rdp_ringbuffer_send();
 }
+
+/**
+ * @brief Draw a textured triangle
+ *
+ * Given a primitive colour set with #rdp_set_tri_prim_color, this will draw a textured triangle
+ * to the screen. Vertex order is not important.
+ *
+ * Before calling this function, make sure that the RDP is set to cycle mode by
+ * calling #rdp_texture_cycle. Set the mode to 'ATOMIC_PRIM | SAMPLE_TYPE | IMAGE_READ_EN' for texturing, for example.
+ * 
+ * NOTE: Currently, perspective correct textures is glitchy.  
+ *
+ * @param[in] x1
+ *            Pixel X1 location of triangle
+ * @param[in] y1
+ *            Pixel Y1 location of triangle
+ * @param[in] w1
+ *            Pixel W1 location of triangle
+ * @param[in] s1
+ *            Pixel S1 location of triangle
+ * @param[in] t1
+ *            Pixel T1 location of triangle
+ * @param[in] x2
+ *            Pixel X2 location of triangle
+ * @param[in] y2
+ *            Pixel Y2 location of triangle
+ * @param[in] w2
+ *            Pixel W2 location of triangle
+ * @param[in] s2
+ *            Pixel S2 location of triangle
+ * @param[in] t2
+ *            Pixel T2 location of triangle
+ * @param[in] x3
+ *            Pixel X3 location of triangle
+ * @param[in] y3
+ *            Pixel Y3 location of triangle
+ * @param[in] w3
+ *            Pixel W3 location of triangle
+ * @param[in] s3
+ *            Pixel S3 location of triangle
+ * @param[in] t3
+ *            Pixel T3 location of triangle
+ */
+void rdp_draw_textured_triangle( uint32_t texslot, float x1, float y1, float w1, float s1, float t1, 
+                                    float x2, float y2, float w2, float s2, float t2, 
+                                    float x3, float y3, float w3, float s3, float t3 )
+{
+    float temp_x, temp_y, temp_s, temp_t;
+    double temp_w;
+    const float to_fixed_11_2 = 4.0f;
+    const float to_fixed_16_16 = 65536.0f; 
+    const float to_fixed_11_21 = (1 << 21);
+    const float to_fixed_10_22 = (1 << 22);
+    
+    const int32_t wx_fixed_scale = 0x7fffffff;
+    const int32_t we_fixed_scale = 0x7fffffff;
+    const int32_t w_fixed_scale = 0x7fffffff; 
+    
+    int tilenum = (texslot & 0x7) << 16;
+    
+    /* Update Texturing coords to texture size */
+    uint32_t width = cache[texslot & 0x7].width;
+    uint32_t height = cache[texslot & 0x7].height;
+    s1 *= width;
+    s2 *= width;
+    s3 *= width;
+    t1 *= height;
+    t2 *= height;
+    t3 *= height;
+    
+    /* sort vertices by Y ascending to find the major, mid and low edges */
+    if( y1 > y2 ) { temp_x = x2; x2 = x1; x1 = temp_x; 
+                    temp_y = y2; y2 = y1; y1 = temp_y; 
+                    temp_w = w2; w2 = w1; w1 = temp_w; 
+                    temp_s = s2; s2 = s1; s1 = temp_s;
+                    temp_t = t2; t2 = t1; t1 = temp_t; }
+
+    if( y2 > y3 ) { temp_x = x3; x3 = x2; x2 = temp_x;
+                    temp_y = y3; y3 = y2; y2 = temp_y; 
+                    temp_w = w3; w3 = w2; w2 = temp_w; 
+                    temp_s = s3; s3 = s2; s2 = temp_s;
+                    temp_t = t3; t3 = t2; t2 = temp_t; }
+
+    if( y1 > y2 ) { temp_x = x2; x2 = x1; x1 = temp_x; 
+                    temp_y = y2; y2 = y1; y1 = temp_y;
+                    temp_w = w2; w2 = w1; w1 = temp_w; 
+                    temp_s = s2; s2 = s1; s1 = temp_s;
+                    temp_t = t2; t2 = t1; t1 = temp_t; }
+
+
+    if(other_mode & 0x08000000000000) // Perspective
+    {
+        s1 *= w1;
+        s2 *= w2;
+        s3 *= w3;
+        t1 *= w1;
+        t2 *= w2;
+        t3 *= w3;
+    }
+
+    /* early out if there is no triangle */
+    if (fabsf(y3-y1) < 2.0f) return;
+    if (y1 == y2) y1--;
+
+    /* calculate Y edge coefficients in 11.2 fixed format */
+    int yh = y1 * to_fixed_11_2;
+    int ym = (int)( y2 * to_fixed_11_2 ) << 16; // high word
+    int yl = y3 * to_fixed_11_2;
+    
+    /* calculate X edge coefficients in 16.16 fixed format */
+    int xh = x1 * to_fixed_16_16;
+    int xm = x1 * to_fixed_16_16;
+    int xl = x2 * to_fixed_16_16;
+    
+    /* calculate inverse slopes in 16.16 fixed format */
+    int dxhdy = ( ( x3 - x1 ) / ( y3 - y1 ) ) * to_fixed_16_16;
+    int dxmdy = ( ( x2 - x1 ) / ( y2 - y1 ) ) * to_fixed_16_16;
+    int dxldy = ( ( x3 - x2 ) / ( y3 - y2 ) ) * to_fixed_16_16;
+    
+    /* determine the winding of the triangle */
+    int winding = ( x1 * y2 - x2 * y1 ) + ( x2 * y3 - x3 * y2 ) + ( x3 * y1 - x1 * y3 );
+    int flip = ( winding > 0 ? 1 : 0 ) << 23;
+
+    /* calculate S+T edge coefficients in 10.22 fixed format */
+    int s = (int)( s1 * to_fixed_10_22);
+    int t = (int)( t1 * to_fixed_10_22); 
+    int sh = s & 0xffff0000;
+    int th = (uint32_t)(t & 0xffff0000) >> 16;
+    int sl = (s & 0x0000ffff) << 16;
+    int tl = t & 0x0000ffff;
+
+    uint32_t w = (uint32_t)( w1  * w_fixed_scale);
+    int wh = w & 0xffff0000;
+    int wl = (w & 0x0000ffff) << 16;
+    
+    /* Generate X coord delta */
+    double dx = (x1 - x3) * (y2 - y3) - (x2 - x3) * (y1 - y3);        
+    if (dx == 0) dx = 1;
+        
+    /* Construct 32bit Scanline Deltas */
+    /* For generating tex coords for each pixel along the scanline (11:21 fixed) */
+    float idx = to_fixed_11_21 / dx;     
+    int dsdx = ((s1 - s3) * (y2 - y3) -
+                (s2 - s3) * (y1 - y3)) * idx;
+    int dtdx = ((t1 - t3) * (y2 - y3) -
+                (t2 - t3) * (y1 - y3)) * idx;
+    int dwdx = (((w1 - w3) * (y2 - y3) -
+                (w2 - w3) * (y1 - y3)) / dx) * wx_fixed_scale;
+
+            
+    /* Construct 32bit Edge Deltas */
+    /* For generating tex coords along the leading edge of a triangle, to start each scanline from (11:21 fixed) */
+    int dsde = ( (s3 - s1) / ( y3 - y1 ) ) * to_fixed_11_21;
+    int dtde = ( (t3 - t1) / ( y3 - y1 ) ) * to_fixed_11_21;
+    int dwde = ( (w3 - w1) / ( y3 - y1 ) ) * we_fixed_scale;
+    
+    /* Reconstruct 32Bit deltas, into high/low interlaced 16bit masks */  
+    uint32_t dshdx = dsdx & 0xffff0000;
+    uint32_t dthdx = dtdx & 0xffff0000;
+    uint32_t dwhdx = dwdx & 0xffff0000;
+    uint32_t dsldx = dsdx & 0x0000ffff;
+    uint32_t dtldx = dtdx & 0x0000ffff;
+    uint32_t dwldx = dwdx & 0x0000ffff;
+    dthdx = ((dthdx & 0xffff0000) >> 16) & 0x0000ffff;
+    dsldx = (dsldx << 16) & 0xffff0000;
+    dwldx = (dwldx << 16) & 0xffff0000;
+        
+    /* Reconstruct 32Bit edge deltas, into high/low interlaced 16bit masks */  
+    uint32_t dshde = dsde & 0xffff0000;
+    uint32_t dthde = dtde & 0xffff0000;
+    uint32_t dwhde = dwde & 0xffff0000;
+    uint32_t dslde = dsde & 0x0000ffff;
+    uint32_t dtlde = dtde & 0x0000ffff;
+    uint32_t dwlde = dwde & 0x0000ffff;
+    dthde = ((dthde & 0xffff0000)  >> 16) & 0x0000ffff;
+    dslde = (dslde << 16) & 0xffff0000;
+    dwlde = (dwlde << 16) & 0xffff0000;
+
+
+    /* Base Triangle Data */
+    __rdp_ringbuffer_queue( 0x0A000000 | flip | tilenum | yl );
+    __rdp_ringbuffer_queue( ym | yh );
+    __rdp_ringbuffer_queue( xl );
+    __rdp_ringbuffer_queue( dxldy );
+    __rdp_ringbuffer_queue( xh );
+    __rdp_ringbuffer_queue( dxhdy );
+    __rdp_ringbuffer_queue( xm );
+    __rdp_ringbuffer_queue( dxmdy );
+    
+    /* Texture Data */
+    __rdp_ringbuffer_queue( sh | th );          __rdp_ringbuffer_queue( wh );
+    __rdp_ringbuffer_queue( dshdx | dthdx );    __rdp_ringbuffer_queue( dwhdx );
+    __rdp_ringbuffer_queue( sl | tl );          __rdp_ringbuffer_queue( wl );
+    __rdp_ringbuffer_queue( dsldx | dtldx );    __rdp_ringbuffer_queue( dwldx );
+    __rdp_ringbuffer_queue( dshde | dthde );    __rdp_ringbuffer_queue( dwhde );
+    __rdp_ringbuffer_queue( 0 );                __rdp_ringbuffer_queue( 0 );
+    __rdp_ringbuffer_queue( dslde | dtlde );    __rdp_ringbuffer_queue( dwlde );
+    __rdp_ringbuffer_queue( 0 );                __rdp_ringbuffer_queue( 0 );
+    __rdp_ringbuffer_send();
+}
+
 
 /**
  * @brief Set the flush strategy for texture loads
