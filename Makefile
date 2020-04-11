@@ -1,9 +1,9 @@
 ROOTDIR = $(N64_INST)
 
 ifndef LIBDRAGON_VERSION_MAJOR
-CFLAGS = -std=gnu99 -O2 -Wall -Werror -mtune=vr4300 -march=vr4300 -I$(CURDIR)/include -I$(ROOTDIR)/mips64-elf/include
+CFLAGS = -std=gnu99 -O2 -Wall -Werror -fno-math-errno -mtune=vr4300 -march=vr4300 -I$(CURDIR)/include -I$(ROOTDIR)/mips64-elf/include
 else
-CFLAGS = -std=gnu99 -O2 -Wall -Werror -DLIBDRAGON_VERSION_MAJOR=$(LIBDRAGON_VERSION_MAJOR) -DLIBDRAGON_VERSION_MINOR=$(LIBDRAGON_VERSION_MINOR) -DLIBDRAGON_VERSION_REVISION=$(LIBDRAGON_VERSION_REVISION) -mtune=vr4300 -march=vr4300 -I$(CURDIR)/include -I$(ROOTDIR)/mips64-elf/include
+CFLAGS = -std=gnu99 -O2 -Wall -Werror -fno-math-errno -DLIBDRAGON_VERSION_MAJOR=$(LIBDRAGON_VERSION_MAJOR) -DLIBDRAGON_VERSION_MINOR=$(LIBDRAGON_VERSION_MINOR) -DLIBDRAGON_VERSION_REVISION=$(LIBDRAGON_VERSION_REVISION) -mtune=vr4300 -march=vr4300 -I$(CURDIR)/include -I$(ROOTDIR)/mips64-elf/include
 endif
 
 ASFLAGS = -mtune=vr4300 -march=vr4300
