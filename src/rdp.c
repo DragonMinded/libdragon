@@ -1156,6 +1156,24 @@ int clip_test(float4 v1, float4 v2, float4 v3)
 }
 
 
+/**
+ * @brief Draw a textured mesh
+ *
+ * Given a primitive colour set with #rdp_set_tri_prim_color, this will draw a textured series of triangles
+ * to the screen. Vertex order is not important.
+ *
+ * Before calling this function, make sure that the RDP is set to cycle mode by
+ * calling #rdp_texture_cycle. Set the mode to 'ATOMIC_PRIM | SAMPLE_TYPE | IMAGE_READ_EN' for texturing, for example.
+ * 
+ * NOTE: Currently, perspective correct textures is glitchy.  
+ *
+ * @param[in] texslot
+ *            The texture slot used
+ * @param[in] tranform
+ *            The full (ProjectionModelView) Matrix used for transformation.
+ * @param[in] mesh
+ *            The mesh object to draw.
+ */
 void rdp_draw_textured_mesh( uint32_t texslot, matrix4 tranform, mesh_t *mesh)
 {
     bool use_indexes = mesh->icount > 0;
