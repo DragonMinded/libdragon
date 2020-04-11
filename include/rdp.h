@@ -105,6 +105,7 @@ void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3,
 void rdp_draw_textured_triangle( uint32_t texslot, float x1, float y1, float w1, float s1, float t1, 
                                     float x2, float y2, float w2, float s2, float t2, 
                                     float x3, float y3, float w3, float s3, float t3 );
+void rdp_draw_textured_mesh( uint32_t texslot, matrix4 tranform, mesh_t *mesh);
 void rdp_set_texture_flush( flush_t flush );
 void rdp_close( void );
 

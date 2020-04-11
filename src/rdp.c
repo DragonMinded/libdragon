@@ -4,6 +4,7 @@
  * @ingroup rdp
  */
 #include <stdint.h>
+#include <stdlib.h>
 #include <malloc.h>
 #include <string.h>
 #include <math.h>
@@ -1045,6 +1046,10 @@ void rdp_draw_textured_triangle( uint32_t texslot, float x1, float y1, float w1,
     int dxhdy = ( ( x3 - x1 ) / ( y3 - y1 ) ) * to_fixed_16_16;
     int dxmdy = ( ( x2 - x1 ) / ( y2 - y1 ) ) * to_fixed_16_16;
     int dxldy = ( ( x3 - x2 ) / ( y3 - y2 ) ) * to_fixed_16_16;
+
+    /* remove the ability to have empty polygons. */
+    /* if the starting x deltas match then we are going to crash the rcp as it tries to render too thin a poly */
+    if (abs(dxhdy-dxmdy) < 4096) return;
     
     /* determine the winding of the triangle */
     int winding = ( x1 * y2 - x2 * y1 ) + ( x2 * y3 - x3 * y2 ) + ( x3 * y1 - x1 * y3 );
@@ -1128,6 +1133,68 @@ void rdp_draw_textured_triangle( uint32_t texslot, float x1, float y1, float w1,
     __rdp_ringbuffer_send();
 }
 
+
+#define CLIP_NONE 0 // not clipped
+#define CLIP_PARTIAL 1 // clip triangle
+#define CLIP_COMPLETE 2 // completely obscured.
+
+
+int clip_test(float4 v1, float4 v2, float4 v3)
+{
+    // x test
+    if (v1.x < -1 || v2.x < -1 || v3.x < -1) return CLIP_PARTIAL;
+    if (v1.x > 1 || v2.x > 1 || v3.x > 1) return CLIP_PARTIAL;
+    
+    // y test
+    if (v1.y < -1 || v2.y < -1 || v3.y < -1) return CLIP_PARTIAL;
+    if (v1.y > 1 || v2.y > 1 || v3.y > 1) return CLIP_PARTIAL;
+    
+    // z test
+    if (v1.z < 0 || v2.z < 0 || v3.z < 0) return CLIP_PARTIAL;
+
+    return CLIP_NONE;
+}
+
+
+void rdp_draw_textured_mesh( uint32_t texslot, matrix4 tranform, mesh_t *mesh)
+{
+    bool use_indexes = mesh->icount > 0;
+
+    int hwidth = __width / 2;
+    int hheight = __height / 2;
+
+    int count = use_indexes ? mesh->icount : mesh->vcount;
+    
+    for(int i = 0; i<count; i+=3 )
+    {        
+        uint8_t i1 = i+0;
+        uint8_t i2 = i+1;
+        uint8_t i3 = i+2;
+
+        if(use_indexes)
+        {
+            i1 = mesh->idata[i+0];
+            i2 = mesh->idata[i+1];
+            i3 = mesh->idata[i+2];
+        }
+        
+        float4 v1 = f4_persp(m4_mul_f(tranform, mesh->vdata[i1].v));
+        float4 v2 = f4_persp(m4_mul_f(tranform, mesh->vdata[i2].v));
+        float4 v3 = f4_persp(m4_mul_f(tranform, mesh->vdata[i3].v));
+        
+        if(clip_test(v1, v2, v3) != CLIP_NONE)
+            continue;
+
+        rdp_draw_textured_triangle(texslot,     v1.x * hwidth + hwidth, v1.y * hheight + hheight, v1.w, mesh->vdata[i1].t,mesh->vdata[i1].s,
+                                                v2.x * hwidth + hwidth, v2.y * hheight + hheight, v2.w, mesh->vdata[i2].t,mesh->vdata[i2].s,
+                                                v3.x * hwidth + hwidth, v3.y * hheight + hheight, v3.w, mesh->vdata[i3].t,mesh->vdata[i3].s );
+                                        
+        rdp_sync( SYNC_PIPE );
+    }
+
+
+    
+}
 
 /**
  * @brief Set the flush strategy for texture loads

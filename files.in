@@ -8,7 +8,6 @@ OFILES_LD += $(CURDIR)/build/display.o
 OFILES_LD += $(CURDIR)/build/console.o
 OFILES_LD += $(CURDIR)/build/controller.o
 OFILES_LD += $(CURDIR)/build/mempak.o
-OFILES_LD += $(CURDIR)/build/tpak.o
 OFILES_LD += $(CURDIR)/build/graphics.o
 OFILES_LD += $(CURDIR)/build/rdp.o
 OFILES_LD += $(CURDIR)/build/rsp.o
@@ -17,6 +16,8 @@ OFILES_LD += $(CURDIR)/build/timer.o
 OFILES_LD += $(CURDIR)/build/version.o
 OFILES_LD += $(CURDIR)/build/exception.o
 OFILES_LD += $(CURDIR)/build/do_ctors.o
+OFILES_LD += $(CURDIR)/build/float4.o
+OFILES_LD += $(CURDIR)/build/matrix4.o
 
 OFILES_LDS  = $(CURDIR)/build/system.o
 
@@ -71,9 +72,6 @@ $(CURDIR)/build/controller.o: $(CURDIR)/src/controller.c
 $(CURDIR)/build/mempak.o: $(CURDIR)/src/mempak.c
 	mkdir -p $(CURDIR)/build
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/mempak.o $(CURDIR)/src/mempak.c
-$(CURDIR)/build/tpak.o: $(CURDIR)/src/tpak.c
-	mkdir -p $(CURDIR)/build
-	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/tpak.o $(CURDIR)/src/tpak.c
 
 # Rules for compiling timer system
 $(CURDIR)/build/timer.o: $(CURDIR)/src/timer.c
@@ -99,3 +97,11 @@ $(CURDIR)/build/version.o: $(CURDIR)/src/version.c
 $(CURDIR)/build/do_ctors.o: $(CURDIR)/src/do_ctors.c
 	mkdir -p $(CURDIR)/build
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/do_ctors.o $(CURDIR)/src/do_ctors.c
+	
+# Rules for compiling vector and matrix maths
+$(CURDIR)/build/float4.o: $(CURDIR)/src/float4.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/float4.o $(CURDIR)/src/float4.c
+$(CURDIR)/build/matrix4.o: $(CURDIR)/src/matrix4.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/matrix4.o $(CURDIR)/src/matrix4.c

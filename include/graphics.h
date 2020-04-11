@@ -7,6 +7,7 @@
 #define __LIBDRAGON_GRAPHICS_H
 
 #include "display.h"
+#include "matrix4.h"
 
 /**
  * @addtogroup graphics
@@ -52,6 +53,33 @@ typedef struct
     /** @brief Start of graphics data */
     uint32_t data[0];
 } sprite_t;
+
+
+/** @brief Generic vertex structure */
+typedef struct
+{
+    /** @brief Position */
+    float4 v;
+    /** @brief T texture coord */
+    float t;
+    /** @brief S texture coord */
+    float s;
+} vertex_t;
+
+/** @brief Mesh structure */
+typedef struct
+{
+    /** @brief The number of vertices */
+    uint16_t vcount;
+    /** @brief The number of indices (a value of zero will treat the indexes as sequential) */
+    uint16_t icount;
+    
+    /** @brief Index data */
+    uint8_t idata[64];
+
+    /** @brief Vertex data */
+    vertex_t vdata[0];
+} mesh_t;
 
 #ifdef __cplusplus
 extern "C" {
