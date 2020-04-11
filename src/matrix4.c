@@ -1,8 +1,13 @@
-
+/**
+ * @file matrix4.c
+ * @brief Matrix 16 (4*float4) vector mathematics
+ * @ingroup matrix4
+ */
 #include <matrix4.h>
 #include <math.h>
 
 
+/** @brief Create an identity matrix */
 matrix4 m4_identity()
 {
     matrix4 out;
@@ -19,6 +24,8 @@ matrix4 m4_identity()
     return out;
 }
 
+
+/** @brief Add a float4 transformation to the matrix */
 void m4_translate(matrix4* m, float4 translate)
 {
     m->m[0][3] = translate.x;
@@ -26,6 +33,7 @@ void m4_translate(matrix4* m, float4 translate)
     m->m[2][3] = translate.z;
 }
 
+/** @brief Add a float4 scale to the matrix */
 void m4_scale(matrix4* m, float4 scale)
 {
     m->m[0][0] *= scale.x;
@@ -33,6 +41,7 @@ void m4_scale(matrix4* m, float4 scale)
     m->m[2][2] *= scale.z;
 }
 
+/** @brief Add a float4 rotation to the matrix */
 void m4_rotate(matrix4* m, float4 ang)
 {
     float  angle;
@@ -67,6 +76,7 @@ void m4_rotate(matrix4* m, float4 ang)
 }
 
 
+/** @brief Transform a float4 object by a Matrix */
 float4 m4_mul_f(matrix4 m, float4 vec)
 {
     float4 temp;
@@ -79,6 +89,7 @@ float4 m4_mul_f(matrix4 m, float4 vec)
 }
 
 
+/** @brief Multiply two matrix objects together */
 matrix4 m4_mul_m(matrix4 m1, matrix4 m2)
 {
     matrix4 ret;
@@ -106,6 +117,7 @@ matrix4 m4_mul_m(matrix4 m1, matrix4 m2)
 }
 
 
+/** @brief Transpose a matrix object */
 matrix4 m4_transpose(matrix4 m)
 {
     matrix4 r;
@@ -128,6 +140,8 @@ matrix4 m4_transpose(matrix4 m)
     return r;
 }
 
+
+/** @brief Generate a Projection matrix  */
 matrix4 m4_projection(float FOV, float aspect, float zNear, float zFar)
 {
     matrix4 ret;
@@ -158,6 +172,7 @@ matrix4 m4_projection(float FOV, float aspect, float zNear, float zFar)
     return ret;
 }
 
+/** @brief Genreate a camera Look At view matrix */
 matrix4 m4_lookAt(float4 Eye, float4 At, float4 Up)
 {
     matrix4 ret;

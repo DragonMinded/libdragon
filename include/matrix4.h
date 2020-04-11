@@ -3,10 +3,24 @@
 
 #include <float4.h>
 
+/**
+ * @addtogroup matrix4
+ * @{
+ */
+
+
+/**
+ * @brief Structure representing a float 16 matrix
+ */
 typedef struct 
 {
     float m[4][4];
 } matrix4;
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 matrix4 m4_identity();
 
@@ -20,5 +34,9 @@ matrix4 m4_mul_m(matrix4 m1, matrix4 m2);
 
 matrix4 m4_projection(float FOV, float aspect, float zNear, float zFar);
 matrix4 m4_lookAt(float4 Eye, float4 At, float4 Up);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //__LIBDRAGON_VECTOR_H_

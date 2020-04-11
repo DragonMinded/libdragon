@@ -1,11 +1,23 @@
 #ifndef __LIBDRAGON_FLOAT4_H_
 #define	__LIBDRAGON_FLOAT4_H_
 
+/**
+ * @addtogroup float4
+ * @{
+ */
+
+
+/**
+ * @brief Structure representing a float 4 vector
+ */
 typedef struct 
 {
     float x,y,z,w;
 } float4;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define f4_add_fast(outv, a, b) outv.x=a.x+b.x;outv.y=a.y+b.y;outv.z=a.z+b.z;outv.w=a.w+b.w;
 
@@ -31,5 +43,9 @@ float4 f4_cross(float4 a, float4 b);
 float4 f4_calcnormal(float4 v1, float4 v2, float4 v3);
 
 float4 f4_persp(float4 v);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //__LIBDRAGON_FLOAT4_H_
