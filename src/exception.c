@@ -23,9 +23,7 @@
 /** @brief Exception handler currently registered with exception system */
 static void (*__exception_handler)(exception_t*) = NULL;
 /** @brief Base register offset as defined by the interrupt controller */
-extern const unsigned char* __baseRegAddr __attribute__((section (".data")));
-// Do not allow this in small data or it will seem larger than it actually is
-// Linker is using the undefined section here instead of using .bss from inthandler.S?
+extern const void* __baseRegAddr;
 
 /**
  * @brief Register an exception handler to handle exceptions
@@ -41,24 +39,50 @@ void register_exception_handler( void (*cb)(exception_t*))
 /**
  * @brief Fetch the string name of the exception
  *
- * @todo Implement exceptionMap, then calculate the offset
- *
- * @param[in] etype
- *            Exception type
+ * @param[in] cr
+ *            Cause register's value
  *
  * @return String representation of the exception
  */
-static const char* __get_exception_name(uint32_t etype)
+static const char* __get_exception_name(uint32_t cr)
 {
 	static const char* exceptionMap[] =
 	{
-		"Exception infomap not implemented",
-		NULL,
+		"Interrupt",								// 0
+		"TLB Modification",							// 1
+		"TLB Miss (load/instruction fetch)",		// 2
+		"TLB Miss (store)",							// 3
+		"Address Error (load/instruction fetch)",	// 4
+		"Address Error (store)",					// 5
+		"Bus Error (instruction fetch)",			// 6
+		"Bus Error (data reference: load/store)",	// 7
+		"Syscall",									// 8
+		"Breakpoint",								// 9
+		"Reserved Instruction",						// 10
+		"Coprocessor Unusable",						// 11
+		"Arithmetic Overflow",						// 12
+		"Trap",										// 13
+		"Reserved",									// 13
+		"Floating-Point",							// 15
+		"Reserved",									// 16
+		"Reserved",									// 17
+		"Reserved",									// 18
+		"Reserved",									// 19
+		"Reserved",									// 20
+		"Reserved",									// 21
+		"Reserved",									// 22
+		"Watch",									// 23
+		"Reserved",									// 24
+		"Reserved",									// 25
+		"Reserved",									// 26
+		"Reserved",									// 27
+		"Reserved",									// 28
+		"Reserved",									// 29
+		"Reserved",									// 30
+		"Reserved",									// 31
 	};
 
-	etype = 0;
-
-	return exceptionMap[(int32_t)etype];
+	return exceptionMap[(cr >> 2) & 0x1F];
 }
 
 /**
@@ -72,9 +96,9 @@ static const char* __get_exception_name(uint32_t etype)
  */
 static void __fetch_regs(exception_t* e,int32_t type)
 {
-	e->regs = (volatile const reg_block_t*) __baseRegAddr;
+	e->regs = (volatile const reg_block_t*) &__baseRegAddr;
 	e->type = type;
-	e->info = __get_exception_name((uint32_t)e->regs->gpr[30]);
+	e->info = __get_exception_name((uint32_t)e->regs->cr);
 }
 
 /**
@@ -83,7 +107,7 @@ static void __fetch_regs(exception_t* e,int32_t type)
 void __onCriticalException()
 {
 	exception_t e;
-	
+
 	if(!__exception_handler) { return; }
 
 	__fetch_regs(&e,EXCEPTION_TYPE_CRITICAL);
