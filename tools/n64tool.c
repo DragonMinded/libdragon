@@ -39,6 +39,7 @@
 /* Easier to write from here */
 static int title[TITLE_SIZE];
 static int wrote_title = 0;
+static unsigned char zero[1024] = {0};
 
 void print_usage(char *prog_name)
 {
@@ -165,22 +166,15 @@ int output_zeros(FILE *dest, int amount)
 		return -1;
 	}
 	
-	if(amount <= 0)
-	{
-		/* We are done */
-		return 0;
-	}
-	
 	int i;
-	
-	for(i = 0; i < (amount >> 2); i++)
-	{
-		/* Write out a word at a time */
-		uint32_t byte = 0;
-		
-		fwrite(&byte, 1, 4, dest);
+	while (amount > 0) {
+		int sz = amount;
+		if (sz > sizeof(zero))
+			sz = sizeof(zero);
+		fwrite(zero, 1, sz, dest);
+		amount -= sz;
 	}
-	
+
 	return 0;
 }
 
