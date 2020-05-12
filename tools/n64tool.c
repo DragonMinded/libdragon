@@ -23,7 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define WRITE_SIZE	1024
+#define WRITE_SIZE	(1024*1024)
 
 #define TITLE_LOC	32
 #define TITLE_SIZE	20
