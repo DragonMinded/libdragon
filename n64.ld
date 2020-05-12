@@ -46,6 +46,7 @@ SECTIONS {
         *(.init)
         *(.fini)
         *(.gnu.linkonce.t.*)
+        . = ALIGN(16);
         __text_end  = .;
     } > mem
 
@@ -59,6 +60,7 @@ SECTIONS {
         *(.rodata)
         *(.rodata.*)
         *(.gnu.linkonce.r.*)
+        . = ALIGN(8);
     } > mem
 
     . = ALIGN(8);
@@ -99,28 +101,30 @@ SECTIONS {
         *(.data)
         *(.data.*)
         *(.gnu.linkonce.d.*)
+        . = ALIGN(8);
     } > mem
 
     /* Small data START */
 
-    . = ALIGN(8);
     .sdata : {
         _gp = . + 0x8000;
         *(.sdata)
         *(.sdata.*)
         *(.gnu.linkonce.s.*)
+        . = ALIGN(8);
     } > mem
 
     .lit8 : {
         *(.lit8)
+        . = ALIGN(8);
     } > mem
     .lit4 : {
         *(.lit4)
+        . = ALIGN(8);
     } > mem
 
     __data_end = .;
 
-    . = ALIGN(8);
     .sbss (NOLOAD) : {
          __bss_start = .;
         *(.sbss)
@@ -138,7 +142,8 @@ SECTIONS {
         *(.bss*)
         *(.gnu.linkonce.b.*)
         *(COMMON)
-        __bss_end = .;
+        . = ALIGN(8);
+         __bss_end = .;
     } > mem
 
     . = ALIGN(8);
