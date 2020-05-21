@@ -215,10 +215,18 @@ makeNotImplemented tnei
         .ifgt (\element >> 4)
             .error "Invalid element"
         .else
-            .ifgt (\offset >> 7)
-                .error "Invalid offset"
+            .ifge (\offset)
+                .ifgt (\offset - 63)
+                    .error "Invalid offset - valid range: [-64, 63]"
+                .else
+                    loadVector \opcode, \vt, \element, \offset, \base
+                .endif
             .else
-                loadVector \opcode, \vt, \element, \offset, \base
+                .iflt (\offset + 64)
+                    .error "Invalid offset - valid range: [-64, 63]"
+                .else
+                    loadVector \opcode, \vt, \element, (128 + \offset), \base
+                .endif
             .endif
         .endif
     .endm
@@ -229,10 +237,18 @@ makeNotImplemented tnei
         .ifgt (\element >> 4)
             .error "Invalid element"
         .else
-            .ifgt (\offset >> 7)
-                .error "Invalid offset"
+            .ifge (\offset)
+                .ifgt (\offset - 63)
+                    .error "Invalid offset - valid range: [-64, 63]"
+                .else
+                    storeVector \opcode, \vt, \element, \offset, \base
+                .endif
             .else
-                storeVector \opcode, \vt, \element, \offset, \base
+                .iflt (\offset + 64)
+                    .error "Invalid offset - valid range: [-64, 63]"
+                .else
+                    storeVector \opcode, \vt, \element, (128 + \offset), \base
+                .endif
             .endif
         .endif
     .endm
