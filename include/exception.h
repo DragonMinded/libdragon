@@ -37,6 +37,8 @@ typedef volatile struct
 	volatile uint64_t gpr[32];
     /** @brief SR */
 	volatile uint32_t sr;
+    /** @brief CR */
+	volatile uint32_t cr;
     /** @brief EPC */
 	volatile uint32_t epc;
     /** @brief HI */
