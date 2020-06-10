@@ -1,17 +1,27 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <dirent.h>
+#include <malloc.h>
 #include <sys/stat.h>
 #include <string.h>
 #include <errno.h>
 #include <stdint.h>
+
 #include <sys/types.h>
+#ifndef _MSC_VER
+#include <dirent.h>
 #include <sys/param.h>
+#else
+#include "dirent.h"
+#endif // !_MSC_VER
+
 #include "dragonfs.h"
 #include "dfsinternal.h"
 
+#ifndef _MSC_VER
 #if BYTE_ORDER == BIG_ENDIAN
 #define SWAPLONG(i) (i)
+#else
+#define SWAPLONG(i) (((uint32_t)(i & 0xFF000000) >> 24) | ((uint32_t)(i & 0x00FF0000) >>  8) | ((uint32_t)(i & 0x0000FF00) <<  8) | ((uint32_t)(i & 0x000000FF) << 24))
+#endif
 #else
 #define SWAPLONG(i) (((uint32_t)(i & 0xFF000000) >> 24) | ((uint32_t)(i & 0x00FF0000) >>  8) | ((uint32_t)(i & 0x0000FF00) <<  8) | ((uint32_t)(i & 0x000000FF) << 24))
 #endif
@@ -81,7 +91,7 @@ uint32_t add_file(const char * const file, uint32_t *size)
 
     printf("Adding '%s' to filesystem image.\n", file);
 
-    fp = fopen(file, "r");
+    fp = fopen(file, "rb");
 
     if(!fp)
     {
@@ -310,7 +320,7 @@ int main(int argc, char *argv[])
     }
 
     /* Write out filesystem */
-    FILE *fp = fopen(argv[1], "w");
+    FILE *fp = fopen(argv[1], "wb");
 
     if(!fp)
     {
