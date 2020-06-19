@@ -22,9 +22,9 @@
  * The audio subsystem accomplishes this by interfacing with the audio
  * interface (AI) registers.
  *
- * Because the audio DAC is timed off of the master clock of the N64,
+ * Because the audio DAC is timed off of the system clock of the N64,
  * the audio subsystem needs to know what region the N64 is from.  This
- * is due to the fact that the master clock is timed differently for
+ * is due to the fact that the system clock is timed differently for
  * PAL, NTSC and MPAL regions.  This is handled automatically by the
  * audio subsystem based on settings left by the bootloader.
  *
@@ -289,7 +289,7 @@ void audio_close()
             }
         }
 
-        /* Nuke master array */
+        /* Nuke array of buffers we init'd earlier */
         free(buffers);
         buffers = 0;
     }

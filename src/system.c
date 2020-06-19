@@ -102,7 +102,7 @@ char **environ = __env;
 struct timeval;
 
 /**
- * @brief Master definition of errno
+ * @brief Definition of errno, as it's defined as extern across stdlib
  */
 int errno;
 
