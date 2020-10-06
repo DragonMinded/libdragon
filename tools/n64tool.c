@@ -71,7 +71,7 @@ uint32_t get_file_size(FILE *fp)
 
 int swap_bytes(uint8_t *buffer, int size)
 {
-	if((size & 1) == 0)
+	if((size & 1) != 0)
 	{
 		/* Invalid, can only byteswap multiples of 2 */
 		return -1;
