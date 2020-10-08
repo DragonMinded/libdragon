@@ -20,7 +20,8 @@ set -e
 # EDIT THIS LINE TO CHANGE YOUR INSTALL PATH!
 export INSTALL_PATH=${N64_INST:-/usr/local}
 
-export JOBS=${JOBS:-1}
+export JOBS=${JOBS:-`getconf _NPROCESSORS_ONLN`}
+export JOBS=${JOBS:-1} # If getconf returned nothing, default to 1
 export FORCE_DEFAULT_GCC=${FORCE_DEFAULT_GCC:-false}
 
 # Set up path for newlib to compile later
