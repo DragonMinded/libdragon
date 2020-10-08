@@ -13,6 +13,7 @@
 #
 # sudo apt-get install libmpfr-dev
 # sudo apt-get install texinfo
+# sudo apt-get install libmpc-dev
 
 # Exit on error
 set -e
