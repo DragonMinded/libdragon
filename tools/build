@@ -103,6 +103,6 @@ CFLAGS_FOR_TARGET="-G0 -O2" CXXFLAGS_FOR_TARGET="-G0 -O2" ../gcc-$GCC_V/configur
 make -j$JOBS
 make install || sudo make install || su -c "make install"
 
-if [ $COMPILED_CUSTOM_NATIVE_GCC == "true" ]; then
+if [ "$COMPILED_CUSTOM_NATIVE_GCC" == "true" ]; then
     rm -rf ${INSTALL_PATH}/gcc-$GCC_V
 fi
