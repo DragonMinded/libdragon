@@ -22,25 +22,28 @@
 #define TPAK_STATUS_REMOVED         0x40
 #define TPAK_STATUS_POWERED         0x80
 
-
-typedef enum __attribute__ ((packed)) {
+typedef enum __attribute__ ((packed))
+{
     GBC_NOT_SUPPORTED = 0x00,
     GBC_DMG_SUPPORTED = 0x80,
     GBC_ONLY_SUPPORTED = 0xC0
 } gbc_support_type;
 
-struct old_gbc_title {
+struct old_gbc_title
+{
     uint8_t title[15];
     gbc_support_type gbc_support;
 };
 
-struct new_gbc_title {
+struct new_gbc_title
+{
     uint8_t title[11];
     uint8_t manufacturer_code[4];
     gbc_support_type gbc_support;
 };
 
-struct gameboy_cartridge_header {
+struct gameboy_cartridge_header
+{
     uint8_t entry_point[4];
     uint8_t logo[48];
     union {
@@ -59,7 +62,7 @@ struct gameboy_cartridge_header {
     uint8_t header_checksum;
     uint16_t global_checksum;
     uint8_t overflow[16];
-} _gameboy_cartridge_header;
+};
 
 int tpak_init(int controller);
 int tpak_set_value(int controller, uint16_t address, uint8_t value);
@@ -71,7 +74,5 @@ int tpak_get_cartridge_header(int controller, struct gameboy_cartridge_header* h
 bool tpak_check_header(struct gameboy_cartridge_header* header);
 int tpak_write(int controller, uint16_t address, uint8_t* data, uint16_t size);
 int tpak_read(int controller, uint16_t address, uint8_t* buffer, uint16_t size);
-
-
 
 #endif

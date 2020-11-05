@@ -107,13 +107,16 @@ inthandler:
 
 	la sp,(exception_stack+65*1024-8)
 
-	mfc0 k1,C0_CAUSE
+	mfc0 k1, C0_CAUSE
+	sw k1, saveCR
 	andi $30,k1,0xff
 	beqz $30, justaninterrupt
 	nop
 
 	/*:(*/
 	jal __onCriticalException
+	nop
+	j endint
 	nop
 
 justaninterrupt:
@@ -237,7 +240,8 @@ endint:
 	.global __baseRegAddr
 
 	.align 8
-	__baseRegAddr:
+	# A label does not work here. The first save slot is unused so we are naming it to mark this data block.
+	.lcomm __baseRegAddr, 8
 	.lcomm save01, 8
 	.lcomm save02, 8
 	.lcomm save03, 8
@@ -270,6 +274,7 @@ endint:
 	.lcomm save30, 8
 	.lcomm save31, 8
 	.lcomm saveSR, 4
+	.lcomm saveCR, 4
 	.lcomm saveEPC, 4
 	.lcomm saveHI, 8
 	.lcomm saveLO, 8

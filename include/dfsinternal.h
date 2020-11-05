@@ -11,9 +11,9 @@
  * @{
  */
 
-/** @brief The special ID value in #directory_entry::flags defining the master sector */
+/** @brief The special ID value in #directory_entry::flags defining the root sector */
 #define FLAGS_ID        0xFFFFFFFF
-/** @brief The special ID value in #directory_entry::next_entry defining the master sector */
+/** @brief The special ID value in #directory_entry::next_entry defining the root sector */
 #define NEXTENTRY_ID    0xDEADBEEF
 
 /** @brief The size of a sector */

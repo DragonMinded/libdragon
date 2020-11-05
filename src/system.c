@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <malloc.h>
 #include "system.h"
+#include "n64sys.h"
 
 #undef errno
 
@@ -101,7 +102,7 @@ char **environ = __env;
 struct timeval;
 
 /**
- * @brief Master definition of errno
+ * @brief Definition of errno, as it's defined as extern across stdlib
  */
 int errno;
 
@@ -987,10 +988,8 @@ void *sbrk( int incr )
 
     if( heap_end == 0 )
     {
-        int osMemSize = (__bootcic != 6105) ? (*(int*)0xA0000318) : (*(int*)0xA00003F0);
-
         heap_end = &end;
-        heap_top = (char*)0x80000000 + osMemSize - STACK_SIZE;
+        heap_top = (char*)0x80000000 + get_memory_size() - STACK_SIZE;
     }
 
     prev_heap_end = heap_end;

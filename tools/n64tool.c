@@ -23,7 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define WRITE_SIZE	1024
+#define WRITE_SIZE	(1024*1024)
 
 #define TITLE_LOC	32
 #define TITLE_SIZE	20
@@ -39,6 +39,7 @@
 /* Easier to write from here */
 static int title[TITLE_SIZE];
 static int wrote_title = 0;
+static unsigned char zero[1024] = {0};
 
 void print_usage(char *prog_name)
 {
@@ -70,7 +71,7 @@ uint32_t get_file_size(FILE *fp)
 
 int swap_bytes(uint8_t *buffer, int size)
 {
-	if(size & 1 == 0)
+	if((size & 1) != 0)
 	{
 		/* Invalid, can only byteswap multiples of 2 */
 		return -1;
@@ -159,28 +160,21 @@ int copy_file(FILE *dest, char *file, int byte_swap)
 
 int output_zeros(FILE *dest, int amount)
 {
-	if(amount & 3 != 0)
+	if((amount & 3) != 0)
 	{
 		/* Don't support odd word alignments */
 		return -1;
 	}
 	
-	if(amount <= 0)
-	{
-		/* We are done */
-		return 0;
-	}
-	
 	int i;
-	
-	for(i = 0; i < (amount >> 2); i++)
-	{
-		/* Write out a word at a time */
-		uint32_t byte = 0;
-		
-		fwrite(&byte, 1, 4, dest);
+	while (amount > 0) {
+		int sz = amount;
+		if (sz > sizeof(zero))
+			sz = sizeof(zero);
+		fwrite(zero, 1, sz, dest);
+		amount -= sz;
 	}
-	
+
 	return 0;
 }
 
