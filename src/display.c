@@ -268,13 +268,11 @@ static void __display_callback_highres_mode()
 {
 
     // Each time the VI_interrupt fires, switch between drawing odd and even numbered scanlines to achieve high-res mode.
-    VI_regs_t vi_registers;
-    memcpy(&vi_registers, (uint32_t*) REGISTER_BASE, sizeof(VI_regs_t));
+    VI_regs_t* vi_registers = (VI_regs_t*) REGISTER_BASE;
 
     _v_limits_switch = !_v_limits_switch;
-    vi_registers.v_limits = __v_limits_values[_v_limits_switch];
-
-    __write_registers((uint32_t*)&vi_registers);
+    vi_registers->v_limits = __v_limits_values[_v_limits_switch];
+    MEMORY_BARRIER();
 
     __display_callback();
 }
