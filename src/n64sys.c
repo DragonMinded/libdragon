@@ -7,7 +7,6 @@
 #include <stdint.h>
 #include "n64sys.h"
 
-
 /**
  * @defgroup n64sys N64 System Interface
  * @ingroup lowlevel
@@ -246,7 +245,6 @@ bool is_memory_expanded()
 {
     return get_memory_size() == 0x800000;
 }
-
 
 /** @brief Memory location to read which determines the TV type. */
 #define TV_TYPE_LOC  0x80000300

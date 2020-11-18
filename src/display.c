@@ -185,7 +185,6 @@ uint32_t __buffers = NUM_BUFFERS;
 /** @brief Pointer to uncached 16-bit aligned version of buffers */
 void *__safe_buffer[NUM_BUFFERS];
 
-
 /** @brief Currently displayed buffer */
 static int now_showing = -1;
 
@@ -233,7 +232,6 @@ static void __write_dram_register( void const * const dram_val )
     reg_base[1] = (uint32_t)dram_val;
     MEMORY_BARRIER();
 }
-
 
 /**
  * @brief Interrupt handler for vertical blank
@@ -430,7 +428,6 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
 
     /* Set which line to call back on in order to flip screens */
     register_VI_handler( __display_callback );
-
     set_VI_interrupt( 1, 0x200 );
 }
 
