@@ -8,6 +8,7 @@
 #include <malloc.h>
 #include "libdragon.h"
 #include "regsinternal.h"
+#include "n64sys.h"
 
 /**
  * @defgroup audio Audio Subsystem
@@ -44,13 +45,6 @@
  * down the audio subsystem cleanly.
  * @{
  */
-
-/**
- * @brief Memory location to read which determines the TV type
- *
- * Values read include 0 for PAL, 1 for NTSC and 2 for MPAL
- */
-#define TV_TYPE_LOC   0x80000300 // uint32 => 0 = PAL, 1 = NTSC, 2 = MPAL
 
 /**
  * @name DAC rates for different regions
@@ -201,17 +195,17 @@ void audio_init(const int frequency, int numbuffers)
 {
     int clockrate;
 
-    switch (*(unsigned int*)TV_TYPE_LOC)
+    switch (get_tv_type())
     {
-        case 0:
+        case TV_PAL:
             /* PAL */
             clockrate = AI_PAL_DACRATE;
             break;
-        case 2:
+        case TV_MPAL:
             /* MPAL */
             clockrate = AI_MPAL_DACRATE;
             break;
-        case 1:
+        case TV_NTSC:
         default:
             /* NTSC */
             clockrate = AI_NTSC_DACRATE;

@@ -103,6 +103,14 @@ void inst_cache_index_invalidate(volatile void *, unsigned long);
 int get_memory_size();
 bool is_memory_expanded();
 
+typedef enum {
+    TV_PAL = 0,
+    TV_NTSC = 1,
+    TV_MPAL = 2
+} tv_type_t;
+
+tv_type_t get_tv_type();
+
 #ifdef __cplusplus
 }
 #endif

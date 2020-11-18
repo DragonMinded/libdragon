@@ -3,7 +3,10 @@
  * @brief N64 System Interface
  * @ingroup n64sys
  */
+
+#include <stdint.h>
 #include "n64sys.h"
+
 
 /**
  * @defgroup n64sys N64 System Interface
@@ -242,6 +245,22 @@ int get_memory_size()
 bool is_memory_expanded()
 {
     return get_memory_size() == 0x800000;
+}
+
+
+/** @brief Memory location to read which determines the TV type. */
+#define TV_TYPE_LOC  0x80000300
+
+/**
+ * @brief Is system NTSC/PAL/MPAL
+ * 
+ * Checks enum hard-coded in PIF BootROM to indicate the tv type of the system.
+ * 
+ * @return enum value indicating PAL, NTSC or MPAL
+ */
+tv_type_t get_tv_type() 
+{
+    return *((uint32_t *) TV_TYPE_LOC);
 }
 
 /** @} */
