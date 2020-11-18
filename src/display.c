@@ -8,6 +8,7 @@
 #include <string.h>
 #include "libdragon.h"
 #include "regsinternal.h"
+#include "n64sys.h"
 
 /**
  * @defgroup display Display Subsystem
@@ -43,9 +44,6 @@
 #define REGISTER_BASE       0xA4400000
 /** @brief Number of 32-bit registers at the register base */
 #define REGISTER_COUNT      14
-
-/** @brief Memory location to read which determines the TV type. */
-#define TV_TYPE_LOC         0x80000300
 
 /** 
  * @brief Return the uncached memory address of a cached address
@@ -182,8 +180,6 @@ uint32_t __bitdepth;
 uint32_t __width;
 /** @brief Currently active video height (calculated) */
 uint32_t __height;
-/** @brief values to switch between in high res mode.  Depends on TV type.*/
-uint32_t __v_limits_values[2];
 /** @brief Number of active buffers */
 uint32_t __buffers = NUM_BUFFERS;
 /** @brief Pointer to uncached 16-bit aligned version of buffers */
@@ -257,26 +253,6 @@ static void __display_callback()
     }
 }
 
-static bool _v_limits_switch;
-/**
- * @brief Interrupt handler for vertical blank
- *
- * If there is another frame to display, display the frame
- * Also ensure the right sets of scan-lines is being displayed in high-res mode.
- */
-static void __display_callback_highres_mode() 
-{
-
-    // Each time the VI_interrupt fires, switch between drawing odd and even numbered scanlines to achieve high-res mode.
-    VI_regs_t* vi_registers = (VI_regs_t*) REGISTER_BASE;
-
-    _v_limits_switch = !_v_limits_switch;
-    vi_registers->v_limits = __v_limits_values[_v_limits_switch];
-    MEMORY_BARRIER();
-
-    __display_callback();
-}
-
 /**
  * @brief Initialize the display to a particular resolution and bit depth
  *
@@ -297,26 +273,11 @@ static void __display_callback_highres_mode()
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, antialias_t aa )
 {
     uint32_t registers[REGISTER_COUNT];
-    uint32_t tv_type = *((uint32_t *)TV_TYPE_LOC);
+    uint32_t tv_type = get_tv_type();
     uint32_t control = 0x3000;
 
     /* Can't have the video interrupt happening here */
     disable_interrupts();
-
-    switch(tv_type) {
-        // PAL
-        case 0:
-            __v_limits_values[0] = 0x005f0239;
-            __v_limits_values[1] = 0x005d0237;
-            break;
-        // NTSC
-        case 1:
-        // MPAL
-        case 2:
-            __v_limits_values[0] = 0x002301fd;
-            __v_limits_values[1] = 0x002501ff;
-            break;
-    }
 
     /* Ensure that buffering is either double or twiple */
     if( num_buffers != 2 && num_buffers != 3 )
@@ -468,11 +429,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     enable_interrupts();
 
     /* Set which line to call back on in order to flip screens */
-    if (__height == 480) {
-        register_VI_handler( __display_callback_highres_mode );
-    } else {
-        register_VI_handler( __display_callback );
-    }
+    register_VI_handler( __display_callback );
 
     set_VI_interrupt( 1, 0x200 );
 }
