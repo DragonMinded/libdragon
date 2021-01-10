@@ -206,7 +206,7 @@ static inline int data_left_in_sector(uint32_t loc)
  */
 static inline uint32_t get_flags(directory_entry_t *dirent)
 {
-    return (dirent->flags >> 24) & 0x000000FF;
+    return (dirent->flags >> 28) & 0x0000000F;
 }
 
 /**
@@ -219,7 +219,7 @@ static inline uint32_t get_flags(directory_entry_t *dirent)
  */
 static inline uint32_t get_size(directory_entry_t *dirent)
 {
-    return dirent->flags & 0x00FFFFFF;
+    return dirent->flags & 0x0FFFFFFF;
 }
 
 /**
@@ -252,55 +252,19 @@ static inline directory_entry_t *get_next_entry(directory_entry_t *dirent)
 }
 
 /**
- * @brief Get the file pointer from a directory entry
+ * @brief Get the file starting location from a directory entry
  *
- * This function is used to grab the first sector of a file given the current
+ * This function is used to grab the starting location of a file given the current
  * directory pointer.
  *
  * @param[in] dirent
  *            Directory entry to retrieve file pointer from
  *
- * @return A pointer to the first sector of a file.
+ * @return A location of the start of the file.
  */
-static inline file_entry_t *get_first_sector(directory_entry_t *dirent)
+static inline uint32_t get_start_location(directory_entry_t *dirent)
 {
-    return (file_entry_t *)(dirent->file_pointer ? (dirent->file_pointer + base_ptr) : 0);
-}
-
-/**
- * @brief Get the next file sector given a current file sector
- *
- * @param[in] fileent
- *            File entry structure to retrieve next sector from
- *
- * @return A pointer to the next sector of a file.
- */
-static inline file_entry_t *get_next_sector(file_entry_t *fileent)
-{
-    return (file_entry_t *)(fileent->next_sector ? (fileent->next_sector + base_ptr) : 0);
-}
-
-/**
- * @brief Walk forward in a file a specified number of sectors
- *
- * @param[in] file
- *            Open file structure
- * @param[in] num_sectors
- *            Number of sectors to advance the file
- */
-static void walk_sectors(open_file_t *file, uint32_t num_sectors)
-{
-    /* Update the sector number */
-    file->sector_number += num_sectors;
-
-    /* Walk forward num_sectors */
-    while(num_sectors)
-    {
-        file_entry_t *next_sector = get_next_sector(&file->cur_sector);
-        grab_sector(next_sector, &file->cur_sector);
-
-        num_sectors--;
-    }
+    return (dirent->file_pointer ? (dirent->file_pointer + base_ptr) : 0);
 }
 
 /**
@@ -663,7 +627,8 @@ static int __dfs_init(uint32_t base_fs_loc)
     directory_entry_t id_node;
     grab_sector((void *)base_fs_loc, &id_node);
 
-    if(id_node.flags == FLAGS_ID && id_node.next_entry == NEXTENTRY_ID)
+    if(id_node.flags == ROOT_FLAGS && id_node.next_entry == ROOT_NEXT_ENTRY && 
+        !strcmp(id_node.path, ROOT_PATH))
     {
         /* Passes, set up the FS */
         base_ptr = base_fs_loc;
@@ -821,9 +786,8 @@ int dfs_open(const char * const path)
     file->handle = next_handle++;
     file->size = get_size(&t_node);
     file->loc = 0;
-    file->sector_number = 0;
-    file->start_sector = get_first_sector(&t_node);
-    grab_sector(file->start_sector, &file->cur_sector);
+    file->cart_start_loc = get_start_location(&t_node);
+    file->cached_loc = 0xFFFFFFFF;
 
     return file->handle;
 }
@@ -989,50 +953,66 @@ int dfs_read(void * const buf, int size, int count, uint32_t handle)
         to_read = file->size - file->loc;
     }
 
-    /* Soemthing we can actually incriment! */
-    uint8_t *data = buf;
+    if (!to_read)
+        return 0;
 
-    /* Loop in, reading data in the cached sector */
-    while(to_read)
+    /* If the destination pointer, ROM location and the amount of data to read
+       are all 8-bytes aligned, we can DMA directly into the destination buffer.
+       This is much faster than using cached data, so bypass also our local
+       cache as well. */
+    uint32_t align = ((uint32_t)buf | (file->cart_start_loc + file->loc) | to_read) & 0xF;
+    if ((align&7) == 0)
     {
-        /* Do we need to seek? */
-        uint32_t t_sector = sector_from_loc(file->loc);
-        
-        if(t_sector != file->sector_number)
-        {
-            /* Must seek to new sector */
-            if(t_sector > file->sector_number)
-            {
-                /* Easy, just walk forward */
-                walk_sectors(file, t_sector - file->sector_number);
-            }
-            else
-            {
-                /* Start over, walk all the way */
-                grab_sector(file->start_sector, &file->cur_sector);
-                file->sector_number = 0;
+        /* 16-byte alignment: we can simply invalidate the buffer.
+         * 8-byte alignment: we need to also writeback in case the partial
+         *  cachelines have hot data to write back. */
+        if (align == 0)
+            data_cache_hit_invalidate(buf, to_read);
+        else
+            data_cache_hit_writeback_invalidate(buf, to_read);
 
-                walk_sectors(file, t_sector);
-            }
-        }
+        dma_read((void *)(((uint32_t)buf) & 0x1FFFFFFF),
+            file->cart_start_loc + file->loc, to_read);
 
-        /* Only read as much as we currently have */
-        int read_this_loop = to_read;
-        if(read_this_loop > data_left_in_sector(file->loc))
-        {
-            read_this_loop = data_left_in_sector(file->loc);
-        }
-
-        /* Copy in */
-        memcpy(data, file->cur_sector.data + offset_into_sector(file->loc), read_this_loop);
-        data += read_this_loop;
-        did_read += read_this_loop;
-        file->loc += read_this_loop;
-
-        to_read -= read_this_loop;
+        file->loc += to_read;
+        return to_read;
     }
 
-    /* Return the count */
+    /* Something we can actually increment! */
+    uint8_t *data = buf;
+    const int CACHED_SIZE = sizeof(file->cached_data);
+
+    /* Loop in, reading data in the cached buffer */
+    while(to_read)
+    {
+        /* Check if we need to read into the cached buffer */
+        if (file->loc < file->cached_loc || file->loc >= file->cached_loc+CACHED_SIZE)
+        {
+            /* We need to read from a 8-byte aligned location, so calculate it */
+            file->cached_loc = file->loc & ~7;
+
+            /* Invalidate the cached data. No need to writeback here because
+               CACHE_SIZE is a multiple of 16 bytes and the data is aligned,
+               so the cachelines are not shared with other variables. */
+            data_cache_hit_invalidate(file->cached_data, CACHED_SIZE);
+
+            dma_read((void *)(((uint32_t)file->cached_data) & 0x1FFFFFFF),
+                file->cart_start_loc + file->cached_loc, CACHED_SIZE);
+        }
+
+        /* Pull as much data as we can from the current buffer */
+        int copy = file->cached_loc+CACHED_SIZE - file->loc;
+        if (copy > to_read)
+            copy = to_read;
+
+        memcpy(data, file->cached_data + (file->loc - file->cached_loc), copy);
+
+        file->loc += copy;
+        data += copy;
+        to_read -= copy;
+        did_read += copy;
+    }
+
     return did_read;
 }
 

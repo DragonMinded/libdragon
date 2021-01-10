@@ -13,7 +13,7 @@
 #if BYTE_ORDER == BIG_ENDIAN
 #define SWAPLONG(i) (i)
 #else
-#define SWAPLONG(i) (((uint32_t)(i & 0xFF000000) >> 24) | ((uint32_t)(i & 0x00FF0000) >>  8) | ((uint32_t)(i & 0x0000FF00) <<  8) | ((uint32_t)(i & 0x000000FF) << 24))
+#define SWAPLONG(i) (((uint32_t)((i) & 0xFF000000) >> 24) | ((uint32_t)((i) & 0x00FF0000) >>  8) | ((uint32_t)((i) & 0x0000FF00) <<  8) | ((uint32_t)((i) & 0x000000FF) << 24))
 #endif
 
 uint8_t *dfs = NULL;
@@ -32,30 +32,41 @@ inline void *sector_to_memory(uint32_t offset)
     return (void *)(dfs + offset);
 }
 
-/* Add a new sector to the filesystem, return that sector pointer */
-uint32_t new_sector()
+uint32_t dfs_alloc(int size)
 {
     void *end;
+    int rsize = (size + SECTOR_SIZE - 1) / SECTOR_SIZE * SECTOR_SIZE;
 
     if(!dfs)
     {
-        dfs = malloc(SECTOR_SIZE);
-        fs_size = SECTOR_SIZE;
+        dfs = malloc(rsize);
+        fs_size = rsize;
 
         end = dfs;
     }
     else
     {
-        dfs = realloc(dfs, fs_size + SECTOR_SIZE);
+        dfs = realloc(dfs, fs_size + rsize);
 
         end = dfs + fs_size;
-        fs_size += SECTOR_SIZE;
+        fs_size += rsize;
     }
 
     /* Zero out last bytes */
-    memset(end, 0, SECTOR_SIZE);
+    memset(end, 0, rsize);
 
-    return sector_offset(end);
+    return sector_offset(end);    
+}
+
+/* Add a new sector to the filesystem, return that sector pointer */
+uint32_t new_sector(void)
+{
+    return dfs_alloc(SECTOR_SIZE);
+}
+
+uint32_t new_blob(int size)
+{
+    return dfs_alloc(size);    
 }
 
 void kill_fs()
@@ -75,8 +86,6 @@ void print_help(const char * const prog_name)
 
 uint32_t add_file(const char * const file, uint32_t *size)
 {
-    uint32_t first_sector = 0;
-    uint32_t cur_sector = 0;
     FILE *fp;
 
     printf("Adding '%s' to filesystem image.\n", file);
@@ -89,57 +98,29 @@ uint32_t add_file(const char * const file, uint32_t *size)
         return 0;
     }
 
-    /* Start off fresh */
-    *size = 0;
+    fseek(fp, 0, SEEK_END);
+    *size = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
 
-    for(;;)
+    if (*size > 0x0FFFFFFF)
     {
-        uint8_t t_buf[SECTOR_PAYLOAD];
-
-        int num_read = fread(t_buf, 1, SECTOR_PAYLOAD, fp);
-
-        if(num_read < 0)
-        {
-            /* Wat? */
-            fprintf(stderr, "Cannot add all contents of file '%s' to filesystem!\n", file);
-            fclose(fp);
-            return 0;
-        }
-
-        if(num_read > 0)
-        {
-            file_entry_t *tmp_sector = 0;
-            uint32_t new_node = new_sector();
-
-            tmp_sector = sector_to_memory(new_node);
-            tmp_sector->next_sector = 0; // Ensure that if this is the last one, we don't reference wrong
-            memcpy(tmp_sector->data, t_buf, num_read);
-
-            /* Remember how many bytes we read in */
-            *size += num_read;
-
-            if(cur_sector)
-            {
-                tmp_sector = sector_to_memory(cur_sector);
-                tmp_sector->next_sector = SWAPLONG(new_node);
-            }
-
-            cur_sector = new_node;
-
-            if(!first_sector)
-            {
-                /* Remember first sector in */
-                first_sector = new_node;
-            }
-        }
-        else
-        {
-            /* Done! */
-            break;
-        }
+        fprintf(stderr, "File '%s' too big for the filesystem!\n", file);
+        return 0;
     }
 
-    return first_sector;
+    uint32_t blob = new_blob(*size);
+    uint8_t *data = sector_to_memory(blob);
+
+    int read = fread(data, 1, *size, fp);
+    if (read < 0) {
+        /* Wat? */
+        fprintf(stderr, "Cannot add all contents of file '%s' to filesystem!\n", file);
+        fclose(fp);
+        return 0;    
+    }
+
+    fclose(fp);
+    return blob;
 }
 
 uint32_t add_directory(const char * const path)
@@ -212,8 +193,7 @@ uint32_t add_directory(const char * const path)
 
                     tmp_entry = sector_to_memory(new_entry);
                     tmp_entry->file_pointer = SWAPLONG(new_file);
-
-                    tmp_entry->flags = SWAPLONG(((FLAGS_FILE << 24) | (file_size & 0x00FFFFFF)));
+                    tmp_entry->flags = SWAPLONG((FLAGS_FILE << 28) | (file_size & 0x0FFFFFFF));
 
                     if(cur_entry)
                     {
@@ -230,8 +210,7 @@ uint32_t add_directory(const char * const path)
                     uint32_t new_entry = new_sector();
 
                     tmp_entry = sector_to_memory(new_entry);
-
-                    tmp_entry->flags = SWAPLONG(FLAGS_DIR << 24); /* Size doesn't matter for directories */
+                    tmp_entry->flags = SWAPLONG(FLAGS_DIR << 28); /* Size doesn't matter for directories */
                     tmp_entry->next_entry = 0;
 
                     /* Copy over filename */
@@ -295,9 +274,9 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    id->flags = SWAPLONG(FLAGS_ID);
-    id->next_entry = SWAPLONG(NEXTENTRY_ID);
-    strcpy(id->path, "DragonFS 1.0");
+    id->flags = SWAPLONG(ROOT_FLAGS);
+    id->next_entry = SWAPLONG(ROOT_NEXT_ENTRY);
+    strcpy(id->path, ROOT_PATH);
 
     if(!add_directory(argv[2]))
     {
