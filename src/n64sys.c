@@ -118,10 +118,14 @@ void wait_ms( unsigned long wait )
  * @param[in] op
  *            Operation to perform
  */
-#define cache_op(op) \
-    addr=(void*)(((unsigned long)addr)&(~3));\
-    for (;length>0;length-=4,addr+=4) \
-	asm ("\tcache %0,(%1)\n"::"i" (op), "r" (addr))
+#define cache_op(op) ({ \
+    if (length) { \
+        void *cur = (void*)((unsigned long)addr & ~15); \
+        int count = (int)length + (addr-cur); \
+        for (int i = 0; i < count; i += 16) \
+            asm ("\tcache %0,(%1)\n"::"i" (op), "r" (cur+i)); \
+    } \
+})
 
 /**
  * @brief Force a data cache writeback over a memory region
