@@ -25,6 +25,7 @@ tools/n64tool
 *.bin
 *.o
 *.dfs
+*.d
 
 node_modules
 
