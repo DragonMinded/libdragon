@@ -5,6 +5,12 @@
 #include "dragonfs.h"
 #include "dfsinternal.h"
 
+#if BYTE_ORDER == BIG_ENDIAN
+#define SWAPLONG(i) (i)
+#else
+#define SWAPLONG(i) (((uint32_t)((i) & 0xFF000000) >> 24) | ((uint32_t)((i) & 0x00FF0000) >>  8) | ((uint32_t)((i) & 0x0000FF00) <<  8) | ((uint32_t)((i) & 0x000000FF) << 24))
+#endif
+
 /* Directory walking flags */
 enum
 {
@@ -23,7 +29,7 @@ enum
 /* Internal filesystem stuff */
 static void *base_ptr = 0;
 static open_file_t open_files[MAX_OPEN_FILES];
-static uint32_t directories[MAX_DIRECTORY_DEPTH];
+static directory_entry_t* directories[MAX_DIRECTORY_DEPTH];
 static uint32_t directory_top = 0;
 static directory_entry_t *next_entry = 0;
 
@@ -66,69 +72,31 @@ static open_file_t *find_open_file(uint32_t x)
     return 0;
 }
 
-/* Sector offset code for file reading */
-static inline int sector_from_loc(uint32_t loc)
-{
-    return (loc / SECTOR_PAYLOAD);
-}
-
-static inline int offset_into_sector(uint32_t loc)
-{
-    return loc % SECTOR_PAYLOAD;
-}
-
-static inline int data_left_in_sector(uint32_t loc)
-{
-    return SECTOR_PAYLOAD - offset_into_sector(loc);
-}
-
 /* Easier decoding of directory information */
 static inline uint32_t get_flags(directory_entry_t *dirent)
 {
-    return (dirent->flags >> 24) & 0x000000FF;
+    return (SWAPLONG(dirent->flags) >> 28) & 0x0000000F;
 }
 
 static inline uint32_t get_size(directory_entry_t *dirent)
 {
-    return dirent->flags & 0x00FFFFFF;
+    return SWAPLONG(dirent->flags) & 0x0FFFFFFF;
 }
 
 /* Functions for easier traversal of directories */
 static inline directory_entry_t *get_first_entry(directory_entry_t *dirent)
 {
-    return (directory_entry_t *)(dirent->file_pointer ? (dirent->file_pointer + base_ptr) : 0);
+    return (directory_entry_t *)(dirent->file_pointer ? (SWAPLONG(dirent->file_pointer) + base_ptr) : 0);
 }
 
 static inline directory_entry_t *get_next_entry(directory_entry_t *dirent)
 {
-    return (directory_entry_t *)(dirent->next_entry ? (dirent->next_entry + base_ptr) : 0);
+    return (directory_entry_t *)(dirent->next_entry ? (SWAPLONG(dirent->next_entry) + base_ptr) : 0);
 }
 
-/* Functions for easier traversal of fiels */
-static inline file_entry_t *get_first_sector(directory_entry_t *dirent)
+static inline uint8_t* get_file_location(uint32_t cart_start_loc, uint32_t loc)
 {
-    return (file_entry_t *)(dirent->file_pointer ? (dirent->file_pointer + base_ptr) : 0);
-}
-
-static inline file_entry_t *get_next_sector(file_entry_t *fileent)
-{
-    return (file_entry_t *)(fileent->next_sector ? (fileent->next_sector + base_ptr) : 0);
-}
-
-/* Sector walking */
-static void walk_sectors(open_file_t *file, uint32_t num_sectors)
-{
-    /* Update the sector number */
-    file->sector_number += num_sectors;
-
-    /* Walk forward num_sectors */
-    while(num_sectors)
-    {
-        file_entry_t *next_sector = get_next_sector(&file->cur_sector);
-        grab_sector(next_sector, &file->cur_sector);
-
-        num_sectors--;
-    }
+    return (uint8_t*)(base_ptr + SWAPLONG(cart_start_loc) + loc);
 }
 
 /* For directory stack */
@@ -142,7 +110,7 @@ static inline void push_directory(directory_entry_t *dirent)
     if(directory_top < MAX_DIRECTORY_DEPTH)
     {
         /* Order of execution for assignment undefined in C, lets force it */
-        directories[directory_top] = (uint32_t)dirent;
+        directories[directory_top] = dirent;
 
         directory_top++;
     }
@@ -155,7 +123,7 @@ static inline directory_entry_t *pop_directory()
         /* Order of execution for assignment undefined in C */
         directory_top--;
 
-        return (directory_entry_t *)directories[directory_top];
+        return directories[directory_top];
     }
 
     /* Just return the root pointer */
@@ -166,7 +134,7 @@ static inline directory_entry_t *peek_directory()
 {
     if(directory_top > 0)
     {
-        return (directory_entry_t *)directories[directory_top-1];
+        return directories[directory_top-1];
     }
 
     return (directory_entry_t *)(base_ptr + SECTOR_SIZE);
@@ -431,7 +399,8 @@ int dfs_init_pc(void *base_fs_loc, int tries)
         directory_entry_t id_node;
         grab_sector(base_fs_loc, &id_node);
 
-        if(id_node.flags == FLAGS_ID && id_node.next_entry == NEXTENTRY_ID)
+        if(SWAPLONG(id_node.flags) == ROOT_FLAGS && SWAPLONG(id_node.next_entry) == ROOT_NEXT_ENTRY
+            && !strcmp(id_node.path, ROOT_PATH))
         {
             /* Passes, set up the FS */
             base_ptr = base_fs_loc;
@@ -557,9 +526,8 @@ int dfs_open(const char * const path)
     file->handle = next_handle++;
     file->size = get_size(&t_node);
     file->loc = 0;
-    file->sector_number = 0;
-    file->start_sector = get_first_sector(&t_node);
-    grab_sector(file->start_sector, &file->cur_sector);
+    file->cart_start_loc = t_node.file_pointer;
+    file->cached_loc = 0xFFFFFFFF;
 
     return file->handle;
 }
@@ -673,8 +641,7 @@ int dfs_read(void * const buf, int size, int count, uint32_t handle)
     }
 
     int to_read = size * count;
-    int did_read = 0;
-
+   
     /* Bounds check to make sure we don't read past the end */
     if(file->loc + to_read > file->size)
     {
@@ -682,50 +649,11 @@ int dfs_read(void * const buf, int size, int count, uint32_t handle)
         to_read = file->size - file->loc;
     }
 
-    /* Soemthing we can actually incriment! */
-    uint8_t *data = buf;
-
-    /* Loop in, reading data in the cached sector */
-    while(to_read)
-    {
-        /* Do we need to seek? */
-        uint32_t t_sector = sector_from_loc(file->loc);
-        if(t_sector != file->sector_number)
-        {
-            /* Must seek to new sector */
-            if(t_sector > file->sector_number)
-            {
-                /* Easy, just walk forward */
-                walk_sectors(file, t_sector - file->sector_number);
-            }
-            else
-            {
-                /* Start over, walk all the way */
-                grab_sector(file->start_sector, &file->cur_sector);
-                file->sector_number = 0;
-
-                walk_sectors(file, t_sector);
-            }
-        }
-
-        /* Only read as much as we currently have */
-        int read_this_loop = to_read;
-        if(read_this_loop > data_left_in_sector(file->loc))
-        {
-            read_this_loop = data_left_in_sector(file->loc);
-        }
-
-        /* Copy in */
-        memcpy(data, file->cur_sector.data + offset_into_sector(file->loc), read_this_loop);
-        data += read_this_loop;
-        did_read += read_this_loop;
-        file->loc += read_this_loop;
-
-        to_read -= read_this_loop;
-    }
+    memcpy(buf, get_file_location(file->cart_start_loc, file->loc), to_read);
+    file->loc += to_read;
 
     /* Return the count */
-    return did_read;
+    return to_read;
 }
 
 int dfs_size(uint32_t handle)
@@ -787,10 +715,19 @@ void list_dir( char *directory, int depth )
     } while( (dir = dfs_dir_findnext( path )) != FLAGS_EOF );
 }
 
+void usage(void)
+{
+    printf("dumpdfs - Dump the contents of a Dragon FS\n\n");
+    printf("Usage:\n");
+    printf("   dumpdfs -l file.dfs -- List contents\n");
+    printf("   dumpdfs -e file.dfs file -- Extract single file to stdout\n");
+}
+
 int main( int argc, char *argv[] )
 {
     if( argc < 3 )
     {
+        usage();
         return -1;
     }
 
@@ -801,6 +738,11 @@ int main( int argc, char *argv[] )
 
     switch( argv[1][1] )
     {
+        case 'h':
+        case 'H':
+            usage();
+            return 0;
+
         case 'l':
         case 'L':
         {
@@ -815,7 +757,11 @@ int main( int argc, char *argv[] )
             fread( filesystem, 1, lSize, fp );
             fclose( fp );
 
-            dfs_init_pc( filesystem, 1 );
+            if (dfs_init_pc( filesystem, 1 ) != DFS_ESUCCESS)
+            {
+                fprintf(stderr, "Invalid DragonFS filesystem\n");
+                return -1;
+            }
 
             list_dir( "/", 0 );
 
@@ -825,6 +771,12 @@ int main( int argc, char *argv[] )
         case 'e':
         case 'E':
         {
+            if (argc < 4)
+            {
+                usage();
+                return -1;
+            }
+
             /* Extract file */
             FILE *fp = fopen( argv[2], "rb" );
 
@@ -836,7 +788,11 @@ int main( int argc, char *argv[] )
             fread( filesystem, 1, lSize, fp );
             fclose( fp );
 
-            dfs_init_pc( filesystem, 1 );
+            if (dfs_init_pc( filesystem, 1 ) != DFS_ESUCCESS)
+            {
+                fprintf(stderr, "Invalid DragonFS filesystem\n");
+                return -1;
+            }
             
             int fl = dfs_open( argv[3] );
             uint8_t *data = malloc( dfs_size( fl ) );
@@ -864,7 +820,11 @@ int main( int argc, char *argv[] )
             fread( filesystem, 1, lSize, fp );
             fclose( fp );
 
-            dfs_init_pc( filesystem, 1 );
+            if (dfs_init_pc( filesystem, 1 ) != DFS_ESUCCESS)
+            {
+                fprintf(stderr, "Invalid DragonFS filesystem\n");
+                return -1;
+            }
 
             int nu = dfs_open( argv[4] );
             uint32_t unused;
