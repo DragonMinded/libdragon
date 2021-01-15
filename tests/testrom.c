@@ -1,0 +1,246 @@
+#include <libdragon.h>
+#include <stdio.h>
+#include <stdarg.h>
+#include <string.h>
+
+// Disable this when running under emulators such as cen64
+#ifndef BENCHMARK_TESTS
+#define BENCHMARK_TESTS   1
+#endif
+
+/**********************************************************************
+ * SIMPLE TEST FRAMEWORK
+ **********************************************************************/
+
+#define TEST_FAILED   1
+#define TEST_SUCCESS  0
+
+typedef struct {
+	int result;
+	char *log;
+	int logleft;
+} TestContext;
+
+typedef void (*TestFunc)(TestContext *ctx);
+
+#define PPCAT2(n,x) n ## x
+#define PPCAT(n,x) PPCAT2(n,x)
+
+// LOG(msg, ...): log something that will be displayed if the test fails.
+#define LOG(msg, ...)  ({ \
+	int n = snprintf(ctx->log, ctx->logleft, msg, ##__VA_ARGS__); \
+	ctx->log += n; ctx->logleft -= n; \
+})
+
+// DEFER(stmt): execute "stmt" statement when the current lexical block exits.
+// This is useful in tests to execute cleanup functions even if the test fails
+// through ASSERT macros.
+#define DEFER(stmt) \
+	void PPCAT(__cleanup, __LINE__) (int* u) { stmt; } \
+	int PPCAT(__var, __LINE__) __attribute__((unused, cleanup(PPCAT(__cleanup, __LINE__ ))));
+
+
+// Fair and fast random generation (using xorshift32, with explicit seed)
+static uint32_t rand_state = 1;
+static uint32_t rand(void) {
+	uint32_t x = rand_state;
+	x ^= x << 13;
+	x ^= x >> 7;
+	x ^= x << 5;
+	return rand_state = x;
+}
+
+// RANDN(n): generate a random number from 0 to n-1
+#define RANDN(n) ({ \
+	__builtin_constant_p((n)) ? \
+		(rand()%(n)) : \
+		(uint32_t)(((uint64_t)rand() * (n)) >> 32); \
+})
+
+// ASSERT(cond, msg): fail the test if the condition is false (with log message)
+#define ASSERT(cond, msg, ...) ({ \
+	if (!(cond)) { \
+		LOG("ASSERTION FAILED:\n"); \
+		LOG("%s\n", #cond); \
+		LOG(msg, ##__VA_ARGS__); \
+		ctx->result = TEST_FAILED; \
+		return; \
+	} \
+})
+
+// ASSERT_EQUAL_HEX(a, b, msg): fail the test if a!=b (and log a & b as hex values)
+#define ASSERT_EQUAL_HEX(_a, _b, msg, ...) ({ \
+	uint64_t a = _a; uint64_t b = _b; \
+	if (a != b) { \
+		LOG("ASSERTION FAILED:\n"); \
+		LOG("%s != %s (0x%llx != 0x%llx)\n", #_a, #_b, a, b); \
+		LOG(msg, ## __VA_ARGS__); \
+		ctx->result = TEST_FAILED; \
+		return; \
+	} \
+})
+
+// ASSERT_EQUAL_UNSIGNED(a,b, msg): fail the test if a!=b (and log a & b as
+// unsigned values)
+#define ASSERT_EQUAL_UNSIGNED(_a, _b, msg, ...) ({ \
+	uint64_t a = _a; uint64_t b = _b; \
+	if (a != b) { \
+		LOG("ASSERTION FAILED:\n"); \
+		LOG("%s != %s (%llu != %llu)\n", #_a, #_b, a, b); \
+		LOG(msg, ## __VA_ARGS__); \
+		ctx->result = TEST_FAILED; \
+		return; \
+	} \
+})
+
+// ASSERT_EQUAL_SIGNED(a, b, msg): fail the test if a!=b (and log a/b as signed values)
+#define ASSERT_EQUAL_SIGNED(_a, _b, msg, ...) ({ \
+	int64_t a = _a; int64_t b = _b; \
+	if (a != b) { \
+		LOG("ASSERTION FAILED:\n"); \
+		LOG("%s != %s (%lld != %lld)\n", #_a, #_b, a, b); \
+		LOG(msg, ## __VA_ARGS__); \
+		ctx->result = TEST_FAILED; \
+		return; \
+	} \
+})
+
+void hexdump(char *out, const uint8_t *buf, int buflen, int start, int count) {
+	for (int i=start;i<start+count;i++) {
+		if (i >= 0 && i < buflen) {
+			sprintf(out, "%02x", buf[i]);
+			out += 2;
+		} else {
+			*out++ = '-'; *out++ = '-';
+		}
+	}	
+	*out = '\0';
+}
+
+int assert_equal_mem(TestContext *ctx, const uint8_t *a, const uint8_t *b, int len) {
+	for (int i=0;i<len;i++) {
+		if (a[i] != b[i]) {
+			char dumpa[64];
+			char dumpb[64];
+			hexdump(dumpa, a, len, i-2, 5);
+			hexdump(dumpb, b, len, i-2, 5);
+
+			LOG("ASSERTION FAILED:\n");
+			LOG("[%s] != [%s]\n", dumpa, dumpb);
+			LOG("     ^^              ^^  idx: %d\n", i);
+			return 0;
+		}
+	}
+	return 1;
+}
+
+// ASSERT_EQUAL_MEM(a, b, len, msg): fail the test if the memory pointer by
+// a and b has not the same content (up to len bytes).
+#define ASSERT_EQUAL_MEM(_a, _b, _len, msg, ...) ({ \
+	const uint8_t *a = (_a); const uint8_t *b = (_b); int len = (_len); \
+	if (!assert_equal_mem(ctx, a, b, len)) { \
+		LOG(msg, ## __VA_ARGS__); \
+		ctx->result = TEST_FAILED; \
+		return; \
+	} \
+})
+
+/**********************************************************************
+ * TEST FILES
+ **********************************************************************/
+
+#include "test_dfs.c"
+#include "test_cache.c"
+
+
+/**********************************************************************
+ * MAIN
+ **********************************************************************/
+
+// Testsuite definition
+#define TEST_FUNC(fn, dur)   { #fn, fn, dur }
+static const struct Testsuite
+{
+	const char *name;
+	TestFunc fn;
+	uint32_t duration;
+} tests[] = {
+	TEST_FUNC(test_dfs_read, 1104),
+	TEST_FUNC(test_cache_invalidate, 1337),
+};
+
+int main() {
+    init_interrupts();
+
+    display_init(RESOLUTION_320x240, DEPTH_32_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE);
+    console_init();
+    timer_init();
+
+    if (dfs_init( DFS_DEFAULT_LOCATION ) != DFS_ESUCCESS) {
+        printf("Invalid ROM: cannot initialize DFS\n");
+        return 0;
+    }
+
+    printf("libdragon testsuite\n\n");
+    int failures = 0;
+    int successes = 0;
+
+	const int NUM_TESTS = sizeof(tests) / sizeof(tests[0]);
+    uint64_t start = timer_ticks();
+    for (int i=0; i < NUM_TESTS; i++) {
+    	static char logbuf[16384];
+
+    	// Prepare the test context
+    	TestContext ctx;
+    	ctx.log = logbuf;
+    	ctx.logleft = sizeof(logbuf);
+    	ctx.result = TEST_SUCCESS;
+    	rand_state = 1; // reset to be fully reproducible
+
+    	printf("%-30s", tests[i].name);
+    	fflush(stdout);
+
+    	uint64_t test_start = timer_ticks();
+
+    	// Run the test!
+    	tests[i].fn(&ctx);
+
+    	// Compute the test duration
+    	uint64_t test_stop = timer_ticks();
+    	uint64_t test_duration = (test_stop - test_start) / 1024;
+    	int64_t test_diff = (test_duration - tests[i].duration);
+    	if (test_diff < 0) test_diff = -test_diff;
+
+    	if (ctx.result == TEST_FAILED) {
+    		failures++;
+    		printf("FAIL\n\n");
+
+    		if (ctx.log != logbuf) {			
+	    		printf("%s\n\n", logbuf);
+    		}
+    	}
+    #if BENCHMARK_TESTS
+    	// If there's more than a 1% drift on the running time (/1024) compared to
+    	// the expected one, make the test fail. Something happened and we
+    	// need to double check this.
+    	else if ((float)test_diff / (float)test_duration > 0.01)
+    	{
+    		failures++;
+    		printf("FAIL\n\n");
+
+    		printf("Duration changed by %.1f%%\n", (float)test_diff * 100.0 / (float)test_duration);
+    		printf("(expected: %ldK, measured: %lldK)\n\n", tests[i].duration, test_duration);
+    	}
+    #endif
+    	else {
+    		successes++;
+    		printf("PASS\n");
+    	}
+    }
+    uint64_t stop = timer_ticks();
+
+    int64_t total_time = TIMER_MICROS(stop-start) / 1000000;
+
+    printf("\nTestsuite finished in %02lld:%02lld\n", total_time%60, total_time/60);
+    printf("Passed: %d out of %d\n", successes, NUM_TESTS);
+}
