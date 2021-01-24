@@ -13,21 +13,23 @@
 /** @brief Function pointer */
 typedef void (*func_ptr)(void);
 
-/** @brief Pointer to the size of the constructor list */
-extern uint32_t __CTOR_LIST_SIZE__  __attribute__((section (".data")));
 /** @brief Pointer to the beginning of the constructor list */
-extern func_ptr __CTOR_LIST__[];
+extern func_ptr __CTOR_LIST__[] __attribute__((section (".data")));
 /** @brief Pointer to the end of the constructor list */
-extern func_ptr __CTOR_END__[];
+extern func_ptr __CTOR_END__[] __attribute__((section (".data")));
 
-/** 
+/**
  * @brief Execute global constructors
  */
-void __do_global_ctors() 
+void __do_global_ctors()
 {
-	unsigned int tot_constructors = __CTOR_LIST_SIZE__;
-	for (void (**f)(void) = (void (**)(void))(__CTOR_LIST__); tot_constructors > 0; tot_constructors--, f++)
-		(**f)();
+	// "Constructors are called in reverse order of the list"
+	// https://gcc.gnu.org/onlinedocs/gccint/Initialization.html
+	func_ptr *ctor_addr = __CTOR_END__ - 1;
+	while (ctor_addr > __CTOR_LIST__) {
+		if (**ctor_addr) (**ctor_addr)();
+		ctor_addr--;
+	}
 }
 
 /** @} */
