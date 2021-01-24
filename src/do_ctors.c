@@ -26,8 +26,8 @@ extern func_ptr __CTOR_END__ __attribute__((section (".data")));
 void __do_global_ctors()
 {
 	func_ptr * ctor_addr = &__CTOR_END__ - 1;
-	func_ptr * ctor_stop = &__CTOR_LIST__;
-	while (ctor_addr > ctor_stop) {
+	func_ptr * ctor_sentinel = &__CTOR_LIST__;
+	while (ctor_addr > ctor_sentinel) {
 		if (*ctor_addr) (*ctor_addr)();
 		ctor_addr--;
 	}
