@@ -76,16 +76,6 @@ SECTIONS {
 
     . = ALIGN(8);
 
-    .dtors : {
-        __DTOR_LIST__ = .;
-        LONG((__DTOR_END__ - __DTOR_LIST__) / 4 - 2)
-        *(.dtors)
-        LONG(0)
-        __DTOR_END__ = .;
-    } > mem
-
-    . = ALIGN(8);
-
     /* Data section has relocation address at start of RAM in cached,
     * unmapped memory, but is loaded just at the end of the text segment,
     * and must be copied to the correct location at startup
