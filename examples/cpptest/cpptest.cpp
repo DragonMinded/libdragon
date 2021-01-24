@@ -10,7 +10,7 @@ static bitdepth_t bit = DEPTH_32_BPP;
 class TestClass
 {
     private:
-        int d;
+        uint32_t d;
 
     public:
         TestClass() {
@@ -18,16 +18,17 @@ class TestClass
         }
         int f1()
         {
+            d = d + 1;
             return d;
         }
 };
 
 // Test global constructor
-TestClass o1;
+TestClass globalClass;
 
 int main(void)
 {
-    int* a = new int(2);
+    TestClass* localClass = new TestClass();
 
     init_interrupts();
 
@@ -41,9 +42,10 @@ int main(void)
     {
         console_clear();
         printf("Libdragon v%d.%d.%d \n", libdragon_version.major, libdragon_version.minor, libdragon_version.revision);
-        printf("Test: %d\n", o1.f1());
+        printf("Global class method: %d\n", globalClass.f1());
+        printf("Local class method: %d\n", localClass->f1());
         console_render();
     }
 
-    delete a;
+    delete localClass;
 }
