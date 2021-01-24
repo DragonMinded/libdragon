@@ -14,7 +14,7 @@ class TestClass
 
     public:
         TestClass() {
-            d = 2;
+            d = 100;
         }
         int f1()
         {

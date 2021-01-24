@@ -68,7 +68,6 @@ SECTIONS {
     .ctors : {
         __CTOR_LIST__ = .;
         *(.ctors)
-        LONG(0)
         __CTOR_END__ = .;
     } > mem
 
