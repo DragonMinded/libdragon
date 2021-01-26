@@ -66,22 +66,9 @@ SECTIONS {
     . = ALIGN(8);
 
     .ctors : {
-        __CTOR_LIST_SIZE__ = .;
-        LONG((__CTOR_END__ - __CTOR_LIST__) / 4 - 1)
         __CTOR_LIST__ = .;
         *(.ctors)
-        LONG(0)
         __CTOR_END__ = .;
-    } > mem
-
-    . = ALIGN(8);
-
-    .dtors : {
-        __DTOR_LIST__ = .;
-        LONG((__DTOR_END__ - __DTOR_LIST__) / 4 - 2)
-        *(.dtors)
-        LONG(0)
-        __DTOR_END__ = .;
     } > mem
 
     . = ALIGN(8);
