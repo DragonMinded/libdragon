@@ -60,6 +60,8 @@ void sys_set_boot_cic(int bc)
  * @brief Read the number of ticks since system startup
  *
  * @note This is the clock rate divided by two.
+ * It will wrap back to 0 after about 91.6 seconds
+ * Do not use for comparison without special handling
  *
  * @return The number of ticks since system startup
  */
@@ -74,6 +76,9 @@ volatile unsigned long get_ticks(void)
 
 /**
  * @brief Read the number of millisecounds since system startup
+ *
+ * It will wrap back to 0 after about 91.6 seconds
+ * Do not use for comparison without special handling
  *
  * @return The number of millisecounds since system startup
  */
@@ -91,12 +96,13 @@ volatile unsigned long get_ticks_ms(void)
  *
  * @param[in] wait
  *            Number of ticks to wait
+ *            Maximum accepted value is 0x7FFFFFFF ticks
  */
 void wait_ticks( unsigned long wait )
 {
     unsigned int stop = wait + get_ticks();
 
-    while( stop > get_ticks() );
+    while( stop - get_ticks() < 0x7FFFFFFF );
 }
 
 /**
@@ -104,12 +110,13 @@ void wait_ticks( unsigned long wait )
  *
  * @param[in] wait
  *            Number of millisecounds to wait
+ *            Maximum accepted value is 45812 ms
  */
 void wait_ms( unsigned long wait )
 {
-    unsigned int stop = wait + get_ticks_ms();
+    unsigned int stop = wait * (COUNTS_PER_SECOND / 1000) + get_ticks();
 
-    while( stop > get_ticks_ms() );
+    while( stop - get_ticks() < 0x7FFFFFFF );
 }
 
 /**

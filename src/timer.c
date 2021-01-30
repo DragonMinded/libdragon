@@ -163,6 +163,10 @@ static void timer_callback(void)
 
 /**
  * @brief Initialize the timer subsystem
+ *
+ * @note This will currently mess with get_ticks, get_ticks_ms and related wait
+ * routines return as it is explicitly manipulating the system timer.
+ *
  */
 void timer_init(void)
 {
