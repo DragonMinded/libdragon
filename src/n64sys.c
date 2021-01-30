@@ -96,13 +96,13 @@ volatile unsigned long get_ticks_ms(void)
  *
  * @param[in] wait
  *            Number of ticks to wait
- *            Maximum accepted value is 0x7FFFFFFF ticks
+ *            Maximum accepted value is 0xFFFFFFFF ticks
  */
 void wait_ticks( unsigned long wait )
 {
-    unsigned int stop = wait + get_ticks();
+    unsigned int tick_value = get_ticks();
 
-    while( stop - get_ticks() < 0x7FFFFFFF );
+    while( get_ticks() - tick_value < wait );
 }
 
 /**
@@ -110,13 +110,13 @@ void wait_ticks( unsigned long wait )
  *
  * @param[in] wait
  *            Number of millisecounds to wait
- *            Maximum accepted value is 45812 ms
+ *            Maximum accepted value is 91625 ms
  */
-void wait_ms( unsigned long wait )
+void wait_ms( unsigned long wait_ms )
 {
-    unsigned int stop = wait * (COUNTS_PER_SECOND / 1000) + get_ticks();
+    unsigned int wait = wait_ms * (COUNTS_PER_SECOND / 1000);
 
-    while( stop - get_ticks() < 0x7FFFFFFF );
+    wait_ticks(wait);
 }
 
 /**
