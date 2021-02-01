@@ -57,69 +57,6 @@ void sys_set_boot_cic(int bc)
 }
 
 /**
- * @brief Read the number of ticks since system startup
- *
- * @note This is the clock rate divided by two.
- * It will wrap back to 0 after about 91.6 seconds
- * Do not use for comparison without special handling
- *
- * @return The number of ticks since system startup
- */
-volatile unsigned long get_ticks(void)
-{
-    unsigned long count;
-    // reg $9 on COP0 is count
-    asm volatile("\tmfc0 %0,$9\n\tnop":"=r"(count));
-
-    return count;
-}
-
-/**
- * @brief Read the number of millisecounds since system startup
- *
- * It will wrap back to 0 after about 91.6 seconds
- * Do not use for comparison without special handling
- *
- * @return The number of millisecounds since system startup
- */
-volatile unsigned long get_ticks_ms(void)
-{
-    unsigned long count;
-    // reg $9 on COP0 is count
-    asm volatile("\tmfc0 %0,$9\n\tnop":"=r"(count));
-
-    return count / (COUNTS_PER_SECOND / 1000);
-}
-
-/**
- * @brief Spin wait until the number of ticks have elapsed
- *
- * @param[in] wait
- *            Number of ticks to wait
- *            Maximum accepted value is 0xFFFFFFFF ticks
- */
-void wait_ticks( unsigned long wait )
-{
-    unsigned int tick_value = get_ticks();
-
-    while( get_ticks() - tick_value < wait );
-}
-
-/**
- * @brief Spin wait until the number of millisecounds have elapsed
- *
- * @param[in] wait
- *            Number of millisecounds to wait
- *            Maximum accepted value is 91625 ms
- */
-void wait_ms( unsigned long wait_ms )
-{
-    unsigned int wait = wait_ms * (COUNTS_PER_SECOND / 1000);
-
-    wait_ticks(wait);
-}
-
-/**
  * @brief Helper macro to perform cache refresh operations
  *
  * @param[in] op
