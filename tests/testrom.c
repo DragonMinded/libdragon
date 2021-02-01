@@ -171,81 +171,81 @@ static const struct Testsuite
 };
 
 int main() {
-    init_interrupts();
+	init_interrupts();
 
-    display_init(RESOLUTION_320x240, DEPTH_32_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE);
-    console_init();
+	display_init(RESOLUTION_320x240, DEPTH_32_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE);
+	console_init();
 
-    if (dfs_init( DFS_DEFAULT_LOCATION ) != DFS_ESUCCESS) {
-        printf("Invalid ROM: cannot initialize DFS\n");
-        return 0;
-    }
+	if (dfs_init( DFS_DEFAULT_LOCATION ) != DFS_ESUCCESS) {
+		printf("Invalid ROM: cannot initialize DFS\n");
+		return 0;
+	}
 
-    printf("libdragon testsuite\n\n");
-    int failures = 0;
-    int successes = 0;
+	printf("libdragon testsuite\n\n");
+	int failures = 0;
+	int successes = 0;
 
 	const int NUM_TESTS = sizeof(tests) / sizeof(tests[0]);
-    uint32_t start;
+	uint32_t start;
 	READ_TICKS(start);
-    for (int i=0; i < NUM_TESTS; i++) {
-    	static char logbuf[16384];
+	for (int i=0; i < NUM_TESTS; i++) {
+		static char logbuf[16384];
 
-    	// Prepare the test context
-    	TestContext ctx;
-    	ctx.log = logbuf;
-    	ctx.logleft = sizeof(logbuf);
-    	ctx.result = TEST_SUCCESS;
-    	rand_state = 1; // reset to be fully reproducible
+		// Prepare the test context
+		TestContext ctx;
+		ctx.log = logbuf;
+		ctx.logleft = sizeof(logbuf);
+		ctx.result = TEST_SUCCESS;
+		rand_state = 1; // reset to be fully reproducible
 
-    	printf("%-30s", tests[i].name);
-    	fflush(stdout);
+		printf("%-30s", tests[i].name);
+		fflush(stdout);
 
-    	uint32_t test_start;
+		uint32_t test_start;
 		READ_TICKS(test_start);
 
-    	// Run the test!
-    	tests[i].fn(&ctx);
+		// Run the test!
+		tests[i].fn(&ctx);
 
-    	// Compute the test duration
-    	uint32_t test_stop;
+		// Compute the test duration
+		uint32_t test_stop;
 		READ_TICKS(test_stop);
 
-    	int32_t test_duration = (test_stop - test_start) / 1024;
-    	int64_t test_diff = (test_duration - tests[i].duration);
-    	if (test_diff < 0) test_diff = -test_diff;
+		int32_t test_duration = (test_stop - test_start) / 1024;
+		int64_t test_diff = (test_duration - tests[i].duration);
+		if (test_diff < 0) test_diff = -test_diff;
 
-    	if (ctx.result == TEST_FAILED) {
-    		failures++;
-    		printf("FAIL\n\n");
+		if (ctx.result == TEST_FAILED) {
+			failures++;
+			printf("FAIL\n\n");
 
-    		if (ctx.log != logbuf) {			
-	    		printf("%s\n\n", logbuf);
-    		}
-    	}
-    #if BENCHMARK_TESTS
-    	// If there's more than a 10% drift on the running time (/1024) compared to
-    	// the expected one, make the test fail. Something happened and we
-    	// need to double check this.
-    	else if (tests[i].duration > 0 && ((float)test_diff / (float)test_duration > 0.1))
-    	{
-    		failures++;
-    		printf("FAIL\n\n");
+			if (ctx.log != logbuf) {			
+				printf("%s\n\n", logbuf);
+			}
+		}
+	#if BENCHMARK_TESTS
+		// If there's more than a 10% drift on the running time (/1024) compared to
+		// the expected one, make the test fail. Something happened and we
+		// need to double check this.
+		else if (tests[i].duration > 0 && ((float)test_diff / (float)test_duration > 0.1))
+		{
+			failures++;
+			printf("FAIL\n\n");
 
-    		printf("Duration changed by %.1f%%\n", (float)test_diff * 100.0 / (float)test_duration);
-    		printf("(expected: %ldK, measured: %ldK)\n\n", tests[i].duration, test_duration);
-    	}
-    #endif
-    	else {
-    		successes++;
-    		printf("PASS\n");
-    	}
-    }
-    uint32_t stop;
+			printf("Duration changed by %.1f%%\n", (float)test_diff * 100.0 / (float)test_duration);
+			printf("(expected: %ldK, measured: %ldK)\n\n", tests[i].duration, test_duration);
+		}
+	#endif
+		else {
+			successes++;
+			printf("PASS\n");
+		}
+	}
+	uint32_t stop;
 	READ_TICKS(stop);
 
-    int64_t total_time = TIMER_MICROS(stop-start) / 1000000;
+	int64_t total_time = TIMER_MICROS(stop-start) / 1000000;
 
-    printf("\nTestsuite finished in %02lld:%02lld\n", total_time%60, total_time/60);
-    printf("Passed: %d out of %d\n", successes, NUM_TESTS);
+	printf("\nTestsuite finished in %02lld:%02lld\n", total_time%60, total_time/60);
+	printf("Passed: %d out of %d\n", successes, NUM_TESTS);
 }
