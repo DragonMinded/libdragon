@@ -75,7 +75,7 @@ static int __proc_timers(timer_link_t * head)
     int smallest = 0x3FFFFFFF;			// ~ 22.9 secs
 	int start, now;
 
-	READ_TICKS(start);
+	start = TICKS_READ();
 	total_ticks += start;
 
     while (head)
@@ -119,7 +119,7 @@ static int __proc_timers(timer_link_t * head)
     }
 
 	/* check if shortest time left < 5us */
-	READ_TICKS(now);
+	now = TICKS_READ();
 	if (smallest < (now - start + 234))
 	{
 		total_ticks += (now - start);
@@ -146,8 +146,7 @@ static void timer_callback(void)
 	}
 	else
 	{
-		int now;
-		READ_TICKS(now);
+		int now = TICKS_READ();
 		total_ticks += now;
 		write_count(0);
 		write_compare(0x7FFFFFFF);

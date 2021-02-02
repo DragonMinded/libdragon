@@ -4,23 +4,18 @@
 // Writes the 32bit value to COP0 register 11 (compare)
 #define WRITE_COMPARE(val) do { asm volatile("mtc0 %0,$11" ::"r"(val)); } while(0)
 
-#define ARM_INTERRUPT(compare) do { \
-	asm volatile(".align 4"); \
-	WRITE_TICKS(0x0); \
-	WRITE_COMPARE(compare); \
-} while(0)
-
 #define TEST(name, tests) do { \
 	const int NUM_CASES = sizeof(tests) / sizeof(tests[0]); \
 	for (int i=0; i < NUM_CASES; i++) { \
-		mock_tick = tests[i][1]; \
+		/* move ticks just before 5ms of the target to make sure wait is actually waiting */ \
+		mock_tick = tests[i][1] - 0x39387; \
 		WRITE_TICKS(tests[i][0]); \
 		/* act */ \
 		name(tests[i][2]); \
-		READ_TICKS(ticks_0); \
-		ASSERT(state != Timeout, "Case: %u Test timed out. " #name " didn't finish on time (Ticks: %#10lX)", state, ticks_0); \
-		ASSERT(state == Test, "Case: %u " #name " finished too early (Ticks: %#10lX)", state, ticks_0); \
-		ASSERT(state <= Timeout, "Case: %u Unexpected state for " #name " (Ticks: %#10lX)", state, ticks_0); \
+		ticks_0 = TICKS_READ(); \
+		ASSERT(state != Timeout, "Case: %u Test timed out. " #name " didn't finish on time (Ticks: %#10lX)", i, ticks_0); \
+		ASSERT(state == Test && ticks_0 >= tests[i][1], "Case: %u " #name " finished too early (Ticks: %#10lX)", i, ticks_0); \
+		ASSERT(state <= Timeout, "Case: %u Unexpected state for " #name " (Ticks: %#10lX)", i, ticks_0); \
 		/* re-sync to frame */ \
 		while (state < Timeout); \
 		/* reset state */ \
@@ -49,7 +44,6 @@ static void frame_callback() {
 // Start: set the count register to the initial value and enter the wait loop
 // Test: VI interrupt updates the count register to the mock value
 // Timeout: If the wait loop fails to exit upon setting the mock value, the VI
-
 // interrupt will move the state into this phase, which is asserted in the test.
 // So we can test them each of them in three frames, without waiting the full
 // delay. Tested wait should be an order of magnitude longer than the VI interval
@@ -64,11 +58,10 @@ static uint32_t test_cases[][3] = {
 	{0x2CB4178, 0x59682F0, 0x2CB4178},
 	// Wrap towards the end
 	{0xFD34BE87, 0x2CB4178, 0x59682F0},
-	// wait a long time - 1 second in the range to 1 second before the end
+	// Wait a long time - 1 second into the range => 1 second before the end
 	{0x2CB4178, 0xFD34BE87, 0xFA697D0F},
-	 // already fulfilled way past the start tick
-	{0x2CB4178, 0xFD34BE87, 0x59682F0},
-	// TODO: also test unfulfilled cases to make sure we don't exit the loop early.
+	// Long wait, wrapping around - 1 second before the end => 2 second before the end
+	{0xFD34BE87, 0xFA697D0F, 0xFD34BE87},
 };
 
 static uint32_t test_cases_ms[][3] = {
@@ -76,41 +69,41 @@ static uint32_t test_cases_ms[][3] = {
 	{0x2CB4178, 0x59682F0, 1000},
 	// Wrap towards the end
 	{0xFD34BE87, 0x2CB4178, 2000},
-	// wait a long time - 1 second in the range to 1 second before the end
-	{0x2CB4178, 0xFD34BE87, 88000},
-	 // already fulfilled way past the start tick
-	{0x2CB4178, 0xFD34BE87, 2000},
-	// TODO: also test unfulfilled cases to make sure we don't exit the loop early.
+	// Wait a long time - 1 second into the range => 1 second before the end
+	{0x2CB4178, 0xFD34BE87, 89626},
+	// Long wait, wrapping around - 1 second before the end => 2 second before the end
+	{0xFD34BE87, 0xFA697D0F, 90626},
 };
 
 void test_ticks(TestContext *ctx) {
 	uint32_t ticks_0;
 	uint32_t ticks_1;
 
-	uint32_t continue_ticks;
-	READ_TICKS(continue_ticks);
+	uint32_t continue_ticks = TICKS_READ();
 
 	disable_interrupts();
 
 	// Put the instructions on the same cacheline
-	asm volatile(".align 4");
-	WRITE_TICKS(0x0);
-	READ_TICKS(ticks_0);
-	WRITE_TICKS(0xFFFFFFFF);
-	READ_TICKS(ticks_1);
+	for (int i = 0; i < 2; i++) {
+		WRITE_TICKS(0x0);
+		ticks_0 = TICKS_READ();
+		WRITE_TICKS(0xFFFFFFFF);
+		ticks_1 = TICKS_READ();
+	}
 
 	enable_interrupts();
 
-	ASSERT(ticks_0 == 0x0 && ticks_1 == 0xFFFFFFFF, "not reading correct register. Received %#010lX and %#010lX", ticks_0, ticks_1);
+	ASSERT(ticks_0 == 0x0 && ticks_1 == 0xFFFFFFFF, "not reading correct register or it was not inlined. Received %#010lX and %#010lX", ticks_0, ticks_1);
 
 	disable_interrupts();
 
 	// Put the instructions on the same cacheline
-	asm volatile(".align 4");
-	WRITE_TICKS(0x0);
-	ticks_0 = get_ticks();
-	WRITE_TICKS(0xFFFFFFFF);
-	ticks_1 = get_ticks();
+	for (int i = 0; i < 2; i++) {
+		WRITE_TICKS(0x0);
+		ticks_0 = get_ticks();
+		WRITE_TICKS(0xFFFFFFFF);
+		ticks_1 = get_ticks();
+	}
 
 	enable_interrupts();
 
@@ -119,11 +112,12 @@ void test_ticks(TestContext *ctx) {
 	disable_interrupts();
 
 	// Put the instructions on the same cacheline
-	asm volatile(".align 4");
-	WRITE_TICKS(0x0);
-	ticks_0 = get_ticks_ms();
-	WRITE_TICKS(0x7FFFFFFF);
-	ticks_1 = get_ticks_ms();
+	for (int i = 0; i < 2; i++) {
+		WRITE_TICKS(0x0);
+		ticks_0 = get_ticks_ms();
+		WRITE_TICKS(0x7FFFFFFF);
+		ticks_1 = get_ticks_ms();	
+	}
 
 	// Prepare for next test
 	register_VI_handler(frame_callback);
@@ -134,7 +128,6 @@ void test_ticks(TestContext *ctx) {
 	// Sync to nearest video frame to use as an interval
 	while (state < Start);
 
-	TEST(WAIT_TICKS, test_cases);
 	TEST(wait_ticks, test_cases);
 	TEST(wait_ms, test_cases_ms);
 
@@ -145,5 +138,4 @@ void test_ticks(TestContext *ctx) {
 
 #undef WRITE_TICKS
 #undef WRITE_COMPARE
-#undef ARM_INTERRUPT
 #undef TEST

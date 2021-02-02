@@ -158,16 +158,21 @@ int assert_equal_mem(TestContext *ctx, const uint8_t *a, const uint8_t *b, int l
  **********************************************************************/
 
 // Testsuite definition
-#define TEST_FUNC(fn, dur)   { #fn, fn, dur }
+#define TEST_FLAGS_NONE 0x0
+#define TEST_FLAGS_IO 0x1
+#define TEST_FLAGS_NO_BENCHMARK 0x2
+
+#define TEST_FUNC(fn, dur, flags)   { #fn, fn, dur, flags }
 static const struct Testsuite
 {
 	const char *name;
 	TestFunc fn;
 	uint32_t duration;
+	uint32_t flags;
 } tests[] = {
-	TEST_FUNC(test_dfs_read, 1104),
-	TEST_FUNC(test_cache_invalidate, 1337),
-	TEST_FUNC(test_ticks, 0),
+	TEST_FUNC(test_dfs_read, 1104, TEST_FLAGS_IO),
+	TEST_FUNC(test_cache_invalidate, 1337, TEST_FLAGS_NONE),
+	TEST_FUNC(test_ticks, 0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {
@@ -186,8 +191,7 @@ int main() {
 	int successes = 0;
 
 	const int NUM_TESTS = sizeof(tests) / sizeof(tests[0]);
-	uint32_t start;
-	READ_TICKS(start);
+	uint32_t start = TICKS_READ();
 	for (int i=0; i < NUM_TESTS; i++) {
 		static char logbuf[16384];
 
@@ -201,34 +205,34 @@ int main() {
 		printf("%-30s", tests[i].name);
 		fflush(stdout);
 
-		uint32_t test_start;
-		READ_TICKS(test_start);
+		uint32_t test_start = TICKS_READ();
 
 		// Run the test!
 		tests[i].fn(&ctx);
 
 		// Compute the test duration
-		uint32_t test_stop;
-		READ_TICKS(test_stop);
+		uint32_t test_stop = TICKS_READ();
 
-		int32_t test_duration = (test_stop - test_start) / 1024;
-		int64_t test_diff = (test_duration - tests[i].duration);
+		int32_t test_duration = TICKS_DISTANCE(test_start, test_stop) / 1024;
+		int32_t test_diff = (test_duration - tests[i].duration);
 		if (test_diff < 0) test_diff = -test_diff;
 
 		if (ctx.result == TEST_FAILED) {
 			failures++;
 			printf("FAIL\n\n");
 
-			if (ctx.log != logbuf) {			
+			if (ctx.log != logbuf) {
 				printf("%s\n\n", logbuf);
 			}
 		}
 	#if BENCHMARK_TESTS
-		// If there's more than a 10% drift on the running time (/1024) compared to
-		// the expected one, make the test fail. Something happened and we
-		// need to double check this.
-		else if (tests[i].duration > 0 && ((float)test_diff / (float)test_duration > 0.1))
-		{
+		// If there's more than a 1% (10% for IO tests) drift on the running time
+		// (/1024) compared to the expected one, make the test fail. Something
+		// happened and we need to double check this.
+		else if (
+			!(tests[i].flags & TEST_FLAGS_NO_BENCHMARK) &&
+			((float)test_diff / (float)test_duration > ((tests[i].flags & TEST_FLAGS_IO) ? 0.1 : 0.01))
+		) {
 			failures++;
 			printf("FAIL\n\n");
 
@@ -241,8 +245,7 @@ int main() {
 			printf("PASS\n");
 		}
 	}
-	uint32_t stop;
-	READ_TICKS(stop);
+	uint32_t stop = TICKS_READ();
 
 	int64_t total_time = TIMER_MICROS(stop-start) / 1000000;
 

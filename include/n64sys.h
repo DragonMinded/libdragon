@@ -89,36 +89,37 @@
  * This appears to be half the CPU clock.  Every second, this many counts
  * will have passed in the count register
  */
-#define COUNTS_PER_SECOND (93750000/2)
+#define TICKS_PER_SECOND (93750000/2)
 
-// Returns the signed difference of time between "from" and "to". If "from"
-// is before "to", the distance in time is positive, otherwise it is
-// negative .
+/**
+ * @brief The signed difference of time between "from" and "to".
+ *
+ * If "from" is before "to", the distance in time is positive,
+ * otherwise it is negative.
+ */
 #define TICKS_DISTANCE(from, to) ((int32_t)((uint32_t)(to) - (uint32_t)(from)))
 
-// Returns true if "t1" is before "t2". This is similar to t1 < t2,
-// but it correctly handles timer overflows which are very frequent.
-//
-// Notice that the N64 counter overflows every 90 seconds, so it's
-// not possible to compare times that are more than 45 seconds apart.
+/**
+ * @brief Returns true if "t1" is before "t2".
+ *
+ * This is similar to t1 < t2, but it correctly handles timer overflows
+ * which are very frequent. Notice that the N64 counter overflows every
+ * 90 seconds, so it's not possible to compare times that are more than
+ * 45 seconds apart.
+ */
 #define TICKS_BEFORE(t1, t2) ({ TICKS_DISTANCE(t1, t2) > 0; })
 
-// Reads the COP0 register $9 (count) into the provided variable.
-// It will always produce a 32 bit unsigned value.
-#define READ_TICKS(variable) do { \
-    _Static_assert(sizeof(variable) >= 4, "target variable is narrower than 32 bits"); \
-    asm volatile("mfc0 %0,$9":"=r"(variable)); \
-} while(0)
-
-#define WAIT_TICKS(wait) do { \
-    unsigned int initial_tick; \
-    unsigned int current_tick; \
-    READ_TICKS(initial_tick); \
-    READ_TICKS(current_tick); \
-    while( current_tick - initial_tick < wait ) { \
-        READ_TICKS(current_tick); \
-    }; \
-} while(0)
+/**
+ * @brief Returns the COP0 register $9 (count).
+ *
+ * Returns the COP0 register $9 (count).
+ * It will always produce a 32 bit unsigned value.
+ */
+#define TICKS_READ() ({ \
+    uint32_t x; \
+    asm volatile("mfc0 %0,$9":"=r"(x)); \
+    x; \
+})
 
 #ifdef __cplusplus
 extern "C" {
@@ -137,9 +138,7 @@ void sys_set_boot_cic(int bc);
  */
 static inline volatile unsigned long get_ticks(void)
 {
-    unsigned long count;
-    READ_TICKS(count);
-    return count;
+    return TICKS_READ();
 }
 
 /**
@@ -152,9 +151,7 @@ static inline volatile unsigned long get_ticks(void)
  */
 static inline volatile unsigned long get_ticks_ms(void)
 {
-    unsigned long count;
-    READ_TICKS(count);
-    return count / (COUNTS_PER_SECOND / 1000);
+    return TICKS_READ() / (TICKS_PER_SECOND / 1000);
 }
 
 /**
@@ -166,7 +163,8 @@ static inline volatile unsigned long get_ticks_ms(void)
  */
 static inline void wait_ticks( unsigned long wait )
 {
-    WAIT_TICKS(wait);
+    unsigned int initial_tick = TICKS_READ();
+    while( TICKS_READ() - initial_tick < wait );
 }
 
 /**
@@ -178,8 +176,8 @@ static inline void wait_ticks( unsigned long wait )
  */
 static inline void wait_ms( unsigned long wait_ms )
 {
-    unsigned int wait = wait_ms * (COUNTS_PER_SECOND / 1000);
-    WAIT_TICKS(wait);
+    unsigned int wait = wait_ms * (TICKS_PER_SECOND / 1000);
+    wait_ticks(wait);
 }
 
 void data_cache_hit_invalidate(volatile void *, unsigned long);
