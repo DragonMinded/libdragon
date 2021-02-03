@@ -83,11 +83,26 @@
 #define MEMORY_BARRIER() asm volatile ("" : : : "memory")
 
 /**
+ * @brief Returns the COP0 register $9 (count).
+ *
+ * The coprocessor 0 (system control coprocessor - COP0) register $9 is
+ * incremented at "half maximum instruction issue rate" which is the processor
+ * clock speed (93.75MHz) divided by two. (also see TICKS_PER_SECOND) It will
+ * always produce a 32-bit unsigned value which overflows back to zero in
+ * 91.625 seconds. The counter will increment irrespective of instructions
+ * actually being executed. This macro is for reading that value.
+ * Do not use for comparison without special handling.
+ */
+#define TICKS_READ() ({ \
+    uint32_t x; \
+    asm volatile("mfc0 %0,$9":"=r"(x)); \
+    x; \
+})
+
+/**
  * @brief Number of updates to the count register per second
  *
- * The count register updates at "half maximum instruction issue rate".
- * This appears to be half the CPU clock.  Every second, this many counts
- * will have passed in the count register
+ * Every second, this many counts will have passed in the count register
  */
 #define TICKS_PER_SECOND (93750000/2)
 
@@ -104,22 +119,15 @@
  *
  * This is similar to t1 < t2, but it correctly handles timer overflows
  * which are very frequent. Notice that the N64 counter overflows every
- * 90 seconds, so it's not possible to compare times that are more than
- * 45 seconds apart.
+ * ~91 seconds, so it's not possible to compare times that are more than
+ * ~45 seconds apart.
  */
 #define TICKS_BEFORE(t1, t2) ({ TICKS_DISTANCE(t1, t2) > 0; })
 
 /**
- * @brief Returns the COP0 register $9 (count).
- *
- * Returns the COP0 register $9 (count).
- * It will always produce a 32 bit unsigned value.
+ * @brief Returns equivalent count ticks for the given millis.
  */
-#define TICKS_READ() ({ \
-    uint32_t x; \
-    asm volatile("mfc0 %0,$9":"=r"(x)); \
-    x; \
-})
+#define TICKS_FROM_MS(val) ((uint32_t)(val * (TICKS_PER_SECOND / 1000)))
 
 #ifdef __cplusplus
 extern "C" {
@@ -130,9 +138,7 @@ void sys_set_boot_cic(int bc);
 /**
  * @brief Read the number of ticks since system startup
  *
- * @note This is the clock rate divided by two.
- * It will wrap back to 0 after about 91.6 seconds
- * Do not use for comparison without special handling
+ * @note Also see the TICKS_READ macro
  *
  * @return The number of ticks since system startup
  */
@@ -144,8 +150,9 @@ static inline volatile unsigned long get_ticks(void)
 /**
  * @brief Read the number of millisecounds since system startup
  *
- * It will wrap back to 0 after about 91.6 seconds
- * Do not use for comparison without special handling
+ * @note It will wrap back to 0 after about 91.6 seconds.
+ * Also see the TICKS_READ macro. Do not use for comparison
+ * without special handling.
  *
  * @return The number of millisecounds since system startup
  */

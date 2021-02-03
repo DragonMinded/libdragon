@@ -1,14 +1,11 @@
 // Writes the 32bit value to COP0 register 9 (count)
 #define WRITE_TICKS(val) do { asm volatile("mtc0 %0,$9"::"r"(val)); } while(0)
 
-// Writes the 32bit value to COP0 register 11 (compare)
-#define WRITE_COMPARE(val) do { asm volatile("mtc0 %0,$11" ::"r"(val)); } while(0)
-
 #define TEST(name, tests) do { \
 	const int NUM_CASES = sizeof(tests) / sizeof(tests[0]); \
 	for (int i=0; i < NUM_CASES; i++) { \
-		/* move ticks just before 5ms of the target to make sure wait is actually waiting */ \
-		mock_tick = tests[i][1] - 0x39387; \
+		/* move ticks a little before the target to make sure it is actually doing some waiting */ \
+		mock_tick = tests[i][1] - TICKS_FROM_MS(5); \
 		WRITE_TICKS(tests[i][0]); \
 		/* act */ \
 		name(tests[i][2]); \
@@ -42,15 +39,17 @@ static void frame_callback() {
 // We have three phases incremented on every frame (VI used as an interval)
 
 // Start: set the count register to the initial value and enter the wait loop
-// Test: VI interrupt updates the count register to the mock value
-// Timeout: If the wait loop fails to exit upon setting the mock value, the VI
+// Test: VI interrupt updates the count register to the mock value - 5ms
+// Timeout: If the wait loop fails to exit 5ms after setting the mock, the VI
 // interrupt will move the state into this phase, which is asserted in the test.
-// So we can test them each of them in three frames, without waiting the full
-// delay. Tested wait should be an order of magnitude longer than the VI interval
+// So we can test each of them in three frames, without waiting the full delay.
+// If the wait does end early, state will be left on "Start" or current tick will
+// be closer to the original mock value instead of being 5ms after it.
+// Tested wait should be an order of magnitude longer than the VI interval
 // to prevent the loop from exiting before we are able to update the count reg.
-// If wait calculation is unable to wrap properly, the loop will run for a maximum
-// of 90 secs and endup in Timeout state, failing the tes.
-// Execution times are negligible with this setup.
+// If wait calculation is incorrect, the loop will run for a maximum of ~91 secs
+// and end up in "Timeout" state, or exit early on "Start" state failing the
+// test. Execution times are negligible with this setup.
 // 0x2CB4178 is 1 second
 
 static uint32_t test_cases[][3] = {
@@ -97,7 +96,7 @@ void test_ticks(TestContext *ctx) {
 
 	disable_interrupts();
 
-	// Put the instructions on the same cacheline
+	// Make sure they are all in I-cache o/w ticks may increment irrespective of actually run instructions
 	for (int i = 0; i < 2; i++) {
 		WRITE_TICKS(0x0);
 		ticks_0 = get_ticks();
@@ -111,7 +110,7 @@ void test_ticks(TestContext *ctx) {
 
 	disable_interrupts();
 
-	// Put the instructions on the same cacheline
+	// Make sure they are all in I-cache o/w ticks may increment irrespective of actually run instructions
 	for (int i = 0; i < 2; i++) {
 		WRITE_TICKS(0x0);
 		ticks_0 = get_ticks_ms();
@@ -137,5 +136,4 @@ void test_ticks(TestContext *ctx) {
 }
 
 #undef WRITE_TICKS
-#undef WRITE_COMPARE
 #undef TEST
