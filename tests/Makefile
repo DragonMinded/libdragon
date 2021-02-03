@@ -49,7 +49,7 @@ test.dfs:
 	$(MKDFSPATH) test.dfs ./filesystem/
 
 clean:
-	rm -f *.v64 *.z64 *.elf *.o *.bin *.dfs
+	rm -f *.v64 *.z64 *.elf *.o *.bin *.dfs *.d
 
 -include testrom.d testrom_emu.d
 

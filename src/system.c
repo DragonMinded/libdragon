@@ -1295,4 +1295,16 @@ int unhook_stdio_calls()
     return 0;
 }
 
+/**
+ * @brief Implement _flush_cache as required by GCC for nested functions.
+ *
+ * When using the nested function extensions of GCC, a call to _flush_cache
+ * is generated which must be supplied by the operating system or runtime
+ * to allow flushing the instruction cache for the generated trampoline.
+ */
+void _flush_cache(uint8_t* addr, unsigned long bytes) {
+    data_cache_hit_writeback(addr, bytes);
+    inst_cache_hit_invalidate(addr, bytes);
+}
+
 /** @} */

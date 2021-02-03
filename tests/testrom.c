@@ -152,14 +152,15 @@ int assert_equal_mem(TestContext *ctx, const uint8_t *a, const uint8_t *b, int l
 #include "test_dfs.c"
 #include "test_cache.c"
 #include "test_ticks.c"
+#include "test_irq.c"
 
 /**********************************************************************
  * MAIN
  **********************************************************************/
 
 // Testsuite definition
-#define TEST_FLAGS_NONE 0x0
-#define TEST_FLAGS_IO 0x1
+#define TEST_FLAGS_NONE         0x0
+#define TEST_FLAGS_IO           0x1
 #define TEST_FLAGS_NO_BENCHMARK 0x2
 
 #define TEST_FUNC(fn, dur, flags)   { #fn, fn, dur, flags }
@@ -170,11 +171,12 @@ static const struct Testsuite
 	uint32_t duration;
 	uint32_t flags;
 } tests[] = {
-	TEST_FUNC(test_dfs_read, 1104, TEST_FLAGS_IO),
-	TEST_FUNC(test_cache_invalidate, 1763, TEST_FLAGS_NONE),
+	TEST_FUNC(test_irq_reentrancy,         0, TEST_FLAGS_NO_BENCHMARK),  // FIXME: this test uses timer.c so we can't measure it yet
+	TEST_FUNC(test_dfs_read,            1104, TEST_FLAGS_IO),
+	TEST_FUNC(test_cache_invalidate,    1763, TEST_FLAGS_NONE),
 
 #if BENCHMARK_TESTS
-	TEST_FUNC(test_ticks, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_ticks,                  0, TEST_FLAGS_NO_BENCHMARK),
 #endif
 };
 
@@ -229,12 +231,12 @@ int main() {
 			}
 		}
 	#if BENCHMARK_TESTS
-		// If there's more than a 1% (10% for IO tests) drift on the running time
+		// If there's more than a 5% (10% for IO tests) drift on the running time
 		// (/1024) compared to the expected one, make the test fail. Something
 		// happened and we need to double check this.
 		else if (
 			!(tests[i].flags & TEST_FLAGS_NO_BENCHMARK) &&
-			((float)test_diff / (float)test_duration > ((tests[i].flags & TEST_FLAGS_IO) ? 0.1 : 0.01))
+			((float)test_diff / (float)test_duration > ((tests[i].flags & TEST_FLAGS_IO) ? 0.1 : 0.05))
 		) {
 			failures++;
 			printf("FAIL\n\n");
