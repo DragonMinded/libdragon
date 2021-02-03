@@ -127,7 +127,7 @@
 /**
  * @brief Returns equivalent count ticks for the given millis.
  */
-#define TICKS_FROM_MS(val) ((uint32_t)(val * (TICKS_PER_SECOND / 1000)))
+#define TICKS_FROM_MS(val) ((uint32_t)((val) * (TICKS_PER_SECOND / 1000)))
 
 #ifdef __cplusplus
 extern "C" {
