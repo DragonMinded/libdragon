@@ -183,8 +183,7 @@ static inline void wait_ticks( unsigned long wait )
  */
 static inline void wait_ms( unsigned long wait_ms )
 {
-    unsigned int wait = wait_ms * (TICKS_PER_SECOND / 1000);
-    wait_ticks(wait);
+    wait_ticks(TICKS_FROM_MS(wait_ms));
 }
 
 void data_cache_hit_invalidate(volatile void *, unsigned long);

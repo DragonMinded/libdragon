@@ -1,34 +1,17 @@
 // Writes the 32bit value to COP0 register 9 (count)
 #define WRITE_TICKS(val) do { asm volatile("mtc0 %0,$9"::"r"(val)); } while(0)
 
-#define TEST(name, tests) do { \
-	const int NUM_CASES = sizeof(tests) / sizeof(tests[0]); \
-	for (int i=0; i < NUM_CASES; i++) { \
-		/* move ticks a little before the target to make sure it is actually doing some waiting */ \
-		mock_tick = tests[i][1] - TICKS_FROM_MS(5); \
-		WRITE_TICKS(tests[i][0]); \
-		/* act */ \
-		name(tests[i][2]); \
-		ticks_0 = TICKS_READ(); \
-		ASSERT(state != Timeout, "Case: %u Test timed out. " #name " didn't finish on time (Ticks: %#10lX)", i, ticks_0); \
-		ASSERT(state == Test && ticks_0 >= tests[i][1], "Case: %u " #name " finished too early (Ticks: %#10lX)", i, ticks_0); \
-		ASSERT(state <= Timeout, "Case: %u Unexpected state for " #name " (Ticks: %#10lX)", i, ticks_0); \
-		/* re-sync to frame */ \
-		while (state < Timeout); \
-		/* reset state */ \
-		state = Start; \
-	} \
-} while(0)
-
-static volatile uint32_t mock_tick = 0;
-static volatile enum state_t{ Start = 0, Test = 1, Timeout = 2 } state = -1;
+static volatile uint32_t test_ticks_mock = 0;
+static volatile enum test_ticks_state_t { Start = 0, Test = 1, Timeout = 2 } state = -1;
 
 static void frame_callback() {
 	state++;
 
+	state = state > Timeout ? Timeout : state;
+
 	switch(state) {
 		case Test:
-			WRITE_TICKS(mock_tick);
+			WRITE_TICKS(test_ticks_mock);
 		break;
 		default:
 		break;
@@ -52,7 +35,9 @@ static void frame_callback() {
 // test. Execution times are negligible with this setup.
 // 0x2CB4178 is 1 second
 
-static uint32_t test_cases[][3] = {
+typedef uint32_t test_ticks_cases_t[][3];
+
+static test_ticks_cases_t test_ticks_cases = {
 	// No overflow
 	{0x2CB4178, 0x59682F0, 0x2CB4178},
 	// Wrap towards the end
@@ -63,7 +48,7 @@ static uint32_t test_cases[][3] = {
 	{0xFD34BE87, 0xFA697D0F, 0xFD34BE87},
 };
 
-static uint32_t test_cases_ms[][3] = {
+static test_ticks_cases_t test_ticks_ms_cases = {
 	// No overflow
 	{0x2CB4178, 0x59682F0, 1000},
 	// Wrap towards the end
@@ -73,6 +58,25 @@ static uint32_t test_cases_ms[][3] = {
 	// Long wait, wrapping around - 1 second before the end => 2 second before the end
 	{0xFD34BE87, 0xFA697D0F, 90626},
 };
+
+static void test_ticks_func(TestContext *ctx, void to_test(unsigned long), char name[], test_ticks_cases_t tests, int num_cases) {
+	for (int i=0; i < num_cases; i++) {
+		/* move ticks a little before the target to make sure it is actually doing some waiting */
+		test_ticks_mock = tests[i][1] - TICKS_FROM_MS(5);
+		WRITE_TICKS(tests[i][0]);
+		/* act */
+		(*to_test)(tests[i][2]);
+		uint32_t ticks_0 = TICKS_READ();
+		ASSERT(state <= Timeout, "Case: %u Unexpected state for %s (Ticks: %#10lX)\n", i,name, ticks_0);
+		ASSERT(state != Timeout, "Case: %u Test timed out. %s didn't finish on time (Ticks: %#10lX)\n", i, name, ticks_0);
+		ASSERT(state == Test && ticks_0 >= tests[i][1], "Case: %u %s finished too early (Ticks: %#10lX)\n", i, name, ticks_0);
+		
+		/* re-sync to frame */
+		while (state < Timeout);
+		/* reset state */
+		state = Start;
+	}
+}
 
 void test_ticks(TestContext *ctx) {
 	uint32_t ticks_0;
@@ -115,7 +119,7 @@ void test_ticks(TestContext *ctx) {
 		WRITE_TICKS(0x0);
 		ticks_0 = get_ticks_ms();
 		WRITE_TICKS(0x7FFFFFFF);
-		ticks_1 = get_ticks_ms();	
+		ticks_1 = get_ticks_ms();
 	}
 
 	// Prepare for next test
@@ -127,8 +131,8 @@ void test_ticks(TestContext *ctx) {
 	// Sync to nearest video frame to use as an interval
 	while (state < Start);
 
-	TEST(wait_ticks, test_cases);
-	TEST(wait_ms, test_cases_ms);
+	test_ticks_func(ctx, wait_ticks, "wait_ticks", test_ticks_cases, sizeof(test_ticks_cases) / sizeof(test_ticks_cases[0]));
+	test_ticks_func(ctx, wait_ms, "wait_ms", test_ticks_ms_cases, sizeof(test_ticks_ms_cases) / sizeof(test_ticks_ms_cases[0]));
 
 	// Cleanup
 	unregister_VI_handler(frame_callback);
