@@ -27,7 +27,7 @@ $(CURDIR)/build/n64sys.o: $(CURDIR)/src/n64sys.c
 $(CURDIR)/build/interrupt.o: $(CURDIR)/src/interrupt.c
 	mkdir -p $(CURDIR)/build
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/interrupt.o $(CURDIR)/src/interrupt.c
-$(CURDIR)/build/dma.o: $(CURDIR)/src/dma.c
+$(CURDIR)/build/dma.o: $(CURDIR)/src/dma.c ./include/n64sys.h
 	mkdir -p $(CURDIR)/build
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/dma.o $(CURDIR)/src/dma.c
 $(CURDIR)/build/inthandler.o: $(CURDIR)/src/inthandler.S
@@ -38,7 +38,7 @@ $(CURDIR)/build/entrypoint.o: $(CURDIR)/src/entrypoint.S
 	$(CC) -c -o $(CURDIR)/build/entrypoint.o $(CURDIR)/src/entrypoint.S
 
 # Rules for compiling filesystem
-$(CURDIR)/build/dragonfs.o: $(CURDIR)/src/dragonfs.c
+$(CURDIR)/build/dragonfs.o: $(CURDIR)/src/dragonfs.c ./include/n64sys.h
 	mkdir -p $(CURDIR)/build
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/dragonfs.o $(CURDIR)/src/dragonfs.c
 
@@ -48,10 +48,10 @@ $(CURDIR)/build/audio.o: $(CURDIR)/src/audio.c
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/audio.o $(CURDIR)/src/audio.c
 
 # Rules for compiling video system
-$(CURDIR)/build/display.o: $(CURDIR)/src/display.c
+$(CURDIR)/build/display.o: $(CURDIR)/src/display.c ./include/n64sys.h
 	mkdir -p $(CURDIR)/build
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/display.o $(CURDIR)/src/display.c
-$(CURDIR)/build/console.o: $(CURDIR)/src/console.c
+$(CURDIR)/build/console.o: $(CURDIR)/src/console.c ./include/n64sys.h
 	mkdir -p $(CURDIR)/build
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/console.o $(CURDIR)/src/console.c
 $(CURDIR)/build/graphics.o: $(CURDIR)/src/graphics.c
@@ -76,7 +76,7 @@ $(CURDIR)/build/tpak.o: $(CURDIR)/src/tpak.c
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/tpak.o $(CURDIR)/src/tpak.c
 
 # Rules for compiling timer system
-$(CURDIR)/build/timer.o: $(CURDIR)/src/timer.c
+$(CURDIR)/build/timer.o: $(CURDIR)/src/timer.c ./include/n64sys.h
 	mkdir -p $(CURDIR)/build
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/timer.o $(CURDIR)/src/timer.c
 
@@ -86,7 +86,7 @@ $(CURDIR)/build/exception.o: $(CURDIR)/src/exception.c
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/exception.o $(CURDIR)/src/exception.c
 
 # Rules for compiling newlib interface
-$(CURDIR)/build/system.o: $(CURDIR)/src/system.c
+$(CURDIR)/build/system.o: $(CURDIR)/src/system.c ./include/n64sys.h
 	mkdir -p $(CURDIR)/build
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/system.o $(CURDIR)/src/system.c
 

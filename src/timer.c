@@ -37,13 +37,6 @@ static timer_link_t *TI_timers = 0;
 static long long total_ticks;
 
 /**
- * @brief Read the count out of the count register
- *
- * @param[out] x
- *             Variable to place count into
- */
-#define read_count(x) asm volatile("mfc0 %0,$9\n\t nop \n\t" : "=r" (x) : )
-/**
  * @brief Write the count to the count register
  *
  * @param[in] x
@@ -82,7 +75,7 @@ static int __proc_timers(timer_link_t * head)
     int smallest = 0x3FFFFFFF;			// ~ 22.9 secs
 	int start, now;
 
-	read_count(start);
+	start = TICKS_READ();
 	total_ticks += start;
 
     while (head)
@@ -126,7 +119,7 @@ static int __proc_timers(timer_link_t * head)
     }
 
 	/* check if shortest time left < 5us */
-	read_count(now);
+	now = TICKS_READ();
 	if (smallest < (now - start + 234))
 	{
 		total_ticks += (now - start);
@@ -153,8 +146,7 @@ static void timer_callback(void)
 	}
 	else
 	{
-		int now;
-		read_count(now);
+		int now = TICKS_READ();
 		total_ticks += now;
 		write_count(0);
 		write_compare(0x7FFFFFFF);
@@ -163,6 +155,10 @@ static void timer_callback(void)
 
 /**
  * @brief Initialize the timer subsystem
+ *
+ * @note This will currently mess with get_ticks, get_ticks_ms and related wait
+ * routines as it is explicitly manipulating the system timer.
+ *
  */
 void timer_init(void)
 {

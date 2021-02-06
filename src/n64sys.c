@@ -57,62 +57,6 @@ void sys_set_boot_cic(int bc)
 }
 
 /**
- * @brief Read the number of ticks since system startup
- *
- * @note This is the clock rate divided by two.
- *
- * @return The number of ticks since system startup
- */
-volatile unsigned long get_ticks(void)
-{
-    unsigned long count;
-    // reg $9 on COP0 is count
-    asm volatile("\tmfc0 %0,$9\n\tnop":"=r"(count));
-
-    return count;
-}
-
-/**
- * @brief Read the number of millisecounds since system startup
- *
- * @return The number of millisecounds since system startup
- */
-volatile unsigned long get_ticks_ms(void)
-{
-    unsigned long count;
-    // reg $9 on COP0 is count
-    asm volatile("\tmfc0 %0,$9\n\tnop":"=r"(count));
-
-    return count / (COUNTS_PER_SECOND / 1000);
-}
-
-/**
- * @brief Spin wait until the number of ticks have elapsed
- *
- * @param[in] wait
- *            Number of ticks to wait
- */
-void wait_ticks( unsigned long wait )
-{
-    unsigned int stop = wait + get_ticks();
-
-    while( stop > get_ticks() );
-}
-
-/**
- * @brief Spin wait until the number of millisecounds have elapsed
- *
- * @param[in] wait
- *            Number of millisecounds to wait
- */
-void wait_ms( unsigned long wait )
-{
-    unsigned int stop = wait + get_ticks_ms();
-
-    while( stop > get_ticks_ms() );
-}
-
-/**
  * @brief Helper macro to perform cache refresh operations
  *
  * @param[in] op
