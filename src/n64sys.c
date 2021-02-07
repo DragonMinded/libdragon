@@ -62,11 +62,11 @@ void sys_set_boot_cic(int bc)
  * @param[in] op
  *            Operation to perform
  */
-#define cache_op(op) ({ \
+#define cache_op(op, linesize) ({ \
     if (length) { \
-        void *cur = (void*)((unsigned long)addr & ~15); \
+        void *cur = (void*)((unsigned long)addr & ~(linesize-1)); \
         int count = (int)length + (addr-cur); \
-        for (int i = 0; i < count; i += 16) \
+        for (int i = 0; i < count; i += linesize) \
             asm ("\tcache %0,(%1)\n"::"i" (op), "r" (cur+i)); \
     } \
 })
@@ -83,7 +83,7 @@ void sys_set_boot_cic(int bc)
  */
 void data_cache_hit_writeback(volatile void * addr, unsigned long length)
 {
-    cache_op(0x19);
+    cache_op(0x19, 16);
 }
 
 /**
@@ -98,7 +98,7 @@ void data_cache_hit_writeback(volatile void * addr, unsigned long length)
  */
 void data_cache_hit_invalidate(volatile void * addr, unsigned long length)
 {
-    cache_op(0x11);
+    cache_op(0x11, 16);
 }
 
 /**
@@ -113,7 +113,7 @@ void data_cache_hit_invalidate(volatile void * addr, unsigned long length)
  */
 void data_cache_hit_writeback_invalidate(volatile void * addr, unsigned long length)
 {
-    cache_op(0x15);
+    cache_op(0x15, 16);
 }
 
 /**
@@ -126,7 +126,7 @@ void data_cache_hit_writeback_invalidate(volatile void * addr, unsigned long len
  */
 void data_cache_index_writeback_invalidate(volatile void * addr, unsigned long length)
 {
-    cache_op(0x01);
+    cache_op(0x01, 16);
 }
 
 /**
@@ -141,7 +141,7 @@ void data_cache_index_writeback_invalidate(volatile void * addr, unsigned long l
  */
 void inst_cache_hit_writeback(volatile void * addr, unsigned long length)
 {
-    cache_op(0x18);
+    cache_op(0x18, 32);
 }
 
 /**
@@ -156,7 +156,7 @@ void inst_cache_hit_writeback(volatile void * addr, unsigned long length)
  */
 void inst_cache_hit_invalidate(volatile void * addr, unsigned long length)
 {
-    cache_op(0x10);
+    cache_op(0x10, 32);
 }
 
 /**
@@ -169,7 +169,7 @@ void inst_cache_hit_invalidate(volatile void * addr, unsigned long length)
  */
 void inst_cache_index_invalidate(volatile void * addr, unsigned long length)
 {
-    cache_op(0x00);
+    cache_op(0x00, 32);
 }
 
 /**
