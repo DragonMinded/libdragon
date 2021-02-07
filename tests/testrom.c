@@ -171,7 +171,7 @@ static const struct Testsuite
 	uint32_t flags;
 } tests[] = {
 	TEST_FUNC(test_dfs_read, 1104, TEST_FLAGS_IO),
-	TEST_FUNC(test_cache_invalidate, 1337, TEST_FLAGS_NONE),
+	TEST_FUNC(test_cache_invalidate, 1763, TEST_FLAGS_NONE),
 
 #if BENCHMARK_TESTS
 	TEST_FUNC(test_ticks, 0, TEST_FLAGS_NO_BENCHMARK),
