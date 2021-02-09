@@ -7,9 +7,10 @@ void test_cache_invalidate(TestContext *ctx) {
 	for (int i=0;i<32;i++) {
 		for (int j=0;j<32;j++) {
 
-			// Write the whole buffer through cache,
+			// Read/write the whole buffer through cache,
 			// so it's all populated in D-Cache.
-			memset(buf, 0xAA, sizeof(buf));
+			memset(buf, 0xA0, sizeof(buf));
+			for (int i=0;i<sizeof(buf);i++) buf[i] += 0xA;
 
 			// Writeback+Invalidate buf[i..i+j]. Now only
 			// those lines should be invalidated.
