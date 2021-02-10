@@ -15,12 +15,10 @@ To get started from scratch, follow the following steps:
 
 *Below steps can also be executed by running `build.sh` at the top level.*
 
-5. Make libdragon by typing 'make' at the top level.
-6. Install libdragon by typing 'make install' at the top level.
-7. Make the tools by typing 'make tools' at the top level.
-8. Install the tools by typing 'make tools-install' at the top level.
-9.  Install libmikmod for the examples using it. See `build.sh` at the top level for details.
-10. Compile the examples by typing 'make examples' at the top level.
+5. Install libdragon by typing 'make install' at the top level.
+6. Install the tools by typing 'make tools-install' at the top level.
+7. Install libmikmod for the examples using it. See `build.sh` at the top level for details.
+8. Compile the examples by typing 'make examples' at the top level.
 
 You are now ready to run the examples on your N64.
 For more information, visit http://www.dragonminded.com/n64dev/
