@@ -594,7 +594,7 @@ void init_interrupts()
         __interrupt_depth = 0;
 
         /* Enable interrupts systemwide */
-        asm("\tmfc0 $8,$12\n\tori $8,0x401\n\tmtc0 $8,$12\n\tnop":::"$8");
+        asm("\tmfc0 $8,$12\n\tori $8,0x8401\n\tmtc0 $8,$12\n\tnop":::"$8");
     }
 }
 
