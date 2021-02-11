@@ -112,6 +112,9 @@
  */
 static int __interrupt_depth = -1;
 
+/** @brief tick at which interrupts were disabled. */
+uint32_t interrupt_disabled_tick = 0;
+
 /**
  * @brief Structure of an interrupt callback
  */
@@ -610,6 +613,7 @@ void disable_interrupts()
     {
         /* Interrupts are enabled, so its safe to disable them */
         asm("\tmfc0 $8,$12\n\tla $9,~1\n\tand $8,$9\n\tmtc0 $8,$12\n\tnop":::"$8","$9");
+        interrupt_disabled_tick = TICKS_READ();
     }
 
     /* Ensure that we remember nesting levels */
