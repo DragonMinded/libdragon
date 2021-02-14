@@ -222,9 +222,8 @@ void timer_init(void)
 	C0_WRITE_COUNT(1);
 	C0_WRITE_COMPARE(0);
 	C0_WRITE_STATUS(C0_STATUS() | C0_STATUS_IM7);
-	enable_interrupts();
-
 	register_TI_handler(timer_callback);
+	enable_interrupts();
 }
 
 /**
