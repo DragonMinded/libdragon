@@ -28,6 +28,11 @@
  * expired one-short timers will not be removed automatically and are the
  * responsibility of the calling code to be freed, regardless of a call to
  * #timer_close.
+ *
+ * Because the MIPS internal counter wraps around after ~90 seconds (see
+ * TICKS_READ), it's not possible to schedule a timer more than 90 seconds
+ * in the future.
+ *
  * @{
  */
 
@@ -350,11 +355,11 @@ void delete_timer(timer_link_t *timer)
 void timer_close(void)
 {
 	disable_interrupts();
-    
-    /* Disable generation of timer interrupt. */
+	
+	/* Disable generation of timer interrupt. */
 	C0_WRITE_STATUS(C0_STATUS() & ~C0_STATUS_IM7);
 
-    unregister_TI_handler(timer_callback);
+	unregister_TI_handler(timer_callback);
 
 	timer_link_t *head = TI_timers;
 	while (head)
