@@ -38,7 +38,7 @@ testrom_emu$(ROM_EXTENSION): testrom_emu.elf test.dfs
 	$(CHKSUM64PATH) testrom_emu$(ROM_EXTENSION)
 
 testrom_emu.o : testrom.c
-	$(CC) $(CFLAGS) -DBENCHMARK_TESTS=0 -c -o $@ $<
+	$(CC) $(CFLAGS) -DIN_EMULATOR=1 -c -o $@ $<
 
 testrom.elf : testrom.o
 	$(LD) -o testrom.elf testrom.o $(LINK_FLAGS)

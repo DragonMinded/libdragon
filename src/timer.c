@@ -28,31 +28,49 @@
  * expired one-short timers will not be removed automatically and are the
  * responsibility of the calling code to be freed, regardless of a call to
  * #timer_close.
+ *
+ * Because the MIPS internal counter wraps around after ~90 seconds (see
+ * TICKS_READ), it's not possible to schedule a timer more than 90 seconds
+ * in the future.
+ *
  * @{
  */
 
 /** @brief Internal linked list of timers */
 static timer_link_t *TI_timers = 0;
-/** @brief Total ticks elapsed since timer subsystem initialization */
-static long long total_ticks;
 
-/**
- * @brief Write the count to the count register
- *
- * @param[in] x
- *            Value to write into the count register
- */
-#define write_count(x) asm volatile("mtc0 %0,$9\n\t nop \n\t" :  : "r" (x) )
-/**
- * @brief Set the compare register
- *
- * This sets up the compare register so that when the count register equals the compare
- * register, an interrupt will be generated.
- *
- * @param[in] x
- *            Value to write into the compare register
- */
-#define write_compare(x) asm volatile("mtc0 %0,$11\n\t nop \n\t" :  : "r" (x) )
+/** @brief Higher-part of 64-bit tick counter */
+volatile uint32_t ticks64_high;
+
+/** @brief Time at which interrupts were disabled */
+extern volatile uint32_t interrupt_disabled_tick;
+
+/* @brief Timer is the special overflow timer. */
+#define TF_OVERFLOW    0x40
+
+/* @brief Timer has been called once in this interrupt. */
+#define TF_CALLED      0x80
+
+/* @brief Update the compare register to match the first expiring timer. */
+static void timer_update_compare(timer_link_t *head) {
+	uint32_t now = TICKS_READ();
+	uint32_t smallest = 0xFFFFFFFF;
+
+	while (head)
+	{
+		/* See how much time is left before the timer expires. Notice that
+		   the subtraction is also safe with overflows. */
+		uint32_t left = head->left - now;
+		if (left < smallest)
+			smallest = left;
+
+		/* Go to next */
+		head = head->next;
+	}
+
+	/* set compare to shortest time left */
+	C0_WRITE_COMPARE(now + smallest);
+}
 
 /**
  * @brief Process linked list of timers
@@ -69,33 +87,52 @@ static long long total_ticks;
  * @retval 1 The list needs reprocessing
  * @retval 0 All timer operations were handled successfully
  */
-static int __proc_timers(timer_link_t * head)
+static int __proc_timers(timer_link_t * thead)
 {
+	timer_link_t *head = thead;
 	timer_link_t *last = 0;
-    int smallest = 0x3FFFFFFF;			// ~ 22.9 secs
-	int start, now;
+	uint32_t start = C0_COMPARE();
+	uint32_t now = TICKS_READ();
 
-	start = TICKS_READ();
-	total_ticks += start;
-
-    while (head)
-    {
-		head->left -= start;
-		// within ~5us?
-		if (head->left < 234)
+	while (head)
+	{
+		/* Consider a timer as expired if its deadline is at the
+		 * COMPARE value (time at which the interrupt triggered) or up to 5
+		 * microseconds after. This 5 microseconds window is useful to cluster
+		 * timers that expire close to each other; eg: if the client creates
+		 * many timers with the same period, they will be created in a fast
+		 * sequence and have a little delay between each other. */
+		if (!(head->flags & TF_CALLED) && 
+			TICKS_DISTANCE(start, head->left) >= 0 && 
+			TICKS_DISTANCE(head->left, now+TIMER_TICKS(5)) >= 0)
 		{
 			/* yes - timed out, do callback */
-			head->ovfl = head->left;
+			head->ovfl = TICKS_DISTANCE(head->left, now);
 			if (head->callback)
 				head->callback(head->ovfl);
 
 			/* reset ticks if continuous */
 			if (head->flags & TF_CONTINUOUS)
 			{
-				head->left = head->set + head->ovfl;
-				if (head->left < smallest)
-					smallest = head->left;
+				head->left += head->set;
 				last = head;
+
+				/* Special case: the internal overflow timer has a period
+				 * of 2**32, so next occurrence will look exactly like the
+				 * current one. Since we're going to reprocess the list, we
+				 * would keep executing it many times until we eventually
+				 * exit the 5 microseconds window.
+				 * So we mark this timer as already called (TF_CALLED) and
+				 * avoid calling it again. 
+				 *
+				 * Notice that we do this only for overflow because other timers
+				 * with a short period might actually be called multiple times
+				 * under interrupt. For instance, if a continuous timer with
+				 * a short period is followed by a very slow one-shot timer,
+				 * when the latter is finished the former might need to fire again.
+				 */
+				if (head->flags & TF_OVERFLOW)
+					head->flags |= TF_CALLED;
 			}
 			else
 			{
@@ -105,30 +142,22 @@ static int __proc_timers(timer_link_t * head)
 				else
 					TI_timers = head->next;
 			}
-		}
-		else
-		{
-			/* no, just check if remaining time is smallest */
-			if (head->left < smallest)
-				smallest = head->left;
-			last = head;
+
+			/* Go through timer list again. If the callback was slow, maybe
+			   other timers have expired. */
+			return 1;
 		}
 
-        /* Go to next */
-	    head = head->next;
-    }
-
-	/* check if shortest time left < 5us */
-	now = TICKS_READ();
-	if (smallest < (now - start + 234))
-	{
-		total_ticks += (now - start);
-		write_count(now - start);
-		return 1;						// reprocess the list
+		/* Go to next */
+		last = head;
+		head = head->next;
 	}
-	/* set compare to shortest time left */
-	write_count(0);
-	write_compare(smallest - (now - start));
+
+	/* Clear the TF_CALLED flag from the overflow timer (if any) */
+	while (thead) {
+		thead->flags &= ~TF_CALLED;
+		thead = thead->next;
+	}
 	return 0;							// exit timer callback
 }
 
@@ -140,32 +169,61 @@ static int __proc_timers(timer_link_t * head)
  */
 static void timer_callback(void)
 {
-	if (TI_timers)
-	{
-		while (__proc_timers(TI_timers)) ;
-	}
-	else
-	{
-		int now = TICKS_READ();
-		total_ticks += now;
-		write_count(0);
-		write_compare(0x7FFFFFFF);
-	}
+	while (__proc_timers(TI_timers))
+		{}
+
+	// Update counter for next interrupt.
+	timer_update_compare(TI_timers);
+}
+
+/**
+ * @brief Timer callback overflow function
+ *
+ * This function is the callback of the internal overflow timer, which
+ * is configured by timer_init() and is used to create a 64-bit timer
+ * accessed by timer_ticks().
+ */
+static void timer_callback_overflow(int ovfl)
+{
+	ticks64_high++;
 }
 
 /**
  * @brief Initialize the timer subsystem
  *
- * @note This will currently mess with get_ticks, get_ticks_ms and related wait
- * routines as it is explicitly manipulating the system timer.
+ * This function will reset the COP0 ticks counter to 0. Even if you
+ * later access the hardware counter directly (via TICKS_READ()), it should not
+ * be a problem if you call timer_init() early in the application main.
  *
+ * Do not modify the COP0 ticks counter after calling this function. Doing so
+ * will impede functionality of the timer module.
  */
 void timer_init(void)
 {
-	total_ticks = 0;
-	write_count(0);
-	write_compare(0x7FFFFFFF);
-    register_TI_handler(timer_callback);
+	/* Create first timer for overflows: expires when counter is 0 and
+	 * has a period of 2**32. */
+	timer_link_t *timer = malloc(sizeof(timer_link_t));
+	if (timer)
+	{
+		timer->left = 0;
+		timer->set = 0;
+		timer->flags = TF_CONTINUOUS | TF_OVERFLOW;
+		timer->callback = timer_callback_overflow;
+		timer->next = NULL;
+
+		TI_timers = timer;
+	}
+
+	/* Reset the count and compare registers. Avoid to accidentally trigger
+	   an interrupt by setting count to 1 and compare to 0. Also enable
+	   timer interrupts in COP0. */
+	disable_interrupts();
+	ticks64_high = 0;
+	C0_WRITE_COUNT(1);
+	C0_WRITE_COMPARE(0);
+	C0_WRITE_STATUS(C0_STATUS() | C0_STATUS_IM7);
+	register_TI_handler(timer_callback);
+	enable_interrupts();
 }
 
 /**
@@ -185,7 +243,7 @@ timer_link_t *new_timer(int ticks, int flags, void (*callback)(int ovfl))
 	timer_link_t *timer = malloc(sizeof(timer_link_t));
 	if (timer)
 	{
-		timer->left = ticks;
+		timer->left = TICKS_READ() + (int32_t)ticks;
 		timer->set = ticks;
 		timer->flags = flags;
 		timer->callback = callback;
@@ -194,14 +252,7 @@ timer_link_t *new_timer(int ticks, int flags, void (*callback)(int ovfl))
 
 		timer->next = TI_timers;
 		TI_timers = timer;
-		if (timer->next == 0)
-		{
-			/* first timer added to list */
-			write_count(0);
-			write_compare(timer->left);
-		}
-		else
-			timer_callback();			// force processing the timers
+		timer_update_compare(TI_timers);
 
 		enable_interrupts();
 	}
@@ -224,7 +275,7 @@ void start_timer(timer_link_t *timer, int ticks, int flags, void (*callback)(int
 {
 	if (timer)
 	{
-		timer->left = ticks;
+		timer->left = TICKS_READ() + (int32_t)ticks;
 		timer->set = ticks;
 		timer->flags = flags;
 		timer->callback = callback;
@@ -233,14 +284,7 @@ void start_timer(timer_link_t *timer, int ticks, int flags, void (*callback)(int
 
 		timer->next = TI_timers;
 		TI_timers = timer;
-		if (timer->next == 0)
-		{
-			/* first timer added to list */
-			write_count(0);
-			write_compare(timer->left);
-		}
-		else
-			timer_callback();			// force processing the timers
+		timer_update_compare(TI_timers);
 
 		enable_interrupts();
 	}
@@ -274,12 +318,13 @@ void stop_timer(timer_link_t *timer)
 				else
 					TI_timers = head->next;
 
-                break;
+				break;
 			}
 
 			last = head;
 			head = head->next;
 		}
+		timer_update_compare(TI_timers);
 		enable_interrupts();
 	}
 }
@@ -309,8 +354,11 @@ void delete_timer(timer_link_t *timer)
 void timer_close(void)
 {
 	disable_interrupts();
-    
-    unregister_TI_handler(timer_callback);
+	
+	/* Disable generation of timer interrupt. */
+	C0_WRITE_STATUS(C0_STATUS() & ~C0_STATUS_IM7);
+
+	unregister_TI_handler(timer_callback);
 
 	timer_link_t *head = TI_timers;
 	while (head)
@@ -318,33 +366,63 @@ void timer_close(void)
 		timer_link_t *last = head;
 		head = head->next;
 
-        if (last->flags & TF_CONTINUOUS)
-        {
-            /* Only free if it is a continuous timer as one-shot timers are
-             * freed by the user.  If we free a timer here, the user will
-             * never know if a one shot expired and needs to be removed or
-             * was removed automatically by timer_close.  We avoid this race
-             * condition by ensuring that the timer system never frees a 
-             * one shot timer.
-             */
-    		free(last);
-        }
+		if (last->flags & TF_CONTINUOUS)
+		{
+			/* Only free if it is a continuous timer as one-shot timers are
+			 * freed by the user.  If we free a timer here, the user will
+			 * never know if a one shot expired and needs to be removed or
+			 * was removed automatically by timer_close.  We avoid this race
+			 * condition by ensuring that the timer system never frees a 
+			 * one shot timer.
+			 */
+			free(last);
+		}
 	}
 	TI_timers = 0;
 	enable_interrupts();
 }
 
 /**
- * @brief Return total ticks since timer was initialized
+ * @brief Return total ticks since timer was initialized, as a 64-bit counter.
  *
  * @return Then number of ticks since the timer was initialized
+ *
  */
 long long timer_ticks(void)
 {
-	disable_interrupts();
-	timer_callback();					// force processing the timers
-	enable_interrupts();
-	return total_ticks;
+	uint32_t low, high;
+
+	/* Check whether interrupts are enabled or not. We need a different strategy
+	 * to account for race conditions. */
+	if (C0_STATUS() & C0_STATUS_IE) {
+		/* Read the hardware counter twice, and fetch the high part counter
+		 * in between. In the unlikely case that the counter overflows exactly
+		 * during the sequence, it means that there's a race condition and
+		 * we can't really know whether high and low are coherent -- but in
+		 * that case, we just repeat the sequence again to avoid the ambiguity. */
+		uint32_t pre;
+		do {
+			pre = TICKS_READ();
+			MEMORY_BARRIER();
+			high = ticks64_high;
+			MEMORY_BARRIER();
+			low = TICKS_READ();
+		} while ((int32_t)pre < 0 && (int32_t)low >= 0);
+
+	} else {
+		/* Interrupts are currently disabled. If they've been disabled for more
+		 * than 2**32 ticks, it's game over because we can't know how many times
+		 * the counter has overflown.
+		 * So assuming they were disabled for not too long, check whether there
+		 * was a counter overflow between now and when they were disabled. 
+		 * If there was, increment high. */
+		low = TICKS_READ();
+		high = ticks64_high;
+		if (interrupt_disabled_tick > low)
+			high++;
+	}
+
+	return ((uint64_t)high << 32) + low;
 }
 
 /** @} */

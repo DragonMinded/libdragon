@@ -137,7 +137,11 @@ notprenmi:
 	and $30,k1,0x8000
 	beqz $30,notcount
 	nop
-	mtc0 $0,$11
+	/* Writing C0_COMPARE acknowledges the timer interrupt (clear the interrupt
+	   bit in C0_CAUSE, otherwise the interrupt would retrigger). We write
+	   the current value so that we don't destroy it in case it's needed. */
+	mfc0 k0,C0_COMPARE
+	mtc0 k0,C0_COMPARE
 
 	/* handle timer exception */
 	jal __TI_handler

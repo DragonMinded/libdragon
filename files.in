@@ -24,7 +24,7 @@ OFILES_LDS  = $(CURDIR)/build/system.o
 $(CURDIR)/build/n64sys.o: $(CURDIR)/src/n64sys.c
 	mkdir -p $(CURDIR)/build
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/n64sys.o $(CURDIR)/src/n64sys.c
-$(CURDIR)/build/interrupt.o: $(CURDIR)/src/interrupt.c
+$(CURDIR)/build/interrupt.o: $(CURDIR)/src/interrupt.c ./include/cop0.h
 	mkdir -p $(CURDIR)/build
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/interrupt.o $(CURDIR)/src/interrupt.c
 $(CURDIR)/build/dma.o: $(CURDIR)/src/dma.c ./include/n64sys.h

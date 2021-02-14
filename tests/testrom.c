@@ -3,9 +3,9 @@
 #include <stdarg.h>
 #include <string.h>
 
-// Disable this when running under emulators such as cen64
-#ifndef BENCHMARK_TESTS
-#define BENCHMARK_TESTS   1
+// Activate this when running under emulators such as cen64
+#ifndef IN_EMULATOR
+#define IN_EMULATOR  0
 #endif
 
 /**********************************************************************
@@ -152,6 +152,7 @@ int assert_equal_mem(TestContext *ctx, const uint8_t *a, const uint8_t *b, int l
 #include "test_dfs.c"
 #include "test_cache.c"
 #include "test_ticks.c"
+#include "test_timer.c"
 #include "test_irq.c"
 
 /**********************************************************************
@@ -159,9 +160,11 @@ int assert_equal_mem(TestContext *ctx, const uint8_t *a, const uint8_t *b, int l
  **********************************************************************/
 
 // Testsuite definition
-#define TEST_FLAGS_NONE         0x0
-#define TEST_FLAGS_IO           0x1
-#define TEST_FLAGS_NO_BENCHMARK 0x2
+#define TEST_FLAGS_NONE          0x0
+#define TEST_FLAGS_IO            0x1  // Test uses I/O, so timing depends on ROM hardware
+#define TEST_FLAGS_NO_BENCHMARK  0x2  // Test is too variable, do not attempt to benchmark it
+#define TEST_FLAGS_RESET_COUNT   0x4  // Test resets the hardware count register
+#define TEST_FLAGS_NO_EMULATOR   0x8  // Test does not work under emulators
 
 #define TEST_FUNC(fn, dur, flags)   { #fn, fn, dur, flags }
 static const struct Testsuite
@@ -171,13 +174,15 @@ static const struct Testsuite
 	uint32_t duration;
 	uint32_t flags;
 } tests[] = {
-	TEST_FUNC(test_irq_reentrancy,         0, TEST_FLAGS_NO_BENCHMARK),  // FIXME: this test uses timer.c so we can't measure it yet
+	TEST_FUNC(test_ticks,                  0, TEST_FLAGS_NO_BENCHMARK | TEST_FLAGS_NO_EMULATOR),
+	TEST_FUNC(test_timer_ticks,          292, TEST_FLAGS_RESET_COUNT),
+	TEST_FUNC(test_timer_oneshot,        596, TEST_FLAGS_RESET_COUNT),
+	TEST_FUNC(test_timer_slow_callback, 1468, TEST_FLAGS_RESET_COUNT),
+	TEST_FUNC(test_timer_continuous,     688, TEST_FLAGS_RESET_COUNT),
+	TEST_FUNC(test_timer_mixed,         1467, TEST_FLAGS_RESET_COUNT),
+	TEST_FUNC(test_irq_reentrancy,       230, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_dfs_read,            1104, TEST_FLAGS_IO),
 	TEST_FUNC(test_cache_invalidate,    1763, TEST_FLAGS_NONE),
-
-#if BENCHMARK_TESTS
-	TEST_FUNC(test_ticks,                  0, TEST_FLAGS_NO_BENCHMARK),
-#endif
 };
 
 int main() {
@@ -200,6 +205,11 @@ int main() {
 	for (int i=0; i < NUM_TESTS; i++) {
 		static char logbuf[16384];
 
+		// Skip the test if we're running under emulation and the test is
+		// not compatible with emulators by design (eg: too strict timing).
+		if (IN_EMULATOR && tests[i].flags & TEST_FLAGS_NO_EMULATOR)
+			continue;
+
 		// Prepare the test context
 		TestContext ctx;
 		ctx.log = logbuf;
@@ -218,6 +228,14 @@ int main() {
 		// Compute the test duration
 		uint32_t test_stop = TICKS_READ();
 
+		// If the test reset the hardware counter, just consider its timing
+		// as relative to 0, so move test_stop to realign, and update the
+		// hardware counter as well.
+		if (tests[i].flags & TEST_FLAGS_RESET_COUNT) {
+			test_stop += test_start;
+            C0_WRITE_COUNT(test_stop);
+		}
+
 		int32_t test_duration = TICKS_DISTANCE(test_start, test_stop) / 1024;
 		int32_t test_diff = (test_duration - tests[i].duration);
 		if (test_diff < 0) test_diff = -test_diff;
@@ -230,11 +248,12 @@ int main() {
 				printf("%s\n\n", logbuf);
 			}
 		}
-	#if BENCHMARK_TESTS
 		// If there's more than a 5% (10% for IO tests) drift on the running time
 		// (/1024) compared to the expected one, make the test fail. Something
 		// happened and we need to double check this.
-		else if (
+		// In general, this benchmarking is extremely hard to get right for
+		// emulators, so don't even attempt it because we would get too many failures.
+		else if (!IN_EMULATOR &&
 			!(tests[i].flags & TEST_FLAGS_NO_BENCHMARK) &&
 			((float)test_diff / (float)test_duration > ((tests[i].flags & TEST_FLAGS_IO) ? 0.1 : 0.05))
 		) {
@@ -243,9 +262,7 @@ int main() {
 
 			printf("Duration changed by %.1f%%\n", (float)test_diff * 100.0 / (float)test_duration);
 			printf("(expected: %ldK, measured: %ldK)\n\n", tests[i].duration, test_duration);
-		}
-	#endif
-		else {
+		} else {
 			successes++;
 			printf("PASS\n");
 		}

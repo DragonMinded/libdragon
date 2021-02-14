@@ -7,6 +7,7 @@
 #define __LIBDRAGON_N64SYS_H
 
 #include <stdbool.h>
+#include "cop0.h"
 
 /**
  * @addtogroup n64sys
@@ -93,11 +94,7 @@
  * actually being executed. This macro is for reading that value.
  * Do not use for comparison without special handling.
  */
-#define TICKS_READ() ({ \
-    uint32_t x; \
-    asm volatile("mfc0 %0,$9":"=r"(x)); \
-    x; \
-})
+#define TICKS_READ() C0_COUNT()
 
 /**
  * @brief Number of updates to the count register per second

@@ -6,6 +6,8 @@
 #ifndef __LIBDRAGON_TIMER_H
 #define __LIBDRAGON_TIMER_H
 
+#include <stdint.h>
+
 /** 
  * @addtogroup timer
  * @{
@@ -16,10 +18,10 @@
  */
 typedef struct timer_link
 {
-    /** @brief Ticks left until callback */
-    int left;
+    /** @brief Absolute ticks value at which the timer expires. */
+    uint32_t left;
     /** @brief Ticks to set if continuous */
-    int set;
+    uint32_t set;
     /** @brief To correct for drift */
     int ovfl;
     /** @brief Timer flags.  See #TF_ONE_SHOT and #TF_CONTINUOUS */
