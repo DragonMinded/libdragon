@@ -593,8 +593,11 @@ void init_interrupts()
         /* Set that we are enabled */
         __interrupt_depth = 0;
 
-        /* Enable interrupts systemwide */
-        asm("\tmfc0 $8,$12\n\tori $8,0x8401\n\tmtc0 $8,$12\n\tnop":::"$8");
+        /* Enable interrupts systemwide. We set the global interrupt enable,
+           and then specifically enable RCP interrupts (IM2) and COP0 timer
+           interrupt (IM7). */
+        uint32_t sr = C0_STATUS();
+        C0_WRITE_STATUS(sr | C0_STATUS_IE | C0_STATUS_IM2 | C0_STATUS_IM7);
     }
 }
 
@@ -612,7 +615,7 @@ void disable_interrupts()
     if( __interrupt_depth == 0 )
     {
         /* Interrupts are enabled, so its safe to disable them */
-        asm("\tmfc0 $8,$12\n\tla $9,~1\n\tand $8,$9\n\tmtc0 $8,$12\n\tnop":::"$8","$9");
+        C0_WRITE_STATUS(C0_STATUS() & ~C0_STATUS_IE);
         interrupt_disabled_tick = TICKS_READ();
     }
 
@@ -637,8 +640,7 @@ void enable_interrupts()
 
     if( __interrupt_depth == 0 )
     {
-        /* Interrupts are disabled but we hit the base nesting level, time to enable */
-        asm("\tmfc0 $8,$12\n\tori $8,1\n\tmtc0 $8,$12\n\tnop":::"$8");
+        C0_WRITE_STATUS(C0_STATUS() | C0_STATUS_IE);
     }
 }
 

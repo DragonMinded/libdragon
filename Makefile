@@ -56,6 +56,7 @@ install: libdragon.a libdragonsys.a
 	install -m 0644 header $(INSTALLDIR)/mips64-elf/lib/header
 	install -m 0644 libdragonsys.a $(INSTALLDIR)/mips64-elf/lib/libdragonsys.a
 	install -m 0644 include/n64sys.h $(INSTALLDIR)/mips64-elf/include/n64sys.h
+	install -m 0644 include/cop0.h $(INSTALLDIR)/mips64-elf/include/cop0.h
 	install -m 0644 include/interrupt.h $(INSTALLDIR)/mips64-elf/include/interrupt.h
 	install -m 0644 include/dma.h $(INSTALLDIR)/mips64-elf/include/dma.h
 	install -m 0644 include/dragonfs.h $(INSTALLDIR)/mips64-elf/include/dragonfs.h
