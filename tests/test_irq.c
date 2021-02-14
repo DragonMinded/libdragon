@@ -14,7 +14,7 @@ void test_irq_reentrancy(TestContext *ctx) {
 		disable_interrupts();
 
 		// Wait for the other timer interrupt to trigger
-		wait_ms(30);
+		wait_ms(3);
 
 		// This enable_interrupts should not trigger the other
 		// interrupt, otherwise the test will fail.
@@ -33,9 +33,9 @@ void test_irq_reentrancy(TestContext *ctx) {
 	timer_init();
 	DEFER(timer_close());
 
-	timer_link_t *t1 = new_timer(TICKS_FROM_MS(10), TF_ONE_SHOT, cb1);
+	timer_link_t *t1 = new_timer(TICKS_FROM_MS(2), TF_ONE_SHOT, cb1);
 	DEFER(delete_timer(t1));
-	timer_link_t *t2 = new_timer(TICKS_FROM_MS(30), TF_ONE_SHOT, cb2);
+	timer_link_t *t2 = new_timer(TICKS_FROM_MS(4), TF_ONE_SHOT, cb2);
 	DEFER(delete_timer(t2));
 
 	while (!cb2_called) {}
