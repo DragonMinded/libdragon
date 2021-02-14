@@ -210,11 +210,13 @@ void timer_init(void)
 	}
 
 	/* Reset the count and compare registers. Avoid to accidentally trigger
-	   an interrupt by setting count to 1 and compare to 0. */
+	   an interrupt by setting count to 1 and compare to 0. Also enable
+	   timer interrupts in COP0. */
 	disable_interrupts();
 	ticks64_high = 0;
 	C0_WRITE_COUNT(1);
 	C0_WRITE_COMPARE(0);
+	C0_WRITE_STATUS(C0_STATUS() | C0_STATUS_IM7);
 	enable_interrupts();
 
 	register_TI_handler(timer_callback);
@@ -349,6 +351,9 @@ void timer_close(void)
 {
 	disable_interrupts();
     
+    /* Disable generation of timer interrupt. */
+	C0_WRITE_STATUS(C0_STATUS() & ~C0_STATUS_IM7);
+
     unregister_TI_handler(timer_callback);
 
 	timer_link_t *head = TI_timers;

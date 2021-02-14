@@ -594,10 +594,9 @@ void init_interrupts()
         __interrupt_depth = 0;
 
         /* Enable interrupts systemwide. We set the global interrupt enable,
-           and then specifically enable RCP interrupts (IM2) and COP0 timer
-           interrupt (IM7). */
+           and then specifically enable RCP interrupts (IM2). */
         uint32_t sr = C0_STATUS();
-        C0_WRITE_STATUS(sr | C0_STATUS_IE | C0_STATUS_IM2 | C0_STATUS_IM7);
+        C0_WRITE_STATUS(sr | C0_STATUS_IE | C0_STATUS_IM2);
     }
 }
 
