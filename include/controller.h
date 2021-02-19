@@ -45,6 +45,19 @@
 /** @} */
 
 /**
+ * @name EEPROM Probe Values
+ * @see #eeprom_present
+ * @{
+ */
+/** @brief No EEPROM present */
+#define EEPROM_NONE          0
+/** @brief 4 kilobit (64-block) EEPROM present */
+#define EEPROM_4k            1
+/** @brief 16 kilobit (256-block) EEPROM present */
+#define EEPROM_16k           2
+/** @} */
+
+/**
  * @name SI Error Values
  * @{
  */
