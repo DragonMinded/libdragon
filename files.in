@@ -7,6 +7,7 @@ OFILES_LD += $(CURDIR)/build/audio.o
 OFILES_LD += $(CURDIR)/build/display.o
 OFILES_LD += $(CURDIR)/build/console.o
 OFILES_LD += $(CURDIR)/build/controller.o
+OFILES_LD += $(CURDIR)/build/eepromfs.o
 OFILES_LD += $(CURDIR)/build/mempak.o
 OFILES_LD += $(CURDIR)/build/tpak.o
 OFILES_LD += $(CURDIR)/build/graphics.o
@@ -41,6 +42,9 @@ $(CURDIR)/build/entrypoint.o: $(CURDIR)/src/entrypoint.S
 $(CURDIR)/build/dragonfs.o: $(CURDIR)/src/dragonfs.c ./include/n64sys.h
 	mkdir -p $(CURDIR)/build
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/dragonfs.o $(CURDIR)/src/dragonfs.c
+$(CURDIR)/build/eepromfs.o: $(CURDIR)/src/eepromfs.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/eepromfs.o $(CURDIR)/src/eepromfs.c
 
 # Rules for compiling audio system
 $(CURDIR)/build/audio.o: $(CURDIR)/src/audio.c

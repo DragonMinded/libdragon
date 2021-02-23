@@ -133,15 +133,11 @@ static void __controller_exec_PIF( const void *inblock, void *outblock )
 }
 
 /**
- * @brief Probe the EEPROM interface
+ * @brief Probe the EEPROM interface on the cartridge.
  *
- * Probe the EEPROM to see if it exists on this cartridge.
- *
- * @retval #EEPROM_16k The cartridge has a 16 kilobit EEPROM
- * @retval #EEPROM_4k The cartridge has a 4 kilobit EEPROM
- * @retval #EEPROM_NONE The cartridge does not have an EEPROM
+ * @return Which EEPROM type was detected on the cartridge.
  */
-int eeprom_present()
+eeprom_type_t eeprom_present()
 {
     static const unsigned long long SI_eeprom_status_block[8] =
     {
@@ -158,21 +154,28 @@ int eeprom_present()
 
     __controller_exec_PIF(SI_eeprom_status_block,output);
 
-    /* We are looking in the second byte returned, which
+    /* We are looking at the second byte returned, which
      * signifies which size EEPROM (if any) is present.*/
-    const uint8_t eeprom_type = (output[1] >> 48) & 0xFF;
+    switch( (output[1] >> 48) & 0xFF )
+    {
+        case 0xC0: return EEPROM_16K;
+        case 0x80: return EEPROM_4K;
+        default: return EEPROM_NONE;
+    }
+}
 
-    if( eeprom_type == 0xC0 )
+/**
+ * @brief Return how many blocks of EEPROM exist on the cartridge.
+ * 
+ * @return The capacity of the detected EEPROM type, or 0 if no EEPROM is present.
+ */
+int eeprom_total_blocks()
+{
+    switch ( eeprom_present() )
     {
-        return EEPROM_16k;
-    }
-    else if( eeprom_type == 0x80 )
-    {
-        return EEPROM_4k;
-    }
-    else
-    {
-        return EEPROM_NONE;
+        case EEPROM_16K: return 256;
+        case EEPROM_4K: return 64;
+        default: return 0;
     }
 }
 
@@ -199,9 +202,9 @@ void eeprom_read(int block, uint8_t * const buf)
     };
     static unsigned long long output[8];
 
-	SI_eeprom_read_block[0] = 0x0000000002080400 | (block & 255);
+    SI_eeprom_read_block[0] = 0x0000000002080400 | (block & 255);
     __controller_exec_PIF(SI_eeprom_read_block,output);
-    memcpy( buf, &output[1], 8 );
+    memcpy( buf, &output[1], EEPROM_BLOCK_SIZE );
 }
 
 /**
@@ -227,8 +230,8 @@ void eeprom_write(int block, const uint8_t * const data)
     };
     static unsigned long long output[8];
 
-	SI_eeprom_write_block[0] = 0x000000000a010500 | (block & 255);
-    memcpy( &SI_eeprom_write_block[1], data, 8 );
+    SI_eeprom_write_block[0] = 0x000000000a010500 | (block & 255);
+    memcpy( &SI_eeprom_write_block[1], data, EEPROM_BLOCK_SIZE );
     __controller_exec_PIF(SI_eeprom_write_block,output);
 }
 

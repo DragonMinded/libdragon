@@ -45,17 +45,21 @@
 /** @} */
 
 /**
- * @name EEPROM Probe Values
+ * @brief EEPROM Probe Values
  * @see #eeprom_present
- * @{
  */
-/** @brief No EEPROM present */
-#define EEPROM_NONE          0
-/** @brief 4 kilobit (64-block) EEPROM present */
-#define EEPROM_4k            1
-/** @brief 16 kilobit (256-block) EEPROM present */
-#define EEPROM_16k           2
-/** @} */
+typedef enum
+{
+    /** @brief No EEPROM present */
+    EEPROM_NONE = 0,
+    /** @brief 4 kilobit (64-block) EEPROM present */
+    EEPROM_4K   = 1,
+    /** @brief 16 kilobit (256-block) EEPROM present */
+    EEPROM_16K  = 2
+} eeprom_type_t; 
+
+/** @brief EEPROM is accessed in 8-byte blocks */
+#define EEPROM_BLOCK_SIZE 8
 
 /**
  * @name SI Error Values
@@ -208,7 +212,8 @@ int identify_accessory( int controller );
 void rumble_start( int controller );
 void rumble_stop( int controller );
 void execute_raw_command( int controller, int command, int bytesout, int bytesin, unsigned char *out, unsigned char *in );
-int eeprom_present();
+eeprom_type_t eeprom_present();
+int eeprom_total_blocks();
 void eeprom_read(int block, uint8_t * const buf);
 void eeprom_write(int block, const uint8_t * const data);
 
