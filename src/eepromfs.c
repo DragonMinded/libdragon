@@ -32,7 +32,7 @@
  * 
  * @see #eepfs_open
  */
-typedef struct eepfs_file
+typedef struct
 {
     /** @brief File path */
     const char * const path;
@@ -53,27 +53,146 @@ typedef struct eepfs_file
  * initialized, since there will always be at least one
  * file in an initialized filesystem (the signature file).
  */
-static size_t eepfs_num_files = 0;
+static size_t eepfs_files_count = 0;
 
 /**
  * @brief The dynamically-allocated array of file entries.
  * 
- * Allocated and assigned when the filesystem is initialized,
- * and deallocated when the filesystem is de-initialized.
+ * A `NULL` value means the filesystem is not initialized.
+ * 
+ * Allocated and assigned by #eepfs_init;
+ * freed and set back to NULL by #eepfs_close.
  */
 static eepfs_file_t *eepfs_files = NULL;
 
 /**
+ * @brief A CRC-16/CCITT checksum of the declared filesystem.
+ * 
+ * This is set during #eepfs_init and is used as part of the
+ * filesystem signature block in #eepfs_generate_signature.
+ */
+static uint16_t eepfs_files_checksum = 0;
+
+/**
  * @brief The filesystem prefix used by stdio functions.
  * 
- * This is an optional parameter when initializing the
- * filesystem, but allows for `fopen` and friends to access
- * the EEPROM instead of using `eepfs_*` methods.
- * 
- * This prefix is captured so that it can be detached when
- * the filesystem de-initializes.
+ * Assigned by #eepfs_attach and unassigned by #eepfs_detach.
  */
 static const char * eepfs_stdio_prefix = NULL;
+
+/**
+ * @brief Calculates a CRC-16 checksum from an array of bytes.
+ * 
+ * CRC-16/CCITT-FALSE, CRC-16/IBM-3740:
+ * poly=0x1021, init=0xFFFF, xorout=0x0000
+ * 
+ * @see https://stackoverflow.com/a/23726131
+ */
+static uint16_t calculate_crc16(const uint8_t * data, size_t len)
+{
+    uint8_t x;
+    uint16_t crc = 0xFFFF;
+
+    while (len--)
+    {
+        x = crc >> 8 ^ *(data++);
+        x ^= x>>4;
+        crc = (
+            (crc << 8) ^ 
+            ((uint16_t)(x << 12)) ^ 
+            ((uint16_t)(x << 5)) ^ 
+            ((uint16_t)x)
+        );
+    }
+
+    return crc;
+}
+
+/**
+ * @brief Generates a signature based on the filesystem configuration.
+ * 
+ * The signature is a combination of a "magic value", the
+ * number of files, and the total size of the files in the
+ * filesystem.
+ * 
+ * This all fits into a single EEPROM block (8 bytes).
+ * 
+ * The signature is a compromise between minimizing overhead
+ * of the filesystem and providing a best-effort guarantee
+ * that the data in EEPROM matches the file structure that
+ * the filesystem expects.
+ * 
+ * @return An EEPROM block-sized value containing the signature for the filesystem
+ */
+static const uint64_t eepfs_generate_signature()
+{
+    /* Sanity check */
+    if ( eepfs_files_count == 0 || eepfs_files == NULL )
+    {
+        /* Cannot generate a signature if the 
+           filesystem has not been initialized! */
+        return 0;
+    }
+
+    /* Sum up the total bytes used by all files.
+       At most a 16k EEPROM can hold 2048 bytes. 
+       Skip the first file (the signature block). */
+    uint16_t total_bytes = 0;
+    for ( size_t i = 1; i < eepfs_files_count; ++i )
+    {
+        total_bytes += eepfs_files[i].max_cursor;
+    }
+
+    /* Craft an 8-byte block and return it as a value */
+    uint64_t signature;
+    uint8_t * const sig_bytes = (uint8_t *)&signature;
+    sig_bytes[0] = 'e';
+    sig_bytes[1] = 'e';
+    sig_bytes[2] = 'p';
+    sig_bytes[3] = eepfs_files_count - 1;
+    sig_bytes[4] = total_bytes >> 8;
+    sig_bytes[5] = total_bytes & 0xFF;
+    sig_bytes[6] = eepfs_files_checksum >> 8;
+    sig_bytes[7] = eepfs_files_checksum & 0xFF;
+    return signature;
+}
+
+/**
+ * @brief Validates the first block of EEPROM.
+ * 
+ * There are no guarantees that the data in EEPROM actually matches
+ * the expected layout of the filesystem. There are many reasons why
+ * a mismatch can occur: EEPROM re-used from another game; a brand new
+ * EEPROM that has never been initialized and contains garbage data;
+ * the filesystem has changed between builds or version of software 
+ * currently in development; EEPROM failing due to age or write limits.
+ * 
+ * To mitigate these scenarios, it is a good idea to validate that at
+ * least the first block of EEPROM matches some known good value.
+ * 
+ * If the signature matches, the data in EEPROM is probably what the
+ * filesystem expects. If not, the best move is to erase everything
+ * and start from zero.
+ * 
+ * @see #eepfs_generate_signature
+ * @see #eepfs_wipe
+ * 
+ * @retval true if the first block of EEPROM matches the filesystem signature
+ * @retval false if the first block of EEPROM does not match the filesystem signature
+ */
+static bool eepfs_verify_signature(void)
+{
+    const uint64_t signature = eepfs_generate_signature();
+    const uint8_t * const sig_bytes = (uint8_t *)&signature;
+
+    /* Read the signature block out of EEPROM */
+    uint8_t eeprom_buf[EEPROM_BLOCK_SIZE];
+    eeprom_read(0, eeprom_buf);
+
+    /* If the signatures don't match, we can be pretty sure
+       that the data in EEPROM is not the expected filesystem */
+    return memcmp(eeprom_buf, sig_bytes, EEPROM_BLOCK_SIZE) == 0;
+}
 
 /**
  * @brief Finds a file descriptor's handle given a path.
@@ -98,7 +217,7 @@ static int eepfs_find_handle(const char * const path)
     const char * normalized_path = path + (path[0] == '/');
 
     /* Check if the path matches an entry in the #eepfs_files array */
-    for ( size_t i = 1; i < eepfs_num_files; ++i )
+    for ( size_t i = 1; i < eepfs_files_count; ++i )
     {
         if ( strcmp(normalized_path, eepfs_files[i].path) == 0 )
         {
@@ -133,7 +252,7 @@ static int eepfs_find_handle(const char * const path)
 static eepfs_file_t * const eepfs_get_file(const int handle)
 {
     /* Check if the handle appears to be valid */
-    if ( handle > 0 && handle < eepfs_num_files )
+    if ( handle > 0 && handle < eepfs_files_count )
     {
         return &eepfs_files[handle];
     }
@@ -280,51 +399,6 @@ static int eepfs_cursor_write(eepfs_file_t * const file, const void * const src,
     file->cursor = cursor + bytes_written;
 
     return bytes_written;
-}
-
-/**
- * @brief Generates a signature based on the filesystem configuration.
- * 
- * The signature is a combination of a "magic value", the
- * number of files, and the total size of the files in the
- * filesystem.
- * 
- * This all fits into a single EEPROM block (8 bytes).
- * 
- * The signature is a compromise between minimizing overhead
- * of the filesystem and providing a best-effort guarantee
- * that the data in EEPROM matches the file structure that
- * the filesystem expects.
- * 
- * @return An EEPROM block-sized value containing the signature for the filesystem
- */
-static const uint64_t eepfs_generate_signature() {
-    /* If each file takes at least one block,
-       at most a 16k EEPROM can hold 255 files.
-       Subtract one file for the signature block. */
-    const uint8_t num_files = eepfs_num_files - 1;
-
-    /* Sum up the total bytes used by all files.
-       At most a 16k EEPROM can hold 2048 bytes. 
-       Skip the first file (the signature block). */
-    uint16_t total_bytes = 0;
-    for ( size_t i = 1; i < eepfs_num_files; ++i )
-    {
-        total_bytes += eepfs_files[i].max_cursor;
-    }
-
-    /* Craft an 8-byte block and return it as a value */
-    uint64_t signature;
-    uint8_t * const sig_bytes = (uint8_t *)&signature;
-    sig_bytes[0] = 'e';
-    sig_bytes[1] = 'e';
-    sig_bytes[2] = 'p';
-    sig_bytes[3] = 'f';
-    sig_bytes[4] = 's';
-    sig_bytes[5] = num_files;
-    sig_bytes[6] = total_bytes >> 8;
-    sig_bytes[7] = total_bytes & 0xFF;
-    return signature;
 }
 
 /**
@@ -526,31 +600,11 @@ static int __eepfs_unlink(char * path)
 }
 
 /**
- * @brief Structure used for hooking the EEPROM filesystem into newlib.
- *
- * The following section of code is for bridging into newlib's filesystem hooks 
- * to allow POSIX access to the EEPROM filesystem.
- * 
- * @see #attach_filesystem
- */
-static filesystem_t eepfs_stdio_hooks = {
-    __eepfs_open,
-    __eepfs_fstat,
-    __eepfs_lseek,
-    __eepfs_read,
-    __eepfs_write,
-    __eepfs_close,
-    __eepfs_unlink,
-    NULL, /* findfirst (not implemented) */
-    NULL  /* findnext (not implemented) */
-};
-
-/**
  * @brief Initializes the EEPROM filesystem.
  * 
- * Creates a lookup table of file descriptors based on the configuration,
- * validates that the current EEPROM data is likely to be compatible with
- * the configured file descriptors, and hooks the filesystem into stdio.
+ * Creates a lookup table of file descriptors based on the configuration
+ * and validates that the current EEPROM data is likely to be compatible
+ * with the configured file descriptors.
  * 
  * If the configured filesystem does not fit in the available EEPROM blocks
  * on the cartridge, initialization will fail. Even if your total file size
@@ -561,48 +615,47 @@ static filesystem_t eepfs_stdio_hooks = {
  * You can mitigate this by ensuring that your files are aligned to the
  * 8-byte block size and minimizing wasted space with packed structs.
  * 
- * If skip_signature_check is `false` and the signature does not match, 
- * all EEPROM data will be erased! If skip_signature_check is `true`, you
- * are on your own to validate the data. Skipping the signature check can be
- * useful to support migrating EEPROM data during development, but should be
- * used with caution and is not recommended for released builds.
+ * Each file will take up a minimum of 1 block, plus the filesystem itself
+ * reserves the first block of EEPROM, so the entry count has a practical
+ * limit of the number of available EEPROM blocks minus 1:
+ * 
+ * * 4k EEPROM: 63 files maximum.
+ * * 16k EEPROM: 255 files maximum.
  *
- * This function will also register with newlib so that standard POSIX file
- * operations work with the EEPROM filesystem using the given path prefix 
- * (e.g. `eeprom:/`).
- *
- * @param[in] config
- *            A struct containing the configuration options for the filesystem
+ * @param[in] entries
+ *            An array of file paths and sizes; see #eepfs_entry_t
+ * @param[in] count
+ *            The number of entries in the array
  *
  * @return EEPFS_ESUCCESS on success or a negative error otherwise
  */
-int eepfs_init(const eepfs_config_t config)
+int eepfs_init(const eepfs_entry_t * const entries, const size_t count)
 {
     /* Check if EEPROM FS has already been initialized */
-    if ( eepfs_num_files != 0 || eepfs_files != NULL )
+    if ( eepfs_files_count != 0 || eepfs_files != NULL )
     {
         return EEPFS_ECONFLICT;
     }
 
-    /* Sanity check the configuration */
-    if ( config.num_files == 0 || config.files == NULL )
+    /* Sanity check the arguments */
+    if ( count == 0 || entries == NULL )
     {
         return EEPFS_EBADFS;
     }
 
-    /* Add an extra entry for the "signature" file */
-    eepfs_num_files = config.num_files + 1;
+    /* Add an extra file for the "signature file" */
+    eepfs_files_count = count + 1;
 
     /* Allocate the lookup table of file descriptors */
-    const size_t files_array_size = sizeof(eepfs_file_t) * eepfs_num_files; 
-    eepfs_files = (eepfs_file_t *)malloc(files_array_size);
+    const size_t files_size = sizeof(eepfs_file_t) * eepfs_files_count;
+    eepfs_files = (eepfs_file_t *)malloc(files_size);
 
     if ( eepfs_files == NULL )
     {
         return EEPFS_ENOMEM;
     }
 
-    /* The first entry should always be the "signature" file */
+    /* The first file should always be the "signature file" */
     const eepfs_file_t signature_file = { NULL, 0, 1, 0, 8 };
     memcpy(&eepfs_files[0], &signature_file, sizeof(eepfs_file_t));
 
@@ -611,37 +664,34 @@ int eepfs_init(const eepfs_config_t config)
     size_t file_blocks;
     size_t total_blocks = 1;
 
-    /* Add entries for the files in the config */
-    for ( size_t i = 1; i < eepfs_num_files; ++i )
+    /* Configure a file descriptor for each entry */
+    for ( size_t i = 1; i < eepfs_files_count; ++i )
     {
-        file_path = config.files[i - 1].path;
-        file_size = config.files[i - 1].size;
+        file_path = entries[i - 1].path;
+        file_size = entries[i - 1].size;
 
         /* Sanity check the file details */
         if ( file_path == NULL || file_size == 0 )
         {
-            eepfs_deinit();
+            eepfs_close();
             return EEPFS_EBADFS;
         }
 
         /* Strip the leading '/' on paths for consistency */
-        if ( file_path[0] == '/' )
-        {
-            file_path += 1;
-        }
+        file_path += ( file_path[0] == '/' );
 
         /* A file takes up 1 block for every 8 bytes, rounded up */
         file_blocks = divide_ceil(file_size, EEPROM_BLOCK_SIZE);
 
         /* Create a file descriptor and copy it into the table */
-        const eepfs_file_t file_descriptor = {
+        const eepfs_file_t entry_file = {
             file_path,
             total_blocks,
             file_blocks,
             0,
             file_size,
         };
-        memcpy(&eepfs_files[i], &file_descriptor, sizeof(eepfs_file_t));
+        memcpy(&eepfs_files[i], &entry_file, sizeof(eepfs_file_t));
 
         /* Files must start on a block boundary */
         total_blocks += file_blocks;
@@ -650,24 +700,19 @@ int eepfs_init(const eepfs_config_t config)
     /* Ensure the filesystem will actually fit in available EEPROM */
     if ( total_blocks > eeprom_total_blocks() )
     {
-        eepfs_deinit();
+        eepfs_close();
         return EEPFS_EBADFS;
     }
 
+    /* Calculate and store the CRC-16 checksum for the declared entries */
+    const size_t entries_size = sizeof(eepfs_entry_t) * count;
+    eepfs_files_checksum = calculate_crc16((void *)entries, entries_size);
+
     /* Check if the EEPROM is roughly compatible with the filesystem */
-    if ( !config.skip_signature_check && eepfs_check_signature() != 0 )
+    if ( !eepfs_verify_signature() )
     {
         /* If not, erase it and start from scratch */
         eepfs_wipe();
-    }
-
-    /* If a prefix is specified, attach a stdio filesystem */
-    if ( config.stdio_prefix != NULL )
-    {
-        if ( attach_filesystem(config.stdio_prefix, &eepfs_stdio_hooks) == 0 )
-        {
-            eepfs_stdio_prefix = config.stdio_prefix;
-        }
     }
 
     return EEPFS_ESUCCESS;
@@ -678,32 +723,75 @@ int eepfs_init(const eepfs_config_t config)
  * 
  * This detaches the POSIX filesystem and cleans up the file lookup table.
  * 
- * You probably don't ever need to do this, but it can be useful for
- * migrating save data between different configurations during development.
+ * You probably won't ever need to call this.
  * 
  * @return EEPFS_ESUCCESS on success or a negative error otherwise
  */
-int eepfs_deinit()
+int eepfs_close(void)
 {
     /* If eepfs was not initialized, don't do anything. */
-    if ( eepfs_files == NULL || eepfs_num_files == 0 )
+    if ( eepfs_files == NULL || eepfs_files_count == 0 )
     {
         return EEPFS_EBADFS;
     }
 
-    /* If a prefix was specified, detach the stdio filesystem */
+    eepfs_detach();
+
+    /* Clear the file descriptor table */
+    free(eepfs_files);
+    eepfs_files = NULL;
+    eepfs_files_checksum = 0;
+    eepfs_files_count = 0;
+
+    return EEPFS_ESUCCESS;
+}
+
+/**
+ * @brief Attaches EEPROM filesystem to POSIX stdio with the supplied prefix.
+ * 
+ * @see #attach_filesystem
+ * 
+ * @return 0 on success or a negative error otherwise
+ */
+int eepfs_attach(const char * const prefix)
+{
+    static filesystem_t eepfs_stdio_filesystem = {
+        __eepfs_open,
+        __eepfs_fstat,
+        __eepfs_lseek,
+        __eepfs_read,
+        __eepfs_write,
+        __eepfs_close,
+        __eepfs_unlink,
+        NULL, /* findfirst (not implemented) */
+        NULL  /* findnext (not implemented) */
+    };
+
+    int retval = attach_filesystem(prefix, &eepfs_stdio_filesystem); 
+
+    /* If successful... */
+    if ( retval == 0 )
+    {
+        /* Cache the attached prefix so that it can be detached later */
+        eepfs_stdio_prefix = prefix;
+    }
+
+    return retval;
+}
+
+/**
+ * @brief Detaches the stdio prefix that was attached by #eepfs_attach
+ * 
+ * This happens implicitly as part of #eepfs_close and is
+ * a no-op if the filesystem is not currently attached.
+ */
+void eepfs_detach(void)
+{
     if ( eepfs_stdio_prefix != NULL )
     {
         detach_filesystem(eepfs_stdio_prefix);
         eepfs_stdio_prefix = NULL;
     }
-
-    /* Clear the file descriptor table */
-    free(eepfs_files);
-    eepfs_files = NULL;
-    eepfs_num_files = 0;
-
-    return EEPFS_ESUCCESS;
 }
 
 /**
@@ -787,7 +875,7 @@ int eepfs_write(const char * const path, const void * const src)
  * @retval EEPFS_ENOFILE if the path is not a valid file
  * @retval EEPFS_EBADINPUT if the path is NULL
  */
-int eepfs_erase(const char * path)
+int eepfs_erase(const char * const path)
 {
     const int handle = eepfs_find_handle(path);
     const eepfs_file_t * const file = eepfs_get_file(handle);
@@ -821,9 +909,9 @@ int eepfs_erase(const char * path)
  * 
  * Be advised: this is a destructive operation that cannot be undone!
  * 
- * @see #eepfs_check_signature
+ * @see #eepfs_verify_signature
  */
-void eepfs_wipe()
+void eepfs_wipe(void)
 {
     const uint64_t signature = eepfs_generate_signature();
 
@@ -843,46 +931,3 @@ void eepfs_wipe()
     }
 }
 
-/**
- * @brief Validates the first block of EEPROM.
- * 
- * There are no guarantees that the data in EEPROM actually matches
- * the expected layout of the filesystem. There are many reasons why
- * a mismatch can occur: EEPROM re-used from another game; a brand new
- * EEPROM that has never been initialized and contains garbage data;
- * the filesystem has changed between builds or version of software 
- * currently in development; EEPROM failing due to age or write limits.
- * 
- * To mitigate these scenarios, it is a good idea to validate that at
- * least the first block of EEPROM matches some known good value.
- * 
- * If the signature matches, the data in EEPROM is probably what the
- * filesystem expects. If not, the best move is to erase everything
- * and start from zero.
- * 
- * @see #eepfs_generate_signature
- * @see #eepfs_wipe
- * 
- * @retval 0 if the first block of EEPROM matches the filesystem signature
- * @retval 1 if the first block of EEPROM does not match the filesystem signature
- */
-int eepfs_check_signature()
-{
-    const uint64_t signature = eepfs_generate_signature();
-    const uint8_t * const sig_bytes = (uint8_t *)&signature;
-
-    /* Read the signature block out of EEPROM */
-    uint8_t eeprom_buf[EEPROM_BLOCK_SIZE];
-    eeprom_read(0, eeprom_buf);
-
-    /* If the signatures don't match, we can be pretty sure
-       that the data in EEPROM is not the expected filesystem */
-    if ( memcmp(eeprom_buf, sig_bytes, EEPROM_BLOCK_SIZE) != 0 )
-    {
-        /* Signatures do not match */
-        return 1;
-    }
-
-    /* Signature matches */
-    return 0;
-}

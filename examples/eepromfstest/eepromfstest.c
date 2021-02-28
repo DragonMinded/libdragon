@@ -348,16 +348,10 @@ static int validate_eeprom_4k()
         { "/settings.dat",    sizeof(game_settings_t)   },
         { "/player.sav",      sizeof(game_save_state_t) }
     };
-    const eepfs_config_t eeprom_4k_config = {
-        .files = eeprom_4k_files,
-        .num_files = EEPFS_NUM_FILES(eeprom_4k_files),
-        .stdio_prefix = "eeprom:/",
-        .skip_signature_check = false,
-    };
 
     printf( "EEPROM Detected: 4Kb (64 blocks)\n" );
     printf( "Initializing EEPROM Filesystem...\n" );
-    result = eepfs_init(eeprom_4k_config);
+    result = eepfs_init(eeprom_4k_files, 3);
     switch ( result )
     {
         case EEPFS_ESUCCESS:
@@ -373,6 +367,8 @@ static int validate_eeprom_4k()
             printf( "Failed in an unexpected manner\n" );
             return 1;
     }
+    
+    eepfs_attach("eeprom:/");
 
     keep_or_erase_data();
 
@@ -385,7 +381,7 @@ static int validate_eeprom_4k()
     result = validate_game_save_state("player.sav");
     if (result != 0) return result;
 
-    eepfs_deinit();
+    eepfs_close();
 
     return 0;
 }
@@ -401,16 +397,10 @@ static int validate_eeprom_16k()
         { "saves/slot3.sav", sizeof(game_save_state_t) },
         { "saves/slot4.sav", sizeof(game_save_state_t) }
     };
-    eepfs_config_t eeprom_16k_config = {
-        .files = eeprom_16k_files,
-        .num_files = EEPFS_NUM_FILES(eeprom_16k_files),
-        .stdio_prefix = "eeprom:/",
-        .skip_signature_check = false
-    };
 
     printf( "EEPROM Detected: 16Kb (256 blocks)\n" );
     printf( "Initializing EEPROM Filesystem...\n" );
-    result = eepfs_init(eeprom_16k_config);
+    result = eepfs_init(eeprom_16k_files, 6);
     switch ( result )
     {
         case EEPFS_ESUCCESS:
@@ -426,6 +416,8 @@ static int validate_eeprom_16k()
             printf( "Failed in an unexpected manner\n" );
             return 1;
     }
+
+    eepfs_attach("eeprom:/");
 
     keep_or_erase_data();
 
@@ -447,7 +439,7 @@ static int validate_eeprom_16k()
     result = validate_game_save_state("saves/slot4.sav");
     if (result != 0) return result;
 
-    eepfs_deinit();
+    eepfs_close();
 
     return 0;
 }

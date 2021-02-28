@@ -8,6 +8,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include "controller.h"
 
 /**
@@ -30,9 +31,6 @@
 #define EEPFS_ECONFLICT  -6
 /** @} */
 
-/** @brief The number of files in a fixed-size array of #eepfs_entry_t */
-#define EEPFS_NUM_FILES(arr) (sizeof(arr) / sizeof(eepfs_entry_t))
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -42,7 +40,7 @@ extern "C" {
  * @see #eepfs_config_t
  * @see #eepfs_init
  */
-typedef struct eepfs_entry
+typedef struct
 {
     /**
      * @brief File path.
@@ -60,7 +58,7 @@ typedef struct eepfs_entry
      * The filesytem does not support entries for directories,
      * nor does it support listing files in a given directory.
      */
-    const char * const path;
+    char * path;
     /**
      * @brief File size in bytes.
      * 
@@ -76,61 +74,20 @@ typedef struct eepfs_entry
      * * 4k EEPROM: 512 - 8 = 504 bytes (63 blocks) free.
      * * 16k EEPROM: 2048 - 8 = 2040 bytes (255 blocks) free.
      */
-    const size_t size;
+    size_t size;
 } eepfs_entry_t;
 
-/**
- * @brief EEPROM filesystem configuration options
- * @see #eepfs_init
- */
-typedef struct eepfs_config
-{
-    /** @brief Array of file entries; see #eepfs_entry_t */
-    const eepfs_entry_t * const files;
-    /**
-     * @brief Number of file entries in the array
-     * 
-     * Each file will take up a minimum of 1 block, plus the
-     * filesystem itself reserves the first block of EEPROM,
-     * so the number of files in your filesystem has a practical
-     * limit of the number of available EEPROM blocks minus 1:
-     * 
-     * * 4k EEPROM: 63 files maximum.
-     * * 16k EEPROM: 255 files maximum.
-     * 
-     * In practice, this limitation is unlikely to matter since
-     * most files will span multiple blocks and run up against
-     * the storage capacity limits of EEPROM first.
-     */
-    const size_t num_files;
-    /**
-     * @brief POSIX standard input and output filesystem prefix.
-     * 
-     * This can be NULL if you only want to use `eepfs_*` functions,
-     * but setting this (e.g. "eeprom:/") allows POSIX file operations
-     * to access the EEPROM filesystem with stdio library functions.
-     */
-    const char * const stdio_prefix;
-    /**
-     * @brief Whether to validate EEPROM data during initialization.
-     * 
-     * If this is false and the signature does not match,
-     * all EEPROM data will be erased!
-     * 
-     * @see #eepfs_check_signature
-     */
-    const bool skip_signature_check;
-} eepfs_config_t;
+int eepfs_init(const eepfs_entry_t * const entries, const size_t count);
+int eepfs_close(void);
 
-int eepfs_init(const eepfs_config_t config);
-int eepfs_deinit();
+int eepfs_attach(const char * const prefix);
+void eepfs_detach(void);
 
 int eepfs_read(const char * const path, void * const dest);
 int eepfs_write(const char * const path, const void * const src);
-int eepfs_erase(const char * path);
+int eepfs_erase(const char * const path);
 
-void eepfs_wipe();
-int eepfs_check_signature();
+void eepfs_wipe(void);
 
 #ifdef __cplusplus
 }
