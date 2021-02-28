@@ -209,4 +209,29 @@ tv_type_t get_tv_type()
     return *((uint32_t *) TV_TYPE_LOC);
 }
 
+/**
+ * @brief Spin wait until the number of ticks have elapsed
+ *
+ * @param[in] wait
+ *            Number of ticks to wait
+ *            Maximum accepted value is 0xFFFFFFFF ticks
+ */
+void wait_ticks( unsigned long wait )
+{
+    unsigned int initial_tick = TICKS_READ();
+    while( TICKS_READ() - initial_tick < wait );
+}
+
+/**
+ * @brief Spin wait until the number of millisecounds have elapsed
+ *
+ * @param[in] wait
+ *            Number of millisecounds to wait
+ *            Maximum accepted value is 91625 ms
+ */
+void wait_ms( unsigned long wait_ms )
+{
+    wait_ticks(TICKS_FROM_MS(wait_ms));
+}
+
 /** @} */

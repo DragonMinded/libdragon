@@ -8,6 +8,7 @@
 
 #include <stdbool.h>
 #include "cop0.h"
+#include "cop1.h"
 
 /**
  * @addtogroup n64sys
@@ -158,30 +159,8 @@ static inline volatile unsigned long get_ticks_ms(void)
     return TICKS_READ() / (TICKS_PER_SECOND / 1000);
 }
 
-/**
- * @brief Spin wait until the number of ticks have elapsed
- *
- * @param[in] wait
- *            Number of ticks to wait
- *            Maximum accepted value is 0xFFFFFFFF ticks
- */
-static inline void wait_ticks( unsigned long wait )
-{
-    unsigned int initial_tick = TICKS_READ();
-    while( TICKS_READ() - initial_tick < wait );
-}
-
-/**
- * @brief Spin wait until the number of millisecounds have elapsed
- *
- * @param[in] wait
- *            Number of millisecounds to wait
- *            Maximum accepted value is 91625 ms
- */
-static inline void wait_ms( unsigned long wait_ms )
-{
-    wait_ticks(TICKS_FROM_MS(wait_ms));
-}
+void wait_ticks( unsigned long wait );
+void wait_ms( unsigned long wait_ms );
 
 void data_cache_hit_invalidate(volatile void *, unsigned long);
 void data_cache_hit_writeback(volatile void *, unsigned long);
