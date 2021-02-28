@@ -106,11 +106,6 @@ static int __console_write( char *buf, unsigned int len )
             case '\r':
             case '\n':
                 /* Add enough space to get to next line */
-                if(!(pos % CONSOLE_WIDTH))
-                {
-                    render_buffer[pos++] = ' ';
-                }
-
                 while(pos % CONSOLE_WIDTH)
                 {
                     render_buffer[pos++] = ' ';
