@@ -140,4 +140,3 @@ void test_ticks(TestContext *ctx) {
 }
 
 #undef WRITE_TICKS
-#undef TEST

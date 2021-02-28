@@ -4,6 +4,10 @@
  * @ingroup exceptions
  */
 #include "exception.h"
+#include "console.h"
+#include "n64sys.h"
+
+#include <stdio.h>
 #include <string.h>
 
 /**
@@ -21,7 +25,7 @@
  */
 
 /** @brief Exception handler currently registered with exception system */
-static void (*__exception_handler)(exception_t*) = NULL;
+static void (*__exception_handler)(exception_t*) = exception_default_handler;
 /** @brief Base register offset as defined by the interrupt controller */
 extern const void* __baseRegAddr;
 
@@ -34,6 +38,145 @@ extern const void* __baseRegAddr;
 void register_exception_handler( void (*cb)(exception_t*))
 {
 	__exception_handler = cb;
+}
+
+/**
+ * We keep a function outside the exception handler so that
+ * the interrupts are re-enabled when we return from the ex.
+ * handler. This will make sure latest console contents are
+ * displayed.
+ */
+static void exception_halt() {
+	while(1) {
+		console_render();
+	}
+}
+
+void exception_default_handler(exception_t* ex) {
+	// We will naturally return from the ex handler, which
+	// will gracefully restore interrupt state so that we can
+	// continue using interrupt dependent functionalities
+	// such as console updates.
+	C0_WRITE_EPC(&exception_halt);
+
+	console_clear();
+
+	fprintf(stdout, "%s exception\n",	ex->info);
+	fprintf(stdout, "PC:%08lX ",		ex->regs->epc);
+	fprintf(stdout, "z0:%08llX ",		ex->regs->gpr[0]);
+	fprintf(stdout, "at:%08llX\n",		ex->regs->gpr[1]);
+	fprintf(stdout, "v0:%08llX ",		ex->regs->gpr[2]);
+	fprintf(stdout, "v1:%08llX ",		ex->regs->gpr[3]);
+	fprintf(stdout, "a0:%08llX\n",		ex->regs->gpr[4]);
+	fprintf(stdout, "a1:%08llX ",		ex->regs->gpr[5]);
+	fprintf(stdout, "a2:%08llX ",		ex->regs->gpr[6]);
+	fprintf(stdout, "a3:%08llX\n",		ex->regs->gpr[7]);
+	fprintf(stdout, "t0:%08llX ",		ex->regs->gpr[8]);
+	fprintf(stdout, "t1:%08llX ",		ex->regs->gpr[9]);
+	fprintf(stdout, "t2:%08llX\n",		ex->regs->gpr[10]);
+	fprintf(stdout, "t3:%08llX ",		ex->regs->gpr[11]);
+	fprintf(stdout, "t4:%08llX ",		ex->regs->gpr[12]);
+	fprintf(stdout, "t5:%08llX\n",		ex->regs->gpr[13]);
+	fprintf(stdout, "t6:%08llX ",		ex->regs->gpr[14]);
+	fprintf(stdout, "t7:%08llX ",		ex->regs->gpr[15]);
+	fprintf(stdout, "s0:%08llX\n",		ex->regs->gpr[16]);
+	fprintf(stdout, "s1:%08llX ",		ex->regs->gpr[17]);
+	fprintf(stdout, "s2:%08llX ",		ex->regs->gpr[18]);
+	fprintf(stdout, "s3:%08llX\n",		ex->regs->gpr[19]);
+	fprintf(stdout, "s4:%08llX ",		ex->regs->gpr[20]);
+	fprintf(stdout, "s5:%08llX ",		ex->regs->gpr[21]);
+	fprintf(stdout, "s6:%08llX\n",		ex->regs->gpr[22]);
+	fprintf(stdout, "s7:%08llX ",		ex->regs->gpr[23]);
+	fprintf(stdout, "t8:%08llX ",		ex->regs->gpr[24]);
+	fprintf(stdout, "t9:%08llX\n",		ex->regs->gpr[25]);
+	fprintf(stdout, "gp:%08llX ",		ex->regs->gpr[28]);
+	fprintf(stdout, "sp:%08llX ",		ex->regs->gpr[29]);
+	fprintf(stdout, "fp:%08llX\n",		ex->regs->gpr[30]);
+	fprintf(stdout, "ra:%08llX ",		ex->regs->gpr[31]);
+	fprintf(stdout, "lo:%08llX ",		ex->regs->lo);
+	fprintf(stdout, "hi:%08llX\n",		ex->regs->hi);
+
+	uint32_t cr = ex->regs->cr;
+	uint32_t sr = ex->regs->sr;
+	uint32_t fcr31 = ex->regs->fc31;
+	exception_code_t ex_code = (cr >> 2) & 0x1F;
+
+	fprintf(stdout, "Ex info (cr:%08X sr:%08X):\n", cr, ex->regs->sr);
+	fprintf(stdout, "Is branch delay: %u\n", cr & C0_CAUSE_BD);
+
+	fprintf(stdout, "INTs sw0 sw1 ex0 ex1 ex2 ex3 ex4 tmr\n");
+	fprintf(stdout, "     %3u %3u %3u %3u %3u %3u %3u %3u\n",
+		cr & C0_INTERRUPT_0,
+		cr & C0_INTERRUPT_1,
+		cr & C0_INTERRUPT_2,
+		cr & C0_INTERRUPT_3,
+		cr & C0_INTERRUPT_4,
+		cr & C0_INTERRUPT_5,
+		cr & C0_INTERRUPT_6,
+		cr & C0_INTERRUPT_7);
+	fprintf(stdout, "MASK %3u %3u %3u %3u %3u %3u %3u %3u\n",
+		sr & C0_INTERRUPT_0,
+		sr & C0_INTERRUPT_1,
+		sr & C0_INTERRUPT_2,
+		sr & C0_INTERRUPT_3,
+		sr & C0_INTERRUPT_4,
+		sr & C0_INTERRUPT_5,
+		sr & C0_INTERRUPT_6,
+		sr & C0_INTERRUPT_7);
+
+	switch(ex_code) {
+		case EXCEPTION_CODE_STORE_ADDRESS_ERROR:
+			fprintf(stdout, "BadVAddr: %08lX\n", C0_READ_BADVADDR());
+		break;
+		case EXCEPTION_CODE_COPROCESSOR_UNUSABLE:
+			fprintf(stdout, "COP:%1lu\n", (cr >> 28) & 3);
+		break;
+		case EXCEPTION_CODE_FLOATING_POINT:
+			fprintf(stdout, "FCR31: %08X FP ", (unsigned int)fcr31);
+
+			if (fcr31 & C1_CAUSE_INEXACT_OP) fprintf(stdout, "Inexact Op.\n");
+			if (fcr31 & C1_CAUSE_UNDERFLOW) fprintf(stdout, "Underflow\n");
+			if (fcr31 & C1_CAUSE_OVERFLOW) fprintf(stdout, "Overflow\n");
+			if (fcr31 & C1_CAUSE_DIV_BY_0) fprintf(stdout, "Div-by-0\n");
+			if (fcr31 & C1_CAUSE_INVALID_OP) fprintf(stdout, "Invalid Op.\n");
+			if (fcr31 & C1_CAUSE_NOT_IMPLEMENTED) fprintf(stdout, "Not impl.\n");
+
+			fprintf(stdout, "Floating-point registers\n");
+			for (int i = 0; i<32; i++) {
+				fprintf(stdout, "%02u:%08llX ", i, ex->regs->fpr[i]);
+				if ((i % 3) == 2) {
+					fprintf(stdout, "\n");
+				}
+			}
+			fprintf(stdout, "\n");
+
+			// Clear FP interrupt cause bits so that it is not retriggered when we return to exception_halt
+			C1_WRITE_FCR31(
+				C1_FCR31() & ~(
+					C1_CAUSE_INEXACT_OP |
+					C1_CAUSE_UNDERFLOW |
+					C1_CAUSE_OVERFLOW |
+					C1_CAUSE_DIV_BY_0 |
+					C1_CAUSE_INVALID_OP |
+					C1_CAUSE_NOT_IMPLEMENTED
+				)
+			)
+		break;
+		case EXCEPTION_CODE_WATCH:
+		case EXCEPTION_CODE_ARITHMETIC_OVERFLOW:
+		case EXCEPTION_CODE_TRAP:
+		case EXCEPTION_CODE_TLB_MODIFICATION:
+		case EXCEPTION_CODE_TLB_LOAD_I_MISS:
+		case EXCEPTION_CODE_TLB_STORE_MISS:
+		case EXCEPTION_CODE_LOAD_I_ADDRESS_ERROR:
+		case EXCEPTION_CODE_I_BUS_ERROR:
+		case EXCEPTION_CODE_D_BUS_ERROR:
+		case EXCEPTION_CODE_SYS_CALL:
+		case EXCEPTION_CODE_BREAKPOINT:
+		case EXCEPTION_CODE_INTERRUPT:
+		default:
+		break;
+	}
 }
 
 /**
