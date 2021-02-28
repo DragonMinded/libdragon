@@ -99,37 +99,42 @@ void exception_default_handler(exception_t* ex) {
 	uint32_t cr = ex->regs->cr;
 	uint32_t sr = ex->regs->sr;
 	uint32_t fcr31 = ex->regs->fc31;
-	exception_code_t ex_code = (cr >> 2) & 0x1F;
 
 	fprintf(stdout, "Ex info (cr:%08lX sr:%08lX):\n", cr, ex->regs->sr);
 	fprintf(stdout, "Is branch delay: %lu\n", cr & C0_CAUSE_BD);
 
 	fprintf(stdout, "INTs sw0 sw1 ex0 ex1 ex2 ex3 ex4 tm\n");
 	fprintf(stdout, "     %3u %3u %3u %3u %3u %3u %3u %2u\n",
-		cr & C0_INTERRUPT_0 ? 1 : 0,
-		cr & C0_INTERRUPT_1 ? 1 : 0,
-		cr & C0_INTERRUPT_2 ? 1 : 0,
-		cr & C0_INTERRUPT_3 ? 1 : 0,
-		cr & C0_INTERRUPT_4 ? 1 : 0,
-		cr & C0_INTERRUPT_5 ? 1 : 0,
-		cr & C0_INTERRUPT_6 ? 1 : 0,
-		cr & C0_INTERRUPT_7 ? 1 : 0);
+		(bool)(cr & C0_INTERRUPT_0),
+		(bool)(cr & C0_INTERRUPT_1),
+		(bool)(cr & C0_INTERRUPT_2),
+		(bool)(cr & C0_INTERRUPT_3),
+		(bool)(cr & C0_INTERRUPT_4),
+		(bool)(cr & C0_INTERRUPT_5),
+		(bool)(cr & C0_INTERRUPT_6),
+		(bool)(cr & C0_INTERRUPT_7)
+	);
 	fprintf(stdout, "MASK %3u %3u %3u %3u %3u %3u %3u %2u\n",
-		sr & C0_INTERRUPT_0 ? 1 : 0,
-		sr & C0_INTERRUPT_1 ? 1 : 0,
-		sr & C0_INTERRUPT_2 ? 1 : 0,
-		sr & C0_INTERRUPT_3 ? 1 : 0,
-		sr & C0_INTERRUPT_4 ? 1 : 0,
-		sr & C0_INTERRUPT_5 ? 1 : 0,
-		sr & C0_INTERRUPT_6 ? 1 : 0,
-		sr & C0_INTERRUPT_7 ? 1 : 0);
+		(bool)(sr & C0_INTERRUPT_0),
+		(bool)(sr & C0_INTERRUPT_1),
+		(bool)(sr & C0_INTERRUPT_2),
+		(bool)(sr & C0_INTERRUPT_3),
+		(bool)(sr & C0_INTERRUPT_4),
+		(bool)(sr & C0_INTERRUPT_5),
+		(bool)(sr & C0_INTERRUPT_6),
+		(bool)(sr & C0_INTERRUPT_7)
+	);
 
-	switch(ex_code) {
+	switch(ex->code) {
 		case EXCEPTION_CODE_STORE_ADDRESS_ERROR:
+		case EXCEPTION_CODE_LOAD_I_ADDRESS_ERROR:
+		case EXCEPTION_CODE_TLB_MODIFICATION:
+		case EXCEPTION_CODE_TLB_STORE_MISS:
+		case EXCEPTION_CODE_TLB_LOAD_I_MISS:
 			fprintf(stdout, "BadVAddr: %08lX\n", C0_READ_BADVADDR());
 		break;
 		case EXCEPTION_CODE_COPROCESSOR_UNUSABLE:
-			fprintf(stdout, "COP:%1lu\n", (cr >> 28) & 3);
+			fprintf(stdout, "COP:%1lu\n", C0_GET_CAUSE_CE(cr));
 		break;
 		case EXCEPTION_CODE_FLOATING_POINT:
 			fprintf(stdout, "FCR31: %08X FP ", (unsigned int)fcr31);
@@ -165,10 +170,6 @@ void exception_default_handler(exception_t* ex) {
 		case EXCEPTION_CODE_WATCH:
 		case EXCEPTION_CODE_ARITHMETIC_OVERFLOW:
 		case EXCEPTION_CODE_TRAP:
-		case EXCEPTION_CODE_TLB_MODIFICATION:
-		case EXCEPTION_CODE_TLB_LOAD_I_MISS:
-		case EXCEPTION_CODE_TLB_STORE_MISS:
-		case EXCEPTION_CODE_LOAD_I_ADDRESS_ERROR:
 		case EXCEPTION_CODE_I_BUS_ERROR:
 		case EXCEPTION_CODE_D_BUS_ERROR:
 		case EXCEPTION_CODE_SYS_CALL:
@@ -225,7 +226,7 @@ static const char* __get_exception_name(uint32_t cr)
 		"Reserved",									// 31
 	};
 
-	return exceptionMap[(cr >> 2) & 0x1F];
+	return exceptionMap[C0_GET_CAUSE_EXC_CODE(cr)];
 }
 
 /**
@@ -241,7 +242,8 @@ static void __fetch_regs(exception_t* e,int32_t type)
 {
 	e->regs = (volatile const reg_block_t*) &__baseRegAddr;
 	e->type = type;
-	e->info = __get_exception_name((uint32_t)e->regs->cr);
+	e->code = C0_GET_CAUSE_EXC_CODE(e->regs->cr);
+	e->info = __get_exception_name(e->regs->cr);
 }
 
 /**

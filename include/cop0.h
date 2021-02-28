@@ -83,6 +83,8 @@
 
 /* COP0 Cause bits definition. Please refer to MIPS R4300 manual. */
 #define C0_CAUSE_BD         0x80000000
+#define C0_CAUSE_CE         0x30000000
+#define C0_CAUSE_EXC_CODE   0x0000007C
 
 /* COP0 interrupt bits definition. These are compatible bothwith mask and pending bits. */
 #define C0_INTERRUPT_0      0x00000100
@@ -93,6 +95,19 @@
 #define C0_INTERRUPT_5      0x00002000
 #define C0_INTERRUPT_6      0x00004000
 #define C0_INTERRUPT_7      0x00008000 // Timer
+
+/**
+ * @brief Get the CE value from the COP0 status register
+ *
+ * Gets the Coprocessor unit number referenced by a coprocessor unusable
+ * exception from the given COP0 Status register value.
+ */
+#define C0_GET_CAUSE_CE(cr) (((cr) & C0_CAUSE_CE) >> 28)
+
+/**
+ * @brief Get the exception code value from the COP0 status register value
+ */
+#define C0_GET_CAUSE_EXC_CODE(sr) (((sr) & C0_CAUSE_EXC_CODE) >> 2)
 
 /** @} */
 

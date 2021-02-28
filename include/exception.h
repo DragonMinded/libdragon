@@ -83,6 +83,10 @@ typedef struct
      * @see #EXCEPTION_TYPE_RESET, #EXCEPTION_TYPE_CRITICAL
      */
 	int32_t type;
+	/**
+	 * @brief Underlying exception code
+	 */
+	exception_code_t code;
     /** @brief String information of exception */
 	const char* info;
     /** @brief Registers at point of exception */
