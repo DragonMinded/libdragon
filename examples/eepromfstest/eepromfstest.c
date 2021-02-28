@@ -91,23 +91,23 @@ static void print_game_high_scores()
     printf( "};\n" );
 }
 
-static int read_game_high_scores(const char *game_high_scores_path)
+static int read_game_high_scores(char * path)
 {
-    FILE *game_high_scores_fp = NULL;
+    FILE *fp = NULL;
     const size_t entry_size = sizeof(game_high_score_t);
 
-    printf( "Opening file for reading:\n%s\n", game_high_scores_path );
-    game_high_scores_fp = fopen(game_high_scores_path, "rb");
+    printf( "Opening file for reading:\n%s\n", path );
+    fp = fopen(path, "rb");
 
-    if ( game_high_scores_fp == NULL)
+    if ( fp == NULL)
     {
         printf( "Could not open file.\n" );
         return 1;
     }
 
     printf( "Reading %d bytes...\n", NUM_HIGH_SCORES * entry_size );
-    fread(game_high_scores, entry_size, NUM_HIGH_SCORES, game_high_scores_fp);
-    fclose(game_high_scores_fp);
+    fread(game_high_scores, entry_size, NUM_HIGH_SCORES, fp);
+    fclose(fp);
 
     printf( "Read array from EEPROM:\n\n" );
     print_game_high_scores();
@@ -116,9 +116,9 @@ static int read_game_high_scores(const char *game_high_scores_path)
     return 0;
 }
 
-static int write_game_high_scores(const char *game_high_scores_path)
+static int write_game_high_scores(char * path)
 {
-    FILE *game_high_scores_fp = NULL;
+    FILE *fp = NULL;
     const size_t entry_size = sizeof(game_high_score_t);
 
     game_high_scores[0] = (game_high_score_t){ "CDB", 4294967295 };
@@ -127,18 +127,18 @@ static int write_game_high_scores(const char *game_high_scores_path)
     game_high_scores[3] = (game_high_score_t){ "ME", 255 };
     game_high_scores[4] = (game_high_score_t){ "Q", 1 };
 
-    printf( "Opening file for writing:\n%s\n", game_high_scores_path );
-    game_high_scores_fp = fopen(game_high_scores_path, "wb");
+    printf( "Opening file for writing:\n%s\n", path );
+    fp = fopen(path, "wb");
 
-    if ( game_high_scores_fp == NULL)
+    if ( fp == NULL)
     {
         printf( "Could not open file.\n" );
         return 1;
     }
 
     printf( "Writing %d bytes...\n", NUM_HIGH_SCORES * entry_size );
-    fwrite(game_high_scores, entry_size, NUM_HIGH_SCORES, game_high_scores_fp);
-    fclose(game_high_scores_fp);
+    fwrite(game_high_scores, entry_size, NUM_HIGH_SCORES, fp);
+    fclose(fp);
 
     printf( "Wrote array to EEPROM:\n\n" );
     print_game_high_scores();
@@ -147,19 +147,19 @@ static int write_game_high_scores(const char *game_high_scores_path)
     return 0;
 }
 
-static int validate_game_high_scores(const char * game_high_scores_path)
+static int validate_game_high_scores(char * path)
 {
     int result;
 
-    result = read_game_high_scores(game_high_scores_path);
+    result = read_game_high_scores(path);
     if ( result != 0 ) return result;
     press_a_to_continue();
 
-    result = write_game_high_scores(game_high_scores_path);
+    result = write_game_high_scores(path);
     if ( result != 0 ) return result;
     press_a_to_continue();
 
-    result = read_game_high_scores(game_high_scores_path);
+    result = read_game_high_scores(path);
     if ( result != 0 ) return result;
     press_a_to_continue();
 
@@ -176,92 +176,92 @@ static void print_game_settings(const game_settings_t *gs)
     printf( "};\n" );
 }
 
-static int read_game_settings(const char *game_settings_path)
+static int read_game_settings(char * path)
 {
-    FILE *game_settings_fp = NULL;
-    game_settings_t game_settings_read;
+    FILE *fp = NULL;
+    game_settings_t game_settings;
     const size_t size = sizeof(game_settings_t);
 
-    printf( "Opening file for reading:\n%s\n", game_settings_path );
-    game_settings_fp = fopen(game_settings_path, "rb");
+    printf( "Opening file for reading:\n%s\n", path );
+    fp = fopen(path, "rb");
 
-    if ( game_settings_fp == NULL)
+    if ( fp == NULL)
     {
         printf( "Could not open file.\n" );
         return 1;
     }
 
     printf( "Reading %d bytes from file...\n", size );
-    fread(&game_settings_read, size, 1, game_settings_fp);
-    fclose(game_settings_fp);
+    fread(&game_settings, size, 1, fp);
+    fclose(fp);
 
     printf( "Read struct from EEPROM:\n\n" );
-    print_game_settings(&game_settings_read);
+    print_game_settings(&game_settings);
     printf( "\n" );
  
     return 0;
 }
 
-static int write_game_settings(const char *game_settings_path)
+static int write_game_settings(char * path)
 {
-    FILE *game_settings_fp = NULL;
-    const game_settings_t game_settings_write = { true, 2, 255, 128 };
+    FILE *fp = NULL;
+    const game_settings_t game_settings = { true, 2, 255, 128 };
     const size_t size = sizeof(game_settings_t);
 
-    printf( "Opening file for writing:\n%s\n", game_settings_path );
-    game_settings_fp = fopen(game_settings_path, "wb");
+    printf( "Opening file for writing:\n%s\n", path );
+    fp = fopen(path, "wb");
 
-    if ( game_settings_fp == NULL)
+    if ( fp == NULL)
     {
         printf( "Could not open file.\n" );
         return 1;
     }
 
     printf( "Writing %d bytes to file...\n", size );
-    fwrite(&game_settings_write, size, 1, game_settings_fp);
-    fclose(game_settings_fp);
+    fwrite(&game_settings, size, 1, fp);
+    fclose(fp);
 
     printf( "Wrote struct to EEPROM:\n\n" );
-    print_game_settings(&game_settings_write);
+    print_game_settings(&game_settings);
     printf( "\n" );
 
     return 0;
 }
 
-static int validate_game_settings(const char *game_settings_path)
+static int validate_game_settings(char * path)
 {
     int result;
 
-    result = read_game_settings(game_settings_path);
+    result = read_game_settings(path);
     if ( result != 0 ) return result;
     press_a_to_continue();
 
-    result = write_game_settings(game_settings_path);
+    result = write_game_settings(path);
     if ( result != 0 ) return result;
     press_a_to_continue();
 
-    result = read_game_settings(game_settings_path);
+    result = read_game_settings(path);
     if ( result != 0 ) return result;
     press_a_to_continue();
 
     return 0;
 }
 
-static void print_game_save_state(const game_save_state_t *gs)
+static void print_game_save_state(const game_save_state_t *save)
 {
     uint8_t item;
     printf( "(game_save_state_t){\n" );
-    printf( "  .initialized = %s,\n", gs->initialized ? "true" : "false" );
-    printf( "  .name = \"%.16s\",\n", gs->name );
-    printf( "  .map_index = %u,\n", gs->map_index );
-    printf( "  .map_pos_x = %d,\n", gs->map_pos_x );
-    printf( "  .map_pos_y = %d,\n", gs->map_pos_y );
-    printf( "  .max_hp = %u,\n", gs->max_hp );
-    printf( "  .current_hp = %u,\n", gs->current_hp );
+    printf( "  .initialized = %s,\n", save->initialized ? "true" : "false" );
+    printf( "  .name = \"%.16s\",\n", save->name );
+    printf( "  .map_index = %u,\n", save->map_index );
+    printf( "  .map_pos_x = %d,\n", save->map_pos_x );
+    printf( "  .map_pos_y = %d,\n", save->map_pos_y );
+    printf( "  .max_hp = %u,\n", save->max_hp );
+    printf( "  .current_hp = %u,\n", save->current_hp );
     printf( "  .inventory = {\n" );
     for (size_t i = 0; i < 256; ++i)
     {
-        item = gs->inventory[i];
+        item = save->inventory[i];
         if (item)
         {
             printf( "    [%u] = %u,\n", i, item );
@@ -271,36 +271,29 @@ static void print_game_save_state(const game_save_state_t *gs)
     printf( "};\n" );
 }
 
-static int read_game_save_state(const char *game_save_state_path)
+static int read_game_save_state(char * path)
 {
-    FILE *game_save_state_fp = NULL;
-    game_save_state_t game_save_state_read;
-    const size_t size = sizeof(game_save_state_t);
+    game_save_state_t game_save_state;
 
-    printf( "Opening file for reading:\n%s\n", game_save_state_path );
-    game_save_state_fp = fopen(game_save_state_path, "rb");
+    printf( "Reading struct from file:\n%s\n", path );
+    const int bytes_read = eepfs_read(path, &game_save_state);
 
-    if ( game_save_state_fp == NULL)
+    if ( bytes_read < 0 )
     {
-        printf( "Could not open file.\n" );
+        printf( "Could not read file; error %d\n", bytes_read );
         return 1;
     }
 
-    printf( "Reading %d bytes from file...\n", size );
-    fread(&game_save_state_read, size, 1, game_save_state_fp);
-    fclose(game_save_state_fp);
-
-    printf( "Read struct from EEPROM:\n\n" );
-    print_game_save_state(&game_save_state_read);
+    printf( "Read %d bytes from EEPROM:\n\n", bytes_read );
+    print_game_save_state(&game_save_state);
     printf( "\n" );
  
     return 0;
 }
 
-static int write_game_save_state(const char *game_save_state_path)
+static int write_game_save_state(char * path)
 {
-    FILE *game_save_state_fp = NULL;
-    const game_save_state_t game_save_state_write = { 
+    game_save_state_t game_save_state = { 
         1,
         "Dragon",
         500,
@@ -309,43 +302,38 @@ static int write_game_save_state(const char *game_save_state_path)
         -120,
         40,
         36,
-        { 1, 0, 0, 52 }
+        { 1, 22, [254] = 52 }
     };
-    const size_t size = sizeof(game_save_state_t);
 
-    printf( "Opening file for writing:\n%s\n", game_save_state_path );
-    game_save_state_fp = fopen(game_save_state_path, "wb");
+    printf( "Writing struct to file:\n%s\n", path );
+    const int bytes_written = eepfs_write(path, &game_save_state);
 
-    if ( game_save_state_fp == NULL)
+    if ( bytes_written < 0 )
     {
-        printf( "Could not open file.\n" );
+        printf( "Could not write file; error %d\n", bytes_written );
         return 1;
     }
 
-    printf( "Writing %d bytes to file...\n", size );
-    fwrite(&game_save_state_write, size, 1, game_save_state_fp);
-    fclose(game_save_state_fp);
-
-    printf( "Wrote struct to EEPROM:\n\n" );
-    print_game_save_state(&game_save_state_write);
+    printf( "Wrote %d bytes to EEPROM:\n\n", bytes_written );
+    print_game_save_state(&game_save_state);
     printf( "\n" );
 
     return 0;
 }
 
-static int validate_game_save_state(const char *game_save_state_path)
+static int validate_game_save_state(char * path)
 {
     int result;
 
-    result = read_game_save_state(game_save_state_path);
+    result = read_game_save_state(path);
     if ( result != 0 ) return result;
     press_a_to_continue();
 
-    result = write_game_save_state(game_save_state_path);
+    result = write_game_save_state(path);
     if ( result != 0 ) return result;
     press_a_to_continue();
 
-    result = read_game_save_state(game_save_state_path);
+    result = read_game_save_state(path);
     if ( result != 0 ) return result;
     press_a_to_continue();
 
@@ -394,7 +382,7 @@ static int validate_eeprom_4k()
     result = validate_game_settings("eeprom://settings.dat");
     if (result != 0) return result;
 
-    result = validate_game_save_state("eeprom://player.sav");
+    result = validate_game_save_state("player.sav");
     if (result != 0) return result;
 
     eepfs_deinit();
@@ -447,16 +435,16 @@ static int validate_eeprom_16k()
     result = validate_game_settings("eeprom://settings.dat");
     if (result != 0) return result;
 
-    result = validate_game_save_state("eeprom://saves/slot1.sav");
+    result = validate_game_save_state("/saves/slot1.sav");
     if (result != 0) return result;
 
-    result = validate_game_save_state("eeprom://saves/slot2.sav");
+    result = validate_game_save_state("saves/slot2.sav");
     if (result != 0) return result;
 
-    result = validate_game_save_state("eeprom://saves/slot3.sav");
+    result = validate_game_save_state("saves/slot3.sav");
     if (result != 0) return result;
 
-    result = validate_game_save_state("eeprom://saves/slot4.sav");
+    result = validate_game_save_state("saves/slot4.sav");
     if (result != 0) return result;
 
     eepfs_deinit();

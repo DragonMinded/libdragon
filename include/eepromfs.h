@@ -125,20 +125,12 @@ typedef struct eepfs_config
 int eepfs_init(const eepfs_config_t config);
 int eepfs_deinit();
 
-int eepfs_check_signature();
+int eepfs_read(const char * const path, void * const dest);
+int eepfs_write(const char * const path, const void * const src);
+int eepfs_erase(const char * path);
+
 void eepfs_wipe();
-
-int eepfs_open(const char * const path);
-int eepfs_close(const int handle);
-int eepfs_erase(const char * const path);
-
-int eepfs_seek(const int handle, const int offset, const int origin);
-int eepfs_tell(const int handle);
-int eepfs_size(const int handle);
-int eepfs_eof(const int handle);
-
-int eepfs_read(void * const buf, const size_t size, const size_t count, const int handle);
-int eepfs_write(const void * const buf, const size_t size, const size_t count, const int handle);
+int eepfs_check_signature();
 
 #ifdef __cplusplus
 }
