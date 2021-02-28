@@ -135,9 +135,11 @@ static void __controller_exec_PIF( const void *inblock, void *outblock )
 /**
  * @brief Probe the EEPROM interface
  *
- * Prove the EEPROM to see if it exists on this cartridge.
+ * Probe the EEPROM to see if it exists on this cartridge.
  *
- * @return Nonzero if EEPROM present, zero if EEPROM not present
+ * @retval #EEPROM_16k The cartridge has a 16 kilobit EEPROM
+ * @retval #EEPROM_4k The cartridge has a 4 kilobit EEPROM
+ * @retval #EEPROM_NONE The cartridge does not have an EEPROM
  */
 int eeprom_present()
 {
@@ -156,17 +158,21 @@ int eeprom_present()
 
     __controller_exec_PIF(SI_eeprom_status_block,output);
 
-    /* We are looking for 0x80 in the second byte returned, which
-     * signifies that there is an EEPROM present.*/
-    if( ((output[1] >> 48) & 0xFF) == 0x80 )
+    /* We are looking in the second byte returned, which
+     * signifies which size EEPROM (if any) is present.*/
+    const uint8_t eeprom_type = (output[1] >> 48) & 0xFF;
+
+    if( eeprom_type == 0xC0 )
     {
-        /* EEPROM found! */
-        return 1;
+        return EEPROM_16k;
+    }
+    else if( eeprom_type == 0x80 )
+    {
+        return EEPROM_4k;
     }
     else
     {
-        /* EEPROM not found! */
-        return 0;
+        return EEPROM_NONE;
     }
 }
 
