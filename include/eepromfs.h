@@ -58,7 +58,7 @@ typedef struct
      * The filesytem does not support entries for directories,
      * nor does it support listing files in a given directory.
      */
-    char * path;
+    const char * path;
     /**
      * @brief File size in bytes.
      * 
