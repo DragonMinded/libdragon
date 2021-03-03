@@ -41,9 +41,9 @@
  */
 
 /** @brief The console width in characters */
-#define CONSOLE_WIDTH       35
+#define CONSOLE_WIDTH       74
 /** @brief The console height in characters */
-#define CONSOLE_HEIGHT      25
+#define CONSOLE_HEIGHT      30
 /** @} */
 
 /** 

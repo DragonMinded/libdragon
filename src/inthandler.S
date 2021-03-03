@@ -92,7 +92,8 @@ inthandler:
 	sdc1 $f23,saveFR23
 	sdc1 $f24,saveFR24
 	sdc1 $f25,saveFR25
-	# No need to save $26 (k0) & $27 (k1)
+	sdc1 $f26,saveFR26
+	sdc1 $f27,saveFR27
 	sdc1 $f28,saveFR28
 	sdc1 $f29,saveFR29
 	sdc1 $f30,saveFR30
@@ -219,7 +220,18 @@ endint:
 	ldc1 $f31,saveFR31
 
 	ld $30,saveFC31
-	nop
+
+	# Override the cause bits (12-17) of stored value from cop1.
+	# If they were cleared by the ex. handler, they will remain cleared.
+	# We will restore the other values to their state before the exception
+	# has occured. If we restore all the bits, the exception handler will
+	# be unable to clear them if needed. This is important as they will
+	# re-trigger the exception upon handler exit if remains set.
+	cfc1 k0, $f31
+	and k0, 0x3F000
+	or k0, ~0x3F000
+	and $30, k0
+	ctc1 $30,$f31
 
 	ld $30,save30
 	.set noat

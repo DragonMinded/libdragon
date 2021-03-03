@@ -9,6 +9,8 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stdbool.h>
 
 /**
  * @defgroup exceptions Exception Handler
@@ -41,89 +43,25 @@ void register_exception_handler( void (*cb)(exception_t*))
 }
 
 /**
- * We keep a function outside the exception handler so that
- * the interrupts are re-enabled when we return from the ex.
- * handler. This will make sure latest console contents are
- * displayed.
+ * We keep a function outside the exception handler so that the interrupts are
+ * re-enabled when we return from it. console_render does not work without
+ * interrupts being enabled. display_lock will lock the system if called
+ * without the VI interrupt enabled, thus rendering the system unable to render
+ * the console.
  */
 static void exception_halt() {
-	while(1) {
-		console_render();
-	}
+	console_render();
+	abort();
 }
 
 void exception_default_handler(exception_t* ex) {
-	// We will naturally return from the ex handler, which
-	// will gracefully restore interrupt state so that we can
-	// continue using interrupt dependent functionalities
-	// such as console updates.
+	// We need to return from the ex handler to gracefully restore interrupt
+	// state so that we can continue using interrupt dependent functionalities.
 	C0_WRITE_EPC(&exception_halt);
-
-	console_clear();
-
-	fprintf(stdout, "%s exception\n",	ex->info);
-	fprintf(stdout, "PC:%08lX ",		ex->regs->epc);
-	fprintf(stdout, "z0:%08lX ",		(uint32_t)ex->regs->gpr[0]);
-	fprintf(stdout, "at:%08lX\n",		(uint32_t)ex->regs->gpr[1]);
-	fprintf(stdout, "v0:%08lX ",		(uint32_t)ex->regs->gpr[2]);
-	fprintf(stdout, "v1:%08lX ",		(uint32_t)ex->regs->gpr[3]);
-	fprintf(stdout, "a0:%08lX\n",		(uint32_t)ex->regs->gpr[4]);
-	fprintf(stdout, "a1:%08lX ",		(uint32_t)ex->regs->gpr[5]);
-	fprintf(stdout, "a2:%08lX ",		(uint32_t)ex->regs->gpr[6]);
-	fprintf(stdout, "a3:%08lX\n",		(uint32_t)ex->regs->gpr[7]);
-	fprintf(stdout, "t0:%08lX ",		(uint32_t)ex->regs->gpr[8]);
-	fprintf(stdout, "t1:%08lX ",		(uint32_t)ex->regs->gpr[9]);
-	fprintf(stdout, "t2:%08lX\n",		(uint32_t)ex->regs->gpr[10]);
-	fprintf(stdout, "t3:%08lX ",		(uint32_t)ex->regs->gpr[11]);
-	fprintf(stdout, "t4:%08lX ",		(uint32_t)ex->regs->gpr[12]);
-	fprintf(stdout, "t5:%08lX\n",		(uint32_t)ex->regs->gpr[13]);
-	fprintf(stdout, "t6:%08lX ",		(uint32_t)ex->regs->gpr[14]);
-	fprintf(stdout, "t7:%08lX ",		(uint32_t)ex->regs->gpr[15]);
-	fprintf(stdout, "s0:%08lX\n",		(uint32_t)ex->regs->gpr[16]);
-	fprintf(stdout, "s1:%08lX ",		(uint32_t)ex->regs->gpr[17]);
-	fprintf(stdout, "s2:%08lX ",		(uint32_t)ex->regs->gpr[18]);
-	fprintf(stdout, "s3:%08lX\n",		(uint32_t)ex->regs->gpr[19]);
-	fprintf(stdout, "s4:%08lX ",		(uint32_t)ex->regs->gpr[20]);
-	fprintf(stdout, "s5:%08lX ",		(uint32_t)ex->regs->gpr[21]);
-	fprintf(stdout, "s6:%08lX\n",		(uint32_t)ex->regs->gpr[22]);
-	fprintf(stdout, "s7:%08lX ",		(uint32_t)ex->regs->gpr[23]);
-	fprintf(stdout, "t8:%08lX ",		(uint32_t)ex->regs->gpr[24]);
-	fprintf(stdout, "t9:%08lX\n",		(uint32_t)ex->regs->gpr[25]);
-	fprintf(stdout, "gp:%08lX ",		(uint32_t)ex->regs->gpr[28]);
-	fprintf(stdout, "sp:%08lX ",		(uint32_t)ex->regs->gpr[29]);
-	fprintf(stdout, "fp:%08lX\n",		(uint32_t)ex->regs->gpr[30]);
-	fprintf(stdout, "ra:%08lX ",		(uint32_t)ex->regs->gpr[31]);
-	fprintf(stdout, "lo:%08lX ",		(uint32_t)ex->regs->lo);
-	fprintf(stdout, "hi:%08lX\n",		(uint32_t)ex->regs->hi);
 
 	uint32_t cr = ex->regs->cr;
 	uint32_t sr = ex->regs->sr;
 	uint32_t fcr31 = ex->regs->fc31;
-
-	fprintf(stdout, "Ex info (cr:%08lX sr:%08lX):\n", cr, ex->regs->sr);
-	fprintf(stdout, "Is branch delay: %lu\n", cr & C0_CAUSE_BD);
-
-	fprintf(stdout, "INTs sw0 sw1 ex0 ex1 ex2 ex3 ex4 tm\n");
-	fprintf(stdout, "     %3u %3u %3u %3u %3u %3u %3u %2u\n",
-		(bool)(cr & C0_INTERRUPT_0),
-		(bool)(cr & C0_INTERRUPT_1),
-		(bool)(cr & C0_INTERRUPT_2),
-		(bool)(cr & C0_INTERRUPT_3),
-		(bool)(cr & C0_INTERRUPT_4),
-		(bool)(cr & C0_INTERRUPT_5),
-		(bool)(cr & C0_INTERRUPT_6),
-		(bool)(cr & C0_INTERRUPT_7)
-	);
-	fprintf(stdout, "MASK %3u %3u %3u %3u %3u %3u %3u %2u\n",
-		(bool)(sr & C0_INTERRUPT_0),
-		(bool)(sr & C0_INTERRUPT_1),
-		(bool)(sr & C0_INTERRUPT_2),
-		(bool)(sr & C0_INTERRUPT_3),
-		(bool)(sr & C0_INTERRUPT_4),
-		(bool)(sr & C0_INTERRUPT_5),
-		(bool)(sr & C0_INTERRUPT_6),
-		(bool)(sr & C0_INTERRUPT_7)
-	);
 
 	switch(ex->code) {
 		case EXCEPTION_CODE_STORE_ADDRESS_ERROR:
@@ -131,30 +69,9 @@ void exception_default_handler(exception_t* ex) {
 		case EXCEPTION_CODE_TLB_MODIFICATION:
 		case EXCEPTION_CODE_TLB_STORE_MISS:
 		case EXCEPTION_CODE_TLB_LOAD_I_MISS:
-			fprintf(stdout, "BadVAddr: %08lX\n", C0_READ_BADVADDR());
-		break;
 		case EXCEPTION_CODE_COPROCESSOR_UNUSABLE:
-			fprintf(stdout, "COP:%1lu\n", C0_GET_CAUSE_CE(cr));
 		break;
 		case EXCEPTION_CODE_FLOATING_POINT:
-			fprintf(stdout, "FCR31: %08X FP ", (unsigned int)fcr31);
-
-			if (fcr31 & C1_CAUSE_INEXACT_OP) fprintf(stdout, "Inexact Op.\n");
-			if (fcr31 & C1_CAUSE_UNDERFLOW) fprintf(stdout, "Underflow\n");
-			if (fcr31 & C1_CAUSE_OVERFLOW) fprintf(stdout, "Overflow\n");
-			if (fcr31 & C1_CAUSE_DIV_BY_0) fprintf(stdout, "Div-by-0\n");
-			if (fcr31 & C1_CAUSE_INVALID_OP) fprintf(stdout, "Invalid Op.\n");
-			if (fcr31 & C1_CAUSE_NOT_IMPLEMENTED) fprintf(stdout, "Not impl.\n");
-
-			fprintf(stdout, "Floating-point registers\n");
-			for (int i = 0; i<32; i++) {
-				fprintf(stdout, "%02u:%08llX ", i, ex->regs->fpr[i]);
-				if ((i % 3) == 2) {
-					fprintf(stdout, "\n");
-				}
-			}
-			fprintf(stdout, "\n");
-
 			// Clear FP interrupt cause bits so that it is not retriggered when we return to exception_halt
 			C1_WRITE_FCR31(
 				C1_FCR31() & ~(
@@ -178,6 +95,104 @@ void exception_default_handler(exception_t* ex) {
 		default:
 		break;
 	}
+
+	console_set_render_mode(RENDER_MANUAL);
+	console_clear();
+
+	fprintf(stdout, "**************************************************************************");
+	fprintf(stdout, "%s exception at PC:%08lX\n", ex->info, ex->regs->epc);
+
+	fprintf(stdout, "cr:%08lX (COP:%1lu BD:%lu)\n", cr,  C0_GET_CAUSE_CE(cr), cr & C0_CAUSE_BD);
+	fprintf(stdout, "sr:%08lX FCR31:%08X BVAdr:%08lX \n", sr, (unsigned int)fcr31, C0_READ_BADVADDR());
+	fprintf(stdout, "--------------------------------------------------------------------------");
+	fprintf(stdout, "FPU     IOP UND OVE DV0 INV  NI  | INTs    sw0 sw1 ex0 ex1 ex2 ex3 ex4  tm");
+	fprintf(stdout, "Cause   %3u %3u %3u %3u %3u %3u  | Cause   %3u %3u %3u %3u %3u %3u %3u %3u",
+		(bool)(fcr31 & C1_CAUSE_INEXACT_OP),
+		(bool)(fcr31 & C1_CAUSE_UNDERFLOW),
+		(bool)(fcr31 & C1_CAUSE_OVERFLOW),
+		(bool)(fcr31 & C1_CAUSE_DIV_BY_0),
+		(bool)(fcr31 & C1_CAUSE_INVALID_OP),
+		(bool)(fcr31 & C1_CAUSE_NOT_IMPLEMENTED),
+
+		(bool)(cr & C0_INTERRUPT_0),
+		(bool)(cr & C0_INTERRUPT_1),
+		(bool)(cr & C0_INTERRUPT_2),
+		(bool)(cr & C0_INTERRUPT_3),
+		(bool)(cr & C0_INTERRUPT_4),
+		(bool)(cr & C0_INTERRUPT_5),
+		(bool)(cr & C0_INTERRUPT_6),
+		(bool)(cr & C0_INTERRUPT_7)
+	);
+	fprintf(stdout, "Enabled %3u %3u %3u %3u %3u   -  | MASK    %3u %3u %3u %3u %3u %3u %3u %3u",
+		(bool)(fcr31 & C1_ENABLE_INEXACT_OP),
+		(bool)(fcr31 & C1_ENABLE_UNDERFLOW),
+		(bool)(fcr31 & C1_ENABLE_OVERFLOW),
+		(bool)(fcr31 & C1_ENABLE_DIV_BY_0),
+		(bool)(fcr31 & C1_ENABLE_INVALID_OP),
+
+		(bool)(sr & C0_INTERRUPT_0),
+		(bool)(sr & C0_INTERRUPT_1),
+		(bool)(sr & C0_INTERRUPT_2),
+		(bool)(sr & C0_INTERRUPT_3),
+		(bool)(sr & C0_INTERRUPT_4),
+		(bool)(sr & C0_INTERRUPT_5),
+		(bool)(sr & C0_INTERRUPT_6),
+		(bool)(sr & C0_INTERRUPT_7)
+	);
+
+	fprintf(stdout, "Flags   %3u %3u %3u %3u %3u   -  |\n",
+		(bool)(fcr31 & C1_FLAG_INEXACT_OP),
+		(bool)(fcr31 & C1_FLAG_UNDERFLOW),
+		(bool)(fcr31 & C1_FLAG_OVERFLOW),
+		(bool)(fcr31 & C1_FLAG_DIV_BY_0),
+		(bool)(fcr31 & C1_FLAG_INVALID_OP)
+	);
+
+	fprintf(stdout, "--------------------------------------------------------------------------");
+
+	fprintf(stdout, "z0:%08lX ",		(uint32_t)ex->regs->gpr[0]);
+	fprintf(stdout, "at:%08lX ",		(uint32_t)ex->regs->gpr[1]);
+	fprintf(stdout, "v0:%08lX ",		(uint32_t)ex->regs->gpr[2]);
+	fprintf(stdout, "v1:%08lX ",		(uint32_t)ex->regs->gpr[3]);
+	fprintf(stdout, "a0:%08lX ",		(uint32_t)ex->regs->gpr[4]);
+	fprintf(stdout, "a1:%08lX\n",		(uint32_t)ex->regs->gpr[5]);
+	fprintf(stdout, "a2:%08lX ",		(uint32_t)ex->regs->gpr[6]);
+	fprintf(stdout, "a3:%08lX ",		(uint32_t)ex->regs->gpr[7]);
+	fprintf(stdout, "t0:%08lX ",		(uint32_t)ex->regs->gpr[8]);
+	fprintf(stdout, "t1:%08lX ",		(uint32_t)ex->regs->gpr[9]);
+	fprintf(stdout, "t2:%08lX ",		(uint32_t)ex->regs->gpr[10]);
+	fprintf(stdout, "t3:%08lX\n",		(uint32_t)ex->regs->gpr[11]);
+	fprintf(stdout, "t4:%08lX ",		(uint32_t)ex->regs->gpr[12]);
+	fprintf(stdout, "t5:%08lX ",		(uint32_t)ex->regs->gpr[13]);
+	fprintf(stdout, "t6:%08lX ",		(uint32_t)ex->regs->gpr[14]);
+	fprintf(stdout, "t7:%08lX ",		(uint32_t)ex->regs->gpr[15]);
+	fprintf(stdout, "s0:%08lX ",		(uint32_t)ex->regs->gpr[16]);
+	fprintf(stdout, "s1:%08lX\n",		(uint32_t)ex->regs->gpr[17]);
+	fprintf(stdout, "s2:%08lX ",		(uint32_t)ex->regs->gpr[18]);
+	fprintf(stdout, "s3:%08lX ",		(uint32_t)ex->regs->gpr[19]);
+	fprintf(stdout, "s4:%08lX ",		(uint32_t)ex->regs->gpr[20]);
+	fprintf(stdout, "s5:%08lX ",		(uint32_t)ex->regs->gpr[21]);
+	fprintf(stdout, "s6:%08lX ",		(uint32_t)ex->regs->gpr[22]);
+	fprintf(stdout, "s7:%08lX\n",		(uint32_t)ex->regs->gpr[23]);
+	fprintf(stdout, "t8:%08lX ",		(uint32_t)ex->regs->gpr[24]);
+	fprintf(stdout, "t9:%08lX ",		(uint32_t)ex->regs->gpr[25]);
+	fprintf(stdout, "gp:%08lX ",		(uint32_t)ex->regs->gpr[28]);
+	fprintf(stdout, "sp:%08lX ",		(uint32_t)ex->regs->gpr[29]);
+	fprintf(stdout, "fp:%08lX ",		(uint32_t)ex->regs->gpr[30]);
+	fprintf(stdout, "ra:%08lX\n",		(uint32_t)ex->regs->gpr[31]);
+	fprintf(stdout, "lo:%08lX ",		(uint32_t)ex->regs->lo);
+	fprintf(stdout, "hi:%08lX\n",		(uint32_t)ex->regs->hi);
+
+	fprintf(stdout, "--------------------------------------------------------------------------");
+	fprintf(stdout, "FP Registers:\n");
+	for (int i = 0; i<32; i++) {
+		fprintf(stdout, "%02u:%016llX ", i, ex->regs->fpr[i]);
+		if ((i % 3) == 2) {
+			fprintf(stdout, "\n");
+		}
+	}
+	fprintf(stdout, "\n");
+	fprintf(stdout, "**************************************************************************");
 }
 
 /**
@@ -188,7 +203,7 @@ void exception_default_handler(exception_t* ex) {
  *
  * @return String representation of the exception
  */
-static const char* __get_exception_name(uint32_t cr)
+static const char* __get_exception_name(exception_code_t code)
 {
 	static const char* exceptionMap[] =
 	{
@@ -226,7 +241,7 @@ static const char* __get_exception_name(uint32_t cr)
 		"Reserved",									// 31
 	};
 
-	return exceptionMap[C0_GET_CAUSE_EXC_CODE(cr)];
+	return exceptionMap[code];
 }
 
 /**
@@ -243,7 +258,7 @@ static void __fetch_regs(exception_t* e,int32_t type)
 	e->regs = (volatile const reg_block_t*) &__baseRegAddr;
 	e->type = type;
 	e->code = C0_GET_CAUSE_EXC_CODE(e->regs->cr);
-	e->info = __get_exception_name(e->regs->cr);
+	e->info = __get_exception_name(e->code);
 }
 
 /**
