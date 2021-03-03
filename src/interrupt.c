@@ -596,7 +596,7 @@ void init_interrupts()
         /* Enable interrupts systemwide. We set the global interrupt enable,
            and then specifically enable RCP interrupts (INTERRUPT_2). */
         uint32_t sr = C0_STATUS();
-        C0_WRITE_STATUS(sr | C0_STATUS_IE | C0_INTERRUPT_2);
+        C0_WRITE_STATUS(sr | C0_STATUS_IE | C0_INTERRUPT_RCP);
     }
 }
 

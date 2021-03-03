@@ -116,12 +116,12 @@ void exception_default_handler(exception_t* ex) {
 
 		(bool)(cr & C0_INTERRUPT_0),
 		(bool)(cr & C0_INTERRUPT_1),
-		(bool)(cr & C0_INTERRUPT_2),
+		(bool)(cr & C0_INTERRUPT_RCP),
 		(bool)(cr & C0_INTERRUPT_3),
 		(bool)(cr & C0_INTERRUPT_4),
 		(bool)(cr & C0_INTERRUPT_5),
 		(bool)(cr & C0_INTERRUPT_6),
-		(bool)(cr & C0_INTERRUPT_7)
+		(bool)(cr & C0_INTERRUPT_TIMER)
 	);
 	fprintf(stdout, "Enabled %3u %3u %3u %3u %3u   -  | MASK    %3u %3u %3u %3u %3u %3u %3u %3u",
 		(bool)(fcr31 & C1_ENABLE_INEXACT_OP),
@@ -132,12 +132,12 @@ void exception_default_handler(exception_t* ex) {
 
 		(bool)(sr & C0_INTERRUPT_0),
 		(bool)(sr & C0_INTERRUPT_1),
-		(bool)(sr & C0_INTERRUPT_2),
+		(bool)(sr & C0_INTERRUPT_RCP),
 		(bool)(sr & C0_INTERRUPT_3),
 		(bool)(sr & C0_INTERRUPT_4),
 		(bool)(sr & C0_INTERRUPT_5),
 		(bool)(sr & C0_INTERRUPT_6),
-		(bool)(sr & C0_INTERRUPT_7)
+		(bool)(sr & C0_INTERRUPT_TIMER)
 	);
 
 	fprintf(stdout, "Flags   %3u %3u %3u %3u %3u   -  |\n",

@@ -89,12 +89,12 @@
 /* COP0 interrupt bits definition. These are compatible bothwith mask and pending bits. */
 #define C0_INTERRUPT_0      0x00000100
 #define C0_INTERRUPT_1      0x00000200
-#define C0_INTERRUPT_2      0x00000400 // RCP
+#define C0_INTERRUPT_RCP    0x00000400 // RCP
 #define C0_INTERRUPT_3      0x00000800
 #define C0_INTERRUPT_4      0x00001000
 #define C0_INTERRUPT_5      0x00002000
 #define C0_INTERRUPT_6      0x00004000
-#define C0_INTERRUPT_7      0x00008000 // Timer
+#define C0_INTERRUPT_TIMER  0x00008000 // Timer
 
 /**
  * @brief Get the CE value from the COP0 status register
