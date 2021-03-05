@@ -64,7 +64,7 @@ inthandler:
 	mfhi $30
 	sd $30,saveHI
 	cfc1 $30,$f31
-	sd $30,saveFC31
+	sw $30,saveFC31
 
 	sdc1 $f0,saveFR00
 	sdc1 $f1,saveFR01
@@ -219,7 +219,7 @@ endint:
 	ldc1 $f30,saveFR30
 	ldc1 $f31,saveFR31
 
-	ld $30,saveFC31
+	lw $30,saveFC31
 
 	# Override the cause bits (12-17) of stored value from cop1.
 	# If they were cleared by the ex. handler, they will remain cleared.
