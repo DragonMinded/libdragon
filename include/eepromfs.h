@@ -87,6 +87,7 @@ int eepfs_read(const char * const path, void * const dest);
 int eepfs_write(const char * const path, const void * const src);
 int eepfs_erase(const char * const path);
 
+bool eepfs_verify_signature(void);
 void eepfs_wipe(void);
 
 #ifdef __cplusplus

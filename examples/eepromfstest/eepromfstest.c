@@ -367,10 +367,24 @@ static int validate_eeprom_4k()
             printf( "Failed in an unexpected manner\n" );
             return 1;
     }
+
+    /* Check if the EEPROM is roughly compatible with the filesystem */
+    if ( !eepfs_verify_signature() )
+    {
+        /* If not, erase it and start from scratch */
+        printf( "Filesystem signature is invalid!\n" );
+        printf( "Wiping EEPROM...\n" );
+        eepfs_wipe();
+        press_a_to_continue();
+    }
+    else
+    {
+        /* Offer to erase EEPROM before running the tests */
+        printf( "Filesystem signature OK!\n" );
+        keep_or_erase_data();
+    }
     
     eepfs_attach("eeprom:/");
-
-    keep_or_erase_data();
 
     result = validate_game_high_scores("eeprom://high_scores.dat");
     if ( result != 0 ) return result;
@@ -417,9 +431,23 @@ static int validate_eeprom_16k()
             return 1;
     }
 
-    eepfs_attach("eeprom:/");
+    /* Check if the EEPROM is roughly compatible with the filesystem */
+    if ( !eepfs_verify_signature() )
+    {
+        /* If not, erase it and start from scratch */
+        printf( "Filesystem signature is invalid!\n" );
+        printf( "Wiping EEPROM...\n" );
+        eepfs_wipe();
+        press_a_to_continue();
+    }
+    else
+    {
+        /* Offer to erase EEPROM before running the tests */
+        printf( "Filesystem signature OK!\n" );
+        keep_or_erase_data();
+    }
 
-    keep_or_erase_data();
+    eepfs_attach("eeprom:/");
 
     result = validate_game_high_scores("eeprom://high_scores.dat");
     if ( result != 0 ) return result;

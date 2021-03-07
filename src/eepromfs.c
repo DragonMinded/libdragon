@@ -11,7 +11,7 @@
 #include "libdragon.h"
 #include "system.h"
 
-#define divide_ceil( x, y ) ((x / y) + (x % y != 0))
+#define divide_ceil( x, y ) (((x) / (y)) + ((x) % (y) != 0))
 
 /**
  * @brief EEPROM Filesystem file descriptor.
@@ -63,7 +63,7 @@ static size_t eepfs_files_count = 0;
  * Allocated and assigned by #eepfs_init;
  * freed and set back to NULL by #eepfs_close.
  */
-static eepfs_file_t *eepfs_files = NULL;
+static eepfs_file_t * eepfs_files = NULL;
 
 /**
  * @brief A CRC-16/CCITT checksum of the declared filesystem.
@@ -93,7 +93,7 @@ static uint16_t calculate_crc16(const uint8_t * data, size_t len)
     uint8_t x;
     uint16_t crc = 0xFFFF;
 
-    while (len--)
+    while ( len-- )
     {
         x = crc >> 8 ^ *(data++);
         x ^= x>>4;
@@ -155,43 +155,6 @@ static const uint64_t eepfs_generate_signature()
     sig_bytes[6] = eepfs_files_checksum >> 8;
     sig_bytes[7] = eepfs_files_checksum & 0xFF;
     return signature;
-}
-
-/**
- * @brief Validates the first block of EEPROM.
- * 
- * There are no guarantees that the data in EEPROM actually matches
- * the expected layout of the filesystem. There are many reasons why
- * a mismatch can occur: EEPROM re-used from another game; a brand new
- * EEPROM that has never been initialized and contains garbage data;
- * the filesystem has changed between builds or version of software 
- * currently in development; EEPROM failing due to age or write limits.
- * 
- * To mitigate these scenarios, it is a good idea to validate that at
- * least the first block of EEPROM matches some known good value.
- * 
- * If the signature matches, the data in EEPROM is probably what the
- * filesystem expects. If not, the best move is to erase everything
- * and start from zero.
- * 
- * @see #eepfs_generate_signature
- * @see #eepfs_wipe
- * 
- * @retval true if the first block of EEPROM matches the filesystem signature
- * @retval false if the first block of EEPROM does not match the filesystem signature
- */
-static bool eepfs_verify_signature(void)
-{
-    const uint64_t signature = eepfs_generate_signature();
-    const uint8_t * const sig_bytes = (uint8_t *)&signature;
-
-    /* Read the signature block out of EEPROM */
-    uint8_t eeprom_buf[EEPROM_BLOCK_SIZE];
-    eeprom_read(0, eeprom_buf);
-
-    /* If the signatures don't match, we can be pretty sure
-       that the data in EEPROM is not the expected filesystem */
-    return memcmp(eeprom_buf, sig_bytes, EEPROM_BLOCK_SIZE) == 0;
 }
 
 /**
@@ -272,7 +235,7 @@ static eepfs_file_t * const eepfs_get_file(const int handle)
  *
  * @return The actual number of bytes read or a negative value on failure.
  */
-static int eepfs_cursor_read(eepfs_file_t * const file, void * const dest, const size_t len)
+static int eepfs_cursor_read(eepfs_file_t * const file, uint8_t * dest, const size_t len)
 {
     if ( file == NULL )
     {
@@ -301,19 +264,17 @@ static int eepfs_cursor_read(eepfs_file_t * const file, void * const dest, const
     }
 
     /* Calculate the starting point to read out of EEPROM from */
+    uint8_t eeprom_buf[EEPROM_BLOCK_SIZE];
     size_t current_block = file->start_block + (cursor / EEPROM_BLOCK_SIZE);
     size_t block_byte_offset = cursor % EEPROM_BLOCK_SIZE;
     int bytes_read = 0;
-
-    uint8_t eeprom_buf[EEPROM_BLOCK_SIZE];
-    uint8_t * ptr = dest;
 
     do {
         eeprom_read(current_block, eeprom_buf);
         /* Fill the buffer with the data from the current block */
         while ( bytes_to_read > 0 && block_byte_offset < EEPROM_BLOCK_SIZE )
         {
-            *(ptr++) = eeprom_buf[block_byte_offset];
+            *(dest++) = eeprom_buf[block_byte_offset];
             bytes_read++;
             bytes_to_read--;
             block_byte_offset++;
@@ -330,6 +291,9 @@ static int eepfs_cursor_read(eepfs_file_t * const file, void * const dest, const
 
 /**
  * @brief Writes a specific amount of data to a file starting from the cursor.
+ * 
+ * Each EEPROM block write takes approximately 15 milliseconds;
+ * this operation may block for a while!
  *
  * @param[in] path
  *            Path of file in EEPROM filesystem to write to
@@ -340,7 +304,7 @@ static int eepfs_cursor_read(eepfs_file_t * const file, void * const dest, const
  *
  * @return The actual number of bytes written or a negative value on failure.
  */
-static int eepfs_cursor_write(eepfs_file_t * const file, const void * const src, const size_t len)
+static int eepfs_cursor_write(eepfs_file_t * const file, const uint8_t * src, const size_t len)
 {
     if ( file == NULL )
     {
@@ -369,12 +333,10 @@ static int eepfs_cursor_write(eepfs_file_t * const file, const void * const src,
     }
 
     /* Calculate the starting point to write to EEPROM from */
+    uint8_t eeprom_buf[EEPROM_BLOCK_SIZE];
     size_t current_block = file->start_block + (cursor / EEPROM_BLOCK_SIZE);
     size_t block_byte_offset = cursor % EEPROM_BLOCK_SIZE;
     int bytes_written = 0;
-
-    uint8_t eeprom_buf[EEPROM_BLOCK_SIZE];
-    const uint8_t * ptr = src;
 
     do {
         /* Only read in the current block if we need to preserve data from it */
@@ -385,7 +347,7 @@ static int eepfs_cursor_write(eepfs_file_t * const file, const void * const src,
         /* Fill the current block with the data to write */
         while ( bytes_to_write > 0 && block_byte_offset < EEPROM_BLOCK_SIZE )
         {
-            eeprom_buf[block_byte_offset] = *(ptr++);
+            eeprom_buf[block_byte_offset] = *(src++);
             bytes_written++;
             bytes_to_write--;
             block_byte_offset++;
@@ -468,6 +430,9 @@ static int __eepfs_read(void * handle, uint8_t * dest, int len)
 
 /**
  * @brief Writes data to a file
+ * 
+ * Each EEPROM block write takes approximately 15 milliseconds;
+ * this operation may block for a while!
  *
  * @param[in] handle
  *            File handle as returned by #__eepfs_open
@@ -508,21 +473,18 @@ static int __eepfs_lseek(void * handle, int offset, int origin)
         return EEPFS_EBADHANDLE;
     }
 
-    size_t new_cursor = file->cursor;
-    const size_t max_cursor = file->max_cursor;
-
     /* Adjust cursor based on origin and offset */
     if ( origin == SEEK_SET )
     {
-        new_cursor = offset;
+        file->cursor = offset;
     }
     else if ( origin == SEEK_CUR )
     {
-        new_cursor = new_cursor + offset;
+        file->cursor += offset;
     }
     else if ( origin == SEEK_END )
     {
-        new_cursor = max_cursor + offset;
+        file->cursor = file->max_cursor + offset;
     }
     else
     {
@@ -530,18 +492,16 @@ static int __eepfs_lseek(void * handle, int offset, int origin)
     }
 
     /* Clamp cursor to the beginning and end of the file */
-    if ( new_cursor > max_cursor )
+    if ( file->cursor > file->max_cursor )
     {
-        new_cursor = max_cursor;
+        file->cursor = file->max_cursor;
     }
-    if ( new_cursor < 0 )
+    if ( file->cursor < 0 )
     {
-        new_cursor = 0;
+        file->cursor = 0;
     }
 
-    file->cursor = new_cursor;
-
-    return new_cursor;
+    return file->cursor;
 }
 
 /**
@@ -640,14 +600,14 @@ int eepfs_init(const eepfs_entry_t * const entries, const size_t count)
     /* Sanity check the arguments */
     if ( count == 0 || entries == NULL )
     {
-        return EEPFS_EBADFS;
+        return EEPFS_EBADINPUT;
     }
 
     /* Add an extra file for the "signature file" */
     eepfs_files_count = count + 1;
 
     /* Allocate the lookup table of file descriptors */
-    const size_t files_size = sizeof(eepfs_file_t) * eepfs_files_count;
+    const size_t files_size = sizeof(eepfs_files[0]) * eepfs_files_count;
     eepfs_files = (eepfs_file_t *)malloc(files_size);
 
     if ( eepfs_files == NULL )
@@ -657,7 +617,7 @@ int eepfs_init(const eepfs_entry_t * const entries, const size_t count)
 
     /* The first file should always be the "signature file" */
     const eepfs_file_t signature_file = { NULL, 0, 1, 0, 8 };
-    memcpy(&eepfs_files[0], &signature_file, sizeof(eepfs_file_t));
+    memcpy(&eepfs_files[0], &signature_file, sizeof(signature_file));
 
     const char * file_path;
     size_t file_size;
@@ -674,7 +634,7 @@ int eepfs_init(const eepfs_entry_t * const entries, const size_t count)
         if ( file_path == NULL || file_size == 0 )
         {
             eepfs_close();
-            return EEPFS_EBADFS;
+            return EEPFS_EBADINPUT;
         }
 
         /* Strip the leading '/' on paths for consistency */
@@ -691,7 +651,7 @@ int eepfs_init(const eepfs_entry_t * const entries, const size_t count)
             0,
             file_size,
         };
-        memcpy(&eepfs_files[i], &entry_file, sizeof(eepfs_file_t));
+        memcpy(&eepfs_files[i], &entry_file, sizeof(entry_file));
 
         /* Files must start on a block boundary */
         total_blocks += file_blocks;
@@ -707,13 +667,6 @@ int eepfs_init(const eepfs_entry_t * const entries, const size_t count)
     /* Calculate and store the CRC-16 checksum for the declared entries */
     const size_t entries_size = sizeof(eepfs_entry_t) * count;
     eepfs_files_checksum = calculate_crc16((void *)entries, entries_size);
-
-    /* Check if the EEPROM is roughly compatible with the filesystem */
-    if ( !eepfs_verify_signature() )
-    {
-        /* If not, erase it and start from scratch */
-        eepfs_wipe();
-    }
 
     return EEPFS_ESUCCESS;
 }
@@ -830,6 +783,9 @@ int eepfs_read(const char * const path, void * const dest)
 
 /**
  * @brief Writes an entire file to the EEPROM filesystem.
+ * 
+ * Each EEPROM block write takes approximately 15 milliseconds;
+ * this operation may block for a while!
  *
  * @param[in] path
  *            Path of file in EEPROM filesystem to write to
@@ -869,6 +825,9 @@ int eepfs_write(const char * const path, const void * const src)
  * All files in the filesystem must always exist at the size specified
  * during #eepfs_init
  * 
+ * Each EEPROM block write takes approximately 15 milliseconds;
+ * this operation may block for a while!
+ * 
  * Be advised: this is a destructive operation that cannot be undone!
  * 
  * @retval EEPFS_ESUCCESS if successful
@@ -903,9 +862,54 @@ int eepfs_erase(const char * const path)
 }
 
 /**
+ * @brief Validates the first block of EEPROM.
+ * 
+ * There are no guarantees that the data in EEPROM actually matches
+ * the expected layout of the filesystem. There are many reasons why
+ * a mismatch can occur: EEPROM re-used from another game; a brand new
+ * EEPROM that has never been initialized and contains garbage data;
+ * the filesystem has changed between builds or version of software 
+ * currently in development; EEPROM failing due to age or write limits.
+ * 
+ * To mitigate these scenarios, it is a good idea to validate that at
+ * least the first block of EEPROM matches some known good value.
+ * 
+ * If the signature matches, the data in EEPROM is probably what the
+ * filesystem expects. If not, the best move is to erase everything
+ * and start from zero.
+ * 
+ * @see #eepfs_generate_signature
+ * @see #eepfs_wipe
+ * 
+ * @retval true if the signature in EEPROM matches the filesystem signature
+ * @retval false if the signature in EEPROM does not match the filesystem signature
+ */
+bool eepfs_verify_signature(void)
+{
+    /* Generate the expected signature for the filesystem */
+    const uint64_t signature = eepfs_generate_signature();
+
+    /* Read the signature block out of EEPROM */
+    uint8_t eeprom_buf[EEPROM_BLOCK_SIZE];
+    eeprom_read(0, eeprom_buf);
+
+    /* If the signatures don't match, we can be pretty sure
+       that the data in EEPROM is not the expected filesystem */
+    return memcmp(eeprom_buf, (uint8_t *)&signature, EEPROM_BLOCK_SIZE) == 0;
+}
+
+/**
  * @brief Erases all blocks in EEPROM and sets a new signature.
  * 
  * This is useful when you want to erase all files in the filesystem.
+ * 
+ * Each EEPROM block write takes approximately 15 milliseconds;
+ * this operation may block for a while:
+ * 
+ * * 4k EEPROM: 64 blocks * 15ms = 960ms!
+ * * 16k EEPROM: 256 blocks * 15ms = 3840ms!
+ * 
+ * You may want to pause audio in advance of calling this.
  * 
  * Be advised: this is a destructive operation that cannot be undone!
  * 
@@ -913,18 +917,17 @@ int eepfs_erase(const char * const path)
  */
 void eepfs_wipe(void)
 {
-    const uint64_t signature = eepfs_generate_signature();
-
     /* Write the filesystem signature into the first block */
+    const uint64_t signature = eepfs_generate_signature();
     eeprom_write(0, (uint8_t *)&signature);
-
-    size_t current_block = 1;
-    const size_t total_blocks = eeprom_total_blocks();
 
     /* eeprom_buf is initialized to all zeroes */
     uint8_t eeprom_buf[EEPROM_BLOCK_SIZE] = {0};
 
     /* Write the rest of the blocks in with zeroes */
+    size_t current_block = 1;
+    const size_t total_blocks = eeprom_total_blocks();
+
     while ( current_block < total_blocks )
     {
         eeprom_write(current_block++, eeprom_buf);
