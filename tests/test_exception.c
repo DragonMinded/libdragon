@@ -55,6 +55,7 @@ extern const void test_break_label;
 void test_exception(TestContext *ctx) {
     uint64_t registers_after_ex[32];
     uint64_t fp_registers_after_ex[32];
+    uint64_t lo, hi;
     volatile int breakpoint_occured = 0;
     // volatile int fp_occured = 0;
     volatile const reg_block_t* exception_regs;
@@ -63,6 +64,7 @@ void test_exception(TestContext *ctx) {
     uint32_t dependency;
 
     void ex_handler(exception_t* ex) {
+        SET_REG(0,  A0);
         SET_REG(1,  A1);
         SET_REG(2,  A2);
         SET_REG(3,  A3);
@@ -117,6 +119,7 @@ void test_exception(TestContext *ctx) {
     register_exception_handler(ex_handler);
 
     // Set as many registers as possible to known values before the ex.
+    SET_REG(0, 00);
     SET_REG(1, 01);
     SET_REG(2, 02);
     SET_REG(3, 03);
@@ -159,6 +162,17 @@ void test_exception(TestContext *ctx) {
 
     SET_REG(30, 30);
     SET_REG(31, 31);
+
+    // Set lo & hi
+    asm volatile(
+        "dli $26, 0xDEADBEEFDEADBEEF \n"
+        "mtlo $26 \n"
+        "dli $26, 0xBEEFF00DBEEFF00D \n"
+        "mthi $26 \n"
+        :"=X"(dependency)
+        :
+        :"$26", "lo", "hi"
+    );
 
     // Make sure we trigger the exception after setting all the registers
     // dependency may not be necessary in practice but let's inform GCC
@@ -212,6 +226,17 @@ void test_exception(TestContext *ctx) {
     GET_REG(30, 30);
     GET_REG(31, 31);
 
+    // Get lo & hi
+    asm volatile(
+        "mflo $26 \n"
+        "sd $26,%0 \n"
+        "mfhi $26 \n"
+        "sd $26,%1 \n"
+        :"=m"(lo), "=m"(hi)
+        :
+        :"$26"
+    );
+
     ASSERT_REG(0,  00);
     ASSERT_REG(1,  01);
     ASSERT_REG(2,  02);
@@ -251,6 +276,13 @@ void test_exception(TestContext *ctx) {
     ASSERT_REG(30, 30);
     ASSERT_REG(31, 31);
 
+    ASSERT_EQUAL_HEX(lo, 0xDEADBEEFDEADBEEF, "lo not saved");
+    ASSERT_EQUAL_HEX(exception_regs->lo, 0xDEADBEEFDEADBEEF, "lo not available to the handler");
+
+    ASSERT_EQUAL_HEX(hi, 0xBEEFF00DBEEFF00D, "hi not saved");
+    ASSERT_EQUAL_HEX(exception_regs->hi, 0xBEEFF00DBEEFF00D, "hi not available to the handler");
+
+    // Other info
     ASSERT_EQUAL_HEX(exception_regs->epc, (uint32_t)&test_break_label, "EPC not available to the handler");
 
     // If the other tests change SR these may fail unnecessarily, but we expect tests to do proper cleanup
