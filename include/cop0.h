@@ -73,8 +73,16 @@
  * needs correction in the exception handler. This macro is for writing its
  * value so that execution continues there.
  */
-#define C0_WRITE_EPC(dest) ({ asm volatile("mtc0 %0,$14"::"r"(dest)); })
+#define C0_WRITE_EPC(value) ({ asm volatile("mtc0 %0,$14"::"r"(value)); })
 
+/**
+ * @brief Read the COP0 register $14 (EPC)
+ */
+#define C0_READ_EPC() ({ \
+	uint32_t x; \
+	asm volatile("mfc0 %0,$14" : "=r" (x) : ); \
+	x; \
+})
 
 /* COP0 Status bits definition. Please refer to MIPS R4300 manual. */
 #define C0_STATUS_IE        0x00000001
