@@ -44,18 +44,11 @@ inthandler:
 	sd $13,save13
 	sd $14,save14
 	sd $15,save15
-	sd $16,save16
-	sd $17,save17
-	sd $18,save18
-	sd $19,save19
-	sd $20,save20
-	sd $21,save21
-	sd $22,save22
-	sd $23,save23
+	# No need to save $16-$23 GCC saves them on function entry & exit if necessary
 	sd $24,save24
 	sd $25,save25
-	# No need to save $26 (k0) & $27 (k1)
-	sd $28,save28
+	# No need to save $26 (k0) & $27 (k1), the ibt handler is free to use them
+	# No need to save $28 (gp) GCC does not allow manipulating it
 	sd $29,save29
 	sd $30,save30
 	sd $31,save31
@@ -165,22 +158,19 @@ endint:
 	ld $13,save13
 	ld $14,save14
 	ld $15,save15
-	ld $16,save16
-	ld $17,save17
-	ld $18,save18
-	ld $19,save19
-	ld $20,save20
-	ld $21,save21
-	ld $22,save22
-	ld $23,save23
+	# No need to restore $16-$23 GCC saves them on function entry & exit if necessary
 	ld $24,save24
 	ld $25,save25
-	# No need to save $26 (k0) & $27 (k1)
-	ld $28,save28
+	# No need to restore $26 (k0) & $27 (k1), the ibt handler is free to use them
+	# No need to restore $28 (gp) GCC does not allow manipulating it
 	ld $29,save29
 	ld $31,save31
+	lw $30,saveEPC
+	mtc0 $30,C0_EPC
 	lw $30,saveSR
 	mtc0 $30,C0_SR
+	lw $30,saveCR
+	mtc0 $30,C0_CAUSE
 	ld $30,saveLO
 	mtlo $30
 	ld $30,saveHI
@@ -217,20 +207,9 @@ endint:
 	ldc1 $f28,saveFR28
 	ldc1 $f29,saveFR29
 	ldc1 $f30,saveFR30
-	ldc1 $f31,saveFR31
 
 	lw $30,saveFC31
-
-	# Override the cause bits (12-17) of stored value from cop1.
-	# If they were cleared by the ex. handler, they will remain cleared.
-	# We will restore the other values to their state before the exception
-	# has occured. If we restore all the bits, the exception handler will
-	# be unable to clear them if needed. This is important as they will
-	# re-trigger the exception upon handler exit if remains set.
-	cfc1 k0, $f31
-	and k0, 0x3F000
-	or k0, ~0x3F000
-	and $30, k0
+	ldc1 $f31,saveFR31
 	ctc1 $30,$f31
 
 	ld $30,save30

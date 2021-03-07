@@ -90,7 +90,7 @@ typedef struct
     /** @brief String information of exception */
 	const char* info;
     /** @brief Registers at point of exception */
-	volatile const reg_block_t* regs;
+	volatile reg_block_t* regs;
 } exception_t;
 
 /** @} */

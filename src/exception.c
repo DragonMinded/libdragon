@@ -34,6 +34,18 @@ extern const void* __baseRegAddr;
 /**
  * @brief Register an exception handler to handle exceptions
  *
+ * The registered handle is responsible for clearing any bits that may cause
+ * a re-trigger of the same exception and updating the EPC. To manipulate the
+ * registers, update the values in the exception_t struct. They will be
+ * restored to appropriate locations when returning from the handler.
+ * An important example is the cause bits (12-17) of FCR31 from cop1. To
+ * prevent re-triggering the exception they should be cleared by the handler.
+ * k0 ($26), k1 ($27), s0-s7 ($16-$23), and gp ($28) are not saved/restored
+ * and will not be available in the handler. These are removed to gain some
+ * performance as they are already saved by GCC when necessary. Theoretically
+ * the same is true for sp ($29) and ra ($31) but current interrupt handler
+ * manipulates them via allocating a new stack and doing a jal.
+ *
  * @param[in] cb
  *            Callback function to call when exceptions happen
  */
@@ -255,7 +267,7 @@ static const char* __get_exception_name(exception_code_t code)
  */
 static void __fetch_regs(exception_t* e,int32_t type)
 {
-	e->regs = (volatile const reg_block_t*) &__baseRegAddr;
+	e->regs = (volatile reg_block_t*) &__baseRegAddr;
 	e->type = type;
 	e->code = C0_GET_CAUSE_EXC_CODE(e->regs->cr);
 	e->info = __get_exception_name(e->code);
