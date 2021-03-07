@@ -24,6 +24,9 @@ inthandler:
 	mfc0 k1,C0_SR
 	la $1,saveSR
 	sw k1,($1)
+	la $1, ~1
+	and k1,$1
+	mtc0 k1,C0_SR
 	.set at
 
 	/*Save EPC now*/
@@ -47,8 +50,8 @@ inthandler:
 	# No need to save $16-$23 GCC saves them on function entry & exit if necessary
 	sd $24,save24
 	sd $25,save25
-	# No need to save $26 (k0) & $27 (k1), the ibt handler is free to use them
-	# No need to save $28 (gp) GCC does not allow manipulating it
+	# No need to save $26 (k0) & $27 (k1), the int handler is free to use them
+	sd $28,save28
 	sd $29,save29
 	sd $30,save30
 	sd $31,save31
@@ -161,7 +164,7 @@ endint:
 	# No need to restore $16-$23 GCC saves them on function entry & exit if necessary
 	ld $24,save24
 	ld $25,save25
-	# No need to restore $26 (k0) & $27 (k1), the ibt handler is free to use them
+	# No need to restore $26 (k0) & $27 (k1), the int handler is free to use them
 	# No need to restore $28 (gp) GCC does not allow manipulating it
 	ld $29,save29
 	ld $31,save31

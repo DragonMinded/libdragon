@@ -268,7 +268,7 @@ static void __console_render()
 
             /* Draw to the screen using the forecolor and backcolor set in the graphics
              * subsystem */
-            graphics_draw_character( dc, 24 + 8 * x, 8 * y, t_buf );
+            graphics_draw_character( dc, HORIZONTAL_PADDING + 8 * x, VERTICAL_PADDING + 8 * y, t_buf );
         }
     }
 

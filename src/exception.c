@@ -37,7 +37,8 @@ extern const void* __baseRegAddr;
  * The registered handle is responsible for clearing any bits that may cause
  * a re-trigger of the same exception and updating the EPC. To manipulate the
  * registers, update the values in the exception_t struct. They will be
- * restored to appropriate locations when returning from the handler.
+ * restored to appropriate locations when returning from the handler. Setting
+ * them directly will not work as expected as thhey will get overwritten.
  * An important example is the cause bits (12-17) of FCR31 from cop1. To
  * prevent re-triggering the exception they should be cleared by the handler.
  * k0 ($26), k1 ($27), s0-s7 ($16-$23), and gp ($28) are not saved/restored
@@ -69,7 +70,7 @@ static void exception_halt() {
 void exception_default_handler(exception_t* ex) {
 	// We need to return from the ex handler to gracefully restore interrupt
 	// state so that we can continue using interrupt dependent functionalities.
-	C0_WRITE_EPC(&exception_halt);
+	ex->regs->epc = (uint32_t)&exception_halt;
 
 	uint32_t cr = ex->regs->cr;
 	uint32_t sr = ex->regs->sr;
@@ -85,15 +86,13 @@ void exception_default_handler(exception_t* ex) {
 		break;
 		case EXCEPTION_CODE_FLOATING_POINT:
 			// Clear FP interrupt cause bits so that it is not retriggered when we return to exception_halt
-			C1_WRITE_FCR31(
-				C1_FCR31() & ~(
-					C1_CAUSE_INEXACT_OP |
-					C1_CAUSE_UNDERFLOW |
-					C1_CAUSE_OVERFLOW |
-					C1_CAUSE_DIV_BY_0 |
-					C1_CAUSE_INVALID_OP |
-					C1_CAUSE_NOT_IMPLEMENTED
-				)
+			ex->regs->fc31 &= ~(
+				C1_CAUSE_INEXACT_OP |
+				C1_CAUSE_UNDERFLOW |
+				C1_CAUSE_OVERFLOW |
+				C1_CAUSE_DIV_BY_0 |
+				C1_CAUSE_INVALID_OP |
+				C1_CAUSE_NOT_IMPLEMENTED
 			);
 		break;
 		case EXCEPTION_CODE_WATCH:
@@ -111,14 +110,13 @@ void exception_default_handler(exception_t* ex) {
 	console_set_render_mode(RENDER_MANUAL);
 	console_clear();
 
-	fprintf(stdout, "**************************************************************************");
-	fprintf(stdout, "%s exception at PC:%08lX\n", ex->info, ex->regs->epc);
+	fprintf(stdout, "%s exception at PC:%08lX\n\n", ex->info, ex->regs->epc);
 
-	fprintf(stdout, "cr:%08lX (COP:%1lu BD:%lu)\n", cr,  C0_GET_CAUSE_CE(cr), cr & C0_CAUSE_BD);
-	fprintf(stdout, "sr:%08lX FCR31:%08X BVAdr:%08lX \n", sr, (unsigned int)fcr31, C0_READ_BADVADDR());
-	fprintf(stdout, "--------------------------------------------------------------------------");
-	fprintf(stdout, "FPU     IOP UND OVE DV0 INV  NI  | INTs    sw0 sw1 ex0 ex1 ex2 ex3 ex4  tm");
-	fprintf(stdout, "Cause   %3u %3u %3u %3u %3u %3u  | Cause   %3u %3u %3u %3u %3u %3u %3u %3u",
+	fprintf(stdout, "CR:%08lX (COP:%1lu BD:%lu)\n", cr,  C0_GET_CAUSE_CE(cr), cr & C0_CAUSE_BD);
+	fprintf(stdout, "SR:%08lX FCR31:%08X BVAdr:%08lX \n", sr, (unsigned int)fcr31, C0_READ_BADVADDR());
+	fprintf(stdout, "----------------------------------------------------------------");
+	fprintf(stdout, "FPU IOP UND OVE DV0 INV NI | INT sw0 sw1 ex0 ex1 ex2 ex3 ex4 tmr");
+	fprintf(stdout, "Cause%2u %3u %3u %3u %3u%3u | Cause%2u %3u %3u %3u %3u %3u %3u %3u",
 		(bool)(fcr31 & C1_CAUSE_INEXACT_OP),
 		(bool)(fcr31 & C1_CAUSE_UNDERFLOW),
 		(bool)(fcr31 & C1_CAUSE_OVERFLOW),
@@ -135,7 +133,7 @@ void exception_default_handler(exception_t* ex) {
 		(bool)(cr & C0_INTERRUPT_6),
 		(bool)(cr & C0_INTERRUPT_TIMER)
 	);
-	fprintf(stdout, "Enabled %3u %3u %3u %3u %3u   -  | MASK    %3u %3u %3u %3u %3u %3u %3u %3u",
+	fprintf(stdout, "En  %3u %3u %3u %3u %3u  - | MASK%3u %3u %3u %3u %3u %3u %3u %3u",
 		(bool)(fcr31 & C1_ENABLE_INEXACT_OP),
 		(bool)(fcr31 & C1_ENABLE_UNDERFLOW),
 		(bool)(fcr31 & C1_ENABLE_OVERFLOW),
@@ -152,7 +150,7 @@ void exception_default_handler(exception_t* ex) {
 		(bool)(sr & C0_INTERRUPT_TIMER)
 	);
 
-	fprintf(stdout, "Flags   %3u %3u %3u %3u %3u   -  |\n",
+	fprintf(stdout, "Flags%2u %3u %3u %3u %3u  - |\n",
 		(bool)(fcr31 & C1_FLAG_INEXACT_OP),
 		(bool)(fcr31 & C1_FLAG_UNDERFLOW),
 		(bool)(fcr31 & C1_FLAG_OVERFLOW),
@@ -160,51 +158,41 @@ void exception_default_handler(exception_t* ex) {
 		(bool)(fcr31 & C1_FLAG_INVALID_OP)
 	);
 
-	fprintf(stdout, "--------------------------------------------------------------------------");
+	fprintf(stdout, "----------------------------------------------------------------");
 
 	fprintf(stdout, "z0:%08lX ",		(uint32_t)ex->regs->gpr[0]);
 	fprintf(stdout, "at:%08lX ",		(uint32_t)ex->regs->gpr[1]);
 	fprintf(stdout, "v0:%08lX ",		(uint32_t)ex->regs->gpr[2]);
 	fprintf(stdout, "v1:%08lX ",		(uint32_t)ex->regs->gpr[3]);
-	fprintf(stdout, "a0:%08lX ",		(uint32_t)ex->regs->gpr[4]);
-	fprintf(stdout, "a1:%08lX\n",		(uint32_t)ex->regs->gpr[5]);
+	fprintf(stdout, "a0:%08lX\n",		(uint32_t)ex->regs->gpr[4]);
+	fprintf(stdout, "a1:%08lX ",		(uint32_t)ex->regs->gpr[5]);
 	fprintf(stdout, "a2:%08lX ",		(uint32_t)ex->regs->gpr[6]);
 	fprintf(stdout, "a3:%08lX ",		(uint32_t)ex->regs->gpr[7]);
 	fprintf(stdout, "t0:%08lX ",		(uint32_t)ex->regs->gpr[8]);
-	fprintf(stdout, "t1:%08lX ",		(uint32_t)ex->regs->gpr[9]);
+	fprintf(stdout, "t1:%08lX\n",		(uint32_t)ex->regs->gpr[9]);
 	fprintf(stdout, "t2:%08lX ",		(uint32_t)ex->regs->gpr[10]);
-	fprintf(stdout, "t3:%08lX\n",		(uint32_t)ex->regs->gpr[11]);
+	fprintf(stdout, "t3:%08lX ",		(uint32_t)ex->regs->gpr[11]);
 	fprintf(stdout, "t4:%08lX ",		(uint32_t)ex->regs->gpr[12]);
 	fprintf(stdout, "t5:%08lX ",		(uint32_t)ex->regs->gpr[13]);
-	fprintf(stdout, "t6:%08lX ",		(uint32_t)ex->regs->gpr[14]);
+	fprintf(stdout, "t6:%08lX\n",		(uint32_t)ex->regs->gpr[14]);
 	fprintf(stdout, "t7:%08lX ",		(uint32_t)ex->regs->gpr[15]);
-	fprintf(stdout, "s0:%08lX ",		(uint32_t)ex->regs->gpr[16]);
-	fprintf(stdout, "s1:%08lX\n",		(uint32_t)ex->regs->gpr[17]);
-	fprintf(stdout, "s2:%08lX ",		(uint32_t)ex->regs->gpr[18]);
-	fprintf(stdout, "s3:%08lX ",		(uint32_t)ex->regs->gpr[19]);
-	fprintf(stdout, "s4:%08lX ",		(uint32_t)ex->regs->gpr[20]);
-	fprintf(stdout, "s5:%08lX ",		(uint32_t)ex->regs->gpr[21]);
-	fprintf(stdout, "s6:%08lX ",		(uint32_t)ex->regs->gpr[22]);
-	fprintf(stdout, "s7:%08lX\n",		(uint32_t)ex->regs->gpr[23]);
 	fprintf(stdout, "t8:%08lX ",		(uint32_t)ex->regs->gpr[24]);
 	fprintf(stdout, "t9:%08lX ",		(uint32_t)ex->regs->gpr[25]);
 	fprintf(stdout, "gp:%08lX ",		(uint32_t)ex->regs->gpr[28]);
-	fprintf(stdout, "sp:%08lX ",		(uint32_t)ex->regs->gpr[29]);
+	fprintf(stdout, "sp:%08lX\n",		(uint32_t)ex->regs->gpr[29]);
 	fprintf(stdout, "fp:%08lX ",		(uint32_t)ex->regs->gpr[30]);
-	fprintf(stdout, "ra:%08lX\n",		(uint32_t)ex->regs->gpr[31]);
-	fprintf(stdout, "lo:%08lX ",		(uint32_t)ex->regs->lo);
-	fprintf(stdout, "hi:%08lX\n",		(uint32_t)ex->regs->hi);
+	fprintf(stdout, "ra:%08lX ",		(uint32_t)ex->regs->gpr[31]);
+	fprintf(stdout, "lo:%016llX ",		ex->regs->lo);
+	fprintf(stdout, "hi:%016llX\n",		ex->regs->hi);
 
-	fprintf(stdout, "--------------------------------------------------------------------------");
+	fprintf(stdout, "----------------------------------------------------------------");
 	fprintf(stdout, "FP Registers:\n");
 	for (int i = 0; i<32; i++) {
-		fprintf(stdout, "%02u:%016llX ", i, ex->regs->fpr[i]);
+		fprintf(stdout, "%02u:%016llX  ", i, ex->regs->fpr[i]);
 		if ((i % 3) == 2) {
 			fprintf(stdout, "\n");
 		}
 	}
-	fprintf(stdout, "\n");
-	fprintf(stdout, "**************************************************************************");
 }
 
 /**
