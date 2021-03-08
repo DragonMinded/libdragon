@@ -64,19 +64,14 @@
 })
 
 /**
- * @brief Writes to the COP0 register $14 (EPC)
+ * @brief Read the COP0 register $14 (EPC)
  *
  * The coprocessor 0 (system control coprocessor - COP0) register $14 is the
  * return from exception program counter. For asynchronous exceptions it points
  * to the place to continue execution whereas for synchronous (caused by code)
  * exceptions, point to the instruction causing the fault condition, which
- * needs correction in the exception handler. This macro is for writing its
- * value so that execution continues there.
- */
-#define C0_WRITE_EPC(value) ({ asm volatile("mtc0 %0,$14"::"r"(value)); })
-
-/**
- * @brief Read the COP0 register $14 (EPC)
+ * needs correction in the exception handler. This macro is for reading its
+ * value.
  */
 #define C0_READ_EPC() ({ \
 	uint32_t x; \

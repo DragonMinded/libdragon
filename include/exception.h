@@ -61,7 +61,16 @@ typedef volatile struct
 	volatile uint32_t sr;
     /** @brief CR */
 	volatile uint32_t cr;
-    /** @brief EPC */
+    /**
+	 * @brief represents EPC - COP0 register $14
+	 *
+	 * The coprocessor 0 (system control coprocessor - COP0) register $14 is the
+	 * return from exception program counter. For asynchronous exceptions it points
+	 * to the place to continue execution whereas for synchronous (caused by code)
+	 * exceptions, point to the instruction causing the fault condition, which
+	 * needs correction in the exception handler. This member is for reading/writing
+	 * its value.
+	 * */
 	volatile uint32_t epc;
     /** @brief HI */
 	volatile uint64_t hi;
