@@ -57,6 +57,9 @@
 extern const void test_break_label;
 
 void test_exception(TestContext *ctx) {
+    uint32_t known_fcr31 = C1_FCR31();
+    C1_WRITE_FCR31(0);
+
     uint64_t registers_after_ex[32];
     uint64_t fp_registers_after_ex[32];
     uint64_t lo, hi;
@@ -295,4 +298,5 @@ void test_exception(TestContext *ctx) {
 
     // Cleanup
     register_exception_handler(exception_default_handler);
+    C1_WRITE_FCR31(known_fcr31);
 }
