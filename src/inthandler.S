@@ -172,8 +172,6 @@ endint:
 	mtc0 $30,C0_EPC
 	lw $30,saveSR
 	mtc0 $30,C0_SR
-	lw $30,saveCR
-	mtc0 $30,C0_CAUSE
 	ld $30,saveLO
 	mtlo $30
 	ld $30,saveHI

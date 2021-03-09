@@ -60,7 +60,7 @@ typedef volatile struct
     /** @brief SR */
 	volatile uint32_t sr;
     /** @brief CR */
-	volatile uint32_t cr;
+	volatile const uint32_t cr;
     /**
 	 * @brief represents EPC - COP0 register $14
 	 *

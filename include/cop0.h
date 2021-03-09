@@ -51,6 +51,30 @@
 })
 
 /**
+ * @brief Returns the COP0 register $13 (Cause Register)
+ *
+ * The coprocessor 0 (system control coprocessor - COP0) register $13 is a read
+ * write register keeping pending interrupts, exception code, coprocessor unit
+ * number referenced for a coprocessor unusable exception.
+ *
+ * @see #C0_GET_CAUSE_EXC_CODE, #C0_GET_CAUSE_CE and #C0_CAUSE_BD
+ */
+#define C0_READ_CR() ({ \
+	uint32_t x; \
+	asm volatile("mfc0 %0,$13" : "=r" (x) : ); \
+	x; \
+})
+
+/**
+ * @brief Write the COP0 register $13 (Cause register)
+ * 
+ * Use this to update it for a custom exception handler.
+ * */
+#define C0_WRITE_CR(x) ({ \
+    asm volatile("mtc0 %0,$13"::"r"(x)); \
+})
+
+/**
  * @brief Returns the COP0 register $8 (BadVAddr)
  *
  * The coprocessor 0 (system control coprocessor - COP0) register $8 is a read

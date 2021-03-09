@@ -57,6 +57,7 @@
 extern const void test_break_label;
 
 void test_exception(TestContext *ctx) {
+    // Bring FCR31 to a known state as some fp operations setting the inexact op flag
     uint32_t known_fcr31 = C1_FCR31();
     C1_WRITE_FCR31(0);
 

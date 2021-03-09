@@ -35,12 +35,21 @@ extern const void* __baseRegAddr;
  * @brief Register an exception handler to handle exceptions
  *
  * The registered handle is responsible for clearing any bits that may cause
- * a re-trigger of the same exception and updating the EPC. To manipulate the
- * registers, update the values in the exception_t struct. They will be
- * restored to appropriate locations when returning from the handler. Setting
- * them directly will not work as expected as thhey will get overwritten.
- * An important example is the cause bits (12-17) of FCR31 from cop1. To
- * prevent re-triggering the exception they should be cleared by the handler.
+ * a re-trigger of the same exception and updating the EPC. An important
+ * example is the cause bits (12-17) of FCR31 from cop1. To prevent
+ * re-triggering the exception they should be cleared by the handler.
+ *
+ * To manipulate the registers, update the values in the exception_t struct.
+ * They will be restored to appropriate locations when returning from the
+ * handler. Setting them directly will not work as expected as they will get
+ * overwritten with the values pointed by the struct.
+ *
+ * There is only one exception to this, cr (cause register) which is also
+ * modified by the int handler before the saved values are restored thus it
+ * is only possible to update it through C0_WRITE_CR macro if it is needed.
+ * This shouldn't be necessary though as they are already handled by the
+ * library.
+ *
  * k0 ($26), k1 ($27), s0-s7 ($16-$23), and gp ($28) are not saved/restored
  * and will not be available in the handler. These are removed to gain some
  * performance as they are already saved by GCC when necessary. Theoretically
@@ -112,7 +121,7 @@ void exception_default_handler(exception_t* ex) {
 
 	fprintf(stdout, "%s exception at PC:%08lX\n\n", ex->info, ex->regs->epc);
 
-	fprintf(stdout, "CR:%08lX (COP:%1lu BD:%lu)\n", cr,  C0_GET_CAUSE_CE(cr), cr & C0_CAUSE_BD);
+	fprintf(stdout, "CR:%08lX (COP:%1lu BD:%lu)\n", cr, C0_GET_CAUSE_CE(cr), cr & C0_CAUSE_BD);
 	fprintf(stdout, "SR:%08lX FCR31:%08X BVAdr:%08lX \n", sr, (unsigned int)fcr31, C0_READ_BADVADDR());
 	fprintf(stdout, "----------------------------------------------------------------");
 	fprintf(stdout, "FPU IOP UND OVE DV0 INV NI | INT sw0 sw1 ex0 ex1 ex2 ex3 ex4 tmr");
