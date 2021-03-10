@@ -587,6 +587,17 @@ int close( int fildes )
         return -1;
     }
 
+    /* Free the open file handle */
+    for( int i = 0; i < MAX_OPEN_HANDLES; i++)
+    {
+        if( handles[i].fileno == fildes )
+        {
+            handles[i].fs_mapping = 0;
+            handles[i].handle = NULL;
+            handles[i].fileno = 0;
+        }
+    }
+
     if( fs->close == 0 )
     {
         /* Filesystem doesn't support close */
@@ -594,6 +605,7 @@ int close( int fildes )
         return -1;
     }
 
+    /* Tell the filesystem to close the file */
     return fs->close( handle );
 }
 
