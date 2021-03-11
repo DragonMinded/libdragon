@@ -47,7 +47,14 @@ inthandler:
 	sd $13,save13
 	sd $14,save14
 	sd $15,save15
-	# No need to save $16-$23 GCC saves them on function entry & exit if necessary
+	sd $16,save16
+	sd $17,save17
+	sd $18,save18
+	sd $19,save19
+	sd $20,save20
+	sd $21,save21
+	sd $22,save22
+	sd $23,save23
 	sd $24,save24
 	sd $25,save25
 	# No need to save $26 (k0) & $27 (k1), the int handler is free to use them
@@ -161,11 +168,18 @@ endint:
 	ld $13,save13
 	ld $14,save14
 	ld $15,save15
-	# No need to restore $16-$23 GCC saves them on function entry & exit if necessary
+	ld $16,save16
+	ld $17,save17
+	ld $18,save18
+	ld $19,save19
+	ld $20,save20
+	ld $21,save21
+	ld $22,save22
+	ld $23,save23
 	ld $24,save24
 	ld $25,save25
 	# No need to restore $26 (k0) & $27 (k1), the int handler is free to use them
-	# No need to restore $28 (gp) GCC does not allow manipulating it
+	ld $28,save28
 	ld $29,save29
 	ld $31,save31
 	lw $30,saveEPC

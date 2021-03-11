@@ -50,11 +50,13 @@ extern const void* __baseRegAddr;
  * This shouldn't be necessary though as they are already handled by the
  * library.
  *
- * k0 ($26), k1 ($27), s0-s7 ($16-$23), and gp ($28) are not saved/restored
- * and will not be available in the handler. These are removed to gain some
- * performance as they are already saved by GCC when necessary. Theoretically
- * the same is true for sp ($29) and ra ($31) but current interrupt handler
- * manipulates them via allocating a new stack and doing a jal.
+ * k0 ($26), k1 ($27) are not saved/restored and will not be available in the
+ * handler. Theoretically we can exclude s0-s7 ($16-$23), and gp ($28) to gain
+ * some performance as they are already saved by GCC when necessary. The same
+ * is true for sp ($29) and ra ($31) but current interrupt handler manipulates
+ * them via allocating a new stack and doing a jal. Similarly floating point
+ * registers f21-f31 are callee-saved. In the future we may consider removing
+ * them from the save state for interrupts (but not for exceptions)
  *
  * @param[in] cb
  *            Callback function to call when exceptions happen
@@ -115,7 +117,7 @@ void exception_default_handler(exception_t* ex) {
 	console_set_render_mode(RENDER_MANUAL);
 	console_clear();
 
-	fprintf(stdout, "%s exception at PC:%08lX\n\n", ex->info, (uint32_t)(ex->regs->epc + ((cr & C0_CAUSE_BD) ? 4 : 0)));
+	fprintf(stdout, "%s exception at PC:%08lX\n", ex->info, (uint32_t)(ex->regs->epc + ((cr & C0_CAUSE_BD) ? 4 : 0)));
 
 	fprintf(stdout, "CR:%08lX (COP:%1lu BD:%u)\n", cr, C0_GET_CAUSE_CE(cr), (bool)(cr & C0_CAUSE_BD));
 	fprintf(stdout, "SR:%08lX FCR31:%08X BVAdr:%08lX \n", sr, (unsigned int)fcr31, C0_READ_BADVADDR());
@@ -163,7 +165,7 @@ void exception_default_handler(exception_t* ex) {
 		(bool)(fcr31 & C1_FLAG_INVALID_OP)
 	);
 
-	fprintf(stdout, "----------------------------------------------------------------");
+	fprintf(stdout, "-------------------------------------------------GP Registers---");
 
 	fprintf(stdout, "z0:%08lX ",		(uint32_t)ex->regs->gpr[0]);
 	fprintf(stdout, "at:%08lX ",		(uint32_t)ex->regs->gpr[1]);
@@ -183,15 +185,24 @@ void exception_default_handler(exception_t* ex) {
 	fprintf(stdout, "t7:%08lX ",		(uint32_t)ex->regs->gpr[15]);
 	fprintf(stdout, "t8:%08lX ",		(uint32_t)ex->regs->gpr[24]);
 	fprintf(stdout, "t9:%08lX ",		(uint32_t)ex->regs->gpr[25]);
+
+	fprintf(stdout, "s0:%08lX ",		(uint32_t)ex->regs->gpr[16]);
+	fprintf(stdout, "s1:%08lX\n",		(uint32_t)ex->regs->gpr[17]);
+	fprintf(stdout, "s2:%08lX ",		(uint32_t)ex->regs->gpr[18]);
+	fprintf(stdout, "s3:%08lX ",		(uint32_t)ex->regs->gpr[19]);
+	fprintf(stdout, "s4:%08lX ",		(uint32_t)ex->regs->gpr[20]);
+	fprintf(stdout, "s5:%08lX ",		(uint32_t)ex->regs->gpr[21]);
+	fprintf(stdout, "s6:%08lX\n",		(uint32_t)ex->regs->gpr[22]);
+	fprintf(stdout, "s7:%08lX ",		(uint32_t)ex->regs->gpr[23]);
+
 	fprintf(stdout, "gp:%08lX ",		(uint32_t)ex->regs->gpr[28]);
-	fprintf(stdout, "sp:%08lX\n",		(uint32_t)ex->regs->gpr[29]);
+	fprintf(stdout, "sp:%08lX ",		(uint32_t)ex->regs->gpr[29]);
 	fprintf(stdout, "fp:%08lX ",		(uint32_t)ex->regs->gpr[30]);
-	fprintf(stdout, "ra:%08lX ",		(uint32_t)ex->regs->gpr[31]);
+	fprintf(stdout, "ra:%08lX \n",		(uint32_t)ex->regs->gpr[31]);
 	fprintf(stdout, "lo:%016llX ",		ex->regs->lo);
 	fprintf(stdout, "hi:%016llX\n",		ex->regs->hi);
 
-	fprintf(stdout, "----------------------------------------------------------------");
-	fprintf(stdout, "FP Registers:\n");
+	fprintf(stdout, "-------------------------------------------------FP Registers---");
 	for (int i = 0; i<32; i++) {
 		fprintf(stdout, "%02u:%016llX  ", i, ex->regs->fpr[i]);
 		if ((i % 3) == 2) {

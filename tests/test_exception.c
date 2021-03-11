@@ -6,7 +6,7 @@
         ".set at \n" \
         :"=X"(dependency) \
         : \
-        :"$" #no \
+        :"$" #no, "$f" #no \
     ); \
 })
 
@@ -16,7 +16,7 @@
         "dmtc1 $26, $f" #no "\n" \
         :"=X"(dependency) \
         : \
-        :"$26" \
+        :"$26", "$f" #no \
     ); \
 })
 
@@ -43,15 +43,27 @@
     ); \
 })
 
-#define ASSERT_REG_NO_HANDLER(no, value) ({ \
-    ASSERT_EQUAL_HEX(registers_after_ex[no], 0x##value##value##value##value##value##value##value##value, "$" #no " not saved"); \
+#define ASSERT_REG_FP(no, value) ({ \
     ASSERT_EQUAL_HEX(fp_registers_after_ex[no], 0x##value##value##value##value##value##value##value##value, "$f" #no " not saved"); \
+})
+
+#define ASSERT_REG_GP(no, value) ({ \
+    ASSERT_EQUAL_HEX(registers_after_ex[no], 0x##value##value##value##value##value##value##value##value, "$" #no " not saved"); \
+})
+
+#define ASSERT_REG_FP_HANDLER(no, value) ({ \
     ASSERT_EQUAL_HEX(exception_regs->fpr[no], 0x##value##value##value##value##value##value##value##value, "$f" #no " not available to the handler"); \
 })
 
-#define ASSERT_REG(no, value) ({ \
-    ASSERT_REG_NO_HANDLER(no, value); \
+#define ASSERT_REG_GP_HANDLER(no, value) ({ \
     ASSERT_EQUAL_HEX(exception_regs->gpr[no], 0x##value##value##value##value##value##value##value##value, "$" #no " not available to the handler"); \
+})
+
+#define ASSERT_REG(no, value) ({ \
+    ASSERT_REG_FP(no, value); \
+    ASSERT_REG_GP(no, value); \
+    ASSERT_REG_FP_HANDLER(no, value); \
+    ASSERT_REG_GP_HANDLER(no, value); \
 })
 
 extern const void test_break_label;
@@ -260,18 +272,20 @@ void test_exception(TestContext *ctx) {
     ASSERT_REG(13, 13);
     ASSERT_REG(14, 14);
     ASSERT_REG(15, 15);
-    ASSERT_REG_NO_HANDLER(16, 16);
-    ASSERT_REG_NO_HANDLER(17, 17);
-    ASSERT_REG_NO_HANDLER(18, 18);
-    ASSERT_REG_NO_HANDLER(19, 19);
-    ASSERT_REG_NO_HANDLER(20, 20);
-    ASSERT_REG_NO_HANDLER(21, 21);
-    ASSERT_REG_NO_HANDLER(22, 22);
-    ASSERT_REG_NO_HANDLER(23, 23);
+
+    ASSERT_REG(16, 16);
+    ASSERT_REG(17, 17);
+    ASSERT_REG(18, 18);
+    ASSERT_REG(19, 19);
+    ASSERT_REG(20, 20);
+    ASSERT_REG(21, 21);
+    ASSERT_REG(22, 22);
+    ASSERT_REG(23, 23);
     ASSERT_REG(24, 24);
     ASSERT_REG(25, 25);
 
     ASSERT_EQUAL_HEX(registers_after_ex[28], gp, "$28 not saved");
+    ASSERT_EQUAL_HEX(exception_regs->gpr[28], gp, "$28 not available to the handler");
     ASSERT_EQUAL_HEX(fp_registers_after_ex[28], 0x2828282828282828, "$f28 not saved");
     ASSERT_EQUAL_HEX(exception_regs->fpr[28], 0x2828282828282828, "$f28 not available to the handler");
 
@@ -294,7 +308,7 @@ void test_exception(TestContext *ctx) {
 
     // If the other tests change SR these may fail unnecessarily, but we expect tests to do proper cleanup
     ASSERT_EQUAL_HEX(exception_regs->sr, 0x241004E3, "SR not available to the handler");
-    ASSERT_EQUAL_HEX(exception_regs->cr, 0x24, "SR not available to the handler");
+    ASSERT_EQUAL_HEX(exception_regs->cr, 0x24, "CR not available to the handler");
     ASSERT_EQUAL_HEX(exception_regs->fc31, 0x0, "FCR31 not available to the handler");
 
     // Cleanup
