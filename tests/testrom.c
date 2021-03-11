@@ -219,7 +219,7 @@ int main() {
 		ctx.result = TEST_SUCCESS;
 		rand_state = 1; // reset to be fully reproducible
 
-		printf("%-30s", tests[i].name);
+		printf("%-59s", tests[i].name);
 		fflush(stdout);
 
 		uint32_t test_start = TICKS_READ();
