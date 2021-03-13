@@ -180,7 +180,7 @@ void console_init()
 {
     /* In case they initialized the display already */
     display_close();
-    display_init( RESOLUTION_320x240, DEPTH_16_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
+    display_init( RESOLUTION_640x240, DEPTH_16_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
 
     render_buffer = malloc(CONSOLE_SIZE);
 
@@ -268,7 +268,7 @@ static void __console_render()
 
             /* Draw to the screen using the forecolor and backcolor set in the graphics
              * subsystem */
-            graphics_draw_character( dc, 20 + 8 * x, 16 + 8 * y, t_buf );
+            graphics_draw_character( dc, HORIZONTAL_PADDING + 8 * x, VERTICAL_PADDING + 8 * y, t_buf );
         }
     }
 
@@ -283,6 +283,8 @@ static void __console_render()
  * it is not necessary to call.
  *
  * The color that is used to draw the text can be set using #graphics_set_color.
+ *
+ * Do not call while interrupts are disabled, or it will lock the system.
  */
 void console_render()
 {

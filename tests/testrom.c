@@ -154,6 +154,7 @@ int assert_equal_mem(TestContext *ctx, const uint8_t *a, const uint8_t *b, int l
 #include "test_ticks.c"
 #include "test_timer.c"
 #include "test_irq.c"
+#include "test_exception.c"
 
 /**********************************************************************
  * MAIN
@@ -174,6 +175,7 @@ static const struct Testsuite
 	uint32_t duration;
 	uint32_t flags;
 } tests[] = {
+	TEST_FUNC(test_exception,              5, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_ticks,                  0, TEST_FLAGS_NO_BENCHMARK | TEST_FLAGS_NO_EMULATOR),
 	TEST_FUNC(test_timer_ticks,          292, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_timer_oneshot,        596, TEST_FLAGS_RESET_COUNT),
@@ -217,7 +219,7 @@ int main() {
 		ctx.result = TEST_SUCCESS;
 		rand_state = 1; // reset to be fully reproducible
 
-		printf("%-30s", tests[i].name);
+		printf("%-59s", tests[i].name);
 		fflush(stdout);
 
 		uint32_t test_start = TICKS_READ();
