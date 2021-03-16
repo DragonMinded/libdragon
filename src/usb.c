@@ -604,7 +604,7 @@ s8 usb_64drive_wait()
         #endif
         
         // Took too long, abort
-        if((timeout++) > 1000000)
+        if((timeout++) > 10000)
             return -1;
     }
     while((ret >> 8) & D64_CI_BUSY);
@@ -642,9 +642,10 @@ void usb_64drive_setwritable(u8 enable)
     Waits for the 64Drive's USB to be idle
 ==============================*/
 
-static void usb_64drive_waitidle()
+static int usb_64drive_waitidle()
 {
     u32 status __attribute__((aligned(8)));
+    u32 timeout = 0;
     do 
     {
         #ifdef LIBDRAGON
@@ -657,8 +658,11 @@ static void usb_64drive_waitidle()
             #endif
         #endif
         status = (status >> 4) & D64_USB_BUSY;
+        if (timeout++ > 128)
+            return 0;
     }
     while(status != D64_USB_IDLE);
+    return 1;
 }
 
 
@@ -724,7 +728,8 @@ static void usb_64drive_write(int datatype, const void* data, int size)
     int read = 0;
     
     // Spin until the write buffer is free and then set the cartridge to write mode
-    usb_64drive_waitidle();
+    if (!usb_64drive_waitidle())
+        return;
     usb_64drive_setwritable(TRUE);
     
     // Write data to SDRAM until we've finished
@@ -749,7 +754,11 @@ static void usb_64drive_write(int datatype, const void* data, int size)
         }
         
         // Spin until the write buffer is free
-        usb_64drive_waitidle();
+        if (!usb_64drive_waitidle())
+        {
+            usb_64drive_setwritable(FALSE);
+            return;
+        }
         
         // Set up DMA transfer between RDRAM and the PI
         #ifdef LIBDRAGON
