@@ -162,15 +162,6 @@ static int __console_write( char *buf, unsigned int len )
 }
 
 /**
- * @brief Structure used for hooking console commands to stdio
- */
-static stdio_t console_calls = {
-    0,
-    __console_write,
-    0
-};
-
-/**
  * @brief Initialize the console
  *
  * Initialize the console system.  This will initialize the video properly, so
@@ -188,6 +179,7 @@ void console_init()
     console_set_render_mode(RENDER_AUTOMATIC);
 
     /* Register ourselves with newlib */
+    stdio_t console_calls = { 0, __console_write, 0 };
     hook_stdio_calls( &console_calls );
 }
 
@@ -207,7 +199,8 @@ void console_close()
     }
 
     /* Unregister ourselves from newlib */
-    unhook_stdio_calls();
+    stdio_t console_calls = { 0, __console_write, 0 };
+    unhook_stdio_calls( &console_calls );
 }
 
 /**

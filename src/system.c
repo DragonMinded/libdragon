@@ -1283,9 +1283,12 @@ int hook_stdio_calls( stdio_t *stdio_calls )
     }
 
     /* Safe to hook */
-    stdio_hooks.stdin_read = stdio_calls->stdin_read;
-    stdio_hooks.stdout_write = stdio_calls->stdout_write;
-    stdio_hooks.stderr_write = stdio_calls->stderr_write;
+    if (stdio_calls->stdin_read)
+        stdio_hooks.stdin_read = stdio_calls->stdin_read;
+    if (stdio_calls->stdout_write)
+        stdio_hooks.stdout_write = stdio_calls->stdout_write;
+    if (stdio_calls->stderr_write)
+        stdio_hooks.stderr_write = stdio_calls->stderr_write;
 
     /* Success */
     return 0;
@@ -1294,14 +1297,20 @@ int hook_stdio_calls( stdio_t *stdio_calls )
 /**
  * @brief Unhook from stdio
  *
+ * @param[in] stdio_calls
+ *            Pointer to structure containing callbacks for stdio functions
+ *
  * @return 0 on successful hook or a negative value on failure.
  */
-int unhook_stdio_calls()
+int unhook_stdio_calls( stdio_t *stdio_calls )
 {
     /* Just wipe out internal variable */
-    stdio_hooks.stdin_read = 0;
-    stdio_hooks.stdout_write = 0;
-    stdio_hooks.stderr_write = 0;
+    if (stdio_calls->stdin_read == stdio_hooks.stdin_read)
+        stdio_hooks.stdin_read = 0;
+    if (stdio_calls->stdout_write == stdio_hooks.stdout_write)
+        stdio_hooks.stdout_write = 0;
+    if (stdio_calls->stderr_write == stdio_hooks.stderr_write)
+        stdio_hooks.stderr_write = 0;
 
     /* Always successful for now */
     return 0;
