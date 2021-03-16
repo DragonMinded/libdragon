@@ -2,6 +2,10 @@ OFILES_LD  = $(CURDIR)/build/n64sys.o
 OFILES_LD += $(CURDIR)/build/interrupt.o
 OFILES_LD += $(CURDIR)/build/inthandler.o
 OFILES_LD += $(CURDIR)/build/entrypoint.o
+OFILES_LD += $(CURDIR)/build/debug.o
+OFILES_LD += $(CURDIR)/build/usb.o
+OFILES_LD += $(CURDIR)/build/ff.o
+OFILES_LD += $(CURDIR)/build/ffunicode.o
 OFILES_LD += $(CURDIR)/build/dragonfs.o
 OFILES_LD += $(CURDIR)/build/audio.o
 OFILES_LD += $(CURDIR)/build/display.o
@@ -36,6 +40,18 @@ $(CURDIR)/build/inthandler.o: $(CURDIR)/src/inthandler.S
 $(CURDIR)/build/entrypoint.o: $(CURDIR)/src/entrypoint.S
 	mkdir -p $(CURDIR)/build
 	$(CC) -c -o $(CURDIR)/build/entrypoint.o $(CURDIR)/src/entrypoint.S
+$(CURDIR)/build/debug.o: $(CURDIR)/src/debug.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/debug.o $(CURDIR)/src/debug.c
+$(CURDIR)/build/usb.o: $(CURDIR)/src/usb.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/usb.o $(CURDIR)/src/usb.c
+$(CURDIR)/build/ff.o: $(CURDIR)/src/fatfs/ff.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -I$(CURDIR)/src/fatfs -o $(CURDIR)/build/ff.o $(CURDIR)/src/fatfs/ff.c
+$(CURDIR)/build/ffunicode.o: $(CURDIR)/src/fatfs/ffunicode.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -I$(CURDIR)/src/fatfs -o $(CURDIR)/build/ffunicode.o $(CURDIR)/src/fatfs/ffunicode.c
 
 # Rules for compiling filesystem
 $(CURDIR)/build/dragonfs.o: $(CURDIR)/src/dragonfs.c ./include/n64sys.h

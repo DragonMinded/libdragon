@@ -12,8 +12,9 @@
  * SIMPLE TEST FRAMEWORK
  **********************************************************************/
 
-#define TEST_FAILED   1
 #define TEST_SUCCESS  0
+#define TEST_FAILED   1
+#define TEST_SKIPPED  2
 
 typedef struct {
 	int result;
@@ -39,6 +40,13 @@ typedef void (*TestFunc)(TestContext *ctx);
 	void PPCAT(__cleanup, __LINE__) (int* u) { stmt; } \
 	int PPCAT(__var, __LINE__) __attribute__((unused, cleanup(PPCAT(__cleanup, __LINE__ ))));
 
+// SKIP: skip execution of the test.
+#define SKIP(msg, ...) ({ \
+	LOG("TEST SKIPPED:\n"); \
+	LOG(msg, ##__VA_ARGS__); \
+	ctx->result = TEST_SKIPPED; \
+	return; \
+})
 
 // Fair and fast random generation (using xorshift32, with explicit seed)
 static uint32_t rand_state = 1;
@@ -155,6 +163,7 @@ int assert_equal_mem(TestContext *ctx, const uint8_t *a, const uint8_t *b, int l
 #include "test_timer.c"
 #include "test_irq.c"
 #include "test_exception.c"
+#include "test_debug.c"
 
 /**********************************************************************
  * MAIN
@@ -185,6 +194,7 @@ static const struct Testsuite
 	TEST_FUNC(test_irq_reentrancy,       230, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_dfs_read,            1104, TEST_FLAGS_IO),
 	TEST_FUNC(test_cache_invalidate,    1763, TEST_FLAGS_NONE),
+	TEST_FUNC(test_debug_sdfs,             0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {
@@ -201,6 +211,7 @@ int main() {
 	printf("libdragon testsuite\n\n");
 	int failures = 0;
 	int successes = 0;
+	int skipped = 0;
 
 	const int NUM_TESTS = sizeof(tests) / sizeof(tests[0]);
 	uint32_t start = TICKS_READ();
@@ -249,7 +260,11 @@ int main() {
 			if (ctx.log != logbuf) {
 				printf("%s\n\n", logbuf);
 			}
+		} else if (ctx.result == TEST_SKIPPED) {
+			skipped++;
+			printf("SKIP\n\n");
 		}
+
 		// If there's more than a 5% (10% for IO tests) drift on the running time
 		// (/1024) compared to the expected one, make the test fail. Something
 		// happened and we need to double check this.
@@ -274,5 +289,5 @@ int main() {
 	int64_t total_time = TIMER_MICROS(stop-start) / 1000000;
 
 	printf("\nTestsuite finished in %02lld:%02lld\n", total_time%60, total_time/60);
-	printf("Passed: %d out of %d\n", successes, NUM_TESTS);
+	printf("Passed: %d out of %d (%d skipped)\n", successes, NUM_TESTS, skipped);
 }
