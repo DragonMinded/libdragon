@@ -81,7 +81,7 @@ void sys_set_boot_cic(int bc)
  * @param[in] length
  *            Length in bytes of the data pointed at by addr
  */
-void data_cache_hit_writeback(volatile void * addr, unsigned long length)
+void data_cache_hit_writeback(volatile const void * addr, unsigned long length)
 {
     cache_op(0x19, 16);
 }
@@ -139,7 +139,7 @@ void data_cache_index_writeback_invalidate(volatile void * addr, unsigned long l
  * @param[in] length
  *            Length in bytes of the data pointed at by addr
  */
-void inst_cache_hit_writeback(volatile void * addr, unsigned long length)
+void inst_cache_hit_writeback(volatile const void * addr, unsigned long length)
 {
     cache_op(0x18, 32);
 }

@@ -93,13 +93,13 @@ void dma_read(void * ram_address, unsigned long pi_address, unsigned long len)
  * @param[in] len
  *            Length in bytes to write to peripheral
  */
-void dma_write(void * ram_address, unsigned long pi_address, unsigned long len) 
+void dma_write(const void * ram_address, unsigned long pi_address, unsigned long len) 
 {
     disable_interrupts();
 
     while (dma_busy()) ;
     MEMORY_BARRIER();
-    PI_regs->ram_address = ram_address;
+    PI_regs->ram_address = (void*)ram_address;
     MEMORY_BARRIER();
     PI_regs->pi_address = (pi_address | 0x10000000) & 0x1FFFFFFF;
     MEMORY_BARRIER();

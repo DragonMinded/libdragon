@@ -163,10 +163,10 @@ void wait_ticks( unsigned long wait );
 void wait_ms( unsigned long wait_ms );
 
 void data_cache_hit_invalidate(volatile void *, unsigned long);
-void data_cache_hit_writeback(volatile void *, unsigned long);
+void data_cache_hit_writeback(volatile const void *, unsigned long);
 void data_cache_hit_writeback_invalidate(volatile void *, unsigned long);
 void data_cache_index_writeback_invalidate(volatile void *, unsigned long);
-void inst_cache_hit_writeback(volatile void *, unsigned long);
+void inst_cache_hit_writeback(volatile const void *, unsigned long);
 void inst_cache_hit_invalidate(volatile void *, unsigned long);
 void inst_cache_index_invalidate(volatile void *, unsigned long);
 int get_memory_size();
