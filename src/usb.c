@@ -585,7 +585,7 @@ void usb_purge()
     @return 0 if success or -1 if failure
 ==============================*/
 
-static s8 usb_64drive_wait()
+s8 usb_64drive_wait()
 {
     u32 ret __attribute__((aligned(8)));
     u32 timeout = 0; // I wanted to use osGetTime() but that requires the VI manager
@@ -621,7 +621,7 @@ static s8 usb_64drive_wait()
     @param A boolean with whether to enable or disable
 ==============================*/
 
-static void usb_64drive_setwritable(u8 enable)
+void usb_64drive_setwritable(u8 enable)
 {
     usb_64drive_wait();
     #ifdef LIBDRAGON
