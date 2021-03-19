@@ -9,6 +9,7 @@
 #include "n64sys.h"
 #include "debug.h"
 #include "regsinternal.h"
+#include "kernelinternal.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -91,6 +92,10 @@ void __exception_dump_header(FILE *out, exception_t* ex) {
 
 		case EXCEPTION_CODE_WATCH:
 			fprintf(out, "Watched address: %08lX\n", C0_WATCHLO() & ~3);
+			break;
+
+		case EXCEPTION_CODE_SYS_CALL:
+			fprintf(out, "Syscall code: %05lX\n", (*(uint32_t*)ex->regs->epc >> 6) & 0xfffff);
 			break;
 
 		default:
@@ -420,12 +425,14 @@ void register_syscall_handler( syscall_handler_t handler, uint32_t first_code, u
  * @brief Respond to a syscall exception.
  * 
  * Calls the handlers registered by #register_syscall_handler.
+ * 
+ * As a special case, if the specified syscall code is 1, the kernel scheduling
+ * function will be called. That function potentially returns a new stack pointer
+ * to be used if switching threads.
  */
-void __onSyscallException( reg_block_t* regs )
+reg_block_t* __onSyscallException( reg_block_t* regs )
 {
 	exception_t e;
-
-	if(!__exception_handler) { return; }
 
 	__fetch_regs(&e, EXCEPTION_TYPE_SYSCALL, regs);
 
@@ -433,6 +440,9 @@ void __onSyscallException( reg_block_t* regs )
 	uint32_t epc = e.regs->epc;
 	uint32_t opcode = *(uint32_t*)epc;
 	uint32_t code = (opcode >> 6) & 0xfffff;
+
+	if (code == 1)
+		return __kthread_syscall_schedule(regs);
 
 	bool called = false;
 	for (int i=0; i<MAX_SYSCALL_HANDLERS; i++)
@@ -448,9 +458,10 @@ void __onSyscallException( reg_block_t* regs )
 
 	if (!called)  {
 		__onCriticalException(regs);
-		return;
+		return regs;
 	}
 
 	// Skip syscall opcode to continue execution
 	e.regs->epc += 4;
+	return regs;
 }

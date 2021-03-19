@@ -134,13 +134,17 @@ exception_critical:
 	nop
 
 exception_syscall:
-	# Syscall exception
+	# Run the syscall exception handler. This one can optionally
+	# switch to a different thread: the return value is the new
+	# stack pointer to use.
 	jal __onSyscallException
 	addiu a0, sp, 32
 
-	j end_interrupt
-	nop
-
+	# Exit the exception and restore *all* registers including caller-saved
+	# ones, because if the syscall handler switched to a different thread,
+	# the new thread might have different values in those registers.
+	j end_exception_restore_all
+	addiu sp, v0, -32
 
 exception_coprocessor:
 	# Extract CE bits (28..29) from CR
@@ -264,9 +268,60 @@ notcart:
 	jal __MI_handler
 	addiu a0, sp, 32
 
-	# No more interrupts to process, we can exit
-	# (fallthrough)
+	# No more interrupts to process
 	sw zero, interrupt_exception_frame
+
+	# Check if some interrupt handler requested
+	# a reschedule to happen
+	la t0, __isr_force_schedule
+	lbu t1, (t0)
+	beqz t1, end_interrupt
+	sb zero, (t0)
+
+thread_schedule_from_interrupt:
+	# Save full exception context in preparation for stack switching
+	mfc0 t0, C0_SR
+	or t0, SR_CU1
+	mtc0 t0, C0_SR
+	jal save_fpu_regs
+	move a0, sp
+	jal finalize_exception_frame
+	nop
+
+	# Call the scheduler
+	jal __kthread_syscall_schedule
+	addiu a0, sp, 32
+	addiu sp, v0, -32
+	# fallthrough to end_exception_restore_all
+
+end_exception_restore_all:
+	# Restore also caller-saved registers. These are only saved during an exception
+	# (by finalize_exception_frame), and we need to restore them only in case of
+	# kernel stack switch (because otherwise, the C handler for an exception will
+	# never modify them without restoring them too, so it would be useless to
+	# restore them here).
+	ld $16,(STACK_GPR+16*8)(sp)   # S0
+	ld $17,(STACK_GPR+17*8)(sp)   # S1
+	ld $18,(STACK_GPR+18*8)(sp)   # S2
+	ld $19,(STACK_GPR+19*8)(sp)   # S3
+	ld $20,(STACK_GPR+20*8)(sp)   # S4
+	ld $21,(STACK_GPR+21*8)(sp)   # S5
+	ld $22,(STACK_GPR+22*8)(sp)   # S6
+	ld $23,(STACK_GPR+23*8)(sp)   # S7
+	ld $28,(STACK_GPR+28*8)(sp)   # GP
+	ld $30,(STACK_GPR+30*8)(sp)   # FP
+	ldc1 $f20,(STACK_FPR+20*8)(sp)
+	ldc1 $f21,(STACK_FPR+21*8)(sp)
+	ldc1 $f22,(STACK_FPR+22*8)(sp)
+	ldc1 $f23,(STACK_FPR+23*8)(sp)
+	ldc1 $f24,(STACK_FPR+24*8)(sp)
+	ldc1 $f25,(STACK_FPR+25*8)(sp)
+	ldc1 $f26,(STACK_FPR+26*8)(sp)
+	ldc1 $f27,(STACK_FPR+27*8)(sp)
+	ldc1 $f28,(STACK_FPR+28*8)(sp)
+	ldc1 $f29,(STACK_FPR+29*8)(sp)
+	ldc1 $f30,(STACK_FPR+30*8)(sp)
+	ldc1 $f31,(STACK_FPR+31*8)(sp)
 
 end_interrupt:
 	mfc0 t0, C0_SR
@@ -400,3 +455,49 @@ inthandler_end:
 	.p2align 2
 	.lcomm interrupt_exception_frame, 4
 
+	ld k1,STACK_LO(k0)
+	mtlo k1
+
+	ld k1,STACK_HI(k0)
+	mthi k1
+
+	ldc1 $f0,(STACK_FPR+0*8)(k0)
+	ldc1 $f1,(STACK_FPR+1*8)(k0)
+	ldc1 $f2,(STACK_FPR+2*8)(k0)
+	ldc1 $f3,(STACK_FPR+3*8)(k0)
+	ldc1 $f4,(STACK_FPR+4*8)(k0)
+	ldc1 $f5,(STACK_FPR+5*8)(k0)
+	ldc1 $f6,(STACK_FPR+6*8)(k0)
+	ldc1 $f7,(STACK_FPR+7*8)(k0)
+	ldc1 $f8,(STACK_FPR+8*8)(k0)
+	ldc1 $f9,(STACK_FPR+9*8)(k0)
+	ldc1 $f10,(STACK_FPR+10*8)(k0)
+	ldc1 $f11,(STACK_FPR+11*8)(k0)
+	ldc1 $f12,(STACK_FPR+12*8)(k0)
+	ldc1 $f13,(STACK_FPR+13*8)(k0)
+	ldc1 $f14,(STACK_FPR+14*8)(k0)
+	ldc1 $f15,(STACK_FPR+15*8)(k0)
+	ldc1 $f16,(STACK_FPR+16*8)(k0)
+	ldc1 $f17,(STACK_FPR+17*8)(k0)
+	ldc1 $f18,(STACK_FPR+18*8)(k0)
+	ldc1 $f19,(STACK_FPR+19*8)(k0)
+	ldc1 $f20,(STACK_FPR+20*8)(k0)
+	ldc1 $f21,(STACK_FPR+21*8)(k0)
+	ldc1 $f22,(STACK_FPR+22*8)(k0)
+	ldc1 $f23,(STACK_FPR+23*8)(k0)
+	ldc1 $f24,(STACK_FPR+24*8)(k0)
+	ldc1 $f25,(STACK_FPR+25*8)(k0)
+	ldc1 $f26,(STACK_FPR+26*8)(k0)
+	ldc1 $f27,(STACK_FPR+27*8)(k0)
+	ldc1 $f28,(STACK_FPR+28*8)(k0)
+	ldc1 $f29,(STACK_FPR+29*8)(k0)
+	ldc1 $f30,(STACK_FPR+30*8)(k0)
+	ldc1 $f31,(STACK_FPR+31*8)(k0)
+
+	lw k1, STACK_FC31(k0)
+	ctc1 k1, $f31
+
+	.set noat
+	ld $1,(STACK_GPR+1*8)(k0)
+	eret
+	nop

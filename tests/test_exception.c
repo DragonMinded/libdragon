@@ -68,8 +68,6 @@
     ASSERT_REG_GP_HANDLER(no, value); \
 })
 
-extern const void test_break_label;
-
 void test_exception(TestContext *ctx) {
     // Bring FCR31 to a known state as some fp operations setting the inexact op flag
     uint32_t known_fcr31 = C1_FCR31();
@@ -79,7 +77,7 @@ void test_exception(TestContext *ctx) {
     uint64_t registers_after_ex[32];
     uint64_t fp_registers_after_ex[32];
     uint64_t lo, hi;
-    volatile int breakpoint_occured = 0;
+    volatile int exception_occurred = 0;
     reg_block_t exception_regs;
 
     // This is only used to make sure we break after setting all the registers
@@ -127,9 +125,9 @@ void test_exception(TestContext *ctx) {
         exception_regs = *ex->regs;
 
         switch(ex->code) {
-            case EXCEPTION_CODE_BREAKPOINT:
-                breakpoint_occured++;
-                ex->regs->epc = ex->regs->epc + 4;
+            case EXCEPTION_CODE_TLB_LOAD_I_MISS:
+                exception_occurred++;
+                ex->regs->epc += 4;
             break;
             default:
                 exception_default_handler(ex);
@@ -140,7 +138,7 @@ void test_exception(TestContext *ctx) {
     register_exception_handler(ex_handler);
     DEFER(register_exception_handler(exception_default_handler));
 
-    ASSERT_EQUAL_SIGNED(breakpoint_occured, 0, "Breakpoint triggered early");
+    ASSERT_EQUAL_SIGNED(exception_occurred, 0, "Exception triggered early");
 
     // Set as many registers as possible to known values before the ex.
     SET_REG(0, 00);
@@ -202,7 +200,8 @@ void test_exception(TestContext *ctx) {
     // Make sure we trigger the exception after setting all the registers
     // dependency may not be necessary in practice but let's inform GCC
     // just in case.
-    asm volatile("test_break_label: \nbreak" ::"X"(dependency));
+    extern const void test_exception_opcode;
+    asm volatile("test_exception_opcode: lw $0,0($0)" ::"X"(dependency));
 
     // Read all registers to mem at once
     GET_REG(0,  00);
@@ -263,7 +262,7 @@ void test_exception(TestContext *ctx) {
         :"$26"
     );
 
-    ASSERT_EQUAL_SIGNED(breakpoint_occured, 1, "Breakpoint exception was not triggered");
+    ASSERT_EQUAL_SIGNED(exception_occurred, 1, "Exception was not triggered");
 
     ASSERT_REG(0,  00);
     ASSERT_REG(1,  01);
@@ -313,11 +312,11 @@ void test_exception(TestContext *ctx) {
     ASSERT_EQUAL_HEX(exception_regs.hi, 0xBEEFF00DBEEFF00D, "hi not available to the handler");
 
     // Other info
-    ASSERT_EQUAL_HEX(exception_regs.epc, (uint32_t)&test_break_label, "EPC not available to the handler");
+    ASSERT_EQUAL_HEX(exception_regs.epc, (uint32_t)&test_exception_opcode, "EPC not available to the handler");
 
     // If the other tests change SR these may fail unnecessarily, but we expect tests to do proper cleanup
-    ASSERT_EQUAL_HEX(exception_regs.sr, 0x241014E3, "SR not available to the handler");
-    ASSERT_EQUAL_HEX(exception_regs.cr, 0x24, "CR not available to the handler");
+    ASSERT_EQUAL_HEX(exception_regs.sr, 0x241004E3, "SR not available to the handler");
+    ASSERT_EQUAL_HEX(exception_regs.cr, 0x8, "CR not available to the handler");
     ASSERT_EQUAL_HEX(exception_regs.fc31, 0x0, "FCR31 not available to the handler");
 }
 

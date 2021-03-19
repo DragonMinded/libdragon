@@ -6,6 +6,7 @@
 #include <malloc.h>
 #include "libdragon.h"
 #include "regsinternal.h"
+#include "kernelinternal.h"
 
 /** @brief Bit to set to clear the PI interrupt */
 #define PI_CLEAR_INTERRUPT 0x02
@@ -26,7 +27,7 @@
  * interrupt enable calls that need to be made to re-enable interrupts.  A negative
  * number means that the interrupt system hasn't been initialized yet.
  */
-static int __interrupt_depth = -1;
+int __interrupt_depth = -1;
 
 /** @brief Value of the status register at the moment interrupts
  *         got disabled.
@@ -186,6 +187,9 @@ void __MI_handler(void)
         /* Clear interrupt */
         SP_regs->status=SP_CLEAR_INTERRUPT;
 
+        /* Trigger kernel event */
+        if (__kernel) kevent_trigger_isr(&KEVENT_IRQ_SP);
+
         __call_callback(SP_callback);
     }
 
@@ -193,6 +197,9 @@ void __MI_handler(void)
     {
         /* Clear interrupt */
         SI_regs->status=SI_CLEAR_INTERRUPT;
+
+        /* Trigger kernel event */
+        if (__kernel) kevent_trigger_isr(&KEVENT_IRQ_SI);
 
         __call_callback(SI_callback);
     }
@@ -202,6 +209,9 @@ void __MI_handler(void)
         /* Clear interrupt */
     	AI_regs->status=AI_CLEAR_INTERRUPT;
 
+        /* Trigger kernel event */
+        if (__kernel) kevent_trigger_isr(&KEVENT_IRQ_AI);
+
 	    __call_callback(AI_callback);
     }
 
@@ -209,6 +219,9 @@ void __MI_handler(void)
     {
         /* Clear interrupt */
     	VI_regs->cur_line=VI_regs->cur_line;
+
+        /* Trigger kernel event */
+        if (__kernel) kevent_trigger_isr(&KEVENT_IRQ_VI);
 
     	__call_callback(VI_callback);
     }
@@ -218,6 +231,9 @@ void __MI_handler(void)
         /* Clear interrupt */
         PI_regs->status=PI_CLEAR_INTERRUPT;
 
+        /* Trigger kernel event */
+        if (__kernel) kevent_trigger_isr(&KEVENT_IRQ_PI);
+
         __call_callback(PI_callback);
     }
 
@@ -225,6 +241,9 @@ void __MI_handler(void)
     {
         /* Clear interrupt */
         *MI_MODE = MI_WMODE_CLR_DPINT;
+
+        /* Trigger kernel event */
+        if (__kernel) kevent_trigger_isr(&KEVENT_IRQ_DP);
 
         __call_callback(DP_callback);
     }
