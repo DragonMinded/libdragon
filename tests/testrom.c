@@ -68,7 +68,7 @@ static uint32_t rand(void) {
 // ASSERT(cond, msg): fail the test if the condition is false (with log message)
 #define ASSERT(cond, msg, ...) ({ \
 	if (!(cond)) { \
-		LOG("ASSERTION FAILED:\n"); \
+		LOG("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
 		LOG("%s\n", #cond); \
 		LOG(msg, ##__VA_ARGS__); \
 		ctx->result = TEST_FAILED; \
@@ -80,7 +80,7 @@ static uint32_t rand(void) {
 #define ASSERT_EQUAL_HEX(_a, _b, msg, ...) ({ \
 	uint64_t a = _a; uint64_t b = _b; \
 	if (a != b) { \
-		LOG("ASSERTION FAILED:\n"); \
+		LOG("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
 		LOG("%s != %s (0x%llx != 0x%llx)\n", #_a, #_b, a, b); \
 		LOG(msg, ## __VA_ARGS__); \
 		ctx->result = TEST_FAILED; \
@@ -93,7 +93,7 @@ static uint32_t rand(void) {
 #define ASSERT_EQUAL_UNSIGNED(_a, _b, msg, ...) ({ \
 	uint64_t a = _a; uint64_t b = _b; \
 	if (a != b) { \
-		LOG("ASSERTION FAILED:\n"); \
+		LOG("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
 		LOG("%s != %s (%llu != %llu)\n", #_a, #_b, a, b); \
 		LOG(msg, ## __VA_ARGS__); \
 		ctx->result = TEST_FAILED; \
@@ -105,7 +105,7 @@ static uint32_t rand(void) {
 #define ASSERT_EQUAL_SIGNED(_a, _b, msg, ...) ({ \
 	int64_t a = _a; int64_t b = _b; \
 	if (a != b) { \
-		LOG("ASSERTION FAILED:\n"); \
+		LOG("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
 		LOG("%s != %s (%lld != %lld)\n", #_a, #_b, a, b); \
 		LOG(msg, ## __VA_ARGS__); \
 		ctx->result = TEST_FAILED; \
@@ -125,7 +125,7 @@ void hexdump(char *out, const uint8_t *buf, int buflen, int start, int count) {
 	*out = '\0';
 }
 
-int assert_equal_mem(TestContext *ctx, const uint8_t *a, const uint8_t *b, int len) {
+int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t *a, const uint8_t *b, int len) {
 	for (int i=0;i<len;i++) {
 		if (a[i] != b[i]) {
 			char dumpa[64];
@@ -133,7 +133,7 @@ int assert_equal_mem(TestContext *ctx, const uint8_t *a, const uint8_t *b, int l
 			hexdump(dumpa, a, len, i-2, 5);
 			hexdump(dumpb, b, len, i-2, 5);
 
-			LOG("ASSERTION FAILED:\n");
+			LOG("ASSERTION FAILED (%s:%d):\n", file, line); \
 			LOG("[%s] != [%s]\n", dumpa, dumpb);
 			LOG("     ^^              ^^  idx: %d\n", i);
 			return 0;
@@ -146,7 +146,7 @@ int assert_equal_mem(TestContext *ctx, const uint8_t *a, const uint8_t *b, int l
 // a and b has not the same content (up to len bytes).
 #define ASSERT_EQUAL_MEM(_a, _b, _len, msg, ...) ({ \
 	const uint8_t *a = (_a); const uint8_t *b = (_b); int len = (_len); \
-	if (!assert_equal_mem(ctx, a, b, len)) { \
+	if (!assert_equal_mem(ctx, __FILE__, __LINE__, a, b, len)) { \
 		LOG(msg, ## __VA_ARGS__); \
 		ctx->result = TEST_FAILED; \
 		return; \
