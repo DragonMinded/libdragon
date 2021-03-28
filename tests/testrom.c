@@ -30,6 +30,7 @@ typedef void (*TestFunc)(TestContext *ctx);
 // LOG(msg, ...): log something that will be displayed if the test fails.
 #define LOG(msg, ...)  ({ \
 	int n = snprintf(ctx->log, ctx->logleft, msg, ##__VA_ARGS__); \
+	fwrite(ctx->log, 1, n, stderr); \
 	ctx->log += n; ctx->logleft -= n; \
 })
 
@@ -43,7 +44,7 @@ typedef void (*TestFunc)(TestContext *ctx);
 // SKIP: skip execution of the test.
 #define SKIP(msg, ...) ({ \
 	LOG("TEST SKIPPED:\n"); \
-	LOG(msg, ##__VA_ARGS__); \
+	LOG(msg "\n", ##__VA_ARGS__); \
 	ctx->result = TEST_SKIPPED; \
 	return; \
 })
@@ -70,7 +71,7 @@ static uint32_t rand(void) {
 	if (!(cond)) { \
 		LOG("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
 		LOG("%s\n", #cond); \
-		LOG(msg, ##__VA_ARGS__); \
+		LOG(msg "\n", ##__VA_ARGS__); \
 		ctx->result = TEST_FAILED; \
 		return; \
 	} \
@@ -82,7 +83,7 @@ static uint32_t rand(void) {
 	if (a != b) { \
 		LOG("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
 		LOG("%s != %s (0x%llx != 0x%llx)\n", #_a, #_b, a, b); \
-		LOG(msg, ## __VA_ARGS__); \
+		LOG(msg "\n", ##__VA_ARGS__); \
 		ctx->result = TEST_FAILED; \
 		return; \
 	} \
@@ -95,7 +96,7 @@ static uint32_t rand(void) {
 	if (a != b) { \
 		LOG("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
 		LOG("%s != %s (%llu != %llu)\n", #_a, #_b, a, b); \
-		LOG(msg, ## __VA_ARGS__); \
+		LOG(msg "\n", ##__VA_ARGS__); \
 		ctx->result = TEST_FAILED; \
 		return; \
 	} \
@@ -107,7 +108,7 @@ static uint32_t rand(void) {
 	if (a != b) { \
 		LOG("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
 		LOG("%s != %s (%lld != %lld)\n", #_a, #_b, a, b); \
-		LOG(msg, ## __VA_ARGS__); \
+		LOG(msg "\n", ##__VA_ARGS__); \
 		ctx->result = TEST_FAILED; \
 		return; \
 	} \
@@ -147,7 +148,7 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 #define ASSERT_EQUAL_MEM(_a, _b, _len, msg, ...) ({ \
 	const uint8_t *a = (_a); const uint8_t *b = (_b); int len = (_len); \
 	if (!assert_equal_mem(ctx, __FILE__, __LINE__, a, b, len)) { \
-		LOG(msg, ## __VA_ARGS__); \
+		LOG(msg "\n", ##__VA_ARGS__); \
 		ctx->result = TEST_FAILED; \
 		return; \
 	} \
@@ -202,6 +203,9 @@ int main() {
 
 	display_init(RESOLUTION_320x240, DEPTH_32_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE);
 	console_init();
+	console_debug(false);
+	debug_init_isviewer();
+	debug_init_usblog();
 
 	if (dfs_init( DFS_DEFAULT_LOCATION ) != DFS_ESUCCESS) {
 		printf("Invalid ROM: cannot initialize DFS\n");
@@ -232,6 +236,7 @@ int main() {
 
 		printf("%-59s", tests[i].name);
 		fflush(stdout);
+		debugf("**** Starting test: %s\n", tests[i].name);
 
 		uint32_t test_start = TICKS_READ();
 
