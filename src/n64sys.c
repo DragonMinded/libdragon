@@ -5,6 +5,7 @@
  */
 
 #include <stdint.h>
+#include <assert.h>
 #include "n64sys.h"
 
 /**
@@ -86,17 +87,8 @@ void data_cache_hit_writeback(volatile const void * addr, unsigned long length)
     cache_op(0x19, 16);
 }
 
-/**
- * @brief Force a data cache invalidate over a memory region
- *
- * Use this to force the N64 to update cache from RDRAM.
- *
- * @param[in] addr
- *            Pointer to memory in question
- * @param[in] length
- *            Length in bytes of the data pointed at by addr
- */
-void data_cache_hit_invalidate(volatile void * addr, unsigned long length)
+/** @brief Underlying implementation of data_cache_hit_invalidate */
+void __data_cache_hit_invalidate(volatile void * addr, unsigned long length)
 {
     cache_op(0x11, 16);
 }
