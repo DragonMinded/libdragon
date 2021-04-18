@@ -66,6 +66,8 @@ volatile int dma_busy()
  */
 void dma_read(void * ram_address, unsigned long pi_address, unsigned long len) 
 {
+    assert(len > 0);
+
     disable_interrupts();
 
     while (dma_busy()) ;
@@ -95,6 +97,8 @@ void dma_read(void * ram_address, unsigned long pi_address, unsigned long len)
  */
 void dma_write(const void * ram_address, unsigned long pi_address, unsigned long len) 
 {
+    assert(len > 0);
+
     disable_interrupts();
 
     while (dma_busy()) ;
