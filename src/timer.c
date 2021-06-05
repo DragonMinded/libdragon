@@ -260,6 +260,31 @@ timer_link_t *new_timer(int ticks, int flags, void (*callback)(int ovfl))
 }
 
 /**
+ * @brief Create a new timer
+ *
+ * @param[in] ticks
+ *            Number of ticks before the timer should fire
+ * @param[in] flags
+ *            Timer flags.  See #TF_ONE_SHOT and #TF_CONTINUOUS
+ * @param[in] callback
+ *            Callback function to call when the timer expires
+ *
+ * @return A pointer to the timer structure created
+ */
+timer_link_t *new_timer_stopped(int ticks, int flags, void (*callback)(int ovfl))
+{
+	timer_link_t *timer = malloc(sizeof(timer_link_t));
+	if (timer)
+	{
+		timer->left = TICKS_READ() + (int32_t)ticks;
+		timer->set = ticks;
+		timer->flags = flags;
+		timer->callback = callback;
+	}
+	return timer;
+}
+
+/**
  * @brief Start a timer not currently in the list
  *
  * @param[in] timer
@@ -279,6 +304,28 @@ void start_timer(timer_link_t *timer, int ticks, int flags, void (*callback)(int
 		timer->set = ticks;
 		timer->flags = flags;
 		timer->callback = callback;
+
+		disable_interrupts();
+
+		timer->next = TI_timers;
+		TI_timers = timer;
+		timer_update_compare(TI_timers);
+
+		enable_interrupts();
+	}
+}
+
+/**
+ * @brief Reset a timer and add to list
+ *
+ * @param[in] timer
+ *            Pointer to timer structure to reinsert and start
+ */
+void restart_timer(timer_link_t *timer)
+{
+	if (timer)
+	{
+		timer->left = TICKS_READ() + (int32_t)timer->set;
 
 		disable_interrupts();
 

@@ -85,8 +85,12 @@ extern "C" {
 void timer_init(void);
 /* create a new timer and add to list */
 timer_link_t *new_timer(int ticks, int flags, void (*callback)(int ovfl));
+/* create a new timer */
+timer_link_t *new_timer_stopped(int ticks, int flags, void (*callback)(int ovfl));
 /* start a timer not currently in the list */
 void start_timer(timer_link_t *timer, int ticks, int flags, void (*callback)(int ovfl));
+/* reset a timer and add to list */
+void restart_timer(timer_link_t *timer);
 /* remove a timer from the list */
 void stop_timer(timer_link_t *timer);
 /* remove a timer from the list and delete it */
