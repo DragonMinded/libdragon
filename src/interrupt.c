@@ -634,6 +634,9 @@ void enable_interrupts()
     /* Don't do anything if we've hosed up or aren't initialized */
     if( __interrupt_depth < 0 ) { return; }
 
+    /* Check that we're not calling enable_interrupts() more than expected */
+    assertf(__interrupt_depth > 0, "unbalanced enable_interrupts() call");
+
     /* Decrement the nesting level now that we are enabling interrupts */
     __interrupt_depth--;
 

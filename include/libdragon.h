@@ -46,6 +46,7 @@
 /* Easy include wrapper */
 #include "audio.h"
 #include "console.h"
+#include "debug.h"
 #include "controller.h"
 #include "mempak.h"
 #include "tpak.h"

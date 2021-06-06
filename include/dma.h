@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-void dma_write(void * ram_address, unsigned long pi_address, unsigned long len);
+void dma_write(const void * ram_address, unsigned long pi_address, unsigned long len);
 void dma_read(void * ram_address, unsigned long pi_address, unsigned long len);
 volatile int dma_busy();
 

@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <sys/times.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <malloc.h>
 #include "system.h"
 #include "n64sys.h"
@@ -104,7 +105,12 @@ struct timeval;
 /**
  * @brief Definition of errno, as it's defined as extern across stdlib
  */
-int errno;
+int errno __attribute__((weak));
+
+/**
+ * @brief Assert function pointer (initialized at startup)
+ */
+void (*__assert_func_ptr)(const char *file, int line, const char *func, const char *failedexpr) = 0;
 
 /* Externs from libdragon */
 extern int __bootcic;
@@ -1283,9 +1289,12 @@ int hook_stdio_calls( stdio_t *stdio_calls )
     }
 
     /* Safe to hook */
-    stdio_hooks.stdin_read = stdio_calls->stdin_read;
-    stdio_hooks.stdout_write = stdio_calls->stdout_write;
-    stdio_hooks.stderr_write = stdio_calls->stderr_write;
+    if (stdio_calls->stdin_read)
+        stdio_hooks.stdin_read = stdio_calls->stdin_read;
+    if (stdio_calls->stdout_write)
+        stdio_hooks.stdout_write = stdio_calls->stdout_write;
+    if (stdio_calls->stderr_write)
+        stdio_hooks.stderr_write = stdio_calls->stderr_write;
 
     /* Success */
     return 0;
@@ -1294,14 +1303,20 @@ int hook_stdio_calls( stdio_t *stdio_calls )
 /**
  * @brief Unhook from stdio
  *
+ * @param[in] stdio_calls
+ *            Pointer to structure containing callbacks for stdio functions
+ *
  * @return 0 on successful hook or a negative value on failure.
  */
-int unhook_stdio_calls()
+int unhook_stdio_calls( stdio_t *stdio_calls )
 {
     /* Just wipe out internal variable */
-    stdio_hooks.stdin_read = 0;
-    stdio_hooks.stdout_write = 0;
-    stdio_hooks.stderr_write = 0;
+    if (stdio_calls->stdin_read == stdio_hooks.stdin_read)
+        stdio_hooks.stdin_read = 0;
+    if (stdio_calls->stdout_write == stdio_hooks.stdout_write)
+        stdio_hooks.stdout_write = 0;
+    if (stdio_calls->stderr_write == stdio_hooks.stderr_write)
+        stdio_hooks.stderr_write = 0;
 
     /* Always successful for now */
     return 0;
@@ -1317,6 +1332,22 @@ int unhook_stdio_calls()
 void _flush_cache(uint8_t* addr, unsigned long bytes) {
     data_cache_hit_writeback(addr, bytes);
     inst_cache_hit_invalidate(addr, bytes);
+}
+
+/**
+ * @brief Implement underlying function for assert()
+ *
+ * Implementation of the function called when an assert fails. By default,
+ * we just abort execution, but this will be overriden at startup with
+ * a function that prints the assertion on the screen and via the debug
+ * channel (if initialized).
+ *
+ */
+void __assert_func(const char *file, int line, const char *func, const char *failedexpr)
+{
+    if (__assert_func_ptr)
+        __assert_func_ptr(file, line, func, failedexpr);
+    abort();
 }
 
 /** @} */

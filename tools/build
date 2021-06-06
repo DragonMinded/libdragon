@@ -29,17 +29,17 @@ export FORCE_DEFAULT_GCC=${FORCE_DEFAULT_GCC:-false}
 export PATH=$PATH:$INSTALL_PATH/bin
 
 # Versions
-export BINUTILS_V=2.33.1
-export GCC_V=9.1.0
-export NEWLIB_V=3.1.0
+export BINUTILS_V=2.36.1
+export GCC_V=10.2.0
+export NEWLIB_V=4.1.0
 
 # Download stage
-test -f binutils-$BINUTILS_V.tar.bz2 || wget -c ftp://sourceware.org/pub/binutils/releases/binutils-$BINUTILS_V.tar.bz2
-test -f gcc-$GCC_V.tar.gz || wget -c ftp://sourceware.org/pub/gcc/releases/gcc-$GCC_V/gcc-$GCC_V.tar.gz
+test -f binutils-$BINUTILS_V.tar.gz || wget -c ftp://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_V.tar.gz
+test -f gcc-$GCC_V.tar.gz || wget -c ftp://ftp.gnu.org/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz
 test -f newlib-$NEWLIB_V.tar.gz || wget -c ftp://sourceware.org/pub/newlib/newlib-$NEWLIB_V.tar.gz
 
 # Extract stage
-test -d binutils-$BINUTILS_V || tar -xjf binutils-$BINUTILS_V.tar.bz2
+test -d binutils-$BINUTILS_V || tar -xzf binutils-$BINUTILS_V.tar.gz
 test -d gcc-$GCC_V || tar -xzf gcc-$GCC_V.tar.gz
 test -d newlib-$NEWLIB_V || tar -xzf newlib-$NEWLIB_V.tar.gz
 
@@ -90,7 +90,7 @@ make install-target-libgcc || sudo make install-target-libgcc || su -c "make ins
 
 # Compile newlib
 cd ../newlib-$NEWLIB_V
-CFLAGS="-O2" CXXFLAGS="-O2" ./configure --target=mips64-elf --prefix=${INSTALL_PATH} --with-cpu=mips64vr4300 --disable-threads --disable-libssp --disable-werror
+CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC" ./configure --target=mips64-elf --prefix=${INSTALL_PATH} --with-cpu=mips64vr4300 --disable-threads --disable-libssp --disable-werror
 make -j$JOBS
 make install || sudo env PATH="$PATH" make install || su -c "env PATH=$PATH make install"
 

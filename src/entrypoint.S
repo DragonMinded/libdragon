@@ -76,6 +76,10 @@ loadintvectorloop:
 	bnez t2,loadintvectorloop
 	nop
 
+	la t0, debug_assert_func    /* install assert function in system.c */
+	la t1, __assert_func_ptr
+	sw t0, 0(t1)	
+
 	jal __do_global_ctors		/* call global constructors */
 	nop
 	jal main					/* call main app */

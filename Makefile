@@ -63,6 +63,8 @@ install: libdragon.a libdragonsys.a
 	install -m 0644 include/dragonfs.h $(INSTALLDIR)/mips64-elf/include/dragonfs.h
 	install -m 0644 include/audio.h $(INSTALLDIR)/mips64-elf/include/audio.h
 	install -m 0644 include/display.h $(INSTALLDIR)/mips64-elf/include/display.h
+	install -m 0644 include/debug.h $(INSTALLDIR)/mips64-elf/include/debug.h
+	install -m 0644 include/usb.h $(INSTALLDIR)/mips64-elf/include/usb.h
 	install -m 0644 include/console.h $(INSTALLDIR)/mips64-elf/include/console.h
 	install -m 0644 include/mempak.h $(INSTALLDIR)/mips64-elf/include/mempak.h
 	install -m 0644 include/controller.h $(INSTALLDIR)/mips64-elf/include/controller.h
