@@ -25,14 +25,14 @@ void test_dfs_read(TestContext *ctx) {
 	// random stress, aligned buffer
 	for (int i=0;i<256;i++) {
 		uint8_t *ubuf = buf+8+RANDN(4)*8;
-		int to_read = RANDN(3)*8;
-		int seek = RANDN(8)*256;
+		int to_read = 1+RANDN(7);
+		int seek = RANDN(16);
 
 		dfs_seek(fh, seek, SEEK_SET);
 		memset(buf, 0xAA, sizeof(buf));
 		dfs_read(ubuf, 1, to_read, fh);
 		ASSERT_EQUAL_MEM(ubuf,
-			(uint8_t*)"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f",
+			(uint8_t*)"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17" + seek,
 			to_read, "invalid aligned read (%d/%d)", ubuf-buf, to_read);
 		ASSERT_EQUAL_MEM(ubuf+to_read, (uint8_t*)"\xaa\xaa", 2, "aligned buffer overflow");
 		ASSERT_EQUAL_MEM(ubuf-2, (uint8_t*)"\xaa\xaa", 2, "aligned buffer underflow");
