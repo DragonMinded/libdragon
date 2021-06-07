@@ -66,3 +66,25 @@ void test_dfs_read(TestContext *ctx) {
 	ASSERT_EQUAL_MEM(abuf+16, (uint8_t*)"\xaa\xaa", 2, "buffer overflow #3");
 	ASSERT_EQUAL_MEM(abuf-2, (uint8_t*)"\xaa\xaa", 2, "buffer underflow #3");	
 }
+
+void test_dfs_rom_addr(TestContext *ctx) {
+	int fh = dfs_open("counter.dat");
+	ASSERT(fh >= 0, "counter.dat not found");
+	DEFER(dfs_close(fh));
+
+	uint8_t buf1[128] __attribute__((aligned(16)));
+	uint8_t buf2[128] __attribute__((aligned(16)));
+
+	dfs_read(buf1, 1, 128, fh);
+
+	uint32_t rom = dfs_rom_addr("counter.dat");
+	ASSERT(rom != 0, "counter.dat not found by dfs_rom_addr");
+
+	ASSERT_EQUAL_HEX(io_read(rom), *(uint32_t*)buf1, "direct ROM address is different");
+	ASSERT_EQUAL_HEX(io_read(rom+8), *(uint32_t*)(buf1+8), "direct ROM address is different");
+
+	dma_read(buf2, rom, 128);
+	data_cache_hit_invalidate(buf2, sizeof(buf2));
+
+	ASSERT_EQUAL_MEM(buf1, buf2, 128, "DMA ROM access is different");
+}

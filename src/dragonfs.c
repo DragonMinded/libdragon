@@ -1047,6 +1047,44 @@ int dfs_size(uint32_t handle)
 }
 
 /**
+ * @brief Return the physical address of a file (in ROM space)
+ *
+ * This function should be used for highly-specialized, high-performance
+ * use cases. Using dfs_open / dfs_read is generally acceptable
+ * performance-wise, and is easier to use rather than managing
+ * direct access to PI space.
+ * 
+ * Direct access to ROM data must go through io_read or dma_read. Do not
+ * dereference directly as the console might hang if the PI is busy.
+ *
+ * @param[in] filename
+ *            Name of the file
+ *
+ * @return A pointer to the physical address of the file body, or 0
+ *         if the file was not found.
+ * 
+ */
+uint32_t dfs_rom_addr(const char *path)
+{
+    /* Try to find file */
+    directory_entry_t *dirent;
+    int ret = recurse_path(path, WALK_OPEN, &dirent, TYPE_FILE);
+
+    if(ret != DFS_ESUCCESS)
+    {
+        /* File not found, or other error */
+        return 0;
+    }
+
+    /* We now have the pointer to the file entry */
+    directory_entry_t t_node;
+    grab_sector(dirent, &t_node);
+
+    /* Return the starting location in ROM */
+    return get_start_location(&t_node);
+}
+
+/**
  * @brief Return whether the end of file has been reached
  *
  * @param[in] handle
