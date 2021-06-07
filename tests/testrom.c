@@ -270,6 +270,7 @@ int main() {
 		} else if (ctx.result == TEST_SKIPPED) {
 			skipped++;
 			printf("SKIP\n\n");
+			debugf("SKIP\n");
 		}
 
 		// If there's more than a 5% (10% for IO tests) drift on the running time
@@ -283,6 +284,7 @@ int main() {
 		) {
 			failures++;
 			printf("FAIL\n\n");
+			debugf("TIMING FAIL\n");
 
 			printf("Duration changed by %.1f%%\n", (float)test_diff * 100.0 / (float)test_duration);
 			printf("(expected: %ldK, measured: %ldK)\n\n", tests[i].duration, test_duration);
@@ -295,6 +297,7 @@ int main() {
 
 	int64_t total_time = TIMER_MICROS(stop-start) / 1000000;
 
-	printf("\nTestsuite finished in %02lld:%02lld\n", total_time%60, total_time/60);
+	console_set_debug(true);
+	printf("\nTestsuite finished in %02lld:%02lld\n", total_time/60, total_time%60);
 	printf("Passed: %d out of %d (%d skipped)\n", successes, NUM_TESTS, skipped);
 }
