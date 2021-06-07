@@ -29,9 +29,9 @@ typedef void (*TestFunc)(TestContext *ctx);
 
 // LOG(msg, ...): log something that will be displayed if the test fails.
 #define LOG(msg, ...)  ({ \
-	int n = snprintf(ctx->log, ctx->logleft, msg, ##__VA_ARGS__); \
-	fwrite(ctx->log, 1, n, stderr); \
-	ctx->log += n; ctx->logleft -= n; \
+	int __n = snprintf(ctx->log, ctx->logleft, msg, ##__VA_ARGS__); \
+	fwrite(ctx->log, 1, __n, stderr); \
+	ctx->log += __n; ctx->logleft -= __n; \
 })
 
 // DEFER(stmt): execute "stmt" statement when the current lexical block exits.
