@@ -114,8 +114,9 @@ void exception_default_handler(exception_t* ex) {
 		break;
 	}
 
+	console_init();
+	console_set_debug(true);
 	console_set_render_mode(RENDER_MANUAL);
-	console_clear();
 
 	fprintf(stdout, "%s exception at PC:%08lX\n", ex->info, (uint32_t)(ex->regs->epc + ((cr & C0_CAUSE_BD) ? 4 : 0)));
 

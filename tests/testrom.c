@@ -12,8 +12,9 @@
  * SIMPLE TEST FRAMEWORK
  **********************************************************************/
 
-#define TEST_FAILED   1
 #define TEST_SUCCESS  0
+#define TEST_FAILED   1
+#define TEST_SKIPPED  2
 
 typedef struct {
 	int result;
@@ -29,6 +30,7 @@ typedef void (*TestFunc)(TestContext *ctx);
 // LOG(msg, ...): log something that will be displayed if the test fails.
 #define LOG(msg, ...)  ({ \
 	int n = snprintf(ctx->log, ctx->logleft, msg, ##__VA_ARGS__); \
+	fwrite(ctx->log, 1, n, stderr); \
 	ctx->log += n; ctx->logleft -= n; \
 })
 
@@ -39,6 +41,13 @@ typedef void (*TestFunc)(TestContext *ctx);
 	void PPCAT(__cleanup, __LINE__) (int* u) { stmt; } \
 	int PPCAT(__var, __LINE__) __attribute__((unused, cleanup(PPCAT(__cleanup, __LINE__ ))));
 
+// SKIP: skip execution of the test.
+#define SKIP(msg, ...) ({ \
+	LOG("TEST SKIPPED:\n"); \
+	LOG(msg "\n", ##__VA_ARGS__); \
+	ctx->result = TEST_SKIPPED; \
+	return; \
+})
 
 // Fair and fast random generation (using xorshift32, with explicit seed)
 static uint32_t rand_state = 1;
@@ -60,9 +69,9 @@ static uint32_t rand(void) {
 // ASSERT(cond, msg): fail the test if the condition is false (with log message)
 #define ASSERT(cond, msg, ...) ({ \
 	if (!(cond)) { \
-		LOG("ASSERTION FAILED:\n"); \
+		LOG("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
 		LOG("%s\n", #cond); \
-		LOG(msg, ##__VA_ARGS__); \
+		LOG(msg "\n", ##__VA_ARGS__); \
 		ctx->result = TEST_FAILED; \
 		return; \
 	} \
@@ -72,9 +81,9 @@ static uint32_t rand(void) {
 #define ASSERT_EQUAL_HEX(_a, _b, msg, ...) ({ \
 	uint64_t a = _a; uint64_t b = _b; \
 	if (a != b) { \
-		LOG("ASSERTION FAILED:\n"); \
+		LOG("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
 		LOG("%s != %s (0x%llx != 0x%llx)\n", #_a, #_b, a, b); \
-		LOG(msg, ## __VA_ARGS__); \
+		LOG(msg "\n", ##__VA_ARGS__); \
 		ctx->result = TEST_FAILED; \
 		return; \
 	} \
@@ -85,9 +94,9 @@ static uint32_t rand(void) {
 #define ASSERT_EQUAL_UNSIGNED(_a, _b, msg, ...) ({ \
 	uint64_t a = _a; uint64_t b = _b; \
 	if (a != b) { \
-		LOG("ASSERTION FAILED:\n"); \
+		LOG("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
 		LOG("%s != %s (%llu != %llu)\n", #_a, #_b, a, b); \
-		LOG(msg, ## __VA_ARGS__); \
+		LOG(msg "\n", ##__VA_ARGS__); \
 		ctx->result = TEST_FAILED; \
 		return; \
 	} \
@@ -97,9 +106,9 @@ static uint32_t rand(void) {
 #define ASSERT_EQUAL_SIGNED(_a, _b, msg, ...) ({ \
 	int64_t a = _a; int64_t b = _b; \
 	if (a != b) { \
-		LOG("ASSERTION FAILED:\n"); \
+		LOG("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
 		LOG("%s != %s (%lld != %lld)\n", #_a, #_b, a, b); \
-		LOG(msg, ## __VA_ARGS__); \
+		LOG(msg "\n", ##__VA_ARGS__); \
 		ctx->result = TEST_FAILED; \
 		return; \
 	} \
@@ -117,7 +126,7 @@ void hexdump(char *out, const uint8_t *buf, int buflen, int start, int count) {
 	*out = '\0';
 }
 
-int assert_equal_mem(TestContext *ctx, const uint8_t *a, const uint8_t *b, int len) {
+int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t *a, const uint8_t *b, int len) {
 	for (int i=0;i<len;i++) {
 		if (a[i] != b[i]) {
 			char dumpa[64];
@@ -125,7 +134,7 @@ int assert_equal_mem(TestContext *ctx, const uint8_t *a, const uint8_t *b, int l
 			hexdump(dumpa, a, len, i-2, 5);
 			hexdump(dumpb, b, len, i-2, 5);
 
-			LOG("ASSERTION FAILED:\n");
+			LOG("ASSERTION FAILED (%s:%d):\n", file, line); \
 			LOG("[%s] != [%s]\n", dumpa, dumpb);
 			LOG("     ^^              ^^  idx: %d\n", i);
 			return 0;
@@ -138,8 +147,8 @@ int assert_equal_mem(TestContext *ctx, const uint8_t *a, const uint8_t *b, int l
 // a and b has not the same content (up to len bytes).
 #define ASSERT_EQUAL_MEM(_a, _b, _len, msg, ...) ({ \
 	const uint8_t *a = (_a); const uint8_t *b = (_b); int len = (_len); \
-	if (!assert_equal_mem(ctx, a, b, len)) { \
-		LOG(msg, ## __VA_ARGS__); \
+	if (!assert_equal_mem(ctx, __FILE__, __LINE__, a, b, len)) { \
+		LOG(msg "\n", ##__VA_ARGS__); \
 		ctx->result = TEST_FAILED; \
 		return; \
 	} \
@@ -155,6 +164,7 @@ int assert_equal_mem(TestContext *ctx, const uint8_t *a, const uint8_t *b, int l
 #include "test_timer.c"
 #include "test_irq.c"
 #include "test_exception.c"
+#include "test_debug.c"
 
 /**********************************************************************
  * MAIN
@@ -187,6 +197,7 @@ static const struct Testsuite
 	TEST_FUNC(test_irq_reentrancy,       	 230, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_dfs_read,            	1104, TEST_FLAGS_IO),
 	TEST_FUNC(test_cache_invalidate,    	1763, TEST_FLAGS_NONE),
+	TEST_FUNC(test_debug_sdfs,             	   0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {
@@ -194,6 +205,9 @@ int main() {
 
 	display_init(RESOLUTION_320x240, DEPTH_32_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE);
 	console_init();
+	console_set_debug(false);
+	debug_init_isviewer();
+	debug_init_usblog();
 
 	if (dfs_init( DFS_DEFAULT_LOCATION ) != DFS_ESUCCESS) {
 		printf("Invalid ROM: cannot initialize DFS\n");
@@ -203,6 +217,7 @@ int main() {
 	printf("libdragon testsuite\n\n");
 	int failures = 0;
 	int successes = 0;
+	int skipped = 0;
 
 	const int NUM_TESTS = sizeof(tests) / sizeof(tests[0]);
 	uint32_t start = TICKS_READ();
@@ -223,6 +238,7 @@ int main() {
 
 		printf("%-59s", tests[i].name);
 		fflush(stdout);
+		debugf("**** Starting test: %s\n", tests[i].name);
 
 		uint32_t test_start = TICKS_READ();
 
@@ -251,7 +267,11 @@ int main() {
 			if (ctx.log != logbuf) {
 				printf("%s\n\n", logbuf);
 			}
+		} else if (ctx.result == TEST_SKIPPED) {
+			skipped++;
+			printf("SKIP\n\n");
 		}
+
 		// If there's more than a 5% (10% for IO tests) drift on the running time
 		// (/1024) compared to the expected one, make the test fail. Something
 		// happened and we need to double check this.
@@ -276,5 +296,5 @@ int main() {
 	int64_t total_time = TIMER_MICROS(stop-start) / 1000000;
 
 	printf("\nTestsuite finished in %02lld:%02lld\n", total_time%60, total_time/60);
-	printf("Passed: %d out of %d\n", successes, NUM_TESTS);
+	printf("Passed: %d out of %d (%d skipped)\n", successes, NUM_TESTS, skipped);
 }

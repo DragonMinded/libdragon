@@ -201,6 +201,7 @@ static void timer_callback_overflow(int ovfl)
  */
 void timer_init(void)
 {
+	assertf(!TI_timers, "timer module already initialized");
 	/* Create first timer for overflows: expires when counter is 0 and
 	 * has a period of 2**32. */
 	timer_link_t *timer = malloc(sizeof(timer_link_t));
@@ -241,6 +242,7 @@ void timer_init(void)
  */
 timer_link_t *new_timer(int ticks, int flags, void (*callback)(int ovfl))
 {
+	assertf(TI_timers, "timer module not initialized");
 	timer_link_t *timer = malloc(sizeof(timer_link_t));
 	if (timer)
 	{
@@ -277,6 +279,7 @@ timer_link_t *new_timer(int ticks, int flags, void (*callback)(int ovfl))
  */
 void start_timer(timer_link_t *timer, int ticks, int flags, void (*callback)(int ovfl))
 {
+	assertf(TI_timers, "timer module not initialized");
 	if (timer)
 	{
 		timer->left = TICKS_READ() + (int32_t)ticks;
@@ -334,6 +337,7 @@ void stop_timer(timer_link_t *timer)
 	timer_link_t *head;
 	timer_link_t *last = 0;
 
+	assertf(TI_timers, "timer module not initialized");
 	if (timer)
 	{
 		disable_interrupts();
@@ -367,6 +371,7 @@ void stop_timer(timer_link_t *timer)
  */
 void delete_timer(timer_link_t *timer)
 {
+	assertf(TI_timers, "timer module not initialized");
 	if (timer)
 	{
 		stop_timer(timer);
@@ -383,6 +388,7 @@ void delete_timer(timer_link_t *timer)
  */
 void timer_close(void)
 {
+	assertf(TI_timers, "timer module not initialized");
 	disable_interrupts();
 	
 	/* Disable generation of timer interrupt. */
@@ -421,6 +427,7 @@ void timer_close(void)
 long long timer_ticks(void)
 {
 	uint32_t low, high;
+	assertf(TI_timers, "timer module not initialized");
 
 	/* Check whether interrupts are enabled or not. We need a different strategy
 	 * to account for race conditions. */

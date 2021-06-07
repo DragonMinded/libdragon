@@ -95,9 +95,6 @@ static inline void grab_sector(void *cart_loc, void *ram_loc)
     data_cache_hit_writeback_invalidate(ram_loc, SECTOR_SIZE);
 
     dma_read((void *)(((uint32_t)ram_loc) & 0x1FFFFFFF), (uint32_t)cart_loc, SECTOR_SIZE);
-    
-    /* Fresh cache again */
-    data_cache_hit_invalidate(ram_loc, SECTOR_SIZE);
 }
 
 /**

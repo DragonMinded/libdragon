@@ -7,6 +7,7 @@
 #ifndef __LIBDRAGON_CONSOLE_H
 #define __LIBDRAGON_CONSOLE_H
 
+#include <stdbool.h>
 #include "display.h"
 
 /**
@@ -79,6 +80,7 @@ extern "C" {
 
 void console_init();
 void console_close();
+void console_set_debug(bool debug);
 void console_set_render_mode(int mode);
 void console_clear();
 void console_render();
