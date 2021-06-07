@@ -249,6 +249,9 @@ timer_link_t *new_timer(int ticks, int flags, void (*callback)(int ovfl))
 		timer->flags = flags;
 		timer->callback = callback;
 
+		if (flags & TF_DISABLED)
+			return timer;
+
 		disable_interrupts();
 
 		timer->next = TI_timers;
@@ -281,6 +284,9 @@ void start_timer(timer_link_t *timer, int ticks, int flags, void (*callback)(int
 		timer->flags = flags;
 		timer->callback = callback;
 
+		if (flags & TF_DISABLED)
+			return;
+
 		disable_interrupts();
 
 		timer->next = TI_timers;
@@ -302,7 +308,7 @@ void restart_timer(timer_link_t *timer)
 	if (timer)
 	{
 		timer->left = TICKS_READ() + (int32_t)timer->set;
-		timer->flags = TF_CONTINUOUS | TF_OVERFLOW;
+		timer->flags &= ~TF_DISABLED;
 
 		disable_interrupts();
 
