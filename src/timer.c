@@ -103,6 +103,7 @@ static int __proc_timers(timer_link_t * thead)
 		 * many timers with the same period, they will be created in a fast
 		 * sequence and have a little delay between each other. */
 		if (!(head->flags & TF_CALLED) && 
+			!(head->flags & TF_DISABLED) &&
 			TICKS_DISTANCE(start, head->left) >= 0 && 
 			TICKS_DISTANCE(head->left, now+TIMER_TICKS(5)) >= 0)
 		{
@@ -232,7 +233,7 @@ void timer_init(void)
  * @param[in] ticks
  *            Number of ticks before the timer should fire
  * @param[in] flags
- *            Timer flags.  See #TF_ONE_SHOT and #TF_CONTINUOUS
+ *            Timer flags.  See #TF_ONE_SHOT, #TF_CONTINUOUS and #TF_DISABLED
  * @param[in] callback
  *            Callback function to call when the timer expires
  *
@@ -260,31 +261,6 @@ timer_link_t *new_timer(int ticks, int flags, void (*callback)(int ovfl))
 }
 
 /**
- * @brief Create a new timer
- *
- * @param[in] ticks
- *            Number of ticks before the timer should fire
- * @param[in] flags
- *            Timer flags.  See #TF_ONE_SHOT and #TF_CONTINUOUS
- * @param[in] callback
- *            Callback function to call when the timer expires
- *
- * @return A pointer to the timer structure created
- */
-timer_link_t *new_timer_stopped(int ticks, int flags, void (*callback)(int ovfl))
-{
-	timer_link_t *timer = malloc(sizeof(timer_link_t));
-	if (timer)
-	{
-		timer->left = TICKS_READ() + (int32_t)ticks;
-		timer->set = ticks;
-		timer->flags = flags;
-		timer->callback = callback;
-	}
-	return timer;
-}
-
-/**
  * @brief Start a timer not currently in the list
  *
  * @param[in] timer
@@ -292,7 +268,7 @@ timer_link_t *new_timer_stopped(int ticks, int flags, void (*callback)(int ovfl)
  * @param[in] ticks
  *            Number of ticks before the timer should fire
  * @param[in] flags
- *            Timer flags.  See #TF_ONE_SHOT and #TF_CONTINUOUS
+ *            Timer flags.  See #TF_ONE_SHOT, #TF_CONTINUOUS, and #TF_DISABLED
  * @param[in] callback
  *            Callback function to call when the timer expires
  */
@@ -326,6 +302,7 @@ void restart_timer(timer_link_t *timer)
 	if (timer)
 	{
 		timer->left = TICKS_READ() + (int32_t)timer->set;
+		timer->flags = TF_CONTINUOUS | TF_OVERFLOW;
 
 		disable_interrupts();
 
