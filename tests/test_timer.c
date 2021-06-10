@@ -236,3 +236,79 @@ void test_timer_ticks(TestContext *ctx) {
 			i, start, with_irq, use_timer, tt1->left, cbcalled, t0, t1, t2, t3, t4, t5);
 	}
 }
+
+void test_timer_disabled_restart(TestContext *ctx) {
+	timer_init();
+	DEFER(timer_close());
+
+	uint32_t tick0 = timer_ticks();
+
+	volatile int cb1_called = 0;
+	void cb1(int ovlf) {
+		cb1_called++;
+	}
+
+	timer_link_t *tt1 = new_timer(TICKS_FROM_MS(2), TF_ONE_SHOT | TF_DISABLED, cb1);
+	DEFER(delete_timer(tt1));
+
+	wait_ms(2);
+	ASSERT_EQUAL_SIGNED(cb1_called, 0, "timer 1 called?");
+	wait_ms(3);
+	ASSERT_EQUAL_SIGNED(cb1_called, 0, "timer 1 called again?");
+	wait_ms(3);
+	ASSERT_EQUAL_SIGNED(cb1_called, 0, "timer 1 called again?");
+	
+	// Restart the timer. This time is should trigger
+	restart_timer(tt1);
+	wait_ms(2);
+	ASSERT_EQUAL_SIGNED(cb1_called, 1, "timer 1 not called");
+	wait_ms(3);
+	ASSERT_EQUAL_SIGNED(cb1_called, 1, "timer 1 called again?");
+	wait_ms(3);
+	ASSERT_EQUAL_SIGNED(cb1_called, 1, "timer 1 called again?");
+
+	// Check that timer_ticks return approximate correct value across all timer executions
+	tick0 = timer_ticks() - tick0;
+	ASSERT_EQUAL_SIGNED(
+		TIMER_MICROS(tick0) / 1000,
+		2+3+3+2+3+3,
+		"invalid timer_ticks");
+}
+
+void test_timer_disabled_start(TestContext *ctx) {
+	timer_init();
+	DEFER(timer_close());
+
+	uint32_t tick0 = timer_ticks();
+
+	volatile int cb1_called = 0;
+	void cb1(int ovlf) {
+		cb1_called++;
+	}
+
+	timer_link_t *tt1 = new_timer(TICKS_FROM_MS(2), TF_ONE_SHOT | TF_DISABLED, cb1);
+	DEFER(delete_timer(tt1));
+
+	wait_ms(2);
+	ASSERT_EQUAL_SIGNED(cb1_called, 0, "timer 1 called?");
+	wait_ms(3);
+	ASSERT_EQUAL_SIGNED(cb1_called, 0, "timer 1 called again?");
+	wait_ms(3);
+	ASSERT_EQUAL_SIGNED(cb1_called, 0, "timer 1 called again?");
+	
+	// Restart the timer. This time is should trigger
+	start_timer(tt1, TICKS_FROM_MS(2), TF_ONE_SHOT, cb1);
+	wait_ms(2);
+	ASSERT_EQUAL_SIGNED(cb1_called, 1, "timer 1 not called");
+	wait_ms(3);
+	ASSERT_EQUAL_SIGNED(cb1_called, 1, "timer 1 called again?");
+	wait_ms(3);
+	ASSERT_EQUAL_SIGNED(cb1_called, 1, "timer 1 called again?");
+
+	// Check that timer_ticks return approximate correct value across all timer executions
+	tick0 = timer_ticks() - tick0;
+	ASSERT_EQUAL_SIGNED(
+		TIMER_MICROS(tick0) / 1000,
+		2+3+3+2+3+3,
+		"invalid timer_ticks");
+}
