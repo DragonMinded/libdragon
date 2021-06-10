@@ -485,12 +485,15 @@ static directory_entry_t *find_dirent(char *name, directory_entry_t *cur_node)
 static int recurse_path(const char * const path, int mode, directory_entry_t **dirent, int type)
 {
     int ret = DFS_ESUCCESS;
-    char token[MAX_FILENAME_LEN+1] = {0};
+    char token[MAX_FILENAME_LEN+1];
     char *cur_path = (char *)path;
     uint32_t dir_stack[MAX_DIRECTORY_DEPTH];
     uint32_t dir_loc = directory_top;
     int last_type = TYPE_ANY;
     int ignore = 1; // Do not, by default, read again during the first while
+
+    /* Initialize token to avoid -Werror=maybe-unitialized errors */
+    token[0] = 0;
 
     /* Save directory stack */
     memcpy(dir_stack, directories, sizeof(uint32_t) * MAX_DIRECTORY_DEPTH);
