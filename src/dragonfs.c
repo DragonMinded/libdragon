@@ -492,7 +492,7 @@ static int recurse_path(const char * const path, int mode, directory_entry_t **d
     int last_type = TYPE_ANY;
     int ignore = 1; // Do not, by default, read again during the first while
 
-    /* Initialize token to avoid -Werror=maybe-unitialized errors */
+    /* Initialize token to avoid -Werror=maybe-uninitialized errors */
     token[0] = 0;
 
     /* Save directory stack */
