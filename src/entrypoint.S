@@ -4,6 +4,8 @@
 
 #include "regs.S"
 
+	.set noreorder
+
 	.section .boot
 	.global _start
 _start:
@@ -82,8 +84,9 @@ loadintvectorloop:
 
 	jal __do_global_ctors		/* call global constructors */
 	nop
+	li a0, 0
 	jal main					/* call main app */
-	nop
+	li a1, 0
 
 deadloop:
 	j deadloop
