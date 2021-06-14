@@ -275,6 +275,8 @@ static DRESULT fat_disk_write_64drive(const BYTE* buff, LBA_t sector, UINT count
 		usb_64drive_wait();
 		io_write(D64_CIBASE_ADDRESS + D64_REGISTER_COMMAND, D64_COMMAND_SD_WRITE);
 		usb_64drive_wait();
+
+		buff += 512;
 	}
 
 	return RES_OK;
