@@ -211,6 +211,7 @@ static DRESULT fat_disk_read_64drive(BYTE* buff, LBA_t sector, UINT count)
 		io_write(D64_CIBASE_ADDRESS + D64_REGISTER_COMMAND, D64_COMMAND_SD_READ);
 		if (usb_64drive_wait() != 0)
 		{
+			debugf("[debug] fat_disk_read_64drive: wait timeout\n");
 			// Operation is taking too long. Probably SD was not inserted.
 			// Send a COMMAND_ABORT and SD_RESET, and return I/O error.
 			// Note that because of a 64drive firmware bug, this is not
@@ -274,7 +275,20 @@ static DRESULT fat_disk_write_64drive(const BYTE* buff, LBA_t sector, UINT count
 		io_write(D64_CIBASE_ADDRESS + D64_REGISTER_LBA, sector+i);
 		usb_64drive_wait();
 		io_write(D64_CIBASE_ADDRESS + D64_REGISTER_COMMAND, D64_COMMAND_SD_WRITE);
-		usb_64drive_wait();
+		if (usb_64drive_wait() != 0)
+		{
+			debugf("[debug] fat_disk_write_64drive: wait timeout\n");
+			// Operation is taking too long. Probably SD was not inserted.
+			// Send a COMMAND_ABORT and SD_RESET, and return I/O error.
+			// Note that because of a 64drive firmware bug, this is not
+			// sufficient to unblock the 64drive. The USB channel will stay
+			// unresponsive. We don't currently have a workaround for this.
+			io_write(D64_CIBASE_ADDRESS + D64_REGISTER_COMMAND, D64_COMMAND_ABORT);
+			usb_64drive_wait();
+			io_write(D64_CIBASE_ADDRESS + D64_REGISTER_COMMAND, D64_COMMAND_SD_RESET);
+			usb_64drive_wait();
+			return FR_DISK_ERR;
+		}
 
 		buff += 512;
 	}
