@@ -1081,7 +1081,10 @@ static void *__open( char *name, int flags )
     dfs_chdir("/");
 
     /* We disregard flags here */
-    return (void *)dfs_open( name );
+    int handle = dfs_open( name );
+    if (handle <= 0)
+        return NULL;
+    return (void *)handle;
 }
 
 /**
