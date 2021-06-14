@@ -604,7 +604,7 @@ s8 usb_64drive_wait()
         #endif
         
         // Took too long, abort
-        if((timeout++) > 10000)
+        if((timeout++) > 100000)
             return -1;
     }
     while((ret >> 8) & D64_CI_BUSY);
