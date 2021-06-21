@@ -187,7 +187,7 @@ static const struct Testsuite
 } tests[] = {
 	TEST_FUNC(test_exception,              	   5, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_ticks,                  	   0, TEST_FLAGS_NO_BENCHMARK | TEST_FLAGS_NO_EMULATOR),
-	TEST_FUNC(test_timer_ticks,          	 292, TEST_FLAGS_NO_BENCHMARK | TEST_FLAGS_NO_EMULATOR),
+	TEST_FUNC(test_timer_ticks,          	 292, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_timer_oneshot,        	 596, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_timer_slow_callback, 	1468, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_timer_continuous,     	 688, TEST_FLAGS_RESET_COUNT),
