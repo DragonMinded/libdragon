@@ -93,6 +93,7 @@ int dfs_tell(uint32_t handle);
 int dfs_close(uint32_t handle);
 int dfs_eof(uint32_t handle);
 int dfs_size(uint32_t handle);
+uint32_t dfs_rom_addr(const char *path);
 
 #ifdef __cplusplus
 }

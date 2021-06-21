@@ -29,9 +29,9 @@ typedef void (*TestFunc)(TestContext *ctx);
 
 // LOG(msg, ...): log something that will be displayed if the test fails.
 #define LOG(msg, ...)  ({ \
-	int n = snprintf(ctx->log, ctx->logleft, msg, ##__VA_ARGS__); \
-	fwrite(ctx->log, 1, n, stderr); \
-	ctx->log += n; ctx->logleft -= n; \
+	int __n = snprintf(ctx->log, ctx->logleft, msg, ##__VA_ARGS__); \
+	fwrite(ctx->log, 1, __n, stderr); \
+	ctx->log += __n; ctx->logleft -= __n; \
 })
 
 // DEFER(stmt): execute "stmt" statement when the current lexical block exits.
@@ -196,6 +196,7 @@ static const struct Testsuite
 	TEST_FUNC(test_timer_disabled_restart,	 733, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_irq_reentrancy,       	 230, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_dfs_read,            	1104, TEST_FLAGS_IO),
+	TEST_FUNC(test_dfs_rom_addr,              25, TEST_FLAGS_IO),
 	TEST_FUNC(test_cache_invalidate,    	1763, TEST_FLAGS_NONE),
 	TEST_FUNC(test_debug_sdfs,             	   0, TEST_FLAGS_NO_BENCHMARK),
 };
@@ -270,6 +271,7 @@ int main() {
 		} else if (ctx.result == TEST_SKIPPED) {
 			skipped++;
 			printf("SKIP\n\n");
+			debugf("SKIP\n");
 		}
 
 		// If there's more than a 5% (10% for IO tests) drift on the running time
@@ -283,6 +285,7 @@ int main() {
 		) {
 			failures++;
 			printf("FAIL\n\n");
+			debugf("TIMING FAIL\n");
 
 			printf("Duration changed by %.1f%%\n", (float)test_diff * 100.0 / (float)test_duration);
 			printf("(expected: %ldK, measured: %ldK)\n\n", tests[i].duration, test_duration);
@@ -295,6 +298,7 @@ int main() {
 
 	int64_t total_time = TIMER_MICROS(stop-start) / 1000000;
 
-	printf("\nTestsuite finished in %02lld:%02lld\n", total_time%60, total_time/60);
+	console_set_debug(true);
+	printf("\nTestsuite finished in %02lld:%02lld\n", total_time/60, total_time%60);
 	printf("Passed: %d out of %d (%d skipped)\n", successes, NUM_TESTS, skipped);
 }
