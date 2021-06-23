@@ -10,6 +10,10 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /** 
  * @brief Flag to activate the USB logging channel.
  *
@@ -197,5 +201,9 @@
 // Underlying assertion function for assert() and assertf().
 void debug_assert_func_f(const char *file, int line, const char *func, const char *failedexpr, const char *msg, ...)
    __attribute__((noreturn, format(printf, 5, 6)));
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 
 #endif
