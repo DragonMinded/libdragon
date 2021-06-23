@@ -61,11 +61,11 @@ uint32_t get_file_size(FILE *fp)
 {
 	int x = ftell(fp);
 	uint32_t ret = 0;
-	
+
 	fseek(fp, 0, SEEK_END);
 	ret = ftell(fp);
 	fseek(fp, x, SEEK_SET);
-	
+
 	return ret;
 }
 
@@ -76,20 +76,20 @@ int swap_bytes(uint8_t *buffer, int size)
 		/* Invalid, can only byteswap multiples of 2 */
 		return -1;
 	}
-	
+
 	int i;
-	
+
 	for(i = 0; i < (size >> 1); i++)
 	{
 		int loc1 = i << 1;
 		int loc2 = loc1 + 1;
-		
+
 		/* Easy peasy */
 		uint8_t temp = buffer[loc1];
 		buffer[loc1] = buffer[loc2];
 		buffer[loc2] = temp;
 	}
-	
+
 	return 0;
 }
 
@@ -97,64 +97,64 @@ int copy_file(FILE *dest, char *file, int byte_swap)
 {
 	FILE *read_file = fopen(file, "rb");
 	uint8_t *buffer;
-	
+
 	if(!read_file)
 	{
 		fprintf(stderr, "Cannot open %s for reading!\n", file);
 		return -1;
 	}
-	
+
 	int fsize = get_file_size(read_file);
 	int rsize = fsize;
-	
+
 	/* Should probably make this read in incriments, but whatever */
 	buffer = malloc(WRITE_SIZE);
-	
+
 	if(!buffer)
 	{
 		fprintf(stderr, "Out of memory!\n");
-		
+
 		fclose(read_file);
-		
+
 		return -1;
 	}
-	
+
 	/* Weird windows bug fix, plus this is the right way to do things */
 	while(fsize > 0)
 	{
 		/* Max 1K chunk */
 		int write_size = (fsize > WRITE_SIZE) ? WRITE_SIZE : fsize;
 		fsize -= write_size;
-		
+
 		fread(buffer, 1, write_size, read_file);
-		
+
 		if(!wrote_title)
 		{
 			/* Pop title into header */
 			memcpy(buffer + TITLE_LOC, title, TITLE_SIZE);
-			
+
 			wrote_title = 1;
 		}
-	
+
 		if(byte_swap)
 		{
 			if(swap_bytes(buffer, write_size))
 			{
 				fprintf(stderr, "Invalid file size on %s.  Should be multiple of 32bits!\n", file);
-				
+
 				free(buffer);
 				fclose(read_file);
-				
+
 				return -1;
 			}
 		}
-		
+
 		fwrite(buffer, 1, write_size, dest);
 	}
-	
-	free(buffer);	
+
+	free(buffer);
 	fclose(read_file);
-	
+
 	return rsize;
 }
 
@@ -165,7 +165,7 @@ int output_zeros(FILE *dest, int amount)
 		/* Don't support odd word alignments */
 		return -1;
 	}
-	
+
 	int i;
 	while (amount > 0) {
 		int sz = amount;
@@ -181,18 +181,18 @@ int output_zeros(FILE *dest, int amount)
 int get_bytes(char *cur_arg)
 {
 	int size = 0;
-	
+
 	/* Figure out if they mean bytes, kilobytes, megabytes */
 	char c = cur_arg[strlen(cur_arg)-1];
-	
-	/* Blank last character to do an atoi */						
+
+	/* Blank last character to do an atoi */
 	char *temp = strdup(cur_arg);
 	temp[strlen(temp)-1] = '\0';
-	
+
 	/* Grab number */
-	size = atoi(temp);						
+	size = atoi(temp);
 	free(temp);
-	
+
 	/* Multiply out by byte amount */
 	switch(c)
 	{
@@ -209,7 +209,7 @@ int get_bytes(char *cur_arg)
 			/* Invalid! */
 			return -1;
 	}
-	
+
 	return size;
 }
 
@@ -223,22 +223,22 @@ int main(int argc, char *argv[])
 	int state = STATE_NONE;
 	int byte_swap = 0;
 	int i;
-	
+
 	/* Set default title */
 	memset(title, 0x20, TITLE_SIZE);
 	memcpy(title, DEF_TITLE, (strlen(DEF_TITLE) > TITLE_SIZE) ? TITLE_SIZE : strlen(DEF_TITLE));
-	
+
 	if(argc <= 1)
 	{
 		/* No way we can have just one argument or less */
 		print_usage(argv[0]);
 		return -1;
 	}
-	
+
 	for(i = 1; i < argc; i++)
 	{
 		char *cur_arg = argv[i];
-		
+
 		switch(cur_arg[0])
 		{
 			case '-':
@@ -264,7 +264,7 @@ int main(int argc, char *argv[])
 							print_usage(argv[0]);
 							return -1;
 						}
-						
+
 						break;
 					case 'o':
 						/* Output file */
@@ -290,7 +290,7 @@ int main(int argc, char *argv[])
 						print_usage(argv[0]);
 						return -1;
 				}
-				
+
 				break;
 			case '\0':
 				/* Shouldn't happen */
@@ -309,7 +309,7 @@ int main(int argc, char *argv[])
 						output = cur_arg;
 						break;
 					case STATE_T:
-						/* Grab title */						
+						/* Grab title */
 						if(strlen(cur_arg) < 16)
 						{
 							/* Spaces for pretty printing */
@@ -320,7 +320,7 @@ int main(int argc, char *argv[])
 						{
 							memcpy(title, cur_arg, TITLE_SIZE);
 						}
-						
+
 						break;
 					case STATE_S:
 						/* Can't be here unless header and output set, and has to be at least 2 bytes.
@@ -330,40 +330,40 @@ int main(int argc, char *argv[])
 							print_usage(argv[0]);
 							return -1;
 						}
-						
+
 						int offset = get_bytes(cur_arg);
-						
+
 						if(offset < 0)
 						{
 							/* Invalid! */
 							print_usage(argv[0]);
 							return -1;
 						}
-						
+
 						/* Write out needed number of zeros */
 						int num_zeros = offset - total_bytes;
-						
+
 						if(output_zeros(write_file, num_zeros))
 						{
 							fprintf(stderr, "Invalid offset to seek to in %s!\n", output);
 							return -1;
 						}
-						
+
 						/* Same as total_bytes = offset */
 						total_bytes += num_zeros;
-						
+
 						break;
 					case STATE_L:
 						/* Just grab size */
 						total_size = get_bytes(cur_arg);
-						
+
 						if(total_size < 0)
 						{
 							/* Invalid! */
 							print_usage(argv[0]);
 							return -1;
 						}
-						
+
 						break;
 					case STATE_NONE:
 						/* Can't be here unless header and output set */
@@ -372,20 +372,20 @@ int main(int argc, char *argv[])
 							print_usage(argv[0]);
 							return -1;
 						}
-						
+
 						/* Is our output file open? */
 						if(!write_file)
 						{
 							write_file = fopen(output, "wb");
-							
+
 							if(!write_file)
 							{
 								fprintf(stderr, "Cannot open %s for writing!\n", output);
 								return -1;
 							}
-							
+
 							int wrote = copy_file(write_file, header, byte_swap);
-							
+
 							/* Since write file wasn't open, we haven't written the header */
 							if(wrote < 0)
 							{
@@ -397,29 +397,29 @@ int main(int argc, char *argv[])
 								total_size -= wrote;
 							}
 						}
-						
+
 						/* Copy over file */
 						int copied = copy_file(write_file, cur_arg, byte_swap);
-						
+
 						if(copied < 0)
 						{
 							/* Error, exit */
 							return -1;
 						}
-						
+
 						/* Keep track to be sure we align properly when they request a memory alignment */
 						total_bytes += copied;
-						
+
 						break;
 				}
-				
+
 				/* Reset state */
 				state = STATE_NONE;
-				
+
 				break;
 		}
 	}
-	
+
 	if(!total_bytes)
 	{
 		printf("No input files, nothing written!\n");
@@ -429,16 +429,16 @@ int main(int argc, char *argv[])
 	{
 		/* Pad to correct length */
 		int num_zeros = total_size - total_bytes;
-		
+
 		if(output_zeros(write_file, num_zeros))
 		{
 			fprintf(stderr, "Couldn't pad image in %s!\n", output);
 			return -1;
 		}
-		
+
 		fflush(write_file);
 		fclose(write_file);
 	}
-	
+
 	return 0;
 }
