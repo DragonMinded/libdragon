@@ -43,18 +43,21 @@ static unsigned char zero[1024] = {0};
 
 void print_usage(char *prog_name)
 {
-	fprintf(stderr, "Usage: %s [-b] -l <size>B/K/M -h <file> -o <file> -t <title> <file> [[-s <offset>B/K/M] <file>]*\n\n", prog_name);
-	fprintf(stderr, "This program appends a header to an arbitrary number of binaries,\n");
-	fprintf(stderr, "the first being an Nintendo64 binary and the rest arbitrary data.\n\n");
-	fprintf(stderr, "\t-b\t\tByteswap the resulting output.\n");
-	fprintf(stderr, "\t-l <size>\tForce output to <size> bytes.\n");
-	fprintf(stderr, "\t-h <file>\tUse <file> as header.\n");
-	fprintf(stderr, "\t-o <file>\tOutput is saved to <file>.\n");
-	fprintf(stderr, "\t-t <title>\tTitle of ROM.\n");
-	fprintf(stderr, "\t-s <offset>\tNext file starts at <offset> from top of memory.  Offset must be 32bit aligned.\n");
-	fprintf(stderr, "\t\t\tB for byte offset.\n");
-	fprintf(stderr, "\t\t\tK for kilobyte offset.\n");
-	fprintf(stderr, "\t\t\tM for megabyte offset.\n");
+	const char *message = ""
+	"Usage: %s [-b] -l <size>B/K/M -h <file> -o <file> -t <title> <file> [[-s <offset>B/K/M] <file>]*\n\n"
+	"This program appends a header to an arbitrary number of binaries,\n"
+	"the first being an Nintendo64 binary and the rest arbitrary data.\n\n"
+	"\t-b\t\tByteswap the resulting output.\n"
+	"\t-l <size>\tForce output to <size> bytes.\n"
+	"\t-h <file>\tUse <file> as header.\n"
+	"\t-o <file>\tOutput is saved to <file>.\n"
+	"\t-t <title>\tTitle of ROM.\n"
+	"\t-s <offset>\tNext file starts at <offset> from top of memory.  Offset must be 32bit aligned.\n"
+	"\t\t\tB for byte offset.\n"
+	"\t\t\tK for kilobyte offset.\n"
+	"\t\t\tM for megabyte offset.\n";
+
+	fprintf(stderr, message, prog_name);
 }
 
 uint32_t get_file_size(FILE *fp)
