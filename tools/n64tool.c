@@ -39,7 +39,7 @@
 /* Easier to write from here */
 static int title[TITLE_SIZE];
 static int wrote_title = 0;
-static unsigned char zero[1024] = {0};
+static unsigned char zero[1024];
 
 void print_usage(char *prog_name)
 {
@@ -230,6 +230,9 @@ int main(int argc, char *argv[])
 	/* Set default title */
 	memset(title, 0x20, TITLE_SIZE);
 	memcpy(title, DEF_TITLE, (strlen(DEF_TITLE) > TITLE_SIZE) ? TITLE_SIZE : strlen(DEF_TITLE));
+
+	/* Initialize zero array */
+	memset(zero, 0x00, 1024*sizeof(*zero));
 
 	if(argc <= 1)
 	{
