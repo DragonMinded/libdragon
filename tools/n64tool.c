@@ -165,7 +165,12 @@ int output_zeros(FILE *dest, int amount)
 		/* Don't support odd word alignments */
 		return -1;
 	}
-	
+	if(amount < 0)
+	{
+		/* Can't backward seek */
+		return -1;
+	}
+
 	int i;
 	while (amount > 0) {
 		int sz = amount;
@@ -339,13 +344,13 @@ int main(int argc, char *argv[])
 							print_usage(argv[0]);
 							return -1;
 						}
-						
+
 						/* Write out needed number of zeros */
 						int num_zeros = offset - total_bytes;
-						
+
 						if(output_zeros(write_file, num_zeros))
 						{
-							fprintf(stderr, "Invalid offset to seek to in %s!\n", output);
+							fprintf(stderr, "Invalid offset %d to seek to in %s!\n", offset, output);
 							return -1;
 						}
 						
