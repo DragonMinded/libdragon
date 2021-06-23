@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 #define WRITE_SIZE	(1024*1024)
 
@@ -41,12 +42,17 @@ static int title[TITLE_SIZE];
 static int wrote_title = 0;
 static unsigned char zero[1024];
 
+/* The program name */
+const char *prog_name = "n64tool";
+bool quiet = false;
+
 void print_usage(char *prog_name)
 {
 	const char *message = ""
 	"Usage: %s [-b] -l <size>B/K/M -h <file> -o <file> -t <title> <file> [[-s <offset>B/K/M] <file>]*\n\n"
 	"This program appends a header to an arbitrary number of binaries,\n"
 	"the first being an Nintendo64 binary and the rest arbitrary data.\n\n"
+	"\t-q\t\tQuiet: do not print to stdout.\n"
 	"\t-b\t\tByteswap the resulting output.\n"
 	"\t-l <size>\tForce output to <size> bytes.\n"
 	"\t-h <file>\tUse <file> as header.\n"
@@ -216,6 +222,89 @@ int get_bytes(char *cur_arg)
 	return size;
 }
 
+static void print_deadbeef_address(int rom_address)
+{
+	unsigned memory_address = rom_address + 0xB0000000;
+
+	if (rom_address == -1)
+		fprintf(stdout, "%s: No dragonfs filesystem found in output ROM.\n", prog_name);
+	else
+		fprintf(stdout, "%s: Found dragonfs filesystem at address 0x%X.\n", prog_name, memory_address);
+}
+
+/* DragonFS initialization requires an address where the filesystem position
+   is in the memory. This position is where the DEADBEEF bytes are, so we look
+   into the ROM in order to find it and print to the user. Return the ROM
+   address on success, -1 if not found. */
+
+static int find_deadbeef_address(FILE *fp, bool swap)
+{
+    uint8_t deadbeef[4] = {0xDE, 0xAD, 0xBE, 0xEF};
+
+	int reads = 0;
+	int DE_address = 0;
+	bool found = false;
+	int state = 0;
+	int c = 0x00;
+
+	if (swap)
+		swap_bytes(deadbeef, 4*sizeof(*deadbeef));
+
+	rewind(fp);
+
+	/* Create a small automata. Accept state is when 0xDE 0xAD 0xBE 0xEF has
+	   been found. */
+
+	while ((c = fgetc(fp)) != EOF && !found)
+	{
+		switch (state)
+		{
+			case 0:
+				if (c == deadbeef[0])
+				{
+					state = 1;
+					DE_address = reads;
+				}
+				else
+					state = 0;
+			break;
+
+			case 1:
+				if (c == deadbeef[1])
+					state = 2;
+				else if (c == deadbeef[0])
+					state = 1;
+				else
+					state = 0;
+			break;
+
+			case 2:
+				if (c == deadbeef[2])
+					state = 3;
+				else
+					state = 0;
+			break;
+
+			case 3:
+				if (c == deadbeef[3])
+				{
+					/* Accept state */
+					found = true;
+				}
+				else
+					state = 0;
+			break;
+
+			default:
+				abort(); /* Undefined state */
+		}
+		reads++;
+	}
+
+	rewind(fp);
+	return found? DE_address: -1;
+}
+
 int main(int argc, char *argv[])
 {
 	FILE *write_file = 0;
@@ -233,6 +322,9 @@ int main(int argc, char *argv[])
 
 	/* Initialize zero array */
 	memset(zero, 0x00, 1024*sizeof(*zero));
+
+	if (argc >= 1)
+		prog_name = argv[0];
 
 	if(argc <= 1)
 	{
@@ -291,6 +383,9 @@ int main(int argc, char *argv[])
 					case 't':
 						/* Title */
 						state = STATE_T;
+						break;
+					case 'q':
+						quiet = true;
 						break;
 					default:
 						print_usage(argv[0]);
@@ -382,7 +477,7 @@ int main(int argc, char *argv[])
 						/* Is our output file open? */
 						if(!write_file)
 						{
-							write_file = fopen(output, "wb");
+							write_file = fopen(output, "w+b");
 
 							if(!write_file)
 							{
@@ -428,22 +523,31 @@ int main(int argc, char *argv[])
 
 	if(!total_bytes)
 	{
-		printf("No input files, nothing written!\n");
+		if (!quiet)
+			printf("No input files, nothing written!\n");
 		/* Didn't write anything! */
 	}
 	else
 	{
 		/* Pad to correct length */
 		int num_zeros = total_size - total_bytes;
+		int rom_deadbeef;
 
 		if(output_zeros(write_file, num_zeros))
 		{
 			fprintf(stderr, "Couldn't pad image in %s!\n", output);
 			return -1;
 		}
-
 		fflush(write_file);
+
+		if (!quiet)
+		{
+			rom_deadbeef = find_deadbeef_address(write_file, byte_swap);
+			print_deadbeef_address(rom_deadbeef);
+		}
+
 		fclose(write_file);
+
 	}
 
 	return 0;
