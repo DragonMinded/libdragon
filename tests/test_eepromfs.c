@@ -3,16 +3,6 @@ void test_eepromfs(TestContext *ctx) {
     if (blocks == 0) {
         SKIP("EEPROM not found; skipping eepfs tests");
     }
-    if (IN_EMULATOR) {
-        // Gracefully handle broken default EEPROM in cen64
-        uint64_t eeprom_block = 0;
-        uint8_t * eeprom_bytes = (uint8_t *)&eeprom_block;
-        eeprom_write(0, eeprom_bytes);
-        eeprom_read(0, eeprom_bytes);
-        if (eeprom_block != 0) {
-            SKIP("cen64 defaults to broken 4K EEPROM implementation");
-        }
-    }
 
     uint8_t file1_src[256] = {0};
     uint8_t file1_dst[256] = {0};
