@@ -433,14 +433,14 @@ int eepfs_erase(const char * path)
         return EEPFS_ENOFILE;
     }
 
-    const size_t total_blocks = divide_ceil(file->num_bytes, EEPROM_BLOCK_SIZE);
+    const size_t num_blocks = divide_ceil(file->num_bytes, EEPROM_BLOCK_SIZE);
     size_t current_block = file->start_block;
 
     /* eeprom_buf is initialized to all zeroes */
     const uint8_t eeprom_buf[EEPROM_BLOCK_SIZE] = {0};
 
     /* Write the blocks in with zeroes */
-    while ( current_block < total_blocks )
+    while ( current_block < file->start_block + num_blocks )
     {
         eeprom_write(current_block++, eeprom_buf);
     }
@@ -512,8 +512,8 @@ void eepfs_wipe(void)
     const uint8_t eeprom_buf[EEPROM_BLOCK_SIZE] = {0};
 
     /* Write the rest of the blocks in with zeroes */
-    size_t current_block = 1;
     const size_t total_blocks = eeprom_total_blocks();
+    size_t current_block = 1;
 
     while ( current_block < total_blocks )
     {
