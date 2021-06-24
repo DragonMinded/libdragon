@@ -75,7 +75,7 @@ static struct controller_data last;
 /** 
  * @brief Initialize the controller subsystem 
  */
-void controller_init()
+void controller_init( void )
 {
     memset(&current, 0, sizeof(current));
     memset(&last, 0, sizeof(last));
@@ -84,7 +84,7 @@ void controller_init()
 /**
  * @brief Wait until the SI is finished with a DMA request
  */
-static void __SI_DMA_wait(void)
+static void __SI_DMA_wait( void )
 {
     while (SI_regs->status & (SI_STATUS_DMA_BUSY | SI_STATUS_IO_BUSY)) ;
 }
@@ -137,7 +137,7 @@ static void __controller_exec_PIF( const void *inblock, void *outblock )
  *
  * @return Which EEPROM type was detected on the cartridge.
  */
-eeprom_type_t eeprom_present()
+eeprom_type_t eeprom_present( void )
 {
     static const uint64_t SI_eeprom_status_block[8] =
     {
@@ -169,7 +169,7 @@ eeprom_type_t eeprom_present()
  * 
  * @return The capacity of the detected EEPROM type, or 0 if no EEPROM is present.
  */
-int eeprom_total_blocks()
+int eeprom_total_blocks( void )
 {
     switch ( eeprom_present() )
     {
@@ -187,7 +187,7 @@ int eeprom_total_blocks()
  * @param[out] dest
  *             Destination buffer for the eight bytes read from EEPROM.
  */
-void eeprom_read(int block, uint8_t * dest)
+void eeprom_read( int block, uint8_t * dest )
 {
     static uint64_t SI_eeprom_read_block[8] =
     {
@@ -215,7 +215,7 @@ void eeprom_read(int block, uint8_t * dest)
  * @param[in] src
  *            Source buffer for the eight bytes of data to write to EEPROM.
  */
-void eeprom_write(int block, const uint8_t * src)
+void eeprom_write( int block, const uint8_t * src )
 {
     static uint64_t SI_eeprom_write_block[8] =
     {
@@ -247,7 +247,7 @@ void eeprom_write(int block, const uint8_t * src)
  * @param[in]  len
  *             Byte length of data to read into buffer
  */
-void eeprom_read_bytes(uint8_t * dest, size_t start, size_t len)
+void eeprom_read_bytes( uint8_t * dest, size_t start, size_t len )
 {
 	uint8_t buf[EEPROM_BLOCK_SIZE];
 	size_t bytes_left = len;
@@ -256,7 +256,7 @@ void eeprom_read_bytes(uint8_t * dest, size_t start, size_t len)
 	size_t block_offset = start % EEPROM_BLOCK_SIZE;
 	if (block_offset)
 	{
-		eeprom_read(current_block++, buf);
+		eeprom_read( current_block++, buf );
 		bytes_left -= (EEPROM_BLOCK_SIZE - block_offset);
 		while (block_offset < EEPROM_BLOCK_SIZE)
 		{
@@ -264,17 +264,17 @@ void eeprom_read_bytes(uint8_t * dest, size_t start, size_t len)
 		}
 	}
 	// Read whole blocks at a time
-	while (bytes_left >= EEPROM_BLOCK_SIZE)
+	while ( bytes_left >= EEPROM_BLOCK_SIZE )
 	{
-		eeprom_read(current_block++, dest);
+		eeprom_read( current_block++, dest );
 		dest += EEPROM_BLOCK_SIZE;
 		bytes_left -= EEPROM_BLOCK_SIZE;
 	}
 	// If we need to read a partial block at the end...
 	if (bytes_left)
 	{
-		eeprom_read(current_block, buf);
-		memcpy(dest, buf, bytes_left);
+		eeprom_read( current_block, buf );
+		memcpy( dest, buf, bytes_left );
 	}
 }
 
@@ -298,7 +298,7 @@ void eeprom_read_bytes(uint8_t * dest, size_t start, size_t len)
  * @param[in] len
  *            Byte length of the src buffer
  */
-void eeprom_write_bytes(const uint8_t * src, size_t start, size_t len)
+void eeprom_write_bytes( const uint8_t * src, size_t start, size_t len )
 {
 	uint8_t buf[EEPROM_BLOCK_SIZE];
 	size_t bytes_left = len;
@@ -307,28 +307,28 @@ void eeprom_write_bytes(const uint8_t * src, size_t start, size_t len)
 	size_t block_offset = start % EEPROM_BLOCK_SIZE;
 	if (block_offset)
 	{
-		eeprom_read(current_block, buf);
+		eeprom_read( current_block, buf );
 		bytes_left -= (EEPROM_BLOCK_SIZE - block_offset);
 		while (block_offset < EEPROM_BLOCK_SIZE)
 		{
 			buf[block_offset++] = *src++;
 		}
-		eeprom_write(current_block++, buf);
+		eeprom_write( current_block++, buf );
 	}
 	// Write whole blocks at a time
 	while (bytes_left >= EEPROM_BLOCK_SIZE)
 	{
-		memcpy(buf, src, EEPROM_BLOCK_SIZE);
-		eeprom_write(current_block++, buf);
+		memcpy( buf, src, EEPROM_BLOCK_SIZE );
+		eeprom_write( current_block++, buf );
 		src += EEPROM_BLOCK_SIZE;
 		bytes_left -= EEPROM_BLOCK_SIZE;
 	}
 	// If we need to write a partial block at the end...
 	if (bytes_left)
 	{
-		eeprom_read(current_block, buf);
-		memcpy(buf, src, bytes_left);
-		eeprom_write(current_block, buf);
+		eeprom_read( current_block, buf );
+		memcpy( buf, src, bytes_left );
+		eeprom_write( current_block, buf );
 	}
 }
 
@@ -342,7 +342,7 @@ void eeprom_write_bytes(const uint8_t * src, size_t start, size_t len)
  * @param[out] output
  *             Structure to place the returned controller button status
  */
-void controller_read(struct controller_data * output)
+void controller_read( struct controller_data * output )
 {
     static const unsigned long long SI_read_con_block[8] =
     {
@@ -356,7 +356,7 @@ void controller_read(struct controller_data * output)
         1
     };
 
-    __controller_exec_PIF(SI_read_con_block,output);
+    __controller_exec_PIF( SI_read_con_block, output );
 }
 
 /**
@@ -370,7 +370,7 @@ void controller_read(struct controller_data * output)
  * @param[out] output
  *             Structure to place the returned controller button status
  */
-void controller_read_gc(struct controller_data * outdata, const uint8_t rumble[4])
+void controller_read_gc( struct controller_data * outdata, const uint8_t rumble[4] )
 {
     static const unsigned long long SI_read_con_block[8] =
     {
@@ -386,7 +386,7 @@ void controller_read_gc(struct controller_data * outdata, const uint8_t rumble[4
 
     static unsigned long long output[8], input[8];
 
-    memcpy(input, SI_read_con_block, 64);
+    memcpy( input, SI_read_con_block, 64 );
 
     // Fill in the rumbles
     if (rumble[0])
@@ -398,12 +398,12 @@ void controller_read_gc(struct controller_data * outdata, const uint8_t rumble[4
     if (rumble[3])
         input[5] |= 1LLU << 32;
 
-    __controller_exec_PIF(input, output);
+    __controller_exec_PIF( input, output );
 
-    memcpy(&outdata->gc[0], ((uint8_t *) output) + 5, 8);
-    memcpy(&outdata->gc[1], ((uint8_t *) output) + 5 + 13, 8);
-    memcpy(&outdata->gc[2], ((uint8_t *) output) + 5 + 13 * 2, 8);
-    memcpy(&outdata->gc[3], ((uint8_t *) output) + 5 + 13 * 3, 8);
+    memcpy( &outdata->gc[0], ((uint8_t *) output) + 5, 8 );
+    memcpy( &outdata->gc[1], ((uint8_t *) output) + 5 + 13, 8 );
+    memcpy( &outdata->gc[2], ((uint8_t *) output) + 5 + 13 * 2, 8 );
+    memcpy( &outdata->gc[3], ((uint8_t *) output) + 5 + 13 * 3, 8 );
 }
 
 /**
@@ -416,7 +416,7 @@ void controller_read_gc(struct controller_data * outdata, const uint8_t rumble[4
  * @param[out] output
  *             Structure to place the returned controller button status
  */
-void controller_read_gc_origin(struct controller_origin_data * outdata)
+void controller_read_gc_origin( struct controller_origin_data * outdata )
 {
     static const unsigned long long SI_read_con_block[8] =
     {
@@ -432,12 +432,12 @@ void controller_read_gc_origin(struct controller_origin_data * outdata)
 
     static unsigned long long output[8];
 
-    __controller_exec_PIF(SI_read_con_block, output);
+    __controller_exec_PIF( SI_read_con_block, output );
 
-    memcpy(&outdata->gc[0], ((uint8_t *) output) + 3, 10);
-    memcpy(&outdata->gc[1], ((uint8_t *) output) + 3 + 13, 10);
-    memcpy(&outdata->gc[2], ((uint8_t *) output) + 3 + 13 * 2, 10);
-    memcpy(&outdata->gc[3], ((uint8_t *) output) + 3 + 13 * 3, 10);
+    memcpy( &outdata->gc[0], ((uint8_t *) output) + 3, 10 );
+    memcpy( &outdata->gc[1], ((uint8_t *) output) + 3 + 13, 10 );
+    memcpy( &outdata->gc[2], ((uint8_t *) output) + 3 + 13 * 2, 10 );
+    memcpy( &outdata->gc[3], ((uint8_t *) output) + 3 + 13 * 3, 10 );
 }
 
 /**
@@ -448,14 +448,14 @@ void controller_read_gc_origin(struct controller_origin_data * outdata)
  * #get_keys_held, #get_keys_pressed or #get_dpad_direction. Only N64
  * controllers supported.
  */
-void controller_scan()
+void controller_scan( void )
 {
     /* Remember last */
-    memcpy(&last, &current, sizeof(current));
+    memcpy( &last, &current, sizeof(current) );
 
     /* Grab current */
-    memset(&current, 0, sizeof(current));
-    controller_read(&current);
+    memset( &current, 0, sizeof(current) );
+    controller_read( &current );
 }
 
 /**
@@ -467,12 +467,12 @@ void controller_scan()
  *
  * @return A structure representing which buttons were just pressed down
  */
-struct controller_data get_keys_down()
+struct controller_data get_keys_down( void )
 {
     struct controller_data ret;
 
     /* Start with baseline */
-    memcpy(&ret, &current, sizeof(current));
+    memcpy( &ret, &current, sizeof(current) );
 
     /* Figure out which wasn't pressed last time and is now */
     for(int i = 0; i < 4; i++)
@@ -492,12 +492,12 @@ struct controller_data get_keys_down()
  *
  * @return A structure representing which buttons were just released
  */
-struct controller_data get_keys_up()
+struct controller_data get_keys_up( void )
 {
     struct controller_data ret;
 
     /* Start with baseline */
-    memcpy(&ret, &current, sizeof(current));
+    memcpy( &ret, &current, sizeof(current) );
 
     /* Figure out which was pressed last time and isn't now */
     for(int i = 0; i < 4; i++)
@@ -517,12 +517,12 @@ struct controller_data get_keys_up()
  *
  * @return A structure representing which buttons were held
  */
-struct controller_data get_keys_held()
+struct controller_data get_keys_held( void )
 {
     struct controller_data ret;
 
     /* Start with baseline */
-    memcpy(&ret, &current, sizeof(current));
+    memcpy( &ret, &current, sizeof(current) );
 
     /* Figure out which was pressed last time and now as well */
     for(int i = 0; i < 4; i++)
@@ -541,7 +541,7 @@ struct controller_data get_keys_held()
  *
  * @return A structure representing which buttons were pressed
  */
-struct controller_data get_keys_pressed()
+struct controller_data get_keys_pressed( void )
 {
     return current;
 }
@@ -652,7 +652,7 @@ void execute_raw_command( int controller, int command, int bytesout, int bytesin
  *
  * @return A bitmask representing controllers present
  */
-int get_controllers_present()
+int get_controllers_present( void )
 {
     int ret = 0;
     struct controller_data output;
@@ -668,7 +668,7 @@ int get_controllers_present()
         1
     };
 
-    __controller_exec_PIF(SI_read_controllers_block,&output);
+    __controller_exec_PIF( SI_read_controllers_block, &output );
 
     if( output.c[0].err == ERROR_NONE ) { ret |= CONTROLLER_1_INSERTED; }
     if( output.c[1].err == ERROR_NONE ) { ret |= CONTROLLER_2_INSERTED; }
@@ -722,7 +722,7 @@ static void __get_accessories_present( struct controller_data *output )
         1
     };
 
-    __controller_exec_PIF(SI_read_status_block,output);
+    __controller_exec_PIF( SI_read_status_block, output );
 }
 
 /**
@@ -749,7 +749,7 @@ int get_accessories_present(struct controller_data *out)
     if( (output.c[3].err == ERROR_NONE) && __is_valid_accessory( output.c[3].data ) ) { ret |= CONTROLLER_4_INSERTED; }
 
     if (out)
-        memcpy(out, &output, sizeof(struct controller_data));
+        memcpy( out, &output, sizeof(struct controller_data) );
 
     return ret;
 }
@@ -879,7 +879,7 @@ int read_mempak_address( int controller, uint16_t address, uint8_t *data )
     /* Leave room for 33 bytes (32 bytes + CRC) to come back */
     memset( &SI_read_mempak_block[controller + 5], 0xFF, 33 );
 
-    __controller_exec_PIF(SI_read_mempak_block,&output);
+    __controller_exec_PIF( SI_read_mempak_block, &output );
 
     /* Copy data correctly out of command */
     memcpy( data, &output[controller + 5], 32 );
@@ -956,7 +956,7 @@ int write_mempak_address( int controller, uint16_t address, uint8_t *data )
     /* Leave room for CRC to come back */
     SI_write_mempak_block[controller + 5 + 32] = 0xFF;
 
-    __controller_exec_PIF(SI_write_mempak_block,&output);
+    __controller_exec_PIF( SI_write_mempak_block, &output );
 
     /* Calculate CRC on output */
     uint8_t crc = __calc_data_crc( &output[controller + 5] );
@@ -995,14 +995,14 @@ static bool __is_transfer_pak( int controller )
 {
     uint8_t data[32];
     memset( data, 0x84, 32 );
-    write_mempak_address(controller, 0x8000, data);
-    read_mempak_address(controller, 0x8000, data);
+    write_mempak_address( controller, 0x8000, data );
+    read_mempak_address( controller, 0x8000, data );
 
     bool result = (data[0] == 0x84);
 
     memset( data, 0xFE, 32 );
-    write_mempak_address(controller, 0x8000, data);
-    read_mempak_address(controller, 0x8000, data);
+    write_mempak_address( controller, 0x8000, data );
+    read_mempak_address( controller, 0x8000, data );
 
     return result & (data[0] == 0x00);
 }
