@@ -4,6 +4,8 @@
 
 #include "regs.S"
 
+	.set noreorder
+
 	.section .boot
 	.global _start
 _start:
@@ -76,10 +78,15 @@ loadintvectorloop:
 	bnez t2,loadintvectorloop
 	nop
 
+	la t0, debug_assert_func    /* install assert function in system.c */
+	la t1, __assert_func_ptr
+	sw t0, 0(t1)	
+
 	jal __do_global_ctors		/* call global constructors */
 	nop
+	li a0, 0
 	jal main					/* call main app */
-	nop
+	li a1, 0
 
 deadloop:
 	j deadloop

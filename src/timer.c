@@ -103,6 +103,7 @@ static int __proc_timers(timer_link_t * thead)
 		 * many timers with the same period, they will be created in a fast
 		 * sequence and have a little delay between each other. */
 		if (!(head->flags & TF_CALLED) && 
+			!(head->flags & TF_DISABLED) &&
 			TICKS_DISTANCE(start, head->left) >= 0 && 
 			TICKS_DISTANCE(head->left, now+TIMER_TICKS(5)) >= 0)
 		{
@@ -200,6 +201,7 @@ static void timer_callback_overflow(int ovfl)
  */
 void timer_init(void)
 {
+	assertf(!TI_timers, "timer module already initialized");
 	/* Create first timer for overflows: expires when counter is 0 and
 	 * has a period of 2**32. */
 	timer_link_t *timer = malloc(sizeof(timer_link_t));
@@ -221,7 +223,7 @@ void timer_init(void)
 	ticks64_high = 0;
 	C0_WRITE_COUNT(1);
 	C0_WRITE_COMPARE(0);
-	C0_WRITE_STATUS(C0_STATUS() | C0_STATUS_IM7);
+	C0_WRITE_STATUS(C0_STATUS() | C0_INTERRUPT_TIMER);
 	register_TI_handler(timer_callback);
 	enable_interrupts();
 }
@@ -232,7 +234,7 @@ void timer_init(void)
  * @param[in] ticks
  *            Number of ticks before the timer should fire
  * @param[in] flags
- *            Timer flags.  See #TF_ONE_SHOT and #TF_CONTINUOUS
+ *            Timer flags.  See #TF_ONE_SHOT, #TF_CONTINUOUS and #TF_DISABLED
  * @param[in] callback
  *            Callback function to call when the timer expires
  *
@@ -240,6 +242,7 @@ void timer_init(void)
  */
 timer_link_t *new_timer(int ticks, int flags, void (*callback)(int ovfl))
 {
+	assertf(TI_timers, "timer module not initialized");
 	timer_link_t *timer = malloc(sizeof(timer_link_t));
 	if (timer)
 	{
@@ -247,6 +250,9 @@ timer_link_t *new_timer(int ticks, int flags, void (*callback)(int ovfl))
 		timer->set = ticks;
 		timer->flags = flags;
 		timer->callback = callback;
+
+		if (flags & TF_DISABLED)
+			return timer;
 
 		disable_interrupts();
 
@@ -267,18 +273,45 @@ timer_link_t *new_timer(int ticks, int flags, void (*callback)(int ovfl))
  * @param[in] ticks
  *            Number of ticks before the timer should fire
  * @param[in] flags
- *            Timer flags.  See #TF_ONE_SHOT and #TF_CONTINUOUS
+ *            Timer flags.  See #TF_ONE_SHOT, #TF_CONTINUOUS, and #TF_DISABLED
  * @param[in] callback
  *            Callback function to call when the timer expires
  */
 void start_timer(timer_link_t *timer, int ticks, int flags, void (*callback)(int ovfl))
 {
+	assertf(TI_timers, "timer module not initialized");
 	if (timer)
 	{
 		timer->left = TICKS_READ() + (int32_t)ticks;
 		timer->set = ticks;
 		timer->flags = flags;
 		timer->callback = callback;
+
+		if (flags & TF_DISABLED)
+			return;
+
+		disable_interrupts();
+
+		timer->next = TI_timers;
+		TI_timers = timer;
+		timer_update_compare(TI_timers);
+
+		enable_interrupts();
+	}
+}
+
+/**
+ * @brief Reset a timer and add to list
+ *
+ * @param[in] timer
+ *            Pointer to timer structure to reinsert and start
+ */
+void restart_timer(timer_link_t *timer)
+{
+	if (timer)
+	{
+		timer->left = TICKS_READ() + (int32_t)timer->set;
+		timer->flags &= ~TF_DISABLED;
 
 		disable_interrupts();
 
@@ -304,6 +337,7 @@ void stop_timer(timer_link_t *timer)
 	timer_link_t *head;
 	timer_link_t *last = 0;
 
+	assertf(TI_timers, "timer module not initialized");
 	if (timer)
 	{
 		disable_interrupts();
@@ -337,6 +371,7 @@ void stop_timer(timer_link_t *timer)
  */
 void delete_timer(timer_link_t *timer)
 {
+	assertf(TI_timers, "timer module not initialized");
 	if (timer)
 	{
 		stop_timer(timer);
@@ -353,10 +388,11 @@ void delete_timer(timer_link_t *timer)
  */
 void timer_close(void)
 {
+	assertf(TI_timers, "timer module not initialized");
 	disable_interrupts();
 	
 	/* Disable generation of timer interrupt. */
-	C0_WRITE_STATUS(C0_STATUS() & ~C0_STATUS_IM7);
+	C0_WRITE_STATUS(C0_STATUS() & ~C0_INTERRUPT_TIMER);
 
 	unregister_TI_handler(timer_callback);
 
@@ -391,6 +427,7 @@ void timer_close(void)
 long long timer_ticks(void)
 {
 	uint32_t low, high;
+	assertf(TI_timers, "timer module not initialized");
 
 	/* Check whether interrupts are enabled or not. We need a different strategy
 	 * to account for race conditions. */

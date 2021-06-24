@@ -594,9 +594,9 @@ void init_interrupts()
         __interrupt_depth = 0;
 
         /* Enable interrupts systemwide. We set the global interrupt enable,
-           and then specifically enable RCP interrupts (IM2). */
+           and then specifically enable RCP interrupts. */
         uint32_t sr = C0_STATUS();
-        C0_WRITE_STATUS(sr | C0_STATUS_IE | C0_STATUS_IM2);
+        C0_WRITE_STATUS(sr | C0_STATUS_IE | C0_INTERRUPT_RCP);
     }
 }
 
@@ -633,6 +633,9 @@ void enable_interrupts()
 {
     /* Don't do anything if we've hosed up or aren't initialized */
     if( __interrupt_depth < 0 ) { return; }
+
+    /* Check that we're not calling enable_interrupts() more than expected */
+    assertf(__interrupt_depth > 0, "unbalanced enable_interrupts() call");
 
     /* Decrement the nesting level now that we are enabling interrupts */
     __interrupt_depth--;

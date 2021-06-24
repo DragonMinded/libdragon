@@ -95,9 +95,6 @@ static inline void grab_sector(void *cart_loc, void *ram_loc)
     data_cache_hit_writeback_invalidate(ram_loc, SECTOR_SIZE);
 
     dma_read((void *)(((uint32_t)ram_loc) & 0x1FFFFFFF), (uint32_t)cart_loc, SECTOR_SIZE);
-    
-    /* Fresh cache again */
-    data_cache_hit_invalidate(ram_loc, SECTOR_SIZE);
 }
 
 /**
@@ -494,6 +491,9 @@ static int recurse_path(const char * const path, int mode, directory_entry_t **d
     uint32_t dir_loc = directory_top;
     int last_type = TYPE_ANY;
     int ignore = 1; // Do not, by default, read again during the first while
+
+    /* Initialize token to avoid -Werror=maybe-uninitialized errors */
+    token[0] = 0;
 
     /* Save directory stack */
     memcpy(dir_stack, directories, sizeof(uint32_t) * MAX_DIRECTORY_DEPTH);
@@ -956,17 +956,26 @@ int dfs_read(void * const buf, int size, int count, uint32_t handle)
     if (!to_read)
         return 0;
 
-    /* If the destination pointer, ROM location and the amount of data to read
-       are all 8-bytes aligned, we can DMA directly into the destination buffer.
-       This is much faster than using cached data, so bypass also our local
-       cache as well. */
-    uint32_t align = ((uint32_t)buf | (file->cart_start_loc + file->loc) | to_read) & 0xF;
-    if ((align&7) == 0)
+    /* Fast-path. If possibly, we want to DMA directly into the destination
+     * buffer, without using any intermediate buffers. The rules are convoluted
+     * because we try to squeeze maximum performance here and thus we rely also
+     * on undocumented behaviors of PI DMA.
+     * The rules we follow are:
+     *
+     *   * The RDRAM destination pointer must be 8-bytes aligned.
+     *   * The ROM location must be 2-bytes aligned.
+     *   * The length must be either less than 0x7F (all values accepted),
+     *     or even.
+     */
+    bool rom_aligned = (file->loc & 1) == 0;
+    bool ram_aligned = ((uint32_t)buf & 7) == 0;
+    bool len_aligned = (to_read < 0x7F) || ((to_read & 1) == 0);
+    if (rom_aligned && ram_aligned && len_aligned)
     {
         /* 16-byte alignment: we can simply invalidate the buffer.
          * 8-byte alignment: we need to also writeback in case the partial
          *  cachelines have hot data to write back. */
-        if (align == 0)
+        if ((((uint32_t)buf | to_read) & 15) == 0)
             data_cache_hit_invalidate(buf, to_read);
         else
             data_cache_hit_writeback_invalidate(buf, to_read);
@@ -1038,6 +1047,44 @@ int dfs_size(uint32_t handle)
 }
 
 /**
+ * @brief Return the physical address of a file (in ROM space)
+ *
+ * This function should be used for highly-specialized, high-performance
+ * use cases. Using dfs_open / dfs_read is generally acceptable
+ * performance-wise, and is easier to use rather than managing
+ * direct access to PI space.
+ * 
+ * Direct access to ROM data must go through io_read or dma_read. Do not
+ * dereference directly as the console might hang if the PI is busy.
+ *
+ * @param[in] filename
+ *            Name of the file
+ *
+ * @return A pointer to the physical address of the file body, or 0
+ *         if the file was not found.
+ * 
+ */
+uint32_t dfs_rom_addr(const char *path)
+{
+    /* Try to find file */
+    directory_entry_t *dirent;
+    int ret = recurse_path(path, WALK_OPEN, &dirent, TYPE_FILE);
+
+    if(ret != DFS_ESUCCESS)
+    {
+        /* File not found, or other error */
+        return 0;
+    }
+
+    /* We now have the pointer to the file entry */
+    directory_entry_t t_node;
+    grab_sector(dirent, &t_node);
+
+    /* Return the starting location in ROM */
+    return get_start_location(&t_node);
+}
+
+/**
  * @brief Return whether the end of file has been reached
  *
  * @param[in] handle
@@ -1081,7 +1128,10 @@ static void *__open( char *name, int flags )
     dfs_chdir("/");
 
     /* We disregard flags here */
-    return (void *)dfs_open( name );
+    int handle = dfs_open( name );
+    if (handle <= 0)
+        return NULL;
+    return (void *)handle;
 }
 
 /**

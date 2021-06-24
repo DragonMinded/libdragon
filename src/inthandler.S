@@ -17,7 +17,6 @@ inthandler:
 	.set noat
 	/*Fetch exception pc off cop#0*/
 	mfc0 $2,C0_EPC
-	nop
 
 	la k1,save01
 	sd $1,(k1)
@@ -58,8 +57,7 @@ inthandler:
 	sd $23,save23
 	sd $24,save24
 	sd $25,save25
-	sd $26,save26
-	sd $27,save27
+	# No need to save $26 (k0) & $27 (k1), the int handler is free to use them
 	sd $28,save28
 	sd $29,save29
 	sd $30,save30
@@ -69,8 +67,7 @@ inthandler:
 	mfhi $30
 	sd $30,saveHI
 	cfc1 $30,$f31
-	nop
-	sd $30,saveFC31
+	sw $30,saveFC31
 
 	sdc1 $f0,saveFR00
 	sdc1 $f1,saveFR01
@@ -181,11 +178,12 @@ endint:
 	ld $23,save23
 	ld $24,save24
 	ld $25,save25
-	ld $26,save26
-	ld $27,save27
+	# No need to restore $26 (k0) & $27 (k1), the int handler is free to use them
 	ld $28,save28
 	ld $29,save29
 	ld $31,save31
+	lw $30,saveEPC
+	mtc0 $30,C0_EPC
 	lw $30,saveSR
 	mtc0 $30,C0_SR
 	ld $30,saveLO
@@ -224,11 +222,9 @@ endint:
 	ldc1 $f28,saveFR28
 	ldc1 $f29,saveFR29
 	ldc1 $f30,saveFR30
+
+	lw $30,saveFC31
 	ldc1 $f31,saveFR31
-
-	ld $30,saveFC31
-	nop
-
 	ctc1 $30,$f31
 
 	ld $30,save30
@@ -282,7 +278,7 @@ endint:
 	.lcomm saveEPC, 4
 	.lcomm saveHI, 8
 	.lcomm saveLO, 8
-	.lcomm saveFC31, 8
+	.lcomm saveFC31, 4
 	.lcomm saveFR00, 8
 	.lcomm saveFR01, 8
 	.lcomm saveFR02, 8

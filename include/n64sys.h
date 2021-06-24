@@ -7,7 +7,9 @@
 #define __LIBDRAGON_N64SYS_H
 
 #include <stdbool.h>
+#include <assert.h>
 #include "cop0.h"
+#include "cop1.h"
 
 /**
  * @addtogroup n64sys
@@ -158,36 +160,45 @@ static inline volatile unsigned long get_ticks_ms(void)
     return TICKS_READ() / (TICKS_PER_SECOND / 1000);
 }
 
-/**
- * @brief Spin wait until the number of ticks have elapsed
- *
- * @param[in] wait
- *            Number of ticks to wait
- *            Maximum accepted value is 0xFFFFFFFF ticks
- */
-static inline void wait_ticks( unsigned long wait )
-{
-    unsigned int initial_tick = TICKS_READ();
-    while( TICKS_READ() - initial_tick < wait );
-}
+void wait_ticks( unsigned long wait );
+void wait_ms( unsigned long wait_ms );
 
 /**
- * @brief Spin wait until the number of millisecounds have elapsed
+ * @brief Force a data cache invalidate over a memory region
  *
- * @param[in] wait
- *            Number of millisecounds to wait
- *            Maximum accepted value is 91625 ms
+ * Use this to force the N64 to update cache from RDRAM.
+ *
+ * The cache is made by cachelines of 16 bytes. If a memory region is invalidated
+ * and the memory region is not fully aligned to cachelines, a larger area
+ * than that requested will be invalidated; depending on the arrangement of
+ * the data segments and/or heap, this might make data previously
+ * written by the CPU in regular memory locations to be unexpectedly discarded,
+ * causing bugs.
+ *
+ * For this reason, this function must only be called with an address aligned
+ * to 16 bytes, and with a length which is an exact multiple of 16 bytes; it
+ * will assert otherwise.
+ *
+ * As an alternative, consider using #data_cache_hit_writeback_invalidate,
+ * that first writebacks the affected cachelines to RDRAM, guaranteeing integrity
+ * of memory areas that share cachelines with the region that must be invalidated.
+ *
+ * @param[in] addr
+ *            Pointer to memory in question
+ * @param[in] length
+ *            Length in bytes of the data pointed at by addr
  */
-static inline void wait_ms( unsigned long wait_ms )
-{
-    wait_ticks(TICKS_FROM_MS(wait_ms));
-}
+#define data_cache_hit_invalidate(addr_, sz_) ({ \
+	void *addr = (addr_); unsigned long sz = (sz_); \
+	assert(((uint32_t)addr % 16) == 0 && (sz % 16) == 0); \
+	__data_cache_hit_invalidate(addr, sz); \
+})
 
-void data_cache_hit_invalidate(volatile void *, unsigned long);
-void data_cache_hit_writeback(volatile void *, unsigned long);
+void __data_cache_hit_invalidate(volatile void * addr, unsigned long length);
+void data_cache_hit_writeback(volatile const void *, unsigned long);
 void data_cache_hit_writeback_invalidate(volatile void *, unsigned long);
 void data_cache_index_writeback_invalidate(volatile void *, unsigned long);
-void inst_cache_hit_writeback(volatile void *, unsigned long);
+void inst_cache_hit_writeback(volatile const void *, unsigned long);
 void inst_cache_hit_invalidate(volatile void *, unsigned long);
 void inst_cache_index_invalidate(volatile void *, unsigned long);
 int get_memory_size();

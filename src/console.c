@@ -10,6 +10,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include "system.h"
 #include "libdragon.h"
 
@@ -51,6 +52,8 @@ static char *render_buffer = 0;
  * @see #RENDER_AUTOMATIC and #RENDER_MANUAL
  */
 static int render_now;
+/** @brief True if the console output is sent to debug channel as well */
+static bool console_redirect_debug = true;
 
 /**
  * @brief Set the console rendering mode
@@ -91,6 +94,10 @@ void console_set_render_mode(int mode)
 static int __console_write( char *buf, unsigned int len )
 {
     int pos = strlen(render_buffer);
+
+    /* Redirect to stderr if requested for debugging purposes */
+    if (console_redirect_debug)
+        write(2, buf, len);
 
     /* Copy over to screen buffer */
     for(int x = 0; x < len; x++)
@@ -162,15 +169,6 @@ static int __console_write( char *buf, unsigned int len )
 }
 
 /**
- * @brief Structure used for hooking console commands to stdio
- */
-static stdio_t console_calls = {
-    0,
-    __console_write,
-    0
-};
-
-/**
  * @brief Initialize the console
  *
  * Initialize the console system.  This will initialize the video properly, so
@@ -180,14 +178,16 @@ void console_init()
 {
     /* In case they initialized the display already */
     display_close();
-    display_init( RESOLUTION_320x240, DEPTH_16_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
+    display_init( RESOLUTION_640x240, DEPTH_16_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
 
     render_buffer = malloc(CONSOLE_SIZE);
 
     console_clear();
     console_set_render_mode(RENDER_AUTOMATIC);
+    console_set_debug(true);
 
     /* Register ourselves with newlib */
+    stdio_t console_calls = { 0, __console_write, 0 };
     hook_stdio_calls( &console_calls );
 }
 
@@ -207,7 +207,8 @@ void console_close()
     }
 
     /* Unregister ourselves from newlib */
-    unhook_stdio_calls();
+    stdio_t console_calls = { 0, __console_write, 0 };
+    unhook_stdio_calls( &console_calls );
 }
 
 /**
@@ -268,7 +269,7 @@ static void __console_render()
 
             /* Draw to the screen using the forecolor and backcolor set in the graphics
              * subsystem */
-            graphics_draw_character( dc, 20 + 8 * x, 16 + 8 * y, t_buf );
+            graphics_draw_character( dc, HORIZONTAL_PADDING + 8 * x, VERTICAL_PADDING + 8 * y, t_buf );
         }
     }
 
@@ -283,6 +284,8 @@ static void __console_render()
  * it is not necessary to call.
  *
  * The color that is used to draw the text can be set using #graphics_set_color.
+ *
+ * Do not call while interrupts are disabled, or it will lock the system.
  */
 void console_render()
 {
@@ -291,6 +294,22 @@ void console_render()
 
     /* Render now */
     __console_render();
+}
+
+/**
+ * @brief Send console output to debug channel
+ *
+ * Configure whether the console output should be redirected to the debug channel
+ * as well (stderr), that can be sent over USB for development purposes. See
+ * #debugf for more information.
+ *
+ * @param[in] debug
+ *            True if console output should also be sent to the debugging channel, false otherwise
+ *
+ */
+void console_set_debug(bool debug)
+{
+    console_redirect_debug = debug;
 }
 
 /** @} */ /* console */

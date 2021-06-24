@@ -24,7 +24,7 @@ typedef struct timer_link
     uint32_t set;
     /** @brief To correct for drift */
     int ovfl;
-    /** @brief Timer flags.  See #TF_ONE_SHOT and #TF_CONTINUOUS */
+    /** @brief Timer flags.  See #TF_ONE_SHOT, #TF_CONTINUOUS, and #TF_DISABLED */
     int flags;
     /** @brief Callback function to call when timer fires */
     void (*callback)(int ovfl);
@@ -36,6 +36,8 @@ typedef struct timer_link
 #define TF_ONE_SHOT   0
 /** @brief Timer should fire at a regular interval */
 #define TF_CONTINUOUS 1
+/** @brief Timer is enabled or not. Can be used to get a new timer that's not started. */
+#define TF_DISABLED 2
 
 /** 
  * @brief Calculate timer ticks based on microseconds 
@@ -87,6 +89,8 @@ void timer_init(void);
 timer_link_t *new_timer(int ticks, int flags, void (*callback)(int ovfl));
 /* start a timer not currently in the list */
 void start_timer(timer_link_t *timer, int ticks, int flags, void (*callback)(int ovfl));
+/* reset a timer and add to list */
+void restart_timer(timer_link_t *timer);
 /* remove a timer from the list */
 void stop_timer(timer_link_t *timer);
 /* remove a timer from the list and delete it */

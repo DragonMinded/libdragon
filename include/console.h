@@ -7,6 +7,7 @@
 #ifndef __LIBDRAGON_CONSOLE_H
 #define __LIBDRAGON_CONSOLE_H
 
+#include <stdbool.h>
 #include "display.h"
 
 /**
@@ -40,10 +41,18 @@
  * @{
  */
 
-/** @brief The console width in characters */
-#define CONSOLE_WIDTH       35
-/** @brief The console height in characters */
-#define CONSOLE_HEIGHT      25
+/**
+ * @brief The console width in characters
+ * @note Right padding is not enforced by code, adjust this to fit into
+ * [horizontal resolution] - 2 * HORIZONTAL_PADDING
+ */
+#define CONSOLE_WIDTH       64
+/**
+ * @brief The console height in characters
+ * @note Bottom padding is not enforced by code, adjust this to fit into
+ * [vertical resolution] - 2 * VERTICAL_PADDING
+ */
+#define CONSOLE_HEIGHT      28
 /** @} */
 
 /** 
@@ -51,7 +60,19 @@
  *
  * @note This needs to divide evenly into #CONSOLE_WIDTH 
  */
-#define TAB_WIDTH           5
+#define TAB_WIDTH           4
+
+/**
+ * @brief Padding from the left and right ends of the screen in pixels
+ *
+ * @note This should be ~10% of the horizontal resolution to be safely visible
+ */
+#define HORIZONTAL_PADDING  64
+
+/**
+ * @brief Padding from the top and bottom ends of the screen in pixels
+ */
+#define VERTICAL_PADDING    8
 
 #ifdef __cplusplus
 extern "C" {
@@ -59,6 +80,7 @@ extern "C" {
 
 void console_init();
 void console_close();
+void console_set_debug(bool debug);
 void console_set_render_mode(int mode);
 void console_clear();
 void console_render();
