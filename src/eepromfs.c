@@ -32,18 +32,14 @@
  * 
  * @see #eepfs_open
  */
-typedef struct
+typedef struct eepfs_file_t
 {
     /** @brief File path */
     const char * const path;
     /** @brief Files must start on a block boundary */
     const size_t start_block;
-    /** @brief Size of the file (in blocks) */
-    const size_t num_blocks;
-    /** @brief Current read/write position (in bytes) */
-    size_t cursor;
-    /** @brief Maxiumum read/write position (in bytes) */
-    const size_t max_cursor;
+    /** @brief Size of the file (in bytes) */
+    const size_t num_bytes;
 } eepfs_file_t;
 
 /**
@@ -72,13 +68,6 @@ static eepfs_file_t * eepfs_files = NULL;
  * filesystem signature block in #eepfs_generate_signature.
  */
 static uint16_t eepfs_files_checksum = 0;
-
-/**
- * @brief The filesystem prefix used by stdio functions.
- * 
- * Assigned by #eepfs_attach and unassigned by #eepfs_detach.
- */
-static const char * eepfs_stdio_prefix = NULL;
 
 /**
  * @brief Calculates a CRC-16 checksum from an array of bytes.
@@ -124,7 +113,7 @@ static uint16_t calculate_crc16(const uint8_t * data, size_t len)
  * 
  * @return An EEPROM block-sized value containing the signature for the filesystem
  */
-static const uint64_t eepfs_generate_signature()
+static uint64_t eepfs_generate_signature()
 {
     /* Sanity check */
     if ( eepfs_files_count == 0 || eepfs_files == NULL )
@@ -140,7 +129,7 @@ static const uint64_t eepfs_generate_signature()
     uint16_t total_bytes = 0;
     for ( size_t i = 1; i < eepfs_files_count; ++i )
     {
-        total_bytes += eepfs_files[i].max_cursor;
+        total_bytes += eepfs_files[i].num_bytes;
     }
 
     /* Craft an 8-byte block and return it as a value */
@@ -168,7 +157,7 @@ static const uint64_t eepfs_generate_signature()
  *
  * @return A file handle or a negative value on failure.
  */
-static int eepfs_find_handle(const char * const path)
+static int eepfs_find_handle(const char * path)
 {
     /* Sanity check */
     if ( path == NULL )
@@ -212,7 +201,7 @@ static int eepfs_find_handle(const char * const path)
  * 
  * @return A pointer to the file descriptor or NULL if the handle is invalid
  */
-static eepfs_file_t * const eepfs_get_file(const int handle)
+static eepfs_file_t * eepfs_get_file(int handle)
 {
     /* Check if the handle appears to be valid */
     if ( handle > 0 && handle < eepfs_files_count )
@@ -221,342 +210,6 @@ static eepfs_file_t * const eepfs_get_file(const int handle)
     }
 
     return NULL;
-}
-
-/**
- * @brief Reads a specific amount of data from a file starting from the cursor.
- *
- * @param[in]  path
- *             Path of file in EEPROM filesystem to read from
- * @param[out] dest
- *             Buffer to read into
- * @param[in]  len
- *             Number of bytes to read
- *
- * @return The actual number of bytes read or a negative value on failure.
- */
-static int eepfs_cursor_read(eepfs_file_t * const file, uint8_t * dest, const size_t len)
-{
-    if ( file == NULL )
-    {
-        return EEPFS_EBADHANDLE;
-    }
-
-    if ( dest == NULL ) 
-    {
-        return EEPFS_EBADINPUT;
-    }
-
-    size_t cursor = file->cursor;
-    size_t bytes_to_read = len;
-
-    /* Bounds check to make sure it doesn't read past the end */
-    if ( cursor + bytes_to_read >= file->max_cursor )
-    {
-        /* It will, let's shorten it */
-        bytes_to_read = file->max_cursor - cursor;
-    }
-
-    if ( bytes_to_read <= 0 )
-    {
-        /* No bytes to read; bail early */
-        return 0;
-    }
-
-    /* Calculate the starting point to read out of EEPROM from */
-    uint8_t eeprom_buf[EEPROM_BLOCK_SIZE];
-    size_t current_block = file->start_block + (cursor / EEPROM_BLOCK_SIZE);
-    size_t block_byte_offset = cursor % EEPROM_BLOCK_SIZE;
-    int bytes_read = 0;
-
-    do {
-        eeprom_read(current_block, eeprom_buf);
-        /* Fill the buffer with the data from the current block */
-        while ( bytes_to_read > 0 && block_byte_offset < EEPROM_BLOCK_SIZE )
-        {
-            *(dest++) = eeprom_buf[block_byte_offset];
-            bytes_read++;
-            bytes_to_read--;
-            block_byte_offset++;
-        }
-        /* Move on to the next block */
-        block_byte_offset = 0;
-        current_block++;
-    } while ( bytes_to_read > 0 );
-
-    file->cursor = cursor + bytes_read;
-
-    return bytes_read;
-}
-
-/**
- * @brief Writes a specific amount of data to a file starting from the cursor.
- * 
- * Each EEPROM block write takes approximately 15 milliseconds;
- * this operation may block for a while!
- *
- * @param[in] path
- *            Path of file in EEPROM filesystem to write to
- * @param[in] src
- *            Buffer containing the data to write
- * @param[in] len
- *            Number of bytes to write
- *
- * @return The actual number of bytes written or a negative value on failure.
- */
-static int eepfs_cursor_write(eepfs_file_t * const file, const uint8_t * src, const size_t len)
-{
-    if ( file == NULL )
-    {
-        return EEPFS_EBADHANDLE;
-    }
-
-    if ( src == NULL ) 
-    {
-        return EEPFS_EBADINPUT;
-    }
-
-    size_t cursor = file->cursor;
-    size_t bytes_to_write = len;
-
-    /* Bounds check to make sure it doesn't write past the end */
-    if ( cursor + bytes_to_write >= file->max_cursor )
-    {
-        /* It will, let's shorten it */
-        bytes_to_write = file->max_cursor - cursor;
-    }
-
-    if ( bytes_to_write <= 0 )
-    {
-        /* No bytes to write; bail early */
-        return 0;
-    }
-
-    /* Calculate the starting point to write to EEPROM from */
-    uint8_t eeprom_buf[EEPROM_BLOCK_SIZE];
-    size_t current_block = file->start_block + (cursor / EEPROM_BLOCK_SIZE);
-    size_t block_byte_offset = cursor % EEPROM_BLOCK_SIZE;
-    int bytes_written = 0;
-
-    do {
-        /* Only read in the current block if we need to preserve data from it */
-        if ( bytes_to_write < EEPROM_BLOCK_SIZE || block_byte_offset != 0 )
-        {
-            eeprom_read(current_block, eeprom_buf);
-        }
-        /* Fill the current block with the data to write */
-        while ( bytes_to_write > 0 && block_byte_offset < EEPROM_BLOCK_SIZE )
-        {
-            eeprom_buf[block_byte_offset] = *(src++);
-            bytes_written++;
-            bytes_to_write--;
-            block_byte_offset++;
-        }
-        /* Write the block and move on to the next one */
-        eeprom_write(current_block, eeprom_buf);
-        block_byte_offset = 0;
-        current_block++;
-    } while ( bytes_to_write > 0 );
-
-    file->cursor = cursor + bytes_written;
-
-    return bytes_written;
-}
-
-/**
- * @brief Opens a file given a path.
- *
- * @param[in] path
- *            Absolute path of the file to open (without stdio prefix)
- * @param[in] flags
- *            POSIX file flags (ignored)
- *
- * @return A newlib-compatible file handle or NULL if the file does not exist.
- */
-static void * __eepfs_open(char * path, int flags)
-{
-    const int handle = eepfs_find_handle(path);
-
-    /* Check if the handle is valid */
-    if ( handle > 0 )
-    {
-        return (void *)handle;
-    }
-
-    return NULL;
-}
-
-/**
- * @brief Closes an already open file handle.
- *
- * @param[in] handle
- *            File handle as returned by #__eepfs_open
- *
- * @return 0 on success or a negative error otherwise.
- */
-static int __eepfs_close(void * handle)
-{
-    eepfs_file_t * const file = eepfs_get_file((int)handle);
-
-    if ( file == NULL )
-    {
-        return EEPFS_EBADHANDLE;
-    }
-
-    /* Reset the cursor */
-    file->cursor = 0;
-
-    return EEPFS_ESUCCESS;
-}
-
-/**
- * @brief Reads data from a file.
- *
- * @param[in]  handle
- *             File handle as returned by #__eepfs_open
- * @param[out] dest
- *             Pointer to buffer to read to
- * @param[in]  len
- *             Length in bytes to read
- *
- * @return The actual amount of data read in bytes
- */
-static int __eepfs_read(void * handle, uint8_t * dest, int len)
-{
-    eepfs_file_t * const file = eepfs_get_file((int)handle);
-
-    return eepfs_cursor_read(file, dest, len);
-}
-
-/**
- * @brief Writes data to a file
- * 
- * Each EEPROM block write takes approximately 15 milliseconds;
- * this operation may block for a while!
- *
- * @param[in] handle
- *            File handle as returned by #__eepfs_open
- * @param[in] src
- *            Pointer to buffer of data to write
- * @param[in] len
- *            Length in bytes to read
- *
- * @return The actual amount of data written in bytes
- */
-static int __eepfs_write(void * handle, uint8_t * src, int len)
-{
-    eepfs_file_t * const file = eepfs_get_file((int)handle);
-
-    return eepfs_cursor_write(file, src, len);
-}
-
-/**
- * @brief Seeks to an offset in the file.
- * 
- * The offset will be clamped to the beginning and end of the file.
- *
- * @param[in] handle
- *            File handle as returned by #__eepfs_open
- * @param[in] offset
- *            Offset based on origin
- * @param[in] origin
- *            A direction to seek from.  Either #SEEK_SET, #SEEK_CUR or #SEEK_END
- *
- * @return The new position in the file after the seek.
- */
-static int __eepfs_lseek(void * handle, int offset, int origin)
-{
-    eepfs_file_t * const file = eepfs_get_file((int)handle);
-
-    if ( file == NULL )
-    {
-        return EEPFS_EBADHANDLE;
-    }
-
-    /* Adjust cursor based on origin and offset */
-    if ( origin == SEEK_SET )
-    {
-        file->cursor = offset;
-    }
-    else if ( origin == SEEK_CUR )
-    {
-        file->cursor += offset;
-    }
-    else if ( origin == SEEK_END )
-    {
-        file->cursor = file->max_cursor + offset;
-    }
-    else
-    {
-        return EEPFS_EBADINPUT;
-    }
-
-    /* Clamp cursor to the beginning and end of the file */
-    if ( file->cursor > file->max_cursor )
-    {
-        file->cursor = file->max_cursor;
-    }
-    if ( file->cursor < 0 )
-    {
-        file->cursor = 0;
-    }
-
-    return file->cursor;
-}
-
-/**
- * @brief Newlib-compatible fstat.
- *
- * @param[in]  handle
- *             File handle as returned by #__eepfs_open
- * @param[out] st
- *             Stat structure to populate
- *
- * @return 0 if successful or negative error otherwise
- */
-static int __eepfs_fstat(void * handle, struct stat * st)
-{
-    const eepfs_file_t * const file = eepfs_get_file((int)handle);
-
-    if ( file == NULL )
-    {
-        return EEPFS_EBADHANDLE;
-    }
-
-    st->st_dev = 0;
-    st->st_ino = 0;
-    st->st_mode = S_IFREG;
-    st->st_nlink = 1;
-    st->st_uid = 0;
-    st->st_gid = 0;
-    st->st_rdev = 0;
-    st->st_size = file->max_cursor;
-    st->st_atime = 0;
-    st->st_mtime = 0;
-    st->st_ctime = 0;
-    st->st_blksize = EEPROM_BLOCK_SIZE;
-    st->st_blocks = file->num_blocks;
-
-    return EEPFS_ESUCCESS;
-}
-
-/**
- * @brief Erases a file given a path.
- * 
- * Note that "erasing" a file just means writing it full of zeroes.
- * All files in the filesystem must always exist at the size specified
- * during #eepfs_init
- * 
- * Be advised: this is a destructive operation that cannot be undone!
- *
- * @param[in] path
- *            Absolute path of the file to unlink
- *
- * @return 0 if successful or negative error otherwise
- */
-static int __eepfs_unlink(char * path)
-{
-    return eepfs_erase(path);
 }
 
 /**
@@ -589,7 +242,7 @@ static int __eepfs_unlink(char * path)
  *
  * @return EEPFS_ESUCCESS on success or a negative error otherwise
  */
-int eepfs_init(const eepfs_entry_t * const entries, const size_t count)
+int eepfs_init(const eepfs_entry_t * entries, size_t count)
 {
     /* Check if EEPROM FS has already been initialized */
     if ( eepfs_files_count != 0 || eepfs_files != NULL )
@@ -616,12 +269,11 @@ int eepfs_init(const eepfs_entry_t * const entries, const size_t count)
     }
 
     /* The first file should always be the "signature file" */
-    const eepfs_file_t signature_file = { NULL, 0, 1, 0, 8 };
+    const eepfs_file_t signature_file = { NULL, 0, 8 };
     memcpy(&eepfs_files[0], &signature_file, sizeof(signature_file));
 
     const char * file_path;
     size_t file_size;
-    size_t file_blocks;
     size_t total_blocks = 1;
 
     /* Configure a file descriptor for each entry */
@@ -640,21 +292,16 @@ int eepfs_init(const eepfs_entry_t * const entries, const size_t count)
         /* Strip the leading '/' on paths for consistency */
         file_path += ( file_path[0] == '/' );
 
-        /* A file takes up 1 block for every 8 bytes, rounded up */
-        file_blocks = divide_ceil(file_size, EEPROM_BLOCK_SIZE);
-
         /* Create a file descriptor and copy it into the table */
         const eepfs_file_t entry_file = {
             file_path,
             total_blocks,
-            file_blocks,
-            0,
             file_size,
         };
         memcpy(&eepfs_files[i], &entry_file, sizeof(entry_file));
 
         /* Files must start on a block boundary */
-        total_blocks += file_blocks;
+        total_blocks += divide_ceil(file_size, EEPROM_BLOCK_SIZE);
     }
 
     /* Ensure the filesystem will actually fit in available EEPROM */
@@ -688,8 +335,6 @@ int eepfs_close(void)
         return EEPFS_EBADFS;
     }
 
-    eepfs_detach();
-
     /* Clear the file descriptor table */
     free(eepfs_files);
     eepfs_files = NULL;
@@ -700,54 +345,6 @@ int eepfs_close(void)
 }
 
 /**
- * @brief Attaches EEPROM filesystem to POSIX stdio with the supplied prefix.
- * 
- * @see #attach_filesystem
- * 
- * @return 0 on success or a negative error otherwise
- */
-int eepfs_attach(const char * const prefix)
-{
-    static filesystem_t eepfs_stdio_filesystem = {
-        __eepfs_open,
-        __eepfs_fstat,
-        __eepfs_lseek,
-        __eepfs_read,
-        __eepfs_write,
-        __eepfs_close,
-        __eepfs_unlink,
-        NULL, /* findfirst (not implemented) */
-        NULL  /* findnext (not implemented) */
-    };
-
-    int retval = attach_filesystem(prefix, &eepfs_stdio_filesystem); 
-
-    /* If successful... */
-    if ( retval == 0 )
-    {
-        /* Cache the attached prefix so that it can be detached later */
-        eepfs_stdio_prefix = prefix;
-    }
-
-    return retval;
-}
-
-/**
- * @brief Detaches the stdio prefix that was attached by #eepfs_attach
- * 
- * This happens implicitly as part of #eepfs_close and is
- * a no-op if the filesystem is not currently attached.
- */
-void eepfs_detach(void)
-{
-    if ( eepfs_stdio_prefix != NULL )
-    {
-        detach_filesystem(eepfs_stdio_prefix);
-        eepfs_stdio_prefix = NULL;
-    }
-}
-
-/**
  * @brief Reads an entire file from the EEPROM filesystem.
  *
  * @param[in]  path
@@ -755,30 +352,28 @@ void eepfs_detach(void)
  * @param[out] dest
  *             Buffer to read into
  *
- * @return The number of bytes read or a negative value on failure.
+ * @return EEPFS_ESUCCESS on success or a negative error otherwise
  */
-int eepfs_read(const char * const path, void * const dest)
+int eepfs_read(const char * path, void * dest)
 {
     const int handle = eepfs_find_handle(path);
-    eepfs_file_t * const file = eepfs_get_file(handle);
+    const eepfs_file_t * file = eepfs_get_file(handle);
 
     if ( file == NULL )
     {
         /* File does not exist, return error code */
         return EEPFS_ENOFILE;
     }
+    if ( dest == NULL ) 
+    {
+        /* Unusable destination buffer */
+        return EEPFS_EBADINPUT;
+    }
 
-    /* Reset the cursor to read from the beginning of the file */
-    const size_t cursor_restore = file->cursor;
-    file->cursor = 0;
+    const size_t start_bytes = file->start_block * EEPROM_BLOCK_SIZE;
+    eeprom_read_bytes(dest, start_bytes, file->num_bytes);
 
-    /* Read to the end of the file */
-    const int bytes_read = eepfs_cursor_read(file, dest, file->max_cursor);
-
-    /* Restore the cursor to its previous value */
-    file->cursor = cursor_restore;
-
-    return bytes_read;
+    return EEPFS_ESUCCESS;
 }
 
 /**
@@ -792,30 +387,28 @@ int eepfs_read(const char * const path, void * const dest)
  * @param[in] src
  *            Buffer of data to be written
  *
- * @return The number of bytes written or a negative value on failure.
+ * @return EEPFS_ESUCCESS on success or a negative error otherwise
  */
-int eepfs_write(const char * const path, const void * const src)
+int eepfs_write(const char * path, const void * src)
 {
     const int handle = eepfs_find_handle(path);
-    eepfs_file_t * const file = eepfs_get_file(handle);
+    const eepfs_file_t * file = eepfs_get_file(handle);
 
     if ( file == NULL )
     {
         /* File does not exist, return error code */
         return EEPFS_ENOFILE;
     }
+    if ( src == NULL ) 
+    {
+        /* Unusable source buffer */
+        return EEPFS_EBADINPUT;
+    }
 
-    /* Reset the cursor to write from the beginning of the file */
-    const size_t cursor_restore = file->cursor;
-    file->cursor = 0;
+    const size_t start_bytes = file->start_block * EEPROM_BLOCK_SIZE;
+    eeprom_write_bytes(src, start_bytes, file->num_bytes);
 
-    /* Write to the end of the file */
-    const int bytes_written = eepfs_cursor_write(file, src, file->max_cursor);
- 
-    /* Restore the cursor to its previous value */
-    file->cursor = cursor_restore;
-
-    return bytes_written;
+    return EEPFS_ESUCCESS;
 }
 
 /**
@@ -834,10 +427,10 @@ int eepfs_write(const char * const path, const void * const src)
  * @retval EEPFS_ENOFILE if the path is not a valid file
  * @retval EEPFS_EBADINPUT if the path is NULL
  */
-int eepfs_erase(const char * const path)
+int eepfs_erase(const char * path)
 {
     const int handle = eepfs_find_handle(path);
-    const eepfs_file_t * const file = eepfs_get_file(handle);
+    const eepfs_file_t * file = eepfs_get_file(handle);
 
     if ( file == NULL )
     {
@@ -845,11 +438,11 @@ int eepfs_erase(const char * const path)
         return EEPFS_ENOFILE;
     }
 
+    const size_t total_blocks = divide_ceil(file->num_bytes, EEPROM_BLOCK_SIZE);
     size_t current_block = file->start_block;
-    const size_t total_blocks = file->num_blocks;
 
     /* eeprom_buf is initialized to all zeroes */
-    uint8_t eeprom_buf[EEPROM_BLOCK_SIZE] = {0};
+    const uint8_t eeprom_buf[EEPROM_BLOCK_SIZE] = {0};
 
     /* Write the blocks in with zeroes */
     while ( current_block < total_blocks )
@@ -857,7 +450,6 @@ int eepfs_erase(const char * const path)
         eeprom_write(current_block++, eeprom_buf);
     }
 
-    /* Success */
     return EEPFS_ESUCCESS;
 }
 
@@ -922,7 +514,7 @@ void eepfs_wipe(void)
     eeprom_write(0, (uint8_t *)&signature);
 
     /* eeprom_buf is initialized to all zeroes */
-    uint8_t eeprom_buf[EEPROM_BLOCK_SIZE] = {0};
+    const uint8_t eeprom_buf[EEPROM_BLOCK_SIZE] = {0};
 
     /* Write the rest of the blocks in with zeroes */
     size_t current_block = 1;

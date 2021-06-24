@@ -77,15 +77,12 @@ typedef struct
     size_t size;
 } eepfs_entry_t;
 
-int eepfs_init(const eepfs_entry_t * const entries, const size_t count);
+int eepfs_init(const eepfs_entry_t * entries, size_t count);
 int eepfs_close(void);
 
-int eepfs_attach(const char * const prefix);
-void eepfs_detach(void);
-
-int eepfs_read(const char * const path, void * const dest);
-int eepfs_write(const char * const path, const void * const src);
-int eepfs_erase(const char * const path);
+int eepfs_read(const char * path, void * dest);
+int eepfs_write(const char * path, const void * src);
+int eepfs_erase(const char * path);
 
 bool eepfs_verify_signature(void);
 void eepfs_wipe(void);

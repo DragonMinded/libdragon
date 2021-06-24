@@ -184,10 +184,10 @@ int eeprom_total_blocks()
  * 
  * @param[in]  block
  *             Block to read data from.  The N64 accesses eeprom in 8 byte blocks.
- * @param[out] buf
+ * @param[out] dest
  *             Buffer to place the eight bytes read from EEPROM.
  */
-void eeprom_read(int block, uint8_t * const buf)
+void eeprom_read(int block, uint8_t * dest)
 {
     static unsigned long long SI_eeprom_read_block[8] =
     {
@@ -204,7 +204,7 @@ void eeprom_read(int block, uint8_t * const buf)
 
     SI_eeprom_read_block[0] = 0x0000000002080400 | (block & 255);
     __controller_exec_PIF(SI_eeprom_read_block,output);
-    memcpy( buf, &output[1], EEPROM_BLOCK_SIZE );
+    memcpy( dest, &output[1], EEPROM_BLOCK_SIZE );
 }
 
 /**
@@ -215,7 +215,7 @@ void eeprom_read(int block, uint8_t * const buf)
  * @param[in] data
  *            Eight bytes of data to write to block specified
  */
-void eeprom_write(int block, const uint8_t * const data)
+void eeprom_write(int block, const uint8_t * src)
 {
     static unsigned long long SI_eeprom_write_block[8] =
     {
@@ -231,7 +231,7 @@ void eeprom_write(int block, const uint8_t * const data)
     static unsigned long long output[8];
 
     SI_eeprom_write_block[0] = 0x000000000a010500 | (block & 255);
-    memcpy( &SI_eeprom_write_block[1], data, EEPROM_BLOCK_SIZE );
+    memcpy( &SI_eeprom_write_block[1], src, EEPROM_BLOCK_SIZE );
     __controller_exec_PIF(SI_eeprom_write_block,output);
 }
 
@@ -298,7 +298,7 @@ void eeprom_read_bytes(uint8_t * dest, size_t start, size_t len)
  * @param[in] len
  *            Byte length of the src buffer
  */
-void eeprom_write_bytes(uint8_t * src, size_t start, size_t len)
+void eeprom_write_bytes(const uint8_t * src, size_t start, size_t len)
 {
 	uint8_t buf[EEPROM_BLOCK_SIZE];
 	size_t bytes_left = len;
