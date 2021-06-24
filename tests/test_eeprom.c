@@ -52,11 +52,11 @@ void test_eeprom(TestContext *ctx) {
     ASSERT_EQUAL_HEX(pif_out[0], pif_in[0], "pif response mismatch");
     if (pif_recv_buf[1] == 0xc0) {
         LOG( "16K EEPROM detected.\n" );
-        ASSERT_EQUAL_HEX(pif_out[1], (uint64_t)0x00c000fffe000000, "pif response mismatch");
+        ASSERT_EQUAL_HEX(pif_out[1], (uint64_t)0x00c000fe00000000, "pif response mismatch");
         ASSERT(eeprom_type == EEPROM_16K, "eeprom type changed?");
     } else if (pif_recv_buf[1] == 0x80) {
         LOG( "4K EEPROM detected.\n" );
-        ASSERT_EQUAL_HEX(pif_out[1], (uint64_t)0x008000fffe000000, "pif response mismatch");
+        ASSERT_EQUAL_HEX(pif_out[1], (uint64_t)0x008000fe00000000, "pif response mismatch");
         ASSERT(eeprom_type == EEPROM_4K, "eeprom type changed?");
     } else {
         LOG( "EEPROM not detected.\n" );
