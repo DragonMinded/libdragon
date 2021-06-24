@@ -212,7 +212,7 @@ void eeprom_read(int block, uint8_t * dest)
  *
  * @param[in] block
  *            Block to write data to.  The N64 accesses eeprom in 8 byte blocks.
- * @param[in] data
+ * @param[in] src
  *            Eight bytes of data to write to block specified
  */
 void eeprom_write(int block, const uint8_t * src)
