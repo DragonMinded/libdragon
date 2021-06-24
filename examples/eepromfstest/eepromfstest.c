@@ -38,7 +38,7 @@ typedef struct
     uint8_t inventory[256];
 } game_save_state_t;
 
-static void press_a_to_continue()
+static void press_a_to_continue(void)
 {
     printf( "Press A to continue\n" );
     struct controller_data keys;
@@ -54,7 +54,7 @@ static void press_a_to_continue()
     }
 }
 
-static void keep_or_erase_data()
+static void keep_or_erase_data(void)
 {
     printf( "Press A to keep EEPROM data\n" );
     printf( "Press B to erase EEPROM data\n" );
@@ -79,7 +79,7 @@ static void keep_or_erase_data()
     }
 }
 
-static void print_game_high_scores()
+static void print_game_high_scores(void)
 {
     game_high_score_t *entry;
     printf( "(game_high_score_t[%d]){\n", NUM_HIGH_SCORES );
@@ -308,7 +308,7 @@ static int validate_game_save_state(char * path)
     return 0;
 }
 
-static int validate_eeprom_4k()
+static int validate_eeprom_4k(void)
 {
     int result;
     const eepfs_entry_t eeprom_4k_files[] = {
@@ -366,7 +366,7 @@ static int validate_eeprom_4k()
     return 0;
 }
 
-static int validate_eeprom_16k()
+static int validate_eeprom_16k(void)
 {
     int result;
     const eepfs_entry_t eeprom_16k_files[] = {
