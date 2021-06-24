@@ -266,15 +266,14 @@ void eeprom_read_bytes(uint8_t * dest, size_t start, size_t len)
 	// Read whole blocks at a time
 	while (bytes_left >= EEPROM_BLOCK_SIZE)
 	{
-		eeprom_read(current_block++, buf);
-		memcpy(dest, buf, EEPROM_BLOCK_SIZE);
+		eeprom_read(current_block++, dest);
 		dest += EEPROM_BLOCK_SIZE;
 		bytes_left -= EEPROM_BLOCK_SIZE;
 	}
 	// If we need to read a partial block at the end...
 	if (bytes_left)
 	{
-		eeprom_read(current_block++, buf);
+		eeprom_read(current_block, buf);
 		memcpy(dest, buf, bytes_left);
 	}
 }
@@ -329,7 +328,7 @@ void eeprom_write_bytes(uint8_t * src, size_t start, size_t len)
 	{
 		eeprom_read(current_block, buf);
 		memcpy(buf, src, bytes_left);
-		eeprom_write(current_block++, buf);
+		eeprom_write(current_block, buf);
 	}
 }
 
