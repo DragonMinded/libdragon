@@ -139,7 +139,7 @@ static void __controller_exec_PIF( const void *inblock, void *outblock )
  */
 eeprom_type_t eeprom_present()
 {
-    static const unsigned long long SI_eeprom_status_block[8] =
+    static const uint64_t SI_eeprom_status_block[8] =
     {
         0x00000000ff010300,
         0xfffffffffe000000,
@@ -150,9 +150,9 @@ eeprom_type_t eeprom_present()
         0,
         1
     };
-    static unsigned long long output[8];
+    static uint64_t output[8];
 
-    __controller_exec_PIF(SI_eeprom_status_block,output);
+    __controller_exec_PIF( SI_eeprom_status_block, output );
 
     /* We are looking at the second byte returned, which
      * signifies which size EEPROM (if any) is present.*/
@@ -183,13 +183,13 @@ int eeprom_total_blocks()
  * @brief Read a block from EEPROM
  * 
  * @param[in]  block
- *             Block to read data from.  The N64 accesses eeprom in 8 byte blocks.
+ *             Block to read data from. The N64 accesses EEPROM in 8-byte blocks.
  * @param[out] dest
- *             Buffer to place the eight bytes read from EEPROM.
+ *             Destination buffer for the eight bytes read from EEPROM.
  */
 void eeprom_read(int block, uint8_t * dest)
 {
-    static unsigned long long SI_eeprom_read_block[8] =
+    static uint64_t SI_eeprom_read_block[8] =
     {
         0x0000000002080400,				// LSB is block
         0xffffffffffffffff,				// return data will be this quad
@@ -200,10 +200,10 @@ void eeprom_read(int block, uint8_t * dest)
         0,
         1
     };
-    static unsigned long long output[8];
+    static uint64_t output[8];
 
     SI_eeprom_read_block[0] = 0x0000000002080400 | (block & 255);
-    __controller_exec_PIF(SI_eeprom_read_block,output);
+    __controller_exec_PIF( SI_eeprom_read_block, output );
     memcpy( dest, &output[1], EEPROM_BLOCK_SIZE );
 }
 
@@ -211,13 +211,13 @@ void eeprom_read(int block, uint8_t * dest)
  * @brief Write a block to EEPROM
  *
  * @param[in] block
- *            Block to write data to.  The N64 accesses eeprom in 8 byte blocks.
+ *            Block to write data to. The N64 accesses EEPROM in 8-byte blocks.
  * @param[in] src
- *            Eight bytes of data to write to block specified
+ *            Source buffer for the eight bytes of data to write to EEPROM.
  */
 void eeprom_write(int block, const uint8_t * src)
 {
-    static unsigned long long SI_eeprom_write_block[8] =
+    static uint64_t SI_eeprom_write_block[8] =
     {
         0x000000000a010500,				// LSB is block
         0x0000000000000000,				// send data is this quad
@@ -228,11 +228,11 @@ void eeprom_write(int block, const uint8_t * src)
         0,
         1
     };
-    static unsigned long long output[8];
+    static uint64_t output[8];
 
     SI_eeprom_write_block[0] = 0x000000000a010500 | (block & 255);
     memcpy( &SI_eeprom_write_block[1], src, EEPROM_BLOCK_SIZE );
-    __controller_exec_PIF(SI_eeprom_write_block,output);
+    __controller_exec_PIF( SI_eeprom_write_block, output );
 }
 
 /**
