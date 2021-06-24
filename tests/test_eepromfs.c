@@ -36,58 +36,58 @@ void test_eepromfs(TestContext *ctx) {
     }
 
     // Test reading zeroed-out files from wiped EEPROM
-    result = eepfs_read("file1", &file1_dst);
+    result = eepfs_read("file1", file1_dst);
     ASSERT_EQUAL_SIGNED(result, EEPFS_ESUCCESS, "eepfs read failed");
-    result = memcmp(&file1_src, &file1_dst, sizeof(file1_src));
+    result = memcmp(file1_src, file1_dst, sizeof(file1_src));
     ASSERT_EQUAL_SIGNED(result, 0, "eepfs erase/read mismatch");
-    result = eepfs_read("file2", &file2_dst);
+    result = eepfs_read("file2", file2_dst);
     ASSERT_EQUAL_SIGNED(result, EEPFS_ESUCCESS, "eepfs read failed");
-    result = memcmp(&file2_src, &file2_dst, sizeof(file2_src));
+    result = memcmp(file2_src, file2_dst, sizeof(file2_src));
     ASSERT_EQUAL_SIGNED(result, 0, "eepfs erase/read mismatch");
 
     // Test writing and reading file1
     for (int i = 0; i < sizeof(file1_src); i++) {
         file1_src[i] = i;
     }
-    result = eepfs_write("file1", &file1_src);
+    result = eepfs_write("file1", file1_src);
     ASSERT_EQUAL_SIGNED(result, EEPFS_ESUCCESS, "eepfs write failed");
-    result = eepfs_read("file1", &file1_dst);
+    result = eepfs_read("file1", file1_dst);
     ASSERT_EQUAL_SIGNED(result, EEPFS_ESUCCESS, "eepfs read failed");
-    result = memcmp(&file1_src, &file1_dst, sizeof(file1_src));
+    result = memcmp(file1_src, file1_dst, sizeof(file1_src));
     ASSERT_EQUAL_SIGNED(result, 0, "eepfs write/read mismatch");
 
     // Test erasing file1
     result = eepfs_erase("file1");
     ASSERT_EQUAL_SIGNED(result, EEPFS_ESUCCESS, "eepfs erase failed");
-    memset(&file1_src, 0, sizeof(file1_src));
-    result = eepfs_read("file1", &file1_dst);
+    memset(file1_src, 0, sizeof(file1_src));
+    result = eepfs_read("file1", file1_dst);
     ASSERT_EQUAL_SIGNED(result, EEPFS_ESUCCESS, "eepfs read failed");
-    result = memcmp(&file1_src, &file1_dst, sizeof(file1_src));
+    result = memcmp(file1_src, file1_dst, sizeof(file1_src));
     ASSERT_EQUAL_SIGNED(result, 0, "eepfs erase/read mismatch");
 
     // Test writing and reading file2
     for (int i = 0; i < sizeof(file2_src); i++) {
         file2_src[i] = i;
     }
-    result = eepfs_write("file2", &file2_src);
+    result = eepfs_write("file2", file2_src);
     ASSERT_EQUAL_SIGNED(result, EEPFS_ESUCCESS, "eepfs write failed");
-    result = eepfs_read("file2", &file2_dst);
+    result = eepfs_read("file2", file2_dst);
     ASSERT_EQUAL_SIGNED(result, EEPFS_ESUCCESS, "eepfs read failed");
-    result = memcmp(&file2_src, &file2_dst, sizeof(file2_src));
+    result = memcmp(file2_src, file2_dst, sizeof(file2_src));
     ASSERT_EQUAL_SIGNED(result, 0, "eepfs write/read mismatch");
 
     // Ensure file1 was not modified
-    result = eepfs_read("file1", &file1_dst);
+    result = eepfs_read("file1", file1_dst);
     ASSERT_EQUAL_SIGNED(result, EEPFS_ESUCCESS, "eepfs read failed");
-    result = memcmp(&file1_src, &file1_dst, sizeof(file1_src));
+    result = memcmp(file1_src, file1_dst, sizeof(file1_src));
     ASSERT_EQUAL_SIGNED(result, 0, "eepfs erase/read mismatch");
 
     // Test erasing file2
     result = eepfs_erase("file2");
     ASSERT_EQUAL_SIGNED(result, EEPFS_ESUCCESS, "eepfs erase failed");
-    memset(&file2_src, 0, sizeof(file2_src));
-    result = eepfs_read("file2", &file2_dst);
+    memset(file2_src, 0, sizeof(file2_src));
+    result = eepfs_read("file2", file2_dst);
     ASSERT_EQUAL_SIGNED(result, EEPFS_ESUCCESS, "eepfs read failed");
-    result = memcmp(&file2_src, &file2_dst, sizeof(file2_src));
+    result = memcmp(file2_src, file2_dst, sizeof(file2_src));
     ASSERT_EQUAL_SIGNED(result, 0, "eepfs erase/read mismatch");
 }
