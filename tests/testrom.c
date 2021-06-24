@@ -165,6 +165,7 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 #include "test_irq.c"
 #include "test_exception.c"
 #include "test_debug.c"
+#include "test_eepromfs.c"
 
 /**********************************************************************
  * MAIN
@@ -199,6 +200,7 @@ static const struct Testsuite
 	TEST_FUNC(test_dfs_rom_addr,              25, TEST_FLAGS_IO),
 	TEST_FUNC(test_cache_invalidate,    	1763, TEST_FLAGS_NONE),
 	TEST_FUNC(test_debug_sdfs,             	   0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_eepromfs,                   0, TEST_FLAGS_IO),
 };
 
 int main() {
