@@ -48,7 +48,7 @@
  * @brief EEPROM Probe Values
  * @see #eeprom_present
  */
-typedef enum
+typedef enum eeprom_type_t
 {
     /** @brief No EEPROM present */
     EEPROM_NONE = 0,
@@ -216,6 +216,8 @@ eeprom_type_t eeprom_present();
 int eeprom_total_blocks();
 void eeprom_read(int block, uint8_t * const buf);
 void eeprom_write(int block, const uint8_t * const data);
+void eeprom_read_bytes(uint8_t * dest, size_t start, size_t len);
+void eeprom_write_bytes(uint8_t * src, size_t start, size_t len);
 
 #ifdef __cplusplus
 }

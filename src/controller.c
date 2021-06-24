@@ -236,6 +236,104 @@ void eeprom_write(int block, const uint8_t * const data)
 }
 
 /**
+ * @brief Read a buffer of bytes from EEPROM
+ * 
+ * This is a convenience helper that abstracts away the 8-byte block access pattern.
+ * 
+ * @param[out] buf
+ *             Buffer to read data into
+ * @param[in]  start
+ *             Byte offset to start reading data from
+ * @param[in]  len
+ *             Byte length of data to read into buffer
+ */
+void eeprom_read_bytes(uint8_t * dest, size_t start, size_t len)
+{
+	uint8_t buf[EEPROM_BLOCK_SIZE];
+	size_t bytes_left = len;
+	size_t current_block = start / EEPROM_BLOCK_SIZE;
+	// If we need to read a partial block to start off...
+	size_t block_offset = start % EEPROM_BLOCK_SIZE;
+	if (block_offset)
+	{
+		eeprom_read(current_block++, buf);
+		bytes_left -= (EEPROM_BLOCK_SIZE - block_offset);
+		while (block_offset < EEPROM_BLOCK_SIZE)
+		{
+			*dest++ = buf[block_offset++];
+		}
+	}
+	// Read whole blocks at a time
+	while (bytes_left >= EEPROM_BLOCK_SIZE)
+	{
+		eeprom_read(current_block++, buf);
+		memcpy(dest, buf, EEPROM_BLOCK_SIZE);
+		dest += EEPROM_BLOCK_SIZE;
+		bytes_left -= EEPROM_BLOCK_SIZE;
+	}
+	// If we need to read a partial block at the end...
+	if (bytes_left)
+	{
+		eeprom_read(current_block++, buf);
+		memcpy(dest, buf, bytes_left);
+	}
+}
+
+/**
+ * @brief Write a buffer of bytes to EEPROM
+ * 
+ * This is a convenience helper that abstracts away the 8-byte block access pattern.
+ * 
+ * Each EEPROM block write takes approximately 15 milliseconds;
+ * this operation may block for a while with large buffer sizes:
+ * 
+ * * 4k EEPROM: 64 blocks * 15ms = 960ms!
+ * * 16k EEPROM: 256 blocks * 15ms = 3840ms!
+ * 
+ * You may want to pause audio before calling this.
+ *
+ * @param[in] src
+ *            Buffer of data to write
+ * @param[in] start
+ *            Byte offset to start writing data to
+ * @param[in] len
+ *            Byte length of the src buffer
+ */
+void eeprom_write_bytes(uint8_t * src, size_t start, size_t len)
+{
+	uint8_t buf[EEPROM_BLOCK_SIZE];
+	size_t bytes_left = len;
+	size_t current_block = start / EEPROM_BLOCK_SIZE;
+	// If we need to write a partial block to start off...
+	size_t block_offset = start % EEPROM_BLOCK_SIZE;
+	if (block_offset)
+	{
+		eeprom_read(current_block, buf);
+		bytes_left -= (EEPROM_BLOCK_SIZE - block_offset);
+		while (block_offset < EEPROM_BLOCK_SIZE)
+		{
+			buf[block_offset++] = *src++;
+		}
+		eeprom_write(current_block++, buf);
+	}
+	// Write whole blocks at a time
+	while (bytes_left >= EEPROM_BLOCK_SIZE)
+	{
+		memcpy(buf, src, EEPROM_BLOCK_SIZE);
+		eeprom_write(current_block++, buf);
+		src += EEPROM_BLOCK_SIZE;
+		bytes_left -= EEPROM_BLOCK_SIZE;
+	}
+	// If we need to write a partial block at the end...
+	if (bytes_left)
+	{
+		eeprom_read(current_block, buf);
+		memcpy(buf, src, bytes_left);
+		eeprom_write(current_block++, buf);
+	}
+}
+
+/**
  * @brief Read the controller button status for all controllers
  *
  * Read the controller button status immediately and return results to data.  If
