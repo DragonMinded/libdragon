@@ -9,7 +9,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include "controller.h"
 
 /**
  * @name EEPROM filesystem return values
@@ -52,8 +51,6 @@ typedef struct
      * the filesystem must be unique and at least one character.
      * 
      * A leading '/' is optional and will be ignored if set.
-     * Files accessed through stdio will always have the leading
-     * '/', but files accessed through #eepfs_open can omit it.
      * 
      * The filesytem does not support entries for directories,
      * nor does it support listing files in a given directory.

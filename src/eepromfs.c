@@ -3,11 +3,9 @@
  * @brief EEPROM Filesystem
  * @ingroup eepfs
  */
-#include <stdio.h>
 #include <string.h>
 #include <stdint.h>
 #include <malloc.h>
-#include <sys/stat.h>
 #include "libdragon.h"
 #include "system.h"
 
@@ -149,11 +147,10 @@ static uint64_t eepfs_generate_signature()
 /**
  * @brief Finds a file descriptor's handle given a path.
  * 
- * A leading '/' in the path is optional and is supported to
- * allow for consistency with stdio functions.
+ * A leading '/' in the path is optional for your convenience.
  *
  * @param[in] path
- *            Absolute path of the file to open (without stdio prefix)
+ *            Absolute path of the file to open
  *
  * @return A file handle or a negative value on failure.
  */
@@ -188,8 +185,6 @@ static int eepfs_find_handle(const char * path)
  * File descriptors can be used for reading or writing.
  * 
  * Getting a file repeatedly will always return the same pointer.
- * This means that the cursor is shared across all usage of the file.
- * Be sure to reset the cursor when you are done with it!
  * 
  * Negative handles indicate an upstream error occurred.
  * The zero value will never be used as a file handle, even
@@ -201,7 +196,7 @@ static int eepfs_find_handle(const char * path)
  * 
  * @return A pointer to the file descriptor or NULL if the handle is invalid
  */
-static eepfs_file_t * eepfs_get_file(int handle)
+static const eepfs_file_t * eepfs_get_file(int handle)
 {
     /* Check if the handle appears to be valid */
     if ( handle > 0 && handle < eepfs_files_count )
@@ -321,7 +316,7 @@ int eepfs_init(const eepfs_entry_t * entries, size_t count)
 /**
  * @brief De-initializes the EEPROM filesystem.
  * 
- * This detaches the POSIX filesystem and cleans up the file lookup table.
+ * This cleans up the file lookup table.
  * 
  * You probably won't ever need to call this.
  * 
