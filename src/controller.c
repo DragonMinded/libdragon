@@ -133,6 +133,29 @@ static void __controller_exec_PIF( const void *inblock, void *outblock )
 }
 
 /**
+ * @brief Send a block of data to the PIF and fetch the result
+ * 
+ * @param data_in PIF request data
+ * @param in_size Up to 64 bytes
+ * @param data_out PIF response data
+ * @param out_size Up to 64 bytes
+ */
+void pif_execute( const uint64_t * data_in, size_t in_size, uint64_t * data_out, size_t out_size )
+{
+    static uint64_t input[8] = { 0, 0, 0, 0, 0, 0, 0, 1 };
+    static uint64_t output[8];
+
+    assert(in_size <= sizeof(input));
+    assert(out_size <= sizeof(output));
+
+    memcpy( input, data_in, in_size );
+
+    __controller_exec_PIF( input, output );
+
+    memcpy( data_out, output, out_size );
+}
+
+/**
  * @brief Probe the EEPROM interface on the cartridge.
  *
  * @return Which EEPROM type was detected on the cartridge.

@@ -212,6 +212,7 @@ int identify_accessory( int controller );
 void rumble_start( int controller );
 void rumble_stop( int controller );
 void execute_raw_command( int controller, int command, int bytesout, int bytesin, unsigned char *out, unsigned char *in );
+void pif_execute( const uint64_t * data_in, size_t in_size, uint64_t * data_out, size_t out_size );
 eeprom_type_t eeprom_present( void );
 int eeprom_total_blocks( void );
 void eeprom_read( int block, uint8_t * dest );
