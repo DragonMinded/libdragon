@@ -39,7 +39,7 @@ extern "C" {
  * @see #eepfs_config_t
  * @see #eepfs_init
  */
-typedef struct
+typedef struct eepfs_entry_t
 {
     /**
      * @brief File path.
