@@ -77,8 +77,8 @@ typedef struct eepfs_entry_t
 int eepfs_init(const eepfs_entry_t * entries, size_t count);
 int eepfs_close(void);
 
-int eepfs_read(const char * path, void * dest);
-int eepfs_write(const char * path, const void * src);
+int eepfs_read(const char * path, void * dest, size_t size);
+int eepfs_write(const char * path, const void * src, size_t size);
 int eepfs_erase(const char * path);
 
 bool eepfs_verify_signature(void);

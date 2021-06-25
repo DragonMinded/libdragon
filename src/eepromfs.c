@@ -349,7 +349,7 @@ int eepfs_close(void)
  *
  * @return EEPFS_ESUCCESS on success or a negative error otherwise
  */
-int eepfs_read(const char * path, void * dest)
+int eepfs_read(const char * path, void * dest, size_t size)
 {
     const int handle = eepfs_find_handle(path);
     const eepfs_file_t * file = eepfs_get_file(handle);
@@ -359,7 +359,7 @@ int eepfs_read(const char * path, void * dest)
         /* File does not exist, return error code */
         return EEPFS_ENOFILE;
     }
-    if ( dest == NULL ) 
+    if ( dest == NULL || file->num_bytes != size ) 
     {
         /* Unusable destination buffer */
         return EEPFS_EBADINPUT;
@@ -384,7 +384,7 @@ int eepfs_read(const char * path, void * dest)
  *
  * @return EEPFS_ESUCCESS on success or a negative error otherwise
  */
-int eepfs_write(const char * path, const void * src)
+int eepfs_write(const char * path, const void * src, size_t size)
 {
     const int handle = eepfs_find_handle(path);
     const eepfs_file_t * file = eepfs_get_file(handle);
@@ -394,7 +394,7 @@ int eepfs_write(const char * path, const void * src)
         /* File does not exist, return error code */
         return EEPFS_ENOFILE;
     }
-    if ( src == NULL ) 
+    if ( src == NULL || file->num_bytes != size ) 
     {
         /* Unusable source buffer */
         return EEPFS_EBADINPUT;
