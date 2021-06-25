@@ -213,7 +213,7 @@ void rumble_start( int controller );
 void rumble_stop( int controller );
 void execute_raw_command( int controller, int command, int bytesout, int bytesin, unsigned char *out, unsigned char *in );
 eeprom_type_t eeprom_present( void );
-int eeprom_total_blocks( void );
+size_t eeprom_total_blocks( void );
 void eeprom_read( int block, uint8_t * dest );
 void eeprom_write( int block, const uint8_t * src );
 void eeprom_read_bytes( uint8_t * dest, size_t start, size_t len );

@@ -1,8 +1,10 @@
 void test_eepromfs(TestContext *ctx) {
     // Skip these tests if no EEPROM is present
-    const int blocks = eeprom_total_blocks();
-    if (blocks == 0) {
+    const size_t eeprom_capacity = eeprom_total_blocks();
+    if (eeprom_capacity == 0) {
         SKIP("EEPROM not found; skipping eepfs tests");
+    } else {
+        LOG("EEPROM Detected: %d blocks\n", eeprom_capacity);
     }
 
     // Zero out the first block of EEPROM to invalidate the filesystem signature

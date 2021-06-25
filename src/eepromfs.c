@@ -512,10 +512,10 @@ void eepfs_wipe(void)
     const uint8_t eeprom_buf[EEPROM_BLOCK_SIZE] = {0};
 
     /* Write the rest of the blocks in with zeroes */
-    const size_t total_blocks = eeprom_total_blocks();
+    const size_t eeprom_capacity = eeprom_total_blocks();
     size_t current_block = 1;
 
-    while ( current_block < total_blocks )
+    while ( current_block < eeprom_capacity )
     {
         eeprom_write(current_block++, eeprom_buf);
     }

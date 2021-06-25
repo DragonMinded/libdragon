@@ -169,7 +169,7 @@ eeprom_type_t eeprom_present( void )
  * 
  * @return The capacity of the detected EEPROM type, or 0 if no EEPROM is present.
  */
-int eeprom_total_blocks( void )
+size_t eeprom_total_blocks( void )
 {
     switch ( eeprom_present() )
     {
