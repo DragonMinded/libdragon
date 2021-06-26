@@ -346,6 +346,8 @@ int eepfs_close(void)
  *             Path of file in EEPROM filesystem to read from
  * @param[out] dest
  *             Buffer to read into
+ * @param[in]  size
+ *             Size of the destination buffer (in bytes)
  *
  * @return EEPFS_ESUCCESS on success or a negative error otherwise
  */
@@ -381,6 +383,8 @@ int eepfs_read(const char * path, void * dest, size_t size)
  *            Path of file in EEPROM filesystem to write to
  * @param[in] src
  *            Buffer of data to be written
+ * @param[in]  size
+ *             Size of the source buffer (in bytes)
  *
  * @return EEPFS_ESUCCESS on success or a negative error otherwise
  */
