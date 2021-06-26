@@ -883,7 +883,7 @@ int open( char *file, int flags, int mode )
  
             void *ptr = fs->open( file + __strlen( filesystems[mapping].prefix ), flags );
 
-            if( ptr )
+            if( ptr && ((int32_t) ptr) != -2 )
             {
                 /* Create new internal handle */
                 handles[i].fileno = __get_new_handle();
