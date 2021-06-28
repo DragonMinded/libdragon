@@ -45,17 +45,21 @@
 /** @} */
 
 /**
- * @name EEPROM Probe Values
+ * @brief EEPROM Probe Values
  * @see #eeprom_present
- * @{
  */
-/** @brief No EEPROM present */
-#define EEPROM_NONE          0
-/** @brief 4 kilobit (64-block) EEPROM present */
-#define EEPROM_4k            1
-/** @brief 16 kilobit (256-block) EEPROM present */
-#define EEPROM_16k           2
-/** @} */
+typedef enum eeprom_type_t
+{
+    /** @brief No EEPROM present */
+    EEPROM_NONE = 0,
+    /** @brief 4 kilobit (64-block) EEPROM present */
+    EEPROM_4K   = 1,
+    /** @brief 16 kilobit (256-block) EEPROM present */
+    EEPROM_16K  = 2
+} eeprom_type_t; 
+
+/** @brief EEPROM is accessed in 8-byte blocks */
+#define EEPROM_BLOCK_SIZE 8
 
 /**
  * @name SI Error Values
@@ -190,17 +194,17 @@ struct controller_origin_data
 extern "C" {
 #endif
 
-void controller_init();
-void controller_read( struct controller_data * data);
-void controller_read_gc( struct controller_data * data, const uint8_t rumble[4]);
+void controller_init( void );
+void controller_read( struct controller_data * data );
+void controller_read_gc( struct controller_data * data, const uint8_t rumble[4] );
 void controller_read_gc_origin( struct controller_origin_data * data);
-int get_controllers_present();
-int get_accessories_present(struct controller_data * data);
-void controller_scan();
-struct controller_data get_keys_down();
-struct controller_data get_keys_up();
-struct controller_data get_keys_held();
-struct controller_data get_keys_pressed();
+int get_controllers_present( void );
+int get_accessories_present( struct controller_data * data );
+void controller_scan( void );
+struct controller_data get_keys_down( void );
+struct controller_data get_keys_up( void );
+struct controller_data get_keys_held( void );
+struct controller_data get_keys_pressed( void );
 int get_dpad_direction( int controller );
 int read_mempak_address( int controller, uint16_t address, uint8_t *data );
 int write_mempak_address( int controller, uint16_t address, uint8_t *data );
@@ -208,9 +212,12 @@ int identify_accessory( int controller );
 void rumble_start( int controller );
 void rumble_stop( int controller );
 void execute_raw_command( int controller, int command, int bytesout, int bytesin, unsigned char *out, unsigned char *in );
-int eeprom_present();
-void eeprom_read(int block, uint8_t * const buf);
-void eeprom_write(int block, const uint8_t * const data);
+eeprom_type_t eeprom_present( void );
+size_t eeprom_total_blocks( void );
+void eeprom_read( int block, uint8_t * dest );
+void eeprom_write( int block, const uint8_t * src );
+void eeprom_read_bytes( uint8_t * dest, size_t start, size_t len );
+void eeprom_write_bytes( const uint8_t * src, size_t start, size_t len );
 
 #ifdef __cplusplus
 }

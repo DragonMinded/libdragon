@@ -75,7 +75,7 @@ static struct controller_data last;
 /** 
  * @brief Initialize the controller subsystem 
  */
-void controller_init()
+void controller_init( void )
 {
     memset(&current, 0, sizeof(current));
     memset(&last, 0, sizeof(last));
@@ -84,7 +84,7 @@ void controller_init()
 /**
  * @brief Wait until the SI is finished with a DMA request
  */
-static void __SI_DMA_wait(void)
+static void __SI_DMA_wait( void )
 {
     while (SI_regs->status & (SI_STATUS_DMA_BUSY | SI_STATUS_IO_BUSY)) ;
 }
@@ -133,17 +133,13 @@ static void __controller_exec_PIF( const void *inblock, void *outblock )
 }
 
 /**
- * @brief Probe the EEPROM interface
+ * @brief Probe the EEPROM interface on the cartridge.
  *
- * Probe the EEPROM to see if it exists on this cartridge.
- *
- * @retval #EEPROM_16k The cartridge has a 16 kilobit EEPROM
- * @retval #EEPROM_4k The cartridge has a 4 kilobit EEPROM
- * @retval #EEPROM_NONE The cartridge does not have an EEPROM
+ * @return Which EEPROM type was detected on the cartridge.
  */
-int eeprom_present()
+eeprom_type_t eeprom_present( void )
 {
-    static const unsigned long long SI_eeprom_status_block[8] =
+    static const uint64_t SI_eeprom_status_block[8] =
     {
         0x00000000ff010300,
         0xfffffffffe000000,
@@ -154,25 +150,32 @@ int eeprom_present()
         0,
         1
     };
-    static unsigned long long output[8];
+    static uint64_t output[8];
 
-    __controller_exec_PIF(SI_eeprom_status_block,output);
+    __controller_exec_PIF( SI_eeprom_status_block, output );
 
-    /* We are looking in the second byte returned, which
+    /* We are looking at the second byte returned, which
      * signifies which size EEPROM (if any) is present.*/
-    const uint8_t eeprom_type = (output[1] >> 48) & 0xFF;
+    switch( (output[1] >> 48) & 0xFF )
+    {
+        case 0xC0: return EEPROM_16K;
+        case 0x80: return EEPROM_4K;
+        default: return EEPROM_NONE;
+    }
+}
 
-    if( eeprom_type == 0xC0 )
+/**
+ * @brief Return how many blocks of EEPROM exist on the cartridge.
+ * 
+ * @return The capacity of the detected EEPROM type, or 0 if no EEPROM is present.
+ */
+size_t eeprom_total_blocks( void )
+{
+    switch ( eeprom_present() )
     {
-        return EEPROM_16k;
-    }
-    else if( eeprom_type == 0x80 )
-    {
-        return EEPROM_4k;
-    }
-    else
-    {
-        return EEPROM_NONE;
+        case EEPROM_16K: return 256;
+        case EEPROM_4K: return 64;
+        default: return 0;
     }
 }
 
@@ -180,13 +183,13 @@ int eeprom_present()
  * @brief Read a block from EEPROM
  * 
  * @param[in]  block
- *             Block to read data from.  The N64 accesses eeprom in 8 byte blocks.
- * @param[out] buf
- *             Buffer to place the eight bytes read from EEPROM.
+ *             Block to read data from. The N64 accesses EEPROM in 8-byte blocks.
+ * @param[out] dest
+ *             Destination buffer for the eight bytes read from EEPROM.
  */
-void eeprom_read(int block, uint8_t * const buf)
+void eeprom_read( int block, uint8_t * dest )
 {
-    static unsigned long long SI_eeprom_read_block[8] =
+    static uint64_t SI_eeprom_read_block[8] =
     {
         0x0000000002080400,				// LSB is block
         0xffffffffffffffff,				// return data will be this quad
@@ -197,24 +200,24 @@ void eeprom_read(int block, uint8_t * const buf)
         0,
         1
     };
-    static unsigned long long output[8];
+    static uint64_t output[8];
 
-	SI_eeprom_read_block[0] = 0x0000000002080400 | (block & 255);
-    __controller_exec_PIF(SI_eeprom_read_block,output);
-    memcpy( buf, &output[1], 8 );
+    SI_eeprom_read_block[0] = 0x0000000002080400 | (block & 255);
+    __controller_exec_PIF( SI_eeprom_read_block, output );
+    memcpy( dest, &output[1], EEPROM_BLOCK_SIZE );
 }
 
 /**
  * @brief Write a block to EEPROM
  *
  * @param[in] block
- *            Block to write data to.  The N64 accesses eeprom in 8 byte blocks.
- * @param[in] data
- *            Eight bytes of data to write to block specified
+ *            Block to write data to. The N64 accesses EEPROM in 8-byte blocks.
+ * @param[in] src
+ *            Source buffer for the eight bytes of data to write to EEPROM.
  */
-void eeprom_write(int block, const uint8_t * const data)
+void eeprom_write( int block, const uint8_t * src )
 {
-    static unsigned long long SI_eeprom_write_block[8] =
+    static uint64_t SI_eeprom_write_block[8] =
     {
         0x000000000a010500,				// LSB is block
         0x0000000000000000,				// send data is this quad
@@ -225,11 +228,108 @@ void eeprom_write(int block, const uint8_t * const data)
         0,
         1
     };
-    static unsigned long long output[8];
+    static uint64_t output[8];
 
-	SI_eeprom_write_block[0] = 0x000000000a010500 | (block & 255);
-    memcpy( &SI_eeprom_write_block[1], data, 8 );
-    __controller_exec_PIF(SI_eeprom_write_block,output);
+    SI_eeprom_write_block[0] = 0x000000000a010500 | (block & 255);
+    memcpy( &SI_eeprom_write_block[1], src, EEPROM_BLOCK_SIZE );
+    __controller_exec_PIF( SI_eeprom_write_block, output );
+}
+
+/**
+ * @brief Read a buffer of bytes from EEPROM
+ * 
+ * This is a convenience helper that abstracts away the 8-byte block access pattern.
+ * 
+ * @param[out] buf
+ *             Buffer to read data into
+ * @param[in]  start
+ *             Byte offset to start reading data from
+ * @param[in]  len
+ *             Byte length of data to read into buffer
+ */
+void eeprom_read_bytes( uint8_t * dest, size_t start, size_t len )
+{
+	uint8_t buf[EEPROM_BLOCK_SIZE];
+	size_t bytes_left = len;
+	size_t current_block = start / EEPROM_BLOCK_SIZE;
+	// If we need to read a partial block to start off...
+	size_t block_offset = start % EEPROM_BLOCK_SIZE;
+	if (block_offset)
+	{
+		eeprom_read( current_block++, buf );
+		bytes_left -= (EEPROM_BLOCK_SIZE - block_offset);
+		while (block_offset < EEPROM_BLOCK_SIZE)
+		{
+			*dest++ = buf[block_offset++];
+		}
+	}
+	// Read whole blocks at a time
+	while ( bytes_left >= EEPROM_BLOCK_SIZE )
+	{
+		eeprom_read( current_block++, dest );
+		dest += EEPROM_BLOCK_SIZE;
+		bytes_left -= EEPROM_BLOCK_SIZE;
+	}
+	// If we need to read a partial block at the end...
+	if (bytes_left)
+	{
+		eeprom_read( current_block, buf );
+		memcpy( dest, buf, bytes_left );
+	}
+}
+
+/**
+ * @brief Write a buffer of bytes to EEPROM
+ * 
+ * This is a convenience helper that abstracts away the 8-byte block access pattern.
+ * 
+ * Each EEPROM block write takes approximately 15 milliseconds;
+ * this operation may block for a while with large buffer sizes:
+ * 
+ * * 4k EEPROM: 64 blocks * 15ms = 960ms!
+ * * 16k EEPROM: 256 blocks * 15ms = 3840ms!
+ * 
+ * You may want to pause audio before calling this.
+ *
+ * @param[in] src
+ *            Buffer of data to write
+ * @param[in] start
+ *            Byte offset to start writing data to
+ * @param[in] len
+ *            Byte length of the src buffer
+ */
+void eeprom_write_bytes( const uint8_t * src, size_t start, size_t len )
+{
+	uint8_t buf[EEPROM_BLOCK_SIZE];
+	size_t bytes_left = len;
+	size_t current_block = start / EEPROM_BLOCK_SIZE;
+	// If we need to write a partial block to start off...
+	size_t block_offset = start % EEPROM_BLOCK_SIZE;
+	if (block_offset)
+	{
+		eeprom_read( current_block, buf );
+		bytes_left -= (EEPROM_BLOCK_SIZE - block_offset);
+		while (block_offset < EEPROM_BLOCK_SIZE)
+		{
+			buf[block_offset++] = *src++;
+		}
+		eeprom_write( current_block++, buf );
+	}
+	// Write whole blocks at a time
+	while (bytes_left >= EEPROM_BLOCK_SIZE)
+	{
+		memcpy( buf, src, EEPROM_BLOCK_SIZE );
+		eeprom_write( current_block++, buf );
+		src += EEPROM_BLOCK_SIZE;
+		bytes_left -= EEPROM_BLOCK_SIZE;
+	}
+	// If we need to write a partial block at the end...
+	if (bytes_left)
+	{
+		eeprom_read( current_block, buf );
+		memcpy( buf, src, bytes_left );
+		eeprom_write( current_block, buf );
+	}
 }
 
 /**
@@ -242,7 +342,7 @@ void eeprom_write(int block, const uint8_t * const data)
  * @param[out] output
  *             Structure to place the returned controller button status
  */
-void controller_read(struct controller_data * output)
+void controller_read( struct controller_data * output )
 {
     static const unsigned long long SI_read_con_block[8] =
     {
@@ -256,7 +356,7 @@ void controller_read(struct controller_data * output)
         1
     };
 
-    __controller_exec_PIF(SI_read_con_block,output);
+    __controller_exec_PIF( SI_read_con_block, output );
 }
 
 /**
@@ -270,7 +370,7 @@ void controller_read(struct controller_data * output)
  * @param[out] output
  *             Structure to place the returned controller button status
  */
-void controller_read_gc(struct controller_data * outdata, const uint8_t rumble[4])
+void controller_read_gc( struct controller_data * outdata, const uint8_t rumble[4] )
 {
     static const unsigned long long SI_read_con_block[8] =
     {
@@ -286,7 +386,7 @@ void controller_read_gc(struct controller_data * outdata, const uint8_t rumble[4
 
     static unsigned long long output[8], input[8];
 
-    memcpy(input, SI_read_con_block, 64);
+    memcpy( input, SI_read_con_block, 64 );
 
     // Fill in the rumbles
     if (rumble[0])
@@ -298,12 +398,12 @@ void controller_read_gc(struct controller_data * outdata, const uint8_t rumble[4
     if (rumble[3])
         input[5] |= 1LLU << 32;
 
-    __controller_exec_PIF(input, output);
+    __controller_exec_PIF( input, output );
 
-    memcpy(&outdata->gc[0], ((uint8_t *) output) + 5, 8);
-    memcpy(&outdata->gc[1], ((uint8_t *) output) + 5 + 13, 8);
-    memcpy(&outdata->gc[2], ((uint8_t *) output) + 5 + 13 * 2, 8);
-    memcpy(&outdata->gc[3], ((uint8_t *) output) + 5 + 13 * 3, 8);
+    memcpy( &outdata->gc[0], ((uint8_t *) output) + 5, 8 );
+    memcpy( &outdata->gc[1], ((uint8_t *) output) + 5 + 13, 8 );
+    memcpy( &outdata->gc[2], ((uint8_t *) output) + 5 + 13 * 2, 8 );
+    memcpy( &outdata->gc[3], ((uint8_t *) output) + 5 + 13 * 3, 8 );
 }
 
 /**
@@ -316,7 +416,7 @@ void controller_read_gc(struct controller_data * outdata, const uint8_t rumble[4
  * @param[out] output
  *             Structure to place the returned controller button status
  */
-void controller_read_gc_origin(struct controller_origin_data * outdata)
+void controller_read_gc_origin( struct controller_origin_data * outdata )
 {
     static const unsigned long long SI_read_con_block[8] =
     {
@@ -332,12 +432,12 @@ void controller_read_gc_origin(struct controller_origin_data * outdata)
 
     static unsigned long long output[8];
 
-    __controller_exec_PIF(SI_read_con_block, output);
+    __controller_exec_PIF( SI_read_con_block, output );
 
-    memcpy(&outdata->gc[0], ((uint8_t *) output) + 3, 10);
-    memcpy(&outdata->gc[1], ((uint8_t *) output) + 3 + 13, 10);
-    memcpy(&outdata->gc[2], ((uint8_t *) output) + 3 + 13 * 2, 10);
-    memcpy(&outdata->gc[3], ((uint8_t *) output) + 3 + 13 * 3, 10);
+    memcpy( &outdata->gc[0], ((uint8_t *) output) + 3, 10 );
+    memcpy( &outdata->gc[1], ((uint8_t *) output) + 3 + 13, 10 );
+    memcpy( &outdata->gc[2], ((uint8_t *) output) + 3 + 13 * 2, 10 );
+    memcpy( &outdata->gc[3], ((uint8_t *) output) + 3 + 13 * 3, 10 );
 }
 
 /**
@@ -348,14 +448,14 @@ void controller_read_gc_origin(struct controller_origin_data * outdata)
  * #get_keys_held, #get_keys_pressed or #get_dpad_direction. Only N64
  * controllers supported.
  */
-void controller_scan()
+void controller_scan( void )
 {
     /* Remember last */
-    memcpy(&last, &current, sizeof(current));
+    memcpy( &last, &current, sizeof(current) );
 
     /* Grab current */
-    memset(&current, 0, sizeof(current));
-    controller_read(&current);
+    memset( &current, 0, sizeof(current) );
+    controller_read( &current );
 }
 
 /**
@@ -367,12 +467,12 @@ void controller_scan()
  *
  * @return A structure representing which buttons were just pressed down
  */
-struct controller_data get_keys_down()
+struct controller_data get_keys_down( void )
 {
     struct controller_data ret;
 
     /* Start with baseline */
-    memcpy(&ret, &current, sizeof(current));
+    memcpy( &ret, &current, sizeof(current) );
 
     /* Figure out which wasn't pressed last time and is now */
     for(int i = 0; i < 4; i++)
@@ -392,12 +492,12 @@ struct controller_data get_keys_down()
  *
  * @return A structure representing which buttons were just released
  */
-struct controller_data get_keys_up()
+struct controller_data get_keys_up( void )
 {
     struct controller_data ret;
 
     /* Start with baseline */
-    memcpy(&ret, &current, sizeof(current));
+    memcpy( &ret, &current, sizeof(current) );
 
     /* Figure out which was pressed last time and isn't now */
     for(int i = 0; i < 4; i++)
@@ -417,12 +517,12 @@ struct controller_data get_keys_up()
  *
  * @return A structure representing which buttons were held
  */
-struct controller_data get_keys_held()
+struct controller_data get_keys_held( void )
 {
     struct controller_data ret;
 
     /* Start with baseline */
-    memcpy(&ret, &current, sizeof(current));
+    memcpy( &ret, &current, sizeof(current) );
 
     /* Figure out which was pressed last time and now as well */
     for(int i = 0; i < 4; i++)
@@ -441,7 +541,7 @@ struct controller_data get_keys_held()
  *
  * @return A structure representing which buttons were pressed
  */
-struct controller_data get_keys_pressed()
+struct controller_data get_keys_pressed( void )
 {
     return current;
 }
@@ -552,7 +652,7 @@ void execute_raw_command( int controller, int command, int bytesout, int bytesin
  *
  * @return A bitmask representing controllers present
  */
-int get_controllers_present()
+int get_controllers_present( void )
 {
     int ret = 0;
     struct controller_data output;
@@ -568,7 +668,7 @@ int get_controllers_present()
         1
     };
 
-    __controller_exec_PIF(SI_read_controllers_block,&output);
+    __controller_exec_PIF( SI_read_controllers_block, &output );
 
     if( output.c[0].err == ERROR_NONE ) { ret |= CONTROLLER_1_INSERTED; }
     if( output.c[1].err == ERROR_NONE ) { ret |= CONTROLLER_2_INSERTED; }
@@ -622,7 +722,7 @@ static void __get_accessories_present( struct controller_data *output )
         1
     };
 
-    __controller_exec_PIF(SI_read_status_block,output);
+    __controller_exec_PIF( SI_read_status_block, output );
 }
 
 /**
@@ -649,7 +749,7 @@ int get_accessories_present(struct controller_data *out)
     if( (output.c[3].err == ERROR_NONE) && __is_valid_accessory( output.c[3].data ) ) { ret |= CONTROLLER_4_INSERTED; }
 
     if (out)
-        memcpy(out, &output, sizeof(struct controller_data));
+        memcpy( out, &output, sizeof(struct controller_data) );
 
     return ret;
 }
@@ -779,7 +879,7 @@ int read_mempak_address( int controller, uint16_t address, uint8_t *data )
     /* Leave room for 33 bytes (32 bytes + CRC) to come back */
     memset( &SI_read_mempak_block[controller + 5], 0xFF, 33 );
 
-    __controller_exec_PIF(SI_read_mempak_block,&output);
+    __controller_exec_PIF( SI_read_mempak_block, &output );
 
     /* Copy data correctly out of command */
     memcpy( data, &output[controller + 5], 32 );
@@ -856,7 +956,7 @@ int write_mempak_address( int controller, uint16_t address, uint8_t *data )
     /* Leave room for CRC to come back */
     SI_write_mempak_block[controller + 5 + 32] = 0xFF;
 
-    __controller_exec_PIF(SI_write_mempak_block,&output);
+    __controller_exec_PIF( SI_write_mempak_block, &output );
 
     /* Calculate CRC on output */
     uint8_t crc = __calc_data_crc( &output[controller + 5] );
@@ -895,14 +995,14 @@ static bool __is_transfer_pak( int controller )
 {
     uint8_t data[32];
     memset( data, 0x84, 32 );
-    write_mempak_address(controller, 0x8000, data);
-    read_mempak_address(controller, 0x8000, data);
+    write_mempak_address( controller, 0x8000, data );
+    read_mempak_address( controller, 0x8000, data );
 
     bool result = (data[0] == 0x84);
 
     memset( data, 0xFE, 32 );
-    write_mempak_address(controller, 0x8000, data);
-    read_mempak_address(controller, 0x8000, data);
+    write_mempak_address( controller, 0x8000, data );
+    read_mempak_address( controller, 0x8000, data );
 
     return result & (data[0] == 0x00);
 }

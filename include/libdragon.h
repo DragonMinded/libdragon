@@ -53,6 +53,7 @@
 #include "display.h"
 #include "dma.h"
 #include "dragonfs.h"
+#include "eepromfs.h"
 #include "graphics.h"
 #include "interrupt.h"
 #include "n64sys.h"
