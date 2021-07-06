@@ -19,146 +19,154 @@
 */
 
 #include <stdio.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define WRITE_SIZE	(1024*1024)
+#define WRITE_SIZE (1024*1024)
+#define SAVETYPE_NOT_SET 0xFF
 
-#define TITLE_LOC	32
-#define TITLE_SIZE	20
-#define DEF_TITLE	"N64 Demo"
+#define TITLE_OFFSET   0x20
+#define TITLE_SIZE     20
+#define CART_ID_OFFSET 0x3C
+#define CART_ID_SIZE   2
+#define VERSION_OFFSET 0x3F
+#define VERSION_SIZE   1
 
-#define STATE_NONE	0
-#define STATE_L     1
-#define STATE_H		2
-#define STATE_O		3
-#define STATE_S		4
-#define STATE_T		5
+static const unsigned char zero[1024] = {0};
 
-/* Easier to write from here */
-static int title[TITLE_SIZE];
-static int wrote_title = 0;
-static unsigned char zero[1024] = {0};
-
-void print_usage(char *prog_name)
+void print_usage(const char * prog_name)
 {
-	fprintf(stderr, "Usage: %s [-b] -l <size>B/K/M -h <file> -o <file> -t <title> <file> [[-s <offset>B/K/M] <file>]*\n\n", prog_name);
-	fprintf(stderr, "This program appends a header to an arbitrary number of binaries,\n");
-	fprintf(stderr, "the first being an Nintendo64 binary and the rest arbitrary data.\n\n");
-	fprintf(stderr, "\t-b\t\tByteswap the resulting output.\n");
-	fprintf(stderr, "\t-l <size>\tForce output to <size> bytes.\n");
-	fprintf(stderr, "\t-h <file>\tUse <file> as header.\n");
-	fprintf(stderr, "\t-o <file>\tOutput is saved to <file>.\n");
-	fprintf(stderr, "\t-t <title>\tTitle of ROM.\n");
-	fprintf(stderr, "\t-s <offset>\tNext file starts at <offset> from top of memory.  Offset must be 32bit aligned.\n");
-	fprintf(stderr, "\t\t\tB for byte offset.\n");
-	fprintf(stderr, "\t\t\tK for kilobyte offset.\n");
-	fprintf(stderr, "\t\t\tM for megabyte offset.\n");
+	fprintf(stderr, "Usage: %s [-b] [-r] [-c] [-w <savetype>] -t <title> -l <size>B/K/M -h <file> -o <file> <file> [[-s <offset>B/K/M] <file>]*\n\n", prog_name);
+	fprintf(stderr, "This program creates an N64 ROM from a header and a list of files,\n");
+	fprintf(stderr, "the first being an Nintendo64 binary and the rest arbitrary data.\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "Command-line flags:\n");
+	fprintf(stderr, "\t-b, --byteswap\t\tByteswap the resulting output (v64 format).\n");
+	fprintf(stderr, "\t-t, --title <title>\tTitle of ROM (max %d characters).\n", TITLE_SIZE);
+	fprintf(stderr, "\t-w, --savetype <type>\tDeclare cartridge save type.\n");
+	fprintf(stderr, "\t-c, --rtc\t\tDeclare real-time clock support.\n");
+	fprintf(stderr, "\t-r, --regionfree\tDeclare region-free ROM.\n");
+	fprintf(stderr, "\t-l, --size <size>\tForce output to <size>.\n");
+	fprintf(stderr, "\t-h, --header <file>\tUse <file> as header.\n");
+	fprintf(stderr, "\t-o, --output <file>\tOutput is saved to <file>.\n");
+	fprintf(stderr, "\t-s, --offset <offset>\tNext file starts at <offset> from top of memory. Offset must be 32-bit aligned.\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "Size/offset suffix notation:\n");
+	fprintf(stderr, "\tB for bytes.\n");
+	fprintf(stderr, "\tK for kilobytes.\n");
+	fprintf(stderr, "\tM for megabytes.\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "Supported cartridge save types:\n");
+	fprintf(stderr, "\tnone\t\tGame does not save or uses Controller Pak.\n");
+	fprintf(stderr, "\teeprom4k\tGame saves to 4 kilobit EEPROM.\n");
+	fprintf(stderr, "\teeprom16k\tGame saves to 16 kilobit EEPROM.\n");
+	fprintf(stderr, "\tsram128k\tGame saves to 128 kilobit SRAM\n");
+	fprintf(stderr, "\tsram256k\tGame saves to 256 kilobit SRAM\n");
+	fprintf(stderr, "\tsram768k\tGame saves to 768 kilobit SRAM\n");
+	fprintf(stderr, "\tflashram\tGame saves to 1 megabit FlashRAM\n");
 }
 
-uint32_t get_file_size(FILE *fp)
+bool check_flag(const char * arg, const char * shortFlag, const char * longFlag)
 {
-	int x = ftell(fp);
-	uint32_t ret = 0;
-	
+	return strcmp(arg, shortFlag) == 0 || strcmp(arg, longFlag) == 0;
+}
+
+size_t get_file_size(FILE * fp)
+{
+	size_t restore = ftell(fp);
+	size_t end = 0;
+
 	fseek(fp, 0, SEEK_END);
-	ret = ftell(fp);
-	fseek(fp, x, SEEK_SET);
-	
-	return ret;
+	end = ftell(fp);
+	fseek(fp, restore, SEEK_SET);
+
+	return end;
 }
 
-int swap_bytes(uint8_t *buffer, int size)
+ssize_t swap_bytes(uint8_t * buffer, size_t size)
 {
 	if((size & 1) != 0)
 	{
 		/* Invalid, can only byteswap multiples of 2 */
 		return -1;
 	}
-	
+
 	int i;
-	
+
 	for(i = 0; i < (size >> 1); i++)
 	{
 		int loc1 = i << 1;
 		int loc2 = loc1 + 1;
-		
+
 		/* Easy peasy */
 		uint8_t temp = buffer[loc1];
 		buffer[loc1] = buffer[loc2];
 		buffer[loc2] = temp;
 	}
-	
+
 	return 0;
 }
 
-int copy_file(FILE *dest, char *file, int byte_swap)
+ssize_t copy_file(FILE * dest, const char * file, bool byte_swap)
 {
 	FILE *read_file = fopen(file, "rb");
 	uint8_t *buffer;
-	
+
 	if(!read_file)
 	{
-		fprintf(stderr, "Cannot open %s for reading!\n", file);
+		fprintf(stderr, "ERROR: Cannot open %s for reading!\n", file);
 		return -1;
 	}
-	
-	int fsize = get_file_size(read_file);
-	int rsize = fsize;
-	
+
+	ssize_t fsize = get_file_size(read_file);
+	ssize_t rsize = fsize;
+
 	/* Should probably make this read in incriments, but whatever */
 	buffer = malloc(WRITE_SIZE);
-	
+
 	if(!buffer)
 	{
-		fprintf(stderr, "Out of memory!\n");
-		
+		fprintf(stderr, "ERROR: Out of memory!\n");
+
 		fclose(read_file);
-		
+
 		return -1;
 	}
-	
+
 	/* Weird windows bug fix, plus this is the right way to do things */
 	while(fsize > 0)
 	{
 		/* Max 1K chunk */
-		int write_size = (fsize > WRITE_SIZE) ? WRITE_SIZE : fsize;
+		ssize_t write_size = (fsize > WRITE_SIZE) ? WRITE_SIZE : fsize;
 		fsize -= write_size;
-		
+
 		fread(buffer, 1, write_size, read_file);
-		
-		if(!wrote_title)
-		{
-			/* Pop title into header */
-			memcpy(buffer + TITLE_LOC, title, TITLE_SIZE);
-			
-			wrote_title = 1;
-		}
-	
+
 		if(byte_swap)
 		{
 			if(swap_bytes(buffer, write_size))
 			{
-				fprintf(stderr, "Invalid file size on %s.  Should be multiple of 32bits!\n", file);
-				
+				fprintf(stderr, "ERROR: Invalid file size on %s.  Should be multiple of 32bits!\n", file);
+
 				free(buffer);
 				fclose(read_file);
-				
+
 				return -1;
 			}
 		}
-		
+
 		fwrite(buffer, 1, write_size, dest);
 	}
-	
-	free(buffer);	
+
+	free(buffer);
 	fclose(read_file);
-	
+
 	return rsize;
 }
 
-int output_zeros(FILE *dest, int amount)
+ssize_t output_zeros(FILE * dest, ssize_t amount)
 {
 	if((amount & 3) != 0)
 	{
@@ -183,23 +191,26 @@ int output_zeros(FILE *dest, int amount)
 	return 0;
 }
 
-int get_bytes(char *cur_arg)
+ssize_t parse_bytes(const char * arg)
 {
-	int size = 0;
+	size_t arg_len = strlen(arg);
 	
-	/* Figure out if they mean bytes, kilobytes, megabytes */
-	char c = cur_arg[strlen(cur_arg)-1];
-	
-	/* Blank last character to do an atoi */						
-	char *temp = strdup(cur_arg);
-	temp[strlen(temp)-1] = '\0';
-	
-	/* Grab number */
-	size = atoi(temp);						
+	if(arg_len < 2)
+	{
+		/* Need at least 2 characters to parse */
+		return -1;
+	}
+
+	/* Blank last character to do an atoi */
+	char * temp = strdup(arg);
+	temp[arg_len-1] = '\0';
+
+	/* Convert to base number */
+	ssize_t size = atoi(temp);
 	free(temp);
-	
-	/* Multiply out by byte amount */
-	switch(c)
+
+	/* Multiply by the suffix magnitude */
+	switch(arg[arg_len-1])
 	{
 		case 'm':
 		case 'M':
@@ -209,241 +220,334 @@ int get_bytes(char *cur_arg)
 			size *= 1024;
 		case 'b':
 		case 'B':
-			break;
+			return size;
 		default:
 			/* Invalid! */
 			return -1;
 	}
-	
-	return size;
+}
+
+uint8_t parse_save_type(const char * arg)
+{
+	/**
+	 * Corresponds to ED64 ROM Configuration Database values:
+	 * @see https://github.com/N64-tools/ED64/blob/develop/docs/rom_config_database.md
+	 */
+	if (strcmp(arg, "none") == 0) return 0x00;
+	if (strcmp(arg, "eeprom4k") == 0) return 0x10;
+	if (strcmp(arg, "eeprom16k") == 0) return 0x20;
+	if (strcmp(arg, "sram256k") == 0) return 0x30;
+	if (strcmp(arg, "sram768k") == 0) return 0x40;
+	if (strcmp(arg, "flashram") == 0) return 0x50;
+	if (strcmp(arg, "sram128k") == 0) return 0x60;
+	return SAVETYPE_NOT_SET;
+}
+
+/**
+ * Combines save_type, force_rtc, region_free values for use in the header version field:
+ * @see https://github.com/N64-tools/ED64/blob/develop/docs/rom_config_database.md#developer-override
+ */
+uint8_t rom_configuration(uint8_t save_type, bool force_rtc, bool region_free)
+{
+	if(!force_rtc && !region_free && save_type == SAVETYPE_NOT_SET)
+	{
+		/* Disable ROM configuration */
+		return SAVETYPE_NOT_SET;
+	}
+	if(save_type == SAVETYPE_NOT_SET)
+	{
+		fprintf(stderr, "WARNING: RTC/Region-Free declared without save type; defaulting to 'none'\n");
+		save_type = parse_save_type("none");
+	}
+	uint8_t config = (force_rtc ? 1 : 0) + (region_free ? 2 : 0);
+	return save_type | config;
 }
 
 int main(int argc, char *argv[])
 {
-	FILE *write_file = 0;
-	char *header = 0;
-	char *output = 0;
-	int total_size = 0;
-	int total_bytes = 0;
-	int state = STATE_NONE;
-	int byte_swap = 0;
-	int i;
-	
-	/* Set default title */
+	FILE * write_file = NULL;
+	const char * header = NULL;
+	const char * output = NULL;
+	size_t total_size = 0;
+	size_t total_bytes = 0;
+	bool byte_swap = false;
+	bool force_rtc = false;
+	bool region_free = false;
+	uint8_t save_type = SAVETYPE_NOT_SET;
+	char title[TITLE_SIZE];
+
+	/* Set title to all spaces */
 	memset(title, 0x20, TITLE_SIZE);
-	memcpy(title, DEF_TITLE, (strlen(DEF_TITLE) > TITLE_SIZE) ? TITLE_SIZE : strlen(DEF_TITLE));
-	
+
 	if(argc <= 1)
 	{
 		/* No way we can have just one argument or less */
 		print_usage(argv[0]);
 		return -1;
 	}
-	
-	for(i = 1; i < argc; i++)
+
+	int i = 1;
+	const char * arg;
+
+	while(i < argc)
 	{
-		char *cur_arg = argv[i];
-		
-		switch(cur_arg[0])
+		arg = argv[i++];
+		if(check_flag(arg, "-b", "--byteswap"))
 		{
-			case '-':
-				/* Option flag */
-				switch(cur_arg[1])
-				{
-					case 'b':
-						/* Byteswap output */
-						byte_swap = 1;
-						break;
-					case 'l':
-						/* Size of resulting image */
-						state = STATE_L;
-						break;
-					case 'h':
-						/* Header file */
-						if(!header)
-						{
-							state = STATE_H;
-						}
-						else
-						{
-							print_usage(argv[0]);
-							return -1;
-						}
-						
-						break;
-					case 'o':
-						/* Output file */
-						if(!output)
-						{
-							state = STATE_O;
-						}
-						else
-						{
-							print_usage(argv[0]);
-							return -1;
-						}
-						break;
-					case 's':
-						/* Offset */
-						state = STATE_S;
-						break;
-					case 't':
-						/* Title */
-						state = STATE_T;
-						break;
-					default:
-						print_usage(argv[0]);
-						return -1;
-				}
-				
-				break;
-			case '\0':
-				/* Shouldn't happen */
-				fprintf(stderr, "Unexpected end of arguments!\n");
-				return -1;
-			default:
-				/* Standard argument */
-				switch(state)
-				{
-					case STATE_H:
-						/* Get header file */
-						header = cur_arg;
-						break;
-					case STATE_O:
-						/* Get output file */
-						output = cur_arg;
-						break;
-					case STATE_T:
-						/* Grab title */						
-						if(strlen(cur_arg) < 16)
-						{
-							/* Spaces for pretty printing */
-							memset(title, 0x20, TITLE_SIZE);
-							memcpy(title, cur_arg, strlen(cur_arg));
-						}
-						else
-						{
-							memcpy(title, cur_arg, TITLE_SIZE);
-						}
-						
-						break;
-					case STATE_S:
-						/* Can't be here unless header and output set, and has to be at least 2 bytes.
-						   Also, they have to have at least one file output before they can skip bytes. */
-						if(!header || !output || strlen(cur_arg) < 2 || !total_bytes || !total_size)
-						{
-							print_usage(argv[0]);
-							return -1;
-						}
-						
-						int offset = get_bytes(cur_arg);
-						
-						if(offset < 0)
-						{
-							/* Invalid! */
-							print_usage(argv[0]);
-							return -1;
-						}
-
-						/* Write out needed number of zeros */
-						int num_zeros = offset - total_bytes;
-
-						if(output_zeros(write_file, num_zeros))
-						{
-							fprintf(stderr, "Invalid offset %d to seek to in %s!\n", offset, output);
-							return -1;
-						}
-						
-						/* Same as total_bytes = offset */
-						total_bytes += num_zeros;
-						
-						break;
-					case STATE_L:
-						/* Just grab size */
-						total_size = get_bytes(cur_arg);
-						
-						if(total_size < 0)
-						{
-							/* Invalid! */
-							print_usage(argv[0]);
-							return -1;
-						}
-						
-						break;
-					case STATE_NONE:
-						/* Can't be here unless header and output set */
-						if(!header || !output || !total_size)
-						{
-							print_usage(argv[0]);
-							return -1;
-						}
-						
-						/* Is our output file open? */
-						if(!write_file)
-						{
-							write_file = fopen(output, "wb");
-							
-							if(!write_file)
-							{
-								fprintf(stderr, "Cannot open %s for writing!\n", output);
-								return -1;
-							}
-							
-							int wrote = copy_file(write_file, header, byte_swap);
-							
-							/* Since write file wasn't open, we haven't written the header */
-							if(wrote < 0)
-							{
-								return -1;
-							}
-							else
-							{
-								/* Adjust final output size to reflect */
-								total_size -= wrote;
-							}
-						}
-						
-						/* Copy over file */
-						int copied = copy_file(write_file, cur_arg, byte_swap);
-						
-						if(copied < 0)
-						{
-							/* Error, exit */
-							return -1;
-						}
-						
-						/* Keep track to be sure we align properly when they request a memory alignment */
-						total_bytes += copied;
-						
-						break;
-				}
-				
-				/* Reset state */
-				state = STATE_NONE;
-				
-				break;
+			byte_swap = true;
+			continue;
 		}
-	}
-	
-	if(!total_bytes)
-	{
-		printf("No input files, nothing written!\n");
-		/* Didn't write anything! */
-	}
-	else
-	{
-		/* Pad to correct length */
-		int num_zeros = total_size - total_bytes;
-		
-		if(output_zeros(write_file, num_zeros))
+		if(check_flag(arg, "-c", "--rtc"))
 		{
-			fprintf(stderr, "Couldn't pad image in %s!\n", output);
+			force_rtc = true;
+			continue;
+		}
+		if(check_flag(arg, "-r", "--regionfree"))
+		{
+			region_free = true;
+			continue;
+		}
+		if(check_flag(arg, "-w", "--savetype"))
+		{
+			if(i >= argc)
+			{
+				/* Expected another argument */
+				fprintf(stderr, "ERROR: Expected an argument to savetype flag\n\n");
+				print_usage(argv[0]);
+				return -1;
+			}
+
+			save_type = parse_save_type(argv[i++]);
+
+			if(save_type == SAVETYPE_NOT_SET)
+			{
+				/* Invalid save type */
+				fprintf(stderr, "ERROR: Invalid savetype argument\n\n");
+				print_usage(argv[0]);
+				return -1;
+			}
+
+			continue;
+		}
+		if(check_flag(arg, "-h", "--header"))
+		{
+			if(header)
+			{
+				/* Invalid usage */
+				fprintf(stderr, "ERROR: The header can only be set once\n\n");
+				print_usage(argv[0]);
+				return -1;
+			}
+
+			if(i >= argc)
+			{
+				/* Invalid usage */
+				fprintf(stderr, "ERROR: Expected an argument to header flag\n\n");
+				print_usage(argv[0]);
+				return -1;
+			}
+
+			header = argv[i++];
+			continue;
+		}
+		if(check_flag(arg, "-o", "--output"))
+		{
+			if(output)
+			{
+				/* Invalid usage */
+				fprintf(stderr, "ERROR: The output can only be set once\n\n");
+				print_usage(argv[0]);
+				return -1;
+			}
+
+			if(i >= argc)
+			{
+				/* Invalid usage */
+				fprintf(stderr, "ERROR: Expected an argument to output flag\n\n");
+				print_usage(argv[0]);
+				return -1;
+			}
+
+			output = argv[i++];
+			continue;
+		}
+		if(check_flag(arg, "-l", "--size"))
+		{
+			if(i >= argc)
+			{
+				/* Expected another argument */
+				fprintf(stderr, "ERROR: Expected an argument to size flag\n\n");
+				print_usage(argv[0]);
+				return -1;
+			}
+
+			total_size = parse_bytes(argv[i++]);
+
+			if(total_size <= 0)
+			{
+				/* Invalid size */
+				fprintf(stderr, "ERROR: Invalid size argument\n\n");
+				print_usage(argv[0]);
+				return -1;
+			}
+
+			continue;
+		}
+		if(check_flag(arg, "-s", "--offset"))
+		{
+			if(!header || !output)
+			{
+				fprintf(stderr, "ERROR: Need header and output flags before offset\n\n");
+				print_usage(argv[0]);
+				return -1;
+			}
+
+			if(!total_bytes || !total_size)
+			{
+				fprintf(stderr, "ERROR: The first file cannot have an offset\n\n");
+				print_usage(argv[0]);
+				return -1;
+			}
+
+			if(i >= argc)
+			{
+				/* Expected another argument */
+				fprintf(stderr, "ERROR: Expected an argument to offset flag\n\n");
+				print_usage(argv[0]);
+				return -1;
+			}
+
+			ssize_t offset = parse_bytes(argv[i++]);
+
+			if(offset <= 0)
+			{
+				/* Invalid offset */
+				fprintf(stderr, "ERROR: Invalid offset argument\n\n");
+				print_usage(argv[0]);
+				return -1;
+			}
+
+			/* Write out needed number of zeros */
+			size_t num_zeros = offset - total_bytes;
+
+			if(output_zeros(write_file, num_zeros))
+			{
+				fprintf(stderr, "ERROR: Invalid offset %d to seek to in %s!\n", offset, output);
+				return -1;
+			}
+
+			/* Same as total_bytes = offset */
+			total_bytes += num_zeros;
+			continue;
+		}
+		if(check_flag(arg, "-t", "--title"))
+		{
+			if(i >= argc)
+			{
+				/* Expected another argument */
+				fprintf(stderr, "ERROR: Expected an argument to title flag\n\n");
+				print_usage(argv[0]);
+				return -1;
+			}
+
+			const char * title_arg = argv[i++];
+			size_t title_len = strlen(title_arg);
+
+			if(title_len > TITLE_SIZE)
+			{
+				fprintf(stderr, "WARNING: Title will be truncated to %d characters\n", TITLE_SIZE);
+				title_len = TITLE_SIZE;
+			}
+
+			memcpy(title, title_arg, title_len);
+			continue;
+		}
+
+		/* Argument is not a flag; treat it as an input file */
+
+		/* Can't copy input file unless header and output set */
+		if(!header || !output || !total_size)
+		{
+			fprintf(stderr, "ERROR: Need size, header, and output before first file\n\n");
+			print_usage(argv[0]);
 			return -1;
 		}
-		
-		fflush(write_file);
-		fclose(write_file);
+
+		/* Is our output file open? */
+		if(!write_file)
+		{
+			write_file = fopen(output, "wb");
+
+			if(!write_file)
+			{
+				fprintf(stderr, "ERROR: Cannot open %s for writing!\n", output);
+				return -1;
+			}
+
+			ssize_t wrote = copy_file(write_file, header, byte_swap);
+
+			/* Since write file wasn't open, we haven't written the header */
+			if(wrote < 0)
+			{
+				return -1;
+			}
+			else
+			{
+				/* Adjust final output size to reflect */
+				total_size -= wrote;
+			}
+		}
+
+		/* Copy over file */
+		ssize_t copied = copy_file(write_file, arg, byte_swap);
+
+		if(copied < 0)
+		{
+			/* Error, exit */
+			return -1;
+		}
+
+		/* Keep track to be sure we align properly when they request a memory alignment */
+		total_bytes += copied;
 	}
-	
+
+	if(!total_bytes)
+	{
+		/* Didn't write anything! */
+		printf("ERROR: No input files, nothing written!\n");
+		return -1;
+	}
+
+	/* Pad to correct length */
+	ssize_t num_zeros = total_size - total_bytes;
+
+	if(output_zeros(write_file, num_zeros))
+	{
+		fprintf(stderr, "ERROR: Couldn't pad image in %s!\n", output);
+		return -1;
+	}
+
+	/* Set title in header */
+	fseek(write_file, TITLE_OFFSET, SEEK_SET);
+	fwrite(title, 1, TITLE_SIZE, write_file);
+
+	/* Set ROM configuration in header */
+	uint8_t config = rom_configuration(save_type, force_rtc, region_free);
+	if(config != SAVETYPE_NOT_SET)
+	{
+		/**
+		 * Enable the developer override and store the ROM configuration in the header
+		 * @see https://github.com/N64-tools/ED64/blob/develop/docs/rom_config_database.md#developer-override
+		 */
+		const char cart_id[CART_ID_SIZE] = {'E', 'D'};
+		fseek(write_file, CART_ID_OFFSET, SEEK_SET);
+		fwrite(cart_id, 1, CART_ID_SIZE, write_file);
+		fseek(write_file, VERSION_OFFSET, SEEK_SET);
+		fwrite(&config, 1, VERSION_SIZE, write_file);
+	}
+
+	fflush(write_file);
+	fclose(write_file);
+
 	return 0;
 }
