@@ -45,6 +45,40 @@
 /** @} */
 
 /**
+ * @name RTC Status Values
+ * @see #rtc_present
+ * @{
+ */
+/** @brief No RTC present */
+#define RTC_MISSING 0
+/** @brief RTC present */
+#define RTC_PRESENT 1
+/** @} */
+
+/**
+ * @brief Structure for storing RTC read response.
+ */
+typedef struct rtc_time_t
+{
+    /** @brief Year. [1900-20XX] */
+    uint16_t year;
+    /** @brief Month. [0-11] */
+    uint8_t month;
+    /** @brief Day of month. [1-31] */
+    uint8_t day;
+    /** @brief Hours. [0-23] */
+    uint8_t hour;
+    /** @brief Minutes. [0-59] */
+    uint8_t min;
+    /** @brief Seconds. [0-59] */
+    uint8_t sec;
+    /** @brief Day of week. [0-6] */
+    uint8_t week_day;
+    /** @brief Status of the last command */
+    uint8_t status;
+} rtc_time_t;
+
+/**
  * @brief EEPROM Probe Values
  * @see #eeprom_present
  */
@@ -218,6 +252,8 @@ void eeprom_read( int block, uint8_t * dest );
 void eeprom_write( int block, const uint8_t * src );
 void eeprom_read_bytes( uint8_t * dest, size_t start, size_t len );
 void eeprom_write_bytes( const uint8_t * src, size_t start, size_t len );
+int rtc_status( void );
+void rtc_read_time( rtc_time_t * rtc_time );
 
 #ifdef __cplusplus
 }

@@ -133,6 +133,86 @@ static void __controller_exec_PIF( const void *inblock, void *outblock )
 }
 
 /**
+ * @brief Probe the RTC interface on the cartridge.
+ *
+ * @return Whether the Real-Time Clock was detected on the cartridge.
+ */
+int rtc_status( void )
+{
+    static const uint64_t SI_rtc_status_block[8] =
+    {
+        0x00000000ff010306,
+        0xfffffffe00000000,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+    };
+    static uint64_t output[8];
+
+    __controller_exec_PIF( SI_rtc_status_block, output );
+
+    uint8_t * recv_buf = (uint8_t *)&output[1];
+
+    return recv_buf[1] == 0x10 ? RTC_PRESENT : RTC_MISSING;
+}
+
+/**
+ * @brief Decode a binary-coded decimal number.
+ * 
+ * Used by the real-time clock interface.
+ * 
+ * @param[in]   bcd
+ *              binary-coded decimal number 
+ * @return the decoded number
+ */
+static uint8_t bcd_to_byte(uint8_t bcd)
+{
+    uint8_t hi = (bcd & 0xF0) >> 4;
+    uint8_t lo = bcd & 0x0F;
+    return (hi * 10) + lo;
+}
+
+/**
+ * @brief Read the current time from the real-time clock
+ * 
+ * @param[out]  rtc_time
+ *              Structure to place the current time 
+ */
+void rtc_read_time( rtc_time_t * rtc_time )
+{
+    static const uint64_t SI_rtc_read_block[8] =
+    {
+        0x0000000002090702,
+        0xffffffffffffffff,
+        0xfffe000000000000,
+        0,
+        0,
+        0,
+        0,
+        1
+    };
+    static uint64_t output[8];
+
+    __controller_exec_PIF( SI_rtc_read_block, output );
+
+    uint8_t * recv_buf = (uint8_t *)&output[1];
+
+    rtc_time->sec = bcd_to_byte(recv_buf[0]);
+    rtc_time->min = bcd_to_byte(recv_buf[1]);
+    rtc_time->hour = bcd_to_byte(recv_buf[2] - 0x80);
+    rtc_time->day = bcd_to_byte(recv_buf[3]);
+    rtc_time->week_day = bcd_to_byte(recv_buf[4]);
+    rtc_time->month = bcd_to_byte(recv_buf[5]) - 1;
+    rtc_time->year = bcd_to_byte(recv_buf[6]);
+    rtc_time->year += (uint16_t)bcd_to_byte(recv_buf[7]) * 100;
+    rtc_time->year += 1900;
+    rtc_time->status = recv_buf[8];
+}
+
+/**
  * @brief Probe the EEPROM interface on the cartridge.
  *
  * @return Which EEPROM type was detected on the cartridge.
