@@ -259,6 +259,10 @@ uint8_t rom_configuration(uint8_t save_type, bool force_rtc, bool region_free)
 		fprintf(stderr, "WARNING: RTC/Region-Free declared without save type; defaulting to 'none'\n");
 		save_type = parse_save_type("none");
 	}
+	if(force_rtc && (save_type == 0x10 || save_type == 0x20))
+	{
+		fprintf(stderr, "WARNING: The combination of EEPROM + RTC does not work on real N64 hardware!\n");
+	}
 	uint8_t config = (force_rtc ? 1 : 0) + (region_free ? 2 : 0);
 	return save_type | config;
 }
