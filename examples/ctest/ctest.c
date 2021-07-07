@@ -77,7 +77,6 @@ int main(void)
 
         /* To do initialize routines */
         controller_scan();
-        rtc_read_time( &time );
 
         struct controller_data keys = get_keys_down();
 
@@ -122,6 +121,7 @@ int main(void)
         printf("\n%s\n", format_rtc_status(rtc));
         if( rtc )
         {
+            rtc_read_time( &time );
             printf("%04d-%02d-%02d %02d:%02d:%02d\n", time.year, time.month+1, time.day, time.hour, time.min, time.sec);
         }
 
