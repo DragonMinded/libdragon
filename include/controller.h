@@ -46,17 +46,17 @@
 
 /**
  * @name RTC Status Values
- * @see #rtc_present
+ * @see #rtc_status
  * @{
  */
-/** @brief No RTC present */
+/** @brief No RTC detected on cartridge */
 #define RTC_MISSING 0
-/** @brief RTC present */
+/** @brief RTC present on cartridge */
 #define RTC_PRESENT 1
 /** @} */
 
 /**
- * @brief Structure for storing RTC read response.
+ * @brief Structure for storing RTC time data.
  */
 typedef struct rtc_time_t
 {
@@ -74,7 +74,7 @@ typedef struct rtc_time_t
     uint8_t sec;
     /** @brief Day of week. [0-6] */
     uint8_t week_day;
-    /** @brief Status of the last command */
+    /** @brief Status of the last command. */
     uint8_t status;
 } rtc_time_t;
 
