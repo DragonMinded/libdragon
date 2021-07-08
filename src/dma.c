@@ -27,6 +27,9 @@
  * @{
  */
 
+#define KSEG1                (0xA0000000)
+#define PI_BASE_REG          (0x04600000 | KSEG1)
+
 /**
  * @name PI Status Register Bit Definitions
  * @{
@@ -40,7 +43,7 @@
 /** @} */
 
 /** @brief Structure used to interact with the PI registers */
-static volatile struct PI_regs_s * const PI_regs = (struct PI_regs_s *)0xa4600000;
+static volatile struct PI_regs_s * const PI_regs = (struct PI_regs_s *)PI_BASE_REG;
 
 /** 
  * @brief Return whether the DMA controller is currently busy
@@ -54,27 +57,63 @@ volatile int dma_busy()
 
 /**
  * @brief Read from a peripheral
+ * 
+ * @deprecated Replaced by #cart_rom_read
+ * 
+ * @param[out] dest
+ *             Pointer to a buffer to place read data
+ * @param[in]  address
+ *             Memory address of the peripheral to read from
+ * @param[in]  len
+ *             Length in bytes to read into dest
+ */
+void dma_read(void * dest, uint32_t address, uint32_t len)
+{
+    return cart_rom_read(dest, address, len);
+}
+
+/**
+ * @brief Write to a peripheral
  *
- * This function should be used when reading from the cartridge.
+ * @deprecated Replaced by #cart_rom_write
  *
- * @param[out] ram_address
+ * @param[in] src
+ *            Pointer to a buffer to read data from
+ * @param[in] address
+ *            Memory address of the peripheral to write to
+ * @param[in] len
+ *            Length in bytes to write to peripheral
+ */
+void dma_write(const void * src, uint32_t address, uint32_t len)
+{
+    return cart_rom_write(src, address, len);
+}
+
+/**
+ * @brief Read from a peripheral
+ *
+ * This function should not be used directly unless you know what you're doing.
+ * @see #cart_rom_read
+ * @see #cart_dom2_dma_read
+ *
+ * @param[out] dest
  *             Pointer to a buffer to place read data
  * @param[in]  pi_address
  *             Memory address of the peripheral to read from
  * @param[in]  len
- *             Length in bytes to read into ram_address
+ *             Length in bytes to read into dest
  */
-void dma_read(void * ram_address, unsigned long pi_address, unsigned long len) 
+void pi_dma_read(void * dest, uint32_t pi_address, uint32_t len)
 {
-    assert(len > 0);
+    assert(len > 1);
 
     disable_interrupts();
 
     while (dma_busy()) ;
     MEMORY_BARRIER();
-    PI_regs->ram_address = ram_address;
+    PI_regs->ram_address = dest;
     MEMORY_BARRIER();
-    PI_regs->pi_address = (pi_address | 0x10000000) & 0x1FFFFFFF;
+    PI_regs->pi_address = pi_address;
     MEMORY_BARRIER();
     PI_regs->write_length = len-1;
     MEMORY_BARRIER();
@@ -86,26 +125,28 @@ void dma_read(void * ram_address, unsigned long pi_address, unsigned long len)
 /**
  * @brief Write to a peripheral
  *
- * This function should be used when writing to the cartridge.
+ * This function should not be used directly unless you know what you're doing.
+ * @see #cart_rom_write
+ * @see #cart_dom2_dma_write
  *
- * @param[in] ram_address
+ * @param[in] src
  *            Pointer to a buffer to read data from
  * @param[in] pi_address
  *            Memory address of the peripheral to write to
  * @param[in] len
  *            Length in bytes to write to peripheral
  */
-void dma_write(const void * ram_address, unsigned long pi_address, unsigned long len) 
+void pi_dma_write(const void * src, uint32_t pi_address, uint32_t len) 
 {
-    assert(len > 0);
+    assert(len > 1);
 
     disable_interrupts();
 
     while (dma_busy()) ;
     MEMORY_BARRIER();
-    PI_regs->ram_address = (void*)ram_address;
+    PI_regs->ram_address = (void*)src;
     MEMORY_BARRIER();
-    PI_regs->pi_address = (pi_address | 0x10000000) & 0x1FFFFFFF;
+    PI_regs->pi_address = pi_address;
     MEMORY_BARRIER();
     PI_regs->read_length = len-1;
     MEMORY_BARRIER();
@@ -117,14 +158,14 @@ void dma_write(const void * ram_address, unsigned long pi_address, unsigned long
 /**
  * @brief Read a 32 bit integer from a peripheral
  *
- * @param[in] pi_address
+ * @param[in] address
  *            Memory address of the peripheral to read from
  *
  * @return The 32 bit value read from the peripheral
  */
-uint32_t io_read(uint32_t pi_address)
+uint32_t io_read(uint32_t address)
 {
-    volatile uint32_t *uncached_address = (uint32_t *)(pi_address | 0xa0000000);
+    volatile uint32_t *uncached_address = (uint32_t *)(address | KSEG1);
     uint32_t retval = 0;
 
     disable_interrupts();
@@ -143,14 +184,14 @@ uint32_t io_read(uint32_t pi_address)
 /**
  * @brief Write a 32 bit integer to a peripheral
  *
- * @param[in] pi_address
+ * @param[in] address
  *            Memory address of the peripheral to write to
  * @param[in] data
  *            32 bit value to write to peripheral
  */
-void io_write(uint32_t pi_address, uint32_t data) 
+void io_write(uint32_t address, uint32_t data) 
 {
-    volatile uint32_t *uncached_address = (uint32_t *)(pi_address | 0xa0000000);
+    volatile uint32_t *uncached_address = (uint32_t *)(address | KSEG1);
 
     disable_interrupts();
 

@@ -59,6 +59,7 @@ install: libdragon.a libdragonsys.a
 	install -m 0644 include/cop0.h $(INSTALLDIR)/mips64-elf/include/cop0.h
 	install -m 0644 include/cop1.h $(INSTALLDIR)/mips64-elf/include/cop1.h
 	install -m 0644 include/interrupt.h $(INSTALLDIR)/mips64-elf/include/interrupt.h
+	install -m 0644 include/cart.h $(INSTALLDIR)/mips64-elf/include/cart.h
 	install -m 0644 include/dma.h $(INSTALLDIR)/mips64-elf/include/dma.h
 	install -m 0644 include/dragonfs.h $(INSTALLDIR)/mips64-elf/include/dragonfs.h
 	install -m 0644 include/audio.h $(INSTALLDIR)/mips64-elf/include/audio.h

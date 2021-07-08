@@ -83,7 +83,7 @@ void test_dfs_rom_addr(TestContext *ctx) {
 	ASSERT_EQUAL_HEX(io_read(rom), *(uint32_t*)buf1, "direct ROM address is different");
 	ASSERT_EQUAL_HEX(io_read(rom+8), *(uint32_t*)(buf1+8), "direct ROM address is different");
 
-	dma_read(buf2, rom, 128);
+	cart_rom_read(buf2, rom, 128);
 	data_cache_hit_invalidate(buf2, sizeof(buf2));
 
 	ASSERT_EQUAL_MEM(buf1, buf2, 128, "DMA ROM access is different");

@@ -17,8 +17,8 @@ void test_cache_invalidate(TestContext *ctx) {
 			data_cache_hit_writeback_invalidate(buf+i, j);
 			
 			// Read from ROM (header of DFS)
-			dma_read(UncachedAddr(buf), DFS_DEFAULT_LOCATION, 32);
-			dma_read(UncachedAddr(buf+32), DFS_DEFAULT_LOCATION, 32);
+			cart_rom_read(UncachedAddr(buf), DFS_DEFAULT_LOCATION, 32);
+			cart_rom_read(UncachedAddr(buf+32), DFS_DEFAULT_LOCATION, 32);
 
 			// For each cache-line, check whether the contents
 			// match what we would expect from it:

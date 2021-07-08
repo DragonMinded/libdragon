@@ -20,6 +20,7 @@ OFILES_LD += $(CURDIR)/build/graphics.o
 OFILES_LD += $(CURDIR)/build/rdp.o
 OFILES_LD += $(CURDIR)/build/rsp.o
 OFILES_LD += $(CURDIR)/build/dma.o
+OFILES_LD += $(CURDIR)/build/cart.o
 OFILES_LD += $(CURDIR)/build/timer.o
 OFILES_LD += $(CURDIR)/build/version.o
 OFILES_LD += $(CURDIR)/build/exception.o
@@ -37,6 +38,9 @@ $(CURDIR)/build/interrupt.o: $(CURDIR)/src/interrupt.c ./include/cop0.h
 $(CURDIR)/build/dma.o: $(CURDIR)/src/dma.c ./include/n64sys.h
 	mkdir -p $(CURDIR)/build
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/dma.o $(CURDIR)/src/dma.c
+$(CURDIR)/build/cart.o: $(CURDIR)/src/cart.c ./include/n64sys.h
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/cart.o $(CURDIR)/src/cart.c
 $(CURDIR)/build/inthandler.o: $(CURDIR)/src/inthandler.S
 	mkdir -p $(CURDIR)/build
 	$(CC) -c -o $(CURDIR)/build/inthandler.o $(CURDIR)/src/inthandler.S

@@ -94,7 +94,7 @@ static inline void grab_sector(void *cart_loc, void *ram_loc)
     /* Make sure we have fresh cache */
     data_cache_hit_writeback_invalidate(ram_loc, SECTOR_SIZE);
 
-    dma_read((void *)(((uint32_t)ram_loc) & 0x1FFFFFFF), (uint32_t)cart_loc, SECTOR_SIZE);
+    cart_rom_read((void *)(((uint32_t)ram_loc) & 0x1FFFFFFF), (uint32_t)cart_loc, SECTOR_SIZE);
 }
 
 /**
@@ -980,7 +980,7 @@ int dfs_read(void * const buf, int size, int count, uint32_t handle)
         else
             data_cache_hit_writeback_invalidate(buf, to_read);
 
-        dma_read((void *)(((uint32_t)buf) & 0x1FFFFFFF),
+        cart_rom_read((void *)(((uint32_t)buf) & 0x1FFFFFFF),
             file->cart_start_loc + file->loc, to_read);
 
         file->loc += to_read;
@@ -1005,7 +1005,7 @@ int dfs_read(void * const buf, int size, int count, uint32_t handle)
                so the cachelines are not shared with other variables. */
             data_cache_hit_invalidate(file->cached_data, CACHED_SIZE);
 
-            dma_read((void *)(((uint32_t)file->cached_data) & 0x1FFFFFFF),
+            cart_rom_read((void *)(((uint32_t)file->cached_data) & 0x1FFFFFFF),
                 file->cart_start_loc + file->cached_loc, CACHED_SIZE);
         }
 
@@ -1054,7 +1054,7 @@ int dfs_size(uint32_t handle)
  * performance-wise, and is easier to use rather than managing
  * direct access to PI space.
  * 
- * Direct access to ROM data must go through io_read or dma_read. Do not
+ * Direct access to ROM data must go through io_read or cart_rom_read. Do not
  * dereference directly as the console might hang if the PI is busy.
  *
  * @param[in] filename

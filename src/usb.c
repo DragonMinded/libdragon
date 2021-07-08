@@ -763,7 +763,7 @@ static void usb_64drive_write(int datatype, const void* data, int size)
         // Set up DMA transfer between RDRAM and the PI
         #ifdef LIBDRAGON
             data_cache_hit_writeback(usb_buffer, block);
-            dma_write(usb_buffer, D64_BASE_ADDRESS + DEBUG_ADDRESS + read, block);
+            cart_rom_write(usb_buffer, D64_BASE_ADDRESS + DEBUG_ADDRESS + read, block);
         #else
             osWritebackDCache(usb_buffer, block);
             #if USE_OSRAW
@@ -927,7 +927,7 @@ static void usb_64drive_read()
     // Set up DMA transfer between RDRAM and the PI
     #ifdef LIBDRAGON
         data_cache_hit_writeback_invalidate(usb_buffer, BUFFER_SIZE);
-        dma_read(usb_buffer, D64_BASE_ADDRESS + DEBUG_ADDRESS + usb_readblock, BUFFER_SIZE);
+        cart_rom_read(usb_buffer, D64_BASE_ADDRESS + DEBUG_ADDRESS + usb_readblock, BUFFER_SIZE);
     #else
         osWritebackDCacheAll();
         #if USE_OSRAW
@@ -1309,7 +1309,7 @@ static void usb_everdrive_read()
         data_cache_hit_writeback_invalidate(usb_buffer, BUFFER_SIZE);
         while (dma_busy());
         *(vu32*)0xA4600010 = 3;
-        dma_read(usb_buffer, ED_BASE + DEBUG_ADDRESS + usb_readblock, BUFFER_SIZE);
+        cart_rom_read(usb_buffer, ED_BASE + DEBUG_ADDRESS + usb_readblock, BUFFER_SIZE);
         data_cache_hit_writeback_invalidate(usb_buffer, BUFFER_SIZE);
     #else
         osWritebackDCacheAll();
@@ -1523,7 +1523,7 @@ static void usb_sc64_write(int datatype, const void* data, int size)
         // Write data to buffer in SDRAM
         #ifdef LIBDRAGON
             data_cache_hit_writeback(usb_buffer, dma_length);
-            dma_write(usb_buffer, sdram_address, dma_length);
+            cart_rom_write(usb_buffer, sdram_address, dma_length);
         #else
             osWritebackDCache(usb_buffer, dma_length);
             #if USE_OSRAW
@@ -1654,8 +1654,8 @@ static u32 usb_sc64_poll(void)
 
             // Load data from FIFO to buffer in RDRAM
             #ifdef LIBDRAGON
-                dma_read(usb_buffer, SC64_MEM_USB_FIFO_BASE, dma_length);
-                dma_write(usb_buffer, sdram_address, dma_length);
+                cart_rom_read(usb_buffer, SC64_MEM_USB_FIFO_BASE, dma_length);
+                cart_rom_write(usb_buffer, sdram_address, dma_length);
             #else
                 #if USE_OSRAW
                     osPiRawStartDma(OS_READ, SC64_MEM_USB_FIFO_BASE, usb_buffer, dma_length);
@@ -1702,7 +1702,7 @@ static void usb_sc64_read(void)
 
     // Set up DMA transfer between RDRAM and the PI
     #ifdef LIBDRAGON
-        dma_read(usb_buffer, sdram_address, BUFFER_SIZE);
+        cart_rom_read(usb_buffer, sdram_address, BUFFER_SIZE);
         data_cache_hit_invalidate(usb_buffer, BUFFER_SIZE);
     #else
         #if USE_OSRAW

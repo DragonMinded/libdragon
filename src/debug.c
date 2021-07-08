@@ -227,7 +227,7 @@ static DRESULT fat_disk_read_64drive(BYTE* buff, LBA_t sector, UINT count)
 		if (((uint32_t)buff & 7) == 0) 
 		{
 			data_cache_hit_writeback_invalidate(buff, 512);
-			dma_read(buff, D64_CIBASE_ADDRESS + D64_BUFFER, 512);
+			cart_rom_read(buff, D64_CIBASE_ADDRESS + D64_BUFFER, 512);
 		}
 		else
 		{
@@ -256,7 +256,7 @@ static DRESULT fat_disk_write_64drive(const BYTE* buff, LBA_t sector, UINT count
 		if (((uint32_t)buff & 7) == 0) 
 		{
 			data_cache_hit_writeback(buff, 512);
-			dma_write(buff, D64_CIBASE_ADDRESS + D64_BUFFER, 512);
+			cart_rom_write(buff, D64_CIBASE_ADDRESS + D64_BUFFER, 512);
 		}
 		else
 		{

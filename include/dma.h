@@ -6,19 +6,25 @@
 #ifndef __LIBDRAGON_DMA_H
 #define __LIBDRAGON_DMA_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void dma_write(const void * ram_address, unsigned long pi_address, unsigned long len);
-void dma_read(void * ram_address, unsigned long pi_address, unsigned long len);
-volatile int dma_busy();
+volatile int dma_busy(void);
+
+void dma_read(void * dest, uint32_t cart_address, uint32_t len);
+void dma_write(const void * src, uint32_t cart_address, uint32_t len);
+
+void pi_dma_read(void * dest, uint32_t pi_address, uint32_t len);
+void pi_dma_write(const void * src, uint32_t pi_address, uint32_t len);
 
 /* 32 bit IO read from PI device */
-uint32_t io_read(uint32_t pi_address);
+uint32_t io_read(uint32_t address);
 
 /* 32 bit IO write to PI device */
-void io_write(uint32_t pi_address, uint32_t data);
+void io_write(uint32_t address, uint32_t data);
 
 #ifdef __cplusplus
 }
