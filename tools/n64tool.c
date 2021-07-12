@@ -261,7 +261,7 @@ uint8_t rom_configuration(uint8_t save_type, bool force_rtc, bool region_free)
 	}
 	if(force_rtc && (save_type == 0x10 || save_type == 0x20))
 	{
-		fprintf(stderr, "WARNING: The combination of EEPROM + RTC does not work on real N64 hardware!\n");
+		fprintf(stderr, "WARNING: The combination of EEPROM + RTC does not work on EverDrive!\n");
 	}
 	uint8_t config = (force_rtc ? 1 : 0) + (region_free ? 2 : 0);
 	return save_type | config;
