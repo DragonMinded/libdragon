@@ -68,6 +68,7 @@ install: libdragon.a libdragonsys.a
 	install -m 0644 include/console.h $(INSTALLDIR)/mips64-elf/include/console.h
 	install -m 0644 include/mempak.h $(INSTALLDIR)/mips64-elf/include/mempak.h
 	install -m 0644 include/controller.h $(INSTALLDIR)/mips64-elf/include/controller.h
+	install -m 0644 include/rtc.h $(INSTALLDIR)/mips64-elf/include/rtc.h
 	install -m 0644 include/eepromfs.h $(INSTALLDIR)/mips64-elf/include/eepromfs.h
 	install -m 0644 include/tpak.h $(INSTALLDIR)/mips64-elf/include/tpak.h
 	install -m 0644 include/graphics.h $(INSTALLDIR)/mips64-elf/include/graphics.h

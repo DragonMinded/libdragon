@@ -97,7 +97,7 @@ static void __SI_DMA_wait( void )
  * @param[out] outblock
  *             The buffer to place the output from the PIF
  */
-static void __controller_exec_PIF( const void *inblock, void *outblock )
+void controller_exec_pif( const void *inblock, void *outblock )
 {
     volatile uint64_t inblock_temp[8];
     volatile uint64_t outblock_temp[8];
@@ -133,86 +133,6 @@ static void __controller_exec_PIF( const void *inblock, void *outblock )
 }
 
 /**
- * @brief Probe the RTC interface on the cartridge.
- *
- * @return Whether the Real-Time Clock was detected on the cartridge.
- */
-int rtc_status( void )
-{
-    static const uint64_t SI_rtc_status_block[8] =
-    {
-        0x00000000ff010306,
-        0xfffffffe00000000,
-        0,
-        0,
-        0,
-        0,
-        0,
-        1
-    };
-    static uint64_t output[8];
-
-    __controller_exec_PIF( SI_rtc_status_block, output );
-
-    uint8_t * recv_buf = (uint8_t *)&output[1];
-
-    return recv_buf[1] == 0x10 ? RTC_PRESENT : RTC_MISSING;
-}
-
-/**
- * @brief Decode a binary-coded decimal number.
- * 
- * Used by the real-time clock interface.
- * 
- * @param[in]   bcd
- *              binary-coded decimal number 
- * @return the decoded number
- */
-static uint8_t bcd_to_byte(uint8_t bcd)
-{
-    uint8_t hi = (bcd & 0xF0) >> 4;
-    uint8_t lo = bcd & 0x0F;
-    return (hi * 10) + lo;
-}
-
-/**
- * @brief Read the current time from the real-time clock
- * 
- * @param[out]  rtc_time
- *              Structure to place the current time 
- */
-void rtc_read_time( rtc_time_t * rtc_time )
-{
-    static const uint64_t SI_rtc_read_block[8] =
-    {
-        0x0000000002090702,
-        0xffffffffffffffff,
-        0xfffe000000000000,
-        0,
-        0,
-        0,
-        0,
-        1
-    };
-    static uint64_t output[8];
-
-    __controller_exec_PIF( SI_rtc_read_block, output );
-
-    uint8_t * recv_buf = (uint8_t *)&output[1];
-
-    rtc_time->sec = bcd_to_byte(recv_buf[0]);
-    rtc_time->min = bcd_to_byte(recv_buf[1]);
-    rtc_time->hour = bcd_to_byte(recv_buf[2] - 0x80);
-    rtc_time->day = bcd_to_byte(recv_buf[3]);
-    rtc_time->week_day = bcd_to_byte(recv_buf[4]);
-    rtc_time->month = bcd_to_byte(recv_buf[5]) - 1;
-    rtc_time->year = bcd_to_byte(recv_buf[6]);
-    rtc_time->year += (uint16_t)bcd_to_byte(recv_buf[7]) * 100;
-    rtc_time->year += 1900;
-    rtc_time->status = recv_buf[8];
-}
-
-/**
  * @brief Probe the EEPROM interface on the cartridge.
  *
  * @return Which EEPROM type was detected on the cartridge.
@@ -232,7 +152,7 @@ eeprom_type_t eeprom_present( void )
     };
     static uint64_t output[8];
 
-    __controller_exec_PIF( SI_eeprom_status_block, output );
+    controller_exec_pif( SI_eeprom_status_block, output );
 
     /* We are looking at the second byte returned, which
      * signifies which size EEPROM (if any) is present.*/
@@ -283,7 +203,7 @@ void eeprom_read( int block, uint8_t * dest )
     static uint64_t output[8];
 
     SI_eeprom_read_block[0] = 0x0000000002080400 | (block & 255);
-    __controller_exec_PIF( SI_eeprom_read_block, output );
+    controller_exec_pif( SI_eeprom_read_block, output );
     memcpy( dest, &output[1], EEPROM_BLOCK_SIZE );
 }
 
@@ -312,7 +232,7 @@ void eeprom_write( int block, const uint8_t * src )
 
     SI_eeprom_write_block[0] = 0x000000000a010500 | (block & 255);
     memcpy( &SI_eeprom_write_block[1], src, EEPROM_BLOCK_SIZE );
-    __controller_exec_PIF( SI_eeprom_write_block, output );
+    controller_exec_pif( SI_eeprom_write_block, output );
 }
 
 /**
@@ -436,7 +356,7 @@ void controller_read( struct controller_data * output )
         1
     };
 
-    __controller_exec_PIF( SI_read_con_block, output );
+    controller_exec_pif( SI_read_con_block, output );
 }
 
 /**
@@ -478,7 +398,7 @@ void controller_read_gc( struct controller_data * outdata, const uint8_t rumble[
     if (rumble[3])
         input[5] |= 1LLU << 32;
 
-    __controller_exec_PIF( input, output );
+    controller_exec_pif( input, output );
 
     memcpy( &outdata->gc[0], ((uint8_t *) output) + 5, 8 );
     memcpy( &outdata->gc[1], ((uint8_t *) output) + 5 + 13, 8 );
@@ -512,7 +432,7 @@ void controller_read_gc_origin( struct controller_origin_data * outdata )
 
     static unsigned long long output[8];
 
-    __controller_exec_PIF( SI_read_con_block, output );
+    controller_exec_pif( SI_read_con_block, output );
 
     memcpy( &outdata->gc[0], ((uint8_t *) output) + 3, 10 );
     memcpy( &outdata->gc[1], ((uint8_t *) output) + 3 + 13, 10 );
@@ -717,7 +637,7 @@ void execute_raw_command( int controller, int command, int bytesout, int bytesin
     memset( &data[controller + 3 + bytesout], 0xFF, bytesin );
     data[controller + 3 + bytesout + bytesin] = 0xFE;
 
-    __controller_exec_PIF(SI_read_controllers_block,SI_debug);
+    controller_exec_pif(SI_read_controllers_block,SI_debug);
 
     data = (uint8_t *)SI_debug;
     memcpy( in, &data[controller + 3 + bytesout], bytesin );
@@ -748,7 +668,7 @@ int get_controllers_present( void )
         1
     };
 
-    __controller_exec_PIF( SI_read_controllers_block, &output );
+    controller_exec_pif( SI_read_controllers_block, &output );
 
     if( output.c[0].err == ERROR_NONE ) { ret |= CONTROLLER_1_INSERTED; }
     if( output.c[1].err == ERROR_NONE ) { ret |= CONTROLLER_2_INSERTED; }
@@ -802,7 +722,7 @@ static void __get_accessories_present( struct controller_data *output )
         1
     };
 
-    __controller_exec_PIF( SI_read_status_block, output );
+    controller_exec_pif( SI_read_status_block, output );
 }
 
 /**
@@ -959,7 +879,7 @@ int read_mempak_address( int controller, uint16_t address, uint8_t *data )
     /* Leave room for 33 bytes (32 bytes + CRC) to come back */
     memset( &SI_read_mempak_block[controller + 5], 0xFF, 33 );
 
-    __controller_exec_PIF( SI_read_mempak_block, &output );
+    controller_exec_pif( SI_read_mempak_block, &output );
 
     /* Copy data correctly out of command */
     memcpy( data, &output[controller + 5], 32 );
@@ -1036,7 +956,7 @@ int write_mempak_address( int controller, uint16_t address, uint8_t *data )
     /* Leave room for CRC to come back */
     SI_write_mempak_block[controller + 5 + 32] = 0xFF;
 
-    __controller_exec_PIF( SI_write_mempak_block, &output );
+    controller_exec_pif( SI_write_mempak_block, &output );
 
     /* Calculate CRC on output */
     uint8_t crc = __calc_data_crc( &output[controller + 5] );

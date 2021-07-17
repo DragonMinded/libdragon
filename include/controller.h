@@ -45,40 +45,6 @@
 /** @} */
 
 /**
- * @name RTC Status Values
- * @see #rtc_status
- * @{
- */
-/** @brief No RTC detected on cartridge */
-#define RTC_MISSING 0
-/** @brief RTC present on cartridge */
-#define RTC_PRESENT 1
-/** @} */
-
-/**
- * @brief Structure for storing RTC time data.
- */
-typedef struct rtc_time_t
-{
-    /** @brief Year. [1900-20XX] */
-    uint16_t year;
-    /** @brief Month. [0-11] */
-    uint8_t month;
-    /** @brief Day of month. [1-31] */
-    uint8_t day;
-    /** @brief Hours. [0-23] */
-    uint8_t hour;
-    /** @brief Minutes. [0-59] */
-    uint8_t min;
-    /** @brief Seconds. [0-59] */
-    uint8_t sec;
-    /** @brief Day of week. [0-6] */
-    uint8_t week_day;
-    /** @brief Status of the last command. */
-    uint8_t status;
-} rtc_time_t;
-
-/**
  * @brief EEPROM Probe Values
  * @see #eeprom_present
  */
@@ -229,6 +195,7 @@ extern "C" {
 #endif
 
 void controller_init( void );
+void controller_exec_pif( const void *inblock, void *outblock );
 void controller_read( struct controller_data * data );
 void controller_read_gc( struct controller_data * data, const uint8_t rumble[4] );
 void controller_read_gc_origin( struct controller_origin_data * data);
@@ -252,8 +219,6 @@ void eeprom_read( int block, uint8_t * dest );
 void eeprom_write( int block, const uint8_t * src );
 void eeprom_read_bytes( uint8_t * dest, size_t start, size_t len );
 void eeprom_write_bytes( const uint8_t * src, size_t start, size_t len );
-int rtc_status( void );
-void rtc_read_time( rtc_time_t * rtc_time );
 
 #ifdef __cplusplus
 }

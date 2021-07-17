@@ -48,6 +48,7 @@
 #include "console.h"
 #include "debug.h"
 #include "controller.h"
+#include "rtc.h"
 #include "mempak.h"
 #include "tpak.h"
 #include "display.h"

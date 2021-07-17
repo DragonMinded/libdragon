@@ -11,6 +11,7 @@ OFILES_LD += $(CURDIR)/build/audio.o
 OFILES_LD += $(CURDIR)/build/display.o
 OFILES_LD += $(CURDIR)/build/console.o
 OFILES_LD += $(CURDIR)/build/controller.o
+OFILES_LD += $(CURDIR)/build/rtc.o
 OFILES_LD += $(CURDIR)/build/eepromfs.o
 OFILES_LD += $(CURDIR)/build/mempak.o
 OFILES_LD += $(CURDIR)/build/tpak.o
@@ -88,6 +89,9 @@ $(CURDIR)/build/rsp.o: $(CURDIR)/src/rsp.c
 $(CURDIR)/build/controller.o: $(CURDIR)/src/controller.c
 	mkdir -p $(CURDIR)/build
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/controller.o $(CURDIR)/src/controller.c
+$(CURDIR)/build/rtc.o: $(CURDIR)/src/rtc.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/rtc.o $(CURDIR)/src/rtc.c
 $(CURDIR)/build/mempak.o: $(CURDIR)/src/mempak.c
 	mkdir -p $(CURDIR)/build
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/mempak.o $(CURDIR)/src/mempak.c
