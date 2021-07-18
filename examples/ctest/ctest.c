@@ -7,7 +7,7 @@
 static resolution_t res = RESOLUTION_320x240;
 static bitdepth_t bit = DEPTH_32_BPP;
 
-const char * format_type( int accessory )
+char *format_type( int accessory )
 {
     switch( accessory )
     {
@@ -19,34 +19,6 @@ const char * format_type( int accessory )
             return "(vru)";
         default:
             return "(none)";
-    }
-}
-
-const char * format_eeprom_type( eeprom_type_t type )
-{
-    switch(type)
-    {
-        case EEPROM_NONE:
-            return "No EEPROM present.";
-        case EEPROM_4K:
-            return "4k EEPROM detected.";
-        case EEPROM_16K:
-            return "16k EEPROM detected.";
-        default:
-            return "Unknown EEPROM detected.";
-    }
-}
-
-const char * format_rtc_status( int status )
-{
-    switch(status)
-    {
-        case RTC_MISSING:
-            return "No RTC detected.";
-        case RTC_PRESENT:
-            return "RTC detected.";
-        default:
-            return "Unknown RTC status.";
     }
 }
 
@@ -66,9 +38,6 @@ int main(void)
     int press = 0;
     uint8_t data[32];
     memset( data, 0, 32 );
-    eeprom_type_t eeprom = eeprom_present();
-    int rtc = rtc_status();
-    rtc_time_t time;
 
     /* Main loop test */
     while(1) 
@@ -116,14 +85,6 @@ int main(void)
                                               (accessories & CONTROLLER_3_INSERTED) ? format_type( identify_accessory( 2 ) ) : "" );
         printf( "Accessory 4 %spresent %s\n", (accessories & CONTROLLER_4_INSERTED) ? "" : "not ",
                                               (accessories & CONTROLLER_4_INSERTED) ? format_type( identify_accessory( 3 ) ) : "" );
-
-        printf("\n%s\n", format_eeprom_type(eeprom));
-        printf("\n%s\n", format_rtc_status(rtc));
-        if( rtc )
-        {
-            rtc_read_time( &time );
-            printf("%04d-%02d-%02d %02d:%02d:%02d\n", time.year, time.month+1, time.day, time.hour, time.min, time.sec);
-        }
 
         printf("\n%d\n\n", testv++ );
 
