@@ -34,17 +34,19 @@
 #define EDIT_SEC   0x0001
 #define EDIT_NONE  0x0000
 
-// SCREEN_WIDTH_GUIDE:                "----------------------------------------"
-static const char * MISSING_MESSAGE = "           No RTC Detected!             ";
-static const char * HELP_1_MESSAGE  = "     Double-check the settings for      ";
-static const char * HELP_2_MESSAGE  = "      your emulator or flash cart.      ";
-static const char * HELP_3_MESSAGE  = "    Some emulators don't support RTC    ";
-static const char * RUNNING_MESSAGE = "        Joybus RTC is running.          ";
-static const char * PAUSED_MESSAGE  = "        Joybus RTC is paused...         ";
-static const char * RTC_DATE_FORMAT = "           YYYY-MM-DD (DoW)             ";
-static const char * RTC_TIME_FORMAT = "               HH:MM:SS                 ";
-static const char * ADJUST_MESSAGE  = "      Press A to adjust date/time       ";
-static const char * CONFIRM_MESSAGE = "        Press A to write to RTC         ";
+// SCREEN_WIDTH_GUIDE:                 "----------------------------------------"
+static const char * MISSING_MESSAGE  = "           No RTC Detected!             ";
+static const char * HELP_1_MESSAGE   = "     Double-check the settings for      ";
+static const char * HELP_2_MESSAGE   = "      your emulator or flash cart.      ";
+static const char * HELP_3_MESSAGE   = "    Some emulators don't support RTC    ";
+static const char * RUNNING_MESSAGE  = "        Joybus RTC is running.          ";
+static const char * PAUSED_MESSAGE   = "        Joybus RTC is paused...         ";
+static const char * STARTING_MESSAGE = "       Waiting for RTC to start...      ";
+static const char * STOPPING_MESSAGE = "       Waiting for RTC to stop...       ";
+static const char * RTC_DATE_FORMAT  = "           YYYY-MM-DD (DoW)             ";
+static const char * RTC_TIME_FORMAT  = "               HH:MM:SS                 ";
+static const char * ADJUST_MESSAGE   = "      Press A to adjust date/time       ";
+static const char * CONFIRM_MESSAGE  = "        Press A to write to RTC         ";
 
 static const char * DAYS_OF_WEEK[7] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 
@@ -63,17 +65,6 @@ static struct controller_data keys;
 static bool rtc_paused;
 static rtc_time_t rtc_time;
 static uint16_t edit_mode = EDIT_NONE;
-
-void format_rtc_time( const rtc_time_t * rtc_time )
-{
-    sprintf(year, "%04d", rtc_time->year % 10000);
-    sprintf(month, "%02d", (rtc_time->month % 12) + 1);
-    sprintf(day, "%02d", rtc_time->day % 32);
-    dow = DAYS_OF_WEEK[rtc_time->week_day % 7];
-    sprintf(hour, "%02d", rtc_time->hour % 24);
-    sprintf(min, "%02d", rtc_time->min % 60);
-    sprintf(sec, "%02d", rtc_time->sec % 60);
-}
 
 void set_edit_color( uint16_t mask )
 {
@@ -122,9 +113,14 @@ void adjust_rtc_time( rtc_time_t * t, int incr )
 
 void draw_rtc_time( void )
 {
-    // Line 1
-    graphics_set_color( WHITE, BLACK );
-    graphics_draw_text( disp, 0, LINE1, rtc_paused ? PAUSED_MESSAGE : RUNNING_MESSAGE );
+    // Format RTC date/time as strings
+    sprintf(year, "%04d", rtc_time.year % 10000);
+    sprintf(month, "%02d", (rtc_time.month % 12) + 1);
+    sprintf(day, "%02d", rtc_time.day % 32);
+    dow = DAYS_OF_WEEK[rtc_time.week_day % 7];
+    sprintf(hour, "%02d", rtc_time.hour % 24);
+    sprintf(min, "%02d", rtc_time.min % 60);
+    sprintf(sec, "%02d", rtc_time.sec % 60);
 
     // Line 2
     graphics_draw_text( disp, 0, LINE2, RTC_DATE_FORMAT );
@@ -145,13 +141,27 @@ void draw_rtc_time( void )
     graphics_draw_text( disp, MIN_X, LINE3, min );
     set_edit_color(EDIT_SEC);
     graphics_draw_text( disp, SEC_X, LINE3, sec );
+}
 
-    // Line 4
-    graphics_set_color( WHITE, BLACK );
-    if( edit_mode )
-        graphics_draw_text( disp, 0, LINE4, CONFIRM_MESSAGE );
-    else
-        graphics_draw_text( disp, 0, LINE4, ADJUST_MESSAGE );
+void wait_for_rtc_paused( bool outcome )
+{
+    while( rtc_paused != outcome )
+    {
+        rtc_paused = joybus_rtc_paused();
+
+        while( !(disp = display_lock()) );
+
+        graphics_fill_screen( disp, BLACK );
+
+        // Line 1
+        graphics_set_color( WHITE, BLACK );
+        graphics_draw_text( disp, 0, LINE1, outcome ? STOPPING_MESSAGE : STARTING_MESSAGE );
+
+        // Lines 2 & 3
+        draw_rtc_time();
+
+        display_show(disp);
+    }
 }
 
 int main(void)
@@ -159,7 +169,6 @@ int main(void)
     init_interrupts();
     display_init( res, bit, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
     controller_init();
-    debug_init_isviewer();
 
     if( !joybus_rtc_present() )
     {
@@ -187,7 +196,7 @@ int main(void)
     if( rtc_paused )
     {
         joybus_rtc_write_control( JOYBUS_RTC_CONTROL_MODE_RUN );
-        rtc_paused = joybus_rtc_paused();
+        wait_for_rtc_paused( false );
     }
 
     while(1) 
@@ -196,8 +205,16 @@ int main(void)
 
         graphics_fill_screen( disp, BLACK );
 
-        format_rtc_time( &rtc_time );
+        // Line 1
+        graphics_set_color( WHITE, BLACK );
+        graphics_draw_text( disp, 0, LINE1, rtc_paused ? PAUSED_MESSAGE : RUNNING_MESSAGE );
+
+        // Lines 2 & 3
         draw_rtc_time();
+
+        // Line 4
+        graphics_set_color( WHITE, BLACK );
+        graphics_draw_text( disp, 0, LINE4, edit_mode ? CONFIRM_MESSAGE : ADJUST_MESSAGE );
 
         display_show(disp);
 
@@ -209,22 +226,26 @@ int main(void)
         controller_scan();
         keys = get_keys_down();
 
+        /* Toggle edit mode */
         if( keys.c[0].A )
         {
             if( edit_mode )
             {
                 joybus_rtc_write_time( &rtc_time );
+                // TODO Wait for joybus_rtc_write_time to finish?
                 joybus_rtc_write_control( JOYBUS_RTC_CONTROL_MODE_RUN );
+                wait_for_rtc_paused( false );
                 edit_mode = EDIT_NONE;
             }
             else
             {
                 joybus_rtc_write_control( JOYBUS_RTC_CONTROL_MODE_SET );
+                wait_for_rtc_paused( true );
                 edit_mode = EDIT_YEAR;
             }
-            rtc_paused = joybus_rtc_paused();
         }
 
+        /* Adjust date/time */
         if( edit_mode )
         {
             if( keys.c[0].left || (keys.c[0].x < -JOYSTICK_DEAD_ZONE) )

@@ -29,12 +29,7 @@ static uint8_t byte_to_bcd(uint8_t byte)
     return ((byte / 10) << 4) | (byte % 10);
 }
 
-/**
- * @brief Probe the RTC interface on the cartridge.
- *
- * @return whether the real-time clock was detected on the cartridge.
- */
-bool joybus_rtc_present( void )
+void joybus_rtc_status( uint8_t * identifier, uint8_t * status )
 {
     static const uint64_t SI_rtc_status_block[8] =
     {
@@ -53,7 +48,36 @@ bool joybus_rtc_present( void )
 
     uint8_t * recv_buf = (uint8_t *)&output[1];
 
-    return recv_buf[1] == 0x10;
+    if( identifier != NULL ) *identifier = recv_buf[1];
+    if( status != NULL ) *status = recv_buf[2];
+}
+
+/**
+ * @brief Probe the RTC interface on the cartridge.
+ *
+ * @see #joybus_rtc_status
+ *
+ * @return whether the real-time clock was detected on the cartridge.
+ */
+bool joybus_rtc_present( void )
+{
+    uint8_t identifier;
+    joybus_rtc_status( &identifier, NULL );
+    return identifier == JOYBUS_RTC_IDENTIFIER;
+}
+
+/**
+ * @brief Read the status of the real-time clock.
+ * 
+ * @see #joybus_rtc_status
+ * 
+ * @return whether the Joybus RTC is paused
+ */
+bool joybus_rtc_paused( void )
+{
+    uint8_t status;
+    joybus_rtc_status( NULL, &status );
+    return status == JOYBUS_RTC_STATUS_PAUSED;
 }
 
 /**
@@ -86,19 +110,6 @@ uint16_t joybus_rtc_read_control( void )
     uint8_t * recv_buf = (uint8_t *)&output[1];
 
     return (((uint16_t)recv_buf[1]) << 8) | recv_buf[0];
-}
-
-/**
- * @brief Read the control block from the real-time clock.
- * 
- * @see #joybus_rtc_read_control
- * @see #JOYBUS_RTC_CONTROL_CLOCK_PAUSED
- * 
- * @return whether the Joybus RTC is paused
- */
-bool joybus_rtc_paused( void )
-{
-    return joybus_rtc_read_control() & JOYBUS_RTC_CONTROL_CLOCK_PAUSED;
 }
 
 /**

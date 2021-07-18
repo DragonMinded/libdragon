@@ -15,6 +15,13 @@
  */
 
 /**
+ * @brief Real-time clock identifier byte.
+ * 
+ * A magic value in the RTC status response that indicates the RTC is present.
+ */
+#define JOYBUS_RTC_IDENTIFIER 0x10
+
+/**
  * @brief The RTC is running; time should update every second.
  * 
  * Some emulators incorrectly always respond with this status.
@@ -87,6 +94,7 @@ extern "C" {
 
 bool joybus_rtc_present( void );
 bool joybus_rtc_paused( void );
+void joybus_rtc_status( uint8_t * identifier, uint8_t * status );
 uint16_t joybus_rtc_read_control( void );
 uint8_t joybus_rtc_write_control( uint16_t control );
 uint8_t joybus_rtc_read_time( rtc_time_t * rtc_time );
