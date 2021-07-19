@@ -64,7 +64,7 @@
  * another RTC write command. Since there is no status returned by the RTC to
  * indicate that a write has completed, the software must wait a fixed duration.
  */
-#define JOYBUS_RTC_WRITE_DELAY 20
+#define JOYBUS_RTC_WRITE_DELAY 30
 
 /**
  * @brief The RTC is ready for block 2 to be read.
@@ -353,8 +353,8 @@ void joybus_rtc_read_time( rtc_time_t * rtc_time )
  * Use #JOYBUS_RTC_CONTROL_MODE_SET before writing to block 2 to set the time.
  * Use #JOYBUS_RTC_CONTROL_MODE_RUN after writing to block 2 to resume the RTC.
  *
- * It may take up to 20 milliseconds after this function returns for the
- * write to actually complete on real hardware. It is recommended to wait
+ * On real hardware it may take some time after the SI command responds for
+ * the write operation to actually complete. It is recommended to add a delay
  * using #JOYBUS_RTC_WRITE_DELAY after setting the RTC control block before
  * calling #joybus_rtc_read_time or #joybus_rtc_write_time to ensure the
  * control block data was fully written.
@@ -474,6 +474,8 @@ void joybus_rtc_set( const rtc_time_t * write_time )
         /* Put the RTC back into normal operating mode */
         joybus_rtc_write_control( JOYBUS_RTC_CONTROL_MODE_RUN, calibration );
         wait_ms( JOYBUS_RTC_WRITE_DELAY );
+        /* Wait for the RTC to stop being busy */
+        while( joybus_rtc_is_busy() ) {}
     }
 }
 

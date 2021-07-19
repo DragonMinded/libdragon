@@ -39,6 +39,7 @@ static const char * MISSING_MESSAGE = "         No Joybus RTC Detected!        "
 static const char * HELP_1_MESSAGE  = "     Double-check the settings for      ";
 static const char * HELP_2_MESSAGE  = "      your emulator or flash cart.      ";
 static const char * HELP_3_MESSAGE  = "    Some emulators don't support RTC    ";
+static const char * PREPARE_MESSAGE = "        Probing the Joybus RTC...       "; 
 static const char * RUNNING_MESSAGE = "      Reading time from Joybus RTC:     ";
 static const char * PAUSED_MESSAGE  = "      Adjust the current date/time:     ";
 static const char * WRITING_MESSAGE = "        Writing to Joybus RTC...        ";
@@ -46,7 +47,7 @@ static const char * RTC_DATE_FORMAT = "           YYYY-MM-DD (DoW)             "
 static const char * RTC_TIME_FORMAT = "               HH:MM:SS                 ";
 static const char * ADJUST_MESSAGE  = "      Press A to adjust date/time       ";
 static const char * CONFIRM_MESSAGE = "        Press A to write to RTC         ";
-static const char * NOWRITE_MESSAGE = "         RTC write test failed!         ";
+static const char * NOWRITE_MESSAGE = "     Unable to write to RTC block 2     ";
 
 static const char * DAYS_OF_WEEK[7] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 
@@ -179,7 +180,14 @@ int main(void)
         while(1) { /* Deadloop forever */ }
     }
 
-    /* Setup the RTC and detect write support */
+    /* Show a message while preparing the RTC */
+    while( !(disp = display_lock()) );
+    graphics_fill_screen( disp, BLACK );
+    graphics_set_color( WHITE, BLACK );
+    graphics_draw_text( disp, 0, LINE1, PREPARE_MESSAGE );
+    display_show(disp);
+
+    /* Prepare the RTC and detect write support */
     joybus_rtc_run();
     rtc_writable = joybus_rtc_is_writable();
     rtc_paused = false;
