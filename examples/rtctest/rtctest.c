@@ -35,18 +35,17 @@
 #define EDIT_NONE  0x0000
 
 // SCREEN_WIDTH_GUIDE:                 "----------------------------------------"
-static const char * MISSING_MESSAGE  = "           No RTC Detected!             ";
-static const char * HELP_1_MESSAGE   = "     Double-check the settings for      ";
-static const char * HELP_2_MESSAGE   = "      your emulator or flash cart.      ";
-static const char * HELP_3_MESSAGE   = "    Some emulators don't support RTC    ";
-static const char * RUNNING_MESSAGE  = "        Joybus RTC is running.          ";
-static const char * PAUSED_MESSAGE   = "        Joybus RTC is paused...         ";
-static const char * STARTING_MESSAGE = "       Waiting for RTC to start...      ";
-static const char * STOPPING_MESSAGE = "       Waiting for RTC to stop...       ";
-static const char * RTC_DATE_FORMAT  = "           YYYY-MM-DD (DoW)             ";
-static const char * RTC_TIME_FORMAT  = "               HH:MM:SS                 ";
-static const char * ADJUST_MESSAGE   = "      Press A to adjust date/time       ";
-static const char * CONFIRM_MESSAGE  = "        Press A to write to RTC         ";
+static const char * MISSING_MESSAGE = "         No Joybus RTC Detected!        ";
+static const char * HELP_1_MESSAGE  = "     Double-check the settings for      ";
+static const char * HELP_2_MESSAGE  = "      your emulator or flash cart.      ";
+static const char * HELP_3_MESSAGE  = "    Some emulators don't support RTC    ";
+static const char * RUNNING_MESSAGE = "      Reading time from Joybus RTC:     ";
+static const char * PAUSED_MESSAGE  = "      Adjust the current date/time:     ";
+static const char * WRITING_MESSAGE = "        Writing to Joybus RTC...        ";
+static const char * RTC_DATE_FORMAT = "           YYYY-MM-DD (DoW)             ";
+static const char * RTC_TIME_FORMAT = "               HH:MM:SS                 ";
+static const char * ADJUST_MESSAGE  = "      Press A to adjust date/time       ";
+static const char * CONFIRM_MESSAGE = "        Press A to write to RTC         ";
 
 static const char * DAYS_OF_WEEK[7] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 
@@ -62,8 +61,8 @@ static const resolution_t res = RESOLUTION_320x240;
 static const bitdepth_t bit = DEPTH_32_BPP;
 static display_context_t disp = 0;
 static struct controller_data keys;
-static bool rtc_paused;
 static rtc_time_t rtc_time;
+static bool rtc_paused = false;
 static uint16_t edit_mode = EDIT_NONE;
 
 void set_edit_color( uint16_t mask )
@@ -90,7 +89,8 @@ void adjust_rtc_time( rtc_time_t * t, int incr )
     switch( edit_mode )
     {
         case EDIT_YEAR:
-            t->year = wrap(t->year + incr, 1996, 2099);
+            // TODO Figure out what the actual max year is
+            t->year = wrap(t->year + incr, 1996, 2038);
             break;
         case EDIT_MONTH:
             t->month = wrap(t->month + incr, 0, 11);
@@ -143,25 +143,20 @@ void draw_rtc_time( void )
     graphics_draw_text( disp, SEC_X, LINE3, sec );
 }
 
-void wait_for_rtc_paused( bool outcome )
+void draw_writing_message( void )
 {
-    while( rtc_paused != outcome )
-    {
-        rtc_paused = joybus_rtc_paused();
+    while( !(disp = display_lock()) );
 
-        while( !(disp = display_lock()) );
+    graphics_fill_screen( disp, BLACK );
 
-        graphics_fill_screen( disp, BLACK );
+    // Line 1
+    graphics_set_color( WHITE, BLACK );
+    graphics_draw_text( disp, 0, LINE1, WRITING_MESSAGE );
 
-        // Line 1
-        graphics_set_color( WHITE, BLACK );
-        graphics_draw_text( disp, 0, LINE1, outcome ? STOPPING_MESSAGE : STARTING_MESSAGE );
+    // Lines 2 & 3
+    draw_rtc_time();
 
-        // Lines 2 & 3
-        draw_rtc_time();
-
-        display_show(disp);
-    }
+    display_show(disp);
 }
 
 int main(void)
@@ -188,16 +183,10 @@ int main(void)
         while(1) { /* Deadloop forever */ }
     }
 
-    /* Read the RTC status and time before entering the main loop */
-    rtc_paused = joybus_rtc_paused();
+    /* Start the RTC and read the current time before entering the main loop */
+    joybus_rtc_write_control( JOYBUS_RTC_CONTROL_MODE_RUN );
+    wait_ms( JOYBUS_RTC_WRITE_DELAY );
     joybus_rtc_read_time( &rtc_time );
-
-    /* Start the clock if it is paused */
-    if( rtc_paused )
-    {
-        joybus_rtc_write_control( JOYBUS_RTC_CONTROL_MODE_RUN );
-        wait_for_rtc_paused( false );
-    }
 
     while(1) 
     {
@@ -231,17 +220,17 @@ int main(void)
         {
             if( edit_mode )
             {
-                joybus_rtc_write_time( &rtc_time );
-                // TODO Wait for joybus_rtc_write_time to finish?
-                joybus_rtc_write_control( JOYBUS_RTC_CONTROL_MODE_RUN );
-                wait_for_rtc_paused( false );
                 edit_mode = EDIT_NONE;
+                draw_writing_message();
+                joybus_rtc_set( &rtc_time );
+                rtc_paused = false;
+                /* Wait so that the "Writing" message stays up long enough to read */
+                wait_ms( 400 );
             }
             else
             {
-                joybus_rtc_write_control( JOYBUS_RTC_CONTROL_MODE_SET );
-                wait_for_rtc_paused( true );
                 edit_mode = EDIT_YEAR;
+                rtc_paused = true;
             }
         }
 

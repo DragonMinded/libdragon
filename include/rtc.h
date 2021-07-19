@@ -22,24 +22,23 @@
 #define JOYBUS_RTC_IDENTIFIER 0x10
 
 /**
- * @brief The RTC is running; time should update every second.
+ * @brief Duration (in milliseconds) to wait after writing to RTC.
  * 
- * Some emulators incorrectly always respond with this status.
+ * The software must wait for the previous RTC write to finish before issuing
+ * another RTC write command. Since there is no status returned by the RTC to
+ * indicate that a write has completed, the software must wait a fixed duration.
  */
-#define JOYBUS_RTC_STATUS_RUNNING 0x00
-/**
- * @brief The RTC is paused; time should not update.
- * 
- * Some emulators do not support pausing the RTC.
- */
-#define JOYBUS_RTC_STATUS_PAUSED 0x80
+#define JOYBUS_RTC_WRITE_DELAY 20
 
 /**
- * @brief Control bit for if the RTC should pause time updates.
- * 
- * This should be on when setting the date/time.
+ * @brief The RTC is ready for block 2 to be read.
  */
-#define JOYBUS_RTC_CONTROL_CLOCK_PAUSED          0x0004
+#define JOYBUS_RTC_STATUS_READY 0x00
+/**
+ * @brief The RTC is ready for block 2 to be written.
+ */
+#define JOYBUS_RTC_STATUS_BUSY  0x80
+
 /**
  * @brief Control bit for if RTC block 1 is write-protected.
  * 
@@ -59,7 +58,7 @@
  * 
  * Pauses the clock and clears the write-protection bits.
  */
-#define JOYBUS_RTC_CONTROL_MODE_SET (JOYBUS_RTC_CONTROL_CLOCK_PAUSED)
+#define JOYBUS_RTC_CONTROL_MODE_SET 0x0004
 /**
  * @brief Control mode for normal operation of the RTC.
  * 
@@ -92,13 +91,14 @@ typedef struct rtc_time_t
 extern "C" {
 #endif
 
-bool joybus_rtc_present( void );
-bool joybus_rtc_paused( void );
 void joybus_rtc_status( uint8_t * identifier, uint8_t * status );
+bool joybus_rtc_present( void );
+bool joybus_rtc_busy( void );
 uint16_t joybus_rtc_read_control( void );
 uint8_t joybus_rtc_write_control( uint16_t control );
 uint8_t joybus_rtc_read_time( rtc_time_t * rtc_time );
 uint8_t joybus_rtc_write_time( const rtc_time_t * rtc_time );
+uint8_t joybus_rtc_set( const rtc_time_t * rtc_time );
 
 #ifdef __cplusplus
 }
