@@ -18,12 +18,12 @@
 #define LINE5 (20 * GLYPH_HEIGHT)
 
 /* Line 2 */
-#define YEAR_X  (11 * GLYPH_WIDTH)
+#define YEAR_X  (12 * GLYPH_WIDTH)
 #define MONTH_X (YEAR_X + (5 * GLYPH_WIDTH))
 #define DAY_X   (MONTH_X + (3 * GLYPH_WIDTH))
 #define DOW_X   (DAY_X + (4 * GLYPH_WIDTH))
 /* Line 3 */
-#define HOUR_X  (15 * GLYPH_WIDTH)
+#define HOUR_X  (16 * GLYPH_WIDTH)
 #define MIN_X   (HOUR_X + (3 * GLYPH_WIDTH))
 #define SEC_X   (MIN_X + (3 * GLYPH_WIDTH))
 
@@ -35,21 +35,21 @@
 #define EDIT_SEC   0x0001
 #define EDIT_NONE  0x0000
 
-/* SCREEN_WIDTH_GUIDE:                "----------------------------------------" */
-static const char * MISSING_MESSAGE = "         No Joybus RTC Detected!        ";
-static const char * HELP_1_MESSAGE  = "     Double-check the settings for      ";
-static const char * HELP_2_MESSAGE  = "      your emulator or flash cart.      ";
-static const char * HELP_3_MESSAGE  = "    Some emulators don't support RTC    ";
-static const char * PROBING_MESSAGE = "        Probing the Joybus RTC...       "; 
-static const char * RUNNING_MESSAGE = "      Reading time from Joybus RTC:     ";
-static const char * PAUSED_MESSAGE  = "      Adjust the current date/time:     ";
-static const char * WRITING_MESSAGE = "        Writing to Joybus RTC...        ";
-static const char * RTC_DATE_FORMAT = "           YYYY-MM-DD (DoW)             ";
-static const char * RTC_TIME_FORMAT = "               HH:MM:SS                 ";
-static const char * ADJUST_MESSAGE  = "      Press A to adjust date/time       ";
-static const char * CONFIRM_MESSAGE = "        Press A to write to RTC         ";
-static const char * RETEST_MESSAGE  = "      Press B to re-run write test      ";
-static const char * NOWRITE_MESSAGE = "     Unable to write to RTC block 2     ";
+/* SCREEN_WIDTH_GUIDE:                 "----------------------------------------" */
+static const char * MISSING_MESSAGE  = "     Real-time clock not detected.      ";
+static const char * HELP_1_MESSAGE   = "     Double-check the settings for      ";
+static const char * HELP_2_MESSAGE   = "      your emulator or flash cart.      ";
+static const char * PROBING_MESSAGE  = "     Probing the real-time clock...     "; 
+static const char * RUNNING_MESSAGE  = "       Reading time from the RTC:       ";
+static const char * PAUSED_MESSAGE   = "      Adjust the current date/time:     ";
+static const char * WRITING_MESSAGE  = "          Setting the clock...          ";
+static const char * RTC_DATE_FORMAT  = "            YYYY-MM-DD (DoW)            ";
+static const char * RTC_TIME_FORMAT  = "                HH:MM:SS                ";
+static const char * ADJUST_MESSAGE   = "      Press A to adjust date/time       ";
+static const char * CONFIRM_MESSAGE  = "        Press A to write to RTC         ";
+static const char * RETEST_MESSAGE   = "      Press B to re-run write test      ";
+static const char * NOSTATUS_MESSAGE = "         RTC status test failed!        ";
+static const char * NOWRITE_MESSAGE  = "         RTC write test failed!         ";
 
 static const char * const DAYS_OF_WEEK[7] =
     { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
@@ -225,7 +225,7 @@ int main(void)
         graphics_draw_text( disp, 0, LINE1, MISSING_MESSAGE );
         graphics_draw_text( disp, 0, LINE2, HELP_1_MESSAGE );
         graphics_draw_text( disp, 0, LINE3, HELP_2_MESSAGE );
-        graphics_draw_text( disp, 0, LINE4, HELP_3_MESSAGE );
+        graphics_draw_text( disp, 0, LINE4, NOSTATUS_MESSAGE );
 
         display_show( disp );
 
