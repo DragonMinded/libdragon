@@ -11,11 +11,11 @@
  * @ingroup libdragon
  * @brief Joybus real-time clock interface.
  *
- * The Joybus real-time clock is an peripheral that was only included on
- * one official cartridge that was only available in Japan. The Joybus RTC
- * is accessed through the serial interface (SI) similar to EEPROM.
- * A real RTC uses a battery to power a clock that runs even when the N64
- * is powered-off and maintains the date, time, and day of the week.
+ * The Joybus real-time clock is an peripheral that uses a battery to power
+ * a clock that runs even when the N64 is powered-off and maintains the date,
+ * time, and day of the week. The Joybus RTC is accessed through the serial
+ * interface (SI) similar to EEPROM and controllers. The Joybus RTC was only
+ * ever included on one official cartridge that was only available in Japan. 
  *
  * To check if the real-time clock is available, call #joybus_rtc_init.
  * To read the current time from the RTC, call #joybus_rtc_get.
@@ -27,11 +27,21 @@
  * always respond with the host system's current local time. Some emulators
  * and flash carts support writing to RTC but will not persist the date/time
  * after resetting or powering-off.
+ * 
+ * Some notable examples of RTC support (as of July 2021):
+ * 64drive hw2 fully implements RTC including writes, but requires hard-coded
+ * delays after setting the time (see #JOYBUS_RTC_WRITE_FINISHED_DELAY).
+ * EverDrive64 3.0 and X7 partially support the RTC, with caveats: The RTC
+ * must be explicitly enabled in the OS or with a ROM header configuration;
+ * RTC will not be detected if the EEPROM save type is used; RTC writes are
+ * not supported through the SI, so changing the time must be done in the OS.
+ * UltraPIF fully implements an emulated RTC that can be accessed even when
+ * the cartridge does not contain a Real-Time Clock or battery.
  *
- * The only way to check if writes are actually supported is to write a
- * time to the RTC and read the time back out. Many emulators that do
+ * The only reliable way to check if writes are actually supported is to write
+ * a time to the RTC and read the time back out. Many emulators that do
  * support RTC reads will silently ignore RTC writes. You should detect
- * whether writes are supported using #joybus_rtc_is_writable so that you can
+ * whether writes are supported using #joSybus_rtc_is_writable so that you can
  * conditionally show the option to change the time if it's supported. If the
  * RTC supports writes, you can call #joybus_rtc_set to set the date and time.
  *
@@ -94,7 +104,7 @@
  * 0x0100 is the block 1 write-protection bit.
  * 0x0200 is the block 2 write-protection bit.
  *
- * RTC block 1 has an unknown purpose and is typically unimplemented.
+ * RTC block 1 has an unknown purpose and is not used.
  * RTC block 2 contains the date and time.
  */
 #define JOYBUS_RTC_CONTROL_MODE_RUN 0x0300
@@ -136,8 +146,8 @@ static uint8_t byte_to_bcd(uint8_t byte)
  * whether the RTC is in the "busy" state.
  *
  * Generally, you should not need to call this function directly. Prefer
- * calling the high-level #joybus_rtc_is_present and #joybus_rtc_is_busy
- * functions which handle the magic numbers associated with the response.
+ * calling the high-level #joybus_rtc_init and #joybus_rtc_is_busy functions
+ * which handle the magic numbers associated with the response.
  *
  * @return the RTC status response data
  */
@@ -177,7 +187,7 @@ static uint32_t joybus_rtc_status( void )
  * @param[out]  data
  *              Destination pointer for the RTC block data
  *
- * @return the busy status of the real-time clock
+ * @return the status of the real-time clock
  */
 static uint8_t joybus_rtc_read( uint8_t block, uint64_t * data )
 {
@@ -214,7 +224,7 @@ static uint8_t joybus_rtc_read( uint8_t block, uint64_t * data )
  * @param[out]  data
  *              RTC block data to write
  *
- * @return the busy status of the real-time clock
+ * @return the status of the real-time clock
  */
 static uint8_t joybus_rtc_write( uint8_t block, const uint64_t * data )
 {
@@ -263,9 +273,9 @@ static bool joybus_rtc_is_busy( void )
  *
  * The calibration data is an opaque value that should be propagated when
  * calling #joybus_rtc_write_control. Emulators and flash carts may return
- * zeroes for this data, which is also fine. Based on reverse-engineering
- * the real hardware, this data is simply described as "magical", but
- * should be preserved in the interest of high-accuracy and compatibility.
+ * zeroes for this data, which is also fine. In the interest of compatibility
+ * and accuracy, this data should be preserved, but its actual purpose is
+ * unknown.
  *
  * Generally, you should not need to call this function directly. Prefer
  * calling the high-level #joybus_rtc_init and #joybus_rtc_set functions which
@@ -306,7 +316,7 @@ static void joybus_rtc_read_control( uint16_t * control, uint32_t * calibration 
  * want to do this.
  *
  * Generally, you should not need to call this function directly. Prefer
- * calling the high-level #joybus_rtc_run and #joybus_rtc_set functions which
+ * calling the high-level #joybus_rtc_init and #joybus_rtc_set functions which
  * handle the delays and calibration propagation.
  *
  * @param[in]  control
@@ -334,8 +344,11 @@ static void joybus_rtc_write_control( uint16_t control, uint32_t calibration )
  *
  * It may take up to 20 milliseconds after this function returns for the
  * write to actually complete on real hardware. It is recommended to wait
- * using #JOYBUS_RTC_WRITE_BLOCK_DELAY before setting the RTC control block back
- * to #JOYBUS_RTC_CONTROL_MODE_RUN after setting the time.
+ * using #JOYBUS_RTC_WRITE_BLOCK_DELAY before setting the RTC control block
+ * back to #JOYBUS_RTC_CONTROL_MODE_RUN after setting the time. On 64drive
+ * it is recommended to wait using #JOYBUS_RTC_WRITE_FINISHED_DELAY before
+ * reading the time to ensure the internal clock has ticked and copied
+ * the new time data into the "SI shadow interface".
  *
  * Generally, you should not need to call this function directly. Prefer
  * calling the high-level #joybus_rtc_set function which handles the RTC
@@ -372,6 +385,8 @@ static void joybus_rtc_write_time( const rtc_time_t * rtc_time )
  * 
  * This function will detect if the RTC is available and if so, will
  * prepare the RTC so that the current time can be read from it.
+ * 
+ * This operation may take up to 50 milliseconds to complete.
  * 
  * @return whether the RTC was detected on the cartridge
  */
