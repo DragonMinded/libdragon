@@ -35,7 +35,7 @@
 #define EDIT_SEC   0x0001
 #define EDIT_NONE  0x0000
 
-/* SCREEN_WIDTH_GUIDE:                 "----------------------------------------" */
+/* SCREEN_WIDTH_GUIDE:                "----------------------------------------" */
 static const char * MISSING_MESSAGE = "         No Joybus RTC Detected!        ";
 static const char * HELP_1_MESSAGE  = "     Double-check the settings for      ";
 static const char * HELP_2_MESSAGE  = "      your emulator or flash cart.      ";
@@ -51,7 +51,8 @@ static const char * CONFIRM_MESSAGE = "        Press A to write to RTC         "
 static const char * RETEST_MESSAGE  = "      Press B to re-run write test      ";
 static const char * NOWRITE_MESSAGE = "     Unable to write to RTC block 2     ";
 
-static const char * DAYS_OF_WEEK[7] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+static const char * const DAYS_OF_WEEK[7] =
+    { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 
 static char year[sizeof("YYYY")];
 static char month[sizeof("MM")];
@@ -67,7 +68,9 @@ static const char * line4_text;
 static const resolution_t res = RESOLUTION_320x240;
 static const bitdepth_t bit = DEPTH_32_BPP;
 static display_context_t disp = 0;
-static struct controller_data keys;
+static struct controller_data keys_pressed;
+static struct controller_data keys_down;
+static int8_t joystick_x_direction = 0;
 static rtc_time_t rtc_time;
 static bool rtc_writable;
 static uint16_t edit_mode = EDIT_NONE;
@@ -87,29 +90,33 @@ int wrap( int val, int min, int max )
 
 void adjust_rtc_time( rtc_time_t * t, int incr )
 {
+    uint8_t expected_day = 0;
     switch( edit_mode )
     {
         case EDIT_YEAR:
-            /* TODO Figure out what the actual max year is */
-            t->year = wrap( t->year + incr, 1996, 2038 );
+            /* TODO Figure out what the max supported year is */
+            t->year = wrap( (int)t->year + incr, 1996, 2037 );
             break;
         case EDIT_MONTH:
-            t->month = wrap( t->month + incr, 0, 11 );
+            t->month = wrap( (int)t->month + incr, 0, 11 );
             break;
         case EDIT_DAY:
-            /* TODO Limit max day based on month/year */
-            t->day = wrap( t->day + incr, 1, 31 );
+            t->day = wrap( (int)t->day + incr, 1, 31 );
+            expected_day = t->day;
             break;
         case EDIT_HOUR:
-            t->hour = wrap( t->hour + incr, 0, 23 );
+            t->hour = wrap( (int)t->hour + incr, 0, 23 );
             break;
         case EDIT_MIN:
-            t->min = wrap( t->min + incr, 0, 59 );
+            t->min = wrap( (int)t->min + incr, 0, 59 );
             break;
         case EDIT_SEC:
-            t->sec = wrap( t->sec + incr, 0, 59 );
+            t->sec = wrap( (int)t->sec + incr, 0, 59 );
             break;
     }
+    rtc_normalize_time( t );
+    /* Handle wrap-around for normalized day of month */
+    if( expected_day && expected_day != t->day && incr > 0 ) t->day = 1;
 }
 
 void draw_rtc_time( void )
@@ -146,7 +153,7 @@ void draw_rtc_time( void )
 
 void draw_writing_message( void )
 {
-    while( !(disp = display_lock()) );
+    while( !(disp = display_lock()) ) { /* Spinloop */ }
 
     graphics_fill_screen( disp, BLACK );
 
@@ -162,15 +169,43 @@ void draw_writing_message( void )
 
 void run_rtc_write_test( void )
 {
-    /* Show a message while probing the RTC */
-    while( !(disp = display_lock()) );
+    while( !(disp = display_lock()) ) { /* Spinloop */ }
+
     graphics_fill_screen( disp, BLACK );
+
     graphics_set_color( WHITE, BLACK );
     graphics_draw_text( disp, 0, LINE1, PROBING_MESSAGE );
+
     display_show(disp);
 
-    rtc_writable = joybus_rtc_is_writable();
+    rtc_writable = rtc_is_writable();
     if( !rtc_writable ) line4_text = NOWRITE_MESSAGE;
+}
+
+void update_joystick_directions( void )
+{
+    /* Treat the X direction as a d-pad single button press */
+    if( (keys_pressed.c[0].x < -JOYSTICK_DEAD_ZONE) )
+    {
+        if( joystick_x_direction == 0 ) keys_down.c[0].left = true;
+        joystick_x_direction = -1;
+    }
+    else if ( keys_pressed.c[0].x > +JOYSTICK_DEAD_ZONE )
+    {
+        if( joystick_x_direction == 0 ) keys_down.c[0].right = true;
+        joystick_x_direction = +1;
+    }
+    else joystick_x_direction = 0;
+
+    /* Treat the Y direction as a d-pad button hold */
+    if( keys_pressed.c[0].y > +JOYSTICK_DEAD_ZONE )
+    {
+        keys_pressed.c[0].up = true;
+    }
+    else if ( keys_pressed.c[0].y < -JOYSTICK_DEAD_ZONE )
+    {
+        keys_pressed.c[0].down = true;
+    }
 }
 
 int main(void)
@@ -179,9 +214,9 @@ int main(void)
     display_init( res, bit, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
     controller_init();
 
-    if( !joybus_rtc_init() )
+    if( !rtc_init() )
     {
-        while( !(disp = display_lock()) );
+        while( !(disp = display_lock()) ) { /* Spinloop */ }
 
         graphics_fill_screen( disp, BLACK );
 
@@ -202,9 +237,9 @@ int main(void)
 
     while(1) 
     {
-        if( !edit_mode ) joybus_rtc_get( &rtc_time );
+        if( !edit_mode ) rtc_get( &rtc_time );
 
-        while( !(disp = display_lock()) );
+        while( !(disp = display_lock()) ) { /* Spinloop */ }
 
         graphics_fill_screen( disp, BLACK );
 
@@ -234,16 +269,18 @@ int main(void)
         display_show(disp);
        
         controller_scan();
-        keys = get_keys_down();
+        keys_pressed = get_keys_pressed();
+        keys_down = get_keys_down();
+        update_joystick_directions();
 
         /* Toggle edit mode */
-        if( rtc_writable && keys.c[0].A )
+        if( rtc_writable && keys_down.c[0].A )
         {
             if( edit_mode )
             {
                 edit_mode = EDIT_NONE;
                 draw_writing_message();
-                joybus_rtc_set( &rtc_time );
+                rtc_set( &rtc_time );
             }
             else
             {
@@ -251,31 +288,37 @@ int main(void)
             }
         }
 
-        if( keys.c[0].B )
+        if( !edit_mode && keys_down.c[0].B )
         {
             run_rtc_write_test();
         }
 
-        /* Adjust date/time */
         if( edit_mode )
         {
-            if( keys.c[0].left || (keys.c[0].x < -JOYSTICK_DEAD_ZONE) )
+            /* Move between fields */
+            if( keys_down.c[0].left )
             {
                 edit_mode = edit_mode << 1;
                 if( edit_mode > EDIT_YEAR ) edit_mode = EDIT_SEC;
             }
-            if( keys.c[0].right || (keys.c[0].x > +JOYSTICK_DEAD_ZONE) )
+            else if( keys_down.c[0].right )
             {
                 edit_mode = edit_mode >> 1;
                 if( edit_mode < EDIT_SEC ) edit_mode = EDIT_YEAR;
             }
-            if( keys.c[0].up || (keys.c[0].y > +JOYSTICK_DEAD_ZONE) )
+
+            /* Adjust date/time */
+            if( keys_pressed.c[0].up )
             {
                 adjust_rtc_time( &rtc_time, +1 );
+                /* Add a delay so you can just hold the direction */
+                wait_ms( 100 );
             }
-            if( keys.c[0].down || (keys.c[0].y < -JOYSTICK_DEAD_ZONE) )
+            else if( keys_pressed.c[0].down )
             {
                 adjust_rtc_time( &rtc_time, -1 );
+                /* Add a delay so you can just hold the direction */
+                wait_ms( 100 );
             }
         }
     }
