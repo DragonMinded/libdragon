@@ -15,6 +15,7 @@
 #define LINE2 (12 * GLYPH_HEIGHT)
 #define LINE3 (14 * GLYPH_HEIGHT)
 #define LINE4 (18 * GLYPH_HEIGHT)
+#define LINE5 (20 * GLYPH_HEIGHT)
 
 /* Line 2 */
 #define YEAR_X  (11 * GLYPH_WIDTH)
@@ -39,7 +40,7 @@ static const char * MISSING_MESSAGE = "         No Joybus RTC Detected!        "
 static const char * HELP_1_MESSAGE  = "     Double-check the settings for      ";
 static const char * HELP_2_MESSAGE  = "      your emulator or flash cart.      ";
 static const char * HELP_3_MESSAGE  = "    Some emulators don't support RTC    ";
-static const char * PREPARE_MESSAGE = "        Probing the Joybus RTC...       "; 
+static const char * PROBING_MESSAGE = "        Probing the Joybus RTC...       "; 
 static const char * RUNNING_MESSAGE = "      Reading time from Joybus RTC:     ";
 static const char * PAUSED_MESSAGE  = "      Adjust the current date/time:     ";
 static const char * WRITING_MESSAGE = "        Writing to Joybus RTC...        ";
@@ -47,6 +48,7 @@ static const char * RTC_DATE_FORMAT = "           YYYY-MM-DD (DoW)             "
 static const char * RTC_TIME_FORMAT = "               HH:MM:SS                 ";
 static const char * ADJUST_MESSAGE  = "      Press A to adjust date/time       ";
 static const char * CONFIRM_MESSAGE = "        Press A to write to RTC         ";
+static const char * RETEST_MESSAGE  = "      Press B to re-run write test      ";
 static const char * NOWRITE_MESSAGE = "     Unable to write to RTC block 2     ";
 
 static const char * DAYS_OF_WEEK[7] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
@@ -59,12 +61,14 @@ static char hour[sizeof("HH")];
 static char min[sizeof("MM")];
 static char sec[sizeof("SS")];
 
+static const char * line1_text;
+static const char * line4_text;
+
 static const resolution_t res = RESOLUTION_320x240;
 static const bitdepth_t bit = DEPTH_32_BPP;
 static display_context_t disp = 0;
 static struct controller_data keys;
 static rtc_time_t rtc_time;
-static bool rtc_paused;
 static bool rtc_writable;
 static uint16_t edit_mode = EDIT_NONE;
 
@@ -156,13 +160,26 @@ void draw_writing_message( void )
     display_show( disp );
 }
 
+void run_rtc_write_test( void )
+{
+    /* Show a message while probing the RTC */
+    while( !(disp = display_lock()) );
+    graphics_fill_screen( disp, BLACK );
+    graphics_set_color( WHITE, BLACK );
+    graphics_draw_text( disp, 0, LINE1, PROBING_MESSAGE );
+    display_show(disp);
+
+    rtc_writable = joybus_rtc_is_writable();
+    if( !rtc_writable ) line4_text = NOWRITE_MESSAGE;
+}
+
 int main(void)
 {
     init_interrupts();
     display_init( res, bit, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
     controller_init();
 
-    if( !joybus_rtc_is_present() )
+    if( !joybus_rtc_init() )
     {
         while( !(disp = display_lock()) );
 
@@ -180,31 +197,19 @@ int main(void)
         while(1) { /* Deadloop forever */ }
     }
 
-    /* Show a message while preparing the RTC */
-    while( !(disp = display_lock()) );
-    graphics_fill_screen( disp, BLACK );
-    graphics_set_color( WHITE, BLACK );
-    graphics_draw_text( disp, 0, LINE1, PREPARE_MESSAGE );
-    display_show(disp);
-
-    /* Prepare the RTC and detect write support */
-    joybus_rtc_run();
-    rtc_writable = joybus_rtc_is_writable();
-    rtc_paused = false;
-
-    const char * line1_text = RUNNING_MESSAGE;
-    const char * line4_text = NOWRITE_MESSAGE;
+    /* Determine if the RTC is writable */
+    run_rtc_write_test();
 
     while(1) 
     {
-        if( !rtc_paused ) joybus_rtc_read_time( &rtc_time );
+        if( !edit_mode ) joybus_rtc_get( &rtc_time );
 
         while( !(disp = display_lock()) );
 
         graphics_fill_screen( disp, BLACK );
 
         /* Line 1 */
-        line1_text = rtc_paused ? PAUSED_MESSAGE : RUNNING_MESSAGE;
+        line1_text = edit_mode ? PAUSED_MESSAGE : RUNNING_MESSAGE;
         graphics_set_color( WHITE, BLACK );
         graphics_draw_text( disp, 0, LINE1, line1_text );
 
@@ -219,6 +224,13 @@ int main(void)
         graphics_set_color( WHITE, BLACK );
         graphics_draw_text( disp, 0, LINE4, line4_text );
 
+        /* Line 5 */
+        if( !edit_mode )
+        {
+            graphics_set_color( WHITE, BLACK );
+            graphics_draw_text( disp, 0, LINE5, RETEST_MESSAGE );
+        }
+
         display_show(disp);
        
         controller_scan();
@@ -232,15 +244,16 @@ int main(void)
                 edit_mode = EDIT_NONE;
                 draw_writing_message();
                 joybus_rtc_set( &rtc_time );
-                rtc_paused = false;
-                /* Keep the "Writing" message shown a little longer */
-                wait_ms( 400 );
             }
             else
             {
                 edit_mode = EDIT_YEAR;
-                rtc_paused = true;
             }
+        }
+
+        if( keys.c[0].B )
+        {
+            run_rtc_write_test();
         }
 
         /* Adjust date/time */

@@ -39,14 +39,10 @@ typedef struct rtc_time_t
 extern "C" {
 #endif
 
-bool joybus_rtc_is_present( void );
-bool joybus_rtc_is_busy( void );
+bool joybus_rtc_init( void );
 bool joybus_rtc_is_writable( void );
-
-void joybus_rtc_run( void );
-void joybus_rtc_set( const rtc_time_t * rtc_time );
-
-void joybus_rtc_read_time( rtc_time_t * rtc_time );
+void joybus_rtc_get( rtc_time_t * rtc_time );
+bool joybus_rtc_set( const rtc_time_t * rtc_time );
 
 #ifdef __cplusplus
 }
