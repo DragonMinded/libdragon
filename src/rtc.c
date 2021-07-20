@@ -11,22 +11,24 @@
  * @ingroup libdragon
  * @brief Joybus real-time clock interface.
  *
- * The Joybus real-time clock is an peripheral that uses a battery to power
- * a clock that runs even when the N64 is powered-off and maintains the date,
- * time, and day of the week. The Joybus RTC is accessed through the serial
- * interface (SI) similar to EEPROM and controllers. The Joybus RTC was only
- * ever included on one official cartridge that was only available in Japan. 
+ * The Joybus real-time clock is a cartridge peripheral that uses a battery
+ * to power a clock that tracks the date, time, and day of the week. The
+ * real-time clock keeps running even when the N64 is powered-off. The
+ * Joybus RTC is accessed through the serial interface (SI) similar to EEPROM
+ * and controllers. The Joybus RTC was only ever available on one official
+ * cartridge that was only available in Japan: Dōbutsu no Mori (Animal Forest). 
  *
  * To check if the real-time clock is available, call #joybus_rtc_init.
  * To read the current time from the RTC, call #joybus_rtc_get.
  *
- * In general, since only one game ever used Joybus RTC (and that game was
- * later re-released on the GameCube in English), RTC support by emulators
- * and flash carts tends to be incomplete, inaccurate, or non-existent.
+ * Unfortunately, since only one game ever used Joybus RTC (and that game was
+ * later re-released on the GameCube in English), real-time clock support in 
+ * emulators and flash carts may be incomplete, inaccurate, or non-existent.
  * Many emulators do not actually implement the RTC write command and will
  * always respond with the host system's current local time. Some emulators
  * and flash carts support writing to RTC but will not persist the date/time
- * after resetting or powering-off.
+ * after resetting or powering-off. You can run the `rtctest` example ROM on
+ * your preferred emulator or flash cart to what RTC support is available.
  * 
  * Some notable examples of RTC support (as of July 2021):
  * 64drive hw2 fully implements RTC including writes, but requires hard-coded
@@ -36,12 +38,12 @@
  * RTC will not be detected if the EEPROM save type is used; RTC writes are
  * not supported through the SI, so changing the time must be done in the OS.
  * UltraPIF fully implements an emulated RTC that can be accessed even when
- * the cartridge does not contain a Real-Time Clock or battery.
+ * the cartridge does not include the real-time clock circuitry.
  *
  * The only reliable way to check if writes are actually supported is to write
  * a time to the RTC and read the time back out. Many emulators that do
  * support RTC reads will silently ignore RTC writes. You should detect
- * whether writes are supported using #joSybus_rtc_is_writable so that you can
+ * whether writes are supported using #joybus_rtc_is_writable so that you can
  * conditionally show the option to change the time if it's supported. If the
  * RTC supports writes, you can call #joybus_rtc_set to set the date and time.
  *
@@ -84,22 +86,22 @@
 /**
  * @brief The RTC is ready for block 2 to be read.
  */
-#define JOYBUS_RTC_STATUS_READY 0x00
+#define JOYBUS_RTC_STATUS_RUNNING 0x00
 /**
  * @brief The RTC is ready for block 2 to be written.
  */
-#define JOYBUS_RTC_STATUS_BUSY  0x80
+#define JOYBUS_RTC_STATUS_STOPPED  0x80
 
 /**
  * @brief Control mode for setting the RTC date/time.
  *
- * Clears the write-protection bits and sets the busy bit.
+ * Clears the write-protection bits and sets the stop bit.
  */
 #define JOYBUS_RTC_CONTROL_MODE_SET 0x0004
 /**
  * @brief Control mode for normal operation of the RTC.
  *
- * Clears the busy bit sets the write-protection bits.
+ * Clears the stop bit sets the write-protection bits.
  *
  * 0x0100 is the block 1 write-protection bit.
  * 0x0200 is the block 2 write-protection bit.
@@ -143,11 +145,11 @@ static uint8_t byte_to_bcd(uint8_t byte)
  *
  * The RTC status response contains a byte-swapped identifier half-word that
  * indicates an RTC is present on the cartridge and a status byte to indicate
- * whether the RTC is in the "busy" state.
+ * whether the RTC is in the "stopped" state.
  *
  * Generally, you should not need to call this function directly. Prefer
- * calling the high-level #joybus_rtc_init and #joybus_rtc_is_busy functions
- * which handle the magic numbers associated with the response.
+ * calling the high-level #joybus_rtc_init and #joybus_rtc_is_stopped
+ * functions which handle the magic numbers associated with the response.
  *
  * @return the RTC status response data
  */
@@ -254,14 +256,14 @@ static uint8_t joybus_rtc_write( uint8_t block, const uint64_t * data )
 /**
  * @brief Read the status of the real-time clock.
  *
- * The RTC will be busy when the control data is in
+ * The RTC should be stopped when the control data is in
  * #JOYBUS_RTC_CONTROL_MODE_SET and is ready to be written to.
  *
- * @return whether the Joybus RTC status is busy
+ * @return whether the Joybus RTC status is stopped
  */
-static bool joybus_rtc_is_busy( void )
+static bool joybus_rtc_is_stopped( void )
 {
-    return (joybus_rtc_status() & 0xFF) == JOYBUS_RTC_STATUS_BUSY;
+    return (joybus_rtc_status() & 0xFF) == JOYBUS_RTC_STATUS_STOPPED;
 }
 
 /**
@@ -460,16 +462,16 @@ bool joybus_rtc_set( const rtc_time_t * write_time )
     /* Prepare the RTC to write the time, preserving the calibration data */
     joybus_rtc_write_control( JOYBUS_RTC_CONTROL_MODE_SET, calibration );
     wait_ms( JOYBUS_RTC_WRITE_BLOCK_DELAY );
-    /* Check the RTC status to make sure RTC block 2 writes are supported */
-    if( !joybus_rtc_is_busy() ) return false;
+    /* Check the RTC status to make sure RTC "set mode" is supported */
+    if( !joybus_rtc_is_stopped() ) return false;
     /* Write the updated time to RTC block 2 */
     joybus_rtc_write_time( write_time );
     wait_ms( JOYBUS_RTC_WRITE_BLOCK_DELAY );
     /* Put the RTC back into normal operating mode */
     joybus_rtc_write_control( JOYBUS_RTC_CONTROL_MODE_RUN, calibration );
     wait_ms( JOYBUS_RTC_WRITE_BLOCK_DELAY );
-    /* Wait for the RTC to stop being busy */
-    while( joybus_rtc_is_busy() ) { /* Spinloop */ }
+    /* Wait for the RTC to start running */
+    while( joybus_rtc_is_stopped() ) { /* Spinloop */ }
     wait_ms( JOYBUS_RTC_WRITE_FINISHED_DELAY );
     return true;
 }

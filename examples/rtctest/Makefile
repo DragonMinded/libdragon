@@ -15,7 +15,7 @@ OBJCOPY = $(N64_GCC_PREFIX)objcopy
 
 # GCC Flags
 CFLAGS = -std=gnu99 -march=vr4300 -mtune=vr4300 -g -Og -Wall -Werror
-CFLAGS += -I$(ROOTDIR)/mips64-elf/include
+CFLAGS += -I$(SDK_DIR)/mips64-elf/include
 LDFLAGS = --library=dragon --library=c --library=m --library=dragonsys
 LDFLAGS += --library-path=$(SDK_LIB_DIR) --script=n64.ld --gc-sections
 
