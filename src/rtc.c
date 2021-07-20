@@ -182,7 +182,7 @@ static uint32_t joybus_rtc_status( void )
     };
     static uint64_t output[8];
 
-    controller_exec_pif( input, output );
+    joybus_exec( input, output );
 
     uint8_t * recv_bytes = (uint8_t *)&output[1];
 
@@ -224,7 +224,7 @@ static uint8_t joybus_rtc_read( uint8_t block, uint64_t * data )
 
     input[0] = (input[0] & 0xFFFFFFFFFFFFFF00) | block;
 
-    controller_exec_pif( input, output );
+    joybus_exec( input, output );
 
     *data = output[1];
 
@@ -262,7 +262,7 @@ static uint8_t joybus_rtc_write( uint8_t block, const uint64_t * data )
     input[0] = (input[0] & 0xFFFFFFFFFFFFFF00) | block;
     input[1] = *data;
 
-    controller_exec_pif( input, output );
+    joybus_exec( input, output );
 
     return output[2] >> 56;
 }

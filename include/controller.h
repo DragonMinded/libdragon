@@ -45,23 +45,6 @@
 /** @} */
 
 /**
- * @brief EEPROM Probe Values
- * @see #eeprom_present
- */
-typedef enum eeprom_type_t
-{
-    /** @brief No EEPROM present */
-    EEPROM_NONE = 0,
-    /** @brief 4 kilobit (64-block) EEPROM present */
-    EEPROM_4K   = 1,
-    /** @brief 16 kilobit (256-block) EEPROM present */
-    EEPROM_16K  = 2
-} eeprom_type_t; 
-
-/** @brief EEPROM is accessed in 8-byte blocks */
-#define EEPROM_BLOCK_SIZE 8
-
-/**
  * @name SI Error Values
  * @{
  */
@@ -195,7 +178,6 @@ extern "C" {
 #endif
 
 void controller_init( void );
-void controller_exec_pif( const void *inblock, void *outblock );
 void controller_read( struct controller_data * data );
 void controller_read_gc( struct controller_data * data, const uint8_t rumble[4] );
 void controller_read_gc_origin( struct controller_origin_data * data);
@@ -213,12 +195,6 @@ int identify_accessory( int controller );
 void rumble_start( int controller );
 void rumble_stop( int controller );
 void execute_raw_command( int controller, int command, int bytesout, int bytesin, unsigned char *out, unsigned char *in );
-eeprom_type_t eeprom_present( void );
-size_t eeprom_total_blocks( void );
-void eeprom_read( int block, uint8_t * dest );
-void eeprom_write( int block, const uint8_t * src );
-void eeprom_read_bytes( uint8_t * dest, size_t start, size_t len );
-void eeprom_write_bytes( const uint8_t * src, size_t start, size_t len );
 
 #ifdef __cplusplus
 }

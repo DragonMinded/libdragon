@@ -10,6 +10,7 @@ OFILES_LD += $(CURDIR)/build/dragonfs.o
 OFILES_LD += $(CURDIR)/build/audio.o
 OFILES_LD += $(CURDIR)/build/display.o
 OFILES_LD += $(CURDIR)/build/console.o
+OFILES_LD += $(CURDIR)/build/joybus.o
 OFILES_LD += $(CURDIR)/build/controller.o
 OFILES_LD += $(CURDIR)/build/rtc.o
 OFILES_LD += $(CURDIR)/build/eepromfs.o
@@ -85,7 +86,10 @@ $(CURDIR)/build/rsp.o: $(CURDIR)/src/rsp.c
 	mkdir -p $(CURDIR)/build
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/rsp.o $(CURDIR)/src/rsp.c
 
-# Rules for compiling controller system
+# Rules for compiling joybus system
+$(CURDIR)/build/joybus.o: $(CURDIR)/src/joybus.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/joybus.o $(CURDIR)/src/joybus.c
 $(CURDIR)/build/controller.o: $(CURDIR)/src/controller.c
 	mkdir -p $(CURDIR)/build
 	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/controller.o $(CURDIR)/src/controller.c
