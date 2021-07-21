@@ -148,16 +148,16 @@
 #define JOYBUS_RTC_CONTROL_MODE_RUN 0x0300
 
 /**
- * @brief Cache the most-recent RTC time for 500 milliseconds.
+ * @brief Invalidate the most-recent RTC time cache after 1 second.
  */
-#define RTC_CACHE_INVALIDATE_TICKS (TICKS_PER_SECOND / 2)
+#define RTC_GET_CACHE_INVALIDATE_TICKS (TICKS_PER_SECOND)
 
 /**
- * @brief Number of ticks when #rtc_get cache was last updated.
+ * @brief Tick counter state when #rtc_get cache was last updated.
  * 
  * Set to 0 to manually invalidate the #rtc_get cache.
  * Cache will automatically invalidate if the tick counter overflows.
- * Cache will otherwise invalidate every #RTC_CACHE_INVALIDATE_TICKS.
+ * Cache will otherwise invalidate every #RTC_GET_CACHE_INVALIDATE_TICKS.
  */
 static uint32_t rtc_get_cache_ticks = 0;
 
@@ -658,7 +658,7 @@ void rtc_normalize_time( rtc_time_t * rtc_time )
  * destination rtc_time parameter will be updated regardless of
  * the cache validity.
  * 
- * Cache will invalidate every #RTC_CACHE_INVALIDATE_TICKS.
+ * Cache will invalidate every #RTC_GET_CACHE_INVALIDATE_TICKS.
  * Cache will also invalidate when the tick counter overflows.
  * Calling #rtc_set will also invalidate the cache.
  *
@@ -681,7 +681,7 @@ bool rtc_get( rtc_time_t * rtc_time )
     if(
         rtc_get_cache_ticks == 0 || /* cache manually invalidated */
         distance < 0 || /* ticks counter overflow */
-        distance > RTC_CACHE_INVALIDATE_TICKS 
+        distance > RTC_GET_CACHE_INVALIDATE_TICKS 
     )
     {
         joybus_rtc_read_time( &cache_time );
