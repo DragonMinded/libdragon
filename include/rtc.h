@@ -41,7 +41,7 @@ extern "C" {
 
 bool rtc_init( void );
 bool rtc_is_writable( void );
-void rtc_get( rtc_time_t * rtc_time );
+bool rtc_get( rtc_time_t * rtc_time );
 bool rtc_set( rtc_time_t * rtc_time );
 void rtc_normalize_time( rtc_time_t * rtc_time );
 

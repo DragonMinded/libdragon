@@ -4,6 +4,7 @@
  * @ingroup rtc
  */
 
+#include <string.h>
 #include "libdragon.h"
 
 /**
@@ -143,6 +144,36 @@
  * 0x0200 is the block 2 write-protection bit.
  */
 #define JOYBUS_RTC_CONTROL_MODE_RUN 0x0300
+
+/**
+ * @brief Cache the most-recent RTC time for 500 milliseconds.
+ */
+#define RTC_CACHE_INVALIDATE_TICKS (TICKS_PER_SECOND / 2)
+
+/**
+ * @brief Number of ticks when #rtc_get cache was last updated.
+ * 
+ * Set to 0 to manually invalidate the #rtc_get cache.
+ * Cache will automatically invalidate if the tick counter overflows.
+ * Cache will otherwise invalidate every #RTC_CACHE_INVALIDATE_TICKS.
+ */
+static uint32_t rtc_get_cache_ticks = 0;
+
+/**
+ * @brief Real-time clock detection values.
+ * @see #rtc_present
+ */
+typedef enum rtc_type_t
+{
+    /** @brief No RTC detected. */
+    RTC_NONE = 0,
+    /** @brief Joybus RTC detected. */
+    RTC_JOYBUS = 1,
+    /** @brief N64 Disk Drive RTC detected. (Not implemented) */
+    RTC_DD = 2,
+    /** @brief RTC detection has not been occurred yet. */
+    RTC_UNKNOWN = -1,
+} rtc_type_t;
 
 /**
  * @brief Decode a packed binary-coded decimal number.
@@ -342,6 +373,34 @@ static void joybus_rtc_read_control( uint16_t * control, uint32_t * calibration 
 }
 
 /**
+ * @brief Read the current date/time from the Joybus real-time clock.
+ *
+ * The result of calling this function when the Joybus RTC is not
+ * present is undefined and may not be safe. #rtc_get will not
+ * call this function if the Joybus RTC was not detected.
+ *
+ * @param[out]  rtc_time
+ *              Destination pointer for the RTC time data structure
+ */
+static void joybus_rtc_read_time( rtc_time_t * rtc_time )
+{
+    uint64_t data;
+    joybus_rtc_read( 2, &data );
+
+    uint8_t * bytes = (uint8_t *)&data;
+
+    rtc_time->sec = bcd_to_byte(bytes[0]);
+    rtc_time->min = bcd_to_byte(bytes[1]);
+    rtc_time->hour = bcd_to_byte(bytes[2] - 0x80);
+    rtc_time->day = bcd_to_byte(bytes[3]);
+    rtc_time->week_day = bcd_to_byte(bytes[4]);
+    rtc_time->month = bcd_to_byte(bytes[5]) - 1;
+    rtc_time->year = bcd_to_byte(bytes[6]);
+    rtc_time->year += (uint16_t)bcd_to_byte(bytes[7]) * 100;
+    rtc_time->year += 1900;
+}
+
+/**
  * @brief Write the control block to the Joybus real-time clock.
  *
  * Typically this would be set to one of two "modes":
@@ -429,6 +488,34 @@ static void joybus_rtc_write_time( const rtc_time_t * rtc_time )
 }
 
 /**
+ * @brief Determine which RTC type is available (if any).
+ * 
+ * This function will only actually perform RTC detection the
+ * first time it is called. All subsequent calls will return
+ * a cached value.
+ * 
+ * The RTC type should never change while the N64 is powered-on.
+ * 
+ * @return #RTC_JOYBUS or #RTC_NONE (#RTC_DD is not supported yet)
+ */
+static rtc_type_t rtc_present( void )
+{
+    static rtc_type_t rtc_detected = RTC_UNKNOWN;
+    if( rtc_detected != RTC_UNKNOWN )
+    {
+        return rtc_detected;
+    }
+    else if( (joybus_rtc_status() >> 8) == JOYBUS_RTC_IDENTIFIER )
+    {
+        return rtc_detected = RTC_JOYBUS;
+    }
+    else
+    {
+        return rtc_detected = RTC_NONE;
+    }
+}
+
+/**
  * @brief High-level convenience helper to initialize the RTC subsystem.
  *
  * Some flash carts require the RTC to be explicitly enabled before loading
@@ -439,11 +526,15 @@ static void joybus_rtc_write_time( const rtc_time_t * rtc_time )
  * 
  * This operation may take up to 50 milliseconds to complete.
  * 
- * @return whether the RTC was detected
+ * @return whether the RTC is present and supported by the RTC Subsystem.
  */
 bool rtc_init( void )
 {
-    if( (joybus_rtc_status() >> 8) != JOYBUS_RTC_IDENTIFIER ) return false;
+    /* libdragon currently only supports Joybus RTC! */
+    if( rtc_present() != RTC_JOYBUS ) return false;
+
+    /* Invalidate the #rtc_get cache */
+    rtc_get_cache_ticks = 0;
 
     /* Read the calibration data from the control block */
     uint32_t calibration;
@@ -516,33 +607,49 @@ void rtc_normalize_time( rtc_time_t * rtc_time )
 /**
  * @brief Read the current date/time from the real-time clock.
  *
- * Your code should call this once per frame to update the #rtc_time_t
- * data structure.
+ * If the RTC is not detected or supported, this function will
+ * not modify the destination rtc_time parameter.
  *
- * The result of calling this function when the RTC is not present is
- * undefined and may not be safe. Make sure you call #rtc_init at the
- * start of your program to ensure the RTC is detected before reading
- * the current time!
+ * Your code should call this once per frame to update the #rtc_time_t
+ * data structure. The RTC Subsystem maintains a cache of the
+ * most-recent RTC time that was read and will only perform an
+ * actual RTC read command if the cache is invalidated. The
+ * destination rtc_time parameter will be updated regardless of
+ * the cache validity.
+ *
+ * Cache will invalidate every #RTC_CACHE_INVALIDATE_TICKS.
+ * Cache will also invalidate when the tick counter overflows.
+ * Calling #rtc_set will also invalidate the cache.
  *
  * @param[out]  rtc_time
  *              Destination pointer for the RTC time data structure
+ * 
+ * @return whether the rtc_time destination pointer data was modified
  */
-void rtc_get( rtc_time_t * rtc_time )
+bool rtc_get( rtc_time_t * rtc_time )
 {
-    uint64_t data;
-    joybus_rtc_read( 2, &data );
+    /* libdragon currently only supports getting the time for Joybus RTC! */
+    if( rtc_present() != RTC_JOYBUS ) return false;
 
-    uint8_t * bytes = (uint8_t *)&data;
+    /* This should be overwritten the first time this function is called */
+    static rtc_time_t cache_time = { 2000, 0, 1, 0, 0, 0, 6 };
 
-    rtc_time->sec = bcd_to_byte(bytes[0]);
-    rtc_time->min = bcd_to_byte(bytes[1]);
-    rtc_time->hour = bcd_to_byte(bytes[2] - 0x80);
-    rtc_time->day = bcd_to_byte(bytes[3]);
-    rtc_time->week_day = bcd_to_byte(bytes[4]);
-    rtc_time->month = bcd_to_byte(bytes[5]) - 1;
-    rtc_time->year = bcd_to_byte(bytes[6]);
-    rtc_time->year += (uint16_t)bcd_to_byte(bytes[7]) * 100;
-    rtc_time->year += 1900;
+    uint32_t current_ticks = get_ticks();
+    int32_t distance = TICKS_DISTANCE( current_ticks, rtc_get_cache_ticks );
+
+    if(
+        rtc_get_cache_ticks == 0 || /* cache manually invalidated */
+        distance < 0 || /* ticks counter overflow */
+        distance > RTC_CACHE_INVALIDATE_TICKS 
+    )
+{
+        joybus_rtc_read_time( &cache_time );
+        rtc_get_cache_ticks = current_ticks;
+    }
+
+    memcpy( rtc_time, &cache_time, sizeof(rtc_time_t) );
+
+    return true;
 }
 
 /**
@@ -558,10 +665,13 @@ void rtc_get( rtc_time_t * rtc_time )
  * @param[in]   rtc_time
  *              Source pointer for the RTC time data structure
  * 
- * @return false if the RTC does not support entering "set mode"
+ * @return false if the RTC does not support being set
  */
 bool rtc_set( rtc_time_t * write_time )
 {
+    /* libdragon currently only supports setting the time for Joybus RTC! */
+    if( rtc_present() != RTC_JOYBUS ) return false;
+
     uint32_t calibration;
     /* Read the calibration data from the control block */
     joybus_rtc_read_control( NULL, &calibration );
@@ -581,6 +691,8 @@ bool rtc_set( rtc_time_t * write_time )
     /* Wait for the RTC to start running */
     while( joybus_rtc_is_stopped() ) { /* Spinloop */ }
     wait_ms( JOYBUS_RTC_WRITE_FINISHED_DELAY );
+    /* Invalidate the #rtc_get cache */
+    rtc_get_cache_ticks = 0;
     return true;
 }
 
