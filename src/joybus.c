@@ -46,9 +46,14 @@
 #define SI_STATUS_IO_BUSY   ( 1 << 1 )
 /** @} */
 
-/** @brief Structure used to interact with SI registers */
+/**
+ * @brief Structure used to interact with SI registers.
+ */
 static volatile struct SI_regs_s * const SI_regs = (struct SI_regs_s *)0xa4800000;
-/** @brief Location of the PIF RAM */
+
+/**
+ * @brief Pointer to the memory-mapped location of the PIF RAM.
+ */
 static void * const PIF_RAM = (void *)0x1fc007c0;
 
 /**
@@ -60,36 +65,37 @@ static void __SI_DMA_wait( void )
 }
 
 /**
- * @brief Send a block of data to the PIF and fetch the result
+ * @brief Write a 64-byte block of data to the PIF and read the 64-byte result.
  *
- * @param[in]  inblock
- *             The formatted block to send to the PIF
- * @param[out] outblock
- *             The buffer to place the output from the PIF
+ * @param[in]  input
+ *             Source buffer for the input block to send to the PIF
+ *
+ * @param[out] output
+ *             Destination buffer to place the output block from the PIF
  */
-void joybus_exec( const void *inblock, void *outblock )
+void joybus_exec( const void * input, void * output )
 {
-    volatile uint64_t inblock_temp[8];
-    volatile uint64_t outblock_temp[8];
+    volatile uint64_t input_aligned[JOYBUS_BLOCK_DWORDS] __attribute__((aligned(16)));
+    volatile uint64_t output_aligned[JOYBUS_BLOCK_DWORDS] __attribute__((aligned(16)));
 
-    data_cache_hit_writeback_invalidate(inblock_temp, 64);
-    memcpy(UncachedAddr(inblock_temp), inblock, 64);
+    data_cache_hit_writeback_invalidate(input_aligned, JOYBUS_BLOCK_SIZE);
+    memcpy(UncachedAddr(input_aligned), input, JOYBUS_BLOCK_SIZE);
 
     /* Be sure another thread doesn't get into a resource fight */
     disable_interrupts();
 
     __SI_DMA_wait();
 
-    SI_regs->DRAM_addr = inblock_temp; // only cares about 23:0
+    SI_regs->DRAM_addr = input_aligned; // only cares about 23:0
     MEMORY_BARRIER();
-    SI_regs->PIF_addr_write = PIF_RAM; // is it really ever anything else?
+    SI_regs->PIF_addr_write = PIF_RAM;
     MEMORY_BARRIER();
 
     __SI_DMA_wait();
 
-    data_cache_hit_writeback_invalidate(outblock_temp, 64);
+    data_cache_hit_writeback_invalidate(output_aligned, JOYBUS_BLOCK_SIZE);
 
-    SI_regs->DRAM_addr = outblock_temp;
+    SI_regs->DRAM_addr = output_aligned;
     MEMORY_BARRIER();
     SI_regs->PIF_addr_read = PIF_RAM;
     MEMORY_BARRIER();
@@ -99,17 +105,20 @@ void joybus_exec( const void *inblock, void *outblock )
     /* Now that we've copied, its safe to let other threads go */
     enable_interrupts();
 
-    memcpy(outblock, UncachedAddr(outblock_temp), 64);
+    memcpy(output, UncachedAddr(output_aligned), JOYBUS_BLOCK_SIZE);
 }
 
 /**
- * @brief Probe the EEPROM interface on the cartridge.
+ * @brief Read the status of the EEPROM.
  *
- * @return Which EEPROM type was detected on the cartridge.
+ * The EEPROM status response contains a byte-swapped identifier half-word that
+ * indicates which size EEPROM is present on the cartridge and a status byte.
+ *
+ * @return the normalized Joybus EEPROM status response data.
  */
-eeprom_type_t eeprom_present( void )
+static uint32_t eeprom_status( void )
 {
-    static const uint64_t SI_eeprom_status_block[8] =
+    const uint64_t input[JOYBUS_BLOCK_DWORDS] =
     {
         0x00000000ff010300,
         0xfffffffffe000000,
@@ -120,24 +129,43 @@ eeprom_type_t eeprom_present( void )
         0,
         1
     };
-    static uint64_t output[8];
+    uint64_t output[JOYBUS_BLOCK_DWORDS];
 
-    joybus_exec( SI_eeprom_status_block, output );
+    joybus_exec( input, output );
 
-    /* We are looking at the second byte returned, which
-     * signifies which size EEPROM (if any) is present.*/
-    switch( (output[1] >> 48) & 0xFF )
+    uint8_t * recv_bytes = (uint8_t *)&output[1];
+
+    return (
+        /* Intentional un-swap of identifier bytes */
+        ((uint32_t)recv_bytes[1] << 16) |
+        ((uint32_t)recv_bytes[0] << 8)  |
+        recv_bytes[2]
+    );
+}
+
+/**
+ * @brief Probe the EEPROM interface on the cartridge.
+ *
+ * Inspect the identifier half-word of the EEPROM status response to
+ * determine which EEPROM save type is available (if any).
+ *
+ * @return which EEPROM type was detected on the cartridge.
+ */
+eeprom_type_t eeprom_present( void )
+{
+    switch( eeprom_status() >> 8 )
     {
-        case 0xC0: return EEPROM_16K;
-        case 0x80: return EEPROM_4K;
+        case 0xC000: return EEPROM_16K;
+        case 0x8000: return EEPROM_4K;
         default: return EEPROM_NONE;
     }
 }
 
 /**
- * @brief Return how many blocks of EEPROM exist on the cartridge.
+ * @brief Determine how many blocks of EEPROM exist on the cartridge.
  *
- * @return The capacity of the detected EEPROM type, or 0 if no EEPROM is present.
+ * @return 0 if EEPROM was not detected
+ *         or the number of EEPROM 8-byte save blocks available.
  */
 size_t eeprom_total_blocks( void )
 {
@@ -150,19 +178,20 @@ size_t eeprom_total_blocks( void )
 }
 
 /**
- * @brief Read a block from EEPROM
+ * @brief Read a block from EEPROM.
  *
  * @param[in]  block
- *             Block to read data from. The N64 accesses EEPROM in 8-byte blocks.
+ *             Block to read data from. Joybus accesses EEPROM in 8-byte blocks.
+ *
  * @param[out] dest
  *             Destination buffer for the eight bytes read from EEPROM.
  */
-void eeprom_read( int block, uint8_t * dest )
+void eeprom_read( uint8_t block, uint8_t * dest )
 {
-    static uint64_t SI_eeprom_read_block[8] =
+    const uint64_t input[JOYBUS_BLOCK_DWORDS] =
     {
-        0x0000000002080400,				// LSB is block
-        0xffffffffffffffff,				// return data will be this quad
+        0x0000000002080400 | block,
+        0xffffffffffffffff,
         0xfe00000000000000,
         0,
         0,
@@ -170,58 +199,66 @@ void eeprom_read( int block, uint8_t * dest )
         0,
         1
     };
-    static uint64_t output[8];
+    uint64_t output[JOYBUS_BLOCK_DWORDS];
 
-    SI_eeprom_read_block[0] = 0x0000000002080400 | (block & 255);
-    joybus_exec( SI_eeprom_read_block, output );
+    joybus_exec( input, output );
+
     memcpy( dest, &output[1], EEPROM_BLOCK_SIZE );
 }
 
 /**
- * @brief Write a block to EEPROM
+ * @brief Write a block to EEPROM.
  *
  * @param[in] block
- *            Block to write data to. The N64 accesses EEPROM in 8-byte blocks.
+ *            Block to write data to. Joybus accesses EEPROM in 8-byte blocks.
+ *
  * @param[in] src
  *            Source buffer for the eight bytes of data to write to EEPROM.
+ *
+ * @return the EEPROM status byte
  */
-void eeprom_write( int block, const uint8_t * src )
+uint8_t eeprom_write( uint8_t block, const uint8_t * src )
 {
-    static uint64_t SI_eeprom_write_block[8] =
+    uint64_t input[JOYBUS_BLOCK_DWORDS] =
     {
-        0x000000000a010500,				// LSB is block
-        0x0000000000000000,				// send data is this quad
-        0xfffe000000000000,				// MSB will be status of write
+        0x000000000a010500 | block,
+        0x0000000000000000,
+        0xfffe000000000000,
         0,
         0,
         0,
         0,
         1
     };
-    static uint64_t output[8];
+    uint64_t output[JOYBUS_BLOCK_DWORDS];
 
-    SI_eeprom_write_block[0] = 0x000000000a010500 | (block & 255);
-    memcpy( &SI_eeprom_write_block[1], src, EEPROM_BLOCK_SIZE );
-    joybus_exec( SI_eeprom_write_block, output );
+    memcpy( &input[1], src, EEPROM_BLOCK_SIZE );
+
+    joybus_exec( input, output );
+
+    return output[2] >> 56;
 }
 
 /**
- * @brief Read a buffer of bytes from EEPROM
+ * @brief Read a buffer of bytes from EEPROM.
  *
- * This is a convenience helper that abstracts away the 8-byte block access pattern.
+ * This is a high-level convenience helper that abstracts away the
+ * one-at-a-time EEPROM block access pattern.
  *
  * @param[out] buf
- *             Buffer to read data into
+ *             Destination buffer to read data into
+ *
  * @param[in]  start
- *             Byte offset to start reading data from
+ *             Byte offset in EEPROM to start reading data from
+ *
  * @param[in]  len
  *             Byte length of data to read into buffer
  */
 void eeprom_read_bytes( uint8_t * dest, size_t start, size_t len )
 {
+    size_t bytes_left = len;
 	uint8_t buf[EEPROM_BLOCK_SIZE];
-	size_t bytes_left = len;
-	size_t current_block = start / EEPROM_BLOCK_SIZE;
+	uint8_t current_block = start / EEPROM_BLOCK_SIZE;
 	// If we need to read a partial block to start off...
 	size_t block_offset = start % EEPROM_BLOCK_SIZE;
 	if (block_offset)
@@ -249,9 +286,10 @@ void eeprom_read_bytes( uint8_t * dest, size_t start, size_t len )
 }
 
 /**
- * @brief Write a buffer of bytes to EEPROM
+ * @brief Write a buffer of bytes to EEPROM.
  *
- * This is a convenience helper that abstracts away the 8-byte block access pattern.
+ * This is a high-level convenience helper that abstracts away the
+ * one-at-a-time EEPROM block access pattern.
  *
  * Each EEPROM block write takes approximately 15 milliseconds;
  * this operation may block for a while with large buffer sizes:
@@ -262,17 +300,19 @@ void eeprom_read_bytes( uint8_t * dest, size_t start, size_t len )
  * You may want to pause audio before calling this.
  *
  * @param[in] src
- *            Buffer of data to write
+ *            Source buffer containing data to write
+ *
  * @param[in] start
- *            Byte offset to start writing data to
+ *            Byte offset in EEPROM to start writing data to
+ *
  * @param[in] len
  *            Byte length of the src buffer
  */
 void eeprom_write_bytes( const uint8_t * src, size_t start, size_t len )
 {
+    size_t bytes_left = len;
 	uint8_t buf[EEPROM_BLOCK_SIZE];
-	size_t bytes_left = len;
-	size_t current_block = start / EEPROM_BLOCK_SIZE;
+	uint8_t current_block = start / EEPROM_BLOCK_SIZE;
 	// If we need to write a partial block to start off...
 	size_t block_offset = start % EEPROM_BLOCK_SIZE;
 	if (block_offset)

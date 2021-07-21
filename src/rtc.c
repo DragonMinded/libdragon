@@ -197,7 +197,7 @@ static const uint8_t DAYS_IN_MONTH[] =
  */
 static uint32_t joybus_rtc_status( void )
 {
-    const uint64_t input[8] =
+    const uint64_t input[JOYBUS_BLOCK_DWORDS] =
     {
         0x00000000ff010306,
         0xfffffffe00000000,
@@ -208,7 +208,7 @@ static uint32_t joybus_rtc_status( void )
         0,
         1
     };
-    uint64_t output[8];
+    uint64_t output[JOYBUS_BLOCK_DWORDS];
 
     joybus_exec( input, output );
 
@@ -240,7 +240,7 @@ static uint8_t joybus_rtc_read( uint8_t block, uint64_t * data )
 {
     assert(block <= 2);
 
-    uint64_t input[8] =
+    uint64_t input[JOYBUS_BLOCK_DWORDS] =
     {
         0x0000000002090700 | block,
         0xffffffffffffffff,
@@ -251,7 +251,7 @@ static uint8_t joybus_rtc_read( uint8_t block, uint64_t * data )
         0,
         1
     };
-    uint64_t output[8];
+    uint64_t output[JOYBUS_BLOCK_DWORDS];
 
     joybus_exec( input, output );
 
@@ -278,7 +278,7 @@ static uint8_t joybus_rtc_write( uint8_t block, const uint64_t * data )
 {
     assert(block <= 2);
 
-    uint64_t input[8] =
+    uint64_t input[JOYBUS_BLOCK_DWORDS] =
     {
         0x000000000A010800 | block,
         *data,
@@ -289,7 +289,7 @@ static uint8_t joybus_rtc_write( uint8_t block, const uint64_t * data )
         0,
         1
     };
-    uint64_t output[8];
+    uint64_t output[JOYBUS_BLOCK_DWORDS];
 
     joybus_exec( input, output );
 
