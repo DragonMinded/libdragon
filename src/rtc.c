@@ -17,31 +17,34 @@
  * Joybus RTC is accessed through the serial interface (SI) similar to EEPROM
  * and controllers. The Joybus RTC was only ever available on one official
  * cartridge that was only available in Japan: Dōbutsu no Mori (Animal Forest).
- * There is also a real-time clock included in the N64DD hardware, which is
- * not currently supported by the LibDragon RTC subsystem.
+ * There is also a real-time clock included in the N64DD hardware, which uses
+ * a different interface and is not currently supported by libdragon.
  *
  * To check if the real-time clock is available, call #rtc_init.
  * To read the current time from the real-time clock, call #rtc_get.
- * To write a new time to the real-time clock, call #rtc_set
+ * To check if the real-time clock supports writes, call #rtc_is_writable.
+ * To write a new time to the real-time clock, call #rtc_set.
  * 
  * This subsystem handles decoding and encoding the date/time from its internal
  * format into a struct called #rtc_time_t, which contains integer values for
  * year, month, day-of-month, day-of-week, hour, minute, and second.
  * 
  * The Joybus RTC contains 3 "blocks" (or zones) which contain 8 bytes of data:
- * Block 0 is used for a half-word control register and clock calibration data.
+ * Block 0 contains a half-word control register and opaque calibration data.
  * Block 1 is unused and unsupported. See notes below.
  * Block 2 contains the current date/time as packed binary-coded decimal.
  * 
  * Animal Forest did not use block 1 at all, so most emulators do not bother to
  * implement it. Theoretically, block 1 could be used as 8-bytes of SRAM-backed
- * storage, but this is not supported by the Real-Time Clock Subsystem. If you
- * need storage, consider using a standard cartridge save type or saving to a
- * Controller Pak. 
+ * storage, but this is not supported by libdragon's Real-Time Clock Subsystem.
+ * If you need storage, consider using a standard cartridge save type or saving
+ * to a Controller Pak. 
  * 
  * (As of July 2021) Joybus RTC does not work in combination with either EEPROM
  * save type on EverDrive64 3.0 or X7. To have the best compatibility and player
  * experience, it is not recommended to use the EEPROM + RTC ROM configuration.
+ * This is a bug in the EverDrive64 firmware and not a system limitation imposed
+ * by the Joybus protocol or serial interface.
  *
  * Unfortunately, since only one game ever used Joybus RTC (and that game was
  * later re-released on the GameCube in English), real-time clock support in 
@@ -58,6 +61,11 @@
  * whether writes are supported using #rtc_is_writable so that you can
  * conditionally show the option to change the time if it's supported. If the
  * RTC supports writes, it is safe to call #rtc_set to set the date and time.
+ * 
+ * Due to the inaccurate and inconsistent behavior of RTC reproductions that
+ * currently exist, this subsystem trades-off complete accuracy with the actual
+ * Animal Forest RTC in favor of broader compatibility with the various quirks
+ * and bugs that exist in real-world scenarios like emulators and flash carts.
  * 
  * Some notable examples of RTC support in the ecosystem (as of July 2021):
  * 
@@ -89,20 +97,21 @@
 /**
  * @brief Duration (in milliseconds) to wait after writing a Joybus RTC block.
  *
- * The software must wait for the previous RTC write to finish before issuing
- * another RTC write command. Ideally, you could read the RTC status byte to
+ * The software should wait for the previous RTC write to finish before issuing
+ * another Joybus RTC command. Ideally, you could read the RTC status byte to
  * determine when to proceed, but some RTC implementations do not correctly
- * implement the RTC status command, so a delay is used for compatibility.
+ * implement the RTC status response, so a delay is used for compatibility.
  */
 #define JOYBUS_RTC_WRITE_BLOCK_DELAY 20
 /**
  * @brief Duration (in milliseconds) to wait after setting Joybus RTC time.
  *
- * 64drive hw2 only updates the RTC readout several times per second, so it is
- * possible to write it and then read back the previous time before it ticks
- * and updates the "shadow interface" that it presents to the SI controller.
+ * 64drive hw2 only updates the RTC readout a few times per second, so it is
+ * possible to write a new time, then read back the previous time before the
+ * 64drive clock ticks to update the "shadow interface" that the SI reads from.
  * 
- * Without this delay, the #rtc_is_writable test may fail intermittently.
+ * Without this delay, the #rtc_is_writable test may fail intermittently on
+ * 64drive hw2.
  */
 #define JOYBUS_RTC_WRITE_FINISHED_DELAY 500
 
@@ -167,7 +176,7 @@ static uint8_t byte_to_bcd(uint8_t byte)
 /**
  * @brief Lookup table for number of days in each month.
  * 
- * Used by #rtc_normalize_time to clamp day of month.
+ * Used by #rtc_normalize_time to clamp the day-of-month value.
  * 
  * Does not account for leap years in the month of February.
  */
@@ -596,8 +605,9 @@ bool rtc_is_writable( void )
 {
     rtc_time_t restore_time;
     rtc_time_t verify_time;
-    /* These values are arbitrary but unlikely to be the current date/time. */
     rtc_time_t write_time;
+
+    /* These values are arbitrary but unlikely to be the current date/time. */
     write_time.year     = 2003;
     write_time.month    = 10;
     write_time.day      = 30;
