@@ -5,7 +5,9 @@
  */
 
 #include <string.h>
+#include <time.h>
 #include "libdragon.h"
+#include "system.h"
 
 /**
  * @defgroup rtc Real-Time Clock Subsystem
@@ -516,6 +518,28 @@ static rtc_type_t rtc_present( void )
 }
 
 /**
+ * @brief Hook function for newlib gettimeofday to get the current date/time.
+ * 
+ * @return the current timestamp in seconds or -1 if RTC is unavailable. 
+ */
+static time_t newlib_time_hook( void )
+{
+    static rtc_time_t rtc_time;
+    if( !rtc_get( &rtc_time ) ) return -1;
+
+    struct tm time;
+    time.tm_sec = rtc_time.sec;
+    time.tm_min = rtc_time.min;
+    time.tm_hour = rtc_time.hour;
+    time.tm_mday = rtc_time.day;
+    time.tm_mon = rtc_time.month;
+    time.tm_year = rtc_time.year - 1900;
+    time.tm_isdst = -1; /* Auto-detect Daylight Saving Time */
+    
+    return mktime( &time );
+}
+
+/**
  * @brief High-level convenience helper to initialize the RTC subsystem.
  *
  * Some flash carts require the RTC to be explicitly enabled before loading
@@ -525,6 +549,9 @@ static rtc_type_t rtc_present( void )
  * prepare the RTC so that the current time can be read from it.
  * 
  * This operation may take up to 50 milliseconds to complete.
+ * 
+ * This will also hook the RTC into the newlib gettimeofday function, so
+ * you will be able to use the ISO C time functions if RTC is available. 
  * 
  * @return whether the RTC is present and supported by the RTC Subsystem.
  */
@@ -544,7 +571,21 @@ bool rtc_init( void )
     joybus_rtc_write_control( JOYBUS_RTC_CONTROL_MODE_RUN, calibration );
     wait_ms( JOYBUS_RTC_WRITE_BLOCK_DELAY );
 
+    hook_time_call( &newlib_time_hook );
+
     return true;
+}
+
+/**
+ * @brief Unhooks the RTC from the newlib gettimeofday function.
+ * 
+ * This will cause subsequent calls to gettimeofday to error with ENOSYS.
+ * 
+ * You should not ever need to do this, but it is available if desired.
+ */
+void rtc_close( void )
+{
+    unhook_time_call( &newlib_time_hook );
 }
 
 /**
@@ -606,7 +647,7 @@ void rtc_normalize_time( rtc_time_t * rtc_time )
 
 /**
  * @brief Read the current date/time from the real-time clock.
- *
+ * 
  * If the RTC is not detected or supported, this function will
  * not modify the destination rtc_time parameter.
  *
@@ -616,7 +657,7 @@ void rtc_normalize_time( rtc_time_t * rtc_time )
  * actual RTC read command if the cache is invalidated. The
  * destination rtc_time parameter will be updated regardless of
  * the cache validity.
- *
+ * 
  * Cache will invalidate every #RTC_CACHE_INVALIDATE_TICKS.
  * Cache will also invalidate when the tick counter overflows.
  * Calling #rtc_set will also invalidate the cache.
@@ -642,11 +683,11 @@ bool rtc_get( rtc_time_t * rtc_time )
         distance < 0 || /* ticks counter overflow */
         distance > RTC_CACHE_INVALIDATE_TICKS 
     )
-{
+    {
         joybus_rtc_read_time( &cache_time );
         rtc_get_cache_ticks = current_ticks;
     }
-
+    
     memcpy( rtc_time, &cache_time, sizeof(rtc_time_t) );
 
     return true;

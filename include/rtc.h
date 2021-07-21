@@ -40,6 +40,7 @@ extern "C" {
 #endif
 
 bool rtc_init( void );
+void rtc_close( void );
 bool rtc_is_writable( void );
 bool rtc_get( rtc_time_t * rtc_time );
 bool rtc_set( rtc_time_t * rtc_time );

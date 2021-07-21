@@ -188,6 +188,9 @@ int detach_filesystem( const char * const prefix );
 int hook_stdio_calls( stdio_t *stdio_calls );
 int unhook_stdio_calls( stdio_t *stdio_calls );
 
+int hook_time_call( time_t (*time_fn)( void ) );
+int unhook_time_call( time_t (*time_fn)( void ) );
+
 #ifdef __cplusplus
 }
 #endif
