@@ -62,9 +62,9 @@ void print_usage(const char * prog_name)
 	fprintf(stderr, "\tnone\t\tGame does not save or uses Controller Pak.\n");
 	fprintf(stderr, "\teeprom4k\tGame saves to 4 kilobit EEPROM.\n");
 	fprintf(stderr, "\teeprom16k\tGame saves to 16 kilobit EEPROM.\n");
-	fprintf(stderr, "\tsram128k\tGame saves to 128 kilobit SRAM\n");
 	fprintf(stderr, "\tsram256k\tGame saves to 256 kilobit SRAM\n");
 	fprintf(stderr, "\tsram768k\tGame saves to 768 kilobit SRAM\n");
+	fprintf(stderr, "\tsram1m\t\tGame saves to 1 megabit SRAM\n");
 	fprintf(stderr, "\tflashram\tGame saves to 1 megabit FlashRAM\n");
 }
 
@@ -239,7 +239,7 @@ uint8_t parse_save_type(const char * arg)
 	if (strcmp(arg, "sram256k") == 0) return 0x30;
 	if (strcmp(arg, "sram768k") == 0) return 0x40;
 	if (strcmp(arg, "flashram") == 0) return 0x50;
-	if (strcmp(arg, "sram128k") == 0) return 0x60;
+	if (strcmp(arg, "sram1m") == 0) return 0x60;
 	return SAVETYPE_NOT_SET;
 }
 
