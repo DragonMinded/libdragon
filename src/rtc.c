@@ -162,7 +162,6 @@
  *
  * Set to 0 to manually invalidate the #rtc_get cache.
  * Cache will invalidate every #RTC_GET_CACHE_INVALIDATE_TICKS.
- * Cache will automatically invalidate if the tick counter overflows.
  */
 static int64_t rtc_get_cache_ticks = 0;
 
@@ -677,7 +676,6 @@ void rtc_normalize_time( rtc_time_t * rtc_time )
  * the cache validity.
  *
  * Cache will invalidate every #RTC_GET_CACHE_INVALIDATE_TICKS.
- * Cache will also invalidate when the tick counter overflows.
  * Calling #rtc_set will also invalidate the cache.
  *
  * If an actual RTC read command is needed, this function can take
@@ -696,19 +694,16 @@ bool rtc_get( rtc_time_t * rtc_time )
     /* This should be overwritten the first time this function is called */
     static rtc_time_t cache_time = { 2000, 0, 1, 0, 0, 0, 6 };
 
-    int64_t current_ticks = timer_ticks();
-    int32_t distance = TICKS_DISTANCE( rtc_get_cache_ticks, current_ticks );
-
     /* Check if the cached time is still valid */
+    int64_t now = timer_ticks();
     if(
         rtc_get_cache_ticks == 0 || /* cache manually invalidated */
-        distance < 0 || /* ticks counter overflow */
-        distance > RTC_GET_CACHE_INVALIDATE_TICKS
+        (now - rtc_get_cache_ticks) > RTC_GET_CACHE_INVALIDATE_TICKS
     )
     {
         /* Update the cache */
         joybus_rtc_read_time( &cache_time );
-        rtc_get_cache_ticks = current_ticks;
+        rtc_get_cache_ticks = now;
     }
 
     memcpy( rtc_time, &cache_time, sizeof(rtc_time_t) );
