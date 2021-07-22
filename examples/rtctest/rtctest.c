@@ -213,6 +213,7 @@ int main(void)
     init_interrupts();
     display_init( res, bit, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
     controller_init();
+    timer_init();
 
     if( !rtc_init() )
     {

@@ -32,6 +32,7 @@ int main(void)
     display_init( res, bit, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
     console_init();
     controller_init();
+    timer_init();
     rtc_init();
 
     console_set_render_mode(RENDER_MANUAL);

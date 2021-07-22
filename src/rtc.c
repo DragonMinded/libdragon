@@ -161,10 +161,10 @@
  * @brief Tick counter state when #rtc_get cache was last updated.
  *
  * Set to 0 to manually invalidate the #rtc_get cache.
+ * Cache will invalidate every #RTC_GET_CACHE_INVALIDATE_TICKS.
  * Cache will automatically invalidate if the tick counter overflows.
- * Cache will otherwise invalidate every #RTC_GET_CACHE_INVALIDATE_TICKS.
  */
-static uint32_t rtc_get_cache_ticks = 0;
+static int64_t rtc_get_cache_ticks = 0;
 
 /**
  * @brief Real-time clock detection values.
@@ -546,6 +546,9 @@ static time_t newlib_time_hook( void )
 
 /**
  * @brief High-level convenience helper to initialize the RTC subsystem.
+ * 
+ * The RTC Subsystem depends on the libdragon Timer Subsystem, so make sure
+ * to call #timer_init before calling #rtc_init!
  *
  * Some flash carts require the RTC to be explicitly enabled before loading
  * the ROM file. Some emulators and flash carts do not support RTC at all.
@@ -576,21 +579,30 @@ bool rtc_init( void )
     joybus_rtc_write_control( JOYBUS_RTC_CONTROL_MODE_RUN, calibration );
     wait_ms( JOYBUS_RTC_WRITE_BLOCK_DELAY );
 
+    /* Enable newlib `gettimeofday` integration */
     hook_time_call( &newlib_time_hook );
 
     return true;
 }
 
 /**
- * @brief Unhooks the RTC from the newlib gettimeofday function.
- *
+ * @brief Close the RTC Subsystem, disabling system hooks.
+ * 
+ * Unhooks the RTC from the newlib gettimeofday function.
  * This will cause subsequent calls to gettimeofday to error with ENOSYS.
  *
- * You should not ever need to do this, but it is available if desired.
+ * The only reason you should ever need to call this is if you need to
+ * stop the Timer Subsystem, which the RTC Subsystem depends on. If you
+ * do need to do this, make sure to call #rtc_close BEFORE #timer_close
+ * and then call #rtc_init again after you call #timer_init to restart
+ * the Timer Subsystem!
  */
 void rtc_close( void )
 {
+    /* Disable newlib `gettimeofday` integration */
     unhook_time_call( &newlib_time_hook );
+    /* Invalidate the #rtc_get cache */
+    rtc_get_cache_ticks = 0;
 }
 
 /**
@@ -603,7 +615,8 @@ void rtc_close( void )
  *
  * This is useful to call while the player is adjusting the time after each
  * input to ensure that the date being set always makes sense before they
- * actually confirm and commit the updated date/time.
+ * actually confirm and commit the updated date/time. The rtctest example
+ * demonstrates a user-interface for setting the time with live validation.
  *
  * Internally, RTC cannot represent dates before 1990-01-01, although some
  * RTC implementations (like UltraPIF) only support dates after 2000-01-01.
@@ -683,15 +696,17 @@ bool rtc_get( rtc_time_t * rtc_time )
     /* This should be overwritten the first time this function is called */
     static rtc_time_t cache_time = { 2000, 0, 1, 0, 0, 0, 6 };
 
-    uint32_t current_ticks = get_ticks();
+    int64_t current_ticks = timer_ticks();
     int32_t distance = TICKS_DISTANCE( rtc_get_cache_ticks, current_ticks );
 
+    /* Check if the cached time is still valid */
     if(
         rtc_get_cache_ticks == 0 || /* cache manually invalidated */
         distance < 0 || /* ticks counter overflow */
         distance > RTC_GET_CACHE_INVALIDATE_TICKS
     )
     {
+        /* Update the cache */
         joybus_rtc_read_time( &cache_time );
         rtc_get_cache_ticks = current_ticks;
     }
@@ -767,16 +782,8 @@ bool rtc_is_writable( void )
 {
     rtc_time_t restore_time;
     rtc_time_t verify_time;
-    rtc_time_t write_time;
-
     /* These values are arbitrary but unlikely to be the current date/time. */
-    write_time.year     = 2003;
-    write_time.month    = 10;
-    write_time.day      = 30;
-    write_time.week_day = 0;
-    write_time.hour     = 1;
-    write_time.min      = 2;
-    write_time.sec      = 3;
+    rtc_time_t write_time = { 2003, 10, 3, 1, 2, 3, 0 };
 
     rtc_get( &restore_time );
 
