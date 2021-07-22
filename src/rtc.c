@@ -20,40 +20,45 @@
  * Joybus RTC is accessed through the serial interface (SI) similar to EEPROM
  * and controllers. The Joybus RTC was only ever available on one official
  * cartridge that was only available in Japan: Dōbutsu no Mori (Animal Forest).
+ * Many emulators and flash carts include support for the Animal Forest RTC,
+ * which makes it possible to include real-time clock functionality in homebrew!
  * There is also a real-time clock included in the N64DD hardware, which uses
  * a different interface and is not currently supported by libdragon.
  *
  * To check if the real-time clock is available, call #rtc_init.
  * To read the current time from the real-time clock, call #rtc_get.
+ * Once the RTC subsystem is initialized, you can also use ISO C Time functions
+ * to get the current time, for example: `time(NULL)` will return the number of
+ * seconds elapsed since the UNIX epoch (January 1, 1970 at 00:00:00).
  * To check if the real-time clock supports writes, call #rtc_is_writable.
  * To write a new time to the real-time clock, call #rtc_set.
- * 
+ *
  * This subsystem handles decoding and encoding the date/time from its internal
  * format into a struct called #rtc_time_t, which contains integer values for
  * year, month, day-of-month, day-of-week, hour, minute, and second.
- * 
+ *
  * The Joybus RTC contains 3 "blocks" (or zones) which contain 8 bytes of data:
  * Block 0 contains a half-word control register and opaque calibration data.
  * Block 1 is unused and unsupported. See notes below.
  * Block 2 contains the current date/time as packed binary-coded decimal.
- * 
+ *
  * Animal Forest did not use block 1 at all, so most emulators do not bother to
  * implement it. Theoretically, block 1 could be used as 8-bytes of SRAM-backed
  * storage, but this is not supported by libdragon's Real-Time Clock Subsystem.
  * If you need storage, consider using a standard cartridge save type or saving
- * to a Controller Pak. 
- * 
- * (As of July 2021) Joybus RTC does not work in combination with either EEPROM
+ * to a Controller Pak.
+ *
+ * (As of July 2021) Joybus RTC does not work in combination with any EEPROM
  * save type on EverDrive64 3.0 or X7. To have the best compatibility and player
  * experience, it is not recommended to use the EEPROM + RTC ROM configuration.
  * This is a bug in the EverDrive64 firmware and not a system limitation imposed
- * by the Joybus protocol or serial interface.
+ * by the Joybus protocol or Serial Interface.
  *
  * Unfortunately, since only one game ever used Joybus RTC (and that game was
- * later re-released on the GameCube in English), real-time clock support in 
+ * later re-released on the GameCube in English), real-time clock support in
  * emulators and flash carts can be incomplete, inaccurate, or non-existent.
- * Many emulators do not actually implement the SI RTC write command and will
- * always respond with the host system's current local time. Some emulators
+ * Many emulators do not actually implement the Joybus RTC write command and
+ * always respond with the host device's current local time. Some emulators
  * and flash carts support writing to RTC but will not persist the date/time
  * after resetting or powering-off. You can run the `rtctest` example ROM on
  * your preferred emulator or flash cart to what RTC support is available.
@@ -64,22 +69,22 @@
  * whether writes are supported using #rtc_is_writable so that you can
  * conditionally show the option to change the time if it's supported. If the
  * RTC supports writes, it is safe to call #rtc_set to set the date and time.
- * 
+ *
  * Due to the inaccurate and inconsistent behavior of RTC reproductions that
  * currently exist, this subsystem trades-off complete accuracy with the actual
  * Animal Forest RTC in favor of broader compatibility with the various quirks
  * and bugs that exist in real-world scenarios like emulators and flash carts.
- * 
+ *
  * Some notable examples of RTC support in the ecosystem (as of July 2021):
- * 
+ *
  * 64drive hw2 fully implements Joybus RTC including writes, but requires
  * delays after setting the time (see #JOYBUS_RTC_WRITE_FINISHED_DELAY).
- * 
+ *
  * EverDrive64 3.0 and X7 partially support Joybus RTC, with caveats: The RTC
  * must be explicitly enabled in the OS or with a ROM header configuration;
  * RTC will not be detected if the EEPROM save type is used; RTC writes are
  * not supported through the SI, so changing the time must be done in the OS.
- * 
+ *
  * UltraPIF fully implements an emulated Joybus RTC that can be accessed even
  * when the cartridge does not include the real-time clock circuitry.
  *
@@ -102,7 +107,7 @@
  *
  * The software should wait for the previous RTC write to finish before issuing
  * another Joybus RTC command. Ideally, you could read the RTC status byte to
- * determine when to proceed, but some RTC implementations do not correctly
+ * determine when to proceed, but some RTC reproductions do not correctly
  * implement the RTC status response, so a delay is used for compatibility.
  */
 #define JOYBUS_RTC_WRITE_BLOCK_DELAY 20
@@ -112,7 +117,7 @@
  * 64drive hw2 only updates the RTC readout a few times per second, so it is
  * possible to write a new time, then read back the previous time before the
  * 64drive clock ticks to update the "shadow interface" that the SI reads from.
- * 
+ *
  * Without this delay, the #rtc_is_writable test may fail intermittently on
  * 64drive hw2.
  */
@@ -120,13 +125,13 @@
 
 /**
  * @brief The Joybus RTC is running.
- * 
+ *
  * It is safe to read the current time from the RTC.
  */
 #define JOYBUS_RTC_STATUS_RUNNING 0x00
 /**
  * @brief The Joybus RTC is stopped.
- * 
+ *
  * It is safe to write new time data to the RTC.
  */
 #define JOYBUS_RTC_STATUS_STOPPED  0x80
@@ -154,7 +159,7 @@
 
 /**
  * @brief Tick counter state when #rtc_get cache was last updated.
- * 
+ *
  * Set to 0 to manually invalidate the #rtc_get cache.
  * Cache will automatically invalidate if the tick counter overflows.
  * Cache will otherwise invalidate every #RTC_GET_CACHE_INVALIDATE_TICKS.
@@ -208,9 +213,9 @@ static uint8_t byte_to_bcd(uint8_t byte)
 
 /**
  * @brief Lookup table for number of days in each month.
- * 
+ *
  * Used by #rtc_normalize_time to clamp the day-of-month value.
- * 
+ *
  * Does not account for leap years in the month of February.
  */
 static const uint8_t DAYS_IN_MONTH[] =
@@ -257,7 +262,7 @@ static uint32_t joybus_rtc_status( void )
 
 /**
  * @brief Read a block of data from the Joybus real-time clock.
- * 
+ *
  * This is a low-level utility function that is used by
  * #joybus_rtc_read_control and #rtc_get.
  *
@@ -295,7 +300,7 @@ static uint8_t joybus_rtc_read( uint8_t block, uint64_t * data )
 
 /**
  * @brief Write a block of data to the Joybus real-time clock.
- * 
+ *
  * This is a low-level utility function that is used by
  * #joybus_rtc_write_control and #joybus_rtc_write_time.
  *
@@ -424,7 +429,7 @@ static void joybus_rtc_read_time( rtc_time_t * rtc_time )
  * Generally, you should not need to call this function directly. Prefer
  * calling the high-level #rtc_init and #rtc_set functions which handle
  * the necessary delays, status checks, and calibration propagation.
- * 
+ *
  * This is a low-level function that needs to be used in proper sequence.
  * For normal use, call the the high-level #rtc_init and #rtc_set functions
  * which handle the RTC control block writes, delays, and status checks.
@@ -443,7 +448,7 @@ static void joybus_rtc_write_control( uint16_t control, uint32_t calibration )
 
 /**
  * @brief Write a new date/time to the Joybus real-time clock.
- * 
+ *
  * If writes are not supported by the emulator or flash cart, this function
  * will fail silently. It is recommended to call #rtc_is_writable early
  * in your program to detect whether the RTC actually supports writes.
@@ -491,13 +496,13 @@ static void joybus_rtc_write_time( const rtc_time_t * rtc_time )
 
 /**
  * @brief Determine which RTC type is available (if any).
- * 
+ *
  * This function will only actually perform RTC detection the
  * first time it is called. All subsequent calls will return
  * a cached value.
- * 
+ *
  * The RTC type should never change while the N64 is powered-on.
- * 
+ *
  * @return #RTC_JOYBUS or #RTC_NONE (#RTC_DD is not supported yet)
  */
 static rtc_type_t rtc_present( void )
@@ -519,8 +524,8 @@ static rtc_type_t rtc_present( void )
 
 /**
  * @brief Hook function for newlib gettimeofday to get the current date/time.
- * 
- * @return the current timestamp in seconds or -1 if RTC is unavailable. 
+ *
+ * @return the current timestamp in seconds or -1 if RTC is unavailable.
  */
 static time_t newlib_time_hook( void )
 {
@@ -535,7 +540,7 @@ static time_t newlib_time_hook( void )
     time.tm_mon = rtc_time.month;
     time.tm_year = rtc_time.year - 1900;
     time.tm_isdst = -1; /* Auto-detect Daylight Saving Time */
-    
+
     return mktime( &time );
 }
 
@@ -544,15 +549,15 @@ static time_t newlib_time_hook( void )
  *
  * Some flash carts require the RTC to be explicitly enabled before loading
  * the ROM file. Some emulators and flash carts do not support RTC at all.
- * 
+ *
  * This function will detect if the RTC is available and if so, will
  * prepare the RTC so that the current time can be read from it.
- * 
+ *
  * This operation may take up to 50 milliseconds to complete.
- * 
+ *
  * This will also hook the RTC into the newlib gettimeofday function, so
- * you will be able to use the ISO C time functions if RTC is available. 
- * 
+ * you will be able to use the ISO C time functions if RTC is available.
+ *
  * @return whether the RTC is present and supported by the RTC Subsystem.
  */
 bool rtc_init( void )
@@ -578,9 +583,9 @@ bool rtc_init( void )
 
 /**
  * @brief Unhooks the RTC from the newlib gettimeofday function.
- * 
+ *
  * This will cause subsequent calls to gettimeofday to error with ENOSYS.
- * 
+ *
  * You should not ever need to do this, but it is available if desired.
  */
 void rtc_close( void )
@@ -590,24 +595,24 @@ void rtc_close( void )
 
 /**
  * @brief Calculate sane values for arbitrary time inputs.
- * 
+ *
  * If your time inputs are already sane, nothing should change.
  * This function will clamp date/time values within the expected ranges,
  * including the correct day-of-month based on year/month. It will also
  * recalculate the day-of-week based on the clamped year/month/day.
- * 
+ *
  * This is useful to call while the player is adjusting the time after each
  * input to ensure that the date being set always makes sense before they
  * actually confirm and commit the updated date/time.
- * 
+ *
  * Internally, RTC cannot represent dates before 1990-01-01, although some
  * RTC implementations (like UltraPIF) only support dates after 2000-01-01.
- * 
+ *
  * For highest compatibility, it is not recommended to set the date past
  * 2038-01-19 03:14:07 UTC, which is the UNIX timestamp Epochalypse.
- * 
+ *
  * @param[in,out] rtc_time
- *                Pointer to the RTC time data structure 
+ *                Pointer to the RTC time data structure
  */
 void rtc_normalize_time( rtc_time_t * rtc_time )
 {
@@ -647,7 +652,7 @@ void rtc_normalize_time( rtc_time_t * rtc_time )
 
 /**
  * @brief Read the current date/time from the real-time clock.
- * 
+ *
  * If the RTC is not detected or supported, this function will
  * not modify the destination rtc_time parameter.
  *
@@ -657,14 +662,17 @@ void rtc_normalize_time( rtc_time_t * rtc_time )
  * actual RTC read command if the cache is invalidated. The
  * destination rtc_time parameter will be updated regardless of
  * the cache validity.
- * 
+ *
  * Cache will invalidate every #RTC_GET_CACHE_INVALIDATE_TICKS.
  * Cache will also invalidate when the tick counter overflows.
  * Calling #rtc_set will also invalidate the cache.
  *
+ * If an actual RTC read command is needed, this function can take
+ * a few milliseconds to complete.
+ *
  * @param[out]  rtc_time
  *              Destination pointer for the RTC time data structure
- * 
+ *
  * @return whether the rtc_time destination pointer data was modified
  */
 bool rtc_get( rtc_time_t * rtc_time )
@@ -676,18 +684,18 @@ bool rtc_get( rtc_time_t * rtc_time )
     static rtc_time_t cache_time = { 2000, 0, 1, 0, 0, 0, 6 };
 
     uint32_t current_ticks = get_ticks();
-    int32_t distance = TICKS_DISTANCE( current_ticks, rtc_get_cache_ticks );
+    int32_t distance = TICKS_DISTANCE( rtc_get_cache_ticks, current_ticks );
 
     if(
         rtc_get_cache_ticks == 0 || /* cache manually invalidated */
         distance < 0 || /* ticks counter overflow */
-        distance > RTC_GET_CACHE_INVALIDATE_TICKS 
+        distance > RTC_GET_CACHE_INVALIDATE_TICKS
     )
     {
         joybus_rtc_read_time( &cache_time );
         rtc_get_cache_ticks = current_ticks;
     }
-    
+
     memcpy( rtc_time, &cache_time, sizeof(rtc_time_t) );
 
     return true;
@@ -698,14 +706,15 @@ bool rtc_get( rtc_time_t * rtc_time )
  *
  * Prepares the RTC for writing, sets the new time, and resumes the clock.
  *
- * This process will take approximately 570 milliseconds to complete.
+ * This function will take approximately 570 milliseconds to complete.
+ *
  * Unfortunately, the best way to ensure that writes to the RTC have
  * actually finished is by waiting for a fixed duration. Emulators may not
  * accurately reflect this, but this delay is necessary on real hardware.
  *
  * @param[in]   rtc_time
  *              Source pointer for the RTC time data structure
- * 
+ *
  * @return false if the RTC does not support being set
  */
 bool rtc_set( rtc_time_t * write_time )
@@ -749,7 +758,7 @@ bool rtc_set( rtc_time_t * write_time )
  *
  * Unfortunately this operation may introduce a slight drift in the clock,
  * but it is the only way to determine if the RTC supports the write command.
- * 
+ *
  * This operation will take approximately 1 second to complete.
  *
  * @return whether RTC writes appear to be supported
