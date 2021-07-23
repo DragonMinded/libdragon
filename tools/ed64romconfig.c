@@ -161,6 +161,20 @@ int main(int argc, char *argv[])
 			print_usage(argv[0]);
 			return -1;
 		}
+
+		write_file = fopen(arg, "r+b");
+		if(!write_file)
+		{
+			fprintf(stderr, "ERROR: Cannot open %s for writing!\n", arg);
+			return -1;
+		}
+	}
+
+	if(!write_file)
+	{
+		fprintf(stderr, "ERROR: Expected file argument\n\n");
+		print_usage(argv[0]);
+		return -1;
 	}
 
 	config = rom_configuration(save_type, force_rtc, region_free);
@@ -168,12 +182,6 @@ int main(int argc, char *argv[])
 	{
 		fprintf(stderr, "ERROR: At least one option is required\n\n");
 		print_usage(argv[0]);
-		return -1;
-	}
-	write_file = fopen(arg, "r+b");
-	if(!write_file)
-	{
-		fprintf(stderr, "ERROR: Cannot open %s for writing!\n", arg);
 		return -1;
 	}
 
