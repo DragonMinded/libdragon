@@ -1,45 +1,38 @@
-INSTALLDIR = $(N64_INST)
+INSTALLDIR ?= $(N64_INST)
 
-all: build
-build: chksum64 n64tool dumpdfs mkdfs mksprite
-install: dumpdfs-install mkdfs-install mksprite-install chksum64-install n64tool-install
-clean: chksum64-clean n64tool-clean dumpdfs-clean mkdfs-clean mksprite-clean
+all: chksum64 dumpdfs ed64romconfig mkdfs mksprite n64tool
+
+.PHONY: install
+install:
+	install -m 0755 chksum64 ed64romconfig n64tool $(INSTALLDIR)/bin
+	make -C dumpdfs install
+	make -C mkdfs install
+	make -C mksprite install
+
+.PHONY: clean
+clean:
+	rm -rf chksum64 ed64romconfig n64tool
+	make -C dumpdfs clean
+	make -C mkdfs clean
+	make -C mksprite clean
 
 chksum64: chksum64.c
 	gcc -o chksum64 chksum64.c
-chksum64-install: chksum64
-	install -m 0755 chksum64 $(INSTALLDIR)/bin
-chksum64-clean:
-	rm -rf chksum64
 
 n64tool: n64tool.c
 	gcc -o n64tool n64tool.c
-n64tool-install: n64tool
-	install -m 0755 n64tool $(INSTALLDIR)/bin
-n64tool-clean:
-	rm -rf n64tool
 
+ed64romconfig: ed64romconfig.c
+	gcc -o ed64romconfig ed64romconfig.c
+
+.PHONY: dumpdfs
 dumpdfs:
 	+make -C dumpdfs
-dumpdfs-install:
-	make -C dumpdfs install
-dumpdfs-clean:
-	make -C dumpdfs clean
 
+.PHONY: mkdfs
 mkdfs:
 	+make -C mkdfs
-mkdfs-install:
-	make -C mkdfs install
-mkdfs-clean:
-	make -C mkdfs clean
 
+.PHONY: mksprite
 mksprite:
 	+make -C mksprite
-mksprite-install:
-	make -C mksprite install
-mksprite-clean:
-	make -C mksprite clean
-
-.PHONY: dumpdfs mkdfs mksprite
-.PHONY: chksum64-install n64tool-install dumpdfs-install mkdfs-install mksprite-install
-.PHONY: chksum64-clean n64tool-clean dumpdfs-clean mkdfs-clean mksprite-clean
