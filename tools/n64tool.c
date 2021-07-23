@@ -338,14 +338,15 @@ int main(int argc, char *argv[])
 			return -1;
 		}
 
-		/* Is our output file open? */
+		/* If this is the first input file, open the output file and write the header */
 		if(!write_file)
 		{
+			/* Create or completely overwrite the output file */
 			write_file = fopen(output, "wb");
 
 			if(!write_file)
 			{
-				fprintf(stderr, "ERROR: Cannot open %s for writing!\n", output);
+				fprintf(stderr, "ERROR: Cannot open '%s' for writing\n", output);
 				return -1;
 			}
 
@@ -354,17 +355,17 @@ int main(int argc, char *argv[])
 
 			if(wrote != HEADER_SIZE)
 			{
-				fprintf(stderr, "ERROR: Unable to copy ROM header from %s to %s!\n", header, output);
+				fprintf(stderr, "ERROR: Unable to copy ROM header from '%s' to '%s'\n", header, output);
 				return -1;
 			}
 		}
 
-		/* Copy over file */
+		/* Copy the input file into the output file */
 		ssize_t copied = copy_file(write_file, arg);
 
 		if(copied < 0)
 		{
-			fprintf(stderr, "ERROR: Unable to copy file from %s to %s\n", arg, output);
+			fprintf(stderr, "ERROR: Unable to copy file from '%s' to '%s'\n", arg, output);
 			return -1;
 		}
 
@@ -375,7 +376,7 @@ int main(int argc, char *argv[])
 	if(!total_bytes)
 	{
 		/* Didn't write anything! */
-		printf("ERROR: No input files, nothing written!\n\n");
+		printf("ERROR: No input files, nothing written\n\n");
 		print_usage(argv[0]);
 		return -1;
 	}
