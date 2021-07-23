@@ -1,20 +1,20 @@
 /*
-    ed64romconfig V1.0, a program to set EverDrive64 ROM Header Configuration.
-    Copyright (C) 2021  Christopher Bonhage (me@christopherbonhage.com)
+	ed64romconfig V1.0, a program to set EverDrive64 ROM Header Configuration.
+	Copyright (C) 2021  Christopher Bonhage (me@christopherbonhage.com)
 
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
-    (at your option) any later version.
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 2 of the License, or
+	(at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA
+	You should have received a copy of the GNU General Public License
+	along with this program; if not, write to the Free Software
+	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA
 */
 
 #include <stdio.h>
@@ -43,8 +43,8 @@ void print_usage(const char * prog_name)
 	fprintf(stderr, "Usage: %s [-r] [-c] [-w <savetype>] <file>\n\n", prog_name);
 	fprintf(stderr, "This program takes a big-endian N64 ROM and sets the header so that\n");
 	fprintf(stderr, "EverDrive64 will respect the declared save type, RTC, and region-free\n");
-    fprintf(stderr, "settings without needing to create a save_db.txt entry for it.\n");
-    fprintf(stderr, "See: https://github.com/krikzz/ED64/blob/master/docs/rom_config_database.md#developer-override\n");
+	fprintf(stderr, "settings without needing to create a save_db.txt entry for it.\n");
+	fprintf(stderr, "See: https://github.com/krikzz/ED64/blob/master/docs/rom_config_database.md#developer-override\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Command-line flags:\n");
 	fprintf(stderr, "\t-w, --savetype <type>  Declare cartridge save type.\n");
@@ -110,11 +110,11 @@ int main(int argc, char *argv[])
 	bool force_rtc = false;
 	bool region_free = false;
 	uint8_t save_type = SAVETYPE_NOT_SET;
-    uint8_t config = ROMCONFIG_NOT_SET;
+	uint8_t config = ROMCONFIG_NOT_SET;
 	int i = 1;
 	const char * arg;
 
-    if(argc <= 1)
+	if(argc <= 1)
 	{
 		/* No way we can have just one argument or less */
 		print_usage(argv[0]);
@@ -155,33 +155,33 @@ int main(int argc, char *argv[])
 
 			continue;
 		}
-        if(i < argc)
-        {
-            fprintf(stderr, "ERROR: Unexpected extra arguments\n\n");
-            print_usage(argv[0]);
-            return -1;
-        }
-    }
+		if(i < argc)
+		{
+			fprintf(stderr, "ERROR: Unexpected extra arguments\n\n");
+			print_usage(argv[0]);
+			return -1;
+		}
+	}
 
-    config = rom_configuration(save_type, force_rtc, region_free);
-    if(config == ROMCONFIG_NOT_SET)
-    {
-        fprintf(stderr, "ERROR: At least one option is required\n\n");
-        print_usage(argv[0]);
-        return -1;
-    }
-    write_file = fopen(arg, "r+b");
-    if(!write_file)
-    {
-        fprintf(stderr, "ERROR: Cannot open %s for writing!\n", arg);
-        return -1;
-    }
+	config = rom_configuration(save_type, force_rtc, region_free);
+	if(config == ROMCONFIG_NOT_SET)
+	{
+		fprintf(stderr, "ERROR: At least one option is required\n\n");
+		print_usage(argv[0]);
+		return -1;
+	}
+	write_file = fopen(arg, "r+b");
+	if(!write_file)
+	{
+		fprintf(stderr, "ERROR: Cannot open %s for writing!\n", arg);
+		return -1;
+	}
 
-    const char cart_id[CART_ID_SIZE] = {'E', 'D'};
-    fseek(write_file, CART_ID_OFFSET, SEEK_SET);
-    fwrite(cart_id, 1, CART_ID_SIZE, write_file);
-    fseek(write_file, VERSION_OFFSET, SEEK_SET);
-    fwrite(&config, 1, VERSION_SIZE, write_file);
+	const char cart_id[CART_ID_SIZE] = {'E', 'D'};
+	fseek(write_file, CART_ID_OFFSET, SEEK_SET);
+	fwrite(cart_id, 1, CART_ID_SIZE, write_file);
+	fseek(write_file, VERSION_OFFSET, SEEK_SET);
+	fwrite(&config, 1, VERSION_SIZE, write_file);
 
 	fclose(write_file);
 
