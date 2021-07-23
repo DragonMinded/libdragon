@@ -190,6 +190,15 @@ int main(int argc, char *argv[])
 	while(i < argc)
 	{
 		arg = argv[i++];
+		if(check_flag(arg, "-b", "--byteswap"))
+		{
+			/* Invalid usage */
+			fprintf(stderr, "ERROR: The byteswap option is no longer supported. ");
+			fprintf(stderr, "Use another tool to convert the output of this program.\n");
+			fprintf(stderr, "       For example: dd conv=swab if=rom.z64 of=rom.v64\n\n");
+			print_usage(argv[0]);
+			return -1;
+		}
 		if(check_flag(arg, "-h", "--header"))
 		{
 			if(header)
@@ -230,6 +239,13 @@ int main(int argc, char *argv[])
 			}
 
 			output = argv[i++];
+
+			size_t output_len = strlen(output);
+			if(output_len < 5 || strcmp(output + output_len - 4, ".z64"))
+			{
+				fprintf(stderr, "WARNING: The output should have a '.z64' file extension\n");
+			}
+
 			continue;
 		}
 		if(check_flag(arg, "-l", "--size"))
