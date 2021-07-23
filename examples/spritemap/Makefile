@@ -16,6 +16,11 @@ CFLAGS = -std=gnu99 -march=vr4300 -mtune=vr4300 -O2 -Wall -Werror -I$(ROOTDIR)/m
 LDFLAGS = -L$(ROOTDIR)/mips64-elf/lib -ldragon -lc -lm -ldragonsys -Tn64.ld --gc-sections
 N64TOOLFLAGS = -l 8M -h $(ROOTDIR)/mips64-elf/lib/header -t "Spritemap Test"
 
+ifeq ($(N64_BYTE_SWAP),true)
+$(PROG_NAME).v64: $(PROG_NAME).z64
+	dd conv=swab if=$^ of=$@
+endif
+
 $(PROG_NAME).z64: $(PROG_NAME).bin $(PROG_NAME).dfs
 	$(N64TOOL) $(N64TOOLFLAGS) -o $@ $(PROG_NAME).bin -s 1M $(PROG_NAME).dfs
 	$(CHKSUM64) $@
@@ -31,4 +36,4 @@ $(PROG_NAME).dfs:
 
 .PHONY: clean
 clean:
-	rm -f *.z64 *.bin *.elf *.o *.dfs
+	rm -f *.v64 *.z64 *.bin *.elf *.o *.dfs

@@ -15,6 +15,11 @@ CFLAGS = -std=gnu99 -march=vr4300 -mtune=vr4300 -O2 -Wall -Werror -I$(ROOTDIR)/m
 LDFLAGS = -L$(ROOTDIR)/mips64-elf/lib -ldragon -lc -lm -ldragonsys -Tn64.ld --gc-sections
 N64TOOLFLAGS = -l 1M -h $(ROOTDIR)/mips64-elf/lib/header -t "Mempak Test"
 
+ifeq ($(N64_BYTE_SWAP),true)
+$(PROG_NAME).v64: $(PROG_NAME).z64
+	dd conv=swab if=$^ of=$@
+endif
+
 $(PROG_NAME).z64: $(PROG_NAME).bin
 	$(N64TOOL) $(N64TOOLFLAGS) -o $@ $^
 	$(CHKSUM64) $@
@@ -27,4 +32,4 @@ $(PROG_NAME).elf: $(PROG_NAME).o
 
 .PHONY: clean
 clean:
-	rm -f *.z64 *.bin *.elf *.o
+	rm -f *.v64 *.z64 *.bin *.elf *.o
