@@ -177,9 +177,6 @@ int main(int argc, char *argv[])
 	size_t total_bytes = 0;
 	char title[TITLE_SIZE + 1] = { 0, };
 
-	/* Set title to all spaces */
-	memset(title, 0x20, TITLE_SIZE);
-
 	if(argc <= 1)
 	{
 		/* No way we can have just one argument or less */
