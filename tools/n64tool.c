@@ -173,8 +173,8 @@ int main(int argc, char *argv[])
 	FILE * write_file = NULL;
 	const char * header = NULL;
 	const char * output = NULL;
-	size_t total_size = 0;
-	size_t total_bytes = 0;
+	size_t declared_size = 0;
+	size_t total_bytes_written = 0;
 	char title[TITLE_SIZE + 1] = { 0, };
 
 	if(argc <= 1)
@@ -252,7 +252,7 @@ int main(int argc, char *argv[])
 				return -1;
 			}
 
-			total_size = size;
+			declared_size = size;
 			continue;
 		}
 		if(check_flag(arg, "-s", "--offset"))
@@ -264,7 +264,7 @@ int main(int argc, char *argv[])
 				return -1;
 			}
 
-			if(!total_bytes || !total_size)
+			if(!total_bytes_written || !declared_size)
 			{
 				fprintf(stderr, "ERROR: The first file cannot have an offset\n\n");
 				print_usage(argv[0]);
@@ -290,7 +290,7 @@ int main(int argc, char *argv[])
 			}
 
 			/* Write out needed number of zeros */
-			ssize_t num_zeros = offset - total_bytes;
+			ssize_t num_zeros = offset - total_bytes_written;
 
 			if(output_zeros(write_file, num_zeros))
 			{
@@ -298,8 +298,8 @@ int main(int argc, char *argv[])
 				return -1;
 			}
 
-			/* Same as total_bytes = offset */
-			total_bytes += num_zeros;
+			/* Same as total_bytes_written = offset */
+			total_bytes_written += num_zeros;
 			continue;
 		}
 		if(check_flag(arg, "-t", "--title"))
@@ -328,7 +328,7 @@ int main(int argc, char *argv[])
 		/* Argument is not a flag; treat it as an input file */
 
 		/* Can't copy input file unless header and output set */
-		if(!header || !output || !total_size)
+		if(!header || !output || !declared_size)
 		{
 			fprintf(stderr, "ERROR: Need size, header, and output before first file\n\n");
 			print_usage(argv[0]);
@@ -348,9 +348,9 @@ int main(int argc, char *argv[])
 			}
 
 			/* Copy over the ROM header */
-			ssize_t wrote = copy_file(write_file, header);
+			ssize_t bytes_copied = copy_file(write_file, header);
 
-			if(wrote != HEADER_SIZE)
+			if(bytes_copied != HEADER_SIZE)
 			{
 				fprintf(stderr, "ERROR: Unable to copy ROM header from '%s' to '%s'\n", header, output);
 				return -1;
@@ -358,19 +358,19 @@ int main(int argc, char *argv[])
 		}
 
 		/* Copy the input file into the output file */
-		ssize_t copied = copy_file(write_file, arg);
+		ssize_t bytes_copied = copy_file(write_file, arg);
 
-		if(copied < 0)
+		if(bytes_copied < 0)
 		{
 			fprintf(stderr, "ERROR: Unable to copy file from '%s' to '%s'\n", arg, output);
 			return -1;
 		}
 
 		/* Keep track to be sure we align properly when they request a memory alignment */
-		total_bytes += copied;
+		total_bytes_written += bytes_copied;
 	}
 
-	if(!total_bytes)
+	if(!total_bytes_written)
 	{
 		/* Didn't write anything! */
 		printf("ERROR: No input files, nothing written\n\n");
@@ -379,11 +379,11 @@ int main(int argc, char *argv[])
 	}
 
 	/* Pad the output file to the declared size (not including the IPL3 header) */
-	ssize_t num_zeros = total_size - total_bytes;
+	ssize_t num_zeros = declared_size - total_bytes_written;
 
 	if(output_zeros(write_file, num_zeros))
 	{
-		fprintf(stderr, "ERROR: Couldn't pad %d bytes to %d bytes. ", total_bytes, total_size);
+		fprintf(stderr, "ERROR: Couldn't pad %d bytes to %d bytes. ", total_bytes_written, declared_size);
 		fprintf(stderr, "Increase your size argument to fix this.\n\n");
 		print_usage(argv[0]);
 		return -1;
