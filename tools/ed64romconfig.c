@@ -97,7 +97,7 @@ uint8_t rom_configuration(uint8_t save_type, bool force_rtc, bool region_free)
 		fprintf(stderr, "WARNING: RTC/Region-Free declared without save type; defaulting to 'none'\n");
 		save_type = parse_save_type("none");
 	}
-	if(force_rtc && (save_type == 0x10 || save_type == 0x20))
+	if(force_rtc && (save_type == SAVETYPE_EEPROM4K || save_type == SAVETYPE_EEPROM16K))
 	{
 		fprintf(stderr, "WARNING: The combination of EEPROM + RTC does not work on EverDrive!\n");
 	}
