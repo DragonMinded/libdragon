@@ -23,22 +23,26 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define SAVETYPE_NOT_SET   0xFF
-#define SAVETYPE_DISABLED  0x00
+#define SAVETYPE_NONE      0x00
 #define SAVETYPE_EEPROM4K  0x10
 #define SAVETYPE_EEPROM16K 0x20
 #define SAVETYPE_SRAM256K  0x30
 #define SAVETYPE_SRAM768K  0x40
 #define SAVETYPE_FLASHRAM  0x50
 #define SAVETYPE_SRAM1M    0x60
-#define ROMCONFIG_NOT_SET  0xFF
+#define SAVETYPE_INVALID   0xFF
+#define ROMCONFIG_NOT_SET  0x00
 
 #define CART_ID_OFFSET 0x3C
 #define CART_ID_SIZE   2
 #define VERSION_OFFSET 0x3F
 #define VERSION_SIZE   1
 
-void print_usage(const char * prog_name)
+#define STATUS_OK       0
+#define STATUS_ERROR    1
+#define STATUS_BADUSAGE 2
+
+int print_usage(const char * prog_name)
 {
 	fprintf(stderr, "Usage: %s [-r] [-c] [-w <savetype>] <file>\n\n", prog_name);
 	fprintf(stderr, "This program takes a big-endian N64 ROM and sets the header so that\n");
@@ -59,6 +63,7 @@ void print_usage(const char * prog_name)
 	fprintf(stderr, "\tsram768k    Game saves to 768 kilobit SRAM\n");
 	fprintf(stderr, "\tsram1m      Game saves to 1 megabit SRAM\n");
 	fprintf(stderr, "\tflashram    Game saves to 1 megabit FlashRAM\n");
+	return STATUS_BADUSAGE;
 }
 
 bool check_flag(const char * arg, const char * shortFlag, const char * longFlag)
@@ -72,36 +77,14 @@ bool check_flag(const char * arg, const char * shortFlag, const char * longFlag)
  */
 uint8_t parse_save_type(const char * arg)
 {
-	if(!strcmp(arg, "none"))      return SAVETYPE_DISABLED;
+	if(!strcmp(arg, "none"))      return SAVETYPE_NONE;
 	if(!strcmp(arg, "eeprom4k"))  return SAVETYPE_EEPROM4K;
 	if(!strcmp(arg, "eeprom16k")) return SAVETYPE_EEPROM16K;
 	if(!strcmp(arg, "sram256k"))  return SAVETYPE_SRAM256K;
 	if(!strcmp(arg, "sram768k"))  return SAVETYPE_SRAM768K;
 	if(!strcmp(arg, "flashram"))  return SAVETYPE_FLASHRAM;
 	if(!strcmp(arg, "sram1m"))    return SAVETYPE_SRAM1M;
-	return SAVETYPE_NOT_SET;
-}
-
-/**
- * Combines save_type, force_rtc, region_free values for use in the header version field:
- * @see https://github.com/krikzz/ED64/blob/master/docs/rom_config_database.md#developer-override
- */
-uint8_t rom_configuration(uint8_t save_type, bool force_rtc, bool region_free)
-{
-	if(!force_rtc && !region_free && save_type == SAVETYPE_NOT_SET)
-	{
-		return ROMCONFIG_NOT_SET;
-	}
-	if(save_type == SAVETYPE_NOT_SET)
-	{
-		fprintf(stderr, "WARNING: RTC/Region-Free declared without save type; defaulting to 'none'\n");
-		save_type = parse_save_type("none");
-	}
-	if(force_rtc && (save_type == SAVETYPE_EEPROM4K || save_type == SAVETYPE_EEPROM16K))
-	{
-		fprintf(stderr, "WARNING: The combination of EEPROM + RTC does not work on EverDrive!\n");
-	}
-	return save_type | (force_rtc ? 1 : 0) + (region_free ? 2 : 0);
+	return SAVETYPE_INVALID;
 }
 
 int main(int argc, char *argv[])
@@ -109,16 +92,14 @@ int main(int argc, char *argv[])
 	FILE * write_file = NULL;
 	bool force_rtc = false;
 	bool region_free = false;
-	uint8_t save_type = SAVETYPE_NOT_SET;
-	uint8_t config = ROMCONFIG_NOT_SET;
+	uint8_t save_type = SAVETYPE_NONE;
 	int i = 1;
 	const char * arg;
 
 	if(argc <= 1)
 	{
 		/* No way we can have just one argument or less */
-		print_usage(argv[0]);
-		return -1;
+		return print_usage(argv[0]);
 	}
 	while(i < argc)
 	{
@@ -139,51 +120,50 @@ int main(int argc, char *argv[])
 			{
 				/* Expected another argument */
 				fprintf(stderr, "ERROR: Expected an argument to savetype flag\n\n");
-				print_usage(argv[0]);
-				return -1;
+				return print_usage(argv[0]);
 			}
 
 			save_type = parse_save_type(argv[i++]);
 
-			if(save_type == SAVETYPE_NOT_SET)
+			if(save_type == SAVETYPE_INVALID)
 			{
 				/* Invalid save type */
 				fprintf(stderr, "ERROR: Invalid savetype argument\n\n");
-				print_usage(argv[0]);
-				return -1;
+				return print_usage(argv[0]);
 			}
 
 			continue;
 		}
-		if(i < argc)
+		/* The ROM file should be the last argument */
+		if(i == argc)
+		{
+			write_file = fopen(arg, "r+b");
+			if(!write_file)
+			{
+				fprintf(stderr, "ERROR: Cannot open '%s' for writing!\n", arg);
+				return STATUS_ERROR;
+			}
+			break;
+		}
+		else
 		{
 			fprintf(stderr, "ERROR: Unexpected extra arguments\n\n");
-			print_usage(argv[0]);
-			return -1;
-		}
-
-		write_file = fopen(arg, "r+b");
-		if(!write_file)
-		{
-			fprintf(stderr, "ERROR: Cannot open %s for writing!\n", arg);
-			return -1;
+			return print_usage(argv[0]);
 		}
 	}
 
 	if(!write_file)
 	{
 		fprintf(stderr, "ERROR: Expected file argument\n\n");
-		print_usage(argv[0]);
-		return -1;
+		return print_usage(argv[0]);
 	}
 
-	config = rom_configuration(save_type, force_rtc, region_free);
-	if(config == ROMCONFIG_NOT_SET)
+	if(force_rtc && (save_type == SAVETYPE_EEPROM4K || save_type == SAVETYPE_EEPROM16K))
 	{
-		fprintf(stderr, "ERROR: At least one option is required\n\n");
-		print_usage(argv[0]);
-		return -1;
+		fprintf(stderr, "WARNING: The combination of EEPROM + RTC does not work on EverDrive!\n");
 	}
+
+	uint8_t config = save_type | (force_rtc ? 1 : 0) + (region_free ? 2 : 0);
 
 	const char cart_id[CART_ID_SIZE] = {'E', 'D'};
 	fseek(write_file, CART_ID_OFFSET, SEEK_SET);
@@ -193,5 +173,5 @@ int main(int argc, char *argv[])
 
 	fclose(write_file);
 
-	return 0;
+	return STATUS_OK;
 }

@@ -31,9 +31,13 @@
 #define TITLE_OFFSET 0x20
 #define TITLE_SIZE   20
 
+#define STATUS_OK       0
+#define STATUS_ERROR    1 
+#define STATUS_BADUSAGE 2
+
 static const unsigned char zero[1024] = {0};
 
-void print_usage(const char * prog_name)
+int print_usage(const char * prog_name)
 {
 	fprintf(stderr, "Usage: %s [-t <title>] -l <size>B/K/M -h <file> -o <file> <file> [[-s <offset>B/K/M] <file>]*\n\n", prog_name);
 	fprintf(stderr, "This program creates an N64 ROM from a header and a list of files,\n");
@@ -41,15 +45,16 @@ void print_usage(const char * prog_name)
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Command-line flags:\n");
 	fprintf(stderr, "\t-t, --title <title>    Title of ROM (max %d characters).\n", TITLE_SIZE);
-	fprintf(stderr, "\t-l, --size <size>      Force ROM output file size to <size> (min 1 megabyte).\n");
+	fprintf(stderr, "\t-l, --size <size>      Force ROM output file size to <size> (min 1 mebibyte).\n");
 	fprintf(stderr, "\t-h, --header <file>    Use <file> as IPL3 header.\n");
 	fprintf(stderr, "\t-o, --output <file>    Save output ROM to <file>.\n");
 	fprintf(stderr, "\t-s, --offset <offset>  Next file starts at <offset> from top of memory. Offset must be 32-bit aligned.\n");
 	fprintf(stderr, "\n");
-	fprintf(stderr, "Size/offset suffix notation:\n");
+	fprintf(stderr, "Binary byte size/offset suffix notation:\n");
 	fprintf(stderr, "\tB for bytes.\n");
-	fprintf(stderr, "\tK for kilobytes.\n");
-	fprintf(stderr, "\tM for megabytes.\n");
+	fprintf(stderr, "\tK for kibibytes (KiB) [1024 bytes].\n");
+	fprintf(stderr, "\tM for mebibytes (MiB) [1024 kibibytes].\n");
+	return STATUS_BADUSAGE;
 }
 
 bool check_flag(const char * arg, const char * shortFlag, const char * longFlag)
@@ -180,8 +185,7 @@ int main(int argc, char *argv[])
 	if(argc <= 1)
 	{
 		/* No way we can have just one argument or less */
-		print_usage(argv[0]);
-		return -1;
+		return print_usage(argv[0]);
 	}
 
 	int i = 1;
@@ -196,8 +200,7 @@ int main(int argc, char *argv[])
 			fprintf(stderr, "ERROR: The byteswap option is no longer supported. ");
 			fprintf(stderr, "Use another tool to convert the output of this program.\n");
 			fprintf(stderr, "       For example: dd conv=swab if=rom.z64 of=rom.v64\n\n");
-			print_usage(argv[0]);
-			return -1;
+			return print_usage(argv[0]);
 		}
 		if(check_flag(arg, "-h", "--header"))
 		{
@@ -205,16 +208,14 @@ int main(int argc, char *argv[])
 			{
 				/* Invalid usage */
 				fprintf(stderr, "ERROR: The header can only be set once\n\n");
-				print_usage(argv[0]);
-				return -1;
+				return print_usage(argv[0]);
 			}
 
 			if(i >= argc)
 			{
 				/* Invalid usage */
 				fprintf(stderr, "ERROR: Expected an argument to header flag\n\n");
-				print_usage(argv[0]);
-				return -1;
+				return print_usage(argv[0]);
 			}
 
 			header = argv[i++];
@@ -226,16 +227,14 @@ int main(int argc, char *argv[])
 			{
 				/* Invalid usage */
 				fprintf(stderr, "ERROR: The output can only be set once\n\n");
-				print_usage(argv[0]);
-				return -1;
+				return print_usage(argv[0]);
 			}
 
 			if(i >= argc)
 			{
 				/* Invalid usage */
 				fprintf(stderr, "ERROR: Expected an argument to output flag\n\n");
-				print_usage(argv[0]);
-				return -1;
+				return print_usage(argv[0]);
 			}
 
 			output = argv[i++];
@@ -254,8 +253,7 @@ int main(int argc, char *argv[])
 			{
 				/* Expected another argument */
 				fprintf(stderr, "ERROR: Expected an argument to size flag\n\n");
-				print_usage(argv[0]);
-				return -1;
+				return print_usage(argv[0]);
 			}
 
 			ssize_t size = parse_bytes(argv[i++]);
@@ -264,8 +262,7 @@ int main(int argc, char *argv[])
 			{
 				/* Invalid size */
 				fprintf(stderr, "ERROR: Invalid size argument; must be at least %d bytes\n\n", MIN_SIZE);
-				print_usage(argv[0]);
-				return -1;
+				return print_usage(argv[0]);
 			}
 
 			declared_size = size;
@@ -276,23 +273,20 @@ int main(int argc, char *argv[])
 			if(!header || !output)
 			{
 				fprintf(stderr, "ERROR: Need header and output flags before offset\n\n");
-				print_usage(argv[0]);
-				return -1;
+				return print_usage(argv[0]);
 			}
 
 			if(!total_bytes_written || !declared_size)
 			{
 				fprintf(stderr, "ERROR: The first file cannot have an offset\n\n");
-				print_usage(argv[0]);
-				return -1;
+				return print_usage(argv[0]);
 			}
 
 			if(i >= argc)
 			{
 				/* Expected another argument */
 				fprintf(stderr, "ERROR: Expected an argument to offset flag\n\n");
-				print_usage(argv[0]);
-				return -1;
+				return print_usage(argv[0]);
 			}
 
 			ssize_t offset = parse_bytes(argv[i++]);
@@ -301,8 +295,7 @@ int main(int argc, char *argv[])
 			{
 				/* Invalid offset */
 				fprintf(stderr, "ERROR: Invalid offset argument\n\n");
-				print_usage(argv[0]);
-				return -1;
+				return print_usage(argv[0]);
 			}
 
 			/* Write out needed number of zeros */
@@ -311,7 +304,7 @@ int main(int argc, char *argv[])
 			if(output_zeros(write_file, num_zeros))
 			{
 				fprintf(stderr, "ERROR: Invalid offset %d to seek to in %s!\n", offset, output);
-				return -1;
+				return STATUS_ERROR;
 			}
 
 			/* Same as total_bytes_written = offset */
@@ -324,8 +317,7 @@ int main(int argc, char *argv[])
 			{
 				/* Expected another argument */
 				fprintf(stderr, "ERROR: Expected an argument to title flag\n\n");
-				print_usage(argv[0]);
-				return -1;
+				return print_usage(argv[0]);
 			}
 
 			const char * title_arg = argv[i++];
@@ -347,8 +339,7 @@ int main(int argc, char *argv[])
 		if(!header || !output || !declared_size)
 		{
 			fprintf(stderr, "ERROR: Need size, header, and output before first file\n\n");
-			print_usage(argv[0]);
-			return -1;
+			return print_usage(argv[0]);
 		}
 
 		/* If this is the first input file, open the output file and write the header */
@@ -360,7 +351,7 @@ int main(int argc, char *argv[])
 			if(!write_file)
 			{
 				fprintf(stderr, "ERROR: Cannot open '%s' for writing\n", output);
-				return -1;
+				return STATUS_ERROR;
 			}
 
 			/* Copy over the ROM header */
@@ -369,7 +360,7 @@ int main(int argc, char *argv[])
 			if(bytes_copied != HEADER_SIZE)
 			{
 				fprintf(stderr, "ERROR: Unable to copy ROM header from '%s' to '%s'\n", header, output);
-				return -1;
+				return STATUS_ERROR;
 			}
 		}
 
@@ -379,7 +370,7 @@ int main(int argc, char *argv[])
 		if(bytes_copied < 0)
 		{
 			fprintf(stderr, "ERROR: Unable to copy file from '%s' to '%s'\n", arg, output);
-			return -1;
+			return STATUS_ERROR;
 		}
 
 		/* Keep track to be sure we align properly when they request a memory alignment */
@@ -390,8 +381,7 @@ int main(int argc, char *argv[])
 	{
 		/* Didn't write anything! */
 		printf("ERROR: No input files, nothing written\n\n");
-		print_usage(argv[0]);
-		return -1;
+		return print_usage(argv[0]);
 	}
 
 	/* Pad the output file to the declared size (not including the IPL3 header) */
@@ -401,8 +391,7 @@ int main(int argc, char *argv[])
 	{
 		fprintf(stderr, "ERROR: Couldn't pad %d bytes to %d bytes. ", total_bytes_written, declared_size);
 		fprintf(stderr, "Increase your size argument to fix this.\n\n");
-		print_usage(argv[0]);
-		return -1;
+		return print_usage(argv[0]);
 	}
 
 	/* Set title in header */
@@ -412,5 +401,5 @@ int main(int argc, char *argv[])
 	/* Sync and close the output file */
 	fclose(write_file);
 
-	return 0;
+	return STATUS_OK;
 }
