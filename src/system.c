@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <malloc.h>
+#include <time.h>
 #include "system.h"
 #include "n64sys.h"
 
@@ -92,16 +93,6 @@
  */
 char *__env[1] = { 0 };
 
-/** 
- * @brief Environment variables
- */
-char **environ = __env;
-
-/** 
- * @brief Dummy declaration of timeval
- */
-struct timeval;
-
 /**
  * @brief Definition of errno, as it's defined as extern across stdlib
  */
@@ -161,6 +152,8 @@ static fs_mapping_t filesystems[MAX_FILESYSTEMS] = { { 0 } };
 static fs_handle_t handles[MAX_OPEN_HANDLES] = { { 0 } };
 /** @brief Current stdio hook structure */
 static stdio_t stdio_hooks = { 0 };
+/** @brief Function to provide the current time */
+time_t (*time_hook)( void ) = NULL;
 
 /* Forward definitions */
 int close( int fildes );
@@ -725,17 +718,26 @@ int getpid( void )
 /**
  * @brief Return the current time
  *
- * @note Not supported in libdragon.
- *
  * @param[out] ptimeval
  *             Time structure to be filled with current time.
  * @param[out] ptimezone
- *             Timezone information to be filled.
+ *             Timezone information to be filled. (Not supported)
  *
  * @return 0 on success or a negative value on error.
  */
 int gettimeofday( struct timeval *ptimeval, void *ptimezone )
 {
+    if( time_hook != NULL )
+    {
+        time_t time = time_hook();
+        if( time != -1 )
+        {
+            ptimeval->tv_sec = time;
+            ptimeval->tv_usec = 0;
+            return 0;
+        }
+    }
+
     errno = ENOSYS;
     return -1;
 }
@@ -1319,6 +1321,44 @@ int unhook_stdio_calls( stdio_t *stdio_calls )
         stdio_hooks.stderr_write = 0;
 
     /* Always successful for now */
+    return 0;
+}
+
+/**
+ * @brief Hook into gettimeofday with a current time callback.
+ *
+ * @param[in] time_fn
+ *            Pointer to callback for the current time function
+ *
+ * @return 0 if successful or a negative value on failure.
+ */
+int hook_time_call( time_t (*time_fn)( void ) )
+{
+    if( time_fn == NULL )
+    {
+        return -1;
+    }
+
+    time_hook = time_fn;
+
+    return 0;
+}
+
+/**
+ * @brief Unhook from gettimeofday current time callback.
+ *
+ * @param[in] time_fn
+ *            Pointer to callback for the current time function
+ *
+ * @return 0 if successful or a negative value on failure.
+ */
+int unhook_time_call( time_t (*time_fn)( void ) )
+{
+    if( time_hook == time_fn )
+    {
+        time_hook = NULL;
+    }
+
     return 0;
 }
 
