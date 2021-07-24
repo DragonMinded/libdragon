@@ -3,6 +3,7 @@
 build/
 build_gcc/
 tools/chksum64
+tools/ed64romconfig
 tools/dumpdfs/dumpdfs
 tools/mkdfs/mkdfs
 tools/mksprite/convtool

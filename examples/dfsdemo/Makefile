@@ -1,40 +1,39 @@
+PROG_NAME = dfsdemo
+
 ROOTDIR = $(N64_INST)
 GCCN64PREFIX = $(ROOTDIR)/bin/mips64-elf-
-CHKSUM64PATH = $(ROOTDIR)/bin/chksum64
-MKDFSPATH = $(ROOTDIR)/bin/mkdfs
-HEADERPATH = $(ROOTDIR)/mips64-elf/lib
-N64TOOL = $(ROOTDIR)/bin/n64tool
-HEADERNAME = header
-LINK_FLAGS = -L$(ROOTDIR)/mips64-elf/lib -L$(ROOTDIR)/lib -ldragon -lmikmod -lc -lm -ldragonsys -Tn64.ld  --gc-sections
-PROG_NAME = dfsdemo
-CFLAGS = -std=gnu99 -march=vr4300 -mtune=vr4300 -O2 -Wall -Werror -I$(ROOTDIR)/mips64-elf/include -I$(ROOTDIR)/include
-ASFLAGS = -mtune=vr4300 -march=vr4300
+
 CC = $(GCCN64PREFIX)gcc
 AS = $(GCCN64PREFIX)as
 LD = $(GCCN64PREFIX)ld
 OBJCOPY = $(GCCN64PREFIX)objcopy
+N64TOOL = $(ROOTDIR)/bin/n64tool
+CHKSUM64 = $(ROOTDIR)/bin/chksum64
+MKDFS = $(ROOTDIR)/bin/mkdfs
+
+ASFLAGS = -mtune=vr4300 -march=vr4300
+CFLAGS = -std=gnu99 -march=vr4300 -mtune=vr4300 -O2 -Wall -Werror -I$(ROOTDIR)/mips64-elf/include -I$(ROOTDIR)/include
+LDFLAGS = -L$(ROOTDIR)/mips64-elf/lib -L$(ROOTDIR)/lib -ldragon -lmikmod -lc -lm -ldragonsys -Tn64.ld  --gc-sections
+N64TOOLFLAGS = -l 8M -h $(ROOTDIR)/mips64-elf/lib/header -t "DragonFS Demo"
 
 ifeq ($(N64_BYTE_SWAP),true)
-ROM_EXTENSION = .v64
-N64_FLAGS = -b -l 8M -h $(HEADERPATH)/$(HEADERNAME) -o $(PROG_NAME)$(ROM_EXTENSION)
-else
-ROM_EXTENSION = .z64
-N64_FLAGS = -l 8M -h $(HEADERPATH)/$(HEADERNAME) -o $(PROG_NAME)$(ROM_EXTENSION)
+$(PROG_NAME).v64: $(PROG_NAME).z64
+	dd conv=swab if=$^ of=$@
 endif
 
-$(PROG_NAME)$(ROM_EXTENSION): $(PROG_NAME).elf test.dfs
-	$(OBJCOPY) $(PROG_NAME).elf $(PROG_NAME).bin -O binary
-	rm -f $(PROG_NAME)$(ROM_EXTENSION)
-	$(N64TOOL) $(N64_FLAGS) -t "DragonFS Demo" $(PROG_NAME).bin -s 1M test.dfs
-	$(CHKSUM64PATH) $(PROG_NAME)$(ROM_EXTENSION)
+$(PROG_NAME).z64: $(PROG_NAME).bin $(PROG_NAME).dfs
+	$(N64TOOL) $(N64TOOLFLAGS) -o $@ $(PROG_NAME).bin -s 1M $(PROG_NAME).dfs
+	$(CHKSUM64) $@
 
-$(PROG_NAME).elf : $(PROG_NAME).o
-	$(LD) -o $(PROG_NAME).elf $(PROG_NAME).o $(LINK_FLAGS)
+$(PROG_NAME).bin: $(PROG_NAME).elf
+	$(OBJCOPY) $< $@ -O binary
 
-test.dfs:
-	$(MKDFSPATH) test.dfs ./filesystem/
+$(PROG_NAME).elf: $(PROG_NAME).o
+	$(LD) -o $@ $^ $(LDFLAGS)
 
-all: $(PROG_NAME)$(ROM_EXTENSION)
+$(PROG_NAME).dfs:
+	$(MKDFS) $@ ./filesystem/
 
+.PHONY: clean
 clean:
-	rm -f *.v64 *.z64 *.elf *.o *.bin *.dfs
+	rm -f *.v64 *.z64 *.bin *.elf *.o *.dfs
