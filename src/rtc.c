@@ -13,6 +13,7 @@
  * @defgroup rtc Real-Time Clock Subsystem
  * @ingroup libdragon
  * @brief Real-time clock interface.
+ * @author Christopher Bonhage
  *
  * The Joybus real-time clock is a cartridge peripheral that uses a battery
  * to power a clock that tracks the date, time, and day of the week. The
@@ -622,6 +623,9 @@ void rtc_close( void )
  *
  * For highest compatibility, it is not recommended to set the date past
  * 2038-01-19 03:14:07 UTC, which is the UNIX timestamp Epochalypse.
+ * 
+ * Special thanks to networkfusion for providing the algorithm to
+ * calculate day-of-week from an arbitrary date.
  *
  * @param[in,out] rtc_time
  *                Pointer to the RTC time data structure

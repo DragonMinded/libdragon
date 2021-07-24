@@ -66,6 +66,12 @@ static void __SI_DMA_wait( void )
 
 /**
  * @brief Write a 64-byte block of data to the PIF and read the 64-byte result.
+ * 
+ * This function is not a stable feature of the libdragon API and should be
+ * considered experimental!
+ * 
+ * The usage of this function will likely change as a result of the ongoing
+ * effort to integrate the multitasking kernel with asynchronous operations.
  *
  * @param[in]  input
  *             Source buffer for the input block to send to the PIF

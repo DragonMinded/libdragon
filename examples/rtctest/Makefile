@@ -20,43 +20,34 @@ LDFLAGS = --library=dragon --library=c --library=m --library=dragonsys
 LDFLAGS += --library-path=$(SDK_LIB_DIR) --script=n64.ld --gc-sections
 
 # LibDragon binaries
-ROM_HEADER = $(SDK_LIB_DIR)/header
-CHKSUM64 = $(SDK_DIR)/bin/chksum64
 N64TOOL = $(SDK_DIR)/bin/n64tool
+ED64ROMCONFIG = $(SDK_DIR)/bin/ed64romconfig
+CHKSUM64 = $(SDK_DIR)/bin/chksum64
 
 # LibDragon Flags
-OUT_SIZE = 1052672B # 52672B HEADER + 1M (minimum) ROM
-N64TOOLFLAGS = -l $(OUT_SIZE) -h $(ROM_HEADER) -t $(PROG_TITLE)
+N64TOOLFLAGS = --size 1M --header $(SDK_LIB_DIR)/header --title $(PROG_TITLE)
+ED64ROMCONFIGFLAGS = --rtc --savetype none
 
-# Byte-swap ROM
+# Optionally byte-swap the ROM Image
 ifeq ($(N64_BYTE_SWAP),true)
-ROM_EXTENSION = .v64
-N64TOOLFLAGS += -b
-else
-ROM_EXTENSION = .z64
+$(PROG_NAME).v64: $(PROG_NAME).z64
+	dd conv=swab if=$^ of=$@
 endif
 
-# Build products
-OBJS := $(PROG_NAME).o
-DEPS := $(OBJS:.o=.d)
-LINKED_ELF = $(PROG_NAME).elf
-RAW_BINARY = $(PROG_NAME).bin
-ROM_FILE = $(PROG_NAME)$(ROM_EXTENSION)
-
-# ROM Image
-$(ROM_FILE): $(RAW_BINARY)
-	@rm -f $@
+# Final ROM Image
+$(PROG_NAME).z64: $(PROG_NAME).bin
 	$(N64TOOL) -o $@ $(N64TOOLFLAGS) $<
+	$(ED64ROMCONFIG) $(ED64ROMCONFIGFLAGS) $@
 	$(CHKSUM64) $@
 
-# Raw stripped binary
-$(RAW_BINARY): $(LINKED_ELF)
+# Raw stripped binary executable
+$(PROG_NAME).bin: $(PROG_NAME).elf
 	$(OBJCOPY) -O binary $< $@
 
-# Linked object code binary
-$(LINKED_ELF): $(OBJS)
+# Linked object code executable
+$(PROG_NAME).elf: $(PROG_NAME).o
 	$(LD) -o $@ $^ $(LDFLAGS)
 
 .PHONY: clean
 clean:
-	rm -f *.v64 *.z64 *.elf *.bin *.o *.d
+	rm -f *.v64 *.z64 *.bin *.elf *.o
