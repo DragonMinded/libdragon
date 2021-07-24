@@ -1,5 +1,5 @@
 all: cpptest ctest dfsdemo mptest mputest spritemap test timers vrutest vtest ucodetest
-clean: ctest-clean dfsdemo-clean mptest-clean mputest-clean spritemap-clean test-clean timers-clean vrutest-clean vtest-clean ucodetest-clean
+clean: cpptest-clean ctest-clean dfsdemo-clean mptest-clean mputest-clean spritemap-clean test-clean timers-clean vrutest-clean vtest-clean ucodetest-clean
 
 cpptest:
 	+make -C cpptest

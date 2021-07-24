@@ -94,7 +94,7 @@ static void print_game_high_scores(void)
 static int read_game_high_scores(char * path)
 {
     printf( "Reading '%s'\n", path );
-    const int result = eepfs_read(path, &game_high_scores);
+    const int result = eepfs_read(path, &game_high_scores, sizeof(game_high_scores));
 
     if ( result != EEPFS_ESUCCESS )
     {
@@ -117,7 +117,7 @@ static int write_game_high_scores(char * path)
     game_high_scores[4] = (game_high_score_t){ "Q", 1 };
 
     printf( "Writing '%s'\n", path );
-    const int result = eepfs_write(path, &game_high_scores);
+    const int result = eepfs_write(path, &game_high_scores, sizeof(game_high_scores));
 
     if ( result != EEPFS_ESUCCESS )
     {
@@ -165,7 +165,7 @@ static int read_game_settings(char * path)
     game_settings_t game_settings;
 
     printf( "Reading '%s'\n", path );
-    const int result = eepfs_read(path, &game_settings);
+    const int result = eepfs_read(path, &game_settings, sizeof(game_settings));
 
     if ( result != EEPFS_ESUCCESS )
     {
@@ -184,7 +184,7 @@ static int write_game_settings(char * path)
     const game_settings_t game_settings = { true, 2, 255, 128 };
 
     printf( "Writing '%s'\n", path );
-    const int result = eepfs_write(path, &game_settings);
+    const int result = eepfs_write(path, &game_settings, sizeof(game_settings));
 
     if ( result != EEPFS_ESUCCESS )
     {
@@ -246,7 +246,7 @@ static int read_game_save_state(char * path)
     game_save_state_t game_save_state;
 
     printf( "Reading '%s'\n", path );
-    const int result = eepfs_read(path, &game_save_state);
+    const int result = eepfs_read(path, &game_save_state, sizeof(game_save_state));
 
     if ( result != EEPFS_ESUCCESS )
     {
@@ -275,7 +275,7 @@ static int write_game_save_state(char * path)
     };
 
     printf( "Writing '%s'\n", path );
-    const int result = eepfs_write(path, &game_save_state);
+    const int result = eepfs_write(path, &game_save_state, sizeof(game_save_state));
 
     if ( result != EEPFS_ESUCCESS )
     {
