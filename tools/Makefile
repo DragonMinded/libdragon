@@ -3,7 +3,7 @@ INSTALLDIR ?= $(N64_INST)
 all: chksum64 dumpdfs ed64romconfig mkdfs mksprite n64tool
 
 .PHONY: install
-install:
+install: chksum64 ed64romconfig n64tool
 	install -m 0755 chksum64 ed64romconfig n64tool $(INSTALLDIR)/bin
 	make -C dumpdfs install
 	make -C mkdfs install
