@@ -67,7 +67,7 @@ volatile int dma_busy()
  * @param[in]  len
  *             Length in bytes to read into dest
  */
-void dma_read(void * dest, uint32_t address, uint32_t len)
+__attribute__((deprecated)) void dma_read(void * dest, uint32_t address, uint32_t len)
 {
     return cart_rom_read(dest, address, len);
 }
@@ -84,7 +84,7 @@ void dma_read(void * dest, uint32_t address, uint32_t len)
  * @param[in] len
  *            Length in bytes to write to peripheral
  */
-void dma_write(const void * src, uint32_t address, uint32_t len)
+__attribute__((deprecated)) void dma_write(const void * src, uint32_t address, uint32_t len)
 {
     return cart_rom_write(src, address, len);
 }
