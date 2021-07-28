@@ -12,18 +12,23 @@
  * @brief DMA functionality for transfers between cartridge space and RDRAM
  *
  * The DMA controller is responsible for handling block and word accesses from
- * the catridge domain.  Because of the nature of the catridge interface, code
- * cannot use memcpy or standard pointer accesses on memory mapped to the catridge.
- * Consequently, the peripheral interface (PI) provides a DMA controller for
- * accessing data.
+ * the cartridge domain.  Because of the nature of the cartridge interface,
+ * code cannot use memcpy or standard pointer accesses on memory mapped to the
+ * cartridge. Instead, the console's Peripheral Interface (PI) provides a
+ * DMA controller for reading and writing data.
  *
- * The DMA controller requires no initialization.  Using #dma_read and #dma_write
- * will allow reading from the cartridge and writing to the catridge respectively
- * in block mode.  #io_read and #io_write will allow a single 32-bit integer to
- * be read from or written to the cartridge.  These are especially useful for
- * manipulating registers on a cartridge such as a gameshark.  Code should never
- * make raw 32-bit reads or writes in the cartridge domain as it could collide with
- * an in-progress DMA transfer or run into caching issues.
+ * The DMA controller requires no initialization.
+ *
+ * #pi_dma_read and #pi_dma_write allow reading and writing blocks of data from
+ * cartridge peripherals such as the ROM, SRAM, or FlashRAM. Refer to the
+ * @ref cart "Cartridge interface" for DMA functions in these specific domains.
+ *
+ * #io_read and #io_write allow a single 32-bit integer from uncached memory
+ * to be safely read or written. This are especially useful for manipulating
+ * registers on a cartridge such as a GameShark. Your code should always use
+ * these functions to access the cartridge domains to prevent caching issues
+ * and collisions that can occur with an in-progress DMA transfer.
+ *
  * @{
  */
 
@@ -45,21 +50,21 @@
 /** @brief Structure used to interact with the PI registers */
 static volatile struct PI_regs_s * const PI_regs = (struct PI_regs_s *)PI_BASE_REG;
 
-/** 
+/**
  * @brief Return whether the DMA controller is currently busy
  *
  * @return nonzero if the DMA controller is busy or 0 otherwise
  */
-volatile int dma_busy() 
+volatile int dma_busy()
 {
     return PI_regs->status & (PI_STATUS_DMA_BUSY | PI_STATUS_IO_BUSY);
 }
 
 /**
  * @brief Read from a peripheral
- * 
+ *
  * @deprecated Replaced by #cart_rom_read
- * 
+ *
  * @param[out] dest
  *             Pointer to a buffer to place read data
  * @param[in]  address
@@ -98,8 +103,10 @@ __attribute__((deprecated)) void dma_write(const void * src, uint32_t address, u
  *
  * @param[out] dest
  *             Pointer to a buffer to place read data
+ *
  * @param[in]  pi_address
  *             Memory address of the peripheral to read from
+ *
  * @param[in]  len
  *             Length in bytes to read into dest
  */
@@ -109,7 +116,7 @@ void pi_dma_read(void * dest, uint32_t pi_address, uint32_t len)
 
     disable_interrupts();
 
-    while (dma_busy()) ;
+    while (dma_busy()) { /* Spinloop */ }
     MEMORY_BARRIER();
     PI_regs->ram_address = dest;
     MEMORY_BARRIER();
@@ -117,7 +124,7 @@ void pi_dma_read(void * dest, uint32_t pi_address, uint32_t len)
     MEMORY_BARRIER();
     PI_regs->write_length = len-1;
     MEMORY_BARRIER();
-    while (dma_busy()) ;
+    while (dma_busy()) { /* Spinloop */ }
 
     enable_interrupts();
 }
@@ -131,18 +138,20 @@ void pi_dma_read(void * dest, uint32_t pi_address, uint32_t len)
  *
  * @param[in] src
  *            Pointer to a buffer to read data from
+ *
  * @param[in] pi_address
  *            Memory address of the peripheral to write to
+ *
  * @param[in] len
  *            Length in bytes to write to peripheral
  */
-void pi_dma_write(const void * src, uint32_t pi_address, uint32_t len) 
+void pi_dma_write(const void * src, uint32_t pi_address, uint32_t len)
 {
     assert(len > 1);
 
     disable_interrupts();
 
-    while (dma_busy()) ;
+    while (dma_busy()) { /* Spinloop */ }
     MEMORY_BARRIER();
     PI_regs->ram_address = (void*)src;
     MEMORY_BARRIER();
@@ -150,52 +159,56 @@ void pi_dma_write(const void * src, uint32_t pi_address, uint32_t len)
     MEMORY_BARRIER();
     PI_regs->read_length = len-1;
     MEMORY_BARRIER();
-    while (dma_busy()) ;
+    while (dma_busy()) { /* Spinloop */ }
 
     enable_interrupts();
 }
 
 /**
- * @brief Read a 32 bit integer from a peripheral
+ * @brief Read a word from uncached memory.
+ *
+ * Waits for any active DMA transfers to finish.
  *
  * @param[in] address
- *            Memory address of the peripheral to read from
+ *            Memory address to read from
  *
- * @return The 32 bit value read from the peripheral
+ * @return the word read from uncached memory
  */
 uint32_t io_read(uint32_t address)
 {
     volatile uint32_t *uncached_address = (uint32_t *)(address | KSEG1);
-    uint32_t retval = 0;
+    uint32_t data = 0;
 
     disable_interrupts();
 
-    /* Wait until there isn't a DMA transfer and grab a word */
-    while (dma_busy()) ;
+    while (dma_busy()) { /* Spinloop */ }
     MEMORY_BARRIER();
-    retval = *uncached_address;
+    data = *uncached_address;
     MEMORY_BARRIER();
 
     enable_interrupts();
 
-    return retval;
+    return data;
 }
 
 /**
- * @brief Write a 32 bit integer to a peripheral
+ * @brief Write a word to uncached memory.
+ *
+ * Waits for any active DMA transfers to finish.
  *
  * @param[in] address
- *            Memory address of the peripheral to write to
+ *            Memory address to write to
+ *
  * @param[in] data
- *            32 bit value to write to peripheral
+ *            Data to write into uncached memory
  */
-void io_write(uint32_t address, uint32_t data) 
+void io_write(uint32_t address, uint32_t data)
 {
     volatile uint32_t *uncached_address = (uint32_t *)(address | KSEG1);
 
     disable_interrupts();
 
-    while (dma_busy()) ;
+    while (dma_busy()) { /* Spinloop */ }
     MEMORY_BARRIER();
     *uncached_address = data;
     MEMORY_BARRIER();
