@@ -113,8 +113,9 @@ cart_save_type_t cart_detect_save_type( void )
     flashram_type_t flashram = cart_detect_flashram();
     if( flashram != FLASHRAM_TYPE_NONE ) return SAVE_TYPE_FLASHRAM_1MBIT;
 
-    if( cart_detect_sram(0x0001FFFF) ) return SAVE_TYPE_SRAM_1MBIT;
-    if( cart_detect_sram_768kbit(2, 0x00007FFF) ) return SAVE_TYPE_SRAM_768KBIT;
+    if( cart_detect_sram_bank(3, 0x00007FFF) ) return SAVE_TYPE_SRAM_1MBIT_BANKED;
+    if( cart_detect_sram_bank(2, 0x00007FFF) ) return SAVE_TYPE_SRAM_768KBIT;
+    if( cart_detect_sram(0x0001FFFF) ) return SAVE_TYPE_SRAM_1MBIT_CONTIGUOUS;
     if( cart_detect_sram(0x00007FFF) ) return SAVE_TYPE_SRAM_256KBIT;
 
     return SAVE_TYPE_NONE;
@@ -204,11 +205,11 @@ bool cart_detect_sram(uint32_t offset)
  * clobbering it during the test, and writing back the original data if successful.
  *
  * @param[in] bank
- *            Which of the three 256Kbit SRAM banks to select
+ *            Which 256Kbit SRAM banks to select (0-3)
  * @param[in] offset
  *            Offset of SRAM in bytes to check. An SRAM bank goes up to 256 kilobits.
  */
-bool cart_detect_sram_768kbit(uint8_t bank, uint32_t offset)
+bool cart_detect_sram_bank(uint8_t bank, uint32_t offset)
 {
     uint32_t __attribute__((aligned(16))) backup_buf;
     uint32_t __attribute__((aligned(16))) detect_buf;
@@ -220,23 +221,23 @@ bool cart_detect_sram_768kbit(uint8_t bank, uint32_t offset)
 
     /* Read the current data before writing over it */
     data_cache_hit_writeback_invalidate(&backup_buf, len);
-    cart_sram_768kbit_read(&backup_buf, bank, start, len);
+    cart_sram_bank_read(&backup_buf, bank, start, len);
 
     /* Write a test value into SRAM... */
     detect_buf = SRAM_TEST_VALUE;
     data_cache_hit_writeback_invalidate(&detect_buf, len);
-    cart_sram_768kbit_write(&detect_buf, bank, start, len);
+    cart_sram_bank_write(&detect_buf, bank, start, len);
 
     /* Read the test value back to see if it persisted */
     detect_buf = 0;
     data_cache_hit_writeback_invalidate(&detect_buf, len);
-    cart_sram_768kbit_read(&detect_buf, bank, start, len);
+    cart_sram_bank_read(&detect_buf, bank, start, len);
 
     if( detect_buf == SRAM_TEST_VALUE )
     {
         /* Restore the data that was overwritten to test SRAM */
         data_cache_hit_writeback_invalidate(&backup_buf, len);
-        cart_sram_768kbit_write(&backup_buf, bank, start, len);
+        cart_sram_bank_write(&backup_buf, bank, start, len);
         return true;
     }
     else
@@ -327,23 +328,23 @@ void cart_ram_write(const void * src, uint32_t offset, uint32_t len)
 }
 
 /**
- * @brief Read from 768 Kilobit SRAM
+ * @brief Read from an SRAM bank.
  *
- * 768Kbit SRAM is implemented as three separate 256Kbit SRAM chips with a logic circuit
+ * 768Kbit SRAM is implemented as separate 256Kbit SRAM chips with a logic circuit
  * to determine which chip to access.
  *
  * @param[in] dest
  *            Pointer to a buffer to place read data
  * @param[in] bank
- *            Which of the three 256Kbit SRAM banks to select
+ *            Which 256Kbit SRAM bank to select (0-3)
  * @param[in] offset
  *            Offset in bytes from the start of the 256Kbit SRAM bank to write to
  * @param[in] len
  *            Length in bytes to read into dest
  */
-void cart_sram_768kbit_read(void * dest, uint8_t bank, uint32_t offset, uint32_t len)
+void cart_sram_bank_read(void * dest, uint8_t bank, uint32_t offset, uint32_t len)
 {
-    assert(bank < 3);
+    assert(bank <= 3);
     assert(offset < 0x8000);
     assert(len > 1);
     uint32_t pi_address = (
@@ -355,23 +356,23 @@ void cart_sram_768kbit_read(void * dest, uint8_t bank, uint32_t offset, uint32_t
 }
 
 /**
- * @brief Write to 768 Kilobit SRAM
+ * @brief Write to an SRAM bank.
  *
- * 768Kbit SRAM is implemented as three separate 256Kbit SRAM chips with a logic circuit
+ * 768Kbit SRAM is implemented as separate 256Kbit SRAM chips with a logic circuit
  * to determine which chip to access.
  *
  * @param[in] src
  *            Pointer to a buffer to read data from
  * @param[in] bank
- *            Which of the three 256Kbit SRAM banks to select
+ *            Which SRAM bank to select (0-3)
  * @param[in] offset
  *            Offset in bytes from the start of the 256Kbit SRAM bank to write to
  * @param[in] len
  *            Length in bytes to write from src
  */
-void cart_sram_768kbit_write(const void * src, uint8_t bank, uint32_t offset, uint32_t len)
+void cart_sram_bank_write(const void * src, uint8_t bank, uint32_t offset, uint32_t len)
 {
-    assert(bank < 3);
+    assert(bank <= 3);
     assert(offset < 0x8000);
     assert(len > 1);
     uint32_t pi_address = (

@@ -37,10 +37,12 @@ const char * format_save_type( cart_save_type_t save_type )
             return "256 kilobit SRAM detected";
         case SAVE_TYPE_SRAM_768KBIT:
             return "768 kilobit SRAM detected";
-        case SAVE_TYPE_SRAM_1MBIT:
-            return "1 megabit SRAM detected";
         case SAVE_TYPE_FLASHRAM_1MBIT:
             return "1 megabit FlashRAM detected";
+        case SAVE_TYPE_SRAM_1MBIT_CONTIGUOUS:
+            return "1 megabit contiguous SRAM detected";
+        case SAVE_TYPE_SRAM_1MBIT_BANKED:
+            return "1 megabit banked SRAM detected";
         default:
             return "Unknown cartridge save type";
     }
