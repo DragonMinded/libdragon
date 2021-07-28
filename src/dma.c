@@ -23,10 +23,10 @@
  * cartridge peripherals such as the ROM, SRAM, or FlashRAM. Refer to the
  * @ref cart "Cartridge interface" for DMA functions in these specific domains.
  *
- * #io_read and #io_write allow a single 32-bit integer from uncached memory
- * to be safely read or written. This are especially useful for manipulating
- * registers on a cartridge such as a GameShark. Your code should always use
- * these functions to access the cartridge domains to prevent caching issues
+ * #io_read and #io_write allow safely reading and writing a word from
+ * uncached memory. These are especially useful for manipulating registers
+ * on a cartridge such as a GameShark. Your code should always use these
+ * functions to access the cartridge domains to prevent caching issues
  * and collisions that can occur with an in-progress DMA transfer.
  *
  * @{
@@ -165,7 +165,7 @@ void pi_dma_write(const void * src, uint32_t pi_address, uint32_t len)
 }
 
 /**
- * @brief Read a word from uncached memory.
+ * @brief Read a word from uncached memory safely.
  *
  * Waits for any active DMA transfers to finish.
  *
@@ -192,7 +192,7 @@ uint32_t io_read(uint32_t address)
 }
 
 /**
- * @brief Write a word to uncached memory.
+ * @brief Write a word to uncached memory safely.
  *
  * Waits for any active DMA transfers to finish.
  *
