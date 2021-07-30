@@ -11,21 +11,23 @@
 typedef enum cart_save_type_t
 {
     /** @brief No cartridge save capabilities detected. */
-    SAVE_TYPE_NONE                  = 0x00,
+    SAVE_TYPE_NONE                    = 0x00,
     /** @brief 4 kilobit EEPROM present */
-    SAVE_TYPE_EEPROM_4KBIT          = 0x10,
+    SAVE_TYPE_EEPROM_4KBIT            = 0x01,
     /** @brief 16 kilobit EEPROM present */
-    SAVE_TYPE_EEPROM_16KBIT         = 0x20,
-    /** @brief 256 kilobit SRAM present */
-    SAVE_TYPE_SRAM_256KBIT          = 0x30,
-    /** @brief 768 kilobit banked SRAM present */
-    SAVE_TYPE_SRAM_768KBIT          = 0x40,
+    SAVE_TYPE_EEPROM_16KBIT           = 0x02,
     /** @brief 1 megabit FlashRAM present */
-    SAVE_TYPE_FLASHRAM_1MBIT        = 0x50,
-    /** @brief 1 megabit contiguous SRAM present */
-    SAVE_TYPE_SRAM_1MBIT_CONTIGUOUS = 0x60,
+    SAVE_TYPE_FLASHRAM_1MBIT          = 0x04,
+    /** @brief 256 kilobit SRAM present */
+    SAVE_TYPE_SRAM_256KBIT            = 0x08,
+    /** @brief 768 kilobit banked SRAM present */
+    SAVE_TYPE_SRAM_768KBIT_BANKED     = 0x10,
     /** @brief 1 megabit banked SRAM present */
-    SAVE_TYPE_SRAM_1MBIT_BANKED     = 0x70,
+    SAVE_TYPE_SRAM_1MBIT_BANKED       = 0x20,
+    /** @brief 768 kilobit contiguous SRAM present (not supported) */
+    SAVE_TYPE_SRAM_768KBIT_CONTIGUOUS = 0x40,
+    /** @brief 1 megabit contiguous SRAM present (not supported) */
+    SAVE_TYPE_SRAM_1MBIT_CONTIGUOUS   = 0x80,
 } cart_save_type_t;
 
 typedef enum flashram_type_t
@@ -58,19 +60,20 @@ typedef enum flashram_type_t
 extern "C" {
 #endif
 
-cart_save_type_t cart_detect_save_type( void );
+uint8_t cart_detect_save_type( void );
 flashram_type_t cart_detect_flashram( void );
-bool cart_detect_sram(uint32_t offset);
-bool cart_detect_sram_bank(uint8_t bank, uint32_t offset);
+
+void cart_dom1_addr2_read(void * dest, uint32_t offset, uint32_t len);
+void cart_dom1_addr2_write(const void * src, uint32_t offset, uint32_t len);
+
+void cart_dom2_addr2_read(void * dest, uint32_t offset, uint32_t len);
+void cart_dom2_addr2_write(const void * src, uint32_t offset, uint32_t len);
 
 void cart_rom_read(void * dest, uint32_t offset, uint32_t len);
 void cart_rom_write(const void * src, uint32_t offset, uint32_t len);
 
-void cart_ram_read(void * dest, uint32_t offset, uint32_t len);
-void cart_ram_write(const void * src, uint32_t offset, uint32_t len);
-
-void cart_sram_bank_read(void * dest, uint8_t bank, uint32_t offset, uint32_t len);
-void cart_sram_bank_write(const void * src, uint8_t bank, uint32_t offset, uint32_t len);
+void cart_sram_read(void * dest, uint8_t bank, uint32_t offset, uint32_t len);
+void cart_sram_write(const void * src, uint8_t bank, uint32_t offset, uint32_t len);
 
 #ifdef __cplusplus
 }
