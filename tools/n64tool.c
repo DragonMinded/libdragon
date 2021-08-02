@@ -39,7 +39,7 @@ static const unsigned char zero[1024] = {0};
 
 int print_usage(const char * prog_name)
 {
-	fprintf(stderr, "Usage: %s [-t <title>] -l <size>B/K/M -h <file> -o <file> <file> [[-s <offset>B/K/M] <file>]*\n\n", prog_name);
+	fprintf(stderr, "Usage: %s [-t <title>] [-l <size>B/K/M] -h <file> -o <file> <file> [[-s <offset>B/K/M] <file>]*\n\n", prog_name);
 	fprintf(stderr, "This program creates an N64 ROM from a header and a list of files,\n");
 	fprintf(stderr, "the first being an Nintendo64 binary and the rest arbitrary data.\n");
 	fprintf(stderr, "\n");
@@ -276,7 +276,7 @@ int main(int argc, char *argv[])
 				return print_usage(argv[0]);
 			}
 
-			if(!total_bytes_written || !declared_size)
+			if(!total_bytes_written)
 			{
 				fprintf(stderr, "ERROR: The first file cannot have an offset\n\n");
 				return print_usage(argv[0]);
@@ -336,9 +336,9 @@ int main(int argc, char *argv[])
 		/* Argument is not a flag; treat it as an input file */
 
 		/* Can't copy input file unless header and output set */
-		if(!header || !output || !declared_size)
+		if(!header || !output)
 		{
-			fprintf(stderr, "ERROR: Need size, header, and output before first file\n\n");
+			fprintf(stderr, "ERROR: Need header and output before first file\n\n");
 			return print_usage(argv[0]);
 		}
 
@@ -384,14 +384,25 @@ int main(int argc, char *argv[])
 		return print_usage(argv[0]);
 	}
 
-	/* Pad the output file to the declared size (not including the IPL3 header) */
-	ssize_t num_zeros = declared_size - total_bytes_written;
-
-	if(output_zeros(write_file, num_zeros))
+	/* If the declared size is too small, error out */
+	if(declared_size && declared_size < total_bytes_written)
 	{
-		fprintf(stderr, "ERROR: Couldn't pad %d bytes to %d bytes. ", total_bytes_written, declared_size);
-		fprintf(stderr, "Increase your size argument to fix this.\n\n");
+		fprintf(stderr, "ERROR: Couldn't fit ROM in %d bytes as requested.\n", declared_size);
 		return print_usage(argv[0]);
+	}
+
+	/* Pad the output file to the declared size (not including the IPL3 header) */
+	if(!declared_size)
+		declared_size = MIN_SIZE;
+	if(declared_size > total_bytes_written)
+	{
+		ssize_t num_zeros = declared_size - total_bytes_written;
+
+		if(output_zeros(write_file, num_zeros))
+		{
+			fprintf(stderr, "ERROR: Couldn't pad %d bytes to %d bytes.\n", total_bytes_written, declared_size);
+			return print_usage(argv[0]);
+		}
 	}
 
 	/* Set title in header */
