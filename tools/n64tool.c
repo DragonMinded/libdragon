@@ -18,11 +18,13 @@
 	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA
 */
 
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/errno.h>
 
 #define WRITE_SIZE   (1024 * 1024)
 #define HEADER_SIZE  0x1000
@@ -36,6 +38,8 @@
 #define STATUS_BADUSAGE 2
 
 static const unsigned char zero[1024] = {0};
+static char * tmp_output = NULL;
+
 
 int print_usage(const char * prog_name)
 {
@@ -173,6 +177,12 @@ ssize_t parse_bytes(const char * arg)
 	}
 }
 
+void remove_tmp_file(void)
+{
+	if(tmp_output)
+		remove(tmp_output);
+}
+
 int main(int argc, char *argv[])
 {
 	FILE * write_file = NULL;
@@ -245,6 +255,7 @@ int main(int argc, char *argv[])
 				fprintf(stderr, "WARNING: The output should have a '.z64' file extension\n");
 			}
 
+			asprintf(&tmp_output, "%s.tmp", output);
 			continue;
 		}
 		if(check_flag(arg, "-l", "--size"))
@@ -352,13 +363,16 @@ int main(int argc, char *argv[])
 		if(!write_file)
 		{
 			/* Create or completely overwrite the output file */
-			write_file = fopen(output, "wb");
+			write_file = fopen(tmp_output, "wb");
 
 			if(!write_file)
 			{
 				fprintf(stderr, "ERROR: Cannot open '%s' for writing\n", output);
 				return STATUS_ERROR;
 			}
+
+			/* Try to clean up the temporary file if we exit */
+			atexit(remove_tmp_file);
 
 			/* Copy over the ROM header */
 			ssize_t bytes_copied = copy_file(write_file, header);
@@ -417,6 +431,12 @@ int main(int argc, char *argv[])
 
 	/* Sync and close the output file */
 	fclose(write_file);
+
+	/* Rename to the final name */
+	if(rename(tmp_output, output) != 0) {
+		fprintf(stderr, "Couldn't rename temporary output file '%s' to '%s': %s", tmp_output, output, strerror(errno));
+		return STATUS_ERROR;
+	}
 
 	return STATUS_OK;
 }
