@@ -264,7 +264,13 @@ int main(int argc, char *argv[])
 				fprintf(stderr, "ERROR: Invalid size argument; must be at least %d bytes\n\n", MIN_SIZE);
 				return print_usage(argv[0]);
 			}
-
+			if (size % 4 != 0)
+			{
+				/* Invalid size */
+				fprintf(stderr, "ERROR: Invalid size argument; must be a multiple of 4 bytes\n\n");
+				return print_usage(argv[0]);				
+			}
+ 
 			declared_size = size;
 			continue;
 		}
