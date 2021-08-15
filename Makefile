@@ -90,6 +90,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/dir.h $(INSTALLDIR)/mips64-elf/include/dir.h
 	install -Cv -m 0644 include/libdragon.h $(INSTALLDIR)/mips64-elf/include/libdragon.h
 	install -Cv -m 0644 include/ucode.S $(INSTALLDIR)/mips64-elf/include/ucode.S
+	install -Cv -m 0644 include/rsp.inc $(INSTALLDIR)/mips64-elf/include/rsp.inc
 
 clean:
 	rm -f *.o *.a
