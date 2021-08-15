@@ -1,4 +1,16 @@
-# Not implemented
+##################################################
+# RSP.INC - Main include file to write RSP ucode
+##################################################
+
+#ifndef RSP_INC
+#define RSP_INC
+
+# MIPS general register definitions
+#include <regdef.h>
+
+# Not implemented macro.
+# We use this to disable standard MIPS opcodes that are not
+# available on RSP. There are quite a few of them.
 .macro makeNotImplemented name
     .macro \name _:vararg
         .error "\name is not supported by RSP"
@@ -76,6 +88,10 @@ makeNotImplemented tlti
 makeNotImplemented tltiu
 makeNotImplemented teqi
 makeNotImplemented tnei
+
+##################################################
+# Vector opcode definitions
+##################################################
 
 .macro hexGeneralRegisters
     .equ hex.zero, 0
@@ -402,3 +418,252 @@ makeStoreInstruction swv, 0b00111
     hexGeneralRegisters
     .long (0x12 << 26 | 0x0 << 21 | \vreg << 11 | hex.\reg << 16 | \element << 7)
 .endm
+
+
+##################################################
+# Vector shift pseudo-opcodes
+##################################################
+# Helper macros for vector shifts.
+# How to use:
+#   1) Call macro "vsll_data" and/or "vsll8_data" in the data segment to define
+#      the required constants.
+#   2) Call macro "setup_vsll <VREG>" / "setup_vssl8 <VREG>" in code, passing
+#      one vreg that will hold shift constants.
+#   3) Use virtual opcodes:
+#        "vsll <VDST>, <VSRC>, <QTY>" to perform a left shift up to 7 bits
+#        "vsll8 <VDST>, <VSRC>, <QTY>" to perform a left shift from 8 to 15 bits
+#        "vsrl <VDST>, <VSRC>, <QTY>" to perform a logical right shift up to 7 bits
+#        "vsrl8 <VDST>, <VSRC>, <QTY>" to perform a logical right shift from 8 to 15 bits
+#        "vsra <VDST>, <VSRC>, <QTY>" to perform an arithmetic right shift up to 7 bits
+#        "vsra8 <VDST>, <VSRC>, <QTY>" to perform a arithmetic right shift from 8 to 15 bits
+#
+.macro vsll_data
+        .align 4
+    V_SHIFT:    .half 0x80, 0x40, 0x20, 0x10, 0x8, 0x4, 0x2, 0x1
+
+    .macro setup_vsll vshiftreg
+        .set noat
+        la $1,%lo(V_SHIFT)
+        lqv \vshiftreg,0,  0,$1
+        .set at
+
+        .macro vsll vdstreg, vsrcreg, qty
+            .if (\qty == 7)
+                vmudn \vdstreg, \vsrcreg, \vshiftreg,8
+            .elseif (\qty == 6)
+                vmudn \vdstreg, \vsrcreg, \vshiftreg,9
+            .elseif (\qty == 5)
+                vmudn \vdstreg, \vsrcreg, \vshiftreg,10
+            .elseif (\qty == 4)
+                vmudn \vdstreg, \vsrcreg, \vshiftreg,11
+            .elseif (\qty == 3)
+                vmudn \vdstreg, \vsrcreg, \vshiftreg,12
+            .elseif (\qty == 2)
+                vmudn \vdstreg, \vsrcreg, \vshiftreg,13
+            .elseif (\qty == 1)
+                vmudn \vdstreg, \vsrcreg, \vshiftreg,14
+            .elseif (\qty == 0)
+                vmudn \vdstreg, \vsrcreg, \vshiftreg,15
+            .elseif (\qty >= 8 && \qty <= 15)
+                .error "Use vsll8 for quantities in range 8-15"
+            .else
+                .error "Invalid quantity in vsll"
+            .endif
+        .endm
+
+        .macro vsrl8 vdstreg, vsrcreg, qty
+            .if (\qty == 9)
+                vmudl \vdstreg, \vsrcreg, \vshiftreg,8
+            .elseif (\qty == 10)
+                vmudl \vdstreg, \vsrcreg, \vshiftreg,9
+            .elseif (\qty == 11)
+                vmudl \vdstreg, \vsrcreg, \vshiftreg,10
+            .elseif (\qty == 12)
+                vmudl \vdstreg, \vsrcreg, \vshiftreg,11
+            .elseif (\qty == 13)
+                vmudl \vdstreg, \vsrcreg, \vshiftreg,12
+            .elseif (\qty == 14)
+                vmudl \vdstreg, \vsrcreg, \vshiftreg,13
+            .elseif (\qty == 15)
+                vmudl \vdstreg, \vsrcreg, \vshiftreg,14
+            .elseif (\qty >= 1 && \qty <= 8)
+                .error "Use vsrl for quantities in range 1-8"
+            .else
+                .error "Invalid quantity in vsrl8"
+            .endif
+        .endm
+
+        .macro vsra8 vdstreg, vsrcreg, qty
+            .if (\qty == 9)
+                vmudm \vdstreg, \vsrcreg, \vshiftreg,8
+            .elseif (\qty == 10)
+                vmudm \vdstreg, \vsrcreg, \vshiftreg,9
+            .elseif (\qty == 11)
+                vmudm \vdstreg, \vsrcreg, \vshiftreg,10
+            .elseif (\qty == 12)
+                vmudm \vdstreg, \vsrcreg, \vshiftreg,11
+            .elseif (\qty == 13)
+                vmudm \vdstreg, \vsrcreg, \vshiftreg,12
+            .elseif (\qty == 14)
+                vmudm \vdstreg, \vsrcreg, \vshiftreg,13
+            .elseif (\qty == 15)
+                vmudm \vdstreg, \vsrcreg, \vshiftreg,14
+            .elseif (\qty >= 1 && \qty <= 8)
+                .error "Use vsra for quantities in range 1-8"
+            .else
+                .error "Invalid quantity in vsra8"
+            .endif
+        .endm
+
+    .endm
+.endm
+
+.macro vsll8_data
+        .align 4
+    V_SHIFT8:   .half 0x8000, 0x4000, 0x2000, 0x1000, 0x800, 0x400, 0x200, 0x100
+
+    .macro setup_vsll8 vshiftreg
+        .set noat
+        la $1,%lo(V_SHIFT8)
+        lqv \vshiftreg,0,  0,$1
+        .set at
+
+        .macro vsll8 vdstreg, vsrcreg, qty
+            .if (\qty == 15)
+                vmudn \vdstreg, \vsrcreg, \vshiftreg,8
+            .elseif (\qty == 14)
+                vmudn \vdstreg, \vsrcreg, \vshiftreg,9
+            .elseif (\qty == 13)
+                vmudn \vdstreg, \vsrcreg, \vshiftreg,10
+            .elseif (\qty == 12)
+                vmudn \vdstreg, \vsrcreg, \vshiftreg,11
+            .elseif (\qty == 11)
+                vmudn \vdstreg, \vsrcreg, \vshiftreg,12
+            .elseif (\qty == 10)
+                vmudn \vdstreg, \vsrcreg, \vshiftreg,13
+            .elseif (\qty == 9)
+                vmudn \vdstreg, \vsrcreg, \vshiftreg,14
+            .elseif (\qty == 8)
+                vmudn \vdstreg, \vsrcreg, \vshiftreg,15
+            .elseif (\qty >= 0 && \qty <= 7)
+                .error "Use vsll for quantities in range 0-7"
+            .else
+                .error "Invalid quantity in vsll8"
+            .endif
+        .endm
+
+        .macro vsrl vdstreg, vsrcreg, qty
+            .if (\qty == 1)
+                vmudl \vdstreg, \vsrcreg, \vshiftreg,8
+            .elseif (\qty == 2)
+                vmudl \vdstreg, \vsrcreg, \vshiftreg,9
+            .elseif (\qty == 3)
+                vmudl \vdstreg, \vsrcreg, \vshiftreg,10
+            .elseif (\qty == 4)
+                vmudl \vdstreg, \vsrcreg, \vshiftreg,11
+            .elseif (\qty == 5)
+                vmudl \vdstreg, \vsrcreg, \vshiftreg,12
+            .elseif (\qty == 6)
+                vmudl \vdstreg, \vsrcreg, \vshiftreg,13
+            .elseif (\qty == 7)
+                vmudl \vdstreg, \vsrcreg, \vshiftreg,14
+            .elseif (\qty == 8)
+                vmudl \vdstreg, \vsrcreg, \vshiftreg,15
+            .elseif (\qty >= 9 && \qty <= 15)
+                .error "Use vsrl8 for quantities in range 9-15"
+            .else
+                .error "Invalid quantity in vsrl"
+            .endif
+        .endm
+
+        .macro vsra vdstreg, vsrcreg, qty
+            .if (\qty == 1)
+                vmudm \vdstreg, \vsrcreg, \vshiftreg,8
+            .elseif (\qty == 2)
+                vmudm \vdstreg, \vsrcreg, \vshiftreg,9
+            .elseif (\qty == 3)
+                vmudm \vdstreg, \vsrcreg, \vshiftreg,10
+            .elseif (\qty == 4)
+                vmudm \vdstreg, \vsrcreg, \vshiftreg,11
+            .elseif (\qty == 5)
+                vmudm \vdstreg, \vsrcreg, \vshiftreg,12
+            .elseif (\qty == 6)
+                vmudm \vdstreg, \vsrcreg, \vshiftreg,13
+            .elseif (\qty == 7)
+                vmudm \vdstreg, \vsrcreg, \vshiftreg,14
+            .elseif (\qty == 8)
+                vmudm \vdstreg, \vsrcreg, \vshiftreg,15
+            .elseif (\qty >= 9 && \qty <= 15)
+                .error "Use vsra8 for quantities in range 9-15"
+            .else
+                .error "Invalid quantity in vsra"
+            .endif
+        .endm
+    .endm
+.endm
+
+##################################################
+# Other psuedo-ops
+##################################################
+
+# jal_and_j implements a tail-call-optimized subroutine call followed by
+# a jump. In other words, this:
+#
+#   jal_and_j func, label
+#
+# is equivalent to:
+#
+#   jal func
+#   nop
+#   j label
+#   nop
+#
+# but using only two instructions instead of four.
+.macro jal_and_j func, label
+    j \func
+    li ra, %lo(\label)
+.endm
+
+
+##################################################
+# Hardware registers
+##################################################
+
+#define SP_STATUS_BROKE         (1<<0)
+#define SP_STATUS_DMA_BUSY      (1<<2)
+#define SP_STATUS_DMA_FULL      (1<<3)
+#define SP_STATUS_SIG0          (1<<7)
+#define SP_STATUS_SIG1          (1<<8)
+
+#define SP_WSTATUS_RESET_SIG0   (1<<9)
+#define SP_WSTATUS_SET_SIG0     (1<<10)
+#define SP_WSTATUS_RESET_SIG1   (1<<11)
+#define SP_WSTATUS_SET_SIG1     (1<<12)
+
+#define COP0_DMA_SPADDR         $0
+#define COP0_DMA_RAMADDR        $1
+#define COP0_DMA_READ           $2
+#define COP0_DMA_WRITE          $3
+#define COP0_SP_STATUS          $4
+#define COP0_DMA_FULL           $5
+#define COP0_DMA_BUSY           $6
+
+#define COP2_CTRL_VCO           $0
+#define COP2_CTRL_VCC           $1
+#define COP2_CTRL_VCE           $2
+
+# Compose the RSP DMA size register with immediate constants "width" and "height".
+# For a linear transfer, use height=1.
+# Notice that if height!=1, a pitch must be specified in the register. This
+# version of the macro is useful for the common case in which the pitch is not
+# a compile-time constant and thus will need to be inserted at runtime.
+#define DMA_SIZE(width, height)          (((width)-1) | (((height)-1)<<12))
+
+# Compose the RSP DMA size register with immediate constants
+# "width", "height", and "pitch".
+# It is similar to DMA_SIZE, but it can be used when the pitch is a compile-time
+# constant.
+#define DMA_SIZE3(width, height, pitch)  (((width)-1) | (((height)-1)<<12) | (((pitch)-(width))<<20))
+
+
+#endif /* RSP_INC */
