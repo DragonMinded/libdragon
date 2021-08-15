@@ -1,30 +1,42 @@
-ROOTDIR = $(N64_INST)
-
-CFLAGS = -std=gnu99 -O2 -Wall -Werror -ffunction-sections -fdata-sections -mtune=vr4300 -march=vr4300 -I$(CURDIR)/include -I$(ROOTDIR)/mips64-elf/include
-
-ASFLAGS = -mtune=vr4300 -march=vr4300
-N64PREFIX = $(N64_INST)/bin/mips64-elf-
-INSTALLDIR = $(N64_INST)
-CC = $(N64PREFIX)gcc
-AS = $(N64PREFIX)as
-LD = $(N64PREFIX)ld
-AR = $(N64PREFIX)ar
-
 all: libdragon
 
+V = 1  # force verbose (at least until we have converted all sub-Makefiles)
+SOURCE_DIR = $(CURDIR)/src
+BUILD_DIR = $(CURDIR)/build
+include n64.mk
+INSTALLDIR = $(N64_INST)
+
+# Activate N64 toolchain for libdragon build
+libdragon: CC=$(N64_CC)
+libdragon: AS=$(N64_AS)
+libdragon: LD=$(N64_LD)
+libdragon: CFLAGS+=$(N64_CFLAGS) -I$(CURDIR)/include -I$(ROOTDIR)/mips64-elf/include
+libdragon: ASFLAGS+=$(N64_ASFLAGS) -I$(CURDIR)/include -I$(ROOTDIR)/mips64-elf/include
+libdragon: LDFLAGS+=$(N64_LDFLAGS)
 libdragon: libdragon.a libdragonsys.a
 
-include files.in
+libdragonsys.a: $(BUILD_DIR)/system.o
+	@echo "    [AR] $@"
+	$(AR) -rcs -o $@ $^
+
+libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
+			 $(BUILD_DIR)/inthandler.o $(BUILD_DIR)/entrypoint.o \
+			 $(BUILD_DIR)/debug.o $(BUILD_DIR)/usb.o $(BUILD_DIR)/fatfs/ff.o \
+			 $(BUILD_DIR)/fatfs/ffunicode.o $(BUILD_DIR)/dragonfs.o \
+			 $(BUILD_DIR)/audio.o $(BUILD_DIR)/display.o \
+			 $(BUILD_DIR)/console.o $(BUILD_DIR)/joybus.o \
+			 $(BUILD_DIR)/controller.o $(BUILD_DIR)/rtc.o \
+			 $(BUILD_DIR)/eepromfs.o $(BUILD_DIR)/mempak.o \
+			 $(BUILD_DIR)/tpak.o $(BUILD_DIR)/graphics.o $(BUILD_DIR)/rdp.o \
+			 $(BUILD_DIR)/rsp.o $(BUILD_DIR)/dma.o $(BUILD_DIR)/timer.o \
+			 $(BUILD_DIR)/exception.o $(BUILD_DIR)/do_ctors.o
+	@echo "    [AR] $@"
+	$(AR) -rcs -o $@ $^
 
 examples:
 	make -C examples
 examples-clean:
 	make -C examples clean
-
-ucode:
-	make -C ucode
-ucode-clean:
-	make -C ucode clean
 
 doxygen: doxygen.conf
 	mkdir -p doxygen/
@@ -42,13 +54,9 @@ tools-install:
 tools-clean:
 	make -C tools clean
 
-libdragon.a: $(OFILES_LD)
-	$(AR) -rcs -o libdragon.a $(OFILES_LD)
-libdragonsys.a: $(OFILES_LDS)
-	$(AR) -rcs -o libdragonsys.a $(OFILES_LDS)
-
 install: libdragon.a libdragonsys.a
 	install -m 0644 libdragon.a $(INSTALLDIR)/mips64-elf/lib/libdragon.a
+	install -m 0644 n64.mk $(INSTALLDIR)/include/n64.mk
 	install -m 0644 n64.ld $(INSTALLDIR)/mips64-elf/lib/n64.ld
 	install -m 0644 header $(INSTALLDIR)/mips64-elf/lib/header
 	install -m 0644 libdragonsys.a $(INSTALLDIR)/mips64-elf/lib/libdragonsys.a
@@ -85,4 +93,8 @@ clean:
 
 clobber: clean doxygen-clean examples-clean tools-clean
 
-.PHONY : clobber clean doxygen-clean doxygen doxygen-api examples examples-clean tools tools-clean tools-install ucode ucode-clean
+.PHONY : clobber clean doxygen-clean doxygen doxygen-api examples examples-clean tools tools-clean tools-install
+
+# Automatic dependency tracking
+-include $(wildcard $(BUILD_DIR)/*.d)
+
