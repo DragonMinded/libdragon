@@ -165,10 +165,8 @@ ssize_t parse_bytes(const char * arg)
 			size *= 1024;
 		case 'b':
 		case 'B':
-			return size;
 		default:
-			/* Invalid! */
-			return 0;
+			return size;
 	}
 }
 
