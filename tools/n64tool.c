@@ -320,7 +320,7 @@ int main(int argc, char *argv[])
 
 			if(output_zeros(write_file, num_zeros))
 			{
-				fprintf(stderr, "ERROR: Invalid offset %d to seek to in %s!\n", offset, output);
+				fprintf(stderr, "ERROR: Invalid offset %zd to seek to in %s!\n", offset, output);
 				return STATUS_ERROR;
 			}
 
@@ -407,7 +407,7 @@ int main(int argc, char *argv[])
 	/* If the declared size is too small, error out */
 	if(declared_size && declared_size < total_bytes_written)
 	{
-		fprintf(stderr, "ERROR: Couldn't fit ROM in %d bytes as requested.\n", declared_size);
+		fprintf(stderr, "ERROR: Couldn't fit ROM in %zu bytes as requested.\n", declared_size);
 		return print_usage(argv[0]);
 	}
 
@@ -420,7 +420,7 @@ int main(int argc, char *argv[])
 
 		if(output_zeros(write_file, num_zeros))
 		{
-			fprintf(stderr, "ERROR: Couldn't pad %d bytes to %d bytes.\n", total_bytes_written, declared_size);
+			fprintf(stderr, "ERROR: Couldn't pad %zu bytes to %zu bytes.\n", total_bytes_written, declared_size);
 			return print_usage(argv[0]);
 		}
 	}
