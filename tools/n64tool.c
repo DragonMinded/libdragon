@@ -123,11 +123,6 @@ ssize_t copy_file(FILE * dest, const char * file)
 
 ssize_t output_zeros(FILE * dest, ssize_t amount)
 {
-	if((amount & 3) != 0)
-	{
-		/* Don't support odd word alignments */
-		return -1;
-	}
 	if(amount < 0)
 	{
 		/* Can't backward seek */
@@ -281,6 +276,10 @@ int main(int argc, char *argv[])
 				fprintf(stderr, "ERROR: Invalid size argument; must be a multiple of 4 bytes\n\n");
 				return print_usage(argv[0]);				
 			}
+			if (size % 512 != 0)
+			{
+				fprintf(stderr, "WARNING: Sizes which are not multiple of 512 bytes might have problems being loaded with a 64drive\n\n");
+			}				
  
 			declared_size = size;
 			continue;
@@ -313,6 +312,11 @@ int main(int argc, char *argv[])
 				/* Invalid offset */
 				fprintf(stderr, "ERROR: Invalid offset argument\n\n");
 				return print_usage(argv[0]);
+			}
+			if((offset % 4) != 0)
+			{
+				fprintf(stderr, "ERROR: Invalid offset argument (must be multiple of 4)\n\n");
+				return print_usage(argv[0]);				
 			}
 
 			/* Write out needed number of zeros */
@@ -421,6 +425,17 @@ int main(int argc, char *argv[])
 		if(output_zeros(write_file, num_zeros))
 		{
 			fprintf(stderr, "ERROR: Couldn't pad %zu bytes to %zu bytes.\n", total_bytes_written, declared_size);
+			return print_usage(argv[0]);
+		}
+	}
+	else if((total_bytes_written % 512) != 0)
+	{
+		/* Pad size to 512 bytes to avoid possible incompatibilities with 64drive
+		   due to a firmware bug (present as of firmware rev 2.05) */
+		ssize_t num_zeros = 512 - (total_bytes_written % 512);
+		if(output_zeros(write_file, num_zeros))
+		{
+			fprintf(stderr, "ERROR: Couldn't pad %zu bytes to %zu bytes.\n", total_bytes_written, total_bytes_written+num_zeros);
 			return print_usage(argv[0]);
 		}
 	}
