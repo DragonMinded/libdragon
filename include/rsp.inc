@@ -652,6 +652,11 @@ makeStoreInstruction swv, 0b00111
 #define COP2_CTRL_VCC           $1
 #define COP2_CTRL_VCE           $2
 
+
+##################################################
+# RSP_DMA.INC macros
+##################################################
+
 # Compose the RSP DMA size register with immediate constants "width" and "height".
 # For a linear transfer, use height=1.
 # Notice that if height!=1, a pitch must be specified in the register. This
@@ -664,6 +669,12 @@ makeStoreInstruction swv, 0b00111
 # It is similar to DMA_SIZE, but it can be used when the pitch is a compile-time
 # constant.
 #define DMA_SIZE3(width, height, pitch)  (((width)-1) | (((height)-1)<<12) | (((pitch)-(width))<<20))
+
+# DMAExec operation macros. Pass one of these in t2 to DMAExec
+#define DMA_IN_ASYNC     0x00000000
+#define DMA_OUT_ASYNC    0xFFFF8000
+#define DMA_IN           (DMA_IN_ASYNC  | SP_STATUS_DMA_BUSY | SP_STATUS_DMA_FULL)
+#define DMA_OUT          (DMA_OUT_ASYNC | SP_STATUS_DMA_BUSY | SP_STATUS_DMA_FULL)
 
 
 #endif /* RSP_INC */
