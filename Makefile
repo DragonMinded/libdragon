@@ -55,37 +55,37 @@ tools-clean:
 	make -C tools clean
 
 install: libdragon.a libdragonsys.a
-	install -m 0644 libdragon.a $(INSTALLDIR)/mips64-elf/lib/libdragon.a
-	install -m 0644 n64.mk $(INSTALLDIR)/include/n64.mk
-	install -m 0644 n64.ld $(INSTALLDIR)/mips64-elf/lib/n64.ld
-	install -m 0644 header $(INSTALLDIR)/mips64-elf/lib/header
-	install -m 0644 libdragonsys.a $(INSTALLDIR)/mips64-elf/lib/libdragonsys.a
-	install -m 0644 include/n64sys.h $(INSTALLDIR)/mips64-elf/include/n64sys.h
-	install -m 0644 include/cop0.h $(INSTALLDIR)/mips64-elf/include/cop0.h
-	install -m 0644 include/cop1.h $(INSTALLDIR)/mips64-elf/include/cop1.h
-	install -m 0644 include/interrupt.h $(INSTALLDIR)/mips64-elf/include/interrupt.h
-	install -m 0644 include/dma.h $(INSTALLDIR)/mips64-elf/include/dma.h
-	install -m 0644 include/dragonfs.h $(INSTALLDIR)/mips64-elf/include/dragonfs.h
-	install -m 0644 include/audio.h $(INSTALLDIR)/mips64-elf/include/audio.h
-	install -m 0644 include/display.h $(INSTALLDIR)/mips64-elf/include/display.h
-	install -m 0644 include/debug.h $(INSTALLDIR)/mips64-elf/include/debug.h
-	install -m 0644 include/usb.h $(INSTALLDIR)/mips64-elf/include/usb.h
-	install -m 0644 include/console.h $(INSTALLDIR)/mips64-elf/include/console.h
-	install -m 0644 include/joybus.h $(INSTALLDIR)/mips64-elf/include/joybus.h
-	install -m 0644 include/mempak.h $(INSTALLDIR)/mips64-elf/include/mempak.h
-	install -m 0644 include/controller.h $(INSTALLDIR)/mips64-elf/include/controller.h
-	install -m 0644 include/rtc.h $(INSTALLDIR)/mips64-elf/include/rtc.h
-	install -m 0644 include/eepromfs.h $(INSTALLDIR)/mips64-elf/include/eepromfs.h
-	install -m 0644 include/tpak.h $(INSTALLDIR)/mips64-elf/include/tpak.h
-	install -m 0644 include/graphics.h $(INSTALLDIR)/mips64-elf/include/graphics.h
-	install -m 0644 include/rdp.h $(INSTALLDIR)/mips64-elf/include/rdp.h
-	install -m 0644 include/rsp.h $(INSTALLDIR)/mips64-elf/include/rsp.h
-	install -m 0644 include/timer.h $(INSTALLDIR)/mips64-elf/include/timer.h
-	install -m 0644 include/exception.h $(INSTALLDIR)/mips64-elf/include/exception.h
-	install -m 0644 include/system.h $(INSTALLDIR)/mips64-elf/include/system.h
-	install -m 0644 include/dir.h $(INSTALLDIR)/mips64-elf/include/dir.h
-	install -m 0644 include/libdragon.h $(INSTALLDIR)/mips64-elf/include/libdragon.h
-	install -m 0644 include/ucode.S $(INSTALLDIR)/mips64-elf/include/ucode.S
+	install -Cv -m 0644 libdragon.a $(INSTALLDIR)/mips64-elf/lib/libdragon.a
+	install -Cv -m 0644 n64.mk $(INSTALLDIR)/include/n64.mk
+	install -Cv -m 0644 n64.ld $(INSTALLDIR)/mips64-elf/lib/n64.ld
+	install -Cv -m 0644 header $(INSTALLDIR)/mips64-elf/lib/header
+	install -Cv -m 0644 libdragonsys.a $(INSTALLDIR)/mips64-elf/lib/libdragonsys.a
+	install -Cv -m 0644 include/n64sys.h $(INSTALLDIR)/mips64-elf/include/n64sys.h
+	install -Cv -m 0644 include/cop0.h $(INSTALLDIR)/mips64-elf/include/cop0.h
+	install -Cv -m 0644 include/cop1.h $(INSTALLDIR)/mips64-elf/include/cop1.h
+	install -Cv -m 0644 include/interrupt.h $(INSTALLDIR)/mips64-elf/include/interrupt.h
+	install -Cv -m 0644 include/dma.h $(INSTALLDIR)/mips64-elf/include/dma.h
+	install -Cv -m 0644 include/dragonfs.h $(INSTALLDIR)/mips64-elf/include/dragonfs.h
+	install -Cv -m 0644 include/audio.h $(INSTALLDIR)/mips64-elf/include/audio.h
+	install -Cv -m 0644 include/display.h $(INSTALLDIR)/mips64-elf/include/display.h
+	install -Cv -m 0644 include/debug.h $(INSTALLDIR)/mips64-elf/include/debug.h
+	install -Cv -m 0644 include/usb.h $(INSTALLDIR)/mips64-elf/include/usb.h
+	install -Cv -m 0644 include/console.h $(INSTALLDIR)/mips64-elf/include/console.h
+	install -Cv -m 0644 include/joybus.h $(INSTALLDIR)/mips64-elf/include/joybus.h
+	install -Cv -m 0644 include/mempak.h $(INSTALLDIR)/mips64-elf/include/mempak.h
+	install -Cv -m 0644 include/controller.h $(INSTALLDIR)/mips64-elf/include/controller.h
+	install -Cv -m 0644 include/rtc.h $(INSTALLDIR)/mips64-elf/include/rtc.h
+	install -Cv -m 0644 include/eepromfs.h $(INSTALLDIR)/mips64-elf/include/eepromfs.h
+	install -Cv -m 0644 include/tpak.h $(INSTALLDIR)/mips64-elf/include/tpak.h
+	install -Cv -m 0644 include/graphics.h $(INSTALLDIR)/mips64-elf/include/graphics.h
+	install -Cv -m 0644 include/rdp.h $(INSTALLDIR)/mips64-elf/include/rdp.h
+	install -Cv -m 0644 include/rsp.h $(INSTALLDIR)/mips64-elf/include/rsp.h
+	install -Cv -m 0644 include/timer.h $(INSTALLDIR)/mips64-elf/include/timer.h
+	install -Cv -m 0644 include/exception.h $(INSTALLDIR)/mips64-elf/include/exception.h
+	install -Cv -m 0644 include/system.h $(INSTALLDIR)/mips64-elf/include/system.h
+	install -Cv -m 0644 include/dir.h $(INSTALLDIR)/mips64-elf/include/dir.h
+	install -Cv -m 0644 include/libdragon.h $(INSTALLDIR)/mips64-elf/include/libdragon.h
+	install -Cv -m 0644 include/ucode.S $(INSTALLDIR)/mips64-elf/include/ucode.S
 
 clean:
 	rm -f *.o *.a
