@@ -175,6 +175,7 @@ static void audio_callback()
     enable_interrupts();
 }
 
+
 /**
  * @brief Initialize the audio subsystem
  *
@@ -327,6 +328,9 @@ void audio_pause(bool pause) {
  * buffer which will be played back by the audio system as soon as room
  * becomes available in the AI.  The buffer should contain stereo interleaved
  * samples and be exactly #audio_get_buffer_length stereo samples long.
+ * 
+ * To improve performance and avoid the memory copy, use #audio_write_begin
+ * and #audio_write_end instead.
  *
  * @note This function will block until there is room to write an audio sample.
  *       If you do not want to block, check to see if there is room by calling
@@ -358,6 +362,68 @@ void audio_write(const short * const buffer)
     buf_full |= (1<<next);
     now_writing = next;
     memcpy(UncachedShortAddr(buffers[now_writing]), buffer, _buf_size * 2 * sizeof(short));
+    audio_callback();
+    enable_interrupts();
+}
+
+/**
+ * @brief Start writing to the first free internal buffer.
+ * 
+ * This function is similar to #audio_write but instead of taking samples
+ * and copying them to an internal buffer, it returns the pointer to the
+ * internal buffer. This allows generating the samples directly in the buffer
+ * that will be sent via DMA to AI, without any subsequent memory copy.
+ * 
+ * The buffer should be filled with stereo interleaved samples, and
+ * exactly #audio_get_buffer_length samples should be written.
+ * 
+ * After you have written the samples, call audio_write_end() to notify
+ * the library that the buffer is ready to be sent to AI.
+ * 
+ * @note This function will block until there is room to write an audio sample.
+ *       If you do not want to block, check to see if there is room by calling
+ *       #audio_can_write.
+ * 
+ * @return  Pointer to the internal memory buffer where to write samples.
+ */
+short* audio_write_begin(void) 
+{
+    if(!buffers)
+    {
+        return NULL;
+    }
+
+    disable_interrupts();
+
+    /* check for empty buffer */
+    int next = (now_writing + 1) % _num_buf;
+    while (buf_full & (1<<next))
+    {
+        // buffers full
+        audio_callback();
+        enable_interrupts();
+        disable_interrupts();
+    }
+
+    /* Copy buffer into local buffers */
+    now_writing = next;
+    enable_interrupts();
+
+    return buffers[now_writing];
+}
+
+/**
+ * @brief Complete writing to an internal buffer.
+ * 
+ * This function is meant to be used in pair with audio_write_begin().
+ * Call this once you have generated the samples, so that the audio
+ * system knows the buffer has been filled and can be played back.
+ * 
+ */
+void audio_write_end(void)
+{
+    disable_interrupts();
+    buf_full |= (1<<now_writing);
     audio_callback();
     enable_interrupts();
 }
