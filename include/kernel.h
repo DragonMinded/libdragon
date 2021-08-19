@@ -93,6 +93,11 @@
  * #kthread_new returns a pointer to the thread (a pointer
  * to kthread_t) that can be used to externally manage the
  * thread like changing its priority or killing it.
+ * 
+ * NOTE: this structure should be considered internal and subject
+ * to future changes. It is exposed just for debugging purposes
+ * and should not be relied upon. Please do not change any
+ * field without going through a function of the public API.
  */
 typedef struct kthread_s
 {
@@ -137,6 +142,11 @@ typedef struct kthread_s
  * simply return a failure in that case.
  *
  * Threads can receive mails using #kmbox_recv or #kmbox_try_recv.
+ *
+ * NOTE: this structure should be considered internal and subject
+ * to future changes. It is exposed just for debugging purposes
+ * and should not be relied upon. Please do not change any
+ * field without going through a function of the public API.
  */
 typedef struct kmbox_s
 {
@@ -169,6 +179,11 @@ typedef struct kmbox_s
  *
  * It is also possible to attach a mailbox to an event using #mbox_attach_event.
  * This is useful if a thread needs to wait for multiple events.
+ *
+ * NOTE: this structure should be considered internal and subject
+ * to future changes. It is exposed just for debugging purposes
+ * and should not be relied upon. Please do not change any
+ * field without going through a function of the public API.
  */
 typedef struct kevent_s
 {
@@ -354,7 +369,7 @@ const char* kthread_name(kthread_t *th);
  *
  * If the thread needs to handle multiple events and/or a more
  * elaborate communication with other threads, you can use
- * #thread_listen_event instead.
+ * #kmbox with #kmbox_attach_event instead.
  *
  * @param[in] evt
  *            The event to wait for

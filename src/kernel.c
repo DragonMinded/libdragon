@@ -8,6 +8,9 @@
 
 #define DEBUG_KERNEL   0
 
+/** @brief Enable stack-smashing checks of threads. */
+#define KERNEL_CHECKS  1
+
 #define STACK_COOKIE   0xDEADBEEFBAADC0DE
 #define STACK_GUARD    64
 
@@ -29,7 +32,7 @@
 #define KTHREAD_SWITCH()      __asm("syscall 0x1")
 
 /**
- * @brief Executed a context switch, during an ongoing interrupt service routing.
+ * @brief Executed a context switch, during an ongoing interrupt service routine.
  *
  * This forces a context switch to happen just like #KTHREAD_SWITCH, but it is
  * the right version to call if the code is currently servicing an interrupt.
@@ -40,7 +43,7 @@
 kthread_t th_main;
 /** @brief Pointer to the current thread */
 kthread_t *th_cur;
-/** @brief Pounter to the idle thread */
+/** @brief Pointer to the idle thread */
 kthread_t *th_idle;
 /** @brief List of ready threads */
 static kthread_t *th_ready;
@@ -83,7 +86,7 @@ void __kthread_check_overflow(kthread_t *th)
 	// If the current stack pointer is beyond the end of the stack,
 	// this is a stack overflow even without checking the integrity of the
 	// guard.
-	assertf((void*)th->stack_state >= th->stack + STACK_GUARD,
+	assertf((uintptr_t)th->stack_state >= (uintptr_t)th->stack + STACK_GUARD,
 		"stack overflow in thread: %s[%p]\nSP:%p | Stack top: %p | Overflow: %d bytes",
 		th->name, th,
 		th->stack_state, th->stack+STACK_GUARD,
@@ -92,9 +95,12 @@ void __kthread_check_overflow(kthread_t *th)
 	// Check if the stack guard has been corrupted. This indicates that
 	// has a stack overflow has happened, even if right now the stack has
 	// rolled back.
-	uint64_t *cookie = (uint64_t*)th->stack;
-	for (int i=0;i<STACK_GUARD/8;i++)
-		assertf(cookie[i] == STACK_COOKIE, "stack overflow in thread: %s[%p]\nStack guard is corrupted", th->name, th);
+	if (KERNEL_CHECKS)
+	{
+		uint64_t *cookie = (uint64_t*)th->stack;
+		for (int i=0;i<STACK_GUARD/8;i++)
+			assertf(cookie[i] == STACK_COOKIE, "stack overflow in thread: %s[%p]\nStack guard is corrupted", th->name, th);		
+	}
 }
 
 /** @brief Add a thread to a linked list */
@@ -172,9 +178,11 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 {
 	if (th_cur)
 	{
+		// Save the stack state for the current thread.
+		th_cur->stack_state = stack_state;
+
 		// For debugging purposes: check if the current thread has overflown
 		// its allocated stack.
-		th_cur->stack_state = stack_state;
 		__kthread_check_overflow(th_cur);
 
 	 	if (th_cur->flags & TH_FLAG_ZOMBIE)
@@ -332,11 +340,13 @@ kthread_t* kthread_new(const char *name, int stack_size, int8_t pri, void (*user
 
 	// Top of the stack is the end of the stack area, so where the kthread_t
 	// structure is. Remember that the stack grows downward.
-	void *top_stack = (void*)th;
+	void *top_stack = th;
 
-	// Put the initial regblock at the top of the stack. This is the
-	// block that will be popped when the thread is first scheduled, and needs to
-	// initialize all the registers and jump to the entry point.
+	// Put the initial regblock at the top of the stack. Since threads are
+	// always scheduled under interrupts, the top of the stack of a non-running
+	// thread must always contain a reg_block_t, that is a dump of all its
+	// registers. We thus initialize all the registers to the value we
+	// except at thread start (which is 0 for most of them).
 	th->stack_state = (reg_block_t*)(top_stack - sizeof(reg_block_t));
 	assert(((uint32_t)th->stack_state & 7) == 0);
 	memset(th->stack_state, 0, sizeof(reg_block_t));
