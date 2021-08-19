@@ -208,7 +208,7 @@ reg_block_t* __kthread_syscall_schedule(reg_block_t *stack_state)
 				// the thread must already have been added to a waiting list,
 				// otherwise it wouldn't ever be scheduled again.
 				assert(th_cur->flags & TH_FLAG_INLIST);
-				assert(*(uint32_t*)th_cur->stack_state->epc == 0x4C);
+				assertf(*(uint32_t*)th_cur->stack_state->epc == 0x0000004C, "invalid opcode found by __kthread_syscall_schedule:\nexpected 0x0000004C (SYSCALL 0x1), found: %08lx", *(uint32_t*)th_cur->stack_state->epc);
 				th_cur->stack_state->epc += 4;
 			}
 			else
