@@ -8,6 +8,9 @@
 #define IN_EMULATOR  0
 #endif
 
+#define MEM_START ((void *)0x80000400)
+#define MEM_LENGTH (1024 * 1024 * 4)
+
 /**********************************************************************
  * SIMPLE TEST FRAMEWORK
  **********************************************************************/
@@ -196,7 +199,7 @@ static const struct Testsuite
 	TEST_FUNC(test_timer_disabled_start, 	 733, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_timer_disabled_restart,	 733, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_irq_reentrancy,       	 230, TEST_FLAGS_RESET_COUNT),
-	TEST_FUNC(test_dfs_read,            	1104, TEST_FLAGS_IO),
+	TEST_FUNC(test_dfs_read,            	 948, TEST_FLAGS_IO),
 	TEST_FUNC(test_dfs_rom_addr,              25, TEST_FLAGS_IO),
 	TEST_FUNC(test_eepromfs,                   0, TEST_FLAGS_IO),
 	TEST_FUNC(test_cache_invalidate,    	1763, TEST_FLAGS_NONE),
@@ -242,6 +245,10 @@ int main() {
 		printf("%-59s", tests[i].name);
 		fflush(stdout);
 		debugf("**** Starting test: %s\n", tests[i].name);
+
+		// Do a complete cache flush before running each test
+		data_cache_hit_writeback_invalidate(MEM_START, MEM_LENGTH);
+		inst_cache_hit_invalidate(MEM_START, MEM_LENGTH);
 
 		uint32_t test_start = TICKS_READ();
 

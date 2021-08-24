@@ -72,6 +72,7 @@ void test_exception(TestContext *ctx) {
     // Bring FCR31 to a known state as some fp operations setting the inexact op flag
     uint32_t known_fcr31 = C1_FCR31();
     C1_WRITE_FCR31(0);
+    DEFER(C1_WRITE_FCR31(known_fcr31));
 
     uint64_t registers_after_ex[32];
     uint64_t fp_registers_after_ex[32];
@@ -93,6 +94,7 @@ void test_exception(TestContext *ctx) {
         SET_REG(6,  A6);
         SET_REG(7,  A7);
         SET_REG(8,  A8);
+        SET_REG(9,  A9);
         SET_REG(10, B0);
         SET_REG(11, B1);
         SET_REG(12, B2);
@@ -134,6 +136,8 @@ void test_exception(TestContext *ctx) {
     }
 
     register_exception_handler(ex_handler);
+    DEFER(register_exception_handler(exception_default_handler));
+
     ASSERT_EQUAL_SIGNED(breakpoint_occured, 0, "Breakpoint triggered early");
 
     // Set as many registers as possible to known values before the ex.
@@ -146,6 +150,7 @@ void test_exception(TestContext *ctx) {
     SET_REG(6, 06);
     SET_REG(7, 07);
     SET_REG(8, 08);
+    SET_REG(9, 09);
     SET_REG(10, 10);
     SET_REG(11, 11);
     SET_REG(12, 12);
@@ -207,6 +212,7 @@ void test_exception(TestContext *ctx) {
     GET_REG(6,  06);
     GET_REG(7,  07);
     GET_REG(8,  08);
+    GET_REG(9,  09);
     GET_REG(10, 10);
     GET_REG(11, 11);
     GET_REG(12, 12);
@@ -266,6 +272,7 @@ void test_exception(TestContext *ctx) {
     ASSERT_REG(6,  06);
     ASSERT_REG(7,  07);
     ASSERT_REG(8,  08);
+    ASSERT_REG(9,  09);
     ASSERT_REG(10, 10);
     ASSERT_REG(11, 11);
     ASSERT_REG(12, 12);
@@ -310,8 +317,4 @@ void test_exception(TestContext *ctx) {
     ASSERT_EQUAL_HEX(exception_regs->sr, 0x241004E3, "SR not available to the handler");
     ASSERT_EQUAL_HEX(exception_regs->cr, 0x24, "CR not available to the handler");
     ASSERT_EQUAL_HEX(exception_regs->fc31, 0x0, "FCR31 not available to the handler");
-
-    // Cleanup
-    register_exception_handler(exception_default_handler);
-    C1_WRITE_FCR31(known_fcr31);
 }

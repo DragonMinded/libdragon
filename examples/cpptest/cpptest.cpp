@@ -41,7 +41,6 @@ int main(void)
     while(1)
     {
         console_clear();
-        printf("Libdragon v%d.%d.%d \n", libdragon_version.major, libdragon_version.minor, libdragon_version.revision);
         printf("Global class method: %d\n", globalClass.f1());
         printf("Local class method: %d\n", localClass->f1());
         console_render();

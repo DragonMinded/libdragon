@@ -65,13 +65,4 @@
 #include "exception.h"
 #include "dir.h"
 
-typedef struct
-{
-    int major;
-    int minor;
-    int revision;
-} libdragon_version_t;
-
-extern libdragon_version_t libdragon_version;
-
 #endif
