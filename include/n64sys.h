@@ -16,6 +16,12 @@
  * @{
  */
 
+
+/**
+ * @brief void pointer to cached and non-mapped memory start address
+ */
+#define KSEG0_START_ADDR ((void*)0x80000000)
+
 /**
  * @brief Return the uncached memory address for a given address
  *
@@ -198,9 +204,12 @@ void __data_cache_hit_invalidate(volatile void * addr, unsigned long length);
 void data_cache_hit_writeback(volatile const void *, unsigned long);
 void data_cache_hit_writeback_invalidate(volatile void *, unsigned long);
 void data_cache_index_writeback_invalidate(volatile void *, unsigned long);
+void data_cache_writeback_invalidate_all(void);
 void inst_cache_hit_writeback(volatile const void *, unsigned long);
 void inst_cache_hit_invalidate(volatile void *, unsigned long);
 void inst_cache_index_invalidate(volatile void *, unsigned long);
+void inst_cache_invalidate_all(void);
+
 int get_memory_size();
 bool is_memory_expanded();
 

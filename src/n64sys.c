@@ -122,6 +122,18 @@ void data_cache_index_writeback_invalidate(volatile void * addr, unsigned long l
 }
 
 /**
+ * @brief Force a data cache writeback invalidate over whole memory
+ *
+ * Also see #data_cache_hit_writeback_invalidate
+ *
+ */
+void data_cache_writeback_invalidate_all(void)
+{
+    // TODO: do an index op instead for better performance
+    data_cache_hit_writeback_invalidate(KSEG0_START_ADDR, get_memory_size());
+}
+
+/**
  * @brief Force an instruction cache writeback over a memory region
  *
  * Use this to force cached memory to be written to RDRAM.
@@ -163,6 +175,19 @@ void inst_cache_index_invalidate(volatile void * addr, unsigned long length)
 {
     cache_op(0x00, 32);
 }
+
+/**
+ * @brief Force an instruction cache invalidate over whole memory
+ *
+ * Also see #inst_cache_hit_invalidate
+ *
+ */
+void inst_cache_invalidate_all(void)
+{
+    // TODO: do an index op instead for better performance
+    inst_cache_hit_invalidate(KSEG0_START_ADDR, get_memory_size());
+}
+
 
 /**
  * @brief Get amount of available memory.

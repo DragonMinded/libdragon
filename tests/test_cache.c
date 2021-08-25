@@ -1,5 +1,7 @@
 
 void test_cache_invalidate(TestContext *ctx) {
+	// Interrupts causing other code to run can easily invalidate cache and make
+	// this test useless. So we need them disabled while running this.
 	disable_interrupts();
 	DEFER(enable_interrupts());
 

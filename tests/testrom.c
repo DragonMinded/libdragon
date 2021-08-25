@@ -8,9 +8,6 @@
 #define IN_EMULATOR  0
 #endif
 
-#define MEM_START ((void *)0x80000400)
-#define MEM_LENGTH (1024 * 1024 * 4)
-
 /**********************************************************************
  * SIMPLE TEST FRAMEWORK
  **********************************************************************/
@@ -247,8 +244,8 @@ int main() {
 		debugf("**** Starting test: %s\n", tests[i].name);
 
 		// Do a complete cache flush before running each test
-		data_cache_hit_writeback_invalidate(MEM_START, MEM_LENGTH);
-		inst_cache_hit_invalidate(MEM_START, MEM_LENGTH);
+		data_cache_writeback_invalidate_all();
+		inst_cache_invalidate_all();
 
 		uint32_t test_start = TICKS_READ();
 

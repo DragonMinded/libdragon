@@ -24,8 +24,9 @@ _start:
 	/* copy code and data */
 	la a0, __text_start
 	la a1, __data_end
-	subu a2,a0,0x80000400		/* skip over .boot section */
-	addu a2,a2,0xB0001000		/* address in rom */
+	la t0, __libdragon_text_start
+	subu a2, a0, t0				/* skip over .boot section */
+	addu a2, 0xB0001000			/* address in rom */
 data_init:
 	lw t0,(a2)
 	addiu a2,4
