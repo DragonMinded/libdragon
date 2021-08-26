@@ -6,12 +6,10 @@
 #include <libdragon.h>
 #include <rsp.h>
 
-extern const void __basic_ucode_data_start;
-extern const void __basic_ucode_start;
-extern const void __basic_ucode_end;
-
-static resolution_t res = RESOLUTION_320x240;
-static bitdepth_t bit = DEPTH_32_BPP;
+extern uint8_t rsp_basic_data_start[];
+extern uint8_t rsp_basic_data_end[];
+extern uint8_t rsp_basic_text_start[];
+extern uint8_t rsp_basic_text_end[];
 
 static volatile bool broke = false;
 
@@ -25,7 +23,6 @@ int main(void)
     init_interrupts();
 
     /* Initialize peripherals */
-    display_init( res, bit, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
     console_init();
     console_set_render_mode(RENDER_MANUAL);
     rsp_init();
@@ -34,15 +31,18 @@ int main(void)
     register_SP_handler(&sp_handler);
     set_SP_interrupt(1);
 
-    // Size must be multiple of 8 and start & end must be aligned to 8 bytes
-    unsigned long data_size = (unsigned long) (&__basic_ucode_start - &__basic_ucode_data_start);
-    unsigned long ucode_size = (unsigned long) (&__basic_ucode_end - &__basic_ucode_start);
-    load_data((void*)&__basic_ucode_data_start, data_size);
-    load_ucode((void*)&__basic_ucode_start, ucode_size);
+    unsigned long data_size = rsp_basic_data_end - rsp_basic_data_start;
+    unsigned long ucode_size = rsp_basic_text_end - rsp_basic_text_start;
 
-    console_clear();
+    /* start & end must be aligned to 8 bytes.
+     * This property has been guaranteed by the build system */
+    assert(((uint32_t)rsp_basic_text_start % 8) == 0);
+    assert(((uint32_t)rsp_basic_data_start % 8) == 0);
+    
+    load_ucode(rsp_basic_text_start, ucode_size);
+    load_data(rsp_basic_data_start, data_size);
 
-    unsigned const char* orig = &__basic_ucode_data_start;
+    const uint8_t* orig = rsp_basic_data_start;
 
     unsigned long i = 0;
     while(i < data_size)
