@@ -22,22 +22,24 @@ OUTPUT_ARCH (mips)
 EXTERN (_start)
 ENTRY (_start)
 
+__kseg0_start = 0x80000000;
+
+/* Start address of code is 1K up in cached, unmapped RAM (KSEG0). We have
+* to be at least this far up in order to not interfere with the cart
+* boot code which is copying it down from the cart
+*/
+__libdragon_text_start  = __kseg0_start + 0x400;
+
 MEMORY
 {
-    mem : ORIGIN = 0x80000400, LENGTH = 4M-0x0400
+    mem : ORIGIN = __kseg0_start, LENGTH = 4M
 }
 
 SECTIONS {
-   /* Start address of code is 1K up in uncached, unmapped RAM.  We have
-    * to be at least this far up in order to not interfere with the cart
-    * boot code which is copying it down from the cart
-    */
-    . = 0x80000400;
-
     /* The text section carries the app code and its relocation addr is
     * the first byte of the cart domain in cached, unmapped memory
     */
-    .text : {
+    .text __libdragon_text_start  : {
         *(.boot)
         . = ALIGN(16);
         __text_start = .;

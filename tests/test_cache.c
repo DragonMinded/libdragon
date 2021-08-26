@@ -1,5 +1,10 @@
 
 void test_cache_invalidate(TestContext *ctx) {
+	// Interrupts causing other code to run can easily invalidate cache and make
+	// this test useless. So we need them disabled while running this.
+	disable_interrupts();
+	DEFER(enable_interrupts());
+
 	uint8_t buf[128] __attribute__((aligned(16)));
 	const char *dfs_header = "\xde\xad\xbe\xef\xff\xff\xff\xff""DragonFS 2.0\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
 	const char *aaa = "\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa";

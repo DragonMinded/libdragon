@@ -1,55 +1,55 @@
+PROG_NAME = testrom
+
 ROOTDIR = $(N64_INST)
 GCCN64PREFIX = $(ROOTDIR)/bin/mips64-elf-
-CHKSUM64PATH = $(ROOTDIR)/bin/chksum64
-MKDFSPATH = $(ROOTDIR)/bin/mkdfs
-HEADERPATH = $(ROOTDIR)/mips64-elf/lib
-N64TOOL = $(ROOTDIR)/bin/n64tool
-HEADERNAME = header
-LINK_FLAGS = -L$(ROOTDIR)/mips64-elf/lib -ldragon -lc -lm -ldragonsys -Tn64.ld --gc-sections
-CFLAGS = -std=gnu99 -march=vr4300 -mtune=vr4300 -O2 -Wall -Werror -I$(ROOTDIR)/mips64-elf/include
-ASFLAGS = -mtune=vr4300 -march=vr4300
+
 CC = $(GCCN64PREFIX)gcc
 AS = $(GCCN64PREFIX)as
 LD = $(GCCN64PREFIX)ld
 OBJCOPY = $(GCCN64PREFIX)objcopy
+N64TOOL = $(ROOTDIR)/bin/n64tool
+CHKSUM64 = $(ROOTDIR)/bin/chksum64
+MKDFS = $(ROOTDIR)/bin/mkdfs
+
+ASFLAGS = -mtune=vr4300 -march=vr4300
+CFLAGS = -std=gnu99 -march=vr4300 -mtune=vr4300 -O2 -Wall -Werror -I$(ROOTDIR)/mips64-elf/include -I$(ROOTDIR)/include
+LDFLAGS = -L$(ROOTDIR)/mips64-elf/lib -L$(ROOTDIR)/lib -ldragon -lmikmod -lc -lm -ldragonsys -Tn64.ld  --gc-sections
+N64TOOLFLAGS = -l 2M -h $(ROOTDIR)/mips64-elf/lib/header -t "libdragon tests"
 
 ifeq ($(N64_BYTE_SWAP),true)
-ROM_EXTENSION = .v64
-N64_FLAGS = -b -l 8M -h $(HEADERPATH)/$(HEADERNAME)
-else
-ROM_EXTENSION = .z64
-N64_FLAGS = -l 8M -h $(HEADERPATH)/$(HEADERNAME)
+$(PROG_NAME).v64: $(PROG_NAME).z64
+	dd conv=swab if=$^ of=$@
 endif
 
 CFLAGS+=-MMD    # automatic .d dependency generation
 
-all: testrom$(ROM_EXTENSION) testrom_emu$(ROM_EXTENSION)
+all: $(PROG_NAME).z64 $(PROG_NAME)_emu.z64
 
-testrom$(ROM_EXTENSION): testrom.elf test.dfs
-	$(OBJCOPY) testrom.elf testrom.bin -O binary
-	rm -f testrom$(ROM_EXTENSION)
-	$(N64TOOL) $(N64_FLAGS) -t "libdragon tests" -o testrom$(ROM_EXTENSION) testrom.bin -s 1M test.dfs
-	$(CHKSUM64PATH) testrom$(ROM_EXTENSION)
+$(PROG_NAME).z64: $(PROG_NAME).bin $(PROG_NAME).dfs
+	$(N64TOOL) $(N64TOOLFLAGS) -o $@ $(PROG_NAME).bin -s 1M $(PROG_NAME).dfs
+	$(CHKSUM64) $@
+$(PROG_NAME)_emu.z64: $(PROG_NAME)_emu.bin $(PROG_NAME).dfs
+	$(N64TOOL) $(N64TOOLFLAGS) -o $@ $(PROG_NAME)_emu.bin -s 1M $(PROG_NAME).dfs
+	$(CHKSUM64) $@
 
-testrom_emu$(ROM_EXTENSION): testrom_emu.elf test.dfs
-	$(OBJCOPY) testrom_emu.elf testrom_emu.bin -O binary
-	rm -f testrom_emu$(ROM_EXTENSION)
-	$(N64TOOL) $(N64_FLAGS) -t "libdragon tests" -o testrom_emu$(ROM_EXTENSION) testrom_emu.bin -s 1M test.dfs
-	$(CHKSUM64PATH) testrom_emu$(ROM_EXTENSION)
+$(PROG_NAME).bin: $(PROG_NAME).elf
+	$(OBJCOPY) $< $@ -O binary
+$(PROG_NAME)_emu.bin: $(PROG_NAME)_emu.elf
+	$(OBJCOPY) $< $@ -O binary
 
-testrom_emu.o : testrom.c
+$(PROG_NAME).elf: $(PROG_NAME).o
+	$(LD) -o $@ $^ $(LDFLAGS)
+$(PROG_NAME)_emu.elf: $(PROG_NAME)_emu.o
+	$(LD) -o $@ $^ $(LDFLAGS)
+
+$(PROG_NAME)_emu.o: $(PROG_NAME).c
 	$(CC) $(CFLAGS) -DIN_EMULATOR=1 -c -o $@ $<
 
-testrom.elf : testrom.o
-	$(LD) -o testrom.elf testrom.o $(LINK_FLAGS)
-testrom_emu.elf : testrom_emu.o
-	$(LD) -o testrom_emu.elf testrom_emu.o $(LINK_FLAGS)
-
-test.dfs:
-	$(MKDFSPATH) test.dfs ./filesystem/
+$(PROG_NAME).dfs:
+	$(MKDFS) $@ ./filesystem/
 
 clean:
 	rm -f *.v64 *.z64 *.elf *.o *.bin *.dfs *.d
 
--include testrom.d testrom_emu.d
+-include $(PROG_NAME).d $(PROG_NAME)_emu.d
 
