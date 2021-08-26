@@ -318,3 +318,13 @@ void test_exception(TestContext *ctx) {
     ASSERT_EQUAL_HEX(exception_regs->cr, 0x24, "CR not available to the handler");
     ASSERT_EQUAL_HEX(exception_regs->fc31, 0x0, "FCR31 not available to the handler");
 }
+
+#undef SET_REG
+#undef SET_FP_REG
+#undef GET_FP_REG
+#undef GET_REG
+#undef ASSERT_REG_FP
+#undef ASSERT_REG_GP
+#undef ASSERT_REG_FP_HANDLER
+#undef ASSERT_REG_GP_HANDLER
+#undef ASSERT_REG
