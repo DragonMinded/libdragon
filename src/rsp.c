@@ -101,6 +101,8 @@ void load_data(void* start, unsigned long size)
 
 void read_ucode(void* start, unsigned long size)
 {
+    data_cache_hit_writeback_invalidate(start, size);
+
     disable_interrupts();
     __SP_DMA_wait();
 
@@ -111,7 +113,6 @@ void read_ucode(void* start, unsigned long size)
     SP_regs->rsp_write_length = size - 1;
     MEMORY_BARRIER();
     __SP_DMA_wait();
-    data_cache_hit_invalidate(start, size);
 
     enable_interrupts();
     return;
@@ -120,6 +121,8 @@ void read_ucode(void* start, unsigned long size)
 
 void read_data(void* start, unsigned long size)
 {
+    data_cache_hit_writeback_invalidate(start, size);
+
     disable_interrupts();
     __SP_DMA_wait();
 
@@ -130,7 +133,6 @@ void read_data(void* start, unsigned long size)
     SP_regs->rsp_write_length = size - 1;
     MEMORY_BARRIER();
     __SP_DMA_wait();
-    data_cache_hit_invalidate(start, size);
 
     enable_interrupts();
     return;
