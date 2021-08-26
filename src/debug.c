@@ -588,6 +588,7 @@ void debug_close_sdfs(void)
 
 void debug_assert_func_f(const char *file, int line, const char *func, const char *failedexpr, const char *msg, ...)
 {
+	console_close();
 	console_init();
 	console_set_debug(true);
 	console_set_render_mode(RENDER_MANUAL);

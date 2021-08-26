@@ -523,13 +523,33 @@ void display_show( display_context_t disp )
     int i = disp - 1;
 
     /* This should match, or something went awry */
-    if( i == now_drawing )
-    {
-        /* Ensure we display this next time */
-        now_drawing = -1;
-        show_next = i;
-    }
+    assertf( i == now_drawing, "display_show_force invoked on non-locked display" );
 
+    /* Ensure we display this next time */
+    now_drawing = -1;
+    show_next = i;
+
+    enable_interrupts();
+}
+
+/**
+ * @brief Force-display a previously locked buffer
+ *
+ * Display a valid display context to the screen right away, without waiting
+ * for vblank interrupt. This function works also with interrupts disabled.
+ *
+ * NOTE: this is currently not part of the public API as we use it only
+ * internally.
+ *
+ * @param[in] disp
+ *            A display context retrieved using #display_lock
+ */
+void display_show_force( display_context_t disp )
+{
+    /* Can't have the video interrupt screwing this up */
+    disable_interrupts();
+    display_show(disp);
+    __display_callback();
     enable_interrupts();
 }
 

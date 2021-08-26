@@ -40,7 +40,7 @@
  */
 
 /* Prototypes */
-static void __console_render();
+static void __console_render(void);
 
 /** @brief Size of the console buffer in bytes */
 #define CONSOLE_SIZE        ((sizeof(char) * CONSOLE_WIDTH * CONSOLE_HEIGHT) + sizeof(char))
@@ -182,8 +182,8 @@ void console_init()
 
     render_buffer = malloc(CONSOLE_SIZE);
 
-    console_clear();
     console_set_render_mode(RENDER_AUTOMATIC);
+    console_clear();
     console_set_debug(true);
 
     /* Register ourselves with newlib */
@@ -243,7 +243,7 @@ void console_clear()
 /**
  * @brief Helper function to render the console
  */
-static void __console_render()
+static void __console_render(void)
 {
     if(!render_buffer) { return; }
 
@@ -263,8 +263,7 @@ static void __console_render()
 
             if(t_buf == 0)
             {
-                display_show(dc);
-                return;
+                goto end;
             }
 
             /* Draw to the screen using the forecolor and backcolor set in the graphics
@@ -273,7 +272,18 @@ static void __console_render()
         }
     }
 
-    display_show(dc);
+end:;
+    /* If the interrupts are disabled, the console wouldn't show to the screen.
+     * Since the console is only used for development and emergency context,
+     * it is better to force display irrespective of vblank. */
+    uint32_t c0_status = C0_STATUS();
+    if ((c0_status & C0_STATUS_IE) == 0 || ((c0_status & (C0_STATUS_EXL|C0_STATUS_ERL)) != 0))
+    {
+        extern void display_show_force(int dc);
+        display_show_force(dc);
+    }
+    else
+        display_show(dc);
 }
 
 /**
