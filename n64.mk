@@ -18,6 +18,7 @@ N64_AS = $(N64_GCCPREFIX)as
 N64_LD = $(N64_GCCPREFIX)ld
 N64_OBJCOPY = $(N64_GCCPREFIX)objcopy
 N64_OBJDUMP = $(N64_GCCPREFIX)objdump
+N64_SIZE = $(N64_GCCPREFIX)size
 
 N64_ROM_TITLE = "N64 ROM"
 
@@ -96,8 +97,11 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.c
 	$(CC) -c $(CFLAGS) -o $@ $<
 
 %.elf:
+	@mkdir -p $(BUILD_DIR)
 	@echo "    [LD] $@"
 	$(LD) -o $@ $^ $(LDFLAGS) -Map=$(BUILD_DIR)/$@.map
+	@echo "    [STATS] $@"
+	$(N64_SIZE) -G $@
 
 ifneq ($(V),1)
 .SILENT:
