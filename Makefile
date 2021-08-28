@@ -31,7 +31,9 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 			 $(BUILD_DIR)/rsp.o $(BUILD_DIR)/dma.o $(BUILD_DIR)/timer.o \
 			 $(BUILD_DIR)/exception.o $(BUILD_DIR)/do_ctors.o \
 			 $(BUILD_DIR)/audio/mixer.o $(BUILD_DIR)/audio/samplebuffer.o \
-			 $(BUILD_DIR)/audio/rsp_mixer.o $(BUILD_DIR)/audio/wav64.o
+			 $(BUILD_DIR)/audio/rsp_mixer.o $(BUILD_DIR)/audio/wav64.o \
+			 $(BUILD_DIR)/audio/xm64.o $(BUILD_DIR)/audio/libxm/play.o \
+			 $(BUILD_DIR)/audio/libxm/context.o $(BUILD_DIR)/audio/libxm/load.o
 	@echo "    [AR] $@"
 	$(AR) -rcs -o $@ $^
 
@@ -97,6 +99,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/mixer.h $(INSTALLDIR)/mips64-elf/include/mixer.h
 	install -Cv -m 0644 include/samplebuffer.h $(INSTALLDIR)/mips64-elf/include/samplebuffer.h
 	install -Cv -m 0644 include/wav64.h $(INSTALLDIR)/mips64-elf/include/wav64.h
+	install -Cv -m 0644 include/xm64.h $(INSTALLDIR)/mips64-elf/include/xm64.h
 
 clean:
 	rm -f *.o *.a
@@ -107,4 +110,4 @@ clobber: clean doxygen-clean examples-clean tools-clean
 .PHONY : clobber clean doxygen-clean doxygen doxygen-api examples examples-clean tools tools-clean tools-install
 
 # Automatic dependency tracking
--include $(wildcard $(BUILD_DIR)/*.d)
+-include $(wildcard $(BUILD_DIR)/*.d) $(wildcard $(BUILD_DIR)/audio/*.d)
