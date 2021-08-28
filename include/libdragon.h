@@ -67,5 +67,6 @@
 #include "mixer.h"
 #include "samplebuffer.h"
 #include "wav64.h"
+#include "xm64.h"
 
 #endif
