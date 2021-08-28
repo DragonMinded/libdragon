@@ -5,13 +5,14 @@ src = spritemap.c
 
 all: spritemap.z64
 
-spritemap.dfs: $(wildcard filesystem/*)
+$(BUILD_DIR)/spritemap.dfs: $(wildcard filesystem/*)
+$(BUILD_DIR)/spritemap.elf: $(src:%.c=$(BUILD_DIR)/%.o)
+
 spritemap.z64: N64_ROM_TITLE="Spritemap"
-spritemap.z64: spritemap.dfs 
-spritemap.elf: $(src:%.c=$(BUILD_DIR)/%.o)
+spritemap.z64: $(BUILD_DIR)/spritemap.dfs
 
 clean:
-	rm -f $(BUILD_DIR)/* spritemap.dfs spritemap.elf spritemap.z64
+	rm -rf $(BUILD_DIR) spritemap.z64
 
 -include $(wildcard $(BUILD_DIR)/*.d)
 
