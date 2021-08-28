@@ -40,15 +40,15 @@ ASFLAGS+=-MMD    # automatic .d dependency generation
 %.z64: CFLAGS+=$(N64_CFLAGS)
 %.z64: ASFLAGS+=$(N64_ASFLAGS)
 %.z64: LDFLAGS+=$(N64_LDFLAGS)
-%.z64: %.elf
+%.z64: $(BUILD_DIR)/%.elf
 	@echo "    [N64] $@"
-	$(N64_OBJCOPY) $< $(BUILD_DIR)/$<.bin -O binary
+	$(N64_OBJCOPY) $< $<.bin -O binary
 	@rm -f $@
 	DFS_FILE=$(filter %.dfs, $^); \
 	if [ -z "$$DFS_FILE" ]; then \
-		$(N64_TOOL) $(N64_FLAGS) -o $@  -t $(N64_ROM_TITLE) $(BUILD_DIR)/$<.bin; \
+		$(N64_TOOL) $(N64_FLAGS) -o $@  -t $(N64_ROM_TITLE) $<.bin; \
 	else \
-		$(N64_TOOL) $(N64_FLAGS) -o $@  -t $(N64_ROM_TITLE) $(BUILD_DIR)/$<.bin -s 1M $$DFS_FILE; \
+		$(N64_TOOL) $(N64_FLAGS) -o $@  -t $(N64_ROM_TITLE) $<.bin -s 1M $$DFS_FILE; \
 	fi
 	$(N64_CHKSUMPATH) $@ >/dev/null
 
@@ -59,6 +59,7 @@ ifeq ($(N64_BYTE_SWAP),true)
 endif
 
 %.dfs:
+	@mkdir -p $(dir $@)
 	@echo "    [DFS] $@"
 	$(N64_MKDFSPATH) $@ $(<D) >/dev/null
 
@@ -99,7 +100,7 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.c
 %.elf: $(N64_ROOTDIR)/mips64-elf/lib/libdragon.a $(N64_ROOTDIR)/mips64-elf/lib/libdragonsys.a $(N64_ROOTDIR)/mips64-elf/lib/n64.ld
 	@mkdir -p $(BUILD_DIR)
 	@echo "    [LD] $@"
-	$(LD) -o $@ $(filter-out $(N64_ROOTDIR)/mips64-elf/lib/n64.ld,$^) $(LDFLAGS) -Map=$(BUILD_DIR)/$@.map
+	$(LD) -o $@ $(filter-out $(N64_ROOTDIR)/mips64-elf/lib/n64.ld,$^) $(LDFLAGS) -Map=$(BUILD_DIR)/$(notdir $(basename $@)).map
 	@echo "    [STATS] $@"
 	$(N64_SIZE) -G $@
 
