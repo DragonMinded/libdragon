@@ -8,6 +8,8 @@
  * http://sam.zoy.org/wtfpl/COPYING for more details. */
 
 #include "xm_internal.h"
+#include <stdio.h>
+#include <assert.h>
 
 /* .xm files are little-endian. */
 
@@ -83,8 +85,10 @@ int xm_check_sanity_postload(xm_context_t* ctx) {
 	return 0;
 }
 
-size_t xm_get_memory_needed_for_context(const char* moddata, size_t moddata_length) {
+void xm_get_memory_needed_for_context(const char* moddata, size_t moddata_length, size_t *mem_ctx, size_t *mem_patterns, size_t *mem_samples) {
 	size_t memory_needed = 0;
+	size_t memory_patterns = 0;
+	size_t memory_samples = 0;
 	size_t offset = 60; /* Skip the first header */
 	uint16_t num_channels;
 	uint16_t num_patterns;
@@ -111,7 +115,8 @@ size_t xm_get_memory_needed_for_context(const char* moddata, size_t moddata_leng
 		uint16_t num_rows;
 
 		num_rows = READ_U16(offset + 5);
-		memory_needed += num_rows * num_channels * sizeof(xm_pattern_slot_t);
+		memory_patterns += num_rows * num_channels * sizeof(xm_pattern_slot_t);
+		if (memory_patterns & 7) memory_patterns += 8 - (memory_patterns & 7);
 
 		/* Pattern header length + packed pattern data size */
 		offset += READ_U32(offset) + READ_U16(offset + 7);
@@ -136,8 +141,10 @@ size_t xm_get_memory_needed_for_context(const char* moddata, size_t moddata_leng
 
 			sample_size = READ_U32(offset);
 			sample_size_aggregate += sample_size;
-			memory_needed += sample_size;
-			offset += 40; /* See comment in xm_load_module() */
+			sample_size += XM_WAVEFORM_OVERREAD;
+			if (sample_size % 8) sample_size += 8 - (sample_size % 8);
+			memory_samples += sample_size;
+			offset += 40;
 		}
 
 		offset += sample_size_aggregate;
@@ -146,12 +153,20 @@ size_t xm_get_memory_needed_for_context(const char* moddata, size_t moddata_leng
 	memory_needed += num_channels * sizeof(xm_channel_context_t);
 	memory_needed += sizeof(xm_context_t);
 
-	return memory_needed;
+	*mem_ctx = memory_needed;
+	*mem_patterns = memory_patterns;
+	*mem_samples = memory_samples;
 }
 
-char* xm_load_module(xm_context_t* ctx, const char* moddata, size_t moddata_length, char* mempool) {
+#if !XM_STREAM_PATTERNS && !XM_STREAM_WAVEFORMS
+
+char* xm_load_module(xm_context_t* ctx, const char* moddata, size_t moddata_length, char* mempool, size_t mem_ctx, size_t mem_sam, size_t mem_pat) {
 	size_t offset = 0;
 	xm_module_t* mod = &(ctx->module);
+
+	assert(((size_t)mempool & 7) == 0);
+	char *mempool_pat = mempool + mem_ctx + mem_sam;
+	assert(((size_t)mempool_pat & 7) == 0);
 
 	/* Read XM header */
 #if XM_STRINGS
@@ -169,17 +184,19 @@ char* xm_load_module(xm_context_t* ctx, const char* moddata, size_t moddata_leng
 	mod->num_patterns = READ_U16(offset + 10);
 	mod->num_instruments = READ_U16(offset + 12);
 
+	assert(((size_t)mempool & 7) == 0);
 	mod->patterns = (xm_pattern_t*)mempool;
 	mempool += mod->num_patterns * sizeof(xm_pattern_t);
 
+	assert(((size_t)mempool & 7) == 0);
 	mod->instruments = (xm_instrument_t*)mempool;
 	mempool += mod->num_instruments * sizeof(xm_instrument_t);
 
 	uint16_t flags = READ_U32(offset + 14);
 	mod->frequency_type = (flags & (1 << 0)) ? XM_LINEAR_FREQUENCIES : XM_AMIGA_FREQUENCIES;
 
-	ctx->tempo = READ_U16(offset + 16);
-	ctx->bpm = READ_U16(offset + 18);
+	mod->tempo = READ_U16(offset + 16);
+	mod->bpm = READ_U16(offset + 18);
 
 	READ_MEMCPY(mod->pattern_table, offset + 20, PATTERN_ORDER_TABLE_LENGTH);
 	offset += header_size;
@@ -191,8 +208,10 @@ char* xm_load_module(xm_context_t* ctx, const char* moddata, size_t moddata_leng
 
 		pat->num_rows = READ_U16(offset + 5);
 
-		pat->slots = (xm_pattern_slot_t*)mempool;
-		mempool += mod->num_channels * pat->num_rows * sizeof(xm_pattern_slot_t);
+		assert(((size_t)mempool_pat & 7) == 0);
+		pat->slots = (xm_pattern_slot_t*)mempool_pat;
+		mempool_pat += mod->num_channels * pat->num_rows * sizeof(xm_pattern_slot_t);
+		if ((size_t)mempool_pat & 7) mempool_pat += 8 - ((size_t)mempool_pat & 7);
 
 		/* Pattern header length */
 		offset += READ_U32(offset);
@@ -276,12 +295,13 @@ char* xm_load_module(xm_context_t* ctx, const char* moddata, size_t moddata_leng
 		uint32_t ins_header_size = READ_U32(offset);
 		if (ins_header_size == 0 || ins_header_size > INSTRUMENT_HEADER_LENGTH)
 			ins_header_size = INSTRUMENT_HEADER_LENGTH;
-
+	
 #if XM_STRINGS
 		READ_MEMCPY_BOUND(instr->name, offset + 4, INSTRUMENT_NAME_LENGTH, offset + ins_header_size);
 		instr->name[INSTRUMENT_NAME_LENGTH] = 0;
 #endif
 	    instr->num_samples = READ_U16_BOUND(offset + 27, offset + ins_header_size);
+	    assert(instr->num_samples <= 64);
 
 		if(instr->num_samples > 0) {
 			/* Read extra header properties */
@@ -348,6 +368,7 @@ char* xm_load_module(xm_context_t* ctx, const char* moddata, size_t moddata_leng
 			instr->vibrato_rate = READ_U8_BOUND(offset + 238, offset + ins_header_size);
 			instr->volume_fadeout = READ_U16_BOUND(offset + 239, offset + ins_header_size);
 
+			assert(((size_t)mempool & 7) == 0);
 			instr->samples = (xm_sample_t*)mempool;
 			mempool += instr->num_samples * sizeof(xm_sample_t);
 		} else {
@@ -392,8 +413,11 @@ char* xm_load_module(xm_context_t* ctx, const char* moddata, size_t moddata_leng
 			READ_MEMCPY(sample->name, offset + 18, SAMPLE_NAME_LENGTH);
 			sample->name[SAMPLE_NAME_LENGTH] = 0;
 #endif
+			assert(((size_t)mempool & 7) == 0);
 			sample->data8 = (int8_t*)mempool;
 			mempool += sample->length;
+			if (sample->length % 8)
+				mempool += 8 - (sample->length % 8);
 
 			if(sample->bits == 16) {
 				sample->loop_start >>= 1;
@@ -433,3 +457,5 @@ char* xm_load_module(xm_context_t* ctx, const char* moddata, size_t moddata_leng
 
 	return mempool;
 }
+
+#endif

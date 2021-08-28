@@ -11,9 +11,25 @@
 #ifndef __has_xm_h
 #define __has_xm_h
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+
+#define XM_STRINGS                   1
+#define XM_RAMPING                   0
+#define XM_LINEAR_INTERPOLATION      0
+#define XM_DEBUG                     1
+#define XM_DEFENSIVE                 0
+
+// Activate RSP-based XM implementation
+#ifdef N64
+#define XM_STREAM_PATTERNS           1    // Load one pattern at a time
+#define XM_STREAM_WAVEFORMS          1    // Load portion of samples as they are played
+#else
+#define XM_STREAM_PATTERNS           0
+#define XM_STREAM_WAVEFORMS          0
+#endif
 
 struct xm_context_s;
 typedef struct xm_context_s xm_context_t;
@@ -62,6 +78,19 @@ void xm_create_context_from_libxmize(xm_context_t**, char* libxmizeddata, uint32
 
 /** Free a XM context created by xm_create_context(). */
 void xm_free_context(xm_context_t*);
+
+/** Save a context into a XM64 file.
+ * 
+ * Saving a context can be done only on PC, and with a non-streaming loader that 
+ * fetched everything.
+ */
+#if !defined(N64) && !XM_STREAM_PATTERNS && !XM_STREAM_WAVEFORMS
+void xm_context_save(xm_context_t* ctx, FILE* out);
+#endif
+
+/** Load a context from a XM64 file.
+ */
+int xm_context_load(xm_context_t** ctxp, FILE* in, uint32_t rate);
 
 /** Play the module and put the sound samples in an output buffer.
  *

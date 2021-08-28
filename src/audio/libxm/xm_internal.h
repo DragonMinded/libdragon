@@ -6,16 +6,24 @@
  * License, Version 2, as published by Sam Hocevar. See
  * http://sam.zoy.org/wtfpl/COPYING for more details. */
 
-#include <xm.h>
+#pragma once
+#include "xm.h"
 #include <stdbool.h>
 #include <math.h>
 #include <string.h>
-#include <inttypes.h>
+
+// For performance reasons, RSP will over-read waveforms (aka "samples") up to
+// this amount of bytes. See also rspxm.S for details.
+#define XM_WAVEFORM_OVERREAD      64
+
+#if XM_STREAM_WAVEFORMS
+typedef struct waveform_s waveform_t;
+#endif
 
 #if XM_DEBUG
 #include <stdio.h>
 #define DEBUG(fmt, ...) do {										\
-		fprintf(stderr, "%s(): " fmt "\n", __func__, __VA_ARGS__);	\
+		fprintf(stderr, "%s(): " fmt "\n", __func__, ##__VA_ARGS__);	\
 		fflush(stderr);												\
 	} while(0)
 #else
@@ -103,12 +111,20 @@ struct xm_sample_s {
 	int8_t relative_note;
 	uint64_t latest_trigger;
 
+#if XM_STREAM_WAVEFORMS
+	// libdragon mixer's waveform
+	waveform_t *wave;
+#endif
+
 	union {
 		int8_t* data8;
 		int16_t* data16;
+		uint32_t data8_offset;
 	};
 };
 typedef struct xm_sample_s xm_sample_t;
+_Static_assert(sizeof(xm_sample_t) == 80, "invalid sizeof(sample_t)");
+_Static_assert(sizeof(xm_sample_t) % 8 == 0, "sizeof(xm_sample_t) must be multiple of 8");
 
 struct xm_instrument_s {
 #if XM_STRINGS
@@ -126,11 +142,16 @@ struct xm_instrument_s {
 	uint64_t latest_trigger;
 	bool muted;
 
-	xm_sample_t* samples;
+	union {
+		xm_sample_t* samples;
+		uint64_t samples_offset;
+	};
 };
 typedef struct xm_instrument_s xm_instrument_t;
+_Static_assert(sizeof(xm_instrument_t) == 272, "invalid sizeof(xm_instrument_t)");
+_Static_assert(sizeof(xm_instrument_t) % 8 == 0, "sizeof(xm_instrument_t) must be multiple of 8");
 
-struct xm_pattern_slot_s {
+struct __attribute__((packed)) xm_pattern_slot_s {
 	uint8_t note; /* 1-96, 97 = Key Off note */
 	uint8_t instrument; /* 1-128 */
 	uint8_t volume_column;
@@ -138,12 +159,20 @@ struct xm_pattern_slot_s {
 	uint8_t effect_param;
 };
 typedef struct xm_pattern_slot_s xm_pattern_slot_t;
+_Static_assert(sizeof(xm_pattern_slot_t) == 5, "invalid sizeof(xm_pattern_slot_t)");
 
 struct xm_pattern_s {
+	union {
+#if !XM_STREAM_PATTERNS
+		xm_pattern_slot_t* slots; /* Array of size num_rows * num_channels */
+#endif
+		struct { uint32_t slots_offset; uint16_t slots_size; };
+	};
 	uint16_t num_rows;
-	xm_pattern_slot_t* slots; /* Array of size num_rows * num_channels */
+	uint64_t _dummy;
 };
 typedef struct xm_pattern_s xm_pattern_t;
+_Static_assert(sizeof(xm_pattern_t) % 8 == 0, "sizeof(xm_pattern_t) must be multiple of 8");
 
 struct xm_module_s {
 #if XM_STRINGS
@@ -155,12 +184,20 @@ struct xm_module_s {
 	uint16_t num_channels;
 	uint16_t num_patterns;
 	uint16_t num_instruments;
+	uint16_t tempo;
+	uint16_t bpm;
 	xm_frequency_type_t frequency_type;
 	uint8_t pattern_table[PATTERN_ORDER_TABLE_LENGTH];
 
-	xm_pattern_t* patterns;
-	xm_instrument_t* instruments; /* Instrument 1 has index 0,
-								   * instrument 2 has index 1, etc. */
+	union {
+		xm_pattern_t* patterns;       /* Data for all patterns */
+		uint64_t patterns_offset;
+	};
+	union {
+		xm_instrument_t* instruments; /* Instrument 1 has index 0,
+									   * instrument 2 has index 1, etc. */
+		uint64_t instruments_offset;		
+	};
 };
 typedef struct xm_module_s xm_module_t;
 
@@ -240,7 +277,12 @@ struct xm_channel_context_s {
 typedef struct xm_channel_context_s xm_channel_context_t;
 
 struct xm_context_s {
-	size_t ctx_size; /* Must be first, see xm_create_context_from_libxmize() */
+	uint32_t ctx_size; /* Must be first, see xm_create_context_from_libxmize() */
+	uint32_t ctx_size_all_patterns;
+	uint32_t ctx_size_all_samples;
+	uint32_t ctx_size_stream_pattern_buf;
+	uint32_t ctx_size_stream_sample_buf[32];
+
 	xm_module_t module;
 	uint32_t rate;
 
@@ -271,11 +313,24 @@ struct xm_context_s {
 	 * Used for EEy effect */
 	uint16_t extra_ticks;
 
-	uint8_t* row_loop_count; /* Array of size MAX_NUM_ROWS * module_length */
+	union {
+		uint8_t* row_loop_count; /* Array of size MAX_NUM_ROWS * module_length */
+		uint64_t row_loop_count_offset;
+	};
 	uint8_t loop_count;
 	uint8_t max_loop_count;
 
-	xm_channel_context_t* channels;
+	union {
+		xm_channel_context_t* channels;
+		uint64_t channels_offset;
+	};
+
+	FILE* fh;  /* open file for streaming content (if requested) */
+
+#if XM_STREAM_PATTERNS
+	xm_pattern_slot_t *slot_buffer;
+	int slot_buffer_index;
+#endif
 };
 
 /* ----- Internal API ----- */
@@ -304,13 +359,27 @@ int xm_check_sanity_postload(xm_context_t*);
  * - instrument structures in module
  * - channel contexts
  * - context structure itself
-
- * @returns 0 if everything looks OK.
+ *
+ * The size is computed as 3 different values:
+ * - Size for waveform samples
+ * - Size for pattern data
+ * - Everything else
+ * 
  */
-size_t xm_get_memory_needed_for_context(const char*, size_t);
+void xm_get_memory_needed_for_context(const char*, size_t, size_t *mem_ctx, size_t *mem_patterns, size_t *mem_samples);
 
 /** Populate the context from module data.
  *
  * @returns pointer to the memory pool
  */
-char* xm_load_module(xm_context_t*, const char*, size_t, char*);
+char* xm_load_module(xm_context_t*, const char*, size_t, char*, size_t, size_t, size_t);
+
+/** Decompress a pattern from the RLE-compressed on-disk format.
+ * 
+ * @returns the number of decompressed bytes 
+ */
+int xm_context_decompress_pattern(uint8_t *in, int sz, xm_pattern_slot_t *pat);
+
+/** Execute one tick of XM logic.
+ */
+void xm_tick(xm_context_t*);

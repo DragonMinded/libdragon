@@ -9,6 +9,7 @@
 
 #include "xm_internal.h"
 #include <inttypes.h>
+#include <assert.h>
 
 /* ----- Static functions ----- */
 
@@ -41,7 +42,6 @@ static void xm_key_off(xm_channel_context_t*);
 
 static void xm_post_pattern_change(xm_context_t*);
 static void xm_row(xm_context_t*);
-static void xm_tick(xm_context_t*);
 
 static float xm_sample_at(xm_sample_t*, size_t);
 static float xm_next_of_sample(xm_channel_context_t*);
@@ -873,12 +873,36 @@ static void xm_row(xm_context_t* ctx) {
 		xm_post_pattern_change(ctx);
 	}
 
-	xm_pattern_t* cur = ctx->module.patterns + ctx->module.pattern_table[ctx->current_table_index];
+	uint8_t pat_idx = ctx->module.pattern_table[ctx->current_table_index];
+	xm_pattern_t* cur = ctx->module.patterns + pat_idx;
 	bool in_a_loop = false;
+
+#if XM_STREAM_PATTERNS
+	if (ctx->slot_buffer_index != pat_idx) {
+		// Read the compressed data at the end of the pattern buffer, that is
+		// at the end of the buffer where data will be uncompressed. The chosen
+		// RLE compression guarantees that this is safe.
+		int cmp_size = cur->slots_size;
+		int dec_size = sizeof(xm_pattern_slot_t) * cur->num_rows * ctx->module.num_channels;
+		uint8_t *cmp_data = (uint8_t*)ctx->slot_buffer + dec_size - cmp_size;
+
+		fseek(ctx->fh, cur->slots_offset, SEEK_SET);
+		fread(cmp_data, cmp_size, 1, ctx->fh);
+
+		int sz = xm_context_decompress_pattern(cmp_data, cmp_size, ctx->slot_buffer);
+		assert(sz == dec_size);
+
+		ctx->slot_buffer_index = pat_idx;
+	}
+#endif
 
 	/* Read notes… */
 	for(uint8_t i = 0; i < ctx->module.num_channels; ++i) {
+		#if !XM_STREAM_PATTERNS
 		xm_pattern_slot_t* s = cur->slots + ctx->current_row * ctx->module.num_channels + i;
+		#else
+		xm_pattern_slot_t* s = ctx->slot_buffer + ctx->current_row * ctx->module.num_channels + i;
+		#endif
 		xm_channel_context_t* ch = ctx->channels + i;
 
 		ch->current = s;
@@ -982,7 +1006,7 @@ static void xm_envelopes(xm_channel_context_t* ch) {
 	}
 }
 
-static void xm_tick(xm_context_t* ctx) {
+void xm_tick(xm_context_t* ctx) {
 	if(ctx->current_tick == 0) {
 		xm_row(ctx);
 	}
