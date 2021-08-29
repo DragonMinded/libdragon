@@ -66,18 +66,6 @@ void register_exception_handler( void (*cb)(exception_t*))
 	__exception_handler = cb;
 }
 
-/**
- * We keep a function outside the exception handler so that the interrupts are
- * re-enabled when we return from it. console_render does not work without
- * interrupts being enabled. display_lock will lock the system if called
- * without the VI interrupt enabled, thus rendering the system unable to render
- * the console.
- */
-static void exception_halt() {
-	console_render();
-	abort();
-}
-
 void exception_default_handler(exception_t* ex) {
 	uint32_t cr = ex->regs->cr;
 	uint32_t sr = ex->regs->sr;
@@ -211,9 +199,8 @@ void exception_default_handler(exception_t* ex) {
 		}
 	}
 
-	// We need to return from the ex handler to gracefully restore interrupt
-	// state so that we can continue using interrupt dependent functionalities.
-	ex->regs->epc = (uint32_t)&exception_halt;
+	console_render();
+	abort();
 }
 
 /**
