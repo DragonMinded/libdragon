@@ -385,20 +385,7 @@ static void usb_findcart()
     
     // Check if we have an EverDrive
     if (buff == ED7_VERSION || buff == ED3_VERSION)
-    {        
-        // Initialize the PI
-        IO_WRITE(PI_STATUS_REG, 3);
-        IO_WRITE(PI_BSD_DOM1_LAT_REG, 0x40);
-        IO_WRITE(PI_BSD_DOM1_PWD_REG, 0x12);
-        IO_WRITE(PI_BSD_DOM1_PGS_REG, 0x07);
-        IO_WRITE(PI_BSD_DOM1_RLS_REG, 0x03);
-        IO_WRITE(PI_BSD_DOM2_LAT_REG, 0x05);
-        IO_WRITE(PI_BSD_DOM2_PWD_REG, 0x0C);
-        IO_WRITE(PI_BSD_DOM2_PGS_REG, 0x0D);
-        IO_WRITE(PI_BSD_DOM2_RLS_REG, 0x02);
-        IO_WRITE(PI_BSD_DOM1_LAT_REG, 0x04);
-        IO_WRITE(PI_BSD_DOM1_PWD_REG, 0x0C);
-        
+    {
         // Set the USB mode
         usb_everdrive_writereg(ED_REG_SYSCFG, 0);
         usb_everdrive_writereg(ED_REG_USBCFG, ED_USBMODE_RDNOP);
@@ -604,7 +591,7 @@ s8 usb_64drive_wait()
         #endif
         
         // Took too long, abort
-        if((timeout++) > 100000)
+        if((timeout++) > 10000)
             return -1;
     }
     while((ret >> 8) & D64_CI_BUSY);
@@ -982,6 +969,15 @@ static void usb_everdrive_readdata(void* buff, u32 pi_address, u32 len)
     #ifdef LIBDRAGON
         data_cache_hit_writeback_invalidate(buff, len);
         disable_interrupts();
+        // Write the data to the PI
+        usb_everdrive_wait_pidma();
+        IO_WRITE(PI_STATUS_REG, 3);
+        *(volatile unsigned long *)(N64_PI_ADDRESS + N64_PI_RAMADDRESS) = (u32)buff;
+        *(volatile unsigned long *)(N64_PI_ADDRESS + N64_PI_PIADDRESS) = pi_address;
+        *(volatile unsigned long *)(N64_PI_ADDRESS + N64_PI_WRITELENGTH) = len-1;
+        usb_everdrive_wait_pidma();
+        // Enable system interrupts
+        enable_interrupts();
     #else
         osInvalDCache(buff, len);
         #if USE_OSRAW
@@ -994,23 +990,6 @@ static void usb_everdrive_readdata(void* buff, u32 pi_address, u32 len)
                          len, &dmaMessageQ);
             (void)osRecvMesg(&dmaMessageQ, NULL, OS_MESG_BLOCK);
         #endif
-    #endif
-
-    // Write the data to the PI
-    usb_everdrive_wait_pidma();
-    IO_WRITE(PI_STATUS_REG, 3);
-    *(volatile unsigned long *)(N64_PI_ADDRESS + N64_PI_RAMADDRESS) = (u32)buff;
-    *(volatile unsigned long *)(N64_PI_ADDRESS + N64_PI_PIADDRESS) = pi_address;
-    #ifdef LIBDRAGON
-        *(volatile unsigned long *)(N64_PI_ADDRESS + N64_PI_WRITELENGTH) = len-1;
-    #else
-        *(volatile unsigned long *)(N64_PI_ADDRESS + N64_PI_READLENGTH) = len-1;
-    #endif
-    usb_everdrive_wait_pidma();
-    
-    // Enable system interrupts
-    #ifdef LIBDRAGON
-        enable_interrupts();
     #endif
 }
 
@@ -1045,6 +1024,15 @@ static void usb_everdrive_writedata(void* buff, u32 pi_address, u32 len)
     #ifdef LIBDRAGON
         data_cache_hit_writeback(buff, len);
         disable_interrupts();
+        // Write the data to the PI
+        usb_everdrive_wait_pidma();
+        IO_WRITE(PI_STATUS_REG, 3);
+        *(volatile unsigned long *)(N64_PI_ADDRESS + N64_PI_RAMADDRESS) = (u32)buff;
+        *(volatile unsigned long *)(N64_PI_ADDRESS + N64_PI_PIADDRESS) = pi_address;
+        *(volatile unsigned long *)(N64_PI_ADDRESS + N64_PI_READLENGTH) = len-1;
+        usb_everdrive_wait_pidma();
+        // Enable system interrupts
+        enable_interrupts();
     #else
         osWritebackDCache(buff, len);
         #if USE_OSRAW
@@ -1058,23 +1046,6 @@ static void usb_everdrive_writedata(void* buff, u32 pi_address, u32 len)
             (void)osRecvMesg(&dmaMessageQ, NULL, OS_MESG_BLOCK);
         #endif
     #endif
-    
-    // Write the data to the PI
-    usb_everdrive_wait_pidma();
-    IO_WRITE(PI_STATUS_REG, 3);
-    *(volatile unsigned long *)(N64_PI_ADDRESS + N64_PI_RAMADDRESS) = (u32)buff;
-    *(volatile unsigned long *)(N64_PI_ADDRESS + N64_PI_PIADDRESS) = pi_address;
-    #ifdef LIBDRAGON
-        *(volatile unsigned long *)(N64_PI_ADDRESS + N64_PI_READLENGTH) = len-1;
-    #else
-        *(volatile unsigned long *)(N64_PI_ADDRESS + N64_PI_WRITELENGTH) = len-1;
-    #endif
-    usb_everdrive_wait_pidma();
-    
-    // Enable system interrupts
-    #ifdef LIBDRAGON
-        enable_interrupts();
-    #endif
 }
 
 
@@ -1087,7 +1058,8 @@ static void usb_everdrive_writedata(void* buff, u32 pi_address, u32 len)
 
 static void usb_everdrive_writereg(u64 reg, u32 value) 
 {
-    usb_everdrive_writedata(&value, ED_GET_REGADD(reg), sizeof(u32));
+    u32 val __attribute__((aligned(8))) = value;
+    usb_everdrive_writedata(&val, ED_GET_REGADD(reg), sizeof(u32));
 }
 
 
@@ -1098,12 +1070,15 @@ static void usb_everdrive_writereg(u64 reg, u32 value)
 
 static void usb_everdrive_usbbusy() 
 {
+    u32 timeout = 0;
     u32 val __attribute__((aligned(8)));
-    do 
+    do
     {
         usb_everdrive_readreg(ED_REG_USBCFG, &val);
-    } 
-    while ((val & ED_USBSTAT_ACT) != 0);
+        if (timeout++ != 8192)
+            continue;
+        usb_everdrive_writereg(ED_REG_USBCFG, ED_USBMODE_RDNOP);
+    } while ((val & ED_USBSTAT_ACT) != 0);
 }
 
 
