@@ -10,8 +10,8 @@ INSTALLDIR = $(N64_INST)
 libdragon: CC=$(N64_CC)
 libdragon: AS=$(N64_AS)
 libdragon: LD=$(N64_LD)
-libdragon: CFLAGS+=$(N64_CFLAGS) -I$(CURDIR)/include -I$(ROOTDIR)/mips64-elf/include
-libdragon: ASFLAGS+=$(N64_ASFLAGS) -I$(CURDIR)/include -I$(ROOTDIR)/mips64-elf/include
+libdragon: CFLAGS+=$(N64_CFLAGS) -I$(CURDIR)/include
+libdragon: ASFLAGS+=$(N64_ASFLAGS) -I$(CURDIR)/include
 libdragon: LDFLAGS+=$(N64_LDFLAGS)
 libdragon: libdragon.a libdragonsys.a
 
@@ -34,9 +34,11 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 	$(AR) -rcs -o $@ $^
 
 examples:
-	make -C examples
-examples-clean:
-	make -C examples clean
+	$(MAKE) -C examples
+# We are unable to clean examples built with n64.mk unless we
+# install it first
+examples-clean: install-mk
+	$(MAKE) -C examples clean
 
 doxygen: doxygen.conf
 	mkdir -p doxygen/
@@ -48,15 +50,17 @@ doxygen-clean:
 	rm -rf $(CURDIR)/doxygen
 
 tools:
-	+make -C tools
+	$(MAKE) -C tools
 tools-install:
-	make -C tools install
+	$(MAKE) -C tools install
 tools-clean:
-	make -C tools clean
+	$(MAKE) -C tools clean
 
-install: libdragon.a libdragonsys.a
-	install -Cv -m 0644 libdragon.a $(INSTALLDIR)/mips64-elf/lib/libdragon.a
+install-mk: n64.mk
 	install -Cv -m 0644 n64.mk $(INSTALLDIR)/include/n64.mk
+
+install: install-mk libdragon
+	install -Cv -m 0644 libdragon.a $(INSTALLDIR)/mips64-elf/lib/libdragon.a
 	install -Cv -m 0644 n64.ld $(INSTALLDIR)/mips64-elf/lib/n64.ld
 	install -Cv -m 0644 header $(INSTALLDIR)/mips64-elf/lib/header
 	install -Cv -m 0644 libdragonsys.a $(INSTALLDIR)/mips64-elf/lib/libdragonsys.a
