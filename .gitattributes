@@ -1,0 +1,3 @@
+* text=auto
+# These are all bash scripts and should use lf
+*.sh text eol=lf
