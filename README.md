@@ -8,17 +8,17 @@ See [docker wrapper](https://github.com/anacierdem/libdragon-docker) to quickly 
 
 To get started from scratch, follow the following steps:
 
-1. Create a directory and copy the build script there from the tools/ directory.
+1. Create a directory and copy the `build-toolchain.sh` script there from the `tools/` directory.
 2. Read the comments in the build script to see what additional packages are needed.
-3. Run ./build from the created directory, let it build and install the toolchain.
+3. Run `./build-toolchain.sh` from the created directory, let it build and install the toolchain.
 4. Install libpng-dev if not already installed.
 
 *Below steps can also be executed by running `build.sh` at the top level.*
 
-5. Install libdragon by typing 'make install' at the top level.
-6. Install the tools by typing 'make tools-install' at the top level.
+5. Install libdragon by typing `make install` at the top level.
+6. Install the tools by typing `make tools-install` at the top level.
 7. Install libmikmod for the examples using it. See `build.sh` at the top level for details.
-8. Compile the examples by typing 'make examples' at the top level.
+8. Compile the examples by typing `make examples` at the top level.
 
 You are now ready to run the examples on your N64.
 For more information, visit http://www.dragonminded.com/n64dev/
