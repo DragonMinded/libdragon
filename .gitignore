@@ -9,7 +9,19 @@ tools/mkdfs/mkdfs
 tools/mksprite/convtool
 tools/mksprite/mksprite
 tools/n64tool
-
+tools/build_*/
+tools/*_compile/
+tools/*_compile/*
+tools/*.tar.*
+tools/mpc-*/
+tools/isl-*/
+tools/mpfr-*/
+tools/gmp-*/
+tools/gcc-*/
+tools/binutils-*/
+tools/newlib-*/
+tools/gdb-*/
+tools/make-*/
 ## OSX junk
 .DS_Store
 .Trashes

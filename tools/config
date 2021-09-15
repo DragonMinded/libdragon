@@ -1,0 +1,47 @@
+#!/bin/sh
+set -eu
+
+# EDIT THIS LINE TO CHANGE YOUR INSTALL PATH!
+export INSTALL_PATH=${N64_INST:-/opt/toolchains/n64/DragonMinded/}
+
+export JOBS=${JOBS:-`getconf _NPROCESSORS_ONLN`}
+export JOBS=${JOBS:-1} # If getconf returned nothing, default to 1
+export FORCE_DEFAULT_GCC=${FORCE_DEFAULT_GCC:-false}
+
+# Set up path for newlib to compile later
+export PATH=$PATH:$INSTALL_PATH/bin
+export EXT_TAR_GZ=tar.gz
+export EXT_TAR_BZ2=tar.bz2
+export EXT_TAR_XZ=tar.xz
+export FLAG_TAR_GZ=xvzpf
+export FLAG_TAR_XZ=xvJpf
+export FLAG_TAR_BZ2=xvjpf
+
+# Versions
+export BINUTILS_V=2.37
+export BINUTILS_E=$EXT_TAR_GZ
+export BINUTILS_T=$FLAG_TAR_GZ
+export GMP_V=6.2.1
+export GMP_E=$EXT_TAR_XZ
+export GMP_T=$FLAG_TAR_XZ
+export MPFR_V=4.1.0
+export MPFR_E=$EXT_TAR_GZ
+export MPFR_T=$FLAG_TAR_GZ
+export ISL_V=0.24
+export ISL_E=$EXT_TAR_GZ
+export ISL_T=$FLAG_TAR_GZ
+export MPC_V=1.2.1
+export MPC_E=$EXT_TAR_GZ
+export MPC_T=$FLAG_TAR_GZ
+export GCC_V=11.2.0
+export GCC_E=$EXT_TAR_GZ
+export GCC_T=$FLAG_TAR_GZ
+export NEWLIB_V=4.1.0
+export NEWLIB_E=$EXT_TAR_GZ
+export NEWLIB_T=$FLAG_TAR_GZ
+export GDB_V=10.2
+export GDB_E=$EXT_TAR_GZ
+export GDB_T=$FLAG_TAR_GZ
+export MAKE_V=4.3
+export MAKE_E=$EXT_TAR_GZ
+export MAKE_T=$FLAG_TAR_GZ

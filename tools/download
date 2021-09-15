@@ -1,0 +1,15 @@
+#!/bin/sh
+
+source ./config
+
+# Download stage
+test -f isl-$ISL_V.$ISL_E           || wget -c http://isl.gforge.inria.fr/isl-$ISL_V.$ISL_E
+test -f gmp-$GMP_V.$GMP_E           || wget -c https://ftp.gnu.org/gnu/gmp/gmp-$GMP_V.$GMP_E
+test -f mpc-$MPC_V.$MPC_E           || wget -c https://ftp.gnu.org/gnu/mpc/mpc-$MPC_V.$MPC_E
+test -f mpfr-$MPFR_V.$MPFR_E        || wget -c https://ftp.gnu.org/gnu/mpfr/mpfr-$MPFR_V.$MPFR_E
+test -f binutils-$BINUTILS_V.$BINUTILS_E || wget -c https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_V.$BINUTILS_E
+test -f gcc-$GCC_V.$GCC_E           || wget -c https://ftp.gnu.org/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.$GCC_E
+test -f newlib-$NEWLIB_V.$NEWLIB_E  || wget -c https://sourceware.org/pub/newlib/newlib-$NEWLIB_V.$NEWLIB_E
+test -f make-$MAKE_V.$MAKE_E        || wget -c https://ftp.gnu.org/gnu/make/make-$MAKE_V.$MAKE_E
+test -f gdb-$GDB_V.$GDB_E           || wget -c https://ftp.gnu.org/gnu/gdb/gdb-$GDB_V.$GDB_E
+

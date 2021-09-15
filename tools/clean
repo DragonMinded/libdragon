@@ -1,0 +1,9 @@
+#! /bin/sh
+source ./config
+
+test -d binutils-$BINUTILS_V        || rm -rf binutils-$BINUTILS_V
+test -d gcc-$GCC_V                  || rm -rf gcc-$GCC_V
+test -d newlib-$NEWLIB_V            || rm -rf newlib-$NEWLIB_V
+test -d make-$MAKE_V                || rm -rf make-$MAKE_V
+test -d gdb-$GDB_V                  || rm -rf gdb-$GDB_V
+
