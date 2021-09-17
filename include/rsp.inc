@@ -8,9 +8,46 @@
 # MIPS general register definitions
 #include <regdef.h>
 
+###############################################################################¶
+# libdragon MIPS conventions for ucode.
+#
+# You are not required to follow these for your own code, but we would like all
+# upstream code to follow these, plus shared libraries will also follow these.
+#
+# * microcode always starts at 0x0000 in IMEM
+# * "set noreorder" by default. The code is expected to explicitly handle delay
+#   slots.
+# * "set at" by default, but it is of course possible to switch to "set noat"
+#   to have one more scratch register when needed (eg: very useful in macros
+#   and helpers).
+# * No stack configured. Everything will happen using GPRs and manual loads/saves
+#   from DMEM. Normally, it is possible to have up to 2 levels of nested function
+#   calls, because "sp" is reserved to this (can be called "ra2"). (Ab)use tail
+#   calls to help with this. If you need more, try to refactor, or in the worse
+#   case, you need to allocate another register as "ra3".
+# * t0-t3: scratch value registers, often used also as arguments to functions.
+#   These are considered clobbered by defaults in function calls.
+# * s0-s4: scratch pointer registers, often used also as arguments to functions.
+#   These are often clobbered by functions calls.
+# * a0-a3: used to store the input to microcode (eg: in case of display list
+#   processing, they can contain the current command).
+# * Any other register: use it for keeping values around in larger sections of
+#   the code (or even the whole microcode). Rename each register with #define
+#   to begin using, and then #undef after you don't need it.
+###############################################################################¶
+
+    .set at
+    .set noreorder
+
+#define ra2 sp
+
+
+###############################################################################
 # Not implemented macro.
+#
 # We use this to disable standard MIPS opcodes that are not
 # available on RSP. There are quite a few of them.
+###############################################################################
 .macro makeNotImplemented name
     .macro \name _:vararg
         .error "\name is not supported by RSP"
