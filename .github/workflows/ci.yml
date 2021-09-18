@@ -17,6 +17,9 @@ jobs:
           git diff --exit-code -s ${{ github.event.pull_request.base.ref }} ${{ github.event.pull_request.head.ref }} ./tools/build-toolchain.sh
           echo "::set-output name=toolChainChanged::$?"
 
+      - name: Print
+        run: echo ${{ steps.toolchain_change.outputs.toolChainChanged }}
+
       - name: Build
         if: ${{ steps.toolchain_change.outputs.toolChainChanged != 0 }}
         uses: docker/build-push-action@v2
