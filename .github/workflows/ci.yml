@@ -1,0 +1,26 @@
+name: Build
+
+on: [push, pull_request]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Compare build-toolchain.sh
+        id: toolchain_change
+        run: |
+          git diff --exit-code -s ${{ github.event.pull_request.base.ref }} ${{ github.event.pull_request.head.ref }} ./tools/build-toolchain.sh
+          echo "::set-output name=toolChainChanged::$?"
+
+      - name: Build
+        if: ${{ steps.toolchain_change.outputs.toolChainChanged != 0 }}
+        uses: docker/build-push-action@v2
+        with:
+          context: ./
+          file: ./Dockerfile
+          push: false

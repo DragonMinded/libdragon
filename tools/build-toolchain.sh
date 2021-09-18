@@ -43,33 +43,6 @@ test -d binutils-$BINUTILS_V || tar -xzf binutils-$BINUTILS_V.tar.gz
 test -d gcc-$GCC_V || tar -xzf gcc-$GCC_V.tar.gz
 test -d newlib-$NEWLIB_V || tar -xzf newlib-$NEWLIB_V.tar.gz
 
-# Use same native GCC
-
-if [ ! $(gcc --version | grep $GCC_V) ] && [ $FORCE_DEFAULT_GCC == 'false' ]; then
-    rm -rf build_binutils
-    mkdir build_binutils
-
-    # Compile binutils
-    cd build_binutils
-    ../binutils-$BINUTILS_V/configure --prefix=${INSTALL_PATH}/gcc-$GCC_V --disable-werror
-    make -j$JOBS
-    make install || sudo make install || su -c "make install"
-
-    # Compile gcc (native)
-    cd ..
-    rm -rf build_gcc
-    mkdir build_gcc
-    cd build_gcc
-    ../gcc-$GCC_V/configure --prefix=${INSTALL_PATH}/gcc-$GCC_V --enable-languages=c,c++ --disable-nls
-    make -j$JOBS
-    make install || sudo make install || su -c "make install"
-
-    # Use new compiler
-    export PATH="${INSTALL_PATH}/gcc-$GCC_V/bin:${PATH}"
-    export COMPILED_CUSTOM_NATIVE_GCC="true"
-    cd ..
-fi
-
 # Binutils and newlib support compiling in source directory, GCC does not
 rm -rf gcc_compile
 mkdir gcc_compile
@@ -102,7 +75,3 @@ cd gcc_compile
 CFLAGS_FOR_TARGET="-G0 -O2" CXXFLAGS_FOR_TARGET="-G0 -O2" ../gcc-$GCC_V/configure --prefix=${INSTALL_PATH} --target=mips64-elf --with-arch=vr4300 --with-tune=vr4300 --enable-languages=c,c++ --with-newlib --disable-libssp --enable-multilib --disable-shared --with-gcc --disable-threads --disable-win32-registry --disable-nls --with-system-zlib
 make -j$JOBS
 make install || sudo make install || su -c "make install"
-
-if [ "$COMPILED_CUSTOM_NATIVE_GCC" == "true" ]; then
-    rm -rf ${INSTALL_PATH}/gcc-$GCC_V
-fi
