@@ -6,10 +6,7 @@
 #include <libdragon.h>
 #include <rsp.h>
 
-extern uint8_t rsp_basic_data_start[];
-extern uint8_t rsp_basic_data_end[];
-extern uint8_t rsp_basic_text_start[];
-extern uint8_t rsp_basic_text_end[];
+DEFINE_RSP_UCODE(rsp_basic);
 
 static volatile bool broke = false;
 
@@ -31,21 +28,13 @@ int main(void)
     register_SP_handler(&sp_handler);
     set_SP_interrupt(1);
 
-    unsigned long data_size = rsp_basic_data_end - rsp_basic_data_start;
-    unsigned long ucode_size = rsp_basic_text_end - rsp_basic_text_start;
+    rsp_load(&rsp_basic);
 
-    /* start & end must be aligned to 8 bytes.
-     * This property has been guaranteed by the build system */
-    assert(((uint32_t)rsp_basic_text_start % 8) == 0);
-    assert(((uint32_t)rsp_basic_data_start % 8) == 0);
-    
-    load_ucode(rsp_basic_text_start, ucode_size);
-    load_data(rsp_basic_data_start, data_size);
-
-    const uint8_t* orig = rsp_basic_data_start;
+    unsigned char* orig = malloc(16);
+    rsp_read_data(orig, 16, 0);
 
     unsigned long i = 0;
-    while(i < data_size)
+    while(i < 16)
     {
         printf("%02X ", orig[i]);
         if (i % 8 == 7) {
@@ -54,9 +43,9 @@ int main(void)
         i++;
     }
 
-    printf("\nsize: %d\n", (int)ucode_size);
+    printf("\n");
 
-    run_ucode();
+    rsp_run_async();
 
     while(1)
     {
@@ -65,11 +54,11 @@ int main(void)
             printf("\n");
             broke = false;
 
-            unsigned char* up = malloc(data_size);
-            read_data((void*)up, data_size);
+            unsigned char* up = malloc(16);
+            rsp_read_data((void*)up, 16, 0);
 
             i = 0;
-            while(i < data_size)
+            while(i < 16)
             {
                 printf("%02X ", up[i]);
                 if (i % 8 == 7) {
