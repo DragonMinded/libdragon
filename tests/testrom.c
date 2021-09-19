@@ -166,6 +166,7 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 #include "test_irq.c"
 #include "test_exception.c"
 #include "test_debug.c"
+#include "test_dma.c"
 
 /**********************************************************************
  * MAIN
@@ -201,6 +202,7 @@ static const struct Testsuite
 	TEST_FUNC(test_eepromfs,                   0, TEST_FLAGS_IO),
 	TEST_FUNC(test_cache_invalidate,    	1763, TEST_FLAGS_NONE),
 	TEST_FUNC(test_debug_sdfs,             	   0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dma_read_misalign,       7003, TEST_FLAGS_NONE),
 };
 
 int main() {
@@ -227,10 +229,18 @@ int main() {
 	for (int i=0; i < NUM_TESTS; i++) {
 		static char logbuf[16384];
 
+		printf("%-59s", tests[i].name);
+		fflush(stdout);
+		debugf("**** Starting test: %s\n", tests[i].name);
+
 		// Skip the test if we're running under emulation and the test is
 		// not compatible with emulators by design (eg: too strict timing).
-		if (IN_EMULATOR && tests[i].flags & TEST_FLAGS_NO_EMULATOR)
+		if (IN_EMULATOR && tests[i].flags & TEST_FLAGS_NO_EMULATOR) {
+			skipped++;
+			printf("SKIP\n");
+			debugf("SKIP\n");			
 			continue;
+		}
 
 		// Prepare the test context
 		TestContext ctx;
@@ -238,10 +248,6 @@ int main() {
 		ctx.logleft = sizeof(logbuf);
 		ctx.result = TEST_SUCCESS;
 		rand_state = 1; // reset to be fully reproducible
-
-		printf("%-59s", tests[i].name);
-		fflush(stdout);
-		debugf("**** Starting test: %s\n", tests[i].name);
 
 		// Do a complete cache flush before running each test
 		data_cache_writeback_invalidate_all();
@@ -276,7 +282,7 @@ int main() {
 			}
 		} else if (ctx.result == TEST_SKIPPED) {
 			skipped++;
-			printf("SKIP\n\n");
+			printf("SKIP\n");
 			debugf("SKIP\n");
 		}
 

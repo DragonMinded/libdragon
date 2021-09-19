@@ -1282,7 +1282,7 @@ static void usb_everdrive_read()
     // Set up DMA transfer between RDRAM and the PI
     #ifdef LIBDRAGON
         data_cache_hit_writeback_invalidate(usb_buffer, BUFFER_SIZE);
-        while (dma_busy());
+        dma_wait();
         *(vu32*)0xA4600010 = 3;
         dma_read(usb_buffer, ED_BASE + DEBUG_ADDRESS + usb_readblock, BUFFER_SIZE);
         data_cache_hit_writeback_invalidate(usb_buffer, BUFFER_SIZE);
