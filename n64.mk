@@ -99,9 +99,9 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.S
 		TEXTSECTION="$(basename $@).text"; \
 		DATASECTION="$(basename $@).data"; \
 		echo "    [RSP] $<"; \
-		$(N64_CC) $(ASFLAGS) -nostartfiles -Wl,-Ttext=0x1000 -Wl,-Tdata=0x0 -Wl,-e0x1000 -o $@ $<; \
-		$(N64_OBJCOPY) -O binary -j .text $@ $$TEXTSECTION.bin; \
-		$(N64_OBJCOPY) -O binary -j .data $@ $$DATASECTION.bin; \
+		$(N64_CC) $(ASFLAGS) -nostartfiles -MMD -Wl,-Ttext=0x1000 -Wl,-Tdata=0x0 -Wl,-e0x1000 -o $@ $<; \
+		$(N64_OBJCOPY) -O binary -j .text $@ $(basename $@).text.bin; \
+		$(N64_OBJCOPY) -O binary -j .data $@ $(basename $@).data.bin; \
 		$(N64_OBJCOPY) -I binary -O elf32-bigmips -B mips4300 \
 				--redefine-sym _binary_$${SYMPREFIX}_text_bin_start=$${FILENAME}_text_start \
 				--redefine-sym _binary_$${SYMPREFIX}_text_bin_end=$${FILENAME}_text_end \
