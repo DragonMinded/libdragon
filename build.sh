@@ -12,8 +12,8 @@ LIBMIKMOD_COMMIT=738b1e8b11b470360b1b919680d1d88429d9d174
 LIBMIKMOD_DIR=/tmp/libmikmod
 
 # Clean, build, and install libdragon + tools
-make -j${CPU_COUNT} clobber
-make -j${CPU_COUNT} install tools-install
+make -j${CPU_COUNT} -I${N64_INST}/include clobber
+make -j${CPU_COUNT} -I${N64_INST}/include install tools-install
 
 # Remove the cloned libmikmod repo if it already exists
 [ -d "$LIBMIKMOD_DIR" ] && rm -Rf $LIBMIKMOD_DIR
@@ -21,10 +21,10 @@ make -j${CPU_COUNT} install tools-install
 git clone $LIBMIKMOD_REPO $LIBMIKMOD_DIR
 pushd $LIBMIKMOD_DIR/n64
 git checkout $LIBMIKMOD_COMMIT
-make -j${CPU_COUNT}
-make install
+make -j${CPU_COUNT} -I${N64_INST}/include
+make -j${CPU_COUNT} -I${N64_INST}/include install
 popd
 rm -Rf $LIBMIKMOD_DIR
 
 # Build all of the libdragon examples
-make -j${CPU_COUNT} examples
+make -j${CPU_COUNT} -I${N64_INST}/include examples

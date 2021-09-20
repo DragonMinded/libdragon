@@ -1,6 +1,6 @@
 # Libdragon
 
-[![Build Status](https://travis-ci.org/DragonMinded/libdragon.svg?branch=trunk)](https://travis-ci.org/DragonMinded/libdragon)
+[![Build](https://github.com/DragonMinded/libdragon/actions/workflows/ci.yml/badge.svg?branch=trunk)](https://github.com/DragonMinded/libdragon/actions/workflows/ci.yml)
 
 This is a simple library for N64 that allows one to code using the gcc compiler suite and nothing else. No proprietary library is needed.
 
