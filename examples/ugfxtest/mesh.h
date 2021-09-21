@@ -16,7 +16,7 @@
     .attr.normal.a = (va), \
 }
 
-// A constant vertex buffer. This could also be loaded from the cart.
+/* A constant vertex buffer. This could also be loaded from the cart. */
 const ugfx_vertex_t mesh_vertices[] = {
     /* -Z */
     make_vertex_n(-1, -1, -1, 1, 1, 0, 0, -128, 255),
@@ -50,19 +50,19 @@ const ugfx_vertex_t mesh_vertices[] = {
     make_vertex_n(+1, +1, +1, 0, 0, +127, 0, 0, 255),
 };
 
-// A constant command buffer. This could also be loaded from the cart.
+/* A constant command list. This could also be loaded from the cart. */
 const ugfx_command_t mesh_commands[] = {
 
-    // Load 24 vertices from address 0x0 to index 0 in the vertex cache, using address slot 1.
-    // The actual address the vertices will be dma'd from is determined by adding the
-    // address specified here to the value contained in the address slot.
-    // This means the command buffer can be constant at compile time, and the
-    // final address of the vertex buffer can be set dynamically at runtime.
+    /* Load 24 vertices from address 0x0 to index 0 in the vertex cache, using address slot 1.
+       The actual address the vertices will be dma'd from is determined by adding the
+       address specified here to the value contained in the address slot.
+       This means the command list can be constant at compile time, and the
+       final address of the vertex buffer can be set dynamically at runtime. */
     ugfx_load_vertices(1, 0, 0, 24),
 
-    // Draw triangles. Note that the vertex indices are offsets into the vertex cache,
-    // and not into the original vertex buffer. The vertex cache can hold up to 32 vertices.
-    // So if your mesh consists of more than 32 vertices, multiple vertex loads are necessary.
+    /* Draw triangles. Note that the vertex indices are offsets into the vertex cache,
+       and not into the original vertex buffer. The vertex cache can hold up to 32 vertices.
+       So if your mesh consists of more than 32 vertices, multiple vertex loads are necessary. */
     ugfx_draw_triangle(0, 2, 1),
     ugfx_draw_triangle(1, 2, 3),
 
@@ -81,7 +81,9 @@ const ugfx_command_t mesh_commands[] = {
     ugfx_draw_triangle(20, 21, 22),
     ugfx_draw_triangle(21, 23, 22),
 
-    // Command buffers always need to be terminated by 'ugfx_finalize'.
+    /* Command lists always need to be terminated by 'ugfx_finalize'.
+       This causes the command list processor to pop the current command list from the stack
+       and either return to the one below, or finish processing if the stack is empty. */
     ugfx_finalize(),
 };
 

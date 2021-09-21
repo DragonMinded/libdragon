@@ -59,25 +59,28 @@ int main(void)
     uint32_t display_width = display_get_width();
     uint32_t display_height = display_get_height();
 
-    ugfx_viewport_t viewport = {
-        .scale = { display_width << 1, -display_height << 1, Z_MAX >> 1, 0 },
-        .offset = { display_width << 1, display_height << 1, Z_MAX >> 1, 0 }
-    };
+    /* Create viewport */
+    ugfx_viewport_t viewport;
+    ugfx_viewport_init(&viewport, 0, 0, display_width, display_height);
 
     data_cache_hit_writeback(&viewport, sizeof(viewport));
 
+    /* Construct view + projection matrix */
     ugfx_matrix_t pv_matrix;
     float pv_matrix_f[4][4];
 
     float near_plane = .1f;
     float far_plane = 100.f;
 
-    uint16_t perspective_normalization_scale = float_to_fixed(get_persp_norm_scale(near_plane, far_plane), 16);
-
     perspective(RADIANS(70.f), 4.f/3.f, near_plane, far_plane, pv_matrix_f);
     ugfx_matrix_from_column_major(&pv_matrix, pv_matrix_f[0]);
     data_cache_hit_writeback(&pv_matrix, sizeof(pv_matrix));
 
+    /* Calculate perspective normalization scale. This is needed to re-normalize W-coordinates
+       after they have been distorted by the perspective matrix. */
+    uint16_t perspective_normalization_scale = float_to_fixed(get_persp_norm_scale(near_plane, far_plane), 16);
+
+    /* Allocate depth buffer */
     void *depth_buffer = malloc(display_width * display_height * 2);
 
     int rotation_counter = 0;
@@ -91,7 +94,7 @@ int main(void)
 
         ugfx_matrix_t m_matrix;
 
-        // Quick'n'dirty rotation + translation matrix
+        /* Quick'n'dirty rotation + translation matrix */
         float z = -3.0f;
         float angle = RADIANS((float)(rotation_counter++));
         float c = cosf(angle);
@@ -127,7 +130,7 @@ int main(void)
             ugfx_fill_rectangle(0, 0, display_width << 2, display_height << 2),
 
             /* Set up projection matrix */
-            ugfx_load_matrix(0, &pv_matrix, UGFX_MTX_STACK_VIEW_PROJ),
+            ugfx_set_view_persp_matrix(0, &pv_matrix),
             ugfx_set_persp_norm(perspective_normalization_scale),
 
             /* Set lights */
@@ -149,17 +152,18 @@ int main(void)
             ugfx_set_geometry_mode(UGFX_GEOMETRY_SHADE | UGFX_GEOMETRY_ZBUFFER | UGFX_GEOMETRY_TEXTURE | UGFX_GEOMETRY_SMOOTH | UGFX_GEOMETRY_LIGHTING),
             ugfx_set_clip_ratio(2),
 
-            /* Set texture */
+            /* Point RDP towards texture data and set tile settings */
             ugfx_set_texture_image(sprite->data, UGFX_FORMAT_RGBA, UGFX_PIXEL_SIZE_32B, sprite->width - 1),
             ugfx_set_tile(UGFX_FORMAT_RGBA, UGFX_PIXEL_SIZE_32B, (2 * sprite->width) >> 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
             ugfx_load_tile(0 << 2, 0 << 2, (sprite->width - 1) << 2, (sprite->height - 1) << 2, 0),
             
+            /* The texture settings to use for the following primitives */
             ugfx_set_texture_settings(0x8000, 0x8000, 0, 0),
 
             /* Set model matrix and draw mesh by linking to a constant command list */
-            ugfx_load_matrix(0, &m_matrix, UGFX_MTX_STACK_MODEL | UGFX_MTX_LOAD | UGFX_MTX_NOPUSH),
+            ugfx_set_model_matrix(0, &m_matrix),
             ugfx_set_address_slot(1, mesh_vertices),
-            ugfx_link_commands(0, mesh_commands, mesh_commands_length, UGFX_LINK_PUSH),
+            ugfx_push_commands(0, mesh_commands, mesh_commands_length),
             ugfx_sync_pipe(),
 
             /* Finish up */

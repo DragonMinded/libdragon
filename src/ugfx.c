@@ -152,3 +152,29 @@ ugfx_command_t ugfx_set_display(display_context_t disp)
 
     return ugfx_set_color_image(__safe_buffer[disp - 1], UGFX_FORMAT_RGBA, pixel_size, display_get_width() - 1);
 }
+
+void ugfx_viewport_init(ugfx_viewport_t *viewport, int16_t left, int16_t top, int16_t right, int16_t bottom)
+{
+    left = float_to_fixed(left, 2);
+    top = float_to_fixed(top, 2);
+    right = float_to_fixed(right, 2);
+    bottom = float_to_fixed(bottom, 2);
+
+    int16_t half_width = (right - left) / 2;
+    int16_t half_height = (bottom - top) / 2;
+
+    *viewport = (ugfx_viewport_t) {
+        .scale = { 
+            half_width,
+            -half_height,
+            Z_MAX / 2,
+            0
+        },
+        .offset = { 
+            left + half_width,
+            top + half_height,
+            Z_MAX / 2,
+            0 
+        }
+    };
+}

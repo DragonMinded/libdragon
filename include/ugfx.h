@@ -424,6 +424,13 @@
     __ugfx_mask_shift((slot), 0xF, 28) | \
     __ugfx_mask_shift((uintptr_t)(matrix), 0x1FFFFFF, 0))
 
+#define ugfx_set_view_persp_matrix(slot, matrix) ugfx_load_matrix(slot, matrix, UGFX_MTX_STACK_VIEW_PROJ)
+#define ugfx_set_model_matrix(slot, matrix) ugfx_load_matrix(slot, matrix, UGFX_MTX_STACK_MODEL | UGFX_MTX_LOAD | UGFX_MTX_NOPUSH)
+#define ugfx_push_matrix(slot, matrix) ugfx_load_matrix(slot, matrix, UGFX_MTX_STACK_MODEL | UGFX_MTX_PUSH | UGFX_MTX_MUL)
+#define ugfx_push_load_matrix(slot, matrix) ugfx_load_matrix(slot, matrix, UGFX_MTX_STACK_MODEL | UGFX_MTX_PUSH)
+#define ugfx_pop_matrix(slot, matrix) ugfx_load_matrix(slot, matrix, UGFX_MTX_STACK_MODEL | UGFX_MTX_POP)
+#define ugfx_force_matrix(slot, matrix) ugfx_load_matrix(slot, matrix, UGFX_MTX_FORCE)
+
 #define ugfx_load_viewport(slot, viewport) (\
     __ugfx_opcode(UGFX_OP_LOAD_VIEWPORT) | \
     __ugfx_mask_shift((slot), 0xF, 28) | \
@@ -441,6 +448,9 @@
     __ugfx_mask_shift((flags), 0x7, 32) | \
     __ugfx_mask_shift((slot), 0xF, 28) | \
     __ugfx_mask_shift((uintptr_t)(commands), 0x1FFFFFF, 0))
+
+#define ugfx_push_commands(slot, commands, length) ugfx_link_commands(slot, commands, length, UGFX_LINK_PUSH)
+#define ugfx_load_commands(slot, commands, length) ugfx_link_commands(slot, commands, length, UGFX_LINK_LOAD)
 
 #define ugfx_set_cull_mode(mode) (\
     __ugfx_opcode(UGFX_OP_SET_CULL_MODE) | \
@@ -581,6 +591,8 @@ static inline void ugfx_load_buffer(const ugfx_buffer_t *buffer)
 {
     ugfx_load(buffer->data, buffer->length);
 }
+
+void ugfx_viewport_init(ugfx_viewport_t *viewport, int16_t left, int16_t top, int16_t right, int16_t bottom);
 
 #ifdef __cplusplus
 } /* extern "C" */
