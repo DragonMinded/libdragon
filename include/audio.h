@@ -35,6 +35,9 @@ void audio_close();
 int audio_get_frequency();
 int audio_get_buffer_length();
 
+short* audio_write_begin(void);
+void audio_write_end(void);
+
 #ifdef __cplusplus
 }
 #endif
