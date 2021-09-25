@@ -607,24 +607,12 @@ void graphics_fill_screen( display_context_t disp, uint32_t c )
 {
     if( disp == 0 ) { return; }
 
-    if( __bitdepth == 2 )
-    {
-        uint16_t *buffer = (uint16_t *)__get_buffer( disp );
+    int len = (__bitdepth == 2) ? __width * __height / 4 : __width * __height / 2;
 
-        for( int i = 0; i < __width * __height; i++ )
-        {
-            buffer[i] = c;
-        }
-    }
-    else
-    {
-        uint32_t *buffer = (uint32_t *)__get_buffer( disp );
-
-        for( int i = 0; i < __width * __height; i++ )
-        {
-            buffer[i] = c;
-        }
-    }
+    uint64_t c64 = ((uint64_t)c << 32) | c;
+    uint64_t *buffer = (uint64_t *)__get_buffer(disp);
+    for( int i = 0; i < len; i++ )
+        buffer[i] = c64;
 }
 
 /**
