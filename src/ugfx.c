@@ -166,7 +166,7 @@ void ugfx_viewport_init(ugfx_viewport_t *viewport, int16_t left, int16_t top, in
     *viewport = (ugfx_viewport_t) {
         .scale = { 
             half_width,
-            -half_height,
+            half_height,
             Z_MAX / 2,
             0
         },

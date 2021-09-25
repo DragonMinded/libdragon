@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 #include <libdragon.h>
 #include "mesh.h"
 
@@ -30,11 +31,13 @@ void perspective(float fovy,
                  float dest[4][4]) {
   float f, fn;
 
+  memset(&dest[0], 0, sizeof(float) * 16);
+
   f  = 1.0f / tanf(fovy * 0.5f);
   fn = 1.0f / (nearZ - farZ);
 
   dest[0][0] = f / aspect;
-  dest[1][1] = f;
+  dest[1][1] = -f;
   dest[2][2] = (nearZ + farZ) * fn;
   dest[2][3] =-1.0f;
   dest[3][2] = 2.0f * nearZ * farZ * fn;
@@ -46,7 +49,7 @@ int main(void)
     init_interrupts();
 
     /* Initialize peripherals */
-    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE);
+    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE_FETCH_ALWAYS);
     ugfx_init(UGFX_DEFAULT_RDP_BUFFER_SIZE);
     dfs_init(DFS_DEFAULT_LOCATION);
 
