@@ -596,4 +596,9 @@ uint32_t display_get_num_buffers()
     return __buffers;
 }
 
+void * display_get_buffer(uint32_t index)
+{
+    return __safe_buffer[index];
+}
+
 /** @} */ /* display */

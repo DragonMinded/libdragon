@@ -81,6 +81,7 @@ uint32_t display_get_width();
 uint32_t display_get_height();
 bitdepth_t display_get_bitdepth();
 uint32_t display_get_num_buffers();
+void * display_get_buffer(uint32_t index);
 
 #ifdef __cplusplus
 }

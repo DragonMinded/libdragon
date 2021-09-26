@@ -511,7 +511,7 @@ makeLsInstructionQuad store, swv, 0b00111
     .macro setup_vsll vshiftreg
         .set noat
         la $1, %lo(V_SHIFT)
-        lqv \vshiftreg, 0, 0, $1
+        lqv \vshiftreg,0,  0,$1
         .set at
 
         .macro vsll vdstreg, vsrcreg, qty
@@ -592,7 +592,7 @@ makeLsInstructionQuad store, swv, 0b00111
     .macro setup_vsll8 vshiftreg
         .set noat
         la $1, %lo(V_SHIFT8)
-        lqv \vshiftreg, 0, 0, $1
+        lqv \vshiftreg,0,  0,$1
         .set at
 
         .macro vsll8 vdstreg, vsrcreg, qty

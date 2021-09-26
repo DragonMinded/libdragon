@@ -12,8 +12,6 @@ DEFINE_RSP_UCODE(rsp_ugfx);
 static void *ugfx_rdp_buffer;
 static uint32_t ugfx_rdp_buffer_size;
 
-extern void *__safe_buffer[];
-
 typedef struct ugfx_ucode_params_t {
     uint32_t input;
     uint32_t input_size;
@@ -124,7 +122,7 @@ void ugfx_close()
     ugfx_rdp_buffer_size = 0;
 }
 
-static inline int32_t ugfx_pixel_size_from_bitdepth(bitdepth_t bitdepth)
+static inline uint32_t ugfx_pixel_size_from_bitdepth(bitdepth_t bitdepth)
 {
     switch (bitdepth)
     {
@@ -133,7 +131,7 @@ static inline int32_t ugfx_pixel_size_from_bitdepth(bitdepth_t bitdepth)
         case DEPTH_32_BPP:
             return UGFX_PIXEL_SIZE_32B;
         default:
-            return -1;
+            assert(!"Unsupported bitdepth");
     }
 }
 
@@ -145,20 +143,16 @@ ugfx_command_t ugfx_set_display(display_context_t disp)
     }
 
     int32_t pixel_size = ugfx_pixel_size_from_bitdepth(display_get_bitdepth());
-    if (pixel_size < 0) 
-    {
-        return 0;
-    }
 
-    return ugfx_set_color_image(__safe_buffer[disp - 1], UGFX_FORMAT_RGBA, pixel_size, display_get_width() - 1);
+    return ugfx_set_color_image(display_get_buffer(disp - 1), UGFX_FORMAT_RGBA, pixel_size, display_get_width() - 1);
 }
 
 void ugfx_viewport_init(ugfx_viewport_t *viewport, int16_t left, int16_t top, int16_t right, int16_t bottom)
 {
-    left = float_to_fixed(left, 2);
-    top = float_to_fixed(top, 2);
-    right = float_to_fixed(right, 2);
-    bottom = float_to_fixed(bottom, 2);
+    left = left << 2;
+    top = top << 2;
+    right = right << 2;
+    bottom = bottom << 2;
 
     int16_t half_width = (right - left) / 2;
     int16_t half_height = (bottom - top) / 2;
