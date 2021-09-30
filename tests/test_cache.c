@@ -32,12 +32,26 @@ void test_cache_invalidate(TestContext *ctx) {
 			for (int c=0;c<4;c++) {
 				bool should_be_invalidated = (j!=0) && (c >= i/16 && c <= (i+j-1)/16);
 
-				if (should_be_invalidated)
-					ASSERT_EQUAL_MEM(buf+c*16, (uint8_t*)dfs_header+c%2*16, 16,
-						"unexpected data in invalidated cacheline %d (%d/%d)", c, i, j);
-				else
-					ASSERT_EQUAL_MEM(buf+c*16, (uint8_t*)aaa, 16,
-						"unexpected data in not-invalidated cached cacheline %d (%d/%d)", c, i, j);
+				// NOTE: ASSERT_EQUAL_MEM would do the byte-by-byte check for us
+				// but it does touch the stack a lot, and that can invalidate
+				// cachelines. We do the check here inline so that we don't
+				// touch memory. If there's a failure, we can fallback on
+				// ASSERT_EQUAL_MEM to provide error reporting.
+				if (should_be_invalidated) {
+					for (int k=0;k<16;k++) {
+						if (buf[c*16+k] != (uint8_t)dfs_header[c%2*16+k]) {
+							ASSERT_EQUAL_MEM(buf+c*16, (uint8_t*)dfs_header+c%2*16, 16,
+								"unexpected data in invalidated cacheline %d (%d/%d)", c, i, j);
+						}
+					}
+				} else {
+					for (int k=0;k<16;k++) {
+						if (buf[c*16+k] != (uint8_t)aaa[k]) {
+							ASSERT_EQUAL_MEM(buf+c*16, (uint8_t*)aaa, 16,
+								"unexpected data in not-invalidated cached cacheline %d (%d/%d)", c, i, j);
+						}
+					}
+				}
 			}
 		}
 	}
