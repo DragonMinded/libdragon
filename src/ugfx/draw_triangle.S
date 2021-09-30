@@ -834,6 +834,8 @@ no_tex_prep:
   vsubc atd2f, att1f, att3f, VE_V
   vsub  atd2i, att1i, att3i, VE_V
 
+  # dadx = (a2 - a1) * (y3 - y1) +
+  #        (a1 - a3) * (y2 - y1)
   vmudn vtmp3, atd1f, cdeltasi, VE_1
   vmadh vtmp3, atd1i, cdeltasi, VE_1
   vmadn vtmp3, atd2f, cdeltasi, VE_3
@@ -841,11 +843,14 @@ no_tex_prep:
   vsar dadxi, vtmp3, vtmp3, VE_0
   vsar dadxf, vtmp3, vtmp3, VE_1
 
+  # dadx /= cross product
   vmudl vtmp3, dadxf, iczf, VE_0
   vmadm vtmp3, dadxi, iczf, VE_0
   vmadn dadxf, dadxf, iczi, VE_0
   vmadh dadxi, dadxi, iczi, VE_0
 
+  # dady = (a2 - a1) * (x3 - x1) +
+  #        (a1 - a3) * (x1 - x2)
   vmudn vtmp3, atd1f, cdeltasi, VE_0
   vmadh vtmp3, atd1i, cdeltasi, VE_0
   vmadn vtmp3, atd2f, cdeltasi, VE_2
@@ -853,15 +858,19 @@ no_tex_prep:
   vsar dadyi, vtmp3, vtmp3, VE_0
   vsar dadyf, vtmp3, vtmp3, VE_1
 
+  # dady /= cross product
   vmudl vtmp3, dadyf, iczf,   VE_0
   vmadm vtmp3, dadyi, iczf,   VE_0
   vmadn dadyf, dadyf, iczi,   VE_0
   vmadh dadyi, dadyi, iczi,   VE_0
+  
+  # dade = dady + dadx * dxhdy
   vmadl vtmp3, dadxf, slopef, VE_0
   vmadm vtmp3, dadxi, slopef, VE_0
   vmadn dadef, dadxf, slopei, VE_0
   vmadh dadei, dadxi, slopei, VE_0
 
+  # a1 -= dade * y1.f
   vmudn vtmp3, att1f, vshl,   VE_0 
   vmadh vtmp3, att1i, vshl,   VE_0
   vmadl vtmp3, dadef, vfracf, VE_1
@@ -874,7 +883,7 @@ no_tex_prep:
   
   sdv att1i, 0x8, 0x00, out_ptr
   sdv dadxi, 0x8, 0x08, out_ptr
-  sdv att1f, 0x0, 0x10, out_ptr
+  sdv att1f, 0x8, 0x10, out_ptr
   sdv dadxf, 0x8, 0x18, out_ptr
   sdv dadei, 0x8, 0x20, out_ptr
   sdv dadyi, 0x8, 0x28, out_ptr
