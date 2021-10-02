@@ -13,15 +13,6 @@ int wav_convert(const char *infn, const char *outfn) {
 		return 1;
 	}
 
-	char *outfn1; int chpos = 0;
-	if (wav.channels > 1) {
-		*strrchr(outfn, '.') = '\0';
-		asprintf(&outfn1, "%s.0.wav64", outfn);
-		chpos = strrchr(outfn1, '.') - outfn1;
-	} else {
-		outfn1 = strdup(outfn);
-	}
-
 	// Decode the samples as 16bit big-endian. This will decode everything including
 	// compressed formats so that we're able to read any kind of WAV file, though
 	// it will end up as an uncompressed file.
@@ -51,67 +42,58 @@ int wav_convert(const char *infn, const char *outfn) {
 	memset(&head, 0, sizeof(wav64_header_t));
 
 	strncpy(head.id, "WV64", 4);
-	head.version = 1;
+	head.version = WAV64_FILE_VERSION;
 	head.format = 0;
-	head.nbits = HOST_TO_BE16(nbits);
+	head.channels = wav.channels;
+	head.nbits = nbits;
 	head.freq = HOST_TO_BE32(wav.sampleRate);
 	head.len = HOST_TO_BE32(cnt);
 	head.loop_len = HOST_TO_BE32(loop_len);
 	head.start_offset = HOST_TO_BE32(sizeof(wav64_header_t));
 
-	if (wav.channels >= 10) {
-		fprintf(stderr, "WARNING: %s: too many channels (%d)", infn, wav.channels);
-		free(outfn1);
+	if (flag_verbose)
+		fprintf(stderr, "Converting: %s => %s\n", infn, outfn);
+
+	FILE *out = fopen(outfn, "wb");
+	if (!out) {
+		fprintf(stderr, "ERROR: %s: cannot create file\n", outfn);
 		free(samples);
 		drwav_uninit(&wav);
 		return 1;
 	}
 
-	for (int ch=0;ch<wav.channels;ch++) {
-		if (flag_verbose)
-			fprintf(stderr, "Converting: %s => %s\n", infn, outfn1);
-		FILE *out = fopen(outfn1, "wb");
-		if (!out) {
-			fprintf(stderr, "ERROR: %s: cannot create file\n", outfn1);
-			free(samples);
-			drwav_uninit(&wav);
-			return 1;
-		}
+	fwrite(&head, 1, sizeof(wav64_header_t), out);
 
-		fwrite(&head, 1, sizeof(wav64_header_t), out);
-		int16_t *sptr = samples + ch;
-		for (int i=0;i<cnt;i++) {
-			// Write the sample as 16bit or 8bit. Since *sptr is 16-bit big-endian,
-			// the 8bit representation is just the first byte (MSB). Notice
-			// that WAV64 8bit is signed anyway.
-			fwrite(sptr, 1, nbits == 8 ? 1 : 2, out);
-			sptr += wav.channels;
-		}
-
-		// Amount of data that can be overread by the player.
-		const int OVERREAD_BYTES = 64;
-		if (loop_len == 0) {
-			for (int i=0;i<OVERREAD_BYTES;i++)
-				fputc(0, out);
-		} else {
-			int bps = nbits==8 ? 0 : 1;
-			int idx = cnt - loop_len;
-			for (int i=0;i<OVERREAD_BYTES>>bps;i++) {
-				int16_t *sptr = samples + ch + idx*wav.channels;
-				fwrite(sptr, 1, 1<<bps, out);
-				idx++;
-				if (idx == cnt)
-					idx -= loop_len;
-			}
-		}
-
-		fclose(out);
-
-		// Increment channel number in filename.
-		outfn1[chpos]++;
+	int16_t *sptr = samples;
+	for (int i=0;i<cnt*wav.channels;i++) {
+		// Write the sample as 16bit or 8bit. Since *sptr is 16-bit big-endian,
+		// the 8bit representation is just the first byte (MSB). Notice
+		// that WAV64 8bit is signed anyway.
+		fwrite(sptr, 1, nbits == 8 ? 1 : 2, out);
+		sptr++;
 	}
 
-	free(outfn1);
+	// Amount of data that can be overread by the player.
+	const int OVERREAD_BYTES = 64;
+	if (loop_len == 0) {
+		for (int i=0;i<OVERREAD_BYTES;i++)
+			fputc(0, out);
+	} else {
+		int idx = cnt - loop_len;
+		int nb = 0;
+		while (nb < OVERREAD_BYTES) {
+			int16_t *sptr = samples + idx*wav.channels;
+			for (int ch=0;ch<wav.channels;ch++) {
+				nb += fwrite(sptr, 1, nbits==8 ? 1 : 2, out);
+				sptr++;
+			}
+			idx++;
+			if (idx == cnt)
+				idx -= loop_len;
+		}
+	}
+
+	fclose(out);
 	free(samples);
 	drwav_uninit(&wav);
 	return 0;

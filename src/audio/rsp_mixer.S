@@ -125,6 +125,9 @@
 # NOTE: This must be the same of MIXER_FX32_FRAC in mixer.c.
 #define WAVERFORM_POS_FRAC_BITS  12
 
+# Waveform flags. Keep these in sync with mixer.c
+#define CH_FLAGS_16BIT      (1<<2)
+#define CH_FLAGS_STEREO     (1<<3)
 
 #define MAX_CHANNELS_VOFF  (MAX_CHANNELS*2/16)
 
@@ -391,6 +394,8 @@ DMAFilterState:
 	#define out_ptr        s5
 	#define wv_pos_to_dmem s6
 	#define wv_step_8x     t2
+	#define is_stereo      a0
+	#define is_16bit       a1
 
 	.func UpdateAndFetch
 UpdateAndFetch:
@@ -419,7 +424,7 @@ UpdateLoop:
 	# address is zero, no waveform was configured in this channel,
 	# so we can skip directly to next channel.
 	lw wv_addr,     16(s1)
-	beqz wv_addr, WaveLoopEpilog
+	beqz wv_addr, WaveLoopEpilog2
 	lw wv_pos,       0(s1)
 	lw wv_step,      4(s1)
 	lw wv_len,       8(s1)
@@ -430,9 +435,10 @@ UpdateLoop:
 	add out_ptr, nchan
 	move ticks, k1
 
-	# Flags: isolate 16-bit flag (bit 0)
-	lw t1, 20(s1)
-	andi t1, 1
+	# Flags: isolate 16-bit flag (bit 2) and stereo flags (bit 3)
+	lw t0, 20(s1)
+	andi is_stereo, t0, CH_FLAGS_STEREO
+	andi is_16bit, t0, CH_FLAGS_16BIT
 WaveStart:
 	# Check if we reached end of sample.
 	bltu wv_pos, wv_len, WaveDmaFetch
@@ -510,8 +516,18 @@ start_dma:
 
 	# Adjust wv_pos to become a DMEM pointer, and then 
 	# jump to the 8-bit or 16-bit resampling loop.
-	bnez t1, WaveLoop16_8x
+	bnez is_stereo, WaveLoopStereo
 	sub wv_pos, wv_pos_to_dmem
+
+	############################################################
+	#       Mono
+	############################################################
+
+	bnez is_16bit, WaveLoop16_8x
+
+	############################################################
+	#       Mono - 8 bit
+	############################################################
 
 WaveLoop8_8x:
 	add t0, wv_pos, wv_step_8x                 # check if pos+step*8 is still in the DMEM cache
@@ -579,6 +595,10 @@ WaveLoop8Checks:
 	nop
 	j WaveStart                                    # End of buffer: fetch some more samples
 	add wv_pos, wv_pos_to_dmem
+
+	############################################################
+	#       Mono - 16 bit
+	############################################################
 
 WaveLoop16_8x:
 	add t0, wv_pos, wv_step_8x
@@ -654,12 +674,203 @@ WaveLoop16Checks:
 	j WaveStart
 	add wv_pos, wv_pos_to_dmem
 
+
+	############################################################
+	#       Stereo
+	############################################################
+
+WaveLoopStereo:
+	bnez is_16bit, WaveLoop16_Stereo_8x
+
+	############################################################
+	#       Stereo - 8 bit
+	############################################################
+
+WaveLoop8_Stereo_8x:
+	add t0, wv_pos, wv_step_8x
+	bge t0, dma_cache_end, WaveLoop8StereoChecks
+	li t0, 8
+	blt ticks, t0, WaveLoop8StereoChecks
+
+	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	sll t0, 1
+	lbu t1, 0(t0)
+	lbu t0, 1(t0)
+	add wv_pos, wv_step
+	sb t1, (0*MAX_CHANNELS*2+0)(out_ptr)
+	sb t0, (0*MAX_CHANNELS*2+2)(out_ptr)
+
+	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	sll t0, 1
+	lbu t1, 0(t0)
+	lbu t0, 1(t0)
+	add wv_pos, wv_step
+	sb t1, (1*MAX_CHANNELS*2+0)(out_ptr)
+	sb t0, (1*MAX_CHANNELS*2+2)(out_ptr)
+
+	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	sll t0, 1
+	lbu t1, 0(t0)
+	lbu t0, 1(t0)
+	add wv_pos, wv_step
+	sb t1, (2*MAX_CHANNELS*2+0)(out_ptr)
+	sb t0, (2*MAX_CHANNELS*2+2)(out_ptr)
+
+	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	sll t0, 1
+	lbu t1, 0(t0)
+	lbu t0, 1(t0)
+	add wv_pos, wv_step
+	sb t1, (3*MAX_CHANNELS*2+0)(out_ptr)
+	sb t0, (3*MAX_CHANNELS*2+2)(out_ptr)
+
+	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	sll t0, 1
+	lbu t1, 0(t0)
+	lbu t0, 1(t0)
+	add wv_pos, wv_step
+	sb t1, (4*MAX_CHANNELS*2+0)(out_ptr)
+	sb t0, (4*MAX_CHANNELS*2+2)(out_ptr)
+
+	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	sll t0, 1
+	lbu t1, 0(t0)
+	lbu t0, 1(t0)
+	add wv_pos, wv_step
+	sb t1, (5*MAX_CHANNELS*2+0)(out_ptr)
+	sb t0, (5*MAX_CHANNELS*2+2)(out_ptr)
+
+	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	sll t0, 1
+	lbu t1, 0(t0)
+	lbu t0, 1(t0)
+	add wv_pos, wv_step
+	sb t1, (6*MAX_CHANNELS*2+0)(out_ptr)
+	sb t0, (6*MAX_CHANNELS*2+2)(out_ptr)
+
+	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	sll t0, 1
+	lbu t1, 0(t0)
+	lbu t0, 1(t0)
+	add wv_pos, wv_step
+	sb t1, (7*MAX_CHANNELS*2+0)(out_ptr)
+	sb t0, (7*MAX_CHANNELS*2+2)(out_ptr)
+
+	add out_ptr, 8*MAX_CHANNELS*2
+	j WaveLoop8_Stereo_8x
+	addi ticks, -8
+
+WaveLoop8Stereo:
+	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	sll t0, 1
+	lbu t1, 0(t0)
+	lbu t0, 1(t0)
+	add wv_pos, wv_step
+	sb t1, 0(out_ptr)
+	sb t0, 2(out_ptr)
+
+	addi out_ptr, MAX_CHANNELS*2
+	addi ticks, -1
+WaveLoop8StereoChecks:
+	blez ticks, WaveBeforeEpilog
+	slt t0, wv_pos, dma_cache_end
+	bnez t0, WaveLoop8Stereo
+	nop
+	j WaveStart
+	add wv_pos, wv_pos_to_dmem
+
+
+	############################################################
+	#       Stereo - 16 bit
+	############################################################
+
+WaveLoop16_Stereo_8x:
+	add t0, wv_pos, wv_step_8x
+	bge t0, dma_cache_end, WaveLoop16StereoChecks
+	li t0, 8
+	blt ticks, t0, WaveLoop16StereoChecks
+
+	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+2
+	sll t0, 2
+	lw t0, 0(t0)
+	add wv_pos, wv_step
+	sw t0, (0*MAX_CHANNELS*2+0)(out_ptr)
+
+	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+2
+	sll t0, 2
+	lw t0, 0(t0)
+	add wv_pos, wv_step
+	sw t0, (1*MAX_CHANNELS*2+0)(out_ptr)
+
+	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+2
+	sll t0, 2
+	lw t0, 0(t0)
+	add wv_pos, wv_step
+	sw t0, (2*MAX_CHANNELS*2+0)(out_ptr)
+
+	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+2
+	sll t0, 2
+	lw t0, 0(t0)
+	add wv_pos, wv_step
+	sw t0, (3*MAX_CHANNELS*2+0)(out_ptr)
+
+	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+2
+	sll t0, 2
+	lw t0, 0(t0)
+	add wv_pos, wv_step
+	sw t0, (4*MAX_CHANNELS*2+0)(out_ptr)
+
+	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+2
+	sll t0, 2
+	lw t0, 0(t0)
+	add wv_pos, wv_step
+	sw t0, (5*MAX_CHANNELS*2+0)(out_ptr)
+
+	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+2
+	sll t0, 2
+	lw t0, 0(t0)
+	add wv_pos, wv_step
+	sw t0, (6*MAX_CHANNELS*2+0)(out_ptr)
+
+	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+2
+	sll t0, 2
+	lw t0, 0(t0)
+	add wv_pos, wv_step
+	sw t0, (7*MAX_CHANNELS*2+0)(out_ptr)
+
+	add out_ptr, 8*MAX_CHANNELS*2
+	j WaveLoop16_Stereo_8x
+	addi ticks, -8
+
+WaveLoop16Stereo:
+	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+2
+	sll t0, 2
+	lw t0, 0(t0)
+	add wv_pos, wv_step
+	sw t0, 0(out_ptr)
+
+	addi out_ptr, MAX_CHANNELS*2
+	addi ticks, -1
+WaveLoop16StereoChecks:
+	blez ticks, WaveBeforeEpilog
+	slt t0, wv_pos, dma_cache_end
+	bnez t0, WaveLoop16Stereo
+	nop
+	j WaveStart
+	add wv_pos, wv_pos_to_dmem
+
 WaveBeforeEpilog:
 	add wv_pos, wv_pos_to_dmem
 
 WaveLoopEpilog:
+	beqz is_stereo, WaveLoopEpilog2
 	sw wv_pos, 0(s1)   # store updated wv_pos in DMEM
 
+	# For stereo, we need to skip 1 channel
+	addi nchan, 1
+	addi s1, 6*4
+
+WaveLoopEpilog2:
 	addi nchan, 1
 	bne nchan, k0, UpdateLoop
 	addi s1, 6*4

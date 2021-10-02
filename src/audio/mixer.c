@@ -35,7 +35,11 @@ DEFINE_RSP_UCODE(rsp_mixer);
 #define MIN(a,b)  ({ typeof(a) _a = a; typeof(b) _b = b; _a < _b ? _a : _b; })
 #define ROUND_UP(n, d)  (((n) + (d) - 1) / (d) * (d))
 
+// NOTE: keep these in sync with rsp_mixer.S
 #define CH_FLAGS_BPS_SHIFT  (3<<0)   // BPS shift value
+#define CH_FLAGS_16BIT      (1<<2)   // Set if the channel is 16 bit
+#define CH_FLAGS_STEREO     (1<<3)   // Set if the channel is stereo (left)
+#define CH_FLAGS_STEREO_SUB (1<<4)   // The channel is the second half of a stereo (right)
 
 // Fixed point value used in waveform position calculations. This is a signed
 // 64-bit integer with the fractional part using MIXER_FX64_FRAC bits.
@@ -194,10 +198,13 @@ void mixer_close(void) {
 
 void mixer_ch_set_freq(int ch, float frequency) {
 	mixer_channel_t *c = &Mixer.channels[ch];
+	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_set_freq: cannot call on secondary stereo channel %d", ch);
 	c->step = MIXER_FX64(frequency / (float)Mixer.sample_rate) << (c->flags & CH_FLAGS_BPS_SHIFT);
 }
 
 void mixer_ch_set_vol(int ch, float lvol, float rvol) {
+	mixer_channel_t *c = &Mixer.channels[ch];
+	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_set_vol: cannot call on secondary stereo channel %d", ch);
 	Mixer.lvol[ch] = MIXER_FX15(lvol);
 	Mixer.rvol[ch] = MIXER_FX15(rvol);
 }
@@ -316,19 +323,27 @@ void mixer_ch_play(int ch, waveform_t *wave) {
 		samplebuffer_flush(sbuf);
 
 		// Configure the sample buffer for this waveform
-		assert(wave->channels == 1);
+		assert(wave->channels == 1 || wave->channels == 2);
 		assert(wave->bits == 8 || wave->bits == 16);
-		samplebuffer_set_bps(sbuf, wave->bits);
+		samplebuffer_set_bps(sbuf, wave->bits*wave->channels);
 		samplebuffer_set_waveform(sbuf, wave->read ? waveform_read : NULL, wave);
 
 		// Configure the mixer channel structured used by the RSP ucode
 		assertf(wave->len >= 0 && wave->len <= WAVEFORM_MAX_LEN, "waveform %s: invalid length %x", wave->name, wave->len);
 		assertf(wave->len != WAVEFORM_UNKNOWN_LEN || wave->loop_len == 0, "waveform %s with unknown length cannot loop", wave->name);
 		int bps = SAMPLES_BPS_SHIFT(sbuf);
-		c->flags = bps;
+		c->flags = bps | (wave->channels == 2 ? CH_FLAGS_STEREO : 0) | (wave->bits == 16 ? CH_FLAGS_16BIT : 0);
 		c->len = MIXER_FX64((int64_t)wave->len) << bps;
 		c->loop_len = MIXER_FX64((int64_t)wave->loop_len) << bps;
 		mixer_ch_set_freq(ch, wave->frequency);
+
+		if (wave->channels == 2) {
+			assertf(ch != Mixer.num_channels-1, "cannot configure last channel (%d) as stereo", ch);
+			Mixer.channels[ch+1].flags |= CH_FLAGS_STEREO_SUB;
+		} else if (ch != Mixer.num_channels-1) {
+			Mixer.channels[ch+1].flags &= ~CH_FLAGS_STEREO_SUB;
+		}
+
 		tracef("mixer_ch_play: ch=%d len=%llx loop_len=%llx wave=%s\n", ch, c->len >> (MIXER_FX64_FRAC+bps), c->loop_len >> (MIXER_FX64_FRAC+bps), wave->name);
 	}
 
@@ -339,26 +354,34 @@ void mixer_ch_play(int ch, waveform_t *wave) {
 
 void mixer_ch_set_pos(int ch, float pos) {
 	mixer_channel_t *c = &Mixer.channels[ch];
+	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_set_pos: cannot call on secondary stereo channel %d", ch);
 	c->pos = MIXER_FX64(pos) << (c->flags & CH_FLAGS_BPS_SHIFT);
 }
 
 float mixer_ch_get_pos(int ch) {
 	mixer_channel_t *c = &Mixer.channels[ch];
+	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_get_pos: cannot call on secondary stereo channel %d", ch);
 	uint32_t pos = c->pos >> (c->flags & CH_FLAGS_BPS_SHIFT);
 	return (float)pos / (float)(1<<MIXER_FX64_FRAC);
 }
 
 void mixer_ch_stop(int ch) {
-	Mixer.channels[ch].ptr = 0;
+	mixer_channel_t *c = &Mixer.channels[ch];
+	c->ptr = 0;
+	if (c->flags & CH_FLAGS_STEREO)
+		c[1].flags &= ~CH_FLAGS_STEREO_SUB;
 
 	// Restart caching if played again. We need this guarantee
 	// because after calling stop(), the caller must be able
 	// to free waveform, and thus this pointer might become invalid.
 	Mixer.ch_buf[ch].wv_ctx = NULL;
+
 }
 
 bool mixer_ch_playing(int ch) {
-	return Mixer.channels[ch].ptr != 0;
+	mixer_channel_t *c = &Mixer.channels[ch];
+	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_playing: cannot call on secondary stereo channel %d", ch);
+	return c->ptr != 0;
 }
 
 void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_sz) {
@@ -413,6 +436,8 @@ void mixer_exec(int32_t *out, int num_samples) {
 				// by NULL-ing the buffer pointer.
 				if (wpos >= len) {
 					ch->ptr = 0;
+					if (ch->flags & CH_FLAGS_STEREO)
+						ch[1].flags &= ~CH_FLAGS_STEREO_SUB;
 					continue;
 				}
 				// When there's no loop, do not ask for more samples then
@@ -480,10 +505,30 @@ void mixer_exec(int32_t *out, int num_samples) {
 	rsp_load(&rsp_mixer);
 
 	volatile rsp_mixer_channel_t *rsp_wv = (volatile rsp_mixer_channel_t *)&SP_DMEM[36];
+	mixer_fx15_t lvol[MIXER_MAX_CHANNELS] __attribute__((aligned(8)));
+	mixer_fx15_t rvol[MIXER_MAX_CHANNELS] __attribute__((aligned(8)));
+
 	for (int ch=0;ch<Mixer.num_channels;ch++) {
 		mixer_channel_t *c = &Mixer.channels[ch];
+
+		// Stereo sub-channel. Will be ignored by RSP but we need to configure
+		// volume correctly.
+		if (c->flags & CH_FLAGS_STEREO_SUB) {
+			rsp_wv[ch].ptr = 0;
+			lvol[ch] = 0;
+			rvol[ch] = Mixer.rvol[ch-1];
+			continue;
+		}
+
+		// Check if the channel is stopped
 		if (!c->ptr) {
 			rsp_wv[ch].ptr = 0;
+			// Configure the volume to 0 when the channel is keyed off. This
+			// makes sure that we smooth volume correctly even for waveforms
+			// where the sequencer creates an a attack ramp (which would nullify
+			// the one-tap volume filter if the volume started from max).
+			lvol[ch] = 0;
+			rvol[ch] = 0;
 			continue;
 		}
 
@@ -510,19 +555,14 @@ void mixer_exec(int32_t *out, int num_samples) {
 			assert(c->loop_len <= 0x7FFFFFFF);
 			rsp_wv[ch].loop_len = (uint32_t)c->loop_len & 0x7FFFFFFF;
 		}
-	}
 
-	mixer_fx15_t lvol[MIXER_MAX_CHANNELS] __attribute__((aligned(8)));
-	mixer_fx15_t rvol[MIXER_MAX_CHANNELS] __attribute__((aligned(8)));
-
-	for (int ch=0;ch<MIXER_MAX_CHANNELS;ch++)  {
-		// Configure the volume to 0 when the channel is keyed off. This
-		// makes sure that we smooth volume correctly even for waveforms
-		// where the sequencer creates an a attack ramp (which would nullify
-		// the one-tap volume filter if the volume started from max).
-		bool on = Mixer.channels[ch].ptr != NULL;
-		lvol[ch] = on ? Mixer.lvol[ch] : 0;
-		rvol[ch] = on ? Mixer.rvol[ch] : 0;
+		if (c->flags & CH_FLAGS_STEREO) {
+			lvol[ch] = Mixer.lvol[ch];
+			rvol[ch] = 0;
+		} else {
+			lvol[ch] = Mixer.lvol[ch];
+			rvol[ch] = Mixer.rvol[ch];
+		}
 	}
 
 	// Copy the volumes into DMEM. TODO: check if should change this loop into
