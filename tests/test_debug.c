@@ -61,6 +61,23 @@ void test_debug_sdfs(TestContext *ctx) {
 	ASSERT_EQUAL_UNSIGNED(info.st_size, 9*1024, "invalid file size");
 	ASSERT(!(info.st_mode & S_IFDIR), "file erroneously marked as directory");
 
+	uint8_t read[8*1024];
+
+	// Do large unbuffered reads to test continuous read/writes
+	randf = fopen(SD_FILE, "wb");
+	setvbuf(randf, NULL, _IONBF, 0);
+	fwrite(random, 1024, 8, randf);
+	fclose(randf); randf = NULL;
+
+	randf = fopen(SD_FILE, "r");
+	setvbuf(randf, NULL, _IONBF, 0);
+	fread(read, 1024, 8, randf);
+	fclose(randf); randf = NULL;
+
+	ASSERT_EQUAL_MEM(read,
+		random,
+		8*1024, "Invalid re-read");
+
 	// Remove the file
 	ret = unlink(SD_FILE);
 	ASSERT_EQUAL_SIGNED(ret, 0, "unlink failed");

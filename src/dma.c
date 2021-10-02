@@ -95,6 +95,44 @@ void dma_read_raw_async(void * ram_address, unsigned long pi_address, unsigned l
     enable_interrupts();
 }
 
+/**
+ * @brief Start reading data from a peripheral through PI DMA (low-level)
+ *
+ * This function should be used when reading from a cartridge peripheral (typically
+ * ROM). This function just begins executing a raw DMA transfer, which is
+ * well-defined only for RAM addresses which are multiple of 8, ROM addresses
+ * which are  multiple of 2, and lengths which are multiple of 2.
+ * 
+ * Use #dma_wait to wait for the end of the transfer.
+ * 
+ * See #dma_read_async for a higher level primitive which can perform almost
+ * arbitrary transfers.
+ *
+ * @param[out] ram_address
+ *             Pointer to a buffer to place read data (must be 8-byte aligned)
+ * @param[in]  pi_address
+ *             Memory address of the peripheral to read from (must be 2-byte aligned)
+ * @param[in]  len
+ *             Length in bytes to read into ram_address (must be multiple of 2)
+ */
+void dma_write_raw_async(const void * ram_address, unsigned long pi_address, unsigned long len) 
+{
+    assert(len > 0);
+
+    disable_interrupts();
+
+    while (__dma_busy()) ;
+    MEMORY_BARRIER();
+    PI_regs->ram_address = (void*)ram_address;
+    MEMORY_BARRIER();
+    PI_regs->pi_address = (pi_address | 0x10000000) & 0x1FFFFFFF;
+    MEMORY_BARRIER();
+    PI_regs->read_length = len-1;
+    MEMORY_BARRIER();
+
+    enable_interrupts();
+}
+
 /** @brief Low-level 32-bit aligned ROM read.
  * 
  * @note This function must be called with interrupts disabled.
@@ -287,19 +325,8 @@ void dma_write(const void * ram_address, unsigned long pi_address, unsigned long
 {
     assert(len > 0);
 
-    disable_interrupts();
-
-    while (__dma_busy()) ;
-    MEMORY_BARRIER();
-    PI_regs->ram_address = (void*)ram_address;
-    MEMORY_BARRIER();
-    PI_regs->pi_address = (pi_address | 0x10000000) & 0x1FFFFFFF;
-    MEMORY_BARRIER();
-    PI_regs->read_length = len-1;
-    MEMORY_BARRIER();
-    while (__dma_busy()) ;
-
-    enable_interrupts();
+    dma_write_raw_async(ram_address, pi_address, len);
+    dma_wait();
 }
 
 /**
