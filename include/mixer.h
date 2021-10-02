@@ -171,6 +171,11 @@ void mixer_ch_set_vol_dolby(int ch, float fl, float fr,
  * frequency of the channel is modified to adapt to the frequency requested
  * for correct playback of the waveform.
  * 
+ * If the waveform is marked as stereo (channels == 2), the mixer will need
+ * two channels to play it back. "ch" will be used for the left samples,
+ * while "ch+1" will be used for the right samples. After this, it is
+ * forbidden
+ * 
  * If the same waveform (same pointer) was already being played or was the
  * last one that was played on this channel, the channel sample buffer
  * is retained, so that any cached samples might be reused.
@@ -414,9 +419,9 @@ typedef void (*WaveformRead)(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen
  * implementing an audio format like VADPCM or MPEG-2.
  *
  * Waveforms can produce samples as 8-bit or 16-bit. Samples must always be
- * signed. Stereo waveforms are currently not supported. If an audio format
- * encodes two channels for stereo playback, the player should expose two
- * different waveforms that must be played in two different mixer channels.
+ * signed. Stereo waveforms (interleaved samples) are supported: when used
+ * with #mixer_ch_play, they will use automatically two channels (the specified
+ * one and the following).
  */
 typedef struct waveform_s {
 	// Name of the waveform (for debugging purposes)
@@ -426,8 +431,9 @@ typedef struct waveform_s {
 	// Notice that samples must always be signed.
 	uint8_t bits;
 
-	// Number of interleaved audio channels in this waveforms. Currently, this
-	// must always be 1.
+	// Number of interleaved audio channels in this waveforms. Supported values
+	// are 1 and 2 (mono and stereo waveforms). Notice that a stereo waveform
+	// will use two consecutive mixer channels to be played back.
 	uint8_t channels;
 
 	// Desired playback frequency (in samples per second, aka Hz).

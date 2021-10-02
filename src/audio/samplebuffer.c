@@ -33,13 +33,13 @@ void samplebuffer_init(samplebuffer_t *buf, uint8_t* mem, int nbytes) {
 }
 
 void samplebuffer_set_bps(samplebuffer_t *buf, int bits_per_sample) {
-	assert(bits_per_sample == 8 || bits_per_sample == 16);
+	assert(bits_per_sample == 8 || bits_per_sample == 16 || bits_per_sample == 32);
 	assertf(buf->widx == 0 && buf->ridx == 0 && buf->wpos == 0,
 		"samplebuffer_set_bps can only be called on an empty samplebuffer");
 
 	int nbytes = buf->size << SAMPLES_BPS_SHIFT(buf);
 
-	int bps = bits_per_sample == 8 ? 0 : 1;
+	int bps = bits_per_sample == 8 ? 0 : (bits_per_sample == 16 ? 1 : 2);
 	buf->ptr_and_flags = SAMPLES_PTR_MAKE(SAMPLES_PTR(buf), bps);
 	buf->size = nbytes >> bps;
 }

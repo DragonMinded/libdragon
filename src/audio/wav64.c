@@ -35,7 +35,8 @@ void raw_waveform_read(samplebuffer_t *sbuf, int base_rom_addr, int wpos, int wl
 
 static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
 	wav64_t *wav = (wav64_t*)ctx;
-	raw_waveform_read(sbuf, wav->rom_addr, wpos, wlen, wav->wave.bits == 8 ? 0 : 1);
+	int bps = (wav->wave.bits == 8 ? 0 : 1) + (wav->wave.channels == 2 ? 1 : 0);
+	raw_waveform_read(sbuf, wav->rom_addr, wpos, wlen, bps);
 }
 
 void wav64_open(wav64_t *wav, const char *fn) {
@@ -54,7 +55,7 @@ void wav64_open(wav64_t *wav, const char *fn) {
 		fn, head.format);
 
 	wav->wave.name = fn;
-	wav->wave.channels = 1;
+	wav->wave.channels = head.channels;
 	wav->wave.bits = head.nbits;
 	wav->wave.frequency = head.freq;
 	wav->wave.len = head.len;
