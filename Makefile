@@ -61,7 +61,7 @@ install-mk: n64.mk
 	# n64.mk must be installed into $PREFIX, otherwise make will not be
 	# able to find it later with "include n64.mk". This is the only file that
 	# must go outside of $INSTALLDIR.
-	install -Cv -m 0644 n64.mk $(PREFIX)/include/n64.mk
+	sudo install -Cv -m 0644 n64.mk $(PREFIX)/include/n64.mk
 
 install: install-mk libdragon
 	install -Cv -m 0644 libdragon.a $(INSTALLDIR)/mips64-elf/lib/libdragon.a
