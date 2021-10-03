@@ -70,19 +70,19 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.S
 	@mkdir -p $(dir $@)
 	set -e; if case $(notdir $(basename $@)) in "rsp"*) true;; *) false;; esac; then \
 		echo "    [RSP] $<"; \
-		$(N64_CC) $(N64_ASFLAGS) -nostartfiles -MMD -Wl,-Ttext=0x1000 -Wl,-Tdata=0x0 -Wl,-e0x1000 -o $@ $<; \
+		$(N64_CC) $(ASFLAGS) -nostartfiles -MMD -Wl,-Ttext=0x1000 -Wl,-Tdata=0x0 -Wl,-e0x1000 -o $@ $<; \
 		$(N64_OBJCOPY) -O binary -j .text $@ $(basename $@).text.bin; \
 		$(N64_OBJCOPY) -O binary -j .data $@ $(basename $@).data.bin; \
 		$(N64_OBJCOPY) -I binary -O elf32-bigmips -B mips4300 \
-				--redefine-sym _binary_$(subst /,_,$(basename $@))_text_bin_start=$(notdir $(basename $@))_text_start \
-				--redefine-sym _binary_$(subst /,_,$(basename $@))_text_bin_end=$(notdir $(basename $@))_text_end \
-				--redefine-sym _binary_$(subst /,_,$(basename $@))_text_bin_size=$(notdir $(basename $@))_text_size \
+				--redefine-sym _binary_$(subst .,_,$(subst /,_,$(basename $@)))_text_bin_start=$(notdir $(basename $@))_text_start \
+				--redefine-sym _binary_$(subst .,_,$(subst /,_,$(basename $@)))_text_bin_end=$(notdir $(basename $@))_text_end \
+				--redefine-sym _binary_$(subst .,_,$(subst /,_,$(basename $@)))_text_bin_size=$(notdir $(basename $@))_text_size \
 				--set-section-alignment .data=8 \
 				--rename-section .text=.data $(basename $@).text.bin $(basename $@).text.o; \
 		$(N64_OBJCOPY) -I binary -O elf32-bigmips -B mips4300 \
-				--redefine-sym _binary_$(subst /,_,$(basename $@))_data_bin_start=$(notdir $(basename $@))_data_start \
-				--redefine-sym _binary_$(subst /,_,$(basename $@))_data_bin_end=$(notdir $(basename $@))_data_end \
-				--redefine-sym _binary_$(subst /,_,$(basename $@))_data_bin_size=$(notdir $(basename $@))_data_size \
+				--redefine-sym _binary_$(subst .,_,$(subst /,_,$(basename $@)))_data_bin_start=$(notdir $(basename $@))_data_start \
+				--redefine-sym _binary_$(subst .,_,$(subst /,_,$(basename $@)))_data_bin_end=$(notdir $(basename $@))_data_end \
+				--redefine-sym _binary_$(subst .,_,$(subst /,_,$(basename $@)))_data_bin_size=$(notdir $(basename $@))_data_size \
 				--set-section-alignment .data=8 \
 				--rename-section .text=.data $(basename $@).data.bin $(basename $@).data.o; \
 		$(N64_SIZE) -G $@; \
