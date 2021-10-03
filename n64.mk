@@ -85,6 +85,7 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.S
 				--redefine-sym _binary_$(subst /,_,$(basename $@))_data_bin_size=$(notdir $(basename $@))_data_size \
 				--set-section-alignment .data=8 \
 				--rename-section .text=.data $(basename $@).data.bin $(basename $@).data.o; \
+		$(N64_SIZE) -G $@; \
 		$(N64_LD) -relocatable $(basename $@).text.o $(basename $@).data.o -o $@; \
 		rm $(basename $@).text.bin $(basename $@).data.bin $(basename $@).text.o $(basename $@).data.o; \
 	else \
@@ -101,7 +102,6 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.c
 	@mkdir -p $(BUILD_DIR)
 	@echo "    [LD] $@"
 	$(LD) -o $@ $(filter-out $(N64_ROOTDIR)/mips64-elf/lib/n64.ld,$^) $(LDFLAGS) -Map=$(BUILD_DIR)/$(notdir $(basename $@)).map
-	@echo "    [STATS] $@"
 	$(N64_SIZE) -G $@
 
 ifneq ($(V),1)
