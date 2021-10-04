@@ -20,7 +20,7 @@
 
 // SD implementations
 #include "debug_sdfs_ed64.c"
-#include "debug_sdfs_d64.c"
+#include "debug_sdfs_64drive.c"
 
 /**
  * @defgroup debug Debugging Support

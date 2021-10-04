@@ -96,24 +96,22 @@ void dma_read_raw_async(void * ram_address, unsigned long pi_address, unsigned l
 }
 
 /**
- * @brief Start reading data from a peripheral through PI DMA (low-level)
+ * @brief Start writing data to a peripheral through PI DMA (low-level)
  *
- * This function should be used when reading from a cartridge peripheral (typically
+ * This function should be used when writing to a cartridge peripheral (typically
  * ROM). This function just begins executing a raw DMA transfer, which is
  * well-defined only for RAM addresses which are multiple of 8, ROM addresses
  * which are  multiple of 2, and lengths which are multiple of 2.
- * 
+ *
  * Use #dma_wait to wait for the end of the transfer.
- * 
- * See #dma_read_async for a higher level primitive which can perform almost
- * arbitrary transfers.
+ *
  *
  * @param[out] ram_address
- *             Pointer to a buffer to place read data (must be 8-byte aligned)
+ *             Pointer to a buffer to read data from (must be 8-byte aligned)
  * @param[in]  pi_address
- *             Memory address of the peripheral to read from (must be 2-byte aligned)
+ *             Memory address of the peripheral to write to (must be 2-byte aligned)
  * @param[in]  len
- *             Length in bytes to read into ram_address (must be multiple of 2)
+ *             Length in bytes to write into pi_address (must be multiple of 2)
  */
 void dma_write_raw_async(const void * ram_address, unsigned long pi_address, unsigned long len) 
 {
