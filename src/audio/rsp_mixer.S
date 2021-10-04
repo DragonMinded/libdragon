@@ -173,44 +173,43 @@
 
 	.data
 
+############################################################################
+# UCODE INPUT DATA
+############################################################################
+
+# Global volume of playback
 GLOBAL_VOLUME:            .long  0x2000
+# Number of samples to resample/mix on each channel
 NUM_SAMPLES:              .half  0
+# Number of configured channels
 NUM_CHANNELS:             .half  0
+# Output RDRAM buffer where to store mixed samples (16-bit, stereo)
 OUTPUT_RDRAM:             .long  0
+# State RDRAM buffer where the RSP can store its state across different
+# calls. Currently, this will contain the current volume for each channel.
 STATE_RDRAM:               .long  0
 
+# Requested volumes for each channel. If VOLUME_FILTER is on, these are the
+# values requested by the user, but the current value for each channel might
+# be different (as the filter is running).
 	.align 4
 CHANNEL_VOLUMES_L:        .dcb.w MAX_CHANNELS
 CHANNEL_VOLUMES_R:        .dcb.w MAX_CHANNELS
 
+# Array of structures rsp_mixer_channel_s. See mixer.c. 6 words for each
+# channel with the following content:
+#
+#   0: pos:      absolute waveform position (as fixed point, WAVERFORM_POS_FRAC_BITS)
+#   1: step:     resampling increment of position for each output sample (fixed point)
+#   2: len:      length of the waveform (fixed point)
+#   3: loop_len: length of the loop from the end of the waveform (or 0 if no loop)
+#   4: ptr:      pointer to the beginning of the waveform
+#   5: flags:    channel flags (see CH_FLAGS_ macros in mixer.c)
+#
 	.align 4
-	# FIXME: THIS COMMENT IS OUTDATED - PLEASE UPDATE IT
-	#########################################################
-	# 1. Waveform playing position. This is expressed as a 0.31 positive fixed point
-	# number, to be interpreted as a [0-1] interval. So it needs to be multiplied
-	# by the waveform length to get the actual waveform sample offset.
-	# Low/high words are split for vectorization purposes.
-	# 2. Waveform stepping per sample (fixed 0.31, like position).
-	# 3. Waveform length, in number of samples. If the waveform is 16-bits, it
-	# must be multiplied by 2 to find the actual byte offset.
-	# 4. Waveform loop length
-	# 5. RDRAM addresses of waveforms. Each waveform must have been fully loaded
-	# in RDRAM before RSP can begin playing it. 
-	# NOTE: the lowest bit of addresses is a flag: if 1, it means that the
-	# waveform is made of 16-bit samples.
 WAVEFORM_SETTINGS:        .dcb.l (6*MAX_CHANNELS)
 
-	.align 4
-XVOL_L:                   .dcb.w MAX_CHANNELS
-XVOL_R:                   .dcb.w MAX_CHANNELS
-
-
-	# Temporary cache of samples fetched by DMA. Notice that this must be
-	# less or equal than MIXER_LOOP_OVERREAD (mixer.c), because the
-	# RSP will over-read up to this amount of bytes after waveform's end.
-	.align 3
-	#define SAMPLE_CACHE_SIZE  64
-DMEM_SAMPLE_CACHE:		  .dcb.b SAMPLE_CACHE_SIZE
+############################################################################
 
 	# Misc constants
 	.align 4
@@ -232,6 +231,22 @@ BANNER1:    .ascii " Coded by Rasky "
 
 	.bss
 
+	# Current volume state for each channel. This might differ from CHANNEL_VOLUMES
+	# when the volume filter is turned on: this is the actual current value that
+	# is being interpolated to CHANNEL_VOLUMES, which is the requested target
+	# volume to reach.
+	.align 4
+XVOL_L:                   .dcb.w MAX_CHANNELS
+XVOL_R:                   .dcb.w MAX_CHANNELS
+
+	# Temporary cache of samples fetched by DMA. Notice that this must be
+	# less or equal than MIXER_LOOP_OVERREAD (mixer.c), because the
+	# RSP will over-read up to this amount of bytes after waveform's end.
+	.align 3
+	#define SAMPLE_CACHE_SIZE  64
+DMEM_SAMPLE_CACHE:		  .dcb.b SAMPLE_CACHE_SIZE
+
+
 	# CHANNEL_BUFFER holds the resampled samples for all the channels.
 	# Samples of different channels are interleaved, so that they can
 	# be mixed with vector instructions.
@@ -245,10 +260,17 @@ OUTPUT_AREA:     .dcb.w MAX_SAMPLES_PER_LOOP*2
 
 	.text
 
+	# Number of samples that will be processed in the current loop.
+	#define num_samples     k1
+
+
 	.globl _start
 _start:
 	setup_vsll  v_shift
 	setup_vsll8 v_shift8
+
+	#define samples_left    t4
+	#define outptr          gp
 
 	vxor v_zero, v_zero, v_zero,0
 	li t0, %lo(VCONST_1)
@@ -266,6 +288,9 @@ _start:
 	nop
 
 MainLoop:
+	lh samples_left, %lo(NUM_SAMPLES)
+	beqz samples_left, End
+
 	# Fetch output RDRAM pointer and set t1=1 if it's not 8-byte aligned.
 	# We expect the pointer to be 32-bit aligned (since it's a buffer of 16-bit
 	# stereo samples), but it might not be 64-bit aligned.
@@ -273,37 +298,35 @@ MainLoop:
 	andi t1, 7
 	slt t1, zero, t1
 
-	lh t4, %lo(NUM_SAMPLES)
-	beqz t4, End
-
 	# The maximum number of samples that we want to generate
 	# in a single loop is MAX_SAMPLES_PER_LOOP. Subtract 
 	# 1 from this number if RDRAM buffer is not aligned so
 	# that after this loop we're 8-byte aligned again.
-	li k1, MAX_SAMPLES_PER_LOOP
-	sub k1, t1
+	li num_samples, MAX_SAMPLES_PER_LOOP
+	sub num_samples, t1
 
-	# nsamples = MIN(nsamples, MAX_SAMPLES_PER_LOOP[-1])
-	bgt t4, k1, CheckDMAAlignment
+	# num_samples = MIN(num_samples, MAX_SAMPLES_PER_LOOP[-1])
+	bgt samples_left, num_samples, CheckDMAAlignment
 	nop
-	move k1, t4
+	move num_samples, samples_left
 CheckDMAAlignment:
 	# If the output buffer is not aligned, fetch one DMA line (8 bytes)
 	# so that we preserve the 4 bytes that come before the buffer we were
 	# given (which would be overwritten by the RSP DMA).
 	beqz t1, DoLoop
-	li gp, %lo(OUTPUT_AREA)
+	li outptr, %lo(OUTPUT_AREA)
 
 	lw s0, %lo(OUTPUT_RDRAM)
 	li s4, %lo(OUTPUT_AREA)
 	jal DMAIn
 	li t0, DMA_SIZE(8,1)
-	addi gp, 4
+	addi outptr, 4
 
 DoLoop:
-	# Update number of samples left
-	sub t4, k1
-	sh t4, %lo(NUM_SAMPLES)
+	# Update number of samples left, subtracting the number of samples
+	# that will be calculated in this loop.
+	sub samples_left, num_samples
+	sh samples_left, %lo(NUM_SAMPLES)
 
 	# Fetch the samples and do resampling
 	jal UpdateAndFetch
@@ -311,10 +334,10 @@ DoLoop:
 
 	# Mix the samples
 	jal Mixer
-	move s4, gp
+	move s4, outptr
 
 	# Update the output pointer in RDRAM for next loop.
-	sll t0, k1, 2
+	sll t0, num_samples, 2
 	lw s0, %lo(OUTPUT_RDRAM)
 	add s1, s0, t0
 	sw s1, %lo(OUTPUT_RDRAM)
@@ -345,6 +368,9 @@ End:
 
 	# Bye bye!
 	break
+
+	#undef samples_left
+	#undef outptr
 
 
 ###############################################################
@@ -378,7 +404,10 @@ DMAFilterState:
 # Arguments:
 #
 #  k0:  number of active channels
-#  k1:  number of ticks to resample
+#
+# Global state:
+#
+#  num_samples:  number of ticks to resample
 #
 ###############################################################
 
@@ -433,7 +462,7 @@ UpdateLoop:
 	# Prepare output pointer
 	addi out_ptr, nchan, %lo(CHANNEL_BUFFER)
 	add out_ptr, nchan
-	move ticks, k1
+	move ticks, num_samples
 
 	# Flags: isolate 16-bit flag (bit 2) and stereo flags (bit 3)
 	lw t0, 20(s1)
@@ -975,7 +1004,9 @@ EndMixer:
 #
 # Arguments:
 #    s4:  buffer into which the mixed samples will be stored
-#    k1:  num samples
+#
+# Global state:
+#    num_samples:  number of samples to mix
 #
 ##############################################################
 
@@ -992,7 +1023,7 @@ EndMixer:
 Mixer:
 	# Load samples
 	li s0, %lo(CHANNEL_BUFFER)
-	move t1, k1
+	move t1, num_samples
 
 	# Load initial samples
 	lqv v_sample_0,0, 0,s0

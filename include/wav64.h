@@ -18,7 +18,7 @@
  * but rather loaded on request when needed for playback, streaming directly
  * from ROM. See #waveform_t for more details.
  * 
- * Use #wav64_play to playback. For more advances usage, call directly the
+ * Use #wav64_play to playback. For more advanced usage, call directly the
  * mixer functions, accessing the #wave structure field.
  */
 typedef struct {

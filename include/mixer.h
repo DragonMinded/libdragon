@@ -49,7 +49,7 @@ extern "C" {
  * the RSP and store the final output stream directly in the final buffer which
  * is sent via DMA to the N64 AI hardware DAC. In general, the N64 CPU is very
  * bandwidth-limited on RDRAM accesses, so "touching" 44100 samples per second
- * with the PCU would already consume too many resources. Audio players are
+ * with the CPU would already consume too many resources. Audio players are
  * expected to use RSP to produce the audio samples as well, so that the full
  * audio pipeline can work totally off CPU.
  */
@@ -174,7 +174,8 @@ void mixer_ch_set_vol_dolby(int ch, float fl, float fr,
  * If the waveform is marked as stereo (channels == 2), the mixer will need
  * two channels to play it back. "ch" will be used for the left samples,
  * while "ch+1" will be used for the right samples. After this, it is
- * forbidden
+ * forbidden to call mixer functions on "ch+1" until the stereo
+ * waveform is stopped.
  * 
  * If the same waveform (same pointer) was already being played or was the
  * last one that was played on this channel, the channel sample buffer
@@ -361,7 +362,7 @@ void mixer_remove_event(MixerEvent cb, void *ctx);
  * whenever a new unavailable portion of the waveform is requested.
  *
  * "wpos" indicates the absolute position in the waveform from which
- * starts reading, and "wlen" indicates how many samples to read.
+ * the function must start reading, and "wlen" indicates how many samples to read.
  *
  * The read function should push into the provided sample buffer
  * at least "wlen" samples, using #samplebuffer_append. Producing more samples
@@ -391,7 +392,7 @@ void mixer_remove_event(MixerEvent cb, void *ctx);
  *     already partially cached in the sample buffer's channel).
  *   * At user request (#mixer_ch_set_pos).
  *   * At loop: if a loop is specified in the waveform (loop_len != 0), the
- *     mixer will seek when requires to execute the loop.
+ *     mixer will seek when required to execute the loop.
  *
  * Notice that producing more samples than requested in "wlen" might break
  * the 8-byte buffer alignment guarantee that #samplebuffer_append tries to
