@@ -1,11 +1,9 @@
 #! /bin/bash
-# N64 toolchain install script for Unix distributions by Shaun Taylor.
-# Tested working on Ubuntu 18.04.
+# N64 MIPS GCC toolchain build/install script for Unix distributions
+# (c) 2012-2021 Shaun Taylor and libDragon Contributors.
+# See the root folder for license information.
 
-# You may be prompted for your password for installation steps.
-# If the script tells you that writing failed on chksum64 and n64tool,
-# this does not mean it failed.  The script simply retried with sudo
-# and your password was cached.
+
 
 # Before calling this script, make sure you have GMP, MPFR and TexInfo
 # packages installed in your system.  On a Debian-based system this is
@@ -18,7 +16,7 @@
 # Exit on error
 set -e
 
-# EDIT THIS LINE TO CHANGE YOUR INSTALL PATH!
+# Set N64_INST before calling the script to change the default installation directory path
 export INSTALL_PATH=${N64_INST:-/usr/local}
 
 export JOBS=${JOBS:-`getconf _NPROCESSORS_ONLN`}
@@ -28,47 +26,20 @@ export FORCE_DEFAULT_GCC=${FORCE_DEFAULT_GCC:-false}
 # Set up path for newlib to compile later
 export PATH=$PATH:$INSTALL_PATH/bin
 
-# Versions
+# Dependency source libs (Versions)
 export BINUTILS_V=2.36.1
 export GCC_V=10.2.0
 export NEWLIB_V=4.1.0
 
-# Download stage
-test -f binutils-$BINUTILS_V.tar.gz || wget -c ftp://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_V.tar.gz
-test -f gcc-$GCC_V.tar.gz || wget -c ftp://ftp.gnu.org/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz
-test -f newlib-$NEWLIB_V.tar.gz || wget -c ftp://sourceware.org/pub/newlib/newlib-$NEWLIB_V.tar.gz
+# Dependency source: Download stage
+test -f binutils-$BINUTILS_V.tar.gz || wget -c https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_V.tar.gz
+test -f gcc-$GCC_V.tar.gz || wget -c https://ftp.gnu.org/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz
+test -f newlib-$NEWLIB_V.tar.gz || wget -c https://sourceware.org/pub/newlib/newlib-$NEWLIB_V.tar.gz
 
-# Extract stage
+# Dependency source: Extract stage
 test -d binutils-$BINUTILS_V || tar -xzf binutils-$BINUTILS_V.tar.gz
 test -d gcc-$GCC_V || tar -xzf gcc-$GCC_V.tar.gz
 test -d newlib-$NEWLIB_V || tar -xzf newlib-$NEWLIB_V.tar.gz
-
-# Use same native GCC
-
-if [ ! $(gcc --version | grep $GCC_V) ] && [ $FORCE_DEFAULT_GCC == 'false' ]; then
-    rm -rf build_binutils
-    mkdir build_binutils
-
-    # Compile binutils
-    cd build_binutils
-    ../binutils-$BINUTILS_V/configure --prefix=${INSTALL_PATH}/gcc-$GCC_V --disable-werror
-    make -j$JOBS
-    make install || sudo make install || su -c "make install"
-
-    # Compile gcc (native)
-    cd ..
-    rm -rf build_gcc
-    mkdir build_gcc
-    cd build_gcc
-    ../gcc-$GCC_V/configure --prefix=${INSTALL_PATH}/gcc-$GCC_V --enable-languages=c,c++ --disable-nls
-    make -j$JOBS
-    make install || sudo make install || su -c "make install"
-
-    # Use new compiler
-    export PATH="${INSTALL_PATH}/gcc-$GCC_V/bin:${PATH}"
-    export COMPILED_CUSTOM_NATIVE_GCC="true"
-    cd ..
-fi
 
 # Binutils and newlib support compiling in source directory, GCC does not
 rm -rf gcc_compile
@@ -76,13 +47,33 @@ mkdir gcc_compile
 
 # Compile binutils
 cd binutils-$BINUTILS_V
-./configure --prefix=${INSTALL_PATH} --target=mips64-elf --with-cpu=mips64vr4300 --disable-werror
+./configure \
+  --prefix=${INSTALL_PATH} \
+  --target=mips64-elf \
+  --with-cpu=mips64vr4300 \
+  --disable-werror
 make -j$JOBS
 make install || sudo make install || su -c "make install"
 
-# Compile gcc (pass 1)
+# Compile GCC for MIPS N64 (pass 1)
 cd ../gcc_compile
-../gcc-$GCC_V/configure --prefix=${INSTALL_PATH} --target=mips64-elf --with-arch=vr4300 --with-tune=vr4300 --enable-languages=c --without-headers --with-newlib --disable-libssp --enable-multilib --disable-shared --with-gcc --disable-threads --disable-win32-registry --disable-nls --disable-werror --with-system-zlib
+../gcc-$GCC_V/configure \
+  --prefix=${INSTALL_PATH} \
+  --target=mips64-elf \
+  --with-arch=vr4300 \
+  --with-tune=vr4300 \
+  --enable-languages=c \
+  --without-headers \
+  --with-newlib \
+  --disable-libssp \
+  --enable-multilib \
+  --disable-shared \
+  --with-gcc \
+  --disable-threads \
+  --disable-win32-registry \
+  --disable-nls \
+  --disable-werror \
+  --with-system-zlib
 make all-gcc -j$JOBS
 make all-target-libgcc -j$JOBS
 make install-gcc || sudo make install-gcc || su -c "make install-gcc"
@@ -90,19 +81,35 @@ make install-target-libgcc || sudo make install-target-libgcc || su -c "make ins
 
 # Compile newlib
 cd ../newlib-$NEWLIB_V
-CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC" ./configure --target=mips64-elf --prefix=${INSTALL_PATH} --with-cpu=mips64vr4300 --disable-threads --disable-libssp --disable-werror
+CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC" ./configure \
+  --target=mips64-elf \
+  --prefix=${INSTALL_PATH} \
+  --with-cpu=mips64vr4300 \
+  --disable-threads \
+  --disable-libssp \
+  --disable-werror
 make -j$JOBS
 make install || sudo env PATH="$PATH" make install || su -c "env PATH=$PATH make install"
 
-# Compile gcc (pass 2)
+# Compile GCC for MIPS N64 (pass 2)
 cd ..
 rm -rf gcc_compile
 mkdir gcc_compile
 cd gcc_compile
-CFLAGS_FOR_TARGET="-G0 -O2" CXXFLAGS_FOR_TARGET="-G0 -O2" ../gcc-$GCC_V/configure --prefix=${INSTALL_PATH} --target=mips64-elf --with-arch=vr4300 --with-tune=vr4300 --enable-languages=c,c++ --with-newlib --disable-libssp --enable-multilib --disable-shared --with-gcc --disable-threads --disable-win32-registry --disable-nls --with-system-zlib
+CFLAGS_FOR_TARGET="-G0 -O2" CXXFLAGS_FOR_TARGET="-G0 -O2" ../gcc-$GCC_V/configure \
+  --prefix=${INSTALL_PATH} \
+  --target=mips64-elf \
+  --with-arch=vr4300 \
+  --with-tune=vr4300 \
+  --enable-languages=c,c++ \
+  --with-newlib \
+  --disable-libssp \
+  --enable-multilib \
+  --disable-shared \
+  --with-gcc \
+  --disable-threads \
+  --disable-win32-registry \
+  --disable-nls \
+  --with-system-zlib
 make -j$JOBS
 make install || sudo make install || su -c "make install"
-
-if [ "$COMPILED_CUSTOM_NATIVE_GCC" == "true" ]; then
-    rm -rf ${INSTALL_PATH}/gcc-$GCC_V
-fi
