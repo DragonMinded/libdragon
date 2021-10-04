@@ -43,7 +43,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: false
-          tags: ghcr.io/${{ github.actor }}/libdragon:latest
+          tags: ghcr.io/dragonminded/libdragon:latest
           load: true
           cache-from: type=gha
 
@@ -55,5 +55,5 @@ jobs:
           docker run \
           --mount type=bind,source=$(pwd),target=/libdragon \
           --workdir=/libdragon \
-          ghcr.io/${{ github.actor }}/libdragon:latest \
+          ghcr.io/dragonminded/libdragon:latest \
           ./build.sh
