@@ -1,5 +1,5 @@
 name: "Git diff"
-description: "Compares provided paths (optional) for given gir refs/commits."
+description: "Compares provided paths (optional) for given git refs/commits."
 inputs:
   base:
     description: "Base commit or ref to compare"

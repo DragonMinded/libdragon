@@ -58,9 +58,6 @@ tools-clean:
 	$(MAKE) -C tools clean
 
 install-mk: n64.mk
-	# n64.mk must be installed into $PREFIX, otherwise make will not be
-	# able to find it later with "include $(N64_INST)/include/n64.mk". This is the only file that
-	# must go outside of $INSTALLDIR.
 	install -Cv -m 0644 n64.mk $(INSTALLDIR)/include/n64.mk
 
 install: install-mk libdragon

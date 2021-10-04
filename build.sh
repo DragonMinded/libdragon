@@ -4,8 +4,8 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-makeWithInclude(){
-  make -j${CPU_COUNT} -I${N64_INST}/include $@
+makeWithParams(){
+  make -j${CPU_COUNT} $@
 }
 
 # Limit the number of make jobs to the number of CPUs
@@ -17,8 +17,8 @@ LIBMIKMOD_COMMIT=738b1e8b11b470360b1b919680d1d88429d9d174
 LIBMIKMOD_DIR=/tmp/libmikmod
 
 # Clean, build, and install libdragon + tools
-makeWithInclude clobber
-makeWithInclude install tools-install
+makeWithParams clobber
+makeWithParams install tools-install
 
 # Remove the cloned libmikmod repo if it already exists
 [ -d "$LIBMIKMOD_DIR" ] && rm -Rf $LIBMIKMOD_DIR
@@ -26,10 +26,10 @@ makeWithInclude install tools-install
 git clone $LIBMIKMOD_REPO $LIBMIKMOD_DIR
 pushd $LIBMIKMOD_DIR/n64
 git checkout $LIBMIKMOD_COMMIT
-makeWithInclude
-makeWithInclude install
+makeWithParams
+makeWithParams install
 popd
 rm -Rf $LIBMIKMOD_DIR
 
 # Build all of the libdragon examples
-makeWithInclude examples
+makeWithParams examples
