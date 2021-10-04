@@ -68,7 +68,7 @@ void wav64_open(wav64_t *wav, const char *fn) {
 }
 
 void wav64_set_loop(wav64_t *wav, bool loop) {
-	wav->wave.loop_len = wav->wave.len;
+	wav->wave.loop_len = loop ? wav->wave.len : 0;
 
 	// Odd loop lengths are not supported for 8-bit waveforms because they would
 	// change the 2-byte phase between ROM and RDRAM addresses during loop unrolling.
