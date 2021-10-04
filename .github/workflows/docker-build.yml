@@ -35,7 +35,7 @@ jobs:
         uses: docker/login-action@v1
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
@@ -44,7 +44,7 @@ jobs:
         with:
           push: true
           tags: |
-            ghcr.io/${{ github.actor }}/libdragon:${{ github.sha }}
-            ghcr.io/${{ github.actor }}/libdragon:latest
+            ghcr.io/${{ github.repository_owner }}/libdragon:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/libdragon:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
