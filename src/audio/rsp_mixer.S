@@ -1034,7 +1034,7 @@ Mixer:
 	# For optimal pipelining, output is stored at the beginning of the loop. To avoid
 	# corrupting memory, load the output register with whatever is there now.
 	lsv v_out_l,0, -2,s4
-	blt k0, 8, Mix8Start    # Optimized mixing loop for <= 8 channels
+	ble k0, 8, Mix8Start    # Optimized mixing loop for <= 8 channels
 	lsv v_out_r,0, -1,s4
 
 Mix32Start:
@@ -1107,7 +1107,7 @@ Mix32Loop:
 
 
 Mix8Start:
-	blt t1, 8, Mix32Loop
+	blt t1, 8, Mix8Loop
 	move t0, t1
 	li t0, 8
 
