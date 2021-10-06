@@ -54,8 +54,8 @@ ASFLAGS+=-MMD    # automatic .d dependency generation
 %.z64: LDFLAGS+=$(N64_LDFLAGS)
 %.z64: $(BUILD_DIR)/%.elf
 	@echo "    [Z64] $@"
+	$(N64_OBJCOPY) -O binary $< $<.bin
 	@rm -f $@
-	$(N64_OBJCOPY) $< $<.bin -O binary
 	DFS_FILE="$(filter %.dfs, $^)"; \
 	if [ -z "$$DFS_FILE" ]; then \
 		$(N64_TOOL) $(N64_TOOLFLAGS) --output $@ $<.bin; \
@@ -81,26 +81,31 @@ ASFLAGS+=-MMD    # automatic .d dependency generation
 # it's a standard MIPS assembly file.
 $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.S
 	@mkdir -p $(dir $@)
-	set -e; if case $(notdir $(basename $@)) in "rsp"*) true;; *) false;; esac; then \
+	set -e; \
+	FILENAME="$(notdir $(basename $@))"; \
+	if case "$$FILENAME" in "rsp"*) true;; *) false;; esac; then \
+		SYMPREFIX="$(subst .,_,$(subst /,_,$(basename $@)))"; \
+		TEXTSECTION="$(basename $@).text"; \
+		DATASECTION="$(basename $@).data"; \
 		echo "    [RSP] $<"; \
-		$(N64_CC) $(ASFLAGS) -nostartfiles -MMD -Wl,-Ttext=0x1000 -Wl,-Tdata=0x0 -Wl,-e0x1000 -o $@ $<; \
-		$(N64_OBJCOPY) -O binary -j .text $@ $(basename $@).text.bin; \
-		$(N64_OBJCOPY) -O binary -j .data $@ $(basename $@).data.bin; \
+		$(N64_CC) $(ASFLAGS) -nostartfiles -Wl,-Ttext=0x1000 -Wl,-Tdata=0x0 -Wl,-e0x1000 -o $@ $<; \
+		$(N64_OBJCOPY) -O binary -j .text $@ $$TEXTSECTION.bin; \
+		$(N64_OBJCOPY) -O binary -j .data $@ $$DATASECTION.bin; \
 		$(N64_OBJCOPY) -I binary -O elf32-bigmips -B mips4300 \
-				--redefine-sym _binary_$(subst .,_,$(subst /,_,$(basename $@)))_text_bin_start=$(notdir $(basename $@))_text_start \
-				--redefine-sym _binary_$(subst .,_,$(subst /,_,$(basename $@)))_text_bin_end=$(notdir $(basename $@))_text_end \
-				--redefine-sym _binary_$(subst .,_,$(subst /,_,$(basename $@)))_text_bin_size=$(notdir $(basename $@))_text_size \
+				--redefine-sym _binary_$${SYMPREFIX}_text_bin_start=$${FILENAME}_text_start \
+				--redefine-sym _binary_$${SYMPREFIX}_text_bin_end=$${FILENAME}_text_end \
+				--redefine-sym _binary_$${SYMPREFIX}_text_bin_size=$${FILENAME}_text_size \
 				--set-section-alignment .data=8 \
-				--rename-section .text=.data $(basename $@).text.bin $(basename $@).text.o; \
+				--rename-section .text=.data $$TEXTSECTION.bin $$TEXTSECTION.o; \
 		$(N64_OBJCOPY) -I binary -O elf32-bigmips -B mips4300 \
-				--redefine-sym _binary_$(subst .,_,$(subst /,_,$(basename $@)))_data_bin_start=$(notdir $(basename $@))_data_start \
-				--redefine-sym _binary_$(subst .,_,$(subst /,_,$(basename $@)))_data_bin_end=$(notdir $(basename $@))_data_end \
-				--redefine-sym _binary_$(subst .,_,$(subst /,_,$(basename $@)))_data_bin_size=$(notdir $(basename $@))_data_size \
+				--redefine-sym _binary_$${SYMPREFIX}_data_bin_start=$${FILENAME}_data_start \
+				--redefine-sym _binary_$${SYMPREFIX}_data_bin_end=$${FILENAME}_data_end \
+				--redefine-sym _binary_$${SYMPREFIX}_data_bin_size=$${FILENAME}_data_size \
 				--set-section-alignment .data=8 \
-				--rename-section .text=.data $(basename $@).data.bin $(basename $@).data.o; \
+				--rename-section .text=.data $$DATASECTION.bin $$DATASECTION.o; \
 		$(N64_SIZE) -G $@; \
-		$(N64_LD) -relocatable $(basename $@).text.o $(basename $@).data.o -o $@; \
-		rm $(basename $@).text.bin $(basename $@).data.bin $(basename $@).text.o $(basename $@).data.o; \
+		$(N64_LD) -relocatable $$TEXTSECTION.o $$DATASECTION.o -o $@; \
+		rm $$TEXTSECTION.bin $$DATASECTION.bin $$TEXTSECTION.o $$DATASECTION.o; \
 	else \
 		echo "    [AS] $<"; \
 		$(CC) -c $(ASFLAGS) -o $@ $<; \
