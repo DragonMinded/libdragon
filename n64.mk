@@ -1,21 +1,17 @@
 BUILD_DIR ?= .
 SOURCE_DIR ?= .
 
-N64_ROOTDIR = $(N64_INST)
-N64_GCCPREFIX = $(N64_ROOTDIR)/bin/mips64-elf-
-N64_CHKSUMPATH = $(N64_ROOTDIR)/bin/chksum64
-N64_MKDFSPATH = $(N64_ROOTDIR)/bin/mkdfs
-N64_TOOLPATH = $(N64_ROOTDIR)/bin/n64tool
-N64_ED64ROMCONFIGPATH = $(N64_ROOTDIR)/bin/ed64romconfig
-N64_INCLUDEPATH = $(ROOTDIR)/mips64-elf/include
-N64_LIBPATH = $(N64_ROOTDIR)/mips64-elf/lib
-N64_HEADERPATH = $(N64_LIBPATH)/header
+N64_ROM_TITLE = "Made with libdragon" # Override this with the name of your game or project
+N64_ROM_SAVETYPE = # Supported savetypes: none eeprom4k eeprom16 sram256k sram768k sram1m flashram
+N64_ROM_RTC = # Set to true to enable the Joybus Real-Time Clock
+N64_ROM_REGIONFREE = # Set to true to allow booting on any console region
 
-N64_CFLAGS =  -std=gnu99 -march=vr4300 -mtune=vr4300 -I$(N64_INCLUDEPATH)
-N64_CFLAGS += -falign-functions=32 -ffunction-sections -fdata-sections
-N64_CFLAGS += -DN64 -O2 -Wall -Werror -fdiagnostics-color=always
-N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings
-N64_LDFLAGS = -L$(N64_LIBPATH) -ldragon -lc -lm -ldragonsys -Tn64.ld --gc-sections
+N64_ROOTDIR = $(N64_INST)
+N64_BINDIR = $(N64_ROOTDIR)/bin
+N64_INCLUDEDIR = $(N64_ROOTDIR)/mips64-elf/include
+N64_LIBDIR = $(N64_ROOTDIR)/mips64-elf/lib
+N64_GCCPREFIX = $(N64_BINDIR)/mips64-elf-
+N64_HEADERPATH = $(N64_LIBDIR)/header
 
 N64_CC = $(N64_GCCPREFIX)gcc
 N64_AS = $(N64_GCCPREFIX)as
@@ -24,10 +20,16 @@ N64_OBJCOPY = $(N64_GCCPREFIX)objcopy
 N64_OBJDUMP = $(N64_GCCPREFIX)objdump
 N64_SIZE = $(N64_GCCPREFIX)size
 
-N64_ROM_TITLE = "Made with libdragon" # Override this with the name of your game or project
-N64_ROM_SAVETYPE = # Supported savetypes: none eeprom4k eeprom16 sram256k sram768k sram1m flashram
-N64_ROM_RTC = # Set to true to enable the Joybus Real-Time Clock
-N64_ROM_REGIONFREE = # Set to true to allow booting on any console region
+N64_CHKSUM = $(N64_BINDIR)/chksum64
+N64_ED64ROMCONFIG = $(N64_BINDIR)/ed64romconfig
+N64_MKDFS = $(N64_BINDIR)/mkdfs
+N64_TOOL = $(N64_BINDIR)/n64tool
+
+N64_CFLAGS =  -std=gnu99 -march=vr4300 -mtune=vr4300 -I$(N64_INCLUDEDIR)
+N64_CFLAGS += -falign-functions=32 -ffunction-sections -fdata-sections
+N64_CFLAGS += -DN64 -O2 -Wall -Werror -fdiagnostics-color=always
+N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings
+N64_LDFLAGS = -L$(N64_LIBDIR) -ldragon -lc -lm -ldragonsys -Tn64.ld --gc-sections
 
 N64_TOOLFLAGS = --header $(N64_HEADERPATH) --title $(N64_ROM_TITLE)
 N64_ED64ROMCONFIGFLAGS =  $(if $(N64_ROM_SAVETYPE),--savetype $(N64_ROM_SAVETYPE))
@@ -56,14 +58,14 @@ ASFLAGS+=-MMD    # automatic .d dependency generation
 	$(N64_OBJCOPY) $< $<.bin -O binary
 	DFS_FILE="$(filter %.dfs, $^)"; \
 	if [ -z "$$DFS_FILE" ]; then \
-		$(N64_TOOLPATH) $(N64_TOOLFLAGS) --output $@ $<.bin; \
+		$(N64_TOOL) $(N64_TOOLFLAGS) --output $@ $<.bin; \
 	else \
-		$(N64_TOOLPATH) $(N64_TOOLFLAGS) --output $@ $<.bin --offset 1M "$$DFS_FILE"; \
+		$(N64_TOOL) $(N64_TOOLFLAGS) --output $@ $<.bin --offset 1M "$$DFS_FILE"; \
 	fi
 	if [ ! -z "$(strip $(N64_ED64ROMCONFIGFLAGS))" ]; then \
-		$(N64_ED64ROMCONFIGPATH) $(N64_ED64ROMCONFIGFLAGS) $@; \
+		$(N64_ED64ROMCONFIG) $(N64_ED64ROMCONFIGFLAGS) $@; \
 	fi
-	$(N64_CHKSUMPATH) $@ >/dev/null
+	$(N64_CHKSUM) $@ >/dev/null
 
 %.v64: %.z64
 	@echo "    [V64] $@"
@@ -72,7 +74,7 @@ ASFLAGS+=-MMD    # automatic .d dependency generation
 %.dfs:
 	@mkdir -p $(dir $@)
 	@echo "    [DFS] $@"
-	$(N64_MKDFSPATH) $@ $(<D) >/dev/null
+	$(N64_MKDFS) $@ $(<D) >/dev/null
 
 # Assembly rule. We use .S for both RSP and MIPS assembly code, and we differentiate
 # using the prefix of the filename: if it starts with "rsp", it is RSP ucode, otherwise
@@ -109,10 +111,10 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.c
 	@echo "    [CC] $<"
 	$(CC) -c $(CFLAGS) -o $@ $<
 
-%.elf: $(N64_LIBPATH)/libdragon.a $(N64_LIBPATH)/libdragonsys.a $(N64_LIBPATH)/n64.ld
+%.elf: $(N64_LIBDIR)/libdragon.a $(N64_LIBDIR)/libdragonsys.a $(N64_LIBDIR)/n64.ld
 	@mkdir -p $(dir $@)
 	@echo "    [LD] $@"
-	$(LD) -o $@ $(filter-out $(N64_LIBPATH)/n64.ld,$^) $(LDFLAGS) -Map=$(BUILD_DIR)/$(notdir $(basename $@)).map
+	$(LD) -o $@ $(filter-out $(N64_LIBDIR)/n64.ld,$^) $(LDFLAGS) -Map=$(BUILD_DIR)/$(notdir $(basename $@)).map
 	$(N64_SIZE) -G $@
 
 ifneq ($(V),1)
