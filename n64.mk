@@ -24,9 +24,13 @@ N64_SIZE = $(N64_GCCPREFIX)size
 N64_ROM_TITLE = "Made with libdragon"
 # Supported savetypes: eeprom4k eeprom16 sram256k sram768k sram1m flashram
 N64_ROM_SAVETYPE = none
+N64_ROM_RTC =
+N64_ROM_REGIONFREE =
 
 N64_TOOLFLAGS = --header $(N64_HEADERPATH) --title $(N64_ROM_TITLE)
 N64_ED64ROMCONFIGFLAGS = --savetype $(N64_ROM_SAVETYPE)
+N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_RTC),--rtc) 
+N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_REGIONFREE),--regionfree)
 
 ifeq ($(D),1)
 CFLAGS+=-g3
