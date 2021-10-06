@@ -530,6 +530,7 @@ cull_triangle_pass:
   vsub deltai, vhmh, vllm, VE_V
   vsub mdelta, vzero, deltai, VE_2
 
+  # cz = hx * my - hy * mx
   vmudh vtmp1, deltai, deltai, VE_3 #   (x3 - x1) * (y2 - y1)
   vmadh vtmp1, mdelta, deltai, VE_1 # + (x1 - x2) * (y3 - y1)
   vsar crosszi, vtmp1, vtmp1, VE_0
@@ -537,6 +538,7 @@ cull_triangle_pass:
 
   #define csign $16
 
+  # when cz is negative, then lft = 1 (right major triangle)
   mfc2 csign, crosszi, 0x0
 
   vmudm deltai, deltai, vshr, VE_2
