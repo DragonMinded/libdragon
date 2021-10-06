@@ -8,7 +8,7 @@ N64_MKDFSPATH = $(N64_ROOTDIR)/bin/mkdfs
 N64_TOOLPATH = $(N64_ROOTDIR)/bin/n64tool
 N64_ED64ROMCONFIGPATH = $(N64_ROOTDIR)/bin/ed64romconfig
 N64_LIBPATH = $(N64_ROOTDIR)/mips64-elf/lib
-N64_HEADERNAME = header
+N64_HEADERPATH = $(N64_LIBPATH)/header
 
 N64_CFLAGS = -DN64 -falign-functions=32 -ffunction-sections -fdata-sections -std=gnu99 -march=vr4300 -mtune=vr4300 -O2 -Wall -Werror -fdiagnostics-color=always -I$(ROOTDIR)/mips64-elf/include
 N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings
@@ -21,9 +21,12 @@ N64_OBJCOPY = $(N64_GCCPREFIX)objcopy
 N64_OBJDUMP = $(N64_GCCPREFIX)objdump
 N64_SIZE = $(N64_GCCPREFIX)size
 
-N64_ROM_TITLE = "N64 ROM"
-N64_TOOLFLAGS = -h $(N64_LIBPATH)/$(N64_HEADERNAME)
-N64_ED64ROMCONFIGFLAGS ?=
+N64_ROM_TITLE = "Made with libdragon"
+# Supported savetypes: eeprom4k eeprom16 sram256k sram768k sram1m flashram
+N64_ROM_SAVETYPE = none
+
+N64_TOOLFLAGS = --header $(N64_HEADERPATH) --title $(N64_ROM_TITLE)
+N64_ED64ROMCONFIGFLAGS = --savetype $(N64_ROM_SAVETYPE)
 
 ifeq ($(D),1)
 CFLAGS+=-g3
@@ -41,28 +44,24 @@ ASFLAGS+=-MMD    # automatic .d dependency generation
 %.z64: CFLAGS+=$(N64_CFLAGS)
 %.z64: ASFLAGS+=$(N64_ASFLAGS)
 %.z64: LDFLAGS+=$(N64_LDFLAGS)
-%.z64: $(BUILD_DIR)/%.bin
-	@mkdir -p $(dir $@)
-	@echo "    [N64TOOL] $@"
+%.z64: $(BUILD_DIR)/%.elf
+	@echo "    [Z64] $@"
 	@rm -f $@
+	$(N64_OBJCOPY) $< $<.bin -O binary
 	DFS_FILE="$(filter %.dfs, $^)"; \
 	if [ -z "$$DFS_FILE" ]; then \
-		$(N64_TOOLPATH) $(N64_TOOLFLAGS) -o $@  -t $(N64_ROM_TITLE) $<; \
+		$(N64_TOOLPATH) $(N64_TOOLFLAGS) --output $@ $<.bin; \
 	else \
-		$(N64_TOOLPATH) $(N64_TOOLFLAGS) -o $@  -t $(N64_ROM_TITLE) $< -s 1M "$$DFS_FILE"; \
+		$(N64_TOOLPATH) $(N64_TOOLFLAGS) --output $@ $<.bin --offset 1M "$$DFS_FILE"; \
 	fi
 	if [ ! -z "$(N64_ED64ROMCONFIGFLAGS)" ]; then \
-		echo "    [ED64ROMCONFIG] $@"; \
 		$(N64_ED64ROMCONFIGPATH) $(N64_ED64ROMCONFIGFLAGS) $@; \
 	fi
-	@echo "    [N64CHKSUM] $@"
 	$(N64_CHKSUMPATH) $@ >/dev/null
 
-# Support v64 ROMs via dd byteswap
-ifeq ($(N64_BYTE_SWAP),true)
 %.v64: %.z64
-	dd conv=swab if=$^ of=$@
-endif
+	@echo "    [V64] $@"
+	$(N64_OBJCOPY) -I binary -O binary --reverse-bytes=2 $< $@
 
 %.dfs:
 	@mkdir -p $(dir $@)
@@ -105,15 +104,10 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.c
 	$(CC) -c $(CFLAGS) -o $@ $<
 
 %.elf: $(N64_LIBPATH)/libdragon.a $(N64_LIBPATH)/libdragonsys.a $(N64_LIBPATH)/n64.ld
-	@mkdir -p $(BUILD_DIR)
+	@mkdir -p $(dir $@)
 	@echo "    [LD] $@"
 	$(LD) -o $@ $(filter-out $(N64_LIBPATH)/n64.ld,$^) $(LDFLAGS) -Map=$(BUILD_DIR)/$(notdir $(basename $@)).map
 	$(N64_SIZE) -G $@
-
-%.bin: %.elf
-	@mkdir -p $(dir $@)
-	@echo "    [OBJCOPY] $@"
-	$(N64_OBJCOPY) $< $@ -O binary
 
 ifneq ($(V),1)
 .SILENT:
