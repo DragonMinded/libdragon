@@ -24,14 +24,13 @@ N64_OBJCOPY = $(N64_GCCPREFIX)objcopy
 N64_OBJDUMP = $(N64_GCCPREFIX)objdump
 N64_SIZE = $(N64_GCCPREFIX)size
 
-N64_ROM_TITLE = "Made with libdragon"
-# Supported savetypes: eeprom4k eeprom16 sram256k sram768k sram1m flashram
-N64_ROM_SAVETYPE = none
-N64_ROM_RTC =
-N64_ROM_REGIONFREE =
+N64_ROM_TITLE = "Made with libdragon" # Override this with the name of your game or project
+N64_ROM_SAVETYPE = # Supported savetypes: none eeprom4k eeprom16 sram256k sram768k sram1m flashram
+N64_ROM_RTC = # Set to true to enable the Joybus Real-Time Clock
+N64_ROM_REGIONFREE = # Set to true to allow booting on any console region
 
 N64_TOOLFLAGS = --header $(N64_HEADERPATH) --title $(N64_ROM_TITLE)
-N64_ED64ROMCONFIGFLAGS = --savetype $(N64_ROM_SAVETYPE)
+N64_ED64ROMCONFIGFLAGS =  $(if $(N64_ROM_SAVETYPE),--savetype $(N64_ROM_SAVETYPE))
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_RTC),--rtc) 
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_REGIONFREE),--regionfree)
 
@@ -61,7 +60,7 @@ ASFLAGS+=-MMD    # automatic .d dependency generation
 	else \
 		$(N64_TOOLPATH) $(N64_TOOLFLAGS) --output $@ $<.bin --offset 1M "$$DFS_FILE"; \
 	fi
-	if [ ! -z "$(N64_ED64ROMCONFIGFLAGS)" ]; then \
+	if [ ! -z "$(strip $(N64_ED64ROMCONFIGFLAGS))" ]; then \
 		$(N64_ED64ROMCONFIGPATH) $(N64_ED64ROMCONFIGFLAGS) $@; \
 	fi
 	$(N64_CHKSUMPATH) $@ >/dev/null
