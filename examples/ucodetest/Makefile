@@ -1,17 +1,17 @@
-BUILD_DIR=build
+BUILD_DIR = build
 include $(N64_INST)/include/n64.mk
 
-all: ucodetest.z64
+.DEFAULT_GOAL := ucodetest.z64
 
-$(BUILD_DIR)/ucodetest.elf: \
-	$(BUILD_DIR)/ucodetest.o \
-	$(BUILD_DIR)/rsp_basic.o
+objs = $(BUILD_DIR)/ucodetest.o $(BUILD_DIR)/rsp_basic.o
+deps = $(objs:$(BUILD_DIR)/%.o=$(BUILD_DIR)/%.d)
 
 ucodetest.z64: N64_ROM_TITLE="UCode Test"
 
+$(BUILD_DIR)/ucodetest.elf: $(objs)
+
 clean:
-	rm -rf $(BUILD_DIR) ucodetest.z64
+	rm -rf $(BUILD_DIR) *.z64
+.PHONY: clean
 
--include $(wildcard $(BUILD_DIR)/*.d)
-
-.PHONY: all clean
+-include $(deps)

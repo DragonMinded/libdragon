@@ -5,8 +5,9 @@ N64_ROOTDIR = $(N64_INST)
 N64_GCCPREFIX = $(N64_ROOTDIR)/bin/mips64-elf-
 N64_CHKSUMPATH = $(N64_ROOTDIR)/bin/chksum64
 N64_MKDFSPATH = $(N64_ROOTDIR)/bin/mkdfs
-N64_HEADERPATH = $(N64_ROOTDIR)/mips64-elf/lib
-N64_TOOL = $(N64_ROOTDIR)/bin/n64tool
+N64_TOOLPATH = $(N64_ROOTDIR)/bin/n64tool
+N64_ED64ROMCONFIGPATH = $(N64_ROOTDIR)/bin/ed64romconfig
+N64_LIBPATH = $(N64_ROOTDIR)/mips64-elf/lib
 N64_HEADERNAME = header
 
 N64_CFLAGS = -DN64 -falign-functions=32 -ffunction-sections -fdata-sections -std=gnu99 -march=vr4300 -mtune=vr4300 -O2 -Wall -Werror -fdiagnostics-color=always -I$(ROOTDIR)/mips64-elf/include
@@ -21,14 +22,14 @@ N64_OBJDUMP = $(N64_GCCPREFIX)objdump
 N64_SIZE = $(N64_GCCPREFIX)size
 
 N64_ROM_TITLE = "N64 ROM"
+N64_TOOLFLAGS = -h $(N64_LIBPATH)/$(N64_HEADERNAME)
+N64_ED64ROMCONFIGFLAGS ?=
 
 ifeq ($(D),1)
 CFLAGS+=-g3
 ASFLAGS+=-g
 LDFLAGS+=-g
 endif
-
-N64_FLAGS = -h $(N64_HEADERPATH)/$(N64_HEADERNAME)
 
 CFLAGS+=-MMD     # automatic .d dependency generation
 ASFLAGS+=-MMD    # automatic .d dependency generation
@@ -40,16 +41,21 @@ ASFLAGS+=-MMD    # automatic .d dependency generation
 %.z64: CFLAGS+=$(N64_CFLAGS)
 %.z64: ASFLAGS+=$(N64_ASFLAGS)
 %.z64: LDFLAGS+=$(N64_LDFLAGS)
-%.z64: $(BUILD_DIR)/%.elf
-	@echo "    [N64] $@"
-	$(N64_OBJCOPY) $< $<.bin -O binary
+%.z64: $(BUILD_DIR)/%.bin
+	@mkdir -p $(dir $@)
+	@echo "    [N64TOOL] $@"
 	@rm -f $@
-	DFS_FILE=$(filter %.dfs, $^); \
+	DFS_FILE="$(filter %.dfs, $^)"; \
 	if [ -z "$$DFS_FILE" ]; then \
-		$(N64_TOOL) $(N64_FLAGS) -o $@  -t $(N64_ROM_TITLE) $<.bin; \
+		$(N64_TOOLPATH) $(N64_TOOLFLAGS) -o $@  -t $(N64_ROM_TITLE) $<; \
 	else \
-		$(N64_TOOL) $(N64_FLAGS) -o $@  -t $(N64_ROM_TITLE) $<.bin -s 1M $$DFS_FILE; \
+		$(N64_TOOLPATH) $(N64_TOOLFLAGS) -o $@  -t $(N64_ROM_TITLE) $< -s 1M "$$DFS_FILE"; \
 	fi
+	if [ ! -z "$(N64_ED64ROMCONFIGFLAGS)" ]; then \
+		echo "    [ED64ROMCONFIG] $@"; \
+		$(N64_ED64ROMCONFIGPATH) $(N64_ED64ROMCONFIGFLAGS) $@; \
+	fi
+	@echo "    [N64CHKSUM] $@"
 	$(N64_CHKSUMPATH) $@ >/dev/null
 
 # Support v64 ROMs via dd byteswap
@@ -98,11 +104,16 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.c
 	@echo "    [CC] $<"
 	$(CC) -c $(CFLAGS) -o $@ $<
 
-%.elf: $(N64_ROOTDIR)/mips64-elf/lib/libdragon.a $(N64_ROOTDIR)/mips64-elf/lib/libdragonsys.a $(N64_ROOTDIR)/mips64-elf/lib/n64.ld
+%.elf: $(N64_LIBPATH)/libdragon.a $(N64_LIBPATH)/libdragonsys.a $(N64_LIBPATH)/n64.ld
 	@mkdir -p $(BUILD_DIR)
 	@echo "    [LD] $@"
-	$(LD) -o $@ $(filter-out $(N64_ROOTDIR)/mips64-elf/lib/n64.ld,$^) $(LDFLAGS) -Map=$(BUILD_DIR)/$(notdir $(basename $@)).map
+	$(LD) -o $@ $(filter-out $(N64_LIBPATH)/n64.ld,$^) $(LDFLAGS) -Map=$(BUILD_DIR)/$(notdir $(basename $@)).map
 	$(N64_SIZE) -G $@
+
+%.bin: %.elf
+	@mkdir -p $(dir $@)
+	@echo "    [OBJCOPY] $@"
+	$(N64_OBJCOPY) $< $@ -O binary
 
 ifneq ($(V),1)
 .SILENT:
