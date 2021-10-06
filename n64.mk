@@ -7,12 +7,15 @@ N64_CHKSUMPATH = $(N64_ROOTDIR)/bin/chksum64
 N64_MKDFSPATH = $(N64_ROOTDIR)/bin/mkdfs
 N64_TOOLPATH = $(N64_ROOTDIR)/bin/n64tool
 N64_ED64ROMCONFIGPATH = $(N64_ROOTDIR)/bin/ed64romconfig
+N64_INCLUDEPATH = $(ROOTDIR)/mips64-elf/include
 N64_LIBPATH = $(N64_ROOTDIR)/mips64-elf/lib
 N64_HEADERPATH = $(N64_LIBPATH)/header
 
-N64_CFLAGS = -DN64 -falign-functions=32 -ffunction-sections -fdata-sections -std=gnu99 -march=vr4300 -mtune=vr4300 -O2 -Wall -Werror -fdiagnostics-color=always -I$(ROOTDIR)/mips64-elf/include
+N64_CFLAGS =  -std=gnu99 -march=vr4300 -mtune=vr4300 -I$(N64_INCLUDEPATH)
+N64_CFLAGS += -falign-functions=32 -ffunction-sections -fdata-sections
+N64_CFLAGS += -DN64 -O2 -Wall -Werror -fdiagnostics-color=always
 N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings
-N64_LDFLAGS = -L$(N64_ROOTDIR)/mips64-elf/lib -ldragon -lc -lm -ldragonsys -Tn64.ld --gc-sections
+N64_LDFLAGS = -L$(N64_LIBPATH) -ldragon -lc -lm -ldragonsys -Tn64.ld --gc-sections
 
 N64_CC = $(N64_GCCPREFIX)gcc
 N64_AS = $(N64_GCCPREFIX)as
