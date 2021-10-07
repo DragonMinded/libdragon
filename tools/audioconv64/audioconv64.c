@@ -12,23 +12,25 @@
 bool flag_verbose = false;
 
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-#define LE32_TO_HOST(i) (((uint32_t)((i) & 0xFF000000) >> 24) | ((uint32_t)((i) & 0x00FF0000) >>  8) | ((uint32_t)((i) & 0x0000FF00) <<  8) | ((uint32_t)((i) & 0x000000FF) << 24))
-#define BE32_TO_HOST(i) (i)
-#define HOST_TO_LE32(i) BE32_TO_HOST(i)
-#define HOST_TO_BE32(i) (i)
-#define LE16_TO_HOST(i) ((((i) & 0xFF00) >> 8)  | (((i) & 0xFF) << 8))
-#define NE16_TO_HOST(i) (i)
-#define HOST_TO_LE16(i) ((((i) & 0xFF00) >> 8)  | (((i) & 0xFF) << 8))
-#define HOST_TO_BE16(i) (i)
+	#define LE32_TO_HOST(i) __builtin_bswap32(i)
+	#define HOST_TO_LE32(i) __builtin_bswap32(i)
+	#define LE16_TO_HOST(i) __builtin_bswap16(i)
+	#define HOST_TO_LE16(i) __builtin_bswap16(i)
+
+	#define BE32_TO_HOST(i) (i)
+	#define HOST_TO_BE32(i) (i)
+	#define LE16_TO_HOST(i) (i)
+	#define HOST_TO_BE16(i) (i)
 #else
-#define BE32_TO_HOST(i) (((uint32_t)((i) & 0xFF000000) >> 24) | ((uint32_t)((i) & 0x00FF0000) >>  8) | ((uint32_t)((i) & 0x0000FF00) <<  8) | ((uint32_t)((i) & 0x000000FF) << 24))
-#define LE32_TO_HOST(i) (i)
-#define HOST_TO_BE32(i) BE32_TO_HOST(i)
-#define HOST_TO_LE32(i) (i)
-#define BE16_TO_HOST(i) ((((i) & 0xFF00) >> 8)  | (((i) & 0xFF) << 8))
-#define LE16_TO_HOST(i) (i)
-#define HOST_TO_BE16(i) ((((i) & 0xFF00) >> 8)  | (((i) & 0xFF) << 8))
-#define HOST_TO_LE16(i) (i)
+	#define BE32_TO_HOST(i) __builtin_bswap32(i)
+	#define HOST_TO_BE32(i) __builtin_bswap32(i)
+	#define BE16_TO_HOST(i) __builtin_bswap16(i)
+	#define HOST_TO_BE16(i) __builtin_bswap16(i)
+
+	#define LE32_TO_HOST(i) (i)
+	#define HOST_TO_LE32(i) (i)
+	#define HOST_TO_LE16(i) (i)
+	#define LE16_TO_HOST(i) (i)
 #endif
 
 /************************************************************************************
