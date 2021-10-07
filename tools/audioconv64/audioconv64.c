@@ -49,6 +49,7 @@ void fatal(const char *str, ...) {
 
 #include "conv_wav64.c"
 #include "conv_xm64.c"
+#include "conv_ym64.c"
 
 /************************************************************************************
  *  MAIN
@@ -63,6 +64,7 @@ void usage(void) {
 	printf("Supported conversions:\n");
 	printf("   * WAV => WAV64 (Waveforms)\n");
 	printf("   * XM  => XM64  (MilkyTracker, OpenMPT)\n");
+	printf("   * YM  => YM64  (Arkos Tracker II)\n");
 	printf("\n");
 	printf("Global options:\n");
 	printf("   -o / --output <dir>       Specify output directory\n");
@@ -71,6 +73,9 @@ void usage(void) {
 	printf("WAV options:\n");
 	printf("   --wav-loop <true|false>   Activate playback loop by default\n");
 	printf("   --wav-loop-offset <N>     Set looping offset (in samples; default: 0)\n");
+	printf("\n");
+	printf("YM options:\n");
+	printf("   --ym-compress <true|false>  Compress output file\n");
 	printf("\n");
 }
 
@@ -95,8 +100,11 @@ void convert(char *infn, char *outfn1) {
 		free(outfn);
 	} else if (strcmp(ext, ".xm") == 0 || strcmp(ext, ".XM") == 0) {
 		char *outfn = changeext(outfn1, ".xm64");
-		printf("convert: %s %s %s\n", infn, outfn1, outfn);
 		xm_convert(infn, outfn);
+		free(outfn);
+	} else if (strcmp(ext, ".ym") == 0 || strcmp(ext, ".YM") == 0) {
+		char *outfn = changeext(outfn1, ".ym64");
+		ym_convert(infn, outfn);
 		free(outfn);
 	} else {
 		fprintf(stderr, "WARNING: ignoring unknown file: %s\n", infn);
@@ -205,6 +213,19 @@ int main(int argc, char *argv[]) {
 					return 1;
 				}
 				flag_wav_looping = true;
+			} else if (!strcmp(argv[i], "--ym-compress")) {
+				if (++i == argc) {
+					fprintf(stderr, "missing argument for --ym-compress\n");
+					return 1;
+				}
+				if (!strcmp(argv[i], "true") || !strcmp(argv[i], "1"))
+					flag_ym_compress = true;
+				else if (!strcmp(argv[i], "false") || !strcmp(argv[i], "0"))
+					flag_ym_compress = false;
+				else {
+					fprintf(stderr, "invalid boolean argument for --ym-compress: %s\n", argv[i]);
+					return 1;
+				}
 			} else {
 				fprintf(stderr, "invalid option: %s\n", argv[i]);
 				return 1;
