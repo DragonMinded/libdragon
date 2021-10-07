@@ -604,6 +604,11 @@ cull_triangle_pass:
 
   sdv ylmh, 0x0, 0x0, OUTPUT_POINTER
 
+  #undef tex
+  #undef lft
+  #undef command
+  #undef csign
+
   #define xcoordi $v12
   #define xcoordf $v13
   #define xoffi $v14
@@ -648,6 +653,8 @@ cull_triangle_pass:
 
   andi tmp, gmode, 0x7
   beq tmp, $0, no_zbuf
+
+  #undef tmp
 
   #define cdeltasi $v07
   #define cdeltasf $v08
@@ -695,11 +702,15 @@ cull_triangle_pass:
 
   # R, G, B, A
 
+  #define tmp $20
+
   vor att1f, vzero, vzero, VE_0
   andi tmp, gmode, 0x8
   vor att2f, vzero, vzero, VE_0
   beq tmp, $0, flat_shading
   vor att3f, vzero, vzero, VE_0
+
+  #undef tmp
 
   luv att1i, 0x0, 0x18, vtx1
   luv att2i, 0x0, 0x18, vtx2
@@ -718,14 +729,17 @@ shading_done:
   vmudm att2i, att2i, vshr, VE_7
   vmudm att3i, att3i, vshr, VE_7
 
+  #define out_ptr $20
+
   # S, T, W
   beq do_tex, $0, no_tex_prep
+  addiu out_ptr, OUTPUT_POINTER, 0x20
 
   # Determine largest value of 1/W
   #define invw1 $16
   #define invw2 $17
   #define invw3 $18
-  #define tmp2  $19
+  #define tmp $19
 
   lw invw1, 0x20(vtx1)
   lw invw2, 0x20(vtx2)
@@ -733,20 +747,15 @@ shading_done:
 
   # Calculates MAX(vtx1, vtx2)
   sub tmp, invw1, invw2
-  sra tmp2, tmp, 31
-  and tmp, tmp, tmp2
+  sra invw2, tmp, 31
+  and tmp, tmp, invw2
   sub invw1, invw1, tmp
 
   # Calculates MAX(MAX(vtx1, vtx2), vtx3)
   sub tmp, invw1, invw3
-  sra tmp2, tmp, 31
-  and tmp, tmp, tmp2
+  sra invw3, tmp, 31
+  and tmp, tmp, invw3
   sub invw1, invw1, tmp
-
-  #undef tmp2
-
-  #define out_ptr $19
-  addiu out_ptr, OUTPUT_POINTER, 0x20
 
   # Store result temporarily
   sw invw1, 0x0(out_ptr)
@@ -808,6 +817,8 @@ shading_done:
   vmrg att1f, stw12f, att1f, VE_V
   vmrg att3i, stw3i,  att3i, VE_V
   vmrg att3f, stw3f,  att3f, VE_V
+
+  #undef tmp
 
 no_tex_prep:
 
@@ -931,4 +942,3 @@ end:
   nop
 
   #undef out_ptr
-  #undef tmp
