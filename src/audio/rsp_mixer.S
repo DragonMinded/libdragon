@@ -561,7 +561,7 @@ start_dma:
 
 WaveLoop8_8x:
 	add t0, wv_pos, wv_step_8x                 # check if pos+step*8 is still in the DMEM cache
-	bge t0, dma_cache_end, WaveLoop8Checks
+	bgt t0, dma_cache_end, WaveLoop8Checks
 	li t0, 8                                   # check if we need to process at least 8 samples
 	blt ticks, t0, WaveLoop8Checks
 
@@ -632,7 +632,7 @@ WaveLoop8Checks:
 
 WaveLoop16_8x:
 	add t0, wv_pos, wv_step_8x
-	bge t0, dma_cache_end, WaveLoop16Checks
+	bgt t0, dma_cache_end, WaveLoop16Checks
 	li t0, 8
 	blt ticks, t0, WaveLoop16Checks
 
@@ -718,7 +718,7 @@ WaveLoopStereo:
 
 WaveLoop8_Stereo_8x:
 	add t0, wv_pos, wv_step_8x
-	bge t0, dma_cache_end, WaveLoop8StereoChecks
+	bgt t0, dma_cache_end, WaveLoop8StereoChecks
 	li t0, 8
 	blt ticks, t0, WaveLoop8StereoChecks
 
@@ -816,7 +816,7 @@ WaveLoop8StereoChecks:
 
 WaveLoop16_Stereo_8x:
 	add t0, wv_pos, wv_step_8x
-	bge t0, dma_cache_end, WaveLoop16StereoChecks
+	bgt t0, dma_cache_end, WaveLoop16StereoChecks
 	li t0, 8
 	blt ticks, t0, WaveLoop16StereoChecks
 
