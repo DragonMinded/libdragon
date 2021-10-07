@@ -48,7 +48,7 @@ static FILE *ym_f;
 static bool ym_compressed;
 static LHANewDecoder ym_decoder;
 
-static unsigned long lha_callback(void *buf, size_t buf_len, void *user_data) {
+static size_t lha_callback(void *buf, size_t buf_len, void *user_data) {
     return fread(buf, 1, buf_len, ym_f);
 }
 
