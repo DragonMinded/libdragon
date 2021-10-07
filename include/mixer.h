@@ -91,6 +91,11 @@ typedef struct samplebuffer_s samplebuffer_t;
 void mixer_init(int num_channels);
 
 /**
+ * @brief Deinitialize the mixer.
+ */
+void mixer_close(void);
+
+/**
  * @brief Set master volume. 
  * 
  * This is a global attenuation factor (range [0..1]) that will be applied
