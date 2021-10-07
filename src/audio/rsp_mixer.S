@@ -123,7 +123,7 @@
 # Number of fractional bits used in the fixed point numbers that specify
 # the waveform position, step, length and loop length.
 # NOTE: This must be the same of MIXER_FX32_FRAC in mixer.c.
-#define WAVERFORM_POS_FRAC_BITS  12
+#define WAVEFORM_POS_FRAC_BITS  12
 
 # Waveform flags. Keep these in sync with mixer.c
 #define CH_FLAGS_16BIT      (1<<2)
@@ -199,7 +199,7 @@ CHANNEL_VOLUMES_R:        .dcb.w MAX_CHANNELS
 # Array of structures rsp_mixer_channel_s. See mixer.c. 6 words for each
 # channel with the following content:
 #
-#   0: pos:      absolute waveform position (as fixed point, WAVERFORM_POS_FRAC_BITS)
+#   0: pos:      absolute waveform position (as fixed point, WAVEFORM_POS_FRAC_BITS)
 #   1: step:     resampling increment of position for each output sample (fixed point)
 #   2: len:      length of the waveform (fixed point)
 #   3: loop_len: length of the loop from the end of the waveform (or 0 if no loop)
@@ -412,6 +412,7 @@ DMAFilterState:
 ###############################################################
 
 	#define ticks          t3
+	#define waveform_ptr   s1
 	#define wv_pos         t4
 	#define wv_step        t5
 	#define wv_len         t6
@@ -430,34 +431,34 @@ DMAFilterState:
 UpdateAndFetch:
 	move ra2, ra
 
-	li s5, %lo(CHANNEL_BUFFER)
+	li out_ptr, %lo(CHANNEL_BUFFER)
 	li t0, (MAX_SAMPLES_PER_LOOP * MAX_CHANNELS * 2) / 64 - 1
 ClearLoop:
-	sqv v_zero,0, 0,s5
-	sqv v_zero,0, 1,s5
-	sqv v_zero,0, 2,s5
-	sqv v_zero,0, 3,s5
-	addi s5, 64
+	sqv v_zero,0, 0,out_ptr
+	sqv v_zero,0, 1,out_ptr
+	sqv v_zero,0, 2,out_ptr
+	sqv v_zero,0, 3,out_ptr
+	addi out_ptr, 64
 	bnez t0, ClearLoop
 	addi t0, -1
 
-	li s1, %lo(WAVEFORM_SETTINGS)
+	li waveform_ptr, %lo(WAVEFORM_SETTINGS)
 	li nchan, 0
 
 	li dma_cache_end, %lo(DMEM_SAMPLE_CACHE+SAMPLE_CACHE_SIZE)
-	sll dma_cache_end, WAVERFORM_POS_FRAC_BITS
+	sll dma_cache_end, WAVEFORM_POS_FRAC_BITS
 
 	# main update loop: will be done once per channel.
 UpdateLoop:
 	# Fetch waveform parameters. Notice that if the RDRAM
 	# address is zero, no waveform was configured in this channel,
 	# so we can skip directly to next channel.
-	lw wv_addr,     16(s1)
+	lw wv_addr,     16(waveform_ptr)
 	beqz wv_addr, WaveLoopEpilog2
-	lw wv_pos,       0(s1)
-	lw wv_step,      4(s1)
-	lw wv_len,       8(s1)
-	lw wv_loop_len, 12(s1)
+	lw wv_pos,       0(waveform_ptr)
+	lw wv_step,      4(waveform_ptr)
+	lw wv_len,       8(waveform_ptr)
+	lw wv_loop_len, 12(waveform_ptr)
 
 	# Prepare output pointer
 	addi out_ptr, nchan, %lo(CHANNEL_BUFFER)
@@ -465,7 +466,7 @@ UpdateLoop:
 	move ticks, num_samples
 
 	# Flags: isolate 16-bit flag (bit 2) and stereo flags (bit 3)
-	lw t0, 20(s1)
+	lw t0, 20(waveform_ptr)
 	andi is_stereo, t0, CH_FLAGS_STEREO
 	andi is_16bit, t0, CH_FLAGS_16BIT
 WaveStart:
@@ -489,7 +490,7 @@ WaveDmaFetch:
 	# Notice that DMA is 8-byte aligned, and DMAIn will adjust
 	# s4 to point to the actual byte in DMEM containing the
 	# first requested sample.
-	srl s2, wv_pos, WAVERFORM_POS_FRAC_BITS
+	srl s2, wv_pos, WAVEFORM_POS_FRAC_BITS
 	add s0, s2, wv_addr
 	li s4, %lo(DMEM_SAMPLE_CACHE)
 	jal DMAIn
@@ -506,7 +507,7 @@ WaveDmaFetch:
 	li t0, SAMPLE_CACHE_SIZE
 start_dma:
 	addi dma_cache_end, t0, %lo(DMEM_SAMPLE_CACHE)
-	sll dma_cache_end, WAVERFORM_POS_FRAC_BITS
+	sll dma_cache_end, WAVEFORM_POS_FRAC_BITS
 #endif
 
 
@@ -516,7 +517,7 @@ start_dma:
 	# the inner loop will use wv_pos adjusted to be a DMEM pointer
 	# rather than a RDRAM pointer, for performance.
 	sub wv_pos_to_dmem, s2, s4
-	sll wv_pos_to_dmem, WAVERFORM_POS_FRAC_BITS
+	sll wv_pos_to_dmem, WAVEFORM_POS_FRAC_BITS
 
 	# Compute wv_step_8x
 	sll wv_step_8x, wv_step, 3
@@ -565,42 +566,42 @@ WaveLoop8_8x:
 	blt ticks, t0, WaveLoop8Checks
 
 	# Process 8 samples
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS    # Get raw DMEM pointer (integer part of wv_pos)
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS    # Get raw DMEM pointer (integer part of wv_pos)
 	lbu t0, 0(t0)                              # Fetch the sample
 	add wv_pos, wv_step                        # Update wv_pos (load cycle delay)
 	sb t0, (0*MAX_CHANNELS*2+0)(out_ptr)       # Store the sample
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS
 	lbu t0, 0(t0)
 	add wv_pos, wv_step
 	sb t0, (1*MAX_CHANNELS*2+0)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS
 	lbu t0, 0(t0)
 	add wv_pos, wv_step
 	sb t0, (2*MAX_CHANNELS*2+0)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS
 	lbu t0, 0(t0)
 	add wv_pos, wv_step
 	sb t0, (3*MAX_CHANNELS*2+0)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS
 	lbu t0, 0(t0)
 	add wv_pos, wv_step
 	sb t0, (4*MAX_CHANNELS*2+0)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS
 	lbu t0, 0(t0)
 	add wv_pos, wv_step
 	sb t0, (5*MAX_CHANNELS*2+0)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS
 	lbu t0, 0(t0)
 	add wv_pos, wv_step
 	sb t0, (6*MAX_CHANNELS*2+0)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS
 	lbu t0, 0(t0)
 	add wv_pos, wv_step
 	sb t0, (7*MAX_CHANNELS*2+0)(out_ptr)
@@ -611,7 +612,7 @@ WaveLoop8_8x:
 	addi ticks, -8
 
 WaveLoop8:
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS        # Get the raw DMEM pointer
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS        # Get the raw DMEM pointer
 	lbu t0, 0(t0)                                  # Fetch the 8-bit sample
 	add wv_pos, wv_step                            # Update the pointer using the resampling step 
 	sb t0, 0(out_ptr)                              # Store to output as 16-bit
@@ -635,49 +636,49 @@ WaveLoop16_8x:
 	li t0, 8
 	blt ticks, t0, WaveLoop16Checks
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+1
 	sll t0, 1
 	lhu t0, 0(t0)
 	add wv_pos, wv_step
 	sh t0, (0*MAX_CHANNELS*2)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+1
 	sll t0, 1
 	lhu t0, 0(t0)
 	add wv_pos, wv_step
 	sh t0, (1*MAX_CHANNELS*2)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+1
 	sll t0, 1
 	lhu t0, 0(t0)
 	add wv_pos, wv_step
 	sh t0, (2*MAX_CHANNELS*2)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+1
 	sll t0, 1
 	lhu t0, 0(t0)
 	add wv_pos, wv_step
 	sh t0, (3*MAX_CHANNELS*2)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+1
 	sll t0, 1
 	lhu t0, 0(t0)
 	add wv_pos, wv_step
 	sh t0, (4*MAX_CHANNELS*2)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+1
 	sll t0, 1
 	lhu t0, 0(t0)
 	add wv_pos, wv_step
 	sh t0, (5*MAX_CHANNELS*2)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+1
 	sll t0, 1
 	lhu t0, 0(t0)
 	add wv_pos, wv_step
 	sh t0, (6*MAX_CHANNELS*2)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+1
 	sll t0, 1
 	lhu t0, 0(t0)
 	add wv_pos, wv_step
@@ -688,7 +689,7 @@ WaveLoop16_8x:
 	addi ticks, -8
 
 WaveLoop16:
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+1
 	sll t0, 1
 	lhu t0, 0(t0)
 	add wv_pos, wv_step
@@ -721,7 +722,7 @@ WaveLoop8_Stereo_8x:
 	li t0, 8
 	blt ticks, t0, WaveLoop8StereoChecks
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+1
 	sll t0, 1
 	lbu t1, 0(t0)
 	lbu t0, 1(t0)
@@ -729,7 +730,7 @@ WaveLoop8_Stereo_8x:
 	sb t1, (0*MAX_CHANNELS*2+0)(out_ptr)
 	sb t0, (0*MAX_CHANNELS*2+2)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+1
 	sll t0, 1
 	lbu t1, 0(t0)
 	lbu t0, 1(t0)
@@ -737,7 +738,7 @@ WaveLoop8_Stereo_8x:
 	sb t1, (1*MAX_CHANNELS*2+0)(out_ptr)
 	sb t0, (1*MAX_CHANNELS*2+2)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+1
 	sll t0, 1
 	lbu t1, 0(t0)
 	lbu t0, 1(t0)
@@ -745,7 +746,7 @@ WaveLoop8_Stereo_8x:
 	sb t1, (2*MAX_CHANNELS*2+0)(out_ptr)
 	sb t0, (2*MAX_CHANNELS*2+2)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+1
 	sll t0, 1
 	lbu t1, 0(t0)
 	lbu t0, 1(t0)
@@ -753,7 +754,7 @@ WaveLoop8_Stereo_8x:
 	sb t1, (3*MAX_CHANNELS*2+0)(out_ptr)
 	sb t0, (3*MAX_CHANNELS*2+2)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+1
 	sll t0, 1
 	lbu t1, 0(t0)
 	lbu t0, 1(t0)
@@ -761,7 +762,7 @@ WaveLoop8_Stereo_8x:
 	sb t1, (4*MAX_CHANNELS*2+0)(out_ptr)
 	sb t0, (4*MAX_CHANNELS*2+2)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+1
 	sll t0, 1
 	lbu t1, 0(t0)
 	lbu t0, 1(t0)
@@ -769,7 +770,7 @@ WaveLoop8_Stereo_8x:
 	sb t1, (5*MAX_CHANNELS*2+0)(out_ptr)
 	sb t0, (5*MAX_CHANNELS*2+2)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+1
 	sll t0, 1
 	lbu t1, 0(t0)
 	lbu t0, 1(t0)
@@ -777,7 +778,7 @@ WaveLoop8_Stereo_8x:
 	sb t1, (6*MAX_CHANNELS*2+0)(out_ptr)
 	sb t0, (6*MAX_CHANNELS*2+2)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+1
 	sll t0, 1
 	lbu t1, 0(t0)
 	lbu t0, 1(t0)
@@ -790,7 +791,7 @@ WaveLoop8_Stereo_8x:
 	addi ticks, -8
 
 WaveLoop8Stereo:
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+1
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+1
 	sll t0, 1
 	lbu t1, 0(t0)
 	lbu t0, 1(t0)
@@ -819,49 +820,49 @@ WaveLoop16_Stereo_8x:
 	li t0, 8
 	blt ticks, t0, WaveLoop16StereoChecks
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+2
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+2
 	sll t0, 2
 	lw t0, 0(t0)
 	add wv_pos, wv_step
 	sw t0, (0*MAX_CHANNELS*2+0)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+2
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+2
 	sll t0, 2
 	lw t0, 0(t0)
 	add wv_pos, wv_step
 	sw t0, (1*MAX_CHANNELS*2+0)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+2
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+2
 	sll t0, 2
 	lw t0, 0(t0)
 	add wv_pos, wv_step
 	sw t0, (2*MAX_CHANNELS*2+0)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+2
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+2
 	sll t0, 2
 	lw t0, 0(t0)
 	add wv_pos, wv_step
 	sw t0, (3*MAX_CHANNELS*2+0)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+2
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+2
 	sll t0, 2
 	lw t0, 0(t0)
 	add wv_pos, wv_step
 	sw t0, (4*MAX_CHANNELS*2+0)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+2
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+2
 	sll t0, 2
 	lw t0, 0(t0)
 	add wv_pos, wv_step
 	sw t0, (5*MAX_CHANNELS*2+0)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+2
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+2
 	sll t0, 2
 	lw t0, 0(t0)
 	add wv_pos, wv_step
 	sw t0, (6*MAX_CHANNELS*2+0)(out_ptr)
 
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+2
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+2
 	sll t0, 2
 	lw t0, 0(t0)
 	add wv_pos, wv_step
@@ -872,7 +873,7 @@ WaveLoop16_Stereo_8x:
 	addi ticks, -8
 
 WaveLoop16Stereo:
-	srl t0, wv_pos, WAVERFORM_POS_FRAC_BITS+2
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+2
 	sll t0, 2
 	lw t0, 0(t0)
 	add wv_pos, wv_step
@@ -893,16 +894,16 @@ WaveBeforeEpilog:
 
 WaveLoopEpilog:
 	beqz is_stereo, WaveLoopEpilog2
-	sw wv_pos, 0(s1)   # store updated wv_pos in DMEM
+	sw wv_pos, 0(waveform_ptr)   # store updated wv_pos in DMEM
 
 	# For stereo, we need to skip 1 channel
 	addi nchan, 1
-	addi s1, 6*4
+	addi waveform_ptr, 6*4
 
 WaveLoopEpilog2:
 	addi nchan, 1
 	bne nchan, k0, UpdateLoop
-	addi s1, 6*4
+	addi waveform_ptr, 6*4
 
 	jr ra2
 	nop
