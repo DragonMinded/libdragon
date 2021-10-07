@@ -41,7 +41,7 @@ int wav_convert(const char *infn, const char *outfn) {
 	wav64_header_t head;
 	memset(&head, 0, sizeof(wav64_header_t));
 
-	strncpy(head.id, "WV64", 4);
+	memcpy(head.id, "WV64", 4);
 	head.version = WAV64_FILE_VERSION;
 	head.format = 0;
 	head.channels = wav.channels;
