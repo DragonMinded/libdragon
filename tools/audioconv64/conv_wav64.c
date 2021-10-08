@@ -9,6 +9,22 @@ int flag_wav_looping_offset = 0;
 int wav_convert(const char *infn, const char *outfn) {
 	drwav wav;
 	if (!drwav_init_file(&wav, infn, NULL)) {
+		// Check if it's a RIFX file. This is a big-endian variant of WAV
+		// that is not supported by dr_wav.
+		FILE *f = fopen(infn, "rb");
+		if (f) {
+			char head[4] = {0};
+			fread(head, 1, 4, f);
+			fclose(f);
+			if (memcmp(head, "RIFX", 4) == 0) {
+				fprintf(stderr, "ERROR: %s: big-endian / Motorola WAV files are not supported.\n", infn);
+				fprintf(stderr, "Convert them to little-endian / Intel format and run audiocovn64 again.\n");
+				fprintf(stderr, "For instance, using sox:\n");
+				fprintf(stderr, "    sox -L %s intel-%s\n", infn, infn);
+				return 1;
+			}
+		}
+
 		fprintf(stderr, "ERROR: %s: not a valid WAV file\n", infn);
 		return 1;
 	}
