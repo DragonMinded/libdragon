@@ -1,0 +1,59 @@
+/**
+ * @file wav64.h
+ * @brief Support for WAV64 audio files
+ * @ingroup audio
+ */
+
+#ifndef __LIBDRAGON_WAV64_H
+#define __LIBDRAGON_WAV64_H
+
+#include "mixer.h"
+
+/** 
+ * @brief WAV64 structure
+ * 
+ * This structure is initialized by #wav64_open to refer to an opened WAV64
+ * file. It is meant to be played back through the audio mixer, implementing
+ * the #waveform_t interface. As such, samples are not preloaded in memory
+ * but rather loaded on request when needed for playback, streaming directly
+ * from ROM. See #waveform_t for more details.
+ * 
+ * Use #wav64_play to playback. For more advances usage, call directly the
+ * mixer functions, accessing the #wave structure field.
+ */
+typedef struct {
+	/** @brief #waveform_t for this WAV64. 
+	 * 
+	 * Access and use this field directly with the mixer, if needed.
+	 */
+	waveform_t wave;
+
+	/** @brief Absolute ROM address of WAV64 */
+	uint32_t rom_addr;
+} wav64_t;
+
+/** @brief Open a WAV64 file for playback from the DragonFS filesystem.  
+ * 
+ * This function opens the file, parses the header, and initializes for
+ * playing back through the audio mixer.
+ * 
+ * @param 	wav       	Pointer to wav64_t structure
+ * @param   fn          Filename of the wav64 (on DragonFS).
+ */ 
+void wav64_open(wav64_t *wav, const char *fn);
+
+/** @brief Configure a WAV64 file for looping playback. */
+void wav64_set_loop(wav64_t *wav, bool loop);
+
+/** @brief Start playing a WAV64 file.
+ * 
+ * This is just a simple wrapper that calls #mixer_ch_play on the WAV64's
+ * waveform (#wave field). For advanced usages, please call directly the
+ * mixer functions.
+ * 
+ * @param   wav 		Pointer to wav64_t structure
+ * @param   ch  		Channel of the mixer to use for playback.
+ */
+void wav64_play(wav64_t *wav, int ch);
+
+#endif
