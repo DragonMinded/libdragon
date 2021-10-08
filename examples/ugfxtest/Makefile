@@ -1,5 +1,5 @@
 BUILD_DIR=build
-include n64.mk
+include $(N64_INST)/include/n64.mk
 
 all: ugfxtest.z64
 
