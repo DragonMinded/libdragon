@@ -38,17 +38,17 @@ DEFINE_RSP_UCODE(rsp_mixer);
 #define CH_FLAGS_BPS_SHIFT  (3<<0)   // BPS shift value
 
 // Fixed point value used in waveform position calculations. This is a signed
-// 32-bit integer with the fractional part using MIXER_FX32_FRAC bits.
-// You can use MIXER_FX32() to convert from float.
-typedef int32_t mixer_fx32_t;
+// 64-bit integer with the fractional part using MIXER_FX64_FRAC bits.
+// You can use MIXER_FX64() to convert from float.
+typedef uint64_t mixer_fx64_t;
 
 // Fixed point value used for volume and panning calculations.
 // You can use MIXER_FX15() to convert from float.
 typedef int16_t mixer_fx15_t;
 
 
-#define MIXER_FX32_FRAC    12    // NOTE: this must be the same of WAVERFORM_POS_FRAC_BITS in rsp_mixer.S
-#define MIXER_FX32(f)      (int32_t)((f) * (1<<MIXER_FX32_FRAC))
+#define MIXER_FX64_FRAC    12    // NOTE: this must be the same of WAVERFORM_POS_FRAC_BITS in rsp_mixer.S
+#define MIXER_FX64(f)      (int64_t)((f) * (1<<MIXER_FX64_FRAC))
 
 #define MIXER_FX15_FRAC    15
 #define MIXER_FX15(f)      (int16_t)((f) * ((1<<MIXER_FX15_FRAC)-1))
@@ -58,20 +58,29 @@ typedef int16_t mixer_fx15_t;
 
 typedef struct mixer_channel_s {
 	/* Current position within the waveform (in bytes) */
-	mixer_fx32_t pos;
+	mixer_fx64_t pos;
 	/* Step between samples (in bytes) to playback at the correct frequency */
-	mixer_fx32_t step;
+	mixer_fx64_t step;
 	/* Length of the waveform (in bytes) */
-	mixer_fx32_t len;
+	mixer_fx64_t len;
 	/* Length of the loop in the waveform (in bytes) */
-	mixer_fx32_t loop_len;
+	mixer_fx64_t loop_len;
 	/* Pointer to the waveform */
 	void *ptr;
 	/* Misc flags */
 	uint32_t flags;
 } mixer_channel_t;
 
-_Static_assert(sizeof(mixer_channel_t) == 6*4);
+typedef struct rsp_mixer_channel_s {
+	uint32_t pos;
+	uint32_t step;
+	uint32_t len;
+	uint32_t loop_len;
+	void *ptr;
+	uint32_t flags;
+} __attribute__((packed)) rsp_mixer_channel_t;
+
+_Static_assert(sizeof(rsp_mixer_channel_t) == 6*4);
 
 typedef struct {
 	int max_bits;
@@ -99,7 +108,7 @@ struct {
 	samplebuffer_t ch_buf[MIXER_MAX_CHANNELS];
 	channel_limit_t limits[MIXER_MAX_CHANNELS];
 
-	mixer_channel_t channels[MIXER_MAX_CHANNELS] __attribute__((aligned(8)));
+	mixer_channel_t channels[MIXER_MAX_CHANNELS];
 	mixer_fx15_t lvol[MIXER_MAX_CHANNELS];
 	mixer_fx15_t rvol[MIXER_MAX_CHANNELS];
 
@@ -131,7 +140,7 @@ static void mixer_init_samplebuffers(void) {
 	// Initialize the samplebuffers. This is done lazily so to allow the
 	// client to configure the limits of the channels.
 	int totsize = 0;
-	int bufsize[32];
+	int bufsize[MIXER_MAX_CHANNELS];
 
 	for (int i=0;i<Mixer.num_channels;i++) {
 		// Get maximum frequency for this channel: (default: mixer sample rate)
@@ -185,7 +194,7 @@ void mixer_close(void) {
 
 void mixer_ch_set_freq(int ch, float frequency) {
 	mixer_channel_t *c = &Mixer.channels[ch];
-	c->step = MIXER_FX32(frequency / (float)Mixer.sample_rate) << (c->flags & CH_FLAGS_BPS_SHIFT);
+	c->step = MIXER_FX64(frequency / (float)Mixer.sample_rate) << (c->flags & CH_FLAGS_BPS_SHIFT);
 }
 
 void mixer_ch_set_vol(int ch, float lvol, float rvol) {
@@ -313,12 +322,14 @@ void mixer_ch_play(int ch, waveform_t *wave) {
 		samplebuffer_set_waveform(sbuf, wave->read ? waveform_read : NULL, wave);
 
 		// Configure the mixer channel structured used by the RSP ucode
+		assertf(wave->len >= 0 && wave->len <= WAVEFORM_MAX_LEN, "waveform %s: invalid length %x", wave->name, wave->len);
+		assertf(wave->len != WAVEFORM_UNKNOWN_LEN || wave->loop_len == 0, "waveform %s with unknown length cannot loop", wave->name);
 		int bps = SAMPLES_BPS_SHIFT(sbuf);
 		c->flags = bps;
-		c->len = MIXER_FX32(wave->len) << bps;
-		c->loop_len = MIXER_FX32(wave->loop_len) << bps;
+		c->len = MIXER_FX64((int64_t)wave->len) << bps;
+		c->loop_len = MIXER_FX64((int64_t)wave->loop_len) << bps;
 		mixer_ch_set_freq(ch, wave->frequency);
-		tracef("mixer_ch_play: ch=%d len=%lx loop_len=%lx\n", ch, c->len >> (MIXER_FX32_FRAC+bps), c->loop_len >> (MIXER_FX32_FRAC+bps));
+		tracef("mixer_ch_play: ch=%d len=%llx loop_len=%llx wave=%s\n", ch, c->len >> (MIXER_FX64_FRAC+bps), c->loop_len >> (MIXER_FX64_FRAC+bps), wave->name);
 	}
 
 	// Restart from the beginning of the waveform
@@ -328,13 +339,13 @@ void mixer_ch_play(int ch, waveform_t *wave) {
 
 void mixer_ch_set_pos(int ch, float pos) {
 	mixer_channel_t *c = &Mixer.channels[ch];
-	c->pos = MIXER_FX32(pos) << (c->flags & CH_FLAGS_BPS_SHIFT);
+	c->pos = MIXER_FX64(pos) << (c->flags & CH_FLAGS_BPS_SHIFT);
 }
 
 float mixer_ch_get_pos(int ch) {
 	mixer_channel_t *c = &Mixer.channels[ch];
 	uint32_t pos = c->pos >> (c->flags & CH_FLAGS_BPS_SHIFT);
-	return (float)pos / (float)(1<<MIXER_FX32_FRAC);
+	return (float)pos / (float)(1<<MIXER_FX64_FRAC);
 }
 
 void mixer_ch_stop(int ch) {
@@ -386,13 +397,13 @@ void mixer_exec(int32_t *out, int num_samples) {
 		samplebuffer_t *sbuf = &Mixer.ch_buf[i];
 		mixer_channel_t *ch = &Mixer.channels[i];
 		int bps = ch->flags & CH_FLAGS_BPS_SHIFT;
-		int bps_fx32 = bps + MIXER_FX32_FRAC;
+		int bps_fx64 = bps + MIXER_FX64_FRAC;
 
 		if (ch->ptr) {
-			int len = ch->len >> bps_fx32;
-			int loop_len = ch->loop_len >> bps_fx32;
-			int wpos = ch->pos >> bps_fx32;
-			int wlast = (ch->pos + ch->step*(num_samples-1)) >> bps_fx32;
+			int len = ch->len >> bps_fx64;
+			int loop_len = ch->loop_len >> bps_fx64;
+			int wpos = ch->pos >> bps_fx64;
+			int wlast = (ch->pos + ch->step*(num_samples-1)) >> bps_fx64;
 			int wlen = wlast-wpos+1;
 			assertf(wlen >= 0, "channel %d: wpos overflow", i);
 			tracef("ch:%d wpos:%x wlen:%x len:%x loop_len:%x sbuf_size:%x\n", i, wpos, wlen, len, loop_len, sbuf->size);
@@ -448,7 +459,7 @@ void mixer_exec(int32_t *out, int num_samples) {
 					samplebuffer_discard(sbuf, wpos);
 					sbuf->wpos = waveform_wrap_wpos(sbuf->wpos, len, loop_len);
 					int wpos2 = waveform_wrap_wpos(wpos, len, loop_len);
-					ch->pos -= (wpos-wpos2) << bps_fx32;
+					ch->pos -= (int64_t)(wpos-wpos2) << bps_fx64;
 					wpos = wpos2;
 				}
 
@@ -468,14 +479,37 @@ void mixer_exec(int32_t *out, int num_samples) {
 	rsp_wait();
 	rsp_load(&rsp_mixer);
 
-	volatile mixer_channel_t *rsp_wv = (volatile mixer_channel_t *)&SP_DMEM[36];
+	volatile rsp_mixer_channel_t *rsp_wv = (volatile rsp_mixer_channel_t *)&SP_DMEM[36];
 	for (int ch=0;ch<Mixer.num_channels;ch++) {
-		rsp_wv[ch].pos = Mixer.channels[ch].pos;
-		rsp_wv[ch].step = Mixer.channels[ch].step;
-		rsp_wv[ch].len = fake_loop & (1<<ch) ? 0x7FFFFFFF : Mixer.channels[ch].len;
-		rsp_wv[ch].loop_len = fake_loop & (1<<ch) ? 0 : Mixer.channels[ch].loop_len;
-		rsp_wv[ch].ptr = Mixer.channels[ch].ptr;
-		rsp_wv[ch].flags = Mixer.channels[ch].flags;
+		mixer_channel_t *c = &Mixer.channels[ch];
+		if (!c->ptr) {
+			rsp_wv[ch].ptr = 0;
+			continue;
+		}
+
+		// Convert to RSP mixer channel structure truncating 64-bit values to 32-bit.
+		// We don't need full absolute position on the RSP, so 32-bit is more
+		// than enough. In fact, we only expose 31 bits, so that we can use the
+		// 32th bit later to correctly update the position without overflow bugs.
+		rsp_wv[ch].pos = (uint32_t)c->pos & 0x7FFFFFFF;
+		rsp_wv[ch].step = (uint32_t)c->step & 0x7FFFFFFF;
+		rsp_wv[ch].ptr = c->ptr + ((c->pos & ~0x7FFFFFFF) >> MIXER_FX64_FRAC);
+		rsp_wv[ch].flags = c->flags;
+
+		// If the loop is fake (i.e. we are unrolling it), or the current
+		// position has been truncated but it's far from the end of the waveform,
+		// just tell the RSP that there is no loop.
+		if (fake_loop & (1<<ch) || c->pos>>31 != c->len>>31) {
+			rsp_wv[ch].len = 0xFFFFFFFF;
+			rsp_wv[ch].loop_len = 0;
+		} else {
+			rsp_wv[ch].len = (uint32_t)c->len & 0x7FFFFFFF;
+			// We can't represent a very long loop in RSP. But those loops
+			// should be unrolled anyway (and thus be a fake_loop), so we
+			// should not get here.
+			assert(c->loop_len <= 0x7FFFFFFF);
+			rsp_wv[ch].loop_len = (uint32_t)c->loop_len & 0x7FFFFFFF;
+		}
 	}
 
 	mixer_fx15_t lvol[MIXER_MAX_CHANNELS] __attribute__((aligned(8)));
@@ -511,7 +545,7 @@ void mixer_exec(int32_t *out, int num_samples) {
 
 	for (int i=0;i<Mixer.num_channels;i++) {
 		mixer_channel_t *ch = &Mixer.channels[i];
-		ch->pos = rsp_wv[i].pos;
+		ch->pos += (uint64_t)rsp_wv[i].pos - (uint64_t)(ch->pos & 0x7FFFFFFF);
 	}
 
 	Mixer.ticks += num_samples;

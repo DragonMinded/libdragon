@@ -434,9 +434,7 @@ typedef struct waveform_s {
 	float frequency;
 
 	// Length of the waveform, in number of samples. If the length is not
-	// known, this value can be initialized to a very large number (eg: 2**31-1)
-	// It's still possible to play a waveform this way, but the read function
-	// will have to generate silence when the actual waveform is finished.
+	// known, this value should be set to #WAVEFORM_UNKNOWN_LEN.
 	int len;
 
 	// Length of the loop of the waveform (from the end). This value describes
@@ -453,6 +451,19 @@ typedef struct waveform_s {
 	// functions.
 	void *ctx;
 } waveform_t;
+
+/** @brief Maximum number of samples in a waveform */
+#define WAVEFORM_MAX_LEN         0x1FFFFFFF
+
+/** 
+ * @brief Specify that the waveform length is unknown.
+ * 
+ * This value can be used in the "len" field of #waveform_t to specify
+ * that the waveform length is unknown. The mixer will be unable to perform
+ * looping so the #WaveformRead function will have to handle looping by itself
+ * and/or generate silence once the playback is finished.
+ */
+#define WAVEFORM_UNKNOWN_LEN     WAVEFORM_MAX_LEN
 
 #ifdef __cplusplus
 }

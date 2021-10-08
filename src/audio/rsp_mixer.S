@@ -435,7 +435,7 @@ UpdateLoop:
 	andi t1, 1
 WaveStart:
 	# Check if we reached end of sample.
-	blt wv_pos, wv_len, WaveDmaFetch
+	bltu wv_pos, wv_len, WaveDmaFetch
 	nop
 
 	# End of sample. Check if the waveform loops
