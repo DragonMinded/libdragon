@@ -11,10 +11,12 @@ N64_HEADERNAME = header
 N64_AUDIOCONV = $(N64_ROOTDIR)/bin/audioconv64
 
 N64_CFLAGS = -DN64 -falign-functions=32 -ffunction-sections -fdata-sections -std=gnu99 -march=vr4300 -mtune=vr4300 -O2 -Wall -Werror -fdiagnostics-color=always -I$(ROOTDIR)/mips64-elf/include
+N64_CXXFLAGS = -DN64 -falign-functions=32 -ffunction-sections -fdata-sections -std=c++11 -march=vr4300 -mtune=vr4300 -O2 -Wall -Werror -fdiagnostics-color=always -I$(ROOTDIR)/mips64-elf/include
 N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings
 N64_LDFLAGS = -L$(N64_ROOTDIR)/mips64-elf/lib -ldragon -lc -lm -ldragonsys -Tn64.ld --gc-sections
 
 N64_CC = $(N64_GCCPREFIX)gcc
+N64_CXX = $(N64_GCCPREFIX)g++
 N64_AS = $(N64_GCCPREFIX)as
 N64_LD = $(N64_GCCPREFIX)ld
 N64_OBJCOPY = $(N64_GCCPREFIX)objcopy
@@ -25,6 +27,7 @@ N64_ROM_TITLE = "N64 ROM"
 
 ifeq ($(D),1)
 CFLAGS+=-g3
+CXXFLAGS+=-g3
 ASFLAGS+=-g
 LDFLAGS+=-g
 endif
@@ -32,15 +35,19 @@ endif
 N64_FLAGS = -h $(N64_HEADERPATH)/$(N64_HEADERNAME)
 
 CFLAGS+=-MMD     # automatic .d dependency generation
+CXXFLAGS+=-MMD   # automatic .d dependency generation
 ASFLAGS+=-MMD    # automatic .d dependency generation
 
 # Change all the dependency chain of z64 ROMs to use the N64 toolchain.
 %.z64: CC=$(N64_CC)
+%.z64: CXX=$(N64_CXX)
 %.z64: AS=$(N64_AS)
 %.z64: LD=$(N64_LD)
 %.z64: CFLAGS+=$(N64_CFLAGS)
+%.z64: CXXFLAGS+=$(N64_CXXFLAGS)
 %.z64: ASFLAGS+=$(N64_ASFLAGS)
 %.z64: LDFLAGS+=$(N64_LDFLAGS)
+%.z64: MAPCMD=-Map
 %.z64: $(BUILD_DIR)/%.elf
 	@echo "    [N64] $@"
 	$(N64_OBJCOPY) $< $<.bin -O binary
@@ -99,10 +106,16 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.c
 	@echo "    [CC] $<"
 	$(CC) -c $(CFLAGS) -o $@ $<
 
+$(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp 
+	@mkdir -p $(dir $@)
+	@echo "    [CXX] $<"
+	$(CXX) -c $(CXXFLAGS) -o $@ $<
+
 %.elf: $(N64_ROOTDIR)/mips64-elf/lib/libdragon.a $(N64_ROOTDIR)/mips64-elf/lib/libdragonsys.a $(N64_ROOTDIR)/mips64-elf/lib/n64.ld
 	@mkdir -p $(BUILD_DIR)
 	@echo "    [LD] $@"
-	$(LD) -o $@ $(filter-out $(N64_ROOTDIR)/mips64-elf/lib/n64.ld,$^) $(LDFLAGS) -Map=$(BUILD_DIR)/$(notdir $(basename $@)).map
+	@echo "    [LD] ${LD}"
+	$(LD) -o $@ $(filter-out $(N64_ROOTDIR)/mips64-elf/lib/n64.ld,$^) $(LDFLAGS) $(MAPCMD)=$(BUILD_DIR)/$(notdir $(basename $@)).map
 	$(N64_SIZE) -G $@
 
 ifneq ($(V),1)
