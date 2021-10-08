@@ -114,7 +114,6 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 %.elf: $(N64_ROOTDIR)/mips64-elf/lib/libdragon.a $(N64_ROOTDIR)/mips64-elf/lib/libdragonsys.a $(N64_ROOTDIR)/mips64-elf/lib/n64.ld
 	@mkdir -p $(BUILD_DIR)
 	@echo "    [LD] $@"
-	@echo "    [LD] ${LD}"
 	$(LD) -o $@ $(filter-out $(N64_ROOTDIR)/mips64-elf/lib/n64.ld,$^) $(LDFLAGS) $(MAPCMD)=$(BUILD_DIR)/$(notdir $(basename $@)).map
 	$(N64_SIZE) -G $@
 
