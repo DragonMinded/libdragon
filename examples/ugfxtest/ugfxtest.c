@@ -8,6 +8,8 @@
 
 #define RADIANS(deg) ((deg) * (M_PI/180))
 
+#define ALIGN_64BYTE(x) ((void *)(((uint32_t)(x)+63) & 0xFFFFFFC0))
+
 static ugfx_light_t lights[] = {
     {
         .r = 40,
@@ -84,7 +86,8 @@ int main(void)
     uint16_t perspective_normalization_scale = float_to_fixed(get_persp_norm_scale(near_plane, far_plane), 16);
 
     /* Allocate depth buffer */
-    void *depth_buffer = malloc(display_width * display_height * 2);
+    uint32_t depth_buffer_size = display_width * display_height * 2;
+    void *depth_buffer = ALIGN_64BYTE(malloc(depth_buffer_size + 63));
 
     int rotation_counter = 0;
 
