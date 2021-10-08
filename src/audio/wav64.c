@@ -10,6 +10,9 @@
 #include <string.h>
 #include <assert.h>
 
+#define WAV_RIFF_ID   "RIFF"
+#define WAV_RIFX_ID   "RIFX"
+
 /** @brief Profile of DMA usage by WAV64, used for debugging purposes. */
 int64_t __wav64_profile_dma = 0;
 
@@ -47,8 +50,12 @@ void wav64_open(wav64_t *wav, const char *fn) {
 
 	wav64_header_t head;
 	dfs_read(&head, 1, sizeof(head), fh);
-	assertf(strncmp(head.id, WAV64_ID, 4) == 0, "wav64 %s: invalid ID: %02x%02x%02x%02x\n",
-		fn, head.id[0], head.id[1], head.id[2], head.id[3]);
+	if (memcmp(head.id, WAV64_ID, 4) != 0) {
+		assertf(memcmp(head.id, WAV_RIFF_ID, 4) != 0 && memcmp(head.id, WAV_RIFX_ID, 4) != 0,
+			"wav64 %s: use audioconv64 to convert to wav64 format", fn);
+		assertf(0, "wav64 %s: invalid ID: %02x%02x%02x%02x\n",
+			fn, head.id[0], head.id[1], head.id[2], head.id[3]);
+	}
 	assertf(head.version == WAV64_FILE_VERSION, "wav64 %s: invalid version: %02x\n",
 		fn, head.version);
 	assertf(head.format == WAV64_FORMAT_RAW, "wav64 %s: invalid format: %02x\n",
