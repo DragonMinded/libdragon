@@ -8,6 +8,7 @@ N64_MKDFSPATH = $(N64_ROOTDIR)/bin/mkdfs
 N64_HEADERPATH = $(N64_ROOTDIR)/mips64-elf/lib
 N64_TOOL = $(N64_ROOTDIR)/bin/n64tool
 N64_HEADERNAME = header
+N64_AUDIOCONV = $(N64_ROOTDIR)/bin/audioconv64
 
 N64_CFLAGS = -DN64 -falign-functions=32 -ffunction-sections -fdata-sections -std=gnu99 -march=vr4300 -mtune=vr4300 -O2 -Wall -Werror -fdiagnostics-color=always -I$(ROOTDIR)/mips64-elf/include
 N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings
