@@ -31,6 +31,7 @@ RUN rm -rf ${N64_INST}/share/locale/*
 FROM ubuntu:18.04
 ARG N64_INST=/n64_toolchain
 ENV N64_INST=${N64_INST}
+ENV PATH="${N64_INST}/bin:$PATH"
 
 COPY --from=0 ${N64_INST} ${N64_INST}
 RUN apt-get update && \
