@@ -2,6 +2,7 @@
 *.a
 build/
 build_gcc/
+tools/audioconv64/audioconv64
 tools/chksum64
 tools/ed64romconfig
 tools/dumpdfs/dumpdfs

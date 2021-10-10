@@ -11,11 +11,16 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "regsinternal.h"
 #include "system.h"
 #include "usb.h"
 #include "fatfs/ff.h"
 #include "fatfs/ffconf.h"
 #include "fatfs/diskio.h"
+
+// SD implementations
+#include "debug_sdfs_ed64.c"
+#include "debug_sdfs_64drive.c"
 
 /**
  * @defgroup debug Debugging Support
@@ -52,7 +57,7 @@
  */
 
 /** @brief bitmask of features that have been enabled. */
-static int enabled_features = 0; 
+static int enabled_features = 0;
 
 /** @brief open log file to SD */
 static FILE *sdlog_file = NULL;
@@ -74,7 +79,7 @@ static void (*debug_writer[3])(const uint8_t *buf, int size) = { 0 };
 #define ISVIEWER_BUFFER_LEN      0x00000200
 
 static bool isviewer_init(void)
-{	
+{
 	// To check whether an ISViewer is present (probably emulated),
 	// write some data to the buffer address. If we can read it
 	// back, it means that there's some memory there and we can
@@ -174,147 +179,36 @@ DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void* buff)
 }
 
 /*********************************************************************
- * FAT backend: 64drive
+ * Helpers
  *********************************************************************/
 
-#define D64_CIBASE_ADDRESS   0xB8000000
-#define D64_BUFFER           0x00000000
-#define D64_REGISTER_STATUS  0x00000200
-#define D64_REGISTER_COMMAND 0x00000208
-#define D64_REGISTER_LBA     0x00000210
-#define D64_REGISTER_LENGTH  0x00000218
-#define D64_REGISTER_RESULT  0x00000220
+static DSTATUS fat_disk_status_default(void) { return 0; }
 
-#define D64_CI_IDLE  0x00
-#define D64_CI_BUSY  0x10
-#define D64_CI_WRITE 0x20
-
-#define D64_COMMAND_SD_READ  0x01
-#define D64_COMMAND_SD_WRITE 0x10
-#define D64_COMMAND_SD_RESET 0x1F
-#define D64_COMMAND_ABORT    0xFF
-
-// Utility functions for 64drive communication, defined in usb.c
-extern int8_t usb_64drive_wait(void);
-extern void usb_64drive_setwritable(int8_t enable);
-
-static DRESULT fat_disk_read_64drive(BYTE* buff, LBA_t sector, UINT count)
-{
-	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
-	_Static_assert(FF_MAX_SS == 512, "this function assumes sector size == 512");
-
-	for (int i=0;i<count;i++)
-	{	
-		usb_64drive_wait();
-		io_write(D64_CIBASE_ADDRESS + D64_REGISTER_LBA, sector+i);
-		usb_64drive_wait();
-		io_write(D64_CIBASE_ADDRESS + D64_REGISTER_COMMAND, D64_COMMAND_SD_READ);
-		if (usb_64drive_wait() != 0)
-		{
-			debugf("[debug] fat_disk_read_64drive: wait timeout\n");
-			// Operation is taking too long. Probably SD was not inserted.
-			// Send a COMMAND_ABORT and SD_RESET, and return I/O error.
-			// Note that because of a 64drive firmware bug, this is not
-			// sufficient to unblock the 64drive. The USB channel will stay
-			// unresponsive. We don't currently have a workaround for this.
-			io_write(D64_CIBASE_ADDRESS + D64_REGISTER_COMMAND, D64_COMMAND_ABORT);
-			usb_64drive_wait();
-			io_write(D64_CIBASE_ADDRESS + D64_REGISTER_COMMAND, D64_COMMAND_SD_RESET);
-			usb_64drive_wait();
-			return FR_DISK_ERR;
-		}
-
-		if (((uint32_t)buff & 7) == 0) 
-		{
-			data_cache_hit_writeback_invalidate(buff, 512);
-			dma_read(buff, D64_CIBASE_ADDRESS + D64_BUFFER, 512);
-		}
-		else
-		{
-			typedef uint32_t u_uint32_t __attribute__((aligned(1)));
-
-			uint32_t* src = (uint32_t*)(D64_CIBASE_ADDRESS + D64_BUFFER);
-			u_uint32_t* dst = (u_uint32_t*)buff;
-			for (int i = 0; i < 512/16; i++) 
-			{
-				uint32_t a = *src++; uint32_t b = *src++; uint32_t c = *src++; uint32_t d = *src++;
-				*dst++ = a;          *dst++ = b;          *dst++ = c;          *dst++ = d;
-			}
-		}
-		buff += 512;
-	}
-	return RES_OK;
-}
-
-static DRESULT fat_disk_write_64drive(const BYTE* buff, LBA_t sector, UINT count)
-{
-	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
-	_Static_assert(FF_MAX_SS == 512, "this function assumes sector size == 512");
-
-	for (int i=0;i<count;i++)
-	{	
-		if (((uint32_t)buff & 7) == 0) 
-		{
-			data_cache_hit_writeback(buff, 512);
-			dma_write(buff, D64_CIBASE_ADDRESS + D64_BUFFER, 512);
-		}
-		else
-		{
-			typedef uint32_t u_uint32_t __attribute__((aligned(1)));
-
-			uint32_t* dst = (uint32_t*)(D64_CIBASE_ADDRESS + D64_BUFFER);
-			u_uint32_t* src = (u_uint32_t*)buff;
-			for (int i = 0; i < 512/16; i++) 
-			{
-				uint32_t a = *src++; uint32_t b = *src++; uint32_t c = *src++; uint32_t d = *src++;
-				*dst++ = a;          *dst++ = b;          *dst++ = c;          *dst++ = d;
-			}
-		}
-
-		usb_64drive_wait();
-		io_write(D64_CIBASE_ADDRESS + D64_REGISTER_LBA, sector+i);
-		usb_64drive_wait();
-		io_write(D64_CIBASE_ADDRESS + D64_REGISTER_COMMAND, D64_COMMAND_SD_WRITE);
-		if (usb_64drive_wait() != 0)
-		{
-			debugf("[debug] fat_disk_write_64drive: wait timeout\n");
-			// Operation is taking too long. Probably SD was not inserted.
-			// Send a COMMAND_ABORT and SD_RESET, and return I/O error.
-			// Note that because of a 64drive firmware bug, this is not
-			// sufficient to unblock the 64drive. The USB channel will stay
-			// unresponsive. We don't currently have a workaround for this.
-			io_write(D64_CIBASE_ADDRESS + D64_REGISTER_COMMAND, D64_COMMAND_ABORT);
-			usb_64drive_wait();
-			io_write(D64_CIBASE_ADDRESS + D64_REGISTER_COMMAND, D64_COMMAND_SD_RESET);
-			usb_64drive_wait();
-			return FR_DISK_ERR;
-		}
-
-		buff += 512;
-	}
-
-	return RES_OK;
-}
-
-static DRESULT fat_disk_ioctl_64drive(BYTE cmd, void* buff)
+static DRESULT fat_disk_ioctl_default(BYTE cmd, void* buff)
 {
 	switch (cmd)
 	{
-	case CTRL_SYNC: return RES_OK;
-	default:        return RES_PARERR;
+		case CTRL_SYNC: return RES_OK;
+		default:        return RES_PARERR;
 	}
 }
 
-static DSTATUS fat_disk_initialize_64drive(void) { return 0; }
-static DSTATUS fat_disk_status_64drive(void) { return 0; }
+static fat_disk_t fat_disk_everdrive =
+{
+	fat_disk_initialize_everdrive,
+	fat_disk_status_default,
+	fat_disk_read_everdrive,
+	fat_disk_write_everdrive,
+	fat_disk_ioctl_default
+};
 
 static fat_disk_t fat_disk_64drive =
 {
 	fat_disk_initialize_64drive,
-	fat_disk_status_64drive,
+	fat_disk_status_default,
 	fat_disk_read_64drive,
 	fat_disk_write_64drive,
-	fat_disk_ioctl_64drive
+	fat_disk_ioctl_default
 };
 
 /*********************************************************************
@@ -354,7 +248,7 @@ static void *__fat_open(char *name, int flags)
 		 fatfs_flags |= FA_OPEN_EXISTING;
 
 	FRESULT res = f_open(&fat_files[i], name, fatfs_flags);
-	if (res != FR_OK) 
+	if (res != FR_OK)
 	{
 		fat_files[i].obj.fs = NULL;
 		return NULL;
@@ -552,6 +446,9 @@ bool debug_init_sdfs(const char *prefix, int npart)
 	case CART_64DRIVE:
 		fat_disks[FAT_VOLUME_SD] = fat_disk_64drive;
 		break;
+	case CART_EVERDRIVE:
+		fat_disks[FAT_VOLUME_SD] = fat_disk_everdrive;
+		break;
 	default:
 		return false;
 	}
@@ -600,7 +497,7 @@ void debug_assert_func_f(const char *file, int line, const char *func, const cha
 		func ? ", function: " : "", func ? func : "");
 
 	if (msg)
-	{	
+	{
 		va_list args;
 
 		va_start(args, msg);

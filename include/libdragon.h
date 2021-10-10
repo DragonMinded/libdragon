@@ -64,5 +64,8 @@
 #include "timer.h"
 #include "exception.h"
 #include "dir.h"
+#include "mixer.h"
+#include "samplebuffer.h"
+#include "wav64.h"
 
 #endif
