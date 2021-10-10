@@ -123,13 +123,18 @@ void test_ticks(TestContext *ctx) {
 	register_VI_handler(frame_callback);
 	enable_interrupts();
 
-	ASSERT(ticks_0 == 0 && ticks_1 == 45812, "not reading correct register or function not inlined. Received %lu and %lu", ticks_0, ticks_1);
+	ASSERT(ticks_0 == 0 && ticks_1 == (!sys_bbplayer() ? 45812 : 30542), "not reading correct register or function not inlined. Received %lu and %lu", ticks_0, ticks_1);
 
 	// Sync to nearest video frame to use as an interval
 	while (state < Start);
 
 	test_ticks_func(ctx, wait_ticks, "wait_ticks", test_ticks_cases, sizeof(test_ticks_cases) / sizeof(test_ticks_cases[0]));
-	test_ticks_func(ctx, wait_ms, "wait_ms", test_ticks_ms_cases, sizeof(test_ticks_ms_cases) / sizeof(test_ticks_ms_cases[0]));
+
+	// The wait_ms test contains hardcoded tick values that refer to the conversion
+	// between milliseconds and ticks, as computed on a N64. It won't work on
+	// iQue, so just skip this part.
+	if (!sys_bbplayer())
+		test_ticks_func(ctx, wait_ms, "wait_ms", test_ticks_ms_cases, sizeof(test_ticks_ms_cases) / sizeof(test_ticks_ms_cases[0]));
 
 	// Cleanup
 	unregister_VI_handler(frame_callback);

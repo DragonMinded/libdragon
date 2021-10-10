@@ -372,7 +372,12 @@ static bool usb_initialize_once(void) {
 	if (!once)
 	{
 		once = true;
-		ok = usb_initialize();
+		if (!sys_bbplayer())
+			ok = usb_initialize();
+		else
+			/* 64drive autodetection makes iQue player crash; disable USB
+			   support altogether for now. */
+			ok = false;
 	}
 	return ok;
 }

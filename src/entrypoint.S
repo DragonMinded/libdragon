@@ -10,6 +10,27 @@
 	.global _start
 _start:
 	lw t0, 0x80000318			/* memory size */
+
+	/* Check whether we are running on iQue or N64. Use the MI version register
+	   which has LSB set to 0xB0 on iQue. We assume 0xBn was meant for BBPlayer.
+	   Notice that we want this test to be hard for emulators to pass by mistake,
+	   so checking for a specific value while reading seems solid enough. */
+	lw t1, 0xA4300004
+	andi t1, 0xF0
+	bne t1, 0xB0, set_sp
+	li fp, 0                    /* fp=0 -> vanilla N64 */
+
+	/* In iQue player, memory allocated to game can be configured and it appears
+	   in 0x80000318. On the other hand, the top 8Mb of RDRAM is reserved to
+	   savegames. So avoid putting the stack there, capping the size to 0x7C0000.
+	   See also get_memory_size. */
+	li fp, 1                    /* fp=1 -> iQue player */
+	li t1, 0x800000
+	blt t0, t1, set_sp
+	nop
+	li t0, 0x7C0000
+
+set_sp:
 	li t1, 0x7FFFFFF0
 	addu sp,t0,t1				/* init stack */
 	la gp, _gp					/* init data pointer */
@@ -57,6 +78,9 @@ bss_init:
 	sub a1,a0
 	jal data_cache_hit_writeback_invalidate
 	nop
+
+	/* Store the bbplayer flag now that BSS has been cleared */
+	sw fp, __bbplayer
 
 	/* load interrupt vector */
 	la t0,intvector

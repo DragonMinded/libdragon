@@ -268,7 +268,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
 {
     uint32_t registers[REGISTER_COUNT];
     uint32_t tv_type = get_tv_type();
-    uint32_t control = 0x3000;
+    uint32_t control = !sys_bbplayer() ? 0x3000 : 0x1000;
 
     /* Can't have the video interrupt happening here */
     disable_interrupts();
