@@ -1,18 +1,17 @@
 BUILD_DIR ?= .
 SOURCE_DIR ?= .
 
-N64_ROOTDIR = $(N64_INST)
-N64_GCCPREFIX = $(N64_ROOTDIR)/bin/mips64-elf-
-N64_CHKSUMPATH = $(N64_ROOTDIR)/bin/chksum64
-N64_MKDFSPATH = $(N64_ROOTDIR)/bin/mkdfs
-N64_HEADERPATH = $(N64_ROOTDIR)/mips64-elf/lib
-N64_TOOL = $(N64_ROOTDIR)/bin/n64tool
-N64_HEADERNAME = header
-N64_AUDIOCONV = $(N64_ROOTDIR)/bin/audioconv64
+N64_ROM_TITLE = "Made with libdragon" # Override this with the name of your game or project
+N64_ROM_SAVETYPE = # Supported savetypes: none eeprom4k eeprom16 sram256k sram768k sram1m flashram
+N64_ROM_RTC = # Set to true to enable the Joybus Real-Time Clock
+N64_ROM_REGIONFREE = # Set to true to allow booting on any console region
 
-N64_CFLAGS = -DN64 -falign-functions=32 -ffunction-sections -fdata-sections -std=gnu99 -march=vr4300 -mtune=vr4300 -O2 -Wall -Werror -fdiagnostics-color=always -I$(ROOTDIR)/mips64-elf/include
-N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings
-N64_LDFLAGS = -L$(N64_ROOTDIR)/mips64-elf/lib -ldragon -lc -lm -ldragonsys -Tn64.ld --gc-sections
+N64_ROOTDIR = $(N64_INST)
+N64_BINDIR = $(N64_ROOTDIR)/bin
+N64_INCLUDEDIR = $(N64_ROOTDIR)/mips64-elf/include
+N64_LIBDIR = $(N64_ROOTDIR)/mips64-elf/lib
+N64_GCCPREFIX = $(N64_BINDIR)/mips64-elf-
+N64_HEADERPATH = $(N64_LIBDIR)/header
 
 N64_CC = $(N64_GCCPREFIX)gcc
 N64_AS = $(N64_GCCPREFIX)as
@@ -21,15 +20,28 @@ N64_OBJCOPY = $(N64_GCCPREFIX)objcopy
 N64_OBJDUMP = $(N64_GCCPREFIX)objdump
 N64_SIZE = $(N64_GCCPREFIX)size
 
-N64_ROM_TITLE = "N64 ROM"
+N64_CHKSUM = $(N64_BINDIR)/chksum64
+N64_ED64ROMCONFIG = $(N64_BINDIR)/ed64romconfig
+N64_MKDFS = $(N64_BINDIR)/mkdfs
+N64_TOOL = $(N64_BINDIR)/n64tool
+N64_AUDIOCONV = $(N64_BINDIR)/audioconv64
+
+N64_CFLAGS =  -std=gnu99 -march=vr4300 -mtune=vr4300 -I$(N64_INCLUDEDIR)
+N64_CFLAGS += -falign-functions=32 -ffunction-sections -fdata-sections
+N64_CFLAGS += -DN64 -O2 -Wall -Werror -fdiagnostics-color=always
+N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings
+N64_LDFLAGS = -L$(N64_LIBDIR) -ldragon -lc -lm -ldragonsys -Tn64.ld --gc-sections
+
+N64_TOOLFLAGS = --header $(N64_HEADERPATH) --title $(N64_ROM_TITLE)
+N64_ED64ROMCONFIGFLAGS =  $(if $(N64_ROM_SAVETYPE),--savetype $(N64_ROM_SAVETYPE))
+N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_RTC),--rtc) 
+N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_REGIONFREE),--regionfree)
 
 ifeq ($(D),1)
 CFLAGS+=-g3
 ASFLAGS+=-g
 LDFLAGS+=-g
 endif
-
-N64_FLAGS = -h $(N64_HEADERPATH)/$(N64_HEADERNAME)
 
 CFLAGS+=-MMD     # automatic .d dependency generation
 ASFLAGS+=-MMD    # automatic .d dependency generation
@@ -42,53 +54,59 @@ ASFLAGS+=-MMD    # automatic .d dependency generation
 %.z64: ASFLAGS+=$(N64_ASFLAGS)
 %.z64: LDFLAGS+=$(N64_LDFLAGS)
 %.z64: $(BUILD_DIR)/%.elf
-	@echo "    [N64] $@"
-	$(N64_OBJCOPY) $< $<.bin -O binary
+	@echo "    [Z64] $@"
+	$(N64_OBJCOPY) -O binary $< $<.bin
 	@rm -f $@
-	DFS_FILE=$(filter %.dfs, $^); \
+	DFS_FILE="$(filter %.dfs, $^)"; \
 	if [ -z "$$DFS_FILE" ]; then \
-		$(N64_TOOL) $(N64_FLAGS) -o $@  -t $(N64_ROM_TITLE) $<.bin; \
+		$(N64_TOOL) $(N64_TOOLFLAGS) --output $@ $<.bin; \
 	else \
-		$(N64_TOOL) $(N64_FLAGS) -o $@  -t $(N64_ROM_TITLE) $<.bin -s 1M $$DFS_FILE; \
+		$(N64_TOOL) $(N64_TOOLFLAGS) --output $@ $<.bin --offset 1M "$$DFS_FILE"; \
 	fi
-	$(N64_CHKSUMPATH) $@ >/dev/null
+	if [ ! -z "$(strip $(N64_ED64ROMCONFIGFLAGS))" ]; then \
+		$(N64_ED64ROMCONFIG) $(N64_ED64ROMCONFIGFLAGS) $@; \
+	fi
+	$(N64_CHKSUM) $@ >/dev/null
 
-# Support v64 ROMs via dd byteswap
-ifeq ($(N64_BYTE_SWAP),true)
 %.v64: %.z64
-	dd conv=swab if=$^ of=$@
-endif
+	@echo "    [V64] $@"
+	$(N64_OBJCOPY) -I binary -O binary --reverse-bytes=2 $< $@
 
 %.dfs:
 	@mkdir -p $(dir $@)
 	@echo "    [DFS] $@"
-	$(N64_MKDFSPATH) $@ $(<D) >/dev/null
+	$(N64_MKDFS) $@ $(<D) >/dev/null
 
 # Assembly rule. We use .S for both RSP and MIPS assembly code, and we differentiate
 # using the prefix of the filename: if it starts with "rsp", it is RSP ucode, otherwise
 # it's a standard MIPS assembly file.
 $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.S
 	@mkdir -p $(dir $@)
-	set -e; if case $(notdir $(basename $@)) in "rsp"*) true;; *) false;; esac; then \
+	set -e; \
+	FILENAME="$(notdir $(basename $@))"; \
+	if case "$$FILENAME" in "rsp"*) true;; *) false;; esac; then \
+		SYMPREFIX="$(subst .,_,$(subst /,_,$(basename $@)))"; \
+		TEXTSECTION="$(basename $@).text"; \
+		DATASECTION="$(basename $@).data"; \
 		echo "    [RSP] $<"; \
-		$(N64_CC) $(ASFLAGS) -nostartfiles -MMD -Wl,-Ttext=0x1000 -Wl,-Tdata=0x0 -Wl,-e0x1000 -o $@ $<; \
-		$(N64_OBJCOPY) -O binary -j .text $@ $(basename $@).text.bin; \
-		$(N64_OBJCOPY) -O binary -j .data $@ $(basename $@).data.bin; \
+		$(N64_CC) $(ASFLAGS) -nostartfiles -Wl,-Ttext=0x1000 -Wl,-Tdata=0x0 -Wl,-e0x1000 -o $@ $<; \
+		$(N64_OBJCOPY) -O binary -j .text $@ $$TEXTSECTION.bin; \
+		$(N64_OBJCOPY) -O binary -j .data $@ $$DATASECTION.bin; \
 		$(N64_OBJCOPY) -I binary -O elf32-bigmips -B mips4300 \
-				--redefine-sym _binary_$(subst .,_,$(subst /,_,$(basename $@)))_text_bin_start=$(notdir $(basename $@))_text_start \
-				--redefine-sym _binary_$(subst .,_,$(subst /,_,$(basename $@)))_text_bin_end=$(notdir $(basename $@))_text_end \
-				--redefine-sym _binary_$(subst .,_,$(subst /,_,$(basename $@)))_text_bin_size=$(notdir $(basename $@))_text_size \
+				--redefine-sym _binary_$${SYMPREFIX}_text_bin_start=$${FILENAME}_text_start \
+				--redefine-sym _binary_$${SYMPREFIX}_text_bin_end=$${FILENAME}_text_end \
+				--redefine-sym _binary_$${SYMPREFIX}_text_bin_size=$${FILENAME}_text_size \
 				--set-section-alignment .data=8 \
-				--rename-section .text=.data $(basename $@).text.bin $(basename $@).text.o; \
+				--rename-section .text=.data $$TEXTSECTION.bin $$TEXTSECTION.o; \
 		$(N64_OBJCOPY) -I binary -O elf32-bigmips -B mips4300 \
-				--redefine-sym _binary_$(subst .,_,$(subst /,_,$(basename $@)))_data_bin_start=$(notdir $(basename $@))_data_start \
-				--redefine-sym _binary_$(subst .,_,$(subst /,_,$(basename $@)))_data_bin_end=$(notdir $(basename $@))_data_end \
-				--redefine-sym _binary_$(subst .,_,$(subst /,_,$(basename $@)))_data_bin_size=$(notdir $(basename $@))_data_size \
+				--redefine-sym _binary_$${SYMPREFIX}_data_bin_start=$${FILENAME}_data_start \
+				--redefine-sym _binary_$${SYMPREFIX}_data_bin_end=$${FILENAME}_data_end \
+				--redefine-sym _binary_$${SYMPREFIX}_data_bin_size=$${FILENAME}_data_size \
 				--set-section-alignment .data=8 \
-				--rename-section .text=.data $(basename $@).data.bin $(basename $@).data.o; \
+				--rename-section .text=.data $$DATASECTION.bin $$DATASECTION.o; \
 		$(N64_SIZE) -G $@; \
-		$(N64_LD) -relocatable $(basename $@).text.o $(basename $@).data.o -o $@; \
-		rm $(basename $@).text.bin $(basename $@).data.bin $(basename $@).text.o $(basename $@).data.o; \
+		$(N64_LD) -relocatable $$TEXTSECTION.o $$DATASECTION.o -o $@; \
+		rm $$TEXTSECTION.bin $$DATASECTION.bin $$TEXTSECTION.o $$DATASECTION.o; \
 	else \
 		echo "    [AS] $<"; \
 		$(CC) -c $(ASFLAGS) -o $@ $<; \
@@ -99,10 +117,10 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.c
 	@echo "    [CC] $<"
 	$(CC) -c $(CFLAGS) -o $@ $<
 
-%.elf: $(N64_ROOTDIR)/mips64-elf/lib/libdragon.a $(N64_ROOTDIR)/mips64-elf/lib/libdragonsys.a $(N64_ROOTDIR)/mips64-elf/lib/n64.ld
-	@mkdir -p $(BUILD_DIR)
+%.elf: $(N64_LIBDIR)/libdragon.a $(N64_LIBDIR)/libdragonsys.a $(N64_LIBDIR)/n64.ld
+	@mkdir -p $(dir $@)
 	@echo "    [LD] $@"
-	$(LD) -o $@ $(filter-out $(N64_ROOTDIR)/mips64-elf/lib/n64.ld,$^) $(LDFLAGS) -Map=$(BUILD_DIR)/$(notdir $(basename $@)).map
+	$(LD) -o $@ $(filter-out $(N64_LIBDIR)/n64.ld,$^) $(LDFLAGS) -Map=$(BUILD_DIR)/$(notdir $(basename $@)).map
 	$(N64_SIZE) -G $@
 
 ifneq ($(V),1)

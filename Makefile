@@ -5,7 +5,6 @@ SOURCE_DIR = $(CURDIR)/src
 BUILD_DIR = $(CURDIR)/build
 include n64.mk
 INSTALLDIR = $(N64_INST)
-PREFIX ?= /usr/local
 
 # Activate N64 toolchain for libdragon build
 libdragon: CC=$(N64_CC)
@@ -109,4 +108,3 @@ clobber: clean doxygen-clean examples-clean tools-clean
 
 # Automatic dependency tracking
 -include $(wildcard $(BUILD_DIR)/*.d)
-

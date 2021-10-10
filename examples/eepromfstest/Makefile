@@ -1,35 +1,24 @@
-PROG_NAME = eepromfstest
+all: eepromfstest_4k.z64 eepromfstest_16k.z64
+.PHONY: all
 
-ROOTDIR = $(N64_INST)
-GCCN64PREFIX = $(ROOTDIR)/bin/mips64-elf-
+BUILD_DIR = build
+include $(N64_INST)/include/n64.mk
 
-CC = $(GCCN64PREFIX)gcc
-AS = $(GCCN64PREFIX)as
-LD = $(GCCN64PREFIX)ld
-OBJCOPY = $(GCCN64PREFIX)objcopy
-N64TOOL = $(ROOTDIR)/bin/n64tool
-CHKSUM64 = $(ROOTDIR)/bin/chksum64
+SRC = eepromfstest.c
+OBJS = $(SRC:%.c=$(BUILD_DIR)/%.o)
+DEPS = $(SRC:%.c=$(BUILD_DIR)/%.d)
 
-ASFLAGS = -mtune=vr4300 -march=vr4300
-CFLAGS = -std=gnu99 -march=vr4300 -mtune=vr4300 -O2 -Wall -Werror -I$(ROOTDIR)/mips64-elf/include
-LDFLAGS = -L$(ROOTDIR)/mips64-elf/lib -ldragon -lc -lm -ldragonsys -Tn64.ld --gc-sections
-N64TOOLFLAGS = -l 1M -h $(ROOTDIR)/mips64-elf/lib/header -t "EEPROMFS Test"
+eepromfstest_4k.z64: N64_ROM_TITLE = "EEPROMFS Test 4k"
+eepromfstest_4k.z64: N64_ROM_SAVETYPE = eeprom4k
 
-ifeq ($(N64_BYTE_SWAP),true)
-$(PROG_NAME).v64: $(PROG_NAME).z64
-	dd conv=swab if=$^ of=$@
-endif
+eepromfstest_16k.z64: N64_ROM_TITLE = "EEPROMFS Test 16k"
+eepromfstest_16k.z64: N64_ROM_SAVETYPE = eeprom16k
 
-$(PROG_NAME).z64: $(PROG_NAME).bin
-	$(N64TOOL) $(N64TOOLFLAGS) -o $@ $^
-	$(CHKSUM64) $@
+$(BUILD_DIR)/eepromfstest_4k.elf: $(OBJS)
+$(BUILD_DIR)/eepromfstest_16k.elf: $(OBJS)
 
-$(PROG_NAME).bin: $(PROG_NAME).elf
-	$(OBJCOPY) $< $@ -O binary
-
-$(PROG_NAME).elf: $(PROG_NAME).o
-	$(LD) -o $@ $^ $(LDFLAGS)
-
-.PHONY: clean
 clean:
-	rm -f *.v64 *.z64 *.bin *.elf *.o
+	rm -rf $(BUILD_DIR) *.z64 *.v64
+.PHONY: clean
+
+-include $(DEPS)
