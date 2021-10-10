@@ -27,7 +27,7 @@ void __do_global_ctors()
 {
 	func_ptr * ctor_addr = &__CTOR_END__ - 1;
 	func_ptr * ctor_sentinel = &__CTOR_LIST__;
-	while (ctor_addr > ctor_sentinel) {
+	while (ctor_addr >= ctor_sentinel) {
 		if (*ctor_addr) (*ctor_addr)();
 		ctor_addr--;
 	}

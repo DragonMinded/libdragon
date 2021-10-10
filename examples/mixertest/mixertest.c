@@ -6,7 +6,6 @@
 #define CHANNEL_MUSIC   2
 
 int main(void) {
-	init_interrupts();
 	debug_init_usblog();
 	debug_init_isviewer();
 	controller_init();

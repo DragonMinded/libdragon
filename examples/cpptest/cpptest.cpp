@@ -30,8 +30,6 @@ int main(void)
 {
     TestClass* localClass = new TestClass();
 
-    init_interrupts();
-
     console_init();
 
     console_set_render_mode(RENDER_MANUAL);

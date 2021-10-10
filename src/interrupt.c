@@ -582,7 +582,7 @@ void set_SP_interrupt(int active)
 /**
  * @brief Initialize the interrupt controller
  */
-void init_interrupts()
+__attribute__((constructor)) void __init_interrupts()
 {
     /* Make sure that we aren't initializing interrupts when they are already enabled */
     if( __interrupt_depth < 0 )
@@ -598,6 +598,14 @@ void init_interrupts()
         uint32_t sr = C0_STATUS();
         C0_WRITE_STATUS(sr | C0_STATUS_IE | C0_INTERRUPT_RCP);
     }
+}
+
+/**
+ * @brief Initialize the interrupt controller
+ */
+void init_interrupts()
+{
+    __init_interrupts();
 }
 
 /**
