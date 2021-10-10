@@ -601,14 +601,6 @@ __attribute__((constructor)) void __init_interrupts()
 }
 
 /**
- * @brief Initialize the interrupt controller
- */
-void init_interrupts()
-{
-    __init_interrupts();
-}
-
-/**
  * @brief Disable interrupts systemwide
  *
  * @note If interrupts are already disabled on the system or interrupts have not

@@ -53,8 +53,7 @@ void set_DP_interrupt( int active );
 void set_SI_interrupt( int active );
 void set_SP_interrupt( int active );
 
-__attribute__((deprecated("Calling init_interrupts is no longer required"))) 
-void init_interrupts();
+#define init_interrupts() _Pragma ("GCC warning \"Calling init_interrupts is no longer required\"")
 
 void enable_interrupts();
 void disable_interrupts();

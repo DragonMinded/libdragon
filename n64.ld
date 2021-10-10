@@ -20,8 +20,6 @@
 OUTPUT_FORMAT ("elf32-bigmips", "elf32-bigmips", "elf32-littlemips")
 OUTPUT_ARCH (mips)
 EXTERN (_start)
-EXTERN(__init_interrupts)
-EXTERN(__init_cop1)
 ENTRY (_start)
 
 __kseg0_start = 0x80000000;
