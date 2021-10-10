@@ -26,6 +26,16 @@
  * @{
  */
 
+/**
+ * @brief Indicates whether we are running on a vanilla N64 or a iQue player
+ */
+int __bbplayer = 0;
+
+/** @brief Return true if we are running on a iQue player */
+bool sys_bbplayer(void) {
+    return __bbplayer != 0;
+}
+
 /** 
  * @brief Boot CIC 
  *
@@ -198,6 +208,17 @@ void inst_cache_invalidate_all(void)
  */
 int get_memory_size()
 {
+    if (sys_bbplayer()) {
+        /* On iQue, memory allocated to the game can be decided by the OS.
+           Even if the memory is allocated as 8Mb, the top part handles
+           save states (emulation of EEPROM/Flash/SRAM), so we should avoid
+           writing there anyway. See also entrypoint.S which sets up the
+           stack with the same logic. */
+        int size = (*(int*)0xA0000318);
+        if (size == 0x800000)
+            size = 0x7C0000;
+        return size;
+    } 
     return (__bootcic != 6105) ? (*(int*)0xA0000318) : (*(int*)0xA00003F0);
 }
 
@@ -207,10 +228,13 @@ int get_memory_size()
  * Checks whether the maximum available memory has been expanded to 8MB
  *
  * @return true if expansion pak detected, false otherwise.
+ * 
+ * @note On iQue, this function returns true only if the game has been assigned
+ *       exactly 8MB of RAM.
  */
 bool is_memory_expanded()
 {
-    return get_memory_size() == 0x800000;
+    return get_memory_size() >= 0x7C0000;
 }
 
 /** @brief Memory location to read which determines the TV type. */

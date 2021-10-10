@@ -221,7 +221,7 @@ int main() {
 		return 0;
 	}
 
-	printf("libdragon testsuite\n\n");
+	printf("libdragon testsuite (%s)\n\n", sys_bbplayer() ? "iQue" : "N64");
 	int failures = 0;
 	int successes = 0;
 	int skipped = 0;
@@ -293,7 +293,7 @@ int main() {
 		// happened and we need to double check this.
 		// In general, this benchmarking is extremely hard to get right for
 		// emulators, so don't even attempt it because we would get too many failures.
-		else if (!IN_EMULATOR &&
+		else if (!IN_EMULATOR && !sys_bbplayer() &&
 			!(tests[i].flags & TEST_FLAGS_NO_BENCHMARK) &&
 			((float)test_diff / (float)test_duration > ((tests[i].flags & TEST_FLAGS_IO) ? 0.1f : 0.05f))
 		) {

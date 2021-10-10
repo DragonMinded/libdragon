@@ -17,9 +17,14 @@
  */
 
 /**
+ * @brief Indicates whether we are running on a vanilla N64 or a iQue player
+ */
+extern int __bbplayer;
+
+/**
  * @brief Frequency of the MIPS R4300 CPU
  */
-#define CPU_FREQUENCY    93750000 
+#define CPU_FREQUENCY    (__bbplayer ? 140625000 : 93750000)
 
 
 /**
@@ -142,6 +147,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+bool sys_bbplayer(void);
 
 int sys_get_boot_cic();
 void sys_set_boot_cic(int bc);
