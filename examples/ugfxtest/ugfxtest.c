@@ -120,13 +120,13 @@ int main(void)
             /* Set general settings */
             ugfx_set_scissor(0, 0, display_width << 2, display_height << 2, UGFX_SCISSOR_DEFAULT),
             ugfx_load_viewport(0, &viewport),
-            ugfx_set_z_image(depth_buffer),
+            ugfx_set_z_image(0, depth_buffer),
 
             /* Prepare for buffer clearing */
             ugfx_set_other_modes(UGFX_CYCLE_FILL),
 
             /* Clear depth buffer */
-            ugfx_set_color_image(depth_buffer, UGFX_FORMAT_RGBA, UGFX_PIXEL_SIZE_16B, display_width - 1),
+            ugfx_set_color_image(0, depth_buffer, UGFX_FORMAT_RGBA, UGFX_PIXEL_SIZE_16B, display_width - 1),
             ugfx_set_fill_color(PACK_ZDZx2(0xFFFF, 0)),
             ugfx_fill_rectangle(0, 0, display_width << 2, display_height << 2),
 
@@ -159,7 +159,7 @@ int main(void)
             ugfx_set_clip_ratio(2),
 
             /* Point RDP towards texture data and set tile settings */
-            ugfx_set_texture_image(sprite->data, UGFX_FORMAT_RGBA, UGFX_PIXEL_SIZE_32B, sprite->width - 1),
+            ugfx_set_texture_image(0, sprite->data, UGFX_FORMAT_RGBA, UGFX_PIXEL_SIZE_32B, sprite->width - 1),
             ugfx_set_tile(UGFX_FORMAT_RGBA, UGFX_PIXEL_SIZE_32B, (2 * sprite->width) >> 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
             ugfx_load_tile(0 << 2, 0 << 2, (sprite->width - 1) << 2, (sprite->height - 1) << 2, 0),
             

@@ -391,22 +391,25 @@
     __ugfx_mask_shift((sub_b_a1), 0x7, 3) | \
     __ugfx_mask_shift((add_a1), 0x7, 0))
 
-#define ugfx_set_texture_image(dram_addr, format, size, width) ( \
+#define ugfx_set_texture_image(slot, dram_addr, format, size, width) ( \
     __ugfx_opcode(UGFX_OP_SET_TEXTURE_IMAGE) | \
     __ugfx_mask_shift((format), 0x7, 53) | \
     __ugfx_mask_shift((size), 0x3, 51) | \
     __ugfx_mask_shift((width), 0x1FFFF, 32) | \
+    __ugfx_mask_shift((slot), 0xF, 28) | \
     __ugfx_mask_shift((uintptr_t)(dram_addr), 0x1FFFFFF, 0))
 
-#define ugfx_set_z_image(dram_addr) ( \
+#define ugfx_set_z_image(slot, dram_addr) ( \
     __ugfx_opcode(UGFX_OP_SET_Z_IMAGE) | \
+    __ugfx_mask_shift((slot), 0xF, 28) | \
     __ugfx_mask_shift((uintptr_t)(dram_addr), 0x1FFFFFF, 0))
 
-#define ugfx_set_color_image(dram_addr, format, size, width) ( \
+#define ugfx_set_color_image(slot, dram_addr, format, size, width) ( \
     __ugfx_opcode(UGFX_OP_SET_COLOR_IMAGE) | \
     __ugfx_mask_shift((format), 0x7, 53) | \
     __ugfx_mask_shift((size), 0x3, 51) | \
     __ugfx_mask_shift((width), 0x3FF, 32) | \
+    __ugfx_mask_shift((slot), 0xF, 28) | \
     __ugfx_mask_shift((uintptr_t)(dram_addr), 0x1FFFFFF, 0))
 
 #define ugfx_finalize() __ugfx_opcode(UGFX_OP_FINALIZE)

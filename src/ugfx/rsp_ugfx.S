@@ -304,6 +304,7 @@ wait_until_dp_ready:
 #include "dma.S"
 #include "input.S"
 #include "output.S"
+#include "address_slot.S"
 
 main_loop_advance_input:
   addiu INPUT_POINTER, INPUT_POINTER, 0x4
@@ -354,6 +355,25 @@ copy_to_output:
   addiu ra, $0, copy_to_output
 
 submit:
+  srl tmp, COMMAND_WORD, 24
+
+  # Test if the command is one of 'set_texture_image', 'set_z_image' or 'set_color_image'.
+  # (0x3D, 0x3E and 0x3F)
+  addi tmp, tmp, -0x3D
+  bltz tmp, no_address_patch
+
+  # If so, use an address slot to patch the command.
+  lw address_decode_input, 0x4(out_ptr)
+  jal address_slot_decode
+  nop
+
+  lw tmp, %lo(address_slots)(address_slot)
+  add tmp, tmp, dma_dram_addr
+
+  # Write back the patched command
+  sw tmp, 0x4(out_ptr)
+
+no_address_patch:
   j output_close
   addiu ra, $0, main_loop
 
@@ -362,7 +382,6 @@ submit:
   #undef out_size
   #undef out_ptr
 
-#include "address_slot.S"
 #include "matrix_mult.S"
 #include "newton_raphson.S"
 #include "vtx_to_scr.S"

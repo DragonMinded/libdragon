@@ -144,7 +144,7 @@ ugfx_command_t ugfx_set_display(display_context_t disp)
 
     int32_t pixel_size = ugfx_pixel_size_from_bitdepth(display_get_bitdepth());
 
-    return ugfx_set_color_image(display_get_buffer(disp - 1), UGFX_FORMAT_RGBA, pixel_size, display_get_width() - 1);
+    return ugfx_set_color_image(0, display_get_buffer(disp - 1), UGFX_FORMAT_RGBA, pixel_size, display_get_width() - 1);
 }
 
 void ugfx_viewport_init(ugfx_viewport_t *viewport, int16_t left, int16_t top, int16_t right, int16_t bottom)
