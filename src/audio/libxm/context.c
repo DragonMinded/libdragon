@@ -109,6 +109,7 @@ int xm_create_context_safe(xm_context_t** ctxp, const char* moddata, size_t modd
 
 void xm_context_save(xm_context_t* ctx, FILE* out) {
 
+	#undef _W64 // defined by mingw
 	#define _CHKSZ(x,n) _Static_assert(sizeof(x) == n, "invalid type size");
 	#define _W8(x)     ({ putc((x)&0xFF, out); })
 	#define _W16(x)    ({ _W8 ((x)>>8);  _W8 (x); })
