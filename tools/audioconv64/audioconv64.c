@@ -74,6 +74,14 @@ void usage(void) {
 	printf("\n");
 }
 
+char* changeext(char* fn, char *ext) {
+	char buf[4096];
+	strcpy(buf, fn);
+	*strrchr(buf, '.') = '\0';
+	strcat(buf, ext);
+	return strdup(buf);
+}
+
 void convert(char *infn, char *outfn1) {
 	char *ext = strrchr(infn, '.');
 	if (!ext) {
@@ -81,16 +89,13 @@ void convert(char *infn, char *outfn1) {
 		return;
 	}
 
-	char *infn_basename = strrchr(infn, '/');
-	if (!infn_basename) infn_basename = infn;
-
-	char *outfn;
 	if (strcmp(ext, ".wav") == 0 || strcmp(ext, ".WAV") == 0) {
-		asprintf(&outfn, "%s/%s64", outfn1, infn_basename);
+		char *outfn = changeext(outfn1, ".wav64");
 		wav_convert(infn, outfn);
 		free(outfn);
 	} else if (strcmp(ext, ".xm") == 0 || strcmp(ext, ".XM") == 0) {
-		asprintf(&outfn, "%s/%s64", outfn1, infn_basename);
+		char *outfn = changeext(outfn1, ".xm64");
+		printf("convert: %s %s %s\n", infn, outfn1, outfn);
 		xm_convert(infn, outfn);
 		free(outfn);
 	} else {
@@ -112,6 +117,16 @@ bool isdir(const char *path) {
 
 void walkdir(char *inpath, char *outpath, void (*func)(char *, char*)) {
 	if (isdir(inpath)) {
+		// We're walking a directory. Make sure there's also a matching
+		// output directory or create it otherwise.
+		if (!isdir(outpath)) {
+			// If there's an obstructing file, exit with an error.
+			if (isfile(outpath)) {				
+				fprintf(stderr, "ERROR: %s is a file but should be a directory\n", outpath);
+				return;
+			}
+			mkdir(outpath, 0777);
+		}
 		DIR* d = opendir(inpath);
 		struct dirent *de;
 		while ((de = readdir(d))) {
@@ -126,12 +141,23 @@ void walkdir(char *inpath, char *outpath, void (*func)(char *, char*)) {
 		}
 		closedir(d);
 	} else if (isfile(inpath)) {
-		func(inpath, outpath);
+		if (isdir(outpath)) {
+			// We support the format "audioconv64 -o <dir> <file>" as special case
+			char *outpathsub;
+			char *basename = strrchr(inpath, '/');
+			if (!basename) basename = inpath;
+			asprintf(&outpathsub, "%s/%s", outpath, basename);
+
+			func(inpath, outpathsub);
+
+			free(outpathsub);
+		} else {
+			func(inpath, outpath);
+		}
 	} else {
 		fprintf(stderr, "WARNING: ignoring special file: %s\n", inpath);
 	}
 }
-
 int main(int argc, char *argv[]) {
 	if (argc < 2) {
 		usage();
