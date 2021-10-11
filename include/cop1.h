@@ -34,7 +34,7 @@
 #define C1_CAUSE_INVALID_OP         0x00010000
 #define C1_CAUSE_NOT_IMPLEMENTED    0x00020000
 
-#define C1_FS_BIT                   (1<<24)
+#define C1_FCR31_FS                 (1<<24)
 
 /** @brief Read the COP1 FCR31 register (floating-point control register 31)
  *
