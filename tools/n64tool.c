@@ -24,7 +24,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef __MINGW32__
 #include <sys/errno.h>
+#endif
 
 #define WRITE_SIZE   (1024 * 1024)
 #define HEADER_SIZE  0x1000

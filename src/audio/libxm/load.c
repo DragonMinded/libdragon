@@ -152,6 +152,16 @@ void xm_get_memory_needed_for_context(const char* moddata, size_t moddata_length
 
 	memory_needed += num_channels * sizeof(xm_channel_context_t);
 	memory_needed += sizeof(xm_context_t);
+	#if _WIN32
+	// Unfortunately, not all XM structures have fixed size across different
+	// platforms, because of different padding. The loading/saving code is
+	// fully architecture independent, but estimating the memory to allocate
+	// it's not. Normally, we compile libdragon only on 64-bit platforms which
+	// behave similar enough, with the only exception being the tools like
+	// audioconv64 compiled with MinGW32. In that case, just declare a little
+	// bit of memory more so that it will be enough on N64.
+	memory_needed += 256;
+	#endif
 
 	*mem_ctx = memory_needed;
 	*mem_patterns = memory_patterns;
