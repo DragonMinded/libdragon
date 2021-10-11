@@ -258,7 +258,7 @@ void wait_ms( unsigned long wait_ms )
  */
 __attribute__((constructor)) void __init_cop1()
 {
-    /* Read initalized value from cop1 control register */
+    /* Read initialized value from cop1 control register */
     uint32_t fcr31 = C1_FCR31();
     
     /* Set FS bit to allow flashing of denormalized floats
