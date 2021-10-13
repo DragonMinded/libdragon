@@ -388,6 +388,7 @@ void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_
 	assert(max_bits == 0 || max_bits == 8 || max_bits == 16);
 	assert(max_frequency >= 0);
 	assert(max_buf_sz >= 0 && max_buf_sz % 8 == 0);
+	tracef("mixer_ch_set_limits: ch=%d bits=%d maxfreq:%.2f bufsz:%d\n", ch, max_bits, max_frequency, max_buf_sz);
 
 	Mixer.limits[ch] = (channel_limit_t){
 		.max_bits = max_bits,

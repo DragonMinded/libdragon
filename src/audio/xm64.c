@@ -154,9 +154,17 @@ void xm64player_play(xm64player_t *player, int first_ch) {
 
 	if (!player->playing) {
 		// XM64 header contains the optimal size for sample buffers on each
-		// channel, to minimize memory consumption. 
-		for (int i=0; i<player->ctx->module.num_channels; i++)
-			mixer_ch_set_limits(first_ch+i, 0, 0, player->ctx->ctx_size_stream_sample_buf[i]);
+		// channel, to minimize memory consumption. To configure it, bump
+		// the frequency of each channel to an unreasonably high value (we don't
+		// know how much we need, so shoot high), but then limit the buffer size
+		// to the optimal value.
+		for (int i=0; i<player->ctx->module.num_channels; i++) {
+			// If the value is 0, the channel is not used. We don't have a way
+			// to convey this (0 would be interpreted as "no limit"), so just
+			// avoid calling the limit function altogether.
+			if (player->ctx->ctx_size_stream_sample_buf[i] != 0)
+				mixer_ch_set_limits(first_ch+i, 0, 1e9, player->ctx->ctx_size_stream_sample_buf[i]);
+		}
 
 		mixer_add_event(0, tick, player);
 		player->first_ch = first_ch;
