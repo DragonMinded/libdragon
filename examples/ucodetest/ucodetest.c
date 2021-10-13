@@ -16,9 +16,6 @@ static void sp_handler() {
 
 int main(void)
 {
-    /* enable interrupts (on the CPU) */
-    init_interrupts();
-
     /* Initialize peripherals */
     console_init();
     console_set_render_mode(RENDER_MANUAL);

@@ -167,6 +167,7 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 #include "test_exception.c"
 #include "test_debug.c"
 #include "test_dma.c"
+#include "test_cop1.c"
 
 /**********************************************************************
  * MAIN
@@ -203,11 +204,10 @@ static const struct Testsuite
 	TEST_FUNC(test_cache_invalidate,    	1763, TEST_FLAGS_NONE),
 	TEST_FUNC(test_debug_sdfs,             	   0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dma_read_misalign,       7003, TEST_FLAGS_NONE),
+	TEST_FUNC(test_cop1_denormalized_float,    0, TEST_FLAGS_NO_EMULATOR),
 };
 
 int main() {
-	init_interrupts();
-
 	display_init(RESOLUTION_320x240, DEPTH_32_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE);
 	console_init();
 	console_set_debug(false);
@@ -293,7 +293,7 @@ int main() {
 		// emulators, so don't even attempt it because we would get too many failures.
 		else if (!IN_EMULATOR &&
 			!(tests[i].flags & TEST_FLAGS_NO_BENCHMARK) &&
-			((float)test_diff / (float)test_duration > ((tests[i].flags & TEST_FLAGS_IO) ? 0.1 : 0.05))
+			((float)test_diff / (float)test_duration > ((tests[i].flags & TEST_FLAGS_IO) ? 0.1f : 0.05f))
 		) {
 			failures++;
 			printf("FAIL\n\n");

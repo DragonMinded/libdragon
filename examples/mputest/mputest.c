@@ -6,9 +6,6 @@
 
 int main(void)
 {
-    /* enable interrupts (on the CPU) */
-    init_interrupts();
-
     /* Initialize peripherals */
     console_init();
     controller_init();

@@ -53,7 +53,8 @@ void set_DP_interrupt( int active );
 void set_SI_interrupt( int active );
 void set_SP_interrupt( int active );
 
-void init_interrupts();
+static inline __attribute__((deprecated("calling init_interrupts no longer required")))
+void init_interrupts() {}
 
 void enable_interrupts();
 void disable_interrupts();

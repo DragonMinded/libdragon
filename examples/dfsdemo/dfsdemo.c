@@ -216,9 +216,6 @@ void display_dir(direntry_t *list, int cursor, int page, int max, int count)
 
 int main(void)
 {
-    /* enable interrupts (on the CPU) */
-    init_interrupts();
-
     /* Initialize audio and video */
     audio_init(44100,2);
     console_init();
