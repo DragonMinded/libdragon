@@ -147,13 +147,11 @@ static void mixer_init_samplebuffers(void) {
 	int bufsize[MIXER_MAX_CHANNELS];
 
 	for (int i=0;i<Mixer.num_channels;i++) {
-		// Get maximum frequency for this channel: (default: mixer sample rate)
+		// Get maximum frequency for this channel
 		int nsamples = Mixer.limits[i].max_frequency;
-		if (!nsamples)
-			nsamples = Mixer.sample_rate;
 
 		// Multiple by maximum byte per sample
-		nsamples *= Mixer.limits[i].max_bits == 8 ? 1 : 2;
+		nsamples *= Mixer.limits[i].max_bits / 8;
 
 		// Calculate buffer size according to number of expected polls per second.
 		bufsize[i] = ROUND_UP((int)ceilf((float)nsamples / (float)MIXER_POLL_PER_SECOND), 8);
@@ -198,6 +196,9 @@ void mixer_close(void) {
 
 void mixer_ch_set_freq(int ch, float frequency) {
 	mixer_channel_t *c = &Mixer.channels[ch];
+	assertf(frequency <= Mixer.limits[ch].max_frequency,
+		"mixer_ch_set_freq: frequency %.2f is higher than allowed (%.2f).\nUse mixer_ch_set_limits to bump the limit",
+		frequency, Mixer.limits[ch].max_frequency);
 	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_set_freq: cannot call on secondary stereo channel %d", ch);
 	c->step = MIXER_FX64(frequency / (float)Mixer.sample_rate) << (c->flags & CH_FLAGS_BPS_SHIFT);
 }
@@ -391,8 +392,8 @@ void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_
 	tracef("mixer_ch_set_limits: ch=%d bits=%d maxfreq:%.2f bufsz:%d\n", ch, max_bits, max_frequency, max_buf_sz);
 
 	Mixer.limits[ch] = (channel_limit_t){
-		.max_bits = max_bits,
-		.max_frequency = max_frequency,
+		.max_bits = max_bits ? max_bits : 16,
+		.max_frequency = max_frequency ? max_frequency : Mixer.sample_rate,
 		.max_buf_sz = max_buf_sz,
 	};
 
