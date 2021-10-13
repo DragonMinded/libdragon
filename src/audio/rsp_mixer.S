@@ -941,14 +941,14 @@ SetupMixer:
 	lqv v_chvol_r_3,0,     1*MAX_CHANNELS_VOFF+0x30,s0
 
 	# Apply global volume to obtain the final volume for each channel
-	vmudl v_chvol_l_0, v_chvol_l_0, v_glvol,e(v)
-	vmudl v_chvol_r_0, v_chvol_r_0, v_glvol,e(v)
-	vmudl v_chvol_l_1, v_chvol_l_1, v_glvol,e(v)
-	vmudl v_chvol_r_1, v_chvol_r_1, v_glvol,e(v)
-	vmudl v_chvol_l_2, v_chvol_l_2, v_glvol,e(v)
-	vmudl v_chvol_r_2, v_chvol_r_2, v_glvol,e(v)
-	vmudl v_chvol_l_3, v_chvol_l_3, v_glvol,e(v)
-	vmudl v_chvol_r_3, v_chvol_r_3, v_glvol,e(v)
+	vmudl v_chvol_l_0, v_chvol_l_0, v_glvol
+	vmudl v_chvol_r_0, v_chvol_r_0, v_glvol
+	vmudl v_chvol_l_1, v_chvol_l_1, v_glvol
+	vmudl v_chvol_r_1, v_chvol_r_1, v_glvol
+	vmudl v_chvol_l_2, v_chvol_l_2, v_glvol
+	vmudl v_chvol_r_2, v_chvol_r_2, v_glvol
+	vmudl v_chvol_l_3, v_chvol_l_3, v_glvol
+	vmudl v_chvol_r_3, v_chvol_r_3, v_glvol
 
 #if VOLUME_FILTER
 	# Load actual volumes levels
@@ -962,15 +962,15 @@ SetupMixer:
 	lqv v_xvol_r_2,0,      1*MAX_CHANNELS_VOFF+0x20,s1
 	lqv v_xvol_r_3,0,      1*MAX_CHANNELS_VOFF+0x30,s1
 #else
-	vor v_xvol_l_0, v_chvol_l_0, v_zero,e(v)
-	vor v_xvol_l_1, v_chvol_l_1, v_zero,e(v)
-	vor v_xvol_l_2, v_chvol_l_2, v_zero,e(v)
-	vor v_xvol_l_3, v_chvol_l_3, v_zero,e(v)
+	vor v_xvol_l_0, v_chvol_l_0, v_zero
+	vor v_xvol_l_1, v_chvol_l_1, v_zero
+	vor v_xvol_l_2, v_chvol_l_2, v_zero
+	vor v_xvol_l_3, v_chvol_l_3, v_zero
 
-	vor v_xvol_r_0, v_chvol_r_0, v_zero,e(v)
-	vor v_xvol_r_1, v_chvol_r_1, v_zero,e(v)
-	vor v_xvol_r_2, v_chvol_r_2, v_zero,e(v)
-	vor v_xvol_r_3, v_chvol_r_3, v_zero,e(v)
+	vor v_xvol_r_0, v_chvol_r_0, v_zero
+	vor v_xvol_r_1, v_chvol_r_1, v_zero
+	vor v_xvol_r_2, v_chvol_r_2, v_zero
+	vor v_xvol_r_3, v_chvol_r_3, v_zero
 #endif
 
 	jr ra
@@ -1050,15 +1050,15 @@ Mix32Start:
 Mix32Loop:
 	# Apply volume/panning to each channel sample.
 	# left channel:
-	vmulf v_mix_l, v_sample_0, v_xvol_l_0,e(v);
-	vmacf v_mix_l, v_sample_1, v_xvol_l_1,e(v);        # Store previous loop's output
-	vmacf v_mix_l, v_sample_2, v_xvol_l_2,e(v);        ssv v_out_l,0, -4,s4
-	vmacf v_mix_l, v_sample_3, v_xvol_l_3,e(v);        ssv v_out_r,0, -2,s4
+	vmulf v_mix_l, v_sample_0, v_xvol_l_0;
+	vmacf v_mix_l, v_sample_1, v_xvol_l_1;             # Store previous loop's output
+	vmacf v_mix_l, v_sample_2, v_xvol_l_2;             ssv v_out_l,0, -4,s4
+	vmacf v_mix_l, v_sample_3, v_xvol_l_3;             ssv v_out_r,0, -2,s4
 	# right channel:                                   # Updated counters
-	vmulf v_mix_r, v_sample_0, v_xvol_r_0,e(v);        add s0, 32*2
-	vmacf v_mix_r, v_sample_1, v_xvol_r_1,e(v);        addi t0, -1
-	vmacf v_mix_r, v_sample_2, v_xvol_r_2,e(v);        addi s4, 4
-	vmacf v_mix_r, v_sample_3, v_xvol_r_3,e(v);
+	vmulf v_mix_r, v_sample_0, v_xvol_r_0;             add s0, 32*2
+	vmacf v_mix_r, v_sample_1, v_xvol_r_1;             addi t0, -1
+	vmacf v_mix_r, v_sample_2, v_xvol_r_2;             addi s4, 4
+	vmacf v_mix_r, v_sample_3, v_xvol_r_3;
 
 	# Mix all lanes together into the first lane       # Load next loop's samples
 	vaddc v_out_l, v_mix_l, v_mix_l,e(1q);             lqv v_sample_0,0, 0x00,s0
@@ -1117,8 +1117,8 @@ Mix8Start:
 	############################################################################
 	.align 3
 Mix8Loop:
-	vmulf v_mix_l, v_sample_0, v_xvol_l_0,e(v);        ssv v_out_l,0, -4,s4
-	vmulf v_mix_r, v_sample_0, v_xvol_r_0,e(v);        ssv v_out_r,0, -2,s4
+	vmulf v_mix_l, v_sample_0, v_xvol_l_0;             ssv v_out_l,0, -4,s4
+	vmulf v_mix_r, v_sample_0, v_xvol_r_0;             ssv v_out_r,0, -2,s4
 	  # pipeline stall
 	vaddc v_out_l, v_mix_l, v_mix_l,e(1q);             addi t0, -1
 	vaddc v_out_r, v_mix_r, v_mix_r,e(1q);             add s0, 32*2
