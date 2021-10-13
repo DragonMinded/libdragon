@@ -70,7 +70,7 @@ int main(void) {
 			music_frequency /= 1.1;
 			mixer_ch_set_freq(CHANNEL_MUSIC, music_frequency);
 		}
-		if (music && music_frequency <= 128000 && ckeys.c[0].R) {
+		if (music && music_frequency*1.1 <= 128000 && ckeys.c[0].R) {
 			music_frequency *= 1.1;
 			mixer_ch_set_freq(CHANNEL_MUSIC, music_frequency);
 		}
