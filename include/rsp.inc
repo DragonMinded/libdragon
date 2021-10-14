@@ -254,58 +254,66 @@ makeNotImplemented tnei
 .endm
 
 .macro makeOpInstruction name, opcode
-    .macro \name vd, vs, vt, element
+    .macro \name vd, vs, vt, element=0
         .ifgt (\element >> 4)
             .error "Invalid element"
+            .exitm
+        .endif
+
+        vectorOp \opcode, \vd, \vs, \vt, \element
+    .endm
+.endm
+
+.macro makeLsInstruction mode, name, opcode, size, rangemin, rangemax
+    .macro \name vt, element, offset, base
+        .ifgt (\element >> 4)
+            .error "Invalid element"
+            .exitm
+        .endif
+
+        .ifne ((\offset) % \size)
+            .error "Invalid offset - must be multiple of \size"
+            .exitm
+        .endif
+
+        .ifge (\offset)
+            .ifgt ((\offset) - \rangemax)
+                .error "Invalid offset - valid range: [\rangemin, \rangemax]"
+                .exitm
+            .endif
+
+            \mode\()Vector \opcode, \vt, \element, ((\offset) / \size), \base
         .else
-            vectorOp \opcode, \vd, \vs, \vt, \element
+            .iflt ((\offset) - \rangemin)
+                .error "Invalid offset - valid range: [\rangemin, \rangemax]"
+                .exitm
+            .endif
+
+            \mode\()Vector \opcode, \vt, \element, (128 + ((\offset) / \size)), \base
         .endif
     .endm
 .endm
 
-.macro makeLoadInstruction name, opcode
-    .macro \name vt, element, offset, base
-        .ifgt (\element >> 4)
-            .error "Invalid element"
-        .else
-            .ifge (\offset)
-                .ifgt (\offset - 63)
-                    .error "Invalid offset - valid range: [-64, 63]"
-                .else
-                    loadVector \opcode, \vt, \element, \offset, \base
-                .endif
-            .else
-                .iflt (\offset + 64)
-                    .error "Invalid offset - valid range: [-64, 63]"
-                .else
-                    loadVector \opcode, \vt, \element, (128 + \offset), \base
-                .endif
-            .endif
-        .endif
-    .endm
+.macro makeLsInstructionQuad mode, name, opcode
+    makeLsInstruction \mode, \name, \opcode, 16, -1024, 1008
 .endm
 
-.macro makeStoreInstruction name, opcode
-    .macro \name vt, element, offset, base
-        .ifgt (\element >> 4)
-            .error "Invalid element"
-        .else
-            .ifge (\offset)
-                .ifgt (\offset - 63)
-                    .error "Invalid offset - valid range: [-64, 63]"
-                .else
-                    storeVector \opcode, \vt, \element, \offset, \base
-                .endif
-            .else
-                .iflt (\offset + 64)
-                    .error "Invalid offset - valid range: [-64, 63]"
-                .else
-                    storeVector \opcode, \vt, \element, (128 + \offset), \base
-                .endif
-            .endif
-        .endif
-    .endm
+.macro makeLsInstructionDouble mode, name, opcode
+    makeLsInstruction \mode, \name, \opcode, 8, -512, 504
 .endm
+
+.macro makeLsInstructionLong mode, name, opcode
+    makeLsInstruction \mode, \name, \opcode, 4, -256, 252
+.endm
+
+.macro makeLsInstructionShort mode, name, opcode
+    makeLsInstruction \mode, \name, \opcode, 2, -128, 126
+.endm
+
+.macro makeLsInstructionByte mode, name, opcode
+    makeLsInstruction \mode, \name, \opcode, 1, -64, 63
+.endm
+
 
 /** @brief Vector Absolute Value of Short Elements */
 makeOpInstruction vabs, 0b010011
@@ -397,52 +405,52 @@ makeOpInstruction vsubc, 0b010101
 makeOpInstruction vxor, 0b101100
 
 /** @brief Load Byte into Vector Register */
-makeLoadInstruction lbv, 0b00000
+makeLsInstructionByte load, lbv, 0b00000
 /** @brief Load Double into Vector Register */
-makeLoadInstruction ldv, 0b00011
+makeLsInstructionDouble load, ldv, 0b00011
 /** @brief Load Packed Fourth into Vector Register */
-makeLoadInstruction lfv, 0b01001
+makeLsInstructionQuad load, lfv, 0b01001
 /** @brief Load Packed Half into Vector Register */
-makeLoadInstruction lhv, 0b01000
+makeLsInstructionQuad load, lhv, 0b01000
 /** @brief Load Long into Vector Register */
-makeLoadInstruction llv, 0b00010
+makeLsInstructionLong load, llv, 0b00010
 /** @brief Load Packed Bytes into Vector Register */
-makeLoadInstruction lpv, 0b00110
+makeLsInstructionDouble load, lpv, 0b00110
 /** @brief Load Quad into Vector Register */
-makeLoadInstruction lqv, 0b00100
+makeLsInstructionQuad load, lqv, 0b00100
 /** @brief Load Quad (Rest) into Vector Register */
-makeLoadInstruction lrv, 0b00101
+makeLsInstructionQuad load, lrv, 0b00101
 /** @brief Load Short into Vector Register */
-makeLoadInstruction lsv, 0b00001
+makeLsInstructionShort load, lsv, 0b00001
 /** @brief Load Transpose into Vector Register */
-makeLoadInstruction ltv, 0b01011
+makeLsInstructionQuad load, ltv, 0b01011
 /** @brief Load Unsigned Packed into Vector Register */
-makeLoadInstruction luv, 0b00111
+makeLsInstructionDouble load, luv, 0b00111
 
 /** @brief Store Byte from Vector Register */
-makeStoreInstruction sbv, 0b00000
+makeLsInstructionByte store, sbv, 0b00000
 /** @brief Store Double from Vector Register */
-makeStoreInstruction sdv, 0b00011
+makeLsInstructionDouble store, sdv, 0b00011
 /** @brief Store Packed Fourth from Vector Register */
-makeStoreInstruction sfv, 0b01001
+makeLsInstructionQuad store, sfv, 0b01001
 /** @brief Store Packed Half from Vector Register */
-makeStoreInstruction shv, 0b01000
+makeLsInstructionQuad store, shv, 0b01000
 /** @brief Store Long from Vector Register */
-makeStoreInstruction slv, 0b00010
+makeLsInstructionLong store, slv, 0b00010
 /** @brief Store Packed Bytes from Vector Register */
-makeStoreInstruction spv, 0b00110
+makeLsInstructionDouble store, spv, 0b00110
 /** @brief Store Quad from Vector Register */
-makeStoreInstruction sqv, 0b00100
+makeLsInstructionQuad store, sqv, 0b00100
 /** @brief Store Quad (Rest) from Vector Register */
-makeStoreInstruction srv, 0b00101
+makeLsInstructionQuad store, srv, 0b00101
 /** @brief Store Short from Vector Register */
-makeStoreInstruction ssv, 0b00001
+makeLsInstructionShort store, ssv, 0b00001
 /** @brief Store Transpose from Vector Register */
-makeStoreInstruction stv, 0b01011
+makeLsInstructionQuad store, stv, 0b01011
 /** @brief Store Unsigned Packed from Vector Register */
-makeStoreInstruction suv, 0b00111
+makeLsInstructionDouble store, suv, 0b00111
 /** @brief Store Wrapped vector from Vector Register */
-makeStoreInstruction swv, 0b00111
+makeLsInstructionQuad store, swv, 0b00111
 
 .macro mtc2 reg, vreg, element
     hexRegisters
@@ -456,6 +464,28 @@ makeStoreInstruction swv, 0b00111
     .long (0x12 << 26 | 0x0 << 21 | \vreg << 11 | hex.\reg << 16 | \element << 7)
 .endm
 
+# Vector element macros
+#define VE_v  0
+#define VE_0q 2
+#define VE_1q 3
+#define VE_0h 4
+#define VE_1h 5
+#define VE_2h 6
+#define VE_3h 7
+#define VE_0  8
+#define VE_1  9
+#define VE_2  10
+#define VE_3  11
+#define VE_4  12
+#define VE_5  13
+#define VE_6  14
+#define VE_7  15
+
+# Instead of using the constants above, it is possible to use the syntax 'e(x)'
+# via the following macros.
+#define _PPCAT2(n,x) n ## x
+#define _PPCAT(n,x) _PPCAT2(n,x)
+#define e(xx) _PPCAT(VE_, xx)
 
 ##################################################
 # Vector shift pseudo-opcodes
@@ -486,21 +516,21 @@ makeStoreInstruction swv, 0b00111
 
         .macro vsll vdstreg, vsrcreg, qty
             .if (\qty == 7)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg,8
+                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(0)
             .elseif (\qty == 6)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg,9
+                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(1)
             .elseif (\qty == 5)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg,10
+                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(2)
             .elseif (\qty == 4)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg,11
+                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(3)
             .elseif (\qty == 3)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg,12
+                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(4)
             .elseif (\qty == 2)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg,13
+                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(5)
             .elseif (\qty == 1)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg,14
+                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(6)
             .elseif (\qty == 0)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg,15
+                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(7)
             .elseif (\qty >= 8 && \qty <= 15)
                 .error "Use vsll8 for quantities in range 8-15"
             .else
@@ -510,19 +540,19 @@ makeStoreInstruction swv, 0b00111
 
         .macro vsrl8 vdstreg, vsrcreg, qty
             .if (\qty == 9)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg,8
+                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(0)
             .elseif (\qty == 10)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg,9
+                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(1)
             .elseif (\qty == 11)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg,10
+                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(2)
             .elseif (\qty == 12)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg,11
+                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(3)
             .elseif (\qty == 13)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg,12
+                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(4)
             .elseif (\qty == 14)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg,13
+                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(5)
             .elseif (\qty == 15)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg,14
+                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(6)
             .elseif (\qty >= 1 && \qty <= 8)
                 .error "Use vsrl for quantities in range 1-8"
             .else
@@ -532,19 +562,19 @@ makeStoreInstruction swv, 0b00111
 
         .macro vsra8 vdstreg, vsrcreg, qty
             .if (\qty == 9)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg,8
+                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(0)
             .elseif (\qty == 10)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg,9
+                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(1)
             .elseif (\qty == 11)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg,10
+                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(2)
             .elseif (\qty == 12)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg,11
+                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(3)
             .elseif (\qty == 13)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg,12
+                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(4)
             .elseif (\qty == 14)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg,13
+                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(5)
             .elseif (\qty == 15)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg,14
+                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(6)
             .elseif (\qty >= 1 && \qty <= 8)
                 .error "Use vsra for quantities in range 1-8"
             .else
@@ -567,21 +597,21 @@ makeStoreInstruction swv, 0b00111
 
         .macro vsll8 vdstreg, vsrcreg, qty
             .if (\qty == 15)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg,8
+                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(0)
             .elseif (\qty == 14)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg,9
+                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(1)
             .elseif (\qty == 13)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg,10
+                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(2)
             .elseif (\qty == 12)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg,11
+                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(3)
             .elseif (\qty == 11)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg,12
+                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(4)
             .elseif (\qty == 10)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg,13
+                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(5)
             .elseif (\qty == 9)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg,14
+                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(6)
             .elseif (\qty == 8)
-                vmudn \vdstreg, \vsrcreg, \vshiftreg,15
+                vmudn \vdstreg, \vsrcreg, \vshiftreg, e(7)
             .elseif (\qty >= 0 && \qty <= 7)
                 .error "Use vsll for quantities in range 0-7"
             .else
@@ -591,21 +621,21 @@ makeStoreInstruction swv, 0b00111
 
         .macro vsrl vdstreg, vsrcreg, qty
             .if (\qty == 1)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg,8
+                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(0)
             .elseif (\qty == 2)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg,9
+                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(1)
             .elseif (\qty == 3)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg,10
+                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(2)
             .elseif (\qty == 4)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg,11
+                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(3)
             .elseif (\qty == 5)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg,12
+                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(4)
             .elseif (\qty == 6)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg,13
+                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(5)
             .elseif (\qty == 7)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg,14
+                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(6)
             .elseif (\qty == 8)
-                vmudl \vdstreg, \vsrcreg, \vshiftreg,15
+                vmudl \vdstreg, \vsrcreg, \vshiftreg, e(7)
             .elseif (\qty >= 9 && \qty <= 15)
                 .error "Use vsrl8 for quantities in range 9-15"
             .else
@@ -615,21 +645,21 @@ makeStoreInstruction swv, 0b00111
 
         .macro vsra vdstreg, vsrcreg, qty
             .if (\qty == 1)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg,8
+                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(0)
             .elseif (\qty == 2)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg,9
+                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(1)
             .elseif (\qty == 3)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg,10
+                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(2)
             .elseif (\qty == 4)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg,11
+                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(3)
             .elseif (\qty == 5)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg,12
+                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(4)
             .elseif (\qty == 6)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg,13
+                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(5)
             .elseif (\qty == 7)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg,14
+                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(6)
             .elseif (\qty == 8)
-                vmudm \vdstreg, \vsrcreg, \vshiftreg,15
+                vmudm \vdstreg, \vsrcreg, \vshiftreg, e(7)
             .elseif (\qty >= 9 && \qty <= 15)
                 .error "Use vsra8 for quantities in range 9-15"
             .else
@@ -666,16 +696,70 @@ makeStoreInstruction swv, 0b00111
 # Hardware registers
 ##################################################
 
-#define SP_STATUS_BROKE         (1<<0)
+#define SP_STATUS_HALTED        (1<<0)
+#define SP_STATUS_BROKE         (1<<1)
 #define SP_STATUS_DMA_BUSY      (1<<2)
 #define SP_STATUS_DMA_FULL      (1<<3)
+#define SP_STATUS_IO_FULL       (1<<4)
+#define SP_STATUS_SSTEP         (1<<5)
+#define SP_STATUS_INTR_BREAK    (1<<6)
 #define SP_STATUS_SIG0          (1<<7)
 #define SP_STATUS_SIG1          (1<<8)
+#define SP_STATUS_SIG2          (1<<9)
+#define SP_STATUS_SIG3          (1<<10)
+#define SP_STATUS_SIG4          (1<<11)
+#define SP_STATUS_SIG5          (1<<12)
+#define SP_STATUS_SIG6          (1<<13)
+#define SP_STATUS_SIG7          (1<<14)
 
-#define SP_WSTATUS_RESET_SIG0   (1<<9)
-#define SP_WSTATUS_SET_SIG0     (1<<10)
-#define SP_WSTATUS_RESET_SIG1   (1<<11)
-#define SP_WSTATUS_SET_SIG1     (1<<12)
+#define SP_WSTATUS_RESET_HALT          (1<<0)
+#define SP_WSTATUS_SET_HALT            (1<<1)
+#define SP_WSTATUS_RESET_BROKE         (1<<2)
+#define SP_WSTATUS_RESET_RSP_INTERRUPT (1<<3)
+#define SP_WSTATUS_SET_RSP_INTERRUPT   (1<<4)
+#define SP_WSTATUS_RESET_SINGLE_STEP   (1<<5)
+#define SP_WSTATUS_SET_SINGLE_STEP     (1<<6)
+#define SP_WSTATUS_RESET_INTR_ON_BREAK (1<<7)
+#define SP_WSTATUS_SET_INTR_ON_BREAK   (1<<8)
+#define SP_WSTATUS_RESET_SIG0          (1<<9)
+#define SP_WSTATUS_SET_SIG0            (1<<10)
+#define SP_WSTATUS_RESET_SIG1          (1<<11)
+#define SP_WSTATUS_SET_SIG1            (1<<12)
+#define SP_WSTATUS_RESET_SIG2          (1<<13)
+#define SP_WSTATUS_SET_SIG2            (1<<14)
+#define SP_WSTATUS_RESET_SIG3          (1<<15)
+#define SP_WSTATUS_SET_SIG3            (1<<16)
+#define SP_WSTATUS_RESET_SIG4          (1<<17)
+#define SP_WSTATUS_SET_SIG4            (1<<18)
+#define SP_WSTATUS_RESET_SIG5          (1<<19)
+#define SP_WSTATUS_SET_SIG5            (1<<20)
+#define SP_WSTATUS_RESET_SIG6          (1<<21)
+#define SP_WSTATUS_SET_SIG6            (1<<22)
+#define SP_WSTATUS_RESET_SIG7          (1<<23)
+#define SP_WSTATUS_SET_SIG7            (1<<24)
+
+#define DP_STATUS_DMEM_DMA             (1<<0)
+#define DP_STATUS_FREEZE               (1<<1)
+#define DP_STATUS_FLUSH                (1<<2)
+#define DP_STATUS_GCLK_ALIVE           (1<<3)
+#define DP_STATUS_TMEM_BUSY            (1<<4)
+#define DP_STATUS_PIPE_BUSY            (1<<5)
+#define DP_STATUS_BUSY                 (1<<6)
+#define DP_STATUS_BUFFER_READY         (1<<7)
+#define DP_STATUS_DMA_BUSY             (1<<8)
+#define DP_STATUS_END_VALID            (1<<9)
+#define DP_STATUS_START_VALID          (1<<10)
+
+#define DP_WSTATUS_RESET_XBUS_DMEM_DMA  (1<<0)
+#define DP_WSTATUS_SET_XBUS_DMEM_DMA    (1<<1)
+#define DP_WSTATUS_RESET_FREEZE         (1<<2)
+#define DP_WSTATUS_SET_FREEZE           (1<<3)
+#define DP_WSTATUS_RESET_FLUSH          (1<<4)
+#define DP_WSTATUS_SET_FLUSH            (1<<5)
+#define DP_WSTATUS_RESET_TMEM_COUNTER   (1<<6)
+#define DP_WSTATUS_RESET_PIPE_COUNTER   (1<<7)
+#define DP_WSTATUS_RESET_CMD_COUNTER    (1<<8)
+#define DP_WSTATUS_RESET_CLOCK_COUNTER  (1<<9)
 
 #define COP0_DMA_SPADDR         $0
 #define COP0_DMA_RAMADDR        $1
@@ -684,6 +768,15 @@ makeStoreInstruction swv, 0b00111
 #define COP0_SP_STATUS          $4
 #define COP0_DMA_FULL           $5
 #define COP0_DMA_BUSY           $6
+#define COP0_SEMAPHORE          $7
+#define COP0_DP_START           $8
+#define COP0_DP_END             $9
+#define COP0_DP_CURRENT         $10
+#define COP0_DP_STATUS          $11
+#define COP0_DP_CLOCK           $12
+#define COP0_DP_BUSY            $13
+#define COP0_DP_PIPE_BUSY       $14
+#define COP0_DP_TMEM_BUSY       $15
 
 #define COP2_CTRL_VCO           $0
 #define COP2_CTRL_VCC           $1
