@@ -16,6 +16,11 @@
  * @{
  */
 
+/**
+ * @brief Frequency of the MIPS R4300 CPU
+ */
+#define CPU_FREQUENCY    93750000 
+
 
 /**
  * @brief void pointer to cached and non-mapped memory start address
@@ -109,7 +114,7 @@
  *
  * Every second, this many counts will have passed in the count register
  */
-#define TICKS_PER_SECOND (93750000/2)
+#define TICKS_PER_SECOND (CPU_FREQUENCY/2)
 
 /**
  * @brief The signed difference of time between "from" and "to".

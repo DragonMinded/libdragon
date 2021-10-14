@@ -72,7 +72,7 @@ int main(void)
     printf( "\n Every msec    : %f", t1 );
     printf( "\n Every half sec: %f", t2 );
     printf( "\n Every sec     : %f", t3 );
-    printf( "\n\n Done in %f", (double)(end-start)*0.021333333/1000000.0);
+    printf( "\n\n Done in %f", (float)TIMER_MICROS_LL(end-start)/1000000.0f);
 
     console_render();
 

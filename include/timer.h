@@ -7,6 +7,7 @@
 #define __LIBDRAGON_TIMER_H
 
 #include <stdint.h>
+#include "n64sys.h"
 
 /** 
  * @addtogroup timer
@@ -47,7 +48,7 @@ typedef struct timer_link
  *
  * @return Timer ticks
  */
-#define TIMER_TICKS(us) ((int)((long long)(us) * 46875LL / 1000LL))
+#define TIMER_TICKS(us) ((int)TIMER_TICKS_LL(us))
 /**
  * @brief Calculate microseconds based on timer ticks
  *
@@ -56,7 +57,7 @@ typedef struct timer_link
  *
  * @return Microseconds
  */
-#define TIMER_MICROS(tk) ((int)((long long)(tk) * 1000LL / 46875LL))
+#define TIMER_MICROS(tk) ((int)TIMER_MICROS_LL(tk))
 
 /** 
  * @brief Calculate timer ticks based on microseconds 
@@ -66,7 +67,7 @@ typedef struct timer_link
  *
  * @return Timer ticks as a long long
  */
-#define TIMER_TICKS_LL(us) ((long long)(us) * 46875LL / 1000LL)
+#define TIMER_TICKS_LL(us) ((long long)(us) * TICKS_PER_SECOND / 1000000)
 /**
  * @brief Calculate microseconds based on timer ticks
  *
@@ -75,7 +76,7 @@ typedef struct timer_link
  *
  * @return Microseconds as a long long
  */
-#define TIMER_MICROS_LL(tk) ((long long)(tk) * 1000LL / 46875LL)
+#define TIMER_MICROS_LL(tk) ((long long)(tk) * 1000000 / TICKS_PER_SECOND)
 
 /** @} */
 
