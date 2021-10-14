@@ -264,294 +264,54 @@ makeNotImplemented tnei
     .endm
 .endm
 
-.macro makeLoadInstructionQuad name, opcode
+.macro makeLsInstruction mode, name, opcode, size, rangemin, rangemax
     .macro \name vt, element, offset, base
         .ifgt (\element >> 4)
             .error "Invalid element"
             .exitm
         .endif
 
-        .ifne ((\offset) % 16)
-            .error "Invalid offset - must be multiple of 16"
+        .ifne ((\offset) % \size)
+            .error "Invalid offset - must be multiple of \size"
             .exitm
         .endif
 
         .ifge (\offset)
-            .ifgt ((\offset) - 1008)
-                .error "Invalid offset - valid range: [-1024, 1008]"
+            .ifgt ((\offset) - \rangemax)
+                .error "Invalid offset - valid range: [\rangemin, \rangemax]"
                 .exitm
             .endif
 
-            loadVector \opcode, \vt, \element, ((\offset) / 16), \base
+            \mode\()Vector \opcode, \vt, \element, ((\offset) / \size), \base
         .else
-            .iflt ((\offset) + 1024)
-                .error "Invalid offset - valid range: [-1024, 1008]"
+            .iflt ((\offset) - \rangemin)
+                .error "Invalid offset - valid range: [\rangemin, \rangemax]"
                 .exitm
             .endif
 
-            loadVector \opcode, \vt, \element, (128 + ((\offset) / 16)), \base
+            \mode\()Vector \opcode, \vt, \element, (128 + ((\offset) / \size)), \base
         .endif
     .endm
 .endm
 
-.macro makeLoadInstructionDouble name, opcode
-    .macro \name vt, element, offset, base
-        .ifgt (\element >> 4)
-            .error "Invalid element"
-            .exitm
-        .endif
-
-        .ifne ((\offset) % 8)
-            .error "Invalid offset - must be multiple of 8"
-            .exitm
-        .endif
-
-        .ifge (\offset)
-            .ifgt ((\offset) - 504)
-                .error "Invalid offset - valid range: [-512, 504]"
-                .exitm
-            .endif
-
-            loadVector \opcode, \vt, \element, ((\offset) / 8), \base
-        .else
-            .iflt ((\offset) + 512)
-                .error "Invalid offset - valid range: [-512, 504]"
-                .exitm
-            .endif
-
-            loadVector \opcode, \vt, \element, (128 + ((\offset) / 8)), \base
-        .endif
-    .endm
+.macro makeLsInstructionQuad mode, name, opcode
+    makeLsInstruction \mode, \name, \opcode, 16, -1024, 1008
 .endm
 
-.macro makeLoadInstructionLong name, opcode
-    .macro \name vt, element, offset, base
-        .ifgt (\element >> 4)
-            .error "Invalid element"
-            .exitm
-        .endif
-
-        .ifne ((\offset) % 4)
-            .error "Invalid offset - must be multiple of 4"
-            .exitm
-        .endif
-
-        .ifge (\offset)
-            .ifgt ((\offset) - 252)
-                .error "Invalid offset - valid range: [-256, 252]"
-                .exitm
-            .endif
-
-            loadVector \opcode, \vt, \element, ((\offset) / 4), \base
-        .else
-            .iflt ((\offset) + 256)
-                .error "Invalid offset - valid range: [-256, 252]"
-                .exitm
-            .endif
-
-            loadVector \opcode, \vt, \element, (128 + ((\offset) / 4)), \base
-        .endif
-    .endm
+.macro makeLsInstructionDouble mode, name, opcode
+    makeLsInstruction \mode, \name, \opcode, 8, -512, 504
 .endm
 
-.macro makeLoadInstructionShort name, opcode
-    .macro \name vt, element, offset, base
-        .ifgt (\element >> 4)
-            .error "Invalid element"
-            .exitm
-        .endif
-
-        .ifne ((\offset) % 2)
-            .error "Invalid offset - must be multiple of 2"
-            .exitm
-        .endif
-
-        .ifge (\offset)
-            .ifgt ((\offset) - 126)
-                .error "Invalid offset - valid range: [-128, 126]"
-                .exitm
-            .endif
-
-            loadVector \opcode, \vt, \element, ((\offset) / 2), \base
-        .else
-            .iflt ((\offset) + 128)
-                .error "Invalid offset - valid range: [-128, 126]"
-                .exitm
-            .endif
-
-            loadVector \opcode, \vt, \element, (128 + ((\offset) / 2)), \base
-        .endif
-    .endm
+.macro makeLsInstructionLong mode, name, opcode
+    makeLsInstruction \mode, \name, \opcode, 4, -256, 252
 .endm
 
-.macro makeLoadInstructionByte name, opcode
-    .macro \name vt, element, offset, base
-        .ifgt (\element >> 4)
-            .error "Invalid element"
-            .exitm
-        .endif
-
-        .ifge (\offset)
-            .ifgt ((\offset) - 63)
-                .error "Invalid offset - valid range: [-64, 63]"
-                .exitm
-            .endif
-
-            loadVector \opcode, \vt, \element, (\offset), \base
-        .else
-            .iflt ((\offset) + 64)
-                .error "Invalid offset - valid range: [-64, 63]"
-                .exitm
-            .endif
-
-            loadVector \opcode, \vt, \element, (128 + (\offset)), \base
-        .endif
-    .endm
+.macro makeLsInstructionShort mode, name, opcode
+    makeLsInstruction \mode, \name, \opcode, 2, -128, 126
 .endm
 
-.macro makeStoreInstructionQuad name, opcode
-    .macro \name vt, element, offset, base
-        .ifgt (\element >> 4)
-            .error "Invalid element"
-            .exitm
-        .endif
-
-        .ifne ((\offset) % 16)
-            .error "Invalid offset - must be multiple of 16"
-            .exitm
-        .endif
-
-        .ifge (\offset)
-            .ifgt ((\offset) - 1008)
-                .error "Invalid offset - valid range: [-1024, 1008]"
-                .exitm
-            .endif
-
-            storeVector \opcode, \vt, \element, ((\offset) / 16), \base
-        .else
-            .iflt ((\offset) + 1024)
-                .error "Invalid offset - valid range: [-1024, 1008]"
-                .exitm
-            .endif
-
-            storeVector \opcode, \vt, \element, (128 + ((\offset) / 16)), \base
-        .endif
-    .endm
-.endm
-
-.macro makeStoreInstructionDouble name, opcode
-    .macro \name vt, element, offset, base
-        .ifgt (\element >> 4)
-            .error "Invalid element"
-            .exitm
-        .endif
-
-        .ifne ((\offset) % 8)
-            .error "Invalid offset - must be multiple of 8"
-            .exitm
-        .endif
-
-        .ifge (\offset)
-            .ifgt ((\offset) - 504)
-                .error "Invalid offset - valid range: [-512, 504]"
-                .exitm
-            .endif
-
-            storeVector \opcode, \vt, \element, ((\offset) / 8), \base
-        .else
-            .iflt ((\offset) + 512)
-                .error "Invalid offset - valid range: [-512, 504]"
-                .exitm
-            .endif
-
-            storeVector \opcode, \vt, \element, (128 + ((\offset) / 8)), \base
-        .endif
-    .endm
-.endm
-
-.macro makeStoreInstructionLong name, opcode
-    .macro \name vt, element, offset, base
-        .ifgt (\element >> 4)
-            .error "Invalid element"
-            .exitm
-        .endif
-
-        .ifne ((\offset) % 4)
-            .error "Invalid offset - must be multiple of 4"
-            .exitm
-        .endif
-
-        .ifge (\offset)
-            .ifgt ((\offset) - 252)
-                .error "Invalid offset - valid range: [-256, 252]"
-                .exitm
-            .endif
-
-            storeVector \opcode, \vt, \element, ((\offset) / 4), \base
-        .else
-            .iflt ((\offset) + 256)
-                .error "Invalid offset - valid range: [-256, 252]"
-                .exitm
-            .endif
-
-            storeVector \opcode, \vt, \element, (128 + ((\offset) / 4)), \base
-        .endif
-    .endm
-.endm
-
-.macro makeStoreInstructionShort name, opcode
-    .macro \name vt, element, offset, base
-        .ifgt (\element >> 4)
-            .error "Invalid element"
-            .exitm
-        .endif
-
-        .ifne ((\offset) % 2)
-            .error "Invalid offset - must be multiple of 2"
-            .exitm
-        .endif
-
-        .ifge (\offset)
-            .ifgt ((\offset) - 126)
-                .error "Invalid offset - valid range: [-128, 126]"
-                .exitm
-            .endif
-
-            storeVector \opcode, \vt, \element, ((\offset) / 2), \base
-        .else
-            .iflt ((\offset) + 128)
-                .error "Invalid offset - valid range: [-128, 126]"
-                .exitm
-            .endif
-
-            storeVector \opcode, \vt, \element, (128 + ((\offset) / 2)), \base
-        .endif
-    .endm
-.endm
-
-.macro makeStoreInstructionByte name, opcode
-    .macro \name vt, element, offset, base
-        .ifgt (\element >> 4)
-            .error "Invalid element"
-            .exitm
-        .endif
-
-        .ifge (\offset)
-            .ifgt ((\offset) - 63)
-                .error "Invalid offset - valid range: [-64, 63]"
-                .exitm
-            .endif
-
-            storeVector \opcode, \vt, \element, (\offset), \base
-        .else
-            .iflt ((\offset) + 64)
-                .error "Invalid offset - valid range: [-64, 63]"
-                .exitm
-            .endif
-
-            storeVector \opcode, \vt, \element, (128 + (\offset)), \base
-        .endif
-    .endm
+.macro makeLsInstructionByte mode, name, opcode
+    makeLsInstruction \mode, \name, \opcode, 1, -64, 63
 .endm
 
 
@@ -645,52 +405,52 @@ makeOpInstruction vsubc, 0b010101
 makeOpInstruction vxor, 0b101100
 
 /** @brief Load Byte into Vector Register */
-makeLoadInstructionByte lbv, 0b00000
+makeLsInstructionByte load, lbv, 0b00000
 /** @brief Load Double into Vector Register */
-makeLoadInstructionDouble ldv, 0b00011
+makeLsInstructionDouble load, ldv, 0b00011
 /** @brief Load Packed Fourth into Vector Register */
-makeLoadInstructionQuad lfv, 0b01001
+makeLsInstructionQuad load, lfv, 0b01001
 /** @brief Load Packed Half into Vector Register */
-makeLoadInstructionQuad lhv, 0b01000
+makeLsInstructionQuad load, lhv, 0b01000
 /** @brief Load Long into Vector Register */
-makeLoadInstructionLong llv, 0b00010
+makeLsInstructionLong load, llv, 0b00010
 /** @brief Load Packed Bytes into Vector Register */
-makeLoadInstructionDouble lpv, 0b00110
+makeLsInstructionDouble load, lpv, 0b00110
 /** @brief Load Quad into Vector Register */
-makeLoadInstructionQuad lqv, 0b00100
+makeLsInstructionQuad load, lqv, 0b00100
 /** @brief Load Quad (Rest) into Vector Register */
-makeLoadInstructionQuad lrv, 0b00101
+makeLsInstructionQuad load, lrv, 0b00101
 /** @brief Load Short into Vector Register */
-makeLoadInstructionShort lsv, 0b00001
+makeLsInstructionShort load, lsv, 0b00001
 /** @brief Load Transpose into Vector Register */
-makeLoadInstructionQuad ltv, 0b01011
+makeLsInstructionQuad load, ltv, 0b01011
 /** @brief Load Unsigned Packed into Vector Register */
-makeLoadInstructionDouble luv, 0b00111
+makeLsInstructionDouble load, luv, 0b00111
 
 /** @brief Store Byte from Vector Register */
-makeStoreInstructionByte sbv, 0b00000
+makeLsInstructionByte store, sbv, 0b00000
 /** @brief Store Double from Vector Register */
-makeStoreInstructionDouble sdv, 0b00011
+makeLsInstructionDouble store, sdv, 0b00011
 /** @brief Store Packed Fourth from Vector Register */
-makeStoreInstructionQuad sfv, 0b01001
+makeLsInstructionQuad store, sfv, 0b01001
 /** @brief Store Packed Half from Vector Register */
-makeStoreInstructionQuad shv, 0b01000
+makeLsInstructionQuad store, shv, 0b01000
 /** @brief Store Long from Vector Register */
-makeStoreInstructionLong slv, 0b00010
+makeLsInstructionLong store, slv, 0b00010
 /** @brief Store Packed Bytes from Vector Register */
-makeStoreInstructionDouble spv, 0b00110
+makeLsInstructionDouble store, spv, 0b00110
 /** @brief Store Quad from Vector Register */
-makeStoreInstructionQuad sqv, 0b00100
+makeLsInstructionQuad store, sqv, 0b00100
 /** @brief Store Quad (Rest) from Vector Register */
-makeStoreInstructionQuad srv, 0b00101
+makeLsInstructionQuad store, srv, 0b00101
 /** @brief Store Short from Vector Register */
-makeStoreInstructionShort ssv, 0b00001
+makeLsInstructionShort store, ssv, 0b00001
 /** @brief Store Transpose from Vector Register */
-makeStoreInstructionQuad stv, 0b01011
+makeLsInstructionQuad store, stv, 0b01011
 /** @brief Store Unsigned Packed from Vector Register */
-makeStoreInstructionDouble suv, 0b00111
+makeLsInstructionDouble store, suv, 0b00111
 /** @brief Store Wrapped vector from Vector Register */
-makeStoreInstructionQuad swv, 0b00111
+makeLsInstructionQuad store, swv, 0b00111
 
 .macro mtc2 reg, vreg, element
     hexRegisters
