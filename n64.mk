@@ -29,12 +29,9 @@ N64_MKDFS = $(N64_BINDIR)/mkdfs
 N64_TOOL = $(N64_BINDIR)/n64tool
 N64_AUDIOCONV = $(N64_BINDIR)/audioconv64
 
-N64_CFLAGS =  -std=gnu99 -march=vr4300 -mtune=vr4300 -I$(N64_INCLUDEDIR)
+N64_CFLAGS =  -march=vr4300 -mtune=vr4300 -I$(N64_INCLUDEDIR)
 N64_CFLAGS += -falign-functions=32 -ffunction-sections -fdata-sections
 N64_CFLAGS += -DN64 -O2 -Wall -Werror -fdiagnostics-color=always
-N64_CXXFLAGS =  -std=c++11 -march=vr4300 -mtune=vr4300 -I$(N64_INCLUDEDIR)
-N64_CXXFLAGS += -falign-functions=32 -ffunction-sections -fdata-sections
-N64_CXXFLAGS += -DN64 -O2 -Wall -Werror -fdiagnostics-color=always
 N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings
 N64_LDFLAGS = -L$(N64_LIBDIR) -ldragon -lm -ldragonsys -Tn64.ld --gc-sections
 
@@ -53,6 +50,9 @@ endif
 CFLAGS+=-MMD     # automatic .d dependency generationc
 CXXFLAGS+=-MMD     # automatic .d dependency generationc
 ASFLAGS+=-MMD    # automatic .d dependency generation
+
+N64_CXXFLAGS := $(N64_CFLAGS) -std=c++11
+N64_CFLAGS += -std=gnu99
 
 # Change all the dependency chain of z64 ROMs to use the N64 toolchain.
 %.z64: CC=$(N64_CC)
@@ -135,6 +135,8 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 %.elf: $(N64_LIBDIR)/libdragon.a $(N64_LIBDIR)/libdragonsys.a $(N64_LIBDIR)/n64.ld
 	@mkdir -p $(dir $@)
 	@echo "    [LD] $@"
+	# We always use g++ to link except for ucode because of the inconsistencies
+	# between ld when it comes to global ctors dtors. Also see __do_global_ctors
 	$(CXX) -o $@ $(filter-out $(N64_LIBDIR)/n64.ld,$^) -lc $(patsubst %,-Wl$(COMMA)%,$(LDFLAGS)) -Wl,-Map=$(BUILD_DIR)/$(notdir $(basename $@)).map
 	$(N64_SIZE) -G $@
 

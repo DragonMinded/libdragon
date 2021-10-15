@@ -65,7 +65,8 @@ SECTIONS {
         . = ALIGN(8);
     } > mem
 
-    . = ALIGN(8);
+    /* This is important to keep __CTOR_END__ consistent */
+    . = ALIGN(4);
 
     .ctors : {
         __CTOR_LIST__ = .;
@@ -80,6 +81,11 @@ SECTIONS {
         with ld, in __do_global_ctors you'd need to loop including the sentinel.
         This is something we currently don't support*/
         KEEP(*(.ctors))
+         /* Similarly we should have a;
+
+        LONG(0)
+
+        here, and g++ seem to insert it at __CTOR_END__ */
         __CTOR_END__ = .;
     } > mem
 
