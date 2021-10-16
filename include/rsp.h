@@ -22,14 +22,28 @@ extern "C" {
 /** @brief SP status register */
 #define SP_STATUS     ((volatile uint32_t*)0xA4040010)
 
+/** @brief SP semaphore register */
+#define SP_SEMAPHORE  ((volatile uint32_t*)0xA404001C)
+
 /** @brief SP halted */
 #define SP_STATUS_HALTED                (1 << 0)
+#define SP_STATUS_BROKE                 (1 << 1)
 /** @brief SP DMA busy */
 #define SP_STATUS_DMA_BUSY              (1 << 2)
+#define SP_STATUS_DMA_FULL              (1 << 3)
 /** @brief SP IO busy */
 #define SP_STATUS_IO_BUSY               (1 << 4)
+#define SP_STATUS_SSTEP                 (1 << 5)
 /** @brief SP generate interrupt when hit a break instruction */
 #define SP_STATUS_INTERRUPT_ON_BREAK    (1 << 6)
+#define SP_STATUS_SIG0                  (1 << 7)
+#define SP_STATUS_SIG1                  (1 << 8)
+#define SP_STATUS_SIG2                  (1 << 9)
+#define SP_STATUS_SIG3                  (1 << 10)
+#define SP_STATUS_SIG4                  (1 << 11)
+#define SP_STATUS_SIG5                  (1 << 12)
+#define SP_STATUS_SIG6                  (1 << 13)
+#define SP_STATUS_SIG7                  (1 << 14)
 
 #define SP_WSTATUS_CLEAR_HALT        0x00001   ///< SP_STATUS write mask: clear #SP_STATUS_HALTED bit
 #define SP_WSTATUS_SET_HALT          0x00002   ///< SP_STATUS write mask: set #SP_STATUS_HALTED bit
@@ -209,6 +223,16 @@ void read_data(void * start, unsigned long size) {
 static inline __attribute__((deprecated("use rsp_run_async instead"))) 
 void run_ucode(void) {
     rsp_run_async();
+}
+
+static inline void rsp_semaphore_wait()
+{
+    while (*SP_SEMAPHORE);
+}
+
+static inline void rsp_semaphore_release()
+{
+    *SP_SEMAPHORE = 0;
 }
 
 #ifdef __cplusplus

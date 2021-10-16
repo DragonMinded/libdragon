@@ -93,6 +93,16 @@ extern int __bbplayer;
 #define CachedAddr(_addr) ((void *)(((unsigned long)(_addr))&~0x20000000))
 
 /**
+ * @brief Return the physical memory address for a given address
+ *
+ * @param[in] _addr
+ *            Address in RAM to convert to a physical address
+ * 
+ * @return A void pointer to the physical memory address in RAM
+ */
+#define PhysicalAddr(_addr) ((void *)(((unsigned long)(_addr))&~0xE0000000))
+
+/**
  * @brief Memory barrier to ensure in-order execution
  *
  * Since GCC seems to reorder volatile at -O2, a memory barrier is required
