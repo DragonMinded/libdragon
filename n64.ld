@@ -65,11 +65,27 @@ SECTIONS {
         . = ALIGN(8);
     } > mem
 
-    . = ALIGN(8);
+    /* This is important to keep __CTOR_END__ consistent */
+    . = ALIGN(4);
 
     .ctors : {
         __CTOR_LIST__ = .;
+        /* Actually we should place the count here like;
+
+        LONG((__CTOR_END__ - __CTOR_LIST__) / 4 - 2)
+
+        but g++ seem to already do this (though incorrectly placing an 0xFFFFFFFF)
+        and that breaks things if we also add it. Ideally this should be parsed
+        by the code but we already know the end as well. We have migrated
+        everything to be linked via g++ by default but if you ever need to link
+        with ld, in __do_global_ctors you'd need to loop including the sentinel.
+        This is something we currently don't support*/
         KEEP(*(.ctors))
+         /* Similarly we should have a;
+
+        LONG(0)
+
+        here, and g++ seem to insert it at __CTOR_END__ */
         __CTOR_END__ = .;
     } > mem
 
