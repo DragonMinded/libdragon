@@ -4,17 +4,19 @@
 #include <string.h>
 #include <libdragon.h>
 
-#define DL_BUFFER_SIZE  0x1000
+#define DL_BUFFER_SIZE       0x1000
+#define DL_MAX_OVERLAY_COUNT 16
 
 DEFINE_RSP_UCODE(rsp_displaylist);
+
+static dl_overlay_t dl_overlay_table[DL_MAX_OVERLAY_COUNT];
 
 typedef struct rsp_dl_s {
 	void *dl_dram_addr;
 	uint32_t dl_dram_size;
 	void *dl_pointers_addr;
-} __attribute__((packed)) rsp_dl_t;
-
-_Static_assert(sizeof(rsp_dl_t) == 3*4);
+    dl_overlay_t overlay_table[DL_MAX_OVERLAY_COUNT];
+} __attribute__((aligned(8), packed)) rsp_dl_t;
 
 typedef struct {
     uint32_t padding;
@@ -33,6 +35,17 @@ static void *dl_buffer_uncached;
 static uint32_t reserved_size;
 static bool is_wrapping;
 
+// TODO: Do this at compile time?
+void dl_overlay_register(uint8_t id, dl_overlay_t *overlay)
+{
+    assertf(id > 0 && id < DL_MAX_OVERLAY_COUNT, "Tried to register invalid overlay id: %d", id);
+    assert(overlay);
+
+    assertf(dl_buffer == NULL, "dl_overlay_register must be called before dl_init!");
+
+    dl_overlay_table[id] = *overlay;
+}
+
 void dl_init()
 {
     if (dl_buffer != NULL) {
@@ -48,11 +61,18 @@ void dl_init()
     rsp_load(&rsp_displaylist);
 
     // Load initial settings
+    // TODO: is dma faster/better?
     MEMORY_BARRIER();
     volatile rsp_dl_t *rsp_dl = (volatile rsp_dl_t*)SP_DMEM;
     rsp_dl->dl_dram_addr = PhysicalAddr(dl_buffer);
     rsp_dl->dl_dram_size = DL_BUFFER_SIZE;
     rsp_dl->dl_pointers_addr = PhysicalAddr(&dl_pointers);
+    for (int i = 0; i < DL_MAX_OVERLAY_COUNT; ++i) {
+        rsp_dl->overlay_table[i].code = dl_overlay_table[i].code;
+        rsp_dl->overlay_table[i].code_size = dl_overlay_table[i].code_size;
+        rsp_dl->overlay_table[i].data = dl_overlay_table[i].data;
+        rsp_dl->overlay_table[i].data_size = dl_overlay_table[i].data_size;
+    }
     MEMORY_BARRIER();
 
     rsp_run_async();

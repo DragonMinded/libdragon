@@ -1,32 +1,50 @@
 #include <rsp.inc>
 
-#include "displaylist_shared.h"
-
 .set noreorder
 .set at
 
 #define INPUT_BUFFER_SIZE 0x100
 
+#define OVERLAY_SIZE  0x10
+#define OVERLAY_COUNT 16
+
 .data
 
+.align 2
+# Input properties
 DL_DRAM_ADDR:     .long 0
 DL_DRAM_SIZE:     .long 0
 DL_POINTERS_ADDR: .long 0
+# TODO: compress the overlay table more
+OVERLAY_TABLE:   .ds.b (OVERLAY_SIZE * OVERLAY_COUNT)
 
-.align 3
-READ_POINTER:  .double 0
-WRITE_POINTER: .double 0
-WRAP_POINTER:  .double 0
+#define COMMAND_SHIFT 1
+
+# TODO: How to compress jump tables to 16 bits per entry?
+#       The problem is: if we replace .long with .short, for some reason the assembler/linker
+#       seems to substitute the jump addresses incorrectly.
+.align COMMAND_SHIFT
+COMMAND_JUMP_TABLE:
+.dc.w command_noop
+.dc.w command_interrupt
 
 .bss
 
 .align 3
-INPUT_BUFFER:    .dcb.b INPUT_BUFFER_SIZE
+INPUT_BUFFER:    .ds.b INPUT_BUFFER_SIZE
+
+.align 3
+READ_POINTER:    .quad 0
+WRITE_POINTER:   .quad 0
+WRAP_POINTER:    .quad 0
+
+.align 4
+# Overlay data will be loaded at this address
+OVERLAY_DATA_LOAD_ADDR:
 
 .text
 
-init:
-
+# Globally reserved registers
 # TODO: Move some of these to DMEM
 #define input_buf_start fp
 #define input_buf_ptr   gp
@@ -34,30 +52,76 @@ init:
 #define read_ptr        k0
 #define write_ptr       t9
 #define wrap_ptr        t8
+#define cur_ovl         t7
 
+_start:
     j loop
     nop
 
-# INPUT:
-#   t0: length of input that has been read since the last loop.
-loop_advance_and_continue:
-    addu input_buf_ptr, t0
+# Triggers an RSP interrupt
+command_interrupt:
+    li t1, SP_WSTATUS_SET_RSP_INTERRUPT
+    mtc0 t1, COP0_SP_STATUS
 
-loop:
-    jal ensure_input
-    nop
-
-process_next_command:
-    lb a0, %lo(INPUT_BUFFER)(input_buf_ptr)
-
-    # TODO: process next command
-
-    j loop_advance_and_continue
+# Does nothing
+command_noop:
     li t0, 1
 
-# Same as load_new_input, but only if the internal input buffer is empty
-ensure_input:
-    blt input_buf_ptr, input_buf_end, JrRa
+# INPUT:
+#   t0: length of input that has been read since the last loop.
+loop:
+    # Advance input pointer
+    addu input_buf_ptr, t0
+    # Make sure there is at least 1 byte left in the buffer
+    jal request_input
+    li t0, 1
+
+    # Read next byte
+    lb t0, %lo(INPUT_BUFFER)(input_buf_ptr)
+    # Overlay index (times overlay size, so offset into overlay table)
+    andi a0, t0, 0xF0
+
+    # Overlay #0 is reserved for internal commands
+    beqz a0, is_default_overlay
+    # Overlay command index
+    andi a1, t0, 0x0F
+
+    # Check if the requested overlay is already in memory
+    beq a0, cur_ovl, overlay_loaded
+
+    # Load overlay data
+    lw t0, %lo(OVERLAY_TABLE) + 0x4 (a0)
+    beqz t0, no_overlay_data
+    lw s0, %lo(OVERLAY_TABLE) + 0x0 (a0)
+    jal DMAInAsync
+    li s4, %lo(OVERLAY_DATA_LOAD_ADDR)
+
+no_overlay_data:
+    # Load overlay code
+    lw s0, %lo(OVERLAY_TABLE) + 0x8 (a0)
+    lw t0, %lo(OVERLAY_TABLE) + 0xC (a0)
+    jal DMAIn
+    li s4, %lo(OVERLAY_CODE_LOAD_ADDR)
+
+overlay_loaded:
+    # Jump into overlay
+    j OVERLAY_CODE_LOAD_ADDR
+    # Remember loaded overlay
+    move cur_ovl, a0
+
+is_default_overlay:
+    # Load command address from jump table and jump there
+    sll a1, COMMAND_SHIFT
+    lh t0, %lo(COMMAND_JUMP_TABLE)(a1)
+    jr t0
+    nop
+
+# Same as load_new_input, but only if there is less input left than requested
+# INPUT:
+#   t0: requested length
+request_input:
+    sub t1, input_buf_ptr, input_buf_end
+    bge t1, t0, JrRa
 
 # This function will do two things:
 #   1) Mark the input data that has been processed since the last call to it as read.
@@ -166,5 +230,7 @@ dma_input:
 
 #include <rsp_dma.inc>
 
-rsp_displaylist_overlay:
+.align 4
+# Overlay code will be loaded at this address
+OVERLAY_CODE_LOAD_ADDR:
 # TODO: export overlay offset somehow?
