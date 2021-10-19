@@ -18,15 +18,15 @@ DL_POINTERS_ADDR: .long 0
 # TODO: compress the overlay table more
 OVERLAY_TABLE:   .ds.b (OVERLAY_SIZE * OVERLAY_COUNT)
 
-#define COMMAND_SHIFT 1
-
-# TODO: How to compress jump tables to 16 bits per entry?
-#       The problem is: if we replace .long with .short, for some reason the assembler/linker
-#       seems to substitute the jump addresses incorrectly.
-.align COMMAND_SHIFT
+.align 1
 COMMAND_JUMP_TABLE:
-.dc.w command_noop
-.dc.w command_interrupt
+
+.macro jumpTableEntry function
+    .short \function - _start
+.endm
+
+jumpTableEntry command_noop
+jumpTableEntry command_interrupt
 
 .bss
 
@@ -54,6 +54,7 @@ OVERLAY_DATA_LOAD_ADDR:
 #define wrap_ptr        t8
 #define cur_ovl         t7
 
+.globl _start
 _start:
     j loop
     nop
@@ -69,6 +70,7 @@ command_noop:
 
 # INPUT:
 #   t0: length of input that has been read since the last loop.
+.func loop
 loop:
     # Advance input pointer
     addu input_buf_ptr, t0
@@ -111,21 +113,28 @@ overlay_loaded:
 
 is_default_overlay:
     # Load command address from jump table and jump there
-    sll a1, COMMAND_SHIFT
+    sll a1, 1
     lh t0, %lo(COMMAND_JUMP_TABLE)(a1)
     jr t0
     nop
+.endfunc
 
 # Same as load_new_input, but only if there is less input left than requested
 # INPUT:
 #   t0: requested length
+.func request_input
 request_input:
-    sub t1, input_buf_ptr, input_buf_end
-    bge t1, t0, JrRa
+    sub t1, input_buf_end, input_buf_ptr
+    blt t1, t0, load_new_input
+    nop
+    jr ra
+    nop
+.endfunc
 
 # This function will do two things:
 #   1) Mark the input data that has been processed since the last call to it as read.
 #   2) Check if new data is available and load it into the internal buffer.
+.func load_new_input
 load_new_input:
     #define len t4
 
@@ -163,6 +172,11 @@ check_for_new_input:
     andi t0, SP_STATUS_SIG0
     beqz t0, calc_valid_length
 
+    # Reset signal
+    # TODO: race condition?
+    li t1, SP_WSTATUS_RESET_SIG0
+    mtc0 t1, COP0_SP_STATUS
+
     # Load new values of write_ptr and wrap_ptr
     li s4, %lo(WRITE_POINTER)
     lw s0, %lo(DL_POINTERS_ADDR)
@@ -192,19 +206,21 @@ calc_valid_length:
 
 length_calculated:
     # Check if the buffer is empty (length == 0)
-    bnez len, buffer_not_empty
+    bgtz len, buffer_not_empty
 
     # If buffer is empty -> enter idle mode
-    # TODO: does this work?
     li t0, SP_WSTATUS_SET_HALT
     mtc0 t0, COP0_SP_STATUS
+    # "Delay slots" for halting the RSP
+    # Otherwise weird things happen (at least on emulator)
+    nop
+    nop
 
     # After being woken up, perform the check again
     j check_for_new_input
     nop
 
 buffer_not_empty:
-
     # length = max(length, INPUT_BUFFER_SIZE)
     slti t1, len, INPUT_BUFFER_SIZE
     bnez t1, dma_input
@@ -227,10 +243,11 @@ dma_input:
     add input_buf_end, input_buf_ptr, len
 
     #undef len
+.endfunc
 
 #include <rsp_dma.inc>
 
-.align 4
+.align 3
 # Overlay code will be loaded at this address
 OVERLAY_CODE_LOAD_ADDR:
 # TODO: export overlay offset somehow?

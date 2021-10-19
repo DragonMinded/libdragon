@@ -169,6 +169,7 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 #include "test_dma.c"
 #include "test_cop1.c"
 #include "test_constructors.c"
+#include "test_dl.c"
 
 /**********************************************************************
  * MAIN
@@ -207,6 +208,7 @@ static const struct Testsuite
 	TEST_FUNC(test_debug_sdfs,             	   0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dma_read_misalign,       7003, TEST_FLAGS_NONE),
 	TEST_FUNC(test_cop1_denormalized_float,    0, TEST_FLAGS_NO_EMULATOR),
+	TEST_FUNC(test_dl_simple,                  0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {

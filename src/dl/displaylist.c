@@ -18,16 +18,20 @@ typedef struct rsp_dl_s {
     dl_overlay_t overlay_table[DL_MAX_OVERLAY_COUNT];
 } __attribute__((aligned(8), packed)) rsp_dl_t;
 
-typedef struct {
+typedef struct dma_safe_pointer_t {
     uint32_t padding;
     uint32_t value;
 } __attribute__((aligned(8))) dma_safe_pointer_t;
 
-static struct {
+typedef struct dl_pointers_t {
     dma_safe_pointer_t read;
     dma_safe_pointer_t write;
     dma_safe_pointer_t wrap;
-} dl_pointers;
+} dl_pointers_t;
+
+static dl_pointers_t dl_pointers;
+
+#define DL_POINTERS ((volatile dl_pointers_t*)(UncachedAddr(&dl_pointers)))
 
 static void *dl_buffer;
 static void *dl_buffer_uncached;
@@ -55,7 +59,7 @@ void dl_init()
     dl_buffer = malloc(DL_BUFFER_SIZE);
     dl_buffer_uncached = UncachedAddr(dl_buffer);
 
-    dl_pointers.wrap.value = DL_BUFFER_SIZE;
+    DL_POINTERS->wrap.value = DL_BUFFER_SIZE;
 
     rsp_wait();
     rsp_load(&rsp_displaylist);
@@ -95,14 +99,14 @@ uint32_t* dl_write_begin(uint32_t size)
 {
     assert((size % sizeof(uint32_t)) == 0);
 
-    uint32_t wp = dl_pointers.write.value;
+    uint32_t wp = DL_POINTERS->write.value;
 
     uint32_t write_start;
     bool wrap;
 
     // TODO: make the loop tighter?
     while (1) {
-        uint32_t rp = dl_pointers.read.value;
+        uint32_t rp = DL_POINTERS->read.value;
 
         // Is the write pointer ahead of the read pointer?
         if (wp >= rp) {
@@ -140,11 +144,11 @@ uint32_t* dl_write_begin(uint32_t size)
 
 void dl_write_end()
 {
-    uint32_t wp = dl_pointers.write.value;
+    uint32_t wp = DL_POINTERS->write.value;
 
     if (is_wrapping) {
         // We had to wrap around -> Store the wrap pointer
-        dl_pointers.wrap.value = wp;
+        DL_POINTERS->wrap.value = wp;
         // Return the write pointer back to the start of the buffer
         wp = 0;
     }
@@ -153,14 +157,14 @@ void dl_write_end()
     wp += reserved_size;
 
     // Ensure that the wrap pointer is never smaller than the write pointer
-    if (wp > dl_pointers.wrap.value) {
-        dl_pointers.wrap.value = wp;
+    if (wp > DL_POINTERS->wrap.value) {
+        DL_POINTERS->wrap.value = wp;
     }
 
     MEMORY_BARRIER();
 
     // Store the new write pointer
-    dl_pointers.write.value = wp;
+    DL_POINTERS->write.value = wp;
 
     MEMORY_BARRIER();
 
