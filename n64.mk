@@ -95,7 +95,7 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.S
 	set -e; \
 	FILENAME="$(notdir $(basename $@))"; \
 	if case "$$FILENAME" in "rsp"*) true;; *) false;; esac; then \
-		SYMPREFIX="$(subst .,_,$(subst /,_,$(basename $@)))"; \
+		SYMPREFIX="$(subst -,_,$(subst .,_,$(subst /,_,$(basename $@))))"; \
 		TEXTSECTION="$(basename $@).text"; \
 		DATASECTION="$(basename $@).data"; \
 		echo "    [RSP] $<"; \
