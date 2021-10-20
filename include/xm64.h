@@ -126,6 +126,26 @@ void xm64player_seek(xm64player_t *player, int patidx, int row, int tick);
 void xm64player_set_vol(xm64player_t *player, float volume);
 
 /**
+ * @brief Set a custom effect callback to allow music synchronization.
+ * 
+ * This function configures a callback that will be called whenever the player
+ * finds an unknown / unsupported effect in any channel. These unknown effects
+ * can be used to add custom "sync cues" in the music score, and synchronize
+ * graphic effects or gameplay logic to them.
+ * 
+ * There are many unused effect letters in XM format. For instance, a good
+ * choice can be effect Xxx which is used as modplug hack for MIDI support,
+ * but is unimplemented by standard XM players like this one.
+ * 
+ * The callback will be called passing as arguments a custom context, the
+ * channel number, and the effect code and the effect parameter. The effect
+ * code is the code in extended hex format (A-F are 10-15 as in normal hex,
+ * but then G-Z are 16-35), while the effect parameter is one free byte that
+ * can be inserted in the music score.
+ */
+void xm64player_set_effect_callback(xm64player_t *player, void (*cb)(void*, uint8_t, uint8_t, uint8_t), void *ctx);
+
+/**
  * @brief Close and deallocate the XM64 player.
  */
 void xm64player_close(xm64player_t *player);

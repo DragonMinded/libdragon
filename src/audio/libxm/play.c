@@ -1231,6 +1231,8 @@ void xm_tick(xm_context_t* ctx) {
 			break;
 
 		default:
+			if(ctx->current_tick == 0 && ctx->effect_callback)
+				ctx->effect_callback(ctx->effect_callback_ctx, i, ch->current->effect_type, ch->current->effect_param);
 			break;
 
 		}
