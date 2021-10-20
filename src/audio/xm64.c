@@ -208,6 +208,10 @@ void xm64player_set_vol(xm64player_t *player, float volume) {
 	player->ctx->amplification = volume * 0.25f;
 }
 
+void xm64player_set_effect_callback(xm64player_t *player, void (*cb)(void*, uint8_t, uint8_t, uint8_t), void *ctx) {
+	xm_set_effect_callback(player->ctx, cb, ctx);
+}
+
 void xm64player_close(xm64player_t *player) {
 	// FIXME: we need to stop playing without racing with the audio thread.
 	// This is not correct and may crash.

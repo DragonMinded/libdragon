@@ -848,3 +848,9 @@ uint16_t xm_get_instrument_of_channel(xm_context_t* ctx, uint16_t chn) {
 	if(ch->instrument == NULL) return 0;
 	return 1 + (ch->instrument - ctx->module.instruments);
 }
+
+void xm_set_effect_callback(xm_context_t *ctx, xm_effect_callback_t cb, void *cbctx) {
+	ctx->effect_callback = cb;
+	ctx->effect_callback_ctx = cbctx;
+}
+

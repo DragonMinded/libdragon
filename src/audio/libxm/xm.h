@@ -289,4 +289,8 @@ float xm_get_volume_of_channel(xm_context_t*, uint16_t);
  */
 float xm_get_panning_of_channel(xm_context_t*, uint16_t);
 
+/** Set the effect callback that can be used to process unknown effects. */
+typedef void (*xm_effect_callback_t)(void*, uint8_t, uint8_t, uint8_t);
+void xm_set_effect_callback(xm_context_t*, xm_effect_callback_t, void *);
+
 #endif

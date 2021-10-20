@@ -326,6 +326,8 @@ struct xm_context_s {
 	};
 
 	FILE* fh;  /* open file for streaming content (if requested) */
+	xm_effect_callback_t effect_callback;
+	void *effect_callback_ctx;
 
 #if XM_STREAM_PATTERNS
 	xm_pattern_slot_t *slot_buffer;
