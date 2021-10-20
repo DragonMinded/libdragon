@@ -20,9 +20,10 @@ static int tick(void *arg) {
 	}
 
 	// If we're requested to stop playback, do it.
-	if (!xmp->playing) {
+	if (!xmp->playing || (!xmp->looping && ctx->loop_count > 0)) {
 		for (int i=0;i<ctx->module.num_channels;i++)
 			mixer_ch_stop(xmp->first_ch+i);
+		xmp->playing = false;
 		// Do not reschedule again
 		return 0;
 	}
@@ -143,10 +144,17 @@ void xm64player_open(xm64player_t *player, const char *fn) {
 			samp->wave->ctx = samp;
 		}
 	}
+
+	// By default XM64 files loop
+	player->looping = true;
 }
 
 int xm64player_num_channels(xm64player_t *player) {
 	return xm_get_number_of_channels(player->ctx);
+}
+
+void xm64player_set_loop(xm64player_t *player, bool loop) {
+	player->looping = loop;
 }
 
 void xm64player_play(xm64player_t *player, int first_ch) {

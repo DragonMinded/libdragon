@@ -45,6 +45,7 @@ typedef struct xm64player_s {
 	FILE *fh;                 // open handle of XM64 file
 	int first_ch;             // first channel used in the mixer
 	bool playing;             // playing flag
+	bool looping;             // true if the XM is configured to loop
 	struct {
 		int patidx, row, tick;
 	} seek;                   // seeking to be performed
@@ -68,6 +69,19 @@ void xm64player_open(xm64player_t *player, const char *fn);
  * Notice that the player needs to use one mixer channel per each XM64 channel.
  */
 int xm64player_num_channels(xm64player_t *player);
+
+/**
+ * @brief Configure a XM64 file for looping.
+ * 
+ * By default, XM64 files will be played in loop. Use this function
+ * to disable looping.
+ * 
+ * @param[in] player 
+ *            XM64 player
+ * @param[in] loop
+ *            true to enable looping, false to disable looping.
+ */
+void xm64player_set_loop(xm64player_t *player, bool loop);
 
 /**
  * @brief Start playing the XM64 module.
