@@ -1,10 +1,11 @@
 INSTALLDIR = $(N64_INST)
-CFLAGS = -std=gnu11 -MMD -O2 -Wall -Wno-unused-result -Werror -I../../include 
+CFLAGS = -std=gnu11 -MMD -O2 -Wall -Wno-unused-result -Werror -I../../include
+LDFLAGS += -lm
 
 all: audioconv64
 
 audioconv64: audioconv64.c
-	$(CC) $(CFLAGS) -o $@ $<
+	$(CC) $(CFLAGS) $< $(LDFLAGS) -o $@ 
 
 install: audioconv64
 	install -m 0755 audioconv64 $(INSTALLDIR)/bin

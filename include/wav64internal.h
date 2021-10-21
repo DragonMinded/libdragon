@@ -19,4 +19,13 @@ typedef struct __attribute__((packed)) {
 
 _Static_assert(sizeof(wav64_header_t) == 24, "invalid wav64_header size");
 
+typedef struct samplebuffer_s samplebuffer_t;
+
+/**
+ * @brief Utility function to help implementing #WaveformRead for uncompressed (raw) samples.
+ * 
+ * This function uses PI DMA to load samples from ROM into the sample buffer.
+ */  
+void raw_waveform_read(samplebuffer_t *sbuf, int base_rom_addr, int wpos, int wlen, int bps);
+
 #endif
