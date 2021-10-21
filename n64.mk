@@ -31,7 +31,7 @@ N64_AUDIOCONV = $(N64_BINDIR)/audioconv64
 
 N64_CFLAGS =  -march=vr4300 -mtune=vr4300 -I$(N64_INCLUDEDIR)
 N64_CFLAGS += -falign-functions=32 -ffunction-sections -fdata-sections
-N64_CFLAGS += -DN64 -O2 -Wall -Werror -fdiagnostics-color=always
+N64_CFLAGS += -DN64 -O2 -Wall -Werror -Wno-error=deprecated-declarations -fdiagnostics-color=always
 N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings
 N64_LDFLAGS = -L$(N64_LIBDIR) -ldragon -lm -ldragonsys -Tn64.ld --gc-sections
 
