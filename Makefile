@@ -1,8 +1,8 @@
 all: libdragon
 
 V = 1  # force verbose (at least until we have converted all sub-Makefiles)
-SOURCE_DIR = $(CURDIR)/src
-BUILD_DIR = $(CURDIR)/build
+SOURCE_DIR = src
+BUILD_DIR = build
 include n64.mk
 INSTALLDIR = $(N64_INST)
 
