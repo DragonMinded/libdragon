@@ -16,12 +16,6 @@
 /** @brief Profile of DMA usage by WAV64, used for debugging purposes. */
 int64_t __wav64_profile_dma = 0;
 
-
-/**
- * @brief Utility function to help implementing #WaveformRead for uncompressed (raw) samples.
- * 
- * This function uses PI DMA to load samples from ROM into the sample buffer.
- */  
 void raw_waveform_read(samplebuffer_t *sbuf, int base_rom_addr, int wpos, int wlen, int bps) {
 	uint32_t rom_addr = base_rom_addr + (wpos << bps);
 	uint8_t* ram_addr = (uint8_t*)samplebuffer_append(sbuf, wlen);

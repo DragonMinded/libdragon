@@ -33,11 +33,22 @@ bool flag_verbose = false;
 	#define LE16_TO_HOST(i) (i)
 #endif
 
+__attribute__((noreturn, format(printf, 1, 2)))
+void fatal(const char *str, ...) {
+	va_list va;
+	va_start(va, str);
+	vfprintf(stderr, str, va);
+	va_end(va);
+	exit(1);
+}
+
+
 /************************************************************************************
  *  CONVERTERS
  ************************************************************************************/
 
 #include "conv_wav64.c"
+#include "conv_xm64.c"
 
 /************************************************************************************
  *  MAIN
@@ -51,6 +62,7 @@ void usage(void) {
 	printf("\n");
 	printf("Supported conversions:\n");
 	printf("   * WAV => WAV64 (Waveforms)\n");
+	printf("   * XM  => XM64  (MilkyTracker, OpenMPT)\n");
 	printf("\n");
 	printf("Global options:\n");
 	printf("   -o / --output <dir>       Specify output directory\n");
@@ -76,6 +88,10 @@ void convert(char *infn, char *outfn1) {
 	if (strcmp(ext, ".wav") == 0 || strcmp(ext, ".WAV") == 0) {
 		asprintf(&outfn, "%s/%s64", outfn1, infn_basename);
 		wav_convert(infn, outfn);
+		free(outfn);
+	} else if (strcmp(ext, ".xm") == 0 || strcmp(ext, ".XM") == 0) {
+		asprintf(&outfn, "%s/%s64", outfn1, infn_basename);
+		xm_convert(infn, outfn);
 		free(outfn);
 	} else {
 		fprintf(stderr, "WARNING: ignoring unknown file: %s\n", infn);
