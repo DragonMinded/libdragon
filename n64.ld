@@ -76,10 +76,12 @@ SECTIONS {
 
         but g++ seem to already do this (though incorrectly placing an 0xFFFFFFFF)
         and that breaks things if we also add it. Ideally this should be parsed
-        by the code but we already know the end as well. We have migrated
-        everything to be linked via g++ by default but if you ever need to link
-        with ld, in __do_global_ctors you'd need to loop including the sentinel.
-        This is something we currently don't support*/
+        by the code but we already know the end as well.
+
+        The new build system links everything via g++ by default and should use
+        __wrap___do_global_ctors and enables it via the --wrap linker option.
+        When linking with ld, we should use __do_global_ctors, which is the default
+        if you don't provide the --wrap option. */
         KEEP(*(.ctors))
          /* Similarly we should have a;
 
