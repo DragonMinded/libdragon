@@ -240,15 +240,21 @@ static void __write_dram_register( void const * const dram_val )
  */
 static void __display_callback()
 {
+    uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
+
+    /* Least significant bit of the current line register indicates
+       if the currently displayed field is odd or even. */
+    bool field = reg_base[4] & 1;
+
     /* Only swap frames if we have a new frame to swap, otherwise just
        leave up the current frame */
     if(show_next >= 0 && show_next != now_drawing)
     {
-        __write_dram_register( __safe_buffer[show_next] );
-
         now_showing = show_next;
         show_next = -1;
     }
+
+    __write_dram_register(__safe_buffer[now_showing] + (!field ? __width * __bitdepth : 0));
 }
 
 /**
