@@ -428,7 +428,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
 
     /* Set which line to call back on in order to flip screens */
     register_VI_handler( __display_callback );
-    set_VI_interrupt( 1, 0x200 );
+    set_VI_interrupt( 1, 0x2 );
 }
 
 /**
