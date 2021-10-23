@@ -185,7 +185,7 @@ int main(int argc, char *argv[]) {
 				if (!strcmp(argv[i], "true") || !strcmp(argv[i], "1"))
 					flag_wav_looping = true;
 				else if (!strcmp(argv[i], "false") || !strcmp(argv[i], "0"))
-					flag_wav_looping = true;
+					flag_wav_looping = false;
 				else {
 					fprintf(stderr, "invalid boolean argument for --wav-loop: %s\n", argv[i]);
 					return 1;
