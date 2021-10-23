@@ -8,8 +8,7 @@
 #include <malloc.h>
 #include "libdragon.h"
 #include "system.h"
-
-#define divide_ceil( x, y ) (((x) / (y)) + ((x) % (y) != 0))
+#include "utils.h"
 
 /**
  * @brief EEPROM Filesystem file descriptor.
@@ -296,7 +295,7 @@ int eepfs_init(const eepfs_entry_t * entries, size_t count)
         memcpy(&eepfs_files[i], &entry_file, sizeof(entry_file));
 
         /* Files must start on a block boundary */
-        total_blocks += divide_ceil(file_size, EEPROM_BLOCK_SIZE);
+        total_blocks += DIVIDE_CEIL(file_size, EEPROM_BLOCK_SIZE);
     }
 
     /* Ensure the filesystem will actually fit in available EEPROM */
@@ -437,7 +436,7 @@ int eepfs_erase(const char * path)
         return EEPFS_ENOFILE;
     }
 
-    const size_t num_blocks = divide_ceil(file->num_bytes, EEPROM_BLOCK_SIZE);
+    const size_t num_blocks = DIVIDE_CEIL(file->num_bytes, EEPROM_BLOCK_SIZE);
     size_t current_block = file->start_block;
 
     /* eeprom_buf is initialized to all zeroes */

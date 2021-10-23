@@ -10,8 +10,8 @@ INSTALLDIR = $(N64_INST)
 libdragon: CC=$(N64_CC)
 libdragon: AS=$(N64_AS)
 libdragon: LD=$(N64_LD)
-libdragon: CFLAGS+=$(N64_CFLAGS) -I$(CURDIR)/include
-libdragon: ASFLAGS+=$(N64_ASFLAGS) -I$(CURDIR)/include
+libdragon: CFLAGS+=$(N64_CFLAGS) -I$(CURDIR)/src -I$(CURDIR)/include 
+libdragon: ASFLAGS+=$(N64_ASFLAGS) -I$(CURDIR)/src -I$(CURDIR)/include
 libdragon: LDFLAGS+=$(N64_LDFLAGS)
 libdragon: libdragon.a libdragonsys.a
 
