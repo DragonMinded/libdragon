@@ -1,6 +1,7 @@
 #include "libdragon.h"
 #include "regsinternal.h"
 #include "mixer.h"
+#include "utils.h"
 #include <memory.h>
 #include <stdlib.h>
 #include <math.h>
@@ -31,9 +32,6 @@
  * RSP mixer ucode (rsp_mixer.S)
  */
 DEFINE_RSP_UCODE(rsp_mixer);
-
-#define MIN(a,b)  ({ typeof(a) _a = a; typeof(b) _b = b; _a < _b ? _a : _b; })
-#define ROUND_UP(n, d)  (((n) + (d) - 1) / (d) * (d))
 
 // NOTE: keep these in sync with rsp_mixer.S
 #define CH_FLAGS_BPS_SHIFT  (3<<0)   // BPS shift value
