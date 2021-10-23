@@ -89,6 +89,10 @@ void xm_context_save(xm_context_t* ctx, FILE* out);
 #endif
 
 /** Load a context from a XM64 file.
+ * 
+ * Returns 0 in case of success, 1 in case of generic error (file corrupted),
+ * or 2 in case the memory size estimated by the writer wasn't enough to load
+ * the file.
  */
 int xm_context_load(xm_context_t** ctxp, FILE* in, uint32_t rate);
 
