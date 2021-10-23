@@ -316,9 +316,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     switch( bit )
     {
         case DEPTH_16_BPP:
-            /* We enable divot filter in 16bpp mode to give our gradients
-               a slightly smoother look */
-            control |= 0x10002;
+            control |= 0x2;
             break;
         case DEPTH_32_BPP:
             control |= 0x3;
@@ -343,18 +341,32 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
         case ANTIALIAS_OFF:
             /* Set AA off flag */
             control |= 0x300;
+
+            /* Dither filter should not be enabled with this AA mode
+               as it will cause ugly vertical streaks */
             break;
         case ANTIALIAS_RESAMPLE:
             /* Set AA on resample as well as divot on */
             control |= 0x210;
+
+            /* Dither filter should not be enabled with this AA mode
+               as it will cause ugly vertical streaks */
             break;
         case ANTIALIAS_RESAMPLE_FETCH_NEEDED:
             /* Set AA on resample and fetch as well as divot on */
             control |= 0x110;
+
+            /* Enable dither filter in 16bpp mode to give gradients
+               a slightly smoother look */
+            if ( bit == DEPTH_16_BPP ) { control |= 0x10000; }
             break;
         case ANTIALIAS_RESAMPLE_FETCH_ALWAYS:
             /* Set AA on resample always and fetch as well as divot on */
             control |= 0x010;
+
+            /* Enable dither filter in 16bpp mode to give gradients
+               a slightly smoother look */
+            if ( bit == DEPTH_16_BPP ) { control |= 0x10000; }
             break;
     }
 
