@@ -56,16 +56,6 @@
 #define UNCACHED_ADDR(x)    ((void *)(((uint32_t)(x)) | 0xA0000000))
 
 /**
- * @brief Align a memory address to 64 byte offset
- * 
- * @param[in] x
- *            Unaligned memory address
- *
- * @return An aligned address guaranteed to be >= the unaligned address
- */
-#define ALIGN_64BYTE(x)     ((void *)(((uint32_t)(x)+63) & 0xFFFFFFC0))
-
-/**
  * @name Video Mode Register Presets
  * @brief Presets to use when setting a particular video mode
  * @{
@@ -202,7 +192,7 @@ static int now_drawing = -1;
  */
 static void __write_registers( uint32_t const * const registers )
 {
-    uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
+    volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
 
     /* This should never happen */
     if( !registers ) { return; }
@@ -227,7 +217,7 @@ static void __write_registers( uint32_t const * const registers )
  */
 static void __write_dram_register( void const * const dram_val )
 {
-    uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
+    volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
 
     reg_base[1] = (uint32_t)dram_val;
     MEMORY_BARRIER();
@@ -240,7 +230,7 @@ static void __write_dram_register( void const * const dram_val )
  */
 static void __display_callback()
 {
-    uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
+    volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
 
     /* Least significant bit of the current line register indicates
        if the currently displayed field is odd or even. */
@@ -413,8 +403,8 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     {
         /* Set parameters necessary for drawing */
         /* Grab a location to render to */
-        buffer[i] = malloc( __width * __height * __bitdepth + 63 );
-        __safe_buffer[i] = ALIGN_64BYTE( UNCACHED_ADDR( buffer[i] ) );
+        buffer[i] = memalign( 64, __width * __height * __bitdepth );
+        __safe_buffer[i] = UNCACHED_ADDR( buffer[i] );
 
         /* Baseline is blank */
         memset( __safe_buffer[i], 0, __width * __height * __bitdepth );
