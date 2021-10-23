@@ -91,16 +91,21 @@ void xm64player_open(xm64player_t *player, const char *fn) {
 	// Load the XM context
 	int sample_rate = audio_get_frequency();
 	assertf(sample_rate >= 0, "audio_init() and mixer_init() must be called before xm64player_open()");
-	if (xm_context_load(&player->ctx, player->fh, sample_rate) != 0) {
+	int err = xm_context_load(&player->ctx, player->fh, sample_rate);
+	if (err != 0) {
+		if (err == 2) {
+			assertf(0, "error loading XM64 file: %s\nMemory size estimation by audioconv64 was wrong\n", fn);
+		}
+
 		// Check if the file looks like a standard XM, so to provide
 		// a clear message in that case.
 		char signature[16] = {0};
 		fseek(player->fh, 0, SEEK_SET);
 		fread(signature, 1, 15, player->fh);
 		if (strcmp(signature, "Extended Module") == 0) {
-			assertf(0, "cannot load XM file %s -- please convert to XM64 with audio64", fn);
+			assertf(0, "cannot load XM file: %s\nPlease convert to XM64 with audioconv64", fn);
 		}
-		assertf(0, "error loading XM64 file -- file corrupted?");
+		assertf(0, "error loading XM64 file: %s\nFile corrupted", fn);
 	}
 
 	assertf(strncmp(fn, "rom:/", 5) == 0, "xm64player only supports files in ROM (rom:/)");

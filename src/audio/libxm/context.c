@@ -699,7 +699,7 @@ int xm_context_load(xm_context_t** ctxp, FILE* in, uint32_t rate) {
 			DEBUG("invalid mempool size allocated (diff: %d)\n", (unsigned)(mempool-mempool_end));
 			free(*ctxp);
 			*ctxp = NULL;
-			return 1;		
+			return 2;
 		}
 
 		// FIXME: currently, it's normal to use less memory than declared.
