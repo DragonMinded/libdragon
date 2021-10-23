@@ -489,6 +489,7 @@ void debug_assert_func_f(const char *file, int line, const char *func, const cha
 	console_init();
 	console_set_debug(true);
 	console_set_render_mode(RENDER_MANUAL);
+	graphics_set_color(0xFFFFFFFF, 0x00000000);
 
 	fprintf(stdout,
 		"ASSERTION FAILED: %s\n"

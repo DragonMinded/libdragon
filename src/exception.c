@@ -4,6 +4,7 @@
  * @ingroup exceptions
  */
 #include "exception.h"
+#include "graphics.h"
 #include "console.h"
 #include "n64sys.h"
 
@@ -105,6 +106,7 @@ void exception_default_handler(exception_t* ex) {
 	console_init();
 	console_set_debug(true);
 	console_set_render_mode(RENDER_MANUAL);
+	graphics_set_color(0xFFFFFFFF, 0x00000000);
 
 	fprintf(stdout, "%s exception at PC:%08lX\n", ex->info, (uint32_t)(ex->regs->epc + ((cr & C0_CAUSE_BD) ? 4 : 0)));
 
