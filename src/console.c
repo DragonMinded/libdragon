@@ -185,6 +185,7 @@ void console_init()
     console_set_render_mode(RENDER_AUTOMATIC);
     console_clear();
     console_set_debug(true);
+    graphics_set_color(0xFFFFFFFF, 0x00000000);
 
     /* Register ourselves with newlib */
     stdio_t console_calls = { 0, __console_write, 0 };
