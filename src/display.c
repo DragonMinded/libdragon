@@ -339,6 +339,21 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     switch( aa )
     {
         case ANTIALIAS_OFF:
+            /* Disabling antialias hits a hardware bug on NTSC consoles on
+               low resolutions (see issue #66). We do not know the exact
+               horizontal scale minimum, but among libdragon's supported
+               resolutions the bug appears on 256x240x16 and 320x240x16. It would
+               work on PAL consoles, but we think users are better served by
+               prohibiting it altogether. 
+
+               For people that absolutely need this on PAL consoles, it can
+               be enabled with *(volatile uint32_t*)0xA4400000 |= 0x300 just
+               after the display_init call. */
+            if (bit == DEPTH_16_BPP)
+                assertf(res != RESOLUTION_256x240 && res != RESOLUTION_320x240,
+                    "ANTIALIAS_OFF is not supported by the hardware on 256x240x16 and 320x240x16.\n"
+                    "Please use ANTIALIAS_RESAMPLE instead.");
+
             /* Set AA off flag */
             control |= 0x300;
 
