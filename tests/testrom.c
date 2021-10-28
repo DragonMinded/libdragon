@@ -208,7 +208,10 @@ static const struct Testsuite
 	TEST_FUNC(test_debug_sdfs,             	   0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dma_read_misalign,       7003, TEST_FLAGS_NONE),
 	TEST_FUNC(test_cop1_denormalized_float,    0, TEST_FLAGS_NO_EMULATOR),
-	TEST_FUNC(test_dl_simple,                  0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dl_queue_single,            0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dl_queue_multiple,          0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dl_queue_rapid,             0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dl_queue_big,               0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {

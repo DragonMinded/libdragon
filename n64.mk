@@ -100,6 +100,7 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.S
 		DATASECTION="$(basename $@).data"; \
 		echo "    [RSP] $<"; \
 		$(N64_CC) $(ASFLAGS) -nostartfiles -Wl,-Trsp.ld -o $@ $<; \
+		cp $@ $(subst .o,.elf,$@); \
 		$(N64_OBJCOPY) -O binary -j .text $@ $$TEXTSECTION.bin; \
 		$(N64_OBJCOPY) -O binary -j .data $@ $$DATASECTION.bin; \
 		$(N64_OBJCOPY) -I binary -O elf32-bigmips -B mips4300 \

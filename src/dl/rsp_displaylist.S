@@ -13,10 +13,15 @@
 .align 2
 # Input properties
 DL_DRAM_ADDR:     .long 0
-DL_DRAM_SIZE:     .long 0
 DL_POINTERS_ADDR: .long 0
+
 # TODO: compress the overlay table more
 OVERLAY_TABLE:   .ds.b (OVERLAY_SIZE * OVERLAY_COUNT)
+
+.align 3
+READ_POINTER:    .quad 0
+WRITE_POINTER:   .quad 0
+WRAP_POINTER:    .quad 0
 
 .align 1
 COMMAND_JUMP_TABLE:
@@ -28,15 +33,13 @@ COMMAND_JUMP_TABLE:
 jumpTableEntry command_noop
 jumpTableEntry command_interrupt
 
+.align 3
+DATA_END:
+
 .bss
 
 .align 3
 INPUT_BUFFER:    .ds.b INPUT_BUFFER_SIZE
-
-.align 3
-READ_POINTER:    .quad 0
-WRITE_POINTER:   .quad 0
-WRAP_POINTER:    .quad 0
 
 .align 4
 # Overlay data will be loaded at this address
@@ -56,8 +59,18 @@ OVERLAY_DATA_LOAD_ADDR:
 
 .globl _start
 _start:
+    li t1, SP_WSTATUS_RESET_INTR_ON_BREAK
+    mtc0 t1, COP0_SP_STATUS
+
+    move input_buf_start, zero
+    move input_buf_ptr, zero
+    move input_buf_end, zero
+    move read_ptr, zero
+    move write_ptr, zero
+    move wrap_ptr, zero
+    move cur_ovl, zero
     j loop
-    nop
+    move t0, zero
 
 # Triggers an RSP interrupt
 command_interrupt:
@@ -95,6 +108,7 @@ loop:
     lw t0, %lo(OVERLAY_TABLE) + 0x4 (a0)
     beqz t0, no_overlay_data
     lw s0, %lo(OVERLAY_TABLE) + 0x0 (a0)
+    addi t0, -1
     jal DMAInAsync
     li s4, %lo(OVERLAY_DATA_LOAD_ADDR)
 
@@ -102,6 +116,7 @@ no_overlay_data:
     # Load overlay code
     lw s0, %lo(OVERLAY_TABLE) + 0x8 (a0)
     lw t0, %lo(OVERLAY_TABLE) + 0xC (a0)
+    addi t0, -1
     jal DMAIn
     li s4, %lo(OVERLAY_CODE_LOAD_ADDR)
 
@@ -164,7 +179,7 @@ store_read_ptr:
     li s4, %lo(READ_POINTER)
     lw s0, %lo(DL_POINTERS_ADDR)
     jal DMAOutAsync
-    li t0, 8
+    li t0, DMA_SIZE(8, 1)
 
 check_for_new_input:
     # Check if write pointer has been updated by the CPU
@@ -180,7 +195,7 @@ check_for_new_input:
     # Load new values of write_ptr and wrap_ptr
     li s4, %lo(WRITE_POINTER)
     lw s0, %lo(DL_POINTERS_ADDR)
-    li t0, 16 # Load write and wrap pointer
+    li t0, DMA_SIZE(16, 1) # Load write and wrap pointer
     jal DMAIn
     addiu s0, 8
     lw write_ptr, %lo(WRITE_POINTER) + 0x4
@@ -207,18 +222,12 @@ calc_valid_length:
 length_calculated:
     # Check if the buffer is empty (length == 0)
     bgtz len, buffer_not_empty
+    nop
 
     # If buffer is empty -> enter idle mode
-    li t0, SP_WSTATUS_SET_HALT
-    mtc0 t0, COP0_SP_STATUS
-    # "Delay slots" for halting the RSP
-    # Otherwise weird things happen (at least on emulator)
-    nop
-    nop
-
     # After being woken up, perform the check again
     j check_for_new_input
-    nop
+    break
 
 buffer_not_empty:
     # length = max(length, INPUT_BUFFER_SIZE)
@@ -228,7 +237,7 @@ buffer_not_empty:
     li len, INPUT_BUFFER_SIZE
 
 dma_input:
-    move t0, len
+    addi t0, len, -1
     li s4, %lo(INPUT_BUFFER)
     jal DMAIn
     add s0, read_ptr
@@ -250,4 +259,3 @@ dma_input:
 .align 3
 # Overlay code will be loaded at this address
 OVERLAY_CODE_LOAD_ADDR:
-# TODO: export overlay offset somehow?

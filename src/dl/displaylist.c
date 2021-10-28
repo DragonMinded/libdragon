@@ -13,7 +13,6 @@ static dl_overlay_t dl_overlay_table[DL_MAX_OVERLAY_COUNT];
 
 typedef struct rsp_dl_s {
 	void *dl_dram_addr;
-	uint32_t dl_dram_size;
 	void *dl_pointers_addr;
     dl_overlay_t overlay_table[DL_MAX_OVERLAY_COUNT];
 } __attribute__((aligned(8), packed)) rsp_dl_t;
@@ -59,6 +58,8 @@ void dl_init()
     dl_buffer = malloc(DL_BUFFER_SIZE);
     dl_buffer_uncached = UncachedAddr(dl_buffer);
 
+    DL_POINTERS->read.value = 0;
+    DL_POINTERS->write.value = 0;
     DL_POINTERS->wrap.value = DL_BUFFER_SIZE;
 
     rsp_wait();
@@ -69,7 +70,6 @@ void dl_init()
     MEMORY_BARRIER();
     volatile rsp_dl_t *rsp_dl = (volatile rsp_dl_t*)SP_DMEM;
     rsp_dl->dl_dram_addr = PhysicalAddr(dl_buffer);
-    rsp_dl->dl_dram_size = DL_BUFFER_SIZE;
     rsp_dl->dl_pointers_addr = PhysicalAddr(&dl_pointers);
     for (int i = 0; i < DL_MAX_OVERLAY_COUNT; ++i) {
         rsp_dl->overlay_table[i].code = dl_overlay_table[i].code;
@@ -169,6 +169,5 @@ void dl_write_end()
     MEMORY_BARRIER();
 
     // Make rsp leave idle mode
-    // TODO: need to advance PC?
-    *SP_STATUS = SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_SET_SIG0;
+    *SP_STATUS = SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE | SP_WSTATUS_SET_SIG0;
 }
