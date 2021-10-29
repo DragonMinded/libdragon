@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include <malloc.h>
 #include <string.h>
+#include <math.h>
+#include <float.h>
 #include "libdragon.h"
 
 /**
@@ -73,6 +75,8 @@
  * split in the middle during wraparound.
  */
 #define RINGBUFFER_SLACK 1024
+
+#define SWAP(a, b)  { float t = a; a = b; b = t; }
 
 /**
  * @brief Cached sprite structure
@@ -194,7 +198,7 @@ static inline uint32_t __rdp_ringbuffer_size( void )
  * @param[in] data
  *            32 bits of data to be queued at the end of the current command
  */
-static void __rdp_ringbuffer_queue( uint32_t data )
+void __rdp_ringbuffer_queue( uint32_t data )
 {
     /* Only add commands if we have room */
     if( __rdp_ringbuffer_size() + sizeof(uint32_t) >= RINGBUFFER_SIZE ) { return; }
@@ -212,7 +216,7 @@ static void __rdp_ringbuffer_queue( uint32_t data )
  * kicking off execution of the command in the RDP.  After calling this function, it is
  * safe to start writing to the ring buffer again.
  */
-static void __rdp_ringbuffer_send( void )
+void __rdp_ringbuffer_send( void )
 {
     /* Don't send nothingness */
     if( __rdp_ringbuffer_size() == 0 ) { return; }
@@ -424,6 +428,20 @@ void rdp_enable_blend_fill( void )
 }
 
 /**
+ * @brief Enable display of 2D shaded triangles
+ *
+ * This must be called before using #rdp_draw_shaded_triangle.
+ */
+void rdp_enable_shading( void )
+{
+    __rdp_ringbuffer_queue(0x2f002030);
+    __rdp_ringbuffer_queue(0);
+    __rdp_ringbuffer_queue(0x3C0F8E1F);
+    __rdp_ringbuffer_queue(0x001E0904);
+    __rdp_ringbuffer_send();
+}
+
+/**
  * @brief Enable display of 2D sprites
  *
  * This must be called before using #rdp_draw_textured_rectangle_scaled,
@@ -630,13 +648,13 @@ void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int b
 
      // mirror horizontally or vertically
     if (mirror != MIRROR_DISABLED)
-    {	
+    {    
         if (mirror == MIRROR_X || mirror == MIRROR_XY)
             s += ( (width+1) + ((cache[texslot & 0x7].real_width-(width+1))<<1) ) << 5;
-	
+    
         if (mirror == MIRROR_Y || mirror == MIRROR_XY)
-            t += ( (height+1) + ((cache[texslot & 0x7].real_height-(height+1))<<1) ) << 5;	
-    }	
+            t += ( (height+1) + ((cache[texslot & 0x7].real_height-(height+1))<<1) ) << 5;    
+    }    
 
     /* Calculate the scaling constants based on a 6.10 fixed point system */
     int xs = (int)((1.0 / x_scale) * 4096.0);
@@ -802,6 +820,168 @@ void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by )
     __rdp_ringbuffer_send();
 }
 
+
+/**
+ * @brief Draw a shaded triangle (no alpha support)
+ *
+ * Draws a shaded triangle to the screen. Vertex order is not important.
+ *
+ * Before calling this function, make sure that the RDP is set to shaded mode by
+ * calling #rdp_enable_shading.
+ *
+ * Color values are from 0-255.
+ *
+ * @param[in] x1
+ *            Pixel X1 location of triangle
+ * @param[in] y1
+ *            Pixel Y1 location of triangle
+ * @param[in] x2
+ *            Pixel X2 location of triangle
+ * @param[in] y2
+ *            Pixel Y2 location of triangle
+ * @param[in] x3
+ *            Pixel X3 location of triangle
+ * @param[in] y3
+ *            Pixel Y3 location of triangle
+ * @param[in] v1R
+ *            Red value for vertex 1
+ * @param[in] v1G
+ *            Green value for vertex 1
+ * @param[in] v1B
+ *            Blue value for vertex 1
+ * @param[in] v2R
+ *            Red value for vertex 2
+ * @param[in] v2G
+ *            Green value for vertex 2
+ * @param[in] v2B
+ *            Blue value for vertex 2
+ * @param[in] v3R
+ *            Red value for vertex 3
+ * @param[in] v3G
+ *            Green value for vertex 3
+ * @param[in] v3B
+ *            Blue value for vertex 3
+ */
+void rdp_draw_shaded_triangle(float x1, float y1, float x2, float y2, float x3, float y3, float v1R, float v1G, float v1B, 
+                float v2R, float v2G, float v2B, float v3R, float v3G, float v3B)
+{
+    const float to_fixed_11_2 = 4.0f;
+    const float to_fixed_16_16 = 65536.0f;
+
+    if( y1 > y2 ) { SWAP(y1, y2) SWAP(x1, x2) SWAP(v1R, v2R) SWAP(v1G, v2G) SWAP(v1B, v2B) }
+    if( y2 > y3 ) { SWAP(y2, y3) SWAP(x2, x3) SWAP(v2R, v3R) SWAP(v2G, v3G) SWAP(v2B, v3B) }
+    if( y1 > y2 ) { SWAP(y1, y2) SWAP(x1, x2) SWAP(v1R, v2R) SWAP(v1G, v2G) SWAP(v1B, v2B) }
+    
+    int y1f = y1*to_fixed_11_2;
+    int y2f = y2*to_fixed_11_2;
+    int y3f = y3*to_fixed_11_2;
+    
+    y1 = y1f/4.0f;
+    y2 = y2f/4.0f;
+    y3 = y3f/4.0f;
+    
+    const float Hx = x3 - x1;        
+    const float Hy = y3 - y1;        
+    const float Mx = x2 - x1;
+    const float My = y2 - y1;
+    const float Lx = x3 - x2;
+    const float Ly = y3 - y2;
+    const float nz = (Hx*My) - (Hy*Mx);
+    uint32_t lft = nz < 0;
+    
+    y1f = (y1f&0x1fff) | ((y1f&0x80000000)>>18);
+    y2f = (y2f&0x1fff) | ((y2f&0x80000000)>>18);
+    y3f = (y3f&0x1fff) | ((y3f&0x80000000)>>18);
+    
+    __rdp_ringbuffer_queue(0x0C000000 | (lft<<23) | y3f);
+    __rdp_ringbuffer_queue( (y2f<<16) | y1f );
+
+    const float ish = (fabs(Hy) > FLT_MIN) ? (Hx / Hy) : 0;
+    const float ism = (fabs(My) > FLT_MIN) ? (Mx / My) : 0;
+    const float isl = (fabs(Ly) > FLT_MIN) ? (Lx / Ly) : 0;
+    const float FY = floorf(y1) - y1;
+    const float CY = ceilf(4*y2);
+    
+    const float xh = x1 + FY * ish;
+    const float xm = x1 + FY * ism;
+    const float xl = x2 + ( ((CY/4) - y2) * isl );
+    
+    __rdp_ringbuffer_queue((int)( xl * to_fixed_16_16 ) );
+    __rdp_ringbuffer_queue((int)( isl * to_fixed_16_16 ) );
+    __rdp_ringbuffer_queue((int)( xh * to_fixed_16_16 ) );
+    __rdp_ringbuffer_queue((int)( ish * to_fixed_16_16 ) );
+    __rdp_ringbuffer_queue((int)( xm * to_fixed_16_16 ) );
+    __rdp_ringbuffer_queue((int)( ism * to_fixed_16_16 ) );
+    
+    const float mr = v2R - v1R;
+    const float mg = v2G - v1G;
+    const float mb = v2B - v1B;
+    const float hr = v3R - v1R;
+    const float hg = v3G - v1G;
+    const float hb = v3B - v1B;
+    
+    const float nxR = Hy*mr - hr*My;
+    const float nyR = hr*Mx - Hx*mr;
+    const float nxG = Hy*mg - hg*My;
+    const float nyG = hg*Mx - Hx*mg;
+    const float nxB = Hy*mb - hb*My;
+    const float nyB = hb*Mx - Hx*mb;
+    
+    const float DrDx = (fabs(nz) > FLT_MIN) ? (- nxR / nz) : 0;
+    const float DgDx = (fabs(nz) > FLT_MIN) ? (- nxG / nz) : 0;
+    const float DbDx = (fabs(nz) > FLT_MIN) ? (- nxB / nz) : 0;
+    const float DrDy = (fabs(nz) > FLT_MIN) ? (- nyR / nz) : 0;
+    const float DgDy = (fabs(nz) > FLT_MIN) ? (- nyG / nz) : 0;
+    const float DbDy = (fabs(nz) > FLT_MIN) ? (- nyB / nz) : 0;
+    
+    const float DrDe = DrDy + DrDx * ish;
+    const float DgDe = DgDy + DgDx * ish;
+    const float DbDe = DbDy + DbDx * ish;
+    
+    const int final_r = v1R * to_fixed_16_16; // (v1R + FY * DrDe) * to_fixed_16_16;
+    const int final_g = v1G * to_fixed_16_16; //(v1G + FY * DgDe) * to_fixed_16_16;
+    const int final_b = v1B * to_fixed_16_16; //(v1B + FY * DbDe) * to_fixed_16_16;
+    __rdp_ringbuffer_queue( (final_r&0xffff0000) | (0xffff&(final_g>>16)) );  
+    __rdp_ringbuffer_queue( (final_b&0xffff0000) | 0x00ff ); // the 0xffff is opaque alpha hopefully
+
+    int DrDx_fixed = DrDx * to_fixed_16_16;
+    int DgDx_fixed = DgDx * to_fixed_16_16;
+    int DbDx_fixed = DbDx * to_fixed_16_16;
+
+    __rdp_ringbuffer_queue( (DrDx_fixed&0xffff0000) | (0xffff&(DgDx_fixed>>16)) );
+    __rdp_ringbuffer_queue( (DbDx_fixed&0xffff0000)  );    
+    
+    __rdp_ringbuffer_queue( 0 );  // not dealing with the color fractions right now
+    __rdp_ringbuffer_queue( 0 );
+    
+    __rdp_ringbuffer_queue( (DrDx_fixed<<16) | (DgDx_fixed&0xffff) );
+    __rdp_ringbuffer_queue( (DbDx_fixed<<16) );
+    
+    int DrDe_fixed = DrDe * to_fixed_16_16;
+    int DgDe_fixed = DgDe * to_fixed_16_16;
+    int DbDe_fixed = DbDe * to_fixed_16_16;
+    
+    __rdp_ringbuffer_queue( (DrDe_fixed&0xffff0000) | (0xffff&(DgDe_fixed>>16)) );
+    __rdp_ringbuffer_queue( (DbDe_fixed&0xffff0000) );
+    
+    int DrDy_fixed = DrDy * to_fixed_16_16;
+    int DgDy_fixed = DgDy * to_fixed_16_16;
+    int DbDy_fixed = DbDy * to_fixed_16_16;
+    
+    __rdp_ringbuffer_queue( (DrDy_fixed&0xffff0000) | (0xffff&(DgDy_fixed>>16)) );
+    __rdp_ringbuffer_queue( (DbDy_fixed&0xffff0000) );
+    
+    __rdp_ringbuffer_queue( (DrDe_fixed<<16) | (DgDe_fixed&0xffff) );
+    __rdp_ringbuffer_queue( (DbDe_fixed<<16) );
+    
+    __rdp_ringbuffer_queue( (DrDy_fixed<<16) | (DgDy_fixed&&0xffff) );
+    __rdp_ringbuffer_queue( (DbDy_fixed<<16) );
+    
+    __rdp_ringbuffer_send();
+    
+    return;
+}
+
 /**
  * @brief Draw a filled triangle
  *
@@ -826,43 +1006,56 @@ void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by )
  */
 void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3, float y3 )
 {
-    float temp_x, temp_y;
-    const float to_fixed_11_2 = 4.0f;
+     const float to_fixed_11_2 = 4.0f;
     const float to_fixed_16_16 = 65536.0f;
-    
-    /* sort vertices by Y ascending to find the major, mid and low edges */
-    if( y1 > y2 ) { temp_x = x2, temp_y = y2; y2 = y1; y1 = temp_y; x2 = x1; x1 = temp_x; }
-    if( y2 > y3 ) { temp_x = x3, temp_y = y3; y3 = y2; y2 = temp_y; x3 = x2; x2 = temp_x; }
-    if( y1 > y2 ) { temp_x = x2, temp_y = y2; y2 = y1; y1 = temp_y; x2 = x1; x1 = temp_x; }
 
-    /* calculate Y edge coefficients in 11.2 fixed format */
-    int yh = y1 * to_fixed_11_2;
-    int ym = (int)( y2 * to_fixed_11_2 ) << 16; // high word
-    int yl = y3 * to_fixed_11_2;
+    if( y1 > y2 ) { SWAP(y1, y2) SWAP(x1, x2) }
+    if( y2 > y3 ) { SWAP(y2, y3) SWAP(x2, x3) }
+    if( y1 > y2 ) { SWAP(y1, y2) SWAP(x1, x2) }
+
+    int y1f = y1*to_fixed_11_2;
+    int y2f = y2*to_fixed_11_2;
+    int y3f = y3*to_fixed_11_2;
     
-    /* calculate X edge coefficients in 16.16 fixed format */
-    int xh = x1 * to_fixed_16_16;
-    int xm = x1 * to_fixed_16_16;
-    int xl = x2 * to_fixed_16_16;
+    y1 = y1f/4.0f;
+    y2 = y2f/4.0f;
+    y3 = y3f/4.0f;
+
+    const float Hx = x3 - x1;        
+    const float Hy = y3 - y1;        
+    const float Mx = x2 - x1;
+    const float My = y2 - y1;
+    const float Lx = x3 - x2;
+    const float Ly = y3 - y2;
+    const float nz = (Hx*My) - (Hy*Mx);
+    uint32_t lft = nz < 0;
     
-    /* calculate inverse slopes in 16.16 fixed format */
-    int dxhdy = ( y3 == y1 ) ? 0 : ( ( x3 - x1 ) / ( y3 - y1 ) ) * to_fixed_16_16;
-    int dxmdy = ( y2 == y1 ) ? 0 : ( ( x2 - x1 ) / ( y2 - y1 ) ) * to_fixed_16_16;
-    int dxldy = ( y3 == y2 ) ? 0 : ( ( x3 - x2 ) / ( y3 - y2 ) ) * to_fixed_16_16;
+    y1f = (y1f&0x1fff) | ((y1f&0x80000000)>>18);
+    y2f = (y2f&0x1fff) | ((y2f&0x80000000)>>18);
+    y3f = (y3f&0x1fff) | ((y3f&0x80000000)>>18);
     
-    /* determine the winding of the triangle */
-    int winding = ( x1 * y2 - x2 * y1 ) + ( x2 * y3 - x3 * y2 ) + ( x3 * y1 - x1 * y3 );
-    int flip = ( winding > 0 ? 1 : 0 ) << 23;
+    __rdp_ringbuffer_queue(0x08000000 | (lft<<23) | y3f);
+    __rdp_ringbuffer_queue( (y2f<<16) | y1f );
     
-    __rdp_ringbuffer_queue( 0xC8000000 | flip | yl );
-    __rdp_ringbuffer_queue( ym | yh );
-    __rdp_ringbuffer_queue( xl );
-    __rdp_ringbuffer_queue( dxldy );
-    __rdp_ringbuffer_queue( xh );
-    __rdp_ringbuffer_queue( dxhdy );
-    __rdp_ringbuffer_queue( xm );
-    __rdp_ringbuffer_queue( dxmdy );
+    const float ish = (fabs(Hy) > FLT_MIN) ? (Hx / Hy) : 0;
+    const float ism = (fabs(My) > FLT_MIN) ? (Mx / My) : 0;
+    const float isl = (fabs(Ly) > FLT_MIN) ? (Lx / Ly) : 0;
+    const float FY = floorf(y1) - y1;
+    const float CY = ceilf(4*y2);
+    
+    const float xh = x1 + FY * ish;
+    const float xm = x1 + FY * ism;
+    const float xl = x2 + ( ((CY/4) - y2) * isl );
+    
+    __rdp_ringbuffer_queue((int)( xl * to_fixed_16_16 ) );
+    __rdp_ringbuffer_queue((int)( isl * to_fixed_16_16 ) );
+    __rdp_ringbuffer_queue((int)( xh * to_fixed_16_16 ) );
+    __rdp_ringbuffer_queue((int)( ish * to_fixed_16_16 ) );
+    __rdp_ringbuffer_queue((int)( xm * to_fixed_16_16 ) );
+    __rdp_ringbuffer_queue((int)( ism * to_fixed_16_16 ) );
     __rdp_ringbuffer_send();
+    
+    return;
 }
 
 /**
