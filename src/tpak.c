@@ -12,168 +12,182 @@
  * @ingroup controller
  * @brief Transfer Pak interface
  * 
- * The Transfer Pak interface allows the ROM and Save files of gameboy and gameboy color cartridges connected to the system to be accessed.
- * Each time you want to access a transfer pak, first call #tpak_init to boot up the accessory and ensure that it is in working order.
- * #tpak_set_power and #tpak_set_access can also be called directly if you need to put the pak in a certain mode and you
- * can verify for youself that the pak is ready for IO by calling #tpak_get_status and inspecting the bits.
+ * The Transfer Pak interface allows access to Game Boy and Game Boy Color
+ * cartridges connected through the accessory port of each controller.
+ * 
+ * Before accessing a Transfer Pak, first call #tpak_init to boot up the
+ * accessory and ensure that it is in working order. For advanced use-cases,
+ * #tpak_set_power and #tpak_set_access can also be called directly if you
+ * need to put the Transfer Pak into a certain mode. You can verify that the
+ * Transfer Pak is in the correct mode by inspecting the #tpak_get_status flags.
+ * 
+ * Whenever the Transfer Pak is not in use, it is recommended to power it off
+ * by calling @ref tpak_set_power "`tpak_set_power(controller, false)`".
  *
- * To read in the connected gameboy cartridge's header, call #tpak_get_cartridge_header which provides you with a struct defining each of the fields. 
- * Pass this through to #tpak_check_header to verify that the header checksum adds up and the data have been read correctly.
+ * You can read the connected Game Boy cartridge's ROM header by calling
+ * #tpak_get_cartridge_header and validating the result with #tpak_check_header.
+ * If the ROM header checksum does not match, it is likely that the cartridge
+ * connection is poor.
  * 
- * #tpak_read and #tpak_write do what you expect, switching banks as needed.
- * 
- * Whenever not using the transfer pak, it's recommended to power it off by calling #tpak_set_power(false).
+ * You can use #tpak_read and #tpak_write to access the Game Boy cartridge.
+ * Note that these functions do not account for cartridge bank switching.
+ * For more information about Game Boy cartridge bank switching, refer to the
+ * GBDev Pan Docs at https://gbdev.io/pandocs/
  */
 
-#define TPAK_POWER_ON 0x84
-#define TPAK_POWER_OFF 0xFE
-#define TPAK_POWER_ADDRESS 0x8000
-#define TPAK_BANK_ADDRESS 0xA000
-#define TPAK_STATUS_ADDRESS 0xB000
-#define TPAK_STATUS_CARTRIDGE_ABSENT 0x40 // bit 6
-
-#define TPAK_DATA_ADDRESS 0xC000
-
-#define BLOCK_SIZE 0x20
-#define BANK_SIZE 0x4000
-
+/**
+ * @anchor TPAK_POWER
+ * @name Transfer Pak power control values
+ * 
+ * @see #tpak_set_power
+ * @{
+ */
+/** @brief Transfer Pak power on */
+#define TPAK_POWER_ON   0x84
+/** @brief Transfer Pak power off */
+#define TPAK_POWER_OFF  0xFE
+/** @} */
 
 /**
- * @brief Set transfer pak or gb cartridge controls/flags.
+ * @anchor TPAK_ADDRESS
+ * @name Transfer Pak address values
+ * @{
+ */
+/** @brief Transfer Pak address for power control */
+#define TPAK_ADDRESS_POWER  0x8000
+/** @brief Transfer Pak address for bank switching */
+#define TPAK_ADDRESS_BANK   0xA000
+/** @brief Transfer Pak address for status flags */
+#define TPAK_ADDRESS_STATUS 0xB000
+/** @brief Transfer Pak address for cartridge data */
+#define TPAK_ADDRESS_DATA   0xC000
+/** @} */
+
+/** @brief Transfer Pak command block size (32 bytes) */
+#define TPAK_BLOCK_SIZE  0x20
+/** @brief Transfer Pak cartridge bank size (16KB) */
+#define TPAK_BANK_SIZE   0x4000
+
+/**
+ * @brief Set Transfer Pak or Game Boy cartridge status/control value.
  *
- * Helper to set a transfer pak status or control setting.
- * Be aware that for simplicity's sake, this writes the same value 32 times, and should therefore not be used for
- * updating individual bytes in Save RAM.
+ * This is an internal helper to set a Transfer Pak status or control setting.
+ * This function is not suitable for setting individual bytes in Save RAM!
  *
  * @param[in] controller
- *            The controller (0-3) with transfer pak connected.
+ *            The controller (0-3) with Transfer Pak connected.
  * @param[in] address
  *            Address of the setting. Should be between 0x8000 and 0xBFE0
  * @param[in] value
- *            The value to be set.
+ *            A byte of data to fill the write buffer with.
  */
 int tpak_set_value(int controller, uint16_t address, uint8_t value)
 {
-    uint8_t block[BLOCK_SIZE];
-    memset(block, value, BLOCK_SIZE);
+    uint8_t block[TPAK_BLOCK_SIZE];
+    memset(block, value, TPAK_BLOCK_SIZE);
     return write_mempak_address(controller, address, block);
 }
 
 /**
- * @brief Prepare transfer pak for I/O
+ * @brief Prepare a Transfer Pak for read/write commands.
  * 
- * Powers on the transfer pak and sets access mode to allow I/O to gameboy cartridge.
- * Will also perform a series of checks to confirm transfer pak can be accessed reliably.
+ * Powers on the Transfer Pak and enables access to the Game Boy cartridge.
+ * Also performs status checks to confirm the Transfer Pak can be accessed reliably.
  * 
  * @param[in]  controller
- *             The controller (0-3) with transfer pak connected.
- * @return TPAK_ERROR code or 0 if successful.
+ *             The controller (0-3) with Transfer Pak connected.
+ * @return 0 if successful or @ref TPAK_ERROR otherwise.
  */
 int tpak_init(int controller)
 {
+    int result = 0;
+
     int accessory = identify_accessory(controller);
+    if (accessory != ACCESSORY_TRANSFERPAK) return TPAK_ERROR_NO_TPAK;
 
-    if (accessory != ACCESSORY_TRANSFERPAK)
-    {
-        return TPAK_ERROR_NO_TPAK;
-    }
+    result = tpak_set_power(controller, true);
+    if (result) return result;
 
-    int result = tpak_set_power(controller, true);
-    if (result)
-    {
-        return result;
-    }
-
-    tpak_set_access(controller, true);
+    result = tpak_set_access(controller, true);
+    if (result) return result;
 
     uint8_t status = tpak_get_status(controller);
-    if (status & TPAK_STATUS_CARTRIDGE_ABSENT)
-    {
-        return TPAK_ERROR_NO_CARTRIDGE;
-    }
-
-    if (!(status & TPAK_STATUS_READY))
-    {
-        return TPAK_ERROR_UNKNOWN_BEHAVIOUR;
-    }
+    if (status & TPAK_STATUS_REMOVED) return TPAK_ERROR_NO_CARTRIDGE;
+    if (!(status & TPAK_STATUS_READY)) return TPAK_ERROR_UNKNOWN_BEHAVIOUR;
 
     return 0;
 }
 
 /**
- * @brief Set transfer pak access mode.
+ * @brief Set the access mode flag for a Transfer Pak.
  * 
  * @param[in] controller
- *            The controller (0-3) with transfer pak connected.
+ *            The controller (0-3) with Transfer Pak connected.
  * @param[in] access_state
- *            True to allow access to the gameboy cartridge, false to revoke it.
- * @return TPAK_ERROR code or 0 if successful.
+ *            Whether to allow access to the Game Boy cartridge.
+ * @return 0 if successful or @ref TPAK_ERROR otherwise.
  */
 int tpak_set_access(int controller, bool access_state)
 {
     uint8_t value = access_state ? 1 : 0;
-    return tpak_set_value(controller, TPAK_STATUS_ADDRESS, value);
+    return tpak_set_value(controller, TPAK_ADDRESS_STATUS, value);
 }
 
 /**
- * @brief Toggle transfer pak power state.
+ * @brief Set the power enabled flag for a Transfer Pak.
  * 
  * @param[in] controller
- *            The controller (0-3) with transfer pak connected.
+ *            The controller (0-3) with Transfer Pak connected.
  * @param[in] power_state 
- *            True to power the transfer pak and cartridge on, false to turn it off.
- * @return TPAK_ERROR code or 0 if successful.
+ *            True to power the Transfer Pak and cartridge on, false to turn it off.
+ * @return 0 if successful or @ref TPAK_ERROR otherwise.
  */
 int tpak_set_power(int controller, bool power_state)
 {
     uint8_t value = power_state ? TPAK_POWER_ON : TPAK_POWER_OFF;
-    return tpak_set_value(controller, TPAK_POWER_ADDRESS, value);
+    return tpak_set_value(controller, TPAK_ADDRESS_POWER, value);
 }
 
 /**
- * @brief Change transfer pak banked memory
+ * @brief Set the cartridge data address memory bank for a Transfer Pak.
  *
- * Change the bank of address space that is available between transfer pak addresses 0xC000 and 0xFFFF
+ * Change the bank of address space that is available for #tpak_read and
+ * #tpak_write between Transfer Pak addresses 0xC000 and 0xFFFF.
  * 
  * @param[in] controller
- *            The controller (0-3) with transfer pak connected.
+ *            The controller (0-3) with Transfer Pak connected.
  * @param[in] bank
  *            The bank (0-3) to switch to.
- * @return TPAK_ERROR code or 0 if successful.
+ * @return 0 if successful or @ref TPAK_ERROR otherwise.
  */
 int tpak_set_bank(int controller, int bank)
 {
-    return tpak_set_value(controller, TPAK_BANK_ADDRESS, bank);
+    return tpak_set_value(controller, TPAK_ADDRESS_BANK, bank);
 }
 
 /**
- * @brief Gets transfer pak status flags.
+ * @brief Get the status flags for a Transfer Pak.
  * 
  * @param[in] controller
- *            The controller (0-3) with transfer pak connected.
- * @return The status byte with below fit fields.
- * @retval bit 0 Access mode - must be 1 to communicate with a cartridge
- * @retval bit 2 Reset status - if set, indicates that the cartridge is in the process of booting up/resetting
- * @retval bit 3 Reset detected -  Indicates that the cartridge has been reset since the last IO
- * @retval bit 6 Cartridge presence If not set, there is no cartridge in the transfer pak.
- * @retval bit 7 Power mode - a 1 indicates there is power to the transfer pak.
+ *            The controller (0-3) with Transfer Pak connected.
+ * @return The status byte with @ref TPAK_STATUS flags
  */
 uint8_t tpak_get_status(int controller)
 {
-    uint8_t block[BLOCK_SIZE];
-    read_mempak_address(controller, TPAK_STATUS_ADDRESS, block);
+    uint8_t block[TPAK_BLOCK_SIZE];
+    read_mempak_address(controller, TPAK_ADDRESS_STATUS, block);
 
     return block[0];
 }
 
 /**
- * @brief Reads a gameboy cartridge header in to memory.
+ * @brief Read the Game Boy cartridge ROM header from a Transfer Pak.
  *
  * @param[in] controller
- *            The controller (0-3) with transfer pak connected.
+ *            The controller (0-3) with Transfer Pak connected.
  * @param[out] header
- *             Gameboy header data such as game title, rom size and type of colour support.
- * @return TPAK_ERROR code or 0 if successful.
+ *             Pointer to destination Game Boy cartridge ROM header data structure.
+ * @return 0 if successful or @ref TPAK_ERROR otherwise.
  */
 int tpak_get_cartridge_header(int controller, struct gameboy_cartridge_header* header)
 {
@@ -186,30 +200,30 @@ int tpak_get_cartridge_header(int controller, struct gameboy_cartridge_header* h
 }
 
 /**
- * @brief Write data from a buffer to a gameboy cartridge.
+ * @brief Write data from a buffer to a Game Boy cartridge via Transfer Pak.
  *
- * Save RAM is located between gameboy addresses 0xA000 and 0xBFFF, which is in the transfer pak's bank 2.
+ * Save RAM is located between gameboy addresses 0xA000 and 0xBFFF, which is in the Transfer Pak's bank 2.
  * This function does not account for cartridge bank switching, so to switch between MBC1 RAM banks, for example,
  * you'll need to switch to Tpak bank 1, and write to address 0xE000, which translates to address 0x6000 on the gameboy.
  *
  * @param[in] controller
- *            The controller (0-3) with transfer pak connected.
+ *            The controller (0-3) with Transfer Pak connected.
  * @param[in] address
- *            address in gameboy space to write to.
+ *            address in Game Boy cartridge space to write to.
  * @param[in] data
- *            buffer containing data to write.
+ *            buffer containing the data to write.
  * @param[in] size
  *            length of the buffer.
- * @return TPAK_ERROR code or 0 if successful.
+ * @return 0 if successful or @ref TPAK_ERROR otherwise.
  */
 int tpak_write(int controller, uint16_t address, uint8_t* data, uint16_t size)
 {
-    if (controller < 0 || controller > 3 || size % BLOCK_SIZE || address % BLOCK_SIZE)
+    if (controller < 0 || controller > 3 || size % TPAK_BLOCK_SIZE || address % TPAK_BLOCK_SIZE)
     {
         return TPAK_ERROR_INVALID_ARGUMENT;
     }
 
-    uint16_t adjusted_address = (address % BANK_SIZE) + TPAK_DATA_ADDRESS;
+    uint16_t adjusted_address = (address % TPAK_BANK_SIZE) + TPAK_ADDRESS_DATA;
     uint16_t end_address = address + size;
     if (end_address < address)
     {
@@ -218,48 +232,48 @@ int tpak_write(int controller, uint16_t address, uint8_t* data, uint16_t size)
 
     uint8_t* cursor = data;
 
-    int bank = address / BANK_SIZE;
-    tpak_set_value(controller, TPAK_BANK_ADDRESS, bank);
+    int bank = address / TPAK_BANK_SIZE;
+    tpak_set_bank(controller, bank);
 
     while(address < end_address)
     {
         // Check if we need to change the bank.
-        if (address / BANK_SIZE > bank) {
-            bank = address / BANK_SIZE;
-            tpak_set_value(controller, TPAK_BANK_ADDRESS, bank);
-            adjusted_address = TPAK_DATA_ADDRESS;
+        if (address / TPAK_BANK_SIZE > bank) {
+            bank = address / TPAK_BANK_SIZE;
+            tpak_set_bank(controller, bank);
+            adjusted_address = TPAK_ADDRESS_DATA;
         }
 
         write_mempak_address(controller, adjusted_address, cursor);
-        address += BLOCK_SIZE;
-        cursor += BLOCK_SIZE;
-        adjusted_address += BLOCK_SIZE;
+        address += TPAK_BLOCK_SIZE;
+        cursor += TPAK_BLOCK_SIZE;
+        adjusted_address += TPAK_BLOCK_SIZE;
     }
 
     return 0;
 }
 
 /**
- * @brief Read data from gameboy cartridge to a buffer.
+ * @brief Read data from a Game Boy cartridge to a buffer via Transfer Pak.
  *
  * @param[in] controller
- *            The controller (0-3) with transfer pak connected.
+ *            The controller (0-3) with Transfer Pak connected.
  * @param[in] address
- *            address in gameboy space to read from.
+ *            address in Game Boy cartridge space to read from.
  * @param[in] buffer
- *            buffer to copy to
+ *            buffer to copy cartridge data into.
  * @param[in] size
  *            length of the data to be read.
- * @return TPAK_ERROR code or 0 if successful.
+ * @return 0 if successful or @ref TPAK_ERROR otherwise.
  */
 int tpak_read(int controller, uint16_t address, uint8_t* buffer, uint16_t size)
 {
-    if (controller < 0 || controller > 3 || size % BLOCK_SIZE || address % BLOCK_SIZE)
+    if (controller < 0 || controller > 3 || size % TPAK_BLOCK_SIZE || address % TPAK_BLOCK_SIZE)
     {
         return TPAK_ERROR_INVALID_ARGUMENT;
     }
 
-    uint16_t adjusted_address = (address % BANK_SIZE) + TPAK_DATA_ADDRESS;
+    uint16_t adjusted_address = (address % TPAK_BANK_SIZE) + TPAK_ADDRESS_DATA;
     uint16_t end_address = address + size;
     if (end_address < address)
     {
@@ -268,33 +282,33 @@ int tpak_read(int controller, uint16_t address, uint8_t* buffer, uint16_t size)
 
     uint8_t* cursor = buffer;
 
-    int bank = address / BANK_SIZE;
-    tpak_set_value(controller, TPAK_BANK_ADDRESS, bank);
+    int bank = address / TPAK_BANK_SIZE;
+    tpak_set_bank(controller, bank);
 
     while(address < end_address)
     {
         // Check if we need to change the bank.
-        if (address / BANK_SIZE > bank) {
-            bank = address / BANK_SIZE;
-            tpak_set_value(controller, TPAK_BANK_ADDRESS, bank);
-            adjusted_address = TPAK_DATA_ADDRESS;
+        if (address / TPAK_BANK_SIZE > bank) {
+            bank = address / TPAK_BANK_SIZE;
+            tpak_set_bank(controller, bank);
+            adjusted_address = TPAK_ADDRESS_DATA;
         }
 
         read_mempak_address(controller, adjusted_address, cursor);
-        address += BLOCK_SIZE;
-        cursor += BLOCK_SIZE;
-        adjusted_address += BLOCK_SIZE;
+        address += TPAK_BLOCK_SIZE;
+        cursor += TPAK_BLOCK_SIZE;
+        adjusted_address += TPAK_BLOCK_SIZE;
     }
 
     return 0;
 }
 
 /**
- * @brief Verify gb cartride header.
+ * @brief Verify a Game Boy cartridge ROM header checksum.
  *
- *  This will help you verify that the tpak is connected and working properly.
+ * Confirms that the Transfer Pak is connected and working properly.
  *
- * @param[in] header The header to check.
+ * @param[in] header The Game Boy ROM header to check.
  */
 bool tpak_check_header(struct gameboy_cartridge_header* header)
 {
@@ -304,7 +318,7 @@ bool tpak_check_header(struct gameboy_cartridge_header* header)
     // sum values from 0x0134 (title) to 0x014C (version number)
     const uint8_t start = 0x34;
     const uint8_t end = 0x4C;
-    for(uint8_t i = start; i <= end; i++) {
+    for (uint8_t i = start; i <= end; i++) {
         sum = sum - data[i] - 1;
     }
 
