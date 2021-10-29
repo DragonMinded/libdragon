@@ -198,7 +198,7 @@ static inline uint32_t __rdp_ringbuffer_size( void )
  * @param[in] data
  *            32 bits of data to be queued at the end of the current command
  */
-void __rdp_ringbuffer_queue( uint32_t data )
+static void __rdp_ringbuffer_queue( uint32_t data )
 {
     /* Only add commands if we have room */
     if( __rdp_ringbuffer_size() + sizeof(uint32_t) >= RINGBUFFER_SIZE ) { return; }
@@ -216,7 +216,7 @@ void __rdp_ringbuffer_queue( uint32_t data )
  * kicking off execution of the command in the RDP.  After calling this function, it is
  * safe to start writing to the ring buffer again.
  */
-void __rdp_ringbuffer_send( void )
+static void __rdp_ringbuffer_send( void )
 {
     /* Don't send nothingness */
     if( __rdp_ringbuffer_size() == 0 ) { return; }
@@ -801,6 +801,9 @@ void rdp_set_blend_color( uint32_t color )
  * Before calling this function, make sure that the RDP is set to primitive mode by
  * calling #rdp_enable_primitive_fill.
  *
+ * Based on triangle guide by snacchus on discord: 
+ * https://docs.google.com/document/d/17ddEo61V0suXbSkKP5mY97QxgUnB-QfAjuBIsPiLWko/edit
+ *
  * @param[in] tx
  *            Pixel X location of the top left of the rectangle
  * @param[in] ty
@@ -825,9 +828,10 @@ void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by )
  * @brief Draw a shaded triangle (no alpha support)
  *
  * Draws a shaded triangle to the screen. Vertex order is not important.
- *
  * Before calling this function, make sure that the RDP is set to shaded mode by
  * calling #rdp_enable_shading.
+ * Based on triangle guide by snacchus on discord: 
+ * https://docs.google.com/document/d/17ddEo61V0suXbSkKP5mY97QxgUnB-QfAjuBIsPiLWko/edit
  *
  * Color values are from 0-255.
  *
@@ -938,15 +942,15 @@ void rdp_draw_shaded_triangle(float x1, float y1, float x2, float y2, float x3, 
     const float DgDe = DgDy + DgDx * ish;
     const float DbDe = DbDy + DbDx * ish;
     
-    const int final_r = v1R * to_fixed_16_16; // (v1R + FY * DrDe) * to_fixed_16_16;
-    const int final_g = v1G * to_fixed_16_16; //(v1G + FY * DgDe) * to_fixed_16_16;
-    const int final_b = v1B * to_fixed_16_16; //(v1B + FY * DbDe) * to_fixed_16_16;
+    const int final_r = (v1R + FY * DrDe) * to_fixed_16_16;
+    const int final_g = (v1G + FY * DgDe) * to_fixed_16_16;
+    const int final_b = (v1B + FY * DbDe) * to_fixed_16_16;
     __rdp_ringbuffer_queue( (final_r&0xffff0000) | (0xffff&(final_g>>16)) );  
-    __rdp_ringbuffer_queue( (final_b&0xffff0000) | 0x00ff ); // the 0xffff is opaque alpha hopefully
+    __rdp_ringbuffer_queue( (final_b&0xffff0000) | 0x00ff ); // the 0x00ff is opaque alpha hopefully
 
-    int DrDx_fixed = DrDx * to_fixed_16_16;
-    int DgDx_fixed = DgDx * to_fixed_16_16;
-    int DbDx_fixed = DbDx * to_fixed_16_16;
+    const int DrDx_fixed = DrDx * to_fixed_16_16;
+    const int DgDx_fixed = DgDx * to_fixed_16_16;
+    const int DbDx_fixed = DbDx * to_fixed_16_16;
 
     __rdp_ringbuffer_queue( (DrDx_fixed&0xffff0000) | (0xffff&(DgDx_fixed>>16)) );
     __rdp_ringbuffer_queue( (DbDx_fixed&0xffff0000)  );    
@@ -957,16 +961,16 @@ void rdp_draw_shaded_triangle(float x1, float y1, float x2, float y2, float x3, 
     __rdp_ringbuffer_queue( (DrDx_fixed<<16) | (DgDx_fixed&0xffff) );
     __rdp_ringbuffer_queue( (DbDx_fixed<<16) );
     
-    int DrDe_fixed = DrDe * to_fixed_16_16;
-    int DgDe_fixed = DgDe * to_fixed_16_16;
-    int DbDe_fixed = DbDe * to_fixed_16_16;
+    const int DrDe_fixed = DrDe * to_fixed_16_16;
+    const int DgDe_fixed = DgDe * to_fixed_16_16;
+    const int DbDe_fixed = DbDe * to_fixed_16_16;
     
     __rdp_ringbuffer_queue( (DrDe_fixed&0xffff0000) | (0xffff&(DgDe_fixed>>16)) );
     __rdp_ringbuffer_queue( (DbDe_fixed&0xffff0000) );
     
-    int DrDy_fixed = DrDy * to_fixed_16_16;
-    int DgDy_fixed = DgDy * to_fixed_16_16;
-    int DbDy_fixed = DbDy * to_fixed_16_16;
+    const int DrDy_fixed = DrDy * to_fixed_16_16;
+    const int DgDy_fixed = DgDy * to_fixed_16_16;
+    const int DbDy_fixed = DbDy * to_fixed_16_16;
     
     __rdp_ringbuffer_queue( (DrDy_fixed&0xffff0000) | (0xffff&(DgDy_fixed>>16)) );
     __rdp_ringbuffer_queue( (DbDy_fixed&0xffff0000) );
@@ -1006,7 +1010,7 @@ void rdp_draw_shaded_triangle(float x1, float y1, float x2, float y2, float x3, 
  */
 void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3, float y3 )
 {
-     const float to_fixed_11_2 = 4.0f;
+    const float to_fixed_11_2 = 4.0f;
     const float to_fixed_16_16 = 65536.0f;
 
     if( y1 > y2 ) { SWAP(y1, y2) SWAP(x1, x2) }
@@ -1028,7 +1032,7 @@ void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3,
     const float Lx = x3 - x2;
     const float Ly = y3 - y2;
     const float nz = (Hx*My) - (Hy*Mx);
-    uint32_t lft = nz < 0;
+    const uint32_t lft = nz < 0;
     
     y1f = (y1f&0x1fff) | ((y1f&0x80000000)>>18);
     y2f = (y2f&0x1fff) | ((y2f&0x80000000)>>18);
