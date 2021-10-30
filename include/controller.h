@@ -56,7 +56,11 @@
 #define ERROR_NOT_PRESENT   0x2
 /** @} */
 
-/** @brief SI Controller Data */
+/**
+ * @brief SI Nintendo 64 controller data
+ * 
+ * Data structure for Joybus response to `0x01` (Read N64 controller state) command.
+ */
 typedef struct SI_condat
 {
     /** @brief Unused padding bits */
@@ -113,7 +117,11 @@ typedef struct SI_condat
     };
 } _SI_condat;
 
-/** @brief SI Controller Data, GC */
+/**
+ * @brief SI GameCube controller data.
+ * 
+ * Data structure for Joybus response to `0x40` (Read GC controller state) command.
+ */
 typedef struct SI_condat_gc
 {
     union
@@ -151,6 +159,11 @@ typedef struct SI_condat_gc
     };
 } _SI_condat_gc;
 
+/**
+ * @brief SI GameCube controller origin data.
+ * 
+ * Data structure for Joybus response to `0x41` (Read GC controller origin) command.
+ */
 struct SI_origdat_gc {
     struct SI_condat_gc data;
     uint8_t deadzone0;
@@ -158,20 +171,25 @@ struct SI_origdat_gc {
 };
 
 /**
- * @brief Structure for interpreting SI responses
+ * @brief SI controller data for all controller ports.
+ * 
+ * When reading N64 controller state, only the `c` member array will be populated.
+ * When reading GC controller state, only the `gc` member array will be populated.
  */
 typedef struct controller_data
 {
-    /** @brief Controller Data */
+    /** @brief Array of N64 controller state for each controller port. */
     struct SI_condat c[4];
-    /** @brief Padding or GC data to allow mapping directly to a PIF block */
+    /** @brief Array of GameCube controller state for each controller port. */
     struct SI_condat_gc gc[4];
-} _controller_data;
+} SI_controllers_state_t;
 
-struct controller_origin_data
+/** @brief SI GameCube controller origin data for all controller ports. */
+typedef struct controller_origin_data
 {
+    /** @brief Array of GameCube controller origin data for each controller port. */
     struct SI_origdat_gc gc[4];
-};
+} SI_controllers_origin_t;
 
 #ifdef __cplusplus
 extern "C" {
