@@ -195,8 +195,8 @@ void controller_scan( void )
 /**
  * @brief Get keys that were pressed since the last inspection
  *
- * Return keys pressed since last detection.  This returns a standard
- * #controller_data struct identical to #controller_read.  However, buttons
+ * Return keys pressed since last detection. This returns a standard
+ * #SI_controllers_state_t struct identical to #controller_read. However, buttons
  * are only set if they were pressed down since the last #controller_scan.
  *
  * @return A structure representing which buttons were just pressed down
@@ -220,8 +220,8 @@ struct controller_data get_keys_down( void )
 /**
  * @brief Get keys that were released since the last inspection
  *
- * Return keys released since last detection.  This returns a standard
- * #controller_data struct identical to #controller_read.  However, buttons
+ * Return keys released since last detection. This returns a standard
+ * #SI_controllers_state_t struct identical to #controller_read. However, buttons
  * are only set if they were released since the last #controller_scan.
  *
  * @return A structure representing which buttons were just released
@@ -245,8 +245,8 @@ struct controller_data get_keys_up( void )
 /**
  * @brief Get keys that were held since the last inspection
  *
- * Return keys held since last detection.  This returns a standard
- * #controller_data struct identical to #controller_read.  However, buttons
+ * Return keys held since last detection. This returns a standard
+ * #SI_controllers_state_t struct identical to #controller_read. However, buttons
  * are only set if they were held since the last #controller_scan.
  *
  * @return A structure representing which buttons were held
