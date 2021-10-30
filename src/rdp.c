@@ -76,7 +76,7 @@
  */
 #define RINGBUFFER_SLACK 1024
 
-#define SWAP(a, b)  { float t = a; a = b; b = t; }
+#define SWAP(a, b) do { float t = a; a = b; b = t; } while(0)
 
 /**
  * @brief Cached sprite structure
@@ -198,7 +198,7 @@ static inline uint32_t __rdp_ringbuffer_size( void )
  * @param[in] data
  *            32 bits of data to be queued at the end of the current command
  */
-static void __rdp_ringbuffer_queue( uint32_t data )
+void __rdp_ringbuffer_queue( uint32_t data )
 {
     /* Only add commands if we have room */
     if( __rdp_ringbuffer_size() + sizeof(uint32_t) >= RINGBUFFER_SIZE ) { return; }
@@ -216,7 +216,7 @@ static void __rdp_ringbuffer_queue( uint32_t data )
  * kicking off execution of the command in the RDP.  After calling this function, it is
  * safe to start writing to the ring buffer again.
  */
-static void __rdp_ringbuffer_send( void )
+void __rdp_ringbuffer_send( void )
 {
     /* Don't send nothingness */
     if( __rdp_ringbuffer_size() == 0 ) { return; }
@@ -872,9 +872,9 @@ void rdp_draw_shaded_triangle(float x1, float y1, float x2, float y2, float x3, 
     const float to_fixed_11_2 = 4.0f;
     const float to_fixed_16_16 = 65536.0f;
 
-    if( y1 > y2 ) { SWAP(y1, y2) SWAP(x1, x2) SWAP(v1R, v2R) SWAP(v1G, v2G) SWAP(v1B, v2B) }
-    if( y2 > y3 ) { SWAP(y2, y3) SWAP(x2, x3) SWAP(v2R, v3R) SWAP(v2G, v3G) SWAP(v2B, v3B) }
-    if( y1 > y2 ) { SWAP(y1, y2) SWAP(x1, x2) SWAP(v1R, v2R) SWAP(v1G, v2G) SWAP(v1B, v2B) }
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); SWAP(v1R, v2R); SWAP(v1G, v2G); SWAP(v1B, v2B); }
+    if( y2 > y3 ) { SWAP(y2, y3); SWAP(x2, x3); SWAP(v2R, v3R); SWAP(v2G, v3G); SWAP(v2B, v3B); }
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); SWAP(v1R, v2R); SWAP(v1G, v2G); SWAP(v1B, v2B); }
     
     int y1f = y1*to_fixed_11_2;
     int y2f = y2*to_fixed_11_2;
@@ -1013,9 +1013,9 @@ void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3,
     const float to_fixed_11_2 = 4.0f;
     const float to_fixed_16_16 = 65536.0f;
 
-    if( y1 > y2 ) { SWAP(y1, y2) SWAP(x1, x2) }
-    if( y2 > y3 ) { SWAP(y2, y3) SWAP(x2, x3) }
-    if( y1 > y2 ) { SWAP(y1, y2) SWAP(x1, x2) }
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); }
+    if( y2 > y3 ) { SWAP(y2, y3); SWAP(x2, x3); }
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); }
 
     int y1f = y1*to_fixed_11_2;
     int y2f = y2*to_fixed_11_2;
