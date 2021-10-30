@@ -10,8 +10,8 @@ INSTALLDIR = $(N64_INST)
 libdragon: CC=$(N64_CC)
 libdragon: AS=$(N64_AS)
 libdragon: LD=$(N64_LD)
-libdragon: CFLAGS+=$(N64_CFLAGS) -I$(CURDIR)/include
-libdragon: ASFLAGS+=$(N64_ASFLAGS) -I$(CURDIR)/include
+libdragon: CFLAGS+=$(N64_CFLAGS) -I$(CURDIR)/src -I$(CURDIR)/include 
+libdragon: ASFLAGS+=$(N64_ASFLAGS) -I$(CURDIR)/src -I$(CURDIR)/include
 libdragon: LDFLAGS+=$(N64_LDFLAGS)
 libdragon: libdragon.a libdragonsys.a
 
@@ -33,7 +33,8 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 			 $(BUILD_DIR)/audio/mixer.o $(BUILD_DIR)/audio/samplebuffer.o \
 			 $(BUILD_DIR)/audio/rsp_mixer.o $(BUILD_DIR)/audio/wav64.o \
 			 $(BUILD_DIR)/audio/xm64.o $(BUILD_DIR)/audio/libxm/play.o \
-			 $(BUILD_DIR)/audio/libxm/context.o $(BUILD_DIR)/audio/libxm/load.o
+			 $(BUILD_DIR)/audio/libxm/context.o $(BUILD_DIR)/audio/libxm/load.o \
+			 $(BUILD_DIR)/audio/ym64.o $(BUILD_DIR)/audio/ay8910.o
 	@echo "    [AR] $@"
 	$(AR) -rcs -o $@ $^
 
@@ -100,6 +101,8 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/samplebuffer.h $(INSTALLDIR)/mips64-elf/include/samplebuffer.h
 	install -Cv -m 0644 include/wav64.h $(INSTALLDIR)/mips64-elf/include/wav64.h
 	install -Cv -m 0644 include/xm64.h $(INSTALLDIR)/mips64-elf/include/xm64.h
+	install -Cv -m 0644 include/ym64.h $(INSTALLDIR)/mips64-elf/include/ym64.h
+	install -Cv -m 0644 include/ay8910.h $(INSTALLDIR)/mips64-elf/include/ay8910.h
 
 clean:
 	rm -f *.o *.a
