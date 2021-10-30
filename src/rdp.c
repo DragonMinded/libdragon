@@ -983,8 +983,6 @@ void rdp_draw_shaded_triangle(float x1, float y1, float x2, float y2, float x3, 
     __rdp_ringbuffer_queue( (DbDy_fixed<<16) );
     
     __rdp_ringbuffer_send();
-    
-    return;
 }
 
 /**
@@ -1059,8 +1057,6 @@ void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3,
     __rdp_ringbuffer_queue((int)( xm * to_fixed_16_16 ) );
     __rdp_ringbuffer_queue((int)( ism * to_fixed_16_16 ) );
     __rdp_ringbuffer_send();
-    
-    return;
 }
 
 /**
