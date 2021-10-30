@@ -77,6 +77,7 @@
 #define RINGBUFFER_SLACK 1024
 
 #define SWAP(a, b) do { float t = a; a = b; b = t; } while(0)
+#define TRUNCATE_S11_2(x) (0x3fff&((((x)&0x1fff) | (((x)&0x80000000)>>18))))
 
 /**
  * @brief Cached sprite structure
@@ -893,9 +894,9 @@ void rdp_draw_shaded_triangle(float x1, float y1, float x2, float y2, float x3, 
     const float nz = (Hx*My) - (Hy*Mx);
     uint32_t lft = nz < 0;
     
-    y1f = (y1f&0x1fff) | ((y1f&0x80000000)>>18);
-    y2f = (y2f&0x1fff) | ((y2f&0x80000000)>>18);
-    y3f = (y3f&0x1fff) | ((y3f&0x80000000)>>18);
+    y1f = TRUNCATE_S11_2(y1f);
+    y2f = TRUNCATE_S11_2(y2f);
+    y3f = TRUNCATE_S11_2(y3f);
     
     __rdp_ringbuffer_queue(0x0C000000 | (lft<<23) | y3f);
     __rdp_ringbuffer_queue( (y2f<<16) | y1f );
@@ -1034,9 +1035,9 @@ void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3,
     const float nz = (Hx*My) - (Hy*Mx);
     const uint32_t lft = nz < 0;
     
-    y1f = (y1f&0x1fff) | ((y1f&0x80000000)>>18);
-    y2f = (y2f&0x1fff) | ((y2f&0x80000000)>>18);
-    y3f = (y3f&0x1fff) | ((y3f&0x80000000)>>18);
+    y1f = TRUNCATE_S11_2(y1f);
+    y2f = TRUNCATE_S11_2(y2f);
+    y3f = TRUNCATE_S11_2(y3f);
     
     __rdp_ringbuffer_queue(0x08000000 | (lft<<23) | y3f);
     __rdp_ringbuffer_queue( (y2f<<16) | y1f );
