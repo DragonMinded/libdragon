@@ -22,12 +22,12 @@ _Static_assert(sizeof(ym5header) == 22, "invalid header size");
 static int ymread(ym64player_t *player, void *buf, int sz) {
 	if (player->decoder)
 		return lha_lh_new_read(player->decoder, buf, sz);
-	return dfs_read(buf, 1, sz, player->fh);
+	return fread(buf, 1, sz, player->f);
 }
 
 static unsigned int lha_callback(void *buf, size_t buf_len, void *user_data) {
-	int32_t fh = (int32_t)user_data;
-	return dfs_read(buf, 1, buf_len, fh);
+	FILE* f = (FILE*)user_data;
+	return fread(buf, 1, buf_len, f);
 }
 
 static void ym_wave_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
@@ -48,7 +48,7 @@ static void ym_wave_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bo
 	// converting them back from sample number.
 	if (seeking && !player->decoder) {
 		player->curframe = ((float)wpos / f_samples_per_frame);
-		dfs_seek(player->fh, player->start_off + player->curframe * 16, SEEK_SET);
+		fseek(player->f, player->start_off + player->curframe * 16, SEEK_SET);
 	}
 
 	// Calculate the last audioframe to be reconstructed in this call. Notice
@@ -98,8 +98,8 @@ static void ym_wave_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bo
 void ym64player_open(ym64player_t *player, const char *fn, ym64player_songinfo_t *info) {
 	memset(player, 0, sizeof(*player));
 
-	player->fh = dfs_open(fn);
-	assertf(player->fh >= 0, "Cannot open file: %s", fn);
+	player->f = fopen(fn, "rb");
+	assertf(player->f != NULL, "Cannot open file: %s", fn);
 
 	int offset = 0;
 	int _ymread(void *buf, int sz) {
@@ -116,13 +116,13 @@ void ym64player_open(ym64player_t *player, const char *fn, ym64player_songinfo_t
 
 		// Skip the header. We don't need anything else from it, just go straight
 		// to the first compressed file which ought to be our YM file.
-		dfs_seek(player->fh, head[0]+2, SEEK_SET);
+		fseek(player->f, head[0]+2, SEEK_SET);
 
 		// Initialize decompressor and re-read the header (this time, it will
 		// be decompressed and we should find a valid YM header).
 		player->decoder = (LHANewDecoder*)malloc(sizeof(LHANewDecoder));
 		offset = 0;
-		lha_lh_new_init(player->decoder, lha_callback, (void*)player->fh);
+		lha_lh_new_init(player->decoder, lha_callback, (void*)player->f);
 		_ymread(head, 12);
 	}
 
@@ -256,10 +256,8 @@ void ym64player_close(ym64player_t *player) {
 		player->decoder = NULL;
 	}
 
-	if (player->fh >= 0) {
-		dfs_close(player->fh);
-		player->fh = -1;
+	if (player->f) {
+		fclose(player->f);
+		player->f = NULL;
 	}
 }
-
-
