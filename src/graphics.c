@@ -801,7 +801,7 @@ void graphics_draw_sprite( display_context_t disp, int x, int y, sprite_t *sprit
  * </pre>
  *
  * @note This function does not support alpha blending for speed purposes.  For
- * alpha blending support, please see #graphics_draw_sprite_stride_trans
+ * alpha blending support, please see #graphics_draw_sprite_trans_stride
  *
  * @param[in] disp
  *            The currently active display context.

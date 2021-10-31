@@ -51,46 +51,60 @@ extern "C" {
  */
 #define AY8910_CENTER_SILENCE     1
 
+/** @brief A AY-3-8910 channel */
 typedef struct {
-	uint16_t tone_period;
-	uint8_t tone_vol;
-	uint8_t tone_en;
-	uint8_t noise_en;
+	uint16_t tone_period;      ///< Period (in ticks) of the current tone
+	uint8_t tone_vol;          ///< Volume of the tone (0x10 -> use envelope)
+	uint8_t tone_en;           ///< Enable flag of the tone (0 is enabled)
+	uint8_t noise_en;          ///< Enable flag of the noise for this channel (0 is enabled)
 
-	uint16_t count;
-	uint8_t out;
-
-	uint8_t prev_vol;
-	uint8_t prev_count;
+	uint16_t count;            ///< Current tick count for the period
+	uint8_t out;               ///< Current output value for this channel
 } AYChannel;
 
+/** @brief Envelope of AY-3-8910 */
 typedef struct {
-	uint16_t period;
-	uint8_t shape;
+	uint16_t period;           ///< Period (in ticks) of the envelope
+	uint8_t shape;             ///< Shape of the envelope (jigsaw, etc.)
 
-	int16_t step;
-	uint8_t attack;
-	uint8_t alternate, hold, holding;
+	uint8_t attack;            ///< 0x0 if in attack, 0xF if in the release
+	uint8_t alternate;         ///< True if attack and release alternate (jigsaw)
+	uint8_t hold;              ///< True if the envelope holds after attack
 
-	uint16_t count;
-	uint8_t vol;
+	uint16_t count;            ///< Current tick count for the period
+	int16_t step;              ///< Current step of the envelope
+	uint8_t vol;               ///< Current output volume
+	uint8_t holding;           ///< True if the envelope is currently holding
 } AYEnvelope;
 
+/** @brief Noise of AY-3-8910 */
 typedef struct {
-	uint8_t period;
+	uint8_t period;            ///< Period (in ticks) of the noise
 
-	uint8_t count;
-	uint32_t out;
+	uint8_t count;             ///< Current tick count for the period
+	uint32_t out;              ///< Current output value
 } AYNoise;
 
+/**
+ * @brief A AY-3-8910 emulator
+ * 
+ * AY-3-8910 is a 4-bit PSG, popular in the 80s, that was used in many
+ * game consoles and PCs. It features 3 channels producing square waveforms
+ * at programmable periods and volumes, plus a noise generator that can be
+ * activated on each channel, and a volume envelope.
+ * 
+ * This emulator has been heavily optimized to be able to perform fast enough
+ * on the N64 hardware to be used as background music. Specifically, it is
+ * used by #ym64player_t to play back YM modules.
+ */
 typedef struct {
-	uint8_t (*PortRead)(int idx);
-	void (*PortWrite)(int idx, uint8_t val);
-	uint8_t addr;
-	uint8_t regs[16];
-	AYChannel ch[3];
-	AYNoise ns;
-	AYEnvelope env;
+	uint8_t (*PortRead)(int idx);             ///< Callback for I/O port reads
+	void (*PortWrite)(int idx, uint8_t val);  ///< Callback for I/O port writes
+	uint8_t addr;                             ///< Current value on the address line
+	uint8_t regs[16];                         ///< State of the internal registers
+	AYChannel ch[3];                          ///< Configuration and state of the channels
+	AYNoise ns;                               ///< Configuration and state of the noise
+	AYEnvelope env;                           ///< Configuration and state of the envelope
 } AY8910;
 
 /** @brief Reset the AY8910 emulator. */

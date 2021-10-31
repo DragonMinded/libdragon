@@ -45,13 +45,13 @@ volatile uint32_t ticks64_high;
 /** @brief Time at which interrupts were disabled */
 extern volatile uint32_t interrupt_disabled_tick;
 
-/* @brief Timer is the special overflow timer. */
+/** @brief Timer is the special overflow timer. */
 #define TF_OVERFLOW    0x40
 
-/* @brief Timer has been called once in this interrupt. */
+/** @brief Timer has been called once in this interrupt. */
 #define TF_CALLED      0x80
 
-/* @brief Update the compare register to match the first expiring timer. */
+/** @brief Update the compare register to match the first expiring timer. */
 static void timer_update_compare(timer_link_t *head) {
 	uint32_t now = TICKS_READ();
 	uint32_t smallest = 0xFFFFFFFF;

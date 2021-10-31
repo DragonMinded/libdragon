@@ -251,12 +251,10 @@ uint8_t eeprom_write( uint8_t block, const uint8_t * src )
  * This is a high-level convenience helper that abstracts away the
  * one-at-a-time EEPROM block access pattern.
  *
- * @param[out] buf
+ * @param[out] dest
  *             Destination buffer to read data into
- *
  * @param[in]  start
  *             Byte offset in EEPROM to start reading data from
- *
  * @param[in]  len
  *             Byte length of data to read into buffer
  */

@@ -104,24 +104,24 @@
 })
 
 /* COP0 Status bits definition. Please refer to MIPS R4300 manual. */
-#define C0_STATUS_IE        0x00000001
-#define C0_STATUS_EXL       0x00000002
-#define C0_STATUS_ERL       0x00000004
+#define C0_STATUS_IE        0x00000001      ///< Status: interrupt enable
+#define C0_STATUS_EXL       0x00000002      ///< Status: within exception 
+#define C0_STATUS_ERL       0x00000004      ///< Status: within error
 
 /* COP0 Cause bits definition. Please refer to MIPS R4300 manual. */
-#define C0_CAUSE_BD         0x80000000
-#define C0_CAUSE_CE         0x30000000
-#define C0_CAUSE_EXC_CODE   0x0000007C
+#define C0_CAUSE_BD         0x80000000      ///< Cause: exception triggered in delay slot
+#define C0_CAUSE_CE         0x30000000      ///< Cause: coprocessor exception
+#define C0_CAUSE_EXC_CODE   0x0000007C      ///< Cause: exception code
 
 /* COP0 interrupt bits definition. These are compatible bothwith mask and pending bits. */
-#define C0_INTERRUPT_0      0x00000100
-#define C0_INTERRUPT_1      0x00000200
-#define C0_INTERRUPT_RCP    0x00000400 // RCP
-#define C0_INTERRUPT_3      0x00000800
-#define C0_INTERRUPT_4      0x00001000
-#define C0_INTERRUPT_5      0x00002000
-#define C0_INTERRUPT_6      0x00004000
-#define C0_INTERRUPT_TIMER  0x00008000 // Timer
+#define C0_INTERRUPT_0      0x00000100      ///< Status/Cause: HW interrupt 0
+#define C0_INTERRUPT_1      0x00000200      ///< Status/Cause: HW interrupt 1
+#define C0_INTERRUPT_RCP    0x00000400      ///< Status/Cause: HW interrupt 2 (RCP)
+#define C0_INTERRUPT_3      0x00000800      ///< Status/Cause: HW interrupt 3
+#define C0_INTERRUPT_4      0x00001000      ///< Status/Cause: HW interrupt 4
+#define C0_INTERRUPT_5      0x00002000      ///< Status/Cause: HW interrupt 5
+#define C0_INTERRUPT_6      0x00004000      ///< Status/Cause: HW interrupt 6
+#define C0_INTERRUPT_TIMER  0x00008000      ///< Status/Cause: HW interrupt 7 (Timer)
 
 /**
  * @brief Get the CE value from the COP0 status register

@@ -66,6 +66,13 @@ void register_exception_handler( void (*cb)(exception_t*))
 	__exception_handler = cb;
 }
 
+/**
+ * @brief Default exception handler.
+ * 
+ * This handler is installed by default for all exceptions. It initializes
+ * the console and dump the exception state to the screen, including the value
+ * of all GPR/FPR registers. It then calls abort() to abort execution.
+ */
 void exception_default_handler(exception_t* ex) {
 	uint32_t cr = ex->regs->cr;
 	uint32_t sr = ex->regs->sr;

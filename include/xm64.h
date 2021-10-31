@@ -1,16 +1,10 @@
-#ifndef XM64_H
-#define XM64_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-typedef struct xm_context_s xm_context_t;
-typedef struct waveform_s waveform_t;
-
 /**
- * xm64player_t is a player of the .XM64 file format, which is based on the
- * Fast Tracker II .XM module format.
+ * @file xm64.h
+ * @brief Efficient XM module player
+ * @ingroup mixer
+ *
+ * This module implements a player of the .XM64 file format, which is based on
+ * the Fast Tracker II .XM module format.
  * 
  * The playback relies on the mixer (mixer.h), as it uses it to perform the
  * actual channel playing and mixing. It will use one mixer channel per each XM
@@ -18,11 +12,11 @@ typedef struct waveform_s waveform_t;
  * xm64player_t.
  * 
  * The actual XM player is based on libxm (https://github.com/Artefact2/libxm),
- * a very fast and accurate XM player ibrary that has been adapted for usage
+ * a very fast and accurate XM player library that has been adapted for usage
  * in libdragon on N64. The main changes are:
  * 
  *   * Usage of the custom XM64 format. This formats is a serialization of the
- *     internal libxm context (xm_context_t), and allows us to do some required
+ *     internal libxm context (`xm_context_t`), and allows us to do some required
  *     preprocessing (such as unrolling ping-pong loops which are not supported
  *     by the mixer), and to load the whole file with one single memory allocation
  *     to avoid heap fragmentation.
@@ -38,17 +32,38 @@ typedef struct waveform_s waveform_t;
  *     required for playing back, per each channel. This allows for precise
  *     memory allocations even within the mixer.
  */
+
+#ifndef __LIBDRAGON_AUDIO_XM64_H
+#define __LIBDRAGON_AUDIO_XM64_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/// @cond
+typedef struct xm_context_s xm_context_t;
+typedef struct waveform_s waveform_t;
+/// @endcond
+
+/**
+ * @brief Player of a .XM64 file. 
+ * 
+ * This structure holds the state a player of a XM64 module. It can be
+ * initialized using #xm64player_open, and played with #xm64player_play.
+ * 
+ * See the rest of this module for more functions.
+ */
 typedef struct xm64player_s {
-	xm_context_t *ctx;        // libxm context
-	waveform_t *waves;        // array of all waveforms (one per XM "sample")
-	int nwaves;               // number of wavers (XM "samples")
-	FILE *fh;                 // open handle of XM64 file
-	int first_ch;             // first channel used in the mixer
-	bool playing;             // playing flag
-	bool looping;             // true if the XM is configured to loop
+	xm_context_t *ctx;        ///< libxm context
+	waveform_t *waves;        ///< array of all waveforms (one per XM "sample")
+	int nwaves;               ///< number of wavers (XM "samples")
+	FILE *fh;                 ///< open handle of XM64 file
+	int first_ch;             ///< first channel used in the mixer
+	bool playing;             ///< playing flag
+	bool looping;             ///< true if the XM is configured to loop
 	struct {
 		int patidx, row, tick;
-	} seek;                   // seeking to be performed
+	} seek;                   ///< seeking to be performed
 } xm64player_t;
 
 /**
@@ -89,7 +104,7 @@ void xm64player_set_loop(xm64player_t *player, bool loop);
  * Notice that the player needs to use one mixer channel per each XM64 channel.
  *
  * @param player 	XM64 player
- * @param fist_ch 	Index of the first mixer channel to use for playback.
+ * @param first_ch 	Index of the first mixer channel to use for playback.
  */
 void xm64player_play(xm64player_t *player, int first_ch);
 

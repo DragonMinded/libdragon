@@ -45,8 +45,6 @@ typedef struct entry_structure
      *
      * The space character is also allowed.  Any other character will be
      * converted to a space before writing to the mempak.
-     *
-     * @see #__n64_to_ascii and #__ascii_to_n64
      */
     char name[19];
 } entry_structure_t;

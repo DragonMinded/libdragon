@@ -62,6 +62,8 @@ void sys_set_boot_cic(int bc)
  *
  * @param[in] op
  *            Operation to perform
+ * @param[in] linesize
+ *            Size of a cacheline in bytes
  */
 #define cache_op(op, linesize) ({ \
     if (length) { \
@@ -240,10 +242,10 @@ void wait_ticks( unsigned long wait )
 }
 
 /**
- * @brief Spin wait until the number of millisecounds have elapsed
+ * @brief Spin wait until the number of milliseconds have elapsed
  *
- * @param[in] wait
- *            Number of millisecounds to wait
+ * @param[in] wait_ms
+ *            Number of milliseconds to wait
  *            Maximum accepted value is 91625 ms
  */
 void wait_ms( unsigned long wait_ms )

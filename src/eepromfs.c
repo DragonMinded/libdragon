@@ -26,8 +26,6 @@
  * Every file in the filesystem will always exist and
  * cannot be resized. Erasing a file just means to fill it
  * with zeroes.
- * 
- * @see #eepfs_open
  */
 typedef struct eepfs_file_t
 {
@@ -468,7 +466,7 @@ int eepfs_erase(const char * path)
  * filesystem expects. If not, the best move is to erase everything
  * and start from zero.
  * 
- * @see #eepfs_generate_signature
+ * @see eepfs_generate_signature
  * @see #eepfs_wipe
  * 
  * @retval true if the signature in EEPROM matches the filesystem signature

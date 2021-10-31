@@ -823,7 +823,7 @@ int dfs_close(uint32_t handle)
  * @param[in] offset
  *            A byte offset from the origin to seek from.
  * @param[in] origin
- *            An offset to seek from.  Either #SEEK_SET, #SEEK_CUR or #SEEK_END.
+ *            An offset to seek from.  Either `SEEK_SET`, `SEEK_CUR` or `SEEK_END`.
  *  
  * @return DFS_ESUCCESS on success or a negative value on error.
  */
@@ -1057,7 +1057,7 @@ int dfs_size(uint32_t handle)
  * Direct access to ROM data must go through io_read or dma_read. Do not
  * dereference directly as the console might hang if the PI is busy.
  *
- * @param[in] filename
+ * @param[in] path
  *            Name of the file
  *
  * @return A pointer to the physical address of the file body, or 0

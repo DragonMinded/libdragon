@@ -31,31 +31,31 @@ extern "C" {
 /** @brief SP generate interrupt when hit a break instruction */
 #define SP_STATUS_INTERRUPT_ON_BREAK    (1 << 6)
 
-#define SP_WSTATUS_CLEAR_HALT        0x00001
-#define SP_WSTATUS_SET_HALT          0x00002
-#define SP_WSTATUS_CLEAR_BROKE       0x00004
-#define SP_WSTATUS_CLEAR_INTR        0x00008
-#define SP_WSTATUS_SET_INTR          0x00010
-#define SP_WSTATUS_CLEAR_SSTEP       0x00020
-#define SP_WSTATUS_SET_SSTEP         0x00040
-#define SP_WSTATUS_CLEAR_INTR_BREAK  0x00080
-#define SP_WSTATUS_SET_INTR_BREAK    0x00100
-#define SP_WSTATUS_CLEAR_SIG0        0x00200
-#define SP_WSTATUS_SET_SIG0          0x00400
-#define SP_WSTATUS_CLEAR_SIG1        0x00800
-#define SP_WSTATUS_SET_SIG1          0x01000
-#define SP_WSTATUS_CLEAR_SIG2        0x02000
-#define SP_WSTATUS_SET_SIG2          0x04000
-#define SP_WSTATUS_CLEAR_SIG3        0x08000
-#define SP_WSTATUS_SET_SIG3          0x10000
-#define SP_WSTATUS_CLEAR_SIG4        0x20000
-#define SP_WSTATUS_SET_SIG4          0x40000
-#define SP_WSTATUS_CLEAR_SIG5        0x80000
-#define SP_WSTATUS_SET_SIG5          0x100000
-#define SP_WSTATUS_CLEAR_SIG6        0x200000
-#define SP_WSTATUS_SET_SIG6          0x400000
-#define SP_WSTATUS_CLEAR_SIG7        0x800000
-#define SP_WSTATUS_SET_SIG7          0x1000000
+#define SP_WSTATUS_CLEAR_HALT        0x00001   ///< SP_STATUS write mask: clear #SP_STATUS_HALTED bit
+#define SP_WSTATUS_SET_HALT          0x00002   ///< SP_STATUS write mask: set #SP_STATUS_HALTED bit
+#define SP_WSTATUS_CLEAR_BROKE       0x00004   ///< SP_STATUS write mask: clear BROKE bit
+#define SP_WSTATUS_CLEAR_INTR        0x00008   ///< SP_STATUS write mask: clear INTR bit
+#define SP_WSTATUS_SET_INTR          0x00010   ///< SP_STATUS write mask: set HALT bit
+#define SP_WSTATUS_CLEAR_SSTEP       0x00020   ///< SP_STATUS write mask: clear SSTEP bit
+#define SP_WSTATUS_SET_SSTEP         0x00040   ///< SP_STATUS write mask: set SSTEP bit
+#define SP_WSTATUS_CLEAR_INTR_BREAK  0x00080   ///< SP_STATUS write mask: clear #SP_STATUS_INTERRUPT_ON_BREAK bit
+#define SP_WSTATUS_SET_INTR_BREAK    0x00100   ///< SP_STATUS write mask: set SSTEP bit
+#define SP_WSTATUS_CLEAR_SIG0        0x00200   ///< SP_STATUS write mask: clear SIG0 bit
+#define SP_WSTATUS_SET_SIG0          0x00400   ///< SP_STATUS write mask: set SIG0 bit
+#define SP_WSTATUS_CLEAR_SIG1        0x00800   ///< SP_STATUS write mask: clear SIG1 bit
+#define SP_WSTATUS_SET_SIG1          0x01000   ///< SP_STATUS write mask: set SIG1 bit
+#define SP_WSTATUS_CLEAR_SIG2        0x02000   ///< SP_STATUS write mask: clear SIG2 bit
+#define SP_WSTATUS_SET_SIG2          0x04000   ///< SP_STATUS write mask: set SIG2 bit
+#define SP_WSTATUS_CLEAR_SIG3        0x08000   ///< SP_STATUS write mask: clear SIG3 bit
+#define SP_WSTATUS_SET_SIG3          0x10000   ///< SP_STATUS write mask: set SIG3 bit
+#define SP_WSTATUS_CLEAR_SIG4        0x20000   ///< SP_STATUS write mask: clear SIG4 bit
+#define SP_WSTATUS_SET_SIG4          0x40000   ///< SP_STATUS write mask: set SIG4 bit
+#define SP_WSTATUS_CLEAR_SIG5        0x80000   ///< SP_STATUS write mask: clear SIG5 bit
+#define SP_WSTATUS_SET_SIG5          0x100000  ///< SP_STATUS write mask: set SIG5 bit
+#define SP_WSTATUS_CLEAR_SIG6        0x200000  ///< SP_STATUS write mask: clear SIG6 bit
+#define SP_WSTATUS_SET_SIG6          0x400000  ///< SP_STATUS write mask: set SIG6 bit
+#define SP_WSTATUS_CLEAR_SIG7        0x800000  ///< SP_STATUS write mask: clear SIG7 bit
+#define SP_WSTATUS_SET_SIG7          0x1000000 ///< SP_STATUS write mask: set SIG7 bit
 
 /**
  * @brief RSP ucode definition.
@@ -68,9 +68,13 @@ extern "C" {
  * to initialize one of these.
  */
 typedef struct {
-    uint8_t *code; void *code_end;
-    uint8_t *data; void *data_end;
-    const char *name; uint32_t start_pc;
+    uint8_t *code;         ///< Pointer to the code segment
+    void    *code_end;     ///< Pointer past the end of the code segment
+    uint8_t *data;         ///< Pointer to the data segment
+    void    *data_end;     ///< Pointer past the end of the data segment
+
+    const char *name;      ///< Name of the ucode
+    uint32_t start_pc;     ///< Initial RSP PC
 } rsp_ucode_t;
 
 /**
