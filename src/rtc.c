@@ -168,7 +168,6 @@ static int64_t rtc_get_cache_ticks = 0;
 
 /**
  * @brief Real-time clock detection values.
- * @see #rtc_present
  */
 typedef enum rtc_type_t
 {
@@ -726,7 +725,7 @@ bool rtc_get( rtc_time_t * rtc_time )
  * actually finished is by waiting for a fixed duration. Emulators may not
  * accurately reflect this, but this delay is necessary on real hardware.
  *
- * @param[in]   rtc_time
+ * @param[in]   write_time
  *              Source pointer for the RTC time data structure
  *
  * @return false if the RTC does not support being set

@@ -31,7 +31,7 @@
  * be immediately displayed on the screen.  The console will be scrolled when the
  * buffer fills.  In manual mode, the console will only be displayed after calling
  * #console_render.  To set the render mode, use #console_set_render_mode.  To
- * add data to the console, use #printf or #iprintf.  To clear the console and reset
+ * add data to the console, use printf or iprintf.  To clear the console and reset
  * the scroll, use #console_clear.  Once the console is not needed or when the
  * code wishes to switch to the display subsystem, #console_clear should be called
  * to cleanly shut down the console support.

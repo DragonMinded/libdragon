@@ -194,9 +194,9 @@ void wait_ms( unsigned long wait_ms );
  * that first writebacks the affected cachelines to RDRAM, guaranteeing integrity
  * of memory areas that share cachelines with the region that must be invalidated.
  *
- * @param[in] addr
+ * @param[in] addr_
  *            Pointer to memory in question
- * @param[in] length
+ * @param[in] sz_
  *            Length in bytes of the data pointed at by addr
  */
 #define data_cache_hit_invalidate(addr_, sz_) ({ \
@@ -218,10 +218,11 @@ void inst_cache_invalidate_all(void);
 int get_memory_size();
 bool is_memory_expanded();
 
+/** @brief Type of TV video output */
 typedef enum {
-    TV_PAL = 0,
-    TV_NTSC = 1,
-    TV_MPAL = 2
+    TV_PAL = 0,      ///< Video output is PAL
+    TV_NTSC = 1,     ///< Video output is NTSC
+    TV_MPAL = 2      ///< Video output is M-PAL
 } tv_type_t;
 
 tv_type_t get_tv_type();

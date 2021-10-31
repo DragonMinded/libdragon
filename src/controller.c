@@ -23,7 +23,7 @@
  * either scan the controller interface for changes or perform direct reads from
  * the controller interface.  Controllers can be enumerated with 
  * #get_controllers_present.  Similarly, accessories can be enumerated with
- * #get_accessories_present and #identify_accesory.
+ * #get_accessories_present and #identify_accessory.
  *
  * To read controllers in a managed fashion, call #controller_scan at the beginning
  * of each frame.  From there, #get_keys_down, #get_keys_up, #get_keys_held and
@@ -98,11 +98,11 @@ void controller_read( struct controller_data * output )
  *
  * Read the controller button status immediately and return results to data.
  *
+ * @param[out] outdata
+ *             Structure to place the returned controller button status
  * @param[in]  rumble
  *             Set to 1 to start rumble, 0 to stop it.
  *
- * @param[out] output
- *             Structure to place the returned controller button status
  */
 void controller_read_gc( struct controller_data * outdata, const uint8_t rumble[4] )
 {
@@ -147,7 +147,7 @@ void controller_read_gc( struct controller_data * outdata, const uint8_t rumble[
  * by reseting the controller by holding X-Y-start. Apps should use these
  * as the center stick values. The meaning of the two deadzone values is unknown.
  *
- * @param[out] output
+ * @param[out] outdata
  *             Structure to place the returned controller button status
  */
 void controller_read_gc_origin( struct controller_origin_data * outdata )

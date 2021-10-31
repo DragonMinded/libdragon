@@ -134,7 +134,7 @@ typedef struct
  */
 typedef struct
 {
-    /** @brief Index into #filesystems */
+    /** @brief Index into `filesystems` array. */
     int fs_mapping;
     /** @brief The handle assigned to this open file as returned by the 
      *         filesystem code called to handle the open operation.  Will
@@ -987,8 +987,9 @@ int readlink( const char *path, char *buf, size_t bufsize )
     return -1;
 }
 
+/** @brief Symbol at the end of code, data, and sdata (set by the linker) */
 // Do not allow this in small data or it will seem larger than it actually is
-extern char end __attribute__((section (".data"))); /* Set by linker.  */
+extern char end __attribute__((section (".data")));
 
 /**
  * @brief Return a new chunk of memory to be used as heap

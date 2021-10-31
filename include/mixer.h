@@ -72,9 +72,10 @@ extern "C" {
  */
 #define MIXER_LOOP_OVERREAD     64
 
-// Forward declarations
+/// @cond
 typedef struct waveform_s waveform_t;
 typedef struct samplebuffer_s samplebuffer_t;
+/// @endcond
 
 /**
  * @brief Initialize the mixer
@@ -290,7 +291,7 @@ void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_
  * be written into the specified buffer (out). nsamples is the number of
  * samples that should be produced.
  * 
- * A common pattern would be to call #audio_mixer_begin to obtain an audio
+ * A common pattern would be to call #audio_write_begin to obtain an audio
  * buffer's pointer, and pass it to mixer_poll.
  *
  * mixer_poll performs mixing using RSP. If RSP is busy, mixer_poll will
@@ -366,11 +367,12 @@ void mixer_remove_event(MixerEvent cb, void *ctx);
  * WaveformRead is a callback function that will be invoked by the mixer
  * whenever a new unavailable portion of the waveform is requested.
  *
- * "wpos" indicates the absolute position in the waveform from which
- * the function must start reading, and "wlen" indicates how many samples to read.
+ * *wpos* indicates the absolute position in the waveform from which
+ * the function must start reading, and *wlen* indicates the minimum number of
+ * samples to read.
  *
  * The read function should push into the provided sample buffer
- * at least "wlen" samples, using #samplebuffer_append. Producing more samples
+ * at least *wlen* samples, using #samplebuffer_append. Producing more samples
  * than requested is perfectly fine, they will be stored in the sample buffer
  * and remain available for later use. For instance, a compressed waveform
  * (eg: VADPCM) might decompress samples in blocks of fixed size, and thus
@@ -382,31 +384,36 @@ void mixer_remove_event(MixerEvent cb, void *ctx);
  * was unknown to the mixer (otherwise, the mixer won't ask more samples than
  * available in the first place).
  *
- * The argument "seeking" is a flag that indicates whether the read being
- * requested requires seeking or not. If "seeking" is false (most of the times),
+ * The argument *seeking* is a flag that indicates whether the read being
+ * requested requires seeking or not. If *seeking* is false (most of the times),
  * it means that the current read is requesting samples which come immediately
  * after the ones that were last read; in other words, the implementation might
- * decide to ignore the "wpos" argument and simply continue decoding the audio
- * from the place were it last stopped. If "seeking" is true, instead, it means
+ * decide to ignore the *wpos* argument and simply continue decoding the audio
+ * from the place were it last stopped. If *seeking* is true, instead, it means
  * that there was a jump in position that should be taken into account.
  *
  * Normally, a seeking is required in the following situations:
  *
  *   * At start (#mixer_ch_play): the first read issued by the mixer will
- *     be at position 0 with seeking == true (unless the waveform was
+ *     be at position 0 with `seeking == true` (unless the waveform was
  *     already partially cached in the sample buffer's channel).
  *   * At user request (#mixer_ch_set_pos).
- *   * At loop: if a loop is specified in the waveform (loop_len != 0), the
+ *   * At loop: if a loop is specified in the waveform (`loop_len != 0`), the
  *     mixer will seek when required to execute the loop.
  *
- * Notice that producing more samples than requested in "wlen" might break
+ * Notice that producing more samples than requested in *wlen* might break
  * the 8-byte buffer alignment guarantee that #samplebuffer_append tries to
  * provide. For instance, if the read function is called requesting 24 samples,
  * but it produces 25 samples instead, the alignment in the buffer will be lost,
- * and next call to samplebuffer_append will return an unaligned pointer.
+ * and next call to #samplebuffer_append will return an unaligned pointer.
  *
- * "ctx" is an opaque pointer that is provided as context to the function, and
- * is specified in the waveform.
+ * @param[in]  ctx     Opaque pointer that is provided as context to the function,
+ *                     and is specified in the waveform.
+ * @param[in]  sbuf    Samplebuffer into which read samples should be stored.
+ * @param[in]  wpos    Absolute position in the waveform to read from (in samples).
+ * @param[in]  wlen    Minimum number of samples to read (in samples).
+ * @param[in]  seeking True if this call requires seeking in the waveform, false
+ *                     if this read is consecutive to the last one.
  */
 typedef void (*WaveformRead)(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking);
 
@@ -430,37 +437,53 @@ typedef void (*WaveformRead)(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen
  * one and the following).
  */
 typedef struct waveform_s {
-	// Name of the waveform (for debugging purposes)
+	/** @brief Name of the waveform (for debugging purposes) */
 	const char *name;
 
-	// Width of a sample of this waveform, in bits. Supported values are 8 or 16.
-	// Notice that samples must always be signed.
+	/** 
+     * @brief Width of a sample of this waveform, in bits.
+     * 
+     * Supported values are 8 or 16. Notice that samples must always be signed.
+     */
 	uint8_t bits;
 
-	// Number of interleaved audio channels in this waveforms. Supported values
-	// are 1 and 2 (mono and stereo waveforms). Notice that a stereo waveform
-	// will use two consecutive mixer channels to be played back.
+	/** 
+     * @brief Number of interleaved audio channels in this waveforms.
+     * 
+     * Supported values are 1 and 2 (mono and stereo waveforms). Notice that
+     * a stereo waveform will use two consecutive mixer channels to be played back.
+     */
 	uint8_t channels;
 
-	// Desired playback frequency (in samples per second, aka Hz).
+	/** @brief Desired playback frequency (in samples per second, aka Hz). */
 	float frequency;
 
-	// Length of the waveform, in number of samples. If the length is not
-	// known, this value should be set to #WAVEFORM_UNKNOWN_LEN.
+	/**
+     * @brief Length of the waveform, in number of samples.
+     * 
+     * If the length is not known, this value should be set to #WAVEFORM_UNKNOWN_LEN.
+     */
 	int len;
 
-	// Length of the loop of the waveform (from the end). This value describes
-	// how many samples of the tail of the waveform needs to be played in a loop.
-	// For instance, if len==1200 and loop_len=500, the waveform will be played
-	// once, and then the last 700 samples will be repeated in loop.
+	/**
+     * @brief Length of the loop of the waveform (from the end).
+     * 
+     * This value describes how many samples of the tail of the waveform needs
+     * to be played in a loop. For instance, if len==1200 and loop_len=500, the
+     * waveform will be played once, and then the last 700 samples will be
+     * repeated in loop.
+     */
 	int loop_len;
 
-	// Read function of the waveform. This is the callback that will be invoked
-	// by the mixer to generate the samples. See #WaveformRead for more information.
+	/** 
+     * @brief Read function of the waveform.
+     * 
+     * This is the callback that will be invoked by the mixer to generate the
+     * samples. See #WaveformRead for more information.
+     */
 	WaveformRead read;
 
-	// An opaque pointer which will be provided as context to the read/seek
-	// functions.
+	/** @brief Opaque pointer provided as context to the read function. */
 	void *ctx;
 } waveform_t;
 

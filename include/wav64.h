@@ -48,7 +48,7 @@ void wav64_set_loop(wav64_t *wav, bool loop);
 /** @brief Start playing a WAV64 file.
  * 
  * This is just a simple wrapper that calls #mixer_ch_play on the WAV64's
- * waveform (#wave field). For advanced usages, please call directly the
+ * waveform (#wav64_t::wave). For advanced usages, please call directly the
  * mixer functions.
  * 
  * @param   wav 		Pointer to wav64_t structure

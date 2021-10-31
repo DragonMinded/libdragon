@@ -1,7 +1,6 @@
 /**
  * @file debug.h
  * @brief Debugging Support
- * @ingroup debug
  */
 
 #ifndef __LIBDRAGON_DEBUG_H
@@ -34,6 +33,7 @@ extern "C" {
  *
  *   * UNFLoader (https://github.com/buu342/N64-UNFLoader)
  *   * g64drive (https://github.com/rasky/g64drive)
+ *   * ed64 (https://github.com/anacierdem/ed64)
  *
  */ 
 #define DEBUG_FEATURE_LOG_USB       (1 << 0)
@@ -52,6 +52,8 @@ extern "C" {
  * Supported emulators:
  *
  *   * cen64 (https://github.com/n64dev/cen64) - run with -is-viewer command line flag
+ *   * Ares (https://ares-emulator.github.io)
+ *   * m64p (https://m64p.github.io)
  *   * dgb-n64 (https://github.com/Dillonb/n64)
  *
  */
@@ -75,6 +77,7 @@ extern "C" {
  * Supported development cartridges:
  *
  *   * 64drive (rev 1 or 2)
+ *   * EverDrive 64 (many models)
  *
  * @note This feature works only if DEBUG_FEATURE_FILE_SD is also
  * activated.
@@ -103,6 +106,7 @@ extern "C" {
  * Supported development cartridges:
  *
  *   * 64drive (rev 1 or 2)
+ *   * EverDrive 64 (many models)
  *
  */
 #define DEBUG_FEATURE_FILE_SD       (1 << 3)
@@ -198,7 +202,7 @@ extern "C" {
 	#define assertf(expr, msg, ...)    ({ })
 #endif
 
-// Underlying assertion function for assert() and assertf().
+/** @brief Underlying implementation function for assert() and #assertf. */ 
 void debug_assert_func_f(const char *file, int line, const char *func, const char *failedexpr, const char *msg, ...)
    __attribute__((noreturn, format(printf, 5, 6)));
 

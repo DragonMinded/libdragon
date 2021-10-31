@@ -36,7 +36,6 @@ extern "C" {
 
 /**
  * @brief EEPROM filesystem configuration file entry
- * @see #eepfs_config_t
  * @see #eepfs_init
  */
 typedef struct eepfs_entry_t

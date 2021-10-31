@@ -189,8 +189,6 @@ static void audio_callback()
  *            The frequency in Hz to play back samples at
  * @param[in] numbuffers
  *            The number of buffers to allocate internally
- * @param[in] fill_buffer_callback
- *            A function to be called when more sample data is needed
  */
 void audio_init(const int frequency, int numbuffers)
 {
@@ -251,6 +249,16 @@ void audio_init(const int frequency, int numbuffers)
     _paused = false;
 }
 
+/**
+ * @brief Install a audio callback to fill the audio buffer when required.
+ * 
+ * This function allows to implement a pull-based audio system. It registers
+ * a callback which will be invoked under interrupt whenever the AI is ready
+ * to have more samples enqueued. The callback can fill the provided audio
+ * data with samples that will be enqueued for DMA to AI.
+ * 
+ * @param[in] fill_buffer_callback   Callback to fill an empty audio buffer
+ */
 void audio_set_buffer_callback(audio_fill_buffer_callback fill_buffer_callback)
 {
     disable_interrupts();

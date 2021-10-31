@@ -42,16 +42,16 @@
 /** @brief Structure used to interact with the PI registers */
 static volatile struct PI_regs_s * const PI_regs = (struct PI_regs_s *)0xa4600000;
 
+static volatile int __dma_busy(void)
+{
+    return PI_regs->status & (PI_STATUS_DMA_BUSY | PI_STATUS_IO_BUSY);
+}
+
 /** 
  * @brief Return whether the DMA controller is currently busy
  *
  * @return nonzero if the DMA controller is busy or 0 otherwise
  */
-volatile int __dma_busy(void)
-{
-    return PI_regs->status & (PI_STATUS_DMA_BUSY | PI_STATUS_IO_BUSY);
-}
-
 volatile int dma_busy(void)
 {
     return __dma_busy();

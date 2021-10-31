@@ -1,7 +1,6 @@
 /**
  * @file debug.c
  * @brief Debugging Support
- * @ingroup debug
  */
 
 #include <libdragon.h>
@@ -24,7 +23,6 @@
 
 /**
  * @defgroup debug Debugging Support
- * @ingroup debug
  * @brief Debugging support through development cartridges and emulators.
  *
  * The debugging library is a collection of different features
@@ -74,8 +72,11 @@ static void (*debug_writer[3])(const uint8_t *buf, int size) = { 0 };
  * Log writers
  *********************************************************************/
 
+/** ISViewer register for buffer write length */
 #define ISVIEWER_WRITE_LEN       ((volatile uint32_t *)0xB3FF0014)
+/** ISViewer buffer */
 #define ISVIEWER_BUFFER          ((volatile uint32_t *)0xB3FF0020)
+/** ISViewer buffer length */
 #define ISVIEWER_BUFFER_LEN      0x00000200
 
 static bool isviewer_init(void)
@@ -127,9 +128,9 @@ static void sdlog_write(const uint8_t *data, int len)
 /*********************************************************************
  * FAT backend
  *********************************************************************/
+/** @cond */
 
 static FATFS sd_fat;
-
 #define FAT_VOLUME_SD    0
 
 typedef struct
@@ -178,6 +179,8 @@ DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void* buff)
 	return RES_PARERR;
 }
 
+/** @endcond */
+
 /*********************************************************************
  * Helpers
  *********************************************************************/
@@ -215,6 +218,7 @@ static fat_disk_t fat_disk_64drive =
  * FAT newlib wrappers
  *********************************************************************/
 
+/** Maximum number of FAT files that can be concurrently opened */
 #define MAX_FAT_FILES 4
 static FIL fat_files[MAX_FAT_FILES] = {0};
 static DIR find_dir;

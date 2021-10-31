@@ -16,9 +16,9 @@ typedef struct _LHANewDecoder LHANewDecoder;
 /// @endcond
 
 /**
- * @defgroup mixer YM module player
- * @ingroup audio
+ * @file ym64.h
  * @brief Player for the .YM64 module format (Arkos Tracker 2)
+ * @ingroup mixer
  *
  * ym64player_t is a player of the .YM64 file format, which is based on the
  * .YM module format, a format first popularized in the Atari ST emulator scene.
@@ -49,6 +49,15 @@ typedef struct _LHANewDecoder LHANewDecoder;
  * powered by the AY-3-8910, helped popularize what we now call
  * chiptune music. -- Rasky
  *
+ */
+
+/**
+ * @brief Player of a .YM64 file. 
+ * 
+ * This structure holds the state a player of a YM64 module. It can be
+ * initialized using #ym64player_open, and played with #ym64player_play.
+ * 
+ * See the rest of this module for more functions.
  */
 typedef struct {
 	waveform_t wave;          ///< waveform for playback with the mixer
@@ -148,7 +157,7 @@ bool ym64player_seek(ym64player_t *player, int pos);
 /**
  * @brief Stop YM playback.
  * 
- * The YM module will keep the current position. Use #ymplayer_play to continue
+ * The YM module will keep the current position. Use #ym64player_play to continue
  * playback.
  */
 void ym64player_stop(ym64player_t *player);
