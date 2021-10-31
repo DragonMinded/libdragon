@@ -177,9 +177,18 @@ interrupt:
 	nop
 
 	/* handle reset */
-	addiu a0, sp, 32
 	jal __onResetException
-	nop
+	addiu a0, sp, 32
+
+	# There is no way to ack the pre-NMI interrupt, so it will
+	# stay pending in CR. Let's disable it in SR to avoid
+	# looping here. If another unrelated interrupt triggers, 
+	# CR will still have 0x1000 set, but __onResetException will
+	# do nothing after the first call.
+	li t0, ~0x1000
+	lw t1, STACK_SR(sp)
+	and t1, t0
+	sw t1, STACK_SR(sp)
 
 	# Reload cause register and test for other interrupts
 	lw cause, STACK_CR(sp)
