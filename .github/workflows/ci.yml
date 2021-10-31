@@ -104,3 +104,22 @@ jobs:
        with:
          name: windows-${{ matrix.arch }}-${{ matrix.build }}
          path: ${{ github.workspace }}/**/tools/**/*.exe
+
+  Build-Documentation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Run Doxygen
+        uses: mattnotmitt/doxygen-action@v1
+        with:
+          doxyfile-path: 'doxygen-public.conf'
+
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v3
+        if: ${{ github.ref == 'refs/heads/trunk' }}
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./website
+          enable_jekyll: true
