@@ -143,6 +143,9 @@ extern int __bbplayer;
  */
 #define TICKS_DISTANCE(from, to) ((int32_t)((uint32_t)(to) - (uint32_t)(from)))
 
+/** @brief Return how much time has passed since the instant t0. */
+#define TICKS_SINCE(t0)          TICKS_DISTANCE(t0, TICKS_READ())
+
 /**
  * @brief Returns true if "t1" is before "t2".
  *
