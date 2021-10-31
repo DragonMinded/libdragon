@@ -190,7 +190,7 @@ interrupt:
 	and t1, t0
 	sw t1, STACK_SR(sp)
 
-	# Reload cause register and test for other interrupts
+	# Reload cause register (might be reused by C code) and test for other interrupts
 	lw cause, STACK_CR(sp)
 notprenmi:
 
@@ -208,7 +208,7 @@ notprenmi:
 	jal __TI_handler
 	nop
 
-	# Reload cause register and test for other interrupts
+	# Reload cause register (might be reused by C code) and test for other interrupts
 	lw cause, STACK_CR(sp)
 
 notcount:
@@ -220,7 +220,7 @@ notcount:
 	jal __CART_handler
 	nop
 
-	# Reload cause register and test for other interrupts
+	# Reload cause register (might be reused by C code) and test for other interrupts
 	lw cause, STACK_CR(sp)
 
 notcart:
