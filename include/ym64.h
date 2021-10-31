@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdbool.h>
 #include "mixer.h"
 #include "ay8910.h"
@@ -52,7 +53,7 @@ typedef struct _LHANewDecoder LHANewDecoder;
 typedef struct {
 	waveform_t wave;          ///< waveform for playback with the mixer
 
-	int fh;                   ///< Open file handle
+	FILE *f;                  ///< Open file handle
 	LHANewDecoder *decoder;   ///< Optional LHA decoder (compressed YM files)
 	int start_off;            ///< Starting offset of the first audio frame
 
@@ -77,7 +78,7 @@ typedef struct {
  * @brief Open a YM64 file for playback
  * 
  * @param[in]  	player 		YM64 player to initialize
- * @param[in] 	fn 			Filename to open
+ * @param[in] 	fn 			Filename of the XM64 (with filesystem prefix, e.g. `rom://`).
  * @param[out] 	info 		Optional structure to fill with information on the song
  *                          (pass NULL if not needed)
  */

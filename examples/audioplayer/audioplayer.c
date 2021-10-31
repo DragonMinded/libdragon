@@ -209,7 +209,7 @@ enum Page page_song(void) {
 			song_ramsz += xm.ctx->ctx_size_stream_sample_buf[i];
 		#endif
 	} else {
-		ym64player_open(&ym, cur_rom+5, &yminfo);
+		ym64player_open(&ym, cur_rom, &yminfo);
 		ym64player_play(&ym, 0);
 		song_name = yminfo.name;
 		song_channels = 3;
