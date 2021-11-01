@@ -58,6 +58,14 @@ jobs:
           ghcr.io/dragonminded/libdragon:latest \
           ./build.sh
 
+      - name: "Upload built ROMs to artifacts"
+        uses: actions/upload-artifact@v2
+        with:
+          name: roms
+          path: |
+            ${{ github.workspace }}/examples/**/*.z64
+            ${{ github.workspace }}/tests/*.z64
+
   Build-Tools-Windows:
     runs-on: windows-latest
     strategy:
