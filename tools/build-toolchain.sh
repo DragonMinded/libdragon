@@ -95,7 +95,7 @@ make install-target-libgcc || sudo make install-target-libgcc || su -c "make ins
 
 # Compile newlib
 cd ../"newlib-$NEWLIB_V"
-CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC" ./configure \
+CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2" ./configure \
   --target=mips64-elf \
   --prefix="$INSTALL_PATH" \
   --with-cpu=mips64vr4300 \
