@@ -11,6 +11,7 @@ tools/mksprite/convtool
 tools/mksprite/mksprite
 tools/n64tool
 tools/**/*.exe
+website/ref/
 
 ## OSX junk
 .DS_Store
