@@ -435,10 +435,10 @@ void rdp_enable_blend_fill( void )
  */
 void rdp_enable_shading( void )
 {
-    __rdp_ringbuffer_queue(0x2f002030);
-    __rdp_ringbuffer_queue(0);
-    __rdp_ringbuffer_queue(0x3C0F8E1F);
-    __rdp_ringbuffer_queue(0x001E0904);
+    __rdp_ringbuffer_queue(0x2f000000);  // Need almost nothing from Set Other Modes for
+    __rdp_ringbuffer_queue(0);		 // a shaded triangle. Cycle 1 is option zero.
+    __rdp_ringbuffer_queue(0x3C0F8E1F);  // An attempt to get just the triangle shading
+    __rdp_ringbuffer_queue(0x001E0904);  // out of the color combine settings.
     __rdp_ringbuffer_send();
 }
 
@@ -877,13 +877,9 @@ void rdp_draw_shaded_triangle(float x1, float y1, float x2, float y2, float x3, 
     if( y2 > y3 ) { SWAP(y2, y3); SWAP(x2, x3); SWAP(v2R, v3R); SWAP(v2G, v3G); SWAP(v2B, v3B); }
     if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); SWAP(v1R, v2R); SWAP(v1G, v2G); SWAP(v1B, v2B); }
     
-    int y1f = y1*to_fixed_11_2;
-    int y2f = y2*to_fixed_11_2;
-    int y3f = y3*to_fixed_11_2;
-    
-    y1 = y1f/4.0f;
-    y2 = y2f/4.0f;
-    y3 = y3f/4.0f;
+    const int y1f = TRUNCATE_S11_2((int)(y1*to_fixed_11_2));
+    const int y2f = TRUNCATE_S11_2((int)(y2*to_fixed_11_2));
+    const int y3f = TRUNCATE_S11_2((int)(y3*to_fixed_11_2));
     
     const float Hx = x3 - x1;        
     const float Hy = y3 - y1;        
@@ -892,11 +888,7 @@ void rdp_draw_shaded_triangle(float x1, float y1, float x2, float y2, float x3, 
     const float Lx = x3 - x2;
     const float Ly = y3 - y2;
     const float nz = (Hx*My) - (Hy*Mx);
-    uint32_t lft = nz < 0;
-    
-    y1f = TRUNCATE_S11_2(y1f);
-    y2f = TRUNCATE_S11_2(y2f);
-    y3f = TRUNCATE_S11_2(y3f);
+    const uint32_t lft = nz < 0;
     
     __rdp_ringbuffer_queue(0x0C000000 | (lft<<23) | y3f);
     __rdp_ringbuffer_queue( (y2f<<16) | y1f );
@@ -1016,13 +1008,9 @@ void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3,
     if( y2 > y3 ) { SWAP(y2, y3); SWAP(x2, x3); }
     if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); }
 
-    int y1f = y1*to_fixed_11_2;
-    int y2f = y2*to_fixed_11_2;
-    int y3f = y3*to_fixed_11_2;
-    
-    y1 = y1f/4.0f;
-    y2 = y2f/4.0f;
-    y3 = y3f/4.0f;
+    const int y1f = TRUNCATE_S11_2((int)(y1*to_fixed_11_2));
+    const int y2f = TRUNCATE_S11_2((int)(y2*to_fixed_11_2));
+    const int y3f = TRUNCATE_S11_2((int)(y3*to_fixed_11_2));
 
     const float Hx = x3 - x1;        
     const float Hy = y3 - y1;        
@@ -1032,10 +1020,6 @@ void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3,
     const float Ly = y3 - y2;
     const float nz = (Hx*My) - (Hy*Mx);
     const uint32_t lft = nz < 0;
-    
-    y1f = TRUNCATE_S11_2(y1f);
-    y2f = TRUNCATE_S11_2(y2f);
-    y3f = TRUNCATE_S11_2(y3f);
     
     __rdp_ringbuffer_queue(0x08000000 | (lft<<23) | y3f);
     __rdp_ringbuffer_queue( (y2f<<16) | y1f );
