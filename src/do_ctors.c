@@ -35,7 +35,9 @@ void __do_global_ctors()
 {
 	func_ptr * ctor_addr = &__CTOR_END__ - 1;
 	func_ptr * ctor_sentinel = &__CTOR_LIST__;
-	while (ctor_addr > ctor_sentinel) {
+	assertf((uint32_t)*ctor_sentinel != 0xFFFFFFFF,
+		"Invalid constructor sentinel.\nWhen linking with g++, please specify:\n   --wrap __do_global_ctors");
+	while (ctor_addr >= ctor_sentinel) {
 		if (*ctor_addr) (*ctor_addr)();
 		ctor_addr--;
 	}
