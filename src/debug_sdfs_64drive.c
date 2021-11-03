@@ -74,11 +74,28 @@ static DRESULT fat_disk_write_64drive(const BYTE* buff, LBA_t sector, UINT count
 
 			uint32_t* dst = (uint32_t*)(D64_CIBASE_ADDRESS + D64_BUFFER);
 			u_uint32_t* src = (u_uint32_t*)buff;
+			disable_interrupts();
 			for (int i = 0; i < 512/16; i++)
 			{
 				uint32_t a = *src++; uint32_t b = *src++; uint32_t c = *src++; uint32_t d = *src++;
-				*dst++ = a;          *dst++ = b;          *dst++ = c;          *dst++ = d;
+				dma_wait();
+				MEMORY_BARRIER();
+				*dst++ = a;
+				MEMORY_BARRIER();
+				dma_wait();
+				MEMORY_BARRIER();
+				*dst++ = b;
+				MEMORY_BARRIER();
+				dma_wait();
+				MEMORY_BARRIER();
+				*dst++ = c;
+				MEMORY_BARRIER();
+				dma_wait();
+				MEMORY_BARRIER();
+				*dst++ = d;
+				MEMORY_BARRIER();
 			}
+			enable_interrupts();
 		}
 
 		usb_64drive_wait();
