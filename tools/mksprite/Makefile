@@ -4,9 +4,9 @@ LDFLAGS += -lpng
 all: mksprite convtool
 
 mksprite:
-	$(CC) $(CFLAGS)  mksprite.c -o mksprite $(LDFLAGS)
+	$(CC) $(CFLAGS)  mksprite.c -o mksprite
 convtool:
-	$(CC) $(CFLAGS)  convtool.c -o convtool $(LDFLAGS)
+	$(CC) $(CFLAGS)  convtool.c -o convtool
 
 install: mksprite convtool
 	install -m 0755 mksprite $(INSTALLDIR)/bin

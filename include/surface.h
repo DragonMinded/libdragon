@@ -51,7 +51,6 @@
 #define __LIBDRAGON_SURFACE_H
 
 #include <stdint.h>
-#include "n64sys.h"
 
 #ifdef __cplusplus
 extern "C" {
