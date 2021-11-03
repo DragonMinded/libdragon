@@ -68,7 +68,7 @@ void __do_global_ctors()
  * This version is used by the new build system (n64.mk) via the --wrap linker
  * flag. When that is provided, this version will be utilized instead. New build
  * system always links with g++ which is not directly compatible with ld when it
- * comes to constructors abd enables that flag by default.
+ * comes to constructors and enables that flag by default.
  */
 void __wrap___do_global_ctors()
 {
