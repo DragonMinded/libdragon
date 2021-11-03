@@ -1,0 +1,28 @@
+var searchData=
+[
+  ['id_479',['id',['../structwav64__header__t.html#a731e481e8b944449ba2574fe96292192',1,'wav64_header_t']]],
+  ['identify_5faccessory_480',['identify_accessory',['../group__controller.html#ga61f79691c93aed5a6abaf2d962823680',1,'controller.c']]],
+  ['info_481',['info',['../group__exceptions.html#a05e27f4f7ffca11f72050238adf56e14',1,'exception_t']]],
+  ['inode_482',['inode',['../group__mempak.html#a7370d297cba84f180f10bafa46cefba7',1,'entry_structure_t']]],
+  ['inst_5fcache_5fhit_5finvalidate_483',['inst_cache_hit_invalidate',['../group__n64sys.html#ga6c1668d8eee5e64ac7f3b91bd37db60e',1,'n64sys.c']]],
+  ['inst_5fcache_5fhit_5fwriteback_484',['inst_cache_hit_writeback',['../group__n64sys.html#gac57f15648738d8f8575ec655a1678b73',1,'n64sys.c']]],
+  ['inst_5fcache_5findex_5finvalidate_485',['inst_cache_index_invalidate',['../group__n64sys.html#gae7ec4cb3b1776373ede58525b43a258e',1,'n64sys.c']]],
+  ['inst_5fcache_5finvalidate_5fall_486',['inst_cache_invalidate_all',['../group__n64sys.html#ga3bbb609a58f6025ea3b8cb406ca4d823',1,'n64sys.c']]],
+  ['interrupt_20controller_487',['Interrupt Controller',['../group__interrupt.html',1,'']]],
+  ['interrupt_2ec_488',['interrupt.c',['../interrupt_8c.html',1,'']]],
+  ['interrupt_2eh_489',['interrupt.h',['../interrupt_8h.html',1,'']]],
+  ['interrupt_5fdisabled_5ftick_490',['interrupt_disabled_tick',['../group__interrupt.html#ga68073f6aec13519a201b136b84ac564e',1,'interrupt_disabled_tick():&#160;interrupt.c'],['../group__timer.html#ga85a4a7cd00dbfde35c7b7c41e0ab9e29',1,'interrupt_disabled_tick():&#160;interrupt.c']]],
+  ['interrupt_5fstate_5ft_491',['interrupt_state_t',['../group__interrupt.html#ga366982e291c08c36c7352ea07a6e096c',1,'interrupt.h']]],
+  ['interrupts_5fdisabled_492',['INTERRUPTS_DISABLED',['../group__interrupt.html#gga366982e291c08c36c7352ea07a6e096ca199b2924f37a683a3dfcae49aac28b67',1,'interrupt.h']]],
+  ['interrupts_5fenabled_493',['INTERRUPTS_ENABLED',['../group__interrupt.html#gga366982e291c08c36c7352ea07a6e096ca63f9f656dbca41f104246bcb920cc110',1,'interrupt.h']]],
+  ['interrupts_5funinitialized_494',['INTERRUPTS_UNINITIALIZED',['../group__interrupt.html#gga366982e291c08c36c7352ea07a6e096ca8391f9b3514597a92d66f4ec813bbe22',1,'interrupt.h']]],
+  ['intr_495',['intr',['../group__lowlevel.html#a5a5097a9eb34a41cbccc0ca68b3939d1',1,'MI_regs_t']]],
+  ['io_5fread_496',['io_read',['../group__dma.html#ga3594a5188d4cebfeab4ae572dfdeaf0d',1,'io_read(uint32_t pi_address):&#160;dma.c'],['../group__dma.html#ga3594a5188d4cebfeab4ae572dfdeaf0d',1,'io_read(uint32_t pi_address):&#160;dma.c']]],
+  ['io_5fwrite_497',['io_write',['../group__dma.html#gac5eb65e76faecd29c36757cdae3b6e36',1,'io_write(uint32_t pi_address, uint32_t data):&#160;dma.c'],['../group__dma.html#gac5eb65e76faecd29c36757cdae3b6e36',1,'io_write(uint32_t pi_address, uint32_t data):&#160;dma.c']]],
+  ['is_5fmemory_5fexpanded_498',['is_memory_expanded',['../group__n64sys.html#ga28ba352e296d379426531772b874046d',1,'n64sys.c']]],
+  ['is_5fsgb_5fsupported_499',['is_sgb_supported',['../tpak_8h.html#a302756cfef331ca9e94ad4eb49e814c1',1,'gameboy_cartridge_header']]],
+  ['isatty_500',['isatty',['../group__system.html#ga2cf4c4b087df7b15fb2aa7401ddfc010',1,'system.c']]],
+  ['isviewer_5fbuffer_501',['ISVIEWER_BUFFER',['../debug_8c.html#ac8ee018ab83421d4023d62dbf101a3a7',1,'debug.c']]],
+  ['isviewer_5fbuffer_5flen_502',['ISVIEWER_BUFFER_LEN',['../debug_8c.html#a27745d9b9c5d96c55b87b67b1aa998d6',1,'debug.c']]],
+  ['isviewer_5fwrite_5flen_503',['ISVIEWER_WRITE_LEN',['../debug_8c.html#afc19541124f4e8e53c6deb3367030740',1,'debug.c']]]
+];
