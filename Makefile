@@ -35,7 +35,8 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 			 $(BUILD_DIR)/audio/xm64.o $(BUILD_DIR)/audio/libxm/play.o \
 			 $(BUILD_DIR)/audio/libxm/context.o $(BUILD_DIR)/audio/libxm/load.o \
 			 $(BUILD_DIR)/audio/ym64.o $(BUILD_DIR)/audio/ay8910.o \
-			 $(BUILD_DIR)/dl/displaylist.o $(BUILD_DIR)/dl/rsp_displaylist.o
+			 $(BUILD_DIR)/dl/displaylist.o $(BUILD_DIR)/dl/rsp_displaylist.o \
+			 $(BUILD_DIR)/dl/rsp_ovl_gfx.o
 	@echo "    [AR] $@"
 	$(AR) -rcs -o $@ $^
 

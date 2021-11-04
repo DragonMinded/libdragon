@@ -12,12 +12,16 @@
 
 typedef struct dl_overlay_t {
     void* code;
-    uint32_t code_size;
     void* data;
-    uint32_t data_size;
+    void* data_buffer;
+    uint16_t code_size;
+    uint16_t data_size;
 } dl_overlay_t;
 
-void dl_overlay_register(uint8_t id, dl_overlay_t *overlay);
+// TODO: macro for overlay definition. DON'T FORGET TO DO SIZE-1!
+
+uint8_t dl_overlay_add(dl_overlay_t *overlay);
+void dl_overlay_register_id(uint8_t overlay_index, uint8_t id);
 
 void dl_init();
 void dl_close();

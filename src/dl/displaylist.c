@@ -4,17 +4,17 @@
 #include <string.h>
 #include <libdragon.h>
 
-#define DL_BUFFER_SIZE       0x1000
-#define DL_MAX_OVERLAY_COUNT 16
+#define DL_BUFFER_SIZE        0x1000
+#define DL_OVERLAY_TABLE_SIZE 16
+#define DL_MAX_OVERLAY_COUNT  8
 
 DEFINE_RSP_UCODE(rsp_displaylist);
-
-static dl_overlay_t dl_overlay_table[DL_MAX_OVERLAY_COUNT];
 
 typedef struct rsp_dl_s {
 	void *dl_dram_addr;
 	void *dl_pointers_addr;
-    dl_overlay_t overlay_table[DL_MAX_OVERLAY_COUNT];
+    uint8_t overlay_table[DL_OVERLAY_TABLE_SIZE];
+    dl_overlay_t overlay_descriptors[DL_MAX_OVERLAY_COUNT];
 } __attribute__((aligned(8), packed)) rsp_dl_t;
 
 typedef struct dma_safe_pointer_t {
@@ -28,6 +28,9 @@ typedef struct dl_pointers_t {
     dma_safe_pointer_t wrap;
 } dl_pointers_t;
 
+static rsp_dl_t dl_data;
+static uint8_t dl_overlay_count = 0;
+
 static dl_pointers_t dl_pointers;
 
 #define DL_POINTERS ((volatile dl_pointers_t*)(UncachedAddr(&dl_pointers)))
@@ -39,14 +42,24 @@ static uint32_t reserved_size;
 static bool is_wrapping;
 
 // TODO: Do this at compile time?
-void dl_overlay_register(uint8_t id, dl_overlay_t *overlay)
+uint8_t dl_overlay_add(dl_overlay_t *overlay)
 {
-    assertf(id > 0 && id < DL_MAX_OVERLAY_COUNT, "Tried to register invalid overlay id: %d", id);
     assert(overlay);
+    assertf(dl_overlay_count < DL_MAX_OVERLAY_COUNT, "Only up to %d overlays are supported!", DL_MAX_OVERLAY_COUNT);
+
+    dl_data.overlay_descriptors[dl_overlay_count] = *overlay;
+
+    return dl_overlay_count++;
+}
+
+void dl_overlay_register_id(uint8_t overlay_index, uint8_t id)
+{
+    assertf(overlay_index < DL_MAX_OVERLAY_COUNT, "Tried to register invalid overlay index: %d", overlay_index);
+    assertf(id < DL_OVERLAY_TABLE_SIZE, "Tried to register id: %d", id);
 
     assertf(dl_buffer == NULL, "dl_overlay_register must be called before dl_init!");
 
-    dl_overlay_table[id] = *overlay;
+    dl_data.overlay_table[id] = overlay_index * sizeof(dl_overlay_t);
 }
 
 void dl_init()
@@ -66,18 +79,11 @@ void dl_init()
     rsp_load(&rsp_displaylist);
 
     // Load initial settings
-    // TODO: is dma faster/better?
-    MEMORY_BARRIER();
-    volatile rsp_dl_t *rsp_dl = (volatile rsp_dl_t*)SP_DMEM;
-    rsp_dl->dl_dram_addr = PhysicalAddr(dl_buffer);
-    rsp_dl->dl_pointers_addr = PhysicalAddr(&dl_pointers);
-    for (int i = 0; i < DL_MAX_OVERLAY_COUNT; ++i) {
-        rsp_dl->overlay_table[i].code = dl_overlay_table[i].code;
-        rsp_dl->overlay_table[i].code_size = dl_overlay_table[i].code_size;
-        rsp_dl->overlay_table[i].data = dl_overlay_table[i].data;
-        rsp_dl->overlay_table[i].data_size = dl_overlay_table[i].data_size;
-    }
-    MEMORY_BARRIER();
+    dl_data.dl_dram_addr = PhysicalAddr(dl_buffer);
+    dl_data.dl_pointers_addr = PhysicalAddr(&dl_pointers);
+
+    data_cache_hit_writeback(&dl_data, sizeof(dl_data));
+    rsp_load_data(PhysicalAddr(&dl_data), sizeof(dl_data), 0);
 
     rsp_run_async();
 }

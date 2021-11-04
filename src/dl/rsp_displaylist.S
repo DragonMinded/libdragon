@@ -1,12 +1,17 @@
 #include <rsp.inc>
+#include <rsp_dl.inc>
 
 .set noreorder
 .set at
 
 #define INPUT_BUFFER_SIZE 0x100
 
-#define OVERLAY_SIZE  0x10
-#define OVERLAY_COUNT 16
+#define OVERLAY_TABLE_SIZE 0x10
+
+#define OVERLAY_DESC_SIZE  0x10
+#define MAX_OVERLAY_COUNT 8
+
+#define OVERLAY_HEADER_SIZE 0x6
 
 .data
 
@@ -15,8 +20,8 @@
 DL_DRAM_ADDR:     .long 0
 DL_POINTERS_ADDR: .long 0
 
-# TODO: compress the overlay table more
-OVERLAY_TABLE:   .ds.b (OVERLAY_SIZE * OVERLAY_COUNT)
+OVERLAY_TABLE:         .ds.b OVERLAY_TABLE_SIZE
+OVERLAY_DESCRIPTORS:   .ds.b (OVERLAY_DESC_SIZE * MAX_OVERLAY_COUNT)
 
 .align 3
 READ_POINTER:    .quad 0
@@ -24,17 +29,9 @@ WRITE_POINTER:   .quad 0
 WRAP_POINTER:    .quad 0
 
 .align 1
-COMMAND_JUMP_TABLE:
-
-.macro jumpTableEntry function
-    .short \function - _start
-.endm
-
-jumpTableEntry command_noop
-jumpTableEntry command_interrupt
-
-.align 3
-DATA_END:
+INTERNAL_COMMAND_TABLE:
+commandTableEntry command_noop,      1
+commandTableEntry command_interrupt, 1
 
 .bss
 
@@ -44,18 +41,9 @@ INPUT_BUFFER:    .ds.b INPUT_BUFFER_SIZE
 .align 4
 # Overlay data will be loaded at this address
 OVERLAY_DATA_LOAD_ADDR:
+OVERLAY_HEADER:
 
 .text
-
-# Globally reserved registers
-# TODO: Move some of these to DMEM
-#define input_buf_start fp
-#define input_buf_ptr   gp
-#define input_buf_end   k1
-#define read_ptr        k0
-#define write_ptr       t9
-#define wrap_ptr        t8
-#define cur_ovl         t7
 
 .globl _start
 _start:
@@ -68,9 +56,8 @@ _start:
     move read_ptr, zero
     move write_ptr, zero
     move wrap_ptr, zero
-    move cur_ovl, zero
     j loop
-    move t0, zero
+    addi cur_ovl, zero, -1
 
 # Triggers an RSP interrupt
 command_interrupt:
@@ -79,59 +66,108 @@ command_interrupt:
 
 # Does nothing
 command_noop:
-    li t0, 1
 
-# INPUT:
-#   t0: length of input that has been read since the last loop.
 .func loop
 loop:
-    # Advance input pointer
-    addu input_buf_ptr, t0
-    # Make sure there is at least 1 byte left in the buffer
+    #define ovl_index t4
+    #define cmd_index t5
+    #define cmd_desc  t6
+    #define cmd_mask  s1
+    #define cmd_size  s2
+
+    # Make sure there are at least 8 bytes left in the buffer
     jal request_input
-    li t0, 1
+    li t0, 8
 
-    # Read next byte
-    lb t0, %lo(INPUT_BUFFER)(input_buf_ptr)
-    # Overlay index (times overlay size, so offset into overlay table)
-    andi a0, t0, 0xF0
+    # Read first two words
+    lw a0, %lo(INPUT_BUFFER) + 0x0 (input_buf_ptr)
+    lw a1, %lo(INPUT_BUFFER) + 0x4 (input_buf_ptr)
 
-    # Overlay #0 is reserved for internal commands
-    beqz a0, is_default_overlay
-    # Overlay command index
-    andi a1, t0, 0x0F
+    # Index into overlay table
+    srl t0, a0, 28
 
+    # Overlay 0 is reserved for internal commands
+    beqz t0, is_default_overlay
+    srl cmd_index, a0, 23
+
+    # Load overlay index from overlay table
+    lb ovl_index, %lo(OVERLAY_TABLE)(t0)
     # Check if the requested overlay is already in memory
-    beq a0, cur_ovl, overlay_loaded
+    beq ovl_index, cur_ovl, overlay_loaded
+    lh t0, %lo(OVERLAY_HEADER) + 0x2
 
+    # Skip saving overlay data if none is loaded (cur_ovl < 0)
+    bltz cur_ovl, load_overlay
+    lw s0, %lo(OVERLAY_DESCRIPTORS) + 0x8 (ovl_index)
+
+    # Save current overlay data
+    # TODO: skip if size is 0
+    jal DMAOut
+    lh s4, %lo(OVERLAY_HEADER) + 0x0
+
+load_overlay:
     # Load overlay data
-    lw t0, %lo(OVERLAY_TABLE) + 0x4 (a0)
-    beqz t0, no_overlay_data
-    lw s0, %lo(OVERLAY_TABLE) + 0x0 (a0)
-    addi t0, -1
-    jal DMAInAsync
+    lh t0, %lo(OVERLAY_DESCRIPTORS) + 0xC (ovl_index)
+    lw s0, %lo(OVERLAY_DESCRIPTORS) + 0x0 (ovl_index)
+    jal DMAIn
     li s4, %lo(OVERLAY_DATA_LOAD_ADDR)
 
-no_overlay_data:
+    # Load saved overlay data 
+    # TODO: skip if size is 0
+    lh t0, %lo(OVERLAY_HEADER) + 0x2
+    lw s0, %lo(OVERLAY_DESCRIPTORS) + 0x8 (ovl_index)
+    jal DMAInAsync
+    lh s4, %lo(OVERLAY_HEADER) + 0x0
+
     # Load overlay code
-    lw s0, %lo(OVERLAY_TABLE) + 0x8 (a0)
-    lw t0, %lo(OVERLAY_TABLE) + 0xC (a0)
-    addi t0, -1
+    lh t0, %lo(OVERLAY_DESCRIPTORS) + 0xE (ovl_index)
+    lw s0, %lo(OVERLAY_DESCRIPTORS) + 0x4 (ovl_index)
     jal DMAIn
-    li s4, %lo(OVERLAY_CODE_LOAD_ADDR)
+    li s4, %lo(OVERLAY_CODE_LOAD_ADDR) + 0x1000
+
+    # Remember loaded overlay
+    move cur_ovl, ovl_index
 
 overlay_loaded:
-    # Jump into overlay
-    j OVERLAY_CODE_LOAD_ADDR
-    # Remember loaded overlay
-    move cur_ovl, a0
+    # Load the command mask
+    lh cmd_mask, %lo(OVERLAY_HEADER) + 0x4
+
+    # Mask the shifted command index with the command mask to determine the final offset into the command table.
+    # This is done so overlays can take up multiple entries in the overlay table but still use
+    # the a single command table which can be bigger as well (only used for the RDP overlay for now, which uses
+    # overlays 2 and 3)
+    and cmd_index, cmd_mask
+    j execute_command
+    # Load command descriptor from overlay command table
+    lh cmd_desc, %lo(OVERLAY_HEADER) + OVERLAY_HEADER_SIZE(cmd_index)
 
 is_default_overlay:
-    # Load command address from jump table and jump there
-    sll a1, 1
-    lh t0, %lo(COMMAND_JUMP_TABLE)(a1)
-    jr t0
-    nop
+    andi cmd_index, 0x1E
+    # Load command descriptor from internal command table if using the default overlay
+    lh cmd_desc, %lo(INTERNAL_COMMAND_TABLE)(cmd_index)
+
+execute_command:
+    # Command size
+    srl cmd_size, cmd_desc, 12
+    
+    # Load more input if necessary, according to command size
+    addi t1, cmd_size, -9
+    bgezal t1, request_input
+    move t0, cmd_size
+
+    # Jump location (mask is technically not necessary, but do it anyway for easier debugging)
+    andi cmd_desc, 0xFFF
+
+    # Jump to command
+    jr cmd_desc
+    # Advance input pointer
+    addu input_buf_ptr, cmd_size
+
+    #undef ovl_index
+    #undef cmd_index
+    #undef cmd_desc
+    #undef cmd_mask
+    #undef cmd_size
 .endfunc
 
 # Same as load_new_input, but only if there is less input left than requested
@@ -140,10 +176,7 @@ is_default_overlay:
 .func request_input
 request_input:
     sub t1, input_buf_end, input_buf_ptr
-    blt t1, t0, load_new_input
-    nop
-    jr ra
-    nop
+    bge t1, t0, JrRa
 .endfunc
 
 # This function will do two things:
