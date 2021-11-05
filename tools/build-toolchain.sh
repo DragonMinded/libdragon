@@ -3,8 +3,6 @@
 # (c) 2012-2021 Shaun Taylor and libDragon Contributors.
 # See the root folder for license information.
 
-
-
 # Before calling this script, make sure you have GMP, MPFR and TexInfo
 # packages installed in your system.  On a Debian-based system this is
 # achieved by typing the following commands:
@@ -26,8 +24,8 @@ JOBS="${JOBS:-`getconf _NPROCESSORS_ONLN`}"
 JOBS="${JOBS:-1}" # If getconf returned nothing, default to 1
 
 # Dependency source libs (Versions)
-BINUTILS_V=2.36.1
-GCC_V=10.2.0
+BINUTILS_V=2.37
+GCC_V=11.2.0
 NEWLIB_V=4.1.0
 
 # Check if a command-line tool is available: status 0 means "yes"; status 1 means "no"
@@ -110,7 +108,7 @@ cd ..
 rm -rf gcc_compile
 mkdir gcc_compile
 cd gcc_compile
-CFLAGS_FOR_TARGET="-G0 -O2" CXXFLAGS_FOR_TARGET="-G0 -O2" ../"gcc-$GCC_V"/configure \
+CFLAGS_FOR_TARGET="-O2" CXXFLAGS_FOR_TARGET="-O2" ../"gcc-$GCC_V"/configure \
   --prefix="$INSTALL_PATH" \
   --target=mips64-elf \
   --with-arch=vr4300 \
