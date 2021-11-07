@@ -135,8 +135,8 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 %.elf: $(N64_LIBDIR)/libdragon.a $(N64_LIBDIR)/libdragonsys.a $(N64_LIBDIR)/n64.ld
 	@mkdir -p $(dir $@)
 	@echo "    [LD] $@"
-	# We always use g++ to link except for ucode because of the inconsistencies
-	# between ld when it comes to global ctors dtors. Also see __do_global_ctors
+# We always use g++ to link except for ucode because of the inconsistencies
+# between ld when it comes to global ctors dtors. Also see __do_global_ctors
 	$(CXX) -o $@ $(filter-out $(N64_LIBDIR)/n64.ld,$^) -lc $(patsubst %,-Wl$(COMMA)%,$(LDFLAGS)) -Wl,-Map=$(BUILD_DIR)/$(notdir $(basename $@)).map
 	$(N64_SIZE) -G $@
 
