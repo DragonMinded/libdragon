@@ -154,11 +154,9 @@ static bool everdrive_sd_read_response(uint8_t res_buff[5]) {
 
 	set_everdrive_sd_bitlen(8);
 
-	if (res_buff != NULL) {
-		res_buff[1] = everdrive_sd_read_command();
-		res_buff[2] = everdrive_sd_read_command();
-		res_buff[3] = everdrive_sd_read_command();
-		res_buff[4] = everdrive_sd_read_command();
+	for (int i=0;i<4;i++) {
+		uint8_t data = everdrive_sd_read_command();
+		if (res_buff) res_buff[i+1] = data;
 	}
 
 	// Make sure everything is consumed, we just don't use them
