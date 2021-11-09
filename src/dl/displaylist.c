@@ -10,6 +10,14 @@
 
 DEFINE_RSP_UCODE(rsp_displaylist);
 
+typedef struct dl_overlay_t {
+    void* code;
+    void* data;
+    void* data_buf;
+    uint16_t code_size;
+    uint16_t data_size;
+} dl_overlay_t;
+
 typedef struct rsp_dl_s {
 	void *dl_dram_addr;
 	void *dl_pointers_addr;
@@ -38,16 +46,29 @@ static dl_pointers_t dl_pointers;
 static void *dl_buffer;
 static void *dl_buffer_uncached;
 
+static bool dl_is_running;
+
 static uint32_t reserved_size;
 static bool is_wrapping;
 
-// TODO: Do this at compile time?
-uint8_t dl_overlay_add(dl_overlay_t *overlay)
+uint8_t dl_overlay_add(void* code, void *data, uint16_t code_size, uint16_t data_size, void *data_buf)
 {
-    assert(overlay);
     assertf(dl_overlay_count < DL_MAX_OVERLAY_COUNT, "Only up to %d overlays are supported!", DL_MAX_OVERLAY_COUNT);
 
-    dl_data.overlay_descriptors[dl_overlay_count] = *overlay;
+    assert(code);
+    assert(data);
+
+    dl_overlay_t *overlay = &dl_data.overlay_descriptors[dl_overlay_count];
+
+    // The DL ucode is always linked into overlays for now, so we need to load the overlay from an offset.
+    // TODO: Do this some other way.
+    uint32_t dl_ucode_size = rsp_displaylist_text_end - rsp_displaylist_text_start;
+
+    overlay->code = PhysicalAddr(code + dl_ucode_size);
+    overlay->data = PhysicalAddr(data);
+    overlay->data_buf = PhysicalAddr(data_buf);
+    overlay->code_size = code_size - dl_ucode_size - 1;
+    overlay->data_size = data_size - 1;
 
     return dl_overlay_count++;
 }
@@ -57,7 +78,7 @@ void dl_overlay_register_id(uint8_t overlay_index, uint8_t id)
     assertf(overlay_index < DL_MAX_OVERLAY_COUNT, "Tried to register invalid overlay index: %d", overlay_index);
     assertf(id < DL_OVERLAY_TABLE_SIZE, "Tried to register id: %d", id);
 
-    assertf(dl_buffer == NULL, "dl_overlay_register must be called before dl_init!");
+    assertf(dl_buffer != NULL, "dl_overlay_register must be called after dl_init!");
 
     dl_data.overlay_table[id] = overlay_index * sizeof(dl_overlay_t);
 }
@@ -82,10 +103,27 @@ void dl_init()
     dl_data.dl_dram_addr = PhysicalAddr(dl_buffer);
     dl_data.dl_pointers_addr = PhysicalAddr(&dl_pointers);
 
+    memset(&dl_data.overlay_table, 0, sizeof(dl_data.overlay_table));
+    memset(&dl_data.overlay_descriptors, 0, sizeof(dl_data.overlay_descriptors));
+    
+    dl_overlay_count = 0;
+}
+
+void dl_start()
+{
+    if (dl_is_running)
+    {
+        return;
+    }
+
+    // Load data with initialized overlays into DMEM
     data_cache_hit_writeback(&dl_data, sizeof(dl_data));
     rsp_load_data(PhysicalAddr(&dl_data), sizeof(dl_data), 0);
 
+    // Off we go!
     rsp_run_async();
+
+    dl_is_running = 1;
 }
 
 void dl_close()
@@ -99,6 +137,7 @@ void dl_close()
     free(dl_buffer);
     dl_buffer = NULL;
     dl_buffer_uncached = NULL;
+    dl_is_running = 0;
 }
 
 uint32_t* dl_write_begin(uint32_t size)

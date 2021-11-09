@@ -1,11 +1,10 @@
-#include <rsp.inc>
-#include <rsp_dl.inc>
+#include "rsp_displaylist.S"
 
 #define RDP_BUFFER_SIZE 0x100
 
-.section .overlay.data
+.section .data.overlay
 
-overlayHeader OVL_GFX_SAVED_DATA_START, OVL_GFX_SAVED_DATA_END, 0x7E
+overlayHeader OVL_GFX_SAVED_DATA_START, OVL_GFX_SAVED_DATA_END, 0x20
 
 .align 1
 COMMAND_TABLE:
@@ -13,8 +12,9 @@ commandTableEntry command_noop, 8
 commandTableEntry command_noop, 8
 commandTableEntry command_noop, 8
 commandTableEntry command_noop, 8
-commandTableEntry command_rdp_passthrough_16, 16 # TEXTURE_RECTANGLE
-commandTableEntry command_rdp_passthrough_16, 16 # TEXTURE_RECTANGLE_FLIP
+# FIXME: size is meant to be 16
+commandTableEntry command_rdp_passthrough_16, 15 # TEXTURE_RECTANGLE
+commandTableEntry command_rdp_passthrough_16, 15 # TEXTURE_RECTANGLE_FLIP
 commandTableEntry command_noop, 8
 commandTableEntry command_rdp_passthrough_8, 8   # SYNC_PIPE
 commandTableEntry command_rdp_passthrough_8, 8   # SYNC_TILE
@@ -42,7 +42,10 @@ commandTableEntry command_rdp_passthrough_8, 8   # SET_TEXTURE_IMAGE
 commandTableEntry command_rdp_passthrough_8, 8   # SET_Z_IMAGE
 commandTableEntry command_rdp_passthrough_8, 8   # SET_COLOR_IMAGE
 
-.section .overlay.bss
+
+.section .bss.overlay
+.globl _ovl_bss_start
+_ovl_bss_start:
 
 .align 3
 OVL_GFX_SAVED_DATA_START:
@@ -58,7 +61,7 @@ RDP_INITIALIZED:       .short 0
 
 OVL_GFX_SAVED_DATA_END:
 
-.section .overlay.text
+.text 1
 
 command_set_other_modes:
     sw a0, %lo(RDP_OTHER_MODES) + 0x0
@@ -94,7 +97,7 @@ command_sync_full:
     jal rdp_flush
     nop
     j loop
-    # ...and set the RDP system to uninitialized
+    # ...and set the RDP system back to uninitialized
     sh zero, %lo(RDP_INITIALIZED)
 
 # INPUT:
@@ -103,7 +106,7 @@ command_sync_full:
 #   s1: Output pointer
 rdp_write_begin:
     # Load current buffer pointer
-    lw s1, %lo(RDP_DMEM_BUFFER_PTR)
+    lhu s1, %lo(RDP_DMEM_BUFFER_PTR)
 
     # If the requested size fits in the buffer, just return the current pointer
     add s2, s1, t0
@@ -119,10 +122,10 @@ rdp_write_begin:
 #   t0: Data size
 rdp_write_end:
     # Advance dmem buffer pointer
-    lw s2, %lo(RDP_DMEM_BUFFER_PTR)
+    lhu s2, %lo(RDP_DMEM_BUFFER_PTR)
     add s2, t0
     jr ra
-    sw s2, %lo(RDP_DMEM_BUFFER_PTR)
+    sh s2, %lo(RDP_DMEM_BUFFER_PTR)
 
 rdp_flush:
     #define dram_size t4
@@ -130,10 +133,10 @@ rdp_flush:
     #define init      t6
     #define dram_end  s5
 
-    lh t0, %lo(RDP_DMEM_BUFFER_PTR)
+    lhu t0, %lo(RDP_DMEM_BUFFER_PTR)
     blez t0, JrRa
 
-    lh init,      %lo(RDP_INITIALIZED)
+    lhu init,      %lo(RDP_INITIALIZED)
     lw dram_end,  %lo(RDP_DRAM_BUFFER_END)
     lw dram_size, %lo(RDP_DRAM_BUFFER_SIZE)
     
@@ -172,6 +175,7 @@ rdp_flush_dma:
     li s4, %lo(RDP_DMEM_BUFFER)
 
     # Set new end of RDP command buffer
+    add s0, t0
     mtc0 s0, COP0_DP_END
 
     # Advance dram pointer and save it

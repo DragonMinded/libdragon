@@ -36,7 +36,7 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 			 $(BUILD_DIR)/audio/libxm/context.o $(BUILD_DIR)/audio/libxm/load.o \
 			 $(BUILD_DIR)/audio/ym64.o $(BUILD_DIR)/audio/ay8910.o \
 			 $(BUILD_DIR)/dl/displaylist.o $(BUILD_DIR)/dl/rsp_displaylist.o \
-			 $(BUILD_DIR)/dl/rsp_ovl_gfx.o
+			 $(BUILD_DIR)/dl/gfx.o $(BUILD_DIR)/dl/rsp_ovl_gfx.o
 	@echo "    [AR] $@"
 	$(AR) -rcs -o $@ $^
 
@@ -106,6 +106,8 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/ym64.h $(INSTALLDIR)/mips64-elf/include/ym64.h
 	install -Cv -m 0644 include/ay8910.h $(INSTALLDIR)/mips64-elf/include/ay8910.h
 	install -Cv -m 0644 include/displaylist.h $(INSTALLDIR)/mips64-elf/include/displaylist.h
+	install -Cv -m 0644 include/gfx.h $(INSTALLDIR)/mips64-elf/include/gfx.h
+	install -Cv -m 0644 include/rdp_commands.h $(INSTALLDIR)/mips64-elf/include/rdp_commands.h
 
 clean:
 	rm -f *.o *.a

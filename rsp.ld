@@ -4,7 +4,6 @@
 
 OUTPUT_FORMAT ("elf32-bigmips", "elf32-bigmips", "elf32-littlemips")
 OUTPUT_ARCH (mips)
-EXTERN (_start)
 ENTRY (_start)
 
 MEMORY
@@ -31,8 +30,20 @@ MEMORY
 SECTIONS
 {
     .text : { *(.text) } > ram_text AT > rom_imem
+
     .data : { *(.data) } > ram_data AT > rom_dmem
-    .bss :  { *(.bss) }  > ram_data AT > rom_dmem
+
+    . = ALIGN(8);
+
+    .bss  : { *(.bss)  } > ram_data AT > rom_dmem
+
+    . = ALIGN(8);
+
+    .data.overlay : { *(.data.overlay) } > ram_data AT > rom_dmem
+
+    . = ALIGN(8);
+
+    .bss.overlay  : { *(.bss.overlay)  } > ram_data AT > rom_dmem
 
     /DISCARD/ : { *(.MIPS.abiflags) }
 }

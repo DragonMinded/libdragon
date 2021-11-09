@@ -10,20 +10,23 @@
 
 #define DL_MAKE_COMMAND(ovl, cmd) ((((ovl) & 0xF) << 4) | ((cmd) & 0xF))
 
-typedef struct dl_overlay_t {
-    void* code;
-    void* data;
-    void* data_buffer;
-    uint16_t code_size;
-    uint16_t data_size;
-} dl_overlay_t;
+#define DL_OVERLAY_ADD(ovl_name, data_buf) ({ \
+    extern uint8_t ovl_name ## _text_start[]; \
+    extern uint8_t ovl_name ## _data_start[]; \
+    extern uint8_t ovl_name ## _text_end[0]; \
+    extern uint8_t ovl_name ## _data_end[0]; \
+    dl_overlay_add( \
+        ovl_name ## _text_start, \
+        ovl_name ## _data_start, \
+        (uint16_t)(ovl_name ## _text_end - ovl_name ## _text_start), \
+        (uint16_t)(ovl_name ## _data_end - ovl_name ## _data_start), \
+        data_buf); }) \
 
-// TODO: macro for overlay definition. DON'T FORGET TO DO SIZE-1!
-
-uint8_t dl_overlay_add(dl_overlay_t *overlay);
+uint8_t dl_overlay_add(void* code, void *data, uint16_t code_size, uint16_t data_size, void *data_buf);
 void dl_overlay_register_id(uint8_t overlay_index, uint8_t id);
 
 void dl_init();
+void dl_start();
 void dl_close();
 
 uint32_t* dl_write_begin(uint32_t size);

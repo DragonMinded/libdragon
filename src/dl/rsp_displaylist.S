@@ -11,8 +11,6 @@
 #define OVERLAY_DESC_SIZE  0x10
 #define MAX_OVERLAY_COUNT 8
 
-#define OVERLAY_HEADER_SIZE 0x6
-
 .data
 
 .align 2
@@ -40,8 +38,8 @@ INPUT_BUFFER:    .ds.b INPUT_BUFFER_SIZE
 
 .align 4
 # Overlay data will be loaded at this address
-OVERLAY_DATA_LOAD_ADDR:
-OVERLAY_HEADER:
+.globl _ovl_data_start
+_ovl_data_start:
 
 .text
 
@@ -72,7 +70,6 @@ loop:
     #define ovl_index t4
     #define cmd_index t5
     #define cmd_desc  t6
-    #define cmd_mask  s1
     #define cmd_size  s2
 
     # Make sure there are at least 8 bytes left in the buffer
@@ -94,7 +91,7 @@ loop:
     lb ovl_index, %lo(OVERLAY_TABLE)(t0)
     # Check if the requested overlay is already in memory
     beq ovl_index, cur_ovl, overlay_loaded
-    lh t0, %lo(OVERLAY_HEADER) + 0x2
+    lhu t0, %lo(_ovl_data_start) + 0x4
 
     # Skip saving overlay data if none is loaded (cur_ovl < 0)
     bltz cur_ovl, load_overlay
@@ -103,58 +100,57 @@ loop:
     # Save current overlay data
     # TODO: skip if size is 0
     jal DMAOut
-    lh s4, %lo(OVERLAY_HEADER) + 0x0
+    lw s4, %lo(_ovl_data_start) + 0x0
 
 load_overlay:
     # Load overlay data
-    lh t0, %lo(OVERLAY_DESCRIPTORS) + 0xC (ovl_index)
-    lw s0, %lo(OVERLAY_DESCRIPTORS) + 0x0 (ovl_index)
+    lhu t0, %lo(OVERLAY_DESCRIPTORS) + 0xE (ovl_index)
+    lw s0, %lo(OVERLAY_DESCRIPTORS) + 0x4 (ovl_index)
     jal DMAIn
-    li s4, %lo(OVERLAY_DATA_LOAD_ADDR)
+    li s4, %lo(_ovl_data_start)
 
     # Load saved overlay data 
     # TODO: skip if size is 0
-    lh t0, %lo(OVERLAY_HEADER) + 0x2
+    lhu t0, %lo(_ovl_data_start) + 0x4
     lw s0, %lo(OVERLAY_DESCRIPTORS) + 0x8 (ovl_index)
     jal DMAInAsync
-    lh s4, %lo(OVERLAY_HEADER) + 0x0
+    lw s4, %lo(_ovl_data_start) + 0x0
 
     # Load overlay code
-    lh t0, %lo(OVERLAY_DESCRIPTORS) + 0xE (ovl_index)
-    lw s0, %lo(OVERLAY_DESCRIPTORS) + 0x4 (ovl_index)
+    lhu t0, %lo(OVERLAY_DESCRIPTORS) + 0xC (ovl_index)
+    lw s0, %lo(OVERLAY_DESCRIPTORS) + 0x0 (ovl_index)
     jal DMAIn
-    li s4, %lo(OVERLAY_CODE_LOAD_ADDR) + 0x1000
+    li s4, %lo(_ovl_text_start) + 0x1000
 
     # Remember loaded overlay
     move cur_ovl, ovl_index
 
 overlay_loaded:
-    # Load the command mask
-    lh cmd_mask, %lo(OVERLAY_HEADER) + 0x4
+    # Load the command base
+    lhu t0, %lo(_ovl_data_start) + 0x6
 
-    # Mask the shifted command index with the command mask to determine the final offset into the command table.
-    # This is done so overlays can take up multiple entries in the overlay table but still use
-    # the a single command table which can be bigger as well (only used for the RDP overlay for now, which uses
-    # overlays 2 and 3)
-    and cmd_index, cmd_mask
+    # Subtract the command base to determine the final offset into the command table.
+    sub cmd_index, t0
     j execute_command
     # Load command descriptor from overlay command table
-    lh cmd_desc, %lo(OVERLAY_HEADER) + OVERLAY_HEADER_SIZE(cmd_index)
+    lhu cmd_desc, %lo(_ovl_data_start) + OVERLAY_HEADER_SIZE(cmd_index)
 
 is_default_overlay:
     andi cmd_index, 0x1E
     # Load command descriptor from internal command table if using the default overlay
-    lh cmd_desc, %lo(INTERNAL_COMMAND_TABLE)(cmd_index)
+    lhu cmd_desc, %lo(INTERNAL_COMMAND_TABLE)(cmd_index)
 
 execute_command:
     # Command size
     srl cmd_size, cmd_desc, 12
     
     # Load more input if necessary, according to command size
-    addi t1, cmd_size, -9
-    bgezal t1, request_input
     move t0, cmd_size
+    slti t1, cmd_size, 9
+    beqz t1, request_input
+    li ra, %lo(execute_command2)
 
+execute_command2:
     # Jump location (mask is technically not necessary, but do it anyway for easier debugging)
     andi cmd_desc, 0xFFF
 
@@ -166,7 +162,6 @@ execute_command:
     #undef ovl_index
     #undef cmd_index
     #undef cmd_desc
-    #undef cmd_mask
     #undef cmd_size
 .endfunc
 
@@ -291,4 +286,5 @@ dma_input:
 
 .align 3
 # Overlay code will be loaded at this address
-OVERLAY_CODE_LOAD_ADDR:
+.globl _ovl_text_start
+_ovl_text_start:

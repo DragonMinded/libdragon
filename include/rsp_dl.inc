@@ -12,16 +12,18 @@
 #define wrap_ptr        t8
 #define cur_ovl         t7
 
+#define OVERLAY_HEADER_SIZE 0x8
+
 # TODO: commands larger than 16 bytes?
 .macro commandTableEntry function size
     .short (\function - _start) | \size << 12
 .endm
 
-.macro overlayHeader savedDataStart, savedDataEnd, mask
+.macro overlayHeader savedDataStart, savedDataEnd, cmdBase
     OVERLAY_HEADER:
-    .short \savedDataStart
+    .long \savedDataStart
     .short (\savedDataEnd - \savedDataStart) - 1
-    .short \mask
+    .short (\cmdBase << 1)
 .endm
 
 #endif
