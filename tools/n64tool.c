@@ -1,7 +1,7 @@
 /*
 	n64tool V1.0, a program used to append an n64 header to an arbitrary
 	sized Nintendo64 binary.
-	Copyright (C) 2009  Shaun Taylor (dragonminded@dragonminded.com)
+	Copyright (C) 2009  DragonMinded (dragonminded@dragonminded.com)
 
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -36,7 +36,7 @@
 #define TITLE_SIZE   20
 
 #define STATUS_OK       0
-#define STATUS_ERROR    1 
+#define STATUS_ERROR    1
 #define STATUS_BADUSAGE 2
 
 static const unsigned char zero[1024] = {0};
@@ -280,7 +280,7 @@ int main(int argc, char *argv[])
 			{
 				fprintf(stderr, "WARNING: Sizes which are not multiple of 512 bytes might have problems being loaded with a 64drive\n\n");
 			}				
- 
+
 			declared_size = size;
 			continue;
 		}
