@@ -69,6 +69,7 @@ void test_gfx_dram_buffer(TestContext *ctx)
     rdp_set_other_modes(SOM_CYCLE_FILL);
     rdp_set_scissor(0, 0, 32 << 2, 32 << 2);
     rdp_set_fill_color(0xFFFFFFFF);
+    dl_noop();
     rdp_set_color_image((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, 32);
     rdp_fill_rectangle(0, 0, 32 << 2, 32 << 2);
     rdp_sync_full();
@@ -87,4 +88,9 @@ void test_gfx_dram_buffer(TestContext *ctx)
     };
 
     ASSERT_EQUAL_MEM(__gfx->dram_buffer, (uint8_t*)expected_data, sizeof(expected_data), "Unexpected data in DRAM buffer!");
+
+    for (uint32_t i = 0; i < 32 * 32; i++)
+    {
+        ASSERT_EQUAL_HEX(((uint16_t*)framebuffer)[i], 0xFFFF, "Framebuffer was not cleared properly!");
+    }
 }

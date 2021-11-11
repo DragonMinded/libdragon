@@ -14,9 +14,26 @@
 
 #define OVERLAY_HEADER_SIZE 0x8
 
-# TODO: commands larger than 16 bytes?
+# TODO: commands smaller than 4 bytes?
 .macro commandTableEntry function size
-    .short (\function - _start) | \size << 12
+    .ifne ((\size) % 4)
+        .error "Invalid size - must be multiple of 4"
+        .exitm
+    .endif
+
+    .ifle (\size)
+        .error "Invalid size - valid range: [4, 60]"
+        .exitm
+    .endif
+
+    .ifgt ((\size) - 60)
+        .error "Invalid size - valid range: [4, 60]"
+        .exitm
+    .endif
+
+    # Put the command size (as number of 4 byte words) into the high 4 bits,
+    # which are not used by the RSP anyway.
+    .short (\function - _start) | ((\size) & 0x3C) << 10
 .endm
 
 .macro overlayHeader savedDataStart, savedDataEnd, cmdBase

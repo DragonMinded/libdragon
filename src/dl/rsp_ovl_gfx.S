@@ -12,9 +12,8 @@ commandTableEntry command_noop, 8
 commandTableEntry command_noop, 8
 commandTableEntry command_noop, 8
 commandTableEntry command_noop, 8
-# FIXME: size is meant to be 16
-commandTableEntry command_rdp_passthrough_16, 15 # TEXTURE_RECTANGLE
-commandTableEntry command_rdp_passthrough_16, 15 # TEXTURE_RECTANGLE_FLIP
+commandTableEntry command_rdp_passthrough_16, 16 # TEXTURE_RECTANGLE
+commandTableEntry command_rdp_passthrough_16, 16 # TEXTURE_RECTANGLE_FLIP
 commandTableEntry command_noop, 8
 commandTableEntry command_rdp_passthrough_8, 8   # SYNC_PIPE
 commandTableEntry command_rdp_passthrough_8, 8   # SYNC_TILE

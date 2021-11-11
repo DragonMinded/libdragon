@@ -28,13 +28,14 @@ WRAP_POINTER:    .quad 0
 
 .align 1
 INTERNAL_COMMAND_TABLE:
-commandTableEntry command_noop,      1
-commandTableEntry command_interrupt, 1
+commandTableEntry command_noop,      4
+commandTableEntry command_interrupt, 4
 
 .bss
 
 .align 3
-INPUT_BUFFER:    .ds.b INPUT_BUFFER_SIZE
+# Reserve some extra space of 8 bytes to make sure that DMAs can always load the expected amount of data even if the DRAM address is unaligned
+INPUT_BUFFER:    .ds.b INPUT_BUFFER_SIZE + 8
 
 .align 4
 # Overlay data will be loaded at this address
@@ -142,7 +143,8 @@ is_default_overlay:
 
 execute_command:
     # Command size
-    srl cmd_size, cmd_desc, 12
+    srl cmd_size, cmd_desc, 10
+    andi cmd_size, 0x3C
     
     # Load more input if necessary, according to command size
     move t0, cmd_size
@@ -265,7 +267,8 @@ buffer_not_empty:
     li len, INPUT_BUFFER_SIZE
 
 dma_input:
-    addi t0, len, -1
+    # Always load additional 8 bytes to make sure that at least the expected amount of data is loaded, even if the DRAM address is not aligned.
+    addi t0, len, 7
     li s4, %lo(INPUT_BUFFER)
     jal DMAIn
     add s0, read_ptr

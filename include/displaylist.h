@@ -32,41 +32,12 @@ void dl_close();
 uint32_t* dl_write_begin(uint32_t size);
 void dl_write_end();
 
+void dl_queue_u8(uint8_t cmd);
+void dl_queue_u16(uint16_t cmd);
+void dl_queue_u32(uint32_t cmd);
+void dl_queue_u64(uint64_t cmd);
 
-// TODO: Find a way to pack commands that are smaller than 4 bytes
-
-static inline void dl_queue_u8(uint8_t cmd)
-{
-    *dl_write_begin(sizeof(uint32_t)) = (uint32_t)cmd << 24;
-    dl_write_end();
-}
-
-static inline void dl_queue_u16(uint16_t cmd)
-{
-    *dl_write_begin(sizeof(uint32_t)) = (uint32_t)cmd << 16;
-    dl_write_end();
-}
-
-static inline void dl_queue_u32(uint32_t cmd)
-{
-    *dl_write_begin(sizeof(uint32_t)) = cmd;
-    dl_write_end();
-}
-
-static inline void dl_queue_u64(uint64_t cmd)
-{
-    *((uint64_t*)dl_write_begin(sizeof(uint64_t))) = cmd;
-    dl_write_end();
-}
-
-static inline void dl_noop()
-{
-    dl_queue_u8(DL_MAKE_COMMAND(DL_OVERLAY_DEFAULT, DL_CMD_NOOP));
-}
-
-static inline void dl_interrupt()
-{
-    dl_queue_u8(DL_MAKE_COMMAND(DL_OVERLAY_DEFAULT, DL_CMD_INTERRUPT));
-}
+void dl_noop();
+void dl_interrupt();
 
 #endif

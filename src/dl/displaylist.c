@@ -216,3 +216,41 @@ void dl_write_end()
     // Make rsp leave idle mode
     *SP_STATUS = SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE | SP_WSTATUS_SET_SIG0;
 }
+
+// TODO: Find a way to pack commands that are smaller than 4 bytes
+
+void dl_queue_u8(uint8_t cmd)
+{
+    *dl_write_begin(sizeof(uint32_t)) = (uint32_t)cmd << 24;
+    dl_write_end();
+}
+
+void dl_queue_u16(uint16_t cmd)
+{
+    *dl_write_begin(sizeof(uint32_t)) = (uint32_t)cmd << 16;
+    dl_write_end();
+}
+
+void dl_queue_u32(uint32_t cmd)
+{
+    *dl_write_begin(sizeof(uint32_t)) = cmd;
+    dl_write_end();
+}
+
+void dl_queue_u64(uint64_t cmd)
+{
+    uint32_t *ptr = dl_write_begin(sizeof(uint64_t));
+    ptr[0] = cmd >> 32;
+    ptr[1] = cmd & 0xFFFFFFFF;
+    dl_write_end();
+}
+
+void dl_noop()
+{
+    dl_queue_u8(DL_MAKE_COMMAND(DL_OVERLAY_DEFAULT, DL_CMD_NOOP));
+}
+
+void dl_interrupt()
+{
+    dl_queue_u8(DL_MAKE_COMMAND(DL_OVERLAY_DEFAULT, DL_CMD_INTERRUPT));
+}
