@@ -116,7 +116,7 @@ void exception_default_handler(exception_t* ex) {
 	fprintf(stdout, "%s exception at PC:%08lX\n", ex->info, (uint32_t)(ex->regs->epc + ((cr & C0_CAUSE_BD) ? 4 : 0)));
 
 	fprintf(stdout, "CR:%08lX (COP:%1lu BD:%u)\n", cr, C0_GET_CAUSE_CE(cr), (bool)(cr & C0_CAUSE_BD));
-	fprintf(stdout, "SR:%08lX FCR31:%08X BVAdr:%08lX \n", sr, (unsigned int)fcr31, C0_READ_BADVADDR());
+	fprintf(stdout, "SR:%08lX FCR31:%08X BVAdr:%08lX \n", sr, (unsigned int)fcr31, C0_BADVADDR());
 	fprintf(stdout, "----------------------------------------------------------------");
 	fprintf(stdout, "FPU IOP UND OVE DV0 INV NI | INT sw0 sw1 ex0 ex1 ex2 ex3 ex4 tmr");
 	fprintf(stdout, "Cause%2u %3u %3u %3u %3u%3u | Cause%2u %3u %3u %3u %3u %3u %3u %3u",
