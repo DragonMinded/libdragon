@@ -28,9 +28,25 @@
 #include <sys/errno.h>
 #endif
 
+#define ROUND_UP(n, d) ({ \
+	typeof(n) _n = n; typeof(d) _d = d; \
+	(((_n) + (_d) - 1) / (_d) * (_d)); \
+})
+
+// Minimum ROM size alignment, used by default. We currently know of two constraints:
+//  * 64drive firmware has a bug and can only transfer chunks of 512 bytes. Some
+//    tools like UNFloader and g64drive work around this bug by padding ROMs,
+//    but others (like the official one) don't. So it's better in general to
+//    pad to 512 bytes.
+//  * iQue player only allows loading ROMs which are multiple of 16 Kbyte in size.
+//  
+// To allow the maximum compatibility, we pad to 16Kb by default. Users can still
+// force a specific length with --size, if they need to.
+#define PAD_ALIGN    16384
+
 #define WRITE_SIZE   (1024 * 1024)
-#define HEADER_SIZE  0x1000
-#define MIN_SIZE     0x100000
+#define HEADER_SIZE  0x1000          // Size of the header (which includes IPL3)
+#define MIN_SIZE     0x100000        // Minimum size of a ROM after header (mandated by IPL3)
 
 #define TITLE_OFFSET 0x20
 #define TITLE_SIZE   20
@@ -416,8 +432,13 @@ int main(int argc, char *argv[])
 	}
 
 	/* Pad the output file to the declared size (not including the IPL3 header) */
-	if(!declared_size)
-		declared_size = MIN_SIZE;
+	if(!declared_size) {		
+		/* If the user didn't specify a size, initialize this to the minimum
+		   size that is padded to the correct alignment. Notice that this variable
+		   declares the size WITHOUT header, but the padding refers to the final
+		   ROM and so it must be calculated with the header. */
+		declared_size = ROUND_UP(MIN_SIZE+HEADER_SIZE, PAD_ALIGN)-HEADER_SIZE;
+	}
 	if(declared_size > total_bytes_written)
 	{
 		ssize_t num_zeros = declared_size - total_bytes_written;
@@ -428,11 +449,10 @@ int main(int argc, char *argv[])
 			return print_usage(argv[0]);
 		}
 	}
-	else if((total_bytes_written % 512) != 0)
+	else if(((total_bytes_written+HEADER_SIZE) % PAD_ALIGN) != 0)
 	{
-		/* Pad size to 512 bytes to avoid possible incompatibilities with 64drive
-		   due to a firmware bug (present as of firmware rev 2.05) */
-		ssize_t num_zeros = 512 - (total_bytes_written % 512);
+		/* Pad size as required. */
+		ssize_t num_zeros = PAD_ALIGN - ((total_bytes_written+HEADER_SIZE) % PAD_ALIGN);
 		if(output_zeros(write_file, num_zeros))
 		{
 			fprintf(stderr, "ERROR: Couldn't pad %zu bytes to %zu bytes.\n", total_bytes_written, total_bytes_written+num_zeros);
