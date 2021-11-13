@@ -27,22 +27,33 @@ extern "C" {
 
 /** @brief SP halted */
 #define SP_STATUS_HALTED                (1 << 0)
+/** @brief SP executed a break instruction */
 #define SP_STATUS_BROKE                 (1 << 1)
 /** @brief SP DMA busy */
 #define SP_STATUS_DMA_BUSY              (1 << 2)
+/** @brief SP DMA full */
 #define SP_STATUS_DMA_FULL              (1 << 3)
 /** @brief SP IO busy */
 #define SP_STATUS_IO_BUSY               (1 << 4)
+/** @brief SP is in single step mode */
 #define SP_STATUS_SSTEP                 (1 << 5)
 /** @brief SP generate interrupt when hit a break instruction */
 #define SP_STATUS_INTERRUPT_ON_BREAK    (1 << 6)
+/** @brief SP signal 0 is set */
 #define SP_STATUS_SIG0                  (1 << 7)
+/** @brief SP signal 1 is set */
 #define SP_STATUS_SIG1                  (1 << 8)
+/** @brief SP signal 2 is set */
 #define SP_STATUS_SIG2                  (1 << 9)
+/** @brief SP signal 3 is set */
 #define SP_STATUS_SIG3                  (1 << 10)
+/** @brief SP signal 4 is set */
 #define SP_STATUS_SIG4                  (1 << 11)
+/** @brief SP signal 5 is set */
 #define SP_STATUS_SIG5                  (1 << 12)
+/** @brief SP signal 6 is set */
 #define SP_STATUS_SIG6                  (1 << 13)
+/** @brief SP signal 7 is set */
 #define SP_STATUS_SIG7                  (1 << 14)
 
 #define SP_WSTATUS_CLEAR_HALT        0x00001   ///< SP_STATUS write mask: clear #SP_STATUS_HALTED bit
