@@ -22,6 +22,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
+      # Create a lower cased version of the repo name. This is required
+      # because Docker supports only lowercase names in the registry, while
+      # a repo name on GitHub can have uppercase letters.
+      - name: Downcase repository name
+        run: |
+          echo "GITHUB_REPOSITORY_LOWERCASE=${GITHUB_REPOSITORY,,}" >>${GITHUB_ENV}
+
       # We first compare the default branch to the event commit. In case this is
       # the default branch, this should return 0, skipping the build and using
       # the latest image from "Docker Build"
@@ -34,20 +41,50 @@ jobs:
 
       # Build the toolchain if toolchain files changed w.r.t default which is
       # where we release the images and we can use from registry o/w
-      - name: Set up Docker Buildx
+      - name: Set up Docker Build
         if: ${{ steps.path_diff.outputs.changed == 1 }}
         uses: docker/setup-buildx-action@v1
+
+      - name: Docker meta
+        if: ${{ steps.path_diff.outputs.changed == 1 }}
+        id: meta
+        uses: docker/metadata-action@v3
+        with:
+          images: ${{ github.repository }}
+          flavor: |
+            latest=${{ github.ref == 'refs/heads/trunk' }}
+
+      - name: Log in to the container registry
+        if: ${{ steps.path_diff.outputs.changed == 1 }}
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build image
         if: ${{ steps.path_diff.outputs.changed == 1 }}
         uses: docker/build-push-action@v2
         with:
-          push: false
-          tags: ghcr.io/dragonminded/libdragon:latest
-          load: true
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
 
-      # As we have a "latest" tagged image now, we can use that to run build.sh
+      # Export in the environment the Docker tag that will be used for building
+      # libdragon. We use the image we last built if the toolchain has changed,
+      # or reuse the latest image (from trunk build) if changed.
+      - name: Export image tag (current branch)
+        if: ${{ steps.path_diff.outputs.changed == 1 }}
+        run: |
+          echo "DOCKER_TAG=${{ steps.meta.outputs.tags }}" >>${GITHUB_ENV}
+
+      - name: Export image tag (latest)
+        if: ${{ steps.path_diff.outputs.changed == 0 }}
+        run: |
+          echo "DOCKER_TAG=${GITHUB_REPOSITORY_LOWERCASE}:latest" >>${GITHUB_ENV}
+
+      # As we have a tagged image now, we can use that to run build.sh
       # if it is built in the previous step. o/w it will be downloaded from the
       # registry. Then verify everything is building properly
       - name: Build libdragon
@@ -55,7 +92,7 @@ jobs:
           docker run \
           --mount type=bind,source=$(pwd),target=/libdragon \
           --workdir=/libdragon \
-          ghcr.io/dragonminded/libdragon:latest \
+          ghcr.io/${DOCKER_TAG} \
           ./build.sh
 
       - name: "Upload built ROMs to artifacts"
