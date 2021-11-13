@@ -14,16 +14,7 @@ COPY ./tools/build-toolchain.sh /tmp/tools/build-toolchain.sh
 WORKDIR /tmp/tools
 RUN ./build-toolchain.sh
 
-# Strip executables
-RUN find ${N64_INST}/bin -type f | xargs strip
-RUN strip ${N64_INST}/libexec/gcc/mips64-elf/11.2.0/plugin/gengtype
-RUN strip ${N64_INST}/libexec/gcc/mips64-elf/11.2.0/liblto_plugin.so
-RUN strip ${N64_INST}/libexec/gcc/mips64-elf/11.2.0/lto-wrapper
-RUN strip ${N64_INST}/libexec/gcc/mips64-elf/11.2.0/collect2
-RUN strip ${N64_INST}/libexec/gcc/mips64-elf/11.2.0/cc1plus
-RUN strip ${N64_INST}/libexec/gcc/mips64-elf/11.2.0/cc1
-RUN strip ${N64_INST}/libexec/gcc/mips64-elf/11.2.0/install-tools/fixincl
-RUN strip ${N64_INST}/libexec/gcc/mips64-elf/11.2.0/lto1
+# Remove locale strings which are not so important in our use case
 RUN rm -rf ${N64_INST}/share/locale/*
 
 # Stage 2 - Prepare minimal image
