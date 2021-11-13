@@ -55,12 +55,12 @@ void dl_init()
         return;
     }
 
-    dl_buffer = malloc(DL_BUFFER_SIZE);
+    dl_buffer = malloc(DL_DRAM_BUFFER_SIZE);
     dl_buffer_uncached = UncachedAddr(dl_buffer);
 
     DL_POINTERS->read.value = 0;
     DL_POINTERS->write.value = 0;
-    DL_POINTERS->wrap.value = DL_BUFFER_SIZE;
+    DL_POINTERS->wrap.value = DL_DRAM_BUFFER_SIZE;
 
     rsp_wait();
     rsp_load(&rsp_displaylist);
@@ -74,7 +74,7 @@ void dl_init()
     
     dl_overlay_count = 0;
 
-    sentinel = DL_BUFFER_SIZE - DL_MAX_COMMAND_SIZE;
+    sentinel = DL_DRAM_BUFFER_SIZE - DL_MAX_COMMAND_SIZE;
 }
 
 uint8_t dl_overlay_add(void* code, void *data, uint16_t code_size, uint16_t data_size, void *data_buf)
@@ -162,10 +162,10 @@ uint32_t* dl_write_begin(uint32_t size)
         // Is the write pointer ahead of the read pointer?
         if (wp >= rp) {
             // Enough space left at the end of the buffer?
-            if (wp + size <= DL_BUFFER_SIZE) {
+            if (wp + size <= DL_DRAM_BUFFER_SIZE) {
                 wrap = false;
                 write_start = wp;
-                sentinel = DL_BUFFER_SIZE - DL_MAX_COMMAND_SIZE;
+                sentinel = DL_DRAM_BUFFER_SIZE - DL_MAX_COMMAND_SIZE;
                 break;
 
             // Not enough space left -> we need to wrap around

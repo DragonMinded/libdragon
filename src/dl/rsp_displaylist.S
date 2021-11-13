@@ -1,15 +1,10 @@
 #include <rsp.inc>
 #include <rsp_dl.inc>
 
+#include "dl_internal.h"
+
 .set noreorder
 .set at
-
-#define INPUT_BUFFER_SIZE 0x100
-
-#define OVERLAY_TABLE_SIZE 0x10
-
-#define OVERLAY_DESC_SIZE  0x10
-#define MAX_OVERLAY_COUNT 8
 
 .data
 
@@ -18,8 +13,8 @@
 DL_DRAM_ADDR:     .long 0
 DL_POINTERS_ADDR: .long 0
 
-OVERLAY_TABLE:         .ds.b OVERLAY_TABLE_SIZE
-OVERLAY_DESCRIPTORS:   .ds.b (OVERLAY_DESC_SIZE * MAX_OVERLAY_COUNT)
+OVERLAY_TABLE:         .ds.b DL_OVERLAY_TABLE_SIZE
+OVERLAY_DESCRIPTORS:   .ds.b (DL_OVERLAY_DESC_SIZE * DL_MAX_OVERLAY_COUNT)
 
 .align 3
 READ_POINTER:    .quad 0
@@ -35,7 +30,7 @@ commandTableEntry command_interrupt, 4
 
 .align 3
 # Reserve some extra space of 8 bytes to make sure that DMAs can always load the expected amount of data even if the DRAM address is unaligned
-INPUT_BUFFER:    .ds.b INPUT_BUFFER_SIZE + 8
+INPUT_BUFFER:    .ds.b DL_DMEM_BUFFER_SIZE + 8
 
 .align 4
 # Overlay data will be loaded at this address
@@ -260,11 +255,11 @@ length_calculated:
     break
 
 buffer_not_empty:
-    # length = max(length, INPUT_BUFFER_SIZE)
-    slti t1, len, INPUT_BUFFER_SIZE
+    # length = max(length, DL_DMEM_BUFFER_SIZE)
+    slti t1, len, DL_DMEM_BUFFER_SIZE
     bnez t1, dma_input
     lw s0, %lo(DL_DRAM_ADDR)
-    li len, INPUT_BUFFER_SIZE
+    li len, DL_DMEM_BUFFER_SIZE
 
 dma_input:
     # Always load additional 8 bytes to make sure that at least the expected amount of data is loaded, even if the DRAM address is not aligned.

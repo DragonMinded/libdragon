@@ -13,8 +13,8 @@ void gfx_init()
 
     __gfx = malloc(sizeof(gfx_t));
     __gfx->other_modes = 0;
-    __gfx->dram_buffer = malloc(RDP_DRAM_BUFFER_SIZE);
-    __gfx->dram_buffer_size = RDP_DRAM_BUFFER_SIZE;
+    __gfx->dram_buffer = malloc(GFX_RDP_DRAM_BUFFER_SIZE);
+    __gfx->dram_buffer_size = GFX_RDP_DRAM_BUFFER_SIZE;
     __gfx->dram_buffer_end = 0;
     __gfx->dmem_buffer_ptr = 0;
     __gfx->rdp_initialised = 0;

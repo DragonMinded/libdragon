@@ -1,13 +1,15 @@
 #ifndef __GFX_INTERNAL
 #define __GFX_INTERNAL
 
+#define GFX_RDP_DMEM_BUFFER_SIZE 0x100
+#define GFX_RDP_DRAM_BUFFER_SIZE 0x1000
+
+#ifndef __ASSEMBLER__
+
 #include <stdint.h>
 
-#define RDP_DMEM_BUFFER_SIZE 0x100
-#define RDP_DRAM_BUFFER_SIZE 0x1000
-
 typedef struct gfx_t {
-    uint8_t rdp_buffer[RDP_DMEM_BUFFER_SIZE];
+    uint8_t rdp_buffer[GFX_RDP_DMEM_BUFFER_SIZE];
     uint64_t other_modes;
     void *dram_buffer;
     uint32_t dram_buffer_size;
@@ -15,5 +17,7 @@ typedef struct gfx_t {
     uint16_t dmem_buffer_ptr;
     uint16_t rdp_initialised;
 } gfx_t;
+
+#endif
 
 #endif

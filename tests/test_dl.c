@@ -99,7 +99,7 @@ void test_dl_wrap(TestContext *ctx)
     dl_start();
 
     // 1.5 times the size of the buffer
-    uint32_t block_count = (DL_BUFFER_SIZE * 3) / (DL_MAX_COMMAND_SIZE * 2);
+    uint32_t block_count = (DL_DRAM_BUFFER_SIZE * 3) / (DL_MAX_COMMAND_SIZE * 2);
 
     for (uint32_t i = 0; i < block_count; i++)
     {

@@ -1,6 +1,5 @@
+#include "gfx_internal.h"
 #include "../dl/rsp_displaylist.S"
-
-#define RDP_BUFFER_SIZE 0x100
 
 .section .data.overlay
 
@@ -48,7 +47,7 @@ _ovl_bss_start:
 
 .align 3
 OVL_GFX_SAVED_DATA_START:
-RDP_DMEM_BUFFER:      .ds.b RDP_BUFFER_SIZE
+RDP_DMEM_BUFFER:      .ds.b GFX_RDP_DMEM_BUFFER_SIZE
 
 RDP_OTHER_MODES:       .quad  0
 
@@ -109,7 +108,7 @@ rdp_write_begin:
 
     # If the requested size fits in the buffer, just return the current pointer
     add s2, s1, t0
-    addi s2, -RDP_BUFFER_SIZE
+    addi s2, -GFX_RDP_DMEM_BUFFER_SIZE
     blez s2, JrRa
     move t1, zero
 
