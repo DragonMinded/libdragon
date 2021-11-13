@@ -15,6 +15,9 @@ programming and debugging. These are the main features:
   to use 64-bit registers and opcodes with it)
 * Can be developed with newer-generation emulators (cen64, Ares, Dillonb's n64,
   m64p) or development cartridges (64drive, EverDrive64).
+* Support both vanilla N64 and iQue Player (chinese variant). The support is
+  experimental and done fully at runtime, so it is possible to run ROMs built
+  with libdragon on iQue without modifying the source code.
 * In-ROM filesystem implementation for assets. Assets can be loaded with
   `fopen("rom://asset.dat")` without having to do complex things to link them in.
 * Efficient interrupt-based timer library (also features a monotone 64-bit
