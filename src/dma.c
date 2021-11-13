@@ -243,8 +243,10 @@ void dma_read_async(void *ram_address, unsigned long pi_address, unsigned long l
         if ((misalign&1) == 0 && len < 0x7F-misalign*2) {
             // Fast-path: RDRAM even-misaligned addresses work correctly
             // for small transfers (up to some magic value), though they transfer
-            // less then requested. Tweak the length accordingly and do the transfer.
-            len += misalign;
+            // less then requested on vanilla N64 (not on iQue). Tweak the length
+            // accordingly and do the transfer.
+            if (!sys_bbplayer())
+                len += misalign;
         } else {        
             // Manually transfer the first bytes, up to creating a 8-byte
             // alignment. The code is complicated by the fact that we can
