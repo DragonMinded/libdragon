@@ -22,6 +22,8 @@ void test_dma_read_misalign(TestContext *ctx) {
 	for (int i=56; i<64; i++) {
 		for (int j=1;j<256;j++) {
 			run(i, i&1, j);
+			if (ctx->result == TEST_FAILED)
+				return;
 		}
 	}
 }
