@@ -1,6 +1,6 @@
 
 #include <malloc.h>
-#include "../src/dl/gfx_internal.h"
+#include "../src/gfx/gfx_internal.h"
 
 static volatile int dp_intr_raised;
 

@@ -242,7 +242,7 @@ calc_valid_length:
 
     # 2) write_ptr < read_ptr: We can read up to the wrap pointer
     bne wrap_ptr, read_ptr, length_calculated
-    sub len, t0, read_ptr
+    sub len, wrap_ptr, read_ptr
 
     # Special case: if the read pointer is exactly at the wrap pointer,
     # move the read pointer back to 0 and check again

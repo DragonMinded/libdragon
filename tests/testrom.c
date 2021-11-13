@@ -212,7 +212,7 @@ static const struct Testsuite
 	TEST_FUNC(test_dl_queue_single,            0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dl_queue_multiple,          0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dl_queue_rapid,             0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_dl_queue_big,               0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dl_wrap,                    0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dl_load_overlay,            0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_gfx_rdp_interrupt,          0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_gfx_dram_buffer,            0, TEST_FLAGS_NO_BENCHMARK),

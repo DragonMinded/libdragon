@@ -1,4 +1,4 @@
-#include "rsp_displaylist.S"
+#include "../dl/rsp_displaylist.S"
 
 #define RDP_BUFFER_SIZE 0x100
 

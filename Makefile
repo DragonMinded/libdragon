@@ -36,7 +36,7 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 			 $(BUILD_DIR)/audio/libxm/context.o $(BUILD_DIR)/audio/libxm/load.o \
 			 $(BUILD_DIR)/audio/ym64.o $(BUILD_DIR)/audio/ay8910.o \
 			 $(BUILD_DIR)/dl/displaylist.o $(BUILD_DIR)/dl/rsp_displaylist.o \
-			 $(BUILD_DIR)/dl/gfx.o $(BUILD_DIR)/dl/rsp_ovl_gfx.o
+			 $(BUILD_DIR)/gfx/gfx.o $(BUILD_DIR)/gfx/rsp_ovl_gfx.o
 	@echo "    [AR] $@"
 	$(AR) -rcs -o $@ $^
 
@@ -118,4 +118,4 @@ clobber: clean doxygen-clean examples-clean tools-clean
 .PHONY : clobber clean doxygen-clean doxygen doxygen-api examples examples-clean tools tools-clean tools-install
 
 # Automatic dependency tracking
--include $(wildcard $(BUILD_DIR)/*.d) $(wildcard $(BUILD_DIR)/audio/*.d)
+-include $(wildcard $(BUILD_DIR)/*.d) $(wildcard $(BUILD_DIR)/*/*.d)

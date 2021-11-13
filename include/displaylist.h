@@ -22,10 +22,11 @@
         (uint16_t)(ovl_name ## _data_end - ovl_name ## _data_start), \
         data_buf); }) \
 
+void dl_init();
+
 uint8_t dl_overlay_add(void* code, void *data, uint16_t code_size, uint16_t data_size, void *data_buf);
 void dl_overlay_register_id(uint8_t overlay_index, uint8_t id);
 
-void dl_init();
 void dl_start();
 void dl_close();
 

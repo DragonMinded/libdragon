@@ -1,9 +1,20 @@
 
 #include <string.h>
 
+#include "../src/dl/dl_internal.h"
+
 const unsigned long dl_timeout = 100;
 
 #define DL_LOG_STATUS(step) debugf("STATUS: %#010lx, PC: %#010lx (%s)\n", *SP_STATUS, *SP_PC, step)
+
+void dump_mem(void* ptr, uint32_t size)
+{
+    for (uint32_t i = 0; i < size / sizeof(uint32_t); i += 4)
+    {
+        uint32_t *ints = ptr + i * sizeof(uint32_t);
+        debugf("%08lX %08lX %08lX %08lX\n", ints[0], ints[1], ints[2], ints[3]);
+    }
+}
 
 static volatile int sp_intr_raised;
 
@@ -81,30 +92,29 @@ void test_dl_queue_rapid(TestContext *ctx)
     TEST_DL_EPILOG();
 }
 
-void dl_queue_noop_block(uint32_t count)
-{
-    uint32_t *ptr = dl_write_begin(sizeof(uint32_t) * count);
-    memset(ptr, 0, sizeof(uint32_t) * count);
-    dl_write_end();
-}
-
-void test_dl_queue_big(TestContext *ctx)
+void test_dl_wrap(TestContext *ctx)
 {
     TEST_DL_PROLOG();
 
     dl_start();
-    dl_queue_noop_block(345);
-    dl_queue_noop_block(468);
-    dl_queue_noop_block(25);
+
+    // 1.5 times the size of the buffer
+    uint32_t block_count = (DL_BUFFER_SIZE * 3) / (DL_MAX_COMMAND_SIZE * 2);
+
+    for (uint32_t i = 0; i < block_count; i++)
+    {
+        uint32_t *ptr = dl_write_begin(DL_MAX_COMMAND_SIZE);
+        memset(ptr, 0, DL_MAX_COMMAND_SIZE);
+        dl_write_end();
+    }
+    
     dl_interrupt();
-    dl_queue_noop_block(34);
 
     TEST_DL_EPILOG();
 }
 
 void test_dl_load_overlay(TestContext *ctx)
 {
-
     TEST_DL_PROLOG();
     
     gfx_init();

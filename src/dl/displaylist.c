@@ -3,10 +3,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <libdragon.h>
-
-#define DL_BUFFER_SIZE        0x1000
-#define DL_OVERLAY_TABLE_SIZE 16
-#define DL_MAX_OVERLAY_COUNT  8
+#include "dl_internal.h"
 
 DEFINE_RSP_UCODE(rsp_displaylist);
 
@@ -48,8 +45,37 @@ static void *dl_buffer_uncached;
 
 static bool dl_is_running;
 
+static uint32_t sentinel;
 static uint32_t reserved_size;
 static bool is_wrapping;
+
+void dl_init()
+{
+    if (dl_buffer != NULL) {
+        return;
+    }
+
+    dl_buffer = malloc(DL_BUFFER_SIZE);
+    dl_buffer_uncached = UncachedAddr(dl_buffer);
+
+    DL_POINTERS->read.value = 0;
+    DL_POINTERS->write.value = 0;
+    DL_POINTERS->wrap.value = DL_BUFFER_SIZE;
+
+    rsp_wait();
+    rsp_load(&rsp_displaylist);
+
+    // Load initial settings
+    dl_data.dl_dram_addr = PhysicalAddr(dl_buffer);
+    dl_data.dl_pointers_addr = PhysicalAddr(&dl_pointers);
+
+    memset(&dl_data.overlay_table, 0, sizeof(dl_data.overlay_table));
+    memset(&dl_data.overlay_descriptors, 0, sizeof(dl_data.overlay_descriptors));
+    
+    dl_overlay_count = 0;
+
+    sentinel = DL_BUFFER_SIZE - DL_MAX_COMMAND_SIZE;
+}
 
 uint8_t dl_overlay_add(void* code, void *data, uint16_t code_size, uint16_t data_size, void *data_buf)
 {
@@ -81,32 +107,6 @@ void dl_overlay_register_id(uint8_t overlay_index, uint8_t id)
     assertf(dl_buffer != NULL, "dl_overlay_register must be called after dl_init!");
 
     dl_data.overlay_table[id] = overlay_index * sizeof(dl_overlay_t);
-}
-
-void dl_init()
-{
-    if (dl_buffer != NULL) {
-        return;
-    }
-
-    dl_buffer = malloc(DL_BUFFER_SIZE);
-    dl_buffer_uncached = UncachedAddr(dl_buffer);
-
-    DL_POINTERS->read.value = 0;
-    DL_POINTERS->write.value = 0;
-    DL_POINTERS->wrap.value = DL_BUFFER_SIZE;
-
-    rsp_wait();
-    rsp_load(&rsp_displaylist);
-
-    // Load initial settings
-    dl_data.dl_dram_addr = PhysicalAddr(dl_buffer);
-    dl_data.dl_pointers_addr = PhysicalAddr(&dl_pointers);
-
-    memset(&dl_data.overlay_table, 0, sizeof(dl_data.overlay_table));
-    memset(&dl_data.overlay_descriptors, 0, sizeof(dl_data.overlay_descriptors));
-    
-    dl_overlay_count = 0;
 }
 
 void dl_start()
@@ -143,8 +143,14 @@ void dl_close()
 uint32_t* dl_write_begin(uint32_t size)
 {
     assert((size % sizeof(uint32_t)) == 0);
+    assertf(size <= DL_MAX_COMMAND_SIZE, "Command is too big! DL_MAX_COMMAND_SIZE needs to be adjusted!");
 
+    reserved_size = size;
     uint32_t wp = DL_POINTERS->write.value;
+
+    if (wp <= sentinel) {
+        return (uint32_t*)(dl_buffer_uncached + wp);
+    }
 
     uint32_t write_start;
     bool wrap;
@@ -159,6 +165,7 @@ uint32_t* dl_write_begin(uint32_t size)
             if (wp + size <= DL_BUFFER_SIZE) {
                 wrap = false;
                 write_start = wp;
+                sentinel = DL_BUFFER_SIZE - DL_MAX_COMMAND_SIZE;
                 break;
 
             // Not enough space left -> we need to wrap around
@@ -166,6 +173,7 @@ uint32_t* dl_write_begin(uint32_t size)
             } else if (size < rp) {
                 wrap = true;
                 write_start = 0;
+                sentinel = rp - DL_MAX_COMMAND_SIZE;
                 break;
             }
         
@@ -174,6 +182,7 @@ uint32_t* dl_write_begin(uint32_t size)
         } else if (size < rp - wp) {
             wrap = false;
             write_start = wp;
+            sentinel = rp - DL_MAX_COMMAND_SIZE;
             break;
         }
 
@@ -182,7 +191,6 @@ uint32_t* dl_write_begin(uint32_t size)
     }
 
     is_wrapping = wrap;
-    reserved_size = size;
 
     return (uint32_t*)(dl_buffer_uncached + write_start);
 }
@@ -192,6 +200,7 @@ void dl_write_end()
     uint32_t wp = DL_POINTERS->write.value;
 
     if (is_wrapping) {
+        is_wrapping = false;
         // We had to wrap around -> Store the wrap pointer
         DL_POINTERS->wrap.value = wp;
         // Return the write pointer back to the start of the buffer
