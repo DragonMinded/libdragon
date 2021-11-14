@@ -16,10 +16,16 @@ typedef struct dl_overlay_t {
 } dl_overlay_t;
 
 typedef struct rsp_dl_s {
-	void *dl_dram_addr;
-	void *dl_pointers_addr;
     uint8_t overlay_table[DL_OVERLAY_TABLE_SIZE];
     dl_overlay_t overlay_descriptors[DL_MAX_OVERLAY_COUNT];
+    uint64_t read_pointer;
+    uint64_t write_pointer;
+    uint64_t wrap_pointer;
+	void *dl_dram_addr;
+	void *dl_pointers_addr;
+    uint16_t dmem_buf_start;
+    uint16_t dmem_buf_end;
+    int16_t current_ovl;
 } __attribute__((aligned(8), packed)) rsp_dl_t;
 
 typedef struct dma_safe_pointer_t {
@@ -62,15 +68,12 @@ void dl_init()
     DL_POINTERS->write.value = 0;
     DL_POINTERS->wrap.value = DL_DRAM_BUFFER_SIZE;
 
-    rsp_wait();
-    rsp_load(&rsp_displaylist);
-
     // Load initial settings
+    memset(&dl_data, 0, sizeof(dl_data));
+
     dl_data.dl_dram_addr = PhysicalAddr(dl_buffer);
     dl_data.dl_pointers_addr = PhysicalAddr(&dl_pointers);
-
-    memset(&dl_data.overlay_table, 0, sizeof(dl_data.overlay_table));
-    memset(&dl_data.overlay_descriptors, 0, sizeof(dl_data.overlay_descriptors));
+    dl_data.current_ovl = -1;
     
     dl_overlay_count = 0;
 
@@ -79,6 +82,8 @@ void dl_init()
 
 uint8_t dl_overlay_add(void* code, void *data, uint16_t code_size, uint16_t data_size, void *data_buf)
 {
+    assertf(dl_buffer != NULL, "dl_overlay_add must be called after dl_init!");
+    
     assertf(dl_overlay_count < DL_MAX_OVERLAY_COUNT, "Only up to %d overlays are supported!", DL_MAX_OVERLAY_COUNT);
 
     assert(code);
@@ -101,10 +106,11 @@ uint8_t dl_overlay_add(void* code, void *data, uint16_t code_size, uint16_t data
 
 void dl_overlay_register_id(uint8_t overlay_index, uint8_t id)
 {
+    assertf(dl_buffer != NULL, "dl_overlay_register must be called after dl_init!");
+
     assertf(overlay_index < DL_MAX_OVERLAY_COUNT, "Tried to register invalid overlay index: %d", overlay_index);
     assertf(id < DL_OVERLAY_TABLE_SIZE, "Tried to register id: %d", id);
 
-    assertf(dl_buffer != NULL, "dl_overlay_register must be called after dl_init!");
 
     dl_data.overlay_table[id] = overlay_index * sizeof(dl_overlay_t);
 }
@@ -115,6 +121,9 @@ void dl_start()
     {
         return;
     }
+
+    rsp_wait();
+    rsp_load(&rsp_displaylist);
 
     // Load data with initialized overlays into DMEM
     data_cache_hit_writeback(&dl_data, sizeof(dl_data));

@@ -75,8 +75,8 @@ command_rdp_passthrough_8:
 command_rdp_passthrough_16:
     jal rdp_write_begin
     li t0, 16
-    lw a2, %lo(INPUT_BUFFER) - 0x8 (input_buf_ptr)
-    lw a3, %lo(INPUT_BUFFER) - 0x4 (input_buf_ptr)
+    lw a2, %lo(DL_DMEM_BUFFER) - 0x8 (input_buf_ptr)
+    lw a3, %lo(DL_DMEM_BUFFER) - 0x4 (input_buf_ptr)
     sw a0, %lo(RDP_DMEM_BUFFER) + 0x0(s1)
     sw a1, %lo(RDP_DMEM_BUFFER) + 0x4(s1)
     sw a2, %lo(RDP_DMEM_BUFFER) + 0x8(s1)

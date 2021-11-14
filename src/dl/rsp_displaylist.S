@@ -8,20 +8,23 @@
 
 .data
 
-.align 2
+.align 3
 # Input properties
-DL_DRAM_ADDR:     .long 0
-DL_POINTERS_ADDR: .long 0
-
 OVERLAY_TABLE:         .ds.b DL_OVERLAY_TABLE_SIZE
 OVERLAY_DESCRIPTORS:   .ds.b (DL_OVERLAY_DESC_SIZE * DL_MAX_OVERLAY_COUNT)
 
-.align 3
 READ_POINTER:    .quad 0
 WRITE_POINTER:   .quad 0
 WRAP_POINTER:    .quad 0
 
-.align 1
+DL_DRAM_ADDR:     .long 0
+DL_POINTERS_ADDR: .long 0
+
+DMEM_BUF_START:  .half 0
+DMEM_BUF_END:    .half 0
+CURRENT_OVL:     .half -1
+
+.align 3
 INTERNAL_COMMAND_TABLE:
 commandTableEntry command_noop,      4
 commandTableEntry command_interrupt, 4
@@ -30,7 +33,7 @@ commandTableEntry command_interrupt, 4
 
 .align 3
 # Reserve some extra space of 8 bytes to make sure that DMAs can always load the expected amount of data even if the DRAM address is unaligned
-INPUT_BUFFER:    .ds.b DL_DMEM_BUFFER_SIZE + 8
+DL_DMEM_BUFFER:    .ds.b DL_DMEM_BUFFER_SIZE + 8
 
 .align 4
 # Overlay data will be loaded at this address
@@ -43,15 +46,8 @@ _ovl_data_start:
 _start:
     li t1, SP_WSTATUS_RESET_INTR_ON_BREAK
     mtc0 t1, COP0_SP_STATUS
-
-    move input_buf_start, zero
-    move input_buf_ptr, zero
-    move input_buf_end, zero
-    move read_ptr, zero
-    move write_ptr, zero
-    move wrap_ptr, zero
     j loop
-    addi cur_ovl, zero, -1
+    move input_buf_ptr, zero
 
 # Triggers an RSP interrupt
 command_interrupt:
@@ -73,8 +69,8 @@ loop:
     li t0, 8
 
     # Read first two words
-    lw a0, %lo(INPUT_BUFFER) + 0x0 (input_buf_ptr)
-    lw a1, %lo(INPUT_BUFFER) + 0x4 (input_buf_ptr)
+    lw a0, %lo(DL_DMEM_BUFFER) + 0x0 (input_buf_ptr)
+    lw a1, %lo(DL_DMEM_BUFFER) + 0x4 (input_buf_ptr)
 
     # Index into overlay table
     srl t0, a0, 28
@@ -83,14 +79,16 @@ loop:
     beqz t0, is_default_overlay
     srl cmd_index, a0, 23
 
+    lh t1, %lo(CURRENT_OVL)
+
     # Load overlay index from overlay table
     lb ovl_index, %lo(OVERLAY_TABLE)(t0)
     # Check if the requested overlay is already in memory
-    beq ovl_index, cur_ovl, overlay_loaded
+    beq ovl_index, t1, overlay_loaded
     lhu t0, %lo(_ovl_data_start) + 0x4
 
-    # Skip saving overlay data if none is loaded (cur_ovl < 0)
-    bltz cur_ovl, load_overlay
+    # Skip saving overlay data if none is loaded (CURRENT_OVL < 0)
+    bltz t1, load_overlay
     lw s0, %lo(OVERLAY_DESCRIPTORS) + 0x8 (ovl_index)
 
     # Save current overlay data
@@ -119,7 +117,7 @@ load_overlay:
     li s4, %lo(_ovl_text_start) + 0x1000
 
     # Remember loaded overlay
-    move cur_ovl, ovl_index
+    sh ovl_index, %lo(CURRENT_OVL)
 
 overlay_loaded:
     # Load the command base
@@ -167,7 +165,8 @@ execute_command2:
 #   t0: requested length
 .func request_input
 request_input:
-    sub t1, input_buf_end, input_buf_ptr
+    lhu t2, %lo(DMEM_BUF_END)
+    sub t1, t2, input_buf_ptr
     bge t1, t0, JrRa
 .endfunc
 
@@ -176,13 +175,22 @@ request_input:
 #   2) Check if new data is available and load it into the internal buffer.
 .func load_new_input
 load_new_input:
-    #define len t4
+    #define len       t4
+    #define read_ptr  s3
+    #define write_ptr s5
+    #define wrap_ptr  s6
 
     move ra2, ra
 
+    lw read_ptr, %lo(READ_POINTER) + 0x4
+    lw write_ptr, %lo(WRITE_POINTER) + 0x4
+
+
     # Don't need to update read_ptr if no input has been read
-    sub len, input_buf_ptr, input_buf_start
+    lhu t0, %lo(DMEM_BUF_START)
+    sub len, input_buf_ptr, t0
     beqz len, check_for_new_input
+    lw wrap_ptr, %lo(WRAP_POINTER) + 0x4
 
     # If the following condition is true
     #   write_ptr < read_ptr && len == wrap_ptr - read_ptr
@@ -241,8 +249,9 @@ calc_valid_length:
 
     # Special case: if the read pointer is exactly at the wrap pointer,
     # move the read pointer back to 0 and check again
-    j calc_valid_length
     move read_ptr, zero
+    j calc_valid_length
+    sw read_ptr, %lo(READ_POINTER) + 0x4
 
 length_calculated:
     # Check if the buffer is empty (length == 0)
@@ -264,20 +273,24 @@ buffer_not_empty:
 dma_input:
     # Always load additional 8 bytes to make sure that at least the expected amount of data is loaded, even if the DRAM address is not aligned.
     addi t0, len, 7
-    li s4, %lo(INPUT_BUFFER)
+    li s4, %lo(DL_DMEM_BUFFER)
     jal DMAIn
     add s0, read_ptr
 
     # Reset input pointer, taking DMA non-alignment into account
-    li t1, %lo(INPUT_BUFFER)
+    li t1, %lo(DL_DMEM_BUFFER)
     sub input_buf_ptr, s4, t1
     # Remember the actual start of new data in the buffer,
     # because due to possible non-alignment it might not be at index 0
-    move input_buf_start, input_buf_ptr
+    sh input_buf_ptr, %lo(DMEM_BUF_START)
+    add t0, input_buf_ptr, len
     jr ra2
-    add input_buf_end, input_buf_ptr, len
+    sh t0, %lo(DMEM_BUF_END)
 
     #undef len
+    #undef read_ptr
+    #undef write_ptr
+    #undef wrap_ptr
 .endfunc
 
 #include <rsp_dma.inc>
