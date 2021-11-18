@@ -21,20 +21,20 @@ all: audioplayer.z64
 filesystem/%.xm64: assets/%.xm
 	@mkdir -p $(dir $@)
 	@echo "    [AUDIO] $@"
-	@$(N64_AUDIOCONV) $(AUDIOCONV_FLAGS) -o filesystem $<
+	@$(N64_AUDIOCONV) $(AUDIOCONV_FLAGS) -o filesystem "$<"
 filesystem/%.xm64: assets/%.XM
 	@mkdir -p $(dir $@)
 	@echo "    [AUDIO] $@"
-	@$(N64_AUDIOCONV) $(AUDIOCONV_FLAGS) -o filesystem $<
+	@$(N64_AUDIOCONV) $(AUDIOCONV_FLAGS) -o filesystem "$<"
 
 filesystem/%.ym64: assets/%.ym
 	@mkdir -p $(dir $@)
 	@echo "    [AUDIO] $@"
-	$(N64_AUDIOCONV) $(AUDIOCONV_FLAGS) -o filesystem $<
+	$(N64_AUDIOCONV) $(AUDIOCONV_FLAGS) -o filesystem "$<"
 filesystem/%.ym64: assets/%.YM
 	@mkdir -p $(dir $@)
 	@echo "    [AUDIO] $@"
-	$(N64_AUDIOCONV) $(AUDIOCONV_FLAGS) -o filesystem $<
+	$(N64_AUDIOCONV) $(AUDIOCONV_FLAGS) -o filesystem "$<"
 
 # As an example, activate compression darkness.ym. The file will be smaller
 # but it will be impossible to seek it in the player.
