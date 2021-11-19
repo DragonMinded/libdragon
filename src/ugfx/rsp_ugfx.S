@@ -1,9 +1,9 @@
-#include "gfx_internal.h"
-#include "../dl/rsp_displaylist.S"
+#include "ugfx_internal.h"
+#include "../dl/rsp_dl.S"
 
 .section .data.overlay
 
-overlayHeader OVL_GFX_SAVED_DATA_START, OVL_GFX_SAVED_DATA_END, 0x20
+overlayHeader OVL_UGFX_SAVED_DATA_START, OVL_UGFX_SAVED_DATA_END, 0x20
 
 .align 1
 COMMAND_TABLE:
@@ -46,8 +46,8 @@ commandTableEntry command_rdp_passthrough_8, 8   # SET_COLOR_IMAGE
 _ovl_bss_start:
 
 .align 3
-OVL_GFX_SAVED_DATA_START:
-RDP_DMEM_BUFFER:      .ds.b GFX_RDP_DMEM_BUFFER_SIZE
+OVL_UGFX_SAVED_DATA_START:
+RDP_DMEM_BUFFER:      .ds.b UGFX_RDP_DMEM_BUFFER_SIZE
 
 RDP_OTHER_MODES:       .quad  0
 
@@ -57,7 +57,7 @@ RDP_DRAM_BUFFER_END:   .long  0
 RDP_DMEM_BUFFER_PTR:   .short 0
 RDP_INITIALIZED:       .short 0
 
-OVL_GFX_SAVED_DATA_END:
+OVL_UGFX_SAVED_DATA_END:
 
 .text 1
 
@@ -75,8 +75,8 @@ command_rdp_passthrough_8:
 command_rdp_passthrough_16:
     jal rdp_write_begin
     li t0, 16
-    lw a2, %lo(DL_DMEM_BUFFER) - 0x8 (input_buf_ptr)
-    lw a3, %lo(DL_DMEM_BUFFER) - 0x4 (input_buf_ptr)
+    lw a2, CMD_ADDR(0x8, 0x10)
+    lw a3, CMD_ADDR(0xC, 0x10)
     sw a0, %lo(RDP_DMEM_BUFFER) + 0x0(s1)
     sw a1, %lo(RDP_DMEM_BUFFER) + 0x4(s1)
     sw a2, %lo(RDP_DMEM_BUFFER) + 0x8(s1)
@@ -108,7 +108,7 @@ rdp_write_begin:
 
     # If the requested size fits in the buffer, just return the current pointer
     add s2, s1, t0
-    addi s2, -GFX_RDP_DMEM_BUFFER_SIZE
+    addi s2, -UGFX_RDP_DMEM_BUFFER_SIZE
     blez s2, JrRa
     move t1, zero
 

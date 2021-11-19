@@ -170,7 +170,7 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 #include "test_cop1.c"
 #include "test_constructors.c"
 #include "test_dl.c"
-#include "test_gfx.c"
+#include "test_ugfx.c"
 
 /**********************************************************************
  * MAIN
@@ -206,18 +206,20 @@ static const struct Testsuite
 	TEST_FUNC(test_dfs_rom_addr,              25, TEST_FLAGS_IO),
 	TEST_FUNC(test_eepromfs,                   0, TEST_FLAGS_IO),
 	TEST_FUNC(test_cache_invalidate,    	1763, TEST_FLAGS_NONE),
-	TEST_FUNC(test_debug_sdfs,             	   0, TEST_FLAGS_NO_BENCHMARK),
+	//TEST_FUNC(test_debug_sdfs,             	   0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dma_read_misalign,       7003, TEST_FLAGS_NONE),
 	TEST_FUNC(test_cop1_denormalized_float,    0, TEST_FLAGS_NO_EMULATOR),
 	TEST_FUNC(test_dl_queue_single,            0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dl_queue_multiple,          0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dl_queue_rapid,             0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dl_wrap,                    0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dl_signal,                  0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dl_heterogeneous_sizes,     0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dl_load_overlay,            0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_gfx_rdp_interrupt,          0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_gfx_dram_buffer,            0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_gfx_fill_dmem_buffer,       0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_gfx_fill_dram_buffer,       0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_ugfx_rdp_interrupt,          0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_ugfx_dram_buffer,            0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_ugfx_fill_dmem_buffer,       0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_ugfx_fill_dram_buffer,       0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {

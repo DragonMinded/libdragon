@@ -5,7 +5,13 @@
 #include <libdragon.h>
 #include "dl_internal.h"
 
-DEFINE_RSP_UCODE(rsp_displaylist);
+#define DL_OVERLAY_DEFAULT 0x0
+
+#define DL_CMD_NOOP       0x0
+#define DL_CMD_INTERRUPT  0x1
+#define DL_CMD_SIGNAL     0x2
+
+DEFINE_RSP_UCODE(rsp_dl);
 
 typedef struct dl_overlay_t {
     void* code;
@@ -93,7 +99,7 @@ uint8_t dl_overlay_add(void* code, void *data, uint16_t code_size, uint16_t data
 
     // The DL ucode is always linked into overlays for now, so we need to load the overlay from an offset.
     // TODO: Do this some other way.
-    uint32_t dl_ucode_size = rsp_displaylist_text_end - rsp_displaylist_text_start;
+    uint32_t dl_ucode_size = rsp_dl_text_end - rsp_dl_text_start;
 
     overlay->code = PhysicalAddr(code + dl_ucode_size);
     overlay->data = PhysicalAddr(data);
@@ -123,11 +129,20 @@ void dl_start()
     }
 
     rsp_wait();
-    rsp_load(&rsp_displaylist);
+    rsp_load(&rsp_dl);
 
     // Load data with initialized overlays into DMEM
     data_cache_hit_writeback(&dl_data, sizeof(dl_data));
     rsp_load_data(PhysicalAddr(&dl_data), sizeof(dl_data), 0);
+
+    *SP_STATUS = SP_WSTATUS_CLEAR_SIG0 | 
+                 SP_WSTATUS_CLEAR_SIG1 | 
+                 SP_WSTATUS_CLEAR_SIG2 | 
+                 SP_WSTATUS_CLEAR_SIG3 | 
+                 SP_WSTATUS_CLEAR_SIG4 | 
+                 SP_WSTATUS_CLEAR_SIG5 | 
+                 SP_WSTATUS_CLEAR_SIG6 | 
+                 SP_WSTATUS_CLEAR_SIG7;
 
     // Off we go!
     rsp_run_async();
@@ -153,6 +168,7 @@ uint32_t* dl_write_begin(uint32_t size)
 {
     assert((size % sizeof(uint32_t)) == 0);
     assertf(size <= DL_MAX_COMMAND_SIZE, "Command is too big! DL_MAX_COMMAND_SIZE needs to be adjusted!");
+    assertf(dl_is_running, "dl_start() needs to be called before queueing commands!");
 
     reserved_size = size;
     uint32_t wp = DL_POINTERS->write.value;
@@ -271,4 +287,9 @@ void dl_noop()
 void dl_interrupt()
 {
     dl_queue_u8(DL_MAKE_COMMAND(DL_OVERLAY_DEFAULT, DL_CMD_INTERRUPT));
+}
+
+void dl_signal(uint32_t signal)
+{
+    dl_queue_u32((DL_MAKE_COMMAND(DL_OVERLAY_DEFAULT, DL_CMD_SIGNAL) << 24) | ((signal >> 9) & 0xFFFC));
 }

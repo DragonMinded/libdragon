@@ -1,55 +1,63 @@
 #include <libdragon.h>
 #include <stdlib.h>
 
-#include "gfx_internal.h"
+#include "ugfx_internal.h"
 
-gfx_t *__gfx;
+ugfx_t *__ugfx;
 
-void gfx_init()
+void ugfx_init()
 {
-    if (__gfx != NULL) {
+    if (__ugfx != NULL) {
         return;
     }
 
-    __gfx = malloc(sizeof(gfx_t));
-    __gfx->other_modes = 0;
-    __gfx->dram_buffer = malloc(GFX_RDP_DRAM_BUFFER_SIZE);
-    __gfx->dram_buffer_size = GFX_RDP_DRAM_BUFFER_SIZE;
-    __gfx->dram_buffer_end = 0;
-    __gfx->dmem_buffer_ptr = 0;
-    __gfx->rdp_initialised = 0;
+    __ugfx = malloc(sizeof(ugfx_t));
+    __ugfx->other_modes = 0;
+    __ugfx->dram_buffer = malloc(UGFX_RDP_DRAM_BUFFER_SIZE);
+    __ugfx->dram_buffer_size = UGFX_RDP_DRAM_BUFFER_SIZE;
+    __ugfx->dram_buffer_end = 0;
+    __ugfx->dmem_buffer_ptr = 0;
+    __ugfx->rdp_initialised = 0;
 
-    data_cache_hit_writeback(__gfx, sizeof(gfx_t));
+    data_cache_hit_writeback(__ugfx, sizeof(ugfx_t));
 
-    uint8_t ovl_index = DL_OVERLAY_ADD(rsp_ovl_gfx, __gfx);
+    uint8_t ovl_index = DL_OVERLAY_ADD(rsp_ugfx, __ugfx);
     dl_overlay_register_id(ovl_index, 2);
     dl_overlay_register_id(ovl_index, 3);
 }
 
-void gfx_close()
+void ugfx_close()
 {
-    if (__gfx == NULL) {
+    if (__ugfx == NULL) {
         return;
     }
 
-    free(__gfx->dram_buffer);
-    free(__gfx);
-    __gfx = NULL;
+    free(__ugfx->dram_buffer);
+    free(__ugfx);
+    __ugfx = NULL;
 }
 
 void rdp_texture_rectangle(uint8_t tile, int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t s, int16_t t, int16_t ds, int16_t dt)
 {
-    uint64_t *ptr = (uint64_t*)dl_write_begin(16);
-    ptr[0] = RdpTextureRectangle1FX(tile, x0, y0, x1, y1);
-    ptr[1] = RdpTextureRectangle2FX(s, t, ds, dt);
+    uint64_t w0 = RdpTextureRectangle1FX(tile, x0, y0, x1, y1);
+    uint64_t w1 = RdpTextureRectangle2FX(s, t, ds, dt);
+    uint32_t *ptr = dl_write_begin(16);
+    ptr[0] = w0 >> 32;
+    ptr[1] = w0 & 0xFFFFFFFF;
+    ptr[2] = w1 >> 32;
+    ptr[3] = w1 & 0xFFFFFFFF;
     dl_write_end();
 }
 
 void rdp_texture_rectangle_flip(uint8_t tile, int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t s, int16_t t, int16_t ds, int16_t dt)
 {
-    uint64_t *ptr = (uint64_t*)dl_write_begin(16);
-    ptr[0] = RdpTextureRectangleFlip1FX(tile, x0, y0, x1, y1);
-    ptr[1] = RdpTextureRectangle2FX(s, t, ds, dt);
+    uint64_t w0 = RdpTextureRectangleFlip1FX(tile, x0, y0, x1, y1);
+    uint64_t w1 = RdpTextureRectangle2FX(s, t, ds, dt);
+    uint32_t *ptr = dl_write_begin(16);
+    ptr[0] = w0 >> 32;
+    ptr[1] = w0 & 0xFFFFFFFF;
+    ptr[2] = w1 >> 32;
+    ptr[3] = w1 & 0xFFFFFFFF;
     dl_write_end();
 }
 

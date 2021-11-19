@@ -1,12 +1,7 @@
-#ifndef __LIBDRAGON_DISPLAYLIST_H
-#define __LIBDRAGON_DISPLAYLIST_H
+#ifndef __LIBDRAGON_DL_H
+#define __LIBDRAGON_DL_H
 
 #include <stdint.h>
-
-#define DL_OVERLAY_DEFAULT 0x0
-
-#define DL_CMD_NOOP       0x0
-#define DL_CMD_INTERRUPT  0x1
 
 #define DL_MAKE_COMMAND(ovl, cmd) ((((ovl) & 0xF) << 4) | ((cmd) & 0xF))
 
@@ -40,5 +35,6 @@ void dl_queue_u64(uint64_t cmd);
 
 void dl_noop();
 void dl_interrupt();
+void dl_signal(uint32_t signal);
 
 #endif

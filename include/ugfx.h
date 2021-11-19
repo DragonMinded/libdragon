@@ -1,8 +1,8 @@
-#ifndef __LIBDRAGON_GFX_H
-#define __LIBDRAGON_GFX_H
+#ifndef __LIBDRAGON_UGFX_H
+#define __LIBDRAGON_UGFX_H
 
-void gfx_init();
-void gfx_close();
+void ugfx_init();
+void ugfx_close();
 
 void rdp_texture_rectangle(uint8_t tile, int16_t xh, int16_t yh, int16_t xl, int16_t yl, int16_t s, int16_t t, int16_t dsdx, int16_t dtdy);
 void rdp_texture_rectangle_flip(uint8_t tile, int16_t xh, int16_t yh, int16_t xl, int16_t yl, int16_t s, int16_t t, int16_t dsdx, int16_t dtdy);

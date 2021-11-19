@@ -102,11 +102,7 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.S
 		$(N64_CC) $(ASFLAGS) -nostartfiles -Wl,-Trsp.ld -o $@ $<; \
 		cp $@ $(subst .o,.elf,$@); \
 		$(N64_OBJCOPY) -O binary -j .text $@ $$TEXTSECTION.bin; \
-		if case "$$FILENAME" in *"ovl"*) true;; *) false;; esac; then \
-			$(N64_OBJCOPY) -O binary -j .data.overlay $@ $$DATASECTION.bin; \
-		else \
-			$(N64_OBJCOPY) -O binary -j .data $@ $$DATASECTION.bin; \
-		fi; \
+		$(N64_OBJCOPY) -O binary -j  $(if $(IS_OVERLAY),.data.overlay,.data) $@ $$DATASECTION.bin; \
 		$(N64_OBJCOPY) -I binary -O elf32-bigmips -B mips4300 \
 				--redefine-sym _binary_$${SYMPREFIX}_text_bin_start=$${FILENAME}_text_start \
 				--redefine-sym _binary_$${SYMPREFIX}_text_bin_end=$${FILENAME}_text_end \

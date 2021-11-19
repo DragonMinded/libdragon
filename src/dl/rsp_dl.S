@@ -28,6 +28,7 @@ CURRENT_OVL:     .half -1
 INTERNAL_COMMAND_TABLE:
 commandTableEntry command_noop,      4
 commandTableEntry command_interrupt, 4
+commandTableEntry command_signal,    4
 
 .bss
 
@@ -47,7 +48,13 @@ _start:
     li t1, SP_WSTATUS_RESET_INTR_ON_BREAK
     mtc0 t1, COP0_SP_STATUS
     j loop
-    move input_buf_ptr, zero
+    move dl_dmem_buf_ptr, zero
+
+command_signal:
+    andi a0, 0xFFFC
+    sll t0, a0, 9
+    j loop
+    mtc0 t0, COP0_SP_STATUS
 
 # Triggers an RSP interrupt
 command_interrupt:
@@ -69,8 +76,8 @@ loop:
     li t0, 8
 
     # Read first two words
-    lw a0, %lo(DL_DMEM_BUFFER) + 0x0 (input_buf_ptr)
-    lw a1, %lo(DL_DMEM_BUFFER) + 0x4 (input_buf_ptr)
+    lw a0, %lo(DL_DMEM_BUFFER) + 0x0 (dl_dmem_buf_ptr)
+    lw a1, %lo(DL_DMEM_BUFFER) + 0x4 (dl_dmem_buf_ptr)
 
     # Index into overlay table
     srl t0, a0, 28
@@ -152,7 +159,7 @@ execute_command2:
     # Jump to command
     jr cmd_desc
     # Advance input pointer
-    addu input_buf_ptr, cmd_size
+    addu dl_dmem_buf_ptr, cmd_size
 
     #undef ovl_index
     #undef cmd_index
@@ -166,7 +173,7 @@ execute_command2:
 .func request_input
 request_input:
     lhu t2, %lo(DMEM_BUF_END)
-    sub t1, t2, input_buf_ptr
+    sub t1, t2, dl_dmem_buf_ptr
     bge t1, t0, JrRa
 .endfunc
 
@@ -188,7 +195,7 @@ load_new_input:
 
     # Don't need to update read_ptr if no input has been read
     lhu t0, %lo(DMEM_BUF_START)
-    sub len, input_buf_ptr, t0
+    sub len, dl_dmem_buf_ptr, t0
     beqz len, check_for_new_input
     lw wrap_ptr, %lo(WRAP_POINTER) + 0x4
 
@@ -279,11 +286,11 @@ dma_input:
 
     # Reset input pointer, taking DMA non-alignment into account
     li t1, %lo(DL_DMEM_BUFFER)
-    sub input_buf_ptr, s4, t1
+    sub dl_dmem_buf_ptr, s4, t1
     # Remember the actual start of new data in the buffer,
     # because due to possible non-alignment it might not be at index 0
-    sh input_buf_ptr, %lo(DMEM_BUF_START)
-    add t0, input_buf_ptr, len
+    sh dl_dmem_buf_ptr, %lo(DMEM_BUF_START)
+    add t0, dl_dmem_buf_ptr, len
     jr ra2
     sh t0, %lo(DMEM_BUF_END)
 

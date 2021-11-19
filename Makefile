@@ -35,10 +35,13 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 			 $(BUILD_DIR)/audio/xm64.o $(BUILD_DIR)/audio/libxm/play.o \
 			 $(BUILD_DIR)/audio/libxm/context.o $(BUILD_DIR)/audio/libxm/load.o \
 			 $(BUILD_DIR)/audio/ym64.o $(BUILD_DIR)/audio/ay8910.o \
-			 $(BUILD_DIR)/dl/displaylist.o $(BUILD_DIR)/dl/rsp_displaylist.o \
-			 $(BUILD_DIR)/gfx/gfx.o $(BUILD_DIR)/gfx/rsp_ovl_gfx.o
+			 $(BUILD_DIR)/dl/dl.o $(BUILD_DIR)/dl/rsp_dl.o \
+			 $(BUILD_DIR)/ugfx/ugfx.o $(BUILD_DIR)/ugfx/rsp_ugfx.o
 	@echo "    [AR] $@"
 	$(AR) -rcs -o $@ $^
+
+$(BUILD_DIR)/audio/rsp_mixer.o: IS_OVERLAY=1
+$(BUILD_DIR)/ugfx/rsp_ugfx.o: IS_OVERLAY=1
 
 examples:
 	$(MAKE) -C examples
@@ -106,8 +109,8 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/xm64.h $(INSTALLDIR)/mips64-elf/include/xm64.h
 	install -Cv -m 0644 include/ym64.h $(INSTALLDIR)/mips64-elf/include/ym64.h
 	install -Cv -m 0644 include/ay8910.h $(INSTALLDIR)/mips64-elf/include/ay8910.h
-	install -Cv -m 0644 include/displaylist.h $(INSTALLDIR)/mips64-elf/include/displaylist.h
-	install -Cv -m 0644 include/gfx.h $(INSTALLDIR)/mips64-elf/include/gfx.h
+	install -Cv -m 0644 include/dl.h $(INSTALLDIR)/mips64-elf/include/dl.h
+	install -Cv -m 0644 include/ugfx.h $(INSTALLDIR)/mips64-elf/include/ugfx.h
 	install -Cv -m 0644 include/rdp_commands.h $(INSTALLDIR)/mips64-elf/include/rdp_commands.h
 
 clean:

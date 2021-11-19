@@ -28,11 +28,6 @@
 #define MAX_EVENTS              32
 #define MIXER_POLL_PER_SECOND   8
 
-/**
- * RSP mixer ucode (rsp_mixer.S)
- */
-DEFINE_RSP_UCODE(rsp_mixer);
-
 // NOTE: keep these in sync with rsp_mixer.S
 #define CH_FLAGS_BPS_SHIFT  (3<<0)   // BPS shift value
 #define CH_FLAGS_16BIT      (1<<2)   // Set if the channel is 16 bit
@@ -84,6 +79,12 @@ typedef struct rsp_mixer_channel_s {
 
 _Static_assert(sizeof(rsp_mixer_channel_t) == 6*4);
 
+typedef struct rsp_mixer_settings_s {
+	uint32_t lvol[MIXER_MAX_CHANNELS/2] __attribute__((aligned(16)));
+	uint32_t rvol[MIXER_MAX_CHANNELS/2];
+	rsp_mixer_channel_t channels[MIXER_MAX_CHANNELS] __attribute__((aligned(16)));
+} rsp_mixer_settings_t;
+
 typedef struct {
 	int max_bits;
 	float max_frequency;
@@ -114,6 +115,8 @@ struct {
 	mixer_fx15_t lvol[MIXER_MAX_CHANNELS];
 	mixer_fx15_t rvol[MIXER_MAX_CHANNELS];
 
+	rsp_mixer_settings_t ucode_settings __attribute__((aligned(8)));
+
 	// Permanent state of the ucode across different executions
 	uint8_t ucode_state[128] __attribute__((aligned(8)));
 
@@ -136,6 +139,9 @@ void mixer_init(int num_channels) {
 		mixer_ch_set_vol(ch, 1.0f, 1.0f);
 		mixer_ch_set_limits(ch, 16, Mixer.sample_rate, 0);
 	}
+
+	uint8_t ovl_id = DL_OVERLAY_ADD(rsp_mixer, &Mixer.ucode_state);
+    dl_overlay_register_id(ovl_id, 1);
 }
 
 static void mixer_init_samplebuffers(void) {
@@ -498,10 +504,9 @@ void mixer_exec(int32_t *out, int num_samples) {
 		}
 	}
 
-	rsp_wait();
-	rsp_load(&rsp_mixer);
+	volatile rsp_mixer_settings_t *settings = UncachedAddr(&Mixer.ucode_settings);
 
-	volatile rsp_mixer_channel_t *rsp_wv = (volatile rsp_mixer_channel_t *)&SP_DMEM[36];
+	volatile rsp_mixer_channel_t *rsp_wv = settings->channels;
 	mixer_fx15_t lvol[MIXER_MAX_CHANNELS] __attribute__((aligned(8))) = {0};
 	mixer_fx15_t rvol[MIXER_MAX_CHANNELS] __attribute__((aligned(8))) = {0};
 
@@ -532,7 +537,7 @@ void mixer_exec(int32_t *out, int num_samples) {
 		// Convert to RSP mixer channel structure truncating 64-bit values to 32-bit.
 		// We don't need full absolute position on the RSP, so 32-bit is more
 		// than enough. In fact, we only expose 31 bits, so that we can use the
-		// 32th bit later to correctly update the position without overflow bugs.
+		// 32nd bit later to correctly update the position without overflow bugs.
 		rsp_wv[ch].pos = (uint32_t)c->pos & 0x7FFFFFFF;
 		rsp_wv[ch].step = (uint32_t)c->step & 0x7FFFFFFF;
 		rsp_wv[ch].ptr = c->ptr + ((c->pos & ~0x7FFFFFFF) >> MIXER_FX64_FRAC);
@@ -562,22 +567,30 @@ void mixer_exec(int32_t *out, int num_samples) {
 		}
 	}
 
-	// Copy the volumes into DMEM. TODO: check if should change this loop into
-	// a DMA copy, or fold it into the above loop.
 	uint32_t *lvol32 = (uint32_t*)lvol;
 	uint32_t *rvol32 = (uint32_t*)rvol;
 	for (int ch=0;ch<MIXER_MAX_CHANNELS/2;ch++)  {
-		SP_DMEM[4+0*16+ch] = lvol32[ch];
-		SP_DMEM[4+1*16+ch] = rvol32[ch];
+		settings->lvol[ch] = lvol32[ch];
+		settings->rvol[ch] = rvol32[ch];
 	}
 
-	SP_DMEM[0] = MIXER_FX16(Mixer.vol);
-	SP_DMEM[1] = (num_samples << 16) | Mixer.num_channels;
-	SP_DMEM[2] = (uint32_t)out;
-	SP_DMEM[3] = (uint32_t)Mixer.ucode_state;
-
 	uint32_t t0 = TICKS_READ();
-	rsp_run();
+
+	uint32_t *ptr = dl_write_begin(sizeof(uint32_t) * 4);
+
+	ptr[0] = 0x10000000 | (((uint32_t)MIXER_FX16(Mixer.vol)) & 0xFFFF);
+	ptr[1] = (num_samples << 16) | Mixer.num_channels;
+	ptr[2] = (uint32_t)PhysicalAddr(out);
+	ptr[3] = (uint32_t)PhysicalAddr(&Mixer.ucode_settings);
+	
+	dl_write_end();
+
+	// Wait for command to be done
+	// TODO: synchronize this via SP interrupt?
+	dl_signal(SP_WSTATUS_SET_SIG1);
+	while (!(*SP_STATUS & SP_STATUS_SIG1));
+	dl_signal(SP_WSTATUS_CLEAR_SIG1);
+
 	__mixer_profile_rsp += TICKS_READ() - t0;
 
 	for (int i=0;i<Mixer.num_channels;i++) {

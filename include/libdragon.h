@@ -50,8 +50,8 @@
 #include "wav64.h"
 #include "xm64.h"
 #include "ym64.h"
-#include "displaylist.h"
-#include "gfx.h"
+#include "dl.h"
+#include "ugfx.h"
 #include "rdp_commands.h"
 
 #endif

@@ -14,6 +14,8 @@ int main(void) {
 	int ret = dfs_init(DFS_DEFAULT_LOCATION);
 	assert(ret == DFS_ESUCCESS);
 
+	dl_init();
+
 	audio_init(44100, 4);
 	mixer_init(16);  // Initialize up to 16 channels
 
@@ -34,6 +36,8 @@ int main(void) {
 
 	bool music = false;
 	int music_frequency = sfx_monosample.wave.frequency;
+
+	dl_start();
 
 	while (1) {
 		display_context_t disp = display_lock();

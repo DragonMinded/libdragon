@@ -3,7 +3,11 @@
 #define RSP_DL_INC
 
 # Globally reserved registers
-#define input_buf_ptr gp
+#define dl_dmem_buf_ptr gp
+
+# Can be used with l* instructions to get contents of the current command at the specified offset.
+# The total command size needs to be specified as well.
+#define CMD_ADDR(offset, cmdsize) (%lo(DL_DMEM_BUFFER) + (offset) - (cmdsize)) (dl_dmem_buf_ptr)
 
 #define OVERLAY_HEADER_SIZE 0x8
 

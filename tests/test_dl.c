@@ -42,10 +42,10 @@ void wait_for_sp_interrupt_and_halted(unsigned long timeout)
     dl_init(); \
     DEFER(dl_close(); set_SP_interrupt(0); unregister_SP_handler(sp_interrupt_handler));
 
-#define TEST_DL_EPILOG() \
+#define TEST_DL_EPILOG(s) \
     wait_for_sp_interrupt_and_halted(dl_timeout); \
     ASSERT(sp_intr_raised, "Interrupt was not raised!"); \
-    ASSERT_EQUAL_HEX(*SP_STATUS, SP_STATUS_HALTED | SP_STATUS_BROKE, "Unexpected SP status!"); \
+    ASSERT_EQUAL_HEX(*SP_STATUS, SP_STATUS_HALTED | SP_STATUS_BROKE | (s), "Unexpected SP status!"); \
 
 void test_dl_queue_single(TestContext *ctx)
 {
@@ -54,7 +54,7 @@ void test_dl_queue_single(TestContext *ctx)
     dl_start();
     dl_interrupt();
 
-    TEST_DL_EPILOG();
+    TEST_DL_EPILOG(0);
 }
 
 void test_dl_queue_multiple(TestContext *ctx)
@@ -65,7 +65,7 @@ void test_dl_queue_multiple(TestContext *ctx)
     dl_noop();
     dl_interrupt();
 
-    TEST_DL_EPILOG();
+    TEST_DL_EPILOG(0);
 }
 
 void test_dl_queue_rapid(TestContext *ctx)
@@ -89,7 +89,7 @@ void test_dl_queue_rapid(TestContext *ctx)
     dl_noop();
     dl_interrupt();
 
-    TEST_DL_EPILOG();
+    TEST_DL_EPILOG(0);
 }
 
 void test_dl_wrap(TestContext *ctx)
@@ -110,26 +110,69 @@ void test_dl_wrap(TestContext *ctx)
     
     dl_interrupt();
 
-    TEST_DL_EPILOG();
+    TEST_DL_EPILOG(0);
+}
+
+void test_dl_signal(TestContext *ctx)
+{
+    TEST_DL_PROLOG();
+    
+    dl_start();
+    dl_signal(SP_WSTATUS_SET_SIG3 | SP_WSTATUS_SET_SIG6);
+    dl_interrupt();
+
+    TEST_DL_EPILOG(SP_STATUS_SIG3 | SP_STATUS_SIG6);
+}
+
+void test_dl_heterogeneous_sizes(TestContext *ctx)
+{
+    TEST_DL_PROLOG();
+
+    ugfx_init();
+    DEFER(ugfx_close());
+
+    dl_start();
+
+    for (uint32_t i = 0; i < 0x400; i++)
+    {
+        uint32_t x = RANDN(3);
+        switch (x)
+        {
+            case 0:
+                dl_signal(SP_WSTATUS_SET_SIG1);
+                break;
+            case 1:
+                rdp_set_prim_color(0xFFFFFFFF);
+                break;
+            case 2:
+                rdp_texture_rectangle(0, 0, 0, 32, 32, 0, 0, 1, 1);
+                break;
+        }
+    }
+
+    dl_signal(SP_WSTATUS_CLEAR_SIG1);
+    dl_interrupt();
+
+    TEST_DL_EPILOG(0);
 }
 
 void test_dl_load_overlay(TestContext *ctx)
 {
     TEST_DL_PROLOG();
     
-    gfx_init();
-    DEFER(gfx_close());
+    ugfx_init();
+    DEFER(ugfx_close());
 
     dl_start();
     rdp_set_env_color(0);
     dl_interrupt();
 
-    TEST_DL_EPILOG();
+    TEST_DL_EPILOG(0);
     
-    extern uint8_t rsp_ovl_gfx_text_start[];
-    extern uint8_t rsp_ovl_gfx_text_end[0];
+    extern uint8_t rsp_ugfx_text_start[];
+    extern uint8_t rsp_ugfx_text_end[0];
 
-    uint32_t size = rsp_ovl_gfx_text_end - rsp_ovl_gfx_text_start;
+    uint32_t size = rsp_ugfx_text_end - rsp_ugfx_text_start;
 
-    ASSERT_EQUAL_MEM((uint8_t*)SP_IMEM, rsp_ovl_gfx_text_start, size, "gfx overlay was not loaded into IMEM!");
+    ASSERT_EQUAL_MEM((uint8_t*)SP_IMEM, rsp_ugfx_text_start, size, "ugfx overlay was not loaded into IMEM!");
 }
