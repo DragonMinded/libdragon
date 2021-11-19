@@ -111,6 +111,11 @@ void convert(char *infn, char *outfn1) {
 	}
 }
 
+bool exists(const char *path) {
+	struct stat st;
+	return stat(path, &st) == 0;
+}
+
 bool isfile(const char *path) {
 	struct stat st;
 	stat(path, &st);
@@ -232,7 +237,11 @@ int main(int argc, char *argv[]) {
 			}
 		} else {
 			// Positional argument. It's either a file or a directory. Convert it
-			walkdir(argv[i], outdir, convert);
+			if (!exists(argv[i])) {
+				fprintf(stderr, "ERROR: file %s does not exist\n", argv[i]);
+			} else {
+				walkdir(argv[i], outdir, convert);
+			}
 		}
 	}
 
