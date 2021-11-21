@@ -20,6 +20,11 @@
 
 #include "mixer.h"
 
+// Loops made by an odd number of bytes and shorter than this length are
+// duplicated to prevent frequency changes during playback. See below for more
+// information.
+#define XM64_SHORT_ODD_LOOP_LENGTH  1024
+
 // Bring libxm in
 #include "../../src/audio/libxm/play.c"
 #include "../../src/audio/libxm/context.c"
@@ -77,10 +82,37 @@ int xm_convert(const char *infn, const char *outfn) {
 				memset(sout+length, 0, MIXER_LOOP_OVERREAD);
 				break;
 			case XM_FORWARD_LOOP:
-				sout = malloc(loop_end + MIXER_LOOP_OVERREAD);
-				length = loop_end;
-				memcpy(sout, s->data8, loop_end);
-				memmove(sout + loop_end, s->data8 + loop_end - loop_length, MIXER_LOOP_OVERREAD);
+				// Special case for odd-sized loops of 8-bit samples. We cannot
+				// properly handle these at runtime because they cannot be DMA'd
+				// as they change the 2-byte phase between ROM and RAM. 
+				// xm64.c will decrease the loop length by 1 byte to playback them,
+				// but this can affect the period in case of short loops:
+				// for instance, a 13-bytes loop shortened 12-bytes change the
+				// period by 7%, which can be several notes of difference at
+				// high frequencies.
+				// So for short loops (<1024 bytes), we just duplicate the loop
+				// itself to make it of even size. For longer loops, the period
+				// error made by xm64 when shortening is < 0.1%, which isn't
+				// audible.
+				if (bps == 1 && loop_length%2 == 1 && loop_length < XM64_SHORT_ODD_LOOP_LENGTH) {
+					sout = malloc(loop_end + loop_length + MIXER_LOOP_OVERREAD);
+					length = loop_end+loop_length;
+					// Copy waveform until loop end
+					memcpy(sout, s->data8, loop_end);
+					// Duplicate loop
+					memmove(sout + loop_end, s->data8 + loop_end - loop_length, loop_length);
+					// Add overread
+					memmove(sout + loop_end + loop_length, s->data8 + loop_end - loop_length, MIXER_LOOP_OVERREAD);
+					loop_end += loop_length;
+					loop_length *= 2;
+				} else {				
+					sout = malloc(loop_end + MIXER_LOOP_OVERREAD);
+					length = loop_end;
+					// Copy waveform until loop end
+					memcpy(sout, s->data8, loop_end);
+					// Add overread
+					memmove(sout + loop_end, s->data8 + loop_end - loop_length, MIXER_LOOP_OVERREAD);
+				}
 				break;
 			case XM_PING_PONG_LOOP:
 				length = loop_end + loop_length;
