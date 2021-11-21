@@ -32,6 +32,10 @@ static int tick(void *arg) {
 		// Seek was requested. Do it.
 		xm_seek(ctx, xmp->seek.patidx, xmp->seek.row, xmp->seek.tick);
 		xmp->seek.patidx = -1;
+		// Turn off all currently-playing samples, so that we don't risk keep
+		// playing them.
+		for (int i=0;i<ctx->module.num_channels;i++)
+			mixer_ch_stop(first_ch+i);
 	}
 
 	assert(ctx->remaining_samples_in_tick <= 0);
