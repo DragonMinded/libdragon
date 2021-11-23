@@ -220,8 +220,6 @@ enum Page page_song(void) {
 
 	// Unmute all channels
 	memset(mute, 0, sizeof(mute));
-	for (int i=0;i<4;i++) // 4 audio buffers (see audio_init)
-		audio_write_silence();
 
 	while (true) {
 		display_context_t disp = display_lock();
@@ -392,8 +390,6 @@ enum Page page_song(void) {
 					xm64player_close(&xm);
 				else
 					ym64player_close(&ym);
-				for (int i=0;i<4;i++) // 4 audio buffers (see audio_init)
-					audio_write_silence();
 				return PAGE_MENU;
 			}
 		}

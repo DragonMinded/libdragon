@@ -96,6 +96,10 @@ static volatile bool _paused = false;
 
 /** @brief Index of the current playing buffer */
 static volatile int now_playing = 0;
+/** @brief Length of the playing queue (number of buffers queued for AI DMA) */
+static volatile int playing_queue = 0;
+/** @brief Index of the last buffer that has been emptied (after playing) */
+static volatile int now_empty = 0;
 /** @brief Index pf the currently being written buffer */
 static volatile int now_writing = 0;
 /** @brief Bitmask of buffers indicating which buffers are full */
@@ -141,8 +145,22 @@ static void audio_callback()
     /* Disable interrupts so we don't get a race condition with writes */
     disable_interrupts();
 
+    /* Check how many queued buffers were consumed, and update buf_full flags
+       accordingly, to make them available for further writes. */
+    uint32_t status = AI_regs->status;
+    if (playing_queue > 1 && !(status & AI_STATUS_FULL)) {
+        playing_queue--;
+        now_empty = (now_empty + 1) % _num_buf;
+        buf_full &= ~(1<<now_empty);
+    }
+    if (playing_queue > 0 && !(status & AI_STATUS_BUSY)) {
+        playing_queue--;
+        now_empty = (now_empty + 1) % _num_buf;
+        buf_full &= ~(1<<now_empty);
+    }
+
     /* Copy in as many buffers as can fit (up to 2) */
-    while(!__full())
+    while(playing_queue < 2)
     {
         /* check if next buffer is full */
         int next = (now_playing + 1) % _num_buf;
@@ -151,24 +169,25 @@ static void audio_callback()
             break;
         }
 
-        /* clear buffer full flag */
-        buf_full &= ~(1<<next);
-
-        /* Set up DMA */
-        now_playing = next;
-
         if (_fill_buffer_callback) {
-            _fill_buffer_callback(UncachedAddr( buffers[now_playing] ), _buf_size);
+            _fill_buffer_callback(UncachedAddr( buffers[next] ), _buf_size);
         }
 
-        AI_regs->address = UncachedAddr( buffers[now_playing] );
+        /* Enqueue next buffer. Don't mark it as empty right now because the
+           DMA will run in background, and we need to avoid audio_write()
+           to reuse it before the DMA is finished. */
+        AI_regs->address = UncachedAddr( buffers[next] );
         MEMORY_BARRIER();
         AI_regs->length = (_buf_size * 2 * 2 ) & ( ~7 );
         MEMORY_BARRIER();
 
-         /* Start DMA */
+        /* Start DMA */
         AI_regs->control = 1;
         MEMORY_BARRIER();
+
+        /* Remember that we queued one buffer */
+        playing_queue++;
+        now_playing = next;
     }
 
     /* Safe to enable interrupts here */
@@ -244,6 +263,7 @@ void audio_init(const int frequency, int numbuffers)
 
     /* Set up ring buffer pointers */
     now_playing = 0;
+    now_empty = 0;
     now_writing = 0;
     buf_full = 0;
     _paused = false;
