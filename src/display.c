@@ -576,4 +576,29 @@ void display_show_force( display_context_t disp )
     enable_interrupts();
 }
 
+uint32_t display_get_width()
+{
+    return __width;
+}
+
+uint32_t display_get_height()
+{
+    return __height;
+}
+
+bitdepth_t display_get_bitdepth()
+{
+    return __bitdepth == 2 ? DEPTH_16_BPP : DEPTH_32_BPP;
+}
+
+uint32_t display_get_num_buffers()
+{
+    return __buffers;
+}
+
+void * display_get_buffer(uint32_t index)
+{
+    return __safe_buffer[index];
+}
+
 /** @} */ /* display */

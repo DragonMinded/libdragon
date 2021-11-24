@@ -22,6 +22,12 @@ extern "C" {
 /** @brief SP status register */
 #define SP_STATUS     ((volatile uint32_t*)0xA4040010)
 
+/** @brief SP DMA full register */
+#define SP_DMA_FULL   ((volatile uint32_t*)0xA4040014)
+
+/** @brief SP DMA busy register */
+#define SP_DMA_BUSY   ((volatile uint32_t*)0xA4040018)
+
 /** @brief SP semaphore register */
 #define SP_SEMAPHORE  ((volatile uint32_t*)0xA404001C)
 

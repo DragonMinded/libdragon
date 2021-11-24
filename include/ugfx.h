@@ -34,4 +34,6 @@ void rdp_set_texture_image(uint32_t dram_addr, uint8_t format, uint8_t size, uin
 void rdp_set_z_image(uint32_t dram_addr);
 void rdp_set_color_image(uint32_t dram_addr, uint32_t format, uint32_t size, uint32_t width);
 
+void ugfx_set_display(display_context_t disp);
+
 #endif

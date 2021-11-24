@@ -45,10 +45,10 @@ _ovl_data_start:
 
 .globl _start
 _start:
-    li t1, SP_WSTATUS_RESET_INTR_ON_BREAK
-    mtc0 t1, COP0_SP_STATUS
-    j loop
     move dl_dmem_buf_ptr, zero
+    li t1, SP_WSTATUS_RESET_INTR_ON_BREAK
+    j loop
+    mtc0 t1, COP0_SP_STATUS
 
 command_signal:
     andi a0, 0xFFFC
@@ -96,12 +96,12 @@ loop:
 
     # Skip saving overlay data if none is loaded (CURRENT_OVL < 0)
     bltz t1, load_overlay
-    lw s0, %lo(OVERLAY_DESCRIPTORS) + 0x8 (ovl_index)
+    lw s4, %lo(_ovl_data_start) + 0x0
 
     # Save current overlay data
     # TODO: skip if size is 0
     jal DMAOut
-    lw s4, %lo(_ovl_data_start) + 0x0
+    lw s0, %lo(OVERLAY_DESCRIPTORS) + 0x8 (t1)
 
 load_overlay:
     # Load overlay data
@@ -129,6 +129,9 @@ load_overlay:
 overlay_loaded:
     # Load the command base
     lhu t0, %lo(_ovl_data_start) + 0x6
+
+    # Mask command index
+    andi cmd_index, 0xFE
 
     # Subtract the command base to determine the final offset into the command table.
     sub cmd_index, t0
@@ -250,12 +253,12 @@ calc_valid_length:
     # 1) write_ptr >= read_ptr: we can read up to the write pointer
     sub len, write_ptr, read_ptr
 
-    # 2) write_ptr < read_ptr: We can read up to the wrap pointer
+    # 2) write_ptr < read_ptr:
     bne wrap_ptr, read_ptr, length_calculated
+    # 2.a) wrap_ptr != read_ptr: We can read up to the wrap pointer
     sub len, wrap_ptr, read_ptr
 
-    # Special case: if the read pointer is exactly at the wrap pointer,
-    # move the read pointer back to 0 and check again
+    # 2.b) wrap_ptr == read_ptr: move the read pointer back to 0 and check again
     move read_ptr, zero
     j calc_valid_length
     sw read_ptr, %lo(READ_POINTER) + 0x4

@@ -187,3 +187,26 @@ void rdp_set_color_image(uint32_t dram_addr, uint32_t format, uint32_t size, uin
 {
     dl_queue_u64(RdpSetColorImage(format, size, width, dram_addr));
 }
+
+
+static uint32_t ugfx_pixel_size_from_bitdepth(bitdepth_t bitdepth)
+{
+    switch (bitdepth)
+    {
+        case DEPTH_16_BPP:
+            return RDP_TILE_SIZE_16BIT;
+        case DEPTH_32_BPP:
+            return RDP_TILE_SIZE_32BIT;
+        default:
+            assert(!"Unsupported bitdepth");
+    }
+}
+
+void ugfx_set_display(display_context_t disp)
+{
+    if (disp > 0)
+    {
+        int32_t pixel_size = ugfx_pixel_size_from_bitdepth(display_get_bitdepth());
+        rdp_set_color_image((uint32_t)PhysicalAddr(display_get_buffer(disp - 1)), RDP_TILE_FORMAT_RGBA, pixel_size, display_get_width() - 1);
+    }
+}

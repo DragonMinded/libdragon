@@ -1,5 +1,5 @@
-all: audioplayer cpptest ctest dfsdemo mixertest mptest mputest spritemap test timers vrutest vtest ucodetest
-clean: audioplayer-clean cpptest-clean ctest-clean dfsdemo-clean mixertest-clean mptest-clean mputest-clean spritemap-clean test-clean timers-clean vrutest-clean vtest-clean ucodetest-clean
+all: audioplayer cpptest ctest dfsdemo dldemo mixertest mptest mputest spritemap test timers vrutest vtest ucodetest
+clean: audioplayer-clean cpptest-clean ctest-clean dfsdemo-clean dldemo-clean mixertest-clean mptest-clean mputest-clean spritemap-clean test-clean timers-clean vrutest-clean vtest-clean ucodetest-clean
 
 audioplayer:
 	$(MAKE) -C audioplayer
@@ -20,6 +20,11 @@ dfsdemo:
 	$(MAKE) -C dfsdemo
 dfsdemo-clean:
 	$(MAKE) -C dfsdemo clean
+
+dldemo:
+	$(MAKE) -C dldemo
+dldemo-clean:
+	$(MAKE) -C dldemo clean
 
 mixertest:
 	$(MAKE) -C mixertest
@@ -66,5 +71,5 @@ ucodetest:
 ucodetest-clean:
 	$(MAKE) -C ucodetest clean
 
-.PHONY: audioplayer audioplayer-clean cpptest cpptest-clean ctest ctest-clean dfsdemo dfsdemo-clean mixertest mixertest-clean mptest mptest-clean mputest mputest-clean spritemap spritemap-clean
+.PHONY: audioplayer audioplayer-clean cpptest cpptest-clean ctest ctest-clean dfsdemo dfsdemo-clean dldemo dldemo-clean mixertest mixertest-clean mptest mptest-clean mputest mputest-clean spritemap spritemap-clean
 .PHONY: test test-clean timers timers-clean vrutest vrutest-clean vtest vtest-clean ucodetest ucodetest-clean

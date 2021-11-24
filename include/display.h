@@ -77,6 +77,12 @@ display_context_t display_lock();
 void display_show(display_context_t disp);
 void display_close();
 
+uint32_t display_get_width();
+uint32_t display_get_height();
+bitdepth_t display_get_bitdepth();
+uint32_t display_get_num_buffers();
+void * display_get_buffer(uint32_t index);
+
 #ifdef __cplusplus
 }
 #endif

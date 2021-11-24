@@ -120,7 +120,7 @@ void rsp_run_async(void)
     // set RSP program counter
     *SP_PC = cur_ucode ? cur_ucode->start_pc : 0;
     MEMORY_BARRIER();
-    *SP_STATUS = SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_SET_INTR_BREAK;
+    *SP_STATUS = SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
 }
 
 void rsp_wait(void)
