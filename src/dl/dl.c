@@ -173,14 +173,13 @@ uint32_t* dl_write_begin(uint32_t size)
     reserved_size = size;
     uint32_t wp = DL_POINTERS->write.value;
 
-    if (wp <= sentinel) {
+    if (wp < sentinel) {
         return (uint32_t*)(dl_buffer_uncached + wp);
     }
 
     uint32_t write_start;
     bool wrap;
 
-    // TODO: make the loop tighter?
     while (1) {
         uint32_t rp = DL_POINTERS->read.value;
 
