@@ -112,6 +112,8 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/dl.h $(INSTALLDIR)/mips64-elf/include/dl.h
 	install -Cv -m 0644 include/ugfx.h $(INSTALLDIR)/mips64-elf/include/ugfx.h
 	install -Cv -m 0644 include/rdp_commands.h $(INSTALLDIR)/mips64-elf/include/rdp_commands.h
+	install -Cv -m 0644 include/rsp_dl.inc $(INSTALLDIR)/mips64-elf/include/rsp_dl.inc
+
 
 clean:
 	rm -f *.o *.a

@@ -131,7 +131,7 @@ overlay_loaded:
     lhu t0, %lo(_ovl_data_start) + 0x6
 
     # Mask command index
-    andi cmd_index, 0xFE
+    andi cmd_index, 0x1FE
 
     # Subtract the command base to determine the final offset into the command table.
     sub cmd_index, t0

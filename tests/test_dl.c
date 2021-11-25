@@ -1,18 +1,59 @@
-
+#include <malloc.h>
 #include <string.h>
+
+#include <ugfx.h>
 
 #include "../src/dl/dl_internal.h"
 
-const unsigned long dl_timeout = 100;
+static uint32_t test_ovl_data[2];
+
+void test_ovl_init()
+{
+    uint8_t ovl_index = DL_OVERLAY_ADD(rsp_test, test_ovl_data);
+    dl_overlay_register_id(ovl_index, 0xF);
+}
+
+void dl_test_4()
+{
+    uint32_t *ptr = dl_write_begin(4);
+    ptr[0] = 0xf0000000;
+    dl_write_end();
+}
+
+void dl_test_8()
+{
+    uint32_t *ptr = dl_write_begin(8);
+    ptr[0] = 0xf1000000;
+    ptr[1] = 0x02000200;
+    dl_write_end();
+}
+
+void dl_test_16()
+{
+    uint32_t *ptr = dl_write_begin(16);
+    ptr[0] = 0xf2000000;
+    ptr[1] = 0x02000800;
+    ptr[2] = 0x02002000;
+    ptr[3] = 0x02008000;
+    dl_write_end();
+}
+
+void dl_test_wait(uint32_t length)
+{
+    uint32_t *ptr = dl_write_begin(8);
+    ptr[0] = 0xf3000000;
+    ptr[1] = length;
+    dl_write_end();
+}
 
 #define DL_LOG_STATUS(step) debugf("STATUS: %#010lx, PC: %#010lx (%s)\n", *SP_STATUS, *SP_PC, step)
 
 void dump_mem(void* ptr, uint32_t size)
 {
-    for (uint32_t i = 0; i < size / sizeof(uint32_t); i += 4)
+    for (uint32_t i = 0; i < size / sizeof(uint32_t); i += 8)
     {
         uint32_t *ints = ptr + i * sizeof(uint32_t);
-        debugf("%08lX %08lX %08lX %08lX\n", ints[0], ints[1], ints[2], ints[3]);
+        debugf("%#010lX: %08lX %08lX %08lX %08lX %08lX %08lX %08lX %08lX\n", (uint32_t)ints, ints[0], ints[1], ints[2], ints[3], ints[4], ints[5], ints[6], ints[7]);
     }
 }
 
@@ -42,10 +83,12 @@ void wait_for_sp_interrupt_and_halted(unsigned long timeout)
     dl_init(); \
     DEFER(dl_close(); set_SP_interrupt(0); unregister_SP_handler(sp_interrupt_handler));
 
-#define TEST_DL_EPILOG(s) \
-    wait_for_sp_interrupt_and_halted(dl_timeout); \
+const unsigned long dl_timeout = 100;
+
+#define TEST_DL_EPILOG(s, t) \
+    wait_for_sp_interrupt_and_halted(t); \
     ASSERT(sp_intr_raised, "Interrupt was not raised!"); \
-    ASSERT_EQUAL_HEX(*SP_STATUS, SP_STATUS_HALTED | SP_STATUS_BROKE | (s), "Unexpected SP status!"); \
+    ASSERT_EQUAL_HEX(*SP_STATUS, SP_STATUS_HALTED | SP_STATUS_BROKE | (s), "Unexpected SP status!");
 
 void test_dl_queue_single(TestContext *ctx)
 {
@@ -54,7 +97,7 @@ void test_dl_queue_single(TestContext *ctx)
     dl_start();
     dl_interrupt();
 
-    TEST_DL_EPILOG(0);
+    TEST_DL_EPILOG(0, dl_timeout);
 }
 
 void test_dl_queue_multiple(TestContext *ctx)
@@ -65,7 +108,7 @@ void test_dl_queue_multiple(TestContext *ctx)
     dl_noop();
     dl_interrupt();
 
-    TEST_DL_EPILOG(0);
+    TEST_DL_EPILOG(0, dl_timeout);
 }
 
 void test_dl_queue_rapid(TestContext *ctx)
@@ -89,7 +132,7 @@ void test_dl_queue_rapid(TestContext *ctx)
     dl_noop();
     dl_interrupt();
 
-    TEST_DL_EPILOG(0);
+    TEST_DL_EPILOG(0, dl_timeout);
 }
 
 void test_dl_wrap(TestContext *ctx)
@@ -110,7 +153,7 @@ void test_dl_wrap(TestContext *ctx)
     
     dl_interrupt();
 
-    TEST_DL_EPILOG(0);
+    TEST_DL_EPILOG(0, dl_timeout);
 }
 
 void test_dl_signal(TestContext *ctx)
@@ -121,39 +164,39 @@ void test_dl_signal(TestContext *ctx)
     dl_signal(SP_WSTATUS_SET_SIG3 | SP_WSTATUS_SET_SIG6);
     dl_interrupt();
 
-    TEST_DL_EPILOG(SP_STATUS_SIG3 | SP_STATUS_SIG6);
+    TEST_DL_EPILOG(SP_STATUS_SIG3 | SP_STATUS_SIG6, dl_timeout);
 }
 
-void test_dl_heterogeneous_sizes(TestContext *ctx)
+void test_dl_high_load(TestContext *ctx)
 {
     TEST_DL_PROLOG();
 
-    ugfx_init();
-    DEFER(ugfx_close());
+    test_ovl_init();
 
     dl_start();
 
-    for (uint32_t i = 0; i < 0x400; i++)
+    for (uint32_t i = 0; i < 0x800; i++)
     {
         uint32_t x = RANDN(3);
+
         switch (x)
         {
             case 0:
-                dl_signal(SP_WSTATUS_SET_SIG1);
+                dl_test_4();
                 break;
             case 1:
-                rdp_set_prim_color(0xFFFFFFFF);
+                // Simulate computation heavy commands that take a long time to complete, so the ring buffer fills up
+                dl_test_wait(0x10000);
                 break;
             case 2:
-                rdp_texture_rectangle(0, 0, 0, 32, 32, 0, 0, 1, 1);
+                dl_test_16();
                 break;
         }
     }
 
-    dl_signal(SP_WSTATUS_CLEAR_SIG1);
     dl_interrupt();
 
-    TEST_DL_EPILOG(0);
+    TEST_DL_EPILOG(0, 5000);
 }
 
 void test_dl_load_overlay(TestContext *ctx)
@@ -167,7 +210,7 @@ void test_dl_load_overlay(TestContext *ctx)
     rdp_set_env_color(0);
     dl_interrupt();
 
-    TEST_DL_EPILOG(0);
+    TEST_DL_EPILOG(0, dl_timeout);
     
     extern uint8_t rsp_ugfx_text_start[];
     extern uint8_t rsp_ugfx_text_end[0];
