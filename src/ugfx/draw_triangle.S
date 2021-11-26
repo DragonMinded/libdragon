@@ -227,7 +227,7 @@ draw_triangle:
     ldv pf, 0x8,  0x08, vc
 
     # Multiply plane coefficients with clip ratio
-    vmudh pcoeff, pcoeff, vtmp, VE_V
+    vmudh pcoeff, pcoeff, vtmp
 
     # +----+----+----+----+----+----+----+----+
     # | x1 | y1 | z1 | w1 |    |    |    |    |
@@ -237,8 +237,8 @@ draw_triangle:
 
     # dot[0]: d0 = dot(p0, plane)
     # dot[4]: d1 = dot(p1, plane)
-    vmudn dotf, pf, pcoeff, VE_V
-    vmadh doti, pi, pcoeff, VE_V
+    vmudn dotf, pf, pcoeff
+    vmadh doti, pi, pcoeff
     vmadn dotf, vzero, vzero, VE_0
 
     vaddc dotf, dotf, dotf, VE_1q
@@ -266,8 +266,8 @@ draw_triangle:
     vmadh ai,   ai, doti, VE_0
 
     # p1 - p0
-    vsubc ipf, ipf, pf, VE_V
-    vsub  ipi, ipi, pi, VE_V
+    vsubc ipf, ipf, pf
+    vsub  ipi, ipi, pi
 
     # (p1 - p0) * a
     vmudl vtmp, ipf, af, VE_0
@@ -276,8 +276,8 @@ draw_triangle:
     vmadh ipi,  ipi, ai, VE_0
 
     # p0 + (p1 - p0) * a (intersection)
-    vaddc ipf, ipf, pf, VE_V
-    vadd  ipi, ipi, pi, VE_V
+    vaddc ipf, ipf, pf
+    vadd  ipi, ipi, pi
 
     add vtx2scr_dest, output_len, output_list
     sdv ipi, 0x0, 0x00, vtx2scr_dest
@@ -294,12 +294,12 @@ draw_triangle:
     llv attp, 0x0, 0x18, vp
     llv attc, 0x0, 0x18, vc
 
-    vsub attc, attc, attp, VE_V
+    vsub attc, attc, attp
 
     vmudm vtmp, attc, af, VE_0
     vmadh attc, attc, ai, VE_0
 
-    vadd attp, attp, attc, VE_V
+    vadd attp, attp, attc
 
     suv attp, 0x0, 0x18, vtx2scr_dest
     slv attp, 0x0, 0x18, vtx2scr_dest
@@ -395,9 +395,9 @@ draw_clipped_triangle:
   lsv x1y3, 0x2, 0x12, ivtx3
 
   # x3 - x1, y2 - y1
-  vsub vdelta1, x3y2, x1y1, VE_V
+  vsub vdelta1, x3y2, x1y1
   # x2 - x1, y1 - y3
-  vsub vdelta2, x2y1, x1y3, VE_V
+  vsub vdelta2, x2y1, x1y3
 
   #   (x3 - x1) * (y2 - y1)
   vmudh cross, vdelta1, vdelta1, VE_1
@@ -470,23 +470,23 @@ cull_triangle_pass:
   mtc2 ivtx3, amax, 0x0
 
   # Perform sorting algorithm
-  vge  vtm1, vmin, vmid, VE_V
-  vmrg atm1, amin, amid, VE_V
+  vge  vtm1, vmin, vmid
+  vmrg atm1, amin, amid
 
-  vlt  vmin, vmin, vmid, VE_V
-  vmrg amin, amin, amid, VE_V
+  vlt  vmin, vmin, vmid
+  vmrg amin, amin, amid
 
-  vge  vtm2, vmin, vmax, VE_V
-  vmrg atm2, amin, amax, VE_V
+  vge  vtm2, vmin, vmax
+  vmrg atm2, amin, amax
 
-  vlt  vmin, vmin, vmax, VE_V
-  vmrg amin, amin, amax, VE_V
+  vlt  vmin, vmin, vmax
+  vmrg amin, amin, amax
 
-  vge  vmax, vtm1, vtm2, VE_V
-  vmrg amax, atm1, atm2, VE_V
+  vge  vmax, vtm1, vtm2
+  vmrg amax, atm1, atm2
 
-  vlt  vmid, vtm1, vtm2, VE_V
-  vmrg amid, atm1, atm2, VE_V
+  vlt  vmid, vtm1, vtm2
+  vmrg amid, atm1, atm2
 
   # Get sorted addresses.
   # Vertices are now sorted, vtx1 < vtx2 < vtx3.
@@ -527,7 +527,7 @@ cull_triangle_pass:
   # delta[2,3] = x2-x1, y2-y1 (mdy)
   # delta[4,5] = x3-x2, y3-y2 (ldy)
 
-  vsub deltai, vhmh, vllm, VE_V
+  vsub deltai, vhmh, vllm
   vsub mdelta, vzero, deltai, VE_2
 
   # cz = hx * my - hy * mx
@@ -589,7 +589,7 @@ cull_triangle_pass:
   vand  ysign, ysign, ymask, VE_0 # Mask out everything except extended sign
   vnor  ymask, ymask, vzero, VE_0 # Invert bit mask
   vand  ylmh,  ylmh,  ymask, VE_0 # Get digits (Mask out high bits)
-  vor   ylmh,  ylmh,  ysign, VE_V # Combine sign and digits again
+  vor   ylmh,  ylmh,  ysign # Combine sign and digits again
   
   lbu tex, %lo(texture_settings)
   andi command, gmode, 0x7
@@ -620,8 +620,8 @@ cull_triangle_pass:
   vmudm vllmi, vllm, vshr, VE_2
   vmadn vllmf, vzero, vzero, VE_0
 
-  vsubc vfracf, vzero, vllmf, VE_V
-  vsub  vfraci, vzero, vzero, VE_V
+  vsubc vfracf, vzero, vllmf
+  vsub  vfraci, vzero, vzero
 
   #define vtmp2 $v18
 
@@ -691,7 +691,7 @@ cull_triangle_pass:
   lsv x1y1x2y1, 0x4, 0x10, vtx1
   lsv x1y1x2y1, 0x6, 0x12, vtx2
 
-  vsub cdeltasi, x3y3x1y2, x1y1x2y1, VE_V
+  vsub cdeltasi, x3y3x1y2, x1y1x2y1
 
   #define att1i $v09
   #define att1f $v10
@@ -813,10 +813,10 @@ shading_done:
   addiu tmp, $0, 0x7
   ctc2 tmp, COP2_CTRL_VCC
 
-  vmrg att1i, stw12i, att1i, VE_V
-  vmrg att1f, stw12f, att1f, VE_V
-  vmrg att3i, stw3i,  att3i, VE_V
-  vmrg att3f, stw3f,  att3f, VE_V
+  vmrg att1i, stw12i, att1i
+  vmrg att1f, stw12f, att1f
+  vmrg att3i, stw3i,  att3i
+  vmrg att3f, stw3f,  att3f
 
   #undef tmp
 
@@ -841,11 +841,11 @@ no_tex_prep:
   #define atd2i $v23
   #define atd2f $v24
 
-  vsubc atd1f, att2f, att1f, VE_V
-  vsub  atd1i, att2i, att1i, VE_V
+  vsubc atd1f, att2f, att1f
+  vsub  atd1i, att2i, att1i
 
-  vsubc atd2f, att1f, att3f, VE_V
-  vsub  atd2i, att1i, att3i, VE_V
+  vsubc atd2f, att1f, att3f
+  vsub  atd2i, att1i, att3i
 
   # dadx = (a2 - a1) * (y3 - y1) +
   #        (a1 - a3) * (y2 - y1)

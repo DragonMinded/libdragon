@@ -34,8 +34,8 @@ vtx_to_scr:
     cfc2 clip1, COP2_CTRL_VCC
 
     # Get extended clip codes
-    vmudn intmf, vtx2scr_hvtxf, cratio, VE_V
-    vmadh intmi, vtx2scr_hvtxi, cratio, VE_V
+    vmudn intmf, vtx2scr_hvtxf, cratio
+    vmadh intmi, vtx2scr_hvtxi, cratio
     vmadn intmf, vzero, vzero, VE_0
     vch vtmp, intmi, intmi, VE_3
     vcl vtmp, intmf, intmf, VE_3
@@ -64,10 +64,10 @@ vtx_to_scr:
 
     # Adjust to viewport (scale and offset)
     # Automatically converts the result to s13.2 since that is the viewport format
-    vmudn resultf, intmf, vtx2scr_vscale, VE_V
-    vmadh resulti, intmi, vtx2scr_vscale, VE_V
+    vmudn resultf, intmf, vtx2scr_vscale
+    vmadh resulti, intmi, vtx2scr_vscale
     vmadn resultf, vzero, vzero, VE_0
-    vadd resulti, resulti, vtx2scr_voffset, VE_V
+    vadd resulti, resulti, vtx2scr_voffset
 
     # Save screen space X and Y to output
     slv resulti, 0x0, 0x10, vtx2scr_dest

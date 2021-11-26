@@ -257,7 +257,7 @@ init:
   mtc0 tmp2, COP0_DP_STATUS
 
   # Initialize constant vector registers
-  vxor vzero, vzero, vzero, VE_V
+  vxor vzero, vzero, vzero
   li tmp, %lo(shift_left_constants)
   lqv $v30, 0, 0, tmp
   li tmp, %lo(shift_right_constants)

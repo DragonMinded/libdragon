@@ -118,10 +118,10 @@ load_vertices:
     vsar normi, normi, normi, VE_0
     vsar normf, normf, normf, VE_1
 
-    vmudl vtmp, normf, normf, VE_V
-    vmadm vtmp, normi, normf, VE_V
-    vmadn sqnf, normf, normi, VE_V
-    vmadh sqni, normi, normi, VE_V
+    vmudl vtmp, normf, normf
+    vmadm vtmp, normi, normf
+    vmadn sqnf, normf, normi
+    vmadh sqni, normi, normi
 
     vaddc tmpf, sqnf, sqnf, VE_1
     vadd  tmpi, sqni, sqni, VE_1
@@ -166,7 +166,7 @@ load_vertices:
 
     #define dot $v23
 
-    vge dot, vtmp, vzero, VE_V
+    vge dot, vtmp, vzero
 
     addiu tmp, $0, 0x7FFF
     mtc2 tmp, vtmp, 0x0
@@ -191,7 +191,7 @@ load_vertices:
 
   no_lighting:
     # Multiply texture coordinates with scale
-    vmudm tcoords, tcoords, texscale, VE_V
+    vmudm tcoords, tcoords, texscale
     
     # Save ST to output
     slv tcoords, 0x0, 0x18, vtx2scr_dest

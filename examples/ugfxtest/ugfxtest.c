@@ -47,9 +47,6 @@ void perspective(float fovy,
 
 int main(void)
 {
-    /* enable interrupts (on the CPU) */
-    init_interrupts();
-
     /* Initialize peripherals */
     display_init(RESOLUTION_320x240, DEPTH_16_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE_FETCH_ALWAYS);
     ugfx_init(UGFX_DEFAULT_RDP_BUFFER_SIZE);
