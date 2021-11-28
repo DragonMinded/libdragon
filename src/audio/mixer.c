@@ -502,8 +502,8 @@ void mixer_exec(int32_t *out, int num_samples) {
 	rsp_load(&rsp_mixer);
 
 	volatile rsp_mixer_channel_t *rsp_wv = (volatile rsp_mixer_channel_t *)&SP_DMEM[36];
-	mixer_fx15_t lvol[MIXER_MAX_CHANNELS] __attribute__((aligned(8)));
-	mixer_fx15_t rvol[MIXER_MAX_CHANNELS] __attribute__((aligned(8)));
+	mixer_fx15_t lvol[MIXER_MAX_CHANNELS] __attribute__((aligned(8))) = {0};
+	mixer_fx15_t rvol[MIXER_MAX_CHANNELS] __attribute__((aligned(8))) = {0};
 
 	for (int ch=0;ch<Mixer.num_channels;ch++) {
 		mixer_channel_t *c = &Mixer.channels[ch];
@@ -582,7 +582,8 @@ void mixer_exec(int32_t *out, int num_samples) {
 
 	for (int i=0;i<Mixer.num_channels;i++) {
 		mixer_channel_t *ch = &Mixer.channels[i];
-		ch->pos += (uint64_t)rsp_wv[i].pos - (uint64_t)(ch->pos & 0x7FFFFFFF);
+		if (ch->ptr)
+			ch->pos += (uint64_t)rsp_wv[i].pos - (uint64_t)(ch->pos & 0x7FFFFFFF);
 	}
 
 	Mixer.ticks += num_samples;
