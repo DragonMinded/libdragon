@@ -26,7 +26,6 @@ typedef struct rsp_dl_s {
     dl_overlay_t overlay_descriptors[DL_MAX_OVERLAY_COUNT];
     uint64_t read_pointer;
     uint64_t write_pointer;
-    uint64_t wrap_pointer;
 	void *dl_dram_addr;
 	void *dl_pointers_addr;
     uint16_t dmem_buf_start;
@@ -42,7 +41,6 @@ typedef struct dma_safe_pointer_t {
 typedef struct dl_pointers_t {
     dma_safe_pointer_t read;
     dma_safe_pointer_t write;
-    dma_safe_pointer_t wrap;
 } dl_pointers_t;
 
 static rsp_dl_t dl_data;
@@ -72,7 +70,6 @@ void dl_init()
 
     DL_POINTERS->read.value = 0;
     DL_POINTERS->write.value = 0;
-    DL_POINTERS->wrap.value = DL_DRAM_BUFFER_SIZE;
 
     // Load initial settings
     memset(&dl_data, 0, sizeof(dl_data));
@@ -84,6 +81,20 @@ void dl_init()
     dl_overlay_count = 0;
 
     sentinel = DL_DRAM_BUFFER_SIZE - DL_MAX_COMMAND_SIZE;
+}
+
+void dl_close()
+{
+    if (dl_buffer == NULL) {
+        return;
+    }
+
+    *SP_STATUS = SP_WSTATUS_SET_HALT;
+
+    free(dl_buffer);
+    dl_buffer = NULL;
+    dl_buffer_uncached = NULL;
+    dl_is_running = 0;
 }
 
 uint8_t dl_overlay_add(void* code, void *data, uint16_t code_size, uint16_t data_size, void *data_buf)
@@ -150,20 +161,6 @@ void dl_start()
     dl_is_running = 1;
 }
 
-void dl_close()
-{
-    if (dl_buffer == NULL) {
-        return;
-    }
-
-    *SP_STATUS = SP_WSTATUS_SET_HALT;
-
-    free(dl_buffer);
-    dl_buffer = NULL;
-    dl_buffer_uncached = NULL;
-    dl_is_running = 0;
-}
-
 uint32_t* dl_write_begin(uint32_t size)
 {
     assert((size % sizeof(uint32_t)) == 0);
@@ -179,6 +176,7 @@ uint32_t* dl_write_begin(uint32_t size)
 
     uint32_t write_start;
     bool wrap;
+    uint32_t safe_end;
 
     while (1) {
         uint32_t rp = DL_POINTERS->read.value;
@@ -189,7 +187,7 @@ uint32_t* dl_write_begin(uint32_t size)
             if (wp + size <= DL_DRAM_BUFFER_SIZE) {
                 wrap = false;
                 write_start = wp;
-                sentinel = DL_DRAM_BUFFER_SIZE - DL_MAX_COMMAND_SIZE;
+                safe_end = DL_DRAM_BUFFER_SIZE;
                 break;
 
             // Not enough space left -> we need to wrap around
@@ -197,7 +195,7 @@ uint32_t* dl_write_begin(uint32_t size)
             } else if (size < rp) {
                 wrap = true;
                 write_start = 0;
-                sentinel = rp - DL_MAX_COMMAND_SIZE;
+                safe_end = rp;
                 break;
             }
         
@@ -206,13 +204,15 @@ uint32_t* dl_write_begin(uint32_t size)
         } else if (size < rp - wp) {
             wrap = false;
             write_start = wp;
-            sentinel = rp - DL_MAX_COMMAND_SIZE;
+            safe_end = rp;
             break;
         }
 
         // Not enough space left anywhere -> buffer is full.
         // Repeat the checks until there is enough space.
     }
+
+    sentinel = safe_end >= DL_MAX_COMMAND_SIZE ? safe_end - DL_MAX_COMMAND_SIZE : 0;
 
     is_wrapping = wrap;
 
@@ -225,19 +225,21 @@ void dl_write_end()
 
     if (is_wrapping) {
         is_wrapping = false;
-        // We had to wrap around -> Store the wrap pointer
-        DL_POINTERS->wrap.value = wp;
+
+        // Pad the end of the buffer with zeroes
+        uint32_t *ptr = (uint32_t*)(dl_buffer_uncached + wp);
+        uint32_t size = DL_DRAM_BUFFER_SIZE - wp;
+        for (uint32_t i = 0; i < size; i++)
+        {
+            ptr[i] = 0;
+        }
+
         // Return the write pointer back to the start of the buffer
         wp = 0;
     }
 
     // Advance the write pointer
     wp += reserved_size;
-
-    // Ensure that the wrap pointer is never smaller than the write pointer
-    if (wp > DL_POINTERS->wrap.value) {
-        DL_POINTERS->wrap.value = wp;
-    }
 
     MEMORY_BARRIER();
 

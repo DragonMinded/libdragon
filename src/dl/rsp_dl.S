@@ -15,7 +15,6 @@ OVERLAY_DESCRIPTORS:   .ds.b (DL_OVERLAY_DESC_SIZE * DL_MAX_OVERLAY_COUNT)
 
 READ_POINTER:    .quad 0
 WRITE_POINTER:   .quad 0
-WRAP_POINTER:    .quad 0
 
 DL_DRAM_ADDR:     .long 0
 DL_POINTERS_ADDR: .long 0
@@ -45,21 +44,20 @@ _ovl_data_start:
 
 .globl _start
 _start:
-    move dl_dmem_buf_ptr, zero
-    li t1, SP_WSTATUS_RESET_INTR_ON_BREAK
     j loop
-    mtc0 t1, COP0_SP_STATUS
+    move dl_dmem_buf_ptr, zero
 
 command_signal:
     andi a0, 0xFFFC
+    j write_sp_status
     sll t0, a0, 9
-    j loop
-    mtc0 t0, COP0_SP_STATUS
 
 # Triggers an RSP interrupt
 command_interrupt:
-    li t1, SP_WSTATUS_SET_RSP_INTERRUPT
-    mtc0 t1, COP0_SP_STATUS
+    li t0, SP_WSTATUS_SET_RSP_INTERRUPT
+
+write_sp_status:
+    mtc0 t0, COP0_SP_STATUS
 
 # Does nothing
 command_noop:
@@ -73,11 +71,10 @@ loop:
 
     # Make sure there are at least 8 bytes left in the buffer
     jal request_input
-    li t0, 8
+    li t0, 4
 
-    # Read first two words
+    # Read first word
     lw a0, %lo(DL_DMEM_BUFFER) + 0x0 (dl_dmem_buf_ptr)
-    lw a1, %lo(DL_DMEM_BUFFER) + 0x4 (dl_dmem_buf_ptr)
 
     # Index into overlay table
     srl t0, a0, 28
@@ -151,13 +148,17 @@ execute_command:
     
     # Load more input if necessary, according to command size
     move t0, cmd_size
-    slti t1, cmd_size, 9
+    slti t1, cmd_size, 5
     beqz t1, request_input
     li ra, %lo(execute_command2)
 
 execute_command2:
     # Jump location (mask is technically not necessary, but do it anyway for easier debugging)
-    andi cmd_desc, 0xFFF
+    # andi cmd_desc, 0xFFF
+
+    # Load second command word (might be garbage, but will never be read in that case)
+    # This is done because the vast majority of commands will use two words or more.
+    lw a1, %lo(DL_DMEM_BUFFER) + 0x4 (dl_dmem_buf_ptr)
 
     # Jump to command
     jr cmd_desc
@@ -187,91 +188,73 @@ request_input:
 load_new_input:
     #define len       t4
     #define read_ptr  s3
-    #define write_ptr s5
-    #define wrap_ptr  s6
 
     move ra2, ra
 
+    # Mark processed data as read
+    # Note that we need to do this directly before loading new input, because we might not have processed
+    # all data that was loaded last time yet (Because we are branching to a different display list for example).
     lw read_ptr, %lo(READ_POINTER) + 0x4
-    lw write_ptr, %lo(WRITE_POINTER) + 0x4
-
-
-    # Don't need to update read_ptr if no input has been read
     lhu t0, %lo(DMEM_BUF_START)
     sub len, dl_dmem_buf_ptr, t0
-    beqz len, check_for_new_input
-    lw wrap_ptr, %lo(WRAP_POINTER) + 0x4
-
-    # If the following condition is true
-    #   write_ptr < read_ptr && len == wrap_ptr - read_ptr
-    # then the write pointer has wrapped around to the start and the length
-    # of the read input would take the read pointer exactly to the wrap pointer.
-    # In that case, we reset read_ptr back to zero.
-    # Otherwise, just advance read_ptr by len.
-    slt t0, write_ptr, read_ptr
-    sub t1, wrap_ptr, read_ptr
-    seq t1, len
-    and t0, t1
-    beqz t0, store_read_ptr
     add read_ptr, len
-    move read_ptr, zero
 
 store_read_ptr:
     # Communicate the updated read pointer to the CPU
-    sw read_ptr, %lo(READ_POINTER) + 0x4
     li s4, %lo(READ_POINTER)
+    sw read_ptr, %lo(READ_POINTER) + 0x4
     lw s0, %lo(DL_POINTERS_ADDR)
     jal DMAOutAsync
     li t0, DMA_SIZE(8, 1)
 
 check_for_new_input:
-    # Check if write pointer has been updated by the CPU
-    mfc0 t0, COP0_SP_STATUS
-    andi t0, SP_STATUS_SIG0
-    beqz t0, calc_valid_length
+    # Calculate remaining "safe" area
+    lw t0, %lo(WRITE_POINTER) + 0x4
+    ble read_ptr, t0, check_remaining_length
 
-    # Reset signal
-    # TODO: race condition?
-    li t1, SP_WSTATUS_RESET_SIG0
-    mtc0 t1, COP0_SP_STATUS
+    # 1) read pointer <= write pointer: len = write pointer - read pointer (read up to write pointer)
+    sub len, t0, read_ptr
 
-    # Load new values of write_ptr and wrap_ptr
-    li s4, %lo(WRITE_POINTER)
-    lw s0, %lo(DL_POINTERS_ADDR)
-    li t0, DMA_SIZE(16, 1) # Load write and wrap pointer
-    jal DMAIn
-    addiu s0, 8
-    lw write_ptr, %lo(WRITE_POINTER) + 0x4
-    lw wrap_ptr, %lo(WRAP_POINTER) + 0x4
-
-calc_valid_length:
-    # Calculate the length of contiguous data that can be read.
-    
-    # Check for one of two cases:
-    bge write_ptr, read_ptr, length_calculated
-
-    # 1) write_ptr >= read_ptr: we can read up to the write pointer
-    sub len, write_ptr, read_ptr
-
-    # 2) write_ptr < read_ptr:
-    bne wrap_ptr, read_ptr, length_calculated
-    # 2.a) wrap_ptr != read_ptr: We can read up to the wrap pointer
-    sub len, wrap_ptr, read_ptr
-
-    # 2.b) wrap_ptr == read_ptr: move the read pointer back to 0 and check again
-    move read_ptr, zero
-    j calc_valid_length
-    sw read_ptr, %lo(READ_POINTER) + 0x4
-
-length_calculated:
-    # Check if the buffer is empty (length == 0)
+    # 2) read pointer > write pointer: len = DL_DRAM_BUFFER_SIZE - read pointer (read up to end of buffer)
+    li t1, DL_DRAM_BUFFER_SIZE
+    sub len, t1, read_ptr
     bgtz len, buffer_not_empty
     nop
+    move read_ptr, zero
+    sw read_ptr, %lo(READ_POINTER) + 0x4
+    move len, t0
 
-    # If buffer is empty -> enter idle mode
-    # After being woken up, perform the check again
-    j check_for_new_input
+check_remaining_length:
+    bgtz len, buffer_not_empty
+
+wait_for_signal:
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    # Wait until the CPU updates the write pointer
+    mfc0 t0, COP0_SP_STATUS
+    andi t0, SP_STATUS_SIG0
+    bnez t0, write_pointer_updated
+    li t1, SP_WSTATUS_RESET_SIG0
+
+    # Enter idle mode
+    j wait_for_signal
     break
+
+write_pointer_updated:
+    # Reset signal
+    # TODO: race condition?
+    mtc0 t1, COP0_SP_STATUS
+
+    # Load new value of write pointer
+    li s4, %lo(WRITE_POINTER)
+    lw s0, %lo(DL_POINTERS_ADDR)
+    li t0, DMA_SIZE(8, 1)
+    addiu s0, 8
+    jal_and_j DMAIn, check_for_new_input
 
 buffer_not_empty:
     # length = max(length, DL_DMEM_BUFFER_SIZE)
@@ -291,16 +274,16 @@ dma_input:
     li t1, %lo(DL_DMEM_BUFFER)
     sub dl_dmem_buf_ptr, s4, t1
     # Remember the actual start of new data in the buffer,
-    # because due to possible non-alignment it might not be at index 0
+    # because due to possible non-alignment it might not be at 0
     sh dl_dmem_buf_ptr, %lo(DMEM_BUF_START)
+
+    # Remember the end of the new data
     add t0, dl_dmem_buf_ptr, len
     jr ra2
     sh t0, %lo(DMEM_BUF_END)
 
     #undef len
     #undef read_ptr
-    #undef write_ptr
-    #undef wrap_ptr
 .endfunc
 
 #include <rsp_dma.inc>

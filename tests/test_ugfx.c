@@ -63,8 +63,12 @@ void test_ugfx_dram_buffer(TestContext *ctx)
 
     dl_start();
 
-    void *framebuffer = memalign(64, 32 * 32 * 2);
+    const uint32_t fbsize = 32 * 32 * 2;
+    void *framebuffer = memalign(64, fbsize);
     DEFER(free(framebuffer));
+    memset(framebuffer, 0, fbsize);
+
+    data_cache_hit_writeback_invalidate(framebuffer, fbsize);
 
     rdp_set_other_modes(SOM_CYCLE_FILL);
     rdp_set_scissor(0, 0, 32 << 2, 32 << 2);
@@ -91,7 +95,7 @@ void test_ugfx_dram_buffer(TestContext *ctx)
 
     for (uint32_t i = 0; i < 32 * 32; i++)
     {
-        ASSERT_EQUAL_HEX(((uint16_t*)framebuffer)[i], 0xFFFF, "Framebuffer was not cleared properly!");
+        ASSERT_EQUAL_HEX(UncachedUShortAddr(framebuffer)[i], 0xFFFF, "Framebuffer was not cleared properly! Index: %lu", i);
     }
 }
 
@@ -109,15 +113,20 @@ void test_ugfx_fill_dmem_buffer(TestContext *ctx)
 
     dl_start();
 
-    void *framebuffer = memalign(64, 32 * 32 * 2);
+    const uint32_t fbsize = 32 * 32 * 2;
+    void *framebuffer = memalign(64, fbsize);
     DEFER(free(framebuffer));
+    memset(framebuffer, 0, fbsize);
+
+    data_cache_hit_writeback_invalidate(framebuffer, fbsize);
 
     rdp_set_other_modes(SOM_CYCLE_FILL);
     rdp_set_scissor(0, 0, 32 << 2, 32 << 2);
+    rdp_set_fill_color(0xFFFFFFFF);
 
     for (uint32_t i = 0; i < UGFX_RDP_DMEM_BUFFER_SIZE / 8; i++)
     {
-        rdp_set_fill_color(0xFFFFFFFF);
+        rdp_set_prim_color(0x0);
     }
 
     rdp_set_color_image((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, 32);
@@ -130,7 +139,7 @@ void test_ugfx_fill_dmem_buffer(TestContext *ctx)
     
     for (uint32_t i = 0; i < 32 * 32; i++)
     {
-        ASSERT_EQUAL_HEX(((uint16_t*)framebuffer)[i], 0xFFFF, "Framebuffer was not cleared properly!");
+        ASSERT_EQUAL_HEX(UncachedUShortAddr(framebuffer)[i], 0xFFFF, "Framebuffer was not cleared properly! Index: %lu", i);
     }
 }
 
@@ -148,15 +157,20 @@ void test_ugfx_fill_dram_buffer(TestContext *ctx)
 
     dl_start();
 
-    void *framebuffer = memalign(64, 32 * 32 * 2);
+    const uint32_t fbsize = 32 * 32 * 2;
+    void *framebuffer = memalign(64, fbsize);
     DEFER(free(framebuffer));
+    memset(framebuffer, 0, fbsize);
+
+    data_cache_hit_writeback_invalidate(framebuffer, fbsize);
 
     rdp_set_other_modes(SOM_CYCLE_FILL);
     rdp_set_scissor(0, 0, 32 << 2, 32 << 2);
+    rdp_set_fill_color(0xFFFFFFFF);
 
     for (uint32_t i = 0; i < UGFX_RDP_DRAM_BUFFER_SIZE / 8; i++)
     {
-        rdp_set_fill_color(0xFFFFFFFF);
+        rdp_set_prim_color(0x0);
     }
 
     rdp_set_color_image((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, 32);
@@ -169,6 +183,6 @@ void test_ugfx_fill_dram_buffer(TestContext *ctx)
     
     for (uint32_t i = 0; i < 32 * 32; i++)
     {
-        ASSERT_EQUAL_HEX(((uint16_t*)framebuffer)[i], 0xFFFF, "Framebuffer was not cleared properly!");
+        ASSERT_EQUAL_HEX(UncachedUShortAddr(framebuffer)[i], 0xFFFF, "Framebuffer was not cleared properly! Index: %lu", i);
     }
 }
