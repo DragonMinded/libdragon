@@ -343,7 +343,7 @@ Macros</h2></td></tr>
 <tr class="memdesc:gab48e93eec5c113af76e9592b5a3042f1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Write to the COP1 FCR31 register.  <a href="group__n64sys.html#gab48e93eec5c113af76e9592b5a3042f1">More...</a><br /></td></tr>
 <tr class="separator:gab48e93eec5c113af76e9592b5a3042f1"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gaf73acdf7fb3be35ff98322b7e827d349"><td class="memItemLeft" align="right" valign="top"><a id="gaf73acdf7fb3be35ff98322b7e827d349"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaf73acdf7fb3be35ff98322b7e827d349">CPU_FREQUENCY</a>&#160;&#160;&#160;93750000</td></tr>
+#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaf73acdf7fb3be35ff98322b7e827d349">CPU_FREQUENCY</a>&#160;&#160;&#160;(<a class="el" href="group__n64sys.html#gacd3b316e4428bf20c80fa403921feeb5">__bbplayer</a> ? 140625000 : 93750000)</td></tr>
 <tr class="memdesc:gaf73acdf7fb3be35ff98322b7e827d349"><td class="mdescLeft">&#160;</td><td class="mdescRight">Frequency of the MIPS R4300 CPU. <br /></td></tr>
 <tr class="separator:gaf73acdf7fb3be35ff98322b7e827d349"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga3f0580f61dc7654194a76aed5b60b362"><td class="memItemLeft" align="right" valign="top"><a id="ga3f0580f61dc7654194a76aed5b60b362"></a>
@@ -402,6 +402,10 @@ Enumerations</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="func-members"></a>
 Functions</h2></td></tr>
+<tr class="memitem:ga599033222ecb746e183c1d30d1df5bc4"><td class="memItemLeft" align="right" valign="top"><a id="ga599033222ecb746e183c1d30d1df5bc4"></a>
+bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga599033222ecb746e183c1d30d1df5bc4">sys_bbplayer</a> (void)</td></tr>
+<tr class="memdesc:ga599033222ecb746e183c1d30d1df5bc4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return true if we are running on a iQue player. <br /></td></tr>
+<tr class="separator:ga599033222ecb746e183c1d30d1df5bc4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gadf0a7fb10dd4580b87d1c88536bf1ff2"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gadf0a7fb10dd4580b87d1c88536bf1ff2">sys_get_boot_cic</a> ()</td></tr>
 <tr class="memdesc:gadf0a7fb10dd4580b87d1c88536bf1ff2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the boot CIC.  <a href="group__n64sys.html#gadf0a7fb10dd4580b87d1c88536bf1ff2">More...</a><br /></td></tr>
 <tr class="separator:gadf0a7fb10dd4580b87d1c88536bf1ff2"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -458,9 +462,17 @@ void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="grou
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="var-members"></a>
 Variables</h2></td></tr>
+<tr class="memitem:gacd3b316e4428bf20c80fa403921feeb5"><td class="memItemLeft" align="right" valign="top"><a id="gacd3b316e4428bf20c80fa403921feeb5"></a>
+int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gacd3b316e4428bf20c80fa403921feeb5">__bbplayer</a> = 0</td></tr>
+<tr class="memdesc:gacd3b316e4428bf20c80fa403921feeb5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Indicates whether we are running on a vanilla N64 or a iQue player. <br /></td></tr>
+<tr class="separator:gacd3b316e4428bf20c80fa403921feeb5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga7bde5bc5b3121ab6d4d1293f29a2718b"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga7bde5bc5b3121ab6d4d1293f29a2718b">__bootcic</a> = 6102</td></tr>
 <tr class="memdesc:ga7bde5bc5b3121ab6d4d1293f29a2718b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Boot CIC.  <a href="group__n64sys.html#ga7bde5bc5b3121ab6d4d1293f29a2718b">More...</a><br /></td></tr>
 <tr class="separator:ga7bde5bc5b3121ab6d4d1293f29a2718b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gacd3b316e4428bf20c80fa403921feeb5"><td class="memItemLeft" align="right" valign="top"><a id="gacd3b316e4428bf20c80fa403921feeb5"></a>
+int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gacd3b316e4428bf20c80fa403921feeb5">__bbplayer</a></td></tr>
+<tr class="memdesc:gacd3b316e4428bf20c80fa403921feeb5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Indicates whether we are running on a vanilla N64 or a iQue player. <br /></td></tr>
+<tr class="separator:gacd3b316e4428bf20c80fa403921feeb5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <p>N64 bootup and cache interfaces. </p>
@@ -1856,7 +1868,8 @@ Variables</h2></td></tr>
 
 <p>Is expansion pak in use. </p>
 <p>Checks whether the maximum available memory has been expanded to 8MB</p>
-<dl class="section return"><dt>Returns</dt><dd>true if expansion pak detected, false otherwise. </dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>true if expansion pak detected, false otherwise.</dd></dl>
+<dl class="section note"><dt>Note</dt><dd>On iQue, this function returns true only if the game has been assigned exactly 8MB of RAM. </dd></dl>
 
 </div>
 </div>
@@ -1980,7 +1993,7 @@ Variables</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue Nov 30 2021 14:19:10 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
+Generated on Tue Nov 30 2021 14:25:45 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
 </small></address>
 </body>
 </html>
