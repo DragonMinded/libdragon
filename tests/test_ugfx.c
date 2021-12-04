@@ -25,6 +25,7 @@ void wait_for_dp_interrupt(unsigned long timeout)
 
 void test_ugfx_rdp_interrupt(TestContext *ctx)
 {
+    dp_intr_raised = 0;
     register_DP_handler(dp_interrupt_handler);
     DEFER(unregister_DP_handler(dp_interrupt_handler));
     set_DP_interrupt(1);
@@ -45,6 +46,7 @@ void test_ugfx_rdp_interrupt(TestContext *ctx)
 
 void test_ugfx_dram_buffer(TestContext *ctx)
 {
+    dp_intr_raised = 0;
     register_DP_handler(dp_interrupt_handler);
     DEFER(unregister_DP_handler(dp_interrupt_handler));
     set_DP_interrupt(1);
@@ -55,11 +57,10 @@ void test_ugfx_dram_buffer(TestContext *ctx)
     ugfx_init();
     DEFER(ugfx_close());
 
-    extern ugfx_t *__ugfx;
-    ASSERT(__ugfx, "ugfx internal data not found!");
-    ASSERT(__ugfx->dram_buffer, "Internal DRAM buffer not found!");
+    extern void *__ugfx_dram_buffer;
+    ASSERT(__ugfx_dram_buffer, "ugfx internal DRAM buffer not found!");
 
-    data_cache_hit_writeback_invalidate(__ugfx->dram_buffer, UGFX_RDP_DRAM_BUFFER_SIZE);
+    data_cache_hit_writeback_invalidate(__ugfx_dram_buffer, UGFX_RDP_DRAM_BUFFER_SIZE);
 
     dl_start();
 
@@ -91,7 +92,7 @@ void test_ugfx_dram_buffer(TestContext *ctx)
         RdpSyncFull()
     };
 
-    ASSERT_EQUAL_MEM(__ugfx->dram_buffer, (uint8_t*)expected_data, sizeof(expected_data), "Unexpected data in DRAM buffer!");
+    ASSERT_EQUAL_MEM(UncachedAddr(__ugfx_dram_buffer), (uint8_t*)expected_data, sizeof(expected_data), "Unexpected data in DRAM buffer!");
 
     for (uint32_t i = 0; i < 32 * 32; i++)
     {
@@ -101,6 +102,7 @@ void test_ugfx_dram_buffer(TestContext *ctx)
 
 void test_ugfx_fill_dmem_buffer(TestContext *ctx)
 {
+    dp_intr_raised = 0;
     register_DP_handler(dp_interrupt_handler);
     DEFER(unregister_DP_handler(dp_interrupt_handler));
     set_DP_interrupt(1);
@@ -145,6 +147,7 @@ void test_ugfx_fill_dmem_buffer(TestContext *ctx)
 
 void test_ugfx_fill_dram_buffer(TestContext *ctx)
 {
+    dp_intr_raised = 0;
     register_DP_handler(dp_interrupt_handler);
     DEFER(unregister_DP_handler(dp_interrupt_handler));
     set_DP_interrupt(1);

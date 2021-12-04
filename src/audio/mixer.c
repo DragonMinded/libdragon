@@ -28,6 +28,13 @@
 #define MAX_EVENTS              32
 #define MIXER_POLL_PER_SECOND   8
 
+/**
+ * RSP mixer ucode (rsp_mixer.S)
+ */
+DEFINE_RSP_UCODE(rsp_mixer);
+
+#define MIXER_STATE_SIZE 128
+
 // NOTE: keep these in sync with rsp_mixer.S
 #define CH_FLAGS_BPS_SHIFT  (3<<0)   // BPS shift value
 #define CH_FLAGS_16BIT      (1<<2)   // Set if the channel is 16 bit
@@ -117,9 +124,6 @@ struct {
 
 	rsp_mixer_settings_t ucode_settings __attribute__((aligned(8)));
 
-	// Permanent state of the ucode across different executions
-	uint8_t ucode_state[128] __attribute__((aligned(8)));
-
 } Mixer;
 
 /** @brief Count of ticks spent in mixer RSP, used for debugging purposes. */
@@ -140,7 +144,11 @@ void mixer_init(int num_channels) {
 		mixer_ch_set_limits(ch, 16, Mixer.sample_rate, 0);
 	}
 
-	uint8_t ovl_id = DL_OVERLAY_ADD(rsp_mixer, &Mixer.ucode_state);
+	void *mixer_state = dl_overlay_get_state(&rsp_mixer);
+	memset(mixer_state, 0, MIXER_STATE_SIZE);
+	data_cache_hit_writeback(mixer_state, MIXER_STATE_SIZE);
+
+	uint8_t ovl_id = dl_overlay_add(&rsp_mixer);
     dl_overlay_register_id(ovl_id, 1);
 }
 

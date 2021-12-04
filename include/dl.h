@@ -2,24 +2,14 @@
 #define __LIBDRAGON_DL_H
 
 #include <stdint.h>
+#include <rsp.h>
 
 #define DL_MAKE_COMMAND(ovl, cmd) ((((ovl) & 0xF) << 4) | ((cmd) & 0xF))
 
-#define DL_OVERLAY_ADD(ovl_name, data_buf) ({ \
-    extern uint8_t ovl_name ## _text_start[]; \
-    extern uint8_t ovl_name ## _data_start[]; \
-    extern uint8_t ovl_name ## _text_end[0]; \
-    extern uint8_t ovl_name ## _data_end[0]; \
-    dl_overlay_add( \
-        ovl_name ## _text_start, \
-        ovl_name ## _data_start, \
-        (uint16_t)(ovl_name ## _text_end - ovl_name ## _text_start), \
-        (uint16_t)(ovl_name ## _data_end - ovl_name ## _data_start), \
-        data_buf); }) \
-
 void dl_init();
 
-uint8_t dl_overlay_add(void* code, void *data, uint16_t code_size, uint16_t data_size, void *data_buf);
+void* dl_overlay_get_state(rsp_ucode_t *overlay_ucode);
+uint8_t dl_overlay_add(rsp_ucode_t *overlay_ucode);
 void dl_overlay_register_id(uint8_t overlay_index, uint8_t id);
 
 void dl_start();

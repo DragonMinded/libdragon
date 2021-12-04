@@ -11,10 +11,6 @@ commandTableEntry command_test, 8
 commandTableEntry command_test, 16
 commandTableEntry command_wait, 8
 
-.section .bss.overlay
-.globl _ovl_bss_start
-_ovl_bss_start:
-
 .align 3
 OVL_TEST_SAVED_DATA_START:
 TEST_VARIABLE: .long 0

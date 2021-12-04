@@ -1,40 +1,43 @@
 #include <libdragon.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "ugfx_internal.h"
 
-ugfx_t *__ugfx;
+DEFINE_RSP_UCODE(rsp_ugfx);
+
+void *__ugfx_dram_buffer;
 
 void ugfx_init()
 {
-    if (__ugfx != NULL) {
+    if (__ugfx_dram_buffer != NULL) {
         return;
     }
 
-    __ugfx = malloc(sizeof(ugfx_t));
-    __ugfx->other_modes = 0;
-    __ugfx->dram_buffer = malloc(UGFX_RDP_DRAM_BUFFER_SIZE);
-    __ugfx->dram_buffer_size = UGFX_RDP_DRAM_BUFFER_SIZE;
-    __ugfx->dram_buffer_end = 0;
-    __ugfx->dmem_buffer_ptr = 0;
-    __ugfx->rdp_initialised = 0;
+    __ugfx_dram_buffer = malloc(UGFX_RDP_DRAM_BUFFER_SIZE);
 
-    data_cache_hit_writeback(__ugfx, sizeof(ugfx_t));
+    ugfx_state_t *ugfx_state = dl_overlay_get_state(&rsp_ugfx);
 
-    uint8_t ovl_index = DL_OVERLAY_ADD(rsp_ugfx, __ugfx);
+    memset(ugfx_state, 0, sizeof(ugfx_state_t));
+
+    ugfx_state->dram_buffer = PhysicalAddr(__ugfx_dram_buffer);
+    ugfx_state->dram_buffer_size = UGFX_RDP_DRAM_BUFFER_SIZE;
+
+    data_cache_hit_writeback(ugfx_state, sizeof(ugfx_state_t));
+
+    uint8_t ovl_index = dl_overlay_add(&rsp_ugfx);
     dl_overlay_register_id(ovl_index, 2);
     dl_overlay_register_id(ovl_index, 3);
 }
 
 void ugfx_close()
 {
-    if (__ugfx == NULL) {
+    if (__ugfx_dram_buffer == NULL) {
         return;
     }
 
-    free(__ugfx->dram_buffer);
-    free(__ugfx);
-    __ugfx = NULL;
+    free(__ugfx_dram_buffer);
+    __ugfx_dram_buffer = NULL;
 }
 
 void rdp_texture_rectangle(uint8_t tile, int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t s, int16_t t, int16_t ds, int16_t dt)

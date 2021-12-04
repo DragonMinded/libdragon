@@ -170,7 +170,7 @@
 
 	.section .data.overlay
 
-	overlayHeader OVL_MIXER_SAVED_DATA_START, OVL_MIXER_SAVED_DATA_END, 0x10
+	overlayHeader MIXER_STATE_START, MIXER_STATE_END, 0x10
 
 	.align 1
 COMMAND_TABLE:
@@ -195,6 +195,16 @@ VCONST_1:
 	.align 4
 BANNER0:    .ascii "Dragon RSP Audio"
 BANNER1:    .ascii " Coded by Rasky "
+
+	# Current volume state for each channel. This might differ from CHANNEL_VOLUMES
+	# when the volume filter is turned on: this is the actual current value that
+	# is being interpolated to CHANNEL_VOLUMES, which is the requested target
+	# volume to reach.
+	.align 4
+MIXER_STATE_START:
+XVOL_L:                   .dcb.w MAX_CHANNELS
+XVOL_R:                   .dcb.w MAX_CHANNELS
+MIXER_STATE_END:
 
 	.section .bss.overlay
 
@@ -232,16 +242,6 @@ CHANNEL_VOLUMES_R:        .dcb.w MAX_CHANNELS
 	.align 4
 WAVEFORM_SETTINGS:        .dcb.l (6*MAX_CHANNELS)
 SETTINGS_END:
-
-	# Current volume state for each channel. This might differ from CHANNEL_VOLUMES
-	# when the volume filter is turned on: this is the actual current value that
-	# is being interpolated to CHANNEL_VOLUMES, which is the requested target
-	# volume to reach.
-	.align 4
-OVL_MIXER_SAVED_DATA_START:
-XVOL_L:                   .dcb.w MAX_CHANNELS
-XVOL_R:                   .dcb.w MAX_CHANNELS
-OVL_MIXER_SAVED_DATA_END:
 
 	# Temporary cache of samples fetched by DMA. Notice that this must be
 	# less or equal than MIXER_LOOP_OVERREAD (mixer.c), because the

@@ -1,15 +1,19 @@
 #include <malloc.h>
 #include <string.h>
 
+#include <dl.h>
 #include <ugfx.h>
 
 #include "../src/dl/dl_internal.h"
 
-static uint32_t test_ovl_data[2];
+DEFINE_RSP_UCODE(rsp_test);
 
 void test_ovl_init()
 {
-    uint8_t ovl_index = DL_OVERLAY_ADD(rsp_test, test_ovl_data);
+    void *test_ovl_state = dl_overlay_get_state(&rsp_test);
+    memset(test_ovl_state, 0, sizeof(uint32_t) * 2);
+
+    uint8_t ovl_index = dl_overlay_add(&rsp_test);
     dl_overlay_register_id(ovl_index, 0xF);
 }
 

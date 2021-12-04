@@ -1,4 +1,3 @@
-
 #ifndef RSP_DL_INC
 #define RSP_DL_INC
 
@@ -33,10 +32,10 @@
     .short (\function - _start) | ((\size) & 0x3C) << 10
 .endm
 
-.macro overlayHeader savedDataStart, savedDataEnd, cmdBase
+.macro overlayHeader stateStart, stateEnd, cmdBase
     OVERLAY_HEADER:
-    .long \savedDataStart
-    .short (\savedDataEnd - \savedDataStart) - 1
+    .long \stateStart
+    .short (\stateEnd - \stateStart) - 1
     .short (\cmdBase << 1)
 .endm
 

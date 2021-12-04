@@ -8,7 +8,7 @@
 
 #include <stdint.h>
 
-typedef struct ugfx_t {
+typedef struct ugfx_state_t {
     uint8_t rdp_buffer[UGFX_RDP_DMEM_BUFFER_SIZE];
     uint64_t other_modes;
     void *dram_buffer;
@@ -16,7 +16,7 @@ typedef struct ugfx_t {
     uint32_t dram_buffer_end;
     uint16_t dmem_buffer_ptr;
     uint16_t rdp_initialised;
-} ugfx_t;
+} ugfx_state_t;
 
 #endif
 

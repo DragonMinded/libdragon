@@ -3,7 +3,7 @@
 
 .section .data.overlay
 
-overlayHeader OVL_UGFX_SAVED_DATA_START, OVL_UGFX_SAVED_DATA_END, 0x20
+overlayHeader UGFX_STATE_START, UGFX_STATE_END, 0x20
 
 .align 1
 COMMAND_TABLE:
@@ -40,13 +40,8 @@ commandTableEntry command_rdp_passthrough_8, 8   # SET_TEXTURE_IMAGE
 commandTableEntry command_rdp_passthrough_8, 8   # SET_Z_IMAGE
 commandTableEntry command_rdp_passthrough_8, 8   # SET_COLOR_IMAGE
 
-
-.section .bss.overlay
-.globl _ovl_bss_start
-_ovl_bss_start:
-
 .align 3
-OVL_UGFX_SAVED_DATA_START:
+UGFX_STATE_START:
 RDP_DMEM_BUFFER:      .ds.b UGFX_RDP_DMEM_BUFFER_SIZE
 
 RDP_OTHER_MODES:       .quad  0
@@ -57,7 +52,9 @@ RDP_DRAM_BUFFER_END:   .long  0
 RDP_DMEM_BUFFER_PTR:   .short 0
 RDP_INITIALIZED:       .short 0
 
-OVL_UGFX_SAVED_DATA_END:
+UGFX_STATE_END:
+
+.section .bss.overlay
 
 .text 1
 
@@ -67,14 +64,14 @@ command_set_other_modes:
     
 command_rdp_passthrough_8:
     jal rdp_write_begin
-    li t0, 8
+    li t3, 8
     sw a0, %lo(RDP_DMEM_BUFFER) + 0x0(s1)
     sw a1, %lo(RDP_DMEM_BUFFER) + 0x4(s1)
     jal_and_j rdp_write_end, loop
 
 command_rdp_passthrough_16:
     jal rdp_write_begin
-    li t0, 16
+    li t3, 16
     lw a2, CMD_ADDR(0x8, 0x10)
     lw a3, CMD_ADDR(0xC, 0x10)
     sw a0, %lo(RDP_DMEM_BUFFER) + 0x0(s1)
@@ -86,7 +83,7 @@ command_rdp_passthrough_16:
 command_sync_full:
     # This is the same as command_rdp_passthrough_8, but duplicating it seems easier for now
     jal rdp_write_begin
-    li t0, 8
+    li t3, 8
     sw a0, %lo(RDP_DMEM_BUFFER) + 0x0(s1)
     jal rdp_write_end
     sw a1, %lo(RDP_DMEM_BUFFER) + 0x4(s1)
@@ -99,7 +96,7 @@ command_sync_full:
     sh zero, %lo(RDP_INITIALIZED)
 
 # INPUT:
-#   t0: Data size
+#   t3: Data size
 # OUTPUT:
 #   s1: Output pointer
 rdp_write_begin:
@@ -107,7 +104,7 @@ rdp_write_begin:
     lhu s1, %lo(RDP_DMEM_BUFFER_PTR)
 
     # If the requested size fits in the buffer, just return the current pointer
-    add s2, s1, t0
+    add s2, s1, t3
     addi s2, -UGFX_RDP_DMEM_BUFFER_SIZE
     blez s2, JrRa
     move t1, zero
@@ -117,33 +114,35 @@ rdp_write_begin:
     move s1, zero
 
 # INPUT:
-#   t0: Data size
+#   t3: Data size
 rdp_write_end:
     # Advance dmem buffer pointer
     lhu s2, %lo(RDP_DMEM_BUFFER_PTR)
-    add s2, t0
+    add s2, t3
     jr ra
     sh s2, %lo(RDP_DMEM_BUFFER_PTR)
 
 rdp_flush:
     #define dram_size t4
-    #define dram_addr t5
     #define init      t6
-    #define dram_end  s5
+    #define dmem_ptr  t7
+    #define dram_addr s5
+    #define dram_end  s6
 
-    lhu t0, %lo(RDP_DMEM_BUFFER_PTR)
-    blez t0, JrRa
+    lhu dmem_ptr, %lo(RDP_DMEM_BUFFER_PTR)
+    blez dmem_ptr, JrRa
 
-    lhu init,      %lo(RDP_INITIALIZED)
-    lw dram_end,  %lo(RDP_DRAM_BUFFER_END)
+    lhu init,     %lo(RDP_INITIALIZED)
+    lw dram_addr, %lo(RDP_DRAM_BUFFER)
     lw dram_size, %lo(RDP_DRAM_BUFFER_SIZE)
+    lw dram_end,  %lo(RDP_DRAM_BUFFER_END)
     
     # If RDP is not initialized, always do init
     beqz init, rdp_flush_init_rdp
     move ra2, ra
 
     # Otherwise, we only need to wrap around if dram buffer would overflow
-    add t1, dram_end, t0
+    add t1, dram_end, dmem_ptr
     ble t1, dram_size, rdp_flush_dma
 
 rdp_flush_init_rdp:
@@ -155,8 +154,6 @@ rdp_flush_wait_rdp_idle:
     bnez t1, rdp_flush_wait_rdp_idle
     mfc0 t2, COP0_DP_STATUS
 
-    lw dram_addr, %lo(RDP_DRAM_BUFFER)
-
     # Clear XBUS/Flush/Freeze
     li t1, DP_WSTATUS_RESET_FLUSH | DP_WSTATUS_RESET_FREEZE | DP_WSTATUS_RESET_XBUS_DMEM_DMA
     mtc0 t1, COP0_DP_STATUS
@@ -165,19 +162,22 @@ rdp_flush_wait_rdp_idle:
 
     # Reset dram pointer
     move dram_end, zero
+    li t1, 1
+    sh t1, %lo(RDP_INITIALIZED)
 
 rdp_flush_dma:
     # DMA contents of dmem buffer to dram buffer
     add s0, dram_end, dram_addr
-    jal DMAOut # TODO: async?
     li s4, %lo(RDP_DMEM_BUFFER)
+    jal DMAOut # TODO: async?
+    addi t0, dmem_ptr, -1
 
     # Set new end of RDP command buffer
-    add s0, t0
+    add s0, dmem_ptr
     mtc0 s0, COP0_DP_END
 
     # Advance dram pointer and save it
-    add dram_end, t0
+    add dram_end, dmem_ptr
     sw dram_end, %lo(RDP_DRAM_BUFFER_END)
 
     jr ra2

@@ -35,9 +35,8 @@ commandTableEntry command_signal,    4
 # Reserve some extra space of 8 bytes to make sure that DMAs can always load the expected amount of data even if the DRAM address is unaligned
 DL_DMEM_BUFFER:    .ds.b DL_DMEM_BUFFER_SIZE + 8
 
-.align 4
+.align 3
 # Overlay data will be loaded at this address
-.globl _ovl_data_start
 _ovl_data_start:
 
 .text
@@ -67,11 +66,11 @@ loop:
     #define ovl_index t4
     #define cmd_index t5
     #define cmd_desc  t6
-    #define cmd_size  s2
+    #define cmd_size  t7
 
-    # Make sure there are at least 8 bytes left in the buffer
+    # Make sure there are at least 4 bytes left in the buffer
     jal request_input
-    li t0, 4
+    li t7, 4
 
     # Read first word
     lw a0, %lo(DL_DMEM_BUFFER) + 0x0 (dl_dmem_buf_ptr)
@@ -79,9 +78,15 @@ loop:
     # Index into overlay table
     srl t0, a0, 28
 
-    # Overlay 0 is reserved for internal commands
-    beqz t0, is_default_overlay
+    # Index into command table
     srl cmd_index, a0, 23
+    andi cmd_index, 0x1FE
+
+    # Overlay 0 is reserved for internal commands
+    beqz t0, execute_command
+    # Load command descriptor from internal command table if using the default overlay.
+    # Otherwise, cmd_desc will be overwritten further down
+    lhu cmd_desc, %lo(INTERNAL_COMMAND_TABLE)(cmd_index)
 
     lh t1, %lo(CURRENT_OVL)
 
@@ -91,28 +96,16 @@ loop:
     beq ovl_index, t1, overlay_loaded
     lhu t0, %lo(_ovl_data_start) + 0x4
 
-    # Skip saving overlay data if none is loaded (CURRENT_OVL < 0)
-    bltz t1, load_overlay
+    # Save current overlay state
+    lw s0, %lo(OVERLAY_DESCRIPTORS) + 0x8 (t1)
+    jal DMAOutAsync
     lw s4, %lo(_ovl_data_start) + 0x0
 
-    # Save current overlay data
-    # TODO: skip if size is 0
-    jal DMAOut
-    lw s0, %lo(OVERLAY_DESCRIPTORS) + 0x8 (t1)
-
-load_overlay:
-    # Load overlay data
+    # Load overlay data (saved state is included)
     lhu t0, %lo(OVERLAY_DESCRIPTORS) + 0xE (ovl_index)
     lw s0, %lo(OVERLAY_DESCRIPTORS) + 0x4 (ovl_index)
-    jal DMAIn
-    li s4, %lo(_ovl_data_start)
-
-    # Load saved overlay data 
-    # TODO: skip if size is 0
-    lhu t0, %lo(_ovl_data_start) + 0x4
-    lw s0, %lo(OVERLAY_DESCRIPTORS) + 0x8 (ovl_index)
     jal DMAInAsync
-    lw s4, %lo(_ovl_data_start) + 0x0
+    li s4, %lo(_ovl_data_start)
 
     # Load overlay code
     lhu t0, %lo(OVERLAY_DESCRIPTORS) + 0xC (ovl_index)
@@ -124,40 +117,25 @@ load_overlay:
     sh ovl_index, %lo(CURRENT_OVL)
 
 overlay_loaded:
-    # Load the command base
-    lhu t0, %lo(_ovl_data_start) + 0x6
-
-    # Mask command index
-    andi cmd_index, 0x1FE
-
     # Subtract the command base to determine the final offset into the command table.
+    lhu t0, %lo(_ovl_data_start) + 0x6
     sub cmd_index, t0
-    j execute_command
+
     # Load command descriptor from overlay command table
     lhu cmd_desc, %lo(_ovl_data_start) + OVERLAY_HEADER_SIZE(cmd_index)
-
-is_default_overlay:
-    andi cmd_index, 0x1E
-    # Load command descriptor from internal command table if using the default overlay
-    lhu cmd_desc, %lo(INTERNAL_COMMAND_TABLE)(cmd_index)
 
 execute_command:
     # Command size
     srl cmd_size, cmd_desc, 10
-    andi cmd_size, 0x3C
     
     # Load more input if necessary, according to command size
-    move t0, cmd_size
-    slti t1, cmd_size, 5
-    beqz t1, request_input
-    li ra, %lo(execute_command2)
-
-execute_command2:
-    # Jump location (mask is technically not necessary, but do it anyway for easier debugging)
-    # andi cmd_desc, 0xFFF
+    # TODO: is it possible to only call this once per loop?
+    jal request_input
+    andi cmd_size, 0x3C
 
     # Load second command word (might be garbage, but will never be read in that case)
     # This is done because the vast majority of commands will use two words or more.
+    # TODO: maybe get rid of this and let overlays load it themselves?
     lw a1, %lo(DL_DMEM_BUFFER) + 0x4 (dl_dmem_buf_ptr)
 
     # Jump to command
@@ -173,12 +151,12 @@ execute_command2:
 
 # Same as load_new_input, but only if there is less input left than requested
 # INPUT:
-#   t0: requested length
+#   t7: requested length
 .func request_input
 request_input:
     lhu t2, %lo(DMEM_BUF_END)
     sub t1, t2, dl_dmem_buf_ptr
-    bge t1, t0, JrRa
+    bge t1, t7, JrRa
 .endfunc
 
 # This function will do two things:
@@ -228,12 +206,6 @@ check_remaining_length:
     bgtz len, buffer_not_empty
 
 wait_for_signal:
-    nop
-    nop
-    nop
-    nop
-    nop
-    nop
     # Wait until the CPU updates the write pointer
     mfc0 t0, COP0_SP_STATUS
     andi t0, SP_STATUS_SIG0
@@ -290,5 +262,4 @@ dma_input:
 
 .align 3
 # Overlay code will be loaded at this address
-.globl _ovl_text_start
 _ovl_text_start:

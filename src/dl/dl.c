@@ -4,6 +4,7 @@
 #include <string.h>
 #include <libdragon.h>
 #include "dl_internal.h"
+#include "utils.h"
 
 #define DL_OVERLAY_DEFAULT 0x0
 
@@ -20,6 +21,12 @@ typedef struct dl_overlay_t {
     uint16_t code_size;
     uint16_t data_size;
 } dl_overlay_t;
+
+typedef struct dl_overlay_header_t {
+    uint32_t state_start;
+    uint16_t state_size;
+    uint16_t command_base;
+} dl_overlay_header_t;
 
 typedef struct rsp_dl_s {
     uint8_t overlay_table[DL_OVERLAY_TABLE_SIZE];
@@ -59,6 +66,14 @@ static uint32_t sentinel;
 static uint32_t reserved_size;
 static bool is_wrapping;
 
+static uint64_t dummy_overlay_state;
+
+static uint32_t get_ovl_data_offset()
+{
+    uint32_t dl_data_size = rsp_dl.data_end - (void*)rsp_dl.data;
+    return ROUND_UP(dl_data_size, 8) + DL_DMEM_BUFFER_SIZE + 8;
+}
+
 void dl_init()
 {
     if (dl_buffer != NULL) {
@@ -76,11 +91,13 @@ void dl_init()
 
     dl_data.dl_dram_addr = PhysicalAddr(dl_buffer);
     dl_data.dl_pointers_addr = PhysicalAddr(&dl_pointers);
-    dl_data.current_ovl = -1;
-    
-    dl_overlay_count = 0;
 
     sentinel = DL_DRAM_BUFFER_SIZE - DL_MAX_COMMAND_SIZE;
+
+    dl_data.overlay_descriptors[0].data_buf = PhysicalAddr(&dummy_overlay_state);
+    dl_data.overlay_descriptors[0].data_size = sizeof(uint64_t);
+    
+    dl_overlay_count = 1;
 }
 
 void dl_close()
@@ -97,14 +114,19 @@ void dl_close()
     dl_is_running = 0;
 }
 
-uint8_t dl_overlay_add(void* code, void *data, uint16_t code_size, uint16_t data_size, void *data_buf)
+void* dl_overlay_get_state(rsp_ucode_t *overlay_ucode)
+{
+    dl_overlay_header_t *overlay_header = (dl_overlay_header_t*)overlay_ucode->data;
+    return overlay_ucode->data + (overlay_header->state_start & 0xFFF) - get_ovl_data_offset();
+}
+
+uint8_t dl_overlay_add(rsp_ucode_t *overlay_ucode)
 {
     assertf(dl_buffer != NULL, "dl_overlay_add must be called after dl_init!");
     
     assertf(dl_overlay_count < DL_MAX_OVERLAY_COUNT, "Only up to %d overlays are supported!", DL_MAX_OVERLAY_COUNT);
 
-    assert(code);
-    assert(data);
+    assert(overlay_ucode);
 
     dl_overlay_t *overlay = &dl_data.overlay_descriptors[dl_overlay_count];
 
@@ -112,11 +134,11 @@ uint8_t dl_overlay_add(void* code, void *data, uint16_t code_size, uint16_t data
     // TODO: Do this some other way.
     uint32_t dl_ucode_size = rsp_dl_text_end - rsp_dl_text_start;
 
-    overlay->code = PhysicalAddr(code + dl_ucode_size);
-    overlay->data = PhysicalAddr(data);
-    overlay->data_buf = PhysicalAddr(data_buf);
-    overlay->code_size = code_size - dl_ucode_size - 1;
-    overlay->data_size = data_size - 1;
+    overlay->code = PhysicalAddr(overlay_ucode->code + dl_ucode_size);
+    overlay->data = PhysicalAddr(overlay_ucode->data);
+    overlay->data_buf = PhysicalAddr(dl_overlay_get_state(overlay_ucode));
+    overlay->code_size = ((uint8_t*)overlay_ucode->code_end - overlay_ucode->code) - dl_ucode_size - 1;
+    overlay->data_size = ((uint8_t*)overlay_ucode->data_end - overlay_ucode->data) - 1;
 
     return dl_overlay_count++;
 }
@@ -145,6 +167,14 @@ void dl_start()
     // Load data with initialized overlays into DMEM
     data_cache_hit_writeback(&dl_data, sizeof(dl_data));
     rsp_load_data(PhysicalAddr(&dl_data), sizeof(dl_data), 0);
+
+    static const dl_overlay_header_t dummy_header = (dl_overlay_header_t){
+        .state_start = 0,
+        .state_size = 7,
+        .command_base = 0
+    };
+
+    rsp_load_data(PhysicalAddr(&dummy_header), sizeof(dummy_header), get_ovl_data_offset());
 
     *SP_STATUS = SP_WSTATUS_CLEAR_SIG0 | 
                  SP_WSTATUS_CLEAR_SIG1 | 
