@@ -1,7 +1,7 @@
 /**
  * @file eepromfs.h
  * @brief EEPROM Filesystem
- * @ingroup eepfs
+ * @ingroup eeprom
  */
 #ifndef __LIBDRAGON_EEPROMFS_H
 #define __LIBDRAGON_EEPROMFS_H
