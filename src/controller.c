@@ -6,6 +6,7 @@
 
 #include <string.h>
 #include "libdragon.h"
+#include "joybusinternal.h"
 
 /**
  * @defgroup controller Controller Subsystem
@@ -19,21 +20,25 @@
  * and the Voice-Recognition Unit.
  *
  * Code wishing to communicate with a controller or an accessory should first call
- * #controller_init.  Once the controller subsystem has been initialized, code can
- * either scan the controller interface for changes or perform direct reads from
- * the controller interface.  Controllers can be enumerated with 
+ * #controller_init. The controller subsystem performs an automatic background
+ * scanning of all controllers, in an efficient way, saving the current status
+ * in a local cache. Alternatively, it is possible to execute direct, blocking
+ * controller I/O reads, though they might be quite slow.
+ * 
+ * To read the controller status from this cache, call #controller_scan once per
+ * frame (or whenever you want to perform the reading), and then call #get_keys_down,
+ * #get_keys_up, #get_keys_held and #get_keys_pressed, that will return the
+ * status of all keys relative to the previous inspection. #get_dpad_direction will
+ * return a number signifying the polar direction that the D-Pad is being
+ * pressed in.
+ *
+ * To perform direct reads to the controllers, call #controller_read.  This will
+ * return a structure consisting of all button states on all controllers currently
+ * inserted. Note that this function takes about 10% of a frame's worth of time.
+ *
+ * Controllers can be enumerated with 
  * #get_controllers_present.  Similarly, accessories can be enumerated with
  * #get_accessories_present and #identify_accessory.
- *
- * To read controllers in a managed fashion, call #controller_scan at the beginning
- * of each frame.  From there, #get_keys_down, #get_keys_up, #get_keys_held and
- * #get_keys_pressed will return the status of all keys relative to the last scan.
- * #get_dpad_direction will return a number signifying the polar direction that the
- * D-Pad is being pressed in.
- *
- * To read controllers in a non-managed fashion, call #controller_read.  This will
- * return a structure consisting of all button states on all controllers currently
- * inserted.
  *
  * To enable or disable rumbling on a controller, use #rumble_start and #rumble_stop.
  * These functions will turn rumble on and off at full speed respectively, so if
@@ -52,29 +57,68 @@
  * @{
  */
 
-/** @brief The current sampled controller data */
+/** @brief The sampled controller data just read by autoscan */
+static volatile struct controller_data next;
+/** @brief The current sampled controller data accessible via get_keys_* functions */
 static struct controller_data current;
 /** @brief The previously sampled controller data */
-static struct controller_data last;
+static struct controller_data prev;
+/** @brief True if there is a pending controller autoscan */
+static volatile bool controller_autoscan_in_progress = false;
+
+static void controller_interrupt_update(uint64_t *output)
+{
+    memcpy((void*)&next, output, sizeof(struct controller_data));
+    controller_autoscan_in_progress = false;
+}
+
+static void controller_interrupt(void) 
+{
+    static const unsigned long long SI_read_con_block[8] =
+    {
+        0xff010401ffffffff,
+        0xff010401ffffffff,
+        0xff010401ffffffff,
+        0xff010401ffffffff,
+        0xfe00000000000000,
+        0,
+        0,
+        1
+    };
+    
+    if (!controller_autoscan_in_progress) {    
+        controller_autoscan_in_progress = true;
+        joybus_exec_async(SI_read_con_block, controller_interrupt_update);
+    }
+}
 
 /** 
- * @brief Initialize the controller subsystem 
+ * @brief Initialize the controller subsystem.
+ * 
+ * After initialization, the controllers will be scanned automatically in
+ * background one time per frame. You can access the last scanned status
+ * using #get_keys_down, #get_keys_up, #get_keys_held #get_keys_pressed,
+ * and #get_dpad_direction.
  */
 void controller_init( void )
 {
-    memset(&current, 0, sizeof(current));
-    memset(&last, 0, sizeof(last));
+    memset(&prev, 0, sizeof(struct controller_data));
+    memset(&current, 0, sizeof(struct controller_data));
+    memset((void*)&next, 0, sizeof(struct controller_data));
+    register_VI_handler(controller_interrupt);
 }
 
 /**
  * @brief Read the controller button status for all controllers
  *
- * Read the controller button status immediately and return results to data.  If
- * calling this function, one should not also call #controller_scan as this
- * does not update the internal state of controllers.
+ * Read the controller button status immediately and return results to data.
+ * 
+ * @note This function is slow: it blocks for about 10% of a frame time. To avoid
+ *       this hit, use the managed functions (#get_keys_down, etc.).
  *
  * @param[out] output
  *             Structure to place the returned controller button status
+ *             
  */
 void controller_read( struct controller_data * output )
 {
@@ -175,21 +219,24 @@ void controller_read_gc_origin( struct controller_origin_data * outdata )
 }
 
 /**
- * @brief Scan the controllers to determine the current button state
- *
- * Scan the four controller ports and calculate the buttons state.  This
- * must be called before calling #get_keys_down, #get_keys_up,
- * #get_keys_held, #get_keys_pressed or #get_dpad_direction. Only N64
- * controllers supported.
+ * @brief Fetch the current controller state.
+ * 
+ * This function must be called once per frame, or any time we want to update
+ * the state of the controllers. After calling this function, you can use
+ * #get_keys_down, #get_keys_up, #get_keys_held, #get_keys_pressed and
+ * #get_dpad_direction to inspect the controller state.
+ * 
+ * This function is very fast. In fact, controllers are read in background
+ * asynchronously under interrupt, so this function just synchronizes the
+ * internal state.
  */
 void controller_scan( void )
 {
-    /* Remember last */
-    memcpy( &last, &current, sizeof(current) );
+    prev = current;
 
-    /* Grab current */
-    memset( &current, 0, sizeof(current) );
-    controller_read( &current );
+    disable_interrupts();
+    memcpy(&current, (void*)&next, sizeof(struct controller_data));
+    enable_interrupts();
 }
 
 /**
@@ -197,21 +244,18 @@ void controller_scan( void )
  *
  * Return keys pressed since last detection. This returns a standard
  * #SI_controllers_state_t struct identical to #controller_read. However, buttons
- * are only set if they were pressed down since the last #controller_scan.
+ * are only set if they were pressed down since the last read.
  *
  * @return A structure representing which buttons were just pressed down
  */
 struct controller_data get_keys_down( void )
 {
-    struct controller_data ret;
-
-    /* Start with baseline */
-    memcpy( &ret, &current, sizeof(current) );
+    struct controller_data ret = current;
 
     /* Figure out which wasn't pressed last time and is now */
     for(int i = 0; i < 4; i++)
     {
-        ret.c[i].data = (current.c[i].data) & ~(last.c[i].data);
+        ret.c[i].data = (current.c[i].data) & ~(prev.c[i].data);
     }
 
     return ret;
@@ -222,21 +266,19 @@ struct controller_data get_keys_down( void )
  *
  * Return keys released since last detection. This returns a standard
  * #SI_controllers_state_t struct identical to #controller_read. However, buttons
- * are only set if they were released since the last #controller_scan.
+ * are only set if they were released since the last read.
  *
  * @return A structure representing which buttons were just released
  */
 struct controller_data get_keys_up( void )
 {
-    struct controller_data ret;
-
     /* Start with baseline */
-    memcpy( &ret, &current, sizeof(current) );
+    struct controller_data ret = current;
 
     /* Figure out which was pressed last time and isn't now */
     for(int i = 0; i < 4; i++)
     {
-        ret.c[i].data = ~(current.c[i].data) & (last.c[i].data);
+        ret.c[i].data = ~(current.c[i].data) & (prev.c[i].data);
     }
 
     return ret;
@@ -247,21 +289,19 @@ struct controller_data get_keys_up( void )
  *
  * Return keys held since last detection. This returns a standard
  * #SI_controllers_state_t struct identical to #controller_read. However, buttons
- * are only set if they were held since the last #controller_scan.
+ * are only set if they were held since the last read.
  *
  * @return A structure representing which buttons were held
  */
 struct controller_data get_keys_held( void )
 {
-    struct controller_data ret;
-
     /* Start with baseline */
-    memcpy( &ret, &current, sizeof(current) );
+    struct controller_data ret = current;
 
     /* Figure out which was pressed last time and now as well */
     for(int i = 0; i < 4; i++)
     {
-        ret.c[i].data = (current.c[i].data) & (last.c[i].data);
+        ret.c[i].data = (current.c[i].data) & (prev.c[i].data);
     }
 
     return ret;
@@ -270,8 +310,8 @@ struct controller_data get_keys_held( void )
 /**
  * @brief Get keys that are currently pressed, regardless of previous state
  *
- * This function works identically to #controller_read except for it is safe
- * to call when using #controller_scan.
+ * This function works identically to #controller_read except that it returns
+ * the cached data from the last background autoscan.
  *
  * @return A structure representing which buttons were pressed
  */
@@ -285,7 +325,7 @@ struct controller_data get_keys_pressed( void )
  *
  * Return the direction of the DPAD specified in controller.  Follows standard
  * polar coordinates, where 0 = 0, pi/4 = 1, pi/2 = 2, etc...  Returns -1 when
- * not pressed.  Must be used in conjunction with #controller_scan
+ * not pressed.
  *
  * @param[in] controller
  *            The controller (0-3) to inspect
