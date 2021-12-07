@@ -1,3 +1,32 @@
+
+#
+# RSP holds a single pointer to a command list. It goes through it.
+#
+# To write a new command in the list (CPU):
+#   * Write the command identifier (first byte at least)
+#   * Write all arguments
+#   * Terminate with 0x01 (will be overwritten by next command)
+#   * Set SIG7 and reset BREAK in SP_STATUS
+#
+# 0x01 achieves two goals:
+#
+#   * If reached by RSP, it is executed as command_wait_
+#
+#
+
+#
+
+
+# Psuedo-code on RSP:
+# * Fetch current command first byte
+# * Calculate command size
+# * if cur pointer + command size overflow DMEM buffer => 
+#      unconditional DMA (rolling back the DL_BUFFFERDESC_START to refetch the current command)
+# * if byte at cur pointer + command size is 0x00 => 
+#      wait for new input (rolling back the DL_BUFFFERDESC_START to refetch the current command)
+# * Run current command. 
+#      If it's 0x01 the command is actually "wait for new input" 
+
 #include <rsp.inc>
 #include <rsp_dl.inc>
 
@@ -19,21 +48,31 @@ WRITE_POINTER:   .quad 0
 DL_DRAM_ADDR:     .long 0
 DL_POINTERS_ADDR: .long 0
 
-DMEM_BUF_START:  .half 0
-DMEM_BUF_END:    .half 0
+#DMEM_BUF_START:  .half 0
+#DMEM_BUF_END:    .half 0
 CURRENT_OVL:     .half -1
 
 .align 3
 INTERNAL_COMMAND_TABLE:
-commandTableEntry command_noop,      4
-commandTableEntry command_interrupt, 4
-commandTableEntry command_signal,    4
+commandTableEntry command_noop,           4     # 0x00
+commandTableEntry command_wait_new_input, 4     # 0x01
+commandTableEntry command_write_status,   4     # 0x02 -- must be even (bit 24 must be 0)
+commandTableEntry command_call,           4     # 0x03
+commandTableEntry command_jump,           4     # 0x04
+commandTableEntry command_ret,            4     # 0x05
 
-.bss
 
-.align 3
+    .align 3
 # Reserve some extra space of 8 bytes to make sure that DMAs can always load the expected amount of data even if the DRAM address is unaligned
 DL_DMEM_BUFFER:    .ds.b DL_DMEM_BUFFER_SIZE + 8
+DL_DMEM_BUFFER_END:
+DL_DMEM_BUFFER_TERMINATOR: .byte 0x01    # terminate the buffer with command_wait_for_new_input
+
+    .bss
+
+    .align 3
+DL_RDRAM_PTR:      .long 0
+
 
 .align 3
 # Overlay data will be loaded at this address
@@ -43,34 +82,49 @@ _ovl_data_start:
 
 .globl _start
 _start:
-    j loop
-    move dl_dmem_buf_ptr, zero
+    # NOTE: DL_RDRAM_PTR must have been initialized before spinning up RSP!
+    li dl_dmem_buf_ptr, 0
 
-command_signal:
-    andi a0, 0xFFFC
-    j write_sp_status
-    sll t0, a0, 9
+.func command_noop
+command_wait_new_input:
+    # Check if new commands were added in the display list (SIG7)
+    mfc0 t0, COP0_SP_STATUS
+    andi t0, SP_STATUS_SIG7
+    beqz t0, wakeup
+    li t0, SP_WSTATUS_RESET_SIG7
 
-# Triggers an RSP interrupt
-command_interrupt:
-    li t0, SP_WSTATUS_SET_RSP_INTERRUPT
-
-write_sp_status:
+    break
+wakeup:
     mtc0 t0, COP0_SP_STATUS
 
-# Does nothing
-command_noop:
+fetch_buffer:
+    # Fetch the RDRAM pointer
+    lw s0, %lo(DL_RDRAM_PTR)
+    add s0, dl_dmem_buf_ptr
+fetch_buffer_with_ptr:
+    # Update pointer with the value that will be valid after fetch
+    sw s0, %lo(DL_RDRAM_PTR)
 
+    # Reset the internal pointer to the first actual byte of the buffer (after
+    # taking misalignment into account
+    andi dl_dmem_buf_ptr, s0, 7
+
+    # Fetch the whole DMEM buffer. We will use the 0x00 invalid fill value to
+    # realize where the buffer is empty.
+    li s4, %lo(DL_DMEM_BUFFER)
+    jal DMAIn
+    li t0, DMA_SIZE(DL_DMEM_BUFFER_SIZE, 1)
+
+    .endfunc
+    # fallthrough into the main loop
+
+command_noop:   # invalid command -> repeat the loop
 .func loop
 loop:
     #define ovl_index t4
     #define cmd_index t5
     #define cmd_desc  t6
     #define cmd_size  t7
-
-    # Make sure there are at least 4 bytes left in the buffer
-    jal request_input
-    li t7, 4
 
     # Read first word
     lw a0, %lo(DL_DMEM_BUFFER) + 0x0 (dl_dmem_buf_ptr)
@@ -127,136 +181,71 @@ overlay_loaded:
 execute_command:
     # Command size
     srl cmd_size, cmd_desc, 10
-    
-    # Load more input if necessary, according to command size
-    # TODO: is it possible to only call this once per loop?
-    jal request_input
     andi cmd_size, 0x3C
+
+    # Check if the command is truncated because of buffer overflow. If so,
+    # fetch the buffer again. Note that we calculate in t3 the portion of
+    # command that fit the buffer: we will use it as rollback for the RDRAM pointer.
+    addu t0, dl_dmem_buf_ptr, cmd_size
+    bgt t0, DL_DMEM_BUFFER_SIZE, fetch_buffer
 
     # Load second command word (might be garbage, but will never be read in that case)
     # This is done because the vast majority of commands will use two words or more.
-    # TODO: maybe get rid of this and let overlays load it themselves?
     lw a1, %lo(DL_DMEM_BUFFER) + 0x4 (dl_dmem_buf_ptr)
 
-    # Jump to command
+    # Check if there's an invalid command just after the current command.
+    # If so, the previous command might have been fetched partially (as it was
+    # being written in RDRAM by CPU), so wait for it to be complete and
+    # then fetch the buffer again.
+    lbu t0, (t0)
+    beqz t0, command_wait_new_input
+
+    # Jump to command. Set ra to the loop function, so that commands can 
+    # either do "j loop" or "jr ra" (or a tail call) to get back to the main loop
+    li ra, loop
+    add dl_dmem_buf_ptr, cmd_size
     jr cmd_desc
-    # Advance input pointer
-    addu dl_dmem_buf_ptr, cmd_size
+    ### BEWARE: NO DELAY SLOT
 
     #undef ovl_index
     #undef cmd_index
     #undef cmd_desc
     #undef cmd_size
 .endfunc
+    
+    ### BEWARE: NO DELAY SLOT ABOVE
 
-# Same as load_new_input, but only if there is less input left than requested
-# INPUT:
-#   t7: requested length
-.func request_input
-request_input:
-    lhu t2, %lo(DMEM_BUF_END)
-    sub t1, t2, dl_dmem_buf_ptr
-    bge t1, t7, JrRa
-.endfunc
+    .func command_call
+command_call:
+    # a0: command opcode + RDRAM address
+    # a1: call slot in DMEM
+    lw s0, %lo(DL_RDRAM_PTR)
+    add s0, dl_dmem_buf_ptr
+    sw s0, 0(a1)  # save return address
+    # fallthrough
+    .endfunc
 
-# This function will do two things:
-#   1) Mark the input data that has been processed since the last call to it as read.
-#   2) Check if new data is available and load it into the internal buffer.
-.func load_new_input
-load_new_input:
-    #define len       t4
-    #define read_ptr  s3
+    .func command_jump
+command_jump:
+    # a0: command opcode + RDRAM address
+    j fetch_buffer_with_ptr
+    move s0, a0
+    .endfunc
 
-    move ra2, ra
+    .func command_ret
+command_ret:
+    # a0: command opcode + call slot in DMEM to recover
+    j fetch_buffer_with_ptr
+    lw s0, 0(a0)
+    .endfunc
 
-    # Mark processed data as read
-    # Note that we need to do this directly before loading new input, because we might not have processed
-    # all data that was loaded last time yet (Because we are branching to a different display list for example).
-    lw read_ptr, %lo(READ_POINTER) + 0x4
-    lhu t0, %lo(DMEM_BUF_START)
-    sub len, dl_dmem_buf_ptr, t0
-    add read_ptr, len
+    .func command_write_status
+command_write_status:
+    # a0: command opcode + wstatus flags
+    j loop
+    mtc0 a0, COP0_SP_STATUS
+    .endfunc
 
-store_read_ptr:
-    # Communicate the updated read pointer to the CPU
-    li s4, %lo(READ_POINTER)
-    sw read_ptr, %lo(READ_POINTER) + 0x4
-    lw s0, %lo(DL_POINTERS_ADDR)
-    jal DMAOutAsync
-    li t0, DMA_SIZE(8, 1)
-
-check_for_new_input:
-    # Calculate remaining "safe" area
-    lw t0, %lo(WRITE_POINTER) + 0x4
-    ble read_ptr, t0, check_remaining_length
-
-    # 1) read pointer <= write pointer: len = write pointer - read pointer (read up to write pointer)
-    sub len, t0, read_ptr
-
-    # 2) read pointer > write pointer: len = DL_DRAM_BUFFER_SIZE - read pointer (read up to end of buffer)
-    li t1, DL_DRAM_BUFFER_SIZE
-    sub len, t1, read_ptr
-    bgtz len, buffer_not_empty
-    nop
-    move read_ptr, zero
-    sw read_ptr, %lo(READ_POINTER) + 0x4
-    move len, t0
-
-check_remaining_length:
-    bgtz len, buffer_not_empty
-
-wait_for_signal:
-    # Wait until the CPU updates the write pointer
-    mfc0 t0, COP0_SP_STATUS
-    andi t0, SP_STATUS_SIG0
-    bnez t0, write_pointer_updated
-    li t1, SP_WSTATUS_RESET_SIG0
-
-    # Enter idle mode
-    j wait_for_signal
-    break
-
-write_pointer_updated:
-    # Reset signal
-    # TODO: race condition?
-    mtc0 t1, COP0_SP_STATUS
-
-    # Load new value of write pointer
-    li s4, %lo(WRITE_POINTER)
-    lw s0, %lo(DL_POINTERS_ADDR)
-    li t0, DMA_SIZE(8, 1)
-    addiu s0, 8
-    jal_and_j DMAIn, check_for_new_input
-
-buffer_not_empty:
-    # length = max(length, DL_DMEM_BUFFER_SIZE)
-    slti t1, len, DL_DMEM_BUFFER_SIZE
-    bnez t1, dma_input
-    lw s0, %lo(DL_DRAM_ADDR)
-    li len, DL_DMEM_BUFFER_SIZE
-
-dma_input:
-    # Always load additional 8 bytes to make sure that at least the expected amount of data is loaded, even if the DRAM address is not aligned.
-    addi t0, len, 7
-    li s4, %lo(DL_DMEM_BUFFER)
-    jal DMAIn
-    add s0, read_ptr
-
-    # Reset input pointer, taking DMA non-alignment into account
-    li t1, %lo(DL_DMEM_BUFFER)
-    sub dl_dmem_buf_ptr, s4, t1
-    # Remember the actual start of new data in the buffer,
-    # because due to possible non-alignment it might not be at 0
-    sh dl_dmem_buf_ptr, %lo(DMEM_BUF_START)
-
-    # Remember the end of the new data
-    add t0, dl_dmem_buf_ptr, len
-    jr ra2
-    sh t0, %lo(DMEM_BUF_END)
-
-    #undef len
-    #undef read_ptr
-.endfunc
 
 #include <rsp_dma.inc>
 
