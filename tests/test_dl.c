@@ -101,7 +101,7 @@ const unsigned long dl_timeout = 100;
 #define TEST_DL_EPILOG(s, t) \
     wait_for_sp_interrupt_and_halted(t); \
     ASSERT(sp_intr_raised, "Interrupt was not raised!"); \
-    ASSERT_EQUAL_HEX(*SP_STATUS, SP_STATUS_HALTED | SP_STATUS_BROKE | (s), "Unexpected SP status!");
+    ASSERT_EQUAL_HEX(*SP_STATUS, SP_STATUS_HALTED | SP_STATUS_BROKE | SP_STATUS_SIG5 | (s), "Unexpected SP status!");
 
 void test_dl_queue_single(TestContext *ctx)
 {
@@ -205,14 +205,15 @@ void test_dl_high_load(TestContext *ctx)
         }
     }
 
-    static uint64_t actual_sum;
+    uint64_t actual_sum;
+    uint64_t *actual_sum_ptr = UncachedAddr(&actual_sum);
 
-    dl_test_output(&actual_sum);
+    dl_test_output(actual_sum_ptr);
     dl_interrupt();
 
     TEST_DL_EPILOG(0, 10000);
 
-    ASSERT_EQUAL_UNSIGNED(actual_sum, expected_sum, "Possibly not all commands have been executed!");
+    ASSERT_EQUAL_UNSIGNED(*actual_sum_ptr, expected_sum, "Possibly not all commands have been executed!");
 }
 
 void test_dl_load_overlay(TestContext *ctx)

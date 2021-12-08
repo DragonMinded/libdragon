@@ -6,10 +6,21 @@
 #include "dl_internal.h"
 #include "utils.h"
 
-#define DL_OVERLAY_DEFAULT 0x0
+#define DL_CMD_NOOP             0x07
+#define DL_CMD_WSTATUS          0x02
 
-#define DL_CMD_NOOP       0x7
-#define DL_CMD_WSTATUS    0x2
+#define SP_STATUS_SIG_BUFDONE         SP_STATUS_SIG5
+#define SP_WSTATUS_SET_SIG_BUFDONE    SP_WSTATUS_SET_SIG5
+#define SP_WSTATUS_CLEAR_SIG_BUFDONE  SP_WSTATUS_CLEAR_SIG5
+
+#define SP_STATUS_SIG_HIGHPRI         SP_STATUS_SIG6
+#define SP_WSTATUS_SET_SIG_HIGHPRI    SP_WSTATUS_SET_SIG6
+#define SP_WSTATUS_CLEAR_SIG_HIGHPRI  SP_WSTATUS_CLEAR_SIG6
+
+#define SP_STATUS_SIG_MORE            SP_STATUS_SIG7
+#define SP_WSTATUS_SET_SIG_MORE       SP_WSTATUS_SET_SIG7
+#define SP_WSTATUS_CLEAR_SIG_MORE     SP_WSTATUS_CLEAR_SIG7
+
 
 DEFINE_RSP_UCODE(rsp_dl);
 
@@ -145,9 +156,9 @@ void dl_start()
                  SP_WSTATUS_CLEAR_SIG2 | 
                  SP_WSTATUS_CLEAR_SIG3 | 
                  SP_WSTATUS_CLEAR_SIG4 | 
-                 SP_WSTATUS_CLEAR_SIG5 | 
-                 SP_WSTATUS_CLEAR_SIG6 | 
-                 SP_WSTATUS_CLEAR_SIG7;
+                 SP_WSTATUS_SET_SIG_BUFDONE |
+                 SP_WSTATUS_CLEAR_SIG_HIGHPRI |
+                 SP_WSTATUS_CLEAR_SIG_MORE;
 
     // Off we go!
     rsp_run_async();
@@ -158,7 +169,7 @@ void dl_start()
 __attribute__((noinline))
 void dl_write_end(uint32_t *dl) {
     dl_terminator(dl);
-    *SP_STATUS = SP_WSTATUS_SET_SIG7 | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
+    *SP_STATUS = SP_WSTATUS_SET_SIG_MORE | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
 
     dl_cur_pointer = dl;
     if (dl_cur_pointer > dl_sentinel) {
@@ -168,15 +179,22 @@ void dl_write_end(uint32_t *dl) {
 }
 
 void dl_next_buffer() {
+    while (!(*SP_STATUS & SP_STATUS_SIG_BUFDONE)) { /* idle */ }
+    *SP_STATUS = SP_WSTATUS_CLEAR_SIG_BUFDONE;
+
     // TODO: wait for buffer to be usable
     // TODO: insert signal command at end of buffer
     dl_buf_idx = 1-dl_buf_idx;
+
     uint32_t *dl2 = UncachedAddr(&dl_buffers[dl_buf_idx]);
     memset(dl2, 0, DL_DRAM_BUFFER_SIZE*sizeof(uint32_t));
     dl_terminator(dl2);
+
+    *dl_cur_pointer++ = 0x02000000 | SP_WSTATUS_SET_SIG_BUFDONE;
     *dl_cur_pointer++ = 0x04000000 | (uint32_t)PhysicalAddr(dl2);
     dl_terminator(dl_cur_pointer);
-    *SP_STATUS = SP_WSTATUS_SET_SIG7 | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
+    *SP_STATUS = SP_WSTATUS_SET_SIG_MORE | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
+
     dl_cur_pointer = dl2;
     dl_sentinel = dl_cur_pointer + DL_DRAM_BUFFER_SIZE - DL_MAX_COMMAND_SIZE;
 }
@@ -309,15 +327,15 @@ void dl_queue_u64(uint64_t cmd)
 
 void dl_noop()
 {
-    dl_queue_u8(DL_MAKE_COMMAND(DL_OVERLAY_DEFAULT, DL_CMD_NOOP));
+    dl_queue_u8(DL_CMD_NOOP);
 }
 
 void dl_interrupt()
 {
-    dl_queue_u32((DL_MAKE_COMMAND(DL_OVERLAY_DEFAULT, DL_CMD_WSTATUS) << 24) | SP_WSTATUS_SET_INTR);
+    dl_queue_u32((DL_CMD_WSTATUS << 24) | SP_WSTATUS_SET_INTR);    
 }
 
 void dl_signal(uint32_t signal)
 {
-    dl_queue_u32((DL_MAKE_COMMAND(DL_OVERLAY_DEFAULT, DL_CMD_WSTATUS) << 24) | signal);
+    dl_queue_u32((DL_CMD_WSTATUS << 24) | signal);
 }
