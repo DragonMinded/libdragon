@@ -1,46 +1,46 @@
 #include "ugfx_internal.h"
 #include "../dl/rsp_dl.S"
 
-.section .data.overlay
+    .section .data.overlay
 
-overlayHeader UGFX_STATE_START, UGFX_STATE_END, 0x20
+    overlayHeader UGFX_STATE_START, UGFX_STATE_END, 0x20
 
-.align 1
+    .align 1
 COMMAND_TABLE:
-commandTableEntry command_noop, 8
-commandTableEntry command_noop, 8
-commandTableEntry command_noop, 8
-commandTableEntry command_noop, 8
-commandTableEntry command_rdp_passthrough_16, 16 # TEXTURE_RECTANGLE
-commandTableEntry command_rdp_passthrough_16, 16 # TEXTURE_RECTANGLE_FLIP
-commandTableEntry command_noop, 8
-commandTableEntry command_rdp_passthrough_8, 8   # SYNC_PIPE
-commandTableEntry command_rdp_passthrough_8, 8   # SYNC_TILE
-commandTableEntry command_sync_full, 8           # SYNC_FULL
-commandTableEntry command_rdp_passthrough_8, 8   # SET_KEY_GB
-commandTableEntry command_rdp_passthrough_8, 8   # SET_KEY_R
-commandTableEntry command_rdp_passthrough_8, 8   # SET_CONVERT
-commandTableEntry command_rdp_passthrough_8, 8   # SET_SCISSOR
-commandTableEntry command_rdp_passthrough_8, 8   # SET_PRIM_DEPTH
-commandTableEntry command_set_other_modes, 8     # SET_OTHER_MODES
-commandTableEntry command_rdp_passthrough_8, 8   # LOAD_TLUT
-commandTableEntry command_rdp_passthrough_8, 8   # SYNC_LOAD
-commandTableEntry command_rdp_passthrough_8, 8   # SET_TILE_SIZE
-commandTableEntry command_rdp_passthrough_8, 8   # LOAD_BLOCK
-commandTableEntry command_rdp_passthrough_8, 8   # LOAD_TILE
-commandTableEntry command_rdp_passthrough_8, 8   # SET_TILE
-commandTableEntry command_rdp_passthrough_8, 8   # FILL_RECTANGLE
-commandTableEntry command_rdp_passthrough_8, 8   # SET_FILL_COLOR
-commandTableEntry command_rdp_passthrough_8, 8   # SET_FOG_COLOR
-commandTableEntry command_rdp_passthrough_8, 8   # SET_BLEND_COLOR
-commandTableEntry command_rdp_passthrough_8, 8   # SET_PRIM_COLOR
-commandTableEntry command_rdp_passthrough_8, 8   # SET_ENV_COLOR
-commandTableEntry command_rdp_passthrough_8, 8   # SET_COMBINE_MODE
-commandTableEntry command_rdp_passthrough_8, 8   # SET_TEXTURE_IMAGE
-commandTableEntry command_rdp_passthrough_8, 8   # SET_Z_IMAGE
-commandTableEntry command_rdp_passthrough_8, 8   # SET_COLOR_IMAGE
+    commandTableEntry command_noop, 8
+    commandTableEntry command_noop, 8
+    commandTableEntry command_noop, 8
+    commandTableEntry command_noop, 8
+    commandTableEntry command_rdp_passthrough_16, 16 # TEXTURE_RECTANGLE
+    commandTableEntry command_rdp_passthrough_16, 16 # TEXTURE_RECTANGLE_FLIP
+    commandTableEntry command_noop, 8
+    commandTableEntry command_rdp_passthrough_8, 8   # SYNC_PIPE
+    commandTableEntry command_rdp_passthrough_8, 8   # SYNC_TILE
+    commandTableEntry command_sync_full, 8           # SYNC_FULL
+    commandTableEntry command_rdp_passthrough_8, 8   # SET_KEY_GB
+    commandTableEntry command_rdp_passthrough_8, 8   # SET_KEY_R
+    commandTableEntry command_rdp_passthrough_8, 8   # SET_CONVERT
+    commandTableEntry command_rdp_passthrough_8, 8   # SET_SCISSOR
+    commandTableEntry command_rdp_passthrough_8, 8   # SET_PRIM_DEPTH
+    commandTableEntry command_set_other_modes, 8     # SET_OTHER_MODES
+    commandTableEntry command_rdp_passthrough_8, 8   # LOAD_TLUT
+    commandTableEntry command_rdp_passthrough_8, 8   # SYNC_LOAD
+    commandTableEntry command_rdp_passthrough_8, 8   # SET_TILE_SIZE
+    commandTableEntry command_rdp_passthrough_8, 8   # LOAD_BLOCK
+    commandTableEntry command_rdp_passthrough_8, 8   # LOAD_TILE
+    commandTableEntry command_rdp_passthrough_8, 8   # SET_TILE
+    commandTableEntry command_rdp_passthrough_8, 8   # FILL_RECTANGLE
+    commandTableEntry command_rdp_passthrough_8, 8   # SET_FILL_COLOR
+    commandTableEntry command_rdp_passthrough_8, 8   # SET_FOG_COLOR
+    commandTableEntry command_rdp_passthrough_8, 8   # SET_BLEND_COLOR
+    commandTableEntry command_rdp_passthrough_8, 8   # SET_PRIM_COLOR
+    commandTableEntry command_rdp_passthrough_8, 8   # SET_ENV_COLOR
+    commandTableEntry command_rdp_passthrough_8, 8   # SET_COMBINE_MODE
+    commandTableEntry command_rdp_passthrough_8, 8   # SET_TEXTURE_IMAGE
+    commandTableEntry command_rdp_passthrough_8, 8   # SET_Z_IMAGE
+    commandTableEntry command_rdp_passthrough_8, 8   # SET_COLOR_IMAGE
 
-.align 3
+    .align 3
 UGFX_STATE_START:
 RDP_DMEM_BUFFER:      .ds.b UGFX_RDP_DMEM_BUFFER_SIZE
 
@@ -54,9 +54,9 @@ RDP_INITIALIZED:       .short 0
 
 UGFX_STATE_END:
 
-.section .bss.overlay
+    .section .bss.overlay
 
-.text 1
+    .text 1
 
 command_set_other_modes:
     sw a0, %lo(RDP_OTHER_MODES) + 0x0
@@ -72,8 +72,6 @@ command_rdp_passthrough_8:
 command_rdp_passthrough_16:
     jal rdp_write_begin
     li t3, 16
-    lw a2, CMD_ADDR(0x8, 0x10)
-    lw a3, CMD_ADDR(0xC, 0x10)
     sw a0, %lo(RDP_DMEM_BUFFER) + 0x0(s1)
     sw a1, %lo(RDP_DMEM_BUFFER) + 0x4(s1)
     sw a2, %lo(RDP_DMEM_BUFFER) + 0x8(s1)

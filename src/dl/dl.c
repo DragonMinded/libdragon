@@ -35,16 +35,6 @@ typedef struct rsp_dl_s {
     int16_t current_ovl;
 } __attribute__((aligned(8), packed)) rsp_dl_t;
 
-typedef struct dma_safe_pointer_t {
-    uint32_t padding;
-    uint32_t value;
-} __attribute__((aligned(8))) dma_safe_pointer_t;
-
-typedef struct dl_pointers_t {
-    dma_safe_pointer_t read;
-    dma_safe_pointer_t write;
-} dl_pointers_t;
-
 static rsp_dl_t dl_data;
 static uint8_t dl_overlay_count = 0;
 
@@ -59,8 +49,10 @@ static uint64_t dummy_overlay_state;
 
 static uint32_t get_ovl_data_offset()
 {
-    uint32_t dl_data_size = rsp_dl.data_end - (void*)rsp_dl.data;
-    return ROUND_UP(dl_data_size, 8) + DL_DMEM_BUFFER_SIZE + 8;
+    // TODO: This is incorrect. Try and find the offset by extracting the symbol from the elf file
+    //uint32_t dl_data_size = rsp_dl.data_end - (void*)rsp_dl.data;
+    //return ROUND_UP(dl_data_size, 8) + DL_DMEM_BUFFER_SIZE + 8;
+    return 0x200;
 }
 
 void dl_init()
@@ -176,11 +168,13 @@ void dl_write_end(uint32_t *dl) {
 }
 
 void dl_next_buffer() {
+    // TODO: wait for buffer to be usable
+    // TODO: insert signal command at end of buffer
     dl_buf_idx = 1-dl_buf_idx;
     uint32_t *dl2 = UncachedAddr(&dl_buffers[dl_buf_idx]);
     memset(dl2, 0, DL_DRAM_BUFFER_SIZE*sizeof(uint32_t));
     dl_terminator(dl2);
-    *dl_cur_pointer++ = 0x04000000 | (uint32_t)dl2;
+    *dl_cur_pointer++ = 0x04000000 | (uint32_t)PhysicalAddr(dl2);
     dl_terminator(dl_cur_pointer);
     *SP_STATUS = SP_WSTATUS_SET_SIG7 | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
     dl_cur_pointer = dl2;
@@ -283,8 +277,6 @@ void dl_write_end()
     *SP_STATUS = SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE | SP_WSTATUS_SET_SIG0;
 }
 #endif
-
-// TODO: Find a way to pack commands that are smaller than 4 bytes
 
 void dl_queue_u8(uint8_t cmd)
 {

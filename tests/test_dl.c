@@ -17,28 +17,28 @@ void test_ovl_init()
     dl_overlay_register_id(ovl_index, 0xF);
 }
 
-void dl_test_4()
+void dl_test_4(uint32_t value)
 {
     uint32_t *ptr = dl_write_begin();
-    *ptr++ = 0xf0000000;
+    *ptr++ = 0xf0000000 | value;
     dl_write_end(ptr);
 }
 
-void dl_test_8()
+void dl_test_8(uint32_t value)
 {
     uint32_t *ptr = dl_write_begin();
-    *ptr++ = 0xf1000000;
-    *ptr++ = 0x02000200;
+    *ptr++ = 0xf1000000 | value;
+    *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG0;
     dl_write_end(ptr);
 }
 
-void dl_test_16()
+void dl_test_16(uint32_t value)
 {
     uint32_t *ptr = dl_write_begin();
-    *ptr++ = 0xf2000000;
-    *ptr++ = 0x02000800;
-    *ptr++ = 0x02002000;
-    *ptr++ = 0x02008000;
+    *ptr++ = 0xf2000000 | value;
+    *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG1;
+    *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG2;
+    *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG3;
     dl_write_end(ptr);
 }
 
@@ -47,6 +47,14 @@ void dl_test_wait(uint32_t length)
     uint32_t *ptr = dl_write_begin();
     *ptr++ = 0xf3000000;
     *ptr++ = length;
+    dl_write_end(ptr);
+}
+
+void dl_test_output(uint64_t *dest)
+{
+    uint32_t *ptr = dl_write_begin();
+    *ptr++ = 0xf4000000;
+    *ptr++ = (uint32_t)PhysicalAddr(dest);
     dl_write_end(ptr);
 }
 
@@ -160,10 +168,10 @@ void test_dl_signal(TestContext *ctx)
     TEST_DL_PROLOG();
     
     dl_start();
-    dl_signal(SP_WSTATUS_SET_SIG3 | SP_WSTATUS_SET_SIG6);
+    dl_signal(SP_WSTATUS_SET_SIG1 | SP_WSTATUS_SET_SIG3);
     dl_interrupt();
 
-    TEST_DL_EPILOG(SP_STATUS_SIG3 | SP_STATUS_SIG6, dl_timeout);
+    TEST_DL_EPILOG(SP_STATUS_SIG1 | SP_STATUS_SIG3, dl_timeout);
 }
 
 void test_dl_high_load(TestContext *ctx)
@@ -174,28 +182,37 @@ void test_dl_high_load(TestContext *ctx)
 
     dl_start();
 
-    for (uint32_t i = 0; i < 0x800; i++)
+    uint64_t expected_sum = 0;
+
+    for (uint32_t i = 0; i < 0x1000; i++)
     {
         uint32_t x = RANDN(3);
 
         switch (x)
         {
             case 0:
-                dl_test_4();
+                dl_test_4(1);
+                ++expected_sum;
                 break;
             case 1:
                 // Simulate computation heavy commands that take a long time to complete, so the ring buffer fills up
                 dl_test_wait(0x10000);
                 break;
             case 2:
-                dl_test_16();
+                dl_test_16(1);
+                ++expected_sum;
                 break;
         }
     }
 
+    static uint64_t actual_sum;
+
+    dl_test_output(&actual_sum);
     dl_interrupt();
 
-    TEST_DL_EPILOG(0, 5000);
+    TEST_DL_EPILOG(0, 10000);
+
+    ASSERT_EQUAL_UNSIGNED(actual_sum, expected_sum, "Possibly not all commands have been executed!");
 }
 
 void test_dl_load_overlay(TestContext *ctx)

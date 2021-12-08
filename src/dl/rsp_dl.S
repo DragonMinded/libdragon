@@ -32,8 +32,8 @@
 
 #include "dl_internal.h"
 
-.set noreorder
-.set at
+    .set noreorder
+    .set at
 
     .data
 
@@ -59,10 +59,10 @@ INTERNAL_COMMAND_TABLE:
 commandTableEntry command_invalid,        4     # 0x00
 commandTableEntry command_wait_new_input, 4     # 0x01
 commandTableEntry command_write_status,   4     # 0x02 -- must be even (bit 24 must be 0)
-commandTableEntry command_call,           4     # 0x03
+commandTableEntry command_call,           8     # 0x03
 commandTableEntry command_jump,           4     # 0x04
 commandTableEntry command_ret,            4     # 0x05
-commandTableEntry command_call_highpri,   4     # 0x06
+commandTableEntry command_call_highpri,   8     # 0x06
 commandTableEntry command_noop,           4     # 0x07
 
     .align 3
@@ -82,7 +82,7 @@ _ovl_data_start:
 
     .text
 
-.globl _start
+    .globl _start
 _start:
     # NOTE: DL_RDRAM_PTR must have been initialized before spinning up RSP!
     li dl_dmem_buf_ptr, 0
@@ -97,6 +97,11 @@ command_wait_new_input:
 
     # No new commands yet, go to sleep
     break
+    nop
+    nop
+    nop
+    nop
+    nop
 wakeup:
     mtc0 t0, COP0_SP_STATUS
 
@@ -106,12 +111,16 @@ fetch_buffer:
     lw s0, %lo(DL_RDRAM_PTR)
     add s0, dl_dmem_buf_ptr
 fetch_buffer_with_ptr:
-    # Store the updated pointer
-    sw s0, %lo(DL_RDRAM_PTR)
 
     # Reset the reading index to the first actual byte of the buffer (after
     # taking misalignment into account)
     andi dl_dmem_buf_ptr, s0, 7
+
+    # Correction for misalignment
+    sub s0, dl_dmem_buf_ptr
+
+    # Store the updated pointer
+    sw s0, %lo(DL_RDRAM_PTR)
 
     # Fetch the whole DMEM buffer. We will use the 0x00 invalid fill value to
     # realize where the buffer is empty.
@@ -124,7 +133,7 @@ fetch_buffer_with_ptr:
 
 command_invalid:  # invalid command -> repeat the loop
 command_noop:     # invalid command -> repeat the loop
-.func loop
+    .func loop
 loop:
     #define ovl_index t4
     #define cmd_index t5
@@ -154,6 +163,7 @@ loop:
     lh t1, %lo(CURRENT_OVL)
 
     # Load overlay index from overlay table
+    # NOTE: May be optimised away by getting rid of the indirection and remembering the (code) address of the previously loaded overlay instead.
     lb ovl_index, %lo(OVERLAY_TABLE)(t0)
     # Check if the requested overlay is already in memory
     beq ovl_index, t1, overlay_loaded
@@ -189,6 +199,8 @@ overlay_loaded:
 
 execute_command:
     # Command size
+    # NOTE: Could be optimised either by doubling the size of command descriptors (so that the command size can be loaded directly instead of having to decode it),
+    #       or by storing the command size in the overlay header instead. The latter would mean that all commands in an overlay need to be the same size though.
     srl cmd_size, cmd_desc, 10
     andi cmd_size, 0x3C
 
@@ -197,10 +209,6 @@ execute_command:
     # starting from the current position.
     addu t0, dl_dmem_buf_ptr, cmd_size
     bgt t0, DL_DMEM_BUFFER_SIZE, fetch_buffer
-
-    # Load second command word (might be garbage, but will never be read in that case)
-    # This is done because the vast majority of commands will use two words or more.
-    lw a1, %lo(DL_DMEM_BUFFER) + 0x4 (dl_dmem_buf_ptr)
 
     # Check if there's an invalid command (0x00) just after the current command.
     # If so, the previous command might have been fetched partially (as it was
@@ -212,6 +220,13 @@ execute_command:
     # Jump to command. Set ra to the loop function, so that commands can 
     # either do "j loop" or "jr ra" (or a tail call) to get back to the main loop
     li ra, %lo(loop)
+
+    # Load second to fourth command words (might be garbage, but will never be read in that case)
+    # This saves some instructions in all overlays that use more than 4 bytes per command.
+    lw a1, %lo(DL_DMEM_BUFFER) + 0x4 (dl_dmem_buf_ptr)
+    lw a2, %lo(DL_DMEM_BUFFER) + 0x8 (dl_dmem_buf_ptr)
+    lw a3, %lo(DL_DMEM_BUFFER) + 0xC (dl_dmem_buf_ptr)
+
     jr cmd_desc
     add dl_dmem_buf_ptr, cmd_size
 
@@ -219,39 +234,6 @@ execute_command:
     #undef cmd_index
     #undef cmd_desc
     #undef cmd_size
-.endfunc
-    
-    ### BEWARE: NO DELAY SLOT ABOVE
-
-    .func command_call
-command_call:
-    # a0: command opcode + RDRAM address
-    # a1: call slot in DMEM
-    lw s0, %lo(DL_RDRAM_PTR)
-    add s0, dl_dmem_buf_ptr
-    sw s0, 0(a1)  # save return address
-    # fallthrough
-    .endfunc
-
-    .func command_jump
-command_jump:
-    # a0: command opcode + RDRAM address
-    j fetch_buffer_with_ptr
-    move s0, a0
-    .endfunc
-
-    .func command_ret
-command_ret:
-    # a0: command opcode + call slot in DMEM to recover
-    j fetch_buffer_with_ptr
-    lw s0, 0(a0)
-    .endfunc
-
-    .func command_write_status
-command_write_status:
-    # a0: command opcode + wstatus flags
-    j loop
-    mtc0 a0, COP0_SP_STATUS
     .endfunc
 
     ############################################################
@@ -339,6 +321,6 @@ command_write_status:
 
 #include <rsp_dma.inc>
 
-.align 3
+    .align 3
 # Overlay code will be loaded at this address
 _ovl_text_start:
