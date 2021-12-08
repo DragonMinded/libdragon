@@ -44,24 +44,24 @@ void rdp_texture_rectangle(uint8_t tile, int16_t x0, int16_t y0, int16_t x1, int
 {
     uint64_t w0 = RdpTextureRectangle1FX(tile, x0, y0, x1, y1);
     uint64_t w1 = RdpTextureRectangle2FX(s, t, ds, dt);
-    uint32_t *ptr = dl_write_begin(16);
-    ptr[0] = w0 >> 32;
-    ptr[1] = w0 & 0xFFFFFFFF;
-    ptr[2] = w1 >> 32;
-    ptr[3] = w1 & 0xFFFFFFFF;
-    dl_write_end();
+    uint32_t *ptr = dl_write_begin();
+    *ptr++ = w0 >> 32;
+    *ptr++ = w0 & 0xFFFFFFFF;
+    *ptr++ = w1 >> 32;
+    *ptr++ = w1 & 0xFFFFFFFF;
+    dl_write_end(ptr);
 }
 
 void rdp_texture_rectangle_flip(uint8_t tile, int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t s, int16_t t, int16_t ds, int16_t dt)
 {
     uint64_t w0 = RdpTextureRectangleFlip1FX(tile, x0, y0, x1, y1);
     uint64_t w1 = RdpTextureRectangle2FX(s, t, ds, dt);
-    uint32_t *ptr = dl_write_begin(16);
-    ptr[0] = w0 >> 32;
-    ptr[1] = w0 & 0xFFFFFFFF;
-    ptr[2] = w1 >> 32;
-    ptr[3] = w1 & 0xFFFFFFFF;
-    dl_write_end();
+    uint32_t *ptr = dl_write_begin();
+    *ptr++ = w0 >> 32;
+    *ptr++ = w0 & 0xFFFFFFFF;
+    *ptr++ = w1 >> 32;
+    *ptr++ = w1 & 0xFFFFFFFF;
+    dl_write_end(ptr);
 }
 
 void rdp_sync_pipe()

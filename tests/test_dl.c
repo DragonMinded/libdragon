@@ -19,35 +19,35 @@ void test_ovl_init()
 
 void dl_test_4()
 {
-    uint32_t *ptr = dl_write_begin(4);
-    ptr[0] = 0xf0000000;
-    dl_write_end();
+    uint32_t *ptr = dl_write_begin();
+    *ptr++ = 0xf0000000;
+    dl_write_end(ptr);
 }
 
 void dl_test_8()
 {
-    uint32_t *ptr = dl_write_begin(8);
-    ptr[0] = 0xf1000000;
-    ptr[1] = 0x02000200;
-    dl_write_end();
+    uint32_t *ptr = dl_write_begin();
+    *ptr++ = 0xf1000000;
+    *ptr++ = 0x02000200;
+    dl_write_end(ptr);
 }
 
 void dl_test_16()
 {
-    uint32_t *ptr = dl_write_begin(16);
-    ptr[0] = 0xf2000000;
-    ptr[1] = 0x02000800;
-    ptr[2] = 0x02002000;
-    ptr[3] = 0x02008000;
-    dl_write_end();
+    uint32_t *ptr = dl_write_begin();
+    *ptr++ = 0xf2000000;
+    *ptr++ = 0x02000800;
+    *ptr++ = 0x02002000;
+    *ptr++ = 0x02008000;
+    dl_write_end(ptr);
 }
 
 void dl_test_wait(uint32_t length)
 {
-    uint32_t *ptr = dl_write_begin(8);
-    ptr[0] = 0xf3000000;
-    ptr[1] = length;
-    dl_write_end();
+    uint32_t *ptr = dl_write_begin();
+    *ptr++ = 0xf3000000;
+    *ptr++ = length;
+    dl_write_end(ptr);
 }
 
 #define DL_LOG_STATUS(step) debugf("STATUS: %#010lx, PC: %#010lx (%s)\n", *SP_STATUS, *SP_PC, step)
@@ -66,6 +66,7 @@ static volatile int sp_intr_raised;
 void sp_interrupt_handler()
 {
     sp_intr_raised = 1;
+    debugf("IRQ\n");
 }
 
 void wait_for_sp_interrupt_and_halted(unsigned long timeout)
@@ -145,15 +146,9 @@ void test_dl_wrap(TestContext *ctx)
 
     dl_start();
 
-    // 1.5 times the size of the buffer
-    uint32_t block_count = (DL_DRAM_BUFFER_SIZE * 3) / (DL_MAX_COMMAND_SIZE * 2);
-
+    uint32_t block_count = DL_DRAM_BUFFER_SIZE * 8;
     for (uint32_t i = 0; i < block_count; i++)
-    {
-        uint32_t *ptr = dl_write_begin(DL_MAX_COMMAND_SIZE);
-        memset(ptr, 0, DL_MAX_COMMAND_SIZE);
-        dl_write_end();
-    }
+        dl_noop();
     
     dl_interrupt();
 
