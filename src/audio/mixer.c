@@ -584,14 +584,14 @@ void mixer_exec(int32_t *out, int num_samples) {
 
 	uint32_t t0 = TICKS_READ();
 
-	uint32_t *ptr = dl_write_begin(sizeof(uint32_t) * 4);
+	uint32_t *ptr = dl_write_begin();
 
-	ptr[0] = 0x10000000 | (((uint32_t)MIXER_FX16(Mixer.vol)) & 0xFFFF);
-	ptr[1] = (num_samples << 16) | Mixer.num_channels;
-	ptr[2] = (uint32_t)PhysicalAddr(out);
-	ptr[3] = (uint32_t)PhysicalAddr(&Mixer.ucode_settings);
+	*ptr++ = 0x10000000 | (((uint32_t)MIXER_FX16(Mixer.vol)) & 0xFFFF);
+	*ptr++ = (num_samples << 16) | Mixer.num_channels;
+	*ptr++ = (uint32_t)PhysicalAddr(out);
+	*ptr++ = (uint32_t)PhysicalAddr(&Mixer.ucode_settings);
 	
-	dl_write_end();
+	dl_write_end(ptr);
 
 	// Wait for command to be done
 	// TODO: synchronize this via SP interrupt?

@@ -8,9 +8,8 @@
 
 #define DL_OVERLAY_DEFAULT 0x0
 
-#define DL_CMD_NOOP       0x0
-#define DL_CMD_INTERRUPT  0x1
-#define DL_CMD_SIGNAL     0x2
+#define DL_CMD_NOOP       0x7
+#define DL_CMD_WSTATUS    0x2
 
 DEFINE_RSP_UCODE(rsp_dl);
 
@@ -31,12 +30,8 @@ typedef struct dl_overlay_header_t {
 typedef struct rsp_dl_s {
     uint8_t overlay_table[DL_OVERLAY_TABLE_SIZE];
     dl_overlay_t overlay_descriptors[DL_MAX_OVERLAY_COUNT];
-    uint64_t read_pointer;
-    uint64_t write_pointer;
-	void *dl_dram_addr;
-	void *dl_pointers_addr;
-    uint16_t dmem_buf_start;
-    uint16_t dmem_buf_end;
+    void *dl_dram_addr;
+    void *dl_dram_highpri_addr;
     int16_t current_ovl;
 } __attribute__((aligned(8), packed)) rsp_dl_t;
 
@@ -53,18 +48,12 @@ typedef struct dl_pointers_t {
 static rsp_dl_t dl_data;
 static uint8_t dl_overlay_count = 0;
 
-static dl_pointers_t dl_pointers;
-
-#define DL_POINTERS ((volatile dl_pointers_t*)(UncachedAddr(&dl_pointers)))
-
-static void *dl_buffer;
-static void *dl_buffer_uncached;
+static uint32_t dl_buffers[2][DL_DRAM_BUFFER_SIZE];
+static uint8_t dl_buf_idx;
+uint32_t *dl_cur_pointer;
+uint32_t *dl_sentinel;
 
 static bool dl_is_running;
-
-static uint32_t sentinel;
-static uint32_t reserved_size;
-static bool is_wrapping;
 
 static uint64_t dummy_overlay_state;
 
@@ -76,24 +65,15 @@ static uint32_t get_ovl_data_offset()
 
 void dl_init()
 {
-    if (dl_buffer != NULL) {
-        return;
-    }
-
-    dl_buffer = malloc(DL_DRAM_BUFFER_SIZE);
-    dl_buffer_uncached = UncachedAddr(dl_buffer);
-
-    DL_POINTERS->read.value = 0;
-    DL_POINTERS->write.value = 0;
-
     // Load initial settings
     memset(&dl_data, 0, sizeof(dl_data));
 
-    dl_data.dl_dram_addr = PhysicalAddr(dl_buffer);
-    dl_data.dl_pointers_addr = PhysicalAddr(&dl_pointers);
+    dl_cur_pointer = UncachedAddr(dl_buffers[0]);
+    memset(dl_cur_pointer, 0, DL_DRAM_BUFFER_SIZE*sizeof(uint32_t));
+    dl_terminator(dl_cur_pointer);
+    dl_sentinel = dl_cur_pointer + DL_DRAM_BUFFER_SIZE - DL_MAX_COMMAND_SIZE;
 
-    sentinel = DL_DRAM_BUFFER_SIZE - DL_MAX_COMMAND_SIZE;
-
+    dl_data.dl_dram_addr = PhysicalAddr(dl_buffers[0]);
     dl_data.overlay_descriptors[0].data_buf = PhysicalAddr(&dummy_overlay_state);
     dl_data.overlay_descriptors[0].data_size = sizeof(uint64_t);
     
@@ -102,15 +82,7 @@ void dl_init()
 
 void dl_close()
 {
-    if (dl_buffer == NULL) {
-        return;
-    }
-
     *SP_STATUS = SP_WSTATUS_SET_HALT;
-
-    free(dl_buffer);
-    dl_buffer = NULL;
-    dl_buffer_uncached = NULL;
     dl_is_running = 0;
 }
 
@@ -122,7 +94,7 @@ void* dl_overlay_get_state(rsp_ucode_t *overlay_ucode)
 
 uint8_t dl_overlay_add(rsp_ucode_t *overlay_ucode)
 {
-    assertf(dl_buffer != NULL, "dl_overlay_add must be called after dl_init!");
+    assertf(dl_overlay_count > 0, "dl_overlay_add must be called after dl_init!");
     
     assertf(dl_overlay_count < DL_MAX_OVERLAY_COUNT, "Only up to %d overlays are supported!", DL_MAX_OVERLAY_COUNT);
 
@@ -145,7 +117,7 @@ uint8_t dl_overlay_add(rsp_ucode_t *overlay_ucode)
 
 void dl_overlay_register_id(uint8_t overlay_index, uint8_t id)
 {
-    assertf(dl_buffer != NULL, "dl_overlay_register must be called after dl_init!");
+    assertf(dl_overlay_count > 0, "dl_overlay_register must be called after dl_init!");
 
     assertf(overlay_index < DL_MAX_OVERLAY_COUNT, "Tried to register invalid overlay index: %d", overlay_index);
     assertf(id < DL_OVERLAY_TABLE_SIZE, "Tried to register id: %d", id);
@@ -190,6 +162,35 @@ void dl_start()
 
     dl_is_running = 1;
 }
+
+__attribute__((noinline))
+void dl_write_end(uint32_t *dl) {
+    dl_terminator(dl);
+    *SP_STATUS = SP_WSTATUS_SET_SIG7 | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
+
+    dl_cur_pointer = dl;
+    if (dl_cur_pointer > dl_sentinel) {
+        extern void dl_next_buffer(void);
+        dl_next_buffer();
+    }
+}
+
+void dl_next_buffer() {
+    dl_buf_idx = 1-dl_buf_idx;
+    uint32_t *dl2 = UncachedAddr(&dl_buffers[dl_buf_idx]);
+    memset(dl2, 0, DL_DRAM_BUFFER_SIZE*sizeof(uint32_t));
+    dl_terminator(dl2);
+    *dl_cur_pointer++ = 0x04000000 | (uint32_t)dl2;
+    dl_terminator(dl_cur_pointer);
+    *SP_STATUS = SP_WSTATUS_SET_SIG7 | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
+    dl_cur_pointer = dl2;
+    dl_sentinel = dl_cur_pointer + DL_DRAM_BUFFER_SIZE - DL_MAX_COMMAND_SIZE;
+}
+
+
+#if 0
+
+
 
 uint32_t* dl_write_begin(uint32_t size)
 {
@@ -281,33 +282,37 @@ void dl_write_end()
     // Make rsp leave idle mode
     *SP_STATUS = SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE | SP_WSTATUS_SET_SIG0;
 }
+#endif
 
 // TODO: Find a way to pack commands that are smaller than 4 bytes
 
 void dl_queue_u8(uint8_t cmd)
 {
-    *dl_write_begin(sizeof(uint32_t)) = (uint32_t)cmd << 24;
-    dl_write_end();
+    uint32_t *dl = dl_write_begin();
+    *dl++ = (uint32_t)cmd << 24;
+    dl_write_end(dl);
 }
 
 void dl_queue_u16(uint16_t cmd)
 {
-    *dl_write_begin(sizeof(uint32_t)) = (uint32_t)cmd << 16;
-    dl_write_end();
+    uint32_t *dl = dl_write_begin();
+    *dl++ = (uint32_t)cmd << 16;
+    dl_write_end(dl);
 }
 
 void dl_queue_u32(uint32_t cmd)
 {
-    *dl_write_begin(sizeof(uint32_t)) = cmd;
-    dl_write_end();
+    uint32_t *dl = dl_write_begin();
+    *dl++ = cmd;
+    dl_write_end(dl);
 }
 
 void dl_queue_u64(uint64_t cmd)
 {
-    uint32_t *ptr = dl_write_begin(sizeof(uint64_t));
-    ptr[0] = cmd >> 32;
-    ptr[1] = cmd & 0xFFFFFFFF;
-    dl_write_end();
+    uint32_t *dl = dl_write_begin();
+    *dl++ = cmd >> 32;
+    *dl++ = cmd & 0xFFFFFFFF;
+    dl_write_end(dl);
 }
 
 void dl_noop()
@@ -317,10 +322,10 @@ void dl_noop()
 
 void dl_interrupt()
 {
-    dl_queue_u8(DL_MAKE_COMMAND(DL_OVERLAY_DEFAULT, DL_CMD_INTERRUPT));
+    dl_queue_u32((DL_MAKE_COMMAND(DL_OVERLAY_DEFAULT, DL_CMD_WSTATUS) << 24) | SP_WSTATUS_SET_INTR);
 }
 
 void dl_signal(uint32_t signal)
 {
-    dl_queue_u32((DL_MAKE_COMMAND(DL_OVERLAY_DEFAULT, DL_CMD_SIGNAL) << 24) | ((signal >> 9) & 0xFFFC));
+    dl_queue_u32((DL_MAKE_COMMAND(DL_OVERLAY_DEFAULT, DL_CMD_WSTATUS) << 24) | signal);
 }

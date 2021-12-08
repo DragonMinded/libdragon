@@ -37,22 +37,33 @@
 
     .data
 
-    .align 3
 # Input properties
 OVERLAY_TABLE:         .ds.b DL_OVERLAY_TABLE_SIZE
 OVERLAY_DESCRIPTORS:   .ds.b (DL_OVERLAY_DESC_SIZE * DL_MAX_OVERLAY_COUNT)
 
+# RDRAM address of the current command list.
+# NOTE: this *MUST* be initialized before running the RSP code.
+DL_RDRAM_PTR:         .long 0
+# RDRAM address of the high priority command list.
+# NOTE: this *MUST* be initialized before running the RSP code.
+DL_RDRAM_PTR_HIGHPRI: .long 0 
+
 CURRENT_OVL:     .half -1
+
+    .align 4
+HBANNER0: .ascii " Dragon RSP DL  "
+HBANNER1: .ascii "Rasky & Snacchus"
 
     .align 3
 INTERNAL_COMMAND_TABLE:
-commandTableEntry command_noop,           4     # 0x00
+commandTableEntry command_invalid,        4     # 0x00
 commandTableEntry command_wait_new_input, 4     # 0x01
 commandTableEntry command_write_status,   4     # 0x02 -- must be even (bit 24 must be 0)
 commandTableEntry command_call,           4     # 0x03
 commandTableEntry command_jump,           4     # 0x04
 commandTableEntry command_ret,            4     # 0x05
 commandTableEntry command_call_highpri,   4     # 0x06
+commandTableEntry command_noop,           4     # 0x07
 
     .align 3
 DL_DMEM_BUFFER:            .ds.b DL_DMEM_BUFFER_SIZE
@@ -60,14 +71,6 @@ DL_DMEM_BUFFER_TERMINATOR: .byte 0x01    # terminate the buffer with command_wai
 
 
     .bss
-
-    .align 3
-# RDRAM address of the current command list.
-# NOTE: this *MUST* be initialized before running the RSP code.
-DL_RDRAM_PTR:         .long 0
-# RDRAM address of the high priority command list.
-# NOTE: this *MUST* be initialized before running the RSP code.
-DL_RDRAM_PTR_HIGHPRI: .long 0 
 
 # Save slots for RDRAM addresses used during nested lists calls.
 DL_POINTER_STACK:     .ds.l (8+1)
@@ -89,7 +92,7 @@ command_wait_new_input:
     # Check if new commands were added in the display list (SIG7)
     mfc0 t0, COP0_SP_STATUS
     andi t0, SP_STATUS_SIG7
-    beqz t0, wakeup
+    bnez t0, wakeup
     li t0, SP_WSTATUS_RESET_SIG7
 
     # No new commands yet, go to sleep
@@ -119,7 +122,8 @@ fetch_buffer_with_ptr:
     .endfunc
     # fallthrough into the main loop
 
-command_noop:   # invalid command -> repeat the loop
+command_invalid:  # invalid command -> repeat the loop
+command_noop:     # invalid command -> repeat the loop
 .func loop
 loop:
     #define ovl_index t4

@@ -15,8 +15,16 @@ void dl_overlay_register_id(uint8_t overlay_index, uint8_t id);
 void dl_start();
 void dl_close();
 
-uint32_t* dl_write_begin(uint32_t size);
-void dl_write_end();
+#define dl_terminator(dl)   ({ *(uint8_t*)(dl) = 0x01; })
+
+extern uint32_t *dl_cur_pointer;
+extern uint32_t *dl_sentinel;
+
+static inline uint32_t* dl_write_begin(void) {
+    return dl_cur_pointer;
+}
+
+void dl_write_end(uint32_t *dl);
 
 void dl_queue_u8(uint8_t cmd);
 void dl_queue_u16(uint16_t cmd);
