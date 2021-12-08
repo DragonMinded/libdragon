@@ -97,11 +97,6 @@ command_wait_new_input:
 
     # No new commands yet, go to sleep
     break
-    nop
-    nop
-    nop
-    nop
-    nop
 wakeup:
     mtc0 t0, COP0_SP_STATUS
 
