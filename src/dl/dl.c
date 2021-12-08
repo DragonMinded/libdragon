@@ -8,6 +8,7 @@
 
 #define DL_CMD_NOOP             0x07
 #define DL_CMD_WSTATUS          0x02
+#define DL_CMD_JUMP             0x04
 
 #define SP_STATUS_SIG_BUFDONE         SP_STATUS_SIG5
 #define SP_WSTATUS_SET_SIG_BUFDONE    SP_WSTATUS_SET_SIG5
@@ -54,6 +55,9 @@ static uint8_t dl_buf_idx;
 uint32_t *dl_cur_pointer;
 uint32_t *dl_sentinel;
 
+static int dl_syncpoints_genid;
+static volatile int dl_syncpoints_done;
+
 static bool dl_is_running;
 
 static uint64_t dummy_overlay_state;
@@ -64,6 +68,12 @@ static uint32_t get_ovl_data_offset()
     //uint32_t dl_data_size = rsp_dl.data_end - (void*)rsp_dl.data;
     //return ROUND_UP(dl_data_size, 8) + DL_DMEM_BUFFER_SIZE + 8;
     return 0x200;
+}
+
+static void dl_sp_interrupt(void) 
+{
+    ++dl_syncpoints_done;
+    debugf("dl_sp_interrupt(): %d\n", dl_syncpoints_done);
 }
 
 void dl_init()
@@ -80,13 +90,23 @@ void dl_init()
     dl_data.overlay_descriptors[0].data_buf = PhysicalAddr(&dummy_overlay_state);
     dl_data.overlay_descriptors[0].data_size = sizeof(uint64_t);
     
+    dl_syncpoints_genid = 0;
+    dl_syncpoints_done = 0;
+
     dl_overlay_count = 1;
+
+    // Activate SP interrupt (used for syncpoints)
+    register_SP_handler(dl_sp_interrupt);
+    set_SP_interrupt(1);
 }
 
 void dl_close()
 {
     *SP_STATUS = SP_WSTATUS_SET_HALT;
     dl_is_running = 0;
+
+    set_SP_interrupt(0);
+    unregister_SP_handler(dl_sp_interrupt);
 }
 
 void* dl_overlay_get_state(rsp_ucode_t *overlay_ucode)
@@ -190,8 +210,8 @@ void dl_next_buffer() {
     memset(dl2, 0, DL_DRAM_BUFFER_SIZE*sizeof(uint32_t));
     dl_terminator(dl2);
 
-    *dl_cur_pointer++ = 0x02000000 | SP_WSTATUS_SET_SIG_BUFDONE;
-    *dl_cur_pointer++ = 0x04000000 | (uint32_t)PhysicalAddr(dl2);
+    *dl_cur_pointer++ = (DL_CMD_WSTATUS<<24) | SP_WSTATUS_SET_SIG_BUFDONE;
+    *dl_cur_pointer++ = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dl2);
     dl_terminator(dl_cur_pointer);
     *SP_STATUS = SP_WSTATUS_SET_SIG_MORE | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
 
@@ -330,9 +350,21 @@ void dl_noop()
     dl_queue_u8(DL_CMD_NOOP);
 }
 
-void dl_interrupt()
+int dl_syncpoint(void)
 {
-    dl_queue_u32((DL_CMD_WSTATUS << 24) | SP_WSTATUS_SET_INTR);    
+    // TODO: cannot use in compiled lists
+    dl_queue_u32((DL_CMD_WSTATUS << 24) | SP_WSTATUS_SET_INTR);
+    return ++dl_syncpoints_genid;
+}
+
+bool dl_check_syncpoint(int sync_id) 
+{
+    return sync_id <= dl_syncpoints_done;
+}
+
+void dl_wait_syncpoint(int sync_id)
+{
+    while (dl_check_syncpoint(sync_id)) { /* spinwait */ }
 }
 
 void dl_signal(uint32_t signal)

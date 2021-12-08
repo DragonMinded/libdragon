@@ -69,46 +69,37 @@ void dump_mem(void* ptr, uint32_t size)
     }
 }
 
-static volatile int sp_intr_raised;
-
-void sp_interrupt_handler()
-{
-    sp_intr_raised = 1;
-    debugf("IRQ\n");
-}
-
-void wait_for_sp_interrupt_and_halted(unsigned long timeout)
+bool wait_for_syncpoint(int sync_id, unsigned long timeout)
 {
     unsigned long time_start = get_ticks_ms();
 
     while (get_ticks_ms() - time_start < timeout) {
         // Wait until the interrupt was raised and the SP is in idle mode
-        if (sp_intr_raised && (*SP_STATUS & SP_STATUS_HALTED)) {
-            break;
+        if (dl_check_syncpoint(sync_id) && (*SP_STATUS & SP_STATUS_HALTED)) {
+            return true;
         }
     }
+    return false;
 }
 
 #define TEST_DL_PROLOG() \
-    sp_intr_raised = 0; \
-    register_SP_handler(sp_interrupt_handler); \
-    set_SP_interrupt(1); \
     dl_init(); \
-    DEFER(dl_close(); set_SP_interrupt(0); unregister_SP_handler(sp_interrupt_handler));
+    DEFER(dl_close());
 
 const unsigned long dl_timeout = 100;
 
-#define TEST_DL_EPILOG(s, t) \
-    wait_for_sp_interrupt_and_halted(t); \
-    ASSERT(sp_intr_raised, "Interrupt was not raised!"); \
-    ASSERT_EQUAL_HEX(*SP_STATUS, SP_STATUS_HALTED | SP_STATUS_BROKE | SP_STATUS_SIG5 | (s), "Unexpected SP status!");
+#define TEST_DL_EPILOG(s, t) ({ \
+    int sync_id = dl_syncpoint(); \
+    if (!wait_for_syncpoint(sync_id, t)) \
+        ASSERT(0, "display list not completed: %d/%d", dl_check_syncpoint(sync_id), (*SP_STATUS & SP_STATUS_HALTED) != 0); \
+    ASSERT_EQUAL_HEX(*SP_STATUS, SP_STATUS_HALTED | SP_STATUS_BROKE | SP_STATUS_SIG5 | (s), "Unexpected SP status!"); \
+})
 
 void test_dl_queue_single(TestContext *ctx)
 {
     TEST_DL_PROLOG();
     
     dl_start();
-    dl_interrupt();
 
     TEST_DL_EPILOG(0, dl_timeout);
 }
@@ -119,7 +110,6 @@ void test_dl_queue_multiple(TestContext *ctx)
     
     dl_start();
     dl_noop();
-    dl_interrupt();
 
     TEST_DL_EPILOG(0, dl_timeout);
 }
@@ -143,7 +133,6 @@ void test_dl_queue_rapid(TestContext *ctx)
     dl_noop();
     dl_noop();
     dl_noop();
-    dl_interrupt();
 
     TEST_DL_EPILOG(0, dl_timeout);
 }
@@ -158,8 +147,6 @@ void test_dl_wrap(TestContext *ctx)
     for (uint32_t i = 0; i < block_count; i++)
         dl_noop();
     
-    dl_interrupt();
-
     TEST_DL_EPILOG(0, dl_timeout);
 }
 
@@ -169,7 +156,6 @@ void test_dl_signal(TestContext *ctx)
     
     dl_start();
     dl_signal(SP_WSTATUS_SET_SIG1 | SP_WSTATUS_SET_SIG3);
-    dl_interrupt();
 
     TEST_DL_EPILOG(SP_STATUS_SIG1 | SP_STATUS_SIG3, dl_timeout);
 }
@@ -209,7 +195,6 @@ void test_dl_high_load(TestContext *ctx)
     uint64_t *actual_sum_ptr = UncachedAddr(&actual_sum);
 
     dl_test_output(actual_sum_ptr);
-    dl_interrupt();
 
     TEST_DL_EPILOG(0, 10000);
 
@@ -225,7 +210,6 @@ void test_dl_load_overlay(TestContext *ctx)
 
     dl_start();
     rdp_set_env_color(0);
-    dl_interrupt();
 
     TEST_DL_EPILOG(0, dl_timeout);
     
