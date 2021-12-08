@@ -1,0 +1,6 @@
+#ifndef __DL_SYMBOLS
+#define __DL_SYMBOLS
+
+#define DL_OVL_DATA_ADDR (0x:OVL_DATA_ADDR: & 0xFFF)
+
+#endif

@@ -5,11 +5,12 @@
 #include <libdragon.h>
 #include "dl_internal.h"
 #include "utils.h"
+#include "../../build/dl/dl_symbols.h"
 
 #define DL_OVERLAY_DEFAULT 0x0
 
-#define DL_CMD_NOOP       0x7
 #define DL_CMD_WSTATUS    0x2
+#define DL_CMD_NOOP       0x7
 
 DEFINE_RSP_UCODE(rsp_dl);
 
@@ -47,14 +48,6 @@ static bool dl_is_running;
 
 static uint64_t dummy_overlay_state;
 
-static uint32_t get_ovl_data_offset()
-{
-    // TODO: This is incorrect. Try and find the offset by extracting the symbol from the elf file
-    //uint32_t dl_data_size = rsp_dl.data_end - (void*)rsp_dl.data;
-    //return ROUND_UP(dl_data_size, 8) + DL_DMEM_BUFFER_SIZE + 8;
-    return 0x200;
-}
-
 void dl_init()
 {
     // Load initial settings
@@ -81,7 +74,7 @@ void dl_close()
 void* dl_overlay_get_state(rsp_ucode_t *overlay_ucode)
 {
     dl_overlay_header_t *overlay_header = (dl_overlay_header_t*)overlay_ucode->data;
-    return overlay_ucode->data + (overlay_header->state_start & 0xFFF) - get_ovl_data_offset();
+    return overlay_ucode->data + (overlay_header->state_start & 0xFFF) - DL_OVL_DATA_ADDR;
 }
 
 uint8_t dl_overlay_add(rsp_ucode_t *overlay_ucode)
@@ -138,7 +131,7 @@ void dl_start()
         .command_base = 0
     };
 
-    rsp_load_data(PhysicalAddr(&dummy_header), sizeof(dummy_header), get_ovl_data_offset());
+    rsp_load_data(PhysicalAddr(&dummy_header), sizeof(dummy_header), DL_OVL_DATA_ADDR);
 
     *SP_STATUS = SP_WSTATUS_CLEAR_SIG0 | 
                  SP_WSTATUS_CLEAR_SIG1 | 

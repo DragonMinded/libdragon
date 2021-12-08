@@ -43,6 +43,11 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 $(BUILD_DIR)/audio/rsp_mixer.o: IS_OVERLAY=1
 $(BUILD_DIR)/ugfx/rsp_ugfx.o: IS_OVERLAY=1
 
+$(BUILD_DIR)/dl/dl_symbols.h: $(SOURCE_DIR)/dl/dl_symbols.h.template $(BUILD_DIR)/dl/rsp_dl.o
+	sed -e "s/:OVL_DATA_ADDR:/$(shell $(N64_NM) $(BUILD_DIR)/dl/rsp_dl.elf | awk '/_ovl_data_start/ {print $$1}')/g" $< > $@
+
+$(BUILD_DIR)/dl/dl.o: $(BUILD_DIR)/dl/dl_symbols.h
+
 examples:
 	$(MAKE) -C examples
 # We are unable to clean examples built with n64.mk unless we
