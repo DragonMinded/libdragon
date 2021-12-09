@@ -4,8 +4,6 @@
 #include <stdint.h>
 #include <rsp.h>
 
-#define DL_MAKE_COMMAND(ovl, cmd) ((((ovl) & 0xF) << 4) | ((cmd) & 0xF))
-
 void dl_init();
 
 void* dl_overlay_get_state(rsp_ucode_t *overlay_ucode);
@@ -26,13 +24,16 @@ static inline uint32_t* dl_write_begin(void) {
 
 void dl_write_end(uint32_t *dl);
 
+int dl_syncpoint(void);
+bool dl_check_syncpoint(int sync_id);
+void dl_wait_syncpoint(int sync_id);
+
 void dl_queue_u8(uint8_t cmd);
 void dl_queue_u16(uint16_t cmd);
 void dl_queue_u32(uint32_t cmd);
 void dl_queue_u64(uint64_t cmd);
 
 void dl_noop();
-void dl_interrupt();
 void dl_signal(uint32_t signal);
 
 #endif
