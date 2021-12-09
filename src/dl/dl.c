@@ -9,7 +9,9 @@
 
 #define DL_CMD_NOOP             0x07
 #define DL_CMD_WSTATUS          0x02
+#define DL_CMD_CALL             0x03
 #define DL_CMD_JUMP             0x04
+#define DL_CMD_RET              0x05
 
 #define SP_STATUS_SIG_BUFDONE         SP_STATUS_SIG5
 #define SP_WSTATUS_SET_SIG_BUFDONE    SP_WSTATUS_SET_SIG5
@@ -22,7 +24,6 @@
 #define SP_STATUS_SIG_MORE            SP_STATUS_SIG7
 #define SP_WSTATUS_SET_SIG_MORE       SP_WSTATUS_SET_SIG7
 #define SP_WSTATUS_CLEAR_SIG_MORE     SP_WSTATUS_CLEAR_SIG7
-
 
 DEFINE_RSP_UCODE(rsp_dl);
 
@@ -40,6 +41,11 @@ typedef struct dl_overlay_header_t {
     uint16_t command_base;
 } dl_overlay_header_t;
 
+typedef struct dl_block_s {
+    uint32_t nesting_level;
+    uint32_t cmds[];
+} dl_block_t;
+
 typedef struct rsp_dl_s {
     uint8_t overlay_table[DL_OVERLAY_TABLE_SIZE];
     dl_overlay_t overlay_descriptors[DL_MAX_OVERLAY_COUNT];
@@ -53,11 +59,15 @@ static uint8_t dl_overlay_count = 0;
 
 static uint32_t dl_buffers[2][DL_DRAM_BUFFER_SIZE];
 static uint8_t dl_buf_idx;
+static uint32_t *dl_buffer_ptr, *dl_buffer_sentinel;
+static dl_block_t *dl_block;
+static int dl_block_size;
+
 uint32_t *dl_cur_pointer;
-uint32_t *dl_sentinel;
+uint32_t *dl_cur_sentinel;
 
 static int dl_syncpoints_genid;
-static volatile int dl_syncpoints_done;
+volatile int dl_syncpoints_done;
 
 static bool dl_is_running;
 
@@ -77,7 +87,8 @@ void dl_init()
     dl_cur_pointer = UncachedAddr(dl_buffers[0]);
     memset(dl_cur_pointer, 0, DL_DRAM_BUFFER_SIZE*sizeof(uint32_t));
     dl_terminator(dl_cur_pointer);
-    dl_sentinel = dl_cur_pointer + DL_DRAM_BUFFER_SIZE - DL_MAX_COMMAND_SIZE;
+    dl_cur_sentinel = dl_cur_pointer + DL_DRAM_BUFFER_SIZE - DL_MAX_COMMAND_SIZE;
+    dl_block = NULL;
 
     dl_data.dl_dram_addr = PhysicalAddr(dl_buffers[0]);
     dl_data.overlay_descriptors[0].data_buf = PhysicalAddr(&dummy_overlay_state);
@@ -179,135 +190,174 @@ void dl_start()
     dl_is_running = 1;
 }
 
-__attribute__((noinline))
+static uint32_t* dl_switch_buffer(uint32_t *dl2, int size)
+{
+    uint32_t* prev = dl_cur_pointer;
+
+    // Clear the new buffer, and add immediately a terminator
+    // so that it's a valid buffer.
+    memset(dl2, 0, size*sizeof(uint32_t));
+    dl_terminator(dl2);
+
+    // Switch to the new buffer, and calculate the new sentinel.
+    dl_cur_pointer = dl2;
+    dl_cur_sentinel = dl_cur_pointer + size - DL_MAX_COMMAND_SIZE;
+
+    // Return a pointer to the previous buffer
+    return prev;
+}
+
+static void dl_next_buffer(void) {
+    // If we're creating a block
+    if (dl_block) {
+        // Allocate next chunk (double the size of the current one).
+        // We use doubling here to reduce overheads for large blocks
+        // and at the same time start small.
+        if (dl_block_size < DL_BLOCK_MAX_SIZE) dl_block_size *= 2;
+
+        // Allocate a new chunk of the block and switch to it.
+        uint32_t *dl2 = UncachedAddr(malloc(dl_block_size));
+        uint32_t *prev = dl_switch_buffer(dl2, dl_block_size);
+
+        // Terminate the previous chunk with a JUMP op to the new chunk.
+        *prev++ = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dl2);
+        dl_terminator(prev);
+        return;
+    }
+
+    // Wait until the previous buffer is executed by the RSP.
+    // We cannot write to it if it's still being executed.
+    // FIXME: this should probably transition to a sync-point,
+    // so that the kernel can switch away while waiting. Even
+    // if the overhead of an interrupt is obviously higher.
+    while (!(*SP_STATUS & SP_STATUS_SIG_BUFDONE)) { /* idle */ }
+    *SP_STATUS = SP_WSTATUS_CLEAR_SIG_BUFDONE;
+
+    // Switch current buffer
+    dl_buf_idx = 1-dl_buf_idx;
+    uint32_t *dl2 = UncachedAddr(&dl_buffers[dl_buf_idx]);
+    uint32_t *prev = dl_switch_buffer(dl2, DL_DRAM_BUFFER_SIZE);
+
+    // Terminate the previous buffer with an op to set SIG_BUFDONE
+    // (to notify when the RSP finishes the buffer), plus a jump to
+    // the new buffer.
+    *prev++ = (DL_CMD_WSTATUS<<24) | SP_WSTATUS_SET_SIG_BUFDONE;
+    *prev++ = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dl2);
+    dl_terminator(prev);
+
+    // Kick the RSP, in case it's sleeping.
+    *SP_STATUS = SP_WSTATUS_SET_SIG_MORE | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
+}
+
 void dl_write_end(uint32_t *dl) {
+    // Terminate the buffer (so that the RSP will sleep in case
+    // it catches up with us).
     dl_terminator(dl);
+
+    // Kick the RSP if it's idle.
     *SP_STATUS = SP_WSTATUS_SET_SIG_MORE | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
 
+    // Update the pointer and check if we went past the sentinel,
+    // in which case it's time to switch to the next buffer.
     dl_cur_pointer = dl;
-    if (dl_cur_pointer > dl_sentinel) {
-        extern void dl_next_buffer(void);
+    if (dl_cur_pointer > dl_cur_sentinel) {
         dl_next_buffer();
     }
 }
 
-void dl_next_buffer() {
-    while (!(*SP_STATUS & SP_STATUS_SIG_BUFDONE)) { /* idle */ }
-    *SP_STATUS = SP_WSTATUS_CLEAR_SIG_BUFDONE;
+void dl_block_begin(void)
+{
+    assertf(!dl_block, "a block was already being created");
 
-    // TODO: wait for buffer to be usable
-    // TODO: insert signal command at end of buffer
-    dl_buf_idx = 1-dl_buf_idx;
+    // Allocate a new block (at minimum size) and initialize it.
+    dl_block_size = DL_BLOCK_MIN_SIZE;
+    dl_block = UncachedAddr(malloc(sizeof(dl_block_t) + dl_block_size));
+    dl_block->nesting_level = 0;
 
-    uint32_t *dl2 = UncachedAddr(&dl_buffers[dl_buf_idx]);
-    memset(dl2, 0, DL_DRAM_BUFFER_SIZE*sizeof(uint32_t));
-    dl_terminator(dl2);
+    // Save the current pointer/sentinel for later restore
+    dl_buffer_sentinel = dl_cur_sentinel;
+    dl_buffer_ptr = dl_cur_pointer;
 
-    *dl_cur_pointer++ = (DL_CMD_WSTATUS<<24) | SP_WSTATUS_SET_SIG_BUFDONE;
-    *dl_cur_pointer++ = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dl2);
+    // Switch to the block buffer. From now on, all dl_writes will
+    // go into the block.
+    dl_switch_buffer(dl_block->cmds, dl_block_size);
+}
+
+dl_block_t* dl_block_end(void)
+{
+    assertf(dl_block, "a block was not being created");
+
+    // Terminate the block with a RET command, encoding
+    // the nesting level which is used as stack slot by RSP.
+    *dl_cur_pointer++ = (DL_CMD_RET<<24) | (dl_block->nesting_level<<2);
     dl_terminator(dl_cur_pointer);
-    *SP_STATUS = SP_WSTATUS_SET_SIG_MORE | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
 
-    dl_cur_pointer = dl2;
-    dl_sentinel = dl_cur_pointer + DL_DRAM_BUFFER_SIZE - DL_MAX_COMMAND_SIZE;
+    // Switch back to the normal display list
+    dl_cur_pointer = dl_buffer_ptr;
+    dl_cur_sentinel = dl_buffer_sentinel;
+
+    // Return the created block
+    dl_block_t *b = dl_block;
+    dl_block = NULL;
+    return b;
 }
 
-
-#if 0
-
-
-
-uint32_t* dl_write_begin(uint32_t size)
+void dl_block_free(dl_block_t *block)
 {
-    assert((size % sizeof(uint32_t)) == 0);
-    assertf(size <= DL_MAX_COMMAND_SIZE, "Command is too big! DL_MAX_COMMAND_SIZE needs to be adjusted!");
-    assertf(dl_is_running, "dl_start() needs to be called before queueing commands!");
-
-    reserved_size = size;
-    uint32_t wp = DL_POINTERS->write.value;
-
-    if (wp < sentinel) {
-        return (uint32_t*)(dl_buffer_uncached + wp);
-    }
-
-    uint32_t write_start;
-    bool wrap;
-    uint32_t safe_end;
-
+    // Start from the commands in the first chunk of the block
+    int size = DL_BLOCK_MIN_SIZE;
+    void *start = block;
+    uint32_t *ptr = block->cmds + size;
     while (1) {
-        uint32_t rp = DL_POINTERS->read.value;
+        // Rollback until we find a non-zero command
+        while (*--ptr == 0x00) {}
+        uint32_t cmd = *ptr;
 
-        // Is the write pointer ahead of the read pointer?
-        if (wp >= rp) {
-            // Enough space left at the end of the buffer?
-            if (wp + size <= DL_DRAM_BUFFER_SIZE) {
-                wrap = false;
-                write_start = wp;
-                safe_end = DL_DRAM_BUFFER_SIZE;
-                break;
+        // Ignore the terminator
+        if (cmd>>24 == 0x01)
+            cmd = *--ptr;
 
-            // Not enough space left -> we need to wrap around
-            // Enough space left at the start of the buffer?
-            } else if (size < rp) {
-                wrap = true;
-                write_start = 0;
-                safe_end = rp;
-                break;
-            }
-        
-        // Read pointer is ahead
-        // Enough space left between write and read pointer?
-        } else if (size < rp - wp) {
-            wrap = false;
-            write_start = wp;
-            safe_end = rp;
-            break;
+        // If the last command is a JUMP
+        if (cmd>>24 == DL_CMD_JUMP) {
+            // Free the memory of the current chunk.
+            free(start);
+            // Get the pointer to the next chunk
+            start = UncachedAddr(0x80000000 | (cmd & 0xFFFFFF));
+            if (size < DL_BLOCK_MAX_SIZE) size *= 2;
+            ptr = start;
         }
-
-        // Not enough space left anywhere -> buffer is full.
-        // Repeat the checks until there is enough space.
+        // If the last command is a RET
+        if (cmd>>24 == DL_CMD_RET) {
+            // This is the last chunk, free it and exit
+            free(start);
+            return;
+        }
+        // The last command is neither a JUMP nor a RET:
+        // this is an invalid chunk of a block, better assert.
+        assertf(0, "invalid terminator command in block: %08lx\n", cmd);
     }
-
-    sentinel = safe_end >= DL_MAX_COMMAND_SIZE ? safe_end - DL_MAX_COMMAND_SIZE : 0;
-
-    is_wrapping = wrap;
-
-    return (uint32_t*)(dl_buffer_uncached + write_start);
 }
 
-void dl_write_end()
+void dl_block_run(dl_block_t *block)
 {
-    uint32_t wp = DL_POINTERS->write.value;
+    // Write the CALL op. The second argument is the nesting level
+    // which is used as stack slot in the RSP to save the current
+    // pointer position.
+    uint32_t *dl = dl_write_begin();
+    *dl++ = (DL_CMD_CALL<<24) | (uint32_t)PhysicalAddr(block->cmds);
+    *dl++ = block->nesting_level << 2;
+    dl_write_end(dl);
 
-    if (is_wrapping) {
-        is_wrapping = false;
-
-        // Pad the end of the buffer with zeroes
-        uint32_t *ptr = (uint32_t*)(dl_buffer_uncached + wp);
-        uint32_t size = DL_DRAM_BUFFER_SIZE - wp;
-        for (uint32_t i = 0; i < size; i++)
-        {
-            ptr[i] = 0;
-        }
-
-        // Return the write pointer back to the start of the buffer
-        wp = 0;
+    // If this is CALL within the creation of a block, update
+    // the nesting level. A block's nesting level must be bigger
+    // than the nesting level of all blocks called from it.
+    if (dl_block && dl_block->nesting_level <= block->nesting_level) {
+        dl_block->nesting_level = block->nesting_level + 1;
+        assertf(dl_block->nesting_level < DL_MAX_BLOCK_NESTING_LEVEL,
+            "reached maximum number of nested block runs");
     }
-
-    // Advance the write pointer
-    wp += reserved_size;
-
-    MEMORY_BARRIER();
-
-    // Store the new write pointer
-    DL_POINTERS->write.value = wp;
-
-    MEMORY_BARRIER();
-
-    // Make rsp leave idle mode
-    *SP_STATUS = SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE | SP_WSTATUS_SET_SIG0;
 }
-#endif
+
 
 void dl_queue_u8(uint8_t cmd)
 {
@@ -344,7 +394,7 @@ void dl_noop()
 }
 
 int dl_syncpoint(void)
-{
+{   
     // TODO: cannot use in compiled lists
     dl_queue_u32((DL_CMD_WSTATUS << 24) | SP_WSTATUS_SET_INTR);
     return ++dl_syncpoints_genid;
@@ -357,7 +407,7 @@ bool dl_check_syncpoint(int sync_id)
 
 void dl_wait_syncpoint(int sync_id)
 {
-    while (dl_check_syncpoint(sync_id)) { /* spinwait */ }
+    while (!dl_check_syncpoint(sync_id)) { /* spinwait */ }
 }
 
 void dl_signal(uint32_t signal)
