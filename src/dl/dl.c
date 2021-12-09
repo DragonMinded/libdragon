@@ -195,8 +195,6 @@ void dl_next_buffer() {
     while (!(*SP_STATUS & SP_STATUS_SIG_BUFDONE)) { /* idle */ }
     *SP_STATUS = SP_WSTATUS_CLEAR_SIG_BUFDONE;
 
-    // TODO: wait for buffer to be usable
-    // TODO: insert signal command at end of buffer
     dl_buf_idx = 1-dl_buf_idx;
 
     uint32_t *dl2 = UncachedAddr(&dl_buffers[dl_buf_idx]);
@@ -211,103 +209,6 @@ void dl_next_buffer() {
     dl_cur_pointer = dl2;
     dl_sentinel = dl_cur_pointer + DL_DRAM_BUFFER_SIZE - DL_MAX_COMMAND_SIZE;
 }
-
-
-#if 0
-
-
-
-uint32_t* dl_write_begin(uint32_t size)
-{
-    assert((size % sizeof(uint32_t)) == 0);
-    assertf(size <= DL_MAX_COMMAND_SIZE, "Command is too big! DL_MAX_COMMAND_SIZE needs to be adjusted!");
-    assertf(dl_is_running, "dl_start() needs to be called before queueing commands!");
-
-    reserved_size = size;
-    uint32_t wp = DL_POINTERS->write.value;
-
-    if (wp < sentinel) {
-        return (uint32_t*)(dl_buffer_uncached + wp);
-    }
-
-    uint32_t write_start;
-    bool wrap;
-    uint32_t safe_end;
-
-    while (1) {
-        uint32_t rp = DL_POINTERS->read.value;
-
-        // Is the write pointer ahead of the read pointer?
-        if (wp >= rp) {
-            // Enough space left at the end of the buffer?
-            if (wp + size <= DL_DRAM_BUFFER_SIZE) {
-                wrap = false;
-                write_start = wp;
-                safe_end = DL_DRAM_BUFFER_SIZE;
-                break;
-
-            // Not enough space left -> we need to wrap around
-            // Enough space left at the start of the buffer?
-            } else if (size < rp) {
-                wrap = true;
-                write_start = 0;
-                safe_end = rp;
-                break;
-            }
-        
-        // Read pointer is ahead
-        // Enough space left between write and read pointer?
-        } else if (size < rp - wp) {
-            wrap = false;
-            write_start = wp;
-            safe_end = rp;
-            break;
-        }
-
-        // Not enough space left anywhere -> buffer is full.
-        // Repeat the checks until there is enough space.
-    }
-
-    sentinel = safe_end >= DL_MAX_COMMAND_SIZE ? safe_end - DL_MAX_COMMAND_SIZE : 0;
-
-    is_wrapping = wrap;
-
-    return (uint32_t*)(dl_buffer_uncached + write_start);
-}
-
-void dl_write_end()
-{
-    uint32_t wp = DL_POINTERS->write.value;
-
-    if (is_wrapping) {
-        is_wrapping = false;
-
-        // Pad the end of the buffer with zeroes
-        uint32_t *ptr = (uint32_t*)(dl_buffer_uncached + wp);
-        uint32_t size = DL_DRAM_BUFFER_SIZE - wp;
-        for (uint32_t i = 0; i < size; i++)
-        {
-            ptr[i] = 0;
-        }
-
-        // Return the write pointer back to the start of the buffer
-        wp = 0;
-    }
-
-    // Advance the write pointer
-    wp += reserved_size;
-
-    MEMORY_BARRIER();
-
-    // Store the new write pointer
-    DL_POINTERS->write.value = wp;
-
-    MEMORY_BARRIER();
-
-    // Make rsp leave idle mode
-    *SP_STATUS = SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE | SP_WSTATUS_SET_SIG0;
-}
-#endif
 
 void dl_queue_u8(uint8_t cmd)
 {
@@ -357,7 +258,7 @@ bool dl_check_syncpoint(int sync_id)
 
 void dl_wait_syncpoint(int sync_id)
 {
-    while (dl_check_syncpoint(sync_id)) { /* spinwait */ }
+    while (!dl_check_syncpoint(sync_id)) { /* spinwait */ }
 }
 
 void dl_signal(uint32_t signal)

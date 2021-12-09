@@ -592,12 +592,7 @@ void mixer_exec(int32_t *out, int num_samples) {
 	*ptr++ = (uint32_t)PhysicalAddr(&Mixer.ucode_settings);
 	
 	dl_write_end(ptr);
-
-	// Wait for command to be done
-	// TODO: synchronize this via SP interrupt?
-	dl_signal(SP_WSTATUS_SET_SIG1);
-	while (!(*SP_STATUS & SP_STATUS_SIG1));
-	dl_signal(SP_WSTATUS_CLEAR_SIG1);
+	dl_sync();
 
 	__mixer_profile_rsp += TICKS_READ() - t0;
 

@@ -28,6 +28,10 @@ int dl_syncpoint(void);
 bool dl_check_syncpoint(int sync_id);
 void dl_wait_syncpoint(int sync_id);
 
+static inline void dl_sync() {
+    dl_wait_syncpoint(dl_syncpoint());
+}
+
 void dl_queue_u8(uint8_t cmd);
 void dl_queue_u16(uint16_t cmd);
 void dl_queue_u32(uint32_t cmd);

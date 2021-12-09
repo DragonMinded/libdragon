@@ -243,7 +243,7 @@ execute_command:
     .func command_call_highpri
 command_call_highpri:
     lw a0, %lo(DL_RDRAM_PTR_HIGHPRI)
-    li a1, %lo(DL_POINTER_STACK+8*4)
+    li a1, 8*4
     # fallthrough
     .endfunc
     
@@ -264,7 +264,7 @@ command_call:
     # a1: call slot in DMEM
     lw s0, %lo(DL_RDRAM_PTR)
     add s0, dl_dmem_buf_ptr
-    sw s0, 0(a1)  # save return address
+    sw s0, %lo(DL_POINTER_STACK)(a1)  # save return address
     # fallthrough
     .endfunc
 
@@ -290,13 +290,13 @@ command_jump:
     # Restore a previously saved RDRAM position and jump to it.
     #
     # ARGS:
-    #   a0: DMDM address of the save slot (plus command opcode)
+    #   a0: DMEM address of the save slot (plus command opcode)
     #############################################################
     .func command_ret
 command_ret:
     # a0: command opcode + call slot in DMEM to recover
     j fetch_buffer_with_ptr
-    lw s0, 0(a0)
+    lw s0, %lo(DL_POINTER_STACK)(a0)
     .endfunc
 
     #############################################################
