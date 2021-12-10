@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <rsp.h>
 
+typedef struct dl_block_s dl_block_t;
+
 void dl_init();
 
 void* dl_overlay_get_state(rsp_ucode_t *overlay_ucode);
@@ -23,6 +25,11 @@ static inline uint32_t* dl_write_begin(void) {
 }
 
 void dl_write_end(uint32_t *dl);
+
+void dl_block_begin(void);
+dl_block_t* dl_block_end(void);
+void dl_block_free(dl_block_t *block);
+void dl_block_run(dl_block_t *block);
 
 int dl_syncpoint(void);
 bool dl_check_syncpoint(int sync_id);

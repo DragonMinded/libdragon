@@ -73,7 +73,7 @@ DL_DMEM_BUFFER_TERMINATOR: .byte 0x01    # terminate the buffer with command_wai
     .bss
 
 # Save slots for RDRAM addresses used during nested lists calls.
-DL_POINTER_STACK:     .ds.l (8+1)
+DL_POINTER_STACK:     .ds.l (DL_MAX_BLOCK_NESTING_LEVEL+1)
 
 
     .align 3
@@ -243,7 +243,7 @@ execute_command:
     .func command_call_highpri
 command_call_highpri:
     lw a0, %lo(DL_RDRAM_PTR_HIGHPRI)
-    li a1, 8*4
+    li a1, DL_MAX_BLOCK_NESTING_LEVEL*4
     # fallthrough
     .endfunc
     
