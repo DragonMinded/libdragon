@@ -106,7 +106,10 @@ void dl_init()
 
 void dl_close()
 {
+    MEMORY_BARRIER();
     *SP_STATUS = SP_WSTATUS_SET_HALT;
+    MEMORY_BARRIER();
+
     dl_is_running = 0;
 
     set_SP_interrupt(0);
@@ -175,6 +178,8 @@ void dl_start()
 
     rsp_load_data(PhysicalAddr(&dummy_header), sizeof(dummy_header), DL_OVL_DATA_ADDR);
 
+    MEMORY_BARRIER();
+
     *SP_STATUS = SP_WSTATUS_CLEAR_SIG0 | 
                  SP_WSTATUS_CLEAR_SIG1 | 
                  SP_WSTATUS_CLEAR_SIG2 | 
@@ -183,6 +188,8 @@ void dl_start()
                  SP_WSTATUS_SET_SIG_BUFDONE |
                  SP_WSTATUS_CLEAR_SIG_HIGHPRI |
                  SP_WSTATUS_CLEAR_SIG_MORE;
+
+    MEMORY_BARRIER();
 
     // Off we go!
     rsp_run_async();
@@ -221,6 +228,7 @@ static void dl_next_buffer(void) {
 
         // Terminate the previous chunk with a JUMP op to the new chunk.
         *prev++ = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dl2);
+        MEMORY_BARRIER();
         dl_terminator(prev);
         return;
     }
@@ -230,8 +238,11 @@ static void dl_next_buffer(void) {
     // FIXME: this should probably transition to a sync-point,
     // so that the kernel can switch away while waiting. Even
     // if the overhead of an interrupt is obviously higher.
+    MEMORY_BARRIER();
     while (!(*SP_STATUS & SP_STATUS_SIG_BUFDONE)) { /* idle */ }
+    MEMORY_BARRIER();
     *SP_STATUS = SP_WSTATUS_CLEAR_SIG_BUFDONE;
+    MEMORY_BARRIER();
 
     // Switch current buffer
     dl_buf_idx = 1-dl_buf_idx;
@@ -243,10 +254,13 @@ static void dl_next_buffer(void) {
     // the new buffer.
     *prev++ = (DL_CMD_WSTATUS<<24) | SP_WSTATUS_SET_SIG_BUFDONE;
     *prev++ = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dl2);
+    MEMORY_BARRIER();
     dl_terminator(prev);
 
+    MEMORY_BARRIER();
     // Kick the RSP, in case it's sleeping.
     *SP_STATUS = SP_WSTATUS_SET_SIG_MORE | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
+    MEMORY_BARRIER();
 }
 
 void dl_write_end(uint32_t *dl) {
@@ -254,8 +268,10 @@ void dl_write_end(uint32_t *dl) {
     // it catches up with us).
     dl_terminator(dl);
 
+    MEMORY_BARRIER();
     // Kick the RSP if it's idle.
     *SP_STATUS = SP_WSTATUS_SET_SIG_MORE | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
+    MEMORY_BARRIER();
 
     // Update the pointer and check if we went past the sentinel,
     // in which case it's time to switch to the next buffer.
@@ -290,6 +306,7 @@ dl_block_t* dl_block_end(void)
     // Terminate the block with a RET command, encoding
     // the nesting level which is used as stack slot by RSP.
     *dl_cur_pointer++ = (DL_CMD_RET<<24) | (dl_block->nesting_level<<2);
+    MEMORY_BARRIER();
     dl_terminator(dl_cur_pointer);
 
     // Switch back to the normal display list

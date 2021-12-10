@@ -3,21 +3,21 @@
 static wav64_t sfx_cannon;
 static xm64player_t xm;
 
-static volatile int rdp_intr = 0;
+static int rdp_intr_genid;
+volatile int rdp_intr_done;
+
 
 void dp_interrupt_handler()
 {
-    rdp_intr = 1;
+    ++rdp_intr_done;
 }
 
 void wait_for_rdp()
 {
-    rdp_intr = 0;
-
     rdp_sync_full();
-    while (!rdp_intr);
-
-    rdp_intr = 0;
+    int id = ++rdp_intr_genid;
+    MEMORY_BARRIER();
+    while (id > rdp_intr_done);
 }
 
 typedef struct {

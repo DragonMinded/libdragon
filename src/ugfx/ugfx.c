@@ -6,16 +6,10 @@
 
 DEFINE_RSP_UCODE(rsp_ugfx);
 
-void *__ugfx_dram_buffer;
+uint8_t __ugfx_dram_buffer[UGFX_RDP_DRAM_BUFFER_SIZE];
 
 void ugfx_init()
 {
-    if (__ugfx_dram_buffer != NULL) {
-        return;
-    }
-
-    __ugfx_dram_buffer = malloc(UGFX_RDP_DRAM_BUFFER_SIZE);
-
     ugfx_state_t *ugfx_state = dl_overlay_get_state(&rsp_ugfx);
 
     memset(ugfx_state, 0, sizeof(ugfx_state_t));
@@ -32,12 +26,6 @@ void ugfx_init()
 
 void ugfx_close()
 {
-    if (__ugfx_dram_buffer == NULL) {
-        return;
-    }
-
-    free(__ugfx_dram_buffer);
-    __ugfx_dram_buffer = NULL;
 }
 
 void rdp_texture_rectangle(uint8_t tile, int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t s, int16_t t, int16_t ds, int16_t dt)

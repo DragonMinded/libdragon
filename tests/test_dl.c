@@ -5,6 +5,7 @@
 #include <ugfx.h>
 
 #include "../src/dl/dl_internal.h"
+#include "../src/ugfx/ugfx_internal.h"
 
 DEFINE_RSP_UCODE(rsp_test);
 
@@ -220,3 +221,57 @@ void test_dl_load_overlay(TestContext *ctx)
 
     ASSERT_EQUAL_MEM((uint8_t*)SP_IMEM, rsp_ugfx_text_start, size, "ugfx overlay was not loaded into IMEM!");
 }
+
+void test_dl_switch_overlay(TestContext *ctx)
+{
+    TEST_DL_PROLOG();
+    
+    test_ovl_init();
+
+    ugfx_init();
+    DEFER(ugfx_close());
+
+    dl_start();
+
+    rdp_set_env_color(0);
+    dl_test_16(0);
+
+    TEST_DL_EPILOG(0, dl_timeout);
+
+    extern rsp_ucode_t rsp_ugfx;
+    extern void* dl_overlay_get_state(rsp_ucode_t *overlay_ucode);
+
+    ugfx_state_t *ugfx_state = UncachedAddr(dl_overlay_get_state(&rsp_ugfx));
+
+    uint64_t expected_commands[] = {
+        RdpSetEnvColor(0)
+    };
+
+    ASSERT_EQUAL_MEM(ugfx_state->rdp_buffer, (uint8_t*)expected_commands, sizeof(expected_commands), "State was not saved!");
+}
+
+void test_dl_sync(TestContext *ctx)
+{
+    TEST_DL_PROLOG();
+    
+    test_ovl_init();
+    dl_start();
+
+    for (uint32_t i = 0; i < 1000; i++)
+    {
+        dl_test_8(1);
+        dl_test_wait(0x8000);
+        dl_sync();
+    }
+
+    uint64_t actual_sum;
+    uint64_t *actual_sum_ptr = UncachedAddr(&actual_sum);
+
+    dl_test_output(actual_sum_ptr);
+
+    TEST_DL_EPILOG(0, dl_timeout);
+
+    ASSERT_EQUAL_UNSIGNED(*actual_sum_ptr, 1000, "Sum is incorrect!");
+}
+
+// TODO: test syncing with overlay switching

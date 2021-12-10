@@ -46,9 +46,9 @@ OVERLAY_DESCRIPTORS:   .ds.b (DL_OVERLAY_DESC_SIZE * DL_MAX_OVERLAY_COUNT)
 DL_RDRAM_PTR:         .long 0
 # RDRAM address of the high priority command list.
 # NOTE: this *MUST* be initialized before running the RSP code.
-DL_RDRAM_PTR_HIGHPRI: .long 0 
+DL_RDRAM_PTR_HIGHPRI: .long 0
 
-CURRENT_OVL:     .half -1
+CURRENT_OVL:          .half 0
 
     .align 4
 HBANNER0: .ascii " Dragon RSP DL  "

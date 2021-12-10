@@ -57,9 +57,7 @@ void test_ugfx_dram_buffer(TestContext *ctx)
     ugfx_init();
     DEFER(ugfx_close());
 
-    extern void *__ugfx_dram_buffer;
-    ASSERT(__ugfx_dram_buffer, "ugfx internal DRAM buffer not found!");
-
+    extern uint8_t __ugfx_dram_buffer[];
     data_cache_hit_writeback_invalidate(__ugfx_dram_buffer, UGFX_RDP_DRAM_BUFFER_SIZE);
 
     dl_start();
