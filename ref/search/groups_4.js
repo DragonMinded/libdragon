@@ -1,4 +1,5 @@
 var searchData=
 [
-  ['exception_20handler_1855',['Exception Handler',['../group__exceptions.html',1,'']]]
+  ['eeprom_20subsystem_1874',['EEPROM subsystem',['../group__eeprom.html',1,'']]],
+  ['exception_20handler_1875',['Exception Handler',['../group__exceptions.html',1,'']]]
 ];

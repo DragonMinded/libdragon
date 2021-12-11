@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['mi_5fregs_5ft_1061',['MI_regs_t',['../group__lowlevel.html#structMI__regs__t',1,'']]]
+  ['joybus_5fmsg_5ft_1073',['joybus_msg_t',['../structjoybus__msg__t.html',1,'']]]
 ];

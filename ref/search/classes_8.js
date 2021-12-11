@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['new_5fgbc_5ftitle_1062',['new_gbc_title',['../tpak_8h.html#structnew__gbc__title',1,'']]]
+  ['mi_5fregs_5ft_1074',['MI_regs_t',['../group__lowlevel.html#structMI__regs__t',1,'']]]
 ];
