@@ -65,6 +65,7 @@ void rdp_sync_tile()
 void rdp_sync_full()
 {
     dl_queue_u64(RdpSyncFull());
+    dl_flush();
 }
 
 void rdp_set_key_gb(uint16_t wg, uint8_t wb, uint8_t cg, uint16_t sg, uint8_t cb, uint8_t sb)
