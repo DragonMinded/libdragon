@@ -91,6 +91,7 @@ const unsigned long dl_timeout = 100;
 
 #define TEST_DL_EPILOG(s, t) ({ \
     int sync_id = dl_syncpoint(); \
+    dl_flush(); \
     if (!wait_for_syncpoint(sync_id, t)) \
         ASSERT(0, "display list not completed: %d/%d", dl_check_syncpoint(sync_id), (*SP_STATUS & SP_STATUS_HALTED) != 0); \
     ASSERT_EQUAL_HEX(*SP_STATUS, SP_STATUS_HALTED | SP_STATUS_BROKE | SP_STATUS_SIG5 | (s), "Unexpected SP status!"); \

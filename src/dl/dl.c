@@ -7,11 +7,20 @@
 #include "utils.h"
 #include "../../build/dl/dl_symbols.h"
 
-#define DL_CMD_NOOP             0x07
+#define DL_CMD_IDLE             0x01
 #define DL_CMD_WSTATUS          0x02
 #define DL_CMD_CALL             0x03
 #define DL_CMD_JUMP             0x04
 #define DL_CMD_RET              0x05
+#define DL_CMD_NOOP             0x07
+
+#define dl_terminator(dl)   ({ \
+    /* The terminator is usually meant to be written only *after* the last \
+       command has been fully written, otherwise the RSP could in theory \
+       execute a partial command. Force ordering via a memory barrier. */ \
+    MEMORY_BARRIER(); \
+    *(uint8_t*)(dl) = 0x01; \
+})
 
 #define SP_STATUS_SIG_BUFDONE         SP_STATUS_SIG5
 #define SP_WSTATUS_SET_SIG_BUFDONE    SP_WSTATUS_SET_SIG5
@@ -214,7 +223,8 @@ static uint32_t* dl_switch_buffer(uint32_t *dl2, int size)
     return prev;
 }
 
-static void dl_next_buffer(void) {
+__attribute__((noinline))
+void dl_next_buffer(void) {
     // If we're creating a block
     if (dl_block) {
         // Allocate next chunk (double the size of the current one).
@@ -228,7 +238,6 @@ static void dl_next_buffer(void) {
 
         // Terminate the previous chunk with a JUMP op to the new chunk.
         *prev++ = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dl2);
-        MEMORY_BARRIER();
         dl_terminator(prev);
         return;
     }
@@ -254,7 +263,6 @@ static void dl_next_buffer(void) {
     // the new buffer.
     *prev++ = (DL_CMD_WSTATUS<<24) | SP_WSTATUS_SET_SIG_BUFDONE;
     *prev++ = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dl2);
-    MEMORY_BARRIER();
     dl_terminator(prev);
 
     MEMORY_BARRIER();
@@ -263,22 +271,29 @@ static void dl_next_buffer(void) {
     MEMORY_BARRIER();
 }
 
-void dl_write_end(uint32_t *dl) {
-    // Terminate the buffer (so that the RSP will sleep in case
-    // it catches up with us).
-    dl_terminator(dl);
+__attribute__((noinline))
+void dl_flush(void)
+{
+    // If we are recording a block, flushes can be ignored
+    if (dl_block) return;
 
-    MEMORY_BARRIER();
-    // Kick the RSP if it's idle.
+    // Tell the RSP to wake up because there is more data pending.
     *SP_STATUS = SP_WSTATUS_SET_SIG_MORE | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
-    MEMORY_BARRIER();
 
-    // Update the pointer and check if we went past the sentinel,
-    // in which case it's time to switch to the next buffer.
-    dl_cur_pointer = dl;
-    if (dl_cur_pointer > dl_cur_sentinel) {
-        dl_next_buffer();
-    }
+    // Most of the times, the above is enough. But there is a small and very rare
+    // race condition that can happen: if the above status change happens
+    // exactly in the few instructions between RSP checking for the status
+    // register ("mfc0 t0, COP0_SP_STATUS") RSP halting itself("break"),
+    // the call to dl_flush might have no effect (see command_wait_new_input in
+    // rsp_dl.S).
+    // In general this is not a big problem even if it happens, as the RSP
+    // would wake up at the next flush anyway, but we guarantee that dl_flush
+    // does actually make the RSP finish the current buffer. To keep this
+    // invariant, we wait 10 cycles and then issue the command again. This
+    // make sure that even if the race condition happened, we still succeed
+    // in waking up the RSP.
+    __asm("nop; nop; nop; nop; nop; nop; nop; nop; nop; nop;");
+    *SP_STATUS = SP_WSTATUS_SET_SIG_MORE | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
 }
 
 void dl_block_begin(void)
@@ -306,7 +321,6 @@ dl_block_t* dl_block_end(void)
     // Terminate the block with a RET command, encoding
     // the nesting level which is used as stack slot by RSP.
     *dl_cur_pointer++ = (DL_CMD_RET<<24) | (dl_block->nesting_level<<2);
-    MEMORY_BARRIER();
     dl_terminator(dl_cur_pointer);
 
     // Switch back to the normal display list
@@ -331,7 +345,7 @@ void dl_block_free(dl_block_t *block)
         uint32_t cmd = *ptr;
 
         // Ignore the terminator
-        if (cmd>>24 == 0x01)
+        if (cmd>>24 == DL_CMD_IDLE)
             cmd = *--ptr;
 
         // If the last command is a JUMP
@@ -410,20 +424,26 @@ void dl_noop()
     dl_queue_u8(DL_CMD_NOOP);
 }
 
-int dl_syncpoint(void)
+dl_syncpoint_t dl_syncpoint(void)
 {   
     // TODO: cannot use in compiled lists
     dl_queue_u32((DL_CMD_WSTATUS << 24) | SP_WSTATUS_SET_INTR);
     return ++dl_syncpoints_genid;
 }
 
-bool dl_check_syncpoint(int sync_id) 
+bool dl_check_syncpoint(dl_syncpoint_t sync_id) 
 {
     return sync_id <= dl_syncpoints_done;
 }
 
-void dl_wait_syncpoint(int sync_id)
+void dl_wait_syncpoint(dl_syncpoint_t sync_id)
 {
+    // Make sure the RSP is running, otherwise we might be blocking forever.
+    dl_flush();
+
+    // Spinwait until the the syncpoint is reached.
+    // TODO: with the kernel, it will be possible to wait for the RSP interrupt
+    // to happen, without spinwaiting.
     while (!dl_check_syncpoint(sync_id)) { /* spinwait */ }
 }
 
