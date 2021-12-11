@@ -110,17 +110,17 @@ void dl_close(void);
 	extern uint32_t *dl_cur_sentinel; \
 	extern void dl_next_buffer(void); \
     \
-	uint32_t *dl = (dl_); \
+	uint32_t *__dl = (dl_); \
     \
     /* Terminate the buffer (so that the RSP will sleep in case \
      * it catches up with us). \
      * NOTE: this is an inlined version of the internal dl_terminator() macro. */ \
     MEMORY_BARRIER(); \
-    *(uint8_t*)(dl) = 0x01; \
+    *(uint8_t*)(__dl) = 0x01; \
     \
     /* Update the pointer and check if we went past the sentinel, \
      * in which case it's time to switch to the next buffer. */ \
-    dl_cur_pointer = dl; \
+    dl_cur_pointer = __dl; \
     if (dl_cur_pointer > dl_cur_sentinel) { \
         dl_next_buffer(); \
     } \
