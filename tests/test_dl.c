@@ -59,6 +59,14 @@ void dl_test_output(uint64_t *dest)
     dl_write_end(ptr);
 }
 
+void dl_test_reset(void)
+{
+    uint32_t *ptr = dl_write_begin();
+    *ptr++ = 0xf5000000;
+    dl_write_end(ptr);
+}
+
+
 #define DL_LOG_STATUS(step) debugf("STATUS: %#010lx, PC: %#010lx (%s)\n", *SP_STATUS, *SP_PC, step)
 
 void dump_mem(void* ptr, uint32_t size)
@@ -274,5 +282,74 @@ void test_dl_sync(TestContext *ctx)
 
     ASSERT_EQUAL_UNSIGNED(*actual_sum_ptr, 1000, "Sum is incorrect!");
 }
+
+void test_dl_block(TestContext *ctx)
+{
+    TEST_DL_PROLOG();
+    test_ovl_init();
+    dl_start();
+
+    dl_block_begin();
+    for (uint32_t i = 0; i < 512; i++)
+        dl_test_8(1);
+    dl_block_t *b512 = dl_block_end();
+    DEFER(dl_block_free(b512));
+
+    dl_block_begin();
+    for (uint32_t i = 0; i < 4; i++)
+        dl_block_run(b512);
+    dl_block_t *b2048 = dl_block_end();
+    DEFER(dl_block_free(b2048));
+
+    dl_block_begin();
+    dl_block_run(b512);
+    for (uint32_t i = 0; i < 512; i++)
+        dl_test_8(1);
+    dl_block_run(b2048);
+    dl_block_t *b3072 = dl_block_end();
+    DEFER(dl_block_free(b3072));
+
+    uint64_t sum = 0;
+    uint64_t* usum = UncachedAddr(&sum);
+
+    dl_test_reset();
+    dl_block_run(b512);
+    dl_test_output(usum);
+    dl_sync();
+    ASSERT_EQUAL_UNSIGNED(*usum, 512, "sum #1 is not correct");
+
+    dl_block_run(b512);
+    dl_test_reset();
+    dl_block_run(b512);
+    dl_test_output(usum);
+    dl_sync();
+    ASSERT_EQUAL_UNSIGNED(*usum, 512, "sum #2 is not correct");
+
+    dl_test_reset();
+    dl_block_run(b2048);
+    dl_test_output(usum);
+    dl_sync();
+    ASSERT_EQUAL_UNSIGNED(*usum, 2048, "sum #3 is not correct");
+
+    dl_test_reset();
+    dl_block_run(b3072);
+    dl_test_output(usum);
+    dl_sync();
+    ASSERT_EQUAL_UNSIGNED(*usum, 3072, "sum #4 is not correct");
+
+    dl_test_reset();
+    dl_test_8(1);
+    dl_block_run(b3072);
+    dl_test_8(1);
+    dl_block_run(b2048);
+    dl_test_8(1);
+    dl_test_output(usum);
+    dl_sync();
+    ASSERT_EQUAL_UNSIGNED(*usum, 5123, "sum #5 is not correct");
+
+    TEST_DL_EPILOG(0, dl_timeout);
+}
+
+
 
 // TODO: test syncing with overlay switching

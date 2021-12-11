@@ -38,9 +38,11 @@ typedef struct dl_block_s dl_block_t;
  * to respectively do a single check or block waiting for the syncpoint to be
  * reached by RSP.
  * 
- * Syncpoints are implemented using interrupts, so have a light but non trivial
- * overhead. Do not abuse them. For instance, it is reasonable to use a few
- * syncpoints per frame, but not hundreds of them.
+ * Syncpoints are implemented using interrupts, so they have a light but non
+ * trivial overhead. Do not abuse them. For instance, it is reasonable to use
+ * tens of syncpoints per frame, but not hundreds or thousands of them.
+ * 
+ * @note A valid syncpoint is an integer greater than 0.
  */
 typedef int dl_syncpoint_t;
 
@@ -110,17 +112,17 @@ void dl_close(void);
 	extern uint32_t *dl_cur_sentinel; \
 	extern void dl_next_buffer(void); \
     \
-	uint32_t *dl = (dl_); \
+	uint32_t *__dl = (dl_); \
     \
     /* Terminate the buffer (so that the RSP will sleep in case \
      * it catches up with us). \
      * NOTE: this is an inlined version of the internal dl_terminator() macro. */ \
     MEMORY_BARRIER(); \
-    *(uint8_t*)(dl) = 0x01; \
+    *(uint8_t*)(__dl) = 0x01; \
     \
     /* Update the pointer and check if we went past the sentinel, \
      * in which case it's time to switch to the next buffer. */ \
-    dl_cur_pointer = dl; \
+    dl_cur_pointer = __dl; \
     if (dl_cur_pointer > dl_cur_sentinel) { \
         dl_next_buffer(); \
     } \
@@ -208,6 +210,8 @@ void dl_flush(void);
  * non-trivial overhead. They should not be abused but used sparingly.
  *
  * @return     ID of the just-created syncpoint.
+ * 
+ * @note It is not possible to create a syncpoint within a block
  */
 dl_syncpoint_t dl_syncpoint(void);
 

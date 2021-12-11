@@ -11,6 +11,7 @@ COMMAND_TABLE:
     commandTableEntry command_test, 16
     commandTableEntry command_wait, 8
     commandTableEntry command_output, 8
+    commandTableEntry command_reset, 4
 
     .align 3
 OVL_TEST_SAVED_DATA_START:
@@ -39,3 +40,7 @@ command_output:
     li s4, %lo(TEST_DATA)
     j DMAOut
     li t0, DMA_SIZE(8, 1)
+
+command_reset:
+    j loop
+    sw zero, %lo(TEST_VARIABLE)

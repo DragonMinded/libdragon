@@ -85,7 +85,6 @@ static uint64_t dummy_overlay_state;
 static void dl_sp_interrupt(void) 
 {
     ++dl_syncpoints_done;
-    debugf("dl_sp_interrupt(): %d\n", dl_syncpoints_done);
 }
 
 void dl_init()
@@ -212,6 +211,7 @@ static uint32_t* dl_switch_buffer(uint32_t *dl2, int size)
 
     // Clear the new buffer, and add immediately a terminator
     // so that it's a valid buffer.
+    assert(size >= DL_MAX_COMMAND_SIZE);
     memset(dl2, 0, size*sizeof(uint32_t));
     dl_terminator(dl2);
 
@@ -233,7 +233,7 @@ void dl_next_buffer(void) {
         if (dl_block_size < DL_BLOCK_MAX_SIZE) dl_block_size *= 2;
 
         // Allocate a new chunk of the block and switch to it.
-        uint32_t *dl2 = UncachedAddr(malloc(dl_block_size));
+        uint32_t *dl2 = UncachedAddr(malloc(dl_block_size*sizeof(uint32_t)));
         uint32_t *prev = dl_switch_buffer(dl2, dl_block_size);
 
         // Terminate the previous chunk with a JUMP op to the new chunk.
@@ -302,7 +302,7 @@ void dl_block_begin(void)
 
     // Allocate a new block (at minimum size) and initialize it.
     dl_block_size = DL_BLOCK_MIN_SIZE;
-    dl_block = UncachedAddr(malloc(sizeof(dl_block_t) + dl_block_size));
+    dl_block = UncachedAddr(malloc(sizeof(dl_block_t) + dl_block_size*sizeof(uint32_t)));
     dl_block->nesting_level = 0;
 
     // Save the current pointer/sentinel for later restore
@@ -351,16 +351,17 @@ void dl_block_free(dl_block_t *block)
         // If the last command is a JUMP
         if (cmd>>24 == DL_CMD_JUMP) {
             // Free the memory of the current chunk.
-            free(start);
+            free(CachedAddr(start));
             // Get the pointer to the next chunk
             start = UncachedAddr(0x80000000 | (cmd & 0xFFFFFF));
             if (size < DL_BLOCK_MAX_SIZE) size *= 2;
-            ptr = start;
+            ptr = (uint32_t*)start + size;
+            continue;
         }
         // If the last command is a RET
         if (cmd>>24 == DL_CMD_RET) {
             // This is the last chunk, free it and exit
-            free(start);
+            free(CachedAddr(start));
             return;
         }
         // The last command is neither a JUMP nor a RET:
@@ -426,7 +427,7 @@ void dl_noop()
 
 dl_syncpoint_t dl_syncpoint(void)
 {   
-    // TODO: cannot use in compiled lists
+    assertf(!dl_block, "cannot create syncpoint in a block");
     dl_queue_u32((DL_CMD_WSTATUS << 24) | SP_WSTATUS_SET_INTR);
     return ++dl_syncpoints_genid;
 }
