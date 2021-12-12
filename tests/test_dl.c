@@ -247,13 +247,40 @@ void test_dl_switch_overlay(TestContext *ctx)
     ASSERT_EQUAL_MEM(ugfx_state->rdp_buffer, (uint8_t*)expected_commands, sizeof(expected_commands), "State was not saved!");
 }
 
+void test_dl_multiple_flush(TestContext *ctx)
+{
+    TEST_DL_PROLOG();
+    test_ovl_init();
+
+    dl_test_8(1);
+    dl_test_8(1);
+    dl_test_8(1);
+    dl_flush();
+    wait_ms(3);
+    dl_test_8(1);
+    dl_test_8(1);
+    dl_test_8(1);
+    dl_flush();
+    wait_ms(3);
+
+    uint64_t actual_sum;
+    uint64_t *actual_sum_ptr = UncachedAddr(&actual_sum);
+
+    dl_test_output(actual_sum_ptr);
+
+    TEST_DL_EPILOG(0, dl_timeout);
+
+    ASSERT_EQUAL_UNSIGNED(*actual_sum_ptr, 6, "Sum is incorrect!");
+}
+
+
 void test_dl_sync(TestContext *ctx)
 {
     TEST_DL_PROLOG();
     
     test_ovl_init();
 
-    for (uint32_t i = 0; i < 1000; i++)
+    for (uint32_t i = 0; i < 100; i++)
     {
         dl_test_8(1);
         dl_test_wait(0x8000);
@@ -267,7 +294,7 @@ void test_dl_sync(TestContext *ctx)
 
     TEST_DL_EPILOG(0, dl_timeout);
 
-    ASSERT_EQUAL_UNSIGNED(*actual_sum_ptr, 1000, "Sum is incorrect!");
+    ASSERT_EQUAL_UNSIGNED(*actual_sum_ptr, 100, "Sum is incorrect!");
 }
 
 void test_dl_block(TestContext *ctx)

@@ -199,17 +199,15 @@ void dl_flush(void);
 /**
  * @brief Create a syncpoint in the command list.
  * 
- * This function returns a "syncpoint" from the command list. This can be
- * thought as a pointer to the current position of the list. A syncpoint
- * allows to later check whether the RSP has reached it or not: this
- * allows for granular synchronization between CPU and RSP.
- * 
- * Syncpoints are implemented using interrupts, so they have a little but 
- * non-trivial overhead. They should not be abused but used sparingly.
+ * This function creates a new "syncpoint" referencing the current position
+ * in the command list. It is possible to later check when the syncpoint
+ * is reached by RSP via #dl_check_syncpoint and #dl_wait_syncpoint.
  *
  * @return     ID of the just-created syncpoint.
  * 
  * @note It is not possible to create a syncpoint within a block
+ * 
+ * @see #dl_syncpoint_t
  */
 dl_syncpoint_t dl_syncpoint(void);
 
@@ -224,7 +222,7 @@ dl_syncpoint_t dl_syncpoint(void);
  *
  * @return true if the RSP has reached the syncpoint, false otherwise
  * 
- * @see #dl_syncpoint
+ * @see #dl_syncpoint_t
  */
 bool dl_check_syncpoint(dl_syncpoint_t sync_id);
 
@@ -237,7 +235,7 @@ bool dl_check_syncpoint(dl_syncpoint_t sync_id);
  * 
  * @param[in]  sync_id  ID of the syncpoint to wait for
  * 
- * @see #dl_syncpoint
+ * @see #dl_syncpoint_t
  */
 void dl_wait_syncpoint(dl_syncpoint_t sync_id);
 
@@ -293,7 +291,7 @@ dl_block_t* dl_block_end(void);
  *
  * @param block The block that must be run
  * 
- * @note The maximum number of nested block calls is 8.
+ * @note The maximum depth of nested block calls is 8.
  */
 void dl_block_run(dl_block_t *block);
 

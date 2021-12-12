@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <libdragon.h>
+#include <malloc.h>
 #include "dl_internal.h"
 #include "utils.h"
 #include "../../build/dl/dl_symbols.h"
@@ -73,7 +74,8 @@ static rsp_dl_t dl_data;
 
 static uint8_t dl_overlay_count = 0;
 
-static uint32_t dl_buffers[2][DL_DRAM_BUFFER_SIZE];
+/** @brief Command list buffers (full cachelines to avoid false sharing) */
+static uint32_t dl_buffers[2][DL_DRAM_BUFFER_SIZE] __attribute__((aligned(16)));
 static uint8_t dl_buf_idx;
 static uint32_t *dl_buffer_ptr, *dl_buffer_sentinel;
 static dl_block_t *dl_block;
@@ -144,9 +146,9 @@ void dl_init()
     memset(dl_data_ptr, 0, sizeof(rsp_dl_t));
 
     dl_cur_pointer = UncachedAddr(dl_buffers[0]);
+    dl_cur_sentinel = dl_cur_pointer + DL_DRAM_BUFFER_SIZE - DL_MAX_COMMAND_SIZE;
     memset(dl_cur_pointer, 0, DL_DRAM_BUFFER_SIZE*sizeof(uint32_t));
     dl_terminator(dl_cur_pointer);
-    dl_cur_sentinel = dl_cur_pointer + DL_DRAM_BUFFER_SIZE - DL_MAX_COMMAND_SIZE;
     dl_block = NULL;
 
     dl_data_ptr->dl_dram_addr = PhysicalAddr(dl_buffers[0]);
@@ -257,6 +259,30 @@ static uint32_t* dl_switch_buffer(uint32_t *dl2, int size)
     return prev;
 }
 
+/**
+ * @brief Allocate a buffer that will be accessed as uncached memory.
+ * 
+ * @param[in]  size  The size of the buffer to allocate
+ *
+ * @return a point to the start of the buffer (as uncached pointer)
+ */
+void *malloc_uncached(size_t size)
+{
+    // Since we will be accessing the buffer as uncached memory, we absolutely
+    // need to prevent part of it to ever enter the data cache, even as false
+    // sharing with contiguous buffers. So we want the buffer to exclusively
+    // cover full cachelines (aligned to 16 bytes, multiple of 16 bytes).
+    size = ROUND_UP(size, 16);
+    void *mem = memalign(16, size);
+
+    // The memory returned by the system allocator could already be partly in
+    // cache. Invalidate it so that we don't risk a writeback in the short future.
+    data_cache_hit_invalidate(mem, size);
+
+    // Return the pointer as uncached memory.
+    return UncachedAddr(mem);
+}
+
 __attribute__((noinline))
 void dl_next_buffer(void) {
     // If we're creating a block
@@ -267,7 +293,7 @@ void dl_next_buffer(void) {
         if (dl_block_size < DL_BLOCK_MAX_SIZE) dl_block_size *= 2;
 
         // Allocate a new chunk of the block and switch to it.
-        uint32_t *dl2 = UncachedAddr(malloc(dl_block_size*sizeof(uint32_t)));
+        uint32_t *dl2 = malloc_uncached(dl_block_size*sizeof(uint32_t));
         uint32_t *prev = dl_switch_buffer(dl2, dl_block_size);
 
         // Terminate the previous chunk with a JUMP op to the new chunk.
@@ -340,7 +366,7 @@ void dl_block_begin(void)
 
     // Allocate a new block (at minimum size) and initialize it.
     dl_block_size = DL_BLOCK_MIN_SIZE;
-    dl_block = UncachedAddr(malloc(sizeof(dl_block_t) + dl_block_size*sizeof(uint32_t)));
+    dl_block = malloc_uncached(sizeof(dl_block_t) + dl_block_size*sizeof(uint32_t));
     dl_block->nesting_level = 0;
 
     // Save the current pointer/sentinel for later restore

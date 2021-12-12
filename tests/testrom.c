@@ -217,6 +217,7 @@ static const struct Testsuite
 	TEST_FUNC(test_dl_high_load,               0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dl_load_overlay,            0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dl_switch_overlay,          0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dl_multiple_flush,          0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dl_sync,                    0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dl_block,                   0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_ugfx_rdp_interrupt,         0, TEST_FLAGS_NO_BENCHMARK),
