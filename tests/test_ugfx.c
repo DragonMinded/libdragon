@@ -36,7 +36,6 @@ void test_ugfx_rdp_interrupt(TestContext *ctx)
     ugfx_init();
     DEFER(ugfx_close());
 
-    dl_start();
     rdp_sync_full();
 
     wait_for_dp_interrupt(ugfx_timeout);
@@ -59,8 +58,6 @@ void test_ugfx_dram_buffer(TestContext *ctx)
 
     extern uint8_t __ugfx_dram_buffer[];
     data_cache_hit_writeback_invalidate(__ugfx_dram_buffer, UGFX_RDP_DRAM_BUFFER_SIZE);
-
-    dl_start();
 
     const uint32_t fbsize = 32 * 32 * 2;
     void *framebuffer = memalign(64, fbsize);
@@ -111,8 +108,6 @@ void test_ugfx_fill_dmem_buffer(TestContext *ctx)
     ugfx_init();
     DEFER(ugfx_close());
 
-    dl_start();
-
     const uint32_t fbsize = 32 * 32 * 2;
     void *framebuffer = memalign(64, fbsize);
     DEFER(free(framebuffer));
@@ -155,8 +150,6 @@ void test_ugfx_fill_dram_buffer(TestContext *ctx)
     DEFER(dl_close());
     ugfx_init();
     DEFER(ugfx_close());
-
-    dl_start();
 
     const uint32_t fbsize = 32 * 32 * 2;
     void *framebuffer = memalign(64, fbsize);

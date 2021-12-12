@@ -50,11 +50,9 @@ typedef int dl_syncpoint_t;
  * @brief Initialize the RSP command list.
  */
 void dl_init(void);
-void dl_start(void);
 
-uint8_t dl_overlay_add(rsp_ucode_t *overlay_ucode);
 void* dl_overlay_get_state(rsp_ucode_t *overlay_ucode);
-void dl_overlay_register_id(uint8_t overlay_index, uint8_t id);
+void dl_overlay_register(rsp_ucode_t *overlay_ucode, uint8_t id);
 
 void dl_close(void);
 
@@ -321,5 +319,6 @@ void dl_queue_u64(uint64_t cmd);
 
 void dl_noop();
 void dl_signal(uint32_t signal);
+void dl_dma(uint32_t rdram_addr, uint32_t dmem_addr, uint32_t len, uint32_t flags);
 
 #endif

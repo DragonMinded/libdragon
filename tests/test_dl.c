@@ -14,8 +14,8 @@ void test_ovl_init()
     void *test_ovl_state = dl_overlay_get_state(&rsp_test);
     memset(test_ovl_state, 0, sizeof(uint32_t) * 2);
 
-    uint8_t ovl_index = dl_overlay_add(&rsp_test);
-    dl_overlay_register_id(ovl_index, 0xF);
+    dl_init();
+    dl_overlay_register(&rsp_test, 0xF);
 }
 
 void dl_test_4(uint32_t value)
@@ -108,8 +108,6 @@ const unsigned long dl_timeout = 100;
 void test_dl_queue_single(TestContext *ctx)
 {
     TEST_DL_PROLOG();
-    
-    dl_start();
 
     TEST_DL_EPILOG(0, dl_timeout);
 }
@@ -118,7 +116,6 @@ void test_dl_queue_multiple(TestContext *ctx)
 {
     TEST_DL_PROLOG();
     
-    dl_start();
     dl_noop();
 
     TEST_DL_EPILOG(0, dl_timeout);
@@ -128,7 +125,6 @@ void test_dl_queue_rapid(TestContext *ctx)
 {
     TEST_DL_PROLOG();
     
-    dl_start();
     dl_noop();
     dl_noop();
     dl_noop();
@@ -151,8 +147,6 @@ void test_dl_wrap(TestContext *ctx)
 {
     TEST_DL_PROLOG();
 
-    dl_start();
-
     uint32_t block_count = DL_DRAM_BUFFER_SIZE * 8;
     for (uint32_t i = 0; i < block_count; i++)
         dl_noop();
@@ -164,7 +158,6 @@ void test_dl_signal(TestContext *ctx)
 {
     TEST_DL_PROLOG();
     
-    dl_start();
     dl_signal(SP_WSTATUS_SET_SIG1 | SP_WSTATUS_SET_SIG3);
 
     TEST_DL_EPILOG(SP_STATUS_SIG1 | SP_STATUS_SIG3, dl_timeout);
@@ -175,8 +168,6 @@ void test_dl_high_load(TestContext *ctx)
     TEST_DL_PROLOG();
 
     test_ovl_init();
-
-    dl_start();
 
     uint64_t expected_sum = 0;
 
@@ -218,7 +209,6 @@ void test_dl_load_overlay(TestContext *ctx)
     ugfx_init();
     DEFER(ugfx_close());
 
-    dl_start();
     rdp_set_env_color(0);
 
     TEST_DL_EPILOG(0, dl_timeout);
@@ -239,8 +229,6 @@ void test_dl_switch_overlay(TestContext *ctx)
 
     ugfx_init();
     DEFER(ugfx_close());
-
-    dl_start();
 
     rdp_set_env_color(0);
     dl_test_16(0);
@@ -264,7 +252,6 @@ void test_dl_sync(TestContext *ctx)
     TEST_DL_PROLOG();
     
     test_ovl_init();
-    dl_start();
 
     for (uint32_t i = 0; i < 1000; i++)
     {
@@ -287,7 +274,6 @@ void test_dl_block(TestContext *ctx)
 {
     TEST_DL_PROLOG();
     test_ovl_init();
-    dl_start();
 
     dl_block_begin();
     for (uint32_t i = 0; i < 512; i++)

@@ -13,6 +13,7 @@
 #define DL_CMD_JUMP             0x04
 #define DL_CMD_RET              0x05
 #define DL_CMD_NOOP             0x07
+#define DL_CMD_DMA              0x08
 
 #define dl_terminator(dl)   ({ \
     /* The terminator is usually meant to be written only *after* the last \
@@ -55,15 +56,21 @@ typedef struct dl_block_s {
     uint32_t cmds[];
 } dl_block_t;
 
-typedef struct rsp_dl_s {
+typedef struct dl_overlay_tables_s {
     uint8_t overlay_table[DL_OVERLAY_TABLE_SIZE];
     dl_overlay_t overlay_descriptors[DL_MAX_OVERLAY_COUNT];
+} dl_overlay_tables_t;
+
+typedef struct rsp_dl_s {
+    dl_overlay_tables_t tables;
     void *dl_dram_addr;
     void *dl_dram_highpri_addr;
     int16_t current_ovl;
 } __attribute__((aligned(8), packed)) rsp_dl_t;
 
 static rsp_dl_t dl_data;
+#define dl_data_ptr ((rsp_dl_t*)UncachedAddr(&dl_data))
+
 static uint8_t dl_overlay_count = 0;
 
 static uint32_t dl_buffers[2][DL_DRAM_BUFFER_SIZE];
@@ -87,83 +94,6 @@ static void dl_sp_interrupt(void)
     ++dl_syncpoints_done;
 }
 
-void dl_init()
-{
-    // Load initial settings
-    memset(&dl_data, 0, sizeof(dl_data));
-
-    dl_cur_pointer = UncachedAddr(dl_buffers[0]);
-    memset(dl_cur_pointer, 0, DL_DRAM_BUFFER_SIZE*sizeof(uint32_t));
-    dl_terminator(dl_cur_pointer);
-    dl_cur_sentinel = dl_cur_pointer + DL_DRAM_BUFFER_SIZE - DL_MAX_COMMAND_SIZE;
-    dl_block = NULL;
-
-    dl_data.dl_dram_addr = PhysicalAddr(dl_buffers[0]);
-    dl_data.overlay_descriptors[0].data_buf = PhysicalAddr(&dummy_overlay_state);
-    dl_data.overlay_descriptors[0].data_size = sizeof(uint64_t);
-    
-    dl_syncpoints_genid = 0;
-    dl_syncpoints_done = 0;
-
-    dl_overlay_count = 1;
-
-    // Activate SP interrupt (used for syncpoints)
-    register_SP_handler(dl_sp_interrupt);
-    set_SP_interrupt(1);
-}
-
-void dl_close()
-{
-    MEMORY_BARRIER();
-    *SP_STATUS = SP_WSTATUS_SET_HALT;
-    MEMORY_BARRIER();
-
-    dl_is_running = 0;
-
-    set_SP_interrupt(0);
-    unregister_SP_handler(dl_sp_interrupt);
-}
-
-void* dl_overlay_get_state(rsp_ucode_t *overlay_ucode)
-{
-    dl_overlay_header_t *overlay_header = (dl_overlay_header_t*)overlay_ucode->data;
-    return overlay_ucode->data + (overlay_header->state_start & 0xFFF) - DL_OVL_DATA_ADDR;
-}
-
-uint8_t dl_overlay_add(rsp_ucode_t *overlay_ucode)
-{
-    assertf(dl_overlay_count > 0, "dl_overlay_add must be called after dl_init!");
-    
-    assertf(dl_overlay_count < DL_MAX_OVERLAY_COUNT, "Only up to %d overlays are supported!", DL_MAX_OVERLAY_COUNT);
-
-    assert(overlay_ucode);
-
-    dl_overlay_t *overlay = &dl_data.overlay_descriptors[dl_overlay_count];
-
-    // The DL ucode is always linked into overlays for now, so we need to load the overlay from an offset.
-    // TODO: Do this some other way.
-    uint32_t dl_ucode_size = rsp_dl_text_end - rsp_dl_text_start;
-
-    overlay->code = PhysicalAddr(overlay_ucode->code + dl_ucode_size);
-    overlay->data = PhysicalAddr(overlay_ucode->data);
-    overlay->data_buf = PhysicalAddr(dl_overlay_get_state(overlay_ucode));
-    overlay->code_size = ((uint8_t*)overlay_ucode->code_end - overlay_ucode->code) - dl_ucode_size - 1;
-    overlay->data_size = ((uint8_t*)overlay_ucode->data_end - overlay_ucode->data) - 1;
-
-    return dl_overlay_count++;
-}
-
-void dl_overlay_register_id(uint8_t overlay_index, uint8_t id)
-{
-    assertf(dl_overlay_count > 0, "dl_overlay_register must be called after dl_init!");
-
-    assertf(overlay_index < DL_MAX_OVERLAY_COUNT, "Tried to register invalid overlay index: %d", overlay_index);
-    assertf(id < DL_OVERLAY_TABLE_SIZE, "Tried to register id: %d", id);
-
-
-    dl_data.overlay_table[id] = overlay_index * sizeof(dl_overlay_t);
-}
-
 void dl_start()
 {
     if (dl_is_running)
@@ -175,8 +105,7 @@ void dl_start()
     rsp_load(&rsp_dl);
 
     // Load data with initialized overlays into DMEM
-    data_cache_hit_writeback(&dl_data, sizeof(dl_data));
-    rsp_load_data(PhysicalAddr(&dl_data), sizeof(dl_data), 0);
+    rsp_load_data(PhysicalAddr(dl_data_ptr), sizeof(rsp_dl_t), 0);
 
     static const dl_overlay_header_t dummy_header = (dl_overlay_header_t){
         .state_start = 0,
@@ -201,8 +130,113 @@ void dl_start()
 
     // Off we go!
     rsp_run_async();
+}
 
-    dl_is_running = 1;
+void dl_init()
+{
+    // Do nothing if dl_init has already been called
+    if (dl_overlay_count > 0) 
+    {
+        return;
+    }
+
+    // Load initial settings
+    memset(dl_data_ptr, 0, sizeof(rsp_dl_t));
+
+    dl_cur_pointer = UncachedAddr(dl_buffers[0]);
+    memset(dl_cur_pointer, 0, DL_DRAM_BUFFER_SIZE*sizeof(uint32_t));
+    dl_terminator(dl_cur_pointer);
+    dl_cur_sentinel = dl_cur_pointer + DL_DRAM_BUFFER_SIZE - DL_MAX_COMMAND_SIZE;
+    dl_block = NULL;
+
+    dl_data_ptr->dl_dram_addr = PhysicalAddr(dl_buffers[0]);
+    dl_data_ptr->tables.overlay_descriptors[0].data_buf = PhysicalAddr(&dummy_overlay_state);
+    dl_data_ptr->tables.overlay_descriptors[0].data_size = sizeof(uint64_t);
+    
+    dl_syncpoints_genid = 0;
+    dl_syncpoints_done = 0;
+
+    dl_overlay_count = 1;
+    dl_is_running = 0;
+
+    // Activate SP interrupt (used for syncpoints)
+    register_SP_handler(dl_sp_interrupt);
+    set_SP_interrupt(1);
+
+    dl_start();
+}
+
+void dl_stop()
+{
+    dl_is_running = 0;
+}
+
+void dl_close()
+{
+    MEMORY_BARRIER();
+    *SP_STATUS = SP_WSTATUS_SET_HALT;
+    MEMORY_BARRIER();
+
+    dl_stop();
+    
+    dl_overlay_count = 0;
+
+    set_SP_interrupt(0);
+    unregister_SP_handler(dl_sp_interrupt);
+}
+
+void* dl_overlay_get_state(rsp_ucode_t *overlay_ucode)
+{
+    dl_overlay_header_t *overlay_header = (dl_overlay_header_t*)overlay_ucode->data;
+    return overlay_ucode->data + (overlay_header->state_start & 0xFFF) - DL_OVL_DATA_ADDR;
+}
+
+void dl_overlay_register(rsp_ucode_t *overlay_ucode, uint8_t id)
+{
+    assertf(dl_overlay_count > 0, "dl_overlay_register must be called after dl_init!");
+    assert(overlay_ucode);
+    assertf(id < DL_OVERLAY_TABLE_SIZE, "Tried to register id: %d", id);
+
+    // The DL ucode is always linked into overlays for now, so we need to load the overlay from an offset.
+    // TODO: Do this some other way.
+    uint32_t dl_ucode_size = rsp_dl_text_end - rsp_dl_text_start;
+    void *overlay_code = PhysicalAddr(overlay_ucode->code + dl_ucode_size);
+
+    uint8_t overlay_index = 0;
+
+    // Check if the overlay has been registered already
+    for (uint32_t i = 1; i < dl_overlay_count; i++)
+    {
+        if (dl_data_ptr->tables.overlay_descriptors[i].code == overlay_code)
+        {
+            overlay_index = i;
+            break;
+        }
+    }
+
+    // If the overlay has not been registered before, add it to the descriptor table first
+    if (overlay_index == 0)
+    {
+        assertf(dl_overlay_count < DL_MAX_OVERLAY_COUNT, "Only up to %d overlays are supported!", DL_MAX_OVERLAY_COUNT);
+
+        overlay_index = dl_overlay_count++;
+
+        dl_overlay_t *overlay = &dl_data_ptr->tables.overlay_descriptors[overlay_index];
+        overlay->code = overlay_code;
+        overlay->data = PhysicalAddr(overlay_ucode->data);
+        overlay->data_buf = PhysicalAddr(dl_overlay_get_state(overlay_ucode));
+        overlay->code_size = ((uint8_t*)overlay_ucode->code_end - overlay_ucode->code) - dl_ucode_size - 1;
+        overlay->data_size = ((uint8_t*)overlay_ucode->data_end - overlay_ucode->data) - 1;
+    }
+
+    // Let the specified id point at the overlay
+    dl_data_ptr->tables.overlay_table[id] = overlay_index * sizeof(dl_overlay_t);
+
+    // Issue a DMA request to update the overlay tables in DMEM.
+    // Note that we don't use rsp_load_data() here and instead use the dma command,
+    // so we don't need to synchronize with the RSP. All commands queued after this
+    // point will be able to use the newly registered overlay.
+    dl_dma((uint32_t)&dl_data_ptr->tables, 0, sizeof(dl_overlay_tables_t) - 1, SP_STATUS_DMA_BUSY | SP_STATUS_DMA_FULL);
 }
 
 static uint32_t* dl_switch_buffer(uint32_t *dl2, int size)
@@ -278,7 +312,9 @@ void dl_flush(void)
     if (dl_block) return;
 
     // Tell the RSP to wake up because there is more data pending.
+    MEMORY_BARRIER();
     *SP_STATUS = SP_WSTATUS_SET_SIG_MORE | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
+    MEMORY_BARRIER();
 
     // Most of the times, the above is enough. But there is a small and very rare
     // race condition that can happen: if the above status change happens
@@ -293,7 +329,9 @@ void dl_flush(void)
     // make sure that even if the race condition happened, we still succeed
     // in waking up the RSP.
     __asm("nop; nop; nop; nop; nop; nop; nop; nop; nop; nop;");
+    MEMORY_BARRIER();
     *SP_STATUS = SP_WSTATUS_SET_SIG_MORE | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
+    MEMORY_BARRIER();
 }
 
 void dl_block_begin(void)
@@ -451,4 +489,14 @@ void dl_wait_syncpoint(dl_syncpoint_t sync_id)
 void dl_signal(uint32_t signal)
 {
     dl_queue_u32((DL_CMD_WSTATUS << 24) | signal);
+}
+
+void dl_dma(uint32_t rdram_addr, uint32_t dmem_addr, uint32_t len, uint32_t flags)
+{
+    uint32_t *dl = dl_write_begin();
+    *dl++ = (DL_CMD_DMA << 24) | (uint32_t)PhysicalAddr(rdram_addr);
+    *dl++ = dmem_addr;
+    *dl++ = len;
+    *dl++ = flags;
+    dl_write_end(dl);
 }

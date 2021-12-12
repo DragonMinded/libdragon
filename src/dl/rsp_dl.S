@@ -64,6 +64,7 @@ commandTableEntry command_jump,           4     # 0x04
 commandTableEntry command_ret,            4     # 0x05
 commandTableEntry command_call_highpri,   8     # 0x06
 commandTableEntry command_noop,           4     # 0x07
+commandTableEntry command_dma,            16    # 0x08
 
     .align 3
 DL_DMEM_BUFFER:            .ds.b DL_DMEM_BUFFER_SIZE
@@ -312,6 +313,26 @@ command_write_status:
     # a0: command opcode + wstatus flags
     j loop
     mtc0 a0, COP0_SP_STATUS
+    .endfunc
+
+    #############################################################
+    # command_dma
+    #
+    # Executes an arbitrary DMA request by taking the arguments to DMAExec from a0-a3
+    #
+    # ARGS:
+    #   a0: RDRAM address
+    #   a1: DMEM address
+    #   a2: length/height
+    #   a3: flags (in/out, sync/async)
+    #############################################################
+    .func command_dma
+command_dma:
+    move s0, a0
+    move s4, a1
+    move t0, a2
+    j DMAExec
+    move t2, a3
     .endfunc
 
 #include <rsp_dma.inc>

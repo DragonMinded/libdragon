@@ -19,9 +19,9 @@ void ugfx_init()
 
     data_cache_hit_writeback(ugfx_state, sizeof(ugfx_state_t));
 
-    uint8_t ovl_index = dl_overlay_add(&rsp_ugfx);
-    dl_overlay_register_id(ovl_index, 2);
-    dl_overlay_register_id(ovl_index, 3);
+    dl_init();
+    dl_overlay_register(&rsp_ugfx, 2);
+    dl_overlay_register(&rsp_ugfx, 3);
 }
 
 void ugfx_close()

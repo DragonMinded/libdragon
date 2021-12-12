@@ -148,8 +148,8 @@ void mixer_init(int num_channels) {
 	memset(mixer_state, 0, MIXER_STATE_SIZE);
 	data_cache_hit_writeback(mixer_state, MIXER_STATE_SIZE);
 
-	uint8_t ovl_id = dl_overlay_add(&rsp_mixer);
-    dl_overlay_register_id(ovl_id, 1);
+	dl_init();
+    dl_overlay_register(&rsp_mixer, 1);
 }
 
 static void mixer_init_samplebuffers(void) {
