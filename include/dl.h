@@ -38,9 +38,11 @@ typedef struct dl_block_s dl_block_t;
  * to respectively do a single check or block waiting for the syncpoint to be
  * reached by RSP.
  * 
- * Syncpoints are implemented using interrupts, so have a light but non trivial
- * overhead. Do not abuse them. For instance, it is reasonable to use a few
- * syncpoints per frame, but not hundreds of them.
+ * Syncpoints are implemented using interrupts, so they have a light but non
+ * trivial overhead. Do not abuse them. For instance, it is reasonable to use
+ * tens of syncpoints per frame, but not hundreds or thousands of them.
+ * 
+ * @note A valid syncpoint is an integer greater than 0.
  */
 typedef int dl_syncpoint_t;
 
@@ -208,6 +210,8 @@ void dl_flush(void);
  * non-trivial overhead. They should not be abused but used sparingly.
  *
  * @return     ID of the just-created syncpoint.
+ * 
+ * @note It is not possible to create a syncpoint within a block
  */
 dl_syncpoint_t dl_syncpoint(void);
 
