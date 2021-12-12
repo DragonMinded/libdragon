@@ -66,12 +66,10 @@ commandTableEntry command_call_highpri,   8     # 0x06
 commandTableEntry command_noop,           4     # 0x07
 commandTableEntry command_dma,            16    # 0x08
 
+    .bss
+
     .align 3
 DL_DMEM_BUFFER:            .ds.b DL_DMEM_BUFFER_SIZE
-DL_DMEM_BUFFER_TERMINATOR: .byte 0x01    # terminate the buffer with command_wait_for_new_input
-
-
-    .bss
 
 # Save slots for RDRAM addresses used during nested lists calls.
 DL_POINTER_STACK:     .ds.l (DL_MAX_BLOCK_NESTING_LEVEL+1)
@@ -204,7 +202,7 @@ execute_command:
     # it finishes beyond the buffer end). If so, we must refetch the buffer
     # starting from the current position.
     addu t0, dl_dmem_buf_ptr, cmd_size
-    bgt t0, DL_DMEM_BUFFER_SIZE, fetch_buffer
+    bge t0, DL_DMEM_BUFFER_SIZE, fetch_buffer
 
     # Check if there's an invalid command (0x00) just after the current command.
     # If so, the previous command might have been fetched partially (as it was
