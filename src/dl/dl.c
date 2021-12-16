@@ -15,6 +15,7 @@
 #define DL_CMD_RET              0x05
 #define DL_CMD_NOOP             0x07
 #define DL_CMD_DMA              0x08
+#define DL_CMD_TEST_AND_WSTATUS 0x09
 
 #define dl_terminator(dl)   ({ \
     /* The terminator is usually meant to be written only *after* the last \
@@ -24,17 +25,21 @@
     *(uint8_t*)(dl) = 0x01; \
 })
 
-#define SP_STATUS_SIG_BUFDONE         SP_STATUS_SIG5
-#define SP_WSTATUS_SET_SIG_BUFDONE    SP_WSTATUS_SET_SIG5
-#define SP_WSTATUS_CLEAR_SIG_BUFDONE  SP_WSTATUS_CLEAR_SIG5
+#define SP_STATUS_SIG_SYNCPOINT        SP_STATUS_SIG4
+#define SP_WSTATUS_SET_SIG_SYNCPOINT   SP_WSTATUS_SET_SIG4
+#define SP_WSTATUS_CLEAR_SIG_SYNCPOINT SP_WSTATUS_CLEAR_SIG4
 
-#define SP_STATUS_SIG_HIGHPRI         SP_STATUS_SIG6
-#define SP_WSTATUS_SET_SIG_HIGHPRI    SP_WSTATUS_SET_SIG6
-#define SP_WSTATUS_CLEAR_SIG_HIGHPRI  SP_WSTATUS_CLEAR_SIG6
+#define SP_STATUS_SIG_BUFDONE          SP_STATUS_SIG5
+#define SP_WSTATUS_SET_SIG_BUFDONE     SP_WSTATUS_SET_SIG5
+#define SP_WSTATUS_CLEAR_SIG_BUFDONE   SP_WSTATUS_CLEAR_SIG5
 
-#define SP_STATUS_SIG_MORE            SP_STATUS_SIG7
-#define SP_WSTATUS_SET_SIG_MORE       SP_WSTATUS_SET_SIG7
-#define SP_WSTATUS_CLEAR_SIG_MORE     SP_WSTATUS_CLEAR_SIG7
+#define SP_STATUS_SIG_HIGHPRI          SP_STATUS_SIG6
+#define SP_WSTATUS_SET_SIG_HIGHPRI     SP_WSTATUS_SET_SIG6
+#define SP_WSTATUS_CLEAR_SIG_HIGHPRI   SP_WSTATUS_CLEAR_SIG6
+
+#define SP_STATUS_SIG_MORE             SP_STATUS_SIG7
+#define SP_WSTATUS_SET_SIG_MORE        SP_WSTATUS_SET_SIG7
+#define SP_WSTATUS_CLEAR_SIG_MORE      SP_WSTATUS_CLEAR_SIG7
 
 DEFINE_RSP_UCODE(rsp_dl);
 
@@ -94,6 +99,8 @@ static uint64_t dummy_overlay_state;
 static void dl_sp_interrupt(void) 
 {
     ++dl_syncpoints_done;
+    MEMORY_BARRIER();
+    *SP_STATUS = SP_WSTATUS_CLEAR_SIG_SYNCPOINT;
 }
 
 void dl_start()
@@ -492,7 +499,10 @@ void dl_noop()
 dl_syncpoint_t dl_syncpoint(void)
 {   
     assertf(!dl_block, "cannot create syncpoint in a block");
-    dl_queue_u32((DL_CMD_WSTATUS << 24) | SP_WSTATUS_SET_INTR);
+    uint32_t *dl = dl_write_begin();
+    *dl++ = (DL_CMD_TEST_AND_WSTATUS << 24) | SP_WSTATUS_SET_INTR | SP_WSTATUS_SET_SIG_SYNCPOINT;
+    *dl++ = SP_STATUS_SIG_SYNCPOINT;
+    dl_write_end(dl);
     return ++dl_syncpoints_genid;
 }
 

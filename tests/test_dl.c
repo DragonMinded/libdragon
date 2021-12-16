@@ -297,6 +297,22 @@ void test_dl_sync(TestContext *ctx)
     ASSERT_EQUAL_UNSIGNED(*actual_sum_ptr, 100, "Sum is incorrect!");
 }
 
+void test_dl_rapid_sync(TestContext *ctx)
+{
+    TEST_DL_PROLOG();
+
+    for (uint32_t i = 0; i < 100; i++)
+    {
+        dl_syncpoint();
+    }
+
+    TEST_DL_EPILOG(0, dl_timeout);
+
+    extern volatile int dl_syncpoints_done;
+
+    ASSERT_EQUAL_SIGNED(dl_syncpoints_done, 101, "Not all interrupts have been served!");
+}
+
 void test_dl_block(TestContext *ctx)
 {
     TEST_DL_PROLOG();
