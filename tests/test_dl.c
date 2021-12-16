@@ -179,17 +179,16 @@ void test_dl_high_load(TestContext *ctx)
         {
             case 0:
                 dl_test_4(1);
-                ++expected_sum;
                 break;
             case 1:
-                // Simulate computation heavy commands that take a long time to complete, so the ring buffer fills up
-                dl_test_wait(0x10000);
+                dl_test_8(1);
                 break;
             case 2:
                 dl_test_16(1);
-                ++expected_sum;
                 break;
         }
+
+        ++expected_sum;
     }
 
     uint64_t actual_sum;
@@ -197,7 +196,7 @@ void test_dl_high_load(TestContext *ctx)
 
     dl_test_output(actual_sum_ptr);
 
-    TEST_DL_EPILOG(0, 10000);
+    TEST_DL_EPILOG(0, dl_timeout);
 
     ASSERT_EQUAL_UNSIGNED(*actual_sum_ptr, expected_sum, "Possibly not all commands have been executed!");
 }
@@ -301,16 +300,19 @@ void test_dl_rapid_sync(TestContext *ctx)
 {
     TEST_DL_PROLOG();
 
+    dl_syncpoint_t syncpoints[100];
+
     for (uint32_t i = 0; i < 100; i++)
     {
-        dl_syncpoint();
+        syncpoints[i] = dl_syncpoint();
     }
 
     TEST_DL_EPILOG(0, dl_timeout);
 
-    extern volatile int dl_syncpoints_done;
-
-    ASSERT_EQUAL_SIGNED(dl_syncpoints_done, 101, "Not all interrupts have been served!");
+    for (uint32_t i = 0; i < 100; i++)
+    {
+        ASSERT(dl_check_syncpoint(syncpoints[i]), "Not all syncpoints have been reached!");
+    }
 }
 
 void test_dl_block(TestContext *ctx)

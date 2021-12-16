@@ -64,8 +64,8 @@ commandTableEntry command_jump,                  4     # 0x04
 commandTableEntry command_ret,                   4     # 0x05
 commandTableEntry command_call_highpri,          8     # 0x06
 commandTableEntry command_noop,                  4     # 0x07
-commandTableEntry command_dma,                   16    # 0x08
-commandTableEntry command_test_and_write_status, 8     # 0x09
+commandTableEntry command_test_and_write_status, 8     # 0x08 -- must be even (bit 24 must be 0)
+commandTableEntry command_dma,                   16    # 0x09
 
     .bss
 

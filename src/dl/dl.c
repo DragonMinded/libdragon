@@ -14,8 +14,8 @@
 #define DL_CMD_JUMP             0x04
 #define DL_CMD_RET              0x05
 #define DL_CMD_NOOP             0x07
-#define DL_CMD_DMA              0x08
-#define DL_CMD_TEST_AND_WSTATUS 0x09
+#define DL_CMD_TEST_AND_WSTATUS 0x08
+#define DL_CMD_DMA              0x09
 
 #define dl_terminator(dl)   ({ \
     /* The terminator is usually meant to be written only *after* the last \
