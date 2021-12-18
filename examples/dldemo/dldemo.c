@@ -45,15 +45,11 @@ int main()
     display_init(RESOLUTION_512x240, DEPTH_16_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE);
     
     dfs_init(DFS_DEFAULT_LOCATION);
-    
-    dl_init();
 
     audio_init(44100, 4);
     mixer_init(32);
 
     ugfx_init();
-
-    dl_start();
 
     set_DP_interrupt(1);
     register_DP_handler(dp_interrupt_handler);

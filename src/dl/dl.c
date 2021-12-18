@@ -245,7 +245,7 @@ void dl_overlay_register(rsp_ucode_t *overlay_ucode, uint8_t id)
     // Note that we don't use rsp_load_data() here and instead use the dma command,
     // so we don't need to synchronize with the RSP. All commands queued after this
     // point will be able to use the newly registered overlay.
-    dl_dma((uint32_t)&dl_data_ptr->tables, 0, sizeof(dl_overlay_tables_t) - 1, SP_STATUS_DMA_BUSY | SP_STATUS_DMA_FULL);
+    dl_dma_to_dmem(0, &dl_data_ptr->tables, sizeof(dl_overlay_tables_t), false);
 }
 
 static uint32_t* dl_switch_buffer(uint32_t *dl2, int size)
@@ -527,7 +527,7 @@ void dl_signal(uint32_t signal)
     dl_queue_u32((DL_CMD_WSTATUS << 24) | signal);
 }
 
-void dl_dma(uint32_t rdram_addr, uint32_t dmem_addr, uint32_t len, uint32_t flags)
+static void dl_dma(void *rdram_addr, uint32_t dmem_addr, uint32_t len, uint32_t flags)
 {
     uint32_t *dl = dl_write_begin();
     *dl++ = (DL_CMD_DMA << 24) | (uint32_t)PhysicalAddr(rdram_addr);
@@ -535,4 +535,14 @@ void dl_dma(uint32_t rdram_addr, uint32_t dmem_addr, uint32_t len, uint32_t flag
     *dl++ = len;
     *dl++ = flags;
     dl_write_end(dl);
+}
+
+void dl_dma_to_rdram(void *rdram_addr, uint32_t dmem_addr, uint32_t len, bool is_async)
+{
+    dl_dma(rdram_addr, dmem_addr, len - 1, 0xFFFF8000 | (is_async ? 0 : SP_STATUS_DMA_BUSY | SP_STATUS_DMA_FULL));
+}
+
+void dl_dma_to_dmem(uint32_t dmem_addr, void *rdram_addr, uint32_t len, bool is_async)
+{
+    dl_dma(rdram_addr, dmem_addr, len - 1, is_async ? 0 : SP_STATUS_DMA_BUSY | SP_STATUS_DMA_FULL);
 }

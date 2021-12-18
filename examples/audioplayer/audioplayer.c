@@ -425,12 +425,8 @@ int main(void) {
 	cur_rom = "rom:/Claustrophobia.xm64";
 #endif
 
-	dl_init();
-
 	audio_init(44100, 4);
 	mixer_init(32);
-
-	dl_start();
 
 	while(1) {
 		switch (page) {
