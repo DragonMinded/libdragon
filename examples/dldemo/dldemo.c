@@ -3,23 +3,6 @@
 static wav64_t sfx_cannon;
 static xm64player_t xm;
 
-static int rdp_intr_genid;
-volatile int rdp_intr_done;
-
-
-void dp_interrupt_handler()
-{
-    ++rdp_intr_done;
-}
-
-void wait_for_rdp()
-{
-    rdp_sync_full();
-    int id = ++rdp_intr_genid;
-    MEMORY_BARRIER();
-    while (id > rdp_intr_done);
-}
-
 typedef struct {
     double r;       // a fraction between 0 and 1
     double g;       // a fraction between 0 and 1
@@ -49,10 +32,7 @@ int main()
     audio_init(44100, 4);
     mixer_init(32);
 
-    ugfx_init();
-
-    set_DP_interrupt(1);
-    register_DP_handler(dp_interrupt_handler);
+    rdp_init();
     
     wav64_open(&sfx_cannon, "cannon.wav64");
 
@@ -64,22 +44,22 @@ int main()
         display_context_t disp = display_lock();
         if (disp)
         {
-            ugfx_set_display(disp);
+            rdp_attach_display(disp);
+            rdp_set_default_clipping();
 
             uint32_t display_width = display_get_width();
             uint32_t display_height = display_get_height();
-            rdp_set_scissor(0, 0, display_width << 2, display_height << 2);
 
-            rdp_set_other_modes(SOM_CYCLE_FILL);
+            rdp_enable_primitive_fill();
             
             double hue = (double)((get_ticks_ms() / 5) % 360);
             hsv color = { .h = hue, .s = 1.0, .v = 1.0 };
             uint32_t fill_color = rgb16(hsv2rgb(color));
-            rdp_set_fill_color(fill_color | (fill_color << 16));
+            rdp_set_primitive_color(fill_color | (fill_color << 16));
             
-            rdp_fill_rectangle(0, 0, display_width << 2, display_height << 2);
+            rdp_draw_filled_rectangle(0, 0, display_width, display_height);
 
-            wait_for_rdp();
+            rdp_detach_display();
             display_show(disp);
         }
 

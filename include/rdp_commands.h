@@ -213,14 +213,17 @@
 #define RdpSetCombine(...) \
     ((cast64(0x3C)<<56) | _ORBITS_MULTI(__VA_ARGS__))
 
+#define SOM_ATOMIC_PRIM        ((cast64(1))<<55)
 
-#define SOM_CYCLE_1    ((cast64(0))<<52)
-#define SOM_CYCLE_2    ((cast64(1))<<52)
-#define SOM_CYCLE_COPY ((cast64(2))<<52)
-#define SOM_CYCLE_FILL ((cast64(3))<<52)
+#define SOM_CYCLE_1            ((cast64(0))<<52)
+#define SOM_CYCLE_2            ((cast64(1))<<52)
+#define SOM_CYCLE_COPY         ((cast64(2))<<52)
+#define SOM_CYCLE_FILL         ((cast64(3))<<52)
 
+#define SOM_TEXTURE_PERSP      (cast64(1)<<51)
 #define SOM_TEXTURE_DETAIL     (cast64(1)<<50)
 #define SOM_TEXTURE_SHARPEN    (cast64(1)<<49)
+#define SOM_TEXTURE_LOD        (cast64(1)<<48)
 
 #define SOM_ENABLE_TLUT_RGB16  (cast64(2)<<46)
 #define SOM_ENABLE_TLUT_I88    (cast64(3)<<46)
@@ -233,6 +236,8 @@
 #define SOM_TC_FILTERCONV      (cast64(3)<<41)
 #define SOM_TC_CONV            (cast64(6)<<41)
 
+#define SOM_KEY_ENABLED        (cast64(1)<<41)
+
 #define SOM_RGBDITHER_SQUARE   ((cast64(0))<<38)
 #define SOM_RGBDITHER_BAYER    ((cast64(1))<<38)
 #define SOM_RGBDITHER_NOISE    ((cast64(2))<<38)
@@ -244,8 +249,17 @@
 #define SOM_ALPHADITHER_NONE   ((cast64(3))<<36)
 
 #define SOM_BLENDING           ((cast64(1))<<14)
+#define SOM_ALPHA_USE_CVG      ((cast64(1))<<13)
+#define SOM_CVG_TIMES_ALPHA    ((cast64(1))<<12)
+#define SOM_Z_OPAQUE           ((cast64(0))<<10)
+#define SOM_Z_INTERPENETRATING ((cast64(1))<<10)
+#define SOM_Z_TRANSPARENT      ((cast64(2))<<10)
+#define SOM_Z_DECAL            ((cast64(3))<<10)
 #define SOM_Z_WRITE            ((cast64(1))<<5)
 #define SOM_Z_COMPARE          ((cast64(1))<<4)
+#define SOM_Z_SOURCE_PRIM      ((cast64(0))<<2)
+#define SOM_Z_SOURCE_PIXEL     ((cast64(1))<<2)
+#define SOM_ALPHADITHER_ENABLE ((cast64(1))<<1)
 #define SOM_ALPHA_COMPARE      ((cast64(1))<<0)
 
 #define SOM_READ_ENABLE                 ((cast64(1)) << 6)

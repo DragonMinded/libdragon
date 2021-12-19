@@ -61,19 +61,6 @@
  */
 #define __get_buffer( x ) __safe_buffer[(x)-1]
 
-/** @brief Size of the internal ringbuffer that holds pending RDP commands */
-#define RINGBUFFER_SIZE  4096
-
-/** 
- * @brief Size of the slack are of the ring buffer
- *
- * Data can be written into the slack area of the ring buffer by functions creating RDP commands.
- * However, when sending a completed command to the RDP, if the buffer has advanced into the slack,
- * it will be cleared and the pointer reset to start.  This is to stop any commands from being
- * split in the middle during wraparound.
- */
-#define RINGBUFFER_SLACK 1024
-
 /**
  * @brief Cached sprite structure
  * */
@@ -98,12 +85,6 @@ extern uint32_t __width;
 extern uint32_t __height;
 extern void *__safe_buffer[];
 
-/** @brief Ringbuffer where partially assembled commands will be placed before sending to the RDP */
-static uint32_t rdp_ringbuffer[RINGBUFFER_SIZE / 4];
-/** @brief Start of the command in the ringbuffer */
-static uint32_t rdp_start = 0;
-/** @brief End of the command in the ringbuffer */
-static uint32_t rdp_end = 0;
 
 /** @brief The current cache flushing strategy */
 static flush_t flush_strategy = FLUSH_STRATEGY_AUTOMATIC;
@@ -178,88 +159,6 @@ static inline uint32_t __rdp_log2( uint32_t number )
 }
 
 /**
- * @brief Return the size of the current command buffered in the ring buffer
- *
- * @return The size of the command in bytes
- */
-static inline uint32_t __rdp_ringbuffer_size( void )
-{
-    /* Normal length */
-    return rdp_end - rdp_start;
-}
-
-/**
- * @brief Queue 32 bits of a command to the ring buffer
- *
- * @param[in] data
- *            32 bits of data to be queued at the end of the current command
- */
-static void __rdp_ringbuffer_queue( uint32_t data )
-{
-    /* Only add commands if we have room */
-    if( __rdp_ringbuffer_size() + sizeof(uint32_t) >= RINGBUFFER_SIZE ) { return; }
-
-    /* Add data to queue to be sent to RDP */
-    rdp_ringbuffer[rdp_end / 4] = data;
-    rdp_end += 4;
-}
-
-/**
- * @brief Send a completed command to the RDP that is queued in the ring buffer
- *
- * Given a validly constructred command in the ring buffer, this command will prepare the
- * memory region in the ring buffer to be sent to the RDP and then start a DMA transfer,
- * kicking off execution of the command in the RDP.  After calling this function, it is
- * safe to start writing to the ring buffer again.
- */
-static void __rdp_ringbuffer_send( void )
-{
-    /* Don't send nothingness */
-    if( __rdp_ringbuffer_size() == 0 ) { return; }
-
-    /* Ensure the cache is fixed up */
-    data_cache_hit_writeback_invalidate(&rdp_ringbuffer[rdp_start / 4], __rdp_ringbuffer_size());
-    
-    /* Best effort to be sure we can write once we disable interrupts */
-    while( (((volatile uint32_t *)0xA4100000)[3] & 0x600) ) ;
-
-    /* Make sure another thread doesn't attempt to render */
-    disable_interrupts();
-
-    /* Clear XBUS/Flush/Freeze */
-    ((uint32_t *)0xA4100000)[3] = 0x15;
-    MEMORY_BARRIER();
-
-    /* Don't saturate the RDP command buffer.  Another command could have been written
-     * since we checked before disabling interrupts, but it is unlikely, so we probably
-     * won't stall in this critical section long. */
-    while( (((volatile uint32_t *)0xA4100000)[3] & 0x600) ) ;
-
-    /* Send start and end of buffer location to kick off the command transfer */
-    MEMORY_BARRIER();
-    ((volatile uint32_t *)0xA4100000)[0] = ((uint32_t)rdp_ringbuffer | 0xA0000000) + rdp_start;
-    MEMORY_BARRIER();
-    ((volatile uint32_t *)0xA4100000)[1] = ((uint32_t)rdp_ringbuffer | 0xA0000000) + rdp_end;
-    MEMORY_BARRIER();
-
-    /* We are good now */
-    enable_interrupts();
-
-    /* Commands themselves can't wrap around */
-    if( rdp_end > (RINGBUFFER_SIZE - RINGBUFFER_SLACK) )
-    {
-        /* Wrap around before a command can be split */
-        rdp_start = 0;
-        rdp_end = 0;
-    }
-    else
-    {
-        /* Advance the start to not allow clobbering current command */
-        rdp_start = rdp_end;
-    }
-}
-
-/**
  * @brief Initialize the RDP system
  */
 void rdp_init( void )
@@ -267,13 +166,11 @@ void rdp_init( void )
     /* Default to flushing automatically */
     flush_strategy = FLUSH_STRATEGY_AUTOMATIC;
 
-    /* Set the ringbuffer up */
-    rdp_start = 0;
-    rdp_end = 0;
-
     /* Set up interrupt for SYNC_FULL */
     register_DP_handler( __rdp_interrupt );
     set_DP_interrupt( 1 );
+
+    ugfx_init();
 }
 
 /**
@@ -286,6 +183,158 @@ void rdp_close( void )
 {
     set_DP_interrupt( 0 );
     unregister_DP_handler( __rdp_interrupt );
+}
+
+void rdp_texture_rectangle(uint8_t tile, int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t s, int16_t t, int16_t ds, int16_t dt)
+{
+    uint64_t w0 = RdpTextureRectangle1FX(tile, x0, y0, x1, y1);
+    uint64_t w1 = RdpTextureRectangle2FX(s, t, ds, dt);
+    uint32_t *ptr = dl_write_begin();
+    *ptr++ = w0 >> 32;
+    *ptr++ = w0 & 0xFFFFFFFF;
+    *ptr++ = w1 >> 32;
+    *ptr++ = w1 & 0xFFFFFFFF;
+    dl_write_end(ptr);
+}
+
+void rdp_texture_rectangle_flip(uint8_t tile, int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t s, int16_t t, int16_t ds, int16_t dt)
+{
+    uint64_t w0 = RdpTextureRectangleFlip1FX(tile, x0, y0, x1, y1);
+    uint64_t w1 = RdpTextureRectangle2FX(s, t, ds, dt);
+    uint32_t *ptr = dl_write_begin();
+    *ptr++ = w0 >> 32;
+    *ptr++ = w0 & 0xFFFFFFFF;
+    *ptr++ = w1 >> 32;
+    *ptr++ = w1 & 0xFFFFFFFF;
+    dl_write_end(ptr);
+}
+
+void rdp_sync_pipe()
+{
+    dl_queue_u64(RdpSyncPipe());
+}
+
+void rdp_sync_tile()
+{
+    dl_queue_u64(RdpSyncTile());
+}
+
+void rdp_sync_full()
+{
+    dl_queue_u64(RdpSyncFull());
+    dl_flush();
+}
+
+void rdp_set_key_gb(uint16_t wg, uint8_t wb, uint8_t cg, uint16_t sg, uint8_t cb, uint8_t sb)
+{
+    dl_queue_u64(RdpSetKeyGb(wg, wb, cg, sg, cb, sb));
+}
+
+void rdp_set_key_r(uint16_t wr, uint8_t cr, uint8_t sr)
+{
+    dl_queue_u64(RdpSetKeyR(wr, cr, sr));
+}
+
+void rdp_set_convert(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k3, uint16_t k4, uint16_t k5)
+{
+    dl_queue_u64(RdpSetConvert(k0, k1, k2, k3, k4, k5));
+}
+
+void rdp_set_scissor(int16_t x0, int16_t y0, int16_t x1, int16_t y1)
+{
+    dl_queue_u64(RdpSetClippingFX(x0, y0, x1, y1));
+}
+
+void rdp_set_prim_depth(uint16_t primitive_z, uint16_t primitive_delta_z)
+{
+    dl_queue_u64(RdpSetPrimDepth(primitive_z, primitive_delta_z));
+}
+
+void rdp_set_other_modes(uint64_t modes)
+{
+    dl_queue_u64(RdpSetOtherModes(modes));
+}
+
+void rdp_load_tlut(uint8_t tile, uint8_t lowidx, uint8_t highidx)
+{
+    dl_queue_u64(RdpLoadTlut(tile, lowidx, highidx));
+}
+
+void rdp_sync_load()
+{
+    dl_queue_u64(RdpSyncLoad());
+}
+
+void rdp_set_tile_size(uint8_t tile, int16_t s0, int16_t t0, int16_t s1, int16_t t1)
+{
+    dl_queue_u64(RdpSetTileSizeFX(tile, s0, t0, s1, t1));
+}
+
+void rdp_load_block(uint8_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t dxt)
+{
+    dl_queue_u64(RdpLoadBlock(tile, s0, t0, s1, dxt));
+}
+
+void rdp_load_tile(uint8_t tile, int16_t s0, int16_t t0, int16_t s1, int16_t t1)
+{
+    dl_queue_u64(RdpLoadTileFX(tile, s0, t0, s1, t1));
+}
+
+void rdp_set_tile(uint8_t format, uint8_t size, uint16_t line, uint16_t tmem_addr,
+                  uint8_t tile, uint8_t palette, uint8_t ct, uint8_t mt, uint8_t mask_t, uint8_t shift_t,
+                  uint8_t cs, uint8_t ms, uint8_t mask_s, uint8_t shift_s)
+{
+    dl_queue_u64(RdpSetTile(format, size, line, tmem_addr, tile, palette, ct, mt, mask_t, shift_t, cs, ms, mask_s, shift_s));
+}
+
+void rdp_fill_rectangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1)
+{
+    dl_queue_u64(RdpFillRectangleFX(x0, y0, x1, y1));
+}
+
+void rdp_set_fill_color(uint32_t color)
+{
+    dl_queue_u64(RdpSetFillColor(color));
+}
+
+void rdp_set_fog_color(uint32_t color)
+{
+    dl_queue_u64(RdpSetFogColor(color));
+}
+
+void rdp_set_blend_color(uint32_t color)
+{
+    dl_queue_u64(RdpSetBlendColor(color));
+}
+
+void rdp_set_prim_color(uint32_t color)
+{
+    dl_queue_u64(RdpSetPrimColor(color));
+}
+
+void rdp_set_env_color(uint32_t color)
+{
+    dl_queue_u64(RdpSetEnvColor(color));
+}
+
+void rdp_set_combine_mode(uint64_t flags)
+{
+    dl_queue_u64(RdpSetCombine(flags));
+}
+
+void rdp_set_texture_image(uint32_t dram_addr, uint8_t format, uint8_t size, uint16_t width)
+{
+    dl_queue_u64(RdpSetTexImage(format, size, dram_addr, width));
+}
+
+void rdp_set_z_image(uint32_t dram_addr)
+{
+    dl_queue_u64(RdpSetDepthImage(dram_addr));
+}
+
+void rdp_set_color_image(uint32_t dram_addr, uint32_t format, uint32_t size, uint32_t width)
+{
+    dl_queue_u64(RdpSetColorImage(format, size, width, dram_addr));
 }
 
 /**
@@ -303,9 +352,8 @@ void rdp_attach_display( display_context_t disp )
     if( disp == 0 ) { return; }
 
     /* Set the rasterization buffer */
-    __rdp_ringbuffer_queue( 0xFF000000 | ((__bitdepth == 2) ? 0x00100000 : 0x00180000) | (__width - 1) );
-    __rdp_ringbuffer_queue( (uint32_t)__get_buffer( disp ) );
-    __rdp_ringbuffer_send();
+    uint32_t size = (__bitdepth == 2) ? RDP_TILE_SIZE_16BIT : RDP_TILE_SIZE_32BIT;
+    rdp_set_color_image((uint32_t)__get_buffer(disp), RDP_TILE_FORMAT_RGBA, size, __width);
 }
 
 /**
@@ -353,20 +401,18 @@ void rdp_sync( sync_t sync )
     switch( sync )
     {
         case SYNC_FULL:
-            __rdp_ringbuffer_queue( 0xE9000000 );
+            rdp_sync_full();
             break;
         case SYNC_PIPE:
-            __rdp_ringbuffer_queue( 0xE7000000 );
+            rdp_sync_pipe();
             break;
         case SYNC_TILE:
-            __rdp_ringbuffer_queue( 0xE8000000 );
+            rdp_sync_tile();
             break;
         case SYNC_LOAD:
-            __rdp_ringbuffer_queue( 0xE6000000 );
+            rdp_sync_load();
             break;
     }
-    __rdp_ringbuffer_queue( 0x00000000 );
-    __rdp_ringbuffer_send();
 }
 
 /**
@@ -384,9 +430,7 @@ void rdp_sync( sync_t sync )
 void rdp_set_clipping( uint32_t tx, uint32_t ty, uint32_t bx, uint32_t by )
 {
     /* Convert pixel space to screen space in command */
-    __rdp_ringbuffer_queue( 0xED000000 | (tx << 14) | (ty << 2) );
-    __rdp_ringbuffer_queue( (bx << 14) | (by << 2) );
-    __rdp_ringbuffer_send();
+    rdp_set_scissor(tx << 2, ty << 2, bx << 2, by << 2);
 }
 
 /**
@@ -406,9 +450,7 @@ void rdp_set_default_clipping( void )
 void rdp_enable_primitive_fill( void )
 {
     /* Set other modes to fill and other defaults */
-    __rdp_ringbuffer_queue( 0xEFB000FF );
-    __rdp_ringbuffer_queue( 0x00004000 );
-    __rdp_ringbuffer_send();
+    rdp_set_other_modes(SOM_ATOMIC_PRIM | SOM_CYCLE_FILL | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_BLENDING);
 }
 
 /**
@@ -418,9 +460,8 @@ void rdp_enable_primitive_fill( void )
  */
 void rdp_enable_blend_fill( void )
 {
-    __rdp_ringbuffer_queue( 0xEF0000FF );
-    __rdp_ringbuffer_queue( 0x80000000 );
-    __rdp_ringbuffer_send();
+    // TODO: Macros for blend modes (this sets blend rgb times input alpha on cycle 0)
+    rdp_set_other_modes(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | 0x80000000);
 }
 
 /**
@@ -432,9 +473,7 @@ void rdp_enable_blend_fill( void )
 void rdp_enable_texture_copy( void )
 {
     /* Set other modes to copy and other defaults */
-    __rdp_ringbuffer_queue( 0xEFA000FF );
-    __rdp_ringbuffer_queue( 0x00004001 );
-    __rdp_ringbuffer_send();
+    rdp_set_other_modes(SOM_ATOMIC_PRIM | SOM_CYCLE_COPY | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_BLENDING | SOM_ALPHA_COMPARE);
 }
 
 /**
@@ -472,9 +511,7 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     }
 
     /* Point the RDP at the actual sprite data */
-    __rdp_ringbuffer_queue( 0xFD000000 | ((sprite->bitdepth == 2) ? 0x00100000 : 0x00180000) | (sprite->width - 1) );
-    __rdp_ringbuffer_queue( (uint32_t)sprite->data );
-    __rdp_ringbuffer_send();
+    rdp_set_texture_image((uint32_t)sprite->data, RDP_TILE_FORMAT_RGBA, (sprite->bitdepth == 2) ? RDP_TILE_SIZE_16BIT : RDP_TILE_SIZE_32BIT, sprite->width);
 
     /* Figure out the s,t coordinates of the sprite we are copying out of */
     int twidth = sh - sl + 1;
@@ -490,15 +527,24 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     int round_amount = (real_width % 8) ? 1 : 0;
 
     /* Instruct the RDP to copy the sprite data out */
-    __rdp_ringbuffer_queue( 0xF5000000 | ((sprite->bitdepth == 2) ? 0x00100000 : 0x00180000) | 
-                                       (((((real_width / 8) + round_amount) * sprite->bitdepth) & 0x1FF) << 9) | ((texloc / 8) & 0x1FF) );
-    __rdp_ringbuffer_queue( ((texslot & 0x7) << 24) | (mirror_enabled != MIRROR_DISABLED ? 0x40100 : 0) | (hbits << 14 ) | (wbits << 4) );
-    __rdp_ringbuffer_send();
+    rdp_set_tile(
+        RDP_TILE_FORMAT_RGBA, 
+        (sprite->bitdepth == 2) ? RDP_TILE_SIZE_16BIT : RDP_TILE_SIZE_32BIT, 
+        (((real_width / 8) + round_amount) * sprite->bitdepth) & 0x1FF,
+        (texloc / 8) & 0x1FF,
+        texslot & 0x7,
+        0, 
+        0, 
+        mirror_enabled != MIRROR_DISABLED ? 1 : 0,
+        hbits,
+        0,
+        0,
+        mirror_enabled != MIRROR_DISABLED ? 1 : 0,
+        wbits,
+        0);
 
     /* Copying out only a chunk this time */
-    __rdp_ringbuffer_queue( 0xF4000000 | (((sl << 2) & 0xFFF) << 12) | ((tl << 2) & 0xFFF) );
-    __rdp_ringbuffer_queue( (((sh << 2) & 0xFFF) << 12) | ((th << 2) & 0xFFF) );
-    __rdp_ringbuffer_send();
+    rdp_load_tile(0, (sl << 2) & 0xFFF, (tl << 2) & 0xFFF, (sh << 2) & 0xFFF, (th << 2) & 0xFFF);
 
     /* Save sprite width and height for managed sprite commands */
     cache[texslot & 0x7].width = twidth - 1;
@@ -643,15 +689,8 @@ void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int b
     int ys = (int)((1.0 / y_scale) * 1024.0);
 
     /* Set up rectangle position in screen space */
-    __rdp_ringbuffer_queue( 0xE4000000 | (bx << 14) | (by << 2) );
-    __rdp_ringbuffer_queue( ((texslot & 0x7) << 24) | (tx << 14) | (ty << 2) );
-
     /* Set up texture position and scaling to 1:1 copy */
-    __rdp_ringbuffer_queue( (s << 16) | t );
-    __rdp_ringbuffer_queue( (xs & 0xFFFF) << 16 | (ys & 0xFFFF) );
-
-    /* Send command */
-    __rdp_ringbuffer_send();
+    rdp_texture_rectangle(texslot & 0x7, tx << 2, ty << 2, bx << 2, by << 2, s, t, xs & 0xFFFF, ys & 0xFFFF);
 }
 
 /**
@@ -751,24 +790,7 @@ void rdp_draw_sprite_scaled( uint32_t texslot, int x, int y, double x_scale, dou
 void rdp_set_primitive_color( uint32_t color )
 {
     /* Set packed color */
-    __rdp_ringbuffer_queue( 0xF7000000 );
-    __rdp_ringbuffer_queue( color );
-    __rdp_ringbuffer_send();
-}
-
-/**
- * @brief Set the blend draw color for subsequent filled primitive operations
- *
- * This function sets the color of all #rdp_draw_filled_triangle operations that follow.
- *
- * @param[in] color
- *            Color to draw primitives in
- */
-void rdp_set_blend_color( uint32_t color )
-{
-    __rdp_ringbuffer_queue( 0xF9000000 );
-    __rdp_ringbuffer_queue( color );
-    __rdp_ringbuffer_send();
+    rdp_set_fill_color(color);
 }
 
 /**
@@ -797,9 +819,7 @@ void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by )
     if( tx < 0 ) { tx = 0; }
     if( ty < 0 ) { ty = 0; }
 
-    __rdp_ringbuffer_queue( 0xF6000000 | ( bx << 14 ) | ( by << 2 ) ); 
-    __rdp_ringbuffer_queue( ( tx << 14 ) | ( ty << 2 ) );
-    __rdp_ringbuffer_send();
+    rdp_fill_rectangle(tx << 2, ty << 2, bx << 2, by << 2);
 }
 
 /**
@@ -853,16 +873,17 @@ void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3,
     /* determine the winding of the triangle */
     int winding = ( x1 * y2 - x2 * y1 ) + ( x2 * y3 - x3 * y2 ) + ( x3 * y1 - x1 * y3 );
     int flip = ( winding > 0 ? 1 : 0 ) << 23;
-    
-    __rdp_ringbuffer_queue( 0xC8000000 | flip | yl );
-    __rdp_ringbuffer_queue( ym | yh );
-    __rdp_ringbuffer_queue( xl );
-    __rdp_ringbuffer_queue( dxldy );
-    __rdp_ringbuffer_queue( xh );
-    __rdp_ringbuffer_queue( dxhdy );
-    __rdp_ringbuffer_queue( xm );
-    __rdp_ringbuffer_queue( dxmdy );
-    __rdp_ringbuffer_send();
+
+    uint32_t *dl = dl_write_begin();
+    *dl++ = 0x20000000 | flip | yl;
+    *dl++ = ym | yh;
+    *dl++ = xl;
+    *dl++ = dxldy;
+    *dl++ = xh;
+    *dl++ = dxhdy;
+    *dl++ = xm;
+    *dl++ = dxmdy;
+    dl_write_end(dl);
 }
 
 /**
