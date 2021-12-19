@@ -207,8 +207,10 @@ void dl_overlay_register(rsp_ucode_t *overlay_ucode, uint8_t id)
     assertf(id < DL_OVERLAY_TABLE_SIZE, "Tried to register id: %d", id);
 
     // The DL ucode is always linked into overlays for now, so we need to load the overlay from an offset.
-    // TODO: Do this some other way.
     uint32_t dl_ucode_size = rsp_dl_text_end - rsp_dl_text_start;
+
+    assertf(memcmp(rsp_dl_text_start, overlay_ucode->code, dl_ucode_size) == 0, "Common code of overlay does not match!");
+
     void *overlay_code = PhysicalAddr(overlay_ucode->code + dl_ucode_size);
 
     uint8_t overlay_index = 0;
