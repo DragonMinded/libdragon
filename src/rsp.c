@@ -133,3 +133,13 @@ void rsp_run(void)
     rsp_run_async();
     rsp_wait();
 }
+
+void rsp_pause(bool pause)
+{
+    if (pause) {
+        *SP_STATUS = SP_WSTATUS_SET_HALT;
+        while (*SP_STATUS & SP_STATUS_DMA_BUSY) { /* spin-wait */ }
+    } else {
+        *SP_STATUS = SP_WSTATUS_CLEAR_HALT;
+    }
+}

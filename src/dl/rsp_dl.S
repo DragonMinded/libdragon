@@ -120,11 +120,12 @@ fetch_buffer_with_ptr:
     # Fetch the whole DMEM buffer. We will use the 0x00 invalid fill value to
     # realize where the buffer is empty.
     li s4, %lo(DL_DMEM_BUFFER)
-    jal DMAIn
     li t0, DMA_SIZE(DL_DMEM_BUFFER_SIZE, 1)
-
+    jal_and_j DMAIn, loop_no_highpri
+    # fallthrough into the main loopm but skip the highpri check. This is
+    # important because we want to give a chance to the first highpri instruction
+    # to clear the SIG5
     .endfunc
-    # fallthrough into the main loop
 
 command_invalid:  # invalid command -> repeat the loop
 command_noop:     # invalid command -> repeat the loop
@@ -139,6 +140,7 @@ loop:
     andi t0, SP_STATUS_SIG6
     bnez t0, command_call_highpri
 
+loop_no_highpri:
     # Read first word
     lw a0, %lo(DL_DMEM_BUFFER) + 0x0 (dl_dmem_buf_ptr)
 
@@ -243,7 +245,7 @@ execute_command:
     .func command_call_highpri
 command_call_highpri:
     lw a0, %lo(DL_RDRAM_PTR_HIGHPRI)
-    li a1, DL_MAX_BLOCK_NESTING_LEVEL*4
+    li a1, DL_HIGHPRI_CALL_SLOT*4
     # fallthrough
     .endfunc
     

@@ -25,21 +25,25 @@
     *(uint8_t*)(dl) = 0x01; \
 })
 
-#define SP_STATUS_SIG_SYNCPOINT        SP_STATUS_SIG4
-#define SP_WSTATUS_SET_SIG_SYNCPOINT   SP_WSTATUS_SET_SIG4
-#define SP_WSTATUS_CLEAR_SIG_SYNCPOINT SP_WSTATUS_CLEAR_SIG4
+#define SP_STATUS_SIG_HIGHPRI_RUNNING         SP_STATUS_SIG3
+#define SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING    SP_WSTATUS_SET_SIG3
+#define SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING  SP_WSTATUS_CLEAR_SIG3
 
-#define SP_STATUS_SIG_BUFDONE          SP_STATUS_SIG5
-#define SP_WSTATUS_SET_SIG_BUFDONE     SP_WSTATUS_SET_SIG5
-#define SP_WSTATUS_CLEAR_SIG_BUFDONE   SP_WSTATUS_CLEAR_SIG5
+#define SP_STATUS_SIG_SYNCPOINT               SP_STATUS_SIG4
+#define SP_WSTATUS_SET_SIG_SYNCPOINT          SP_WSTATUS_SET_SIG4
+#define SP_WSTATUS_CLEAR_SIG_SYNCPOINT        SP_WSTATUS_CLEAR_SIG4
 
-#define SP_STATUS_SIG_HIGHPRI          SP_STATUS_SIG6
-#define SP_WSTATUS_SET_SIG_HIGHPRI     SP_WSTATUS_SET_SIG6
-#define SP_WSTATUS_CLEAR_SIG_HIGHPRI   SP_WSTATUS_CLEAR_SIG6
+#define SP_STATUS_SIG_BUFDONE                 SP_STATUS_SIG5
+#define SP_WSTATUS_SET_SIG_BUFDONE            SP_WSTATUS_SET_SIG5
+#define SP_WSTATUS_CLEAR_SIG_BUFDONE          SP_WSTATUS_CLEAR_SIG5
 
-#define SP_STATUS_SIG_MORE             SP_STATUS_SIG7
-#define SP_WSTATUS_SET_SIG_MORE        SP_WSTATUS_SET_SIG7
-#define SP_WSTATUS_CLEAR_SIG_MORE      SP_WSTATUS_CLEAR_SIG7
+#define SP_STATUS_SIG_HIGHPRI                 SP_STATUS_SIG6
+#define SP_WSTATUS_SET_SIG_HIGHPRI            SP_WSTATUS_SET_SIG6
+#define SP_WSTATUS_CLEAR_SIG_HIGHPRI          SP_WSTATUS_CLEAR_SIG6
+
+#define SP_STATUS_SIG_MORE                    SP_STATUS_SIG7
+#define SP_WSTATUS_SET_SIG_MORE               SP_WSTATUS_SET_SIG7
+#define SP_WSTATUS_CLEAR_SIG_MORE             SP_WSTATUS_CLEAR_SIG7
 
 DEFINE_RSP_UCODE(rsp_dl);
 
@@ -72,7 +76,7 @@ typedef struct rsp_dl_s {
     void *dl_dram_addr;
     void *dl_dram_highpri_addr;
     int16_t current_ovl;
-} __attribute__((aligned(8), packed)) rsp_dl_t;
+} __attribute__((aligned(16), packed)) rsp_dl_t;
 
 static rsp_dl_t dl_data;
 #define dl_data_ptr ((rsp_dl_t*)UncachedAddr(&dl_data))
@@ -82,25 +86,48 @@ static uint8_t dl_overlay_count = 0;
 /** @brief Command list buffers (full cachelines to avoid false sharing) */
 static uint32_t dl_buffers[2][DL_DRAM_BUFFER_SIZE] __attribute__((aligned(16)));
 static uint8_t dl_buf_idx;
-static uint32_t *dl_buffer_ptr, *dl_buffer_sentinel;
 static dl_block_t *dl_block;
 static int dl_block_size;
 
 uint32_t *dl_cur_pointer;
 uint32_t *dl_cur_sentinel;
 
+static uint32_t *dl_old_pointer, *dl_old_sentinel;
+
 static int dl_syncpoints_genid;
 volatile int dl_syncpoints_done;
 
 static bool dl_is_running;
+static bool dl_is_highpri;
 
 static uint64_t dummy_overlay_state;
 
+static void __dl_highpri_init(void);
+
 static void dl_sp_interrupt(void) 
 {
-    ++dl_syncpoints_done;
+    uint32_t status = *SP_STATUS;
+    uint32_t wstatus = 0;
+
+    if (status & SP_STATUS_SIG_SYNCPOINT) {
+        wstatus |= SP_WSTATUS_CLEAR_SIG_SYNCPOINT;
+        ++dl_syncpoints_done;
+        debugf("syncpoint intr %d\n", dl_syncpoints_done);
+    }
+#if 0
+    // Check if we just finished a highpri list
+    if (status & SP_STATUS_SIG_HIGHPRI_FINISHED) {
+        // Clear the HIGHPRI_FINISHED signal
+        wstatus |= SP_WSTATUS_CLEAR_SIG_HIGHPRI_FINISHED;
+
+        // If there are still highpri buffers pending, schedule them right away
+        if (++dl_highpri_ridx < dl_highpri_widx)
+            wstatus |= SP_WSTATUS_SET_SIG_HIGHPRI;
+    }
+#endif
     MEMORY_BARRIER();
-    *SP_STATUS = SP_WSTATUS_CLEAR_SIG_SYNCPOINT;
+
+    *SP_STATUS = wstatus;
 }
 
 void dl_start()
@@ -166,7 +193,9 @@ void dl_init()
     dl_syncpoints_done = 0;
 
     dl_overlay_count = 1;
-    dl_is_running = 0;
+    dl_is_running = false;
+
+    __dl_highpri_init();
 
     // Activate SP interrupt (used for syncpoints)
     register_SP_handler(dl_sp_interrupt);
@@ -266,6 +295,21 @@ static uint32_t* dl_switch_buffer(uint32_t *dl2, int size)
     return prev;
 }
 
+static void dl_push_buffer(void) 
+{
+    assertf(!dl_old_pointer, "internal error: dl_push_buffer called twice");
+    dl_old_pointer = dl_cur_pointer;
+    dl_old_sentinel = dl_cur_sentinel;
+}
+
+static void dl_pop_buffer(void) 
+{
+    assertf(dl_old_pointer, "internal error: dl_pop_buffer called without dl_push_buffer");
+    dl_cur_pointer = dl_old_pointer;
+    dl_cur_sentinel = dl_old_sentinel;
+    dl_old_pointer = dl_old_sentinel = NULL;
+}
+
 /**
  * @brief Allocate a buffer that will be accessed as uncached memory.
  * 
@@ -292,6 +336,16 @@ void *malloc_uncached(size_t size)
 
 __attribute__((noinline))
 void dl_next_buffer(void) {
+    // If we are in highpri mode
+    if (dl_is_highpri) {
+        // The current highpri buffered is now full. The easiest thing to do
+        // is to switch to the next one, simply by closing and reopening the
+        // highpri mode.
+        dl_highpri_end();
+        dl_highpri_begin();
+        return;
+    }
+
     // If we're creating a block
     if (dl_block) {
         // Allocate next chunk (double the size of the current one).
@@ -367,21 +421,169 @@ void dl_flush(void)
     MEMORY_BARRIER();
 }
 
+/***********************************************************************/
+
+#define DL_HIGHPRI_NUM_BUFS  8
+#define DL_HIGHPRI_BUF_SIZE  128
+
+int dl_highpri_widx;
+uint32_t *dl_highpri_trampoline;
+uint32_t *dl_highpri_buf;
+
+
+/*
+TRAMPOLINE
+=============
+0 WSTATUS   SP_WSTATUS_CLEAR_SIG_HIGHPRI | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING
+1 DMA       DMEM -> RDRAM
+2 ...
+3 ...
+4 ...
+5 NOP
+6 JUMP      list1
+7 NOP
+8 JUMP      list2
+9 NOP
+A NOP
+B NOP
+C WSTATUS   SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING
+D RET       9
+*/
+
+static const uint32_t TRAMPOLINE_HEADER = 6;
+static const uint32_t TRAMPOLINE_FOOTER = 5;
+static const uint32_t TRAMPOLINE_WORDS = TRAMPOLINE_HEADER + DL_HIGHPRI_NUM_BUFS*2 + TRAMPOLINE_FOOTER;
+static const uint32_t cmd_noop = DL_CMD_NOOP<<24;
+
+void __dl_highpri_init(void)
+{
+    dl_is_highpri = false;
+    dl_highpri_buf = malloc_uncached(DL_HIGHPRI_NUM_BUFS * DL_HIGHPRI_BUF_SIZE * sizeof(uint32_t));
+    dl_highpri_trampoline = malloc_uncached(TRAMPOLINE_WORDS*sizeof(uint32_t));
+
+    uint32_t *dlp = dl_highpri_trampoline;
+
+    // Write the trampoline header (6 words). 
+    *dlp++ = (DL_CMD_WSTATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING;
+    *dlp++ = (DL_CMD_DMA<<24) | (uint32_t)PhysicalAddr(dl_highpri_trampoline + TRAMPOLINE_HEADER);
+    *dlp++ = 0xD8 + (TRAMPOLINE_HEADER+2)*sizeof(uint32_t); // FIXME address of DL_DMEM_BUFFER
+    *dlp++ = (DL_HIGHPRI_NUM_BUFS*2) * sizeof(uint32_t) - 1;
+    *dlp++ = 0xFFFF8000; // DMA_OUT_ASYNC
+    *dlp++ = cmd_noop;
+
+    // Fill the rest of the trampoline with noops
+    assert(dlp - dl_highpri_trampoline == TRAMPOLINE_HEADER);
+    for (int i = TRAMPOLINE_HEADER; i < TRAMPOLINE_WORDS-TRAMPOLINE_FOOTER; i++)
+        *dlp++ = cmd_noop;
+
+    *dlp++ = cmd_noop;
+    *dlp++ = cmd_noop;
+    *dlp++ = (DL_CMD_WSTATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING;
+    *dlp++ = (DL_CMD_RET<<24) | (DL_HIGHPRI_CALL_SLOT<<2);
+    *dlp++ = (DL_CMD_IDLE<<24);
+    assert(dlp - dl_highpri_trampoline == TRAMPOLINE_WORDS);
+
+    dl_data_ptr->dl_dram_highpri_addr = dl_highpri_trampoline;
+}
+
+void dl_highpri_begin(void)
+{
+    assertf(!dl_is_highpri, "already in highpri mode");
+    assertf(!dl_block, "cannot switch to highpri mode while creating a block");
+
+    uint32_t *dlh = &dl_highpri_buf[(dl_highpri_widx++ % DL_HIGHPRI_NUM_BUFS) * DL_HIGHPRI_BUF_SIZE];
+    dl_push_buffer();
+    dl_switch_buffer(dlh, DL_HIGHPRI_BUF_SIZE-2);
+    dl_terminator(dlh);
+
+    // Try pausing the RSP while it's executing code which is *outside* the
+    // trampoline. We're going to modify the trampoline and we want to do
+    // while the RSP is not running there otherwise we risk race conditions.
+try_pause_rsp:
+    rsp_pause(true);
+
+    void* dl_rdram_ptr = ((volatile rsp_dl_t*)SP_DMEM)->dl_dram_addr;
+    if (dl_rdram_ptr >= PhysicalAddr(dl_highpri_trampoline) && dl_rdram_ptr < PhysicalAddr(dl_highpri_trampoline+TRAMPOLINE_WORDS)) {
+        debugf("SP PC in highpri trampoline... retrying\n");
+        rsp_pause(false);
+        wait_ticks(40);
+        goto try_pause_rsp;
+    }
+
+    // Check the trampoline contents. It can either be empty (all no-ops after header),
+    // or contain 0+ DL_CMD_JUMP followed by a DL_CMD_RET. We need to append a jump to the
+    // new list as last one, overwriting the existing DL_CMD_RET and recreating it after.
+    int tramp_widx = TRAMPOLINE_HEADER;
+    while (dl_highpri_trampoline[tramp_widx] != cmd_noop) {
+        tramp_widx += 2;
+        if (tramp_widx >= TRAMPOLINE_WORDS - TRAMPOLINE_FOOTER) {
+            debugf("Highpri trampoline is full... retrying\n");
+            rsp_pause(false);
+            wait_ticks(400);
+            goto try_pause_rsp;
+        }
+    }
+
+    // Write the DL_CMD_JUMP to the new list
+    dl_highpri_trampoline[tramp_widx] = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dlh);
+
+    // If the RSP was not already executing the highpri queue, we must set the
+    // signal to alert it that a highpri queue is now available.
+    if (!(*SP_STATUS & SP_STATUS_SIG_HIGHPRI_RUNNING))
+        *SP_STATUS = SP_WSTATUS_SET_SIG_HIGHPRI;
+
+    // debugf("begin highpri mode (SP PC:%lx)\n", *SP_PC);
+    // for (int i=0;i<TRAMPOLINE_WORDS;i++)
+    //     debugf("%02x: %08lx\n", i, dl_highpri_trampoline[i]);
+
+    rsp_pause(false);
+
+    // wait_ticks(8000);
+    // rsp_pause(true);
+    // debugf("trampoline 2 (SP PC:%lx):\n", *SP_PC);
+    // for (int i=0;i<TRAMPOLINE_WORDS;i++)
+    //     debugf("%02x: %08lx\n", i, dl_highpri_trampoline[i]);
+    // rsp_pause(false);
+
+
+    dl_is_highpri = true;
+}
+
+void dl_highpri_end(void)
+{
+    assertf(dl_is_highpri, "not in highpri mode");
+
+    *dl_cur_pointer++ = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dl_highpri_trampoline);
+    dl_terminator(dl_cur_pointer);
+
+    dl_pop_buffer();
+    dl_flush();
+    dl_is_highpri = false;
+}
+
+void dl_highpri_sync(void)
+{
+    while (*SP_STATUS & (SP_STATUS_SIG_HIGHPRI_RUNNING|SP_STATUS_SIG_HIGHPRI)) 
+    { /* idle wait */ }
+}
+
+
+/***********************************************************************/
+
+
 void dl_block_begin(void)
 {
     assertf(!dl_block, "a block was already being created");
+    assertf(!dl_is_highpri, "cannot create a block in highpri mode");
 
     // Allocate a new block (at minimum size) and initialize it.
     dl_block_size = DL_BLOCK_MIN_SIZE;
     dl_block = malloc_uncached(sizeof(dl_block_t) + dl_block_size*sizeof(uint32_t));
     dl_block->nesting_level = 0;
 
-    // Save the current pointer/sentinel for later restore
-    dl_buffer_sentinel = dl_cur_sentinel;
-    dl_buffer_ptr = dl_cur_pointer;
-
     // Switch to the block buffer. From now on, all dl_writes will
     // go into the block.
+    dl_push_buffer();
     dl_switch_buffer(dl_block->cmds, dl_block_size);
 }
 
@@ -395,8 +597,7 @@ dl_block_t* dl_block_end(void)
     dl_terminator(dl_cur_pointer);
 
     // Switch back to the normal display list
-    dl_cur_pointer = dl_buffer_ptr;
-    dl_cur_sentinel = dl_buffer_sentinel;
+    dl_pop_buffer();
 
     // Return the created block
     dl_block_t *b = dl_block;
@@ -500,7 +701,7 @@ dl_syncpoint_t dl_syncpoint(void)
 {   
     assertf(!dl_block, "cannot create syncpoint in a block");
     uint32_t *dl = dl_write_begin();
-    *dl++ = (DL_CMD_TEST_AND_WSTATUS << 24) | SP_WSTATUS_SET_INTR | SP_WSTATUS_SET_SIG_SYNCPOINT;
+    *dl++ = ((DL_CMD_TEST_AND_WSTATUS << 24) | SP_WSTATUS_SET_INTR | SP_WSTATUS_SET_SIG_SYNCPOINT);
     *dl++ = SP_STATUS_SIG_SYNCPOINT;
     dl_write_end(dl);
     return ++dl_syncpoints_genid;
@@ -513,6 +714,9 @@ bool dl_check_syncpoint(dl_syncpoint_t sync_id)
 
 void dl_wait_syncpoint(dl_syncpoint_t sync_id)
 {
+    assertf(get_interrupts_state() == INTERRUPTS_ENABLED,
+        "deadlock: interrupts are disabled");
+
     // Make sure the RSP is running, otherwise we might be blocking forever.
     dl_flush();
 
@@ -524,6 +728,9 @@ void dl_wait_syncpoint(dl_syncpoint_t sync_id)
 
 void dl_signal(uint32_t signal)
 {
+    const uint32_t allows_mask = SP_WSTATUS_CLEAR_SIG0|SP_WSTATUS_SET_SIG0|SP_WSTATUS_CLEAR_SIG1|SP_WSTATUS_SET_SIG1|SP_WSTATUS_CLEAR_SIG2|SP_WSTATUS_SET_SIG2;
+    assertf((signal & allows_mask) == signal, "dl_signal called with a mask that contains bits outside SIG0-2: %lx", signal);
+
     dl_queue_u32((DL_CMD_WSTATUS << 24) | signal);
 }
 

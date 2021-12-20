@@ -51,10 +51,54 @@ typedef int dl_syncpoint_t;
  */
 void dl_init(void);
 
-void* dl_overlay_get_state(rsp_ucode_t *overlay_ucode);
+/**
+ * @brief Shut down the RSP command list.
+ */
+void dl_close(void);
+
+
+/**
+ * @brief Register a ucode overlay into the command list engine.
+ * 
+ * This function registers a ucode overlay into the command list engine.
+ * An overlay is a ucode that has been written to be compatible with the
+ * command list engine (see rsp_dl.inc) and is thus able to executed commands
+ * that are enqueued in the command list.
+ * 
+ * Each command in the command list starts with a 8-bit ID, in which the
+ * upper 4 bits are the overlay ID and the lower 4 bits are the command ID.
+ * The ID specified with this function is the overlay ID to associated with
+ * the ucode. For instance, calling this function with ID 0x3 means that 
+ * the overlay will be associated with commands 0x30 - 0x3F. The overlay ID
+ * 0 is reserved to the command list engine.
+ * 
+ * Notice that it is possible to call this function multiple times with the
+ * same ucode in case the ucode exposes more than 16 commands. For instance,
+ * an ucode that handles up to 32 commands could be registered twice with
+ * IDs 0x6 and 0x7, so that the whole range 0x60-0x7F is assigned to it.
+ * When calling multiple times, consecutive IDs must be used.
+ *             
+ * @param      overlay_ucode  The ucode to register
+ * @param[in]  id             The overlay ID that will be associated to this ucode.
+ */
 void dl_overlay_register(rsp_ucode_t *overlay_ucode, uint8_t id);
 
-void dl_close(void);
+/**
+ * @brief Return a pointer to the overlay state (in RDRAM)
+ * 
+ * Overlays can define a section of DMEM as persistent state. This area will be
+ * preserved across overlay switching, by reading back into RDRAM the DMEM
+ * contents when the overlay is switched away.
+ * 
+ * This function returns a pointer to the state area in RDRAM (not DMEM). It is
+ * meant to modify the state on the CPU side while the overlay is not loaded.
+ * The layout of the state and its size should be known to the caller.
+ *
+ * @param      overlay_ucode  The ucode overlay for which the state pointer will be returned.
+ *
+ * @return     Pointer to the overlay state (in RDRAM)
+ */
+void* dl_overlay_get_state(rsp_ucode_t *overlay_ucode);
 
 /**
  * @brief Begin writing a command to the current RSP command list.
@@ -309,6 +353,10 @@ void dl_block_run(dl_block_t *block);
  */
 void dl_block_free(dl_block_t *block);
 
+void dl_highpri_begin(void);
+void dl_highpri_end(void);
+void dl_highpri_sync(void);
+
 
 void dl_queue_u8(uint8_t cmd);
 void dl_queue_u16(uint16_t cmd);
@@ -316,8 +364,61 @@ void dl_queue_u32(uint32_t cmd);
 void dl_queue_u64(uint64_t cmd);
 
 void dl_noop();
+
+/**
+ * @brief Enqueue a command that sets a signal in SP status
+ * 
+ * The SP status register has 8 bits called "signals" that can be
+ * atomically set or cleared by both the CPU and the RSP. They can be used
+ * to provide asynchronous communication.
+ * 
+ * This function allows to enqueue a command in the list that will set and/or
+ * clear a combination of the above bits.
+ * 
+ * Notice that signal bits 3-7 are used by the command list engine itself, so this
+ * function must only be used for bits 0-2.
+ * 
+ * @param[in]  signal  A signal set/clear mask created by composing SP_WSTATUS_* 
+ *                     defines.
+ *                     
+ * @note This is an advanced function that should be used rarely. Most
+ * synchronization requirements should be fulfilled via #dl_syncpoint which is
+ * easier to use.
+ */
 void dl_signal(uint32_t signal);
+
+/**
+ * @brief Enqueue a command to do a DMA transfer from DMEM to RDRAM
+ *
+ * @param      rdram_addr  The RDRAM address (destination, must be aligned to 8)
+ * @param[in]  dmem_addr   The DMEM address (source, must be aligned to 8)
+ * @param[in]  len         Number of bytes to transfer (must be multiple of 8)
+ * @param[in]  is_async    If true, the RSP does not wait for DMA completion
+ *                         and processes the next command as the DMA is in progress.
+ *                         If false, the RSP waits until the transfer is finished
+ *                         before processing the next command.
+ *                         
+ * @note The argument is_async refers to the RSP only. From the CPU standpoint,
+ *       this function is always asynchronous as it just enqueues a command
+ *       in the list. 
+ */
 void dl_dma_to_rdram(void *rdram_addr, uint32_t dmem_addr, uint32_t len, bool is_async);
+
+/**
+ * @brief Enqueue a command to do a DMA transfer from RDRAM to DMEM
+ *
+ * @param[in]  dmem_addr   The DMEM address (destination, must be aligned to 8)
+ * @param      rdram_addr  The RDRAM address (source, must be aligned to 8)
+ * @param[in]  len         Number of bytes to transfer (must be multiple of 8)
+ * @param[in]  is_async    If true, the RSP does not wait for DMA completion
+ *                         and processes the next command as the DMA is in progress.
+ *                         If false, the RSP waits until the transfer is finished
+ *                         before processing the next command.
+ *                         
+ * @note The argument is_async refers to the RSP only. From the CPU standpoint,
+ *       this function is always asynchronous as it just enqueues a command
+ *       in the list. 
+ */
 void dl_dma_to_dmem(uint32_t dmem_addr, void *rdram_addr, uint32_t len, bool is_async);
 
 #endif

@@ -217,6 +217,19 @@ void rsp_read_code(void* code, unsigned long size, unsigned int imem_offset);
  */
 void rsp_read_data(void* data, unsigned long size, unsigned int dmem_offset);
 
+/**
+ * @brief Pause RSP execution.
+ * 
+ * This function pauses the RSP. It also waits until any current SP DMA
+ * is finished so that the RSP unit is fully idle when this function returns
+ * and is then possible to run SP DMA or access IMEM/DMEM without any bus
+ * conflict.
+ *
+ * @param[in]  pause  If true, RSP will be paused. If false, it will resume execution.
+ */
+void rsp_pause(bool pause);
+
+
 static inline __attribute__((deprecated("use rsp_load_code instead")))
 void load_ucode(void * start, unsigned long size) {
     rsp_load_code(start, size, 0);

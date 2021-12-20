@@ -13,5 +13,6 @@
 
 // Maximum number of nested block calls
 #define DL_MAX_BLOCK_NESTING_LEVEL 8
+#define DL_HIGHPRI_CALL_SLOT       (DL_MAX_BLOCK_NESTING_LEVEL+0)
 
 #endif

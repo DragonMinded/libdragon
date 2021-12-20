@@ -16,6 +16,7 @@ void test_ovl_init()
 
     dl_init();
     dl_overlay_register(&rsp_test, 0xF);
+    dl_sync(); // make sure the overlay is fully registered before beginning
 }
 
 void dl_test_4(uint32_t value)
@@ -37,9 +38,9 @@ void dl_test_16(uint32_t value)
 {
     uint32_t *ptr = dl_write_begin();
     *ptr++ = 0xf2000000 | value;
+    *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG0;
     *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG1;
     *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG2;
-    *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG3;
     dl_write_end(ptr);
 }
 
@@ -63,6 +64,13 @@ void dl_test_reset(void)
 {
     uint32_t *ptr = dl_write_begin();
     *ptr++ = 0xf5000000;
+    dl_write_end(ptr);
+}
+
+void dl_test_high(uint32_t value)
+{
+    uint32_t *ptr = dl_write_begin();
+    *ptr++ = 0xf6000000 | value;
     dl_write_end(ptr);
 }
 
@@ -158,9 +166,9 @@ void test_dl_signal(TestContext *ctx)
 {
     TEST_DL_PROLOG();
     
-    dl_signal(SP_WSTATUS_SET_SIG1 | SP_WSTATUS_SET_SIG3);
+    dl_signal(SP_WSTATUS_SET_SIG1 | SP_WSTATUS_SET_SIG2);
 
-    TEST_DL_EPILOG(SP_STATUS_SIG1 | SP_STATUS_SIG3, dl_timeout);
+    TEST_DL_EPILOG(SP_STATUS_SIG1 | SP_STATUS_SIG2, dl_timeout);
 }
 
 void test_dl_high_load(TestContext *ctx)
@@ -191,7 +199,7 @@ void test_dl_high_load(TestContext *ctx)
         ++expected_sum;
     }
 
-    uint64_t actual_sum;
+    uint64_t actual_sum[2];
     uint64_t *actual_sum_ptr = UncachedAddr(&actual_sum);
 
     dl_test_output(actual_sum_ptr);
@@ -262,7 +270,7 @@ void test_dl_multiple_flush(TestContext *ctx)
     dl_flush();
     wait_ms(3);
 
-    uint64_t actual_sum;
+    uint64_t actual_sum[2];
     uint64_t *actual_sum_ptr = UncachedAddr(&actual_sum);
 
     dl_test_output(actual_sum_ptr);
@@ -286,7 +294,7 @@ void test_dl_sync(TestContext *ctx)
         dl_sync();
     }
 
-    uint64_t actual_sum;
+    uint64_t actual_sum[2];
     uint64_t *actual_sum_ptr = UncachedAddr(&actual_sum);
 
     dl_test_output(actual_sum_ptr);
@@ -381,6 +389,56 @@ void test_dl_block(TestContext *ctx)
     TEST_DL_EPILOG(0, dl_timeout);
 }
 
+void test_dl_highpri_basic(TestContext *ctx)
+{
+    TEST_DL_PROLOG();
+    test_ovl_init();
+
+    uint64_t actual_sum[2];
+    uint64_t *actual_sum_ptr = UncachedAddr(&actual_sum);
+    actual_sum_ptr[0] = actual_sum_ptr[1] = 0;
+
+    dl_block_begin();
+    for (uint32_t i = 0; i < 4096; i++) {
+        dl_test_8(1);
+        if (i%256 == 0)
+            dl_test_wait(0x10);
+    }
+    dl_block_t *b4096 = dl_block_end();
+    DEFER(dl_block_free(b4096));
+
+    dl_test_reset();
+    dl_block_run(b4096);
+    dl_flush();
+
+    uint32_t t0 = TICKS_READ();
+    dl_highpri_begin();
+        dl_test_high(123);
+        dl_test_output(actual_sum_ptr);
+    dl_highpri_end();
+    dl_highpri_sync();
+    debugf("Elapsed: %lx\n", TICKS_DISTANCE(t0, TICKS_READ()));
+
+    ASSERT(actual_sum_ptr[0] < 4096, "lowpri sum is not correct");
+    ASSERT_EQUAL_UNSIGNED(actual_sum_ptr[1], 123, "highpri sum is not correct");
+
+    dl_highpri_begin();
+        dl_test_high(200);
+        dl_test_output(actual_sum_ptr);
+    dl_highpri_end();
+    dl_highpri_sync();
+
+    ASSERT(actual_sum_ptr[0] < 4096, "lowpri sum is not correct");
+    ASSERT_EQUAL_UNSIGNED(actual_sum_ptr[1], 323, "highpri sum is not correct");
+
+    dl_test_output(actual_sum_ptr);
+    dl_sync();
+
+    ASSERT_EQUAL_UNSIGNED(actual_sum_ptr[0], 4096, "lowpri sum is not correct");
+    ASSERT_EQUAL_UNSIGNED(actual_sum_ptr[1], 323, "highpri sum is not correct");
+
+    TEST_DL_EPILOG(0, dl_timeout);
+}
 
 
 // TODO: test syncing with overlay switching
