@@ -353,8 +353,67 @@ void dl_block_run(dl_block_t *block);
  */
 void dl_block_free(dl_block_t *block);
 
+/**
+ * @brief Start building a high-priority queue.
+ * 
+ * This function enters a special mode in which a high-priority queue is
+ * activated and can be filled with commands. After this command has been
+ * called, all commands will be put in the high-priority queue, until
+ * #dl_highpri_end is called.
+ * 
+ * The RSP will start processing the high-priority queue almost instantly
+ * (as soon as the current command is done), pausing the normal queue. This will
+ * also happen while the high-priority queue is being built, to achieve the
+ * lowest possible latency. When the RSP finishes processing the high priority
+ * queue (after #dl_highpri_end closes it), it resumes processing the normal
+ * queue from the exact point that was left.
+ * 
+ * The goal of the high-priority queue is to either schedule latency-sensitive
+ * commands like audio processing, or to schedule immediate RSP calculations
+ * that should be performed right away, just like they were preempting what
+ * the RSP is currently doing.
+ * 
+ * @note It is possible to create multiple high-priority queues by calling
+ *       #dl_highpri_begin / #dl_highpri_end multiples time with short
+ *       delays in-between. The RSP will process them in order. Notice that
+ *       there is a overhead in doing so, so it might be advisable to keep
+ *       the high-priority mode active for a longer period if possible. On the
+ *       other hand, a shorter high-priority queue allows for the RSP to
+ *       switch back to processing the normal queue before the next one
+ *       is created.
+ * 
+ * @note It is not possible to create a block while the high-priority queue is
+ *       active. Arrange for constructing blocks beforehand.
+ *       
+ * @note It is currently not possible to call a block from the
+ *       high-priority queue. (FIXME: to be implemented)
+ *       
+ */
 void dl_highpri_begin(void);
+
+/**
+ * @brief Finish building the high-priority queue and close it.
+ * 
+ * This function terminates and closes the high-priority queue. After this
+ * command is called, all commands will be added to the normal queue.
+ * 
+ * Notice that the RSP does not wait for this function to be called: it will
+ * start running the high-priority queue as soon as possible, even while it is
+ * being built.
+ */
 void dl_highpri_end(void);
+
+/**
+ * @brief Wait for the RSP to finish processing all high-priority queues.
+ * 
+ * This function will spin-lock waiting for the RSP to finish processing
+ * all high-priority queues. It is meant for debugging purposes or for situations
+ * in which the high-priority queue is known to be very short and fast to run,
+ * so that the overhead of a syncpoint would be too high.
+ * 
+ * For longer/slower high-priority queues, it is advisable to use a #dl_syncpoint_t
+ * to synchronize (thought it has a higher overhead).
+ */
 void dl_highpri_sync(void);
 
 
