@@ -394,7 +394,7 @@ void test_dl_highpri_basic(TestContext *ctx)
     TEST_DL_PROLOG();
     test_ovl_init();
 
-    uint64_t actual_sum[2];
+    uint64_t actual_sum[2] __attribute__((aligned(16)));
     uint64_t *actual_sum_ptr = UncachedAddr(&actual_sum);
     actual_sum_ptr[0] = actual_sum_ptr[1] = 0;
 
@@ -440,5 +440,69 @@ void test_dl_highpri_basic(TestContext *ctx)
     TEST_DL_EPILOG(0, dl_timeout);
 }
 
+void test_dl_highpri_multiple(TestContext *ctx)
+{
+    TEST_DL_PROLOG();
+    test_ovl_init();
+
+    uint64_t actual_sum[2] __attribute__((aligned(16)));
+    uint64_t *actual_sum_ptr = UncachedAddr(&actual_sum);
+    actual_sum_ptr[0] = actual_sum_ptr[1] = 0;
+
+    dl_block_begin();
+    for (uint32_t i = 0; i < 4096; i++) {
+        dl_test_8(1);
+        if (i%256 == 0)
+            dl_test_wait(0x10);
+    }
+    dl_block_t *b4096 = dl_block_end();
+    DEFER(dl_block_free(b4096));
+
+    dl_test_reset();
+    dl_block_run(b4096);
+    dl_flush();
+
+    dl_highpri_begin();
+        for (uint32_t i = 0; i < 32; i++) {
+            dl_test_high(1);
+            dl_test_wait(0x200);
+        }
+    dl_highpri_end();
+
+    dl_highpri_begin();
+        for (uint32_t i = 0; i < 32; i++) {
+            dl_test_high(1);
+            dl_test_wait(0x200);
+        }
+    dl_highpri_end();
+
+    dl_highpri_begin();
+        for (uint32_t i = 0; i < 32; i++) {
+            dl_test_high(1);
+            dl_test_wait(0x200);
+        }
+    dl_highpri_end();
+
+    dl_highpri_begin();
+        for (uint32_t i = 0; i < 32; i++) {
+            dl_test_high(1);
+            dl_test_wait(0x200);
+        }
+    dl_highpri_end();
+
+    dl_highpri_begin();
+        dl_test_output(actual_sum_ptr);
+    dl_highpri_end();
+
+    dl_highpri_sync();
+
+    ASSERT(actual_sum_ptr[0] < 4096, "lowpri sum is not correct");
+    ASSERT_EQUAL_UNSIGNED(actual_sum_ptr[1], 128, "highpri sum is not correct");
+
+    dl_sync();
+
+    ASSERT_EQUAL_UNSIGNED(actual_sum_ptr[0], 4096, "lowpri sum is not correct");
+    ASSERT_EQUAL_UNSIGNED(actual_sum_ptr[1], 128, "highpri sum is not correct");
+}
 
 // TODO: test syncing with overlay switching

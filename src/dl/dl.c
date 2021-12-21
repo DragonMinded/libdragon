@@ -432,28 +432,98 @@ uint32_t *dl_highpri_buf;
 
 
 /*
-TRAMPOLINE
-=============
-0 WSTATUS   SP_WSTATUS_CLEAR_SIG_HIGHPRI | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING
-1 DMA       DMEM -> RDRAM
-2 ...
-3 ...
-4 ...
-5 NOP
-6 JUMP      list1
-7 NOP
-8 JUMP      list2
-9 NOP
-A NOP
-B NOP
-C WSTATUS   SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING
-D RET       9
+The trampoline is the "bootstrap" code for the highpri queues. It is
+stored in a different memory buffer. The trampoline is made by two fixed
+parts (a header and a footer), and a body which is dynamically updated as
+more queues are prepared by CPU, and executed by RSP.
+
+The idea of the trampoline is to store a list of pending highpri queues in
+its body, in the form of DL_CMD_JUMP commands. Every time the CPU prepares a
+new highpri list, it adds a JUMP command in the trampoline body. Every time the
+RSP executes a list, it removes the list from the trampoline. Notice that the
+CPU treats the trampoline itself as a "critical section": before touching
+it, it pauses the RSP, and also verify that the RSP is not executing commands
+in the trampoline itself. These safety measures allow both CPU and RSP to
+modify the trampoline without risking race conditions.
+
+The way the removal of executed lists happens is peculiar: the trampoline header
+is executed after every queue is run, and contains a DL_DMA command which "pops"
+the first list from the body by copying the rest of the body over it. It basically
+does the moral equivalent of "memmove(body, body+4, body_length)". 
+
+This is an example that shows a possible trampoline:
+
+       HEADER:
+00 WSTATUS   SP_WSTATUS_CLEAR_SIG_HIGHPRI | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING
+01 DMA       DEST: Trampoline Body in RDRAM
+02           SRC: Trampoline Body + 4 in DMEM
+03           LEN: Trampoline Body length (num buffers * 2 * sizeof(uint32_t))
+04           FLAGS: DMA_OUT_ASYNC
+05 NOP       (to align body)
+       
+       BODY:
+06 JUMP      queue1
+07 NOP
+08 JUMP      queue2
+09 NOP
+0A NOP
+0B NOP
+0C NOP
+0D NOP
+0E NOP
+0F NOP
+
+       FOOTER:
+10 NOP       (fixed NOPs that are copied over the body by DMA)
+11 NOP
+12 WSTATUS   SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING
+13 RET       DL_HIGHPRI_CALL_SLOT
+14 IDLE
+
+Let's describe all commands one by one.
+
+The first command (index 00) is a DL_CMD_WSTATUS which clears the SIG_HIGHPRI
+and sets SIG_HIGHPRI_RUNNING. This must absolutely be the first command executed
+when the highpri mode starts, because otherwise the RSP would go into
+an infinite loop (it would find SIG_HIGHPRI always set and calls the list
+forever).
+
+The second command (index 01) is a DL_DMA which is used to remove the first list
+from the RDRAM copy of the trampoline body. The first list is the one that will be
+executed now, so we need to remove it so that we will not it execute it again
+next time. In the above example, the copy will take words in range [08..11]
+and copy them over the range [06..0F], effectively scrolling all other
+JUMP calls up by one slot. Notice that words 10 and 11 are part of the footer
+and they are always NOPs, so that the body can be emptied correctly even if
+it was full.
+
+The third command (index 05) is a NOP, which is used to align the body to
+8 bytes. This is important because the previous DL_DMA command works only
+on 8-byte aligned addresses.
+
+The body covers indices 06-0F. It contains JUMPs to all queues that have been
+prepared by the CPU. Each JUMP is followed by a NOP so that they are all
+8-byte aligned, and the DL_DMA that pops one queue from the body is able to
+work with 8-byte aligned entities. Notice that all highpri queues are
+terminated with a JUMP to the *beginning* of the trampoline, so that the
+full trampoline is run again after each list.
+
+The first command in the footer (index 12) is a WSTATUS that clears
+SIG_HIGHPRI_RUNNING, so that the CPU is able to later tell that the RSP has
+finished running highpri queues.
+
+The second command (index 13) is a RET that will resume executing in the
+standard queue. The call slot used is DL_HIGHPRI_CALL_SLOT, which is where the
+RSP has saved the current address when switching to highpri mode.
+
+The third command (index 14) is a IDLE which is the standard terminator for
+all command queues.
+
 */
 
 static const uint32_t TRAMPOLINE_HEADER = 6;
 static const uint32_t TRAMPOLINE_FOOTER = 5;
 static const uint32_t TRAMPOLINE_WORDS = TRAMPOLINE_HEADER + DL_HIGHPRI_NUM_BUFS*2 + TRAMPOLINE_FOOTER;
-static const uint32_t cmd_noop = DL_CMD_NOOP<<24;
 
 void __dl_highpri_init(void)
 {
@@ -469,15 +539,15 @@ void __dl_highpri_init(void)
     *dlp++ = 0xD8 + (TRAMPOLINE_HEADER+2)*sizeof(uint32_t); // FIXME address of DL_DMEM_BUFFER
     *dlp++ = (DL_HIGHPRI_NUM_BUFS*2) * sizeof(uint32_t) - 1;
     *dlp++ = 0xFFFF8000; // DMA_OUT_ASYNC
-    *dlp++ = cmd_noop;
+    *dlp++ = DL_CMD_NOOP<<24;
 
     // Fill the rest of the trampoline with noops
     assert(dlp - dl_highpri_trampoline == TRAMPOLINE_HEADER);
     for (int i = TRAMPOLINE_HEADER; i < TRAMPOLINE_WORDS-TRAMPOLINE_FOOTER; i++)
-        *dlp++ = cmd_noop;
+        *dlp++ = DL_CMD_NOOP<<24;
 
-    *dlp++ = cmd_noop;
-    *dlp++ = cmd_noop;
+    *dlp++ = DL_CMD_NOOP<<24;
+    *dlp++ = DL_CMD_NOOP<<24;
     *dlp++ = (DL_CMD_WSTATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING;
     *dlp++ = (DL_CMD_RET<<24) | (DL_HIGHPRI_CALL_SLOT<<2);
     *dlp++ = (DL_CMD_IDLE<<24);
@@ -496,55 +566,50 @@ void dl_highpri_begin(void)
     dl_switch_buffer(dlh, DL_HIGHPRI_BUF_SIZE-2);
     dl_terminator(dlh);
 
-    // Try pausing the RSP while it's executing code which is *outside* the
-    // trampoline. We're going to modify the trampoline and we want to do
-    // while the RSP is not running there otherwise we risk race conditions.
-try_pause_rsp:
-    rsp_pause(true);
+    // Check if the RSP is running a highpri queue.
+    if (!(*SP_STATUS & (SP_STATUS_SIG_HIGHPRI_RUNNING|SP_STATUS_SIG_HIGHPRI))) {    
+        dl_highpri_trampoline[TRAMPOLINE_HEADER] = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dlh);
+        *SP_STATUS = SP_WSTATUS_SET_SIG_HIGHPRI;
+    } else {
+        // Try pausing the RSP while it's executing code which is *outside* the
+        // trampoline. We're going to modify the trampoline and we want to do it
+        // while the RSP is not running there otherwise we risk race conditions.
+    try_pause_rsp:
+        rsp_pause(true);
 
-    void* dl_rdram_ptr = ((volatile rsp_dl_t*)SP_DMEM)->dl_dram_addr;
-    if (dl_rdram_ptr >= PhysicalAddr(dl_highpri_trampoline) && dl_rdram_ptr < PhysicalAddr(dl_highpri_trampoline+TRAMPOLINE_WORDS)) {
-        debugf("SP PC in highpri trampoline... retrying\n");
-        rsp_pause(false);
-        wait_ticks(40);
-        goto try_pause_rsp;
-    }
-
-    // Check the trampoline contents. It can either be empty (all no-ops after header),
-    // or contain 0+ DL_CMD_JUMP followed by a DL_CMD_RET. We need to append a jump to the
-    // new list as last one, overwriting the existing DL_CMD_RET and recreating it after.
-    int tramp_widx = TRAMPOLINE_HEADER;
-    while (dl_highpri_trampoline[tramp_widx] != cmd_noop) {
-        tramp_widx += 2;
-        if (tramp_widx >= TRAMPOLINE_WORDS - TRAMPOLINE_FOOTER) {
-            debugf("Highpri trampoline is full... retrying\n");
+        void* dl_rdram_ptr = ((volatile rsp_dl_t*)SP_DMEM)->dl_dram_addr;
+        if (dl_rdram_ptr >= PhysicalAddr(dl_highpri_trampoline) && dl_rdram_ptr < PhysicalAddr(dl_highpri_trampoline+TRAMPOLINE_WORDS)) {
+            debugf("SP PC in highpri trampoline... retrying\n");
             rsp_pause(false);
-            wait_ticks(400);
+            wait_ticks(40);
             goto try_pause_rsp;
         }
+
+        // Check the trampoline body. Search for the first DL_CMD_NOOP in a JUMP
+        // slot (so avoid padding ones). That's where we are going to add a new JUMP.
+        int tramp_widx = TRAMPOLINE_HEADER;
+        while (dl_highpri_trampoline[tramp_widx] != DL_CMD_NOOP<<24) {
+            tramp_widx += 2;
+            if (tramp_widx >= TRAMPOLINE_WORDS - TRAMPOLINE_FOOTER) {
+                debugf("Highpri trampoline is full... retrying\n");
+                rsp_pause(false);
+                wait_ticks(400);
+                goto try_pause_rsp;
+            }
+        }
+
+        // Write the DL_CMD_JUMP to the new list
+        dl_highpri_trampoline[tramp_widx] = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dlh);
+
+        // If the RSP was not already executing the highpri queue, we must set the
+        // signal to alert it that a highpri queue is now available.
+        if (!(*SP_STATUS & SP_STATUS_SIG_HIGHPRI_RUNNING))
+            *SP_STATUS = SP_WSTATUS_SET_SIG_HIGHPRI;
+
+        rsp_pause(false);
+        if (tramp_widx != 6)
+        debugf("tramp_widx: %x\n", tramp_widx);
     }
-
-    // Write the DL_CMD_JUMP to the new list
-    dl_highpri_trampoline[tramp_widx] = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dlh);
-
-    // If the RSP was not already executing the highpri queue, we must set the
-    // signal to alert it that a highpri queue is now available.
-    if (!(*SP_STATUS & SP_STATUS_SIG_HIGHPRI_RUNNING))
-        *SP_STATUS = SP_WSTATUS_SET_SIG_HIGHPRI;
-
-    // debugf("begin highpri mode (SP PC:%lx)\n", *SP_PC);
-    // for (int i=0;i<TRAMPOLINE_WORDS;i++)
-    //     debugf("%02x: %08lx\n", i, dl_highpri_trampoline[i]);
-
-    rsp_pause(false);
-
-    // wait_ticks(8000);
-    // rsp_pause(true);
-    // debugf("trampoline 2 (SP PC:%lx):\n", *SP_PC);
-    // for (int i=0;i<TRAMPOLINE_WORDS;i++)
-    //     debugf("%02x: %08lx\n", i, dl_highpri_trampoline[i]);
-    // rsp_pause(false);
-
 
     dl_is_highpri = true;
 }
