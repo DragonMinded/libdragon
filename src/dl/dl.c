@@ -277,14 +277,16 @@ void dl_overlay_register(rsp_ucode_t *overlay_ucode, uint8_t id)
     dl_dma_to_dmem(0, &dl_data_ptr->tables, sizeof(dl_overlay_tables_t), false);
 }
 
-static uint32_t* dl_switch_buffer(uint32_t *dl2, int size)
+static uint32_t* dl_switch_buffer(uint32_t *dl2, int size, bool clear)
 {
     uint32_t* prev = dl_cur_pointer;
 
-    // Clear the new buffer, and add immediately a terminator
-    // so that it's a valid buffer.
+    // Add a terminator so that it's a valid buffer.
+    // Notice that the buffer must have been cleared before, as the
+    // command queue are expected to always contain 0 on unwritten data.
+    // We don't do this for performance reasons.
     assert(size >= DL_MAX_COMMAND_SIZE);
-    memset(dl2, 0, size*sizeof(uint32_t));
+    if (clear) memset(dl2, 0, size * sizeof(uint32_t));
     dl_terminator(dl2);
 
     // Switch to the new buffer, and calculate the new sentinel.
@@ -315,7 +317,7 @@ static void dl_pop_buffer(void)
  * 
  * @param[in]  size  The size of the buffer to allocate
  *
- * @return a point to the start of the buffer (as uncached pointer)
+ * @return a pointer to the start of the buffer (as uncached pointer)
  */
 void *malloc_uncached(size_t size)
 {
@@ -355,7 +357,7 @@ void dl_next_buffer(void) {
 
         // Allocate a new chunk of the block and switch to it.
         uint32_t *dl2 = malloc_uncached(dl_block_size*sizeof(uint32_t));
-        uint32_t *prev = dl_switch_buffer(dl2, dl_block_size);
+        uint32_t *prev = dl_switch_buffer(dl2, dl_block_size, true);
 
         // Terminate the previous chunk with a JUMP op to the new chunk.
         *prev++ = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dl2);
@@ -377,7 +379,7 @@ void dl_next_buffer(void) {
     // Switch current buffer
     dl_buf_idx = 1-dl_buf_idx;
     uint32_t *dl2 = UncachedAddr(&dl_buffers[dl_buf_idx]);
-    uint32_t *prev = dl_switch_buffer(dl2, DL_DRAM_BUFFER_SIZE);
+    uint32_t *prev = dl_switch_buffer(dl2, DL_DRAM_BUFFER_SIZE, true);
 
     // Terminate the previous buffer with an op to set SIG_BUFDONE
     // (to notify when the RSP finishes the buffer), plus a jump to
@@ -429,6 +431,7 @@ void dl_flush(void)
 int dl_highpri_widx;
 uint32_t *dl_highpri_trampoline;
 uint32_t *dl_highpri_buf;
+int dl_highpri_used[DL_HIGHPRI_NUM_BUFS];
 
 
 /*
@@ -455,26 +458,26 @@ This is an example that shows a possible trampoline:
 
        HEADER:
 00 WSTATUS   SP_WSTATUS_CLEAR_SIG_HIGHPRI | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING
-01 DMA       DEST: Trampoline Body in RDRAM
-02           SRC: Trampoline Body + 4 in DMEM
-03           LEN: Trampoline Body length (num buffers * 2 * sizeof(uint32_t))
-04           FLAGS: DMA_OUT_ASYNC
-05 NOP       (to align body)
+01 NOP       (to align body)
+02 DMA       DEST: Trampoline Body in RDRAM
+03           SRC: Trampoline Body + 4 in DMEM
+04           LEN: Trampoline Body length (num buffers * 2 * sizeof(uint32_t))
+05           FLAGS: DMA_OUT_ASYNC
        
        BODY:
 06 JUMP      queue1
 07 NOP
 08 JUMP      queue2
 09 NOP
-0A NOP
+0A JUMP      12
 0B NOP
-0C NOP
+0C JUMP      12
 0D NOP
-0E NOP
+0E JUMP      12
 0F NOP
 
        FOOTER:
-10 NOP       (fixed NOPs that are copied over the body by DMA)
+10 JUMP      12
 11 NOP
 12 WSTATUS   SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING
 13 RET       DL_HIGHPRI_CALL_SLOT
@@ -488,18 +491,18 @@ when the highpri mode starts, because otherwise the RSP would go into
 an infinite loop (it would find SIG_HIGHPRI always set and calls the list
 forever).
 
-The second command (index 01) is a DL_DMA which is used to remove the first list
+The second command (index 01) is a NOP, which is used to align the body to
+8 bytes. This is important because the DL_DMA command that follows works only
+on 8-byte aligned addresses.
+
+The third command (index 02) is a DL_DMA which is used to remove the first list
 from the RDRAM copy of the trampoline body. The first list is the one that will be
 executed now, so we need to remove it so that we will not it execute it again
 next time. In the above example, the copy will take words in range [08..11]
 and copy them over the range [06..0F], effectively scrolling all other
 JUMP calls up by one slot. Notice that words 10 and 11 are part of the footer
-and they are always NOPs, so that the body can be emptied correctly even if
-it was full.
-
-The third command (index 05) is a NOP, which is used to align the body to
-8 bytes. This is important because the previous DL_DMA command works only
-on 8-byte aligned addresses.
+and they always contain the "empty data" (jump to the exit routine), so that the
+body can be emptied correctly even if it was full.
 
 The body covers indices 06-0F. It contains JUMPs to all queues that have been
 prepared by the CPU. Each JUMP is followed by a NOP so that they are all
@@ -507,6 +510,11 @@ prepared by the CPU. Each JUMP is followed by a NOP so that they are all
 work with 8-byte aligned entities. Notice that all highpri queues are
 terminated with a JUMP to the *beginning* of the trampoline, so that the
 full trampoline is run again after each list.
+
+After the first two JUMPs to actual command queues, the rest of the body
+is filled with JUMP to the footer exit code (index 12). This allows the RSP
+to quickly jump to the final cleanup code when it's finished executing high
+priority queues, without going through all the slots of the trampoline.
 
 The first command in the footer (index 12) is a WSTATUS that clears
 SIG_HIGHPRI_RUNNING, so that the CPU is able to later tell that the RSP has
@@ -522,31 +530,42 @@ all command queues.
 */
 
 static const uint32_t TRAMPOLINE_HEADER = 6;
+static const uint32_t TRAMPOLINE_BODY = DL_HIGHPRI_NUM_BUFS*2;
 static const uint32_t TRAMPOLINE_FOOTER = 5;
-static const uint32_t TRAMPOLINE_WORDS = TRAMPOLINE_HEADER + DL_HIGHPRI_NUM_BUFS*2 + TRAMPOLINE_FOOTER;
+static const uint32_t TRAMPOLINE_WORDS = TRAMPOLINE_HEADER + TRAMPOLINE_BODY + TRAMPOLINE_FOOTER;
 
 void __dl_highpri_init(void)
 {
     dl_is_highpri = false;
-    dl_highpri_buf = malloc_uncached(DL_HIGHPRI_NUM_BUFS * DL_HIGHPRI_BUF_SIZE * sizeof(uint32_t));
-    dl_highpri_trampoline = malloc_uncached(TRAMPOLINE_WORDS*sizeof(uint32_t));
 
+    // Allocate the buffers for highpri queues (one contiguous memory area)
+    int buf_size = DL_HIGHPRI_NUM_BUFS * DL_HIGHPRI_BUF_SIZE * sizeof(uint32_t);
+    dl_highpri_buf = malloc_uncached(buf_size);
+    memset(dl_highpri_buf, 0, buf_size);
+
+    // Allocate the trampoline and initialize it
+    dl_highpri_trampoline = malloc_uncached(TRAMPOLINE_WORDS*sizeof(uint32_t));
     uint32_t *dlp = dl_highpri_trampoline;
 
     // Write the trampoline header (6 words). 
     *dlp++ = (DL_CMD_WSTATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING;
+    *dlp++ = DL_CMD_NOOP<<24;
     *dlp++ = (DL_CMD_DMA<<24) | (uint32_t)PhysicalAddr(dl_highpri_trampoline + TRAMPOLINE_HEADER);
     *dlp++ = 0xD8 + (TRAMPOLINE_HEADER+2)*sizeof(uint32_t); // FIXME address of DL_DMEM_BUFFER
     *dlp++ = (DL_HIGHPRI_NUM_BUFS*2) * sizeof(uint32_t) - 1;
-    *dlp++ = 0xFFFF8000; // DMA_OUT_ASYNC
-    *dlp++ = DL_CMD_NOOP<<24;
+    *dlp++ = 0xFFFF8000 | SP_STATUS_DMA_FULL | SP_STATUS_DMA_BUSY; // DMA_OUT_ASYNC
+
+    uint32_t jump_to_footer = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dl_highpri_trampoline + TRAMPOLINE_HEADER + TRAMPOLINE_BODY + 2);
 
     // Fill the rest of the trampoline with noops
     assert(dlp - dl_highpri_trampoline == TRAMPOLINE_HEADER);
-    for (int i = TRAMPOLINE_HEADER; i < TRAMPOLINE_WORDS-TRAMPOLINE_FOOTER; i++)
+    for (int i = TRAMPOLINE_HEADER; i < TRAMPOLINE_HEADER+TRAMPOLINE_BODY; i+=2) {
+        *dlp++ = jump_to_footer;
         *dlp++ = DL_CMD_NOOP<<24;
+    }
 
-    *dlp++ = DL_CMD_NOOP<<24;
+    // Fill the footer
+    *dlp++ = jump_to_footer;
     *dlp++ = DL_CMD_NOOP<<24;
     *dlp++ = (DL_CMD_WSTATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING;
     *dlp++ = (DL_CMD_RET<<24) | (DL_HIGHPRI_CALL_SLOT<<2);
@@ -561,14 +580,25 @@ void dl_highpri_begin(void)
     assertf(!dl_is_highpri, "already in highpri mode");
     assertf(!dl_block, "cannot switch to highpri mode while creating a block");
 
-    uint32_t *dlh = &dl_highpri_buf[(dl_highpri_widx++ % DL_HIGHPRI_NUM_BUFS) * DL_HIGHPRI_BUF_SIZE];
+    // Get the first buffer available for the new highpri queue
+    int bufidx = dl_highpri_widx % DL_HIGHPRI_NUM_BUFS;
+    uint32_t *dlh = &dl_highpri_buf[bufidx * DL_HIGHPRI_BUF_SIZE];
+
+    debugf("dl_highpri_begin %p\n", dlh);
+
+    // Clear the buffer. This clearing itself can be very slow compared to the
+    // total time of dl_highpri_begin, so keep track of how much this buffer was
+    // used last time, and only clear the part that was really used.
+    memset(dlh, 0, dl_highpri_used[bufidx]);
+
+    // Switch to the new buffer.
     dl_push_buffer();
-    dl_switch_buffer(dlh, DL_HIGHPRI_BUF_SIZE-2);
-    dl_terminator(dlh);
+    dl_switch_buffer(dlh, DL_HIGHPRI_BUF_SIZE-2, false);
 
     // Check if the RSP is running a highpri queue.
     if (!(*SP_STATUS & (SP_STATUS_SIG_HIGHPRI_RUNNING|SP_STATUS_SIG_HIGHPRI))) {    
         dl_highpri_trampoline[TRAMPOLINE_HEADER] = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dlh);
+        MEMORY_BARRIER();
         *SP_STATUS = SP_WSTATUS_SET_SIG_HIGHPRI;
     } else {
         // Try pausing the RSP while it's executing code which is *outside* the
@@ -577,7 +607,7 @@ void dl_highpri_begin(void)
     try_pause_rsp:
         rsp_pause(true);
 
-        void* dl_rdram_ptr = ((volatile rsp_dl_t*)SP_DMEM)->dl_dram_addr;
+        void* dl_rdram_ptr = (void*)(((uint32_t)((volatile rsp_dl_t*)SP_DMEM)->dl_dram_addr) & 0x00FFFFFF);
         if (dl_rdram_ptr >= PhysicalAddr(dl_highpri_trampoline) && dl_rdram_ptr < PhysicalAddr(dl_highpri_trampoline+TRAMPOLINE_WORDS)) {
             debugf("SP PC in highpri trampoline... retrying\n");
             rsp_pause(false);
@@ -585,10 +615,14 @@ void dl_highpri_begin(void)
             goto try_pause_rsp;
         }
 
-        // Check the trampoline body. Search for the first DL_CMD_NOOP in a JUMP
-        // slot (so avoid padding ones). That's where we are going to add a new JUMP.
+        // Check the trampoline body. Search for the first JUMP to the footer
+        // slot. We are going to replace it to a jump to our new queue.
+        uint32_t jump_to_footer = dl_highpri_trampoline[TRAMPOLINE_HEADER + TRAMPOLINE_BODY];
+        debugf("Trampoline %p (fetching at [%p]%08lx, PC:%lx)\n", dl_highpri_trampoline, dl_rdram_ptr, *(uint32_t*)(((uint32_t)(dl_rdram_ptr))|0xA0000000), *SP_PC);
+        for (int i=TRAMPOLINE_HEADER; i<TRAMPOLINE_HEADER+TRAMPOLINE_BODY+2; i++)
+            debugf("%x: %08lx %s\n", i, dl_highpri_trampoline[i], dl_highpri_trampoline[i]==jump_to_footer ? "*" : "");
         int tramp_widx = TRAMPOLINE_HEADER;
-        while (dl_highpri_trampoline[tramp_widx] != DL_CMD_NOOP<<24) {
+        while (dl_highpri_trampoline[tramp_widx] != jump_to_footer) {
             tramp_widx += 2;
             if (tramp_widx >= TRAMPOLINE_WORDS - TRAMPOLINE_FOOTER) {
                 debugf("Highpri trampoline is full... retrying\n");
@@ -601,14 +635,21 @@ void dl_highpri_begin(void)
         // Write the DL_CMD_JUMP to the new list
         dl_highpri_trampoline[tramp_widx] = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dlh);
 
-        // If the RSP was not already executing the highpri queue, we must set the
-        // signal to alert it that a highpri queue is now available.
+        // At the beginning of the function, we found that the RSP was already
+        // in highpri mode. Meanwhile, the RSP has probably advanced a few ops
+        // (even if it was paused most of the time, it might have been unpaused
+        // during retries, etc.). So it could have even exited highpri mode
+        // (if it was near to completion).
+        // So check again and if it's not in highpri mode, start it.
+        MEMORY_BARRIER();
         if (!(*SP_STATUS & SP_STATUS_SIG_HIGHPRI_RUNNING))
             *SP_STATUS = SP_WSTATUS_SET_SIG_HIGHPRI;
+        MEMORY_BARRIER();
 
-        rsp_pause(false);
-        if (tramp_widx != 6)
         debugf("tramp_widx: %x\n", tramp_widx);
+
+        // Unpause the RSP. We've done modifying the trampoline so it's safe now.
+        rsp_pause(false);
     }
 
     dl_is_highpri = true;
@@ -618,18 +659,44 @@ void dl_highpri_end(void)
 {
     assertf(dl_is_highpri, "not in highpri mode");
 
+    // Terminate the highpri queue with a jump back to the trampoline.
     *dl_cur_pointer++ = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dl_highpri_trampoline);
     dl_terminator(dl_cur_pointer);
 
+    debugf("dl_highpri_end %p\n", dl_cur_pointer+1);
+
+    // Keep track of how much of this buffer was actually written to. This will
+    // speed up next call to dl_highpri_begin, as we will clear only the
+    // used portion of the buffer.
+    int bufidx = dl_highpri_widx % DL_HIGHPRI_NUM_BUFS;
+    uint32_t *dlh = &dl_highpri_buf[bufidx * DL_HIGHPRI_BUF_SIZE];
+    dl_highpri_used[bufidx] = dl_cur_pointer + 1 - dlh;
+    dl_highpri_widx++;
+
+    // Pop back to the standard queue
     dl_pop_buffer();
+
+    // Kick the RSP in case it was idling: we want to run this highpri
+    // queue as soon as possible
     dl_flush();
     dl_is_highpri = false;
 }
 
 void dl_highpri_sync(void)
 {
+    void* ptr = 0;
+
     while (*SP_STATUS & (SP_STATUS_SIG_HIGHPRI_RUNNING|SP_STATUS_SIG_HIGHPRI)) 
-    { /* idle wait */ }
+    { 
+        rsp_pause(true);
+        void *ptr2 = (void*)(((uint32_t)((volatile rsp_dl_t*)SP_DMEM)->dl_dram_addr) & 0x00FFFFFF);
+        if (ptr2 != ptr) {
+            debugf("RSP: fetching at %p\n", ptr2);
+            ptr = ptr2;
+        }
+        rsp_pause(false);
+        wait_ticks(40);
+    }
 }
 
 
@@ -649,7 +716,7 @@ void dl_block_begin(void)
     // Switch to the block buffer. From now on, all dl_writes will
     // go into the block.
     dl_push_buffer();
-    dl_switch_buffer(dl_block->cmds, dl_block_size);
+    dl_switch_buffer(dl_block->cmds, dl_block_size, true);
 }
 
 dl_block_t* dl_block_end(void)

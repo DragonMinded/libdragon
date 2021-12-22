@@ -137,8 +137,9 @@ void rsp_run(void)
 void rsp_pause(bool pause)
 {
     if (pause) {
+        //while (*SP_STATUS & (SP_STATUS_DMA_BUSY|SP_STATUS_DMA_FULL)) { /* spin-wait */ }
         *SP_STATUS = SP_WSTATUS_SET_HALT;
-        while (*SP_STATUS & SP_STATUS_DMA_BUSY) { /* spin-wait */ }
+        while (*SP_STATUS & (SP_STATUS_DMA_BUSY|SP_STATUS_DMA_FULL)) { /* spin-wait */ }
     } else {
         *SP_STATUS = SP_WSTATUS_CLEAR_HALT;
     }
