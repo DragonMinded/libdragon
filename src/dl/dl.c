@@ -8,14 +8,14 @@
 #include "utils.h"
 #include "../../build/dl/dl_symbols.h"
 
-#define DL_CMD_IDLE             0x01
-#define DL_CMD_WSTATUS          0x02
-#define DL_CMD_CALL             0x03
-#define DL_CMD_JUMP             0x04
-#define DL_CMD_RET              0x05
-#define DL_CMD_NOOP             0x07
-#define DL_CMD_TEST_AND_WSTATUS 0x08
-#define DL_CMD_DMA              0x09
+#define DL_CMD_IDLE         0x01
+#define DL_CMD_WSTATUS      0x02
+#define DL_CMD_CALL         0x03
+#define DL_CMD_JUMP         0x04
+#define DL_CMD_RET          0x05
+#define DL_CMD_NOOP         0x07
+#define DL_CMD_TEST_WSTATUS 0x08
+#define DL_CMD_DMA          0x09
 
 #define dl_terminator(dl)   ({ \
     /* The terminator is usually meant to be written only *after* the last \
@@ -502,7 +502,7 @@ dl_syncpoint_t dl_syncpoint(void)
 {   
     assertf(!dl_block, "cannot create syncpoint in a block");
     uint32_t *dl = dl_write_begin();
-    *dl++ = (DL_CMD_TEST_AND_WSTATUS << 24) | SP_WSTATUS_SET_INTR | SP_WSTATUS_SET_SIG_SYNCPOINT;
+    *dl++ = (DL_CMD_TEST_WSTATUS << 24) | SP_WSTATUS_SET_INTR | SP_WSTATUS_SET_SIG_SYNCPOINT;
     *dl++ = SP_STATUS_SIG_SYNCPOINT;
     dl_write_end(dl);
     return ++dl_syncpoints_genid;

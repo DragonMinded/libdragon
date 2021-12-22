@@ -120,6 +120,7 @@ DMAInEnd:
     andi $1, s0, 7
     add s4, $1
     andi t2, 0xF   # isolate DMA wait flags
+SpStatusWait:
 DMAWaitLoop:
     # Wait for DMA to finish. This actually checks the
     # requested wait flags. If the transfer is ASYNC,
