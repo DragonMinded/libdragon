@@ -341,11 +341,8 @@ void dl_next_buffer(void) {
 }
 
 __attribute__((noinline))
-void dl_flush(void)
+void dl_flush_internal(void)
 {
-    // If we are recording a block, flushes can be ignored
-    if (dl_block) return;
-
     // Tell the RSP to wake up because there is more data pending.
     MEMORY_BARRIER();
     *SP_STATUS = SP_WSTATUS_SET_SIG_MORE | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
@@ -367,6 +364,14 @@ void dl_flush(void)
     MEMORY_BARRIER();
     *SP_STATUS = SP_WSTATUS_SET_SIG_MORE | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
     MEMORY_BARRIER();
+}
+
+void dl_flush(void)
+{
+    // If we are recording a block, flushes can be ignored
+    if (dl_block) return;
+
+    dl_flush_internal();
 }
 
 void dl_block_begin(void)
@@ -516,7 +521,7 @@ bool dl_check_syncpoint(dl_syncpoint_t sync_id)
 void dl_wait_syncpoint(dl_syncpoint_t sync_id)
 {
     // Make sure the RSP is running, otherwise we might be blocking forever.
-    dl_flush();
+    dl_flush_internal();
 
     // Spinwait until the the syncpoint is reached.
     // TODO: with the kernel, it will be possible to wait for the RSP interrupt
