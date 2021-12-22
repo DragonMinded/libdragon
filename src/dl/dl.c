@@ -44,9 +44,9 @@
 DEFINE_RSP_UCODE(rsp_dl);
 
 typedef struct dl_overlay_t {
-    void* code;
-    void* data;
-    void* data_buf;
+    uint32_t code;
+    uint32_t data;
+    uint32_t data_buf;
     uint16_t code_size;
     uint16_t data_size;
 } dl_overlay_t;
@@ -69,8 +69,8 @@ typedef struct dl_overlay_tables_s {
 
 typedef struct rsp_dl_s {
     dl_overlay_tables_t tables;
-    void *dl_dram_addr;
-    void *dl_dram_highpri_addr;
+    uint32_t dl_dram_addr;
+    uint32_t dl_dram_highpri_addr;
     int16_t current_ovl;
 } __attribute__((aligned(8), packed)) rsp_dl_t;
 
@@ -114,15 +114,15 @@ void dl_start()
     rsp_load(&rsp_dl);
 
     // Load data with initialized overlays into DMEM
-    rsp_load_data(PhysicalAddr(dl_data_ptr), sizeof(rsp_dl_t), 0);
+    rsp_load_data(dl_data_ptr, sizeof(rsp_dl_t), 0);
 
-    static const dl_overlay_header_t dummy_header = (dl_overlay_header_t){
+    static dl_overlay_header_t dummy_header = (dl_overlay_header_t){
         .state_start = 0,
         .state_size = 7,
         .command_base = 0
     };
 
-    rsp_load_data(PhysicalAddr(&dummy_header), sizeof(dummy_header), DL_OVL_DATA_ADDR);
+    rsp_load_data(&dummy_header, sizeof(dummy_header), DL_OVL_DATA_ADDR);
 
     MEMORY_BARRIER();
 
@@ -211,7 +211,7 @@ void dl_overlay_register(rsp_ucode_t *overlay_ucode, uint8_t id)
 
     assertf(memcmp(rsp_dl_text_start, overlay_ucode->code, dl_ucode_size) == 0, "Common code of overlay does not match!");
 
-    void *overlay_code = PhysicalAddr(overlay_ucode->code + dl_ucode_size);
+    uint32_t overlay_code = PhysicalAddr(overlay_ucode->code + dl_ucode_size);
 
     uint8_t overlay_index = 0;
 
@@ -306,7 +306,7 @@ void dl_next_buffer(void) {
         uint32_t *prev = dl_switch_buffer(dl2, dl_block_size);
 
         // Terminate the previous chunk with a JUMP op to the new chunk.
-        *prev++ = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dl2);
+        *prev++ = (DL_CMD_JUMP<<24) | PhysicalAddr(dl2);
         dl_terminator(prev);
         return;
     }
@@ -331,7 +331,7 @@ void dl_next_buffer(void) {
     // (to notify when the RSP finishes the buffer), plus a jump to
     // the new buffer.
     *prev++ = (DL_CMD_WSTATUS<<24) | SP_WSTATUS_SET_SIG_BUFDONE;
-    *prev++ = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dl2);
+    *prev++ = (DL_CMD_JUMP<<24) | PhysicalAddr(dl2);
     dl_terminator(prev);
 
     MEMORY_BARRIER();
@@ -449,7 +449,7 @@ void dl_block_run(dl_block_t *block)
     // which is used as stack slot in the RSP to save the current
     // pointer position.
     uint32_t *dl = dl_write_begin();
-    *dl++ = (DL_CMD_CALL<<24) | (uint32_t)PhysicalAddr(block->cmds);
+    *dl++ = (DL_CMD_CALL<<24) | PhysicalAddr(block->cmds);
     *dl++ = block->nesting_level << 2;
     dl_write_end(dl);
 
@@ -532,7 +532,7 @@ void dl_signal(uint32_t signal)
 static void dl_dma(void *rdram_addr, uint32_t dmem_addr, uint32_t len, uint32_t flags)
 {
     uint32_t *dl = dl_write_begin();
-    *dl++ = (DL_CMD_DMA << 24) | (uint32_t)PhysicalAddr(rdram_addr);
+    *dl++ = (DL_CMD_DMA << 24) | PhysicalAddr(rdram_addr);
     *dl++ = dmem_addr;
     *dl++ = len;
     *dl++ = flags;

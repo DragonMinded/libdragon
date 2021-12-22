@@ -55,7 +55,7 @@ void dl_test_output(uint64_t *dest)
 {
     uint32_t *ptr = dl_write_begin();
     *ptr++ = 0xf4000000;
-    *ptr++ = (uint32_t)PhysicalAddr(dest);
+    *ptr++ = PhysicalAddr(dest);
     dl_write_end(ptr);
 }
 
