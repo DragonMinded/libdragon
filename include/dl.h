@@ -213,7 +213,7 @@ void* dl_overlay_get_state(rsp_ucode_t *overlay_ucode);
  * 		// After enqueuing multiple commands, it is sufficient
  * 		// to call dl_flush once to make sure the RSP runs them (in case
  * 		// it was idling).
- * 		dl_flush(dl);
+ * 		dl_flush();
  * @endcode
  *
  * @note This is an experimental API. In the future, it might become 
