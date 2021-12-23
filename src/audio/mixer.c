@@ -588,8 +588,8 @@ void mixer_exec(int32_t *out, int num_samples) {
 
 	*ptr++ = 0x10000000 | (((uint32_t)MIXER_FX16(Mixer.vol)) & 0xFFFF);
 	*ptr++ = (num_samples << 16) | Mixer.num_channels;
-	*ptr++ = (uint32_t)PhysicalAddr(out);
-	*ptr++ = (uint32_t)PhysicalAddr(&Mixer.ucode_settings);
+	*ptr++ = PhysicalAddr(out);
+	*ptr++ = PhysicalAddr(&Mixer.ucode_settings);
 	
 	dl_write_end(ptr);
 	dl_sync();

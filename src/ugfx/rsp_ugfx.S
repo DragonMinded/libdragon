@@ -13,38 +13,38 @@
     # of the command encoded as a 16 bit value.
     # The first argument of commandTableEntry is just the text label of the command, the second is the command size in bytes.
 COMMAND_TABLE:
+    commandTableEntry command_fill_triangle,      32 # 0x20 
     commandTableEntry command_noop,               8
     commandTableEntry command_noop,               8
     commandTableEntry command_noop,               8
+    commandTableEntry command_rdp_passthrough_16, 16 # 0x24 TEXTURE_RECTANGLE
+    commandTableEntry command_rdp_passthrough_16, 16 # 0x25 TEXTURE_RECTANGLE_FLIP
     commandTableEntry command_noop,               8
-    commandTableEntry command_rdp_passthrough_16, 16 # TEXTURE_RECTANGLE
-    commandTableEntry command_rdp_passthrough_16, 16 # TEXTURE_RECTANGLE_FLIP
-    commandTableEntry command_noop,               8
-    commandTableEntry command_rdp_passthrough_8,  8  # SYNC_PIPE
-    commandTableEntry command_rdp_passthrough_8,  8  # SYNC_TILE
-    commandTableEntry command_sync_full,          8  # SYNC_FULL
-    commandTableEntry command_rdp_passthrough_8,  8  # SET_KEY_GB
-    commandTableEntry command_rdp_passthrough_8,  8  # SET_KEY_R
-    commandTableEntry command_rdp_passthrough_8,  8  # SET_CONVERT
-    commandTableEntry command_rdp_passthrough_8,  8  # SET_SCISSOR
-    commandTableEntry command_rdp_passthrough_8,  8  # SET_PRIM_DEPTH
-    commandTableEntry command_set_other_modes,    8  # SET_OTHER_MODES
-    commandTableEntry command_rdp_passthrough_8,  8  # LOAD_TLUT
-    commandTableEntry command_rdp_passthrough_8,  8  # SYNC_LOAD
-    commandTableEntry command_rdp_passthrough_8,  8  # SET_TILE_SIZE
-    commandTableEntry command_rdp_passthrough_8,  8  # LOAD_BLOCK
-    commandTableEntry command_rdp_passthrough_8,  8  # LOAD_TILE
-    commandTableEntry command_rdp_passthrough_8,  8  # SET_TILE
-    commandTableEntry command_rdp_passthrough_8,  8  # FILL_RECTANGLE
-    commandTableEntry command_rdp_passthrough_8,  8  # SET_FILL_COLOR
-    commandTableEntry command_rdp_passthrough_8,  8  # SET_FOG_COLOR
-    commandTableEntry command_rdp_passthrough_8,  8  # SET_BLEND_COLOR
-    commandTableEntry command_rdp_passthrough_8,  8  # SET_PRIM_COLOR
-    commandTableEntry command_rdp_passthrough_8,  8  # SET_ENV_COLOR
-    commandTableEntry command_rdp_passthrough_8,  8  # SET_COMBINE_MODE
-    commandTableEntry command_rdp_passthrough_8,  8  # SET_TEXTURE_IMAGE
-    commandTableEntry command_rdp_passthrough_8,  8  # SET_Z_IMAGE
-    commandTableEntry command_rdp_passthrough_8,  8  # SET_COLOR_IMAGE
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x27 SYNC_PIPE
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x28 SYNC_TILE
+    commandTableEntry command_sync_full,          8  # 0x29 SYNC_FULL
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x2A SET_KEY_GB
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x2B SET_KEY_R
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x2C SET_CONVERT
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x2D SET_SCISSOR
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x2E SET_PRIM_DEPTH
+    commandTableEntry command_set_other_modes,    8  # 0x2F SET_OTHER_MODES
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x30 LOAD_TLUT
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x31 SYNC_LOAD
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x32 SET_TILE_SIZE
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x33 LOAD_BLOCK
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x34 LOAD_TILE
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x35 SET_TILE
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x36 FILL_RECTANGLE
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x37 SET_FILL_COLOR
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x38 SET_FOG_COLOR
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x39 SET_BLEND_COLOR
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x3A SET_PRIM_COLOR
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x3B SET_ENV_COLOR
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x3C SET_COMBINE_MODE
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x3D SET_TEXTURE_IMAGE
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x3E SET_Z_IMAGE
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x3F SET_COLOR_IMAGE
 
     .align 3
     # Everything between UGFX_STATE_START and UGFX_STATE_END is persistent state that is automatically saved by the overlay system.
@@ -121,6 +121,43 @@ command_rdp_passthrough_16:
     sw a1, %lo(RDP_DMEM_BUFFER) + 0x4(s1)
     sw a2, %lo(RDP_DMEM_BUFFER) + 0x8(s1)
     sw a3, %lo(RDP_DMEM_BUFFER) + 0xC(s1)
+    jal_and_j rdp_write_end, loop
+    .endfunc
+
+    #############################################################
+    # command_fill_triangle
+    #
+    # Forwards a basic triangle command (edge coefficients only).
+    # Note that the command id is swapped out.
+    #
+    # ARGS:
+    #   a0: First 4 bytes of RDP command
+    #   a1: Second 4 bytes of RDP command
+    #   a2: Third 4 bytes of RDP command
+    #   a3: Fourth 4 bytes of RDP command
+    #############################################################
+    .func command_fill_triangle
+command_fill_triangle:
+    jal rdp_write_begin
+    li t3, 32
+    # Replace 0x20 with 0x08
+    lui t0, 0xFF
+    ori t0, 0xFFFF
+    and a0, t0
+    lui t0, 0x0800
+    or a0, t0
+    lw t0, CMD_ADDR(0x10, 32)
+    lw t1, CMD_ADDR(0x14, 32)
+    lw t2, CMD_ADDR(0x18, 32)
+    lw t3, CMD_ADDR(0x1C, 32)
+    sw a0, %lo(RDP_DMEM_BUFFER) + 0x00(s1)
+    sw a1, %lo(RDP_DMEM_BUFFER) + 0x04(s1)
+    sw a2, %lo(RDP_DMEM_BUFFER) + 0x08(s1)
+    sw a3, %lo(RDP_DMEM_BUFFER) + 0x0C(s1)
+    sw t0, %lo(RDP_DMEM_BUFFER) + 0x10(s1)
+    sw t1, %lo(RDP_DMEM_BUFFER) + 0x14(s1)
+    sw t2, %lo(RDP_DMEM_BUFFER) + 0x18(s1)
+    sw t3, %lo(RDP_DMEM_BUFFER) + 0x1C(s1)
     jal_and_j rdp_write_end, loop
     .endfunc
 

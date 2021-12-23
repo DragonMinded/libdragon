@@ -220,6 +220,11 @@ void* dl_overlay_get_state(rsp_ucode_t *overlay_ucode);
  *       a no-op, and flushing could happen automatically at every dl_write_end().
  *       We are keeping it separate from dl_write_end() while experimenting more
  *       with the DL API.
+ * 
+ * @note This function is a no-op if it is called while a block is being recorded
+ *       (see #dl_block_begin / #dl_block_end). This means calling this function
+ *       in a block recording context will not guarantee the execution of commands
+ *       that were queued prior to starting the block.
  *       
  */
 void dl_flush(void);

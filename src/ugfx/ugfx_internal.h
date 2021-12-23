@@ -11,7 +11,7 @@
 typedef struct ugfx_state_t {
     uint8_t rdp_buffer[UGFX_RDP_DMEM_BUFFER_SIZE];
     uint64_t other_modes;
-    void *dram_buffer;
+    uint32_t dram_buffer;
     uint32_t dram_buffer_size;
     uint32_t dram_buffer_end;
     uint16_t dmem_buffer_ptr;

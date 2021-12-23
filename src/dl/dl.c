@@ -8,14 +8,14 @@
 #include "utils.h"
 #include "../../build/dl/dl_symbols.h"
 
-#define DL_CMD_IDLE             0x01
-#define DL_CMD_WSTATUS          0x02
-#define DL_CMD_CALL             0x03
-#define DL_CMD_JUMP             0x04
-#define DL_CMD_RET              0x05
-#define DL_CMD_NOOP             0x07
-#define DL_CMD_TEST_AND_WSTATUS 0x08
-#define DL_CMD_DMA              0x09
+#define DL_CMD_IDLE              0x01
+#define DL_CMD_SET_STATUS        0x02
+#define DL_CMD_CALL              0x03
+#define DL_CMD_JUMP              0x04
+#define DL_CMD_RET               0x05
+#define DL_CMD_NOOP              0x07
+#define DL_CMD_TAS_STATUS        0x08
+#define DL_CMD_DMA               0x09
 
 #define dl_terminator(dl)   ({ \
     /* The terminator is usually meant to be written only *after* the last \
@@ -48,9 +48,9 @@
 DEFINE_RSP_UCODE(rsp_dl);
 
 typedef struct dl_overlay_t {
-    void* code;
-    void* data;
-    void* data_buf;
+    uint32_t code;
+    uint32_t data;
+    uint32_t data_buf;
     uint16_t code_size;
     uint16_t data_size;
 } dl_overlay_t;
@@ -73,8 +73,8 @@ typedef struct dl_overlay_tables_s {
 
 typedef struct rsp_dl_s {
     dl_overlay_tables_t tables;
-    void *dl_dram_addr;
-    void *dl_dram_highpri_addr;
+    uint32_t dl_dram_addr;
+    uint32_t dl_dram_highpri_addr;
     int16_t current_ovl;
 } __attribute__((aligned(16), packed)) rsp_dl_t;
 
@@ -141,15 +141,15 @@ void dl_start()
     rsp_load(&rsp_dl);
 
     // Load data with initialized overlays into DMEM
-    rsp_load_data(PhysicalAddr(dl_data_ptr), sizeof(rsp_dl_t), 0);
+    rsp_load_data(dl_data_ptr, sizeof(rsp_dl_t), 0);
 
-    static const dl_overlay_header_t dummy_header = (dl_overlay_header_t){
+    static dl_overlay_header_t dummy_header = (dl_overlay_header_t){
         .state_start = 0,
         .state_size = 7,
         .command_base = 0
     };
 
-    rsp_load_data(PhysicalAddr(&dummy_header), sizeof(dummy_header), DL_OVL_DATA_ADDR);
+    rsp_load_data(&dummy_header, sizeof(dummy_header), DL_OVL_DATA_ADDR);
 
     MEMORY_BARRIER();
 
@@ -236,9 +236,11 @@ void dl_overlay_register(rsp_ucode_t *overlay_ucode, uint8_t id)
     assertf(id < DL_OVERLAY_TABLE_SIZE, "Tried to register id: %d", id);
 
     // The DL ucode is always linked into overlays for now, so we need to load the overlay from an offset.
-    // TODO: Do this some other way.
     uint32_t dl_ucode_size = rsp_dl_text_end - rsp_dl_text_start;
-    void *overlay_code = PhysicalAddr(overlay_ucode->code + dl_ucode_size);
+
+    assertf(memcmp(rsp_dl_text_start, overlay_ucode->code, dl_ucode_size) == 0, "Common code of overlay does not match!");
+
+    uint32_t overlay_code = PhysicalAddr(overlay_ucode->code + dl_ucode_size);
 
     uint8_t overlay_index = 0;
 
@@ -360,7 +362,7 @@ void dl_next_buffer(void) {
         uint32_t *prev = dl_switch_buffer(dl2, dl_block_size, true);
 
         // Terminate the previous chunk with a JUMP op to the new chunk.
-        *prev++ = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dl2);
+        *prev++ = (DL_CMD_JUMP<<24) | PhysicalAddr(dl2);
         dl_terminator(prev);
         return;
     }
@@ -384,8 +386,8 @@ void dl_next_buffer(void) {
     // Terminate the previous buffer with an op to set SIG_BUFDONE
     // (to notify when the RSP finishes the buffer), plus a jump to
     // the new buffer.
-    *prev++ = (DL_CMD_WSTATUS<<24) | SP_WSTATUS_SET_SIG_BUFDONE;
-    *prev++ = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dl2);
+    *prev++ = (DL_CMD_SET_STATUS<<24) | SP_WSTATUS_SET_SIG_BUFDONE;
+    *prev++ = (DL_CMD_JUMP<<24) | PhysicalAddr(dl2);
     dl_terminator(prev);
 
     MEMORY_BARRIER();
@@ -395,11 +397,8 @@ void dl_next_buffer(void) {
 }
 
 __attribute__((noinline))
-void dl_flush(void)
+void dl_flush_internal(void)
 {
-    // If we are recording a block, flushes can be ignored
-    if (dl_block) return;
-
     // Tell the RSP to wake up because there is more data pending.
     MEMORY_BARRIER();
     *SP_STATUS = SP_WSTATUS_SET_SIG_MORE | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
@@ -421,6 +420,14 @@ void dl_flush(void)
     MEMORY_BARRIER();
     *SP_STATUS = SP_WSTATUS_SET_SIG_MORE | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
     MEMORY_BARRIER();
+}
+
+void dl_flush(void)
+{
+    // If we are recording a block, flushes can be ignored
+    if (dl_block) return;
+
+    dl_flush_internal();
 }
 
 /***********************************************************************/
@@ -485,7 +492,7 @@ This is an example that shows a possible trampoline:
 
 Let's describe all commands one by one.
 
-The first command (index 00) is a DL_CMD_WSTATUS which clears the SIG_HIGHPRI
+The first command (index 00) is a DL_CMD_SET_STATUS which clears the SIG_HIGHPRI
 and sets SIG_HIGHPRI_RUNNING. This must absolutely be the first command executed
 when the highpri mode starts, because otherwise the RSP would go into
 an infinite loop (it would find SIG_HIGHPRI always set and calls the list
@@ -548,7 +555,7 @@ void __dl_highpri_init(void)
     uint32_t *dlp = dl_highpri_trampoline;
 
     // Write the trampoline header (6 words). 
-    *dlp++ = (DL_CMD_WSTATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING;
+    *dlp++ = (DL_CMD_SET_STATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING;
     *dlp++ = DL_CMD_NOOP<<24;
     *dlp++ = (DL_CMD_DMA<<24) | (uint32_t)PhysicalAddr(dl_highpri_trampoline + TRAMPOLINE_HEADER);
     *dlp++ = 0xD8 + (TRAMPOLINE_HEADER+2)*sizeof(uint32_t); // FIXME address of DL_DMEM_BUFFER
@@ -567,12 +574,12 @@ void __dl_highpri_init(void)
     // Fill the footer
     *dlp++ = jump_to_footer;
     *dlp++ = DL_CMD_NOOP<<24;
-    *dlp++ = (DL_CMD_WSTATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING;
+    *dlp++ = (DL_CMD_SET_STATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING;
     *dlp++ = (DL_CMD_RET<<24) | (DL_HIGHPRI_CALL_SLOT<<2);
     *dlp++ = (DL_CMD_IDLE<<24);
     assert(dlp - dl_highpri_trampoline == TRAMPOLINE_WORDS);
 
-    dl_data_ptr->dl_dram_highpri_addr = dl_highpri_trampoline;
+    dl_data_ptr->dl_dram_highpri_addr = PhysicalAddr(dl_highpri_trampoline);
 }
 
 void dl_highpri_begin(void)
@@ -607,7 +614,7 @@ void dl_highpri_begin(void)
     try_pause_rsp:
         rsp_pause(true);
 
-        void* dl_rdram_ptr = (void*)(((uint32_t)((volatile rsp_dl_t*)SP_DMEM)->dl_dram_addr) & 0x00FFFFFF);
+        uint32_t dl_rdram_ptr = (((uint32_t)((volatile rsp_dl_t*)SP_DMEM)->dl_dram_addr) & 0x00FFFFFF);
         if (dl_rdram_ptr >= PhysicalAddr(dl_highpri_trampoline) && dl_rdram_ptr < PhysicalAddr(dl_highpri_trampoline+TRAMPOLINE_WORDS)) {
             debugf("SP PC in highpri trampoline... retrying\n");
             rsp_pause(false);
@@ -618,7 +625,7 @@ void dl_highpri_begin(void)
         // Check the trampoline body. Search for the first JUMP to the footer
         // slot. We are going to replace it to a jump to our new queue.
         uint32_t jump_to_footer = dl_highpri_trampoline[TRAMPOLINE_HEADER + TRAMPOLINE_BODY];
-        debugf("Trampoline %p (fetching at [%p]%08lx, PC:%lx)\n", dl_highpri_trampoline, dl_rdram_ptr, *(uint32_t*)(((uint32_t)(dl_rdram_ptr))|0xA0000000), *SP_PC);
+        debugf("Trampoline %p (fetching at [%08lx]%08lx, PC:%lx)\n", dl_highpri_trampoline, dl_rdram_ptr, *(uint32_t*)(((uint32_t)(dl_rdram_ptr))|0xA0000000), *SP_PC);
         for (int i=TRAMPOLINE_HEADER; i<TRAMPOLINE_HEADER+TRAMPOLINE_BODY+2; i++)
             debugf("%x: %08lx %s\n", i, dl_highpri_trampoline[i], dl_highpri_trampoline[i]==jump_to_footer ? "*" : "");
         int tramp_widx = TRAMPOLINE_HEADER;
@@ -702,7 +709,6 @@ void dl_highpri_sync(void)
 
 /***********************************************************************/
 
-
 void dl_block_begin(void)
 {
     assertf(!dl_block, "a block was already being created");
@@ -780,7 +786,7 @@ void dl_block_run(dl_block_t *block)
     // which is used as stack slot in the RSP to save the current
     // pointer position.
     uint32_t *dl = dl_write_begin();
-    *dl++ = (DL_CMD_CALL<<24) | (uint32_t)PhysicalAddr(block->cmds);
+    *dl++ = (DL_CMD_CALL<<24) | PhysicalAddr(block->cmds);
     *dl++ = block->nesting_level << 2;
     dl_write_end(dl);
 
@@ -833,7 +839,7 @@ dl_syncpoint_t dl_syncpoint(void)
 {   
     assertf(!dl_block, "cannot create syncpoint in a block");
     uint32_t *dl = dl_write_begin();
-    *dl++ = ((DL_CMD_TEST_AND_WSTATUS << 24) | SP_WSTATUS_SET_INTR | SP_WSTATUS_SET_SIG_SYNCPOINT);
+    *dl++ = ((DL_CMD_TAS_STATUS << 24) | SP_WSTATUS_SET_INTR | SP_WSTATUS_SET_SIG_SYNCPOINT);
     *dl++ = SP_STATUS_SIG_SYNCPOINT;
     dl_write_end(dl);
     return ++dl_syncpoints_genid;
@@ -850,7 +856,7 @@ void dl_wait_syncpoint(dl_syncpoint_t sync_id)
         "deadlock: interrupts are disabled");
 
     // Make sure the RSP is running, otherwise we might be blocking forever.
-    dl_flush();
+    dl_flush_internal();
 
     // Spinwait until the the syncpoint is reached.
     // TODO: with the kernel, it will be possible to wait for the RSP interrupt
@@ -863,13 +869,13 @@ void dl_signal(uint32_t signal)
     const uint32_t allows_mask = SP_WSTATUS_CLEAR_SIG0|SP_WSTATUS_SET_SIG0|SP_WSTATUS_CLEAR_SIG1|SP_WSTATUS_SET_SIG1|SP_WSTATUS_CLEAR_SIG2|SP_WSTATUS_SET_SIG2;
     assertf((signal & allows_mask) == signal, "dl_signal called with a mask that contains bits outside SIG0-2: %lx", signal);
 
-    dl_queue_u32((DL_CMD_WSTATUS << 24) | signal);
+    dl_queue_u32((DL_CMD_SET_STATUS << 24) | signal);
 }
 
 static void dl_dma(void *rdram_addr, uint32_t dmem_addr, uint32_t len, uint32_t flags)
 {
     uint32_t *dl = dl_write_begin();
-    *dl++ = (DL_CMD_DMA << 24) | (uint32_t)PhysicalAddr(rdram_addr);
+    *dl++ = (DL_CMD_DMA << 24) | PhysicalAddr(rdram_addr);
     *dl++ = dmem_addr;
     *dl++ = len;
     *dl++ = flags;

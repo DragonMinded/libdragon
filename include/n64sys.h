@@ -100,7 +100,7 @@ extern int __bbplayer;
  * 
  * @return A void pointer to the physical memory address in RAM
  */
-#define PhysicalAddr(_addr) ((void *)(((unsigned long)(_addr))&~0xE0000000))
+#define PhysicalAddr(_addr) (((unsigned long)(_addr))&~0xE0000000)
 
 /**
  * @brief Memory barrier to ensure in-order execution

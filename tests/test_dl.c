@@ -56,7 +56,7 @@ void dl_test_output(uint64_t *dest)
 {
     uint32_t *ptr = dl_write_begin();
     *ptr++ = 0xf4000000;
-    *ptr++ = (uint32_t)PhysicalAddr(dest);
+    *ptr++ = PhysicalAddr(dest);
     dl_write_end(ptr);
 }
 
@@ -387,6 +387,23 @@ void test_dl_block(TestContext *ctx)
     ASSERT_EQUAL_UNSIGNED(*usum, 5123, "sum #5 is not correct");
 
     TEST_DL_EPILOG(0, dl_timeout);
+}
+
+void test_dl_wait_sync_in_block(TestContext *ctx)
+{
+    TEST_DL_PROLOG();
+
+    wait_ms(3);
+
+    dl_syncpoint_t syncpoint = dl_syncpoint();
+
+    dl_block_begin();
+    DEFER(dl_block_end());
+
+    dl_wait_syncpoint(syncpoint);
+
+    // Test will block forever if it fails.
+    // TODO: implement RSP exception handler that detects infinite stalls
 }
 
 void test_dl_highpri_basic(TestContext *ctx)

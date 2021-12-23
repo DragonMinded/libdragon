@@ -56,16 +56,16 @@ HBANNER1: .ascii "Rasky & Snacchus"
 
     .align 3
 INTERNAL_COMMAND_TABLE:
-commandTableEntry command_invalid,               4     # 0x00
-commandTableEntry command_wait_new_input,        4     # 0x01
-commandTableEntry command_write_status,          4     # 0x02 -- must be even (bit 24 must be 0)
-commandTableEntry command_call,                  8     # 0x03
-commandTableEntry command_jump,                  4     # 0x04
-commandTableEntry command_ret,                   4     # 0x05
-commandTableEntry command_call_highpri,          8     # 0x06
-commandTableEntry command_noop,                  4     # 0x07
-commandTableEntry command_test_and_write_status, 8     # 0x08 -- must be even (bit 24 must be 0)
-commandTableEntry command_dma,                   16    # 0x09
+commandTableEntry command_invalid,          4     # 0x00
+commandTableEntry command_wait_new_input,   4     # 0x01
+commandTableEntry command_write_status,     4     # 0x02 -- must be even (bit 24 must be 0)
+commandTableEntry command_call,             8     # 0x03
+commandTableEntry command_jump,             4     # 0x04
+commandTableEntry command_ret,              4     # 0x05
+commandTableEntry command_call_highpri,     8     # 0x06
+commandTableEntry command_noop,             4     # 0x07
+commandTableEntry command_test_wstatus,     8     # 0x08 -- must be even (bit 24 must be 0)
+commandTableEntry command_dma,              16    # 0x09
 
     .bss
 
@@ -302,7 +302,7 @@ command_ret:
     .endfunc
 
     #############################################################
-    # command_test_and_write_status
+    # command_test_wstatus
     #
     # Like command_write_status, writes COP0 SP status register with a specified value,
     # but first waits until the SP status AND'ed with the specified bitmask is zero.
@@ -311,12 +311,10 @@ command_ret:
     #   a0: value to write into COP0_SP_STATUS
     #   a1: bitmask to test COP0_SP_STATUS for
     #############################################################
-    .func command_test_and_write_status
-command_test_and_write_status:
-    mfc0 t0, COP0_SP_STATUS
-    and t0, a1
-    bnez t0, command_test_and_write_status
-    nop # :(
+    .func command_test_wstatus
+command_test_wstatus:
+    jal SpStatusWait
+    move t2, a1
     # fallthrough
     .endfunc
 
