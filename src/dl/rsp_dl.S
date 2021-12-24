@@ -66,6 +66,7 @@ commandTableEntry command_call_highpri,     8     # 0x06
 commandTableEntry command_noop,             4     # 0x07
 commandTableEntry command_test_wstatus,     8     # 0x08 -- must be even (bit 24 must be 0)
 commandTableEntry command_dma,              16    # 0x09
+commandTableEntry command_ret_highpri,      8     # 0x0A
 
     .bss
 
@@ -120,8 +121,12 @@ fetch_buffer_with_ptr:
     # Fetch the whole DMEM buffer. We will use the 0x00 invalid fill value to
     # realize where the buffer is empty.
     li s4, %lo(DL_DMEM_BUFFER)
+    jal DMAIn
     li t0, DMA_SIZE(DL_DMEM_BUFFER_SIZE, 1)
-    jal_and_j DMAIn, loop_no_highpri
+    
+    # jal_and_j DMAIn, loop_no_highpri
+
+
     # fallthrough into the main loopm but skip the highpri check. This is
     # important because we want to give a chance to the first highpri instruction
     # to clear the SIG5
@@ -244,6 +249,8 @@ execute_command:
     ############################################################
     .func command_call_highpri
 command_call_highpri:
+    li t0, SP_WSTATUS_RESET_SIG6 | SP_WSTATUS_SET_SIG2 | SP_WSTATUS_SET_SIG3
+    mtc0 t0, COP0_SP_STATUS
     lw a0, %lo(DL_RDRAM_PTR_HIGHPRI)
     li a1, DL_HIGHPRI_CALL_SLOT*4
     # fallthrough
@@ -284,6 +291,13 @@ command_jump:
     # a0: command opcode + RDRAM address
     j fetch_buffer_with_ptr
     move s0, a0
+    .endfunc
+
+
+    .func command_ret_highpri
+command_ret_highpri:
+    mtc0 a1, COP0_SP_STATUS
+    #fallthrough
     .endfunc
 
     #############################################################

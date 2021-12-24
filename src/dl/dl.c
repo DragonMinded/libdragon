@@ -16,6 +16,7 @@
 #define DL_CMD_NOOP              0x07
 #define DL_CMD_TAS_STATUS        0x08
 #define DL_CMD_DMA               0x09
+#define DL_CMD_RET_HIGHPRI       0x0A
 
 #define dl_terminator(dl)   ({ \
     /* The terminator is usually meant to be written only *after* the last \
@@ -24,6 +25,10 @@
     MEMORY_BARRIER(); \
     *(uint8_t*)(dl) = 0x01; \
 })
+
+#define SP_STATUS_SIG_HIGHPRI_TRAMPOLINE         SP_STATUS_SIG2
+#define SP_WSTATUS_SET_SIG_HIGHPRI_TRAMPOLINE    SP_WSTATUS_SET_SIG2
+#define SP_WSTATUS_CLEAR_SIG_HIGHPRI_TRAMPOLINE  SP_WSTATUS_CLEAR_SIG2
 
 #define SP_STATUS_SIG_HIGHPRI_RUNNING         SP_STATUS_SIG3
 #define SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING    SP_WSTATUS_SET_SIG3
@@ -430,6 +435,94 @@ void dl_flush(void)
     dl_flush_internal();
 }
 
+static void rsp_crash(void)
+{
+    uint32_t status = *SP_STATUS;
+    MEMORY_BARRIER();
+
+    console_init();
+    console_set_debug(true);
+    console_set_render_mode(RENDER_MANUAL);
+
+    printf("RSP CRASH\n");
+
+    MEMORY_BARRIER();
+    *SP_STATUS = SP_WSTATUS_SET_HALT;
+    while (!(*SP_STATUS & SP_STATUS_HALTED)) {}
+    while (*SP_STATUS & (SP_STATUS_DMA_BUSY | SP_STATUS_DMA_FULL)) {}
+    MEMORY_BARRIER();
+    uint32_t pc = *SP_PC;  // can only read after halt
+    MEMORY_BARRIER();
+
+    printf("PC:%03lx   STATUS:%04lx | ", pc, status);
+    if (status & (1<<0)) printf("halt ");
+    if (status & (1<<1)) printf("broke ");
+    if (status & (1<<2)) printf("dma_busy ");
+    if (status & (1<<3)) printf("dma_full ");
+    if (status & (1<<4)) printf("io_full ");
+    if (status & (1<<5)) printf("single_step ");
+    if (status & (1<<6)) printf("irq_on_break ");
+    if (status & (1<<7)) printf("sig0 ");
+    if (status & (1<<8)) printf("sig1 ");
+    if (status & (1<<9)) printf("sig2 ");
+    if (status & (1<<10)) printf("sig3 ");
+    if (status & (1<<11)) printf("sig4 ");
+    if (status & (1<<12)) printf("sig5 ");
+    if (status & (1<<13)) printf("sig6 ");
+    if (status & (1<<14)) printf("sig7 ");
+    printf("\n");
+
+    printf("COP0 registers:\n");
+    printf("-----------------------------------------\n");
+    printf("$c0  | COP0_DMA_SPADDR   | %08lx\n", *((volatile uint32_t*)0xA4040000));
+    printf("$c1  | COP0_DMA_RAMADDR  | %08lx\n", *((volatile uint32_t*)0xA4040004));
+    printf("$c2  | COP0_DMA_READ     | %08lx\n", *((volatile uint32_t*)0xA4040008));
+    printf("$c3  | COP0_DMA_WRITE    | %08lx\n", *((volatile uint32_t*)0xA404000C));
+    printf("$c4  | COP0_SP_STATUS    | %08lx\n", *((volatile uint32_t*)0xA4040010));
+    printf("$c5  | COP0_DMA_FULL     | %08lx\n", *((volatile uint32_t*)0xA4040014));
+    printf("$c6  | COP0_DMA_BUSY     | %08lx\n", *((volatile uint32_t*)0xA4040018));
+    printf("$c7  | COP0_SEMAPHORE    | %08lx\n", *((volatile uint32_t*)0xA404001C));
+    printf("-----------------------------------------\n");
+    printf("$c8  | COP0_DP_START     | %08lx\n", *((volatile uint32_t*)0xA4100000));
+    printf("$c9  | COP0_DP_END       | %08lx\n", *((volatile uint32_t*)0xA4100004));
+    printf("$c10 | COP0_DP_CURRENT   | %08lx\n", *((volatile uint32_t*)0xA4100008));
+    printf("$c11 | COP0_DP_STATUS    | %08lx\n", *((volatile uint32_t*)0xA410000C));
+    printf("$c12 | COP0_DP_CLOCK     | %08lx\n", *((volatile uint32_t*)0xA4100010));
+    printf("$c13 | COP0_DP_BUSY      | %08lx\n", *((volatile uint32_t*)0xA4100014));
+    printf("$c14 | COP0_DP_PIPE_BUSY | %08lx\n", *((volatile uint32_t*)0xA4100018));
+    printf("$c15 | COP0_DP_TMEM_BUSY | %08lx\n", *((volatile uint32_t*)0xA410001C));
+    printf("-----------------------------------------\n");
+
+    rsp_dl_t *dl = (rsp_dl_t*)SP_DMEM;
+    printf("DL: Normal  DRAM address: %08lx\n", dl->dl_dram_addr);
+    printf("DL: Highpri DRAM address: %08lx\n", dl->dl_dram_highpri_addr);
+    printf("DL: Overlay: %x\n", dl->current_ovl);
+    debugf("DL: Command queue:\n");
+    for (int j=0;j<16;j++) {        
+        for (int i=0;i<16;i++)
+            debugf("%08lx ", SP_DMEM[0xD8+i+j*16]);
+        debugf("\n");
+    }
+
+    console_render();
+    abort();
+}
+
+static int rsp_watchdog_counter;
+
+static void rsp_watchdog_reset(void)
+{
+    rsp_watchdog_counter = 0;
+}
+
+static void rsp_watchdog_kick(void)
+{
+    if (++rsp_watchdog_counter == 100) {
+        rsp_crash();
+    }
+}
+
+
 /***********************************************************************/
 
 #define DL_HIGHPRI_NUM_BUFS  8
@@ -464,18 +557,18 @@ does the moral equivalent of "memmove(body, body+4, body_length)".
 This is an example that shows a possible trampoline:
 
        HEADER:
-00 WSTATUS   SP_WSTATUS_CLEAR_SIG_HIGHPRI | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING
-01 NOP       (to align body)
-02 DMA       DEST: Trampoline Body in RDRAM
-03           SRC: Trampoline Body + 4 in DMEM
-04           LEN: Trampoline Body length (num buffers * 2 * sizeof(uint32_t))
-05           FLAGS: DMA_OUT_ASYNC
+00 WSTATUS   SP_WSTATUS_CLEAR_SIG_HIGHPRI | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING | SP_WSTATUS_SET_SIG_HIGHPRI_TRAMPOLINE
+01 DMA       DEST: Trampoline Body in RDRAM
+02           SRC: Trampoline Body + 4 in DMEM
+03           LEN: Trampoline Body length (num buffers * 2 * sizeof(uint32_t))
+04           FLAGS: DMA_OUT_ASYNC
+05 NOP
        
        BODY:
-06 JUMP      queue1
-07 NOP
-08 JUMP      queue2
-09 NOP
+06 WSTATUS   SP_WSTATUS_RESET_SIG_HIGHPRI_TRAMPOLINE
+07 JUMP      queue1
+08 WSTATUS   SP_WSTATUS_RESET_SIG_HIGHPRI_TRAMPOLINE
+09 JUMP      queue2
 0A JUMP      12
 0B NOP
 0C JUMP      12
@@ -486,8 +579,8 @@ This is an example that shows a possible trampoline:
        FOOTER:
 10 JUMP      12
 11 NOP
-12 WSTATUS   SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING
-13 RET       DL_HIGHPRI_CALL_SLOT
+12 RET_HIGHPRI  DL_HIGHPRI_CALL_SLOT
+13              SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING | SP_WSTATUS_CLEAR_HIGHPRI_TRAMPOLINE
 14 IDLE
 
 Let's describe all commands one by one.
@@ -555,12 +648,12 @@ void __dl_highpri_init(void)
     uint32_t *dlp = dl_highpri_trampoline;
 
     // Write the trampoline header (6 words). 
-    *dlp++ = (DL_CMD_SET_STATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING;
-    *dlp++ = DL_CMD_NOOP<<24;
+    *dlp++ = (DL_CMD_SET_STATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING | SP_WSTATUS_SET_SIG_HIGHPRI_TRAMPOLINE;
     *dlp++ = (DL_CMD_DMA<<24) | (uint32_t)PhysicalAddr(dl_highpri_trampoline + TRAMPOLINE_HEADER);
-    *dlp++ = 0xD8 + (TRAMPOLINE_HEADER+2)*sizeof(uint32_t); // FIXME address of DL_DMEM_BUFFER
-    *dlp++ = (DL_HIGHPRI_NUM_BUFS*2) * sizeof(uint32_t) - 1;
-    *dlp++ = 0xFFFF8000 | SP_STATUS_DMA_FULL | SP_STATUS_DMA_BUSY; // DMA_OUT_ASYNC
+      *dlp++ = 0xD8 + (TRAMPOLINE_HEADER+2)*sizeof(uint32_t); // FIXME address of DL_DMEM_BUFFER
+      *dlp++ = (DL_HIGHPRI_NUM_BUFS*2) * sizeof(uint32_t) - 1;
+      *dlp++ = 0xFFFF8000 | SP_STATUS_DMA_FULL | SP_STATUS_DMA_BUSY; // DMA_OUT
+    *dlp++ = (DL_CMD_NOOP<<24);
 
     uint32_t jump_to_footer = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dl_highpri_trampoline + TRAMPOLINE_HEADER + TRAMPOLINE_BODY + 2);
 
@@ -574,8 +667,8 @@ void __dl_highpri_init(void)
     // Fill the footer
     *dlp++ = jump_to_footer;
     *dlp++ = DL_CMD_NOOP<<24;
-    *dlp++ = (DL_CMD_SET_STATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING;
-    *dlp++ = (DL_CMD_RET<<24) | (DL_HIGHPRI_CALL_SLOT<<2);
+    *dlp++ = (DL_CMD_RET_HIGHPRI<<24) | (DL_HIGHPRI_CALL_SLOT<<2);
+      *dlp++ = SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING | SP_WSTATUS_CLEAR_SIG_HIGHPRI_TRAMPOLINE;
     *dlp++ = (DL_CMD_IDLE<<24);
     assert(dlp - dl_highpri_trampoline == TRAMPOLINE_WORDS);
 
@@ -596,43 +689,73 @@ void dl_highpri_begin(void)
     // Clear the buffer. This clearing itself can be very slow compared to the
     // total time of dl_highpri_begin, so keep track of how much this buffer was
     // used last time, and only clear the part that was really used.
-    memset(dlh, 0, dl_highpri_used[bufidx]);
+    memset(dlh, 0, dl_highpri_used[bufidx] * sizeof(uint32_t));
 
     // Switch to the new buffer.
     dl_push_buffer();
-    dl_switch_buffer(dlh, DL_HIGHPRI_BUF_SIZE-2, false);
+    dl_switch_buffer(dlh, DL_HIGHPRI_BUF_SIZE-3, false);
 
     // Check if the RSP is running a highpri queue.
-    if (!(*SP_STATUS & (SP_STATUS_SIG_HIGHPRI_RUNNING|SP_STATUS_SIG_HIGHPRI))) {    
-        dl_highpri_trampoline[TRAMPOLINE_HEADER] = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dlh);
+    if (!(*SP_STATUS & (SP_STATUS_SIG_HIGHPRI_RUNNING|SP_STATUS_SIG_HIGHPRI))) {  
+        assertf(dl_highpri_trampoline[TRAMPOLINE_HEADER] == dl_highpri_trampoline[TRAMPOLINE_HEADER + TRAMPOLINE_BODY],
+            "internal error: highpri list pending in trampoline in lowpri mode\ncmd: %08lx", dl_highpri_trampoline[TRAMPOLINE_HEADER]);
+        dl_highpri_trampoline[TRAMPOLINE_HEADER+0] = (DL_CMD_SET_STATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI_TRAMPOLINE;
+        dl_highpri_trampoline[TRAMPOLINE_HEADER+1] = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dlh);
         MEMORY_BARRIER();
         *SP_STATUS = SP_WSTATUS_SET_SIG_HIGHPRI;
     } else {
         // Try pausing the RSP while it's executing code which is *outside* the
         // trampoline. We're going to modify the trampoline and we want to do it
         // while the RSP is not running there otherwise we risk race conditions.
+        rsp_watchdog_reset();
     try_pause_rsp:
+        // while (*SP_STATUS & SP_STATUS_SIG_HIGHPRI_TRAMPOLINE) {}
         rsp_pause(true);
 
+#if 0
         uint32_t dl_rdram_ptr = (((uint32_t)((volatile rsp_dl_t*)SP_DMEM)->dl_dram_addr) & 0x00FFFFFF);
         if (dl_rdram_ptr >= PhysicalAddr(dl_highpri_trampoline) && dl_rdram_ptr < PhysicalAddr(dl_highpri_trampoline+TRAMPOLINE_WORDS)) {
-            debugf("SP PC in highpri trampoline... retrying\n");
+            debugf("SP processing highpri trampoline... retrying [PC:%lx]\n", *SP_PC);
+            uint32_t jump_to_footer = dl_highpri_trampoline[TRAMPOLINE_HEADER + TRAMPOLINE_BODY];
+            debugf("Trampoline %p (fetching at [%p]%08lx, PC:%lx)\n", dl_highpri_trampoline, dl_rdram_ptr, *(uint32_t*)(((uint32_t)(dl_rdram_ptr))|0xA0000000), *SP_PC);
+            for (int i=TRAMPOLINE_HEADER; i<TRAMPOLINE_HEADER+TRAMPOLINE_BODY+2; i++)
+                debugf("%x: %08lx %s\n", i, dl_highpri_trampoline[i], dl_highpri_trampoline[i]==jump_to_footer ? "*" : "");
             rsp_pause(false);
             wait_ticks(40);
+            goto try_pause_rsp;
+        }
+#endif
+        debugf("RSP: paused: STATUS=%lx PC=%lx\n", *SP_STATUS, *SP_PC);
+        if (*SP_PC < 0x150 || *SP_PC > 0x1A4) {
+            debugf("DL_DRAM_ADDR:%lx | %lx\n", 
+                (((uint32_t)((volatile rsp_dl_t*)SP_DMEM)->dl_dram_addr) & 0x00FFFFFF),
+                (((uint32_t)((volatile rsp_dl_t*)SP_DMEM)->dl_dram_highpri_addr) & 0x00FFFFFF));
+        }
+        if (*SP_STATUS & SP_STATUS_SIG_HIGHPRI_TRAMPOLINE) {
+            debugf("SP processing highpri trampoline... retrying [STATUS:%lx, PC:%lx]\n", *SP_STATUS, *SP_PC);
+            uint32_t jump_to_footer = dl_highpri_trampoline[TRAMPOLINE_HEADER + TRAMPOLINE_BODY];
+            for (int i=TRAMPOLINE_HEADER; i<TRAMPOLINE_HEADER+TRAMPOLINE_BODY+2; i++)
+                debugf("%x: %08lx %s\n", i, dl_highpri_trampoline[i], dl_highpri_trampoline[i]==jump_to_footer ? "*" : "");
+            rsp_watchdog_kick();
+            rsp_pause(false);
+            //wait_ticks(40);
             goto try_pause_rsp;
         }
 
         // Check the trampoline body. Search for the first JUMP to the footer
         // slot. We are going to replace it to a jump to our new queue.
         uint32_t jump_to_footer = dl_highpri_trampoline[TRAMPOLINE_HEADER + TRAMPOLINE_BODY];
-        debugf("Trampoline %p (fetching at [%08lx]%08lx, PC:%lx)\n", dl_highpri_trampoline, dl_rdram_ptr, *(uint32_t*)(((uint32_t)(dl_rdram_ptr))|0xA0000000), *SP_PC);
+        #if 0
+        debugf("Trampoline %p (STATUS:%lx, PC:%lx)\n", dl_highpri_trampoline, *SP_STATUS, *SP_PC);
         for (int i=TRAMPOLINE_HEADER; i<TRAMPOLINE_HEADER+TRAMPOLINE_BODY+2; i++)
             debugf("%x: %08lx %s\n", i, dl_highpri_trampoline[i], dl_highpri_trampoline[i]==jump_to_footer ? "*" : "");
+        #endif
         int tramp_widx = TRAMPOLINE_HEADER;
         while (dl_highpri_trampoline[tramp_widx] != jump_to_footer) {
             tramp_widx += 2;
             if (tramp_widx >= TRAMPOLINE_WORDS - TRAMPOLINE_FOOTER) {
                 debugf("Highpri trampoline is full... retrying\n");
+                rsp_watchdog_kick();
                 rsp_pause(false);
                 wait_ticks(400);
                 goto try_pause_rsp;
@@ -640,7 +763,8 @@ void dl_highpri_begin(void)
         }
 
         // Write the DL_CMD_JUMP to the new list
-        dl_highpri_trampoline[tramp_widx] = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dlh);
+        dl_highpri_trampoline[tramp_widx+0] = (DL_CMD_SET_STATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI_TRAMPOLINE;
+        dl_highpri_trampoline[tramp_widx+1] = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dlh);
 
         // At the beginning of the function, we found that the RSP was already
         // in highpri mode. Meanwhile, the RSP has probably advanced a few ops
@@ -649,8 +773,10 @@ void dl_highpri_begin(void)
         // (if it was near to completion).
         // So check again and if it's not in highpri mode, start it.
         MEMORY_BARRIER();
-        if (!(*SP_STATUS & SP_STATUS_SIG_HIGHPRI_RUNNING))
+        if (!(*SP_STATUS & SP_STATUS_SIG_HIGHPRI_RUNNING)) {
             *SP_STATUS = SP_WSTATUS_SET_SIG_HIGHPRI;
+            debugf("tramp: triggering SIG_HIGHPRI\n");
+        }
         MEMORY_BARRIER();
 
         debugf("tramp_widx: %x\n", tramp_widx);
@@ -667,6 +793,7 @@ void dl_highpri_end(void)
     assertf(dl_is_highpri, "not in highpri mode");
 
     // Terminate the highpri queue with a jump back to the trampoline.
+    *dl_cur_pointer++ = (DL_CMD_SET_STATUS<<24) | SP_WSTATUS_SET_SIG_HIGHPRI_TRAMPOLINE;
     *dl_cur_pointer++ = (DL_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dl_highpri_trampoline);
     dl_terminator(dl_cur_pointer);
 
@@ -691,10 +818,13 @@ void dl_highpri_end(void)
 
 void dl_highpri_sync(void)
 {
-    void* ptr = 0;
+    // void* ptr = 0;
+    rsp_watchdog_reset();
 
     while (*SP_STATUS & (SP_STATUS_SIG_HIGHPRI_RUNNING|SP_STATUS_SIG_HIGHPRI)) 
     { 
+        rsp_watchdog_kick();
+#if 0
         rsp_pause(true);
         void *ptr2 = (void*)(((uint32_t)((volatile rsp_dl_t*)SP_DMEM)->dl_dram_addr) & 0x00FFFFFF);
         if (ptr2 != ptr) {
@@ -703,6 +833,7 @@ void dl_highpri_sync(void)
         }
         rsp_pause(false);
         wait_ticks(40);
+#endif
     }
 }
 

@@ -406,6 +406,7 @@ void test_dl_wait_sync_in_block(TestContext *ctx)
     // TODO: implement RSP exception handler that detects infinite stalls
 }
 
+// Test the basic working of highpri queue.
 void test_dl_highpri_basic(TestContext *ctx)
 {
     TEST_DL_PROLOG();
@@ -415,6 +416,7 @@ void test_dl_highpri_basic(TestContext *ctx)
     uint64_t *actual_sum_ptr = UncachedAddr(&actual_sum);
     actual_sum_ptr[0] = actual_sum_ptr[1] = 0;
 
+    // Prepare a block of commands
     dl_block_begin();
     for (uint32_t i = 0; i < 4096; i++) {
         dl_test_8(1);
@@ -424,38 +426,51 @@ void test_dl_highpri_basic(TestContext *ctx)
     dl_block_t *b4096 = dl_block_end();
     DEFER(dl_block_free(b4096));
 
+    // Run the block in standard queue
     dl_test_reset();
     dl_block_run(b4096);
+    dl_test_output(actual_sum_ptr);
     dl_flush();
 
-    uint32_t t0 = TICKS_READ();
+    // Schedule a highpri queue
     dl_highpri_begin();
         dl_test_high(123);
         dl_test_output(actual_sum_ptr);
     dl_highpri_end();
-    dl_highpri_sync();
-    debugf("Elapsed: %lx\n", TICKS_DISTANCE(t0, TICKS_READ()));
 
+    // Wait for highpri execution
+    dl_highpri_sync();
+
+    // Verify that highpri was executed correctly and before lowpri is finished
     ASSERT(actual_sum_ptr[0] < 4096, "lowpri sum is not correct");
     ASSERT_EQUAL_UNSIGNED(actual_sum_ptr[1], 123, "highpri sum is not correct");
 
+    // Schedule a second highpri queue
     dl_highpri_begin();
         dl_test_high(200);
         dl_test_output(actual_sum_ptr);
     dl_highpri_end();
     dl_highpri_sync();
 
+    // Verify that highpri was executed correctly and before lowpri is finished
     ASSERT(actual_sum_ptr[0] < 4096, "lowpri sum is not correct");
     ASSERT_EQUAL_UNSIGNED(actual_sum_ptr[1], 323, "highpri sum is not correct");
 
-    dl_test_output(actual_sum_ptr);
+    // Wait for the end of lowpri
     dl_sync();
 
+    // Verify result of both queues
     ASSERT_EQUAL_UNSIGNED(actual_sum_ptr[0], 4096, "lowpri sum is not correct");
     ASSERT_EQUAL_UNSIGNED(actual_sum_ptr[1], 323, "highpri sum is not correct");
 
     TEST_DL_EPILOG(0, dl_timeout);
 }
+
+void test_dl_highpri_only(TestContext *ctx)
+{
+
+}
+
 
 void test_dl_highpri_multiple(TestContext *ctx)
 {
@@ -477,14 +492,13 @@ void test_dl_highpri_multiple(TestContext *ctx)
     DEFER(dl_block_free(b4096));
 
     dl_test_reset();
-    dl_block_run(b4096);
-    dl_block_run(b4096);
-    dl_block_run(b4096);
-    dl_block_run(b4096);
+    for (int i=0;i<16;i++)
+        dl_block_run(b4096);
     dl_flush();
 
     int partial = 0;
     for (int wait=1;wait<0x100;wait++) {
+        debugf("wait: %x\n", wait);
         dl_highpri_begin();
             for (uint32_t i = 0; i < 32; i++) {
                 dl_test_high(1);
@@ -494,21 +508,21 @@ void test_dl_highpri_multiple(TestContext *ctx)
 
         dl_highpri_begin();
             for (uint32_t i = 0; i < 32; i++) {
-                dl_test_high(1);
+                dl_test_high(3);
                 if ((i&3)==0) dl_test_wait(wait);
             }
         dl_highpri_end();
 
         dl_highpri_begin();
             for (uint32_t i = 0; i < 32; i++) {
-                dl_test_high(1);
+                dl_test_high(5);
                 if ((i&3)==0) dl_test_wait(wait);
             }
         dl_highpri_end();
 
         dl_highpri_begin();
             for (uint32_t i = 0; i < 32; i++) {
-                dl_test_high(1);
+                dl_test_high(7);
                 if ((i&3)==0) dl_test_wait(wait);
             }
         dl_highpri_end();
@@ -519,16 +533,17 @@ void test_dl_highpri_multiple(TestContext *ctx)
 
         dl_highpri_sync();
 
-        partial += 128;
-        ASSERT(actual_sum_ptr[0] < 4096*4, "lowpri sum is not correct");
-        ASSERT_EQUAL_UNSIGNED(actual_sum_ptr[1], partial, "highpri sum is not correct");
+        partial += 1*32 + 3*32 + 5*32 + 7*32;
+        // ASSERT(actual_sum_ptr[0] < 4096*16, "lowpri sum is not correct");
+        debugf("lowsum: %lld\n", actual_sum_ptr[0]);
+        ASSERT_EQUAL_UNSIGNED(actual_sum_ptr[1], partial, "highpri sum is not correct (diff: %lld)", partial - actual_sum_ptr[1]);
     }
 
     dl_test_output(actual_sum_ptr);
     dl_sync();
 
-    ASSERT_EQUAL_UNSIGNED(actual_sum_ptr[0], 4096*4, "lowpri sum is not correct");
-    ASSERT_EQUAL_UNSIGNED(actual_sum_ptr[1], 128, "highpri sum is not correct");
+    ASSERT_EQUAL_UNSIGNED(actual_sum_ptr[0], 4096*16, "lowpri sum is not correct");
+    ASSERT_EQUAL_UNSIGNED(actual_sum_ptr[1], partial, "highpri sum is not correct");
 }
 
 // TODO: test syncing with overlay switching
