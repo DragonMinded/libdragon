@@ -137,10 +137,42 @@ void rsp_run(void)
 void rsp_pause(bool pause)
 {
     if (pause) {
-        //while (*SP_STATUS & (SP_STATUS_DMA_BUSY|SP_STATUS_DMA_FULL)) { /* spin-wait */ }
+        // disable_interrupts();
+        // do {
+        //     // while ((*SP_STATUS & (SP_STATUS_DMA_BUSY|SP_STATUS_DMA_FULL))) {}
+        //     MEMORY_BARRIER();
+        //     *SP_STATUS = SP_WSTATUS_SET_HALT;
+        //     MEMORY_BARRIER();
+        //     while (!(*SP_STATUS & SP_STATUS_HALTED)) { }
+        //     MEMORY_BARRIER();
+
+        //     if (!(*SP_STATUS & (SP_STATUS_DMA_BUSY|SP_STATUS_DMA_FULL)))
+        //         break;
+
+        //     MEMORY_BARRIER();
+        //     debugf("PANIC: RSP HALTED DURING DMA (PC: %lx)\n", *SP_PC);
+        //     MEMORY_BARRIER();
+        //     *SP_STATUS = SP_WSTATUS_CLEAR_HALT;
+        // } while(1);
+        // enable_interrupts();
+
         *SP_STATUS = SP_WSTATUS_SET_HALT;
-        while (*SP_STATUS & (SP_STATUS_DMA_BUSY|SP_STATUS_DMA_FULL)) { /* spin-wait */ }
+        MEMORY_BARRIER();
+        while (*SP_STATUS & (SP_STATUS_DMA_BUSY|SP_STATUS_DMA_FULL)) {}
+
+
+        // // Wait until the DMA engine is idle. It's not allowed for CPU
+        // // touch SP DMEM/IMEM while a DMA is in progress, so it's better to
+        // // play safe here.
+        // while (*SP_STATUS & (SP_STATUS_DMA_BUSY|SP_STATUS_DMA_FULL)) {
+        //     MEMORY_BARRIER();
+        //     while (*SP_STATUS & (SP_STATUS_DMA_BUSY|SP_STATUS_DMA_FULL))
+        //     { /* spin-wait */ }
+        //     MEMORY_BARRIER();
+        //     wait_ticks(100);
+        //     debugf("halt during DMA\n");
+        // }
     } else {
-        *SP_STATUS = SP_WSTATUS_CLEAR_HALT;
+        *SP_STATUS = SP_WSTATUS_CLEAR_SSTEP|SP_WSTATUS_CLEAR_HALT;
     }
 }
