@@ -74,7 +74,6 @@ commandTableEntry command_swap_buffers,     12    # 0x06
 commandTableEntry command_noop,             4     # 0x07
 commandTableEntry command_test_wstatus,     8     # 0x08 -- must be even (bit 24 must be 0)
 commandTableEntry command_dma,              16    # 0x09
-commandTableEntry command_ret_highpri,      8     # 0x0A
 
     .bss
 
@@ -311,12 +310,6 @@ command_jump:
     move s0, a0
     .endfunc
 
-
-    .func command_ret_highpri
-command_ret_highpri:
-    mtc0 a1, COP0_SP_STATUS
-    #fallthrough
-    .endfunc
 
     #############################################################
     # command_ret

@@ -17,7 +17,6 @@
 #define DL_CMD_NOOP              0x07
 #define DL_CMD_TAS_STATUS        0x08
 #define DL_CMD_DMA               0x09
-#define DL_CMD_RET_HIGHPRI       0x0A
 
 #define dl_terminator(dl)   ({ \
     /* The terminator is usually meant to be written only *after* the last \
