@@ -41,14 +41,22 @@
 OVERLAY_TABLE:         .ds.b DL_OVERLAY_TABLE_SIZE
 OVERLAY_DESCRIPTORS:   .ds.b (DL_OVERLAY_DESC_SIZE * DL_MAX_OVERLAY_COUNT)
 
-# RDRAM address of the current command list.
-# NOTE: this *MUST* be initialized before running the RSP code.
-DL_RDRAM_PTR:         .long 0
+# Save slots for RDRAM addresses used during nested lists calls.
+DL_POINTER_STACK:      .ds.l (DL_MAX_BLOCK_NESTING_LEVEL)
+
+DL_RDRAM_PTR_LOWPRI:  .long 0
 # RDRAM address of the high priority command list.
 # NOTE: this *MUST* be initialized before running the RSP code.
 DL_RDRAM_PTR_HIGHPRI: .long 0
 
+# RDRAM address of the current command list.
+# NOTE: this *MUST* be initialized before running the RSP code.
+DL_RDRAM_PTR:         .long 0
+
 CURRENT_OVL:          .half 0
+
+PRIMODE_STATUS_CHECK: .half 0
+
 
     .align 4
 HBANNER0: .ascii " Dragon RSP DL  "
@@ -62,7 +70,7 @@ commandTableEntry command_write_status,     4     # 0x02 -- must be even (bit 24
 commandTableEntry command_call,             8     # 0x03
 commandTableEntry command_jump,             4     # 0x04
 commandTableEntry command_ret,              4     # 0x05
-commandTableEntry command_call_highpri,     8     # 0x06
+commandTableEntry command_swap_buffers,     12    # 0x06
 commandTableEntry command_noop,             4     # 0x07
 commandTableEntry command_test_wstatus,     8     # 0x08 -- must be even (bit 24 must be 0)
 commandTableEntry command_dma,              16    # 0x09
@@ -72,9 +80,6 @@ commandTableEntry command_ret_highpri,      8     # 0x0A
 
     .align 3
 DL_DMEM_BUFFER:            .ds.b DL_DMEM_BUFFER_SIZE
-
-# Save slots for RDRAM addresses used during nested lists calls.
-DL_POINTER_STACK:     .ds.l (DL_MAX_BLOCK_NESTING_LEVEL+1)
 
 
     .align 3
@@ -123,9 +128,6 @@ fetch_buffer_with_ptr:
     li s4, %lo(DL_DMEM_BUFFER)
     jal DMAIn
     li t0, DMA_SIZE(DL_DMEM_BUFFER_SIZE, 1)
-    
-    # jal_and_j DMAIn, loop_no_highpri
-
 
     # fallthrough into the main loopm but skip the highpri check. This is
     # important because we want to give a chance to the first highpri instruction
@@ -141,11 +143,6 @@ loop:
     #define cmd_desc  t6
     #define cmd_size  t7
 
-    mfc0 t0, COP0_SP_STATUS
-    andi t0, SP_STATUS_SIG6
-    bnez t0, command_call_highpri
-
-loop_no_highpri:
     # Read first word
     lw a0, %lo(DL_DMEM_BUFFER) + 0x0 (dl_dmem_buf_ptr)
 
@@ -219,18 +216,19 @@ execute_command:
     lbu t0, %lo(DL_DMEM_BUFFER)(t0)
     beqz t0, command_wait_new_input
 
-    # Jump to command. Set ra to the loop function, so that commands can 
-    # either do "j loop" or "jr ra" (or a tail call) to get back to the main loop
-    li ra, %lo(loop)
-
     # Load second to fourth command words (might be garbage, but will never be read in that case)
     # This saves some instructions in all overlays that use more than 4 bytes per command.
     lw a1, %lo(DL_DMEM_BUFFER) + 0x4 (dl_dmem_buf_ptr)
     lw a2, %lo(DL_DMEM_BUFFER) + 0x8 (dl_dmem_buf_ptr)
     lw a3, %lo(DL_DMEM_BUFFER) + 0xC (dl_dmem_buf_ptr)
 
-    jr cmd_desc
+    jal dl_check_highpri
     add dl_dmem_buf_ptr, cmd_size
+
+    # Jump to command. Set ra to the loop function, so that commands can 
+    # either do "j loop" or "jr ra" (or a tail call) to get back to the main loop
+    jr cmd_desc
+    li ra, %lo(loop)
 
     #undef ovl_index
     #undef cmd_index
@@ -239,22 +237,42 @@ execute_command:
     .endfunc
 
     ############################################################
-    # command_call_highpri
+    # dl_check_highpri
     #
-    # Force execution of the high-priority list by doing
-    # a nested call. This is invoked when SIG6 is set, but
-    # it can also explicitly scheduled in case it is
-    # preferred to be done at specific moments rather than
-    # potentially between any command.
+    # Polling function. Check whether the highpri mode has been
+    # requested by the CPU, and if so start executing it right away.
+    #
+    # This is called by the main loop automatically between each
+    # command, but can be also polled by any overlay function
+    # that takes a long time and want to yield. In this case, 
+    # the same command will be executed again when the highpri queue
+    # is finished, so make sure there is state to continue rather
+    # than restart the execution.
+    #
+    # ARGS:
+    #   t7: size of the current command
     ############################################################
-    .func command_call_highpri
-command_call_highpri:
-    li t0, SP_WSTATUS_RESET_SIG6 | SP_WSTATUS_SET_SIG2 | SP_WSTATUS_SET_SIG3
-    mtc0 t0, COP0_SP_STATUS
-    lw a0, %lo(DL_RDRAM_PTR_HIGHPRI)
-    li a1, DL_HIGHPRI_CALL_SLOT*4
-    # fallthrough
+
+    .func dl_check_highpri
+dl_check_highpri:
+    lhu t1, %lo(PRIMODE_STATUS_CHECK)
+    mfc0 t0, COP0_SP_STATUS
+    and t0, t1
+    beqz t0, JrRa
+    nop
+    li a0, DL_HIGHPRI_CALL_SLOT<<2
+    li a1, DL_LOWPRI_CALL_SLOT<<2
+    li a2, 0
+    sub dl_dmem_buf_ptr, t7
+    #fallthrough
     .endfunc
+
+    .func command_swap_buffers
+command_swap_buffers:
+    sh a2, %lo(PRIMODE_STATUS_CHECK)
+    lw a0, %lo(DL_POINTER_STACK)(a0)
+    #fallthrough
+    .endfunc    
     
     #############################################################
     # command_call

@@ -13,6 +13,7 @@
 #define DL_CMD_CALL              0x03
 #define DL_CMD_JUMP              0x04
 #define DL_CMD_RET               0x05
+#define DL_CMD_SWAP_BUFFERS      0x06
 #define DL_CMD_NOOP              0x07
 #define DL_CMD_TAS_STATUS        0x08
 #define DL_CMD_DMA               0x09
@@ -26,13 +27,13 @@
     *(uint8_t*)(dl) = 0x01; \
 })
 
-#define SP_STATUS_SIG_HIGHPRI_TRAMPOLINE         SP_STATUS_SIG2
-#define SP_WSTATUS_SET_SIG_HIGHPRI_TRAMPOLINE    SP_WSTATUS_SET_SIG2
-#define SP_WSTATUS_CLEAR_SIG_HIGHPRI_TRAMPOLINE  SP_WSTATUS_CLEAR_SIG2
+#define SP_STATUS_SIG_HIGHPRI_RUNNING         SP_STATUS_SIG2
+#define SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING    SP_WSTATUS_SET_SIG2
+#define SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING  SP_WSTATUS_CLEAR_SIG2
 
-#define SP_STATUS_SIG_HIGHPRI_RUNNING         SP_STATUS_SIG3
-#define SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING    SP_WSTATUS_SET_SIG3
-#define SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING  SP_WSTATUS_CLEAR_SIG3
+#define SP_STATUS_SIG_BUFDONE2                SP_STATUS_SIG3
+#define SP_WSTATUS_SET_SIG_BUFDONE2           SP_WSTATUS_SET_SIG3
+#define SP_WSTATUS_CLEAR_SIG_BUFDONE2         SP_WSTATUS_CLEAR_SIG3
 
 #define SP_STATUS_SIG_SYNCPOINT               SP_STATUS_SIG4
 #define SP_WSTATUS_SET_SIG_SYNCPOINT          SP_WSTATUS_SET_SIG4
@@ -78,9 +79,12 @@ typedef struct dl_overlay_tables_s {
 
 typedef struct rsp_dl_s {
     dl_overlay_tables_t tables;
-    uint32_t dl_dram_addr;
+    uint32_t dl_pointer_stack[DL_MAX_BLOCK_NESTING_LEVEL];
+    uint32_t dl_dram_lowpri_addr;
     uint32_t dl_dram_highpri_addr;
+    uint32_t dl_dram_addr;
     int16_t current_ovl;
+    uint16_t primode_status_check;
 } __attribute__((aligned(16), packed)) rsp_dl_t;
 
 static rsp_dl_t dl_data;
@@ -88,16 +92,11 @@ static rsp_dl_t dl_data;
 
 static uint8_t dl_overlay_count = 0;
 
-/** @brief Command list buffers (full cachelines to avoid false sharing) */
-static uint32_t dl_buffers[2][DL_DRAM_BUFFER_SIZE] __attribute__((aligned(16)));
-static uint8_t dl_buf_idx;
 static dl_block_t *dl_block;
 static int dl_block_size;
 
-uint32_t *dl_cur_pointer;
-uint32_t *dl_cur_sentinel;
-
-static uint32_t *dl_old_pointer, *dl_old_sentinel;
+dl_ctx_t ctx;
+dl_ctx_t lowpri, highpri;
 
 static int dl_syncpoints_genid;
 volatile int dl_syncpoints_done;
@@ -106,8 +105,6 @@ static bool dl_is_running;
 static bool dl_is_highpri;
 
 static uint64_t dummy_overlay_state;
-
-static void __dl_highpri_init(void);
 
 static void dl_sp_interrupt(void) 
 {
@@ -160,10 +157,10 @@ void dl_start()
 
     *SP_STATUS = SP_WSTATUS_CLEAR_SIG0 | 
                  SP_WSTATUS_CLEAR_SIG1 | 
-                 SP_WSTATUS_CLEAR_SIG2 | 
-                 SP_WSTATUS_CLEAR_SIG3 | 
-                 SP_WSTATUS_CLEAR_SIG4 | 
+                 SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING | 
+                 SP_WSTATUS_CLEAR_SIG_SYNCPOINT |
                  SP_WSTATUS_SET_SIG_BUFDONE |
+                 SP_WSTATUS_SET_SIG_BUFDONE2 |
                  SP_WSTATUS_CLEAR_SIG_HIGHPRI |
                  SP_WSTATUS_CLEAR_SIG_MORE;
 
@@ -171,6 +168,20 @@ void dl_start()
 
     // Off we go!
     rsp_run_async();
+}
+
+static void dl_init_context(dl_ctx_t *ctx, int buf_size)
+{
+    ctx->buffers[0] = malloc_uncached(buf_size * sizeof(uint32_t));
+    ctx->buffers[1] = malloc_uncached(buf_size * sizeof(uint32_t));
+    memset(ctx->buffers[0], 0, buf_size * sizeof(uint32_t));
+    memset(ctx->buffers[1], 0, buf_size * sizeof(uint32_t));
+    dl_terminator(ctx->buffers[0]);
+    dl_terminator(ctx->buffers[1]);
+    ctx->buf_idx = 0;
+    ctx->buf_size = buf_size;
+    ctx->cur = ctx->buffers[0];
+    ctx->sentinel = ctx->cur + buf_size - DL_MAX_COMMAND_SIZE;
 }
 
 void dl_init()
@@ -181,26 +192,40 @@ void dl_init()
         return;
     }
 
+    // Allocate DL contexts
+    dl_init_context(&lowpri, DL_DRAM_LOWPRI_BUFFER_SIZE);
+    lowpri.sp_status_bufdone = SP_STATUS_SIG_BUFDONE;
+    lowpri.sp_wstatus_set_bufdone = SP_WSTATUS_SET_SIG_BUFDONE;
+    lowpri.sp_wstatus_clear_bufdone = SP_WSTATUS_CLEAR_SIG_BUFDONE;
+
+    dl_init_context(&highpri, DL_DRAM_HIGHPRI_BUFFER_SIZE);
+    highpri.sp_status_bufdone = SP_STATUS_SIG_BUFDONE2;
+    highpri.sp_wstatus_set_bufdone = SP_WSTATUS_SET_SIG_BUFDONE2;
+    highpri.sp_wstatus_clear_bufdone = SP_WSTATUS_CLEAR_SIG_BUFDONE2;
+
+    // Start in low-priority mode
+    ctx = lowpri;
+    debugf("lowpri: %p|%p\n", lowpri.buffers[0], lowpri.buffers[1]);
+    debugf("highpri: %p|%p\n", highpri.buffers[0], highpri.buffers[1]);
+
     // Load initial settings
     memset(dl_data_ptr, 0, sizeof(rsp_dl_t));
-
-    dl_cur_pointer = UncachedAddr(dl_buffers[0]);
-    dl_cur_sentinel = dl_cur_pointer + DL_DRAM_BUFFER_SIZE - DL_MAX_COMMAND_SIZE;
-    memset(dl_cur_pointer, 0, DL_DRAM_BUFFER_SIZE*sizeof(uint32_t));
-    dl_terminator(dl_cur_pointer);
-    dl_block = NULL;
-
-    dl_data_ptr->dl_dram_addr = PhysicalAddr(dl_buffers[0]);
+    dl_data_ptr->dl_dram_lowpri_addr = PhysicalAddr(lowpri.cur);
+    dl_data_ptr->dl_dram_highpri_addr = PhysicalAddr(highpri.cur);
+    dl_data_ptr->dl_dram_addr = dl_data_ptr->dl_dram_lowpri_addr;
     dl_data_ptr->tables.overlay_descriptors[0].data_buf = PhysicalAddr(&dummy_overlay_state);
     dl_data_ptr->tables.overlay_descriptors[0].data_size = sizeof(uint64_t);
+    dl_data_ptr->current_ovl = 0;
+    dl_data_ptr->primode_status_check = SP_STATUS_SIG_HIGHPRI;
+    dl_overlay_count = 1;
     
+    // Init syncpoints
     dl_syncpoints_genid = 0;
     dl_syncpoints_done = 0;
 
-    dl_overlay_count = 1;
+    // Init blocks
+    dl_block = NULL;
     dl_is_running = false;
-
-    __dl_highpri_init();
 
     // Activate SP interrupt (used for syncpoints)
     register_SP_handler(dl_sp_interrupt);
@@ -286,7 +311,7 @@ void dl_overlay_register(rsp_ucode_t *overlay_ucode, uint8_t id)
 
 static uint32_t* dl_switch_buffer(uint32_t *dl2, int size, bool clear)
 {
-    uint32_t* prev = dl_cur_pointer;
+    uint32_t* prev = ctx.cur;
 
     // Add a terminator so that it's a valid buffer.
     // Notice that the buffer must have been cleared before, as the
@@ -297,64 +322,15 @@ static uint32_t* dl_switch_buffer(uint32_t *dl2, int size, bool clear)
     dl_terminator(dl2);
 
     // Switch to the new buffer, and calculate the new sentinel.
-    dl_cur_pointer = dl2;
-    dl_cur_sentinel = dl_cur_pointer + size - DL_MAX_COMMAND_SIZE;
+    ctx.cur = dl2;
+    ctx.sentinel = ctx.cur + size - DL_MAX_COMMAND_SIZE;
 
     // Return a pointer to the previous buffer
     return prev;
 }
 
-static void dl_push_buffer(void) 
-{
-    assertf(!dl_old_pointer, "internal error: dl_push_buffer called twice");
-    dl_old_pointer = dl_cur_pointer;
-    dl_old_sentinel = dl_cur_sentinel;
-}
-
-static void dl_pop_buffer(void) 
-{
-    assertf(dl_old_pointer, "internal error: dl_pop_buffer called without dl_push_buffer");
-    dl_cur_pointer = dl_old_pointer;
-    dl_cur_sentinel = dl_old_sentinel;
-    dl_old_pointer = dl_old_sentinel = NULL;
-}
-
-/**
- * @brief Allocate a buffer that will be accessed as uncached memory.
- * 
- * @param[in]  size  The size of the buffer to allocate
- *
- * @return a pointer to the start of the buffer (as uncached pointer)
- */
-void *malloc_uncached(size_t size)
-{
-    // Since we will be accessing the buffer as uncached memory, we absolutely
-    // need to prevent part of it to ever enter the data cache, even as false
-    // sharing with contiguous buffers. So we want the buffer to exclusively
-    // cover full cachelines (aligned to 16 bytes, multiple of 16 bytes).
-    size = ROUND_UP(size, 16);
-    void *mem = memalign(16, size);
-
-    // The memory returned by the system allocator could already be partly in
-    // cache. Invalidate it so that we don't risk a writeback in the short future.
-    data_cache_hit_invalidate(mem, size);
-
-    // Return the pointer as uncached memory.
-    return UncachedAddr(mem);
-}
-
 __attribute__((noinline))
 void dl_next_buffer(void) {
-    // If we are in highpri mode
-    if (dl_is_highpri) {
-        // The current highpri buffered is now full. The easiest thing to do
-        // is to switch to the next one, simply by closing and reopening the
-        // highpri mode.
-        dl_highpri_end();
-        dl_highpri_begin();
-        return;
-    }
-
     // If we're creating a block
     if (dl_block) {
         // Allocate next chunk (double the size of the current one).
@@ -378,20 +354,22 @@ void dl_next_buffer(void) {
     // so that the kernel can switch away while waiting. Even
     // if the overhead of an interrupt is obviously higher.
     MEMORY_BARRIER();
-    while (!(*SP_STATUS & SP_STATUS_SIG_BUFDONE)) { /* idle */ }
+    while (!(*SP_STATUS & ctx.sp_status_bufdone)) { /* idle */ }
     MEMORY_BARRIER();
-    *SP_STATUS = SP_WSTATUS_CLEAR_SIG_BUFDONE;
+    *SP_STATUS = ctx.sp_wstatus_clear_bufdone;
     MEMORY_BARRIER();
 
     // Switch current buffer
-    dl_buf_idx = 1-dl_buf_idx;
-    uint32_t *dl2 = UncachedAddr(&dl_buffers[dl_buf_idx]);
-    uint32_t *prev = dl_switch_buffer(dl2, DL_DRAM_BUFFER_SIZE, true);
+    ctx.buf_idx = 1-ctx.buf_idx;
+    uint32_t *dl2 = ctx.buffers[ctx.buf_idx];
+    uint32_t *prev = dl_switch_buffer(dl2, ctx.buf_size, true);
+
+    debugf("dl_next_buffer: new:%p old:%p\n", dl2, prev);
 
     // Terminate the previous buffer with an op to set SIG_BUFDONE
     // (to notify when the RSP finishes the buffer), plus a jump to
     // the new buffer.
-    *prev++ = (DL_CMD_SET_STATUS<<24) | SP_WSTATUS_SET_SIG_BUFDONE;
+    *prev++ = (DL_CMD_SET_STATUS<<24) | ctx.sp_wstatus_set_bufdone;
     *prev++ = (DL_CMD_JUMP<<24) | PhysicalAddr(dl2);
     dl_terminator(prev);
 
@@ -435,6 +413,7 @@ void dl_flush(void)
     dl_flush_internal();
 }
 
+#if 1
 static void rsp_crash(void)
 {
     uint32_t status = *SP_STATUS;
@@ -494,8 +473,9 @@ static void rsp_crash(void)
     printf("-----------------------------------------\n");
 
     rsp_dl_t *dl = (rsp_dl_t*)SP_DMEM;
-    printf("DL: Normal  DRAM address: %08lx\n", dl->dl_dram_addr);
+    printf("DL: Normal  DRAM address: %08lx\n", dl->dl_dram_lowpri_addr);
     printf("DL: Highpri DRAM address: %08lx\n", dl->dl_dram_highpri_addr);
+    printf("DL: Current DRAM address: %08lx\n", dl->dl_dram_addr);
     printf("DL: Overlay: %x\n", dl->current_ovl);
     debugf("DL: Command queue:\n");
     for (int j=0;j<16;j++) {        
@@ -521,8 +501,70 @@ static void rsp_watchdog_kick(void)
         rsp_crash();
     }
 }
+#endif
 
 
+#if 1
+
+void dl_highpri_begin(void)
+{
+    assertf(!dl_is_highpri, "already in highpri mode");
+    assertf(!dl_block, "cannot switch to highpri mode while creating a block");
+
+    debugf("dl_highpri_begin\n");
+
+    lowpri = ctx;
+    ctx = highpri;
+
+    // If we're continuing on the same buffer another highpri sequence,
+    // try to erase the final swap buffer command. This is just for performance
+    // (not correctness), as it would be useless to swap back and forth.
+    if (ctx.cur[0]>>24 == DL_CMD_IDLE && ctx.cur[-3]>>24 == DL_CMD_SWAP_BUFFERS) {    
+        ctx.cur[-3] = DL_CMD_NOOP<<24; MEMORY_BARRIER();
+        ctx.cur[-2] = DL_CMD_NOOP<<24; MEMORY_BARRIER();
+        ctx.cur[-1] = DL_CMD_NOOP<<24; MEMORY_BARRIER();
+    }
+
+    *ctx.cur++ = (DL_CMD_SET_STATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING;
+    dl_terminator(ctx.cur);
+ 
+    *SP_STATUS = SP_WSTATUS_SET_SIG_HIGHPRI;
+    dl_is_highpri = true;
+    dl_flush_internal();
+
+    debugf("new cur: %p\n", ctx.cur);
+}
+
+void dl_highpri_end(void)
+{
+    assertf(dl_is_highpri, "not in highpri mode");
+
+    debugf("dl_highpri_end (cur: %p)\n", ctx.cur);
+
+    *ctx.cur++ = (DL_CMD_SET_STATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING;
+    *ctx.cur++ = (DL_CMD_SWAP_BUFFERS<<24) | (DL_LOWPRI_CALL_SLOT<<2);
+      *ctx.cur++ = DL_HIGHPRI_CALL_SLOT<<2;
+      *ctx.cur++ = SP_STATUS_SIG_HIGHPRI;
+    dl_terminator(ctx.cur);
+    dl_flush_internal();
+
+    highpri = ctx;
+    ctx = lowpri;
+    dl_is_highpri = false;
+}
+
+void dl_highpri_sync(void)
+{
+    rsp_watchdog_reset();
+    while (*SP_STATUS & (SP_STATUS_SIG_HIGHPRI | SP_STATUS_SIG_HIGHPRI_RUNNING))
+    {
+        debugf("highpri_sync: wait %lx %x\n", *SP_STATUS, SP_STATUS_SIG_HIGHPRI | SP_STATUS_SIG_HIGHPRI_RUNNING);
+        rsp_watchdog_kick();
+    }
+}
+
+
+#else
 /***********************************************************************/
 
 #define DL_HIGHPRI_NUM_BUFS  8
@@ -836,8 +878,7 @@ void dl_highpri_sync(void)
 #endif
     }
 }
-
-
+#endif
 /***********************************************************************/
 
 void dl_block_begin(void)
@@ -852,7 +893,7 @@ void dl_block_begin(void)
 
     // Switch to the block buffer. From now on, all dl_writes will
     // go into the block.
-    dl_push_buffer();
+    lowpri = ctx;
     dl_switch_buffer(dl_block->cmds, dl_block_size, true);
 }
 
@@ -862,11 +903,11 @@ dl_block_t* dl_block_end(void)
 
     // Terminate the block with a RET command, encoding
     // the nesting level which is used as stack slot by RSP.
-    *dl_cur_pointer++ = (DL_CMD_RET<<24) | (dl_block->nesting_level<<2);
-    dl_terminator(dl_cur_pointer);
+    *ctx.cur++ = (DL_CMD_RET<<24) | (dl_block->nesting_level<<2);
+    dl_terminator(ctx.cur);
 
     // Switch back to the normal display list
-    dl_pop_buffer();
+    ctx = lowpri;
 
     // Return the created block
     dl_block_t *b = dl_block;

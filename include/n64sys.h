@@ -7,6 +7,7 @@
 #define __LIBDRAGON_N64SYS_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <assert.h>
 #include "cop0.h"
 #include "cop1.h"
@@ -234,6 +235,7 @@ void inst_cache_invalidate_all(void);
 
 int get_memory_size();
 bool is_memory_expanded();
+void *malloc_uncached(size_t size);
 
 /** @brief Type of TV video output */
 typedef enum {

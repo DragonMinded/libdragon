@@ -13,6 +13,15 @@
 // This is not a hard limit. Adjust this value when bigger commands are added.
 #define DL_MAX_COMMAND_SIZE   16
 
+typedef struct {
+    void *buffers[2];
+    int buf_size;
+    int buf_idx;
+    uint32_t *cur;
+    uint32_t *sentinel;
+    uint32_t sp_status_bufdone, sp_wstatus_set_bufdone, sp_wstatus_clear_bufdone;
+} dl_ctx_t;
+
 /**
  * @brief A preconstructed block of commands
  * 
@@ -129,8 +138,8 @@ void* dl_overlay_get_state(rsp_ucode_t *overlay_ucode);
  * @hideinitializer
  */
 #define dl_write_begin() ({ \
-	extern uint32_t *dl_cur_pointer; \
-    dl_cur_pointer; \
+	extern dl_ctx_t ctx; \
+    ctx.cur; \
 })
 
 /**
@@ -150,8 +159,7 @@ void* dl_overlay_get_state(rsp_ucode_t *overlay_ucode);
  * @hideinitializer
  */
 #define dl_write_end(dl_) ({ \
-	extern uint32_t *dl_cur_pointer; \
-	extern uint32_t *dl_cur_sentinel; \
+    extern dl_ctx_t ctx; \
 	extern void dl_next_buffer(void); \
     \
 	uint32_t *__dl = (dl_); \
@@ -164,8 +172,8 @@ void* dl_overlay_get_state(rsp_ucode_t *overlay_ucode);
     \
     /* Update the pointer and check if we went past the sentinel, \
      * in which case it's time to switch to the next buffer. */ \
-    dl_cur_pointer = __dl; \
-    if (dl_cur_pointer > dl_cur_sentinel) { \
+    ctx.cur = __dl; \
+    if (ctx.cur > ctx.sentinel) { \
         dl_next_buffer(); \
     } \
 })
