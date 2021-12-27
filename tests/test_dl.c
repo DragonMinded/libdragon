@@ -421,10 +421,10 @@ void test_dl_pause(TestContext *ctx)
         dl_test_4(1);
     }
 
-    uint64_t actual_sum[2];
-    uint64_t *actual_sum_ptr = UncachedAddr(&actual_sum);
+    uint64_t actual_sum[2] __attribute__((aligned(16))) = {0};
+    data_cache_hit_writeback_invalidate(actual_sum, 16);
 
-    dl_test_output(actual_sum_ptr);
+    dl_test_output(actual_sum);
 
     int sync_id = dl_syncpoint();
     dl_flush();
@@ -447,7 +447,7 @@ void test_dl_pause(TestContext *ctx)
 
     ASSERT(completed, "display list not completed: %d/%d", dl_check_syncpoint(sync_id), (*SP_STATUS & SP_STATUS_HALTED) != 0);
     ASSERT_EQUAL_HEX(*SP_STATUS, SP_STATUS_HALTED | SP_STATUS_BROKE | SP_STATUS_SIG3 | SP_STATUS_SIG5, "Unexpected SP status!"); \
-    ASSERT_EQUAL_UNSIGNED(*actual_sum_ptr, 1000, "Sum is incorrect!");
+    ASSERT_EQUAL_UNSIGNED(*actual_sum, 1000, "Sum is incorrect!");
 }
 
 // Test the basic working of highpri queue.
