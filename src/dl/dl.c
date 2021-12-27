@@ -105,6 +105,10 @@ static bool dl_is_highpri;
 
 static uint64_t dummy_overlay_state;
 
+static void rsp_watchdog_reset(void);
+static void rsp_watchdog_kick(void);
+static void dl_flush_internal(void);
+
 static void dl_sp_interrupt(void) 
 {
     uint32_t status = *SP_STATUS;
@@ -353,7 +357,13 @@ void dl_next_buffer(void) {
     // so that the kernel can switch away while waiting. Even
     // if the overhead of an interrupt is obviously higher.
     MEMORY_BARRIER();
-    while (!(*SP_STATUS & ctx.sp_status_bufdone)) { /* idle */ }
+    if (!(*SP_STATUS & ctx.sp_status_bufdone)) {
+        dl_flush_internal();
+        rsp_watchdog_reset();
+        while (!(*SP_STATUS & ctx.sp_status_bufdone)) { 
+                rsp_watchdog_kick();
+        }
+    }
     MEMORY_BARRIER();
     *SP_STATUS = ctx.sp_wstatus_clear_bufdone;
     MEMORY_BARRIER();
@@ -363,7 +373,7 @@ void dl_next_buffer(void) {
     uint32_t *dl2 = ctx.buffers[ctx.buf_idx];
     uint32_t *prev = dl_switch_buffer(dl2, ctx.buf_size, true);
 
-    debugf("dl_next_buffer: new:%p old:%p\n", dl2, prev);
+    // debugf("dl_next_buffer: new:%p old:%p\n", dl2, prev);
 
     // Terminate the previous buffer with an op to set SIG_BUFDONE
     // (to notify when the RSP finishes the buffer), plus a jump to
@@ -496,7 +506,7 @@ static void rsp_watchdog_reset(void)
 
 static void rsp_watchdog_kick(void)
 {
-    if (++rsp_watchdog_counter == 100) {
+    if (++rsp_watchdog_counter == 300) {
         rsp_crash();
     }
 }
@@ -510,7 +520,7 @@ void dl_highpri_begin(void)
     assertf(!dl_is_highpri, "already in highpri mode");
     assertf(!dl_block, "cannot switch to highpri mode while creating a block");
 
-    debugf("dl_highpri_begin\n");
+    // debugf("dl_highpri_begin\n");
 
     lowpri = ctx;
     ctx = highpri;
@@ -518,11 +528,18 @@ void dl_highpri_begin(void)
     // If we're continuing on the same buffer another highpri sequence,
     // try to erase the final swap buffer command. This is just for performance
     // (not correctness), as it would be useless to swap back and forth.
+#if 1
     if (ctx.cur[0]>>24 == DL_CMD_IDLE && ctx.cur[-3]>>24 == DL_CMD_SWAP_BUFFERS) {    
+        ctx.cur[-4] = 0; MEMORY_BARRIER();
+        ctx.cur[-3] = 0; MEMORY_BARRIER();
+        ctx.cur[-2] = 0; MEMORY_BARRIER();
+        ctx.cur[-1] = 0; MEMORY_BARRIER();
+        ctx.cur[-4] = DL_CMD_NOOP<<24; MEMORY_BARRIER();
         ctx.cur[-3] = DL_CMD_NOOP<<24; MEMORY_BARRIER();
         ctx.cur[-2] = DL_CMD_NOOP<<24; MEMORY_BARRIER();
         ctx.cur[-1] = DL_CMD_NOOP<<24; MEMORY_BARRIER();
     }
+#endif
 
     *ctx.cur++ = (DL_CMD_SET_STATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING;
     dl_terminator(ctx.cur);
@@ -538,7 +555,7 @@ void dl_highpri_end(void)
 {
     assertf(dl_is_highpri, "not in highpri mode");
 
-    debugf("dl_highpri_end (cur: %p)\n", ctx.cur);
+    // debugf("dl_highpri_end (cur: %p)\n", ctx.cur);
 
     *ctx.cur++ = (DL_CMD_SET_STATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING;
     *ctx.cur++ = (DL_CMD_SWAP_BUFFERS<<24) | (DL_LOWPRI_CALL_SLOT<<2);
@@ -557,7 +574,9 @@ void dl_highpri_sync(void)
     rsp_watchdog_reset();
     while (*SP_STATUS & (SP_STATUS_SIG_HIGHPRI | SP_STATUS_SIG_HIGHPRI_RUNNING))
     {
-        debugf("highpri_sync: wait %lx %x\n", *SP_STATUS, SP_STATUS_SIG_HIGHPRI | SP_STATUS_SIG_HIGHPRI_RUNNING);
+        // if (*SP_STATUS & SP_STATUS_HALTED)
+        //     *SP_STATUS = SP_WSTATUS_SET_SIG_MORE | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
+        // debugf("highpri_sync: wait %lx %x\n", *SP_STATUS, SP_STATUS_SIG_HIGHPRI | SP_STATUS_SIG_HIGHPRI_RUNNING);
         rsp_watchdog_kick();
     }
 }

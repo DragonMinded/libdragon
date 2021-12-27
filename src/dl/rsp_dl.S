@@ -142,6 +142,9 @@ loop:
     #define cmd_desc  t6
     #define cmd_size  t7
 
+    jal dl_check_highpri
+    li cmd_size, 0
+
     # Read first word
     lw a0, %lo(DL_DMEM_BUFFER) + 0x0 (dl_dmem_buf_ptr)
 
@@ -220,8 +223,6 @@ execute_command:
     lw a1, %lo(DL_DMEM_BUFFER) + 0x4 (dl_dmem_buf_ptr)
     lw a2, %lo(DL_DMEM_BUFFER) + 0x8 (dl_dmem_buf_ptr)
     lw a3, %lo(DL_DMEM_BUFFER) + 0xC (dl_dmem_buf_ptr)
-
-    jal dl_check_highpri
     add dl_dmem_buf_ptr, cmd_size
 
     # Jump to command. Set ra to the loop function, so that commands can 

@@ -409,8 +409,6 @@ void test_dl_wait_sync_in_block(TestContext *ctx)
 // Test the basic working of highpri queue.
 void test_dl_highpri_basic(TestContext *ctx)
 {
-    DEFER(rsp_pause(true));
-
     TEST_DL_PROLOG();
     test_ovl_init();
 
