@@ -144,12 +144,12 @@ void mixer_init(int num_channels) {
 		mixer_ch_set_limits(ch, 16, Mixer.sample_rate, 0);
 	}
 
-	void *mixer_state = dl_overlay_get_state(&rsp_mixer);
+	void *mixer_state = rspq_overlay_get_state(&rsp_mixer);
 	memset(mixer_state, 0, MIXER_STATE_SIZE);
 	data_cache_hit_writeback(mixer_state, MIXER_STATE_SIZE);
 
-	dl_init();
-    dl_overlay_register(&rsp_mixer, 1);
+	rspq_init();
+    rspq_overlay_register(&rsp_mixer, 1);
 }
 
 static void mixer_init_samplebuffers(void) {
@@ -584,15 +584,15 @@ void mixer_exec(int32_t *out, int num_samples) {
 
 	uint32_t t0 = TICKS_READ();
 
-	uint32_t *ptr = dl_write_begin();
+	uint32_t *ptr = rspq_write_begin();
 
 	*ptr++ = 0x10000000 | (((uint32_t)MIXER_FX16(Mixer.vol)) & 0xFFFF);
 	*ptr++ = (num_samples << 16) | Mixer.num_channels;
 	*ptr++ = PhysicalAddr(out);
 	*ptr++ = PhysicalAddr(&Mixer.ucode_settings);
 	
-	dl_write_end(ptr);
-	dl_sync();
+	rspq_write_end(ptr);
+	rspq_sync();
 
 	__mixer_profile_rsp += TICKS_READ() - t0;
 

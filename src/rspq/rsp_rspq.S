@@ -21,16 +21,16 @@
 # * Fetch current command first byte
 # * Calculate command size
 # * if cur pointer + command size overflow DMEM buffer => 
-#      unconditional DMA (rolling back the DL_BUFFFERDESC_START to refetch the current command)
+#      unconditional DMA (rolling back the RSPQ_BUFFFERDESC_START to refetch the current command)
 # * if byte at cur pointer + command size is 0x00 => 
-#      wait for new input (rolling back the DL_BUFFFERDESC_START to refetch the current command)
+#      wait for new input (rolling back the RSPQ_BUFFFERDESC_START to refetch the current command)
 # * Run current command. 
 #      If it's 0x01 the command is actually "wait for new input" 
 
 #include <rsp.inc>
-#include <rsp_dl.inc>
+#include <rsp_rspq.inc>
 
-#include "dl_internal.h"
+#include "rspq_internal.h"
 
     .set noreorder
     .set at
@@ -38,20 +38,20 @@
     .data
 
 # Input properties
-OVERLAY_TABLE:         .ds.b DL_OVERLAY_TABLE_SIZE
-OVERLAY_DESCRIPTORS:   .ds.b (DL_OVERLAY_DESC_SIZE * DL_MAX_OVERLAY_COUNT)
+OVERLAY_TABLE:         .ds.b RSPQ_OVERLAY_TABLE_SIZE
+OVERLAY_DESCRIPTORS:   .ds.b (RSPQ_OVERLAY_DESC_SIZE * RSPQ_MAX_OVERLAY_COUNT)
 
 # Save slots for RDRAM addresses used during nested lists calls.
-DL_POINTER_STACK:      .ds.l (DL_MAX_BLOCK_NESTING_LEVEL)
+RSPQ_POINTER_STACK:      .ds.l (RSPQ_MAX_BLOCK_NESTING_LEVEL)
 
-DL_RDRAM_PTR_LOWPRI:  .long 0
+RSPQ_RDRAM_PTR_LOWPRI:  .long 0
 # RDRAM address of the high priority command list.
 # NOTE: this *MUST* be initialized before running the RSP code.
-DL_RDRAM_PTR_HIGHPRI: .long 0
+RSPQ_RDRAM_PTR_HIGHPRI: .long 0
 
 # RDRAM address of the current command list.
 # NOTE: this *MUST* be initialized before running the RSP code.
-DL_RDRAM_PTR:         .long 0
+RSPQ_RDRAM_PTR:         .long 0
 
 CURRENT_OVL:          .half 0
 
@@ -59,7 +59,7 @@ PRIMODE_STATUS_CHECK: .half 0
 
 
     .align 4
-HBANNER0: .ascii " Dragon RSP DL  "
+HBANNER0: .ascii " Dragon RSP RSPQ  "
 HBANNER1: .ascii "Rasky & Snacchus"
 
     .align 3
@@ -78,7 +78,7 @@ commandTableEntry command_dma,              16    # 0x09
     .bss
 
     .align 3
-DL_DMEM_BUFFER:            .ds.b DL_DMEM_BUFFER_SIZE
+RSPQ_DMEM_BUFFER:            .ds.b RSPQ_DMEM_BUFFER_SIZE
 
 
     .align 3
@@ -89,8 +89,8 @@ _ovl_data_start:
 
     .globl _start
 _start:
-    # NOTE: DL_RDRAM_PTR must have been initialized before spinning up RSP!
-    li dl_dmem_buf_ptr, 0
+    # NOTE: RSPQ_RDRAM_PTR must have been initialized before spinning up RSP!
+    li rspq_dmem_buf_ptr, 0
 
     .func command_wait_new_input
 command_wait_new_input:
@@ -108,25 +108,25 @@ wakeup:
 fetch_buffer:
     # Fetch the RDRAM pointer, and adjust it to the current reading index.
     # We will fetch commands starting from there
-    lw s0, %lo(DL_RDRAM_PTR)
-    add s0, dl_dmem_buf_ptr
+    lw s0, %lo(RSPQ_RDRAM_PTR)
+    add s0, rspq_dmem_buf_ptr
 fetch_buffer_with_ptr:
 
     # Reset the reading index to the first actual byte of the buffer (after
     # taking misalignment into account)
-    andi dl_dmem_buf_ptr, s0, 7
+    andi rspq_dmem_buf_ptr, s0, 7
 
     # Correction for misalignment
-    sub s0, dl_dmem_buf_ptr
+    sub s0, rspq_dmem_buf_ptr
 
     # Store the updated pointer
-    sw s0, %lo(DL_RDRAM_PTR)
+    sw s0, %lo(RSPQ_RDRAM_PTR)
 
     # Fetch the whole DMEM buffer. We will use the 0x00 invalid fill value to
     # realize where the buffer is empty.
-    li s4, %lo(DL_DMEM_BUFFER)
+    li s4, %lo(RSPQ_DMEM_BUFFER)
     jal DMAIn
-    li t0, DMA_SIZE(DL_DMEM_BUFFER_SIZE, 1)
+    li t0, DMA_SIZE(RSPQ_DMEM_BUFFER_SIZE, 1)
 
     # fallthrough into the main loopm but skip the highpri check. This is
     # important because we want to give a chance to the first highpri instruction
@@ -142,11 +142,11 @@ loop:
     #define cmd_desc  t6
     #define cmd_size  t7
 
-    jal dl_check_highpri
+    jal rspq_check_highpri
     li cmd_size, 0
 
     # Read first word
-    lw a0, %lo(DL_DMEM_BUFFER) + 0x0 (dl_dmem_buf_ptr)
+    lw a0, %lo(RSPQ_DMEM_BUFFER) + 0x0 (rspq_dmem_buf_ptr)
 
     # Index into overlay table
     srl t0, a0, 28
@@ -208,22 +208,22 @@ execute_command:
     # Check if the command is truncated because of buffer overflow (that is,
     # it finishes beyond the buffer end). If so, we must refetch the buffer
     # starting from the current position.
-    addu t0, dl_dmem_buf_ptr, cmd_size
-    bge t0, DL_DMEM_BUFFER_SIZE, fetch_buffer
+    addu t0, rspq_dmem_buf_ptr, cmd_size
+    bge t0, RSPQ_DMEM_BUFFER_SIZE, fetch_buffer
 
     # Check if there's an invalid command (0x00) just after the current command.
     # If so, the previous command might have been fetched partially (as it was
     # being written in RDRAM by CPU), so wait for it to be complete and
     # then fetch the buffer again.
-    lbu t0, %lo(DL_DMEM_BUFFER)(t0)
+    lbu t0, %lo(RSPQ_DMEM_BUFFER)(t0)
     beqz t0, command_wait_new_input
 
     # Load second to fourth command words (might be garbage, but will never be read in that case)
     # This saves some instructions in all overlays that use more than 4 bytes per command.
-    lw a1, %lo(DL_DMEM_BUFFER) + 0x4 (dl_dmem_buf_ptr)
-    lw a2, %lo(DL_DMEM_BUFFER) + 0x8 (dl_dmem_buf_ptr)
-    lw a3, %lo(DL_DMEM_BUFFER) + 0xC (dl_dmem_buf_ptr)
-    add dl_dmem_buf_ptr, cmd_size
+    lw a1, %lo(RSPQ_DMEM_BUFFER) + 0x4 (rspq_dmem_buf_ptr)
+    lw a2, %lo(RSPQ_DMEM_BUFFER) + 0x8 (rspq_dmem_buf_ptr)
+    lw a3, %lo(RSPQ_DMEM_BUFFER) + 0xC (rspq_dmem_buf_ptr)
+    add rspq_dmem_buf_ptr, cmd_size
 
     # Jump to command. Set ra to the loop function, so that commands can 
     # either do "j loop" or "jr ra" (or a tail call) to get back to the main loop
@@ -237,7 +237,7 @@ execute_command:
     .endfunc
 
     ############################################################
-    # dl_check_highpri
+    # rspq_check_highpri
     #
     # Polling function. Check whether the highpri mode has been
     # requested by the CPU, and if so start executing it right away.
@@ -253,24 +253,24 @@ execute_command:
     #   t7: size of the current command
     ############################################################
 
-    .func dl_check_highpri
-dl_check_highpri:
+    .func rspq_check_highpri
+rspq_check_highpri:
     lhu t1, %lo(PRIMODE_STATUS_CHECK)
     mfc0 t0, COP0_SP_STATUS
     and t0, t1
     beqz t0, JrRa
     nop
-    li a0, DL_HIGHPRI_CALL_SLOT<<2
-    li a1, DL_LOWPRI_CALL_SLOT<<2
+    li a0, RSPQ_HIGHPRI_CALL_SLOT<<2
+    li a1, RSPQ_LOWPRI_CALL_SLOT<<2
     li a2, 0
-    sub dl_dmem_buf_ptr, t7
+    sub rspq_dmem_buf_ptr, t7
     #fallthrough
     .endfunc
 
     .func command_swap_buffers
 command_swap_buffers:
     sh a2, %lo(PRIMODE_STATUS_CHECK)
-    lw a0, %lo(DL_POINTER_STACK)(a0)
+    lw a0, %lo(RSPQ_POINTER_STACK)(a0)
     #fallthrough
     .endfunc    
     
@@ -289,9 +289,9 @@ command_swap_buffers:
 command_call:
     # a0: command opcode + RDRAM address
     # a1: call slot in DMEM
-    lw s0, %lo(DL_RDRAM_PTR)
-    add s0, dl_dmem_buf_ptr
-    sw s0, %lo(DL_POINTER_STACK)(a1)  # save return address
+    lw s0, %lo(RSPQ_RDRAM_PTR)
+    add s0, rspq_dmem_buf_ptr
+    sw s0, %lo(RSPQ_POINTER_STACK)(a1)  # save return address
     # fallthrough
     .endfunc
 
@@ -323,7 +323,7 @@ command_jump:
 command_ret:
     # a0: command opcode + call slot in DMEM to recover
     j fetch_buffer_with_ptr
-    lw s0, %lo(DL_POINTER_STACK)(a0)
+    lw s0, %lo(RSPQ_POINTER_STACK)(a0)
     .endfunc
 
     #############################################################

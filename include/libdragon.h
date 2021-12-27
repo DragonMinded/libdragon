@@ -50,7 +50,7 @@
 #include "wav64.h"
 #include "xm64.h"
 #include "ym64.h"
-#include "dl.h"
+#include "rspq.h"
 #include "ugfx.h"
 #include "rdp_commands.h"
 

@@ -1,0 +1,21 @@
+#ifndef __RSPQ_INTERNAL
+#define __RSPQ_INTERNAL
+
+#define RSPQ_DRAM_LOWPRI_BUFFER_SIZE   0x1000
+#define RSPQ_DRAM_HIGHPRI_BUFFER_SIZE  0x80
+
+#define RSPQ_DMEM_BUFFER_SIZE   0x100
+#define RSPQ_OVERLAY_TABLE_SIZE 0x10
+#define RSPQ_OVERLAY_DESC_SIZE  0x10
+#define RSPQ_MAX_OVERLAY_COUNT  8
+
+// Size of the initial display list block size
+#define RSPQ_BLOCK_MIN_SIZE     64
+#define RSPQ_BLOCK_MAX_SIZE     4192
+
+// Maximum number of nested block calls
+#define RSPQ_MAX_BLOCK_NESTING_LEVEL 8
+#define RSPQ_LOWPRI_CALL_SLOT        (RSPQ_MAX_BLOCK_NESTING_LEVEL+0)
+#define RSPQ_HIGHPRI_CALL_SLOT       (RSPQ_MAX_BLOCK_NESTING_LEVEL+1)
+
+#endif

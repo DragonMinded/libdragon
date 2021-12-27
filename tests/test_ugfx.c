@@ -31,8 +31,8 @@ void test_ugfx_rdp_interrupt(TestContext *ctx)
     set_DP_interrupt(1);
     DEFER(set_DP_interrupt(0));
 
-    dl_init();
-    DEFER(dl_close());
+    rspq_init();
+    DEFER(rspq_close());
     ugfx_init();
     DEFER(ugfx_close());
 
@@ -51,8 +51,8 @@ void test_ugfx_dram_buffer(TestContext *ctx)
     set_DP_interrupt(1);
     DEFER(set_DP_interrupt(0));
 
-    dl_init();
-    DEFER(dl_close());
+    rspq_init();
+    DEFER(rspq_close());
     ugfx_init();
     DEFER(ugfx_close());
 
@@ -69,7 +69,7 @@ void test_ugfx_dram_buffer(TestContext *ctx)
     rdp_set_other_modes(SOM_CYCLE_FILL);
     rdp_set_scissor(0, 0, 32 << 2, 32 << 2);
     rdp_set_fill_color(0xFFFFFFFF);
-    dl_noop();
+    rspq_noop();
     rdp_set_color_image((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, 32);
     rdp_fill_rectangle(0, 0, 32 << 2, 32 << 2);
     rdp_sync_full();
@@ -103,8 +103,8 @@ void test_ugfx_fill_dmem_buffer(TestContext *ctx)
     set_DP_interrupt(1);
     DEFER(set_DP_interrupt(0));
 
-    dl_init();
-    DEFER(dl_close());
+    rspq_init();
+    DEFER(rspq_close());
     ugfx_init();
     DEFER(ugfx_close());
 
@@ -146,8 +146,8 @@ void test_ugfx_fill_dram_buffer(TestContext *ctx)
     set_DP_interrupt(1);
     DEFER(set_DP_interrupt(0));
 
-    dl_init();
-    DEFER(dl_close());
+    rspq_init();
+    DEFER(rspq_close());
     ugfx_init();
     DEFER(ugfx_close());
 

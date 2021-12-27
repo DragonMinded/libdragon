@@ -1,81 +1,81 @@
 #include <malloc.h>
 #include <string.h>
 
-#include <dl.h>
+#include <rspq.h>
 #include <ugfx.h>
 
-#include "../src/dl/dl_internal.h"
+#include "../src/rspq/rspq_internal.h"
 #include "../src/ugfx/ugfx_internal.h"
 
 DEFINE_RSP_UCODE(rsp_test);
 
 void test_ovl_init()
 {
-    void *test_ovl_state = dl_overlay_get_state(&rsp_test);
+    void *test_ovl_state = rspq_overlay_get_state(&rsp_test);
     memset(test_ovl_state, 0, sizeof(uint32_t) * 2);
 
-    dl_init();
-    dl_overlay_register(&rsp_test, 0xF);
-    dl_sync(); // make sure the overlay is fully registered before beginning
+    rspq_init();
+    rspq_overlay_register(&rsp_test, 0xF);
+    rspq_sync(); // make sure the overlay is fully registered before beginning
 }
 
-void dl_test_4(uint32_t value)
+void rspq_test_4(uint32_t value)
 {
-    uint32_t *ptr = dl_write_begin();
+    uint32_t *ptr = rspq_write_begin();
     *ptr++ = 0xf0000000 | value;
-    dl_write_end(ptr);
+    rspq_write_end(ptr);
 }
 
-void dl_test_8(uint32_t value)
+void rspq_test_8(uint32_t value)
 {
-    uint32_t *ptr = dl_write_begin();
+    uint32_t *ptr = rspq_write_begin();
     *ptr++ = 0xf1000000 | value;
     *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG0;
-    dl_write_end(ptr);
+    rspq_write_end(ptr);
 }
 
-void dl_test_16(uint32_t value)
+void rspq_test_16(uint32_t value)
 {
-    uint32_t *ptr = dl_write_begin();
+    uint32_t *ptr = rspq_write_begin();
     *ptr++ = 0xf2000000 | value;
     *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG0;
     *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG1;
     *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG2;
-    dl_write_end(ptr);
+    rspq_write_end(ptr);
 }
 
-void dl_test_wait(uint32_t length)
+void rspq_test_wait(uint32_t length)
 {
-    uint32_t *ptr = dl_write_begin();
+    uint32_t *ptr = rspq_write_begin();
     *ptr++ = 0xf3000000;
     *ptr++ = length;
-    dl_write_end(ptr);
+    rspq_write_end(ptr);
 }
 
-void dl_test_output(uint64_t *dest)
+void rspq_test_output(uint64_t *dest)
 {
-    uint32_t *ptr = dl_write_begin();
+    uint32_t *ptr = rspq_write_begin();
     *ptr++ = 0xf4000000;
     *ptr++ = PhysicalAddr(dest);
-    dl_write_end(ptr);
+    rspq_write_end(ptr);
 }
 
-void dl_test_reset(void)
+void rspq_test_reset(void)
 {
-    uint32_t *ptr = dl_write_begin();
+    uint32_t *ptr = rspq_write_begin();
     *ptr++ = 0xf5000000;
-    dl_write_end(ptr);
+    rspq_write_end(ptr);
 }
 
-void dl_test_high(uint32_t value)
+void rspq_test_high(uint32_t value)
 {
-    uint32_t *ptr = dl_write_begin();
+    uint32_t *ptr = rspq_write_begin();
     *ptr++ = 0xf6000000 | value;
-    dl_write_end(ptr);
+    rspq_write_end(ptr);
 }
 
 
-#define DL_LOG_STATUS(step) debugf("STATUS: %#010lx, PC: %#010lx (%s)\n", *SP_STATUS, *SP_PC, step)
+#define RSPQ_LOG_STATUS(step) debugf("STATUS: %#010lx, PC: %#010lx (%s)\n", *SP_STATUS, *SP_PC, step)
 
 void dump_mem(void* ptr, uint32_t size)
 {
@@ -92,88 +92,88 @@ bool wait_for_syncpoint(int sync_id, unsigned long timeout)
 
     while (get_ticks_ms() - time_start < timeout) {
         // Wait until the interrupt was raised and the SP is in idle mode
-        if (dl_check_syncpoint(sync_id) && (*SP_STATUS & SP_STATUS_HALTED)) {
+        if (rspq_check_syncpoint(sync_id) && (*SP_STATUS & SP_STATUS_HALTED)) {
             return true;
         }
     }
     return false;
 }
 
-#define TEST_DL_PROLOG() \
-    dl_init(); \
-    DEFER(dl_close());
+#define TEST_RSPQ_PROLOG() \
+    rspq_init(); \
+    DEFER(rspq_close());
 
-const unsigned long dl_timeout = 100;
+const unsigned long rspq_timeout = 100;
 
-#define TEST_DL_EPILOG(s, t) ({ \
-    int sync_id = dl_syncpoint(); \
-    dl_flush(); \
+#define TEST_RSPQ_EPILOG(s, t) ({ \
+    int sync_id = rspq_syncpoint(); \
+    rspq_flush(); \
     if (!wait_for_syncpoint(sync_id, t)) \
-        ASSERT(0, "display list not completed: %d/%d", dl_check_syncpoint(sync_id), (*SP_STATUS & SP_STATUS_HALTED) != 0); \
+        ASSERT(0, "display list not completed: %d/%d", rspq_check_syncpoint(sync_id), (*SP_STATUS & SP_STATUS_HALTED) != 0); \
     ASSERT_EQUAL_HEX(*SP_STATUS, SP_STATUS_HALTED | SP_STATUS_BROKE | SP_STATUS_SIG3 | SP_STATUS_SIG5 | (s), "Unexpected SP status!"); \
 })
 
-void test_dl_queue_single(TestContext *ctx)
+void test_rspq_queue_single(TestContext *ctx)
 {
-    TEST_DL_PROLOG();
+    TEST_RSPQ_PROLOG();
 
-    TEST_DL_EPILOG(0, dl_timeout);
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
 }
 
-void test_dl_queue_multiple(TestContext *ctx)
+void test_rspq_queue_multiple(TestContext *ctx)
 {
-    TEST_DL_PROLOG();
+    TEST_RSPQ_PROLOG();
     
-    dl_noop();
+    rspq_noop();
 
-    TEST_DL_EPILOG(0, dl_timeout);
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
 }
 
-void test_dl_queue_rapid(TestContext *ctx)
+void test_rspq_queue_rapid(TestContext *ctx)
 {
-    TEST_DL_PROLOG();
+    TEST_RSPQ_PROLOG();
     
-    dl_noop();
-    dl_noop();
-    dl_noop();
-    dl_noop();
-    dl_noop();
-    dl_noop();
-    dl_noop();
-    dl_noop();
-    dl_noop();
-    dl_noop();
-    dl_noop();
-    dl_noop();
-    dl_noop();
-    dl_noop();
+    rspq_noop();
+    rspq_noop();
+    rspq_noop();
+    rspq_noop();
+    rspq_noop();
+    rspq_noop();
+    rspq_noop();
+    rspq_noop();
+    rspq_noop();
+    rspq_noop();
+    rspq_noop();
+    rspq_noop();
+    rspq_noop();
+    rspq_noop();
 
-    TEST_DL_EPILOG(0, dl_timeout);
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
 }
 
-void test_dl_wrap(TestContext *ctx)
+void test_rspq_wrap(TestContext *ctx)
 {
-    TEST_DL_PROLOG();
+    TEST_RSPQ_PROLOG();
 
-    uint32_t block_count = DL_DRAM_LOWPRI_BUFFER_SIZE * 8;
+    uint32_t block_count = RSPQ_DRAM_LOWPRI_BUFFER_SIZE * 8;
     for (uint32_t i = 0; i < block_count; i++)
-        dl_noop();
+        rspq_noop();
     
-    TEST_DL_EPILOG(0, dl_timeout);
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
 }
 
-void test_dl_signal(TestContext *ctx)
+void test_rspq_signal(TestContext *ctx)
 {
-    TEST_DL_PROLOG();
+    TEST_RSPQ_PROLOG();
     
-    dl_signal(SP_WSTATUS_SET_SIG1 | SP_WSTATUS_SET_SIG2);
+    rspq_signal(SP_WSTATUS_SET_SIG1 | SP_WSTATUS_SET_SIG2);
 
-    TEST_DL_EPILOG(SP_STATUS_SIG1 | SP_STATUS_SIG2, dl_timeout);
+    TEST_RSPQ_EPILOG(SP_STATUS_SIG1 | SP_STATUS_SIG2, rspq_timeout);
 }
 
-void test_dl_high_load(TestContext *ctx)
+void test_rspq_high_load(TestContext *ctx)
 {
-    TEST_DL_PROLOG();
+    TEST_RSPQ_PROLOG();
 
     test_ovl_init();
 
@@ -186,13 +186,13 @@ void test_dl_high_load(TestContext *ctx)
         switch (x)
         {
             case 0:
-                dl_test_4(1);
+                rspq_test_4(1);
                 break;
             case 1:
-                dl_test_8(1);
+                rspq_test_8(1);
                 break;
             case 2:
-                dl_test_16(1);
+                rspq_test_16(1);
                 break;
         }
 
@@ -202,23 +202,23 @@ void test_dl_high_load(TestContext *ctx)
     uint64_t actual_sum[2] __attribute__((aligned(16))) = {0};
     data_cache_hit_writeback_invalidate(actual_sum, 16);
 
-    dl_test_output(actual_sum);
+    rspq_test_output(actual_sum);
 
-    TEST_DL_EPILOG(0, dl_timeout);
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
 
     ASSERT_EQUAL_UNSIGNED(*actual_sum, expected_sum, "Possibly not all commands have been executed!");
 }
 
-void test_dl_load_overlay(TestContext *ctx)
+void test_rspq_load_overlay(TestContext *ctx)
 {
-    TEST_DL_PROLOG();
+    TEST_RSPQ_PROLOG();
     
     ugfx_init();
     DEFER(ugfx_close());
 
     rdp_set_env_color(0);
 
-    TEST_DL_EPILOG(0, dl_timeout);
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
     
     extern uint8_t rsp_ugfx_text_start[];
     extern uint8_t rsp_ugfx_text_end[0];
@@ -228,9 +228,9 @@ void test_dl_load_overlay(TestContext *ctx)
     ASSERT_EQUAL_MEM((uint8_t*)SP_IMEM, rsp_ugfx_text_start, size, "ugfx overlay was not loaded into IMEM!");
 }
 
-void test_dl_switch_overlay(TestContext *ctx)
+void test_rspq_switch_overlay(TestContext *ctx)
 {
-    TEST_DL_PROLOG();
+    TEST_RSPQ_PROLOG();
     
     test_ovl_init();
 
@@ -238,14 +238,14 @@ void test_dl_switch_overlay(TestContext *ctx)
     DEFER(ugfx_close());
 
     rdp_set_env_color(0);
-    dl_test_16(0);
+    rspq_test_16(0);
 
-    TEST_DL_EPILOG(0, dl_timeout);
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
 
     extern rsp_ucode_t rsp_ugfx;
-    extern void* dl_overlay_get_state(rsp_ucode_t *overlay_ucode);
+    extern void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
 
-    ugfx_state_t *ugfx_state = UncachedAddr(dl_overlay_get_state(&rsp_ugfx));
+    ugfx_state_t *ugfx_state = UncachedAddr(rspq_overlay_get_state(&rsp_ugfx));
 
     uint64_t expected_commands[] = {
         RdpSetEnvColor(0)
@@ -254,187 +254,187 @@ void test_dl_switch_overlay(TestContext *ctx)
     ASSERT_EQUAL_MEM(ugfx_state->rdp_buffer, (uint8_t*)expected_commands, sizeof(expected_commands), "State was not saved!");
 }
 
-void test_dl_multiple_flush(TestContext *ctx)
+void test_rspq_multiple_flush(TestContext *ctx)
 {
-    TEST_DL_PROLOG();
+    TEST_RSPQ_PROLOG();
     test_ovl_init();
 
-    dl_test_8(1);
-    dl_test_8(1);
-    dl_test_8(1);
-    dl_flush();
+    rspq_test_8(1);
+    rspq_test_8(1);
+    rspq_test_8(1);
+    rspq_flush();
     wait_ms(3);
-    dl_test_8(1);
-    dl_test_8(1);
-    dl_test_8(1);
-    dl_flush();
+    rspq_test_8(1);
+    rspq_test_8(1);
+    rspq_test_8(1);
+    rspq_flush();
     wait_ms(3);
 
     uint64_t actual_sum[2] __attribute__((aligned(16))) = {0};
     data_cache_hit_writeback_invalidate(actual_sum, 16);
 
-    dl_test_output(actual_sum);
+    rspq_test_output(actual_sum);
 
-    TEST_DL_EPILOG(0, dl_timeout);
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
 
     ASSERT_EQUAL_UNSIGNED(*actual_sum, 6, "Sum is incorrect!");
 }
 
 
-void test_dl_sync(TestContext *ctx)
+void test_rspq_sync(TestContext *ctx)
 {
-    TEST_DL_PROLOG();
+    TEST_RSPQ_PROLOG();
     
     test_ovl_init();
 
     for (uint32_t i = 0; i < 100; i++)
     {
-        dl_test_8(1);
-        dl_test_wait(0x8000);
-        dl_sync();
+        rspq_test_8(1);
+        rspq_test_wait(0x8000);
+        rspq_sync();
     }
 
     uint64_t actual_sum[2] __attribute__((aligned(16))) = {0};
     data_cache_hit_writeback_invalidate(actual_sum, 16);
 
-    dl_test_output(actual_sum);
+    rspq_test_output(actual_sum);
 
-    TEST_DL_EPILOG(0, dl_timeout);
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
 
     ASSERT_EQUAL_UNSIGNED(*actual_sum, 100, "Sum is incorrect!");
 }
 
-void test_dl_rapid_sync(TestContext *ctx)
+void test_rspq_rapid_sync(TestContext *ctx)
 {
-    TEST_DL_PROLOG();
+    TEST_RSPQ_PROLOG();
 
-    dl_syncpoint_t syncpoints[100];
+    rspq_syncpoint_t syncpoints[100];
 
     for (uint32_t i = 0; i < 100; i++)
     {
-        syncpoints[i] = dl_syncpoint();
+        syncpoints[i] = rspq_syncpoint();
     }
 
-    TEST_DL_EPILOG(0, dl_timeout);
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
 
     for (uint32_t i = 0; i < 100; i++)
     {
-        ASSERT(dl_check_syncpoint(syncpoints[i]), "Not all syncpoints have been reached!");
+        ASSERT(rspq_check_syncpoint(syncpoints[i]), "Not all syncpoints have been reached!");
     }
 }
 
-void test_dl_block(TestContext *ctx)
+void test_rspq_block(TestContext *ctx)
 {
-    TEST_DL_PROLOG();
+    TEST_RSPQ_PROLOG();
     test_ovl_init();
 
-    dl_block_begin();
+    rspq_block_begin();
     for (uint32_t i = 0; i < 512; i++)
-        dl_test_8(1);
-    dl_block_t *b512 = dl_block_end();
-    DEFER(dl_block_free(b512));
+        rspq_test_8(1);
+    rspq_block_t *b512 = rspq_block_end();
+    DEFER(rspq_block_free(b512));
 
-    dl_block_begin();
+    rspq_block_begin();
     for (uint32_t i = 0; i < 4; i++)
-        dl_block_run(b512);
-    dl_block_t *b2048 = dl_block_end();
-    DEFER(dl_block_free(b2048));
+        rspq_block_run(b512);
+    rspq_block_t *b2048 = rspq_block_end();
+    DEFER(rspq_block_free(b2048));
 
-    dl_block_begin();
-    dl_block_run(b512);
+    rspq_block_begin();
+    rspq_block_run(b512);
     for (uint32_t i = 0; i < 512; i++)
-        dl_test_8(1);
-    dl_block_run(b2048);
-    dl_block_t *b3072 = dl_block_end();
-    DEFER(dl_block_free(b3072));
+        rspq_test_8(1);
+    rspq_block_run(b2048);
+    rspq_block_t *b3072 = rspq_block_end();
+    DEFER(rspq_block_free(b3072));
 
     uint64_t actual_sum[2] __attribute__((aligned(16))) = {0};
     data_cache_hit_writeback_invalidate(actual_sum, 16);
 
-    dl_test_reset();
-    dl_block_run(b512);
-    dl_test_output(actual_sum);
-    dl_sync();
+    rspq_test_reset();
+    rspq_block_run(b512);
+    rspq_test_output(actual_sum);
+    rspq_sync();
     ASSERT_EQUAL_UNSIGNED(*actual_sum, 512, "sum #1 is not correct");
     data_cache_hit_invalidate(actual_sum, 16);
 
-    dl_block_run(b512);
-    dl_test_reset();
-    dl_block_run(b512);
-    dl_test_output(actual_sum);
-    dl_sync();
+    rspq_block_run(b512);
+    rspq_test_reset();
+    rspq_block_run(b512);
+    rspq_test_output(actual_sum);
+    rspq_sync();
     ASSERT_EQUAL_UNSIGNED(*actual_sum, 512, "sum #2 is not correct");
     data_cache_hit_invalidate(actual_sum, 16);
 
-    dl_test_reset();
-    dl_block_run(b2048);
-    dl_test_output(actual_sum);
-    dl_sync();
+    rspq_test_reset();
+    rspq_block_run(b2048);
+    rspq_test_output(actual_sum);
+    rspq_sync();
     ASSERT_EQUAL_UNSIGNED(*actual_sum, 2048, "sum #3 is not correct");
     data_cache_hit_invalidate(actual_sum, 16);
 
-    dl_test_reset();
-    dl_block_run(b3072);
-    dl_test_output(actual_sum);
-    dl_sync();
+    rspq_test_reset();
+    rspq_block_run(b3072);
+    rspq_test_output(actual_sum);
+    rspq_sync();
     ASSERT_EQUAL_UNSIGNED(*actual_sum, 3072, "sum #4 is not correct");
     data_cache_hit_invalidate(actual_sum, 16);
 
-    dl_test_reset();
-    dl_test_8(1);
-    dl_block_run(b3072);
-    dl_test_8(1);
-    dl_block_run(b2048);
-    dl_test_8(1);
-    dl_test_output(actual_sum);
-    dl_sync();
+    rspq_test_reset();
+    rspq_test_8(1);
+    rspq_block_run(b3072);
+    rspq_test_8(1);
+    rspq_block_run(b2048);
+    rspq_test_8(1);
+    rspq_test_output(actual_sum);
+    rspq_sync();
     ASSERT_EQUAL_UNSIGNED(*actual_sum, 5123, "sum #5 is not correct");
 
-    TEST_DL_EPILOG(0, dl_timeout);
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
 }
 
-void test_dl_wait_sync_in_block(TestContext *ctx)
+void test_rspq_wait_sync_in_block(TestContext *ctx)
 {
-    TEST_DL_PROLOG();
+    TEST_RSPQ_PROLOG();
 
     wait_ms(3);
 
-    dl_syncpoint_t syncpoint = dl_syncpoint();
+    rspq_syncpoint_t syncpoint = rspq_syncpoint();
 
-    dl_block_begin();
-    DEFER(dl_block_end());
+    rspq_block_begin();
+    DEFER(rspq_block_end());
 
-    dl_wait_syncpoint(syncpoint);
+    rspq_wait_syncpoint(syncpoint);
 
     // Test will block forever if it fails.
     // TODO: implement RSP exception handler that detects infinite stalls
 }
 
-void test_dl_pause(TestContext *ctx)
+void test_rspq_pause(TestContext *ctx)
 {
-    TEST_DL_PROLOG();
+    TEST_RSPQ_PROLOG();
     
     test_ovl_init();
 
     for (uint32_t i = 0; i < 1000; i++)
     {
-        dl_test_4(1);
+        rspq_test_4(1);
     }
 
     uint64_t actual_sum[2] __attribute__((aligned(16))) = {0};
     data_cache_hit_writeback_invalidate(actual_sum, 16);
 
-    dl_test_output(actual_sum);
+    rspq_test_output(actual_sum);
 
-    int sync_id = dl_syncpoint();
-    dl_flush();
+    int sync_id = rspq_syncpoint();
+    rspq_flush();
 
     unsigned long time_start = get_ticks_ms();
 
     bool completed = 0;
     while (get_ticks_ms() - time_start < 20000) {
         // Wait until the interrupt was raised and the SP is in idle mode
-        if (dl_check_syncpoint(sync_id) && (*SP_STATUS & SP_STATUS_HALTED)) {
+        if (rspq_check_syncpoint(sync_id) && (*SP_STATUS & SP_STATUS_HALTED)) {
             completed = 1;
             break;
         } else {
@@ -445,47 +445,47 @@ void test_dl_pause(TestContext *ctx)
         }
     }
 
-    ASSERT(completed, "display list not completed: %d/%d", dl_check_syncpoint(sync_id), (*SP_STATUS & SP_STATUS_HALTED) != 0);
+    ASSERT(completed, "display list not completed: %d/%d", rspq_check_syncpoint(sync_id), (*SP_STATUS & SP_STATUS_HALTED) != 0);
     ASSERT_EQUAL_HEX(*SP_STATUS, SP_STATUS_HALTED | SP_STATUS_BROKE | SP_STATUS_SIG3 | SP_STATUS_SIG5, "Unexpected SP status!"); \
     ASSERT_EQUAL_UNSIGNED(*actual_sum, 1000, "Sum is incorrect!");
 }
 
 // Test the basic working of highpri queue.
-void test_dl_highpri_basic(TestContext *ctx)
+void test_rspq_highpri_basic(TestContext *ctx)
 {
-    TEST_DL_PROLOG();
+    TEST_RSPQ_PROLOG();
     test_ovl_init();
 
     uint64_t actual_sum[2] __attribute__((aligned(16))) = {0};
     data_cache_hit_writeback_invalidate(actual_sum, 16);
 
     // Prepare a block of commands
-    dl_block_begin();
+    rspq_block_begin();
     for (uint32_t i = 0; i < 4096; i++) {
-        dl_test_8(1);
+        rspq_test_8(1);
         if (i%256 == 0)
-            dl_test_wait(0x10);
+            rspq_test_wait(0x10);
     }
-    dl_block_t *b4096 = dl_block_end();
-    DEFER(dl_block_free(b4096));
+    rspq_block_t *b4096 = rspq_block_end();
+    DEFER(rspq_block_free(b4096));
 
     // Initialize the test ucode
-    dl_test_reset();
-    dl_sync();
+    rspq_test_reset();
+    rspq_sync();
 
     // Run the block in standard queue
-    dl_block_run(b4096);
-    dl_test_output(actual_sum);
-    dl_flush();
+    rspq_block_run(b4096);
+    rspq_test_output(actual_sum);
+    rspq_flush();
 
     // Schedule a highpri queue
-    dl_highpri_begin();
-        dl_test_high(123);
-        dl_test_output(actual_sum);
-    dl_highpri_end();
+    rspq_highpri_begin();
+        rspq_test_high(123);
+        rspq_test_output(actual_sum);
+    rspq_highpri_end();
 
     // Wait for highpri execution
-    dl_highpri_sync();
+    rspq_highpri_sync();
 
     // Verify that highpri was executed correctly and before lowpri is finished
     ASSERT(actual_sum[0] < 4096, "lowpri sum is not correct");
@@ -493,11 +493,11 @@ void test_dl_highpri_basic(TestContext *ctx)
     data_cache_hit_invalidate(actual_sum, 16);
 
     // Schedule a second highpri queue
-    dl_highpri_begin();
-        dl_test_high(200);
-        dl_test_output(actual_sum);
-    dl_highpri_end();
-    dl_highpri_sync();
+    rspq_highpri_begin();
+        rspq_test_high(200);
+        rspq_test_output(actual_sum);
+    rspq_highpri_end();
+    rspq_highpri_sync();
 
     // Verify that highpri was executed correctly and before lowpri is finished
     ASSERT(actual_sum[0] < 4096, "lowpri sum is not correct");
@@ -505,80 +505,80 @@ void test_dl_highpri_basic(TestContext *ctx)
     data_cache_hit_invalidate(actual_sum, 16);
 
     // Wait for the end of lowpri
-    dl_sync();
+    rspq_sync();
 
     // Verify result of both queues
     ASSERT_EQUAL_UNSIGNED(actual_sum[0], 4096, "lowpri sum is not correct");
     ASSERT_EQUAL_UNSIGNED(actual_sum[1], 323, "highpri sum is not correct");
 
-    TEST_DL_EPILOG(0, dl_timeout);
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
 }
 
-void test_dl_highpri_only(TestContext *ctx)
+void test_rspq_highpri_only(TestContext *ctx)
 {
 
 }
 
 
-void test_dl_highpri_multiple(TestContext *ctx)
+void test_rspq_highpri_multiple(TestContext *ctx)
 {
-    TEST_DL_PROLOG();
+    TEST_RSPQ_PROLOG();
     test_ovl_init();
 
     uint64_t actual_sum[2] __attribute__((aligned(16)));
     actual_sum[0] = actual_sum[1] = 0;
     data_cache_hit_writeback_invalidate(actual_sum, 16);
 
-    dl_block_begin();
+    rspq_block_begin();
     for (uint32_t i = 0; i < 4096; i++) {
-        dl_test_8(1);
+        rspq_test_8(1);
         if (i%256 == 0)
-            dl_test_wait(0x10);
+            rspq_test_wait(0x10);
     }
-    dl_block_t *b4096 = dl_block_end();
-    DEFER(dl_block_free(b4096));
+    rspq_block_t *b4096 = rspq_block_end();
+    DEFER(rspq_block_free(b4096));
 
-    dl_test_reset();
+    rspq_test_reset();
     for (int i=0;i<16;i++)
-        dl_block_run(b4096);
-    dl_flush();
+        rspq_block_run(b4096);
+    rspq_flush();
 
     int partial = 0;
     for (int wait=1;wait<0x100;wait++) {
         debugf("wait: %x\n", wait);
-        dl_highpri_begin();
+        rspq_highpri_begin();
             for (uint32_t i = 0; i < 32; i++) {
-                dl_test_high(1);
-                if ((i&3)==0) dl_test_wait(wait);
+                rspq_test_high(1);
+                if ((i&3)==0) rspq_test_wait(wait);
             }
-        dl_highpri_end();
+        rspq_highpri_end();
 
-        dl_highpri_begin();
+        rspq_highpri_begin();
             for (uint32_t i = 0; i < 32; i++) {
-                dl_test_high(3);
-                if ((i&3)==0) dl_test_wait(wait);
+                rspq_test_high(3);
+                if ((i&3)==0) rspq_test_wait(wait);
             }
-        dl_highpri_end();
+        rspq_highpri_end();
 
-        dl_highpri_begin();
+        rspq_highpri_begin();
             for (uint32_t i = 0; i < 32; i++) {
-                dl_test_high(5);
-                if ((i&3)==0) dl_test_wait(wait);
+                rspq_test_high(5);
+                if ((i&3)==0) rspq_test_wait(wait);
             }
-        dl_highpri_end();
+        rspq_highpri_end();
 
-        dl_highpri_begin();
+        rspq_highpri_begin();
             for (uint32_t i = 0; i < 32; i++) {
-                dl_test_high(7);
-                if ((i&3)==0) dl_test_wait(wait);
+                rspq_test_high(7);
+                if ((i&3)==0) rspq_test_wait(wait);
             }
-        dl_highpri_end();
+        rspq_highpri_end();
 
-        dl_highpri_begin();
-            dl_test_output(actual_sum);
-        dl_highpri_end();
+        rspq_highpri_begin();
+            rspq_test_output(actual_sum);
+        rspq_highpri_end();
 
-        dl_highpri_sync();
+        rspq_highpri_sync();
 
         partial += 1*32 + 3*32 + 5*32 + 7*32;
         // ASSERT(actual_sum_ptr[0] < 4096*16, "lowpri sum is not correct");
@@ -587,8 +587,8 @@ void test_dl_highpri_multiple(TestContext *ctx)
         data_cache_hit_invalidate(actual_sum, 16);
     }
 
-    dl_test_output(actual_sum);
-    dl_sync();
+    rspq_test_output(actual_sum);
+    rspq_sync();
 
     ASSERT_EQUAL_UNSIGNED(actual_sum[0], 4096*16, "lowpri sum is not correct");
     ASSERT_EQUAL_UNSIGNED(actual_sum[1], partial, "highpri sum is not correct");

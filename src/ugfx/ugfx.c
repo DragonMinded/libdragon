@@ -16,16 +16,16 @@ void ugfx_init()
         return;
     }
 
-    ugfx_state_t *ugfx_state = UncachedAddr(dl_overlay_get_state(&rsp_ugfx));
+    ugfx_state_t *ugfx_state = UncachedAddr(rspq_overlay_get_state(&rsp_ugfx));
 
     memset(ugfx_state, 0, sizeof(ugfx_state_t));
 
     ugfx_state->dram_buffer = PhysicalAddr(__ugfx_dram_buffer);
     ugfx_state->dram_buffer_size = UGFX_RDP_DRAM_BUFFER_SIZE;
 
-    dl_init();
-    dl_overlay_register(&rsp_ugfx, 2);
-    dl_overlay_register(&rsp_ugfx, 3);
+    rspq_init();
+    rspq_overlay_register(&rsp_ugfx, 2);
+    rspq_overlay_register(&rsp_ugfx, 3);
 
     __ugfx_initialized = 1;
 }
