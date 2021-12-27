@@ -199,14 +199,14 @@ void test_dl_high_load(TestContext *ctx)
         ++expected_sum;
     }
 
-    uint64_t actual_sum[2];
-    uint64_t *actual_sum_ptr = UncachedAddr(&actual_sum);
+    uint64_t actual_sum[2] __attribute__((aligned(16))) = {0};
+    data_cache_hit_writeback_invalidate(actual_sum, 16);
 
-    dl_test_output(actual_sum_ptr);
+    dl_test_output(actual_sum);
 
     TEST_DL_EPILOG(0, dl_timeout);
 
-    ASSERT_EQUAL_UNSIGNED(*actual_sum_ptr, expected_sum, "Possibly not all commands have been executed!");
+    ASSERT_EQUAL_UNSIGNED(*actual_sum, expected_sum, "Possibly not all commands have been executed!");
 }
 
 void test_dl_load_overlay(TestContext *ctx)
@@ -270,14 +270,14 @@ void test_dl_multiple_flush(TestContext *ctx)
     dl_flush();
     wait_ms(3);
 
-    uint64_t actual_sum[2];
-    uint64_t *actual_sum_ptr = UncachedAddr(&actual_sum);
+    uint64_t actual_sum[2] __attribute__((aligned(16))) = {0};
+    data_cache_hit_writeback_invalidate(actual_sum, 16);
 
-    dl_test_output(actual_sum_ptr);
+    dl_test_output(actual_sum);
 
     TEST_DL_EPILOG(0, dl_timeout);
 
-    ASSERT_EQUAL_UNSIGNED(*actual_sum_ptr, 6, "Sum is incorrect!");
+    ASSERT_EQUAL_UNSIGNED(*actual_sum, 6, "Sum is incorrect!");
 }
 
 
@@ -294,14 +294,14 @@ void test_dl_sync(TestContext *ctx)
         dl_sync();
     }
 
-    uint64_t actual_sum[2];
-    uint64_t *actual_sum_ptr = UncachedAddr(&actual_sum);
+    uint64_t actual_sum[2] __attribute__((aligned(16))) = {0};
+    data_cache_hit_writeback_invalidate(actual_sum, 16);
 
-    dl_test_output(actual_sum_ptr);
+    dl_test_output(actual_sum);
 
     TEST_DL_EPILOG(0, dl_timeout);
 
-    ASSERT_EQUAL_UNSIGNED(*actual_sum_ptr, 100, "Sum is incorrect!");
+    ASSERT_EQUAL_UNSIGNED(*actual_sum, 100, "Sum is incorrect!");
 }
 
 void test_dl_rapid_sync(TestContext *ctx)
@@ -348,33 +348,37 @@ void test_dl_block(TestContext *ctx)
     dl_block_t *b3072 = dl_block_end();
     DEFER(dl_block_free(b3072));
 
-    uint64_t sum = 0;
-    uint64_t* usum = UncachedAddr(&sum);
+    uint64_t actual_sum[2] __attribute__((aligned(16))) = {0};
+    data_cache_hit_writeback_invalidate(actual_sum, 16);
 
     dl_test_reset();
     dl_block_run(b512);
-    dl_test_output(usum);
+    dl_test_output(actual_sum);
     dl_sync();
-    ASSERT_EQUAL_UNSIGNED(*usum, 512, "sum #1 is not correct");
+    ASSERT_EQUAL_UNSIGNED(*actual_sum, 512, "sum #1 is not correct");
+    data_cache_hit_invalidate(actual_sum, 16);
 
     dl_block_run(b512);
     dl_test_reset();
     dl_block_run(b512);
-    dl_test_output(usum);
+    dl_test_output(actual_sum);
     dl_sync();
-    ASSERT_EQUAL_UNSIGNED(*usum, 512, "sum #2 is not correct");
+    ASSERT_EQUAL_UNSIGNED(*actual_sum, 512, "sum #2 is not correct");
+    data_cache_hit_invalidate(actual_sum, 16);
 
     dl_test_reset();
     dl_block_run(b2048);
-    dl_test_output(usum);
+    dl_test_output(actual_sum);
     dl_sync();
-    ASSERT_EQUAL_UNSIGNED(*usum, 2048, "sum #3 is not correct");
+    ASSERT_EQUAL_UNSIGNED(*actual_sum, 2048, "sum #3 is not correct");
+    data_cache_hit_invalidate(actual_sum, 16);
 
     dl_test_reset();
     dl_block_run(b3072);
-    dl_test_output(usum);
+    dl_test_output(actual_sum);
     dl_sync();
-    ASSERT_EQUAL_UNSIGNED(*usum, 3072, "sum #4 is not correct");
+    ASSERT_EQUAL_UNSIGNED(*actual_sum, 3072, "sum #4 is not correct");
+    data_cache_hit_invalidate(actual_sum, 16);
 
     dl_test_reset();
     dl_test_8(1);
@@ -382,9 +386,9 @@ void test_dl_block(TestContext *ctx)
     dl_test_8(1);
     dl_block_run(b2048);
     dl_test_8(1);
-    dl_test_output(usum);
+    dl_test_output(actual_sum);
     dl_sync();
-    ASSERT_EQUAL_UNSIGNED(*usum, 5123, "sum #5 is not correct");
+    ASSERT_EQUAL_UNSIGNED(*actual_sum, 5123, "sum #5 is not correct");
 
     TEST_DL_EPILOG(0, dl_timeout);
 }
@@ -484,9 +488,8 @@ void test_dl_highpri_multiple(TestContext *ctx)
     test_ovl_init();
 
     uint64_t actual_sum[2] __attribute__((aligned(16)));
-    uint64_t *actual_sum_ptr = UncachedAddr(&actual_sum);
+    actual_sum[0] = actual_sum[1] = 0;
     data_cache_hit_writeback_invalidate(actual_sum, 16);
-    actual_sum_ptr[0] = actual_sum_ptr[1] = 0;
 
     dl_block_begin();
     for (uint32_t i = 0; i < 4096; i++) {
@@ -534,22 +537,23 @@ void test_dl_highpri_multiple(TestContext *ctx)
         dl_highpri_end();
 
         dl_highpri_begin();
-            dl_test_output(actual_sum_ptr);
+            dl_test_output(actual_sum);
         dl_highpri_end();
 
         dl_highpri_sync();
 
         partial += 1*32 + 3*32 + 5*32 + 7*32;
         // ASSERT(actual_sum_ptr[0] < 4096*16, "lowpri sum is not correct");
-        debugf("lowsum: %lld\n", actual_sum_ptr[0]);
-        ASSERT_EQUAL_UNSIGNED(actual_sum_ptr[1], partial, "highpri sum is not correct (diff: %lld)", partial - actual_sum_ptr[1]);
+        debugf("lowsum: %lld\n", actual_sum[0]);
+        ASSERT_EQUAL_UNSIGNED(actual_sum[1], partial, "highpri sum is not correct (diff: %lld)", partial - actual_sum[1]);
+        data_cache_hit_invalidate(actual_sum, 16);
     }
 
-    dl_test_output(actual_sum_ptr);
+    dl_test_output(actual_sum);
     dl_sync();
 
-    ASSERT_EQUAL_UNSIGNED(actual_sum_ptr[0], 4096*16, "lowpri sum is not correct");
-    ASSERT_EQUAL_UNSIGNED(actual_sum_ptr[1], partial, "highpri sum is not correct");
+    ASSERT_EQUAL_UNSIGNED(actual_sum[0], 4096*16, "lowpri sum is not correct");
+    ASSERT_EQUAL_UNSIGNED(actual_sum[1], partial, "highpri sum is not correct");
 }
 
 // TODO: test syncing with overlay switching
