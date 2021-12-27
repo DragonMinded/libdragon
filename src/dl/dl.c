@@ -50,6 +50,12 @@
 #define SP_WSTATUS_SET_SIG_MORE               SP_WSTATUS_SET_SIG7
 #define SP_WSTATUS_CLEAR_SIG_MORE             SP_WSTATUS_CLEAR_SIG7
 
+__attribute__((noreturn))
+static void rsp_crash(const char *file, int line, const char *func);
+#define RSP_WAIT_LOOP() \
+    for (uint32_t __t = TICKS_READ() + TICKS_FROM_MS(50); \
+         TICKS_BEFORE(TICKS_READ(), __t) || (rsp_crash(__FILE__,__LINE__,__func__),false); )
+
 DEFINE_RSP_UCODE(rsp_dl);
 
 typedef struct dl_overlay_t {
@@ -105,8 +111,6 @@ static bool dl_is_highpri;
 
 static uint64_t dummy_overlay_state;
 
-static void rsp_watchdog_reset(void);
-static void rsp_watchdog_kick(void);
 static void dl_flush_internal(void);
 
 static void dl_sp_interrupt(void) 
@@ -359,9 +363,9 @@ void dl_next_buffer(void) {
     MEMORY_BARRIER();
     if (!(*SP_STATUS & ctx.sp_status_bufdone)) {
         dl_flush_internal();
-        rsp_watchdog_reset();
-        while (!(*SP_STATUS & ctx.sp_status_bufdone)) { 
-                rsp_watchdog_kick();
+        RSP_WAIT_LOOP() {
+            if (*SP_STATUS & ctx.sp_status_bufdone)
+                break;
         }
     }
     MEMORY_BARRIER();
@@ -423,7 +427,8 @@ void dl_flush(void)
 }
 
 #if 1
-static void rsp_crash(void)
+__attribute__((noreturn))
+static void rsp_crash(const char *file, int line, const char *func)
 {
     uint32_t status = *SP_STATUS;
     MEMORY_BARRIER();
@@ -432,7 +437,7 @@ static void rsp_crash(void)
     console_set_debug(true);
     console_set_render_mode(RENDER_MANUAL);
 
-    printf("RSP CRASH\n");
+    printf("RSP CRASH @ %s (%s:%d)\n", func, file, line);
 
     MEMORY_BARRIER();
     *SP_STATUS = SP_WSTATUS_SET_HALT;
@@ -487,9 +492,9 @@ static void rsp_crash(void)
     printf("DL: Current DRAM address: %08lx\n", dl->dl_dram_addr);
     printf("DL: Overlay: %x\n", dl->current_ovl);
     debugf("DL: Command queue:\n");
-    for (int j=0;j<16;j++) {        
+    for (int j=0;j<4;j++) {        
         for (int i=0;i<16;i++)
-            debugf("%08lx ", SP_DMEM[0xD8+i+j*16]);
+            debugf("%08lx ", SP_DMEM[0xF8+i+j*16]);
         debugf("\n");
     }
 
@@ -497,19 +502,6 @@ static void rsp_crash(void)
     abort();
 }
 
-static int rsp_watchdog_counter;
-
-static void rsp_watchdog_reset(void)
-{
-    rsp_watchdog_counter = 0;
-}
-
-static void rsp_watchdog_kick(void)
-{
-    if (++rsp_watchdog_counter == 300) {
-        rsp_crash();
-    }
-}
 #endif
 
 
@@ -526,20 +518,38 @@ void dl_highpri_begin(void)
     ctx = highpri;
 
     // If we're continuing on the same buffer another highpri sequence,
-    // try to erase the final swap buffer command. This is just for performance
-    // (not correctness), as it would be useless to swap back and forth.
-#if 1
-    if (ctx.cur[0]>>24 == DL_CMD_IDLE && ctx.cur[-3]>>24 == DL_CMD_SWAP_BUFFERS) {    
-        ctx.cur[-4] = 0; MEMORY_BARRIER();
-        ctx.cur[-3] = 0; MEMORY_BARRIER();
-        ctx.cur[-2] = 0; MEMORY_BARRIER();
-        ctx.cur[-1] = 0; MEMORY_BARRIER();
-        ctx.cur[-4] = DL_CMD_NOOP<<24; MEMORY_BARRIER();
-        ctx.cur[-3] = DL_CMD_NOOP<<24; MEMORY_BARRIER();
-        ctx.cur[-2] = DL_CMD_NOOP<<24; MEMORY_BARRIER();
-        ctx.cur[-1] = DL_CMD_NOOP<<24; MEMORY_BARRIER();
+    // try to erase the highpri epilog. This allows to enqueue more than one
+    // highpri sequence, because otherwise the SIG_HIGHPRI would get turn off
+    // in the first, and then never turned on back again.
+    // 
+    // Notice that there is tricky timing here. The epilog starts with a jump
+    // instruction so that it is refetched via DMA just before being executed.
+    // There are three cases:
+    //   * We manage to clear the epilog before it is refetched and run. The
+    //     RSP will find the epilog fully NOP-ed, and will transition to next
+    //     highpri queue.
+    //   * We do not manage to clear the epilog before it is refetched. The
+    //     RSP will execute the epilog and switch back to LOWPRI. But we're going
+    //     to set SIG_HIGHPRI on soon, and so it will switch again to HIGHPRI.
+    //   * We clear the epilog while the RSP is fetching it. The RSP will see
+    //     the epilog half-cleared. Since we're forcing a strict left-to-right
+    //     zeroing with memory barriers, the RSP will either see zeroes followed
+    //     by a partial epilog, or a few NOPs followed by some zeroes. In either
+    //     case, the zeros will force the RSP to fetch it again, and the second
+    //     time will see the fully NOP'd epilog and continue to next highpri.
+    if (ctx.cur[0]>>24 == DL_CMD_IDLE && ctx.cur[-3]>>24 == DL_CMD_SWAP_BUFFERS) {
+        uint32_t *cur = ctx.cur;
+        cur[-5] = 0; MEMORY_BARRIER();
+        cur[-4] = 0; MEMORY_BARRIER();
+        cur[-3] = 0; MEMORY_BARRIER();
+        cur[-2] = 0; MEMORY_BARRIER();
+        cur[-1] = 0; MEMORY_BARRIER();
+        cur[-5] = DL_CMD_NOOP<<24; MEMORY_BARRIER();
+        cur[-4] = DL_CMD_NOOP<<24; MEMORY_BARRIER();
+        cur[-3] = DL_CMD_NOOP<<24; MEMORY_BARRIER();
+        cur[-2] = DL_CMD_NOOP<<24; MEMORY_BARRIER();
+        cur[-1] = DL_CMD_NOOP<<24; MEMORY_BARRIER();
     }
-#endif
 
     *ctx.cur++ = (DL_CMD_SET_STATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING;
     dl_terminator(ctx.cur);
@@ -547,16 +557,19 @@ void dl_highpri_begin(void)
     *SP_STATUS = SP_WSTATUS_SET_SIG_HIGHPRI;
     dl_is_highpri = true;
     dl_flush_internal();
-
-    debugf("new cur: %p\n", ctx.cur);
 }
 
 void dl_highpri_end(void)
 {
     assertf(dl_is_highpri, "not in highpri mode");
 
-    // debugf("dl_highpri_end (cur: %p)\n", ctx.cur);
-
+    // Write the highpri epilog. It starts with a jump to itself to force the RSP
+    // to refecth the epilog itself before running it, in case it was erased
+    // by a new highpri sequence (see dl_highpri_begin for all details).
+    // Then it contains a CMD_SET_STATUS to clear SIG_HIGHPRI_RUNNING, and finally
+    // the CMD_SWAP_BUFFERS to get back to LOWPRI mode.
+    uint32_t next = PhysicalAddr(ctx.cur+1);
+    *ctx.cur++ = (DL_CMD_JUMP<<24) | PhysicalAddr(next);
     *ctx.cur++ = (DL_CMD_SET_STATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING;
     *ctx.cur++ = (DL_CMD_SWAP_BUFFERS<<24) | (DL_LOWPRI_CALL_SLOT<<2);
       *ctx.cur++ = DL_HIGHPRI_CALL_SLOT<<2;
@@ -571,14 +584,21 @@ void dl_highpri_end(void)
 
 void dl_highpri_sync(void)
 {
-    rsp_watchdog_reset();
-    while (*SP_STATUS & (SP_STATUS_SIG_HIGHPRI | SP_STATUS_SIG_HIGHPRI_RUNNING))
-    {
-        // if (*SP_STATUS & SP_STATUS_HALTED)
-        //     *SP_STATUS = SP_WSTATUS_SET_SIG_MORE | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
-        // debugf("highpri_sync: wait %lx %x\n", *SP_STATUS, SP_STATUS_SIG_HIGHPRI | SP_STATUS_SIG_HIGHPRI_RUNNING);
-        rsp_watchdog_kick();
+    assertf(!dl_is_highpri, "this function can only be called outside of highpri mode");
+
+#if 0
+    // Slower code using a syncpoint (can preempt)
+    dl_highpri_begin();
+    dl_syncpoint_t sync = dl_syncpoint();
+    dl_highpri_end();
+    dl_wait_syncpoint(sync);
+#else
+    // Faster code, using a signal (busy loop)
+    RSP_WAIT_LOOP() {
+        if (!(*SP_STATUS & (SP_STATUS_SIG_HIGHPRI | SP_STATUS_SIG_HIGHPRI_RUNNING)))
+            break;
     }
+#endif
 }
 
 
@@ -1042,6 +1062,9 @@ bool dl_check_syncpoint(dl_syncpoint_t sync_id)
 
 void dl_wait_syncpoint(dl_syncpoint_t sync_id)
 {
+    if (dl_check_syncpoint(sync_id))
+        return;
+
     assertf(get_interrupts_state() == INTERRUPTS_ENABLED,
         "deadlock: interrupts are disabled");
 
@@ -1051,7 +1074,10 @@ void dl_wait_syncpoint(dl_syncpoint_t sync_id)
     // Spinwait until the the syncpoint is reached.
     // TODO: with the kernel, it will be possible to wait for the RSP interrupt
     // to happen, without spinwaiting.
-    while (!dl_check_syncpoint(sync_id)) { /* spinwait */ }
+    RSP_WAIT_LOOP() {
+        if (dl_check_syncpoint(sync_id))
+            break;
+    }
 }
 
 void dl_signal(uint32_t signal)
