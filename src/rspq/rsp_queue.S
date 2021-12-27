@@ -28,7 +28,7 @@
 #      If it's 0x01 the command is actually "wait for new input" 
 
 #include <rsp.inc>
-#include <rsp_rspq.inc>
+#include <rsp_queue.inc>
 
 #include "rspq_internal.h"
 

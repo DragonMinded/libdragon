@@ -103,7 +103,7 @@
 	#
 	####################################################################
 
-#include "../rspq/rsp_rspq.S"
+#include "../rspq/rsp_queue.S"
 
 # Maximum number of channels supported by this ucode. You can't really increase
 # this without modifying the code.

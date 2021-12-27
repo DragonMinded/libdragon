@@ -56,7 +56,7 @@ static void rsp_crash(const char *file, int line, const char *func);
     for (uint32_t __t = TICKS_READ() + TICKS_FROM_MS(50); \
          TICKS_BEFORE(TICKS_READ(), __t) || (rsp_crash(__FILE__,__LINE__,__func__),false); )
 
-DEFINE_RSP_UCODE(rsp_rspq);
+DEFINE_RSP_UCODE(rsp_queue);
 
 typedef struct rspq_overlay_t {
     uint32_t code;
@@ -82,7 +82,7 @@ typedef struct rspq_overlay_tables_s {
     rspq_overlay_t overlay_descriptors[RSPQ_MAX_OVERLAY_COUNT];
 } rspq_overlay_tables_t;
 
-typedef struct rsp_rspq_s {
+typedef struct rsp_queue_s {
     rspq_overlay_tables_t tables;
     uint32_t rspq_pointer_stack[RSPQ_MAX_BLOCK_NESTING_LEVEL];
     uint32_t rspq_dram_lowpri_addr;
@@ -90,10 +90,10 @@ typedef struct rsp_rspq_s {
     uint32_t rspq_dram_addr;
     int16_t current_ovl;
     uint16_t primode_status_check;
-} __attribute__((aligned(16), packed)) rsp_rspq_t;
+} __attribute__((aligned(16), packed)) rsp_queue_t;
 
-static rsp_rspq_t rspq_data;
-#define rspq_data_ptr ((rsp_rspq_t*)UncachedAddr(&rspq_data))
+static rsp_queue_t rspq_data;
+#define rspq_data_ptr ((rsp_queue_t*)UncachedAddr(&rspq_data))
 
 static uint8_t rspq_overlay_count = 0;
 
@@ -147,10 +147,10 @@ void rspq_start()
     }
 
     rsp_wait();
-    rsp_load(&rsp_rspq);
+    rsp_load(&rsp_queue);
 
     // Load data with initialized overlays into DMEM
-    rsp_load_data(rspq_data_ptr, sizeof(rsp_rspq_t), 0);
+    rsp_load_data(rspq_data_ptr, sizeof(rsp_queue_t), 0);
 
     static rspq_overlay_header_t dummy_header = (rspq_overlay_header_t){
         .state_start = 0,
@@ -216,7 +216,7 @@ void rspq_init()
     debugf("highpri: %p|%p\n", highpri.buffers[0], highpri.buffers[1]);
 
     // Load initial settings
-    memset(rspq_data_ptr, 0, sizeof(rsp_rspq_t));
+    memset(rspq_data_ptr, 0, sizeof(rsp_queue_t));
     rspq_data_ptr->rspq_dram_lowpri_addr = PhysicalAddr(lowpri.cur);
     rspq_data_ptr->rspq_dram_highpri_addr = PhysicalAddr(highpri.cur);
     rspq_data_ptr->rspq_dram_addr = rspq_data_ptr->rspq_dram_lowpri_addr;
@@ -273,9 +273,9 @@ void rspq_overlay_register(rsp_ucode_t *overlay_ucode, uint8_t id)
     assertf(id < RSPQ_OVERLAY_TABLE_SIZE, "Tried to register id: %d", id);
 
     // The RSPQ ucode is always linked into overlays for now, so we need to load the overlay from an offset.
-    uint32_t rspq_ucode_size = rsp_rspq_text_end - rsp_rspq_text_start;
+    uint32_t rspq_ucode_size = rsp_queue_text_end - rsp_queue_text_start;
 
-    assertf(memcmp(rsp_rspq_text_start, overlay_ucode->code, rspq_ucode_size) == 0, "Common code of overlay does not match!");
+    assertf(memcmp(rsp_queue_text_start, overlay_ucode->code, rspq_ucode_size) == 0, "Common code of overlay does not match!");
 
     uint32_t overlay_code = PhysicalAddr(overlay_ucode->code + rspq_ucode_size);
 
@@ -405,7 +405,7 @@ void rspq_flush_internal(void)
     // exactly in the few instructions between RSP checking for the status
     // register ("mfc0 t0, COP0_SP_STATUS") RSP halting itself("break"),
     // the call to rspq_flush might have no effect (see command_wait_new_input in
-    // rsp_rspq.S).
+    // rsp_queue.S).
     // In general this is not a big problem even if it happens, as the RSP
     // would wake up at the next flush anyway, but we guarantee that rspq_flush
     // does actually make the RSP finish the current buffer. To keep this
@@ -486,7 +486,7 @@ static void rsp_crash(const char *file, int line, const char *func)
     printf("$c15 | COP0_DP_TMEM_BUSY | %08lx\n", *((volatile uint32_t*)0xA410001C));
     printf("-----------------------------------------\n");
 
-    rsp_rspq_t *rspq = (rsp_rspq_t*)SP_DMEM;
+    rsp_queue_t *rspq = (rsp_queue_t*)SP_DMEM;
     printf("RSPQ: Normal  DRAM address: %08lx\n", rspq->rspq_dram_lowpri_addr);
     printf("RSPQ: Highpri DRAM address: %08lx\n", rspq->rspq_dram_highpri_addr);
     printf("RSPQ: Current DRAM address: %08lx\n", rspq->rspq_dram_addr);
@@ -804,7 +804,7 @@ void rspq_highpri_begin(void)
         rsp_pause(true);
 
 #if 0
-        uint32_t rspq_rdram_ptr = (((uint32_t)((volatile rsp_rspq_t*)SP_DMEM)->rspq_dram_addr) & 0x00FFFFFF);
+        uint32_t rspq_rdram_ptr = (((uint32_t)((volatile rsp_queue_t*)SP_DMEM)->rspq_dram_addr) & 0x00FFFFFF);
         if (rspq_rdram_ptr >= PhysicalAddr(rspq_highpri_trampoline) && rspq_rdram_ptr < PhysicalAddr(rspq_highpri_trampoline+TRAMPOLINE_WORDS)) {
             debugf("SP processing highpri trampoline... retrying [PC:%lx]\n", *SP_PC);
             uint32_t jump_to_footer = rspq_highpri_trampoline[TRAMPOLINE_HEADER + TRAMPOLINE_BODY];
@@ -819,8 +819,8 @@ void rspq_highpri_begin(void)
         debugf("RSP: paused: STATUS=%lx PC=%lx\n", *SP_STATUS, *SP_PC);
         if (*SP_PC < 0x150 || *SP_PC > 0x1A4) {
             debugf("RSPQ_DRAM_ADDR:%lx | %lx\n", 
-                (((uint32_t)((volatile rsp_rspq_t*)SP_DMEM)->rspq_dram_addr) & 0x00FFFFFF),
-                (((uint32_t)((volatile rsp_rspq_t*)SP_DMEM)->rspq_dram_highpri_addr) & 0x00FFFFFF));
+                (((uint32_t)((volatile rsp_queue_t*)SP_DMEM)->rspq_dram_addr) & 0x00FFFFFF),
+                (((uint32_t)((volatile rsp_queue_t*)SP_DMEM)->rspq_dram_highpri_addr) & 0x00FFFFFF));
         }
         if (*SP_STATUS & SP_STATUS_SIG_HIGHPRI_TRAMPOLINE) {
             debugf("SP processing highpri trampoline... retrying [STATUS:%lx, PC:%lx]\n", *SP_STATUS, *SP_PC);
@@ -917,7 +917,7 @@ void rspq_highpri_sync(void)
         rsp_watchdog_kick();
 #if 0
         rsp_pause(true);
-        void *ptr2 = (void*)(((uint32_t)((volatile rsp_rspq_t*)SP_DMEM)->rspq_dram_addr) & 0x00FFFFFF);
+        void *ptr2 = (void*)(((uint32_t)((volatile rsp_queue_t*)SP_DMEM)->rspq_dram_addr) & 0x00FFFFFF);
         if (ptr2 != ptr) {
             debugf("RSP: fetching at %p\n", ptr2);
             ptr = ptr2;

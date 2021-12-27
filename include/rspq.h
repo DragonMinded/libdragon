@@ -71,7 +71,7 @@ void rspq_close(void);
  * 
  * This function registers a ucode overlay into the command list engine.
  * An overlay is a ucode that has been written to be compatible with the
- * command list engine (see rsp_rspq.inc) and is thus able to executed commands
+ * command list engine (see rsp_queue.inc) and is thus able to executed commands
  * that are enqueued in the command list.
  * 
  * Each command in the command list starts with a 8-bit ID, in which the

@@ -1,5 +1,5 @@
-#ifndef RSP_RSPQ_INC
-#define RSP_RSPQ_INC
+#ifndef RSP_QUEUE_INC
+#define RSP_QUEUE_INC
 
 # Globally reserved registers
 #define rspq_dmem_buf_ptr gp

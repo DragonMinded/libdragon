@@ -1,5 +1,5 @@
 #include "ugfx_internal.h"
-#include "../rspq/rsp_rspq.S"
+#include "../rspq/rsp_queue.S"
 
     .section .data.overlay
 

@@ -1,4 +1,4 @@
-#include "../src/rspq/rsp_rspq.S"
+#include "../src/rspq/rsp_queue.S"
 
     .section .data.overlay
 
