@@ -583,8 +583,8 @@ void dl_highpri_end(void)
 
     MEMORY_BARRIER();
 
-    *start = (DL_CMD_JUMP<<24) | PhysicalAddr(start+2);
-    dl_terminator(start+1);
+    *end = (DL_CMD_JUMP<<24) | PhysicalAddr(end+2);
+    dl_terminator(end+1);
 
     dl_flush_internal();
 
