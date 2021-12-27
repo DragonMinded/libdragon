@@ -563,18 +563,29 @@ void dl_highpri_end(void)
 {
     assertf(dl_is_highpri, "not in highpri mode");
 
-    // Write the highpri epilog. It starts with a jump to itself to force the RSP
-    // to refecth the epilog itself before running it, in case it was erased
-    // by a new highpri sequence (see dl_highpri_begin for all details).
-    // Then it contains a CMD_SET_STATUS to clear SIG_HIGHPRI_RUNNING, and finally
-    // the CMD_SWAP_BUFFERS to get back to LOWPRI mode.
-    uint32_t next = PhysicalAddr(ctx.cur+1);
-    *ctx.cur++ = (DL_CMD_JUMP<<24) | PhysicalAddr(next);
+    // Write the highpri epilog.
+    // The queue currently contains a DL_CMD_IDLE (terminator) followed by a 0
+    // (standard termination sequence). We want to write the epilog atomically
+    // with respect to RSP: we need to avoid the RSP to see a partially written
+    // epilog, which would force it to refetch it and possibly create a race
+    // condition with a new highpri sequence.
+    // So we leave the IDLE+0 where they are, write the epilog just after it,
+    // and finally write a JUMP to it. The JUMP is required so that the RSP
+    // always refetch the epilog when it gets to it (see #dl_highpri_begin).
+    uint32_t *end = ctx.cur;
+
+    ctx.cur += 2;
     *ctx.cur++ = (DL_CMD_SET_STATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING;
     *ctx.cur++ = (DL_CMD_SWAP_BUFFERS<<24) | (DL_LOWPRI_CALL_SLOT<<2);
       *ctx.cur++ = DL_HIGHPRI_CALL_SLOT<<2;
       *ctx.cur++ = SP_STATUS_SIG_HIGHPRI;
     dl_terminator(ctx.cur);
+
+    MEMORY_BARRIER();
+
+    *start = (DL_CMD_JUMP<<24) | PhysicalAddr(start+2);
+    dl_terminator(start+1);
+
     dl_flush_internal();
 
     highpri = ctx;
