@@ -1,3 +1,9 @@
+/**
+ * @file rspq.c
+ * @brief RSP Command queue
+ * @ingroup rsp
+ */
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -25,30 +31,6 @@
     MEMORY_BARRIER(); \
     *(uint8_t*)(rspq) = 0x01; \
 })
-
-#define SP_STATUS_SIG_HIGHPRI_RUNNING         SP_STATUS_SIG2
-#define SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING    SP_WSTATUS_SET_SIG2
-#define SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING  SP_WSTATUS_CLEAR_SIG2
-
-#define SP_STATUS_SIG_BUFDONE2                SP_STATUS_SIG3
-#define SP_WSTATUS_SET_SIG_BUFDONE2           SP_WSTATUS_SET_SIG3
-#define SP_WSTATUS_CLEAR_SIG_BUFDONE2         SP_WSTATUS_CLEAR_SIG3
-
-#define SP_STATUS_SIG_SYNCPOINT               SP_STATUS_SIG4
-#define SP_WSTATUS_SET_SIG_SYNCPOINT          SP_WSTATUS_SET_SIG4
-#define SP_WSTATUS_CLEAR_SIG_SYNCPOINT        SP_WSTATUS_CLEAR_SIG4
-
-#define SP_STATUS_SIG_BUFDONE                 SP_STATUS_SIG5
-#define SP_WSTATUS_SET_SIG_BUFDONE            SP_WSTATUS_SET_SIG5
-#define SP_WSTATUS_CLEAR_SIG_BUFDONE          SP_WSTATUS_CLEAR_SIG5
-
-#define SP_STATUS_SIG_HIGHPRI                 SP_STATUS_SIG6
-#define SP_WSTATUS_SET_SIG_HIGHPRI            SP_WSTATUS_SET_SIG6
-#define SP_WSTATUS_CLEAR_SIG_HIGHPRI          SP_WSTATUS_CLEAR_SIG6
-
-#define SP_STATUS_SIG_MORE                    SP_STATUS_SIG7
-#define SP_WSTATUS_SET_SIG_MORE               SP_WSTATUS_SET_SIG7
-#define SP_WSTATUS_CLEAR_SIG_MORE             SP_WSTATUS_CLEAR_SIG7
 
 __attribute__((noreturn))
 static void rsp_crash(const char *file, int line, const char *func);
@@ -92,6 +74,17 @@ typedef struct rsp_queue_s {
     uint16_t primode_status_check;
 } __attribute__((aligned(16), packed)) rsp_queue_t;
 
+
+
+typedef struct {
+    void *buffers[2];
+    int buf_size;
+    int buf_idx;
+    uint32_t sp_status_bufdone, sp_wstatus_set_bufdone, sp_wstatus_clear_bufdone;
+    uint32_t *cur;
+    uint32_t *sentinel;
+} rspq_ctx_t;
+
 static rsp_queue_t rspq_data;
 #define rspq_data_ptr ((rsp_queue_t*)UncachedAddr(&rspq_data))
 
@@ -100,7 +93,10 @@ static uint8_t rspq_overlay_count = 0;
 static rspq_block_t *rspq_block;
 static int rspq_block_size;
 
-rspq_ctx_t ctx;
+rspq_ctx_t *rspq_ctx;
+uint32_t *rspq_cur_pointer;
+uint32_t *rspq_cur_sentinel;
+
 rspq_ctx_t lowpri, highpri;
 
 static int rspq_syncpoints_genid;
@@ -123,28 +119,49 @@ static void rspq_sp_interrupt(void)
         ++rspq_syncpoints_done;
         debugf("syncpoint intr %d\n", rspq_syncpoints_done);
     }
-#if 0
-    // Check if we just finished a highpri list
-    if (status & SP_STATUS_SIG_HIGHPRI_FINISHED) {
-        // Clear the HIGHPRI_FINISHED signal
-        wstatus |= SP_WSTATUS_CLEAR_SIG_HIGHPRI_FINISHED;
 
-        // If there are still highpri buffers pending, schedule them right away
-        if (++rspq_highpri_ridx < rspq_highpri_widx)
-            wstatus |= SP_WSTATUS_SET_SIG_HIGHPRI;
-    }
-#endif
     MEMORY_BARRIER();
 
     *SP_STATUS = wstatus;
 }
 
-void rspq_start()
+static void rspq_switch_context(rspq_ctx_t *new)
+{
+    if (rspq_ctx) {    
+        rspq_ctx->cur = rspq_cur_pointer;
+        rspq_ctx->sentinel = rspq_cur_sentinel;
+    }
+
+    rspq_ctx = new;
+    rspq_cur_pointer = rspq_ctx ? rspq_ctx->cur : NULL;
+    rspq_cur_sentinel = rspq_ctx ? rspq_ctx->sentinel : NULL;
+}
+
+static uint32_t* rspq_switch_buffer(uint32_t *new, int size, bool clear)
+{
+    uint32_t* prev = rspq_cur_pointer;
+
+    // Add a terminator so that it's a valid buffer.
+    // Notice that the buffer must have been cleared before, as the
+    // command queue are expected to always contain 0 on unwritten data.
+    // We don't do this for performance reasons.
+    assert(size >= RSPQ_MAX_COMMAND_SIZE);
+    if (clear) memset(new, 0, size * sizeof(uint32_t));
+    rspq_terminator(new);
+
+    // Switch to the new buffer, and calculate the new sentinel.
+    rspq_cur_pointer = new;
+    rspq_cur_sentinel = new + size - RSPQ_MAX_COMMAND_SIZE;
+
+    // Return a pointer to the previous buffer
+    return prev;
+}
+
+
+void rspq_start(void)
 {
     if (rspq_is_running)
-    {
         return;
-    }
 
     rsp_wait();
     rsp_load(&rsp_queue);
@@ -166,8 +183,8 @@ void rspq_start()
                  SP_WSTATUS_CLEAR_SIG1 | 
                  SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING | 
                  SP_WSTATUS_CLEAR_SIG_SYNCPOINT |
-                 SP_WSTATUS_SET_SIG_BUFDONE |
-                 SP_WSTATUS_SET_SIG_BUFDONE2 |
+                 SP_WSTATUS_SET_SIG_BUFDONE_LOW |
+                 SP_WSTATUS_SET_SIG_BUFDONE_HIGH |
                  SP_WSTATUS_CLEAR_SIG_HIGHPRI |
                  SP_WSTATUS_CLEAR_SIG_MORE;
 
@@ -191,29 +208,25 @@ static void rspq_init_context(rspq_ctx_t *ctx, int buf_size)
     ctx->sentinel = ctx->cur + buf_size - RSPQ_MAX_COMMAND_SIZE;
 }
 
-void rspq_init()
+void rspq_init(void)
 {
     // Do nothing if rspq_init has already been called
     if (rspq_overlay_count > 0) 
-    {
         return;
-    }
 
     // Allocate RSPQ contexts
     rspq_init_context(&lowpri, RSPQ_DRAM_LOWPRI_BUFFER_SIZE);
-    lowpri.sp_status_bufdone = SP_STATUS_SIG_BUFDONE;
-    lowpri.sp_wstatus_set_bufdone = SP_WSTATUS_SET_SIG_BUFDONE;
-    lowpri.sp_wstatus_clear_bufdone = SP_WSTATUS_CLEAR_SIG_BUFDONE;
+    lowpri.sp_status_bufdone = SP_STATUS_SIG_BUFDONE_LOW;
+    lowpri.sp_wstatus_set_bufdone = SP_WSTATUS_SET_SIG_BUFDONE_LOW;
+    lowpri.sp_wstatus_clear_bufdone = SP_WSTATUS_CLEAR_SIG_BUFDONE_LOW;
 
     rspq_init_context(&highpri, RSPQ_DRAM_HIGHPRI_BUFFER_SIZE);
-    highpri.sp_status_bufdone = SP_STATUS_SIG_BUFDONE2;
-    highpri.sp_wstatus_set_bufdone = SP_WSTATUS_SET_SIG_BUFDONE2;
-    highpri.sp_wstatus_clear_bufdone = SP_WSTATUS_CLEAR_SIG_BUFDONE2;
+    highpri.sp_status_bufdone = SP_STATUS_SIG_BUFDONE_HIGH;
+    highpri.sp_wstatus_set_bufdone = SP_WSTATUS_SET_SIG_BUFDONE_HIGH;
+    highpri.sp_wstatus_clear_bufdone = SP_WSTATUS_CLEAR_SIG_BUFDONE_HIGH;
 
     // Start in low-priority mode
-    ctx = lowpri;
-    debugf("lowpri: %p|%p\n", lowpri.buffers[0], lowpri.buffers[1]);
-    debugf("highpri: %p|%p\n", highpri.buffers[0], highpri.buffers[1]);
+    rspq_switch_context(&lowpri);
 
     // Load initial settings
     memset(rspq_data_ptr, 0, sizeof(rsp_queue_t));
@@ -243,15 +256,15 @@ void rspq_init()
 
 void rspq_stop()
 {
+    MEMORY_BARRIER();
+    *SP_STATUS = SP_WSTATUS_SET_HALT;
+    MEMORY_BARRIER();
+
     rspq_is_running = 0;
 }
 
 void rspq_close()
 {
-    MEMORY_BARRIER();
-    *SP_STATUS = SP_WSTATUS_SET_HALT;
-    MEMORY_BARRIER();
-
     rspq_stop();
     
     rspq_overlay_count = 0;
@@ -316,26 +329,6 @@ void rspq_overlay_register(rsp_ucode_t *overlay_ucode, uint8_t id)
     rspq_dma_to_dmem(0, &rspq_data_ptr->tables, sizeof(rspq_overlay_tables_t), false);
 }
 
-static uint32_t* rspq_switch_buffer(uint32_t *rspq2, int size, bool clear)
-{
-    uint32_t* prev = ctx.cur;
-
-    // Add a terminator so that it's a valid buffer.
-    // Notice that the buffer must have been cleared before, as the
-    // command queue are expected to always contain 0 on unwritten data.
-    // We don't do this for performance reasons.
-    assert(size >= RSPQ_MAX_COMMAND_SIZE);
-    if (clear) memset(rspq2, 0, size * sizeof(uint32_t));
-    rspq_terminator(rspq2);
-
-    // Switch to the new buffer, and calculate the new sentinel.
-    ctx.cur = rspq2;
-    ctx.sentinel = ctx.cur + size - RSPQ_MAX_COMMAND_SIZE;
-
-    // Return a pointer to the previous buffer
-    return prev;
-}
-
 __attribute__((noinline))
 void rspq_next_buffer(void) {
     // If we're creating a block
@@ -361,29 +354,27 @@ void rspq_next_buffer(void) {
     // so that the kernel can switch away while waiting. Even
     // if the overhead of an interrupt is obviously higher.
     MEMORY_BARRIER();
-    if (!(*SP_STATUS & ctx.sp_status_bufdone)) {
+    if (!(*SP_STATUS & rspq_ctx->sp_status_bufdone)) {
         rspq_flush_internal();
         RSP_WAIT_LOOP() {
-            if (*SP_STATUS & ctx.sp_status_bufdone)
+            if (*SP_STATUS & rspq_ctx->sp_status_bufdone)
                 break;
         }
     }
     MEMORY_BARRIER();
-    *SP_STATUS = ctx.sp_wstatus_clear_bufdone;
+    *SP_STATUS = rspq_ctx->sp_wstatus_clear_bufdone;
     MEMORY_BARRIER();
 
     // Switch current buffer
-    ctx.buf_idx = 1-ctx.buf_idx;
-    uint32_t *rspq2 = ctx.buffers[ctx.buf_idx];
-    uint32_t *prev = rspq_switch_buffer(rspq2, ctx.buf_size, true);
-
-    // debugf("rspq_next_buffer: new:%p old:%p\n", rspq2, prev);
+    rspq_ctx->buf_idx = 1-rspq_ctx->buf_idx;
+    uint32_t *new = rspq_ctx->buffers[rspq_ctx->buf_idx];
+    uint32_t *prev = rspq_switch_buffer(new, rspq_ctx->buf_size, true);
 
     // Terminate the previous buffer with an op to set SIG_BUFDONE
     // (to notify when the RSP finishes the buffer), plus a jump to
     // the new buffer.
-    *prev++ = (RSPQ_CMD_SET_STATUS<<24) | ctx.sp_wstatus_set_bufdone;
-    *prev++ = (RSPQ_CMD_JUMP<<24) | PhysicalAddr(rspq2);
+    *prev++ = (RSPQ_CMD_SET_STATUS<<24) | rspq_ctx->sp_wstatus_set_bufdone;
+    *prev++ = (RSPQ_CMD_JUMP<<24) | PhysicalAddr(new);
     rspq_terminator(prev);
 
     MEMORY_BARRIER();
@@ -393,7 +384,7 @@ void rspq_next_buffer(void) {
 }
 
 __attribute__((noinline))
-void rspq_flush_internal(void)
+static void rspq_flush_internal(void)
 {
     // Tell the RSP to wake up because there is more data pending.
     MEMORY_BARRIER();
@@ -420,7 +411,7 @@ void rspq_flush_internal(void)
 
 void rspq_flush(void)
 {
-    // If we are recording a block, flushes can be ignored
+    // If we are recording a block, flushes can be ignored.
     if (rspq_block) return;
 
     rspq_flush_internal();
@@ -504,18 +495,12 @@ static void rsp_crash(const char *file, int line, const char *func)
 
 #endif
 
-
-#if 1
-
 void rspq_highpri_begin(void)
 {
     assertf(!rspq_is_highpri, "already in highpri mode");
     assertf(!rspq_block, "cannot switch to highpri mode while creating a block");
 
-    // debugf("rspq_highpri_begin\n");
-
-    lowpri = ctx;
-    ctx = highpri;
+    rspq_switch_context(&highpri);
 
     // If we're continuing on the same buffer another highpri sequence,
     // try to erase the highpri epilog. This allows to enqueue more than one
@@ -537,8 +522,8 @@ void rspq_highpri_begin(void)
     //     by a partial epilog, or a few NOPs followed by some zeroes. In either
     //     case, the zeros will force the RSP to fetch it again, and the second
     //     time will see the fully NOP'd epilog and continue to next highpri.
-    if (ctx.cur[0]>>24 == RSPQ_CMD_IDLE && ctx.cur[-3]>>24 == RSPQ_CMD_SWAP_BUFFERS) {
-        uint32_t *cur = ctx.cur;
+    if (rspq_cur_pointer[0]>>24 == RSPQ_CMD_IDLE && rspq_cur_pointer[-3]>>24 == RSPQ_CMD_SWAP_BUFFERS) {
+        uint32_t *cur = rspq_cur_pointer;
         cur[-5] = 0; MEMORY_BARRIER();
         cur[-4] = 0; MEMORY_BARRIER();
         cur[-3] = 0; MEMORY_BARRIER();
@@ -551,8 +536,8 @@ void rspq_highpri_begin(void)
         cur[-1] = RSPQ_CMD_NOOP<<24; MEMORY_BARRIER();
     }
 
-    *ctx.cur++ = (RSPQ_CMD_SET_STATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING;
-    rspq_terminator(ctx.cur);
+    *rspq_cur_pointer++ = (RSPQ_CMD_SET_STATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING;
+    rspq_terminator(rspq_cur_pointer);
  
     *SP_STATUS = SP_WSTATUS_SET_SIG_HIGHPRI;
     rspq_is_highpri = true;
@@ -572,14 +557,14 @@ void rspq_highpri_end(void)
     // So we leave the IDLE+0 where they are, write the epilog just after it,
     // and finally write a JUMP to it. The JUMP is required so that the RSP
     // always refetch the epilog when it gets to it (see #rspq_highpri_begin).
-    uint32_t *end = ctx.cur;
+    uint32_t *end = rspq_cur_pointer;
 
-    ctx.cur += 2;
-    *ctx.cur++ = (RSPQ_CMD_SET_STATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING;
-    *ctx.cur++ = (RSPQ_CMD_SWAP_BUFFERS<<24) | (RSPQ_LOWPRI_CALL_SLOT<<2);
-      *ctx.cur++ = RSPQ_HIGHPRI_CALL_SLOT<<2;
-      *ctx.cur++ = SP_STATUS_SIG_HIGHPRI;
-    rspq_terminator(ctx.cur);
+    rspq_cur_pointer += 2;
+    *rspq_cur_pointer++ = (RSPQ_CMD_SET_STATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING;
+    *rspq_cur_pointer++ = (RSPQ_CMD_SWAP_BUFFERS<<24) | (RSPQ_LOWPRI_CALL_SLOT<<2);
+      *rspq_cur_pointer++ = RSPQ_HIGHPRI_CALL_SLOT<<2;
+      *rspq_cur_pointer++ = SP_STATUS_SIG_HIGHPRI;
+    rspq_terminator(rspq_cur_pointer);
 
     MEMORY_BARRIER();
 
@@ -588,8 +573,7 @@ void rspq_highpri_end(void)
 
     rspq_flush_internal();
 
-    highpri = ctx;
-    ctx = lowpri;
+    rspq_switch_context(&lowpri);
     rspq_is_highpri = false;
 }
 
@@ -597,338 +581,11 @@ void rspq_highpri_sync(void)
 {
     assertf(!rspq_is_highpri, "this function can only be called outside of highpri mode");
 
-#if 0
-    // Slower code using a syncpoint (can preempt)
-    rspq_highpri_begin();
-    rspq_syncpoint_t sync = rspq_syncpoint();
-    rspq_highpri_end();
-    rspq_wait_syncpoint(sync);
-#else
-    // Faster code, using a signal (busy loop)
     RSP_WAIT_LOOP() {
         if (!(*SP_STATUS & (SP_STATUS_SIG_HIGHPRI | SP_STATUS_SIG_HIGHPRI_RUNNING)))
             break;
     }
-#endif
 }
-
-
-#else
-/***********************************************************************/
-
-#define RSPQ_HIGHPRI_NUM_BUFS  8
-#define RSPQ_HIGHPRI_BUF_SIZE  128
-
-int rspq_highpri_widx;
-uint32_t *rspq_highpri_trampoline;
-uint32_t *rspq_highpri_buf;
-int rspq_highpri_used[RSPQ_HIGHPRI_NUM_BUFS];
-
-
-/*
-The trampoline is the "bootstrap" code for the highpri queues. It is
-stored in a different memory buffer. The trampoline is made by two fixed
-parts (a header and a footer), and a body which is dynamically updated as
-more queues are prepared by CPU, and executed by RSP.
-
-The idea of the trampoline is to store a list of pending highpri queues in
-its body, in the form of RSPQ_CMD_JUMP commands. Every time the CPU prepares a
-new highpri list, it adds a JUMP command in the trampoline body. Every time the
-RSP executes a list, it removes the list from the trampoline. Notice that the
-CPU treats the trampoline itself as a "critical section": before touching
-it, it pauses the RSP, and also verify that the RSP is not executing commands
-in the trampoline itself. These safety measures allow both CPU and RSP to
-modify the trampoline without risking race conditions.
-
-The way the removal of executed lists happens is peculiar: the trampoline header
-is executed after every queue is run, and contains a RSPQ_DMA command which "pops"
-the first list from the body by copying the rest of the body over it. It basically
-does the moral equivalent of "memmove(body, body+4, body_length)". 
-
-This is an example that shows a possible trampoline:
-
-       HEADER:
-00 WSTATUS   SP_WSTATUS_CLEAR_SIG_HIGHPRI | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING | SP_WSTATUS_SET_SIG_HIGHPRI_TRAMPOLINE
-01 DMA       DEST: Trampoline Body in RDRAM
-02           SRC: Trampoline Body + 4 in DMEM
-03           LEN: Trampoline Body length (num buffers * 2 * sizeof(uint32_t))
-04           FLAGS: DMA_OUT_ASYNC
-05 NOP
-       
-       BODY:
-06 WSTATUS   SP_WSTATUS_RESET_SIG_HIGHPRI_TRAMPOLINE
-07 JUMP      queue1
-08 WSTATUS   SP_WSTATUS_RESET_SIG_HIGHPRI_TRAMPOLINE
-09 JUMP      queue2
-0A JUMP      12
-0B NOP
-0C JUMP      12
-0D NOP
-0E JUMP      12
-0F NOP
-
-       FOOTER:
-10 JUMP      12
-11 NOP
-12 RET_HIGHPRI  RSPQ_HIGHPRI_CALL_SLOT
-13              SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING | SP_WSTATUS_CLEAR_HIGHPRI_TRAMPOLINE
-14 IDLE
-
-Let's describe all commands one by one.
-
-The first command (index 00) is a RSPQ_CMD_SET_STATUS which clears the SIG_HIGHPRI
-and sets SIG_HIGHPRI_RUNNING. This must absolutely be the first command executed
-when the highpri mode starts, because otherwise the RSP would go into
-an infinite loop (it would find SIG_HIGHPRI always set and calls the list
-forever).
-
-The second command (index 01) is a NOP, which is used to align the body to
-8 bytes. This is important because the RSPQ_DMA command that follows works only
-on 8-byte aligned addresses.
-
-The third command (index 02) is a RSPQ_DMA which is used to remove the first list
-from the RDRAM copy of the trampoline body. The first list is the one that will be
-executed now, so we need to remove it so that we will not it execute it again
-next time. In the above example, the copy will take words in range [08..11]
-and copy them over the range [06..0F], effectively scrolling all other
-JUMP calls up by one slot. Notice that words 10 and 11 are part of the footer
-and they always contain the "empty data" (jump to the exit routine), so that the
-body can be emptied correctly even if it was full.
-
-The body covers indices 06-0F. It contains JUMPs to all queues that have been
-prepared by the CPU. Each JUMP is followed by a NOP so that they are all
-8-byte aligned, and the RSPQ_DMA that pops one queue from the body is able to
-work with 8-byte aligned entities. Notice that all highpri queues are
-terminated with a JUMP to the *beginning* of the trampoline, so that the
-full trampoline is run again after each list.
-
-After the first two JUMPs to actual command queues, the rest of the body
-is filled with JUMP to the footer exit code (index 12). This allows the RSP
-to quickly jump to the final cleanup code when it's finished executing high
-priority queues, without going through all the slots of the trampoline.
-
-The first command in the footer (index 12) is a WSTATUS that clears
-SIG_HIGHPRI_RUNNING, so that the CPU is able to later tell that the RSP has
-finished running highpri queues.
-
-The second command (index 13) is a RET that will resume executing in the
-standard queue. The call slot used is RSPQ_HIGHPRI_CALL_SLOT, which is where the
-RSP has saved the current address when switching to highpri mode.
-
-The third command (index 14) is a IDLE which is the standard terminator for
-all command queues.
-
-*/
-
-static const uint32_t TRAMPOLINE_HEADER = 6;
-static const uint32_t TRAMPOLINE_BODY = RSPQ_HIGHPRI_NUM_BUFS*2;
-static const uint32_t TRAMPOLINE_FOOTER = 5;
-static const uint32_t TRAMPOLINE_WORDS = TRAMPOLINE_HEADER + TRAMPOLINE_BODY + TRAMPOLINE_FOOTER;
-
-void __rspq_highpri_init(void)
-{
-    rspq_is_highpri = false;
-
-    // Allocate the buffers for highpri queues (one contiguous memory area)
-    int buf_size = RSPQ_HIGHPRI_NUM_BUFS * RSPQ_HIGHPRI_BUF_SIZE * sizeof(uint32_t);
-    rspq_highpri_buf = malloc_uncached(buf_size);
-    memset(rspq_highpri_buf, 0, buf_size);
-
-    // Allocate the trampoline and initialize it
-    rspq_highpri_trampoline = malloc_uncached(TRAMPOLINE_WORDS*sizeof(uint32_t));
-    uint32_t *dlp = rspq_highpri_trampoline;
-
-    // Write the trampoline header (6 words). 
-    *dlp++ = (RSPQ_CMD_SET_STATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING | SP_WSTATUS_SET_SIG_HIGHPRI_TRAMPOLINE;
-    *dlp++ = (RSPQ_CMD_DMA<<24) | (uint32_t)PhysicalAddr(rspq_highpri_trampoline + TRAMPOLINE_HEADER);
-      *dlp++ = 0xD8 + (TRAMPOLINE_HEADER+2)*sizeof(uint32_t); // FIXME address of RSPQ_DMEM_BUFFER
-      *dlp++ = (RSPQ_HIGHPRI_NUM_BUFS*2) * sizeof(uint32_t) - 1;
-      *dlp++ = 0xFFFF8000 | SP_STATUS_DMA_FULL | SP_STATUS_DMA_BUSY; // DMA_OUT
-    *dlp++ = (RSPQ_CMD_NOOP<<24);
-
-    uint32_t jump_to_footer = (RSPQ_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(rspq_highpri_trampoline + TRAMPOLINE_HEADER + TRAMPOLINE_BODY + 2);
-
-    // Fill the rest of the trampoline with noops
-    assert(dlp - rspq_highpri_trampoline == TRAMPOLINE_HEADER);
-    for (int i = TRAMPOLINE_HEADER; i < TRAMPOLINE_HEADER+TRAMPOLINE_BODY; i+=2) {
-        *dlp++ = jump_to_footer;
-        *dlp++ = RSPQ_CMD_NOOP<<24;
-    }
-
-    // Fill the footer
-    *dlp++ = jump_to_footer;
-    *dlp++ = RSPQ_CMD_NOOP<<24;
-    *dlp++ = (RSPQ_CMD_RET_HIGHPRI<<24) | (RSPQ_HIGHPRI_CALL_SLOT<<2);
-      *dlp++ = SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING | SP_WSTATUS_CLEAR_SIG_HIGHPRI_TRAMPOLINE;
-    *dlp++ = (RSPQ_CMD_IDLE<<24);
-    assert(dlp - rspq_highpri_trampoline == TRAMPOLINE_WORDS);
-
-    rspq_data_ptr->rspq_dram_highpri_addr = PhysicalAddr(rspq_highpri_trampoline);
-}
-
-void rspq_highpri_begin(void)
-{
-    assertf(!rspq_is_highpri, "already in highpri mode");
-    assertf(!rspq_block, "cannot switch to highpri mode while creating a block");
-
-    // Get the first buffer available for the new highpri queue
-    int bufidx = rspq_highpri_widx % RSPQ_HIGHPRI_NUM_BUFS;
-    uint32_t *dlh = &rspq_highpri_buf[bufidx * RSPQ_HIGHPRI_BUF_SIZE];
-
-    debugf("rspq_highpri_begin %p\n", dlh);
-
-    // Clear the buffer. This clearing itself can be very slow compared to the
-    // total time of rspq_highpri_begin, so keep track of how much this buffer was
-    // used last time, and only clear the part that was really used.
-    memset(dlh, 0, rspq_highpri_used[bufidx] * sizeof(uint32_t));
-
-    // Switch to the new buffer.
-    rspq_push_buffer();
-    rspq_switch_buffer(dlh, RSPQ_HIGHPRI_BUF_SIZE-3, false);
-
-    // Check if the RSP is running a highpri queue.
-    if (!(*SP_STATUS & (SP_STATUS_SIG_HIGHPRI_RUNNING|SP_STATUS_SIG_HIGHPRI))) {  
-        assertf(rspq_highpri_trampoline[TRAMPOLINE_HEADER] == rspq_highpri_trampoline[TRAMPOLINE_HEADER + TRAMPOLINE_BODY],
-            "internal error: highpri list pending in trampoline in lowpri mode\ncmd: %08lx", rspq_highpri_trampoline[TRAMPOLINE_HEADER]);
-        rspq_highpri_trampoline[TRAMPOLINE_HEADER+0] = (RSPQ_CMD_SET_STATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI_TRAMPOLINE;
-        rspq_highpri_trampoline[TRAMPOLINE_HEADER+1] = (RSPQ_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dlh);
-        MEMORY_BARRIER();
-        *SP_STATUS = SP_WSTATUS_SET_SIG_HIGHPRI;
-    } else {
-        // Try pausing the RSP while it's executing code which is *outside* the
-        // trampoline. We're going to modify the trampoline and we want to do it
-        // while the RSP is not running there otherwise we risk race conditions.
-        rsp_watchdog_reset();
-    try_pause_rsp:
-        // while (*SP_STATUS & SP_STATUS_SIG_HIGHPRI_TRAMPOLINE) {}
-        rsp_pause(true);
-
-#if 0
-        uint32_t rspq_rdram_ptr = (((uint32_t)((volatile rsp_queue_t*)SP_DMEM)->rspq_dram_addr) & 0x00FFFFFF);
-        if (rspq_rdram_ptr >= PhysicalAddr(rspq_highpri_trampoline) && rspq_rdram_ptr < PhysicalAddr(rspq_highpri_trampoline+TRAMPOLINE_WORDS)) {
-            debugf("SP processing highpri trampoline... retrying [PC:%lx]\n", *SP_PC);
-            uint32_t jump_to_footer = rspq_highpri_trampoline[TRAMPOLINE_HEADER + TRAMPOLINE_BODY];
-            debugf("Trampoline %p (fetching at [%p]%08lx, PC:%lx)\n", rspq_highpri_trampoline, rspq_rdram_ptr, *(uint32_t*)(((uint32_t)(rspq_rdram_ptr))|0xA0000000), *SP_PC);
-            for (int i=TRAMPOLINE_HEADER; i<TRAMPOLINE_HEADER+TRAMPOLINE_BODY+2; i++)
-                debugf("%x: %08lx %s\n", i, rspq_highpri_trampoline[i], rspq_highpri_trampoline[i]==jump_to_footer ? "*" : "");
-            rsp_pause(false);
-            wait_ticks(40);
-            goto try_pause_rsp;
-        }
-#endif
-        debugf("RSP: paused: STATUS=%lx PC=%lx\n", *SP_STATUS, *SP_PC);
-        if (*SP_PC < 0x150 || *SP_PC > 0x1A4) {
-            debugf("RSPQ_DRAM_ADDR:%lx | %lx\n", 
-                (((uint32_t)((volatile rsp_queue_t*)SP_DMEM)->rspq_dram_addr) & 0x00FFFFFF),
-                (((uint32_t)((volatile rsp_queue_t*)SP_DMEM)->rspq_dram_highpri_addr) & 0x00FFFFFF));
-        }
-        if (*SP_STATUS & SP_STATUS_SIG_HIGHPRI_TRAMPOLINE) {
-            debugf("SP processing highpri trampoline... retrying [STATUS:%lx, PC:%lx]\n", *SP_STATUS, *SP_PC);
-            uint32_t jump_to_footer = rspq_highpri_trampoline[TRAMPOLINE_HEADER + TRAMPOLINE_BODY];
-            for (int i=TRAMPOLINE_HEADER; i<TRAMPOLINE_HEADER+TRAMPOLINE_BODY+2; i++)
-                debugf("%x: %08lx %s\n", i, rspq_highpri_trampoline[i], rspq_highpri_trampoline[i]==jump_to_footer ? "*" : "");
-            rsp_watchdog_kick();
-            rsp_pause(false);
-            //wait_ticks(40);
-            goto try_pause_rsp;
-        }
-
-        // Check the trampoline body. Search for the first JUMP to the footer
-        // slot. We are going to replace it to a jump to our new queue.
-        uint32_t jump_to_footer = rspq_highpri_trampoline[TRAMPOLINE_HEADER + TRAMPOLINE_BODY];
-        #if 0
-        debugf("Trampoline %p (STATUS:%lx, PC:%lx)\n", rspq_highpri_trampoline, *SP_STATUS, *SP_PC);
-        for (int i=TRAMPOLINE_HEADER; i<TRAMPOLINE_HEADER+TRAMPOLINE_BODY+2; i++)
-            debugf("%x: %08lx %s\n", i, rspq_highpri_trampoline[i], rspq_highpri_trampoline[i]==jump_to_footer ? "*" : "");
-        #endif
-        int tramp_widx = TRAMPOLINE_HEADER;
-        while (rspq_highpri_trampoline[tramp_widx] != jump_to_footer) {
-            tramp_widx += 2;
-            if (tramp_widx >= TRAMPOLINE_WORDS - TRAMPOLINE_FOOTER) {
-                debugf("Highpri trampoline is full... retrying\n");
-                rsp_watchdog_kick();
-                rsp_pause(false);
-                wait_ticks(400);
-                goto try_pause_rsp;
-            }
-        }
-
-        // Write the RSPQ_CMD_JUMP to the new list
-        rspq_highpri_trampoline[tramp_widx+0] = (RSPQ_CMD_SET_STATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI_TRAMPOLINE;
-        rspq_highpri_trampoline[tramp_widx+1] = (RSPQ_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(dlh);
-
-        // At the beginning of the function, we found that the RSP was already
-        // in highpri mode. Meanwhile, the RSP has probably advanced a few ops
-        // (even if it was paused most of the time, it might have been unpaused
-        // during retries, etc.). So it could have even exited highpri mode
-        // (if it was near to completion).
-        // So check again and if it's not in highpri mode, start it.
-        MEMORY_BARRIER();
-        if (!(*SP_STATUS & SP_STATUS_SIG_HIGHPRI_RUNNING)) {
-            *SP_STATUS = SP_WSTATUS_SET_SIG_HIGHPRI;
-            debugf("tramp: triggering SIG_HIGHPRI\n");
-        }
-        MEMORY_BARRIER();
-
-        debugf("tramp_widx: %x\n", tramp_widx);
-
-        // Unpause the RSP. We've done modifying the trampoline so it's safe now.
-        rsp_pause(false);
-    }
-
-    rspq_is_highpri = true;
-}
-
-void rspq_highpri_end(void)
-{
-    assertf(rspq_is_highpri, "not in highpri mode");
-
-    // Terminate the highpri queue with a jump back to the trampoline.
-    *rspq_cur_pointer++ = (RSPQ_CMD_SET_STATUS<<24) | SP_WSTATUS_SET_SIG_HIGHPRI_TRAMPOLINE;
-    *rspq_cur_pointer++ = (RSPQ_CMD_JUMP<<24) | (uint32_t)PhysicalAddr(rspq_highpri_trampoline);
-    rspq_terminator(rspq_cur_pointer);
-
-    debugf("rspq_highpri_end %p\n", rspq_cur_pointer+1);
-
-    // Keep track of how much of this buffer was actually written to. This will
-    // speed up next call to rspq_highpri_begin, as we will clear only the
-    // used portion of the buffer.
-    int bufidx = rspq_highpri_widx % RSPQ_HIGHPRI_NUM_BUFS;
-    uint32_t *dlh = &rspq_highpri_buf[bufidx * RSPQ_HIGHPRI_BUF_SIZE];
-    rspq_highpri_used[bufidx] = rspq_cur_pointer + 1 - dlh;
-    rspq_highpri_widx++;
-
-    // Pop back to the standard queue
-    rspq_pop_buffer();
-
-    // Kick the RSP in case it was idling: we want to run this highpri
-    // queue as soon as possible
-    rspq_flush();
-    rspq_is_highpri = false;
-}
-
-void rspq_highpri_sync(void)
-{
-    // void* ptr = 0;
-    rsp_watchdog_reset();
-
-    while (*SP_STATUS & (SP_STATUS_SIG_HIGHPRI_RUNNING|SP_STATUS_SIG_HIGHPRI)) 
-    { 
-        rsp_watchdog_kick();
-#if 0
-        rsp_pause(true);
-        void *ptr2 = (void*)(((uint32_t)((volatile rsp_queue_t*)SP_DMEM)->rspq_dram_addr) & 0x00FFFFFF);
-        if (ptr2 != ptr) {
-            debugf("RSP: fetching at %p\n", ptr2);
-            ptr = ptr2;
-        }
-        rsp_pause(false);
-        wait_ticks(40);
-#endif
-    }
-}
-#endif
-/***********************************************************************/
 
 void rspq_block_begin(void)
 {
@@ -942,7 +599,7 @@ void rspq_block_begin(void)
 
     // Switch to the block buffer. From now on, all rspq_writes will
     // go into the block.
-    lowpri = ctx;
+    rspq_switch_context(NULL);
     rspq_switch_buffer(rspq_block->cmds, rspq_block_size, true);
 }
 
@@ -952,11 +609,11 @@ rspq_block_t* rspq_block_end(void)
 
     // Terminate the block with a RET command, encoding
     // the nesting level which is used as stack slot by RSP.
-    *ctx.cur++ = (RSPQ_CMD_RET<<24) | (rspq_block->nesting_level<<2);
-    rspq_terminator(ctx.cur);
+    *rspq_cur_pointer++ = (RSPQ_CMD_RET<<24) | (rspq_block->nesting_level<<2);
+    rspq_terminator(rspq_cur_pointer);
 
     // Switch back to the normal display list
-    ctx = lowpri;
+    rspq_switch_context(&lowpri);
 
     // Return the created block
     rspq_block_t *b = rspq_block;
@@ -1003,6 +660,13 @@ void rspq_block_free(rspq_block_t *block)
 
 void rspq_block_run(rspq_block_t *block)
 {
+    // TODO: add support for block execution in highpri mode. This would be
+    // possible by allocating another range of nesting levels (eg: 8-16) to use
+    // in highpri mode (to avoid stepping on the call stack of lowpri). This
+    // would basically mean that a block can either work in highpri or in lowpri
+    // mode, but it might be an acceptable limitation.
+    assertf(!rspq_is_highpri, "block run is not supported in highpri mode");
+
     // Write the CALL op. The second argument is the nesting level
     // which is used as stack slot in the RSP to save the current
     // pointer position.
@@ -1022,20 +686,6 @@ void rspq_block_run(rspq_block_t *block)
 }
 
 
-void rspq_queue_u8(uint8_t cmd)
-{
-    uint32_t *rspq = rspq_write_begin();
-    *rspq++ = (uint32_t)cmd << 24;
-    rspq_write_end(rspq);
-}
-
-void rspq_queue_u16(uint16_t cmd)
-{
-    uint32_t *rspq = rspq_write_begin();
-    *rspq++ = (uint32_t)cmd << 16;
-    rspq_write_end(rspq);
-}
-
 void rspq_queue_u32(uint32_t cmd)
 {
     uint32_t *rspq = rspq_write_begin();
@@ -1053,7 +703,7 @@ void rspq_queue_u64(uint64_t cmd)
 
 void rspq_noop()
 {
-    rspq_queue_u8(RSPQ_CMD_NOOP);
+    rspq_queue_u32(RSPQ_CMD_NOOP << 24);
 }
 
 rspq_syncpoint_t rspq_syncpoint(void)
@@ -1093,8 +743,8 @@ void rspq_wait_syncpoint(rspq_syncpoint_t sync_id)
 
 void rspq_signal(uint32_t signal)
 {
-    const uint32_t allows_mask = SP_WSTATUS_CLEAR_SIG0|SP_WSTATUS_SET_SIG0|SP_WSTATUS_CLEAR_SIG1|SP_WSTATUS_SET_SIG1|SP_WSTATUS_CLEAR_SIG2|SP_WSTATUS_SET_SIG2;
-    assertf((signal & allows_mask) == signal, "rspq_signal called with a mask that contains bits outside SIG0-2: %lx", signal);
+    const uint32_t allows_mask = SP_WSTATUS_CLEAR_SIG0|SP_WSTATUS_SET_SIG0|SP_WSTATUS_CLEAR_SIG1|SP_WSTATUS_SET_SIG1;
+    assertf((signal & allows_mask) == signal, "rspq_signal called with a mask that contains bits outside SIG0-1: %lx", signal);
 
     rspq_queue_u32((RSPQ_CMD_SET_STATUS << 24) | signal);
 }

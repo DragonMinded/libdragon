@@ -38,29 +38,29 @@
     .data
 
 # Input properties
-OVERLAY_TABLE:         .ds.b RSPQ_OVERLAY_TABLE_SIZE
-OVERLAY_DESCRIPTORS:   .ds.b (RSPQ_OVERLAY_DESC_SIZE * RSPQ_MAX_OVERLAY_COUNT)
+OVERLAY_TABLE:           .ds.b RSPQ_OVERLAY_TABLE_SIZE
+OVERLAY_DESCRIPTORS:     .ds.b (RSPQ_OVERLAY_DESC_SIZE * RSPQ_MAX_OVERLAY_COUNT)
 
 # Save slots for RDRAM addresses used during nested lists calls.
-RSPQ_POINTER_STACK:      .ds.l (RSPQ_MAX_BLOCK_NESTING_LEVEL)
-
-RSPQ_RDRAM_PTR_LOWPRI:  .long 0
-# RDRAM address of the high priority command list.
-# NOTE: this *MUST* be initialized before running the RSP code.
-RSPQ_RDRAM_PTR_HIGHPRI: .long 0
+# Notice that the two extra slots are used to save the lowpri
+# and highpri current pointer (used when switching between the two)
+RSPQ_POINTER_STACK:      .ds.l (RSPQ_MAX_BLOCK_NESTING_LEVEL+2)
 
 # RDRAM address of the current command list.
 # NOTE: this *MUST* be initialized before running the RSP code.
-RSPQ_RDRAM_PTR:         .long 0
+RSPQ_RDRAM_PTR:          .long 0
 
-CURRENT_OVL:          .half 0
+CURRENT_OVL:             .half 0
 
-PRIMODE_STATUS_CHECK: .half 0
-
+# Mask used to check for highpri mode switch. This is equal
+# to SP_STATUS_SIG_HIGHPRI while in lowpri mode, and to 0
+# in highpri mode (to avoid infinite loops where we switch
+# to highpri mode while already in that mode).
+PRIMODE_STATUS_CHECK:    .half 0
 
     .align 4
-HBANNER0: .ascii " Dragon RSP RSPQ  "
-HBANNER1: .ascii "Rasky & Snacchus"
+    .ascii "Dragon RSP Queue"
+    .ascii "Rasky & Snacchus"
 
     .align 3
 INTERNAL_COMMAND_TABLE:
@@ -94,11 +94,11 @@ _start:
 
     .func command_wait_new_input
 command_wait_new_input:
-    # Check if new commands were added in the display list (SIG7)
+    # Check if new commands were added in the display list (SIG_MORE)
     mfc0 t0, COP0_SP_STATUS
-    andi t0, SP_STATUS_SIG7
+    andi t0, SP_STATUS_SIG_MORE
     bnez t0, wakeup
-    li t0, SP_WSTATUS_RESET_SIG7
+    li t0, SP_WSTATUS_CLEAR_SIG_MORE
 
     # No new commands yet, go to sleep
     break
@@ -128,13 +128,11 @@ fetch_buffer_with_ptr:
     jal DMAIn
     li t0, DMA_SIZE(RSPQ_DMEM_BUFFER_SIZE, 1)
 
-    # fallthrough into the main loopm but skip the highpri check. This is
-    # important because we want to give a chance to the first highpri instruction
-    # to clear the SIG5
+    # fallthrough into the main loop
     .endfunc
 
 command_invalid:  # invalid command -> repeat the loop
-command_noop:     # invalid command -> repeat the loop
+command_noop:     # noop -> repeat the loop
     .func loop
 loop:
     #define ovl_index t4

@@ -40,7 +40,7 @@ void rspq_test_16(uint32_t value)
     *ptr++ = 0xf2000000 | value;
     *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG0;
     *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG1;
-    *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG2;
+    *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG0;
     rspq_write_end(ptr);
 }
 
@@ -110,7 +110,7 @@ const unsigned long rspq_timeout = 100;
     rspq_flush(); \
     if (!wait_for_syncpoint(sync_id, t)) \
         ASSERT(0, "display list not completed: %d/%d", rspq_check_syncpoint(sync_id), (*SP_STATUS & SP_STATUS_HALTED) != 0); \
-    ASSERT_EQUAL_HEX(*SP_STATUS, SP_STATUS_HALTED | SP_STATUS_BROKE | SP_STATUS_SIG3 | SP_STATUS_SIG5 | (s), "Unexpected SP status!"); \
+    ASSERT_EQUAL_HEX(*SP_STATUS, SP_STATUS_HALTED | SP_STATUS_BROKE | SP_STATUS_SIG_BUFDONE_LOW | SP_STATUS_SIG_BUFDONE_HIGH | (s), "Unexpected SP status!"); \
 })
 
 void test_rspq_queue_single(TestContext *ctx)
@@ -166,9 +166,9 @@ void test_rspq_signal(TestContext *ctx)
 {
     TEST_RSPQ_PROLOG();
     
-    rspq_signal(SP_WSTATUS_SET_SIG1 | SP_WSTATUS_SET_SIG2);
+    rspq_signal(SP_WSTATUS_SET_SIG0 | SP_WSTATUS_SET_SIG1);
 
-    TEST_RSPQ_EPILOG(SP_STATUS_SIG1 | SP_STATUS_SIG2, rspq_timeout);
+    TEST_RSPQ_EPILOG(SP_STATUS_SIG0 | SP_STATUS_SIG1, rspq_timeout);
 }
 
 void test_rspq_high_load(TestContext *ctx)

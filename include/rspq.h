@@ -2,6 +2,137 @@
  * @file rspq.h
  * @brief RSP Command queue
  * @ingroup rsp
+ * 
+ * The RSP command queue library provides the basic infrastructure to allow
+ * a very efficient use of the RSP coprocessor. On the CPU side, it implements
+ * an API to enqueue "commands" to be executed by RSP into a ring buffer, that
+ * is concurrently consumed by RSP in background. On the RSP side, it provides the
+ * core loop that reads and execute the queue prepared by the CPU, and an
+ * infrastructure to write "RSP overlays", that is libraries that plug upon
+ * the RSP command queue to perform actual RSP jobs (eg: 3D graphics, audio, etc.).
+ * 
+ * The library is extremely efficient. It is designed for very high throughput
+ * and low latency, as the RSP pulls by the queue concurrently as the CPU 
+ * fills it. Through some complex synchronization paradigms, both CPU and RSP
+ * run fully lockless, that is never need to explicitly synchronize with
+ * each other (unless requested by the user). The CPU can keep filling the
+ * queue and must only wait for RSP in case the queue becomes full; on the
+ * other side, the RSP can keep processing the queue without ever talking to
+ * the CPU.
+ * 
+ * The library has been designed to be able to enqueue thousands of RSP commands
+ * per frame without its overhead to be measurable, which should be more than
+ * enough for most use cases.
+ * 
+ * ## Commands
+ * 
+ * Each command in the queue is made by one or more 32-bit words (up to
+ * #RSPQ_MAX_COMMAND_SIZE). The MSB of the first word is the command ID. The
+ * higher 4 bits are called the "overlay ID" and identify the overlay that is
+ * able to execute the command; the lower 4 bits are the command index, which
+ * identify the command within the overlay. For instance, command ID 0x37 is
+ * command index 7 in overlay 3.
+ * 
+ * As the RSP executes the queue, it will parse the command ID and dispatch
+ * it for execution. When required, the RSP will automatically load the
+ * RSP overlay needed to execute a command. In the previous example, the RSP
+ * will load into IMEM/DMEM overlay 3 (unless it was already loaded) and then
+ * dispatch command 7 to it.
+ * 
+ * ## Higher-level libraries
+ * 
+ * Higher-level libraries that come with their RSP ucode can be designed to
+ * use the RSP command queue to efficiently coexist with all other RSP libraries
+ * provided by libdragon. In fact, by using the overlay mechanism, each library
+ * can register its own overlay ID, and enqueue commands to be executed by the
+ * RSP through the same unique queue.
+ * 
+ * End-users can then use all these libraries at the same time, without having
+ * to arrange for complex RSP synchronization, asynchronous execution or plan for
+ * efficient context switching. In fact, they don't even need to be aware that
+ * the libraries are using the RSP. Through the unified command queue,
+ * the RSP can be used efficiently and effortlessly without idle time, nor
+ * wasting CPU cycles waiting for completion of a task before switching to 
+ * another one.
+ * 
+ * Higher-level libraries that are designed to use the RSP command queue must:
+ * 
+ *   * Call #rspq_init at initialization. The function can be called multiple
+ *     times by different libraries, with no side-effect.
+ *   * Call #rspq_overlay_register to register a #rsp_ucode_t as RSP command
+ *     queue overlay, assigning an overlay ID to it.
+ *   * Provide higher-level APIs that, when required, call #rspq_write_begin,
+ *     #rspq_write_end and #rspq_flush to enqueue commands for the RSP. For
+ *     instance, a matrix library might provide a "matrix_mult" function that
+ *     internally calls #rspq_write_begin/#rspq_write_end to enqueue a command
+ *     for the RSP to perform the calculation.
+ * 
+ * Normally, end-users will not need to manually enqueue commands in the RSP
+ * queue: they should only call higher-level APIs which internally do that.
+ * 
+ * ## Blocks
+ * 
+ * A block (#rspq_block_t) is a prerecorded sequence of RSP commands that can
+ * be played back. Blocks can be created via #rspq_block_begin / #rspq_block_end,
+ * and then executed by #rspq_block_run. It is also possible to do nested
+ * calls (a block can call another block), up to 8 levels deep.
+ * 
+ * A block is very efficient to run because it is played back by the RSP itself.
+ * The CPU just enqueues a single command that "calls" the block. It is thus
+ * much faster than enqueuing the same commands every frame.
+ * 
+ * Blocks can be used by higher-level libraries as an internal tool to efficiently
+ * drive the RSP (without having to repeat common sequence of commands), or
+ * they can be used by end-users to record and replay batch of commands, similar
+ * to OpenGL 1.x display lists.
+ * 
+ * Notice that this library does not support static (compile-time) blocks.
+ * Blocks must always be created at runtime once (eg: at init time) before
+ * being used.
+ * 
+ * ## Syncpoints
+ * 
+ * The RSP command queue is designed to be fully lockless, but sometimes it is
+ * required to know when the RSP has actually executed an enqueued command or
+ * not (eg: to use its result). To do so, this library offers a synchronization
+ * primitive called "syncpoint" (#rspq_syncpoint_t). A syncpoint can be
+ * created via #rspq_syncpoint and records the current writing position in the
+ * queue. It is then possible to call #rspq_check_syncpoint to check whether
+ * the RSP has reached that position, or #rspq_wait_syncpoint to wait for
+ * the RSP to reach that position.
+ * 
+ * Syncpoints are implemented using RSP interrupts, so their overhead is small
+ * but still measurable. They should not be abused.
+ * 
+ * ## High-priority queue
+ * 
+ * This library offers a mechanism to preempt the execution of RSP to give
+ * priority to very urgent tasks: the high-priority queue. Since the
+ * moment a high-priority queue is created via #rspq_highpri_begin, the RSP
+ * immediately suspends execution of the command queue, and switches to
+ * the high-priority queue, waiting for commands. All commands added via
+ * standard APIs (#rspq_write_begin / #rspq_write_end) are then directed
+ * to the high-priority queue, until #rspq_highpri_end is called. Once the
+ * RSP has finished executing all the commands enqueue in the high-priority
+ * queue, it resumes execution of the standard queue.
+ * 
+ * The net effect is that commands enqueued in the high-priority queue are
+ * executed right away by the RSP, irrespective to whatever was currently
+ * enqueued in the standard queue. This can be useful for running tasks that
+ * require immediate execution, like for instance audio processing.
+ * 
+ * If required, it is possible to call #rspq_highpri_sync to wait for the
+ * high-priority queue to be fully executed.
+ * 
+ * Notice that the RSP cannot be fully preempted, so switching to the high-priority
+ * queue can only happen after a command has finished execution (before starting
+ * the following one). This can have an effect on latency if a single command
+ * has a very long execution time; RSP overlays should in general prefer
+ * providing smaller, faster commands.
+ * 
+ * This feature should normally not be used by end-users, but by libraries
+ * in which a very low latency of RSP execution is paramount to their workings.
+ * 
  */
 
 #ifndef __LIBDRAGON_RSPQ_H
@@ -10,17 +141,13 @@
 #include <stdint.h>
 #include <rsp.h>
 
-// This is not a hard limit. Adjust this value when bigger commands are added.
-#define RSPQ_MAX_COMMAND_SIZE   16
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-typedef struct {
-    void *buffers[2];
-    int buf_size;
-    int buf_idx;
-    uint32_t *cur;
-    uint32_t *sentinel;
-    uint32_t sp_status_bufdone, sp_wstatus_set_bufdone, sp_wstatus_clear_bufdone;
-} rspq_ctx_t;
+/** @brief Maximum size of a command (in 32-bit words). */
+#define RSPQ_MAX_COMMAND_SIZE          16
+
 
 /**
  * @brief A preconstructed block of commands
@@ -138,8 +265,8 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
  * @hideinitializer
  */
 #define rspq_write_begin() ({ \
-	extern rspq_ctx_t ctx; \
-    ctx.cur; \
+	extern uint32_t *rspq_cur_pointer; \
+    rspq_cur_pointer; \
 })
 
 /**
@@ -159,7 +286,7 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
  * @hideinitializer
  */
 #define rspq_write_end(rspq_) ({ \
-    extern rspq_ctx_t ctx; \
+    extern uint32_t *rspq_cur_pointer, *rspq_cur_sentinel; \
 	extern void rspq_next_buffer(void); \
     \
 	uint32_t *__rspq = (rspq_); \
@@ -172,8 +299,8 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
     \
     /* Update the pointer and check if we went past the sentinel, \
      * in which case it's time to switch to the next buffer. */ \
-    ctx.cur = __rspq; \
-    if (ctx.cur > ctx.sentinel) { \
+    rspq_cur_pointer = __rspq; \
+    if (rspq_cur_pointer > rspq_cur_sentinel) { \
         rspq_next_buffer(); \
     } \
 })
@@ -408,7 +535,7 @@ void rspq_highpri_begin(void);
  * @brief Finish building the high-priority queue and close it.
  * 
  * This function terminates and closes the high-priority queue. After this
- * command is called, all commands will be added to the normal queue.
+ * command is called, all following commands will be added to the normal queue.
  * 
  * Notice that the RSP does not wait for this function to be called: it will
  * start running the high-priority queue as soon as possible, even while it is
@@ -425,17 +552,37 @@ void rspq_highpri_end(void);
  * so that the overhead of a syncpoint would be too high.
  * 
  * For longer/slower high-priority queues, it is advisable to use a #rspq_syncpoint_t
- * to synchronize (thought it has a higher overhead).
+ * to synchronize (though it has a higher overhead).
  */
 void rspq_highpri_sync(void);
 
-
-void rspq_queue_u8(uint8_t cmd);
-void rspq_queue_u16(uint16_t cmd);
+/**
+ * @brief Enqueue a 32-bit command in the queue
+ * 
+ * A simple wrapper around #rspq_write_begin / #rspq_write_end to enqueue
+ * a single 32-bit command.
+ *
+ * @param[in]  cmd   The command to enqueue
+ */
 void rspq_queue_u32(uint32_t cmd);
+
+/**
+ * @brief Enqueue a 64-bit command in the queue
+ * 
+ * A simple wrapper around #rspq_write_begin / #rspq_write_end to enqueue
+ * a single 64-bit command (as 2 32-bit words).
+ *
+ * @param[in]  cmd   The command to enqueue
+ */
 void rspq_queue_u64(uint64_t cmd);
 
-void rspq_noop();
+/**
+ * @brief Enqueue a no-op command in the queue.
+ * 
+ * This function enqueues a command that does nothing. This is mostly
+ * useful for debugging purposes.
+ */
+void rspq_noop(void);
 
 /**
  * @brief Enqueue a command that sets a signal in SP status
@@ -447,8 +594,8 @@ void rspq_noop();
  * This function allows to enqueue a command in the list that will set and/or
  * clear a combination of the above bits.
  * 
- * Notice that signal bits 3-7 are used by the command list engine itself, so this
- * function must only be used for bits 0-2.
+ * Notice that signal bits 2-7 are used by the command list engine itself, so this
+ * function must only be used for bits 0 and 1.
  * 
  * @param[in]  signal  A signal set/clear mask created by composing SP_WSTATUS_* 
  *                     defines.
@@ -492,5 +639,9 @@ void rspq_dma_to_rdram(void *rdram_addr, uint32_t dmem_addr, uint32_t len, bool 
  *       in the list. 
  */
 void rspq_dma_to_dmem(uint32_t dmem_addr, void *rdram_addr, uint32_t len, bool is_async);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -1,8 +1,22 @@
 /**
  * @file rsp.h
- * @brief RSP - Programmable vector coprocessor
+ * @brief Low-level RSP hardware library
  * @ingroup rsp
  */
+
+/**
+ * @defgroup rsp RSP interface
+ * @ingroup lowlevel
+ * @brief RSP basic library and command queue
+ * 
+ * This module is made of two libraries:
+ * 
+ *  * rsp.h and rsp.c: low-level routines to manipulate the RSP
+ *  * rspq.h and rspq.c: RSP command queue for efficient task processing by
+ *    multiple libraries
+ * 
+ */
+
 #ifndef __LIBDRAGON_RSP_H
 #define __LIBDRAGON_RSP_H
 

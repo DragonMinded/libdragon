@@ -1,6 +1,6 @@
 /**
  * @file rsp.c
- * @brief Hardware Vector Interface
+ * @brief Low-level RSP hardware library
  * @ingroup rsp
  */
 
