@@ -105,12 +105,15 @@ bool wait_for_syncpoint(int sync_id, unsigned long timeout)
 
 const unsigned long rspq_timeout = 100;
 
+#define ASSERT_RSPQ_EPILOG_SP_STATUS(s) \
+    ASSERT_EQUAL_HEX(*SP_STATUS, SP_STATUS_HALTED | SP_STATUS_BROKE | SP_STATUS_SIG_BUFDONE_LOW | SP_STATUS_SIG_BUFDONE_HIGH | (s), "Unexpected SP status!")
+
 #define TEST_RSPQ_EPILOG(s, t) ({ \
     int sync_id = rspq_syncpoint(); \
     rspq_flush(); \
     if (!wait_for_syncpoint(sync_id, t)) \
         ASSERT(0, "display list not completed: %d/%d", rspq_check_syncpoint(sync_id), (*SP_STATUS & SP_STATUS_HALTED) != 0); \
-    ASSERT_EQUAL_HEX(*SP_STATUS, SP_STATUS_HALTED | SP_STATUS_BROKE | SP_STATUS_SIG_BUFDONE_LOW | SP_STATUS_SIG_BUFDONE_HIGH | (s), "Unexpected SP status!"); \
+    ASSERT_RSPQ_EPILOG_SP_STATUS((s)); \
 })
 
 void test_rspq_queue_single(TestContext *ctx)
@@ -446,7 +449,7 @@ void test_rspq_pause(TestContext *ctx)
     }
 
     ASSERT(completed, "display list not completed: %d/%d", rspq_check_syncpoint(sync_id), (*SP_STATUS & SP_STATUS_HALTED) != 0);
-    ASSERT_EQUAL_HEX(*SP_STATUS, SP_STATUS_HALTED | SP_STATUS_BROKE | SP_STATUS_SIG3 | SP_STATUS_SIG5, "Unexpected SP status!"); \
+    ASSERT_RSPQ_EPILOG_SP_STATUS(0);
     ASSERT_EQUAL_UNSIGNED(*actual_sum, 1000, "Sum is incorrect!");
 }
 
