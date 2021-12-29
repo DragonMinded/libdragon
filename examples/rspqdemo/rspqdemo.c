@@ -59,8 +59,7 @@ int main()
             
             rdp_draw_filled_rectangle(0, 0, display_width, display_height);
 
-            rdp_detach_display();
-            display_show(disp);
+            rdp_detach_display_auto_show();
         }
 
         controller_scan();

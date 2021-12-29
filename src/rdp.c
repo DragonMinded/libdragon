@@ -95,6 +95,12 @@ static volatile uint32_t wait_intr = 0;
 /** @brief Array of cached textures in RDP TMEM indexed by the RDP texture slot */
 static sprite_cache cache[8];
 
+#define AUTO_SHOW_QUEUE_LENGTH 4
+static display_context_t auto_show_queue[AUTO_SHOW_QUEUE_LENGTH];
+static int auto_show_ridx = 0;
+static int auto_show_widx = 0;
+static display_context_t current_display = 0;
+
 /**
  * @brief RDP interrupt handler
  *
@@ -105,6 +111,12 @@ static void __rdp_interrupt()
 {
     /* Flag that the interrupt happened */
     wait_intr++;
+
+    if (auto_show_widx != auto_show_ridx)
+    {
+        display_show(auto_show_queue[auto_show_ridx]);
+        auto_show_ridx = (auto_show_ridx + 1) % AUTO_SHOW_QUEUE_LENGTH;
+    }
 }
 
 /**
@@ -354,6 +366,8 @@ void rdp_attach_display( display_context_t disp )
     /* Set the rasterization buffer */
     uint32_t size = (__bitdepth == 2) ? RDP_TILE_SIZE_16BIT : RDP_TILE_SIZE_32BIT;
     rdp_set_color_image((uint32_t)__get_buffer(disp), RDP_TILE_FORMAT_RGBA, size, __width);
+
+    current_display = disp;
 }
 
 /**
@@ -371,7 +385,7 @@ void rdp_detach_display( void )
     wait_intr = 0;
 
     /* Force the RDP to rasterize everything and then interrupt us */
-    rdp_sync( SYNC_FULL );
+    rdp_sync_full();
 
     if( INTERRUPTS_ENABLED == get_interrupts_state() )
     {
@@ -381,6 +395,30 @@ void rdp_detach_display( void )
 
     /* Set back to zero for next detach */
     wait_intr = 0;
+    current_display = 0;
+}
+
+/**
+ * @brief Automatically detach the RDP from a display context after asynchronously waiting for the RDP interrupt
+ *
+ * @note This function requires interrupts to be enabled to operate properly.
+ *
+ * This function will ensure that all hardware operations have completed on an output buffer
+ * before detaching the display context. As opposed to #rdp_detach_display, this will call
+ * #display_show automatically as soon as the RDP interrupt is raised.
+ */
+void rdp_detach_display_auto_show()
+{
+    assertf(current_display != 0, "No display is currently attached!");
+
+    uint32_t next_widx = (auto_show_widx + 1) % AUTO_SHOW_QUEUE_LENGTH;
+    assertf(next_widx != auto_show_ridx, "Display auto show queue is full!");
+    auto_show_queue[auto_show_widx] = current_display;
+    auto_show_widx = next_widx;
+
+    rdp_sync_full();
+
+    current_display = 0;
 }
 
 /**

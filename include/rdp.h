@@ -93,6 +93,7 @@ void rdp_set_z_image(uint32_t dram_addr);
 void rdp_set_color_image(uint32_t dram_addr, uint32_t format, uint32_t size, uint32_t width);
 void rdp_attach_display( display_context_t disp );
 void rdp_detach_display( void );
+void rdp_detach_display_auto_show();
 void rdp_sync( sync_t sync );
 void rdp_set_clipping( uint32_t tx, uint32_t ty, uint32_t bx, uint32_t by );
 void rdp_set_default_clipping( void );
