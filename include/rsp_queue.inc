@@ -10,7 +10,6 @@
 
 #define OVERLAY_HEADER_SIZE 0x8
 
-# TODO: commands smaller than 4 bytes?
 .macro commandTableEntry function size
     .ifne ((\size) % 4)
         .error "Invalid size - must be multiple of 4"

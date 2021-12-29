@@ -81,7 +81,7 @@ commandTableEntry command_dma,              16    # 0x09
 RSPQ_DMEM_BUFFER:            .ds.b RSPQ_DMEM_BUFFER_SIZE
 
 
-    .align 3
+    .align 4
 # Overlay data will be loaded at this address
 _ovl_data_start:
 
