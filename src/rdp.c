@@ -95,6 +95,7 @@ static volatile uint32_t wait_intr = 0;
 /** @brief Array of cached textures in RDP TMEM indexed by the RDP texture slot */
 static sprite_cache cache[8];
 
+/** @brief Length of the queue that is used to keep track of display contexts that should be auto shown upon RDP interrupt. */
 #define AUTO_SHOW_QUEUE_LENGTH 4
 static display_context_t auto_show_queue[AUTO_SHOW_QUEUE_LENGTH];
 static int auto_show_ridx = 0;
