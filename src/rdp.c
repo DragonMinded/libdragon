@@ -170,9 +170,6 @@ static inline uint32_t __rdp_log2( uint32_t number )
     }
 }
 
-/**
- * @brief Initialize the RDP system
- */
 void rdp_init( void )
 {
     /* Default to flushing automatically */
@@ -185,12 +182,6 @@ void rdp_init( void )
     ugfx_init();
 }
 
-/**
- * @brief Close the RDP system
- *
- * This function closes out the RDP system and cleans up any internal memory
- * allocated by #rdp_init.
- */
 void rdp_close( void )
 {
     set_DP_interrupt( 0 );
@@ -349,16 +340,6 @@ void rdp_set_color_image(uint32_t dram_addr, uint32_t format, uint32_t size, uin
     rspq_queue_u64(RdpSetColorImage(format, size, width, dram_addr));
 }
 
-/**
- * @brief Attach the RDP to a display context
- *
- * This function allows the RDP to operate on display contexts fetched with #display_lock.
- * This should be performed before any other operations to ensure that the RDP has a valid
- * output buffer to operate on.
- *
- * @param[in] disp
- *            A display context as returned by #display_lock
- */
 void rdp_attach_display( display_context_t disp )
 {
     if( disp == 0 ) { return; }
@@ -370,15 +351,6 @@ void rdp_attach_display( display_context_t disp )
     current_display = disp;
 }
 
-/**
- * @brief Detach the RDP from a display context
- *
- * @note This function requires interrupts to be enabled to operate properly.
- *
- * This function will ensure that all hardware operations have completed on an output buffer
- * before detaching the display context.  This should be performed before displaying the finished
- * output using #display_show
- */
 void rdp_detach_display( void )
 {
     /* Wait for SYNC_FULL to finish */
@@ -398,15 +370,6 @@ void rdp_detach_display( void )
     current_display = 0;
 }
 
-/**
- * @brief Automatically detach the RDP from a display context after asynchronously waiting for the RDP interrupt
- *
- * @note This function requires interrupts to be enabled to operate properly.
- *
- * This function will ensure that all hardware operations have completed on an output buffer
- * before detaching the display context. As opposed to #rdp_detach_display, this will call
- * #display_show automatically as soon as the RDP interrupt is raised.
- */
 void rdp_detach_display_auto_show()
 {
     assertf(current_display != 0, "No display is currently attached!");
@@ -421,19 +384,6 @@ void rdp_detach_display_auto_show()
     current_display = 0;
 }
 
-/**
- * @brief Perform a sync operation
- *
- * Do not use excessive sync operations between commands as this can
- * cause the RDP to stall.  If the RDP stalls due to too many sync
- * operations, graphics may not be displayed until the next render
- * cycle, causing bizarre artifacts.  The rule of thumb is to only add
- * a sync operation if the data you need is not yet available in the
- * pipeline.
- *
- * @param[in] sync
- *            The sync operation to perform on the RDP
- */
 void rdp_sync( sync_t sync )
 {
     switch( sync )
@@ -453,61 +403,30 @@ void rdp_sync( sync_t sync )
     }
 }
 
-/**
- * @brief Set the hardware clipping boundary
- *
- * @param[in] tx
- *            Top left X coordinate in pixels
- * @param[in] ty
- *            Top left Y coordinate in pixels
- * @param[in] bx
- *            Bottom right X coordinate in pixels
- * @param[in] by
- *            Bottom right Y coordinate in pixels
- */
 void rdp_set_clipping( uint32_t tx, uint32_t ty, uint32_t bx, uint32_t by )
 {
     /* Convert pixel space to screen space in command */
     rdp_set_scissor(tx << 2, ty << 2, bx << 2, by << 2);
 }
 
-/**
- * @brief Set the hardware clipping boundary to the entire screen
- */
 void rdp_set_default_clipping( void )
 {
     /* Clip box is the whole screen */
     rdp_set_clipping( 0, 0, __width, __height );
 }
 
-/**
- * @brief Enable display of 2D filled (untextured) rectangles
- *
- * This must be called before using #rdp_draw_filled_rectangle.
- */
 void rdp_enable_primitive_fill( void )
 {
     /* Set other modes to fill and other defaults */
     rdp_set_other_modes(SOM_ATOMIC_PRIM | SOM_CYCLE_FILL | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_BLENDING);
 }
 
-/**
- * @brief Enable display of 2D filled (untextured) triangles
- *
- * This must be called before using #rdp_draw_filled_triangle.
- */
 void rdp_enable_blend_fill( void )
 {
     // TODO: Macros for blend modes (this sets blend rgb times input alpha on cycle 0)
     rdp_set_other_modes(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | 0x80000000);
 }
 
-/**
- * @brief Enable display of 2D sprites
- *
- * This must be called before using #rdp_draw_textured_rectangle_scaled,
- * #rdp_draw_textured_rectangle, #rdp_draw_sprite or #rdp_draw_sprite_scaled.
- */
 void rdp_enable_texture_copy( void )
 {
     /* Set other modes to copy and other defaults */
@@ -596,20 +515,6 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     return ((real_width / 8) + round_amount) * 8 * real_height * sprite->bitdepth;
 }
 
-/**
- * @brief Load a sprite into RDP TMEM
- *
- * @param[in] texslot
- *            The RDP texture slot to load this sprite into (0-7)
- * @param[in] texloc
- *            The RDP TMEM offset to place the texture at
- * @param[in] mirror
- *            Whether the sprite should be mirrored when displaying past boundaries
- * @param[in] sprite
- *            Pointer to sprite structure to load the texture from
- *
- * @return The number of bytes consumed in RDP TMEM by loading this sprite
- */
 uint32_t rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror, sprite_t *sprite )
 {
     if( !sprite ) { return 0; }
@@ -617,35 +522,6 @@ uint32_t rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror, s
     return __rdp_load_texture( texslot, texloc, mirror, sprite, 0, 0, sprite->width - 1, sprite->height - 1 );
 }
 
-/**
- * @brief Load part of a sprite into RDP TMEM
- *
- * Given a sprite with vertical and horizontal slices defined, this function will load the slice specified in
- * offset into texture memory.  This is usefl for treating a large sprite as a tilemap.
- *
- * Given a sprite with 3 horizontal slices and two vertical slices, the offsets are as follows:
- *
- * <pre>
- * *---*---*---*
- * | 0 | 1 | 2 |
- * *---*---*---*
- * | 3 | 4 | 5 |
- * *---*---*---*
- * </pre>
- *
- * @param[in] texslot
- *            The RDP texture slot to load this sprite into (0-7)
- * @param[in] texloc
- *            The RDP TMEM offset to place the texture at
- * @param[in] mirror
- *            Whether the sprite should be mirrored when displaying past boundaries
- * @param[in] sprite
- *            Pointer to sprite structure to load the texture from
- * @param[in] offset
- *            Offset of the particular slice to load into RDP TMEM.
- *
- * @return The number of bytes consumed in RDP TMEM by loading this sprite
- */
 uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mirror, sprite_t *sprite, int offset )
 {
     if( !sprite ) { return 0; }
@@ -662,34 +538,6 @@ uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mi
     return __rdp_load_texture( texslot, texloc, mirror, sprite, sl, tl, sh, th );
 }
 
-/**
- * @brief Draw a textured rectangle with a scaled texture
- *
- * Given an already loaded texture, this function will draw a rectangle textured with the loaded texture
- * at a scale other than 1.  This allows rectangles to be drawn with stretched or squashed textures.
- * If the rectangle is larger than the texture after scaling, it will be tiled or mirrored based on the
- * mirror setting given in the load texture command.
- *
- * Before using this command to draw a textured rectangle, use #rdp_enable_texture_copy to set the RDP
- * up in texture mode.
- *
- * @param[in] texslot
- *            The texture slot that the texture was previously loaded into (0-7)
- * @param[in] tx
- *            The pixel X location of the top left of the rectangle
- * @param[in] ty
- *            The pixel Y location of the top left of the rectangle
- * @param[in] bx
- *            The pixel X location of the bottom right of the rectangle
- * @param[in] by
- *            The pixel Y location of the bottom right of the rectangle
- * @param[in] x_scale
- *            Horizontal scaling factor
- * @param[in] y_scale
- *            Vertical scaling factor
- * @param[in] mirror
- *            Whether the texture should be mirrored
- */
 void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int bx, int by, double x_scale, double y_scale,  mirror_t mirror)
 {
     uint16_t s = cache[texslot & 0x7].s << 5;
@@ -731,79 +579,18 @@ void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int b
     rdp_texture_rectangle(texslot & 0x7, tx << 2, ty << 2, bx << 2, by << 2, s, t, xs & 0xFFFF, ys & 0xFFFF);
 }
 
-/**
- * @brief Draw a textured rectangle
- *
- * Given an already loaded texture, this function will draw a rectangle textured with the loaded texture.
- * If the rectangle is larger than the texture, it will be tiled or mirrored based on the* mirror setting
- * given in the load texture command.
- *
- * Before using this command to draw a textured rectangle, use #rdp_enable_texture_copy to set the RDP
- * up in texture mode.
- *
- * @param[in] texslot
- *            The texture slot that the texture was previously loaded into (0-7)
- * @param[in] tx
- *            The pixel X location of the top left of the rectangle
- * @param[in] ty
- *            The pixel Y location of the top left of the rectangle
- * @param[in] bx
- *            The pixel X location of the bottom right of the rectangle
- * @param[in] by
- *            The pixel Y location of the bottom right of the rectangle
- * @param[in] mirror
- *            Whether the texture should be mirrored
- */
 void rdp_draw_textured_rectangle( uint32_t texslot, int tx, int ty, int bx, int by, mirror_t mirror )
 {
     /* Simple wrapper */
     rdp_draw_textured_rectangle_scaled( texslot, tx, ty, bx, by, 1.0, 1.0, mirror );
 }
 
-/**
- * @brief Draw a texture to the screen as a sprite
- *
- * Given an already loaded texture, this function will draw a rectangle textured with the loaded texture.
- *
- * Before using this command to draw a textured rectangle, use #rdp_enable_texture_copy to set the RDP
- * up in texture mode.
- *
- * @param[in] texslot
- *            The texture slot that the texture was previously loaded into (0-7)
- * @param[in] x
- *            The pixel X location of the top left of the sprite
- * @param[in] y
- *            The pixel Y location of the top left of the sprite
- * @param[in] mirror
- *            Whether the texture should be mirrored
- */
 void rdp_draw_sprite( uint32_t texslot, int x, int y, mirror_t mirror )
 {
     /* Just draw a rectangle the size of the sprite */
     rdp_draw_textured_rectangle_scaled( texslot, x, y, x + cache[texslot & 0x7].width, y + cache[texslot & 0x7].height, 1.0, 1.0, mirror );
 }
 
-/**
- * @brief Draw a texture to the screen as a scaled sprite
- *
- * Given an already loaded texture, this function will draw a rectangle textured with the loaded texture.
- *
- * Before using this command to draw a textured rectangle, use #rdp_enable_texture_copy to set the RDP
- * up in texture mode.
- *
- * @param[in] texslot
- *            The texture slot that the texture was previously loaded into (0-7)
- * @param[in] x
- *            The pixel X location of the top left of the sprite
- * @param[in] y
- *            The pixel Y location of the top left of the sprite
- * @param[in] x_scale
- *            Horizontal scaling factor
- * @param[in] y_scale
- *            Vertical scaling factor
- * @param[in] mirror
- *            Whether the texture should be mirrored
- */
 void rdp_draw_sprite_scaled( uint32_t texslot, int x, int y, double x_scale, double y_scale, mirror_t mirror )
 {
     /* Since we want to still view the whole sprite, we must resize the rectangle area too */
@@ -814,44 +601,12 @@ void rdp_draw_sprite_scaled( uint32_t texslot, int x, int y, double x_scale, dou
     rdp_draw_textured_rectangle_scaled( texslot, x, y, x + new_width, y + new_height, x_scale, y_scale, mirror );
 }
 
-/**
- * @brief Set the primitive draw color for subsequent filled primitive operations
- *
- * This function sets the color of all #rdp_draw_filled_rectangle operations that follow.
- * Note that in 16 bpp mode, the color must be a packed color.  This means that the high
- * 16 bits and the low 16 bits must both be the same color.  Use #graphics_make_color or
- * #graphics_convert_color to generate valid colors.
- *
- * @param[in] color
- *            Color to draw primitives in
- */
 void rdp_set_primitive_color( uint32_t color )
 {
     /* Set packed color */
     rdp_set_fill_color(color);
 }
 
-/**
- * @brief Draw a filled rectangle
- *
- * Given a color set with #rdp_set_primitive_color, this will draw a filled rectangle
- * to the screen.  This is most often useful for erasing a buffer before drawing to it
- * by displaying a black rectangle the size of the screen.  This is much faster than
- * setting the buffer blank in software.  However, if you are planning on drawing to
- * the entire screen, blanking may be unnecessary.  
- *
- * Before calling this function, make sure that the RDP is set to primitive mode by
- * calling #rdp_enable_primitive_fill.
- *
- * @param[in] tx
- *            Pixel X location of the top left of the rectangle
- * @param[in] ty
- *            Pixel Y location of the top left of the rectangle
- * @param[in] bx
- *            Pixel X location of the bottom right of the rectangle
- * @param[in] by
- *            Pixel Y location of the bottom right of the rectangle
- */
 void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by )
 {
     if( tx < 0 ) { tx = 0; }
@@ -860,28 +615,6 @@ void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by )
     rdp_fill_rectangle(tx << 2, ty << 2, bx << 2, by << 2);
 }
 
-/**
- * @brief Draw a filled triangle
- *
- * Given a color set with #rdp_set_blend_color, this will draw a filled triangle
- * to the screen. Vertex order is not important.
- *
- * Before calling this function, make sure that the RDP is set to blend mode by
- * calling #rdp_enable_blend_fill.
- *
- * @param[in] x1
- *            Pixel X1 location of triangle
- * @param[in] y1
- *            Pixel Y1 location of triangle
- * @param[in] x2
- *            Pixel X2 location of triangle
- * @param[in] y2
- *            Pixel Y2 location of triangle
- * @param[in] x3
- *            Pixel X3 location of triangle
- * @param[in] y3
- *            Pixel Y3 location of triangle
- */
 void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3, float y3 )
 {
     float temp_x, temp_y;
@@ -924,20 +657,6 @@ void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3,
     rspq_write_end(rspq);
 }
 
-/**
- * @brief Set the flush strategy for texture loads
- *
- * If textures are guaranteed to be in uncached RDRAM or the cache
- * is flushed before calling load operations, the RDP can be told
- * to skip flushing the cache.  This affords a good speedup.  However,
- * if you are changing textures in memory on the fly or otherwise do
- * not want to deal with cache coherency, set the cache strategy to
- * automatic to have the RDP flush cache before texture loads.
- *
- * @param[in] flush
- *            The cache strategy, either #FLUSH_STRATEGY_NONE or
- *            #FLUSH_STRATEGY_AUTOMATIC.
- */
 void rdp_set_texture_flush( flush_t flush )
 {
     flush_strategy = flush;
