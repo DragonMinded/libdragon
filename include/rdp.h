@@ -227,6 +227,21 @@ void rdp_attach_display( display_context_t disp );
 void rdp_detach_display( void );
 
 /**
+ * @brief Check if the RDP is currently attached to a display context
+ */
+bool rdp_is_display_attached();
+
+/**
+ * @brief Check if it is currently possible to attach a new display context to the RDP.
+ *
+ * Since #rdp_detach_display_async will not detach a display context immediately, but asynchronously,
+ * it may still be attached when trying to attach the next one. Attempting to attach a display context
+ * while another is already attached will lead to an error, so use this function to check whether it
+ * is possible first. It will return true if no display context is currently attached, and false otherwise.
+ */
+#define rdp_can_attach_display() (!rdp_is_display_attached())
+
+/**
  * @brief Automatically detach the RDP from a display context after asynchronously waiting for the RDP interrupt
  *
  * @note This function requires interrupts to be enabled to operate properly.
@@ -235,7 +250,7 @@ void rdp_detach_display( void );
  * before detaching the display context. As opposed to #rdp_detach_display, this will call
  * #display_show automatically as soon as the RDP interrupt is raised.
  */
-void rdp_detach_display_auto_show();
+void rdp_detach_display_async();
 
 /**
  * @brief Perform a sync operation

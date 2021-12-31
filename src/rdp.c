@@ -95,12 +95,7 @@ static volatile uint32_t wait_intr = 0;
 /** @brief Array of cached textures in RDP TMEM indexed by the RDP texture slot */
 static sprite_cache cache[8];
 
-/** @brief Length of the queue that is used to keep track of display contexts that should be auto shown upon RDP interrupt. */
-#define AUTO_SHOW_QUEUE_LENGTH 4
-static display_context_t auto_show_queue[AUTO_SHOW_QUEUE_LENGTH];
-static int auto_show_ridx = 0;
-static int auto_show_widx = 0;
-static display_context_t current_display = 0;
+static display_context_t attached_display = 0;
 
 /**
  * @brief RDP interrupt handler
@@ -113,10 +108,10 @@ static void __rdp_interrupt()
     /* Flag that the interrupt happened */
     wait_intr++;
 
-    if (auto_show_widx != auto_show_ridx)
+    if (attached_display != 0)
     {
-        display_show(auto_show_queue[auto_show_ridx]);
-        auto_show_ridx = (auto_show_ridx + 1) % AUTO_SHOW_QUEUE_LENGTH;
+        display_show(attached_display);
+        attached_display = 0;
     }
 }
 
@@ -345,15 +340,20 @@ void rdp_attach_display( display_context_t disp )
 {
     if( disp == 0 ) { return; }
 
+    assertf(!rdp_is_display_attached(), "A display is already attached!");
+    attached_display = disp;
+
     /* Set the rasterization buffer */
     uint32_t size = (__bitdepth == 2) ? RDP_TILE_SIZE_16BIT : RDP_TILE_SIZE_32BIT;
     rdp_set_color_image((uint32_t)__get_buffer(disp), RDP_TILE_FORMAT_RGBA, size, __width);
 
-    current_display = disp;
 }
 
 void rdp_detach_display( void )
 {
+    assertf(rdp_is_display_attached(), "No display is currently attached!");
+    attached_display = 0;
+
     /* Wait for SYNC_FULL to finish */
     wait_intr = 0;
 
@@ -368,21 +368,17 @@ void rdp_detach_display( void )
 
     /* Set back to zero for next detach */
     wait_intr = 0;
-    current_display = 0;
 }
 
-void rdp_detach_display_auto_show()
+bool rdp_is_display_attached()
 {
-    assertf(current_display != 0, "No display is currently attached!");
+    return attached_display != 0;
+}
 
-    uint32_t next_widx = (auto_show_widx + 1) % AUTO_SHOW_QUEUE_LENGTH;
-    assertf(next_widx != auto_show_ridx, "Display auto show queue is full!");
-    auto_show_queue[auto_show_widx] = current_display;
-    auto_show_widx = next_widx;
-
+void rdp_detach_display_async()
+{
+    assertf(rdp_is_display_attached(), "No display is currently attached!");
     rdp_sync_full();
-
-    current_display = 0;
 }
 
 void rdp_sync( sync_t sync )
