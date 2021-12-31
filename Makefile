@@ -28,7 +28,8 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 			 $(BUILD_DIR)/controller.o $(BUILD_DIR)/rtc.o \
 			 $(BUILD_DIR)/eepromfs.o $(BUILD_DIR)/mempak.o \
 			 $(BUILD_DIR)/tpak.o $(BUILD_DIR)/graphics.o $(BUILD_DIR)/rdp.o \
-			 $(BUILD_DIR)/rsp.o $(BUILD_DIR)/dma.o $(BUILD_DIR)/timer.o \
+			 $(BUILD_DIR)/rsp.o $(BUILD_DIR)/rsp_crash.o \
+			 $(BUILD_DIR)/dma.o $(BUILD_DIR)/timer.o \
 			 $(BUILD_DIR)/exception.o $(BUILD_DIR)/do_ctors.o \
 			 $(BUILD_DIR)/audio/mixer.o $(BUILD_DIR)/audio/samplebuffer.o \
 			 $(BUILD_DIR)/audio/rsp_mixer.o $(BUILD_DIR)/audio/wav64.o \

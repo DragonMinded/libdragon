@@ -16,13 +16,13 @@
         .exitm
     .endif
 
-    .ifle (\size)
-        .error "Invalid size - valid range: [4, 60]"
+    .iflt (\size)
+        .error "Invalid size - valid range: [0, 60]"
         .exitm
     .endif
 
     .ifgt ((\size) - 60)
-        .error "Invalid size - valid range: [4, 60]"
+        .error "Invalid size - valid range: [0, 60]"
         .exitm
     .endif
 

@@ -21,59 +21,65 @@ void test_ovl_init()
 
 void rspq_test_4(uint32_t value)
 {
-    uint32_t *ptr = rspq_write_begin();
-    *ptr++ = 0xf0000000 | value;
-    rspq_write_end(ptr);
+    RSPQ_WRITE_BEGIN(ptr, 0xF0);
+    *ptr++ = value & 0x00FFFFFF;
+    RSPQ_WRITE_END(ptr);
 }
 
 void rspq_test_8(uint32_t value)
 {
-    uint32_t *ptr = rspq_write_begin();
-    *ptr++ = 0xf1000000 | value;
+    RSPQ_WRITE_BEGIN(ptr, 0xF1);
+    *ptr++ = value & 0x00FFFFFF;
     *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG0;
-    rspq_write_end(ptr);
+    RSPQ_WRITE_END(ptr);
 }
 
 void rspq_test_16(uint32_t value)
 {
-    uint32_t *ptr = rspq_write_begin();
-    *ptr++ = 0xf2000000 | value;
+    RSPQ_WRITE_BEGIN(ptr, 0xF2);
+    *ptr++ = value & 0x00FFFFFF;
     *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG0;
     *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG1;
     *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG0;
-    rspq_write_end(ptr);
+    RSPQ_WRITE_END(ptr);
 }
 
 void rspq_test_wait(uint32_t length)
 {
-    uint32_t *ptr = rspq_write_begin();
-    *ptr++ = 0xf3000000;
+    RSPQ_WRITE_BEGIN(ptr, 0xF3);
+    *ptr++ = 0;
     *ptr++ = length;
-    rspq_write_end(ptr);
+    RSPQ_WRITE_END(ptr);
 }
 
 void rspq_test_output(uint64_t *dest)
 {
-    uint32_t *ptr = rspq_write_begin();
-    *ptr++ = 0xf4000000;
+    RSPQ_WRITE_BEGIN(ptr, 0xF4);
+    *ptr++ = 0;
     *ptr++ = PhysicalAddr(dest);
-    rspq_write_end(ptr);
+    RSPQ_WRITE_END(ptr);
 }
 
 void rspq_test_reset(void)
 {
-    uint32_t *ptr = rspq_write_begin();
-    *ptr++ = 0xf5000000;
-    rspq_write_end(ptr);
+    RSPQ_WRITE_BEGIN(ptr, 0xF5);
+    *ptr++ = 0;
+    RSPQ_WRITE_END(ptr);
 }
 
 void rspq_test_high(uint32_t value)
 {
-    uint32_t *ptr = rspq_write_begin();
-    *ptr++ = 0xf6000000 | value;
-    rspq_write_end(ptr);
+    RSPQ_WRITE_BEGIN(ptr, 0xF6);
+    *ptr++ = value & 0x00FFFFFF;
+    RSPQ_WRITE_END(ptr);
 }
 
+void rspq_test_reset_log(void)
+{
+    RSPQ_WRITE_BEGIN(ptr, 0xF7);
+    *ptr++ = 0;
+    RSPQ_WRITE_END(ptr);
+}
 
 #define RSPQ_LOG_STATUS(step) debugf("STATUS: %#010lx, PC: %#010lx (%s)\n", *SP_STATUS, *SP_PC, step)
 
@@ -206,6 +212,7 @@ void test_rspq_high_load(TestContext *ctx)
     data_cache_hit_writeback_invalidate(actual_sum, 16);
 
     rspq_test_output(actual_sum);
+    debugf("epilog\n");
 
     TEST_RSPQ_EPILOG(0, rspq_timeout);
 
@@ -546,55 +553,67 @@ void test_rspq_highpri_multiple(TestContext *ctx)
         rspq_block_run(b4096);
     rspq_flush();
 
-    int partial = 0;
-    for (int wait=1;wait<0x100;wait++) {
-        debugf("wait: %x\n", wait);
-        rspq_highpri_begin();
-            for (uint32_t i = 0; i < 32; i++) {
-                rspq_test_high(1);
-                if ((i&3)==0) rspq_test_wait(wait);
+    uint32_t t0 = TICKS_READ();
+    while (TICKS_DISTANCE(t0, TICKS_READ()) < TICKS_FROM_MS(2000)) {
+        for (int wait=1;wait<0x100;wait++) {
+            int partial = 0;
+            rspq_highpri_begin();
+                rspq_test_reset_log();
+                rspq_test_reset();
+                for (uint32_t i = 0; i < 24; i++) {
+                    rspq_test_high(1);
+                    if ((i&3)==0) rspq_test_wait(RANDN(wait));
+                }
+                rspq_flush();
+            rspq_highpri_end();
+
+            rspq_highpri_begin();
+                for (uint32_t i = 0; i < 24; i++) {
+                    rspq_test_high(3);
+                    // if ((i&3)==0) rspq_test_wait(RANDN(wait));
+                }
+            rspq_highpri_end();
+
+            rspq_highpri_begin();
+                for (uint32_t i = 0; i < 24; i++) {
+                    rspq_test_high(5);
+                    // if ((i&3)==0) rspq_test_wait(RANDN(wait));
+                }
+            rspq_highpri_end();
+
+            rspq_highpri_begin();
+                for (uint32_t i = 0; i < 24; i++) {
+                    rspq_test_high(7);
+                    if ((i&3)==0) rspq_test_wait(RANDN(wait));
+                }
+            rspq_highpri_end();
+
+            rspq_highpri_begin();
+                rspq_test_output(actual_sum);
+            rspq_highpri_end();
+
+            rspq_highpri_sync();
+
+            partial += 1*24 + 3*24 + 5*24 + 7*24;
+            if (actual_sum[1] != partial) {
+                rsp_pause(true);
+                wait_ms(10);
+                for (int i=0;i<128;i++) {
+                    debugf("%lx %lx %ld %ld\n", SP_DMEM[512+i*4+0], SP_DMEM[512+i*4+1], SP_DMEM[512+i*4+2], SP_DMEM[512+i*4+3]);
+                }
+                ASSERT_EQUAL_UNSIGNED(actual_sum[1], partial, "highpri sum is not correct (diff: %lld)", partial - actual_sum[1]);
             }
-        rspq_highpri_end();
 
-        rspq_highpri_begin();
-            for (uint32_t i = 0; i < 32; i++) {
-                rspq_test_high(3);
-                if ((i&3)==0) rspq_test_wait(wait);
-            }
-        rspq_highpri_end();
-
-        rspq_highpri_begin();
-            for (uint32_t i = 0; i < 32; i++) {
-                rspq_test_high(5);
-                if ((i&3)==0) rspq_test_wait(wait);
-            }
-        rspq_highpri_end();
-
-        rspq_highpri_begin();
-            for (uint32_t i = 0; i < 32; i++) {
-                rspq_test_high(7);
-                if ((i&3)==0) rspq_test_wait(wait);
-            }
-        rspq_highpri_end();
-
-        rspq_highpri_begin();
-            rspq_test_output(actual_sum);
-        rspq_highpri_end();
-
-        rspq_highpri_sync();
-
-        partial += 1*32 + 3*32 + 5*32 + 7*32;
-        // ASSERT(actual_sum_ptr[0] < 4096*16, "lowpri sum is not correct");
-        debugf("lowsum: %lld\n", actual_sum[0]);
-        ASSERT_EQUAL_UNSIGNED(actual_sum[1], partial, "highpri sum is not correct (diff: %lld)", partial - actual_sum[1]);
-        data_cache_hit_invalidate(actual_sum, 16);
+            ASSERT_EQUAL_UNSIGNED(actual_sum[1], partial, "highpri sum is not correct (diff: %lld)", partial - actual_sum[1]);
+            data_cache_hit_invalidate(actual_sum, 16);
+        }
     }
 
     rspq_test_output(actual_sum);
     rspq_sync();
 
-    ASSERT_EQUAL_UNSIGNED(actual_sum[0], 4096*16, "lowpri sum is not correct");
-    ASSERT_EQUAL_UNSIGNED(actual_sum[1], partial, "highpri sum is not correct");
+    // ASSERT_EQUAL_UNSIGNED(actual_sum[0], 4096*16, "lowpri sum is not correct");
+    // ASSERT_EQUAL_UNSIGNED(actual_sum[1], partial, "highpri sum is not correct");
 }
 
 // TODO: test syncing with overlay switching

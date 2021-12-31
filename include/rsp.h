@@ -20,6 +20,8 @@
 #ifndef __LIBDRAGON_RSP_H
 #define __LIBDRAGON_RSP_H
 
+#include <stdbool.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -103,6 +105,22 @@ extern "C" {
 #define SP_WSTATUS_SET_SIG7          0x1000000 ///< SP_STATUS write mask: set SIG7 bit
 
 /**
+ * @brief Snapshot of the register status of the RSP.
+ * 
+ * This structure is used in the crash handler.
+ */
+typedef struct {
+    uint32_t gpr[32];           ///< General purpose registers
+    uint16_t vpr[32][8];        ///< Vector registers
+    uint16_t vaccum[3][8];      ///< Vector accumulator
+    uint32_t cop0[16];          ///< COP0 registers (note: reg 4 is SP_STATUS)
+    uint32_t cop2[3];           ///< COP2 control registers
+    uint32_t pc;                ///< Program counter
+    uint8_t dmem[4096] __attribute__((aligned(8)));  ///< Contents of DMEM
+    uint8_t imem[4096] __attribute__((aligned(8)));  ///< Contents of IMEM
+} rsp_snapshot_t;
+
+/**
  * @brief RSP ucode definition.
  * 
  * This small structure holds the text/data pointers to a RSP ucode program
@@ -120,6 +138,9 @@ typedef struct {
 
     const char *name;      ///< Name of the ucode
     uint32_t start_pc;     ///< Initial RSP PC
+
+    ///< Custom crash handler for this ucode (to complement the default one)
+    void (*crash_handler)(rsp_snapshot_t *state);
 } rsp_ucode_t;
 
 /**
@@ -131,7 +152,7 @@ typedef struct {
  * to define it at the global level. You can then use rsp_load(&rsp_math) 
  * to load it.
  */
-#define DEFINE_RSP_UCODE(ucode_name) \
+#define DEFINE_RSP_UCODE(ucode_name, ...) \
     extern uint8_t ucode_name ## _text_start[]; \
     extern uint8_t ucode_name ## _data_start[]; \
     extern uint8_t ucode_name ## _text_end[0]; \
@@ -141,7 +162,8 @@ typedef struct {
         .data = ucode_name ## _data_start, \
         .code_end = ucode_name ## _text_end, \
         .data_end = ucode_name ## _data_end, \
-        .name = #ucode_name, .start_pc = 0, \
+        .name = #ucode_name, .start_pc = 0, .crash_handler = 0, \
+        __VA_ARGS__ \
     }
 
 /** @brief Initialize the RSP subsytem. */
@@ -175,7 +197,12 @@ void rsp_run(void);
  */
 void rsp_run_async(void);
 
-/** @brief Wait until RSP has finished processing. */
+/** 
+ * @brief Wait until RSP has finished processing. 
+ *
+ * This function will wait until the RSP is halted. It contains a fixed
+ * timeout of 500 ms, after which #rsp_crash is invoked to abort the program.
+ */
 void rsp_wait(void);
 
 /** @brief Do a DMA transfer to load a piece of code into RSP IMEM.
@@ -243,6 +270,49 @@ void rsp_read_data(void* data, unsigned long size, unsigned int dmem_offset);
  */
 void rsp_pause(bool pause);
 
+/**
+ * @brief Abort the program showing a RSP crash screen
+ * 
+ * This function aborts the execution of the program, and shows an exception
+ * screen which contains the RSP status. It can be used any time the RSP
+ * ucode has crashed, frozen or otherwise misbehaved in an unexpected way,
+ * to allow for some post-mortem debugging.
+ * 
+ * To display ucode-specific information (like structural decoding of DMEM data),
+ * this function will call the function crash_handler in the current #rsp_ucode_t,
+ * if it is defined. 
+ */
+#define rsp_crash()  __rsp_crash(__FILE__, __LINE__, __func__)
+
+/**
+ * @brief Create a loop that waits for some condition that is related to RSP,
+ *        aborting with a RSP crash after a timeout.
+ *
+ * This macro simplifies the creation of a loop that busy-waits for something
+ * performed by the RSP. If the condition is not reached within a timeout,
+ * it is assumed that the RSP has crashed or otherwise stalled and
+ * #rsp_crash is invoked to abort the program showing a debugging screen.
+ * 
+ * @code{.c}
+ *      // This example shows a loop that waits for the RSP to set signal 2
+ *      // in the status register. It is just an example on how to use the
+ *      // macro.
+ *      
+ *      RSP_WAIT_LOOP(150) {
+ *          if (*SP_STATUS & SP_STATUS_SIG_2)
+ *              break;
+ *      }
+ * @endcode
+ *
+ * @param[in]  timeout_ms  Allowed timeout in milliseconds. Normally a value
+ *                         like 150 is good enough because it is unlikely that
+ *                         the application should wait for such a long time.
+ * 
+ */
+#define RSP_WAIT_LOOP(timeout_ms) \
+    for (uint32_t __t = TICKS_READ() + TICKS_FROM_MS(timeout_ms); \
+         TICKS_BEFORE(TICKS_READ(), __t) || (rsp_crash(), false); )
+
 
 static inline __attribute__((deprecated("use rsp_load_code instead")))
 void load_ucode(void * start, unsigned long size) {
@@ -278,6 +348,12 @@ static inline void rsp_semaphore_release()
 {
     *SP_SEMAPHORE = 0;
 }
+
+// Internal function used by rsp_crash
+/// @cond
+__attribute__((noreturn))
+void __rsp_crash(const char *file, int line, const char *func);
+/// @endcond
 
 #ifdef __cplusplus
 }

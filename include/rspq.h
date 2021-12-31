@@ -264,10 +264,11 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
  * 
  * @hideinitializer
  */
-#define rspq_write_begin() ({ \
-	extern uint32_t *rspq_cur_pointer; \
-    rspq_cur_pointer; \
-})
+#define RSPQ_WRITE_BEGIN(var, cmd_id) { \
+    extern uint32_t *rspq_cur_pointer, *rspq_cur_sentinel; \
+    /* assert(*(volatile uint8_t*)rspq_cur_pointer == 0); */ \
+    volatile uint32_t *var = (volatile uint32_t*)rspq_cur_pointer; \
+    uint8_t var ## __cmd_id = (cmd_id)
 
 /**
  * @brief Finish writing a command to the current RSP command list.
@@ -285,25 +286,23 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
  * 
  * @hideinitializer
  */
-#define rspq_write_end(rspq_) ({ \
-    extern uint32_t *rspq_cur_pointer, *rspq_cur_sentinel; \
+#define RSPQ_WRITE_END(var) \
 	extern void rspq_next_buffer(void); \
-    \
-	uint32_t *__rspq = (rspq_); \
     \
     /* Terminate the buffer (so that the RSP will sleep in case \
      * it catches up with us). \
      * NOTE: this is an inlined version of the internal rspq_terminator() macro. */ \
-    MEMORY_BARRIER(); \
-    *(uint8_t*)(__rspq) = 0x01; \
+    /* assert(*(volatile uint8_t*)rspq_cur_pointer == 0); */ \
+    *(volatile uint8_t*)rspq_cur_pointer = var ## __cmd_id; \
     \
     /* Update the pointer and check if we went past the sentinel, \
      * in which case it's time to switch to the next buffer. */ \
-    rspq_cur_pointer = __rspq; \
+    rspq_cur_pointer = (uint32_t*)var; \
     if (rspq_cur_pointer > rspq_cur_sentinel) { \
         rspq_next_buffer(); \
     } \
-})
+} \
+    do {} while (0)
 
 /**
  * @brief Make sure that RSP starts executing up to the last written command.

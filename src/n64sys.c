@@ -205,9 +205,16 @@ void inst_cache_invalidate_all(void)
 /**
  * @brief Allocate a buffer that will be accessed as uncached memory.
  * 
+ * This function allocates a memory buffer that can be safely read and written
+ * through uncached memory accesses only. It makes sure that that the buffer
+ * does not share any cacheline with our buffers in the heap, and returns
+ * a pointer in the uncached segment (0xA000_0000).
+ * 
+ * The buffer contents are uninitialized.
+ * 
  * @param[in]  size  The size of the buffer to allocate
  *
- * @return a pointer to the start of the buffer (as uncached pointer)
+ * @return a pointer to the start of the buffer (in the uncached segment)
  */
 void *malloc_uncached(size_t size)
 {
@@ -219,7 +226,9 @@ void *malloc_uncached(size_t size)
     void *mem = memalign(16, size);
 
     // The memory returned by the system allocator could already be partly in
-    // cache. Invalidate it so that we don't risk a writeback in the short future.
+    // cache (eg: it might have been previously used as a normal heap buffer
+    // and recently returned to the allocator). Invalidate it so that
+    // we don't risk a writeback in the short future.
     data_cache_hit_invalidate(mem, size);
 
     // Return the pointer as uncached memory.

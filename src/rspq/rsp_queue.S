@@ -14,8 +14,39 @@
 #
 #
 
-#
+#define RSPQ_DEBUG    1
+#define ASSERT_INVALID_OVERLAY       0xFA010000
+#define ASSERT_INVALID_COMMAND       0xFA020000
+#define ASSERT_GP_BACKWARD           0xFA030000
 
+#if RSPQ_DEBUG
+    .macro assert code
+        j abort
+        .set noat
+        li $1, \code
+        .set at
+    .endm
+    .macro assert_eq v0, v1, code
+        bne \v0, \v1, abort
+        .set noat
+        li $1, \code
+        .set at
+    .endm
+    .macro assert_ne v0, v1, code
+        beq \v0, \v1, abort
+        .set noat
+        li $1, \code
+        .set at
+    .endm
+
+#else
+    .macro assert CODE
+    .endm
+    .macro assert_eq v0, v1, code
+    .endm
+    .macro assert_ne v0, v1, code
+    .endm
+#endif
 
 # Psuedo-code on RSP:
 # * Fetch current command first byte
@@ -64,8 +95,8 @@ PRIMODE_STATUS_CHECK:    .half 0
 
     .align 3
 INTERNAL_COMMAND_TABLE:
-commandTableEntry command_invalid,          4     # 0x00
-commandTableEntry command_wait_new_input,   4     # 0x01
+commandTableEntry command_wait_new_input,   0     # 0x00
+commandTableEntry command_terminator,       4     # 0x01
 commandTableEntry command_write_status,     4     # 0x02 -- must be even (bit 24 must be 0)
 commandTableEntry command_call,             8     # 0x03
 commandTableEntry command_jump,             4     # 0x04
@@ -74,6 +105,10 @@ commandTableEntry command_swap_buffers,     12    # 0x06
 commandTableEntry command_noop,             4     # 0x07
 commandTableEntry command_test_wstatus,     8     # 0x08 -- must be even (bit 24 must be 0)
 commandTableEntry command_dma,              16    # 0x09
+
+RSPQ_LOG_IDX:                .long 0
+RSPQ_LOG:                    .ds.l 16
+RSPQ_LOG_END:                .long 0xFFFFFFFF
 
     .bss
 
@@ -89,6 +124,12 @@ _ovl_data_start:
 
     .globl _start
 _start:
+#if RSPQ_DEBUG
+abort:
+    j abort
+    nop
+#endif
+
     # NOTE: RSPQ_RDRAM_PTR must have been initialized before spinning up RSP!
     li rspq_dmem_buf_ptr, 0
 
@@ -131,7 +172,6 @@ fetch_buffer_with_ptr:
     # fallthrough into the main loop
     .endfunc
 
-command_invalid:  # invalid command -> repeat the loop
 command_noop:     # noop -> repeat the loop
     .func loop
 loop:
@@ -146,6 +186,14 @@ loop:
     # Read first word
     lw a0, %lo(RSPQ_DMEM_BUFFER) + 0x0 (rspq_dmem_buf_ptr)
 
+#if RSPQ_DEBUG
+    lw t0, %lo(RSPQ_LOG_IDX)
+    sw a0, %lo(RSPQ_LOG)(t0)
+    addi t0, 4
+    andi t0, 16*4-1
+    sw t0, %lo(RSPQ_LOG_IDX)
+#endif
+
     # Index into overlay table
     srl t0, a0, 28
 
@@ -159,7 +207,7 @@ loop:
     # Otherwise, cmd_desc will be overwritten further down
     lhu cmd_desc, %lo(INTERNAL_COMMAND_TABLE)(cmd_index)
 
-    lh t1, %lo(CURRENT_OVL)
+    lhu t1, %lo(CURRENT_OVL)
 
     # Load overlay index from overlay table
     # NOTE: May be optimised away by getting rid of the indirection and remembering the (code) address of the previously loaded overlay instead.
@@ -175,6 +223,7 @@ loop:
 
     # Load overlay data (saved state is included)
     lhu t0, %lo(OVERLAY_DESCRIPTORS) + 0xE (ovl_index)
+    assert_ne t0, 0, ASSERT_INVALID_OVERLAY
     lw s0, %lo(OVERLAY_DESCRIPTORS) + 0x4 (ovl_index)
     jal DMAInAsync
     li s4, %lo(_ovl_data_start)
@@ -200,6 +249,7 @@ execute_command:
     # Command size
     # NOTE: Could be optimised either by doubling the size of command descriptors (so that the command size can be loaded directly instead of having to decode it),
     #       or by storing the command size in the overlay header instead. The latter would mean that all commands in an overlay need to be the same size though.
+    assert_ne cmd_desc, 0, ASSERT_INVALID_COMMAND
     srl cmd_size, cmd_desc, 10
     andi cmd_size, 0x3C
 
@@ -213,8 +263,8 @@ execute_command:
     # If so, the previous command might have been fetched partially (as it was
     # being written in RDRAM by CPU), so wait for it to be complete and
     # then fetch the buffer again.
-    lbu t0, %lo(RSPQ_DMEM_BUFFER)(t0)
-    beqz t0, command_wait_new_input
+    #lbu t0, %lo(RSPQ_DMEM_BUFFER)(t0)
+    #beqz t0, command_wait_new_input
 
     # Load second to fourth command words (might be garbage, but will never be read in that case)
     # This saves some instructions in all overlays that use more than 4 bytes per command.
@@ -261,7 +311,7 @@ rspq_check_highpri:
     li a0, RSPQ_HIGHPRI_CALL_SLOT<<2
     li a1, RSPQ_LOWPRI_CALL_SLOT<<2
     li a2, 0
-    sub rspq_dmem_buf_ptr, t7
+    #sub rspq_dmem_buf_ptr, t7
     #fallthrough
     .endfunc
 
@@ -375,6 +425,12 @@ command_dma:
     j DMAExec
     move t2, a3
     .endfunc
+
+command_invalid:
+command_terminator:
+    assert ASSERT_INVALID_COMMAND
+
+
 
 #include <rsp_dma.inc>
 
