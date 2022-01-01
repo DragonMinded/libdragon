@@ -242,15 +242,29 @@ bool rdp_is_display_attached();
 #define rdp_can_attach_display() (!rdp_is_display_attached())
 
 /**
- * @brief Automatically detach the RDP from a display context after asynchronously waiting for the RDP interrupt
+ * @brief Detach the RDP from a display context after asynchronously waiting for the RDP interrupt
  *
  * @note This function requires interrupts to be enabled to operate properly.
  *
  * This function will ensure that all hardware operations have completed on an output buffer
- * before detaching the display context. As opposed to #rdp_detach_display, this will call
- * #display_show automatically as soon as the RDP interrupt is raised.
+ * before detaching the display context. As opposed to #rdp_detach_display, this function will
+ * not block until the RDP interrupt is raised and takes a callback function instead.
+ * 
+ * @param[in] cb
+ *            The callback that will be called when the RDP interrupt is raised.
  */
-void rdp_detach_display_async();
+void rdp_detach_display_async(void (*cb)(display_context_t disp));
+
+/**
+ * @brief Asynchronously detach the current display from the RDP and automatically call #display_show on it
+ *
+ * This macro is just a shortcut for `rdp_detach_display_async(display_show)`. Use this if you
+ * are done rendering with the RDP and just want to submit the attached display context to be shown without
+ * any further postprocessing.
+ */
+#define rdp_auto_show_display() ({ \
+    rdp_detach_display_async(display_show); \
+})
 
 /**
  * @brief Perform a sync operation

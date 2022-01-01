@@ -96,6 +96,7 @@ static volatile uint32_t wait_intr = 0;
 static sprite_cache cache[8];
 
 static display_context_t attached_display = 0;
+static void (*detach_callback)(display_context_t disp) = NULL;
 
 /**
  * @brief RDP interrupt handler
@@ -108,10 +109,11 @@ static void __rdp_interrupt()
     /* Flag that the interrupt happened */
     wait_intr++;
 
-    if (attached_display != 0)
+    if (attached_display != 0 && detach_callback != NULL)
     {
-        display_show(attached_display);
+        detach_callback(attached_display);
         attached_display = 0;
+        detach_callback = NULL;
     }
 }
 
@@ -352,6 +354,7 @@ void rdp_attach_display( display_context_t disp )
 void rdp_detach_display( void )
 {
     assertf(rdp_is_display_attached(), "No display is currently attached!");
+    assertf(detach_callback == NULL, "Display has already been detached asynchronously!");
     attached_display = 0;
 
     /* Wait for SYNC_FULL to finish */
@@ -375,9 +378,11 @@ bool rdp_is_display_attached()
     return attached_display != 0;
 }
 
-void rdp_detach_display_async()
+void rdp_detach_display_async(void (*cb)(display_context_t disp))
 {
     assertf(rdp_is_display_attached(), "No display is currently attached!");
+    assertf(cb != NULL, "Callback should not be NULL!");
+    detach_callback = cb;
     rdp_sync_full();
 }
 
