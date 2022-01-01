@@ -220,6 +220,8 @@ static const struct Testsuite
 	TEST_FUNC(test_rspq_multiple_flush,        0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_sync,                  0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_rapid_sync,            0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_flush,                 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_rapid_flush,           0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_block,                 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_wait_sync_in_block,    0, TEST_FLAGS_NO_BENCHMARK),
 	//TEST_FUNC(test_rspq_pause,                 0, TEST_FLAGS_NO_BENCHMARK),

@@ -219,6 +219,88 @@ void test_rspq_high_load(TestContext *ctx)
     ASSERT_EQUAL_UNSIGNED(*actual_sum, expected_sum, "Possibly not all commands have been executed!");
 }
 
+void test_rspq_flush(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+
+    test_ovl_init();
+
+    uint32_t t0 = TICKS_READ();
+    while (TICKS_DISTANCE(t0, TICKS_READ()) < TICKS_FROM_MS(10000)) {
+        rspq_test_wait(RANDN(50));
+        rspq_flush();
+
+        wait_ticks(90);
+
+        //rspq_sync();
+        rspq_syncpoint_t sp = rspq_syncpoint();
+        rspq_flush();
+        ASSERT(wait_for_syncpoint(sp, 100), "syncpoint was not flushed!, PC:%03lx, STATUS:%04lx", *SP_PC, *SP_STATUS);
+    }
+
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
+}
+
+void test_rspq_rapid_flush(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+    
+    test_ovl_init();
+
+    uint64_t actual_sum[2] __attribute__((aligned(16))) = {0};
+    data_cache_hit_writeback_invalidate(actual_sum, 16);
+
+    uint32_t t0 = TICKS_READ();
+    while (TICKS_DISTANCE(t0, TICKS_READ()) < TICKS_FROM_MS(10000)) {
+        for (int wait=1;wait<0x100;wait++) {
+            uint64_t expected_sum = 1*24 + 3*24 + 5*24 + 7*24;
+
+            rspq_flush();
+            rspq_test_reset_log();
+            rspq_test_reset();
+            for (uint32_t i = 0; i < 24; i++)
+            {
+                rspq_test_high(1);
+                if ((i&3)==0) rspq_test_wait(RANDN(wait));
+            }
+            rspq_flush();
+
+            rspq_flush();
+            for (uint32_t i = 0; i < 24; i++)
+            {
+                rspq_test_high(3);
+                if ((i&3)==0) rspq_test_wait(RANDN(wait));
+            }
+            rspq_flush();
+
+            rspq_flush();
+            for (uint32_t i = 0; i < 24; i++)
+            {
+                rspq_test_high(5);
+                if ((i&3)==0) rspq_test_wait(RANDN(wait));
+            }
+            rspq_flush();
+
+            rspq_flush();
+            for (uint32_t i = 0; i < 24; i++)
+            {
+                rspq_test_high(7);
+                if ((i&3)==0) rspq_test_wait(RANDN(wait));
+            }
+            rspq_flush();
+
+            rspq_flush();
+            rspq_test_output(actual_sum);
+            rspq_sync();
+
+            ASSERT_EQUAL_UNSIGNED(actual_sum[1], expected_sum, "Sum is incorrect! (diff: %lld)", expected_sum - actual_sum[1]);
+            data_cache_hit_invalidate(actual_sum, 16);
+        }
+    }
+
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
+}
+
 void test_rspq_load_overlay(TestContext *ctx)
 {
     TEST_RSPQ_PROLOG();
@@ -524,12 +606,6 @@ void test_rspq_highpri_basic(TestContext *ctx)
     TEST_RSPQ_EPILOG(0, rspq_timeout);
 }
 
-void test_rspq_highpri_only(TestContext *ctx)
-{
-
-}
-
-
 void test_rspq_highpri_multiple(TestContext *ctx)
 {
     TEST_RSPQ_PROLOG();
@@ -610,7 +686,7 @@ void test_rspq_highpri_multiple(TestContext *ctx)
     }
 
     rspq_test_output(actual_sum);
-    rspq_sync();
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
 
     // ASSERT_EQUAL_UNSIGNED(actual_sum[0], 4096*16, "lowpri sum is not correct");
     // ASSERT_EQUAL_UNSIGNED(actual_sum[1], partial, "highpri sum is not correct");
