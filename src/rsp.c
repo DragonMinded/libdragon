@@ -223,7 +223,7 @@ void __rsp_crash(const char *file, int line, const char *func)
     MEMORY_BARRIER();
 
     // Read the current PC. This can only be read after the RSP is halted.
-    state.pc = *SP_PC;
+    uint32_t pc = *SP_PC;
     MEMORY_BARRIER();
 
     // Fetch DMEM, as we are going to modify it to read the register contents
@@ -239,6 +239,9 @@ void __rsp_crash(const char *file, int line, const char *func)
     // Overwrite the status register information with the read we did at
     // the beginning of the handler
     state.cop0[4] = status;
+
+    // Write the PC now so it doesn't get overwritten by the DMA
+    state.pc = pc;
 
     // Dump information on the current ucode name and CPU point of crash
     const char *uc_name = uc ? uc->name : "???";
