@@ -19,7 +19,7 @@ COMMAND_TABLE:
     commandTableEntry command_noop,               8
     commandTableEntry command_rdp_passthrough_16, 16 # 0x24 TEXTURE_RECTANGLE
     commandTableEntry command_rdp_passthrough_16, 16 # 0x25 TEXTURE_RECTANGLE_FLIP
-    commandTableEntry command_noop,               8
+    commandTableEntry command_rdp_passthrough_8,  8  # 0x26 SYNC_LOAD
     commandTableEntry command_rdp_passthrough_8,  8  # 0x27 SYNC_PIPE
     commandTableEntry command_rdp_passthrough_8,  8  # 0x28 SYNC_TILE
     commandTableEntry command_sync_full,          8  # 0x29 SYNC_FULL
@@ -30,7 +30,7 @@ COMMAND_TABLE:
     commandTableEntry command_rdp_passthrough_8,  8  # 0x2E SET_PRIM_DEPTH
     commandTableEntry command_set_other_modes,    8  # 0x2F SET_OTHER_MODES
     commandTableEntry command_rdp_passthrough_8,  8  # 0x30 LOAD_TLUT
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x31 SYNC_LOAD
+    commandTableEntry command_noop,               8
     commandTableEntry command_rdp_passthrough_8,  8  # 0x32 SET_TILE_SIZE
     commandTableEntry command_rdp_passthrough_8,  8  # 0x33 LOAD_BLOCK
     commandTableEntry command_rdp_passthrough_8,  8  # 0x34 LOAD_TILE
