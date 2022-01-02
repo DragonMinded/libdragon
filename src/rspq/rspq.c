@@ -95,69 +95,10 @@
  * ## RSP Queue internal commands
  *
  * To manage the queue and implement all the various features, rspq reserves
- * for itself the overlay ID 0x0 to implement internal commands.
+ * for itself the overlay ID 0x0 to implement internal commands. You can
+ * look at the list of commands and their description below. All command IDs
+ * are defined with `RSPQ_CMD_*` macros.
  * 
- * ### CMD 0x00: INVALID
- * 
- * Reserved ID for invalid command. This is used as a marker so that RSP knows
- * when it has caught up with CPU and reached an empty portion of the buffer.
- * 
- * ### CMD 0x01: NOOP
- * 
- * This commands does nothing. It can be useful for debugging purposes.
- * 
- * ### CMD 0x02: JUMP
- * 
- * This commands tells the RSP to start fetching commands from a new address.
- * It is mainly used internally to implement the queue as a ring buffer (jumping
- * at the start when we reach the end of the buffer).
- * 
- * ### CMD 0x03: CALL
- * 
- * This command is used by the block functions to implement the execution of
- * a block. It tells RSP to starts fetching commands from the block address,
- * saving the current address in an internal save slot in DMEM, from which
- * it will be recovered by CMD_RET. Using multiple slots allow for nested
- * calls.
- * 
- * ### CMD 0x04: RET
- * 
- * This command tells the RSP to recover the buffer address from a save slot
- * (from which it was currently saved by a CALL command) and begin fetching
- * commands from there. It is used to finish the execution of a block.
- * 
- * ### CMD 0x05: DMA
- * 
- * This commands runs a DMA transfer (either DRAM to DMEM, or DMEM to DRAM).
- * It is used by #rspq_overLay_register to register a new overlay table into
- * DMEM while the RSP is already running (to allow for overlays to be
- * registered even after boot), and can be used by the users to perform
- * manual DMA transfers to and from DMEM without risking a conflict with the
- * RSP itself.
- * 
- * ### CMD 0x06: WRITE_STATUS
- * 
- * This command asks the RSP to write to the SP_STATUS register. It is normally
- * used to set/clear signals or to raise RSP interrupts.
- * 
- * ### CMD 0x07: SWAP_BUFFERS
- * 
- * This command is used as part of the highpri feature. It allows to switch
- * between lowpri and highpri queue, by saving the current buffer pointer
- * in a special save slot, and restoring the buffer pointer of the other
- * queue from another slot. It is used internally by RSP to switch to highpri
- * when the SIG_HIGHPRI is found set; then it is explicitly enqueued by the
- * CPU when the highpri queue is finished (in #rspq_highpri_end) to switch
- * back to lowpri.
- * 
- * ### CMD 0x08: TEST_WRITE_STATUS
- * 
- * This commands does a test-and-write sequence on the SP_STATUS register: first,
- * it waits for a certain mask of bits to become zero, looping on it. Then
- * it writes a mask to the register. It is used as part of the syncpoint
- * feature to raise RSP interrupts, while waiting for the previous
- * interrupt to be processed (coalescing interrupts would cause syncpoints
- * to be missed).
  * 
  */
 
@@ -171,14 +112,107 @@
 #include "utils.h"
 #include "../../build/rspq/rspq_symbols.h"
 
-#define RSPQ_CMD_NOOP              0x01
-#define RSPQ_CMD_JUMP              0x02
-#define RSPQ_CMD_CALL              0x03
-#define RSPQ_CMD_RET               0x04
-#define RSPQ_CMD_DMA               0x05
-#define RSPQ_CMD_WRITE_STATUS      0x06
-#define RSPQ_CMD_SWAP_BUFFERS      0x07
-#define RSPQ_CMD_TEST_WRITE_STATUS 0x08
+/**
+ * RSPQ internal commands (overlay 0)
+ */
+enum {
+    /**
+     * @brief RSPQ command: Invalid
+     * 
+     * Reserved ID for invalid command. This is used as a marker so that RSP knows
+     * when it has caught up with CPU and reached an empty portion of the buffer.
+     */
+    RSPQ_CMD_INVALID           = 0x00,
+
+    /**
+     * @brief RSPQ command: No-op
+     * 
+     * This commands does nothing. It can be useful for debugging purposes.
+     */
+    RSPQ_CMD_NOOP              = 0x01,
+
+    /**
+     * @brief RSPQ command: Jump to another buffer
+     * 
+     * This commands tells the RSP to start fetching commands from a new address.
+     * It is mainly used internally to implement the queue as a ring buffer (jumping
+     * at the start when we reach the end of the buffer).
+     */
+    RSPQ_CMD_JUMP              = 0x02,
+
+    /**
+     * @brief RSPQ command: Call a block
+     * 
+     * This command is used by the block functions to implement the execution of
+     * a block. It tells RSP to starts fetching commands from the block address,
+     * saving the current address in an internal save slot in DMEM, from which
+     * it will be recovered by CMD_RET. Using multiple slots allow for nested
+     * calls.
+     */    
+    RSPQ_CMD_CALL              = 0x03,
+
+    /**
+     * @brief RSPQ command: Return from a block
+     * 
+     * This command tells the RSP to recover the buffer address from a save slot
+     * (from which it was currently saved by a CALL command) and begin fetching
+     * commands from there. It is used to finish the execution of a block.
+     */
+    RSPQ_CMD_RET               = 0x04,
+
+    /**
+     * @brief RSPQ command: DMA transfer
+     * 
+     * This commands runs a DMA transfer (either DRAM to DMEM, or DMEM to DRAM).
+     * It is used by #rspq_overLay_register to register a new overlay table into
+     * DMEM while the RSP is already running (to allow for overlays to be
+     * registered even after boot), and can be used by the users to perform
+     * manual DMA transfers to and from DMEM without risking a conflict with the
+     * RSP itself.
+     */
+    RSPQ_CMD_DMA               = 0x05,
+
+    /**
+     * @brief RSPQ Command: write SP_STATUS register
+     * 
+     * This command asks the RSP to write to the SP_STATUS register. It is normally
+     * used to set/clear signals or to raise RSP interrupts.
+     */
+    RSPQ_CMD_WRITE_STATUS      = 0x06,
+
+    /**
+     * @brief RSPQ Command: Swap lowpri/highpri buffers
+     * 
+     * This command is used as part of the highpri feature. It allows to switch
+     * between lowpri and highpri queue, by saving the current buffer pointer
+     * in a special save slot, and restoring the buffer pointer of the other
+     * queue from another slot. It is used internally by RSP to switch to highpri
+     * when the SIG_HIGHPRI is found set; then it is explicitly enqueued by the
+     * CPU when the highpri queue is finished (in #rspq_highpri_end) to switch
+     * back to lowpri.
+     */
+    RSPQ_CMD_SWAP_BUFFERS      = 0x07,
+
+    /**
+     * @brief RSPQ Command: Test and write SP_STATUS register
+     * 
+     * This commands does a test-and-write sequence on the SP_STATUS register: first,
+     * it waits for a certain mask of bits to become zero, looping on it. Then
+     * it writes a mask to the register. It is used as part of the syncpoint
+     * feature to raise RSP interrupts, while waiting for the previous
+     * interrupt to be processed (coalescing interrupts would cause syncpoints
+     * to be missed).
+     */
+    RSPQ_CMD_TEST_WRITE_STATUS = 0x08
+};
+
+
+// Make sure that RSPQ_CMD_WRITE_STATUS and RSPQ_CMD_TEST_WRITE_STATUS have
+// an even ID number. This is a small trick used to save one opcode in
+// rsp_queue.S (see cmd_write_status there for an explanation).
+_Static_assert((RSPQ_CMD_WRITE_STATUS & 1) == 0);
+_Static_assert((RSPQ_CMD_TEST_WRITE_STATUS & 1) == 0);
+
 
 #define rspq_append1(ptr, cmd, arg1) ({ \
     ((volatile uint32_t*)(ptr))[0] = ((cmd)<<24) | (arg1); \

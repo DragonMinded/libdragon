@@ -66,7 +66,7 @@ command_test_high:
 command_wait:
     bgtz a1, command_wait
     addi a1, -1
-    j loop
+    jr ra
     nop
 
 command_output:
@@ -86,9 +86,9 @@ command_reset:
     sw s0, %lo(BIG_LOG_PTR)
 
     sw zero, %lo(TEST_VARIABLE)
-    j loop
+    jr ra
     sw zero, %lo(TEST_VARIABLE2)
 
 command_reset_log:
-    j loop
+    jr ra
     sw zero, %lo(BIG_LOG_PTR)

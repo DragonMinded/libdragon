@@ -373,7 +373,7 @@ End:
 	li t2, DMA_OUT_ASYNC
 
 	# Wait for the last out transfer to be finished
-	jal_and_j DMAWaitIdle, loop
+	jal_and_j DMAWaitIdle, RSPQ_Loop
 
 	#undef samples_left
 	#undef outptr

@@ -14,12 +14,12 @@
     # The first argument of commandTableEntry is just the text label of the command, the second is the command size in bytes.
 COMMAND_TABLE:
     commandTableEntry command_fill_triangle,      32 # 0x20 
-    commandTableEntry command_noop,               8
-    commandTableEntry command_noop,               8
-    commandTableEntry command_noop,               8
+    commandTableEntry RSPQCmd_Noop,               8
+    commandTableEntry RSPQCmd_Noop,               8
+    commandTableEntry RSPQCmd_Noop,               8
     commandTableEntry command_rdp_passthrough_16, 16 # 0x24 TEXTURE_RECTANGLE
     commandTableEntry command_rdp_passthrough_16, 16 # 0x25 TEXTURE_RECTANGLE_FLIP
-    commandTableEntry command_noop,               8
+    commandTableEntry RSPQCmd_Noop,               8
     commandTableEntry command_rdp_passthrough_8,  8  # 0x27 SYNC_PIPE
     commandTableEntry command_rdp_passthrough_8,  8  # 0x28 SYNC_TILE
     commandTableEntry command_sync_full,          8  # 0x29 SYNC_FULL
@@ -98,7 +98,7 @@ command_rdp_passthrough_8:
     li t3, 8
     sw a0, %lo(RDP_DMEM_BUFFER) + 0x0(s1)
     sw a1, %lo(RDP_DMEM_BUFFER) + 0x4(s1)
-    jal_and_j rdp_write_end, loop
+    jal_and_j rdp_write_end, RSPQ_Loop
     .endfunc
 
 
@@ -121,7 +121,7 @@ command_rdp_passthrough_16:
     sw a1, %lo(RDP_DMEM_BUFFER) + 0x4(s1)
     sw a2, %lo(RDP_DMEM_BUFFER) + 0x8(s1)
     sw a3, %lo(RDP_DMEM_BUFFER) + 0xC(s1)
-    jal_and_j rdp_write_end, loop
+    jal_and_j rdp_write_end, RSPQ_Loop
     .endfunc
 
     #############################################################
@@ -158,7 +158,7 @@ command_fill_triangle:
     sw t1, %lo(RDP_DMEM_BUFFER) + 0x14(s1)
     sw t2, %lo(RDP_DMEM_BUFFER) + 0x18(s1)
     sw t3, %lo(RDP_DMEM_BUFFER) + 0x1C(s1)
-    jal_and_j rdp_write_end, loop
+    jal_and_j rdp_write_end, RSPQ_Loop
     .endfunc
 
 
@@ -185,7 +185,7 @@ command_sync_full:
     # Afterwards, force flushing the buffer...
     jal rdp_flush
     nop
-    j loop
+    j RSPQ_Loop
     # ...and set the RDP system back to uninitialized
     sh zero, %lo(RDP_INITIALIZED)
     .endfunc

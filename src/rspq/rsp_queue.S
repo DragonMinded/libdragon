@@ -37,41 +37,41 @@
     .data
 
 # Input properties
-OVERLAY_TABLE:           .ds.b RSPQ_OVERLAY_TABLE_SIZE
-OVERLAY_DESCRIPTORS:     .ds.b (RSPQ_OVERLAY_DESC_SIZE * RSPQ_MAX_OVERLAY_COUNT)
+RSPQ_OVERLAY_TABLE:           .ds.b RSPQ_OVERLAY_TABLE_SIZE
+RSPQ_OVERLAY_DESCRIPTORS:     .ds.b (RSPQ_OVERLAY_DESC_SIZE * RSPQ_MAX_OVERLAY_COUNT)
 
 # Save slots for RDRAM addresses used during nested lists calls.
 # Notice that the two extra slots are used to save the lowpri
 # and highpri current pointer (used when switching between the two)
-RSPQ_POINTER_STACK:      .ds.l (RSPQ_MAX_BLOCK_NESTING_LEVEL+2)
+RSPQ_POINTER_STACK:           .ds.l (RSPQ_MAX_BLOCK_NESTING_LEVEL+2)
 
 # RDRAM address of the current command list.
 # NOTE: this *MUST* be initialized before running the RSP code.
-RSPQ_RDRAM_PTR:          .long 0
+RSPQ_RDRAM_PTR:               .long 0
 
-CURRENT_OVL:             .half 0
+RSPQ_CURRENT_OVL:             .half 0
 
 # Mask used to check for highpri mode switch. This is equal
 # to SP_STATUS_SIG_HIGHPRI while in lowpri mode, and to 0
 # in highpri mode (to avoid infinite loops where we switch
 # to highpri mode while already in that mode).
-PRIMODE_STATUS_CHECK:    .half 0
+RSPQ_PRIMODE_STATUS_CHECK:    .half 0
 
     .align 4
     .ascii "Dragon RSP Queue"
     .ascii "Rasky & Snacchus"
 
     .align 3
-INTERNAL_COMMAND_TABLE:
-commandTableEntry command_wait_new_input,   0     # 0x00
-commandTableEntry command_noop,             4     # 0x01
-commandTableEntry command_jump,             4     # 0x02
-commandTableEntry command_call,             8     # 0x03
-commandTableEntry command_ret,              4     # 0x04
-commandTableEntry command_dma,              16    # 0x05
-commandTableEntry command_write_status,     4     # 0x06 -- must be even (bit 24 must be 0)
-commandTableEntry command_swap_buffers,     12    # 0x07
-commandTableEntry command_test_wstatus,     8     # 0x08 -- must be even (bit 24 must be 0)
+RSPQ_INTERNAL_COMMAND_TABLE:
+commandTableEntry RSPQCmd_WaitNewInput,    0     # 0x00
+commandTableEntry RSPQCmd_Noop,            4     # 0x01
+commandTableEntry RSPQCmd_Jump,            4     # 0x02
+commandTableEntry RSPQCmd_Call,            8     # 0x03
+commandTableEntry RSPQCmd_Ret,             4     # 0x04
+commandTableEntry RSQPCmd_Dma,             16    # 0x05
+commandTableEntry RSPQCmd_WriteStatus,     4     # 0x06 -- must be even (bit 24 must be 0)
+commandTableEntry RSPQCmd_SwapBuffers,     12    # 0x07
+commandTableEntry RSPQCmd_TestWriteStatus, 8     # 0x08 -- must be even (bit 24 must be 0)
 
 #if RSPQ_DEBUG
 RSPQ_LOG_IDX:                .long 0
@@ -95,8 +95,8 @@ _ovl_data_start:
 _start:
     li rspq_dmem_buf_ptr, 0
 
-    .func command_wait_new_input
-command_wait_new_input:
+    .func RSPQCmd_WaitNewInput
+RSPQCmd_WaitNewInput:
     # Check if new commands were added in the display list (SIG_MORE)
     mfc0 t0, COP0_SP_STATUS
     andi t0, SP_STATUS_SIG_MORE
@@ -108,12 +108,12 @@ command_wait_new_input:
 wakeup:
     mtc0 t0, COP0_SP_STATUS
 
-fetch_buffer:
+rspq_fetch_buffer:
     # Fetch the RDRAM pointer, and adjust it to the current reading index.
     # We will fetch commands starting from there
     lw s0, %lo(RSPQ_RDRAM_PTR)
     add s0, rspq_dmem_buf_ptr
-fetch_buffer_with_ptr:
+rspq_fetch_buffer_with_ptr:
     # Buffer into which the DMA will be performed
     # NOTE: this instruction has been moved here to workaround what
     # seems to be a RSP hardware bug, related to weird pipeline
@@ -141,15 +141,15 @@ fetch_buffer_with_ptr:
     # fallthrough into the main loop
     .endfunc
 
-command_noop:     # noop -> repeat the loop
-    .func loop
-loop:
+RSPQCmd_Noop:     # noop -> repeat the loop
+    .func RSPQ_Loop
+RSPQ_Loop:
     #define ovl_index t4
     #define cmd_index t5
     #define cmd_desc  t6
     #define cmd_size  t7
 
-    jal rspq_check_highpri
+    jal RSPQ_CheckHighpri
     li t0, 0
 
     # Read first word
@@ -171,44 +171,44 @@ loop:
     andi cmd_index, 0x1FE
 
     # Overlay 0 is reserved for internal commands
-    beqz t0, execute_command
+    beqz t0, rspq_execute_command
     # Load command descriptor from internal command table if using the default overlay.
     # Otherwise, cmd_desc will be overwritten further down
-    lhu cmd_desc, %lo(INTERNAL_COMMAND_TABLE)(cmd_index)
+    lhu cmd_desc, %lo(RSPQ_INTERNAL_COMMAND_TABLE)(cmd_index)
 
-    lhu t1, %lo(CURRENT_OVL)
+    lhu t1, %lo(RSPQ_CURRENT_OVL)
 
     # Load overlay index from overlay table
     # NOTE: May be optimised away by getting rid of the indirection and remembering the (code) address of the previously loaded overlay instead.
-    lb ovl_index, %lo(OVERLAY_TABLE)(t0)
+    lb ovl_index, %lo(RSPQ_OVERLAY_TABLE)(t0)
     # Check if the requested overlay is already in memory
-    beq ovl_index, t1, overlay_loaded
+    beq ovl_index, t1, rspq_overlay_loaded
     lhu t0, %lo(_ovl_data_start) + 0x4
 
     # Save current overlay state
-    lw s0, %lo(OVERLAY_DESCRIPTORS) + 0x8 (t1)
+    lw s0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0x8 (t1)
     jal DMAOutAsync
     lw s4, %lo(_ovl_data_start) + 0x0
 
     # Load overlay data (saved state is included)
-    lhu t0, %lo(OVERLAY_DESCRIPTORS) + 0xE (ovl_index)
+    lhu t0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0xE (ovl_index)
     #if RSPQ_DEBUG
     assert_ne t0, 0, ASSERT_INVALID_OVERLAY
     #endif
-    lw s0, %lo(OVERLAY_DESCRIPTORS) + 0x4 (ovl_index)
+    lw s0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0x4 (ovl_index)
     jal DMAInAsync
     li s4, %lo(_ovl_data_start)
 
     # Load overlay code
-    lhu t0, %lo(OVERLAY_DESCRIPTORS) + 0xC (ovl_index)
-    lw s0, %lo(OVERLAY_DESCRIPTORS) + 0x0 (ovl_index)
+    lhu t0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0xC (ovl_index)
+    lw s0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0x0 (ovl_index)
     jal DMAIn
     li s4, %lo(_ovl_text_start) + 0x1000
 
     # Remember loaded overlay
-    sh ovl_index, %lo(CURRENT_OVL)
+    sh ovl_index, %lo(RSPQ_CURRENT_OVL)
 
-overlay_loaded:
+rspq_overlay_loaded:
     # Subtract the command base to determine the final offset into the command table.
     lhu t0, %lo(_ovl_data_start) + 0x6
     sub cmd_index, t0
@@ -216,7 +216,7 @@ overlay_loaded:
     # Load command descriptor from overlay command table
     lhu cmd_desc, %lo(_ovl_data_start) + OVERLAY_HEADER_SIZE(cmd_index)
 
-execute_command:
+rspq_execute_command:
     #if RSPQ_DEBUG
     assert_ne cmd_desc, 0, ASSERT_INVALID_COMMAND
     #endif
@@ -234,7 +234,7 @@ execute_command:
     # wasteful but saves us a few instructions (that would be required to check
     # whether we are then trying to load a command outside of the buffer).
     addu t0, rspq_dmem_buf_ptr, cmd_size
-    bge t0, RSPQ_DMEM_BUFFER_SIZE, fetch_buffer
+    bge t0, RSPQ_DMEM_BUFFER_SIZE, rspq_fetch_buffer
 
     # Load second to fourth command words (might be garbage, but will never be read in that case)
     # This saves some instructions in all overlays that use more than 4 bytes per command.
@@ -244,9 +244,9 @@ execute_command:
     add rspq_dmem_buf_ptr, cmd_size
 
     # Jump to command. Set ra to the loop function, so that commands can 
-    # either do "j loop" or "jr ra" (or a tail call) to get back to the main loop
+    # either do "j RSPQ_Loop" or "jr ra" (or a tail call) to get back to the main loop
     jr cmd_desc
-    li ra, %lo(loop)
+    li ra, %lo(RSPQ_Loop)
 
     #undef ovl_index
     #undef cmd_index
@@ -255,7 +255,7 @@ execute_command:
     .endfunc
 
     ############################################################
-    # rspq_check_highpri
+    # RSPQ_CheckHighpri
     #
     # Polling function. Check whether the highpri mode has been
     # requested by the CPU, and if so start executing it right away.
@@ -271,9 +271,9 @@ execute_command:
     #   t0: size of the current command
     ############################################################
 
-    .func rspq_check_highpri
-rspq_check_highpri:
-    lhu t1, %lo(PRIMODE_STATUS_CHECK)
+    .func RSPQ_CheckHighpri
+RSPQ_CheckHighpri:
+    lhu t1, %lo(RSPQ_PRIMODE_STATUS_CHECK)
     mfc0 t2, COP0_SP_STATUS
     and t2, t1
     beqz t2, JrRa
@@ -286,7 +286,7 @@ rspq_check_highpri:
     .endfunc
 
     #############################################################
-    # command_swap_buffers
+    # RSPQCmd_SwapBuffers
     #
     # Switch between lowpri and highpri or viceversa. This is
     # called by RSP itself to go into highpri mode, and scheduled
@@ -299,15 +299,15 @@ rspq_check_highpri:
     #       (either RSPQ_LOWPRI_CALL_SLOT<<2 or RSPQ_HIGHPRI_CALL_SLOT<<2)
     #   a2: New mask to check for HIGHPRI signal (0 in highpri mode).
     #############################################################
-    .func command_swap_buffers
-command_swap_buffers:
-    sh a2, %lo(PRIMODE_STATUS_CHECK)
+    .func RSPQCmd_SwapBuffers
+RSPQCmd_SwapBuffers:
+    sh a2, %lo(RSPQ_PRIMODE_STATUS_CHECK)
     lw a0, %lo(RSPQ_POINTER_STACK)(a0)
     #fallthrough
     .endfunc    
     
     #############################################################
-    # command_call
+    # RSPQCmd_Call
     #
     # Do a nested call to a different command list. Save the
     # current RDRAM position to be able to resume execution
@@ -317,8 +317,8 @@ command_swap_buffers:
     #   a0: New RDRAM address (plus command opcode)
     #   a1: DMEM address of the save slot for the current address
     #############################################################
-    .func command_call
-command_call:
+    .func RSPQCmd_Call
+RSPQCmd_Call:
     # a0: command opcode + RDRAM address
     # a1: call slot in DMEM
     lw s0, %lo(RSPQ_RDRAM_PTR)
@@ -328,7 +328,7 @@ command_call:
     .endfunc
 
     #############################################################
-    # command_jump
+    # RSPQCmd_Jump
     #
     # Jump to a different command list. The current RDRAM position
     # is lost.
@@ -336,62 +336,70 @@ command_call:
     # ARGS:
     #   a0: New RDRAM address (plus command opcode)
     #############################################################
-    .func command_jump
-command_jump:
+    .func RSPQCmd_Jump
+RSPQCmd_Jump:
     # a0: command opcode + RDRAM address
-    j fetch_buffer_with_ptr
+    j rspq_fetch_buffer_with_ptr
     move s0, a0
     .endfunc
 
     #############################################################
-    # command_ret
+    # RSPQCmd_Ret
     #
     # Restore a previously saved RDRAM position and jump to it.
     #
     # ARGS:
     #   a0: DMEM address of the save slot (plus command opcode)
     #############################################################
-    .func command_ret
-command_ret:
+    .func RSPQCmd_Ret
+RSPQCmd_Ret:
     # a0: command opcode + call slot in DMEM to recover
-    j fetch_buffer_with_ptr
+    j rspq_fetch_buffer_with_ptr
     lw s0, %lo(RSPQ_POINTER_STACK)(a0)
     .endfunc
 
     #############################################################
-    # command_test_wstatus
+    # RSPQCmd_TestWriteStatus
     #
-    # Like command_write_status, writes COP0 SP status register with a specified value,
+    # Like RSPQCmd_WriteStatus, writes COP0 SP status register with a specified value,
     # but first waits until the SP status AND'ed with the specified bitmask is zero.
     #
     # ARGS:
     #   a0: value to write into COP0_SP_STATUS
     #   a1: bitmask to test COP0_SP_STATUS for
     #############################################################
-    .func command_test_wstatus
-command_test_wstatus:
+    .func RSPQCmd_TestWriteStatus
+RSPQCmd_TestWriteStatus:
     jal SpStatusWait
     move t2, a1
     # fallthrough
     .endfunc
 
     #############################################################
-    # command_write_status
+    # RSPQCmd_WriteStatus
     #
     # Write COP0 SP status register with a specified value
     #
     # ARGS:
     #   a0: value to write into COP0_SP_STATUS
     #############################################################
-    .func command_write_status
-command_write_status:
-    # a0: command opcode + wstatus flags
-    j loop
+    .func RSPQCmd_WriteStatus
+RSPQCmd_WriteStatus:
+    # Write the status value and go back to the main loop.
+    # Notice that we write the whole a0 register, whose top 8-bits
+    # contain the RSPQ_CMD_WRITE_STATUS command ID. This is not
+    # a problem because the SP_STATUS register uses only 25 bits,
+    # and we have assured that RSPQ_CMD_WRITE_STATUS has an ID
+    # which is an even number (so that bit 24 is always 0 and not used).
+    # This means that this command cannot ever write bit 24 to SP_STATUS:
+    # that is SP_WSTATUS_SET_SIG_MORE, that we don't need to set
+    # through this internal command.
+    j RSPQ_Loop
     mtc0 a0, COP0_SP_STATUS
     .endfunc
 
     #############################################################
-    # command_dma
+    # RSQPCmd_Dma
     #
     # Executes an arbitrary DMA request by taking the arguments to DMAExec from a0-a3
     #
@@ -401,8 +409,8 @@ command_write_status:
     #   a2: length/height
     #   a3: flags (in/out, sync/async)
     #############################################################
-    .func command_dma
-command_dma:
+    .func RSQPCmd_Dma
+RSQPCmd_Dma:
     move s0, a0
     move s4, a1
     move t0, a2
