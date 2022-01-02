@@ -188,24 +188,14 @@ void rdp_texture_rectangle(uint8_t tile, int16_t x0, int16_t y0, int16_t x1, int
 {
     uint64_t w0 = RdpTextureRectangle1FX(tile, x0, y0, x1, y1);
     uint64_t w1 = RdpTextureRectangle2FX(s, t, ds, dt);
-    RSPQ_WRITE_BEGIN(ptr, w0>>56);
-    *ptr++ = (w0 >> 32) & 0x00FFFFFF;
-    *ptr++ = w0 & 0xFFFFFFFF;
-    *ptr++ = w1 >> 32;
-    *ptr++ = w1 & 0xFFFFFFFF;
-    RSPQ_WRITE_END(ptr);
+    rspq_write(w0>>56, (w0 >> 32) & 0x00FFFFFF, w0 & 0xFFFFFFFF, w1 >> 32, w1 & 0xFFFFFFFF);
 }
 
 void rdp_texture_rectangle_flip(uint8_t tile, int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t s, int16_t t, int16_t ds, int16_t dt)
 {
     uint64_t w0 = RdpTextureRectangleFlip1FX(tile, x0, y0, x1, y1);
     uint64_t w1 = RdpTextureRectangle2FX(s, t, ds, dt);
-    RSPQ_WRITE_BEGIN(ptr, w0>>56);
-    *ptr++ = w0 >> 32;
-    *ptr++ = w0 & 0xFFFFFFFF;
-    *ptr++ = w1 >> 32;
-    *ptr++ = w1 & 0xFFFFFFFF;
-    RSPQ_WRITE_END(ptr);
+    rspq_write(w0>>56, w0 >> 32, w0 & 0xFFFFFFFF, w1 >> 32, w1 & 0xFFFFFFFF);
 }
 
 void rdp_sync_pipe()
@@ -642,16 +632,7 @@ void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3,
     int winding = ( x1 * y2 - x2 * y1 ) + ( x2 * y3 - x3 * y2 ) + ( x3 * y1 - x1 * y3 );
     int flip = ( winding > 0 ? 1 : 0 ) << 23;
 
-    RSPQ_WRITE_BEGIN(rspq, 0x20);
-    *rspq++ = flip | yl;
-    *rspq++ = ym | yh;
-    *rspq++ = xl;
-    *rspq++ = dxldy;
-    *rspq++ = xh;
-    *rspq++ = dxhdy;
-    *rspq++ = xm;
-    *rspq++ = dxmdy;
-    RSPQ_WRITE_END(rspq);
+    rspq_write(0x20, flip | yl, ym | yh, xl, dxldy, xh, dxhdy, xm, dxmdy);
 }
 
 void rdp_set_texture_flush( flush_t flush )

@@ -244,8 +244,8 @@ typedef struct {
     int buf_size;
     int buf_idx;
     uint32_t sp_status_bufdone, sp_wstatus_set_bufdone, sp_wstatus_clear_bufdone;
-    uint32_t *cur;
-    uint32_t *sentinel;
+    volatile uint32_t *cur;
+    volatile uint32_t *sentinel;
 } rspq_ctx_t;
 
 static rsp_queue_t rspq_data;
@@ -257,8 +257,8 @@ static rspq_block_t *rspq_block;
 static int rspq_block_size;
 
 rspq_ctx_t *rspq_ctx;
-uint32_t *rspq_cur_pointer;
-uint32_t *rspq_cur_sentinel;
+volatile uint32_t *rspq_cur_pointer;
+volatile uint32_t *rspq_cur_sentinel;
 
 rspq_ctx_t lowpri, highpri;
 
@@ -323,9 +323,9 @@ static void rspq_switch_context(rspq_ctx_t *new)
     rspq_cur_sentinel = rspq_ctx ? rspq_ctx->sentinel : NULL;
 }
 
-static uint32_t* rspq_switch_buffer(uint32_t *new, int size, bool clear)
+static volatile uint32_t* rspq_switch_buffer(uint32_t *new, int size, bool clear)
 {
-    uint32_t* prev = rspq_cur_pointer;
+    volatile uint32_t* prev = rspq_cur_pointer;
 
     // Notice that the buffer must have been cleared before, as the
     // command queue are expected to always contain 0 on unwritten data.
@@ -633,7 +633,7 @@ void rspq_highpri_begin(void)
     // bit will be set but this function, and reset at the beginning of the new
     // segment, but it doesn't matter at this point.
     if (rspq_cur_pointer[-3]>>24 == RSPQ_CMD_SWAP_BUFFERS) {
-        uint32_t *epilog = rspq_cur_pointer-4;
+        volatile uint32_t *epilog = rspq_cur_pointer-4;
         rspq_append1(epilog, RSPQ_CMD_JUMP, PhysicalAddr(rspq_cur_pointer));
     }
 
@@ -747,10 +747,7 @@ void rspq_block_run(rspq_block_t *block)
     // Write the CALL op. The second argument is the nesting level
     // which is used as stack slot in the RSP to save the current
     // pointer position.
-    RSPQ_WRITE_BEGIN(rspq, RSPQ_CMD_CALL);
-    *rspq++ = PhysicalAddr(block->cmds);
-    *rspq++ = block->nesting_level << 2;
-    RSPQ_WRITE_END(rspq);
+    rspq_write(RSPQ_CMD_CALL, PhysicalAddr(block->cmds), block->nesting_level << 2);
 
     // If this is CALL within the creation of a block, update
     // the nesting level. A block's nesting level must be bigger
@@ -765,31 +762,25 @@ void rspq_block_run(rspq_block_t *block)
 
 void rspq_queue_u32(uint32_t cmd)
 {
-    RSPQ_WRITE_BEGIN(rspq, cmd>>24);
-    *rspq++ = cmd & 0x00FFFFFF;
-    RSPQ_WRITE_END(rspq);
+    rspq_write(cmd>>24, cmd & 0x00FFFFFF);
 }
 
 void rspq_queue_u64(uint64_t cmd)
 {
-    RSPQ_WRITE_BEGIN(rspq, cmd>>56);
-    *rspq++ = (cmd >> 32) & 0x00FFFFFF;
-    *rspq++ = cmd & 0xFFFFFFFF;
-    RSPQ_WRITE_END(rspq);
+    rspq_write(cmd>>56, (cmd >> 32) & 0x00FFFFFF, cmd & 0xFFFFFFFF);
 }
 
 void rspq_noop()
 {
-    rspq_queue_u32(RSPQ_CMD_NOOP<<24);
+    rspq_write(RSPQ_CMD_NOOP);
 }
 
 rspq_syncpoint_t rspq_syncpoint(void)
 {   
     assertf(!rspq_block, "cannot create syncpoint in a block");
-    RSPQ_WRITE_BEGIN(rspq, RSPQ_CMD_TEST_WRITE_STATUS);
-    *rspq++ = SP_WSTATUS_SET_INTR | SP_WSTATUS_SET_SIG_SYNCPOINT;
-    *rspq++ = SP_STATUS_SIG_SYNCPOINT;
-    RSPQ_WRITE_END(rspq);
+    rspq_write(RSPQ_CMD_TEST_WRITE_STATUS, 
+        SP_WSTATUS_SET_INTR | SP_WSTATUS_SET_SIG_SYNCPOINT,
+        SP_STATUS_SIG_SYNCPOINT);
     return ++rspq_syncpoints_genid;
 }
 
@@ -823,17 +814,12 @@ void rspq_signal(uint32_t signal)
     const uint32_t allowed_mask = SP_WSTATUS_CLEAR_SIG0|SP_WSTATUS_SET_SIG0|SP_WSTATUS_CLEAR_SIG1|SP_WSTATUS_SET_SIG1;
     assertf((signal & allowed_mask) == signal, "rspq_signal called with a mask that contains bits outside SIG0-1: %lx", signal);
 
-    rspq_queue_u32((RSPQ_CMD_WRITE_STATUS<<24) | signal);
+    rspq_write(RSPQ_CMD_WRITE_STATUS, signal);
 }
 
 static void rspq_dma(void *rdram_addr, uint32_t dmem_addr, uint32_t len, uint32_t flags)
 {
-    RSPQ_WRITE_BEGIN(rspq, RSPQ_CMD_DMA);
-    *rspq++ = PhysicalAddr(rdram_addr);
-    *rspq++ = dmem_addr;
-    *rspq++ = len;
-    *rspq++ = flags;
-    RSPQ_WRITE_END(rspq);
+    rspq_write(RSPQ_CMD_DMA, PhysicalAddr(rdram_addr), dmem_addr, len, flags);
 }
 
 void rspq_dma_to_rdram(void *rdram_addr, uint32_t dmem_addr, uint32_t len, bool is_async)

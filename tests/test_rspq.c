@@ -21,64 +21,46 @@ void test_ovl_init()
 
 void rspq_test_4(uint32_t value)
 {
-    RSPQ_WRITE_BEGIN(ptr, 0xF0);
-    *ptr++ = value & 0x00FFFFFF;
-    RSPQ_WRITE_END(ptr);
+    rspq_write(0xF0, value & 0x00FFFFFF);
 }
 
 void rspq_test_8(uint32_t value)
 {
-    RSPQ_WRITE_BEGIN(ptr, 0xF1);
-    *ptr++ = value & 0x00FFFFFF;
-    *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG0;
-    RSPQ_WRITE_END(ptr);
+    rspq_write(0xF1, value & 0x00FFFFFF,
+        0x02000000 | SP_WSTATUS_SET_SIG0);
 }
 
 void rspq_test_16(uint32_t value)
 {
-    RSPQ_WRITE_BEGIN(ptr, 0xF2);
-    *ptr++ = value & 0x00FFFFFF;
-    *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG0;
-    *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG1;
-    *ptr++ = 0x02000000 | SP_WSTATUS_SET_SIG0;
-    RSPQ_WRITE_END(ptr);
+    rspq_write(0xF2, value & 0x00FFFFFF, 
+        0x02000000 | SP_WSTATUS_SET_SIG0,
+        0x02000000 | SP_WSTATUS_SET_SIG1,
+        0x02000000 | SP_WSTATUS_SET_SIG0);
 }
 
 void rspq_test_wait(uint32_t length)
 {
-    RSPQ_WRITE_BEGIN(ptr, 0xF3);
-    *ptr++ = 0;
-    *ptr++ = length;
-    RSPQ_WRITE_END(ptr);
+    rspq_write(0xF3, 0, length);
 }
 
 void rspq_test_output(uint64_t *dest)
 {
-    RSPQ_WRITE_BEGIN(ptr, 0xF4);
-    *ptr++ = 0;
-    *ptr++ = PhysicalAddr(dest);
-    RSPQ_WRITE_END(ptr);
+    rspq_write(0xF4, 0, PhysicalAddr(dest));
 }
 
 void rspq_test_reset(void)
 {
-    RSPQ_WRITE_BEGIN(ptr, 0xF5);
-    *ptr++ = 0;
-    RSPQ_WRITE_END(ptr);
+    rspq_write(0xF5);
 }
 
 void rspq_test_high(uint32_t value)
 {
-    RSPQ_WRITE_BEGIN(ptr, 0xF6);
-    *ptr++ = value & 0x00FFFFFF;
-    RSPQ_WRITE_END(ptr);
+    rspq_write(0xF6, value & 0x00FFFFFF);
 }
 
 void rspq_test_reset_log(void)
 {
-    RSPQ_WRITE_BEGIN(ptr, 0xF7);
-    *ptr++ = 0;
-    RSPQ_WRITE_END(ptr);
+    rspq_write(0xF7);
 }
 
 #define RSPQ_LOG_STATUS(step) debugf("STATUS: %#010lx, PC: %#010lx (%s)\n", *SP_STATUS, *SP_PC, step)
