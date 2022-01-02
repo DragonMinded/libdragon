@@ -236,6 +236,7 @@ void inst_cache_invalidate_all(void);
 int get_memory_size();
 bool is_memory_expanded();
 void *malloc_uncached(size_t size);
+void free_uncached(void *buf);
 
 /** @brief Type of TV video output */
 typedef enum {

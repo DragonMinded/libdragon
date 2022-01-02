@@ -750,7 +750,7 @@ void rspq_block_free(rspq_block_t *block)
         // If the last command is a JUMP
         if (cmd>>24 == RSPQ_CMD_JUMP) {
             // Free the memory of the current chunk.
-            free(CachedAddr(start));
+            free_uncached(start);
             // Get the pointer to the next chunk
             start = UncachedAddr(0x80000000 | (cmd & 0xFFFFFF));
             if (size < RSPQ_BLOCK_MAX_SIZE) size *= 2;
@@ -760,7 +760,7 @@ void rspq_block_free(rspq_block_t *block)
         // If the last command is a RET
         if (cmd>>24 == RSPQ_CMD_RET) {
             // This is the last chunk, free it and exit
-            free(CachedAddr(start));
+            free_uncached(start);
             return;
         }
         // The last command is neither a JUMP nor a RET:

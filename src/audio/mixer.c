@@ -178,7 +178,7 @@ static void mixer_init_samplebuffers(void) {
 
 	// Do one large allocations for all sample buffers
 	assert(Mixer.ch_buf_mem == NULL);
-	Mixer.ch_buf_mem = malloc(totsize);
+	Mixer.ch_buf_mem = malloc_uncached(totsize);
 	assert(Mixer.ch_buf_mem != NULL);
 	uint8_t *cur = Mixer.ch_buf_mem;
 
@@ -199,7 +199,7 @@ void mixer_close(void) {
 	assert(mixer_initialized());
 
 	if (Mixer.ch_buf_mem) {
-		free(Mixer.ch_buf_mem);
+		free_uncached(Mixer.ch_buf_mem);
 		Mixer.ch_buf_mem = NULL;
 	}
 
@@ -411,7 +411,7 @@ void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_
 	if (Mixer.ch_buf_mem) {
 		for (int i=0;i<Mixer.num_channels;i++)
 			samplebuffer_close(&Mixer.ch_buf[i]);
-		free(Mixer.ch_buf_mem);
+		free_uncached(Mixer.ch_buf_mem);
 		Mixer.ch_buf_mem = NULL;
 	}
 }

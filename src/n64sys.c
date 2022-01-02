@@ -212,9 +212,13 @@ void inst_cache_invalidate_all(void)
  * 
  * The buffer contents are uninitialized.
  * 
+ * To free the buffer, use #ƒree_uncached.
+ * 
  * @param[in]  size  The size of the buffer to allocate
  *
  * @return a pointer to the start of the buffer (in the uncached segment)
+ * 
+ * @see #free_uncached
  */
 void *malloc_uncached(size_t size)
 {
@@ -233,6 +237,20 @@ void *malloc_uncached(size_t size)
 
     // Return the pointer as uncached memory.
     return UncachedAddr(mem);
+}
+
+/**
+ * @brief Free an uncached memory buffer
+ * 
+ * This function frees a memory buffer previously allocated via #malloc_uncached.
+ * 
+ * @param[in]  buf  The buffer to free
+ * 
+ * @see #malloc_uncached
+ */
+void free_uncached(void *buf)
+{
+    free(CachedAddr(buf));
 }
 
 /**
