@@ -14,40 +14,6 @@
 #
 #
 
-#define RSPQ_DEBUG    1
-#define ASSERT_INVALID_OVERLAY       0xFA010000
-#define ASSERT_INVALID_COMMAND       0xFA020000
-#define ASSERT_GP_BACKWARD           0xFA030000
-
-#if RSPQ_DEBUG
-    .macro assert code
-        j abort
-        .set noat
-        li $1, \code
-        .set at
-    .endm
-    .macro assert_eq v0, v1, code
-        bne \v0, \v1, abort
-        .set noat
-        li $1, \code
-        .set at
-    .endm
-    .macro assert_ne v0, v1, code
-        beq \v0, \v1, abort
-        .set noat
-        li $1, \code
-        .set at
-    .endm
-
-#else
-    .macro assert CODE
-    .endm
-    .macro assert_eq v0, v1, code
-    .endm
-    .macro assert_ne v0, v1, code
-    .endm
-#endif
-
 # Psuedo-code on RSP:
 # * Fetch current command first byte
 # * Calculate command size
@@ -62,6 +28,8 @@
 #include <rsp_queue.inc>
 
 #include "rspq_internal.h"
+
+#define RSPQ_DEBUG 0
 
     .set noreorder
     .set at
@@ -96,19 +64,20 @@ PRIMODE_STATUS_CHECK:    .half 0
     .align 3
 INTERNAL_COMMAND_TABLE:
 commandTableEntry command_wait_new_input,   0     # 0x00
-commandTableEntry command_terminator,       4     # 0x01
-commandTableEntry command_write_status,     4     # 0x02 -- must be even (bit 24 must be 0)
+commandTableEntry command_noop,             4     # 0x01
+commandTableEntry command_jump,             4     # 0x02
 commandTableEntry command_call,             8     # 0x03
-commandTableEntry command_jump,             4     # 0x04
-commandTableEntry command_ret,              4     # 0x05
-commandTableEntry command_swap_buffers,     12    # 0x06
-commandTableEntry command_noop,             4     # 0x07
+commandTableEntry command_ret,              4     # 0x04
+commandTableEntry command_dma,              16    # 0x05
+commandTableEntry command_write_status,     4     # 0x06 -- must be even (bit 24 must be 0)
+commandTableEntry command_swap_buffers,     12    # 0x07
 commandTableEntry command_test_wstatus,     8     # 0x08 -- must be even (bit 24 must be 0)
-commandTableEntry command_dma,              16    # 0x09
 
+#if RSPQ_DEBUG
 RSPQ_LOG_IDX:                .long 0
 RSPQ_LOG:                    .ds.l 16
 RSPQ_LOG_END:                .long 0xFFFFFFFF
+#endif
 
     .bss
 
@@ -124,13 +93,6 @@ _ovl_data_start:
 
     .globl _start
 _start:
-#if RSPQ_DEBUG
-abort:
-    j abort
-    nop
-#endif
-
-    # NOTE: RSPQ_RDRAM_PTR must have been initialized before spinning up RSP!
     li rspq_dmem_buf_ptr, 0
 
     .func command_wait_new_input
@@ -152,6 +114,7 @@ fetch_buffer:
     lw s0, %lo(RSPQ_RDRAM_PTR)
     add s0, rspq_dmem_buf_ptr
 fetch_buffer_with_ptr:
+    li s4, %lo(RSPQ_DMEM_BUFFER)
 
     # Reset the reading index to the first actual byte of the buffer (after
     # taking misalignment into account)
@@ -165,7 +128,6 @@ fetch_buffer_with_ptr:
 
     # Fetch the whole DMEM buffer. We will use the 0x00 invalid fill value to
     # realize where the buffer is empty.
-    li s4, %lo(RSPQ_DMEM_BUFFER)
     jal DMAIn
     li t0, DMA_SIZE(RSPQ_DMEM_BUFFER_SIZE, 1)
 
@@ -426,13 +388,8 @@ command_dma:
     move t2, a3
     .endfunc
 
-command_invalid:
-command_terminator:
-    assert ASSERT_INVALID_COMMAND
-
-
-
 #include <rsp_dma.inc>
+#include <rsp_assert.inc>
 
     .align 3
 # Overlay code will be loaded at this address

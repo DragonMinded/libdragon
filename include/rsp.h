@@ -121,6 +121,28 @@ typedef struct {
 } rsp_snapshot_t;
 
 /**
+ * @brief An assert registered into the RSP crash handler.
+ * 
+ * This library has a simple support for "RSP assert messages". It is possible
+ * for ucode to register assert codes that can be raised when something
+ * goes wrong in the RSP. The assert codes and messages will be displayed
+ * in the crash screen.
+ * 
+ * Asserts can also have custom crash handlers registered, that
+ * are invoked when they are raised, to display assert-specific
+ * information on screen (decoding information from a #rsp_snapshot_t
+ * state).
+ * 
+ * @see #rsp_register_assert
+ */
+typedef struct rsp_assert_s {
+    uint16_t code;
+    const char *msg;
+    void (*crash_handler)(rsp_snapshot_t *state);
+    struct rsp_assert_s *next;
+} rsp_assert_t;
+
+/**
  * @brief RSP ucode definition.
  * 
  * This small structure holds the text/data pointers to a RSP ucode program
@@ -139,8 +161,21 @@ typedef struct {
     const char *name;      ///< Name of the ucode
     uint32_t start_pc;     ///< Initial RSP PC
 
-    ///< Custom crash handler for this ucode (to complement the default one)
+    /**
+     * @brief Custom crash handler. 
+     * 
+     * If specified, this function is invoked when a RSP crash happens,
+     * while filling the information screen. It can be used to dump
+     * custom ucode-specific information.
+     */
     void (*crash_handler)(rsp_snapshot_t *state);
+
+    /**
+     * @brief Assert messages used by this ucode
+     * 
+     * @see #rsp_ucode_register_assert
+     */
+    rsp_assert_t *asserts;
 } rsp_ucode_t;
 
 /**
@@ -151,6 +186,18 @@ typedef struct {
  * and compiled a ucode called rsp_math.S, you can use DEFINE_RSP_UCODE(rsp_math)
  * to define it at the global level. You can then use rsp_load(&rsp_math) 
  * to load it.
+ * 
+ * To statically define attributes of the ucode, you can use the C designated
+ * initializer syntax.
+ * 
+* @code{.c}
+ *      // Define the RSP ucode stored in file rsp_math.S.
+ *      // For the sake of this example, we also show how to set the member
+ *      // start_pc at definition time. You normally don't need to change this
+ *      // as most ucode will start at 0x0 anyway (which is the default).
+ *      DEFINE_RSP_UCODE(&rsp_math, .start_pc = 0x100);
+ * @endcode
+  * 
  */
 #define DEFINE_RSP_UCODE(ucode_name, ...) \
     extern uint8_t ucode_name ## _text_start[]; \
@@ -162,7 +209,7 @@ typedef struct {
         .data = ucode_name ## _data_start, \
         .code_end = ucode_name ## _text_end, \
         .data_end = ucode_name ## _data_end, \
-        .name = #ucode_name, .start_pc = 0, .crash_handler = 0, \
+        .name = #ucode_name, .start_pc = 0, .crash_handler = 0, .asserts = 0, \
         __VA_ARGS__ \
     }
 
@@ -282,13 +329,19 @@ void rsp_pause(bool pause);
  * this function will call the function crash_handler in the current #rsp_ucode_t,
  * if it is defined. 
  */
-#define rsp_crash()  __rsp_crash(__FILE__, __LINE__, __func__)
+#define rsp_crash()  ({ \
+    __rsp_crash(__FILE__, __LINE__, __func__, NULL); \
+}) 
+
+#define rsp_crashf(msg, ...) ({ \
+    __rsp_crash(__FILE__, __LINE__, __func__, msg, ##__VA_ARGS__); \
+})
 
 /**
  * @brief Create a loop that waits for some condition that is related to RSP,
  *        aborting with a RSP crash after a timeout.
  *
- * This macro simplifies the creation of a loop that busy-waits for something
+ * This macro simplifies the creation of a loop that busy-waits for operations
  * performed by the RSP. If the condition is not reached within a timeout,
  * it is assumed that the RSP has crashed or otherwise stalled and
  * #rsp_crash is invoked to abort the program showing a debugging screen.
@@ -311,7 +364,39 @@ void rsp_pause(bool pause);
  */
 #define RSP_WAIT_LOOP(timeout_ms) \
     for (uint32_t __t = TICKS_READ() + TICKS_FROM_MS(timeout_ms); \
-         TICKS_BEFORE(TICKS_READ(), __t) || (rsp_crash(), false); )
+         TICKS_BEFORE(TICKS_READ(), __t) || (rsp_crashf("wait loop timed out (%d ms)", timeout_ms), false); \
+         __rsp_check_assert(__FILE__, __LINE__, __func__))
+
+
+/**
+ * @brief Register an assert used by the specified ucode.
+ * 
+ * This library has a simple support for "RSP assert messages". Each ucode
+ * can register multiple assert codes that can be raised when something
+ * goes wrong in the RSP code using the assert macros defined in rsp.inc.
+ * The assert codes and messages will be displayed in the RSP crash
+ * screen that is shown when then macro is called on the RSP, and rsp_crash
+ * 
+ * Asserts can also have custom crash handlers registered, that
+ * are invoked when they are raised, to display assert-specific
+ * information on screen (decoding information from a #rsp_snapshot_t
+ * state).
+ * 
+ * To avoid conflicts with assert codes, overlays are expected to
+ * respect the same convention of command IDs (top 4 bits should be
+ * the overlay ID, and the bottom 4 bits are free for registering
+ * 16 different assert codes).
+ * 
+ * @param       ucode          The ucode for which the assert will be registered
+ * @param       code           The assert code to register (top 4 bits
+ *                             should be the same of overlay ID).
+ * @param       msg            Assert message description that will be
+ *                             displayed on screen.
+ * @param       crash_handler  Optional crash handler that will be invoked
+ *                             when the assert is raised (can be NULL).
+ */
+void rsp_ucode_register_assert(rsp_ucode_t *ucode, uint16_t code, const char *msg,
+    void (*crash_handler)(rsp_snapshot_t *state));
 
 
 static inline __attribute__((deprecated("use rsp_load_code instead")))
@@ -349,10 +434,11 @@ static inline void rsp_semaphore_release()
     *SP_SEMAPHORE = 0;
 }
 
-// Internal function used by rsp_crash
+// Internal function used by rsp_crash and rsp_crashf
 /// @cond
-__attribute__((noreturn))
-void __rsp_crash(const char *file, int line, const char *func);
+void __rsp_crash(const char *file, int line, const char *func, const char *msg, ...)
+   __attribute__((noreturn, format(printf, 4, 5)));
+void __rsp_check_assert(const char *file, int line, const char *func);
 /// @endcond
 
 #ifdef __cplusplus

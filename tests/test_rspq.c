@@ -101,6 +101,8 @@ bool wait_for_syncpoint(int sync_id, unsigned long timeout)
         if (rspq_check_syncpoint(sync_id) && (*SP_STATUS & SP_STATUS_HALTED)) {
             return true;
         }
+        // Check if the RSP has hit an assert, and if so report it.
+        __rsp_check_assert(__FILE__, __LINE__, __func__);
     }
     return false;
 }
@@ -212,7 +214,6 @@ void test_rspq_high_load(TestContext *ctx)
     data_cache_hit_writeback_invalidate(actual_sum, 16);
 
     rspq_test_output(actual_sum);
-    debugf("epilog\n");
 
     TEST_RSPQ_EPILOG(0, rspq_timeout);
 
