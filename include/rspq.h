@@ -598,26 +598,6 @@ void rspq_highpri_end(void);
 void rspq_highpri_sync(void);
 
 /**
- * @brief Enqueue a 32-bit command in the queue
- * 
- * A simple wrapper around #rspq_write_begin / #rspq_write_end to enqueue
- * a single 32-bit command.
- *
- * @param[in]  cmd   The command to enqueue
- */
-void rspq_queue_u32(uint32_t cmd);
-
-/**
- * @brief Enqueue a 64-bit command in the queue
- * 
- * A simple wrapper around #rspq_write_begin / #rspq_write_end to enqueue
- * a single 64-bit command (as 2 32-bit words).
- *
- * @param[in]  cmd   The command to enqueue
- */
-void rspq_queue_u64(uint64_t cmd);
-
-/**
  * @brief Enqueue a no-op command in the queue.
  * 
  * This function enqueues a command that does nothing. This is mostly
