@@ -180,10 +180,22 @@
 #define RSPQ_CMD_SWAP_BUFFERS      0x07
 #define RSPQ_CMD_TEST_WRITE_STATUS 0x08
 
-#define rspq_append(ptr, cmd, arg) ({ \
-    *(volatile uint32_t*)(ptr) = (arg); \
-    *(volatile uint8_t*)(ptr) = (cmd); \
-    (void)ptr++; \
+#define rspq_append1(ptr, cmd, arg1) ({ \
+    ((volatile uint32_t*)(ptr))[0] = ((cmd)<<24) | (arg1); \
+    ptr += 1; \
+})
+
+#define rspq_append2(ptr, cmd, arg1, arg2) ({ \
+    ((volatile uint32_t*)(ptr))[1] = (arg2); \
+    ((volatile uint32_t*)(ptr))[0] = ((cmd)<<24) | (arg1); \
+    ptr += 2; \
+})
+
+#define rspq_append3(ptr, cmd, arg1, arg2, arg3) ({ \
+    ((volatile uint32_t*)(ptr))[1] = (arg2); \
+    ((volatile uint32_t*)(ptr))[2] = (arg3); \
+    ((volatile uint32_t*)(ptr))[0] = ((cmd)<<24) | (arg1); \
+    ptr += 3; \
 })
 
 static void rspq_crash_handler(rsp_snapshot_t *state);
@@ -254,7 +266,6 @@ static int rspq_syncpoints_genid;
 volatile int rspq_syncpoints_done;
 
 static bool rspq_is_running;
-static bool rspq_is_highpri;
 
 static uint64_t dummy_overlay_state;
 
@@ -299,6 +310,7 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
     }
 }
 
+__attribute__((noinline))
 static void rspq_switch_context(rspq_ctx_t *new)
 {
     if (rspq_ctx) {    
@@ -522,7 +534,7 @@ void rspq_next_buffer(void) {
         volatile uint32_t *prev = rspq_switch_buffer(rspq2, rspq_block_size, true);
 
         // Terminate the previous chunk with a JUMP op to the new chunk.
-        rspq_append(prev, RSPQ_CMD_JUMP, PhysicalAddr(rspq2));
+        rspq_append1(prev, RSPQ_CMD_JUMP, PhysicalAddr(rspq2));
         return;
     }
 
@@ -551,8 +563,8 @@ void rspq_next_buffer(void) {
     // Terminate the previous buffer with an op to set SIG_BUFDONE
     // (to notify when the RSP finishes the buffer), plus a jump to
     // the new buffer.
-    rspq_append(prev, RSPQ_CMD_WRITE_STATUS, rspq_ctx->sp_wstatus_set_bufdone);
-    rspq_append(prev, RSPQ_CMD_JUMP, PhysicalAddr(new));
+    rspq_append1(prev, RSPQ_CMD_WRITE_STATUS, rspq_ctx->sp_wstatus_set_bufdone);
+    rspq_append1(prev, RSPQ_CMD_JUMP, PhysicalAddr(new));
     assert(prev+1 < (uint32_t*)(rspq_ctx->buffers[1-rspq_ctx->buf_idx]) + rspq_ctx->buf_size);
 
     MEMORY_BARRIER();
@@ -597,7 +609,7 @@ void rspq_flush(void)
 
 void rspq_highpri_begin(void)
 {
-    assertf(!rspq_is_highpri, "already in highpri mode");
+    assertf(rspq_ctx != &highpri, "already in highpri mode");
     assertf(!rspq_block, "cannot switch to highpri mode while creating a block");
 
     rspq_switch_context(&highpri);
@@ -621,49 +633,35 @@ void rspq_highpri_begin(void)
     // bit will be set but this function, and reset at the beginning of the new
     // segment, but it doesn't matter at this point.
     if (rspq_cur_pointer[-3]>>24 == RSPQ_CMD_SWAP_BUFFERS) {
-        rspq_cur_pointer[-4] = (RSPQ_CMD_JUMP<<24) | PhysicalAddr(rspq_cur_pointer);
+        uint32_t *epilog = rspq_cur_pointer-4;
+        rspq_append1(epilog, RSPQ_CMD_JUMP, PhysicalAddr(rspq_cur_pointer));
     }
 
-    rspq_append(rspq_cur_pointer, RSPQ_CMD_WRITE_STATUS, SP_WSTATUS_CLEAR_SIG_HIGHPRI | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING);
+    rspq_append1(rspq_cur_pointer, RSPQ_CMD_WRITE_STATUS, SP_WSTATUS_CLEAR_SIG_HIGHPRI | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING);
     MEMORY_BARRIER();
  
     *SP_STATUS = SP_WSTATUS_SET_SIG_HIGHPRI;
-    rspq_is_highpri = true;
     rspq_flush_internal();
 }
 
 void rspq_highpri_end(void)
 {
-    assertf(rspq_is_highpri, "not in highpri mode");
+    assertf(rspq_ctx == &highpri, "not in highpri mode");
 
-    // Write the highpri epilog.
-    // FIXME: adjust this description
-    // We want to write the epilog atomically with respect to RSP: we need to
-    // avoid the RSP to see a partially written epilog, which would force it to
-    // refetch it and possibly create a race condition with a new highpri sequence.
-    // So we leave the IDLE+0 where they are, write the epilog just after it,
-    // and finally write a JUMP to it. The JUMP is required so that the RSP
-    // always refetch the epilog when it gets to it (see #rspq_highpri_begin).
-    uint32_t *end = rspq_cur_pointer++;
-    assert(*end == 0);
-    *rspq_cur_pointer++ = (RSPQ_CMD_WRITE_STATUS<<24) | SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING;
-    *rspq_cur_pointer++ = (RSPQ_CMD_SWAP_BUFFERS<<24) | (RSPQ_LOWPRI_CALL_SLOT<<2);
-      *rspq_cur_pointer++ = RSPQ_HIGHPRI_CALL_SLOT<<2;
-      *rspq_cur_pointer++ = SP_STATUS_SIG_HIGHPRI;
-    // assertf(rspq_cur_pointer+1 < (uint32_t*)(rspq_ctx->buffers[rspq_ctx->buf_idx]) + rspq_ctx->buf_size,
-    //     "cur:%p buf:%p sz:%d end:%p", rspq_cur_pointer+1, (uint32_t*)(rspq_ctx->buffers[rspq_ctx->buf_idx]),rspq_ctx->buf_size, (uint32_t*)(rspq_ctx->buffers[rspq_ctx->buf_idx]) + rspq_ctx->buf_size);
-    MEMORY_BARRIER();
-    rspq_append(end, RSPQ_CMD_JUMP, PhysicalAddr(end+1));
-
+    // Write the highpri epilog. The epilog starts with a JUMP to the next
+    // instruction because we want to force the RSP to reload the buffer
+    // from RDRAM in case the epilog has been overwritten by a new highpri
+    // queue (see rsqp_highpri_begin).
+    rspq_append1(rspq_cur_pointer, RSPQ_CMD_JUMP, PhysicalAddr(rspq_cur_pointer+1));
+    rspq_append1(rspq_cur_pointer, RSPQ_CMD_WRITE_STATUS, SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING);
+    rspq_append3(rspq_cur_pointer, RSPQ_CMD_SWAP_BUFFERS, RSPQ_LOWPRI_CALL_SLOT<<2, RSPQ_HIGHPRI_CALL_SLOT<<2, SP_STATUS_SIG_HIGHPRI);
     rspq_flush_internal();
-
     rspq_switch_context(&lowpri);
-    rspq_is_highpri = false;
 }
 
 void rspq_highpri_sync(void)
 {
-    assertf(!rspq_is_highpri, "this function can only be called outside of highpri mode");
+    assertf(rspq_ctx != &highpri, "this function can only be called outside of highpri mode");
 
     RSP_WAIT_LOOP(200) {
         if (!(*SP_STATUS & (SP_STATUS_SIG_HIGHPRI | SP_STATUS_SIG_HIGHPRI_RUNNING)))
@@ -674,7 +672,7 @@ void rspq_highpri_sync(void)
 void rspq_block_begin(void)
 {
     assertf(!rspq_block, "a block was already being created");
-    assertf(!rspq_is_highpri, "cannot create a block in highpri mode");
+    assertf(rspq_ctx != &highpri, "cannot create a block in highpri mode");
 
     // Allocate a new block (at minimum size) and initialize it.
     rspq_block_size = RSPQ_BLOCK_MIN_SIZE;
@@ -693,7 +691,7 @@ rspq_block_t* rspq_block_end(void)
 
     // Terminate the block with a RET command, encoding
     // the nesting level which is used as stack slot by RSP.
-    rspq_append(rspq_cur_pointer, RSPQ_CMD_RET, (rspq_block->nesting_level<<2));
+    rspq_append1(rspq_cur_pointer, RSPQ_CMD_RET, rspq_block->nesting_level<<2);
 
     // Switch back to the normal display list
     rspq_switch_context(&lowpri);
@@ -744,7 +742,7 @@ void rspq_block_run(rspq_block_t *block)
     // in highpri mode (to avoid stepping on the call stack of lowpri). This
     // would basically mean that a block can either work in highpri or in lowpri
     // mode, but it might be an acceptable limitation.
-    assertf(!rspq_is_highpri, "block run is not supported in highpri mode");
+    assertf(rspq_ctx != &highpri, "block run is not supported in highpri mode");
 
     // Write the CALL op. The second argument is the nesting level
     // which is used as stack slot in the RSP to save the current
