@@ -31,6 +31,7 @@ filesystem/%.sprite: assets/%.png
 	@$(N64_MKSPRITE) $(MKSPRITE_FLAGS) "$<" "$@"
 
 filesystem/n64brew.sprite: MKSPRITE_FLAGS=16 2 3
+filesystem/tiles.sprite: MKSPRITE_FLAGS=16 2 2
 
 $(BUILD_DIR)/rspqdemo.dfs: $(assets_conv)
 $(BUILD_DIR)/rspqdemo.elf: $(src:%.c=$(BUILD_DIR)/%.o)

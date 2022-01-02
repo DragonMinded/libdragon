@@ -3,26 +3,14 @@
 
 static wav64_t sfx_cannon;
 static xm64player_t xm;
-static sprite_t *sprite;
+static sprite_t *brew_sprite;
+static sprite_t *tiles_sprite;
+
+static rspq_block_t *tiles_block;
 
 typedef struct {
-    double r;       // a fraction between 0 and 1
-    double g;       // a fraction between 0 and 1
-    double b;       // a fraction between 0 and 1
-} rgb;
-
-typedef struct {
-    double h;       // angle in degrees
-    double s;       // a fraction between 0 and 1
-    double v;       // a fraction between 0 and 1
-} hsv;
-
-rgb hsv2rgb(hsv in);
-uint32_t rgb16(rgb in);
-
-typedef struct {
-    uint32_t x;
-    uint32_t y;
+    int32_t x;
+    int32_t y;
     int32_t dx;
     int32_t dy;
 } object_t;
@@ -48,8 +36,8 @@ static uint32_t rand(void) {
 		(uint32_t)(((uint64_t)rand() * (n)) >> 32); \
 })
 
-static uint32_t obj_max_x;
-static uint32_t obj_max_y;
+static int32_t obj_max_x;
+static int32_t obj_max_y;
 
 static uint32_t num_objs = 1;
 
@@ -58,8 +46,17 @@ void update(int ovfl)
     for (uint32_t i = 0; i < NUM_OBJECTS; i++)
     {
         object_t *obj = &objects[i];
-        obj->x = (obj->x + obj->dx) % obj_max_x;
-        obj->y = (obj->y + obj->dy) % obj_max_y;
+
+        int32_t x = obj->x + obj->dx;
+        int32_t y = obj->y + obj->dy;
+
+        if (x >= obj_max_x) x -= obj_max_x;
+        if (x < 0) x += obj_max_x;
+        if (y >= obj_max_y) y -= obj_max_y;
+        if (y < 0) y += obj_max_y;
+        
+        obj->x = x;
+        obj->y = y;
     }
 }
 
@@ -79,30 +76,21 @@ void render()
     rdp_attach_display(disp);
     rdp_set_default_clipping();
 
-    rdp_enable_primitive_fill();
-    
-    double hue = (double)((get_ticks_ms() / 5) % 360);
-    hsv color = { .h = hue, .s = 1.0, .v = 1.0 };
-    uint32_t fill_color = rgb16(hsv2rgb(color));
-    rdp_set_primitive_color(fill_color | (fill_color << 16));
-    
-    uint32_t display_width = display_get_width();
-    uint32_t display_height = display_get_height();
-    rdp_draw_filled_rectangle(0, 0, display_width, display_height);
-
-    rdp_sync_pipe();
-
     rdp_enable_texture_copy();
 
-    for (uint32_t y = 0; y < sprite->vslices; y++)
+    rspq_block_run(tiles_block);
+    
+    for (uint32_t i = 0; i < num_objs; i++)
     {
-        for (uint32_t x = 0; x < sprite->hslices; x++)
+        uint32_t obj_x = objects[i].x;
+        uint32_t obj_y = objects[i].y;
+        for (uint32_t y = 0; y < brew_sprite->vslices; y++)
         {
-            rdp_sync_load();
-            rdp_load_texture_stride(0, 0, MIRROR_DISABLED, sprite, y*sprite->hslices + x);
-            for (uint32_t i = 0; i < num_objs; i++)
+            for (uint32_t x = 0; x < brew_sprite->hslices; x++)
             {
-                rdp_draw_sprite(0, objects[i].x + x * (sprite->width / sprite->hslices), objects[i].y + y * (sprite->height / sprite->vslices), MIRROR_DISABLED);
+                rdp_sync_load();
+                rdp_load_texture_stride(0, 0, MIRROR_DISABLED, brew_sprite, y*brew_sprite->hslices + x);
+                rdp_draw_sprite(0, obj_x + x * (brew_sprite->width / brew_sprite->hslices), obj_y + y * (brew_sprite->height / brew_sprite->vslices), MIRROR_DISABLED);
             }
         }
     }
@@ -131,32 +119,53 @@ int main()
     rdp_init();
 
     int fp = dfs_open("n64brew.sprite");
-    sprite = malloc(dfs_size(fp));
-    dfs_read(sprite, 1, dfs_size(fp), fp);
+    brew_sprite = malloc(dfs_size(fp));
+    dfs_read(brew_sprite, 1, dfs_size(fp), fp);
     dfs_close(fp);
 
-    uint32_t obj_min_x = 0;
-    uint32_t obj_min_y = 0;
-    obj_max_x = display_width - sprite->width;
-    obj_max_y = display_height - sprite->height;
+    obj_max_x = display_width;
+    obj_max_y = display_height;
 
     for (uint32_t i = 0; i < NUM_OBJECTS; i++)
     {
         object_t *obj = &objects[i];
 
-        obj->x = obj_min_x + RANDN(obj_max_x - obj_min_x);
-        obj->y = obj_min_y + RANDN(obj_max_y - obj_min_y);
+        obj->x = RANDN(display_width);
+        obj->y = RANDN(display_height);
 
-        obj->dx = -4 + RANDN(9);
-        obj->dy = -4 + RANDN(9);
+        obj->dx = -3 + RANDN(7);
+        obj->dy = -3 + RANDN(7);
     }
+
+    fp = dfs_open("tiles.sprite");
+    tiles_sprite = malloc(dfs_size(fp));
+    dfs_read(tiles_sprite, 1, dfs_size(fp), fp);
+    dfs_close(fp);
+
+    rspq_block_begin();
+
+    uint32_t tile_width = tiles_sprite->width / tiles_sprite->hslices;
+    uint32_t tile_height = tiles_sprite->height / tiles_sprite->vslices;
+
+    for (uint32_t ty = 0; ty < display_height; ty += tile_height)
+    {
+        for (uint32_t tx = 0; tx < display_width; tx += tile_width)
+        {
+            rdp_sync_load();
+            rdp_load_texture_stride(0, 0, MIRROR_DISABLED, tiles_sprite, RANDN(4));
+            rdp_draw_sprite(0, tx, ty, MIRROR_DISABLED);
+        }
+    }
+
+    tiles_block = rspq_block_end();
+    
     
     wav64_open(&sfx_cannon, "cannon.wav64");
 
     xm64player_open(&xm, "rom:/Caverns16bit.xm64");
     xm64player_play(&xm, 2);
 
-    new_timer(TIMER_TICKS(1000000 / 30), TF_CONTINUOUS, update);
+    new_timer(TIMER_TICKS(1000000 / 60), TF_CONTINUOUS, update);
 
     while (1)
     {
@@ -183,72 +192,4 @@ int main()
             audio_write_end();
         }
     }
-}
-
-// https://stackoverflow.com/questions/3018313/algorithm-to-convert-rgb-to-hsv-and-hsv-to-rgb-in-range-0-255-for-both
-rgb hsv2rgb(hsv in)
-{
-    double      hh, p, q, t, ff;
-    long        i;
-    rgb         out;
-
-    if(in.s <= 0.0) {       // < is bogus, just shuts up warnings
-        out.r = in.v;
-        out.g = in.v;
-        out.b = in.v;
-        return out;
-    }
-    hh = in.h;
-    if(hh >= 360.0) hh = 0.0;
-    hh /= 60.0;
-    i = (long)hh;
-    ff = hh - i;
-    p = in.v * (1.0 - in.s);
-    q = in.v * (1.0 - (in.s * ff));
-    t = in.v * (1.0 - (in.s * (1.0 - ff)));
-
-    switch(i) {
-    case 0:
-        out.r = in.v;
-        out.g = t;
-        out.b = p;
-        break;
-    case 1:
-        out.r = q;
-        out.g = in.v;
-        out.b = p;
-        break;
-    case 2:
-        out.r = p;
-        out.g = in.v;
-        out.b = t;
-        break;
-
-    case 3:
-        out.r = p;
-        out.g = q;
-        out.b = in.v;
-        break;
-    case 4:
-        out.r = t;
-        out.g = p;
-        out.b = in.v;
-        break;
-    case 5:
-    default:
-        out.r = in.v;
-        out.g = p;
-        out.b = q;
-        break;
-    }
-    return out;     
-}
-
-uint32_t rgb16(rgb in)
-{
-    return RDP_COLOR16(
-        ((uint32_t)(in.r * 31) & 0x1F),
-        ((uint32_t)(in.g * 31) & 0x1F),
-        ((uint32_t)(in.b * 31) & 0x1F),
-        1);
 }
