@@ -264,45 +264,87 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
  * 
  * @hideinitializer
  */
-#define RSPQ_WRITE_BEGIN(var, cmd_id) { \
-    extern uint32_t *rspq_cur_pointer, *rspq_cur_sentinel; \
-    /* assert(*(volatile uint8_t*)rspq_cur_pointer == 0); */ \
-    volatile uint32_t *var = (volatile uint32_t*)rspq_cur_pointer; \
-    uint8_t var ## __cmd_id = (cmd_id)
 
-/**
- * @brief Finish writing a command to the current RSP command list.
- * 
- * This function terminates a command that was written to the command list.
- * 
- * @note Writing a command is not enough to make sure that the RSP will execute
- * it, as it might be idle. If you want to make sure that the RSP is running,
- * using #rspq_flush.
- *
- * @param      rspq_   Address pointing after the last word of the command.
- * 
- * @see #rspq_write_begin
- * @see #rspq_flush
- * 
- * @hideinitializer
- */
-#define RSPQ_WRITE_END(var) \
-	extern void rspq_next_buffer(void); \
-    \
-    /* Terminate the buffer (so that the RSP will sleep in case \
-     * it catches up with us). \
-     * NOTE: this is an inlined version of the internal rspq_terminator() macro. */ \
-    /* assert(*(volatile uint8_t*)rspq_cur_pointer == 0); */ \
-    *(volatile uint8_t*)rspq_cur_pointer = var ## __cmd_id; \
-    \
-    /* Update the pointer and check if we went past the sentinel, \
-     * in which case it's time to switch to the next buffer. */ \
-    rspq_cur_pointer = (uint32_t*)var; \
-    if (rspq_cur_pointer > rspq_cur_sentinel) { \
-        rspq_next_buffer(); \
-    } \
-} \
-    do {} while (0)
+// FOREACH helpers
+#define __FE_0(_call, ...)
+#define __FE_1(_call, x)       _call(x)
+#define __FE_2(_call, x, ...)  _call(x) __FE_1(_call, __VA_ARGS__)
+#define __FE_3(_call, x, ...)  _call(x) __FE_2(_call, __VA_ARGS__)
+#define __FE_4(_call, x, ...)  _call(x) __FE_3(_call, __VA_ARGS__)
+#define __FE_5(_call, x, ...)  _call(x) __FE_4(_call, __VA_ARGS__)
+#define __FE_6(_call, x, ...)  _call(x) __FE_5(_call, __VA_ARGS__)
+#define __FE_7(_call, x, ...)  _call(x) __FE_6(_call, __VA_ARGS__)
+#define __FE_8(_call, x, ...)  _call(x) __FE_7(_call, __VA_ARGS__)
+#define __FE_9(_call, x, ...)  _call(x) __FE_8(_call, __VA_ARGS__)
+#define __FE_10(_call, x, ...) _call(x) __FE_9(_call, __VA_ARGS__)
+#define __FE_11(_call, x, ...) _call(x) __FE_10(_call, __VA_ARGS__)
+#define __FE_12(_call, x, ...) _call(x) __FE_11(_call, __VA_ARGS__)
+#define __FE_13(_call, x, ...) _call(x) __FE_12(_call, __VA_ARGS__)
+#define __FE_14(_call, x, ...) _call(x) __FE_13(_call, __VA_ARGS__)
+#define __FE_15(_call, x, ...) _call(x) __FE_14(_call, __VA_ARGS__)
+#define __FE_16(_call, x, ...) _call(x) __FE_15(_call, __VA_ARGS__)
+#define __FE_17(_call, x, ...) _call(x) __FE_16(_call, __VA_ARGS__)
+#define __FE_18(_call, x, ...) _call(x) __FE_17(_call, __VA_ARGS__)
+#define __FE_19(_call, x, ...) _call(x) __FE_18(_call, __VA_ARGS__)
+#define __FE_20(_call, x, ...) _call(x) __FE_19(_call, __VA_ARGS__)
+#define __FE_21(_call, x, ...) _call(x) __FE_20(_call, __VA_ARGS__)
+#define __FE_22(_call, x, ...) _call(x) __FE_21(_call, __VA_ARGS__)
+#define __FE_23(_call, x, ...) _call(x) __FE_22(_call, __VA_ARGS__)
+#define __FE_24(_call, x, ...) _call(x) __FE_23(_call, __VA_ARGS__)
+#define __FE_25(_call, x, ...) _call(x) __FE_24(_call, __VA_ARGS__)
+#define __FE_26(_call, x, ...) _call(x) __FE_25(_call, __VA_ARGS__)
+#define __FE_27(_call, x, ...) _call(x) __FE_26(_call, __VA_ARGS__)
+#define __FE_28(_call, x, ...) _call(x) __FE_27(_call, __VA_ARGS__)
+#define __FE_29(_call, x, ...) _call(x) __FE_28(_call, __VA_ARGS__)
+#define __FE_30(_call, x, ...) _call(x) __FE_29(_call, __VA_ARGS__)
+#define __FE_31(_call, x, ...) _call(x) __FE_30(_call, __VA_ARGS__)
+
+// Get the Nth variadic argument
+#define __GET_NTH_ARG(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, N, ...)  N
+
+// Return the number of variadic arguments
+#define __COUNT_VARARGS(...)     __GET_NTH_ARG("ignored", ##__VA_ARGS__, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
+
+// Return 1 if there is at least one variadic argument, otherwise 0
+#define __HAS_VARARGS(...)       __GET_NTH_ARG("ignored", ##__VA_ARGS__, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0)
+
+// Call macro fn for each variadic argument
+#define __CALL_FOREACH(fn, ...)  __GET_NTH_ARG("ignored", ##__VA_ARGS__, __FE_31, __FE_30, __FE_29, __FE_28, __FE_27, __FE_26, __FE_25, __FE_24, __FE_23, __FE_22, __FE_21, __FE_20, __FE_19, __FE_18, __FE_17, __FE_16, __FE_15, __FE_14, __FE_13, __FE_12, __FE_11, __FE_10, __FE_9, __FE_8, __FE_7, __FE_6, __FE_5, __FE_4, __FE_3, __FE_2, __FE_1, __FE_0)(fn, ##__VA_ARGS__)
+
+// Preprocessor token paste
+#define __PPCAT2(n,x) n ## x
+#define __PPCAT(n,x) __PPCAT2(n,x)
+
+#define _rspq_write_prolog() \
+    extern volatile uint32_t *rspq_cur_pointer, *rspq_cur_sentinel; \
+    extern void rspq_next_buffer(void); \
+    volatile uint32_t *ptr = rspq_cur_pointer+1; \
+    (void)ptr;
+
+#define _rspq_write_epilog() \
+    if (rspq_cur_pointer > rspq_cur_sentinel) rspq_next_buffer();
+
+#define _rspq_write_arg(arg) \
+    *ptr++ = (arg);
+
+#define _rspq_write0(cmd_id) ({ \
+    _rspq_write_prolog(); \
+    rspq_cur_pointer[0] = (cmd_id)<<24; \
+    rspq_cur_pointer += 1; \
+    _rspq_write_epilog(); \
+})
+
+#define _rspq_write1(cmd_id, arg0, ...) ({ \
+    _rspq_write_prolog(); \
+    __CALL_FOREACH(_rspq_write_arg, ##__VA_ARGS__); \
+    rspq_cur_pointer[0] = ((cmd_id)<<24) | (arg0); \
+    rspq_cur_pointer += 1 + __COUNT_VARARGS(__VA_ARGS__); \
+    _rspq_write_epilog(); \
+})
+
+#define rspq_write(cmd_id, ...) \
+    __PPCAT(_rspq_write, __HAS_VARARGS(__VA_ARGS__)) (cmd_id, ##__VA_ARGS__)
+
 
 /**
  * @brief Make sure that RSP starts executing up to the last written command.

@@ -43,4 +43,9 @@
 #define SP_WSTATUS_SET_SIG_MORE               SP_WSTATUS_SET_SIG7
 #define SP_WSTATUS_CLEAR_SIG_MORE             SP_WSTATUS_CLEAR_SIG7
 
+// RSP assert codes
+#define ASSERT_INVALID_OVERLAY       0x0001
+#define ASSERT_INVALID_COMMAND       0x0002
+#define ASSERT_GP_BACKWARD           0x0003
+
 #endif

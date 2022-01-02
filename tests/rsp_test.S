@@ -44,14 +44,14 @@ command_test_high:
     lw t2, %lo(BIG_LOG) -16(s0)
     bne t1, t2, 1f
     lw t2, %lo(BIG_LOG) -12(s0)
-    bgt gp, t2, 1f
+    bgt rspq_dmem_buf_ptr, t2, 1f
     nop
     assert ASSERT_GP_BACKWARD
 
 1:
     and a0, 0xFFFFFF
     sw t1, %lo(BIG_LOG) + 0(s0)
-    sw gp, %lo(BIG_LOG) + 4(s0)
+    sw rspq_dmem_buf_ptr, %lo(BIG_LOG) + 4(s0)
     sw a0, %lo(BIG_LOG) + 8(s0)
     lw t0, %lo(TEST_VARIABLE2)
     sw t0, %lo(BIG_LOG) + 12(s0)

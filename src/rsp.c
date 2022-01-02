@@ -5,6 +5,7 @@
  */
 
 #include <stdint.h>
+#include <stdarg.h>
 #include <stddef.h>
 #include <assert.h>
 #include <stdio.h>
@@ -36,11 +37,18 @@ static void __SP_DMA_wait(void)
     while (SP_regs->status & (SP_STATUS_DMA_BUSY | SP_STATUS_IO_BUSY)) ;
 }
 
+static void rsp_interrupt(void)
+{
+    __rsp_check_assert(__FILE__, __LINE__, __func__);
+}
+
 void rsp_init(void)
 {
     /* Make sure RSP is halted */
     *SP_PC = 0x1000;
     SP_regs->status = SP_WSTATUS_SET_HALT;
+    set_SP_interrupt(1);
+    register_SP_handler(rsp_interrupt);
 }
 
 void rsp_load(rsp_ucode_t *ucode) {
@@ -135,16 +143,18 @@ void rsp_run_async(void)
     // set RSP program counter
     *SP_PC = cur_ucode ? cur_ucode->start_pc : 0;
     MEMORY_BARRIER();
-    *SP_STATUS = SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
+    *SP_STATUS = SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE | SP_WSTATUS_SET_INTR_BREAK;
 }
 
 void rsp_wait(void)
 {
     RSP_WAIT_LOOP(500) {
-        if (*SP_STATUS & SP_STATUS_HALTED)
+        // Wait for the RSP to halt and the DMA engine to be idle.
+        uint32_t status = *SP_STATUS;
+        if (status & SP_STATUS_HALTED && 
+            !(status & (SP_STATUS_DMA_BUSY|SP_STATUS_DMA_FULL)))
             break;
     }
-    while (*SP_STATUS & (SP_STATUS_DMA_BUSY|SP_STATUS_DMA_FULL)) {}
 }
 
 void rsp_run(void)
@@ -156,48 +166,56 @@ void rsp_run(void)
 void rsp_pause(bool pause)
 {
     if (pause) {
-        // disable_interrupts();
-        // do {
-        //     // while ((*SP_STATUS & (SP_STATUS_DMA_BUSY|SP_STATUS_DMA_FULL))) {}
-        //     MEMORY_BARRIER();
-        //     *SP_STATUS = SP_WSTATUS_SET_HALT;
-        //     MEMORY_BARRIER();
-        //     while (!(*SP_STATUS & SP_STATUS_HALTED)) { }
-        //     MEMORY_BARRIER();
-
-        //     if (!(*SP_STATUS & (SP_STATUS_DMA_BUSY|SP_STATUS_DMA_FULL)))
-        //         break;
-
-        //     MEMORY_BARRIER();
-        //     debugf("PANIC: RSP HALTED DURING DMA (PC: %lx)\n", *SP_PC);
-        //     MEMORY_BARRIER();
-        //     *SP_STATUS = SP_WSTATUS_CLEAR_HALT;
-        // } while(1);
-        // enable_interrupts();
-
+        // Halt the RSP
         *SP_STATUS = SP_WSTATUS_SET_HALT;
         MEMORY_BARRIER();
-        while (*SP_STATUS & (SP_STATUS_DMA_BUSY|SP_STATUS_DMA_FULL)) {}
 
-
-        // // Wait until the DMA engine is idle. It's not allowed for CPU
-        // // touch SP DMEM/IMEM while a DMA is in progress, so it's better to
-        // // play safe here.
-        // while (*SP_STATUS & (SP_STATUS_DMA_BUSY|SP_STATUS_DMA_FULL)) {
-        //     MEMORY_BARRIER();
-        //     while (*SP_STATUS & (SP_STATUS_DMA_BUSY|SP_STATUS_DMA_FULL))
-        //     { /* spin-wait */ }
-        //     MEMORY_BARRIER();
-        //     wait_ticks(100);
-        //     debugf("halt during DMA\n");
-        // }
+        // Check whether the DMA engine is idle. If it's not, wait for it.
+        if (*SP_STATUS & (SP_STATUS_DMA_BUSY|SP_STATUS_DMA_FULL)) {
+            RSP_WAIT_LOOP(200) {
+                if (!(*SP_STATUS & (SP_STATUS_DMA_BUSY|SP_STATUS_DMA_FULL)))
+                    break;
+            }
+        }
     } else {
         *SP_STATUS = SP_WSTATUS_CLEAR_SSTEP|SP_WSTATUS_CLEAR_HALT;
     }
 }
 
-__attribute__((noreturn))
-void __rsp_crash(const char *file, int line, const char *func)
+void rsp_ucode_register_assert(rsp_ucode_t *ucode, uint16_t code, const char *msg, void (*crash_handler)(rsp_snapshot_t* state))
+{
+    rsp_assert_t *a = malloc(sizeof(rsp_assert_t));
+    a->code = code;
+    a->msg = msg;
+    a->crash_handler = crash_handler;
+
+    a->next = ucode->asserts;
+    ucode->asserts = a;
+}
+
+void __rsp_check_assert(const char *file, int line, const char *func)
+{
+    // If it's running, it has not asserted
+    if (!(*SP_STATUS & (SP_STATUS_HALTED | SP_STATUS_BROKE)))
+        return;
+
+    // We need to check if the RSP has reached the assert loop. We do
+    // this by inspecting IMEM, which cannot be done while a DMA is in
+    // progress. Since this is a best-effort fast-path to a RSP crash,
+    // we can simply punt if a DMA is in progress.
+    // TODO: figure out a better way to know the PC address of the RSP
+    // assert loop.
+    if (*SP_STATUS & (SP_STATUS_DMA_BUSY | SP_STATUS_IO_BUSY))
+        return;
+
+    // Detect infinite break loop
+    if (SP_IMEM[(*SP_PC >> 2) + 1] == 0x00BA000D) {
+        __rsp_crash(file, line, func, NULL);
+    }
+}
+
+__attribute__((noreturn, format(printf, 4, 5)))
+void __rsp_crash(const char *file, int line, const char *func, const char *msg, ...)
 {
     rsp_snapshot_t state __attribute__((aligned(8)));
     rsp_ucode_t *uc = cur_ucode;
@@ -235,7 +253,7 @@ void __rsp_crash(const char *file, int line, const char *func)
     rsp_load(&rsp_crash);
     rsp_run();
     rsp_read_data(&state, 764, 0);
-
+ 
     // Overwrite the status register information with the read we did at
     // the beginning of the handler
     state.cop0[4] = status;
@@ -250,6 +268,40 @@ void __rsp_crash(const char *file, int line, const char *func)
     pcpos[119] = 0;
 
     printf("RSP CRASH | %s | %.*s\n", uc_name, 49-strlen(uc_name), pcpos);
+
+    // Display the optional message coming from the C code
+    if (msg)
+    {
+        printf("Crash symptom: ");
+        va_list args;
+        va_start(args, msg);
+        vprintf(msg, args);
+        va_end(args);
+        printf("\n");
+    }
+
+    // Check if a RSP assert triggered. We check that we reached an
+    // infinite loop with the break instruction, and that AT contains
+    // the special assert code.
+    if (*(uint32_t*)(&state.imem[pc+4]) == 0x00BA000D) {
+        uint16_t code = state.gpr[1] >> 16;
+        printf("RSP ASSERTION FAILED (0x%x)", code);
+
+        // Search if this assert was registered by some overlay
+        rsp_assert_t *a = uc->asserts;
+        while (a && a->code != code)
+            a = a->next;
+        if (a) {
+            if (a->msg)
+                printf(" - %s\n", a->msg);
+            else
+                printf("\n");
+            if (a->crash_handler)
+                a->crash_handler(&state);
+        } else {
+            printf("\n");
+        }
+    }
 
     printf("PC:%03lx | STATUS:%04lx [", state.pc, status);
     if (status & (1<<0)) printf("halt ");
@@ -271,36 +323,21 @@ void __rsp_crash(const char *file, int line, const char *func)
 
     // Dump GPRs
     printf("-------------------------------------------------GP Registers--\n");
-    printf("zr:%08lX ",  state.gpr[0]);
-    printf("at:%08lX ",  state.gpr[1]);
-    printf("v0:%08lX ",  state.gpr[2]);
-    printf("v1:%08lX ",  state.gpr[3]);
-    printf("a0:%08lX\n", state.gpr[4]);
-    printf("a1:%08lX ",  state.gpr[5]);
-    printf("a2:%08lX ",  state.gpr[6]);
-    printf("a3:%08lX ",  state.gpr[7]);
-    printf("t0:%08lX ",  state.gpr[8]);
-    printf("t1:%08lX\n", state.gpr[9]);
-    printf("t2:%08lX ",  state.gpr[10]);
-    printf("t3:%08lX ",  state.gpr[11]);
-    printf("t4:%08lX ",  state.gpr[12]);
-    printf("t5:%08lX ",  state.gpr[13]);
-    printf("t6:%08lX\n", state.gpr[14]);
-    printf("t7:%08lX ",  state.gpr[15]);
-    printf("t8:%08lX ",  state.gpr[24]);
-    printf("t9:%08lX ",  state.gpr[25]);
-    printf("s0:%08lX ",  state.gpr[16]);
-    printf("s1:%08lX\n", state.gpr[17]);
-    printf("s2:%08lX ",  state.gpr[18]);
-    printf("s3:%08lX ",  state.gpr[19]);
-    printf("s4:%08lX ",  state.gpr[20]);
-    printf("s5:%08lX ",  state.gpr[21]);
-    printf("s6:%08lX\n", state.gpr[22]);
-    printf("s7:%08lX ",  state.gpr[23]);
-    printf("gp:%08lX ",  state.gpr[28]);
-    printf("sp:%08lX ",  state.gpr[29]);
-    printf("fp:%08lX ",  state.gpr[30]);
-    printf("ra:%08lX \n", state.gpr[31]);
+    printf("zr:%08lX ",  state.gpr[0]); printf("at:%08lX ",  state.gpr[1]);
+    printf("v0:%08lX ",  state.gpr[2]); printf("v1:%08lX ",  state.gpr[3]);
+    printf("a0:%08lX\n", state.gpr[4]); printf("a1:%08lX ",  state.gpr[5]);
+    printf("a2:%08lX ",  state.gpr[6]); printf("a3:%08lX ",  state.gpr[7]);
+    printf("t0:%08lX ",  state.gpr[8]); printf("t1:%08lX\n", state.gpr[9]);
+    printf("t2:%08lX ",  state.gpr[10]); printf("t3:%08lX ",  state.gpr[11]);
+    printf("t4:%08lX ",  state.gpr[12]); printf("t5:%08lX ",  state.gpr[13]);
+    printf("t6:%08lX\n", state.gpr[14]); printf("t7:%08lX ",  state.gpr[15]);
+    printf("t8:%08lX ",  state.gpr[24]); printf("t9:%08lX ",  state.gpr[25]);
+    printf("s0:%08lX ",  state.gpr[16]); printf("s1:%08lX\n", state.gpr[17]);
+    printf("s2:%08lX ",  state.gpr[18]); printf("s3:%08lX ",  state.gpr[19]);
+    printf("s4:%08lX ",  state.gpr[20]); printf("s5:%08lX ",  state.gpr[21]);
+    printf("s6:%08lX\n", state.gpr[22]); printf("s7:%08lX ",  state.gpr[23]);
+    printf("gp:%08lX ",  state.gpr[28]); printf("sp:%08lX ",  state.gpr[29]);
+    printf("fp:%08lX ",  state.gpr[30]); printf("ra:%08lX \n", state.gpr[31]);
 
     // Dump VPRs, only to the debug log (no space on screen)
     debugf("-------------------------------------------------VP Registers--\n");

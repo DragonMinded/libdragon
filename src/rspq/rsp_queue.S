@@ -14,40 +14,6 @@
 #
 #
 
-#define RSPQ_DEBUG    1
-#define ASSERT_INVALID_OVERLAY       0xFA010000
-#define ASSERT_INVALID_COMMAND       0xFA020000
-#define ASSERT_GP_BACKWARD           0xFA030000
-
-#if RSPQ_DEBUG
-    .macro assert code
-        j abort
-        .set noat
-        li $1, \code
-        .set at
-    .endm
-    .macro assert_eq v0, v1, code
-        bne \v0, \v1, abort
-        .set noat
-        li $1, \code
-        .set at
-    .endm
-    .macro assert_ne v0, v1, code
-        beq \v0, \v1, abort
-        .set noat
-        li $1, \code
-        .set at
-    .endm
-
-#else
-    .macro assert CODE
-    .endm
-    .macro assert_eq v0, v1, code
-    .endm
-    .macro assert_ne v0, v1, code
-    .endm
-#endif
-
 # Psuedo-code on RSP:
 # * Fetch current command first byte
 # * Calculate command size
@@ -62,6 +28,8 @@
 #include <rsp_queue.inc>
 
 #include "rspq_internal.h"
+
+#define RSPQ_DEBUG 0
 
     .set noreorder
     .set at
@@ -96,19 +64,20 @@ PRIMODE_STATUS_CHECK:    .half 0
     .align 3
 INTERNAL_COMMAND_TABLE:
 commandTableEntry command_wait_new_input,   0     # 0x00
-commandTableEntry command_terminator,       4     # 0x01
-commandTableEntry command_write_status,     4     # 0x02 -- must be even (bit 24 must be 0)
+commandTableEntry command_noop,             4     # 0x01
+commandTableEntry command_jump,             4     # 0x02
 commandTableEntry command_call,             8     # 0x03
-commandTableEntry command_jump,             4     # 0x04
-commandTableEntry command_ret,              4     # 0x05
-commandTableEntry command_swap_buffers,     12    # 0x06
-commandTableEntry command_noop,             4     # 0x07
+commandTableEntry command_ret,              4     # 0x04
+commandTableEntry command_dma,              16    # 0x05
+commandTableEntry command_write_status,     4     # 0x06 -- must be even (bit 24 must be 0)
+commandTableEntry command_swap_buffers,     12    # 0x07
 commandTableEntry command_test_wstatus,     8     # 0x08 -- must be even (bit 24 must be 0)
-commandTableEntry command_dma,              16    # 0x09
 
+#if RSPQ_DEBUG
 RSPQ_LOG_IDX:                .long 0
 RSPQ_LOG:                    .ds.l 16
 RSPQ_LOG_END:                .long 0xFFFFFFFF
+#endif
 
     .bss
 
@@ -124,13 +93,6 @@ _ovl_data_start:
 
     .globl _start
 _start:
-#if RSPQ_DEBUG
-abort:
-    j abort
-    nop
-#endif
-
-    # NOTE: RSPQ_RDRAM_PTR must have been initialized before spinning up RSP!
     li rspq_dmem_buf_ptr, 0
 
     .func command_wait_new_input
@@ -152,6 +114,14 @@ fetch_buffer:
     lw s0, %lo(RSPQ_RDRAM_PTR)
     add s0, rspq_dmem_buf_ptr
 fetch_buffer_with_ptr:
+    # Buffer into which the DMA will be performed
+    # NOTE: this instruction has been moved here to workaround what
+    # seems to be a RSP hardware bug, related to weird pipeline
+    # behavior during RSP un-halt. If you move this opcode later
+    # just before "jal DMAIn", bruteforce tests in testrom will start
+    # to fail. Unfortunately, we are still not able to isolate this
+    # bug.
+    li s4, %lo(RSPQ_DMEM_BUFFER)
 
     # Reset the reading index to the first actual byte of the buffer (after
     # taking misalignment into account)
@@ -165,7 +135,6 @@ fetch_buffer_with_ptr:
 
     # Fetch the whole DMEM buffer. We will use the 0x00 invalid fill value to
     # realize where the buffer is empty.
-    li s4, %lo(RSPQ_DMEM_BUFFER)
     jal DMAIn
     li t0, DMA_SIZE(RSPQ_DMEM_BUFFER_SIZE, 1)
 
@@ -181,7 +150,7 @@ loop:
     #define cmd_size  t7
 
     jal rspq_check_highpri
-    li cmd_size, 0
+    li t0, 0
 
     # Read first word
     lw a0, %lo(RSPQ_DMEM_BUFFER) + 0x0 (rspq_dmem_buf_ptr)
@@ -223,7 +192,9 @@ loop:
 
     # Load overlay data (saved state is included)
     lhu t0, %lo(OVERLAY_DESCRIPTORS) + 0xE (ovl_index)
+    #if RSPQ_DEBUG
     assert_ne t0, 0, ASSERT_INVALID_OVERLAY
+    #endif
     lw s0, %lo(OVERLAY_DESCRIPTORS) + 0x4 (ovl_index)
     jal DMAInAsync
     li s4, %lo(_ovl_data_start)
@@ -246,25 +217,24 @@ overlay_loaded:
     lhu cmd_desc, %lo(_ovl_data_start) + OVERLAY_HEADER_SIZE(cmd_index)
 
 execute_command:
+    #if RSPQ_DEBUG
+    assert_ne cmd_desc, 0, ASSERT_INVALID_COMMAND
+    #endif
+
     # Command size
     # NOTE: Could be optimised either by doubling the size of command descriptors (so that the command size can be loaded directly instead of having to decode it),
     #       or by storing the command size in the overlay header instead. The latter would mean that all commands in an overlay need to be the same size though.
-    assert_ne cmd_desc, 0, ASSERT_INVALID_COMMAND
     srl cmd_size, cmd_desc, 10
-    andi cmd_size, 0x3C
 
     # Check if the command is truncated because of buffer overflow (that is,
     # it finishes beyond the buffer end). If so, we must refetch the buffer
     # starting from the current position.
+    # Notice that we use "bge" instead of "bgt" so we actually refetch the buffer
+    # also if the current command ends exactly at buffer end; this is slighly
+    # wasteful but saves us a few instructions (that would be required to check
+    # whether we are then trying to load a command outside of the buffer).
     addu t0, rspq_dmem_buf_ptr, cmd_size
     bge t0, RSPQ_DMEM_BUFFER_SIZE, fetch_buffer
-
-    # Check if there's an invalid command (0x00) just after the current command.
-    # If so, the previous command might have been fetched partially (as it was
-    # being written in RDRAM by CPU), so wait for it to be complete and
-    # then fetch the buffer again.
-    #lbu t0, %lo(RSPQ_DMEM_BUFFER)(t0)
-    #beqz t0, command_wait_new_input
 
     # Load second to fourth command words (might be garbage, but will never be read in that case)
     # This saves some instructions in all overlays that use more than 4 bytes per command.
@@ -298,23 +268,37 @@ execute_command:
     # than restart the execution.
     #
     # ARGS:
-    #   t7: size of the current command
+    #   t0: size of the current command
     ############################################################
 
     .func rspq_check_highpri
 rspq_check_highpri:
     lhu t1, %lo(PRIMODE_STATUS_CHECK)
-    mfc0 t0, COP0_SP_STATUS
-    and t0, t1
-    beqz t0, JrRa
+    mfc0 t2, COP0_SP_STATUS
+    and t2, t1
+    beqz t2, JrRa
     nop
     li a0, RSPQ_HIGHPRI_CALL_SLOT<<2
     li a1, RSPQ_LOWPRI_CALL_SLOT<<2
     li a2, 0
-    #sub rspq_dmem_buf_ptr, t7
+    sub rspq_dmem_buf_ptr, t0
     #fallthrough
     .endfunc
 
+    #############################################################
+    # command_swap_buffers
+    #
+    # Switch between lowpri and highpri or viceversa. This is
+    # called by RSP itself to go into highpri mode, and scheduled
+    # as normal command by CPU when going back into lowpri.
+    #
+    # ARGS:
+    #   a0: Pointer stack slot that contains the address to switch to.
+    #       (either RSPQ_LOWPRI_CALL_SLOT<<2 or RSPQ_HIGHPRI_CALL_SLOT<<2)
+    #   a1: Pointer stack slot where to save the current address to.
+    #       (either RSPQ_LOWPRI_CALL_SLOT<<2 or RSPQ_HIGHPRI_CALL_SLOT<<2)
+    #   a2: New mask to check for HIGHPRI signal (0 in highpri mode).
+    #############################################################
     .func command_swap_buffers
 command_swap_buffers:
     sh a2, %lo(PRIMODE_STATUS_CHECK)
@@ -426,13 +410,8 @@ command_dma:
     move t2, a3
     .endfunc
 
-command_invalid:
-command_terminator:
-    assert ASSERT_INVALID_COMMAND
-
-
-
 #include <rsp_dma.inc>
+#include <rsp_assert.inc>
 
     .align 3
 # Overlay code will be loaded at this address

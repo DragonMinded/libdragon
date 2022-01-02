@@ -585,12 +585,12 @@ void mixer_exec(int32_t *out, int num_samples) {
 	uint32_t t0 = TICKS_READ();
 
 	rspq_highpri_begin();
-	RSPQ_WRITE_BEGIN(ptr, 0x10);
-	*ptr++ = (((uint32_t)MIXER_FX16(Mixer.vol)) & 0xFFFF);
-	*ptr++ = (num_samples << 16) | Mixer.num_channels;
-	*ptr++ = PhysicalAddr(out);
-	*ptr++ = PhysicalAddr(&Mixer.ucode_settings);
-	RSPQ_WRITE_END(ptr);
+	rspq_write(0x10,
+		(((uint32_t)MIXER_FX16(Mixer.vol)) & 0xFFFF),
+		(num_samples << 16) | Mixer.num_channels,
+		PhysicalAddr(out),
+		PhysicalAddr(&Mixer.ucode_settings));
+
 	rspq_syncpoint_t sync = rspq_syncpoint();
 	rspq_highpri_end();
 
