@@ -811,17 +811,6 @@ void rspq_block_run(rspq_block_t *block)
     }
 }
 
-
-void rspq_queue_u32(uint32_t cmd)
-{
-    rspq_write(cmd>>24, cmd & 0x00FFFFFF);
-}
-
-void rspq_queue_u64(uint64_t cmd)
-{
-    rspq_write(cmd>>56, (cmd >> 32) & 0x00FFFFFF, cmd & 0xFFFFFFFF);
-}
-
 void rspq_noop()
 {
     rspq_write(RSPQ_CMD_NOOP);
