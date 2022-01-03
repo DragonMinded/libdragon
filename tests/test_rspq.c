@@ -16,7 +16,6 @@ void test_ovl_init()
 
     rspq_init();
     rspq_overlay_register(&rsp_test, 0xF);
-    rspq_sync(); // make sure the overlay is fully registered before beginning
 }
 
 void rspq_test_4(uint32_t value)
@@ -674,5 +673,27 @@ void test_rspq_highpri_multiple(TestContext *ctx)
     // ASSERT_EQUAL_UNSIGNED(actual_sum[0], 4096*16, "lowpri sum is not correct");
     // ASSERT_EQUAL_UNSIGNED(actual_sum[1], partial, "highpri sum is not correct");
 }
+
+// Test that an overlay only used in highpri is correctly loaded
+void test_rspq_highpri_overlay(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+    test_ovl_init();
+
+    uint64_t actual_sum[2] __attribute__((aligned(16)));
+    actual_sum[0] = actual_sum[1] = 0;
+    data_cache_hit_writeback_invalidate(actual_sum, 16);
+
+    rspq_highpri_begin();
+        rspq_test_reset();
+        rspq_test_high(123);
+        rspq_test_output(actual_sum);
+    rspq_highpri_end();
+    rspq_sync();
+        
+    ASSERT_EQUAL_UNSIGNED(actual_sum[1], 123, "highpri sum is not correct");
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
+}
+
 
 // TODO: test syncing with overlay switching
