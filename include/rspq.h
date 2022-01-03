@@ -140,6 +140,7 @@
 
 #include <stdint.h>
 #include <rsp.h>
+#include <pputils.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -237,92 +238,64 @@ void rspq_overlay_register(rsp_ucode_t *overlay_ucode, uint8_t id);
 void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
 
 /**
- * @brief Begin writing a command to the current RSP command list.
+ * @brief Write a new command into the RSP queue.
  * 
- * This function must be called when a new command must be written to
- * the command list. It returns a pointer where the command can be written.
- * Call #rspq_write_end to terminate the command.
+ * This macro is the main entry point to add a command to the RSP queue. It can
+ * be used as a variadic argument function, in which the first argument is
+ * the command ID, and the other arguments are the command arguments (additional
+ * 32-bit words).
  * 
- * @return A pointer where the next command can be written.
- *
+ * As explained in the top-level documentation, the command ID is one byte and
+ * is encoded in the most significant byte of the first word. So the first
+ * argument word, if provided, must have the upper MSB empty, to leave space
+ * for the command ID itself.
+ * 
+ * For instance, `rspq_write(0x12, 0x00FF2233)` is a correct call, which
+ * writes `0x12FF2233` into the RSP queue. `rspq_write(0x12, 0x11FF2233)`
+ * is an invalid call because the MSB of the first word is non-zero.
+ * `rspq_write(0x12)` is also valid, and equivalent to `rspq_write(0x12, 0x0)`.
+ * 
+ * Notice that after a call to #rspq_write, the command might or might not
+ * get executed by the RSP, depending on timing. If you want to make sure that
+ * the command will be executed, use #rspq_flush. You can call #rspq_flush
+ * after you have finished writing a batch of related commands. See #rspq_flush
+ * documentation for more information.
+ * 
  * @code{.c}
  * 		// This example adds to the command list a sample command called
  * 		// CMD_SPRITE with code 0x3A (overlay 3, command A), with its arguments,
  * 		// for a total of three words.
  * 		
- * 		#define CMD_SPRITE  0x3A000000
+ * 		#define CMD_SPRITE  0x3A
  * 		
- * 		uint32_t *rspq = rspq_write_begin();
- * 		*rspq++ = CMD_SPRITE | sprite_num;
- * 		*rspq++ = (x0 << 16) | y0;
- * 		*rspq++ = (x1 << 16) | y1;
- * 		rspq_write_end(rspq);
+ * 		rspq_write(CMD_SPRITE, sprite_num, 
+ *                 (x0 << 16) | y0,
+ *                 (x1 << 16) | y1);
  * @endcode
  *
- * @note Each command can be up to RSPQ_MAX_COMMAND_SIZE 32-bit words. Make
- * sure not to write more than that size without calling #rspq_write_end.
+ * @note Each command can be up to RSPQ_MAX_COMMAND_SIZE 32-bit words.
+ * 
+ * @see #rspq_flush
  * 
  * @hideinitializer
  */
 
-// FOREACH helpers
-#define __FE_0(_call, ...)
-#define __FE_1(_call, x)       _call(x)
-#define __FE_2(_call, x, ...)  _call(x) __FE_1(_call, __VA_ARGS__)
-#define __FE_3(_call, x, ...)  _call(x) __FE_2(_call, __VA_ARGS__)
-#define __FE_4(_call, x, ...)  _call(x) __FE_3(_call, __VA_ARGS__)
-#define __FE_5(_call, x, ...)  _call(x) __FE_4(_call, __VA_ARGS__)
-#define __FE_6(_call, x, ...)  _call(x) __FE_5(_call, __VA_ARGS__)
-#define __FE_7(_call, x, ...)  _call(x) __FE_6(_call, __VA_ARGS__)
-#define __FE_8(_call, x, ...)  _call(x) __FE_7(_call, __VA_ARGS__)
-#define __FE_9(_call, x, ...)  _call(x) __FE_8(_call, __VA_ARGS__)
-#define __FE_10(_call, x, ...) _call(x) __FE_9(_call, __VA_ARGS__)
-#define __FE_11(_call, x, ...) _call(x) __FE_10(_call, __VA_ARGS__)
-#define __FE_12(_call, x, ...) _call(x) __FE_11(_call, __VA_ARGS__)
-#define __FE_13(_call, x, ...) _call(x) __FE_12(_call, __VA_ARGS__)
-#define __FE_14(_call, x, ...) _call(x) __FE_13(_call, __VA_ARGS__)
-#define __FE_15(_call, x, ...) _call(x) __FE_14(_call, __VA_ARGS__)
-#define __FE_16(_call, x, ...) _call(x) __FE_15(_call, __VA_ARGS__)
-#define __FE_17(_call, x, ...) _call(x) __FE_16(_call, __VA_ARGS__)
-#define __FE_18(_call, x, ...) _call(x) __FE_17(_call, __VA_ARGS__)
-#define __FE_19(_call, x, ...) _call(x) __FE_18(_call, __VA_ARGS__)
-#define __FE_20(_call, x, ...) _call(x) __FE_19(_call, __VA_ARGS__)
-#define __FE_21(_call, x, ...) _call(x) __FE_20(_call, __VA_ARGS__)
-#define __FE_22(_call, x, ...) _call(x) __FE_21(_call, __VA_ARGS__)
-#define __FE_23(_call, x, ...) _call(x) __FE_22(_call, __VA_ARGS__)
-#define __FE_24(_call, x, ...) _call(x) __FE_23(_call, __VA_ARGS__)
-#define __FE_25(_call, x, ...) _call(x) __FE_24(_call, __VA_ARGS__)
-#define __FE_26(_call, x, ...) _call(x) __FE_25(_call, __VA_ARGS__)
-#define __FE_27(_call, x, ...) _call(x) __FE_26(_call, __VA_ARGS__)
-#define __FE_28(_call, x, ...) _call(x) __FE_27(_call, __VA_ARGS__)
-#define __FE_29(_call, x, ...) _call(x) __FE_28(_call, __VA_ARGS__)
-#define __FE_30(_call, x, ...) _call(x) __FE_29(_call, __VA_ARGS__)
-#define __FE_31(_call, x, ...) _call(x) __FE_30(_call, __VA_ARGS__)
+#define rspq_write(cmd_id, ...) \
+    __PPCAT(_rspq_write, __HAS_VARARGS(__VA_ARGS__)) (cmd_id, ##__VA_ARGS__)
 
-// Get the Nth variadic argument
-#define __GET_NTH_ARG(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, N, ...)  N
+/// @cond
 
-// Return the number of variadic arguments
-#define __COUNT_VARARGS(...)     __GET_NTH_ARG("ignored", ##__VA_ARGS__, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
-
-// Return 1 if there is at least one variadic argument, otherwise 0
-#define __HAS_VARARGS(...)       __GET_NTH_ARG("ignored", ##__VA_ARGS__, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0)
-
-// Call macro fn for each variadic argument
-#define __CALL_FOREACH(fn, ...)  __GET_NTH_ARG("ignored", ##__VA_ARGS__, __FE_31, __FE_30, __FE_29, __FE_28, __FE_27, __FE_26, __FE_25, __FE_24, __FE_23, __FE_22, __FE_21, __FE_20, __FE_19, __FE_18, __FE_17, __FE_16, __FE_15, __FE_14, __FE_13, __FE_12, __FE_11, __FE_10, __FE_9, __FE_8, __FE_7, __FE_6, __FE_5, __FE_4, __FE_3, __FE_2, __FE_1, __FE_0)(fn, ##__VA_ARGS__)
-
-// Preprocessor token paste
-#define __PPCAT2(n,x) n ## x
-#define __PPCAT(n,x) __PPCAT2(n,x)
-
+// Helpers used to implement rspq_write
 #define _rspq_write_prolog() \
     extern volatile uint32_t *rspq_cur_pointer, *rspq_cur_sentinel; \
     extern void rspq_next_buffer(void); \
     volatile uint32_t *ptr = rspq_cur_pointer+1; \
     (void)ptr;
 
-#define _rspq_write_epilog() \
-    if (rspq_cur_pointer > rspq_cur_sentinel) rspq_next_buffer();
+#define _rspq_write_epilog() ({ \
+    if (rspq_cur_pointer > rspq_cur_sentinel) \
+        rspq_next_buffer(); \
+})
 
 #define _rspq_write_arg(arg) \
     *ptr++ = (arg);
@@ -342,8 +315,7 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
     _rspq_write_epilog(); \
 })
 
-#define rspq_write(cmd_id, ...) \
-    __PPCAT(_rspq_write, __HAS_VARARGS(__VA_ARGS__)) (cmd_id, ##__VA_ARGS__)
+/// @endcond
 
 
 /**
@@ -356,19 +328,19 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
  * sleeping. So in general, at any given moment the RSP could be crunching
  * commands or sleeping waiting to be notified that more commands are available.
  * 
- * This means that writing a command (#rspq_write_begin / #rspq_write_end) is not
- * enough to make sure it is executed; depending on timing and batching performed
+ * This means that writing a command via #rspq_write is not enough to make sure
+ * it is executed; depending on timing and batching performed
  * by RSP, it might either be executed automatically or not. #rspq_flush makes
  * sure that the RSP will see it and execute it.
  * 
  * This function does not block: it just make sure that the RSP will run the 
- * full command list written until now. If you need to actively wait until the
+ * full command queue written until now. If you need to actively wait until the
  * last written command has been executed, use #rspq_sync.
  * 
  * It is suggested to call rspq_flush every time a new "batch" of commands
  * has been written. In general, it is not a problem to call it often because
  * it is very very fast (takes only ~20 cycles). For instance, it can be called
- * after every rspq_write_end without many worries, but if you know that you are
+ * after every rspq_write without many worries, but if you know that you are
  * going to write a number of subsequent commands in straight line code, you
  * can postpone the call to #rspq_flush after the whole sequence has been written.
  * 
@@ -377,13 +349,11 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
  * 		// The command in this sample is called CMD_SET_LIGHT and requires
  * 		// a light index and the RGB colors for the list to update.
  *
- * 		#define CMD_SET_LIGHT  0x47000000
+ * 		#define CMD_SET_LIGHT  0x47
  *
  * 		for (int i=0; i<MAX_LIGHTS; i++) {
- * 			uint32_t *rspq = rspq_write_begin();
- * 			*rspq++ = CMD_SET_LIGHT | i;
- * 			*rspq++ = (lights[i].r << 16) | (lights[i].g << 8) | lights[i].b;
- * 			rspq_write_end(rspq);
+ * 			rspq_write(CMD_SET_LIGHT, i,
+ * 			    (lights[i].r << 16) | (lights[i].g << 8) | lights[i].b);
  * 		}
  * 		
  * 		// After enqueuing multiple commands, it is sufficient
@@ -393,8 +363,8 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
  * @endcode
  *
  * @note This is an experimental API. In the future, it might become 
- *       a no-op, and flushing could happen automatically at every rspq_write_end().
- *       We are keeping it separate from rspq_write_end() while experimenting more
+ *       a no-op, and flushing could happen automatically at every #rspq_write.
+ *       We are keeping it separate from #rspq_write while experimenting more
  *       with the RSPQ API.
  * 
  * @note This function is a no-op if it is called while a block is being recorded
@@ -406,9 +376,9 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
 void rspq_flush(void);
 
 /**
- * @brief Wait until all commands in command list have been executed by RSP.
+ * @brief Wait until all commands in the queue have been executed by RSP.
  *
- * This function blocks until all commands present in the command list have
+ * This function blocks until all commands present in the queue have
  * been executed by the RSP and the RSP is idle.
  * 
  * This function exists mostly for debugging purposes. Calling this function
@@ -538,7 +508,7 @@ void rspq_block_free(rspq_block_t *block);
  * @brief Start building a high-priority queue.
  * 
  * This function enters a special mode in which a high-priority queue is
- * activated and can be filled with commands. After this command has been
+ * activated and can be filled with commands. After this function has been
  * called, all commands will be put in the high-priority queue, until
  * #rspq_highpri_end is called.
  * 
@@ -554,14 +524,14 @@ void rspq_block_free(rspq_block_t *block);
  * that should be performed right away, just like they were preempting what
  * the RSP is currently doing.
  * 
- * @note It is possible to create multiple high-priority queues by calling
- *       #rspq_highpri_begin / #rspq_highpri_end multiples time with short
- *       delays in-between. The RSP will process them in order. Notice that
- *       there is a overhead in doing so, so it might be advisable to keep
- *       the high-priority mode active for a longer period if possible. On the
- *       other hand, a shorter high-priority queue allows for the RSP to
- *       switch back to processing the normal queue before the next one
- *       is created.
+ * It is possible to create multiple high-priority queues by calling
+ * #rspq_highpri_begin / #rspq_highpri_end multiples time with short
+ * delays in-between. The RSP will process them in order. Notice that
+ * there is a overhead in doing so, so it might be advisable to keep
+ * the high-priority mode active for a longer period if possible. On the
+ * other hand, a shorter high-priority queue allows for the RSP to
+ * switch back to processing the normal queue before the next one
+ * is created.
  * 
  * @note It is not possible to create a block while the high-priority queue is
  *       active. Arrange for constructing blocks beforehand.
@@ -615,7 +585,7 @@ void rspq_noop(void);
  * This function allows to enqueue a command in the list that will set and/or
  * clear a combination of the above bits.
  * 
- * Notice that signal bits 2-7 are used by the command list engine itself, so this
+ * Notice that signal bits 2-7 are used by the RSP queue engine itself, so this
  * function must only be used for bits 0 and 1.
  * 
  * @param[in]  signal  A signal set/clear mask created by composing SP_WSTATUS_* 
