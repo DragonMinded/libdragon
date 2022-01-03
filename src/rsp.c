@@ -267,7 +267,7 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
     snprintf(pcpos, 120, "%s (%s:%d)", func, file, line);
     pcpos[119] = 0;
 
-    printf("RSP CRASH | %s | %.*s\n", uc_name, 49-strlen(uc_name), pcpos);
+    printf("RSP CRASH | %s | %.*s\n", uc_name, 48-strlen(uc_name), pcpos);
 
     // Display the optional message coming from the C code
     if (msg)
@@ -388,17 +388,24 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
     }
 
     // Full dump of DMEM into the debug log.
+    uint8_t zero[16] = {0}; bool lineskip = false;
     debugf("DMEM:\n");
     for (int i = 0; i < 4096/16; i++) {
         uint8_t *d = state.dmem + i*16;
-        debugf("%04x  ", i*16);
-        for (int j=0;j<16;j++) {
-            debugf("%02x ", d[j]);
-            if (j==7) debugf(" ");
+        if (memcmp(d, zero, 16) == 0) {
+            if (!lineskip) debugf("*\n");
+            lineskip = true;
+        } else {
+            lineskip = false;
+            debugf("%04x  ", i*16);
+            for (int j=0;j<16;j++) {
+                debugf("%02x ", d[j]);
+                if (j==7) debugf(" ");
+            }
+            debugf("  |");
+            for (int j=0;j<16;j++) debugf("%c", d[j] >= 32 && d[j] < 127 ? d[j] : '.');
+            debugf("|\n");
         }
-        debugf("  |");
-        for (int j=0;j<16;j++) debugf("%c", d[j] >= 32 && d[j] < 127 ? d[j] : '.');
-        debugf("|\n");
     }
 
     // OK we're done. Render on the screen and abort

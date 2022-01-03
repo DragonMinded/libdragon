@@ -324,24 +324,40 @@ static void rspq_sp_interrupt(void)
 static void rspq_crash_handler(rsp_snapshot_t *state)
 {
     rsp_queue_t *rspq = (rsp_queue_t*)state->dmem;
+    uint32_t cur = rspq->rspq_dram_addr + state->gpr[28];
+    uint32_t dmem_buffer = RSPQ_DEBUG ? 0x140 : 0x100;
+
     printf("RSPQ: Normal  DRAM address: %08lx\n", rspq->rspq_dram_lowpri_addr);
     printf("RSPQ: Highpri DRAM address: %08lx\n", rspq->rspq_dram_highpri_addr);
     printf("RSPQ: Current DRAM address: %08lx + %lx = %08lx\n", 
-        rspq->rspq_dram_addr, state->gpr[28], rspq->rspq_dram_addr + state->gpr[28]);
-    printf("RSPQ: Overlay: %x\n", rspq->current_ovl);
+        rspq->rspq_dram_addr, state->gpr[28], cur);
+    printf("RSPQ: Current Overlay: %02x\n", rspq->current_ovl / sizeof(rspq_overlay_t));
     debugf("RSPQ: Command queue:\n");
     for (int j=0;j<4;j++) {        
         for (int i=0;i<16;i++)
-            debugf("%08lx%c", SP_DMEM[0x140/4+i+j*16], state->gpr[28] == (j*16+i)*4 ? '*' : ' ');
+            debugf("%08lx%c", ((uint32_t*)state->dmem)[dmem_buffer/4+i+j*16], state->gpr[28] == (j*16+i)*4 ? '*' : ' ');
         debugf("\n");
     }
     debugf("RSPQ: RDRAM Command queue:\n");
-    uint32_t *q = (uint32_t*)(0xA0000000 | (rspq->rspq_dram_addr & 0xFFFFFF));
+    uint32_t *q = (uint32_t*)(0xA0000000 | (cur & 0xFFFFFF));
     for (int j=0;j<4;j++) {        
         for (int i=0;i<16;i++)
-            debugf("%08lx ", q[i+j*16]);
+            debugf("%08lx%c", q[i+j*16-32], i+j*16-32==0 ? '*' : ' ');
         debugf("\n");
     }
+}
+
+static void rspq_assert_invalid_command(rsp_snapshot_t *state)
+{
+    rsp_queue_t *rspq = (rsp_queue_t*)state->dmem;
+    uint32_t dmem_buffer = RSPQ_DEBUG ? 0x140 : 0x100;
+    uint32_t cur = dmem_buffer + state->gpr[28];
+    printf("Command %02x not found in overlay %02x\n", state->dmem[cur], rspq->current_ovl / sizeof(rspq_overlay_t));
+}
+
+static void rspq_assert_invalid_overlay(rsp_snapshot_t *state)
+{
+    printf("Overlay %02lx not registered\n", state->gpr[8]);
 }
 
 __attribute__((noinline))
@@ -468,8 +484,8 @@ void rspq_init(void)
     rspq_is_running = false;
 
     // Register asserts
-    rsp_ucode_register_assert(&rsp_queue, ASSERT_INVALID_OVERLAY, "Invalid overlay", NULL);
-    rsp_ucode_register_assert(&rsp_queue, ASSERT_INVALID_COMMAND, "Invalid command", NULL);
+    rsp_ucode_register_assert(&rsp_queue, ASSERT_INVALID_OVERLAY, "Invalid overlay", rspq_assert_invalid_overlay);
+    rsp_ucode_register_assert(&rsp_queue, ASSERT_INVALID_COMMAND, "Invalid command", rspq_assert_invalid_command);
     rsp_ucode_register_assert(&rsp_queue, ASSERT_GP_BACKWARD, "GP moved backward", NULL);
 
     // Activate SP interrupt (used for syncpoints)

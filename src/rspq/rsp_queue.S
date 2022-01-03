@@ -29,8 +29,6 @@
 
 #include "rspq_internal.h"
 
-#define RSPQ_DEBUG 0
-
     .set noreorder
     .set at
 
@@ -145,7 +143,7 @@ RSPQCmd_Noop:     # noop -> repeat the loop
     .func RSPQ_Loop
 RSPQ_Loop:
     #define ovl_index t4
-    #define cmd_index t5
+    #define cmd_index t5    // referenced in rspq_assert_invalid_overlay
     #define cmd_desc  t6
     #define cmd_size  t7
 
@@ -180,7 +178,10 @@ RSPQ_Loop:
 
     # Load overlay index from overlay table
     # NOTE: May be optimised away by getting rid of the indirection and remembering the (code) address of the previously loaded overlay instead.
-    lb ovl_index, %lo(RSPQ_OVERLAY_TABLE)(t0)
+    lbu ovl_index, %lo(RSPQ_OVERLAY_TABLE)(t0)
+    #if RSPQ_DEBUG
+    assert_ne ovl_index, 0, ASSERT_INVALID_OVERLAY
+    #endif
     # Check if the requested overlay is already in memory
     beq ovl_index, t1, rspq_overlay_loaded
     lhu t0, %lo(_ovl_data_start) + 0x4
@@ -192,9 +193,6 @@ RSPQ_Loop:
 
     # Load overlay data (saved state is included)
     lhu t0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0xE (ovl_index)
-    #if RSPQ_DEBUG
-    assert_ne t0, 0, ASSERT_INVALID_OVERLAY
-    #endif
     lw s0, %lo(RSPQ_OVERLAY_DESCRIPTORS) + 0x4 (ovl_index)
     jal DMAInAsync
     li s4, %lo(_ovl_data_start)
