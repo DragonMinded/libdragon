@@ -567,7 +567,9 @@ void rspq_overlay_register(rsp_ucode_t *overlay_ucode, uint8_t id)
     // Note that we don't use rsp_load_data() here and instead use the dma command,
     // so we don't need to synchronize with the RSP. All commands queued after this
     // point will be able to use the newly registered overlay.
+    rspq_highpri_begin();
     rspq_dma_to_dmem(0, &rspq_data_ptr->tables, sizeof(rspq_overlay_tables_t), false);
+    rspq_highpri_end();
 }
 
 __attribute__((noinline))
