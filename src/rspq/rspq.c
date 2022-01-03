@@ -99,6 +99,49 @@
  * look at the list of commands and their description below. All command IDs
  * are defined with `RSPQ_CMD_*` macros.
  * 
+ * ## Buffer swapping
+ * 
+ * Internally, double buffering is used to implement the queue. The size of
+ * each of the buffers is RSPQ_DRAM_LOWPRI_BUFFER_SIZE. When a buffer is full,
+ * the queue engine writes a RSPQ_CMD_JUMP command with the address of the
+ * other buffer, to tell the RSP to jump there when it is done. 
+ * 
+ * Moreover, just before the jump, the engine also enqueue a RSPQ_CMD_WRITE_STATUS
+ * command that sets the SP_STATUS_SIG_BUFDONE_LOW signal. This is used to
+ * keep track when the RSP has finished processing a buffer, so that we know
+ * it becomes free again for more commands.
+ * 
+ * This logic is implemented in #rspq_next_buffer.
+ *
+ * ## Highpri queue
+ * 
+ * [........... TODO]
+ * 
+ * ## Blocks
+ * 
+ * Blocks are implemented by redirecting rspq_write to a different memory buffer,
+ * allocated for the block. The starting size for this buffer is
+ * RSPQ_BLOCK_MIN_SIZE. If the buffer becomes full, a new buffer is allocated
+ * with double the size (to achieve exponential growth), and it is linked
+ * to the previous buffer via a RSPQ_CMD_JUMP. So a block can end up being
+ * defined by multiple memory buffers linked via jumps.
+ * 
+ * Calling a block requires some work because of the nesting calls we want
+ * to support. To make the RSP ucode as short as possible, the two internal
+ * command dedicated to block calls (RSPQ_CMD_CALL and RSPQ_CMD_RET) do not
+ * manage a call stack by themselves, but only allow to save/restore the
+ * current queue position from a "save slot", whose index must be provided
+ * by the CPU. 
+ * 
+ * Thus, the CPU has to make sure that each CALL opcode saves the
+ * position into a save slot which will not be overwritten by nested block
+ * calls. To do this, it calculates the "nesting level" of a block at
+ * block creation time: the nesting level of a block is defined by the smallest
+ * number greater than the nesting levels of all blocks that are called within
+ * the block itself. So for instance if a block calls another block whose
+ * nesting level is 5, it will get assigned a level of 6. The nesting level
+ * is then used as call slot in both all future calls to the block, and by
+ * the RSPQ_CMD_RET command placed at the end of the block itself.
  * 
  */
 
@@ -618,11 +661,7 @@ void rspq_next_buffer(void) {
     rspq_append1(prev, RSPQ_CMD_WRITE_STATUS, rspq_ctx->sp_wstatus_set_bufdone);
     rspq_append1(prev, RSPQ_CMD_JUMP, PhysicalAddr(new));
     assert(prev+1 < (uint32_t*)(rspq_ctx->buffers[1-rspq_ctx->buf_idx]) + rspq_ctx->buf_size);
-
-    MEMORY_BARRIER();
-    // Kick the RSP, in case it's sleeping.
-    *SP_STATUS = SP_WSTATUS_SET_SIG_MORE | SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE;
-    MEMORY_BARRIER();
+    rspq_flush_internal();
 }
 
 __attribute__((noinline))

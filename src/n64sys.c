@@ -212,7 +212,7 @@ void inst_cache_invalidate_all(void)
  * 
  * The buffer contents are uninitialized.
  * 
- * To free the buffer, use #ƒree_uncached.
+ * To free the buffer, use #free_uncached.
  * 
  * @param[in]  size  The size of the buffer to allocate
  *

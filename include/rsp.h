@@ -133,13 +133,13 @@ typedef struct {
  * information on screen (decoding information from a #rsp_snapshot_t
  * state).
  * 
- * @see #rsp_register_assert
+ * @see #rsp_ucode_register_assert
  */
 typedef struct rsp_assert_s {
-    uint16_t code;
-    const char *msg;
-    void (*crash_handler)(rsp_snapshot_t *state);
-    struct rsp_assert_s *next;
+    uint16_t code;                                 ///< Assertion code
+    const char *msg;                               ///< Assertion message (optional)
+    void (*crash_handler)(rsp_snapshot_t *state);  ///< Crash handler (optional)
+    struct rsp_assert_s *next;                     ///< Link to next defined assertion
 } rsp_assert_t;
 
 /**
@@ -321,18 +321,44 @@ void rsp_pause(bool pause);
  * @brief Abort the program showing a RSP crash screen
  * 
  * This function aborts the execution of the program, and shows an exception
- * screen which contains the RSP status. It can be used any time the RSP
- * ucode has crashed, frozen or otherwise misbehaved in an unexpected way,
- * to allow for some post-mortem debugging.
+ * screen which contains the RSP status. 
+ * 
+ * This function (and its sibling #rsp_crashf) should be invoked whenever the
+ * CPU realizes that the RSP is severely misbehaving, as it provides useful
+ * information on the RSP status that can help tracking down the bug. It is
+ * invoked automatically by this library (and others RSP libraries that build upon)
+ * whenever internal consistency checks fail. It is also invoked as part
+ * of `RSP_WAIT_LOOP` when the timeout is reached, which is the most common
+ * way of detecting RSP misbehavior.
+ * 
+ * If the RSP has hit an assert, the crash screen will display the assert-
+ * specific information (like assert code and assert message).
  * 
  * To display ucode-specific information (like structural decoding of DMEM data),
  * this function will call the function crash_handler in the current #rsp_ucode_t,
  * if it is defined. 
+ * 
+ * @see #rsp_crashf
  */
 #define rsp_crash()  ({ \
     __rsp_crash(__FILE__, __LINE__, __func__, NULL); \
 }) 
 
+/**
+ * @brief Abort the program showing a RSP crash screen with a symptom message.
+ * 
+ * This function is similar to #rsp_crash, but also allows to specify a message
+ * that will be displayed in the crash screen. Since the CPU is normally
+ * unaware of the exact reason why the RSP has crashed, the message is
+ * possibly just a symptom as observed by the CPU (eg: "timeout reached",
+ * "signal was not set"), and is in fact referred as "symptom" in the RSP crash
+ * screen.
+ * 
+ * See #rsp_crash for more information on when to call this function and how
+ * it can be useful.
+ * 
+ * @see #rsp_crash
+ */
 #define rsp_crashf(msg, ...) ({ \
     __rsp_crash(__FILE__, __LINE__, __func__, msg, ##__VA_ARGS__); \
 })

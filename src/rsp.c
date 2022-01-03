@@ -193,6 +193,11 @@ void rsp_ucode_register_assert(rsp_ucode_t *ucode, uint16_t code, const char *ms
     ucode->asserts = a;
 }
 
+/// @cond
+// Check if the RSP has hit an internal assert, and call rsp_crash if so.
+// This function is invoked by #RSP_WAIT_LOOP while waiting for the RSP
+// to finish a task, so that we immediately show a crash screen if the RSP
+// has hit an assert.
 void __rsp_check_assert(const char *file, int line, const char *func)
 {
     // If it's running, it has not asserted
@@ -213,7 +218,10 @@ void __rsp_check_assert(const char *file, int line, const char *func)
         __rsp_crash(file, line, func, NULL);
     }
 }
+/// @endcond
 
+/// @cond
+// RSP crash handler implementation
 __attribute__((noreturn, format(printf, 4, 5)))
 void __rsp_crash(const char *file, int line, const char *func, const char *msg, ...)
 {
@@ -412,3 +420,4 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
     console_render();
     abort();
 }
+/// @endconf
