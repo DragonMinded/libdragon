@@ -322,7 +322,7 @@ void test_rspq_switch_overlay(TestContext *ctx)
     ugfx_state_t *ugfx_state = UncachedAddr(rspq_overlay_get_state(&rsp_ugfx));
 
     uint64_t expected_commands[] = {
-        RdpSetEnvColor(0)
+        0x3BULL << 56
     };
 
     ASSERT_EQUAL_MEM(ugfx_state->rdp_buffer, (uint8_t*)expected_commands, sizeof(expected_commands), "State was not saved!");

@@ -70,7 +70,7 @@ void test_ugfx_dram_buffer(TestContext *ctx)
     rdp_set_scissor(0, 0, 32 << 2, 32 << 2);
     rdp_set_fill_color(0xFFFFFFFF);
     rspq_noop();
-    rdp_set_color_image((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, 32);
+    rdp_set_color_image((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, 31);
     rdp_fill_rectangle(0, 0, 32 << 2, 32 << 2);
     rdp_sync_full();
 
@@ -79,12 +79,12 @@ void test_ugfx_dram_buffer(TestContext *ctx)
     ASSERT(dp_intr_raised, "Interrupt was not raised!");
 
     uint64_t expected_data[] = {
-        RdpSetOtherModes(SOM_CYCLE_FILL),
-        RdpSetClippingFX(0, 0, 32 << 2, 32 << 2),
-        RdpSetFillColor(0xFFFFFFFF),
-        RdpSetColorImage(RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, 32, (uint32_t)framebuffer),
-        RdpFillRectangleFX(0, 0, 32 << 2, 32 << 2),
-        RdpSyncFull()
+        (0x2FULL << 56) | SOM_CYCLE_FILL | (6ULL << 41),
+        (0x2DULL << 56) | (32ULL << 14) | (32ULL << 2),
+        (0x37ULL << 56) | 0xFFFFFFFFULL,
+        (0x3FULL << 56) | ((uint64_t)RDP_TILE_FORMAT_RGBA << 53) | ((uint64_t)RDP_TILE_SIZE_16BIT << 51) | (31ULL << 32) | ((uint32_t)framebuffer & 0x1FFFFFF),
+        (0x36ULL << 56) | (32ULL << 46) | (32ULL << 34),
+        0x29ULL << 56
     };
 
     ASSERT_EQUAL_MEM(UncachedAddr(__ugfx_dram_buffer), (uint8_t*)expected_data, sizeof(expected_data), "Unexpected data in DRAM buffer!");
@@ -124,7 +124,7 @@ void test_ugfx_fill_dmem_buffer(TestContext *ctx)
         rdp_set_prim_color(0x0);
     }
 
-    rdp_set_color_image((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, 32);
+    rdp_set_color_image((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, 31);
     rdp_fill_rectangle(0, 0, 32 << 2, 32 << 2);
     rdp_sync_full();
 
@@ -167,7 +167,7 @@ void test_ugfx_fill_dram_buffer(TestContext *ctx)
         rdp_set_prim_color(0x0);
     }
 
-    rdp_set_color_image((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, 32);
+    rdp_set_color_image((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, 31);
     rdp_fill_rectangle(0, 0, 32 << 2, 32 << 2);
     rdp_sync_full();
 
