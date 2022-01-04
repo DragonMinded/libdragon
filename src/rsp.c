@@ -41,6 +41,10 @@ void rsp_load_code(void* start, unsigned long size, unsigned int imem_offset)
     assert(((uint32_t)start % 8) == 0);
     assert((imem_offset % 8) == 0);
 
+    if (cur_ucode != NULL) {
+        cur_ucode = NULL;
+    }
+
     disable_interrupts();
     __SP_DMA_wait();
 

@@ -136,8 +136,11 @@ void rsp_wait(void);
 /** @brief Do a DMA transfer to load a piece of code into RSP IMEM.
  * 
  * This is a lower-level function that actually executes a DMA transfer
- * from RDRAM to IMEM. Prefer using rsp_load instead.
+ * from RDRAM to IMEM. Prefer using #rsp_load instead.
  * 
+ * @note in order for this function to be interoperable with #rsp_load, it
+ * will reset the last loaded ucode cache.
+ *
  * @param[in]     code          Pointer to buffer in RDRAM containing code. 
  *                              Must be aligned to 8 bytes.
  * @param[in]     size          Size of the code to load. Must be a multiple of 8.
