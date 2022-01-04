@@ -17,19 +17,17 @@
 
 #define ROUND_UP(n, d)  (((n) + (d) - 1) / (d) * (d))
 
-void samplebuffer_init(samplebuffer_t *buf, uint8_t* mem, int nbytes) {
+void samplebuffer_init(samplebuffer_t *buf, uint8_t* uncached_mem, int nbytes) {
 	memset(buf, 0, sizeof(samplebuffer_t));
 
 	// Store the buffer pointer as uncached address. We don't want to access
 	// it with CPU as we want to build samples with RSP, and all APIs assume
 	// that content is committed to RDRAM (not cache).
-	buf->ptr_and_flags = (uint32_t)UncachedAddr(mem);
+	assertf(UncachedAddr(uncached_mem) == uncached_mem, 
+		"specified buffer must be in the uncached segment.\nTry using malloc_uncached() to allocate it");
+	buf->ptr_and_flags = (uint32_t)uncached_mem;
 	assert((buf->ptr_and_flags & 7) == 0);
 	buf->size = nbytes;
-
-	// Make sure there is no spurious CPU cache content in the buffer that might
-	// get written back later overwriting some samples.
-	data_cache_hit_writeback_invalidate(mem, nbytes);
 }
 
 void samplebuffer_set_bps(samplebuffer_t *buf, int bits_per_sample) {
