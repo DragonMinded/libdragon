@@ -6,7 +6,9 @@
 
 #include <stdint.h>
 #include <assert.h>
+#include <malloc.h>
 #include "n64sys.h"
+#include "utils.h"
 
 /**
  * @defgroup n64sys N64 System Interface
@@ -200,6 +202,57 @@ void inst_cache_invalidate_all(void)
     inst_cache_hit_invalidate(KSEG0_START_ADDR, get_memory_size());
 }
 
+/**
+ * @brief Allocate a buffer that will be accessed as uncached memory.
+ * 
+ * This function allocates a memory buffer that can be safely read and written
+ * through uncached memory accesses only. It makes sure that that the buffer
+ * does not share any cacheline with other buffers in the heap, and returns
+ * a pointer in the uncached segment (0xA0000000).
+ * 
+ * The buffer contents are uninitialized.
+ * 
+ * To free the buffer, use #free_uncached.
+ * 
+ * @param[in]  size  The size of the buffer to allocate
+ *
+ * @return a pointer to the start of the buffer (in the uncached segment)
+ * 
+ * @see #free_uncached
+ */
+void *malloc_uncached(size_t size)
+{
+    // Since we will be accessing the buffer as uncached memory, we absolutely
+    // need to prevent part of it to ever enter the data cache, even as false
+    // sharing with contiguous buffers. So we want the buffer to exclusively
+    // cover full cachelines (aligned to 16 bytes, multiple of 16 bytes).
+    size = ROUND_UP(size, 16);
+    void *mem = memalign(16, size);
+    if (!mem) return NULL;
+
+    // The memory returned by the system allocator could already be partly in
+    // cache (eg: it might have been previously used as a normal heap buffer
+    // and recently returned to the allocator). Invalidate it so that
+    // we don't risk a writeback in the short future.
+    data_cache_hit_invalidate(mem, size);
+
+    // Return the pointer as uncached memory.
+    return UncachedAddr(mem);
+}
+
+/**
+ * @brief Free an uncached memory buffer
+ * 
+ * This function frees a memory buffer previously allocated via #malloc_uncached.
+ * 
+ * @param[in]  buf  The buffer to free
+ * 
+ * @see #malloc_uncached
+ */
+void free_uncached(void *buf)
+{
+    free(CachedAddr(buf));
+}
 
 /**
  * @brief Get amount of available memory.
