@@ -170,11 +170,11 @@
 
 	.section .data.overlay
 
-	overlayHeader MIXER_STATE_START, MIXER_STATE_END, 0x10
+	RSPQ_OverlayHeader MIXER_STATE_START, MIXER_STATE_END, 0x10
 
 	.align 1
 COMMAND_TABLE:
-	commandTableEntry command_exec, 16
+	RSPQ_DefineCommand command_exec, 16
 
 ############################################################################
 

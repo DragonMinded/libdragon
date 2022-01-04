@@ -24,6 +24,9 @@
  * per frame without its overhead to be measurable, which should be more than
  * enough for most use cases.
  * 
+ * This documentation describes the API of the queue, and how to use it. For
+ * details on how it is implemented, see the comments in rspq.c.
+ * 
  * ## Commands
  * 
  * Each command in the queue is made by one or more 32-bit words (up to
@@ -39,7 +42,7 @@
  * will load into IMEM/DMEM overlay 3 (unless it was already loaded) and then
  * dispatch command 7 to it.
  * 
- * ## Higher-level libraries
+ * ## Higher-level libraries and overlays
  * 
  * Higher-level libraries that come with their RSP ucode can be designed to
  * use the RSP command queue to efficiently coexist with all other RSP libraries
@@ -164,11 +167,11 @@ extern "C" {
 typedef struct rspq_block_s rspq_block_t;
 
 /**
- * @brief A syncpoint in the command list
+ * @brief A syncpoint in the queue
  * 
- * A syncpoint can be thought of as a pointer to a position in the command list.
- * After creation, it is possible to later check whether the RSP has reached it
- * or not.
+ * A syncpoint can be thought of as a pointer to a position in the command queue.
+ * After creation, it is possible to later check whether the RSP has reached
+ * that position or not.
  * 
  * To create a syncpoint, use #rspq_syncpoint that returns a syncpoint that
  * references the current position. Call #rspq_check_syncpoint or #rspq_wait_syncpoint
@@ -184,30 +187,41 @@ typedef struct rspq_block_s rspq_block_t;
 typedef int rspq_syncpoint_t;
 
 /**
- * @brief Initialize the RSP command list.
+ * @brief Initialize the RSPQ library.
+ * 
+ * This should be called by the initialization functions of the higher-level
+ * libraries using the RSP command queue. It can be safely called multiple
+ * times without side effects.
+ * 
+ * It is not required by applications to call this explicitly in the main
+ * function.
  */
 void rspq_init(void);
 
 /**
- * @brief Shut down the RSP command list.
+ * @brief Shut down the RSPQ library.
+ * 
+ * This is mainly used for testing.
  */
 void rspq_close(void);
 
 
 /**
- * @brief Register a ucode overlay into the command list engine.
+ * @brief Register a ucode overlay into the RSP queue engine.
  * 
- * This function registers a ucode overlay into the command list engine.
+ * This function registers a ucode overlay into the queue engine.
  * An overlay is a ucode that has been written to be compatible with the
- * command list engine (see rsp_queue.inc) and is thus able to executed commands
- * that are enqueued in the command list.
+ * queue engine (see rsp_queue.inc) and is thus able to execute commands
+ * that are enqueued in the queue. An overlay doesn't have an entry point:
+ * it exposes multiple functions bound to different commands, that will be
+ * called by the queue engine when the commands are enqueued.
  * 
- * Each command in the command list starts with a 8-bit ID, in which the
+ * Each command in the queue starts with a 8-bit ID, in which the
  * upper 4 bits are the overlay ID and the lower 4 bits are the command ID.
  * The ID specified with this function is the overlay ID to associated with
  * the ucode. For instance, calling this function with ID 0x3 means that 
  * the overlay will be associated with commands 0x30 - 0x3F. The overlay ID
- * 0 is reserved to the command list engine.
+ * 0 is reserved to the queue engine.
  * 
  * Notice that it is possible to call this function multiple times with the
  * same ucode in case the ucode exposes more than 16 commands. For instance,
@@ -262,8 +276,8 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
  * documentation for more information.
  * 
  * @code{.c}
- * 		// This example adds to the command list a sample command called
- * 		// CMD_SPRITE with code 0x3A (overlay 3, command A), with its arguments,
+ * 		// This example adds to the queue a command called CMD_SPRITE with 
+ *      // code 0x3A (overlay 3, command A), with its arguments,
  * 		// for a total of three words.
  * 		
  * 		#define CMD_SPRITE  0x3A
@@ -321,7 +335,7 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
 /**
  * @brief Make sure that RSP starts executing up to the last written command.
  * 
- * RSP processes the current command list asynchronously as it is being written.
+ * RSP processes the command queue asynchronously as it is being written.
  * If it catches up with the CPU, it halts itself and waits for the CPU to
  * notify that more commands are available. On the contrary, if the RSP lags
  * behind it might keep executing commands as they are written without ever
@@ -382,7 +396,7 @@ void rspq_flush(void);
  * been executed by the RSP and the RSP is idle.
  * 
  * This function exists mostly for debugging purposes. Calling this function
- * is not necessary, as the CPU can continue enqueuing commands in the list
+ * is not necessary, as the CPU can continue adding commands to the queue
  * while the RSP is running them. If you need to synchronize between RSP and CPU
  * (eg: to access data that was processed by RSP) prefer using #rspq_syncpoint /
  * #rspq_wait_syncpoint which allows for more granular synchronization.
@@ -392,11 +406,11 @@ void rspq_flush(void);
 })
 
 /**
- * @brief Create a syncpoint in the command list.
+ * @brief Create a syncpoint in the queue.
  * 
  * This function creates a new "syncpoint" referencing the current position
- * in the command list. It is possible to later check when the syncpoint
- * is reached by RSP via #rspq_check_syncpoint and #rspq_wait_syncpoint.
+ * in the queue. It is possible to later check when the syncpoint
+ * is reached by the RSP via #rspq_check_syncpoint and #rspq_wait_syncpoint.
  *
  * @return     ID of the just-created syncpoint.
  * 
@@ -438,7 +452,7 @@ void rspq_wait_syncpoint(rspq_syncpoint_t sync_id);
 /**
  * @brief Begin creating a new block.
  * 
- * This function initiates writing a command list block (see #rspq_block_t).
+ * This function begins writing a command block (see #rspq_block_t).
  * While a block is being written, all calls to #rspq_write_begin / #rspq_write_end
  * will record the commands into the block, without actually scheduling them for
  * execution. Use #rspq_block_end to close the block and get a reference to it.
@@ -447,7 +461,7 @@ void rspq_wait_syncpoint(rspq_syncpoint_t sync_id);
  * twice (without any intervening #rspq_block_end) will cause an assert.
  *
  * During block creation, the RSP will keep running as usual and
- * execute commands that have been already enqueue in the command list.
+ * execute commands that have been already added to the queue.
  *       
  * @note Calls to #rspq_flush are ignored during block creation, as the RSP
  *       is not going to execute the block commands anyway.
@@ -459,7 +473,7 @@ void rspq_block_begin(void);
  * 
  * This function completes a block and returns a reference to it (see #rspq_block_t).
  * After this function is called, all subsequent #rspq_write_begin / #rspq_write_end
- * will resume working as usual: they will enqueue commands in the command list
+ * will resume working as usual: they will add commands to the queue
  * for immediate RSP execution.
  * 
  * To run the created block, use #rspq_block_run. 
@@ -472,12 +486,12 @@ void rspq_block_begin(void);
 rspq_block_t* rspq_block_end(void);
 
 /**
- * @brief Add to the RSP command list a command that runs a block.
+ * @brief Add to the RSP queue a command that runs a block.
  * 
  * This function runs a block that was previously created via #rspq_block_begin
- * and #rspq_block_end. It schedules a special command in the command list
+ * and #rspq_block_end. It schedules a special command in the queue
  * that will run the block, so that execution of the block will happen in
- * order relative to other commands in the command list.
+ * order relative to other commands in the queue.
  * 
  * Blocks can call other blocks. For instance, if a block A has been fully
  * created, it is possible to call `rspq_block_run(A)` at any point during the
@@ -582,7 +596,7 @@ void rspq_noop(void);
  * atomically set or cleared by both the CPU and the RSP. They can be used
  * to provide asynchronous communication.
  * 
- * This function allows to enqueue a command in the list that will set and/or
+ * This function allows to add a command to the queue that will set and/or
  * clear a combination of the above bits.
  * 
  * Notice that signal bits 2-7 are used by the RSP queue engine itself, so this
@@ -609,8 +623,8 @@ void rspq_signal(uint32_t signal);
  *                         before processing the next command.
  *                         
  * @note The argument is_async refers to the RSP only. From the CPU standpoint,
- *       this function is always asynchronous as it just enqueues a command
- *       in the list. 
+ *       this function is always asynchronous as it just adds a command
+ *       to the queue.
  */
 void rspq_dma_to_rdram(void *rdram_addr, uint32_t dmem_addr, uint32_t len, bool is_async);
 
@@ -626,8 +640,8 @@ void rspq_dma_to_rdram(void *rdram_addr, uint32_t dmem_addr, uint32_t len, bool 
  *                         before processing the next command.
  *                         
  * @note The argument is_async refers to the RSP only. From the CPU standpoint,
- *       this function is always asynchronous as it just enqueues a command
- *       in the list. 
+ *       this function is always asynchronous as it just adds a command
+ *       to the queue.
  */
 void rspq_dma_to_dmem(uint32_t dmem_addr, void *rdram_addr, uint32_t len, bool is_async);
 

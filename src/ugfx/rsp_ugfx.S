@@ -6,45 +6,45 @@
     # Each overlay requires a header. The first two arguments to overlayHeader are start and end of the area in DMEM that should
     # be saved when the overlay is swapped out. Put your persistent state here.
     # The last argument is the command base (The id of the first command in the overlay).
-    overlayHeader UGFX_STATE_START, UGFX_STATE_END, 0x20
+    RSPQ_OverlayHeader UGFX_STATE_START, UGFX_STATE_END, 0x20
 
     .align 1
     # The command table maps the command ids to command descriptors, which are the IMEM address and the size
     # of the command encoded as a 16 bit value.
-    # The first argument of commandTableEntry is just the text label of the command, the second is the command size in bytes.
+    # The first argument of RSPQ_DefineCommand is just the text label of the command, the second is the command size in bytes.
 COMMAND_TABLE:
-    commandTableEntry command_fill_triangle,      32 # 0x20 
-    commandTableEntry RSPQCmd_Noop,               8
-    commandTableEntry RSPQCmd_Noop,               8
-    commandTableEntry RSPQCmd_Noop,               8
-    commandTableEntry command_rdp_passthrough_16, 16 # 0x24 TEXTURE_RECTANGLE
-    commandTableEntry command_rdp_passthrough_16, 16 # 0x25 TEXTURE_RECTANGLE_FLIP
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x26 SYNC_LOAD
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x27 SYNC_PIPE
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x28 SYNC_TILE
-    commandTableEntry command_sync_full,          8  # 0x29 SYNC_FULL
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x2A SET_KEY_GB
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x2B SET_KEY_R
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x2C SET_CONVERT
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x2D SET_SCISSOR
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x2E SET_PRIM_DEPTH
-    commandTableEntry command_set_other_modes,    8  # 0x2F SET_OTHER_MODES
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x30 LOAD_TLUT
-    commandTableEntry RSPQCmd_Noop,               8
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x32 SET_TILE_SIZE
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x33 LOAD_BLOCK
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x34 LOAD_TILE
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x35 SET_TILE
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x36 FILL_RECTANGLE
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x37 SET_FILL_COLOR
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x38 SET_FOG_COLOR
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x39 SET_BLEND_COLOR
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x3A SET_PRIM_COLOR
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x3B SET_ENV_COLOR
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x3C SET_COMBINE_MODE
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x3D SET_TEXTURE_IMAGE
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x3E SET_Z_IMAGE
-    commandTableEntry command_rdp_passthrough_8,  8  # 0x3F SET_COLOR_IMAGE
+    RSPQ_DefineCommand command_fill_triangle,      32 # 0x20 
+    RSPQ_DefineCommand RSPQCmd_Noop,               8
+    RSPQ_DefineCommand RSPQCmd_Noop,               8
+    RSPQ_DefineCommand RSPQCmd_Noop,               8
+    RSPQ_DefineCommand command_rdp_passthrough_16, 16 # 0x24 TEXTURE_RECTANGLE
+    RSPQ_DefineCommand command_rdp_passthrough_16, 16 # 0x25 TEXTURE_RECTANGLE_FLIP
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x26 SYNC_LOAD
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x27 SYNC_PIPE
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x28 SYNC_TILE
+    RSPQ_DefineCommand command_sync_full,          8  # 0x29 SYNC_FULL
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x2A SET_KEY_GB
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x2B SET_KEY_R
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x2C SET_CONVERT
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x2D SET_SCISSOR
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x2E SET_PRIM_DEPTH
+    RSPQ_DefineCommand command_set_other_modes,    8  # 0x2F SET_OTHER_MODES
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x30 LOAD_TLUT
+    RSPQ_DefineCommand RSPQCmd_Noop,               8
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x32 SET_TILE_SIZE
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x33 LOAD_BLOCK
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x34 LOAD_TILE
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x35 SET_TILE
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x36 FILL_RECTANGLE
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x37 SET_FILL_COLOR
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x38 SET_FOG_COLOR
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x39 SET_BLEND_COLOR
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x3A SET_PRIM_COLOR
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x3B SET_ENV_COLOR
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x3C SET_COMBINE_MODE
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x3D SET_TEXTURE_IMAGE
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x3E SET_Z_IMAGE
+    RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x3F SET_COLOR_IMAGE
 
     .align 3
     # Everything between UGFX_STATE_START and UGFX_STATE_END is persistent state that is automatically saved by the overlay system.

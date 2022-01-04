@@ -1,28 +1,12 @@
-
+##########################################################################
+# RSP QUEUE UCODE
+##########################################################################
 #
-# RSP holds a single pointer to a command list. It goes through it.
+# The documentation for the RSP Queue engine is in rspq.h (API) and
+# rspq.c (implementation). The latter contains an architectural overview
+# that also describes the behavior of this ucode.
 #
-# To write a new command in the list (CPU):
-#   * Write the command identifier (first byte at least)
-#   * Write all arguments
-#   * Terminate with 0x01 (will be overwritten by next command)
-#   * Set SIG7 and reset BREAK in SP_STATUS
-#
-# 0x01 achieves two goals:
-#
-#   * If reached by RSP, it is executed as command_wait_
-#
-#
-
-# Psuedo-code on RSP:
-# * Fetch current command first byte
-# * Calculate command size
-# * if cur pointer + command size overflow DMEM buffer => 
-#      unconditional DMA (rolling back the RSPQ_BUFFFERDESC_START to refetch the current command)
-# * if byte at cur pointer + command size is 0x00 => 
-#      wait for new input (rolling back the RSPQ_BUFFFERDESC_START to refetch the current command)
-# * Run current command. 
-#      If it's 0x01 the command is actually "wait for new input" 
+##########################################################################
 
 #include <rsp.inc>
 #include <rsp_queue.inc>
@@ -34,7 +18,7 @@
 
     .data
 
-# Input properties
+# Overlay tables. See rsp_overlay_t in rsp.c
 RSPQ_OVERLAY_TABLE:           .ds.b RSPQ_OVERLAY_TABLE_SIZE
 RSPQ_OVERLAY_DESCRIPTORS:     .ds.b (RSPQ_OVERLAY_DESC_SIZE * RSPQ_MAX_OVERLAY_COUNT)
 
@@ -44,16 +28,10 @@ RSPQ_OVERLAY_DESCRIPTORS:     .ds.b (RSPQ_OVERLAY_DESC_SIZE * RSPQ_MAX_OVERLAY_C
 RSPQ_POINTER_STACK:           .ds.l (RSPQ_MAX_BLOCK_NESTING_LEVEL+2)
 
 # RDRAM address of the current command list.
-# NOTE: this *MUST* be initialized before running the RSP code.
 RSPQ_RDRAM_PTR:               .long 0
 
+# Index (not ID!) of the current overlay, as byte offset in the descriptor array
 RSPQ_CURRENT_OVL:             .half 0
-
-# Mask used to check for highpri mode switch. This is equal
-# to SP_STATUS_SIG_HIGHPRI while in lowpri mode, and to 0
-# in highpri mode (to avoid infinite loops where we switch
-# to highpri mode while already in that mode).
-RSPQ_PRIMODE_STATUS_CHECK:    .half 0
 
     .align 4
     .ascii "Dragon RSP Queue"
@@ -61,15 +39,15 @@ RSPQ_PRIMODE_STATUS_CHECK:    .half 0
 
     .align 3
 RSPQ_INTERNAL_COMMAND_TABLE:
-commandTableEntry RSPQCmd_WaitNewInput,    0     # 0x00
-commandTableEntry RSPQCmd_Noop,            4     # 0x01
-commandTableEntry RSPQCmd_Jump,            4     # 0x02
-commandTableEntry RSPQCmd_Call,            8     # 0x03
-commandTableEntry RSPQCmd_Ret,             4     # 0x04
-commandTableEntry RSQPCmd_Dma,             16    # 0x05
-commandTableEntry RSPQCmd_WriteStatus,     4     # 0x06 -- must be even (bit 24 must be 0)
-commandTableEntry RSPQCmd_SwapBuffers,     12    # 0x07
-commandTableEntry RSPQCmd_TestWriteStatus, 8     # 0x08 -- must be even (bit 24 must be 0)
+RSPQ_DefineCommand RSPQCmd_WaitNewInput,    0     # 0x00
+RSPQ_DefineCommand RSPQCmd_Noop,            4     # 0x01
+RSPQ_DefineCommand RSPQCmd_Jump,            4     # 0x02
+RSPQ_DefineCommand RSPQCmd_Call,            8     # 0x03
+RSPQ_DefineCommand RSPQCmd_Ret,             4     # 0x04
+RSPQ_DefineCommand RSQPCmd_Dma,             16    # 0x05
+RSPQ_DefineCommand RSPQCmd_WriteStatus,     4     # 0x06 -- must be even (bit 24 must be 0)
+RSPQ_DefineCommand RSPQCmd_SwapBuffers,     12    # 0x07
+RSPQ_DefineCommand RSPQCmd_TestWriteStatus, 8     # 0x08 -- must be even (bit 24 must be 0)
 
 #if RSPQ_DEBUG
 RSPQ_LOG_IDX:                .long 0
@@ -271,14 +249,18 @@ rspq_execute_command:
 
     .func RSPQ_CheckHighpri
 RSPQ_CheckHighpri:
-    lhu t1, %lo(RSPQ_PRIMODE_STATUS_CHECK)
+    # We need to enter high-pri mode if highpri was requested and it is not
+    # already running (to avoid infinite loops).
     mfc0 t2, COP0_SP_STATUS
-    and t2, t1
-    beqz t2, JrRa
-    nop
+    andi t2, SP_STATUS_SIG_HIGHPRI_REQUESTED | SP_STATUS_SIG_HIGHPRI_RUNNING
+    bne t2, SP_STATUS_SIG_HIGHPRI_REQUESTED, JrRa
+
+    # Switch to highpri mode, calling RSPQCMD_SwapBuffers. We prepare the
+    # argument to switch to the highpri buffer, clears the highpri requested
+    # signal, and set the highpri running signal.
+    li a2, SP_WSTATUS_CLEAR_SIG_HIGHPRI_REQUESTED | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING
     li a0, RSPQ_HIGHPRI_CALL_SLOT<<2
     li a1, RSPQ_LOWPRI_CALL_SLOT<<2
-    li a2, 0
     sub rspq_dmem_buf_ptr, t0
     #fallthrough
     .endfunc
@@ -299,7 +281,7 @@ RSPQ_CheckHighpri:
     #############################################################
     .func RSPQCmd_SwapBuffers
 RSPQCmd_SwapBuffers:
-    sh a2, %lo(RSPQ_PRIMODE_STATUS_CHECK)
+    mtc0 a2, COP0_SP_STATUS
     lw a0, %lo(RSPQ_POINTER_STACK)(a0)
     #fallthrough
     .endfunc    
