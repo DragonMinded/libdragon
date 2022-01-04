@@ -128,17 +128,17 @@ typedef struct samplebuffer_s {
  * Initialize the sample buffer by binding it to the specified memory buffer.
  *
  * The sample buffer is guaranteed to be 8-bytes aligned, so the specified
- * memory buffer must follow this constraints. If the decoder respects 
- * the "wlen" argument passed to WaveformRead callback, the buffer returned
- * by samplbuffer_append will always be 8-byte aligned and thus suitable
- * for DMA transfers. Notice that it's responsibility of the client to flush
- * the cache if the DMA is used.
+ * memory buffer must follow this constraint. Moreover, the buffer must be
+ * in the uncached segment and not loaded in any CPU cacheline. It is
+ * strongly advised to allocate the buffer via #malloc_uncached, that takes
+ * care of these constraints.
  * 
- * @param[in]   buf     Sample buffer
- * @param[in]   mem     Memory buffer to use. Must be 8-byte aligned.
- * @param[in]   size    Size of the memory buffer, in bytes.
+ * @param[in]   buf              Sample buffer
+ * @param[in]   uncached_mem     Memory buffer to use. Must be 8-byte aligned,
+ *                               and in the uncached segment.
+ * @param[in]   size             Size of the memory buffer, in bytes.
  */
-void samplebuffer_init(samplebuffer_t *buf, uint8_t *mem, int size);
+void samplebuffer_init(samplebuffer_t *buf, uint8_t *uncached_mem, int size);
 
 /**
  * @brief Configure the bit width of the samples stored in the buffer.
@@ -205,11 +205,10 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen);
  * "wlen" is the number of samples that the caller will append.
  *
  * The function returns a pointer within the sample buffer where the samples
- * should be written. Notice that since audio samples are normally processed
- * via DMA/RSP, it is responsibility of the caller to actually force a cache
- * writeback (with #data_cache_hit_writeback) in case the samples are written
- * using CPU. In other words, this function expects samples to be written to
- * physical memory, not just CPU cache.
+ * should be written. The samples to be written to physical memory, not just
+ * CPU cache, and to enforce this, the function returns a pointer in the
+ * uncached segment. Most of the times, we expect samples to be generated
+ * or manipulated via RSP/DMA anyway.
  *
  * The function is meant only to "append" samples, as in add samples that are
  * consecutive within the waveform to the ones already stored in the sample
