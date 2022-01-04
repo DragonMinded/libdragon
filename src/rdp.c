@@ -608,8 +608,50 @@ uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mi
  */
 void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int bx, int by, double x_scale, double y_scale,  mirror_t mirror)
 {
-    uint16_t s = cache[texslot & 0x7].s << 5;
-    uint16_t t = cache[texslot & 0x7].t << 5;
+    uint16_t s = cache[texslot & 0x7].s;
+    uint16_t t = cache[texslot & 0x7].t;
+    
+    rdp_draw_textured_rectangle_scaled_text_coord( texslot, tx, ty, bx, by, x_scale, y_scale, s, t, mirror );
+}
+
+/**
+ * @brief Draw a textured rectangle with a scaled texture passing the X and Y position of the texture to draw
+ *
+ * Given an already loaded texture, this function will draw a rectangle textured with the loaded texture
+ * at a scale other than 1.  This allows rectangles to be drawn with stretched or squashed textures.
+ * If the rectangle is larger than the texture after scaling, it will be tiled or mirrored based on the
+ * mirror setting given in the load texture command.
+ * This function allows rectangles to be drawn using parts of the texture loaded on TMEM, regardless of
+ * the setting when creating the sprite.
+ *
+ * Before using this command to draw a textured rectangle, use #rdp_enable_texture_copy to set the RDP
+ * up in texture mode.
+ *
+ * @param[in] texslot
+ *            The texture slot that the texture was previously loaded into (0-7)
+ * @param[in] tx
+ *            The pixel X location of the top left of the rectangle
+ * @param[in] ty
+ *            The pixel Y location of the top left of the rectangle
+ * @param[in] bx
+ *            The pixel X location of the bottom right of the rectangle
+ * @param[in] by
+ *            The pixel Y location of the bottom right of the rectangle
+ * @param[in] x_scale
+ *            Horizontal scaling factor
+ * @param[in] y_scale
+ *            Vertical scaling factor
+ * @param[in] tex_x
+ *            X pixel inside the texture to start drawing (aka S)
+ * @param[in] tex_y
+ *            Y pixel inside the texture to start drawing (aka T)
+ * @param[in] mirror
+ *            Whether the texture should be mirrored
+ */
+void rdp_draw_textured_rectangle_scaled_text_coord( uint32_t texslot, int tx, int ty, int bx, int by, double x_scale, double y_scale, uint32_t tex_x, uint32_t tex_y,  mirror_t mirror )
+{
+    uint16_t s = tex_x << 5;
+    uint16_t t = tex_y << 5;
     uint32_t width = cache[texslot & 0x7].width;
     uint32_t height = cache[texslot & 0x7].height;
    

@@ -74,6 +74,7 @@ uint32_t rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror, s
 uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mirror, sprite_t *sprite, int offset );
 void rdp_draw_textured_rectangle( uint32_t texslot, int tx, int ty, int bx, int by,  mirror_t mirror );
 void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int bx, int by, double x_scale, double y_scale,  mirror_t mirror );
+void rdp_draw_textured_rectangle_scaled_text_coord( uint32_t texslot, int tx, int ty, int bx, int by, double x_scale, double y_scale, uint32_t tex_x, uint32_t tex_y,  mirror_t mirror );
 void rdp_draw_sprite( uint32_t texslot, int x, int y ,  mirror_t mirror);
 void rdp_draw_sprite_scaled( uint32_t texslot, int x, int y, double x_scale, double y_scale,  mirror_t mirror);
 void rdp_set_primitive_color( uint32_t color );

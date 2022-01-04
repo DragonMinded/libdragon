@@ -100,6 +100,9 @@ int main(void)
                 /* Display a stationary sprite of adequate size to fit in TMEM */
                 rdp_draw_sprite( 0, 20, 50, MIRROR_DISABLED );
 
+                /* Draw only a pat of the plane texture */
+                rdp_draw_textured_rectangle_scaled_text_coord( 0, 100, 50, 100 + 16, 50 + 16, 1, 1, 8, 8, MIRROR_DISABLED );
+
                 /* Since the RDP is very very limited in texture memory, we will use the spritemap feature to display
                    all four pieces of this sprite individually in order to use the RDP at all */
                 for( int i = 0; i < 4; i++ )
