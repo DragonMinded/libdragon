@@ -807,4 +807,37 @@ makeLsInstructionQuad store, swv, 0b00111
 #define DMA_OUT          (DMA_OUT_ASYNC | SP_STATUS_DMA_BUSY | SP_STATUS_DMA_FULL)
 
 
+##################################################
+# RSP_ASSERT.INC macros
+##################################################
+
+#ifndef NDEBUG
+    .macro assert code
+        j assertion_failed
+        .set noat
+        lui $1, \code
+        .set at
+    .endm
+    .macro assert_eq v0, v1, code
+        bne \v0, \v1, assertion_failed
+        .set noat
+        lui $1, \code
+        .set at
+    .endm
+    .macro assert_ne v0, v1, code
+        beq \v0, \v1, assertion_failed
+        .set noat
+        lui $1, \code
+        .set at
+    .endm
+
+#else
+    .macro assert code
+    .endm
+    .macro assert_eq v0, v1, code
+    .endm
+    .macro assert_ne v0, v1, code
+    .endm
+#endif
+
 #endif /* RSP_INC */
