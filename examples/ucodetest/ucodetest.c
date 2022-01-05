@@ -44,8 +44,7 @@ int main(void)
 
     rsp_run_async();
 
-    while(1)
-    {
+    RSP_WAIT_LOOP(2000) {
         if (broke) {
             printf("\nbroke");
             printf("\n");
