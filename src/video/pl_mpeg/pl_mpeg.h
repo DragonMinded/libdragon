@@ -1379,9 +1379,7 @@ plm_buffer_t *plm_buffer_create_with_file(FILE *fh, int close_when_done) {
 	
 	fseek(self->fh, 0, SEEK_END);
 	self->total_size = ftell(self->fh);
-	fseek(self->fh, 0, SEEK_SET);
-
-	plm_buffer_set_load_callback(self, plm_buffer_load_file_callback, NULL);
+	fseek(self->fh, 0, SEEK_SET);	plm_buffer_set_load_callback(self, plm_buffer_load_file_callback, NULL);
 	return self;
 }
 
@@ -2625,6 +2623,7 @@ void plm_video_copy_macroblock(plm_video_t *self, plm_frame_t *s, int motion_h, 
 void plm_video_interpolate_macroblock(plm_video_t *self, plm_frame_t *s, int motion_h, int motion_v);
 void plm_video_process_macroblock(plm_video_t *self, uint8_t *s, uint8_t *d, int mh, int mb, int bs, int interp);
 void plm_video_decode_block(plm_video_t *self, int block);
+void plm_video_decode_block_residual(int *s, int si, uint8_t *d, int di, int dw, int n, int intra);
 void plm_video_idct(int *block);
 
 plm_video_t * plm_video_create_with_buffer(plm_buffer_t *buffer, int destroy_when_done) {
@@ -3358,7 +3357,15 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 
 	int *s = self->block_data;
 	int si = 0;
-	if (self->macroblock_intra) {
+	plm_video_decode_block_residual(s, si, d, di, dw, n, self->macroblock_intra);
+
+	PROFILE_STOP(PS_MPEG_MB_DECODE_BLOCK, 0);
+	PROFILE_STOP(PS_MPEG_MB_DECODE, 0);
+}
+
+void plm_video_decode_block_residual(int *s, int si, uint8_t *d, int di, int dw, int n, int intra)
+{
+	if (intra) {
 		// Overwrite (no prediction)
 		if (n == 1) {
 			int clamped = plm_clamp((s[0] + 128) >> 8);
@@ -3368,7 +3375,7 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 		else {
 			plm_video_idct(s);
 			PLM_BLOCK_SET(d, di, dw, si, 8, 8, plm_clamp(s[si]));
-			memset(self->block_data, 0, sizeof(self->block_data));
+			memset(s, 0, 64*sizeof(int));
 		}
 	}
 	else {
@@ -3381,12 +3388,9 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 		else {
 			plm_video_idct(s);
 			PLM_BLOCK_SET(d, di, dw, si, 8, 8, plm_clamp(d[di] + s[si]));
-			memset(self->block_data, 0, sizeof(self->block_data));
+			memset(s, 0, 64*sizeof(int));
 		}
 	}
-
-	PROFILE_STOP(PS_MPEG_MB_DECODE_BLOCK, 0);
-	PROFILE_STOP(PS_MPEG_MB_DECODE, 0);
 }
 
 void plm_video_idct(int *block) {

@@ -8,6 +8,8 @@ COMMAND_TABLE:
 	RSPQ_DefineCommand cmd_mpeg1_load_matrix     4  # 0x50
 	RSPQ_DefineCommand cmd_mpeg1_store_pixels    4  # 0x51
 	RSPQ_DefineCommand cmd_mpeg1_idct            4  # 0x52
+	RSPQ_DefineCommand cmd_mpeg1_set_block       8  # 0x53
+	RSPQ_DefineCommand cmd_mpeg1_decode_block    8  # 0x54
 
 	vsll_data
 	vsll8_data
@@ -18,20 +20,54 @@ COMMAND_TABLE:
 
 	.align 4
 MPEG1_STATE_START:
-IDCT_MATRIX: .dcb.w 64
-IDCT_PIXELS: .dcb.b 64
+IDCT_MATRIX:  .dcb.w    8*8       # 8x8 coefficient matrix
+BLOCK_PIXELS: .dcb.b    8*8       # 8x8 pixels (current block)
+
+RDRAM_BLOCK:   .long     0         # Current block in RDRAM: Luminance
+RDRAM_BLOCK_PITCH: .long   0           # Pitch of the frame in RDRAM (Luminance)
 MPEG1_STATE_END:
 
 	.align 4
 
 IDCT_CONSTS:
-	.half 473<<5
-	.half -196<<5
-	.half 362<<5
-	.half 196<<5
-	.half 0x80
+	.half 473<<5   # e(0)
+	.half -196<<5  # e(1)
+	.half 362<<5   # e(2)
+	.half 196<<5   # e(3)
+	.half 0x80     # e(4)
+	.half 1<<7     # e(5)
+	.half 1<<8     # e(6)
+	.half 255      # e(7)
 
 	.text 1
+
+#define pred0  $v22
+#define pred1  $v23
+#define pred2  $v24
+#define pred3  $v25
+#define pred4  $v26
+#define pred5  $v27
+#define pred6  $v28
+#define pred7  $v29
+#define vshift $v30
+#define vconst $v31
+#define k473   vconst,e(0)
+#define km196  vconst,e(1)
+#define k362   vconst,e(2)
+#define k196   vconst,e(3)
+#define k128   vconst,e(4)
+#define k1u    vconst,e(5)
+#define k2     vconst,e(6)
+#define k255   vconst,e(7)
+
+
+	.func cmd_mpeg1_set_block
+cmd_mpeg1_set_block:
+	li s0, %lo(RDRAM_BLOCK)
+	sw a0, 0(s0)
+	jr ra
+	sw a1, 4(s0)
+	.endfunc
 
 	.func cmd_mpeg1_load_matrix
 cmd_mpeg1_load_matrix:
@@ -46,11 +82,22 @@ cmd_mpeg1_store_pixels:
 	move s0, a0
 	li t0, DMA_SIZE(8*8, 1)
 	j DMAOut
-	li s4, %lo(IDCT_PIXELS)
+	li s4, %lo(BLOCK_PIXELS)
 	.endfunc
 
-	.func cmd_mpeg1_idct
-cmd_mpeg1_idct:
+	.func load_consts
+load_consts:
+	setup_vsll vshift
+	li s1, %lo(IDCT_CONSTS)
+	lqv vconst,0, 0,s1
+	jr ra
+	nop
+	.endfunc
+
+	.func idct
+idct:
+	move ra2, ra
+
 	li s0, %lo(IDCT_MATRIX)
 	lqv $v00,0, 0*16,s0
 	lqv $v01,0, 1*16,s0
@@ -60,19 +107,6 @@ cmd_mpeg1_idct:
 	lqv $v05,0, 5*16,s0
 	lqv $v06,0, 6*16,s0
 	lqv $v07,0, 7*16,s0
-
-#define vzero $v24
-#define k473  $v31,e(0)
-#define km196 $v31,e(1)
-#define k362  $v31,e(2)
-#define k196  $v31,e(3)
-#define k128  $v31,e(4)
-
-	setup_vsll $v30
-
-	li s1, %lo(IDCT_CONSTS)
-	lqv $v31,0, 0,s1
-	vxor vzero, vzero, vzero
 
 	# Transform columns
 	jal mtx_idct_half
@@ -88,7 +122,100 @@ cmd_mpeg1_idct:
 	jal mtx_transpose
 	nop
 
-	# Approximate
+	jr ra2
+	nop
+	.endfunc
+
+	.func add_pred
+add_pred:
+	# Add prediction to residual
+	# The exact formula, assuming fixed 8.8, is:
+	#    clamp_unsigned((PRED + RES + 0x80) >> 8)
+	#
+	# where clamp unsigned is clamping the resulting pixel in both
+	# directions (so to both 0 and 255).
+	# Currently, we have PRED as 0.8.7 (unsigned pixel << 7) and
+	# RES as 8.8 (signed). 
+	# 
+	# The first sequence VMUDN+VMACU is used
+	# to perform the addition with rounding *and* clamping to 0
+	# at the same time. The first VMUDN moves the pixel into the
+	# higher part of the accumulator, while the second VMACU performs
+	# the rounded addition, with clamped result. The two factors
+	# k2 / k1u have been chosen to put both PRED and RES exactly
+	# in bits 16..31 of the accumulator, because the rounding is
+	# added to bit 15.
+	vmulu pred0, pred0, k2
+	vmacu $v00, $v00, k1u
+	vmulu pred1, pred1, k2
+	vmacu $v01, $v01, k1u
+	vmulu pred2, pred2, k2
+	vmacu $v02, $v02, k1u
+	vmulu pred3, pred3, k2
+	vmacu $v03, $v03, k1u
+	vmulu pred4, pred4, k2
+	vmacu $v04, $v04, k1u
+	vmulu pred5, pred5, k2
+	vmacu $v05, $v05, k1u
+	vmulu pred6, pred6, k2
+	vmacu $v06, $v06, k1u
+	vmulu pred7, pred7, k2
+	vmacu $v07, $v07, k1u
+
+	vch $v00, $v00, k255
+	vch $v01, $v01, k255
+	vch $v02, $v02, k255
+	vch $v03, $v03, k255
+	vch $v04, $v04, k255
+	vch $v05, $v05, k255
+	vch $v06, $v06, k255
+	vch $v07, $v07, k255
+
+	vsll $v00, $v00, 7
+	vsll $v01, $v01, 7
+	vsll $v02, $v02, 7
+	vsll $v03, $v03, 7
+	vsll $v04, $v04, 7
+	vsll $v05, $v05, 7
+	vsll $v06, $v06, 7
+	vsll $v07, $v07, 7
+
+store_pixels:
+	# Store as pixels
+	li s0, %lo(BLOCK_PIXELS)
+	suv $v00,0, 0*8,s0
+	suv $v01,0, 1*8,s0
+	suv $v02,0, 2*8,s0
+	suv $v03,0, 3*8,s0
+	suv $v04,0, 4*8,s0
+	suv $v05,0, 5*8,s0
+	suv $v06,0, 6*8,s0
+	suv $v07,0, 7*8,s0
+
+	jr ra
+	nop
+	.endfunc
+
+	.func zero_pred
+zero_pred:
+	vxor pred0, pred0, pred0
+	vxor pred1, pred1, pred1
+	vxor pred2, pred2, pred2
+	vxor pred3, pred3, pred3
+	vxor pred4, pred4, pred4
+	vxor pred5, pred5, pred5
+	vxor pred6, pred6, pred6
+	jr ra
+	vxor pred7, pred7, pred7
+	.endfunc
+
+	.func cmd_mpeg1_idct
+cmd_mpeg1_idct:
+	jal load_consts
+	nop
+	jal idct
+	nop
+
 	vaddc $v00, $v00, k128
 	vaddc $v01, $v01, k128
 	vaddc $v02, $v02, k128
@@ -99,7 +226,7 @@ cmd_mpeg1_idct:
 	vaddc $v07, $v07, k128
 
 	# Store as pixels
-	li s0, %lo(IDCT_PIXELS)
+	li s0, %lo(BLOCK_PIXELS)
 	spv $v00,0, 0*8,s0
 	spv $v01,0, 1*8,s0
 	spv $v02,0, 2*8,s0
@@ -112,6 +239,73 @@ cmd_mpeg1_idct:
 	j RSPQ_Loop
 	nop
 	.endfunc
+
+	.func dma_src_block
+dma_src_block:
+	li s4, %lo(BLOCK_PIXELS)
+	li s0, %lo(RDRAM_BLOCK)
+	lw t1, 4(s0)  # pitch
+	lw s0, 0(s0)  # address
+	j DMAExec
+	li t0, DMA_SIZE(8, 8)
+	.endfunc
+
+	.func cmd_mpeg1_decode_block
+cmd_mpeg1_decode_block:
+	jal load_consts
+	nop
+	# a0 = ncoeffs in matrix (low bytes)
+	# a1 = 1=intra 0=inter
+	andi a0, 0xFF
+	beqz a1, decode_inter
+	addi a0, -1
+
+decode_intra:
+	# Intra frame: prediction is zero
+	jal_and_j zero_pred, decode_step2
+
+decode_inter:
+	# Inter frame: load prediction via DMA
+	jal dma_src_block
+	li t2, DMA_IN
+	luv pred0,0, 0*8,s4
+	luv pred1,0, 1*8,s4
+	luv pred2,0, 2*8,s4
+	luv pred3,0, 3*8,s4
+	luv pred4,0, 4*8,s4
+	luv pred5,0, 5*8,s4
+	luv pred6,0, 6*8,s4
+	luv pred7,0, 7*8,s4
+
+decode_step2:
+	beqz a0, decode_dc_only
+	nop
+
+decode_ac:
+	jal idct
+	nop
+	jal_and_j add_pred, decode_finish
+	
+decode_dc_only:
+	li s4, %lo(IDCT_MATRIX)
+	vxor $v07, $v07, $v07
+	lqv $v00,0, 0,s4
+	vor $v00, $v07, $v00,e(0)
+	vor $v01, $v07, $v00,e(0)
+	vor $v02, $v07, $v00,e(0)
+	vor $v03, $v07, $v00,e(0)
+	vor $v04, $v07, $v00,e(0)
+	vor $v05, $v07, $v00,e(0)
+	vor $v06, $v07, $v00,e(0)
+	vor $v07, $v07, $v00,e(0)
+	jal add_pred
+	nop
+
+decode_finish:
+	li t2, DMA_OUT
+	jal_and_j dma_src_block, RSPQ_Loop
+	.endfunc
+
 
 	.func mtx_transpose
 mtx_transpose:
@@ -148,14 +342,14 @@ mtx_idct_half:
 #define m0    $v00
 #define x4    $v14
 #define x0    $v15
-#define x1    $v16
-#define x2    $v17
-#define x3    $v18
-#define y3    $v19
-#define y4    $v20
-#define y5    $v21
-#define y6    $v22
-#define y7    $v23
+#define x1    $v10   // recycle tmp0
+#define x2    $v11   // recycle tmp1
+#define x3    $v16
+#define y3    $v17
+#define y4    $v18
+#define y5    $v19
+#define y6    $v20
+#define y7    $v21
 
 	# b3 = v2+v6
 	vaddc b3, $v02, $v06
@@ -201,7 +395,8 @@ mtx_idct_half:
 	vmulf y7, b4, k473
 	vmacf y7, b6, k196
 	vaddc y7, y7, x0
-	vsubc y7, vzero, y7
+	vxor $v00, $v00, $v00
+	vsubc y7, $v00, y7
 
 	vaddc $v00, b7, y4
 	vaddc $v01, x4, y3

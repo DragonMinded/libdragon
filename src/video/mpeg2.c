@@ -27,14 +27,24 @@ void rsp_mpeg1_load_matrix(int16_t *mtx) {
 	rspq_write(0x50, PhysicalAddr(mtx));
 }
 
-void rsp_mpeg1_store_pixels(int8_t *mtx) {
-	assert((PhysicalAddr(mtx) & 7) == 0);
-	data_cache_hit_writeback_invalidate(mtx, 8*8);
-	rspq_write(0x51, PhysicalAddr(mtx));
+void rsp_mpeg1_store_pixels(int8_t *pixels) {
+	assert((PhysicalAddr(pixels) & 7) == 0);
+	data_cache_hit_writeback_invalidate(pixels, 8*8);
+	rspq_write(0x51, PhysicalAddr(pixels));
 }
 
 void rsp_mpeg1_idct(void) {
 	rspq_write(0x52);
+}
+
+void rsp_mpeg1_set_block(uint8_t *pixels, int pitch) {
+	for (int i=0;i<8;i++)
+		data_cache_hit_writeback_invalidate(pixels+i*pitch, 8);
+	rspq_write(0x53, PhysicalAddr(pixels), pitch);
+}
+
+void rsp_mpeg1_decode_block(int ncoeffs, bool intra) {
+	rspq_write(0x54, ncoeffs, intra);
 }
 
 #define PL_MPEG_IMPLEMENTATION

@@ -234,6 +234,7 @@ static const struct Testsuite
 	TEST_FUNC(test_ugfx_fill_dmem_buffer,      0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_ugfx_fill_dram_buffer,      0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mpeg1_idct,                 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mpeg1_decode_block,         0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {
