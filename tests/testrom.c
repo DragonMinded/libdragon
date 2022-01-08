@@ -171,6 +171,7 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 #include "test_constructors.c"
 #include "test_rspq.c"
 #include "test_ugfx.c"
+#include "test_mpeg1.c"
 
 /**********************************************************************
  * MAIN
@@ -232,6 +233,7 @@ static const struct Testsuite
 	TEST_FUNC(test_ugfx_dram_buffer,           0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_ugfx_fill_dmem_buffer,      0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_ugfx_fill_dram_buffer,      0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mpeg1_idct,                 0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {
