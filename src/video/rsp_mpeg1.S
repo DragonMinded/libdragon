@@ -6,7 +6,7 @@
 
 COMMAND_TABLE:
 	RSPQ_DefineCommand cmd_mpeg1_load_matrix     4  # 0x50
-	RSPQ_DefineCommand cmd_mpeg1_store_matrix    4  # 0x51
+	RSPQ_DefineCommand cmd_mpeg1_store_pixels    4  # 0x51
 	RSPQ_DefineCommand cmd_mpeg1_idct            4  # 0x52
 
 	vsll_data
@@ -19,6 +19,7 @@ COMMAND_TABLE:
 	.align 4
 MPEG1_STATE_START:
 IDCT_MATRIX: .dcb.w 64
+IDCT_PIXELS: .dcb.b 64
 MPEG1_STATE_END:
 
 	.align 4
@@ -28,7 +29,7 @@ IDCT_CONSTS:
 	.half -196<<5
 	.half 362<<5
 	.half 196<<5
-
+	.half 0x80
 
 	.text 1
 
@@ -40,12 +41,12 @@ cmd_mpeg1_load_matrix:
 	li s4, %lo(IDCT_MATRIX)
 	.endfunc
 
-	.func cmd_mpeg1_store_matrix
-cmd_mpeg1_store_matrix:
+	.func cmd_mpeg1_store_pixels
+cmd_mpeg1_store_pixels:
 	move s0, a0
-	li t0, DMA_SIZE(8*8*2, 1)
+	li t0, DMA_SIZE(8*8, 1)
 	j DMAOut
-	li s4, %lo(IDCT_MATRIX)
+	li s4, %lo(IDCT_PIXELS)
 	.endfunc
 
 	.func cmd_mpeg1_idct
@@ -60,12 +61,83 @@ cmd_mpeg1_idct:
 	lqv $v06,0, 6*16,s0
 	lqv $v07,0, 7*16,s0
 
+#define vzero $v24
+#define k473  $v31,e(0)
+#define km196 $v31,e(1)
+#define k362  $v31,e(2)
+#define k196  $v31,e(3)
+#define k128  $v31,e(4)
+
 	setup_vsll $v30
 
 	li s1, %lo(IDCT_CONSTS)
 	lqv $v31,0, 0,s1
+	vxor vzero, vzero, vzero
 
 	# Transform columns
+	jal mtx_idct_half
+	nop
+
+	jal mtx_transpose
+	nop
+
+	# Transform rows
+	jal mtx_idct_half
+	nop
+
+	jal mtx_transpose
+	nop
+
+	# Approximate
+	vaddc $v00, $v00, k128
+	vaddc $v01, $v01, k128
+	vaddc $v02, $v02, k128
+	vaddc $v03, $v03, k128
+	vaddc $v04, $v04, k128
+	vaddc $v05, $v05, k128
+	vaddc $v06, $v06, k128
+	vaddc $v07, $v07, k128
+
+	# Store as pixels
+	li s0, %lo(IDCT_PIXELS)
+	spv $v00,0, 0*8,s0
+	spv $v01,0, 1*8,s0
+	spv $v02,0, 2*8,s0
+	spv $v03,0, 3*8,s0
+	spv $v04,0, 4*8,s0
+	spv $v05,0, 5*8,s0
+	spv $v06,0, 6*8,s0
+	spv $v07,0, 7*8,s0
+
+	j RSPQ_Loop
+	nop
+	.endfunc
+
+	.func mtx_transpose
+mtx_transpose:
+	stv $v00,0,  0*16,s0
+	stv $v00,2,  1*16,s0
+	stv $v00,4,  2*16,s0
+	stv $v00,6,  3*16,s0
+	stv $v00,8,  4*16,s0
+	stv $v00,10, 5*16,s0
+	stv $v00,12, 6*16,s0
+	stv $v00,14, 7*16,s0
+
+	ltv $v00,14, 1*16,s0
+	ltv $v00,12, 2*16,s0
+	ltv $v00,10, 3*16,s0
+	ltv $v00,8,  4*16,s0
+	ltv $v00,6,  5*16,s0
+	ltv $v00,4,  6*16,s0
+	ltv $v00,2,  7*16,s0
+
+	jr ra
+	nop
+	.endfunc
+
+	.func mtx_idct_half
+mtx_idct_half:
 #define b1    $v04
 #define b3    $v08
 #define b4    $v09
@@ -84,13 +156,7 @@ cmd_mpeg1_idct:
 #define y5    $v21
 #define y6    $v22
 #define y7    $v23
-#define vzero $v24
-#define k473  $v31,e(0)
-#define km196 $v31,e(1)
-#define k362  $v31,e(2)
-#define k196  $v31,e(3)
 
-	vxor vzero, vzero, vzero
 	# b3 = v2+v6
 	vaddc b3, $v02, $v06
 	# b4 = v5-v3
@@ -146,30 +212,7 @@ cmd_mpeg1_idct:
 	vsubc $v06, y3, x4
 	vsubc $v07, y4, b7
 
-	sqv $v00,0, 0*16,s0
-	sqv $v01,0, 1*16,s0
-	sqv $v02,0, 2*16,s0
-	sqv $v03,0, 3*16,s0
-	sqv $v04,0, 4*16,s0
-	sqv $v05,0, 5*16,s0
-	sqv $v06,0, 6*16,s0
-	sqv $v07,0, 7*16,s0
-
-	j RSPQ_Loop
+	jr ra
 	nop
+
 	.endfunc
-
-
- # v0 = v1+v7+v3+v5+v2+v6+v4+v0
- # v1 = lerp((v1-v7)*473, (v5-v3)*196) - (v1+v7+v3+v5) +
- #       (v2-v6)*362 - (v2+v6) +
- #       v0 - v4
- # v2 = x1-x2 - (x4 - (v1+v7-v3-v5)*362) = 
- #      = v0-v4 - (v2-v6)*362 - 
- #      (lerp((v1-v7)*473, (v5-v3)*196) - (v1+v7+v3+v5) - (v1+v7-v3-v5)*362))
- # v3 = y6 - y7 = x3 - b3 + x0 + (b4*473+b6*196) =
- #       v0+v4 -v2-v6  
- #  
- # v4 = y6 + y7 = x3 - b3 - x0 - (b4*473+b6*196)
-#        v0+v4 -v2-v6
-

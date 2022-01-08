@@ -27,9 +27,9 @@ void rsp_mpeg1_load_matrix(int16_t *mtx) {
 	rspq_write(0x50, PhysicalAddr(mtx));
 }
 
-void rsp_mpeg1_store_matrix(int16_t *mtx) {
+void rsp_mpeg1_store_pixels(int8_t *mtx) {
 	assert((PhysicalAddr(mtx) & 7) == 0);
-	data_cache_hit_writeback_invalidate(mtx, 8*8*2);
+	data_cache_hit_writeback_invalidate(mtx, 8*8);
 	rspq_write(0x51, PhysicalAddr(mtx));
 }
 
