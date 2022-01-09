@@ -4,14 +4,15 @@ void test_mpeg1_idct(TestContext *ctx) {
 	rspq_init(); DEFER(rspq_close());
 	rsp_mpeg1_init();
 
-	int16_t matrix1[8*8] __attribute__((aligned(8)));
-	int8_t out1[8*8] __attribute__((aligned(8)));
-	int matrix2[8*8] __attribute__((aligned(8)));
+	int16_t matrix1[8*8] __attribute__((aligned(16)));
+	int8_t out1[8*8] __attribute__((aligned(16)));
+	int16_t matrix2[8*8] __attribute__((aligned(16)));
 
-	for (int n=0;n<256;n++) {	
+	for (int nt=0;nt<256;nt++) {	
 		for (int j=0;j<8;j++) {	
 			for (int i=0;i<8;i++) {
-				matrix1[j*8+i] = matrix2[j*8+i] = RANDN(256)-128;
+				matrix1[j*8+i] = RANDN(256)-128;
+				matrix2[j*8+i] = matrix1[j*8+i];
 			}
 		}
 
@@ -21,7 +22,7 @@ void test_mpeg1_idct(TestContext *ctx) {
 		rspq_sync();
 
 		// Reference implementation
-		extern void plm_video_idct(int *block);
+		extern void plm_video_idct(int16_t *block);
 		plm_video_idct(matrix2);
 
 		for (int j=0;j<8;j++) {	
@@ -40,12 +41,11 @@ void test_mpeg1_decode_block(TestContext *ctx) {
 	int16_t matrix1[8*8] __attribute__((aligned(16)));
 	uint8_t pixels1[8*8] __attribute__((aligned(16)));
 
-	int matrix2[8*8] __attribute__((aligned(16)));
+	int16_t matrix2[8*8] __attribute__((aligned(16)));
 	uint8_t pixels2[8*8] __attribute__((aligned(16)));
 
 	for (int intra=0;intra<2;intra++) {
 		for (int ncoeffs=1;ncoeffs<3;ncoeffs++) {
-			debugf("Starting subtest: %d,%d\n", intra, ncoeffs);
 			for (int nt=0;nt<256;nt++) {	
 				for (int j=0;j<8;j++) {	
 					for (int i=0;i<8;i++) {
@@ -64,7 +64,7 @@ void test_mpeg1_decode_block(TestContext *ctx) {
 				rsp_mpeg1_set_block(pixels1, 8);
 				rsp_mpeg1_decode_block(ncoeffs, intra!=0);
 
-				extern void plm_video_decode_block_residual(int *s, int si, uint8_t *d, int di, int dw, int n, int intra);
+				extern void plm_video_decode_block_residual(int16_t *s, int si, uint8_t *d, int di, int dw, int n, int intra);
 				plm_video_decode_block_residual(matrix2, 0, pixels2, 0, 8, ncoeffs, intra);
 				rspq_sync();
 

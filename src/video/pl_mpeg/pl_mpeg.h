@@ -2593,7 +2593,7 @@ typedef struct plm_video_t {
 
 	uint8_t *frames_data;
 
-	int block_data[64];
+	int16_t block_data[64];
 	uint8_t intra_quant_matrix[64];
 	uint8_t non_intra_quant_matrix[64];
 
@@ -2623,8 +2623,8 @@ void plm_video_copy_macroblock(plm_video_t *self, plm_frame_t *s, int motion_h, 
 void plm_video_interpolate_macroblock(plm_video_t *self, plm_frame_t *s, int motion_h, int motion_v);
 void plm_video_process_macroblock(plm_video_t *self, uint8_t *s, uint8_t *d, int mh, int mb, int bs, int interp);
 void plm_video_decode_block(plm_video_t *self, int block);
-void plm_video_decode_block_residual(int *s, int si, uint8_t *d, int di, int dw, int n, int intra);
-void plm_video_idct(int *block);
+void plm_video_decode_block_residual(int16_t *s, int si, uint8_t *d, int di, int dw, int n, int intra);
+void plm_video_idct(int16_t *block);
 
 plm_video_t * plm_video_create_with_buffer(plm_buffer_t *buffer, int destroy_when_done) {
 	plm_video_t *self = (plm_video_t *)malloc(sizeof(plm_video_t));
@@ -3259,7 +3259,7 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 		self->dc_predictor[plane_index] = self->block_data[0];
 
 		// Dequantize + premultiply
-		self->block_data[0] <<= (3 + 5);
+		self->block_data[0] <<= (3 + 5 - RSP_IDCT_SCALER);
 
 		quant_matrix = self->intra_quant_matrix;
 		n = 1;
@@ -3328,7 +3328,7 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 		}
 
 		// Save premultiplied coefficient
-		self->block_data[de_zig_zagged] = level * PLM_VIDEO_PREMULTIPLIER_MATRIX[de_zig_zagged];
+		self->block_data[de_zig_zagged] = (level * PLM_VIDEO_PREMULTIPLIER_MATRIX[de_zig_zagged]) >> RSP_IDCT_SCALER;
 	}
 	PROFILE_STOP(PS_MPEG_MB_DECODE_AC, 0);
 
@@ -3355,45 +3355,63 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 		di = ((self->mb_row * self->luma_width) << 2) + (self->mb_col << 3);
 	}
 
-	int *s = self->block_data;
+	int16_t *s = self->block_data;
 	int si = 0;
-	plm_video_decode_block_residual(s, si, d, di, dw, n, self->macroblock_intra);
+	if (RSP_MODE == 0) {
+		plm_video_decode_block_residual(s, si, d, di, dw, n, self->macroblock_intra);
+	} else {
+		enum { NUM_BLOCKS = 64 };
+		static int16_t block[NUM_BLOCKS][64] __attribute__((aligned(16)));
+		static int cur_block = 0;
+
+		memcpy(block[cur_block], self->block_data, 16*sizeof(int16_t));
+		if (n == 1)
+			self->block_data[0] = 0;
+		else
+			memset(self->block_data, 0, 64*sizeof(int16_t));
+
+		rsp_mpeg1_load_matrix(block[cur_block]);
+		rsp_mpeg1_set_block(d+di, dw);
+		rsp_mpeg1_decode_block(n, self->macroblock_intra!=0);
+		rspq_flush();
+		cur_block = (cur_block+1) % NUM_BLOCKS;
+	}
 
 	PROFILE_STOP(PS_MPEG_MB_DECODE_BLOCK, 0);
 	PROFILE_STOP(PS_MPEG_MB_DECODE, 0);
 }
 
-void plm_video_decode_block_residual(int *s, int si, uint8_t *d, int di, int dw, int n, int intra)
+void plm_video_decode_block_residual(int16_t *s, int si, uint8_t *d, int di, int dw, int n, int intra)
 {
 	if (intra) {
 		// Overwrite (no prediction)
 		if (n == 1) {
-			int clamped = plm_clamp((s[0] + 128) >> 8);
+			int clamped = plm_clamp((s[0] + (128 >> RSP_IDCT_SCALER)) >> (8 - RSP_IDCT_SCALER));
 			PLM_BLOCK_SET(d, di, dw, si, 8, 8, clamped);
 			s[0] = 0;
 		}
 		else {
 			plm_video_idct(s);
 			PLM_BLOCK_SET(d, di, dw, si, 8, 8, plm_clamp(s[si]));
-			memset(s, 0, 64*sizeof(int));
+			memset(s, 0, 64*sizeof(int16_t));
 		}
 	}
 	else {
 		// Add data to the predicted macroblock
 		if (n == 1) {
-			int value = (s[0] + 128) >> 8;
+			int value = (s[0] + (128 >> RSP_IDCT_SCALER)) >> (8 - RSP_IDCT_SCALER);
 			PLM_BLOCK_SET(d, di, dw, si, 8, 8, plm_clamp(d[di] + value));
 			s[0] = 0;
 		}
 		else {
 			plm_video_idct(s);
 			PLM_BLOCK_SET(d, di, dw, si, 8, 8, plm_clamp(d[di] + s[si]));
-			memset(s, 0, 64*sizeof(int));
+			memset(s, 0, 64*sizeof(int16_t));
 		}
 	}
 }
 
-void plm_video_idct(int *block) {
+void plm_video_idct(int16_t *block) {
 	int
 		b1, b3, b4, b6, b7, tmp1, tmp2, m0,
 		x0, x1, x2, x3, x4, y3, y4, y5, y6, y7;
@@ -3450,14 +3468,14 @@ void plm_video_idct(int *block) {
 		y5 = x1 - x2;
 		y6 = x3 - b3;
 		y7 = -x0 - ((b4 * 473 + b6 * 196 + 128) >> 8);
-		block[0 + i] = (b7 + y4 + 128) >> 8;
-		block[1 + i] = (x4 + y3 + 128) >> 8;
-		block[2 + i] = (y5 - x0 + 128) >> 8;
-		block[3 + i] = (y6 - y7 + 128) >> 8;
-		block[4 + i] = (y6 + y7 + 128) >> 8;
-		block[5 + i] = (x0 + y5 + 128) >> 8;
-		block[6 + i] = (y3 - x4 + 128) >> 8;
-		block[7 + i] = (y4 - b7 + 128) >> 8;
+		block[0 + i] = (b7 + y4 + (128 >> RSP_IDCT_SCALER)) >> (8 - RSP_IDCT_SCALER);
+		block[1 + i] = (x4 + y3 + (128 >> RSP_IDCT_SCALER)) >> (8 - RSP_IDCT_SCALER);
+		block[2 + i] = (y5 - x0 + (128 >> RSP_IDCT_SCALER)) >> (8 - RSP_IDCT_SCALER);
+		block[3 + i] = (y6 - y7 + (128 >> RSP_IDCT_SCALER)) >> (8 - RSP_IDCT_SCALER);
+		block[4 + i] = (y6 + y7 + (128 >> RSP_IDCT_SCALER)) >> (8 - RSP_IDCT_SCALER);
+		block[5 + i] = (x0 + y5 + (128 >> RSP_IDCT_SCALER)) >> (8 - RSP_IDCT_SCALER);
+		block[6 + i] = (y3 - x4 + (128 >> RSP_IDCT_SCALER)) >> (8 - RSP_IDCT_SCALER);
+		block[7 + i] = (y4 - b7 + (128 >> RSP_IDCT_SCALER)) >> (8 - RSP_IDCT_SCALER);
 	}
 
 	PROFILE_STOP(PS_MPEG_MB_DECODE_BLOCK_IDCT, 0);

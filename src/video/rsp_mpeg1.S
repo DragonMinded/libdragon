@@ -1,4 +1,5 @@
 #include "../rspq/rsp_queue.S"
+#include "mpeg1_internal.h"
 
 	.section .data.overlay
 
@@ -30,14 +31,14 @@ MPEG1_STATE_END:
 	.align 4
 
 IDCT_CONSTS:
-	.half 473<<5   # e(0)
-	.half -196<<5  # e(1)
-	.half 362<<5   # e(2)
-	.half 196<<5   # e(3)
-	.half 0x80     # e(4)
-	.half 1<<7     # e(5)
-	.half 1<<8     # e(6)
-	.half 255      # e(7)
+	.half 473<<5                  # e(0)
+	.half -196<<5                 # e(1)
+	.half 362<<5                  # e(2)
+	.half 196<<5                  # e(3)
+	.half 0x80                    # e(4)
+	.half 1<<(7+RSP_IDCT_SCALER)  # e(5)
+	.half 1<<8                    # e(6)
+	.half 255                     # e(7)
 
 	.text 1
 
@@ -129,22 +130,26 @@ idct:
 	.func add_pred
 add_pred:
 	# Add prediction to residual
-	# The exact formula, assuming fixed 8.8, is:
-	#    clamp_unsigned((PRED + RES + 0x80) >> 8)
+	# The exact formula, assuming fixed 16.16, is:
+	#    clamp_unsigned((PRED + RES + 0x8000) >> 16)
 	#
 	# where clamp unsigned is clamping the resulting pixel in both
 	# directions (so to both 0 and 255).
-	# Currently, we have PRED as 0.8.7 (unsigned pixel << 7) and
-	# RES as 8.8 (signed). 
 	# 
-	# The first sequence VMUDN+VMACU is used
-	# to perform the addition with rounding *and* clamping to 0
-	# at the same time. The first VMUDN moves the pixel into the
-	# higher part of the accumulator, while the second VMACU performs
-	# the rounded addition, with clamped result. The two factors
-	# k2 / k1u have been chosen to put both PRED and RES exactly
-	# in bits 16..31 of the accumulator, because the rounding is
-	# added to bit 15.
+	# This sequence VMULU+VMACU is used to perform the addition with rounding
+	# *and* clamping to 0 at the same time. The VMULU moves the PRED into the
+	# higher part of the accumulator and adds the rounding (0x8000),
+	# while the second VMACU moves the RES (residual/pixel) value into the
+	# higher part of the accumulator, does the addition, and perform
+	# the unsigned clamping in range [0, FFFF]. Obviously the higher
+	# range is useless (our pixels are [0..FF]) but at least we get
+	# the clamp towards 0 done, which is very annoying to do with
+	# RSP otherwise.
+	#
+	# The two coefficients (k1u and k2) are basically shift values used
+	# to align both PRED and RES into bits 16..31 of the accumulator. We need
+	# to align them there because that allows us to get the rounding for free
+	# since VMULU adds 0x8000 (bit 15).
 	vmulu pred0, pred0, k2
 	vmacu $v00, $v00, k1u
 	vmulu pred1, pred1, k2
@@ -162,6 +167,7 @@ add_pred:
 	vmulu pred7, pred7, k2
 	vmacu $v07, $v07, k1u
 
+	# Perform clamping towards 0xFF. This one is easy to do with VCH.
 	vch $v00, $v00, k255
 	vch $v01, $v01, k255
 	vch $v02, $v02, k255
@@ -171,6 +177,7 @@ add_pred:
 	vch $v06, $v06, k255
 	vch $v07, $v07, k255
 
+	# Shift back pixels into the correct bits to be stored in memory with SUV
 	vsll $v00, $v00, 7
 	vsll $v01, $v01, 7
 	vsll $v02, $v02, 7
@@ -215,6 +222,17 @@ cmd_mpeg1_idct:
 	nop
 	jal idct
 	nop
+
+	#if RSP_IDCT_SCALER != 0
+	vsll $v00, $v00, RSP_IDCT_SCALER
+	vsll $v01, $v01, RSP_IDCT_SCALER
+	vsll $v02, $v02, RSP_IDCT_SCALER
+	vsll $v03, $v03, RSP_IDCT_SCALER
+	vsll $v04, $v04, RSP_IDCT_SCALER
+	vsll $v05, $v05, RSP_IDCT_SCALER
+	vsll $v06, $v06, RSP_IDCT_SCALER
+	vsll $v07, $v07, RSP_IDCT_SCALER
+	#endif
 
 	vaddc $v00, $v00, k128
 	vaddc $v01, $v01, k128

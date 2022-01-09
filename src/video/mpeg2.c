@@ -7,7 +7,7 @@
 #include "debug.h"
 #include "profile.h"
 #include <assert.h>
-
+#include "mpeg1_internal.h"
 
 #define YUV_MODE   1   // 0=CPU, 1=RSP+RDP, 2=DLAIR
 
@@ -38,6 +38,8 @@ void rsp_mpeg1_idct(void) {
 }
 
 void rsp_mpeg1_set_block(uint8_t *pixels, int pitch) {
+	assert((PhysicalAddr(pixels) & 7) == 0);
+	assert((pitch & 7) == 0);
 	for (int i=0;i<8;i++)
 		data_cache_hit_writeback_invalidate(pixels+i*pitch, 8);
 	rspq_write(0x53, PhysicalAddr(pixels), pitch);
@@ -99,6 +101,8 @@ void mpeg2_open(mpeg2_t *mp2, const char *fn) {
 
 	mp2->v = plm_video_create_with_buffer(mp2->buf, 1);
 	assert(mp2->v);
+
+	rsp_mpeg1_init();
 
 	mpeg2_next_frame(mp2);
 	assert(mp2->f);
