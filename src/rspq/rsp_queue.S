@@ -201,6 +201,7 @@ rspq_execute_command:
     # NOTE: Could be optimised either by doubling the size of command descriptors (so that the command size can be loaded directly instead of having to decode it),
     #       or by storing the command size in the overlay header instead. The latter would mean that all commands in an overlay need to be the same size though.
     srl cmd_size, cmd_desc, 10
+    andi cmd_size, 0x3C
 
     # Check if the command is truncated because of buffer overflow (that is,
     # it finishes beyond the buffer end). If so, we must refetch the buffer
