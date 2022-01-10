@@ -34,7 +34,7 @@ void test_mpeg1_idct(TestContext *ctx) {
 	}
 }
 
-void test_mpeg1_decode_block(TestContext *ctx) {
+void test_mpeg1_block_decode(TestContext *ctx) {
 	rspq_init(); DEFER(rspq_close());
 	rsp_mpeg1_init();
 
@@ -60,9 +60,9 @@ void test_mpeg1_decode_block(TestContext *ctx) {
 					}
 				}
 
+				rsp_mpeg1_block_begin(pixels1, 8);
 				rsp_mpeg1_load_matrix(matrix1);
-				rsp_mpeg1_set_block(pixels1, 8);
-				rsp_mpeg1_decode_block(ncoeffs, intra!=0);
+				rsp_mpeg1_block_decode(ncoeffs, intra!=0);
 
 				extern void plm_video_decode_block_residual(int16_t *s, int si, uint8_t *d, int di, int dw, int n, int intra);
 				plm_video_decode_block_residual(matrix2, 0, pixels2, 0, 8, ncoeffs, intra);
@@ -77,4 +77,51 @@ void test_mpeg1_decode_block(TestContext *ctx) {
 			}
 		}
 	}
+}
+
+
+void test_mpeg1_block_dequant(TestContext *ctx) {
+	static const uint8_t PLM_VIDEO_ZIG_ZAG[] = {
+		 0,  1,  8, 16,  9,  2,  3, 10,
+		17, 24, 32, 25, 18, 11,  4,  5,
+		12, 19, 26, 33, 40, 48, 41, 34,
+		27, 20, 13,  6,  7, 14, 21, 28,
+		35, 42, 49, 56, 57, 50, 43, 36,
+		29, 22, 15, 23, 30, 37, 44, 51,
+		58, 59, 52, 45, 38, 31, 39, 46,
+		53, 60, 61, 54, 47, 55, 62, 63
+	};
+	static const uint8_t PLM_VIDEO_NON_INTRA_QUANT_MATRIX[] = {
+		16, 16, 16, 16, 16, 16, 16, 16,
+		16, 16, 16, 16, 16, 16, 16, 16,
+		16, 16, 16, 16, 16, 16, 16, 16,
+		16, 16, 16, 16, 16, 16, 16, 16,
+		16, 16, 16, 16, 16, 16, 16, 16,
+		16, 16, 16, 16, 16, 16, 16, 16,
+		16, 16, 16, 16, 16, 16, 16, 16,
+		16, 16, 16, 16, 16, 16, 16, 16
+	};
+
+	rspq_init(); DEFER(rspq_close());
+	rsp_mpeg1_init();
+
+	uint8_t pixels1[8*8] __attribute__((aligned(16)));
+	int16_t matrix1[8*8] __attribute__((aligned(16)));
+
+	rsp_mpeg1_set_quant_matrix(true, PLM_VIDEO_NON_INTRA_QUANT_MATRIX);
+
+	rsp_mpeg1_block_begin(pixels1, 8);
+	rsp_mpeg1_block_coeff(0, 45);
+	rsp_mpeg1_block_coeff(1, -45);
+	rsp_mpeg1_block_coeff(8, 1024);
+	rsp_mpeg1_block_coeff(9, -1024);
+	rsp_mpeg1_block_dequant(true, 3);
+	rsp_mpeg1_store_matrix(matrix1);
+	rspq_sync();
+
+	debugf("%d %d %d %d\n", 
+		matrix1[PLM_VIDEO_ZIG_ZAG[0]], 
+		matrix1[PLM_VIDEO_ZIG_ZAG[1]], 
+		matrix1[PLM_VIDEO_ZIG_ZAG[8]], 
+		matrix1[PLM_VIDEO_ZIG_ZAG[9]]);
 }

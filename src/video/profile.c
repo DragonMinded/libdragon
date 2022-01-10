@@ -71,6 +71,9 @@ void profile_dump(void) {
 	DUMP_SLOT(PS_MPEG_MB_DECODE, "      - Decode");
 	DUMP_SLOT(PS_MPEG_MB_DECODE_DC, "        - DC");
 	DUMP_SLOT(PS_MPEG_MB_DECODE_AC, "        - AC");
+	DUMP_SLOT(PS_MPEG_MB_DECODE_AC_VLC, "          - VLC");
+	DUMP_SLOT(PS_MPEG_MB_DECODE_AC_CODE, "          - Code");
+	DUMP_SLOT(PS_MPEG_MB_DECODE_AC_DEQUANT, "          - Dequant");
 	DUMP_SLOT(PS_MPEG_MB_DECODE_BLOCK, "        - Block");
 	DUMP_SLOT(PS_MPEG_MB_DECODE_BLOCK_IDCT, "          - IDCT");
 	DUMP_SLOT(PS_YUV, "YUV Blit");

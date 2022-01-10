@@ -6,6 +6,7 @@
 #include "yuvblit.h"
 #include "debug.h"
 #include "profile.h"
+#include "utils.h"
 #include <assert.h>
 #include "mpeg1_internal.h"
 
@@ -27,6 +28,12 @@ void rsp_mpeg1_load_matrix(int16_t *mtx) {
 	rspq_write(0x50, PhysicalAddr(mtx));
 }
 
+void rsp_mpeg1_store_matrix(int16_t *mtx) {
+	assert((PhysicalAddr(mtx) & 7) == 0);
+	data_cache_hit_writeback_invalidate(mtx, 8*8*2);
+	rspq_write(0x57, PhysicalAddr(mtx));
+}
+
 void rsp_mpeg1_store_pixels(int8_t *pixels) {
 	assert((PhysicalAddr(pixels) & 7) == 0);
 	data_cache_hit_writeback_invalidate(pixels, 8*8);
@@ -37,7 +44,7 @@ void rsp_mpeg1_idct(void) {
 	rspq_write(0x52);
 }
 
-void rsp_mpeg1_set_block(uint8_t *pixels, int pitch) {
+void rsp_mpeg1_block_begin(uint8_t *pixels, int pitch) {
 	assert((PhysicalAddr(pixels) & 7) == 0);
 	assert((pitch & 7) == 0);
 	for (int i=0;i<8;i++)
@@ -45,19 +52,86 @@ void rsp_mpeg1_set_block(uint8_t *pixels, int pitch) {
 	rspq_write(0x53, PhysicalAddr(pixels), pitch);
 }
 
-void rsp_mpeg1_decode_block(int ncoeffs, bool intra) {
-	rspq_write(0x54, ncoeffs, intra);
+void rsp_mpeg1_block_coeff(int idx, int16_t coeff) {
+	rspq_write(0x54, ((idx & 0x3F) << 16) | (uint16_t)coeff);
+}
+
+void rsp_mpeg1_block_dequant(bool intra, int scale) {
+	rspq_write(0x55, (int)intra | (scale << 8));
+}
+
+void rsp_mpeg1_block_decode(int ncoeffs, bool intra) {
+	rspq_write(0x56, ncoeffs, intra);
+}
+
+void rsp_mpeg1_set_quant_matrix(bool intra, const uint8_t quant_mtx[64]) {
+	uint32_t *qmtx = (uint32_t*)quant_mtx;
+	rspq_write(0x58, intra,
+		qmtx[0],  qmtx[1],  qmtx[2],  qmtx[3],
+		qmtx[4],  qmtx[5],  qmtx[6],  qmtx[7]);
+	rspq_write(0x59, intra,
+		qmtx[8],  qmtx[9],  qmtx[10], qmtx[11],
+		qmtx[12], qmtx[13], qmtx[14], qmtx[15]);
 }
 
 #define PL_MPEG_IMPLEMENTATION
 #include "pl_mpeg/pl_mpeg.h"
 
-static void yuv_draw_frame(int width, int height) {
-	static uint8_t interleaved_buffer[320*240*2] __attribute__((aligned(16)));
-	#define YSTART 0
+#define VIDEO_WIDTH 480
+#define VIDEO_HEIGHT 272
+
+enum ZoomMode {
+	ZOOM_NONE,
+	ZOOM_KEEP_ASPECT,
+	ZOOM_FULL
+};
+
+static void yuv_draw_frame(int width, int height, enum ZoomMode mode) {
+	static uint8_t *interleaved_buffer = NULL;
+
+	if (!interleaved_buffer) {
+		interleaved_buffer = malloc_uncached(width*height*2);
+		assert(interleaved_buffer);
+	}
+
+	// Calculate initial Y to center the frame on the screen (letterboxing)
+	int screen_width = display_get_width();
+	int screen_height = display_get_height();
+	int video_width = width;
+	int video_height = height;
+	float scalew = 1.0f, scaleh = 1.0f;
+
+	if (mode != ZOOM_NONE && width < screen_width && height < screen_height) {
+		scalew = (float)screen_width / (float)width;
+		scaleh = (float)screen_height / (float)height;
+		if (mode == ZOOM_KEEP_ASPECT)
+			scalew = scaleh = MIN(scalew, scaleh);
+
+		video_width = width * scalew;
+		video_height = height *scaleh;
+	}
+
+	int xstart = (screen_width - video_width) / 2;
+	int ystart = (screen_height - video_height) / 2;
+
+	// Start clearing the screen
+	rdp_set_default_clipping();
+	if (screen_height > video_height || screen_width > video_width) {
+		rdp_sync_pipe();
+		rdp_set_other_modes(SOM_CYCLE_FILL);
+		rdp_set_fill_color(0);
+		if (screen_height > video_height) {		
+			rdp_fill_rectangle(0, 0, screen_width-1, ystart-1);
+			rdp_fill_rectangle(0, ystart+video_height, screen_width-1, screen_height-1);
+		}
+		if (screen_width > video_width) {
+			rdp_fill_rectangle(0, ystart, xstart+1, ystart+video_height-1);
+			rdp_fill_rectangle(xstart+video_width, ystart, screen_width-1, ystart+video_height-1);			
+		}
+	}
 
 	// RSP YUV converts in blocks of 32x16
-	yuv_set_output_buffer(interleaved_buffer, 320*2);
+	yuv_set_output_buffer(interleaved_buffer, width*2);
 	for (int y=0; y < height; y += 16) {
 		for (int x=0; x < width; x += 32) {
 			yuv_interleave_block_32x16(x, y);
@@ -65,7 +139,8 @@ static void yuv_draw_frame(int width, int height) {
 		rspq_flush();
 	}
 
-	rdp_set_clipping(0, 0, 319, 219);
+	// Configure YUV blitting mode
+	rdp_sync_pipe();
 	rdp_set_other_modes(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_TC_CONV);
 	rdp_set_combine_mode(Comb1_Rgb(TEX0, K4, K5, ZERO));
 
@@ -76,17 +151,25 @@ static void yuv_draw_frame(int width, int height) {
 	rdp_set_tile(RDP_TILE_FORMAT_YUV, RDP_TILE_SIZE_16BIT, BLOCK_W/8, 0, 1, 0,0,0,0,0,0,0,0,0);
 	rdp_set_tile(RDP_TILE_FORMAT_YUV, RDP_TILE_SIZE_16BIT, BLOCK_W/8, 0, 2, 0,0,0,0,0,0,0,0,0);
 	rdp_set_tile(RDP_TILE_FORMAT_YUV, RDP_TILE_SIZE_16BIT, BLOCK_W/8, 0, 3, 0,0,0,0,0,0,0,0,0);
-	rdp_set_texture_image(PhysicalAddr(interleaved_buffer), RDP_TILE_FORMAT_YUV, RDP_TILE_SIZE_16BIT, 320-1);
+	rdp_set_texture_image(PhysicalAddr(interleaved_buffer), RDP_TILE_FORMAT_YUV, RDP_TILE_SIZE_16BIT, width-1);
 
-    for (int y=0;y<height/BLOCK_H;y++) {
-        for (int x=0;x<width/BLOCK_W;x++) {
+	int stepx = (int)(1024.0f / scalew);
+	int stepy = (int)(1024.0f / scaleh);
+	debugf("scalew:%.3f scaleh:%.3f stepx=%x stepy=%x\n", scalew, scaleh, stepx, stepy);
+    for (int y=0;y<height;y+=BLOCK_H) {
+        for (int x=0;x<width;x+=BLOCK_W) {
+        	int sx0 = x * scalew;
+        	int sy0 = y * scaleh;
+        	int sx1 = (x+BLOCK_W) * scalew;
+        	int sy1 = (y+BLOCK_H) * scaleh;
+
             rdp_load_tile(0, 
-            	(x*BLOCK_W)<<2, (y*BLOCK_H)<<2, 
-            	(x*BLOCK_W+BLOCK_W-1)<<2, (y*BLOCK_H+BLOCK_H-1)<<2);
+            	x<<2, y<<2, 
+            	(x+BLOCK_W-1)<<2, (y+BLOCK_H-1)<<2);
             rdp_texture_rectangle(0, 
-            	(x*BLOCK_W)<<2, (y*BLOCK_H+YSTART)<<2, 
-            	(x*BLOCK_W+BLOCK_W)<<2, (y*BLOCK_H+BLOCK_H+YSTART)<<2, 
-            	(x*BLOCK_W)<<5, (y*BLOCK_H)<<5, 1<<10, 1<<10);
+            	(sx0+xstart)<<2, (sy0+ystart)<<2,
+            	(sx1+xstart)<<2, (sy1+ystart)<<2,
+            	x<<5, y<<5, stepx, stepy);
             rdp_sync_tile();
         }
 		rspq_flush();
@@ -119,7 +202,7 @@ void mpeg2_open(mpeg2_t *mp2, const char *fn) {
 		}
 		plm_frame_t *frame = mp2->f;
 		rspq_block_begin();
-		yuv_draw_frame(frame->width, frame->height);
+		yuv_draw_frame(frame->width, frame->height, ZOOM_KEEP_ASPECT);
 		mp2->yuv_convert = rspq_block_end();
 	}
 
@@ -129,38 +212,6 @@ void mpeg2_open(mpeg2_t *mp2, const char *fn) {
 bool mpeg2_next_frame(mpeg2_t *mp2) {
 	mp2->f = plm_video_decode(mp2->v);
 	return (mp2->f != NULL);
-}
-
-void cpu_yuv_interleave(uint8_t *dst, plm_frame_t *src) {
-    uint8_t *sy1 = src->y.data;
-    uint8_t *sy2 = sy1+320;
-    uint8_t *scb = src->cb.data;
-    uint8_t *scr = src->cr.data;
-
-    uint8_t *dst1 = (uint8_t*)dst;
-    uint8_t *dst2 = dst1 + 320*2;
-
-    for (int y=0; y<240; y+=2) {
-        for (int x=0;x<320;x+=2) {
-            uint16_t cb = *scb++;
-            uint16_t cr = *scr++;
-
-            *dst1++ = cb;
-            *dst1++ = *sy1++;
-            *dst1++ = cr;
-            *dst1++ = *sy1++;
-
-            *dst2++ = cb;
-            *dst2++ = *sy2++;
-            *dst2++ = cr;
-            *dst2++ = *sy2++;
-        }
-
-        sy1 += 320;
-        sy2 += 320;
-        dst1 += 320*2;
-        dst2 += 320*2;
-    }
 }
 
 void mpeg2_draw_frame(mpeg2_t *mp2, display_context_t disp) {

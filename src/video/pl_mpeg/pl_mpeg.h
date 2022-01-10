@@ -1560,6 +1560,17 @@ int plm_buffer_has(plm_buffer_t *self, size_t count) {
 	return FALSE;
 }
 
+uint64_t plm_buffer_showbits(plm_buffer_t *self) {
+	if (!plm_buffer_has(self, 64))
+		return 0;
+
+	typedef uint64_t u_uint64_t __attribute__((aligned(1)));
+
+	uint64_t bits = *(u_uint64_t*)&self->bytes[self->bit_index >> 3];
+	bits <<= self->bit_index & 7;
+	return bits;
+}
+
 int plm_buffer_read(plm_buffer_t *self, int count) {
 	if (!plm_buffer_has(self, count)) {
 		return 0;
@@ -1657,12 +1668,23 @@ int plm_buffer_no_start_code(plm_buffer_t *self) {
 	);
 }
 
-int16_t plm_buffer_read_vlc(plm_buffer_t *self, const plm_vlc_t *table) {
+int16_t plm_buffer_read_vlc_bits(plm_buffer_t *self, const plm_vlc_t *table, uint64_t bits) {
 	plm_vlc_t state = {0, 0};
 	do {
-		state = table[state.index + plm_buffer_read(self, 1)];
+		state = table[state.index + (bits >> 63)];
+		bits <<= 1;
+		self->bit_index++;
 	} while (state.index > 0);
 	return state.value;
+}
+
+
+int16_t plm_buffer_read_vlc(plm_buffer_t *self, const plm_vlc_t *table) {
+	return plm_buffer_read_vlc_bits(self, table, plm_buffer_showbits(self));
+}
+
+uint16_t plm_buffer_read_vlc_uint_bits(plm_buffer_t *self, const plm_vlc_uint_t *table, uint64_t bits) {
+	return (uint16_t)plm_buffer_read_vlc_bits(self, (const plm_vlc_t *)table, bits);
 }
 
 uint16_t plm_buffer_read_vlc_uint(plm_buffer_t *self, const plm_vlc_uint_t *table) {
@@ -2815,6 +2837,7 @@ int plm_video_decode_sequence_header(plm_video_t *self) {
 	else {
 		memcpy(self->intra_quant_matrix, PLM_VIDEO_INTRA_QUANT_MATRIX, 64);
 	}
+	rsp_mpeg1_set_quant_matrix(true, self->intra_quant_matrix);
 
 	// Load custom non intra quant matrix?
 	if (plm_buffer_read(self->buffer, 1)) { 
@@ -2826,6 +2849,7 @@ int plm_video_decode_sequence_header(plm_video_t *self) {
 	else {
 		memcpy(self->non_intra_quant_matrix, PLM_VIDEO_NON_INTRA_QUANT_MATRIX, 64);
 	}
+	rsp_mpeg1_set_quant_matrix(false, self->intra_quant_matrix);
 
 	self->mb_width = (self->width + 15) >> 4;
 	self->mb_height = (self->height + 15) >> 4;
@@ -3060,6 +3084,7 @@ void plm_video_decode_macroblock(plm_video_t *self) {
 	}
 
 	// Decode blocks
+	plm_buffer_has(self->buffer, 128*8);
 	int cbp = ((self->macroblock_type & 0x02) != 0)
 		? plm_buffer_read_vlc(self->buffer, PLM_VIDEO_CODE_BLOCK_PATTERN)
 		: (self->macroblock_intra ? 0x3f : 0);
@@ -3269,70 +3294,7 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 	}
 	PROFILE_STOP(PS_MPEG_MB_DECODE_DC, 0);
 
-	// Decode AC coefficients (+DC for non-intra)
-	PROFILE_START(PS_MPEG_MB_DECODE_AC, 0);
-	int level = 0;
-	while (TRUE) {
-		int run = 0;
-		uint16_t coeff = plm_buffer_read_vlc_uint(self->buffer, PLM_VIDEO_DCT_COEFF);
-
-		if ((coeff == 0x0001) && (n > 0) && (plm_buffer_read(self->buffer, 1) == 0)) {
-			// end_of_block
-			break;
-		}
-		if (coeff == 0xffff) {
-			// escape
-			run = plm_buffer_read(self->buffer, 6);
-			level = plm_buffer_read(self->buffer, 8);
-			if (level == 0) {
-				level = plm_buffer_read(self->buffer, 8);
-			}
-			else if (level == 128) {
-				level = plm_buffer_read(self->buffer, 8) - 256;
-			}
-			else if (level > 128) {
-				level = level - 256;
-			}
-		}
-		else {
-			run = coeff >> 8;
-			level = coeff & 0xff;
-			if (plm_buffer_read(self->buffer, 1)) {
-				level = -level;
-			}
-		}
-
-		n += run;
-		if (n < 0 || n >= 64) {
-			fprintf(stderr, "INVALID AC COEFF\n");
-			return; // invalid
-		}
-
-		int de_zig_zagged = PLM_VIDEO_ZIG_ZAG[n];
-		n++;
-
-		// Dequantize, oddify, clip
-		level <<= 1;
-		if (!self->macroblock_intra) {
-			level += (level < 0 ? -1 : 1);
-		}
-		level = (level * self->quantizer_scale * quant_matrix[de_zig_zagged]) >> 4;
-		if ((level & 1) == 0) {
-			level -= level > 0 ? 1 : -1;
-		}
-		if (level > 2047) {
-			level = 2047;
-		}
-		else if (level < -2048) {
-			level = -2048;
-		}
-
-		// Save premultiplied coefficient
-		self->block_data[de_zig_zagged] = (level * PLM_VIDEO_PREMULTIPLIER_MATRIX[de_zig_zagged]) >> RSP_IDCT_SCALER;
-	}
-	PROFILE_STOP(PS_MPEG_MB_DECODE_AC, 0);
-
-	// Move block to its place
+	// Calculate block position
 	PROFILE_START(PS_MPEG_MB_DECODE_BLOCK, 0);
 	uint8_t *d;
 	int dw;
@@ -3354,12 +3316,97 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 		dw = self->chroma_width;
 		di = ((self->mb_row * self->luma_width) << 2) + (self->mb_col << 3);
 	}
+	PROFILE_STOP(PS_MPEG_MB_DECODE_BLOCK, 0);
 
+	rsp_mpeg1_block_begin(d+di, dw);
+	if (n == 1) {
+		rsp_mpeg1_block_coeff(0, self->block_data[0]);
+	}
+
+	// Decode AC coefficients (+DC for non-intra)
+	PROFILE_START(PS_MPEG_MB_DECODE_AC, 0);
+	int level = 0;
+	while (TRUE) {
+		int run = 0;
+		PROFILE_START(PS_MPEG_MB_DECODE_AC_VLC, 0);
+		uint16_t coeff = plm_buffer_read_vlc_uint(self->buffer, PLM_VIDEO_DCT_COEFF);
+		PROFILE_STOP(PS_MPEG_MB_DECODE_AC_VLC, 0);
+
+		PROFILE_START(PS_MPEG_MB_DECODE_AC_CODE, 0);
+		uint64_t bits = plm_buffer_showbits(self->buffer);
+		#define readbits(n) ({ uint64_t val = bits>>(64-n); bits <<= n; self->buffer->bit_index += n; val; })
+
+		if ((coeff == 0x0001) && (n > 0) && (readbits(1) == 0)) {
+			// end_of_block
+			break;
+		}
+		if (coeff == 0xffff) {
+			// escape
+			run = readbits(6);
+			level = readbits(8);
+			if (level == 0) {
+				level = readbits(8);
+			}
+			else if (level == 128) {
+				level = readbits(8) - 256;
+			}
+			else if (level > 128) {
+				level = level - 256;
+			}
+		}
+		else {
+			run = coeff >> 8;
+			level = coeff & 0xff;
+			if (readbits(1)) {
+				level = -level;
+			}
+		}
+
+		n += run;
+		if (n < 0 || n >= 64) {
+			fprintf(stderr, "INVALID AC COEFF\n");
+			return; // invalid
+		}
+		PROFILE_STOP(PS_MPEG_MB_DECODE_AC_CODE, 0);
+		PROFILE_START(PS_MPEG_MB_DECODE_AC_DEQUANT, 0);
+
+		if (RSP_MODE < 2) {
+			int de_zig_zagged = PLM_VIDEO_ZIG_ZAG[n];
+			n++;
+
+			// Dequantize, oddify, clip
+			level <<= 1;
+			if (!self->macroblock_intra) {
+				level += (level < 0 ? -1 : 1);
+			}
+			level = (level * self->quantizer_scale * quant_matrix[de_zig_zagged]) >> 4;
+			if ((level & 1) == 0) {
+				level += level > 0 ? -1 : 1;
+			}
+			if (level > 2047) {
+				level = 2047;
+			}
+			else if (level < -2048) {
+				level = -2048;
+			}
+
+			// Save premultiplied coefficient
+			self->block_data[de_zig_zagged] = (level * PLM_VIDEO_PREMULTIPLIER_MATRIX[de_zig_zagged]) >> RSP_IDCT_SCALER;
+		} else {
+			rsp_mpeg1_block_coeff(n, level);
+			n++;
+		}
+		PROFILE_STOP(PS_MPEG_MB_DECODE_AC_DEQUANT, 0);
+	}
+	PROFILE_STOP(PS_MPEG_MB_DECODE_AC, 0);
+
+	// Move block to its place
+	PROFILE_START(PS_MPEG_MB_DECODE_BLOCK, 1);
 	int16_t *s = self->block_data;
 	int si = 0;
 	if (RSP_MODE == 0) {
 		plm_video_decode_block_residual(s, si, d, di, dw, n, self->macroblock_intra);
-	} else {
+	} else if (RSP_MODE == 1) {
 		enum { NUM_BLOCKS = 64 };
 		static int16_t block[NUM_BLOCKS][64] __attribute__((aligned(16)));
 		static int cur_block = 0;
@@ -3371,13 +3418,16 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 			memset(self->block_data, 0, 64*sizeof(int16_t));
 
 		rsp_mpeg1_load_matrix(block[cur_block]);
-		rsp_mpeg1_set_block(d+di, dw);
-		rsp_mpeg1_decode_block(n, self->macroblock_intra!=0);
+		rsp_mpeg1_block_decode(n, self->macroblock_intra!=0);
 		rspq_flush();
 		cur_block = (cur_block+1) % NUM_BLOCKS;
+	} else if (RSP_MODE == 2) {
+		rsp_mpeg1_block_dequant(self->macroblock_intra, self->quantizer_scale);
+		rsp_mpeg1_block_decode(n, self->macroblock_intra!=0);
+		rspq_flush();
 	}
 
-	PROFILE_STOP(PS_MPEG_MB_DECODE_BLOCK, 0);
+	PROFILE_STOP(PS_MPEG_MB_DECODE_BLOCK, 1);
 	PROFILE_STOP(PS_MPEG_MB_DECODE, 0);
 }
 
