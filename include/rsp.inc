@@ -412,8 +412,6 @@ makeOpInstruction vge, 0b100011
 makeOpInstruction vlt, 0b100000
 /** @brief Vector Multiply-Accumulate of Signed Fractions */
 makeOpInstruction vmacf, 0b001000
-/** @brief Vector Accumulator Oddification */
-makeOpInstruction vmacq, 0b001011
 /** @brief Vector Multiply-Accumulate of Unsigned Fractions */
 makeOpInstruction vmacu, 0b001001
 /** @brief Vector Multiply-Accumulate of High Partial Products */
@@ -460,10 +458,6 @@ makeOpInstruction vrcp, 0b110000
 makeOpInstruction vrcph, 0b110010
 /** @brief Vector Element Scalar Reciprocal (Double Prec. Low) */
 makeOpInstruction vrcpl, 0b110001
-/** @brief Vector Accumulator DCT Rounding (Negative) */
-makeOpInstruction vrndn, 0b001010
-/** @brief Vector Accumulator DCT Rounding (Positive) */
-makeOpInstruction vrndp, 0b000010
 /** @brief Vector Element Scalar SQRT Reciprocal */
 makeOpInstruction vrsq, 0b110100
 /** @brief Vector Element Scalar SQRT Reciprocal (Double Prec. High) */
@@ -526,6 +520,56 @@ makeLsInstructionQuad store, stv, 0b01011
 makeLsInstructionDouble store, suv, 0b00111
 /** @brief Store Wrapped vector from Vector Register */
 makeLsInstructionQuad store, swv, 0b00111
+
+/** @brief Vector Accumulator DCT Rounding (Positive/Negative) 
+  *
+  * These are special vector opcodes that use the RS field
+  * as flag: when 1, the operator is pre-shifted by 16.
+  *
+  * Export them as vrndn16 / vrndp16, so that they can be
+  * used without making mistakes.
+  */
+.macro vrndn vd, vt, element=0
+    .ifgt (\element >> 4)
+        .error "Invalid element"
+        .exitm
+    .endif
+    vectorOp 0b001010, \vd, 0, \vt, \element
+.endm
+.macro vrndn16 vd, vt, element=0
+    .ifgt (\element >> 4)
+        .error "Invalid element"
+        .exitm
+    .endif
+    vectorOp 0b001010, \vd, 1, \vt, \element
+.endm
+.macro vrndp vd, vt, element=0
+    .ifgt (\element >> 4)
+        .error "Invalid element"
+        .exitm
+    .endif
+    vectorOp 0b000010, \vd, 0, \vt, \element
+.endm
+.macro vrndp16 vd, vt, element=0
+    .ifgt (\element >> 4)
+        .error "Invalid element"
+        .exitm
+    .endif
+    vectorOp 0b000010, \vd, 1, \vt, \element
+.endm
+
+/** 
+ * @brief Vector Accumulator Oddification
+ *
+ * This is a MPEG1-specific opcode, that is meant to be
+ * used in sequence with "vmulq". The mnemonic has been chosen
+ * for that reason, but has nothing to do with MAC or even
+ * multiplication. It only accepts a destination register.
+ */
+.macro vmacq vd
+    vectorOp 0b001011, \vd, 0, 0, 0
+.endm
+
 
 .macro mtc2 reg, vreg, element
     hexRegisters
