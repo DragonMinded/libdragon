@@ -2849,7 +2849,7 @@ int plm_video_decode_sequence_header(plm_video_t *self) {
 	else {
 		memcpy(self->non_intra_quant_matrix, PLM_VIDEO_NON_INTRA_QUANT_MATRIX, 64);
 	}
-	rsp_mpeg1_set_quant_matrix(false, self->intra_quant_matrix);
+	rsp_mpeg1_set_quant_matrix(false, self->non_intra_quant_matrix);
 
 	self->mb_width = (self->width + 15) >> 4;
 	self->mb_height = (self->height + 15) >> 4;
