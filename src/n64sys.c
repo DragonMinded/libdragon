@@ -228,6 +228,7 @@ void *malloc_uncached(size_t size)
     // cover full cachelines (aligned to 16 bytes, multiple of 16 bytes).
     size = ROUND_UP(size, 16);
     void *mem = memalign(16, size);
+    if (!mem) return NULL;
 
     // The memory returned by the system allocator could already be partly in
     // cache (eg: it might have been previously used as a normal heap buffer
