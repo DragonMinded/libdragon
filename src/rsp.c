@@ -182,17 +182,6 @@ void rsp_pause(bool pause)
     }
 }
 
-void rsp_ucode_register_assert(rsp_ucode_t *ucode, uint16_t code, const char *msg, void (*crash_handler)(rsp_snapshot_t* state))
-{
-    rsp_assert_t *a = malloc(sizeof(rsp_assert_t));
-    a->code = code;
-    a->msg = msg;
-    a->crash_handler = crash_handler;
-
-    a->next = ucode->asserts;
-    ucode->asserts = a;
-}
-
 /// @cond
 // Check if the RSP has hit an internal assert, and call rsp_crash if so.
 // This function is invoked by #RSP_WAIT_LOOP while waiting for the RSP
@@ -225,6 +214,8 @@ void __rsp_check_assert(const char *file, int line, const char *func)
 __attribute__((noreturn, format(printf, 4, 5)))
 void __rsp_crash(const char *file, int line, const char *func, const char *msg, ...)
 {
+    volatile uint32_t *DP_STATUS = (volatile uint32_t*)0xA410000C;
+
     rsp_snapshot_t state __attribute__((aligned(8)));
     rsp_ucode_t *uc = cur_ucode;
 
@@ -232,10 +223,15 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
     // avoid being preempted for any reason.
     disable_interrupts();
 
-    // Read the status register right away. Its value can mutate at any time
+    // Read the status registers right away. Its value can mutate at any time
     // so the earlier the better.
-    uint32_t status = *SP_STATUS;
+    uint32_t sp_status = *SP_STATUS;
+    uint32_t dp_status = *DP_STATUS;
+    debugf("dp_status: %lx\n", dp_status);
     MEMORY_BARRIER();
+
+    // Freeze the RDP
+    *DP_STATUS = 1<<3;
 
     // Initialize the console
     console_init();
@@ -264,7 +260,8 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
  
     // Overwrite the status register information with the read we did at
     // the beginning of the handler
-    state.cop0[4] = status;
+    state.cop0[4] = sp_status;
+    state.cop0[11] = dp_status;
 
     // Write the PC now so it doesn't get overwritten by the DMA
     state.pc = pc;
@@ -289,53 +286,57 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
     }
 
     // Check if a RSP assert triggered. We check that we reached an
-    // infinite loop with the break instruction, and that AT contains
-    // the special assert code.
+    // infinite loop with the break instruction in the delay slot.
     if (*(uint32_t*)(&state.imem[pc+4]) == 0x00BA000D) {
+        // The at register ($1) contains the assert code in the top 16 bits.
         uint16_t code = state.gpr[1] >> 16;
         printf("RSP ASSERTION FAILED (0x%x)", code);
 
-        // Search if this assert was registered by some overlay
-        rsp_assert_t *a = uc->asserts;
-        while (a && a->code != code)
-            a = a->next;
-        if (a) {
-            if (a->msg)
-                printf(" - %s\n", a->msg);
-            else
-                printf("\n");
-            if (a->crash_handler)
-                a->crash_handler(&state);
+        if (uc->assert_handler) {
+            printf(" - ");
+            uc->assert_handler(&state, code);
         } else {
             printf("\n");
         }
     }
 
-    printf("PC:%03lx | STATUS:%04lx [", state.pc, status);
-    if (status & (1<<0)) printf("halt ");
-    if (status & (1<<1)) printf("broke ");
-    if (status & (1<<2)) printf("dma_busy ");
-    if (status & (1<<3)) printf("dma_full ");
-    if (status & (1<<4)) printf("io_full ");
-    if (status & (1<<5)) printf("sstep ");
-    if (status & (1<<6)) printf("irqbreak ");
-    if (status & (1<<7)) printf("sig0 ");
-    if (status & (1<<8)) printf("sig1 ");
-    if (status & (1<<9)) printf("sig2 ");
-    if (status & (1<<10)) printf("sig3 ");
-    if (status & (1<<11)) printf("sig4 ");
-    if (status & (1<<12)) printf("sig5 ");
-    if (status & (1<<13)) printf("sig6 ");
-    if (status & (1<<14)) printf("sig7 ");
+    printf("PC:%03lx | STATUS:%4lx [", state.pc, sp_status);
+    if (sp_status & (1<<0))  printf("halt ");
+    if (sp_status & (1<<1))  printf("broke ");
+    if (sp_status & (1<<2))  printf("dma_busy ");
+    if (sp_status & (1<<3))  printf("dma_full ");
+    if (sp_status & (1<<4))  printf("io_full ");
+    if (sp_status & (1<<5))  printf("sstep ");
+    if (sp_status & (1<<6))  printf("irqbreak ");
+    if (sp_status & (1<<7))  printf("sig0 ");
+    if (sp_status & (1<<8))  printf("sig1 ");
+    if (sp_status & (1<<9))  printf("sig2 ");
+    if (sp_status & (1<<10)) printf("sig3 ");
+    if (sp_status & (1<<11)) printf("sig4 ");
+    if (sp_status & (1<<12)) printf("sig5 ");
+    if (sp_status & (1<<13)) printf("sig6 ");
+    if (sp_status & (1<<14)) printf("sig7 ");
+    printf("] | DP_STATUS:%4lx [", dp_status);
+    if (dp_status & (1<<0))  printf("xbus ");
+    if (dp_status & (1<<1))  printf("freeze ");
+    if (dp_status & (1<<2))  printf("flush ");
+    if (dp_status & (1<<3))  printf("gclk ");
+    if (dp_status & (1<<4))  printf("tmem ");
+    if (dp_status & (1<<5))  printf("pipe ");
+    if (dp_status & (1<<6))  printf("busy ");
+    if (dp_status & (1<<7))  printf("ready ");
+    if (dp_status & (1<<8))  printf("dma ");
+    if (dp_status & (1<<9))  printf("start ");
+    if (dp_status & (1<<10)) printf("end ");
     printf("]\n");
 
     // Dump GPRs
     printf("-------------------------------------------------GP Registers--\n");
-    printf("zr:%08lX ",  state.gpr[0]); printf("at:%08lX ",  state.gpr[1]);
-    printf("v0:%08lX ",  state.gpr[2]); printf("v1:%08lX ",  state.gpr[3]);
-    printf("a0:%08lX\n", state.gpr[4]); printf("a1:%08lX ",  state.gpr[5]);
-    printf("a2:%08lX ",  state.gpr[6]); printf("a3:%08lX ",  state.gpr[7]);
-    printf("t0:%08lX ",  state.gpr[8]); printf("t1:%08lX\n", state.gpr[9]);
+    printf("zr:%08lX ",  state.gpr[0]);  printf("at:%08lX ",  state.gpr[1]);
+    printf("v0:%08lX ",  state.gpr[2]);  printf("v1:%08lX ",  state.gpr[3]);
+    printf("a0:%08lX\n", state.gpr[4]);  printf("a1:%08lX ",  state.gpr[5]);
+    printf("a2:%08lX ",  state.gpr[6]);  printf("a3:%08lX ",  state.gpr[7]);
+    printf("t0:%08lX ",  state.gpr[8]);  printf("t1:%08lX\n", state.gpr[9]);
     printf("t2:%08lX ",  state.gpr[10]); printf("t3:%08lX ",  state.gpr[11]);
     printf("t4:%08lX ",  state.gpr[12]); printf("t5:%08lX ",  state.gpr[13]);
     printf("t6:%08lX\n", state.gpr[14]); printf("t7:%08lX ",  state.gpr[15]);
@@ -345,17 +346,17 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
     printf("s4:%08lX ",  state.gpr[20]); printf("s5:%08lX ",  state.gpr[21]);
     printf("s6:%08lX\n", state.gpr[22]); printf("s7:%08lX ",  state.gpr[23]);
     printf("gp:%08lX ",  state.gpr[28]); printf("sp:%08lX ",  state.gpr[29]);
-    printf("fp:%08lX ",  state.gpr[30]); printf("ra:%08lX \n", state.gpr[31]);
+    printf("fp:%08lX ",  state.gpr[30]); printf("ra:%08lX\n", state.gpr[31]);
 
     // Dump VPRs, only to the debug log (no space on screen)
     debugf("-------------------------------------------------VP Registers--\n");
     for (int i=0;i<16;i++) {
-        uint16_t *r = state.vpr[i*2];
+        uint16_t *r = state.vpr[i];
         debugf("$v%02d:%04x %04x %04x %04x %04x %04x %04x %04x   ",
-            i*2+0, r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]);
-        r += 8;
+            i, r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]);
+        r += 16*8;
         debugf("$v%02d:%04x %04x %04x %04x %04x %04x %04x %04x\n",
-            i*2+1, r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]);
+            i+16, r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]);
     }
     {        
         uint16_t *r = state.vaccum[0];
@@ -371,22 +372,22 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
 
     // Dump COP0 registers
     printf("-----------------------------------------------COP0 Registers--\n");
-    printf("$c0  DMA_SPADDR    %08lx    |  ", *((volatile uint32_t*)0xA4040000));
-    printf("$c8  DP_START      %08lx\n", *((volatile uint32_t*)0xA4100000));
-    printf("$c1  DMA_RAMADDR   %08lx    |  ", *((volatile uint32_t*)0xA4040004));
-    printf("$c9  DP_END        %08lx\n", *((volatile uint32_t*)0xA4100004));
-    printf("$c2  DMA_READ      %08lx    |  ", *((volatile uint32_t*)0xA4040008));
-    printf("$c10 DP_CURRENT    %08lx\n", *((volatile uint32_t*)0xA4100008));
-    printf("$c3  DMA_WRITE     %08lx    |  ", *((volatile uint32_t*)0xA404000C));
-    printf("$c11 DP_STATUS     %08lx\n", *((volatile uint32_t*)0xA410000C));
-    printf("$c4  SP_STATUS     %08lx    |  ", *((volatile uint32_t*)0xA4040010));
-    printf("$c12 DP_CLOCK      %08lx\n", *((volatile uint32_t*)0xA4100010));
-    printf("$c5  DMA_FULL      %08lx    |  ", *((volatile uint32_t*)0xA4040014));
-    printf("$c13 DP_BUSY       %08lx\n", *((volatile uint32_t*)0xA4100014));
-    printf("$c6  DMA_BUSY      %08lx    |  ", *((volatile uint32_t*)0xA4040018));
-    printf("$c14 DP_PIPE_BUSY  %08lx\n", *((volatile uint32_t*)0xA4100018));
-    printf("$c7  SEMAPHORE     %08lx    |  ", *((volatile uint32_t*)0xA404001C));
-    printf("$c15 DP_TMEM_BUSY  %08lx\n", *((volatile uint32_t*)0xA410001C));
+    printf("$c0  DMA_SPADDR    %08lx    |  ", state.cop0[0]);
+    printf("$c8  DP_START      %08lx\n",      state.cop0[8]);
+    printf("$c1  DMA_RAMADDR   %08lx    |  ", state.cop0[1]);
+    printf("$c9  DP_END        %08lx\n",      state.cop0[9]);
+    printf("$c2  DMA_READ      %08lx    |  ", state.cop0[2]);
+    printf("$c10 DP_CURRENT    %08lx\n",      state.cop0[10]);
+    printf("$c3  DMA_WRITE     %08lx    |  ", state.cop0[3]);
+    printf("$c11 DP_STATUS     %08lx\n",      state.cop0[11]);
+    printf("$c4  SP_STATUS     %08lx    |  ", state.cop0[4]);
+    printf("$c12 DP_CLOCK      %08lx\n",      state.cop0[12]);
+    printf("$c5  DMA_FULL      %08lx    |  ", state.cop0[5]);
+    printf("$c13 DP_BUSY       %08lx\n",      state.cop0[13]);
+    printf("$c6  DMA_BUSY      %08lx    |  ", state.cop0[6]);
+    printf("$c14 DP_PIPE_BUSY  %08lx\n",      state.cop0[14]);
+    printf("$c7  SEMAPHORE     %08lx    |  ", state.cop0[7]);
+    printf("$c15 DP_TMEM_BUSY  %08lx\n",      state.cop0[15]);
 
     // Invoke ucode-specific crash handler, if defined. This will dump ucode-specific
     // information (possibly decoded from DMEM).
@@ -396,11 +397,13 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
     }
 
     // Full dump of DMEM into the debug log.
-    uint8_t zero[16] = {0}; bool lineskip = false;
+    bool lineskip = false;
     debugf("DMEM:\n");
     for (int i = 0; i < 4096/16; i++) {
         uint8_t *d = state.dmem + i*16;
-        if (memcmp(d, zero, 16) == 0) {
+        // If the current line of data is identical to the previous one,
+        // just dump one "*" and skip all other similar lines
+        if (i!=0 && memcmp(d, d-16, 16) == 0) {
             if (!lineskip) debugf("*\n");
             lineskip = true;
         } else {

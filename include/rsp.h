@@ -121,28 +121,6 @@ typedef struct {
 } rsp_snapshot_t;
 
 /**
- * @brief An assert registered into the RSP crash handler.
- * 
- * This library has a simple support for "RSP assert messages". It is possible
- * for ucode to register assert codes that can be raised when something
- * goes wrong in the RSP. The assert codes and messages will be displayed
- * in the crash screen.
- * 
- * Asserts can also have custom crash handlers registered, that
- * are invoked when they are raised, to display assert-specific
- * information on screen (decoding information from a #rsp_snapshot_t
- * state).
- * 
- * @see #rsp_ucode_register_assert
- */
-typedef struct rsp_assert_s {
-    uint16_t code;                                 ///< Assertion code
-    const char *msg;                               ///< Assertion message (optional)
-    void (*crash_handler)(rsp_snapshot_t *state);  ///< Crash handler (optional)
-    struct rsp_assert_s *next;                     ///< Link to next defined assertion
-} rsp_assert_t;
-
-/**
  * @brief RSP ucode definition.
  * 
  * This small structure holds the text/data pointers to a RSP ucode program
@@ -171,11 +149,24 @@ typedef struct {
     void (*crash_handler)(rsp_snapshot_t *state);
 
     /**
-     * @brief Assert messages used by this ucode
+     * @brief Custom assert handler.
      * 
-     * @see #rsp_ucode_register_assert
+     * If specified, this function is invoked when a RSP crash caused
+     * by an assert is triggered. This function should display information
+     * related to the assert using `printf` (max 2 lines).
+     * 
+     * Normally, the first line will be the assert message associated with
+     * the code (eg: "Invalid buffer pointer"), while the optional second line 
+     * can contain a dump of a few important variables, maybe extracted from
+     * the register state (eg: "bufptr=0x00000000 prevptr=0x8003F780").
+     * The assert handler will now which registers to inspect to extract
+     * information, given the exact position of the assert in the code.
+     * 
+     * @note The crash handler, if specified, is called for all crashes,
+     * including asserts. That is the correct place where dump information
+     * on the ucode state in general.
      */
-    rsp_assert_t *asserts;
+    void (*assert_handler)(rsp_snapshot_t *state, uint16_t assert_code);
 } rsp_ucode_t;
 
 /**
@@ -209,7 +200,8 @@ typedef struct {
         .data = ucode_name ## _data_start, \
         .code_end = ucode_name ## _text_end, \
         .data_end = ucode_name ## _data_end, \
-        .name = #ucode_name, .start_pc = 0, .crash_handler = 0, .asserts = 0, \
+        .name = #ucode_name, .start_pc = 0, \
+        .crash_handler = 0, .assert_handler = 0, \
         __VA_ARGS__ \
     }
 
@@ -392,38 +384,6 @@ void rsp_pause(bool pause);
     for (uint32_t __t = TICKS_READ() + TICKS_FROM_MS(timeout_ms); \
          TICKS_BEFORE(TICKS_READ(), __t) || (rsp_crashf("wait loop timed out (%d ms)", timeout_ms), false); \
          __rsp_check_assert(__FILE__, __LINE__, __func__))
-
-
-/**
- * @brief Register an assert used by the specified ucode.
- * 
- * This library has a simple support for "RSP assert messages". Each ucode
- * can register multiple assert codes that can be raised when something
- * goes wrong in the RSP code using the assert macros defined in rsp.inc.
- * The assert codes and messages will be displayed in the RSP crash
- * screen that is shown when then macro is called on the RSP, and rsp_crash
- * 
- * Asserts can also have custom crash handlers registered, that
- * are invoked when they are raised, to display assert-specific
- * information on screen (decoding information from a #rsp_snapshot_t
- * state).
- * 
- * To avoid conflicts with assert codes, overlays are expected to
- * respect the same convention of command IDs (top 4 bits should be
- * the overlay ID, and the bottom 4 bits are free for registering
- * 16 different assert codes).
- * 
- * @param       ucode          The ucode for which the assert will be registered
- * @param       code           The assert code to register (top 4 bits
- *                             should be the same of overlay ID).
- * @param       msg            Assert message description that will be
- *                             displayed on screen.
- * @param       crash_handler  Optional crash handler that will be invoked
- *                             when the assert is raised (can be NULL).
- */
-void rsp_ucode_register_assert(rsp_ucode_t *ucode, uint16_t code, const char *msg,
-    void (*crash_handler)(rsp_snapshot_t *state));
-
 
 static inline __attribute__((deprecated("use rsp_load_code instead")))
 void load_ucode(void * start, unsigned long size) {
