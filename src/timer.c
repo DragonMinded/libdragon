@@ -19,10 +19,10 @@
  *
  * Before attempting to use the timer subsystem, code should call #timer_init.
  * After the timer subsystem has been initialized, a new one-shot or
- * continuous timer can be created with #new_timer.  To remove an expired
+ * continuous timer can be created with #new_timer2.  To remove an expired
  * one-shot timer or a recurring timer, use #delete_timer.  To temporarily
  * stop a timer, use #stop_timer.  To restart a stopped timer or an expired
- * one-shot timer, use #start_timer.  Once code no longer needs the timer
+ * one-shot timer, use #start_timer2.  Once code no longer needs the timer
  * subsystem, a call to #timer_close will free all continuous timers and shut
  * down the timer subsystem.  Note that timers removed with #stop_timer or
  * expired one-short timers will not be removed automatically and are the
