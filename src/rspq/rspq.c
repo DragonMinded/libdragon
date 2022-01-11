@@ -307,10 +307,12 @@ _Static_assert((RSPQ_CMD_TEST_WRITE_STATUS & 1) == 0);
 })
 
 static void rspq_crash_handler(rsp_snapshot_t *state);
+static void rspq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code);
 
 /** The RSPQ ucode */
 DEFINE_RSP_UCODE(rsp_queue, 
-    .crash_handler = rspq_crash_handler);
+    .crash_handler = rspq_crash_handler,
+    .assert_handler = rspq_assert_handler);
 
 /** 
  * @brief The header of the overlay in DMEM.
@@ -490,19 +492,29 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
     }
 }
 
-/** @brief Special RSP assert handler for ASSERT_INVALID_COMMAND */
-static void rspq_assert_invalid_command(rsp_snapshot_t *state)
+/** @brief Special RSPQ assert handler*/
+static void rspq_assert_handler(rsp_snapshot_t *state, uint16_t code)
 {
     rsp_queue_t *rspq = (rsp_queue_t*)state->dmem;
-    uint32_t dmem_buffer = RSPQ_DEBUG ? 0x140 : 0x100;
-    uint32_t cur = dmem_buffer + state->gpr[28];
-    printf("Command %02x not found in overlay %02x\n", state->dmem[cur], rspq->current_ovl / sizeof(rspq_overlay_t));
-}
 
-/** @brief Special RSP assert handler for ASSERT_INVALID_OVERLAY */
-static void rspq_assert_invalid_overlay(rsp_snapshot_t *state)
-{
-    printf("Overlay %02lx not registered\n", state->gpr[8]);
+    switch (code) {
+        case ASSERT_INVALID_COMMAND: {
+            printf("Invalid command\n");
+            uint32_t dmem_buffer = RSPQ_DEBUG ? 0x140 : 0x100;
+            uint32_t cur = dmem_buffer + state->gpr[28];
+            printf("Command %02x not found in overlay %02x\n", state->dmem[cur], rspq->current_ovl / sizeof(rspq_overlay_t));
+            break;
+        }
+        case ASSERT_INVALID_OVERLAY: {
+            printf("Invalid overlay\n");
+            printf("Overlay %02lx not registered\n", state->gpr[8]);
+            break;
+        }
+        default: {
+            printf("Unknown assertion\n");
+            break;
+        }
+    }
 }
 
 /** @brief Switch current queue context (used to switch between highpri and lowpri) */
@@ -637,10 +649,6 @@ void rspq_init(void)
     // Init blocks
     rspq_block = NULL;
     rspq_is_running = false;
-
-    // Register asserts
-    rsp_ucode_register_assert(&rsp_queue, ASSERT_INVALID_OVERLAY, "Invalid overlay", rspq_assert_invalid_overlay);
-    rsp_ucode_register_assert(&rsp_queue, ASSERT_INVALID_COMMAND, "Invalid command", rspq_assert_invalid_command);
 
     // Activate SP interrupt (used for syncpoints)
     register_SP_handler(rspq_sp_interrupt);
