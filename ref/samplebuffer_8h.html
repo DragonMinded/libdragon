@@ -103,8 +103,8 @@ Typedefs</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:a87e66b9784ce35ce731eff114efc3d89"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="samplebuffer_8h.html#a87e66b9784ce35ce731eff114efc3d89">samplebuffer_init</a> (<a class="el" href="samplebuffer_8h.html#structsamplebuffer__t">samplebuffer_t</a> *buf, uint8_t *mem, int size)</td></tr>
-<tr class="separator:a87e66b9784ce35ce731eff114efc3d89"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:adf77cdfe9be45e76b4065900733186f2"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="samplebuffer_8h.html#adf77cdfe9be45e76b4065900733186f2">samplebuffer_init</a> (<a class="el" href="samplebuffer_8h.html#structsamplebuffer__t">samplebuffer_t</a> *buf, uint8_t *uncached_mem, int size)</td></tr>
+<tr class="separator:adf77cdfe9be45e76b4065900733186f2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab36c29dc062a982b02d90c8515121b9a"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="samplebuffer_8h.html#ab36c29dc062a982b02d90c8515121b9a">samplebuffer_set_bps</a> (<a class="el" href="samplebuffer_8h.html#structsamplebuffer__t">samplebuffer_t</a> *buf, int bps)</td></tr>
 <tr class="memdesc:ab36c29dc062a982b02d90c8515121b9a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Configure the bit width of the samples stored in the buffer.  <a href="samplebuffer_8h.html#ab36c29dc062a982b02d90c8515121b9a">More...</a><br /></td></tr>
 <tr class="separator:ab36c29dc062a982b02d90c8515121b9a"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -310,7 +310,7 @@ wv_read</td>
 
 <p>Append samples into the buffer (zero-copy). </p>
 <p>"wlen" is the number of samples that the caller will append.</p>
-<p>The function returns a pointer within the sample buffer where the samples should be written. Notice that since audio samples are normally processed via DMA/RSP, it is responsibility of the caller to actually force a cache writeback (with <a class="el" href="group__n64sys.html#gacc2164dd0c39d2d949291bb9b2379c0f" title="Force a data cache writeback over a memory region.">data_cache_hit_writeback</a>) in case the samples are written using CPU. In other words, this function expects samples to be written to physical memory, not just CPU cache.</p>
+<p>The function returns a pointer within the sample buffer where the samples should be written. The samples to be written to physical memory, not just CPU cache, and to enforce this, the function returns a pointer in the uncached segment. Most of the times, we expect samples to be generated or manipulated via RSP/DMA anyway.</p>
 <p>The function is meant only to "append" samples, as in add samples that are consecutive within the waveform to the ones already stored in the sample buffer. This is necessary because <a class="el" href="samplebuffer_8h.html#structsamplebuffer__t">samplebuffer_t</a> can only store a single range of samples of the waveform; there is no way to hold two disjoint ranges.</p>
 <p>For instance, if the sample buffer currently contains 50 samples starting from position 100 in the waverform, the next call to samplebuffer_append will append samples starting at 150.</p>
 <p>If required, samplebuffer_append will discard older samples to make space for the new ones, through <a class="el" href="samplebuffer_8h.html#af577070f844a4ab787911a647bf51f22">samplebuffer_discard</a>. It will only discard samples that come before the "wpos" specified in the last <a class="el" href="samplebuffer_8h.html#ab2cf8a4f0ba1e071e84db31b83427994" title="Get a pointer to specific set of samples in the buffer (zero-copy).">samplebuffer_get</a> call, so to make sure that nothing required for playback is discarded. If there is not enough space in the buffer, it will assert.</p>
@@ -462,8 +462,8 @@ wv_read</td>
 
 </div>
 </div>
-<a id="a87e66b9784ce35ce731eff114efc3d89"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a87e66b9784ce35ce731eff114efc3d89">&#9670;&nbsp;</a></span>samplebuffer_init()</h2>
+<a id="adf77cdfe9be45e76b4065900733186f2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#adf77cdfe9be45e76b4065900733186f2">&#9670;&nbsp;</a></span>samplebuffer_init()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -478,7 +478,7 @@ wv_read</td>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">uint8_t *&#160;</td>
-          <td class="paramname"><em>mem</em>, </td>
+          <td class="paramname"><em>uncached_mem</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
@@ -494,11 +494,11 @@ wv_read</td>
       </table>
 </div><div class="memdoc">
 <p>Initialize the sample buffer by binding it to the specified memory buffer.</p>
-<p>The sample buffer is guaranteed to be 8-bytes aligned, so the specified memory buffer must follow this constraints. If the decoder respects the "wlen" argument passed to WaveformRead callback, the buffer returned by samplbuffer_append will always be 8-byte aligned and thus suitable for DMA transfers. Notice that it's responsibility of the client to flush the cache if the DMA is used.</p>
+<p>The sample buffer is guaranteed to be 8-bytes aligned, so the specified memory buffer must follow this constraint. Moreover, the buffer must be in the uncached segment and not loaded in any CPU cacheline. It is strongly advised to allocate the buffer via <a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a" title="Allocate a buffer that will be accessed as uncached memory.">malloc_uncached</a>, that takes care of these constraints.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">buf</td><td>Sample buffer </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">mem</td><td>Memory buffer to use. Must be 8-byte aligned. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">uncached_mem</td><td>Memory buffer to use. Must be 8-byte aligned, and in the uncached segment. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">size</td><td>Size of the memory buffer, in bytes. </td></tr>
   </table>
   </dd>
@@ -591,7 +591,7 @@ wv_read</td>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Jan 5 2022 14:27:15 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
+Generated on Tue Jan 11 2022 00:41:19 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
 </small></address>
 </body>
 </html>

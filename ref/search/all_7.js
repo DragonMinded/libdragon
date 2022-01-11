@@ -23,12 +23,13 @@ var searchData=
   ['format_5fmempak_383',['format_mempak',['../group__mempak.html#ga14df2d1b0aeb7436cabd95294eb29b9f',1,'mempak.c']]],
   ['fpr_384',['fpr',['../group__exceptions.html#acdf873009f0ee9fd6d8ff31029fd51d8',1,'reg_block_t']]],
   ['framebuffer_385',['framebuffer',['../group__lowlevel.html#a66da76122e1adc2a3c3994ec410b2c8e',1,'VI_regs_t']]],
-  ['freq_386',['freq',['../structwav64__header__t.html#a8e3bcb1d56422423ed0b61ab40d2bfb3',1,'wav64_header_t']]],
-  ['frequency_387',['frequency',['../mixer_8h.html#abf0009a0d23a1c1f93e21d64d7d18027',1,'waveform_t']]],
-  ['fs_388',['fs',['../group__system.html#a97474076859ee78d8a726ee9ca7a6d82',1,'fs_mapping_t']]],
-  ['fs_5fhandle_5ft_389',['fs_handle_t',['../group__system.html#structfs__handle__t',1,'']]],
-  ['fs_5fmapping_390',['fs_mapping',['../group__system.html#a984ea58ce3fa03cd2585813a3eb59f80',1,'fs_handle_t']]],
-  ['fs_5fmapping_5ft_391',['fs_mapping_t',['../group__system.html#structfs__mapping__t',1,'']]],
-  ['fstat_392',['fstat',['../structfilesystem__t.html#a57af83b0f926cbd4779eb400fc2b7398',1,'filesystem_t::fstat()'],['../group__system.html#gad10a66a0359c37d910312be74233118a',1,'fstat(int fildes, struct stat *st):&#160;system.c']]],
-  ['func_5fptr_393',['func_ptr',['../group__system.html#ga3c06233410074f1dbb8b3eebef3a7847',1,'do_ctors.c']]]
+  ['free_5funcached_386',['free_uncached',['../group__n64sys.html#gad7eb2952f66b4c6158a161eddc6f6a7d',1,'n64sys.c']]],
+  ['freq_387',['freq',['../structwav64__header__t.html#a8e3bcb1d56422423ed0b61ab40d2bfb3',1,'wav64_header_t']]],
+  ['frequency_388',['frequency',['../mixer_8h.html#abf0009a0d23a1c1f93e21d64d7d18027',1,'waveform_t']]],
+  ['fs_389',['fs',['../group__system.html#a97474076859ee78d8a726ee9ca7a6d82',1,'fs_mapping_t']]],
+  ['fs_5fhandle_5ft_390',['fs_handle_t',['../group__system.html#structfs__handle__t',1,'']]],
+  ['fs_5fmapping_391',['fs_mapping',['../group__system.html#a984ea58ce3fa03cd2585813a3eb59f80',1,'fs_handle_t']]],
+  ['fs_5fmapping_5ft_392',['fs_mapping_t',['../group__system.html#structfs__mapping__t',1,'']]],
+  ['fstat_393',['fstat',['../structfilesystem__t.html#a57af83b0f926cbd4779eb400fc2b7398',1,'filesystem_t::fstat()'],['../group__system.html#gad10a66a0359c37d910312be74233118a',1,'fstat(int fildes, struct stat *st):&#160;system.c']]],
+  ['func_5fptr_394',['func_ptr',['../group__system.html#ga3c06233410074f1dbb8b3eebef3a7847',1,'do_ctors.c']]]
 ];
