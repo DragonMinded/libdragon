@@ -34,8 +34,8 @@ typedef struct timer_link
     int flags;
     /** @brief Callback function to call when timer fires */
     union {
-        timer_callback1_t callback1;
-        timer_callback2_t callback2;
+        timer_callback1_t callback;
+        timer_callback2_t callback_with_context;
     };
     /** @brief Callback context parameter */
     void *ctx;

@@ -114,10 +114,10 @@ static int __proc_timers(timer_link_t * thead)
 			head->ovfl = TICKS_DISTANCE(head->left, now);
 
 			/* invoke the appropriate callback function */
-			if (head->flags & TF_CONTEXT && head->callback2)
-				head->callback2(head->ovfl, head->ctx);
-			else if (head->callback1)
-				head->callback1(head->ovfl);
+			if (head->flags & TF_CONTEXT && head->callback_with_context)
+				head->callback_with_context(head->ovfl, head->ctx);
+			else if (head->callback)
+				head->callback(head->ovfl);
 
 			/* reset ticks if continuous */
 			if (head->flags & TF_CONTINUOUS)
@@ -217,7 +217,7 @@ void timer_init(void)
 		timer->left = 0;
 		timer->set = 0;
 		timer->flags = TF_CONTINUOUS | TF_OVERFLOW;
-		timer->callback1 = timer_overflow_callback;
+		timer->callback = timer_overflow_callback;
 		timer->ctx = NULL;
 		timer->next = NULL;
 
@@ -257,7 +257,7 @@ timer_link_t *new_timer(int ticks, int flags, timer_callback1_t callback)
 		timer->left = TICKS_READ() + (int32_t)ticks;
 		timer->set = ticks;
 		timer->flags = flags;
-		timer->callback1 = callback;
+		timer->callback = callback;
 		timer->ctx = NULL;
 
 		if (flags & TF_DISABLED)
@@ -297,7 +297,7 @@ timer_link_t *new_timer_context(int ticks, int flags, timer_callback2_t callback
 		timer->left = TICKS_READ() + (int32_t)ticks;
 		timer->set = ticks;
 		timer->flags = flags | TF_CONTEXT;
-		timer->callback2 = callback;
+		timer->callback_with_context = callback;
 		timer->ctx = ctx;
 
 		if (flags & TF_DISABLED)
@@ -334,7 +334,7 @@ void start_timer(timer_link_t *timer, int ticks, int flags, timer_callback1_t ca
 		timer->left = TICKS_READ() + (int32_t)ticks;
 		timer->set = ticks;
 		timer->flags = flags;
-		timer->callback1 = callback;
+		timer->callback = callback;
 		timer->ctx = NULL;
 
 		if (flags & TF_DISABLED)
@@ -372,7 +372,7 @@ void start_timer_context(timer_link_t *timer, int ticks, int flags, timer_callba
 		timer->left = TICKS_READ() + (int32_t)ticks;
 		timer->set = ticks;
 		timer->flags = flags | TF_CONTEXT;
-		timer->callback2 = callback;
+		timer->callback_with_context = callback;
 		timer->ctx = ctx;
 
 		if (flags & TF_DISABLED)
