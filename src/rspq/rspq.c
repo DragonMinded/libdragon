@@ -332,6 +332,9 @@ typedef struct rspq_block_s {
     uint32_t cmds[];            ///< Block contents (commands)
 } rspq_block_t;
 
+/** @brief RSPQ overlays */
+rsp_ucode_t *rspq_overlay_ucodes[RSPQ_MAX_OVERLAY_COUNT];
+
 /** @brief A RSPQ overlay ucode. This is similar to rsp_ucode_t, but is used
  * internally to managed it as a RSPQ overlay */
 typedef struct rspq_overlay_t {
@@ -472,7 +475,12 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
     printf("RSPQ: Highpri DRAM address: %08lx\n", rspq->rspq_dram_highpri_addr);
     printf("RSPQ: Current DRAM address: %08lx + GP=%lx = %08lx\n", 
         rspq->rspq_dram_addr, state->gpr[28], cur);
-    printf("RSPQ: Current Overlay: %02x\n", rspq->current_ovl / sizeof(rspq_overlay_t));
+
+    int ovl_idx = rspq->current_ovl / sizeof(rspq_overlay_t);
+    const char *ovl_name = "?";
+    if (ovl_idx < RSPQ_BLOCK_MAX_SIZE && rspq_overlay_ucodes[ovl_idx])
+        ovl_name = rspq_overlay_ucodes[ovl_idx]->name;
+    printf("RSPQ: Current Overlay: %s (%02x)\n", ovl_name, ovl_idx);
 
     // Dump the command queue in DMEM.
     debugf("RSPQ: Command queue:\n");
@@ -496,13 +504,20 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
 static void rspq_assert_handler(rsp_snapshot_t *state, uint16_t code)
 {
     rsp_queue_t *rspq = (rsp_queue_t*)state->dmem;
+    debugf("rspq_assert_handler\n");
 
     switch (code) {
         case ASSERT_INVALID_COMMAND: {
+            // Get overlay index a name. Be defensive against DMEM corruptions.
+            int ovl_idx = rspq->current_ovl / sizeof(rspq_overlay_t);
+            const char *ovl_name = "?";
+            if (ovl_idx < RSPQ_BLOCK_MAX_SIZE && rspq_overlay_ucodes[ovl_idx])
+                ovl_name = rspq_overlay_ucodes[ovl_idx]->name;
+
             printf("Invalid command\n");
             uint32_t dmem_buffer = RSPQ_DEBUG ? 0x140 : 0x100;
             uint32_t cur = dmem_buffer + state->gpr[28];
-            printf("Command %02x not found in overlay %02x\n", state->dmem[cur], rspq->current_ovl / sizeof(rspq_overlay_t));
+            printf("Command %02x not found in overlay %s (%02x)\n", state->dmem[cur], ovl_name, ovl_idx);
             break;
         }
         case ASSERT_INVALID_OVERLAY: {
@@ -511,7 +526,15 @@ static void rspq_assert_handler(rsp_snapshot_t *state, uint16_t code)
             break;
         }
         default: {
-            printf("Unknown assertion\n");
+            // Check if there is an assert handler for the current overlay.
+            // If it exists, forward request to it.
+            // Be defensive against DMEM corruptions.
+            int ovl_idx = rspq->current_ovl / sizeof(rspq_overlay_t);
+            debugf("ovl_idx: %x %p\n", ovl_idx, rspq_overlay_ucodes[ovl_idx]);
+            if (ovl_idx < RSPQ_MAX_OVERLAY_COUNT &&
+                rspq_overlay_ucodes[ovl_idx] &&
+                rspq_overlay_ucodes[ovl_idx]->assert_handler)
+                rspq_overlay_ucodes[ovl_idx]->assert_handler(state, code);
             break;
         }
     }
@@ -715,12 +738,15 @@ void rspq_overlay_register(rsp_ucode_t *overlay_ucode, uint8_t id)
 
         overlay_index = rspq_overlay_count++;
 
+        rspq_overlay_ucodes[overlay_index] = overlay_ucode;
+
         rspq_overlay_t *overlay = &rspq_data.tables.overlay_descriptors[overlay_index];
         overlay->code = overlay_code;
         overlay->data = PhysicalAddr(overlay_ucode->data);
         overlay->state = PhysicalAddr(rspq_overlay_get_state(overlay_ucode));
         overlay->code_size = ((uint8_t*)overlay_ucode->code_end - overlay_ucode->code) - rspq_ucode_size - 1;
         overlay->data_size = ((uint8_t*)overlay_ucode->data_end - overlay_ucode->data) - 1;
+        debugf("registering %s as index %d (code: %lx, data: %lx)\n", overlay_ucode->name, overlay_index, overlay->code, overlay->data);
     }
 
     // Let the specified id point at the overlay
@@ -779,6 +805,7 @@ void rspq_next_buffer(void) {
         RSP_WAIT_LOOP(200) {
             if (*SP_STATUS & rspq_ctx->sp_status_bufdone)
                 break;
+            rspq_flush_internal();
         }
     }
     MEMORY_BARRIER();
@@ -1028,6 +1055,7 @@ void rspq_wait_syncpoint(rspq_syncpoint_t sync_id)
     RSP_WAIT_LOOP(200) {
         if (rspq_check_syncpoint(sync_id))
             break;
+        rspq_flush_internal();
     }
 }
 
