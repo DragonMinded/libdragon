@@ -5,7 +5,25 @@
 #include "n64sys.h"
 #include "debug.h"
 
-DEFINE_RSP_UCODE(rsp_yuv);
+static void yuv_assert_handler(rsp_snapshot_t *state, uint16_t code) {
+	switch (code) {
+	case ASSERT_INVALID_INPUT_Y:
+		printf("Input buffer for Y plane was not configured\n");
+		break;
+	case ASSERT_INVALID_INPUT_CB:
+		printf("Input buffer for CB plane was not configured\n");
+		break;
+	case ASSERT_INVALID_INPUT_CR:
+		printf("Input buffer for CR plane was not configured\n");
+		break;
+	case ASSERT_INVALID_OUTPUT:
+		printf("Output buffer was not configured\n");
+		break;
+	}
+}
+
+DEFINE_RSP_UCODE(rsp_yuv,
+	.assert_handler = yuv_assert_handler);
 
 #define CMD_YUV_SET_INPUT         0x40
 #define CMD_YUV_SET_OUTPUT        0x41
@@ -16,15 +34,6 @@ void yuv_init(void)
 	static bool init = false;
 	if (!init) {
 		init = true;
-
-		rsp_ucode_register_assert(&rsp_yuv, ASSERT_INVALID_INPUT_Y,
-			"Input buffer for Y plane was not configured", NULL);
-		rsp_ucode_register_assert(&rsp_yuv, ASSERT_INVALID_INPUT_CB,
-			"Input buffer for CB plane was not configured", NULL);
-		rsp_ucode_register_assert(&rsp_yuv, ASSERT_INVALID_INPUT_CR,
-			"Input buffer for CR plane was not configured", NULL);
-		rsp_ucode_register_assert(&rsp_yuv, ASSERT_INVALID_OUTPUT,
-			"Output buffer was not configured", NULL);
 
 		rspq_init();
 		rspq_overlay_register(&rsp_yuv, 0x4);
