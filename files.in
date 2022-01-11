@@ -1,0 +1,133 @@
+OFILES_LD  = $(CURDIR)/build/n64sys.o
+OFILES_LD += $(CURDIR)/build/interrupt.o
+OFILES_LD += $(CURDIR)/build/kernel.o
+OFILES_LD += $(CURDIR)/build/inthandler.o
+OFILES_LD += $(CURDIR)/build/entrypoint.o
+OFILES_LD += $(CURDIR)/build/debug.o
+OFILES_LD += $(CURDIR)/build/usb.o
+OFILES_LD += $(CURDIR)/build/ff.o
+OFILES_LD += $(CURDIR)/build/ffunicode.o
+OFILES_LD += $(CURDIR)/build/dragonfs.o
+OFILES_LD += $(CURDIR)/build/audio.o
+OFILES_LD += $(CURDIR)/build/display.o
+OFILES_LD += $(CURDIR)/build/console.o
+OFILES_LD += $(CURDIR)/build/joybus.o
+OFILES_LD += $(CURDIR)/build/controller.o
+OFILES_LD += $(CURDIR)/build/rtc.o
+OFILES_LD += $(CURDIR)/build/eepromfs.o
+OFILES_LD += $(CURDIR)/build/mempak.o
+OFILES_LD += $(CURDIR)/build/tpak.o
+OFILES_LD += $(CURDIR)/build/graphics.o
+OFILES_LD += $(CURDIR)/build/rdp.o
+OFILES_LD += $(CURDIR)/build/rsp.o
+OFILES_LD += $(CURDIR)/build/dma.o
+OFILES_LD += $(CURDIR)/build/timer.o
+OFILES_LD += $(CURDIR)/build/version.o
+OFILES_LD += $(CURDIR)/build/exception.o
+OFILES_LD += $(CURDIR)/build/do_ctors.o
+
+OFILES_LDS  = $(CURDIR)/build/system.o
+
+# Rules for compiling system stuff
+$(CURDIR)/build/n64sys.o: $(CURDIR)/src/n64sys.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/n64sys.o $(CURDIR)/src/n64sys.c
+$(CURDIR)/build/interrupt.o: $(CURDIR)/src/interrupt.c ./include/cop0.h
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/interrupt.o $(CURDIR)/src/interrupt.c
+$(CURDIR)/build/kernel.o: $(CURDIR)/src/kernel.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/kernel.o $(CURDIR)/src/kernel.c
+$(CURDIR)/build/dma.o: $(CURDIR)/src/dma.c ./include/n64sys.h
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/dma.o $(CURDIR)/src/dma.c
+$(CURDIR)/build/inthandler.o: $(CURDIR)/src/inthandler.S
+	mkdir -p $(CURDIR)/build
+	$(CC) -c -o $(CURDIR)/build/inthandler.o $(CURDIR)/src/inthandler.S
+$(CURDIR)/build/entrypoint.o: $(CURDIR)/src/entrypoint.S
+	mkdir -p $(CURDIR)/build
+	$(CC) -c -o $(CURDIR)/build/entrypoint.o $(CURDIR)/src/entrypoint.S
+$(CURDIR)/build/debug.o: $(CURDIR)/src/debug.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/debug.o $(CURDIR)/src/debug.c
+$(CURDIR)/build/usb.o: $(CURDIR)/src/usb.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/usb.o $(CURDIR)/src/usb.c
+$(CURDIR)/build/ff.o: $(CURDIR)/src/fatfs/ff.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -I$(CURDIR)/src/fatfs -o $(CURDIR)/build/ff.o $(CURDIR)/src/fatfs/ff.c
+$(CURDIR)/build/ffunicode.o: $(CURDIR)/src/fatfs/ffunicode.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -I$(CURDIR)/src/fatfs -o $(CURDIR)/build/ffunicode.o $(CURDIR)/src/fatfs/ffunicode.c
+
+# Rules for compiling filesystem
+$(CURDIR)/build/dragonfs.o: $(CURDIR)/src/dragonfs.c ./include/n64sys.h
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/dragonfs.o $(CURDIR)/src/dragonfs.c
+$(CURDIR)/build/eepromfs.o: $(CURDIR)/src/eepromfs.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/eepromfs.o $(CURDIR)/src/eepromfs.c
+
+# Rules for compiling audio system
+$(CURDIR)/build/audio.o: $(CURDIR)/src/audio.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/audio.o $(CURDIR)/src/audio.c
+
+# Rules for compiling video system
+$(CURDIR)/build/display.o: $(CURDIR)/src/display.c ./include/n64sys.h
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/display.o $(CURDIR)/src/display.c
+$(CURDIR)/build/console.o: $(CURDIR)/src/console.c ./include/n64sys.h
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/console.o $(CURDIR)/src/console.c
+$(CURDIR)/build/graphics.o: $(CURDIR)/src/graphics.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/graphics.o $(CURDIR)/src/graphics.c
+$(CURDIR)/build/rdp.o: $(CURDIR)/src/rdp.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/rdp.o $(CURDIR)/src/rdp.c
+$(CURDIR)/build/rsp.o: $(CURDIR)/src/rsp.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/rsp.o $(CURDIR)/src/rsp.c
+
+# Rules for compiling joybus system
+$(CURDIR)/build/joybus.o: $(CURDIR)/src/joybus.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/joybus.o $(CURDIR)/src/joybus.c
+$(CURDIR)/build/controller.o: $(CURDIR)/src/controller.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/controller.o $(CURDIR)/src/controller.c
+$(CURDIR)/build/rtc.o: $(CURDIR)/src/rtc.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/rtc.o $(CURDIR)/src/rtc.c
+$(CURDIR)/build/mempak.o: $(CURDIR)/src/mempak.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/mempak.o $(CURDIR)/src/mempak.c
+$(CURDIR)/build/tpak.o: $(CURDIR)/src/tpak.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/tpak.o $(CURDIR)/src/tpak.c
+
+# Rules for compiling timer system
+$(CURDIR)/build/timer.o: $(CURDIR)/src/timer.c ./include/n64sys.h
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/timer.o $(CURDIR)/src/timer.c
+
+# Rules for compiling exception system
+$(CURDIR)/build/exception.o: $(CURDIR)/src/exception.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/exception.o $(CURDIR)/src/exception.c
+
+# Rules for compiling newlib interface
+$(CURDIR)/build/system.o: $(CURDIR)/src/system.c ./include/n64sys.h
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/system.o $(CURDIR)/src/system.c
+
+# Rules for injecting version
+$(CURDIR)/build/version.o: $(CURDIR)/src/version.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/version.o $(CURDIR)/src/version.c
+
+# Rules for compiling c++ extras
+$(CURDIR)/build/do_ctors.o: $(CURDIR)/src/do_ctors.c
+	mkdir -p $(CURDIR)/build
+	$(CC) $(CFLAGS) -c -o $(CURDIR)/build/do_ctors.o $(CURDIR)/src/do_ctors.c

@@ -48,15 +48,17 @@
 })
 
 #define ASSERT_REG_GP(no, value) ({ \
-    ASSERT_EQUAL_HEX(registers_after_ex[no], 0x##value##value##value##value##value##value##value##value, "$" #no " not saved"); \
+    if (no != 0) \
+        ASSERT_EQUAL_HEX(registers_after_ex[no], 0x##value##value##value##value##value##value##value##value, "$" #no " not saved"); \
 })
 
 #define ASSERT_REG_FP_HANDLER(no, value) ({ \
-    ASSERT_EQUAL_HEX(exception_regs->fpr[no], 0x##value##value##value##value##value##value##value##value, "$f" #no " not available to the handler"); \
+    ASSERT_EQUAL_HEX(exception_regs.fpr[no], 0x##value##value##value##value##value##value##value##value, "$f" #no " not available to the handler"); \
 })
 
 #define ASSERT_REG_GP_HANDLER(no, value) ({ \
-    ASSERT_EQUAL_HEX(exception_regs->gpr[no], 0x##value##value##value##value##value##value##value##value, "$" #no " not available to the handler"); \
+    if (no != 0) \
+        ASSERT_EQUAL_HEX(exception_regs.gpr[no], 0x##value##value##value##value##value##value##value##value, "$" #no " not available to the handler"); \
 })
 
 #define ASSERT_REG(no, value) ({ \
@@ -65,8 +67,6 @@
     ASSERT_REG_FP_HANDLER(no, value); \
     ASSERT_REG_GP_HANDLER(no, value); \
 })
-
-extern const void test_break_label;
 
 void test_exception(TestContext *ctx) {
     // Bring FCR31 to a known state as some fp operations setting the inexact op flag
@@ -77,8 +77,8 @@ void test_exception(TestContext *ctx) {
     uint64_t registers_after_ex[32];
     uint64_t fp_registers_after_ex[32];
     uint64_t lo, hi;
-    volatile int breakpoint_occured = 0;
-    volatile reg_block_t* exception_regs;
+    volatile int exception_occurred = 0;
+    reg_block_t exception_regs;
 
     // This is only used to make sure we break after setting all the registers
     uint32_t dependency;
@@ -122,12 +122,12 @@ void test_exception(TestContext *ctx) {
         SET_REG(30, D0);
         SET_REG(31, D1);
 
-        exception_regs = ex->regs;
+        exception_regs = *ex->regs;
 
         switch(ex->code) {
-            case EXCEPTION_CODE_BREAKPOINT:
-                breakpoint_occured++;
-                exception_regs->epc = exception_regs->epc + 4;
+            case EXCEPTION_CODE_TLB_LOAD_I_MISS:
+                exception_occurred++;
+                ex->regs->epc += 4;
             break;
             default:
                 exception_default_handler(ex);
@@ -138,7 +138,7 @@ void test_exception(TestContext *ctx) {
     register_exception_handler(ex_handler);
     DEFER(register_exception_handler(exception_default_handler));
 
-    ASSERT_EQUAL_SIGNED(breakpoint_occured, 0, "Breakpoint triggered early");
+    ASSERT_EQUAL_SIGNED(exception_occurred, 0, "Exception triggered early");
 
     // Set as many registers as possible to known values before the ex.
     SET_REG(0, 00);
@@ -200,7 +200,8 @@ void test_exception(TestContext *ctx) {
     // Make sure we trigger the exception after setting all the registers
     // dependency may not be necessary in practice but let's inform GCC
     // just in case.
-    asm volatile("test_break_label: \nbreak" ::"X"(dependency));
+    extern const void test_exception_opcode;
+    asm volatile("test_exception_opcode: lw $0,0($0)" ::"X"(dependency));
 
     // Read all registers to mem at once
     GET_REG(0,  00);
@@ -261,7 +262,7 @@ void test_exception(TestContext *ctx) {
         :"$26"
     );
 
-    ASSERT_EQUAL_SIGNED(breakpoint_occured, 1, "Breakpoint exception was not triggered");
+    ASSERT_EQUAL_SIGNED(exception_occurred, 1, "Exception was not triggered");
 
     ASSERT_REG(0,  00);
     ASSERT_REG(1,  01);
@@ -292,31 +293,31 @@ void test_exception(TestContext *ctx) {
     ASSERT_REG(25, 25);
 
     ASSERT_EQUAL_HEX(registers_after_ex[28], gp, "$28 not saved");
-    ASSERT_EQUAL_HEX(exception_regs->gpr[28], gp, "$28 not available to the handler");
+    ASSERT_EQUAL_HEX(exception_regs.gpr[28], gp, "$28 not available to the handler");
     ASSERT_EQUAL_HEX(fp_registers_after_ex[28], 0x2828282828282828, "$f28 not saved");
-    ASSERT_EQUAL_HEX(exception_regs->fpr[28], 0x2828282828282828, "$f28 not available to the handler");
+    ASSERT_EQUAL_HEX(exception_regs.fpr[28], 0x2828282828282828, "$f28 not available to the handler");
 
     ASSERT_EQUAL_HEX(registers_after_ex[29], sp, "$29 not saved");
-    ASSERT_EQUAL_HEX(exception_regs->gpr[29], sp, "$29 not available to the handler");
+    ASSERT_EQUAL_HEX(exception_regs.gpr[29], sp, "$29 not available to the handler");
     ASSERT_EQUAL_HEX(fp_registers_after_ex[29], 0x2929292929292929, "$f29 not saved");
-    ASSERT_EQUAL_HEX(exception_regs->fpr[29], 0x2929292929292929, "$f29 not available to the handler");
+    ASSERT_EQUAL_HEX(exception_regs.fpr[29], 0x2929292929292929, "$f29 not available to the handler");
 
     ASSERT_REG(30, 30);
     ASSERT_REG(31, 31);
 
     ASSERT_EQUAL_HEX(lo, 0xDEADBEEFDEADBEEF, "lo not saved");
-    ASSERT_EQUAL_HEX(exception_regs->lo, 0xDEADBEEFDEADBEEF, "lo not available to the handler");
+    ASSERT_EQUAL_HEX(exception_regs.lo, 0xDEADBEEFDEADBEEF, "lo not available to the handler");
 
     ASSERT_EQUAL_HEX(hi, 0xBEEFF00DBEEFF00D, "hi not saved");
-    ASSERT_EQUAL_HEX(exception_regs->hi, 0xBEEFF00DBEEFF00D, "hi not available to the handler");
+    ASSERT_EQUAL_HEX(exception_regs.hi, 0xBEEFF00DBEEFF00D, "hi not available to the handler");
 
     // Other info
-    ASSERT_EQUAL_HEX(exception_regs->epc, (uint32_t)&test_break_label + 4, "EPC not available to the handler");
+    ASSERT_EQUAL_HEX(exception_regs.epc, (uint32_t)&test_exception_opcode, "EPC not available to the handler");
 
     // If the other tests change SR these may fail unnecessarily, but we expect tests to do proper cleanup
-    ASSERT_EQUAL_HEX(exception_regs->sr, 0x241004E3, "SR not available to the handler");
-    ASSERT_EQUAL_HEX(exception_regs->cr, 0x24, "CR not available to the handler");
-    ASSERT_EQUAL_HEX(exception_regs->fc31, 0x0, "FCR31 not available to the handler");
+    ASSERT_EQUAL_HEX(exception_regs.sr, 0x241004E3, "SR not available to the handler");
+    ASSERT_EQUAL_HEX(exception_regs.cr, 0x8, "CR not available to the handler");
+    ASSERT_EQUAL_HEX(exception_regs.fc31, 0x0, "FCR31 not available to the handler");
 }
 
 #undef SET_REG

@@ -6,6 +6,7 @@
 #include "exception.h"
 #include "console.h"
 #include "n64sys.h"
+#include "kernelinternal.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -26,7 +27,7 @@
  * @{
  */
 
-/** @brief Exception handler currently registered with exception system */
+/** @brief Unhandled exception handler currently registered with exception system */
 static void (*__exception_handler)(exception_t*) = exception_default_handler;
 /** @brief Base register offset as defined by the interrupt controller */
 extern const void* __baseRegAddr;
@@ -268,9 +269,9 @@ static const char* __get_exception_name(exception_code_t code)
  *             Exception type.  Either #EXCEPTION_TYPE_CRITICAL or 
  *             #EXCEPTION_TYPE_RESET
  */
-static void __fetch_regs(exception_t* e,int32_t type)
+static void __fetch_regs(exception_t* e, int32_t type, volatile reg_block_t *regs)
 {
-	e->regs = (volatile reg_block_t*) &__baseRegAddr;
+	e->regs = regs;
 	e->type = type;
 	e->code = C0_GET_CAUSE_EXC_CODE(e->regs->cr);
 	e->info = __get_exception_name(e->code);
@@ -279,26 +280,28 @@ static void __fetch_regs(exception_t* e,int32_t type)
 /**
  * @brief Respond to a critical exception
  */
-void __onCriticalException()
+void __onCriticalException(volatile reg_block_t* regs)
 {
 	exception_t e;
 
 	if(!__exception_handler) { return; }
 
-	__fetch_regs(&e,EXCEPTION_TYPE_CRITICAL);
+	__fetch_regs(&e, EXCEPTION_TYPE_CRITICAL, regs);
 	__exception_handler(&e);
 }
 
 /**
  * @brief Respond to a reset exception
  */
-void __onResetException()
+void __onResetException(volatile reg_block_t* regs)
 {
 	exception_t e;
+
+	if(__kernel) kevent_trigger_isr(&KEVENT_RESET);
 	
 	if(!__exception_handler) { return; }
 
-	__fetch_regs(&e,EXCEPTION_TYPE_RESET);
+	__fetch_regs(&e, EXCEPTION_TYPE_RESET, regs);
 	__exception_handler(&e);
 }
 

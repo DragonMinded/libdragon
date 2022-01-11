@@ -40,6 +40,7 @@
 #include "eepromfs.h"
 #include "graphics.h"
 #include "interrupt.h"
+#include "kernel.h"
 #include "n64sys.h"
 #include "rdp.h"
 #include "rsp.h"

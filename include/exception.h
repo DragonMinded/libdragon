@@ -53,14 +53,18 @@ typedef enum {
  *
  * DO NOT modify the order unless editing inthandler.S
  */
-typedef volatile struct
+typedef struct __attribute__((packed))
 {
     /** @brief General purpose registers 1-32 */
-	volatile uint64_t gpr[32];
+	uint64_t gpr[32];
+    /** @brief HI */
+	uint64_t hi;
+    /** @brief LO */
+	uint64_t lo;
     /** @brief SR */
-	volatile uint32_t sr;
-    /** @brief CR */
-	volatile const uint32_t cr;
+	uint32_t sr;
+    /** @brief CR (NOTE: can't modify this from an exception handler) */
+	uint32_t cr;
     /**
 	 * @brief represents EPC - COP0 register $14
 	 *
@@ -71,16 +75,15 @@ typedef volatile struct
 	 * needs correction in the exception handler. This member is for reading/writing
 	 * its value.
 	 * */
-	volatile uint32_t epc;
-    /** @brief HI */
-	volatile uint64_t hi;
-    /** @brief LO */
-	volatile uint64_t lo;
+	uint32_t epc;
     /** @brief FC31 */
-	volatile uint32_t fc31;
+	uint32_t fc31;
     /** @brief Floating point registers 1-32 */
-	volatile uint64_t fpr[32];
+	uint64_t fpr[32];
 } reg_block_t;
+
+/* Make sure the structure has the right size. Please keep this in sync with inthandler.S */
+_Static_assert(sizeof(reg_block_t) == 544, "invalid reg_block_t size -- this must match inthandler.S");
 
 /**
  * @brief Structure representing an exception
