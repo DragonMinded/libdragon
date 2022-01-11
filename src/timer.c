@@ -110,7 +110,7 @@ static int __proc_timers(timer_link_t * thead)
 			/* yes - timed out, do callback */
 			head->ovfl = TICKS_DISTANCE(head->left, now);
 			if (head->callback)
-				head->callback(head->ovfl);
+				head->callback(head->ovfl, head->ctx);
 
 			/* reset ticks if continuous */
 			if (head->flags & TF_CONTINUOUS)
@@ -163,12 +163,12 @@ static int __proc_timers(timer_link_t * thead)
 }
 
 /**
- * @brief Timer callback function
+ * @brief Timer interrupt callback function
  *
  * This function is called by the interrupt controller whenever 
  * compare == count.
  */
-static void timer_callback(void)
+static void timer_interrupt_callback(void)
 {
 	while (__proc_timers(TI_timers))
 		{}
@@ -184,7 +184,7 @@ static void timer_callback(void)
  * is configured by timer_init() and is used to create a 64-bit timer
  * accessed by timer_ticks().
  */
-static void timer_callback_overflow(int ovfl)
+static void timer_overflow_callback(int ovfl, void *ctx)
 {
 	ticks64_high++;
 }
@@ -210,7 +210,8 @@ void timer_init(void)
 		timer->left = 0;
 		timer->set = 0;
 		timer->flags = TF_CONTINUOUS | TF_OVERFLOW;
-		timer->callback = timer_callback_overflow;
+		timer->callback = timer_overflow_callback;
+		timer->ctx = NULL;
 		timer->next = NULL;
 
 		TI_timers = timer;
@@ -224,7 +225,7 @@ void timer_init(void)
 	C0_WRITE_COUNT(1);
 	C0_WRITE_COMPARE(0);
 	C0_WRITE_STATUS(C0_STATUS() | C0_INTERRUPT_TIMER);
-	register_TI_handler(timer_callback);
+	register_TI_handler(timer_interrupt_callback);
 	enable_interrupts();
 }
 
@@ -237,10 +238,12 @@ void timer_init(void)
  *            Timer flags.  See #TF_ONE_SHOT, #TF_CONTINUOUS and #TF_DISABLED
  * @param[in] callback
  *            Callback function to call when the timer expires
+ * @param[in] ctx
+ * 			  User data to pass as an argument to callback
  *
  * @return A pointer to the timer structure created
  */
-timer_link_t *new_timer(int ticks, int flags, void (*callback)(int ovfl))
+timer_link_t *new_timer2(int ticks, int flags, timer_callback2_t callback, void *ctx)
 {
 	assertf(TI_timers, "timer module not initialized");
 	timer_link_t *timer = malloc(sizeof(timer_link_t));
@@ -250,6 +253,7 @@ timer_link_t *new_timer(int ticks, int flags, void (*callback)(int ovfl))
 		timer->set = ticks;
 		timer->flags = flags;
 		timer->callback = callback;
+		timer->ctx = ctx;
 
 		if (flags & TF_DISABLED)
 			return timer;
@@ -276,8 +280,10 @@ timer_link_t *new_timer(int ticks, int flags, void (*callback)(int ovfl))
  *            Timer flags.  See #TF_ONE_SHOT, #TF_CONTINUOUS, and #TF_DISABLED
  * @param[in] callback
  *            Callback function to call when the timer expires
+ * @param[in] ctx
+ *            User data to pass as an argument to callback
  */
-void start_timer(timer_link_t *timer, int ticks, int flags, void (*callback)(int ovfl))
+void start_timer2(timer_link_t *timer, int ticks, int flags, timer_callback2_t callback, void *ctx)
 {
 	assertf(TI_timers, "timer module not initialized");
 	if (timer)
@@ -286,6 +292,7 @@ void start_timer(timer_link_t *timer, int ticks, int flags, void (*callback)(int
 		timer->set = ticks;
 		timer->flags = flags;
 		timer->callback = callback;
+		timer->ctx = ctx;
 
 		if (flags & TF_DISABLED)
 			return;
@@ -394,7 +401,7 @@ void timer_close(void)
 	/* Disable generation of timer interrupt. */
 	C0_WRITE_STATUS(C0_STATUS() & ~C0_INTERRUPT_TIMER);
 
-	unregister_TI_handler(timer_callback);
+	unregister_TI_handler(timer_interrupt_callback);
 
 	timer_link_t *head = TI_timers;
 	while (head)
