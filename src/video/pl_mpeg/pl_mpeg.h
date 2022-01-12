@@ -3391,7 +3391,9 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 			}
 
 			// Save premultiplied coefficient
-			self->block_data[de_zig_zagged] = (level * PLM_VIDEO_PREMULTIPLIER_MATRIX[de_zig_zagged]) >> RSP_IDCT_SCALER;
+			level = (level * PLM_VIDEO_PREMULTIPLIER_MATRIX[de_zig_zagged]) >> RSP_IDCT_SCALER;
+			self->block_data[de_zig_zagged] = level;
+			rsp_mpeg1_block_coeff(n, level);
 		} else {
 			rsp_mpeg1_block_coeff(n, level);
 			n++;
@@ -3407,20 +3409,8 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 	if (RSP_MODE == 0) {
 		plm_video_decode_block_residual(s, si, d, di, dw, n, self->macroblock_intra);
 	} else if (RSP_MODE == 1) {
-		enum { NUM_BLOCKS = 64 };
-		static int16_t block[NUM_BLOCKS][64] __attribute__((aligned(16)));
-		static int cur_block = 0;
-
-		memcpy(block[cur_block], self->block_data, 16*sizeof(int16_t));
-		if (n == 1)
-			self->block_data[0] = 0;
-		else
-			memset(self->block_data, 0, 64*sizeof(int16_t));
-
-		rsp_mpeg1_load_matrix(block[cur_block]);
 		rsp_mpeg1_block_decode(n, self->macroblock_intra!=0);
 		rspq_flush();
-		cur_block = (cur_block+1) % NUM_BLOCKS;
 	} else if (RSP_MODE == 2) {
 		rsp_mpeg1_block_dequant(self->macroblock_intra, self->quantizer_scale);
 		rsp_mpeg1_block_decode(n, self->macroblock_intra!=0);
