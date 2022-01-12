@@ -59,6 +59,9 @@ static uint32_t rand(void) {
 	return rand_state = x;
 }
 
+// SRAND(n): set seed for random number generator
+#define SRAND(n) ({ rand_state = (n); if (!rand_state) rand_state = 1; })
+
 // RANDN(n): generate a random number from 0 to n-1
 #define RANDN(n) ({ \
 	__builtin_constant_p((n)) ? \
@@ -234,7 +237,8 @@ static const struct Testsuite
 	TEST_FUNC(test_ugfx_fill_dmem_buffer,      0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_ugfx_fill_dram_buffer,      0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mpeg1_idct,                 0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_mpeg1_decode_block,         0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mpeg1_block_decode,         0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mpeg1_block_dequant,        0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {

@@ -49,10 +49,14 @@ void test_mpeg1_block_decode(TestContext *ctx) {
 			for (int nt=0;nt<256;nt++) {	
 				for (int j=0;j<8;j++) {	
 					for (int i=0;i<8;i++) {
-						if (ncoeffs==1)
+						if (ncoeffs==1) {							
 							// DC coefficient: already a delta
 							// for pixels
-							matrix2[j*8+i] = matrix1[j*8+i] = RANDN(65536)-32768;
+							if (i==0 && j == 0)
+								matrix2[j*8+i] = matrix1[j*8+i] = RANDN(65536)-32768;
+							else 
+								matrix2[j*8+i] = matrix1[j*8+i] = 0;
+						}
 						else
 							// AC coefficient: must go through IDCT
 							matrix2[j*8+i] = matrix1[j*8+i] = RANDN(256)-128;
@@ -101,27 +105,99 @@ void test_mpeg1_block_dequant(TestContext *ctx) {
 		16, 16, 16, 16, 16, 16, 16, 16,
 		16, 16, 16, 16, 16, 16, 16, 16
 	};
+	static const uint8_t PLM_VIDEO_INTRA_QUANT_MATRIX[] = {
+		 8, 16, 19, 22, 26, 27, 29, 34,
+		16, 16, 22, 24, 27, 29, 34, 37,
+		19, 22, 26, 27, 29, 34, 34, 38,
+		22, 22, 26, 27, 29, 34, 37, 40,
+		22, 26, 27, 29, 32, 35, 40, 48,
+		26, 27, 29, 32, 35, 40, 48, 58,
+		26, 27, 29, 34, 38, 46, 56, 69,
+		27, 29, 35, 38, 46, 56, 69, 83
+	};
+	static const uint8_t PLM_VIDEO_PREMULTIPLIER_MATRIX[] = {
+		32, 44, 42, 38, 32, 25, 17,  9,
+		44, 62, 58, 52, 44, 35, 24, 12,
+		42, 58, 55, 49, 42, 33, 23, 12,
+		38, 52, 49, 44, 38, 30, 20, 10,
+		32, 44, 42, 38, 32, 25, 17,  9,
+		25, 35, 33, 30, 25, 20, 14,  7,
+		17, 24, 23, 20, 17, 14,  9,  5,
+		 9, 12, 12, 10,  9,  7,  5,  2
+	};
+
+	// Reference C implementation (from pl_mpeg, slightly adjusted).
+	int dequant_level(int idx, int level, int scale, int intra) {
+		idx = PLM_VIDEO_ZIG_ZAG[idx];
+
+		level <<= 1;
+		if (!intra) {
+			level += (level < 0 ? -1 : 1);
+		}
+		// debugf("   rnd: %04x\n", level);
+		level = (level * scale * (intra ? PLM_VIDEO_INTRA_QUANT_MATRIX : PLM_VIDEO_NON_INTRA_QUANT_MATRIX)[idx]);
+		// debugf("   dequant: %04x (scale:%x, quant:%x)\n", level, scale, (intra ? PLM_VIDEO_INTRA_QUANT_MATRIX : PLM_VIDEO_NON_INTRA_QUANT_MATRIX)[idx]);
+		level >>= 4;
+		// debugf("   scale: %04x\n", level);
+		if ((level & 1) == 0) {
+			level += level > 0 ? -1 : 1;
+		}
+		// debugf("   oddify: %04x\n", level);
+		if (level > 2047) {
+			level = 2047;
+		}
+		else if (level < -2048) {
+			level = -2048;
+		}
+		// debugf("   clamp: %04x\n", level);
+		level = (level * PLM_VIDEO_PREMULTIPLIER_MATRIX[idx]) >> RSP_IDCT_SCALER;
+		// debugf("   premult: %04x (pf: %x)\n", level, PLM_VIDEO_PREMULTIPLIER_MATRIX[idx]);
+		return level;
+	}
 
 	rspq_init(); DEFER(rspq_close());
 	rsp_mpeg1_init();
 
 	uint8_t pixels1[8*8] __attribute__((aligned(16)));
 	int16_t matrix1[8*8] __attribute__((aligned(16)));
+	int16_t matrix2[8*8] __attribute__((aligned(16)));
 
-	rsp_mpeg1_set_quant_matrix(true, PLM_VIDEO_NON_INTRA_QUANT_MATRIX);
+	rsp_mpeg1_set_quant_matrix(false, PLM_VIDEO_NON_INTRA_QUANT_MATRIX);
+	rsp_mpeg1_set_quant_matrix(true, PLM_VIDEO_INTRA_QUANT_MATRIX);
 
-	rsp_mpeg1_block_begin(pixels1, 8);
-	rsp_mpeg1_block_coeff(0, 45);
-	rsp_mpeg1_block_coeff(1, -45);
-	rsp_mpeg1_block_coeff(8, 1024);
-	rsp_mpeg1_block_coeff(9, -1024);
-	rsp_mpeg1_block_dequant(true, 3);
-	rsp_mpeg1_store_matrix(matrix1);
-	rspq_sync();
+	for (int nt=0;nt<1024;nt++) {
+		SRAND(nt+1);
+		int intra = RANDN(2);
+		int ncoeffs = RANDN(64)+1;
+		int scale = RANDN(31)+1;
 
-	debugf("%d %d %d %d\n", 
-		matrix1[PLM_VIDEO_ZIG_ZAG[0]], 
-		matrix1[PLM_VIDEO_ZIG_ZAG[1]], 
-		matrix1[PLM_VIDEO_ZIG_ZAG[8]], 
-		matrix1[PLM_VIDEO_ZIG_ZAG[9]]);
+		rsp_mpeg1_block_begin(pixels1, 8);
+
+		// debugf("----------------------\n");
+		memset(matrix1, 0, sizeof(matrix1));
+		for (int i=0;i<ncoeffs;i++) {
+			int idx = RANDN(64);
+			int16_t c = RANDN(2048)-1024;
+			// Encoding level 0 does not make sense. C and RSP differs in this
+			// edge case but it's not worth aligning them.
+			if (c == 0)
+				c = 1;
+			rsp_mpeg1_block_coeff(idx, c);
+			// debugf("coeff: %d->(%d,%d) = %04x\n", idx, PLM_VIDEO_ZIG_ZAG[idx]/8, PLM_VIDEO_ZIG_ZAG[idx]%8, (uint16_t)c);
+			if (idx == 0)
+				matrix1[idx] = c;
+			else
+				matrix1[PLM_VIDEO_ZIG_ZAG[idx]] = dequant_level(idx, c, scale, intra);
+		}
+		rsp_mpeg1_block_dequant(intra, scale);
+		rsp_mpeg1_store_matrix(matrix2);
+		rspq_sync();
+
+		for (int j=0;j<8;j++) {	
+			for (int i=0;i<8;i++) {
+				ASSERT_EQUAL_HEX((uint16_t)matrix2[j*8+i], (uint16_t)matrix1[j*8+i],
+					"Dequant failure at %d,%d (intra=%d, ncoeffs=%d, scale=%d, nt=%d)", j, i, intra, ncoeffs, scale, nt);
+			}
+		}		
+	}
 }

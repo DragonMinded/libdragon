@@ -29,6 +29,7 @@ COMMAND_TABLE:
 MPEG1_STATE_START:
 IDCT_MATRIX:  .dcb.w    8*8       # 8x8 coefficient matrix
 BLOCK_PIXELS: .dcb.b    8*8       # 8x8 pixels (current block)
+COEFF_MASK:   .dcb.b    8
 
 INTER_QUANT_MATRIX:  .dcb.b 64    # 8x8 quantization matrix for inter frames
 INTRA_QUANT_MATRIX:  .dcb.b 64    # 8x8 quantization matrix for intra frames
@@ -65,6 +66,11 @@ DEQUANT_CONSTS:
 	.half 1
 	.half -1
 	.half 2
+	.half 0
+	.half 16
+	.half -16
+	.half 8
+	.half 0xFFE1
 
 ZIGZAG:
 	.byte  0*2,  1*2,  8*2, 16*2,  9*2,  2*2,  3*2, 10*2
@@ -76,138 +82,19 @@ ZIGZAG:
 	.byte 58*2, 59*2, 52*2, 45*2, 38*2, 31*2, 39*2, 46*2
 	.byte 53*2, 60*2, 61*2, 54*2, 47*2, 55*2, 62*2, 63*2
 
-DCT_COEFF_TABLE:
-	.byte   1 << 1; .half      0; .byte        0; .half 0x0001  #   0: x
-	.byte   2 << 1; .half      0; .byte   3 << 1; .half      0  #   1: 0x
-	.byte   4 << 1; .half      0; .byte   5 << 1; .half      0  #   2: 00x
-	.byte   6 << 1; .half      0; .byte        0; .half 0x0101  #   3: 01x
-	.byte   7 << 1; .half      0; .byte   8 << 1; .half      0  #   4: 000x
-	.byte   9 << 1; .half      0; .byte  10 << 1; .half      0  #   5: 001x
-	.byte        0; .half 0x0002; .byte        0; .half 0x0201  #   6: 010x
-	.byte  11 << 1; .half      0; .byte  12 << 1; .half      0  #   7: 0000x
-	.byte  13 << 1; .half      0; .byte  14 << 1; .half      0  #   8: 0001x
-	.byte  15 << 1; .half      0; .byte        0; .half 0x0003  #   9: 0010x
-	.byte        0; .half 0x0401; .byte        0; .half 0x0301  #  10: 0011x
-	.byte  16 << 1; .half      0; .byte        0; .half 0xffff  #  11: 0000 0x
-	.byte  17 << 1; .half      0; .byte  18 << 1; .half      0  #  12: 0000 1x
-	.byte        0; .half 0x0701; .byte        0; .half 0x0601  #  13: 0001 0x
-	.byte        0; .half 0x0102; .byte        0; .half 0x0501  #  14: 0001 1x
-	.byte  19 << 1; .half      0; .byte  20 << 1; .half      0  #  15: 0010 0x
-	.byte  21 << 1; .half      0; .byte  22 << 1; .half      0  #  16: 0000 00x
-	.byte        0; .half 0x0202; .byte        0; .half 0x0901  #  17: 0000 10x
-	.byte        0; .half 0x0004; .byte        0; .half 0x0801  #  18: 0000 11x
-	.byte  23 << 1; .half      0; .byte  24 << 1; .half      0  #  19: 0010 00x
-	.byte  25 << 1; .half      0; .byte  26 << 1; .half      0  #  20: 0010 01x
-	.byte  27 << 1; .half      0; .byte  28 << 1; .half      0  #  21: 0000 000x
-	.byte  29 << 1; .half      0; .byte  30 << 1; .half      0  #  22: 0000 001x
-	.byte        0; .half 0x0d01; .byte        0; .half 0x0006  #  23: 0010 000x
-	.byte        0; .half 0x0c01; .byte        0; .half 0x0b01  #  24: 0010 001x
-	.byte        0; .half 0x0302; .byte        0; .half 0x0103  #  25: 0010 010x
-	.byte        0; .half 0x0005; .byte        0; .half 0x0a01  #  26: 0010 011x
-	.byte  31 << 1; .half      0; .byte  32 << 1; .half      0  #  27: 0000 0000x
-	.byte  33 << 1; .half      0; .byte  34 << 1; .half      0  #  28: 0000 0001x
-	.byte  35 << 1; .half      0; .byte  36 << 1; .half      0  #  29: 0000 0010x
-	.byte  37 << 1; .half      0; .byte  38 << 1; .half      0  #  30: 0000 0011x
-	.byte  39 << 1; .half      0; .byte  40 << 1; .half      0  #  31: 0000 0000 0x
-	.byte  41 << 1; .half      0; .byte  42 << 1; .half      0  #  32: 0000 0000 1x
-	.byte  43 << 1; .half      0; .byte  44 << 1; .half      0  #  33: 0000 0001 0x
-	.byte  45 << 1; .half      0; .byte  46 << 1; .half      0  #  34: 0000 0001 1x
-	.byte        0; .half 0x1001; .byte        0; .half 0x0502  #  35: 0000 0010 0x
-	.byte        0; .half 0x0007; .byte        0; .half 0x0203  #  36: 0000 0010 1x
-	.byte        0; .half 0x0104; .byte        0; .half 0x0f01  #  37: 0000 0011 0x
-	.byte        0; .half 0x0e01; .byte        0; .half 0x0402  #  38: 0000 0011 1x
-	.byte  47 << 1; .half      0; .byte  48 << 1; .half      0  #  39: 0000 0000 00x
-	.byte  49 << 1; .half      0; .byte  50 << 1; .half      0  #  40: 0000 0000 01x
-	.byte  51 << 1; .half      0; .byte  52 << 1; .half      0  #  41: 0000 0000 10x
-	.byte  53 << 1; .half      0; .byte  54 << 1; .half      0  #  42: 0000 0000 11x
-	.byte  55 << 1; .half      0; .byte  56 << 1; .half      0  #  43: 0000 0001 00x
-	.byte  57 << 1; .half      0; .byte  58 << 1; .half      0  #  44: 0000 0001 01x
-	.byte  59 << 1; .half      0; .byte  60 << 1; .half      0  #  45: 0000 0001 10x
-	.byte  61 << 1; .half      0; .byte  62 << 1; .half      0  #  46: 0000 0001 11x
-	.byte       -1; .half      0; .byte  63 << 1; .half      0  #  47: 0000 0000 000x
-	.byte  64 << 1; .half      0; .byte  65 << 1; .half      0  #  48: 0000 0000 001x
-	.byte  66 << 1; .half      0; .byte  67 << 1; .half      0  #  49: 0000 0000 010x
-	.byte  68 << 1; .half      0; .byte  69 << 1; .half      0  #  50: 0000 0000 011x
-	.byte  70 << 1; .half      0; .byte  71 << 1; .half      0  #  51: 0000 0000 100x
-	.byte  72 << 1; .half      0; .byte  73 << 1; .half      0  #  52: 0000 0000 101x
-	.byte  74 << 1; .half      0; .byte  75 << 1; .half      0  #  53: 0000 0000 110x
-	.byte  76 << 1; .half      0; .byte  77 << 1; .half      0  #  54: 0000 0000 111x
-	.byte        0; .half 0x000b; .byte        0; .half 0x0802  #  55: 0000 0001 000x
-	.byte        0; .half 0x0403; .byte        0; .half 0x000a  #  56: 0000 0001 001x
-	.byte        0; .half 0x0204; .byte        0; .half 0x0702  #  57: 0000 0001 010x
-	.byte        0; .half 0x1501; .byte        0; .half 0x1401  #  58: 0000 0001 011x
-	.byte        0; .half 0x0009; .byte        0; .half 0x1301  #  59: 0000 0001 100x
-	.byte        0; .half 0x1201; .byte        0; .half 0x0105  #  60: 0000 0001 101x
-	.byte        0; .half 0x0303; .byte        0; .half 0x0008  #  61: 0000 0001 110x
-	.byte        0; .half 0x0602; .byte        0; .half 0x1101  #  62: 0000 0001 111x
-	.byte  78 << 1; .half      0; .byte  79 << 1; .half      0  #  63: 0000 0000 0001x
-	.byte  80 << 1; .half      0; .byte  81 << 1; .half      0  #  64: 0000 0000 0010x
-	.byte  82 << 1; .half      0; .byte  83 << 1; .half      0  #  65: 0000 0000 0011x
-	.byte  84 << 1; .half      0; .byte  85 << 1; .half      0  #  66: 0000 0000 0100x
-	.byte  86 << 1; .half      0; .byte  87 << 1; .half      0  #  67: 0000 0000 0101x
-	.byte  88 << 1; .half      0; .byte  89 << 1; .half      0  #  68: 0000 0000 0110x
-	.byte  90 << 1; .half      0; .byte  91 << 1; .half      0  #  69: 0000 0000 0111x
-	.byte        0; .half 0x0a02; .byte        0; .half 0x0902  #  70: 0000 0000 1000x
-	.byte        0; .half 0x0503; .byte        0; .half 0x0304  #  71: 0000 0000 1001x
-	.byte        0; .half 0x0205; .byte        0; .half 0x0107  #  72: 0000 0000 1010x
-	.byte        0; .half 0x0106; .byte        0; .half 0x000f  #  73: 0000 0000 1011x
-	.byte        0; .half 0x000e; .byte        0; .half 0x000d  #  74: 0000 0000 1100x
-	.byte        0; .half 0x000c; .byte        0; .half 0x1a01  #  75: 0000 0000 1101x
-	.byte        0; .half 0x1901; .byte        0; .half 0x1801  #  76: 0000 0000 1110x
-	.byte        0; .half 0x1701; .byte        0; .half 0x1601  #  77: 0000 0000 1111x
-	.byte  92 << 1; .half      0; .byte  93 << 1; .half      0  #  78: 0000 0000 0001 0x
-	.byte  94 << 1; .half      0; .byte  95 << 1; .half      0  #  79: 0000 0000 0001 1x
-	.byte  96 << 1; .half      0; .byte  97 << 1; .half      0  #  80: 0000 0000 0010 0x
-	.byte  98 << 1; .half      0; .byte  99 << 1; .half      0  #  81: 0000 0000 0010 1x
-	.byte 100 << 1; .half      0; .byte 101 << 1; .half      0  #  82: 0000 0000 0011 0x
-	.byte 102 << 1; .half      0; .byte 103 << 1; .half      0  #  83: 0000 0000 0011 1x
-	.byte        0; .half 0x001f; .byte        0; .half 0x001e  #  84: 0000 0000 0100 0x
-	.byte        0; .half 0x001d; .byte        0; .half 0x001c  #  85: 0000 0000 0100 1x
-	.byte        0; .half 0x001b; .byte        0; .half 0x001a  #  86: 0000 0000 0101 0x
-	.byte        0; .half 0x0019; .byte        0; .half 0x0018  #  87: 0000 0000 0101 1x
-	.byte        0; .half 0x0017; .byte        0; .half 0x0016  #  88: 0000 0000 0110 0x
-	.byte        0; .half 0x0015; .byte        0; .half 0x0014  #  89: 0000 0000 0110 1x
-	.byte        0; .half 0x0013; .byte        0; .half 0x0012  #  90: 0000 0000 0111 0x
-	.byte        0; .half 0x0011; .byte        0; .half 0x0010  #  91: 0000 0000 0111 1x
-	.byte 104 << 1; .half      0; .byte 105 << 1; .half      0  #  92: 0000 0000 0001 00x
-	.byte 106 << 1; .half      0; .byte 107 << 1; .half      0  #  93: 0000 0000 0001 01x
-	.byte 108 << 1; .half      0; .byte 109 << 1; .half      0  #  94: 0000 0000 0001 10x
-	.byte 110 << 1; .half      0; .byte 111 << 1; .half      0  #  95: 0000 0000 0001 11x
-	.byte        0; .half 0x0028; .byte        0; .half 0x0027  #  96: 0000 0000 0010 00x
-	.byte        0; .half 0x0026; .byte        0; .half 0x0025  #  97: 0000 0000 0010 01x
-	.byte        0; .half 0x0024; .byte        0; .half 0x0023  #  98: 0000 0000 0010 10x
-	.byte        0; .half 0x0022; .byte        0; .half 0x0021  #  99: 0000 0000 0010 11x
-	.byte        0; .half 0x0020; .byte        0; .half 0x010e  # 100: 0000 0000 0011 00x
-	.byte        0; .half 0x010d; .byte        0; .half 0x010c  # 101: 0000 0000 0011 01x
-	.byte        0; .half 0x010b; .byte        0; .half 0x010a  # 102: 0000 0000 0011 10x
-	.byte        0; .half 0x0109; .byte        0; .half 0x0108  # 103: 0000 0000 0011 11x
-	.byte        0; .half 0x0112; .byte        0; .half 0x0111  # 104: 0000 0000 0001 000x
-	.byte        0; .half 0x0110; .byte        0; .half 0x010f  # 105: 0000 0000 0001 001x
-	.byte        0; .half 0x0603; .byte        0; .half 0x1002  # 106: 0000 0000 0001 010x
-	.byte        0; .half 0x0f02; .byte        0; .half 0x0e02  # 107: 0000 0000 0001 011x
-	.byte        0; .half 0x0d02; .byte        0; .half 0x0c02  # 108: 0000 0000 0001 100x
-	.byte        0; .half 0x0b02; .byte        0; .half 0x1f01  # 109: 0000 0000 0001 101x
-	.byte        0; .half 0x1e01; .byte        0; .half 0x1d01  # 110: 0000 0000 0001 110x
-	.byte        0; .half 0x1c01; .byte        0; .half 0x1b01  # 111: 0000 0000 0001 111x
-
-#define BITSTREAM_SIZE  512
-
-BITSTREAM: .dcb.b   BITSTREAM_SIZE
-BITSTREAM_END:
-
-
 	.text 1
 
-#define pred0  $v22
-#define pred1  $v23
-#define pred2  $v24
-#define pred3  $v25
-#define pred4  $v26
-#define pred5  $v27
-#define pred6  $v28
-#define pred7  $v29
-#define vshift $v30
-#define vconst $v31
+#define pred0  $v21
+#define pred1  $v22
+#define pred2  $v23
+#define pred3  $v24
+#define pred4  $v25
+#define pred5  $v26
+#define pred6  $v27
+#define pred7  $v28
+#define vshift  $v29
+#define vshift8 $v30
+#define vconst  $v31
 #define k473   vconst,e(0)
 #define km196  vconst,e(1)
 #define k362   vconst,e(2)
@@ -217,12 +104,17 @@ BITSTREAM_END:
 #define k2     vconst,e(6)
 #define k255   vconst,e(7)
 
-
-	.func load_consts
-load_consts:
-	setup_vsll vshift
+	.func load_idct_consts
+load_idct_consts:
 	li s1, %lo(IDCT_CONSTS)
 	lqv vconst,0, 0,s1
+	# fallthrough
+	.endfunc
+
+	.func load_shifts
+load_shifts:
+	setup_vsll vshift
+	setup_vsll8 vshift8
 	jr ra
 	nop
 	.endfunc
@@ -253,11 +145,11 @@ cmd_mpeg1_set_quant_mtx:
 	sw a1, %lo(INTER_QUANT_MATRIX) + 0x00 (s0)
 	sw a2, %lo(INTER_QUANT_MATRIX) + 0x04 (s0)
 	sw a3, %lo(INTER_QUANT_MATRIX) + 0x08 (s0)
-	sw t0, %lo(INTER_QUANT_MATRIX) + 0x0C (s0)
-	sw t1, %lo(INTER_QUANT_MATRIX) + 0x10 (s0)
+	sw t4, %lo(INTER_QUANT_MATRIX) + 0x0C (s0)
+	sw t3, %lo(INTER_QUANT_MATRIX) + 0x10 (s0)
 	sw t2, %lo(INTER_QUANT_MATRIX) + 0x14 (s0)
-	sw t3, %lo(INTER_QUANT_MATRIX) + 0x18 (s0)
-	sw t4, %lo(INTER_QUANT_MATRIX) + 0x1C (s0)
+	sw t1, %lo(INTER_QUANT_MATRIX) + 0x18 (s0)
+	sw t0, %lo(INTER_QUANT_MATRIX) + 0x1C (s0)
 
 	jr ra
 	nop
@@ -271,9 +163,12 @@ cmd_mpeg1_block_begin:
 	vxor $v00, $v00, $v00
 
 	# Store RDRAM block address and pitch
-	li s0, %lo(RDRAM_BLOCK)
-	sw a0, 0(s0)
-	sw a1, 4(s0)
+	sw a0, %lo(RDRAM_BLOCK)
+	sw a1, %lo(RDRAM_BLOCK_PITCH)
+
+	# Clear coefficient mask
+	sw zero, %lo(COEFF_MASK) + 0
+	sw zero, %lo(COEFF_MASK) + 4
 
 	# Clear coefficient matrix
 	li s1, %lo(IDCT_MATRIX)
@@ -307,6 +202,16 @@ cmd_mpeg1_block_coeff:
 	# Store coefficient into matrix
 	sh level, %lo(IDCT_MATRIX)(index)
 
+	# Mark the matrix cell as used in the mask
+	srl t0, index, 4
+	srl t1, index, 1
+	andi t1, 7
+	li t2, 1
+	sllv t1, t2, t1
+	lbu t2, %lo(COEFF_MASK)(t0)
+	or t2, t1
+	sb t2, %lo(COEFF_MASK)(t0)
+
 	jr ra
 	nop
 	#undef index
@@ -321,62 +226,113 @@ cmd_mpeg1_block_dequant:
 	#define quant_scale t8
 	#define loop_idx    t4
 	#define dc          t7
-	#define vshift8     $v30
 	#define v_scale     $v08
 	#define v_const2    $v31
 	#define kp1         v_const2,e(0)
 	#define km1         v_const2,e(1)
 	#define kp2         v_const2,e(2)
+	#define kzero       v_const2,e(3)
+	#define kp16        v_const2,e(4)
+	#define km16        v_const2,e(5)
+	#define kp8         v_const2,e(6)
+	#define km31        v_const2,e(7)
 
-	setup_vsll8 vshift8
+	jal load_shifts
+	nop
 	li s0, %lo(DEQUANT_CONSTS)
 	lqv v_const2,0, 0,s0
 
 	andi quant_scale, a0, 0xFF00
+	sll quant_scale, 1
 	mtc2 quant_scale, v_scale,0
 	andi intra, a0, 0xFF
 
 	li s0, %lo(IDCT_MATRIX)
 	li s1, %lo(INTER_QUANT_MATRIX)
 	li s2, %lo(IDCT_PREMULT)
+	li s3, %lo(COEFF_MASK)
 	sll t0, intra, 6
 	add s1, t0
-
+	
 	lhu dc, 0(s0)
 
 	li loop_idx, 7
 dequant_loop:
+	# Load the coefficient mask and store it in VCC. This is a bitmask
+	# which contains 1 for each vector lane that contains an actual coefficient.
+	# The others will be zero, but will need to be reset to zero at the end
+	# of calculations (via VMRG).
+	lbu t0, 0(s3)
+	ctc2 t0, COP2_CTRL_VCC
+
 	lqv $v00,0, 0,s0
 	lpv $v01,0, 0,s1
 	lqv $v02,0, 0,s2
 
+	# Initial scaling of the level
+	# C: level <<= 1;
 	bnez intra, dequant
 	vmudh $v00, $v00, kp2
 
-	vrndn16 $v00, km1
+	# Initial rounding of level (on inter frames only)
+	# C: level += (level < 0 ? -1 : 1);
 	vrndp16 $v00, kp1
+	vrndn16 $v00, km1
+
 dequant:
-	# Scale the quantization matrix coefficient
-	# by the quantization scale.
+	# Scale the quantization matrix coefficient by the quantization scale.
+	# C: self->quantizer_scale * quant_matrix[]
 	vmudl $v01, $v01, v_scale,e(0)
-	# Inverse quantization with clamping and oddification.
-	# The final result is <<4.
+
+	# Inverse quantization
+	# C: level * scale >> 4.
+	#
+	# NOTE: >>4 is not done here. The 4 additional bits are kept in the
+	# accumulator.
+	#
+	# NOTE: VMULQ has a behavior that, as far as I can tell, differs from
+	# published MPEG1 standard: when the number is negative, it adds a
+	# rounding value of 31 (!). This does not match official PDFs and other
+	# implementations. To be fully accurate, we need to revert this by
+	# subtracting 31 (via VRNDN16).
 	vmulq $v00, $v00, $v01
+	vrndn16 $v00, km31
+
+	# Oddification and clamping
+	#
+	# C: if ((level & 1) == 0) { level += level > 0 ? -1 : 1; }
+	# C: if (level > 2047) { level = 2047; }
+	# C: if (level < -2048) { level = -2048; }
+	#
+	# The final result is <<4, but VMACQ returns a clamped value whose last
+	# 4 bits have been masked out, so we can safely use it anyway.
 	vmacq $v00
-	vsra $v00, $v00, 4
-	# Apply pre-multiplier. The final result doesn't fit in 16-bit
-	# so we need to apply a scaling by RSP_IDCT_SCALER, by fetching
-	# the high part from the accumulator and doing a 32-bit shift
+
+	# Apply pre-multiplier.
+	# C: level = (level * PLM_VIDEO_PREMULTIPLIER_MATRIX[]) >> RSP_IDCT_SCALER;
+	#
+	# The final result doesn't fit in 16-bit, which is why we introduced 
+	# a scaling by RSP_IDCT_SCALER. We fetch the high part from the accumulator
+	# and do a 32-bit shift. We take the chance to finally remove the <<4
+	# left by the dequantization steps.
+	#
 	vmudn $v00, $v02, $v00
 	vsar $v03, $v03, $v03,e(1)
-	vsrl $v00, $v00, RSP_IDCT_SCALER
-	vsll8 $v03, $v03, 16-RSP_IDCT_SCALER
+	vsrl $v00, $v00, (RSP_IDCT_SCALER+4)
+	vsll8 $v03, $v03, 16-(RSP_IDCT_SCALER+4)
 	vor $v00, $v00, $v03
 
+	# Keep only the values that contain actual coefficients. The others are
+	# forced to zero as the above sequence could have produced non-zero
+	# results.
+	vmrg $v00, $v00, kzero
+
+	# Store the output and increment the loop counters
 	sqv $v00,0, 0,s0
 	addi s0, 16
 	addi s1, 8
 	addi s2, 16
+	addi s3, 1
 	bnez loop_idx, dequant_loop
 	addi loop_idx, -1
 
@@ -384,7 +340,7 @@ dequant:
 	li s0, %lo(IDCT_MATRIX)
 	sh dc, 0(s0)
 
-	jr ra
+	j RSPQ_Loop
 	nop
 
 	#undef vshift8
@@ -546,7 +502,7 @@ zero_pred:
 
 	.func cmd_mpeg1_idct
 cmd_mpeg1_idct:
-	jal load_consts
+	jal load_idct_consts
 	nop
 	jal load_matrix
 	nop
@@ -602,7 +558,7 @@ dma_src_block:
 cmd_mpeg1_block_decode:
 	# a0 = ncoeffs
 	# a1 = 1=intra, 0=inter
-	jal load_consts
+	jal load_idct_consts
 	nop
 	jal load_matrix
 	nop
@@ -636,6 +592,15 @@ decode_step2:
 decode_ac:
 	jal idct
 	nop
+	li s0, %lo(IDCT_MATRIX)
+	sqv $v00,0, 0*16,s0
+	sqv $v01,0, 1*16,s0
+	sqv $v02,0, 2*16,s0
+	sqv $v03,0, 3*16,s0
+	sqv $v04,0, 4*16,s0
+	sqv $v05,0, 5*16,s0
+	sqv $v06,0, 6*16,s0
+	sqv $v07,0, 7*16,s0
 	jal_and_j add_pred, decode_finish
 	
 decode_dc_only:
@@ -702,7 +667,7 @@ mtx_idct_half:
 #define y4    $v18
 #define y5    $v19
 #define y6    $v20
-#define y7    $v21
+#define y7    $v10   // recycle x1
 
 	# b3 = v2+v6
 	vaddc b3, $v02, $v06
