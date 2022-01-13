@@ -639,7 +639,7 @@ void graphics_fill_screen( display_context_t disp, uint32_t c )
  * character) and with a transparent background, and be loaded on mksprite with width and height
  * of 16.
  * @param[in] tab_width
- *        Width of each \t used. Is multiplied by the width of each character.
+ *        Width of each \\t used. Is multiplied by the width of each character.
  */
 void graphics_set_font( sprite_t *font, int tab_width )
 {
