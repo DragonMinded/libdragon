@@ -608,8 +608,8 @@ uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mi
  */
 void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int bx, int by, double x_scale, double y_scale,  mirror_t mirror)
 {
-    uint16_t s = cache[texslot & 0x7].s;
-    uint16_t t = cache[texslot & 0x7].t;
+    uint32_t s = cache[texslot & 0x7].s;
+    uint32_t t = cache[texslot & 0x7].t;
     
     rdp_draw_textured_rectangle_scaled_text_coord( texslot, tx, ty, bx, by, x_scale, y_scale, s, t, mirror );
 }
