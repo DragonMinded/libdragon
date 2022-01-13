@@ -704,7 +704,7 @@ void graphics_draw_character( display_context_t disp, int x, int y, char ch )
                 }
             }
         }
-	}
+    }
     else
     {
         uint32_t *buffer = (uint32_t *)__get_buffer( disp );
