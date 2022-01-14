@@ -238,6 +238,9 @@ void timer_init(void)
 
 /**
  * @brief Create a new timer and add to list
+ * 
+ * If you need to associate some data with the timer, consider using
+ * #new_timer_context to include a pointer in the callback.
  *
  * @param[in] ticks
  *            Number of ticks before the timer should fire
@@ -275,7 +278,9 @@ timer_link_t *new_timer(int ticks, int flags, timer_callback1_t callback)
 }
 
 /**
- * @brief Create a new timer and add to list
+ * @brief Create a new timer with context and add to list
+ * 
+ * If you don't need the context, consider using #new_timer instead.
  *
  * @param[in] ticks
  *            Number of ticks before the timer should fire
@@ -284,7 +289,7 @@ timer_link_t *new_timer(int ticks, int flags, timer_callback1_t callback)
  * @param[in] callback
  *            Callback function to call when the timer expires
  * @param[in] ctx
- * 			  User data to pass as an argument to callback
+ * 			  Opaque pointer to pass as an argument to callback
  *
  * @return A pointer to the timer structure created
  */
@@ -315,7 +320,10 @@ timer_link_t *new_timer_context(int ticks, int flags, timer_callback2_t callback
 }
 
 /**
- * @brief Start a timer not currently in the list
+ * @brief Start a timer (not currently in the list)
+ * 
+ * If you need to associate some data with the timer, consider using
+ * #start_timer_context to include a pointer in the callback.
  *
  * @param[in] timer
  *            Pointer to timer structure to reinsert and start
@@ -351,7 +359,9 @@ void start_timer(timer_link_t *timer, int ticks, int flags, timer_callback1_t ca
 }
 
 /**
- * @brief Start a timer not currently in the list
+ * @brief Start a timer (not currently in the list) with context
+ * 
+ * If you don't need the context, consider using #start_timer instead.
  *
  * @param[in] timer
  *            Pointer to timer structure to reinsert and start
@@ -362,7 +372,7 @@ void start_timer(timer_link_t *timer, int ticks, int flags, timer_callback1_t ca
  * @param[in] callback
  *            Callback function to call when the timer expires
  * @param[in] ctx
- *            User data to pass as an argument to callback
+ *            Opaque pointer to pass as an argument to callback
  */
 void start_timer_context(timer_link_t *timer, int ticks, int flags, timer_callback2_t callback, void *ctx)
 {
