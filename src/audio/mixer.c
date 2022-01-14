@@ -608,7 +608,7 @@ void mixer_add_event(int64_t delay, MixerEvent cb, void *ctx) {
 
 void mixer_remove_event(MixerEvent cb, void *ctx) {
 	for (int i=0;i<Mixer.num_events;i++) {
-		if (Mixer.events[i].cb == cb) {
+		if (Mixer.events[i].cb == cb && Mixer.events[i].ctx == ctx) {
 			memmove(&Mixer.events[i], &Mixer.events[i+1], sizeof(mixer_event_t) * (Mixer.num_events-i-1));
 			Mixer.num_events--;
 			return;
