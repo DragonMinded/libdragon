@@ -1,6 +1,6 @@
 var searchData=
 [
-  ['left_554',['left',['../structtimer__link__t.html#a1a43ae02c45b019d92e86f914ea53e64',1,'timer_link_t']]],
+  ['left_554',['left',['../group__timer.html#a1a43ae02c45b019d92e86f914ea53e64',1,'timer_link_t']]],
   ['len_555',['len',['../mixer_8h.html#a85d404d379af0cb389239dc987496cb9',1,'waveform_t::len()'],['../structwav64__header__t.html#ad2747bbf379e8e724a4231822880b9b9',1,'wav64_header_t::len()']]],
   ['length_556',['length',['../group__lowlevel.html#a835d9ee811ce8d37be9403d2e6abe4bc',1,'AI_regs_t']]],
   ['libdragon_557',['Libdragon',['../index.html',1,'']]],

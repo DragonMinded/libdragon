@@ -74,7 +74,7 @@ var searchData=
   ['cached_5floc_167',['cached_loc',['../group__dfs.html#ae0059c0f91fe71da66584470a30fd8a0',1,'open_file_t']]],
   ['cachedaddr_168',['CachedAddr',['../group__n64sys.html#gaa566b86568181e152a0e5e940883600b',1,'n64sys.h']]],
   ['calc_5fbuffer_169',['CALC_BUFFER',['../group__audio.html#ga1b0880357ad7cafc9780a3ed72447816',1,'audio.c']]],
-  ['callback_170',['callback',['../struct__callback__link.html#a3719bebcc7b7973aa13f1cbdeb8eee47',1,'_callback_link::callback()'],['../structjoybus__msg__t.html#a1dc991d372bf35c53c60962ed4672ccd',1,'joybus_msg_t::callback()'],['../structtimer__link__t.html#a4aa947b280fe136d0e017f0d83954ede',1,'timer_link_t::callback()']]],
+  ['callback_170',['callback',['../struct__callback__link.html#a3719bebcc7b7973aa13f1cbdeb8eee47',1,'_callback_link::callback()'],['../structjoybus__msg__t.html#a1dc991d372bf35c53c60962ed4672ccd',1,'joybus_msg_t::callback()']]],
   ['cart_5fstart_5floc_171',['cart_start_loc',['../group__dfs.html#a5a6b9ed326d780740246d5b4bc61166b',1,'open_file_t']]],
   ['cartridge_5ftype_172',['cartridge_type',['../tpak_8h.html#acdb04295a92ab65a54d50561a63ea99b',1,'gameboy_cartridge_header']]],
   ['ch_173',['ch',['../structAY8910.html#a55c3b4795760e618cdc5021be938dbe7',1,'AY8910']]],
@@ -114,10 +114,10 @@ var searchData=
   ['controller_5fscan_207',['controller_scan',['../group__controller.html#ga09bec1d584ae42e67b40d6b128470f18',1,'controller.c']]],
   ['cop0_2eh_208',['cop0.h',['../cop0_8h.html',1,'']]],
   ['cop1_2eh_209',['cop1.h',['../cop1_8h.html',1,'']]],
-  ['count_210',['count',['../structAYEnvelope.html#a4eae001d0b07d34dcfb74b4758bb586b',1,'AYEnvelope::count()'],['../structAYNoise.html#ad4f8445d16f3a1472585b818589c26f8',1,'AYNoise::count()'],['../structAYChannel.html#ad7b64cf8c2ab648dfc50f48a5ecfccb6',1,'AYChannel::count()']]],
+  ['count_210',['count',['../structAYChannel.html#ad7b64cf8c2ab648dfc50f48a5ecfccb6',1,'AYChannel::count()'],['../structAYNoise.html#ad4f8445d16f3a1472585b818589c26f8',1,'AYNoise::count()'],['../structAYEnvelope.html#a4eae001d0b07d34dcfb74b4758bb586b',1,'AYEnvelope::count()']]],
   ['cpu_5ffrequency_211',['CPU_FREQUENCY',['../group__n64sys.html#gaf73acdf7fb3be35ff98322b7e827d349',1,'n64sys.h']]],
   ['cr_212',['cr',['../group__exceptions.html#a29167e78972fa51420662cbc9a006060',1,'reg_block_t']]],
-  ['ctx_213',['ctx',['../xm64_8h.html#a163318602797c2c536af2a64843f7115',1,'xm64player_t::ctx()'],['../mixer_8h.html#a1df77203f9cfc69e3772196faa5e1a9d',1,'waveform_t::ctx()']]],
+  ['ctx_213',['ctx',['../xm64_8h.html#a163318602797c2c536af2a64843f7115',1,'xm64player_t::ctx()'],['../group__timer.html#acc66184952b4a9841a2566830219e86e',1,'timer_link_t::ctx()'],['../mixer_8h.html#a1df77203f9cfc69e3772196faa5e1a9d',1,'waveform_t::ctx()']]],
   ['cur_5fline_214',['cur_line',['../group__lowlevel.html#a02c4b685a50831fe0ab4d60d8c89651a',1,'VI_regs_t']]],
   ['curframe_215',['curframe',['../ym64_8h.html#af81831f2e8e54fb4a3ba2751d2cecb94',1,'ym64player_t']]]
 ];
