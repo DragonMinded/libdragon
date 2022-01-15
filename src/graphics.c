@@ -48,10 +48,7 @@ static struct {
     sprite_t *sprite;
     int font_width;
     int font_height;
-} sprite_font = {
-    .font_width = 8,
-    .font_height = 8,
-};
+} sprite_font = { .sprite = NULL };
 
 
 /**
@@ -630,7 +627,25 @@ void graphics_fill_screen( display_context_t disp, uint32_t c )
 }
 
 /**
+ * @brief Set the font to the default.
+ */
+void graphics_set_default_font( void )
+{
+    sprite_t *font = __bitdepth == 2 ? __font_data_16 : __font_data_32;
+    graphics_set_font_sprite( font );
+}
+
+/**
  * @brief Set the current font. Should be set before using any of the draw function.
+ * 
+ * The sprite font should be imported using hslices/vslices according to the amount of characters it has.
+ * The amount of hslices vs vslices does not matter for this, but it should include the whole ASCII
+ * range that you will want to use, including characters from the 0 to 32 range. Normally the sprite should have
+ * 127 slices to cover the normal ASCII range.
+ * 
+ * During rendering, the slice used will be the same number as the char (eg.: character 'A' will use slice 65).
+ * 
+ * You can see an example of a sprite font (that has the default font double sized) under examples/customfont.
  *
  * @param[in] font
  *        Sprite font to be used.
@@ -668,7 +683,7 @@ void graphics_draw_character( display_context_t disp, int x, int y, char ch )
     // setting default font if none was set previously
     if( sprite_font.sprite == NULL )
     {
-        sprite_font.sprite = (sprite_t *)(depth == 2 ? __font_data_16 : __font_data_32);
+        graphics_set_default_font();
     }
 
     /* Figure out if they want the background to be transparent */
