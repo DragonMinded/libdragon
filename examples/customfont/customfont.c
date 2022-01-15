@@ -32,7 +32,7 @@ int main(void)
 
     graphics_draw_text( disp, 20, 20, "Using default font!" );
 
-    graphics_set_font( custom_font, 4 );
+    graphics_set_font_sprite( custom_font );
 
     graphics_draw_text( disp, 20, 40, "Using custom font!" );
 

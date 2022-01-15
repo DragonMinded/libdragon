@@ -42,15 +42,13 @@
 
 /**
  * @brief Struct that holds the current loaded font. We load the default font on
- * the first #graphics_draw_character call if #graphics_set_font was not called.
+ * the first #graphics_draw_character call if #graphics_set_font_sprite was not called.
  */
 static struct {
     sprite_t *sprite;
-    int tab_width;
     int font_width;
     int font_height;
 } sprite_font = {
-    .tab_width = 5,
     .font_width = 8,
     .font_height = 8,
 };
@@ -635,16 +633,11 @@ void graphics_fill_screen( display_context_t disp, uint32_t c )
  * @brief Set the current font. Should be set before using any of the draw function.
  *
  * @param[in] font
- *        Sprite font to be used. Should be using a standard font sprite (containing every ASCII
- * character) and with a transparent background, and be loaded on mksprite with width and height
- * of 16.
- * @param[in] tab_width
- *        Width of each \\t used. Is multiplied by the width of each character.
+ *        Sprite font to be used.
  */
-void graphics_set_font( sprite_t *font, int tab_width )
+void graphics_set_font_sprite( sprite_t *font )
 {
     sprite_font.sprite = font;
-    sprite_font.tab_width = tab_width;
     sprite_font.font_width = sprite_font.sprite->width / sprite_font.sprite->hslices;
     sprite_font.font_height = sprite_font.sprite->height / sprite_font.sprite->vslices;
 }
@@ -785,7 +778,7 @@ void graphics_draw_text( display_context_t disp, int x, int y, const char * cons
                 tx += sprite_font.font_width;
                 break;
             case '\t':
-                tx += sprite_font.font_width * sprite_font.tab_width;
+                tx += sprite_font.font_width * 5;
                 break;
             default:
                 graphics_draw_character( disp, tx, ty, *text );
