@@ -45,6 +45,9 @@ volatile uint32_t ticks64_high;
 /** @brief Time at which interrupts were disabled */
 extern volatile uint32_t interrupt_disabled_tick;
 
+/** @brief Timer callback expects a context parameter */
+#define TF_CONTEXT     0x20
+
 /** @brief Timer is the special overflow timer. */
 #define TF_OVERFLOW    0x40
 
@@ -109,7 +112,11 @@ static int __proc_timers(timer_link_t * thead)
 		{
 			/* yes - timed out, do callback */
 			head->ovfl = TICKS_DISTANCE(head->left, now);
-			if (head->callback)
+
+			/* invoke the appropriate callback function */
+			if (head->flags & TF_CONTEXT && head->callback_with_context)
+				head->callback_with_context(head->ovfl, head->ctx);
+			else if (head->callback)
 				head->callback(head->ovfl);
 
 			/* reset ticks if continuous */
@@ -163,12 +170,12 @@ static int __proc_timers(timer_link_t * thead)
 }
 
 /**
- * @brief Timer callback function
+ * @brief Timer interrupt callback function
  *
  * This function is called by the interrupt controller whenever 
  * compare == count.
  */
-static void timer_callback(void)
+static void timer_interrupt_callback(void)
 {
 	while (__proc_timers(TI_timers))
 		{}
@@ -184,7 +191,7 @@ static void timer_callback(void)
  * is configured by timer_init() and is used to create a 64-bit timer
  * accessed by timer_ticks().
  */
-static void timer_callback_overflow(int ovfl)
+static void timer_overflow_callback(int ovfl)
 {
 	ticks64_high++;
 }
@@ -210,7 +217,8 @@ void timer_init(void)
 		timer->left = 0;
 		timer->set = 0;
 		timer->flags = TF_CONTINUOUS | TF_OVERFLOW;
-		timer->callback = timer_callback_overflow;
+		timer->callback = timer_overflow_callback;
+		timer->ctx = NULL;
 		timer->next = NULL;
 
 		TI_timers = timer;
@@ -224,12 +232,15 @@ void timer_init(void)
 	C0_WRITE_COUNT(1);
 	C0_WRITE_COMPARE(0);
 	C0_WRITE_STATUS(C0_STATUS() | C0_INTERRUPT_TIMER);
-	register_TI_handler(timer_callback);
+	register_TI_handler(timer_interrupt_callback);
 	enable_interrupts();
 }
 
 /**
  * @brief Create a new timer and add to list
+ * 
+ * If you need to associate some data with the timer, consider using
+ * #new_timer_context to include a pointer in the callback.
  *
  * @param[in] ticks
  *            Number of ticks before the timer should fire
@@ -240,7 +251,7 @@ void timer_init(void)
  *
  * @return A pointer to the timer structure created
  */
-timer_link_t *new_timer(int ticks, int flags, void (*callback)(int ovfl))
+timer_link_t *new_timer(int ticks, int flags, timer_callback1_t callback)
 {
 	assertf(TI_timers, "timer module not initialized");
 	timer_link_t *timer = malloc(sizeof(timer_link_t));
@@ -250,6 +261,7 @@ timer_link_t *new_timer(int ticks, int flags, void (*callback)(int ovfl))
 		timer->set = ticks;
 		timer->flags = flags;
 		timer->callback = callback;
+		timer->ctx = NULL;
 
 		if (flags & TF_DISABLED)
 			return timer;
@@ -266,7 +278,52 @@ timer_link_t *new_timer(int ticks, int flags, void (*callback)(int ovfl))
 }
 
 /**
- * @brief Start a timer not currently in the list
+ * @brief Create a new timer with context and add to list
+ * 
+ * If you don't need the context, consider using #new_timer instead.
+ *
+ * @param[in] ticks
+ *            Number of ticks before the timer should fire
+ * @param[in] flags
+ *            Timer flags.  See #TF_ONE_SHOT, #TF_CONTINUOUS and #TF_DISABLED
+ * @param[in] callback
+ *            Callback function to call when the timer expires
+ * @param[in] ctx
+ * 			  Opaque pointer to pass as an argument to callback
+ *
+ * @return A pointer to the timer structure created
+ */
+timer_link_t *new_timer_context(int ticks, int flags, timer_callback2_t callback, void *ctx)
+{
+	assertf(TI_timers, "timer module not initialized");
+	timer_link_t *timer = malloc(sizeof(timer_link_t));
+	if (timer)
+	{
+		timer->left = TICKS_READ() + (int32_t)ticks;
+		timer->set = ticks;
+		timer->flags = flags | TF_CONTEXT;
+		timer->callback_with_context = callback;
+		timer->ctx = ctx;
+
+		if (flags & TF_DISABLED)
+			return timer;
+
+		disable_interrupts();
+
+		timer->next = TI_timers;
+		TI_timers = timer;
+		timer_update_compare(TI_timers);
+
+		enable_interrupts();
+	}
+	return timer;
+}
+
+/**
+ * @brief Start a timer (not currently in the list)
+ * 
+ * If you need to associate some data with the timer, consider using
+ * #start_timer_context to include a pointer in the callback.
  *
  * @param[in] timer
  *            Pointer to timer structure to reinsert and start
@@ -277,7 +334,7 @@ timer_link_t *new_timer(int ticks, int flags, void (*callback)(int ovfl))
  * @param[in] callback
  *            Callback function to call when the timer expires
  */
-void start_timer(timer_link_t *timer, int ticks, int flags, void (*callback)(int ovfl))
+void start_timer(timer_link_t *timer, int ticks, int flags, timer_callback1_t callback)
 {
 	assertf(TI_timers, "timer module not initialized");
 	if (timer)
@@ -286,6 +343,47 @@ void start_timer(timer_link_t *timer, int ticks, int flags, void (*callback)(int
 		timer->set = ticks;
 		timer->flags = flags;
 		timer->callback = callback;
+		timer->ctx = NULL;
+
+		if (flags & TF_DISABLED)
+			return;
+
+		disable_interrupts();
+
+		timer->next = TI_timers;
+		TI_timers = timer;
+		timer_update_compare(TI_timers);
+
+		enable_interrupts();
+	}
+}
+
+/**
+ * @brief Start a timer (not currently in the list) with context
+ * 
+ * If you don't need the context, consider using #start_timer instead.
+ *
+ * @param[in] timer
+ *            Pointer to timer structure to reinsert and start
+ * @param[in] ticks
+ *            Number of ticks before the timer should fire
+ * @param[in] flags
+ *            Timer flags.  See #TF_ONE_SHOT, #TF_CONTINUOUS, and #TF_DISABLED
+ * @param[in] callback
+ *            Callback function to call when the timer expires
+ * @param[in] ctx
+ *            Opaque pointer to pass as an argument to callback
+ */
+void start_timer_context(timer_link_t *timer, int ticks, int flags, timer_callback2_t callback, void *ctx)
+{
+	assertf(TI_timers, "timer module not initialized");
+	if (timer)
+	{
+		timer->left = TICKS_READ() + (int32_t)ticks;
+		timer->set = ticks;
+		timer->flags = flags | TF_CONTEXT;
+		timer->callback_with_context = callback;
+		timer->ctx = ctx;
 
 		if (flags & TF_DISABLED)
 			return;
@@ -394,7 +492,7 @@ void timer_close(void)
 	/* Disable generation of timer interrupt. */
 	C0_WRITE_STATUS(C0_STATUS() & ~C0_INTERRUPT_TIMER);
 
-	unregister_TI_handler(timer_callback);
+	unregister_TI_handler(timer_interrupt_callback);
 
 	timer_link_t *head = TI_timers;
 	while (head)
