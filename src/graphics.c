@@ -631,7 +631,7 @@ void graphics_fill_screen( display_context_t disp, uint32_t c )
  */
 void graphics_set_default_font( void )
 {
-    sprite_t *font = __bitdepth == 2 ? __font_data_16 : __font_data_32;
+    sprite_t *font = (sprite_t *)(__bitdepth == 2 ? __font_data_16 : __font_data_32);
     graphics_set_font_sprite( font );
 }
 
