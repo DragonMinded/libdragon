@@ -10,9 +10,11 @@
 // Usage of RSP in MPEG-1 player:
 //   0: None (full CPU)
 //   1: IDCT+Residual
-//   3: Dequant+IDCT+Residual
-#define RSP_MODE              2
+//   2: Dequant+IDCT+Residual
+//   3: Dequant+IDCT+Residual+Prediction
+#define RSP_MODE              3
 
+#define ASSERT_UNDEFINED_BLOCK   0x0001
 
 #ifndef __ASSEMBLER__
 #include "pl_mpeg/pl_mpeg.h"
@@ -20,13 +22,14 @@
 void rsp_mpeg1_init(void);
 void rsp_mpeg1_load_matrix(int16_t *mtx);
 void rsp_mpeg1_store_matrix(int16_t *mtx);
-void rsp_mpeg1_store_pixels(int8_t *mtx);
+void rsp_mpeg1_store_pixels(void);
 void rsp_mpeg1_idct(void);
-void rsp_mpeg1_block_begin(uint8_t *pixels, int pitch);
+void rsp_mpeg1_block_begin(uint8_t *pixels, int width, int pitch);
 void rsp_mpeg1_block_coeff(int idx, int16_t coeff);
 void rsp_mpeg1_block_dequant(bool intra, int scale);
 void rsp_mpeg1_block_decode(int ncoeffs, bool intra);
 void rsp_mpeg1_set_quant_matrix(bool intra, const uint8_t quant_mtx[64]);
+void rsp_mpeg1_block_predict(uint8_t *src, int pitch, bool oddh, bool oddv, bool interpolate);
 
 #endif
 

@@ -165,8 +165,11 @@ See below for detailed the API documentation.
 #include <stdint.h>
 #include <stdio.h>
 
-#ifndef N64
-#include "profile.h"
+#ifdef N64
+#include "../profile.h"
+#include <malloc.h>
+#else
+#define memalign(a, sz) malloc(sz)
 #endif
 
 #ifdef __cplusplus
@@ -1571,6 +1574,13 @@ uint64_t plm_buffer_showbits(plm_buffer_t *self) {
 	return bits;
 }
 
+uint64_t plm_buffer_showbits2(plm_buffer_t *self) {
+	typedef uint64_t u_uint64_t __attribute__((aligned(1)));
+	uint64_t bits = *(u_uint64_t*)&self->bytes[self->bit_index >> 3];
+	bits <<= self->bit_index & 7;
+	return bits;
+}
+
 int plm_buffer_read(plm_buffer_t *self, int count) {
 	if (!plm_buffer_has(self, count)) {
 		return 0;
@@ -1690,7 +1700,6 @@ uint16_t plm_buffer_read_vlc_uint_bits(plm_buffer_t *self, const plm_vlc_uint_t 
 uint16_t plm_buffer_read_vlc_uint(plm_buffer_t *self, const plm_vlc_uint_t *table) {
 	return (uint16_t)plm_buffer_read_vlc(self, (const plm_vlc_t *)table);
 }
-
 
 
 // ----------------------------------------------------------------------------
@@ -2643,6 +2652,8 @@ int plm_video_decode_motion_vector(plm_video_t *self, int r_size, int motion);
 void plm_video_predict_macroblock(plm_video_t *self);
 void plm_video_copy_macroblock(plm_video_t *self, plm_frame_t *s, int motion_h, int motion_v);
 void plm_video_interpolate_macroblock(plm_video_t *self, plm_frame_t *s, int motion_h, int motion_v);
+void plm_video_copy_macroblock_rsp(plm_video_t *self, plm_frame_t *s, int motion_h, int motion_v);
+void plm_video_interpolate_macroblock_rsp(plm_video_t *self, plm_frame_t *s1, int motion_h1, int motion_v1, plm_frame_t *s2, int motion_h2, int motion_v2);
 void plm_video_process_macroblock(plm_video_t *self, uint8_t *s, uint8_t *d, int mh, int mb, int bs, int interp);
 void plm_video_decode_block(plm_video_t *self, int block);
 void plm_video_decode_block_residual(int16_t *s, int si, uint8_t *d, int di, int dw, int n, int intra);
@@ -2669,7 +2680,10 @@ void plm_video_destroy(plm_video_t *self) {
 	}
 
 	if (self->has_sequence_header) {
-		free(self->frames_data);
+		if (RSP_MODE >= 4)
+			free_uncached(self->frames_data);
+		else
+			free(self->frames_data);
 	}
 
 	free(self);
@@ -2867,7 +2881,10 @@ int plm_video_decode_sequence_header(plm_video_t *self) {
 	size_t chroma_plane_size = self->chroma_width * self->chroma_height;
 	size_t frame_data_size = (luma_plane_size + 2 * chroma_plane_size);
 
-	self->frames_data = (uint8_t*)malloc(frame_data_size * 3);
+	if (RSP_MODE >= 4)
+		self->frames_data = (uint8_t*)malloc_uncached(frame_data_size * 3);
+	else
+		self->frames_data = (uint8_t*)memalign(16, frame_data_size * 3);
 	plm_video_init_frame(self, &self->frame_current, self->frames_data + frame_data_size * 0);
 	plm_video_init_frame(self, &self->frame_forward, self->frames_data + frame_data_size * 1);
 	plm_video_init_frame(self, &self->frame_backward, self->frames_data + frame_data_size * 2);
@@ -3167,20 +3184,115 @@ void plm_video_predict_macroblock(plm_video_t *self) {
 			bw_v <<= 1;
 		}
 
-		if (self->motion_forward.is_set) {
-			plm_video_copy_macroblock(self, &self->frame_forward, fw_h, fw_v);
-			if (self->motion_backward.is_set) {
-				plm_video_interpolate_macroblock(self, &self->frame_backward, bw_h, bw_v);
+		if (RSP_MODE >= 3) {
+			if (self->motion_forward.is_set) {
+				if (self->motion_backward.is_set) {
+					plm_video_interpolate_macroblock_rsp(self, &self->frame_forward, fw_h, fw_v, &self->frame_backward, bw_h, bw_v);
+				} else {
+					plm_video_copy_macroblock_rsp(self, &self->frame_forward, fw_h, fw_v);
+				}
+			} else {
+				plm_video_copy_macroblock_rsp(self, &self->frame_backward, bw_h, bw_v);
 			}
-		}
-		else {
-			plm_video_copy_macroblock(self, &self->frame_backward, bw_h, bw_v);
+		} else {
+			if (self->motion_forward.is_set) {
+				plm_video_copy_macroblock(self, &self->frame_forward, fw_h, fw_v);
+				if (self->motion_backward.is_set) {
+					plm_video_interpolate_macroblock(self, &self->frame_backward, bw_h, bw_v);
+				}
+			}
+			else {
+				plm_video_copy_macroblock(self, &self->frame_backward, bw_h, bw_v);
+			}
 		}
 	}
 	else {
-		plm_video_copy_macroblock(self, &self->frame_forward, fw_h, fw_v);
+		if (RSP_MODE >= 3) {
+			plm_video_copy_macroblock_rsp(self, &self->frame_forward, fw_h, fw_v);	
+		} else {
+			plm_video_copy_macroblock(self, &self->frame_forward, fw_h, fw_v);
+		}
 	}
 	PROFILE_STOP(PS_MPEG_MB_PREDICT, 0);
+}
+
+void plm_video_copy_macroblock_rsp(plm_video_t *self, plm_frame_t *s, int motion_h, int motion_v) {
+	plm_frame_t *d = &self->frame_current;
+
+	int dw = self->mb_width * 16;
+	int hp = motion_h >> 1;
+	int vp = motion_v >> 1;
+	int odd_h = (motion_h & 1) == 1;
+	int odd_v = (motion_v & 1) == 1;
+
+	unsigned int si = ((self->mb_row * 16) + vp) * dw + (self->mb_col * 16) + hp;
+	unsigned int di = (self->mb_row * dw + self->mb_col) * 16;
+	rsp_mpeg1_block_begin(d->y.data+di, 16, dw);
+	rsp_mpeg1_block_predict(s->y.data+si, dw, odd_h, odd_v, 0);
+	rsp_mpeg1_store_pixels();
+
+	dw >>= 1;
+	odd_h = (hp & 1) == 1;
+	odd_v = (vp & 1) == 1;
+	hp >>= 1;
+	vp >>= 1;
+
+	si = ((self->mb_row * 8) + vp) * dw + (self->mb_col * 8) + hp;
+	di = (self->mb_row * dw + self->mb_col) * 8;
+	rsp_mpeg1_block_begin(d->cr.data+di, 8, dw);
+	rsp_mpeg1_block_predict(s->cr.data+si, dw, odd_h, odd_v, 0);
+	rsp_mpeg1_store_pixels();
+	rsp_mpeg1_block_begin(d->cb.data+di, 8, dw);
+	rsp_mpeg1_block_predict(s->cb.data+si, dw, odd_h, odd_v, 0);
+	rsp_mpeg1_store_pixels();
+	rspq_flush();
+}
+
+void plm_video_interpolate_macroblock_rsp(plm_video_t *self, plm_frame_t *s1, int motion_h1, int motion_v1, plm_frame_t *s2, int motion_h2, int motion_v2) {
+	plm_frame_t *d = &self->frame_current;
+
+	int dw = self->mb_width * 16;
+	int hp1 = motion_h1 >> 1;
+	int vp1 = motion_v1 >> 1;
+	int odd_h1 = (motion_h1 & 1) == 1;
+	int odd_v1 = (motion_v1 & 1) == 1;
+	int hp2 = motion_h2 >> 1;
+	int vp2 = motion_v2 >> 1;
+	int odd_h2 = (motion_h2 & 1) == 1;
+	int odd_v2 = (motion_v2 & 1) == 1;
+
+	unsigned int si1 = ((self->mb_row * 16) + vp1) * dw + (self->mb_col * 16) + hp1;
+	unsigned int si2 = ((self->mb_row * 16) + vp2) * dw + (self->mb_col * 16) + hp2;
+	unsigned int di = (self->mb_row * dw + self->mb_col) * 16;
+
+	rsp_mpeg1_block_begin(d->y.data+di, 16, dw);
+	rsp_mpeg1_block_predict(s1->y.data+si1, dw, odd_h1, odd_v1, 0);
+	rsp_mpeg1_block_predict(s2->y.data+si2, dw, odd_h2, odd_v2, 1);
+	rsp_mpeg1_store_pixels();
+
+	dw >>= 1;
+	odd_h1 = (hp1 & 1) == 1;
+	odd_v1 = (vp1 & 1) == 1;
+	hp1 >>= 1;
+	vp1 >>= 1;
+	odd_h2 = (hp2 & 1) == 1;
+	odd_v2 = (vp2 & 1) == 1;
+	hp2 >>= 1;
+	vp2 >>= 1;
+
+	si1 = ((self->mb_row * 8) + vp1) * dw + (self->mb_col * 8) + hp1;
+	si2 = ((self->mb_row * 8) + vp2) * dw + (self->mb_col * 8) + hp2;
+	di = (self->mb_row * dw + self->mb_col) * 8;
+
+	rsp_mpeg1_block_begin(d->cr.data+di, 8, dw);
+	rsp_mpeg1_block_predict(s1->cr.data+si1, dw, odd_h1, odd_v1, 0);
+	rsp_mpeg1_block_predict(s2->cr.data+si2, dw, odd_h2, odd_v2, 1);
+	rsp_mpeg1_store_pixels();
+	rsp_mpeg1_block_begin(d->cb.data+di, 8, dw);
+	rsp_mpeg1_block_predict(s1->cb.data+si1, dw, odd_h1, odd_v1, 0);
+	rsp_mpeg1_block_predict(s2->cb.data+si2, dw, odd_h2, odd_v2, 1);
+	rsp_mpeg1_store_pixels();
+	rspq_flush();
 }
 
 void plm_video_copy_macroblock(plm_video_t *self, plm_frame_t *s, int motion_h, int motion_v) {
@@ -3247,6 +3359,16 @@ void plm_video_process_macroblock(
 
 	#undef PLM_MB_CASE
 }
+
+uint16_t plm_video_decode_dct_coeff(plm_buffer_t *buf) {
+	uint64_t bits = plm_buffer_showbits2(buf);
+	if (bits>>63 == 1) { buf->bit_index += 1; return 0x0001; }
+	if (bits>>61 == 7) { buf->bit_index += 3; return 0x0101; }
+	if (bits>>60 == 4) { buf->bit_index += 4; return 0x0002; }
+	if (bits>>60 == 5) { buf->bit_index += 4; return 0x0201; }
+	return plm_buffer_read_vlc_uint_bits(buf, PLM_VIDEO_DCT_COEFF, bits);
+}
+
 
 void plm_video_decode_block(plm_video_t *self, int block) {
 
@@ -3318,18 +3440,20 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 	}
 	PROFILE_STOP(PS_MPEG_MB_DECODE_BLOCK, 0);
 
-	rsp_mpeg1_block_begin(d+di, dw);
+	rsp_mpeg1_block_begin(d+di, 8, dw);
 	if (n == 1) {
 		rsp_mpeg1_block_coeff(0, self->block_data[0]);
 	}
 
 	// Decode AC coefficients (+DC for non-intra)
 	PROFILE_START(PS_MPEG_MB_DECODE_AC, 0);
+	plm_buffer_has(self->buffer, 64*24);
 	int level = 0;
 	while (TRUE) {
 		int run = 0;
 		PROFILE_START(PS_MPEG_MB_DECODE_AC_VLC, 0);
-		uint16_t coeff = plm_buffer_read_vlc_uint(self->buffer, PLM_VIDEO_DCT_COEFF);
+		uint16_t coeff = plm_video_decode_dct_coeff(self->buffer);
+		// uint16_t coeff = plm_buffer_read_vlc_uint(self->buffer, PLM_VIDEO_DCT_COEFF);
 		PROFILE_STOP(PS_MPEG_MB_DECODE_AC_VLC, 0);
 
 		PROFILE_START(PS_MPEG_MB_DECODE_AC_CODE, 0);
@@ -3411,7 +3535,7 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 	} else if (RSP_MODE == 1) {
 		rsp_mpeg1_block_decode(n, self->macroblock_intra!=0);
 		rspq_flush();
-	} else if (RSP_MODE == 2) {
+	} else if (RSP_MODE >= 2) {
 		rsp_mpeg1_block_dequant(self->macroblock_intra, self->quantizer_scale);
 		rsp_mpeg1_block_decode(n, self->macroblock_intra!=0);
 		rspq_flush();

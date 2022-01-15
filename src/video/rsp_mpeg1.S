@@ -9,13 +9,14 @@ COMMAND_TABLE:
 	RSPQ_DefineCommand cmd_mpeg1_load_matrix     4  # 0x50
 	RSPQ_DefineCommand cmd_mpeg1_store_pixels    4  # 0x51
 	RSPQ_DefineCommand cmd_mpeg1_idct            4  # 0x52
-	RSPQ_DefineCommand cmd_mpeg1_block_begin     8  # 0x53
+	RSPQ_DefineCommand cmd_mpeg1_block_begin    12  # 0x53
 	RSPQ_DefineCommand cmd_mpeg1_block_coeff     4  # 0x54
 	RSPQ_DefineCommand cmd_mpeg1_block_dequant   4  # 0x55
 	RSPQ_DefineCommand cmd_mpeg1_block_decode    8  # 0x56
 	RSPQ_DefineCommand cmd_mpeg1_store_matrix    4  # 0x57
 	RSPQ_DefineCommand cmd_mpeg1_set_quant_mtx1 36  # 0x58
 	RSPQ_DefineCommand cmd_mpeg1_set_quant_mtx2 36  # 0x59
+	RSPQ_DefineCommand cmd_mpeg1_block_predict  12  # 0x5A
 	.dcb.w 16-10
 
 	vsll_data
@@ -28,14 +29,15 @@ COMMAND_TABLE:
 	.align 4
 MPEG1_STATE_START:
 IDCT_MATRIX:  .dcb.w    8*8       # 8x8 coefficient matrix
-BLOCK_PIXELS: .dcb.b    8*8       # 8x8 pixels (current block)
+BLOCK_PIXELS: .dcb.b    16*16     # 16x16 pixels (current block)
 COEFF_MASK:   .dcb.b    8
 
 INTER_QUANT_MATRIX:  .dcb.b 64    # 8x8 quantization matrix for inter frames
 INTRA_QUANT_MATRIX:  .dcb.b 64    # 8x8 quantization matrix for intra frames
 
-RDRAM_BLOCK:       .long   0         # Current block in RDRAM: Luminance
-RDRAM_BLOCK_PITCH: .long   0           # Pitch of the frame in RDRAM (Luminance)
+RDRAM_BLOCK:       .long   0         # Current block in RDRAM
+RDRAM_BLOCK_SIZE:  .long   0         # Current block size in RDRAM (DMA_SIZE format)
+RDRAM_BLOCK_PITCH: .long   0         # Pitch of the block/frame in RDRAM
 MPEG1_STATE_END:
 
 	.align 4
@@ -81,6 +83,10 @@ ZIGZAG:
 	.byte 29*2, 22*2, 15*2, 23*2, 30*2, 37*2, 44*2, 51*2
 	.byte 58*2, 59*2, 52*2, 45*2, 38*2, 31*2, 39*2, 46*2
 	.byte 53*2, 60*2, 61*2, 54*2, 47*2, 55*2, 62*2, 63*2
+
+	.align 3
+SOURCE_PIXELS: .dcb.b 24*16
+
 
 	.text 1
 
@@ -158,13 +164,15 @@ cmd_mpeg1_set_quant_mtx:
 	.func cmd_mpeg1_block_begin
 cmd_mpeg1_block_begin:
 	# a0: block address in RDRAM
+	# a1: block width in RDRAM
 	# a1: block pitch in RDRAM
 
 	vxor $v00, $v00, $v00
 
 	# Store RDRAM block address and pitch
 	sw a0, %lo(RDRAM_BLOCK)
-	sw a1, %lo(RDRAM_BLOCK_PITCH)
+	sw a1, %lo(RDRAM_BLOCK_SIZE)
+	sw a2, %lo(RDRAM_BLOCK_PITCH)
 
 	# Clear coefficient mask
 	sw zero, %lo(COEFF_MASK) + 0
@@ -343,7 +351,6 @@ dequant:
 	j RSPQ_Loop
 	nop
 
-	#undef vshift8
 	#undef intra
 	#undef v_const2
 	#undef kp1
@@ -369,8 +376,10 @@ cmd_mpeg1_store_matrix:
 
 	.func cmd_mpeg1_store_pixels
 cmd_mpeg1_store_pixels:
-	move s0, a0
-	li t0, DMA_SIZE(8*8, 1)
+	lw s0, %lo(RDRAM_BLOCK)
+	assert_ne s0, zero, ASSERT_UNDEFINED_BLOCK
+	lw t1, %lo(RDRAM_BLOCK_PITCH)
+	lw t0, %lo(RDRAM_BLOCK_SIZE)
 	j DMAOut
 	li s4, %lo(BLOCK_PIXELS)
 	.endfunc
@@ -547,11 +556,10 @@ cmd_mpeg1_idct:
 	.func dma_src_block
 dma_src_block:
 	li s4, %lo(BLOCK_PIXELS)
-	li s0, %lo(RDRAM_BLOCK)
-	lw t1, 4(s0)  # pitch
-	lw s0, 0(s0)  # address
+	lw t1, %lo(RDRAM_BLOCK_PITCH)
+	lw s0, %lo(RDRAM_BLOCK)
 	j DMAExec
-	li t0, DMA_SIZE(8, 8)
+	lw t0, %lo(RDRAM_BLOCK_SIZE)
 	.endfunc
 
 	.func cmd_mpeg1_block_decode
@@ -728,4 +736,564 @@ mtx_idct_half:
 	jr ra
 	nop
 
+	#undef b1
+	#undef b3
+	#undef b4
+	#undef tmp1
+	#undef tmp2
+	#undef b6
+	#undef b7
+	#undef m0
+	#undef x4
+	#undef x0
+	#undef x1
+	#undef x2
+	#undef x3
+	#undef y3
+	#undef y4
+	#undef y5
+	#undef y6
+	#undef y7
 	.endfunc
+
+
+#########################################################
+#########################################################
+#
+# Prediction
+#
+#########################################################
+#########################################################
+
+	#define dmem_src_pitch 24
+	#define kp1    vshift,e(7)
+	#define kp1e7  vshift,e(0)
+	#define kp1e6  vshift,e(1)
+	#define kp1e5  vshift,e(2)
+	#define kp1e4  vshift,e(3)
+	#define kp1e15 vshift8,e(0)
+	#define kp1e14 vshift8,e(1)
+	#define kp1e13 vshift8,e(2)
+	#define block_size t8
+
+
+	.func block_copy
+block_copy:
+	# s0: source buffer (pitch = dmem_src_pitch)
+	# s4: dest buffer (pitch = 8)
+	li t1, 8
+	addi t0, block_size, -2
+cl1:
+	add s3, s4, block_size
+	luv $v00,0, 0*dmem_src_pitch,s0
+	luv $v01,0, 1*dmem_src_pitch,s0
+	suv $v00,0, 0,s4
+	beq block_size, t1, cl1_end
+	suv $v01,0, 0,s3
+	luv $v00,0, 0*dmem_src_pitch+8,s0
+	luv $v01,0, 1*dmem_src_pitch+8,s0
+	suv $v00,0, 8,s4
+	suv $v01,0, 8,s3
+cl1_end:
+	addi s0, 2*dmem_src_pitch
+	add s4, s3, block_size
+	bgtz t0, cl1
+	addi t0, -2
+
+	jr ra
+	nop
+	.endfunc
+
+	.func block_interp_8x8
+block_interp_8x8:
+	# s0: source buffer (pitch = dmem_src_pitch)
+	# s4: dest buffer (pitch = 8)
+	#define line t1
+
+	beq block_size, 16, block_interp_16x16
+
+	li t0, 8-2
+1:
+	luv $v00,0, 0*dmem_src_pitch,s0
+	luv $v01,0, 1*dmem_src_pitch,s0
+	luv $v02,0, 0*8,s4
+	luv $v03,0, 1*8,s4
+
+	vaddc $v04,$v00,$v02,0
+	vaddc $v05,$v01,$v03,0
+
+	vaddc $v04,$v04,kp1e7
+	vaddc $v05,$v05,kp1e7
+
+	spv $v04,0, 0*8,s4
+	spv $v05,0, 1*8,s4
+
+	addi s0, 2*dmem_src_pitch
+	addi s4, 2*8
+	bgtz t0, 1b
+	addi t0, -2
+
+	jr ra
+	nop
+	#undef line
+	.endfunc
+
+	.func block_interp_16x16
+block_interp_16x16:
+	# s0: source buffer (pitch = dmem_src_pitch)
+	# s4: dest buffer (pitch = 8)
+	#define line t1
+
+	li t0, 16-1
+1:
+	luv $v00,0, 0*8,s0
+	luv $v01,0, 1*8,s0
+	luv $v02,0, 0*8,s4
+	luv $v03,0, 1*8,s4
+
+	vaddc $v04,$v00,$v02
+	vaddc $v05,$v01,$v03
+
+	vaddc $v04,$v04,kp1e7
+	vaddc $v05,$v05,kp1e7
+
+	spv $v04,0, 0*8,s4
+	spv $v05,0, 1*8,s4
+
+	addi s0, dmem_src_pitch
+	addi s4, 2*8
+	bgtz t0, 1b
+	addi t0, -1
+
+	jr ra
+	nop
+	#undef line
+	.endfunc
+
+
+	.func block_copy_8x8_filter2
+block_copy_8x8_filter2:
+	# s0: source buffer (pitch = dmem_src_pitch)
+	# s1: second pointer into source buffer (for interpolation)
+	# s4: dest buffer (pitch = 8)
+	#define line t1
+
+	beq block_size, 16, block_copy_16x16_filter2
+
+	# We calculate two lines at a time, to be faster
+	li line, 8-2
+1:
+	luv $v00,0, 0,s0
+	luv $v01,0, 0,s1
+	luv $v02,0, dmem_src_pitch,s0
+	luv $v03,0, dmem_src_pitch,s1
+
+	vaddc $v04,$v00,$v01,0
+	vaddc $v05,$v02,$v03,0
+
+	vaddc $v04,$v04,kp1e7
+	vaddc $v05,$v05,kp1e7
+
+	spv $v04,0, 0*8,s4
+	spv $v05,0, 1*8,s4
+
+	addi s0, dmem_src_pitch*2
+	addi s1, dmem_src_pitch*2
+	addi s4, 2*8
+	bgtz line, 1b
+	addi line, -2
+
+	jr ra
+	nop	
+
+	#undef line
+	.endfunc
+
+	.func block_interp_8x8_filter2
+block_interp_8x8_filter2:
+	# s0: source buffer (pitch = dmem_src_pitch)
+	# s1: second pointer into source buffer (for interpolation)
+	# s4: dest buffer (pitch = 8)
+	#define line t1
+
+	beq block_size, 16, block_interp_16x16_filter2
+
+	# We calculate two lines at a time, to be faster
+	li line, 8-2
+1:
+	luv $v00,0, 0,s0
+	luv $v01,0, 0,s1
+	luv $v02,0, dmem_src_pitch,s0
+	luv $v03,0, dmem_src_pitch,s1
+	luv $v08,0, 0*8,s4
+	luv $v09,0, 1*8,s4
+
+	vaddc $v04,$v00,$v01
+	vaddc $v05,$v02,$v03
+
+	vaddc $v04,$v04,kp1e7
+	vaddc $v05,$v05,kp1e7
+
+	vsrl $v04, $v04, 1
+	vsrl $v05, $v05, 1
+
+	vaddc $v04,$v04,$v08
+	vaddc $v05,$v05,$v09
+
+	vaddc $v04,$v04,kp1e7
+	vaddc $v05,$v05,kp1e7
+
+	spv $v04,0, 0*8,s4
+	spv $v05,0, 1*8,s4
+
+	addi s0, dmem_src_pitch*2
+	addi s1, dmem_src_pitch*2
+	addi s4, 2*8
+	bgtz line, 1b
+	addi line, -2
+
+	jr ra
+	nop	
+
+	#undef line
+	.endfunc
+
+	.func block_copy_16x16_filter2
+block_copy_16x16_filter2:
+	# s0: source buffer (pitch = dmem_src_pitch)
+	# s1: second pointer into source buffer (for interpolation)
+	# s4: dest buffer (pitch = 8)
+	#define line t1
+
+	li line, 16-1
+1:
+	luv $v00,0, 0,s0
+	luv $v01,0, 0,s1
+	luv $v02,0, 8,s0
+	luv $v03,0, 8,s1
+
+	vaddc $v04,$v00,$v01,0
+	vaddc $v05,$v02,$v03,0
+
+	vaddc $v04,$v04,kp1e7
+	vaddc $v05,$v05,kp1e7
+
+	spv $v04,0, 0*8,s4
+	spv $v05,0, 1*8,s4
+
+	addi s0, dmem_src_pitch
+	addi s1, dmem_src_pitch
+	addi s4, 16
+	bgtz line, 1b
+	addi line, -1
+
+	jr ra
+	nop	
+
+	#undef line
+	.endfunc
+
+	.func block_interp_16x16_filter2
+block_interp_16x16_filter2:
+	# s0: source buffer (pitch = dmem_src_pitch)
+	# s1: second pointer into source buffer (for interpolation)
+	# s4: dest buffer (pitch = 8)
+	#define line t1
+
+	li line, 16-1
+1:
+	luv $v00,0, 0,s0
+	luv $v01,0, 0,s1
+	luv $v02,0, 8,s0
+	luv $v03,0, 8,s1
+	luv $v08,0, 0,s4
+	luv $v09,0, 8,s4
+
+	vaddc $v04,$v00,$v01,0
+	vaddc $v05,$v02,$v03,0
+	vaddc $v04,$v04,kp1e7
+	vaddc $v05,$v05,kp1e7
+	vsrl $v04,$v04,1
+	vsrl $v05,$v05,1
+	vaddc $v04,$v04,$v08
+	vaddc $v05,$v05,$v09
+	vaddc $v04,$v04,kp1e7
+	vaddc $v05,$v05,kp1e7
+
+	spv $v04,0, 0*8,s4
+	spv $v05,0, 1*8,s4
+
+	addi s0, dmem_src_pitch
+	addi s1, dmem_src_pitch
+	addi s4, 16
+	bgtz line, 1b
+	addi line, -1
+
+	jr ra
+	nop	
+
+	#undef line
+	.endfunc
+
+	.func block_copy_8x8_filter4
+block_copy_8x8_filter4:
+	# s0: source buffer (pitch = dmem_src_pitch)
+	# s4: dest buffer (pitch = 8)
+	#define line t1
+
+	beq block_size, 16, block_copy_16x16_filter4
+
+	addi s1, s0, 1
+	addi s2, s0, dmem_src_pitch
+	addi s3, s2, 1
+	li line, 7
+
+copy_loop_4:
+	luv $v00,0, 0,s0
+	luv $v01,0, 0,s1
+	luv $v02,0, 0,s2
+	luv $v03,0, 0,s3
+
+	vmudl $v04,$v00,kp1e14
+	vmadl $v04,$v01,kp1e14
+	vmadl $v04,$v02,kp1e14
+	vmadl $v04,$v03,kp1e14
+	vaddc $v04,$v04,kp1e6
+
+	suv $v04,0, 0,s4
+	add s0, dmem_src_pitch
+	add s1, dmem_src_pitch
+	add s2, dmem_src_pitch
+	add s3, dmem_src_pitch
+	add s4, 8
+	bgtz line, copy_loop_4
+	addi line, -1
+
+	jr ra
+	nop
+
+	#undef line
+	.endfunc
+
+	.func block_interp_8x8_filter4
+block_interp_8x8_filter4:
+	# s0: source buffer (pitch = dmem_src_pitch)
+	# s4: dest buffer (pitch = 8)
+	#define line t1
+
+	beq block_size, 16, block_interp_16x16_filter4
+
+	addi s1, s0, 1
+	addi s2, s0, dmem_src_pitch
+	addi s3, s2, 1
+	li line, 7
+
+1:
+	luv $v00,0, 0,s0
+	luv $v01,0, 0,s1
+	luv $v02,0, 0,s2
+	luv $v03,0, 0,s3
+	luv $v08,0, 0,s4
+
+	vmudl $v04,$v00,kp1e14
+	vmadl $v04,$v01,kp1e14
+	vmadl $v04,$v02,kp1e14
+	vmadl $v04,$v03,kp1e14
+	vaddc $v04,$v04,kp1e6
+	vaddc $v04,$v04,$v08
+	vaddc $v04,$v04,kp1e7
+
+	spv $v04,0, 0,s4
+	add s0, dmem_src_pitch
+	add s1, dmem_src_pitch
+	add s2, dmem_src_pitch
+	add s3, dmem_src_pitch
+	add s4, 8
+	bgtz line, 1b
+	addi line, -1
+
+	jr ra
+	nop
+
+	#undef line
+	.endfunc
+
+	.func block_copy_16x16_filter4
+block_copy_16x16_filter4:
+	# s0: source buffer (pitch = dmem_src_pitch)
+	# s4: dest buffer (pitch = 8)
+	#define line t1
+
+	addi s1, s0, 1
+	addi s2, s0, dmem_src_pitch
+	addi s3, s2, 1
+	li line, 15
+
+1:
+	luv $v00,0, 0,s0
+	luv $v01,0, 0,s1
+	luv $v02,0, 0,s2
+	luv $v03,0, 0,s3
+
+	luv $v04,0, 8,s0
+	luv $v05,0, 8,s1
+	luv $v06,0, 8,s2
+	luv $v07,0, 8,s3
+
+	vmudl $v16,$v00,kp1e14
+	vmadl $v16,$v01,kp1e14
+	vmadl $v16,$v02,kp1e14
+	vmadl $v16,$v03,kp1e14
+
+	vmudl $v17,$v04,kp1e14
+	vmadl $v17,$v05,kp1e14
+	vmadl $v17,$v06,kp1e14
+	vmadl $v17,$v07,kp1e14
+
+	vaddc $v16,$v16,kp1e6
+	vaddc $v17,$v17,kp1e6
+
+	suv $v16,0, 0,s4
+	suv $v17,0, 8,s4
+	add s0, dmem_src_pitch
+	add s1, dmem_src_pitch
+	add s2, dmem_src_pitch
+	add s3, dmem_src_pitch
+	add s4, 16
+	bgtz line, 1b
+	addi line, -1
+
+	jr ra
+	nop
+
+	#undef line
+	.endfunc
+
+	.func block_interp_16x16_filter4
+block_interp_16x16_filter4:
+	# s0: source buffer (pitch = dmem_src_pitch)
+	# s4: dest buffer (pitch = 8)
+	#define line t1
+
+	addi s1, s0, 1
+	addi s2, s0, dmem_src_pitch
+	addi s3, s2, 1
+	li line, 15
+
+1:
+	luv $v00,0, 0,s0
+	luv $v01,0, 0,s1
+	luv $v02,0, 0,s2
+	luv $v03,0, 0,s3
+	luv $v08,0, 0,s4
+
+	luv $v04,0, 8,s0
+	luv $v05,0, 8,s1
+	luv $v06,0, 8,s2
+	luv $v07,0, 8,s3
+	luv $v09,0, 8,s4
+
+	vmudl $v16,$v00,kp1e14
+	vmadl $v16,$v01,kp1e14
+	vmadl $v16,$v02,kp1e14
+	vmadl $v16,$v03,kp1e14
+
+	vmudl $v17,$v04,kp1e14
+	vmadl $v17,$v05,kp1e14
+	vmadl $v17,$v06,kp1e14
+	vmadl $v17,$v07,kp1e14
+
+	vaddc $v16,$v16,kp1e6
+	vaddc $v17,$v17,kp1e6
+
+	vaddc $v16,$v16,$v08
+	vaddc $v17,$v17,$v09
+	vaddc $v16,$v16,kp1e7
+	vaddc $v17,$v17,kp1e7
+
+	spv $v16,0, 0,s4
+	spv $v17,0, 8,s4
+	add s0, dmem_src_pitch
+	add s1, dmem_src_pitch
+	add s2, dmem_src_pitch
+	add s3, dmem_src_pitch
+	add s4, 16
+	bgtz line, 1b
+	addi line, -1
+
+	jr ra
+	nop
+
+	#undef line
+	.endfunc
+	.func cmd_mpeg1_block_predict
+cmd_mpeg1_block_predict:
+	# a0: source
+	# a1: source pitch
+	# a2: oddh/oddv
+
+	#define src_pitch a1
+
+	jal load_shifts
+	nop
+
+	lbu block_size, %lo(RDRAM_BLOCK_SIZE)+3
+	addi t0, block_size, 1
+	sll t0, 12
+	ori t0, dmem_src_pitch-1
+
+	li s4, %lo(SOURCE_PIXELS)
+	move s0, a0
+	jal DMAIn
+	move t1, a1
+
+	move s0, s4
+	li s4, %lo(BLOCK_PIXELS)
+	addi block_size, 1
+
+	andi t0, a2, 0x4
+	bnez t0, predict_interpolate
+	xor a2, t0
+
+predict_copy:
+	beqz a2, copy
+	addi a2, -1
+	beqz a2, copy_odd_v
+	addi a2, -1
+	beqz a2, copy_odd_h
+	nop
+
+	jal_and_j block_copy_8x8_filter4, RSPQ_Loop
+
+copy_odd_h:
+	addi s1, s0, 1
+	jal_and_j block_copy_8x8_filter2, RSPQ_Loop
+
+copy_odd_v:
+	addi s1, s0, dmem_src_pitch
+	jal_and_j block_copy_8x8_filter2, RSPQ_Loop
+
+copy:
+	jal_and_j block_copy, RSPQ_Loop
+
+predict_interpolate:
+	beqz a2, interpolate
+	addi a2, -1
+	beqz a2, interpolate_odd_v
+	addi a2, -1
+	beqz a2, interpolate_odd_h
+	nop
+	jal_and_j block_interp_8x8_filter4, RSPQ_Loop
+
+interpolate_odd_h:
+	addi s1, s0, 1
+	jal_and_j block_interp_8x8_filter2, RSPQ_Loop
+
+interpolate_odd_v:
+	addi s1, s0, dmem_src_pitch
+	jal_and_j block_interp_8x8_filter2, RSPQ_Loop
+
+interpolate:
+	jal_and_j block_interp_8x8, RSPQ_Loop
+
+

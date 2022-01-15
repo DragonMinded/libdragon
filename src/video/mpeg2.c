@@ -34,22 +34,21 @@ void rsp_mpeg1_store_matrix(int16_t *mtx) {
 	rspq_write(0x57, PhysicalAddr(mtx));
 }
 
-void rsp_mpeg1_store_pixels(int8_t *pixels) {
-	assert((PhysicalAddr(pixels) & 7) == 0);
-	data_cache_hit_writeback_invalidate(pixels, 8*8);
-	rspq_write(0x51, PhysicalAddr(pixels));
+void rsp_mpeg1_store_pixels(void) {
+	rspq_write(0x51);
 }
 
 void rsp_mpeg1_idct(void) {
 	rspq_write(0x52);
 }
 
-void rsp_mpeg1_block_begin(uint8_t *pixels, int pitch) {
+void rsp_mpeg1_block_begin(uint8_t *pixels, int width, int pitch) {
 	assert((PhysicalAddr(pixels) & 7) == 0);
 	assert((pitch & 7) == 0);
-	for (int i=0;i<8;i++)
-		data_cache_hit_writeback_invalidate(pixels+i*pitch, 8);
-	rspq_write(0x53, PhysicalAddr(pixels), pitch);
+	assert(width == 8 || width == 16);
+	// for (int i=0;i<width;i++)
+	// 	data_cache_hit_writeback_invalidate(pixels+i*pitch, width);
+	rspq_write(0x53, PhysicalAddr(pixels), ((width-1)<<12)|(width-1), pitch);
 }
 
 void rsp_mpeg1_block_coeff(int idx, int16_t coeff) {
@@ -62,6 +61,10 @@ void rsp_mpeg1_block_dequant(bool intra, int scale) {
 
 void rsp_mpeg1_block_decode(int ncoeffs, bool intra) {
 	rspq_write(0x56, ncoeffs, intra);
+}
+
+void rsp_mpeg1_block_predict(uint8_t *src, int pitch, bool oddh, bool oddv, bool interpolate) {
+	rspq_write(0x5A, PhysicalAddr(src), pitch, oddv | (oddh<<1) | (interpolate<<2));
 }
 
 void rsp_mpeg1_set_quant_matrix(bool intra, const uint8_t quant_mtx[64]) {
