@@ -494,11 +494,37 @@ void debug_close_sdfs(void)
 
 void debug_assert_func_f(const char *file, int line, const char *func, const char *failedexpr, const char *msg, ...)
 {
+	// As first step, immediately print the assertion on stderr. This is
+	// very likely to succeed as it should not cause any further allocations
+	// and we would display the assertion immediately on logs.
+	fprintf(stderr,
+		"ASSERTION FAILED: %s\n"
+		"file \"%s\", line %d%s%s\n",
+		failedexpr, file, line,
+		func ? ", function: " : "", func ? func : "");
+
+	if (msg)
+	{
+		va_list args;
+
+		va_start(args, msg);
+		vfprintf(stderr, msg, args);
+		va_end(args);
+
+		fprintf(stderr, "\n");
+	}
+
+	// Now try to initialize the console. This might fail in extreme conditions
+	// like memory full (display_init might fail), which will create an
+	// endless loop of assertions / crashes. It would be nice to introduce
+	// an "emergency console" to use in these cases that displays on a fixed
+	// framebuffer at a fixed memory address without using malloc.
 	console_close();
 	console_init();
-	console_set_debug(true);
+	console_set_debug(false);
 	console_set_render_mode(RENDER_MANUAL);
 
+	// Print the assertion again to the console.
 	fprintf(stdout,
 		"ASSERTION FAILED: %s\n"
 		"file \"%s\", line %d%s%s\n",
