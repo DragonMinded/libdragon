@@ -107,8 +107,9 @@ typedef struct {
 struct {
 	uint32_t sample_rate;
 	int num_channels;
-	float divider;
 	float vol;
+	float max_samples;
+	bool throttled;
 
 	int64_t ticks;
 	int num_events;
@@ -635,6 +636,16 @@ void mixer_remove_event(MixerEvent cb, void *ctx) {
 	assertf("mixer_remove_event: specified event does not exist\ncb:%p ctx:%p", (void*)cb, ctx);
 }
 
+void mixer_throttle(float num_samples) {
+	Mixer.max_samples += num_samples;
+	Mixer.throttled = true;
+}
+
+void mixer_unthrottle(void) {
+	Mixer.max_samples = 0;
+	Mixer.throttled = false;
+}
+
 void mixer_poll(int16_t *out16, int num_samples) {
 	int32_t *out = (int32_t*)out16;
 
@@ -642,6 +653,18 @@ void mixer_poll(int16_t *out16, int num_samples) {
 	// it's not possible to call this function with an odd number,
 	// otherwise buffering might become complicated / impossible.
 	assert(num_samples % 2 == 0);
+
+	// Check if the mixer is throttled. If so, do not produce more
+	// than the allowance (with a small extra equal to a full audio buffer,
+	// to avoid issues with fixed-size buffers like those provided by audio.c),
+	// and silence after it.
+	if (Mixer.throttled) {
+		int extra = Mixer.sample_rate / MIXER_POLL_PER_SECOND;
+		int total = num_samples;
+		num_samples = MIN(num_samples, Mixer.max_samples+extra);
+		Mixer.max_samples -= num_samples;
+		memset(out + num_samples, 0, (total - num_samples) * sizeof(int32_t));
+	}
 
 	while (num_samples > 0) {
 		mixer_event_t *e = mixer_next_event();
