@@ -1077,49 +1077,6 @@ copy_loop_4:
 	#undef line
 	.endfunc
 
-	.func block_interp_8x8_filter4
-block_interp_8x8_filter4:
-	# s0: source buffer (pitch = dmem_src_pitch)
-	# s4: dest buffer (pitch = 8)
-	#define line t1
-
-	beq block_size, 16, block_interp_16x16_filter4
-
-	addi s1, s0, 1
-	addi s2, s0, dmem_src_pitch
-	addi s3, s2, 1
-	li line, 7
-
-1:
-	luv $v00,0, 0,s0
-	luv $v01,0, 0,s1
-	luv $v02,0, 0,s2
-	luv $v03,0, 0,s3
-	luv $v08,0, 0,s4
-
-	vmudl $v04,$v00,kp1e14
-	vmadl $v04,$v01,kp1e14
-	vmadl $v04,$v02,kp1e14
-	vmadl $v04,$v03,kp1e14
-	vaddc $v04,$v04,kp1e6
-	vaddc $v04,$v04,$v08
-	vaddc $v04,$v04,kp1e7
-
-	spv $v04,0, 0,s4
-	add s0, dmem_src_pitch
-	add s1, dmem_src_pitch
-	add s2, dmem_src_pitch
-	add s3, dmem_src_pitch
-	add s4, 8
-	bgtz line, 1b
-	addi line, -1
-
-	jr ra
-	nop
-
-	#undef line
-	.endfunc
-
 	.func block_copy_16x16_filter4
 block_copy_16x16_filter4:
 	# s0: source buffer (pitch = dmem_src_pitch)
@@ -1171,61 +1128,85 @@ block_copy_16x16_filter4:
 	#undef line
 	.endfunc
 
+
+    .func block_interp_8x8_filter4
+block_interp_8x8_filter4:
+    # s0: source buffer (pitch = dmem_src_pitch)
+    # s4: dest buffer (pitch = 8)
+    #define line t1
+    #define kp1e7p1e6  $v10,e(0)
+
+    li t0, 0xC0
+    mtc2 t0, $v10,0
+
+    beq block_size, 16, block_interp_16x16_filter4
+    addi s1, s0, 1
+
+    li line, 7
+    
+    luv $v00,0, 0,s0
+    luv $v01,0, 0,s1
+    luv $v02,0, dmem_src_pitch,s0
+    luv $v03,0, dmem_src_pitch,s1
+    lpv $v05,0, -8,s4
+    .align 3
+1:
+    vmudl $v04,$v00,kp1e14;          luv $v08,0, 0,s4
+    vmadl $v04,$v01,kp1e14;          add s0, dmem_src_pitch
+    vmadl $v04,$v02,kp1e14;          add s1, dmem_src_pitch
+    vmadl $v04,$v03,kp1e14;          spv $v05,0, -8,s4
+                                     luv $v00,0, 0,s0
+                                     luv $v01,0, 0,s1
+    vaddc $v04,$v04,kp1e7p1e6;       luv $v02,0, dmem_src_pitch,s0
+                                     luv $v03,0, dmem_src_pitch,s1
+                                     add s4, 8         
+    vaddc $v05,$v04,$v08;            bgtz line, 1b
+                                     addi line, -1
+
+    jr ra
+                                     spv $v05,0, -8,s4
+
+    .endfunc
 	.func block_interp_16x16_filter4
 block_interp_16x16_filter4:
 	# s0: source buffer (pitch = dmem_src_pitch)
 	# s4: dest buffer (pitch = 8)
 	#define line t1
+    #define kp1e7p1e6  $v10,e(0)
 
-	addi s1, s0, 1
-	addi s2, s0, dmem_src_pitch
-	addi s3, s2, 1
-	li line, 15
+	li line, 16
 
+    luv $v00,0, 0,s0
+    luv $v01,0, 0,s1
+    luv $v02,0, dmem_src_pitch,s0
+    luv $v03,0, dmem_src_pitch,s1
+    .align 3
 1:
-	luv $v00,0, 0,s0
-	luv $v01,0, 0,s1
-	luv $v02,0, 0,s2
-	luv $v03,0, 0,s3
-	luv $v08,0, 0,s4
+	vmudl $v16,$v00,kp1e14;           luv $v04,0, 8,s0
+	vmadl $v16,$v01,kp1e14;           luv $v05,0, 8,s1
+	vmadl $v16,$v02,kp1e14;           luv $v06,0, dmem_src_pitch+8,s0
+	vmadl $v16,$v03,kp1e14;           luv $v07,0, dmem_src_pitch+8,s1
 
-	luv $v04,0, 8,s0
-	luv $v05,0, 8,s1
-	luv $v06,0, 8,s2
-	luv $v07,0, 8,s3
-	luv $v09,0, 8,s4
+	vmudl $v17,$v04,kp1e14;           luv $v08,0, 0,s4
+	vmadl $v17,$v05,kp1e14;           luv $v09,0, 8,s4
+	vmadl $v17,$v06,kp1e14;           add s0, dmem_src_pitch
+	vmadl $v17,$v07,kp1e14;           add s1, dmem_src_pitch
 
-	vmudl $v16,$v00,kp1e14
-	vmadl $v16,$v01,kp1e14
-	vmadl $v16,$v02,kp1e14
-	vmadl $v16,$v03,kp1e14
+                                      luv $v00,0, 0,s0
+	vaddc $v16,$v16,kp1e7p1e6;        luv $v01,0, 0,s1
+	vaddc $v17,$v17,kp1e7p1e6;        luv $v02,0, dmem_src_pitch,s0     
+                                      luv $v03,0, dmem_src_pitch,s1
 
-	vmudl $v17,$v04,kp1e14
-	vmadl $v17,$v05,kp1e14
-	vmadl $v17,$v06,kp1e14
-	vmadl $v17,$v07,kp1e14
+	vaddc $v16,$v16,$v08;             addi line, -1
+	vaddc $v17,$v17,$v09;             add s4, 16
 
-	vaddc $v16,$v16,kp1e6
-	vaddc $v17,$v17,kp1e6
-
-	vaddc $v16,$v16,$v08
-	vaddc $v17,$v17,$v09
-	vaddc $v16,$v16,kp1e7
-	vaddc $v17,$v17,kp1e7
-
-	spv $v16,0, 0,s4
-	spv $v17,0, 8,s4
-	add s0, dmem_src_pitch
-	add s1, dmem_src_pitch
-	add s2, dmem_src_pitch
-	add s3, dmem_src_pitch
-	add s4, 16
-	bgtz line, 1b
-	addi line, -1
-
+	                                  spv $v16,0, -16,s4	
+	                                  bgtz line, 1b
+                                      spv $v17,0, -8,s4
 	jr ra
 	nop
 
+    #undef kp1e7p1e6
 	#undef line
 	.endfunc
 	.func cmd_mpeg1_block_predict
