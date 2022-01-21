@@ -3496,7 +3496,6 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 
 		if (RSP_MODE < 2) {
 			int de_zig_zagged = PLM_VIDEO_ZIG_ZAG[n];
-			n++;
 
 			// Dequantize, oddify, clip
 			level <<= 1;
@@ -3520,17 +3519,17 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 			rsp_mpeg1_block_coeff(n, level);
 		} else {
 			rsp_mpeg1_block_coeff(n, level);
-			n++;
 		}
+		n++;
 		PROFILE_STOP(PS_MPEG_MB_DECODE_AC_DEQUANT, 0);
 	}
 	PROFILE_STOP(PS_MPEG_MB_DECODE_AC, 0);
 
 	// Move block to its place
 	PROFILE_START(PS_MPEG_MB_DECODE_BLOCK, 1);
-	int16_t *s = self->block_data;
-	int si = 0;
 	if (RSP_MODE == 0) {
+		int16_t *s = self->block_data;
+		int si = 0;
 		plm_video_decode_block_residual(s, si, d, di, dw, n, self->macroblock_intra);
 	} else if (RSP_MODE == 1) {
 		rsp_mpeg1_block_decode(n, self->macroblock_intra!=0);
