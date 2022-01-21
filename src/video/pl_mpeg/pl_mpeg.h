@@ -2680,7 +2680,7 @@ void plm_video_destroy(plm_video_t *self) {
 	}
 
 	if (self->has_sequence_header) {
-		if (RSP_MODE >= 4)
+		if (RSP_MODE >= 3)
 			free_uncached(self->frames_data);
 		else
 			free(self->frames_data);
@@ -2881,7 +2881,7 @@ int plm_video_decode_sequence_header(plm_video_t *self) {
 	size_t chroma_plane_size = self->chroma_width * self->chroma_height;
 	size_t frame_data_size = (luma_plane_size + 2 * chroma_plane_size);
 
-	if (RSP_MODE >= 4)
+	if (RSP_MODE >= 3)
 		self->frames_data = (uint8_t*)malloc_uncached(frame_data_size * 3);
 	else
 		self->frames_data = (uint8_t*)memalign(16, frame_data_size * 3);
