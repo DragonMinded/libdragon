@@ -345,9 +345,11 @@ dequant:
 	addi loop_idx, -1
 
 	# Restore initial DC coefficient	
+	beqz intra, end_dequant
 	li s0, %lo(IDCT_MATRIX)
 	sh dc, 0(s0)
 
+end_dequant:
 	j RSPQ_Loop
 	nop
 

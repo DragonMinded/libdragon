@@ -190,7 +190,7 @@ void test_mpeg1_block_dequant(TestContext *ctx) {
 				c = 1;
 			rsp_mpeg1_block_coeff(idx, c);
 			// debugf("coeff: %d->(%d,%d) = %04x\n", idx, PLM_VIDEO_ZIG_ZAG[idx]/8, PLM_VIDEO_ZIG_ZAG[idx]%8, (uint16_t)c);
-			if (idx == 0)
+			if (idx == 0 && intra)
 				matrix1[idx] = c;
 			else
 				matrix1[PLM_VIDEO_ZIG_ZAG[idx]] = dequant_level(idx, c, scale, intra);
