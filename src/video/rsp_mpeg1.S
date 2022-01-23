@@ -767,7 +767,8 @@ mtx_idct_half:
 #########################################################
 #########################################################
 
-	#define dmem_src_pitch 24
+	#define dmem_16x16_pitch 24
+    #define dmem_8x8_pitch   16
 	#define kp1    vshift,e(7)
 	#define kp1e7  vshift,e(0)
 	#define kp1e6  vshift,e(1)
@@ -779,36 +780,56 @@ mtx_idct_half:
 	#define block_size t8
 
 
-	.func block_copy
-block_copy:
-	# s0: source buffer (pitch = dmem_src_pitch)
+	.func block_copy_8x8
+block_copy_8x8:
+	# s0: source buffer (pitch = dmem_8x8_pitch)
 	# s4: dest buffer (pitch = 8)
-	li t1, 8
+    beq block_size, 16, block_copy_16x16
+
 	addi t0, block_size, -2
-cl1:
+1:
 	add s3, s4, block_size
-	luv $v00,0, 0*dmem_src_pitch,s0
-	luv $v01,0, 1*dmem_src_pitch,s0
+	luv $v00,0, 0*dmem_8x8_pitch,s0
+	luv $v01,0, 1*dmem_8x8_pitch,s0
 	suv $v00,0, 0,s4
-	beq block_size, t1, cl1_end
 	suv $v01,0, 0,s3
-	luv $v00,0, 0*dmem_src_pitch+8,s0
-	luv $v01,0, 1*dmem_src_pitch+8,s0
-	suv $v00,0, 8,s4
-	suv $v01,0, 8,s3
-cl1_end:
-	addi s0, 2*dmem_src_pitch
+	addi s0, 2*dmem_8x8_pitch
 	add s4, s3, block_size
-	bgtz t0, cl1
+	bgtz t0, 1b
 	addi t0, -2
 
 	jr ra
 	nop
 	.endfunc
 
+    .func block_copy_16x16
+block_copy_16x16:
+    # s0: source buffer (pitch = dmem_16x16_pitch)
+    # s4: dest buffer (pitch = 8)
+    li t1, 8
+    addi t0, block_size, -2
+1:
+    add s3, s4, block_size
+    luv $v00,0, 0*dmem_16x16_pitch,s0
+    luv $v01,0, 1*dmem_16x16_pitch,s0
+    suv $v00,0, 0,s4
+    suv $v01,0, 0,s3
+    luv $v00,0, 0*dmem_16x16_pitch+8,s0
+    luv $v01,0, 1*dmem_16x16_pitch+8,s0
+    suv $v00,0, 8,s4
+    suv $v01,0, 8,s3
+    addi s0, 2*dmem_16x16_pitch
+    add s4, s3, block_size
+    bgtz t0, 1b
+    addi t0, -2
+
+    jr ra
+    nop
+    .endfunc
+
 	.func block_interp_8x8
 block_interp_8x8:
-	# s0: source buffer (pitch = dmem_src_pitch)
+	# s0: source buffer (pitch = dmem_8x8_pitch)
 	# s4: dest buffer (pitch = 8)
 	#define line t1
 
@@ -816,8 +837,8 @@ block_interp_8x8:
 
 	li t0, 8-2
 1:
-	luv $v00,0, 0*dmem_src_pitch,s0
-	luv $v01,0, 1*dmem_src_pitch,s0
+	luv $v00,0, 0*dmem_8x8_pitch,s0
+	luv $v01,0, 1*dmem_8x8_pitch,s0
 	luv $v02,0, 0*8,s4
 	luv $v03,0, 1*8,s4
 
@@ -830,7 +851,7 @@ block_interp_8x8:
 	spv $v04,0, 0*8,s4
 	spv $v05,0, 1*8,s4
 
-	addi s0, 2*dmem_src_pitch
+	addi s0, 2*dmem_8x8_pitch
 	addi s4, 2*8
 	bgtz t0, 1b
 	addi t0, -2
@@ -842,7 +863,7 @@ block_interp_8x8:
 
 	.func block_interp_16x16
 block_interp_16x16:
-	# s0: source buffer (pitch = dmem_src_pitch)
+	# s0: source buffer (pitch = dmem_16x16_pitch)
 	# s4: dest buffer (pitch = 8)
 	#define line t1
 
@@ -862,7 +883,7 @@ block_interp_16x16:
 	spv $v04,0, 0*8,s4
 	spv $v05,0, 1*8,s4
 
-	addi s0, dmem_src_pitch
+	addi s0, dmem_16x16_pitch
 	addi s4, 2*8
 	bgtz t0, 1b
 	addi t0, -1
@@ -875,7 +896,7 @@ block_interp_16x16:
 
 	.func block_copy_8x8_filter2
 block_copy_8x8_filter2:
-	# s0: source buffer (pitch = dmem_src_pitch)
+	# s0: source buffer (pitch = dmem_8x8_pitch)
 	# s1: second pointer into source buffer (for interpolation)
 	# s4: dest buffer (pitch = 8)
 	#define line t1
@@ -887,8 +908,8 @@ block_copy_8x8_filter2:
 1:
 	luv $v00,0, 0,s0
 	luv $v01,0, 0,s1
-	luv $v02,0, dmem_src_pitch,s0
-	luv $v03,0, dmem_src_pitch,s1
+	luv $v02,0, dmem_8x8_pitch,s0
+	luv $v03,0, dmem_8x8_pitch,s1
 
 	vaddc $v04,$v00,$v01,0
 	vaddc $v05,$v02,$v03,0
@@ -899,8 +920,8 @@ block_copy_8x8_filter2:
 	spv $v04,0, 0*8,s4
 	spv $v05,0, 1*8,s4
 
-	addi s0, dmem_src_pitch*2
-	addi s1, dmem_src_pitch*2
+	addi s0, dmem_8x8_pitch*2
+	addi s1, dmem_8x8_pitch*2
 	addi s4, 2*8
 	bgtz line, 1b
 	addi line, -2
@@ -913,7 +934,7 @@ block_copy_8x8_filter2:
 
 	.func block_interp_8x8_filter2
 block_interp_8x8_filter2:
-	# s0: source buffer (pitch = dmem_src_pitch)
+	# s0: source buffer (pitch = dmem_8x8_pitch)
 	# s1: second pointer into source buffer (for interpolation)
 	# s4: dest buffer (pitch = 8)
 	#define line t1
@@ -925,8 +946,8 @@ block_interp_8x8_filter2:
 1:
 	luv $v00,0, 0,s0
 	luv $v01,0, 0,s1
-	luv $v02,0, dmem_src_pitch,s0
-	luv $v03,0, dmem_src_pitch,s1
+	luv $v02,0, dmem_8x8_pitch,s0
+	luv $v03,0, dmem_8x8_pitch,s1
 	luv $v08,0, 0*8,s4
 	luv $v09,0, 1*8,s4
 
@@ -948,8 +969,8 @@ block_interp_8x8_filter2:
 	spv $v04,0, 0*8,s4
 	spv $v05,0, 1*8,s4
 
-	addi s0, dmem_src_pitch*2
-	addi s1, dmem_src_pitch*2
+	addi s0, dmem_8x8_pitch*2
+	addi s1, dmem_8x8_pitch*2
 	addi s4, 2*8
 	bgtz line, 1b
 	addi line, -2
@@ -962,7 +983,7 @@ block_interp_8x8_filter2:
 
 	.func block_copy_16x16_filter2
 block_copy_16x16_filter2:
-	# s0: source buffer (pitch = dmem_src_pitch)
+	# s0: source buffer (pitch = dmem_16x16_pitch)
 	# s1: second pointer into source buffer (for interpolation)
 	# s4: dest buffer (pitch = 8)
 	#define line t1
@@ -983,8 +1004,8 @@ block_copy_16x16_filter2:
 	spv $v04,0, 0*8,s4
 	spv $v05,0, 1*8,s4
 
-	addi s0, dmem_src_pitch
-	addi s1, dmem_src_pitch
+	addi s0, dmem_16x16_pitch
+	addi s1, dmem_16x16_pitch
 	addi s4, 16
 	bgtz line, 1b
 	addi line, -1
@@ -997,7 +1018,7 @@ block_copy_16x16_filter2:
 
 	.func block_interp_16x16_filter2
 block_interp_16x16_filter2:
-	# s0: source buffer (pitch = dmem_src_pitch)
+	# s0: source buffer (pitch = dmem_16x16_pitch)
 	# s1: second pointer into source buffer (for interpolation)
 	# s4: dest buffer (pitch = 8)
 	#define line t1
@@ -1025,8 +1046,8 @@ block_interp_16x16_filter2:
 	spv $v04,0, 0*8,s4
 	spv $v05,0, 1*8,s4
 
-	addi s0, dmem_src_pitch
-	addi s1, dmem_src_pitch
+	addi s0, dmem_16x16_pitch
+	addi s1, dmem_16x16_pitch
 	addi s4, 16
 	bgtz line, 1b
 	addi line, -1
@@ -1039,14 +1060,14 @@ block_interp_16x16_filter2:
 
 	.func block_copy_8x8_filter4
 block_copy_8x8_filter4:
-	# s0: source buffer (pitch = dmem_src_pitch)
+	# s0: source buffer (pitch = dmem_8x8_pitch)
 	# s4: dest buffer (pitch = 8)
 	#define line t1
 
 	beq block_size, 16, block_copy_16x16_filter4
 
 	addi s1, s0, 1
-	addi s2, s0, dmem_src_pitch
+	addi s2, s0, dmem_8x8_pitch
 	addi s3, s2, 1
 	li line, 7
 
@@ -1063,10 +1084,10 @@ copy_loop_4:
 	vaddc $v04,$v04,kp1e6
 
 	suv $v04,0, 0,s4
-	add s0, dmem_src_pitch
-	add s1, dmem_src_pitch
-	add s2, dmem_src_pitch
-	add s3, dmem_src_pitch
+	add s0, dmem_8x8_pitch
+	add s1, dmem_8x8_pitch
+	add s2, dmem_8x8_pitch
+	add s3, dmem_8x8_pitch
 	add s4, 8
 	bgtz line, copy_loop_4
 	addi line, -1
@@ -1079,12 +1100,12 @@ copy_loop_4:
 
 	.func block_copy_16x16_filter4
 block_copy_16x16_filter4:
-	# s0: source buffer (pitch = dmem_src_pitch)
+	# s0: source buffer (pitch = dmem_16x16_pitch)
 	# s4: dest buffer (pitch = 8)
 	#define line t1
 
 	addi s1, s0, 1
-	addi s2, s0, dmem_src_pitch
+	addi s2, s0, dmem_16x16_pitch
 	addi s3, s2, 1
 	li line, 15
 
@@ -1114,10 +1135,10 @@ block_copy_16x16_filter4:
 
 	suv $v16,0, 0,s4
 	suv $v17,0, 8,s4
-	add s0, dmem_src_pitch
-	add s1, dmem_src_pitch
-	add s2, dmem_src_pitch
-	add s3, dmem_src_pitch
+	add s0, dmem_16x16_pitch
+	add s1, dmem_16x16_pitch
+	add s2, dmem_16x16_pitch
+	add s3, dmem_16x16_pitch
 	add s4, 16
 	bgtz line, 1b
 	addi line, -1
@@ -1131,7 +1152,7 @@ block_copy_16x16_filter4:
 
     .func block_interp_8x8_filter4
 block_interp_8x8_filter4:
-    # s0: source buffer (pitch = dmem_src_pitch)
+    # s0: source buffer (pitch = dmem_8x8_pitch)
     # s4: dest buffer (pitch = 8)
     #define line t1
     #define kp1e7p1e6  $v10,e(0)
@@ -1146,19 +1167,19 @@ block_interp_8x8_filter4:
     
     luv $v00,0, 0,s0
     luv $v01,0, 0,s1
-    luv $v02,0, dmem_src_pitch,s0
-    luv $v03,0, dmem_src_pitch,s1
+    luv $v02,0, dmem_8x8_pitch,s0
+    luv $v03,0, dmem_8x8_pitch,s1
     lpv $v05,0, -8,s4
     .align 3
 1:
     vmudl $v04,$v00,kp1e14;          luv $v08,0, 0,s4
-    vmadl $v04,$v01,kp1e14;          add s0, dmem_src_pitch
-    vmadl $v04,$v02,kp1e14;          add s1, dmem_src_pitch
+    vmadl $v04,$v01,kp1e14;          add s0, dmem_8x8_pitch
+    vmadl $v04,$v02,kp1e14;          add s1, dmem_8x8_pitch
     vmadl $v04,$v03,kp1e14;          spv $v05,0, -8,s4
                                      luv $v00,0, 0,s0
                                      luv $v01,0, 0,s1
-    vaddc $v04,$v04,kp1e7p1e6;       luv $v02,0, dmem_src_pitch,s0
-                                     luv $v03,0, dmem_src_pitch,s1
+    vaddc $v04,$v04,kp1e7p1e6;       luv $v02,0, dmem_8x8_pitch,s0
+                                     luv $v03,0, dmem_8x8_pitch,s1
                                      add s4, 8         
     vaddc $v05,$v04,$v08;            bgtz line, 1b
                                      addi line, -1
@@ -1169,7 +1190,7 @@ block_interp_8x8_filter4:
     .endfunc
 	.func block_interp_16x16_filter4
 block_interp_16x16_filter4:
-	# s0: source buffer (pitch = dmem_src_pitch)
+	# s0: source buffer (pitch = dmem_16x16_pitch)
 	# s4: dest buffer (pitch = 8)
 	#define line t1
     #define kp1e7p1e6  $v10,e(0)
@@ -1178,24 +1199,24 @@ block_interp_16x16_filter4:
 
     luv $v00,0, 0,s0
     luv $v01,0, 0,s1
-    luv $v02,0, dmem_src_pitch,s0
-    luv $v03,0, dmem_src_pitch,s1
+    luv $v02,0, dmem_16x16_pitch,s0
+    luv $v03,0, dmem_16x16_pitch,s1
     .align 3
 1:
 	vmudl $v16,$v00,kp1e14;           luv $v04,0, 8,s0
 	vmadl $v16,$v01,kp1e14;           luv $v05,0, 8,s1
-	vmadl $v16,$v02,kp1e14;           luv $v06,0, dmem_src_pitch+8,s0
-	vmadl $v16,$v03,kp1e14;           luv $v07,0, dmem_src_pitch+8,s1
+	vmadl $v16,$v02,kp1e14;           luv $v06,0, dmem_16x16_pitch+8,s0
+	vmadl $v16,$v03,kp1e14;           luv $v07,0, dmem_16x16_pitch+8,s1
 
 	vmudl $v17,$v04,kp1e14;           luv $v08,0, 0,s4
 	vmadl $v17,$v05,kp1e14;           luv $v09,0, 8,s4
-	vmadl $v17,$v06,kp1e14;           add s0, dmem_src_pitch
-	vmadl $v17,$v07,kp1e14;           add s1, dmem_src_pitch
+	vmadl $v17,$v06,kp1e14;           add s0, dmem_16x16_pitch
+	vmadl $v17,$v07,kp1e14;           add s1, dmem_16x16_pitch
 
                                       luv $v00,0, 0,s0
 	vaddc $v16,$v16,kp1e7p1e6;        luv $v01,0, 0,s1
-	vaddc $v17,$v17,kp1e7p1e6;        luv $v02,0, dmem_src_pitch,s0     
-                                      luv $v03,0, dmem_src_pitch,s1
+	vaddc $v17,$v17,kp1e7p1e6;        luv $v02,0, dmem_16x16_pitch,s0     
+                                      luv $v03,0, dmem_16x16_pitch,s1
 
 	vaddc $v16,$v16,$v08;             addi line, -1
 	vaddc $v17,$v17,$v09;             add s4, 16
@@ -1209,6 +1230,7 @@ block_interp_16x16_filter4:
     #undef kp1e7p1e6
 	#undef line
 	.endfunc
+
 	.func cmd_mpeg1_block_predict
 cmd_mpeg1_block_predict:
 	# a0: source
@@ -1220,10 +1242,15 @@ cmd_mpeg1_block_predict:
 	jal load_shifts
 	nop
 
-	lbu block_size, %lo(RDRAM_BLOCK_SIZE)+3
-	addi t0, block_size, 1
-	sll t0, 12
-	ori t0, dmem_src_pitch-1
+    # Calculate DMA size. In general, for filtering, we need to
+    # DMA one pixel more both horizontally and vertically. Given the
+    # 8-byte constraint on RSP DMA, this means 24x17 for a 16x16 block
+    # and 16x9 for a 8x8 block. To calculate it, it's sufficient to
+    # add 1 to both W and H in the block size, and the RSP will round up
+    # to 8 automatically.
+    lw t0, %lo(RDRAM_BLOCK_SIZE)
+    addi t0, DMA_SIZE(2,2)
+    andi block_size, t0, 0xFF
 
 	li s4, %lo(SOURCE_PIXELS)
 	move s0, a0
@@ -1232,7 +1259,6 @@ cmd_mpeg1_block_predict:
 
 	move s0, s4
 	li s4, %lo(BLOCK_PIXELS)
-	addi block_size, 1
 
 	andi t0, a2, 0x4
 	bnez t0, predict_interpolate
@@ -1253,11 +1279,12 @@ copy_odd_h:
 	jal_and_j block_copy_8x8_filter2, RSPQ_Loop
 
 copy_odd_v:
-	addi s1, s0, dmem_src_pitch
+	add s1, s0, block_size
+    addi s1, 8
 	jal_and_j block_copy_8x8_filter2, RSPQ_Loop
 
 copy:
-	jal_and_j block_copy, RSPQ_Loop
+	jal_and_j block_copy_8x8, RSPQ_Loop
 
 predict_interpolate:
 	beqz a2, interpolate
@@ -1273,7 +1300,8 @@ interpolate_odd_h:
 	jal_and_j block_interp_8x8_filter2, RSPQ_Loop
 
 interpolate_odd_v:
-	addi s1, s0, dmem_src_pitch
+    add s1, s0, block_size
+    addi s1, 8
 	jal_and_j block_interp_8x8_filter2, RSPQ_Loop
 
 interpolate:
