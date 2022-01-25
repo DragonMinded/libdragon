@@ -31,7 +31,9 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 			 $(BUILD_DIR)/rsp.o $(BUILD_DIR)/rsp_crash.o \
 			 $(BUILD_DIR)/dma.o $(BUILD_DIR)/timer.o \
 			 $(BUILD_DIR)/exception.o $(BUILD_DIR)/do_ctors.o \
-			 $(BUILD_DIR)/video/mpeg2.o $(BUILD_DIR)/video/yuv.o $(BUILD_DIR)/video/profile.o $(BUILD_DIR)/video/rsp_yuv.o $(BUILD_DIR)/video/rsp_mpeg1.o  \
+			 $(BUILD_DIR)/video/mpeg2.o $(BUILD_DIR)/video/yuv.o \
+			 $(BUILD_DIR)/video/profile.o $(BUILD_DIR)/video/throttle.o \
+			 $(BUILD_DIR)/video/rsp_yuv.o $(BUILD_DIR)/video/rsp_mpeg1.o \
 			 $(BUILD_DIR)/audio/mixer.o $(BUILD_DIR)/audio/samplebuffer.o \
 			 $(BUILD_DIR)/audio/rsp_mixer.o $(BUILD_DIR)/audio/wav64.o \
 			 $(BUILD_DIR)/audio/xm64.o $(BUILD_DIR)/audio/libxm/play.o \
@@ -115,6 +117,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/rsp_dma.inc $(INSTALLDIR)/mips64-elf/include/rsp_dma.inc
 	install -Cv -m 0644 include/rsp_assert.inc $(INSTALLDIR)/mips64-elf/include/rsp_assert.inc
 	install -Cv -m 0644 include/mpeg2.h $(INSTALLDIR)/mips64-elf/include/mpeg2.h
+	install -Cv -m 0644 include/throttle.h $(INSTALLDIR)/mips64-elf/include/throttle.h
 	install -Cv -m 0644 include/mixer.h $(INSTALLDIR)/mips64-elf/include/mixer.h
 	install -Cv -m 0644 include/samplebuffer.h $(INSTALLDIR)/mips64-elf/include/samplebuffer.h
 	install -Cv -m 0644 include/wav64.h $(INSTALLDIR)/mips64-elf/include/wav64.h
