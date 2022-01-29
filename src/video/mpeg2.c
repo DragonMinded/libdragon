@@ -3,14 +3,13 @@
 #include "rdp.h"
 #include "rdp_commands.h"
 #include "yuv.h"
-#include "yuvblit.h"
 #include "debug.h"
 #include "profile.h"
 #include "utils.h"
 #include <assert.h>
 #include "mpeg1_internal.h"
 
-#define YUV_MODE   1   // 0=CPU, 1=RSP+RDP, 2=DLAIR
+#define YUV_MODE   1   // 0=CPU, 1=RSP+RDP
 
 #define BLOCK_W 32
 #define BLOCK_H 16
@@ -253,17 +252,11 @@ void mpeg2_draw_frame(mpeg2_t *mp2, display_context_t disp) {
 		uint8_t *rgb = __get_buffer(disp);
 		int stride = __width * 4;
 	    plm_frame_to_rgba(mp2->f, rgb, stride);
-	} else if (YUV_MODE == 1) {
+	} else {
 		plm_frame_t *frame = mp2->f;
 		yuv_set_input_buffer(frame->y.data, frame->cb.data, frame->cr.data, frame->width);
 		rspq_block_run(mp2->yuv_convert);
 		// yuv_draw_frame(frame->width, frame->height);
-
-    } else if (YUV_MODE == 2) {
-		plm_frame_t *frame = mp2->f;
-
-    	rsp_yuv_blit_setup();
-    	rsp_yuv_blit(frame->y.data, frame->cb.data, frame->cr.data);
     }
 	PROFILE_STOP(PS_YUV, 0);
 
