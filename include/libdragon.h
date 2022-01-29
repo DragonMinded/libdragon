@@ -46,6 +46,7 @@
 #include "exception.h"
 #include "dir.h"
 #include "mpeg2.h"
+#include "throttle.h"
 #include "mixer.h"
 #include "samplebuffer.h"
 #include "wav64.h"
@@ -53,6 +54,6 @@
 #include "ym64.h"
 #include "rspq.h"
 #include "ugfx.h"
-#include "rdp_commands.h"
+//#include "rdp_commands.h"
 
 #endif

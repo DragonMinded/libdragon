@@ -18,7 +18,7 @@ void test_mpeg1_idct(TestContext *ctx) {
 		}
 
 		data_cache_hit_writeback_invalidate(out1, sizeof(out1));
-		rsp_mpeg1_block_begin(out1, 8, 8);
+		rsp_mpeg1_block_begin(RSP_MPEG1_BLOCK_CB, out1, 8);
 		rsp_mpeg1_load_matrix(matrix1);
 		rsp_mpeg1_idct();
 		rsp_mpeg1_store_pixels();
@@ -68,8 +68,12 @@ void test_mpeg1_block_decode(TestContext *ctx) {
 				}
 
 				data_cache_hit_writeback_invalidate(pixels1, sizeof(pixels1));
-				rsp_mpeg1_block_begin(pixels1, 8, 8);
+				rsp_mpeg1_block_begin(RSP_MPEG1_BLOCK_CB, pixels1, 8);
 				rsp_mpeg1_load_matrix(matrix1);
+				if (intra)
+					rsp_mpeg1_zero_pixels();
+				else
+					rsp_mpeg1_load_pixels();
 				rsp_mpeg1_block_decode(ncoeffs, intra!=0);
 				rsp_mpeg1_store_pixels();
 
@@ -177,7 +181,7 @@ void test_mpeg1_block_dequant(TestContext *ctx) {
 		int ncoeffs = RANDN(64)+1;
 		int scale = RANDN(31)+1;
 
-		rsp_mpeg1_block_begin(pixels1, 8, 8);
+		rsp_mpeg1_block_begin(RSP_MPEG1_BLOCK_CB, pixels1, 8);
 
 		// debugf("----------------------\n");
 		memset(matrix1, 0, sizeof(matrix1));
@@ -270,7 +274,7 @@ void test_mpeg1_block_predict(TestContext *ctx) {
 		dst_buffer1[i] = dst_buffer2[i] = RANDN(256);
 	}
 
-	for (int nt=0;nt<1024;nt++) {
+	for (int nt=0;nt<4096;nt++) {
 		SRAND(nt+1);
 		int bs = RANDN(2) ? 16 : 8;
 		int odd_h = RANDN(2), odd_v = RANDN(2), interpolate = RANDN(2);
@@ -279,7 +283,8 @@ void test_mpeg1_block_predict(TestContext *ctx) {
 		int dx = RANDN(BUFFER_SIZE-bs) & ~(bs-1);
 		int dy = RANDN(BUFFER_SIZE-bs) & ~(bs-1);
 
-		rsp_mpeg1_block_begin(dst_buffer2 + dy*BUFFER_SIZE+dx, bs, BUFFER_SIZE);
+		rsp_mpeg1_block_begin(bs == 16 ? RSP_MPEG1_BLOCK_Y0 : RSP_MPEG1_BLOCK_CB,
+			dst_buffer2 + dy*BUFFER_SIZE+dx, BUFFER_SIZE);
 
 		if (interpolate) {		
 			int sx2 = RANDN(BUFFER_SIZE-bs-1);
@@ -294,7 +299,15 @@ void test_mpeg1_block_predict(TestContext *ctx) {
 		}
 
 		rsp_mpeg1_block_predict(src_buffer + sy*BUFFER_SIZE+sx, BUFFER_SIZE, odd_h, odd_v, interpolate);
-		rsp_mpeg1_store_pixels();
+		if (bs == 16) {		
+			rsp_mpeg1_block_split();
+			rsp_mpeg1_block_switch_partition(0); rsp_mpeg1_store_pixels();
+			rsp_mpeg1_block_switch_partition(1); rsp_mpeg1_store_pixels();
+			rsp_mpeg1_block_switch_partition(2); rsp_mpeg1_store_pixels();
+			rsp_mpeg1_block_switch_partition(3); rsp_mpeg1_store_pixels();
+		} else {
+			rsp_mpeg1_store_pixels();
+		}
 		rspq_flush();
 
 		plm_video_process_macroblock(

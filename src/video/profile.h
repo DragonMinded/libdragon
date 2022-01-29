@@ -38,6 +38,8 @@ typedef enum {
 	PS_MPEG_MB_DECODE_BLOCK,
 	PS_MPEG_MB_DECODE_BLOCK_IDCT,
 	PS_YUV,
+	PS_AUDIO,
+	PS_SYNC,
 
 	PS_NUM_SLOTS
 } ProfileSlot;

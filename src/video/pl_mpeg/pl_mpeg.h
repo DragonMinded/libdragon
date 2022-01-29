@@ -2881,7 +2881,7 @@ int plm_video_decode_sequence_header(plm_video_t *self) {
 	size_t chroma_plane_size = self->chroma_width * self->chroma_height;
 	size_t frame_data_size = (luma_plane_size + 2 * chroma_plane_size);
 
-	if (RSP_MODE >= 3)
+	if (RSP_MODE >= 2)
 		self->frames_data = (uint8_t*)malloc_uncached(frame_data_size * 3);
 	else
 		self->frames_data = (uint8_t*)memalign(16, frame_data_size * 3);
@@ -3060,6 +3060,13 @@ void plm_video_decode_macroblock(plm_video_t *self) {
 			self->mb_col = self->macroblock_address % self->mb_width;
 
 			plm_video_predict_macroblock(self);
+			if (RSP_MODE >= 3) {
+				for (int i=0;i<6;i++) {
+					rsp_mpeg1_block_switch_partition(i);
+					rsp_mpeg1_store_pixels();
+				}
+			}
+
 			increment--;
 		}
 		self->macroblock_address++;
@@ -3109,6 +3116,12 @@ void plm_video_decode_macroblock(plm_video_t *self) {
 	for (int block = 0, mask = 0x20; block < 6; block++) {
 		if ((cbp & mask) != 0) {
 			plm_video_decode_block(self, block);
+		} else {
+			if (RSP_MODE >= 3) {
+				assert(!self->macroblock_intra);
+				rsp_mpeg1_block_switch_partition(block);
+				rsp_mpeg1_store_pixels();
+			}
 		}
 		mask >>= 1;
 	}
@@ -3213,6 +3226,10 @@ void plm_video_predict_macroblock(plm_video_t *self) {
 			plm_video_copy_macroblock(self, &self->frame_forward, fw_h, fw_v);
 		}
 	}
+
+	if (RSP_MODE >= 3)
+		rsp_mpeg1_block_split();
+
 	PROFILE_STOP(PS_MPEG_MB_PREDICT, 0);
 }
 
@@ -3227,9 +3244,10 @@ void plm_video_copy_macroblock_rsp(plm_video_t *self, plm_frame_t *s, int motion
 
 	unsigned int si = ((self->mb_row * 16) + vp) * dw + (self->mb_col * 16) + hp;
 	unsigned int di = (self->mb_row * dw + self->mb_col) * 16;
-	rsp_mpeg1_block_begin(d->y.data+di, 16, dw);
+	rsp_mpeg1_block_begin(RSP_MPEG1_BLOCK_Y0, d->y.data+di, dw);
 	rsp_mpeg1_block_predict(s->y.data+si, dw, odd_h, odd_v, 0);
-	rsp_mpeg1_store_pixels();
+	// rsp_mpeg1_block_split();
+	//rsp_mpeg1_store_pixels();
 
 	dw >>= 1;
 	odd_h = (hp & 1) == 1;
@@ -3239,12 +3257,12 @@ void plm_video_copy_macroblock_rsp(plm_video_t *self, plm_frame_t *s, int motion
 
 	si = ((self->mb_row * 8) + vp) * dw + (self->mb_col * 8) + hp;
 	di = (self->mb_row * dw + self->mb_col) * 8;
-	rsp_mpeg1_block_begin(d->cr.data+di, 8, dw);
+	rsp_mpeg1_block_begin(RSP_MPEG1_BLOCK_CR, d->cr.data+di, dw);
 	rsp_mpeg1_block_predict(s->cr.data+si, dw, odd_h, odd_v, 0);
-	rsp_mpeg1_store_pixels();
-	rsp_mpeg1_block_begin(d->cb.data+di, 8, dw);
+	//rsp_mpeg1_store_pixels();
+	rsp_mpeg1_block_begin(RSP_MPEG1_BLOCK_CB, d->cb.data+di, dw);
 	rsp_mpeg1_block_predict(s->cb.data+si, dw, odd_h, odd_v, 0);
-	rsp_mpeg1_store_pixels();
+	//rsp_mpeg1_store_pixels();
 	rspq_flush();
 }
 
@@ -3265,10 +3283,11 @@ void plm_video_interpolate_macroblock_rsp(plm_video_t *self, plm_frame_t *s1, in
 	unsigned int si2 = ((self->mb_row * 16) + vp2) * dw + (self->mb_col * 16) + hp2;
 	unsigned int di = (self->mb_row * dw + self->mb_col) * 16;
 
-	rsp_mpeg1_block_begin(d->y.data+di, 16, dw);
+	rsp_mpeg1_block_begin(RSP_MPEG1_BLOCK_Y0, d->y.data+di, dw);
 	rsp_mpeg1_block_predict(s1->y.data+si1, dw, odd_h1, odd_v1, 0);
 	rsp_mpeg1_block_predict(s2->y.data+si2, dw, odd_h2, odd_v2, 1);
-	rsp_mpeg1_store_pixels();
+	// rsp_mpeg1_block_split();
+//	rsp_mpeg1_store_pixels();
 
 	dw >>= 1;
 	odd_h1 = (hp1 & 1) == 1;
@@ -3284,14 +3303,14 @@ void plm_video_interpolate_macroblock_rsp(plm_video_t *self, plm_frame_t *s1, in
 	si2 = ((self->mb_row * 8) + vp2) * dw + (self->mb_col * 8) + hp2;
 	di = (self->mb_row * dw + self->mb_col) * 8;
 
-	rsp_mpeg1_block_begin(d->cr.data+di, 8, dw);
+	rsp_mpeg1_block_begin(RSP_MPEG1_BLOCK_CR, d->cr.data+di, dw);
 	rsp_mpeg1_block_predict(s1->cr.data+si1, dw, odd_h1, odd_v1, 0);
 	rsp_mpeg1_block_predict(s2->cr.data+si2, dw, odd_h2, odd_v2, 1);
-	rsp_mpeg1_store_pixels();
-	rsp_mpeg1_block_begin(d->cb.data+di, 8, dw);
+	//rsp_mpeg1_store_pixels();
+	rsp_mpeg1_block_begin(RSP_MPEG1_BLOCK_CB, d->cb.data+di, dw);
 	rsp_mpeg1_block_predict(s1->cb.data+si1, dw, odd_h1, odd_v1, 0);
 	rsp_mpeg1_block_predict(s2->cb.data+si2, dw, odd_h2, odd_v2, 1);
-	rsp_mpeg1_store_pixels();
+	//rsp_mpeg1_store_pixels();
 	rspq_flush();
 }
 
@@ -3440,7 +3459,16 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 	}
 	PROFILE_STOP(PS_MPEG_MB_DECODE_BLOCK, 0);
 
-	rsp_mpeg1_block_begin(d+di, 8, dw);
+	if (RSP_MODE >= 3 && !self->macroblock_intra) {
+		// If prediction was done in RSP, the blocks are already defined.
+		// Simply activate the correct partition.
+		rsp_mpeg1_block_switch_partition(block);
+	} else {
+		// Define the current block (aka partition). We don't care exactly which
+		// one it is as we're not keeping the data in the RSP. So just define
+		// a 8x8 partition using a chroma channel.
+		rsp_mpeg1_block_begin(RSP_MPEG1_BLOCK_CB, d+di, dw);
+	}
 	if (n == 1) {
 		rsp_mpeg1_block_coeff(0, self->block_data[0]);
 	}
@@ -3532,12 +3560,29 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 		int si = 0;
 		plm_video_decode_block_residual(s, si, d, di, dw, n, self->macroblock_intra);
 	} else if (RSP_MODE == 1) {
+		if (self->macroblock_intra)
+			rsp_mpeg1_zero_pixels();
+		else
+			rsp_mpeg1_load_pixels();
 		rsp_mpeg1_block_decode(n, self->macroblock_intra!=0);
+		rsp_mpeg1_store_pixels();
 		rspq_flush();
-	} else if (RSP_MODE >= 2) {
+	} else if (RSP_MODE == 2) {
+		if (self->macroblock_intra)
+			rsp_mpeg1_zero_pixels();
+		else
+			rsp_mpeg1_load_pixels();
 		rsp_mpeg1_block_dequant(self->macroblock_intra, self->quantizer_scale);
 		rsp_mpeg1_block_decode(n, self->macroblock_intra!=0);
+		rsp_mpeg1_store_pixels();
 		rspq_flush();
+	} else if (RSP_MODE >= 3) {
+		if (self->macroblock_intra)
+			rsp_mpeg1_zero_pixels();
+		rsp_mpeg1_block_dequant(self->macroblock_intra, self->quantizer_scale);
+		rsp_mpeg1_block_decode(n, self->macroblock_intra!=0);
+		rsp_mpeg1_store_pixels();
+		rspq_flush();		
 	}
 
 	PROFILE_STOP(PS_MPEG_MB_DECODE_BLOCK, 1);

@@ -77,10 +77,12 @@ void profile_dump(void) {
 	DUMP_SLOT(PS_MPEG_MB_DECODE_BLOCK, "        - Block");
 	DUMP_SLOT(PS_MPEG_MB_DECODE_BLOCK_IDCT, "          - IDCT");
 	DUMP_SLOT(PS_YUV, "YUV Blit");
+	DUMP_SLOT(PS_AUDIO, "Audio");
+	DUMP_SLOT(PS_SYNC, "Sync");
 
 	debugf("----------------------------------\n");
 	debugf("Profiled frames:      %4d\n", frames);
 	debugf("Frames per second:    %4.1f\n", (float)TICKS_PER_SECOND/(float)frame_avg);
 	debugf("Average frame time:   %4lld\n", frame_avg/SCALE_RESULTS);
-	debugf("Target frame time:    %4d\n", TICKS_PER_SECOND/30/SCALE_RESULTS);
+	debugf("Target frame time:    %4d\n", TICKS_PER_SECOND/24/SCALE_RESULTS);
 }
