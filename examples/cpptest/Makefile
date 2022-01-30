@@ -4,8 +4,9 @@ include $(N64_INST)/include/n64.mk
 
 all: cpptest.z64
 
-$(BUILD_DIR)/cpptest.elf: \
-	$(BUILD_DIR)/cpptest.o
+OBJS = $(BUILD_DIR)/*.o
+
+$(BUILD_DIR)/cpptest.elf: $(OBJS)
 
 cpptest.z64: N64_ROM_TITLE="C++ test"
 
