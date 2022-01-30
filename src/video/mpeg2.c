@@ -86,10 +86,6 @@ void rsp_mpeg1_set_quant_matrix(bool intra, const uint8_t quant_mtx[64]) {
 		qmtx[12], qmtx[13], qmtx[14], qmtx[15]);
 }
 
-void rsp_mpeg1_block_split(void) {
-	rspq_write(0x5E);	
-}
-
 #define PL_MPEG_IMPLEMENTATION
 #include "pl_mpeg/pl_mpeg.h"
 

@@ -20,7 +20,6 @@ COMMAND_TABLE:
     RSPQ_DefineCommand cmd_mpeg1_block_switch    4  # 0x5B
     RSPQ_DefineCommand cmd_mpeg1_load_pixels     4  # 0x5C
     RSPQ_DefineCommand cmd_mpeg1_zero_pixels     4  # 0x5D
-    RSPQ_DefineCommand cmd_mpeg1_block_split     4  # 0x5E
 	.dcb.w 16-14
 
 	vsll_data
@@ -51,6 +50,8 @@ PIXELS:            .dcb.b    (16*16 + 8*8 + 8*8)
 PIXELCHECK:        .long   0xBADC0DE
 
 MPEG1_STATE_END:
+
+PIXELS_OFFSET:     .half    0, 8, 16*8, 16*8+8, 16*16, 16*16+8*8
 
 	.align 4
 
@@ -95,6 +96,9 @@ ZIGZAG:
 	.byte 29*2, 22*2, 15*2, 23*2, 30*2, 37*2, 44*2, 51*2
 	.byte 58*2, 59*2, 52*2, 45*2, 38*2, 31*2, 39*2, 46*2
 	.byte 53*2, 60*2, 61*2, 54*2, 47*2, 55*2, 62*2, 63*2
+
+
+
 
 	.align 3
 SOURCE_PIXELS: .dcb.b 24*16
@@ -202,7 +206,8 @@ cmd_mpeg1_block_begin:
 cmd_mpeg1_block_switch:
     # a0: partition index (0-3=Y, 4=CB, 5=CR)
     andi t0, a0, 0xFF
-    sll t0, 6
+    sll t0, 1
+    lhu t0, %lo(PIXELS_OFFSET)(t0)
     addi t0, %lo(PIXELS)
     sw t0, %lo(CUR_PIXELS)
 
@@ -473,52 +478,7 @@ cmd_mpeg1_store_pixels:
     assert_ne s4, zero, ASSERT_UNDEFINED_BLOCK
     lw t1, %lo(RDRAM_BLOCK_PITCH)
     j DMAOutAsync
-    li t0, DMA_SIZE(8,8)
-    #lw t0, %lo(RDRAM_BLOCK_SIZE)
-	.endfunc
-
-	.func cmd_mpeg1_block_split
-cmd_mpeg1_block_split:
-    li s4, %lo(PIXELS)
-    li t0, 1
-
-1:
-	addi s3, s4, 8
-
-    lqv $v00,0,  0 * 16,s4
-    lqv $v01,0,  1 * 16,s4
-    lqv $v02,0,  2 * 16,s4
-    lqv $v03,0,  3 * 16,s4
-    lqv $v04,0,  4 * 16,s4
-    lqv $v05,0,  5 * 16,s4
-    lqv $v06,0,  6 * 16,s4
-    lqv $v07,0,  7 * 16,s4
-
-    sqv $v00,0,  0 * 16,s4
-    sqv $v01,0,  0 * 16,s3
-    sqv $v02,0,  1 * 16,s4
-    sqv $v03,0,  1 * 16,s3
-    sqv $v04,0,  2 * 16,s4
-    sqv $v05,0,  2 * 16,s3
-    sqv $v06,0,  3 * 16,s4
-    sqv $v07,0,  3 * 16,s3
-
-    sqv $v00,8,  4 * 16,s4
-    sqv $v01,8,  4 * 16,s3
-    sqv $v02,8,  5 * 16,s4
-    sqv $v03,8,  5 * 16,s3
-    sqv $v04,8,  6 * 16,s4
-    sqv $v05,8,  6 * 16,s3
-    sqv $v06,8,  7 * 16,s4
-    sqv $v07,8,  7 * 16,s3
-
-    addi s4, 8*8*2
-    bnez t0, 1b
-    addi t0, -1
-
-    j RSPQ_Loop
-    nop
-
+    lw t0, %lo(RDRAM_BLOCK_SIZE)
 	.endfunc
 
 	.func load_matrix
@@ -619,19 +579,29 @@ add_pred:
 
 store_pixels:
 	# Store as pixels
-	lw s0, %lo(CUR_PIXELS)
-    assert_ne s0, zero, ASSERT_UNDEFINED_BLOCK2
-	suv $v00,0, 0*8,s0
-	suv $v01,0, 1*8,s0
-	suv $v02,0, 2*8,s0
-	suv $v03,0, 3*8,s0
-	suv $v04,0, 4*8,s0
-	suv $v05,0, 5*8,s0
-	suv $v06,0, 6*8,s0
-	suv $v07,0, 7*8,s0
-
-	jr ra
-	nop
+	lw s4, %lo(CUR_PIXELS)
+    lbu t0, %lo(RDRAM_BLOCK_SIZE)+3
+    beq t0, 0xF, store_addpred_16
+    nop
+	suv $v00,0, 0*8,s4
+	suv $v01,0, 1*8,s4
+	suv $v02,0, 2*8,s4
+	suv $v03,0, 3*8,s4
+	suv $v04,0, 4*8,s4
+	suv $v05,0, 5*8,s4
+	suv $v06,0, 6*8,s4
+    jr ra
+	suv $v07,0, 7*8,s4
+store_addpred_16:
+    suv $v00,0, 0*16,s4
+    suv $v01,0, 1*16,s4
+    suv $v02,0, 2*16,s4
+    suv $v03,0, 3*16,s4
+    suv $v04,0, 4*16,s4
+    suv $v05,0, 5*16,s4
+    suv $v06,0, 6*16,s4
+    jr ra
+    suv $v07,0, 7*16,s4
 	.endfunc
 
 	.func zero_pred
@@ -677,18 +647,29 @@ cmd_mpeg1_idct:
 	vaddc $v07, $v07, k128
 
 	# Store as pixels
-	lw s0, %lo(CUR_PIXELS)
-	spv $v00,0, 0*8,s0
-	spv $v01,0, 1*8,s0
-	spv $v02,0, 2*8,s0
-	spv $v03,0, 3*8,s0
-	spv $v04,0, 4*8,s0
-	spv $v05,0, 5*8,s0
-	spv $v06,0, 6*8,s0
-	spv $v07,0, 7*8,s0
-
-	j RSPQ_Loop
-	nop
+	lw s4, %lo(CUR_PIXELS)
+    lbu t0, %lo(RDRAM_BLOCK_SIZE)+3
+    beq t0, 0xF, store_pred_16
+    nop
+	spv $v00,0, 0*8,s4
+	spv $v01,0, 1*8,s4
+	spv $v02,0, 2*8,s4
+	spv $v03,0, 3*8,s4
+	spv $v04,0, 4*8,s4
+	spv $v05,0, 5*8,s4
+	spv $v06,0, 6*8,s4
+    j RSPQ_Loop
+	spv $v07,0, 7*8,s4
+store_pred_16:
+    spv $v00,0, 0*16,s4
+    spv $v01,0, 1*16,s4
+    spv $v02,0, 2*16,s4
+    spv $v03,0, 3*16,s4
+    spv $v04,0, 4*16,s4
+    spv $v05,0, 5*16,s4
+    spv $v06,0, 6*16,s4
+    j RSPQ_Loop
+    spv $v07,0, 7*16,s4
 	.endfunc
 
 	.func cmd_mpeg1_block_decode
@@ -703,13 +684,18 @@ cmd_mpeg1_block_decode:
 	jal load_matrix
 	nop
 
+	beqz a1, load_pred
+	nop
+	jal_and_j zero_pred, decode_step2
+
+load_pred:
 	# Load prediction. This must have been already
     # loaded into the PIXELS block.
     lw s4, %lo(CUR_PIXELS)
     assert_ne s4, zero, ASSERT_UNDEFINED_BLOCK3
 
-#    lbu t0, %lo(RDRAM_BLOCK_SIZE)+3
-#    beq t0, 0xF, load_pred_16
+    lbu t0, %lo(RDRAM_BLOCK_SIZE)+3
+    beq t0, 0xF, load_pred_16
 load_pred_8:
 	luv pred0,0, 0*8,s4
 	luv pred1,0, 1*8,s4
@@ -767,12 +753,6 @@ decode_dc_only:
 	nop
 
 decode_finish:
-	#jal dma_src_block
-    #li t2, DMA_OUT
-    #j RSPQ_Loop
-    #nop
-
-    #jal_and_j cmd_mpeg1_store_pixels, RSPQ_Loop
     j RSPQ_Loop
     nop
 
