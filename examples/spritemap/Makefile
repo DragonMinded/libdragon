@@ -4,9 +4,7 @@ all: spritemap.z64
 BUILD_DIR = build
 include $(N64_INST)/include/n64.mk
 
-SRC = spritemap.c
-OBJS = $(SRC:%.c=$(BUILD_DIR)/%.o)
-DEPS = $(SRC:%.c=$(BUILD_DIR)/%.d)
+OBJS = $(BUILD_DIR)/spritemap.o
 
 spritemap.z64: N64_ROM_TITLE = "Spritemap"
 spritemap.z64: $(BUILD_DIR)/spritemap.dfs
@@ -18,4 +16,4 @@ clean:
 	rm -rf $(BUILD_DIR) *.z64
 .PHONY: clean
 
--include $(DEPS)
+-include $(wildcard $(BUILD_DIR)/*.d)
