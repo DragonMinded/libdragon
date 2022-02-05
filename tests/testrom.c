@@ -169,6 +169,7 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 #include "test_dma.c"
 #include "test_cop1.c"
 #include "test_constructors.c"
+#include "test_rspq.c"
 
 /**********************************************************************
  * MAIN
@@ -208,6 +209,24 @@ static const struct Testsuite
 	TEST_FUNC(test_debug_sdfs,                 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dma_read_misalign,       7003, TEST_FLAGS_NONE),
 	TEST_FUNC(test_cop1_denormalized_float,    0, TEST_FLAGS_NO_EMULATOR),
+	TEST_FUNC(test_rspq_queue_single,          0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_queue_multiple,        0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_queue_rapid,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_wrap,                  0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_signal,                0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_high_load,             0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_load_overlay,          0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_switch_overlay,        0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_multiple_flush,        0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_wait,                  0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_rapid_sync,            0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_flush,                 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_rapid_flush,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_block,                 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_wait_sync_in_block,    0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_highpri_basic,         0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_highpri_multiple,      0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_highpri_overlay,       0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {

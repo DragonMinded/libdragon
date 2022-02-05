@@ -51,5 +51,6 @@
 #include "wav64.h"
 #include "xm64.h"
 #include "ym64.h"
+#include "rspq.h"
 
 #endif
