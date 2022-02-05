@@ -28,6 +28,7 @@ N64_ED64ROMCONFIG = $(N64_BINDIR)/ed64romconfig
 N64_MKDFS = $(N64_BINDIR)/mkdfs
 N64_TOOL = $(N64_BINDIR)/n64tool
 N64_AUDIOCONV = $(N64_BINDIR)/audioconv64
+N64_MKSPRITE = $(N64_BINDIR)/mksprite
 
 N64_CFLAGS =  -march=vr4300 -mtune=vr4300 -I$(N64_INCLUDEDIR)
 N64_CFLAGS += -falign-functions=32 -ffunction-sections -fdata-sections
