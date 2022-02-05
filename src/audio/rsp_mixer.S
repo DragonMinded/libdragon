@@ -103,7 +103,7 @@
 	#
 	####################################################################
 
-#include <rsp.inc>
+#include <rsp_queue.inc>
 
 .set noreorder
 .set at
@@ -173,41 +173,9 @@
 
 	.data
 
-############################################################################
-# UCODE INPUT DATA
-############################################################################
-
-# Global volume of playback
-GLOBAL_VOLUME:            .long  0x2000
-# Number of samples to resample/mix on each channel
-NUM_SAMPLES:              .half  0
-# Number of configured channels
-NUM_CHANNELS:             .half  0
-# Output RDRAM buffer where to store mixed samples (16-bit, stereo)
-OUTPUT_RDRAM:             .long  0
-# State RDRAM buffer where the RSP can store its state across different
-# calls. Currently, this will contain the current volume for each channel.
-STATE_RDRAM:               .long  0
-
-# Requested volumes for each channel. If VOLUME_FILTER is on, these are the
-# values requested by the user, but the current value for each channel might
-# be different (as the filter is running).
-	.align 4
-CHANNEL_VOLUMES_L:        .dcb.w MAX_CHANNELS
-CHANNEL_VOLUMES_R:        .dcb.w MAX_CHANNELS
-
-# Array of structures rsp_mixer_channel_s. See mixer.c. 6 words for each
-# channel with the following content:
-#
-#   0: pos:      absolute waveform position (as fixed point, WAVEFORM_POS_FRAC_BITS)
-#   1: step:     resampling increment of position for each output sample (fixed point)
-#   2: len:      length of the waveform (fixed point)
-#   3: loop_len: length of the loop from the end of the waveform (or 0 if no loop)
-#   4: ptr:      pointer to the beginning of the waveform
-#   5: flags:    channel flags (see CH_FLAGS_ macros in mixer.c)
-#
-	.align 4
-WAVEFORM_SETTINGS:        .dcb.l (6*MAX_CHANNELS)
+	RSPQ_BeginOverlayHeader
+		RSPQ_DefineCommand command_exec, 16
+	RSPQ_EndOverlayHeader
 
 ############################################################################
 
@@ -229,8 +197,7 @@ VCONST_1:
 BANNER0:    .ascii "Dragon RSP Audio"
 BANNER1:    .ascii " Coded by Rasky "
 
-	.bss
-
+	RSPQ_BeginSavedState
 	# Current volume state for each channel. This might differ from CHANNEL_VOLUMES
 	# when the volume filter is turned on: this is the actual current value that
 	# is being interpolated to CHANNEL_VOLUMES, which is the requested target
@@ -238,6 +205,44 @@ BANNER1:    .ascii " Coded by Rasky "
 	.align 4
 XVOL_L:                   .dcb.w MAX_CHANNELS
 XVOL_R:                   .dcb.w MAX_CHANNELS
+	RSPQ_EndSavedState
+
+	.bss
+
+############################################################################
+# UCODE INPUT DATA
+############################################################################
+
+# Output RDRAM buffer where to store mixed samples (16-bit, stereo)
+OUTPUT_RDRAM:             .long  0
+# Global volume of playback
+GLOBAL_VOLUME:            .half  0
+# Number of samples to resample/mix on each channel
+NUM_SAMPLES:              .half  0
+# Number of configured channels
+NUM_CHANNELS:             .half  0
+
+# Requested volumes for each channel. If VOLUME_FILTER is on, these are the
+# values requested by the user, but the current value for each channel might
+# be different (as the filter is running).
+	.align 4
+SETTINGS_START:
+CHANNEL_VOLUMES_L:        .dcb.w MAX_CHANNELS
+CHANNEL_VOLUMES_R:        .dcb.w MAX_CHANNELS
+
+# Array of structures rsp_mixer_channel_s. See mixer.c. 6 words for each
+# channel with the following content:
+#
+#   0: pos:      absolute waveform position (as fixed point, WAVEFORM_POS_FRAC_BITS)
+#   1: step:     resampling increment of position for each output sample (fixed point)
+#   2: len:      length of the waveform (fixed point)
+#   3: loop_len: length of the loop from the end of the waveform (or 0 if no loop)
+#   4: ptr:      pointer to the beginning of the waveform
+#   5: flags:    channel flags (see CH_FLAGS_ macros in mixer.c)
+#
+	.align 4
+WAVEFORM_SETTINGS:        .dcb.l (6*MAX_CHANNELS)
+SETTINGS_END:
 
 	# Temporary cache of samples fetched by DMA. Notice that this must be
 	# less or equal than MIXER_LOOP_OVERREAD (mixer.c), because the
@@ -264,25 +269,33 @@ OUTPUT_AREA:     .dcb.w MAX_SAMPLES_PER_LOOP*2
 	#define num_samples     k1
 
 
-	.globl _start
-_start:
+command_exec:
 	setup_vsll  v_shift
 	setup_vsll8 v_shift8
 
 	#define samples_left    t4
-	#define outptr          gp
+	#define outptr          s8
 
 	vxor v_zero, v_zero, v_zero,0
 	li t0, %lo(VCONST_1)
 	lqv v_const1,0, 0,t0
 
-#if VOLUME_FILTER
-	# Read state from previous execution (actual channel volumes).
-	# This is a state because we run the one-tap filter so their
-	# value might be different from the requested one.
-	jal DMAFilterState
+	# Extract command parameters
+	andi a0, 0xFFFF
+	sh a0, %lo(GLOBAL_VOLUME)
+
+	srl t1, a1, 16
+	sh t1, %lo(NUM_SAMPLES)
+
+	andi a1, 0xFFFF
+	sh a1, %lo(NUM_CHANNELS)
+
+	lw a2, CMD_ADDR(0x8, 0x10)
+	sw a2, %lo(OUTPUT_RDRAM)
+
+	# Load settings
+	jal DMASettings
 	li t2, DMA_IN
-#endif
 
 	jal SetupMixer
 	nop
@@ -357,36 +370,30 @@ End:
 	jal EndMixer
 	nop
 
-#if VOLUME_FILTER
-	jal DMAFilterState
+	jal DMASettings
 	li t2, DMA_OUT_ASYNC
-#endif
 
 	# Wait for the last out transfer to be finished
-	jal DMAWaitIdle
-	nop
-
-	# Bye bye!
-	break
+	jal_and_j DMAWaitIdle, RSPQ_Loop
 
 	#undef samples_left
 	#undef outptr
 
 
 ###############################################################
-# DMAFilterState - Load/save the volume filter state via DMA.
+# DMASettings - Load/save the settings via DMA.
 #
 # Arguments:
 #   t2:  DMA_* flag for DMAExec
 ###############################################################
 
-	.func DMAFilterState
-DMAFilterState:
-	# Save volume filter state
-	lw s0, %lo(STATE_RDRAM)
-	li s4, %lo(XVOL_L)
+	.func DMASettings
+DMASettings:
+	# Save settings
+	lw s0, CMD_ADDR(0xC, 0x10)
+	li s4, %lo(SETTINGS_START)
 	j DMAExec
-	li t0, DMA_SIZE(MAX_CHANNELS*2*2, 1)
+	li t0, DMA_SIZE((SETTINGS_END - SETTINGS_START), 1)
 	.endfunc
 
 
@@ -922,7 +929,7 @@ WaveLoopEpilog2:
 	.func SetupMixer
 SetupMixer:
 	# Load global volume (into all lanes)
-	lw t0, %lo(GLOBAL_VOLUME)
+	lh t0, %lo(GLOBAL_VOLUME)
 	mtc2 t0, v_glvol,0
 	vor v_glvol, v_zero, v_glvol,8
 
@@ -1146,6 +1153,3 @@ Mix8Loop:
 	jr ra
 	ssv v_out_r,0, -2,s4
 	.endfunc
-
-# Bring in RSP DMA library
-#include <rsp_dma.inc>

@@ -8,6 +8,7 @@
 #include "regsinternal.h"
 #include "utils.h"
 #include "rsp.h"
+#include "rspq.h"
 #include "debug.h"
 #include "samplebuffer.h"
 #include "audio.h"
@@ -53,6 +54,9 @@
  * RSP mixer ucode (rsp_mixer.S)
  */
 DEFINE_RSP_UCODE(rsp_mixer);
+
+/** @brief Size of the ucode state that is automatically persisted by rspq */
+#define MIXER_STATE_SIZE 128
 
 // NOTE: keep these in sync with rsp_mixer.S
 #define CH_FLAGS_BPS_SHIFT  (3<<0)   ///< BPS shift value
@@ -114,6 +118,16 @@ typedef struct rsp_mixer_channel_s {
 _Static_assert(sizeof(rsp_mixer_channel_t) == 6*4);
 /// @endcond
 
+/** @brief Mixer ucode settings. 
+ *
+ * This struct reflects the settings defined in rsp_mixer.S.
+ */
+typedef struct rsp_mixer_settings_s {
+	uint32_t lvol[MIXER_MAX_CHANNELS/2] __attribute__((aligned(16)));
+	uint32_t rvol[MIXER_MAX_CHANNELS/2];
+	rsp_mixer_channel_t channels[MIXER_MAX_CHANNELS] __attribute__((aligned(16)));
+} rsp_mixer_settings_t;
+
 /** @brief Configured limits of a mixer channel. 
  *
  * This structure describes the playback limits for a mixer channel. The limits
@@ -149,13 +163,14 @@ static struct {
 	mixer_fx15_t lvol[MIXER_MAX_CHANNELS];
 	mixer_fx15_t rvol[MIXER_MAX_CHANNELS];
 
-	// Permanent state of the ucode across different executions
-	uint8_t ucode_state[128] __attribute__((aligned(8)));
+	rsp_mixer_settings_t ucode_settings __attribute__((aligned(8)));
 
 } Mixer;
 
 /** @brief Count of ticks spent in mixer RSP, used for debugging purposes. */
 int64_t __mixer_profile_rsp = 0;
+
+static uint32_t __mixer_overlay_id;
 
 static inline int mixer_initialized(void) { return Mixer.num_channels != 0; }
 
@@ -171,6 +186,13 @@ void mixer_init(int num_channels) {
 		mixer_ch_set_vol(ch, 1.0f, 1.0f);
 		mixer_ch_set_limits(ch, 16, Mixer.sample_rate, 0);
 	}
+
+	void *mixer_state = rspq_overlay_get_state(&rsp_mixer);
+	memset(mixer_state, 0, MIXER_STATE_SIZE);
+	data_cache_hit_writeback(mixer_state, MIXER_STATE_SIZE);
+
+	rspq_init();
+    __mixer_overlay_id = rspq_overlay_register(&rsp_mixer);
 }
 
 static void mixer_init_samplebuffers(void) {
@@ -218,6 +240,9 @@ void mixer_set_vol(float vol) {
 
 void mixer_close(void) {
 	assert(mixer_initialized());
+
+	rspq_overlay_unregister(__mixer_overlay_id);
+	__mixer_overlay_id = 0;
 
 	if (Mixer.ch_buf_mem) {
 		free_uncached(Mixer.ch_buf_mem);
@@ -535,10 +560,9 @@ static void mixer_exec(int32_t *out, int num_samples) {
 		}
 	}
 
-	rsp_wait();
-	rsp_load(&rsp_mixer);
+	volatile rsp_mixer_settings_t *settings = UncachedAddr(&Mixer.ucode_settings);
 
-	volatile rsp_mixer_channel_t *rsp_wv = (volatile rsp_mixer_channel_t *)&SP_DMEM[36];
+	volatile rsp_mixer_channel_t *rsp_wv = settings->channels;
 	mixer_fx15_t lvol[MIXER_MAX_CHANNELS] __attribute__((aligned(8))) = {0};
 	mixer_fx15_t rvol[MIXER_MAX_CHANNELS] __attribute__((aligned(8))) = {0};
 
@@ -599,22 +623,25 @@ static void mixer_exec(int32_t *out, int num_samples) {
 		}
 	}
 
-	// Copy the volumes into DMEM. TODO: check if should change this loop into
-	// a DMA copy, or fold it into the above loop.
 	uint32_t *lvol32 = (uint32_t*)lvol;
 	uint32_t *rvol32 = (uint32_t*)rvol;
 	for (int ch=0;ch<MIXER_MAX_CHANNELS/2;ch++)  {
-		SP_DMEM[4+0*16+ch] = lvol32[ch];
-		SP_DMEM[4+1*16+ch] = rvol32[ch];
+		settings->lvol[ch] = lvol32[ch];
+		settings->rvol[ch] = rvol32[ch];
 	}
 
-	SP_DMEM[0] = MIXER_FX16(Mixer.vol);
-	SP_DMEM[1] = (num_samples << 16) | Mixer.num_channels;
-	SP_DMEM[2] = (uint32_t)out;
-	SP_DMEM[3] = (uint32_t)Mixer.ucode_state;
-
 	uint32_t t0 = TICKS_READ();
-	rsp_run();
+
+	rspq_highpri_begin();
+	rspq_write(__mixer_overlay_id, 0,
+		(((uint32_t)MIXER_FX16(Mixer.vol)) & 0xFFFF),
+		(num_samples << 16) | Mixer.num_channels,
+		PhysicalAddr(out),
+		PhysicalAddr(&Mixer.ucode_settings));
+	rspq_highpri_end();
+
+	rspq_highpri_sync();
+
 	__mixer_profile_rsp += TICKS_READ() - t0;
 
 	for (int i=0;i<Mixer.num_channels;i++) {
