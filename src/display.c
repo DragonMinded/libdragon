@@ -576,4 +576,49 @@ void display_show_force( display_context_t disp )
     enable_interrupts();
 }
 
+/**
+ * @brief Get the currently configured width of the display in pixels
+ */
+uint32_t display_get_width()
+{
+    return __width;
+}
+
+/**
+ * @brief Get the currently configured height of the display in pixels
+ */
+uint32_t display_get_height()
+{
+    return __height;
+}
+
+/**
+ * @brief Get the currently configured bitdepth of the display
+ */
+bitdepth_t display_get_bitdepth()
+{
+    return __bitdepth == 2 ? DEPTH_16_BPP : DEPTH_32_BPP;
+}
+
+/**
+ * @brief Get the currently configured number of buffers
+ */
+uint32_t display_get_num_buffers()
+{
+    return __buffers;
+}
+
+/**
+ * @brief Get the pointer to the buffer at the specified index
+ *
+ * @param[in] index
+ *            The index of the buffer for which to return the pointer.
+ *            To get the buffer pointer for a previously aqcuired display context,
+ *            pass the display context minus 1.
+ */
+void * display_get_buffer(uint32_t index)
+{
+    return __safe_buffer[index];
+}
+
 /** @} */ /* display */
