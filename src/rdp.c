@@ -61,18 +61,38 @@
  */
 #define __get_buffer( x ) __safe_buffer[(x)-1]
 
-/** @brief Size of the internal ringbuffer that holds pending RDP commands */
-#define RINGBUFFER_SIZE  4096
+#define rdp_write(cmd_id, ...) rspq_write(GFX_OVL_ID, cmd_id, ##__VA_ARGS__)
 
-/** 
- * @brief Size of the slack are of the ring buffer
- *
- * Data can be written into the slack area of the ring buffer by functions creating RDP commands.
- * However, when sending a completed command to the RDP, if the buffer has advanced into the slack,
- * it will be cleared and the pointer reset to start.  This is to stop any commands from being
- * split in the middle during wraparound.
- */
-#define RINGBUFFER_SLACK 1024
+enum {
+    RDP_CMD_FILL_TRIANGLE           = 0x00,
+    RDP_CMD_TEXTURE_RECTANGLE       = 0x04,
+    RDP_CMD_TEXTURE_RECTANGLE_FLIP  = 0x05,
+    RDP_CMD_SYNC_LOAD               = 0x06,
+    RDP_CMD_SYNC_PIPE               = 0x07,
+    RDP_CMD_SYNC_TILE               = 0x08,
+    RDP_CMD_SYNC_FULL               = 0x09,
+    RDP_CMD_SET_KEY_GB              = 0x0A,
+    RDP_CMD_SET_KEY_R               = 0x0B,
+    RDP_CMD_SET_CONVERT             = 0x0C,
+    RDP_CMD_SET_SCISSOR             = 0x0D,
+    RDP_CMD_SET_PRIM_DEPTH          = 0x0E,
+    RDP_CMD_SET_OTHER_MODES         = 0x0F,
+    RDP_CMD_LOAD_TLUT               = 0x10,
+    RDP_CMD_SET_TILE_SIZE           = 0x12,
+    RDP_CMD_LOAD_BLOCK              = 0x13,
+    RDP_CMD_LOAD_TILE               = 0x14,
+    RDP_CMD_SET_TILE                = 0x15,
+    RDP_CMD_FILL_RECTANGLE          = 0x16,
+    RDP_CMD_SET_FILL_COLOR          = 0x17,
+    RDP_CMD_SET_FOG_COLOR           = 0x18,
+    RDP_CMD_SET_BLEND_COLOR         = 0x19,
+    RDP_CMD_SET_PRIM_COLOR          = 0x1A,
+    RDP_CMD_SET_ENV_COLOR           = 0x1B,
+    RDP_CMD_SET_COMBINE_MODE        = 0x1C,
+    RDP_CMD_SET_TEXTURE_IMAGE       = 0x1D,
+    RDP_CMD_SET_Z_IMAGE             = 0x1E,
+    RDP_CMD_SET_COLOR_IMAGE         = 0x1F,
+};
 
 /**
  * @brief Cached sprite structure
@@ -98,12 +118,6 @@ extern uint32_t __width;
 extern uint32_t __height;
 extern void *__safe_buffer[];
 
-/** @brief Ringbuffer where partially assembled commands will be placed before sending to the RDP */
-static uint32_t rdp_ringbuffer[RINGBUFFER_SIZE / 4];
-/** @brief Start of the command in the ringbuffer */
-static uint32_t rdp_start = 0;
-/** @brief End of the command in the ringbuffer */
-static uint32_t rdp_end = 0;
 
 /** @brief The current cache flushing strategy */
 static flush_t flush_strategy = FLUSH_STRATEGY_AUTOMATIC;
@@ -113,6 +127,9 @@ static volatile uint32_t wait_intr = 0;
 
 /** @brief Array of cached textures in RDP TMEM indexed by the RDP texture slot */
 static sprite_cache cache[8];
+
+static display_context_t attached_display = 0;
+static void (*detach_callback)(display_context_t disp) = NULL;
 
 /**
  * @brief RDP interrupt handler
@@ -124,6 +141,13 @@ static void __rdp_interrupt()
 {
     /* Flag that the interrupt happened */
     wait_intr++;
+
+    if (attached_display != 0 && detach_callback != NULL)
+    {
+        detach_callback(attached_display);
+        attached_display = 0;
+        detach_callback = NULL;
+    }
 }
 
 /**
@@ -177,153 +201,49 @@ static inline uint32_t __rdp_log2( uint32_t number )
     }
 }
 
-/**
- * @brief Return the size of the current command buffered in the ring buffer
- *
- * @return The size of the command in bytes
- */
-static inline uint32_t __rdp_ringbuffer_size( void )
-{
-    /* Normal length */
-    return rdp_end - rdp_start;
-}
-
-/**
- * @brief Queue 32 bits of a command to the ring buffer
- *
- * @param[in] data
- *            32 bits of data to be queued at the end of the current command
- */
-static void __rdp_ringbuffer_queue( uint32_t data )
-{
-    /* Only add commands if we have room */
-    if( __rdp_ringbuffer_size() + sizeof(uint32_t) >= RINGBUFFER_SIZE ) { return; }
-
-    /* Add data to queue to be sent to RDP */
-    rdp_ringbuffer[rdp_end / 4] = data;
-    rdp_end += 4;
-}
-
-/**
- * @brief Send a completed command to the RDP that is queued in the ring buffer
- *
- * Given a validly constructred command in the ring buffer, this command will prepare the
- * memory region in the ring buffer to be sent to the RDP and then start a DMA transfer,
- * kicking off execution of the command in the RDP.  After calling this function, it is
- * safe to start writing to the ring buffer again.
- */
-static void __rdp_ringbuffer_send( void )
-{
-    /* Don't send nothingness */
-    if( __rdp_ringbuffer_size() == 0 ) { return; }
-
-    /* Ensure the cache is fixed up */
-    data_cache_hit_writeback_invalidate(&rdp_ringbuffer[rdp_start / 4], __rdp_ringbuffer_size());
-    
-    /* Best effort to be sure we can write once we disable interrupts */
-    while( (((volatile uint32_t *)0xA4100000)[3] & 0x600) ) ;
-
-    /* Make sure another thread doesn't attempt to render */
-    disable_interrupts();
-
-    /* Clear XBUS/Flush/Freeze */
-    ((uint32_t *)0xA4100000)[3] = 0x15;
-    MEMORY_BARRIER();
-
-    /* Don't saturate the RDP command buffer.  Another command could have been written
-     * since we checked before disabling interrupts, but it is unlikely, so we probably
-     * won't stall in this critical section long. */
-    while( (((volatile uint32_t *)0xA4100000)[3] & 0x600) ) ;
-
-    /* Send start and end of buffer location to kick off the command transfer */
-    MEMORY_BARRIER();
-    ((volatile uint32_t *)0xA4100000)[0] = ((uint32_t)rdp_ringbuffer | 0xA0000000) + rdp_start;
-    MEMORY_BARRIER();
-    ((volatile uint32_t *)0xA4100000)[1] = ((uint32_t)rdp_ringbuffer | 0xA0000000) + rdp_end;
-    MEMORY_BARRIER();
-
-    /* We are good now */
-    enable_interrupts();
-
-    /* Commands themselves can't wrap around */
-    if( rdp_end > (RINGBUFFER_SIZE - RINGBUFFER_SLACK) )
-    {
-        /* Wrap around before a command can be split */
-        rdp_start = 0;
-        rdp_end = 0;
-    }
-    else
-    {
-        /* Advance the start to not allow clobbering current command */
-        rdp_start = rdp_end;
-    }
-}
-
-/**
- * @brief Initialize the RDP system
- */
 void rdp_init( void )
 {
     /* Default to flushing automatically */
     flush_strategy = FLUSH_STRATEGY_AUTOMATIC;
 
-    /* Set the ringbuffer up */
-    rdp_start = 0;
-    rdp_end = 0;
-
     /* Set up interrupt for SYNC_FULL */
     register_DP_handler( __rdp_interrupt );
     set_DP_interrupt( 1 );
+
+    gfx_init();
 }
 
-/**
- * @brief Close the RDP system
- *
- * This function closes out the RDP system and cleans up any internal memory
- * allocated by #rdp_init.
- */
 void rdp_close( void )
 {
     set_DP_interrupt( 0 );
     unregister_DP_handler( __rdp_interrupt );
 }
 
-/**
- * @brief Attach the RDP to a display context
- *
- * This function allows the RDP to operate on display contexts fetched with #display_lock.
- * This should be performed before any other operations to ensure that the RDP has a valid
- * output buffer to operate on.
- *
- * @param[in] disp
- *            A display context as returned by #display_lock
- */
 void rdp_attach_display( display_context_t disp )
 {
     if( disp == 0 ) { return; }
 
+    assertf(!rdp_is_display_attached(), "A display is already attached!");
+    attached_display = disp;
+
     /* Set the rasterization buffer */
-    __rdp_ringbuffer_queue( 0xFF000000 | ((__bitdepth == 2) ? 0x00100000 : 0x00180000) | (__width - 1) );
-    __rdp_ringbuffer_queue( (uint32_t)__get_buffer( disp ) );
-    __rdp_ringbuffer_send();
+    uint32_t size = (__bitdepth == 2) ? RDP_TILE_SIZE_16BIT : RDP_TILE_SIZE_32BIT;
+    rdp_set_color_image_raw((uint32_t)__get_buffer(disp), RDP_TILE_FORMAT_RGBA, size, __width - 1);
+
 }
 
-/**
- * @brief Detach the RDP from a display context
- *
- * @note This function requires interrupts to be enabled to operate properly.
- *
- * This function will ensure that all hardware operations have completed on an output buffer
- * before detaching the display context.  This should be performed before displaying the finished
- * output using #display_show
- */
 void rdp_detach_display( void )
 {
+    assertf(rdp_is_display_attached(), "No display is currently attached!");
+    assertf(detach_callback == NULL, "Display has already been detached asynchronously!");
+    attached_display = 0;
+
     /* Wait for SYNC_FULL to finish */
     wait_intr = 0;
 
     /* Force the RDP to rasterize everything and then interrupt us */
-    rdp_sync( SYNC_FULL );
+    rdp_sync_full_raw();
+    rspq_flush();
 
     if( INTERRUPTS_ENABLED == get_interrupts_state() )
     {
@@ -335,106 +255,67 @@ void rdp_detach_display( void )
     wait_intr = 0;
 }
 
-/**
- * @brief Perform a sync operation
- *
- * Do not use excessive sync operations between commands as this can
- * cause the RDP to stall.  If the RDP stalls due to too many sync
- * operations, graphics may not be displayed until the next render
- * cycle, causing bizarre artifacts.  The rule of thumb is to only add
- * a sync operation if the data you need is not yet available in the
- * pipeline.
- *
- * @param[in] sync
- *            The sync operation to perform on the RDP
- */
+bool rdp_is_display_attached()
+{
+    return attached_display != 0;
+}
+
+void rdp_detach_display_async(void (*cb)(display_context_t disp))
+{
+    assertf(rdp_is_display_attached(), "No display is currently attached!");
+    assertf(cb != NULL, "Callback should not be NULL!");
+    detach_callback = cb;
+    rdp_sync_full_raw();
+    rspq_flush();
+}
+
 void rdp_sync( sync_t sync )
 {
     switch( sync )
     {
         case SYNC_FULL:
-            __rdp_ringbuffer_queue( 0xE9000000 );
+            rdp_sync_full_raw();
             break;
         case SYNC_PIPE:
-            __rdp_ringbuffer_queue( 0xE7000000 );
+            rdp_sync_pipe_raw();
             break;
         case SYNC_TILE:
-            __rdp_ringbuffer_queue( 0xE8000000 );
+            rdp_sync_tile_raw();
             break;
         case SYNC_LOAD:
-            __rdp_ringbuffer_queue( 0xE6000000 );
+            rdp_sync_load_raw();
             break;
     }
-    __rdp_ringbuffer_queue( 0x00000000 );
-    __rdp_ringbuffer_send();
 }
 
-/**
- * @brief Set the hardware clipping boundary
- *
- * @param[in] tx
- *            Top left X coordinate in pixels
- * @param[in] ty
- *            Top left Y coordinate in pixels
- * @param[in] bx
- *            Bottom right X coordinate in pixels
- * @param[in] by
- *            Bottom right Y coordinate in pixels
- */
 void rdp_set_clipping( uint32_t tx, uint32_t ty, uint32_t bx, uint32_t by )
 {
     /* Convert pixel space to screen space in command */
-    __rdp_ringbuffer_queue( 0xED000000 | (tx << 14) | (ty << 2) );
-    __rdp_ringbuffer_queue( (bx << 14) | (by << 2) );
-    __rdp_ringbuffer_send();
+    rdp_set_scissor_raw(tx << 2, ty << 2, bx << 2, by << 2);
 }
 
-/**
- * @brief Set the hardware clipping boundary to the entire screen
- */
 void rdp_set_default_clipping( void )
 {
     /* Clip box is the whole screen */
     rdp_set_clipping( 0, 0, __width, __height );
 }
 
-/**
- * @brief Enable display of 2D filled (untextured) rectangles
- *
- * This must be called before using #rdp_draw_filled_rectangle.
- */
 void rdp_enable_primitive_fill( void )
 {
     /* Set other modes to fill and other defaults */
-    __rdp_ringbuffer_queue( 0xEFB000FF );
-    __rdp_ringbuffer_queue( 0x00004000 );
-    __rdp_ringbuffer_send();
+    rdp_set_other_modes_raw(SOM_ATOMIC_PRIM | SOM_CYCLE_FILL | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_BLENDING);
 }
 
-/**
- * @brief Enable display of 2D filled (untextured) triangles
- *
- * This must be called before using #rdp_draw_filled_triangle.
- */
 void rdp_enable_blend_fill( void )
 {
-    __rdp_ringbuffer_queue( 0xEF0000FF );
-    __rdp_ringbuffer_queue( 0x80000000 );
-    __rdp_ringbuffer_send();
+    // TODO: Macros for blend modes (this sets blend rgb times input alpha on cycle 0)
+    rdp_set_other_modes_raw(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | 0x80000000);
 }
 
-/**
- * @brief Enable display of 2D sprites
- *
- * This must be called before using #rdp_draw_textured_rectangle_scaled,
- * #rdp_draw_textured_rectangle, #rdp_draw_sprite or #rdp_draw_sprite_scaled.
- */
 void rdp_enable_texture_copy( void )
 {
     /* Set other modes to copy and other defaults */
-    __rdp_ringbuffer_queue( 0xEFA000FF );
-    __rdp_ringbuffer_queue( 0x00004001 );
-    __rdp_ringbuffer_send();
+    rdp_set_other_modes_raw(SOM_ATOMIC_PRIM | SOM_CYCLE_COPY | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_BLENDING | SOM_ALPHA_COMPARE);
 }
 
 /**
@@ -472,9 +353,7 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     }
 
     /* Point the RDP at the actual sprite data */
-    __rdp_ringbuffer_queue( 0xFD000000 | ((sprite->bitdepth == 2) ? 0x00100000 : 0x00180000) | (sprite->width - 1) );
-    __rdp_ringbuffer_queue( (uint32_t)sprite->data );
-    __rdp_ringbuffer_send();
+    rdp_set_texture_image_raw((uint32_t)sprite->data, RDP_TILE_FORMAT_RGBA, (sprite->bitdepth == 2) ? RDP_TILE_SIZE_16BIT : RDP_TILE_SIZE_32BIT, sprite->width - 1);
 
     /* Figure out the s,t coordinates of the sprite we are copying out of */
     int twidth = sh - sl + 1;
@@ -490,15 +369,24 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     int round_amount = (real_width % 8) ? 1 : 0;
 
     /* Instruct the RDP to copy the sprite data out */
-    __rdp_ringbuffer_queue( 0xF5000000 | ((sprite->bitdepth == 2) ? 0x00100000 : 0x00180000) | 
-                                       (((((real_width / 8) + round_amount) * sprite->bitdepth) & 0x1FF) << 9) | ((texloc / 8) & 0x1FF) );
-    __rdp_ringbuffer_queue( ((texslot & 0x7) << 24) | (mirror_enabled != MIRROR_DISABLED ? 0x40100 : 0) | (hbits << 14 ) | (wbits << 4) );
-    __rdp_ringbuffer_send();
+    rdp_set_tile_raw(
+        RDP_TILE_FORMAT_RGBA, 
+        (sprite->bitdepth == 2) ? RDP_TILE_SIZE_16BIT : RDP_TILE_SIZE_32BIT, 
+        (((real_width / 8) + round_amount) * sprite->bitdepth) & 0x1FF,
+        (texloc / 8) & 0x1FF,
+        texslot & 0x7,
+        0, 
+        0, 
+        mirror_enabled != MIRROR_DISABLED ? 1 : 0,
+        hbits,
+        0,
+        0,
+        mirror_enabled != MIRROR_DISABLED ? 1 : 0,
+        wbits,
+        0);
 
     /* Copying out only a chunk this time */
-    __rdp_ringbuffer_queue( 0xF4000000 | (((sl << 2) & 0xFFF) << 12) | ((tl << 2) & 0xFFF) );
-    __rdp_ringbuffer_queue( (((sh << 2) & 0xFFF) << 12) | ((th << 2) & 0xFFF) );
-    __rdp_ringbuffer_send();
+    rdp_load_tile_raw(0, (sl << 2) & 0xFFF, (tl << 2) & 0xFFF, (sh << 2) & 0xFFF, (th << 2) & 0xFFF);
 
     /* Save sprite width and height for managed sprite commands */
     cache[texslot & 0x7].width = twidth - 1;
@@ -512,20 +400,6 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     return ((real_width / 8) + round_amount) * 8 * real_height * sprite->bitdepth;
 }
 
-/**
- * @brief Load a sprite into RDP TMEM
- *
- * @param[in] texslot
- *            The RDP texture slot to load this sprite into (0-7)
- * @param[in] texloc
- *            The RDP TMEM offset to place the texture at
- * @param[in] mirror
- *            Whether the sprite should be mirrored when displaying past boundaries
- * @param[in] sprite
- *            Pointer to sprite structure to load the texture from
- *
- * @return The number of bytes consumed in RDP TMEM by loading this sprite
- */
 uint32_t rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror, sprite_t *sprite )
 {
     if( !sprite ) { return 0; }
@@ -533,35 +407,6 @@ uint32_t rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror, s
     return __rdp_load_texture( texslot, texloc, mirror, sprite, 0, 0, sprite->width - 1, sprite->height - 1 );
 }
 
-/**
- * @brief Load part of a sprite into RDP TMEM
- *
- * Given a sprite with vertical and horizontal slices defined, this function will load the slice specified in
- * offset into texture memory.  This is usefl for treating a large sprite as a tilemap.
- *
- * Given a sprite with 3 horizontal slices and two vertical slices, the offsets are as follows:
- *
- * <pre>
- * *---*---*---*
- * | 0 | 1 | 2 |
- * *---*---*---*
- * | 3 | 4 | 5 |
- * *---*---*---*
- * </pre>
- *
- * @param[in] texslot
- *            The RDP texture slot to load this sprite into (0-7)
- * @param[in] texloc
- *            The RDP TMEM offset to place the texture at
- * @param[in] mirror
- *            Whether the sprite should be mirrored when displaying past boundaries
- * @param[in] sprite
- *            Pointer to sprite structure to load the texture from
- * @param[in] offset
- *            Offset of the particular slice to load into RDP TMEM.
- *
- * @return The number of bytes consumed in RDP TMEM by loading this sprite
- */
 uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mirror, sprite_t *sprite, int offset )
 {
     if( !sprite ) { return 0; }
@@ -578,34 +423,6 @@ uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mi
     return __rdp_load_texture( texslot, texloc, mirror, sprite, sl, tl, sh, th );
 }
 
-/**
- * @brief Draw a textured rectangle with a scaled texture
- *
- * Given an already loaded texture, this function will draw a rectangle textured with the loaded texture
- * at a scale other than 1.  This allows rectangles to be drawn with stretched or squashed textures.
- * If the rectangle is larger than the texture after scaling, it will be tiled or mirrored based on the
- * mirror setting given in the load texture command.
- *
- * Before using this command to draw a textured rectangle, use #rdp_enable_texture_copy to set the RDP
- * up in texture mode.
- *
- * @param[in] texslot
- *            The texture slot that the texture was previously loaded into (0-7)
- * @param[in] tx
- *            The pixel X location of the top left of the rectangle
- * @param[in] ty
- *            The pixel Y location of the top left of the rectangle
- * @param[in] bx
- *            The pixel X location of the bottom right of the rectangle
- * @param[in] by
- *            The pixel Y location of the bottom right of the rectangle
- * @param[in] x_scale
- *            Horizontal scaling factor
- * @param[in] y_scale
- *            Vertical scaling factor
- * @param[in] mirror
- *            Whether the texture should be mirrored
- */
 void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int bx, int by, double x_scale, double y_scale,  mirror_t mirror)
 {
     uint16_t s = cache[texslot & 0x7].s << 5;
@@ -643,90 +460,22 @@ void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int b
     int ys = (int)((1.0 / y_scale) * 1024.0);
 
     /* Set up rectangle position in screen space */
-    __rdp_ringbuffer_queue( 0xE4000000 | (bx << 14) | (by << 2) );
-    __rdp_ringbuffer_queue( ((texslot & 0x7) << 24) | (tx << 14) | (ty << 2) );
-
     /* Set up texture position and scaling to 1:1 copy */
-    __rdp_ringbuffer_queue( (s << 16) | t );
-    __rdp_ringbuffer_queue( (xs & 0xFFFF) << 16 | (ys & 0xFFFF) );
-
-    /* Send command */
-    __rdp_ringbuffer_send();
+    rdp_texture_rectangle_raw(texslot & 0x7, tx << 2, ty << 2, bx << 2, by << 2, s, t, xs & 0xFFFF, ys & 0xFFFF);
 }
 
-/**
- * @brief Draw a textured rectangle
- *
- * Given an already loaded texture, this function will draw a rectangle textured with the loaded texture.
- * If the rectangle is larger than the texture, it will be tiled or mirrored based on the* mirror setting
- * given in the load texture command.
- *
- * Before using this command to draw a textured rectangle, use #rdp_enable_texture_copy to set the RDP
- * up in texture mode.
- *
- * @param[in] texslot
- *            The texture slot that the texture was previously loaded into (0-7)
- * @param[in] tx
- *            The pixel X location of the top left of the rectangle
- * @param[in] ty
- *            The pixel Y location of the top left of the rectangle
- * @param[in] bx
- *            The pixel X location of the bottom right of the rectangle
- * @param[in] by
- *            The pixel Y location of the bottom right of the rectangle
- * @param[in] mirror
- *            Whether the texture should be mirrored
- */
 void rdp_draw_textured_rectangle( uint32_t texslot, int tx, int ty, int bx, int by, mirror_t mirror )
 {
     /* Simple wrapper */
     rdp_draw_textured_rectangle_scaled( texslot, tx, ty, bx, by, 1.0, 1.0, mirror );
 }
 
-/**
- * @brief Draw a texture to the screen as a sprite
- *
- * Given an already loaded texture, this function will draw a rectangle textured with the loaded texture.
- *
- * Before using this command to draw a textured rectangle, use #rdp_enable_texture_copy to set the RDP
- * up in texture mode.
- *
- * @param[in] texslot
- *            The texture slot that the texture was previously loaded into (0-7)
- * @param[in] x
- *            The pixel X location of the top left of the sprite
- * @param[in] y
- *            The pixel Y location of the top left of the sprite
- * @param[in] mirror
- *            Whether the texture should be mirrored
- */
 void rdp_draw_sprite( uint32_t texslot, int x, int y, mirror_t mirror )
 {
     /* Just draw a rectangle the size of the sprite */
     rdp_draw_textured_rectangle_scaled( texslot, x, y, x + cache[texslot & 0x7].width, y + cache[texslot & 0x7].height, 1.0, 1.0, mirror );
 }
 
-/**
- * @brief Draw a texture to the screen as a scaled sprite
- *
- * Given an already loaded texture, this function will draw a rectangle textured with the loaded texture.
- *
- * Before using this command to draw a textured rectangle, use #rdp_enable_texture_copy to set the RDP
- * up in texture mode.
- *
- * @param[in] texslot
- *            The texture slot that the texture was previously loaded into (0-7)
- * @param[in] x
- *            The pixel X location of the top left of the sprite
- * @param[in] y
- *            The pixel Y location of the top left of the sprite
- * @param[in] x_scale
- *            Horizontal scaling factor
- * @param[in] y_scale
- *            Vertical scaling factor
- * @param[in] mirror
- *            Whether the texture should be mirrored
- */
 void rdp_draw_sprite_scaled( uint32_t texslot, int x, int y, double x_scale, double y_scale, mirror_t mirror )
 {
     /* Since we want to still view the whole sprite, we must resize the rectangle area too */
@@ -737,93 +486,25 @@ void rdp_draw_sprite_scaled( uint32_t texslot, int x, int y, double x_scale, dou
     rdp_draw_textured_rectangle_scaled( texslot, x, y, x + new_width, y + new_height, x_scale, y_scale, mirror );
 }
 
-/**
- * @brief Set the primitive draw color for subsequent filled primitive operations
- *
- * This function sets the color of all #rdp_draw_filled_rectangle operations that follow.
- * Note that in 16 bpp mode, the color must be a packed color.  This means that the high
- * 16 bits and the low 16 bits must both be the same color.  Use #graphics_make_color or
- * #graphics_convert_color to generate valid colors.
- *
- * @param[in] color
- *            Color to draw primitives in
- */
 void rdp_set_primitive_color( uint32_t color )
 {
     /* Set packed color */
-    __rdp_ringbuffer_queue( 0xF7000000 );
-    __rdp_ringbuffer_queue( color );
-    __rdp_ringbuffer_send();
+    rdp_set_fill_color_raw(color);
 }
 
-/**
- * @brief Set the blend draw color for subsequent filled primitive operations
- *
- * This function sets the color of all #rdp_draw_filled_triangle operations that follow.
- *
- * @param[in] color
- *            Color to draw primitives in
- */
 void rdp_set_blend_color( uint32_t color )
 {
-    __rdp_ringbuffer_queue( 0xF9000000 );
-    __rdp_ringbuffer_queue( color );
-    __rdp_ringbuffer_send();
+    rdp_set_blend_color_raw(color);
 }
 
-/**
- * @brief Draw a filled rectangle
- *
- * Given a color set with #rdp_set_primitive_color, this will draw a filled rectangle
- * to the screen.  This is most often useful for erasing a buffer before drawing to it
- * by displaying a black rectangle the size of the screen.  This is much faster than
- * setting the buffer blank in software.  However, if you are planning on drawing to
- * the entire screen, blanking may be unnecessary.  
- *
- * Before calling this function, make sure that the RDP is set to primitive mode by
- * calling #rdp_enable_primitive_fill.
- *
- * @param[in] tx
- *            Pixel X location of the top left of the rectangle
- * @param[in] ty
- *            Pixel Y location of the top left of the rectangle
- * @param[in] bx
- *            Pixel X location of the bottom right of the rectangle
- * @param[in] by
- *            Pixel Y location of the bottom right of the rectangle
- */
 void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by )
 {
     if( tx < 0 ) { tx = 0; }
     if( ty < 0 ) { ty = 0; }
 
-    __rdp_ringbuffer_queue( 0xF6000000 | ( bx << 14 ) | ( by << 2 ) ); 
-    __rdp_ringbuffer_queue( ( tx << 14 ) | ( ty << 2 ) );
-    __rdp_ringbuffer_send();
+    rdp_fill_rectangle_raw(tx << 2, ty << 2, bx << 2, by << 2);
 }
 
-/**
- * @brief Draw a filled triangle
- *
- * Given a color set with #rdp_set_blend_color, this will draw a filled triangle
- * to the screen. Vertex order is not important.
- *
- * Before calling this function, make sure that the RDP is set to blend mode by
- * calling #rdp_enable_blend_fill.
- *
- * @param[in] x1
- *            Pixel X1 location of triangle
- * @param[in] y1
- *            Pixel Y1 location of triangle
- * @param[in] x2
- *            Pixel X2 location of triangle
- * @param[in] y2
- *            Pixel Y2 location of triangle
- * @param[in] x3
- *            Pixel X3 location of triangle
- * @param[in] y3
- *            Pixel Y3 location of triangle
- */
 void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3, float y3 )
 {
     float temp_x, temp_y;
@@ -853,35 +534,204 @@ void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3,
     /* determine the winding of the triangle */
     int winding = ( x1 * y2 - x2 * y1 ) + ( x2 * y3 - x3 * y2 ) + ( x3 * y1 - x1 * y3 );
     int flip = ( winding > 0 ? 1 : 0 ) << 23;
-    
-    __rdp_ringbuffer_queue( 0xC8000000 | flip | yl );
-    __rdp_ringbuffer_queue( ym | yh );
-    __rdp_ringbuffer_queue( xl );
-    __rdp_ringbuffer_queue( dxldy );
-    __rdp_ringbuffer_queue( xh );
-    __rdp_ringbuffer_queue( dxhdy );
-    __rdp_ringbuffer_queue( xm );
-    __rdp_ringbuffer_queue( dxmdy );
-    __rdp_ringbuffer_send();
+
+    rdp_write(RDP_CMD_FILL_TRIANGLE, flip | yl, ym | yh, xl, dxldy, xh, dxhdy, xm, dxmdy);
 }
 
-/**
- * @brief Set the flush strategy for texture loads
- *
- * If textures are guaranteed to be in uncached RDRAM or the cache
- * is flushed before calling load operations, the RDP can be told
- * to skip flushing the cache.  This affords a good speedup.  However,
- * if you are changing textures in memory on the fly or otherwise do
- * not want to deal with cache coherency, set the cache strategy to
- * automatic to have the RDP flush cache before texture loads.
- *
- * @param[in] flush
- *            The cache strategy, either #FLUSH_STRATEGY_NONE or
- *            #FLUSH_STRATEGY_AUTOMATIC.
- */
 void rdp_set_texture_flush( flush_t flush )
 {
     flush_strategy = flush;
+}
+
+/** @brief Used internally for bit-packing RDP commands. */
+#define _carg(value, mask, shift) (((uint32_t)((value) & mask)) << shift)
+
+void rdp_texture_rectangle_raw(uint8_t tile, int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t s, int16_t t, int16_t ds, int16_t dt)
+{
+    rdp_write(RDP_CMD_TEXTURE_RECTANGLE,
+        _carg(x1, 0xFFF, 12) | _carg(y1, 0xFFF, 0),
+        _carg(tile, 0x7, 24) | _carg(x0, 0xFFF, 12) | _carg(y0, 0xFFF, 0),
+        _carg(s, 0xFFFF, 16) | _carg(t, 0xFFFF, 0),
+        _carg(ds, 0xFFFF, 16) | _carg(dt, 0xFFFF, 0));
+}
+
+void rdp_texture_rectangle_flip_raw(uint8_t tile, int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t s, int16_t t, int16_t ds, int16_t dt)
+{
+    rdp_write(RDP_CMD_TEXTURE_RECTANGLE_FLIP,
+        _carg(x1, 0xFFF, 12) | _carg(y1, 0xFFF, 0),
+        _carg(tile, 0x7, 24) | _carg(x0, 0xFFF, 12) | _carg(y0, 0xFFF, 0),
+        _carg(s, 0xFFFF, 16) | _carg(t, 0xFFFF, 0),
+        _carg(ds, 0xFFFF, 16) | _carg(dt, 0xFFFF, 0));
+}
+
+void rdp_sync_load_raw()
+{
+    rdp_write(RDP_CMD_SYNC_LOAD, 0, 0);
+}
+
+void rdp_sync_pipe_raw()
+{
+    rdp_write(RDP_CMD_SYNC_PIPE, 0, 0);
+}
+
+void rdp_sync_tile_raw()
+{
+    rdp_write(RDP_CMD_SYNC_TILE, 0, 0);
+}
+
+void rdp_sync_full_raw()
+{
+    rdp_write(RDP_CMD_SYNC_FULL, 0, 0);
+}
+
+void rdp_set_key_gb_raw(uint16_t wg, uint8_t wb, uint8_t cg, uint16_t sg, uint8_t cb, uint8_t sb)
+{
+    rdp_write(RDP_CMD_SET_KEY_GB,
+        _carg(wg, 0xFFF, 12) | _carg(wb, 0xFFF, 0),
+        _carg(cg, 0xFF, 24) | _carg(sg, 0xFF, 16) | _carg(cb, 0xFF, 8) | _carg(sb, 0xFF, 0));
+}
+
+void rdp_set_key_r_raw(uint16_t wr, uint8_t cr, uint8_t sr)
+{
+    rdp_write(RDP_CMD_SET_KEY_R,
+        0,
+        _carg(wr, 0xFFF, 16) | _carg(cr, 0xFF, 8) | _carg(sr, 0xFF, 0));
+}
+
+void rdp_set_convert_raw(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k3, uint16_t k4, uint16_t k5)
+{
+    rdp_write(RDP_CMD_SET_CONVERT,
+        _carg(k0, 0x1FF, 13) | _carg(k1, 0x1FF, 4) | (((uint32_t)(k2 & 0x1FF)) >> 5),
+        _carg(k2, 0x1F, 27) | _carg(k3, 0x1FF, 18) | _carg(k4, 0x1FF, 9) | _carg(k5, 0x1FF, 0));
+}
+
+void rdp_set_scissor_raw(int16_t x0, int16_t y0, int16_t x1, int16_t y1)
+{
+    rdp_write(RDP_CMD_SET_SCISSOR,
+        _carg(x0, 0xFFF, 12) | _carg(y0, 0xFFF, 0),
+        _carg(x1, 0xFFF, 12) | _carg(y1, 0xFFF, 0));
+}
+
+void rdp_set_prim_depth_raw(uint16_t primitive_z, uint16_t primitive_delta_z)
+{
+    rdp_write(RDP_CMD_SET_PRIM_DEPTH,
+        0,
+        _carg(primitive_z, 0xFFFF, 16) | _carg(primitive_delta_z, 0xFFFF, 0));
+}
+
+void rdp_set_other_modes_raw(uint64_t modes)
+{
+    rdp_write(RDP_CMD_SET_OTHER_MODES, 
+        ((modes >> 32) & 0x00FFFFFF),
+        modes & 0xFFFFFFFF);
+}
+
+void rdp_load_tlut_raw(uint8_t tile, uint8_t lowidx, uint8_t highidx)
+{
+    rdp_write(RDP_CMD_LOAD_TLUT,
+        _carg(lowidx, 0xFF, 14),
+        _carg(tile, 0x7, 24) | _carg(highidx, 0xFF, 14));
+}
+
+void rdp_set_tile_size_raw(uint8_t tile, int16_t s0, int16_t t0, int16_t s1, int16_t t1)
+{
+    rdp_write(RDP_CMD_SET_TILE_SIZE,
+        _carg(s0, 0xFFF, 12) | _carg(t0, 0xFFF, 0),
+        _carg(tile, 0x7, 24) | _carg(s1, 0xFFF, 12) | _carg(t1, 0xFFF, 0));
+}
+
+void rdp_load_block_raw(uint8_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t dxt)
+{
+    rdp_write(RDP_CMD_LOAD_BLOCK,
+        _carg(s0, 0xFFF, 12) | _carg(t0, 0xFFF, 0),
+        _carg(tile, 0x7, 24) | _carg(s1, 0xFFF, 12) | _carg(dxt, 0xFFF, 0));
+}
+
+void rdp_load_tile_raw(uint8_t tile, int16_t s0, int16_t t0, int16_t s1, int16_t t1)
+{
+    rdp_write(RDP_CMD_LOAD_TILE,
+        _carg(s0, 0xFFF, 12) | _carg(t0, 0xFFF, 0),
+        _carg(tile, 0x7, 24) | _carg(s1, 0xFFF, 12) | _carg(t1, 0xFFF, 0));
+}
+
+void rdp_set_tile_raw(uint8_t format, uint8_t size, uint16_t line, uint16_t tmem_addr,
+                      uint8_t tile, uint8_t palette, uint8_t ct, uint8_t mt, uint8_t mask_t, uint8_t shift_t,
+                      uint8_t cs, uint8_t ms, uint8_t mask_s, uint8_t shift_s)
+{
+    rdp_write(RDP_CMD_SET_TILE,
+        _carg(format, 0x7, 21) | _carg(size, 0x3, 19) | _carg(line, 0x1FF, 9) | _carg(tmem_addr, 0x1FF, 0),
+        _carg(tile, 0x7, 24) | _carg(palette, 0xF, 20) | _carg(ct, 0x1, 19) | _carg(mt, 0x1, 18) | _carg(mask_t, 0xF, 14) | 
+        _carg(shift_t, 0xF, 10) | _carg(cs, 0x1, 9) | _carg(ms, 0x1, 8) | _carg(mask_s, 0xF, 4) | _carg(shift_s, 0xF, 0));
+}
+
+void rdp_fill_rectangle_raw(int16_t x0, int16_t y0, int16_t x1, int16_t y1)
+{
+    rdp_write(RDP_CMD_FILL_RECTANGLE,
+        _carg(x1, 0xFFF, 12) | _carg(y1, 0xFFF, 0),
+        _carg(x0, 0xFFF, 12) | _carg(y0, 0xFFF, 0));
+}
+
+void rdp_set_fill_color_raw(uint32_t color)
+{
+    rdp_write(RDP_CMD_SET_FILL_COLOR,
+        0,
+        color);
+}
+
+void rdp_set_fog_color_raw(uint32_t color)
+{
+    rdp_write(RDP_CMD_SET_FOG_COLOR,
+        0,
+        color);
+}
+
+void rdp_set_blend_color_raw(uint32_t color)
+{
+    rdp_write(RDP_CMD_SET_BLEND_COLOR,
+        0,
+        color);
+}
+
+void rdp_set_prim_color_raw(uint32_t color)
+{
+    rdp_write(RDP_CMD_SET_PRIM_COLOR,
+        0,
+        color);
+}
+
+void rdp_set_env_color_raw(uint32_t color)
+{
+    rdp_write(RDP_CMD_SET_ENV_COLOR,
+        0,
+        color);
+}
+
+void rdp_set_combine_mode_raw(uint64_t flags)
+{
+    rdp_write(RDP_CMD_SET_COMBINE_MODE, 
+        (flags >> 32) & 0x00FFFFFF, 
+        flags & 0xFFFFFFFF);
+}
+
+void rdp_set_texture_image_raw(uint32_t dram_addr, uint8_t format, uint8_t size, uint16_t width)
+{
+    rdp_write(RDP_CMD_SET_TEXTURE_IMAGE,
+        _carg(format, 0x7, 21) | _carg(size, 0x3, 19) | _carg(width, 0x3FF, 0),
+        dram_addr & 0x1FFFFFF);
+}
+
+void rdp_set_z_image_raw(uint32_t dram_addr)
+{
+    rdp_write(RDP_CMD_SET_Z_IMAGE,
+        0,
+        dram_addr & 0x1FFFFFF);
+}
+
+void rdp_set_color_image_raw(uint32_t dram_addr, uint32_t format, uint32_t size, uint32_t width)
+{
+    rdp_write(RDP_CMD_SET_COLOR_IMAGE,
+        _carg(format, 0x7, 21) | _carg(size, 0x3, 19) | _carg(width, 0x3FF, 0),
+        dram_addr & 0x1FFFFFF);
 }
 
 /** @} */
