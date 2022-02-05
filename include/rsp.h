@@ -1,14 +1,28 @@
 /**
- * @file rsp.h
- * @brief Low-level RSP hardware library
- * @ingroup rsp
+ * @defgroup rsp RSP interface
+ * @ingroup lowlevel
+ * @brief RSP basic library and command queue
+ * 
+ * This module is made of two libraries:
+ * 
+ *  * rsp.h and rsp.c: low-level routines to manipulate the RSP. This provides
+ *    basic command to run a ucode, providing input and reading back output.
+ *    It is useful for the most basic cases where you want to write a ucode
+ *    that has full control of the RSP.
+ *    
+ *  * rspq.h and rspq.c: RSP command queue for efficient task processing by
+ *    multiple libraries. This higher-level library provides a very efficient
+ *    infrastructure for distributing work across multiple ucodes, maximizing
+ *    RSP resource usage. All libdragon-provided RSP libraries are based on
+ *    rspq. When writing more complex RSP ucode, it is advised to base them
+ *    upon rspq to allow for full interoperability with libdragon itself.
  */
 
 /**
- * @defgroup rsp RSP interface
- * @ingroup lowlevel
- * @brief RSP basic library
- * 
+ * @file rsp.h
+ * @brief Low-level RSP hardware library
+ * @ingroup rsp
+ *
  * This library offers very low-level support for RSP programming. The goal
  * is to provide access to the hardware by exposing macros for all
  * hardware registers, provide a few simple helpers to load and run RSP
@@ -142,6 +156,7 @@
 #define __LIBDRAGON_RSP_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
