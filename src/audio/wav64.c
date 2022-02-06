@@ -1,7 +1,7 @@
 /**
  * @file wav64.c
  * @brief Support for WAV64 audio files
- * @ingroup audio
+ * @ingroup mixer
  */
 
 #include "libdragon.h"
@@ -66,6 +66,11 @@ void wav64_open(wav64_t *wav, const char *fn) {
 
 	wav->wave.read = waveform_read;
 	wav->wave.ctx = wav;
+}
+
+void wav64_play(wav64_t *wav, int ch)
+{
+    mixer_ch_play(ch, &wav->wave);
 }
 
 void wav64_set_loop(wav64_t *wav, bool loop) {
