@@ -39,6 +39,14 @@ static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, b
 void wav64_open(wav64_t *wav, const char *fn) {
 	memset(wav, 0, sizeof(*wav));
 
+	// Currently, we only support streaming WAVs from DFS (ROMs). Any other
+	// filesystem is unsupported.
+	// For backward compatibility, we also silently accept a non-prefixed path.
+	if (strstr(fn, ":/")) {
+		assertf(strncmp(fn, "rom:/", 5) == 0, "Cannot open %s: wav64 only supports files in ROM (rom:/)", fn);
+		fn += 5;
+	}
+
 	int fh = dfs_open(fn);
 	assertf(fh >= 0, "file does not exist: %s", fn);
 
