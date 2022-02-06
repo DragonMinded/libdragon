@@ -1,7 +1,7 @@
 /**
  * @file wav64.h
  * @brief Support for WAV64 audio files
- * @ingroup audio
+ * @ingroup mixer
  */
 
 #ifndef __LIBDRAGON_WAV64_H
