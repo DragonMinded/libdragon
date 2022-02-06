@@ -24,12 +24,12 @@ int main(void) {
 
 	wav64_t sfx_cannon, sfx_laser, sfx_monosample;
 
-	wav64_open(&sfx_cannon, "cannon.wav64");
+	wav64_open(&sfx_cannon, "rom:/cannon.wav64");
 	
-	wav64_open(&sfx_laser, "laser.wav64");
+	wav64_open(&sfx_laser, "rom:/laser.wav64");
 	wav64_set_loop(&sfx_laser, true);
 
-	wav64_open(&sfx_monosample, "monosample8.wav64");
+	wav64_open(&sfx_monosample, "rom:/monosample8.wav64");
 	wav64_set_loop(&sfx_monosample, true);
 
 	bool music = false;
