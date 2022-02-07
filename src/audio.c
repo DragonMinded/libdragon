@@ -170,13 +170,13 @@ static void audio_callback()
         }
 
         if (_fill_buffer_callback) {
-            _fill_buffer_callback(UncachedAddr( buffers[next] ), _buf_size);
+            _fill_buffer_callback(buffers[next], _buf_size);
         }
 
         /* Enqueue next buffer. Don't mark it as empty right now because the
            DMA will run in background, and we need to avoid audio_write()
            to reuse it before the DMA is finished. */
-        AI_regs->address = UncachedAddr( buffers[next] );
+        AI_regs->address = buffers[next];
         MEMORY_BARRIER();
         AI_regs->length = (_buf_size * 2 * 2 ) & ( ~7 );
         MEMORY_BARRIER();
@@ -257,7 +257,7 @@ void audio_init(const int frequency, int numbuffers)
     for(int i = 0; i < _num_buf; i++)
     {
         /* Stereo buffers, interleaved */
-        buffers[i] = malloc(sizeof(short) * 2 * _buf_size);
+        buffers[i] = malloc_uncached(sizeof(short) * 2 * _buf_size);
         memset(buffers[i], 0, sizeof(short) * 2 * _buf_size);
     }
 
@@ -307,7 +307,7 @@ void audio_close()
             /* Nuke anything that isn't freed */
             if(buffers[i])
             {
-                free(buffers[i]);
+                free_uncached(buffers[i]);
                 buffers[i] = 0;
             }
         }
@@ -323,7 +323,7 @@ void audio_close()
 
 static void audio_paused_callback(short *buffer, size_t numsamples)
 {
-    memset(UncachedShortAddr(buffer), 0, numsamples * sizeof(short) * 2);
+    memset(buffer, 0, numsamples * sizeof(short) * 2);
 }
 
 /**
@@ -389,7 +389,7 @@ void audio_write(const short * const buffer)
     /* Copy buffer into local buffers */
     buf_full |= (1<<next);
     now_writing = next;
-    memcpy(UncachedShortAddr(buffers[now_writing]), buffer, _buf_size * 2 * sizeof(short));
+    memcpy(buffers[now_writing], buffer, _buf_size * 2 * sizeof(short));
     audio_callback();
     enable_interrupts();
 }
@@ -488,7 +488,7 @@ void audio_write_silence()
     /* Copy silence into local buffers */
     buf_full |= (1<<next);
     now_writing = next;
-    memset(UncachedShortAddr(buffers[now_writing]), 0, _buf_size * 2 * sizeof(short));
+    memset(buffers[now_writing], 0, _buf_size * 2 * sizeof(short));
     audio_callback();
     enable_interrupts();
 }
