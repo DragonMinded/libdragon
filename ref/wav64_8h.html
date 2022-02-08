@@ -69,7 +69,7 @@ $(function() {
   <div class="summary">
 <a href="#nested-classes">Data Structures</a> &#124;
 <a href="#func-members">Functions</a>  </div>
-  <div class="headertitle"><div class="title">wav64.h File Reference<div class="ingroups"><a class="el" href="group__libdragon.html">libdragon</a> &raquo; <a class="el" href="group__audio.html">Audio Subsystem</a></div></div></div>
+  <div class="headertitle"><div class="title">wav64.h File Reference<div class="ingroups"><a class="el" href="group__libdragon.html">libdragon</a> &raquo; <a class="el" href="group__audio.html">Audio Subsystem</a> &raquo; <a class="el" href="group__mixer.html">Audio mixer</a></div></div></div>
 </div><!--header-->
 <div class="contents">
 
@@ -88,8 +88,7 @@ Data Structures</h2></td></tr>
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:ad66af3ff9f0c1d51211cc72c1b92a6e9"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="wav64_8h.html#ad66af3ff9f0c1d51211cc72c1b92a6e9">wav64_open</a> (<a class="el" href="wav64_8h.html#structwav64__t">wav64_t</a> *wav, const char *fn)</td></tr>
-<tr class="memdesc:ad66af3ff9f0c1d51211cc72c1b92a6e9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Open a WAV64 file for playback from the DragonFS filesystem. <br  />
-  <a href="wav64_8h.html#ad66af3ff9f0c1d51211cc72c1b92a6e9">More...</a><br /></td></tr>
+<tr class="memdesc:ad66af3ff9f0c1d51211cc72c1b92a6e9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Open a WAV64 file for playback.  <a href="wav64_8h.html#ad66af3ff9f0c1d51211cc72c1b92a6e9">More...</a><br /></td></tr>
 <tr class="separator:ad66af3ff9f0c1d51211cc72c1b92a6e9"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac8b7880f777dec27e73713a6e78cd9e3"><td class="memItemLeft" align="right" valign="top"><a id="ac8b7880f777dec27e73713a6e78cd9e3" name="ac8b7880f777dec27e73713a6e78cd9e3"></a>
 void&#160;</td><td class="memItemRight" valign="bottom"><b>wav64_set_loop</b> (<a class="el" href="wav64_8h.html#structwav64__t">wav64_t</a> *wav, bool loop)</td></tr>
@@ -114,7 +113,7 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>wav64_set_loop</b> (<
       </table>
 </div><div class="memdoc">
 <div class="textblock"><p >WAV64 structure. </p>
-<p >This structure is initialized by <a class="el" href="wav64_8h.html#ad66af3ff9f0c1d51211cc72c1b92a6e9" title="Open a WAV64 file for playback from the DragonFS filesystem.">wav64_open</a> to refer to an opened WAV64 file. It is meant to be played back through the audio mixer, implementing the <a class="el" href="mixer_8h.html#structwaveform__t" title="A waveform that can be played back through the mixer.">waveform_t</a> interface. As such, samples are not preloaded in memory but rather loaded on request when needed for playback, streaming directly from ROM. See <a class="el" href="mixer_8h.html#structwaveform__t" title="A waveform that can be played back through the mixer.">waveform_t</a> for more details.</p>
+<p >This structure is initialized by <a class="el" href="wav64_8h.html#ad66af3ff9f0c1d51211cc72c1b92a6e9" title="Open a WAV64 file for playback.">wav64_open</a> to refer to an opened WAV64 file. It is meant to be played back through the audio mixer, implementing the <a class="el" href="mixer_8h.html#structwaveform__t" title="A waveform that can be played back through the mixer.">waveform_t</a> interface. As such, samples are not preloaded in memory but rather loaded on request when needed for playback, streaming directly from ROM. See <a class="el" href="mixer_8h.html#structwaveform__t" title="A waveform that can be played back through the mixer.">waveform_t</a> for more details.</p>
 <p >Use <a class="el" href="wav64_8h.html#af0355ddf406260d86dd082bfd4f1ed0b" title="Start playing a WAV64 file.">wav64_play</a> to playback. For more advanced usage, call directly the mixer functions, accessing the <a class="el" href="wav64_8h.html#a4201df70d0e73f29e11d22666cc0b0bd" title="waveform_t for this WAV64.">wave</a> structure field. </p>
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
@@ -162,13 +161,12 @@ wave</td>
       </table>
 </div><div class="memdoc">
 
-<p>Open a WAV64 file for playback from the DragonFS filesystem. <br  />
- </p>
+<p>Open a WAV64 file for playback. </p>
 <p >This function opens the file, parses the header, and initializes for playing back through the audio mixer.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramname">wav</td><td>Pointer to <a class="el" href="wav64_8h.html#structwav64__t" title="WAV64 structure.">wav64_t</a> structure </td></tr>
-    <tr><td class="paramname">fn</td><td>Filename of the wav64 (on DragonFS). </td></tr>
+    <tr><td class="paramname">fn</td><td>Filename of the wav64 (with filesystem prefix). Currently, only files on DFS ("rom:/") are supported. </td></tr>
   </table>
   </dd>
 </dl>
@@ -216,7 +214,7 @@ wave</td>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sat Feb 5 2022 14:31:19 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.3
+Generated on Tue Feb 8 2022 04:47:27 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.3
 </small></address>
 </body>
 </html>
