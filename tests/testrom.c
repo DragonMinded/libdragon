@@ -37,9 +37,10 @@ typedef void (*TestFunc)(TestContext *ctx);
 // DEFER(stmt): execute "stmt" statement when the current lexical block exits.
 // This is useful in tests to execute cleanup functions even if the test fails
 // through ASSERT macros.
-#define DEFER(stmt) \
-	void PPCAT(__cleanup, __LINE__) (int* u) { stmt; } \
-	int PPCAT(__var, __LINE__) __attribute__((unused, cleanup(PPCAT(__cleanup, __LINE__ ))));
+#define DEFER2(stmt, __id) \
+	void PPCAT(__cleanup, __id) (int* __unused_defer) { stmt; } \
+	int PPCAT(__var, __id) __attribute__((unused, cleanup(PPCAT(__cleanup, __id))));
+#define DEFER(stmt) DEFER2(stmt, __COUNTER__)
 
 // SKIP: skip execution of the test.
 #define SKIP(msg, ...) ({ \
