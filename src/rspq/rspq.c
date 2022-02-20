@@ -275,7 +275,9 @@ enum {
      * interrupt to be processed (coalescing interrupts would cause syncpoints
      * to be missed).
      */
-    RSPQ_CMD_TEST_WRITE_STATUS = 0x08
+    RSPQ_CMD_TEST_WRITE_STATUS = 0x08,
+
+    RSPQ_CMD_RDP_BLOCK         = 0x09
 };
 
 
@@ -339,6 +341,7 @@ typedef struct rspq_block_s {
     uint32_t cmds[];            ///< Block contents (commands)
 } rspq_block_t;
 
+// TODO: We could save 4 bytes in the overlay descriptor by assuming that data == code + code_size and that code_size is always a multiple of 8
 /** @brief A RSPQ overlay ucode. This is similar to rsp_ucode_t, but is used
  * internally to managed it as a RSPQ overlay */
 typedef struct rspq_overlay_t {
@@ -379,7 +382,12 @@ typedef struct rsp_queue_s {
     uint32_t rspq_dram_lowpri_addr;      ///< Address of the lowpri queue (special slot in the pointer stack)
     uint32_t rspq_dram_highpri_addr;     ///< Address of the highpri queue  (special slot in the pointer stack)
     uint32_t rspq_dram_addr;             ///< Current RDRAM address being processed
+    uint32_t rspq_rdp_buffer;            ///< RDRAM Address of the dynamic RDP buffer
+    uint32_t rspq_rdp_buffer_end;        ///< RDRAM Address just after the end of the dynamic RDP buffer
+    uint32_t rspq_rdp_cstart;            ///< Internal cache for last value of DP_START
+    uint32_t rspq_rdp_cend;              ///< Internal cache for last value of DP_END
     int16_t current_ovl;                 ///< Current overlay index
+    uint8_t rdp_mode;                    ///< Current RDP mode (0: dynamic, 1: static)
 } __attribute__((aligned(16), packed)) rsp_queue_t;
 
 /**
@@ -427,6 +435,13 @@ static rspq_ctx_t highpri;              ///< Highpri queue context
 rspq_ctx_t *rspq_ctx;                   ///< Current context
 volatile uint32_t *rspq_cur_pointer;    ///< Copy of the current write pointer (see #rspq_ctx_t)
 volatile uint32_t *rspq_cur_sentinel;   ///< Copy of the current write sentinel (see #rspq_ctx_t)
+
+void *rspq_rdp_dynamic_buffer;
+void *rspq_rdp_static_buffer;
+
+static uint32_t rdp_static_write_ptr;
+static uint32_t rdp_static_read_ptr;
+static uint32_t rdp_static_sentinel;
 
 /** @brief RSP queue data in DMEM. */
 static rsp_queue_t rspq_data;
@@ -660,11 +675,22 @@ void rspq_init(void)
     // Start in low-priority mode
     rspq_switch_context(&lowpri);
 
+    rspq_rdp_dynamic_buffer = malloc_uncached(RSPQ_RDP_DYNAMIC_BUFFER_SIZE);
+    rspq_rdp_static_buffer = malloc_uncached(RSPQ_RDP_STATIC_BUFFER_SIZE);
+
+    rdp_static_write_ptr = 0;
+    rdp_static_sentinel = RSPQ_RDP_STATIC_BUFFER_SIZE;
+    rdp_static_read_ptr = 0;
+
     // Load initial settings
     memset(&rspq_data, 0, sizeof(rsp_queue_t));
     rspq_data.rspq_dram_lowpri_addr = PhysicalAddr(lowpri.cur);
     rspq_data.rspq_dram_highpri_addr = PhysicalAddr(highpri.cur);
     rspq_data.rspq_dram_addr = rspq_data.rspq_dram_lowpri_addr;
+    rspq_data.rspq_rdp_buffer = PhysicalAddr(rspq_rdp_dynamic_buffer);
+    rspq_data.rspq_rdp_buffer_end = rspq_data.rspq_rdp_buffer + RSPQ_RDP_DYNAMIC_BUFFER_SIZE;
+    rspq_data.rspq_rdp_cstart = rspq_data.rspq_rdp_buffer;
+    rspq_data.rspq_rdp_cend = rspq_data.rspq_rdp_buffer;
     rspq_data.tables.overlay_descriptors[0].state = PhysicalAddr(&dummy_overlay_state);
     rspq_data.tables.overlay_descriptors[0].data_size = sizeof(uint64_t);
     rspq_data.current_ovl = 0;
@@ -701,6 +727,9 @@ void rspq_close(void)
     rspq_stop();
     
     rspq_initialized = 0;
+
+    free_uncached(rspq_rdp_static_buffer);
+    free_uncached(rspq_rdp_dynamic_buffer);
 
     rspq_close_context(&highpri);
     rspq_close_context(&lowpri);
@@ -1244,4 +1273,62 @@ void rspq_dma_to_rdram(void *rdram_addr, uint32_t dmem_addr, uint32_t len, bool 
 void rspq_dma_to_dmem(uint32_t dmem_addr, void *rdram_addr, uint32_t len, bool is_async)
 {
     rspq_dma(rdram_addr, dmem_addr, len - 1, is_async ? 0 : SP_STATUS_DMA_BUSY | SP_STATUS_DMA_FULL);
+}
+
+void rspq_rdp_block(void *rdram_addr, uint32_t len)
+{
+    assertf(((uint32_t)rdram_addr & 0x7) == 0, "rspq_rdp_block called with an address that is not aligned to 8 bytes: %lx", (uint32_t)rdram_addr);
+    assertf((len & 0x7) == 0, "rspq_rdp_block called with a length that is not a multiple of 8: %lx", len);
+
+    uint32_t start = PhysicalAddr(rdram_addr);
+    rspq_write(RSPQ_CMD_RDP_BLOCK, start + len, start);
+}
+
+static bool is_in_rdp_static_buffer(void *ptr)
+{
+    return ptr >= rspq_rdp_static_buffer && ptr < (rspq_rdp_static_buffer + RSPQ_RDP_STATIC_BUFFER_SIZE);
+}
+
+static uint32_t rspq_rdp_static_get_read_ptr()
+{
+    void *dp_current = (void*)((*DP_CURRENT) | 0xA0000000);
+    void *dp_start = (void*)((*DP_START) | 0xA0000000);
+
+    if (is_in_rdp_static_buffer(dp_current)) {
+        rdp_static_read_ptr = dp_current - rspq_rdp_static_buffer;
+    } else if (is_in_rdp_static_buffer(dp_start)) {
+        rdp_static_read_ptr = dp_start - rspq_rdp_static_buffer;
+    }
+
+    return rdp_static_read_ptr;
+}
+
+void* rspq_rdp_reserve(uint32_t len)
+{
+    assertf((len & 0x7) == 0, "rspq_rdp_reserve called with a length that is not a multiple of 8: %lx", len);
+
+    if (rdp_static_write_ptr + len > rdp_static_sentinel) {
+        rspq_flush();
+        RSP_WAIT_LOOP(100) {
+            uint32_t read_ptr = rspq_rdp_static_get_read_ptr();
+            uint32_t new_write_ptr = rdp_static_write_ptr + len;
+
+            if (rdp_static_write_ptr < read_ptr) {
+                if (new_write_ptr < read_ptr) {
+                    rdp_static_sentinel = read_ptr - 8;
+                    break;
+                }
+            } else if (new_write_ptr <= RSPQ_RDP_STATIC_BUFFER_SIZE) {
+                rdp_static_sentinel = RSPQ_RDP_STATIC_BUFFER_SIZE;
+                break;
+            } else {
+                rdp_static_write_ptr = 0;
+            }
+        }
+    }
+
+    void *result = rspq_rdp_static_buffer + rdp_static_write_ptr;
+    rdp_static_write_ptr += len;
+
+    return result;
 }

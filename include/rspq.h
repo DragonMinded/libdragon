@@ -706,6 +706,25 @@ void rspq_dma_to_rdram(void *rdram_addr, uint32_t dmem_addr, uint32_t len, bool 
  */
 void rspq_dma_to_dmem(uint32_t dmem_addr, void *rdram_addr, uint32_t len, bool is_async);
 
+void rspq_rdp_block(void *rdram_addr, uint32_t len);
+
+void* rspq_rdp_reserve(uint32_t len);
+
+/// @cond
+/*
+#define _rdp_write_arg(arg) \
+    *ptr++ = (arg);
+
+/// @endcond
+
+#define rdp_write(cmd_id, arg0, ...) ({ \
+    uint32_t *ptr0 = rspq_rdp_reserve((__COUNT_VARARGS(__VA_ARGS__) + 1) << 2); \
+    uint32_t *ptr = ptr0; \
+    *ptr++ = ((cmd_id)<<24) | (arg0); \
+    __CALL_FOREACH(_rdp_write_arg, ##__VA_ARGS__); \
+    rspq_rdp_block(ptr0, (__COUNT_VARARGS(__VA_ARGS__) + 1) << 2); \
+})
+*/
 #ifdef __cplusplus
 }
 #endif

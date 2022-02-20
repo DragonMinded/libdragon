@@ -192,8 +192,16 @@ RSPQ_POINTER_STACK:           .ds.l (RSPQ_MAX_BLOCK_NESTING_LEVEL+2)
 # RDRAM address of the current command list.
 RSPQ_RDRAM_PTR:               .long 0
 
+RSPQ_RDP_BUFFER:              .long 0
+RSPQ_RDP_BUFFER_END:          .long 0
+
+RSPQ_RDP_CSTART:              .long 0
+RSPQ_RDP_CEND:                .long 0
+
 # Index (not ID!) of the current overlay, as byte offset in the descriptor array
 RSPQ_CURRENT_OVL:             .half 0
+
+RSPQ_RDP_MODE:                .byte 0 # 0: dynamic, 1: static
 
     .align 4
     .ascii "Dragon RSP Queue"
@@ -210,6 +218,7 @@ RSPQ_DefineCommand RSQPCmd_Dma,             16    # 0x05
 RSPQ_DefineCommand RSPQCmd_WriteStatus,     4     # 0x06 -- must be even (bit 24 must be 0)
 RSPQ_DefineCommand RSPQCmd_SwapBuffers,     12    # 0x07
 RSPQ_DefineCommand RSPQCmd_TestWriteStatus, 8     # 0x08 -- must be even (bit 24 must be 0)
+RSPQ_DefineCommand RSPQCmd_RdpBlock,        8     # 0x09
 
 #if RSPQ_DEBUG
 RSPQ_LOG_IDX:                .long 0
@@ -555,6 +564,148 @@ RSQPCmd_Dma:
     move t0, a2
     j DMAExec
     move t2, a3
+    .endfunc
+
+    #############################################################
+    # RSPQ_RdpSendDynamic
+    #
+    # Enqueues a new block of commands to be run by the RDP.
+    #
+    # ARGS:
+    #   s4: RDP commands in DMEM
+    #   t0: Length of commands
+    #############################################################
+    .func RSPQ_RdpSendDynamic
+RSPQ_RdpSendDynamic:
+    #define out_ptr  a1
+    #define out_end  a0
+    #define read_ptr s1
+    #define buf_end  s2
+    #define mode     t4
+
+    # By default, the next commands should be written after the last command
+    lw out_ptr, %lo(RSPQ_RDP_CEND)
+
+get_read_ptr:
+    # First, we need to determine the position of the read pointer within the dynamic buffer.
+    # Because the RDP can alternate between the static and dynamic buffer, this is not as trivial
+    # as reading DP_CURRENT.
+
+    # If in static mode, one of two cases can occur:
+    #   1. DP_CURRENT is in dynamic buffer and a START/END pair in static is pending
+    #   2. DP_CURRENT is in static buffer
+    # Either way we need to set a new START/END pair.
+    # By setting read_ptr to the last end, we make sure that the correct code path is taken.
+    # Note that this will cause an endless loop if data_size is bigger than half the entire buffer.
+    lb mode, %lo(RSPQ_RDP_MODE)
+    bnez mode, calc_out_ptr
+    lw read_ptr, %lo(RSPQ_RDP_CEND)
+
+    # If START_VALID is set:
+    #   DP_CURRENT is in static buffer and a START/END pair in dynamic is pending
+    # This means the RDP will continue execution in the dynamic buffer at the last START that has been set.
+    mfc0 t3, COP0_DP_STATUS
+    andi t3, DP_STATUS_START_VALID
+    bnez t3, calc_out_ptr
+    lw read_ptr, %lo(RSPQ_RDP_CSTART)
+
+    # Otherwise, we are already in the dynamic buffer and DP_CURRENT will give the actual read pointer
+    mfc0 read_ptr, COP0_DP_CURRENT
+
+calc_out_ptr:
+    add out_end, out_ptr, t0
+    bge out_ptr, read_ptr, check_buf_end
+    lw buf_end, %lo(RSPQ_RDP_BUFFER_END)
+    # If out_ptr < read_ptr, we need to check if the new data will fit before the read pointer
+    # If not, try again. This will keep recalculating the read pointer until there is enough space
+    bge out_end, read_ptr, get_read_ptr
+    nop
+
+check_buf_end:
+    # Check if the new data will fit in the buffer
+    ble out_end, buf_end, set_mode
+    move ra2, ra
+    # If it would overflow, set out_ptr back to the start of the buffer and perform the other checks again
+    lw out_ptr, %lo(RSPQ_RDP_BUFFER)
+    j calc_out_ptr
+    # Keep a cached copy of the new START pointer (used above)
+    sw out_ptr, %lo(RSPQ_RDP_CSTART)
+
+set_mode:
+    bnez mode, out_dma
+    # Set mode to dynamic (0)
+    sb zero, %lo(RSPQ_RDP_MODE)
+    # If we were in static mode, DP_START is always set, so update the cached copy
+    sw out_ptr, %lo(RSPQ_RDP_CSTART)
+
+out_dma:
+    # Keep a cached copy of DP_END (used above)
+    sw out_end, %lo(RSPQ_RDP_CEND)
+
+    # Now that we have determined an unused area in the buffer large enough to hold the data,
+    # perform the DMA transfer
+    addi t0, -1
+    jal DMAOut
+    move s0, out_ptr
+
+    # Send the new block of commands to the RDP
+    j RSPQ_RdpSendBlock
+    move ra, ra2
+
+    #undef out_ptr
+    #undef out_end
+    #undef read_ptr
+    #undef buf_end
+    #undef mode
+    .endfunc
+
+
+    #############################################################
+    # RSPQCmd_RdpBlock
+    #
+    # Enqueues a new block of commands to be run by the RDP.
+    # Same as RSPQ_RdpSendBlock, but switches to static mode.
+    #
+    # ARGS:
+    #   a0: DP_END
+    #   a1: DP_START
+    #############################################################
+    .func RSPQCmd_RdpBlock
+RSPQCmd_RdpBlock:
+    li t0, 1
+    sb t0, %lo(RSPQ_RDP_MODE)
+    # fallthrough
+    .endfunc
+
+    #############################################################
+    # RSPQ_RdpSendBlock
+    #
+    # Enqueues a new block of commands to be run by the RDP.
+    #
+    # ARGS:
+    #   a0: DP_END
+    #   a1: DP_START
+    #############################################################
+    .func RSPQ_RdpSendBlock
+RSPQ_RdpSendBlock:
+    # Check if the new block is contiguous with the current buffer
+    mfc0 t0, COP0_DP_END
+    beq t0, a1, rspq_set_dp_end
+    mfc0 t2, COP0_DP_STATUS
+
+rspq_wait_rdp_fifo:
+    # If not, we need to wait until the fifo for DP_START/DP_END is not full
+    andi t1, t2, DP_STATUS_START_VALID | DP_STATUS_END_VALID
+    bnez t1, rspq_wait_rdp_fifo
+    mfc0 t2, COP0_DP_STATUS
+
+    # If the RDP needs to jump to a new buffer, set DP_START
+    mtc0 a1, COP0_DP_START
+
+rspq_set_dp_end:
+    # If the RDP can keep running in a contiguous area, just set DP_END
+    jr ra
+    mtc0 a0, COP0_DP_END
     .endfunc
 
 #include <rsp_dma.inc>

@@ -14,6 +14,64 @@
  * @{
  */
 
+/** @brief DP start register */
+#define DP_START      ((volatile uint32_t*)0xA4100000)
+
+/** @brief DP end register */
+#define DP_END        ((volatile uint32_t*)0xA4100004)
+
+/** @brief DP current register */
+#define DP_CURRENT    ((volatile uint32_t*)0xA4100008)
+
+/** @brief DP status register */
+#define DP_STATUS     ((volatile uint32_t*)0xA410000C)
+
+/** @brief DP clock counter */
+#define DP_CLOCK      ((volatile uint32_t*)0xA4100010)
+
+/** @brief DP command buffer busy */
+#define DP_BUSY       ((volatile uint32_t*)0xA4100014)
+
+/** @brief DP pipe busy */
+#define DP_PIPE_BUSY  ((volatile uint32_t*)0xA4100018)
+
+/** @brief DP tmem busy */
+#define DP_TMEM_BUSY  ((volatile uint32_t*)0xA410001C)
+
+/** @brief DP is using DMEM DMA */
+#define DP_STATUS_DMEM_DMA          (1 << 0)
+/** @brief DP is frozen */
+#define DP_STATUS_FREEZE            (1 << 1)
+/** @brief DP is flushed */
+#define DP_STATUS_FLUSH             (1 << 2)
+/** @brief DP GCLK is alive */
+#define DP_STATUS_GCLK_ALIVE        (1 << 3)
+/** @brief DP TMEM is busy */
+#define DP_STATUS_TMEM_BUSY         (1 << 4)
+/** @brief DP pipeline is busy */
+#define DP_STATUS_PIPE_BUSY         (1 << 5)
+/** @brief DP command unit is busy */
+#define DP_STATUS_BUSY              (1 << 6)
+/** @brief DP command buffer is ready */
+#define DP_STATUS_BUFFER_READY      (1 << 7)
+/** @brief DP DMA is busy */
+#define DP_STATUS_DMA_BUSY          (1 << 8)
+/** @brief DP command end register is valid */
+#define DP_STATUS_END_VALID         (1 << 9)
+/** @brief DP command start register is valid */
+#define DP_STATUS_START_VALID       (1 << 10)
+
+#define DP_WSTATUS_RESET_XBUS_DMEM_DMA  (1<<0) ///< DP_STATUS write mask: clear #DP_STATUS_DMEM_DMA bit
+#define DP_WSTATUS_SET_XBUS_DMEM_DMA    (1<<1) ///< DP_STATUS write mask: set #DP_STATUS_DMEM_DMA bit
+#define DP_WSTATUS_RESET_FREEZE         (1<<2) ///< DP_STATUS write mask: clear #DP_STATUS_FREEZE bit
+#define DP_WSTATUS_SET_FREEZE           (1<<3) ///< DP_STATUS write mask: set #DP_STATUS_FREEZE bit
+#define DP_WSTATUS_RESET_FLUSH          (1<<4) ///< DP_STATUS write mask: clear #DP_STATUS_FLUSH bit
+#define DP_WSTATUS_SET_FLUSH            (1<<5) ///< DP_STATUS write mask: set #DP_STATUS_FLUSH bit
+#define DP_WSTATUS_RESET_TMEM_COUNTER   (1<<6) ///< DP_STATUS write mask: clear TMEM counter
+#define DP_WSTATUS_RESET_PIPE_COUNTER   (1<<7) ///< DP_STATUS write mask: clear PIPE counter
+#define DP_WSTATUS_RESET_CMD_COUNTER    (1<<8) ///< DP_STATUS write mask: clear CMD counter
+#define DP_WSTATUS_RESET_CLOCK_COUNTER  (1<<9) ///< DP_STATUS write mask: clear CLOCK counter
+
 /**
  * @brief Mirror settings for textures
  */
@@ -55,6 +113,8 @@ typedef enum
     FLUSH_STRATEGY_AUTOMATIC
 } flush_t;
 
+typedef int rdp_sync_id_t;
+
 /** @} */
 
 #ifdef __cplusplus
@@ -65,6 +125,12 @@ extern "C" {
  * @brief Initialize the RDP system
  */
 void rdp_init( void );
+
+void rdp_attach_buffer( void *buffer, uint32_t width, uint32_t height, uint8_t format, uint8_t size );
+void rdp_set_detach_callback( void (*cb)(void*), void *ctx );
+rdp_sync_id_t rdp_detach_buffer( void );
+
+void rdp_wait(rdp_sync_id_t id);
 
 /**
  * @brief Attach the RDP to a display context

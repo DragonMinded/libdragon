@@ -1,5 +1,6 @@
 
 #include <malloc.h>
+#include <rspq_constants.h>
 #include "../src/gfx/gfx_internal.h"
 
 static volatile int dp_intr_raised;
@@ -57,8 +58,7 @@ void test_gfx_dram_buffer(TestContext *ctx)
     gfx_init();
     DEFER(gfx_close());
 
-    extern uint8_t __gfx_dram_buffer[];
-    data_cache_hit_writeback_invalidate(__gfx_dram_buffer, GFX_RDP_DRAM_BUFFER_SIZE);
+    extern void *rspq_rdp_dynamic_buffer;
 
     const uint32_t fbsize = 32 * 32 * 2;
     void *framebuffer = memalign(64, fbsize);
@@ -89,7 +89,7 @@ void test_gfx_dram_buffer(TestContext *ctx)
         0x29ULL << 56
     };
 
-    ASSERT_EQUAL_MEM(UncachedAddr(__gfx_dram_buffer), (uint8_t*)expected_data, sizeof(expected_data), "Unexpected data in DRAM buffer!");
+    ASSERT_EQUAL_MEM((uint8_t*)rspq_rdp_dynamic_buffer, (uint8_t*)expected_data, sizeof(expected_data), "Unexpected data in DRAM buffer!");
 
     for (uint32_t i = 0; i < 32 * 32; i++)
     {
@@ -154,24 +154,39 @@ void test_gfx_fill_dram_buffer(TestContext *ctx)
     gfx_init();
     DEFER(gfx_close());
 
-    const uint32_t fbsize = 32 * 32 * 2;
-    void *framebuffer = memalign(64, fbsize);
-    DEFER(free(framebuffer));
-    memset(framebuffer, 0, fbsize);
+    #define TEST_GFX_FBWIDTH 64
+    #define TEST_GFX_FBAREA  TEST_GFX_FBWIDTH * TEST_GFX_FBWIDTH
+    #define TEST_GFX_FBSIZE  TEST_GFX_FBAREA * 2
 
-    data_cache_hit_writeback_invalidate(framebuffer, fbsize);
+    void *framebuffer = memalign(64, TEST_GFX_FBSIZE);
+    DEFER(free(framebuffer));
+    memset(framebuffer, 0, TEST_GFX_FBSIZE);
+    data_cache_hit_invalidate(framebuffer, TEST_GFX_FBSIZE);
+
+    static uint16_t expected_fb[TEST_GFX_FBAREA];
+    memset(expected_fb, 0, sizeof(expected_fb));
 
     rdp_set_other_modes_raw(SOM_CYCLE_FILL);
-    rdp_set_scissor_raw(0, 0, 32 << 2, 32 << 2);
-    rdp_set_fill_color_raw(0xFFFFFFFF);
+    rdp_set_color_image_raw((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_GFX_FBWIDTH - 1);
 
-    for (uint32_t i = 0; i < GFX_RDP_DRAM_BUFFER_SIZE / 8; i++)
+    uint32_t color = 0;
+
+    for (uint32_t y = 0; y < TEST_GFX_FBWIDTH; y++)
     {
-        rdp_set_prim_color_raw(0x0);
+        for (uint32_t x = 0; x < TEST_GFX_FBWIDTH; x += 4)
+        {
+            expected_fb[y * TEST_GFX_FBWIDTH + x] = (uint16_t)color;
+            expected_fb[y * TEST_GFX_FBWIDTH + x + 1] = (uint16_t)color;
+            expected_fb[y * TEST_GFX_FBWIDTH + x + 2] = (uint16_t)color;
+            expected_fb[y * TEST_GFX_FBWIDTH + x + 3] = (uint16_t)color;
+            rdp_sync_pipe_raw();
+            rdp_set_fill_color_raw(color | (color << 16));
+            rdp_set_scissor_raw(x << 2, y << 2, (x + 4) << 2, (y + 1) << 2);
+            rdp_fill_rectangle_raw(0, 0, TEST_GFX_FBWIDTH << 2, TEST_GFX_FBWIDTH << 2);
+            color += 8;
+        }
     }
 
-    rdp_set_color_image_raw((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, 31);
-    rdp_fill_rectangle_raw(0, 0, 32 << 2, 32 << 2);
     rdp_sync_full_raw();
     rspq_flush();
 
@@ -179,8 +194,9 @@ void test_gfx_fill_dram_buffer(TestContext *ctx)
 
     ASSERT(dp_intr_raised, "Interrupt was not raised!");
     
-    for (uint32_t i = 0; i < 32 * 32; i++)
-    {
-        ASSERT_EQUAL_HEX(UncachedUShortAddr(framebuffer)[i], 0xFFFF, "Framebuffer was not cleared properly! Index: %lu", i);
-    }
+    //dump_mem(framebuffer, TEST_GFX_FBSIZE);
+    //dump_mem(expected_fb, TEST_GFX_FBSIZE);
+
+    ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_GFX_FBSIZE, "Framebuffer contains wrong data!");
+
 }

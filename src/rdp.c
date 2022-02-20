@@ -65,6 +65,7 @@
 
 enum {
     RDP_CMD_FILL_TRIANGLE           = 0x00,
+    RDP_CMD_MODIFY_OTHER_MODES      = 0x01,
     RDP_CMD_TEXTURE_RECTANGLE       = 0x04,
     RDP_CMD_TEXTURE_RECTANGLE_FLIP  = 0x05,
     RDP_CMD_SYNC_LOAD               = 0x06,
@@ -203,6 +204,9 @@ static inline uint32_t __rdp_log2( uint32_t number )
 
 void rdp_init( void )
 {
+    /* Initialize the RDP */
+    *DP_STATUS = DP_WSTATUS_RESET_XBUS_DMEM_DMA | DP_WSTATUS_RESET_FLUSH | DP_WSTATUS_RESET_FREEZE;
+
     /* Default to flushing automatically */
     flush_strategy = FLUSH_STRATEGY_AUTOMATIC;
 
@@ -218,6 +222,10 @@ void rdp_close( void )
     set_DP_interrupt( 0 );
     unregister_DP_handler( __rdp_interrupt );
 }
+
+// TODO:
+// * let rdp_attach_display allow to attach a new display while another one is already attached (pending sync_full). 
+//   That would enqueue a set_color_image command, so the assert is probably not important
 
 void rdp_attach_display( display_context_t disp )
 {
@@ -624,6 +632,14 @@ void rdp_set_other_modes_raw(uint64_t modes)
     rdp_write(RDP_CMD_SET_OTHER_MODES, 
         ((modes >> 32) & 0x00FFFFFF),
         modes & 0xFFFFFFFF);
+}
+
+void rdp_modify_other_modes_raw(uint32_t offset, uint32_t inverse_mask, uint32_t value)
+{
+    rdp_write(RDP_CMD_MODIFY_OTHER_MODES, 
+        offset & 0x4,
+        inverse_mask,
+        value);
 }
 
 void rdp_load_tlut_raw(uint8_t tile, uint8_t lowidx, uint8_t highidx)
