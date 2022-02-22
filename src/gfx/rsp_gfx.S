@@ -49,6 +49,7 @@ GFX_STATE_END:
     .bss
 
     .align 4
+    # Enough for a full triangle command
 RDP_CMD_STAGING:       .ds.b 0xB0
 
     .text
@@ -118,9 +119,10 @@ GFX_SendOtherModes:
     #############################################################
     .func GFXCmd_Passthrough8
 GFXCmd_Passthrough8:
+    li s4, %lo(RDP_CMD_STAGING)
+    sw a0, 0x00(s4)
+    sw a1, 0x04(s4)
     li t0, 8
-    addi s4, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER)
-    sub s4, t0
     jal_and_j RSPQ_RdpSendDynamic, RSPQ_Loop
     .endfunc
 
@@ -138,9 +140,12 @@ GFXCmd_Passthrough8:
     #############################################################
     .func GFXCmd_Passthrough16
 GFXCmd_Passthrough16:
+    li s4, %lo(RDP_CMD_STAGING)
+    sw a0, 0x00(s4)
+    sw a1, 0x04(s4)
+    sw a2, 0x08(s4)
+    sw a3, 0x0C(s4)
     li t0, 16
-    addi s4, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER)
-    sub s4, t0
     jal_and_j RSPQ_RdpSendDynamic, RSPQ_Loop
     .endfunc
 
