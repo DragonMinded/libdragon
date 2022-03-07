@@ -77,10 +77,14 @@ Data Fields</h2></td></tr>
 uint64_t&#160;</td><td class="memItemRight" valign="bottom"><b>input</b> [<a class="el" href="group__lowlevel.html#gabd5f84cf2323e720ab0b79fff05e8383">JOYBUS_BLOCK_DWORDS</a>]</td></tr>
 <tr class="memdesc:a9b65428327f29247ccbc957d9cad1d77"><td class="mdescLeft">&#160;</td><td class="mdescRight">input message <br /></td></tr>
 <tr class="separator:a9b65428327f29247ccbc957d9cad1d77"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1dc991d372bf35c53c60962ed4672ccd"><td class="memItemLeft" align="right" valign="top"><a id="a1dc991d372bf35c53c60962ed4672ccd" name="a1dc991d372bf35c53c60962ed4672ccd"></a>
-void(*&#160;</td><td class="memItemRight" valign="bottom"><b>callback</b> )(uint64_t *output)</td></tr>
-<tr class="memdesc:a1dc991d372bf35c53c60962ed4672ccd"><td class="mdescLeft">&#160;</td><td class="mdescRight">callback for completion <br /></td></tr>
-<tr class="separator:a1dc991d372bf35c53c60962ed4672ccd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aecf9b1bf962061bd17fac17b1ff784b3"><td class="memItemLeft" align="right" valign="top"><a id="aecf9b1bf962061bd17fac17b1ff784b3" name="aecf9b1bf962061bd17fac17b1ff784b3"></a>
+void(*&#160;</td><td class="memItemRight" valign="bottom"><b>callback</b> )(uint64_t *output, void *ctx)</td></tr>
+<tr class="memdesc:aecf9b1bf962061bd17fac17b1ff784b3"><td class="mdescLeft">&#160;</td><td class="mdescRight">callback for completion <br /></td></tr>
+<tr class="separator:aecf9b1bf962061bd17fac17b1ff784b3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a53edb09d6fd76f13e3e1b097b31a3a41"><td class="memItemLeft" align="right" valign="top"><a id="a53edb09d6fd76f13e3e1b097b31a3a41" name="a53edb09d6fd76f13e3e1b097b31a3a41"></a>
+void *&#160;</td><td class="memItemRight" valign="bottom"><b>context</b></td></tr>
+<tr class="memdesc:a53edb09d6fd76f13e3e1b097b31a3a41"><td class="mdescLeft">&#160;</td><td class="mdescRight">callback context <br /></td></tr>
+<tr class="separator:a53edb09d6fd76f13e3e1b097b31a3a41"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p >A message to be sent to JoyBus, with its completion callback. </p>
@@ -90,7 +94,7 @@ void(*&#160;</td><td class="memItemRight" valign="bottom"><b>callback</b> )(uint
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Thu Feb 17 2022 11:00:53 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.3
+Generated on Mon Mar 7 2022 22:07:15 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.3
 </small></address>
 </body>
 </html>

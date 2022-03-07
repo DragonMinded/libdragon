@@ -104,9 +104,9 @@ Functions</h2></td></tr>
 void&#160;</td><td class="memItemRight" valign="bottom"><b>__joybus_init</b> (void)</td></tr>
 <tr class="memdesc:gaa482f587d5604a7f878f78b1bf092654"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize the joybus subsystem. <br /></td></tr>
 <tr class="separator:gaa482f587d5604a7f878f78b1bf092654"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga2bd040c68082004b279c3c530d5cfafb"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga2bd040c68082004b279c3c530d5cfafb">joybus_exec_async</a> (const void *input, void(*callback)(uint64_t *output))</td></tr>
-<tr class="memdesc:ga2bd040c68082004b279c3c530d5cfafb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Execute an asynchronous joybus message.  <a href="group__joybus.html#ga2bd040c68082004b279c3c530d5cfafb">More...</a><br /></td></tr>
-<tr class="separator:ga2bd040c68082004b279c3c530d5cfafb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga67a0b9a8881c8ca94d35be1db9e6030f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga67a0b9a8881c8ca94d35be1db9e6030f">joybus_exec_async</a> (const void *input, void(*callback)(uint64_t *output, void *ctx), void *ctx)</td></tr>
+<tr class="memdesc:ga67a0b9a8881c8ca94d35be1db9e6030f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Execute an asynchronous joybus message.  <a href="group__joybus.html#ga67a0b9a8881c8ca94d35be1db9e6030f">More...</a><br /></td></tr>
+<tr class="separator:ga67a0b9a8881c8ca94d35be1db9e6030f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga6d62432ce8ecd83cd1588716fd28fdb7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__joybus.html#ga6d62432ce8ecd83cd1588716fd28fdb7">joybus_exec</a> (const void *input, void *output)</td></tr>
 <tr class="memdesc:ga6d62432ce8ecd83cd1588716fd28fdb7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Write a 64-byte block of data to the PIF and read the 64-byte result.  <a href="group__joybus.html#ga6d62432ce8ecd83cd1588716fd28fdb7">More...</a><br /></td></tr>
 <tr class="separator:ga6d62432ce8ecd83cd1588716fd28fdb7"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -128,7 +128,7 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__joybus_init</b> (vo
 <p >For controllers: <a class="el" href="group__controller.html">Controller Subsystem</a>.</p>
 <p >For EEPROM, RTC and other peripherals: <a class="el" href="group__peripherals.html">Peripherals Subsystem</a>.</p>
 <p >Internally, the JoyBus subsystem communicates with the PIF controller via the SI DMA, via the JoyBus protocol which is a standard master/slave binary protocol. Each message of the protocol is a block of 64 bytes, and can contain multiple commands. Currently, there are no macros or functions to help composing a JoyBus message, so higher-level libraries currently hard code the binary messages.</p>
-<p >All communications is made asynchronously because SI DMA is quite slow: its completion is bound to the PIF actually processing the data, rather than just being the memory transfer. A queue of pending JoyBus messages is kept in a ring buffer, and is then executed under interrupt when the previous SI DMA completes. The internal entry point is <a class="el" href="group__joybus.html#ga2bd040c68082004b279c3c530d5cfafb" title="Execute an asynchronous joybus message.">joybus_exec_async</a>, that schedules a message to be sent to PIF, and calls a callback with the reply whenever it is available. A blocking API (<a class="el" href="group__joybus.html#ga6d62432ce8ecd83cd1588716fd28fdb7" title="Write a 64-byte block of data to the PIF and read the 64-byte result.">joybus_exec</a>) is made available for simpler usage. </p>
+<p >All communications is made asynchronously because SI DMA is quite slow: its completion is bound to the PIF actually processing the data, rather than just being the memory transfer. A queue of pending JoyBus messages is kept in a ring buffer, and is then executed under interrupt when the previous SI DMA completes. The internal entry point is <a class="el" href="group__joybus.html#ga67a0b9a8881c8ca94d35be1db9e6030f" title="Execute an asynchronous joybus message.">joybus_exec_async</a>, that schedules a message to be sent to PIF, and calls a callback with the reply whenever it is available. A blocking API (<a class="el" href="group__joybus.html#ga6d62432ce8ecd83cd1588716fd28fdb7" title="Write a 64-byte block of data to the PIF and read the 64-byte result.">joybus_exec</a>) is made available for simpler usage. </p>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="ga6d62432ce8ecd83cd1588716fd28fdb7" name="ga6d62432ce8ecd83cd1588716fd28fdb7"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga6d62432ce8ecd83cd1588716fd28fdb7">&#9670;&nbsp;</a></span>joybus_exec()</h2>
@@ -169,8 +169,8 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__joybus_init</b> (vo
 
 </div>
 </div>
-<a id="ga2bd040c68082004b279c3c530d5cfafb" name="ga2bd040c68082004b279c3c530d5cfafb"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga2bd040c68082004b279c3c530d5cfafb">&#9670;&nbsp;</a></span>joybus_exec_async()</h2>
+<a id="ga67a0b9a8881c8ca94d35be1db9e6030f" name="ga67a0b9a8881c8ca94d35be1db9e6030f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga67a0b9a8881c8ca94d35be1db9e6030f">&#9670;&nbsp;</a></span>joybus_exec_async()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -184,8 +184,14 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__joybus_init</b> (vo
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">void(*)(uint64_t *output)&#160;</td>
-          <td class="paramname"><em>callback</em>&#160;</td>
+          <td class="paramtype">void(*)(uint64_t *output, void *ctx)&#160;</td>
+          <td class="paramname"><em>callback</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>ctx</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -204,7 +210,8 @@ This function is not part of the public API yet because we want to evaluate the 
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">input</td><td>The input block (must be of JOYBUS_BLOCK_SIZE bytes). No specific alignment is required for this data block. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>A callback completion function that will be called when the joybus command is finished. The function will receive a pointer to the output buffer. Can be NULL if no callback is required. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>A callback completion function that will be called when the joybus command is finished. The function will receive a pointer to the output buffer and the opaque pointer to the callback's context. Can be NULL if no callback is required. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">ctx</td><td>Context opaque pointer to pass to the callback. Can be NULL if no context is required. </td></tr>
   </table>
   </dd>
 </dl>
@@ -214,7 +221,7 @@ This function is not part of the public API yet because we want to evaluate the 
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Thu Feb 17 2022 11:00:53 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.3
+Generated on Mon Mar 7 2022 22:07:15 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.3
 </small></address>
 </body>
 </html>
