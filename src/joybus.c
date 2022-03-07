@@ -75,7 +75,8 @@ static void * const PIF_RAM = (void *)0x1fc007c0;
  */
 typedef struct {
     uint64_t input[JOYBUS_BLOCK_DWORDS] __attribute__((aligned(16)));  ///< input message
-    void (*callback)(uint64_t* output);                                ///< callback for completion
+    void (*callback)(uint64_t *output, void *ctx);                     ///< callback for completion
+    void *context;                                                     ///< callback context
 } joybus_msg_t;
 
 #define MAX_JOYBUS_MSGS            8    ///< Maximum number of pending joybus messages
@@ -197,7 +198,7 @@ static void si_interrupt(void) {
         // Reply received. Call the callback
         msg = &joybus_msgs[msgs_ridx];
         if (msg->callback)
-            msg->callback(joybus_outbuf);
+            msg->callback(joybus_outbuf, msg->context);
 
         // Increment read pointer and poll for new messages
         msgs_ridx = (msgs_ridx + 1) % MAX_JOYBUS_MSGS;
@@ -237,10 +238,13 @@ static void si_interrupt(void) {
  *                          No specific alignment is required for this data block.
  * @param[in]   callback    A callback completion function that will be called
  *                          when the joybus command is finished. The function
- *                          will receive a pointer to the output buffer.
+ *                          will receive a pointer to the output buffer and the
+ *                          opaque pointer to the callback's context.
  *                          Can be NULL if no callback is required.
+ * @param[in]   ctx         Context opaque pointer to pass to the callback.
+ *                          Can be NULL if no context is required.
  */
-void joybus_exec_async(const void * input, void (*callback)(uint64_t *output))
+void joybus_exec_async(const void * input, void (*callback)(uint64_t *output, void *ctx), void *ctx)
 {
     // Make sure that the task queue is not full. If it is, just assert for now.
     // It is not easy to understand what we should do when the queue is full;
@@ -255,6 +259,7 @@ void joybus_exec_async(const void * input, void (*callback)(uint64_t *output))
     joybus_msg_t *msg = &joybus_msgs[msgs_widx];
     memcpy(msg->input, input, JOYBUS_BLOCK_SIZE);
     msg->callback = callback;
+    msg->context = ctx;
 
     // Increment the write index. If the joybus subsystem is idle, poll immediately
     // so that we can begin sending the message.
@@ -284,12 +289,12 @@ void joybus_exec( const void * input, void * output )
 {
     volatile bool done = false;
 
-    void callback(uint64_t *out) {
+    void callback(uint64_t *out, void *ctx) {
         memcpy(output, out, JOYBUS_BLOCK_SIZE);
         done = true;
     }
 
-    joybus_exec_async(input, callback);
+    joybus_exec_async(input, callback, NULL);
     while (!done) {}
 }
 
