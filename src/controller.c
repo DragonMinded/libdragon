@@ -66,7 +66,7 @@ static struct controller_data prev;
 /** @brief True if there is a pending controller autoscan */
 static volatile bool controller_autoscan_in_progress = false;
 
-static void controller_interrupt_update(uint64_t *output)
+static void controller_interrupt_update(uint64_t *output, void *ctx)
 {
     memcpy((void*)&next, output, sizeof(struct controller_data));
     controller_autoscan_in_progress = false;
@@ -88,7 +88,7 @@ static void controller_interrupt(void)
     
     if (!controller_autoscan_in_progress) {    
         controller_autoscan_in_progress = true;
-        joybus_exec_async(SI_read_con_block, controller_interrupt_update);
+        joybus_exec_async(SI_read_con_block, controller_interrupt_update, NULL);
     }
 }
 
