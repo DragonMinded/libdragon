@@ -219,25 +219,23 @@ enum {
     RSPQ_CMD_CALL              = 0x03,
 
     /**
+     * @brief RSPQ command: Push commands to RDP
+     * 
+     * This command will send a buffer of RDP commands in RDRAM to the RDP.
+     * Additionally, it will perform a write to SP_STATUS when the buffer is 
+     * not contiguous with the previous one. This is used for synchronization
+     * with the CPU.
+     */
+    RSPQ_CMD_RDP               = 0x04,
+
+    /**
      * @brief RSPQ command: Return from a block
      * 
      * This command tells the RSP to recover the buffer address from a save slot
      * (from which it was currently saved by a CALL command) and begin fetching
      * commands from there. It is used to finish the execution of a block.
      */
-    RSPQ_CMD_RET               = 0x04,
-
-    /**
-     * @brief RSPQ command: DMA transfer
-     * 
-     * This commands runs a DMA transfer (either DRAM to DMEM, or DMEM to DRAM).
-     * It is used by #rspq_overlay_register to register a new overlay table into
-     * DMEM while the RSP is already running (to allow for overlays to be
-     * registered even after boot), and can be used by the users to perform
-     * manual DMA transfers to and from DMEM without risking a conflict with the
-     * RSP itself.
-     */
-    RSPQ_CMD_DMA               = 0x05,
+    RSPQ_CMD_RET               = 0x05,
 
     /**
      * @brief RSPQ Command: write SP_STATUS register
@@ -277,7 +275,17 @@ enum {
      */
     RSPQ_CMD_TEST_WRITE_STATUS = 0x08,
 
-    RSPQ_CMD_RDP_BLOCK         = 0x09
+    /**
+     * @brief RSPQ command: DMA transfer
+     * 
+     * This commands runs a DMA transfer (either DRAM to DMEM, or DMEM to DRAM).
+     * It is used by #rspq_overlay_register to register a new overlay table into
+     * DMEM while the RSP is already running (to allow for overlays to be
+     * registered even after boot), and can be used by the users to perform
+     * manual DMA transfers to and from DMEM without risking a conflict with the
+     * RSP itself.
+     */
+    RSPQ_CMD_DMA               = 0x09
 };
 
 
@@ -335,9 +343,18 @@ typedef struct rspq_overlay_header_t {
     uint16_t commands[];
 } rspq_overlay_header_t;
 
+typedef struct rspq_rdp_block_s rspq_rdp_block_t;
+
+typedef struct rspq_rdp_block_s {
+    rspq_rdp_block_t *next;
+    uint32_t padding;
+    uint32_t cmds[];
+} rspq_rdp_block_t;
+
 /** @brief A pre-built block of commands */
 typedef struct rspq_block_s {
     uint32_t nesting_level;     ///< Nesting level of the block
+    rspq_rdp_block_t *rdp_block;
     uint32_t cmds[];            ///< Block contents (commands)
 } rspq_block_t;
 
@@ -437,11 +454,16 @@ volatile uint32_t *rspq_cur_pointer;    ///< Copy of the current write pointer (
 volatile uint32_t *rspq_cur_sentinel;   ///< Copy of the current write sentinel (see #rspq_ctx_t)
 
 void *rspq_rdp_dynamic_buffer;
-void *rspq_rdp_static_buffer;
 
-static uint32_t rdp_static_write_ptr;
-static uint32_t rdp_static_read_ptr;
-static uint32_t rdp_static_sentinel;
+void *rspq_rdp_buffers[2];
+int rspq_rdp_buf_idx;
+uint32_t rspq_rdp_wstatus;
+volatile uint32_t *rspq_rdp_pointer_copy;
+volatile uint32_t *rspq_rdp_sentinel_copy;
+
+volatile uint32_t *rspq_rdp_start;
+volatile uint32_t *rspq_rdp_pointer;
+volatile uint32_t *rspq_rdp_sentinel;
 
 /** @brief RSP queue data in DMEM. */
 static rsp_queue_t rspq_data;
@@ -451,8 +473,10 @@ static bool rspq_initialized = 0;
 
 /** @brief Pointer to the current block being built, or NULL. */
 static rspq_block_t *rspq_block;
+static rspq_rdp_block_t *rspq_rdp_block;
 /** @brief Size of the current block memory buffer (in 32-bit words). */
 static int rspq_block_size;
+static int rspq_rdp_block_size;
 
 /** @brief ID that will be used for the next syncpoint that will be created. */
 static int rspq_syncpoints_genid;
@@ -497,6 +521,7 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
     printf("RSPQ: Highpri DRAM address: %08lx\n", rspq->rspq_dram_highpri_addr);
     printf("RSPQ: Current DRAM address: %08lx + GP=%lx = %08lx\n", 
         rspq->rspq_dram_addr, state->gpr[28], cur);
+    printf("RSPQ: RDP     DRAM address: %08lx\n", rspq->rspq_rdp_buffer);
     printf("RSPQ: Current Overlay: %02x\n", rspq->current_ovl / sizeof(rspq_overlay_t));
 
     // Dump the command queue in DMEM.
@@ -513,6 +538,16 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
     for (int j=0;j<4;j++) {        
         for (int i=0;i<16;i++)
             debugf("%08lx%c", q[i+j*16-32], i+j*16-32==0 ? '*' : ' ');
+        debugf("\n");
+    }
+
+    debugf("RSPQ: RDP Command queue:\n");
+    q = (uint32_t*)(0xA0000000 | (state->cop0[10] & 0xFFFFFF));
+    for (int j=0;j<4;j++) {        
+        for (int i=0;i<16;i+=2) {
+            debugf("%08lx", q[i+0+j*16-32]);
+            debugf("%08lx%c", q[i+1+j*16-32], i+j*16-32==0 ? '*' : ' ');
+        }
         debugf("\n");
     }
 }
@@ -585,6 +620,21 @@ static volatile uint32_t* rspq_switch_buffer(uint32_t *new, int size, bool clear
     return prev;
 }
 
+uint32_t rspq_rdp_get_wstatus()
+{
+    return rspq_rdp_buf_idx>0 ? SP_WSTATUS_SET_SIG_RDP_STATIC_BUF : SP_WSTATUS_CLEAR_SIG_RDP_STATIC_BUF;
+}
+
+void rspq_rdp_switch_buffer(uint32_t *new, uint32_t size, uint32_t wstatus)
+{
+    assert(size >= RSPQ_MAX_RDP_COMMAND_SIZE);
+
+    rspq_rdp_pointer = new;
+    rspq_rdp_start = new;
+    rspq_rdp_sentinel = new + size - RSPQ_MAX_RDP_COMMAND_SIZE;
+    rspq_rdp_wstatus = wstatus;
+}
+
 /** @brief Start the RSP queue engine in the RSP */
 static void rspq_start(void)
 {
@@ -612,7 +662,7 @@ static void rspq_start(void)
 
     // Set initial value of all signals.
     *SP_STATUS = SP_WSTATUS_CLEAR_SIG0 | 
-                 SP_WSTATUS_CLEAR_SIG1 | 
+                 SP_WSTATUS_CLEAR_SIG_RDP_STATIC_BUF | 
                  SP_WSTATUS_CLEAR_SIG_HIGHPRI_RUNNING | 
                  SP_WSTATUS_CLEAR_SIG_SYNCPOINT |
                  SP_WSTATUS_SET_SIG_BUFDONE_LOW |
@@ -676,11 +726,11 @@ void rspq_init(void)
     rspq_switch_context(&lowpri);
 
     rspq_rdp_dynamic_buffer = malloc_uncached(RSPQ_RDP_DYNAMIC_BUFFER_SIZE);
-    rspq_rdp_static_buffer = malloc_uncached(RSPQ_RDP_STATIC_BUFFER_SIZE);
 
-    rdp_static_write_ptr = 0;
-    rdp_static_sentinel = RSPQ_RDP_STATIC_BUFFER_SIZE;
-    rdp_static_read_ptr = 0;
+    rspq_rdp_buffers[0] = malloc_uncached(RSPQ_RDP_STATIC_BUFFER_SIZE*sizeof(uint32_t));
+    rspq_rdp_buffers[1] = malloc_uncached(RSPQ_RDP_STATIC_BUFFER_SIZE*sizeof(uint32_t));
+    rspq_rdp_buf_idx = 0;
+    rspq_rdp_switch_buffer(rspq_rdp_buffers[0], RSPQ_RDP_STATIC_BUFFER_SIZE, rspq_rdp_get_wstatus());
 
     // Load initial settings
     memset(&rspq_data, 0, sizeof(rsp_queue_t));
@@ -701,6 +751,7 @@ void rspq_init(void)
 
     // Init blocks
     rspq_block = NULL;
+    rspq_rdp_block = NULL;
     rspq_is_running = false;
 
     // Activate SP interrupt (used for syncpoints)
@@ -708,6 +759,21 @@ void rspq_init(void)
     set_SP_interrupt(1);
 
     rspq_initialized = 1;
+
+    // Initialize the RDP
+    MEMORY_BARRIER();
+    *DP_STATUS = DP_WSTATUS_RESET_XBUS_DMEM_DMA | DP_WSTATUS_RESET_FLUSH | DP_WSTATUS_RESET_FREEZE;
+    MEMORY_BARRIER();
+    RSP_WAIT_LOOP(500) {
+        if (!(*DP_STATUS & (DP_STATUS_START_VALID | DP_STATUS_END_VALID))) {
+            break;
+        }
+    }
+    MEMORY_BARRIER();
+    *DP_START = rspq_data.rspq_rdp_buffer;
+    MEMORY_BARRIER();
+    *DP_END = rspq_data.rspq_rdp_buffer;
+    MEMORY_BARRIER();
 
     rspq_start();
 }
@@ -728,7 +794,8 @@ void rspq_close(void)
     
     rspq_initialized = 0;
 
-    free_uncached(rspq_rdp_static_buffer);
+    free_uncached(rspq_rdp_buffers[1]);
+    free_uncached(rspq_rdp_buffers[0]);
     free_uncached(rspq_rdp_dynamic_buffer);
 
     rspq_close_context(&highpri);
@@ -1052,6 +1119,71 @@ void rspq_flush(void)
     rspq_flush_internal();
 }
 
+void rspq_rdp_flush()
+{
+    if (rspq_rdp_pointer > rspq_rdp_start) {
+        assertf(((uint32_t)rspq_rdp_start & 0x7) == 0, "rspq_rdp_start not aligned to 8 bytes: %lx", (uint32_t)rspq_rdp_start);
+        assertf(((uint32_t)rspq_rdp_pointer & 0x7) == 0, "rspq_rdp_pointer not aligned to 8 bytes: %lx", (uint32_t)rspq_rdp_pointer);
+
+        // Put a command in the regular RSP queue that will submit the last buffer of RDP commands.
+        // The value of rspq_rdp_wstatus will be written to SP_STATUS (by the RSP) as soon as this buffer
+        // is pushed to the RDP (see rsp_queue.inc).
+        // This value will clear SIG_RDP_STATIC_BUF if the buffer has index 0, and set if index 1.
+        rspq_int_write(RSPQ_CMD_RDP, rspq_rdp_wstatus, PhysicalAddr(rspq_rdp_start), PhysicalAddr(rspq_rdp_pointer));
+        rspq_rdp_start = rspq_rdp_pointer;
+    }
+}
+
+void rspq_rdp_next_buffer()
+{
+    // Finish the current buffer and submit it to the RSP queue.
+    // Note that if we are in block creation mode, this will also
+    // get written to the current rspq block.
+    rspq_rdp_flush();
+
+    if (rspq_rdp_block) {
+        // Allocate next chunk (double the size of the current one).
+        // We use doubling here to reduce overheads for large blocks
+        // and at the same time start small.
+        if (rspq_rdp_block_size < RSPQ_BLOCK_MAX_SIZE) rspq_rdp_block_size *= 2;
+        rspq_rdp_block->next = malloc_uncached(sizeof(rspq_rdp_block_t) + rspq_rdp_block_size*sizeof(uint32_t));
+        rspq_rdp_block = rspq_rdp_block->next;
+
+        // Switch to new buffer
+        rspq_rdp_switch_buffer(rspq_rdp_block->cmds, rspq_rdp_block_size, 0);
+        return;
+    }
+
+    // If not in block creation mode, flush the RSP queue to make sure the following wait
+    // loop doesn't stall.
+    rspq_flush();
+
+    MEMORY_BARRIER();
+    RSP_WAIT_LOOP(200) {
+        // The value of SIG_RDP_STATIC_BUF signifies which of the two buffers is currently in use by the RDP.
+        int current_index = (*SP_STATUS & SP_STATUS_SIG_RDP_STATIC_BUF) ? 1 : 0;
+
+        // If the current buffer is in use (the one we just finished writing to), it follows that the next one
+        // is *not* being used, so it is safe to start writing to it. Note that this is guaranteed by the trick
+        // used at the end of this function.
+        if (current_index == rspq_rdp_buf_idx) {
+            break;
+        }
+    }
+    MEMORY_BARRIER();
+    
+    // Switch to the next buffer. Note that rspq_rdp_wstatus gets updated too, depending on the new buffer index.
+    rspq_rdp_buf_idx = 1 - rspq_rdp_buf_idx;
+    rspq_rdp_switch_buffer(rspq_rdp_buffers[rspq_rdp_buf_idx], RSPQ_RDP_STATIC_BUFFER_SIZE, rspq_rdp_get_wstatus());
+
+    // Insert an additional, empty buffer to be submitted to RDP
+    // This will force the RDP fifo to be cleared before the new buffer is started.
+    // In other words, when the new buffer is submitted to RDP we can be absolutely sure
+    // that the previous buffer is not being used anymore, because it has been pushed
+    // out of the fifo (see rsp_queue.inc).
+    rspq_int_write(RSPQ_CMD_RDP, 0, 0, 0);
+}
+
 void rspq_highpri_begin(void)
 {
     assertf(rspq_ctx != &highpri, "already in highpri mode");
@@ -1126,20 +1258,33 @@ void rspq_block_begin(void)
     assertf(!rspq_block, "a block was already being created");
     assertf(rspq_ctx != &highpri, "cannot create a block in highpri mode");
 
+    rspq_rdp_flush();
+
     // Allocate a new block (at minimum size) and initialize it.
     rspq_block_size = RSPQ_BLOCK_MIN_SIZE;
+    rspq_rdp_block_size = RSPQ_BLOCK_MIN_SIZE;
+    rspq_rdp_block = malloc_uncached(sizeof(rspq_rdp_block_t) + rspq_rdp_block_size*sizeof(uint32_t));
+    rspq_rdp_block->next = NULL;
     rspq_block = malloc_uncached(sizeof(rspq_block_t) + rspq_block_size*sizeof(uint32_t));
     rspq_block->nesting_level = 0;
+    rspq_block->rdp_block = rspq_rdp_block;
 
     // Switch to the block buffer. From now on, all rspq_writes will
     // go into the block.
     rspq_switch_context(NULL);
     rspq_switch_buffer(rspq_block->cmds, rspq_block_size, true);
+
+    // Also switch to the block buffer for RDP commands.
+    rspq_rdp_pointer_copy = rspq_rdp_pointer;
+    rspq_rdp_sentinel_copy = rspq_rdp_sentinel;
+    rspq_rdp_switch_buffer(rspq_rdp_block->cmds, rspq_rdp_block_size, 0);
 }
 
 rspq_block_t* rspq_block_end(void)
 {
     assertf(rspq_block, "a block was not being created");
+
+    rspq_rdp_flush();
 
     // Terminate the block with a RET command, encoding
     // the nesting level which is used as stack slot by RSP.
@@ -1148,14 +1293,29 @@ rspq_block_t* rspq_block_end(void)
     // Switch back to the normal display list
     rspq_switch_context(&lowpri);
 
+    // ... and for RDP
+    rspq_rdp_pointer = rspq_rdp_pointer_copy;
+    rspq_rdp_start = rspq_rdp_pointer;
+    rspq_rdp_sentinel = rspq_rdp_sentinel_copy;
+    rspq_rdp_wstatus = rspq_rdp_get_wstatus();
+
     // Return the created block
     rspq_block_t *b = rspq_block;
     rspq_block = NULL;
+    rspq_rdp_block = NULL;
     return b;
 }
 
 void rspq_block_free(rspq_block_t *block)
 {
+    // Free RDP blocks first
+    rspq_rdp_block_t *rdp_block = block->rdp_block;
+    while (rdp_block) {
+        void *block = rdp_block;
+        rdp_block = rdp_block->next;
+        free_uncached(block);
+    }
+
     // Start from the commands in the first chunk of the block
     int size = RSPQ_BLOCK_MIN_SIZE;
     void *start = block;
@@ -1218,6 +1378,7 @@ void rspq_noop()
 
 rspq_syncpoint_t rspq_syncpoint_new(void)
 {   
+    assertf(rspq_ctx != &highpri, "cannot create syncpoint in highpri mode");
     assertf(!rspq_block, "cannot create syncpoint in a block");
     assertf(rspq_ctx != &highpri, "cannot create syncpoint in highpri mode");
     rspq_int_write(RSPQ_CMD_TEST_WRITE_STATUS, 
@@ -1254,8 +1415,8 @@ void rspq_syncpoint_wait(rspq_syncpoint_t sync_id)
 
 void rspq_signal(uint32_t signal)
 {
-    const uint32_t allowed_mask = SP_WSTATUS_CLEAR_SIG0|SP_WSTATUS_SET_SIG0|SP_WSTATUS_CLEAR_SIG1|SP_WSTATUS_SET_SIG1;
-    assertf((signal & allowed_mask) == signal, "rspq_signal called with a mask that contains bits outside SIG0-1: %lx", signal);
+    const uint32_t allowed_mask = SP_WSTATUS_CLEAR_SIG0|SP_WSTATUS_SET_SIG0;
+    assertf((signal & allowed_mask) == signal, "rspq_signal called with a mask that contains bits outside SIG0: %lx", signal);
 
     rspq_int_write(RSPQ_CMD_WRITE_STATUS, signal);
 }
@@ -1273,62 +1434,4 @@ void rspq_dma_to_rdram(void *rdram_addr, uint32_t dmem_addr, uint32_t len, bool 
 void rspq_dma_to_dmem(uint32_t dmem_addr, void *rdram_addr, uint32_t len, bool is_async)
 {
     rspq_dma(rdram_addr, dmem_addr, len - 1, is_async ? 0 : SP_STATUS_DMA_BUSY | SP_STATUS_DMA_FULL);
-}
-
-void rspq_rdp_block(void *rdram_addr, uint32_t len)
-{
-    assertf(((uint32_t)rdram_addr & 0x7) == 0, "rspq_rdp_block called with an address that is not aligned to 8 bytes: %lx", (uint32_t)rdram_addr);
-    assertf((len & 0x7) == 0, "rspq_rdp_block called with a length that is not a multiple of 8: %lx", len);
-
-    uint32_t start = PhysicalAddr(rdram_addr);
-    rspq_write(RSPQ_CMD_RDP_BLOCK, start + len, start);
-}
-
-static bool is_in_rdp_static_buffer(void *ptr)
-{
-    return ptr >= rspq_rdp_static_buffer && ptr < (rspq_rdp_static_buffer + RSPQ_RDP_STATIC_BUFFER_SIZE);
-}
-
-static uint32_t rspq_rdp_static_get_read_ptr()
-{
-    void *dp_current = (void*)((*DP_CURRENT) | 0xA0000000);
-    void *dp_start = (void*)((*DP_START) | 0xA0000000);
-
-    if (is_in_rdp_static_buffer(dp_current)) {
-        rdp_static_read_ptr = dp_current - rspq_rdp_static_buffer;
-    } else if (is_in_rdp_static_buffer(dp_start)) {
-        rdp_static_read_ptr = dp_start - rspq_rdp_static_buffer;
-    }
-
-    return rdp_static_read_ptr;
-}
-
-void* rspq_rdp_reserve(uint32_t len)
-{
-    assertf((len & 0x7) == 0, "rspq_rdp_reserve called with a length that is not a multiple of 8: %lx", len);
-
-    if (rdp_static_write_ptr + len > rdp_static_sentinel) {
-        rspq_flush();
-        RSP_WAIT_LOOP(100) {
-            uint32_t read_ptr = rspq_rdp_static_get_read_ptr();
-            uint32_t new_write_ptr = rdp_static_write_ptr + len;
-
-            if (rdp_static_write_ptr < read_ptr) {
-                if (new_write_ptr < read_ptr) {
-                    rdp_static_sentinel = read_ptr - 8;
-                    break;
-                }
-            } else if (new_write_ptr <= RSPQ_RDP_STATIC_BUFFER_SIZE) {
-                rdp_static_sentinel = RSPQ_RDP_STATIC_BUFFER_SIZE;
-                break;
-            } else {
-                rdp_static_write_ptr = 0;
-            }
-        }
-    }
-
-    void *result = rspq_rdp_static_buffer + rdp_static_write_ptr;
-    rdp_static_write_ptr += len;
-
-    return result;
 }

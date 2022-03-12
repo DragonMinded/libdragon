@@ -153,6 +153,9 @@ extern "C" {
 /** @brief Maximum size of a command (in 32-bit words). */
 #define RSPQ_MAX_COMMAND_SIZE          16
 
+/** @brief Maximum size of a rdp command (in 32-bit words). */
+#define RSPQ_MAX_RDP_COMMAND_SIZE      4
+
 
 /**
  * @brief A preconstructed block of commands
@@ -660,8 +663,8 @@ void rspq_noop(void);
  * This function allows to add a command to the queue that will set and/or
  * clear a combination of the above bits.
  * 
- * Notice that signal bits 2-7 are used by the RSP queue engine itself, so this
- * function must only be used for bits 0 and 1.
+ * Notice that signal bits 1-7 are used by the RSP queue engine itself, so this
+ * function must only be used for bit 0.
  * 
  * @param[in]  signal  A signal set/clear mask created by composing SP_WSTATUS_* 
  *                     defines.
@@ -706,25 +709,25 @@ void rspq_dma_to_rdram(void *rdram_addr, uint32_t dmem_addr, uint32_t len, bool 
  */
 void rspq_dma_to_dmem(uint32_t dmem_addr, void *rdram_addr, uint32_t len, bool is_async);
 
-void rspq_rdp_block(void *rdram_addr, uint32_t len);
-
-void* rspq_rdp_reserve(uint32_t len);
+void rspq_rdp_flush(void);
 
 /// @cond
-/*
 #define _rdp_write_arg(arg) \
     *ptr++ = (arg);
 
 /// @endcond
 
 #define rdp_write(cmd_id, arg0, ...) ({ \
-    uint32_t *ptr0 = rspq_rdp_reserve((__COUNT_VARARGS(__VA_ARGS__) + 1) << 2); \
-    uint32_t *ptr = ptr0; \
+    extern volatile uint32_t *rspq_rdp_pointer, *rspq_rdp_sentinel; \
+    extern void rspq_rdp_next_buffer(void); \
+    volatile uint32_t *ptr = rspq_rdp_pointer; \
     *ptr++ = ((cmd_id)<<24) | (arg0); \
     __CALL_FOREACH(_rdp_write_arg, ##__VA_ARGS__); \
-    rspq_rdp_block(ptr0, (__COUNT_VARARGS(__VA_ARGS__) + 1) << 2); \
+    rspq_rdp_pointer = ptr; \
+    if (__builtin_expect(rspq_rdp_pointer > rspq_rdp_sentinel, 0)) \
+        rspq_rdp_next_buffer(); \
 })
-*/
+
 #ifdef __cplusplus
 }
 #endif

@@ -213,12 +213,12 @@ RSPQ_DefineCommand RSPQCmd_WaitNewInput,    0     # 0x00
 RSPQ_DefineCommand RSPQCmd_Noop,            4     # 0x01
 RSPQ_DefineCommand RSPQCmd_Jump,            4     # 0x02
 RSPQ_DefineCommand RSPQCmd_Call,            8     # 0x03
-RSPQ_DefineCommand RSPQCmd_Ret,             4     # 0x04
-RSPQ_DefineCommand RSQPCmd_Dma,             16    # 0x05
+RSPQ_DefineCommand RSPQCmd_RdpBuffer,       12    # 0x04 -- must be even (bit 24 must be 0)
+RSPQ_DefineCommand RSPQCmd_Ret,             4     # 0x05
 RSPQ_DefineCommand RSPQCmd_WriteStatus,     4     # 0x06 -- must be even (bit 24 must be 0)
 RSPQ_DefineCommand RSPQCmd_SwapBuffers,     12    # 0x07
 RSPQ_DefineCommand RSPQCmd_TestWriteStatus, 8     # 0x08 -- must be even (bit 24 must be 0)
-RSPQ_DefineCommand RSPQCmd_RdpBlock,        8     # 0x09
+RSPQ_DefineCommand RSQPCmd_Dma,             16    # 0x09
 
 #if RSPQ_DEBUG
 RSPQ_LOG_IDX:                .long 0
@@ -578,7 +578,7 @@ RSQPCmd_Dma:
     .func RSPQ_RdpSendDynamic
 RSPQ_RdpSendDynamic:
     #define out_ptr  a1
-    #define out_end  a0
+    #define out_end  a2
     #define read_ptr s1
     #define buf_end  s2
     #define mode     t4
@@ -649,7 +649,8 @@ out_dma:
     move s0, out_ptr
 
     # Send the new block of commands to the RDP
-    j RSPQ_RdpSendBlock
+    move a0, zero
+    j RSPQ_RdpSendBuffer
     move ra, ra2
 
     #undef out_ptr
@@ -661,34 +662,36 @@ out_dma:
 
 
     #############################################################
-    # RSPQCmd_RdpBlock
+    # RSPQCmd_RdpBuffer
     #
-    # Enqueues a new block of commands to be run by the RDP.
-    # Same as RSPQ_RdpSendBlock, but switches to static mode.
+    # Enqueues a new buffer of commands to be run by the RDP.
+    # Same as RSPQ_RdpSendBuffer, but switches to static mode.
     #
     # ARGS:
-    #   a0: DP_END
+    #   a0: signal mask that is written if buffer is not contiguous
     #   a1: DP_START
+    #   a2: DP_END
     #############################################################
-    .func RSPQCmd_RdpBlock
-RSPQCmd_RdpBlock:
+    .func RSPQCmd_RdpBuffer
+RSPQCmd_RdpBuffer:
     li t0, 1
     sb t0, %lo(RSPQ_RDP_MODE)
     # fallthrough
     .endfunc
 
     #############################################################
-    # RSPQ_RdpSendBlock
+    # RSPQ_RdpSendBuffer
     #
     # Enqueues a new block of commands to be run by the RDP.
     #
     # ARGS:
-    #   a0: DP_END
+    #   a0: signal mask that is written if buffer is not contiguous
     #   a1: DP_START
+    #   a2: DP_END
     #############################################################
-    .func RSPQ_RdpSendBlock
-RSPQ_RdpSendBlock:
-    # Check if the new block is contiguous with the current buffer
+    .func RSPQ_RdpSendBuffer
+RSPQ_RdpSendBuffer:
+    # Check if the new buffer is contiguous with the previous one
     mfc0 t0, COP0_DP_END
     beq t0, a1, rspq_set_dp_end
     mfc0 t2, COP0_DP_STATUS
@@ -702,10 +705,17 @@ rspq_wait_rdp_fifo:
     # If the RDP needs to jump to a new buffer, set DP_START
     mtc0 a1, COP0_DP_START
 
+    # Write to status if a new buffer has been submitted.
+    # This is used to update SIG_RDP_STATIC_BUF, which will tell the CPU
+    # which RDP buffer is currently in use, so it knows which buffer is safe to write to.
+    # Since we had to wait for the RDP fifo above, we know that the buffer which
+    # was just pushed out of the fifo is now not being used anymore.
+    mtc0 a0, COP0_SP_STATUS
+
 rspq_set_dp_end:
     # If the RDP can keep running in a contiguous area, just set DP_END
     jr ra
-    mtc0 a0, COP0_DP_END
+    mtc0 a2, COP0_DP_END
     .endfunc
 
 #include <rsp_dma.inc>

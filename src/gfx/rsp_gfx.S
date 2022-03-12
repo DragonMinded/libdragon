@@ -1,5 +1,4 @@
 #include <rsp_queue.inc>
-#include "gfx_internal.h"
 
     .data
 
@@ -42,7 +41,6 @@
     # Everything between GFX_STATE_START and GFX_STATE_END is persistent state that is automatically saved by the overlay system.
     # Should be kept consistent with gfx_state_t in gfx_internal.h
 GFX_STATE_START:
-RDP_DMEM_BUFFER:       .ds.b GFX_RDP_DMEM_BUFFER_SIZE
 RDP_OTHER_MODES:       .quad  0
 GFX_STATE_END:
 

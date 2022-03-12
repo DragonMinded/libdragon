@@ -61,38 +61,41 @@
  */
 #define __get_buffer( x ) __safe_buffer[(x)-1]
 
-#define rdp_write(cmd_id, ...) rspq_write(GFX_OVL_ID, cmd_id, ##__VA_ARGS__)
+#define gfx_write(cmd_id, ...) ({ \
+    rspq_rdp_flush(); \
+    rspq_write(GFX_OVL_ID, (cmd_id-0x20), ##__VA_ARGS__); \
+})
 
 enum {
-    RDP_CMD_FILL_TRIANGLE           = 0x00,
-    RDP_CMD_MODIFY_OTHER_MODES      = 0x01,
-    RDP_CMD_TEXTURE_RECTANGLE       = 0x04,
-    RDP_CMD_TEXTURE_RECTANGLE_FLIP  = 0x05,
-    RDP_CMD_SYNC_LOAD               = 0x06,
-    RDP_CMD_SYNC_PIPE               = 0x07,
-    RDP_CMD_SYNC_TILE               = 0x08,
-    RDP_CMD_SYNC_FULL               = 0x09,
-    RDP_CMD_SET_KEY_GB              = 0x0A,
-    RDP_CMD_SET_KEY_R               = 0x0B,
-    RDP_CMD_SET_CONVERT             = 0x0C,
-    RDP_CMD_SET_SCISSOR             = 0x0D,
-    RDP_CMD_SET_PRIM_DEPTH          = 0x0E,
-    RDP_CMD_SET_OTHER_MODES         = 0x0F,
-    RDP_CMD_LOAD_TLUT               = 0x10,
-    RDP_CMD_SET_TILE_SIZE           = 0x12,
-    RDP_CMD_LOAD_BLOCK              = 0x13,
-    RDP_CMD_LOAD_TILE               = 0x14,
-    RDP_CMD_SET_TILE                = 0x15,
-    RDP_CMD_FILL_RECTANGLE          = 0x16,
-    RDP_CMD_SET_FILL_COLOR          = 0x17,
-    RDP_CMD_SET_FOG_COLOR           = 0x18,
-    RDP_CMD_SET_BLEND_COLOR         = 0x19,
-    RDP_CMD_SET_PRIM_COLOR          = 0x1A,
-    RDP_CMD_SET_ENV_COLOR           = 0x1B,
-    RDP_CMD_SET_COMBINE_MODE        = 0x1C,
-    RDP_CMD_SET_TEXTURE_IMAGE       = 0x1D,
-    RDP_CMD_SET_Z_IMAGE             = 0x1E,
-    RDP_CMD_SET_COLOR_IMAGE         = 0x1F,
+    RDP_CMD_FILL_TRIANGLE           = 0x20,
+    RDP_CMD_MODIFY_OTHER_MODES      = 0x21,
+    RDP_CMD_TEXTURE_RECTANGLE       = 0x24,
+    RDP_CMD_TEXTURE_RECTANGLE_FLIP  = 0x25,
+    RDP_CMD_SYNC_LOAD               = 0x26,
+    RDP_CMD_SYNC_PIPE               = 0x27,
+    RDP_CMD_SYNC_TILE               = 0x28,
+    RDP_CMD_SYNC_FULL               = 0x29,
+    RDP_CMD_SET_KEY_GB              = 0x2A,
+    RDP_CMD_SET_KEY_R               = 0x2B,
+    RDP_CMD_SET_CONVERT             = 0x2C,
+    RDP_CMD_SET_SCISSOR             = 0x2D,
+    RDP_CMD_SET_PRIM_DEPTH          = 0x2E,
+    RDP_CMD_SET_OTHER_MODES         = 0x2F,
+    RDP_CMD_LOAD_TLUT               = 0x30,
+    RDP_CMD_SET_TILE_SIZE           = 0x32,
+    RDP_CMD_LOAD_BLOCK              = 0x33,
+    RDP_CMD_LOAD_TILE               = 0x34,
+    RDP_CMD_SET_TILE                = 0x35,
+    RDP_CMD_FILL_RECTANGLE          = 0x36,
+    RDP_CMD_SET_FILL_COLOR          = 0x37,
+    RDP_CMD_SET_FOG_COLOR           = 0x38,
+    RDP_CMD_SET_BLEND_COLOR         = 0x39,
+    RDP_CMD_SET_PRIM_COLOR          = 0x3A,
+    RDP_CMD_SET_ENV_COLOR           = 0x3B,
+    RDP_CMD_SET_COMBINE_MODE        = 0x3C,
+    RDP_CMD_SET_TEXTURE_IMAGE       = 0x3D,
+    RDP_CMD_SET_Z_IMAGE             = 0x3E,
+    RDP_CMD_SET_COLOR_IMAGE         = 0x3F,
 };
 
 /**
@@ -204,9 +207,6 @@ static inline uint32_t __rdp_log2( uint32_t number )
 
 void rdp_init( void )
 {
-    /* Initialize the RDP */
-    *DP_STATUS = DP_WSTATUS_RESET_XBUS_DMEM_DMA | DP_WSTATUS_RESET_FLUSH | DP_WSTATUS_RESET_FREEZE;
-
     /* Default to flushing automatically */
     flush_strategy = FLUSH_STRATEGY_AUTOMATIC;
 
@@ -274,6 +274,7 @@ void rdp_detach_display_async(void (*cb)(display_context_t disp))
     assertf(cb != NULL, "Callback should not be NULL!");
     detach_callback = cb;
     rdp_sync_full_raw();
+    rspq_rdp_flush();
     rspq_flush();
 }
 
@@ -543,7 +544,7 @@ void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3,
     int winding = ( x1 * y2 - x2 * y1 ) + ( x2 * y3 - x3 * y2 ) + ( x3 * y1 - x1 * y3 );
     int flip = ( winding > 0 ? 1 : 0 ) << 23;
 
-    rdp_write(RDP_CMD_FILL_TRIANGLE, flip | yl, ym | yh, xl, dxldy, xh, dxhdy, xm, dxmdy);
+    gfx_write(RDP_CMD_FILL_TRIANGLE, flip | yl, ym | yh, xl, dxldy, xh, dxhdy, xm, dxmdy);
 }
 
 void rdp_set_texture_flush( flush_t flush )
@@ -629,14 +630,14 @@ void rdp_set_prim_depth_raw(uint16_t primitive_z, uint16_t primitive_delta_z)
 
 void rdp_set_other_modes_raw(uint64_t modes)
 {
-    rdp_write(RDP_CMD_SET_OTHER_MODES, 
+    gfx_write(RDP_CMD_SET_OTHER_MODES, 
         ((modes >> 32) & 0x00FFFFFF),
         modes & 0xFFFFFFFF);
 }
 
 void rdp_modify_other_modes_raw(uint32_t offset, uint32_t inverse_mask, uint32_t value)
 {
-    rdp_write(RDP_CMD_MODIFY_OTHER_MODES, 
+    gfx_write(RDP_CMD_MODIFY_OTHER_MODES, 
         offset & 0x4,
         inverse_mask,
         value);

@@ -122,15 +122,15 @@ int main()
     dfs_read(brew_sprite, 1, dfs_size(fp), fp);
     dfs_close(fp);
 
-    obj_max_x = display_width;
-    obj_max_y = display_height;
+    obj_max_x = display_width - brew_sprite->width;
+    obj_max_y = display_height - brew_sprite->height;
 
     for (uint32_t i = 0; i < NUM_OBJECTS; i++)
     {
         object_t *obj = &objects[i];
 
-        obj->x = RANDN(display_width);
-        obj->y = RANDN(display_height);
+        obj->x = RANDN(obj_max_x);
+        obj->y = RANDN(obj_max_y);
 
         obj->dx = -3 + RANDN(7);
         obj->dy = -3 + RANDN(7);
