@@ -58,7 +58,7 @@ void test_gfx_dram_buffer(TestContext *ctx)
     gfx_init();
     DEFER(gfx_close());
 
-    extern void *rspq_rdp_dynamic_buffer;
+    extern void *rspq_rdp_dynamic_buffers[2];
     extern void *rspq_rdp_buffers[2];
 
     const uint32_t fbsize = 32 * 32 * 2;
@@ -94,7 +94,7 @@ void test_gfx_dram_buffer(TestContext *ctx)
         0x29ULL << 56
     };
 
-    ASSERT_EQUAL_MEM((uint8_t*)rspq_rdp_dynamic_buffer, (uint8_t*)expected_data_dynamic, sizeof(expected_data_dynamic), "Unexpected data in dynamic DRAM buffer!");
+    ASSERT_EQUAL_MEM((uint8_t*)rspq_rdp_dynamic_buffers[0], (uint8_t*)expected_data_dynamic, sizeof(expected_data_dynamic), "Unexpected data in dynamic DRAM buffer!");
     ASSERT_EQUAL_MEM((uint8_t*)rspq_rdp_buffers[0], (uint8_t*)expected_data_static, sizeof(expected_data_static), "Unexpected data in static DRAM buffer!");
 
     for (uint32_t i = 0; i < 32 * 32; i++)

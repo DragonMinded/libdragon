@@ -399,12 +399,12 @@ typedef struct rsp_queue_s {
     uint32_t rspq_dram_lowpri_addr;      ///< Address of the lowpri queue (special slot in the pointer stack)
     uint32_t rspq_dram_highpri_addr;     ///< Address of the highpri queue  (special slot in the pointer stack)
     uint32_t rspq_dram_addr;             ///< Current RDRAM address being processed
-    uint32_t rspq_rdp_buffer;            ///< RDRAM Address of the dynamic RDP buffer
-    uint32_t rspq_rdp_buffer_end;        ///< RDRAM Address just after the end of the dynamic RDP buffer
-    uint32_t rspq_rdp_cstart;            ///< Internal cache for last value of DP_START
-    uint32_t rspq_rdp_cend;              ///< Internal cache for last value of DP_END
+    uint32_t rspq_rdp_buffers[2];        ///< RDRAM Address of dynamic RDP buffers
+    uint32_t rspq_rdp_pointer;           ///< Internal cache for last value of DP_START
+    uint32_t rspq_rdp_sentinel;          ///< Internal cache for last value of DP_END
     int16_t current_ovl;                 ///< Current overlay index
-    uint8_t rdp_mode;                    ///< Current RDP mode (0: dynamic, 1: static)
+    uint8_t rdp_buf_idx;                 ///< Index of the current dynamic RDP buffer
+    uint8_t rdp_buf_switched;            ///< Status to keep track of dynamic RDP buffer switching
 } __attribute__((aligned(16), packed)) rsp_queue_t;
 
 /**
@@ -453,7 +453,7 @@ rspq_ctx_t *rspq_ctx;                   ///< Current context
 volatile uint32_t *rspq_cur_pointer;    ///< Copy of the current write pointer (see #rspq_ctx_t)
 volatile uint32_t *rspq_cur_sentinel;   ///< Copy of the current write sentinel (see #rspq_ctx_t)
 
-void *rspq_rdp_dynamic_buffer;
+void *rspq_rdp_dynamic_buffers[2];
 
 void *rspq_rdp_buffers[2];
 int rspq_rdp_buf_idx;
@@ -521,7 +521,7 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
     printf("RSPQ: Highpri DRAM address: %08lx\n", rspq->rspq_dram_highpri_addr);
     printf("RSPQ: Current DRAM address: %08lx + GP=%lx = %08lx\n", 
         rspq->rspq_dram_addr, state->gpr[28], cur);
-    printf("RSPQ: RDP     DRAM address: %08lx\n", rspq->rspq_rdp_buffer);
+    printf("RSPQ: RDP     DRAM address: %08lx\n", rspq->rspq_rdp_buffers[rspq->rdp_buf_idx / sizeof(uint32_t)]);
     printf("RSPQ: Current Overlay: %02x\n", rspq->current_ovl / sizeof(rspq_overlay_t));
 
     // Dump the command queue in DMEM.
@@ -725,7 +725,8 @@ void rspq_init(void)
     // Start in low-priority mode
     rspq_switch_context(&lowpri);
 
-    rspq_rdp_dynamic_buffer = malloc_uncached(RSPQ_RDP_DYNAMIC_BUFFER_SIZE);
+    rspq_rdp_dynamic_buffers[0] = malloc_uncached(RSPQ_RDP_DYNAMIC_BUFFER_SIZE);
+    rspq_rdp_dynamic_buffers[1] = malloc_uncached(RSPQ_RDP_DYNAMIC_BUFFER_SIZE);
 
     rspq_rdp_buffers[0] = malloc_uncached(RSPQ_RDP_STATIC_BUFFER_SIZE*sizeof(uint32_t));
     rspq_rdp_buffers[1] = malloc_uncached(RSPQ_RDP_STATIC_BUFFER_SIZE*sizeof(uint32_t));
@@ -737,10 +738,10 @@ void rspq_init(void)
     rspq_data.rspq_dram_lowpri_addr = PhysicalAddr(lowpri.cur);
     rspq_data.rspq_dram_highpri_addr = PhysicalAddr(highpri.cur);
     rspq_data.rspq_dram_addr = rspq_data.rspq_dram_lowpri_addr;
-    rspq_data.rspq_rdp_buffer = PhysicalAddr(rspq_rdp_dynamic_buffer);
-    rspq_data.rspq_rdp_buffer_end = rspq_data.rspq_rdp_buffer + RSPQ_RDP_DYNAMIC_BUFFER_SIZE;
-    rspq_data.rspq_rdp_cstart = rspq_data.rspq_rdp_buffer;
-    rspq_data.rspq_rdp_cend = rspq_data.rspq_rdp_buffer;
+    rspq_data.rspq_rdp_buffers[0] = PhysicalAddr(rspq_rdp_dynamic_buffers[0]);
+    rspq_data.rspq_rdp_buffers[1] = PhysicalAddr(rspq_rdp_dynamic_buffers[1]);
+    rspq_data.rspq_rdp_pointer = rspq_data.rspq_rdp_buffers[0];
+    rspq_data.rspq_rdp_sentinel = rspq_data.rspq_rdp_pointer + RSPQ_RDP_DYN_SENTINEL_OFFSET;
     rspq_data.tables.overlay_descriptors[0].state = PhysicalAddr(&dummy_overlay_state);
     rspq_data.tables.overlay_descriptors[0].data_size = sizeof(uint64_t);
     rspq_data.current_ovl = 0;
@@ -770,9 +771,9 @@ void rspq_init(void)
         }
     }
     MEMORY_BARRIER();
-    *DP_START = rspq_data.rspq_rdp_buffer;
+    *DP_START = rspq_data.rspq_rdp_buffers[0];
     MEMORY_BARRIER();
-    *DP_END = rspq_data.rspq_rdp_buffer;
+    *DP_END = rspq_data.rspq_rdp_buffers[0];
     MEMORY_BARRIER();
 
     rspq_start();
@@ -796,7 +797,8 @@ void rspq_close(void)
 
     free_uncached(rspq_rdp_buffers[1]);
     free_uncached(rspq_rdp_buffers[0]);
-    free_uncached(rspq_rdp_dynamic_buffer);
+    free_uncached(rspq_rdp_dynamic_buffers[0]);
+    free_uncached(rspq_rdp_dynamic_buffers[1]);
 
     rspq_close_context(&highpri);
     rspq_close_context(&lowpri);

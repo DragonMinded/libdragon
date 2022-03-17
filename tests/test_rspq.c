@@ -725,7 +725,7 @@ void test_rspq_rdp_dynamic(TestContext *ctx)
     TEST_RSPQ_PROLOG();
     test_ovl_init();
 
-    const uint32_t count = 0x100;
+    const uint32_t count = 0x80;
 
     for (uint32_t i = 0; i < count; i++)
     {
@@ -734,12 +734,12 @@ void test_rspq_rdp_dynamic(TestContext *ctx)
 
     TEST_RSPQ_EPILOG(0, rspq_timeout);
 
-    extern void *rspq_rdp_dynamic_buffer;
+    extern void *rspq_rdp_dynamic_buffers[2];
 
-    ASSERT_EQUAL_HEX(*DP_START, PhysicalAddr(rspq_rdp_dynamic_buffer), "DP_START does not match!");
-    ASSERT_EQUAL_HEX(*DP_END, PhysicalAddr(rspq_rdp_dynamic_buffer) + count * 8, "DP_END does not match!");
+    ASSERT_EQUAL_HEX(*DP_START, PhysicalAddr(rspq_rdp_dynamic_buffers[0]), "DP_START does not match!");
+    ASSERT_EQUAL_HEX(*DP_END, PhysicalAddr(rspq_rdp_dynamic_buffers[0]) + count * 8, "DP_END does not match!");
 
-    uint64_t *rdp_buf = (uint64_t*)rspq_rdp_dynamic_buffer;
+    uint64_t *rdp_buf = (uint64_t*)rspq_rdp_dynamic_buffers[0];
 
     for (uint64_t i = 0; i < count; i++)
     {
@@ -747,12 +747,12 @@ void test_rspq_rdp_dynamic(TestContext *ctx)
     }
 }
 
-void test_rspq_rdp_dynamic_wrap(TestContext *ctx)
+void test_rspq_rdp_dynamic_switch(TestContext *ctx)
 {
     TEST_RSPQ_PROLOG();
     test_ovl_init();
 
-    const uint32_t full_count = RSPQ_RDP_DYNAMIC_BUFFER_SIZE / 8;
+    const uint32_t full_count = (RSPQ_RDP_DYN_SENTINEL_OFFSET / 8) + 1;
     const uint32_t extra_count = 8;
     const uint32_t count = full_count + extra_count;
 
@@ -763,21 +763,22 @@ void test_rspq_rdp_dynamic_wrap(TestContext *ctx)
 
     TEST_RSPQ_EPILOG(0, rspq_timeout);
 
-    extern void *rspq_rdp_dynamic_buffer;
+    extern void *rspq_rdp_dynamic_buffers[2];
 
-    ASSERT_EQUAL_HEX(*DP_START, PhysicalAddr(rspq_rdp_dynamic_buffer), "DP_START does not match!");
-    ASSERT_EQUAL_HEX(*DP_END, PhysicalAddr(rspq_rdp_dynamic_buffer) + extra_count * 8, "DP_END does not match!");
+    ASSERT_EQUAL_HEX(*DP_START, PhysicalAddr(rspq_rdp_dynamic_buffers[1]), "DP_START does not match!");
+    ASSERT_EQUAL_HEX(*DP_END, PhysicalAddr(rspq_rdp_dynamic_buffers[1]) + extra_count * 8, "DP_END does not match!");
 
-    uint64_t *rdp_buf = (uint64_t*)rspq_rdp_dynamic_buffer;
+    uint64_t *rdp_buf0 = (uint64_t*)rspq_rdp_dynamic_buffers[0];
+    uint64_t *rdp_buf1 = (uint64_t*)rspq_rdp_dynamic_buffers[1];
+
+    for (uint64_t i = 0; i < full_count; i++)
+    {
+        ASSERT_EQUAL_HEX(rdp_buf0[i], i, "Wrong command at idx: %llx", i);
+    }
 
     for (uint64_t i = 0; i < extra_count; i++)
     {
-        ASSERT_EQUAL_HEX(rdp_buf[i], i + full_count, "Wrong command at idx: %llx", i);
-    }
-
-    for (uint64_t i = extra_count; i < full_count; i++)
-    {
-        ASSERT_EQUAL_HEX(rdp_buf[i], i, "Wrong command at idx: %llx", i);
+        ASSERT_EQUAL_HEX(rdp_buf1[i], i + full_count, "Wrong command at idx: %llx", i);
     }
 }
 
@@ -797,13 +798,13 @@ void test_rspq_rdp_alternate(TestContext *ctx)
 
     TEST_RSPQ_EPILOG(0, rspq_timeout);
 
-    extern void *rspq_rdp_dynamic_buffer;
+    extern void *rspq_rdp_dynamic_buffers[2];
     extern void *rspq_rdp_buffers[2];
 
     ASSERT_EQUAL_HEX(*DP_START, PhysicalAddr(rspq_rdp_buffers[0]) + ((count - 1) * sizeof(uint64_t)), "DP_START does not match!");
     ASSERT_EQUAL_HEX(*DP_END, PhysicalAddr(rspq_rdp_buffers[0]) + ((count) * sizeof(uint64_t)), "DP_END does not match!");
 
-    uint64_t *dyn_buf = (uint64_t*)rspq_rdp_dynamic_buffer;
+    uint64_t *dyn_buf = (uint64_t*)rspq_rdp_dynamic_buffers[0];
     uint64_t *sta_buf = (uint64_t*)rspq_rdp_buffers[0];
 
     for (uint64_t i = 0; i < count; i++)
