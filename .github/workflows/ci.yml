@@ -92,7 +92,7 @@ jobs:
      - name: Correct MSYS2 pthread.h to allow static libraries (otherwise you would need to use a lib DLL, rather than it being built into the EXE.)
        shell: msys2 {0}
        run: |
-         sed -z 's/#else\n#define WINPTHREAD_API __declspec(dllimport)/#else\n#define WINPTHREAD_API/' /${{matrix.sys}}/${{ matrix.arch }}-w64-mingw32/include/pthread.h
+         sed -z 's/#else\n#define WINPTHREAD_API __declspec(dllimport)/#else\n#define WINPTHREAD_API/' /${{matrix.sys}}/include/pthread.h
 
      - name: Build ${{ matrix.build }}
        shell: msys2 {0}
