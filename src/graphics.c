@@ -711,14 +711,14 @@ void graphics_draw_character( display_context_t disp, int x, int y, char ch )
                 const char c = sp_data[xp + run];
                 if( trans )
                 {
-                    if( c & 0x80 )
+                    if( ( c & 0x1 ) != 0x0 )
                     {
                         __set_pixel( buffer, tx + xp, ty + yp, f_color );
                     }
                 }
                 else
                 {
-                    __set_pixel( buffer, tx + xp, ty + yp, (c & 0x80) ? f_color : b_color );
+                    __set_pixel( buffer, tx + xp, ty + yp, ( ( c & 0x1 ) != 0x0 ) ? f_color : b_color );
                 }
             }
         }
@@ -737,14 +737,14 @@ void graphics_draw_character( display_context_t disp, int x, int y, char ch )
                 const char c = sp_data[xp + run];
                 if( trans )
                 {
-                    if( c & 0x80 )
+                    if( ( c & 0xFF ) != 0x00 )
                     {
                         __set_pixel( buffer, tx + xp, ty + yp, f_color );
                     }
                 }
                 else
                 {
-                    __set_pixel( buffer, tx + xp, ty + yp, (c & 0x80) ? f_color : b_color );
+                    __set_pixel( buffer, tx + xp, ty + yp, ( ( c & 0xFF ) != 0x00 ) ? f_color : b_color );
                 }
             }
         }
