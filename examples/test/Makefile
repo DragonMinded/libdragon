@@ -4,9 +4,7 @@ all: test.z64
 BUILD_DIR = build
 include $(N64_INST)/include/n64.mk
 
-SRC = test.c
-OBJS = $(SRC:%.c=$(BUILD_DIR)/%.o)
-DEPS = $(SRC:%.c=$(BUILD_DIR)/%.d)
+OBJS = $(BUILD_DIR)/test.o
 
 test.z64: N64_ROM_TITLE = "Video Test"
 test.z64: $(BUILD_DIR)/test.dfs
@@ -18,4 +16,4 @@ clean:
 	rm -rf $(BUILD_DIR) *.z64
 .PHONY: clean
 
--include $(DEPS)
+-include $(wildcard $(BUILD_DIR)/*.d))

@@ -24,12 +24,12 @@ int main(void) {
 
 	wav64_t sfx_cannon, sfx_laser, sfx_monosample;
 
-	wav64_open(&sfx_cannon, "cannon.wav64");
+	wav64_open(&sfx_cannon, "rom:/cannon.wav64");
 	
-	wav64_open(&sfx_laser, "laser.wav64");
+	wav64_open(&sfx_laser, "rom:/laser.wav64");
 	wav64_set_loop(&sfx_laser, true);
 
-	wav64_open(&sfx_monosample, "monosample8.wav64");
+	wav64_open(&sfx_monosample, "rom:/monosample8.wav64");
 	wav64_set_loop(&sfx_monosample, true);
 
 	bool music = false;
@@ -51,16 +51,16 @@ int main(void) {
 		struct controller_data ckeys = get_keys_down();
 
 		if (ckeys.c[0].A) {
-			mixer_ch_play(CHANNEL_SFX1, &sfx_cannon.wave);
+			wav64_play(&sfx_cannon, CHANNEL_SFX1);
 		}
 		if (ckeys.c[0].B) {
-			mixer_ch_play(CHANNEL_SFX2, &sfx_laser.wave);
+			wav64_play(&sfx_laser, CHANNEL_SFX2);
 			mixer_ch_set_vol(CHANNEL_SFX2, 0.25f, 0.25f);
 		}
 		if (ckeys.c[0].Z) {
 			music = !music;
 			if (music) {
-				mixer_ch_play(CHANNEL_MUSIC, &sfx_monosample.wave);
+				wav64_play(&sfx_monosample, CHANNEL_MUSIC);
 				music_frequency = sfx_monosample.wave.frequency;
 			}
 			else

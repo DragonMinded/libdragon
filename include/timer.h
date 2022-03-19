@@ -14,6 +14,11 @@
  * @{
  */
 
+/** @brief Timer callback function without context */
+typedef void (*timer_callback1_t)(int ovfl);
+/** @brief Timer callback function with context */
+typedef void (*timer_callback2_t)(int ovfl, void *ctx);
+
 /**
  * @brief Timer structure
  */
@@ -28,7 +33,12 @@ typedef struct timer_link
     /** @brief Timer flags.  See #TF_ONE_SHOT, #TF_CONTINUOUS, and #TF_DISABLED */
     int flags;
     /** @brief Callback function to call when timer fires */
-    void (*callback)(int ovfl);
+    union {
+        timer_callback1_t callback;
+        timer_callback2_t callback_with_context;
+    };
+    /** @brief Callback context parameter */
+    void *ctx;
     /** @brief Link to next timer */
     struct timer_link *next;
 } timer_link_t;
@@ -86,20 +96,27 @@ extern "C" {
 
 /* initialize timer subsystem */
 void timer_init(void);
+/* delete all timers in list */
+void timer_close(void);
+/* return total ticks since timer was initialized */
+long long timer_ticks(void);
+
 /* create a new timer and add to list */
-timer_link_t *new_timer(int ticks, int flags, void (*callback)(int ovfl));
+timer_link_t *new_timer(int ticks, int flags, timer_callback1_t callback);
+/* create a new timer and add to list */
+timer_link_t *new_timer_context(int ticks, int flags, timer_callback2_t callback, void *ctx);
+
 /* start a timer not currently in the list */
-void start_timer(timer_link_t *timer, int ticks, int flags, void (*callback)(int ovfl));
+void start_timer(timer_link_t *timer, int ticks, int flags, timer_callback1_t callback);
+/* start a timer not currently in the list */
+void start_timer_context(timer_link_t *timer, int ticks, int flags, timer_callback2_t callback, void *ctx);
+
 /* reset a timer and add to list */
 void restart_timer(timer_link_t *timer);
 /* remove a timer from the list */
 void stop_timer(timer_link_t *timer);
 /* remove a timer from the list and delete it */
 void delete_timer(timer_link_t *timer);
-/* delete all timers in list */
-void timer_close(void);
-/* return total ticks since timer was initialized */
-long long timer_ticks(void);
 
 #ifdef __cplusplus
 }

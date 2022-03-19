@@ -164,7 +164,7 @@ static void mixer_init_samplebuffers(void) {
 
 	// Do one large allocations for all sample buffers
 	assert(Mixer.ch_buf_mem == NULL);
-	Mixer.ch_buf_mem = malloc(totsize);
+	Mixer.ch_buf_mem = malloc_uncached(totsize);
 	assert(Mixer.ch_buf_mem != NULL);
 	uint8_t *cur = Mixer.ch_buf_mem;
 
@@ -185,7 +185,7 @@ void mixer_close(void) {
 	assert(mixer_initialized());
 
 	if (Mixer.ch_buf_mem) {
-		free(Mixer.ch_buf_mem);
+		free_uncached(Mixer.ch_buf_mem);
 		Mixer.ch_buf_mem = NULL;
 	}
 
@@ -397,7 +397,7 @@ void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_
 	if (Mixer.ch_buf_mem) {
 		for (int i=0;i<Mixer.num_channels;i++)
 			samplebuffer_close(&Mixer.ch_buf[i]);
-		free(Mixer.ch_buf_mem);
+		free_uncached(Mixer.ch_buf_mem);
 		Mixer.ch_buf_mem = NULL;
 	}
 }
@@ -532,7 +532,7 @@ void mixer_exec(int32_t *out, int num_samples) {
 		// Convert to RSP mixer channel structure truncating 64-bit values to 32-bit.
 		// We don't need full absolute position on the RSP, so 32-bit is more
 		// than enough. In fact, we only expose 31 bits, so that we can use the
-		// 32th bit later to correctly update the position without overflow bugs.
+		// 32nd bit later to correctly update the position without overflow bugs.
 		rsp_wv[ch].pos = (uint32_t)c->pos & 0x7FFFFFFF;
 		rsp_wv[ch].step = (uint32_t)c->step & 0x7FFFFFFF;
 		rsp_wv[ch].ptr = c->ptr + ((c->pos & ~0x7FFFFFFF) >> MIXER_FX64_FRAC);
@@ -608,7 +608,7 @@ void mixer_add_event(int64_t delay, MixerEvent cb, void *ctx) {
 
 void mixer_remove_event(MixerEvent cb, void *ctx) {
 	for (int i=0;i<Mixer.num_events;i++) {
-		if (Mixer.events[i].cb == cb) {
+		if (Mixer.events[i].cb == cb && Mixer.events[i].ctx == ctx) {
 			memmove(&Mixer.events[i], &Mixer.events[i+1], sizeof(mixer_event_t) * (Mixer.num_events-i-1));
 			Mixer.num_events--;
 			return;

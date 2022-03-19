@@ -41,29 +41,30 @@ int main(void)
     }
 
     printf("\n");
+    console_render();
 
     rsp_run_async();
 
-    while(1)
-    {
+    RSP_WAIT_LOOP(2000) {
         if (broke) {
-            printf("\nbroke");
-            printf("\n");
-            broke = false;
-
-            unsigned char* up = malloc(16);
-            rsp_read_data((void*)up, 16, 0);
-
-            i = 0;
-            while(i < 16)
-            {
-                printf("%02X ", up[i]);
-                if (i % 8 == 7) {
-                    printf("\n");
-                }
-                i++;
-            }
+            break;
         }
-        console_render();
     }
+
+    printf("\nbroke");
+    printf("\n");
+
+    unsigned char* up = malloc(16);
+    rsp_read_data((void*)up, 16, 0);
+
+    i = 0;
+    while(i < 16)
+    {
+        printf("%02X ", up[i]);
+        if (i % 8 == 7) {
+            printf("\n");
+        }
+        i++;
+    }
+    console_render();
 }
