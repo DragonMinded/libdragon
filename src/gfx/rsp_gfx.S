@@ -2,7 +2,7 @@
 
     .data
 
-    RSPQ_BeginOverlayHeader GFX_STATE_START, GFX_STATE_END
+    RSPQ_BeginOverlayHeader
         RSPQ_DefineCommand GFXCmd_FillTriangle,     32 # 0x20 
         RSPQ_DefineCommand GFXCmd_ModifyOtherModes, 12 # 0x21
         RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
@@ -37,12 +37,9 @@
         RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x3F SET_COLOR_IMAGE
     RSPQ_EndOverlayHeader
 
-    .align 3
-    # Everything between GFX_STATE_START and GFX_STATE_END is persistent state that is automatically saved by the overlay system.
-    # Should be kept consistent with gfx_state_t in gfx_internal.h
-GFX_STATE_START:
+    RSPQ_BeginSavedState
 RDP_OTHER_MODES:       .quad  0
-GFX_STATE_END:
+    RSPQ_EndSavedState
 
     .bss
 
