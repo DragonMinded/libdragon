@@ -1,6 +1,6 @@
 /**
  * @file mixer.h
- * @brief Audio mixer 
+ * @brief RSP Audio mixer 
  * @ingroup mixer
  */
 

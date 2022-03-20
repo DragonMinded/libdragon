@@ -1,3 +1,9 @@
+/**
+ * @file xm64.c
+ * @brief Efficient XM module player
+ * @ingroup mixer
+ */
+
 #include <libdragon.h>
 #include "wav64internal.h"
 #include "libxm/xm.h"

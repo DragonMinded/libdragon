@@ -1,20 +1,28 @@
+/**
+ * @file ym64.c
+ * @brief Player for the .YM64 module format (Arkos Tracker 2)
+ * @ingroup mixer
+ */
+
 #include "ym64.h"
 #include "ay8910.h"
+#include "lzh5.h"
+#include "samplebuffer.h"
+#include "debug.h"
+#include "utils.h"
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
-#include <libdragon.h>
-#include "lzh5.h"
-#include "utils.h"
 
+/** @brief Header of a YM5 file */
 typedef struct __attribute__((packed)) {
-	uint32_t nframes;
-	uint32_t attrs;
-	uint16_t ndigidrums;
-	uint32_t chipfreq;
-	uint16_t playfreq;
-	uint32_t loop;
-	uint16_t sizeext;
+	uint32_t nframes;         ///< Number of audioframes
+	uint32_t attrs;           ///< Attributes (bit 0: interleaved format)
+	uint16_t ndigidrums;      ///< Number of digital samples
+	uint32_t chipfreq;        ///< Frequency of the emulated chip
+	uint16_t playfreq;        ///< Playback frequency in audioframes per seconds (eg: 50)
+	uint32_t loop;            ///< Audioframe where the loop starts
+	uint16_t sizeext;         ///< Extension (always 0)
 } ym5header;
 
 _Static_assert(sizeof(ym5header) == 22, "invalid header size");
