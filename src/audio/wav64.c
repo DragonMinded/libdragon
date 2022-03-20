@@ -1,16 +1,24 @@
 /**
  * @file wav64.c
  * @brief Support for WAV64 audio files
- * @ingroup audio
+ * @ingroup mixer
  */
 
-#include "libdragon.h"
+#include "wav64.h"
 #include "wav64internal.h"
+#include "mixer.h"
+#include "dragonfs.h"
+#include "n64sys.h"
+#include "dma.h"
+#include "samplebuffer.h"
+#include "debug.h"
 #include <stdbool.h>
 #include <string.h>
 #include <assert.h>
 
+/** ID of a standard WAV file */
 #define WAV_RIFF_ID   "RIFF"
+/** ID of a WAVX file (big-endian WAV) */
 #define WAV_RIFX_ID   "RIFX"
 
 /** @brief Profile of DMA usage by WAV64, used for debugging purposes. */
