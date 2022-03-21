@@ -1,6 +1,6 @@
 var searchData=
 [
-  ['max_5ffat_5ffiles_0',['MAX_FAT_FILES',['../debug_8c.html#aa96bc6bb5bf359ae13b78e7ff9a3527e',1,'debug.c']]],
-  ['mixer_5floop_5foverread_1',['MIXER_LOOP_OVERREAD',['../mixer_8h.html#a68ffdd651925d1fa7dc533602c508fc6',1,'mixer.h']]],
-  ['mixer_5fmax_5fchannels_2',['MIXER_MAX_CHANNELS',['../mixer_8h.html#a8c4e507c0d1930fd5bd9a9d5f5ca3b13',1,'mixer.h']]]
+  ['isviewer_5fbuffer_0',['ISVIEWER_BUFFER',['../debug_8c.html#ac8ee018ab83421d4023d62dbf101a3a7',1,'debug.c']]],
+  ['isviewer_5fbuffer_5flen_1',['ISVIEWER_BUFFER_LEN',['../debug_8c.html#a27745d9b9c5d96c55b87b67b1aa998d6',1,'debug.c']]],
+  ['isviewer_5fwrite_5flen_2',['ISVIEWER_WRITE_LEN',['../debug_8c.html#afc19541124f4e8e53c6deb3367030740',1,'debug.c']]]
 ];

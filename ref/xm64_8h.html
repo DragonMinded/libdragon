@@ -123,7 +123,7 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>xm64player_close</b> 
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p >Efficient XM module player. </p>
 <p >This module implements a player of the .XM64 file format, which is based on the Fast Tracker II .XM module format.</p>
-<p >The playback relies on the mixer (<a class="el" href="mixer_8h.html" title="Audio mixer.">mixer.h</a>), as it uses it to perform the actual channel playing and mixing. It will use one mixer channel per each XM channel. You need to initialize the mixer (via mixer_init) before using <a class="el" href="xm64_8h.html#structxm64player__t" title="Player of a .XM64 file.">xm64player_t</a>.</p>
+<p >The playback relies on the mixer (<a class="el" href="mixer_8h.html" title="RSP Audio mixer.">mixer.h</a>), as it uses it to perform the actual channel playing and mixing. It will use one mixer channel per each XM channel. You need to initialize the mixer (via mixer_init) before using <a class="el" href="xm64_8h.html#structxm64player__t" title="Player of a .XM64 file.">xm64player_t</a>.</p>
 <p >The actual XM player is based on libxm (<a href="https://github.com/Artefact2/libxm">https://github.com/Artefact2/libxm</a>), a very fast and accurate XM player library that has been adapted for usage in libdragon on N64. The main changes are:</p>
 <ul>
 <li>Usage of the custom XM64 format. This formats is a serialization of the internal libxm context (<code>xm_context_t</code>), and allows us to do some required preprocessing (such as unrolling ping-pong loops which are not supported by the mixer), and to load the whole file with one single memory allocation to avoid heap fragmentation.</li>
@@ -186,7 +186,7 @@ playing</td>
 <td class="fielddoc">
 playing flag </td></tr>
 <tr><td class="fieldtype">
-<a id="a9e359444ab19f8c778aea6d4b4e391ac" name="a9e359444ab19f8c778aea6d4b4e391ac"></a>struct <a class="el" href="xm64_8h.html#structxm64player__t_8seek">xm64player_t.seek</a></td>
+<a id="a1ce6e26a6ba3c2edccb7c3630c90a141" name="a1ce6e26a6ba3c2edccb7c3630c90a141"></a>struct <a class="el" href="xm64_8h.html#structxm64player__t_8seek">xm64player_t.seek</a></td>
 <td class="fieldname">
 seek</td>
 <td class="fielddoc">
@@ -570,7 +570,7 @@ tick</td>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sat Mar 19 2022 00:46:40 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.3
+Generated on Mon Mar 21 2022 04:52:35 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.3
 </small></address>
 </body>
 </html>

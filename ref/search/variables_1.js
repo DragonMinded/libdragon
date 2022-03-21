@@ -7,6 +7,7 @@ var searchData=
   ['alternate_4',['alternate',['../structAYEnvelope.html#a83cc06194995ba0ccac61a5fefc85760',1,'AYEnvelope']]],
   ['assert_5fhandler_5',['assert_handler',['../structrsp__ucode__t.html#a4e6b8b919f54b9af109d67cd6f851ebe',1,'rsp_ucode_t']]],
   ['attack_6',['attack',['../structAYEnvelope.html#ad32733abe56129ddcf068f8ee5d1e1b1',1,'AYEnvelope']]],
-  ['author_7',['author',['../ym64_8h.html#a294e33c591e9385f2dd616b2de3412bc',1,'ym64player_songinfo_t']]],
-  ['ay_8',['ay',['../ym64_8h.html#ac2f49185869569f91066b6f53627a941',1,'ym64player_t']]]
+  ['attrs_7',['attrs',['../ym64_8c.html#a0903c9d1a7c649656236eca442908c8f',1,'ym5header']]],
+  ['author_8',['author',['../ym64_8h.html#a294e33c591e9385f2dd616b2de3412bc',1,'ym64player_songinfo_t']]],
+  ['ay_9',['ay',['../ym64_8h.html#ac2f49185869569f91066b6f53627a941',1,'ym64player_t']]]
 ];

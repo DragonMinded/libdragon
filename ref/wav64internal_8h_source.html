@@ -92,7 +92,7 @@ $(function() {
 <div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span> </div>
 <div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span><span class="keyword">typedef</span> <span class="keyword">struct </span>samplebuffer_s <a class="code hl_struct" href="samplebuffer_8h.html#structsamplebuffer__t">samplebuffer_t</a>;</div>
 <div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span> </div>
-<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span><span class="keywordtype">void</span> raw_waveform_read(<a class="code hl_struct" href="samplebuffer_8h.html#structsamplebuffer__t">samplebuffer_t</a> *sbuf, <span class="keywordtype">int</span> base_rom_addr, <span class="keywordtype">int</span> wpos, <span class="keywordtype">int</span> wlen, <span class="keywordtype">int</span> bps);</div>
+<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span><span class="keywordtype">void</span> <a class="code hl_function" href="wav64_8c.html#ac95cb68d7755ca7bc8b153be684c395e">raw_waveform_read</a>(<a class="code hl_struct" href="samplebuffer_8h.html#structsamplebuffer__t">samplebuffer_t</a> *sbuf, <span class="keywordtype">int</span> base_rom_addr, <span class="keywordtype">int</span> wpos, <span class="keywordtype">int</span> wlen, <span class="keywordtype">int</span> bps);</div>
 <div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span> </div>
 <div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span><span class="preprocessor">#endif</span></div>
 <div class="ttc" id="asamplebuffer_8h_html_structsamplebuffer__t"><div class="ttname"><a href="samplebuffer_8h.html#structsamplebuffer__t">samplebuffer_t</a></div><div class="ttdef"><b>Definition:</b> samplebuffer.h:82</div></div>
@@ -105,10 +105,11 @@ $(function() {
 <div class="ttc" id="astructwav64__header__t_html_a9aa5ebc3583435bfd293640f50bfb16b"><div class="ttname"><a href="structwav64__header__t.html#a9aa5ebc3583435bfd293640f50bfb16b">wav64_header_t::start_offset</a></div><div class="ttdeci">int32_t start_offset</div><div class="ttdoc">Offset of the first sample in the file.</div><div class="ttdef"><b>Definition:</b> wav64internal.h:18</div></div>
 <div class="ttc" id="astructwav64__header__t_html_ad2747bbf379e8e724a4231822880b9b9"><div class="ttname"><a href="structwav64__header__t.html#ad2747bbf379e8e724a4231822880b9b9">wav64_header_t::len</a></div><div class="ttdeci">int32_t len</div><div class="ttdoc">Length of the file (in samples)</div><div class="ttdef"><b>Definition:</b> wav64internal.h:16</div></div>
 <div class="ttc" id="astructwav64__header__t_html_aecccfc32d77d4176b469233f306dff70"><div class="ttname"><a href="structwav64__header__t.html#aecccfc32d77d4176b469233f306dff70">wav64_header_t::loop_len</a></div><div class="ttdeci">int32_t loop_len</div><div class="ttdoc">Length of the loop since file end (or 0 if no loop)</div><div class="ttdef"><b>Definition:</b> wav64internal.h:17</div></div>
+<div class="ttc" id="awav64_8c_html_ac95cb68d7755ca7bc8b153be684c395e"><div class="ttname"><a href="wav64_8c.html#ac95cb68d7755ca7bc8b153be684c395e">raw_waveform_read</a></div><div class="ttdeci">void raw_waveform_read(samplebuffer_t *sbuf, int base_rom_addr, int wpos, int wlen, int bps)</div><div class="ttdoc">Utility function to help implementing WaveformRead for uncompressed (raw) samples.</div><div class="ttdef"><b>Definition:</b> wav64.c:27</div></div>
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sat Mar 19 2022 00:46:40 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.3
+Generated on Mon Mar 21 2022 04:52:35 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.3
 </small></address>
 </body>
 </html>
