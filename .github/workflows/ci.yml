@@ -61,7 +61,7 @@ jobs:
         uses: docker/login-action@v1
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build image
@@ -78,7 +78,8 @@ jobs:
       - name: Export image tag (current branch)
         if: ${{ steps.path_diff.outputs.changed == 1 }}
         run: |
-          docker tag ${{ steps.meta.outputs.tags[0] }} ghcr.io/${{ steps.repository_name.outputs.value }}:latest
+          docker pull ${{ steps.meta.outputs.tags }}
+          docker tag ${{ steps.meta.outputs.tags }} ghcr.io/${{ steps.repository_name.outputs.value }}:latest
 
       # As we have a tagged image now, we can use that to run build.sh
       # if it is built in the previous step. o/w it will be downloaded from the
