@@ -57,15 +57,20 @@ jobs:
             latest=false
 
       - name: Log in to the container registry
-        if: ${{ steps.path_diff.outputs.changed == 1 }}
+        if: ${{ steps.path_diff.outputs.changed == 1 && github.event_name == 'pull_request' }}
         uses: docker/login-action@v1
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
+          # For pull request runs, this should be repository_owner. Also
+          # collaborator's can also publish from their forks to the repository
+          # if they use github.actor thanks to the inheritence, but opening a PR
+          # will always push it anyways, so this can stay as repository_owner
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build image
-        if: ${{ steps.path_diff.outputs.changed == 1 }}
+        # If this is a pull request and it affects the toolchain, build and push
+        if: ${{ steps.path_diff.outputs.changed == 1 && github.event_name == 'pull_request' }}
         uses: docker/build-push-action@v2
         with:
           push: true
@@ -76,9 +81,10 @@ jobs:
       # we last built if the toolchain has changed, or reuse the latest image
       # (from trunk build) if not changed.
       - name: Export image tag (current branch)
-        if: ${{ steps.path_diff.outputs.changed == 1 }}
+        if: ${{ steps.path_diff.outputs.changed == 1 && github.event_name == 'pull_request' }}
         run: |
-          docker tag ${{ steps.meta.outputs.tags[0] }} ghcr.io/${{ steps.repository_name.outputs.value }}:latest
+          docker pull ${{ steps.meta.outputs.tags }}
+          docker tag ${{ steps.meta.outputs.tags }} ghcr.io/${{ steps.repository_name.outputs.value }}:latest
 
       # As we have a tagged image now, we can use that to run build.sh
       # if it is built in the previous step. o/w it will be downloaded from the
