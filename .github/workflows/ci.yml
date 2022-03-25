@@ -26,8 +26,9 @@ jobs:
       # because Docker supports only lowercase names in the registry, while
       # a repo name on GitHub can have uppercase letters.
       - name: Downcase repository name
+        id: repository_name
         run: |
-          echo "GITHUB_REPOSITORY_LOWERCASE=${GITHUB_REPOSITORY,,}" >>${GITHUB_ENV}
+          echo "::set-output name=value::${GITHUB_REPOSITORY,,}"
 
       # We first compare the default branch to the event commit. In case this is
       # the default branch, this should return 0, skipping the build and using
@@ -50,9 +51,10 @@ jobs:
         id: meta
         uses: docker/metadata-action@v3
         with:
-          images: ${{ github.repository }}
+          images: ghcr.io/${{ steps.repository_name.outputs.value }}
+          # latest tag is always pushed by docker-build.yml
           flavor: |
-            latest=${{ github.ref == 'refs/heads/trunk' }}
+            latest=false
 
       - name: Log in to the container registry
         if: ${{ steps.path_diff.outputs.changed == 1 }}
@@ -66,23 +68,17 @@ jobs:
         if: ${{ steps.path_diff.outputs.changed == 1 }}
         uses: docker/build-push-action@v2
         with:
-          context: .
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
 
-      # Export in the environment the Docker tag that will be used for building
-      # libdragon. We use the image we last built if the toolchain has changed,
-      # or reuse the latest image (from trunk build) if changed.
+      # Tag the image that will be used for building libdragon. We use the image
+      # we last built if the toolchain has changed, or reuse the latest image
+      # (from trunk build) if not changed.
       - name: Export image tag (current branch)
         if: ${{ steps.path_diff.outputs.changed == 1 }}
         run: |
-          echo "DOCKER_TAG=${{ steps.meta.outputs.tags }}" >>${GITHUB_ENV}
-
-      - name: Export image tag (latest)
-        if: ${{ steps.path_diff.outputs.changed == 0 }}
-        run: |
-          echo "DOCKER_TAG=${GITHUB_REPOSITORY_LOWERCASE}:latest" >>${GITHUB_ENV}
+          docker tag ${{ steps.meta.outputs.tags[0] }} ghcr.io/${{ steps.repository_name.outputs.value }}:latest
 
       # As we have a tagged image now, we can use that to run build.sh
       # if it is built in the previous step. o/w it will be downloaded from the
@@ -92,7 +88,7 @@ jobs:
           docker run \
           --mount type=bind,source=$(pwd),target=/libdragon \
           --workdir=/libdragon \
-          ghcr.io/${DOCKER_TAG} \
+          ghcr.io/${{ steps.repository_name.outputs.value }}:latest \
           ./build.sh
 
       - name: "Upload built ROMs to artifacts"
