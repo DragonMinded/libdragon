@@ -57,15 +57,20 @@ jobs:
             latest=false
 
       - name: Log in to the container registry
-        if: ${{ steps.path_diff.outputs.changed == 1 }}
+        if: ${{ steps.path_diff.outputs.changed == 1 && github.event_name == 'push' }}
         uses: docker/login-action@v1
         with:
           registry: ghcr.io
+          # This only works for pushes to repositories with owners having libdragon
+          # collaborator access when inherited access is enabled. It is not
+          # possible to do the same from a pull request context at least with the
+          # current configuration.
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build image
-        if: ${{ steps.path_diff.outputs.changed == 1 }}
+        # If this is a pull request and it affects the toolchain, build and push
+        if: ${{ steps.path_diff.outputs.changed == 1 && github.event_name == 'push' }}
         uses: docker/build-push-action@v2
         with:
           push: true
@@ -75,10 +80,11 @@ jobs:
       # Tag the image that will be used for building libdragon. We use the image
       # we last built if the toolchain has changed, or reuse the latest image
       # (from trunk build) if not changed.
-      - name: Export image tag (current branch)
-        if: ${{ steps.path_diff.outputs.changed == 1 }}
+      - name: Create latest tag for new build
+        if: ${{ steps.path_diff.outputs.changed == 1 && github.event_name == 'push' }}
         run: |
-          docker tag ${{ steps.meta.outputs.tags[0] }} ghcr.io/${{ steps.repository_name.outputs.value }}:latest
+          docker pull ${{ steps.meta.outputs.tags }}
+          docker tag ${{ steps.meta.outputs.tags }} ghcr.io/${{ steps.repository_name.outputs.value }}:latest
 
       # As we have a tagged image now, we can use that to run build.sh
       # if it is built in the previous step. o/w it will be downloaded from the
