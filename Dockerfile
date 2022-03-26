@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1
+# V0 - Use this comment to force a re-build without changing the contents
 
 # Stage 1 - Build the toolchain
 FROM ubuntu:18.04
