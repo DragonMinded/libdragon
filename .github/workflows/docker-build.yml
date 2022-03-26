@@ -42,8 +42,9 @@ jobs:
       # because Docker supports only lowercase names in the registry, while
       # a repo name on GitHub can have uppercase letters.
       - name: Downcase repository name
+        id: repository_name
         run: |
-          echo "GITHUB_REPOSITORY_LOWERCASE=${GITHUB_REPOSITORY,,}" >>${GITHUB_ENV}
+          echo "::set-output name=value::${GITHUB_REPOSITORY,,}"
 
       - name: Build and push
         if: ${{ steps.path_diff.outputs.changed == 1 }}
@@ -51,7 +52,7 @@ jobs:
         with:
           push: true
           tags: |
-            ghcr.io/${GITHUB_REPOSITORY_LOWERCASE}:${{ github.sha }}
-            ghcr.io/${GITHUB_REPOSITORY_LOWERCASE}:latest
+            ghcr.io/${{ steps.repository_name.outputs.value }}:${{ github.sha }}
+            ghcr.io/${{ steps.repository_name.outputs.value }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
