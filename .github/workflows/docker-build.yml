@@ -38,13 +38,20 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Create a lower cased version of the repo name. This is required
+      # because Docker supports only lowercase names in the registry, while
+      # a repo name on GitHub can have uppercase letters.
+      - name: Downcase repository name
+        run: |
+          echo "GITHUB_REPOSITORY_LOWERCASE=${GITHUB_REPOSITORY,,}" >>${GITHUB_ENV}
+
       - name: Build and push
         if: ${{ steps.path_diff.outputs.changed == 1 }}
         uses: docker/build-push-action@v2
         with:
           push: true
           tags: |
-            ghcr.io/dragonminded/libdragon:${{ github.sha }}
-            ghcr.io/dragonminded/libdragon:latest
+            ghcr.io/${GITHUB_REPOSITORY_LOWERCASE}:${{ github.sha }}
+            ghcr.io/${GITHUB_REPOSITORY_LOWERCASE}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max

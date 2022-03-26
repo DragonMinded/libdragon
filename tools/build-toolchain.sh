@@ -11,8 +11,9 @@
 # sudo apt-get install texinfo
 # sudo apt-get install libmpc-dev
 
-# Exit on error
-set -e
+# Bash strict mode http://redsymbol.net/articles/unofficial-bash-strict-mode/
+set -euo pipefail
+IFS=$'\n\t'
 
 # Set N64_INST before calling the script to change the default installation directory path
 INSTALL_PATH="${N64_INST:-/usr/local}"
@@ -20,7 +21,7 @@ INSTALL_PATH="${N64_INST:-/usr/local}"
 export PATH="$PATH:$INSTALL_PATH/bin"
 
 # Determine how many parallel Make jobs to run based on CPU count
-JOBS="${JOBS:-`getconf _NPROCESSORS_ONLN`}"
+JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN)}"
 JOBS="${JOBS:-1}" # If getconf returned nothing, default to 1
 
 # Dependency source libs (Versions)
@@ -39,7 +40,7 @@ download () {
   if   command_exists wget ; then wget -c  "$1"
   elif command_exists curl ; then curl -LO "$1"
   else
-    echo "Install `wget` or `curl` to download toolchain sources" 1>&2
+    echo "Install wget or curl to download toolchain sources" 1>&2
     return 1
   fi
 }
@@ -62,7 +63,7 @@ cd "binutils-$BINUTILS_V"
   --with-cpu=mips64vr4300 \
   --disable-werror
 make -j "$JOBS"
-make install || sudo make install || su -c "make install"
+make install-strip || sudo make install-strip || su -c "make install-strip"
 
 # Compile GCC for MIPS N64 (pass 1) outside of the source tree
 cd ..
@@ -88,7 +89,7 @@ cd gcc_compile
   --with-system-zlib
 make all-gcc -j "$JOBS"
 make all-target-libgcc -j "$JOBS"
-make install-gcc || sudo make install-gcc || su -c "make install-gcc"
+make install-strip-gcc || sudo make install-strip-gcc || su -c "make install-strip-gcc"
 make install-target-libgcc || sudo make install-target-libgcc || su -c "make install-target-libgcc"
 
 # Compile newlib
@@ -124,4 +125,4 @@ CFLAGS_FOR_TARGET="-O2" CXXFLAGS_FOR_TARGET="-O2" ../"gcc-$GCC_V"/configure \
   --disable-nls \
   --with-system-zlib
 make -j "$JOBS"
-make install || sudo make install || su -c "make install"
+make install-strip || sudo make install-strip || su -c "make install-strip"
