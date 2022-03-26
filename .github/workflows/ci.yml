@@ -1,19 +1,6 @@
 name: Build
 
-on:
-  # For default branch, wait for the "Docker Build" workflow instead so that
-  # we will run this against the latest image.
-  push:
-    branches-ignore:
-      - 'trunk'
-  pull_request:
-
-  workflow_run:
-    workflows: ["Docker Build"]
-    branches:
-      - trunk
-    types:
-      - completed
+on: [push, pull_request]
 
 jobs:
   Compile-Library-And-Examples:
@@ -25,23 +12,35 @@ jobs:
       # Create a lower cased version of the repo name. This is required
       # because Docker supports only lowercase names in the registry, while
       # a repo name on GitHub can have uppercase letters.
-      - name: Downcase repository name
-        id: repository_name
+      - name: Set variables
+        id: vars
         run: |
-          echo "::set-output name=value::${GITHUB_REPOSITORY,,}"
+          echo "::set-output name=repository_name::${GITHUB_REPOSITORY,,}"
+          echo "::set-output name=default_ref::${{ format('refs/heads/{0}', github.event.repository.default_branch) }}"
+          echo "::set-output name=default_remote::${{ format('refs/remotes/origin/{0}', github.event.repository.default_branch) }}"
 
-      # We first compare the default branch to the event commit. In case this is
-      # the default branch, this should return 0, skipping the build and using
-      # the latest image from "Docker Build"
-      - name: Compare files to default branch
+      - name: Compare files
         uses: ./.github/actions/path-diff
         id: path_diff
         with:
-          base: ${{ format('refs/remotes/origin/{0}', github.event.repository.default_branch) }}
+          # If it is a push to the default branch, then we should use event.before
+          # as we cannot just use the default branch ref. Compare to default
+          # branch otherwise because only the default branch pushes the latest
+          # image. This assumption may not be true on forks and cause false
+          # negatives preventing an image build. In that case we might need to
+          # ask the committer for a fix. OTOH pull requests against the upstream
+          # repository will always compare against its default branch and cause a
+          # rebuild, making a valid test run.
+          base: ${{
+              (github.event_name == 'push' && (github.ref == steps.vars.outputs.default_ref)) &&
+                github.event.before ||
+                steps.vars.outputs.default_remote
+            }}
           head: ${{ github.sha }}
 
-      # Build the toolchain if toolchain files changed w.r.t default which is
-      # where we release the images and we can use from registry o/w
+
+      # Build the toolchain if toolchain files changed w.r.t target and we can
+      # use from registry o/w
       - name: Set up Docker Build
         if: ${{ steps.path_diff.outputs.changed == 1 }}
         uses: docker/setup-buildx-action@v1
@@ -51,9 +50,8 @@ jobs:
         id: meta
         uses: docker/metadata-action@v3
         with:
-          images: ghcr.io/${{ steps.repository_name.outputs.value }}
-          # latest tag is always pushed by docker-build.yml We manually add this
-          # tag for temporary image used in the libdragon build
+          images: ghcr.io/${{ steps.vars.outputs.repository_name }}
+          # latest tag is handled separately
           flavor: |
             latest=false
 
@@ -65,16 +63,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build image
+      - name: Build and push image
         if: ${{ steps.path_diff.outputs.changed == 1}}
         uses: docker/build-push-action@v2
         with:
           # Only push image if this is a push event. Otherwise it will fail because
           # of permission issues on PRs. Also see https://github.com/DragonMinded/libdragon/issues/230
           # In effect, each fork will be releasing its own image to its own
-          # repository, which we can use to test the toolchain changes. Pushes
-          # ignore trunk, so this will not run on a trunk push. Instead Docker
-          # Build workflow will handle that case.
+          # repository, which we can use to test the toolchain changes.
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
@@ -83,26 +79,29 @@ jobs:
       # In the above build-push-action we did not build a latest tag. Rebuild it
       # but do not push it. Instead, load: true will make it available for the
       # next build step. It is not possible to do this in a single build-push-action
-      # because it either pushes it or loads it.
-      - name: Build image for libdragon build
+      # because it either pushes it or loads it. As we already have everything
+      # cached, it should not take long to build.
+      - name: Load image for libdragon build
         if: ${{ steps.path_diff.outputs.changed == 1}}
         uses: docker/build-push-action@v2
         with:
+          # Do not push the image yet, we also want to make sure libdragon builds
+          # with the fresh image.
           push: false
           load: true
-          tags: ghcr.io/${{ steps.repository_name.outputs.value }}
+          tags: ghcr.io/${{ steps.vars.outputs.repository_name }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # As we have a tagged image now, we can use that to run build.sh
-      # if it is built in the previous step. o/w it will be downloaded from the
-      # registry. Then verify everything is building properly
+      # As we have a tagged image now, we can use that to run build.sh if it is
+      # built in the previous step. o/w it will be downloaded from the registry.
+      # Then verify everything is building properly
       - name: Build libdragon
         run: |
           docker run \
           --mount type=bind,source=$(pwd),target=/libdragon \
           --workdir=/libdragon \
-          ghcr.io/${{ steps.repository_name.outputs.value }}:latest \
+          ghcr.io/${{ steps.vars.outputs.repository_name }}:latest \
           ./build.sh
 
       - name: "Upload built ROMs to artifacts"
@@ -112,6 +111,18 @@ jobs:
           path: |
             ${{ github.workspace }}/examples/**/*.z64
             ${{ github.workspace }}/tests/*.z64
+
+      # Finally push the verified image to the registry with the latest tag if
+      # we are on the default branch. At this point, we know that libdragon can
+      # build with this freshly built image.
+      - name: Push latest image
+        if: ${{ steps.path_diff.outputs.changed == 1 && github.ref == steps.vars.outputs.default_ref }}
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          tags: ghcr.io/${{ steps.vars.outputs.repository_name }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   Build-Tools-Windows:
     runs-on: windows-latest
@@ -165,7 +176,7 @@ jobs:
 
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
-        if: ${{ github.ref == 'refs/heads/trunk' }}
+        if: ${{ github.ref == steps.vars.outputs.default_ref }}
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./website
