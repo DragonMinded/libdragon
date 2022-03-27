@@ -6,5 +6,7 @@ var searchData=
   ['open_5ffile_5ft_3',['open_file_t',['../group__dfs.html#structopen__file__t',1,'']]],
   ['out_4',['out',['../structAYChannel.html#a861bb8e05d0b1527b28f529c9709c6be',1,'AYChannel::out()'],['../structAYNoise.html#a2baa817d83c424d8be19079e25ebbc19',1,'AYNoise::out()']]],
   ['overflow_5',['overflow',['../tpak_8h.html#ae603e8df3dabd3574512053a9bd26d83',1,'gameboy_cartridge_header']]],
-  ['ovfl_6',['ovfl',['../group__timer.html#a0c3b254603351985be855dbdb5143612',1,'timer_link_t']]]
+  ['overlay_5fdescriptors_6',['overlay_descriptors',['../rspq_8c.html#af408fa9bc4a925a0d759e03ca9e21eee',1,'rspq_overlay_tables_t']]],
+  ['overlay_5ftable_7',['overlay_table',['../rspq_8c.html#a7620da33bc14957bb57652073d8c57fb',1,'rspq_overlay_tables_t']]],
+  ['ovfl_8',['ovfl',['../group__timer.html#a0c3b254603351985be855dbdb5143612',1,'timer_link_t']]]
 ];

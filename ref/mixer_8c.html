@@ -82,6 +82,7 @@ $(function() {
 <code>#include &quot;<a class="el" href="regsinternal_8h_source.html">regsinternal.h</a>&quot;</code><br />
 <code>#include &quot;utils.h&quot;</code><br />
 <code>#include &quot;<a class="el" href="rsp_8h_source.html">rsp.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="rspq_8h_source.html">rspq.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="debug_8h_source.html">debug.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="samplebuffer_8h_source.html">samplebuffer.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="audio_8h_source.html">audio.h</a>&quot;</code><br />
@@ -100,6 +101,9 @@ Data Structures</h2></td></tr>
 <tr class="memitem:structrsp__mixer__channel__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mixer_8c.html#structrsp__mixer__channel__t">rsp_mixer_channel_t</a></td></tr>
 <tr class="memdesc:structrsp__mixer__channel__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Mixer channel state - RSP side.  <a href="mixer_8c.html#structrsp__mixer__channel__t">More...</a><br /></td></tr>
 <tr class="separator:structrsp__mixer__channel__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:structrsp__mixer__settings__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mixer_8c.html#structrsp__mixer__settings__t">rsp_mixer_settings_t</a></td></tr>
+<tr class="memdesc:structrsp__mixer__settings__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Mixer ucode settings.  <a href="mixer_8c.html#structrsp__mixer__settings__t">More...</a><br /></td></tr>
+<tr class="separator:structrsp__mixer__settings__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:structchannel__limit__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mixer_8c.html#structchannel__limit__t">channel_limit_t</a></td></tr>
 <tr class="memdesc:structchannel__limit__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Configured limits of a mixer channel.  <a href="mixer_8c.html#structchannel__limit__t">More...</a><br /></td></tr>
 <tr class="separator:structchannel__limit__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -124,6 +128,10 @@ Macros</h2></td></tr>
 <tr class="memitem:acf679d48fd22fa095552abc65a72b198"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="mixer_8c.html#acf679d48fd22fa095552abc65a72b198">MIXER_POLL_PER_SECOND</a>&#160;&#160;&#160;8</td></tr>
 <tr class="memdesc:acf679d48fd22fa095552abc65a72b198"><td class="mdescLeft">&#160;</td><td class="mdescRight">Number of expected <a class="el" href="mixer_8c.html#ace40b3a7cefa9951fb5f956ca0afa2ac" title="Run the mixer to produce output samples.">mixer_poll</a> calls per second.  <a href="mixer_8c.html#acf679d48fd22fa095552abc65a72b198">More...</a><br /></td></tr>
 <tr class="separator:acf679d48fd22fa095552abc65a72b198"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5df3bed5fd6578afbe01235d44993b18"><td class="memItemLeft" align="right" valign="top"><a id="a5df3bed5fd6578afbe01235d44993b18" name="a5df3bed5fd6578afbe01235d44993b18"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>MIXER_STATE_SIZE</b>&#160;&#160;&#160;128</td></tr>
+<tr class="memdesc:a5df3bed5fd6578afbe01235d44993b18"><td class="mdescLeft">&#160;</td><td class="mdescRight">Size of the ucode state that is automatically persisted by rspq. <br /></td></tr>
+<tr class="separator:a5df3bed5fd6578afbe01235d44993b18"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ace31dad1b574b632b637a59ab3213428"><td class="memItemLeft" align="right" valign="top"><a id="ace31dad1b574b632b637a59ab3213428" name="ace31dad1b574b632b637a59ab3213428"></a>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>CH_FLAGS_BPS_SHIFT</b>&#160;&#160;&#160;(3&lt;&lt;0)</td></tr>
 <tr class="memdesc:ace31dad1b574b632b637a59ab3213428"><td class="mdescLeft">&#160;</td><td class="mdescRight">BPS shift value. <br /></td></tr>
@@ -355,6 +363,43 @@ Pointer to the waveform. </td></tr>
 step</td>
 <td class="fielddoc">
 Step between samples (in bytes) to playback at the correct frequency. </td></tr>
+</table>
+
+</div>
+</div>
+<a name="structrsp__mixer__settings__t" id="structrsp__mixer__settings__t"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#structrsp__mixer__settings__t">&#9670;&nbsp;</a></span>rsp_mixer_settings_t</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">struct rsp_mixer_settings_t</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<div class="textblock"><p >Mixer ucode settings. </p>
+<p >This struct reflects the settings defined in rsp_mixer.S. </p>
+</div><table class="fieldtable">
+<tr><th colspan="3">Data Fields</th></tr>
+<tr><td class="fieldtype">
+<a id="a5cb2114bd499c9667b08bdfb5d56dd1e" name="a5cb2114bd499c9667b08bdfb5d56dd1e"></a><a class="el" href="mixer_8c.html#structrsp__mixer__channel__t">rsp_mixer_channel_t</a></td>
+<td class="fieldname">
+channels[<a class="el" href="mixer_8h.html#a8c4e507c0d1930fd5bd9a9d5f5ca3b13">MIXER_MAX_CHANNELS</a>]</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a69487bdac51a2e7b0def2be0adb32ac5" name="a69487bdac51a2e7b0def2be0adb32ac5"></a>uint32_t</td>
+<td class="fieldname">
+lvol[<a class="el" href="mixer_8h.html#a8c4e507c0d1930fd5bd9a9d5f5ca3b13">MIXER_MAX_CHANNELS</a>/2]</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a0a6a3669a5477dc5353d4edbe57aded2" name="a0a6a3669a5477dc5353d4edbe57aded2"></a>uint32_t</td>
+<td class="fieldname">
+rvol[<a class="el" href="mixer_8h.html#a8c4e507c0d1930fd5bd9a9d5f5ca3b13">MIXER_MAX_CHANNELS</a>/2]</td>
+<td class="fielddoc">
+</td></tr>
 </table>
 
 </div>
@@ -1015,7 +1060,7 @@ Absolute time at which the event will trigger (ticks = output samples) </td></tr
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sat Mar 26 2022 12:01:27 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.3
+Generated on Sun Mar 27 2022 14:35:57 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.3
 </small></address>
 </body>
 </html>

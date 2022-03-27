@@ -81,9 +81,10 @@ var searchData=
   ['mixer_5fpoll_5fper_5fsecond_78',['MIXER_POLL_PER_SECOND',['../mixer_8c.html#acf679d48fd22fa095552abc65a72b198',1,'mixer.c']]],
   ['mixer_5fremove_5fevent_79',['mixer_remove_event',['../mixer_8c.html#aab616cf94c3df83670ca62236177b246',1,'mixer_remove_event(MixerEvent cb, void *ctx):&#160;mixer.c'],['../mixer_8h.html#aab616cf94c3df83670ca62236177b246',1,'mixer_remove_event(MixerEvent cb, void *ctx):&#160;mixer.c']]],
   ['mixer_5fset_5fvol_80',['mixer_set_vol',['../mixer_8c.html#ae8ed9fdb3bfcb119d56764dd401848ba',1,'mixer_set_vol(float vol):&#160;mixer.c'],['../mixer_8h.html#ae8ed9fdb3bfcb119d56764dd401848ba',1,'mixer_set_vol(float vol):&#160;mixer.c']]],
-  ['mixer_5ftrace_81',['MIXER_TRACE',['../mixer_8c.html#a51055c8e74be85f62c35632ff82e869f',1,'MIXER_TRACE():&#160;mixer.c'],['../samplebuffer_8c.html#a51055c8e74be85f62c35632ff82e869f',1,'MIXER_TRACE():&#160;samplebuffer.c']]],
-  ['mixerevent_82',['MixerEvent',['../mixer_8h.html#a509fb916b04893006f91d4bc5f7fc69e',1,'mixer.h']]],
-  ['mode_83',['mode',['../group__lowlevel.html#afe25e13062df11da13dd302086caee34',1,'MI_regs_t']]],
-  ['month_84',['month',['../group__rtc.html#a72c1fb304848005b837a5966123feeb5',1,'rtc_time_t']]],
-  ['move_5fbuffer_85',['move_buffer',['../group__console.html#ga0493bc0de60ff266e7f4e9a4256d27f0',1,'console.c']]]
+  ['mixer_5fstate_5fsize_81',['MIXER_STATE_SIZE',['../mixer_8c.html#a5df3bed5fd6578afbe01235d44993b18',1,'mixer.c']]],
+  ['mixer_5ftrace_82',['MIXER_TRACE',['../mixer_8c.html#a51055c8e74be85f62c35632ff82e869f',1,'MIXER_TRACE():&#160;mixer.c'],['../samplebuffer_8c.html#a51055c8e74be85f62c35632ff82e869f',1,'MIXER_TRACE():&#160;samplebuffer.c']]],
+  ['mixerevent_83',['MixerEvent',['../mixer_8h.html#a509fb916b04893006f91d4bc5f7fc69e',1,'mixer.h']]],
+  ['mode_84',['mode',['../group__lowlevel.html#afe25e13062df11da13dd302086caee34',1,'MI_regs_t']]],
+  ['month_85',['month',['../group__rtc.html#a72c1fb304848005b837a5966123feeb5',1,'rtc_time_t']]],
+  ['move_5fbuffer_86',['move_buffer',['../group__console.html#ga0493bc0de60ff266e7f4e9a4256d27f0',1,'console.c']]]
 ];
