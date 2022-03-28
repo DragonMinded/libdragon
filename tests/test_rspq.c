@@ -3,6 +3,7 @@
 
 #include <rspq.h>
 #include <rspq_constants.h>
+#include "../src/rspq/rspq_internal.h"
 
 #define ASSERT_GP_BACKWARD           0xF001   // Also defined in rsp_test.S
 
@@ -88,7 +89,6 @@ void rspq_test_reset_log(void)
 
 void rspq_test_send_rdp(uint32_t value)
 {
-    rspq_rdp_flush();
     rspq_write(test_ovl_id, 0x8, 0, value);
 }
 
@@ -699,20 +699,21 @@ void test_rspq_rdp_static(TestContext *ctx)
 
     const uint32_t count = 0x80;
 
+    rspq_rdp_begin();
     for (uint32_t i = 0; i < count; i++)
     {
-        rdp_write(0, 0, i);
+        rspq_write(0, 0, 0, i);
     }
-    rspq_rdp_flush();
+    rspq_rdp_end();
 
     TEST_RSPQ_EPILOG(0, rspq_timeout);
 
-    extern void *rspq_rdp_buffers[2];
+    extern rspq_ctx_t rdp;
 
-    ASSERT_EQUAL_HEX(*DP_START, PhysicalAddr(rspq_rdp_buffers[0]), "DP_START does not match!");
-    ASSERT_EQUAL_HEX(*DP_END, PhysicalAddr(rspq_rdp_buffers[0]) + count * 8, "DP_END does not match!");
+    ASSERT_EQUAL_HEX(*DP_START, PhysicalAddr(rdp.buffers[0]), "DP_START does not match!");
+    ASSERT_EQUAL_HEX(*DP_END, PhysicalAddr(rdp.buffers[0]) + count * 8, "DP_END does not match!");
 
-    uint64_t *rdp_buf = (uint64_t*)rspq_rdp_buffers[0];
+    uint64_t *rdp_buf = (uint64_t*)rdp.buffers[0];
 
     for (uint64_t i = 0; i < count; i++)
     {
@@ -792,20 +793,21 @@ void test_rspq_rdp_alternate(TestContext *ctx)
     for (uint32_t i = 0; i < count; i++)
     {
         rspq_test_send_rdp(i);
-        rdp_write(0, 0, i);
-        rspq_rdp_flush();
+        rspq_rdp_begin();
+        rspq_write(0, 0, 0, i);
+        rspq_rdp_end();
     }
 
     TEST_RSPQ_EPILOG(0, rspq_timeout);
 
     extern void *rspq_rdp_dynamic_buffers[2];
-    extern void *rspq_rdp_buffers[2];
+    extern rspq_ctx_t rdp;
 
-    ASSERT_EQUAL_HEX(*DP_START, PhysicalAddr(rspq_rdp_buffers[0]) + ((count - 1) * sizeof(uint64_t)), "DP_START does not match!");
-    ASSERT_EQUAL_HEX(*DP_END, PhysicalAddr(rspq_rdp_buffers[0]) + ((count) * sizeof(uint64_t)), "DP_END does not match!");
+    ASSERT_EQUAL_HEX(*DP_START, PhysicalAddr(rdp.buffers[0]) + ((count - 1) * sizeof(uint64_t)), "DP_START does not match!");
+    ASSERT_EQUAL_HEX(*DP_END, PhysicalAddr(rdp.buffers[0]) + ((count) * sizeof(uint64_t)), "DP_END does not match!");
 
     uint64_t *dyn_buf = (uint64_t*)rspq_rdp_dynamic_buffers[0];
-    uint64_t *sta_buf = (uint64_t*)rspq_rdp_buffers[0];
+    uint64_t *sta_buf = (uint64_t*)rdp.buffers[0];
 
     for (uint64_t i = 0; i < count; i++)
     {

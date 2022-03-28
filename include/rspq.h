@@ -645,6 +645,10 @@ void rspq_highpri_end(void);
  */
 void rspq_highpri_sync(void);
 
+void rspq_rdp_begin();
+
+void rspq_rdp_end();
+
 /**
  * @brief Enqueue a no-op command in the queue.
  * 
@@ -708,25 +712,6 @@ void rspq_dma_to_rdram(void *rdram_addr, uint32_t dmem_addr, uint32_t len, bool 
  *       to the queue.
  */
 void rspq_dma_to_dmem(uint32_t dmem_addr, void *rdram_addr, uint32_t len, bool is_async);
-
-void rspq_rdp_flush(void);
-
-/// @cond
-#define _rdp_write_arg(arg) \
-    *ptr++ = (arg);
-
-/// @endcond
-
-#define rdp_write(cmd_id, arg0, ...) ({ \
-    extern volatile uint32_t *rspq_rdp_pointer, *rspq_rdp_sentinel; \
-    extern void rspq_rdp_next_buffer(void); \
-    volatile uint32_t *ptr = rspq_rdp_pointer; \
-    *ptr++ = ((cmd_id)<<24) | (arg0); \
-    __CALL_FOREACH(_rdp_write_arg, ##__VA_ARGS__); \
-    rspq_rdp_pointer = ptr; \
-    if (__builtin_expect(rspq_rdp_pointer > rspq_rdp_sentinel, 0)) \
-        rspq_rdp_next_buffer(); \
-})
 
 #ifdef __cplusplus
 }

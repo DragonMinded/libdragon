@@ -169,6 +169,8 @@
 #include "rsp.h"
 #include "rspq.h"
 #include "rspq_constants.h"
+#include "rspq_internal.h"
+#include "rdp.h"
 #include "interrupt.h"
 #include "utils.h"
 #include "n64sys.h"
@@ -407,63 +409,21 @@ typedef struct rsp_queue_s {
     uint8_t rdp_buf_switched;            ///< Status to keep track of dynamic RDP buffer switching
 } __attribute__((aligned(16), packed)) rsp_queue_t;
 
-/**
- * @brief RSP queue building context
- * 
- * This structure contains the state of a RSP queue as it is built by the CPU.
- * It is instantiated two times: one for the lwopri queue, and one for the
- * highpri queue. It contains the two buffers used in the double buffering
- * scheme, and some metadata about the queue.
- * 
- * The current write pointer is stored in the "cur" field. The "sentinel" field
- * contains the pointer to the last byte at which a new command can start,
- * before overflowing the buffer (given #RSPQ_MAX_COMMAND_SIZE). This is used
- * for efficiently check when it is time to switch to the other buffer: basically,
- * it is sufficient to check whether "cur > sentinel".
- * 
- * The current queue is stored in 3 global pointers: #rspq_ctx, #rspq_cur_pointer
- * and #rspq_cur_sentinel. #rspq_cur_pointer and #rspq_cur_sentinel are 
- * external copies of the "cur" and "sentinel" pointer of the
- * current context, but they are kept as separate global variables for
- * maximum performance of the hottest code path: #rspq_write. In fact, it is
- * much faster to access a global 32-bit pointer (via gp-relative offset) than
- * dereferencing a member of a global structure pointer.
- * 
- * rspq_switch_context is called to switch between lowpri and highpri,
- * updating the three global pointers.
- * 
- * When building a block, #rspq_ctx is set to NULL, while the other two
- * pointers point inside the block memory.
- */
-typedef struct {
-    void *buffers[2];                   ///< The two buffers used to build the RSP queue
-    int buf_size;                       ///< Size of each buffer in 32-bit words
-    int buf_idx;                        ///< Index of the buffer currently being written to.
-    uint32_t sp_status_bufdone;         ///< SP status bit to signal that one buffer has been run by RSP
-    uint32_t sp_wstatus_set_bufdone;    ///< SP mask to set the bufdone bit
-    uint32_t sp_wstatus_clear_bufdone;  ///< SP mask to clear the bufdone bit
-    volatile uint32_t *cur;             ///< Current write pointer within the active buffer
-    volatile uint32_t *sentinel;        ///< Current write sentinel within the active buffer
-} rspq_ctx_t;
-
-static rspq_ctx_t lowpri;               ///< Lowpri queue context
-static rspq_ctx_t highpri;              ///< Highpri queue context
+rspq_ctx_t lowpri;               ///< Lowpri queue context
+rspq_ctx_t highpri;              ///< Highpri queue context
+rspq_ctx_t rdp;                  ///< RDP queue context
+rspq_write_ctx_t block;
+rspq_write_ctx_t rdp_block;
 
 rspq_ctx_t *rspq_ctx;                   ///< Current context
+rspq_write_ctx_t *rspq_write_ctx;       ///< Current write context
 volatile uint32_t *rspq_cur_pointer;    ///< Copy of the current write pointer (see #rspq_ctx_t)
 volatile uint32_t *rspq_cur_sentinel;   ///< Copy of the current write sentinel (see #rspq_ctx_t)
 
 void *rspq_rdp_dynamic_buffers[2];
 
-void *rspq_rdp_buffers[2];
-int rspq_rdp_buf_idx;
 uint32_t rspq_rdp_wstatus;
-volatile uint32_t *rspq_rdp_pointer_copy;
-volatile uint32_t *rspq_rdp_sentinel_copy;
-
 volatile uint32_t *rspq_rdp_start;
-volatile uint32_t *rspq_rdp_pointer;
-volatile uint32_t *rspq_rdp_sentinel;
 
 /** @brief RSP queue data in DMEM. */
 static rsp_queue_t rspq_data;
@@ -583,22 +543,28 @@ static void rspq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
     }
 }
 
-/** @brief Switch current queue context (used to switch between highpri and lowpri) */
-__attribute__((noinline))
-static void rspq_switch_context(rspq_ctx_t *new)
+static void rspq_switch_write_context(rspq_write_ctx_t *new)
 {
-    if (rspq_ctx) {
+    if (rspq_write_ctx) {
         // Save back the external pointers into the context structure, where
         // they belong.
-        rspq_ctx->cur = rspq_cur_pointer;
-        rspq_ctx->sentinel = rspq_cur_sentinel;
+        rspq_write_ctx->cur = rspq_cur_pointer;
+        rspq_write_ctx->sentinel = rspq_cur_sentinel;
     }
 
     // Switch to the new context, and make an external copy of cur/sentinel
     // for performance reason.
+    rspq_write_ctx = new;
+    rspq_cur_pointer = rspq_write_ctx ? rspq_write_ctx->cur : NULL;
+    rspq_cur_sentinel = rspq_write_ctx ? rspq_write_ctx->sentinel : NULL;
+}
+
+/** @brief Switch current queue context (used to switch between highpri and lowpri) */
+__attribute__((noinline))
+static void rspq_switch_context(rspq_ctx_t *new)
+{
+    rspq_switch_write_context(new ? &new->write_ctx : NULL);
     rspq_ctx = new;
-    rspq_cur_pointer = rspq_ctx ? rspq_ctx->cur : NULL;
-    rspq_cur_sentinel = rspq_ctx ? rspq_ctx->sentinel : NULL;
 }
 
 /** @brief Switch the current write buffer */
@@ -622,16 +588,13 @@ static volatile uint32_t* rspq_switch_buffer(uint32_t *new, int size, bool clear
 
 uint32_t rspq_rdp_get_wstatus()
 {
-    return rspq_rdp_buf_idx>0 ? SP_WSTATUS_SET_SIG_RDP_STATIC_BUF : SP_WSTATUS_CLEAR_SIG_RDP_STATIC_BUF;
+    return rdp.buf_idx>0 ? SP_WSTATUS_SET_SIG_RDP_STATIC_BUF : SP_WSTATUS_CLEAR_SIG_RDP_STATIC_BUF;
 }
 
 void rspq_rdp_switch_buffer(uint32_t *new, uint32_t size, uint32_t wstatus)
 {
-    assert(size >= RSPQ_MAX_RDP_COMMAND_SIZE);
-
-    rspq_rdp_pointer = new;
+    rspq_switch_buffer(new, size, false);
     rspq_rdp_start = new;
-    rspq_rdp_sentinel = new + size - RSPQ_MAX_RDP_COMMAND_SIZE;
     rspq_rdp_wstatus = wstatus;
 }
 
@@ -691,8 +654,8 @@ static void rspq_init_context(rspq_ctx_t *ctx, int buf_size)
     memset(ctx->buffers[1], 0, buf_size * sizeof(uint32_t));
     ctx->buf_idx = 0;
     ctx->buf_size = buf_size;
-    ctx->cur = ctx->buffers[0];
-    ctx->sentinel = ctx->cur + buf_size - RSPQ_MAX_COMMAND_SIZE;
+    ctx->write_ctx.cur = ctx->buffers[0];
+    ctx->write_ctx.sentinel = ctx->write_ctx.cur + buf_size - RSPQ_MAX_COMMAND_SIZE;
 }
 
 static void rspq_close_context(rspq_ctx_t *ctx)
@@ -708,6 +671,7 @@ void rspq_init(void)
         return;
 
     rspq_ctx = NULL;
+    rspq_write_ctx = NULL;
     rspq_cur_pointer = NULL;
     rspq_cur_sentinel = NULL;
 
@@ -722,21 +686,20 @@ void rspq_init(void)
     highpri.sp_wstatus_set_bufdone = SP_WSTATUS_SET_SIG_BUFDONE_HIGH;
     highpri.sp_wstatus_clear_bufdone = SP_WSTATUS_CLEAR_SIG_BUFDONE_HIGH;
 
+    rspq_init_context(&rdp, RSPQ_RDP_STATIC_BUFFER_SIZE);
+    rspq_rdp_start = rdp.write_ctx.cur;
+    rspq_rdp_wstatus = rspq_rdp_get_wstatus();
+
     // Start in low-priority mode
     rspq_switch_context(&lowpri);
 
     rspq_rdp_dynamic_buffers[0] = malloc_uncached(RSPQ_RDP_DYNAMIC_BUFFER_SIZE);
     rspq_rdp_dynamic_buffers[1] = malloc_uncached(RSPQ_RDP_DYNAMIC_BUFFER_SIZE);
 
-    rspq_rdp_buffers[0] = malloc_uncached(RSPQ_RDP_STATIC_BUFFER_SIZE*sizeof(uint32_t));
-    rspq_rdp_buffers[1] = malloc_uncached(RSPQ_RDP_STATIC_BUFFER_SIZE*sizeof(uint32_t));
-    rspq_rdp_buf_idx = 0;
-    rspq_rdp_switch_buffer(rspq_rdp_buffers[0], RSPQ_RDP_STATIC_BUFFER_SIZE, rspq_rdp_get_wstatus());
-
     // Load initial settings
     memset(&rspq_data, 0, sizeof(rsp_queue_t));
-    rspq_data.rspq_dram_lowpri_addr = PhysicalAddr(lowpri.cur);
-    rspq_data.rspq_dram_highpri_addr = PhysicalAddr(highpri.cur);
+    rspq_data.rspq_dram_lowpri_addr = PhysicalAddr(lowpri.write_ctx.cur);
+    rspq_data.rspq_dram_highpri_addr = PhysicalAddr(highpri.write_ctx.cur);
     rspq_data.rspq_dram_addr = rspq_data.rspq_dram_lowpri_addr;
     rspq_data.rspq_rdp_buffers[0] = PhysicalAddr(rspq_rdp_dynamic_buffers[0]);
     rspq_data.rspq_rdp_buffers[1] = PhysicalAddr(rspq_rdp_dynamic_buffers[1]);
@@ -795,11 +758,10 @@ void rspq_close(void)
     
     rspq_initialized = 0;
 
-    free_uncached(rspq_rdp_buffers[1]);
-    free_uncached(rspq_rdp_buffers[0]);
     free_uncached(rspq_rdp_dynamic_buffers[0]);
     free_uncached(rspq_rdp_dynamic_buffers[1]);
 
+    rspq_close_context(&rdp);
     rspq_close_context(&highpri);
     rspq_close_context(&lowpri);
 
@@ -1024,6 +986,75 @@ void rspq_overlay_unregister(uint32_t overlay_id)
     rspq_update_tables(false);
 }
 
+void rspq_rdp_flush(volatile uint32_t *cur)
+{
+    if (cur <= rspq_rdp_start) return;
+
+    assertf(((uint32_t)rspq_rdp_start & 0x7) == 0, "rspq_rdp_start not aligned to 8 bytes: %lx", (uint32_t)rspq_rdp_start);
+    assertf(((uint32_t)cur & 0x7) == 0, "rspq_rdp_pointer not aligned to 8 bytes: %lx", (uint32_t)cur);
+
+    // Put a command in the regular RSP queue that will submit the last buffer of RDP commands.
+    // The value of rspq_rdp_wstatus will be written to SP_STATUS (by the RSP) as soon as this buffer
+    // is pushed to the RDP (see rsp_queue.inc).
+    // This value will clear SIG_RDP_STATIC_BUF if the buffer has index 0, and set if index 1.
+    rspq_int_write(RSPQ_CMD_RDP, rspq_rdp_wstatus, PhysicalAddr(rspq_rdp_start), PhysicalAddr(cur));
+    rspq_rdp_start = cur;
+}
+
+void rspq_rdp_block_next_buffer()
+{
+    // TODO: avoid the double context switch somehow?
+    rspq_switch_write_context(&block);
+    rspq_rdp_flush(rdp_block.cur);
+    rspq_switch_write_context(&rdp_block);
+
+    // Allocate next chunk (double the size of the current one).
+    // We use doubling here to reduce overheads for large blocks
+    // and at the same time start small.
+    if (rspq_rdp_block_size < RSPQ_BLOCK_MAX_SIZE) rspq_rdp_block_size *= 2;
+    rspq_rdp_block->next = malloc_uncached(sizeof(rspq_rdp_block_t) + rspq_rdp_block_size*sizeof(uint32_t));
+    rspq_rdp_block = rspq_rdp_block->next;
+
+    // Switch to new buffer
+    rspq_rdp_switch_buffer(rspq_rdp_block->cmds, rspq_rdp_block_size, 0);
+}
+
+void rspq_rdp_next_buffer()
+{
+    // TODO: avoid the double context switch somehow?
+    rspq_switch_context(&lowpri);
+    rspq_rdp_flush(rdp.write_ctx.cur);
+    // Insert an additional, empty buffer to be submitted to RDP
+    // This will force the RDP fifo to be cleared before the new buffer is started.
+    // In other words, when the new buffer is submitted to RDP we can be absolutely sure
+    // that the previous buffer is not being used anymore, because it has been pushed
+    // out of the fifo (see rsp_queue.inc).
+    rspq_int_write(RSPQ_CMD_RDP, 0, 0, 0);
+    rspq_switch_context(&rdp);
+
+    // If not in block creation mode, flush the RSP queue to make sure the following wait
+    // loop doesn't stall.
+    rspq_flush_internal();
+
+    MEMORY_BARRIER();
+    RSP_WAIT_LOOP(200) {
+        // The value of SIG_RDP_STATIC_BUF signifies which of the two buffers is currently in use by the RDP.
+        int current_index = (*SP_STATUS & SP_STATUS_SIG_RDP_STATIC_BUF) ? 1 : 0;
+
+        // If the current buffer is in use (the one we just finished writing to), it follows that the next one
+        // is *not* being used, so it is safe to start writing to it. Note that this is guaranteed by the trick
+        // used above.
+        if (current_index == rdp.buf_idx) {
+            break;
+        }
+    }
+    MEMORY_BARRIER();
+    
+    // Switch to the next buffer. Note that rspq_rdp_wstatus gets updated too, depending on the new buffer index.
+    rdp.buf_idx = 1 - rdp.buf_idx;
+    rspq_rdp_switch_buffer(rdp.buffers[rdp.buf_idx], rdp.buf_size, rspq_rdp_get_wstatus());
+}
+
 /**
  * @brief Switch to the next write buffer for the current RSP queue.
  * 
@@ -1040,8 +1071,15 @@ void rspq_overlay_unregister(uint32_t overlay_id)
  */
 __attribute__((noinline))
 void rspq_next_buffer(void) {
+    // TODO: maybe just keep a function pointer that is updated depending on the context?
+
     // If we're creating a block
     if (rspq_block) {
+        if (rspq_write_ctx == &rdp_block) {
+            rspq_rdp_block_next_buffer();
+            return;
+        }
+
         // Allocate next chunk (double the size of the current one).
         // We use doubling here to reduce overheads for large blocks
         // and at the same time start small.
@@ -1053,6 +1091,11 @@ void rspq_next_buffer(void) {
 
         // Terminate the previous chunk with a JUMP op to the new chunk.
         rspq_append1(prev, RSPQ_CMD_JUMP, PhysicalAddr(rspq2));
+        return;
+    }
+
+    if (rspq_ctx == &rdp) {
+        rspq_rdp_next_buffer();
         return;
     }
 
@@ -1121,75 +1164,50 @@ void rspq_flush(void)
     rspq_flush_internal();
 }
 
-void rspq_rdp_flush()
+void rspq_rdp_begin()
 {
-    if (rspq_rdp_pointer > rspq_rdp_start) {
-        assertf(((uint32_t)rspq_rdp_start & 0x7) == 0, "rspq_rdp_start not aligned to 8 bytes: %lx", (uint32_t)rspq_rdp_start);
-        assertf(((uint32_t)rspq_rdp_pointer & 0x7) == 0, "rspq_rdp_pointer not aligned to 8 bytes: %lx", (uint32_t)rspq_rdp_pointer);
+    assertf(rspq_ctx != &highpri, "cannot switch to rdp mode while in highpri mode");
 
-        // Put a command in the regular RSP queue that will submit the last buffer of RDP commands.
-        // The value of rspq_rdp_wstatus will be written to SP_STATUS (by the RSP) as soon as this buffer
-        // is pushed to the RDP (see rsp_queue.inc).
-        // This value will clear SIG_RDP_STATIC_BUF if the buffer has index 0, and set if index 1.
-        rspq_int_write(RSPQ_CMD_RDP, rspq_rdp_wstatus, PhysicalAddr(rspq_rdp_start), PhysicalAddr(rspq_rdp_pointer));
-        rspq_rdp_start = rspq_rdp_pointer;
-    }
-}
-
-void rspq_rdp_next_buffer()
-{
-    // Finish the current buffer and submit it to the RSP queue.
-    // Note that if we are in block creation mode, this will also
-    // get written to the current rspq block.
-    rspq_rdp_flush();
-
-    if (rspq_rdp_block) {
-        // Allocate next chunk (double the size of the current one).
-        // We use doubling here to reduce overheads for large blocks
-        // and at the same time start small.
-        if (rspq_rdp_block_size < RSPQ_BLOCK_MAX_SIZE) rspq_rdp_block_size *= 2;
-        rspq_rdp_block->next = malloc_uncached(sizeof(rspq_rdp_block_t) + rspq_rdp_block_size*sizeof(uint32_t));
-        rspq_rdp_block = rspq_rdp_block->next;
-
-        // Switch to new buffer
-        rspq_rdp_switch_buffer(rspq_rdp_block->cmds, rspq_rdp_block_size, 0);
+    if (!rspq_block) {
+        rspq_switch_context(&rdp);
         return;
     }
 
-    // If not in block creation mode, flush the RSP queue to make sure the following wait
-    // loop doesn't stall.
-    rspq_flush();
-
-    MEMORY_BARRIER();
-    RSP_WAIT_LOOP(200) {
-        // The value of SIG_RDP_STATIC_BUF signifies which of the two buffers is currently in use by the RDP.
-        int current_index = (*SP_STATUS & SP_STATUS_SIG_RDP_STATIC_BUF) ? 1 : 0;
-
-        // If the current buffer is in use (the one we just finished writing to), it follows that the next one
-        // is *not* being used, so it is safe to start writing to it. Note that this is guaranteed by the trick
-        // used at the end of this function.
-        if (current_index == rspq_rdp_buf_idx) {
-            break;
-        }
+    if (rspq_rdp_block) {
+        rspq_switch_write_context(&rdp_block);
+        return;
     }
-    MEMORY_BARRIER();
-    
-    // Switch to the next buffer. Note that rspq_rdp_wstatus gets updated too, depending on the new buffer index.
-    rspq_rdp_buf_idx = 1 - rspq_rdp_buf_idx;
-    rspq_rdp_switch_buffer(rspq_rdp_buffers[rspq_rdp_buf_idx], RSPQ_RDP_STATIC_BUFFER_SIZE, rspq_rdp_get_wstatus());
 
-    // Insert an additional, empty buffer to be submitted to RDP
-    // This will force the RDP fifo to be cleared before the new buffer is started.
-    // In other words, when the new buffer is submitted to RDP we can be absolutely sure
-    // that the previous buffer is not being used anymore, because it has been pushed
-    // out of the fifo (see rsp_queue.inc).
-    rspq_int_write(RSPQ_CMD_RDP, 0, 0, 0);
+    // Lazy initialization of RDP block buffer
+    rspq_rdp_block_size = RSPQ_BLOCK_MIN_SIZE;
+    rspq_rdp_block = malloc_uncached(sizeof(rspq_rdp_block_t) + rspq_rdp_block_size*sizeof(uint32_t));
+    rspq_rdp_block->next = NULL;
+    rspq_block->rdp_block = rspq_rdp_block;
+    rspq_switch_write_context(NULL);
+    rspq_rdp_switch_buffer(rspq_rdp_block->cmds, rspq_rdp_block_size, 0);
+    rspq_write_ctx = &rdp_block;
+}
+
+void rspq_rdp_end()
+{
+    if (rspq_block) {
+        assertf(rspq_write_ctx == &rdp_block, "not in rdp mode");
+        rspq_switch_write_context(&block);
+        rspq_rdp_flush(rdp_block.cur);
+    } else {
+        assertf(rspq_ctx == &rdp, "not in rdp mode");
+        rspq_switch_context(&lowpri);
+        rspq_rdp_flush(rdp.write_ctx.cur);
+    }
+
+    // TODO: rspq_flush() ?
 }
 
 void rspq_highpri_begin(void)
 {
     assertf(rspq_ctx != &highpri, "already in highpri mode");
     assertf(!rspq_block, "cannot switch to highpri mode while creating a block");
+    assertf(rspq_ctx != &rdp, "cannot switch to highpri mode while rdp mode is active");
 
     rspq_switch_context(&highpri);
 
@@ -1259,34 +1277,26 @@ void rspq_block_begin(void)
 {
     assertf(!rspq_block, "a block was already being created");
     assertf(rspq_ctx != &highpri, "cannot create a block in highpri mode");
-
-    rspq_rdp_flush();
+    assertf(rspq_ctx != &rdp, "cannot begin a block while rdp mode is active");
 
     // Allocate a new block (at minimum size) and initialize it.
     rspq_block_size = RSPQ_BLOCK_MIN_SIZE;
-    rspq_rdp_block_size = RSPQ_BLOCK_MIN_SIZE;
-    rspq_rdp_block = malloc_uncached(sizeof(rspq_rdp_block_t) + rspq_rdp_block_size*sizeof(uint32_t));
-    rspq_rdp_block->next = NULL;
     rspq_block = malloc_uncached(sizeof(rspq_block_t) + rspq_block_size*sizeof(uint32_t));
     rspq_block->nesting_level = 0;
-    rspq_block->rdp_block = rspq_rdp_block;
+    rspq_block->rdp_block = NULL;
 
     // Switch to the block buffer. From now on, all rspq_writes will
     // go into the block.
     rspq_switch_context(NULL);
     rspq_switch_buffer(rspq_block->cmds, rspq_block_size, true);
 
-    // Also switch to the block buffer for RDP commands.
-    rspq_rdp_pointer_copy = rspq_rdp_pointer;
-    rspq_rdp_sentinel_copy = rspq_rdp_sentinel;
-    rspq_rdp_switch_buffer(rspq_rdp_block->cmds, rspq_rdp_block_size, 0);
+    rspq_write_ctx = &block;
 }
 
 rspq_block_t* rspq_block_end(void)
 {
     assertf(rspq_block, "a block was not being created");
-
-    rspq_rdp_flush();
+    assertf(rspq_write_ctx != &rdp_block, "cannot end block while rdp mode is active");
 
     // Terminate the block with a RET command, encoding
     // the nesting level which is used as stack slot by RSP.
@@ -1294,12 +1304,6 @@ rspq_block_t* rspq_block_end(void)
 
     // Switch back to the normal display list
     rspq_switch_context(&lowpri);
-
-    // ... and for RDP
-    rspq_rdp_pointer = rspq_rdp_pointer_copy;
-    rspq_rdp_start = rspq_rdp_pointer;
-    rspq_rdp_sentinel = rspq_rdp_sentinel_copy;
-    rspq_rdp_wstatus = rspq_rdp_get_wstatus();
 
     // Return the created block
     rspq_block_t *b = rspq_block;
@@ -1380,7 +1384,6 @@ void rspq_noop()
 
 rspq_syncpoint_t rspq_syncpoint_new(void)
 {   
-    assertf(rspq_ctx != &highpri, "cannot create syncpoint in highpri mode");
     assertf(!rspq_block, "cannot create syncpoint in a block");
     assertf(rspq_ctx != &highpri, "cannot create syncpoint in highpri mode");
     rspq_int_write(RSPQ_CMD_TEST_WRITE_STATUS, 

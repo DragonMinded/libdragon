@@ -1,5 +1,5 @@
-#ifndef __RSPQ_INTERNAL
-#define __RSPQ_INTERNAL
+#ifndef __RSPQ_CONSTANTS
+#define __RSPQ_CONSTANTS
 
 #define RSPQ_DEBUG                     1
 

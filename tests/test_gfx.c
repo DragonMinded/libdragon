@@ -1,5 +1,7 @@
 #include <malloc.h>
+#include <rspq.h>
 #include <rspq_constants.h>
+#include <gfx.h>
 #include "../src/gfx/gfx_internal.h"
 
 static volatile int dp_intr_raised;
@@ -37,7 +39,6 @@ void test_gfx_rdp_interrupt(TestContext *ctx)
     DEFER(gfx_close());
 
     rdp_sync_full_raw();
-    rspq_rdp_flush();
     rspq_flush();
 
     wait_for_dp_interrupt(gfx_timeout);
@@ -58,9 +59,6 @@ void test_gfx_dram_buffer(TestContext *ctx)
     gfx_init();
     DEFER(gfx_close());
 
-    extern void *rspq_rdp_dynamic_buffers[2];
-    extern void *rspq_rdp_buffers[2];
-
     const uint32_t fbsize = 32 * 32 * 2;
     void *framebuffer = memalign(64, fbsize);
     DEFER(free(framebuffer));
@@ -69,33 +67,20 @@ void test_gfx_dram_buffer(TestContext *ctx)
     data_cache_hit_writeback_invalidate(framebuffer, fbsize);
 
     rdp_set_other_modes_raw(SOM_CYCLE_FILL);
+
+    rspq_rdp_begin();
     rdp_set_scissor_raw(0, 0, 32 << 2, 32 << 2);
     rdp_set_fill_color_raw(0xFFFFFFFF);
-    rspq_noop();
     rdp_set_color_image_raw((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, 31);
     rdp_fill_rectangle_raw(0, 0, 32 << 2, 32 << 2);
     rdp_sync_full_raw();
-    rspq_rdp_flush();
+    rspq_rdp_end();
+
     rspq_flush();
 
     wait_for_dp_interrupt(gfx_timeout);
 
     ASSERT(dp_intr_raised, "Interrupt was not raised!");
-
-    uint64_t expected_data_dynamic[] = {
-        (0x2FULL << 56) | SOM_CYCLE_FILL
-    };
-
-    uint64_t expected_data_static[] = {
-        (0x2DULL << 56) | (32ULL << 14) | (32ULL << 2),
-        (0x37ULL << 56) | 0xFFFFFFFFULL,
-        (0x3FULL << 56) | ((uint64_t)RDP_TILE_FORMAT_RGBA << 53) | ((uint64_t)RDP_TILE_SIZE_16BIT << 51) | (31ULL << 32) | ((uint32_t)framebuffer & 0x1FFFFFF),
-        (0x36ULL << 56) | (32ULL << 46) | (32ULL << 34),
-        0x29ULL << 56
-    };
-
-    ASSERT_EQUAL_MEM((uint8_t*)rspq_rdp_dynamic_buffers[0], (uint8_t*)expected_data_dynamic, sizeof(expected_data_dynamic), "Unexpected data in dynamic DRAM buffer!");
-    ASSERT_EQUAL_MEM((uint8_t*)rspq_rdp_buffers[0], (uint8_t*)expected_data_static, sizeof(expected_data_static), "Unexpected data in static DRAM buffer!");
 
     for (uint32_t i = 0; i < 32 * 32; i++)
     {
@@ -129,6 +114,8 @@ void test_gfx_static(TestContext *ctx)
     memset(expected_fb, 0, sizeof(expected_fb));
 
     rdp_set_other_modes_raw(SOM_CYCLE_FILL | SOM_ATOMIC_PRIM);
+
+    rspq_rdp_begin();
     rdp_set_color_image_raw((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_GFX_FBWIDTH - 1);
 
     uint32_t color = 0;
@@ -150,7 +137,7 @@ void test_gfx_static(TestContext *ctx)
     }
 
     rdp_sync_full_raw();
-    rspq_rdp_flush();
+    rspq_rdp_end();
     rspq_flush();
 
     wait_for_dp_interrupt(gfx_timeout);
@@ -216,6 +203,7 @@ void test_gfx_mixed(TestContext *ctx)
             rspq_test_send_rdp(0);
         }
         
+        rspq_rdp_begin();
         for (uint32_t x = 0; x < TEST_GFX_FBWIDTH; x += 4)
         {
             expected_fb[y * TEST_GFX_FBWIDTH + x + 0] = (uint16_t)color;
@@ -228,6 +216,7 @@ void test_gfx_mixed(TestContext *ctx)
             rdp_sync_pipe_raw();
             color += 8;
         }
+        rspq_rdp_end();
 
         ++y;
 
@@ -238,6 +227,8 @@ void test_gfx_mixed(TestContext *ctx)
         }
 
         rdp_set_other_modes_raw(SOM_CYCLE_COPY | SOM_ATOMIC_PRIM);
+
+        rspq_rdp_begin();
         rdp_set_texture_image_raw((uint32_t)texture, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_GFX_FBWIDTH - 1);
         rdp_set_tile_raw(
             RDP_TILE_FORMAT_RGBA, 
@@ -256,10 +247,10 @@ void test_gfx_mixed(TestContext *ctx)
                 x << 5, 0, 4 << 10, 1 << 10);
             rdp_sync_pipe_raw();
         }
+        rspq_rdp_end();
     }
 
     rdp_sync_full_raw();
-    rspq_rdp_flush();
     rspq_flush();
 
     wait_for_dp_interrupt(gfx_timeout);
