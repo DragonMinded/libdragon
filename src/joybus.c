@@ -7,6 +7,7 @@
 #include <string.h>
 #include "libdragon.h"
 #include "regsinternal.h"
+#include "joybusinternal.h"
 
 /**
  * @defgroup joybus Joybus Subsystem
@@ -75,7 +76,7 @@ static void * const PIF_RAM = (void *)0x1fc007c0;
  */
 typedef struct {
     uint64_t input[JOYBUS_BLOCK_DWORDS] __attribute__((aligned(16)));  ///< input message
-    void (*callback)(uint64_t *output, void *ctx);                     ///< callback for completion
+    joybus_callback_t callback;                                        ///< callback for completion
     void *context;                                                     ///< callback context
 } joybus_msg_t;
 
@@ -244,7 +245,7 @@ static void si_interrupt(void) {
  * @param[in]   ctx         Context opaque pointer to pass to the callback.
  *                          Can be NULL if no context is required.
  */
-void joybus_exec_async(const void * input, void (*callback)(uint64_t *output, void *ctx), void *ctx)
+void joybus_exec_async(const void * input, joybus_callback_t callback, void *ctx)
 {
     // Make sure that the task queue is not full. If it is, just assert for now.
     // It is not easy to understand what we should do when the queue is full;
@@ -270,6 +271,26 @@ void joybus_exec_async(const void * input, void (*callback)(uint64_t *output, vo
     enable_interrupts();
 }
 
+/** @brief Joybus synchronous execution callback context structure. */
+typedef struct
+{
+    void *out;
+    volatile bool done;
+} joybus_exec_context_t;
+
+/**
+ * @brief Joybus synchronous execution callback.
+ * 
+ * @param[in] out Joybus output data block.
+ * @param[in] ctx Context pointer to #joybus_exec_context_t
+ */
+static void joybus_exec_callback(uint64_t *out, void *ctx)
+{
+    joybus_exec_context_t *context = ctx;
+    memcpy(context->out, out, JOYBUS_BLOCK_SIZE);
+    context->done = true;
+}
+
 /**
  * @brief Write a 64-byte block of data to the PIF and read the 64-byte result.
  * 
@@ -287,15 +308,12 @@ void joybus_exec_async(const void * input, void (*callback)(uint64_t *output, vo
  */
 void joybus_exec( const void * input, void * output )
 {
-    volatile bool done = false;
-
-    void callback(uint64_t *out, void *ctx) {
-        memcpy(output, out, JOYBUS_BLOCK_SIZE);
-        done = true;
-    }
-
-    joybus_exec_async(input, callback, NULL);
-    while (!done) {}
+    joybus_exec_context_t context = {
+        .out = output,
+        .done = false,
+    };
+    joybus_exec_async(input, joybus_exec_callback, (void *)&context);
+    while (!context.done) { /* Spinlock */ }
 }
 
 /** @} */ /* joybus */
