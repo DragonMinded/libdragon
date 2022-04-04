@@ -8,6 +8,7 @@
 
 #include "display.h"
 #include "graphics.h"
+#include <stdbool.h>
 
 /**
  * @addtogroup rdp

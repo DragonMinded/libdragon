@@ -92,6 +92,11 @@ void rspq_test_send_rdp(uint32_t value)
     rspq_write(test_ovl_id, 0x8, 0, value);
 }
 
+void rspq_test_big_out(void *dest)
+{
+    rspq_write(test_ovl_id, 0xA, 0, PhysicalAddr(dest));
+}
+
 void rspq_test2(uint32_t v0, uint32_t v1)
 {
     rspq_write(test2_ovl_id, 0x0, v0, v1);
@@ -691,6 +696,52 @@ void test_rspq_highpri_overlay(TestContext *ctx)
         
     ASSERT_EQUAL_UNSIGNED(actual_sum[1], 123, "highpri sum is not correct");
     TEST_RSPQ_EPILOG(0, rspq_timeout);
+}
+
+void test_rspq_big_command(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+    test_ovl_init();
+    DEFER(test_ovl_close());
+
+    uint32_t values[32];
+    for (uint32_t i = 0; i < 32; i++)
+    {
+        values[i] = RANDN(0xFFFFFFFF);
+    }
+    
+
+    uint32_t output[32] __attribute__((aligned(16)));
+    data_cache_hit_writeback_invalidate(output, 128);
+
+    rspq_write_begin(test_ovl_id, 0x9, 33);
+    rspq_write_word(0);
+    for (uint32_t i = 0; i < 32; i++)
+    {
+        rspq_write_word(i | i << 8 | i << 16 | i << 24);
+    }
+    rspq_write_end();
+
+    rspq_write_begin(test_ovl_id, 0x9, 33);
+    rspq_write_word(0);
+    for (uint32_t i = 0; i < 32; i++)
+    {
+        rspq_write_word(values[i]);
+    }
+    rspq_write_end();
+
+    rspq_test_big_out(output);
+
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
+
+    uint32_t expected[32];
+    for (uint32_t i = 0; i < 32; i++)
+    {
+        uint32_t x = i | i << 8 | i << 16 | i << 24;
+        expected[i] = x ^ values[i];
+    }
+    
+    ASSERT_EQUAL_MEM((uint8_t*)output, (uint8_t*)expected, 128, "Output does not match!");
 }
 
 void test_rspq_rdp_static(TestContext *ctx)

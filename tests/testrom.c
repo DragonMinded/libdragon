@@ -228,6 +228,7 @@ static const struct Testsuite
 	TEST_FUNC(test_rspq_highpri_basic,         0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_highpri_multiple,      0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_highpri_overlay,       0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_big_command,           0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_rdp_static,            0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_rdp_dynamic,           0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_rdp_dynamic_switch,    0, TEST_FLAGS_NO_BENCHMARK),
@@ -235,7 +236,9 @@ static const struct Testsuite
 	TEST_FUNC(test_gfx_rdp_interrupt,          0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_gfx_dram_buffer,            0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_gfx_static,                 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_gfx_dynamic,                0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_gfx_mixed,                  0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_gfx_passthrough_big,        0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {

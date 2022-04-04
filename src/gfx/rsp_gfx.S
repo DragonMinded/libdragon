@@ -3,42 +3,76 @@
     .data
 
     RSPQ_BeginOverlayHeader
-        RSPQ_DefineCommand GFXCmd_FillTriangle,     32 # 0x20 
-        RSPQ_DefineCommand GFXCmd_ModifyOtherModes, 12 # 0x21
+        RSPQ_DefineCommand RSPQCmd_Noop,            8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,            8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,            8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,            8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,            8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,            8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,            8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,            8   # Invalid
+        RSPQ_DefineCommand GFXCmd_PassthroughBig,   32  # 0xC8 Filled
+        RSPQ_DefineCommand GFXCmd_PassthroughBig,   48  # 0xC9 Filled ZBuffered
+        RSPQ_DefineCommand GFXCmd_PassthroughBig,   96  # 0xCA Textured
+        RSPQ_DefineCommand GFXCmd_PassthroughBig,   112 # 0xCB Textured ZBuffered
+        RSPQ_DefineCommand GFXCmd_PassthroughBig,   96  # 0xCC Shaded
+        RSPQ_DefineCommand GFXCmd_PassthroughBig,   112 # 0xCD Shaded ZBuffered
+        RSPQ_DefineCommand GFXCmd_PassthroughBig,   160 # 0xCE Shaded Textured
+        RSPQ_DefineCommand GFXCmd_PassthroughBig,   176 # 0xCF Shaded Textured ZBuffered
+
         RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
         RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
-        RSPQ_DefineCommand GFXCmd_Passthrough16,    16 # 0x24 TEXTURE_RECTANGLE
-        RSPQ_DefineCommand GFXCmd_Passthrough16,    16 # 0x25 TEXTURE_RECTANGLE_FLIP
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x26 SYNC_LOAD
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x27 SYNC_PIPE
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x28 SYNC_TILE
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x29 SYNC_FULL
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x2A SET_KEY_GB
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x2B SET_KEY_R
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x2C SET_CONVERT
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x2D SET_SCISSOR
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x2E SET_PRIM_DEPTH
-        RSPQ_DefineCommand GFXCmd_SetOtherModes,    8  # 0x2F SET_OTHER_MODES
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x30 LOAD_TLUT
         RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x32 SET_TILE_SIZE
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x33 LOAD_BLOCK
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x34 LOAD_TILE
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x35 SET_TILE
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x36 FILL_RECTANGLE
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x37 SET_FILL_COLOR
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x38 SET_FOG_COLOR
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x39 SET_BLEND_COLOR
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x3A SET_PRIM_COLOR
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x3B SET_ENV_COLOR
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x3C SET_COMBINE_MODE
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x3D SET_TEXTURE_IMAGE
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x3E SET_Z_IMAGE
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0x3F SET_COLOR_IMAGE
+        RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
+
+        RSPQ_DefineCommand GFXCmd_ModifyOtherModes, 12 # 0xE0
+        RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
+        RSPQ_DefineCommand GFXCmd_Passthrough16,    16 # 0xE4 TEXTURE_RECTANGLE
+        RSPQ_DefineCommand GFXCmd_Passthrough16,    16 # 0xE5 TEXTURE_RECTANGLE_FLIP
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xE6 SYNC_LOAD
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xE7 SYNC_PIPE
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xE8 SYNC_TILE
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xE9 SYNC_FULL
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xEA SET_KEY_GB
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xEB SET_KEY_R
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xEC SET_CONVERT
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xED SET_SCISSOR
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xEE SET_PRIM_DEPTH
+        RSPQ_DefineCommand GFXCmd_SetOtherModes,    8  # 0xEF SET_OTHER_MODES
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xF0 LOAD_TLUT
+        RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xF2 SET_TILE_SIZE
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xF3 LOAD_BLOCK
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xF4 LOAD_TILE
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xF5 SET_TILE
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xF6 FILL_RECTANGLE
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xF7 SET_FILL_COLOR
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xF8 SET_FOG_COLOR
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xF9 SET_BLEND_COLOR
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xFA SET_PRIM_COLOR
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xFB SET_ENV_COLOR
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xFC SET_COMBINE_MODE
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xFD SET_TEXTURE_IMAGE
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xFE SET_Z_IMAGE
+        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xFF SET_COLOR_IMAGE
     RSPQ_EndOverlayHeader
 
     RSPQ_BeginSavedState
-RDP_OTHER_MODES:       .quad  0
+RDP_OTHER_MODES:       .quad  0xEF00000000000000
     RSPQ_EndSavedState
 
     .bss
@@ -54,7 +88,6 @@ RDP_CMD_STAGING:       .ds.b 0xB0
     #
     # Completely ovewrites the internal cache of the RDP other modes with the 
     # values provided in a0 and a1 and sends it to the RDP.
-    # The uppermost byte is always set to 0x2F.
     #
     # ARGS:
     #   a0: Command id and upper word of other modes
@@ -63,10 +96,8 @@ RDP_CMD_STAGING:       .ds.b 0xB0
     .func GFXCmd_SetOtherModes
 GFXCmd_SetOtherModes:
     sw a0, %lo(RDP_OTHER_MODES) + 0x0
-    sw a1, %lo(RDP_OTHER_MODES) + 0x4
-    li t0, 0x2F
     j GFX_SendOtherModes
-    sb t0, %lo(RDP_OTHER_MODES)
+    sw a1, %lo(RDP_OTHER_MODES) + 0x4
     .endfunc
 
     #############################################################
@@ -83,22 +114,23 @@ GFXCmd_SetOtherModes:
     #############################################################
     .func GFXCmd_ModifyOtherModes
 GFXCmd_ModifyOtherModes:
-    lw t0, %lo(RDP_OTHER_MODES)(a0)
-    and t0, a1
-    or t0, a2
-    sw t0, %lo(RDP_OTHER_MODES)(a0)
+    lw t1, %lo(RDP_OTHER_MODES)(a0)
+    and t1, a1
+    or t1, a2
+    sw t1, %lo(RDP_OTHER_MODES)(a0)
+    # Need to override command size here since GFXCmd_ModifyOtherModes is 12 bytes
+    # and RSPQ_RdpSendDynamic expects the size of the RDP command.
+    li rspq_cmd_size, 8
     .endfunc
 
     #############################################################
     # GFX_SendOtherModes
     #
     # Sends the value in RDP_OTHER_MODES to the RDP.
-    #
     #############################################################
     .func GFX_SendOtherModes
 GFX_SendOtherModes:
     li s4, %lo(RDP_OTHER_MODES)
-    li t0, 8
     jal_and_j RSPQ_RdpSendDynamic, RSPQ_Loop
     .endfunc
 
@@ -107,17 +139,12 @@ GFX_SendOtherModes:
     # GFXCmd_Passthrough8
     #
     # Forwards the RDP command contained in a0 and a1 to the RDP stream.
-    #
-    # ARGS:
-    #   a0: First 4 bytes of RDP command
-    #   a1: Second 4 bytes of RDP command
     #############################################################
     .func GFXCmd_Passthrough8
 GFXCmd_Passthrough8:
     li s4, %lo(RDP_CMD_STAGING)
     sw a0, 0x00(s4)
     sw a1, 0x04(s4)
-    li t0, 8
     jal_and_j RSPQ_RdpSendDynamic, RSPQ_Loop
     .endfunc
 
@@ -126,12 +153,6 @@ GFXCmd_Passthrough8:
     # GFXCmd_Passthrough16
     #
     # Forwards the RDP command contained in a0-a3 to the RDP stream.
-    #
-    # ARGS:
-    #   a0: First 4 bytes of RDP command
-    #   a1: Second 4 bytes of RDP command
-    #   a2: Third 4 bytes of RDP command
-    #   a3: Fourth 4 bytes of RDP command
     #############################################################
     .func GFXCmd_Passthrough16
 GFXCmd_Passthrough16:
@@ -140,43 +161,29 @@ GFXCmd_Passthrough16:
     sw a1, 0x04(s4)
     sw a2, 0x08(s4)
     sw a3, 0x0C(s4)
-    li t0, 16
     jal_and_j RSPQ_RdpSendDynamic, RSPQ_Loop
     .endfunc
 
     #############################################################
-    # GFXCmd_FillTriangle
-    #
-    # Forwards a basic triangle command (edge coefficients only).
-    # Note that the command id is swapped out.
-    #
-    # ARGS:
-    #   a0: First 4 bytes of RDP command
-    #   a1: Second 4 bytes of RDP command
-    #   a2: Third 4 bytes of RDP command
-    #   a3: Fourth 4 bytes of RDP command
+    # GFXCmd_PassthroughBig
+    # 
+    # Forwards the RDP command in the input stream to the RDP stream.
+    # The size of the command is automatically detected by reading #rspq_cmd_size
     #############################################################
-    .func GFXCmd_FillTriangle
-GFXCmd_FillTriangle:
-    # Replace 0x20 with 0x08
-    lui t0, 0xFF
-    ori t0, 0xFFFF
-    and a0, t0
-    lui t0, 0x0800
-    or a0, t0
-    lw t0, CMD_ADDR(0x10, 32)
-    lw t1, CMD_ADDR(0x14, 32)
-    lw t2, CMD_ADDR(0x18, 32)
-    lw t3, CMD_ADDR(0x1C, 32)
+    .func GFXCmd_PassthroughBig
+GFXCmd_PassthroughBig:
+    sub s1, rspq_dmem_buf_ptr, rspq_cmd_size
+    addi s1, %lo(RSPQ_DMEM_BUFFER)
+    li s2, %lo(RDP_CMD_STAGING)
+passthrough_copy_loop:
+    lqv $v00,0, 0x00,s1
+    lrv $v00,0, 0x10,s1
+    sqv $v00,0, 0x00,s2
+    addi s1, 0x10
+    addi t1, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER)
+    blt s1, t1, passthrough_copy_loop
+    addi s2, 0x10
+
     li s4, %lo(RDP_CMD_STAGING)
-    sw a0, 0x00(s4)
-    sw a1, 0x04(s4)
-    sw a2, 0x08(s4)
-    sw a3, 0x0C(s4)
-    sw t0, 0x10(s4)
-    sw t1, 0x14(s4)
-    sw t2, 0x18(s4)
-    sw t3, 0x1C(s4)
-    li t0, 32
     jal_and_j RSPQ_RdpSendDynamic, RSPQ_Loop
     .endfunc

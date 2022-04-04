@@ -3,10 +3,15 @@
  * @brief Hardware Display Interface
  * @ingroup rdp
  */
+#include "rdp.h"
+#include "rdp_commands.h"
+#include "rspq.h"
+#include "gfx.h"
+#include "interrupt.h"
+#include "display.h"
 #include <stdint.h>
 #include <malloc.h>
 #include <string.h>
-#include "libdragon.h"
 
 /**
  * @defgroup rdp Hardware Display Interface
@@ -62,12 +67,19 @@
 #define __get_buffer( x ) __safe_buffer[(x)-1]
 
 #define gfx_write(cmd_id, ...) ({ \
-    rspq_write(GFX_OVL_ID, (cmd_id-0x20), ##__VA_ARGS__); \
+    rspq_write(GFX_OVL_ID, (cmd_id), ##__VA_ARGS__); \
 })
 
 enum {
-    RDP_CMD_FILL_TRIANGLE           = 0x20,
-    RDP_CMD_MODIFY_OTHER_MODES      = 0x21,
+    RDP_CMD_TRI                     = 0x08,
+    RDP_CMD_TRI_ZBUF                = 0x09,
+    RDP_CMD_TRI_TEX                 = 0x0A,
+    RDP_CMD_TRI_TEX_ZBUF            = 0x0B,
+    RDP_CMD_TRI_SHADE               = 0x0C,
+    RDP_CMD_TRI_SHADE_ZBUF          = 0x0D,
+    RDP_CMD_TRI_SHADE_TEX           = 0x0E,
+    RDP_CMD_TRI_SHADE_TEX_ZBUF      = 0x0F,
+    RDP_CMD_MODIFY_OTHER_MODES      = 0x20,
     RDP_CMD_TEXTURE_RECTANGLE       = 0x24,
     RDP_CMD_TEXTURE_RECTANGLE_FLIP  = 0x25,
     RDP_CMD_SYNC_LOAD               = 0x26,
@@ -542,7 +554,7 @@ void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3,
     int winding = ( x1 * y2 - x2 * y1 ) + ( x2 * y3 - x3 * y2 ) + ( x3 * y1 - x1 * y3 );
     int flip = ( winding > 0 ? 1 : 0 ) << 23;
 
-    gfx_write(RDP_CMD_FILL_TRIANGLE, flip | yl, ym | yh, xl, dxldy, xh, dxhdy, xm, dxmdy);
+    gfx_write(RDP_CMD_TRI, flip | yl, ym | yh, xl, dxldy, xh, dxhdy, xm, dxmdy);
 }
 
 void rdp_set_texture_flush( flush_t flush )

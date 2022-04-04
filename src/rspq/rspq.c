@@ -297,6 +297,7 @@ enum {
 /// @cond
 _Static_assert((RSPQ_CMD_WRITE_STATUS & 1) == 0);
 _Static_assert((RSPQ_CMD_TEST_WRITE_STATUS & 1) == 0);
+_Static_assert((RSPQ_CMD_RDP & 1) == 0);
 /// @endcond
 
 /** @brief Smaller version of rspq_write that writes to an arbitrary pointer */
@@ -580,7 +581,7 @@ static volatile uint32_t* rspq_switch_buffer(uint32_t *new, int size, bool clear
 
     // Switch to the new buffer, and calculate the new sentinel.
     rspq_cur_pointer = new;
-    rspq_cur_sentinel = new + size - RSPQ_MAX_COMMAND_SIZE;
+    rspq_cur_sentinel = new + size - RSPQ_MAX_SHORT_COMMAND_SIZE;
 
     // Return a pointer to the previous buffer
     return prev;
@@ -810,25 +811,16 @@ static uint32_t rspq_find_new_overlay_index(void)
 static uint32_t rspq_find_new_overlay_id(uint32_t slot_count)
 {
     uint32_t cur_free_slots = 0;
-    bool cur_is_reserved = 0;
-
-    uint32_t found_reserved = 0;
 
     for (uint32_t i = 1; i <= RSPQ_OVERLAY_ID_COUNT - slot_count; i++)
     {
         // If this slot is occupied, reset number of free slots found
         if (rspq_data.tables.overlay_table[i] != 0) {
             cur_free_slots = 0;
-            cur_is_reserved = 0;
             continue;
         }
 
         ++cur_free_slots;
-
-        // These IDs are reserved for RDP commands
-        if (i == 0x2 || i == 0x3) {
-            cur_is_reserved = 1;
-        }
 
         // If required number of slots have not been found, keep searching
         if (cur_free_slots < slot_count) {
@@ -837,27 +829,11 @@ static uint32_t rspq_find_new_overlay_id(uint32_t slot_count)
 
         // We have found <slot_count> consecutive free slots
         uint32_t found_slot = i - slot_count + 1;
-
-        // If none of those slots are reserved, we are done
-        if (!cur_is_reserved) {
-            return found_slot;
-        }
-
-        // Otherwise, remember the found slot and keep searching.
-        // If we have already remembered something, don't overwrite it.
-        // So if only reserved slots are available, we still return the first one of them.
-        if (found_reserved == 0) {
-            found_reserved = found_slot;
-        }
-
-        // Reset and try again
-        cur_free_slots = 0;
-        cur_is_reserved = 0;
+        return found_slot;
     }
     
-    // If no unreserved slots have been found, return the first free reserved one as fallback.
-    // If all reserved slots are occupied as well, this returns zero, which means the search failed.
-    return found_reserved;
+    // If no free slots have been found, return zero, which means the search failed.
+    return 0;
 }
 
 static void rspq_update_tables(bool is_highpri)

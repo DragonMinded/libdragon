@@ -144,6 +144,8 @@
 
 #include <stdint.h>
 #include <rsp.h>
+#include <debug.h>
+#include <n64sys.h>
 #include <pputils.h>
 
 #ifdef __cplusplus
@@ -151,7 +153,9 @@ extern "C" {
 #endif
 
 /** @brief Maximum size of a command (in 32-bit words). */
-#define RSPQ_MAX_COMMAND_SIZE          16
+#define RSPQ_MAX_COMMAND_SIZE          63
+
+#define RSPQ_MAX_SHORT_COMMAND_SIZE    16
 
 /** @brief Maximum size of a rdp command (in 32-bit words). */
 #define RSPQ_MAX_RDP_COMMAND_SIZE      4
@@ -382,6 +386,7 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
 })
 
 #define _rspq_write1(ovl_id, cmd_id, arg0, ...) ({ \
+    _Static_assert(__COUNT_VARARGS(__VA_ARGS__) < RSPQ_MAX_SHORT_COMMAND_SIZE); \
     _rspq_write_prolog(); \
     __CALL_FOREACH(_rspq_write_arg, ##__VA_ARGS__); \
     rspq_cur_pointer[0] = ((ovl_id) + ((cmd_id)<<24)) | (arg0); \
@@ -391,6 +396,37 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
 
 /// @endcond
 
+/// @cond
+
+static uint32_t _rspq_write_tmp_value, _rspq_write_tmp_size;
+static volatile uint32_t *_rspq_write_tmp_ptr;
+
+/// @endcond
+
+static inline void rspq_write_begin(uint32_t ovl_id, uint32_t cmd_id, uint32_t size)
+{
+    assertf(size <= RSPQ_MAX_COMMAND_SIZE, "Command is too big!");
+    extern volatile uint32_t *rspq_cur_pointer, *rspq_cur_sentinel;
+    extern void rspq_next_buffer(void);
+    if (__builtin_expect(rspq_cur_pointer > rspq_cur_sentinel - size, 0))
+        rspq_next_buffer();
+    _rspq_write_tmp_value = ovl_id + (cmd_id<<24);
+    _rspq_write_tmp_ptr = rspq_cur_pointer;
+    _rspq_write_tmp_size = size;
+}
+
+static inline void rspq_write_word(uint32_t value)
+{ 
+    extern volatile uint32_t *rspq_cur_pointer;
+    *(rspq_cur_pointer++) = value;
+}
+
+static inline void rspq_write_end() 
+{
+    extern volatile uint32_t *rspq_cur_pointer;
+    assertf((rspq_cur_pointer - _rspq_write_tmp_ptr) == _rspq_write_tmp_size, "Number of words written does not match the declared size!");
+    _rspq_write_tmp_ptr[0] |= _rspq_write_tmp_value;
+}
 
 /**
  * @brief Make sure that RSP starts executing up to the last written command.

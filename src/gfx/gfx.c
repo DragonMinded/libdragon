@@ -1,4 +1,7 @@
-#include <libdragon.h>
+#include "rsp.h"
+#include "rspq.h"
+#include "gfx.h"
+#include "n64sys.h"
 #include <stdlib.h>
 #include <string.h>
 
