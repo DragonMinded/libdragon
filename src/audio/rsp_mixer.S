@@ -167,8 +167,8 @@
 	# Misc constants
 	#define v_const1      $v31
 
-	#define k_0000        v_zero,0
-	#define k_8000        v_shift8,8
+	#define k_0000        v_zero
+	#define k_8000        v_shift8.e0
 
 
 	.data
@@ -186,9 +186,9 @@ VCONST_1:
 	.half 0xe076      #   (0.9837**8) fixed 0.16
 	.half 0x1f8a      # 1-(0.9837**8) fixed 0.16
 
-	#define k_ffff      v_const1,e(0)
-	#define k_alpha     v_const1,e(1)
-	#define k_1malpha   v_const1,e(2)
+	#define k_ffff      v_const1.e0
+	#define k_alpha     v_const1.e1
+	#define k_1malpha   v_const1.e2
 
 	vsll_data
 	vsll8_data
@@ -276,9 +276,9 @@ command_exec:
 	#define samples_left    t4
 	#define outptr          s8
 
-	vxor v_zero, v_zero, v_zero,0
+	vxor v_zero, v_zero, v_zero
 	li t0, %lo(VCONST_1)
-	lqv v_const1,0, 0,t0
+	lqv v_const1, 0,t0
 
 	# Extract command parameters
 	andi a0, 0xFFFF
@@ -441,10 +441,10 @@ UpdateAndFetch:
 	li out_ptr, %lo(CHANNEL_BUFFER)
 	li t0, (MAX_SAMPLES_PER_LOOP * MAX_CHANNELS * 2) / 64 - 1
 ClearLoop:
-	sqv v_zero,0, 0x00,out_ptr
-	sqv v_zero,0, 0x10,out_ptr
-	sqv v_zero,0, 0x20,out_ptr
-	sqv v_zero,0, 0x30,out_ptr
+	sqv v_zero, 0x00,out_ptr
+	sqv v_zero, 0x10,out_ptr
+	sqv v_zero, 0x20,out_ptr
+	sqv v_zero, 0x30,out_ptr
 	addi out_ptr, 64
 	bnez t0, ClearLoop
 	addi t0, -1
@@ -930,22 +930,22 @@ WaveLoopEpilog2:
 SetupMixer:
 	# Load global volume (into all lanes)
 	lh t0, %lo(GLOBAL_VOLUME)
-	mtc2 t0, v_glvol,0
-	vor v_glvol, v_zero, v_glvol,8
+	mtc2 t0, v_glvol.e0
+	vor v_glvol, v_zero, v_glvol.e0
 
 	li s0, %lo(CHANNEL_VOLUMES_L)
 	li s1, %lo(XVOL_L)
 
 	# Load channel volumes (left / right)
-	lqv v_chvol_l_0,0,     0*MAX_CHANNELS_VOFF+0x00,s0
-	lqv v_chvol_l_1,0,     0*MAX_CHANNELS_VOFF+0x10,s0
-	lqv v_chvol_l_2,0,     0*MAX_CHANNELS_VOFF+0x20,s0
-	lqv v_chvol_l_3,0,     0*MAX_CHANNELS_VOFF+0x30,s0
+	lqv v_chvol_l_0,     0*MAX_CHANNELS_VOFF+0x00,s0
+	lqv v_chvol_l_1,     0*MAX_CHANNELS_VOFF+0x10,s0
+	lqv v_chvol_l_2,     0*MAX_CHANNELS_VOFF+0x20,s0
+	lqv v_chvol_l_3,     0*MAX_CHANNELS_VOFF+0x30,s0
 
-	lqv v_chvol_r_0,0,     1*MAX_CHANNELS_VOFF+0x00,s0
-	lqv v_chvol_r_1,0,     1*MAX_CHANNELS_VOFF+0x10,s0
-	lqv v_chvol_r_2,0,     1*MAX_CHANNELS_VOFF+0x20,s0
-	lqv v_chvol_r_3,0,     1*MAX_CHANNELS_VOFF+0x30,s0
+	lqv v_chvol_r_0,     1*MAX_CHANNELS_VOFF+0x00,s0
+	lqv v_chvol_r_1,     1*MAX_CHANNELS_VOFF+0x10,s0
+	lqv v_chvol_r_2,     1*MAX_CHANNELS_VOFF+0x20,s0
+	lqv v_chvol_r_3,     1*MAX_CHANNELS_VOFF+0x30,s0
 
 	# Apply global volume to obtain the final volume for each channel
 	vmudl v_chvol_l_0, v_chvol_l_0, v_glvol
@@ -959,15 +959,15 @@ SetupMixer:
 
 #if VOLUME_FILTER
 	# Load actual volumes levels
-	lqv v_xvol_l_0,0,      0*MAX_CHANNELS_VOFF+0x00,s1
-	lqv v_xvol_l_1,0,      0*MAX_CHANNELS_VOFF+0x10,s1
-	lqv v_xvol_l_2,0,      0*MAX_CHANNELS_VOFF+0x20,s1
-	lqv v_xvol_l_3,0,      0*MAX_CHANNELS_VOFF+0x30,s1
+	lqv v_xvol_l_0,      0*MAX_CHANNELS_VOFF+0x00,s1
+	lqv v_xvol_l_1,      0*MAX_CHANNELS_VOFF+0x10,s1
+	lqv v_xvol_l_2,      0*MAX_CHANNELS_VOFF+0x20,s1
+	lqv v_xvol_l_3,      0*MAX_CHANNELS_VOFF+0x30,s1
 
-	lqv v_xvol_r_0,0,      1*MAX_CHANNELS_VOFF+0x00,s1
-	lqv v_xvol_r_1,0,      1*MAX_CHANNELS_VOFF+0x10,s1
-	lqv v_xvol_r_2,0,      1*MAX_CHANNELS_VOFF+0x20,s1
-	lqv v_xvol_r_3,0,      1*MAX_CHANNELS_VOFF+0x30,s1
+	lqv v_xvol_r_0,      1*MAX_CHANNELS_VOFF+0x00,s1
+	lqv v_xvol_r_1,      1*MAX_CHANNELS_VOFF+0x10,s1
+	lqv v_xvol_r_2,      1*MAX_CHANNELS_VOFF+0x20,s1
+	lqv v_xvol_r_3,      1*MAX_CHANNELS_VOFF+0x30,s1
 #else
 	vor v_xvol_l_0, v_chvol_l_0, v_zero
 	vor v_xvol_l_1, v_chvol_l_1, v_zero
@@ -991,15 +991,15 @@ SetupMixer:
 EndMixer:
 	li s1, %lo(XVOL_L)
 
-	sqv v_xvol_l_0,0,      0*MAX_CHANNELS_VOFF+0x00,s1
-	sqv v_xvol_l_1,0,      0*MAX_CHANNELS_VOFF+0x10,s1
-	sqv v_xvol_l_2,0,      0*MAX_CHANNELS_VOFF+0x20,s1
-	sqv v_xvol_l_3,0,      0*MAX_CHANNELS_VOFF+0x30,s1
+	sqv v_xvol_l_0,      0*MAX_CHANNELS_VOFF+0x00,s1
+	sqv v_xvol_l_1,      0*MAX_CHANNELS_VOFF+0x10,s1
+	sqv v_xvol_l_2,      0*MAX_CHANNELS_VOFF+0x20,s1
+	sqv v_xvol_l_3,      0*MAX_CHANNELS_VOFF+0x30,s1
 
-	sqv v_xvol_r_0,0,      1*MAX_CHANNELS_VOFF+0x00,s1
-	sqv v_xvol_r_1,0,      1*MAX_CHANNELS_VOFF+0x10,s1
-	sqv v_xvol_r_2,0,      1*MAX_CHANNELS_VOFF+0x20,s1
-	sqv v_xvol_r_3,0,      1*MAX_CHANNELS_VOFF+0x30,s1
+	sqv v_xvol_r_0,      1*MAX_CHANNELS_VOFF+0x00,s1
+	sqv v_xvol_r_1,      1*MAX_CHANNELS_VOFF+0x10,s1
+	sqv v_xvol_r_2,      1*MAX_CHANNELS_VOFF+0x20,s1
+	sqv v_xvol_r_3,      1*MAX_CHANNELS_VOFF+0x30,s1
 
 	jr ra
 	nop
@@ -1034,16 +1034,16 @@ Mixer:
 	move t1, num_samples
 
 	# Load initial samples
-	lqv v_sample_0,0, 0x00,s0
-	lqv v_sample_1,0, 0x10,s0
-	lqv v_sample_2,0, 0x20,s0
-	lqv v_sample_3,0, 0x30,s0
+	lqv v_sample_0, 0x00,s0
+	lqv v_sample_1, 0x10,s0
+	lqv v_sample_2, 0x20,s0
+	lqv v_sample_3, 0x30,s0
 
 	# For optimal pipelining, output is stored at the beginning of the loop. To avoid
 	# corrupting memory, load the output register with whatever is there now.
-	lsv v_out_l,0, -4,s4
+	lsv v_out_l.e0, -4,s4
 	ble k0, 8, Mix8Start    # Optimized mixing loop for <= 8 channels
-	lsv v_out_r,0, -2,s4
+	lsv v_out_r.e0, -2,s4
 
 Mix32Start:
 	blt t1, 8, Mix32Loop
@@ -1059,8 +1059,8 @@ Mix32Loop:
 	# left channel:
 	vmulf v_mix_l, v_sample_0, v_xvol_l_0;
 	vmacf v_mix_l, v_sample_1, v_xvol_l_1;             # Store previous loop's output
-	vmacf v_mix_l, v_sample_2, v_xvol_l_2;             ssv v_out_l,0, -4,s4
-	vmacf v_mix_l, v_sample_3, v_xvol_l_3;             ssv v_out_r,0, -2,s4
+	vmacf v_mix_l, v_sample_2, v_xvol_l_2;             ssv v_out_l.e0, -4,s4
+	vmacf v_mix_l, v_sample_3, v_xvol_l_3;             ssv v_out_r.e0, -2,s4
 	# right channel:                                   # Updated counters
 	vmulf v_mix_r, v_sample_0, v_xvol_r_0;             add s0, 32*2
 	vmacf v_mix_r, v_sample_1, v_xvol_r_1;             addi t0, -1
@@ -1068,14 +1068,14 @@ Mix32Loop:
 	vmacf v_mix_r, v_sample_3, v_xvol_r_3;
 
 	# Mix all lanes together into the first lane       # Load next loop's samples
-	vaddc v_out_l, v_mix_l, v_mix_l,e(1q);             lqv v_sample_0,0, 0x00,s0
-	vaddc v_out_r, v_mix_r, v_mix_r,e(1q);             lqv v_sample_1,0, 0x10,s0
+	vaddc v_out_l, v_mix_l, v_mix_l.q1;                lqv v_sample_0.e0, 0x00,s0
+	vaddc v_out_r, v_mix_r, v_mix_r.q1;                lqv v_sample_1.e0, 0x10,s0
 	  # 1 cycle stall here
-	vaddc v_out_l, v_out_l, v_out_l,e(2h);             lqv v_sample_2,0, 0x20,s0
-	vaddc v_out_r, v_out_r, v_out_r,e(2h);             lqv v_sample_3,0, 0x30,s0
+	vaddc v_out_l, v_out_l, v_out_l.h2;                lqv v_sample_2.e0, 0x20,s0
+	vaddc v_out_r, v_out_r, v_out_r.h2;                lqv v_sample_3.e0, 0x30,s0
 	  # 1 cycle stall here
-	vaddc v_out_l, v_out_l, v_out_l,e(4);                bnez t0, Mix32Loop
-	vaddc v_out_r, v_out_r, v_out_r,e(4);
+	vaddc v_out_l, v_out_l, v_out_l.e4;                bnez t0, Mix32Loop
+	vaddc v_out_r, v_out_r, v_out_r.e4;
 
 #if VOLUME_FILTER
 	# Apply volume ramp
@@ -1109,9 +1109,9 @@ Mix32Loop:
 #endif
 
 	# Store last loop's output and exit
-	ssv v_out_l,0, -4,s4
+	ssv v_out_l.e0, -4,s4
 	jr ra
-	ssv v_out_r,0, -2,s4
+	ssv v_out_r.e0, -2,s4
 
 
 Mix8Start:
@@ -1124,17 +1124,17 @@ Mix8Start:
 	############################################################################
 	.align 3
 Mix8Loop:
-	vmulf v_mix_l, v_sample_0, v_xvol_l_0;             ssv v_out_l,0, -4,s4
-	vmulf v_mix_r, v_sample_0, v_xvol_r_0;             ssv v_out_r,0, -2,s4
+	vmulf v_mix_l, v_sample_0, v_xvol_l_0;             ssv v_out_l.e0, -4,s4
+	vmulf v_mix_r, v_sample_0, v_xvol_r_0;             ssv v_out_r.e0, -2,s4
 	  # pipeline stall
-	vaddc v_out_l, v_mix_l, v_mix_l,e(1q);             addi t0, -1
-	vaddc v_out_r, v_mix_r, v_mix_r,e(1q);             add s0, 32*2
+	vaddc v_out_l, v_mix_l, v_mix_l.q1;                addi t0, -1
+	vaddc v_out_r, v_mix_r, v_mix_r.q1;                add s0, 32*2
 	  # pipeline stall
-	vaddc v_out_l, v_out_l, v_out_l,e(2h);             addi s4, 4
-	vaddc v_out_r, v_out_r, v_out_r,e(2h);             lqv v_sample_0,0, 0,s0
+	vaddc v_out_l, v_out_l, v_out_l.h2;                addi s4, 4
+	vaddc v_out_r, v_out_r, v_out_r.h2;                lqv v_sample_0, 0,s0
 	  # pipeline stall
-	vaddc v_out_l, v_out_l, v_out_l,e(4);              bnez t0, Mix8Loop
-	vaddc v_out_r, v_out_r, v_out_r,e(4);
+	vaddc v_out_l, v_out_l, v_out_l.e4;                bnez t0, Mix8Loop
+	vaddc v_out_r, v_out_r, v_out_r.e4;
 
 #if VOLUME_FILTER
 	# Apply volume ramp
@@ -1149,7 +1149,7 @@ Mix8Loop:
 	nop 
 #endif
 
-	ssv v_out_l,0, -4,s4
+	ssv v_out_l.e0, -4,s4
 	jr ra
-	ssv v_out_r,0, -2,s4
+	ssv v_out_r.e0, -2,s4
 	.endfunc
