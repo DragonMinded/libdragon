@@ -659,11 +659,10 @@ makeNotImplemented tnei
         .endif
 
         veVectorAccessors
+        encodeVectorRegs
 
         # If only the last argument was omitted, we need to check which syntax is being used
         .ifnb \vtOrElement
-            encodeVectorRegs
-
             .iflt (\vtOrElement)
                 .error "Invalid element"
                 .exitm
