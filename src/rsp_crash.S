@@ -47,46 +47,46 @@ _start:
 	sw $31, 31*4(zero)
 
 	li s0, 32*4
-	sqv $v00,0,  0*16,s0
-	sqv $v01,0,  1*16,s0
-	sqv $v02,0,  2*16,s0
-	sqv $v03,0,  3*16,s0
-	sqv $v04,0,  4*16,s0
-	sqv $v05,0,  5*16,s0
-	sqv $v06,0,  6*16,s0
-	sqv $v07,0,  7*16,s0
-	sqv $v08,0,  8*16,s0
-	sqv $v09,0,  9*16,s0
-	sqv $v10,0, 10*16,s0
-	sqv $v11,0, 11*16,s0
-	sqv $v12,0, 12*16,s0
-	sqv $v13,0, 13*16,s0
-	sqv $v14,0, 14*16,s0
-	sqv $v15,0, 15*16,s0
-	sqv $v16,0, 16*16,s0
-	sqv $v17,0, 17*16,s0
-	sqv $v18,0, 18*16,s0
-	sqv $v19,0, 19*16,s0
-	sqv $v20,0, 20*16,s0
-	sqv $v21,0, 21*16,s0
-	sqv $v22,0, 22*16,s0
-	sqv $v23,0, 23*16,s0
-	sqv $v24,0, 24*16,s0
-	sqv $v25,0, 25*16,s0
-	sqv $v26,0, 26*16,s0
-	sqv $v27,0, 27*16,s0
-	sqv $v28,0, 28*16,s0
-	sqv $v29,0, 29*16,s0
-	sqv $v30,0, 30*16,s0
-	sqv $v31,0, 31*16,s0
+	sqv $v00,  0*16,s0
+	sqv $v01,  1*16,s0
+	sqv $v02,  2*16,s0
+	sqv $v03,  3*16,s0
+	sqv $v04,  4*16,s0
+	sqv $v05,  5*16,s0
+	sqv $v06,  6*16,s0
+	sqv $v07,  7*16,s0
+	sqv $v08,  8*16,s0
+	sqv $v09,  9*16,s0
+	sqv $v10, 10*16,s0
+	sqv $v11, 11*16,s0
+	sqv $v12, 12*16,s0
+	sqv $v13, 13*16,s0
+	sqv $v14, 14*16,s0
+	sqv $v15, 15*16,s0
+	sqv $v16, 16*16,s0
+	sqv $v17, 17*16,s0
+	sqv $v18, 18*16,s0
+	sqv $v19, 19*16,s0
+	sqv $v20, 20*16,s0
+	sqv $v21, 21*16,s0
+	sqv $v22, 22*16,s0
+	sqv $v23, 23*16,s0
+	sqv $v24, 24*16,s0
+	sqv $v25, 25*16,s0
+	sqv $v26, 26*16,s0
+	sqv $v27, 27*16,s0
+	sqv $v28, 28*16,s0
+	sqv $v29, 29*16,s0
+	sqv $v30, 30*16,s0
+	sqv $v31, 31*16,s0
 
-    vsar $v00, $v00, $v00,e(0)
-    vsar $v01, $v01, $v02,e(1)
-    vsar $v02, $v01, $v02,e(2)
+    vsar $v00, COP2_ACC_HI
+    vsar $v01, COP2_ACC_MD
+    vsar $v02, COP2_ACC_LO
 
-	sqv $v00,0,  32*16,s0
-	sqv $v01,0,  33*16,s0
-	sqv $v02,0,  34*16,s0
+	sqv $v00,  32*16,s0
+	sqv $v01,  33*16,s0
+	sqv $v02,  34*16,s0
 
 	add s0, 35*16
 
