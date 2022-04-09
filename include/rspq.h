@@ -396,37 +396,39 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
 
 /// @endcond
 
-/// @cond
+typedef struct {
+    uint32_t first_word;
+    volatile uint32_t *pointer, *first;
+    bool is_first;
+} rspq_write_t;
 
-static uint32_t _rspq_write_tmp_value, _rspq_write_tmp_size;
-static volatile uint32_t *_rspq_write_tmp_ptr;
+#define rspq_write_begin(ovl_id, cmd_id, size) ({ \
+    extern volatile uint32_t *rspq_cur_pointer, *rspq_cur_sentinel; \
+    extern void rspq_next_buffer(void); \
+    if (__builtin_expect(rspq_cur_pointer > rspq_cur_sentinel - (size), 0)) \
+        rspq_next_buffer(); \
+    volatile uint32_t *cur = rspq_cur_pointer; \
+    rspq_cur_pointer += (size); \
+    (rspq_write_t){ \
+        .first_word = (ovl_id) + ((cmd_id)<<24), \
+        .first = cur, \
+        .pointer = cur + 1, \
+        .is_first = 1 \
+    }; \
+})
 
-/// @endcond
+#define rspq_write_arg(ptr, value) ({ \
+    if ((ptr)->is_first) { \
+        (ptr)->first_word |= (value); \
+        (ptr)->is_first = 0; \
+    } else { \
+        *((ptr)->pointer++) = (value); \
+    } \
+})
 
-static inline void rspq_write_begin(uint32_t ovl_id, uint32_t cmd_id, uint32_t size)
-{
-    assertf(size <= RSPQ_MAX_COMMAND_SIZE, "Command is too big!");
-    extern volatile uint32_t *rspq_cur_pointer, *rspq_cur_sentinel;
-    extern void rspq_next_buffer(void);
-    if (__builtin_expect(rspq_cur_pointer > rspq_cur_sentinel - size, 0))
-        rspq_next_buffer();
-    _rspq_write_tmp_value = ovl_id + (cmd_id<<24);
-    _rspq_write_tmp_ptr = rspq_cur_pointer;
-    _rspq_write_tmp_size = size;
-}
-
-static inline void rspq_write_word(uint32_t value)
-{ 
-    extern volatile uint32_t *rspq_cur_pointer;
-    *(rspq_cur_pointer++) = value;
-}
-
-static inline void rspq_write_end() 
-{
-    extern volatile uint32_t *rspq_cur_pointer;
-    assertf((rspq_cur_pointer - _rspq_write_tmp_ptr) == _rspq_write_tmp_size, "Number of words written does not match the declared size!");
-    _rspq_write_tmp_ptr[0] |= _rspq_write_tmp_value;
-}
+#define rspq_write_end(ptr) ({ \
+    *(ptr)->first = (ptr)->first_word; \
+})
 
 /**
  * @brief Make sure that RSP starts executing up to the last written command.

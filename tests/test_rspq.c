@@ -714,21 +714,21 @@ void test_rspq_big_command(TestContext *ctx)
     uint32_t output[32] __attribute__((aligned(16)));
     data_cache_hit_writeback_invalidate(output, 128);
 
-    rspq_write_begin(test_ovl_id, 0x9, 33);
-    rspq_write_word(0);
+    rspq_write_t wptr = rspq_write_begin(test_ovl_id, 0x9, 33);
+    rspq_write_arg(&wptr, 0);
     for (uint32_t i = 0; i < 32; i++)
     {
-        rspq_write_word(i | i << 8 | i << 16 | i << 24);
+        rspq_write_arg(&wptr, i | i << 8 | i << 16 | i << 24);
     }
-    rspq_write_end();
+    rspq_write_end(&wptr);
 
-    rspq_write_begin(test_ovl_id, 0x9, 33);
-    rspq_write_word(0);
+    wptr = rspq_write_begin(test_ovl_id, 0x9, 33);
+    rspq_write_arg(&wptr, 0);
     for (uint32_t i = 0; i < 32; i++)
     {
-        rspq_write_word(values[i]);
+        rspq_write_arg(&wptr, values[i]);
     }
-    rspq_write_end();
+    rspq_write_end(&wptr);
 
     rspq_test_big_out(output);
 
