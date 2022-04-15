@@ -746,6 +746,9 @@ void test_rspq_big_command(TestContext *ctx)
 
 void test_rspq_rdp_static(TestContext *ctx)
 {
+    extern void rspq_rdp_begin();
+    extern void rspq_rdp_end();
+
     TEST_RSPQ_PROLOG();
 
     const uint32_t count = 0x80;
@@ -753,7 +756,7 @@ void test_rspq_rdp_static(TestContext *ctx)
     rspq_rdp_begin();
     for (uint32_t i = 0; i < count; i++)
     {
-        rspq_write(0, 0, 0, i);
+        _rspq_write(0, 0, 0, i);
     }
     rspq_rdp_end();
 
@@ -836,6 +839,9 @@ void test_rspq_rdp_dynamic_switch(TestContext *ctx)
 
 void test_rspq_rdp_alternate(TestContext *ctx)
 {
+    extern void rspq_rdp_begin();
+    extern void rspq_rdp_end();
+
     TEST_RSPQ_PROLOG();
     test_ovl_init();
 
@@ -845,7 +851,7 @@ void test_rspq_rdp_alternate(TestContext *ctx)
     {
         rspq_test_send_rdp(i);
         rspq_rdp_begin();
-        rspq_write(0, 0, 0, i);
+        _rspq_write(0, 0, 0, i);
         rspq_rdp_end();
     }
 

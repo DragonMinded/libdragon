@@ -67,13 +67,13 @@ void test_gfx_dram_buffer(TestContext *ctx)
 
     rdp_set_other_modes_raw(SOM_CYCLE_FILL);
 
-    rspq_rdp_begin();
+    rdp_static_begin();
     rdp_set_scissor_raw(0, 0, 32 << 2, 32 << 2);
     rdp_set_fill_color_raw(0xFFFFFFFF);
     rdp_set_color_image_raw((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, 31);
     rdp_fill_rectangle_raw(0, 0, 32 << 2, 32 << 2);
     rdp_sync_full_raw();
-    rspq_rdp_end();
+    rdp_static_end();
 
     rspq_flush();
 
@@ -112,7 +112,7 @@ void test_gfx_static(TestContext *ctx)
     static uint16_t expected_fb[TEST_GFX_FBAREA];
     memset(expected_fb, 0, sizeof(expected_fb));
 
-    rspq_rdp_begin();
+    rdp_static_begin();
     rdp_set_other_modes_raw(SOM_CYCLE_FILL);
     rdp_set_color_image_raw((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_GFX_FBWIDTH - 1);
 
@@ -135,7 +135,7 @@ void test_gfx_static(TestContext *ctx)
     }
 
     rdp_sync_full_raw();
-    rspq_rdp_end();
+    rdp_static_end();
     rspq_flush();
 
     wait_for_dp_interrupt(gfx_timeout);
@@ -273,7 +273,7 @@ void test_gfx_mixed(TestContext *ctx)
 
         rdp_set_other_modes_raw(SOM_CYCLE_COPY);
 
-        rspq_rdp_begin();
+        rdp_static_begin();
         rdp_set_texture_image_raw((uint32_t)texture, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_GFX_FBWIDTH - 1);
         rdp_set_tile_raw(
             RDP_TILE_FORMAT_RGBA, 
@@ -292,7 +292,7 @@ void test_gfx_mixed(TestContext *ctx)
                 x << 5, 0, 4 << 10, 1 << 10);
             rdp_sync_pipe_raw();
         }
-        rspq_rdp_end();
+        rdp_static_end();
     }
 
     rdp_sync_full_raw();

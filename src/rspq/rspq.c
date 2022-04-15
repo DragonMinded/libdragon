@@ -421,6 +421,8 @@ rspq_write_ctx_t *rspq_write_ctx;       ///< Current write context
 volatile uint32_t *rspq_cur_pointer;    ///< Copy of the current write pointer (see #rspq_ctx_t)
 volatile uint32_t *rspq_cur_sentinel;   ///< Copy of the current write sentinel (see #rspq_ctx_t)
 
+bool rspq_rdp_mode = false;
+
 void *rspq_rdp_dynamic_buffers[2];
 
 uint32_t rspq_rdp_wstatus;
@@ -962,6 +964,9 @@ void rspq_overlay_unregister(uint32_t overlay_id)
     rspq_update_tables(false);
 }
 
+#define rspq_send_rdp(wstatus, start, end) \
+    _rspq_write(0, RSPQ_CMD_RDP, wstatus, start, end)
+
 void rspq_rdp_flush(volatile uint32_t *cur)
 {
     if (cur <= rspq_rdp_start) return;
@@ -973,7 +978,7 @@ void rspq_rdp_flush(volatile uint32_t *cur)
     // The value of rspq_rdp_wstatus will be written to SP_STATUS (by the RSP) as soon as this buffer
     // is pushed to the RDP (see rsp_queue.inc).
     // This value will clear SIG_RDP_STATIC_BUF if the buffer has index 0, and set if index 1.
-    rspq_int_write(RSPQ_CMD_RDP, rspq_rdp_wstatus, PhysicalAddr(rspq_rdp_start), PhysicalAddr(cur));
+    rspq_send_rdp(rspq_rdp_wstatus, PhysicalAddr(rspq_rdp_start), PhysicalAddr(cur));
     rspq_rdp_start = cur;
 }
 
@@ -1005,7 +1010,7 @@ void rspq_rdp_next_buffer()
     // In other words, when the new buffer is submitted to RDP we can be absolutely sure
     // that the previous buffer is not being used anymore, because it has been pushed
     // out of the fifo (see rsp_queue.inc).
-    rspq_int_write(RSPQ_CMD_RDP, 0, 0, 0);
+    rspq_send_rdp(0, 0, 0);
     rspq_switch_context(&rdp);
 
     // If not in block creation mode, flush the RSP queue to make sure the following wait
@@ -1144,6 +1149,8 @@ void rspq_rdp_begin()
 {
     assertf(rspq_ctx != &highpri, "cannot switch to rdp mode while in highpri mode");
 
+    rspq_rdp_mode = true;
+
     if (!rspq_block) {
         rspq_switch_context(&rdp);
         return;
@@ -1177,6 +1184,8 @@ void rspq_rdp_end()
     }
 
     // TODO: rspq_flush() ?
+    
+    rspq_rdp_mode = false;
 }
 
 void rspq_highpri_begin(void)

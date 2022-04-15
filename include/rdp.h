@@ -490,6 +490,18 @@ void rdp_set_texture_flush( flush_t flush );
  */
 void rdp_close( void );
 
+static inline void rdp_static_begin()
+{
+    extern void rspq_rdp_begin();
+    rspq_rdp_begin();
+}
+
+static inline void rdp_static_end()
+{
+    extern void rspq_rdp_end();
+    rspq_rdp_end();
+}
+
 /**
  * @brief Low level function to draw a textured rectangle
  */

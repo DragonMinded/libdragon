@@ -157,10 +157,6 @@ extern "C" {
 
 #define RSPQ_MAX_SHORT_COMMAND_SIZE    16
 
-/** @brief Maximum size of a rdp command (in 32-bit words). */
-#define RSPQ_MAX_RDP_COMMAND_SIZE      4
-
-
 /**
  * @brief A preconstructed block of commands
  * 
@@ -358,12 +354,18 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
  * @hideinitializer
  */
 
-#define rspq_write(ovl_id, cmd_id, ...) \
-    __PPCAT(_rspq_write, __HAS_VARARGS(__VA_ARGS__)) (ovl_id, cmd_id, ##__VA_ARGS__)
+#define rspq_write(ovl_id, cmd_id, ...) ({ \
+    extern bool rspq_rdp_mode; \
+    assertf(!rspq_rdp_mode, "Writing non-RDP commands is not allowed during RDP mode!"); \
+    _rspq_write(ovl_id, cmd_id, ##__VA_ARGS__); \
+})
 
 /// @cond
 
 // Helpers used to implement rspq_write
+#define _rspq_write(ovl_id, cmd_id, ...) \
+    __PPCAT(_rspq_write, __HAS_VARARGS(__VA_ARGS__)) (ovl_id, cmd_id, ##__VA_ARGS__)
+
 #define _rspq_write_prolog() \
     extern volatile uint32_t *rspq_cur_pointer, *rspq_cur_sentinel; \
     extern void rspq_next_buffer(void); \
@@ -682,10 +684,6 @@ void rspq_highpri_end(void);
  * Also note that it is not possible to create syncpoints in the high-priority queue.
  */
 void rspq_highpri_sync(void);
-
-void rspq_rdp_begin();
-
-void rspq_rdp_end();
 
 /**
  * @brief Enqueue a no-op command in the queue.
