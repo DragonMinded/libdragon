@@ -140,6 +140,13 @@ Functions</h2></td></tr>
 <tr class="memitem:gad5ef099708a73fd6aed71192d4bb31b6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#gad5ef099708a73fd6aed71192d4bb31b6">graphics_fill_screen</a> (<a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a> disp, uint32_t c)</td></tr>
 <tr class="memdesc:gad5ef099708a73fd6aed71192d4bb31b6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Fill the entire screen with a particular color.  <a href="group__graphics.html#gad5ef099708a73fd6aed71192d4bb31b6">More...</a><br /></td></tr>
 <tr class="separator:gad5ef099708a73fd6aed71192d4bb31b6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga3cf382b85ed61c530f69ddf7f3e3adb9"><td class="memItemLeft" align="right" valign="top"><a id="ga3cf382b85ed61c530f69ddf7f3e3adb9" name="ga3cf382b85ed61c530f69ddf7f3e3adb9"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><b>graphics_set_default_font</b> (void)</td></tr>
+<tr class="memdesc:ga3cf382b85ed61c530f69ddf7f3e3adb9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the font to the default. <br /></td></tr>
+<tr class="separator:ga3cf382b85ed61c530f69ddf7f3e3adb9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga2534faf89449dd8344e32a70ae7d4ac6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#ga2534faf89449dd8344e32a70ae7d4ac6">graphics_set_font_sprite</a> (<a class="el" href="group__graphics.html#structsprite__t">sprite_t</a> *font)</td></tr>
+<tr class="memdesc:ga2534faf89449dd8344e32a70ae7d4ac6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the current font. Should be set before using any of the draw function.  <a href="group__graphics.html#ga2534faf89449dd8344e32a70ae7d4ac6">More...</a><br /></td></tr>
+<tr class="separator:ga2534faf89449dd8344e32a70ae7d4ac6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga475bc6fbd649e4a707d3512f869b5d16"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#ga475bc6fbd649e4a707d3512f869b5d16">graphics_draw_character</a> (<a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a> disp, int x, int y, char ch)</td></tr>
 <tr class="memdesc:ga475bc6fbd649e4a707d3512f869b5d16"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a character to the screen using the built-in font.  <a href="group__graphics.html#ga475bc6fbd649e4a707d3512f869b5d16">More...</a><br /></td></tr>
 <tr class="separator:ga475bc6fbd649e4a707d3512f869b5d16"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -613,9 +620,6 @@ Width in pixels. </td></tr>
 </div><div class="memdoc">
 
 <p>Draw a character to the screen using the built-in font. </p>
-<dl class="todo"><dt><b><a class="el" href="todo.html#_todo000001">Todo:</a></b></dt><dd><p class="startdd">Need a set font mechanism. </p>
-<p class="enddd">Need to look up the width and height from the font instead of assuming it is 8x8.</p>
-</dd></dl>
 <p >Draw a character from the built-in font to the screen. This function does not support alpha blending, only binary transparency. If the background color is fully transparent, the font is drawn with no background. Otherwise, the font is drawn on a fully colored background. The foreground and background can be set using <a class="el" href="group__graphics.html#gab9d17666808af7dfc4562a528bed01af" title="Set the current forecolor and backcolor for text operations.">graphics_set_color</a>.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
@@ -1286,10 +1290,82 @@ Width in pixels. </td></tr>
 
 </div>
 </div>
+<a id="ga2534faf89449dd8344e32a70ae7d4ac6" name="ga2534faf89449dd8344e32a70ae7d4ac6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga2534faf89449dd8344e32a70ae7d4ac6">&#9670;&nbsp;</a></span>graphics_set_font_sprite()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void graphics_set_font_sprite </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="group__graphics.html#structsprite__t">sprite_t</a> *&#160;</td>
+          <td class="paramname"><em>font</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Set the current font. Should be set before using any of the draw function. </p>
+<p >The sprite font should be imported using hslices/vslices according to the amount of characters it has. The amount of hslices vs vslices does not matter for this, but it should include the whole ASCII range that you will want to use, including characters from the 0 to 32 range. Normally the sprite should have 127 slices to cover the normal ASCII range.</p>
+<p >During rendering, the slice used will be the same number as the char (eg.: character 'A' will use slice 65).</p>
+<p >You can see an example of a sprite font (that has the default font double sized) under examples/customfont.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">font</td><td>Sprite font to be used. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<h2 class="groupheader">Variable Documentation</h2>
+<a id="ga380b96cfb1b9a769b2095955c878c238" name="ga380b96cfb1b9a769b2095955c878c238"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga380b96cfb1b9a769b2095955c878c238">&#9670;&nbsp;</a></span></h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int  { ... } ::font_height</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="gaa6c5d17d10dbd2d45f2842a0326cc22a" name="gaa6c5d17d10dbd2d45f2842a0326cc22a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaa6c5d17d10dbd2d45f2842a0326cc22a">&#9670;&nbsp;</a></span></h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int  { ... } ::font_width</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
+<a id="gadfcd2d1ece63d2e3925b88d8d6e89756" name="gadfcd2d1ece63d2e3925b88d8d6e89756"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gadfcd2d1ece63d2e3925b88d8d6e89756">&#9670;&nbsp;</a></span></h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">sprite_t*  { ... } ::sprite</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+</div>
+</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Mar 30 2022 11:03:25 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.3
+Generated on Sat Apr 16 2022 21:32:23 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.3
 </small></address>
 </body>
 </html>

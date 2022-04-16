@@ -21,7 +21,7 @@ var searchData=
   ['sec_18',['sec',['../group__rtc.html#a9e6b7c9a15685fe8c90a969550b80e76',1,'rtc_time_t']]],
   ['sector_5fpayload_19',['SECTOR_PAYLOAD',['../group__dfs.html#gaa5b4142139985c33ebf12f4dacf6f61f',1,'dfsinternal.h']]],
   ['sector_5fsize_20',['SECTOR_SIZE',['../group__dfs.html#gaa35bad1e92008da628f27b2f6bb270aa',1,'dfsinternal.h']]],
-  ['seek_21',['seek',['../xm64_8h.html#ad6e07f617d18edf9fb9a3c313d074de9',1,'xm64player_t']]],
+  ['seek_21',['seek',['../xm64_8h.html#a6b9dea83f4491a2894eeb90098f1673c',1,'xm64player_t']]],
   ['sentinel_22',['sentinel',['../rspq_8c.html#aaa5f5b1d72225363c4b5c62ccce87c78',1,'rspq_ctx_t']]],
   ['set_23',['set',['../group__timer.html#a5e2a607418a0f509228cb0eceac24d3e',1,'timer_link_t']]],
   ['set_5fai_5finterrupt_24',['set_AI_interrupt',['../group__interrupt.html#ga87288d9e8d2c178572957295ff64ec40',1,'set_AI_interrupt(int active):&#160;interrupt.c'],['../group__interrupt.html#ga87288d9e8d2c178572957295ff64ec40',1,'set_AI_interrupt(int active):&#160;interrupt.c']]],
