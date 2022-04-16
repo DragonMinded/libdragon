@@ -4,18 +4,23 @@
  * @ingroup mixer
  */
 
-#include "libdragon.h"
+#include "mixer.h"
+#include "samplebuffer.h"
+#include "n64sys.h"
+#include "utils.h"
+#include "debug.h"
 #include <string.h>
 
+/** @brief Set to 1 to activate debug logs */
 #define MIXER_TRACE   0
 
 #if MIXER_TRACE
+/** @brief like debugf(), but writes only if #MIXER_TRACE is not 0 */
 #define tracef(fmt, ...)  debugf(fmt, ##__VA_ARGS__)
 #else
+/** @brief like debugf(), but writes only if #MIXER_TRACE is not 0 */
 #define tracef(fmt, ...)  ({ })
 #endif
-
-#define ROUND_UP(n, d)  (((n) + (d) - 1) / (d) * (d))
 
 void samplebuffer_init(samplebuffer_t *buf, uint8_t* uncached_mem, int nbytes) {
 	memset(buf, 0, sizeof(samplebuffer_t));
@@ -60,8 +65,10 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 	// This is not strictly required because dma_read() can do wonders,
 	// but it results in slightly faster DMA transfers and its almost free
 	// to do here.
+	/// @cond
 	#define ROUNDUP8_BPS(nsamples, bps) \
 		(((nsamples)+((8>>(bps))-1)) >> (3-(bps)) << (3-(bps)))
+	/// @endcond
 
 	int bps = SAMPLES_BPS_SHIFT(buf);
 

@@ -1,0 +1,39 @@
+on:
+  workflow_call:
+    secrets:
+      token:
+        description: 'A github token passed from the caller workflow'
+        required: true
+
+# Make sure we don't have more than one active workflow to prevent race conditions
+# e.g a previous build may update docs later and overwrite if we don't have this.
+# It is ok to have parallel runs for push and PR events and from different branches.
+# We can cancel previous runs for non-trunk events.
+concurrency:
+  group: ${{ github.ref }}${{ github.event_name }}
+  cancel-in-progress: ${{ github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
+
+jobs:
+  Build-Documentation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Set variables
+        id: vars
+        run: |
+          echo "::set-output name=default_ref::${{ format('refs/heads/{0}', github.event.repository.default_branch) }}"
+
+      - name: Run Doxygen
+        uses: mattnotmitt/doxygen-action@v1
+        with:
+          doxyfile-path: 'doxygen-public.conf'
+
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v3
+        if: ${{ github.ref == steps.vars.outputs.default_ref }}
+        with:
+          github_token: ${{ secrets.token }}
+          publish_dir: ./website
+          enable_jekyll: true
