@@ -405,18 +405,9 @@ typedef struct {
 } rspq_write_t;
 
 #define rspq_write_begin(ovl_id, cmd_id, size) ({ \
-    extern volatile uint32_t *rspq_cur_pointer, *rspq_cur_sentinel; \
-    extern void rspq_next_buffer(void); \
-    if (__builtin_expect(rspq_cur_pointer > rspq_cur_sentinel - (size), 0)) \
-        rspq_next_buffer(); \
-    volatile uint32_t *cur = rspq_cur_pointer; \
-    rspq_cur_pointer += (size); \
-    (rspq_write_t){ \
-        .first_word = (ovl_id) + ((cmd_id)<<24), \
-        .first = cur, \
-        .pointer = cur + 1, \
-        .is_first = 1 \
-    }; \
+    extern bool rspq_rdp_mode; \
+    assertf(!rspq_rdp_mode, "Writing non-RDP commands is not allowed during RDP mode!"); \
+    _rspq_write_begin(ovl_id, cmd_id, size); \
 })
 
 #define rspq_write_arg(ptr, value) ({ \
@@ -431,6 +422,25 @@ typedef struct {
 #define rspq_write_end(ptr) ({ \
     *(ptr)->first = (ptr)->first_word; \
 })
+
+/// @cond
+
+#define _rspq_write_begin(ovl_id, cmd_id, size) ({ \
+    extern volatile uint32_t *rspq_cur_pointer, *rspq_cur_sentinel; \
+    extern void rspq_next_buffer(void); \
+    if (__builtin_expect(rspq_cur_pointer > rspq_cur_sentinel - (size), 0)) \
+        rspq_next_buffer(); \
+    volatile uint32_t *cur = rspq_cur_pointer; \
+    rspq_cur_pointer += (size); \
+    (rspq_write_t){ \
+        .first_word = (ovl_id) + ((cmd_id)<<24), \
+        .first = cur, \
+        .pointer = cur + 1, \
+        .is_first = 1 \
+    }; \
+})
+
+/// @endcond
 
 /**
  * @brief Make sure that RSP starts executing up to the last written command.
