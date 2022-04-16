@@ -41,6 +41,17 @@
  */
 
 /**
+ * @brief Struct that holds the current loaded font. We load the default font on
+ * the first #graphics_draw_character call if #graphics_set_font_sprite was not called.
+ */
+static struct {
+    sprite_t *sprite;
+    int font_width;
+    int font_height;
+} sprite_font = { .sprite = NULL };
+
+
+/**
  * @brief Macro to set a pixel to a certain color in a buffer
  *
  * @note This macro uses the currently calculated video width as the implicit
@@ -616,10 +627,38 @@ void graphics_fill_screen( display_context_t disp, uint32_t c )
 }
 
 /**
- * @brief Draw a character to the screen using the built-in font
+ * @brief Set the font to the default.
+ */
+void graphics_set_default_font( void )
+{
+    sprite_t *font = (sprite_t *)(__bitdepth == 2 ? __font_data_16 : __font_data_32);
+    graphics_set_font_sprite( font );
+}
+
+/**
+ * @brief Set the current font. Should be set before using any of the draw function.
+ * 
+ * The sprite font should be imported using hslices/vslices according to the amount of characters it has.
+ * The amount of hslices vs vslices does not matter for this, but it should include the whole ASCII
+ * range that you will want to use, including characters from the 0 to 32 range. Normally the sprite should have
+ * 127 slices to cover the normal ASCII range.
+ * 
+ * During rendering, the slice used will be the same number as the char (eg.: character 'A' will use slice 65).
+ * 
+ * You can see an example of a sprite font (that has the default font double sized) under examples/customfont.
  *
- * @todo Need a set font mechanism.
- * @todo Need to look up the width and height from the font instead of assuming it is 8x8.
+ * @param[in] font
+ *        Sprite font to be used.
+ */
+void graphics_set_font_sprite( sprite_t *font )
+{
+    sprite_font.sprite = font;
+    sprite_font.font_width = sprite_font.sprite->width / sprite_font.sprite->hslices;
+    sprite_font.font_height = sprite_font.sprite->height / sprite_font.sprite->vslices;
+}
+
+/**
+ * @brief Draw a character to the screen using the built-in font
  *
  * Draw a character from the built-in font to the screen.  This function does not support alpha blending, 
  * only binary transparency.  If the background color is fully transparent, the font is drawn with no
@@ -641,62 +680,72 @@ void graphics_draw_character( display_context_t disp, int x, int y, char ch )
 
     int depth = __bitdepth;
 
+    // setting default font if none was set previously
+    if( sprite_font.sprite == NULL )
+    {
+        graphics_set_default_font();
+    }
+
     /* Figure out if they want the background to be transparent */
     int trans = __is_transparent( depth, b_color );
+
+    const int sx = ( ch % sprite_font.sprite->hslices ) * sprite_font.font_width;
+    const int sy = ( ch / sprite_font.sprite->hslices ) * sprite_font.font_height;
+    const int ex = sx + sprite_font.font_width;
+    const int ey = sy + sprite_font.font_height;
+
+    const int tx = x - sx;
+    const int ty = y - sy;
 
     if( depth == 2 )
     {
         uint16_t *buffer = (uint16_t *)__get_buffer( disp );
+        uint16_t *sp_data = (uint16_t *)sprite_font.sprite->data;
 
-        for( int row = 0; row < 8; row++ )
+        for( int yp = sy; yp < ey; yp++ )
         {
-            unsigned char c = __font_data[(ch * 8) + row];
+            const register int run = yp * sprite_font.sprite->width;
 
-            for( int col = 0; col < 8; col++ )
+            for( int xp = sx; xp < ex; xp++ )
             {
+                const char c = sp_data[xp + run];
                 if( trans )
                 {
-                    if( c & 0x80 )
+                    if( ( c & 0x1 ) != 0x0 )
                     {
-                        /* Only draw it if it is active */
-                        __set_pixel( buffer, x + col, y + row, f_color );
+                        __set_pixel( buffer, tx + xp, ty + yp, f_color );
                     }
                 }
                 else
                 {
-                    /* Display foreground or background depending on font data */
-                    __set_pixel( buffer, x + col, y + row, (c & 0x80) ? f_color : b_color );
+                    __set_pixel( buffer, tx + xp, ty + yp, ( ( c & 0x1 ) != 0x0 ) ? f_color : b_color );
                 }
-
-                c <<= 1;
             }
         }
     }
     else
     {
         uint32_t *buffer = (uint32_t *)__get_buffer( disp );
+        uint32_t *sp_data = (uint32_t *)sprite_font.sprite->data;
 
-        for( int row = 0; row < 8; row++ )
+        for( int yp = sy; yp < ey; yp++ )
         {
-            unsigned char c = __font_data[(ch * 8) + row];
+            const register int run = yp * sprite_font.sprite->width;
 
-            for( int col = 0; col < 8; col++ )
+            for( int xp = sx; xp < ex; xp++ )
             {
+                const char c = sp_data[xp + run];
                 if( trans )
                 {
-                    if( c & 0x80 )
+                    if( ( c & 0xFF ) != 0x00 )
                     {
-                        /* Only draw it if it is active */
-                        __set_pixel( buffer, x + col, y + row, f_color );
+                        __set_pixel( buffer, tx + xp, ty + yp, f_color );
                     }
                 }
                 else
                 {
-                    /* Display foreground or background depending on font data */
-                    __set_pixel( buffer, x + col, y + row, (c & 0x80) ? f_color : b_color );
+                    __set_pixel( buffer, tx + xp, ty + yp, ( ( c & 0xFF ) != 0x00 ) ? f_color : b_color );
                 }
-
-                c <<= 1;
             }
         }
     }
@@ -738,17 +787,17 @@ void graphics_draw_text( display_context_t disp, int x, int y, const char * cons
             case '\r':
             case '\n':
                 tx = x;
-                ty += 8;
+                ty += sprite_font.font_height;
                 break;
             case ' ':
-                tx += 8;
+                tx += sprite_font.font_width;
                 break;
             case '\t':
-                tx += 8 * 5;
+                tx += sprite_font.font_width * 5;
                 break;
             default:
                 graphics_draw_character( disp, tx, ty, *text );
-                tx += 8;
+                tx += sprite_font.font_width;
                 break;
         }
 
