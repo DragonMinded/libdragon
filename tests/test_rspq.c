@@ -3,7 +3,6 @@
 
 #include <rspq.h>
 #include <rspq_constants.h>
-#include "../src/rspq/rspq_internal.h"
 
 #define ASSERT_GP_BACKWARD           0xF001   // Also defined in rsp_test.S
 
@@ -744,37 +743,6 @@ void test_rspq_big_command(TestContext *ctx)
     ASSERT_EQUAL_MEM((uint8_t*)output, (uint8_t*)expected, 128, "Output does not match!");
 }
 
-void test_rspq_rdp_static(TestContext *ctx)
-{
-    extern void rspq_rdp_begin();
-    extern void rspq_rdp_end();
-
-    TEST_RSPQ_PROLOG();
-
-    const uint32_t count = 0x80;
-
-    rspq_rdp_begin();
-    for (uint32_t i = 0; i < count; i++)
-    {
-        _rspq_write(0, 0, 0, i);
-    }
-    rspq_rdp_end();
-
-    TEST_RSPQ_EPILOG(0, rspq_timeout);
-
-    extern rspq_ctx_t rdp;
-
-    ASSERT_EQUAL_HEX(*DP_START, PhysicalAddr(rdp.buffers[0]), "DP_START does not match!");
-    ASSERT_EQUAL_HEX(*DP_END, PhysicalAddr(rdp.buffers[0]) + count * 8, "DP_END does not match!");
-
-    uint64_t *rdp_buf = (uint64_t*)rdp.buffers[0];
-
-    for (uint64_t i = 0; i < count; i++)
-    {
-        ASSERT_EQUAL_HEX(rdp_buf[i], i, "Wrong command at idx: %llx", i);
-    }
-}
-
 void test_rspq_rdp_dynamic(TestContext *ctx)
 {
     TEST_RSPQ_PROLOG();
@@ -834,41 +802,5 @@ void test_rspq_rdp_dynamic_switch(TestContext *ctx)
     for (uint64_t i = 0; i < extra_count; i++)
     {
         ASSERT_EQUAL_HEX(rdp_buf1[i], i + full_count, "Wrong command at idx: %llx", i);
-    }
-}
-
-void test_rspq_rdp_alternate(TestContext *ctx)
-{
-    extern void rspq_rdp_begin();
-    extern void rspq_rdp_end();
-
-    TEST_RSPQ_PROLOG();
-    test_ovl_init();
-
-    const uint32_t count = 0x80;
-
-    for (uint32_t i = 0; i < count; i++)
-    {
-        rspq_test_send_rdp(i);
-        rspq_rdp_begin();
-        _rspq_write(0, 0, 0, i);
-        rspq_rdp_end();
-    }
-
-    TEST_RSPQ_EPILOG(0, rspq_timeout);
-
-    extern void *rspq_rdp_dynamic_buffers[2];
-    extern rspq_ctx_t rdp;
-
-    ASSERT_EQUAL_HEX(*DP_START, PhysicalAddr(rdp.buffers[0]) + ((count - 1) * sizeof(uint64_t)), "DP_START does not match!");
-    ASSERT_EQUAL_HEX(*DP_END, PhysicalAddr(rdp.buffers[0]) + ((count) * sizeof(uint64_t)), "DP_END does not match!");
-
-    uint64_t *dyn_buf = (uint64_t*)rspq_rdp_dynamic_buffers[0];
-    uint64_t *sta_buf = (uint64_t*)rdp.buffers[0];
-
-    for (uint64_t i = 0; i < count; i++)
-    {
-        ASSERT_EQUAL_HEX(dyn_buf[i], i, "Wrong command at idx: %llx", i);
-        ASSERT_EQUAL_HEX(sta_buf[i], i, "Wrong command at idx: %llx", i);
     }
 }

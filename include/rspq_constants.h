@@ -1,5 +1,5 @@
-#ifndef __RSPQ_CONSTANTS
-#define __RSPQ_CONSTANTS
+#ifndef __RSPQ_INTERNAL
+#define __RSPQ_INTERNAL
 
 #define RSPQ_DEBUG                     1
 
@@ -29,11 +29,6 @@
 #define RSPQ_MAX_BLOCK_NESTING_LEVEL   8
 #define RSPQ_LOWPRI_CALL_SLOT          (RSPQ_MAX_BLOCK_NESTING_LEVEL+0)  ///< Special slot used to store the current lowpri pointer
 #define RSPQ_HIGHPRI_CALL_SLOT         (RSPQ_MAX_BLOCK_NESTING_LEVEL+1)  ///< Special slot used to store the current highpri pointer
-
-/** Signal used by RSP to notify which half of the static RDP buffer is being executed */
-#define SP_STATUS_SIG_RDP_STATIC_BUF           SP_STATUS_SIG1
-#define SP_WSTATUS_SET_SIG_RDP_STATIC_BUF      SP_WSTATUS_SET_SIG1
-#define SP_WSTATUS_CLEAR_SIG_RDP_STATIC_BUF    SP_WSTATUS_CLEAR_SIG1
 
 /** Signal used by RSP to notify that a syncpoint was reached */
 #define SP_STATUS_SIG_SYNCPOINT                SP_STATUS_SIG2

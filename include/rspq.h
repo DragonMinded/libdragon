@@ -354,18 +354,12 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
  * @hideinitializer
  */
 
-#define rspq_write(ovl_id, cmd_id, ...) ({ \
-    extern bool rspq_rdp_mode; \
-    assertf(!rspq_rdp_mode, "Writing non-RDP commands is not allowed during RDP mode!"); \
-    _rspq_write(ovl_id, cmd_id, ##__VA_ARGS__); \
-})
+#define rspq_write(ovl_id, cmd_id, ...) \
+    __PPCAT(_rspq_write, __HAS_VARARGS(__VA_ARGS__)) (ovl_id, cmd_id, ##__VA_ARGS__)
 
 /// @cond
 
 // Helpers used to implement rspq_write
-#define _rspq_write(ovl_id, cmd_id, ...) \
-    __PPCAT(_rspq_write, __HAS_VARARGS(__VA_ARGS__)) (ovl_id, cmd_id, ##__VA_ARGS__)
-
 #define _rspq_write_prolog() \
     extern volatile uint32_t *rspq_cur_pointer, *rspq_cur_sentinel; \
     extern void rspq_next_buffer(void); \
@@ -405,27 +399,6 @@ typedef struct {
 } rspq_write_t;
 
 #define rspq_write_begin(ovl_id, cmd_id, size) ({ \
-    extern bool rspq_rdp_mode; \
-    assertf(!rspq_rdp_mode, "Writing non-RDP commands is not allowed during RDP mode!"); \
-    _rspq_write_begin(ovl_id, cmd_id, size); \
-})
-
-#define rspq_write_arg(ptr, value) ({ \
-    if ((ptr)->is_first) { \
-        (ptr)->first_word |= (value); \
-        (ptr)->is_first = 0; \
-    } else { \
-        *((ptr)->pointer++) = (value); \
-    } \
-})
-
-#define rspq_write_end(ptr) ({ \
-    *(ptr)->first = (ptr)->first_word; \
-})
-
-/// @cond
-
-#define _rspq_write_begin(ovl_id, cmd_id, size) ({ \
     extern volatile uint32_t *rspq_cur_pointer, *rspq_cur_sentinel; \
     extern void rspq_next_buffer(void); \
     if (__builtin_expect(rspq_cur_pointer > rspq_cur_sentinel - (size), 0)) \
@@ -440,7 +413,18 @@ typedef struct {
     }; \
 })
 
-/// @endcond
+#define rspq_write_arg(ptr, value) ({ \
+    if ((ptr)->is_first) { \
+        (ptr)->first_word |= (value); \
+        (ptr)->is_first = 0; \
+    } else { \
+        *((ptr)->pointer++) = (value); \
+    } \
+})
+
+#define rspq_write_end(ptr) ({ \
+    *(ptr)->first = (ptr)->first_word; \
+})
 
 /**
  * @brief Make sure that RSP starts executing up to the last written command.

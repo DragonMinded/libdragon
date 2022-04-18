@@ -66,6 +66,37 @@
  */
 #define __get_buffer( x ) __safe_buffer[(x)-1]
 
+/// @cond
+
+typedef struct rspq_rdp_block_s rspq_rdp_block_t;
+
+#define _rdp_write_arg(arg) \
+    *ptr++ = (arg);
+
+/// @endcond
+
+#define gfx_write(cmd_id, ...) ({ \
+    rspq_write(GFX_OVL_ID, (cmd_id), ##__VA_ARGS__); \
+})
+
+#define rdp_write(cmd_id, arg0, ...) ({ \
+    extern rspq_rdp_block_t *rspq_rdp_block; \
+    if (rspq_rdp_block) { \
+        extern volatile uint32_t *rspq_rdp_pointer, *rspq_rdp_sentinel; \
+        extern void rspq_rdp_next_buffer(void); \
+        extern void rspq_rdp_flush(uint32_t *start, uint32_t *end); \
+        volatile uint32_t *ptr = rspq_rdp_pointer; \
+        *ptr++ = ((cmd_id)<<24) | (arg0); \
+        __CALL_FOREACH(_rdp_write_arg, ##__VA_ARGS__); \
+        rspq_rdp_flush((uint32_t*)rspq_rdp_pointer, (uint32_t*)ptr); \
+        rspq_rdp_pointer = ptr; \
+        if (__builtin_expect(rspq_rdp_pointer > rspq_rdp_sentinel, 0)) \
+            rspq_rdp_next_buffer(); \
+    } else { \
+        gfx_write(cmd_id, arg0, ##__VA_ARGS__); \
+    } \
+})
+
 enum {
     RDP_CMD_TRI                     = 0x08,
     RDP_CMD_TRI_ZBUF                = 0x09,
@@ -519,10 +550,6 @@ void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by )
 
     rdp_fill_rectangle_raw(tx << 2, ty << 2, bx << 2, by << 2);
 }
-
-#define rdp_write(cmd_id, ...) ({ \
-    _rspq_write(GFX_OVL_ID, (cmd_id), ##__VA_ARGS__); \
-})
 
 void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3, float y3 )
 {

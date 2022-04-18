@@ -80,7 +80,6 @@ void render()
 
     rspq_block_run(tiles_block);
     
-    rdp_static_begin();
     for (uint32_t i = 0; i < num_objs; i++)
     {
         uint32_t obj_x = objects[i].x;
@@ -94,7 +93,6 @@ void render()
             }
         }
     }
-    rdp_static_end();
 
     rdp_auto_show_display();
 }
@@ -144,7 +142,6 @@ int main()
     dfs_close(fp);
 
     rspq_block_begin();
-    rdp_static_begin();
 
     uint32_t tile_width = tiles_sprite->width / tiles_sprite->hslices;
     uint32_t tile_height = tiles_sprite->height / tiles_sprite->vslices;
@@ -158,7 +155,6 @@ int main()
         }
     }
 
-    rdp_static_end();
     tiles_block = rspq_block_end();
     
     
