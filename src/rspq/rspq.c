@@ -1120,7 +1120,7 @@ void rspq_highpri_end(void)
     // Write the highpri epilog. The epilog starts with a JUMP to the next
     // instruction because we want to force the RSP to reload the buffer
     // from RDRAM in case the epilog has been overwritten by a new highpri
-    // queue (see rsqp_highpri_begin).
+    // queue (see rspq_highpri_begin).
     rspq_append1(rspq_cur_pointer, RSPQ_CMD_JUMP, PhysicalAddr(rspq_cur_pointer+1));
     rspq_append3(rspq_cur_pointer, RSPQ_CMD_SWAP_BUFFERS,
         RSPQ_LOWPRI_CALL_SLOT<<2, RSPQ_HIGHPRI_CALL_SLOT<<2,

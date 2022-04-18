@@ -190,6 +190,8 @@ void console_init()
     /* Register ourselves with newlib */
     stdio_t console_calls = { 0, __console_write, 0 };
     hook_stdio_calls( &console_calls );
+
+    graphics_set_default_font();
 }
 
 /**
