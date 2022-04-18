@@ -206,7 +206,7 @@ RSPQ_DefineCommand RSPQCmd_Noop,            4     # 0x01
 RSPQ_DefineCommand RSPQCmd_Jump,            4     # 0x02
 RSPQ_DefineCommand RSPQCmd_Call,            8     # 0x03
 RSPQ_DefineCommand RSPQCmd_Ret,             4     # 0x04
-RSPQ_DefineCommand RSQPCmd_Dma,             16    # 0x05
+RSPQ_DefineCommand RSPQCmd_Dma,             16    # 0x05
 RSPQ_DefineCommand RSPQCmd_WriteStatus,     4     # 0x06 -- must be even (bit 24 must be 0)
 RSPQ_DefineCommand RSPQCmd_SwapBuffers,     12    # 0x07
 RSPQ_DefineCommand RSPQCmd_TestWriteStatus, 8     # 0x08 -- must be even (bit 24 must be 0)
@@ -538,7 +538,7 @@ RSPQCmd_WriteStatus:
     .endfunc
 
     #############################################################
-    # RSQPCmd_Dma
+    # RSPQCmd_Dma
     #
     # Executes an arbitrary DMA request by taking the arguments to DMAExec from a0-a3
     #
@@ -548,8 +548,8 @@ RSPQCmd_WriteStatus:
     #   a2: length/height
     #   a3: flags (in/out, sync/async)
     #############################################################
-    .func RSQPCmd_Dma
-RSQPCmd_Dma:
+    .func RSPQCmd_Dma
+RSPQCmd_Dma:
     move s0, a0
     move s4, a1
     move t0, a2
