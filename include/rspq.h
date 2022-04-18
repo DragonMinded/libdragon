@@ -697,8 +697,8 @@ void rspq_noop(void);
  * This function allows to add a command to the queue that will set and/or
  * clear a combination of the above bits.
  * 
- * Notice that signal bits 1-7 are used by the RSP queue engine itself, so this
- * function must only be used for bit 0.
+ * Notice that signal bits 2-7 are used by the RSP queue engine itself, so this
+ * function must only be used for bits 0 and 1.
  * 
  * @param[in]  signal  A signal set/clear mask created by composing SP_WSTATUS_* 
  *                     defines.

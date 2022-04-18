@@ -456,8 +456,6 @@ rspq_ctx_t *rspq_ctx;                   ///< Current context
 volatile uint32_t *rspq_cur_pointer;    ///< Copy of the current write pointer (see #rspq_ctx_t)
 volatile uint32_t *rspq_cur_sentinel;   ///< Copy of the current write sentinel (see #rspq_ctx_t)
 
-bool rspq_rdp_mode = false;
-
 void *rspq_rdp_dynamic_buffers[2];
 
 volatile uint32_t *rspq_rdp_pointer;
