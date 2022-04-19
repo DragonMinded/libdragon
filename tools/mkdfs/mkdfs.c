@@ -297,6 +297,8 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Error opening '%s' for writing.\n", argv[1]);
 
         kill_fs();
+
+        return -1;
     }
 
     fwrite(dfs, 1, fs_size, fp);
