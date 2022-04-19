@@ -221,8 +221,9 @@ uint32_t add_directory(const char * const path)
 
                     if(!new_directory)
                     {
+                        fprintf(stderr, "Skipping empty directory: %s\n", file);
                         free(file);
-                        return 0;
+                        continue;
                     }
 
                     tmp_entry = sector_to_memory(new_entry);
