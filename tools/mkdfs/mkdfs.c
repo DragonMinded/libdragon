@@ -253,6 +253,10 @@ uint32_t add_directory(const char * const path)
     closedir(dirp);
 
     /* Will return 0 if we don't find any entries (don't support directories without files) */
+    if (first_entry == 0)
+    {
+        fprintf(stderr, "Directory %s is empty, not allowed.\n", path);
+    }
     return first_entry;
 }
 
