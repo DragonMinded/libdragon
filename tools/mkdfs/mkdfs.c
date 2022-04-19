@@ -281,7 +281,7 @@ int main(int argc, char *argv[])
     if(!add_directory(argv[2]))
     {
         /* Error adding directory */
-        fprintf(stderr, "Error creating filesystem.\n");
+        fprintf(stderr, "Error creating filesystem: directory is empty or does not exist: %s\n", argv[2]);
 
         kill_fs();
 
