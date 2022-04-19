@@ -473,7 +473,7 @@ rspq_rdp_block_t *rspq_rdp_block;
 /** @brief Size of the current block memory buffer (in 32-bit words). */
 static int rspq_block_size;
 static int rspq_rdp_block_size;
-static bool is_block_buffer_start;
+static volatile uint32_t *last_rdp_cmd;
 
 /** @brief ID that will be used for the next syncpoint that will be created. */
 static int rspq_syncpoints_genid;
@@ -1004,7 +1004,7 @@ void rspq_next_buffer(void) {
         // Terminate the previous chunk with a JUMP op to the new chunk.
         rspq_append1(prev, RSPQ_CMD_JUMP, PhysicalAddr(rspq2));
 
-        is_block_buffer_start = true;
+        last_rdp_cmd = NULL;
         return;
     }
 
@@ -1150,16 +1150,15 @@ void rspq_rdp_flush(uint32_t *start, uint32_t *end)
     uint32_t phys_start = PhysicalAddr(start);
     uint32_t phys_end = PhysicalAddr(end);
 
-    // TODO: Make this work across buffer switches
-    volatile uint32_t *prev_ptr = rspq_cur_pointer - 2;
-    uint32_t prev = is_block_buffer_start ? 0 : *prev_ptr;
-    if (prev>>24 == RSPQ_CMD_RDP && (prev&0xFFFFFF) == phys_start) {
+    // FIXME: Updating the previous command won't work across buffer switches
+    uint32_t diff = rspq_cur_pointer - last_rdp_cmd;
+    if (diff == 2 && (*last_rdp_cmd&0xFFFFFF) == phys_start) {
         // Update the previous command
-        *prev_ptr = (RSPQ_CMD_RDP<<24) | phys_end;
+        *last_rdp_cmd = (RSPQ_CMD_RDP<<24) | phys_end;
     } else {
         // Put a command in the regular RSP queue that will submit the last buffer of RDP commands.
+        last_rdp_cmd = rspq_cur_pointer;
         rspq_int_write(RSPQ_CMD_RDP, phys_end, phys_start);
-        is_block_buffer_start = false;
     }
 }
 
@@ -1206,7 +1205,7 @@ void rspq_block_begin(void)
     // Also switch to the block buffer for RDP commands.
     rspq_rdp_switch_buffer(rspq_rdp_block->cmds, rspq_rdp_block_size);
 
-    is_block_buffer_start = true;
+    last_rdp_cmd = NULL;
 }
 
 rspq_block_t* rspq_block_end(void)
