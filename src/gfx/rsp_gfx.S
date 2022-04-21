@@ -38,7 +38,7 @@
         RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
 
         RSPQ_DefineCommand GFXCmd_ModifyOtherModes, 12 # 0xE0
-        RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
+        RSPQ_DefineCommand GFXCmd_SetFillColor32,   8  # 0xE1 Set Fill Color (32bit version)
         RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
         RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
         RSPQ_DefineCommand GFXCmd_Passthrough16,    16 # 0xE4 TEXTURE_RECTANGLE
@@ -68,11 +68,12 @@
         RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xFC SET_COMBINE_MODE
         RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xFD SET_TEXTURE_IMAGE
         RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xFE SET_Z_IMAGE
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xFF SET_COLOR_IMAGE
+        RSPQ_DefineCommand GFXCmd_SetColorImage,    8  # 0xFF SET_COLOR_IMAGE
     RSPQ_EndOverlayHeader
 
     RSPQ_BeginSavedState
 RDP_OTHER_MODES:       .quad  0xEF00000000000000
+RDP_TARGET_BITDEPTH:   .byte  0
     RSPQ_EndSavedState
 
     .bss
@@ -119,7 +120,6 @@ GFXCmd_ModifyOtherModes:
     or t1, a2
     sw t1, %lo(RDP_OTHER_MODES)(a0)
     # Need to override command size here since GFXCmd_ModifyOtherModes is 12 bytes
-    # and RSPQ_RdpSendDynamic expects the size of the RDP command.
     li rspq_cmd_size, 8
     .endfunc
 
@@ -134,7 +134,75 @@ GFX_SendOtherModes:
     jal_and_j RSPQ_RdpSendDynamic, RSPQ_Loop
     .endfunc
 
-    
+    #############################################################
+    # GFXCmd_SetColorImage
+    #
+    # Simple wrapper around RDP Set Color Image, that records
+    # the target bitdepth.
+    #############################################################
+    .func GFXCmd_SetColorImage
+GFXCmd_SetColorImage:
+    srl t0, a0, 19
+    andi t0, 3
+    j GFXCmd_Passthrough8
+    sb t0, %lo(RDP_TARGET_BITDEPTH)
+    .endfunc
+
+    .func GFXCmd_SetColorImage_Fixup
+GFXCmd_SetColorImage_Fixup:
+    srl t0, a0, 19
+    andi t0, 3
+    sb t0, %lo(RDP_TARGET_BITDEPTH)
+
+    li s4, %lo(RDP_CMD_STAGING)
+    sw a0, 0x00(s4)
+    sw a1, 0x04(s4)
+    mfc0 s0, COP0_DP_END
+    jal DMAOut
+    li t0, DMA_SIZE(8, 1)
+
+    add s0, 8
+    j RSPQ_Loop
+    mtc0 s0, COP0_DP_END
+    .endfunc
+
+    #############################################################
+    # GFXCmd_SetFillColor32
+    #
+    # The RDP command SetFillColor expects a 32-bit value which
+    # is a "packed color", that is the 32-bit value that must be
+    # blindly repeated in the framebuffer. Semantically, for 32-bit
+    # framebuffers, this is the standard RGBA8888 format. For 16-bit
+    # framebuffers, it must be RGBA5551 repeated two times.
+    #
+    # To allow a more flexible approach where the same fill color
+    # command can be used irrespective of the target framebuffer, 
+    # we create our own SetFillColor32 that only accepts a 
+    # RGBA8888 color but convert it automatically to RGBA5551
+    # depending on the target bitdepth (using the last value stored
+    # by SetColorImage).
+    #############################################################
+    .func GFXCmd_SetFillColor32
+GFXCmd_SetFillColor32:
+    lbu t0, %lo(RDP_TARGET_BITDEPTH)
+    beq t0, 3, GFXCmd_Passthrough8
+    lui a0, 0xF700   # SET_FILL_COLOR
+    srl t0, a1, 24 + (8-5) - 11
+    srl t1, a1, 16 + (8-5) - 6
+    srl t2, a1, 8  + (8-5) - 1
+    srl t3, a1, 0  + (8-1) - 0
+    andi t0, 0x1F << 11
+    andi t1, 0x1F << 6
+    andi t2, 0x1F << 1
+    andi t3, 0x01 << 0
+    or t4, t0, t1
+    or t5, t2, t3
+    or a1, t4, t5
+    sll t0, a1, 16
+    j GFXCmd_Passthrough8
+    or a1, t0
+    .endfunc
+
     #############################################################
     # GFXCmd_Passthrough8
     #

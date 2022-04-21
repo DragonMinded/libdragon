@@ -68,32 +68,39 @@
 
 /// @cond
 
-typedef struct rspq_rdp_block_s rspq_rdp_block_t;
-
 #define _rdp_write_arg(arg) \
     *ptr++ = (arg);
 
 /// @endcond
 
-#define gfx_write(cmd_id, ...) ({ \
+#define rdp_dynamic_write(cmd_id, ...) ({ \
     rspq_write(GFX_OVL_ID, (cmd_id), ##__VA_ARGS__); \
 })
 
+#define rdp_static_write(cmd_id, arg0, ...) ({ \
+    extern volatile uint32_t *rspq_rdp_pointer, *rspq_rdp_sentinel; \
+    extern void rspq_rdp_next_buffer(void); \
+    extern void rspq_rdp_flush(uint32_t *start, uint32_t *end); \
+    volatile uint32_t *ptr = rspq_rdp_pointer; \
+    *ptr++ = ((cmd_id)<<24) | (arg0); \
+    __CALL_FOREACH(_rdp_write_arg, ##__VA_ARGS__); \
+    rspq_rdp_flush((uint32_t*)rspq_rdp_pointer, (uint32_t*)ptr); \
+    rspq_rdp_pointer = ptr; \
+    if (__builtin_expect(rspq_rdp_pointer > rspq_rdp_sentinel, 0)) \
+        rspq_rdp_next_buffer(); \
+})
+
+static inline bool in_block(void) {
+    typedef struct rspq_rdp_block_s rspq_rdp_block_t;
+    extern rspq_rdp_block_t *rspq_rdp_block;
+    return rspq_rdp_block != NULL;
+}
+
 #define rdp_write(cmd_id, arg0, ...) ({ \
-    extern rspq_rdp_block_t *rspq_rdp_block; \
-    if (rspq_rdp_block) { \
-        extern volatile uint32_t *rspq_rdp_pointer, *rspq_rdp_sentinel; \
-        extern void rspq_rdp_next_buffer(void); \
-        extern void rspq_rdp_flush(uint32_t *start, uint32_t *end); \
-        volatile uint32_t *ptr = rspq_rdp_pointer; \
-        *ptr++ = ((cmd_id)<<24) | (arg0); \
-        __CALL_FOREACH(_rdp_write_arg, ##__VA_ARGS__); \
-        rspq_rdp_flush((uint32_t*)rspq_rdp_pointer, (uint32_t*)ptr); \
-        rspq_rdp_pointer = ptr; \
-        if (__builtin_expect(rspq_rdp_pointer > rspq_rdp_sentinel, 0)) \
-            rspq_rdp_next_buffer(); \
+    if (in_block()) { \
+        rdp_static_write(cmd_id, arg0, ##__VA_ARGS__); \
     } else { \
-        gfx_write(cmd_id, arg0, ##__VA_ARGS__); \
+        rdp_dynamic_write(cmd_id, arg0, ##__VA_ARGS__); \
     } \
 })
 
@@ -106,7 +113,9 @@ enum {
     RDP_CMD_TRI_SHADE_ZBUF          = 0x0D,
     RDP_CMD_TRI_SHADE_TEX           = 0x0E,
     RDP_CMD_TRI_SHADE_TEX_ZBUF      = 0x0F,
-    RDP_CMD_MODIFY_OTHER_MODES      = 0x20,
+    RDP_CMD_MODIFY_OTHER_MODES      = 0x20, // Fixup command
+    RDP_CMD_SET_FILL_COLOR_32       = 0x21, // Fixup command
+    RDP_CMD_SET_COLOR_IMAGE_FIXUP   = 0x22, // Fixup command
     RDP_CMD_TEXTURE_RECTANGLE       = 0x24,
     RDP_CMD_TEXTURE_RECTANGLE_FLIP  = 0x25,
     RDP_CMD_SYNC_LOAD               = 0x26,
@@ -532,12 +541,6 @@ void rdp_draw_sprite_scaled( uint32_t texslot, int x, int y, double x_scale, dou
     rdp_draw_textured_rectangle_scaled( texslot, x, y, x + new_width, y + new_height, x_scale, y_scale, mirror );
 }
 
-void rdp_set_primitive_color( uint32_t color )
-{
-    /* Set packed color */
-    rdp_set_fill_color_raw(color);
-}
-
 void rdp_set_blend_color( uint32_t color )
 {
     rdp_set_blend_color_raw(color);
@@ -725,12 +728,19 @@ void rdp_fill_rectangle_raw(int16_t x0, int16_t y0, int16_t x1, int16_t y1)
         _carg(x0, 0xFFF, 12) | _carg(y0, 0xFFF, 0));
 }
 
-void rdp_set_fill_color_raw(uint32_t color)
+void __rdp_set_fill_color(uint32_t color)
 {
-    rdp_write(RDP_CMD_SET_FILL_COLOR,
-        0,
-        color);
+    rdp_write(RDP_CMD_SET_FILL_COLOR, 0, color);
 }
+
+void __rdp_set_fill_color32(uint32_t color)
+{
+    rdp_write(RDP_CMD_SET_FILL_COLOR_32, 0, color);
+}
+
+void rdp_set_fill_color_raw(color_t color);
+void rdp_set_fill_color_pattern_raw(color_t color1, color_t color2);
+
 
 void rdp_set_fog_color_raw(uint32_t color)
 {
@@ -781,11 +791,23 @@ void rdp_set_z_image_raw(uint32_t dram_addr)
         dram_addr & 0x1FFFFFF);
 }
 
+void rdp_set_color_image_internal(uint32_t arg0, uint32_t arg1)
+{
+    if (in_block()) {
+        rdp_static_write(RDP_CMD_SET_COLOR_IMAGE_FIXUP, arg0, arg1);
+    } else {
+        rdp_dynamic_write(RDP_CMD_SET_COLOR_IMAGE, arg0, arg1);
+    }
+}
+
 void rdp_set_color_image_raw(uint32_t dram_addr, uint32_t format, uint32_t size, uint32_t width)
 {
-    rdp_write(RDP_CMD_SET_COLOR_IMAGE,
+    rdp_set_color_image_internal(
         _carg(format, 0x7, 21) | _carg(size, 0x3, 19) | _carg(width, 0x3FF, 0),
         dram_addr & 0x1FFFFFF);
 }
+
+
+
 
 /** @} */

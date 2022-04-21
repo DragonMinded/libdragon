@@ -236,6 +236,7 @@ static const struct Testsuite
 	TEST_FUNC(test_gfx_dynamic,                0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_gfx_passthrough_big,        0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_gfx_rdp_block,              0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_gfx_rdp_fixup_setfillcolor, 0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {

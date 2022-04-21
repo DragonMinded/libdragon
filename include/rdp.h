@@ -407,7 +407,11 @@ void rdp_draw_sprite_scaled( uint32_t texslot, int x, int y, double x_scale, dou
  * @param[in] color
  *            Color to draw primitives in
  */
-void rdp_set_primitive_color( uint32_t color );
+static inline __attribute__((deprecated("use rdp_set_fill_color_raw instead")))
+void rdp_set_primitive_color(uint32_t color) {
+    extern void __rdp_set_fill_color(uint32_t);
+    __rdp_set_fill_color(color);
+}
 
 /**
  * @brief Set the blend draw color for subsequent filled primitive operations
@@ -597,7 +601,17 @@ void rdp_fill_rectangle_raw(int16_t x0, int16_t y0, int16_t x1, int16_t y1);
 /**
  * @brief Low level function to set the fill color
  */
-void rdp_set_fill_color_raw(uint32_t color);
+inline void rdp_set_fill_color_raw(color_t color) {
+    extern void __rdp_set_fill_color32(uint32_t);
+    __rdp_set_fill_color32((color.r << 24) | (color.g << 16) | (color.b << 8) | (color.a << 0));
+}
+
+inline void rdp_set_fill_color_pattern_raw(color_t color1, color_t color2) {
+    extern void __rdp_set_fill_color(uint32_t);
+    uint32_t c1 = (((int)color1.r >> 3) << 11) | (((int)color1.g >> 3) << 6) | (((int)color1.b >> 3) << 1) | (color1.a >> 7);
+    uint32_t c2 = (((int)color2.r >> 3) << 11) | (((int)color2.g >> 3) << 6) | (((int)color2.b >> 3) << 1) | (color2.a >> 7);
+    __rdp_set_fill_color((c1 << 16) | c2);
+}
 
 /**
  * @brief Low level function to set the fog color
