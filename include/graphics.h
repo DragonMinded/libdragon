@@ -14,7 +14,7 @@
  */
 
 /** @brief Generic color structure */
-typedef struct
+typedef struct __attribute__((packed))
 {
     /** @brief Red component */
     uint8_t r;
@@ -25,6 +25,25 @@ typedef struct
     /** @brief Alpha component */
     uint8_t a;
 } color_t;
+
+_Static_assert(sizeof(color_t) == 4, "invalid sizeof for color_t");
+
+#define RGBA16(rx,gx,bx,ax) ({ \
+    int rx1 = rx, gx1 = gx, bx1 = bx; \
+    (color_t){.r=(rx1<<3)|(rx1>>3), .g=(gx1<<3)|(gx1>>3), .b=(bx1<<3)|(bx1>>3), .a=ax ? 0xFF : 0}; \
+})
+
+#define RGBA32(rx,gx,bx,ax) ({ \
+    (color_t){.r=rx, .g=gx, .b=bx, .a=ax}; \
+})
+
+static inline uint16_t color_to_packed16(color_t c) {
+    return (((int)c.r >> 3) << 11) | (((int)c.g >> 3) << 6) | (((int)c.b >> 3) << 1) | (c.a >> 7);
+}
+
+static inline uint32_t color_to_packed32(color_t c) {
+    return *(uint32_t*)&c;
+}
 
 /** @brief Sprite structure */
 typedef struct
