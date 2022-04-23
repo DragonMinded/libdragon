@@ -65,7 +65,7 @@ void test_rdpq_dram_buffer(TestContext *ctx)
     data_cache_hit_writeback_invalidate(framebuffer, fbsize);
 
     rdpq_set_other_modes(SOM_CYCLE_FILL);
-    rdpq_set_scissor(0, 0, 32 << 2, 32 << 2);
+    rdpq_set_scissor(0, 0, 31 << 2, 32 << 2);
     rdpq_set_fill_color(RGBA32(0xFF, 0xFF, 0xFF, 0xFF));
     rspq_noop();
     rdpq_set_color_image((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, 31);
@@ -79,7 +79,7 @@ void test_rdpq_dram_buffer(TestContext *ctx)
 
     uint64_t expected_data[] = {
         (0xEFULL << 56) | SOM_CYCLE_FILL,
-        (0xEDULL << 56) | (32ULL << 14) | (32ULL << 2),
+        (0xEDULL << 56) | (31ULL << 14) | (32ULL << 2),
         (0xF7ULL << 56) | 0xFFFFFFFFULL,
         (0xFFULL << 56) | ((uint64_t)RDP_TILE_FORMAT_RGBA << 53) | ((uint64_t)RDP_TILE_SIZE_16BIT << 51) | (31ULL << 32) | ((uint32_t)framebuffer & 0x1FFFFFF),
         (0xF6ULL << 56) | (32ULL << 46) | (32ULL << 34),
@@ -132,7 +132,7 @@ void test_rdpq_dynamic(TestContext *ctx)
             expected_fb[y * TEST_RDPQ_FBWIDTH + x + 2] = color_to_packed16(c);
             expected_fb[y * TEST_RDPQ_FBWIDTH + x + 3] = color_to_packed16(c);
             rdpq_set_fill_color(c);
-            rdpq_set_scissor(x << 2, y << 2, (x + 4) << 2, (y + 1) << 2);
+            rdpq_set_scissor(x << 2, y << 2, (x + 3) << 2, (y + 1) << 2);
             rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH << 2, TEST_RDPQ_FBWIDTH << 2);
             rdpq_sync_pipe();
         }
@@ -243,7 +243,7 @@ void test_rdpq_block(TestContext *ctx)
             expected_fb[y * TEST_RDPQ_FBWIDTH + x + 2] = color_to_packed16(c);
             expected_fb[y * TEST_RDPQ_FBWIDTH + x + 3] = color_to_packed16(c);
             rdpq_set_fill_color(c);
-            rdpq_set_scissor(x << 2, y << 2, (x + 4) << 2, (y + 1) << 2);
+            rdpq_set_scissor(x << 2, y << 2, (x + 3) << 2, (y + 1) << 2);
             rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH << 2, TEST_RDPQ_FBWIDTH << 2);
             rdpq_sync_pipe();
         }
@@ -309,9 +309,11 @@ void test_rdpq_fixup_setfillcolor(TestContext *ctx)
 
     void fillcolor_test(void) {
         rdpq_set_fill_color(TEST_COLOR);
-        rdpq_set_scissor(0 << 2, 0 << 2, TEST_RDPQ_FBWIDTH << 2, TEST_RDPQ_FBWIDTH << 2);
+        rdpq_set_scissor(0 << 2, 0 << 2, (TEST_RDPQ_FBWIDTH-1) << 2, TEST_RDPQ_FBWIDTH << 2);
         rdpq_fill_rectangle(0 << 2, 0 << 2, TEST_RDPQ_FBWIDTH << 2, TEST_RDPQ_FBWIDTH << 2);
     }
+
+    rdpq_set_other_modes(SOM_CYCLE_FILL);
 
     dp_intr_raised = 0;
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
