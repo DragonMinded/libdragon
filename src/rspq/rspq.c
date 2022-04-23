@@ -168,8 +168,10 @@
 
 #include "rsp.h"
 #include "rspq.h"
+#include "rspq_commands.h"
 #include "rspq_constants.h"
 #include "rdp.h"
+#include "rdpq/rdpq_block.h"
 #include "interrupt.h"
 #include "utils.h"
 #include "n64sys.h"
@@ -179,117 +181,6 @@
 #include <stdbool.h>
 #include <string.h>
 #include <malloc.h>
-
-#define RSPQ_MAX_RDP_COMMAND_SIZE      44
-
-/**
- * RSPQ internal commands (overlay 0)
- */
-enum {
-    /**
-     * @brief RSPQ command: Invalid
-     * 
-     * Reserved ID for invalid command. This is used as a marker so that RSP knows
-     * when it has caught up with CPU and reached an empty portion of the buffer.
-     */
-    RSPQ_CMD_INVALID           = 0x00,
-
-    /**
-     * @brief RSPQ command: No-op
-     * 
-     * This commands does nothing. It can be useful for debugging purposes.
-     */
-    RSPQ_CMD_NOOP              = 0x01,
-
-    /**
-     * @brief RSPQ command: Jump to another buffer
-     * 
-     * This commands tells the RSP to start fetching commands from a new address.
-     * It is mainly used internally to implement the queue as a ring buffer (jumping
-     * at the start when we reach the end of the buffer).
-     */
-    RSPQ_CMD_JUMP              = 0x02,
-
-    /**
-     * @brief RSPQ command: Call a block
-     * 
-     * This command is used by the block functions to implement the execution of
-     * a block. It tells RSP to starts fetching commands from the block address,
-     * saving the current address in an internal save slot in DMEM, from which
-     * it will be recovered by CMD_RET. Using multiple slots allow for nested
-     * calls.
-     */    
-    RSPQ_CMD_CALL              = 0x03,
-
-    /**
-     * @brief RSPQ command: Return from a block
-     * 
-     * This command tells the RSP to recover the buffer address from a save slot
-     * (from which it was currently saved by a CALL command) and begin fetching
-     * commands from there. It is used to finish the execution of a block.
-     */
-    RSPQ_CMD_RET               = 0x04,
-
-    /**
-     * @brief RSPQ command: DMA transfer
-     * 
-     * This commands runs a DMA transfer (either DRAM to DMEM, or DMEM to DRAM).
-     * It is used by #rspq_overlay_register to register a new overlay table into
-     * DMEM while the RSP is already running (to allow for overlays to be
-     * registered even after boot), and can be used by the users to perform
-     * manual DMA transfers to and from DMEM without risking a conflict with the
-     * RSP itself.
-     */
-    RSPQ_CMD_DMA               = 0x05,
-
-    /**
-     * @brief RSPQ Command: write SP_STATUS register
-     * 
-     * This command asks the RSP to write to the SP_STATUS register. It is normally
-     * used to set/clear signals or to raise RSP interrupts.
-     */
-    RSPQ_CMD_WRITE_STATUS      = 0x06,
-
-    /**
-     * @brief RSPQ Command: Swap lowpri/highpri buffers
-     * 
-     * This command is used as part of the highpri feature. It allows to switch
-     * between lowpri and highpri queue, by saving the current buffer pointer
-     * in a special save slot, and restoring the buffer pointer of the other
-     * queue from another slot. In addition, it also writes to SP_STATUS, to
-     * be able to adjust signals: entering highpri mode requires clearing
-     * SIG_HIGHPRI_REQUESTED and setting SIG_HIGHPRI_RUNNING; exiting highpri
-     * mode requires clearing SIG_HIGHPRI_RUNNING.
-     * 
-     * The command is called internally by RSP to switch to highpri when the
-     * SIG_HIGHPRI_REQUESTED is found set; then it is explicitly enqueued by the
-     * CPU when the highpri queue is finished to switch back to lowpri
-     * (see #rspq_highpri_end).
-     */
-    RSPQ_CMD_SWAP_BUFFERS      = 0x07,
-
-    /**
-     * @brief RSPQ Command: Test and write SP_STATUS register
-     * 
-     * This commands does a test-and-write sequence on the SP_STATUS register: first,
-     * it waits for a certain mask of bits to become zero, looping on it. Then
-     * it writes a mask to the register. It is used as part of the syncpoint
-     * feature to raise RSP interrupts, while waiting for the previous
-     * interrupt to be processed (coalescing interrupts would cause syncpoints
-     * to be missed).
-     */
-    RSPQ_CMD_TEST_WRITE_STATUS = 0x08,
-
-    /**
-     * @brief RSPQ command: Push commands to RDP
-     * 
-     * This command will send a buffer of RDP commands in RDRAM to the RDP.
-     * Additionally, it will perform a write to SP_STATUS when the buffer is 
-     * not contiguous with the previous one. This is used for synchronization
-     * with the CPU.
-     */
-    RSPQ_CMD_RDP               = 0x09
-};
 
 
 // Make sure that RSPQ_CMD_WRITE_STATUS and RSPQ_CMD_TEST_WRITE_STATUS have
@@ -346,18 +237,10 @@ typedef struct rspq_overlay_header_t {
     uint16_t commands[];
 } rspq_overlay_header_t;
 
-typedef struct rspq_rdp_block_s rspq_rdp_block_t;
-
-typedef struct rspq_rdp_block_s {
-    rspq_rdp_block_t *next;
-    uint32_t padding;
-    uint32_t cmds[];
-} rspq_rdp_block_t;
-
 /** @brief A pre-built block of commands */
 typedef struct rspq_block_s {
     uint32_t nesting_level;     ///< Nesting level of the block
-    rspq_rdp_block_t *rdp_block;
+    rdpq_block_t *rdp_block;
     uint32_t cmds[];            ///< Block contents (commands)
 } rspq_block_t;
 
@@ -458,9 +341,6 @@ volatile uint32_t *rspq_cur_sentinel;   ///< Copy of the current write sentinel 
 
 void *rspq_rdp_dynamic_buffers[2];
 
-volatile uint32_t *rspq_rdp_pointer;
-volatile uint32_t *rspq_rdp_sentinel;
-
 /** @brief RSP queue data in DMEM. */
 static rsp_queue_t rspq_data;
 
@@ -469,11 +349,8 @@ static bool rspq_initialized = 0;
 
 /** @brief Pointer to the current block being built, or NULL. */
 static rspq_block_t *rspq_block;
-rspq_rdp_block_t *rspq_rdp_block;
 /** @brief Size of the current block memory buffer (in 32-bit words). */
 static int rspq_block_size;
-static int rspq_rdp_block_size;
-static volatile uint32_t *last_rdp_cmd;
 
 /** @brief ID that will be used for the next syncpoint that will be created. */
 static int rspq_syncpoints_genid;
@@ -729,7 +606,6 @@ void rspq_init(void)
 
     // Init blocks
     rspq_block = NULL;
-    rspq_rdp_block = NULL;
     rspq_is_running = false;
 
     // Activate SP interrupt (used for syncpoints)
@@ -1004,7 +880,7 @@ void rspq_next_buffer(void) {
         // Terminate the previous chunk with a JUMP op to the new chunk.
         rspq_append1(prev, RSPQ_CMD_JUMP, PhysicalAddr(rspq2));
 
-        last_rdp_cmd = NULL;
+        rdpq_reset_buffer();
         return;
     }
 
@@ -1142,47 +1018,6 @@ void rspq_highpri_sync(void)
     }
 }
 
-void rspq_rdp_flush(uint32_t *start, uint32_t *end)
-{
-    assertf(((uint32_t)start & 0x7) == 0, "start not aligned to 8 bytes: %lx", (uint32_t)start);
-    assertf(((uint32_t)end & 0x7) == 0, "end not aligned to 8 bytes: %lx", (uint32_t)end);
-
-    uint32_t phys_start = PhysicalAddr(start);
-    uint32_t phys_end = PhysicalAddr(end);
-
-    // FIXME: Updating the previous command won't work across buffer switches
-    uint32_t diff = rspq_cur_pointer - last_rdp_cmd;
-    if (diff == 2 && (*last_rdp_cmd&0xFFFFFF) == phys_start) {
-        // Update the previous command
-        *last_rdp_cmd = (RSPQ_CMD_RDP<<24) | phys_end;
-    } else {
-        // Put a command in the regular RSP queue that will submit the last buffer of RDP commands.
-        last_rdp_cmd = rspq_cur_pointer;
-        rspq_int_write(RSPQ_CMD_RDP, phys_end, phys_start);
-    }
-}
-
-void rspq_rdp_switch_buffer(uint32_t *new, uint32_t size)
-{
-    assert(size >= RSPQ_MAX_RDP_COMMAND_SIZE);
-
-    rspq_rdp_pointer = new;
-    rspq_rdp_sentinel = new + size - RSPQ_MAX_RDP_COMMAND_SIZE;
-}
-
-void rspq_rdp_next_buffer()
-{
-    // Allocate next chunk (double the size of the current one).
-    // We use doubling here to reduce overheads for large blocks
-    // and at the same time start small.
-    if (rspq_rdp_block_size < RSPQ_BLOCK_MAX_SIZE) rspq_rdp_block_size *= 2;
-    rspq_rdp_block->next = malloc_uncached(sizeof(rspq_rdp_block_t) + rspq_rdp_block_size*sizeof(uint32_t));
-    rspq_rdp_block = rspq_rdp_block->next;
-
-    // Switch to new buffer
-    rspq_rdp_switch_buffer(rspq_rdp_block->cmds, rspq_rdp_block_size);
-}
-
 void rspq_block_begin(void)
 {
     assertf(!rspq_block, "a block was already being created");
@@ -1190,22 +1025,14 @@ void rspq_block_begin(void)
 
     // Allocate a new block (at minimum size) and initialize it.
     rspq_block_size = RSPQ_BLOCK_MIN_SIZE;
-    rspq_rdp_block_size = RSPQ_BLOCK_MIN_SIZE;
-    rspq_rdp_block = malloc_uncached(sizeof(rspq_rdp_block_t) + rspq_rdp_block_size*sizeof(uint32_t));
-    rspq_rdp_block->next = NULL;
     rspq_block = malloc_uncached(sizeof(rspq_block_t) + rspq_block_size*sizeof(uint32_t));
     rspq_block->nesting_level = 0;
-    rspq_block->rdp_block = rspq_rdp_block;
+    rspq_block->rdp_block = rdpq_block_begin();
 
     // Switch to the block buffer. From now on, all rspq_writes will
     // go into the block.
     rspq_switch_context(NULL);
     rspq_switch_buffer(rspq_block->cmds, rspq_block_size, true);
-
-    // Also switch to the block buffer for RDP commands.
-    rspq_rdp_switch_buffer(rspq_rdp_block->cmds, rspq_rdp_block_size);
-
-    last_rdp_cmd = NULL;
 }
 
 rspq_block_t* rspq_block_end(void)
@@ -1222,19 +1049,14 @@ rspq_block_t* rspq_block_end(void)
     // Return the created block
     rspq_block_t *b = rspq_block;
     rspq_block = NULL;
-    rspq_rdp_block = NULL;
+    rdpq_block_end();
     return b;
 }
 
 void rspq_block_free(rspq_block_t *block)
 {
     // Free RDP blocks first
-    rspq_rdp_block_t *rdp_block = block->rdp_block;
-    while (rdp_block) {
-        void *block = rdp_block;
-        rdp_block = rdp_block->next;
-        free_uncached(block);
-    }
+    rdpq_block_free(block->rdp_block);
 
     // Start from the commands in the first chunk of the block
     int size = RSPQ_BLOCK_MIN_SIZE;

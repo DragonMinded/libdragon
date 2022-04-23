@@ -11,14 +11,14 @@
         RSPQ_DefineCommand RSPQCmd_Noop,            8   # Invalid
         RSPQ_DefineCommand RSPQCmd_Noop,            8   # Invalid
         RSPQ_DefineCommand RSPQCmd_Noop,            8   # Invalid
-        RSPQ_DefineCommand GFXCmd_PassthroughBig,   32  # 0xC8 Filled
-        RSPQ_DefineCommand GFXCmd_PassthroughBig,   48  # 0xC9 Filled ZBuffered
-        RSPQ_DefineCommand GFXCmd_PassthroughBig,   96  # 0xCA Textured
-        RSPQ_DefineCommand GFXCmd_PassthroughBig,   112 # 0xCB Textured ZBuffered
-        RSPQ_DefineCommand GFXCmd_PassthroughBig,   96  # 0xCC Shaded
-        RSPQ_DefineCommand GFXCmd_PassthroughBig,   112 # 0xCD Shaded ZBuffered
-        RSPQ_DefineCommand GFXCmd_PassthroughBig,   160 # 0xCE Shaded Textured
-        RSPQ_DefineCommand GFXCmd_PassthroughBig,   176 # 0xCF Shaded Textured ZBuffered
+        RSPQ_DefineCommand RDPQCmd_PassthroughBig,   32  # 0xC8 Filled
+        RSPQ_DefineCommand RDPQCmd_PassthroughBig,   48  # 0xC9 Filled ZBuffered
+        RSPQ_DefineCommand RDPQCmd_PassthroughBig,   96  # 0xCA Textured
+        RSPQ_DefineCommand RDPQCmd_PassthroughBig,   112 # 0xCB Textured ZBuffered
+        RSPQ_DefineCommand RDPQCmd_PassthroughBig,   96  # 0xCC Shaded
+        RSPQ_DefineCommand RDPQCmd_PassthroughBig,   112 # 0xCD Shaded ZBuffered
+        RSPQ_DefineCommand RDPQCmd_PassthroughBig,   160 # 0xCE Shaded Textured
+        RSPQ_DefineCommand RDPQCmd_PassthroughBig,   176 # 0xCF Shaded Textured ZBuffered
 
         RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
         RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
@@ -37,38 +37,38 @@
         RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
         RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
 
-        RSPQ_DefineCommand GFXCmd_ModifyOtherModes, 12 # 0xE0
-        RSPQ_DefineCommand GFXCmd_SetFillColor32,   8  # 0xE1 Set Fill Color (32bit version)
+        RSPQ_DefineCommand RDPQCmd_ModifyOtherModes, 12 # 0xE0
+        RSPQ_DefineCommand RDPQCmd_SetFillColor32,   8  # 0xE1 Set Fill Color (32bit version)
         RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
         RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
-        RSPQ_DefineCommand GFXCmd_Passthrough16,    16 # 0xE4 TEXTURE_RECTANGLE
-        RSPQ_DefineCommand GFXCmd_Passthrough16,    16 # 0xE5 TEXTURE_RECTANGLE_FLIP
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xE6 SYNC_LOAD
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xE7 SYNC_PIPE
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xE8 SYNC_TILE
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xE9 SYNC_FULL
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xEA SET_KEY_GB
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xEB SET_KEY_R
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xEC SET_CONVERT
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xED SET_SCISSOR
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xEE SET_PRIM_DEPTH
-        RSPQ_DefineCommand GFXCmd_SetOtherModes,    8  # 0xEF SET_OTHER_MODES
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xF0 LOAD_TLUT
+        RSPQ_DefineCommand RDPQCmd_Passthrough16,    16 # 0xE4 TEXTURE_RECTANGLE
+        RSPQ_DefineCommand RDPQCmd_Passthrough16,    16 # 0xE5 TEXTURE_RECTANGLE_FLIP
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xE6 SYNC_LOAD
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xE7 SYNC_PIPE
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xE8 SYNC_TILE
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xE9 SYNC_FULL
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xEA SET_KEY_GB
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xEB SET_KEY_R
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xEC SET_CONVERT
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xED SET_SCISSOR
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xEE SET_PRIM_DEPTH
+        RSPQ_DefineCommand RDPQCmd_SetOtherModes,    8  # 0xEF SET_OTHER_MODES
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xF0 LOAD_TLUT
         RSPQ_DefineCommand RSPQCmd_Noop,            8  # Invalid
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xF2 SET_TILE_SIZE
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xF3 LOAD_BLOCK
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xF4 LOAD_TILE
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xF5 SET_TILE
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xF6 FILL_RECTANGLE
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xF7 SET_FILL_COLOR
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xF8 SET_FOG_COLOR
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xF9 SET_BLEND_COLOR
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xFA SET_PRIM_COLOR
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xFB SET_ENV_COLOR
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xFC SET_COMBINE_MODE
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xFD SET_TEXTURE_IMAGE
-        RSPQ_DefineCommand GFXCmd_Passthrough8,     8  # 0xFE SET_Z_IMAGE
-        RSPQ_DefineCommand GFXCmd_SetColorImage,    8  # 0xFF SET_COLOR_IMAGE
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xF2 SET_TILE_SIZE
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xF3 LOAD_BLOCK
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xF4 LOAD_TILE
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xF5 SET_TILE
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xF6 FILL_RECTANGLE
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xF7 SET_FILL_COLOR
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xF8 SET_FOG_COLOR
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xF9 SET_BLEND_COLOR
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xFA SET_PRIM_COLOR
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xFB SET_ENV_COLOR
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xFC SET_COMBINE_MODE
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xFD SET_TEXTURE_IMAGE
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xFE SET_Z_IMAGE
+        RSPQ_DefineCommand RDPQCmd_SetColorImage,    8  # 0xFF SET_COLOR_IMAGE
     RSPQ_EndOverlayHeader
 
     RSPQ_BeginSavedState
@@ -85,7 +85,7 @@ RDP_CMD_STAGING:       .ds.b 0xB0
     .text
 
     #############################################################
-    # GFXCmd_SetOtherModes
+    # RDPQCmd_SetOtherModes
     #
     # Completely ovewrites the internal cache of the RDP other modes with the 
     # values provided in a0 and a1 and sends it to the RDP.
@@ -94,15 +94,15 @@ RDP_CMD_STAGING:       .ds.b 0xB0
     #   a0: Command id and upper word of other modes
     #   a1: Lower word of other modes
     #############################################################
-    .func GFXCmd_SetOtherModes
-GFXCmd_SetOtherModes:
+    .func RDPQCmd_SetOtherModes
+RDPQCmd_SetOtherModes:
     sw a0, %lo(RDP_OTHER_MODES) + 0x0
-    j GFX_SendOtherModes
+    j RDPQ_SendOtherModes
     sw a1, %lo(RDP_OTHER_MODES) + 0x4
     .endfunc
 
     #############################################################
-    # GFXCmd_ModifyOtherModes
+    # RDPQCmd_ModifyOtherModes
     #
     # Modifies a specific part of the other modes and sends the updated value to the RDP.
     # NOTE: The new value in a2 should never have bits set outside of
@@ -113,43 +113,43 @@ GFXCmd_SetOtherModes:
     #   a1: Inverse bit mask of the value to be written
     #   a2: New value
     #############################################################
-    .func GFXCmd_ModifyOtherModes
-GFXCmd_ModifyOtherModes:
+    .func RDPQCmd_ModifyOtherModes
+RDPQCmd_ModifyOtherModes:
     lw t1, %lo(RDP_OTHER_MODES)(a0)
     and t1, a1
     or t1, a2
     sw t1, %lo(RDP_OTHER_MODES)(a0)
-    # Need to override command size here since GFXCmd_ModifyOtherModes is 12 bytes
+    # Need to override command size here since RDPQCmd_ModifyOtherModes is 12 bytes
     li rspq_cmd_size, 8
     .endfunc
 
     #############################################################
-    # GFX_SendOtherModes
+    # RDPQ_SendOtherModes
     #
     # Sends the value in RDP_OTHER_MODES to the RDP.
     #############################################################
-    .func GFX_SendOtherModes
-GFX_SendOtherModes:
+    .func RDPQ_SendOtherModes
+RDPQ_SendOtherModes:
     li s4, %lo(RDP_OTHER_MODES)
     jal_and_j RSPQ_RdpSendDynamic, RSPQ_Loop
     .endfunc
 
     #############################################################
-    # GFXCmd_SetColorImage
+    # RDPQCmd_SetColorImage
     #
     # Simple wrapper around RDP Set Color Image, that records
     # the target bitdepth.
     #############################################################
-    .func GFXCmd_SetColorImage
-GFXCmd_SetColorImage:
+    .func RDPQCmd_SetColorImage
+RDPQCmd_SetColorImage:
     srl t0, a0, 19
     andi t0, 3
-    j GFXCmd_Passthrough8
+    j RDPQCmd_Passthrough8
     sb t0, %lo(RDP_TARGET_BITDEPTH)
     .endfunc
 
-    .func GFXCmd_SetColorImage_Fixup
-GFXCmd_SetColorImage_Fixup:
+    .func RDPQCmd_SetColorImage_Fixup
+RDPQCmd_SetColorImage_Fixup:
     srl t0, a0, 19
     andi t0, 3
     sb t0, %lo(RDP_TARGET_BITDEPTH)
@@ -167,7 +167,7 @@ GFXCmd_SetColorImage_Fixup:
     .endfunc
 
     #############################################################
-    # GFXCmd_SetFillColor32
+    # RDPQCmd_SetFillColor32
     #
     # The RDP command SetFillColor expects a 32-bit value which
     # is a "packed color", that is the 32-bit value that must be
@@ -182,10 +182,10 @@ GFXCmd_SetColorImage_Fixup:
     # depending on the target bitdepth (using the last value stored
     # by SetColorImage).
     #############################################################
-    .func GFXCmd_SetFillColor32
-GFXCmd_SetFillColor32:
+    .func RDPQCmd_SetFillColor32
+RDPQCmd_SetFillColor32:
     lbu t0, %lo(RDP_TARGET_BITDEPTH)
-    beq t0, 3, GFXCmd_Passthrough8
+    beq t0, 3, RDPQCmd_Passthrough8
     lui a0, 0xF700   # SET_FILL_COLOR
     srl t0, a1, 24 + (8-5) - 11
     srl t1, a1, 16 + (8-5) - 6
@@ -199,17 +199,17 @@ GFXCmd_SetFillColor32:
     or t5, t2, t3
     or a1, t4, t5
     sll t0, a1, 16
-    j GFXCmd_Passthrough8
+    j RDPQCmd_Passthrough8
     or a1, t0
     .endfunc
 
     #############################################################
-    # GFXCmd_Passthrough8
+    # RDPQCmd_Passthrough8
     #
     # Forwards the RDP command contained in a0 and a1 to the RDP stream.
     #############################################################
-    .func GFXCmd_Passthrough8
-GFXCmd_Passthrough8:
+    .func RDPQCmd_Passthrough8
+RDPQCmd_Passthrough8:
     li s4, %lo(RDP_CMD_STAGING)
     sw a0, 0x00(s4)
     sw a1, 0x04(s4)
@@ -218,12 +218,12 @@ GFXCmd_Passthrough8:
 
 
     #############################################################
-    # GFXCmd_Passthrough16
+    # RDPQCmd_Passthrough16
     #
     # Forwards the RDP command contained in a0-a3 to the RDP stream.
     #############################################################
-    .func GFXCmd_Passthrough16
-GFXCmd_Passthrough16:
+    .func RDPQCmd_Passthrough16
+RDPQCmd_Passthrough16:
     li s4, %lo(RDP_CMD_STAGING)
     sw a0, 0x00(s4)
     sw a1, 0x04(s4)
@@ -233,13 +233,13 @@ GFXCmd_Passthrough16:
     .endfunc
 
     #############################################################
-    # GFXCmd_PassthroughBig
+    # RDPQCmd_PassthroughBig
     # 
     # Forwards the RDP command in the input stream to the RDP stream.
     # The size of the command is automatically detected by reading #rspq_cmd_size
     #############################################################
-    .func GFXCmd_PassthroughBig
-GFXCmd_PassthroughBig:
+    .func RDPQCmd_PassthroughBig
+RDPQCmd_PassthroughBig:
     sub s1, rspq_dmem_buf_ptr, rspq_cmd_size
     addi s1, %lo(RSPQ_DMEM_BUFFER)
     li s2, %lo(RDP_CMD_STAGING)

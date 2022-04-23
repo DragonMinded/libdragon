@@ -170,7 +170,7 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 #include "test_cop1.c"
 #include "test_constructors.c"
 #include "test_rspq.c"
-#include "test_gfx.c"
+#include "test_rdpq.c"
 
 /**********************************************************************
  * MAIN
@@ -231,12 +231,12 @@ static const struct Testsuite
 	TEST_FUNC(test_rspq_big_command,           0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_rdp_dynamic,           0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_rdp_dynamic_switch,    0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_gfx_rdp_interrupt,          0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_gfx_dram_buffer,            0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_gfx_dynamic,                0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_gfx_passthrough_big,        0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_gfx_rdp_block,              0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_gfx_rdp_fixup_setfillcolor, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_rdp_interrupt,         0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_dram_buffer,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_dynamic,               0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_passthrough_big,       0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_block,                 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_fixup_setfillcolor,    0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {

@@ -52,7 +52,7 @@
 #include "xm64.h"
 #include "ym64.h"
 #include "rspq.h"
-#include "gfx.h"
+#include "rdpq.h"
 #include "rdp_commands.h"
 
 #endif
