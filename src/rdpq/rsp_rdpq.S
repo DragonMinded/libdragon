@@ -222,25 +222,25 @@ RDPQCmd_SetScissorEx:
     lb t0, %lo(RDP_OTHER_MODES) + 0x1
     # Bit 21 of the first word is set if FILL or COPY mode is active
     andi t0, 0x1 << 5
-    # Prepare t3 to contain 0xFFFFFF
-    lui t3, 0xFF
     # Leave unchanged when not in FILL or COPY mode
-    beqz t0, SetScissorExSubstitute
-    ori t3, 0xFFFF
+    beqz t0, scissor_substitute
+    lui t1, 0xED00 ^ 0xE300 # SET_SCISSOR ^ SET_SCISSOR_EX
 
     # Subtract 1 subpixel from XL (bits 23:12, as 10.2 fixed point)
-    addi t1, a1, -(1 << 12)
-    and t1, t3
-    lui t2, 0xFF00
-    and a1, t2
-    or a1, t1
+    # and saturate to 0
+    addiu t0, a1, -(1 << 12)
+    sltu t2, a1, t0
+    addiu t2, -1
+    and t0, t2
+    lui t3, 0xFF00
+    ori t3, 0x0FFF
+    and a1, t3
+    or a1, t0
 
 scissor_substitute:
     # Substitute command ID
-    and t0, t3, a0
-    lui a0, 0xED00 # SET_SCISSOR
     j RDPQCmd_Passthrough8
-    or a0, t0
+    xor a0, t1
     .endfunc
 
     #############################################################
