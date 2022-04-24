@@ -5,6 +5,9 @@
 #include <stdbool.h>
 #include "graphics.h"
 
+/** @brief Used internally for bit-packing RDP commands. */
+#define _carg(value, mask, shift) (((uint32_t)((value) & mask)) << shift)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -58,7 +61,16 @@ void rdpq_set_convert(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k3, uint16
 /**
  * @brief Low level function to set the scissoring region
  */
-void rdpq_set_scissor(int16_t xh, int16_t yh, int16_t xl, int16_t yl);
+
+inline void rdpq_set_scissor_fx(int16_t x0, int16_t y0, int16_t x1, int16_t y1)
+{
+    extern void __rdpq_set_scissor(uint32_t, uint32_t);
+    __rdpq_set_scissor(
+        _carg(x0, 0xFFF, 12) | _carg(y0, 0xFFF, 0),
+        _carg(x1, 0xFFF, 12) | _carg(y1, 0xFFF, 0));
+}
+
+#define rdpq_set_scissor(xh, yh, xl, yl) rdpq_set_scissor_fx((xh)*4, (yh)*4, (xl)*4, (yl)*4)
 
 /**
  * @brief Low level function to set the primitive depth

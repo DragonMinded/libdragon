@@ -44,6 +44,7 @@ enum {
     RDPQ_CMD_MODIFY_OTHER_MODES      = 0x20, // Fixup command
     RDPQ_CMD_SET_FILL_COLOR_32       = 0x21, // Fixup command
     RDPQ_CMD_SET_COLOR_IMAGE_FIXUP   = 0x22, // Fixup command
+    RDPQ_CMD_SET_SCISSOR_EX          = 0x23, // Fixup command
     RDPQ_CMD_TEXTURE_RECTANGLE       = 0x24,
     RDPQ_CMD_TEXTURE_RECTANGLE_FLIP  = 0x25,
     RDPQ_CMD_SYNC_LOAD               = 0x26,
@@ -195,9 +196,6 @@ static inline bool in_block(void) {
     } \
 })
 
-/** @brief Used internally for bit-packing RDP commands. */
-#define _carg(value, mask, shift) (((uint32_t)((value) & mask)) << shift)
-
 void rdpq_fill_triangle(bool flip, uint8_t level, uint8_t tile, int16_t yl, int16_t ym, int16_t yh, int32_t xl, int32_t dxldy, int32_t xh, int32_t dxhdy, int32_t xm, int32_t dxmdy)
 {
     rdpq_write(RDPQ_CMD_TRI,
@@ -270,11 +268,9 @@ void rdpq_set_convert(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k3, uint16
         _carg(k2, 0x1F, 27) | _carg(k3, 0x1FF, 18) | _carg(k4, 0x1FF, 9) | _carg(k5, 0x1FF, 0));
 }
 
-void rdpq_set_scissor(int16_t x0, int16_t y0, int16_t x1, int16_t y1)
+void __rdpq_set_scissor(uint32_t w0, uint32_t w1)
 {
-    rdpq_write(RDPQ_CMD_SET_SCISSOR,
-        _carg(x0, 0xFFF, 12) | _carg(y0, 0xFFF, 0),
-        _carg(x1, 0xFFF, 12) | _carg(y1, 0xFFF, 0));
+    rdpq_write(RDPQ_CMD_SET_SCISSOR_EX, w0, w1);
 }
 
 void rdpq_set_prim_depth(uint16_t primitive_z, uint16_t primitive_delta_z)
