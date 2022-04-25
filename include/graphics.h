@@ -37,12 +37,16 @@ _Static_assert(sizeof(color_t) == 4, "invalid sizeof for color_t");
     (color_t){.r=rx, .g=gx, .b=bx, .a=ax}; \
 })
 
-static inline uint16_t color_to_packed16(color_t c) {
+inline uint16_t color_to_packed16(color_t c) {
     return (((int)c.r >> 3) << 11) | (((int)c.g >> 3) << 6) | (((int)c.b >> 3) << 1) | (c.a >> 7);
 }
 
-static inline uint32_t color_to_packed32(color_t c) {
+inline uint32_t color_to_packed32(color_t c) {
     return *(uint32_t*)&c;
+}
+
+inline color_t color_from_packed32(uint32_t c) {
+    return (color_t){ .r=(c>>24)&0xFF, .g=(c>>16)&0xFF, .b=(c>>8)&0xFF, .a=c&0xFF };
 }
 
 /** @brief Sprite structure */

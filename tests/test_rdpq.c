@@ -68,8 +68,8 @@ void test_rdpq_dram_buffer(TestContext *ctx)
     rdpq_set_scissor(0, 0, 32, 32);
     rdpq_set_fill_color(RGBA32(0xFF, 0xFF, 0xFF, 0xFF));
     rspq_noop();
-    rdpq_set_color_image((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, 31);
-    rdpq_fill_rectangle(0, 0, 32 << 2, 32 << 2);
+    rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, 32);
+    rdpq_fill_rectangle(0, 0, 32, 32);
     rdpq_sync_full();
     rspq_flush();
 
@@ -120,7 +120,7 @@ void test_rdpq_dynamic(TestContext *ctx)
     memset(expected_fb, 0, sizeof(expected_fb));
 
     rdpq_set_other_modes(SOM_CYCLE_FILL);
-    rdpq_set_color_image((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH - 1);
+    rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH);
 
     for (uint32_t y = 0; y < TEST_RDPQ_FBWIDTH; y++)
     {
@@ -133,7 +133,7 @@ void test_rdpq_dynamic(TestContext *ctx)
             expected_fb[y * TEST_RDPQ_FBWIDTH + x + 3] = color_to_packed16(c);
             rdpq_set_fill_color(c);
             rdpq_set_scissor(x, y, x + 4, y + 1);
-            rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH << 2, TEST_RDPQ_FBWIDTH << 2);
+            rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
             rdpq_sync_pipe();
         }
     }
@@ -180,7 +180,7 @@ void test_rdpq_passthrough_big(TestContext *ctx)
     static uint16_t expected_fb[TEST_RDPQ_FBAREA];
     memset(expected_fb, 0xFF, sizeof(expected_fb));
 
-    rdpq_set_color_image((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH - 1);
+    rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH);
     rdpq_set_scissor(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
     rdp_enable_blend_fill();
     rdp_set_blend_color(0xFFFFFFFF);
@@ -244,14 +244,14 @@ void test_rdpq_block(TestContext *ctx)
             expected_fb[y * TEST_RDPQ_FBWIDTH + x + 3] = color_to_packed16(c);
             rdpq_set_fill_color(c);
             rdpq_set_scissor(x, y, x + 4, y + 1);
-            rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH << 2, TEST_RDPQ_FBWIDTH << 2);
+            rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
             rdpq_sync_pipe();
         }
     }
     rspq_block_t *block = rspq_block_end();
     DEFER(rspq_block_free(block));
 
-    rdpq_set_color_image((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH - 1);
+    rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH);
     rspq_block_run(block);
     rdpq_sync_full();
     rspq_flush();
@@ -310,7 +310,7 @@ void test_rdpq_fixup_setfillcolor(TestContext *ctx)
     void fillcolor_test(void) {
         rdpq_set_fill_color(TEST_COLOR);
         rdpq_set_scissor(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
-        rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH << 2, TEST_RDPQ_FBWIDTH << 2);
+        rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
     }
 
     rdpq_set_other_modes(SOM_CYCLE_FILL);
@@ -318,7 +318,7 @@ void test_rdpq_fixup_setfillcolor(TestContext *ctx)
     dp_intr_raised = 0;
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
     data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
-    rdpq_set_color_image((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_32BIT, TEST_RDPQ_FBWIDTH - 1);
+    rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_32BIT, TEST_RDPQ_FBWIDTH);
     fillcolor_test();
     rdpq_sync_full();        
     rspq_flush();
@@ -329,7 +329,7 @@ void test_rdpq_fixup_setfillcolor(TestContext *ctx)
     dp_intr_raised = 0;
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
     data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
-    rdpq_set_color_image((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH - 1);
+    rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH);
     fillcolor_test();
     rdpq_sync_full();        
     rspq_flush();
@@ -372,7 +372,7 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
         }
     }
 
-    rdpq_set_color_image((uint32_t)framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH - 1);
+    rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH);
 
     dp_intr_raised = 0;
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
@@ -380,7 +380,7 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
     rdpq_set_other_modes(SOM_CYCLE_FILL);
     rdpq_set_fill_color(TEST_COLOR);
     rdpq_set_scissor(4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4);
-    rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH << 2, TEST_RDPQ_FBWIDTH << 2);
+    rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
     rdpq_sync_full();        
     rspq_flush();
     wait_for_dp_interrupt(rdpq_timeout);
@@ -391,9 +391,9 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
     data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
     rdpq_set_other_modes(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | 0x80000000);
-    rdpq_set_blend_color(color_to_packed32(TEST_COLOR));
+    rdpq_set_blend_color(TEST_COLOR);
     rdpq_set_scissor(4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4);
-    rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH << 2, TEST_RDPQ_FBWIDTH << 2);
+    rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
     rdpq_sync_full();        
     rspq_flush();
     wait_for_dp_interrupt(rdpq_timeout);

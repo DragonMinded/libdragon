@@ -208,7 +208,7 @@ void rdp_attach_display( display_context_t disp )
 
     /* Set the rasterization buffer */
     uint32_t size = (__bitdepth == 2) ? RDP_TILE_SIZE_16BIT : RDP_TILE_SIZE_32BIT;
-    rdpq_set_color_image((uint32_t)__get_buffer(disp), RDP_TILE_FORMAT_RGBA, size, __width - 1);
+    rdpq_set_color_image(__get_buffer(disp), RDP_TILE_FORMAT_RGBA, size, __width);
 
 }
 
@@ -271,7 +271,7 @@ void rdp_sync( sync_t sync )
 void rdp_set_clipping( uint32_t tx, uint32_t ty, uint32_t bx, uint32_t by )
 {
     /* Convert pixel space to screen space in command */
-    rdpq_set_scissor(tx << 2, ty << 2, bx << 2, by << 2);
+    rdpq_set_scissor(tx, ty, bx, by);
 }
 
 void rdp_set_default_clipping( void )
@@ -333,7 +333,7 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     }
 
     /* Point the RDP at the actual sprite data */
-    rdpq_set_texture_image((uint32_t)sprite->data, RDP_TILE_FORMAT_RGBA, (sprite->bitdepth == 2) ? RDP_TILE_SIZE_16BIT : RDP_TILE_SIZE_32BIT, sprite->width - 1);
+    rdpq_set_texture_image(sprite->data, RDP_TILE_FORMAT_RGBA, (sprite->bitdepth == 2) ? RDP_TILE_SIZE_16BIT : RDP_TILE_SIZE_32BIT, sprite->width);
 
     /* Figure out the s,t coordinates of the sprite we are copying out of */
     int twidth = sh - sl + 1;
@@ -352,9 +352,9 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     rdpq_set_tile(
         RDP_TILE_FORMAT_RGBA, 
         (sprite->bitdepth == 2) ? RDP_TILE_SIZE_16BIT : RDP_TILE_SIZE_32BIT, 
-        (((real_width / 8) + round_amount) * sprite->bitdepth) & 0x1FF,
-        (texloc / 8) & 0x1FF,
-        texslot & 0x7,
+        (((real_width / 8) + round_amount) * sprite->bitdepth),
+        (texloc / 8),
+        texslot,
         0, 
         0, 
         mirror_enabled != MIRROR_DISABLED ? 1 : 0,
@@ -366,7 +366,7 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
         0);
 
     /* Copying out only a chunk this time */
-    rdpq_load_tile(0, (sl << 2) & 0xFFF, (tl << 2) & 0xFFF, (sh << 2) & 0xFFF, (th << 2) & 0xFFF);
+    rdpq_load_tile(0, sl, tl, sh, th);
 
     /* Save sprite width and height for managed sprite commands */
     cache[texslot & 0x7].width = twidth - 1;
@@ -441,7 +441,7 @@ void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int b
 
     /* Set up rectangle position in screen space */
     /* Set up texture position and scaling to 1:1 copy */
-    rdpq_texture_rectangle(texslot & 0x7, tx << 2, ty << 2, bx << 2, by << 2, s, t, xs & 0xFFFF, ys & 0xFFFF);
+    rdpq_texture_rectangle_fx(texslot, tx << 2, ty << 2, bx << 2, by << 2, s, t, xs, ys);
 }
 
 void rdp_draw_textured_rectangle( uint32_t texslot, int tx, int ty, int bx, int by, mirror_t mirror )
@@ -468,7 +468,7 @@ void rdp_draw_sprite_scaled( uint32_t texslot, int x, int y, double x_scale, dou
 
 void rdp_set_blend_color( uint32_t color )
 {
-    rdpq_set_blend_color(color);
+    rdpq_set_blend_color(color_from_packed32(color));
 }
 
 void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by )
@@ -476,7 +476,7 @@ void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by )
     if( tx < 0 ) { tx = 0; }
     if( ty < 0 ) { ty = 0; }
 
-    rdpq_fill_rectangle(tx << 2, ty << 2, bx << 2, by << 2);
+    rdpq_fill_rectangle(tx, ty, bx, by);
 }
 
 void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3, float y3 )
