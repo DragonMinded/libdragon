@@ -63,9 +63,17 @@ void rdpq_set_convert(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k3, uint16
  */
 #define rdpq_set_scissor(xh, yh, xl, yl) ({ \
     extern void __rdpq_set_scissor(uint32_t, uint32_t); \
+    uint32_t xhfx = (xh)*4; \
+    uint32_t yhfx = (yh)*4; \
+    uint32_t xlfx = (xl)*4; \
+    uint32_t ylfx = (yl)*4; \
+    assertf(xhfx <= xlfx, "xh must not be greater than xl!"); \
+    assertf(yhfx <= ylfx, "yh must not be greater than yl!"); \
+    assertf(xlfx > 0, "xl must not be zero!"); \
+    assertf(ylfx > 0, "yl must not be zero!"); \
     __rdpq_set_scissor( \
-        _carg((xh)*4, 0xFFF, 12) | _carg((yh)*4, 0xFFF, 0), \
-        _carg((xl)*4, 0xFFF, 12) | _carg((yl)*4, 0xFFF, 0)); \
+        _carg(xhfx, 0xFFF, 12) | _carg(yhfx, 0xFFF, 0), \
+        _carg(xlfx, 0xFFF, 12) | _carg(ylfx, 0xFFF, 0)); \
 })
 
 /**

@@ -227,15 +227,7 @@ RDPQCmd_SetScissorEx:
     lui t1, 0xED00 ^ 0xE300 # SET_SCISSOR ^ SET_SCISSOR_EX
 
     # Subtract 1 subpixel from XL (bits 23:12, as 10.2 fixed point)
-    # and saturate to 0
-    addiu t0, a1, -(1 << 12)
-    sltu t2, a1, t0
-    addiu t2, -1
-    and t0, t2
-    lui t3, 0xFF00
-    ori t3, 0x0FFF
-    and a1, t3
-    or a1, t0
+    addiu a1, -(1 << 12)
 
 scissor_substitute:
     # Substitute command ID
