@@ -10,10 +10,10 @@ static void test_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
 {
     switch (assert_code) {
         case ASSERT_GP_BACKWARD:
-            printf("GP moved backward");
+            printf("GP moved backward\n");
             break;
         default:
-            printf("Unknown assert");
+            printf("Unknown assert\n");
             break;
     }
 }

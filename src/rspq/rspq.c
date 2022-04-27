@@ -528,7 +528,7 @@ static void rspq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
             rspq_assert_invalid_command(state);
             break;
         default:
-            printf("Unknown assert");
+            printf("Unknown assert\n");
             break;
     }
 }
