@@ -1,7 +1,9 @@
 #include "rdpq.h"
 #include "rdpq_block.h"
+#include "rdpq_constants.h"
 #include "rspq.h"
 #include "rspq/rspq_commands.h"
+#include "rdp_commands.h"
 #include <string.h>
 
 #define RDPQ_MAX_COMMAND_SIZE 44
@@ -10,7 +12,10 @@
 
 #define RDPQ_OVL_ID (0xC << 28)
 
-DEFINE_RSP_UCODE(rsp_rdpq);
+static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code);
+
+DEFINE_RSP_UCODE(rsp_rdpq, 
+    .assert_handler=rdpq_assert_handler);
 
 typedef struct rdpq_state_s {
     uint64_t other_modes;
@@ -46,6 +51,20 @@ void rdpq_init()
 void rdpq_close()
 {
     rspq_overlay_unregister(RDPQ_OVL_ID);
+}
+
+static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
+{
+    switch (assert_code)
+    {
+    case RDPQ_ASSERT_FLIP_COPY:
+        printf("TextureRectangleFlip cannot be used in copy mode\n");
+        break;
+    
+    default:
+        printf("Unknown assert\n");
+        break;
+    }
 }
 
 void rdpq_reset_buffer()

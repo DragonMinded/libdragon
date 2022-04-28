@@ -7,46 +7,47 @@
 #include "n64sys.h"
 
 enum {
-    RDPQ_CMD_NOOP                    = 0x00,
-    RDPQ_CMD_TRI                     = 0x08,
-    RDPQ_CMD_TRI_ZBUF                = 0x09,
-    RDPQ_CMD_TRI_TEX                 = 0x0A,
-    RDPQ_CMD_TRI_TEX_ZBUF            = 0x0B,
-    RDPQ_CMD_TRI_SHADE               = 0x0C,
-    RDPQ_CMD_TRI_SHADE_ZBUF          = 0x0D,
-    RDPQ_CMD_TRI_SHADE_TEX           = 0x0E,
-    RDPQ_CMD_TRI_SHADE_TEX_ZBUF      = 0x0F,
-    RDPQ_CMD_MODIFY_OTHER_MODES      = 0x20, // Fixup command
-    RDPQ_CMD_SET_FILL_COLOR_32       = 0x21, // Fixup command
-    RDPQ_CMD_SET_COLOR_IMAGE_FIXUP   = 0x22, // Fixup command
-    RDPQ_CMD_SET_SCISSOR_EX          = 0x23, // Fixup command
-    RDPQ_CMD_TEXTURE_RECTANGLE       = 0x24,
-    RDPQ_CMD_TEXTURE_RECTANGLE_FLIP  = 0x25,
-    RDPQ_CMD_SYNC_LOAD               = 0x26,
-    RDPQ_CMD_SYNC_PIPE               = 0x27,
-    RDPQ_CMD_SYNC_TILE               = 0x28,
-    RDPQ_CMD_SYNC_FULL               = 0x29,
-    RDPQ_CMD_SET_KEY_GB              = 0x2A,
-    RDPQ_CMD_SET_KEY_R               = 0x2B,
-    RDPQ_CMD_SET_CONVERT             = 0x2C,
-    RDPQ_CMD_SET_SCISSOR             = 0x2D,
-    RDPQ_CMD_SET_PRIM_DEPTH          = 0x2E,
-    RDPQ_CMD_SET_OTHER_MODES         = 0x2F,
-    RDPQ_CMD_LOAD_TLUT               = 0x30,
-    RDPQ_CMD_SET_TILE_SIZE           = 0x32,
-    RDPQ_CMD_LOAD_BLOCK              = 0x33,
-    RDPQ_CMD_LOAD_TILE               = 0x34,
-    RDPQ_CMD_SET_TILE                = 0x35,
-    RDPQ_CMD_FILL_RECTANGLE          = 0x36,
-    RDPQ_CMD_SET_FILL_COLOR          = 0x37,
-    RDPQ_CMD_SET_FOG_COLOR           = 0x38,
-    RDPQ_CMD_SET_BLEND_COLOR         = 0x39,
-    RDPQ_CMD_SET_PRIM_COLOR          = 0x3A,
-    RDPQ_CMD_SET_ENV_COLOR           = 0x3B,
-    RDPQ_CMD_SET_COMBINE_MODE        = 0x3C,
-    RDPQ_CMD_SET_TEXTURE_IMAGE       = 0x3D,
-    RDPQ_CMD_SET_Z_IMAGE             = 0x3E,
-    RDPQ_CMD_SET_COLOR_IMAGE         = 0x3F,
+    RDPQ_CMD_NOOP                       = 0x00,
+    RDPQ_CMD_TRI                        = 0x08,
+    RDPQ_CMD_TRI_ZBUF                   = 0x09,
+    RDPQ_CMD_TRI_TEX                    = 0x0A,
+    RDPQ_CMD_TRI_TEX_ZBUF               = 0x0B,
+    RDPQ_CMD_TRI_SHADE                  = 0x0C,
+    RDPQ_CMD_TRI_SHADE_ZBUF             = 0x0D,
+    RDPQ_CMD_TRI_SHADE_TEX              = 0x0E,
+    RDPQ_CMD_TRI_SHADE_TEX_ZBUF         = 0x0F,
+    RDPQ_CMD_TEXTURE_RECTANGLE_FIX      = 0x10, // Fixup command
+    RDPQ_CMD_MODIFY_OTHER_MODES         = 0x20, // Fixup command
+    RDPQ_CMD_SET_FILL_COLOR_32          = 0x21, // Fixup command
+    RDPQ_CMD_SET_COLOR_IMAGE_FIXUP      = 0x22, // Fixup command
+    RDPQ_CMD_SET_SCISSOR_EX             = 0x23, // Fixup command
+    RDPQ_CMD_TEXTURE_RECTANGLE          = 0x24,
+    RDPQ_CMD_TEXTURE_RECTANGLE_FLIP     = 0x25,
+    RDPQ_CMD_SYNC_LOAD                  = 0x26,
+    RDPQ_CMD_SYNC_PIPE                  = 0x27,
+    RDPQ_CMD_SYNC_TILE                  = 0x28,
+    RDPQ_CMD_SYNC_FULL                  = 0x29,
+    RDPQ_CMD_SET_KEY_GB                 = 0x2A,
+    RDPQ_CMD_SET_KEY_R                  = 0x2B,
+    RDPQ_CMD_SET_CONVERT                = 0x2C,
+    RDPQ_CMD_SET_SCISSOR                = 0x2D,
+    RDPQ_CMD_SET_PRIM_DEPTH             = 0x2E,
+    RDPQ_CMD_SET_OTHER_MODES            = 0x2F,
+    RDPQ_CMD_LOAD_TLUT                  = 0x30,
+    RDPQ_CMD_SET_TILE_SIZE              = 0x32,
+    RDPQ_CMD_LOAD_BLOCK                 = 0x33,
+    RDPQ_CMD_LOAD_TILE                  = 0x34,
+    RDPQ_CMD_SET_TILE                   = 0x35,
+    RDPQ_CMD_FILL_RECTANGLE             = 0x36,
+    RDPQ_CMD_SET_FILL_COLOR             = 0x37,
+    RDPQ_CMD_SET_FOG_COLOR              = 0x38,
+    RDPQ_CMD_SET_BLEND_COLOR            = 0x39,
+    RDPQ_CMD_SET_PRIM_COLOR             = 0x3A,
+    RDPQ_CMD_SET_ENV_COLOR              = 0x3B,
+    RDPQ_CMD_SET_COMBINE_MODE           = 0x3C,
+    RDPQ_CMD_SET_TEXTURE_IMAGE          = 0x3D,
+    RDPQ_CMD_SET_Z_IMAGE                = 0x3E,
+    RDPQ_CMD_SET_COLOR_IMAGE            = 0x3F,
 };
 
 /** @brief Used internally for bit-packing RDP commands. */
@@ -81,7 +82,7 @@ inline void rdpq_texture_rectangle_fx(uint8_t tile, uint16_t x0, uint16_t y0, ui
 {
     extern void __rdpq_write16(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 
-    __rdpq_write16(RDPQ_CMD_TEXTURE_RECTANGLE,
+    __rdpq_write16(RDPQ_CMD_TEXTURE_RECTANGLE_FIX,
         _carg(x1, 0xFFF, 12) | _carg(y1, 0xFFF, 0),
         _carg(tile, 0x7, 24) | _carg(x0, 0xFFF, 12) | _carg(y0, 0xFFF, 0),
         _carg(s, 0xFFFF, 16) | _carg(t, 0xFFFF, 0),
@@ -234,7 +235,7 @@ inline void rdpq_set_tile_size_fx(uint8_t tile, uint16_t s0, uint16_t t0, uint16
     extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
     __rdpq_write8(RDPQ_CMD_SET_TILE_SIZE,
         _carg(s0, 0xFFF, 12) | _carg(t0, 0xFFF, 0),
-        _carg(tile, 0x7, 24) | _carg(s1, 0xFFF, 12) | _carg(t1, 0xFFF, 0));
+        _carg(tile, 0x7, 24) | _carg(s1-4, 0xFFF, 12) | _carg(t1-4, 0xFFF, 0));
 }
 
 #define rdpq_set_tile_size(tile, s0, t0, s1, t1) ({ \
@@ -249,7 +250,7 @@ inline void rdpq_load_block_fx(uint8_t tile, uint16_t s0, uint16_t t0, uint16_t 
     extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
     __rdpq_write8(RDPQ_CMD_LOAD_BLOCK,
         _carg(s0, 0xFFC, 12) | _carg(t0, 0xFFC, 0),
-        _carg(tile, 0x7, 24) | _carg(s1, 0xFFC, 12) | _carg(dxt, 0xFFF, 0));
+        _carg(tile, 0x7, 24) | _carg(s1-4, 0xFFC, 12) | _carg(dxt, 0xFFF, 0));
 }
 
 // TODO: perform ceiling function on dxt
@@ -265,7 +266,7 @@ inline void rdpq_load_tile_fx(uint8_t tile, uint16_t s0, uint16_t t0, uint16_t s
     extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
     __rdpq_write8(RDPQ_CMD_LOAD_TILE,
         _carg(s0, 0xFFF, 12) | _carg(t0, 0xFFF, 0),
-        _carg(tile, 0x7, 24) | _carg(s1, 0xFFF, 12) | _carg(t1, 0xFFF, 0));
+        _carg(tile, 0x7, 24) | _carg(s1-4, 0xFFF, 12) | _carg(t1-4, 0xFFF, 0));
 }
 
 #define rdpq_load_tile(tile, s0, t0, s1, t1) ({ \

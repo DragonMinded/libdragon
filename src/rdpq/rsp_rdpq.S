@@ -1,74 +1,75 @@
 #include <rsp_queue.inc>
+#include "rdpq_constants.h"
 
     .data
 
     RSPQ_BeginOverlayHeader
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8   # 0xC0 NOOP
-        RSPQ_DefineCommand RSPQCmd_Noop,             8   # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,             8   # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,             8   # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,             8   # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,             8   # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,             8   # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,             8   # Invalid
-        RSPQ_DefineCommand RDPQCmd_PassthroughBig,   32  # 0xC8 Filled
-        RSPQ_DefineCommand RDPQCmd_PassthroughBig,   48  # 0xC9 Filled ZBuffered
-        RSPQ_DefineCommand RDPQCmd_PassthroughBig,   96  # 0xCA Textured
-        RSPQ_DefineCommand RDPQCmd_PassthroughBig,   112 # 0xCB Textured ZBuffered
-        RSPQ_DefineCommand RDPQCmd_PassthroughBig,   96  # 0xCC Shaded
-        RSPQ_DefineCommand RDPQCmd_PassthroughBig,   112 # 0xCD Shaded ZBuffered
-        RSPQ_DefineCommand RDPQCmd_PassthroughBig,   160 # 0xCE Shaded Textured
-        RSPQ_DefineCommand RDPQCmd_PassthroughBig,   176 # 0xCF Shaded Textured ZBuffered
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xC0 NOOP
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RDPQCmd_PassthroughBig,       32  # 0xC8 Filled
+        RSPQ_DefineCommand RDPQCmd_PassthroughBig,       48  # 0xC9 Filled ZBuffered
+        RSPQ_DefineCommand RDPQCmd_PassthroughBig,       96  # 0xCA Textured
+        RSPQ_DefineCommand RDPQCmd_PassthroughBig,       112 # 0xCB Textured ZBuffered
+        RSPQ_DefineCommand RDPQCmd_PassthroughBig,       96  # 0xCC Shaded
+        RSPQ_DefineCommand RDPQCmd_PassthroughBig,       112 # 0xCD Shaded ZBuffered
+        RSPQ_DefineCommand RDPQCmd_PassthroughBig,       160 # 0xCE Shaded Textured
+        RSPQ_DefineCommand RDPQCmd_PassthroughBig,       176 # 0xCF Shaded Textured ZBuffered
 
-        RSPQ_DefineCommand RSPQCmd_Noop,             8  # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,             8  # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,             8  # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,             8  # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,             8  # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,             8  # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,             8  # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,             8  # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,             8  # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,             8  # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,             8  # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,             8  # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,             8  # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,             8  # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,             8  # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,             8  # Invalid
+        RSPQ_DefineCommand RDPQCmd_TextureRectFixup,     16  # 0xD0 Texture Rectangle fixup
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
 
-        RSPQ_DefineCommand RDPQCmd_ModifyOtherModes, 12 # 0xE0
-        RSPQ_DefineCommand RDPQCmd_SetFillColor32,   8  # 0xE1 Set Fill Color (32bit version)
-        RSPQ_DefineCommand RSPQCmd_Noop,             8  # Invalid
-        RSPQ_DefineCommand RDPQCmd_SetScissorEx,     8  # 0xE3 Set Scissor (exclusive range always version)
-        RSPQ_DefineCommand RDPQCmd_Passthrough16,    16 # 0xE4 TEXTURE_RECTANGLE
-        RSPQ_DefineCommand RDPQCmd_Passthrough16,    16 # 0xE5 TEXTURE_RECTANGLE_FLIP
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xE6 SYNC_LOAD
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xE7 SYNC_PIPE
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xE8 SYNC_TILE
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xE9 SYNC_FULL
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xEA SET_KEY_GB
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xEB SET_KEY_R
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xEC SET_CONVERT
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xED SET_SCISSOR
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xEE SET_PRIM_DEPTH
-        RSPQ_DefineCommand RDPQCmd_SetOtherModes,    8  # 0xEF SET_OTHER_MODES
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xF0 LOAD_TLUT
-        RSPQ_DefineCommand RSPQCmd_Noop,             8  # Invalid
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xF2 SET_TILE_SIZE
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xF3 LOAD_BLOCK
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xF4 LOAD_TILE
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xF5 SET_TILE
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xF6 FILL_RECTANGLE
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xF7 SET_FILL_COLOR
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xF8 SET_FOG_COLOR
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xF9 SET_BLEND_COLOR
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xFA SET_PRIM_COLOR
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xFB SET_ENV_COLOR
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xFC SET_COMBINE_MODE
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xFD SET_TEXTURE_IMAGE
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,     8  # 0xFE SET_Z_IMAGE
-        RSPQ_DefineCommand RDPQCmd_SetColorImage,    8  # 0xFF SET_COLOR_IMAGE
+        RSPQ_DefineCommand RDPQCmd_ModifyOtherModes,     12  # 0xE0
+        RSPQ_DefineCommand RDPQCmd_SetFillColor32,       8   # 0xE1 Set Fill Color (32bit version)
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RDPQCmd_SetScissorEx,         8   # 0xE3 Set Scissor (exclusive range always version)
+        RSPQ_DefineCommand RDPQCmd_Passthrough16,        16  # 0xE4 TEXTURE_RECTANGLE
+        RSPQ_DefineCommand RDPQCmd_TextureRectFlip,      16  # 0xE5 TEXTURE_RECTANGLE_FLIP
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xE6 SYNC_LOAD
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xE7 SYNC_PIPE
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xE8 SYNC_TILE
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xE9 SYNC_FULL
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xEA SET_KEY_GB
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xEB SET_KEY_R
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xEC SET_CONVERT
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xED SET_SCISSOR
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xEE SET_PRIM_DEPTH
+        RSPQ_DefineCommand RDPQCmd_SetOtherModes,        8   # 0xEF SET_OTHER_MODES
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xF0 LOAD_TLUT
+        RSPQ_DefineCommand RSPQCmd_Noop,                 8   # Invalid
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xF2 SET_TILE_SIZE
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xF3 LOAD_BLOCK
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xF4 LOAD_TILE
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xF5 SET_TILE
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xF6 FILL_RECTANGLE
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xF7 SET_FILL_COLOR
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xF8 SET_FOG_COLOR
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xF9 SET_BLEND_COLOR
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xFA SET_PRIM_COLOR
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xFB SET_ENV_COLOR
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xFC SET_COMBINE_MODE
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xFD SET_TEXTURE_IMAGE
+        RSPQ_DefineCommand RDPQCmd_Passthrough8,         8   # 0xFE SET_Z_IMAGE
+        RSPQ_DefineCommand RDPQCmd_SetColorImage,        8   # 0xFF SET_COLOR_IMAGE
     RSPQ_EndOverlayHeader
 
     RSPQ_BeginSavedState
@@ -235,6 +236,30 @@ scissor_substitute:
     xor a0, t1
     .endfunc
 
+    .func RDPQCmd_TextureRectFixup
+RDPQCmd_TextureRectFixup:
+    lb t0, %lo(RDP_OTHER_MODES) + 0x1
+    # Bit 21 of the first word is set if FILL or COPY mode is active
+    andi t0, 0x1 << 5
+    # Leave unchanged when not in FILL or COPY mode
+    beqz t0, rect_substitute
+    lui t1, 0xE400 ^ 0xD000 # TEXTURE_RECTANGLE ^ TEXTURE_RECTANGLE_FIX
+
+    # Subtract 1 pixel from XL and YL
+    addiu a0, -((4 << 12) + 4)
+    # Multiply DsDx by 4
+    lui t0, 0xFFFF
+    and t2, a3, t0
+    sll t2, 2
+    andi a3, 0xFFFF
+    or a3, t2
+
+rect_substitute:
+    # Substitute command ID
+    j RDPQCmd_Passthrough16
+    xor a0, t1
+    .endfunc
+
     #############################################################
     # RDPQCmd_Passthrough8
     #
@@ -248,6 +273,16 @@ RDPQCmd_Passthrough8:
     jal_and_j RSPQ_RdpSendDynamic, RSPQ_Loop
     .endfunc
 
+    .func RDPQCmd_TextureRectFlip
+RDPQCmd_TextureRectFlip:
+#ifndef NDEBUG
+    lb t0, %lo(RDP_OTHER_MODES) + 0x1
+    # Bit 21 of the first word is set if FILL or COPY mode is active
+    andi t0, 0x1 << 5
+    assert_eq t0, 0, RDPQ_ASSERT_FLIP_COPY
+#endif
+    # fallthrough!
+    .endfunc
 
     #############################################################
     # RDPQCmd_Passthrough16

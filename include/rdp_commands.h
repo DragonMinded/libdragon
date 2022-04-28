@@ -104,6 +104,11 @@
 #define Comb1_Alpha(suba, subb, mul, add) \
     ((COMB_ALPHA_ADDSUB_ ## suba)<<21) | ((COMB_ALPHA_ADDSUB_ ## subb)<<3) | ((COMB_ALPHA_MUL_ ## mul)<<18) | ((COMB_ALPHA_ADDSUB_ ## add)<<0)
 
+#define Comb_Rgb(suba, subb, mul, add) \
+    (Comb0_Rgb(suba, subb, mul, add) | Comb1_Rgb(suba, subb, mul, add))
+#define Comb_Alpha(suba, subb, mul, add) \
+    (Comb0_Alpha(suba, subb, mul, add) | Comb1_Alpha(suba, subb, mul, add))
+
 #define SOM_ATOMIC_PRIM        ((cast64(1))<<55)
 
 #define SOM_CYCLE_1            ((cast64(0))<<52)

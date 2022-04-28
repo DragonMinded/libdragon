@@ -238,6 +238,7 @@ static const struct Testsuite
 	TEST_FUNC(test_rdpq_block,                 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_fixup_setfillcolor,    0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_fixup_setscissor,      0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_fixup_texturerect,     0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {
