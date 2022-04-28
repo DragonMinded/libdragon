@@ -244,6 +244,9 @@ typedef struct rspq_block_s {
     uint32_t cmds[];            ///< Block contents (commands)
 } rspq_block_t;
 
+/** @brief RSPQ overlays */
+rsp_ucode_t *rspq_overlay_ucodes[RSPQ_MAX_OVERLAY_COUNT];
+
 // TODO: We could save 4 bytes in the overlay descriptor by assuming that data == code + code_size and that code_size is always a multiple of 8
 /** @brief A RSPQ overlay ucode. This is similar to rsp_ucode_t, but is used
  * internally to managed it as a RSPQ overlay */
@@ -384,6 +387,18 @@ static void rspq_sp_interrupt(void)
         *SP_STATUS = wstatus;
 }
 
+/** @brief Extract the current overlay index and name from the RSP queue state */
+static void rspq_get_current_ovl(rsp_queue_t *rspq, int *ovl_idx, const char **ovl_name)
+{
+    *ovl_idx = rspq->current_ovl / sizeof(rspq_overlay_t);
+    if (*ovl_idx == 0)
+        *ovl_name = "builtin";
+    else if (*ovl_idx < RSPQ_MAX_OVERLAY_COUNT && rspq_overlay_ucodes[*ovl_idx])
+        *ovl_name = rspq_overlay_ucodes[*ovl_idx]->name;
+    else
+        *ovl_name = "?";
+}
+
 /** @brief RSPQ crash handler. This shows RSPQ-specific info the in RSP crash screen. */
 static void rspq_crash_handler(rsp_snapshot_t *state)
 {
@@ -391,12 +406,15 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
     uint32_t cur = rspq->rspq_dram_addr + state->gpr[28];
     uint32_t dmem_buffer = RSPQ_DEBUG ? 0x140 : 0x100;
 
+    int ovl_idx; const char *ovl_name;
+    rspq_get_current_ovl(rspq, &ovl_idx, &ovl_name);
+
     printf("RSPQ: Normal  DRAM address: %08lx\n", rspq->rspq_dram_lowpri_addr);
     printf("RSPQ: Highpri DRAM address: %08lx\n", rspq->rspq_dram_highpri_addr);
     printf("RSPQ: Current DRAM address: %08lx + GP=%lx = %08lx\n", 
         rspq->rspq_dram_addr, state->gpr[28], cur);
     printf("RSPQ: RDP     DRAM address: %08lx\n", rspq->rspq_rdp_buffers[rspq->rdp_buf_idx / sizeof(uint32_t)]);
-    printf("RSPQ: Current Overlay: %02x\n", rspq->current_ovl / sizeof(rspq_overlay_t));
+    printf("RSPQ: Current Overlay: %s (%02x)\n", ovl_name, ovl_idx);
 
     // Dump the command queue in DMEM.
     debugf("RSPQ: Command queue:\n");
@@ -430,15 +448,18 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
 static void rspq_assert_invalid_command(rsp_snapshot_t *state)
 {
     rsp_queue_t *rspq = (rsp_queue_t*)state->dmem;
+    int ovl_idx; const char *ovl_name;
+    rspq_get_current_ovl(rspq, &ovl_idx, &ovl_name);
+
     uint32_t dmem_buffer = RSPQ_DEBUG ? 0x140 : 0x100;
     uint32_t cur = dmem_buffer + state->gpr[28];
-    printf("Invalid command\nCommand %02x not found in overlay %02x\n", state->dmem[cur], rspq->current_ovl / sizeof(rspq_overlay_t));
+    printf("Invalid command\nCommand %02x not found in overlay %s (0x%01x)\n", state->dmem[cur], ovl_name, ovl_idx);
 }
 
 /** @brief Special RSP assert handler for ASSERT_INVALID_OVERLAY */
 static void rspq_assert_invalid_overlay(rsp_snapshot_t *state)
 {
-    printf("Invalid overlay\nOverlay %02lx not registered\n", state->gpr[8]);
+    printf("Invalid overlay\nOverlay 0x%01lx not registered\n", state->gpr[8]);
 }
 
 /** @brief RSP assert handler for rspq */
@@ -451,9 +472,19 @@ static void rspq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
         case ASSERT_INVALID_COMMAND:
             rspq_assert_invalid_command(state);
             break;
-        default:
-            printf("Unknown assert");
+        default: {
+            rsp_queue_t *rspq = (rsp_queue_t*)state->dmem;
+
+            // Check if there is an assert handler for the current overlay.
+            // If it exists, forward request to it.
+            // Be defensive against DMEM corruptions.
+            int ovl_idx = rspq->current_ovl / sizeof(rspq_overlay_t);
+            if (ovl_idx < RSPQ_MAX_OVERLAY_COUNT &&
+                rspq_overlay_ucodes[ovl_idx] &&
+                rspq_overlay_ucodes[ovl_idx]->assert_handler)
+                rspq_overlay_ucodes[ovl_idx]->assert_handler(state, assert_code);
             break;
+        }
     }
 }
 
@@ -801,6 +832,9 @@ static uint32_t rspq_overlay_register_internal(rsp_ucode_t *overlay_ucode, uint3
     // Set the command base in the overlay header
     overlay_header->command_base = id << 5;
     data_cache_hit_writeback_invalidate(overlay_header, sizeof(rspq_overlay_header_t));
+
+    // Save the overlay pointer
+    rspq_overlay_ucodes[overlay_index] = overlay_ucode;
 
     rspq_update_tables(true);
 
