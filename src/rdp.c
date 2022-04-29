@@ -208,7 +208,7 @@ void rdp_attach_display( display_context_t disp )
 
     /* Set the rasterization buffer */
     uint32_t size = (__bitdepth == 2) ? RDP_TILE_SIZE_16BIT : RDP_TILE_SIZE_32BIT;
-    rdpq_set_color_image(__get_buffer(disp), RDP_TILE_FORMAT_RGBA, size, __width);
+    rdpq_set_color_image(__get_buffer(disp), RDP_TILE_FORMAT_RGBA, size, __width, __height, __width * __bitdepth);
 
 }
 

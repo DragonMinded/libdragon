@@ -19,6 +19,7 @@ DEFINE_RSP_UCODE(rsp_rdpq,
 
 typedef struct rdpq_state_s {
     uint64_t other_modes;
+    uint64_t scissor_rect;
     uint8_t target_bitdepth;
 } rdpq_state_t;
 
@@ -41,6 +42,11 @@ void rdpq_init()
     rdpq_state_t *rdpq_state = UncachedAddr(rspq_overlay_get_state(&rsp_rdpq));
 
     memset(rdpq_state, 0, sizeof(rdpq_state_t));
+    rdpq_state->other_modes = ((uint64_t)RDPQ_OVL_ID << 32) + ((uint64_t)RDPQ_CMD_SET_OTHER_MODES << 56);
+
+    // The (1 << 12) is to prevent underflow in case set other modes is called before any set scissor command.
+    // Depending on the cycle mode, 1 subpixel is subtracted from the right edge of the scissor rect.
+    rdpq_state->scissor_rect = ((uint64_t)RDPQ_OVL_ID << 32) + ((uint64_t)RDPQ_CMD_SET_SCISSOR_EX << 56) | (1 << 12);
 
     rspq_init();
     rspq_overlay_register_static(&rsp_rdpq, RDPQ_OVL_ID);

@@ -232,7 +232,7 @@ static const struct Testsuite
 	TEST_FUNC(test_rspq_rdp_dynamic,           0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_rdp_dynamic_switch,    0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_rdp_interrupt,         0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_rdpq_dram_buffer,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_clear,                 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_dynamic,               0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_passthrough_big,       0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_block,                 0, TEST_FLAGS_NO_BENCHMARK),

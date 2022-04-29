@@ -73,7 +73,8 @@
     RSPQ_EndOverlayHeader
 
     RSPQ_BeginSavedState
-RDP_OTHER_MODES:       .quad  0xEF00000000000000
+RDP_OTHER_MODES:       .quad  0
+RDP_SCISSOR_RECT:      .quad  0
 RDP_TARGET_BITDEPTH:   .byte  0
     RSPQ_EndSavedState
 
@@ -131,8 +132,14 @@ RDPQCmd_ModifyOtherModes:
     #############################################################
     .func RDPQ_SendOtherModes
 RDPQ_SendOtherModes:
+    # TODO: Batch these commands
+    jal RSPQ_RdpSendDynamic
     li s4, %lo(RDP_OTHER_MODES)
-    jal_and_j RSPQ_RdpSendDynamic, RSPQ_Loop
+
+    # Update other commands that need to change some state depending on the other modes
+    lw a0, %lo(RDP_SCISSOR_RECT) + 0x0
+    lw a1, %lo(RDP_SCISSOR_RECT) + 0x4
+    jal_and_j RDPQ_SetScissor, RSPQ_Loop
     .endfunc
 
     #############################################################
@@ -220,6 +227,10 @@ RDPQCmd_SetFillColor32:
     #############################################################
     .func RDPQCmd_SetScissorEx
 RDPQCmd_SetScissorEx:
+    sw a0, %lo(RDP_SCISSOR_RECT) + 0x0
+    sw a1, %lo(RDP_SCISSOR_RECT) + 0x4
+
+RDPQ_SetScissor:
     lb t0, %lo(RDP_OTHER_MODES) + 0x1
     # Bit 21 of the first word is set if FILL or COPY mode is active
     andi t0, 0x1 << 5
@@ -269,8 +280,8 @@ rect_substitute:
 RDPQCmd_Passthrough8:
     li s4, %lo(RDP_CMD_STAGING)
     sw a0, 0x00(s4)
+    j RSPQ_RdpSendDynamic
     sw a1, 0x04(s4)
-    jal_and_j RSPQ_RdpSendDynamic, RSPQ_Loop
     .endfunc
 
     .func RDPQCmd_TextureRectFlip
@@ -295,8 +306,8 @@ RDPQCmd_Passthrough16:
     sw a0, 0x00(s4)
     sw a1, 0x04(s4)
     sw a2, 0x08(s4)
+    j RSPQ_RdpSendDynamic
     sw a3, 0x0C(s4)
-    jal_and_j RSPQ_RdpSendDynamic, RSPQ_Loop
     .endfunc
 
     #############################################################
@@ -319,6 +330,6 @@ passthrough_copy_loop:
     blt s1, t1, passthrough_copy_loop
     addi s2, 0x10
 
+    j RSPQ_RdpSendDynamic
     li s4, %lo(RDP_CMD_STAGING)
-    jal_and_j RSPQ_RdpSendDynamic, RSPQ_Loop
     .endfunc

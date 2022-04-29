@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include "graphics.h"
 #include "n64sys.h"
+#include "rdp_commands.h"
+#include "debug.h"
 
 enum {
     RDPQ_CMD_NOOP                       = 0x00,
@@ -387,13 +389,16 @@ inline void rdpq_set_z_image(void* dram_ptr)
 /**
  * @brief Low level function to set RDRAM pointer to the color buffer
  */
-
-inline void rdpq_set_color_image(void* dram_ptr, uint32_t format, uint32_t size, uint32_t width)
+inline void rdpq_set_color_image(void* dram_ptr, uint32_t format, uint32_t size, uint32_t width, uint32_t height, uint32_t stride)
 {
+    uint32_t pixel_size = size == RDP_TILE_SIZE_16BIT ? 2 : 4;
+    assertf(stride % pixel_size == 0, "stride must be a multiple of the pixel size!");
+
     extern void __rdpq_fixup_write8(uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_fixup_write8(RDPQ_CMD_SET_COLOR_IMAGE, RDPQ_CMD_SET_COLOR_IMAGE_FIXUP,
-        _carg(format, 0x7, 21) | _carg(size, 0x3, 19) | _carg(width-1, 0x3FF, 0),
+        _carg(format, 0x7, 21) | _carg(size, 0x3, 19) | _carg((stride/pixel_size)-1, 0x3FF, 0),
         PhysicalAddr(dram_ptr) & 0x3FFFFFF);
+    rdpq_set_scissor(0, 0, width, height);
 }
 
 #ifdef __cplusplus
