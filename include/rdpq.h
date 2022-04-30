@@ -401,6 +401,15 @@ inline void rdpq_set_color_image(void* dram_ptr, uint32_t format, uint32_t size,
     rdpq_set_scissor(0, 0, width, height);
 }
 
+inline void rdpq_set_cycle_mode(uint32_t cycle_mode)
+{
+    uint32_t mask = ~(0x3<<20);
+    assertf((mask & cycle_mode) == 0, "Invalid cycle mode: %lx", cycle_mode);
+
+    extern void __rdpq_write12(uint32_t, uint32_t, uint32_t, uint32_t);
+    __rdpq_write12(RDPQ_CMD_MODIFY_OTHER_MODES, 0, mask, cycle_mode);
+}
+
 #ifdef __cplusplus
 }
 #endif
