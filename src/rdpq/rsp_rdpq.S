@@ -75,6 +75,7 @@
     RSPQ_BeginSavedState
 RDP_OTHER_MODES:       .quad  0
 RDP_SCISSOR_RECT:      .quad  0
+RDP_FILL_COLOR:        .word  0
 RDP_TARGET_BITDEPTH:   .byte  0
     RSPQ_EndSavedState
 
@@ -152,8 +153,11 @@ RDPQ_SendOtherModes:
 RDPQCmd_SetColorImage:
     srl t0, a0, 19
     andi t0, 3
-    j RDPQCmd_Passthrough8
+    jal RDPQCmd_Passthrough8
     sb t0, %lo(RDP_TARGET_BITDEPTH)
+
+    lw a1, %lo(RDP_FILL_COLOR)
+    jal_and_j RDPQ_SetFillColor, RSPQ_Loop
     .endfunc
 
     .func RDPQCmd_SetColorImage_Fixup
@@ -192,6 +196,9 @@ RDPQCmd_SetColorImage_Fixup:
     #############################################################
     .func RDPQCmd_SetFillColor32
 RDPQCmd_SetFillColor32:
+    sw a1, %lo(RDP_FILL_COLOR)
+
+RDPQ_SetFillColor:
     lbu t0, %lo(RDP_TARGET_BITDEPTH)
     beq t0, 3, RDPQCmd_Passthrough8
     lui a0, 0xF700   # SET_FILL_COLOR
