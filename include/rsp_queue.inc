@@ -615,6 +615,7 @@ RSPQ_RdpSendDynamic:
     mfc0 t2, COP0_DP_STATUS
 
     # TODO: re-use wait loop from RSPQ_RdpSendBuffer?
+    # TODO: wait at some other point instead (like the start of the next call), because it seems wasteful to wait at this point
 rdp_switch_buffer_wait:
     # Wait for fifo to not be full
     andi t1, t2, DP_STATUS_START_VALID | DP_STATUS_END_VALID
@@ -622,6 +623,7 @@ rdp_switch_buffer_wait:
     mfc0 t2, COP0_DP_STATUS
 
 rdp_switch_buffer_wait_done:
+    # TODO: re-consider which register to use for this, since t0 might not be safe
     # Write any non-zero value to the buffer switch flag (zero is an illegal value for t0 at this point)
     sb t0, %lo(RSPQ_RDP_BUF_SWITCHED)
 
