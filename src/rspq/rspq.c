@@ -212,9 +212,6 @@ _Static_assert((RSPQ_CMD_TEST_WRITE_STATUS & 1) == 0);
     ptr += 3; \
 })
 
-/** @brief Write an internal command to the RSP queue */
-#define rspq_int_write(cmd_id, ...) rspq_write(0, cmd_id, ##__VA_ARGS__)
-
 static void rspq_crash_handler(rsp_snapshot_t *state);
 static void rspq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code);
 
@@ -1192,12 +1189,9 @@ void rspq_syncpoint_wait(rspq_syncpoint_t sync_id)
 void rspq_wait(void) {
     // Check if the RDPQ module was initialized.
     if (__rdpq_inited) {
-        // If so, a full sync requires also waiting for RDP to
-        // finish: To do so, we enqueue a SYNC_FULL command to RDP,
-        // and also an internal comment to wait for RDP to become idle.
-        extern void rdpq_sync_full(void);
-        rdpq_sync_full();
-        rspq_int_write(RSPQ_CMD_RDP_WAIT_IDLE);
+        // If so, a full sync requires also waiting for RDP to finish.
+        extern void rdpq_fence(void);
+        rdpq_fence();
     }
 
     rspq_syncpoint_wait(rspq_syncpoint_new());
