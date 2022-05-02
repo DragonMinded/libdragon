@@ -122,4 +122,7 @@ enum {
     RSPQ_CMD_RDP_WAIT_IDLE     = 0x0A
 };
 
+/** @brief Write an internal command to the RSP queue */
+#define rspq_int_write(cmd_id, ...) rspq_write(0, cmd_id, ##__VA_ARGS__)
+
 #endif

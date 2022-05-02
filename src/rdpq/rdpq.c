@@ -65,6 +65,12 @@ void rdpq_close()
     __rdpq_inited = false;
 }
 
+void rdpq_fence(void)
+{
+    rdpq_sync_full();
+    rspq_int_write(RSPQ_CMD_RDP_WAIT_IDLE);
+}
+
 static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
 {
     switch (assert_code)

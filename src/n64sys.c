@@ -222,12 +222,33 @@ void inst_cache_invalidate_all(void)
  */
 void *malloc_uncached(size_t size)
 {
+    return malloc_uncached_aligned(16, size);
+}
+
+/**
+ * @brief Allocate a buffer that will be accessed as uncached memory, specifying alignment
+ * 
+ * This function is similar to #malloc_uncached, but allows to force a higher
+ * alignment to the buffer (just like memalign does). See #malloc_uncached
+ * for reference.
+ * 
+ * @param[in]  align The alignment of the buffer in bytes (eg: 64)
+ * @param[in]  size  The size of the buffer to allocate
+ * 
+ * @return a pointer to the start of the buffer (in the uncached segment)
+ * 
+ * @see #malloc_uncached 
+ */
+void *malloc_uncached_aligned(int align, size_t size)
+{
     // Since we will be accessing the buffer as uncached memory, we absolutely
     // need to prevent part of it to ever enter the data cache, even as false
     // sharing with contiguous buffers. So we want the buffer to exclusively
-    // cover full cachelines (aligned to 16 bytes, multiple of 16 bytes).
+    // cover full cachelines (aligned to minimum 16 bytes, multiple of 16 bytes).
+    if (align < 16)
+        align = 16;
     size = ROUND_UP(size, 16);
-    void *mem = memalign(16, size);
+    void *mem = memalign(align, size);
     if (!mem) return NULL;
 
     // The memory returned by the system allocator could already be partly in

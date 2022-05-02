@@ -7,7 +7,7 @@ void test_rdpq_rspqwait(TestContext *ctx)
 {
     // Verify that rspq_wait() correctly also wait for RDP to terminate
     // all its scheduled operations.
-    uint32_t *buffer = malloc_uncached(128*128*4);
+    uint32_t *buffer = malloc_uncached_aligned(64, 128*128*4);
     DEFER(free_uncached(buffer));
     memset(buffer, 0, 128*128*4);
 
@@ -41,10 +41,9 @@ void test_rdpq_clear(TestContext *ctx)
     color_t fill_color = RGBA32(0xFF, 0xFF, 0xFF, 0xFF);
 
     const uint32_t fbsize = 32 * 32 * 2;
-    void *framebuffer = memalign(64, fbsize);
-    DEFER(free(framebuffer));
+    uint16_t *framebuffer = malloc_uncached_aligned(64, fbsize);
+    DEFER(free_uncached(framebuffer));
     memset(framebuffer, 0, fbsize);
-    data_cache_hit_writeback_invalidate(framebuffer, fbsize);
 
     rdpq_set_other_modes(SOM_CYCLE_FILL);
     rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, 32, 32, 32 * 2);
@@ -54,7 +53,8 @@ void test_rdpq_clear(TestContext *ctx)
 
     for (uint32_t i = 0; i < 32 * 32; i++)
     {
-        ASSERT_EQUAL_HEX(UncachedUShortAddr(framebuffer)[i], color_to_packed16(fill_color), "Framebuffer was not cleared properly! Index: %lu", i);
+        ASSERT_EQUAL_HEX(framebuffer[i], color_to_packed16(fill_color),
+            "Framebuffer was not cleared properly! Index: %lu", i);
     }
 }
 
@@ -69,10 +69,9 @@ void test_rdpq_dynamic(TestContext *ctx)
     #define TEST_RDPQ_FBAREA  TEST_RDPQ_FBWIDTH * TEST_RDPQ_FBWIDTH
     #define TEST_RDPQ_FBSIZE  TEST_RDPQ_FBAREA * 2
 
-    void *framebuffer = memalign(64, TEST_RDPQ_FBSIZE);
-    DEFER(free(framebuffer));
+    void *framebuffer = malloc_uncached_aligned(64, TEST_RDPQ_FBSIZE);
+    DEFER(free_uncached(framebuffer));
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
-    data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
 
     static uint16_t expected_fb[TEST_RDPQ_FBAREA];
     memset(expected_fb, 0, sizeof(expected_fb));
@@ -119,10 +118,9 @@ void test_rdpq_passthrough_big(TestContext *ctx)
     #define TEST_RDPQ_FBAREA  TEST_RDPQ_FBWIDTH * TEST_RDPQ_FBWIDTH
     #define TEST_RDPQ_FBSIZE  TEST_RDPQ_FBAREA * 2
 
-    void *framebuffer = memalign(64, TEST_RDPQ_FBSIZE);
-    DEFER(free(framebuffer));
+    void *framebuffer = malloc_uncached_aligned(64, TEST_RDPQ_FBSIZE);
+    DEFER(free_uncached(framebuffer));
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
-    data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
 
     static uint16_t expected_fb[TEST_RDPQ_FBAREA];
     memset(expected_fb, 0xFF, sizeof(expected_fb));
@@ -157,10 +155,9 @@ void test_rdpq_block(TestContext *ctx)
     #define TEST_RDPQ_FBAREA  TEST_RDPQ_FBWIDTH * TEST_RDPQ_FBWIDTH
     #define TEST_RDPQ_FBSIZE  TEST_RDPQ_FBAREA * 2
 
-    void *framebuffer = memalign(64, TEST_RDPQ_FBSIZE);
-    DEFER(free(framebuffer));
+    void *framebuffer = malloc_uncached_aligned(64, TEST_RDPQ_FBSIZE);
+    DEFER(free_uncached(framebuffer));
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
-    data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
 
     static uint16_t expected_fb[TEST_RDPQ_FBAREA];
     memset(expected_fb, 0, sizeof(expected_fb));
@@ -214,8 +211,8 @@ void test_rdpq_fixup_setfillcolor(TestContext *ctx)
 
     const color_t TEST_COLOR = RGBA32(0xAA,0xBB,0xCC,0xDD);
 
-    void *framebuffer = memalign(64, TEST_RDPQ_FBSIZE);
-    DEFER(free(framebuffer));
+    void *framebuffer = malloc_uncached_aligned(64, TEST_RDPQ_FBSIZE);
+    DEFER(free_uncached(framebuffer));
 
     static uint32_t expected_fb32[TEST_RDPQ_FBAREA];
     memset(expected_fb32, 0, sizeof(expected_fb32));
@@ -234,7 +231,6 @@ void test_rdpq_fixup_setfillcolor(TestContext *ctx)
     rdpq_set_other_modes(SOM_CYCLE_FILL);
 
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
-    data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
     rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_32BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*4);
     rdpq_set_fill_color(TEST_COLOR);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
@@ -243,7 +239,6 @@ void test_rdpq_fixup_setfillcolor(TestContext *ctx)
         "Wrong data in framebuffer (32-bit, dynamic mode)");
 
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
-    data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
     rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
     rdpq_set_fill_color(TEST_COLOR);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
@@ -252,7 +247,6 @@ void test_rdpq_fixup_setfillcolor(TestContext *ctx)
         "Wrong data in framebuffer (16-bit, dynamic mode)");
 
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
-    data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
     rdpq_set_fill_color(TEST_COLOR);
     rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_32BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*4);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
@@ -261,7 +255,6 @@ void test_rdpq_fixup_setfillcolor(TestContext *ctx)
         "Wrong data in framebuffer (32-bit, dynamic mode, update)");
 
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
-    data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
     rdpq_set_fill_color(TEST_COLOR);
     rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
@@ -287,8 +280,8 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
 
     const color_t TEST_COLOR = RGBA32(0xFF,0xFF,0xFF,0xFF);
 
-    void *framebuffer = memalign(64, TEST_RDPQ_FBSIZE);
-    DEFER(free(framebuffer));
+    void *framebuffer = malloc_uncached_aligned(64, TEST_RDPQ_FBSIZE);
+    DEFER(free_uncached(framebuffer));
 
     static uint16_t expected_fb[TEST_RDPQ_FBAREA];
     memset(expected_fb, 0, sizeof(expected_fb));
@@ -301,7 +294,6 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
     rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
 
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
-    data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
     rdpq_set_other_modes(SOM_CYCLE_FILL);
     rdpq_set_fill_color(TEST_COLOR);
     rdpq_set_scissor(4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4);
@@ -311,7 +303,6 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
         "Wrong data in framebuffer (fill mode)");
 
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
-    data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
     rdpq_set_other_modes(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | 0x80000000);
     rdpq_set_blend_color(TEST_COLOR);
     rdpq_set_scissor(4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4);
@@ -321,7 +312,6 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
         "Wrong data in framebuffer (1 cycle mode)");
 
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
-    data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
     rdpq_set_scissor(4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4);
     rdpq_set_other_modes(SOM_CYCLE_FILL);
     rdpq_set_fill_color(TEST_COLOR);
@@ -331,7 +321,6 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
         "Wrong data in framebuffer (fill mode, update)");
 
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
-    data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
     rdpq_set_scissor(4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4);
     rdpq_set_other_modes(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | 0x80000000);
     rdpq_set_blend_color(TEST_COLOR);
@@ -360,8 +349,8 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
     #define TEST_RDPQ_TEXAREA  (TEST_RDPQ_TEXWIDTH * TEST_RDPQ_TEXWIDTH)
     #define TEST_RDPQ_TEXSIZE  (TEST_RDPQ_TEXAREA * 2)
 
-    void *framebuffer = memalign(64, TEST_RDPQ_FBSIZE);
-    DEFER(free(framebuffer));
+    void *framebuffer = malloc_uncached_aligned(64, TEST_RDPQ_FBSIZE);
+    DEFER(free_uncached(framebuffer));
 
     void *texture = malloc_uncached(TEST_RDPQ_TEXSIZE);
     DEFER(free_uncached(texture));
@@ -383,7 +372,6 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
     rdpq_load_tile(0, 0, 0, TEST_RDPQ_TEXWIDTH, TEST_RDPQ_TEXWIDTH);
 
     memset(framebuffer, 0xFF, TEST_RDPQ_FBSIZE);
-    data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
     rdpq_set_other_modes(SOM_CYCLE_COPY);
     rdpq_texture_rectangle(0, 4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4, 0, 0, 1, 1);
     rspq_wait();
@@ -391,7 +379,6 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
         "Wrong data in framebuffer (copy mode)");
 
     memset(framebuffer, 0xFF, TEST_RDPQ_FBSIZE);
-    data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
     rdpq_set_other_modes(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_TC_FILTER | SOM_BLENDING | SOM_SAMPLE_1X1 | SOM_MIDTEXEL);
     rdpq_set_combine_mode(Comb_Rgb(ZERO, ZERO, ZERO, TEX0) | Comb_Alpha(ZERO, ZERO, ZERO, TEX0));
     rdpq_texture_rectangle(0, 4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4, 0, 0, 1, 1);
