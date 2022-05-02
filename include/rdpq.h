@@ -393,6 +393,7 @@ inline void rdpq_set_color_image(void* dram_ptr, uint32_t format, uint32_t size,
 {
     uint32_t pixel_size = size == RDP_TILE_SIZE_16BIT ? 2 : 4;
     assertf(stride % pixel_size == 0, "Stride must be a multiple of the pixel size!");
+    assertf(((uint32_t)dram_ptr & 63) == 0, "buffer pointer is not aligned to 64 bytes, so it cannot use as RDP color image.\nAllocate it with memalign(64, len) or malloc_uncached_align(64, len)");
 
     extern void __rdpq_fixup_write8(uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_fixup_write8(RDPQ_CMD_SET_COLOR_IMAGE, RDPQ_CMD_SET_COLOR_IMAGE_FIXUP,
