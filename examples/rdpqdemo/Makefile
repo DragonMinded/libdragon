@@ -1,7 +1,7 @@
 BUILD_DIR=build
 include $(N64_INST)/include/n64.mk
 
-src = rspqdemo.c
+src = rdpqdemo.c
 assets_xm = $(wildcard assets/*.xm)
 assets_wav = $(wildcard assets/*.wav)
 assets_png = $(wildcard assets/*.png)
@@ -13,7 +13,7 @@ assets_conv = $(addprefix filesystem/,$(notdir $(assets_xm:%.xm=%.xm64))) \
 AUDIOCONV_FLAGS ?=
 MKSPRITE_FLAGS ?=
 
-all: rspqdemo.z64
+all: rdpqdemo.z64
 
 filesystem/%.xm64: assets/%.xm
 	@mkdir -p $(dir $@)
@@ -33,14 +33,14 @@ filesystem/%.sprite: assets/%.png
 filesystem/n64brew.sprite: MKSPRITE_FLAGS=16 2 3
 filesystem/tiles.sprite: MKSPRITE_FLAGS=16 2 2
 
-$(BUILD_DIR)/rspqdemo.dfs: $(assets_conv)
-$(BUILD_DIR)/rspqdemo.elf: $(src:%.c=$(BUILD_DIR)/%.o)
+$(BUILD_DIR)/rdpqdemo.dfs: $(assets_conv)
+$(BUILD_DIR)/rdpqdemo.elf: $(src:%.c=$(BUILD_DIR)/%.o)
 
-rspqdemo.z64: N64_ROM_TITLE="RSPQ Demo"
-rspqdemo.z64: $(BUILD_DIR)/rspqdemo.dfs 
+rdpqdemo.z64: N64_ROM_TITLE="RSPQ Demo"
+rdpqdemo.z64: $(BUILD_DIR)/rdpqdemo.dfs 
 
 clean:
-	rm -rf $(BUILD_DIR) rspqdemo.z64
+	rm -rf $(BUILD_DIR) rdpqdemo.z64
 
 -include $(wildcard $(BUILD_DIR)/*.d)
 
