@@ -26,6 +26,34 @@ void wait_for_dp_interrupt(unsigned long timeout)
     }
 }
 
+void test_rdpq_rspqwait(TestContext *ctx)
+{
+    // Verify that rspq_wait() correctly also wait for RDP to terminate
+    // all its scheduled operations.
+    uint32_t *buffer = malloc_uncached(128*128*4);
+    DEFER(free_uncached(buffer));
+    memset(buffer, 0, 128*128*4);
+
+    rspq_init();
+    DEFER(rspq_close());
+    rdpq_init();
+    DEFER(rdpq_close());
+
+    color_t color = RGBA32(0x11, 0x22, 0x33, 0xFF);
+
+    rdpq_set_other_modes(SOM_CYCLE_FILL);
+    rdpq_set_color_image(buffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_32BIT, 128, 128, 128*4);
+    rdpq_set_fill_color(color);
+    rdpq_fill_rectangle(0, 0, 128, 128);
+    rspq_wait();
+
+    // Sample the end of the buffer immediately after rspq_wait. If rspq_wait
+    // doesn't wait for RDP to become idle, this pixel will not be filled at
+    // this point. 
+    ASSERT_EQUAL_HEX(buffer[127*128+127], color_to_packed32(color),
+        "invalid color in framebuffer at (127,127)");
+}
+
 void test_rdpq_rdp_interrupt(TestContext *ctx)
 {
     dp_intr_raised = 0;

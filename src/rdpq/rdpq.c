@@ -30,6 +30,8 @@ typedef struct rdpq_block_s {
     uint32_t cmds[];
 } rdpq_block_t;
 
+bool __rdpq_inited = false;
+
 volatile uint32_t *rdpq_block_pointer;
 volatile uint32_t *rdpq_block_sentinel;
 
@@ -53,11 +55,14 @@ void rdpq_init()
     rspq_overlay_register_static(&rsp_rdpq, RDPQ_OVL_ID);
 
     rdpq_block = NULL;
+
+    __rdpq_inited = true;
 }
 
 void rdpq_close()
 {
     rspq_overlay_unregister(RDPQ_OVL_ID);
+    __rdpq_inited = false;
 }
 
 static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
@@ -210,3 +215,9 @@ void __rdpq_modify_other_modes(uint32_t w0, uint32_t w1, uint32_t w2)
 {
     rdpq_dynamic_write(RDPQ_CMD_MODIFY_OTHER_MODES, w0, w1, w2);
 }
+
+/* Extern inline instantiations. */
+extern inline void rdpq_sync_tile(void);
+extern inline void rdpq_sync_load(void);
+extern inline void rdpq_sync_pipe(void);
+extern inline void rdpq_sync_full(void);
