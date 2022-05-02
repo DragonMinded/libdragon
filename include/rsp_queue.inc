@@ -221,6 +221,7 @@ RSPQ_DefineCommand RSPQCmd_WriteStatus,     4     # 0x06 -- must be even (bit 24
 RSPQ_DefineCommand RSPQCmd_SwapBuffers,     12    # 0x07
 RSPQ_DefineCommand RSPQCmd_TestWriteStatus, 8     # 0x08 -- must be even (bit 24 must be 0)
 RSPQ_DefineCommand RSPQCmd_RdpBuffer,       8     # 0x09
+RSPQ_DefineCommand RSPQCmd_RdpWaitIdle,     4     # 0x0A
 
 #if RSPQ_DEBUG
 RSPQ_LOG_IDX:                .long 0
@@ -563,6 +564,22 @@ RSPQCmd_Dma:
     move t0, a2
     j DMAExec
     move t2, a3
+    .endfunc
+
+
+    .func RSPQCmd_RdpWaitIdle
+RSPQCmd_RdpWaitIdle:
+    li t0, DP_STATUS_BUSY
+    mfc0 t2, COP0_DP_STATUS
+
+    # TODO: re-use wait loop from RSPQ_RdpSendBuffer?
+1:
+    # Wait for fifo to not be full
+    and t1, t2, t0
+    bnez t1, 1b
+    mfc0 t2, COP0_DP_STATUS
+    jr ra
+    nop
     .endfunc
 
     #############################################################

@@ -1189,6 +1189,20 @@ void rspq_syncpoint_wait(rspq_syncpoint_t sync_id)
     }
 }
 
+void rspq_wait(void) {
+    // Check if the RDPQ module was initialized.
+    if (__rdpq_inited) {
+        // If so, a full sync requires also waiting for RDP to
+        // finish: To do so, we enqueue a SYNC_FULL command to RDP,
+        // and also an internal comment to wait for RDP to become idle.
+        extern void rdpq_sync_full(void);
+        rdpq_sync_full();
+        rspq_int_write(RSPQ_CMD_RDP_WAIT_IDLE);
+    }
+
+    rspq_syncpoint_wait(rspq_syncpoint_new());
+}
+
 void rspq_signal(uint32_t signal)
 {
     const uint32_t allowed_mask = SP_WSTATUS_CLEAR_SIG0|SP_WSTATUS_SET_SIG0|SP_WSTATUS_CLEAR_SIG1|SP_WSTATUS_SET_SIG1;

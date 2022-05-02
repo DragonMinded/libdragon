@@ -107,7 +107,19 @@ enum {
      * not contiguous with the previous one. This is used for synchronization
      * with the CPU.
      */
-    RSPQ_CMD_RDP               = 0x09
+    RSPQ_CMD_RDP               = 0x09,
+
+    /**
+     * @brief RSPQ command: Wait for RDP to be idle.
+     * 
+     * This command will let the RSP spin-wait until the RDP is idle (that is,
+     * the DP_STATUS_BUSY bit in COP0_DP_STATUS goes to 0). Notice that the
+     * RDP is fully asynchronous, and reading DP_STATUS_BUSY basically makes
+     * sense only after a RDP SYNC_FULL command (#rdpq_sync_full()), when it
+     * really does make sure that all previous commands have finished
+     * running.
+     */
+    RSPQ_CMD_RDP_WAIT_IDLE     = 0x0A
 };
 
 #endif

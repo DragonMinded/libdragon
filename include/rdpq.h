@@ -116,7 +116,7 @@ inline void rdpq_texture_rectangle_flip_fx(uint8_t tile, uint16_t x0, uint16_t y
 /**
  * @brief Low level function to sync the RDP pipeline
  */
-inline void rdpq_sync_pipe()
+inline void rdpq_sync_pipe(void)
 {
     extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
     __rdpq_write8(RDPQ_CMD_SYNC_PIPE, 0, 0);
@@ -125,7 +125,7 @@ inline void rdpq_sync_pipe()
 /**
  * @brief Low level function to sync RDP tile operations
  */
-inline void rdpq_sync_tile()
+inline void rdpq_sync_tile(void)
 {
     extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
     __rdpq_write8(RDPQ_CMD_SYNC_TILE, 0, 0);
@@ -134,7 +134,7 @@ inline void rdpq_sync_tile()
 /**
  * @brief Wait for any operation to complete before causing a DP interrupt
  */
-inline void rdpq_sync_full()
+inline void rdpq_sync_full(void)
 {
     extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
     __rdpq_write8(RDPQ_CMD_SYNC_FULL, 0, 0);
@@ -143,7 +143,7 @@ inline void rdpq_sync_full()
 /**
  * @brief Low level function to synchronize RDP texture load operations
  */
-inline void rdpq_sync_load()
+inline void rdpq_sync_load(void)
 {
     extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
     __rdpq_write8(RDPQ_CMD_SYNC_LOAD, 0, 0);
