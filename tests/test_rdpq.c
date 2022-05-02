@@ -3,29 +3,6 @@
 #include <rdpq.h>
 #include <rdp_commands.h>
 
-static volatile int dp_intr_raised;
-
-const unsigned long rdpq_timeout = 100;
-
-void dp_interrupt_handler()
-{
-    dp_intr_raised = 1;
-}
-
-void wait_for_dp_interrupt(unsigned long timeout)
-{
-    unsigned long time_start = get_ticks_ms();
-
-    while (get_ticks_ms() - time_start < timeout) {
-        // Wait until the interrupt was raised
-        if (dp_intr_raised) {
-            break;
-        }
-        // Check if the RSP has hit an assert, and if so report it.
-        __rsp_check_assert(__FILE__, __LINE__, __func__);
-    }
-}
-
 void test_rdpq_rspqwait(TestContext *ctx)
 {
     // Verify that rspq_wait() correctly also wait for RDP to terminate
@@ -54,35 +31,8 @@ void test_rdpq_rspqwait(TestContext *ctx)
         "invalid color in framebuffer at (127,127)");
 }
 
-void test_rdpq_rdp_interrupt(TestContext *ctx)
-{
-    dp_intr_raised = 0;
-    register_DP_handler(dp_interrupt_handler);
-    DEFER(unregister_DP_handler(dp_interrupt_handler));
-    set_DP_interrupt(1);
-    DEFER(set_DP_interrupt(0));
-
-    rspq_init();
-    DEFER(rspq_close());
-    rdpq_init();
-    DEFER(rdpq_close());
-
-    rdpq_sync_full();
-    rspq_flush();
-
-    wait_for_dp_interrupt(rdpq_timeout);
-
-    ASSERT(dp_intr_raised, "Interrupt was not raised!");
-}
-
 void test_rdpq_clear(TestContext *ctx)
 {
-    dp_intr_raised = 0;
-    register_DP_handler(dp_interrupt_handler);
-    DEFER(unregister_DP_handler(dp_interrupt_handler));
-    set_DP_interrupt(1);
-    DEFER(set_DP_interrupt(0));
-
     rspq_init();
     DEFER(rspq_close());
     rdpq_init();
@@ -100,12 +50,8 @@ void test_rdpq_clear(TestContext *ctx)
     rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, 32, 32, 32 * 2);
     rdpq_set_fill_color(fill_color);
     rdpq_fill_rectangle(0, 0, 32, 32);
-    rdpq_sync_full();
-    rspq_flush();
+    rspq_wait();
 
-    wait_for_dp_interrupt(rdpq_timeout);
-
-    ASSERT(dp_intr_raised, "Interrupt was not raised!");
     for (uint32_t i = 0; i < 32 * 32; i++)
     {
         ASSERT_EQUAL_HEX(UncachedUShortAddr(framebuffer)[i], color_to_packed16(fill_color), "Framebuffer was not cleared properly! Index: %lu", i);
@@ -114,12 +60,6 @@ void test_rdpq_clear(TestContext *ctx)
 
 void test_rdpq_dynamic(TestContext *ctx)
 {
-    dp_intr_raised = 0;
-    register_DP_handler(dp_interrupt_handler);
-    DEFER(unregister_DP_handler(dp_interrupt_handler));
-    set_DP_interrupt(1);
-    DEFER(set_DP_interrupt(0));
-
     rspq_init();
     DEFER(rspq_close());
     rdpq_init();
@@ -149,19 +89,14 @@ void test_rdpq_dynamic(TestContext *ctx)
             expected_fb[y * TEST_RDPQ_FBWIDTH + x + 1] = color_to_packed16(c);
             expected_fb[y * TEST_RDPQ_FBWIDTH + x + 2] = color_to_packed16(c);
             expected_fb[y * TEST_RDPQ_FBWIDTH + x + 3] = color_to_packed16(c);
+            rdpq_sync_pipe();
             rdpq_set_fill_color(c);
             rdpq_set_scissor(x, y, x + 4, y + 1);
             rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
-            rdpq_sync_pipe();
         }
     }
 
-    rdpq_sync_full();
-    rspq_flush();
-
-    wait_for_dp_interrupt(rdpq_timeout);
-
-    ASSERT(dp_intr_raised, "Interrupt was not raised!");
+    rspq_wait();
     
     //dump_mem(framebuffer, TEST_RDPQ_FBSIZE);
     //dump_mem(expected_fb, TEST_RDPQ_FBSIZE);
@@ -175,12 +110,6 @@ void test_rdpq_dynamic(TestContext *ctx)
 
 void test_rdpq_passthrough_big(TestContext *ctx)
 {
-    dp_intr_raised = 0;
-    register_DP_handler(dp_interrupt_handler);
-    DEFER(unregister_DP_handler(dp_interrupt_handler));
-    set_DP_interrupt(1);
-    DEFER(set_DP_interrupt(0));
-
     rspq_init();
     DEFER(rspq_close());
     rdpq_init();
@@ -205,12 +134,7 @@ void test_rdpq_passthrough_big(TestContext *ctx)
     rdp_draw_filled_triangle(0, 0, TEST_RDPQ_FBWIDTH, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
     rdp_draw_filled_triangle(0, 0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
 
-    rdpq_sync_full();
-    rspq_flush();
-
-    wait_for_dp_interrupt(rdpq_timeout);
-
-    ASSERT(dp_intr_raised, "Interrupt was not raised!");
+    rspq_wait();
     
     //dump_mem(framebuffer, TEST_RDPQ_FBSIZE);
     //dump_mem(expected_fb, TEST_RDPQ_FBSIZE);
@@ -224,12 +148,6 @@ void test_rdpq_passthrough_big(TestContext *ctx)
 
 void test_rdpq_block(TestContext *ctx)
 {
-    dp_intr_raised = 0;
-    register_DP_handler(dp_interrupt_handler);
-    DEFER(unregister_DP_handler(dp_interrupt_handler));
-    set_DP_interrupt(1);
-    DEFER(set_DP_interrupt(0));
-
     rspq_init();
     DEFER(rspq_close());
     rdpq_init();
@@ -270,12 +188,7 @@ void test_rdpq_block(TestContext *ctx)
 
     rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
     rspq_block_run(block);
-    rdpq_sync_full();
-    rspq_flush();
-
-    wait_for_dp_interrupt(rdpq_timeout);
-
-    ASSERT(dp_intr_raised, "Interrupt was not raised!");
+    rspq_wait();
     
     //dump_mem(framebuffer, TEST_RDPQ_FBSIZE);
     //dump_mem(expected_fb, TEST_RDPQ_FBSIZE);
@@ -290,12 +203,6 @@ void test_rdpq_block(TestContext *ctx)
 
 void test_rdpq_fixup_setfillcolor(TestContext *ctx)
 {
-    dp_intr_raised = 0;
-    register_DP_handler(dp_interrupt_handler);
-    DEFER(unregister_DP_handler(dp_interrupt_handler));
-    set_DP_interrupt(1);
-    DEFER(set_DP_interrupt(0));
-
     rspq_init();
     DEFER(rspq_close());
     rdpq_init();
@@ -326,51 +233,39 @@ void test_rdpq_fixup_setfillcolor(TestContext *ctx)
 
     rdpq_set_other_modes(SOM_CYCLE_FILL);
 
-    dp_intr_raised = 0;
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
     data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
     rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_32BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*4);
     rdpq_set_fill_color(TEST_COLOR);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
-    rdpq_sync_full();        
-    rspq_flush();
-    wait_for_dp_interrupt(rdpq_timeout);
+    rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb32, TEST_RDPQ_FBAREA*4, 
         "Wrong data in framebuffer (32-bit, dynamic mode)");
 
-    dp_intr_raised = 0;
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
     data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
     rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
     rdpq_set_fill_color(TEST_COLOR);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
-    rdpq_sync_full();        
-    rspq_flush();
-    wait_for_dp_interrupt(rdpq_timeout);
+    rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb16, TEST_RDPQ_FBAREA*2, 
         "Wrong data in framebuffer (16-bit, dynamic mode)");
 
-    dp_intr_raised = 0;
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
     data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
     rdpq_set_fill_color(TEST_COLOR);
     rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_32BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*4);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
-    rdpq_sync_full();        
-    rspq_flush();
-    wait_for_dp_interrupt(rdpq_timeout);
+    rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb32, TEST_RDPQ_FBAREA*4, 
         "Wrong data in framebuffer (32-bit, dynamic mode, update)");
 
-    dp_intr_raised = 0;
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
     data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
     rdpq_set_fill_color(TEST_COLOR);
     rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
-    rdpq_sync_full();        
-    rspq_flush();
-    wait_for_dp_interrupt(rdpq_timeout);
+    rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb16, TEST_RDPQ_FBAREA*2, 
         "Wrong data in framebuffer (16-bit, dynamic mode, update)");
 
@@ -381,12 +276,6 @@ void test_rdpq_fixup_setfillcolor(TestContext *ctx)
 
 void test_rdpq_fixup_setscissor(TestContext *ctx)
 {
-    dp_intr_raised = 0;
-    register_DP_handler(dp_interrupt_handler);
-    DEFER(unregister_DP_handler(dp_interrupt_handler));
-    set_DP_interrupt(1);
-    DEFER(set_DP_interrupt(0));
-
     rspq_init();
     DEFER(rspq_close());
     rdpq_init();
@@ -411,55 +300,43 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
 
     rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
 
-    dp_intr_raised = 0;
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
     data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
     rdpq_set_other_modes(SOM_CYCLE_FILL);
     rdpq_set_fill_color(TEST_COLOR);
     rdpq_set_scissor(4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
-    rdpq_sync_full();        
-    rspq_flush();
-    wait_for_dp_interrupt(rdpq_timeout);
+    rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 
         "Wrong data in framebuffer (fill mode)");
 
-    dp_intr_raised = 0;
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
     data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
     rdpq_set_other_modes(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | 0x80000000);
     rdpq_set_blend_color(TEST_COLOR);
     rdpq_set_scissor(4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
-    rdpq_sync_full();        
-    rspq_flush();
-    wait_for_dp_interrupt(rdpq_timeout);
+    rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 
         "Wrong data in framebuffer (1 cycle mode)");
 
-    dp_intr_raised = 0;
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
     data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
     rdpq_set_scissor(4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4);
     rdpq_set_other_modes(SOM_CYCLE_FILL);
     rdpq_set_fill_color(TEST_COLOR);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
-    rdpq_sync_full();        
-    rspq_flush();
-    wait_for_dp_interrupt(rdpq_timeout);
+    rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 
         "Wrong data in framebuffer (fill mode, update)");
 
-    dp_intr_raised = 0;
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
     data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
     rdpq_set_scissor(4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4);
     rdpq_set_other_modes(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | 0x80000000);
     rdpq_set_blend_color(TEST_COLOR);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
-    rdpq_sync_full();        
-    rspq_flush();
-    wait_for_dp_interrupt(rdpq_timeout);
+    rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 
         "Wrong data in framebuffer (1 cycle mode, update)");
 
@@ -470,12 +347,6 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
 
 void test_rdpq_fixup_texturerect(TestContext *ctx)
 {
-    dp_intr_raised = 0;
-    register_DP_handler(dp_interrupt_handler);
-    DEFER(unregister_DP_handler(dp_interrupt_handler));
-    set_DP_interrupt(1);
-    DEFER(set_DP_interrupt(0));
-
     rspq_init();
     DEFER(rspq_close());
     rdpq_init();
@@ -511,26 +382,20 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
     rdpq_set_tile(RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_TEXWIDTH / 4, 0, 0,0,0,0,0,0,0,0,0,0);
     rdpq_load_tile(0, 0, 0, TEST_RDPQ_TEXWIDTH, TEST_RDPQ_TEXWIDTH);
 
-    dp_intr_raised = 0;
     memset(framebuffer, 0xFF, TEST_RDPQ_FBSIZE);
     data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
     rdpq_set_other_modes(SOM_CYCLE_COPY);
     rdpq_texture_rectangle(0, 4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4, 0, 0, 1, 1);
-    rdpq_sync_full();        
-    rspq_flush();
-    wait_for_dp_interrupt(rdpq_timeout);
+    rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 
         "Wrong data in framebuffer (copy mode)");
 
-    dp_intr_raised = 0;
     memset(framebuffer, 0xFF, TEST_RDPQ_FBSIZE);
     data_cache_hit_writeback_invalidate(framebuffer, TEST_RDPQ_FBSIZE);
     rdpq_set_other_modes(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_TC_FILTER | SOM_BLENDING | SOM_SAMPLE_1X1 | SOM_MIDTEXEL);
     rdpq_set_combine_mode(Comb_Rgb(ZERO, ZERO, ZERO, TEX0) | Comb_Alpha(ZERO, ZERO, ZERO, TEX0));
     rdpq_texture_rectangle(0, 4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4, 0, 0, 1, 1);
-    rdpq_sync_full();        
-    rspq_flush();
-    wait_for_dp_interrupt(rdpq_timeout);
+    rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 
         "Wrong data in framebuffer (1cycle mode)");
 
