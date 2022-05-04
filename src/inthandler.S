@@ -91,18 +91,6 @@ inthandler:
 	sdc1 $f17,(STACK_FPR+17*8)(k0)
 	sdc1 $f18,(STACK_FPR+18*8)(k0)
 	sdc1 $f19,(STACK_FPR+19*8)(k0)
-	sdc1 $f20,(STACK_FPR+20*8)(k0)
-	sdc1 $f21,(STACK_FPR+21*8)(k0)
-	sdc1 $f22,(STACK_FPR+22*8)(k0)
-	sdc1 $f23,(STACK_FPR+23*8)(k0)
-	sdc1 $f24,(STACK_FPR+24*8)(k0)
-	sdc1 $f25,(STACK_FPR+25*8)(k0)
-	sdc1 $f26,(STACK_FPR+26*8)(k0)
-	sdc1 $f27,(STACK_FPR+27*8)(k0)
-	sdc1 $f28,(STACK_FPR+28*8)(k0)
-	sdc1 $f29,(STACK_FPR+29*8)(k0)
-	sdc1 $f30,(STACK_FPR+30*8)(k0)
-	sdc1 $f31,(STACK_FPR+31*8)(k0)
 
 	/* Fetch exception pc off cop0 */
 	mfc0 k1, C0_EPC
@@ -229,18 +217,6 @@ endint:
 	ldc1 $f17,(STACK_FPR+17*8)(k0)
 	ldc1 $f18,(STACK_FPR+18*8)(k0)
 	ldc1 $f19,(STACK_FPR+19*8)(k0)
-	ldc1 $f20,(STACK_FPR+20*8)(k0)
-	ldc1 $f21,(STACK_FPR+21*8)(k0)
-	ldc1 $f22,(STACK_FPR+22*8)(k0)
-	ldc1 $f23,(STACK_FPR+23*8)(k0)
-	ldc1 $f24,(STACK_FPR+24*8)(k0)
-	ldc1 $f25,(STACK_FPR+25*8)(k0)
-	ldc1 $f26,(STACK_FPR+26*8)(k0)
-	ldc1 $f27,(STACK_FPR+27*8)(k0)
-	ldc1 $f28,(STACK_FPR+28*8)(k0)
-	ldc1 $f29,(STACK_FPR+29*8)(k0)
-	ldc1 $f30,(STACK_FPR+30*8)(k0)
-	ldc1 $f31,(STACK_FPR+31*8)(k0)
 
 	lw k1, STACK_FC31(k0)
 	ctc1 k1, $f31
@@ -265,5 +241,17 @@ finalize_exception_frame:
 	addiu $1, sp, EXC_STACK_SIZE
 	sd $1,(STACK_GPR+29*8)(k0)    # SP
 	sd $30,(STACK_GPR+30*8)(k0)   # FP
+	sdc1 $f20,(STACK_FPR+20*8)(k0)
+	sdc1 $f21,(STACK_FPR+21*8)(k0)
+	sdc1 $f22,(STACK_FPR+22*8)(k0)
+	sdc1 $f23,(STACK_FPR+23*8)(k0)
+	sdc1 $f24,(STACK_FPR+24*8)(k0)
+	sdc1 $f25,(STACK_FPR+25*8)(k0)
+	sdc1 $f26,(STACK_FPR+26*8)(k0)
+	sdc1 $f27,(STACK_FPR+27*8)(k0)
+	sdc1 $f28,(STACK_FPR+28*8)(k0)
+	sdc1 $f29,(STACK_FPR+29*8)(k0)
+	sdc1 $f30,(STACK_FPR+30*8)(k0)
+	sdc1 $f31,(STACK_FPR+31*8)(k0)
 	jr ra
 	nop
