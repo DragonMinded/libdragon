@@ -74,6 +74,7 @@
 #define C0_EPC		$14		/* Exception error address */
 #define C0_PRID		$15		/* Processor Revision ID */
 #define C0_CONFIG	$16		/* CPU configuration */
+#define C0_WATCHLO	$18		/* Watchpoint */
 
 /* Standard Processor Revision ID Register field offsets */
 #define PR_IMP	8
