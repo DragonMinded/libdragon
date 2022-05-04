@@ -60,20 +60,8 @@ inthandler:
 	sd $13,(STACK_GPR+13*8)(k0)
 	sd $14,(STACK_GPR+14*8)(k0)
 	sd $15,(STACK_GPR+15*8)(k0)
-	sd $16,(STACK_GPR+16*8)(k0)
-	sd $17,(STACK_GPR+17*8)(k0)
-	sd $18,(STACK_GPR+18*8)(k0)
-	sd $19,(STACK_GPR+19*8)(k0)
-	sd $20,(STACK_GPR+20*8)(k0)
-	sd $21,(STACK_GPR+21*8)(k0)
-	sd $22,(STACK_GPR+22*8)(k0)
-	sd $23,(STACK_GPR+23*8)(k0)
 	sd $24,(STACK_GPR+24*8)(k0)
 	sd $25,(STACK_GPR+25*8)(k0)
-	# No need to save $26 (k0) & $27 (k1), the int handler is free to use them
-	sd $28,(STACK_GPR+28*8)(k0)
-	sd $29,(STACK_GPR+29*8)(k0)
-	sd $30,(STACK_GPR+30*8)(k0)
 	sd $31,(STACK_GPR+31*8)(k0)
 
 	mflo k1
@@ -137,6 +125,10 @@ inthandler:
 	nop
 
 critical_exception:
+	# Make sure that all registers are saved in the exception frame
+	jal finalize_exception_frame
+	nop
+
 	/* Exception not specially handled. */
 	addiu a0, sp, 32
 	jal __onCriticalException
@@ -186,6 +178,7 @@ notcount:
 endint:
 	/* restore GPRs */
 	move k0, sp
+	addiu sp, EXC_STACK_SIZE
 	ld $2,(STACK_GPR+2*8)(k0)
 	ld $3,(STACK_GPR+3*8)(k0)
 	ld $4,(STACK_GPR+4*8)(k0)
@@ -200,20 +193,8 @@ endint:
 	ld $13,(STACK_GPR+13*8)(k0)
 	ld $14,(STACK_GPR+14*8)(k0)
 	ld $15,(STACK_GPR+15*8)(k0)
-	ld $16,(STACK_GPR+16*8)(k0)
-	ld $17,(STACK_GPR+17*8)(k0)
-	ld $18,(STACK_GPR+18*8)(k0)
-	ld $19,(STACK_GPR+19*8)(k0)
-	ld $20,(STACK_GPR+20*8)(k0)
-	ld $21,(STACK_GPR+21*8)(k0)
-	ld $22,(STACK_GPR+22*8)(k0)
-	ld $23,(STACK_GPR+23*8)(k0)
 	ld $24,(STACK_GPR+24*8)(k0)
 	ld $25,(STACK_GPR+25*8)(k0)
-	# No need to restore $26 (k0) & $27 (k1), the int handler is free to use them
-	ld $28,(STACK_GPR+28*8)(k0)
-	ld $29,(STACK_GPR+29*8)(k0)
-	ld $30,(STACK_GPR+30*8)(k0)
 	ld $31,(STACK_GPR+31*8)(k0)
 
 	lw k1,STACK_EPC(k0)
@@ -267,4 +248,22 @@ endint:
 	.set noat
 	ld $1,(STACK_GPR+1*8)(k0)
 	eret
+	nop
+
+finalize_exception_frame:
+	sd $16,(STACK_GPR+16*8)(k0)   # S0
+	sd $17,(STACK_GPR+17*8)(k0)   # S1
+	sd $18,(STACK_GPR+18*8)(k0)   # S2
+	sd $19,(STACK_GPR+19*8)(k0)   # S3
+	sd $20,(STACK_GPR+20*8)(k0)   # S4
+	sd $21,(STACK_GPR+21*8)(k0)   # S5
+	sd $22,(STACK_GPR+22*8)(k0)   # S6
+	sd $23,(STACK_GPR+23*8)(k0)   # S7
+	sd $28,(STACK_GPR+28*8)(k0)   # GP
+	# SP has been modified to make space for the exception frame,
+	# but we want to save the previous value in the exception frame itself.
+	addiu $1, sp, EXC_STACK_SIZE
+	sd $1,(STACK_GPR+29*8)(k0)    # SP
+	sd $30,(STACK_GPR+30*8)(k0)   # FP
+	jr ra
 	nop
