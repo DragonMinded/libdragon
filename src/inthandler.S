@@ -92,16 +92,11 @@ inthandler:
 	sdc1 $f18,(STACK_FPR+18*8)(k0)
 	sdc1 $f19,(STACK_FPR+19*8)(k0)
 
-	/* Fetch exception pc off cop0 */
 	mfc0 k1, C0_EPC
 	sw k1, STACK_EPC(k0)
 
-	/* Mark interrupts as disabled. TODO: is this really required? */
 	mfc0 k1, C0_SR
 	sw k1, STACK_SR(k0)
-	li t0, ~1
-	and k1, t0
-	mtc0 k1, C0_SR
 
 	mfc0 k1, C0_CAUSE
 	sw k1, STACK_CR(k0)
