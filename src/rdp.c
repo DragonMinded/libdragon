@@ -366,7 +366,7 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
         0);
 
     /* Copying out only a chunk this time */
-    rdpq_load_tile(0, sl, tl, sh, th);
+    rdpq_load_tile(0, sl, tl, sh+1, th+1);
 
     /* Save sprite width and height for managed sprite commands */
     cache[texslot & 0x7].width = twidth - 1;
@@ -436,12 +436,12 @@ void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int b
     }	
 
     /* Calculate the scaling constants based on a 6.10 fixed point system */
-    int xs = (int)((1.0 / x_scale) * 4096.0);
+    int xs = (int)((1.0 / x_scale) * 1024.0);
     int ys = (int)((1.0 / y_scale) * 1024.0);
 
     /* Set up rectangle position in screen space */
     /* Set up texture position and scaling to 1:1 copy */
-    rdpq_texture_rectangle_fx(texslot, tx << 2, ty << 2, bx << 2, by << 2, s, t, xs, ys);
+    rdpq_texture_rectangle_fx(texslot, tx << 2, ty << 2, (bx+1) << 2, (by+1) << 2, s, t, xs, ys);
 }
 
 void rdp_draw_textured_rectangle( uint32_t texslot, int tx, int ty, int bx, int by, mirror_t mirror )

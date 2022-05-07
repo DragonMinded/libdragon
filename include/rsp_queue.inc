@@ -203,7 +203,6 @@ RSPQ_RDP_SENTINEL:            .long 0
 RSPQ_CURRENT_OVL:             .half 0
 
 RSPQ_RDP_BUF_IDX:             .byte 0
-RSPQ_RDP_BUF_SWITCHED:        .byte 0
 
     .align 4
     .ascii "Dragon RSP Queue"
@@ -369,6 +368,7 @@ rspq_execute_command:
 
     # Command size
     srl rspq_cmd_size, cmd_desc, 8
+    andi rspq_cmd_size, 0xFC
 
     # Check if the command is truncated because of buffer overflow (that is,
     # it finishes beyond the buffer end). If so, we must refetch the buffer
@@ -583,84 +583,56 @@ RSPQCmd_RdpWaitIdle:
     .endfunc
 
     #############################################################
-    # RSPQ_RdpSendDynamic
+    # RSPQ_RdpDynamicReserve
     #
-    # Enqueues a new block of commands to be run by the RDP.
+    # Reserves memory in the dynamic RDP queue. DP_END will point to the RDRAM location
+    # where new commands can be DMA'd.
     #
     # ARGS:
-    #   s4: RDP commands in DMEM
-    #
-    # NOTE: Uses the value of rspq_cmd_size as the size of the block.
+    #   t7: Size to reserve
     #############################################################
-    .func RSPQ_RdpSendDynamic
-RSPQ_RdpSendDynamic:
-    #define out_ptr  a1
-    #define out_end  a0
-    #define sentinel s1
+.func RSPQ_RdpDynamicReserve
+RSPQ_RdpDynamicReserve:
+    #define cur_ptr  s0
+    #define new_ptr  s2
+    #define sentinel s3
     #define buf_idx  t4
 
-    lw out_ptr, %lo(RSPQ_RDP_POINTER)
+    lw cur_ptr, %lo(RSPQ_RDP_POINTER)
     lw sentinel, %lo(RSPQ_RDP_SENTINEL)
-    move ra2, ra
 
-    add out_end, out_ptr, rspq_cmd_size
-    
-    # DMA new commands to dynamic buffer in RDRAM
-    move s0, out_ptr
-    jal DMAOut
-    addi t0, rspq_cmd_size, -1
-
-    # Send the new block of commands to the RDP
-    jal RSPQ_RdpSendBuffer
-    lbu buf_idx, %lo(RSPQ_RDP_BUF_IDX)
+    # Advance write pointer
+    add new_ptr, cur_ptr, rspq_cmd_size
 
     # Check if we have gone past the sentinel
-    ble out_end, sentinel, rdp_no_swap
-    xori buf_idx, 4
-
-    # Gone past the sentinel: Need to switch to next buffer, after waiting for it to be usable
-
-    # Check the buffer switch flag.
-    # 1. If zero, then some new buffer has been queued since the last switch. Because we also just
-    #    queued one, this means the buffer we want to switch to has left the RDP fifo, so we
-    #    don't even need to wait.
-    # 2. If non-zero, then no other buffer has been queued since the last switch. This means
-    #    there is a chance that the buffer we want to switch to is still being used by the RDP.
-    #    Because we just queued a new buffer, we just have to wait for the RDP fifo to not be full.
-    lbu t3, %lo(RSPQ_RDP_BUF_SWITCHED)
-    beqz t3, rdp_switch_buffer_wait_done
-    mfc0 t2, COP0_DP_STATUS
-
-    # TODO: re-use wait loop from RSPQ_RdpSendBuffer?
-    # TODO: wait at some other point instead (like the start of the next call), because it seems wasteful to wait at this point
-rdp_switch_buffer_wait:
-    # Wait for fifo to not be full
-    andi t1, t2, DP_STATUS_START_VALID | DP_STATUS_END_VALID
-    bnez t1, rdp_switch_buffer_wait
-    mfc0 t2, COP0_DP_STATUS
-
-rdp_switch_buffer_wait_done:
-    # TODO: re-consider which register to use for this, since t0 might not be safe
-    # Write any non-zero value to the buffer switch flag (zero is an illegal value for t0 at this point)
-    sb t0, %lo(RSPQ_RDP_BUF_SWITCHED)
+    ble new_ptr, sentinel, rdp_no_swap
+    lbu buf_idx, %lo(RSPQ_RDP_BUF_IDX)
 
     # Switch to next buffer
+    xori buf_idx, 4
     sb buf_idx, %lo(RSPQ_RDP_BUF_IDX)
-    lw out_end, %lo(RSPQ_RDP_BUFFERS)(buf_idx)
-    addi sentinel, out_end, RSPQ_RDP_DYN_SENTINEL_OFFSET
+    lw cur_ptr, %lo(RSPQ_RDP_BUFFERS)(buf_idx)
+    addi sentinel, cur_ptr, RSPQ_RDP_DYNAMIC_BUFFER_SIZE
+    add new_ptr, cur_ptr, rspq_cmd_size
     sw sentinel, %lo(RSPQ_RDP_SENTINEL)
 
 rdp_no_swap:
-    jr ra2
+    # Set both DP_START and DP_END to the start of the reserved area, which serves two purposes:
+    #   1. DP_END will point to the start of the area, fulfilling the contract of this function.
+    #      This allows for a nice optimization in the implementation of commands which support fixups
+    #      in static buffers.
+    #   2. Enqueueing this empty block requires the RDP fifo to not be full, which implies that the
+    #      new buffer that we are switching to is no longer in use (If it is still in use right now,
+    #      it definitely won't be after the wait loop).
+    move s1, cur_ptr
+    j RSPQ_RdpSendBuffer
     # Save updated write pointer
-    sw out_end, %lo(RSPQ_RDP_POINTER)
+    sw new_ptr, %lo(RSPQ_RDP_POINTER)
 
-    #undef out_ptr
-    #undef out_end
+    #undef new_ptr
     #undef sentinel
     #undef buf_idx
     .endfunc
-
 
     #############################################################
     # RSPQCmd_RdpBuffer
@@ -674,6 +646,8 @@ rdp_no_swap:
     #############################################################
     .func RSPQCmd_RdpBuffer
 RSPQCmd_RdpBuffer:
+    move s0, a1
+    move s1, a0
     # fallthrough
     .endfunc
 
@@ -683,14 +657,14 @@ RSPQCmd_RdpBuffer:
     # Enqueues a new buffer of commands to be run by the RDP.
     #
     # ARGS:
-    #   a0: DP_END
-    #   a1: DP_START
+    #   s0: DP_START
+    #   s1: DP_END
     #############################################################
     .func RSPQ_RdpSendBuffer
 RSPQ_RdpSendBuffer:
     # Check if the new buffer is contiguous with the previous one
     mfc0 t0, COP0_DP_END
-    beq t0, a1, rspq_set_dp_end
+    beq t0, s0, rspq_set_dp_end
     mfc0 t2, COP0_DP_STATUS
 
 rspq_wait_rdp_fifo:
@@ -700,17 +674,32 @@ rspq_wait_rdp_fifo:
     mfc0 t2, COP0_DP_STATUS
 
     # If the RDP needs to jump to a new buffer, set DP_START
-    mtc0 a1, COP0_DP_START
-
-    # Reset the buffer switched flag. This means that since the last dynamic buffer switch happened,
-    # a new buffer (doesn't matter what type) has entered the fifo. We can use this information
-    # during the next buffer switch to know whether we need to wait.
-    sb zero, %lo(RSPQ_RDP_BUF_SWITCHED)
+    mtc0 s0, COP0_DP_START
 
 rspq_set_dp_end:
     # If the RDP can keep running in a contiguous area, just set DP_END
     jr ra
-    mtc0 a0, COP0_DP_END
+    mtc0 s1, COP0_DP_END
+    .endfunc
+
+    #############################################################
+    # RSPQ_RdpFinalize
+    #
+    # DMA's RDP commands to DP_END and advances it.
+    #
+    # ARGS:
+    #   s4: Location of commands in DMEM
+    #   t7: Size of commands
+    #############################################################
+    .func RSPQ_RdpFinalize
+RSPQ_RdpFinalize:
+    mfc0 s0, COP0_DP_END
+    jal DMAOut
+    addi t0, rspq_cmd_size, -1
+
+    add s0, rspq_cmd_size
+    j RSPQ_Loop
+    mtc0 s0, COP0_DP_END
     .endfunc
 
 #include <rsp_dma.inc>

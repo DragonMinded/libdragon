@@ -290,7 +290,6 @@ typedef struct rsp_queue_s {
     uint32_t rspq_rdp_sentinel;          ///< Internal cache for last value of DP_END
     int16_t current_ovl;                 ///< Current overlay index
     uint8_t rdp_buf_idx;                 ///< Index of the current dynamic RDP buffer
-    uint8_t rdp_buf_switched;            ///< Status to keep track of dynamic RDP buffer switching
 } __attribute__((aligned(16), packed)) rsp_queue_t;
 
 /**
@@ -623,7 +622,7 @@ void rspq_init(void)
     rspq_data.rspq_rdp_buffers[0] = PhysicalAddr(rspq_rdp_dynamic_buffers[0]);
     rspq_data.rspq_rdp_buffers[1] = PhysicalAddr(rspq_rdp_dynamic_buffers[1]);
     rspq_data.rspq_rdp_pointer = rspq_data.rspq_rdp_buffers[0];
-    rspq_data.rspq_rdp_sentinel = rspq_data.rspq_rdp_pointer + RSPQ_RDP_DYN_SENTINEL_OFFSET;
+    rspq_data.rspq_rdp_sentinel = rspq_data.rspq_rdp_pointer + RSPQ_RDP_DYNAMIC_BUFFER_SIZE;
     rspq_data.tables.overlay_descriptors[0].state = PhysicalAddr(&dummy_overlay_state);
     rspq_data.tables.overlay_descriptors[0].data_size = sizeof(uint64_t);
     rspq_data.current_ovl = 0;
@@ -1058,12 +1057,13 @@ void rspq_block_begin(void)
     rspq_block_size = RSPQ_BLOCK_MIN_SIZE;
     rspq_block = malloc_uncached(sizeof(rspq_block_t) + rspq_block_size*sizeof(uint32_t));
     rspq_block->nesting_level = 0;
-    rspq_block->rdp_block = rdpq_block_begin();
 
     // Switch to the block buffer. From now on, all rspq_writes will
     // go into the block.
     rspq_switch_context(NULL);
     rspq_switch_buffer(rspq_block->cmds, rspq_block_size, true);
+    
+    rspq_block->rdp_block = rdpq_block_begin();
 }
 
 rspq_block_t* rspq_block_end(void)

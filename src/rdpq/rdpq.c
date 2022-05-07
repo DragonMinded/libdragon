@@ -49,7 +49,7 @@ void rdpq_init()
 
     // The (1 << 12) is to prevent underflow in case set other modes is called before any set scissor command.
     // Depending on the cycle mode, 1 subpixel is subtracted from the right edge of the scissor rect.
-    rdpq_state->scissor_rect = (((uint64_t)RDPQ_OVL_ID << 32) + ((uint64_t)RDPQ_CMD_SET_SCISSOR_EX << 56)) | (1 << 12);
+    rdpq_state->scissor_rect = (((uint64_t)RDPQ_OVL_ID << 32) + ((uint64_t)RDPQ_CMD_SET_SCISSOR_EX_FIX << 56)) | (1 << 12);
 
     rspq_init();
     rspq_overlay_register_static(&rsp_rdpq, RDPQ_OVL_ID);
@@ -95,8 +95,6 @@ void rdpq_block_flush(uint32_t *start, uint32_t *end)
     assertf(((uint32_t)start & 0x7) == 0, "start not aligned to 8 bytes: %lx", (uint32_t)start);
     assertf(((uint32_t)end & 0x7) == 0, "end not aligned to 8 bytes: %lx", (uint32_t)end);
 
-    extern void rspq_rdp(uint32_t start, uint32_t end);
-
     uint32_t phys_start = PhysicalAddr(start);
     uint32_t phys_end = PhysicalAddr(end);
 
@@ -108,7 +106,7 @@ void rdpq_block_flush(uint32_t *start, uint32_t *end)
     } else {
         // Put a command in the regular RSP queue that will submit the last buffer of RDP commands.
         last_rdp_cmd = rdpq_block_pointer;
-        rspq_write(0, RSPQ_CMD_RDP, phys_end, phys_start);
+        rspq_int_write(RSPQ_CMD_RDP, phys_end, phys_start);
     }
 }
 
@@ -118,6 +116,10 @@ void rdpq_block_switch_buffer(uint32_t *new, uint32_t size)
 
     rdpq_block_pointer = new;
     rdpq_block_sentinel = new + size - RDPQ_MAX_COMMAND_SIZE;
+
+    // Enqueue a command that will point RDP to the start of the block so that static fixup commands still work.
+    // Those commands rely on the fact that DP_END always points to the end of the current static block.
+    rdpq_block_flush((uint32_t*)rdpq_block_pointer, (uint32_t*)rdpq_block_pointer);
 }
 
 void rdpq_block_next_buffer()
@@ -138,8 +140,8 @@ rdpq_block_t* rdpq_block_begin()
     rdpq_block_size = RDPQ_BLOCK_MIN_SIZE;
     rdpq_block = malloc_uncached(sizeof(rdpq_block_t) + rdpq_block_size*sizeof(uint32_t));
     rdpq_block->next = NULL;
-    rdpq_block_switch_buffer(rdpq_block->cmds, rdpq_block_size);
     rdpq_reset_buffer();
+    rdpq_block_switch_buffer(rdpq_block->cmds, rdpq_block_size);
     return rdpq_block;
 }
 
@@ -178,30 +180,37 @@ void rdpq_block_free(rdpq_block_t *block)
         rdpq_block_next_buffer(); \
 })
 
+#define rdpq_static_write_placeholder(size) ({ \
+    for (int i = 0; i < (size); i++) *rdpq_block_pointer++ = 0; \
+    if (__builtin_expect(rdpq_block_pointer > rdpq_block_sentinel, 0)) \
+        rdpq_block_next_buffer(); \
+})
+
 static inline bool in_block(void) {
     return rdpq_block != NULL;
 }
 
-#define rdpq_fixup_write(cmd_id_dyn, cmd_id_fix, arg0, ...) ({ \
+#define rdpq_write(cmd_id, arg0, ...) ({ \
     if (in_block()) { \
-        rdpq_static_write(cmd_id_fix, arg0, ##__VA_ARGS__); \
+        rdpq_static_write(cmd_id, arg0, ##__VA_ARGS__); \
+    } else { \
+        rdpq_dynamic_write(cmd_id, arg0, ##__VA_ARGS__); \
+    } \
+})
+
+#define rdpq_fixup_write(cmd_id_dyn, cmd_id_fix, placeholder_size, arg0, ...) ({ \
+    if (in_block()) { \
+        rdpq_dynamic_write(cmd_id_fix, arg0, ##__VA_ARGS__); \
+        rdpq_static_write_placeholder(placeholder_size); \
     } else { \
         rdpq_dynamic_write(cmd_id_dyn, arg0, ##__VA_ARGS__); \
     } \
 })
 
-#define rdpq_write(cmd_id, arg0, ...) rdpq_fixup_write(cmd_id, cmd_id, arg0, ##__VA_ARGS__)
-
 __attribute__((noinline))
 void __rdpq_write8(uint32_t cmd_id, uint32_t arg0, uint32_t arg1)
 {
     rdpq_write(cmd_id, arg0, arg1);
-}
-
-__attribute__((noinline))
-void __rdpq_write12(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2)
-{
-    rdpq_write(cmd_id, arg0, arg1, arg2);
 }
 
 __attribute__((noinline))
@@ -211,21 +220,45 @@ void __rdpq_write16(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2
 }
 
 __attribute__((noinline))
-void __rdpq_fixup_write8(uint32_t cmd_id_dyn, uint32_t cmd_id_fix, uint32_t arg0, uint32_t arg1)
-{
-    rdpq_fixup_write(cmd_id_dyn, cmd_id_fix, arg0, arg1);
-}
-
-__attribute__((noinline))
 void __rdpq_fill_triangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3, uint32_t w4, uint32_t w5, uint32_t w6, uint32_t w7)
 {
     rdpq_write(RDPQ_CMD_TRI, w0, w1, w2, w3, w4, w5, w6, w7);
 }
 
 __attribute__((noinline))
+void __rdpq_texture_rectangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3)
+{
+    rdpq_fixup_write(RDPQ_CMD_TEXTURE_RECTANGLE_EX, RDPQ_CMD_TEXTURE_RECTANGLE_EX_FIX, 4, w0, w1, w2, w3);
+}
+
+__attribute__((noinline))
+void __rdpq_set_scissor(uint32_t w0, uint32_t w1)
+{
+    rdpq_fixup_write(RDPQ_CMD_SET_SCISSOR_EX, RDPQ_CMD_SET_SCISSOR_EX_FIX, 2, w0, w1);
+}
+
+__attribute__((noinline))
+void __rdpq_set_fill_color(uint32_t w1)
+{
+    rdpq_fixup_write(RDPQ_CMD_SET_FILL_COLOR_32, RDPQ_CMD_SET_FILL_COLOR_32_FIX, 2, 0, w1);
+}
+
+__attribute__((noinline))
+void __rdpq_set_color_image(uint32_t w0, uint32_t w1)
+{
+    rdpq_fixup_write(RDPQ_CMD_SET_COLOR_IMAGE, RDPQ_CMD_SET_COLOR_IMAGE_FIX, 4, w0, w1);
+}
+
+__attribute__((noinline))
+void __rdpq_set_other_modes(uint32_t w0, uint32_t w1)
+{
+    rdpq_fixup_write(RDPQ_CMD_SET_OTHER_MODES, RDPQ_CMD_SET_OTHER_MODES_FIX, 4, w0, w1);
+}
+
+__attribute__((noinline))
 void __rdpq_modify_other_modes(uint32_t w0, uint32_t w1, uint32_t w2)
 {
-    rdpq_dynamic_write(RDPQ_CMD_MODIFY_OTHER_MODES, w0, w1, w2);
+    rdpq_fixup_write(RDPQ_CMD_MODIFY_OTHER_MODES, RDPQ_CMD_MODIFY_OTHER_MODES_FIX, 4, w0, w1, w2);
 }
 
 /* Extern inline instantiations. */
