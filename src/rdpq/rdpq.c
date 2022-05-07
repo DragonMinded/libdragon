@@ -262,6 +262,8 @@ void __rdpq_modify_other_modes(uint32_t w0, uint32_t w1, uint32_t w2)
 }
 
 /* Extern inline instantiations. */
+extern inline void rdpq_set_fill_color(color_t color);
+extern inline void rdpq_set_color_image(void* dram_ptr, uint32_t format, uint32_t size, uint32_t width, uint32_t height, uint32_t stride);
 extern inline void rdpq_sync_tile(void);
 extern inline void rdpq_sync_load(void);
 extern inline void rdpq_sync_pipe(void);
