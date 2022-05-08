@@ -174,8 +174,10 @@ RDPQ_Write16:
     #############################################################
     # RDPQCmd_SetOtherModes
     #
-    # Completely ovewrites the internal cache of the RDP other modes with the 
-    # values provided in a0 and a1 and sends it to the RDP. 
+    # Completely overwrites the internal cache of the RDP other modes with the 
+    # values provided in a0 and a1 and submits the command to the RDP.
+    # It will also re-evaluate any commands that depend on the other modes
+    # and submit them at the same time.
     #
     # ARGS:
     #   a0: Command id and upper word of other modes
@@ -183,13 +185,46 @@ RDPQ_Write16:
     #############################################################
     .func RDPQCmd_SetOtherModes
 RDPQCmd_SetOtherModes:
+    # Reserve space for SetOtherModes + SetScissor
     jal RSPQ_RdpDynamicReserve
     li rspq_cmd_size, 16
-    jal_and_j RDPQ_SaveOtherModes, RDPQ_SendOtherModes
+    # Save the other modes to internal cache, then call RDPQ_WriteOtherModes
+    # RDPQ_WriteOtherModes will write both SetOtherModes and SetScissor to the staging area
+    jal_and_j RDPQ_SaveOtherModes, RDPQ_WriteOtherModes
+    .endfunc
 
+    #############################################################
+    # RDPQCmd_SetOtherModes_Static
+    #
+    # This is the static mode version of #RDPQCmd_SetOtherModes.
+    # It will also save the other modes to the internal cache, but doesn't
+    # submit the command to the static buffer because it already got written on the CPU side.
+    # It will however submit commands that depend on the other modes, just like the dynamic 
+    # mode version does.
+    #
+    # ARGS:
+    #   a0: Command id and upper word of other modes
+    #   a1: Lower word of other modes
+    #############################################################
+    .func RDPQCmd_SetOtherModes_Static
 RDPQCmd_SetOtherModes_Static:
-    li ra, %lo(RDPQ_OnOtherModesChanged)
+    # This will fall through to RDPQ_SaveOtherModes first, and then call RDPQ_FinalizeOtherModes.
+    # We don't want to jump to RDPQ_WriteOtherModes in this case, because the SetOtherModes command
+    # is already in the static buffer!
+    li ra, %lo(RDPQ_FinalizeOtherModes)
+    # fallthrough!
+    .endfunc
 
+    #############################################################
+    # RDPQ_SaveOtherModes
+    #
+    # Saves the other mode command in a0-a1 to an internal cache.
+    #
+    # ARGS:
+    #   a0: Command id and upper word of other modes
+    #   a1: Lower word of other modes
+    #############################################################
+    .func RDPQ_SaveOtherModes
 RDPQ_SaveOtherModes:
     lui t0, 0xEF00
     or a0, t0
@@ -212,6 +247,7 @@ RDPQ_SaveOtherModes:
     #############################################################
     .func RDPQCmd_ModifyOtherModes
 RDPQCmd_ModifyOtherModes:
+    # Only need to reserve space in dynamic mode. In static mode, DP_END already points to the right location.
     jal RSPQ_RdpDynamicReserve
 RDPQCmd_ModifyOtherModes_Static:
     li rspq_cmd_size, 16
@@ -220,27 +256,43 @@ RDPQCmd_ModifyOtherModes_Static:
     or t1, a2
     sw t1, %lo(RDP_OTHER_MODES)(a0)
 
+    # Prepare the updated command in a0-a1 for the following steps
     lw a0, %lo(RDP_OTHER_MODES) + 0x0
     lw a1, %lo(RDP_OTHER_MODES) + 0x4
     # fallthrough
     .endfunc
 
     #############################################################
-    # RDPQ_SendOtherModes
+    # RDPQ_WriteOtherModes
     #
-    # Sends the other modes in a0-a1 to the RDP. Will also
-    # re-execute any fixup commands that depend on the other modes.
+    # Appends the other modes command in a0-a1 to the staging area
+    # and falls through to #RDPQ_FinalizeOtherModes.
     #############################################################
-    .func RDPQ_SendOtherModes
-RDPQ_SendOtherModes:
-    # Copy other modes command to staging area
+    .func RDPQ_WriteOtherModes
+RDPQ_WriteOtherModes:
+    # Write other modes command to staging area
     jal RDPQ_Write8
-RDPQ_OnOtherModesChanged:
+    # fallthrough and delay slot!
+    .endfunc
+
+    #############################################################
+    # RDPQ_FinalizeOtherModes
+    #
+    # Re-evaluates any commands that depend on the other modes,
+    # appends them to the staging area, and finally calls #RDPQ_Finalize,
+    # finishing the current command.
+    #############################################################
+    .func RDPQ_FinalizeOtherModes
+RDPQ_FinalizeOtherModes:
     li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
 
     # Update other commands that need to change some state depending on the other modes
+
+    # SetScissor:
+    # load the cached command first
     lw a0, %lo(RDP_SCISSOR_RECT) + 0x0
     lw a1, %lo(RDP_SCISSOR_RECT) + 0x4
+    # Append the fixed up SetScissor command to staging area and then finalize
     jal_and_j RDPQ_WriteSetScissor, RDPQ_Finalize
     .endfunc
 
@@ -253,6 +305,7 @@ RDPQ_OnOtherModesChanged:
     #############################################################
     .func RDPQCmd_SetColorImage
 RDPQCmd_SetColorImage:
+    # Only need to reserve space in dynamic mode. In static mode, DP_END already points to the right location.
     jal RSPQ_RdpDynamicReserve
 RDPQCmd_SetColorImage_Static:
     li rspq_cmd_size, 16
@@ -261,9 +314,11 @@ RDPQCmd_SetColorImage_Static:
     andi t0, 3
     sb t0, %lo(RDP_TARGET_BITDEPTH)
     lui t1, 0xFF00
+    # Append this command to staging area
     jal RDPQ_Write8
     or a0, t1
 
+    # Append SetFillColor next, then submit everything
     lw a1, %lo(RDP_FILL_COLOR)
     jal_and_j RDPQ_WriteSetFillColor, RDPQ_Finalize
     .endfunc
@@ -286,6 +341,7 @@ RDPQCmd_SetColorImage_Static:
     #############################################################
     .func RDPQCmd_SetFillColor32
 RDPQCmd_SetFillColor32:
+    # Only need to reserve space in dynamic mode. In static mode, DP_END already points to the right location.
     jal RSPQ_RdpDynamicReserve
 RDPQCmd_SetFillColor32_Static:
     li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
@@ -330,6 +386,7 @@ RDPQ_WriteSetFillColor:
 RDPQCmd_SetScissorEx:
     lui t1, 0xD200 ^ 0xD300 # SetScissorEx -> SetScissorEx_Static
     xor a0, t1
+    # Only need to reserve space in dynamic mode. In static mode, DP_END already points to the right location.
     jal RSPQ_RdpDynamicReserve
 RDPQCmd_SetScissorEx_Static:
     li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
@@ -364,6 +421,7 @@ scissor_substitute:
 RDPQCmd_TextureRectEx:
     lui t1, 0xD000 ^ 0xD100 # TextureRectEx -> TextureRectEx_Static
     xor a0, t1
+    # Only need to reserve space in dynamic mode. In static mode, DP_END already points to the right location.
     jal RSPQ_RdpDynamicReserve
 RDPQCmd_TextureRectEx_Static:
     li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
