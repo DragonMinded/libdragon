@@ -465,3 +465,98 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
     #undef TEST_RDPQ_TEXSIZE
 }
 
+void test_rdpq_lookup_address(TestContext *ctx)
+{
+    rspq_init();
+    DEFER(rspq_close());
+    rdpq_init();
+    DEFER(rdpq_close());
+
+    #define TEST_RDPQ_FBWIDTH 16
+    #define TEST_RDPQ_FBAREA  (TEST_RDPQ_FBWIDTH * TEST_RDPQ_FBWIDTH)
+    #define TEST_RDPQ_FBSIZE  (TEST_RDPQ_FBAREA * 2)
+
+    const color_t TEST_COLOR = RGBA32(0xFF,0xFF,0xFF,0xFF);
+
+    void *framebuffer = malloc_uncached_aligned(64, TEST_RDPQ_FBSIZE);
+    DEFER(free_uncached(framebuffer));
+
+    static uint16_t expected_fb[TEST_RDPQ_FBAREA];
+    memset(expected_fb, 0xFF, sizeof(expected_fb));
+
+    rdpq_set_other_modes(SOM_CYCLE_FILL);
+    rdpq_set_fill_color(TEST_COLOR);
+
+    memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
+    rspq_block_begin();
+    rdpq_set_color_image_lookup(1, 0, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH * 2);
+    rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
+    rspq_block_t *block = rspq_block_end();
+    DEFER(rspq_block_free(block));
+    rdpq_set_lookup_address(1, framebuffer);
+    rspq_block_run(block);
+    rspq_wait();
+    ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 
+            "Wrong data in framebuffer (static mode)");
+
+    memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
+    rdpq_set_lookup_address(1, framebuffer);
+    rdpq_set_color_image_lookup(1, 0, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH * 2);
+    rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
+    rspq_wait();
+    ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 
+            "Wrong data in framebuffer (dynamic mode)");
+}
+
+void test_rdpq_lookup_address_offset(TestContext *ctx)
+{
+    rspq_init();
+    DEFER(rspq_close());
+    rdpq_init();
+    DEFER(rdpq_close());
+
+    #define TEST_RDPQ_FBWIDTH    16
+    #define TEST_RDPQ_FBAREA     (TEST_RDPQ_FBWIDTH * TEST_RDPQ_FBWIDTH)
+    #define TEST_RDPQ_FBSIZE     (TEST_RDPQ_FBAREA * 2)
+    #define TEST_RDPQ_RECT_OFF   4
+    #define TEST_RDPQ_RECT_WIDTH (TEST_RDPQ_FBWIDTH-(TEST_RDPQ_RECT_OFF*2))
+
+    const color_t TEST_COLOR = RGBA32(0xFF,0xFF,0xFF,0xFF);
+
+    void *framebuffer = malloc_uncached_aligned(64, TEST_RDPQ_FBSIZE);
+    DEFER(free_uncached(framebuffer));
+
+    static uint16_t expected_fb[TEST_RDPQ_FBAREA];
+    memset(expected_fb, 0, sizeof(expected_fb));
+    for (int y=TEST_RDPQ_RECT_OFF;y<TEST_RDPQ_FBWIDTH-TEST_RDPQ_RECT_OFF;y++) {
+        for (int x=TEST_RDPQ_RECT_OFF;x<TEST_RDPQ_FBWIDTH-TEST_RDPQ_RECT_OFF;x++) {
+            expected_fb[y * TEST_RDPQ_FBWIDTH + x] = color_to_packed16(TEST_COLOR);
+        }
+    }    
+
+    rdpq_set_other_modes(SOM_CYCLE_FILL);
+    rdpq_set_fill_color(TEST_COLOR);
+
+    uint32_t offset = (TEST_RDPQ_RECT_OFF * TEST_RDPQ_FBWIDTH + TEST_RDPQ_RECT_OFF) * 2;
+
+    memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
+    rspq_block_begin();
+    rdpq_set_color_image_lookup(1, offset, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_RECT_WIDTH, TEST_RDPQ_RECT_WIDTH, TEST_RDPQ_FBWIDTH * 2);
+    rdpq_fill_rectangle(0, 0, TEST_RDPQ_RECT_WIDTH, TEST_RDPQ_RECT_WIDTH);
+    rspq_block_t *block = rspq_block_end();
+    DEFER(rspq_block_free(block));
+    rdpq_set_lookup_address(1, framebuffer);
+    rspq_block_run(block);
+    rspq_wait();
+    ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 
+            "Wrong data in framebuffer (static mode)");
+
+    memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
+    rdpq_set_lookup_address(1, framebuffer);
+    rdpq_set_color_image_lookup(1, offset, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_RECT_WIDTH, TEST_RDPQ_RECT_WIDTH, TEST_RDPQ_FBWIDTH * 2);
+    rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
+    rspq_wait();
+    ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 
+            "Wrong data in framebuffer (dynamic mode)");
+}
+

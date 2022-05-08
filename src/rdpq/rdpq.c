@@ -18,6 +18,7 @@ DEFINE_RSP_UCODE(rsp_rdpq,
     .assert_handler=rdpq_assert_handler);
 
 typedef struct rdpq_state_s {
+    uint32_t address_table[RDPQ_ADDRESS_TABLE_SIZE];
     uint64_t other_modes;
     uint64_t scissor_rect;
     uint32_t fill_color;
@@ -208,6 +209,12 @@ static inline bool in_block(void) {
 })
 
 __attribute__((noinline))
+void __rdpq_dynamic_write8(uint32_t cmd_id, uint32_t arg0, uint32_t arg1)
+{
+    rdpq_dynamic_write(cmd_id, arg0, arg1);
+}
+
+__attribute__((noinline))
 void __rdpq_write8(uint32_t cmd_id, uint32_t arg0, uint32_t arg1)
 {
     rdpq_write(cmd_id, arg0, arg1);
@@ -241,6 +248,12 @@ __attribute__((noinline))
 void __rdpq_set_fill_color(uint32_t w1)
 {
     rdpq_fixup_write(RDPQ_CMD_SET_FILL_COLOR_32, RDPQ_CMD_SET_FILL_COLOR_32_FIX, 2, 0, w1);
+}
+
+__attribute__((noinline))
+void __rdpq_set_fixup_image(uint32_t cmd_id_dyn, uint32_t cmd_id_fix, uint32_t w0, uint32_t w1)
+{
+    rdpq_fixup_write(cmd_id_dyn, cmd_id_fix, 2, w0, w1);
 }
 
 __attribute__((noinline))
