@@ -184,12 +184,17 @@ RDPQ_Write16:
     .func RDPQCmd_SetOtherModes
 RDPQCmd_SetOtherModes:
     jal RSPQ_RdpDynamicReserve
-RDPQCmd_SetOtherModes_Static:
     li rspq_cmd_size, 16
+    jal_and_j RDPQ_SaveOtherModes, RDPQ_SendOtherModes
+
+RDPQCmd_SetOtherModes_Static:
+    li ra, %lo(RDPQ_OnOtherModesChanged)
+
+RDPQ_SaveOtherModes:
     lui t0, 0xEF00
     or a0, t0
     sw a0, %lo(RDP_OTHER_MODES) + 0x0
-    j RDPQ_SendOtherModes
+    jr ra
     sw a1, %lo(RDP_OTHER_MODES) + 0x4
     .endfunc
 
@@ -230,6 +235,7 @@ RDPQCmd_ModifyOtherModes_Static:
 RDPQ_SendOtherModes:
     # Copy other modes command to staging area
     jal RDPQ_Write8
+RDPQ_OnOtherModesChanged:
     li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
 
     # Update other commands that need to change some state depending on the other modes

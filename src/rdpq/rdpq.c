@@ -180,8 +180,8 @@ void rdpq_block_free(rdpq_block_t *block)
         rdpq_block_next_buffer(); \
 })
 
-#define rdpq_static_write_placeholder(size) ({ \
-    for (int i = 0; i < (size); i++) *rdpq_block_pointer++ = 0; \
+#define rdpq_static_skip(size) ({ \
+    for (int i = 0; i < (size); i++) rdpq_block_pointer++; \
     if (__builtin_expect(rdpq_block_pointer > rdpq_block_sentinel, 0)) \
         rdpq_block_next_buffer(); \
 })
@@ -198,10 +198,10 @@ static inline bool in_block(void) {
     } \
 })
 
-#define rdpq_fixup_write(cmd_id_dyn, cmd_id_fix, placeholder_size, arg0, ...) ({ \
+#define rdpq_fixup_write(cmd_id_dyn, cmd_id_fix, skip_size, arg0, ...) ({ \
     if (in_block()) { \
         rdpq_dynamic_write(cmd_id_fix, arg0, ##__VA_ARGS__); \
-        rdpq_static_write_placeholder(placeholder_size); \
+        rdpq_static_skip(skip_size); \
     } else { \
         rdpq_dynamic_write(cmd_id_dyn, arg0, ##__VA_ARGS__); \
     } \
@@ -252,7 +252,17 @@ void __rdpq_set_color_image(uint32_t w0, uint32_t w1)
 __attribute__((noinline))
 void __rdpq_set_other_modes(uint32_t w0, uint32_t w1)
 {
-    rdpq_fixup_write(RDPQ_CMD_SET_OTHER_MODES, RDPQ_CMD_SET_OTHER_MODES_FIX, 4, w0, w1);
+    if (in_block()) {
+        // Write set other modes normally first, because it doesn't need to be modified
+        rdpq_static_write(RDPQ_CMD_SET_OTHER_MODES, w0, w1);
+        // This command will just record the other modes to DMEM and output a set scissor command
+        rdpq_dynamic_write(RDPQ_CMD_SET_OTHER_MODES_FIX, w0, w1);
+        // Placeholder for the set scissor
+        rdpq_static_skip(2);
+    } else {
+        // The regular dynamic command will output both the set other modes and the set scissor commands
+        rdpq_dynamic_write(RDPQ_CMD_SET_OTHER_MODES, w0, w1);
+    }
 }
 
 __attribute__((noinline))

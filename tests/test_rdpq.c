@@ -217,8 +217,8 @@ void test_rdpq_block_contiguous(TestContext *ctx)
     memset(expected_fb, 0xFF, sizeof(expected_fb));
 
     rspq_block_begin();
-    rdpq_set_other_modes(SOM_CYCLE_FILL);
     rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
+    rdpq_set_other_modes(SOM_CYCLE_FILL);
     rdpq_set_fill_color(RGBA32(0xFF, 0xFF, 0xFF, 0xFF));
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
     rdpq_fence(); // Put the fence inside the block so RDP never executes anything outside the block
