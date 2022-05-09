@@ -681,7 +681,7 @@ void graphics_draw_character( display_context_t disp, int x, int y, char ch )
     int depth = __bitdepth;
 
     // setting default font if none was set previously
-    if( sprite_font.sprite == NULL )
+    if( sprite_font.sprite == NULL || __bitdepth != sprite_font.sprite->bitdepth )
     {
         graphics_set_default_font();
     }
