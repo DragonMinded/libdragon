@@ -98,6 +98,14 @@ inthandler:
 	mfc0 k1, C0_SR
 	sw k1, STACK_SR(k0)
 
+	# Since all critical information about current exception has been saved,
+	# we can now turn off EXL. This allows a reentrant exception to save its
+	# own full context for operating. At the same time, it is better to keep
+	# interrupts disabled so that we don't risk triggering recursive interrupts,
+	# so disable IE as well.
+	and k1, ~(SR_IE | SR_EXL)
+	mtc0 k1, C0_SR
+
 	mfc0 k1, C0_CAUSE
 	sw k1, STACK_CR(k0)
 
