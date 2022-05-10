@@ -4,9 +4,6 @@
 #include <stdint.h>
 #include <libdragon.h>
 
-static resolution_t res = RESOLUTION_320x240;
-static bitdepth_t bit = DEPTH_32_BPP;
-
 class TestClass
 {
     private:
@@ -31,10 +28,7 @@ int main(void)
     TestClass* localClass = new TestClass();
 
     console_init();
-
     console_set_render_mode(RENDER_MANUAL);
-
-    display_init( res, bit, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
 
     while(1)
     {
