@@ -112,6 +112,11 @@
  */
 static int __interrupt_depth = -1;
 
+/** @brief Value of the status register at the moment interrupts
+ *         got disabled.
+ */
+static int __interrupt_sr = 0;
+
 /** @brief tick at which interrupts were disabled. */
 uint32_t interrupt_disabled_tick = 0;
 
@@ -613,8 +618,9 @@ void disable_interrupts()
 
     if( __interrupt_depth == 0 )
     {
-        /* Interrupts are enabled, so its safe to disable them */
-        C0_WRITE_STATUS(C0_STATUS() & ~C0_STATUS_IE);
+        /* We must disable the interrupts now. */
+        __interrupt_sr = C0_STATUS();
+        C0_WRITE_STATUS(__interrupt_sr & ~C0_STATUS_IE);
         interrupt_disabled_tick = TICKS_READ();
     }
 
@@ -642,7 +648,11 @@ void enable_interrupts()
 
     if( __interrupt_depth == 0 )
     {
-        C0_WRITE_STATUS(C0_STATUS() | C0_STATUS_IE);
+        /* Restore the interrupt state that was active when interrupts got
+           disabled. This is important because, within an interrupt handler,
+           we don't want here to force-enable interrupts, or we would allow
+           reentrant interrupts which are not supported. */
+        C0_WRITE_STATUS(C0_STATUS() | (__interrupt_sr & C0_STATUS_IE));
     }
 }
 
