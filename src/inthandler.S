@@ -14,9 +14,6 @@ inthandler:
 	.set noat
 	.set noreorder
 
-#define EXCEPTION_CODE_SYS_CALL      (8<<2)
-#define EXCEPTION_CODE_BREAKPOINT    (9<<2)
-
 # The exception stack contains a dump of all GPRs/FPRs. This requires 544 bytes.
 # On top of that, we need 32 bytes of empty space at offset 0-31, because
 # that is required by MIPS ABI when calling C functions (it's a space called
@@ -70,29 +67,6 @@ inthandler:
 	sd k1,STACK_LO(k0)
 	mfhi k1
 	sd k1,STACK_HI(k0)
-	cfc1 k1,$f31
-	sw k1,STACK_FC31(k0)
-
-	sdc1 $f0,(STACK_FPR+0*8)(k0)
-	sdc1 $f1,(STACK_FPR+1*8)(k0)
-	sdc1 $f2,(STACK_FPR+2*8)(k0)
-	sdc1 $f3,(STACK_FPR+3*8)(k0)
-	sdc1 $f4,(STACK_FPR+4*8)(k0)
-	sdc1 $f5,(STACK_FPR+5*8)(k0)
-	sdc1 $f6,(STACK_FPR+6*8)(k0)
-	sdc1 $f7,(STACK_FPR+7*8)(k0)
-	sdc1 $f8,(STACK_FPR+8*8)(k0)
-	sdc1 $f9,(STACK_FPR+9*8)(k0)
-	sdc1 $f10,(STACK_FPR+10*8)(k0)
-	sdc1 $f11,(STACK_FPR+11*8)(k0)
-	sdc1 $f12,(STACK_FPR+12*8)(k0)
-	sdc1 $f13,(STACK_FPR+13*8)(k0)
-	sdc1 $f14,(STACK_FPR+14*8)(k0)
-	sdc1 $f15,(STACK_FPR+15*8)(k0)
-	sdc1 $f16,(STACK_FPR+16*8)(k0)
-	sdc1 $f17,(STACK_FPR+17*8)(k0)
-	sdc1 $f18,(STACK_FPR+18*8)(k0)
-	sdc1 $f19,(STACK_FPR+19*8)(k0)
 
 	mfc0 k1, C0_EPC
 	sw k1, STACK_EPC(k0)
@@ -117,10 +91,60 @@ inthandler:
 	beqz t0, interrupt
 	nop
 
-critical_exception:
-	# Make sure that all registers are saved in the exception frame
+exception:
+	# This is an exception, not an interrupt. We want to save the full processor
+	# state in the exception frame, so all registers including FPU regs.
+	# Make sure FPU is activated in this context. It could be deactivated if
+	# this exception happened within an interrupt (where FPU is disabled by default).
+	mfc0 t0, C0_SR
+	or t0, SR_CU1
+	mtc0 t0, C0_SR
+
+	# Save the callee-saved FPU regs
+	jal save_fpu_regs
+	nop
+
+	# Save all the CPU+FPU caller-saved regs, which are normally
+	# not saved for an interrupt.
 	jal finalize_exception_frame
 	nop
+
+	# Check the exception type
+	mfc0 k1, C0_CAUSE
+	andi t0, k1, CAUSE_EXC_MASK
+	bne t0, CAUSE_EXC_COPROCESSOR, critical_exception
+	nop
+
+exception_coprocessor:
+	# Extract CE bits (28..29) from CR
+	srl t0, k1, 28
+	andi t0, 3
+	# If == 1 (COP1), it is an FPU exception
+	bne t0, 1, critical_exception
+	nop
+
+exception_coprocessor_fpu:
+	# FPU exception. This happened because of the use of FPU in an interrupt handler,
+	# where it is disabled by default. We must save the full FPU context,
+	# reactivate the FPU, and then return from exception, so that the FPU instruction
+	# is executed again and this time it will work.
+
+	# Make sure that FPU will also be enabled when we exit this exception
+	lw t0, STACK_SR(sp)
+	or t0, SR_CU1
+	sw t0, STACK_SR(sp)
+
+	# Save the FPU registers into the *underlying* interrupt context.
+	# That is, we want to make sure that they get restored when the
+	# underlying interrupt exits.
+	jal save_fpu_regs
+	lw k0, interrupt_exception_frame
+
+	# OK we are done. We can now exit the exception
+	j end_interrupt
+	nop
+
+critical_exception:
 
 	/* Exception not specially handled. */
 	addiu a0, sp, 32
@@ -131,6 +155,22 @@ critical_exception:
 	nop
 
 interrupt:
+	# This is an interrupt. 
+	# First of all, disable FPU coprocessor so that we can avoid saving FPU
+	# registers altogether.
+	mfc0 t0, C0_SR
+	and t0, ~SR_CU1
+	mtc0 t0, C0_SR
+
+	# If a FPU instruction is executed during the interrupt handler, a nested
+	# exception will trigger. The nested handler will enable the FPU and save
+	# the FPU registers into the interrupt exception frame. To do so, it needs
+	# to know *where* the interrupt exception frame is. That is, we need
+	# to store the current stack pointer somewhere.
+	# Notice that interrupts cannot be reentrant (only exceptions are), so
+	# a single variable will suffice.
+	sw sp, interrupt_exception_frame
+
 	/* check for "pre-NMI" (reset) */
 	andi t0,k1,0x1000
 	beqz t0, notprenmi
@@ -173,6 +213,37 @@ notcount:
 end_interrupt:
 	move k0, sp
 	addiu sp, EXC_STACK_SIZE
+
+	mfc0 t0, C0_SR
+	and t0, SR_CU1
+	beqz t0, end_interrupt_gpr
+	nop
+
+	ldc1 $f0, (STACK_FPR+ 0*8)(k0)
+	ldc1 $f1, (STACK_FPR+ 1*8)(k0)
+	ldc1 $f2, (STACK_FPR+ 2*8)(k0)
+	ldc1 $f3, (STACK_FPR+ 3*8)(k0)
+	ldc1 $f4, (STACK_FPR+ 4*8)(k0)
+	ldc1 $f5, (STACK_FPR+ 5*8)(k0)
+	ldc1 $f6, (STACK_FPR+ 6*8)(k0)
+	ldc1 $f7, (STACK_FPR+ 7*8)(k0)
+	ldc1 $f8, (STACK_FPR+ 8*8)(k0)
+	ldc1 $f9, (STACK_FPR+ 9*8)(k0)
+	ldc1 $f10,(STACK_FPR+10*8)(k0)
+	ldc1 $f11,(STACK_FPR+11*8)(k0)
+	ldc1 $f12,(STACK_FPR+12*8)(k0)
+	ldc1 $f13,(STACK_FPR+13*8)(k0)
+	ldc1 $f14,(STACK_FPR+14*8)(k0)
+	ldc1 $f15,(STACK_FPR+15*8)(k0)
+	ldc1 $f16,(STACK_FPR+16*8)(k0)
+	ldc1 $f17,(STACK_FPR+17*8)(k0)
+	ldc1 $f18,(STACK_FPR+18*8)(k0)
+	ldc1 $f19,(STACK_FPR+19*8)(k0)
+
+	lw k1, STACK_FC31(k0)
+	ctc1 k1, $f31
+
+end_interrupt_gpr:
 	/* restore GPRs */
 	ld $2,(STACK_GPR + 2*8)(k0)
 	ld $3,(STACK_GPR + 3*8)(k0)
@@ -203,30 +274,6 @@ end_interrupt:
 
 	ld k1,STACK_HI(k0)
 	mthi k1
-
-	ldc1 $f0,(STACK_FPR+0*8)(k0)
-	ldc1 $f1,(STACK_FPR+1*8)(k0)
-	ldc1 $f2,(STACK_FPR+2*8)(k0)
-	ldc1 $f3,(STACK_FPR+3*8)(k0)
-	ldc1 $f4,(STACK_FPR+4*8)(k0)
-	ldc1 $f5,(STACK_FPR+5*8)(k0)
-	ldc1 $f6,(STACK_FPR+6*8)(k0)
-	ldc1 $f7,(STACK_FPR+7*8)(k0)
-	ldc1 $f8,(STACK_FPR+8*8)(k0)
-	ldc1 $f9,(STACK_FPR+9*8)(k0)
-	ldc1 $f10,(STACK_FPR+10*8)(k0)
-	ldc1 $f11,(STACK_FPR+11*8)(k0)
-	ldc1 $f12,(STACK_FPR+12*8)(k0)
-	ldc1 $f13,(STACK_FPR+13*8)(k0)
-	ldc1 $f14,(STACK_FPR+14*8)(k0)
-	ldc1 $f15,(STACK_FPR+15*8)(k0)
-	ldc1 $f16,(STACK_FPR+16*8)(k0)
-	ldc1 $f17,(STACK_FPR+17*8)(k0)
-	ldc1 $f18,(STACK_FPR+18*8)(k0)
-	ldc1 $f19,(STACK_FPR+19*8)(k0)
-
-	lw k1, STACK_FC31(k0)
-	ctc1 k1, $f31
 
 	.set noat
 	ld $1,(STACK_GPR+1*8)(k0)
@@ -262,3 +309,35 @@ finalize_exception_frame:
 	sdc1 $f31,(STACK_FPR+31*8)(k0)
 	jr ra
 	nop
+
+save_fpu_regs:
+	cfc1 $1, $f31
+	sw $1, STACK_FC31(k0)
+	sdc1 $f0, (STACK_FPR+ 0*8)(k0)
+	sdc1 $f1, (STACK_FPR+ 1*8)(k0)
+	sdc1 $f2, (STACK_FPR+ 2*8)(k0)
+	sdc1 $f3, (STACK_FPR+ 3*8)(k0)
+	sdc1 $f4, (STACK_FPR+ 4*8)(k0)
+	sdc1 $f5, (STACK_FPR+ 5*8)(k0)
+	sdc1 $f6, (STACK_FPR+ 6*8)(k0)
+	sdc1 $f7, (STACK_FPR+ 7*8)(k0)
+	sdc1 $f8, (STACK_FPR+ 8*8)(k0)
+	sdc1 $f9, (STACK_FPR+ 9*8)(k0)
+	sdc1 $f10,(STACK_FPR+10*8)(k0)
+	sdc1 $f11,(STACK_FPR+11*8)(k0)
+	sdc1 $f12,(STACK_FPR+12*8)(k0)
+	sdc1 $f13,(STACK_FPR+13*8)(k0)
+	sdc1 $f14,(STACK_FPR+14*8)(k0)
+	sdc1 $f15,(STACK_FPR+15*8)(k0)
+	sdc1 $f16,(STACK_FPR+16*8)(k0)
+	sdc1 $f17,(STACK_FPR+17*8)(k0)
+	sdc1 $f18,(STACK_FPR+18*8)(k0)
+	sdc1 $f19,(STACK_FPR+19*8)(k0)
+	jr ra
+	nop
+
+
+	.section .bss
+ 	.align 8
+	.lcomm interrupt_exception_frame, 4
+

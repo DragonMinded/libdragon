@@ -102,6 +102,12 @@
 #define SR_EXL      0x00000002  /* Exception level */
 #define SR_IE       0x00000001  /* Interrupts enabled */
 
+/* Standard Cause Register bitmasks: */
+#define CAUSE_EXC_MASK             (0x1F << 2)
+#define CAUSE_EXC_SYSCALL          (8    << 2)
+#define CAUSE_EXC_BREAKPOINT       (9    << 2)
+#define CAUSE_EXC_COPROCESSOR      (11   << 2)
+
 /* Standard (R4000) cache operations. Taken from "MIPS R4000
    Microprocessor User's Manual" 2nd edition: */
 
