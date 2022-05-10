@@ -29,7 +29,7 @@
 /** @brief Exception handler currently registered with exception system */
 static void (*__exception_handler)(exception_t*) = exception_default_handler;
 /** @brief Base register offset as defined by the interrupt controller */
-extern const void* __baseRegAddr;
+extern volatile reg_block_t __baseRegAddr;
 
 /**
  * @brief Register an exception handler to handle exceptions
@@ -270,7 +270,7 @@ static const char* __get_exception_name(exception_code_t code)
  */
 static void __fetch_regs(exception_t* e,int32_t type)
 {
-	e->regs = (volatile reg_block_t*) &__baseRegAddr;
+	e->regs = &__baseRegAddr;
 	e->type = type;
 	e->code = C0_GET_CAUSE_EXC_CODE(e->regs->cr);
 	e->info = __get_exception_name(e->code);
