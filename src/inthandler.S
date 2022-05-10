@@ -42,27 +42,29 @@ inthandler:
 	srl k0, 3
 	sll k0, 3
 
-	/* save GPRs */
-	# No need to save $0, as it is always zero
-	sd $1,(STACK_GPR+1*8)(k0)
+	# Save caller-saved GPRs only. These are the only
+	# ones required to call a C function from assembly, as the
+	# others (callee-saved) would be preserved by the function 
+	# itself, if modified.
+	sd $1, (STACK_GPR+ 1*8)(k0) # AT
 	.set at
-	sd $2,(STACK_GPR+2*8)(k0)
-	sd $3,(STACK_GPR+3*8)(k0)
-	sd $4,(STACK_GPR+4*8)(k0)
-	sd $5,(STACK_GPR+5*8)(k0)
-	sd $6,(STACK_GPR+6*8)(k0)
-	sd $7,(STACK_GPR+7*8)(k0)
-	sd $8,(STACK_GPR+8*8)(k0)
-	sd $9,(STACK_GPR+9*8)(k0)
-	sd $10,(STACK_GPR+10*8)(k0)
-	sd $11,(STACK_GPR+11*8)(k0)
-	sd $12,(STACK_GPR+12*8)(k0)
-	sd $13,(STACK_GPR+13*8)(k0)
-	sd $14,(STACK_GPR+14*8)(k0)
-	sd $15,(STACK_GPR+15*8)(k0)
-	sd $24,(STACK_GPR+24*8)(k0)
-	sd $25,(STACK_GPR+25*8)(k0)
-	sd $31,(STACK_GPR+31*8)(k0)
+	sd $2, (STACK_GPR+ 2*8)(k0) # V0
+	sd $3, (STACK_GPR+ 3*8)(k0) # V1
+	sd $4, (STACK_GPR+ 4*8)(k0) # A0
+	sd $5, (STACK_GPR+ 5*8)(k0) # A1
+	sd $6, (STACK_GPR+ 6*8)(k0) # A2
+	sd $7, (STACK_GPR+ 7*8)(k0) # A3
+	sd $8, (STACK_GPR+ 8*8)(k0) # T0
+	sd $9, (STACK_GPR+ 9*8)(k0) # T1
+	sd $10,(STACK_GPR+10*8)(k0) # T2
+	sd $11,(STACK_GPR+11*8)(k0) # T3 
+	sd $12,(STACK_GPR+12*8)(k0) # T4
+	sd $13,(STACK_GPR+13*8)(k0) # T5
+	sd $14,(STACK_GPR+14*8)(k0) # T6
+	sd $15,(STACK_GPR+15*8)(k0) # T7
+	sd $24,(STACK_GPR+24*8)(k0) # T8
+	sd $25,(STACK_GPR+25*8)(k0) # T9
+	sd $31,(STACK_GPR+31*8)(k0) # RA
 
 	mflo k1
 	sd k1,STACK_LO(k0)
@@ -112,7 +114,7 @@ inthandler:
 	move sp, k0
 
 	andi t0, k1, 0xff
-	beqz t0, justaninterrupt
+	beqz t0, interrupt
 	nop
 
 critical_exception:
@@ -125,10 +127,10 @@ critical_exception:
 	jal __onCriticalException
 	nop
 
-	j endint
+	j end_interrupt
 	nop
 
-justaninterrupt:
+interrupt:
 	/* check for "pre-NMI" (reset) */
 	andi t0,k1,0x1000
 	beqz t0, notprenmi
@@ -139,7 +141,7 @@ justaninterrupt:
 	jal __onResetException
 	nop
 
-	j endint
+	j end_interrupt
 	nop
 
 notprenmi:
@@ -158,26 +160,28 @@ notprenmi:
 	jal __TI_handler
 	nop
 
-	j endint
+	j end_interrupt
 	nop
 notcount:
 
 	/* pass anything else along to handler */
 	jal __MI_handler
 	nop
+	j end_interrupt
+	nop
 
-endint:
-	/* restore GPRs */
+end_interrupt:
 	move k0, sp
 	addiu sp, EXC_STACK_SIZE
-	ld $2,(STACK_GPR+2*8)(k0)
-	ld $3,(STACK_GPR+3*8)(k0)
-	ld $4,(STACK_GPR+4*8)(k0)
-	ld $5,(STACK_GPR+5*8)(k0)
-	ld $6,(STACK_GPR+6*8)(k0)
-	ld $7,(STACK_GPR+7*8)(k0)
-	ld $8,(STACK_GPR+8*8)(k0)
-	ld $9,(STACK_GPR+9*8)(k0)
+	/* restore GPRs */
+	ld $2,(STACK_GPR + 2*8)(k0)
+	ld $3,(STACK_GPR + 3*8)(k0)
+	ld $4,(STACK_GPR + 4*8)(k0)
+	ld $5,(STACK_GPR + 5*8)(k0)
+	ld $6,(STACK_GPR + 6*8)(k0)
+	ld $7,(STACK_GPR + 7*8)(k0)
+	ld $8,(STACK_GPR + 8*8)(k0)
+	ld $9,(STACK_GPR + 9*8)(k0)
 	ld $10,(STACK_GPR+10*8)(k0)
 	ld $11,(STACK_GPR+11*8)(k0)
 	ld $12,(STACK_GPR+12*8)(k0)
@@ -242,7 +246,7 @@ finalize_exception_frame:
 	# SP has been modified to make space for the exception frame,
 	# but we want to save the previous value in the exception frame itself.
 	addiu $1, sp, EXC_STACK_SIZE
-	sd $1,(STACK_GPR+29*8)(k0)    # SP
+	sd $1, (STACK_GPR+29*8)(k0)   # SP
 	sd $30,(STACK_GPR+30*8)(k0)   # FP
 	sdc1 $f20,(STACK_FPR+20*8)(k0)
 	sdc1 $f21,(STACK_FPR+21*8)(k0)
