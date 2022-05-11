@@ -5,9 +5,6 @@
 #include <time.h>
 #include <libdragon.h>
 
-static resolution_t res = RESOLUTION_320x240;
-static bitdepth_t bit = DEPTH_32_BPP;
-
 char *format_type( int accessory )
 {
     switch( accessory )
@@ -26,7 +23,6 @@ char *format_type( int accessory )
 int main(void)
 {
     /* Initialize peripherals */
-    display_init( res, bit, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
     console_init();
     controller_init();
     timer_init();

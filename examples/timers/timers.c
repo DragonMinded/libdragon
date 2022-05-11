@@ -4,9 +4,6 @@
 #include <stdint.h>
 #include <libdragon.h>
 
-static resolution_t res = RESOLUTION_320x240;
-static bitdepth_t bit = DEPTH_32_BPP;
-
 static volatile double t1 = 0.0; // increment every ms
 static volatile double t2 = 0.0; // increment every .5 sec
 static volatile double t3 = 0.0; // increment every 1 sec
@@ -39,7 +36,6 @@ int main(void)
     long long start, end;
 
     /* Initialize peripherals */
-    display_init( res, bit, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
     console_init();
 
     console_set_render_mode(RENDER_MANUAL);

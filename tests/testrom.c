@@ -230,7 +230,6 @@ static const struct Testsuite
 };
 
 int main() {
-	display_init(RESOLUTION_320x240, DEPTH_32_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE);
 	console_init();
 	console_set_debug(false);
 	debug_init_isviewer();

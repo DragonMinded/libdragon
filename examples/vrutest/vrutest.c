@@ -4,9 +4,6 @@
 #include <stdint.h>
 #include <libdragon.h>
 
-static resolution_t res = RESOLUTION_320x240;
-static bitdepth_t bit = DEPTH_32_BPP;
-
 void print_request( int len, uint8_t *res )
 {
     for( int i = 0; i < len; i++ )
@@ -30,7 +27,6 @@ void print_result( int len, uint8_t *res )
 int main(void)
 {
     /* Initialize peripherals */
-    display_init( res, bit, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
     console_init();
     controller_init();
 
