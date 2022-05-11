@@ -41,7 +41,7 @@
         RSPQ_DefineCommand RDPQCmd_SetColorImage_Static,    8   # 0xDF
 
         RSPQ_DefineCommand RDPQCmd_SetOtherModes_Static,    8   # 0xE0
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xE1
+        RSPQ_DefineCommand RDPQCmd_SyncFull_Static,         8   # 0xE1
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
         RSPQ_DefineCommand RDPQCmd_Passthrough16,           16  # 0xE4 TEXTURE_RECTANGLE
@@ -550,6 +550,9 @@ RDPQ_FixupAddress:
     #############################################################
     .func RDPQCmd_SyncFull
 RDPQCmd_SyncFull:
+    li ra, %lo(RDPQCmd_Passthrough8)
+RDPQCmd_SyncFull_Static:
+    move ra2, ra
     # Wait until the previous SYNC_FULL interrupt has been processed.
     jal SpStatusWait
     li t2, SP_STATUS_SIG_RDPSYNCFULL
@@ -565,4 +568,5 @@ RDPQCmd_SyncFull:
     li s4, %lo(RDP_SYNCFULL)
     lw s0, %lo(RDP_RDRAM_STATE_ADDR)
     li t0, DMA_SIZE(8, 1)
-    jal_and_j DMAOut, RDPQCmd_Passthrough8
+    j DMAOut
+    move ra, ra2

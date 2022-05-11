@@ -322,8 +322,8 @@ void __rdpq_sync_full(uint32_t w0, uint32_t w1)
     // and we need that to be forwarded to RSP dynamic command.
     if (in_block()) {
         // In block mode, schedule the command in both static and dynamic mode.
+        rdpq_dynamic_write(RDPQ_CMD_SYNC_FULL_FIX, w0, w1);
         rdpq_static_write(RDPQ_CMD_SYNC_FULL, w0, w1);
-        rdpq_dynamic_write(RDPQ_CMD_SYNC_FULL, w0, w1);
     } else {
         rdpq_dynamic_write(RDPQ_CMD_SYNC_FULL, w0, w1);
     }

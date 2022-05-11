@@ -33,7 +33,7 @@ enum {
     RDPQ_CMD_SET_COLOR_IMAGE_FIX        = 0x1F,
 
     RDPQ_CMD_SET_OTHER_MODES_FIX        = 0x20,
-    RDPQ_CMD_SET_SYNC_FULL_FIX          = 0x21,
+    RDPQ_CMD_SYNC_FULL_FIX              = 0x21,
     RDPQ_CMD_TEXTURE_RECTANGLE          = 0x24,
     RDPQ_CMD_TEXTURE_RECTANGLE_FLIP     = 0x25,
     RDPQ_CMD_SYNC_LOAD                  = 0x26,
