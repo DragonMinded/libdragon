@@ -546,7 +546,7 @@ void display_show( display_context_t disp )
     int i = disp - 1;
 
     /* This should match, or something went awry */
-    assertf( i == now_drawing, "display_show_force invoked on non-locked display" );
+    assertf( i == now_drawing, "display_show invoked on non-locked display" );
 
     /* Ensure we display this next time */
     now_drawing = -1;
