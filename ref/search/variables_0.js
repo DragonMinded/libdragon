@@ -1,13 +1,13 @@
 var searchData=
 [
   ['_5f_5fassert_5ffunc_5fptr_0',['__assert_func_ptr',['../group__system.html#ga6e83120dfc32290b3dfff131819edf38',1,'system.c']]],
-  ['_5f_5fbaseregaddr_1',['__baseRegAddr',['../group__exceptions.html#gada786eec0aadd1261e0298f192268467',1,'exception.c']]],
+  ['_5f_5fbaseregaddr_1',['__baseRegAddr',['../group__exceptions.html#gaeb336a150cd15bd969c9067b0bca7ef9',1,'exception.c']]],
   ['_5f_5fbbplayer_2',['__bbplayer',['../group__n64sys.html#gacd3b316e4428bf20c80fa403921feeb5',1,'__bbplayer():&#160;n64sys.c'],['../group__n64sys.html#gacd3b316e4428bf20c80fa403921feeb5',1,'__bbplayer():&#160;n64sys.c']]],
   ['_5f_5fbitdepth_3',['__bitdepth',['../group__display.html#gaf2d878ed60a3e5d6b007ce15c77bad2a',1,'__bitdepth():&#160;display.c'],['../group__graphics.html#gaf2d878ed60a3e5d6b007ce15c77bad2a',1,'__bitdepth():&#160;display.c'],['../group__rdp.html#gaf2d878ed60a3e5d6b007ce15c77bad2a',1,'__bitdepth():&#160;display.c']]],
   ['_5f_5fbootcic_4',['__bootcic',['../group__n64sys.html#ga7bde5bc5b3121ab6d4d1293f29a2718b',1,'__bootcic():&#160;n64sys.c'],['../group__system.html#ga7bde5bc5b3121ab6d4d1293f29a2718b',1,'__bootcic():&#160;n64sys.c']]],
   ['_5f_5fbuffers_5',['__buffers',['../group__display.html#gafc6e5120d9fca19c7638667adeb544fe',1,'display.c']]],
-  ['_5f_5fctor_5fend_5f_5f_6',['__CTOR_END__',['../group__system.html#ga91fa0594754ce8040548b8a04de006fd',1,'do_ctors.c']]],
-  ['_5f_5fctor_5flist_5f_5f_7',['__CTOR_LIST__',['../group__system.html#ga2332ede966fa1241b119dbbc5139d062',1,'do_ctors.c']]],
+  ['_5f_5fctor_5fend_5f_5f_6',['__CTOR_END__',['../group__system.html#ga537f421bb42d6566f23aabcdcc0aa0f3',1,'do_ctors.c']]],
+  ['_5f_5fctor_5flist_5f_5f_7',['__CTOR_LIST__',['../group__system.html#ga85d9cd4c96818595113f38830217f2f9',1,'do_ctors.c']]],
   ['_5f_5fenv_8',['__env',['../group__system.html#ga5428d66981cb84e60b899495874618b2',1,'system.c']]],
   ['_5f_5fheight_9',['__height',['../group__graphics.html#gabde5c123bb0cb10b6d47c07a5a0d4c28',1,'__height():&#160;display.c'],['../group__display.html#gabde5c123bb0cb10b6d47c07a5a0d4c28',1,'__height():&#160;display.c'],['../group__rdp.html#gabde5c123bb0cb10b6d47c07a5a0d4c28',1,'__height():&#160;display.c']]],
   ['_5f_5fmixer_5fprofile_5frsp_10',['__mixer_profile_rsp',['../mixer_8c.html#adb6462ba394e665c815abb852d8e341f',1,'mixer.c']]],
