@@ -103,26 +103,6 @@ static volatile uint32_t wait_intr = 0;
 static sprite_cache cache[8];
 
 static display_context_t attached_display = 0;
-static void (*detach_callback)(display_context_t disp) = NULL;
-
-/**
- * @brief RDP interrupt handler
- *
- * This interrupt is called when a Sync Full operation has completed and it is safe to
- * use the output buffer with software
- */
-static void __rdp_interrupt()
-{
-    /* Flag that the interrupt happened */
-    wait_intr++;
-
-    if (attached_display != 0 && detach_callback != NULL)
-    {
-        detach_callback(attached_display);
-        attached_display = 0;
-        detach_callback = NULL;
-    }
-}
 
 /**
  * @brief Given a number, rount to a power of two
@@ -180,19 +160,12 @@ void rdp_init( void )
     /* Default to flushing automatically */
     flush_strategy = FLUSH_STRATEGY_AUTOMATIC;
 
-    /* Set up interrupt for SYNC_FULL */
-    register_DP_handler( __rdp_interrupt );
-    set_DP_interrupt( 1 );
-
     rdpq_init();
 }
 
 void rdp_close( void )
 {
     rdpq_close();
-
-    set_DP_interrupt( 0 );
-    unregister_DP_handler( __rdp_interrupt );
 }
 
 // TODO:
@@ -209,30 +182,27 @@ void rdp_attach_display( display_context_t disp )
     /* Set the rasterization buffer */
     uint32_t size = (__bitdepth == 2) ? RDP_TILE_SIZE_16BIT : RDP_TILE_SIZE_32BIT;
     rdpq_set_color_image(__get_buffer(disp), RDP_TILE_FORMAT_RGBA, size, __width, __height, __width * __bitdepth);
-
 }
 
-void rdp_detach_display( void )
+void rdp_detach_display_async(void (*cb)(display_context_t disp))
 {
     assertf(rdp_is_display_attached(), "No display is currently attached!");
-    assertf(detach_callback == NULL, "Display has already been detached asynchronously!");
-    attached_display = 0;
+    assertf(cb != NULL, "Callback should not be NULL!");
 
-    /* Wait for SYNC_FULL to finish */
-    wait_intr = 0;
-
-    /* Force the RDP to rasterize everything and then interrupt us */
-    rdpq_sync_full();
+    debugf("detach async: %d\n", attached_display);
+    rdpq_sync_full((void(*)(void*))cb, (void*)attached_display);
     rspq_flush();
+    attached_display = 0;
+}
 
-    if( INTERRUPTS_ENABLED == get_interrupts_state() )
-    {
-        /* Only wait if interrupts are enabled */
-        while( !wait_intr ) { ; }
-    }
+void rdp_detach_display(void)
+{
+    rdp_detach_display_async(NULL);
 
-    /* Set back to zero for next detach */
-    wait_intr = 0;
+    // Historically, this function has behaved asynchronously when run with
+    // interrupts disabled, rather than asserting out. Keep the behavior.
+    if (get_interrupts_state() == INTERRUPTS_ENABLED)
+        rspq_wait();
 }
 
 bool rdp_is_display_attached()
@@ -240,21 +210,12 @@ bool rdp_is_display_attached()
     return attached_display != 0;
 }
 
-void rdp_detach_display_async(void (*cb)(display_context_t disp))
-{
-    assertf(rdp_is_display_attached(), "No display is currently attached!");
-    assertf(cb != NULL, "Callback should not be NULL!");
-    detach_callback = cb;
-    rdpq_sync_full();
-    rspq_flush();
-}
-
 void rdp_sync( sync_t sync )
 {
     switch( sync )
     {
         case SYNC_FULL:
-            rdpq_sync_full();
+            rdpq_sync_full(NULL, NULL);
             break;
         case SYNC_PIPE:
             rdpq_sync_pipe();

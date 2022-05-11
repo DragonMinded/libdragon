@@ -3,7 +3,9 @@
 #include "rdpq_constants.h"
 #include "rspq.h"
 #include "rspq/rspq_commands.h"
+#include "rspq_constants.h"
 #include "rdp_commands.h"
+#include "interrupt.h"
 #include <string.h>
 
 #define RDPQ_MAX_COMMAND_SIZE 44
@@ -18,10 +20,12 @@ DEFINE_RSP_UCODE(rsp_rdpq,
     .assert_handler=rdpq_assert_handler);
 
 typedef struct rdpq_state_s {
+    uint64_t sync_full;
     uint32_t address_table[RDPQ_ADDRESS_TABLE_SIZE];
     uint64_t other_modes;
     uint64_t scissor_rect;
     uint32_t fill_color;
+    uint32_t rdram_state_address;
     uint8_t target_bitdepth;
 } rdpq_state_t;
 
@@ -41,11 +45,32 @@ static int rdpq_block_size;
 
 static volatile uint32_t *last_rdp_cmd;
 
+static void __rdpq_interrupt(void) {
+    rdpq_state_t *rdpq_state = UncachedAddr(rspq_overlay_get_state(&rsp_rdpq));
+
+    // The state has been updated to contain a copy of the last SYNC_FULL command
+    // that was sent to RDP. The command might contain a callback to invoke.
+    // Extract and call it.
+    uint32_t w0 = (rdpq_state->sync_full >> 32) & 0x00FFFFFF;
+    uint32_t w1 = (rdpq_state->sync_full >>  0) & 0xFFFFFFFF;
+    if (w0) {
+        void (*callback)(void*) = (void (*)(void*))CachedAddr(w0 | 0x80000000);
+        void* arg = (void*)w1;
+
+        callback(arg);
+    }
+
+    // Notify the RSP that we've serviced this SYNC_FULL interrupt. If others
+    // are pending, they can be scheduled now.
+    *SP_STATUS = SP_WSTATUS_CLEAR_SIG_RDPSYNCFULL;
+}
+
 void rdpq_init()
 {
     rdpq_state_t *rdpq_state = UncachedAddr(rspq_overlay_get_state(&rsp_rdpq));
 
     memset(rdpq_state, 0, sizeof(rdpq_state_t));
+    rdpq_state->rdram_state_address = PhysicalAddr(rdpq_state);
     rdpq_state->other_modes = ((uint64_t)RDPQ_OVL_ID << 32) + ((uint64_t)RDPQ_CMD_SET_OTHER_MODES << 56);
 
     // The (1 << 12) is to prevent underflow in case set other modes is called before any set scissor command.
@@ -58,17 +83,23 @@ void rdpq_init()
     rdpq_block = NULL;
 
     __rdpq_inited = true;
+
+    register_DP_handler(__rdpq_interrupt);
+    set_DP_interrupt(1);
 }
 
 void rdpq_close()
 {
     rspq_overlay_unregister(RDPQ_OVL_ID);
     __rdpq_inited = false;
+
+    set_DP_interrupt( 0 );
+    unregister_DP_handler(__rdpq_interrupt);
 }
 
 void rdpq_fence(void)
 {
-    rdpq_sync_full();
+    rdpq_sync_full(NULL, NULL);
     rspq_int_write(RSPQ_CMD_RDP_WAIT_IDLE);
 }
 
@@ -284,10 +315,24 @@ void __rdpq_modify_other_modes(uint32_t w0, uint32_t w1, uint32_t w2)
     rdpq_fixup_write(RDPQ_CMD_MODIFY_OTHER_MODES, RDPQ_CMD_MODIFY_OTHER_MODES_FIX, 4, w0, w1, w2);
 }
 
+__attribute__((noinline))
+void __rdpq_sync_full(uint32_t w0, uint32_t w1)
+{
+    // We encode in the command (w0/w1) the callback for the RDP interrupt,
+    // and we need that to be forwarded to RSP dynamic command.
+    if (in_block()) {
+        // In block mode, schedule the command in both static and dynamic mode.
+        rdpq_static_write(RDPQ_CMD_SYNC_FULL, w0, w1);
+        rdpq_dynamic_write(RDPQ_CMD_SYNC_FULL, w0, w1);
+    } else {
+        rdpq_dynamic_write(RDPQ_CMD_SYNC_FULL, w0, w1);
+    }
+}
+
 /* Extern inline instantiations. */
 extern inline void rdpq_set_fill_color(color_t color);
 extern inline void rdpq_set_color_image(void* dram_ptr, uint32_t format, uint32_t size, uint32_t width, uint32_t height, uint32_t stride);
 extern inline void rdpq_sync_tile(void);
 extern inline void rdpq_sync_load(void);
 extern inline void rdpq_sync_pipe(void);
-extern inline void rdpq_sync_full(void);
+extern inline void rdpq_sync_full(void (*callback)(void*), void* arg);

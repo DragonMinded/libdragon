@@ -19,6 +19,7 @@ enum {
     RDPQ_CMD_TRI_SHADE_ZBUF             = 0x0D,
     RDPQ_CMD_TRI_SHADE_TEX              = 0x0E,
     RDPQ_CMD_TRI_SHADE_TEX_ZBUF         = 0x0F,
+
     RDPQ_CMD_TEXTURE_RECTANGLE_EX       = 0x10,
     RDPQ_CMD_TEXTURE_RECTANGLE_EX_FIX   = 0x11,
     RDPQ_CMD_SET_SCISSOR_EX             = 0x12,
@@ -30,7 +31,9 @@ enum {
     RDPQ_CMD_SET_TEXTURE_IMAGE_FIX      = 0x1D,
     RDPQ_CMD_SET_Z_IMAGE_FIX            = 0x1E,
     RDPQ_CMD_SET_COLOR_IMAGE_FIX        = 0x1F,
+
     RDPQ_CMD_SET_OTHER_MODES_FIX        = 0x20,
+    RDPQ_CMD_SET_SYNC_FULL_FIX          = 0x21,
     RDPQ_CMD_TEXTURE_RECTANGLE          = 0x24,
     RDPQ_CMD_TEXTURE_RECTANGLE_FLIP     = 0x25,
     RDPQ_CMD_SYNC_LOAD                  = 0x26,
@@ -43,6 +46,7 @@ enum {
     RDPQ_CMD_SET_SCISSOR                = 0x2D,
     RDPQ_CMD_SET_PRIM_DEPTH             = 0x2E,
     RDPQ_CMD_SET_OTHER_MODES            = 0x2F,
+
     RDPQ_CMD_LOAD_TLUT                  = 0x30,
     RDPQ_CMD_SET_TILE_SIZE              = 0x32,
     RDPQ_CMD_LOAD_BLOCK                 = 0x33,
@@ -145,10 +149,10 @@ inline void rdpq_sync_tile(void)
 /**
  * @brief Wait for any operation to complete before causing a DP interrupt
  */
-inline void rdpq_sync_full(void)
+inline void rdpq_sync_full(void (*callback)(void*), void* arg)
 {
-    extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
-    __rdpq_write8(RDPQ_CMD_SYNC_FULL, 0, 0);
+    extern void __rdpq_sync_full(uint32_t, uint32_t);
+    __rdpq_sync_full(PhysicalAddr(callback), (uint32_t)arg);
 }
 
 /**

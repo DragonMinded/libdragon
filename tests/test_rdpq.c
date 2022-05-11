@@ -560,3 +560,40 @@ void test_rdpq_lookup_address_offset(TestContext *ctx)
             "Wrong data in framebuffer (dynamic mode)");
 }
 
+void test_rdpq_syncfull(TestContext *ctx)
+{
+    rspq_init();
+    DEFER(rspq_close());
+    rdpq_init();
+    DEFER(rdpq_close());
+
+    volatile int cb_called = 0;
+    volatile uint32_t cb_value = 0;
+    void cb1(void *arg1) {
+        cb_called += 1;
+        cb_value = (uint32_t)arg1 & 0x0000FFFF;
+    }
+    void cb2(void *arg1) {
+        cb_called += 2;
+        cb_value = (uint32_t)arg1 & 0xFFFF0000;
+    }
+
+    rdpq_sync_full(cb1, (void*)0x12345678);
+    rdpq_sync_full(cb2, (void*)0xABCDEF01);
+    rspq_wait();
+
+    ASSERT_EQUAL_SIGNED(cb_called, 3, "sync full callback not called");
+    ASSERT_EQUAL_HEX(cb_value, 0xABCD0000, "sync full callback wrong argument");
+
+    rspq_block_begin();
+    rdpq_sync_full(cb2, (void*)0xABCDEF01);
+    rdpq_sync_full(cb1, (void*)0x12345678);
+    rspq_block_t *block = rspq_block_end();
+    DEFER(rspq_block_free(block));
+
+    rspq_block_run(block);
+    rspq_wait();
+
+    ASSERT_EQUAL_SIGNED(cb_called, 6, "sync full callback not called");
+    ASSERT_EQUAL_HEX(cb_value, 0x00005678, "sync full callback wrong argument");
+}

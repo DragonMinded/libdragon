@@ -773,9 +773,9 @@ static uint32_t rspq_overlay_register_internal(rsp_ucode_t *overlay_ucode, uint3
     uint32_t rspq_data_size = rsp_queue_data_end - rsp_queue_data_start;
 
     assertf(memcmp(rsp_queue_text_start, overlay_ucode->code, rspq_text_size) == 0,
-        "Common code of overlay does not match!");
+        "Common code of overlay %s does not match!", overlay_ucode->name);
     assertf(memcmp(rsp_queue_data_start, overlay_ucode->data, rspq_data_size) == 0,
-        "Common data of overlay does not match!");
+        "Common data of overlay %s does not match!", overlay_ucode->name);
 
     void *overlay_code = overlay_ucode->code + rspq_text_size;
     void *overlay_data = overlay_ucode->data + rspq_data_size;

@@ -41,7 +41,7 @@
         RSPQ_DefineCommand RDPQCmd_SetColorImage_Static,    8   # 0xDF
 
         RSPQ_DefineCommand RDPQCmd_SetOtherModes_Static,    8   # 0xE0
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xE1
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
         RSPQ_DefineCommand RDPQCmd_Passthrough16,           16  # 0xE4 TEXTURE_RECTANGLE
@@ -49,7 +49,7 @@
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xE6 SYNC_LOAD
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xE7 SYNC_PIPE
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xE8 SYNC_TILE
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xE9 SYNC_FULL
+        RSPQ_DefineCommand RDPQCmd_SyncFull,                8   # 0xE9 SYNC_FULL
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xEA SET_KEY_GB
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xEB SET_KEY_R
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xEC SET_CONVERT
@@ -79,10 +79,12 @@
     .ascii "Rasky & Snacchus"
 
     RSPQ_BeginSavedState
+RDP_SYNCFULL:          .quad  0   # Last syncfull command (includes callback). NOTE: this must stay as first variable in the state
 RDP_ADDRESS_TABLE:     .ds.l  RDPQ_ADDRESS_TABLE_SIZE
 RDP_OTHER_MODES:       .quad  0
 RDP_SCISSOR_RECT:      .quad  0
 RDP_FILL_COLOR:        .word  0
+RDP_RDRAM_STATE_ADDR:  .word  0
 RDP_TARGET_BITDEPTH:   .byte  0
     RSPQ_EndSavedState
 
@@ -539,3 +541,28 @@ RDPQ_FixupAddress:
     jr ra
     add a1, t1
     .endfunc
+
+    #############################################################
+    # RDPQCmd_SyncFull
+    #
+    # SyncFull command in both static and dynamic mode. The command
+    # encodes the callback in the lower
+    #############################################################
+    .func RDPQCmd_SyncFull
+RDPQCmd_SyncFull:
+    # Wait until the previous SYNC_FULL interrupt has been processed.
+    jal SpStatusWait
+    li t2, SP_STATUS_SIG_RDPSYNCFULL
+
+    # Set the signal because we're about to schedule a new SYNC_FULL
+    li t0, SP_WSTATUS_SET_SIG_RDPSYNCFULL
+    mtc0 t0, COP0_SP_STATUS
+
+    # Store the current SYNC_FULL command in the state and DMA it to RDRAM.
+    # This includes the interrupt callback that the CPU will have to run.
+    sw a0, %lo(RDP_SYNCFULL) + 0
+    sw a1, %lo(RDP_SYNCFULL) + 4
+    li s4, %lo(RDP_SYNCFULL)
+    lw s0, %lo(RDP_RDRAM_STATE_ADDR)
+    li t0, DMA_SIZE(8, 1)
+    jal_and_j DMAOut, RDPQCmd_Passthrough8
