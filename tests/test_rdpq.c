@@ -1,4 +1,5 @@
 #include <malloc.h>
+#include <rspq.h>
 #include <rspq_constants.h>
 #include <rdpq.h>
 #include <rdp_commands.h>
@@ -197,6 +198,49 @@ void test_rdpq_block(TestContext *ctx)
     #undef TEST_RDPQ_FBSIZE
 }
 
+void test_rdpq_block_contiguous(TestContext *ctx)
+{
+    rspq_init();
+    DEFER(rspq_close());
+    rdpq_init();
+    DEFER(rdpq_close());
+
+    #define TEST_RDPQ_FBWIDTH 64
+    #define TEST_RDPQ_FBAREA  TEST_RDPQ_FBWIDTH * TEST_RDPQ_FBWIDTH
+    #define TEST_RDPQ_FBSIZE  TEST_RDPQ_FBAREA * 2
+
+    void *framebuffer = malloc_uncached_aligned(64, TEST_RDPQ_FBSIZE);
+    DEFER(free_uncached(framebuffer));
+    memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
+
+    static uint16_t expected_fb[TEST_RDPQ_FBAREA];
+    memset(expected_fb, 0xFF, sizeof(expected_fb));
+
+    rspq_block_begin();
+    rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
+    rdpq_set_other_modes(SOM_CYCLE_FILL);
+    rdpq_set_fill_color(RGBA32(0xFF, 0xFF, 0xFF, 0xFF));
+    rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
+    rdpq_fence(); // Put the fence inside the block so RDP never executes anything outside the block
+    rspq_block_t *block = rspq_block_end();
+    DEFER(rspq_block_free(block));
+
+    rspq_block_run(block);
+    rspq_syncpoint_wait(rspq_syncpoint_new());
+
+    void *rdp_block = *(void**)(((void*)block) + sizeof(uint32_t));
+    void *rdp_cmds = rdp_block + 8;
+
+    ASSERT_EQUAL_HEX(*DP_START, PhysicalAddr(rdp_cmds), "DP_START does not point to the beginning of the block!");
+    ASSERT_EQUAL_HEX(*DP_END, PhysicalAddr(rdp_cmds + sizeof(uint64_t)*8), "DP_END points to the wrong address!");
+
+    ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, "Framebuffer contains wrong data!");
+
+    #undef TEST_RDPQ_FBWIDTH
+    #undef TEST_RDPQ_FBAREA
+    #undef TEST_RDPQ_FBSIZE
+}
+
 
 void test_rdpq_fixup_setfillcolor(TestContext *ctx)
 {
@@ -376,7 +420,7 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
     rdpq_texture_rectangle(0, 4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4, 0, 0, 1, 1);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 
-        "Wrong data in framebuffer (copy mode)");
+        "Wrong data in framebuffer (copy mode, dynamic mode)");
 
     memset(framebuffer, 0xFF, TEST_RDPQ_FBSIZE);
     rdpq_set_other_modes(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_TC_FILTER | SOM_BLENDING | SOM_SAMPLE_1X1 | SOM_MIDTEXEL);
@@ -384,7 +428,34 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
     rdpq_texture_rectangle(0, 4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4, 0, 0, 1, 1);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 
-        "Wrong data in framebuffer (1cycle mode)");
+        "Wrong data in framebuffer (1cycle mode, dynamic mode)");
+
+    {
+        memset(framebuffer, 0xFF, TEST_RDPQ_FBSIZE);
+        rspq_block_begin();
+        rdpq_set_other_modes(SOM_CYCLE_COPY);
+        rdpq_texture_rectangle(0, 4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4, 0, 0, 1, 1);
+        rspq_block_t *block = rspq_block_end();
+        DEFER(rspq_block_free(block));
+        rspq_block_run(block);
+        rspq_wait();
+        ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 
+            "Wrong data in framebuffer (copy mode, static mode)");
+    }
+
+    {
+        memset(framebuffer, 0xFF, TEST_RDPQ_FBSIZE);
+        rspq_block_begin();
+        rdpq_set_other_modes(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_TC_FILTER | SOM_BLENDING | SOM_SAMPLE_1X1 | SOM_MIDTEXEL);
+        rdpq_set_combine_mode(Comb_Rgb(ZERO, ZERO, ZERO, TEX0) | Comb_Alpha(ZERO, ZERO, ZERO, TEX0));
+        rdpq_texture_rectangle(0, 4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4, 0, 0, 1, 1);
+        rspq_block_t *block = rspq_block_end();
+        DEFER(rspq_block_free(block));
+        rspq_block_run(block);
+        rspq_wait();
+        ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 
+            "Wrong data in framebuffer (1cycle mode, static mode)");
+    }
 
     #undef TEST_RDPQ_FBWIDTH
     #undef TEST_RDPQ_FBAREA
@@ -392,5 +463,100 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
     #undef TEST_RDPQ_TEXWIDTH
     #undef TEST_RDPQ_TEXAREA
     #undef TEST_RDPQ_TEXSIZE
+}
+
+void test_rdpq_lookup_address(TestContext *ctx)
+{
+    rspq_init();
+    DEFER(rspq_close());
+    rdpq_init();
+    DEFER(rdpq_close());
+
+    #define TEST_RDPQ_FBWIDTH 16
+    #define TEST_RDPQ_FBAREA  (TEST_RDPQ_FBWIDTH * TEST_RDPQ_FBWIDTH)
+    #define TEST_RDPQ_FBSIZE  (TEST_RDPQ_FBAREA * 2)
+
+    const color_t TEST_COLOR = RGBA32(0xFF,0xFF,0xFF,0xFF);
+
+    void *framebuffer = malloc_uncached_aligned(64, TEST_RDPQ_FBSIZE);
+    DEFER(free_uncached(framebuffer));
+
+    static uint16_t expected_fb[TEST_RDPQ_FBAREA];
+    memset(expected_fb, 0xFF, sizeof(expected_fb));
+
+    rdpq_set_other_modes(SOM_CYCLE_FILL);
+    rdpq_set_fill_color(TEST_COLOR);
+
+    memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
+    rspq_block_begin();
+    rdpq_set_color_image_lookup(1, 0, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH * 2);
+    rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
+    rspq_block_t *block = rspq_block_end();
+    DEFER(rspq_block_free(block));
+    rdpq_set_lookup_address(1, framebuffer);
+    rspq_block_run(block);
+    rspq_wait();
+    ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 
+            "Wrong data in framebuffer (static mode)");
+
+    memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
+    rdpq_set_lookup_address(1, framebuffer);
+    rdpq_set_color_image_lookup(1, 0, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH * 2);
+    rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
+    rspq_wait();
+    ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 
+            "Wrong data in framebuffer (dynamic mode)");
+}
+
+void test_rdpq_lookup_address_offset(TestContext *ctx)
+{
+    rspq_init();
+    DEFER(rspq_close());
+    rdpq_init();
+    DEFER(rdpq_close());
+
+    #define TEST_RDPQ_FBWIDTH    16
+    #define TEST_RDPQ_FBAREA     (TEST_RDPQ_FBWIDTH * TEST_RDPQ_FBWIDTH)
+    #define TEST_RDPQ_FBSIZE     (TEST_RDPQ_FBAREA * 2)
+    #define TEST_RDPQ_RECT_OFF   4
+    #define TEST_RDPQ_RECT_WIDTH (TEST_RDPQ_FBWIDTH-(TEST_RDPQ_RECT_OFF*2))
+
+    const color_t TEST_COLOR = RGBA32(0xFF,0xFF,0xFF,0xFF);
+
+    void *framebuffer = malloc_uncached_aligned(64, TEST_RDPQ_FBSIZE);
+    DEFER(free_uncached(framebuffer));
+
+    static uint16_t expected_fb[TEST_RDPQ_FBAREA];
+    memset(expected_fb, 0, sizeof(expected_fb));
+    for (int y=TEST_RDPQ_RECT_OFF;y<TEST_RDPQ_FBWIDTH-TEST_RDPQ_RECT_OFF;y++) {
+        for (int x=TEST_RDPQ_RECT_OFF;x<TEST_RDPQ_FBWIDTH-TEST_RDPQ_RECT_OFF;x++) {
+            expected_fb[y * TEST_RDPQ_FBWIDTH + x] = color_to_packed16(TEST_COLOR);
+        }
+    }    
+
+    rdpq_set_other_modes(SOM_CYCLE_FILL);
+    rdpq_set_fill_color(TEST_COLOR);
+
+    uint32_t offset = (TEST_RDPQ_RECT_OFF * TEST_RDPQ_FBWIDTH + TEST_RDPQ_RECT_OFF) * 2;
+
+    memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
+    rspq_block_begin();
+    rdpq_set_color_image_lookup(1, offset, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_RECT_WIDTH, TEST_RDPQ_RECT_WIDTH, TEST_RDPQ_FBWIDTH * 2);
+    rdpq_fill_rectangle(0, 0, TEST_RDPQ_RECT_WIDTH, TEST_RDPQ_RECT_WIDTH);
+    rspq_block_t *block = rspq_block_end();
+    DEFER(rspq_block_free(block));
+    rdpq_set_lookup_address(1, framebuffer);
+    rspq_block_run(block);
+    rspq_wait();
+    ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 
+            "Wrong data in framebuffer (static mode)");
+
+    memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
+    rdpq_set_lookup_address(1, framebuffer);
+    rdpq_set_color_image_lookup(1, offset, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_RECT_WIDTH, TEST_RDPQ_RECT_WIDTH, TEST_RDPQ_FBWIDTH * 2);
+    rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
+    rspq_wait();
+    ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 
+            "Wrong data in framebuffer (dynamic mode)");
 }
 

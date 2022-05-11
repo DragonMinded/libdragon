@@ -1,193 +1,140 @@
-#include "libdragon.h"
-#include <malloc.h>
+#include <libdragon.h>
+#include <string.h>
 
-static wav64_t sfx_cannon;
-static xm64player_t xm;
-static sprite_t *brew_sprite;
-static sprite_t *tiles_sprite;
+#include "vec.h"
+#include "vector_helper.h"
 
-static rspq_block_t *tiles_block;
+#define NUM_VECTOR_SLOTS  16
+#define NUM_VECTORS       (NUM_VECTOR_SLOTS*2)
+#define NUM_MATRICES      4
+#define MTX_SLOT          30
 
-typedef struct {
-    int32_t x;
-    int32_t y;
-    int32_t dx;
-    int32_t dy;
-} object_t;
+vec4_t vectors[NUM_VECTORS];
+mtx4x4_t identity, scale, rotation, translation;
 
-#define NUM_OBJECTS 64
+vec_slot_t *input_vectors;
+vec_slot_t *output_vectors;
+vec_mtx_t *matrices;
 
-static object_t objects[NUM_OBJECTS];
+rspq_block_t *transform_vectors_block;
 
-// Fair and fast random generation (using xorshift32, with explicit seed)
-static uint32_t rand_state = 1;
-static uint32_t rand(void) {
-	uint32_t x = rand_state;
-	x ^= x << 13;
-	x ^= x >> 7;
-	x ^= x << 5;
-	return rand_state = x;
+void print_vectors(vec4_t *v, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++)
+    {
+        printf("%11.4f  %11.4f  %11.4f  %11.4f\n", v[i].v[0], v[i].v[1], v[i].v[2], v[i].v[3]);
+    }
+    printf("\n");
 }
 
-// RANDN(n): generate a random number from 0 to n-1
-#define RANDN(n) ({ \
-	__builtin_constant_p((n)) ? \
-		(rand()%(n)) : \
-		(uint32_t)(((uint64_t)rand() * (n)) >> 32); \
-})
-
-static int32_t obj_max_x;
-static int32_t obj_max_y;
-
-static uint32_t num_objs = 1;
-
-void update(int ovfl)
+void print_output(const char* header)
 {
-    for (uint32_t i = 0; i < NUM_OBJECTS; i++)
-    {
-        object_t *obj = &objects[i];
-
-        int32_t x = obj->x + obj->dx;
-        int32_t y = obj->y + obj->dy;
-
-        if (x >= obj_max_x) x -= obj_max_x;
-        if (x < 0) x += obj_max_x;
-        if (y >= obj_max_y) y -= obj_max_y;
-        if (y < 0) y += obj_max_y;
-        
-        obj->x = x;
-        obj->y = y;
-    }
-}
-
-void render()
-{
-    if (!rdp_can_attach_display())
-    {
-        return;
-    }
-
-    display_context_t disp = display_lock();
-    if (!disp)
-    {
-        return;
-    }
-
-    rdp_attach_display(disp);
-    rdp_set_default_clipping();
-
-    rdp_enable_texture_copy();
-
-    rspq_block_run(tiles_block);
-    
-    for (uint32_t i = 0; i < num_objs; i++)
-    {
-        uint32_t obj_x = objects[i].x;
-        uint32_t obj_y = objects[i].y;
-        for (uint32_t y = 0; y < brew_sprite->vslices; y++)
-        {
-            for (uint32_t x = 0; x < brew_sprite->hslices; x++)
-            {
-                rdp_load_texture_stride(0, 0, MIRROR_DISABLED, brew_sprite, y*brew_sprite->hslices + x);
-                rdp_draw_sprite(0, obj_x + x * (brew_sprite->width / brew_sprite->hslices), obj_y + y * (brew_sprite->height / brew_sprite->vslices), MIRROR_DISABLED);
-            }
-        }
-    }
-
-    rdp_auto_show_display();
+    rspq_wait();
+    printf("%s\n", header);
+    vectors_to_floats(vectors[0].v, output_vectors, NUM_VECTORS*4);
+    print_vectors(vectors, NUM_VECTORS);
 }
 
 int main()
 {
-    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE);
+    // Initialize systems
+    console_init();
+    console_set_debug(true);
+	debug_init_isviewer();
+	debug_init_usblog();
 
-    debug_init_isviewer();
-    debug_init_usblog();
+    // Initialize the "vec" library that this example is based on (see vec.h)
+    vec_init();
 
-    controller_init();
-    timer_init();
+    // Allocate memory for DMA transfers
+    input_vectors = malloc_uncached(sizeof(vec_slot_t)*NUM_VECTOR_SLOTS);
+    output_vectors = malloc_uncached(sizeof(vec_slot_t)*NUM_VECTOR_SLOTS);
+    matrices = malloc_uncached(sizeof(vec_mtx_t)*NUM_MATRICES);
 
-    uint32_t display_width = display_get_width();
-    uint32_t display_height = display_get_height();
-    
-    dfs_init(DFS_DEFAULT_LOCATION);
+    memset(input_vectors, 0, sizeof(vec_slot_t)*NUM_VECTOR_SLOTS);
+    memset(output_vectors, 0, sizeof(vec_slot_t)*NUM_VECTOR_SLOTS);
+    memset(matrices, 0, sizeof(vec_slot_t)*NUM_MATRICES);
 
-    audio_init(44100, 4);
-    mixer_init(32);
-
-    rdp_init();
-
-    int fp = dfs_open("n64brew.sprite");
-    brew_sprite = malloc(dfs_size(fp));
-    dfs_read(brew_sprite, 1, dfs_size(fp), fp);
-    dfs_close(fp);
-
-    obj_max_x = display_width - brew_sprite->width;
-    obj_max_y = display_height - brew_sprite->height;
-
-    for (uint32_t i = 0; i < NUM_OBJECTS; i++)
+    // Initialize input vectors
+    for (uint32_t z = 0; z < 2; z++)
     {
-        object_t *obj = &objects[i];
-
-        obj->x = RANDN(obj_max_x);
-        obj->y = RANDN(obj_max_y);
-
-        obj->dx = -3 + RANDN(7);
-        obj->dy = -3 + RANDN(7);
-    }
-
-    fp = dfs_open("tiles.sprite");
-    tiles_sprite = malloc(dfs_size(fp));
-    dfs_read(tiles_sprite, 1, dfs_size(fp), fp);
-    dfs_close(fp);
-
-    rspq_block_begin();
-
-    uint32_t tile_width = tiles_sprite->width / tiles_sprite->hslices;
-    uint32_t tile_height = tiles_sprite->height / tiles_sprite->vslices;
-
-    for (uint32_t ty = 0; ty < display_height; ty += tile_height)
-    {
-        for (uint32_t tx = 0; tx < display_width; tx += tile_width)
+        for (uint32_t y = 0; y < 4; y++)
         {
-            rdp_load_texture_stride(0, 0, MIRROR_DISABLED, tiles_sprite, RANDN(4));
-            rdp_draw_sprite(0, tx, ty, MIRROR_DISABLED);
+            for (uint32_t x = 0; x < 4; x++)
+            {
+                vectors[z*4*4 + y*4 + x] = (vec4_t){ .v={
+                    x, y, z, 1.f
+                }};
+            }
         }
     }
+    // Convert to fixed point format required by the overlay
+    floats_to_vectors(input_vectors, vectors[0].v, NUM_VECTORS*4);
 
-    tiles_block = rspq_block_end();
-    
-    
-    wav64_open(&sfx_cannon, "cannon.wav64");
+    // Initialize matrices
+    matrix_identity(&identity);
+    matrix_scale(&scale, 0.5f, 2.0f, 1.1f);
+    matrix_rotate_y(&rotation, 4.f);
+    matrix_translate(&translation, 0.f, -3.1f, 8.f);
 
-    xm64player_open(&xm, "rom:/Caverns16bit.xm64");
-    xm64player_play(&xm, 2);
+    // Convert to fixed point format required by the overlay
+    floats_to_vectors(matrices[0].c, identity.m[0],    16);
+    floats_to_vectors(matrices[1].c, scale.m[0],       16);
+    floats_to_vectors(matrices[2].c, rotation.m[0],    16);
+    floats_to_vectors(matrices[3].c, translation.m[0], 16);
 
-    new_timer(TIMER_TICKS(1000000 / 60), TF_CONTINUOUS, update);
-
-    while (1)
+    // This block defines a reusable sequence of commands that could
+    // be understood as a "function" that will transform the vectors
+    // in slots 0-15 with the matrix in slots 30-31.
+    // It is repeatedly called further down to transform an array of vectors with
+    // different matrices.
+    rspq_block_begin();
+    vec_load(0, input_vectors, NUM_VECTOR_SLOTS);
+    for (uint32_t i = 0; i < NUM_VECTOR_SLOTS; i++)
     {
-        render();
-
-        controller_scan();
-        struct controller_data ckeys = get_keys_down();
-
-        if (ckeys.c[0].A) {
-            mixer_ch_play(0, &sfx_cannon.wave);
-        }
-
-        if (ckeys.c[0].C_up && num_objs < NUM_OBJECTS) {
-            ++num_objs;
-        }
-
-        if (ckeys.c[0].C_down && num_objs > 1) {
-            --num_objs;
-        }
-
-        if (audio_can_write()) {    	
-            short *buf = audio_write_begin();
-            mixer_poll(buf, audio_get_buffer_length());
-            audio_write_end();
-        }
+        vec_transform(i, MTX_SLOT, i);
     }
+    vec_store(output_vectors, 0, NUM_VECTOR_SLOTS);
+    transform_vectors_block = rspq_block_end();
+
+    // Print inputs first for reference
+    printf("Input vectors:\n");
+    print_vectors(vectors, NUM_VECTORS);
+
+    // Scale
+    vec_load(MTX_SLOT, matrices[1].c, 2);
+    rspq_block_run(transform_vectors_block);
+    print_output("Scaled:");
+
+    // Rotate
+    vec_load(MTX_SLOT, matrices[2].c, 2);
+    rspq_block_run(transform_vectors_block);
+    print_output("Rotated:");
+
+    // Translate
+    vec_load(MTX_SLOT, matrices[3].c, 2);
+    rspq_block_run(transform_vectors_block);
+    print_output("Translated:");
+
+    // Typical affine matrix: first scale, then rotate, then translate
+    // Load 3 matrices starting at slot 16
+    vec_load(16, matrices[1].c, 6);
+    // Perform matrix composition by multiplying them together (transforming column vectors)
+    // The resulting matrix is written to MTX_SLOT
+    vec_transform(22, 18, 16);         // Rotation * scale (first two columns)
+    vec_transform(23, 18, 17);         // Rotation * scale (last two columns)
+    vec_transform(MTX_SLOT+0, 20, 22); // Translation * rotation * scale (first two columns)
+    vec_transform(MTX_SLOT+1, 20, 23); // Translation * rotation * scale (last two columns)
+    rspq_block_run(transform_vectors_block);
+    print_output("Combined:");
+
+    // Clean up
+    rspq_block_free(transform_vectors_block);
+    free_uncached(matrices);
+    free_uncached(output_vectors);
+    free_uncached(input_vectors);
+
+    vec_close();
+
+    return 0;
 }

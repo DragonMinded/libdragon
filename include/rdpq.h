@@ -10,6 +10,7 @@
 
 enum {
     RDPQ_CMD_NOOP                       = 0x00,
+    RDPQ_CMD_SET_LOOKUP_ADDRESS         = 0x01,
     RDPQ_CMD_TRI                        = 0x08,
     RDPQ_CMD_TRI_ZBUF                   = 0x09,
     RDPQ_CMD_TRI_TEX                    = 0x0A,
@@ -18,11 +19,18 @@ enum {
     RDPQ_CMD_TRI_SHADE_ZBUF             = 0x0D,
     RDPQ_CMD_TRI_SHADE_TEX              = 0x0E,
     RDPQ_CMD_TRI_SHADE_TEX_ZBUF         = 0x0F,
-    RDPQ_CMD_TEXTURE_RECTANGLE_FIX      = 0x10, // Fixup command
-    RDPQ_CMD_MODIFY_OTHER_MODES         = 0x20, // Fixup command
-    RDPQ_CMD_SET_FILL_COLOR_32          = 0x21, // Fixup command
-    RDPQ_CMD_SET_COLOR_IMAGE_FIXUP      = 0x22, // Fixup command
-    RDPQ_CMD_SET_SCISSOR_EX             = 0x23, // Fixup command
+    RDPQ_CMD_TEXTURE_RECTANGLE_EX       = 0x10,
+    RDPQ_CMD_TEXTURE_RECTANGLE_EX_FIX   = 0x11,
+    RDPQ_CMD_SET_SCISSOR_EX             = 0x12,
+    RDPQ_CMD_SET_SCISSOR_EX_FIX         = 0x13,
+    RDPQ_CMD_MODIFY_OTHER_MODES         = 0x14,
+    RDPQ_CMD_MODIFY_OTHER_MODES_FIX     = 0x15,
+    RDPQ_CMD_SET_FILL_COLOR_32          = 0x16,
+    RDPQ_CMD_SET_FILL_COLOR_32_FIX      = 0x17,
+    RDPQ_CMD_SET_TEXTURE_IMAGE_FIX      = 0x1D,
+    RDPQ_CMD_SET_Z_IMAGE_FIX            = 0x1E,
+    RDPQ_CMD_SET_COLOR_IMAGE_FIX        = 0x1F,
+    RDPQ_CMD_SET_OTHER_MODES_FIX        = 0x20,
     RDPQ_CMD_TEXTURE_RECTANGLE          = 0x24,
     RDPQ_CMD_TEXTURE_RECTANGLE_FLIP     = 0x25,
     RDPQ_CMD_SYNC_LOAD                  = 0x26,
@@ -85,9 +93,9 @@ inline void rdpq_fill_triangle(bool flip, uint8_t level, uint8_t tile, int16_t y
  */
 inline void rdpq_texture_rectangle_fx(uint8_t tile, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, int16_t s, int16_t t, int16_t dsdx, int16_t dtdy)
 {
-    extern void __rdpq_write16(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    extern void __rdpq_texture_rectangle(uint32_t, uint32_t, uint32_t, uint32_t);
 
-    __rdpq_write16(RDPQ_CMD_TEXTURE_RECTANGLE_FIX,
+    __rdpq_texture_rectangle(
         _carg(x1, 0xFFF, 12) | _carg(y1, 0xFFF, 0),
         _carg(tile, 0x7, 24) | _carg(x0, 0xFFF, 12) | _carg(y0, 0xFFF, 0),
         _carg(s, 0xFFFF, 16) | _carg(t, 0xFFFF, 0),
@@ -187,7 +195,7 @@ inline void rdpq_set_convert(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k3,
  * @brief Low level function to set the scissoring region
  */
 #define rdpq_set_scissor(x0, y0, x1, y1) ({ \
-    extern void __rdpq_write8(uint32_t, uint32_t, uint32_t); \
+    extern void __rdpq_set_scissor(uint32_t, uint32_t); \
     uint32_t x0fx = (x0)*4; \
     uint32_t y0fx = (y0)*4; \
     uint32_t x1fx = (x1)*4; \
@@ -196,7 +204,7 @@ inline void rdpq_set_convert(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k3,
     assertf(y0fx <= y1fx, "y0 must not be greater than y1!"); \
     assertf(x1fx > 0, "x1 must not be zero!"); \
     assertf(y1fx > 0, "y1 must not be zero!"); \
-    __rdpq_write8(RDPQ_CMD_SET_SCISSOR_EX, \
+    __rdpq_set_scissor( \
         _carg(x0fx, 0xFFF, 12) | _carg(y0fx, 0xFFF, 0), \
         _carg(x1fx, 0xFFF, 12) | _carg(y1fx, 0xFFF, 0)); \
 })
@@ -215,8 +223,8 @@ inline void rdpq_set_prim_depth(uint16_t primitive_z, uint16_t primitive_delta_z
  */
 inline void rdpq_set_other_modes(uint64_t modes)
 {
-    extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
-    __rdpq_write8(RDPQ_CMD_SET_OTHER_MODES,
+    extern void __rdpq_set_other_modes(uint32_t, uint32_t);
+    __rdpq_set_other_modes(
         (modes >> 32) & 0x00FFFFFF,
         modes & 0xFFFFFFFF);
 }
@@ -311,8 +319,8 @@ inline void rdpq_fill_rectangle_fx(uint16_t x0, uint16_t y0, uint16_t x1, uint16
  * @brief Low level function to set the fill color
  */
 inline void rdpq_set_fill_color(color_t color) {
-    extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
-    __rdpq_write8(RDPQ_CMD_SET_FILL_COLOR_32, 0, (color.r << 24) | (color.g << 16) | (color.b << 8) | (color.a << 0));
+    extern void __rdpq_set_fill_color(uint32_t);
+    __rdpq_set_fill_color((color.r << 24) | (color.g << 16) | (color.b << 8) | (color.a << 0));
 }
 
 inline void rdpq_set_fill_color_pattern(color_t color1, color_t color2) {
@@ -372,37 +380,73 @@ inline void rdpq_set_combine_mode(uint64_t flags)
 /**
  * @brief Low level function to set RDRAM pointer to a texture image
  */
+inline void rdpq_set_texture_image_lookup(uint8_t index, uint32_t offset, uint8_t format, uint8_t size, uint16_t width)
+{
+    assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
+    extern void __rdpq_set_fixup_image(uint32_t, uint32_t, uint32_t, uint32_t);
+    __rdpq_set_fixup_image(RDPQ_CMD_SET_TEXTURE_IMAGE, RDPQ_CMD_SET_TEXTURE_IMAGE_FIX,
+        _carg(format, 0x7, 21) | _carg(size, 0x3, 19) | _carg(width-1, 0x3FF, 0),
+        _carg(index, 0xF, 28) | (offset & 0x3FFFFFF));
+}
+
 inline void rdpq_set_texture_image(void* dram_ptr, uint8_t format, uint8_t size, uint16_t width)
 {
-    extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
-    __rdpq_write8(RDPQ_CMD_SET_TEXTURE_IMAGE,
-        _carg(format, 0x7, 21) | _carg(size, 0x3, 19) | _carg(width-1, 0x3FF, 0),
-        PhysicalAddr(dram_ptr) & 0x3FFFFFF);
+    rdpq_set_texture_image_lookup(0, PhysicalAddr(dram_ptr), format, size, width);
 }
 
 /**
  * @brief Low level function to set RDRAM pointer to the depth buffer
  */
+inline void rdpq_set_z_image_lookup(uint8_t index, uint32_t offset)
+{
+    assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
+    extern void __rdpq_set_fixup_image(uint32_t, uint32_t, uint32_t, uint32_t);
+    __rdpq_set_fixup_image(RDPQ_CMD_SET_Z_IMAGE, RDPQ_CMD_SET_Z_IMAGE_FIX,
+        0, 
+        _carg(index, 0xF, 28) | (offset & 0x3FFFFFF));
+}
+
 inline void rdpq_set_z_image(void* dram_ptr)
 {
-    extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
-    __rdpq_write8(RDPQ_CMD_SET_Z_IMAGE, 0, PhysicalAddr(dram_ptr) & 0x3FFFFFF);
+    rdpq_set_z_image_lookup(0, PhysicalAddr(dram_ptr));
 }
 
 /**
  * @brief Low level function to set RDRAM pointer to the color buffer
  */
-inline void rdpq_set_color_image(void* dram_ptr, uint32_t format, uint32_t size, uint32_t width, uint32_t height, uint32_t stride)
+inline void rdpq_set_color_image_lookup(uint8_t index, uint32_t offset, uint32_t format, uint32_t size, uint32_t width, uint32_t height, uint32_t stride)
 {
     uint32_t pixel_size = size == RDP_TILE_SIZE_16BIT ? 2 : 4;
     assertf(stride % pixel_size == 0, "Stride must be a multiple of the pixel size!");
-    assertf(((uint32_t)dram_ptr & 63) == 0, "buffer pointer is not aligned to 64 bytes, so it cannot use as RDP color image.\nAllocate it with memalign(64, len) or malloc_uncached_align(64, len)");
+    assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
 
-    extern void __rdpq_fixup_write8(uint32_t, uint32_t, uint32_t, uint32_t);
-    __rdpq_fixup_write8(RDPQ_CMD_SET_COLOR_IMAGE, RDPQ_CMD_SET_COLOR_IMAGE_FIXUP,
+    extern void __rdpq_set_color_image(uint32_t, uint32_t);
+    __rdpq_set_color_image(
         _carg(format, 0x7, 21) | _carg(size, 0x3, 19) | _carg((stride/pixel_size)-1, 0x3FF, 0),
-        PhysicalAddr(dram_ptr) & 0x3FFFFFF);
+        _carg(index, 0xF, 28) | (offset & 0x3FFFFFF));
     rdpq_set_scissor(0, 0, width, height);
+}
+
+inline void rdpq_set_color_image(void* dram_ptr, uint32_t format, uint32_t size, uint32_t width, uint32_t height, uint32_t stride)
+{
+    assertf(((uint32_t)dram_ptr & 63) == 0, "buffer pointer is not aligned to 64 bytes, so it cannot use as RDP color image.\nAllocate it with memalign(64, len) or malloc_uncached_align(64, len)");
+    rdpq_set_color_image_lookup(0, PhysicalAddr(dram_ptr), format, size, width, height, stride);
+}
+
+inline void rdpq_set_cycle_mode(uint32_t cycle_mode)
+{
+    uint32_t mask = ~(0x3<<20);
+    assertf((mask & cycle_mode) == 0, "Invalid cycle mode: %lx", cycle_mode);
+
+    extern void __rdpq_modify_other_modes(uint32_t, uint32_t, uint32_t);
+    __rdpq_modify_other_modes(0, mask, cycle_mode);
+}
+
+inline void rdpq_set_lookup_address(uint8_t index, void* address)
+{
+    assertf(index > 0 && index <= 15, "Lookup address index out of range [1,15]: %d", index);
+    extern void __rdpq_dynamic_write8(uint32_t, uint32_t, uint32_t);
+    __rdpq_dynamic_write8(RDPQ_CMD_SET_LOOKUP_ADDRESS, 0, _carg(index, 0xF, 28) | (PhysicalAddr(address) & 0x3FFFFFF));
 }
 
 #ifdef __cplusplus

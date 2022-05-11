@@ -3,6 +3,7 @@
 
 #include <rspq.h>
 #include <rspq_constants.h>
+#include <rdp.h>
 
 #define ASSERT_GP_BACKWARD           0xF001   // Also defined in rsp_test.S
 
@@ -782,7 +783,7 @@ void test_rspq_rdp_dynamic_switch(TestContext *ctx)
     TEST_RSPQ_PROLOG();
     test_ovl_init();
 
-    const uint32_t full_count = (RSPQ_RDP_DYN_SENTINEL_OFFSET / 8) + 1;
+    const uint32_t full_count = RSPQ_RDP_DYNAMIC_BUFFER_SIZE / 8;
     const uint32_t extra_count = 8;
     const uint32_t count = full_count + extra_count;
 

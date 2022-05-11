@@ -114,11 +114,11 @@ command_reset_log:
     sw zero, %lo(BIG_LOG_PTR)
 
 command_send_rdp:
+    jal RSPQ_RdpDynamicReserve
     li s4, %lo(TEST_RDP_STAGING)
     sw zero, 0(s4)
+    j RSPQ_RdpFinalize
     sw a1, 4(s4)
-    li t0, 8
-    jal_and_j RSPQ_RdpSendDynamic, RSPQ_Loop
 
 command_big:
     addi s1, rspq_dmem_buf_ptr, -128

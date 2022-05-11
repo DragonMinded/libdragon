@@ -236,9 +236,12 @@ static const struct Testsuite
 	TEST_FUNC(test_rdpq_dynamic,               0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_passthrough_big,       0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_block,                 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_block_contiguous,      0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_fixup_setfillcolor,    0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_fixup_setscissor,      0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_fixup_texturerect,     0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_lookup_address,        0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_lookup_address_offset, 0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {
