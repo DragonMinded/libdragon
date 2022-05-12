@@ -8,7 +8,7 @@ Libdragon is an open-source SDK for Nintendo 64. It aims for a complete N64
 programming experience while providing programmers with modern approach to
 programming and debugging. These are the main features:
 
-* Based on modern GCC (11.2) and Newlib, for a full C11 programming experience.
+* Based on modern GCC (12.1) and Newlib, for a full C11 programming experience.
   A Docker container is available to quickly set up the programming environment.
 * The GCC toolchain is 64 bit capable to be able to use the full R4300 capabilities
   (commercial games and libultra are based on a 32-bit ABI and is not possible
