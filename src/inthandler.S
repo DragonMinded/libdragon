@@ -80,10 +80,15 @@ inthandler:
 	and k1, ~(SR_IE | SR_EXL)
 	mtc0 k1, C0_SR
 
-	mfc0 k1, C0_CAUSE
-	sw k1, STACK_CR(sp)
+	# WARNING: it is now possible to trigger reentrant exceptions (and not only
+	# crashing one. Avoid using k0/k1 from now on, as they would get corrupted
+	# by a reentrant exception.
+	#define cause t8
 
-	andi t0, k1, 0xff
+	mfc0 cause, C0_CAUSE
+	sw cause, STACK_CR(sp)
+
+	andi t0, cause, 0xff
 	beqz t0, interrupt
 	nop
 
@@ -98,7 +103,7 @@ exception:
 
 	# Save the callee-saved FPU regs
 	jal save_fpu_regs
-	move k0, sp
+	move a0, sp
 
 	# Save all the CPU+FPU caller-saved regs, which are normally
 	# not saved for an interrupt.
@@ -106,14 +111,13 @@ exception:
 	nop
 
 	# Check the exception type
-	mfc0 k1, C0_CAUSE
-	andi t0, k1, CAUSE_EXC_MASK
+	andi t0, cause, CAUSE_EXC_MASK
 	bne t0, CAUSE_EXC_COPROCESSOR, critical_exception
 	nop
 
 exception_coprocessor:
 	# Extract CE bits (28..29) from CR
-	srl t0, k1, 28
+	srl t0, cause, 28
 	andi t0, 3
 	# If == 1 (COP1), it is an FPU exception
 	bne t0, 1, critical_exception
@@ -134,7 +138,7 @@ exception_coprocessor_fpu:
 	# That is, we want to make sure that they get restored when the
 	# underlying interrupt exits.
 	jal save_fpu_regs
-	lw k0, interrupt_exception_frame
+	lw a0, interrupt_exception_frame
 
 	# OK we are done. We can now exit the exception
 	j end_interrupt
@@ -168,7 +172,7 @@ interrupt:
 	sw sp, interrupt_exception_frame
 
 	/* check for "pre-NMI" (reset) */
-	andi t0,k1,0x1000
+	andi t0, cause, 0x1000
 	beqz t0, notprenmi
 	nop
 
@@ -183,7 +187,7 @@ interrupt:
 notprenmi:
 
 	/* check for count=compare */
-	and t0,k1,0x8000
+	and t0, cause, 0x8000
 	beqz t0,notcount
 	nop
 	/* Writing C0_COMPARE acknowledges the timer interrupt (clear the interrupt
@@ -202,7 +206,7 @@ notcount:
 
 	/* pass anything else along to handler */
 	jal __MI_handler
-	nop
+	addiu a0, sp, 32
 	j end_interrupt
 	nop
 
@@ -233,11 +237,26 @@ end_interrupt:
 	ldc1 $f18,(STACK_FPR+18*8)(sp)
 	ldc1 $f19,(STACK_FPR+19*8)(sp)
 
-	lw k1, STACK_FC31(sp)
-	ctc1 k1, $f31
+	lw t0, STACK_FC31(sp)
+	ctc1 t0, $f31
 
 end_interrupt_gpr:
+
+	# Restore SR. This also disables reentrant exceptions by
+	# restoring the EXL bit into SR
+	.set noat
+	lw t0, STACK_SR(sp)
+	mtc0 t0, C0_SR
+
+	ld t0, STACK_LO(sp)
+	ld t1, STACK_HI(sp)
+	lw t2, STACK_EPC(sp)
+	mtlo t0
+	mthi t1
+	mtc0 t2, C0_EPC
+
 	/* restore GPRs */
+	ld $1,(STACK_GPR + 1*8)(sp)
 	ld $2,(STACK_GPR + 2*8)(sp)
 	ld $3,(STACK_GPR + 3*8)(sp)
 	ld $4,(STACK_GPR + 4*8)(sp)
@@ -255,19 +274,6 @@ end_interrupt_gpr:
 	ld $24,(STACK_GPR+24*8)(sp)
 	ld $25,(STACK_GPR+25*8)(sp)
 	ld $31,(STACK_GPR+31*8)(sp)
-
-	lw k0,STACK_EPC(sp)
-	lw k1,STACK_SR(sp)
-	mtc0 k0,C0_EPC
-	mtc0 k1,C0_SR
-
-	ld k0,STACK_LO(sp)
-	ld k1,STACK_HI(sp)
-	mtlo k0
-	mthi k1
-
-	.set noat
-	ld $1,(STACK_GPR+1*8)(sp)
 	addiu sp, EXC_STACK_SIZE
 	eret
 
@@ -305,27 +311,27 @@ finalize_exception_frame:
 	.align 5
 save_fpu_regs:
 	cfc1 $1, $f31
-	sw $1, STACK_FC31(k0)
-	sdc1 $f0, (STACK_FPR+ 0*8)(k0)
-	sdc1 $f1, (STACK_FPR+ 1*8)(k0)
-	sdc1 $f2, (STACK_FPR+ 2*8)(k0)
-	sdc1 $f3, (STACK_FPR+ 3*8)(k0)
-	sdc1 $f4, (STACK_FPR+ 4*8)(k0)
-	sdc1 $f5, (STACK_FPR+ 5*8)(k0)
-	sdc1 $f6, (STACK_FPR+ 6*8)(k0)
-	sdc1 $f7, (STACK_FPR+ 7*8)(k0)
-	sdc1 $f8, (STACK_FPR+ 8*8)(k0)
-	sdc1 $f9, (STACK_FPR+ 9*8)(k0)
-	sdc1 $f10,(STACK_FPR+10*8)(k0)
-	sdc1 $f11,(STACK_FPR+11*8)(k0)
-	sdc1 $f12,(STACK_FPR+12*8)(k0)
-	sdc1 $f13,(STACK_FPR+13*8)(k0)
-	sdc1 $f14,(STACK_FPR+14*8)(k0)
-	sdc1 $f15,(STACK_FPR+15*8)(k0)
-	sdc1 $f16,(STACK_FPR+16*8)(k0)
-	sdc1 $f17,(STACK_FPR+17*8)(k0)
-	sdc1 $f18,(STACK_FPR+18*8)(k0)
-	sdc1 $f19,(STACK_FPR+19*8)(k0)
+	sw $1, STACK_FC31(a0)
+	sdc1 $f0, (STACK_FPR+ 0*8)(a0)
+	sdc1 $f1, (STACK_FPR+ 1*8)(a0)
+	sdc1 $f2, (STACK_FPR+ 2*8)(a0)
+	sdc1 $f3, (STACK_FPR+ 3*8)(a0)
+	sdc1 $f4, (STACK_FPR+ 4*8)(a0)
+	sdc1 $f5, (STACK_FPR+ 5*8)(a0)
+	sdc1 $f6, (STACK_FPR+ 6*8)(a0)
+	sdc1 $f7, (STACK_FPR+ 7*8)(a0)
+	sdc1 $f8, (STACK_FPR+ 8*8)(a0)
+	sdc1 $f9, (STACK_FPR+ 9*8)(a0)
+	sdc1 $f10,(STACK_FPR+10*8)(a0)
+	sdc1 $f11,(STACK_FPR+11*8)(a0)
+	sdc1 $f12,(STACK_FPR+12*8)(a0)
+	sdc1 $f13,(STACK_FPR+13*8)(a0)
+	sdc1 $f14,(STACK_FPR+14*8)(a0)
+	sdc1 $f15,(STACK_FPR+15*8)(a0)
+	sdc1 $f16,(STACK_FPR+16*8)(a0)
+	sdc1 $f17,(STACK_FPR+17*8)(a0)
+	sdc1 $f18,(STACK_FPR+18*8)(a0)
+	sdc1 $f19,(STACK_FPR+19*8)(a0)
 	jr ra
 	nop
 
