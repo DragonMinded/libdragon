@@ -1219,3 +1219,9 @@ void rspq_dma_to_dmem(uint32_t dmem_addr, void *rdram_addr, uint32_t len, bool i
 {
     rspq_dma(rdram_addr, dmem_addr, len - 1, is_async ? 0 : SP_STATUS_DMA_BUSY | SP_STATUS_DMA_FULL);
 }
+
+void rspq_set_lookup_address(uint8_t index, void *rdram_addr)
+{
+    assertf(index > 0 && index <= 15, "Lookup address index out of range [1,15]: %d", index);
+    rspq_int_write(RSPQ_CMD_SET_LOOKUP, index << 2, PhysicalAddr(rdram_addr));
+}

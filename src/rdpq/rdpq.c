@@ -21,7 +21,6 @@ DEFINE_RSP_UCODE(rsp_rdpq,
 
 typedef struct rdpq_state_s {
     uint64_t sync_full;
-    uint32_t address_table[RDPQ_ADDRESS_TABLE_SIZE];
     uint64_t other_modes;
     uint64_t scissor_rect;
     uint32_t fill_color;

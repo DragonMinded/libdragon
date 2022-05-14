@@ -7,7 +7,7 @@
 
     RSPQ_BeginOverlayHeader
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xC0 NOOP
-        RSPQ_DefineCommand RDPQCmd_SetLookupAddress,        8   # 0xC1 Set lookup address
+        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
@@ -80,7 +80,6 @@
 
     RSPQ_BeginSavedState
 RDP_SYNCFULL:          .quad  0   # Last syncfull command (includes callback). NOTE: this must stay as first variable in the state
-RDP_ADDRESS_TABLE:     .ds.l  RDPQ_ADDRESS_TABLE_SIZE
 RDP_OTHER_MODES:       .quad  0
 RDP_SCISSOR_RECT:      .quad  0
 RDP_FILL_COLOR:        .word  0
@@ -320,7 +319,7 @@ RDPQCmd_SetFixupImage:
 RDPQCmd_SetFixupImage_Static:
     li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
     # fixup DRAM address using address slots
-    jal RDPQ_FixupAddress
+    jal RSPQ_FixupAddress
     lui t3, 0xF000
     or a0, t3
     jal_and_j RDPQ_Write8, RDPQ_Finalize
@@ -343,7 +342,7 @@ RDPQCmd_SetColorImage_Static:
     srl t0, a0, 19
     andi t0, 3
     # fixup DRAM address using address slots
-    jal RDPQ_FixupAddress
+    jal RSPQ_FixupAddress
     sb t0, %lo(RDP_TARGET_BITDEPTH)
     lui t1, 0xF000
     # Append this command to staging area
@@ -502,44 +501,6 @@ passthrough_copy_loop:
 
     j RDPQ_Finalize
     nop
-    .endfunc
-
-    #############################################################
-    # RDPQCmd_SetLookupAddress
-    # 
-    # Sets an entry in the lookup address table. Note that index
-    # zero should never changed, so it can act as the "identity".
-    #
-    # ARGS:
-    #   a0: Command ID
-    #   a1: Table entry index and address to set the entry to
-    #############################################################
-    .func RDPQCmd_SetLookupAddress
-RDPQCmd_SetLookupAddress:
-    srl t0, a1, 26
-    lui t1, 0x3FF
-    ori t1, 0xFFFF
-    and t2, a1, t1
-    jr ra
-    sw t2, %lo(RDP_ADDRESS_TABLE)(t0)
-    .endfunc
-
-    #############################################################
-    # RDPQ_FixupAddress
-    # 
-    # Looks up an address from the lookup table and adds it to a1.
-    #
-    # ARGS:
-    #   a1: Table entry index and offset to the contained address
-    # OUTPUTS:
-    #   a1: Will contain the looked up address plus the offset
-    #############################################################
-    .func RDPQ_FixupAddress
-RDPQ_FixupAddress:
-    srl t0, a1, 26
-    lw t1, %lo(RDP_ADDRESS_TABLE)(t0)
-    jr ra
-    add a1, t1
     .endfunc
 
     #############################################################

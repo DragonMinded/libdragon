@@ -446,13 +446,6 @@ inline void rdpq_set_cycle_mode(uint32_t cycle_mode)
     __rdpq_modify_other_modes(0, mask, cycle_mode);
 }
 
-inline void rdpq_set_lookup_address(uint8_t index, void* address)
-{
-    assertf(index > 0 && index <= 15, "Lookup address index out of range [1,15]: %d", index);
-    extern void __rdpq_dynamic_write8(uint32_t, uint32_t, uint32_t);
-    __rdpq_dynamic_write8(RDPQ_CMD_SET_LOOKUP_ADDRESS, 0, _carg(index, 0xF, 28) | (PhysicalAddr(address) & 0x3FFFFFF));
-}
-
 #ifdef __cplusplus
 }
 #endif
