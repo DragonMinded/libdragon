@@ -45,7 +45,6 @@ sprite_t *spritesheet_load(const char *sprite_path) {
 
 	sprite_t *sprite = malloc(size);
 
-	setvbuf(fp, NULL, _IONBF, 0);
 	fread(sprite, 1, size, fp);
 	fclose(fp);
 
@@ -70,9 +69,7 @@ int main(void) {
 	/* Initialize peripherals */
 	display_init(RESOLUTION_320x240, DEPTH_16_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE);
 	dfs_init(DFS_DEFAULT_LOCATION);
-	rdp_init();
 	controller_init();
-	timer_init();
 
 	/* This will initialize the SD filesystem using 'sd:/' to identify it */
 	/* This path has to be the same used by the sprites when loading */
