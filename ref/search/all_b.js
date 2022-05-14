@@ -5,7 +5,7 @@ var searchData=
   ['joybus_2eh_2',['joybus.h',['../joybus_8h.html',1,'']]],
   ['joybus_5fblock_5fdwords_3',['JOYBUS_BLOCK_DWORDS',['../group__lowlevel.html#gabd5f84cf2323e720ab0b79fff05e8383',1,'joybus.h']]],
   ['joybus_5fblock_5fsize_4',['JOYBUS_BLOCK_SIZE',['../group__lowlevel.html#ga96357e747d908aa6c354b507d9b0fdc4',1,'joybus.h']]],
-  ['joybus_5fexec_5',['joybus_exec',['../group__joybus.html#ga6d62432ce8ecd83cd1588716fd28fdb7',1,'joybus_exec(const void *input, void *output):&#160;joybus.c'],['../group__lowlevel.html#ga89cef5dd261a8436fce3d5eb6aeacda0',1,'joybus_exec(const void *inblock, void *outblock):&#160;joybus.c']]],
+  ['joybus_5fexec_5',['joybus_exec',['../group__lowlevel.html#ga89cef5dd261a8436fce3d5eb6aeacda0',1,'joybus_exec(const void *inblock, void *outblock):&#160;joybus.c'],['../group__joybus.html#ga6d62432ce8ecd83cd1588716fd28fdb7',1,'joybus_exec(const void *input, void *output):&#160;joybus.c']]],
   ['joybus_5fexec_5fasync_6',['joybus_exec_async',['../group__joybus.html#ga67a0b9a8881c8ca94d35be1db9e6030f',1,'joybus_exec_async(const void *input, void(*callback)(uint64_t *output, void *ctx), void *ctx):&#160;joybus.c'],['../group__joybus.html#ga67a0b9a8881c8ca94d35be1db9e6030f',1,'joybus_exec_async(const void *input, void(*callback)(uint64_t *output, void *ctx), void *ctx):&#160;joybus.c']]],
   ['joybus_5fmsg_5ft_7',['joybus_msg_t',['../structjoybus__msg__t.html',1,'']]],
   ['joybus_5frtc_5fcontrol_5fmode_5frun_8',['JOYBUS_RTC_CONTROL_MODE_RUN',['../group__rtc.html#gad02da8fec42199c4c2d3ae5ab18e4395',1,'rtc.c']]],

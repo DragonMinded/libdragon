@@ -3,7 +3,7 @@ var searchData=
   ['d_5fname_0',['d_name',['../group__system.html#a87ce095e82c535255d901a65045dd41a',1,'dir_t']]],
   ['d_5ftype_1',['d_type',['../group__system.html#ab2c5b8a974282fbcffde31b32e1e4c43',1,'dir_t']]],
   ['dacrate_2',['dacrate',['../group__lowlevel.html#a40ae398ad46a66a11eaf6d67bb1d0c32',1,'AI_regs_t']]],
-  ['data_3',['data',['../rspq_8c.html#ab57b97d3a08046be85e1c8b317643730',1,'rspq_overlay_t::data()'],['../group__graphics.html#afdba8565120d2719452a1c5c30c9ecdd',1,'sprite_t::data()'],['../structrsp__ucode__t.html#ad5c028086c782260a7ac34dcbe67547e',1,'rsp_ucode_t::data()']]],
+  ['data_3',['data',['../group__graphics.html#afdba8565120d2719452a1c5c30c9ecdd',1,'sprite_t::data()'],['../structrsp__ucode__t.html#ad5c028086c782260a7ac34dcbe67547e',1,'rsp_ucode_t::data()'],['../rspq_8c.html#ab57b97d3a08046be85e1c8b317643730',1,'rspq_overlay_t::data()']]],
   ['data_5fend_4',['data_end',['../structrsp__ucode__t.html#aa8dab65f79da7a820769f7a6e9ba69ae',1,'rsp_ucode_t']]],
   ['data_5fsize_5',['data_size',['../rspq_8c.html#ae1297acf518013982275cf0fc9d55213',1,'rspq_overlay_t']]],
   ['day_6',['day',['../group__rtc.html#abcae6772be689db12a9a97451b9accb7',1,'rtc_time_t']]],

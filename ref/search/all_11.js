@@ -1,6 +1,6 @@
 var searchData=
 [
-  ['path_0',['path',['../eepromfs_8c.html#a21668da08c0d82dcec364c1bb11bcecc',1,'eepfs_file_t::path()'],['../group__dfs.html#ada5908f5c2a33e7ab5ff1d10a0e088d6',1,'directory_entry::path()'],['../eepromfs_8h.html#a6dcb30eea3da6cfa572b710b9bf22b32',1,'eepfs_entry_t::path()']]],
+  ['path_0',['path',['../group__dfs.html#ada5908f5c2a33e7ab5ff1d10a0e088d6',1,'directory_entry::path()'],['../eepromfs_8h.html#a6dcb30eea3da6cfa572b710b9bf22b32',1,'eepfs_entry_t::path()'],['../eepromfs_8c.html#a21668da08c0d82dcec364c1bb11bcecc',1,'eepfs_file_t::path()']]],
   ['pc_1',['pc',['../rsp_8h.html#a290a25cf74ccb2417b8165f0fb373b3e',1,'rsp_snapshot_t']]],
   ['period_2',['period',['../structAYEnvelope.html#a96bf5fdf2bbe39c0c17760d707fffaf1',1,'AYEnvelope::period()'],['../structAYNoise.html#af85c0654b2d1fcefe712bd48afcbbf08',1,'AYNoise::period()']]],
   ['peripherals_20subsystem_3',['Peripherals subsystem',['../group__peripherals.html',1,'']]],
@@ -14,7 +14,7 @@ var searchData=
   ['pi_5fstatus_5fio_5fbusy_11',['PI_STATUS_IO_BUSY',['../group__dma.html#gacd66f53b97aed895b5d032c824bf384a',1,'dma.c']]],
   ['pif_5faddr_5fread_12',['PIF_addr_read',['../group__lowlevel.html#acb5d2f4d312b6a57b2ae3c1cf66fc499',1,'SI_regs_t']]],
   ['pif_5faddr_5fwrite_13',['PIF_addr_write',['../group__lowlevel.html#a94f5f7575a4cf6079e4acc99dabbef06',1,'SI_regs_t']]],
-  ['playfreq_14',['playfreq',['../ym64_8h.html#a40fbf0786b24afe8a1b1a5803d4f6bb6',1,'ym64player_t::playfreq()'],['../ym64_8c.html#a95284b37507ccf9749e96a86c5301ef9',1,'ym5header::playfreq()']]],
+  ['playfreq_14',['playfreq',['../ym64_8c.html#a95284b37507ccf9749e96a86c5301ef9',1,'ym5header::playfreq()'],['../ym64_8h.html#a40fbf0786b24afe8a1b1a5803d4f6bb6',1,'ym64player_t::playfreq()']]],
   ['playing_15',['playing',['../xm64_8h.html#ab9e8322d4962a9859b3f11a0418ea46a',1,'xm64player_t']]],
   ['portread_16',['PortRead',['../structAY8910.html#aa6df1eff91b8e655de9f1651d94da3f3',1,'AY8910']]],
   ['portwrite_17',['PortWrite',['../structAY8910.html#aec1b63aeb6b5880cd1aaf665e350c866',1,'AY8910']]],
