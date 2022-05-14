@@ -315,7 +315,7 @@ static int __fat_lseek(void *file, int offset, int whence)
 	}
 	if (res != FR_OK)
 		return -1;
-	return 0;
+	return f_tell(f);
 }
 
 static int __fat_unlink(char *name)
