@@ -25,8 +25,8 @@ JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN)}"
 JOBS="${JOBS:-1}" # If getconf returned nothing, default to 1
 
 # Dependency source libs (Versions)
-BINUTILS_V=2.37
-GCC_V=11.2.0
+BINUTILS_V=2.38
+GCC_V=12.1.0
 NEWLIB_V=4.1.0
 
 # Check if a command-line tool is available: status 0 means "yes"; status 1 means "no"

@@ -29,7 +29,7 @@
 /** @brief Unhandled exception handler currently registered with exception system */
 static void (*__exception_handler)(exception_t*) = exception_default_handler;
 /** @brief Base register offset as defined by the interrupt controller */
-extern const void* __baseRegAddr;
+extern volatile reg_block_t __baseRegAddr;
 
 /**
  * @brief Register an exception handler to handle exceptions

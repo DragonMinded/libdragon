@@ -1,5 +1,6 @@
 BUILD_DIR ?= .
 SOURCE_DIR ?= .
+N64_DFS_OFFSET ?= 1M # Override this to offset where the DFS file will be located inside the ROM
 
 N64_ROM_TITLE = "Made with libdragon" # Override this with the name of your game or project
 N64_ROM_SAVETYPE = # Supported savetypes: none eeprom4k eeprom16 sram256k sram768k sram1m flashram
@@ -72,7 +73,7 @@ N64_CFLAGS += -std=gnu99
 	if [ -z "$$DFS_FILE" ]; then \
 		$(N64_TOOL) $(N64_TOOLFLAGS) --output $@ $<.bin; \
 	else \
-		$(N64_TOOL) $(N64_TOOLFLAGS) --output $@ $<.bin --offset 1M "$$DFS_FILE"; \
+		$(N64_TOOL) $(N64_TOOLFLAGS) --output $@ $<.bin --offset $(N64_DFS_OFFSET) "$$DFS_FILE"; \
 	fi
 	if [ ! -z "$(strip $(N64_ED64ROMCONFIGFLAGS))" ]; then \
 		$(N64_ED64ROMCONFIG) $(N64_ED64ROMCONFIGFLAGS) $@; \
