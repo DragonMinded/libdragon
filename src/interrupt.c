@@ -619,8 +619,18 @@ void disable_interrupts()
     if( __interrupt_depth == 0 )
     {
         /* We must disable the interrupts now. */
-        __interrupt_sr = C0_STATUS();
-        C0_WRITE_STATUS(__interrupt_sr & ~C0_STATUS_IE);
+        uint32_t sr = C0_STATUS();
+        C0_WRITE_STATUS(sr & ~C0_STATUS_IE);
+
+        /* Save the original SR value away, so that we now if
+           interrupts where enabled and whether to restore them.
+           NOTE: this memory write must happen now that interrupts
+           are disabled, otherwise it could cause a race condition
+           because an interrupt could trigger and overwrite it. 
+           So put an explicit barrier. */
+        MEMORY_BARRIER();
+        __interrupt_sr = sr;
+
         interrupt_disabled_tick = TICKS_READ();
     }
 

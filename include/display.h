@@ -73,7 +73,7 @@ extern "C" {
 #endif
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, antialias_t aa );
-display_context_t display_lock();
+display_context_t display_lock(void);
 void display_show(display_context_t disp);
 void display_close();
 
