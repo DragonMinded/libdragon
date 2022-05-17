@@ -75,6 +75,26 @@ void rdpq_init();
 
 void rdpq_close();
 
+/**
+ * @brief Add a fence to synchronize RSP with RDP commands.
+ * 
+ * This function schedules a fence in the RSP queue that makes RSP waits until
+ * all previously enqueued RDP commands have finished executing. This is useful
+ * in the rare cases in which you need to post-process the output of RDP with RSP
+ * commands.
+ * 
+ * Notice that the RSP will spin-lock waiting for RDP to become idle, so, if
+ * possible, call rdpq_fence as late as possible, to allow for parallel RDP/RSP
+ * execution for the longest possible time.
+ * 
+ * Notice that this does not block the CPU in any way; the CPU will just
+ * schedule the fence command in the RSP queue and continue execution. If you
+ * need to block the CPU until the RDP is done, check #rspq_wait or #rdpq_sync_full
+ * instead.
+ * 
+ * @see #rdpq_sync_full
+ * @see #rspq_wait
+ */
 void rdpq_fence(void);
 
 
@@ -147,7 +167,27 @@ inline void rdpq_sync_tile(void)
 }
 
 /**
- * @brief Wait for any operation to complete before causing a DP interrupt
+ * @brief Schedule a RDP SYNC_FULL command and register a callback when it is done.
+ * 
+ * This function schedules a RDP SYNC_FULL command into the RSP queue. This
+ * command basically forces the RDP to finish drawing everything that has been
+ * sent to it before it, and then generate an interrupt when it is done.
+ * 
+ * This is normally useful at the end of the frame. For instance, it is used
+ * internally by #rdp_detach_display to make sure RDP is finished drawing on
+ * the target display before detaching it.
+ * 
+ * The function can be passed an optional callback that will be called
+ * when the RDP interrupt triggers. This can be useful to perform some operations
+ * asynchronously.
+ * 
+ * @param      callback  A callback to invoke under interrupt when the RDP
+ *                       is finished drawing, or NULL if no callback is necessary.
+ * @param      arg       Opaque argument that will be passed to the callback.
+ * 
+ * @see #rspq_wait
+ * @see #rdpq_fence
+ * 
  */
 inline void rdpq_sync_full(void (*callback)(void*), void* arg)
 {

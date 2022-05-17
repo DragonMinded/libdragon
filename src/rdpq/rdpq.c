@@ -49,21 +49,26 @@ static volatile uint32_t *last_rdp_cmd;
 static void __rdpq_interrupt(void) {
     rdpq_state_t *rdpq_state = UncachedAddr(rspq_overlay_get_state(&rsp_rdpq));
 
+    assert(*SP_STATUS & SP_STATUS_SIG_RDPSYNCFULL);
+
     // The state has been updated to contain a copy of the last SYNC_FULL command
     // that was sent to RDP. The command might contain a callback to invoke.
-    // Extract and call it.
+    // Extract it to local variables.
     uint32_t w0 = (rdpq_state->sync_full >> 32) & 0x00FFFFFF;
     uint32_t w1 = (rdpq_state->sync_full >>  0) & 0xFFFFFFFF;
+
+    // Notify the RSP that we've serviced this SYNC_FULL interrupt. If others
+    // are pending, they can be scheduled now, even as we execute the callback.
+    MEMORY_BARRIER();
+    *SP_STATUS = SP_WSTATUS_CLEAR_SIG_RDPSYNCFULL;
+
+    // If there was a callback registered, call it.
     if (w0) {
         void (*callback)(void*) = (void (*)(void*))CachedAddr(w0 | 0x80000000);
         void* arg = (void*)w1;
 
         callback(arg);
     }
-
-    // Notify the RSP that we've serviced this SYNC_FULL interrupt. If others
-    // are pending, they can be scheduled now.
-    *SP_STATUS = SP_WSTATUS_CLEAR_SIG_RDPSYNCFULL;
 }
 
 void rdpq_init()

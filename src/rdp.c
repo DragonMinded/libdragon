@@ -168,10 +168,6 @@ void rdp_close( void )
     rdpq_close();
 }
 
-// TODO:
-// * let rdp_attach_display allow to attach a new display while another one is already attached (pending sync_full). 
-//   That would enqueue a set_color_image command, so the assert is probably not important
-
 void rdp_attach_display( display_context_t disp )
 {
     if( disp == 0 ) { return; }
@@ -189,7 +185,6 @@ void rdp_detach_display_async(void (*cb)(display_context_t disp))
     assertf(rdp_is_display_attached(), "No display is currently attached!");
     assertf(cb != NULL, "Callback should not be NULL!");
 
-    debugf("detach async: %d\n", attached_display);
     rdpq_sync_full((void(*)(void*))cb, (void*)attached_display);
     rspq_flush();
     attached_display = 0;
