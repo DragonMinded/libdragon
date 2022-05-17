@@ -183,7 +183,6 @@ void rdp_attach_display( display_context_t disp )
 void rdp_detach_display_async(void (*cb)(display_context_t disp))
 {
     assertf(rdp_is_display_attached(), "No display is currently attached!");
-    assertf(cb != NULL, "Callback should not be NULL!");
 
     rdpq_sync_full((void(*)(void*))cb, (void*)attached_display);
     rspq_flush();
