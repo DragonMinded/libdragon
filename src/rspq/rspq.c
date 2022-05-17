@@ -910,7 +910,7 @@ void rspq_next_buffer(void) {
         // Terminate the previous chunk with a JUMP op to the new chunk.
         rspq_append1(prev, RSPQ_CMD_JUMP, PhysicalAddr(rspq2));
 
-        rdpq_reset_buffer();
+        __rdpq_reset_buffer();
         return;
     }
 
@@ -1048,6 +1048,11 @@ void rspq_highpri_sync(void)
     }
 }
 
+void __rspq_block_begin_rdp(rdpq_block_t *rdp_block)
+{
+    rspq_block->rdp_block = rdp_block;
+}
+
 void rspq_block_begin(void)
 {
     assertf(!rspq_block, "a block was already being created");
@@ -1057,13 +1062,14 @@ void rspq_block_begin(void)
     rspq_block_size = RSPQ_BLOCK_MIN_SIZE;
     rspq_block = malloc_uncached(sizeof(rspq_block_t) + rspq_block_size*sizeof(uint32_t));
     rspq_block->nesting_level = 0;
+    rspq_block->rdp_block = NULL;
 
     // Switch to the block buffer. From now on, all rspq_writes will
     // go into the block.
     rspq_switch_context(NULL);
     rspq_switch_buffer(rspq_block->cmds, rspq_block_size, true);
-    
-    rspq_block->rdp_block = rdpq_block_begin();
+
+    __rdpq_block_begin();
 }
 
 rspq_block_t* rspq_block_end(void)
@@ -1080,14 +1086,14 @@ rspq_block_t* rspq_block_end(void)
     // Return the created block
     rspq_block_t *b = rspq_block;
     rspq_block = NULL;
-    rdpq_block_end();
+    __rdpq_block_end();
     return b;
 }
 
 void rspq_block_free(rspq_block_t *block)
 {
     // Free RDP blocks first
-    rdpq_block_free(block->rdp_block);
+    __rdpq_block_free(block->rdp_block);
 
     // Start from the commands in the first chunk of the block
     int size = RSPQ_BLOCK_MIN_SIZE;

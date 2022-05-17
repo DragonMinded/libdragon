@@ -39,7 +39,9 @@ bool __rdpq_inited = false;
 volatile uint32_t *rdpq_block_pointer;
 volatile uint32_t *rdpq_block_sentinel;
 
-rdpq_block_t *rdpq_block;
+static bool rdpq_block_active;
+
+static rdpq_block_t *rdpq_block;
 static int rdpq_block_size;
 
 static volatile uint32_t *last_rdp_cmd;
@@ -80,6 +82,7 @@ void rdpq_init()
     rspq_overlay_register_static(&rsp_rdpq, RDPQ_OVL_ID);
 
     rdpq_block = NULL;
+    rdpq_block_active = false;
 
     __rdpq_inited = true;
 
@@ -116,12 +119,12 @@ static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
     }
 }
 
-void rdpq_reset_buffer()
+void __rdpq_reset_buffer()
 {
     last_rdp_cmd = NULL;
 }
 
-void rdpq_block_flush(uint32_t *start, uint32_t *end)
+void __rdpq_block_flush(uint32_t *start, uint32_t *end)
 {
     assertf(((uint32_t)start & 0x7) == 0, "start not aligned to 8 bytes: %lx", (uint32_t)start);
     assertf(((uint32_t)end & 0x7) == 0, "end not aligned to 8 bytes: %lx", (uint32_t)end);
@@ -141,7 +144,7 @@ void rdpq_block_flush(uint32_t *start, uint32_t *end)
     }
 }
 
-void rdpq_block_switch_buffer(uint32_t *new, uint32_t size)
+void __rdpq_block_switch_buffer(uint32_t *new, uint32_t size)
 {
     assert(size >= RDPQ_MAX_COMMAND_SIZE);
 
@@ -150,10 +153,10 @@ void rdpq_block_switch_buffer(uint32_t *new, uint32_t size)
 
     // Enqueue a command that will point RDP to the start of the block so that static fixup commands still work.
     // Those commands rely on the fact that DP_END always points to the end of the current static block.
-    rdpq_block_flush((uint32_t*)rdpq_block_pointer, (uint32_t*)rdpq_block_pointer);
+    __rdpq_block_flush((uint32_t*)rdpq_block_pointer, (uint32_t*)rdpq_block_pointer);
 }
 
-void rdpq_block_next_buffer()
+void __rdpq_block_next_buffer()
 {
     // Allocate next chunk (double the size of the current one).
     // We use doubling here to reduce overheads for large blocks
@@ -163,30 +166,42 @@ void rdpq_block_next_buffer()
     rdpq_block = rdpq_block->next;
 
     // Switch to new buffer
-    rdpq_block_switch_buffer(rdpq_block->cmds, rdpq_block_size);
+    __rdpq_block_switch_buffer(rdpq_block->cmds, rdpq_block_size);
 }
 
-rdpq_block_t* rdpq_block_begin()
+void __rdpq_block_begin()
 {
-    rdpq_block_size = RDPQ_BLOCK_MIN_SIZE;
-    rdpq_block = malloc_uncached(sizeof(rdpq_block_t) + rdpq_block_size*sizeof(uint32_t));
-    rdpq_block->next = NULL;
-    rdpq_reset_buffer();
-    rdpq_block_switch_buffer(rdpq_block->cmds, rdpq_block_size);
-    return rdpq_block;
+    rdpq_block_active = true;
 }
 
-void rdpq_block_end()
+void __rdpq_block_end()
 {
+    rdpq_block_active = false;
     rdpq_block = NULL;
 }
 
-void rdpq_block_free(rdpq_block_t *block)
+void __rdpq_block_free(rdpq_block_t *block)
 {
     while (block) {
         void *b = block;
         block = block->next;
         free_uncached(b);
+    }
+}
+
+__attribute__((noinline))
+void __rdpq_block_check(void)
+{
+    if (rdpq_block_active && rdpq_block == NULL)
+    {
+        extern void __rspq_block_begin_rdp(rdpq_block_t*);
+
+        rdpq_block_size = RDPQ_BLOCK_MIN_SIZE;
+        rdpq_block = malloc_uncached(sizeof(rdpq_block_t) + rdpq_block_size*sizeof(uint32_t));
+        rdpq_block->next = NULL;
+        __rdpq_reset_buffer();
+        __rdpq_block_switch_buffer(rdpq_block->cmds, rdpq_block_size);
+        __rspq_block_begin_rdp(rdpq_block);
     }
 }
 
@@ -205,24 +220,25 @@ void rdpq_block_free(rdpq_block_t *block)
     volatile uint32_t *ptr = rdpq_block_pointer; \
     *ptr++ = (RDPQ_OVL_ID + ((cmd_id)<<24)) | (arg0); \
     __CALL_FOREACH(_rdpq_write_arg, ##__VA_ARGS__); \
-    rdpq_block_flush((uint32_t*)rdpq_block_pointer, (uint32_t*)ptr); \
+    __rdpq_block_flush((uint32_t*)rdpq_block_pointer, (uint32_t*)ptr); \
     rdpq_block_pointer = ptr; \
     if (__builtin_expect(rdpq_block_pointer > rdpq_block_sentinel, 0)) \
-        rdpq_block_next_buffer(); \
+        __rdpq_block_next_buffer(); \
 })
 
 #define rdpq_static_skip(size) ({ \
     for (int i = 0; i < (size); i++) rdpq_block_pointer++; \
     if (__builtin_expect(rdpq_block_pointer > rdpq_block_sentinel, 0)) \
-        rdpq_block_next_buffer(); \
+        __rdpq_block_next_buffer(); \
 })
 
 static inline bool in_block(void) {
-    return rdpq_block != NULL;
+    return rdpq_block_active;
 }
 
 #define rdpq_write(cmd_id, arg0, ...) ({ \
     if (in_block()) { \
+        __rdpq_block_check(); \
         rdpq_static_write(cmd_id, arg0, ##__VA_ARGS__); \
     } else { \
         rdpq_dynamic_write(cmd_id, arg0, ##__VA_ARGS__); \
@@ -231,6 +247,7 @@ static inline bool in_block(void) {
 
 #define rdpq_fixup_write(cmd_id_dyn, cmd_id_fix, skip_size, arg0, ...) ({ \
     if (in_block()) { \
+        __rdpq_block_check(); \
         rdpq_dynamic_write(cmd_id_fix, arg0, ##__VA_ARGS__); \
         rdpq_static_skip(skip_size); \
     } else { \
@@ -296,6 +313,7 @@ __attribute__((noinline))
 void __rdpq_set_other_modes(uint32_t w0, uint32_t w1)
 {
     if (in_block()) {
+        __rdpq_block_check(); \
         // Write set other modes normally first, because it doesn't need to be modified
         rdpq_static_write(RDPQ_CMD_SET_OTHER_MODES, w0, w1);
         // This command will just record the other modes to DMEM and output a set scissor command
@@ -321,6 +339,7 @@ void __rdpq_sync_full(uint32_t w0, uint32_t w1)
     // and we need that to be forwarded to RSP dynamic command.
     if (in_block()) {
         // In block mode, schedule the command in both static and dynamic mode.
+        __rdpq_block_check();
         rdpq_dynamic_write(RDPQ_CMD_SYNC_FULL_FIX, w0, w1);
         rdpq_static_write(RDPQ_CMD_SYNC_FULL, w0, w1);
     } else {
