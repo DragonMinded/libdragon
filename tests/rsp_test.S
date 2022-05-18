@@ -145,9 +145,10 @@ command_big_out:
     li t0, DMA_SIZE(128, 1)
 
 command_lookup:
-    jal RSPQ_FixupAddress
+    jal RSPQ_DemangleAddress
+    move s0, a1
     li s4, %lo(TEST_LOOKUP0)
-    sw a1, 0x4(s4)
+    sw s0, 0x4(s4)
     li t0, DMA_SIZE(8, 1)
     move s0, a0
     jal_and_j DMAOut, RSPQ_Loop
