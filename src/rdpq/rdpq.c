@@ -212,6 +212,7 @@ void __rdpq_block_next_buffer()
     if (rdpq_block_size < RDPQ_BLOCK_MAX_SIZE) rdpq_block_size *= 2;
     rdpq_block->next = malloc_uncached(sizeof(rdpq_block_t) + rdpq_block_size*sizeof(uint32_t));
     rdpq_block = rdpq_block->next;
+    rdpq_block->next = NULL;
 
     // Switch to new buffer
     __rdpq_block_switch_buffer(rdpq_block->cmds, rdpq_block_size);
