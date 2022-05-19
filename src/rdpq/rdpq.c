@@ -34,12 +34,19 @@ typedef struct rdpq_block_s {
     uint32_t cmds[];
 } rdpq_block_t;
 
+typedef enum {
+    AUTOPIPE_MODE_RENDER,
+    AUTOPIPE_MODE_CONFIG
+} autopipemode_t;
+
 bool __rdpq_inited = false;
 
 volatile uint32_t *rdpq_block_pointer;
 volatile uint32_t *rdpq_block_sentinel;
 
 static bool rdpq_block_active;
+static uint8_t rdpq_config;
+static autopipemode_t rdpq_autopipe_mode;
 
 static rdpq_block_t *rdpq_block;
 static int rdpq_block_size;
@@ -88,7 +95,9 @@ void rdpq_init()
 
     rdpq_block = NULL;
     rdpq_block_active = false;
-
+    rdpq_config = RDPQ_CFG_AUTOSYNCPIPE | RDPQ_CFG_AUTOSYNCLOAD | RDPQ_CFG_AUTOSYNCTILE;
+    rdpq_autopipe_mode = AUTOPIPE_MODE_CONFIG;
+    
     __rdpq_inited = true;
 
     register_DP_handler(__rdpq_interrupt);
@@ -103,6 +112,26 @@ void rdpq_close()
     set_DP_interrupt( 0 );
     unregister_DP_handler(__rdpq_interrupt);
 }
+
+
+uint32_t rdpq_get_config(void)
+{
+    return rdpq_config;
+}
+
+void rdpq_set_config(uint32_t cfg)
+{
+    rdpq_config = cfg;
+}
+
+uint32_t rdpq_change_config(uint32_t on, uint32_t off)
+{
+    uint32_t old = rdpq_config;
+    rdpq_config |= on;
+    rdpq_config &= ~off;
+    return old;
+}
+
 
 void rdpq_fence(void)
 {
@@ -121,6 +150,20 @@ static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
     default:
         printf("Unknown assert\n");
         break;
+    }
+}
+
+static void autopipe_render(void) {
+    rdpq_autopipe_mode = AUTOPIPE_MODE_RENDER;
+}
+
+static void autopipe_config(void) {
+    autopipemode_t mode = rdpq_autopipe_mode;
+
+    rdpq_autopipe_mode = AUTOPIPE_MODE_CONFIG;
+    if (mode == AUTOPIPE_MODE_RENDER && (rdpq_config & RDPQ_CFG_AUTOSYNCPIPE)) {
+        // debugf("rdpq: adding SYNC_PIPE\n");
+        rdpq_sync_pipe();        
     }
 }
 
@@ -169,6 +212,7 @@ void __rdpq_block_next_buffer()
     if (rdpq_block_size < RDPQ_BLOCK_MAX_SIZE) rdpq_block_size *= 2;
     rdpq_block->next = malloc_uncached(sizeof(rdpq_block_t) + rdpq_block_size*sizeof(uint32_t));
     rdpq_block = rdpq_block->next;
+    rdpq_block->next = NULL;
 
     // Switch to new buffer
     __rdpq_block_switch_buffer(rdpq_block->cmds, rdpq_block_size);
@@ -195,19 +239,22 @@ void __rdpq_block_free(rdpq_block_t *block)
 }
 
 __attribute__((noinline))
-void __rdpq_block_check(void)
+static void __rdpq_block_create(void)
+{
+    extern void __rspq_block_begin_rdp(rdpq_block_t*);
+
+    rdpq_block_size = RDPQ_BLOCK_MIN_SIZE;
+    rdpq_block = malloc_uncached(sizeof(rdpq_block_t) + rdpq_block_size*sizeof(uint32_t));
+    rdpq_block->next = NULL;
+    __rdpq_reset_buffer();
+    __rdpq_block_switch_buffer(rdpq_block->cmds, rdpq_block_size);
+    __rspq_block_begin_rdp(rdpq_block);
+}
+
+static void __rdpq_block_check(void)
 {
     if (rdpq_block_active && rdpq_block == NULL)
-    {
-        extern void __rspq_block_begin_rdp(rdpq_block_t*);
-
-        rdpq_block_size = RDPQ_BLOCK_MIN_SIZE;
-        rdpq_block = malloc_uncached(sizeof(rdpq_block_t) + rdpq_block_size*sizeof(uint32_t));
-        rdpq_block->next = NULL;
-        __rdpq_reset_buffer();
-        __rdpq_block_switch_buffer(rdpq_block->cmds, rdpq_block_size);
-        __rspq_block_begin_rdp(rdpq_block);
-    }
+        __rdpq_block_create();
 }
 
 /// @cond
@@ -261,62 +308,109 @@ static inline bool in_block(void) {
 })
 
 __attribute__((noinline))
+void rdpq_fixup_write8(uint32_t cmd_id_dyn, uint32_t cmd_id_fix, int skip_size, uint32_t arg0, uint32_t arg1)
+{
+    rdpq_fixup_write(cmd_id_dyn, cmd_id_fix, skip_size, arg0, arg1);
+}
+
+__attribute__((noinline))
 void __rdpq_dynamic_write8(uint32_t cmd_id, uint32_t arg0, uint32_t arg1)
 {
     rdpq_dynamic_write(cmd_id, arg0, arg1);
 }
 
 __attribute__((noinline))
-void __rdpq_write8(uint32_t cmd_id, uint32_t arg0, uint32_t arg1)
+static void __rdpq_write8(uint32_t cmd_id, uint32_t arg0, uint32_t arg1)
 {
     rdpq_write(cmd_id, arg0, arg1);
 }
 
 __attribute__((noinline))
-void __rdpq_write16(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3)
+void __rdpq_write8_sync(uint32_t cmd_id, uint32_t arg0, uint32_t arg1)
 {
-    rdpq_write(cmd_id, arg0, arg1, arg2, arg3);
+    __rdpq_write8(cmd_id, arg0, arg1);
+}
+
+__attribute__((noinline))
+void __rdpq_write8_config(uint32_t cmd_id, uint32_t arg0, uint32_t arg1)
+{
+    autopipe_config();
+    __rdpq_write8(cmd_id, arg0, arg1);
+}
+
+__attribute__((noinline))
+void __rdpq_write8_render(uint32_t cmd_id, uint32_t arg0, uint32_t arg1)
+{
+    autopipe_render();
+    __rdpq_write8(cmd_id, arg0, arg1);
+}
+
+__attribute__((noinline))
+static void __rdpq_write16(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3)
+{
+    rdpq_write(cmd_id, arg0, arg1, arg2, arg3);    
+}
+
+__attribute__((noinline))
+void __rdpq_write16_config(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3)
+{
+    autopipe_config();
+    __rdpq_write16(cmd_id, arg0, arg1, arg2, arg3);
+}
+
+__attribute__((noinline))
+void __rdpq_write16_render(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3)
+{
+    autopipe_render();
+    __rdpq_write16(cmd_id, arg0, arg1, arg2, arg3);
 }
 
 __attribute__((noinline))
 void __rdpq_fill_triangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3, uint32_t w4, uint32_t w5, uint32_t w6, uint32_t w7)
 {
+    autopipe_render();
     rdpq_write(RDPQ_CMD_TRI, w0, w1, w2, w3, w4, w5, w6, w7);
 }
 
 __attribute__((noinline))
 void __rdpq_texture_rectangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3)
 {
+    autopipe_render();
     rdpq_fixup_write(RDPQ_CMD_TEXTURE_RECTANGLE_EX, RDPQ_CMD_TEXTURE_RECTANGLE_EX_FIX, 4, w0, w1, w2, w3);
 }
 
 __attribute__((noinline))
 void __rdpq_set_scissor(uint32_t w0, uint32_t w1)
 {
-    rdpq_fixup_write(RDPQ_CMD_SET_SCISSOR_EX, RDPQ_CMD_SET_SCISSOR_EX_FIX, 2, w0, w1);
+    // autopipe: not required
+    rdpq_fixup_write8(RDPQ_CMD_SET_SCISSOR_EX, RDPQ_CMD_SET_SCISSOR_EX_FIX, 2, w0, w1);
 }
 
 __attribute__((noinline))
 void __rdpq_set_fill_color(uint32_t w1)
 {
-    rdpq_fixup_write(RDPQ_CMD_SET_FILL_COLOR_32, RDPQ_CMD_SET_FILL_COLOR_32_FIX, 2, 0, w1);
+    autopipe_config();
+    rdpq_fixup_write8(RDPQ_CMD_SET_FILL_COLOR_32, RDPQ_CMD_SET_FILL_COLOR_32_FIX, 2, 0, w1);
 }
 
 __attribute__((noinline))
 void __rdpq_set_fixup_image(uint32_t cmd_id_dyn, uint32_t cmd_id_fix, uint32_t w0, uint32_t w1)
 {
-    rdpq_fixup_write(cmd_id_dyn, cmd_id_fix, 2, w0, w1);
+    autopipe_config();
+    rdpq_fixup_write8(cmd_id_dyn, cmd_id_fix, 2, w0, w1);
 }
 
 __attribute__((noinline))
 void __rdpq_set_color_image(uint32_t w0, uint32_t w1)
 {
-    rdpq_fixup_write(RDPQ_CMD_SET_COLOR_IMAGE, RDPQ_CMD_SET_COLOR_IMAGE_FIX, 4, w0, w1);
+    autopipe_config();
+    rdpq_fixup_write8(RDPQ_CMD_SET_COLOR_IMAGE, RDPQ_CMD_SET_COLOR_IMAGE_FIX, 4, w0, w1);
 }
 
 __attribute__((noinline))
 void __rdpq_set_other_modes(uint32_t w0, uint32_t w1)
 {
+    autopipe_config();
     if (in_block()) {
         __rdpq_block_check(); \
         // Write set other modes normally first, because it doesn't need to be modified
@@ -334,6 +428,7 @@ void __rdpq_set_other_modes(uint32_t w0, uint32_t w1)
 __attribute__((noinline))
 void __rdpq_modify_other_modes(uint32_t w0, uint32_t w1, uint32_t w2)
 {
+    autopipe_config();
     rdpq_fixup_write(RDPQ_CMD_MODIFY_OTHER_MODES, RDPQ_CMD_MODIFY_OTHER_MODES_FIX, 4, w0, w1, w2);
 }
 
@@ -359,3 +454,4 @@ extern inline void rdpq_sync_tile(void);
 extern inline void rdpq_sync_load(void);
 extern inline void rdpq_sync_pipe(void);
 extern inline void rdpq_sync_full(void (*callback)(void*), void* arg);
+

@@ -89,7 +89,6 @@ void test_rdpq_dynamic(TestContext *ctx)
             expected_fb[y * TEST_RDPQ_FBWIDTH + x + 1] = color_to_packed16(c);
             expected_fb[y * TEST_RDPQ_FBWIDTH + x + 2] = color_to_packed16(c);
             expected_fb[y * TEST_RDPQ_FBWIDTH + x + 3] = color_to_packed16(c);
-            rdpq_sync_pipe();
             rdpq_set_fill_color(c);
             rdpq_set_scissor(x, y, x + 4, y + 1);
             rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
@@ -178,7 +177,6 @@ void test_rdpq_block(TestContext *ctx)
             rdpq_set_fill_color(c);
             rdpq_set_scissor(x, y, x + 4, y + 1);
             rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
-            rdpq_sync_pipe();
         }
     }
     rspq_block_t *block = rspq_block_end();
