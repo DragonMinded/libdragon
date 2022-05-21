@@ -4,6 +4,7 @@
  * @ingroup display
  */
 #include <stdint.h>
+#include <stdbool.h>
 #include <malloc.h>
 #include <string.h>
 #include "regsinternal.h"
@@ -37,106 +38,42 @@
  * @brief Presets to use when setting a particular video mode
  * @{
  */
-static const uint32_t ntsc_320[] = {
-    0x00000000, 0x00000000, 0x00000140, 0x00000200,
+static const uint32_t ntsc_p[] = {
+    0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x03e52239, 0x0000020d, 0x00000c15,
     0x0c150c15, 0x006c02ec, 0x002501ff, 0x000e0204,
-    0x00000200, 0x00000400 };
-static const uint32_t pal_320[] = {
-    0x00000000, 0x00000000, 0x00000140, 0x00000200,
+    0x00000000, 0x00000000 };
+static const uint32_t pal_p[] = {
+    0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x0404233a, 0x00000271, 0x00150c69,
     0x0c6f0c6e, 0x00800300, 0x005f0239, 0x0009026b,
-    0x00000200, 0x00000400 };
-static const uint32_t mpal_320[] = {
-    0x00000000, 0x00000000, 0x00000140, 0x00000200,
+    0x00000000, 0x00000000 };
+static const uint32_t mpal_p[] = {
+    0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x04651e39, 0x0000020d, 0x00040c11,
     0x0c190c1a, 0x006c02ec, 0x002501ff, 0x000e0204,
-    0x00000200, 0x00000400 };
-static const uint32_t ntsc_640[] = {
-    0x00000000, 0x00000000, 0x00000280, 0x00000200,
+    0x00000000, 0x00000000 };
+static const uint32_t ntsc_i[] = {
+    0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x03e52239, 0x0000020c, 0x00000c15,
     0x0c150c15, 0x006c02ec, 0x002301fd, 0x000e0204,
-    0x00000400, 0x02000800 };
-static const uint32_t pal_640[] = {
-    0x00000000, 0x00000000, 0x00000280, 0x00000200,
+    0x00000000, 0x00000000 };
+static const uint32_t pal_i[] = {
+    0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x0404233a, 0x00000270, 0x00150c69,
     0x0c6f0c6e, 0x00800300, 0x005d0237, 0x0009026b,
-    0x00000400, 0x02000800 };
-static const uint32_t mpal_640[] = {
-    0x00000000, 0x00000000, 0x00000280, 0x00000200,
+    0x00000000, 0x00000000 };
+static const uint32_t mpal_i[] = {
+    0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x04651e39, 0x0000020c, 0x00000c10,
     0x0c1c0c1c, 0x006c02ec, 0x002301fd, 0x000b0202,
-    0x00000400, 0x02000800 };
-static const uint32_t ntsc_256[] = {
-    0x00000000, 0x00000000, 0x00000100, 0x00000200,
-    0x00000000, 0x03e52239, 0x0000020d, 0x00000c15,
-    0x0c150c15, 0x006c02ec, 0x002501ff, 0x000e0204,
-    0x0000019A, 0x00000400 };
-static const uint32_t pal_256[] = {
-    0x00000000, 0x00000000, 0x00000100, 0x00000200,
-    0x00000000, 0x0404233a, 0x00000271, 0x00150c69,
-    0x0c6f0c6e, 0x00800300, 0x005f0239, 0x0009026b,
-    0x0000019A, 0x00000400 };
-static const uint32_t mpal_256[] = {
-    0x00000000, 0x00000000, 0x00000100, 0x00000200,
-    0x00000000, 0x04651e39, 0x0000020d, 0x00040c11,
-    0x0c190c1a, 0x006c02ec, 0x002501ff, 0x000e0204,
-    0x0000019A, 0x00000400 };
-static const uint32_t ntsc_512[] = {
-    0x00000000, 0x00000000, 0x00000200, 0x00000200,
-    0x00000000, 0x03e52239, 0x0000020c, 0x00000c15,
-    0x0c150c15, 0x006c02ec, 0x002301fd, 0x000e0204,
-    0x00000334, 0x02000800 };
-static const uint32_t pal_512[] = {
-    0x00000000, 0x00000000, 0x00000200, 0x00000200,
-    0x00000000, 0x0404233a, 0x00000270, 0x00150c69,
-    0x0c6f0c6e, 0x00800300, 0x005d0237, 0x0009026b,
-    0x00000334, 0x02000800 };
-static const uint32_t mpal_512[] = {
-    0x00000000, 0x00000000, 0x00000200, 0x00000200,
-    0x00000000, 0x04651e39, 0x0000020c, 0x00000c10,
-    0x0c1c0c1c, 0x006c02ec, 0x002301fd, 0x000b0202,
-    0x00000334, 0x02000800 };
-static const uint32_t ntsc_512p[] = {
-    0x00000000, 0x00000000, 0x00000200, 0x00000200,
-    0x00000000, 0x03e52239, 0x0000020d, 0x00000c15,
-    0x0c150c15, 0x006c02ec, 0x002501ff, 0x000e0204,
-    0x00000333, 0x00000400 };
-static const uint32_t pal_512p[] = {
-    0x00000000, 0x00000000, 0x00000200, 0x00000200,
-    0x00000000, 0x0404233a, 0x00000271, 0x00150c69,
-    0x0c6f0c6e, 0x00800300, 0x005f0239, 0x0009026b,
-    0x00000333, 0x00000400 };
-static const uint32_t mpal_512p[] = {
-    0x00000000, 0x00000000, 0x00000200, 0x00000200,
-    0x00000000, 0x04651e39, 0x0000020d, 0x00040c11,
-    0x0c190c1a, 0x006c02ec, 0x002501ff, 0x000e0204,
-    0x00000333, 0x00000400 };
-static const uint32_t ntsc_640p[] = {
-    0x00000000, 0x00000000, 0x00000280, 0x00000200,
-    0x00000000, 0x03e52239, 0x0000020d, 0x00000c15,
-    0x0c150c15, 0x006c02ec, 0x002501ff, 0x000e0204,
-    0x00000400, 0x00000400 };
-static const uint32_t pal_640p[] = {
-    0x00000000, 0x00000000, 0x00000280, 0x00000200,
-    0x00000000, 0x0404233a, 0x00000271, 0x00150c69,
-    0x0c6f0c6e, 0x00800300, 0x005f0239, 0x0009026b,
-    0x00000400, 0x00000400 };
-static const uint32_t mpal_640p[] = {
-    0x00000000, 0x00000000, 0x00000280, 0x00000200,
-    0x00000000, 0x04651e39, 0x0000020d, 0x00040c11,
-    0x0c190c1a, 0x006c02ec, 0x002501ff, 0x000e0204,
-    0x00000400, 0x00000400 };
+    0x00000000, 0x00000000 };
 /** @} */
 
 /** @brief Register initial value array */
 static const uint32_t * const reg_values[] = {
-    pal_320, ntsc_320, mpal_320,
-    pal_640, ntsc_640, mpal_640,
-    pal_256, ntsc_256, mpal_256,
-    pal_512, ntsc_512, mpal_512,
-    pal_512p, ntsc_512p, mpal_512p,
-    pal_640p, ntsc_640p, mpal_640p,
+    pal_p, ntsc_p, mpal_p,
+    pal_i, ntsc_i, mpal_i,
 };
 
 static surface_t *surfaces;
@@ -204,6 +141,22 @@ static void __write_dram_register( void const * const dram_val )
     MEMORY_BARRIER();
 }
 
+/** @brief Wait until entering the vblank period */
+static void __wait_for_vblank()
+{
+    volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
+
+    while( reg_base[4] != 2 ) {  }
+}
+
+/** @brief Return true if VI is active (16 or 32-bit color set) */
+static inline bool __is_vi_active()
+{
+    volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
+
+    return (reg_base[0] & 0x03) >= 2;
+}
+
 /**
  * @brief Interrupt handler for vertical blank
  *
@@ -240,30 +193,12 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     /* Minimum is two buffers. */
     __buffers = MAX(2, MIN(NUM_BUFFERS, num_buffers));
 
-	switch( res )
-	{
-		case RESOLUTION_640x480:
-			/* Serrate on to stop vertical jitter */
-			control |= 0x40;
-			tv_type += 3;
-			break;
-		case RESOLUTION_256x240:
-			tv_type += 6;
-			break;
-		case RESOLUTION_512x480:
-			/* Serrate on to stop vertical jitter */
-			control |= 0x40;
-			tv_type += 9;
-			break;
-		case RESOLUTION_512x240:
-			tv_type += 12;
-			break;
-		case RESOLUTION_640x240:
-			tv_type += 15;
-			break;
-		case RESOLUTION_320x240:
-		default:
-			break;
+
+    if( res.interlaced )
+    {
+        /* Serrate on to stop vertical jitter */
+        control |= 0x40;
+        tv_type += 3;
     }
 
     /* Copy over to temporary for extra initializations */
@@ -306,10 +241,12 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
                For people that absolutely need this on PAL consoles, it can
                be enabled with *(volatile uint32_t*)0xA4400000 |= 0x300 just
                after the display_init call. */
-            if (bit == DEPTH_16_BPP)
-                assertf(res != RESOLUTION_256x240 && res != RESOLUTION_320x240,
-                    "ANTIALIAS_OFF is not supported by the hardware on 256x240x16 and 320x240x16.\n"
+            if ( bit == DEPTH_16_BPP )
+            {
+                assertf(res.width > 320,
+                    "ANTIALIAS_OFF is not supported by the hardware for widths <= 320.\n"
                     "Please use ANTIALIAS_RESAMPLE instead.");
+            }
 
             /* Set AA off flag */
             control |= 0x300;
@@ -345,41 +282,24 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     /* Set the control register in our template */
     registers[0] = control;
 
-    /* Black screen please, the clearing takes a couple frames, and
-       garbage would be visible. */
-    registers[9] = 0;
-
-    /* Set up initial registers */
-    __write_registers( registers );
+    /* Calculate width and scale registers */
+    assertf(res.width > 0 && res.width <= 800, "invalid width");
+    assertf(res.height > 0 && res.height <= 600, "invalid height");
+    if( bit == DEPTH_16_BPP )
+    {
+        assertf(res.width % 4 == 0, "width must be divisible by 4 for 16-bit depth");
+    }
+    else if ( bit == DEPTH_32_BPP )
+    {
+        assertf(res.width % 2 == 0, "width must be divisible by 2 for 32-bit depth");
+    }
+    registers[2] = res.width;
+    registers[12] = ( 1024*res.width + 320 ) / 640;
+    registers[13] = ( 1024*res.height + 120 ) / 240;
 
     /* Set up the display */
-	switch( res )
-	{
-		case RESOLUTION_320x240:
-			__width = 320;
-			__height = 240;
-			break;
-		case RESOLUTION_640x480:
-			__width = 640;
-			__height = 480;
-			break;
-		case RESOLUTION_256x240:
-			__width = 256;
-			__height = 240;
-			break;
-		case RESOLUTION_512x480:
-			__width = 512;
-			__height = 480;
-			break;
-		case RESOLUTION_512x240:
-			__width = 512;
-			__height = 240;
-			break;
-		case RESOLUTION_640x240:
-			__width = 640;
-			__height = 240;
-			break;
-	}
+    __width = res.width;
+    __height = res.height;
     __bitdepth = ( bit == DEPTH_16_BPP ) ? 2 : 4;
 
     surfaces = malloc(sizeof(surface_t) * __buffers);
@@ -403,9 +323,10 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     drawing_mask = 0;
     ready_mask = 0;
 
+    if ( __is_vi_active() ) { __wait_for_vblank(); }
+
     /* Show our screen normally */
     registers[1] = (uintptr_t) __safe_buffer[0];
-    registers[9] = reg_values[tv_type][9];
     __write_registers( registers );
 
     enable_interrupts();
@@ -430,6 +351,10 @@ void display_close()
     __width = 0;
     __height = 0;
 
+    if( __is_vi_active() ) { __wait_for_vblank(); }
+
+    volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
+    reg_base[9] = 0;
     __write_dram_register( 0 );
 
     if( surfaces )
