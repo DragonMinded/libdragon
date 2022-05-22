@@ -319,7 +319,9 @@ RDPQCmd_SetFixupImage:
 RDPQCmd_SetFixupImage_Static:
     li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
     # fixup DRAM address using address slots
-    jal RSPQ_FixupAddress
+    jal RSPQ_DemangleAddress
+    move s0, a1
+    move a1, s0
     lui t3, 0xF000
     or a0, t3
     jal_and_j RDPQ_Write8, RDPQ_Finalize
@@ -341,9 +343,11 @@ RDPQCmd_SetColorImage_Static:
     li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
     srl t0, a0, 19
     andi t0, 3
-    # fixup DRAM address using address slots
-    jal RSPQ_FixupAddress
     sb t0, %lo(RDP_TARGET_BITDEPTH)
+    # fixup DRAM address using address slots
+    jal RSPQ_DemangleAddress
+    move s0, a1
+    move a1, s0
     lui t1, 0xF000
     # Append this command to staging area
     jal RDPQ_Write8

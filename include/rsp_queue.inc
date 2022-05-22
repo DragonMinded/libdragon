@@ -724,21 +724,22 @@ RSPQCmd_SetLookupAddress:
     .endfunc
 
     #############################################################
-    # RSPQ_FixupAddress
+    # RSPQ_DemangleAddress
     # 
-    # Looks up an address from the lookup table and adds it to a1.
+    # If s0 contains a reference to an address lookup entry (indicated
+    # by bit 23 being set), this will replace s0's contents with the
+    # value loaded from the referenced entry. Otherwise, s0 is left unchanged.
     #
     # ARGS:
-    #   a1: Table entry index and offset to the contained address
-    # OUTPUTS:
-    #   a1: Will contain the looked up address plus the offset
+    #   s0: RDRAM address or reference to address lookup entry
     #############################################################
-    .func RSPQ_FixupAddress
-RSPQ_FixupAddress:
-    srl t0, a1, 26
-    lw t1, %lo(RSPQ_ADDRESS_TABLE)(t0)
+    .func RSPQ_DemangleAddress
+RSPQ_DemangleAddress:
+    sll t0, s0, 8
+    bgez t0, JrRa
+    andi t1, s0, 0x3C
     jr ra
-    add a1, t1
+    lw s0, %lo(RSPQ_ADDRESS_TABLE)(t1)
     .endfunc
 
 #include <rsp_dma.inc>

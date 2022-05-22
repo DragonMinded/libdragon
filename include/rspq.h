@@ -745,7 +745,7 @@ void rspq_dma_to_dmem(uint32_t dmem_addr, void *rdram_addr, uint32_t len, bool i
 /**
  * @brief Enqueue a command that sets an entry in the address lookup table
  * 
- * Overlay commands may take an index into the address lookup table and an offset instead
+ * Overlay commands may take an index into the address lookup table instead
  * of direct pointers. This function can be used to populate the entries of this table.
  * This allows putting commands that take RDRAM pointers into blocks and reuse those
  * blocks with variable addresses.
@@ -754,6 +754,9 @@ void rspq_dma_to_dmem(uint32_t dmem_addr, void *rdram_addr, uint32_t len, bool i
  * @param      rdram_addr  The RDRAM address to be written into the table entry.
  */
 void rspq_set_lookup_address(uint8_t index, void *rdram_addr);
+
+/** @brief Creates a reference to an entry in the address lookup table. */
+#define RSPQ_LOOKUP_ADDRESS(index) ((void*)((1 << 23) | (((index) & 0xF) << 2)))
 
 #ifdef __cplusplus
 }

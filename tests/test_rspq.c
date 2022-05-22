@@ -97,9 +97,9 @@ void rspq_test_big_out(void *dest)
     rspq_write(test_ovl_id, 0xA, 0, PhysicalAddr(dest));
 }
 
-void rspq_test_lookup(uint8_t index, uint32_t offset, uint64_t *addr)
+void rspq_test_lookup(void *dram_ptr, uint64_t *addr)
 {
-    rspq_write(test_ovl_id, 0xB, PhysicalAddr(addr), offset | (index << 28));
+    rspq_write(test_ovl_id, 0xB, PhysicalAddr(addr), PhysicalAddr(dram_ptr));
 }
 
 void rspq_test2(uint32_t v0, uint32_t v1)
@@ -766,32 +766,18 @@ void test_rspq_lookup_address(TestContext *ctx)
     DEFER(free_uncached(output));
 
     rspq_block_begin();
-    rspq_test_lookup(1, 0, output);
+    rspq_test_lookup(RSPQ_LOOKUP_ADDRESS(1), output);
     rspq_block_t *block1 = rspq_block_end();
     DEFER(rspq_block_free(block1));
     rspq_set_lookup_address(1, (void*)0x123456);
     rspq_block_run(block1);
     rspq_wait();
-    ASSERT_EQUAL_HEX(*output, 0x10123456ULL, "Output does not match! (block, no offset)");
+    ASSERT_EQUAL_HEX(*output, 0x123456ULL, "Output does not match! (block)");
 
     rspq_set_lookup_address(2, (void*)0x234567);
-    rspq_test_lookup(2, 0, output);
+    rspq_test_lookup(RSPQ_LOOKUP_ADDRESS(2), output);
     rspq_wait();
-    ASSERT_EQUAL_HEX(*output, 0x20234567ULL, "Output does not match! (no offset)");
-
-    rspq_block_begin();
-    rspq_test_lookup(3, 0x222, output);
-    rspq_block_t *block2 = rspq_block_end();
-    DEFER(rspq_block_free(block2));
-    rspq_set_lookup_address(3, (void*)0x123456);
-    rspq_block_run(block2);
-    rspq_wait();
-    ASSERT_EQUAL_HEX(*output, 0x30123678ULL, "Output does not match! (block, offset)");
-
-    rspq_set_lookup_address(4, (void*)0x234567);
-    rspq_test_lookup(4, 0x333, output);
-    rspq_wait();
-    ASSERT_EQUAL_HEX(*output, 0x4023489AULL, "Output does not match! (offset)");
+    ASSERT_EQUAL_HEX(*output, 0x234567ULL, "Output does not match!");
 }
 
 void test_rspq_rdp_dynamic(TestContext *ctx)

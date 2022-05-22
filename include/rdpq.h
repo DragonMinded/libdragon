@@ -403,57 +403,38 @@ inline void rdpq_set_combine_mode(uint64_t flags)
 /**
  * @brief Low level function to set RDRAM pointer to a texture image
  */
-inline void rdpq_set_texture_image_lookup(uint8_t index, uint32_t offset, uint8_t format, uint8_t size, uint16_t width)
+inline void rdpq_set_texture_image(void* dram_ptr, uint8_t format, uint8_t size, uint16_t width)
 {
-    assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
     extern void __rdpq_set_fixup_image(uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_set_fixup_image(RDPQ_CMD_SET_TEXTURE_IMAGE, RDPQ_CMD_SET_TEXTURE_IMAGE_FIX,
         _carg(format, 0x7, 21) | _carg(size, 0x3, 19) | _carg(width-1, 0x3FF, 0),
-        _carg(index, 0xF, 28) | (offset & 0x3FFFFFF));
-}
-
-inline void rdpq_set_texture_image(void* dram_ptr, uint8_t format, uint8_t size, uint16_t width)
-{
-    rdpq_set_texture_image_lookup(0, PhysicalAddr(dram_ptr), format, size, width);
+        PhysicalAddr(dram_ptr) & 0x3FFFFFF);
 }
 
 /**
  * @brief Low level function to set RDRAM pointer to the depth buffer
  */
-inline void rdpq_set_z_image_lookup(uint8_t index, uint32_t offset)
+inline void rdpq_set_z_image(void* dram_ptr)
 {
-    assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
     extern void __rdpq_set_fixup_image(uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_set_fixup_image(RDPQ_CMD_SET_Z_IMAGE, RDPQ_CMD_SET_Z_IMAGE_FIX,
         0, 
-        _carg(index, 0xF, 28) | (offset & 0x3FFFFFF));
-}
-
-inline void rdpq_set_z_image(void* dram_ptr)
-{
-    rdpq_set_z_image_lookup(0, PhysicalAddr(dram_ptr));
+        PhysicalAddr(dram_ptr) & 0x3FFFFFF);
 }
 
 /**
  * @brief Low level function to set RDRAM pointer to the color buffer
  */
-inline void rdpq_set_color_image_lookup(uint8_t index, uint32_t offset, uint32_t format, uint32_t size, uint32_t width, uint32_t height, uint32_t stride)
+inline void rdpq_set_color_image(void* dram_ptr, uint32_t format, uint32_t size, uint32_t width, uint32_t height, uint32_t stride)
 {
     uint32_t pixel_size = size == RDP_TILE_SIZE_16BIT ? 2 : 4;
     assertf(stride % pixel_size == 0, "Stride must be a multiple of the pixel size!");
-    assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
 
     extern void __rdpq_set_color_image(uint32_t, uint32_t);
     __rdpq_set_color_image(
         _carg(format, 0x7, 21) | _carg(size, 0x3, 19) | _carg((stride/pixel_size)-1, 0x3FF, 0),
-        _carg(index, 0xF, 28) | (offset & 0x3FFFFFF));
+        PhysicalAddr(dram_ptr) & 0x3FFFFFF);
     rdpq_set_scissor(0, 0, width, height);
-}
-
-inline void rdpq_set_color_image(void* dram_ptr, uint32_t format, uint32_t size, uint32_t width, uint32_t height, uint32_t stride)
-{
-    assertf(((uint32_t)dram_ptr & 63) == 0, "buffer pointer is not aligned to 64 bytes, so it cannot use as RDP color image.\nAllocate it with memalign(64, len) or malloc_uncached_align(64, len)");
-    rdpq_set_color_image_lookup(0, PhysicalAddr(dram_ptr), format, size, width, height, stride);
 }
 
 inline void rdpq_set_cycle_mode(uint32_t cycle_mode)
