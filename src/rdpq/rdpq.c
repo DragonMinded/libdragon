@@ -338,6 +338,14 @@ void __rdpq_write8_syncuse(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32
 }
 
 __attribute__((noinline))
+void __rdpq_write8_syncchangeuse(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t autosync_c, uint32_t autosync_u)
+{
+    autosync_change(autosync_c);
+    autosync_use(autosync_u);
+    __rdpq_write8(cmd_id, arg0, arg1);
+}
+
+__attribute__((noinline))
 void __rdpq_write16(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3)
 {
     rdpq_write(cmd_id, arg0, arg1, arg2, arg3);    
@@ -360,14 +368,16 @@ void __rdpq_write16_syncuse(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint3
 __attribute__((noinline))
 void __rdpq_fill_triangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3, uint32_t w4, uint32_t w5, uint32_t w6, uint32_t w7)
 {
-    autosync_use(AUTOSYNC_PIPE);
+    int tile = (w0 >> 16) & 7;
+    autosync_use(AUTOSYNC_PIPE | AUTOSYNC_TILE(tile));
     rdpq_write(RDPQ_CMD_TRI, w0, w1, w2, w3, w4, w5, w6, w7);
 }
 
 __attribute__((noinline))
 void __rdpq_texture_rectangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3)
 {
-    autosync_use(AUTOSYNC_PIPE);
+    int tile = (w0 >> 24) & 7;
+    autosync_use(AUTOSYNC_PIPE | AUTOSYNC_TILE(tile) | AUTOSYNC_TMEM(0));
     rdpq_fixup_write(RDPQ_CMD_TEXTURE_RECTANGLE_EX, RDPQ_CMD_TEXTURE_RECTANGLE_EX_FIX, 4, w0, w1, w2, w3);
 }
 

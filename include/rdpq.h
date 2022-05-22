@@ -148,78 +148,22 @@ inline void rdpq_texture_rectangle_fx(uint8_t tile, uint16_t x0, uint16_t y0, ui
  */
 inline void rdpq_texture_rectangle_flip_fx(uint8_t tile, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, int16_t s, int16_t t, int16_t dsdx, int16_t dtdy)
 {
-    extern void __rdpq_write16_render(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    extern void __rdpq_write16_syncuse(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 
-    __rdpq_write16_render(RDPQ_CMD_TEXTURE_RECTANGLE_FLIP,
+    // Note that this command is broken in copy mode, so it doesn't
+    // require any fixup. The RSP will trigger an assert if this
+    // is called in such a mode.
+    __rdpq_write16_syncuse(RDPQ_CMD_TEXTURE_RECTANGLE_FLIP,
         _carg(x1, 0xFFF, 12) | _carg(y1, 0xFFF, 0),
         _carg(tile, 0x7, 24) | _carg(x0, 0xFFF, 12) | _carg(y0, 0xFFF, 0),
         _carg(s, 0xFFFF, 16) | _carg(t, 0xFFFF, 0),
-        _carg(dsdx, 0xFFFF, 16) | _carg(dtdy, 0xFFFF, 0));
+        _carg(dsdx, 0xFFFF, 16) | _carg(dtdy, 0xFFFF, 0),
+        AUTOSYNC_PIPE | AUTOSYNC_TILE(tile) | AUTOSYNC_TMEM(0));
 }
 
 #define rdpq_texture_rectangle_flip(tile, x0, y0, x1, y1, s, t, dsdx, dtdy) ({ \
     rdpq_texture_rectangle_flip_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s)*32, (t)*32, (dsdx)*1024, (dtdy)*1024); \
 })
-
-/**
- * @brief Schedule a RDP SYNC_PIPE command.
- * 
- * This command must be sent before changing the RDP pipeline configuration (eg: color
- * combiner, blender, colors, etc.) if the RDP is currently drawing.
- * 
- * Normally, you do not need to call this function because rdpq automatically
- * emits sync commands whenever necessary. You must call this function only
- * if you have disabled autosync for SYNC_PIPE (see #RDPQ_CFG_AUTOSYNCPIPE).
- * 
- * @note No software emulator currently requires this command, so manually
- *       sending SYNC_PIPE should be developed on real hardware.
- */
-void rdpq_sync_pipe(void);
-
-/**
- * @brief Schedule a RDP SYNC_TILE command.
- * 
- * This command must be sent before changing a RDP tile configuration if the
- * RDP is currently drawing using that same tile.
- * 
- * Normally, you do not need to call this function because rdpq automatically
- * emits sync commands whenever necessary. You must call this function only
- * if you have disabled autosync for SYNC_TILE (see #RDPQ_CFG_AUTOSYNCTILE).
- * 
- * @note No software emulator currently requires this command, so manually
- *       sending SYNC_TILE should be developed on real hardware.
- */
-void rdpq_sync_tile(void);
-
-/**
- * @brief Schedule a RDP SYNC_FULL command and register a callback when it is done.
- * 
- * This function schedules a RDP SYNC_FULL command into the RSP queue. This
- * command basically forces the RDP to finish drawing everything that has been
- * sent to it before it, and then generate an interrupt when it is done.
- * 
- * This is normally useful at the end of the frame. For instance, it is used
- * internally by #rdp_detach_display to make sure RDP is finished drawing on
- * the target display before detaching it.
- * 
- * The function can be passed an optional callback that will be called
- * when the RDP interrupt triggers. This can be useful to perform some operations
- * asynchronously.
- * 
- * @param      callback  A callback to invoke under interrupt when the RDP
- *                       is finished drawing, or NULL if no callback is necessary.
- * @param      arg       Opaque argument that will be passed to the callback.
- * 
- * @see #rspq_wait
- * @see #rdpq_fence
- * 
- */
-void rdpq_sync_full(void (*callback)(void*), void* arg);
-
-/**
- * @brief Low level function to synchronize RDP texture load operations
- */
-void rdpq_sync_load(void);
 
 /**
  * @brief Low level function to set the green and blue components of the chroma key
@@ -298,10 +242,12 @@ inline void rdpq_set_other_modes(uint64_t modes)
  */
 inline void rdpq_load_tlut(uint8_t tile, uint8_t lowidx, uint8_t highidx)
 {
-    extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
-    __rdpq_write8(RDPQ_CMD_LOAD_TLUT, 
+    extern void __rdpq_write8_syncchangeuse(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    __rdpq_write8_syncchangeuse(RDPQ_CMD_LOAD_TLUT, 
         _carg(lowidx, 0xFF, 14), 
-        _carg(tile, 0x7, 24) | _carg(highidx, 0xFF, 14));
+        _carg(tile, 0x7, 24) | _carg(highidx, 0xFF, 14),
+        AUTOSYNC_TMEM(0),
+        AUTOSYNC_TILE(tile));
 }
 
 /**
@@ -309,10 +255,11 @@ inline void rdpq_load_tlut(uint8_t tile, uint8_t lowidx, uint8_t highidx)
  */
 inline void rdpq_set_tile_size_fx(uint8_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1)
 {
-    extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
-    __rdpq_write8(RDPQ_CMD_SET_TILE_SIZE,
+    extern void __rdpq_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
+    __rdpq_write8_syncchange(RDPQ_CMD_SET_TILE_SIZE,
         _carg(s0, 0xFFF, 12) | _carg(t0, 0xFFF, 0),
-        _carg(tile, 0x7, 24) | _carg(s1-4, 0xFFF, 12) | _carg(t1-4, 0xFFF, 0));
+        _carg(tile, 0x7, 24) | _carg(s1-4, 0xFFF, 12) | _carg(t1-4, 0xFFF, 0),
+        AUTOSYNC_TILE(tile));
 }
 
 #define rdpq_set_tile_size(tile, s0, t0, s1, t1) ({ \
@@ -324,10 +271,12 @@ inline void rdpq_set_tile_size_fx(uint8_t tile, uint16_t s0, uint16_t t0, uint16
  */
 inline void rdpq_load_block_fx(uint8_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t dxt)
 {
-    extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
-    __rdpq_write8(RDPQ_CMD_LOAD_BLOCK,
+    extern void __rdpq_write8_syncchangeuse(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    __rdpq_write8_syncchangeuse(RDPQ_CMD_LOAD_BLOCK,
         _carg(s0, 0xFFC, 12) | _carg(t0, 0xFFC, 0),
-        _carg(tile, 0x7, 24) | _carg(s1-4, 0xFFC, 12) | _carg(dxt, 0xFFF, 0));
+        _carg(tile, 0x7, 24) | _carg(s1-4, 0xFFC, 12) | _carg(dxt, 0xFFF, 0),
+        AUTOSYNC_TMEM(0),
+        AUTOSYNC_TILE(tile));
 }
 
 // TODO: perform ceiling function on dxt
@@ -340,10 +289,12 @@ inline void rdpq_load_block_fx(uint8_t tile, uint16_t s0, uint16_t t0, uint16_t 
  */
 inline void rdpq_load_tile_fx(uint8_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1)
 {
-    extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
-    __rdpq_write8(RDPQ_CMD_LOAD_TILE,
+    extern void __rdpq_write8_syncchangeuse(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    __rdpq_write8_syncchangeuse(RDPQ_CMD_LOAD_TILE,
         _carg(s0, 0xFFF, 12) | _carg(t0, 0xFFF, 0),
-        _carg(tile, 0x7, 24) | _carg(s1-4, 0xFFF, 12) | _carg(t1-4, 0xFFF, 0));
+        _carg(tile, 0x7, 24) | _carg(s1-4, 0xFFF, 12) | _carg(t1-4, 0xFFF, 0),
+        AUTOSYNC_TMEM(0),
+        AUTOSYNC_TILE(tile));
 }
 
 #define rdpq_load_tile(tile, s0, t0, s1, t1) ({ \
@@ -357,11 +308,12 @@ inline void rdpq_set_tile(uint8_t format, uint8_t size, uint16_t line, uint16_t 
     uint8_t tile, uint8_t palette, uint8_t ct, uint8_t mt, uint8_t mask_t, uint8_t shift_t,
     uint8_t cs, uint8_t ms, uint8_t mask_s, uint8_t shift_s)
 {
-    extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
-    __rdpq_write8(RDPQ_CMD_SET_TILE,
+    extern void __rdpq_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
+    __rdpq_write8_syncchange(RDPQ_CMD_SET_TILE,
         _carg(format, 0x7, 21) | _carg(size, 0x3, 19) | _carg(line, 0x1FF, 9) | _carg(tmem_addr, 0x1FF, 0),
         _carg(tile, 0x7, 24) | _carg(palette, 0xF, 20) | _carg(ct, 0x1, 19) | _carg(mt, 0x1, 18) | _carg(mask_t, 0xF, 14) | 
-        _carg(shift_t, 0xF, 10) | _carg(cs, 0x1, 9) | _carg(ms, 0x1, 8) | _carg(mask_s, 0xF, 4) | _carg(shift_s, 0xF, 0));
+        _carg(shift_t, 0xF, 10) | _carg(cs, 0x1, 9) | _carg(ms, 0x1, 8) | _carg(mask_s, 0xF, 4) | _carg(shift_s, 0xF, 0),
+        AUTOSYNC_TILE(tile));
 }
 
 /**
@@ -512,6 +464,67 @@ inline void rdpq_set_cycle_mode(uint32_t cycle_mode)
     extern void __rdpq_modify_other_modes(uint32_t, uint32_t, uint32_t);
     __rdpq_modify_other_modes(0, mask, cycle_mode);
 }
+
+
+/**
+ * @brief Schedule a RDP SYNC_PIPE command.
+ * 
+ * This command must be sent before changing the RDP pipeline configuration (eg: color
+ * combiner, blender, colors, etc.) if the RDP is currently drawing.
+ * 
+ * Normally, you do not need to call this function because rdpq automatically
+ * emits sync commands whenever necessary. You must call this function only
+ * if you have disabled autosync for SYNC_PIPE (see #RDPQ_CFG_AUTOSYNCPIPE).
+ * 
+ * @note No software emulator currently requires this command, so manually
+ *       sending SYNC_PIPE should be developed on real hardware.
+ */
+void rdpq_sync_pipe(void);
+
+/**
+ * @brief Schedule a RDP SYNC_TILE command.
+ * 
+ * This command must be sent before changing a RDP tile configuration if the
+ * RDP is currently drawing using that same tile.
+ * 
+ * Normally, you do not need to call this function because rdpq automatically
+ * emits sync commands whenever necessary. You must call this function only
+ * if you have disabled autosync for SYNC_TILE (see #RDPQ_CFG_AUTOSYNCTILE).
+ * 
+ * @note No software emulator currently requires this command, so manually
+ *       sending SYNC_TILE should be developed on real hardware.
+ */
+void rdpq_sync_tile(void);
+
+/**
+ * @brief Schedule a RDP SYNC_FULL command and register a callback when it is done.
+ * 
+ * This function schedules a RDP SYNC_FULL command into the RSP queue. This
+ * command basically forces the RDP to finish drawing everything that has been
+ * sent to it before it, and then generate an interrupt when it is done.
+ * 
+ * This is normally useful at the end of the frame. For instance, it is used
+ * internally by #rdp_detach_display to make sure RDP is finished drawing on
+ * the target display before detaching it.
+ * 
+ * The function can be passed an optional callback that will be called
+ * when the RDP interrupt triggers. This can be useful to perform some operations
+ * asynchronously.
+ * 
+ * @param      callback  A callback to invoke under interrupt when the RDP
+ *                       is finished drawing, or NULL if no callback is necessary.
+ * @param      arg       Opaque argument that will be passed to the callback.
+ * 
+ * @see #rspq_wait
+ * @see #rdpq_fence
+ * 
+ */
+void rdpq_sync_full(void (*callback)(void*), void* arg);
+
+/**
+ * @brief Low level function to synchronize RDP texture load operations
+ */
+void rdpq_sync_load(void);
 
 #ifdef __cplusplus
 }
