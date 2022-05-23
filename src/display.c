@@ -165,8 +165,6 @@ static const uint32_t * const reg_values[] = {
     pal_640p, ntsc_640p, mpal_640p,
 };
 
-/** @brief Video buffer pointers */
-static void *buffer[NUM_BUFFERS];
 /** @brief Currently active bit depth */
 uint32_t __bitdepth;
 /** @brief Currently active video width (calculated) */
@@ -433,8 +431,8 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     {
         /* Set parameters necessary for drawing */
         /* Grab a location to render to */
-        buffer[i] = memalign( 64, __width * __height * __bitdepth );
-        __safe_buffer[i] = UNCACHED_ADDR( buffer[i] );
+        __safe_buffer[i] = malloc_uncached_aligned( 64, __width * __height * __bitdepth );
+        assert(__safe_buffer[i] != NULL);
 
         /* Baseline is blank */
         memset( __safe_buffer[i], 0, __width * __height * __bitdepth );
@@ -482,12 +480,11 @@ void display_close()
     for( int i = 0; i < __buffers; i++ )
     {
         /* Free framebuffer memory */
-        if( buffer[i] )
+        if( __safe_buffer[i] )
         {
-            free( buffer[i]);
+            free_uncached( __safe_buffer[i]);
         }
 
-        buffer[i] = 0;
         __safe_buffer[i] = 0;
     }
 
