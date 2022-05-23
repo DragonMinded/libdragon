@@ -41,7 +41,7 @@
  */
 
 /** @brief Maximum number of video backbuffers */
-#define NUM_BUFFERS         3
+#define NUM_BUFFERS         32
 
 /** @brief Register location in memory of VI */
 #define REGISTER_BASE       0xA4400000
@@ -284,7 +284,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     disable_interrupts();
 
     /* Minimum is two buffers. */
-    __buffers = MAX(2, MIN(32, num_buffers));
+    __buffers = MAX(2, MIN(NUM_BUFFERS, num_buffers));
 
 	switch( res )
 	{
