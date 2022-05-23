@@ -97,11 +97,6 @@ void rspq_test_big_out(void *dest)
     rspq_write(test_ovl_id, 0xA, 0, PhysicalAddr(dest));
 }
 
-void rspq_test_lookup(void *dram_ptr, uint64_t *addr)
-{
-    rspq_write(test_ovl_id, 0xB, PhysicalAddr(addr), PhysicalAddr(dram_ptr));
-}
-
 void rspq_test2(uint32_t v0, uint32_t v1)
 {
     rspq_write(test2_ovl_id, 0x0, v0, v1);
@@ -754,30 +749,6 @@ void test_rspq_big_command(TestContext *ctx)
     }
     
     ASSERT_EQUAL_MEM((uint8_t*)output, (uint8_t*)expected, 128, "Output does not match!");
-}
-
-void test_rspq_lookup_address(TestContext *ctx)
-{
-    TEST_RSPQ_PROLOG();
-    test_ovl_init();
-    DEFER(test_ovl_close());
-
-    uint64_t *output = malloc_uncached(sizeof(uint64_t));
-    DEFER(free_uncached(output));
-
-    rspq_block_begin();
-    rspq_test_lookup(RSPQ_LOOKUP_ADDRESS(1), output);
-    rspq_block_t *block1 = rspq_block_end();
-    DEFER(rspq_block_free(block1));
-    rspq_set_lookup_address(1, (void*)0x123456);
-    rspq_block_run(block1);
-    rspq_wait();
-    ASSERT_EQUAL_HEX(*output, 0x123456ULL, "Output does not match! (block)");
-
-    rspq_set_lookup_address(2, (void*)0x234567);
-    rspq_test_lookup(RSPQ_LOOKUP_ADDRESS(2), output);
-    rspq_wait();
-    ASSERT_EQUAL_HEX(*output, 0x234567ULL, "Output does not match!");
 }
 
 void test_rspq_rdp_dynamic(TestContext *ctx)

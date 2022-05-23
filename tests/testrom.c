@@ -229,7 +229,6 @@ static const struct Testsuite
 	TEST_FUNC(test_rspq_highpri_multiple,      0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_highpri_overlay,       0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_big_command,           0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_rspq_lookup_address,        0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_rdp_dynamic,           0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_rdp_dynamic_switch,    0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_rspqwait,              0, TEST_FLAGS_NO_BENCHMARK),
@@ -241,6 +240,8 @@ static const struct Testsuite
 	TEST_FUNC(test_rdpq_fixup_setfillcolor,    0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_fixup_setscissor,      0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_fixup_texturerect,     0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_lookup_address,        0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_lookup_address_offset, 0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {

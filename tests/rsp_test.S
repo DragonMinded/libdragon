@@ -19,7 +19,6 @@
         RSPQ_DefineCommand command_send_rdp,  8      # 0x08
         RSPQ_DefineCommand command_big,       132    # 0x09
         RSPQ_DefineCommand command_big_out,   8      # 0x0A
-        RSPQ_DefineCommand command_lookup,    8      # 0x0B
 	RSPQ_EndOverlayHeader
 
     RSPQ_BeginSavedState
@@ -39,9 +38,6 @@ BIG_LOG:  .ds.b 2048
 
     .align 2
 TEST_BIG: .ds.b 128
-
-TEST_LOOKUP0: .long 0
-TEST_LOOKUP1: .long 0
 
     .text
 
@@ -143,12 +139,3 @@ command_big_out:
     li s4, %lo(TEST_BIG)
     j DMAOut
     li t0, DMA_SIZE(128, 1)
-
-command_lookup:
-    jal RSPQ_DemangleAddress
-    move s0, a1
-    li s4, %lo(TEST_LOOKUP0)
-    sw s0, 0x4(s4)
-    li t0, DMA_SIZE(8, 1)
-    move s0, a0
-    jal_and_j DMAOut, RSPQ_Loop

@@ -18,8 +18,6 @@
 #define RSPQ_RDP_DYNAMIC_BUFFER_SIZE   0x800
 #define RSPQ_RDP_MAX_COMMAND_SIZE      0xB0
 
-#define RSPQ_ADDRESS_TABLE_SIZE        16
-
 /** Minimum / maximum size of a block's chunk (contiguous memory buffer) */
 #define RSPQ_BLOCK_MIN_SIZE            64
 #define RSPQ_BLOCK_MAX_SIZE            4192
