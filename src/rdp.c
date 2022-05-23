@@ -238,7 +238,7 @@ void rdp_set_default_clipping( void )
 void rdp_enable_primitive_fill( void )
 {
     /* Set other modes to fill and other defaults */
-    rdpq_set_other_modes(SOM_ATOMIC_PRIM | SOM_CYCLE_FILL | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_BLENDING);
+    rdpq_set_other_modes(SOM_CYCLE_FILL | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_BLENDING);
 }
 
 void rdp_enable_blend_fill( void )
@@ -250,7 +250,7 @@ void rdp_enable_blend_fill( void )
 void rdp_enable_texture_copy( void )
 {
     /* Set other modes to copy and other defaults */
-    rdpq_set_other_modes(SOM_ATOMIC_PRIM | SOM_CYCLE_COPY | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_BLENDING | SOM_ALPHA_COMPARE);
+    rdpq_set_other_modes(SOM_CYCLE_COPY | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_BLENDING | SOM_ALPHA_COMPARE);
 }
 
 /**
