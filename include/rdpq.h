@@ -111,11 +111,11 @@ void rdpq_set_config(uint32_t cfg);
 uint32_t rdpq_change_config(uint32_t on, uint32_t off);
 
 
-inline void rdpq_fill_triangle(bool flip, uint8_t level, uint8_t tile, int16_t yl, int16_t ym, int16_t yh, int32_t xl, int32_t dxldy, int32_t xh, int32_t dxhdy, int32_t xm, int32_t dxmdy)
+inline void rdpq_fill_triangle(bool flip, int16_t yl, int16_t ym, int16_t yh, int32_t xl, int32_t dxldy, int32_t xh, int32_t dxhdy, int32_t xm, int32_t dxmdy)
 {
     extern void __rdpq_fill_triangle(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_fill_triangle(
-        _carg(flip ? 1 : 0, 0x1, 23) | _carg(level, 0x7, 19) | _carg(tile, 0x7, 16) | _carg(yl, 0x3FFF, 0),
+        _carg(flip ? 1 : 0, 0x1, 23) | _carg(yl, 0x3FFF, 0),
         _carg(ym, 0x3FFF, 16) | _carg(yh, 0x3FFF, 0),
         xl,
         dxldy,

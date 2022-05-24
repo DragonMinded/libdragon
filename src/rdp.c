@@ -464,7 +464,7 @@ void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3,
     int winding = ( x1 * y2 - x2 * y1 ) + ( x2 * y3 - x3 * y2 ) + ( x3 * y1 - x1 * y3 );
     bool flip = winding > 0;
 
-    rdpq_fill_triangle(flip, 0, 0, yl, ym, yh, xl, dxldy, xh, dxhdy, xm, dxmdy);
+    rdpq_fill_triangle(flip, yl, ym, yh, xl, dxldy, xh, dxhdy, xm, dxmdy);
 }
 
 void rdp_set_texture_flush( flush_t flush )
