@@ -59,16 +59,6 @@
  */
 
 /**
- * @brief Grab the texture buffer given a display context
- *
- * @param[in] x
- *            The display context returned from #display_lock
- *
- * @return A pointer to the drawing surface for that display context.
- */
-#define __get_buffer( x ) __safe_buffer[(x)-1]
-
-/**
  * @brief Cached sprite structure
  * */
 typedef struct
@@ -87,12 +77,6 @@ typedef struct
     uint16_t real_height;
 } sprite_cache;
 
-extern uint32_t __bitdepth;
-extern uint32_t __width;
-extern uint32_t __height;
-extern void *__safe_buffer[];
-
-
 /** @brief The current cache flushing strategy */
 static flush_t flush_strategy = FLUSH_STRATEGY_AUTOMATIC;
 
@@ -102,7 +86,17 @@ static volatile uint32_t wait_intr = 0;
 /** @brief Array of cached textures in RDP TMEM indexed by the RDP texture slot */
 static sprite_cache cache[8];
 
-static display_context_t attached_display = 0;
+static surface_t *attached_surface = NULL;
+
+bool rdp_is_attached()
+{
+    return attached_surface != NULL;
+}
+
+static inline void rdp_ensure_attached()
+{
+    assertf(rdp_is_attached(), "No render target is currently attached!");
+}
 
 /**
  * @brief Given a number, rount to a power of two
@@ -168,40 +162,31 @@ void rdp_close( void )
     rdpq_close();
 }
 
-void rdp_attach_display( display_context_t disp )
+void rdp_attach( surface_t *surface )
 {
-    if( disp == 0 ) { return; }
-
-    assertf(!rdp_is_display_attached(), "A display is already attached!");
-    attached_display = disp;
+    assertf(!rdp_is_attached(), "A render target is already attached!");
+    attached_surface = surface;
 
     /* Set the rasterization buffer */
-    uint32_t size = (__bitdepth == 2) ? RDP_TILE_SIZE_16BIT : RDP_TILE_SIZE_32BIT;
-    rdpq_set_color_image(__get_buffer(disp), RDP_TILE_FORMAT_RGBA, size, __width, __height, __width * __bitdepth);
+    rdpq_set_color_image_surface(surface);
 }
 
-void rdp_detach_display_async(void (*cb)(display_context_t disp))
+void rdp_detach_async(void (*cb)(surface_t*))
 {
-    assertf(rdp_is_display_attached(), "No display is currently attached!");
-
-    rdpq_sync_full((void(*)(void*))cb, (void*)attached_display);
+    rdp_ensure_attached();
+    rdpq_sync_full((void(*)(void*))cb, attached_surface);
     rspq_flush();
-    attached_display = 0;
+    attached_surface = NULL;
 }
 
-void rdp_detach_display(void)
+void rdp_detach(void)
 {
-    rdp_detach_display_async(NULL);
+    rdp_detach_async(NULL);
 
     // Historically, this function has behaved asynchronously when run with
     // interrupts disabled, rather than asserting out. Keep the behavior.
     if (get_interrupts_state() == INTERRUPTS_ENABLED)
         rspq_wait();
-}
-
-bool rdp_is_display_attached()
-{
-    return attached_display != 0;
 }
 
 void rdp_sync( sync_t sync )
@@ -231,8 +216,9 @@ void rdp_set_clipping( uint32_t tx, uint32_t ty, uint32_t bx, uint32_t by )
 
 void rdp_set_default_clipping( void )
 {
+    rdp_ensure_attached();
     /* Clip box is the whole screen */
-    rdp_set_clipping( 0, 0, __width, __height );
+    rdp_set_clipping( 0, 0, attached_surface->width, attached_surface->height );
 }
 
 void rdp_enable_primitive_fill( void )

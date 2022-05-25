@@ -7,6 +7,7 @@
 #define __LIBDRAGON_DISPLAY_H
 
 #include <stdint.h>
+#include "surface.h"
 
 /**
  * @addtogroup display
@@ -79,9 +80,13 @@ void display_close();
 
 uint32_t display_get_width();
 uint32_t display_get_height();
-bitdepth_t display_get_bitdepth();
+uint32_t display_get_bitdepth();
 uint32_t display_get_num_buffers();
-void * display_get_buffer(uint32_t index);
+
+surface_t * display_to_surface(display_context_t disp);
+display_context_t display_from_surface(surface_t *surface);
+
+void display_show_surface(surface_t *surface);
 
 #ifdef __cplusplus
 }
