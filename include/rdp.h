@@ -127,11 +127,9 @@ extern "C" {
  */
 void rdp_init( void );
 
-void rdp_attach_buffer( void *buffer, uint32_t width, uint32_t height, uint8_t format, uint8_t size );
-void rdp_set_detach_callback( void (*cb)(void*), void *ctx );
-rdp_sync_id_t rdp_detach_buffer( void );
+void rdp_attach( surface_t *surface );
 
-void rdp_wait(rdp_sync_id_t id);
+void rdp_detach( void );
 
 /**
  * @brief Attach the RDP to a display context
@@ -143,7 +141,10 @@ void rdp_wait(rdp_sync_id_t id);
  * @param[in] disp
  *            A display context as returned by #display_lock
  */
-void rdp_attach_display( display_context_t disp );
+inline void rdp_attach_display( display_context_t disp )
+{
+    rdp_attach(display_to_surface(disp));
+}
 
 /**
  * @brief Detach the RDP from a display context
@@ -154,12 +155,15 @@ void rdp_attach_display( display_context_t disp );
  * before detaching the display context.  This should be performed before displaying the finished
  * output using #display_show
  */
-void rdp_detach_display( void );
+inline void rdp_detach_display( void )
+{
+    rdp_detach();
+}
 
 /**
  * @brief Check if the RDP is currently attached to a display context
  */
-bool rdp_is_display_attached();
+bool rdp_is_attached();
 
 /**
  * @brief Check if it is currently possible to attach a new display context to the RDP.
@@ -169,7 +173,7 @@ bool rdp_is_display_attached();
  * while another is already attached will lead to an error, so use this function to check whether it
  * is possible first. It will return true if no display context is currently attached, and false otherwise.
  */
-#define rdp_can_attach_display() (!rdp_is_display_attached())
+#define rdp_can_attach() (!rdp_is_attached())
 
 /**
  * @brief Detach the RDP from a display context after asynchronously waiting for the RDP interrupt
@@ -183,7 +187,7 @@ bool rdp_is_display_attached();
  * @param[in] cb
  *            The callback that will be called when the RDP interrupt is raised.
  */
-void rdp_detach_display_async(void (*cb)(display_context_t disp));
+void rdp_detach_async( void (*cb)(surface_t*) );
 
 /**
  * @brief Asynchronously detach the current display from the RDP and automatically call #display_show on it
@@ -193,7 +197,7 @@ void rdp_detach_display_async(void (*cb)(display_context_t disp));
  * any further postprocessing.
  */
 #define rdp_auto_show_display() ({ \
-    rdp_detach_display_async(display_show); \
+    rdp_detach_async(display_show_surface); \
 })
 
 /**

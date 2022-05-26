@@ -41,7 +41,7 @@
  */
 
 /** @brief Maximum number of video backbuffers */
-#define NUM_BUFFERS         3
+#define NUM_BUFFERS         32
 
 /** @brief Register location in memory of VI */
 #define REGISTER_BASE       0xA4400000
@@ -165,8 +165,7 @@ static const uint32_t * const reg_values[] = {
     pal_640p, ntsc_640p, mpal_640p,
 };
 
-/** @brief Video buffer pointers */
-static void *buffer[NUM_BUFFERS];
+static surface_t *surfaces;
 /** @brief Currently active bit depth */
 uint32_t __bitdepth;
 /** @brief Currently active video width (calculated) */
@@ -284,7 +283,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     disable_interrupts();
 
     /* Minimum is two buffers. */
-    __buffers = MAX(2, MIN(32, num_buffers));
+    __buffers = MAX(2, MIN(NUM_BUFFERS, num_buffers));
 
 	switch( res )
 	{
@@ -428,13 +427,17 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
 	}
     __bitdepth = ( bit == DEPTH_16_BPP ) ? 2 : 4;
 
+    surfaces = malloc(sizeof(surface_t) * __buffers);
+
     /* Initialize buffers and set parameters */
     for( int i = 0; i < __buffers; i++ )
     {
         /* Set parameters necessary for drawing */
         /* Grab a location to render to */
-        buffer[i] = memalign( 64, __width * __height * __bitdepth );
-        __safe_buffer[i] = UNCACHED_ADDR( buffer[i] );
+        __safe_buffer[i] = malloc_uncached_aligned( 64, __width * __height * __bitdepth );
+        assert(__safe_buffer[i] != NULL);
+        format_t format = bit == DEPTH_16_BPP ? FMT_RGBA16 : FMT_RGBA32;
+        surface_init(&surfaces[i], __safe_buffer[i], format, __width, __height, __width * __bitdepth);
 
         /* Baseline is blank */
         memset( __safe_buffer[i], 0, __width * __height * __bitdepth );
@@ -482,14 +485,16 @@ void display_close()
     for( int i = 0; i < __buffers; i++ )
     {
         /* Free framebuffer memory */
-        if( buffer[i] )
+        if( __safe_buffer[i] )
         {
-            free( buffer[i]);
+            free_uncached( __safe_buffer[i]);
         }
 
-        buffer[i] = 0;
-        __safe_buffer[i] = 0;
+        __safe_buffer[i] = NULL;
     }
+
+    free(surfaces);
+    surfaces = NULL;
 
     enable_interrupts();
 }
@@ -609,9 +614,9 @@ uint32_t display_get_height()
 /**
  * @brief Get the currently configured bitdepth of the display
  */
-bitdepth_t display_get_bitdepth()
+uint32_t display_get_bitdepth()
 {
-    return __bitdepth == 2 ? DEPTH_16_BPP : DEPTH_32_BPP;
+    return __bitdepth;
 }
 
 /**
@@ -622,17 +627,23 @@ uint32_t display_get_num_buffers()
     return __buffers;
 }
 
-/**
- * @brief Get the pointer to the buffer at the specified index
- *
- * @param[in] index
- *            The index of the buffer for which to return the pointer.
- *            To get the buffer pointer for a previously aqcuired display context,
- *            pass the display context minus 1.
- */
-void * display_get_buffer(uint32_t index)
+surface_t * display_to_surface(display_context_t disp)
 {
-    return __safe_buffer[index];
+    assertf(disp > 0 && disp <= __buffers, "Display context is not valid!");
+    return &surfaces[disp - 1];
+}
+
+display_context_t display_from_surface(surface_t *surface)
+{
+    int diff = surface - surfaces;
+    display_context_t disp = diff + 1;
+    assertf(disp > 0 && disp <= __buffers, "Display context is not valid!");
+    return disp;
+}
+
+void display_show_surface(surface_t *surface)
+{
+    display_show(display_from_surface(surface));
 }
 
 /** @} */ /* display */

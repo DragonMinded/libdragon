@@ -119,16 +119,7 @@ enum {
      * really does make sure that all previous commands have finished
      * running.
      */
-    RSPQ_CMD_RDP_WAIT_IDLE     = 0x0A,
-
-    /**
-     * @brief RSPQ command: Set an entry in the address lookup table
-     * 
-     * This command sets an entry in the address lookup table to the specified
-     * value. Overlays can use this table to look up RDRAM addresses later,
-     * which is especially useful to make blocks reusable.
-     */
-    RSPQ_CMD_SET_LOOKUP        = 0x0B
+    RSPQ_CMD_RDP_WAIT_IDLE     = 0x0A
 };
 
 /** @brief Write an internal command to the RSP queue */

@@ -21,6 +21,7 @@ DEFINE_RSP_UCODE(rsp_rdpq,
 
 typedef struct rdpq_state_s {
     uint64_t sync_full;
+    uint32_t address_table[RDPQ_ADDRESS_TABLE_SIZE];
     uint64_t other_modes;
     uint64_t scissor_rect;
     uint32_t fill_color;
@@ -36,8 +37,8 @@ typedef struct rdpq_block_s {
 
 bool __rdpq_inited = false;
 
-volatile uint32_t *rdpq_block_pointer;
-volatile uint32_t *rdpq_block_sentinel;
+static volatile uint32_t *rdpq_block_ptr;
+static volatile uint32_t *rdpq_block_end;
 
 static bool rdpq_block_active;
 static uint8_t rdpq_config;
@@ -109,6 +110,45 @@ void rdpq_close()
     unregister_DP_handler(__rdpq_interrupt);
 }
 
+uint32_t rdpq_format_from_surface(format_t surface_format)
+{
+    static uint32_t formats[] = {
+        RDP_TILE_FORMAT_INDEX,
+        RDP_TILE_FORMAT_RGBA,
+        RDP_TILE_FORMAT_RGBA,
+    };
+
+    assertf(surface_format < sizeof(formats)/sizeof(uint32_t), "Invalid surface format: %d", surface_format);
+
+    return formats[surface_format];
+}
+
+uint32_t rdpq_size_from_surface(format_t surface_format)
+{
+    static uint32_t sizes[] = {
+        RDP_TILE_SIZE_8BIT,
+        RDP_TILE_SIZE_16BIT,
+        RDP_TILE_SIZE_32BIT,
+    };
+
+    assertf(surface_format < sizeof(sizes)/sizeof(uint32_t), "Invalid surface format: %d", surface_format);
+
+    return sizes[surface_format];
+}
+
+uint32_t rdpq_bitdepth_from_size(uint32_t size)
+{
+    static uint32_t bitdepths[] = {
+        0,
+        1,
+        2,
+        4,
+    };
+
+    assertf(size < sizeof(bitdepths)/sizeof(uint32_t), "Invalid size: %ld", size);
+
+    return bitdepths[size];
+}
 
 uint32_t rdpq_get_config(void)
 {
@@ -179,13 +219,13 @@ void __rdpq_block_flush(uint32_t *start, uint32_t *end)
     uint32_t phys_end = PhysicalAddr(end);
 
     // FIXME: Updating the previous command won't work across buffer switches
-    uint32_t diff = rdpq_block_pointer - last_rdp_cmd;
+    uint32_t diff = rdpq_block_ptr - last_rdp_cmd;
     if (diff == 2 && (*last_rdp_cmd&0xFFFFFF) == phys_start) {
         // Update the previous command
         *last_rdp_cmd = (RSPQ_CMD_RDP<<24) | phys_end;
     } else {
         // Put a command in the regular RSP queue that will submit the last buffer of RDP commands.
-        last_rdp_cmd = rdpq_block_pointer;
+        last_rdp_cmd = rdpq_block_ptr;
         rspq_int_write(RSPQ_CMD_RDP, phys_end, phys_start);
     }
 }
@@ -194,12 +234,12 @@ void __rdpq_block_switch_buffer(uint32_t *new, uint32_t size)
 {
     assert(size >= RDPQ_MAX_COMMAND_SIZE);
 
-    rdpq_block_pointer = new;
-    rdpq_block_sentinel = new + size - RDPQ_MAX_COMMAND_SIZE;
+    rdpq_block_ptr = new;
+    rdpq_block_end = new + size - RDPQ_MAX_COMMAND_SIZE;
 
     // Enqueue a command that will point RDP to the start of the block so that static fixup commands still work.
     // Those commands rely on the fact that DP_END always points to the end of the current static block.
-    __rdpq_block_flush((uint32_t*)rdpq_block_pointer, (uint32_t*)rdpq_block_pointer);
+    __rdpq_block_flush((uint32_t*)rdpq_block_ptr, (uint32_t*)rdpq_block_ptr);
 }
 
 void __rdpq_block_next_buffer()
@@ -267,18 +307,18 @@ static void __rdpq_block_check(void)
 })
 
 #define rdpq_static_write(cmd_id, arg0, ...) ({ \
-    volatile uint32_t *ptr = rdpq_block_pointer; \
+    volatile uint32_t *ptr = rdpq_block_ptr; \
     *ptr++ = (RDPQ_OVL_ID + ((cmd_id)<<24)) | (arg0); \
     __CALL_FOREACH(_rdpq_write_arg, ##__VA_ARGS__); \
-    __rdpq_block_flush((uint32_t*)rdpq_block_pointer, (uint32_t*)ptr); \
-    rdpq_block_pointer = ptr; \
-    if (__builtin_expect(rdpq_block_pointer > rdpq_block_sentinel, 0)) \
+    __rdpq_block_flush((uint32_t*)rdpq_block_ptr, (uint32_t*)ptr); \
+    rdpq_block_ptr = ptr; \
+    if (__builtin_expect(rdpq_block_ptr > rdpq_block_end, 0)) \
         __rdpq_block_next_buffer(); \
 })
 
 #define rdpq_static_skip(size) ({ \
-    for (int i = 0; i < (size); i++) rdpq_block_pointer++; \
-    if (__builtin_expect(rdpq_block_pointer > rdpq_block_sentinel, 0)) \
+    for (int i = 0; i < (size); i++) rdpq_block_ptr++; \
+    if (__builtin_expect(rdpq_block_ptr > rdpq_block_end, 0)) \
         __rdpq_block_next_buffer(); \
 })
 

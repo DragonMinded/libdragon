@@ -210,18 +210,17 @@ RSPQ_RDP_BUF_IDX:             .byte 0
 
     .align 3
 RSPQ_INTERNAL_COMMAND_TABLE:
-RSPQ_DefineCommand RSPQCmd_WaitNewInput,        0     # 0x00
-RSPQ_DefineCommand RSPQCmd_Noop,                4     # 0x01
-RSPQ_DefineCommand RSPQCmd_Jump,                4     # 0x02
-RSPQ_DefineCommand RSPQCmd_Call,                8     # 0x03
-RSPQ_DefineCommand RSPQCmd_Ret,                 4     # 0x04
-RSPQ_DefineCommand RSPQCmd_Dma,                 16    # 0x05
-RSPQ_DefineCommand RSPQCmd_WriteStatus,         4     # 0x06 -- must be even (bit 24 must be 0)
-RSPQ_DefineCommand RSPQCmd_SwapBuffers,         12    # 0x07
-RSPQ_DefineCommand RSPQCmd_TestWriteStatus,     8     # 0x08 -- must be even (bit 24 must be 0)
-RSPQ_DefineCommand RSPQCmd_RdpBuffer,           8     # 0x09
-RSPQ_DefineCommand RSPQCmd_RdpWaitIdle,         4     # 0x0A
-RSPQ_DefineCommand RSPQCmd_SetLookupAddress,    8     # 0x0B
+RSPQ_DefineCommand RSPQCmd_WaitNewInput,    0     # 0x00
+RSPQ_DefineCommand RSPQCmd_Noop,            4     # 0x01
+RSPQ_DefineCommand RSPQCmd_Jump,            4     # 0x02
+RSPQ_DefineCommand RSPQCmd_Call,            8     # 0x03
+RSPQ_DefineCommand RSPQCmd_Ret,             4     # 0x04
+RSPQ_DefineCommand RSPQCmd_Dma,             16    # 0x05
+RSPQ_DefineCommand RSPQCmd_WriteStatus,     4     # 0x06 -- must be even (bit 24 must be 0)
+RSPQ_DefineCommand RSPQCmd_SwapBuffers,     12    # 0x07
+RSPQ_DefineCommand RSPQCmd_TestWriteStatus, 8     # 0x08 -- must be even (bit 24 must be 0)
+RSPQ_DefineCommand RSPQCmd_RdpBuffer,       8     # 0x09
+RSPQ_DefineCommand RSPQCmd_RdpWaitIdle,     4     # 0x0A
 
 #if RSPQ_DEBUG
 RSPQ_LOG_IDX:                .long 0
@@ -231,9 +230,6 @@ RSPQ_LOG_END:                .long 0xFFFFFFFF
 
     .align 3
 RSPQ_DMEM_BUFFER:            .ds.b RSPQ_DMEM_BUFFER_SIZE
-
-    .align 2
-RSPQ_ADDRESS_TABLE:          .ds.l RSPQ_ADDRESS_TABLE_SIZE
 
 
     .align 4
@@ -704,42 +700,6 @@ RSPQ_RdpFinalize:
     add s0, rspq_cmd_size
     j RSPQ_Loop
     mtc0 s0, COP0_DP_END
-    .endfunc
-
-
-    #############################################################
-    # RSPQCmd_SetLookupAddress
-    # 
-    # Sets an entry in the lookup address table. Note that index
-    # zero should never changed, so it can act as the "identity".
-    #
-    # ARGS:
-    #   a0: Command ID and table entry index
-    #   a1: Address to set the entry to
-    #############################################################
-    .func RSPQCmd_SetLookupAddress
-RSPQCmd_SetLookupAddress:
-    jr ra
-    sw a1, %lo(RSPQ_ADDRESS_TABLE)(a0)
-    .endfunc
-
-    #############################################################
-    # RSPQ_DemangleAddress
-    # 
-    # If s0 contains a reference to an address lookup entry (indicated
-    # by bit 23 being set), this will replace s0's contents with the
-    # value loaded from the referenced entry. Otherwise, s0 is left unchanged.
-    #
-    # ARGS:
-    #   s0: RDRAM address or reference to address lookup entry
-    #############################################################
-    .func RSPQ_DemangleAddress
-RSPQ_DemangleAddress:
-    sll t0, s0, 8
-    bgez t0, JrRa
-    andi t1, s0, 0x3C
-    jr ra
-    lw s0, %lo(RSPQ_ADDRESS_TABLE)(t1)
     .endfunc
 
 #include <rsp_dma.inc>

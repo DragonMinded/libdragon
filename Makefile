@@ -37,7 +37,8 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 			 $(BUILD_DIR)/audio/libxm/context.o $(BUILD_DIR)/audio/libxm/load.o \
 			 $(BUILD_DIR)/audio/ym64.o $(BUILD_DIR)/audio/ay8910.o \
 			 $(BUILD_DIR)/rspq/rspq.o $(BUILD_DIR)/rspq/rsp_queue.o \
-			 $(BUILD_DIR)/rdpq/rdpq.o $(BUILD_DIR)/rdpq/rsp_rdpq.o
+			 $(BUILD_DIR)/rdpq/rdpq.o $(BUILD_DIR)/rdpq/rsp_rdpq.o \
+			 $(BUILD_DIR)/surface.o
 	@echo "    [AR] $@"
 	$(AR) -rcs -o $@ $^
 
@@ -114,6 +115,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/rsp_queue.inc $(INSTALLDIR)/mips64-elf/include/rsp_queue.inc
 	install -Cv -m 0644 include/rdpq.h $(INSTALLDIR)/mips64-elf/include/rdpq.h
 	install -Cv -m 0644 include/rdp_commands.h $(INSTALLDIR)/mips64-elf/include/rdp_commands.h
+	install -Cv -m 0644 include/surface.h $(INSTALLDIR)/mips64-elf/include/surface.h
 
 
 clean:

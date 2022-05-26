@@ -62,7 +62,7 @@ void update(int ovfl)
 
 void render()
 {
-    if (!rdp_can_attach_display())
+    if (!rdp_can_attach())
     {
         return;
     }
