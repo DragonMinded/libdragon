@@ -11,7 +11,6 @@
 
 enum {
     RDPQ_CMD_NOOP                       = 0x00,
-    RDPQ_CMD_SET_LOOKUP_ADDRESS         = 0x01,
     RDPQ_CMD_TRI                        = 0x08,
     RDPQ_CMD_TRI_ZBUF                   = 0x09,
     RDPQ_CMD_TRI_TEX                    = 0x0A,
@@ -424,7 +423,7 @@ inline void rdpq_set_texture_image_lookup(uint8_t index, uint32_t offset, uint8_
     extern void __rdpq_set_fixup_image(uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_set_fixup_image(RDPQ_CMD_SET_TEXTURE_IMAGE, RDPQ_CMD_SET_TEXTURE_IMAGE_FIX,
         _carg(format, 0x7, 21) | _carg(size, 0x3, 19) | _carg(width-1, 0x3FF, 0),
-        _carg(index, 0xF, 28) | (offset & 0x3FFFFFF));
+        _carg(index, 0xF, 28) | (offset & 0xFFFFFF));
 }
 
 inline void rdpq_set_texture_image(void* dram_ptr, uint8_t format, uint8_t size, uint16_t width)
@@ -441,7 +440,7 @@ inline void rdpq_set_z_image_lookup(uint8_t index, uint32_t offset)
     extern void __rdpq_set_fixup_image(uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_set_fixup_image(RDPQ_CMD_SET_Z_IMAGE, RDPQ_CMD_SET_Z_IMAGE_FIX,
         0, 
-        _carg(index, 0xF, 28) | (offset & 0x3FFFFFF));
+        _carg(index, 0xF, 28) | (offset & 0xFFFFFF));
 }
 
 inline void rdpq_set_z_image(void* dram_ptr)
@@ -462,7 +461,7 @@ inline void rdpq_set_color_image_lookup(uint8_t index, uint32_t offset, uint32_t
     extern void __rdpq_set_color_image(uint32_t, uint32_t);
     __rdpq_set_color_image(
         _carg(format, 0x7, 21) | _carg(size, 0x3, 19) | _carg((stride/bitdepth)-1, 0x3FF, 0),
-        _carg(index, 0xF, 28) | (offset & 0x3FFFFFF));
+        _carg(index, 0xF, 28) | (offset & 0xFFFFFF));
     rdpq_set_scissor(0, 0, width, height);
 }
 
