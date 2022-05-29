@@ -601,3 +601,126 @@ void test_rdpq_syncfull(TestContext *ctx)
     ASSERT_EQUAL_SIGNED(cb_called, 6, "sync full callback not called");
     ASSERT_EQUAL_HEX(cb_value, 0x00005678, "sync full callback wrong argument");
 }
+
+static void __test_rdpq_autosyncs(TestContext *ctx, void (*func)(void), uint8_t exp[4], bool block) {
+    rspq_init();
+    DEFER(rspq_close());
+    rdpq_init();
+    DEFER(rdpq_close());
+
+    const int TEST_RDPQ_FBWIDTH = 64;
+    const int TEST_RDPQ_FBAREA = TEST_RDPQ_FBWIDTH * TEST_RDPQ_FBWIDTH;
+    const int TEST_RDPQ_FBSIZE = TEST_RDPQ_FBAREA * 2;
+    extern void *rspq_rdp_dynamic_buffers[2];
+
+    // clear the buffer; we're going to inspect it and it contains random data
+    // (rspq doesn't need to clear it)
+    memset(rspq_rdp_dynamic_buffers[0], 0, 32*8);
+
+    void *framebuffer = malloc_uncached_aligned(64, TEST_RDPQ_FBSIZE);
+    DEFER(free_uncached(framebuffer));
+    rdpq_set_color_image(framebuffer, FMT_RGBA16, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH * 2);
+    if (block) {
+        rspq_block_begin();
+        func();
+        rspq_block_t *b = rspq_block_end();
+        rspq_block_run(b);
+        rspq_wait();
+        rspq_block_free(b);
+    } else {
+        func();
+        rspq_wait();        
+    }
+
+    uint8_t cnt[4] = {0};
+    for (int i=0;i<32;i++) {
+        uint64_t *cmds = rspq_rdp_dynamic_buffers[0];
+        uint8_t cmd = cmds[i] >> 56;
+        if (cmd == RDPQ_CMD_SYNC_LOAD+0xC0) cnt[0]++;
+        if (cmd == RDPQ_CMD_SYNC_TILE+0xC0) cnt[1]++;
+        if (cmd == RDPQ_CMD_SYNC_PIPE+0xC0) cnt[2]++;
+        if (cmd == RDPQ_CMD_SYNC_FULL+0xC0) cnt[3]++;
+    }
+
+    for (int j=0;j<4;j++) {
+        if (cnt[j] != exp[j]) {
+            for (int i=0;i<32;i++) {
+                uint64_t *cmds = rspq_rdp_dynamic_buffers[0];
+                LOG("cmd: %016llx\n", cmds[i]);
+            }
+            ASSERT_EQUAL_MEM(cnt, exp, 4, "Unexpected sync commands");
+        }
+    }
+}
+
+static void __autosync_pipe1(void) {
+    rdpq_set_other_modes(SOM_CYCLE_FILL);
+    rdpq_set_fill_color(RGBA32(0,0,0,0));
+    rdpq_fill_rectangle(0, 0, 8, 8);
+    // PIPESYNC HERE
+    rdpq_set_other_modes(SOM_CYCLE_FILL);
+    rdpq_fill_rectangle(0, 0, 8, 8);
+    // NO PIPESYNC HERE
+    rdpq_set_prim_color(RGBA32(1,1,1,1));
+    // NO PIPESYNC HERE
+    rdpq_set_prim_depth(0, 1);
+    // NO PIPESYNC HERE
+    rdpq_set_scissor(0,0,1,1);
+    rdpq_fill_rectangle(0, 0, 8, 8);
+}
+static uint8_t __autosync_pipe1_exp[4] = {0,0,1,1};
+
+static void __autosync_tile1(void) {
+    rdpq_set_tile(0, FMT_RGBA16, 0, 128, 0);
+    rdpq_texture_rectangle(0, 0, 0, 4, 4, 0, 0, 1, 1);    
+    // NO TILESYNC HERE
+    rdpq_set_tile(1, FMT_RGBA16, 0, 128, 0);
+    rdpq_texture_rectangle(1, 0, 0, 4, 4, 0, 0, 1, 1);    
+    rdpq_set_tile(2, FMT_RGBA16, 0, 128, 0);
+    // NO TILESYNC HERE
+    rdpq_set_tile(2, FMT_RGBA16, 0, 256, 0);
+    // NO TILESYNC HERE
+    rdpq_texture_rectangle(1, 0, 0, 4, 4, 0, 0, 1, 1);    
+    rdpq_texture_rectangle(0, 0, 0, 4, 4, 0, 0, 1, 1);    
+    // TILESYNC HERE
+    rdpq_set_tile(1, FMT_RGBA16, 0, 256, 0);
+    rdpq_set_tile_size(1, 0, 0, 16, 16);
+    rdpq_texture_rectangle(1, 0, 0, 4, 4, 0, 0, 1, 1);    
+    // TILESYNC HERE
+    rdpq_set_tile_size(1, 0, 0, 32, 32);
+
+}
+static uint8_t __autosync_tile1_exp[4] = {0,2,0,1};
+
+static void __autosync_load1(void) {
+    uint8_t *tex = malloc_uncached(8*8);
+    DEFER(free_uncached(tex));
+
+    rdpq_set_texture_image(tex, FMT_I8, 8);
+    rdpq_set_tile(0, FMT_RGBA16, 0, 128, 0);
+    // NO LOADSYNC HERE
+    rdpq_load_tile(0, 0, 0, 7, 7);
+    rdpq_set_tile(1, FMT_RGBA16, 0, 128, 0);
+    // NO LOADSYNC HERE
+    rdpq_load_tile(1, 0, 0, 7, 7);
+    // NO LOADSYNC HERE
+    rdpq_texture_rectangle(1, 0, 0, 4, 4, 0, 0, 1, 1);
+    // LOADSYNC HERE
+    rdpq_load_tile(0, 0, 0, 7, 7);
+}
+static uint8_t __autosync_load1_exp[4] = {1,0,0,1};
+
+void test_rdpq_autosync(TestContext *ctx) {
+    LOG("__autosync_pipe1\n");
+    __test_rdpq_autosyncs(ctx, __autosync_pipe1, __autosync_pipe1_exp, false);
+    if (ctx->result == TEST_FAILED) return;
+
+    LOG("__autosync_tile1\n");
+    __test_rdpq_autosyncs(ctx, __autosync_tile1, __autosync_tile1_exp, false);
+    if (ctx->result == TEST_FAILED) return;
+
+    LOG("__autosync_load1\n");
+    __test_rdpq_autosyncs(ctx, __autosync_load1, __autosync_load1_exp, false);
+    if (ctx->result == TEST_FAILED) return;
+}
+

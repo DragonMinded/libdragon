@@ -1083,10 +1083,12 @@ rspq_block_t* rspq_block_end(void)
     // Switch back to the normal display list
     rspq_switch_context(&lowpri);
 
+    // Save pointer to rdpq block (if any)
+    rspq_block->rdp_block = __rdpq_block_end();
+
     // Return the created block
     rspq_block_t *b = rspq_block;
     rspq_block = NULL;
-    __rdpq_block_end();
     return b;
 }
 
@@ -1134,6 +1136,9 @@ void rspq_block_run(rspq_block_t *block)
     // would basically mean that a block can either work in highpri or in lowpri
     // mode, but it might be an acceptable limitation.
     assertf(rspq_ctx != &highpri, "block run is not supported in highpri mode");
+
+    // Notify rdpq engine we are about to run a block
+    __rdpq_block_run(block->rdp_block);
 
     // Write the CALL op. The second argument is the nesting level
     // which is used as stack slot in the RSP to save the current

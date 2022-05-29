@@ -31,7 +31,7 @@ typedef struct rdpq_state_s {
 
 typedef struct rdpq_block_s {
     rdpq_block_t *next;
-    uint32_t padding;
+    uint32_t autosync_state;
     uint32_t cmds[];
 } rdpq_block_t;
 
@@ -45,7 +45,7 @@ static uint8_t rdpq_config;
 
 static uint32_t rdpq_autosync_state[2];
 
-static rdpq_block_t *rdpq_block;
+static rdpq_block_t *rdpq_block, *rdpq_block_first;
 static int rdpq_block_size;
 
 static volatile uint32_t *last_rdp_cmd;
@@ -91,6 +91,7 @@ void rdpq_init()
     rspq_overlay_register_static(&rsp_rdpq, RDPQ_OVL_ID);
 
     rdpq_block = NULL;
+    rdpq_block_first = NULL;
     rdpq_block_active = false;
     rdpq_config = RDPQ_CFG_AUTOSYNCPIPE | RDPQ_CFG_AUTOSYNCLOAD | RDPQ_CFG_AUTOSYNCTILE;
     rdpq_autosync_state[0] = 0;
@@ -156,8 +157,8 @@ static void autosync_use(uint32_t res) {
 static void autosync_change(uint32_t res) {
     res &= rdpq_autosync_state[0];
     if (res) {
-        if ((res & AUTOSYNC_TILES) && (rdpq_config & RDPQ_CFG_AUTOSYNCPIPE))
-            rdpq_sync_pipe();
+        if ((res & AUTOSYNC_TILES) && (rdpq_config & RDPQ_CFG_AUTOSYNCTILE))
+            rdpq_sync_tile();
         if ((res & AUTOSYNC_TMEMS) && (rdpq_config & RDPQ_CFG_AUTOSYNCLOAD))
             rdpq_sync_load();
         if ((res & AUTOSYNC_PIPE)  && (rdpq_config & RDPQ_CFG_AUTOSYNCPIPE))
@@ -219,12 +220,39 @@ void __rdpq_block_next_buffer()
 void __rdpq_block_begin()
 {
     rdpq_block_active = true;
+    rdpq_block = NULL;
+    rdpq_block_first = NULL;
+    // push on autosync state stack (to recover the state later)
+    rdpq_autosync_state[1] = rdpq_autosync_state[0];
+    // current autosync status is unknown because blocks can be
+    // played in any context. So assume the worst: all resources
+    // are being used. This will cause all SYNCs to be generated,
+    // which is the safest option.
+    rdpq_autosync_state[0] = 0xFFFFFFFF;
 }
 
-void __rdpq_block_end()
+rdpq_block_t* __rdpq_block_end()
 {
+    rdpq_block_t *ret = rdpq_block_first;
+
     rdpq_block_active = false;
+    if (rdpq_block_first) {
+        rdpq_block_first->autosync_state = rdpq_autosync_state[0];
+    }
+    // pop on autosync state stack (recover state before building the block)
+    rdpq_autosync_state[0] = rdpq_autosync_state[1];
+    rdpq_block_first = NULL;
     rdpq_block = NULL;
+
+    return ret;
+}
+
+void __rdpq_block_run(rdpq_block_t *block)
+{
+    // Set as current autosync state the one recorded at the end of
+    // the block that is going to be played.
+    if (block)
+        rdpq_autosync_state[0] = block->autosync_state;
 }
 
 void __rdpq_block_free(rdpq_block_t *block)
@@ -376,7 +404,7 @@ void __rdpq_fill_triangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3, ui
 __attribute__((noinline))
 void __rdpq_texture_rectangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3)
 {
-    int tile = (w0 >> 24) & 7;
+    int tile = (w1 >> 24) & 7;
     autosync_use(AUTOSYNC_PIPE | AUTOSYNC_TILE(tile) | AUTOSYNC_TMEM(0));
     rdpq_fixup_write(RDPQ_CMD_TEXTURE_RECTANGLE_EX, RDPQ_CMD_TEXTURE_RECTANGLE_EX_FIX, 4, w0, w1, w2, w3);
 }

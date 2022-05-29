@@ -7,7 +7,8 @@ typedef struct rdpq_block_s rdpq_block_t;
 
 void __rdpq_reset_buffer();
 void __rdpq_block_begin();
-void __rdpq_block_end();
+rdpq_block_t* __rdpq_block_end();
 void __rdpq_block_free(rdpq_block_t *block);
+void __rdpq_block_run(rdpq_block_t *block);
 
 #endif
