@@ -437,7 +437,7 @@ inline void rdpq_set_texture_image_lookup(uint8_t index, uint32_t offset, tex_fo
     assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
     extern void __rdpq_set_fixup_image(uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_set_fixup_image(RDPQ_CMD_SET_TEXTURE_IMAGE, RDPQ_CMD_SET_TEXTURE_IMAGE_FIX,
-        _carg(format, 0x7, 21) | _carg(size, 0x3, 19) | _carg(width-1, 0x3FF, 0),
+        _carg(format, 0x7, 19) | _carg(width-1, 0x3FF, 0),
         _carg(index, 0xF, 28) | (offset & 0xFFFFFF));
 }
 
@@ -477,7 +477,7 @@ inline void rdpq_set_color_image_lookup(uint8_t index, uint32_t offset, tex_form
 
     extern void __rdpq_set_color_image(uint32_t, uint32_t);
     __rdpq_set_color_image(
-        _carg(format, 0x7, 21) | _carg(size, 0x3, 19) | _carg((stride/bitdepth)-1, 0x3FF, 0),
+        _carg(format, 0x7, 19) | _carg((stride/bitdepth)-1, 0x3FF, 0),
         _carg(index, 0xF, 28) | (offset & 0xFFFFFF));
     rdpq_set_scissor(0, 0, width, height);
 }
