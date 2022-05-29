@@ -410,7 +410,7 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
 
     rdpq_set_color_image(framebuffer, FMT_RGBA16, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
     rdpq_set_texture_image(texture, FMT_RGBA16, TEST_RDPQ_TEXWIDTH);
-    rdpq_set_tile(FMT_RGBA16, TEST_RDPQ_TEXWIDTH / 4, 0, 0,0,0,0,0,0,0,0,0,0);
+    rdpq_set_tile(0, FMT_RGBA16, 0, TEST_RDPQ_TEXWIDTH * 2, 0);
     rdpq_load_tile(0, 0, 0, TEST_RDPQ_TEXWIDTH, TEST_RDPQ_TEXWIDTH);
 
     memset(framebuffer, 0xFF, TEST_RDPQ_FBSIZE);
@@ -556,6 +556,12 @@ void test_rdpq_lookup_address_offset(TestContext *ctx)
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 
             "Wrong data in framebuffer (dynamic mode)");
+
+    #undef TEST_RDPQ_FBWIDTH
+    #undef TEST_RDPQ_FBAREA
+    #undef TEST_RDPQ_FBSIZE
+    #undef TEST_RDPQ_RECT_OFF
+    #undef TEST_RDPQ_RECT_WIDTH
 }
 
 void test_rdpq_syncfull(TestContext *ctx)

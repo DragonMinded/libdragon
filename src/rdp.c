@@ -292,11 +292,11 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     int round_amount = (real_width % 8) ? 1 : 0;
 
     /* Instruct the RDP to copy the sprite data out */
-    rdpq_set_tile(
-        sprite_format,
-        (((real_width / 8) + round_amount) * sprite->bitdepth),
-        (texloc / 8),
+    rdpq_set_tile_full(
         texslot,
+        sprite_format,
+        (texloc / 8),
+        (((real_width / 8) + round_amount) * sprite->bitdepth),
         0, 
         0, 
         mirror_enabled != MIRROR_DISABLED ? 1 : 0,

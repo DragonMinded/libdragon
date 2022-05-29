@@ -11,6 +11,7 @@
 
 enum {
     RDPQ_CMD_NOOP                       = 0x00,
+    RDPQ_CMD_SET_LOOKUP_ADDRESS         = 0x01,
     RDPQ_CMD_TRI                        = 0x08,
     RDPQ_CMD_TRI_ZBUF                   = 0x09,
     RDPQ_CMD_TRI_TEX                    = 0x0A,
@@ -301,17 +302,46 @@ inline void rdpq_load_tile_fx(uint8_t tile, uint16_t s0, uint16_t t0, uint16_t s
 })
 
 /**
- * @brief Low level function to set the properties of a tile descriptor
+ * @brief Enqueue a RDP SET_TILE command (full version)
  */
-inline void rdpq_set_tile(tex_format_t format, uint16_t line, uint16_t tmem_addr, 
-    uint8_t tile, uint8_t palette, uint8_t ct, uint8_t mt, uint8_t mask_t, uint8_t shift_t,
+inline void rdpq_set_tile_full(uint8_t tile, tex_format_t format, 
+    uint16_t tmem_addr, uint16_t tmem_pitch, uint8_t palette,
+    uint8_t ct, uint8_t mt, uint8_t mask_t, uint8_t shift_t,
     uint8_t cs, uint8_t ms, uint8_t mask_s, uint8_t shift_s)
 {
-    extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
-    __rdpq_write8(RDPQ_CMD_SET_TILE,
-        _carg(format, 0x1F, 19) | _carg(line, 0x1FF, 9) | _carg(tmem_addr, 0x1FF, 0),
-        _carg(tile, 0x7, 24) | _carg(palette, 0xF, 20) | _carg(ct, 0x1, 19) | _carg(mt, 0x1, 18) | _carg(mask_t, 0xF, 14) | 
-        _carg(shift_t, 0xF, 10) | _carg(cs, 0x1, 9) | _carg(ms, 0x1, 8) | _carg(mask_s, 0xF, 4) | _carg(shift_s, 0xF, 0),
+    assertf((tmem_pitch % 8) == 0, "invalid tmem_pitch %d: must be multiple of 8", tmem_pitch);
+    extern void __rdpq_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
+    __rdpq_write8_syncchange(RDPQ_CMD_SET_TILE,
+        _carg(format, 0x1F, 19) | _carg(tmem_pitch/8, 0x1FF, 9) | _carg(tmem_addr, 0x1FF, 0),
+        _carg(tile, 0x7, 24) | _carg(palette, 0xF, 20) | 
+        _carg(ct, 0x1, 19) | _carg(mt, 0x1, 18) | _carg(mask_t, 0xF, 14) | _carg(shift_t, 0xF, 10) | 
+        _carg(cs, 0x1, 9) | _carg(ms, 0x1, 8) | _carg(mask_s, 0xF, 4) | _carg(shift_s, 0xF, 0),
+        AUTOSYNC_TILE(tile));
+}
+
+/**
+ * @brief Enqueue a RDP SET_TILE command (basic version)
+ * 
+ * This RDP command allows to configure one of the internal tile descriptors
+ * of the RDP. A tile descriptor is used to describe property of a texture
+ * either being loaded into TMEM, or drawn from TMEM into the target buffer.
+ * 
+ * @param[in]  tile        Tile descriptor index (0-7)
+ * @param[in]  format      Texture format
+ * @param[in]  tmem_addr   Address in tmem where the texture is (or will be loaded)
+ * @param[in]  tmem_pitch  Pitch of the texture in tmem in bytes (must be multiple of 8)
+ * @param[in]  palette     Optional palette associated to the tile. For textures in
+ *                         #FMT_CI4 format, specify the palette index (0-15),
+ *                         otherwise use 0.
+ */
+inline void rdpq_set_tile(uint8_t tile, tex_format_t format, 
+    uint16_t tmem_addr, uint16_t tmem_pitch, uint8_t palette)
+{
+    assertf((tmem_pitch % 8) == 0, "invalid tmem_pitch %d: must be multiple of 8", tmem_pitch);
+    extern void __rdpq_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
+    __rdpq_write8_syncchange(RDPQ_CMD_SET_TILE,
+        _carg(format, 0x1F, 19) | _carg(tmem_pitch/8, 0x1FF, 9) | _carg(tmem_addr, 0x1FF, 0),
+        _carg(tile, 0x7, 24) | _carg(palette, 0xF, 20),
         AUTOSYNC_TILE(tile));
 }
 
