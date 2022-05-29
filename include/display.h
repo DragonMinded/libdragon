@@ -67,7 +67,7 @@ typedef enum
 } antialias_t;
 
 /** @brief Display context */
-typedef int display_context_t;
+typedef surface_t* display_context_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -83,10 +83,15 @@ uint32_t display_get_height();
 uint32_t display_get_bitdepth();
 uint32_t display_get_num_buffers();
 
-surface_t * display_to_surface(display_context_t disp);
-display_context_t display_from_surface(surface_t *surface);
+inline surface_t * display_to_surface(display_context_t disp)
+{
+    return disp;
+}
 
-void display_show_surface(surface_t *surface);
+inline display_context_t display_from_surface(surface_t *surface)
+{
+    return surface;
+}
 
 #ifdef __cplusplus
 }

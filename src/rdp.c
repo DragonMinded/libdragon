@@ -171,17 +171,17 @@ void rdp_attach( surface_t *surface )
     rdpq_set_color_image_surface(surface);
 }
 
-void rdp_detach_async(void (*cb)(surface_t*))
+void rdp_detach_async( void (*cb)(void*), void *arg )
 {
     rdp_ensure_attached();
-    rdpq_sync_full((void(*)(void*))cb, attached_surface);
+    rdpq_sync_full(cb, arg);
     rspq_flush();
     attached_surface = NULL;
 }
 
 void rdp_detach(void)
 {
-    rdp_detach_async(NULL);
+    rdp_detach_async(NULL, NULL);
 
     // Historically, this function has behaved asynchronously when run with
     // interrupts disabled, rather than asserting out. Keep the behavior.
@@ -273,8 +273,10 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
         data_cache_hit_writeback_invalidate( sprite->data, sprite->width * sprite->height * sprite->bitdepth );
     }
 
+    tex_format_t sprite_format = (sprite->bitdepth == 2) ? FMT_RGBA16 : FMT_RGBA32;
+
     /* Point the RDP at the actual sprite data */
-    rdpq_set_texture_image(sprite->data, RDP_TILE_FORMAT_RGBA, (sprite->bitdepth == 2) ? RDP_TILE_SIZE_16BIT : RDP_TILE_SIZE_32BIT, sprite->width);
+    rdpq_set_texture_image(sprite->data, sprite_format, sprite->width);
 
     /* Figure out the s,t coordinates of the sprite we are copying out of */
     int twidth = sh - sl + 1;
@@ -291,8 +293,7 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
 
     /* Instruct the RDP to copy the sprite data out */
     rdpq_set_tile(
-        RDP_TILE_FORMAT_RGBA, 
-        (sprite->bitdepth == 2) ? RDP_TILE_SIZE_16BIT : RDP_TILE_SIZE_32BIT, 
+        sprite_format,
         (((real_width / 8) + round_amount) * sprite->bitdepth),
         (texloc / 8),
         texslot,

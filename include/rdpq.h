@@ -110,21 +110,6 @@ void rdpq_fence(void);
 void rdpq_set_config(uint32_t cfg);
 uint32_t rdpq_change_config(uint32_t on, uint32_t off);
 
-uint32_t rdpq_format_from_surface(format_t surface_format);
-uint32_t rdpq_size_from_surface(format_t surface_format);
-
-uint32_t rdpq_bitdepth_from_size(uint32_t size);
-
-inline uint32_t rdpq_get_surface_format(const surface_t *surface)
-{
-    return rdpq_format_from_surface(surface->format);
-}
-
-inline uint32_t rdpq_get_surface_size(const surface_t *surface)
-{
-    return rdpq_size_from_surface(surface->format);
-}
-
 inline void rdpq_fill_triangle(bool flip, int16_t yl, int16_t ym, int16_t yh, int32_t xl, int32_t dxldy, int32_t xh, int32_t dxhdy, int32_t xm, int32_t dxmdy)
 {
     extern void __rdpq_fill_triangle(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
@@ -318,13 +303,15 @@ inline void rdpq_load_tile_fx(uint8_t tile, uint16_t s0, uint16_t t0, uint16_t s
 /**
  * @brief Low level function to set the properties of a tile descriptor
  */
-inline void rdpq_set_tile(uint8_t format, uint8_t size, uint16_t line, uint16_t tmem_addr, 
+inline void rdpq_set_tile(tex_format_t format, uint16_t line, uint16_t tmem_addr, 
     uint8_t tile, uint8_t palette, uint8_t ct, uint8_t mt, uint8_t mask_t, uint8_t shift_t,
     uint8_t cs, uint8_t ms, uint8_t mask_s, uint8_t shift_s)
 {
-    extern void __rdpq_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
-    __rdpq_write8_syncchange(RDPQ_CMD_SET_TILE,
-        _carg(format, 0x7, 21) | _carg(size, 0x3, 19) | _carg(line, 0x1FF, 9) | _carg(tmem_addr, 0x1FF, 0),
+    extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
+    tex_format_type_t type = tex_format_get_type(format);
+    tex_format_size_t size = tex_format_get_size(format);
+    __rdpq_write8(RDPQ_CMD_SET_TILE,
+        _carg(type, 0x7, 21) | _carg(size, 0x3, 19) | _carg(line, 0x1FF, 9) | _carg(tmem_addr, 0x1FF, 0),
         _carg(tile, 0x7, 24) | _carg(palette, 0xF, 20) | _carg(ct, 0x1, 19) | _carg(mt, 0x1, 18) | _carg(mask_t, 0xF, 14) | 
         _carg(shift_t, 0xF, 10) | _carg(cs, 0x1, 9) | _carg(ms, 0x1, 8) | _carg(mask_s, 0xF, 4) | _carg(shift_s, 0xF, 0),
         AUTOSYNC_TILE(tile));
@@ -417,18 +404,20 @@ inline void rdpq_set_combine_mode(uint64_t flags)
 /**
  * @brief Low level function to set RDRAM pointer to a texture image
  */
-inline void rdpq_set_texture_image_lookup(uint8_t index, uint32_t offset, uint8_t format, uint8_t size, uint16_t width)
+inline void rdpq_set_texture_image_lookup(uint8_t index, uint32_t offset, tex_format_t format, uint16_t width)
 {
     assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
     extern void __rdpq_set_fixup_image(uint32_t, uint32_t, uint32_t, uint32_t);
+    tex_format_type_t type = tex_format_get_type(format);
+    tex_format_size_t size = tex_format_get_size(format);
     __rdpq_set_fixup_image(RDPQ_CMD_SET_TEXTURE_IMAGE, RDPQ_CMD_SET_TEXTURE_IMAGE_FIX,
         _carg(format, 0x7, 21) | _carg(size, 0x3, 19) | _carg(width-1, 0x3FF, 0),
         _carg(index, 0xF, 28) | (offset & 0xFFFFFF));
 }
 
-inline void rdpq_set_texture_image(void* dram_ptr, uint8_t format, uint8_t size, uint16_t width)
+inline void rdpq_set_texture_image(void* dram_ptr, tex_format_t format, uint16_t width)
 {
-    rdpq_set_texture_image_lookup(0, PhysicalAddr(dram_ptr), format, size, width);
+    rdpq_set_texture_image_lookup(0, PhysicalAddr(dram_ptr), format, width);
 }
 
 /**
@@ -452,9 +441,13 @@ inline void rdpq_set_z_image(void* dram_ptr)
 /**
  * @brief Low level function to set RDRAM pointer to the color buffer
  */
-inline void rdpq_set_color_image_lookup(uint8_t index, uint32_t offset, uint32_t format, uint32_t size, uint32_t width, uint32_t height, uint32_t stride)
+inline void rdpq_set_color_image_lookup(uint8_t index, uint32_t offset, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride)
 {
-    uint32_t bitdepth = rdpq_bitdepth_from_size(size);
+    assertf(format == FMT_RGBA32 || format == FMT_RGBA16 || format == FMT_CI8, "Image format is not supported!\nIt must be FMT_RGBA32, FMT_RGBA16 or FMT_CI8");
+    tex_format_type_t type = tex_format_get_type(format);
+    tex_format_size_t size = tex_format_get_size(format);
+
+    uint32_t bitdepth = tex_format_get_bytes_per_pixel(size);
     assertf(stride % bitdepth == 0, "Stride must be a multiple of the bitdepth!");
     assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
 
@@ -465,15 +458,15 @@ inline void rdpq_set_color_image_lookup(uint8_t index, uint32_t offset, uint32_t
     rdpq_set_scissor(0, 0, width, height);
 }
 
-inline void rdpq_set_color_image(void* dram_ptr, uint32_t format, uint32_t size, uint32_t width, uint32_t height, uint32_t stride)
+inline void rdpq_set_color_image(void* dram_ptr, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride)
 {
     assertf(((uint32_t)dram_ptr & 63) == 0, "buffer pointer is not aligned to 64 bytes, so it cannot use as RDP color image.\nAllocate it with memalign(64, len) or malloc_uncached_align(64, len)");
-    rdpq_set_color_image_lookup(0, PhysicalAddr(dram_ptr), format, size, width, height, stride);
+    rdpq_set_color_image_lookup(0, PhysicalAddr(dram_ptr), format, width, height, stride);
 }
 
 inline void rdpq_set_color_image_surface(surface_t *surface)
 {
-    rdpq_set_color_image(surface->buffer, rdpq_get_surface_format(surface), rdpq_get_surface_size(surface), surface->width, surface->height, surface->stride);
+    rdpq_set_color_image(surface->buffer, surface_get_format(surface), surface->width, surface->height, surface->stride);
 }
 
 inline void rdpq_set_cycle_mode(uint32_t cycle_mode)
