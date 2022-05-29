@@ -3,34 +3,23 @@
 
 #include <stdint.h>
 
-typedef enum {
-    FMT_TYPE_RGBA = 0,
-    FMT_TYPE_YUV  = 1,
-    FMT_TYPE_CI   = 2,
-    FMT_TYPE_IA   = 3,
-    FMT_TYPE_I    = 4,
-} tex_format_type_t;
-
-typedef enum {
-    FMT_SIZE_4    = 0,
-    FMT_SIZE_8    = 1,
-    FMT_SIZE_16   = 2,
-    FMT_SIZE_32   = 3,
-} tex_format_size_t;
+#define TEX_FORMAT_CODE(fmt, size)        (((fmt)<<2)|(size))
+#define TEX_FORMAT_BITDEPTH(fmt)          (4 << ((fmt) & 0x3))
+#define TEX_FORMAT_BYTES_PER_PIXEL(fmt)   (TEX_FORMAT_BITDEPTH(fmt) >> 3)
 
 typedef enum {
     FMT_NONE   = 0,
 
-    FMT_RGBA16 = (FMT_TYPE_RGBA << 2) | FMT_SIZE_16,
-    FMT_RGBA32 = (FMT_TYPE_RGBA << 2) | FMT_SIZE_32,
-    FMT_YUV16  = (FMT_TYPE_YUV  << 2) | FMT_SIZE_16,
-    FMT_CI4    = (FMT_TYPE_CI   << 2) | FMT_SIZE_4,
-    FMT_CI8    = (FMT_TYPE_CI   << 2) | FMT_SIZE_8,
-    FMT_IA4    = (FMT_TYPE_IA   << 2) | FMT_SIZE_4,
-    FMT_IA8    = (FMT_TYPE_IA   << 2) | FMT_SIZE_8,
-    FMT_IA16   = (FMT_TYPE_IA   << 2) | FMT_SIZE_16,
-    FMT_I4     = (FMT_TYPE_I    << 2) | FMT_SIZE_4,
-    FMT_I8     = (FMT_TYPE_I    << 2) | FMT_SIZE_8,
+    FMT_RGBA16 = TEX_FORMAT_CODE(0, 2),
+    FMT_RGBA32 = TEX_FORMAT_CODE(0, 3),
+    FMT_YUV16  = TEX_FORMAT_CODE(1, 2),
+    FMT_CI4    = TEX_FORMAT_CODE(2, 0),
+    FMT_CI8    = TEX_FORMAT_CODE(2, 1),
+    FMT_IA4    = TEX_FORMAT_CODE(3, 0),
+    FMT_IA8    = TEX_FORMAT_CODE(3, 1),
+    FMT_IA16   = TEX_FORMAT_CODE(3, 2),
+    FMT_I4     = TEX_FORMAT_CODE(4, 0),
+    FMT_I8     = TEX_FORMAT_CODE(4, 1),
 } tex_format_t;
 
 typedef struct surface_s
@@ -50,27 +39,7 @@ void surface_init(surface_t *surface, void *buffer, tex_format_t format, uint32_
 
 inline tex_format_t surface_get_format(const surface_t *surface)
 {
-    return surface->flags & 0x1F;
-}
-
-inline tex_format_type_t tex_format_get_type(tex_format_t format)
-{
-    return format >> 2;
-}
-
-inline tex_format_size_t tex_format_get_size(tex_format_t format)
-{
-    return format & 0x3;
-}
-
-inline uint32_t tex_format_get_bitdepth(tex_format_size_t size)
-{
-    return 4 << size;
-}
-
-inline uint32_t tex_format_get_bytes_per_pixel(tex_format_size_t size)
-{
-    return tex_format_get_bitdepth(size) >> 3;
+    return (tex_format_t)(surface->flags & 0x1F);
 }
 
 #ifdef __cplusplus
