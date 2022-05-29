@@ -308,10 +308,8 @@ inline void rdpq_set_tile(tex_format_t format, uint16_t line, uint16_t tmem_addr
     uint8_t cs, uint8_t ms, uint8_t mask_s, uint8_t shift_s)
 {
     extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
-    tex_format_type_t type = tex_format_get_type(format);
-    tex_format_size_t size = tex_format_get_size(format);
     __rdpq_write8(RDPQ_CMD_SET_TILE,
-        _carg(type, 0x7, 21) | _carg(size, 0x3, 19) | _carg(line, 0x1FF, 9) | _carg(tmem_addr, 0x1FF, 0),
+        _carg(format, 0x1F, 19) | _carg(line, 0x1FF, 9) | _carg(tmem_addr, 0x1FF, 0),
         _carg(tile, 0x7, 24) | _carg(palette, 0xF, 20) | _carg(ct, 0x1, 19) | _carg(mt, 0x1, 18) | _carg(mask_t, 0xF, 14) | 
         _carg(shift_t, 0xF, 10) | _carg(cs, 0x1, 9) | _carg(ms, 0x1, 8) | _carg(mask_s, 0xF, 4) | _carg(shift_s, 0xF, 0),
         AUTOSYNC_TILE(tile));
@@ -408,8 +406,6 @@ inline void rdpq_set_texture_image_lookup(uint8_t index, uint32_t offset, tex_fo
 {
     assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
     extern void __rdpq_set_fixup_image(uint32_t, uint32_t, uint32_t, uint32_t);
-    tex_format_type_t type = tex_format_get_type(format);
-    tex_format_size_t size = tex_format_get_size(format);
     __rdpq_set_fixup_image(RDPQ_CMD_SET_TEXTURE_IMAGE, RDPQ_CMD_SET_TEXTURE_IMAGE_FIX,
         _carg(format, 0x7, 21) | _carg(size, 0x3, 19) | _carg(width-1, 0x3FF, 0),
         _carg(index, 0xF, 28) | (offset & 0xFFFFFF));
@@ -444,10 +440,8 @@ inline void rdpq_set_z_image(void* dram_ptr)
 inline void rdpq_set_color_image_lookup(uint8_t index, uint32_t offset, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride)
 {
     assertf(format == FMT_RGBA32 || format == FMT_RGBA16 || format == FMT_CI8, "Image format is not supported!\nIt must be FMT_RGBA32, FMT_RGBA16 or FMT_CI8");
-    tex_format_type_t type = tex_format_get_type(format);
-    tex_format_size_t size = tex_format_get_size(format);
 
-    uint32_t bitdepth = tex_format_get_bytes_per_pixel(size);
+    uint32_t bitdepth = TEX_FORMAT_BYTES_PER_PIXEL(format);
     assertf(stride % bitdepth == 0, "Stride must be a multiple of the bitdepth!");
     assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
 
