@@ -143,7 +143,7 @@ void rdp_detach( void );
  */
 inline void rdp_attach_display( display_context_t disp )
 {
-    rdp_attach(display_to_surface(disp));
+    rdp_attach(disp);
 }
 
 /**
@@ -187,7 +187,7 @@ bool rdp_is_attached();
  * @param[in] cb
  *            The callback that will be called when the RDP interrupt is raised.
  */
-void rdp_detach_async( void (*cb)(surface_t*) );
+void rdp_detach_async( void (*cb)(void*), void *arg );
 
 /**
  * @brief Asynchronously detach the current display from the RDP and automatically call #display_show on it
@@ -196,8 +196,8 @@ void rdp_detach_async( void (*cb)(surface_t*) );
  * are done rendering with the RDP and just want to submit the attached display context to be shown without
  * any further postprocessing.
  */
-#define rdp_auto_show_display() ({ \
-    rdp_detach_async(display_show_surface); \
+#define rdp_auto_show_display(disp) ({ \
+    rdp_detach_async((void(*)(void*))display_show, (disp)); \
 })
 
 /**

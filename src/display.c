@@ -167,15 +167,15 @@ static const uint32_t * const reg_values[] = {
 
 static surface_t *surfaces;
 /** @brief Currently active bit depth */
-uint32_t __bitdepth;
+static uint32_t __bitdepth;
 /** @brief Currently active video width (calculated) */
-uint32_t __width;
+static uint32_t __width;
 /** @brief Currently active video height (calculated) */
-uint32_t __height;
+static uint32_t __height;
 /** @brief Number of active buffers */
-uint32_t __buffers = NUM_BUFFERS;
+static uint32_t __buffers = NUM_BUFFERS;
 /** @brief Pointer to uncached 16-bit aligned version of buffers */
-void *__safe_buffer[NUM_BUFFERS];
+static void *__safe_buffer[NUM_BUFFERS];
 
 /** @brief Currently displayed buffer */
 static int now_showing = -1;
@@ -436,7 +436,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
         /* Grab a location to render to */
         __safe_buffer[i] = malloc_uncached_aligned( 64, __width * __height * __bitdepth );
         assert(__safe_buffer[i] != NULL);
-        format_t format = bit == DEPTH_16_BPP ? FMT_RGBA16 : FMT_RGBA32;
+        tex_format_t format = bit == DEPTH_16_BPP ? FMT_RGBA16 : FMT_RGBA32;
         surface_init(&surfaces[i], __safe_buffer[i], format, __width, __height, __width * __bitdepth);
 
         /* Baseline is blank */
@@ -519,7 +519,7 @@ void display_close()
  */
 display_context_t display_lock(void)
 {
-    display_context_t retval = 0;
+    display_context_t retval = NULL;
     int next;
 
     /* Can't have the video interrupt happening here */
@@ -530,7 +530,7 @@ display_context_t display_lock(void)
        being ready to be displayed. */
     for (next = buffer_next(now_showing); next != now_showing; next = buffer_next(next)) {
         if (((drawing_mask | ready_mask) & (1 << next)) == 0)  {
-            retval = next+1;
+            retval = &surfaces[next];
             drawing_mask |= 1 << next;
             break;
         }
@@ -554,13 +554,15 @@ display_context_t display_lock(void)
 void display_show( display_context_t disp )
 {
     /* They tried drawing on a bad context */
-    if( disp == 0 ) { return; }
+    if( disp == NULL ) { return; }
 
     /* Can't have the video interrupt screwing this up */
     disable_interrupts();
 
     /* Correct to ensure we are handling the right screen */
-    int i = disp - 1;
+    int i = disp - surfaces;
+
+    assertf(i >= 0 && i < __buffers, "Display context is not valid!");
 
     /* Check we have not unlocked this display already and is pending drawn. */
     assertf(!(ready_mask & (1 << i)), "display_show called again on the same display %d (mask: %lx)", i, ready_mask);
@@ -625,25 +627,6 @@ uint32_t display_get_bitdepth()
 uint32_t display_get_num_buffers()
 {
     return __buffers;
-}
-
-surface_t * display_to_surface(display_context_t disp)
-{
-    assertf(disp > 0 && disp <= __buffers, "Display context is not valid!");
-    return &surfaces[disp - 1];
-}
-
-display_context_t display_from_surface(surface_t *surface)
-{
-    int diff = surface - surfaces;
-    display_context_t disp = diff + 1;
-    assertf(disp > 0 && disp <= __buffers, "Display context is not valid!");
-    return disp;
-}
-
-void display_show_surface(surface_t *surface)
-{
-    display_show(display_from_surface(surface));
 }
 
 /** @} */ /* display */

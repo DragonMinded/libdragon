@@ -20,7 +20,7 @@ void test_rdpq_rspqwait(TestContext *ctx)
     color_t color = RGBA32(0x11, 0x22, 0x33, 0xFF);
 
     rdpq_set_other_modes(SOM_CYCLE_FILL);
-    rdpq_set_color_image(buffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_32BIT, 128, 128, 128*4);
+    rdpq_set_color_image(buffer, FMT_RGBA32, 128, 128, 128*4);
     rdpq_set_fill_color(color);
     rdpq_fill_rectangle(0, 0, 128, 128);
     rspq_wait();
@@ -47,7 +47,7 @@ void test_rdpq_clear(TestContext *ctx)
     memset(framebuffer, 0, fbsize);
 
     rdpq_set_other_modes(SOM_CYCLE_FILL);
-    rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, 32, 32, 32 * 2);
+    rdpq_set_color_image(framebuffer, FMT_RGBA16, 32, 32, 32 * 2);
     rdpq_set_fill_color(fill_color);
     rdpq_fill_rectangle(0, 0, 32, 32);
     rspq_wait();
@@ -78,7 +78,7 @@ void test_rdpq_dynamic(TestContext *ctx)
     memset(expected_fb, 0, sizeof(expected_fb));
 
     rdpq_set_other_modes(SOM_CYCLE_FILL);
-    rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
+    rdpq_set_color_image(framebuffer, FMT_RGBA16, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
 
     for (uint32_t y = 0; y < TEST_RDPQ_FBWIDTH; y++)
     {
@@ -125,7 +125,7 @@ void test_rdpq_passthrough_big(TestContext *ctx)
     static uint16_t expected_fb[TEST_RDPQ_FBAREA];
     memset(expected_fb, 0xFF, sizeof(expected_fb));
 
-    rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
+    rdpq_set_color_image(framebuffer, FMT_RGBA16, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
     rdp_enable_blend_fill();
     rdp_set_blend_color(0xFFFFFFFF);
 
@@ -182,7 +182,7 @@ void test_rdpq_block(TestContext *ctx)
     rspq_block_t *block = rspq_block_end();
     DEFER(rspq_block_free(block));
 
-    rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
+    rdpq_set_color_image(framebuffer, FMT_RGBA16, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
     rspq_block_run(block);
     rspq_wait();
     
@@ -215,7 +215,7 @@ void test_rdpq_block_contiguous(TestContext *ctx)
     memset(expected_fb, 0xFF, sizeof(expected_fb));
 
     rspq_block_begin();
-    rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
+    rdpq_set_color_image(framebuffer, FMT_RGBA16, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
     rdpq_set_other_modes(SOM_CYCLE_FILL);
     rdpq_set_fill_color(RGBA32(0xFF, 0xFF, 0xFF, 0xFF));
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
@@ -273,7 +273,7 @@ void test_rdpq_fixup_setfillcolor(TestContext *ctx)
     rdpq_set_other_modes(SOM_CYCLE_FILL);
 
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
-    rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_32BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*4);
+    rdpq_set_color_image(framebuffer, FMT_RGBA32, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*4);
     rdpq_set_fill_color(TEST_COLOR);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
     rspq_wait();
@@ -281,7 +281,7 @@ void test_rdpq_fixup_setfillcolor(TestContext *ctx)
         "Wrong data in framebuffer (32-bit, dynamic mode)");
 
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
-    rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
+    rdpq_set_color_image(framebuffer, FMT_RGBA16, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
     rdpq_set_fill_color(TEST_COLOR);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
     rspq_wait();
@@ -290,7 +290,7 @@ void test_rdpq_fixup_setfillcolor(TestContext *ctx)
 
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
     rdpq_set_fill_color(TEST_COLOR);
-    rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_32BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*4);
+    rdpq_set_color_image(framebuffer, FMT_RGBA32, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*4);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb32, TEST_RDPQ_FBAREA*4, 
@@ -298,7 +298,7 @@ void test_rdpq_fixup_setfillcolor(TestContext *ctx)
 
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
     rdpq_set_fill_color(TEST_COLOR);
-    rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
+    rdpq_set_color_image(framebuffer, FMT_RGBA16, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb16, TEST_RDPQ_FBAREA*2, 
@@ -333,7 +333,7 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
         }
     }
 
-    rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
+    rdpq_set_color_image(framebuffer, FMT_RGBA16, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
 
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
     rdpq_set_other_modes(SOM_CYCLE_FILL);
@@ -408,9 +408,9 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
         }
     }
 
-    rdpq_set_color_image(framebuffer, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
-    rdpq_set_texture_image(texture, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_TEXWIDTH);
-    rdpq_set_tile(RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_TEXWIDTH / 4, 0, 0,0,0,0,0,0,0,0,0,0);
+    rdpq_set_color_image(framebuffer, FMT_RGBA16, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
+    rdpq_set_texture_image(texture, FMT_RGBA16, TEST_RDPQ_TEXWIDTH);
+    rdpq_set_tile(FMT_RGBA16, TEST_RDPQ_TEXWIDTH / 4, 0, 0,0,0,0,0,0,0,0,0,0);
     rdpq_load_tile(0, 0, 0, TEST_RDPQ_TEXWIDTH, TEST_RDPQ_TEXWIDTH);
 
     memset(framebuffer, 0xFF, TEST_RDPQ_FBSIZE);
@@ -487,7 +487,7 @@ void test_rdpq_lookup_address(TestContext *ctx)
 
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
     rspq_block_begin();
-    rdpq_set_color_image_lookup(1, 0, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH * 2);
+    rdpq_set_color_image_lookup(1, 0, FMT_RGBA16, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH * 2);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
     rspq_block_t *block = rspq_block_end();
     DEFER(rspq_block_free(block));
@@ -499,7 +499,7 @@ void test_rdpq_lookup_address(TestContext *ctx)
 
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
     rdpq_set_lookup_address(1, framebuffer);
-    rdpq_set_color_image_lookup(1, 0, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH * 2);
+    rdpq_set_color_image_lookup(1, 0, FMT_RGBA16, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH * 2);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 
@@ -539,7 +539,7 @@ void test_rdpq_lookup_address_offset(TestContext *ctx)
 
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
     rspq_block_begin();
-    rdpq_set_color_image_lookup(1, offset, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_RECT_WIDTH, TEST_RDPQ_RECT_WIDTH, TEST_RDPQ_FBWIDTH * 2);
+    rdpq_set_color_image_lookup(1, offset, FMT_RGBA16, TEST_RDPQ_RECT_WIDTH, TEST_RDPQ_RECT_WIDTH, TEST_RDPQ_FBWIDTH * 2);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_RECT_WIDTH, TEST_RDPQ_RECT_WIDTH);
     rspq_block_t *block = rspq_block_end();
     DEFER(rspq_block_free(block));
@@ -551,7 +551,7 @@ void test_rdpq_lookup_address_offset(TestContext *ctx)
 
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
     rdpq_set_lookup_address(1, framebuffer);
-    rdpq_set_color_image_lookup(1, offset, RDP_TILE_FORMAT_RGBA, RDP_TILE_SIZE_16BIT, TEST_RDPQ_RECT_WIDTH, TEST_RDPQ_RECT_WIDTH, TEST_RDPQ_FBWIDTH * 2);
+    rdpq_set_color_image_lookup(1, offset, FMT_RGBA16, TEST_RDPQ_RECT_WIDTH, TEST_RDPQ_RECT_WIDTH, TEST_RDPQ_FBWIDTH * 2);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 

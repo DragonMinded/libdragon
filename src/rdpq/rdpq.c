@@ -110,46 +110,6 @@ void rdpq_close()
     unregister_DP_handler(__rdpq_interrupt);
 }
 
-uint32_t rdpq_format_from_surface(format_t surface_format)
-{
-    static uint32_t formats[] = {
-        RDP_TILE_FORMAT_INDEX,
-        RDP_TILE_FORMAT_RGBA,
-        RDP_TILE_FORMAT_RGBA,
-    };
-
-    assertf(surface_format < sizeof(formats)/sizeof(uint32_t), "Invalid surface format: %d", surface_format);
-
-    return formats[surface_format];
-}
-
-uint32_t rdpq_size_from_surface(format_t surface_format)
-{
-    static uint32_t sizes[] = {
-        RDP_TILE_SIZE_8BIT,
-        RDP_TILE_SIZE_16BIT,
-        RDP_TILE_SIZE_32BIT,
-    };
-
-    assertf(surface_format < sizeof(sizes)/sizeof(uint32_t), "Invalid surface format: %d", surface_format);
-
-    return sizes[surface_format];
-}
-
-uint32_t rdpq_bitdepth_from_size(uint32_t size)
-{
-    static uint32_t bitdepths[] = {
-        0,
-        1,
-        2,
-        4,
-    };
-
-    assertf(size < sizeof(bitdepths)/sizeof(uint32_t), "Invalid size: %ld", size);
-
-    return bitdepths[size];
-}
-
 uint32_t rdpq_get_config(void)
 {
     return rdpq_config;
@@ -504,4 +464,4 @@ void rdpq_sync_load(void)
 
 /* Extern inline instantiations. */
 extern inline void rdpq_set_fill_color(color_t color);
-extern inline void rdpq_set_color_image(void* dram_ptr, uint32_t format, uint32_t size, uint32_t width, uint32_t height, uint32_t stride);
+extern inline void rdpq_set_color_image(void* dram_ptr, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride);
