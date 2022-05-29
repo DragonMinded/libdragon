@@ -222,6 +222,7 @@ inline void rdpq_set_convert(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k3,
  */
 inline void rdpq_set_prim_depth(uint16_t primitive_z, uint16_t primitive_delta_z)
 {
+    // NOTE: this does not require a pipe sync
     extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
     __rdpq_write8(RDPQ_CMD_SET_PRIM_DEPTH, 0, _carg(primitive_z, 0xFFFF, 16) | _carg(primitive_delta_z, 0xFFFF, 0));
 }
@@ -402,9 +403,9 @@ inline void rdpq_set_blend_color(color_t color)
  */
 inline void rdpq_set_prim_color(color_t color)
 {
-    extern void __rdpq_write8_syncchange(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t autosync);
-    __rdpq_write8_syncchange(RDPQ_CMD_SET_PRIM_COLOR, 0, color_to_packed32(color),
-        AUTOSYNC_PIPE);
+    // NOTE: this does not require a pipe sync
+    extern void __rdpq_write8(uint32_t cmd_id, uint32_t arg0, uint32_t arg1);
+    __rdpq_write8(RDPQ_CMD_SET_PRIM_COLOR, 0, color_to_packed32(color));
 }
 
 /**
