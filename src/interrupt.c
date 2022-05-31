@@ -685,6 +685,17 @@ void set_TI_interrupt(int active)
     }
 }
 
+/**
+ * @brief Enable the CART interrupt
+ * 
+ * CART interrupts are interrupts triggered by devices attached to the PI bus
+ * (aka CART bus), for instance the 64DD, or the modem cassette. 
+ * 
+ * @param[in] active
+ *            Flag to specify whether the timer interrupt should be active
+ *            
+ * @see register_CART_handler
+ */
 void set_CART_interrupt(int active)
 {
     if( active )
