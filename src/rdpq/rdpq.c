@@ -32,7 +32,7 @@ typedef struct rdpq_state_s {
 typedef struct rdpq_block_s {
     rdpq_block_t *next;
     uint32_t autosync_state;
-    uint32_t cmds[];
+    uint32_t cmds[] __attribute__((aligned(8)));
 } rdpq_block_t;
 
 bool __rdpq_inited = false;
@@ -267,14 +267,11 @@ void __rdpq_block_free(rdpq_block_t *block)
 __attribute__((noinline))
 static void __rdpq_block_create(void)
 {
-    extern void __rspq_block_begin_rdp(rdpq_block_t*);
-
     rdpq_block_size = RDPQ_BLOCK_MIN_SIZE;
     rdpq_block = malloc_uncached(sizeof(rdpq_block_t) + rdpq_block_size*sizeof(uint32_t));
     rdpq_block->next = NULL;
     __rdpq_reset_buffer();
     __rdpq_block_switch_buffer(rdpq_block->cmds, rdpq_block_size);
-    __rspq_block_begin_rdp(rdpq_block);
 }
 
 static void __rdpq_block_check(void)

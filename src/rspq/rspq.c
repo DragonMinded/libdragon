@@ -1048,11 +1048,6 @@ void rspq_highpri_sync(void)
     }
 }
 
-void __rspq_block_begin_rdp(rdpq_block_t *rdp_block)
-{
-    rspq_block->rdp_block = rdp_block;
-}
-
 void rspq_block_begin(void)
 {
     assertf(!rspq_block, "a block was already being created");
