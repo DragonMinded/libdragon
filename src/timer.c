@@ -231,7 +231,7 @@ void timer_init(void)
 	ticks64_high = 0;
 	C0_WRITE_COUNT(1);
 	C0_WRITE_COMPARE(0);
-	C0_WRITE_STATUS(C0_STATUS() | C0_INTERRUPT_TIMER);
+	set_TI_interrupt(1);
 	register_TI_handler(timer_interrupt_callback);
 	enable_interrupts();
 }
@@ -490,8 +490,7 @@ void timer_close(void)
 	disable_interrupts();
 	
 	/* Disable generation of timer interrupt. */
-	C0_WRITE_STATUS(C0_STATUS() & ~C0_INTERRUPT_TIMER);
-
+	set_TI_interrupt(0);
 	unregister_TI_handler(timer_interrupt_callback);
 
 	timer_link_t *head = TI_timers;
