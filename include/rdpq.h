@@ -347,7 +347,15 @@ inline void rdpq_set_tile(uint8_t tile, tex_format_t format,
 }
 
 /**
- * @brief Low level function to render a rectangle filled with a solid color
+ * @brief Enqueue a FILL_RECTANGLE RDP command using fixed point coordinates.
+ * 
+ * This function is similar to #rdpq_fill_rectangle, but coordinates must be
+ * specified using 10.2 
+ *
+ * @param[in]  x0    The x 0
+ * @param[in]  y0    The y 0
+ * @param[in]  x1    The x 1
+ * @param[in]  y1    The y 1
  */
 inline void rdpq_fill_rectangle_fx(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 {
@@ -358,19 +366,74 @@ inline void rdpq_fill_rectangle_fx(uint16_t x0, uint16_t y0, uint16_t x1, uint16
         AUTOSYNC_PIPE);
 }
 
+/**
+ * @brief Enqueue a FILL_RECTANGLE RDP command.
+ * 
+ * This command is used to render a rectangle filled with a solid color.
+ * The color must have been configured via #rdpq_set_fill_color, and the
+ * render mode should be set to #SOM_CYCLE_FILL via #rdpq_set_other_modes.
+ * 
+ * The rectangle must be defined using exclusive bottom-right bounds, so for
+ * instance `rdpq_fill_rectangle(10,10,30,30)` will draw a square of exactly
+ * 20x20 pixels.
+ * 
+ * Fractional values can be used, and will create a semi-transparent edge. For
+ * instance, `rdp_fill_rectangle(9.75,9.75,30.25,30.25)` will create a 22x22 pixel
+ * square, with the most external pixel rows and columns having a alpha of 25%.
+ * This obviously makes more sense in RGBA32 mode where there is enough alpha
+ * bitdepth to appreciate the result. Make sure to configure the blender via
+ * #rdpq_set_other_modes to decide the blending formula.
+ * 
+ * Notice that coordinates are unsigned numbers, so negative numbers are not
+ * supported. Coordinates bigger than the target buffer will be automatically
+ * clipped.
+ * 
+ * @param[x0]   x0      Top-left X coordinate of the rectangle (integer or float)
+ * @param[y0]   y0      Top-left Y coordinate of the ractangle (integer or float)
+ * @param[x1]   x1      Bottom-right *exclusive* X coordinate of the rectangle (integer or float)
+ * @param[y1]   y1      Bottom-right *exclusive* Y coordinate of the rectangle (integer or float)
+ * 
+ * @see rdpq_fill_rectangle_fx
+ * @see rdpq_set_fill_color
+ * @see rdpq_set_fill_color_stripes
+ * @see rdpq_set_other_modes
+ * 
+ */
 #define rdpq_fill_rectangle(x0, y0, x1, y1) ({ \
     rdpq_fill_rectangle_fx((x0)*4, (y0)*4, (x1)*4, (y1)*4); \
 })
 
 /**
- * @brief Low level function to set the fill color
+ * @brief Enqueue a SET_FILL_COLOR RDP command.
+ * 
+ * This command is used to configure the color used by #rdpq_fill_rectangle.
+ * 
+ * @param[in]    color   The color to use to fill
  */
 inline void rdpq_set_fill_color(color_t color) {
     extern void __rdpq_set_fill_color(uint32_t);
     __rdpq_set_fill_color((color.r << 24) | (color.g << 16) | (color.b << 8) | (color.a << 0));
 }
 
-inline void rdpq_set_fill_color_pattern(color_t color1, color_t color2) {
+/**
+ * @brief Enqueue a SET_FILL_COLOR RDP command to draw a striped pattern.
+ * 
+ * This command is similar to #rdpq_set_fill_color, but allows to configure
+ * two colors, and creates a fill pattern that alternates horizontally between
+ * them every 2 pixels (creating vertical stripes).
+ * 
+ * This command relies on a low-level hack of how RDP works in filling primitives,
+ * so there is no configuration knob: it only works with RGBA 16-bit target
+ * buffers, it only allows two colors, and the vertical stripes are exactly
+ * 2 pixel width.
+ * 
+ * @param[in]   color1      Color of the first vertical stripe
+ * @param[in]   color2      Color of the second vertical stripe
+ * 
+ * @see #rdpq_set_fill_color
+ *
+ */
+inline void rdpq_set_fill_color_stripes(color_t color1, color_t color2) {
     extern void __rdpq_write8_syncchange(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t autosync);
     uint32_t c1 = (((int)color1.r >> 3) << 11) | (((int)color1.g >> 3) << 6) | (((int)color1.b >> 3) << 1) | (color1.a >> 7);
     uint32_t c2 = (((int)color2.r >> 3) << 11) | (((int)color2.g >> 3) << 6) | (((int)color2.b >> 3) << 1) | (color2.a >> 7);
@@ -483,12 +546,42 @@ inline void rdpq_set_color_image_lookup(uint8_t index, uint32_t offset, tex_form
     rdpq_set_scissor(0, 0, width, height);
 }
 
+/**
+ * @brief Enqueue a SET_COLOR_IMAGE RDP command.
+ * 
+ * This command is used to specify the target buffer that the RDP will draw to.
+ *
+ * Calling this function also automatically configures scissoring (via
+ * #rdpq_set_scissor), so that all draw commands are clipped within the buffer,
+ * to avoid overwriting memory around it.
+ *
+ * @param      dram_ptr  Pointer to the buffer in RAM
+ * @param[in]  format    Format of the buffer. Supported formats are:
+ *                       #FMT_RGBA32, #FMT_RGBA16, #FMT_I8.
+ * @param[in]  width     Width of the buffer in pixels
+ * @param[in]  height    Height of the buffer in pixels
+ * @param[in]  stride    Stride of the buffer in bytes (distance between one
+ *                       row and the next one)
+ *                       
+ * @see #rdpq_set_color_image_surface
+ */
+
 inline void rdpq_set_color_image(void* dram_ptr, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride)
 {
     assertf(((uint32_t)dram_ptr & 63) == 0, "buffer pointer is not aligned to 64 bytes, so it cannot use as RDP color image.\nAllocate it with memalign(64, len) or malloc_uncached_align(64, len)");
     rdpq_set_color_image_lookup(0, PhysicalAddr(dram_ptr), format, width, height, stride);
 }
 
+/**
+ * @brief Enqueue a SET_COLOR_IMAGE RDP command, using a #surface_t
+ * 
+ * This command is similar to #rdpq_set_color_image, but the target buffer is
+ * specified using a #surface_t.
+ * 
+ * @param[in]  surface  Target buffer to draw to
+ * 
+ * @see #rdpq_set_color_image
+ */
 inline void rdpq_set_color_image_surface(surface_t *surface)
 {
     rdpq_set_color_image(surface->buffer, surface_get_format(surface), surface->width, surface->height, surface->stride);
