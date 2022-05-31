@@ -196,15 +196,26 @@ notprenmi:
 	mfc0 t0,C0_COMPARE
 	mtc0 t0,C0_COMPARE
 
-	/* handle timer exception */
+	/* handle timer interrupt */
 	jal __TI_handler
 	nop
 
 	j end_interrupt
 	nop
 notcount:
+	and t0, cause, 0x800
+	beqz t0, notcart
+	nop
 
-	/* pass anything else along to handler */
+	/* handle CART interrupt */
+	jal __CART_handler
+	nop
+
+	j end_interrupt
+	nop
+
+notcart:
+	/* pass anything else along to MI (RCP) handler */
 	jal __MI_handler
 	addiu a0, sp, 32
 	j end_interrupt
