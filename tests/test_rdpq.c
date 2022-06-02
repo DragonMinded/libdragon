@@ -217,21 +217,25 @@ void test_rdpq_block_contiguous(TestContext *ctx)
     memset(expected_fb, 0xFF, sizeof(expected_fb));
 
     rspq_block_begin();
-    rdpq_set_color_image(framebuffer, FMT_RGBA16, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
-    rdpq_set_other_modes(SOM_CYCLE_FILL);
-    rdpq_set_fill_color(RGBA32(0xFF, 0xFF, 0xFF, 0xFF));
-    rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
-    rdpq_fence(); // Put the fence inside the block so RDP never executes anything outside the block
+    /* 1: implicit sync pipe */
+    /* 2: */ rdpq_set_color_image(framebuffer, FMT_RGBA16, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
+    /* 3: implicit set fill color */ 
+    /* 4: implicit set scissor */
+    /* 5: */ rdpq_set_other_modes(SOM_CYCLE_FILL);
+    /* 6: implicit set scissor */
+    /* 7: */ rdpq_set_fill_color(RGBA32(0xFF, 0xFF, 0xFF, 0xFF));
+    /* 8: */ rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
+    /* 9: */ rdpq_fence(); // Put the fence inside the block so RDP never executes anything outside the block
     rspq_block_t *block = rspq_block_end();
     DEFER(rspq_block_free(block));
 
     rspq_block_run(block);
     rspq_syncpoint_wait(rspq_syncpoint_new());
 
-    void *rdp_cmds = block->rdp_block->cmds;
+    uint64_t *rdp_cmds = (uint64_t*)block->rdp_block->cmds;
 
     ASSERT_EQUAL_HEX(*DP_START, PhysicalAddr(rdp_cmds), "DP_START does not point to the beginning of the block!");
-    ASSERT_EQUAL_HEX(*DP_END, PhysicalAddr(rdp_cmds + sizeof(uint64_t)*8), "DP_END points to the wrong address!");
+    ASSERT_EQUAL_HEX(*DP_END, PhysicalAddr(rdp_cmds + 9), "DP_END points to the wrong address!");
 
     ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, "Framebuffer contains wrong data!");
 
