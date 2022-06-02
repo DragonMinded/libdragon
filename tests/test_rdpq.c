@@ -3,6 +3,8 @@
 #include <rspq_constants.h>
 #include <rdpq.h>
 #include <rdp_commands.h>
+#include "../src/rspq/rspq_commands.h"
+#include "../src/rdpq/rdpq_block.h"
 
 void test_rdpq_rspqwait(TestContext *ctx)
 {
@@ -226,8 +228,7 @@ void test_rdpq_block_contiguous(TestContext *ctx)
     rspq_block_run(block);
     rspq_syncpoint_wait(rspq_syncpoint_new());
 
-    void *rdp_block = *(void**)(((void*)block) + sizeof(uint32_t));
-    void *rdp_cmds = rdp_block + 8;
+    void *rdp_cmds = block->rdp_block->cmds;
 
     ASSERT_EQUAL_HEX(*DP_START, PhysicalAddr(rdp_cmds), "DP_START does not point to the beginning of the block!");
     ASSERT_EQUAL_HEX(*DP_END, PhysicalAddr(rdp_cmds + sizeof(uint64_t)*8), "DP_END points to the wrong address!");
@@ -602,7 +603,7 @@ void test_rdpq_syncfull(TestContext *ctx)
     ASSERT_EQUAL_HEX(cb_value, 0x00005678, "sync full callback wrong argument");
 }
 
-static void __test_rdpq_autosyncs(TestContext *ctx, void (*func)(void), uint8_t exp[4], bool block) {
+static void __test_rdpq_autosyncs(TestContext *ctx, void (*func)(void), uint8_t exp[4], bool use_block) {
     rspq_init();
     DEFER(rspq_close());
     rdpq_init();
@@ -617,36 +618,52 @@ static void __test_rdpq_autosyncs(TestContext *ctx, void (*func)(void), uint8_t 
     // (rspq doesn't need to clear it)
     memset(rspq_rdp_dynamic_buffers[0], 0, 32*8);
 
+    rspq_block_t *block = NULL;
+    DEFER(if (block) rspq_block_free(block));
+
     void *framebuffer = malloc_uncached_aligned(64, TEST_RDPQ_FBSIZE);
     DEFER(free_uncached(framebuffer));
     rdpq_set_color_image(framebuffer, FMT_RGBA16, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH * 2);
-    if (block) {
+
+    if (use_block) {
         rspq_block_begin();
         func();
-        rspq_block_t *b = rspq_block_end();
-        rspq_block_run(b);
-        rspq_wait();
-        rspq_block_free(b);
-    } else {
-        func();
-        rspq_wait();        
+        block = rspq_block_end();
+        ASSERT(block->rdp_block, "rdpq block is empty?");
+        rspq_block_run(block);
     }
 
+    // Execute the provided function (also after the block, if requested).
+    // This allows us also to get coverage of the post-block autosync state    
+    func();
+    rspq_wait();
+
     uint8_t cnt[4] = {0};
-    for (int i=0;i<32;i++) {
-        uint64_t *cmds = rspq_rdp_dynamic_buffers[0];
-        uint8_t cmd = cmds[i] >> 56;
-        if (cmd == RDPQ_CMD_SYNC_LOAD+0xC0) cnt[0]++;
-        if (cmd == RDPQ_CMD_SYNC_TILE+0xC0) cnt[1]++;
-        if (cmd == RDPQ_CMD_SYNC_PIPE+0xC0) cnt[2]++;
-        if (cmd == RDPQ_CMD_SYNC_FULL+0xC0) cnt[3]++;
+    void count_syncs(uint64_t *cmds, int n) {
+        for (int i=0;i<n;i++) {
+            uint8_t cmd = cmds[i] >> 56;
+            if (cmd == RDPQ_CMD_SYNC_LOAD+0xC0) cnt[0]++;
+            if (cmd == RDPQ_CMD_SYNC_TILE+0xC0) cnt[1]++;
+            if (cmd == RDPQ_CMD_SYNC_PIPE+0xC0) cnt[2]++;
+            if (cmd == RDPQ_CMD_SYNC_FULL+0xC0) cnt[3]++;            
+        }
     }
+
+    if (use_block) {
+        rdpq_block_t *bb = block->rdp_block;
+        while (bb) {
+            count_syncs((uint64_t*)bb->cmds, 32);
+            bb = bb->next;
+        }        
+    }
+    
+    count_syncs(rspq_rdp_dynamic_buffers[0], 32);
 
     for (int j=0;j<4;j++) {
         if (cnt[j] != exp[j]) {
+            uint64_t *cmds = rspq_rdp_dynamic_buffers[0];
             for (int i=0;i<32;i++) {
-                uint64_t *cmds = rspq_rdp_dynamic_buffers[0];
-                LOG("cmd: %016llx\n", cmds[i]);
+                LOG("cmd: %016llx @ %p\n", cmds[i], &cmds[i]);
             }
             ASSERT_EQUAL_MEM(cnt, exp, 4, "Unexpected sync commands");
         }
@@ -669,6 +686,7 @@ static void __autosync_pipe1(void) {
     rdpq_fill_rectangle(0, 0, 8, 8);
 }
 static uint8_t __autosync_pipe1_exp[4] = {0,0,1,1};
+static uint8_t __autosync_pipe1_blockexp[4] = {0,0,4,1};
 
 static void __autosync_tile1(void) {
     rdpq_set_tile(0, FMT_RGBA16, 0, 128, 0);
@@ -691,6 +709,7 @@ static void __autosync_tile1(void) {
 
 }
 static uint8_t __autosync_tile1_exp[4] = {0,2,0,1};
+static uint8_t __autosync_tile1_blockexp[4] = {0,5,0,1};
 
 static void __autosync_load1(void) {
     uint8_t *tex = malloc_uncached(8*8);
@@ -709,18 +728,31 @@ static void __autosync_load1(void) {
     rdpq_load_tile(0, 0, 0, 7, 7);
 }
 static uint8_t __autosync_load1_exp[4] = {1,0,0,1};
+static uint8_t __autosync_load1_blockexp[4] = {3,3,2,1};
 
 void test_rdpq_autosync(TestContext *ctx) {
     LOG("__autosync_pipe1\n");
     __test_rdpq_autosyncs(ctx, __autosync_pipe1, __autosync_pipe1_exp, false);
     if (ctx->result == TEST_FAILED) return;
 
+    LOG("__autosync_pipe1 (block)\n");
+    __test_rdpq_autosyncs(ctx, __autosync_pipe1, __autosync_pipe1_blockexp, true);
+    if (ctx->result == TEST_FAILED) return;
+
     LOG("__autosync_tile1\n");
     __test_rdpq_autosyncs(ctx, __autosync_tile1, __autosync_tile1_exp, false);
     if (ctx->result == TEST_FAILED) return;
 
+    LOG("__autosync_tile1 (block)\n");
+    __test_rdpq_autosyncs(ctx, __autosync_tile1, __autosync_tile1_blockexp, true);
+    if (ctx->result == TEST_FAILED) return;
+
     LOG("__autosync_load1\n");
     __test_rdpq_autosyncs(ctx, __autosync_load1, __autosync_load1_exp, false);
+    if (ctx->result == TEST_FAILED) return;
+
+    LOG("__autosync_load1 (block)\n");
+    __test_rdpq_autosyncs(ctx, __autosync_load1, __autosync_load1_blockexp, true);
     if (ctx->result == TEST_FAILED) return;
 }
 

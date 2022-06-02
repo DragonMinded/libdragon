@@ -29,12 +29,6 @@ typedef struct rdpq_state_s {
     uint8_t target_bitdepth;
 } rdpq_state_t;
 
-typedef struct rdpq_block_s {
-    rdpq_block_t *next;
-    uint32_t autosync_state;
-    uint32_t cmds[] __attribute__((aligned(8)));
-} rdpq_block_t;
-
 bool __rdpq_inited = false;
 
 static volatile uint32_t *rdpq_block_ptr;
@@ -166,11 +160,6 @@ static void autosync_change(uint32_t res) {
     }
 }
 
-void __rdpq_reset_buffer()
-{
-    last_rdp_cmd = NULL;
-}
-
 void __rdpq_block_flush(uint32_t *start, uint32_t *end)
 {
     assertf(((uint32_t)start & 0x7) == 0, "start not aligned to 8 bytes: %lx", (uint32_t)start);
@@ -180,13 +169,14 @@ void __rdpq_block_flush(uint32_t *start, uint32_t *end)
     uint32_t phys_end = PhysicalAddr(end);
 
     // FIXME: Updating the previous command won't work across buffer switches
-    uint32_t diff = rdpq_block_ptr - last_rdp_cmd;
+    extern volatile uint32_t *rspq_cur_pointer;
+    uint32_t diff = rspq_cur_pointer - last_rdp_cmd;
     if (diff == 2 && (*last_rdp_cmd&0xFFFFFF) == phys_start) {
         // Update the previous command
         *last_rdp_cmd = (RSPQ_CMD_RDP<<24) | phys_end;
     } else {
         // Put a command in the regular RSP queue that will submit the last buffer of RDP commands.
-        last_rdp_cmd = rdpq_block_ptr;
+        last_rdp_cmd = rspq_cur_pointer;
         rspq_int_write(RSPQ_CMD_RDP, phys_end, phys_start);
     }
 }
@@ -208,13 +198,17 @@ void __rdpq_block_next_buffer()
     // Allocate next chunk (double the size of the current one).
     // We use doubling here to reduce overheads for large blocks
     // and at the same time start small.
-    if (rdpq_block_size < RDPQ_BLOCK_MAX_SIZE) rdpq_block_size *= 2;
-    rdpq_block->next = malloc_uncached(sizeof(rdpq_block_t) + rdpq_block_size*sizeof(uint32_t));
-    rdpq_block = rdpq_block->next;
-    rdpq_block->next = NULL;
+    rdpq_block_t *b = malloc_uncached(sizeof(rdpq_block_t) + rdpq_block_size*sizeof(uint32_t));
+    b->next = NULL;
+    if (rdpq_block) rdpq_block->next = b;
+    rdpq_block = b;
+    if (!rdpq_block_first) rdpq_block_first = b;
 
     // Switch to new buffer
     __rdpq_block_switch_buffer(rdpq_block->cmds, rdpq_block_size);
+
+    // Grow size for next buffer
+    if (rdpq_block_size < RDPQ_BLOCK_MAX_SIZE) rdpq_block_size *= 2;
 }
 
 void __rdpq_block_begin()
@@ -222,6 +216,8 @@ void __rdpq_block_begin()
     rdpq_block_active = true;
     rdpq_block = NULL;
     rdpq_block_first = NULL;
+    last_rdp_cmd = NULL;
+    rdpq_block_size = RDPQ_BLOCK_MIN_SIZE;
     // push on autosync state stack (to recover the state later)
     rdpq_autosync_state[1] = rdpq_autosync_state[0];
     // current autosync status is unknown because blocks can be
@@ -243,6 +239,7 @@ rdpq_block_t* __rdpq_block_end()
     rdpq_autosync_state[0] = rdpq_autosync_state[1];
     rdpq_block_first = NULL;
     rdpq_block = NULL;
+    last_rdp_cmd = NULL;
 
     return ret;
 }
@@ -264,20 +261,10 @@ void __rdpq_block_free(rdpq_block_t *block)
     }
 }
 
-__attribute__((noinline))
-static void __rdpq_block_create(void)
-{
-    rdpq_block_size = RDPQ_BLOCK_MIN_SIZE;
-    rdpq_block = malloc_uncached(sizeof(rdpq_block_t) + rdpq_block_size*sizeof(uint32_t));
-    rdpq_block->next = NULL;
-    __rdpq_reset_buffer();
-    __rdpq_block_switch_buffer(rdpq_block->cmds, rdpq_block_size);
-}
-
 static void __rdpq_block_check(void)
 {
     if (rdpq_block_active && rdpq_block == NULL)
-        __rdpq_block_create();
+        __rdpq_block_next_buffer();
 }
 
 /// @cond
@@ -302,7 +289,7 @@ static void __rdpq_block_check(void)
 })
 
 #define rdpq_static_skip(size) ({ \
-    for (int i = 0; i < (size); i++) rdpq_block_ptr++; \
+    rdpq_block_ptr += size; \
     if (__builtin_expect(rdpq_block_ptr > rdpq_block_end, 0)) \
         __rdpq_block_next_buffer(); \
 })

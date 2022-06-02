@@ -234,13 +234,6 @@ typedef struct rspq_overlay_header_t {
     uint16_t commands[];
 } rspq_overlay_header_t;
 
-/** @brief A pre-built block of commands */
-typedef struct rspq_block_s {
-    uint32_t nesting_level;     ///< Nesting level of the block
-    rdpq_block_t *rdp_block;
-    uint32_t cmds[];            ///< Block contents (commands)
-} rspq_block_t;
-
 /** @brief RSPQ overlays */
 rsp_ucode_t *rspq_overlay_ucodes[RSPQ_MAX_OVERLAY_COUNT];
 
@@ -910,7 +903,6 @@ void rspq_next_buffer(void) {
         // Terminate the previous chunk with a JUMP op to the new chunk.
         rspq_append1(prev, RSPQ_CMD_JUMP, PhysicalAddr(rspq2));
 
-        __rdpq_reset_buffer();
         return;
     }
 
