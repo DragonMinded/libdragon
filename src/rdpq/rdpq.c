@@ -484,6 +484,7 @@ void rdpq_sync_load(void)
     rdpq_autosync_state[0] &= ~AUTOSYNC_TMEMS;
 }
 
+
 /* Extern inline instantiations. */
 extern inline void rdpq_set_fill_color(color_t color);
 extern inline void rdpq_set_color_image(void* dram_ptr, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride);

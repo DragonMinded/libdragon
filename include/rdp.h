@@ -110,43 +110,62 @@ extern "C" {
  */
 void rdp_init( void );
 
+/**
+ * @brief Attach the RDP to a surface
+ *
+ * This function allows the RDP to operate on surfaces, that is memory buffers
+ * that can be used as render targets. For instance, it can be used with
+ * framebuffers acquired by calling #display_lock, or to render to an offscreen
+ * buffer created with #surface_new.
+ * 
+ * This should be performed before any rendering operations to ensure that the RDP
+ * has a valid output buffer to operate on.
+ *
+ * @param[in] surface
+ *            A surface pointer
+ *            
+ * @see surface_new
+ * @see display_lock
+ */
 void rdp_attach( surface_t *surface );
 
+/**
+ * @brief Detach the RDP from the current surface, after the RDP will have
+ *        finished writing to it.
+ *
+ * This function will ensure that all RDP rendering operations have completed
+ * before detaching the surface. As opposed to #rdp_detach, this function will
+ * not block. An option callback will be called when the RDP has finished drawing
+ * and is detached.
+ * 
+ * @param[in] cb
+ *            Optional callback that will be called when the RDP is detached
+ *            from the current surface
+ * @param[in] arg
+ *            Argument to the callback.
+ *            
+ * @see #rdp_detach
+ */
+void rdp_detach_async( void (*cb)(void*), void *arg );
+
+/**
+ * @brief Detach the RDP from the current surface, after the RDP will have
+ *        finished writing to it.
+ *
+ * This function will ensure that all RDP rendering operations have completed
+ * before detaching the surface. As opposed to #rdp_detach_async, this function
+ * will block, doing a spinlock until the RDP has finished.
+ * 
+ * @note This function requires interrupts to be enabled to operate correctly.
+ * 
+ * @see #rdp_detach_async
+ */
 void rdp_detach( void );
 
 /**
- * @brief Attach the RDP to a display context
- *
- * This function allows the RDP to operate on display contexts fetched with #display_lock.
- * This should be performed before any other operations to ensure that the RDP has a valid
- * output buffer to operate on.
- *
- * @param[in] disp
- *            A display context as returned by #display_lock
+ * @brief Check if the RDP is currently attached to a surface
  */
-inline void rdp_attach_display( display_context_t disp )
-{
-    rdp_attach(disp);
-}
-
-/**
- * @brief Detach the RDP from a display context
- *
- * @note This function requires interrupts to be enabled to operate properly.
- *
- * This function will ensure that all hardware operations have completed on an output buffer
- * before detaching the display context.  This should be performed before displaying the finished
- * output using #display_show
- */
-inline void rdp_detach_display( void )
-{
-    rdp_detach();
-}
-
-/**
- * @brief Check if the RDP is currently attached to a display context
- */
-bool rdp_is_attached();
+bool rdp_is_attached( void );
 
 /**
  * @brief Check if it is currently possible to attach a new display context to the RDP.
@@ -158,19 +177,6 @@ bool rdp_is_attached();
  */
 #define rdp_can_attach() (!rdp_is_attached())
 
-/**
- * @brief Detach the RDP from a display context after asynchronously waiting for the RDP interrupt
- *
- * @note This function requires interrupts to be enabled to operate properly.
- *
- * This function will ensure that all hardware operations have completed on an output buffer
- * before detaching the display context. As opposed to #rdp_detach_display, this function will
- * not block until the RDP interrupt is raised and takes a callback function instead.
- * 
- * @param[in] cb
- *            The callback that will be called when the RDP interrupt is raised.
- */
-void rdp_detach_async( void (*cb)(void*), void *arg );
 
 /**
  * @brief Asynchronously detach the current display from the RDP and automatically call #display_show on it
@@ -441,10 +447,22 @@ typedef enum
     SYNC_TILE
 } sync_t;
 
-__attribute__((deprecated("use rspq_set_scissor instead")))
+__attribute__((deprecated("use rdp_attach instead")))
+static inline void rdp_attach_display( display_context_t disp )
+{
+    rdp_attach(disp);
+}
+
+__attribute__((deprecated("use rdp_detach instead")))
+static inline void rdp_detach_display( void )
+{
+    rdp_detach();
+}
+
+__attribute__((deprecated("use rdpq_set_scissor instead")))
 void rdp_set_clipping( uint32_t tx, uint32_t ty, uint32_t bx, uint32_t by );
 
-__attribute__((deprecated("default clipping is configured by default")))
+__attribute__((deprecated("default clipping is activated automatically during rdp_attach_display")))
 void rdp_set_default_clipping( void );
 
 __attribute__((deprecated("syncs are now performed automatically -- or use rdpq_sync_* functions otherwise")))

@@ -437,7 +437,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
         __safe_buffer[i] = malloc_uncached_aligned( 64, __width * __height * __bitdepth );
         assert(__safe_buffer[i] != NULL);
         tex_format_t format = bit == DEPTH_16_BPP ? FMT_RGBA16 : FMT_RGBA32;
-        surface_init(&surfaces[i], __safe_buffer[i], format, __width, __height, __width * __bitdepth);
+        surface_new(&surfaces[i], __safe_buffer[i], format, __width, __height, __width * __bitdepth);
 
         /* Baseline is blank */
         memset( __safe_buffer[i], 0, __width * __height * __bitdepth );

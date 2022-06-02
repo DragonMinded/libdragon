@@ -22,6 +22,9 @@ typedef enum {
     FMT_I8     = TEX_FORMAT_CODE(4, 1),
 } tex_format_t;
 
+#define SURFACE_FLAGS_TEXFORMAT    0x1F   ///< Pixel format of the surface
+#define SURFACE_FLAGS_OWNEDBUFFER  0x20   ///< Set if the buffer must be freed
+
 typedef struct surface_s
 {
     uint32_t flags;
@@ -35,7 +38,28 @@ typedef struct surface_s
 extern "C" {
 #endif
 
-void surface_init(surface_t *surface, void *buffer, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride);
+/**
+ * @brief Initialize a surface_t structure, optionally allocating memory
+ *
+ * @param      surface  Surface to initialize
+ * @param[in]  buffer   Buffer to use, or NULL to auto-allocate it
+ * @param[in]  format   Pixel format of the surface
+ * @param[in]  width    Width in pixels
+ * @param[in]  height   Height in pixels
+ * @param[in]  stride   Stride in bytes (distance between rows)
+ */
+void surface_new(surface_t *surface, 
+    void *buffer, tex_format_t format,
+    uint32_t width, uint32_t height, uint32_t stride);
+
+/**
+ * @brief Initialize a surface_t structure, pointing to a rectangular portion of another
+ *        surface.
+ */
+void surface_new_sub(surface_t *sub, 
+    surface_t *parent, uint32_t x0, uint32_t y0, uint32_t width, uint32_t height);
+
+void surface_free(surface_t *surface);
 
 inline tex_format_t surface_get_format(const surface_t *surface)
 {

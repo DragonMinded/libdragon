@@ -66,7 +66,11 @@ typedef enum
     ANTIALIAS_RESAMPLE_FETCH_ALWAYS
 } antialias_t;
 
-/** @brief Display context */
+/** 
+ * @brief Display context (DEPRECATED: Use #surface_t instead)
+ * 
+ * @see #surface_t
+ */
 typedef surface_t* display_context_t;
 
 #ifdef __cplusplus
@@ -74,24 +78,14 @@ extern "C" {
 #endif
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, antialias_t aa );
-display_context_t display_lock(void);
-void display_show(display_context_t disp);
+surface_t* display_lock(void);
+void display_show(surface_t* disp);
 void display_close();
 
-uint32_t display_get_width();
-uint32_t display_get_height();
-uint32_t display_get_bitdepth();
-uint32_t display_get_num_buffers();
-
-inline surface_t * display_to_surface(display_context_t disp)
-{
-    return disp;
-}
-
-inline display_context_t display_from_surface(surface_t *surface)
-{
-    return surface;
-}
+uint32_t display_get_width(void);
+uint32_t display_get_height(void);
+uint32_t display_get_bitdepth(void);
+uint32_t display_get_num_buffers(void);
 
 #ifdef __cplusplus
 }

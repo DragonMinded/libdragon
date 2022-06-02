@@ -98,7 +98,7 @@ static struct {
  *
  * @return A pointer to the current drawing surface for the display context
  */
-#define __get_buffer( x ) (display_to_surface(disp)->buffer)
+#define __get_buffer( disp ) ((disp)->buffer)
 
 #define __bitdepth (display_get_bitdepth())
 #define __width (display_get_width())
