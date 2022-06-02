@@ -89,21 +89,6 @@ typedef enum
 } mirror_t;
 
 /**
- * @brief RDP sync operations
- */
-typedef enum
-{
-    /** @brief Wait for any operation to complete before causing a DP interrupt */
-    SYNC_FULL,
-    /** @brief Sync the RDP pipeline */
-    SYNC_PIPE,
-    /** @brief Block until all texture load operations are complete */
-    SYNC_LOAD,
-    /** @brief Block until all tile operations are complete */
-    SYNC_TILE
-} sync_t;
-
-/**
  * @brief Caching strategy for loaded textures
  */
 typedef enum
@@ -113,8 +98,6 @@ typedef enum
     /** @brief Cache will be flushed on all incoming textures */
     FLUSH_STRATEGY_AUTOMATIC
 } flush_t;
-
-typedef int rdp_sync_id_t;
 
 /** @} */
 
@@ -199,40 +182,6 @@ void rdp_detach_async( void (*cb)(void*), void *arg );
 #define rdp_auto_show_display(disp) ({ \
     rdp_detach_async((void(*)(void*))display_show, (disp)); \
 })
-
-/**
- * @brief Perform a sync operation
- *
- * Do not use excessive sync operations between commands as this can
- * cause the RDP to stall.  If the RDP stalls due to too many sync
- * operations, graphics may not be displayed until the next render
- * cycle, causing bizarre artifacts.  The rule of thumb is to only add
- * a sync operation if the data you need is not yet available in the
- * pipeline.
- *
- * @param[in] sync
- *            The sync operation to perform on the RDP
- */
-void rdp_sync( sync_t sync );
-
-/**
- * @brief Set the hardware clipping boundary
- *
- * @param[in] tx
- *            Top left X coordinate in pixels
- * @param[in] ty
- *            Top left Y coordinate in pixels
- * @param[in] bx
- *            Bottom right X coordinate in pixels
- * @param[in] by
- *            Bottom right Y coordinate in pixels
- */
-void rdp_set_clipping( uint32_t tx, uint32_t ty, uint32_t bx, uint32_t by );
-
-/**
- * @brief Set the hardware clipping boundary to the entire screen
- */
-void rdp_set_default_clipping( void );
 
 /**
  * @brief Enable display of 2D filled (untextured) rectangles
@@ -401,23 +350,6 @@ void rdp_draw_sprite( uint32_t texslot, int x, int y ,  mirror_t mirror);
 void rdp_draw_sprite_scaled( uint32_t texslot, int x, int y, double x_scale, double y_scale,  mirror_t mirror);
 
 /**
- * @brief Set the primitive draw color for subsequent filled primitive operations
- *
- * This function sets the color of all #rdp_draw_filled_rectangle operations that follow.
- * Note that in 16 bpp mode, the color must be a packed color.  This means that the high
- * 16 bits and the low 16 bits must both be the same color.  Use #graphics_make_color or
- * #graphics_convert_color to generate valid colors.
- *
- * @param[in] color
- *            Color to draw primitives in
- */
-static inline __attribute__((deprecated("use rdpq_set_fill_color_raw instead")))
-void rdp_set_primitive_color(uint32_t color) {
-    extern void __rdpq_set_fill_color(uint32_t);
-    __rdpq_set_fill_color(color);
-}
-
-/**
  * @brief Set the blend draw color for subsequent filled primitive operations
  *
  * This function sets the color of all #rdp_draw_filled_triangle operations that follow.
@@ -497,6 +429,35 @@ void rdp_set_texture_flush( flush_t flush );
  * allocated by #rdp_init.
  */
 void rdp_close( void );
+
+
+/// @cond
+
+typedef enum
+{
+    SYNC_FULL,
+    SYNC_PIPE,
+    SYNC_LOAD,
+    SYNC_TILE
+} sync_t;
+
+__attribute__((deprecated("use rspq_set_scissor instead")))
+void rdp_set_clipping( uint32_t tx, uint32_t ty, uint32_t bx, uint32_t by );
+
+__attribute__((deprecated("default clipping is configured by default")))
+void rdp_set_default_clipping( void );
+
+__attribute__((deprecated("syncs are now performed automatically -- or use rdpq_sync_* functions otherwise")))
+void rdp_sync( sync_t sync );
+
+static inline __attribute__((deprecated("use rdpq_set_fill_color instead")))
+void rdp_set_primitive_color(uint32_t color) {
+    extern void __rdpq_set_fill_color(uint32_t);
+    __rdpq_set_fill_color(color);
+}
+
+/// @endcond
+
 
 #ifdef __cplusplus
 }

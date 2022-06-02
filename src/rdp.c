@@ -216,9 +216,8 @@ void rdp_set_clipping( uint32_t tx, uint32_t ty, uint32_t bx, uint32_t by )
 
 void rdp_set_default_clipping( void )
 {
-    rdp_ensure_attached();
     /* Clip box is the whole screen */
-    rdp_set_clipping( 0, 0, attached_surface->width, attached_surface->height );
+    rdpq_set_scissor( 0, 0, display_get_width(), display_get_height() );
 }
 
 void rdp_enable_primitive_fill( void )
