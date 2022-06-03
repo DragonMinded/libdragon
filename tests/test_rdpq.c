@@ -224,20 +224,18 @@ void test_rdpq_block_coalescing(TestContext *ctx)
     rspq_block_t *block = rspq_block_end();
     DEFER(rspq_block_free(block));
 
-    uint32_t *block_cmds = &((uint32_t*)block)[2];
-    uint32_t *rdp_block = ((uint32_t**)block)[1];
-    uint32_t *rdp_cmds = &rdp_block[2];
+    uint64_t *rdp_cmds = (uint64_t*)block->rdp_block->cmds;
 
     uint32_t expected_cmds[] = {
         // auto sync + First 3 commands + auto sync
-        (RSPQ_CMD_RDP << 24) | PhysicalAddr(rdp_cmds + 10), PhysicalAddr(rdp_cmds),
+        (RSPQ_CMD_RDP << 24) | PhysicalAddr(rdp_cmds + 5), PhysicalAddr(rdp_cmds),
         // Fixup command (leaves a hole in rdp block)
         (RDPQ_CMD_SET_FILL_COLOR_32_FIX + 0xC0) << 24, 0,
         // Last 3 commands
-        (RSPQ_CMD_RDP << 24) | PhysicalAddr(rdp_cmds + 18), PhysicalAddr(rdp_cmds + 12),
+        (RSPQ_CMD_RDP << 24) | PhysicalAddr(rdp_cmds + 9), PhysicalAddr(rdp_cmds + 6),
     };
 
-    ASSERT_EQUAL_MEM((uint8_t*)block_cmds, (uint8_t*)expected_cmds, sizeof(expected_cmds), "Block commands don't match!");
+    ASSERT_EQUAL_MEM((uint8_t*)block->cmds, (uint8_t*)expected_cmds, sizeof(expected_cmds), "Block commands don't match!");
 }
 
 void test_rdpq_block_contiguous(TestContext *ctx)
