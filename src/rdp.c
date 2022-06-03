@@ -294,7 +294,7 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     rdpq_set_tile_full(
         texslot,
         sprite_format,
-        (texloc / 8),
+        texloc,
         tmem_pitch,
         0, 
         0, 

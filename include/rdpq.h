@@ -310,10 +310,11 @@ inline void rdpq_set_tile_full(uint8_t tile, tex_format_t format,
     uint8_t ct, uint8_t mt, uint8_t mask_t, uint8_t shift_t,
     uint8_t cs, uint8_t ms, uint8_t mask_s, uint8_t shift_s)
 {
+    assertf((tmem_addr % 8) == 0, "invalid tmem_addr %d: must be multiple of 8", tmem_addr);
     assertf((tmem_pitch % 8) == 0, "invalid tmem_pitch %d: must be multiple of 8", tmem_pitch);
     extern void __rdpq_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_write8_syncchange(RDPQ_CMD_SET_TILE,
-        _carg(format, 0x1F, 19) | _carg(tmem_pitch/8, 0x1FF, 9) | _carg(tmem_addr, 0x1FF, 0),
+        _carg(format, 0x1F, 19) | _carg(tmem_pitch/8, 0x1FF, 9) | _carg(tmem_addr/8, 0x1FF, 0),
         _carg(tile, 0x7, 24) | _carg(palette, 0xF, 20) | 
         _carg(ct, 0x1, 19) | _carg(mt, 0x1, 18) | _carg(mask_t, 0xF, 14) | _carg(shift_t, 0xF, 10) | 
         _carg(cs, 0x1, 9) | _carg(ms, 0x1, 8) | _carg(mask_s, 0xF, 4) | _carg(shift_s, 0xF, 0),
@@ -338,10 +339,11 @@ inline void rdpq_set_tile_full(uint8_t tile, tex_format_t format,
 inline void rdpq_set_tile(uint8_t tile, tex_format_t format, 
     uint16_t tmem_addr, uint16_t tmem_pitch, uint8_t palette)
 {
+    assertf((tmem_addr % 8) == 0, "invalid tmem_addr %d: must be multiple of 8", tmem_addr);
     assertf((tmem_pitch % 8) == 0, "invalid tmem_pitch %d: must be multiple of 8", tmem_pitch);
     extern void __rdpq_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_write8_syncchange(RDPQ_CMD_SET_TILE,
-        _carg(format, 0x1F, 19) | _carg(tmem_pitch/8, 0x1FF, 9) | _carg(tmem_addr, 0x1FF, 0),
+        _carg(format, 0x1F, 19) | _carg(tmem_pitch/8, 0x1FF, 9) | _carg(tmem_addr/8, 0x1FF, 0),
         _carg(tile, 0x7, 24) | _carg(palette, 0xF, 20),
         AUTOSYNC_TILE(tile));
 }
