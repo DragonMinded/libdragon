@@ -587,13 +587,14 @@ inline void rdpq_set_color_image_surface(surface_t *surface)
     rdpq_set_color_image(surface->buffer, surface_get_format(surface), surface->width, surface->height, surface->stride);
 }
 
-inline void rdpq_set_cycle_mode(uint32_t cycle_mode)
+inline void rdpq_set_cycle_mode(uint64_t cycle_mode)
 {
+    uint32_t value = cycle_mode >> 32;
     uint32_t mask = ~(0x3<<20);
-    assertf((mask & cycle_mode) == 0, "Invalid cycle mode: %lx", cycle_mode);
+    assertf((mask & value) == 0, "Invalid cycle mode: %llx", cycle_mode);
 
     extern void __rdpq_modify_other_modes(uint32_t, uint32_t, uint32_t);
-    __rdpq_modify_other_modes(0, mask, cycle_mode);
+    __rdpq_modify_other_modes(0, mask, value);
 }
 
 inline void rdpq_set_lookup_address(uint8_t index, void* rdram_addr)
