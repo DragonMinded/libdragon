@@ -198,6 +198,48 @@ void test_rdpq_block(TestContext *ctx)
     #undef TEST_RDPQ_FBSIZE
 }
 
+void test_rdpq_block_coalescing(TestContext *ctx)
+{
+    rspq_init();
+    DEFER(rspq_close());
+    rdpq_init();
+    DEFER(rdpq_close());
+
+    // The actual commands don't matter because they are never executed
+    rspq_block_begin();
+
+    // These 3 commands are supposed to be coalesced
+    rdpq_set_combine_mode(0);
+    rdpq_set_blend_color(RGBA32(0, 0, 0, 0));
+    rdpq_fill_rectangle(0, 0, 0, 0);
+
+    // This command is a fixup
+    rdpq_set_fill_color(RGBA16(0, 0, 0, 0));
+
+    // These 3 should also be coalesced
+    rdpq_set_combine_mode(0);
+    rdpq_set_blend_color(RGBA32(0, 0, 0, 0));
+    rdpq_fill_rectangle(0, 0, 0, 0);
+
+    rspq_block_t *block = rspq_block_end();
+    DEFER(rspq_block_free(block));
+
+    uint32_t *block_cmds = &((uint32_t*)block)[2];
+    uint32_t *rdp_block = ((uint32_t**)block)[1];
+    uint32_t *rdp_cmds = &rdp_block[2];
+
+    uint32_t expected_cmds[] = {
+        // auto sync + First 3 commands + auto sync
+        (RSPQ_CMD_RDP << 24) | PhysicalAddr(rdp_cmds + 10), PhysicalAddr(rdp_cmds),
+        // Fixup command (leaves a hole in rdp block)
+        (RDPQ_CMD_SET_FILL_COLOR_32_FIX + 0xC0) << 24, 0,
+        // Last 3 commands
+        (RSPQ_CMD_RDP << 24) | PhysicalAddr(rdp_cmds + 18), PhysicalAddr(rdp_cmds + 12),
+    };
+
+    ASSERT_EQUAL_MEM((uint8_t*)block_cmds, (uint8_t*)expected_cmds, sizeof(expected_cmds), "Block commands don't match!");
+}
+
 void test_rdpq_block_contiguous(TestContext *ctx)
 {
     rspq_init();
