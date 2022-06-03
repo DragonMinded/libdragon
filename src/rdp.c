@@ -11,6 +11,7 @@
 #include "display.h"
 #include "debug.h"
 #include "n64sys.h"
+#include "utils.h"
 #include <stdint.h>
 #include <malloc.h>
 #include <string.h>
@@ -287,15 +288,14 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     uint32_t wbits = __rdp_log2( real_width );
     uint32_t hbits = __rdp_log2( real_height );
 
-    /* Because we are dividing by 8, we want to round up if we have a remainder */
-    int round_amount = (real_width % 8) ? 1 : 0;
+    uint32_t tmem_pitch = ROUND_UP(real_width * sprite->bitdepth, 8);
 
     /* Instruct the RDP to copy the sprite data out */
     rdpq_set_tile_full(
         texslot,
         sprite_format,
         (texloc / 8),
-        (((real_width / 8) + round_amount) * sprite->bitdepth),
+        tmem_pitch,
         0, 
         0, 
         mirror_enabled != MIRROR_DISABLED ? 1 : 0,
@@ -318,7 +318,7 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     cache[texslot & 0x7].real_height = real_height;
     
     /* Return the amount of texture memory consumed by this texture */
-    return ((real_width / 8) + round_amount) * 8 * real_height * sprite->bitdepth;
+    return tmem_pitch * real_height;
 }
 
 uint32_t rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror, sprite_t *sprite )
