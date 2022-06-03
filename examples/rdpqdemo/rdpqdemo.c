@@ -62,20 +62,14 @@ void update(int ovfl)
 
 void render()
 {
-    if (!rdp_can_attach())
-    {
-        return;
-    }
-
-    display_context_t disp = display_lock();
+    surface_t *disp = display_lock();
     if (!disp)
     {
         return;
     }
 
-    rdp_attach_display(disp);
-    rdp_set_default_clipping();
-
+    rdp_attach(disp);
+    
     rdp_enable_texture_copy();
 
     rspq_block_run(tiles_block);
