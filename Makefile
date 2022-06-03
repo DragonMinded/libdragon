@@ -38,7 +38,7 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 			 $(BUILD_DIR)/audio/ym64.o $(BUILD_DIR)/audio/ay8910.o \
 			 $(BUILD_DIR)/rspq/rspq.o $(BUILD_DIR)/rspq/rsp_queue.o \
 			 $(BUILD_DIR)/rdpq/rdpq.o $(BUILD_DIR)/rdpq/rsp_rdpq.o \
-			 $(BUILD_DIR)/surface.o
+			 $(BUILD_DIR)/surface.o $(BUILD_DIR)/GL/gl.o
 	@echo "    [AR] $@"
 	$(AR) -rcs -o $@ $^
 
@@ -69,6 +69,7 @@ install-mk: n64.mk
 	install -Cv -m 0644 n64.mk $(INSTALLDIR)/include/n64.mk
 
 install: install-mk libdragon
+	mkdir -p $(INSTALLDIR)/mips64-elf/include/GL
 	install -Cv -m 0644 libdragon.a $(INSTALLDIR)/mips64-elf/lib/libdragon.a
 	install -Cv -m 0644 n64.ld $(INSTALLDIR)/mips64-elf/lib/n64.ld
 	install -Cv -m 0644 header $(INSTALLDIR)/mips64-elf/lib/header
@@ -116,6 +117,8 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/rdpq.h $(INSTALLDIR)/mips64-elf/include/rdpq.h
 	install -Cv -m 0644 include/rdp_commands.h $(INSTALLDIR)/mips64-elf/include/rdp_commands.h
 	install -Cv -m 0644 include/surface.h $(INSTALLDIR)/mips64-elf/include/surface.h
+	install -Cv -m 0644 include/GL/gl.h $(INSTALLDIR)/mips64-elf/include/GL/gl.h
+	install -Cv -m 0644 include/GL/gl_integration.h $(INSTALLDIR)/mips64-elf/include/GL/gl_integration.h
 
 
 clean:

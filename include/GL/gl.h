@@ -928,16 +928,16 @@ void glStencilMask(GLuint mask);
 
 /* Clearing */
 
-#define GL_COLOR_BUFFER_BIT
-#define GL_DEPTH_BUFFER_BIT
-#define GL_STENCIL_BUFFER_BIT
-#define GL_ACCUM_BUFFER_BIT
+#define GL_COLOR_BUFFER_BIT     (1 << 0)
+#define GL_DEPTH_BUFFER_BIT     (1 << 1)
+#define GL_STENCIL_BUFFER_BIT   (1 << 2)
+#define GL_ACCUM_BUFFER_BIT     (1 << 3)
 
-#define GL_COLOR_CLEAR_VALUE
-#define GL_DEPTH_CLEAR_VALUE
-#define GL_INDEX_CLEAR_VALUE
-#define GL_STENCIL_CLEAR_VALUE
-#define GL_ACCUM_CLEAR_VALUE
+#define GL_COLOR_CLEAR_VALUE    0x0
+#define GL_DEPTH_CLEAR_VALUE    0x1
+#define GL_INDEX_CLEAR_VALUE    0x2
+#define GL_STENCIL_CLEAR_VALUE  0x3
+#define GL_ACCUM_CLEAR_VALUE    0x4
 
 void glClear(GLbitfield buf);
 
@@ -1177,10 +1177,10 @@ void glGetPolygonStipple(GLvoid *pattern);
 
 void glGetPointerv(GLenum pname, GLvoid **params);
 
-#define GL_VENDOR
-#define GL_RENDERER
-#define GL_VERSION
-#define GL_EXTENSIONS
+#define GL_VENDOR       0x1000000
+#define GL_RENDERER     0x1000001
+#define GL_VERSION      0x1000002
+#define GL_EXTENSIONS   0x1000003
 
 GLubyte *glGetString(GLenum name);
 
