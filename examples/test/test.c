@@ -40,6 +40,7 @@ int main(void)
     /* Initialize peripherals */
     display_init( res, bit, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
     dfs_init( DFS_DEFAULT_LOCATION );
+    controller_init();
 
     /* Read in sprite */
     sprite_t *mario = read_sprite( "rom://mario.sprite" );
