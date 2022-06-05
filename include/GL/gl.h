@@ -431,13 +431,6 @@ void glRasterPos4dv(const GLdouble *v);
 
 #define GL_COLOR_MATERIAL
 
-#define GL_CCW
-#define GL_CW
-
-#define GL_FRONT
-#define GL_BACK
-#define GL_FRONT_AND_BACK
-
 #define GL_LIGHTING
 
 #define GL_LIGHT0
@@ -474,12 +467,8 @@ void glRasterPos4dv(const GLdouble *v);
 
 #define GL_SHADE_MODEL
 
-#define GL_FRONT_FACE
-
 #define GL_COLOR_MATERIAL_FACE
 #define GL_COLOR_MATERIAL_PARAMETER
-
-void glFrontFace(GLenum dir);
 
 void glMateriali(GLenum face, GLenum pname, GLint param);
 void glMaterialf(GLenum face, GLenum pname, GLfloat param);
@@ -530,13 +519,22 @@ void glLineStipple(GLint factor, GLushort pattern);
 
 /* Polygons */
 
-#define GL_CULL_FACE
+#define GL_CULL_FACE                0x1
+
+#define GL_FRONT                    0x1
+#define GL_BACK                     0x2
+#define GL_FRONT_AND_BACK           (GL_FRONT | GL_BACK)
+
+#define GL_CCW                      0x0
+#define GL_CW                       0x1
 
 #define GL_POINT
 #define GL_LINE
 #define GL_FILL
 
 #define GL_CULL_FACE_MODE
+
+#define GL_FRONT_FACE
 
 #define GL_POLYGON_MODE
 #define GL_POLYGON_OFFSET_FACTOR
@@ -548,6 +546,8 @@ void glLineStipple(GLint factor, GLushort pattern);
 #define GL_POLYGON_STIPPLE
 
 void glCullFace(GLenum mode);
+
+void glFrontFace(GLenum dir);
 
 void glPolygonStipple(const GLubyte *pattern);
 void glPolygonMode(GLenum face, GLenum mode);
@@ -894,12 +894,9 @@ void glLogicOp(GLenum op);
 /* Framebuffer selection */
 
 #define GL_NONE
-#define GL_FRONT
-#define GL_BACK
 #define GL_LEFT
 #define GL_RIGHT
-#define GL_FRONT_AND_BACK
-#define GL_FRONT_LEFT
+#define GL_FRONT_LEFT       
 #define GL_FRONT_RIGHT
 #define GL_BACK_LEFT
 #define GL_BACK_RIGHT

@@ -63,6 +63,10 @@ static GLenum current_error;
 static GLenum immediate_mode;
 static GLclampf clear_color[4];
 
+static bool cull_face;
+static GLenum cull_face_mode;
+static GLenum front_face;
+
 static gl_vertex_t vertex_cache[3];
 static uint32_t triangle_indices[3];
 static uint32_t next_vertex;
@@ -149,6 +153,7 @@ void gl_update_final_matrix()
 void gl_init()
 {
     rdpq_init();
+    glCullFace(GL_BACK);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     rdpq_set_other_modes(0);
@@ -178,6 +183,30 @@ void gl_swap_buffers()
     rdpq_sync_full((void(*)(void*))display_show, default_framebuffer.color_buffer);
     rspq_flush();
     gl_set_default_framebuffer();
+}
+
+void glEnable(GLenum target)
+{
+    switch (target) {
+    case GL_CULL_FACE:
+        cull_face = true;
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void glDisable(GLenum target)
+{
+    switch (target) {
+    case GL_CULL_FACE:
+        cull_face = false;
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
 }
 
 void glBegin(GLenum mode)
@@ -224,6 +253,36 @@ void gl_vertex_cache_changed()
     gl_vertex_t *v1 = &vertex_cache[triangle_indices[1]];
     gl_vertex_t *v2 = &vertex_cache[triangle_indices[2]];
 
+    switch (immediate_mode) {
+    case GL_TRIANGLES:
+        triangle_progress = 0;
+        break;
+    case GL_TRIANGLE_STRIP:
+        triangle_progress = 2;
+        triangle_indices[triangle_counter % 2] = triangle_indices[2];
+        break;
+    case GL_TRIANGLE_FAN:
+        triangle_progress = 2;
+        triangle_indices[1] = triangle_indices[2];
+        break;
+    }
+
+    triangle_counter++;
+
+    if (cull_face)
+    {
+        float winding = v0->position[0] * (v1->position[1] - v2->position[1]) +
+                        v1->position[0] * (v2->position[1] - v0->position[1]) +
+                        v2->position[0] * (v0->position[1] - v1->position[1]);
+        
+        bool is_front = (front_face == GL_CCW) ^ (winding > 0.0f);
+        GLenum face = is_front ? GL_FRONT : GL_BACK;
+
+        if (cull_face_mode & face) {
+            return;
+        }
+    }
+
     rdpq_triangle_shade(
         v0->position[0], 
         v0->position[1], 
@@ -240,23 +299,6 @@ void gl_vertex_cache_changed()
         v2->color[0]*255.f,
         v2->color[1]*255.f,
         v2->color[2]*255.f);
-
-    switch (immediate_mode)
-    {
-    case GL_TRIANGLES:
-        triangle_progress = 0;
-        break;
-    case GL_TRIANGLE_STRIP:
-        triangle_progress = 2;
-        triangle_indices[triangle_counter % 2] = triangle_indices[2];
-        break;
-    case GL_TRIANGLE_FAN:
-        triangle_progress = 2;
-        triangle_indices[1] = triangle_indices[2];
-        break;
-    }
-
-    triangle_counter++;
 }
 
 void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w) 
@@ -361,15 +403,14 @@ void glDepthRange(GLclampd n, GLclampd f)
 void glViewport(GLint x, GLint y, GLsizei w, GLsizei h)
 {
     current_viewport.scale[0] = w * 0.5f;
-    current_viewport.scale[1] = h * 0.5f;
+    current_viewport.scale[1] = h * -0.5f;
     current_viewport.offset[0] = x + w * 0.5f;
     current_viewport.offset[1] = y + h * 0.5f;
 }
 
 void glMatrixMode(GLenum mode)
 {
-    switch (mode)
-    {
+    switch (mode) {
     case GL_MODELVIEW:
         current_matrix_stack = &modelview_stack;
         break;
@@ -509,6 +550,33 @@ void glPopMatrix(void)
     current_matrix_stack->cur_depth = new_depth;
 
     gl_update_current_matrix();
+}
+
+void glCullFace(GLenum mode)
+{
+    switch (mode) {
+    case GL_BACK:
+    case GL_FRONT:
+    case GL_FRONT_AND_BACK:
+        cull_face_mode = mode;
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void glFrontFace(GLenum dir)
+{
+    switch (dir) {
+    case GL_CW:
+    case GL_CCW:
+        front_face = dir;
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
 }
 
 void glScissor(GLint left, GLint bottom, GLsizei width, GLsizei height)
