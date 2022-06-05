@@ -419,7 +419,7 @@ void rdpq_triangle(float x1, float y1, float x2, float y2, float x3, float y3)
     const float xm = x1 + FY * ism;
     const float xl = x2 + ( ((CY/4) - y2) * isl );
 
-    autosync_use(AUTOSYNC_PIPE | AUTOSYNC_TILE(0));
+    autosync_use(AUTOSYNC_PIPE);
 
     rdpq_write(RDPQ_CMD_TRI, 
         _carg(lft, 0x1, 23) | _carg(y3f, 0x3FFF, 0),
@@ -435,7 +435,7 @@ void rdpq_triangle(float x1, float y1, float x2, float y2, float x3, float y3)
 void rdpq_triangle_shade(float x1, float y1, float x2, float y2, float x3, float y3, float v1R, float v1G, float v1B, 
                 float v2R, float v2G, float v2B, float v3R, float v3G, float v3B)
 {
-    autosync_use(AUTOSYNC_PIPE | AUTOSYNC_TILE(0));
+    autosync_use(AUTOSYNC_PIPE);
     rspq_write_t w = rspq_write_begin(RDPQ_OVL_ID, RDPQ_CMD_TRI_SHADE, 24);
 
     const float to_fixed_11_2 = 4.0f;
