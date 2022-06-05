@@ -60,20 +60,20 @@ void glDisable(GLenum target);
 
 /* Immediate mode */
 
-#define GL_POINTS
-#define GL_LINE_STRIP
-#define GL_LINE_LOOPS
-#define GL_LINES
-#define GL_POLYGON
-#define GL_TRIANGLE_STRIP
-#define GL_TRIANGLE_FAN
-#define GL_TRIANGLES
-#define GL_QUAD_STRIP
-#define GL_QUADS
+#define GL_POINTS           0x1
+#define GL_LINE_STRIP       0x2
+#define GL_LINE_LOOPS       0x3
+#define GL_LINES            0x4
+#define GL_POLYGON          0x5
+#define GL_TRIANGLE_STRIP   0x6
+#define GL_TRIANGLE_FAN     0x7
+#define GL_TRIANGLES        0x8
+#define GL_QUAD_STRIP       0x9
+#define GL_QUADS            0xA
 
 #define GL_NORMALIZE
 
-#define GL_CURRENT_COLOR
+#define GL_CURRENT_COLOR                    0x1
 #define GL_CURRENT_INDEX
 #define GL_CURRENT_NORMAL
 #define GL_CURRENT_TEXTURE_COORDS
@@ -315,9 +315,9 @@ void glViewport(GLint x, GLint y, GLsizei w, GLsizei h);
 
 /* Matrices */
 
-#define GL_TEXTURE
-#define GL_MODELVIEW
-#define GL_PROJECTION
+#define GL_TEXTURE      0x1
+#define GL_MODELVIEW    0x2
+#define GL_PROJECTION   0x3
 
 #define GL_MATRIX_MODE
 

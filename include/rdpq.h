@@ -111,19 +111,9 @@ void rdpq_fence(void);
 void rdpq_set_config(uint32_t cfg);
 uint32_t rdpq_change_config(uint32_t on, uint32_t off);
 
-inline void rdpq_fill_triangle(bool flip, int16_t yl, int16_t ym, int16_t yh, int32_t xl, int32_t dxldy, int32_t xh, int32_t dxhdy, int32_t xm, int32_t dxmdy)
-{
-    extern void __rdpq_fill_triangle(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-    __rdpq_fill_triangle(
-        _carg(flip ? 1 : 0, 0x1, 23) | _carg(yl, 0x3FFF, 0),
-        _carg(ym, 0x3FFF, 16) | _carg(yh, 0x3FFF, 0),
-        xl,
-        dxldy,
-        xh,
-        dxhdy,
-        xm,
-        dxmdy);
-}
+void rdpq_triangle(float x1, float y1, float x2, float y2, float x3, float y3);
+void rdpq_triangle_shade(float x1, float y1, float x2, float y2, float x3, float y3, float v1R, float v1G, float v1B, 
+                float v2R, float v2G, float v2B, float v3R, float v3G, float v3B);
 
 /**
  * @brief Low level function to draw a textured rectangle

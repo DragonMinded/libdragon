@@ -7,6 +7,11 @@
 #include "rdp_commands.h"
 #include "interrupt.h"
 #include <string.h>
+#include <math.h>
+#include <float.h>
+
+#define SWAP(a, b) do { float t = a; a = b; b = t; } while(0)
+#define TRUNCATE_S11_2(x) (0x3fff&((((x)&0x1fff) | (((x)&0x80000000)>>18))))
 
 #define RDPQ_MAX_COMMAND_SIZE 44
 #define RDPQ_BLOCK_MIN_SIZE   64
@@ -382,11 +387,162 @@ void __rdpq_write16_syncuse(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint3
 }
 
 __attribute__((noinline))
-void __rdpq_fill_triangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3, uint32_t w4, uint32_t w5, uint32_t w6, uint32_t w7)
+void rdpq_triangle(float x1, float y1, float x2, float y2, float x3, float y3)
 {
-    int tile = (w0 >> 16) & 7;
-    autosync_use(AUTOSYNC_PIPE | AUTOSYNC_TILE(tile));
-    rdpq_write(RDPQ_CMD_TRI, w0, w1, w2, w3, w4, w5, w6, w7);
+    const float to_fixed_11_2 = 4.0f;
+    const float to_fixed_16_16 = 65536.0f;
+
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); }
+    if( y2 > y3 ) { SWAP(y2, y3); SWAP(x2, x3); }
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); }
+
+    const int y1f = TRUNCATE_S11_2((int)(y1*to_fixed_11_2));
+    const int y2f = TRUNCATE_S11_2((int)(y2*to_fixed_11_2));
+    const int y3f = TRUNCATE_S11_2((int)(y3*to_fixed_11_2));
+
+    const float Hx = x3 - x1;        
+    const float Hy = y3 - y1;        
+    const float Mx = x2 - x1;
+    const float My = y2 - y1;
+    const float Lx = x3 - x2;
+    const float Ly = y3 - y2;
+    const float nz = (Hx*My) - (Hy*Mx);
+    const uint32_t lft = nz < 0;
+
+    const float ish = (fabs(Hy) > FLT_MIN) ? (Hx / Hy) : 0;
+    const float ism = (fabs(My) > FLT_MIN) ? (Mx / My) : 0;
+    const float isl = (fabs(Ly) > FLT_MIN) ? (Lx / Ly) : 0;
+    const float FY = floorf(y1) - y1;
+    const float CY = ceilf(4*y2);
+
+    const float xh = x1 + FY * ish;
+    const float xm = x1 + FY * ism;
+    const float xl = x2 + ( ((CY/4) - y2) * isl );
+
+    autosync_use(AUTOSYNC_PIPE | AUTOSYNC_TILE(0));
+
+    rdpq_write(RDPQ_CMD_TRI, 
+        _carg(lft, 0x1, 23) | _carg(y3f, 0x3FFF, 0),
+        _carg(y2f, 0x3FFF, 16) | _carg(y1f, 0x3FFF, 0),
+        (int32_t)(xl * to_fixed_16_16),
+        (int32_t)(isl * to_fixed_16_16),
+        (int32_t)(xh * to_fixed_16_16),
+        (int32_t)(ish * to_fixed_16_16),
+        (int32_t)(xm * to_fixed_16_16),
+        (int32_t)(ism * to_fixed_16_16));
+}
+
+void rdpq_triangle_shade(float x1, float y1, float x2, float y2, float x3, float y3, float v1R, float v1G, float v1B, 
+                float v2R, float v2G, float v2B, float v3R, float v3G, float v3B)
+{
+    autosync_use(AUTOSYNC_PIPE | AUTOSYNC_TILE(0));
+    rspq_write_t w = rspq_write_begin(RDPQ_OVL_ID, RDPQ_CMD_TRI_SHADE, 24);
+
+    const float to_fixed_11_2 = 4.0f;
+    const float to_fixed_16_16 = 65536.0f;
+
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); SWAP(v1R, v2R); SWAP(v1G, v2G); SWAP(v1B, v2B); }
+    if( y2 > y3 ) { SWAP(y2, y3); SWAP(x2, x3); SWAP(v2R, v3R); SWAP(v2G, v3G); SWAP(v2B, v3B); }
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); SWAP(v1R, v2R); SWAP(v1G, v2G); SWAP(v1B, v2B); }
+
+    const int y1f = TRUNCATE_S11_2((int)(y1*to_fixed_11_2));
+    const int y2f = TRUNCATE_S11_2((int)(y2*to_fixed_11_2));
+    const int y3f = TRUNCATE_S11_2((int)(y3*to_fixed_11_2));
+
+    const float Hx = x3 - x1;        
+    const float Hy = y3 - y1;        
+    const float Mx = x2 - x1;
+    const float My = y2 - y1;
+    const float Lx = x3 - x2;
+    const float Ly = y3 - y2;
+    const float nz = (Hx*My) - (Hy*Mx);
+    const uint32_t lft = nz < 0;
+
+    rspq_write_arg(&w, _carg(lft, 0x1, 23) | _carg(y3f, 0x3FFF, 0));
+    rspq_write_arg(&w, _carg(y2f, 0x3FFF, 16) | _carg(y1f, 0x3FFF, 0));
+
+    const float ish = (fabs(Hy) > FLT_MIN) ? (Hx / Hy) : 0;
+    const float ism = (fabs(My) > FLT_MIN) ? (Mx / My) : 0;
+    const float isl = (fabs(Ly) > FLT_MIN) ? (Lx / Ly) : 0;
+    const float FY = floorf(y1) - y1;
+    const float CY = ceilf(4*y2);
+
+    const float xh = x1 + FY * ish;
+    const float xm = x1 + FY * ism;
+    const float xl = x2 + ( ((CY/4) - y2) * isl );
+
+    rspq_write_arg(&w, (int)( xl * to_fixed_16_16 ));
+    rspq_write_arg(&w, (int)( isl * to_fixed_16_16 ));
+    rspq_write_arg(&w, (int)( xh * to_fixed_16_16 ));
+    rspq_write_arg(&w, (int)( ish * to_fixed_16_16 ));
+    rspq_write_arg(&w, (int)( xm * to_fixed_16_16 ));
+    rspq_write_arg(&w, (int)( ism * to_fixed_16_16 ));
+
+    const float mr = v2R - v1R;
+    const float mg = v2G - v1G;
+    const float mb = v2B - v1B;
+    const float hr = v3R - v1R;
+    const float hg = v3G - v1G;
+    const float hb = v3B - v1B;
+
+    const float nxR = Hy*mr - hr*My;
+    const float nyR = hr*Mx - Hx*mr;
+    const float nxG = Hy*mg - hg*My;
+    const float nyG = hg*Mx - Hx*mg;
+    const float nxB = Hy*mb - hb*My;
+    const float nyB = hb*Mx - Hx*mb;
+
+    const float DrDx = (fabs(nz) > FLT_MIN) ? (- nxR / nz) : 0;
+    const float DgDx = (fabs(nz) > FLT_MIN) ? (- nxG / nz) : 0;
+    const float DbDx = (fabs(nz) > FLT_MIN) ? (- nxB / nz) : 0;
+    const float DrDy = (fabs(nz) > FLT_MIN) ? (- nyR / nz) : 0;
+    const float DgDy = (fabs(nz) > FLT_MIN) ? (- nyG / nz) : 0;
+    const float DbDy = (fabs(nz) > FLT_MIN) ? (- nyB / nz) : 0;
+
+    const float DrDe = DrDy + DrDx * ish;
+    const float DgDe = DgDy + DgDx * ish;
+    const float DbDe = DbDy + DbDx * ish;
+
+    const int final_r = (v1R + FY * DrDe) * to_fixed_16_16;
+    const int final_g = (v1G + FY * DgDe) * to_fixed_16_16;
+    const int final_b = (v1B + FY * DbDe) * to_fixed_16_16;
+    rspq_write_arg(&w, (final_r&0xffff0000) | (0xffff&(final_g>>16)));  
+    rspq_write_arg(&w, (final_b&0xffff0000) | 0x00ff); // the 0x00ff is opaque alpha hopefully
+
+    const int DrDx_fixed = DrDx * to_fixed_16_16;
+    const int DgDx_fixed = DgDx * to_fixed_16_16;
+    const int DbDx_fixed = DbDx * to_fixed_16_16;
+
+    rspq_write_arg(&w, (DrDx_fixed&0xffff0000) | (0xffff&(DgDx_fixed>>16)));
+    rspq_write_arg(&w, (DbDx_fixed&0xffff0000));    
+
+    rspq_write_arg(&w, 0);  // not dealing with the color fractions right now
+    rspq_write_arg(&w, 0);
+
+    rspq_write_arg(&w, (DrDx_fixed<<16) | (DgDx_fixed&0xffff));
+    rspq_write_arg(&w, (DbDx_fixed<<16));
+
+    const int DrDe_fixed = DrDe * to_fixed_16_16;
+    const int DgDe_fixed = DgDe * to_fixed_16_16;
+    const int DbDe_fixed = DbDe * to_fixed_16_16;
+
+    rspq_write_arg(&w, (DrDe_fixed&0xffff0000) | (0xffff&(DgDe_fixed>>16)));
+    rspq_write_arg(&w, (DbDe_fixed&0xffff0000));
+
+    const int DrDy_fixed = DrDy * to_fixed_16_16;
+    const int DgDy_fixed = DgDy * to_fixed_16_16;
+    const int DbDy_fixed = DbDy * to_fixed_16_16;
+
+    rspq_write_arg(&w, (DrDy_fixed&0xffff0000) | (0xffff&(DgDy_fixed>>16)));
+    rspq_write_arg(&w, (DbDy_fixed&0xffff0000));
+
+    rspq_write_arg(&w, (DrDe_fixed<<16) | (DgDe_fixed&0xffff));
+    rspq_write_arg(&w, (DbDe_fixed<<16));
+
+    rspq_write_arg(&w, (DrDy_fixed<<16) | (DgDy_fixed&&0xffff));
+    rspq_write_arg(&w, (DbDy_fixed<<16));
+
+    rspq_write_end(&w);
 }
 
 __attribute__((noinline))
