@@ -137,6 +137,10 @@ static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
     case RDPQ_ASSERT_FLIP_COPY:
         printf("TextureRectangleFlip cannot be used in copy mode\n");
         break;
+
+    case RDPQ_ASSERT_TRI_FILL:
+        printf("Triangles cannot be used in copy or fill mode\n");
+        break;
     
     default:
         printf("Unknown assert\n");

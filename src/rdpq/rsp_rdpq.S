@@ -14,14 +14,14 @@
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
-        RSPQ_DefineCommand RDPQCmd_PassthroughBig,          32  # 0xC8 Filled
-        RSPQ_DefineCommand RDPQCmd_PassthroughBig,          48  # 0xC9 Filled ZBuffered
-        RSPQ_DefineCommand RDPQCmd_PassthroughBig,          96  # 0xCA Textured
-        RSPQ_DefineCommand RDPQCmd_PassthroughBig,          112 # 0xCB Textured ZBuffered
-        RSPQ_DefineCommand RDPQCmd_PassthroughBig,          96  # 0xCC Shaded
-        RSPQ_DefineCommand RDPQCmd_PassthroughBig,          112 # 0xCD Shaded ZBuffered
-        RSPQ_DefineCommand RDPQCmd_PassthroughBig,          160 # 0xCE Shaded Textured
-        RSPQ_DefineCommand RDPQCmd_PassthroughBig,          176 # 0xCF Shaded Textured ZBuffered
+        RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     32  # 0xC8 Filled
+        RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     48  # 0xC9 Filled ZBuffered
+        RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     96  # 0xCA Textured
+        RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     112 # 0xCB Textured ZBuffered
+        RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     96  # 0xCC Shaded
+        RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     112 # 0xCD Shaded ZBuffered
+        RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     160 # 0xCE Shaded Textured
+        RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     176 # 0xCF Shaded Textured ZBuffered
 
         RSPQ_DefineCommand RDPQCmd_TextureRectEx,           16  # 0xD0
         RSPQ_DefineCommand RDPQCmd_TextureRectEx_Static,    16  # 0xD1
@@ -480,13 +480,19 @@ rect_substitute:
     .endfunc
 
     #############################################################
-    # RDPQCmd_PassthroughBig
+    # RDPQCmd_PassthroughTriangle
     # 
     # Forwards the RDP command in the input stream to the RDP stream.
     # The size of the command is automatically detected by reading #rspq_cmd_size
     #############################################################
-    .func RDPQCmd_PassthroughBig
-RDPQCmd_PassthroughBig:
+    .func RDPQCmd_PassthroughTriangle
+RDPQCmd_PassthroughTriangle:
+#ifndef NDEBUG
+    lb t0, %lo(RDP_OTHER_MODES) + 0x1
+    # Bit 21 of the first word is set if FILL or COPY mode is active
+    andi t0, 0x1 << 5
+    assert_eq t0, 0, RDPQ_ASSERT_TRI_FILL
+#endif
     jal RSPQ_RdpDynamicReserve
     sub s5, rspq_dmem_buf_ptr, rspq_cmd_size
     addi s5, %lo(RSPQ_DMEM_BUFFER)
