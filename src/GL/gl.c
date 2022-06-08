@@ -387,12 +387,15 @@ void gl_vertex_cache_changed()
             v0->color[0],
             v0->color[1],
             v0->color[2],
+            v0->color[3],
             v1->color[0],
             v1->color[1],
             v1->color[2],
+            v1->color[3],
             v2->color[0],
             v2->color[1],
             v2->color[2],
+            v2->color[3],
             v0->texcoord[0],
             v0->texcoord[1],
             v0->position[3],
@@ -415,12 +418,15 @@ void gl_vertex_cache_changed()
             v0->color[0],
             v0->color[1],
             v0->color[2],
+            v0->color[3],
             v1->color[0],
             v1->color[1],
             v1->color[2],
+            v1->color[3],
             v2->color[0],
             v2->color[1],
-            v2->color[2]);
+            v2->color[2],
+            v2->color[3]);
     }
 }
 

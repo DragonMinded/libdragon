@@ -435,69 +435,80 @@ void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, uint8
     rspq_write_arg(w, (int)( data->ism * to_fixed_16_16 ));
 }
 
-void __rdpq_write_shade_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, float r1, float g1, float b1, float r2, float g2, float b2, float r3, float g3, float b3)
+void __rdpq_write_shade_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, float r1, float g1, float b1, float a1, float r2, float g2, float b2, float a2, float r3, float g3, float b3, float a3)
 {
     const float to_fixed_16_16 = 65536.0f;
 
     const float mr = r2 - r1;
     const float mg = g2 - g1;
     const float mb = b2 - b1;
+    const float ma = a2 - a1;
     const float hr = r3 - r1;
     const float hg = g3 - g1;
     const float hb = b3 - b1;
+    const float ha = a3 - a1;
 
     const float nxR = data->hy*mr - data->my*hr;
     const float nxG = data->hy*mg - data->my*hg;
     const float nxB = data->hy*mb - data->my*hb;
+    const float nxA = data->hy*ma - data->my*ha;
     const float nyR = data->mx*hr - data->hx*mr;
     const float nyG = data->mx*hg - data->hx*mg;
     const float nyB = data->mx*hb - data->hx*mb;
+    const float nyA = data->mx*ha - data->hx*ma;
 
     const float attr_factor = (fabs(data->nz) > FLT_MIN) ? (-1.0f / data->nz) : 0;
 
     const float DrDx = nxR * attr_factor;
     const float DgDx = nxG * attr_factor;
     const float DbDx = nxB * attr_factor;
+    const float DaDx = nxA * attr_factor;
     const float DrDy = nyR * attr_factor;
     const float DgDy = nyG * attr_factor;
     const float DbDy = nyB * attr_factor;
+    const float DaDy = nyA * attr_factor;
 
     const float DrDe = DrDy + DrDx * data->ish;
     const float DgDe = DgDy + DgDx * data->ish;
     const float DbDe = DbDy + DbDx * data->ish;
+    const float DaDe = DaDy + DaDx * data->ish;
 
     const int final_r = (r1 + data->fy * DrDe) * to_fixed_16_16;
     const int final_g = (g1 + data->fy * DgDe) * to_fixed_16_16;
     const int final_b = (b1 + data->fy * DbDe) * to_fixed_16_16;
+    const int final_a = (a1 + data->fy * DaDe) * to_fixed_16_16;
 
     const int DrDx_fixed = DrDx * to_fixed_16_16;
     const int DgDx_fixed = DgDx * to_fixed_16_16;
     const int DbDx_fixed = DbDx * to_fixed_16_16;
+    const int DaDx_fixed = DaDx * to_fixed_16_16;
 
     const int DrDe_fixed = DrDe * to_fixed_16_16;
     const int DgDe_fixed = DgDe * to_fixed_16_16;
     const int DbDe_fixed = DbDe * to_fixed_16_16;
+    const int DaDe_fixed = DaDe * to_fixed_16_16;
 
     const int DrDy_fixed = DrDy * to_fixed_16_16;
     const int DgDy_fixed = DgDy * to_fixed_16_16;
     const int DbDy_fixed = DbDy * to_fixed_16_16;
+    const int DaDy_fixed = DaDy * to_fixed_16_16;
 
     rspq_write_arg(w, (final_r&0xffff0000) | (0xffff&(final_g>>16)));  
-    rspq_write_arg(w, (final_b&0xffff0000) | 0x00ff); // the 0x00ff is opaque alpha hopefully
+    rspq_write_arg(w, (final_b&0xffff0000) | (0xffff&(final_a>>16)));
     rspq_write_arg(w, (DrDx_fixed&0xffff0000) | (0xffff&(DgDx_fixed>>16)));
-    rspq_write_arg(w, (DbDx_fixed&0xffff0000));    
-    rspq_write_arg(w, 0);  // not dealing with the color fractions right now
+    rspq_write_arg(w, (DbDx_fixed&0xffff0000) | (0xffff&(DaDx_fixed>>16)));    
+    rspq_write_arg(w, 0);
     rspq_write_arg(w, 0);
     rspq_write_arg(w, (DrDx_fixed<<16) | (DgDx_fixed&0xffff));
-    rspq_write_arg(w, (DbDx_fixed<<16));
+    rspq_write_arg(w, (DbDx_fixed<<16) | (DaDx_fixed&0xffff));
     rspq_write_arg(w, (DrDe_fixed&0xffff0000) | (0xffff&(DgDe_fixed>>16)));
-    rspq_write_arg(w, (DbDe_fixed&0xffff0000));
+    rspq_write_arg(w, (DbDe_fixed&0xffff0000) | (0xffff&(DaDe_fixed>>16)));
     rspq_write_arg(w, (DrDy_fixed&0xffff0000) | (0xffff&(DgDy_fixed>>16)));
-    rspq_write_arg(w, (DbDy_fixed&0xffff0000));
+    rspq_write_arg(w, (DbDy_fixed&0xffff0000) | (0xffff&(DaDy_fixed>>16)));
     rspq_write_arg(w, (DrDe_fixed<<16) | (DgDe_fixed&0xffff));
-    rspq_write_arg(w, (DbDe_fixed<<16));
+    rspq_write_arg(w, (DbDe_fixed<<16) | (DaDe_fixed&0xffff));
     rspq_write_arg(w, (DrDy_fixed<<16) | (DgDy_fixed&&0xffff));
-    rspq_write_arg(w, (DbDy_fixed<<16));
+    rspq_write_arg(w, (DbDy_fixed<<16) | (DaDy_fixed&&0xffff));
 }
 
 void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, float s1, float t1, float w1, float s2, float t2, float w2, float s3, float t3, float w3)
@@ -682,7 +693,7 @@ void rdpq_triangle_tex_zbuf(uint8_t tile, uint8_t level, float x1, float y1, flo
 }
 
 void rdpq_triangle_shade(float x1, float y1, float x2, float y2, float x3, float y3,
-    float r1, float g1, float b1, float r2, float g2, float b2, float r3, float g3, float b3)
+    float r1, float g1, float b1, float a1, float r2, float g2, float b2, float a2, float r3, float g3, float b3, float a3)
 {
     autosync_use(AUTOSYNC_PIPE);
     rspq_write_t w = rspq_write_begin(RDPQ_OVL_ID, RDPQ_CMD_TRI_SHADE, 24);
@@ -693,13 +704,13 @@ void rdpq_triangle_shade(float x1, float y1, float x2, float y2, float x3, float
 
     rdpq_tri_edge_data_t data;
     __rdpq_write_edge_coeffs(&w, &data, 0, 0, x1, y1, x2, y2, x3, y3);
-    __rdpq_write_shade_coeffs(&w, &data, r1, g1, b1, r2, g2, b2, r3, g3, b3);
+    __rdpq_write_shade_coeffs(&w, &data, r1, g1, b1, a1, r2, g2, b2, a2, r3, g3, b3, a3);
 
     rspq_write_end(&w);
 }
 
 void rdpq_triangle_shade_zbuf(float x1, float y1, float x2, float y2, float x3, float y3,
-    float r1, float g1, float b1, float r2, float g2, float b2, float r3, float g3, float b3,
+    float r1, float g1, float b1, float a1, float r2, float g2, float b2, float a2, float r3, float g3, float b3, float a3,
     float z1, float z2, float z3)
 {
     autosync_use(AUTOSYNC_PIPE);
@@ -711,14 +722,14 @@ void rdpq_triangle_shade_zbuf(float x1, float y1, float x2, float y2, float x3, 
 
     rdpq_tri_edge_data_t data;
     __rdpq_write_edge_coeffs(&w, &data, 0, 0, x1, y1, x2, y2, x3, y3);
-    __rdpq_write_shade_coeffs(&w, &data, r1, g1, b1, r2, g2, b2, r3, g3, b3);
+    __rdpq_write_shade_coeffs(&w, &data, r1, g1, b1, a1, r2, g2, b2, a2, r3, g3, b3, a3);
     __rdpq_write_zbuf_coeffs(&w, &data, z1, z2, z3);
 
     rspq_write_end(&w);
 }
 
 void rdpq_triangle_shade_tex(uint8_t tile, uint8_t level, float x1, float y1, float x2, float y2, float x3, float y3,
-    float r1, float g1, float b1, float r2, float g2, float b2, float r3, float g3, float b3,
+    float r1, float g1, float b1, float a1, float r2, float g2, float b2, float a2, float r3, float g3, float b3, float a3,
     float s1, float t1, float w1, float s2, float t2, float w2, float s3, float t3, float w3)
 {
     autosync_use(AUTOSYNC_PIPE | AUTOSYNC_TILE(tile&0x7));
@@ -730,14 +741,14 @@ void rdpq_triangle_shade_tex(uint8_t tile, uint8_t level, float x1, float y1, fl
 
     rdpq_tri_edge_data_t data;
     __rdpq_write_edge_coeffs(&w, &data, tile, level, x1, y1, x2, y2, x3, y3);
-    __rdpq_write_shade_coeffs(&w, &data, r1, g1, b1, r2, g2, b2, r3, g3, b3);
+    __rdpq_write_shade_coeffs(&w, &data, r1, g1, b1, a1, r2, g2, b2, a2, r3, g3, b3, a3);
     __rdpq_write_tex_coeffs(&w, &data, s1, t1, w1, s2, t2, w2, s3, t3, w3);
 
     rspq_write_end(&w);
 }
 
 void rdpq_triangle_shade_tex_zbuf(uint8_t tile, uint8_t level, float x1, float y1, float x2, float y2, float x3, float y3,
-    float r1, float g1, float b1, float r2, float g2, float b2, float r3, float g3, float b3,
+    float r1, float g1, float b1, float a1, float r2, float g2, float b2, float a2, float r3, float g3, float b3, float a3,
     float s1, float t1, float w1, float s2, float t2, float w2, float s3, float t3, float w3,
     float z1, float z2, float z3)
 {
@@ -750,7 +761,7 @@ void rdpq_triangle_shade_tex_zbuf(uint8_t tile, uint8_t level, float x1, float y
 
     rdpq_tri_edge_data_t data;
     __rdpq_write_edge_coeffs(&w, &data, tile, level, x1, y1, x2, y2, x3, y3);
-    __rdpq_write_shade_coeffs(&w, &data, r1, g1, b1, r2, g2, b2, r3, g3, b3);
+    __rdpq_write_shade_coeffs(&w, &data, r1, g1, b1, a1, r2, g2, b2, a2, r3, g3, b3, a3);
     __rdpq_write_tex_coeffs(&w, &data, s1, t1, w1, s2, t2, w2, s3, t3, w3);
     __rdpq_write_zbuf_coeffs(&w, &data, z1, z2, z3);
 

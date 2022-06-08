@@ -120,15 +120,15 @@ void rdpq_triangle_tex_zbuf(uint8_t tile, uint8_t level, float x1, float y1, flo
     float s1, float t1, float w1, float s2, float t2, float w2, float s3, float t3, float w3,
     float z1, float z2, float z3);
 void rdpq_triangle_shade(float x1, float y1, float x2, float y2, float x3, float y3,
-    float r1, float g1, float b1, float r2, float g2, float b2, float r3, float g3, float b3);
+    float r1, float g1, float b1, float a1, float r2, float g2, float b2, float a2, float r3, float g3, float b3, float a3);
 void rdpq_triangle_shade_zbuf(float x1, float y1, float x2, float y2, float x3, float y3,
-    float r1, float g1, float b1, float r2, float g2, float b2, float r3, float g3, float b3,
+    float r1, float g1, float b1, float a1, float r2, float g2, float b2, float a2, float r3, float g3, float b3, float a3,
     float z1, float z2, float z3);
 void rdpq_triangle_shade_tex(uint8_t tile, uint8_t level, float x1, float y1, float x2, float y2, float x3, float y3,
-    float r1, float g1, float b1, float r2, float g2, float b2, float r3, float g3, float b3,
+    float r1, float g1, float b1, float a1, float r2, float g2, float b2, float a2, float r3, float g3, float b3, float a3,
     float s1, float t1, float w1, float s2, float t2, float w2, float s3, float t3, float w3);
 void rdpq_triangle_shade_tex_zbuf(uint8_t tile, uint8_t level, float x1, float y1, float x2, float y2, float x3, float y3,
-    float r1, float g1, float b1, float r2, float g2, float b2, float r3, float g3, float b3,
+    float r1, float g1, float b1, float a1, float r2, float g2, float b2, float a2, float r3, float g3, float b3, float a3,
     float s1, float t1, float w1, float s2, float t2, float w2, float s3, float t3, float w3,
     float z1, float z2, float z3);
 
