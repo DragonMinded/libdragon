@@ -6,6 +6,7 @@
 #include "rspq_constants.h"
 #include "rdp_commands.h"
 #include "interrupt.h"
+#include "utils.h"
 #include <string.h>
 #include <math.h>
 #include <float.h>
@@ -386,161 +387,372 @@ void __rdpq_write16_syncuse(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint3
     __rdpq_write16(cmd_id, arg0, arg1, arg2, arg3);
 }
 
-__attribute__((noinline))
-void rdpq_triangle(float x1, float y1, float x2, float y2, float x3, float y3)
+typedef struct {
+    float hx, hy;
+    float mx, my;
+    float lx, ly;
+    float nz;
+    float fy, cy;
+    float ish, ism, isl;
+} rdpq_tri_edge_data_t;
+
+void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, uint8_t tile, uint8_t level, float x1, float y1, float x2, float y2, float x3, float y3)
 {
     const float to_fixed_11_2 = 4.0f;
     const float to_fixed_16_16 = 65536.0f;
-
-    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); }
-    if( y2 > y3 ) { SWAP(y2, y3); SWAP(x2, x3); }
-    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); }
 
     const int y1f = TRUNCATE_S11_2((int)(y1*to_fixed_11_2));
     const int y2f = TRUNCATE_S11_2((int)(y2*to_fixed_11_2));
     const int y3f = TRUNCATE_S11_2((int)(y3*to_fixed_11_2));
 
-    const float Hx = x3 - x1;        
-    const float Hy = y3 - y1;        
-    const float Mx = x2 - x1;
-    const float My = y2 - y1;
-    const float Lx = x3 - x2;
-    const float Ly = y3 - y2;
-    const float nz = (Hx*My) - (Hy*Mx);
-    const uint32_t lft = nz < 0;
+    data->hx = x3 - x1;        
+    data->hy = y3 - y1;        
+    data->mx = x2 - x1;
+    data->my = y2 - y1;
+    data->lx = x3 - x2;
+    data->ly = y3 - y2;
+    data->nz = (data->hx*data->my) - (data->hy*data->mx);
+    const uint32_t lft = data->nz < 0;
+    
+    rspq_write_arg(w, _carg(lft, 0x1, 23) | _carg(level, 0x7, 19) | _carg(tile, 0x7, 16) | _carg(y3f, 0x3FFF, 0));
+    rspq_write_arg(w, _carg(y2f, 0x3FFF, 16) | _carg(y1f, 0x3FFF, 0));
 
-    const float ish = (fabs(Hy) > FLT_MIN) ? (Hx / Hy) : 0;
-    const float ism = (fabs(My) > FLT_MIN) ? (Mx / My) : 0;
-    const float isl = (fabs(Ly) > FLT_MIN) ? (Lx / Ly) : 0;
-    const float FY = floorf(y1) - y1;
-    const float CY = ceilf(4*y2);
+    data->ish = (fabs(data->hy) > FLT_MIN) ? (data->hx / data->hy) : 0;
+    data->ism = (fabs(data->my) > FLT_MIN) ? (data->mx / data->my) : 0;
+    data->isl = (fabs(data->ly) > FLT_MIN) ? (data->lx / data->ly) : 0;
+    data->fy = floorf(y1) - y1;
+    data->cy = ceilf(4*y2);
 
-    const float xh = x1 + FY * ish;
-    const float xm = x1 + FY * ism;
-    const float xl = x2 + ( ((CY/4) - y2) * isl );
+    const float xh = x1 + data->fy * data->ish;
+    const float xm = x1 + data->fy * data->ism;
+    const float xl = x2 + ( ((data->cy/4) - y2) * data->isl );
 
-    autosync_use(AUTOSYNC_PIPE);
-
-    rdpq_write(RDPQ_CMD_TRI, 
-        _carg(lft, 0x1, 23) | _carg(y3f, 0x3FFF, 0),
-        _carg(y2f, 0x3FFF, 16) | _carg(y1f, 0x3FFF, 0),
-        (int32_t)(xl * to_fixed_16_16),
-        (int32_t)(isl * to_fixed_16_16),
-        (int32_t)(xh * to_fixed_16_16),
-        (int32_t)(ish * to_fixed_16_16),
-        (int32_t)(xm * to_fixed_16_16),
-        (int32_t)(ism * to_fixed_16_16));
+    rspq_write_arg(w, (int)( xl * to_fixed_16_16 ));
+    rspq_write_arg(w, (int)( data->isl * to_fixed_16_16 ));
+    rspq_write_arg(w, (int)( xh * to_fixed_16_16 ));
+    rspq_write_arg(w, (int)( data->ish * to_fixed_16_16 ));
+    rspq_write_arg(w, (int)( xm * to_fixed_16_16 ));
+    rspq_write_arg(w, (int)( data->ism * to_fixed_16_16 ));
 }
 
-void rdpq_triangle_shade(float x1, float y1, float x2, float y2, float x3, float y3, float v1R, float v1G, float v1B, 
-                float v2R, float v2G, float v2B, float v3R, float v3G, float v3B)
+void __rdpq_write_shade_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, float r1, float g1, float b1, float r2, float g2, float b2, float r3, float g3, float b3)
 {
-    autosync_use(AUTOSYNC_PIPE);
-    rspq_write_t w = rspq_write_begin(RDPQ_OVL_ID, RDPQ_CMD_TRI_SHADE, 24);
-
-    const float to_fixed_11_2 = 4.0f;
     const float to_fixed_16_16 = 65536.0f;
 
-    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); SWAP(v1R, v2R); SWAP(v1G, v2G); SWAP(v1B, v2B); }
-    if( y2 > y3 ) { SWAP(y2, y3); SWAP(x2, x3); SWAP(v2R, v3R); SWAP(v2G, v3G); SWAP(v2B, v3B); }
-    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); SWAP(v1R, v2R); SWAP(v1G, v2G); SWAP(v1B, v2B); }
+    const float mr = r2 - r1;
+    const float mg = g2 - g1;
+    const float mb = b2 - b1;
+    const float hr = r3 - r1;
+    const float hg = g3 - g1;
+    const float hb = b3 - b1;
 
-    const int y1f = TRUNCATE_S11_2((int)(y1*to_fixed_11_2));
-    const int y2f = TRUNCATE_S11_2((int)(y2*to_fixed_11_2));
-    const int y3f = TRUNCATE_S11_2((int)(y3*to_fixed_11_2));
+    const float nxR = data->hy*mr - data->my*hr;
+    const float nxG = data->hy*mg - data->my*hg;
+    const float nxB = data->hy*mb - data->my*hb;
+    const float nyR = data->mx*hr - data->hx*mr;
+    const float nyG = data->mx*hg - data->hx*mg;
+    const float nyB = data->mx*hb - data->hx*mb;
 
-    const float Hx = x3 - x1;        
-    const float Hy = y3 - y1;        
-    const float Mx = x2 - x1;
-    const float My = y2 - y1;
-    const float Lx = x3 - x2;
-    const float Ly = y3 - y2;
-    const float nz = (Hx*My) - (Hy*Mx);
-    const uint32_t lft = nz < 0;
+    const float attr_factor = (fabs(data->nz) > FLT_MIN) ? (-1.0f / data->nz) : 0;
 
-    rspq_write_arg(&w, _carg(lft, 0x1, 23) | _carg(y3f, 0x3FFF, 0));
-    rspq_write_arg(&w, _carg(y2f, 0x3FFF, 16) | _carg(y1f, 0x3FFF, 0));
+    const float DrDx = nxR * attr_factor;
+    const float DgDx = nxG * attr_factor;
+    const float DbDx = nxB * attr_factor;
+    const float DrDy = nyR * attr_factor;
+    const float DgDy = nyG * attr_factor;
+    const float DbDy = nyB * attr_factor;
 
-    const float ish = (fabs(Hy) > FLT_MIN) ? (Hx / Hy) : 0;
-    const float ism = (fabs(My) > FLT_MIN) ? (Mx / My) : 0;
-    const float isl = (fabs(Ly) > FLT_MIN) ? (Lx / Ly) : 0;
-    const float FY = floorf(y1) - y1;
-    const float CY = ceilf(4*y2);
+    const float DrDe = DrDy + DrDx * data->ish;
+    const float DgDe = DgDy + DgDx * data->ish;
+    const float DbDe = DbDy + DbDx * data->ish;
 
-    const float xh = x1 + FY * ish;
-    const float xm = x1 + FY * ism;
-    const float xl = x2 + ( ((CY/4) - y2) * isl );
-
-    rspq_write_arg(&w, (int)( xl * to_fixed_16_16 ));
-    rspq_write_arg(&w, (int)( isl * to_fixed_16_16 ));
-    rspq_write_arg(&w, (int)( xh * to_fixed_16_16 ));
-    rspq_write_arg(&w, (int)( ish * to_fixed_16_16 ));
-    rspq_write_arg(&w, (int)( xm * to_fixed_16_16 ));
-    rspq_write_arg(&w, (int)( ism * to_fixed_16_16 ));
-
-    const float mr = v2R - v1R;
-    const float mg = v2G - v1G;
-    const float mb = v2B - v1B;
-    const float hr = v3R - v1R;
-    const float hg = v3G - v1G;
-    const float hb = v3B - v1B;
-
-    const float nxR = Hy*mr - hr*My;
-    const float nyR = hr*Mx - Hx*mr;
-    const float nxG = Hy*mg - hg*My;
-    const float nyG = hg*Mx - Hx*mg;
-    const float nxB = Hy*mb - hb*My;
-    const float nyB = hb*Mx - Hx*mb;
-
-    const float DrDx = (fabs(nz) > FLT_MIN) ? (- nxR / nz) : 0;
-    const float DgDx = (fabs(nz) > FLT_MIN) ? (- nxG / nz) : 0;
-    const float DbDx = (fabs(nz) > FLT_MIN) ? (- nxB / nz) : 0;
-    const float DrDy = (fabs(nz) > FLT_MIN) ? (- nyR / nz) : 0;
-    const float DgDy = (fabs(nz) > FLT_MIN) ? (- nyG / nz) : 0;
-    const float DbDy = (fabs(nz) > FLT_MIN) ? (- nyB / nz) : 0;
-
-    const float DrDe = DrDy + DrDx * ish;
-    const float DgDe = DgDy + DgDx * ish;
-    const float DbDe = DbDy + DbDx * ish;
-
-    const int final_r = (v1R + FY * DrDe) * to_fixed_16_16;
-    const int final_g = (v1G + FY * DgDe) * to_fixed_16_16;
-    const int final_b = (v1B + FY * DbDe) * to_fixed_16_16;
-    rspq_write_arg(&w, (final_r&0xffff0000) | (0xffff&(final_g>>16)));  
-    rspq_write_arg(&w, (final_b&0xffff0000) | 0x00ff); // the 0x00ff is opaque alpha hopefully
+    const int final_r = (r1 + data->fy * DrDe) * to_fixed_16_16;
+    const int final_g = (g1 + data->fy * DgDe) * to_fixed_16_16;
+    const int final_b = (b1 + data->fy * DbDe) * to_fixed_16_16;
 
     const int DrDx_fixed = DrDx * to_fixed_16_16;
     const int DgDx_fixed = DgDx * to_fixed_16_16;
     const int DbDx_fixed = DbDx * to_fixed_16_16;
 
-    rspq_write_arg(&w, (DrDx_fixed&0xffff0000) | (0xffff&(DgDx_fixed>>16)));
-    rspq_write_arg(&w, (DbDx_fixed&0xffff0000));    
-
-    rspq_write_arg(&w, 0);  // not dealing with the color fractions right now
-    rspq_write_arg(&w, 0);
-
-    rspq_write_arg(&w, (DrDx_fixed<<16) | (DgDx_fixed&0xffff));
-    rspq_write_arg(&w, (DbDx_fixed<<16));
-
     const int DrDe_fixed = DrDe * to_fixed_16_16;
     const int DgDe_fixed = DgDe * to_fixed_16_16;
     const int DbDe_fixed = DbDe * to_fixed_16_16;
-
-    rspq_write_arg(&w, (DrDe_fixed&0xffff0000) | (0xffff&(DgDe_fixed>>16)));
-    rspq_write_arg(&w, (DbDe_fixed&0xffff0000));
 
     const int DrDy_fixed = DrDy * to_fixed_16_16;
     const int DgDy_fixed = DgDy * to_fixed_16_16;
     const int DbDy_fixed = DbDy * to_fixed_16_16;
 
-    rspq_write_arg(&w, (DrDy_fixed&0xffff0000) | (0xffff&(DgDy_fixed>>16)));
-    rspq_write_arg(&w, (DbDy_fixed&0xffff0000));
+    rspq_write_arg(w, (final_r&0xffff0000) | (0xffff&(final_g>>16)));  
+    rspq_write_arg(w, (final_b&0xffff0000) | 0x00ff); // the 0x00ff is opaque alpha hopefully
+    rspq_write_arg(w, (DrDx_fixed&0xffff0000) | (0xffff&(DgDx_fixed>>16)));
+    rspq_write_arg(w, (DbDx_fixed&0xffff0000));    
+    rspq_write_arg(w, 0);  // not dealing with the color fractions right now
+    rspq_write_arg(w, 0);
+    rspq_write_arg(w, (DrDx_fixed<<16) | (DgDx_fixed&0xffff));
+    rspq_write_arg(w, (DbDx_fixed<<16));
+    rspq_write_arg(w, (DrDe_fixed&0xffff0000) | (0xffff&(DgDe_fixed>>16)));
+    rspq_write_arg(w, (DbDe_fixed&0xffff0000));
+    rspq_write_arg(w, (DrDy_fixed&0xffff0000) | (0xffff&(DgDy_fixed>>16)));
+    rspq_write_arg(w, (DbDy_fixed&0xffff0000));
+    rspq_write_arg(w, (DrDe_fixed<<16) | (DgDe_fixed&0xffff));
+    rspq_write_arg(w, (DbDe_fixed<<16));
+    rspq_write_arg(w, (DrDy_fixed<<16) | (DgDy_fixed&&0xffff));
+    rspq_write_arg(w, (DbDy_fixed<<16));
+}
 
-    rspq_write_arg(&w, (DrDe_fixed<<16) | (DgDe_fixed&0xffff));
-    rspq_write_arg(&w, (DbDe_fixed<<16));
+void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, float s1, float t1, float w1, float s2, float t2, float w2, float s3, float t3, float w3)
+{
+    const float to_fixed_16_16 = 65536.0f;
 
-    rspq_write_arg(&w, (DrDy_fixed<<16) | (DgDy_fixed&&0xffff));
-    rspq_write_arg(&w, (DbDy_fixed<<16));
+    const float w_factor = 1.0f / MAX(MAX(w1, w2), w3);
+
+    w1 *= w_factor;
+    w2 *= w_factor;
+    w3 *= w_factor;
+
+    s1 *= w1;
+    t1 *= w1;
+    s2 *= w2;
+    t2 *= w2;
+    s3 *= w3;
+    t3 *= w3;
+
+    w1 *= 0x7FFF;
+    w2 *= 0x7FFF;
+    w3 *= 0x7FFF;
+
+    const float ms = s2 - s1;
+    const float mt = t2 - t1;
+    const float mw = w2 - w1;
+    const float hs = s3 - s1;
+    const float ht = t3 - t1;
+    const float hw = w3 - w1;
+
+    const float nxS = data->hy*ms - data->my*hs;
+    const float nxT = data->hy*mt - data->my*ht;
+    const float nxW = data->hy*mw - data->my*hw;
+    const float nyS = data->mx*hs - data->hx*ms;
+    const float nyT = data->mx*ht - data->hx*mt;
+    const float nyW = data->mx*hw - data->hx*mw;
+
+    const float attr_factor = (fabs(data->nz) > FLT_MIN) ? (-1.0f / data->nz) : 0;
+
+    const float DsDx = nxS * attr_factor;
+    const float DtDx = nxT * attr_factor;
+    const float DwDx = nxW * attr_factor;
+    const float DsDy = nyS * attr_factor;
+    const float DtDy = nyT * attr_factor;
+    const float DwDy = nyW * attr_factor;
+
+    const float DsDe = DsDy + DsDx * data->ish;
+    const float DtDe = DtDy + DtDx * data->ish;
+    const float DwDe = DwDy + DwDx * data->ish;
+
+    const int final_s = (s1 + data->fy * DsDe) * to_fixed_16_16;
+    const int final_t = (t1 + data->fy * DtDe) * to_fixed_16_16;
+    const int final_w = (w1 + data->fy * DwDe) * to_fixed_16_16;
+
+    const int DsDx_fixed = DsDx * to_fixed_16_16;
+    const int DtDx_fixed = DtDx * to_fixed_16_16;
+    const int DwDx_fixed = DwDx * to_fixed_16_16;
+
+    const int DsDe_fixed = DsDe * to_fixed_16_16;
+    const int DtDe_fixed = DtDe * to_fixed_16_16;
+    const int DwDe_fixed = DwDe * to_fixed_16_16;
+
+    const int DsDy_fixed = DsDy * to_fixed_16_16;
+    const int DtDy_fixed = DtDy * to_fixed_16_16;
+    const int DwDy_fixed = DwDy * to_fixed_16_16;
+
+    rspq_write_arg(w, (final_s&0xffff0000) | (0xffff&(final_t>>16)));  
+    rspq_write_arg(w, (final_w&0xffff0000));
+    rspq_write_arg(w, (DsDx_fixed&0xffff0000) | (0xffff&(DtDx_fixed>>16)));
+    rspq_write_arg(w, (DwDx_fixed&0xffff0000));    
+    rspq_write_arg(w, (final_s<<16) | (final_t&0xffff));
+    rspq_write_arg(w, (final_w<<16));
+    rspq_write_arg(w, (DsDx_fixed<<16) | (DtDx_fixed&0xffff));
+    rspq_write_arg(w, (DwDx_fixed<<16));
+    rspq_write_arg(w, (DsDe_fixed&0xffff0000) | (0xffff&(DtDe_fixed>>16)));
+    rspq_write_arg(w, (DwDe_fixed&0xffff0000));
+    rspq_write_arg(w, (DsDy_fixed&0xffff0000) | (0xffff&(DtDy_fixed>>16)));
+    rspq_write_arg(w, (DwDy_fixed&0xffff0000));
+    rspq_write_arg(w, (DsDe_fixed<<16) | (DtDe_fixed&0xffff));
+    rspq_write_arg(w, (DwDe_fixed<<16));
+    rspq_write_arg(w, (DsDy_fixed<<16) | (DtDy_fixed&&0xffff));
+    rspq_write_arg(w, (DwDy_fixed<<16));
+}
+
+void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, float z1, float z2, float z3)
+{
+    const float to_fixed_16_16 = 65536.0f;
+
+    const float mz = z2 - z1;
+    const float hz = z3 - z1;
+
+    const float nxz = data->hy*mz - data->my*hz;
+    const float nyz = data->mx*hz - data->hx*mz;
+
+    const float attr_factor = (fabs(data->nz) > FLT_MIN) ? (-1.0f / data->nz) : 0;
+
+    const float DzDx = nxz * attr_factor;
+    const float DzDy = nyz * attr_factor;
+    const float DzDe = DzDy + DzDx * data->ish;
+
+    const int final_z = (z1 + data->fy * DzDe) * to_fixed_16_16;
+    const int DzDx_fixed = DzDx * to_fixed_16_16;
+    const int DzDe_fixed = DzDe * to_fixed_16_16;
+    const int DzDy_fixed = DzDy * to_fixed_16_16;
+
+    rspq_write_arg(w, final_z);
+    rspq_write_arg(w, DzDx_fixed);
+    rspq_write_arg(w, DzDe_fixed);
+    rspq_write_arg(w, DzDy_fixed);
+}
+
+__attribute__((noinline))
+void rdpq_triangle(float x1, float y1, float x2, float y2, float x3, float y3)
+{
+    autosync_use(AUTOSYNC_PIPE);
+    rspq_write_t w = rspq_write_begin(RDPQ_OVL_ID, RDPQ_CMD_TRI, 8);
+
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); }
+    if( y2 > y3 ) { SWAP(y2, y3); SWAP(x2, x3); }
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); }
+
+    rdpq_tri_edge_data_t data;
+    __rdpq_write_edge_coeffs(&w, &data, 0, 0, x1, y1, x2, y2, x3, y3);
+
+    rspq_write_end(&w);
+}
+
+__attribute__((noinline))
+void rdpq_triangle_zbuf(float x1, float y1, float x2, float y2, float x3, float y3,
+    float z1, float z2, float z3)
+{
+    autosync_use(AUTOSYNC_PIPE);
+    rspq_write_t w = rspq_write_begin(RDPQ_OVL_ID, RDPQ_CMD_TRI_ZBUF, 12);
+
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); SWAP(z1, z2); }
+    if( y2 > y3 ) { SWAP(y2, y3); SWAP(x2, x3); SWAP(z2, z3); }
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); SWAP(z1, z2); }
+
+    rdpq_tri_edge_data_t data;
+    __rdpq_write_edge_coeffs(&w, &data, 0, 0, x1, y1, x2, y2, x3, y3);
+    __rdpq_write_zbuf_coeffs(&w, &data, z1, z2, z3);
+
+    rspq_write_end(&w);
+}
+
+__attribute__((noinline))
+void rdpq_triangle_tex(uint8_t tile, uint8_t level, float x1, float y1, float x2, float y2, float x3, float y3,
+    float s1, float t1, float w1, float s2, float t2, float w2, float s3, float t3, float w3)
+{
+    autosync_use(AUTOSYNC_PIPE | AUTOSYNC_TILE(tile&0x7));
+    rspq_write_t w = rspq_write_begin(RDPQ_OVL_ID, RDPQ_CMD_TRI_TEX, 24);
+
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); SWAP(s1, s2); SWAP(t1, t2); SWAP(w1, w2); }
+    if( y2 > y3 ) { SWAP(y2, y3); SWAP(x2, x3); SWAP(s2, s3); SWAP(t2, t3); SWAP(w2, w3); }
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); SWAP(s1, s2); SWAP(t1, t2); SWAP(w1, w2); }
+
+    rdpq_tri_edge_data_t data;
+    __rdpq_write_edge_coeffs(&w, &data, tile, level, x1, y1, x2, y2, x3, y3);
+    __rdpq_write_tex_coeffs(&w, &data, s1, t1, w1, s2, t2, w2, s3, t3, w3);
+
+    rspq_write_end(&w);
+}
+
+__attribute__((noinline))
+void rdpq_triangle_tex_zbuf(uint8_t tile, uint8_t level, float x1, float y1, float x2, float y2, float x3, float y3,
+    float s1, float t1, float w1, float s2, float t2, float w2, float s3, float t3, float w3,
+    float z1, float z2, float z3)
+{
+    autosync_use(AUTOSYNC_PIPE | AUTOSYNC_TILE(tile&0x7));
+    rspq_write_t w = rspq_write_begin(RDPQ_OVL_ID, RDPQ_CMD_TRI_TEX_ZBUF, 28);
+
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); SWAP(s1, s2); SWAP(t1, t2); SWAP(w1, w2); SWAP(z1, z2); }
+    if( y2 > y3 ) { SWAP(y2, y3); SWAP(x2, x3); SWAP(s2, s3); SWAP(t2, t3); SWAP(w2, w3); SWAP(z2, z3); }
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); SWAP(s1, s2); SWAP(t1, t2); SWAP(w1, w2); SWAP(z1, z2); }
+
+    rdpq_tri_edge_data_t data;
+    __rdpq_write_edge_coeffs(&w, &data, tile, level, x1, y1, x2, y2, x3, y3);
+    __rdpq_write_tex_coeffs(&w, &data, s1, t1, w1, s2, t2, w2, s3, t3, w3);
+    __rdpq_write_zbuf_coeffs(&w, &data, z1, z2, z3);
+
+    rspq_write_end(&w);
+}
+
+void rdpq_triangle_shade(float x1, float y1, float x2, float y2, float x3, float y3,
+    float r1, float g1, float b1, float r2, float g2, float b2, float r3, float g3, float b3)
+{
+    autosync_use(AUTOSYNC_PIPE);
+    rspq_write_t w = rspq_write_begin(RDPQ_OVL_ID, RDPQ_CMD_TRI_SHADE, 24);
+
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); SWAP(r1, r2); SWAP(g1, g2); SWAP(b1, b2); }
+    if( y2 > y3 ) { SWAP(y2, y3); SWAP(x2, x3); SWAP(r2, r3); SWAP(g2, g3); SWAP(b2, b3); }
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); SWAP(r1, r2); SWAP(g1, g2); SWAP(b1, b2); }
+
+    rdpq_tri_edge_data_t data;
+    __rdpq_write_edge_coeffs(&w, &data, 0, 0, x1, y1, x2, y2, x3, y3);
+    __rdpq_write_shade_coeffs(&w, &data, r1, g1, b1, r2, g2, b2, r3, g3, b3);
+
+    rspq_write_end(&w);
+}
+
+void rdpq_triangle_shade_zbuf(float x1, float y1, float x2, float y2, float x3, float y3,
+    float r1, float g1, float b1, float r2, float g2, float b2, float r3, float g3, float b3,
+    float z1, float z2, float z3)
+{
+    autosync_use(AUTOSYNC_PIPE);
+    rspq_write_t w = rspq_write_begin(RDPQ_OVL_ID, RDPQ_CMD_TRI_SHADE_ZBUF, 28);
+
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); SWAP(r1, r2); SWAP(g1, g2); SWAP(b1, b2); SWAP(z1, z2); }
+    if( y2 > y3 ) { SWAP(y2, y3); SWAP(x2, x3); SWAP(r2, r3); SWAP(g2, g3); SWAP(b2, b3); SWAP(z2, z3); }
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); SWAP(r1, r2); SWAP(g1, g2); SWAP(b1, b2); SWAP(z1, z2); }
+
+    rdpq_tri_edge_data_t data;
+    __rdpq_write_edge_coeffs(&w, &data, 0, 0, x1, y1, x2, y2, x3, y3);
+    __rdpq_write_shade_coeffs(&w, &data, r1, g1, b1, r2, g2, b2, r3, g3, b3);
+    __rdpq_write_zbuf_coeffs(&w, &data, z1, z2, z3);
+
+    rspq_write_end(&w);
+}
+
+void rdpq_triangle_shade_tex(uint8_t tile, uint8_t level, float x1, float y1, float x2, float y2, float x3, float y3,
+    float r1, float g1, float b1, float r2, float g2, float b2, float r3, float g3, float b3,
+    float s1, float t1, float w1, float s2, float t2, float w2, float s3, float t3, float w3)
+{
+    autosync_use(AUTOSYNC_PIPE | AUTOSYNC_TILE(tile&0x7));
+    rspq_write_t w = rspq_write_begin(RDPQ_OVL_ID, RDPQ_CMD_TRI_SHADE_TEX, 40);
+
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); SWAP(r1, r2); SWAP(g1, g2); SWAP(b1, b2); SWAP(s1, s2); SWAP(t1, t2); SWAP(w1, w2); }
+    if( y2 > y3 ) { SWAP(y2, y3); SWAP(x2, x3); SWAP(r2, r3); SWAP(g2, g3); SWAP(b2, b3); SWAP(s2, s3); SWAP(t2, t3); SWAP(w2, w3); }
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); SWAP(r1, r2); SWAP(g1, g2); SWAP(b1, b2); SWAP(s1, s2); SWAP(t1, t2); SWAP(w1, w2); }
+
+    rdpq_tri_edge_data_t data;
+    __rdpq_write_edge_coeffs(&w, &data, tile, level, x1, y1, x2, y2, x3, y3);
+    __rdpq_write_shade_coeffs(&w, &data, r1, g1, b1, r2, g2, b2, r3, g3, b3);
+    __rdpq_write_tex_coeffs(&w, &data, s1, t1, w1, s2, t2, w2, s3, t3, w3);
+
+    rspq_write_end(&w);
+}
+
+void rdpq_triangle_shade_tex_zbuf(uint8_t tile, uint8_t level, float x1, float y1, float x2, float y2, float x3, float y3,
+    float r1, float g1, float b1, float r2, float g2, float b2, float r3, float g3, float b3,
+    float s1, float t1, float w1, float s2, float t2, float w2, float s3, float t3, float w3,
+    float z1, float z2, float z3)
+{
+    autosync_use(AUTOSYNC_PIPE | AUTOSYNC_TILE(tile&0x7));
+    rspq_write_t w = rspq_write_begin(RDPQ_OVL_ID, RDPQ_CMD_TRI_SHADE_TEX_ZBUF, 44);
+
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); SWAP(r1, r2); SWAP(g1, g2); SWAP(b1, b2); SWAP(s1, s2); SWAP(t1, t2); SWAP(w1, w2); SWAP(z1, z2); }
+    if( y2 > y3 ) { SWAP(y2, y3); SWAP(x2, x3); SWAP(r2, r3); SWAP(g2, g3); SWAP(b2, b3); SWAP(s2, s3); SWAP(t2, t3); SWAP(w2, w3); SWAP(z2, z3); }
+    if( y1 > y2 ) { SWAP(y1, y2); SWAP(x1, x2); SWAP(r1, r2); SWAP(g1, g2); SWAP(b1, b2); SWAP(s1, s2); SWAP(t1, t2); SWAP(w1, w2); SWAP(z1, z2); }
+
+    rdpq_tri_edge_data_t data;
+    __rdpq_write_edge_coeffs(&w, &data, tile, level, x1, y1, x2, y2, x3, y3);
+    __rdpq_write_shade_coeffs(&w, &data, r1, g1, b1, r2, g2, b2, r3, g3, b3);
+    __rdpq_write_tex_coeffs(&w, &data, s1, t1, w1, s2, t2, w2, s3, t3, w3);
+    __rdpq_write_zbuf_coeffs(&w, &data, z1, z2, z3);
 
     rspq_write_end(&w);
 }

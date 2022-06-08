@@ -112,8 +112,25 @@ void rdpq_set_config(uint32_t cfg);
 uint32_t rdpq_change_config(uint32_t on, uint32_t off);
 
 void rdpq_triangle(float x1, float y1, float x2, float y2, float x3, float y3);
-void rdpq_triangle_shade(float x1, float y1, float x2, float y2, float x3, float y3, float v1R, float v1G, float v1B, 
-                float v2R, float v2G, float v2B, float v3R, float v3G, float v3B);
+void rdpq_triangle_zbuf(float x1, float y1, float x2, float y2, float x3, float y3,
+    float z1, float z2, float z3);
+void rdpq_triangle_tex(uint8_t tile, uint8_t level, float x1, float y1, float x2, float y2, float x3, float y3,
+    float s1, float t1, float w1, float s2, float t2, float w2, float s3, float t3, float w3);
+void rdpq_triangle_tex_zbuf(uint8_t tile, uint8_t level, float x1, float y1, float x2, float y2, float x3, float y3,
+    float s1, float t1, float w1, float s2, float t2, float w2, float s3, float t3, float w3,
+    float z1, float z2, float z3);
+void rdpq_triangle_shade(float x1, float y1, float x2, float y2, float x3, float y3,
+    float r1, float g1, float b1, float r2, float g2, float b2, float r3, float g3, float b3);
+void rdpq_triangle_shade_zbuf(float x1, float y1, float x2, float y2, float x3, float y3,
+    float r1, float g1, float b1, float r2, float g2, float b2, float r3, float g3, float b3,
+    float z1, float z2, float z3);
+void rdpq_triangle_shade_tex(uint8_t tile, uint8_t level, float x1, float y1, float x2, float y2, float x3, float y3,
+    float r1, float g1, float b1, float r2, float g2, float b2, float r3, float g3, float b3,
+    float s1, float t1, float w1, float s2, float t2, float w2, float s3, float t3, float w3);
+void rdpq_triangle_shade_tex_zbuf(uint8_t tile, uint8_t level, float x1, float y1, float x2, float y2, float x3, float y3,
+    float r1, float g1, float b1, float r2, float g2, float b2, float r3, float g3, float b3,
+    float s1, float t1, float w1, float s2, float t2, float w2, float s3, float t3, float w3,
+    float z1, float z2, float z3);
 
 /**
  * @brief Low level function to draw a textured rectangle
@@ -497,7 +514,7 @@ inline void rdpq_set_texture_image_lookup(uint8_t index, uint32_t offset, tex_fo
         _carg(index, 0xF, 28) | (offset & 0xFFFFFF));
 }
 
-inline void rdpq_set_texture_image(void* dram_ptr, tex_format_t format, uint16_t width)
+inline void rdpq_set_texture_image(const void* dram_ptr, tex_format_t format, uint16_t width)
 {
     rdpq_set_texture_image_lookup(0, PhysicalAddr(dram_ptr), format, width);
 }

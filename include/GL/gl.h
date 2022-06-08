@@ -23,14 +23,14 @@ typedef double	    GLdouble;
 typedef double	    GLclampd;
 typedef void	    GLvoid;
 
-#define GL_BYTE
-#define GL_SHORT
-#define GL_INT
-#define GL_FLOAT
-#define GL_DOUBLE
-#define GL_UNSIGNED_BYTE
-#define GL_UNSIGNED_SHORT
-#define GL_UNSIGNED_INT
+#define GL_BYTE             0x1
+#define GL_SHORT            0x2
+#define GL_INT              0x3
+#define GL_FLOAT            0x4
+#define GL_DOUBLE           0x5
+#define GL_UNSIGNED_BYTE    0x6
+#define GL_UNSIGNED_SHORT   0x7
+#define GL_UNSIGNED_INT     0x8
 
 #define GL_FALSE 0
 #define GL_TRUE  1
@@ -639,59 +639,66 @@ void glCopyPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum type);
 
 /* Bitmaps */
 
-#define GL_BITMAP
+#define GL_BITMAP   0x1234
 
 void glBitmap(GLsizei w, GLsizei h, GLfloat xbo, GLfloat ybo, GLfloat xbi, GLfloat ybi, const GLubyte *data);
 
 /* Texturing */
 
-#define GL_COLOR_INDEX
-#define GL_STENCIL_INDEX
-#define GL_DEPTH_COMPONENT
-#define GL_RED
-#define GL_GREEN
-#define GL_BLUE
-#define GL_ALPHA
-#define GL_RGB
-#define GL_RGBA
-#define GL_LUMINANCE
-#define GL_LUMINANCE_ALPHA
+#define GL_COLOR_INDEX          0x1000
+#define GL_STENCIL_INDEX        0x1100
+#define GL_DEPTH_COMPONENT      0x1200
+#define GL_RED                  0x1300
+#define GL_GREEN                0x1400
+#define GL_BLUE                 0x1500
+#define GL_ALPHA                0x1600
+#define GL_RGB                  0x1700
+#define GL_RGBA                 0x1800
+#define GL_LUMINANCE            0x1900
+#define GL_LUMINANCE_ALPHA      0x1A00
+#define GL_INTENSITY            0x1B00
 
-#define GL_ALPHA4
-#define GL_ALPHA8
-#define GL_ALPHA12
-#define GL_ALPHA16
-#define GL_LUMINANCE4
-#define GL_LUMINANCE8
-#define GL_LUMINANCE12
-#define GL_LUMINANCE16
-#define GL_LUMINANCE4_ALPHA4
-#define GL_LUMINANCE6_ALPHA2
-#define GL_LUMINANCE8_ALPHA8
-#define GL_LUMINANCE12_ALPHA4
-#define GL_LUMINANCE12_ALPHA12
-#define GL_LUMINANCE16_ALPHA16
-#define GL_INTENSITY4
-#define GL_INTENSITY8
-#define GL_INTENSITY12
-#define GL_INTENSITY16
-#define GL_R3_G3_B2
-#define GL_RGB4
-#define GL_RGB5
-#define GL_RGB8
-#define GL_RGB10
-#define GL_RGB12
-#define GL_RGB16
-#define GL_RGBA2
-#define GL_RGBA4
-#define GL_RGB5_A1
-#define GL_RGBA8
-#define GL_RGB10_A2
-#define GL_RGBA12
-#define GL_RGBA16
+#define GL_ALPHA4               (GL_ALPHA | 0x1)
+#define GL_ALPHA8               (GL_ALPHA | 0x2)
+#define GL_ALPHA12              (GL_ALPHA | 0x3)
+#define GL_ALPHA16              (GL_ALPHA | 0x4)
+#define GL_LUMINANCE4           (GL_LUMINANCE | 0x1)
+#define GL_LUMINANCE8           (GL_LUMINANCE | 0x2)
+#define GL_LUMINANCE12          (GL_LUMINANCE | 0x3)
+#define GL_LUMINANCE16          (GL_LUMINANCE | 0x4)
+#define GL_LUMINANCE4_ALPHA4    (GL_LUMINANCE_ALPHA | 0x1)
+#define GL_LUMINANCE6_ALPHA2    (GL_LUMINANCE_ALPHA | 0x2)
+#define GL_LUMINANCE8_ALPHA8    (GL_LUMINANCE_ALPHA | 0x3)
+#define GL_LUMINANCE12_ALPHA4   (GL_LUMINANCE_ALPHA | 0x4)
+#define GL_LUMINANCE12_ALPHA12  (GL_LUMINANCE_ALPHA | 0x5)
+#define GL_LUMINANCE16_ALPHA16  (GL_LUMINANCE_ALPHA | 0x6)
+#define GL_INTENSITY4           (GL_INTENSITY | 0x1)
+#define GL_INTENSITY8           (GL_INTENSITY | 0x2)
+#define GL_INTENSITY12          (GL_INTENSITY | 0x3)
+#define GL_INTENSITY16          (GL_INTENSITY | 0x4)
+#define GL_R3_G3_B2             (GL_RGB | 0x1)
+#define GL_RGB4                 (GL_RGB | 0x2)
+#define GL_RGB5                 (GL_RGB | 0x3)
+#define GL_RGB8                 (GL_RGB | 0x4)
+#define GL_RGB10                (GL_RGB | 0x5)
+#define GL_RGB12                (GL_RGB | 0x6)
+#define GL_RGB16                (GL_RGB | 0x7)
+#define GL_RGBA2                (GL_RGBA | 0x1)
+#define GL_RGBA4                (GL_RGBA | 0x2)
+#define GL_RGB5_A1              (GL_RGBA | 0x3)
+#define GL_RGBA8                (GL_RGBA | 0x4)
+#define GL_RGB10_A2             (GL_RGBA | 0x5)
+#define GL_RGBA12               (GL_RGBA | 0x6)
+#define GL_RGBA16               (GL_RGBA | 0x7)
+
+#define GL_UNSIGNED_BYTE_3_3_2_EXT         0x8032
+#define GL_UNSIGNED_SHORT_4_4_4_4_EXT      0x8033
+#define GL_UNSIGNED_SHORT_5_5_5_1_EXT      0x8034
+#define GL_UNSIGNED_INT_8_8_8_8_EXT        0x8035
+#define GL_UNSIGNED_INT_10_10_10_2_EXT     0x8036
 
 #define GL_TEXTURE_1D
-#define GL_TEXTURE_2D
+#define GL_TEXTURE_2D           0x3
 #define GL_PROXY_TEXTURE_1D
 #define GL_PROXY_TEXTURE_2D
 
@@ -840,7 +847,7 @@ void glStencilOp(GLenum sfail, GLenum dpfail, GLenum dppass);
 
 /* Depth test */
 
-#define GL_DEPTH_TEST
+#define GL_DEPTH_TEST 0x2
 
 #define GL_DEPTH_FUNC
 
