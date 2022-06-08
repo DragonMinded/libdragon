@@ -75,8 +75,8 @@ static GLenum immediate_mode;
 static GLclampf clear_color[4];
 
 static bool cull_face;
-static GLenum cull_face_mode;
-static GLenum front_face;
+static GLenum cull_face_mode = GL_BACK;
+static GLenum front_face     = GL_CCW;
 
 static bool depth_test;
 static bool texture_2d;
@@ -170,7 +170,6 @@ void gl_update_final_matrix()
 void gl_init()
 {
     rdpq_init();
-    glCullFace(GL_BACK);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     rdpq_set_other_modes(0);
@@ -325,6 +324,10 @@ void gl_vertex_cache_changed()
 
     triangle_counter++;
 
+    if (cull_face_mode == GL_FRONT_AND_BACK) {
+        return;
+    }
+
     if (cull_face)
     {
         float winding = v0->position[0] * (v1->position[1] - v2->position[1]) +
@@ -334,7 +337,7 @@ void gl_vertex_cache_changed()
         bool is_front = (front_face == GL_CCW) ^ (winding > 0.0f);
         GLenum face = is_front ? GL_FRONT : GL_BACK;
 
-        if (cull_face_mode & face) {
+        if (cull_face_mode == face) {
             return;
         }
     }
