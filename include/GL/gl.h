@@ -750,6 +750,9 @@ void glTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, G
 void glCopyTexSubImage1D(GLenum target, GLint level, GLint xoffset, GLint x, GLint y, GLint width);
 void glCopyTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height);
 
+void glTexParameteri(GLenum target, GLenum pname, GLint param);
+void glTexParameterf(GLenum target, GLenum pname, GLfloat param);
+
 void glTexParameteriv(GLenum target, GLenum pname, const GLint *params);
 void glTexParameterfv(GLenum target, GLenum pname, const GLfloat *params);
 

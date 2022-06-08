@@ -11,6 +11,7 @@
 #define PROJECTION_STACK_SIZE 2
 
 #define CLAMP(x, min, max) (MIN(MAX((x), (min)), (max)))
+#define CLAMP01(x) CLAMP((x), 0, 1)
 
 #define CLAMPF_TO_BOOL(x)  ((x)!=0.0)
 
@@ -64,6 +65,12 @@ typedef struct {
     GLenum internal_format;
     GLenum format;
     GLenum type;
+    GLenum wrap_s;
+    GLenum wrap_t;
+    GLenum min_filter;
+    GLenum mag_filter;
+    GLclampf border_color[4];
+    GLclampf priority;
     void *data;
     bool is_dirty;
 } gl_texture_object_t;
@@ -113,7 +120,14 @@ static gl_matrix_stack_t projection_stack = (gl_matrix_stack_t) {
 
 static gl_matrix_stack_t *current_matrix_stack;
 
-static gl_texture_object_t texture_2d_object;
+static gl_texture_object_t texture_2d_object = {
+    .wrap_s = GL_REPEAT,
+    .wrap_t = GL_REPEAT,
+    .min_filter = GL_NEAREST_MIPMAP_LINEAR,
+    .mag_filter = GL_LINEAR,
+    .border_color = { 0.f, 0.f, 0.f, 0.f },
+    .priority = 0.f
+};
 
 #define assert_framebuffer() ({ \
     assertf(cur_framebuffer != NULL, "GL: No target is set!"); \
@@ -249,6 +263,13 @@ tex_format_t gl_texture_get_format(const gl_texture_object_t *texture_object)
     }
 }
 
+uint32_t gl_log2(uint32_t s)
+{
+    uint32_t log = 0;
+    while (s >>= 1) ++log;
+    return log;
+}
+
 void glBegin(GLenum mode)
 {
     if (immediate_mode) {
@@ -273,12 +294,24 @@ void glBegin(GLenum mode)
     
     if (texture_2d) {
         tex_format_t fmt = gl_texture_get_format(&texture_2d_object);
-        rdpq_set_other_modes(SOM_CYCLE_1 | SOM_TEXTURE_PERSP | SOM_SAMPLE_2X2);
+        uint64_t modes = SOM_CYCLE_1 | SOM_TEXTURE_PERSP | SOM_TC_FILTER;
+
+        if (texture_2d_object.mag_filter == GL_LINEAR) {
+            modes |= SOM_SAMPLE_2X2;
+        }
+
+        rdpq_set_other_modes(modes);
         rdpq_set_combine_mode(Comb_Rgb(TEX0, ZERO, SHADE, ZERO) | Comb_Alpha(ZERO, ZERO, ZERO, TEX0));
 
         if (texture_2d_object.is_dirty) {
+            // TODO: min filter (mip mapping?)
+            // TODO: border color?
             rdpq_set_texture_image(texture_2d_object.data, fmt, texture_2d_object.width);
-            rdpq_set_tile(0, fmt, 0, texture_2d_object.width * TEX_FORMAT_BYTES_PER_PIXEL(fmt), 0);
+
+            uint8_t mask_s = texture_2d_object.wrap_s == GL_REPEAT ? gl_log2(texture_2d_object.width) : 0;
+            uint8_t mask_t = texture_2d_object.wrap_t == GL_REPEAT ? gl_log2(texture_2d_object.height) : 0;
+
+            rdpq_set_tile_full(0, fmt, 0, texture_2d_object.width * TEX_FORMAT_BYTES_PER_PIXEL(fmt), 0, 0, 0, mask_t, 0, 0, 0, mask_s, 0);
             rdpq_load_tile(0, 0, 0, texture_2d_object.width, texture_2d_object.height);
             texture_2d_object.is_dirty = false;
         }
@@ -891,6 +924,214 @@ void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei widt
     object->format = format;
     object->type = type;
     object->is_dirty = true;
+}
+
+gl_texture_object_t * gl_get_texture_object(GLenum target)
+{
+    switch (target) {
+    case GL_TEXTURE_2D:
+        return &texture_2d_object;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return NULL;
+    }
+}
+
+void gl_texture_set_wrap_s(gl_texture_object_t *obj, GLenum param)
+{
+    switch (param) {
+    case GL_CLAMP:
+    case GL_REPEAT:
+        obj->wrap_s = param;
+        obj->is_dirty = true;
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void gl_texture_set_wrap_t(gl_texture_object_t *obj, GLenum param)
+{
+    switch (param) {
+    case GL_CLAMP:
+    case GL_REPEAT:
+        obj->wrap_t = param;
+        obj->is_dirty = true;
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void gl_texture_set_min_filter(gl_texture_object_t *obj, GLenum param)
+{
+    switch (param) {
+    case GL_NEAREST:
+    case GL_LINEAR:
+    case GL_NEAREST_MIPMAP_NEAREST:
+    case GL_LINEAR_MIPMAP_NEAREST:
+    case GL_NEAREST_MIPMAP_LINEAR:
+    case GL_LINEAR_MIPMAP_LINEAR:
+        obj->min_filter = param;
+        obj->is_dirty = true;
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void gl_texture_set_mag_filter(gl_texture_object_t *obj, GLenum param)
+{
+    switch (param) {
+    case GL_NEAREST:
+    case GL_LINEAR:
+        obj->mag_filter = param;
+        obj->is_dirty = true;
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void gl_texture_set_border_color(gl_texture_object_t *obj, GLclampf r, GLclampf g, GLclampf b, GLclampf a)
+{
+    obj->border_color[0] = CLAMP01(r);
+    obj->border_color[1] = CLAMP01(g);
+    obj->border_color[2] = CLAMP01(b);
+    obj->border_color[3] = CLAMP01(a);
+    obj->is_dirty = true;
+}
+
+void gl_texture_set_priority(gl_texture_object_t *obj, GLclampf param)
+{
+    obj->priority = CLAMP01(param);
+    obj->is_dirty = true;
+}
+
+void glTexParameteri(GLenum target, GLenum pname, GLint param)
+{
+    gl_texture_object_t *obj = gl_get_texture_object(target);
+    if (obj == NULL) {
+        return;
+    }
+
+    switch (pname) {
+    case GL_TEXTURE_WRAP_S:
+        gl_texture_set_wrap_s(obj, param);
+        break;
+    case GL_TEXTURE_WRAP_T:
+        gl_texture_set_wrap_t(obj, param);
+        break;
+    case GL_TEXTURE_MIN_FILTER:
+        gl_texture_set_min_filter(obj, param);
+        break;
+    case GL_TEXTURE_MAG_FILTER:
+        gl_texture_set_mag_filter(obj, param);
+        break;
+    case GL_TEXTURE_PRIORITY:
+        gl_texture_set_priority(obj, I32_TO_FLOAT(param));
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void glTexParameterf(GLenum target, GLenum pname, GLfloat param)
+{
+    gl_texture_object_t *obj = gl_get_texture_object(target);
+    if (obj == NULL) {
+        return;
+    }
+
+    switch (pname) {
+    case GL_TEXTURE_WRAP_S:
+        gl_texture_set_wrap_s(obj, param);
+        break;
+    case GL_TEXTURE_WRAP_T:
+        gl_texture_set_wrap_t(obj, param);
+        break;
+    case GL_TEXTURE_MIN_FILTER:
+        gl_texture_set_min_filter(obj, param);
+        break;
+    case GL_TEXTURE_MAG_FILTER:
+        gl_texture_set_mag_filter(obj, param);
+        break;
+    case GL_TEXTURE_PRIORITY:
+        gl_texture_set_priority(obj, param);
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void glTexParameteriv(GLenum target, GLenum pname, const GLint *params)
+{
+    gl_texture_object_t *obj = gl_get_texture_object(target);
+    if (obj == NULL) {
+        return;
+    }
+
+    switch (pname) {
+    case GL_TEXTURE_WRAP_S:
+        gl_texture_set_wrap_s(obj, params[0]);
+        break;
+    case GL_TEXTURE_WRAP_T:
+        gl_texture_set_wrap_t(obj, params[0]);
+        break;
+    case GL_TEXTURE_MIN_FILTER:
+        gl_texture_set_min_filter(obj, params[0]);
+        break;
+    case GL_TEXTURE_MAG_FILTER:
+        gl_texture_set_mag_filter(obj, params[0]);
+        break;
+    case GL_TEXTURE_BORDER_COLOR:
+        gl_texture_set_border_color(obj, I32_TO_FLOAT(params[0]), I32_TO_FLOAT(params[1]), I32_TO_FLOAT(params[2]), I32_TO_FLOAT(params[3]));
+        break;
+    case GL_TEXTURE_PRIORITY:
+        gl_texture_set_priority(obj, I32_TO_FLOAT(params[0]));
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void glTexParameterfv(GLenum target, GLenum pname, const GLfloat *params)
+{
+    gl_texture_object_t *obj = gl_get_texture_object(target);
+    if (obj == NULL) {
+        return;
+    }
+
+    switch (pname) {
+    case GL_TEXTURE_WRAP_S:
+        gl_texture_set_wrap_s(obj, params[0]);
+        break;
+    case GL_TEXTURE_WRAP_T:
+        gl_texture_set_wrap_t(obj, params[0]);
+        break;
+    case GL_TEXTURE_MIN_FILTER:
+        gl_texture_set_min_filter(obj, params[0]);
+        break;
+    case GL_TEXTURE_MAG_FILTER:
+        gl_texture_set_mag_filter(obj, params[0]);
+        break;
+    case GL_TEXTURE_BORDER_COLOR:
+        gl_texture_set_border_color(obj, params[0], params[1], params[2], params[3]);
+        break;
+    case GL_TEXTURE_PRIORITY:
+        gl_texture_set_priority(obj, params[0]);
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
 }
 
 void glScissor(GLint left, GLint bottom, GLsizei width, GLsizei height)
