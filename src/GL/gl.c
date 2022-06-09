@@ -35,7 +35,7 @@
 typedef struct {
     surface_t *color_buffer;
     void *depth_buffer;
-} framebuffer_t;
+} gl_framebuffer_t;
 
 typedef struct {
     GLfloat position[4];
@@ -77,71 +77,61 @@ typedef struct {
     bool is_dirty;
 } gl_texture_object_t;
 
-static framebuffer_t default_framebuffer;
-static framebuffer_t *cur_framebuffer;
-static GLenum current_error;
-static GLenum immediate_mode;
-static GLclampf clear_color[4];
-static GLclampd clear_depth;
+static struct {
+    gl_framebuffer_t default_framebuffer;
+    gl_framebuffer_t *cur_framebuffer;
 
-static bool cull_face;
-static GLenum cull_face_mode = GL_BACK;
-static GLenum front_face     = GL_CCW;
+    GLenum current_error;
 
-static bool depth_test;
-static bool texture_2d;
+    GLenum draw_buffer;
 
-static gl_vertex_t vertex_cache[3];
-static uint32_t triangle_indices[3];
-static uint32_t next_vertex;
-static uint32_t triangle_progress;
-static uint32_t triangle_counter;
+    GLenum immediate_mode;
 
-static GLfloat current_color[4];
-static GLfloat current_texcoord[4];
+    GLclampf clear_color[4];
+    GLclampd clear_depth;
 
-static gl_viewport_t current_viewport;
+    bool cull_face;
+    GLenum cull_face_mode;
+    GLenum front_face;
 
-static GLenum matrix_mode = GL_MODELVIEW;
-static gl_matrix_t final_matrix;
-static gl_matrix_t *current_matrix;
+    bool depth_test;
+    bool texture_2d;
 
-static gl_matrix_t modelview_stack_storage[MODELVIEW_STACK_SIZE];
-static gl_matrix_t projection_stack_storage[PROJECTION_STACK_SIZE];
+    gl_vertex_t vertex_cache[3];
+    uint32_t triangle_indices[3];
+    uint32_t next_vertex;
+    uint32_t triangle_progress;
+    uint32_t triangle_counter;
 
-static gl_matrix_stack_t modelview_stack = (gl_matrix_stack_t) {
-    .storage = modelview_stack_storage,
-    .size = MODELVIEW_STACK_SIZE,
-    .cur_depth = 0,
-};
+    GLfloat current_color[4];
+    GLfloat current_texcoord[4];
 
-static gl_matrix_stack_t projection_stack = (gl_matrix_stack_t) {
-    .storage = projection_stack_storage,
-    .size = PROJECTION_STACK_SIZE,
-    .cur_depth = 0,
-};
+    gl_viewport_t current_viewport;
 
-static gl_matrix_stack_t *current_matrix_stack;
+    GLenum matrix_mode;
+    gl_matrix_t final_matrix;
+    gl_matrix_t *current_matrix;
 
-static gl_texture_object_t texture_2d_object = {
-    .wrap_s = GL_REPEAT,
-    .wrap_t = GL_REPEAT,
-    .min_filter = GL_NEAREST_MIPMAP_LINEAR,
-    .mag_filter = GL_LINEAR,
-    .border_color = { 0.f, 0.f, 0.f, 0.f },
-    .priority = 0.f
-};
+    gl_matrix_t modelview_stack_storage[MODELVIEW_STACK_SIZE];
+    gl_matrix_t projection_stack_storage[PROJECTION_STACK_SIZE];
+
+    gl_matrix_stack_t modelview_stack;
+    gl_matrix_stack_t projection_stack;
+    gl_matrix_stack_t *current_matrix_stack;
+
+    gl_texture_object_t texture_2d_object;
+} state;
 
 #define assert_framebuffer() ({ \
-    assertf(cur_framebuffer != NULL, "GL: No target is set!"); \
+    assertf(state.cur_framebuffer != NULL, "GL: No target is set!"); \
 })
 
-void gl_set_framebuffer(framebuffer_t *framebuffer)
+void gl_set_framebuffer(gl_framebuffer_t *framebuffer)
 {
-    cur_framebuffer = framebuffer;
+    state.cur_framebuffer = framebuffer;
     glViewport(0, 0, framebuffer->color_buffer->width, framebuffer->color_buffer->height);
-    rdpq_set_color_image_surface(cur_framebuffer->color_buffer);
-    rdpq_set_z_image(cur_framebuffer->depth_buffer);
+    rdpq_set_color_image_surface(state.cur_framebuffer->color_buffer);
+    rdpq_set_z_image(state.cur_framebuffer->depth_buffer);
 }
 
 void gl_set_default_framebuffer()
@@ -149,22 +139,24 @@ void gl_set_default_framebuffer()
     surface_t *ctx;
     while (!(ctx = display_lock()));
 
-    if (default_framebuffer.depth_buffer != NULL && (default_framebuffer.color_buffer == NULL 
-                                                     || default_framebuffer.color_buffer->width != ctx->width 
-                                                     || default_framebuffer.color_buffer->height != ctx->height)) {
-        free_uncached(default_framebuffer.depth_buffer);
-        default_framebuffer.depth_buffer = NULL;
+    gl_framebuffer_t *fb = &state.default_framebuffer;
+
+    if (fb->depth_buffer != NULL && (fb->color_buffer == NULL 
+                                    || fb->color_buffer->width != ctx->width 
+                                    || fb->color_buffer->height != ctx->height)) {
+        free_uncached(fb->depth_buffer);
+        fb->depth_buffer = NULL;
     }
 
-    default_framebuffer.color_buffer = ctx;
+    fb->color_buffer = ctx;
 
     // TODO: only allocate depth buffer if depth test is enabled? Lazily allocate?
-    if (default_framebuffer.depth_buffer == NULL) {
+    if (fb->depth_buffer == NULL) {
         // TODO: allocate in separate RDRAM bank?
-        default_framebuffer.depth_buffer = malloc_uncached_aligned(64, ctx->width * ctx->height * 2);
+        fb->depth_buffer = malloc_uncached_aligned(64, ctx->width * ctx->height * 2);
     }
 
-    gl_set_framebuffer(&default_framebuffer);
+    gl_set_framebuffer(fb);
 }
 
 gl_matrix_t * gl_matrix_stack_get_matrix(gl_matrix_stack_t *stack)
@@ -174,7 +166,7 @@ gl_matrix_t * gl_matrix_stack_get_matrix(gl_matrix_stack_t *stack)
 
 void gl_update_current_matrix()
 {
-    current_matrix = gl_matrix_stack_get_matrix(current_matrix_stack);
+    state.current_matrix = gl_matrix_stack_get_matrix(state.current_matrix_stack);
 }
 
 void gl_matrix_mult(GLfloat *d, const gl_matrix_t *m, const GLfloat *v)
@@ -195,19 +187,42 @@ void gl_matrix_mult_full(gl_matrix_t *d, const gl_matrix_t *l, const gl_matrix_t
 
 void gl_update_final_matrix()
 {
-    gl_matrix_mult_full(&final_matrix, gl_matrix_stack_get_matrix(&projection_stack), gl_matrix_stack_get_matrix(&modelview_stack));
+    gl_matrix_mult_full(&state.final_matrix, gl_matrix_stack_get_matrix(&state.projection_stack), gl_matrix_stack_get_matrix(&state.modelview_stack));
 }
 
 void gl_init()
 {
     rdpq_init();
+
+    memset(&state, 0, sizeof(state));
+
+    state.modelview_stack = (gl_matrix_stack_t) {
+        .storage = state.modelview_stack_storage,
+        .size = MODELVIEW_STACK_SIZE,
+    };
+
+    state.projection_stack = (gl_matrix_stack_t) {
+        .storage = state.projection_stack_storage,
+        .size = PROJECTION_STACK_SIZE,
+    };
+
+    state.texture_2d_object = (gl_texture_object_t) {
+        .wrap_s = GL_REPEAT,
+        .wrap_t = GL_REPEAT,
+        .min_filter = GL_NEAREST_MIPMAP_LINEAR,
+        .mag_filter = GL_LINEAR,
+    };
+
+    glDrawBuffer(GL_FRONT);
+    glDepthRange(0, 1);
+    glClearDepth(1.0);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
+
     rdpq_set_other_modes(0);
     gl_set_default_framebuffer();
-    glDepthRange(0, 1);
-    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    glClearDepth(1.0);
 }
 
 void gl_close()
@@ -217,20 +232,20 @@ void gl_close()
 
 GLenum glGetError(void)
 {
-    GLenum error = current_error;
-    current_error = GL_NO_ERROR;
+    GLenum error = state.current_error;
+    state.current_error = GL_NO_ERROR;
     return error;
 }
 
 void gl_set_error(GLenum error)
 {
-    current_error = error;
+    state.current_error = error;
     assert(error);
 }
 
 void gl_swap_buffers()
 {
-    rdpq_sync_full((void(*)(void*))display_show, default_framebuffer.color_buffer);
+    rdpq_sync_full((void(*)(void*))display_show, state.default_framebuffer.color_buffer);
     rspq_flush();
     gl_set_default_framebuffer();
 }
@@ -239,13 +254,13 @@ void gl_set_flag(GLenum target, bool value)
 {
     switch (target) {
     case GL_CULL_FACE:
-        cull_face = value;
+        state.cull_face = value;
         break;
     case GL_DEPTH_TEST:
-        depth_test = value;
+        state.depth_test = value;
         break;
     case GL_TEXTURE_2D:
-        texture_2d = value;
+        state.texture_2d = value;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -291,7 +306,7 @@ uint32_t gl_log2(uint32_t s)
 
 void glBegin(GLenum mode)
 {
-    if (immediate_mode) {
+    if (state.immediate_mode) {
         gl_set_error(GL_INVALID_OPERATION);
         return;
     }
@@ -300,42 +315,48 @@ void glBegin(GLenum mode)
     case GL_TRIANGLES:
     case GL_TRIANGLE_STRIP:
     case GL_TRIANGLE_FAN:
-        immediate_mode = mode;
-        next_vertex = 0;
-        triangle_progress = 0;
-        triangle_counter = 0;
+        state.immediate_mode = mode;
+        state.next_vertex = 0;
+        state.triangle_progress = 0;
+        state.triangle_counter = 0;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
         return;
     }
 
+    if (!state.draw_buffer) {
+        return;
+    }
+
     uint64_t modes = SOM_CYCLE_1 | SOM_TEXTURE_PERSP | SOM_TC_FILTER;
 
-    if (depth_test) {
+    if (state.depth_test) {
         modes |= SOM_Z_COMPARE | SOM_Z_WRITE | SOM_Z_OPAQUE | SOM_Z_SOURCE_PIXEL | SOM_READ_ENABLE;
     }
     
-    if (texture_2d) {
-        tex_format_t fmt = gl_texture_get_format(&texture_2d_object);
+    if (state.texture_2d) {
+        tex_format_t fmt = gl_texture_get_format(&state.texture_2d_object);
 
-        if (texture_2d_object.mag_filter == GL_LINEAR) {
+        gl_texture_object_t *tex_obj = &state.texture_2d_object;
+
+        if (tex_obj->mag_filter == GL_LINEAR) {
             modes |= SOM_SAMPLE_2X2;
         }
 
         rdpq_set_combine_mode(Comb_Rgb(TEX0, ZERO, SHADE, ZERO) | Comb_Alpha(ZERO, ZERO, ZERO, TEX0));
 
-        if (texture_2d_object.is_dirty) {
+        if (tex_obj->is_dirty) {
             // TODO: min filter (mip mapping?)
             // TODO: border color?
-            rdpq_set_texture_image(texture_2d_object.data, fmt, texture_2d_object.width);
+            rdpq_set_texture_image(tex_obj->data, fmt, tex_obj->width);
 
-            uint8_t mask_s = texture_2d_object.wrap_s == GL_REPEAT ? gl_log2(texture_2d_object.width) : 0;
-            uint8_t mask_t = texture_2d_object.wrap_t == GL_REPEAT ? gl_log2(texture_2d_object.height) : 0;
+            uint8_t mask_s = tex_obj->wrap_s == GL_REPEAT ? gl_log2(tex_obj->width) : 0;
+            uint8_t mask_t = tex_obj->wrap_t == GL_REPEAT ? gl_log2(tex_obj->height) : 0;
 
-            rdpq_set_tile_full(0, fmt, 0, texture_2d_object.width * TEX_FORMAT_BYTES_PER_PIXEL(fmt), 0, 0, 0, mask_t, 0, 0, 0, mask_s, 0);
-            rdpq_load_tile(0, 0, 0, texture_2d_object.width, texture_2d_object.height);
-            texture_2d_object.is_dirty = false;
+            rdpq_set_tile_full(0, fmt, 0, tex_obj->width * TEX_FORMAT_BYTES_PER_PIXEL(fmt), 0, 0, 0, mask_t, 0, 0, 0, mask_s, 0);
+            rdpq_load_tile(0, 0, 0, tex_obj->width, tex_obj->height);
+            tex_obj->is_dirty = false;
         }
     } else {
         rdpq_set_combine_mode(Comb_Rgb(ONE, ZERO, SHADE, ZERO) | Comb_Alpha(ZERO, ZERO, ZERO, ONE));
@@ -346,92 +367,96 @@ void glBegin(GLenum mode)
 
 void glEnd(void)
 {
-    if (!immediate_mode) {
+    if (!state.immediate_mode) {
         gl_set_error(GL_INVALID_OPERATION);
     }
 
-    immediate_mode = 0;
+    state.immediate_mode = 0;
 }
 
 void gl_vertex_cache_changed()
 {
-    if (triangle_progress < 3) {
+    if (state.triangle_progress < 3) {
         return;
     }
 
-    gl_vertex_t *v0 = &vertex_cache[triangle_indices[0]];
-    gl_vertex_t *v1 = &vertex_cache[triangle_indices[1]];
-    gl_vertex_t *v2 = &vertex_cache[triangle_indices[2]];
+    gl_vertex_t *v0 = &state.vertex_cache[state.triangle_indices[0]];
+    gl_vertex_t *v1 = &state.vertex_cache[state.triangle_indices[1]];
+    gl_vertex_t *v2 = &state.vertex_cache[state.triangle_indices[2]];
 
-    switch (immediate_mode) {
+    switch (state.immediate_mode) {
     case GL_TRIANGLES:
-        triangle_progress = 0;
+        state.triangle_progress = 0;
         break;
     case GL_TRIANGLE_STRIP:
-        triangle_progress = 2;
-        triangle_indices[triangle_counter % 2] = triangle_indices[2];
+        state.triangle_progress = 2;
+        state.triangle_indices[state.triangle_counter % 2] = state.triangle_indices[2];
         break;
     case GL_TRIANGLE_FAN:
-        triangle_progress = 2;
-        triangle_indices[1] = triangle_indices[2];
+        state.triangle_progress = 2;
+        state.triangle_indices[1] = state.triangle_indices[2];
         break;
     }
 
-    triangle_counter++;
+    state.triangle_counter++;
 
-    if (cull_face_mode == GL_FRONT_AND_BACK) {
+    if (state.cull_face_mode == GL_FRONT_AND_BACK) {
         return;
     }
 
-    if (cull_face)
+    if (state.cull_face)
     {
         float winding = v0->screen_pos[0] * (v1->screen_pos[1] - v2->screen_pos[1]) +
                         v1->screen_pos[0] * (v2->screen_pos[1] - v0->screen_pos[1]) +
                         v2->screen_pos[0] * (v0->screen_pos[1] - v1->screen_pos[1]);
         
-        bool is_front = (front_face == GL_CCW) ^ (winding > 0.0f);
+        bool is_front = (state.front_face == GL_CCW) ^ (winding > 0.0f);
         GLenum face = is_front ? GL_FRONT : GL_BACK;
 
-        if (cull_face_mode == face) {
+        if (state.cull_face_mode == face) {
             return;
         }
     }
 
     triangle_coeffs_t c = TRI_SHADE;
-    if (texture_2d) c |= TRI_TEX;
-    if (depth_test) c |= TRI_ZBUF;
+    if (state.texture_2d) c |= TRI_TEX;
+    if (state.depth_test) c |= TRI_ZBUF;
 
     rdpq_triangle(c, 0, 0, 0, 2, 6, 9, v0->screen_pos, v1->screen_pos, v2->screen_pos);
 }
 
 void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w) 
 {
-    gl_vertex_t *v = &vertex_cache[next_vertex];
+    if (!state.draw_buffer) {
+        return;
+    }
+
+    gl_vertex_t *v = &state.vertex_cache[state.next_vertex];
 
     GLfloat tmp[] = {x, y, z, w};
 
-    gl_matrix_mult(v->position, &final_matrix, tmp);
+    gl_matrix_mult(v->position, &state.final_matrix, tmp);
 
     float inverse_w = 1.0f / v->position[3];
 
-    v->screen_pos[0] = v->position[0] * inverse_w * current_viewport.scale[0] + current_viewport.offset[0];
-    v->screen_pos[1] = v->position[1] * inverse_w * current_viewport.scale[1] + current_viewport.offset[1];
+    v->screen_pos[0] = v->position[0] * inverse_w * state.current_viewport.scale[0] + state.current_viewport.offset[0];
+    v->screen_pos[1] = v->position[1] * inverse_w * state.current_viewport.scale[1] + state.current_viewport.offset[1];
 
-    v->color[0] = current_color[0] * 255.f;
-    v->color[1] = current_color[1] * 255.f;
-    v->color[2] = current_color[2] * 255.f;
-    v->color[3] = current_color[3] * 255.f;
+    v->color[0] = state.current_color[0] * 255.f;
+    v->color[1] = state.current_color[1] * 255.f;
+    v->color[2] = state.current_color[2] * 255.f;
+    v->color[3] = state.current_color[3] * 255.f;
 
-    v->texcoord[0] = current_texcoord[0] * 32.f * texture_2d_object.width;
-    v->texcoord[1] = current_texcoord[1] * 32.f * texture_2d_object.height;
+    v->texcoord[0] = state.current_texcoord[0] * 32.f * state.texture_2d_object.width;
+    v->texcoord[1] = state.current_texcoord[1] * 32.f * state.texture_2d_object.height;
     v->inverse_w = inverse_w;
 
-    v->depth = v->position[2] * inverse_w * current_viewport.scale[2] + current_viewport.offset[2];
+    v->depth = v->position[2] * inverse_w * state.current_viewport.scale[2] + state.current_viewport.offset[2];
 
-    triangle_indices[triangle_progress] = next_vertex;
+    state.triangle_indices[state.triangle_progress] = state.next_vertex;
 
-    next_vertex = (next_vertex + 1) % 3;
-    triangle_progress++;
+    state.next_vertex = (state.next_vertex + 1) % 3;
+    state.triangle_progress++;
 
     gl_vertex_cache_changed();
 }
@@ -467,10 +492,10 @@ void glVertex4dv(const GLdouble *v) { glVertex4d(v[0], v[1], v[2], v[3]); }
 
 void glColor4f(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
-    current_color[0] = r;
-    current_color[1] = g;
-    current_color[2] = b;
-    current_color[3] = a;
+    state.current_color[0] = r;
+    state.current_color[1] = g;
+    state.current_color[2] = b;
+    state.current_color[3] = a;
 }
 
 void glColor4d(GLdouble r, GLdouble g, GLdouble b, GLdouble a)  { glColor4f(r, g, b, a); }
@@ -510,10 +535,10 @@ void glColor4uiv(const GLuint *v)   { glColor4ui(v[0], v[1], v[2], v[3]); }
 
 void glTexCoord4f(GLfloat s, GLfloat t, GLfloat r, GLfloat q)
 {
-    current_texcoord[0] = s;
-    current_texcoord[1] = t;
-    current_texcoord[2] = r;
-    current_texcoord[3] = q;
+    state.current_texcoord[0] = s;
+    state.current_texcoord[1] = t;
+    state.current_texcoord[2] = r;
+    state.current_texcoord[3] = q;
 }
 
 void glTexCoord4s(GLshort s, GLshort t, GLshort r, GLshort q)       { glTexCoord4f(s, t, r, q); }
@@ -557,40 +582,40 @@ void glTexCoord4dv(const GLdouble *v)   { glTexCoord4d(v[0], v[1], v[2], v[3]); 
 
 void glDepthRange(GLclampd n, GLclampd f)
 {
-    current_viewport.scale[2] = ((f - n) * -0.5f) * 0x7FE0;
-    current_viewport.offset[2] = (n + (f - n) * 0.5f) * 0x7FE0;
+    state.current_viewport.scale[2] = ((f - n) * -0.5f) * 0x7FE0;
+    state.current_viewport.offset[2] = (n + (f - n) * 0.5f) * 0x7FE0;
 }
 
 void glViewport(GLint x, GLint y, GLsizei w, GLsizei h)
 {
-    current_viewport.scale[0] = w * 0.5f;
-    current_viewport.scale[1] = h * -0.5f;
-    current_viewport.offset[0] = x + w * 0.5f;
-    current_viewport.offset[1] = y + h * 0.5f;
+    state.current_viewport.scale[0] = w * 0.5f;
+    state.current_viewport.scale[1] = h * -0.5f;
+    state.current_viewport.offset[0] = x + w * 0.5f;
+    state.current_viewport.offset[1] = y + h * 0.5f;
 }
 
 void glMatrixMode(GLenum mode)
 {
     switch (mode) {
     case GL_MODELVIEW:
-        current_matrix_stack = &modelview_stack;
+        state.current_matrix_stack = &state.modelview_stack;
         break;
     case GL_PROJECTION:
-        current_matrix_stack = &projection_stack;
+        state.current_matrix_stack = &state.projection_stack;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
         return;
     }
 
-    matrix_mode = mode;
+    state.matrix_mode = mode;
 
     gl_update_current_matrix();
 }
 
 void glLoadMatrixf(const GLfloat *m)
 {
-    memcpy(current_matrix, m, sizeof(gl_matrix_t));
+    memcpy(state.current_matrix, m, sizeof(gl_matrix_t));
     gl_update_final_matrix();
 }
 
@@ -598,15 +623,15 @@ void glLoadMatrixd(const GLdouble *m)
 {
     for (size_t i = 0; i < 16; i++)
     {
-        current_matrix->m[i/4][i%4] = m[i];
+        state.current_matrix->m[i/4][i%4] = m[i];
     }
     gl_update_final_matrix();
 }
 
 void glMultMatrixf(const GLfloat *m)
 {
-    gl_matrix_t tmp = *current_matrix;
-    gl_matrix_mult_full(current_matrix, &tmp, (gl_matrix_t*)m);
+    gl_matrix_t tmp = *state.current_matrix;
+    gl_matrix_mult_full(state.current_matrix, &tmp, (gl_matrix_t*)m);
     gl_update_final_matrix();
 }
 
@@ -614,7 +639,7 @@ void glMultMatrixd(const GLdouble *m);
 
 void glLoadIdentity(void)
 {
-    *current_matrix = (gl_matrix_t){ .m={
+    *state.current_matrix = (gl_matrix_t){ .m={
         {1,0,0,0},
         {0,1,0,0},
         {0,0,1,0},
@@ -688,27 +713,31 @@ void glOrtho(GLdouble l, GLdouble r, GLdouble b, GLdouble t, GLdouble n, GLdoubl
 
 void glPushMatrix(void)
 {
-    int32_t new_depth = current_matrix_stack->cur_depth + 1;
-    if (new_depth >= current_matrix_stack->size) {
+    gl_matrix_stack_t *stack = state.current_matrix_stack;
+
+    int32_t new_depth = stack->cur_depth + 1;
+    if (new_depth >= stack->size) {
         gl_set_error(GL_STACK_OVERFLOW);
         return;
     }
 
-    current_matrix_stack->cur_depth = new_depth;
-    memcpy(&current_matrix_stack->storage[new_depth], &current_matrix_stack->storage[new_depth-1], sizeof(gl_matrix_t));
+    stack->cur_depth = new_depth;
+    memcpy(&stack->storage[new_depth], &stack->storage[new_depth-1], sizeof(gl_matrix_t));
 
     gl_update_current_matrix();
 }
 
 void glPopMatrix(void)
 {
-    int32_t new_depth = current_matrix_stack->cur_depth - 1;
+    gl_matrix_stack_t *stack = state.current_matrix_stack;
+
+    int32_t new_depth = stack->cur_depth - 1;
     if (new_depth < 0) {
         gl_set_error(GL_STACK_UNDERFLOW);
         return;
     }
 
-    current_matrix_stack->cur_depth = new_depth;
+    stack->cur_depth = new_depth;
 
     gl_update_current_matrix();
 }
@@ -719,7 +748,7 @@ void glCullFace(GLenum mode)
     case GL_BACK:
     case GL_FRONT:
     case GL_FRONT_AND_BACK:
-        cull_face_mode = mode;
+        state.cull_face_mode = mode;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -732,7 +761,7 @@ void glFrontFace(GLenum dir)
     switch (dir) {
     case GL_CW:
     case GL_CCW:
-        front_face = dir;
+        state.front_face = dir;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -839,15 +868,21 @@ bool gl_copy_pixels(void *dst, const void *src, GLint dst_fmt, GLenum src_fmt, G
     return false;
 }
 
-void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data)
+gl_texture_object_t * gl_get_texture_object(GLenum target)
 {
-    gl_texture_object_t *object;
     switch (target) {
     case GL_TEXTURE_2D:
-        object = &texture_2d_object;
-        break;
+        return &state.texture_2d_object;
     default:
         gl_set_error(GL_INVALID_ENUM);
+        return NULL;
+    }
+}
+
+void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data)
+{
+    gl_texture_object_t *obj = gl_get_texture_object(target);
+    if (obj == NULL) {
         return;
     }
 
@@ -892,26 +927,15 @@ void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei widt
         return;
     }
 
-    object->data = (void*)data;
-    gl_copy_pixels(object->data, data, preferred_format, format, type);
+    obj->data = (void*)data;
+    gl_copy_pixels(obj->data, data, preferred_format, format, type);
 
-    object->width = width;
-    object->height = height;
-    object->internal_format = preferred_format;
-    object->format = format;
-    object->type = type;
-    object->is_dirty = true;
-}
-
-gl_texture_object_t * gl_get_texture_object(GLenum target)
-{
-    switch (target) {
-    case GL_TEXTURE_2D:
-        return &texture_2d_object;
-    default:
-        gl_set_error(GL_INVALID_ENUM);
-        return NULL;
-    }
+    obj->width = width;
+    obj->height = height;
+    obj->internal_format = preferred_format;
+    obj->format = format;
+    obj->type = type;
+    obj->is_dirty = true;
 }
 
 void gl_texture_set_wrap_s(gl_texture_object_t *obj, GLenum param)
@@ -1116,41 +1140,70 @@ void glScissor(GLint left, GLint bottom, GLsizei width, GLsizei height)
     rdpq_set_scissor(left, bottom, left + width, bottom + height);
 }
 
+void glDrawBuffer(GLenum buf)
+{
+    switch (buf) {
+    case GL_NONE:
+    case GL_FRONT_LEFT:
+    case GL_FRONT:
+    case GL_LEFT:
+    case GL_FRONT_AND_BACK:
+        state.draw_buffer = buf;
+        break;
+    case GL_FRONT_RIGHT:
+    case GL_BACK_LEFT:
+    case GL_BACK_RIGHT:
+    case GL_BACK:
+    case GL_RIGHT:
+    case GL_AUX0:
+    case GL_AUX1:
+    case GL_AUX2:
+    case GL_AUX3:
+        gl_set_error(GL_INVALID_OPERATION);
+        return;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
 void glClear(GLbitfield buf)
 {
     assert_framebuffer();
 
     rdpq_set_other_modes(SOM_CYCLE_FILL);
 
-    if (buf & GL_DEPTH_BUFFER_BIT) {
-        rdpq_set_color_image(cur_framebuffer->depth_buffer, FMT_RGBA16, cur_framebuffer->color_buffer->width, cur_framebuffer->color_buffer->height, cur_framebuffer->color_buffer->width * 2);
-        rdpq_set_fill_color(color_from_packed16(clear_depth * 0xFFFC));
-        rdpq_fill_rectangle(0, 0, cur_framebuffer->color_buffer->width, cur_framebuffer->color_buffer->height);
+    gl_framebuffer_t *fb = state.cur_framebuffer;
 
-        rdpq_set_color_image_surface(cur_framebuffer->color_buffer);
+    if (buf & GL_DEPTH_BUFFER_BIT) {
+        rdpq_set_color_image(fb->depth_buffer, FMT_RGBA16, fb->color_buffer->width, fb->color_buffer->height, fb->color_buffer->width * 2);
+        rdpq_set_fill_color(color_from_packed16(state.clear_depth * 0xFFFC));
+        rdpq_fill_rectangle(0, 0, fb->color_buffer->width, fb->color_buffer->height);
+
+        rdpq_set_color_image_surface(fb->color_buffer);
     }
 
     if (buf & GL_COLOR_BUFFER_BIT) {
         rdpq_set_fill_color(RGBA32(
-            CLAMPF_TO_U8(clear_color[0]), 
-            CLAMPF_TO_U8(clear_color[1]), 
-            CLAMPF_TO_U8(clear_color[2]), 
-            CLAMPF_TO_U8(clear_color[3])));
-        rdpq_fill_rectangle(0, 0, cur_framebuffer->color_buffer->width, cur_framebuffer->color_buffer->height);
+            CLAMPF_TO_U8(state.clear_color[0]), 
+            CLAMPF_TO_U8(state.clear_color[1]), 
+            CLAMPF_TO_U8(state.clear_color[2]), 
+            CLAMPF_TO_U8(state.clear_color[3])));
+        rdpq_fill_rectangle(0, 0, fb->color_buffer->width, fb->color_buffer->height);
     }
 }
 
 void glClearColor(GLclampf r, GLclampf g, GLclampf b, GLclampf a)
 {
-    clear_color[0] = r;
-    clear_color[1] = g;
-    clear_color[2] = b;
-    clear_color[3] = a;
+    state.clear_color[0] = r;
+    state.clear_color[1] = g;
+    state.clear_color[2] = b;
+    state.clear_color[3] = a;
 }
 
 void glClearDepth(GLclampd d)
 {
-    clear_depth = d;
+    state.clear_depth = d;
 }
 
 void glDepthFunc(GLenum func)
@@ -1172,10 +1225,10 @@ void glGetBooleanv(GLenum value, GLboolean *data)
 {
     switch (value) {
     case GL_COLOR_CLEAR_VALUE:
-        data[0] = CLAMPF_TO_BOOL(clear_color[0]);
-        data[1] = CLAMPF_TO_BOOL(clear_color[1]);
-        data[2] = CLAMPF_TO_BOOL(clear_color[2]);
-        data[3] = CLAMPF_TO_BOOL(clear_color[3]);
+        data[0] = CLAMPF_TO_BOOL(state.clear_color[0]);
+        data[1] = CLAMPF_TO_BOOL(state.clear_color[1]);
+        data[2] = CLAMPF_TO_BOOL(state.clear_color[2]);
+        data[3] = CLAMPF_TO_BOOL(state.clear_color[3]);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -1187,16 +1240,16 @@ void glGetIntegerv(GLenum value, GLint *data)
 {
     switch (value) {
     case GL_COLOR_CLEAR_VALUE:
-        data[0] = CLAMPF_TO_I32(clear_color[0]);
-        data[1] = CLAMPF_TO_I32(clear_color[1]);
-        data[2] = CLAMPF_TO_I32(clear_color[2]);
-        data[3] = CLAMPF_TO_I32(clear_color[3]);
+        data[0] = CLAMPF_TO_I32(state.clear_color[0]);
+        data[1] = CLAMPF_TO_I32(state.clear_color[1]);
+        data[2] = CLAMPF_TO_I32(state.clear_color[2]);
+        data[3] = CLAMPF_TO_I32(state.clear_color[3]);
         break;
     case GL_CURRENT_COLOR:
-        data[0] = CLAMPF_TO_I32(current_color[0]);
-        data[1] = CLAMPF_TO_I32(current_color[1]);
-        data[2] = CLAMPF_TO_I32(current_color[2]);
-        data[3] = CLAMPF_TO_I32(current_color[3]);
+        data[0] = CLAMPF_TO_I32(state.current_color[0]);
+        data[1] = CLAMPF_TO_I32(state.current_color[1]);
+        data[2] = CLAMPF_TO_I32(state.current_color[2]);
+        data[3] = CLAMPF_TO_I32(state.current_color[3]);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -1208,16 +1261,16 @@ void glGetFloatv(GLenum value, GLfloat *data)
 {
     switch (value) {
     case GL_COLOR_CLEAR_VALUE:
-        data[0] = clear_color[0];
-        data[1] = clear_color[1];
-        data[2] = clear_color[2];
-        data[3] = clear_color[3];
+        data[0] = state.clear_color[0];
+        data[1] = state.clear_color[1];
+        data[2] = state.clear_color[2];
+        data[3] = state.clear_color[3];
         break;
     case GL_CURRENT_COLOR:
-        data[0] = current_color[0];
-        data[1] = current_color[1];
-        data[2] = current_color[2];
-        data[3] = current_color[3];
+        data[0] = state.current_color[0];
+        data[1] = state.current_color[1];
+        data[2] = state.current_color[2];
+        data[3] = state.current_color[3];
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -1229,16 +1282,16 @@ void glGetDoublev(GLenum value, GLdouble *data)
 {
     switch (value) {
     case GL_COLOR_CLEAR_VALUE:
-        data[0] = clear_color[0];
-        data[1] = clear_color[1];
-        data[2] = clear_color[2];
-        data[3] = clear_color[3];
+        data[0] = state.clear_color[0];
+        data[1] = state.clear_color[1];
+        data[2] = state.clear_color[2];
+        data[3] = state.clear_color[3];
         break;
     case GL_CURRENT_COLOR:
-        data[0] = current_color[0];
-        data[1] = current_color[1];
-        data[2] = current_color[2];
-        data[3] = current_color[3];
+        data[0] = state.current_color[0];
+        data[1] = state.current_color[1];
+        data[2] = state.current_color[2];
+        data[3] = state.current_color[3];
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
