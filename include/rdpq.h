@@ -9,17 +9,25 @@
 #include "surface.h"
 #include "debug.h"
 
+typedef enum {
+    TRI_EDGE_ONLY = 0x0,
+    TRI_ZBUF      = 0x1,
+    TRI_TEX       = 0x2,
+    TRI_SHADE     = 0x4,
+    TRI_ALL       = 0xF,
+} triangle_coeffs_t;
+
 enum {
     RDPQ_CMD_NOOP                       = 0x00,
     RDPQ_CMD_SET_LOOKUP_ADDRESS         = 0x01,
     RDPQ_CMD_TRI                        = 0x08,
-    RDPQ_CMD_TRI_ZBUF                   = 0x09,
-    RDPQ_CMD_TRI_TEX                    = 0x0A,
-    RDPQ_CMD_TRI_TEX_ZBUF               = 0x0B,
-    RDPQ_CMD_TRI_SHADE                  = 0x0C,
-    RDPQ_CMD_TRI_SHADE_ZBUF             = 0x0D,
-    RDPQ_CMD_TRI_SHADE_TEX              = 0x0E,
-    RDPQ_CMD_TRI_SHADE_TEX_ZBUF         = 0x0F,
+    RDPQ_CMD_TRI_ZBUF                   = RDPQ_CMD_TRI | TRI_ZBUF,
+    RDPQ_CMD_TRI_TEX                    = RDPQ_CMD_TRI | TRI_TEX,
+    RDPQ_CMD_TRI_TEX_ZBUF               = RDPQ_CMD_TRI | TRI_TEX | TRI_ZBUF,
+    RDPQ_CMD_TRI_SHADE                  = RDPQ_CMD_TRI | TRI_SHADE,
+    RDPQ_CMD_TRI_SHADE_ZBUF             = RDPQ_CMD_TRI | TRI_SHADE | TRI_ZBUF,
+    RDPQ_CMD_TRI_SHADE_TEX              = RDPQ_CMD_TRI | TRI_SHADE | TRI_TEX,
+    RDPQ_CMD_TRI_SHADE_TEX_ZBUF         = RDPQ_CMD_TRI | TRI_SHADE | TRI_TEX | TRI_ZBUF,
 
     RDPQ_CMD_TEXTURE_RECTANGLE_EX       = 0x10,
     RDPQ_CMD_TEXTURE_RECTANGLE_EX_FIX   = 0x11,
@@ -111,26 +119,7 @@ void rdpq_fence(void);
 void rdpq_set_config(uint32_t cfg);
 uint32_t rdpq_change_config(uint32_t on, uint32_t off);
 
-void rdpq_triangle(float x1, float y1, float x2, float y2, float x3, float y3);
-void rdpq_triangle_zbuf(float x1, float y1, float x2, float y2, float x3, float y3,
-    float z1, float z2, float z3);
-void rdpq_triangle_tex(uint8_t tile, uint8_t level, float x1, float y1, float x2, float y2, float x3, float y3,
-    float s1, float t1, float w1, float s2, float t2, float w2, float s3, float t3, float w3);
-void rdpq_triangle_tex_zbuf(uint8_t tile, uint8_t level, float x1, float y1, float x2, float y2, float x3, float y3,
-    float s1, float t1, float w1, float s2, float t2, float w2, float s3, float t3, float w3,
-    float z1, float z2, float z3);
-void rdpq_triangle_shade(float x1, float y1, float x2, float y2, float x3, float y3,
-    float r1, float g1, float b1, float a1, float r2, float g2, float b2, float a2, float r3, float g3, float b3, float a3);
-void rdpq_triangle_shade_zbuf(float x1, float y1, float x2, float y2, float x3, float y3,
-    float r1, float g1, float b1, float a1, float r2, float g2, float b2, float a2, float r3, float g3, float b3, float a3,
-    float z1, float z2, float z3);
-void rdpq_triangle_shade_tex(uint8_t tile, uint8_t level, float x1, float y1, float x2, float y2, float x3, float y3,
-    float r1, float g1, float b1, float a1, float r2, float g2, float b2, float a2, float r3, float g3, float b3, float a3,
-    float s1, float t1, float w1, float s2, float t2, float w2, float s3, float t3, float w3);
-void rdpq_triangle_shade_tex_zbuf(uint8_t tile, uint8_t level, float x1, float y1, float x2, float y2, float x3, float y3,
-    float r1, float g1, float b1, float a1, float r2, float g2, float b2, float a2, float r3, float g3, float b3, float a3,
-    float s1, float t1, float w1, float s2, float t2, float w2, float s3, float t3, float w3,
-    float z1, float z2, float z3);
+void rdpq_triangle(triangle_coeffs_t coeffs, uint8_t tile, uint8_t level, uint32_t pos_offset, uint32_t shade_offset, uint32_t tex_offset, uint32_t z_offset, const float *v1, const float *v2, const float *v3);
 
 /**
  * @brief Low level function to draw a textured rectangle

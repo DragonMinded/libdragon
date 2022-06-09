@@ -153,8 +153,8 @@
 #define SOM_Z_DECAL            ((cast64(3))<<10)
 #define SOM_Z_WRITE            ((cast64(1))<<5)
 #define SOM_Z_COMPARE          ((cast64(1))<<4)
-#define SOM_Z_SOURCE_PRIM      ((cast64(0))<<2)
-#define SOM_Z_SOURCE_PIXEL     ((cast64(1))<<2)
+#define SOM_Z_SOURCE_PIXEL     ((cast64(0))<<2)
+#define SOM_Z_SOURCE_PRIM      ((cast64(1))<<2)
 #define SOM_ALPHADITHER_ENABLE ((cast64(1))<<1)
 #define SOM_ALPHA_COMPARE      ((cast64(1))<<0)
 

@@ -11,7 +11,7 @@ static float aspect_ratio;
 void render()
 {
     glClearColor(0.4f, 0.1f, 0.5f, 1.f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
@@ -24,6 +24,7 @@ void render()
 
     glEnable(GL_CULL_FACE);
     glEnable(GL_TEXTURE_2D);
+    glEnable(GL_DEPTH_TEST);
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, circle_sprite->width, circle_sprite->height, 0, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1_EXT, circle_sprite->data);
 

@@ -34,14 +34,16 @@
 
 typedef struct {
     surface_t *color_buffer;
-    // TODO
-    //void *depth_buffer;
+    void *depth_buffer;
 } framebuffer_t;
 
 typedef struct {
     GLfloat position[4];
+    GLfloat screen_pos[2];
     GLfloat color[4];
-    GLfloat texcoord[4];
+    GLfloat texcoord[2];
+    GLfloat inverse_w;
+    GLfloat depth;
 } gl_vertex_t;
 
 typedef struct {
@@ -80,6 +82,7 @@ static framebuffer_t *cur_framebuffer;
 static GLenum current_error;
 static GLenum immediate_mode;
 static GLclampf clear_color[4];
+static GLclampd clear_depth;
 
 static bool cull_face;
 static GLenum cull_face_mode = GL_BACK;
@@ -138,14 +141,28 @@ void gl_set_framebuffer(framebuffer_t *framebuffer)
     cur_framebuffer = framebuffer;
     glViewport(0, 0, framebuffer->color_buffer->width, framebuffer->color_buffer->height);
     rdpq_set_color_image_surface(cur_framebuffer->color_buffer);
+    rdpq_set_z_image(cur_framebuffer->depth_buffer);
 }
 
 void gl_set_default_framebuffer()
 {
-    display_context_t ctx;
+    surface_t *ctx;
     while (!(ctx = display_lock()));
 
+    if (default_framebuffer.depth_buffer != NULL && (default_framebuffer.color_buffer == NULL 
+                                                     || default_framebuffer.color_buffer->width != ctx->width 
+                                                     || default_framebuffer.color_buffer->height != ctx->height)) {
+        free_uncached(default_framebuffer.depth_buffer);
+        default_framebuffer.depth_buffer = NULL;
+    }
+
     default_framebuffer.color_buffer = ctx;
+
+    // TODO: only allocate depth buffer if depth test is enabled? Lazily allocate?
+    if (default_framebuffer.depth_buffer == NULL) {
+        // TODO: allocate in separate RDRAM bank?
+        default_framebuffer.depth_buffer = malloc_uncached_aligned(64, ctx->width * ctx->height * 2);
+    }
 
     gl_set_framebuffer(&default_framebuffer);
 }
@@ -189,6 +206,8 @@ void gl_init()
     rdpq_set_other_modes(0);
     gl_set_default_framebuffer();
     glDepthRange(0, 1);
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    glClearDepth(1.0);
 }
 
 void gl_close()
@@ -291,16 +310,19 @@ void glBegin(GLenum mode)
         return;
     }
 
+    uint64_t modes = SOM_CYCLE_1 | SOM_TEXTURE_PERSP | SOM_TC_FILTER;
+
+    if (depth_test) {
+        modes |= SOM_Z_COMPARE | SOM_Z_WRITE | SOM_Z_OPAQUE | SOM_Z_SOURCE_PIXEL | SOM_READ_ENABLE;
+    }
     
     if (texture_2d) {
         tex_format_t fmt = gl_texture_get_format(&texture_2d_object);
-        uint64_t modes = SOM_CYCLE_1 | SOM_TEXTURE_PERSP | SOM_TC_FILTER;
 
         if (texture_2d_object.mag_filter == GL_LINEAR) {
             modes |= SOM_SAMPLE_2X2;
         }
 
-        rdpq_set_other_modes(modes);
         rdpq_set_combine_mode(Comb_Rgb(TEX0, ZERO, SHADE, ZERO) | Comb_Alpha(ZERO, ZERO, ZERO, TEX0));
 
         if (texture_2d_object.is_dirty) {
@@ -315,11 +337,11 @@ void glBegin(GLenum mode)
             rdpq_load_tile(0, 0, 0, texture_2d_object.width, texture_2d_object.height);
             texture_2d_object.is_dirty = false;
         }
-    }
-    else {
-        rdpq_set_other_modes(SOM_CYCLE_1);
+    } else {
         rdpq_set_combine_mode(Comb_Rgb(ONE, ZERO, SHADE, ZERO) | Comb_Alpha(ZERO, ZERO, ZERO, ONE));
     }
+
+    rdpq_set_other_modes(modes);
 }
 
 void glEnd(void)
@@ -363,9 +385,9 @@ void gl_vertex_cache_changed()
 
     if (cull_face)
     {
-        float winding = v0->position[0] * (v1->position[1] - v2->position[1]) +
-                        v1->position[0] * (v2->position[1] - v0->position[1]) +
-                        v2->position[0] * (v0->position[1] - v1->position[1]);
+        float winding = v0->screen_pos[0] * (v1->screen_pos[1] - v2->screen_pos[1]) +
+                        v1->screen_pos[0] * (v2->screen_pos[1] - v0->screen_pos[1]) +
+                        v2->screen_pos[0] * (v0->screen_pos[1] - v1->screen_pos[1]);
         
         bool is_front = (front_face == GL_CCW) ^ (winding > 0.0f);
         GLenum face = is_front ? GL_FRONT : GL_BACK;
@@ -375,87 +397,36 @@ void gl_vertex_cache_changed()
         }
     }
 
-    if (texture_2d)
-    {
-        rdpq_triangle_shade_tex(0, 0,
-            v0->position[0], 
-            v0->position[1], 
-            v1->position[0], 
-            v1->position[1], 
-            v2->position[0], 
-            v2->position[1],
-            v0->color[0],
-            v0->color[1],
-            v0->color[2],
-            v0->color[3],
-            v1->color[0],
-            v1->color[1],
-            v1->color[2],
-            v1->color[3],
-            v2->color[0],
-            v2->color[1],
-            v2->color[2],
-            v2->color[3],
-            v0->texcoord[0],
-            v0->texcoord[1],
-            v0->position[3],
-            v1->texcoord[0],
-            v1->texcoord[1],
-            v1->position[3],
-            v2->texcoord[0],
-            v2->texcoord[1],
-            v2->position[3]);
-    }
-    else
-    {
-        rdpq_triangle_shade(
-            v0->position[0], 
-            v0->position[1], 
-            v1->position[0], 
-            v1->position[1], 
-            v2->position[0], 
-            v2->position[1],
-            v0->color[0],
-            v0->color[1],
-            v0->color[2],
-            v0->color[3],
-            v1->color[0],
-            v1->color[1],
-            v1->color[2],
-            v1->color[3],
-            v2->color[0],
-            v2->color[1],
-            v2->color[2],
-            v2->color[3]);
-    }
+    triangle_coeffs_t c = TRI_SHADE;
+    if (texture_2d) c |= TRI_TEX;
+    if (depth_test) c |= TRI_ZBUF;
+
+    rdpq_triangle(c, 0, 0, 0, 2, 6, 9, v0->screen_pos, v1->screen_pos, v2->screen_pos);
 }
 
 void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w) 
 {
-    GLfloat *pos = vertex_cache[next_vertex].position;
-    GLfloat *col = vertex_cache[next_vertex].color;
-    GLfloat *tex = vertex_cache[next_vertex].texcoord;
+    gl_vertex_t *v = &vertex_cache[next_vertex];
 
     GLfloat tmp[] = {x, y, z, w};
 
-    gl_matrix_mult(pos, &final_matrix, tmp);
+    gl_matrix_mult(v->position, &final_matrix, tmp);
 
-    float inverse_w = 1.0f / pos[3];
+    float inverse_w = 1.0f / v->position[3];
 
-    pos[0] = pos[0] * inverse_w * current_viewport.scale[0] + current_viewport.offset[0];
-    pos[1] = pos[1] * inverse_w * current_viewport.scale[1] + current_viewport.offset[1];
-    pos[2] = pos[2] * inverse_w * current_viewport.scale[2] + current_viewport.offset[2];
-    pos[3] = inverse_w;
+    v->screen_pos[0] = v->position[0] * inverse_w * current_viewport.scale[0] + current_viewport.offset[0];
+    v->screen_pos[1] = v->position[1] * inverse_w * current_viewport.scale[1] + current_viewport.offset[1];
 
-    col[0] = current_color[0] * 255.f;
-    col[1] = current_color[1] * 255.f;
-    col[2] = current_color[2] * 255.f;
-    col[3] = current_color[3] * 255.f;
+    v->color[0] = current_color[0] * 255.f;
+    v->color[1] = current_color[1] * 255.f;
+    v->color[2] = current_color[2] * 255.f;
+    v->color[3] = current_color[3] * 255.f;
 
-    tex[0] = current_texcoord[0] * 32.f * texture_2d_object.width;
-    tex[1] = current_texcoord[1] * 32.f * texture_2d_object.height;
-    // tex[2] = current_texcoord[2] * 32.f;
-    // tex[3] = current_texcoord[3] * 32.f;
+    v->texcoord[0] = current_texcoord[0] * 32.f * texture_2d_object.width;
+    v->texcoord[1] = current_texcoord[1] * 32.f * texture_2d_object.height;
+    v->inverse_w = inverse_w;
+
+    v->depth = v->position[2] * inverse_w * current_viewport.scale[2] + current_viewport.offset[2];
 
     triangle_indices[triangle_progress] = next_vertex;
 
@@ -586,8 +557,8 @@ void glTexCoord4dv(const GLdouble *v)   { glTexCoord4d(v[0], v[1], v[2], v[3]); 
 
 void glDepthRange(GLclampd n, GLclampd f)
 {
-    current_viewport.scale[2] = (f - n) * 0.5f;
-    current_viewport.offset[2] = n + (f - n) * 0.5f;
+    current_viewport.scale[2] = ((f - n) * -0.5f) * 0x7FE0;
+    current_viewport.offset[2] = (n + (f - n) * 0.5f) * 0x7FE0;
 }
 
 void glViewport(GLint x, GLint y, GLsizei w, GLsizei h)
@@ -1149,7 +1120,15 @@ void glClear(GLbitfield buf)
 {
     assert_framebuffer();
 
-    rdpq_set_cycle_mode(SOM_CYCLE_FILL);
+    rdpq_set_other_modes(SOM_CYCLE_FILL);
+
+    if (buf & GL_DEPTH_BUFFER_BIT) {
+        rdpq_set_color_image(cur_framebuffer->depth_buffer, FMT_RGBA16, cur_framebuffer->color_buffer->width, cur_framebuffer->color_buffer->height, cur_framebuffer->color_buffer->width * 2);
+        rdpq_set_fill_color(color_from_packed16(clear_depth * 0xFFFC));
+        rdpq_fill_rectangle(0, 0, cur_framebuffer->color_buffer->width, cur_framebuffer->color_buffer->height);
+
+        rdpq_set_color_image_surface(cur_framebuffer->color_buffer);
+    }
 
     if (buf & GL_COLOR_BUFFER_BIT) {
         rdpq_set_fill_color(RGBA32(
@@ -1167,6 +1146,11 @@ void glClearColor(GLclampf r, GLclampf g, GLclampf b, GLclampf a)
     clear_color[1] = g;
     clear_color[2] = b;
     clear_color[3] = a;
+}
+
+void glClearDepth(GLclampd d)
+{
+    clear_depth = d;
 }
 
 void glDepthFunc(GLenum func)

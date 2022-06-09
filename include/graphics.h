@@ -45,6 +45,10 @@ inline uint32_t color_to_packed32(color_t c) {
     return *(uint32_t*)&c;
 }
 
+inline color_t color_from_packed16(uint16_t c) {
+    return (color_t){ .r=((c>>11)&0x1F)<<3, .g=((c>>6)&0x1F)<<3, .b=((c>>1)&0x1F)<<3, .a=(c&0x1) ? 0xFF : 0 };
+}
+
 inline color_t color_from_packed32(uint32_t c) {
     return (color_t){ .r=(c>>24)&0xFF, .g=(c>>16)&0xFF, .b=(c>>8)&0xFF, .a=c&0xFF };
 }

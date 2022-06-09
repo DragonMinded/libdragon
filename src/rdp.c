@@ -422,7 +422,10 @@ void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by )
 
 void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3, float y3 )
 {
-    rdpq_triangle(x1, y1, x2, y2, x3, y3);
+    float v1[] = {x1, y1};
+    float v2[] = {x2, y2};
+    float v3[] = {x3, y3};
+    rdpq_triangle(TRI_EDGE_ONLY, 0, 0, 0, 0, 0, 0, v1, v2, v3);
 }
 
 void rdp_set_texture_flush( flush_t flush )
