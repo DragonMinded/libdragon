@@ -460,9 +460,20 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
     v->color[2] = state.current_color[2] * 255.f;
     v->color[3] = state.current_color[3] * 255.f;
 
-    v->texcoord[0] = state.current_texcoord[0] * 32.f * state.texture_2d_object.width;
-    v->texcoord[1] = state.current_texcoord[1] * 32.f * state.texture_2d_object.height;
-    v->inverse_w = inverse_w;
+    if (state.texture_2d) {
+        v->texcoord[0] = state.current_texcoord[0] * state.texture_2d_object.width;
+        v->texcoord[1] = state.current_texcoord[1] * state.texture_2d_object.height;
+
+        if (state.texture_2d_object.mag_filter == GL_LINEAR) {
+            v->texcoord[0] -= 0.5f;
+            v->texcoord[1] -= 0.5f;
+        }
+
+        v->texcoord[0] *= 32.f;
+        v->texcoord[1] *= 32.f;
+
+        v->inverse_w = inverse_w;
+    }
 
     v->depth = v->position[2] * inverse_w * state.current_viewport.scale[2] + state.current_viewport.offset[2];
 
