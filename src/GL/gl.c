@@ -94,8 +94,12 @@ static struct {
     GLenum cull_face_mode;
     GLenum front_face;
 
+    GLenum blend_src;
+    GLenum blend_dst;
+
     bool depth_test;
     bool texture_2d;
+    bool blend;
 
     gl_vertex_t vertex_cache[3];
     uint32_t triangle_indices[3];
@@ -218,6 +222,7 @@ void gl_init()
     glClearDepth(1.0);
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
+    glBlendFunc(GL_ONE, GL_ZERO);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
@@ -261,6 +266,9 @@ void gl_set_flag(GLenum target, bool value)
         break;
     case GL_TEXTURE_2D:
         state.texture_2d = value;
+        break;
+    case GL_BLEND:
+        state.blend = value;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -334,6 +342,11 @@ void glBegin(GLenum mode)
     if (state.depth_test) {
         modes |= SOM_Z_COMPARE | SOM_Z_WRITE | SOM_Z_OPAQUE | SOM_Z_SOURCE_PIXEL | SOM_READ_ENABLE;
     }
+
+    if (state.blend) {
+        // TODO: derive the blender config from blend_src and blend_dst
+        modes |= SOM_BLENDING | Blend(PIXEL_RGB, MUX_ALPHA, MEMORY_RGB, INV_MUX_ALPHA);
+    }
     
     if (state.texture_2d) {
         tex_format_t fmt = gl_texture_get_format(&state.texture_2d_object);
@@ -344,7 +357,7 @@ void glBegin(GLenum mode)
             modes |= SOM_SAMPLE_2X2;
         }
 
-        rdpq_set_combine_mode(Comb_Rgb(TEX0, ZERO, SHADE, ZERO) | Comb_Alpha(ZERO, ZERO, ZERO, TEX0));
+        rdpq_set_combine_mode(Comb_Rgb(TEX0, ZERO, SHADE, ZERO) | Comb_Alpha(TEX0, ZERO, SHADE, ZERO));
 
         if (tex_obj->is_dirty) {
             // TODO: min filter (mip mapping?)
@@ -359,7 +372,7 @@ void glBegin(GLenum mode)
             tex_obj->is_dirty = false;
         }
     } else {
-        rdpq_set_combine_mode(Comb_Rgb(ONE, ZERO, SHADE, ZERO) | Comb_Alpha(ZERO, ZERO, ZERO, ONE));
+        rdpq_set_combine_mode(Comb_Rgb(ONE, ZERO, SHADE, ZERO) | Comb_Alpha(ONE, ZERO, SHADE, ZERO));
     }
 
     rdpq_set_other_modes(modes);
@@ -1138,6 +1151,43 @@ void glTexParameterfv(GLenum target, GLenum pname, const GLfloat *params)
 void glScissor(GLint left, GLint bottom, GLsizei width, GLsizei height)
 {
     rdpq_set_scissor(left, bottom, left + width, bottom + height);
+}
+
+void glBlendFunc(GLenum src, GLenum dst)
+{
+    switch (src) {
+    case GL_ZERO: 
+    case GL_ONE: 
+    case GL_DST_COLOR: 
+    case GL_ONE_MINUS_DST_COLOR: 
+    case GL_SRC_ALPHA: 
+    case GL_ONE_MINUS_SRC_ALPHA: 
+    case GL_DST_ALPHA: 
+    case GL_ONE_MINUS_DST_ALPHA:
+    case GL_SRC_ALPHA_SATURATE:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    switch (dst) {
+    case GL_ZERO: 
+    case GL_ONE: 
+    case GL_DST_COLOR: 
+    case GL_ONE_MINUS_DST_COLOR: 
+    case GL_SRC_ALPHA: 
+    case GL_ONE_MINUS_SRC_ALPHA: 
+    case GL_DST_ALPHA: 
+    case GL_ONE_MINUS_DST_ALPHA:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    state.blend_src = src;
+    state.blend_dst = dst;
 }
 
 void glDrawBuffer(GLenum buf)
