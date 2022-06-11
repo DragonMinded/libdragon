@@ -90,6 +90,8 @@ static struct {
     GLclampf clear_color[4];
     GLclampd clear_depth;
 
+    uint32_t scissor_box[4];
+
     bool cull_face;
     GLenum cull_face_mode;
     GLenum front_face;
@@ -97,6 +99,9 @@ static struct {
     GLenum blend_src;
     GLenum blend_dst;
 
+    GLenum depth_func;
+
+    bool scissor_test;
     bool depth_test;
     bool texture_2d;
     bool blend;
@@ -124,6 +129,8 @@ static struct {
     gl_matrix_stack_t *current_matrix_stack;
 
     gl_texture_object_t texture_2d_object;
+
+    bool is_scissor_dirty;
 } state;
 
 #define assert_framebuffer() ({ \
@@ -134,7 +141,7 @@ void gl_set_framebuffer(gl_framebuffer_t *framebuffer)
 {
     state.cur_framebuffer = framebuffer;
     glViewport(0, 0, framebuffer->color_buffer->width, framebuffer->color_buffer->height);
-    rdpq_set_color_image_surface(state.cur_framebuffer->color_buffer);
+    rdpq_set_color_image_surface_no_scissor(state.cur_framebuffer->color_buffer);
     rdpq_set_z_image(state.cur_framebuffer->depth_buffer);
 }
 
@@ -223,11 +230,14 @@ void gl_init()
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
     glBlendFunc(GL_ONE, GL_ZERO);
+    glDepthFunc(GL_LESS);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
     rdpq_set_other_modes(0);
     gl_set_default_framebuffer();
+
+    glScissor(0, 0, state.cur_framebuffer->color_buffer->width, state.cur_framebuffer->color_buffer->height);
 }
 
 void gl_close()
@@ -258,6 +268,10 @@ void gl_swap_buffers()
 void gl_set_flag(GLenum target, bool value)
 {
     switch (target) {
+    case GL_SCISSOR_TEST:
+        state.is_scissor_dirty = value != state.scissor_test;
+        state.scissor_test = value;
+        break;
     case GL_CULL_FACE:
         state.cull_face = value;
         break;
@@ -269,7 +283,13 @@ void gl_set_flag(GLenum target, bool value)
         break;
     case GL_BLEND:
         state.blend = value;
+    case GL_COLOR_LOGIC_OP:
+    case GL_INDEX_LOGIC_OP:
+        assertf(!value, "Logical pixel operation is not supported!");
         break;
+    case GL_LINE_STIPPLE:
+    case GL_POLYGON_STIPPLE:
+        assertf(!value, "Stipple is not supported!");
     default:
         gl_set_error(GL_INVALID_ENUM);
         return;
@@ -312,6 +332,33 @@ uint32_t gl_log2(uint32_t s)
     return log;
 }
 
+bool gl_is_invisible()
+{
+    return state.draw_buffer == GL_NONE 
+        || (state.depth_test && state.depth_func == GL_NEVER);
+}
+
+void gl_apply_scissor()
+{
+    if (!state.is_scissor_dirty) {
+        return;
+    }
+
+    uint32_t w = state.cur_framebuffer->color_buffer->width;
+    uint32_t h = state.cur_framebuffer->color_buffer->height;
+
+    if (state.scissor_test) {
+        rdpq_set_scissor(
+            state.scissor_box[0],
+            h - state.scissor_box[1] - state.scissor_box[3],
+            state.scissor_box[0] + state.scissor_box[2],
+            h - state.scissor_box[1]
+        );
+    } else {
+        rdpq_set_scissor(0, 0, w, h);
+    }
+}
+
 void glBegin(GLenum mode)
 {
     if (state.immediate_mode) {
@@ -333,14 +380,20 @@ void glBegin(GLenum mode)
         return;
     }
 
-    if (!state.draw_buffer) {
+    if (gl_is_invisible()) {
         return;
     }
+
+    gl_apply_scissor();
 
     uint64_t modes = SOM_CYCLE_1 | SOM_TEXTURE_PERSP | SOM_TC_FILTER;
 
     if (state.depth_test) {
-        modes |= SOM_Z_COMPARE | SOM_Z_WRITE | SOM_Z_OPAQUE | SOM_Z_SOURCE_PIXEL | SOM_READ_ENABLE;
+        modes |= SOM_Z_WRITE | SOM_Z_OPAQUE | SOM_Z_SOURCE_PIXEL;
+
+        if (state.depth_func == GL_LESS) {
+            modes |= SOM_Z_COMPARE | SOM_READ_ENABLE;
+        }
     }
 
     if (state.blend) {
@@ -440,7 +493,7 @@ void gl_vertex_cache_changed()
 
 void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w) 
 {
-    if (!state.draw_buffer) {
+    if (gl_is_invisible()) {
         return;
     }
 
@@ -612,10 +665,12 @@ void glDepthRange(GLclampd n, GLclampd f)
 
 void glViewport(GLint x, GLint y, GLsizei w, GLsizei h)
 {
+    uint32_t fbh = state.cur_framebuffer->color_buffer->height;
+
     state.current_viewport.scale[0] = w * 0.5f;
     state.current_viewport.scale[1] = h * -0.5f;
     state.current_viewport.offset[0] = x + w * 0.5f;
-    state.current_viewport.offset[1] = y + h * 0.5f;
+    state.current_viewport.offset[1] = fbh - y - h * 0.5f;
 }
 
 void glMatrixMode(GLenum mode)
@@ -1161,7 +1216,17 @@ void glTexParameterfv(GLenum target, GLenum pname, const GLfloat *params)
 
 void glScissor(GLint left, GLint bottom, GLsizei width, GLsizei height)
 {
-    rdpq_set_scissor(left, bottom, left + width, bottom + height);
+    if (left < 0 || bottom < 0) {
+        gl_set_error(GL_INVALID_VALUE);
+        return;
+    }
+
+    state.scissor_box[0] = left;
+    state.scissor_box[1] = bottom;
+    state.scissor_box[2] = width;
+    state.scissor_box[3] = height;
+
+    state.is_scissor_dirty = true;
 }
 
 void glBlendFunc(GLenum src, GLenum dst)
@@ -1233,15 +1298,16 @@ void glClear(GLbitfield buf)
     assert_framebuffer();
 
     rdpq_set_other_modes(SOM_CYCLE_FILL);
+    gl_apply_scissor();
 
     gl_framebuffer_t *fb = state.cur_framebuffer;
 
     if (buf & GL_DEPTH_BUFFER_BIT) {
-        rdpq_set_color_image(fb->depth_buffer, FMT_RGBA16, fb->color_buffer->width, fb->color_buffer->height, fb->color_buffer->width * 2);
+        rdpq_set_color_image_no_scissor(fb->depth_buffer, FMT_RGBA16, fb->color_buffer->width, fb->color_buffer->height, fb->color_buffer->width * 2);
         rdpq_set_fill_color(color_from_packed16(state.clear_depth * 0xFFFC));
         rdpq_fill_rectangle(0, 0, fb->color_buffer->width, fb->color_buffer->height);
 
-        rdpq_set_color_image_surface(fb->color_buffer);
+        rdpq_set_color_image_surface_no_scissor(fb->color_buffer);
     }
 
     if (buf & GL_COLOR_BUFFER_BIT) {
@@ -1269,7 +1335,23 @@ void glClearDepth(GLclampd d)
 
 void glDepthFunc(GLenum func)
 {
-
+    switch (func) {
+    case GL_NEVER:
+    case GL_LESS:
+    case GL_ALWAYS:
+        state.depth_func = func;
+        break;
+    case GL_EQUAL:
+    case GL_LEQUAL:
+    case GL_GREATER:
+    case GL_NOTEQUAL:
+    case GL_GEQUAL:
+        assertf(0, "Depth func not supported: %lx", func);
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
 }
 
 void glFlush(void)

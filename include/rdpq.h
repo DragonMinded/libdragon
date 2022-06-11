@@ -529,7 +529,7 @@ inline void rdpq_set_z_image(void* dram_ptr)
 /**
  * @brief Low level function to set RDRAM pointer to the color buffer
  */
-inline void rdpq_set_color_image_lookup(uint8_t index, uint32_t offset, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride)
+inline void rdpq_set_color_image_lookup_no_scissor(uint8_t index, uint32_t offset, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride)
 {
     assertf(format == FMT_RGBA32 || format == FMT_RGBA16 || format == FMT_CI8, "Image format is not supported!\nIt must be FMT_RGBA32, FMT_RGBA16 or FMT_CI8");
 
@@ -541,6 +541,11 @@ inline void rdpq_set_color_image_lookup(uint8_t index, uint32_t offset, tex_form
     __rdpq_set_color_image(
         _carg(format, 0x1F, 19) | _carg((stride/bitdepth)-1, 0x3FF, 0),
         _carg(index, 0xF, 28) | (offset & 0xFFFFFF));
+}
+
+inline void rdpq_set_color_image_lookup(uint8_t index, uint32_t offset, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride)
+{
+    rdpq_set_color_image_lookup_no_scissor(index, offset, format, width, height, stride);
     rdpq_set_scissor(0, 0, width, height);
 }
 
@@ -563,6 +568,11 @@ inline void rdpq_set_color_image_lookup(uint8_t index, uint32_t offset, tex_form
  *                       
  * @see #rdpq_set_color_image_surface
  */
+inline void rdpq_set_color_image_no_scissor(void* dram_ptr, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride)
+{
+    assertf(((uint32_t)dram_ptr & 63) == 0, "buffer pointer is not aligned to 64 bytes, so it cannot use as RDP color image.\nAllocate it with memalign(64, len) or malloc_uncached_align(64, len)");
+    rdpq_set_color_image_lookup_no_scissor(0, PhysicalAddr(dram_ptr), format, width, height, stride);
+}
 
 inline void rdpq_set_color_image(void* dram_ptr, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride)
 {
@@ -580,6 +590,11 @@ inline void rdpq_set_color_image(void* dram_ptr, tex_format_t format, uint32_t w
  * 
  * @see #rdpq_set_color_image
  */
+inline void rdpq_set_color_image_surface_no_scissor(surface_t *surface)
+{
+    rdpq_set_color_image_no_scissor(surface->buffer, surface_get_format(surface), surface->width, surface->height, surface->stride);
+}
+
 inline void rdpq_set_color_image_surface(surface_t *surface)
 {
     rdpq_set_color_image(surface->buffer, surface_get_format(surface), surface->width, surface->height, surface->stride);
