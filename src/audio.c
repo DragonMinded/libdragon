@@ -88,6 +88,8 @@ static int _num_buf = NUM_BUFFERS;
 static int _buf_size = 0;
 /** @brief Array of pointers to the allocated buffers */
 static short **buffers = NULL;
+/** @brief Array of pointers to the allocated buffers (original pointers to free) */
+static short **buffers_orig = NULL;
 
 static audio_fill_buffer_callback _fill_buffer_callback = NULL;
 static audio_fill_buffer_callback _orig_fill_buffer_callback = NULL;
@@ -253,11 +255,23 @@ void audio_init(const int frequency, int numbuffers)
     _buf_size = CALC_BUFFER(_frequency);
     _num_buf = (numbuffers > 1) ? numbuffers : NUM_BUFFERS;
     buffers = malloc(_num_buf * sizeof(short *));
+    buffers_orig = malloc(_num_buf * sizeof(short *));
 
     for(int i = 0; i < _num_buf; i++)
     {
-        /* Stereo buffers, interleaved */
-        buffers[i] = malloc_uncached(sizeof(short) * 2 * _buf_size);
+        /* Stereo buffers, interleaved, plus 8 bytes of padding */
+        buffers_orig[i] = buffers[i] =
+            malloc_uncached(sizeof(short) * 2 * _buf_size + 8);
+
+        /* Workaround AI DMA hardware bug. If a buffer ends exactly
+         * at a 0x2000 address boundary, AI DMA gets confused because
+         * of a delayed internal carry. Avoid using such buffers,
+         * and since we allocated 8 bytes of padding, we can move
+         * our pointer a bit.
+         */
+        if (((uint32_t)(buffers[i] + 2 * _buf_size) & 0x1FFF) == 0)
+            buffers[i] += 4;
+
         memset(buffers[i], 0, sizeof(short) * 2 * _buf_size);
     }
 
@@ -305,16 +319,18 @@ void audio_close()
         for(int i = 0; i < _num_buf; i++)
         {
             /* Nuke anything that isn't freed */
-            if(buffers[i])
+            if(buffers_orig[i])
             {
-                free_uncached(buffers[i]);
-                buffers[i] = 0;
+                free_uncached(buffers_orig[i]);
+                buffers_orig[i] = buffers[i] = 0;
             }
         }
 
         /* Nuke array of buffers we init'd earlier */
         free(buffers);
         buffers = 0;
+        free(buffers_orig);
+        buffers_orig = 0;
     }
 
     _frequency = 0;
