@@ -396,7 +396,8 @@ typedef struct {
     float attr_factor;
 } rdpq_tri_edge_data_t;
 
-void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, uint8_t tile, uint8_t level, const float *v1, const float *v2, const float *v3)
+__attribute__((always_inline))
+inline void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, uint8_t tile, uint8_t level, const float *v1, const float *v2, const float *v3)
 {
     const float to_fixed_11_2 = 4.0f;
     const float to_fixed_16_16 = 65536.0f;
@@ -439,7 +440,8 @@ void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, uint8
     rspq_write_arg(w, (int)( data->ism * to_fixed_16_16 ));
 }
 
-void __rdpq_write_shade_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, const float *v1, const float *v2, const float *v3)
+__attribute__((always_inline))
+static inline void __rdpq_write_shade_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, const float *v1, const float *v2, const float *v3)
 {
     const float to_fixed_16_16 = 65536.0f;
 
@@ -513,7 +515,8 @@ void __rdpq_write_shade_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, cons
     rspq_write_arg(w, (DbDy_fixed<<16) | (DaDy_fixed&&0xffff));
 }
 
-void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, const float *v1, const float *v2, const float *v3)
+__attribute__((always_inline))
+inline void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, const float *v1, const float *v2, const float *v3)
 {
     const float to_fixed_16_16 = 65536.0f;
 
@@ -597,7 +600,8 @@ void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, const 
     rspq_write_arg(w, (DwDy_fixed<<16));
 }
 
-void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, const float *v1, const float *v2, const float *v3)
+__attribute__((always_inline))
+inline void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, const float *v1, const float *v2, const float *v3)
 {
     const float to_fixed_16_16 = 65536.0f;
 
