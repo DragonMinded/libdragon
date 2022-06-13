@@ -122,7 +122,7 @@ _RSPQ_SAVED_STATE_END:
 #   function: Address of the function that will be jumped to
 #             when this command is executed.
 #   size:     The size of the command in bytes. Must be a 
-#             multiple of 4 and in the range [0, 60].
+#             multiple of 4 and in the range [0, 252].
 ########################################################
 .macro RSPQ_DefineCommand function size
     .ifne ((\size) % 4)
@@ -131,18 +131,18 @@ _RSPQ_SAVED_STATE_END:
     .endif
 
     .iflt (\size)
-        .error "Invalid size - valid range: [0, 60]"
+        .error "Invalid size - valid range: [0, 252]"
         .exitm
     .endif
 
-    .ifgt ((\size) - 60)
-        .error "Invalid size - valid range: [0, 60]"
+    .ifgt ((\size) - 252)
+        .error "Invalid size - valid range: [0, 252]"
         .exitm
     .endif
 
-    # Put the command size (as number of 4 byte words) into the high 4 bits,
-    # which are not used by the RSP anyway.
-    .short (\function - _start) | ((\size) & 0x3C) << 10
+    # Put the command size (as number of 4 byte words) into the high 6 bits,
+    # and the jump address shifted right by 2 bits into the lower 10.
+    .short (\function - _start) >> 2 | ((\size) & 0xFC) << 8
 .endm
 
 ########################################################
@@ -155,10 +155,15 @@ _RSPQ_SAVED_STATE_END:
 .endm
 
 # Globally reserved register. Do not use it in overlay code
-# except to read command arguments.
+# except to read command arguments with CMD_ADDR.
 #define rspq_dmem_buf_ptr gp
 
-# Can be used with l* instructions to get contents of the current command at the specified offset.
+# This register will be set to the command's size in bytes when jumping to the
+# command function. It can be reused freely if the function does not need it.
+#define rspq_cmd_size t7
+
+# This macro can be used with l* instructions to get contents of the current
+# command at the specified offset.
 # The total command size needs to be specified as well.
 #define CMD_ADDR(offset, cmdsize) (%lo(RSPQ_DMEM_BUFFER) + (offset) - (cmdsize)) (rspq_dmem_buf_ptr)
 
@@ -283,7 +288,6 @@ RSPQ_Loop:
     #define ovl_index t4
     #define cmd_index t5    // referenced in rspq_assert_invalid_overlay
     #define cmd_desc  t6
-    #define cmd_size  t7
 
     jal RSPQ_CheckHighpri
     li t0, 0
@@ -357,10 +361,8 @@ rspq_execute_command:
     #endif
 
     # Command size
-    # NOTE: Could be optimised either by doubling the size of command descriptors (so that the command size can be loaded directly instead of having to decode it),
-    #       or by storing the command size in the overlay header instead. The latter would mean that all commands in an overlay need to be the same size though.
-    srl cmd_size, cmd_desc, 10
-    andi cmd_size, 0x3C
+    srl rspq_cmd_size, cmd_desc, 8
+    andi rspq_cmd_size, 0xFC
 
     # Check if the command is truncated because of buffer overflow (that is,
     # it finishes beyond the buffer end). If so, we must refetch the buffer
@@ -369,7 +371,7 @@ rspq_execute_command:
     # also if the current command ends exactly at buffer end; this is slighly
     # wasteful but saves us a few instructions (that would be required to check
     # whether we are then trying to load a command outside of the buffer).
-    addu t0, rspq_dmem_buf_ptr, cmd_size
+    addu t0, rspq_dmem_buf_ptr, rspq_cmd_size
     bge t0, RSPQ_DMEM_BUFFER_SIZE, rspq_fetch_buffer
 
     # Load second to fourth command words (might be garbage, but will never be read in that case)
@@ -377,17 +379,17 @@ rspq_execute_command:
     lw a1, %lo(RSPQ_DMEM_BUFFER) + 0x4 (rspq_dmem_buf_ptr)
     lw a2, %lo(RSPQ_DMEM_BUFFER) + 0x8 (rspq_dmem_buf_ptr)
     lw a3, %lo(RSPQ_DMEM_BUFFER) + 0xC (rspq_dmem_buf_ptr)
-    add rspq_dmem_buf_ptr, cmd_size
+    add rspq_dmem_buf_ptr, rspq_cmd_size
 
     # Jump to command. Set ra to the loop function, so that commands can 
     # either do "j RSPQ_Loop" or "jr ra" (or a tail call) to get back to the main loop
+    sll cmd_desc, 2
     jr cmd_desc
     li ra, %lo(RSPQ_Loop)
 
     #undef ovl_index
     #undef cmd_index
     #undef cmd_desc
-    #undef cmd_size
     .endfunc
 
     ############################################################

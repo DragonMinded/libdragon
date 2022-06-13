@@ -8,14 +8,16 @@
     .data
 
     RSPQ_BeginOverlayHeader
-        RSPQ_DefineCommand command_test, 4           # 0x00
-        RSPQ_DefineCommand command_test, 8           # 0x01
-        RSPQ_DefineCommand command_test, 16          # 0x02
-        RSPQ_DefineCommand command_wait, 8           # 0x03
-        RSPQ_DefineCommand command_output, 8         # 0x04
-        RSPQ_DefineCommand command_reset, 4          # 0x05
+        RSPQ_DefineCommand command_test,      4      # 0x00
+        RSPQ_DefineCommand command_test,      8      # 0x01
+        RSPQ_DefineCommand command_test,      16     # 0x02
+        RSPQ_DefineCommand command_wait,      8      # 0x03
+        RSPQ_DefineCommand command_output,    8      # 0x04
+        RSPQ_DefineCommand command_reset,     4      # 0x05
         RSPQ_DefineCommand command_test_high, 4      # 0x06
         RSPQ_DefineCommand command_reset_log, 4      # 0x07
+        RSPQ_DefineCommand command_big,       132    # 0x08
+        RSPQ_DefineCommand command_big_out,   8      # 0x09
 	RSPQ_EndOverlayHeader
 
     RSPQ_BeginSavedState
@@ -30,6 +32,9 @@ BIG_LOG_PTR: .long 0
 
     .align 10
 BIG_LOG:  .ds.b 2048
+
+    .align 2
+TEST_BIG: .ds.b 128
 
     .text
 
@@ -104,3 +109,23 @@ command_reset_log:
     # Reset the big log pointer to the start
     jr ra
     sw zero, %lo(BIG_LOG_PTR)
+
+command_big:
+    addi s1, rspq_dmem_buf_ptr, -128
+    move s2, zero
+command_big_loop:
+    lw t0, %lo(RSPQ_DMEM_BUFFER)(s1)
+    lw t1, %lo(TEST_BIG)(s2)
+    xor t0, t1
+    sw t0, %lo(TEST_BIG)(s2)
+    add s1, 0x4
+    blt s1, rspq_dmem_buf_ptr, command_big_loop
+    add s2, 0x4
+    jr ra
+    nop
+
+command_big_out:
+    move s0, a1
+    li s4, %lo(TEST_BIG)
+    j DMAOut
+    li t0, DMA_SIZE(128, 1)

@@ -86,6 +86,11 @@ void rspq_test_reset_log(void)
     rspq_write(test_ovl_id, 0x7);
 }
 
+void rspq_test_big_out(void *dest)
+{
+    rspq_write(test_ovl_id, 0x9, 0, PhysicalAddr(dest));
+}
+
 void rspq_test2(uint32_t v0, uint32_t v1)
 {
     rspq_write(test2_ovl_id, 0x0, v0, v1);
@@ -98,7 +103,8 @@ void dump_mem(void* ptr, uint32_t size)
     for (uint32_t i = 0; i < size / sizeof(uint32_t); i += 8)
     {
         uint32_t *ints = ptr + i * sizeof(uint32_t);
-        debugf("%#010lX: %08lX %08lX %08lX %08lX %08lX %08lX %08lX %08lX\n", (uint32_t)ints, ints[0], ints[1], ints[2], ints[3], ints[4], ints[5], ints[6], ints[7]);
+        debugf("%08lX: %08lX %08lX %08lX %08lX %08lX %08lX %08lX %08lX\n",
+            (uint32_t)(ints) - (uint32_t)(ptr), ints[0], ints[1], ints[2], ints[3], ints[4], ints[5], ints[6], ints[7]);
     }
 }
 
@@ -691,4 +697,50 @@ void test_rspq_highpri_overlay(TestContext *ctx)
         
     ASSERT_EQUAL_UNSIGNED(actual_sum[1], 123, "highpri sum is not correct");
     TEST_RSPQ_EPILOG(0, rspq_timeout);
+}
+
+void test_rspq_big_command(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+    test_ovl_init();
+    DEFER(test_ovl_close());
+
+    uint32_t values[32];
+    for (uint32_t i = 0; i < 32; i++)
+    {
+        values[i] = RANDN(0xFFFFFFFF);
+    }
+    
+
+    uint32_t output[32] __attribute__((aligned(16)));
+    data_cache_hit_writeback_invalidate(output, 128);
+
+    rspq_write_t wptr = rspq_write_begin(test_ovl_id, 0x8, 33);
+    rspq_write_arg(&wptr, 0);
+    for (uint32_t i = 0; i < 32; i++)
+    {
+        rspq_write_arg(&wptr, i | i << 8 | i << 16 | i << 24);
+    }
+    rspq_write_end(&wptr);
+
+    wptr = rspq_write_begin(test_ovl_id, 0x8, 33);
+    rspq_write_arg(&wptr, 0);
+    for (uint32_t i = 0; i < 32; i++)
+    {
+        rspq_write_arg(&wptr, values[i]);
+    }
+    rspq_write_end(&wptr);
+
+    rspq_test_big_out(output);
+
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
+
+    uint32_t expected[32];
+    for (uint32_t i = 0; i < 32; i++)
+    {
+        uint32_t x = i | i << 8 | i << 16 | i << 24;
+        expected[i] = x ^ values[i];
+    }
+    
+    ASSERT_EQUAL_MEM((uint8_t*)output, (uint8_t*)expected, 128, "Output does not match!");
 }
