@@ -99,7 +99,7 @@ var searchData=
   ['sp_5fwstatus_5fset_5fsstep_96',['SP_WSTATUS_SET_SSTEP',['../rsp_8h.html#a6f63f4f37aead63d765d93472cb10dc8',1,'rsp.h']]],
   ['sprite_5fcache_97',['sprite_cache',['../group__rdp.html#structsprite__cache',1,'']]],
   ['sprite_5ft_98',['sprite_t',['../group__graphics.html#structsprite__t',1,'']]],
-  ['sr_99',['sr',['../group__exceptions.html#aa68324d2ccd01013da6c56099b06c23a',1,'reg_block_t']]],
+  ['sr_99',['sr',['../group__exceptions.html#a110ac035b37573ea7c078139bd472e89',1,'reg_block_t']]],
   ['stack_5fsize_100',['STACK_SIZE',['../group__system.html#ga6423a880df59733d2d9b509c7718d3a9',1,'system.c']]],
   ['start_5fblock_101',['start_block',['../eepromfs_8c.html#a32454ba6c8d8133f3e406d023d763a2d',1,'eepfs_file_t']]],
   ['start_5foff_102',['start_off',['../ym64_8h.html#a3c2766541bc86056b9f0ca03c4180d0b',1,'ym64player_t']]],

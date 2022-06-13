@@ -134,14 +134,14 @@ Functions</h2></td></tr>
 <tr class="memitem:ga2ccc97f57a66f0091daa6529c4f52573"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__exceptions.html#ga2ccc97f57a66f0091daa6529c4f52573">exception_default_handler</a> (<a class="el" href="group__exceptions.html#structexception__t">exception_t</a> *ex)</td></tr>
 <tr class="memdesc:ga2ccc97f57a66f0091daa6529c4f52573"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default exception handler.  <a href="group__exceptions.html#ga2ccc97f57a66f0091daa6529c4f52573">More...</a><br /></td></tr>
 <tr class="separator:ga2ccc97f57a66f0091daa6529c4f52573"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gab07f39f1f4a7068b7b9347261f606829"><td class="memItemLeft" align="right" valign="top"><a id="gab07f39f1f4a7068b7b9347261f606829" name="gab07f39f1f4a7068b7b9347261f606829"></a>
-void&#160;</td><td class="memItemRight" valign="bottom"><b>__onCriticalException</b> ()</td></tr>
-<tr class="memdesc:gab07f39f1f4a7068b7b9347261f606829"><td class="mdescLeft">&#160;</td><td class="mdescRight">Respond to a critical exception. <br /></td></tr>
-<tr class="separator:gab07f39f1f4a7068b7b9347261f606829"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gae07937d068ac4031dc36cce4187bcb4f"><td class="memItemLeft" align="right" valign="top"><a id="gae07937d068ac4031dc36cce4187bcb4f" name="gae07937d068ac4031dc36cce4187bcb4f"></a>
-void&#160;</td><td class="memItemRight" valign="bottom"><b>__onResetException</b> ()</td></tr>
-<tr class="memdesc:gae07937d068ac4031dc36cce4187bcb4f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Respond to a reset exception. <br /></td></tr>
-<tr class="separator:gae07937d068ac4031dc36cce4187bcb4f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gac59c5f2646dd725b5c0f48274a919798"><td class="memItemLeft" align="right" valign="top"><a id="gac59c5f2646dd725b5c0f48274a919798" name="gac59c5f2646dd725b5c0f48274a919798"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><b>__onCriticalException</b> (volatile <a class="el" href="group__exceptions.html#structreg__block__t">reg_block_t</a> *regs)</td></tr>
+<tr class="memdesc:gac59c5f2646dd725b5c0f48274a919798"><td class="mdescLeft">&#160;</td><td class="mdescRight">Respond to a critical exception. <br /></td></tr>
+<tr class="separator:gac59c5f2646dd725b5c0f48274a919798"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga9c3cfbce70e7317d19e7f6cbaf1a018d"><td class="memItemLeft" align="right" valign="top"><a id="ga9c3cfbce70e7317d19e7f6cbaf1a018d" name="ga9c3cfbce70e7317d19e7f6cbaf1a018d"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><b>__onResetException</b> (volatile <a class="el" href="group__exceptions.html#structreg__block__t">reg_block_t</a> *regs)</td></tr>
+<tr class="memdesc:ga9c3cfbce70e7317d19e7f6cbaf1a018d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Respond to a reset exception. <br /></td></tr>
+<tr class="separator:ga9c3cfbce70e7317d19e7f6cbaf1a018d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
 Variables</h2></td></tr>
@@ -170,50 +170,50 @@ volatile <a class="el" href="group__exceptions.html#structreg__block__t">reg_blo
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
-<a id="a29167e78972fa51420662cbc9a006060" name="a29167e78972fa51420662cbc9a006060"></a>volatile const uint32_t</td>
+<a id="a703f526e3d78155b34c527c457416fff" name="a703f526e3d78155b34c527c457416fff"></a>uint32_t</td>
 <td class="fieldname">
 cr</td>
 <td class="fielddoc">
-CR. </td></tr>
+CR (NOTE: can't modify this from an exception handler) </td></tr>
 <tr><td class="fieldtype">
-<a id="a8994feeb123b7ae966187c2ed854ea31" name="a8994feeb123b7ae966187c2ed854ea31"></a>volatile uint32_t</td>
+<a id="a1ef589c265adcdb0a5bc6c35754b23e3" name="a1ef589c265adcdb0a5bc6c35754b23e3"></a>uint32_t</td>
 <td class="fieldname">
 epc</td>
 <td class="fielddoc">
 represents EPC - COP0 register $14 <p >The coprocessor 0 (system control coprocessor - COP0) register $14 is the return from exception program counter. For asynchronous exceptions it points to the place to continue execution whereas for synchronous (caused by code) exceptions, point to the instruction causing the fault condition, which needs correction in the exception handler. This member is for reading/writing its value. </p>
 </td></tr>
 <tr><td class="fieldtype">
-<a id="a24828318c71baa53ef564594857610d7" name="a24828318c71baa53ef564594857610d7"></a>volatile uint32_t</td>
+<a id="aa89fb9604f39a776e7fcc3e126681c98" name="aa89fb9604f39a776e7fcc3e126681c98"></a>uint32_t</td>
 <td class="fieldname">
 fc31</td>
 <td class="fielddoc">
 FC31. </td></tr>
 <tr><td class="fieldtype">
-<a id="acdf873009f0ee9fd6d8ff31029fd51d8" name="acdf873009f0ee9fd6d8ff31029fd51d8"></a>volatile uint64_t</td>
+<a id="a4321db58f0793284fe625973ad21eb14" name="a4321db58f0793284fe625973ad21eb14"></a>uint64_t</td>
 <td class="fieldname">
 fpr[32]</td>
 <td class="fielddoc">
 Floating point registers 1-32. </td></tr>
 <tr><td class="fieldtype">
-<a id="ab243a637b97df97aefb898ec631592d6" name="ab243a637b97df97aefb898ec631592d6"></a>volatile uint64_t</td>
+<a id="add78bfbfed7a8b0b13222920dd0cb9e6" name="add78bfbfed7a8b0b13222920dd0cb9e6"></a>uint64_t</td>
 <td class="fieldname">
 gpr[32]</td>
 <td class="fielddoc">
 General purpose registers 1-32. </td></tr>
 <tr><td class="fieldtype">
-<a id="ae92e93df499b169dcc8aeae522d087c8" name="ae92e93df499b169dcc8aeae522d087c8"></a>volatile uint64_t</td>
+<a id="a5a157707d490ca2768dff98b6b394581" name="a5a157707d490ca2768dff98b6b394581"></a>uint64_t</td>
 <td class="fieldname">
 hi</td>
 <td class="fielddoc">
 HI. </td></tr>
 <tr><td class="fieldtype">
-<a id="ae5f1917f3d4ff0c9c805aa5286fe49f2" name="ae5f1917f3d4ff0c9c805aa5286fe49f2"></a>volatile uint64_t</td>
+<a id="ae9f3a8d56d88b6b038e12508b371f71f" name="ae9f3a8d56d88b6b038e12508b371f71f"></a>uint64_t</td>
 <td class="fieldname">
 lo</td>
 <td class="fielddoc">
 LO. </td></tr>
 <tr><td class="fieldtype">
-<a id="aa68324d2ccd01013da6c56099b06c23a" name="aa68324d2ccd01013da6c56099b06c23a"></a>volatile uint32_t</td>
+<a id="a110ac035b37573ea7c078139bd472e89" name="a110ac035b37573ea7c078139bd472e89"></a>uint32_t</td>
 <td class="fieldname">
 sr</td>
 <td class="fielddoc">
@@ -345,7 +345,7 @@ Exception type. <dl class="section see"><dt>See also</dt><dd><a class="el" href=
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sat Jun 4 2022 03:50:18 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.2
+Generated on Mon Jun 13 2022 05:17:20 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.2
 </small></address>
 </body>
 </html>

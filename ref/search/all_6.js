@@ -38,7 +38,7 @@ var searchData=
   ['entry_5fpoint_35',['entry_point',['../tpak_8h.html#ac476b4130c9762d331280ba2c9487505',1,'gameboy_cartridge_header']]],
   ['entry_5fstructure_5ft_36',['entry_structure_t',['../group__mempak.html#structentry__structure__t',1,'']]],
   ['env_37',['env',['../structAY8910.html#ade3424223bef9507c0f36115d7545053',1,'AY8910']]],
-  ['epc_38',['epc',['../group__exceptions.html#a8994feeb123b7ae966187c2ed854ea31',1,'reg_block_t']]],
+  ['epc_38',['epc',['../group__exceptions.html#a1ef589c265adcdb0a5bc6c35754b23e3',1,'reg_block_t']]],
   ['err_39',['err',['../group__controller.html#a417cd17de789614c2a919b4b54faac34',1,'_SI_condat']]],
   ['errno_40',['errno',['../group__system.html#gad65a8842cc674e3ddf69355898c0ecbf',1,'system.c']]],
   ['error_5fbad_5fcommand_41',['ERROR_BAD_COMMAND',['../group__controller.html#ga25fcd7a1a0b047bab42513f33881f733',1,'controller.h']]],

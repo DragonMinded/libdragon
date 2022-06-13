@@ -7,7 +7,7 @@ var searchData=
   ['libdragon_4',['libdragon',['../group__libdragon.html',1,'']]],
   ['libdragon_2eh_5',['libdragon.h',['../libdragon_8h.html',1,'']]],
   ['link_6',['link',['../group__system.html#gafe3e19f457ca9695fad0aa3739ec9cdd',1,'system.c']]],
-  ['lo_7',['lo',['../group__exceptions.html#ae5f1917f3d4ff0c9c805aa5286fe49f2',1,'reg_block_t']]],
+  ['lo_7',['lo',['../group__exceptions.html#ae9f3a8d56d88b6b038e12508b371f71f',1,'reg_block_t']]],
   ['loc_8',['loc',['../group__dfs.html#a011176dcc2349b1415d49c33b22ff625',1,'open_file_t']]],
   ['logo_9',['logo',['../tpak_8h.html#a5f99e891c7e4e8906bf5822bca1e6e81',1,'gameboy_cartridge_header']]],
   ['loop_10',['loop',['../ym64_8c.html#adc6a472df483e03c4fe8f74993ce2dc1',1,'ym5header']]],

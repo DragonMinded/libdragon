@@ -1,7 +1,7 @@
 var searchData=
 [
   ['f_0',['f',['../ym64_8h.html#a134cf98f97982482e86d944eae146a0b',1,'ym64player_t']]],
-  ['fc31_1',['fc31',['../group__exceptions.html#a24828318c71baa53ef564594857610d7',1,'reg_block_t']]],
+  ['fc31_1',['fc31',['../group__exceptions.html#aa89fb9604f39a776e7fcc3e126681c98',1,'reg_block_t']]],
   ['fh_2',['fh',['../xm64_8h.html#a00426b1b53cdbcd9d9488989500381ef',1,'xm64player_t']]],
   ['file_5fpointer_3',['file_pointer',['../group__dfs.html#a747d34ff6a7415f9d56a9cf2cc354503',1,'directory_entry']]],
   ['fileno_4',['fileno',['../group__system.html#a063dee96aca8905dae49a6375d4a033b',1,'fs_handle_t']]],
@@ -21,7 +21,7 @@ var searchData=
   ['fork_18',['fork',['../group__system.html#gacd2e1ded4bb6fce4500438bf928330f4',1,'system.c']]],
   ['format_19',['format',['../structwav64__header__t.html#a42fb6e3952c6594e19c3f246364e9f7c',1,'wav64_header_t::format()'],['../group__graphics.html#a2fba60dfe573f39a602d4ecba0ad9aff',1,'sprite_t::format()']]],
   ['format_5fmempak_20',['format_mempak',['../group__mempak.html#ga14df2d1b0aeb7436cabd95294eb29b9f',1,'mempak.c']]],
-  ['fpr_21',['fpr',['../group__exceptions.html#acdf873009f0ee9fd6d8ff31029fd51d8',1,'reg_block_t']]],
+  ['fpr_21',['fpr',['../group__exceptions.html#a4321db58f0793284fe625973ad21eb14',1,'reg_block_t']]],
   ['framebuffer_22',['framebuffer',['../group__lowlevel.html#a66da76122e1adc2a3c3994ec410b2c8e',1,'VI_regs_t']]],
   ['free_5funcached_23',['free_uncached',['../group__n64sys.html#gad7eb2952f66b4c6158a161eddc6f6a7d',1,'n64sys.c']]],
   ['freq_24',['freq',['../structwav64__header__t.html#a8e3bcb1d56422423ed0b61ab40d2bfb3',1,'wav64_header_t']]],

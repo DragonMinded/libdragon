@@ -8,7 +8,7 @@ var searchData=
   ['hardware_20display_20interface_5',['Hardware Display Interface',['../group__rdp.html',1,'']]],
   ['header_5fchecksum_6',['header_checksum',['../tpak_8h.html#a8a2a5b5485fb8418c9e4e0369b1bf309',1,'gameboy_cartridge_header']]],
   ['height_7',['height',['../group__graphics.html#a0ac6b5fe9c9aba02b62e2f1fb873dfeb',1,'sprite_t::height()'],['../group__rdp.html#afd2effaabb96eda3574341f43ac8ff7a',1,'sprite_cache::height()']]],
-  ['hi_8',['hi',['../group__exceptions.html#ae92e93df499b169dcc8aeae522d087c8',1,'reg_block_t']]],
+  ['hi_8',['hi',['../group__exceptions.html#a5a157707d490ca2768dff98b6b394581',1,'reg_block_t']]],
   ['hold_9',['hold',['../structAYEnvelope.html#ae6af4ce2a69f5d4cd3870089d38a8948',1,'AYEnvelope']]],
   ['holding_10',['holding',['../structAYEnvelope.html#a235b48e588cfaa046987aa652fde8f9a',1,'AYEnvelope']]],
   ['hook_5fstdio_5fcalls_11',['hook_stdio_calls',['../group__system.html#ga5a2591289aeb5ec5d9f73419533edc39',1,'system.c']]],

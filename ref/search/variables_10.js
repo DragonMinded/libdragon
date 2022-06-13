@@ -14,7 +14,7 @@ var searchData=
   ['sp_5fstatus_5fbufdone_11',['sp_status_bufdone',['../rspq_8c.html#aadf8b9984e0c1f121f53d788a3977b9f',1,'rspq_ctx_t']]],
   ['sp_5fwstatus_5fclear_5fbufdone_12',['sp_wstatus_clear_bufdone',['../rspq_8c.html#a98728d963c86881692d4458e26cbc55f',1,'rspq_ctx_t']]],
   ['sp_5fwstatus_5fset_5fbufdone_13',['sp_wstatus_set_bufdone',['../rspq_8c.html#a8c25c97750d9657fa698eb610dc9d900',1,'rspq_ctx_t']]],
-  ['sr_14',['sr',['../group__exceptions.html#aa68324d2ccd01013da6c56099b06c23a',1,'reg_block_t']]],
+  ['sr_14',['sr',['../group__exceptions.html#a110ac035b37573ea7c078139bd472e89',1,'reg_block_t']]],
   ['start_5fblock_15',['start_block',['../eepromfs_8c.html#a32454ba6c8d8133f3e406d023d763a2d',1,'eepfs_file_t']]],
   ['start_5foff_16',['start_off',['../ym64_8h.html#a3c2766541bc86056b9f0ca03c4180d0b',1,'ym64player_t']]],
   ['start_5foffset_17',['start_offset',['../structwav64__header__t.html#a9aa5ebc3583435bfd293640f50bfb16b',1,'wav64_header_t']]],

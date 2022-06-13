@@ -78,7 +78,7 @@ var searchData=
   ['getpid_75',['getpid',['../group__system.html#ga939cb25a305fe68aad9b365077f1a8c7',1,'system.c']]],
   ['gettimeofday_76',['gettimeofday',['../group__system.html#ga77a876edb0b19bdb02035a8bab4919ed',1,'system.c']]],
   ['global_5fchecksum_77',['global_checksum',['../tpak_8h.html#a5ac66f3681bc55d8a5501a625a704f38',1,'gameboy_cartridge_header']]],
-  ['gpr_78',['gpr',['../group__exceptions.html#ab243a637b97df97aefb898ec631592d6',1,'reg_block_t::gpr()'],['../rsp_8h.html#adad471a4ff79cf1d28e4a90e3c7d1ea2',1,'rsp_snapshot_t::gpr()']]],
+  ['gpr_78',['gpr',['../group__exceptions.html#add78bfbfed7a8b0b13222920dd0cb9e6',1,'reg_block_t::gpr()'],['../rsp_8h.html#adad471a4ff79cf1d28e4a90e3c7d1ea2',1,'rsp_snapshot_t::gpr()']]],
   ['graphics_2ec_79',['graphics.c',['../graphics_8c.html',1,'']]],
   ['graphics_2eh_80',['graphics.h',['../graphics_8h.html',1,'']]],
   ['graphics_5fconvert_5fcolor_81',['graphics_convert_color',['../group__graphics.html#gac04f4a740380f66e841d98c14f88d999',1,'graphics.c']]],
