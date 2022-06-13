@@ -595,7 +595,7 @@ static volatile uint32_t* rspq_switch_buffer(uint32_t *new, int size, bool clear
 
     // Switch to the new buffer, and calculate the new sentinel.
     rspq_cur_pointer = new;
-    rspq_cur_sentinel = new + size - RSPQ_MAX_COMMAND_SIZE;
+    rspq_cur_sentinel = new + size - RSPQ_MAX_SHORT_COMMAND_SIZE;
 
     // Return a pointer to the previous buffer
     return prev;
@@ -853,9 +853,9 @@ static uint32_t rspq_overlay_register_internal(rsp_ucode_t *overlay_ucode, uint3
     uint32_t rspq_data_size = rsp_queue_data_end - rsp_queue_data_start;
 
     assertf(memcmp(rsp_queue_text_start, overlay_ucode->code, rspq_text_size) == 0,
-        "Common code of overlay does not match!");
+        "Common code of overlay %s does not match!", overlay_ucode->name);
     assertf(memcmp(rsp_queue_data_start, overlay_ucode->data, rspq_data_size) == 0,
-        "Common data of overlay does not match!");
+        "Common data of overlay %s does not match!", overlay_ucode->name);
 
     void *overlay_code = overlay_ucode->code + rspq_text_size;
     void *overlay_data = overlay_ucode->data + rspq_data_size;
@@ -1279,3 +1279,9 @@ void rspq_dma_to_dmem(uint32_t dmem_addr, void *rdram_addr, uint32_t len, bool i
 {
     rspq_dma(rdram_addr, dmem_addr, len - 1, is_async ? 0 : SP_STATUS_DMA_BUSY | SP_STATUS_DMA_FULL);
 }
+
+
+/* Extern inline instantiations. */
+extern inline rspq_write_t rspq_write_begin(uint32_t ovl_id, uint32_t cmd_id, int size);
+extern inline void rspq_write_arg(rspq_write_t *w, uint32_t value);
+extern inline void rspq_write_end(rspq_write_t *w);
