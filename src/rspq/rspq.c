@@ -1217,3 +1217,9 @@ void rspq_dma_to_dmem(uint32_t dmem_addr, void *rdram_addr, uint32_t len, bool i
 {
     rspq_dma(rdram_addr, dmem_addr, len - 1, is_async ? 0 : SP_STATUS_DMA_BUSY | SP_STATUS_DMA_FULL);
 }
+
+
+/* Extern inline instantiations. */
+extern inline rspq_write_t rspq_write_begin(uint32_t ovl_id, uint32_t cmd_id, int size);
+extern inline void rspq_write_arg(rspq_write_t *w, uint32_t value);
+extern inline void rspq_write_end(rspq_write_t *w);
