@@ -238,14 +238,16 @@ void test_rspq_flush(TestContext *ctx)
     test_ovl_init();
     DEFER(test_ovl_close());
 
+    // This is meant to verify that the fix in rspq_flush actually
+    // prevents the race condition (see the comment in that function).
+    // If the race condition does happen, this test will fail very quickly.
     uint32_t t0 = TICKS_READ();
-    while (TICKS_DISTANCE(t0, TICKS_READ()) < TICKS_FROM_MS(10000)) {
+    while (TICKS_DISTANCE(t0, TICKS_READ()) < TICKS_FROM_MS(1000)) {
         rspq_test_wait(RANDN(50));
         rspq_flush();
 
-        wait_ticks(90);
+        wait_ticks(80 + RANDN(20));
 
-        //rspq_wait();
         rspq_syncpoint_t sp = rspq_syncpoint_new();
         rspq_flush();
         ASSERT(wait_for_syncpoint(sp, 100), "syncpoint was not flushed!, PC:%03lx, STATUS:%04lx", *SP_PC, *SP_STATUS);
@@ -260,6 +262,11 @@ void test_rspq_rapid_flush(TestContext *ctx)
     
     test_ovl_init();
     DEFER(test_ovl_close());
+
+    // This test is meant to verify that a specific hardware bug
+    // does not occur (see rsp_queue.inc). The exact conditions
+    // for the bug to happen are not known and this test setup was
+    // found by pure experimentation.
 
     uint64_t actual_sum[2] __attribute__((aligned(16))) = {0};
     data_cache_hit_writeback_invalidate(actual_sum, 16);
