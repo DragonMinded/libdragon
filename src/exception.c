@@ -85,18 +85,7 @@ void exception_default_handler(exception_t* ex) {
 		case EXCEPTION_CODE_TLB_STORE_MISS:
 		case EXCEPTION_CODE_TLB_LOAD_I_MISS:
 		case EXCEPTION_CODE_COPROCESSOR_UNUSABLE:
-		break;
 		case EXCEPTION_CODE_FLOATING_POINT:
-			// Clear FP interrupt cause bits so that it is not retriggered when we return to exception_halt
-			ex->regs->fc31 &= ~(
-				C1_CAUSE_INEXACT_OP |
-				C1_CAUSE_UNDERFLOW |
-				C1_CAUSE_OVERFLOW |
-				C1_CAUSE_DIV_BY_0 |
-				C1_CAUSE_INVALID_OP |
-				C1_CAUSE_NOT_IMPLEMENTED
-			);
-		break;
 		case EXCEPTION_CODE_WATCH:
 		case EXCEPTION_CODE_ARITHMETIC_OVERFLOW:
 		case EXCEPTION_CODE_TRAP:
