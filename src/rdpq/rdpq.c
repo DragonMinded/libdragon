@@ -11,7 +11,6 @@
 #include <math.h>
 #include <float.h>
 
-#define SWAP(a, b) do { typeof(a) t = a; a = b; b = t; } while(0)
 #define TRUNCATE_S11_2(x) (0x3fff&((((x)&0x1fff) | (((x)&0x80000000)>>18))))
 
 #define RDPQ_MAX_COMMAND_SIZE 44
