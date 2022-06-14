@@ -283,6 +283,7 @@ void gl_set_flag(GLenum target, bool value)
         break;
     case GL_BLEND:
         state.blend = value;
+        break;
     case GL_COLOR_LOGIC_OP:
     case GL_INDEX_LOGIC_OP:
         assertf(!value, "Logical pixel operation is not supported!");
@@ -290,6 +291,7 @@ void gl_set_flag(GLenum target, bool value)
     case GL_LINE_STIPPLE:
     case GL_POLYGON_STIPPLE:
         assertf(!value, "Stipple is not supported!");
+        break;
     default:
         gl_set_error(GL_INVALID_ENUM);
         return;
@@ -386,13 +388,13 @@ void glBegin(GLenum mode)
 
     gl_apply_scissor();
 
-    uint64_t modes = SOM_CYCLE_1 | SOM_TEXTURE_PERSP | SOM_TC_FILTER;
+    uint64_t modes = SOM_CYCLE_1 | SOM_TEXTURE_PERSP | SOM_TC_FILTER | SOM_AA_ENABLE | SOM_READ_ENABLE | SOM_COVERAGE_DEST_CLAMP | SOM_ALPHA_USE_CVG;
 
     if (state.depth_test) {
         modes |= SOM_Z_WRITE | SOM_Z_OPAQUE | SOM_Z_SOURCE_PIXEL;
 
         if (state.depth_func == GL_LESS) {
-            modes |= SOM_Z_COMPARE | SOM_READ_ENABLE;
+            modes |= SOM_Z_COMPARE;
         }
     }
 

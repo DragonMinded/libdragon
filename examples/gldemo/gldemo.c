@@ -27,6 +27,8 @@ void render()
     glEnable(GL_DEPTH_TEST);
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, circle_sprite->width, circle_sprite->height, 0, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1_EXT, circle_sprite->data);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 
     glBegin(GL_TRIANGLE_STRIP);
 
@@ -133,7 +135,7 @@ int main()
 
     while (1)
     {
-        rotation += 0.1f;
+        rotation += 0.01f;
 
         render();
 
