@@ -626,26 +626,31 @@ inline void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data
 }
 
 __attribute__((noinline))
-void rdpq_triangle(triangle_coeffs_t coeffs, uint8_t tile, uint8_t level, uint32_t pos_offset, uint32_t shade_offset, uint32_t tex_offset, uint32_t z_offset, const float *v1, const float *v2, const float *v3)
+void rdpq_triangle(uint8_t tile, uint8_t level, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
 {
     uint32_t res = AUTOSYNC_PIPE;
-    if (coeffs & TRI_TEX) {
+    if (tex_offset >= 0) {
         res |= AUTOSYNC_TILE(tile);
     }
     autosync_use(res);
 
+    uint32_t cmd_id = RDPQ_CMD_TRI;
+
     uint32_t size = 8;
-    if (coeffs & TRI_SHADE) {
+    if (shade_offset >= 0) {
         size += 16;
+        cmd_id |= 0x4;
     }
-    if (coeffs & TRI_TEX) {
+    if (tex_offset >= 0) {
         size += 16;
+        cmd_id |= 0x2;
     }
-    if (coeffs & TRI_ZBUF) {
+    if (z_offset >= 0) {
         size += 4;
+        cmd_id |= 0x1;
     }
 
-    rspq_write_t w = rspq_write_begin(RDPQ_OVL_ID, RDPQ_CMD_TRI | coeffs, size);
+    rspq_write_t w = rspq_write_begin(RDPQ_OVL_ID, cmd_id, size);
 
     if( v1[pos_offset + 1] > v2[pos_offset + 1] ) { SWAP(v1, v2); }
     if( v2[pos_offset + 1] > v3[pos_offset + 1] ) { SWAP(v2, v3); }
@@ -654,15 +659,15 @@ void rdpq_triangle(triangle_coeffs_t coeffs, uint8_t tile, uint8_t level, uint32
     rdpq_tri_edge_data_t data;
     __rdpq_write_edge_coeffs(&w, &data, tile, level, v1 + pos_offset, v2 + pos_offset, v3 + pos_offset);
 
-    if (coeffs & TRI_SHADE) {
+    if (shade_offset >= 0) {
         __rdpq_write_shade_coeffs(&w, &data, v1 + shade_offset, v2 + shade_offset, v3 + shade_offset);
     }
 
-    if (coeffs & TRI_TEX) {
+    if (tex_offset >= 0) {
         __rdpq_write_tex_coeffs(&w, &data, v1 + tex_offset, v2 + tex_offset, v3 + tex_offset);
     }
 
-    if (coeffs & TRI_ZBUF) {
+    if (z_offset >= 0) {
         __rdpq_write_zbuf_coeffs(&w, &data, v1 + z_offset, v2 + z_offset, v3 + z_offset);
     }
 

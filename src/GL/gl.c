@@ -484,11 +484,10 @@ void gl_vertex_cache_changed()
         }
     }
 
-    triangle_coeffs_t c = TRI_SHADE;
-    if (state.texture_2d) c |= TRI_TEX;
-    if (state.depth_test) c |= TRI_ZBUF;
+    int32_t tex_offset = state.texture_2d ? 6 : -1;
+    int32_t z_offset = state.depth_test ? 9 : -1;
 
-    rdpq_triangle(c, 0, 0, 0, 2, 6, 9, v0->screen_pos, v1->screen_pos, v2->screen_pos);
+    rdpq_triangle(0, 0, 0, 2, tex_offset, z_offset, v0->screen_pos, v1->screen_pos, v2->screen_pos);
 }
 
 void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w) 
