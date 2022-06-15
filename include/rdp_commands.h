@@ -185,7 +185,7 @@
 #define Blend0(a1, b1, a2, b2) \
     (((SOM_BLEND_A_ ## a1) << 30) | ((SOM_BLEND_B1_ ## b1) << 26) | ((SOM_BLEND_A_ ## a2) << 22) | ((SOM_BLEND_B2_ ## b2) << 18))
 #define Blend1(a1, b1, a2, b2) \
-    (((SOM_BLEND_A_ ## a1) << 28) | ((SOM_BLEND_B1_ ## b1) << 24) | ((SOM_BLEND_A_ ## a2) << 20) | ((SOM_BLEND_B2_ ## b2) << 26))
+    (((SOM_BLEND_A_ ## a1) << 28) | ((SOM_BLEND_B1_ ## b1) << 24) | ((SOM_BLEND_A_ ## a2) << 20) | ((SOM_BLEND_B2_ ## b2) << 16))
 
 #define Blend(a1, b1, a2, b2) \
     (Blend0(a1, b1, a2, b2) | Blend1(a1, b1, a2, b2))

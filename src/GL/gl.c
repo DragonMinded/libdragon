@@ -388,7 +388,11 @@ void glBegin(GLenum mode)
 
     gl_apply_scissor();
 
-    uint64_t modes = SOM_CYCLE_1 | SOM_TEXTURE_PERSP | SOM_TC_FILTER | SOM_AA_ENABLE | SOM_READ_ENABLE | SOM_COVERAGE_DEST_CLAMP | SOM_ALPHA_USE_CVG;
+    uint64_t modes = SOM_CYCLE_1;
+
+    if (0 /* antialiasing */) {
+        modes |= SOM_AA_ENABLE | SOM_READ_ENABLE | SOM_COLOR_ON_COVERAGE | SOM_COVERAGE_DEST_CLAMP | SOM_ALPHA_USE_CVG;
+    }
 
     if (state.depth_test) {
         modes |= SOM_Z_WRITE | SOM_Z_OPAQUE | SOM_Z_SOURCE_PIXEL;
@@ -401,9 +405,13 @@ void glBegin(GLenum mode)
     if (state.blend) {
         // TODO: derive the blender config from blend_src and blend_dst
         modes |= SOM_BLENDING | Blend(PIXEL_RGB, MUX_ALPHA, MEMORY_RGB, INV_MUX_ALPHA);
+    } else {
+        modes |= Blend(PIXEL_RGB, MUX_ALPHA, MEMORY_RGB, MEMORY_ALPHA);
     }
     
     if (state.texture_2d) {
+        modes |= SOM_TEXTURE_PERSP | SOM_TC_FILTER;
+
         tex_format_t fmt = gl_texture_get_format(&state.texture_2d_object);
 
         gl_texture_object_t *tex_obj = &state.texture_2d_object;
@@ -777,7 +785,17 @@ void glScalef(GLfloat x, GLfloat y, GLfloat z)
 }
 void glScaled(GLdouble x, GLdouble y, GLdouble z);
 
-void glFrustum(GLdouble l, GLdouble r, GLdouble b, GLdouble t, GLdouble n, GLdouble f);
+void glFrustum(GLdouble l, GLdouble r, GLdouble b, GLdouble t, GLdouble n, GLdouble f)
+{
+    gl_matrix_t frustum = (gl_matrix_t){ .m={
+        {(2*n)/(r-l), 0.f,           0.f,            0.f},
+        {0.f,         (2.f*n)/(t-b), 0.f,            0.f},
+        {(r+l)/(r-l), (t+b)/(t-b),   -(f+n)/(f-n),   -1.f},
+        {0.f,         0.f,           -(2*f*n)/(f-n), 0.f},
+    }};
+
+    glMultMatrixf(frustum.m[0]);
+}
 
 void glOrtho(GLdouble l, GLdouble r, GLdouble b, GLdouble t, GLdouble n, GLdouble f)
 {
