@@ -11,8 +11,6 @@
 #include <math.h>
 #include <float.h>
 
-#define TRUNCATE_S11_2(x) (0x3fff&((((x)&0x1fff) | (((x)&0x80000000)>>18))))
-
 #define RDPQ_MAX_COMMAND_SIZE 44
 #define RDPQ_BLOCK_MIN_SIZE   64
 #define RDPQ_BLOCK_MAX_SIZE   4192
@@ -386,12 +384,31 @@ void __rdpq_write16_syncuse(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint3
     __rdpq_write16(cmd_id, arg0, arg1, arg2, arg3);
 }
 
+#define TRUNCATE_S11_2(x) (0x3fff&((((x)&0x1fff) | (((x)&0x80000000)>>18))))
+
+/** @brief Converts a float to a s16.16 fixed point number */
+int32_t float_to_s16_16(float f)
+{
+    // Currently the float must be clamped to this range because
+    // otherwise the trunc.w.s instruction can potentially trigger
+    // an unimplemented operation exception due to integer overflow.
+    // TODO: maybe handle the exception? Clamp the value in the exception handler?
+    if (f >= 32768.f) {
+        return 0x7FFFFFFF;
+    }
+
+    if (f < -32768.f) {
+        return 0x80000000;
+    }
+
+    return f * 65536.f;
+}
+
 typedef struct {
     float hx, hy;
     float mx, my;
-    float lx, ly;
-    float fy, cy;
-    float ish, ism, isl;
+    float fy;
+    float ish;
     float attr_factor;
 } rdpq_tri_edge_data_t;
 
@@ -399,20 +416,24 @@ __attribute__((always_inline))
 inline void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, uint8_t tile, uint8_t level, const float *v1, const float *v2, const float *v3)
 {
     const float to_fixed_11_2 = 4.0f;
-    const float to_fixed_16_16 = 65536.0f;
 
-    const float x1 = v1[0], y1 = v1[1], x2 = v2[0], y2 = v2[1], x3 = v3[0], y3 = v3[1];
+    const float x1 = v1[0];
+    const float y1 = v1[1];
+    const float x2 = v2[0];
+    const float y2 = v2[1];
+    const float x3 = v3[0];
+    const float y3 = v3[1];
 
-    const int y1f = TRUNCATE_S11_2((int)(y1*to_fixed_11_2));
-    const int y2f = TRUNCATE_S11_2((int)(y2*to_fixed_11_2));
-    const int y3f = TRUNCATE_S11_2((int)(y3*to_fixed_11_2));
+    const int32_t y1f = TRUNCATE_S11_2((int32_t)(y1*to_fixed_11_2));
+    const int32_t y2f = TRUNCATE_S11_2((int32_t)(y2*to_fixed_11_2));
+    const int32_t y3f = TRUNCATE_S11_2((int32_t)(y3*to_fixed_11_2));
 
     data->hx = x3 - x1;        
     data->hy = y3 - y1;        
     data->mx = x2 - x1;
     data->my = y2 - y1;
-    data->lx = x3 - x2;
-    data->ly = y3 - y2;
+    float lx = x3 - x2;
+    float ly = y3 - y2;
 
     const float nz = (data->hx*data->my) - (data->hy*data->mx);
     data->attr_factor = (fabs(nz) > FLT_MIN) ? (-1.0f / nz) : 0;
@@ -422,28 +443,27 @@ inline void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data
     rspq_write_arg(w, _carg(y2f, 0x3FFF, 16) | _carg(y1f, 0x3FFF, 0));
 
     data->ish = (fabs(data->hy) > FLT_MIN) ? (data->hx / data->hy) : 0;
-    data->ism = (fabs(data->my) > FLT_MIN) ? (data->mx / data->my) : 0;
-    data->isl = (fabs(data->ly) > FLT_MIN) ? (data->lx / data->ly) : 0;
-    data->fy = floorf(y1) - y1;
-    data->cy = ceilf(4*y2);
+    float ism = (fabs(data->my) > FLT_MIN) ? (data->mx / data->my) : 0;
+    float isl = (fabs(ly) > FLT_MIN) ? (lx / ly) : 0;
+    data->fy = floorf(y1) - y1 + 0.25f;
+
+    float cy = ceilf(4*y2)/4 - y2;
 
     const float xh = x1 + data->fy * data->ish;
-    const float xm = x1 + data->fy * data->ism;
-    const float xl = x2 + ( ((data->cy/4) - y2) * data->isl );
+    const float xm = x1 + data->fy * ism;
+    const float xl = x2 + cy * isl;
 
-    rspq_write_arg(w, (int)( xl * to_fixed_16_16 ));
-    rspq_write_arg(w, (int)( data->isl * to_fixed_16_16 ));
-    rspq_write_arg(w, (int)( xh * to_fixed_16_16 ));
-    rspq_write_arg(w, (int)( data->ish * to_fixed_16_16 ));
-    rspq_write_arg(w, (int)( xm * to_fixed_16_16 ));
-    rspq_write_arg(w, (int)( data->ism * to_fixed_16_16 ));
+    rspq_write_arg(w, float_to_s16_16(xl));
+    rspq_write_arg(w, float_to_s16_16(isl));
+    rspq_write_arg(w, float_to_s16_16(xh));
+    rspq_write_arg(w, float_to_s16_16(data->ish));
+    rspq_write_arg(w, float_to_s16_16(xm));
+    rspq_write_arg(w, float_to_s16_16(ism));
 }
 
 __attribute__((always_inline))
 static inline void __rdpq_write_shade_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, const float *v1, const float *v2, const float *v3)
 {
-    const float to_fixed_16_16 = 65536.0f;
-
     const float mr = v2[0] - v1[0];
     const float mg = v2[1] - v1[1];
     const float mb = v2[2] - v1[2];
@@ -476,25 +496,25 @@ static inline void __rdpq_write_shade_coeffs(rspq_write_t *w, rdpq_tri_edge_data
     const float DbDe = DbDy + DbDx * data->ish;
     const float DaDe = DaDy + DaDx * data->ish;
 
-    const int final_r = (v1[0] + data->fy * DrDe) * to_fixed_16_16;
-    const int final_g = (v1[1] + data->fy * DgDe) * to_fixed_16_16;
-    const int final_b = (v1[2] + data->fy * DbDe) * to_fixed_16_16;
-    const int final_a = (v1[3] + data->fy * DaDe) * to_fixed_16_16;
+    const int32_t final_r = float_to_s16_16(v1[0] + data->fy * DrDe);
+    const int32_t final_g = float_to_s16_16(v1[1] + data->fy * DgDe);
+    const int32_t final_b = float_to_s16_16(v1[2] + data->fy * DbDe);
+    const int32_t final_a = float_to_s16_16(v1[3] + data->fy * DaDe);
 
-    const int DrDx_fixed = DrDx * to_fixed_16_16;
-    const int DgDx_fixed = DgDx * to_fixed_16_16;
-    const int DbDx_fixed = DbDx * to_fixed_16_16;
-    const int DaDx_fixed = DaDx * to_fixed_16_16;
+    const int32_t DrDx_fixed = float_to_s16_16(DrDx);
+    const int32_t DgDx_fixed = float_to_s16_16(DgDx);
+    const int32_t DbDx_fixed = float_to_s16_16(DbDx);
+    const int32_t DaDx_fixed = float_to_s16_16(DaDx);
 
-    const int DrDe_fixed = DrDe * to_fixed_16_16;
-    const int DgDe_fixed = DgDe * to_fixed_16_16;
-    const int DbDe_fixed = DbDe * to_fixed_16_16;
-    const int DaDe_fixed = DaDe * to_fixed_16_16;
+    const int32_t DrDe_fixed = float_to_s16_16(DrDe);
+    const int32_t DgDe_fixed = float_to_s16_16(DgDe);
+    const int32_t DbDe_fixed = float_to_s16_16(DbDe);
+    const int32_t DaDe_fixed = float_to_s16_16(DaDe);
 
-    const int DrDy_fixed = DrDy * to_fixed_16_16;
-    const int DgDy_fixed = DgDy * to_fixed_16_16;
-    const int DbDy_fixed = DbDy * to_fixed_16_16;
-    const int DaDy_fixed = DaDy * to_fixed_16_16;
+    const int32_t DrDy_fixed = float_to_s16_16(DrDy);
+    const int32_t DgDy_fixed = float_to_s16_16(DgDy);
+    const int32_t DbDy_fixed = float_to_s16_16(DbDy);
+    const int32_t DaDy_fixed = float_to_s16_16(DaDy);
 
     rspq_write_arg(w, (final_r&0xffff0000) | (0xffff&(final_g>>16)));
     rspq_write_arg(w, (final_b&0xffff0000) | (0xffff&(final_a>>16)));
@@ -517,8 +537,6 @@ static inline void __rdpq_write_shade_coeffs(rspq_write_t *w, rdpq_tri_edge_data
 __attribute__((always_inline))
 inline void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, const float *v1, const float *v2, const float *v3)
 {
-    const float to_fixed_16_16 = 65536.0f;
-
     float s1 = v1[0], t1 = v1[1], w1 = v1[2];
     float s2 = v2[0], t2 = v2[1], w2 = v2[2];
     float s3 = v3[0], t3 = v3[1], w3 = v3[2];
@@ -565,21 +583,21 @@ inline void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data,
     const float DtDe = DtDy + DtDx * data->ish;
     const float DwDe = DwDy + DwDx * data->ish;
 
-    const int final_s = (s1 + data->fy * DsDe) * to_fixed_16_16;
-    const int final_t = (t1 + data->fy * DtDe) * to_fixed_16_16;
-    const int final_w = (w1 + data->fy * DwDe) * to_fixed_16_16;
+    const int32_t final_s = float_to_s16_16(s1 + data->fy * DsDe);
+    const int32_t final_t = float_to_s16_16(t1 + data->fy * DtDe);
+    const int32_t final_w = float_to_s16_16(w1 + data->fy * DwDe);
 
-    const int DsDx_fixed = DsDx * to_fixed_16_16;
-    const int DtDx_fixed = DtDx * to_fixed_16_16;
-    const int DwDx_fixed = DwDx * to_fixed_16_16;
+    const int32_t DsDx_fixed = float_to_s16_16(DsDx);
+    const int32_t DtDx_fixed = float_to_s16_16(DtDx);
+    const int32_t DwDx_fixed = float_to_s16_16(DwDx);
 
-    const int DsDe_fixed = DsDe * to_fixed_16_16;
-    const int DtDe_fixed = DtDe * to_fixed_16_16;
-    const int DwDe_fixed = DwDe * to_fixed_16_16;
+    const int32_t DsDe_fixed = float_to_s16_16(DsDe);
+    const int32_t DtDe_fixed = float_to_s16_16(DtDe);
+    const int32_t DwDe_fixed = float_to_s16_16(DwDe);
 
-    const int DsDy_fixed = DsDy * to_fixed_16_16;
-    const int DtDy_fixed = DtDy * to_fixed_16_16;
-    const int DwDy_fixed = DwDy * to_fixed_16_16;
+    const int32_t DsDy_fixed = float_to_s16_16(DsDy);
+    const int32_t DtDy_fixed = float_to_s16_16(DtDy);
+    const int32_t DwDy_fixed = float_to_s16_16(DwDy);
 
     rspq_write_arg(w, (final_s&0xffff0000) | (0xffff&(final_t>>16)));  
     rspq_write_arg(w, (final_w&0xffff0000));
@@ -602,8 +620,6 @@ inline void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data,
 __attribute__((always_inline))
 inline void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, const float *v1, const float *v2, const float *v3)
 {
-    const float to_fixed_16_16 = 65536.0f;
-
     const float mz = v2[0] - v1[0];
     const float hz = v3[0] - v1[0];
 
@@ -614,10 +630,10 @@ inline void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data
     const float DzDy = nyz * data->attr_factor;
     const float DzDe = DzDy + DzDx * data->ish;
 
-    const int final_z = (v1[0] + data->fy * DzDe) * to_fixed_16_16;
-    const int DzDx_fixed = DzDx * to_fixed_16_16;
-    const int DzDe_fixed = DzDe * to_fixed_16_16;
-    const int DzDy_fixed = DzDy * to_fixed_16_16;
+    const int32_t final_z = float_to_s16_16(v1[0] + data->fy * DzDe);
+    const int32_t DzDx_fixed = float_to_s16_16(DzDx);
+    const int32_t DzDe_fixed = float_to_s16_16(DzDe);
+    const int32_t DzDy_fixed = float_to_s16_16(DzDy);
 
     rspq_write_arg(w, final_z);
     rspq_write_arg(w, DzDx_fixed);
