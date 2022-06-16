@@ -44,6 +44,7 @@ typedef struct {
     GLfloat texcoord[2];
     GLfloat inverse_w;
     GLfloat depth;
+    uint8_t clip;
 } gl_vertex_t;
 
 typedef struct {
@@ -405,8 +406,6 @@ void glBegin(GLenum mode)
     if (state.blend) {
         // TODO: derive the blender config from blend_src and blend_dst
         modes |= SOM_BLENDING | Blend(PIXEL_RGB, MUX_ALPHA, MEMORY_RGB, INV_MUX_ALPHA);
-    } else {
-        modes |= Blend(PIXEL_RGB, MUX_ALPHA, MEMORY_RGB, MEMORY_ALPHA);
     }
     
     if (state.texture_2d) {
@@ -450,6 +449,195 @@ void glEnd(void)
     state.immediate_mode = 0;
 }
 
+void gl_draw_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
+{
+    if (state.cull_face_mode == GL_FRONT_AND_BACK) {
+        return;
+    }
+
+    if (state.cull_face)
+    {
+        float winding = v0->screen_pos[0] * (v1->screen_pos[1] - v2->screen_pos[1]) +
+                        v1->screen_pos[0] * (v2->screen_pos[1] - v0->screen_pos[1]) +
+                        v2->screen_pos[0] * (v0->screen_pos[1] - v1->screen_pos[1]);
+        
+        bool is_front = (state.front_face == GL_CCW) ^ (winding > 0.0f);
+        GLenum face = is_front ? GL_FRONT : GL_BACK;
+
+        if (state.cull_face_mode == face) {
+            return;
+        }
+    }
+
+    int32_t tex_offset = state.texture_2d ? 6 : -1;
+    int32_t z_offset = state.depth_test ? 9 : -1;
+
+    rdpq_triangle(0, 0, 0, 2, tex_offset, z_offset, v0->screen_pos, v1->screen_pos, v2->screen_pos);
+}
+
+static float dot_product(float *a, float *b)
+{
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+}
+
+static float lerp(float a, float b, float t)
+{
+    return a + (b - a) * t;
+}
+
+void gl_vertex_calc_screenspace(gl_vertex_t *v)
+{
+    float inverse_w = 1.0f / v->position[3];
+
+    v->screen_pos[0] = v->position[0] * inverse_w * state.current_viewport.scale[0] + state.current_viewport.offset[0];
+    v->screen_pos[1] = v->position[1] * inverse_w * state.current_viewport.scale[1] + state.current_viewport.offset[1];
+
+    v->depth = v->position[2] * inverse_w * state.current_viewport.scale[2] + state.current_viewport.offset[2];
+
+    v->inverse_w = inverse_w;
+
+    v->clip = 0;
+    for (uint32_t i = 0; i < 3; i++)
+    {
+        if (v->position[i] < - v->position[3]) {
+            v->clip |= 1 << i;
+        } else if (v->position[i] > v->position[3]) {
+            v->clip |= 1 << (i + 3);
+        }
+    }
+}
+
+#define CLIPPING_PLANE_COUNT 6
+#define CLIPPING_CACHE_SIZE  9
+
+typedef struct {
+    gl_vertex_t *vertices[CLIPPING_PLANE_COUNT + 3];
+    uint32_t count;
+} gl_clipping_list_t;
+
+static float clip_planes[CLIPPING_PLANE_COUNT][4] = {
+    { 1, 0, 0, 1 },
+    { 0, 1, 0, 1 },
+    { 0, 0, 1, 1 },
+    { 1, 0, 0, -1 },
+    { 0, 1, 0, -1 },
+    { 0, 0, 1, -1 },
+};
+
+void gl_clip_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
+{
+    if (v0->clip & v1->clip & v2->clip) {
+        return;
+    }
+
+    uint8_t any_clip = v0->clip | v1->clip | v2->clip;
+
+    if (!any_clip) {
+        gl_draw_triangle(v0, v1, v2);
+        return;
+    }
+
+    // Polygon clipping using the Sutherland-Hodgman algorithm
+    // See https://en.wikipedia.org/wiki/Sutherland%E2%80%93Hodgman_algorithm
+
+    // Intersection points are stored in the clipping cache
+    gl_vertex_t clipping_cache[CLIPPING_CACHE_SIZE];
+    uint32_t cache_used = 0;
+
+    gl_clipping_list_t lists[2];
+
+    gl_clipping_list_t *in_list = &lists[0];
+    gl_clipping_list_t *out_list = &lists[1];
+
+    out_list->vertices[0] = v0;
+    out_list->vertices[1] = v1;
+    out_list->vertices[2] = v2;
+    out_list->count = 3;
+    
+    for (uint32_t c = 0; c < CLIPPING_PLANE_COUNT; c++)
+    {
+        // If nothing clips this plane, skip it entirely
+        if ((any_clip & (1<<c)) == 0) {
+            continue;
+        }
+
+        float *clip_plane = clip_planes[c];
+
+        SWAP(in_list, out_list);
+        out_list->count = 0;
+
+        uint32_t cache_unused = 0;
+
+        for (uint32_t i = 0; i < in_list->count; i++)
+        {
+            gl_vertex_t *cur_point = in_list->vertices[i];
+            gl_vertex_t *prev_point = in_list->vertices[(i + in_list->count - 1) % in_list->count];
+
+            bool cur_inside = (cur_point->clip & (1<<c)) == 0;
+            bool prev_inside = (prev_point->clip & (1<<c)) == 0;
+
+            if (cur_inside ^ prev_inside) {
+                gl_vertex_t *intersection = NULL;
+
+                for (uint32_t n = 0; n < CLIPPING_CACHE_SIZE; n++)
+                {
+                    if ((cache_used & (1<<n)) == 0) {
+                        intersection = &clipping_cache[n];
+                        cache_used |= (1<<n);
+                        break;
+                    }
+                }
+
+                assertf(intersection, "clipping cache full!");
+                assertf(intersection != cur_point, "invalid intersection");
+                assertf(intersection != prev_point, "invalid intersection");
+
+                float d0 = dot_product(prev_point->position, clip_plane);
+                float d1 = dot_product(cur_point->position, clip_plane);
+                
+                float a = d0 / (d0 - d1);
+
+                assertf(a >= 0.f && a <= 1.f, "invalid a: %f", a);
+
+                intersection->position[0] = lerp(prev_point->position[0], cur_point->position[0], a);
+                intersection->position[1] = lerp(prev_point->position[1], cur_point->position[1], a);
+                intersection->position[2] = lerp(prev_point->position[2], cur_point->position[2], a);
+                intersection->position[3] = lerp(prev_point->position[3], cur_point->position[3], a);
+
+                gl_vertex_calc_screenspace(intersection);
+
+                intersection->color[0] = lerp(prev_point->color[0], cur_point->color[0], a);
+                intersection->color[1] = lerp(prev_point->color[1], cur_point->color[1], a);
+                intersection->color[2] = lerp(prev_point->color[2], cur_point->color[2], a);
+                intersection->color[3] = lerp(prev_point->color[3], cur_point->color[3], a);
+
+                intersection->texcoord[0] = lerp(prev_point->texcoord[0], cur_point->texcoord[0], a);
+                intersection->texcoord[1] = lerp(prev_point->texcoord[1], cur_point->texcoord[1], a);
+
+                out_list->vertices[out_list->count++] = intersection;
+            }
+
+            if (cur_inside) {
+                out_list->vertices[out_list->count++] = cur_point;
+            } else {
+                // If the point is in the clipping cache, remember it as unused
+                uint32_t diff = cur_point - clipping_cache;
+                if (diff >= 0 && diff < CLIPPING_CACHE_SIZE) {
+                    cache_unused |= (1<<diff);
+                }
+            }
+        }
+
+        // Mark all points that were discarded as unused
+        cache_used &= ~cache_unused;
+    }
+
+    for (uint32_t i = 2; i < out_list->count; i++)
+    {
+        gl_draw_triangle(out_list->vertices[0], out_list->vertices[i-1], out_list->vertices[i]);
+    }
+}
+
 void gl_vertex_cache_changed()
 {
     if (state.triangle_progress < 3) {
@@ -476,28 +664,7 @@ void gl_vertex_cache_changed()
 
     state.triangle_counter++;
 
-    if (state.cull_face_mode == GL_FRONT_AND_BACK) {
-        return;
-    }
-
-    if (state.cull_face)
-    {
-        float winding = v0->screen_pos[0] * (v1->screen_pos[1] - v2->screen_pos[1]) +
-                        v1->screen_pos[0] * (v2->screen_pos[1] - v0->screen_pos[1]) +
-                        v2->screen_pos[0] * (v0->screen_pos[1] - v1->screen_pos[1]);
-        
-        bool is_front = (state.front_face == GL_CCW) ^ (winding > 0.0f);
-        GLenum face = is_front ? GL_FRONT : GL_BACK;
-
-        if (state.cull_face_mode == face) {
-            return;
-        }
-    }
-
-    int32_t tex_offset = state.texture_2d ? 6 : -1;
-    int32_t z_offset = state.depth_test ? 9 : -1;
-
-    rdpq_triangle(0, 0, 0, 2, tex_offset, z_offset, v0->screen_pos, v1->screen_pos, v2->screen_pos);
+    gl_clip_triangle(v0, v1, v2);
 }
 
 void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w) 
@@ -512,10 +679,7 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 
     gl_matrix_mult(v->position, &state.final_matrix, tmp);
 
-    float inverse_w = 1.0f / v->position[3];
-
-    v->screen_pos[0] = v->position[0] * inverse_w * state.current_viewport.scale[0] + state.current_viewport.offset[0];
-    v->screen_pos[1] = v->position[1] * inverse_w * state.current_viewport.scale[1] + state.current_viewport.offset[1];
+    gl_vertex_calc_screenspace(v);
 
     v->color[0] = state.current_color[0] * 255.f;
     v->color[1] = state.current_color[1] * 255.f;
@@ -533,11 +697,7 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 
         v->texcoord[0] *= 32.f;
         v->texcoord[1] *= 32.f;
-
-        v->inverse_w = inverse_w;
     }
-
-    v->depth = v->position[2] * inverse_w * state.current_viewport.scale[2] + state.current_viewport.offset[2];
 
     state.triangle_indices[state.triangle_progress] = state.next_vertex;
 
