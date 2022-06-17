@@ -5,26 +5,43 @@
 
 static sprite_t *circle_sprite;
 
-static float rotation = 0.0f;
+static float rotation = 1.0f;
 static float aspect_ratio;
 
 void render()
 {
-    glClearColor(0.4f, 0.1f, 0.5f, 1.f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.f);
+    glClear(GL_COLOR_BUFFER_BIT);
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(-3*aspect_ratio, 3*aspect_ratio, -3, 3, -3, 3);
-
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    glRotatef(0.3f, 1, 0, 0);
-    glRotatef(rotation, 0, 1, 0);
+    //glFrustum(-1*aspect_ratio, 1*aspect_ratio, -1, 1, 1, 10);
+    //glTranslatef(0, 0, -3);
+    glOrtho(-2*aspect_ratio, 2*aspect_ratio, -2, 2, -5, 5);
 
     glEnable(GL_CULL_FACE);
     glEnable(GL_TEXTURE_2D);
-    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_LIGHTING);
+    glEnable(GL_LIGHT0);
+    glEnable(GL_COLOR_MATERIAL);
+
+    GLfloat diffuse[] = { 1, 1, 1, 1 };
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse);
+    glLightf(GL_LIGHT0, GL_CONSTANT_ATTENUATION, 0.0f);
+    glLightf(GL_LIGHT0, GL_QUADRATIC_ATTENUATION, 1.0f/6.0f);
+
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    GLfloat light_pos[] = { 0, 0, 4, 1 };
+    glLightfv(GL_LIGHT0, GL_POSITION, light_pos);
+
+    GLfloat spot_dir[] = { 0, 0, -2 };
+    glLightfv(GL_LIGHT0, GL_SPOT_DIRECTION, spot_dir);
+    
+    glRotatef(rotation, 0, 1, 0);
+    glRotatef(rotation*1.35f, 1, 0, 0);
+    glRotatef(rotation*0.62f, 0, 0, 1);
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, circle_sprite->width, circle_sprite->height, 0, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1_EXT, circle_sprite->data);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
@@ -32,63 +49,75 @@ void render()
 
     glBegin(GL_TRIANGLE_STRIP);
 
-    glColor3f(1.0f, 0.0f, 0.0f);
+    glNormal3f(1.0f, 0.0f, 0.0f);
+    glColor3f(1, 0, 0);
+
     glTexCoord2f(0.0f, 0.0f);
     glVertex3f(1.f, -1.f, -1.f);
 
-    glColor3f(1.0f, 1.0f, 0.0f);
     glTexCoord2f(1.0f, 0.0f);
     glVertex3f(1.f, 1.f, -1.f);
 
-    glColor3f(1.0f, 0.0f, 1.0f);
     glTexCoord2f(0.0f, 1.0f);
     glVertex3f(1.f, -1.f, 1.f);
 
-    glColor3f(1.0f, 1.0f, 1.0f);
     glTexCoord2f(1.0f, 1.0f);
     glVertex3f(1.f, 1.f, 1.f);
-
-    glColor3f(0.0f, 0.0f, 1.0f);
-    glTexCoord2f(0.0f, 0.0f);
-    glVertex3f(-1.f, -1.f, 1.f);
-
-    glColor3f(0.0f, 1.0f, 1.0f);
-    glTexCoord2f(1.0f, 0.0f);
-    glVertex3f(-1.f, 1.f, 1.f);
-
-    glColor3f(0.0f, 0.0f, 0.0f);
-    glTexCoord2f(0.0f, 1.0f);
-    glVertex3f(-1.f, -1.f, -1.f);
-
-    glColor3f(0.0f, 1.0f, 0.0f);
-    glTexCoord2f(1.0f, 1.0f);
-    glVertex3f(-1.f, 1.f, -1.f);
-
-    glColor3f(1.0f, 0.0f, 0.0f);
-    glTexCoord2f(0.0f, 0.0f);
-    glVertex3f(1.f, -1.f, -1.f);
-
-    glColor3f(1.0f, 1.0f, 0.0f);
-    glTexCoord2f(1.0f, 0.0f);
-    glVertex3f(1.f, 1.f, -1.f);
 
     glEnd();
 
     glBegin(GL_TRIANGLE_STRIP);
 
-    glColor3f(0.0f, 0.0f, 0.0f);
+    glNormal3f(-1.0f, 0.0f, 0.0f);
+    glColor3f(0, 1, 1);
+
     glTexCoord2f(0.0f, 0.0f);
     glVertex3f(-1.f, -1.f, -1.f);
 
-    glColor3f(1.0f, 0.0f, 0.0f);
-    glTexCoord2f(1.0f, 0.0f);
-    glVertex3f(1.f, -1.f, -1.f);
-
-    glColor3f(0.0f, 0.0f, 1.0f);
     glTexCoord2f(0.0f, 1.0f);
     glVertex3f(-1.f, -1.f, 1.f);
 
-    glColor3f(1.0f, 0.0f, 1.0f);
+    glTexCoord2f(1.0f, 0.0f);
+    glVertex3f(-1.f, 1.f, -1.f);
+
+    glTexCoord2f(1.0f, 1.0f);
+    glVertex3f(-1.f, 1.f, 1.f);
+
+    glEnd();
+
+    glBegin(GL_TRIANGLE_STRIP);
+
+    glNormal3f(0.0f, 1.0f, 0.0f);
+    glColor3f(0, 1, 0);
+
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex3f(-1.f, 1.f, -1.f);
+
+    glTexCoord2f(0.0f, 1.0f);
+    glVertex3f(-1.f, 1.f, 1.f);
+
+    glTexCoord2f(1.0f, 0.0f);
+    glVertex3f(1.f, 1.f, -1.f);
+
+    glTexCoord2f(1.0f, 1.0f);
+    glVertex3f(1.f, 1.f, 1.f);
+
+    glEnd();
+
+    glBegin(GL_TRIANGLE_STRIP);
+
+    glNormal3f(0.0f, -1.0f, 0.0f);
+    glColor3f(1, 0, 1);
+
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex3f(-1.f, -1.f, -1.f);
+
+    glTexCoord2f(1.0f, 0.0f);
+    glVertex3f(1.f, -1.f, -1.f);
+
+    glTexCoord2f(0.0f, 1.0f);
+    glVertex3f(-1.f, -1.f, 1.f);
+
     glTexCoord2f(1.0f, 1.0f);
     glVertex3f(1.f, -1.f, 1.f);
 
@@ -96,21 +125,39 @@ void render()
 
     glBegin(GL_TRIANGLE_STRIP);
 
-    glColor3f(0.0f, 1.0f, 0.0f);
-    glTexCoord2f(0.0f, 0.0f);
-    glVertex3f(-1.f, 1.f, -1.f);
+    glNormal3f(0.0f, 0.0f, 1.0f);
+    glColor3f(0, 0, 1);
 
-    glColor3f(0.0f, 1.0f, 1.0f);
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex3f(-1.f, -1.f, 1.f);
+
     glTexCoord2f(1.0f, 0.0f);
+    glVertex3f(1.f, -1.f, 1.f);
+
+    glTexCoord2f(0.0f, 1.0f);
     glVertex3f(-1.f, 1.f, 1.f);
 
-    glColor3f(1.0f, 1.0f, 0.0f);
-    glTexCoord2f(0.0f, 1.0f);
-    glVertex3f(1.f, 1.f, -1.f);
-
-    glColor3f(1.0f, 1.0f, 1.0f);
     glTexCoord2f(1.0f, 1.0f);
     glVertex3f(1.f, 1.f, 1.f);
+
+    glEnd();
+
+    glBegin(GL_TRIANGLE_STRIP);
+
+    glNormal3f(0.0f, 0.0f, -1.0f);
+    glColor3f(1, 1, 0);
+
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex3f(-1.f, -1.f, -1.f);
+
+    glTexCoord2f(0.0f, 1.0f);
+    glVertex3f(-1.f, 1.f, -1.f);
+
+    glTexCoord2f(1.0f, 0.0f);
+    glVertex3f(1.f, -1.f, -1.f);
+
+    glTexCoord2f(1.0f, 1.0f);
+    glVertex3f(1.f, 1.f, -1.f);
 
     glEnd();
 }
@@ -127,7 +174,7 @@ int main()
     dfs_read(circle_sprite, 1, dfs_size(fp), fp);
     dfs_close(fp);
 
-    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 1, GAMMA_NONE, ANTIALIAS_RESAMPLE);
+    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE_FETCH_ALWAYS);
 
     gl_init();
 

@@ -7,8 +7,15 @@
 #include <string.h>
 #include <math.h>
 
-#define MODELVIEW_STACK_SIZE 32
+#define MODELVIEW_STACK_SIZE  32
 #define PROJECTION_STACK_SIZE 2
+
+#define CLIPPING_PLANE_COUNT  6
+#define CLIPPING_CACHE_SIZE   9
+
+#define LIGHT_COUNT           8
+
+#define RADIANS(x) ((x) * M_PI / 180.0f)
 
 #define CLAMP(x, min, max) (MIN(MAX((x), (min)), (max)))
 #define CLAMP01(x) CLAMP((x), 0, 1)
@@ -78,6 +85,34 @@ typedef struct {
     bool is_dirty;
 } gl_texture_object_t;
 
+typedef struct {
+    gl_vertex_t *vertices[CLIPPING_PLANE_COUNT + 3];
+    uint32_t count;
+} gl_clipping_list_t;
+
+typedef struct {
+    GLfloat ambient[4];
+    GLfloat diffuse[4];
+    GLfloat specular[4];
+    GLfloat emissive[4];
+    GLfloat shininess;
+    GLenum color_target;
+} gl_material_t;
+
+typedef struct {
+    GLfloat ambient[4];
+    GLfloat diffuse[4];
+    GLfloat specular[4];
+    GLfloat position[4];
+    GLfloat direction[3];
+    GLfloat spot_exponent;
+    GLfloat spot_cutoff;
+    GLfloat constant_attenuation;
+    GLfloat linear_attenuation;
+    GLfloat quadratic_attenuation;
+    bool enabled;
+} gl_light_t;
+
 static struct {
     gl_framebuffer_t default_framebuffer;
     gl_framebuffer_t *cur_framebuffer;
@@ -106,6 +141,8 @@ static struct {
     bool depth_test;
     bool texture_2d;
     bool blend;
+    bool lighting;
+    bool color_material;
 
     gl_vertex_t vertex_cache[3];
     uint32_t triangle_indices[3];
@@ -115,6 +152,7 @@ static struct {
 
     GLfloat current_color[4];
     GLfloat current_texcoord[4];
+    GLfloat current_normal[3];
 
     gl_viewport_t current_viewport;
 
@@ -131,8 +169,26 @@ static struct {
 
     gl_texture_object_t texture_2d_object;
 
+    gl_material_t materials[2];
+    gl_light_t lights[LIGHT_COUNT];
+
+    GLfloat light_model_ambient[4];
+    bool light_model_local_viewer;
+    bool light_model_two_side;
+
+    GLenum shade_model;
+
     bool is_scissor_dirty;
 } state;
+
+static const float clip_planes[CLIPPING_PLANE_COUNT][4] = {
+    { 1, 0, 0, 1 },
+    { 0, 1, 0, 1 },
+    { 0, 0, 1, 1 },
+    { 1, 0, 0, -1 },
+    { 0, 1, 0, -1 },
+    { 0, 0, 1, -1 },
+};
 
 #define assert_framebuffer() ({ \
     assertf(state.cur_framebuffer != NULL, "GL: No target is set!"); \
@@ -189,6 +245,13 @@ void gl_matrix_mult(GLfloat *d, const gl_matrix_t *m, const GLfloat *v)
     d[3] = m->m[0][3] * v[0] + m->m[1][3] * v[1] + m->m[2][3] * v[2] + m->m[3][3] * v[3];
 }
 
+void gl_matrix_mult3x3(GLfloat *d, const gl_matrix_t *m, const GLfloat *v)
+{
+    d[0] = m->m[0][0] * v[0] + m->m[1][0] * v[1] + m->m[2][0] * v[2];
+    d[1] = m->m[0][1] * v[0] + m->m[1][1] * v[1] + m->m[2][1] * v[2];
+    d[2] = m->m[0][2] * v[0] + m->m[1][2] * v[1] + m->m[2][2] * v[2];
+}
+
 void gl_matrix_mult_full(gl_matrix_t *d, const gl_matrix_t *l, const gl_matrix_t *r)
 {
     gl_matrix_mult(d->m[0], l, r->m[0]);
@@ -200,6 +263,35 @@ void gl_matrix_mult_full(gl_matrix_t *d, const gl_matrix_t *l, const gl_matrix_t
 void gl_update_final_matrix()
 {
     gl_matrix_mult_full(&state.final_matrix, gl_matrix_stack_get_matrix(&state.projection_stack), gl_matrix_stack_get_matrix(&state.modelview_stack));
+}
+
+void gl_init_material(gl_material_t *material)
+{
+    *material = (gl_material_t) {
+        .ambient = { 0.2f, 0.2f, 0.2f, 1.0f },
+        .diffuse = { 0.8f, 0.8f, 0.8f, 1.0f },
+        .specular = { 0.0f, 0.0f, 0.0f, 1.0f },
+        .emissive = { 0.0f, 0.0f, 0.0f, 1.0f },
+        .shininess = 0.0f,
+        .color_target = GL_AMBIENT_AND_DIFFUSE,
+    };
+}
+
+void gl_init_light(gl_light_t *light)
+{
+    *light = (gl_light_t) {
+        .ambient = { 0.0f, 0.0f, 0.0f, 1.0f },
+        .diffuse = { 0.0f, 0.0f, 0.0f, 1.0f },
+        .specular = { 0.0f, 0.0f, 0.0f, 1.0f },
+        .position = { 0.0f, 0.0f, 1.0f, 0.0f },
+        .direction = { 0.0f, 0.0f, -1.0f },
+        .spot_exponent = 0.0f,
+        .spot_cutoff = 180.0f,
+        .constant_attenuation = 1.0f,
+        .linear_attenuation = 0.0f,
+        .quadratic_attenuation = 0.0f,
+        .enabled = false,
+    };
 }
 
 void gl_init()
@@ -224,6 +316,29 @@ void gl_init()
         .min_filter = GL_NEAREST_MIPMAP_LINEAR,
         .mag_filter = GL_LINEAR,
     };
+
+    gl_init_material(&state.materials[0]);
+    gl_init_material(&state.materials[1]);
+
+    for (uint32_t i = 0; i < LIGHT_COUNT; i++)
+    {
+        gl_init_light(&state.lights[i]);
+    }
+
+    state.lights[0].diffuse[0] = 0.2f;
+    state.lights[0].diffuse[1] = 0.2f;
+    state.lights[0].diffuse[2] = 0.2f;
+
+    state.lights[0].specular[0] = 0.8f;
+    state.lights[0].specular[1] = 0.8f;
+    state.lights[0].specular[2] = 0.8f;
+
+    state.light_model_ambient[0] = 0.2f;
+    state.light_model_ambient[1] = 0.2f;
+    state.light_model_ambient[2] = 0.2f;
+    state.light_model_ambient[3] = 1.0f;
+    state.light_model_local_viewer = false;
+    state.light_model_two_side = false;
 
     glDrawBuffer(GL_FRONT);
     glDepthRange(0, 1);
@@ -284,6 +399,22 @@ void gl_set_flag(GLenum target, bool value)
         break;
     case GL_BLEND:
         state.blend = value;
+        break;
+    case GL_LIGHTING:
+        state.lighting = value;
+        break;
+    case GL_LIGHT0:
+    case GL_LIGHT1:
+    case GL_LIGHT2:
+    case GL_LIGHT3:
+    case GL_LIGHT4:
+    case GL_LIGHT5:
+    case GL_LIGHT6:
+    case GL_LIGHT7:
+        state.lights[target - GL_LIGHT0].enabled = value;
+        break;
+    case GL_COLOR_MATERIAL:
+        state.color_material = value;
         break;
     case GL_COLOR_LOGIC_OP:
     case GL_INDEX_LOGIC_OP:
@@ -475,7 +606,12 @@ void gl_draw_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
     rdpq_triangle(0, 0, 0, 2, tex_offset, z_offset, v0->screen_pos, v1->screen_pos, v2->screen_pos);
 }
 
-static float dot_product(float *a, float *b)
+static float dot_product3(const float *a, const float *b)
+{
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
+static float dot_product4(const float *a, const float *b)
 {
     return a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
 }
@@ -506,23 +642,6 @@ void gl_vertex_calc_screenspace(gl_vertex_t *v)
         }
     }
 }
-
-#define CLIPPING_PLANE_COUNT 6
-#define CLIPPING_CACHE_SIZE  9
-
-typedef struct {
-    gl_vertex_t *vertices[CLIPPING_PLANE_COUNT + 3];
-    uint32_t count;
-} gl_clipping_list_t;
-
-static float clip_planes[CLIPPING_PLANE_COUNT][4] = {
-    { 1, 0, 0, 1 },
-    { 0, 1, 0, 1 },
-    { 0, 0, 1, 1 },
-    { 1, 0, 0, -1 },
-    { 0, 1, 0, -1 },
-    { 0, 0, 1, -1 },
-};
 
 void gl_clip_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
 {
@@ -561,7 +680,7 @@ void gl_clip_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
             continue;
         }
 
-        float *clip_plane = clip_planes[c];
+        const float *clip_plane = clip_planes[c];
 
         SWAP(in_list, out_list);
         out_list->count = 0;
@@ -592,8 +711,8 @@ void gl_clip_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
                 assertf(intersection != cur_point, "invalid intersection");
                 assertf(intersection != prev_point, "invalid intersection");
 
-                float d0 = dot_product(prev_point->position, clip_plane);
-                float d1 = dot_product(cur_point->position, clip_plane);
+                float d0 = dot_product4(prev_point->position, clip_plane);
+                float d1 = dot_product4(cur_point->position, clip_plane);
                 
                 float a = d0 / (d0 - d1);
 
@@ -664,7 +783,191 @@ void gl_vertex_cache_changed()
 
     state.triangle_counter++;
 
+    // Flat shading
+    if (state.shade_model == GL_FLAT) {
+        v0->color[0] = v1->color[0] = v2->color[0];
+        v0->color[1] = v1->color[1] = v2->color[1];
+        v0->color[2] = v1->color[2] = v2->color[2];
+        v0->color[3] = v1->color[3] = v2->color[3];
+    }
+
     gl_clip_triangle(v0, v1, v2);
+}
+
+float gl_mag2(const GLfloat *v)
+{
+    return v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
+}
+
+float gl_mag(const GLfloat *v)
+{
+    return sqrtf(gl_mag2(v));
+}
+
+void gl_normalize(GLfloat *d, const GLfloat *v)
+{
+    float inv_mag = 1.0f / gl_mag(v);
+
+    d[0] = v[0] * inv_mag;
+    d[1] = v[1] * inv_mag;
+    d[2] = v[2] * inv_mag;
+}
+
+void gl_homogeneous_unit_diff(GLfloat *d, const GLfloat *p1, const GLfloat *p2)
+{
+    bool p1wzero = p1[3] == 0.0f;
+    bool p2wzero = p2[3] == 0.0f;
+
+    if (!(p1wzero ^ p2wzero)) {
+        d[0] = p2[0] - p1[0];
+        d[1] = p2[1] - p1[1];
+        d[2] = p2[2] - p1[2];
+    } else if (p1wzero) {
+        d[0] = -p1[0];
+        d[1] = -p1[1];
+        d[2] = -p1[2];
+    } else {
+        d[0] = p2[0];
+        d[1] = p2[1];
+        d[2] = p2[2];
+    }
+
+    gl_normalize(d, d);
+}
+
+float gl_clamped_dot(const GLfloat *a, const GLfloat *b)
+{
+    return MAX(dot_product3(a, b), 0.0f);
+}
+
+const GLfloat * gl_material_get_color(const gl_material_t *material, GLenum color)
+{
+    GLenum target = material->color_target;
+
+    switch (color) {
+    case GL_EMISSION:
+        return state.color_material && target == GL_EMISSION ? state.current_color : material->emissive;
+    case GL_AMBIENT:
+        return state.color_material && (target == GL_AMBIENT || target == GL_AMBIENT_AND_DIFFUSE) ? state.current_color : material->ambient;
+    case GL_DIFFUSE:
+        return state.color_material && (target == GL_DIFFUSE || target == GL_AMBIENT_AND_DIFFUSE) ? state.current_color : material->diffuse;
+    case GL_SPECULAR:
+        return state.color_material && target == GL_SPECULAR ? state.current_color : material->specular;
+    default:
+        assertf(0, "Invalid material color!");
+        return NULL;
+    }
+}
+
+void gl_perform_lighting(GLfloat *color, const GLfloat *position, const gl_material_t *material)
+{
+    const GLfloat *emissive = gl_material_get_color(material, GL_EMISSION);
+    const GLfloat *ambient = gl_material_get_color(material, GL_AMBIENT);
+    const GLfloat *diffuse = gl_material_get_color(material, GL_DIFFUSE);
+    const GLfloat *specular = gl_material_get_color(material, GL_SPECULAR);
+
+    // Emission and ambient
+    color[0] = emissive[0] + ambient[0] * state.light_model_ambient[0];
+    color[1] = emissive[1] + ambient[1] * state.light_model_ambient[1];
+    color[2] = emissive[2] + ambient[2] * state.light_model_ambient[2];
+    color[3] = diffuse[3];
+
+    const gl_matrix_t *mv = gl_matrix_stack_get_matrix(&state.modelview_stack);
+
+    GLfloat v[4];
+    gl_matrix_mult(v, mv, position);
+
+    GLfloat n[3];
+    gl_matrix_mult3x3(n, mv, state.current_normal);
+
+    for (uint32_t l = 0; l < LIGHT_COUNT; l++)
+    {
+        const gl_light_t *light = &state.lights[l];
+        if (!light->enabled) {
+            continue;
+        }
+
+        // Spotlight
+        float spot = 1.0f;
+        if (light->spot_cutoff != 180.0f) {
+            GLfloat plv[3];
+            gl_homogeneous_unit_diff(plv, light->position, v);
+
+            GLfloat s[3];
+            gl_normalize(s, light->direction);
+
+            float plvds = gl_clamped_dot(plv, s);
+
+            if (plvds < cosf(RADIANS(light->spot_cutoff))) {
+                // Outside of spotlight cutoff
+                continue;
+            }
+
+            spot = powf(plvds, light->spot_exponent);
+        }
+
+        // Attenuation
+        float att = 1.0f;
+        if (light->position[3] != 0.0f) {
+            GLfloat diff[3] = {
+                v[0] - light->position[0],
+                v[1] - light->position[1],
+                v[2] - light->position[2],
+            };
+            float dsq = gl_mag2(diff);
+            float d = sqrtf(dsq);
+            att = 1.0f / (light->constant_attenuation + light->linear_attenuation * d + light->quadratic_attenuation * dsq);
+        }
+
+        // Light ambient color
+        GLfloat col[3] = {
+            ambient[1] * light->ambient[1],
+            ambient[0] * light->ambient[0],
+            ambient[2] * light->ambient[2],
+        };
+
+        GLfloat vpl[3];
+        gl_homogeneous_unit_diff(vpl, v, light->position);
+
+        float ndvp = gl_clamped_dot(n, vpl);
+
+        // Diffuse
+        col[0] += diffuse[0] * light->diffuse[0] * ndvp;
+        col[1] += diffuse[1] * light->diffuse[1] * ndvp;
+        col[2] += diffuse[2] * light->diffuse[2] * ndvp;
+
+        // Specular
+        if (ndvp != 0.0f) {
+            GLfloat h[3] = {
+                vpl[0],
+                vpl[1],
+                vpl[2],
+            };
+            if (state.light_model_local_viewer) {
+                GLfloat pe[4] = { 0, 0, 0, 1 };
+                gl_homogeneous_unit_diff(pe, v, pe);
+                h[0] += pe[0];
+                h[1] += pe[1];
+                h[2] += pe[2];
+            } else {
+                h[2] += 1;
+            }
+            gl_normalize(h, h);
+            
+            float ndh = gl_clamped_dot(n, h);
+            float spec_factor = powf(ndh, material->shininess);
+
+            col[0] += specular[0] * light->specular[0] * spec_factor;
+            col[1] += specular[1] * light->specular[1] * spec_factor;
+            col[2] += specular[2] * light->specular[2] * spec_factor;
+        }
+
+        float light_factor = att * spot;
+
+        color[0] += col[0] * light_factor;
+        color[1] += col[1] * light_factor;
+        color[2] += col[2] * light_factor;
+    }
 }
 
 void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w) 
@@ -677,14 +980,23 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 
     GLfloat tmp[] = {x, y, z, w};
 
+    if (state.lighting) {
+        // TODO: Back face material?
+        gl_perform_lighting(v->color, tmp, &state.materials[0]);
+    } else {
+        v->color[0] = state.current_color[0];
+        v->color[1] = state.current_color[1];
+        v->color[2] = state.current_color[2];
+        v->color[3] = state.current_color[3];
+    }
+
+    v->color[0] = CLAMP01(v->color[0]) * 255.f;
+    v->color[1] = CLAMP01(v->color[1]) * 255.f;
+    v->color[2] = CLAMP01(v->color[2]) * 255.f;
+    v->color[3] = CLAMP01(v->color[3]) * 255.f;
+
     gl_matrix_mult(v->position, &state.final_matrix, tmp);
-
     gl_vertex_calc_screenspace(v);
-
-    v->color[0] = state.current_color[0] * 255.f;
-    v->color[1] = state.current_color[1] * 255.f;
-    v->color[2] = state.current_color[2] * 255.f;
-    v->color[3] = state.current_color[3] * 255.f;
 
     if (state.texture_2d) {
         v->texcoord[0] = state.current_texcoord[0] * state.texture_2d_object.width;
@@ -825,6 +1137,24 @@ void glTexCoord4sv(const GLshort *v)    { glTexCoord4s(v[0], v[1], v[2], v[3]); 
 void glTexCoord4iv(const GLint *v)      { glTexCoord4i(v[0], v[1], v[2], v[3]); }
 void glTexCoord4fv(const GLfloat *v)    { glTexCoord4f(v[0], v[1], v[2], v[3]); }
 void glTexCoord4dv(const GLdouble *v)   { glTexCoord4d(v[0], v[1], v[2], v[3]); }
+
+void glNormal3f(GLfloat nx, GLfloat ny, GLfloat nz)
+{
+    state.current_normal[0] = nx;
+    state.current_normal[1] = ny;
+    state.current_normal[2] = nz;
+}
+
+void glNormal3b(GLbyte nx, GLbyte ny, GLbyte nz)        { glNormal3f(I8_TO_FLOAT(nx), I8_TO_FLOAT(ny), I8_TO_FLOAT(nz)); }
+void glNormal3s(GLshort nx, GLshort ny, GLshort nz)     { glNormal3f(I16_TO_FLOAT(nx), I16_TO_FLOAT(ny), I16_TO_FLOAT(nz)); }
+void glNormal3i(GLint nx, GLint ny, GLint nz)           { glNormal3f(I32_TO_FLOAT(nx), I32_TO_FLOAT(ny), I32_TO_FLOAT(nz)); }
+void glNormal3d(GLdouble nx, GLdouble ny, GLdouble nz)  { glNormal3f(nx, ny, nz); }
+
+void glNormal3bv(const GLbyte *v)   { glNormal3b(v[0], v[1], v[2]); }
+void glNormal3sv(const GLshort *v)  { glNormal3s(v[0], v[1], v[2]); }
+void glNormal3iv(const GLint *v)    { glNormal3i(v[0], v[1], v[2]); }
+void glNormal3fv(const GLfloat *v)  { glNormal3f(v[0], v[1], v[2]); }
+void glNormal3dv(const GLdouble *v) { glNormal3d(v[0], v[1], v[2]); }
 
 void glDepthRange(GLclampd n, GLclampd f)
 {
@@ -998,6 +1328,434 @@ void glPopMatrix(void)
     stack->cur_depth = new_depth;
 
     gl_update_current_matrix();
+}
+
+void gl_set_material_paramf(gl_material_t *material, GLenum pname, const GLfloat *params)
+{
+    switch (pname) {
+    case GL_AMBIENT:
+        material->ambient[0] = params[0];
+        material->ambient[1] = params[1];
+        material->ambient[2] = params[2];
+        material->ambient[3] = params[3];
+        break;
+    case GL_DIFFUSE:
+        material->diffuse[0] = params[0];
+        material->diffuse[1] = params[1];
+        material->diffuse[2] = params[2];
+        material->diffuse[3] = params[3];
+        break;
+    case GL_AMBIENT_AND_DIFFUSE:
+        material->ambient[0] = params[0];
+        material->ambient[1] = params[1];
+        material->ambient[2] = params[2];
+        material->ambient[3] = params[3];
+        material->diffuse[0] = params[0];
+        material->diffuse[1] = params[1];
+        material->diffuse[2] = params[2];
+        material->diffuse[3] = params[3];
+        break;
+    case GL_SPECULAR:
+        material->specular[0] = params[0];
+        material->specular[1] = params[1];
+        material->specular[2] = params[2];
+        material->specular[3] = params[3];
+        break;
+    case GL_EMISSION:
+        material->emissive[0] = params[0];
+        material->emissive[1] = params[1];
+        material->emissive[2] = params[2];
+        material->emissive[3] = params[3];
+        break;
+    case GL_SHININESS:
+        material->shininess = params[0];
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void gl_set_material_parami(gl_material_t *material, GLenum pname, const GLint *params)
+{
+    switch (pname) {
+    case GL_AMBIENT:
+        material->ambient[0] = I32_TO_FLOAT(params[0]);
+        material->ambient[1] = I32_TO_FLOAT(params[1]);
+        material->ambient[2] = I32_TO_FLOAT(params[2]);
+        material->ambient[3] = I32_TO_FLOAT(params[3]);
+        break;
+    case GL_DIFFUSE:
+        material->diffuse[0] = I32_TO_FLOAT(params[0]);
+        material->diffuse[1] = I32_TO_FLOAT(params[1]);
+        material->diffuse[2] = I32_TO_FLOAT(params[2]);
+        material->diffuse[3] = I32_TO_FLOAT(params[3]);
+        break;
+    case GL_AMBIENT_AND_DIFFUSE:
+        material->ambient[0] = I32_TO_FLOAT(params[0]);
+        material->ambient[1] = I32_TO_FLOAT(params[1]);
+        material->ambient[2] = I32_TO_FLOAT(params[2]);
+        material->ambient[3] = I32_TO_FLOAT(params[3]);
+        material->diffuse[0] = I32_TO_FLOAT(params[0]);
+        material->diffuse[1] = I32_TO_FLOAT(params[1]);
+        material->diffuse[2] = I32_TO_FLOAT(params[2]);
+        material->diffuse[3] = I32_TO_FLOAT(params[3]);
+        break;
+    case GL_SPECULAR:
+        material->specular[0] = I32_TO_FLOAT(params[0]);
+        material->specular[1] = I32_TO_FLOAT(params[1]);
+        material->specular[2] = I32_TO_FLOAT(params[2]);
+        material->specular[3] = I32_TO_FLOAT(params[3]);
+        break;
+    case GL_EMISSION:
+        material->emissive[0] = I32_TO_FLOAT(params[0]);
+        material->emissive[1] = I32_TO_FLOAT(params[1]);
+        material->emissive[2] = I32_TO_FLOAT(params[2]);
+        material->emissive[3] = I32_TO_FLOAT(params[3]);
+        break;
+    case GL_SHININESS:
+        material->shininess = params[0];
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void glMaterialf(GLenum face, GLenum pname, GLfloat param)
+{
+    switch (pname) {
+    case GL_SHININESS:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    switch (face) {
+    case GL_FRONT:
+        gl_set_material_paramf(&state.materials[0], pname, &param);
+        break;
+    case GL_BACK:
+        gl_set_material_paramf(&state.materials[1], pname, &param);
+        break;
+    case GL_FRONT_AND_BACK:
+        gl_set_material_paramf(&state.materials[0], pname, &param);
+        gl_set_material_paramf(&state.materials[1], pname, &param);
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void glMateriali(GLenum face, GLenum pname, GLint param) { glMaterialf(face, pname, param); }
+
+void glMaterialiv(GLenum face, GLenum pname, const GLint *params)
+{
+    switch (pname) {
+    case GL_AMBIENT:
+    case GL_DIFFUSE:
+    case GL_AMBIENT_AND_DIFFUSE:
+    case GL_SPECULAR:
+    case GL_EMISSION:
+    case GL_SHININESS:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    switch (face) {
+    case GL_FRONT:
+        gl_set_material_parami(&state.materials[0], pname, params);
+        break;
+    case GL_BACK:
+        gl_set_material_parami(&state.materials[1], pname, params);
+        break;
+    case GL_FRONT_AND_BACK:
+        gl_set_material_parami(&state.materials[0], pname, params);
+        gl_set_material_parami(&state.materials[1], pname, params);
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void glMaterialfv(GLenum face, GLenum pname, const GLfloat *params)
+{
+    switch (pname) {
+    case GL_AMBIENT:
+    case GL_DIFFUSE:
+    case GL_AMBIENT_AND_DIFFUSE:
+    case GL_SPECULAR:
+    case GL_EMISSION:
+    case GL_SHININESS:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    switch (face) {
+    case GL_FRONT:
+        gl_set_material_paramf(&state.materials[0], pname, params);
+        break;
+    case GL_BACK:
+        gl_set_material_paramf(&state.materials[1], pname, params);
+        break;
+    case GL_FRONT_AND_BACK:
+        gl_set_material_paramf(&state.materials[0], pname, params);
+        gl_set_material_paramf(&state.materials[1], pname, params);
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+gl_light_t * gl_get_light(GLenum light)
+{
+    if (light < GL_LIGHT0 || light > GL_LIGHT7) {
+        gl_set_error(GL_INVALID_ENUM);
+        return NULL;
+    }
+
+    return &state.lights[light - GL_LIGHT0];
+}
+
+void glLightf(GLenum light, GLenum pname, GLfloat param)
+{
+    gl_light_t *l = gl_get_light(light);
+    if (l == NULL) {
+        return;
+    }
+
+    switch (pname) {
+    case GL_SPOT_EXPONENT:
+        l->spot_exponent = param;
+        break;
+    case GL_SPOT_CUTOFF:
+        l->spot_cutoff = param;
+        break;
+    case GL_CONSTANT_ATTENUATION:
+        l->constant_attenuation = param;
+        break;
+    case GL_LINEAR_ATTENUATION:
+        l->linear_attenuation = param;
+        break;
+    case GL_QUADRATIC_ATTENUATION:
+        l->quadratic_attenuation = param;
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void glLighti(GLenum light, GLenum pname, GLint param) { glLightf(light, pname, param); }
+
+void glLightiv(GLenum light, GLenum pname, const GLint *params)
+{
+    gl_light_t *l = gl_get_light(light);
+    if (l == NULL) {
+        return;
+    }
+
+    switch (pname) {
+    case GL_AMBIENT:
+        l->ambient[0] = I32_TO_FLOAT(params[0]);
+        l->ambient[1] = I32_TO_FLOAT(params[1]);
+        l->ambient[2] = I32_TO_FLOAT(params[2]);
+        l->ambient[3] = I32_TO_FLOAT(params[3]);
+        break;
+    case GL_DIFFUSE:
+        l->diffuse[0] = I32_TO_FLOAT(params[0]);
+        l->diffuse[1] = I32_TO_FLOAT(params[1]);
+        l->diffuse[2] = I32_TO_FLOAT(params[2]);
+        l->diffuse[3] = I32_TO_FLOAT(params[3]);
+        break;
+    case GL_SPECULAR:
+        l->specular[0] = I32_TO_FLOAT(params[0]);
+        l->specular[1] = I32_TO_FLOAT(params[1]);
+        l->specular[2] = I32_TO_FLOAT(params[2]);
+        l->specular[3] = I32_TO_FLOAT(params[3]);
+        break;
+    case GL_POSITION:
+        l->position[0] = params[0];
+        l->position[1] = params[1];
+        l->position[2] = params[2];
+        l->position[3] = params[3];
+        gl_matrix_mult(l->position, gl_matrix_stack_get_matrix(&state.modelview_stack), l->position);
+        break;
+    case GL_SPOT_DIRECTION:
+        l->direction[0] = params[0];
+        l->direction[1] = params[1];
+        l->direction[2] = params[2];
+        gl_matrix_mult3x3(l->direction, gl_matrix_stack_get_matrix(&state.modelview_stack), l->direction);
+        break;
+    case GL_SPOT_EXPONENT:
+        l->spot_exponent = params[0];
+        break;
+    case GL_SPOT_CUTOFF:
+        l->spot_cutoff = params[0];
+        break;
+    case GL_CONSTANT_ATTENUATION:
+        l->constant_attenuation = params[0];
+        break;
+    case GL_LINEAR_ATTENUATION:
+        l->linear_attenuation = params[0];
+        break;
+    case GL_QUADRATIC_ATTENUATION:
+        l->quadratic_attenuation = params[0];
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void glLightfv(GLenum light, GLenum pname, const GLfloat *params)
+{
+    gl_light_t *l = gl_get_light(light);
+    if (l == NULL) {
+        return;
+    }
+
+    switch (pname) {
+    case GL_AMBIENT:
+        l->ambient[0] = params[0];
+        l->ambient[1] = params[1];
+        l->ambient[2] = params[2];
+        l->ambient[3] = params[3];
+        break;
+    case GL_DIFFUSE:
+        l->diffuse[0] = params[0];
+        l->diffuse[1] = params[1];
+        l->diffuse[2] = params[2];
+        l->diffuse[3] = params[3];
+        break;
+    case GL_SPECULAR:
+        l->specular[0] = params[0];
+        l->specular[1] = params[1];
+        l->specular[2] = params[2];
+        l->specular[3] = params[3];
+        break;
+    case GL_POSITION:
+        gl_matrix_mult(l->position, gl_matrix_stack_get_matrix(&state.modelview_stack), params);
+        break;
+    case GL_SPOT_DIRECTION:
+        gl_matrix_mult3x3(l->direction, gl_matrix_stack_get_matrix(&state.modelview_stack), params);
+        break;
+    case GL_SPOT_EXPONENT:
+        l->spot_exponent = params[0];
+        break;
+    case GL_SPOT_CUTOFF:
+        l->spot_cutoff = params[0];
+        break;
+    case GL_CONSTANT_ATTENUATION:
+        l->constant_attenuation = params[0];
+        break;
+    case GL_LINEAR_ATTENUATION:
+        l->linear_attenuation = params[0];
+        break;
+    case GL_QUADRATIC_ATTENUATION:
+        l->quadratic_attenuation = params[0];
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void glLightModeli(GLenum pname, GLint param) 
+{
+    switch (pname) {
+    case GL_LIGHT_MODEL_LOCAL_VIEWER:
+        state.light_model_local_viewer = param != 0;
+        break;
+    case GL_LIGHT_MODEL_TWO_SIDE:
+        state.light_model_two_side = param != 0;
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+void glLightModelf(GLenum pname, GLfloat param) { glLightModeli(pname, param); }
+
+void glLightModeliv(GLenum pname, const GLint *params)
+{
+    switch (pname) {
+    case GL_LIGHT_MODEL_AMBIENT:
+        state.light_model_ambient[0] = I32_TO_FLOAT(params[0]);
+        state.light_model_ambient[1] = I32_TO_FLOAT(params[1]);
+        state.light_model_ambient[2] = I32_TO_FLOAT(params[2]);
+        state.light_model_ambient[3] = I32_TO_FLOAT(params[3]);
+        break;
+    case GL_LIGHT_MODEL_LOCAL_VIEWER:
+        state.light_model_local_viewer = params[0] != 0;
+        break;
+    case GL_LIGHT_MODEL_TWO_SIDE:
+        state.light_model_two_side = params[0] != 0;
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+void glLightModelfv(GLenum pname, const GLfloat *params)
+{
+    switch (pname) {
+    case GL_LIGHT_MODEL_AMBIENT:
+        state.light_model_ambient[0] = params[0];
+        state.light_model_ambient[1] = params[1];
+        state.light_model_ambient[2] = params[2];
+        state.light_model_ambient[3] = params[3];
+        break;
+    case GL_LIGHT_MODEL_LOCAL_VIEWER:
+        state.light_model_local_viewer = params[0] != 0;
+        break;
+    case GL_LIGHT_MODEL_TWO_SIDE:
+        state.light_model_two_side = params[0] != 0;
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void glColorMaterial(GLenum face, GLenum mode)
+{
+    switch (face) {
+    case GL_FRONT:
+        state.materials[0].color_target = mode;
+        break;
+    case GL_BACK:
+        state.materials[1].color_target = mode;
+        break;
+    case GL_FRONT_AND_BACK:
+        state.materials[0].color_target = mode;
+        state.materials[1].color_target = mode;
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void glShadeModel(GLenum mode)
+{
+    switch (mode) {
+    case GL_FLAT:
+    case GL_SMOOTH:
+        state.shade_model = mode;
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
 }
 
 void glCullFace(GLenum mode)
