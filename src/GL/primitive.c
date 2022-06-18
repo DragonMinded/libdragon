@@ -449,7 +449,7 @@ void glNormal3dv(const GLdouble *v) { glNormal3d(v[0], v[1], v[2]); }
 
 void glDepthRange(GLclampd n, GLclampd f)
 {
-    state.current_viewport.scale[2] = ((f - n) * -0.5f) * 0x7FE0;
+    state.current_viewport.scale[2] = ((f - n) * 0.5f) * 0x7FE0;
     state.current_viewport.offset[2] = (n + (f - n) * 0.5f) * 0x7FE0;
 }
 
