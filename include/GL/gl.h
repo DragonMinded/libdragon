@@ -632,7 +632,7 @@ void glCopyPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum type);
 
 /* Bitmaps */
 
-#define GL_BITMAP   0x1234
+#define GL_BITMAP   0x1A00
 
 void glBitmap(GLsizei w, GLsizei h, GLfloat xbo, GLfloat ybo, GLfloat xbi, GLfloat ybi, const GLubyte *data);
 
