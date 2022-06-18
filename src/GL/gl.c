@@ -69,6 +69,7 @@ void gl_init()
     glFrontFace(GL_CCW);
     glBlendFunc(GL_ONE, GL_ZERO);
     glDepthFunc(GL_LESS);
+    glAlphaFunc(GL_ALWAYS, 0.0f);
 
     state.is_rendermode_dirty = true;
     state.is_scissor_dirty = true;
@@ -119,6 +120,9 @@ void gl_set_flag(GLenum target, bool value)
         break;
     case GL_BLEND:
         GL_SET_STATE(state.blend, value, state.is_rendermode_dirty);
+        break;
+    case GL_ALPHA_TEST:
+        GL_SET_STATE(state.alpha_test, value, state.is_rendermode_dirty);
         break;
     case GL_LIGHTING:
         state.lighting = value;

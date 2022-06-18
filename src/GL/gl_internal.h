@@ -143,10 +143,14 @@ typedef struct {
 
     GLenum depth_func;
 
+    GLenum alpha_func;
+    GLclampf alpha_ref;
+
     bool scissor_test;
     bool depth_test;
     bool texture_2d;
     bool blend;
+    bool alpha_test;
     bool lighting;
     bool color_material;
 

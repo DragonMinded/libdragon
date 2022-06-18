@@ -6,7 +6,8 @@ extern gl_state_t state;
 bool gl_is_invisible()
 {
     return state.draw_buffer == GL_NONE 
-        || (state.depth_test && state.depth_func == GL_NEVER);
+        || (state.depth_test && state.depth_func == GL_NEVER)
+        || (state.alpha_test && state.alpha_func == GL_NEVER);
 }
 
 void gl_update_scissor()
@@ -56,6 +57,10 @@ void gl_update_render_mode()
     if (state.blend) {
         // TODO: derive the blender config from blend_src and blend_dst
         modes |= SOM_BLENDING | Blend(PIXEL_RGB, MUX_ALPHA, MEMORY_RGB, INV_MUX_ALPHA);
+    }
+
+    if (state.alpha_test && state.alpha_func == GL_GREATER) {
+        modes |= SOM_ALPHA_COMPARE;
     }
     
     if (state.texture_2d) {
@@ -143,6 +148,29 @@ void glDepthFunc(GLenum func)
     case GL_NOTEQUAL:
     case GL_GEQUAL:
         assertf(0, "Depth func not supported: %lx", func);
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void glAlphaFunc(GLenum func, GLclampf ref)
+{
+    switch (func) {
+    case GL_NEVER:
+    case GL_GREATER:
+    case GL_ALWAYS:
+        GL_SET_STATE(state.alpha_func, func, state.is_rendermode_dirty);
+        state.alpha_ref = ref;
+        rdpq_set_blend_color(RGBA32(0, 0, 0, FLOAT_TO_U8(ref)));
+        break;
+    case GL_EQUAL:
+    case GL_LEQUAL:
+    case GL_LESS:
+    case GL_NOTEQUAL:
+    case GL_GEQUAL:
+        assertf(0, "Alpha func not supported: %lx", func);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
