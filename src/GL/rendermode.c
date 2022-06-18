@@ -42,6 +42,12 @@ void gl_update_render_mode()
     uint64_t modes = SOM_CYCLE_1;
     uint64_t combine = 0;
 
+    if (state.dither) {
+        modes |= SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_SQUARE;
+    } else {
+        modes |= SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE;
+    }
+
     if (0 /* antialiasing */) {
         modes |= SOM_AA_ENABLE | SOM_READ_ENABLE | SOM_COLOR_ON_COVERAGE | SOM_COVERAGE_DEST_CLAMP | SOM_ALPHA_USE_CVG;
     }

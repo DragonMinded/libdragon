@@ -124,6 +124,9 @@ void gl_set_flag(GLenum target, bool value)
     case GL_ALPHA_TEST:
         GL_SET_STATE(state.alpha_test, value, state.is_rendermode_dirty);
         break;
+    case GL_DITHER:
+        GL_SET_STATE(state.dither, value, state.is_rendermode_dirty);
+        break;
     case GL_LIGHTING:
         state.lighting = value;
         break;

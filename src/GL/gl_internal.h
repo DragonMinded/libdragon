@@ -151,6 +151,7 @@ typedef struct {
     bool texture_2d;
     bool blend;
     bool alpha_test;
+    bool dither;
     bool lighting;
     bool color_material;
 
