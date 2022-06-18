@@ -38,6 +38,12 @@
 #define I16_TO_FLOAT(x) MAX((x)/(float)(0x7FFF),-1.f)
 #define I32_TO_FLOAT(x) MAX((x)/(float)(0x7FFFFFFF),-1.f)
 
+#define GL_SET_STATE(var, value, dirty_flag) ({ \
+    if (value != var) { \
+        dirty_flag = true; \
+    } \
+    var = value; \
+})
 
 typedef struct {
     surface_t *color_buffer;
@@ -179,13 +185,12 @@ typedef struct {
     GLenum shade_model;
 
     bool is_scissor_dirty;
+    bool is_rendermode_dirty;
 } gl_state_t;
 
 void gl_matrix_init();
 void gl_texture_init();
 void gl_lighting_init();
-
-void gl_apply_scissor();
 
 void gl_set_error(GLenum error);
 
@@ -196,7 +201,9 @@ void gl_matrix_mult3x3(GLfloat *d, const gl_matrix_t *m, const GLfloat *v);
 
 bool gl_is_invisible();
 
+void gl_update_scissor();
 void gl_update_render_mode();
+void gl_update_texture();
 
 void gl_perform_lighting(GLfloat *color, const GLfloat *position, const gl_material_t *material);
 

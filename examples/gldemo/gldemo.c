@@ -8,16 +8,9 @@ static sprite_t *circle_sprite;
 static float rotation = 1.0f;
 static float aspect_ratio;
 
-void render()
+void setup()
 {
-    glClearColor(0.0f, 0.0f, 0.0f, 1.f);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    //glFrustum(-1*aspect_ratio, 1*aspect_ratio, -1, 1, 1, 10);
-    //glTranslatef(0, 0, -3);
-    glOrtho(-2*aspect_ratio, 2*aspect_ratio, -2, 2, -5, 5);
+    aspect_ratio = (float)display_get_width() / (float)display_get_height();
 
     glEnable(GL_CULL_FACE);
     glEnable(GL_TEXTURE_2D);
@@ -25,10 +18,11 @@ void render()
     glEnable(GL_LIGHT0);
     glEnable(GL_COLOR_MATERIAL);
 
-    GLfloat diffuse[] = { 1, 1, 1, 1 };
-    glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse);
-    glLightf(GL_LIGHT0, GL_CONSTANT_ATTENUATION, 0.0f);
-    glLightf(GL_LIGHT0, GL_QUADRATIC_ATTENUATION, 1.0f/6.0f);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glFrustum(-1*aspect_ratio, 1*aspect_ratio, -1, 1, 1, 10);
+    glTranslatef(0, 0, -3);
+    //glOrtho(-2*aspect_ratio, 2*aspect_ratio, -2, 2, -5, 5);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
@@ -38,14 +32,27 @@ void render()
 
     GLfloat spot_dir[] = { 0, 0, -2 };
     glLightfv(GL_LIGHT0, GL_SPOT_DIRECTION, spot_dir);
-    
-    glRotatef(rotation, 0, 1, 0);
-    glRotatef(rotation*1.35f, 1, 0, 0);
-    glRotatef(rotation*0.62f, 0, 0, 1);
+
+    GLfloat diffuse[] = { 1, 1, 1, 1 };
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse);
+    glLightf(GL_LIGHT0, GL_CONSTANT_ATTENUATION, 0.0f);
+    glLightf(GL_LIGHT0, GL_QUADRATIC_ATTENUATION, 1.0f/6.0f);
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, circle_sprite->width, circle_sprite->height, 0, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1_EXT, circle_sprite->data);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+}
+
+void render()
+{
+    glClearColor(0.0f, 0.0f, 0.0f, 1.f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    glRotatef(rotation, 0, 1, 0);
+    glRotatef(rotation*1.35f, 1, 0, 0);
+    glRotatef(rotation*0.62f, 0, 0, 1);
 
     glBegin(GL_TRIANGLE_STRIP);
 
@@ -178,7 +185,7 @@ int main()
 
     gl_init();
 
-    aspect_ratio = (float)display_get_width() / (float)display_get_height();
+    setup();
 
     while (1)
     {

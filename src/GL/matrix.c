@@ -15,6 +15,9 @@ void gl_matrix_init()
         .size = PROJECTION_STACK_SIZE,
     };
 
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 }

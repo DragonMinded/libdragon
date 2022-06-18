@@ -3,20 +3,13 @@
 
 extern gl_state_t state;
 
-uint32_t gl_log2(uint32_t s)
-{
-    uint32_t log = 0;
-    while (s >>= 1) ++log;
-    return log;
-}
-
 bool gl_is_invisible()
 {
     return state.draw_buffer == GL_NONE 
         || (state.depth_test && state.depth_func == GL_NEVER);
 }
 
-void gl_apply_scissor()
+void gl_update_scissor()
 {
     if (!state.is_scissor_dirty) {
         return;
@@ -35,13 +28,18 @@ void gl_apply_scissor()
     } else {
         rdpq_set_scissor(0, 0, w, h);
     }
+
+    state.is_scissor_dirty = false;
 }
 
 void gl_update_render_mode()
 {
-    gl_apply_scissor();
+    if (!state.is_rendermode_dirty) {
+        return;
+    }
 
     uint64_t modes = SOM_CYCLE_1;
+    uint64_t combine = 0;
 
     if (0 /* antialiasing */) {
         modes |= SOM_AA_ENABLE | SOM_READ_ENABLE | SOM_COLOR_ON_COVERAGE | SOM_COVERAGE_DEST_CLAMP | SOM_ALPHA_USE_CVG;
@@ -63,33 +61,19 @@ void gl_update_render_mode()
     if (state.texture_2d) {
         modes |= SOM_TEXTURE_PERSP | SOM_TC_FILTER;
 
-        tex_format_t fmt = gl_texture_get_format(&state.texture_2d_object);
-
-        gl_texture_object_t *tex_obj = &state.texture_2d_object;
-
-        if (tex_obj->mag_filter == GL_LINEAR) {
+        if (state.texture_2d_object.mag_filter == GL_LINEAR) {
             modes |= SOM_SAMPLE_2X2;
         }
 
-        rdpq_set_combine_mode(Comb_Rgb(TEX0, ZERO, SHADE, ZERO) | Comb_Alpha(TEX0, ZERO, SHADE, ZERO));
-
-        if (tex_obj->is_dirty) {
-            // TODO: min filter (mip mapping?)
-            // TODO: border color?
-            rdpq_set_texture_image(tex_obj->data, fmt, tex_obj->width);
-
-            uint8_t mask_s = tex_obj->wrap_s == GL_REPEAT ? gl_log2(tex_obj->width) : 0;
-            uint8_t mask_t = tex_obj->wrap_t == GL_REPEAT ? gl_log2(tex_obj->height) : 0;
-
-            rdpq_set_tile_full(0, fmt, 0, tex_obj->width * TEX_FORMAT_BYTES_PER_PIXEL(fmt), 0, 0, 0, mask_t, 0, 0, 0, mask_s, 0);
-            rdpq_load_tile(0, 0, 0, tex_obj->width, tex_obj->height);
-            tex_obj->is_dirty = false;
-        }
+        combine = Comb_Rgb(TEX0, ZERO, SHADE, ZERO) | Comb_Alpha(TEX0, ZERO, SHADE, ZERO);
     } else {
-        rdpq_set_combine_mode(Comb_Rgb(ONE, ZERO, SHADE, ZERO) | Comb_Alpha(ONE, ZERO, SHADE, ZERO));
+        combine = Comb_Rgb(ONE, ZERO, SHADE, ZERO) | Comb_Alpha(ONE, ZERO, SHADE, ZERO);
     }
 
+    rdpq_set_combine_mode(combine);
     rdpq_set_other_modes(modes);
+
+    state.is_rendermode_dirty = false;
 }
 
 void glScissor(GLint left, GLint bottom, GLsizei width, GLsizei height)
@@ -142,6 +126,7 @@ void glBlendFunc(GLenum src, GLenum dst)
 
     state.blend_src = src;
     state.blend_dst = dst;
+    state.is_rendermode_dirty = true;
 }
 
 void glDepthFunc(GLenum func)
@@ -150,7 +135,7 @@ void glDepthFunc(GLenum func)
     case GL_NEVER:
     case GL_LESS:
     case GL_ALWAYS:
-        state.depth_func = func;
+        GL_SET_STATE(state.depth_func, func, state.is_rendermode_dirty);
         break;
     case GL_EQUAL:
     case GL_LEQUAL:

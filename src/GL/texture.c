@@ -1,4 +1,5 @@
 #include "gl_internal.h"
+#include "rdpq.h"
 #include "debug.h"
 
 extern gl_state_t state;
@@ -11,6 +12,13 @@ void gl_texture_init()
         .min_filter = GL_NEAREST_MIPMAP_LINEAR,
         .mag_filter = GL_LINEAR,
     };
+}
+
+uint32_t gl_log2(uint32_t s)
+{
+    uint32_t log = 0;
+    while (s >>= 1) ++log;
+    return log;
 }
 
 tex_format_t gl_texture_get_format(const gl_texture_object_t *texture_object)
@@ -142,6 +150,20 @@ gl_texture_object_t * gl_get_texture_object(GLenum target)
     }
 }
 
+gl_texture_object_t * gl_get_active_texture()
+{
+    if (state.texture_2d) {
+        return &state.texture_2d_object;
+    }
+
+    return NULL;
+}
+
+bool gl_texture_is_active(gl_texture_object_t *texture)
+{
+    return texture == gl_get_active_texture();
+}
+
 void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
     gl_texture_object_t *obj = gl_get_texture_object(target);
@@ -206,8 +228,7 @@ void gl_texture_set_wrap_s(gl_texture_object_t *obj, GLenum param)
     switch (param) {
     case GL_CLAMP:
     case GL_REPEAT:
-        obj->wrap_s = param;
-        obj->is_dirty = true;
+        GL_SET_STATE(obj->wrap_s, param, obj->is_dirty);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -220,8 +241,7 @@ void gl_texture_set_wrap_t(gl_texture_object_t *obj, GLenum param)
     switch (param) {
     case GL_CLAMP:
     case GL_REPEAT:
-        obj->wrap_t = param;
-        obj->is_dirty = true;
+        GL_SET_STATE(obj->wrap_t, param, obj->is_dirty);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -238,8 +258,7 @@ void gl_texture_set_min_filter(gl_texture_object_t *obj, GLenum param)
     case GL_LINEAR_MIPMAP_NEAREST:
     case GL_NEAREST_MIPMAP_LINEAR:
     case GL_LINEAR_MIPMAP_LINEAR:
-        obj->min_filter = param;
-        obj->is_dirty = true;
+        GL_SET_STATE(obj->min_filter, param, obj->is_dirty);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -252,8 +271,10 @@ void gl_texture_set_mag_filter(gl_texture_object_t *obj, GLenum param)
     switch (param) {
     case GL_NEAREST:
     case GL_LINEAR:
-        obj->mag_filter = param;
-        obj->is_dirty = true;
+        GL_SET_STATE(obj->mag_filter, param, obj->is_dirty);
+        if (obj->is_dirty && gl_texture_is_active(obj)) {
+            state.is_rendermode_dirty = true;
+        }
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -396,4 +417,27 @@ void glTexParameterfv(GLenum target, GLenum pname, const GLfloat *params)
         gl_set_error(GL_INVALID_ENUM);
         return;
     }
+}
+
+void gl_update_texture()
+{
+    gl_texture_object_t *tex_obj = gl_get_active_texture();
+
+    if (tex_obj == NULL || !tex_obj->is_dirty) {
+        return;
+    }
+
+    tex_format_t fmt = gl_texture_get_format(tex_obj);
+
+    // TODO: min filter (mip mapping?)
+    // TODO: border color?
+    rdpq_set_texture_image(tex_obj->data, fmt, tex_obj->width);
+
+    uint8_t mask_s = tex_obj->wrap_s == GL_REPEAT ? gl_log2(tex_obj->width) : 0;
+    uint8_t mask_t = tex_obj->wrap_t == GL_REPEAT ? gl_log2(tex_obj->height) : 0;
+
+    rdpq_set_tile_full(0, fmt, 0, tex_obj->width * TEX_FORMAT_BYTES_PER_PIXEL(fmt), 0, 0, 0, mask_t, 0, 0, 0, mask_s, 0);
+    rdpq_load_tile(0, 0, 0, tex_obj->width, tex_obj->height);
+
+    tex_obj->is_dirty = false;
 }

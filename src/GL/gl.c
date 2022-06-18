@@ -25,7 +25,12 @@ void gl_set_framebuffer(gl_framebuffer_t *framebuffer)
 void gl_set_default_framebuffer()
 {
     surface_t *ctx;
-    while (!(ctx = display_lock()));
+
+    RSP_WAIT_LOOP(200) {
+        if ((ctx = display_lock())) {
+            break;
+        }
+    }
 
     gl_framebuffer_t *fb = &state.default_framebuffer;
 
@@ -65,10 +70,10 @@ void gl_init()
     glBlendFunc(GL_ONE, GL_ZERO);
     glDepthFunc(GL_LESS);
 
-    rdpq_set_other_modes(0);
-    gl_set_default_framebuffer();
+    state.is_rendermode_dirty = true;
+    state.is_scissor_dirty = true;
 
-    glScissor(0, 0, state.cur_framebuffer->color_buffer->width, state.cur_framebuffer->color_buffer->height);
+    gl_set_default_framebuffer();
 }
 
 void gl_close()
@@ -107,13 +112,13 @@ void gl_set_flag(GLenum target, bool value)
         state.cull_face = value;
         break;
     case GL_DEPTH_TEST:
-        state.depth_test = value;
+        GL_SET_STATE(state.depth_test, value, state.is_rendermode_dirty);
         break;
     case GL_TEXTURE_2D:
-        state.texture_2d = value;
+        GL_SET_STATE(state.texture_2d, value, state.is_rendermode_dirty);
         break;
     case GL_BLEND:
-        state.blend = value;
+        GL_SET_STATE(state.blend, value, state.is_rendermode_dirty);
         break;
     case GL_LIGHTING:
         state.lighting = value;
@@ -187,7 +192,9 @@ void glClear(GLbitfield buf)
     assert_framebuffer();
 
     rdpq_set_other_modes(SOM_CYCLE_FILL);
-    gl_apply_scissor();
+    state.is_rendermode_dirty = true;
+
+    gl_update_scissor();
 
     gl_framebuffer_t *fb = state.cur_framebuffer;
 

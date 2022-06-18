@@ -38,7 +38,9 @@ void glBegin(GLenum mode)
         return;
     }
 
+    gl_update_scissor();
     gl_update_render_mode();
+    gl_update_texture();
 }
 
 void glEnd(void)
