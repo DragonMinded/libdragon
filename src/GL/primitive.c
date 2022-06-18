@@ -23,16 +23,25 @@ void glBegin(GLenum mode)
     switch (mode) {
     case GL_TRIANGLES:
     case GL_TRIANGLE_STRIP:
+    case GL_QUAD_STRIP:
+        // These primitive types don't need to lock any vertices
+        state.vertex_cache_locked = -1;
+        break;
     case GL_TRIANGLE_FAN:
-        state.immediate_mode = mode;
-        state.next_vertex = 0;
-        state.triangle_progress = 0;
-        state.triangle_counter = 0;
+    case GL_QUADS:
+    case GL_POLYGON:
+        // Lock the first vertex in the cache
+        state.vertex_cache_locked = 0;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
         return;
     }
+
+    state.immediate_mode = mode;
+    state.next_vertex = 0;
+    state.triangle_progress = 0;
+    state.triangle_counter = 0;
 
     if (gl_is_invisible()) {
         return;
@@ -234,17 +243,43 @@ void gl_vertex_cache_changed()
     gl_vertex_t *v1 = &state.vertex_cache[state.triangle_indices[1]];
     gl_vertex_t *v2 = &state.vertex_cache[state.triangle_indices[2]];
 
+    // TODO: Quads and quad strips are technically not quite conformant to the spec
+    //       because incomplete quads are still rendered (only the first triangle)
+
     switch (state.immediate_mode) {
     case GL_TRIANGLES:
+        // Reset the triangle progress to zero since we start with a completely new primitive that
+        // won't share any vertices with the previous ones
         state.triangle_progress = 0;
         break;
     case GL_TRIANGLE_STRIP:
+    case GL_QUAD_STRIP:
+        // The next triangle will share two vertices with the previous one, so reset progress to 2
         state.triangle_progress = 2;
+        // Which vertices are shared depends on whether the triangle counter is odd or even
         state.triangle_indices[state.triangle_counter % 2] = state.triangle_indices[2];
         break;
+    case GL_POLYGON:
     case GL_TRIANGLE_FAN:
+        // The next triangle will share two vertices with the previous one, so reset progress to 2
+        // It will always share the last one and the very first vertex that was specified.
+        // To make sure the first vertex is not overwritten it was locked earlier (see glBegin)
         state.triangle_progress = 2;
         state.triangle_indices[1] = state.triangle_indices[2];
+        break;
+    case GL_QUADS:
+        if (state.triangle_counter % 2 == 0) {
+            // We have just finished the first of two triangles in this quad. This means the next
+            // triangle will share the first vertex and the last.
+            // To make sure the first vertex is not overwritten it was locked earlier (see glBegin)
+            state.triangle_progress = 2;
+            state.triangle_indices[1] = state.triangle_indices[2];
+        } else {
+            // We have just finished the second triangle of this quad, so reset the triangle progress completely.
+            // Also reset the cache counter so the next vertex will be locked again.
+            state.triangle_progress = 0;
+            state.next_vertex = 0;
+        }
         break;
     }
 
@@ -304,7 +339,12 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 
     state.triangle_indices[state.triangle_progress] = state.next_vertex;
 
-    state.next_vertex = (state.next_vertex + 1) % 3;
+    // Acquire the next vertex in the cache that is writable.
+    // Up to one vertex can be locked to keep it from being overwritten.
+    do {
+        state.next_vertex = (state.next_vertex + 1) % VERTEX_CACHE_SIZE;
+    } while (state.next_vertex == state.vertex_cache_locked);
+    
     state.triangle_progress++;
 
     gl_vertex_cache_changed();

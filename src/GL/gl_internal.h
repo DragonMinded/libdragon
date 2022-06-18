@@ -10,6 +10,8 @@
 #define MODELVIEW_STACK_SIZE  32
 #define PROJECTION_STACK_SIZE 2
 
+#define VERTEX_CACHE_SIZE     3
+
 #define CLIPPING_PLANE_COUNT  6
 #define CLIPPING_CACHE_SIZE   9
 
@@ -155,7 +157,8 @@ typedef struct {
     bool lighting;
     bool color_material;
 
-    gl_vertex_t vertex_cache[3];
+    gl_vertex_t vertex_cache[VERTEX_CACHE_SIZE];
+    uint32_t vertex_cache_locked;
     uint32_t triangle_indices[3];
     uint32_t next_vertex;
     uint32_t triangle_progress;
