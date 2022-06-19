@@ -16,7 +16,7 @@ set -euo pipefail
 IFS=$'\n\t'
 
 # Set N64_INST before calling the script to change the default installation directory path
-INSTALL_PATH="${N64_INST:-/usr/local}"
+INSTALL_PATH="${N64_INST}"
 # Set PATH for newlib to compile using GCC for MIPS N64 (pass 1)
 export PATH="$PATH:$INSTALL_PATH/bin"
 
