@@ -194,6 +194,23 @@ void glDrawBuffer(GLenum buf)
     }
 }
 
+void glIndexMask(GLuint mask)
+{
+    assertf(0, "Masking is not supported!");
+}
+void glColorMask(GLboolean r, GLboolean g, GLboolean b, GLboolean a)
+{
+    assertf(0, "Masking is not supported!");
+}
+void glDepthMask(GLboolean mask)
+{
+    assertf(0, "Masking is not supported!");
+}
+void glStencilMask(GLuint mask)
+{
+    assertf(0, "Masking is not supported!");
+}
+
 void glClear(GLbitfield buf)
 {
     assert_framebuffer();
@@ -204,6 +221,10 @@ void glClear(GLbitfield buf)
     gl_update_scissor();
 
     gl_framebuffer_t *fb = state.cur_framebuffer;
+
+    if (buf & (GL_STENCIL_BUFFER_BIT | GL_ACCUM_BUFFER_BIT)) {
+        assertf(0, "Only color and depth buffers are supported!");
+    }
 
     if (buf & GL_DEPTH_BUFFER_BIT) {
         rdpq_set_color_image_no_scissor(fb->depth_buffer, FMT_RGBA16, fb->color_buffer->width, fb->color_buffer->height, fb->color_buffer->width * 2);
@@ -236,6 +257,21 @@ void glClearDepth(GLclampd d)
     state.clear_depth = d;
 }
 
+void glRenderMode(GLenum mode)
+{
+    switch (mode) {
+    case GL_RENDER:
+        break;
+    case GL_SELECT:
+    case GL_FEEDBACK:
+        assertf(0, "Select and feedback modes are not supported!");
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
 void glFlush(void)
 {
     rspq_flush();
@@ -244,4 +280,72 @@ void glFlush(void)
 void glFinish(void)
 {
     rspq_wait();
+}
+
+void glClearIndex(GLfloat index)
+{
+    // TODO: Can we support index mode?
+    assertf(0, "Clear index is not supported!");
+}
+
+void glClearStencil(GLint s)
+{
+    assertf(0, "Clear stencil is not supported!");
+}
+
+void glClearAccum(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
+{
+    assertf(0, "Clear accum is not supported!");
+}
+
+void glAccum(GLenum op, GLfloat value)
+{
+    assertf(0, "Accumulation buffer is not supported!");
+}
+
+void glInitNames(void)
+{
+    assertf(0, "Selection mode is not supported!");
+}
+void glPopName(void)
+{
+    assertf(0, "Selection mode is not supported!");
+}
+void glPushName(GLint name)
+{
+    assertf(0, "Selection mode is not supported!");
+}
+void glLoadName(GLint name)
+{
+    assertf(0, "Selection mode is not supported!");
+}
+void glSelectBuffer(GLsizei n, GLuint *buffer)
+{
+    assertf(0, "Selection mode is not supported!");
+}
+
+void glFeedbackBuffer(GLsizei n, GLenum type, GLfloat *buffer)
+{
+    assertf(0, "Feedback mode is not supported!");
+}
+void glPassThrough(GLfloat token)
+{
+    assertf(0, "Feedback mode is not supported!");
+}
+
+void glPushAttrib(GLbitfield mask)
+{
+    assertf(0, "Attribute stack is not supported!");
+}
+void glPushClientAttrib(GLbitfield mask)
+{
+    assertf(0, "Attribute stack is not supported!");
+}
+void glPopAttrib(void)
+{
+    assertf(0, "Attribute stack is not supported!");
+}
+void glPopClientAttrib(void)
+{
+    assertf(0, "Attribute stack is not supported!");
 }
