@@ -3,6 +3,22 @@
 
 extern gl_state_t state;
 
+void gl_rendermode_init()
+{
+    state.fog_start = 0.0f;
+    state.fog_end = 1.0f;
+
+    state.is_rendermode_dirty = true;
+    state.is_scissor_dirty = true;
+
+    glBlendFunc(GL_ONE, GL_ZERO);
+    glDepthFunc(GL_LESS);
+    glAlphaFunc(GL_ALWAYS, 0.0f);
+
+    GLfloat fog_color[] = {0, 0, 0, 0};
+    glFogfv(GL_FOG_COLOR, fog_color);
+}
+
 bool gl_is_invisible()
 {
     return state.draw_buffer == GL_NONE 
@@ -65,6 +81,10 @@ void gl_update_render_mode()
         modes |= SOM_BLENDING | Blend(PIXEL_RGB, MUX_ALPHA, MEMORY_RGB, INV_MUX_ALPHA);
     }
 
+    if (state.fog) {
+        modes |= SOM_BLENDING | Blend(PIXEL_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA);
+    }
+
     if (state.alpha_test && state.alpha_func == GL_GREATER) {
         modes |= SOM_ALPHA_COMPARE;
     }
@@ -85,6 +105,96 @@ void gl_update_render_mode()
     rdpq_set_other_modes(modes);
 
     state.is_rendermode_dirty = false;
+}
+
+void glFogi(GLenum pname, GLint param)
+{
+    switch (pname) {
+    case GL_FOG_MODE:
+        assertf(param == GL_LINEAR, "Only linear fog is supported!");
+        break;
+    case GL_FOG_START:
+        state.fog_start = param;
+        break;
+    case GL_FOG_END:
+        state.fog_end = param;
+        break;
+    case GL_FOG_DENSITY:
+    case GL_FOG_INDEX:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void glFogf(GLenum pname, GLfloat param)
+{
+    switch (pname) {
+    case GL_FOG_MODE:
+        assertf(param == GL_LINEAR, "Only linear fog is supported!");
+        break;
+    case GL_FOG_START:
+        state.fog_start = param;
+        break;
+    case GL_FOG_END:
+        state.fog_end = param;
+        break;
+    case GL_FOG_DENSITY:
+    case GL_FOG_INDEX:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void glFogiv(GLenum pname, const GLint *params)
+{
+    switch (pname) {
+    case GL_FOG_COLOR:
+        rdpq_set_fog_color(RGBA32(
+            MAX(params[0]>>23, 0),
+            MAX(params[1]>>23, 0),
+            MAX(params[2]>>23, 0),
+            MAX(params[3]>>23, 0)
+        ));
+        break;
+    case GL_FOG_MODE:
+    case GL_FOG_START:
+    case GL_FOG_END:
+    case GL_FOG_DENSITY:
+    case GL_FOG_INDEX:
+        glFogi(pname, params[0]);
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void glFogfv(GLenum pname, const GLfloat *params)
+{
+    switch (pname) {
+    case GL_FOG_COLOR:
+        rdpq_set_fog_color(RGBA32(
+            FLOAT_TO_U8(params[0]),
+            FLOAT_TO_U8(params[1]),
+            FLOAT_TO_U8(params[2]),
+            FLOAT_TO_U8(params[3])
+        ));
+        break;
+    case GL_FOG_MODE:
+    case GL_FOG_START:
+    case GL_FOG_END:
+    case GL_FOG_DENSITY:
+    case GL_FOG_INDEX:
+        glFogf(pname, params[0]);
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
 }
 
 void glScissor(GLint left, GLint bottom, GLsizei width, GLsizei height)

@@ -61,18 +61,13 @@ void gl_init()
     gl_matrix_init();
     gl_lighting_init();
     gl_texture_init();
+    gl_rendermode_init();
 
     glDrawBuffer(GL_FRONT);
     glDepthRange(0, 1);
     glClearDepth(1.0);
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
-    glBlendFunc(GL_ONE, GL_ZERO);
-    glDepthFunc(GL_LESS);
-    glAlphaFunc(GL_ALWAYS, 0.0f);
-
-    state.is_rendermode_dirty = true;
-    state.is_scissor_dirty = true;
 
     gl_set_default_framebuffer();
 }
@@ -127,6 +122,8 @@ void gl_set_flag(GLenum target, bool value)
     case GL_DITHER:
         GL_SET_STATE(state.dither, value, state.is_rendermode_dirty);
         break;
+    case GL_FOG:
+        GL_SET_STATE(state.fog, value, state.is_rendermode_dirty);
     case GL_LIGHTING:
         state.lighting = value;
         break;

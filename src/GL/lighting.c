@@ -130,7 +130,7 @@ const GLfloat * gl_material_get_color(const gl_material_t *material, GLenum colo
     }
 }
 
-void gl_perform_lighting(GLfloat *color, const GLfloat *position, const gl_material_t *material)
+void gl_perform_lighting(GLfloat *color, const GLfloat *v, const GLfloat *n, const gl_material_t *material)
 {
     const GLfloat *emissive = gl_material_get_color(material, GL_EMISSION);
     const GLfloat *ambient = gl_material_get_color(material, GL_AMBIENT);
@@ -142,14 +142,6 @@ void gl_perform_lighting(GLfloat *color, const GLfloat *position, const gl_mater
     color[1] = emissive[1] + ambient[1] * state.light_model_ambient[1];
     color[2] = emissive[2] + ambient[2] * state.light_model_ambient[2];
     color[3] = diffuse[3];
-
-    const gl_matrix_t *mv = gl_matrix_stack_get_matrix(&state.modelview_stack);
-
-    GLfloat v[4];
-    gl_matrix_mult(v, mv, position);
-
-    GLfloat n[3];
-    gl_matrix_mult3x3(n, mv, state.current_normal);
 
     for (uint32_t l = 0; l < LIGHT_COUNT; l++)
     {

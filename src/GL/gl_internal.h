@@ -148,6 +148,9 @@ typedef struct {
     GLenum alpha_func;
     GLclampf alpha_ref;
 
+    GLfloat fog_start;
+    GLfloat fog_end;
+
     bool scissor_test;
     bool depth_test;
     bool texture_2d;
@@ -155,6 +158,7 @@ typedef struct {
     bool alpha_test;
     bool dither;
     bool lighting;
+    bool fog;
     bool color_material;
 
     gl_vertex_t vertex_cache[VERTEX_CACHE_SIZE];
@@ -199,6 +203,7 @@ typedef struct {
 void gl_matrix_init();
 void gl_texture_init();
 void gl_lighting_init();
+void gl_rendermode_init();
 
 void gl_set_error(GLenum error);
 
@@ -213,7 +218,7 @@ void gl_update_scissor();
 void gl_update_render_mode();
 void gl_update_texture();
 
-void gl_perform_lighting(GLfloat *color, const GLfloat *position, const gl_material_t *material);
+void gl_perform_lighting(GLfloat *color, const GLfloat *v, const GLfloat *n, const gl_material_t *material);
 
 tex_format_t gl_texture_get_format(const gl_texture_object_t *texture_object);
 

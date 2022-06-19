@@ -304,11 +304,21 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 
     gl_vertex_t *v = &state.vertex_cache[state.next_vertex];
 
-    GLfloat tmp[] = {x, y, z, w};
+    GLfloat pos[] = {x, y, z, w};
+    GLfloat eye_pos[4];
+
+    const gl_matrix_t *mv = gl_matrix_stack_get_matrix(&state.modelview_stack);
+
+    if (state.lighting || state.fog) {
+        gl_matrix_mult(eye_pos, mv, pos);
+    }
 
     if (state.lighting) {
+        GLfloat eye_normal[3];
+        gl_matrix_mult3x3(eye_normal, mv, state.current_normal);
+
         // TODO: Back face material?
-        gl_perform_lighting(v->color, tmp, &state.materials[0]);
+        gl_perform_lighting(v->color, eye_pos, eye_normal, &state.materials[0]);
     } else {
         v->color[0] = state.current_color[0];
         v->color[1] = state.current_color[1];
@@ -316,12 +326,16 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
         v->color[3] = state.current_color[3];
     }
 
+    if (state.fog) {
+        v->color[3] = (state.fog_end - fabsf(eye_pos[2])) / (state.fog_end - state.fog_start);
+    }
+
     v->color[0] = CLAMP01(v->color[0]) * 255.f;
     v->color[1] = CLAMP01(v->color[1]) * 255.f;
     v->color[2] = CLAMP01(v->color[2]) * 255.f;
     v->color[3] = CLAMP01(v->color[3]) * 255.f;
 
-    gl_matrix_mult(v->position, &state.final_matrix, tmp);
+    gl_matrix_mult(v->position, &state.final_matrix, pos);
     gl_vertex_calc_screenspace(v);
 
     if (state.texture_2d) {
