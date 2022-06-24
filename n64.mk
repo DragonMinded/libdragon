@@ -101,10 +101,11 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.S
 		SYMPREFIX="$(subst .,_,$(subst /,_,$(basename $@)))"; \
 		TEXTSECTION="$(basename $@).text"; \
 		DATASECTION="$(basename $@).data"; \
+		BINARY="$(basename $@).elf"; \
 		echo "    [RSP] $<"; \
-		$(N64_CC) $(N64_RSPASFLAGS) -nostartfiles -Wl,-Ttext=0x1000 -Wl,-Tdata=0x0 -Wl,-e0x1000 -o $@ $<; \
-		$(N64_OBJCOPY) -O binary -j .text $@ $$TEXTSECTION.bin; \
-		$(N64_OBJCOPY) -O binary -j .data $@ $$DATASECTION.bin; \
+		$(N64_CC) $(N64_RSPASFLAGS) -nostartfiles -Wl,-Ttext=0x1000 -Wl,-Tdata=0x0 -Wl,-e0x1000 -o $$BINARY $<; \
+		$(N64_OBJCOPY) -O binary -j .text $$BINARY $$TEXTSECTION.bin; \
+		$(N64_OBJCOPY) -O binary -j .data $$BINARY $$DATASECTION.bin; \
 		$(N64_OBJCOPY) -I binary -O elf32-bigmips -B mips4300 \
 				--redefine-sym _binary_$${SYMPREFIX}_text_bin_start=$${FILENAME}_text_start \
 				--redefine-sym _binary_$${SYMPREFIX}_text_bin_end=$${FILENAME}_text_end \
@@ -117,7 +118,7 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.S
 				--redefine-sym _binary_$${SYMPREFIX}_data_bin_size=$${FILENAME}_data_size \
 				--set-section-alignment .data=8 \
 				--rename-section .text=.data $$DATASECTION.bin $$DATASECTION.o; \
-		$(N64_SIZE) -G $@; \
+		$(N64_SIZE) -G $$BINARY; \
 		$(N64_LD) -relocatable $$TEXTSECTION.o $$DATASECTION.o -o $@; \
 		rm $$TEXTSECTION.bin $$DATASECTION.bin $$TEXTSECTION.o $$DATASECTION.o; \
 	else \
