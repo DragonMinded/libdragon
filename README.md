@@ -52,11 +52,11 @@ quickly get libdragon up and running. Basically:
    correctly.
 2. Install the [the libdragon CLI](https://github.com/anacierdem/libdragon-docker).
    You have three options:
+   You have two options:
 
    1. Download the [pre-built binary](https://github.com/anacierdem/libdragon-docker/releases/tag/v10.8.0), 
       and copy it into some directory which is part of your system PATH.
    2. If you have `npm` installed (at least verstion 14), run `npm install -g libdragon`.
-   3. Build it from source (by running `npm install` after cloning the repository).
 3. Run `libdragon init` to create a skeleton project
 4. Run `libdragon make` to compile a build a ROM
 
@@ -67,7 +67,7 @@ be found in `libdragon/examples` in the skeleton project.
 
 1. Export the environment variable N64_INST to the path where you want your
    toolchain to be installed. For instance: `export N64_INST=/opt/n64` or
-   `export N64_INST=/usr/local/n64`.
+   `export N64_INST=/usr/local`.
 2. Create an empty directory and copy the `tools/build-toolchain.sh` script there
 3. Read the comments in the build script to see what additional packages are needed.
 4. Run `./build-toolchain.sh` from the created directory, let it build and install the toolchain.

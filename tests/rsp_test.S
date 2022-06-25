@@ -16,9 +16,9 @@
         RSPQ_DefineCommand command_reset,     4      # 0x05
         RSPQ_DefineCommand command_test_high, 4      # 0x06
         RSPQ_DefineCommand command_reset_log, 4      # 0x07
-        RSPQ_DefineCommand command_send_rdp,  8      # 0x08
-        RSPQ_DefineCommand command_big,       132    # 0x09
-        RSPQ_DefineCommand command_big_out,   8      # 0x0A
+        RSPQ_DefineCommand command_big,       132    # 0x08
+        RSPQ_DefineCommand command_big_out,   8      # 0x09
+        RSPQ_DefineCommand command_send_rdp,  8      # 0x0A
 	RSPQ_EndOverlayHeader
 
     RSPQ_BeginSavedState
