@@ -51,7 +51,6 @@ quickly get libdragon up and running. Basically:
    Docker Desktop). You can run `docker system info` to check that it is working
    correctly.
 2. Install the [the libdragon CLI](https://github.com/anacierdem/libdragon-docker).
-   You have three options:
    You have two options:
 
    1. Download the [pre-built binary](https://github.com/anacierdem/libdragon-docker/releases/tag/v10.8.0), 
