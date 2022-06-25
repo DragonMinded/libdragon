@@ -16,10 +16,11 @@ var searchData=
   ['pif_5faddr_5fwrite_13',['PIF_addr_write',['../group__lowlevel.html#a94f5f7575a4cf6079e4acc99dabbef06',1,'SI_regs_t']]],
   ['playfreq_14',['playfreq',['../ym64_8h.html#a40fbf0786b24afe8a1b1a5803d4f6bb6',1,'ym64player_t::playfreq()'],['../ym64_8c.html#a95284b37507ccf9749e96a86c5301ef9',1,'ym5header::playfreq()']]],
   ['playing_15',['playing',['../xm64_8h.html#ab9e8322d4962a9859b3f11a0418ea46a',1,'xm64player_t']]],
-  ['portread_16',['PortRead',['../structAY8910.html#aa6df1eff91b8e655de9f1651d94da3f3',1,'AY8910']]],
-  ['portwrite_17',['PortWrite',['../structAY8910.html#aec1b63aeb6b5880cd1aaf665e350c866',1,'AY8910']]],
-  ['pos_18',['pos',['../mixer_8c.html#aeba049cbcc8f2e1bd9db07a5ed7621dc',1,'rsp_mixer_channel_t::pos()'],['../mixer_8c.html#a700c6a75f9314693566a0487560d148d',1,'mixer_channel_t::pos()']]],
-  ['prefix_19',['prefix',['../group__system.html#abfd00866b2e96f01d819383aa3e7cb02',1,'fs_mapping_t']]],
-  ['ptr_20',['ptr',['../mixer_8c.html#a8b74c9de55d58a7ab7fdd0e76c719538',1,'mixer_channel_t::ptr()'],['../mixer_8c.html#a1c4438f0e2ee8a04b3a4664a88d4a25d',1,'rsp_mixer_channel_t::ptr()']]],
-  ['ptr_5fand_5fflags_21',['ptr_and_flags',['../samplebuffer_8h.html#a730ac0f50ef779dfcf6af4be1ec7a1e4',1,'samplebuffer_t']]]
+  ['pointer_16',['pointer',['../rspq_8h.html#a168e98244814397e70942dded68c94f1',1,'rspq_write_t']]],
+  ['portread_17',['PortRead',['../structAY8910.html#aa6df1eff91b8e655de9f1651d94da3f3',1,'AY8910']]],
+  ['portwrite_18',['PortWrite',['../structAY8910.html#aec1b63aeb6b5880cd1aaf665e350c866',1,'AY8910']]],
+  ['pos_19',['pos',['../mixer_8c.html#a700c6a75f9314693566a0487560d148d',1,'mixer_channel_t::pos()'],['../mixer_8c.html#aeba049cbcc8f2e1bd9db07a5ed7621dc',1,'rsp_mixer_channel_t::pos()']]],
+  ['prefix_20',['prefix',['../group__system.html#abfd00866b2e96f01d819383aa3e7cb02',1,'fs_mapping_t']]],
+  ['ptr_21',['ptr',['../mixer_8c.html#a8b74c9de55d58a7ab7fdd0e76c719538',1,'mixer_channel_t::ptr()'],['../mixer_8c.html#a1c4438f0e2ee8a04b3a4664a88d4a25d',1,'rsp_mixer_channel_t::ptr()']]],
+  ['ptr_5fand_5fflags_22',['ptr_and_flags',['../samplebuffer_8h.html#a730ac0f50ef779dfcf6af4be1ec7a1e4',1,'samplebuffer_t']]]
 ];

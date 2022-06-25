@@ -216,6 +216,15 @@ Functions</h2></td></tr>
 <tr class="memitem:ac49e7a85fa93aff13b9818615b5db977"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rspq_8c.html#ac49e7a85fa93aff13b9818615b5db977">rspq_dma_to_dmem</a> (uint32_t dmem_addr, void *rdram_addr, uint32_t len, bool is_async)</td></tr>
 <tr class="memdesc:ac49e7a85fa93aff13b9818615b5db977"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enqueue a command to do a DMA transfer from RDRAM to DMEM.  <a href="rspq_8c.html#ac49e7a85fa93aff13b9818615b5db977">More...</a><br /></td></tr>
 <tr class="separator:ac49e7a85fa93aff13b9818615b5db977"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7853bba8cbf5773669b9e9ebd7f474cc"><td class="memItemLeft" align="right" valign="top"><a class="el" href="rspq_8h.html#structrspq__write__t">rspq_write_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rspq_8c.html#a7853bba8cbf5773669b9e9ebd7f474cc">rspq_write_begin</a> (uint32_t ovl_id, uint32_t cmd_id, int size)</td></tr>
+<tr class="memdesc:a7853bba8cbf5773669b9e9ebd7f474cc"><td class="mdescLeft">&#160;</td><td class="mdescRight">Begin writing a new command into the RSP queue.  <a href="rspq_8c.html#a7853bba8cbf5773669b9e9ebd7f474cc">More...</a><br /></td></tr>
+<tr class="separator:a7853bba8cbf5773669b9e9ebd7f474cc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab44674d8d8266f4a515b3fd4c6365b0b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rspq_8c.html#ab44674d8d8266f4a515b3fd4c6365b0b">rspq_write_arg</a> (<a class="el" href="rspq_8h.html#structrspq__write__t">rspq_write_t</a> *w, uint32_t value)</td></tr>
+<tr class="memdesc:ab44674d8d8266f4a515b3fd4c6365b0b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Add one argument to the command being enqueued.  <a href="rspq_8c.html#ab44674d8d8266f4a515b3fd4c6365b0b">More...</a><br /></td></tr>
+<tr class="separator:ab44674d8d8266f4a515b3fd4c6365b0b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a08f96b9087b04fe6a5f224728ff47701"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rspq_8c.html#a08f96b9087b04fe6a5f224728ff47701">rspq_write_end</a> (<a class="el" href="rspq_8h.html#structrspq__write__t">rspq_write_t</a> *w)</td></tr>
+<tr class="memdesc:a08f96b9087b04fe6a5f224728ff47701"><td class="mdescLeft">&#160;</td><td class="mdescRight">Finish enqueuing a command into the queue.  <a href="rspq_8c.html#a08f96b9087b04fe6a5f224728ff47701">More...</a><br /></td></tr>
+<tr class="separator:a08f96b9087b04fe6a5f224728ff47701"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
 Variables</h2></td></tr>
@@ -1065,7 +1074,7 @@ SP mask to set the bufdone bit. </td></tr>
 <div class="line">   <span class="comment">// it was idling).</span></div>
 <div class="line">   <a class="code hl_function" href="rspq_8c.html#a115e1839ffd27c126ed6076e2b5de0b8">rspq_flush</a>();</div>
 <div class="ttc" id="arspq_8c_html_a115e1839ffd27c126ed6076e2b5de0b8"><div class="ttname"><a href="rspq_8c.html#a115e1839ffd27c126ed6076e2b5de0b8">rspq_flush</a></div><div class="ttdeci">void rspq_flush(void)</div><div class="ttdoc">Make sure that RSP starts executing up to the last written command.</div><div class="ttdef"><b>Definition:</b> rspq.c:1052</div></div>
-<div class="ttc" id="arspq_8h_html_aefec193be7de05f725738beeb3775634"><div class="ttname"><a href="rspq_8h.html#aefec193be7de05f725738beeb3775634">rspq_write</a></div><div class="ttdeci">#define rspq_write(ovl_id, cmd_id,...)</div><div class="ttdoc">Write a new command into the RSP queue.</div><div class="ttdef"><b>Definition:</b> rspq.h:354</div></div>
+<div class="ttc" id="arspq_8h_html_aefec193be7de05f725738beeb3775634"><div class="ttname"><a href="rspq_8h.html#aefec193be7de05f725738beeb3775634">rspq_write</a></div><div class="ttdeci">#define rspq_write(ovl_id, cmd_id,...)</div><div class="ttdoc">Write a new command into the RSP queue.</div><div class="ttdef"><b>Definition:</b> rspq.h:366</div></div>
 </div><!-- fragment --><dl class="section note"><dt>Note</dt><dd>This is an experimental API. In the future, it might become a no-op, and flushing could happen automatically at every <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a>. We are keeping it separate from <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a> while experimenting more with the RSPQ API.</dd>
 <dd>
 This function is a no-op if it is called while a block is being recorded (see <a class="el" href="rspq_8h.html#a41f292fc1f7b261f84c55fc356f86acf" title="Begin creating a new block.">rspq_block_begin</a> / <a class="el" href="rspq_8h.html#a81339d69802148a09829d1c6d9a9f9f6" title="Finish creating a block.">rspq_block_end</a>). This means calling this function in a block recording context will not guarantee the execution of commands that were queued prior to starting the block. </dd></dl>
@@ -1447,10 +1456,165 @@ It is not possible to create a syncpoint from the high-priority queue due to the
 
 </div>
 </div>
+<a id="ab44674d8d8266f4a515b3fd4c6365b0b" name="ab44674d8d8266f4a515b3fd4c6365b0b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab44674d8d8266f4a515b3fd4c6365b0b">&#9670;&nbsp;</a></span>rspq_write_arg()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void rspq_write_arg </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="rspq_8h.html#structrspq__write__t">rspq_write_t</a> *&#160;</td>
+          <td class="paramname"><em>w</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>value</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Add one argument to the command being enqueued. </p>
+<p >This function adds one more argument to the command currently being enqueued. This function must be called after <a class="el" href="rspq_8h.html#a7853bba8cbf5773669b9e9ebd7f474cc" title="Begin writing a new command into the RSP queue.">rspq_write_begin</a>; it should be called multiple times (one per argument word), and then <a class="el" href="rspq_8h.html#a08f96b9087b04fe6a5f224728ff47701" title="Finish enqueuing a command into the queue.">rspq_write_end</a> should be called to terminate enqueuing the command.</p>
+<p >See also <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a> for a more straightforward API for command enqueuing.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">w</td><td>The write cursor (returned by <a class="el" href="rspq_8h.html#a7853bba8cbf5773669b9e9ebd7f474cc" title="Begin writing a new command into the RSP queue.">rspq_write_begin</a>) </td></tr>
+    <tr><td class="paramname">value</td><td>New 32-bit argument word to add to the command.</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section note"><dt>Note</dt><dd>The first argument must have its MSB set to 0, to leave space for the command ID. See <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a> documentation for a more complete explanation.</dd></dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="rspq_8h.html#a7853bba8cbf5773669b9e9ebd7f474cc" title="Begin writing a new command into the RSP queue.">rspq_write_begin</a> </dd>
+<dd>
+<a class="el" href="rspq_8h.html#a08f96b9087b04fe6a5f224728ff47701" title="Finish enqueuing a command into the queue.">rspq_write_end</a> </dd>
+<dd>
+<a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a> </dd></dl>
+
+</div>
+</div>
+<a id="a7853bba8cbf5773669b9e9ebd7f474cc" name="a7853bba8cbf5773669b9e9ebd7f474cc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7853bba8cbf5773669b9e9ebd7f474cc">&#9670;&nbsp;</a></span>rspq_write_begin()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="rspq_8h.html#structrspq__write__t">rspq_write_t</a> rspq_write_begin </td>
+          <td>(</td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>ovl_id</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>cmd_id</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Begin writing a new command into the RSP queue. </p>
+<p >This command initiates a sequence to enqueue a new command into the RSP queue. Call this command passing the overlay ID and command ID of the command to create. Then, call <a class="el" href="rspq_8h.html#ab44674d8d8266f4a515b3fd4c6365b0b" title="Add one argument to the command being enqueued.">rspq_write_arg</a> once per each argument word that composes the command. Finally, call <a class="el" href="rspq_8h.html#a08f96b9087b04fe6a5f224728ff47701" title="Finish enqueuing a command into the queue.">rspq_write_end</a> to finalize and enqueue the command.</p>
+<p >A sequence made by <a class="el" href="rspq_8h.html#a7853bba8cbf5773669b9e9ebd7f474cc" title="Begin writing a new command into the RSP queue.">rspq_write_begin</a>, <a class="el" href="rspq_8h.html#ab44674d8d8266f4a515b3fd4c6365b0b" title="Add one argument to the command being enqueued.">rspq_write_arg</a>, <a class="el" href="rspq_8h.html#a08f96b9087b04fe6a5f224728ff47701" title="Finish enqueuing a command into the queue.">rspq_write_end</a> is functionally equivalent to a call to <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a>, but it allows to create bigger commands, and might better fit some situations where arguments are calculated on the fly. Performance-wise, the code generated by <a class="el" href="rspq_8h.html#a7853bba8cbf5773669b9e9ebd7f474cc" title="Begin writing a new command into the RSP queue.">rspq_write_begin</a> + <a class="el" href="rspq_8h.html#ab44674d8d8266f4a515b3fd4c6365b0b" title="Add one argument to the command being enqueued.">rspq_write_arg</a> + <a class="el" href="rspq_8h.html#a08f96b9087b04fe6a5f224728ff47701" title="Finish enqueuing a command into the queue.">rspq_write_end</a> should be very similar to a single call to <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a>, though just a bit slower. It is advisable to use <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a> whenever possible.</p>
+<p >Make sure to read the documentation of <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a> as well for further details.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">ovl_id</td><td>The overlay ID of the command to enqueue. Notice that this must be a value preshifted by 28, as returned by <a class="el" href="rspq_8h.html#a072c51be5126cfe5f914aefc52de950a" title="Register a rspq overlay into the RSP queue engine.">rspq_overlay_register</a>. </td></tr>
+    <tr><td class="paramname">cmd_id</td><td>Index of the command to call, within the overlay. </td></tr>
+    <tr><td class="paramname">size</td><td>The size of the commands in 32-bit words </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>A write cursor, that must be passed to <a class="el" href="rspq_8h.html#ab44674d8d8266f4a515b3fd4c6365b0b" title="Add one argument to the command being enqueued.">rspq_write_arg</a> and <a class="el" href="rspq_8h.html#a08f96b9087b04fe6a5f224728ff47701" title="Finish enqueuing a command into the queue.">rspq_write_end</a></dd></dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="rspq_8h.html#ab44674d8d8266f4a515b3fd4c6365b0b" title="Add one argument to the command being enqueued.">rspq_write_arg</a> </dd>
+<dd>
+<a class="el" href="rspq_8h.html#a08f96b9087b04fe6a5f224728ff47701" title="Finish enqueuing a command into the queue.">rspq_write_end</a> </dd>
+<dd>
+<a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a> </dd></dl>
+
+</div>
+</div>
+<a id="a08f96b9087b04fe6a5f224728ff47701" name="a08f96b9087b04fe6a5f224728ff47701"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a08f96b9087b04fe6a5f224728ff47701">&#9670;&nbsp;</a></span>rspq_write_end()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void rspq_write_end </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="rspq_8h.html#structrspq__write__t">rspq_write_t</a> *&#160;</td>
+          <td class="paramname"><em>w</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Finish enqueuing a command into the queue. </p>
+<p >This function should be called to terminate a sequence for command enqueuing, after <a class="el" href="rspq_8h.html#a7853bba8cbf5773669b9e9ebd7f474cc" title="Begin writing a new command into the RSP queue.">rspq_write_begin</a> and (multiple) calls to <a class="el" href="rspq_8h.html#ab44674d8d8266f4a515b3fd4c6365b0b" title="Add one argument to the command being enqueued.">rspq_write_arg</a>.</p>
+<p >After calling this command, the write cursor cannot be used anymore.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">w</td><td>The write cursor (returned by <a class="el" href="rspq_8h.html#a7853bba8cbf5773669b9e9ebd7f474cc" title="Begin writing a new command into the RSP queue.">rspq_write_begin</a>)</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="rspq_8h.html#a7853bba8cbf5773669b9e9ebd7f474cc" title="Begin writing a new command into the RSP queue.">rspq_write_begin</a> </dd>
+<dd>
+<a class="el" href="rspq_8h.html#ab44674d8d8266f4a515b3fd4c6365b0b" title="Add one argument to the command being enqueued.">rspq_write_arg</a> </dd>
+<dd>
+<a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a> </dd></dl>
+
+</div>
+</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Thu Jun 23 2022 10:02:27 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Sat Jun 25 2022 13:11:19 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
