@@ -1,3 +1,137 @@
+/**
+ * @file rdpq.c
+ * @brief RDP Command queue
+ * @ingroup rsp
+ *
+ *
+ * ## Improvements over raw hardware programming
+ * 
+ * RDPQ provides a very low-level API over the RDP graphics chips,
+ * exposing all its settings and most of its limits. Still, rdpq
+ * tries to hide a few low-level hardware details to make programming the RDP
+ * less surprising and more orthogonal. To do so, it "patches" some RDP
+ * commands, typically via RSP code and depending on the current RDP state. We
+ * called these improvements "fixups".
+ * 
+ * The documentation of the public rdpq API does not explicitly mention which
+ * behavior has been adjusted via fixups. Instead, this section explains in
+ * details all the fixups performed by rdpq. Reading this section is not
+ * necessary to understand and use rdpq, but it might be useful for people
+ * that are familiar with RDP outside of libdragon (eg: libultra programmers),
+ * to avoid getting confused in places where rdpq deviates from RDP (even if
+ * for the better).
+ * 
+ * ### Scissoring and texrects: consistent coordinates
+ * 
+ * The RDP SET_SCISSOR and TEXTURE_RECTANGLE commands accept a rectangle
+ * whose major bounds (bottom and right) are either inclusive or exclusive,
+ * depending on the current RDP cycle type (fill/copy: exclusive, 1cyc/2cyc: inclusive).
+ * #rdpq_set_scissor and #rdpq_texture_rectangle, instead, always use exclusive
+ * major bounds, and automatically adjust them depending on the current RDP cycle
+ * type. 
+ * 
+ * Moreover, any time the RDP cycle type changes, the current scissoring is
+ * adjusted to guarantee consistent results.
+ * 
+ * ### Avoid color image buffer overflows with auto-scissoring
+ * 
+ * The RDP SET_COLOR_IMAGE command only contains a memory pointer and a pitch:
+ * the RDP is not aware of the actual size of the buffer in terms of width/height,
+ * and expects commands to be correctly clipped, or scissoring to be configured.
+ * To avoid mistakes leading to memory corruption, #rdpq_set_color_image always
+ * reconfigure scissoring to respect the actual buffer size.
+ * 
+ * Moreover, this also provides a workaround to a common programming bug causing RDP
+ * to randomically freezes when no scissoring is configured at all (as sometimes
+ * the internal hardware registers contain random data at boot).
+ * 
+ * ### Autosyncs
+ * 
+ * The RDP has different internal parallel units and exposes three different
+ * syncing primitives to stall and avoid write-during-use bugs: SYNC_PIPE,
+ * SYNC_LOAD and SYNC_TILE. Correct usage of these commands is not complicated
+ * but it can be complex to get right, and require extensive hardware testing
+ * because emulators do not implement the bugs caused by the absence of RDP stalls.
+ * 
+ * rdpq implements an smart auto-syncing engine that tracks the commands sent
+ * to RDP (on the CPU) and automatically inserts syncing whenever necessary.
+ * Insertion of syncing primitives is optimal for SYNC_PIPE and SYNC_TILE, and
+ * conservative for SYNC_LOAD (it does not currently handle partial TMEM updates).
+ * 
+ * Autosyncing also works within blocks, but since it is not possible to know
+ * the context in which a block will be run, it has to be conservative and
+ * might issue more stalls than necessary.
+ * 
+ * ### Partial render mode changes
+ * 
+ * The RDP command SET_OTHER_MODES contains most the RDP mode settings.
+ * Unfortunately the command does not allow to change only some settings, but
+ * all of them must be reconfigured. This is in contrast with most graphics APIs
+ * that allow to configure each render mode setting by itself (eg: it is possible
+ * to just change the dithering algorithm).
+ * 
+ * rdpq instead tracks the current render mode on the RSP, and allows to do
+ * partial updates via either the low-level #rdpq_change_other_mode_raw
+ * function (where it is possible to change only a subset of the 56 bits),
+ * or via the high-level rdpq_mode_* APIs (eg: #rdpq_mode_dithering), which
+ * mostly build upon #rdpq_change_other_mode_raw in their implementation.
+ *
+ * ### Automatic 1/2 cycle type selection
+ * 
+ * The RDP has two main operating modes: 1 cycle per pixel and 2 cycles per pixel.
+ * The latter is twice as slow, as the name implies, but it allows more complex
+ * color combiners and/or blenders. Moreover, 2-cycles mode also allows for
+ * multitexturing.
+ * 
+ * At the hardware level, it is up to the programmer to explicitly activate
+ * either 1-cycle or 2-cycle mode. The problem with this is that there are
+ * specific rules to follow for either mode, which does not compose cleanly
+ * with partial mode changes. For instance, fogging is typically implemented
+ * using the 2-cycle mode as it requires two passes in the blender. If the
+ * user disables fogging for some meshes, it might be more performant to switch
+ * back to 1-cycle mode, but that requires also reconfiguring the combiner.
+ * 
+ * To solve this problem, the higher level rdpq mode APIs (rdpq_mode_*)
+ * automatically select the best cycle type depending on the current settings.
+ * More specifically, 1-cycle mode is preferred as it is faster, but 2-cycle
+ * mode is activated whenever one of the following conditions is true:
+ *
+ * * A two-pass blender is configured.
+ * * A two-pass combiner is configured.
+ * * A one-pass combiner is configured and the pass accesses the second
+ *   texture (`TEX1`).
+ *  
+ * The correct cycle-type is automatically reconfigured any time that either
+ * the blender or the combiner settings are changed. Notice that this means
+ * that rdpq also transparently handles a few more details for the user, to
+ * make it for an easier API:
+ * 
+ * * In 1 cycle mode, rdpq makes sure that the second pass of the combiner and
+ *   the second pass of the blender are configured exactly like the respective
+ *   first passes, because the RDP hardware requires this to operate correctly.
+ * * In 2 cycles mode, if a one-pass combiner was configured by the user,
+ *   the second pass is automatically configured as a simple passthrough
+ *   (equivalent to `RDPQ_COMBINER1((ZERO, ZERO, ZERO, COMBINED), (ZERO, ZERO, ZERO, COMBINED))`).
+ * * In 2 cycles mode, if a one-pass blender was configured by the user,
+ *   it is configured in the second pass, while the first pass is defined
+ *   as a passthrough (equivalent to `RDPQ_BLENDER1((PIXEL_RGB, ZERO, PIXEL_RGB, ONE))`).
+ *   Notice that this is required because there is no pure passthrough in
+ *   second step of the blender.
+ * 
+ * ### Fill color as standard 32-bit color
+ * 
+ * The RDP command SET_FILL_COLOR (used to configure the color register
+ * to be used in fill cycle type) has a very low-level interface: its argument
+ * is basically a 32-bit value which is copied to the framebuffer as-is,
+ * irrespective of the framebuffer color depth. For a 16-bit buffer, then,
+ * it must be programmed with two copies of the same 16-bit color.
+ * 
+ * #rdpq_set_fill_color, instead, accepts a #color_t argument and does the
+ * conversion to the "packed" format internally, depending on the current
+ * framebuffer's color depth.
+ * 
+ */
+
 #include "rdpq.h"
 #include "rdpq_block.h"
 #include "rdpq_constants.h"
