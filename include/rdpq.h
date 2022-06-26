@@ -156,22 +156,31 @@ inline void rdpq_texture_rectangle_flip_fx(uint8_t tile, uint16_t x0, uint16_t y
 /**
  * @brief Low level function to set the green and blue components of the chroma key
  */
-inline void rdpq_set_key_gb(uint16_t wg, uint8_t wb, uint8_t cg, uint16_t sg, uint8_t cb, uint8_t sb)
+inline void rdpq_set_chromakey_parms(color_t color, 
+    int edge_r, int edge_g, int edge_b,
+    int width_r, int width_g, int width_b)
 {
+    float fsr = 1.0f / edge_r;
+    float fsg = 1.0f / edge_g;
+    float fsb = 1.0f / edge_b;
+    uint8_t sr = fsr * 255.0f;
+    uint8_t sg = fsg * 255.0f;
+    uint8_t sb = fsb * 255.0f;
+    float fwr = width_r * fsr;
+    float fwg = width_g * fsg;
+    float fwb = width_b * fsb;
+    uint16_t wr = fwr * 255.0f;
+    uint16_t wg = fwg * 255.0f;
+    uint16_t wb = fwb * 255.0f;
+
     extern void __rdpq_write8_syncchange(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t autosync);
+    __rdpq_write8_syncchange(RDPQ_CMD_SET_KEY_R,
+        0, 
+        _carg(wr, 0xFFF, 16) | _carg(color.r, 0xFF, 8) | _carg(sr, 0xFF, 0),
+        AUTOSYNC_PIPE);
     __rdpq_write8_syncchange(RDPQ_CMD_SET_KEY_GB,
         _carg(wg, 0xFFF, 12) | _carg(wb, 0xFFF, 0),
-        _carg(cg, 0xFF, 24) | _carg(sg, 0xFF, 16) | _carg(cb, 0xFF, 8) | _carg(sb, 0xFF, 0),
-        AUTOSYNC_PIPE);
-}
-
-/**
- * @brief Low level function to set the red component of the chroma key
- */
-inline void rdpq_set_key_r(uint16_t wr, uint8_t cr, uint8_t sr)
-{
-    extern void __rdpq_write8_syncchange(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t autosync);
-    __rdpq_write8_syncchange(RDPQ_CMD_SET_KEY_R, 0, _carg(wr, 0xFFF, 16) | _carg(cr, 0xFF, 8) | _carg(sr, 0xFF, 0),
+        _carg(color.g, 0xFF, 24) | _carg(sg, 0xFF, 16) | _carg(color.b, 0xFF, 8) | _carg(sb, 0xFF, 0),
         AUTOSYNC_PIPE);
 }
 
