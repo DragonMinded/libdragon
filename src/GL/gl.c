@@ -350,7 +350,7 @@ void gl_init()
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
-    rdpq_set_other_modes(0);
+    rdpq_set_other_modes_raw(0);
     gl_set_default_framebuffer();
 
     glScissor(0, 0, state.cur_framebuffer->color_buffer->width, state.cur_framebuffer->color_buffer->height);
@@ -534,11 +534,7 @@ void glBegin(GLenum mode)
         }
     }
 
-    if (state.blend) {
-        // TODO: derive the blender config from blend_src and blend_dst
-        modes |= SOM_BLENDING | Blend(PIXEL_RGB, MUX_ALPHA, MEMORY_RGB, INV_MUX_ALPHA);
-    }
-    
+    rdpq_combiner_t comb;
     if (state.texture_2d) {
         modes |= SOM_TEXTURE_PERSP | SOM_TC_FILTER;
 
@@ -550,7 +546,7 @@ void glBegin(GLenum mode)
             modes |= SOM_SAMPLE_2X2;
         }
 
-        rdpq_set_combine_mode(Comb_Rgb(TEX0, ZERO, SHADE, ZERO) | Comb_Alpha(TEX0, ZERO, SHADE, ZERO));
+        comb = RDPQ_COMBINER1((TEX0, ZERO, SHADE, ZERO), (TEX0, ZERO, SHADE, ZERO));
 
         if (tex_obj->is_dirty) {
             // TODO: min filter (mip mapping?)
@@ -565,10 +561,16 @@ void glBegin(GLenum mode)
             tex_obj->is_dirty = false;
         }
     } else {
-        rdpq_set_combine_mode(Comb_Rgb(ONE, ZERO, SHADE, ZERO) | Comb_Alpha(ONE, ZERO, SHADE, ZERO));
+        comb = RDPQ_COMBINER1((ONE, ZERO, SHADE, ZERO), (ONE, ZERO, SHADE, ZERO));
     }
 
-    rdpq_set_other_modes(modes);
+    rdpq_set_other_modes_raw(modes);
+    rdpq_mode_combiner(comb);
+
+    if (state.blend) {
+        // TODO: derive the blender config from blend_src and blend_dst
+        rdpq_mode_blender(RDPQ_BLENDER1((PIXEL_RGB, MUX_ALPHA, MEMORY_RGB, INV_MUX_ALPHA)));
+    }
 }
 
 void glEnd(void)
@@ -2234,7 +2236,7 @@ void glClear(GLbitfield buf)
 {
     assert_framebuffer();
 
-    rdpq_set_other_modes(SOM_CYCLE_FILL);
+    rdpq_set_other_modes_raw(SOM_CYCLE_FILL);
     gl_apply_scissor();
 
     gl_framebuffer_t *fb = state.cur_framebuffer;

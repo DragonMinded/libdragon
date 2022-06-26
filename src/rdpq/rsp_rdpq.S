@@ -1,5 +1,6 @@
 #include <rsp_queue.inc>
 #include "rdpq_constants.h"
+#include "rdp_commands.h"
 
 #define rdpq_write_ptr s7
 
@@ -8,11 +9,11 @@
     RSPQ_BeginOverlayHeader
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xC0 NOOP
         RSPQ_DefineCommand RDPQCmd_SetLookupAddress,        8   # 0xC1 Set lookup address
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
+        RSPQ_DefineCommand RDPQCmd_PushMode,                8   # 0xC2 Push Mode
+        RSPQ_DefineCommand RDPQCmd_PopMode,                 8   # 0xC3 Pop Mode
+        RSPQ_DefineCommand RDPQCmd_PopMode_Static,          8   # 0xC4 Pop Mode Static
+        RSPQ_DefineCommand RDPQCmd_SetCombineMode_2Pass,    8   # 0xC5 SET_COMBINE_MODE (two pass)
+        RSPQ_DefineCommand RDPQCmd_SetCombineMode_2Pass_Static,    8   # 0xC6 SET_COMBINE_MODE (two pass)
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     32  # 0xC8 Filled
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     48  # 0xC9 Filled ZBuffered
@@ -31,18 +32,18 @@
         RSPQ_DefineCommand RDPQCmd_ModifyOtherModes_Static, 12  # 0xD5
         RSPQ_DefineCommand RDPQCmd_SetFillColor32,          8   # 0xD6
         RSPQ_DefineCommand RDPQCmd_SetFillColor32_Static,   8   # 0xD7
+        RSPQ_DefineCommand RDPQCmd_SetBlendingMode,         8   # 0xD8 Set Blending Mode
+        RSPQ_DefineCommand RDPQCmd_SetBlendingMode_Static,  8   # 0xD9 Set Blending Mode (static)
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
+        RSPQ_DefineCommand RDPQCmd_SetCombineMode_1Pass,    8   # 0xDB SET_COMBINE_MODE (one pass)
+        RSPQ_DefineCommand RDPQCmd_SetCombineMode_1Pass_Static,    8   # 0xDC SET_COMBINE_MODE (one pass)
         RSPQ_DefineCommand RDPQCmd_SetFixupImage_Static,    8   # 0xDD
         RSPQ_DefineCommand RDPQCmd_SetFixupImage_Static,    8   # 0xDE
         RSPQ_DefineCommand RDPQCmd_SetColorImage_Static,    8   # 0xDF
 
         RSPQ_DefineCommand RDPQCmd_SetOtherModes_Static,    8   # 0xE0
         RSPQ_DefineCommand RDPQCmd_SyncFull_Static,         8   # 0xE1
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xE2
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
         RSPQ_DefineCommand RDPQCmd_Passthrough16,           16  # 0xE4 TEXTURE_RECTANGLE
         RSPQ_DefineCommand RDPQCmd_TextureRectFlip,         16  # 0xE5 TEXTURE_RECTANGLE_FLIP
@@ -78,15 +79,37 @@
     .ascii "Dragon RDP Queue"
     .ascii "Rasky & Snacchus"
 
+    .align 4
     RSPQ_BeginSavedState
 RDP_SYNCFULL:          .quad  0   # Last syncfull command (includes callback). NOTE: this must stay as first variable in the state
-RDP_ADDRESS_TABLE:     .ds.l  RDPQ_ADDRESS_TABLE_SIZE
-RDP_OTHER_MODES:       .quad  0
 RDP_SCISSOR_RECT:      .quad  0
+
+# RDP MODE (32 bytes). NOTE: This must be 16-byte aligned (because we use lqv in push/pop),
+# but we can't use .align 4 here, otherwise it's not easy to keep this structure layout
+# in sync with the C side (rdpq_state_t in rdpq.c).
+RDP_MODE:
+    # Combiner setting to use in 1 cycle mode
+    RDP_MODE_COMBINER_1CYC: .quad  0
+    # Blender setting to use in 1 cycle mode
+    RDP_MODE_BLENDER_1CYC:  .word  0
+    # Combiner setting to use in 2 cycle mode
+    RDP_MODE_COMBINER_2CYC: .word  0,0    # this is a .quad, but misaligned
+    # Blender setting to use in 2 cycle mode
+    RDP_MODE_BLENDER_2CYC:  .word  0
+    # Other modes
+    RDP_OTHER_MODES:        .quad  0
+
+# Stack slots for 3 saved RDP modes
+RDP_MODE_STACK:        .ds.b 32*3    
+
+RDP_ADDRESS_TABLE:     .ds.l  RDPQ_ADDRESS_TABLE_SIZE
 RDP_FILL_COLOR:        .word  0
 RDP_RDRAM_STATE_ADDR:  .word  0
 RDP_TARGET_BITDEPTH:   .byte  0
+
     RSPQ_EndSavedState
+
+COMB0_MASK:            .quad RDPQ_COMB0_MASK
 
     .bss
 
@@ -194,6 +217,7 @@ RDPQ_Write16:
 RDPQCmd_SetOtherModes:
     # Reserve space for SetOtherModes + SetScissor
     jal RSPQ_RdpDynamicReserve
+RDPQCmd_SetOtherModes_StaticWithCopy:
     li rspq_cmd_size, 16
     # Save the other modes to internal cache, then call RDPQ_WriteOtherModes
     # RDPQ_WriteOtherModes will write both SetOtherModes and SetScissor to the staging area
@@ -572,3 +596,156 @@ RDPQCmd_SyncFull_Static:
     li t0, DMA_SIZE(8, 1)
     j DMAOut
     move ra, ra2
+    .endfunc
+
+    .func RDPQCmd_SetCombineMode_1Pass
+RDPQCmd_SetCombineMode_1Pass:
+    jal RSPQ_RdpDynamicReserve
+RDPQCmd_SetCombineMode_1Pass_Static:
+    li rspq_cmd_size, 16
+    # The combiner settings is 1 pass. Store it as-is for 1cycle mode.
+    sw a0, %lo(RDP_MODE_COMBINER_1CYC) + 0
+    sw a1, %lo(RDP_MODE_COMBINER_1CYC) + 4
+
+    # For 2 cycle mode, we need to adjust it changing the second pass
+    # to be a pure passthrough. We can do this by simply setting to 0
+    # all fields of the second pass, as that corresponds to:
+    #   (COMBINED - COMBINED) * COMBINED + COMBINED  =  COMBINED
+    # The 2PASS flag will not be set, as this combiner does not require 2cycle.
+    lw t0, %lo(COMB0_MASK) + 0
+    lw t1, %lo(COMB0_MASK) + 4
+    and a0, t0
+    j store_comb_2cyc
+    and a1, t1
+    .endfunc
+
+    .func RDPQCmd_SetCombineMode_2Pass
+RDPQCmd_SetCombineMode_2Pass:
+    jal RSPQ_RdpDynamicReserve
+RDPQCmd_SetCombineMode_2Pass_Static:
+    li rspq_cmd_size, 16
+    # The combiner settings is 2 pass. The flag RDPQ_COMBINER_2PASS
+    # (bit 63) is set in the command thanks to the fact that the overlay
+    # is registered in slots 0xC0-0xF0 (with the top bit already set).
+    # To be resistant to overlay ID changes, we would need the following
+    # instruction, but we keep it disabled for now.
+    #   or a0, RDP1_COMBINER_2PASS >> 32
+
+    # This combiner setting will force 2cycle mode. Store it
+    # in the 2cyc slot, and ignore the 1cyc slot (it's not going
+    # to be used).
+store_comb_2cyc:
+    sw a0, %lo(RDP_MODE_COMBINER_2CYC) + 0
+    j UpdateCycleType
+    sw a1, %lo(RDP_MODE_COMBINER_2CYC) + 4
+    .endfunc
+
+    .func RDPQCmd_SetBlendingMode
+RDPQCmd_SetBlendingMode:
+    jal RSPQ_RdpDynamicReserve
+RDPQCmd_SetBlendingMode_Static:
+    li rspq_cmd_size, 16
+    # Bit 0-25:  Blender mode 1CYC (-> SOM 6..31)
+    # Bit 26-51: Blender mode 2CYC (-> SOM 6..31)
+    sll a0, 12
+    srl t0, a1, 26
+    or a0, t0
+    sll a1, 6
+    sw a1, %lo(RDP_MODE_BLENDER_1CYC)
+    sw a0, %lo(RDP_MODE_BLENDER_2CYC)
+    # fallthrough
+    .endfunc
+
+    .func UpdateCycleType
+UpdateCycleType:
+    # Pointer to staging area where RDP SetCombine+SetOtherModes will be written
+    li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
+    # Check if either the current blender and combiner configuration require
+    # 2cycle mode:
+    #   * Blender: bit 15 is set if 2cyc mode is required
+    #   * Combiner: bit 63 is set if 2cyc mode is required
+    lh t0, %lo(RDP_MODE_BLENDER_2CYC) + 2
+    lw t1, %lo(RDP_MODE_COMBINER_2CYC)
+    or t0, t1
+    # Point to either the 2cyc or 1cyc configuration, depending on what we need
+    # to load.
+    li s0, %lo(RDP_MODE_COMBINER_2CYC)
+    bltz t0, set_2cyc
+    li t4, (SOM_CYCLE_MASK ^ SOM_CYCLE_2) >> 32
+set_1cyc:
+    li s0, %lo(RDP_MODE_COMBINER_1CYC)
+    li t4, (SOM_CYCLE_MASK ^ SOM_CYCLE_1) >> 32
+set_2cyc:
+    lw a0, 0(s0)   # Combiner
+    lw a1, 4(s0)   # Combiner
+    lw t0, 8(s0)   # Blender
+    lw a2, %lo(RDP_OTHER_MODES) + 0
+    lw a3, %lo(RDP_OTHER_MODES) + 4
+
+    # Set correct SET_COMBINE opcode (0xFC). The opcode can be anything of
+    # the other 4 (1pass/2pass dynamic/static).
+    or a0, 0xFF000000
+    xor a0, 0xFF000000 ^ 0xFC000000
+
+    # Change blender bits in other modes low word
+    li t1, SOM_BLEND_MASK
+    and t0, t1
+    not t1, t1
+    and a3, t1
+    or a3, t0
+    sw a3, %lo(RDP_OTHER_MODES) + 4
+
+    # Change cycle type bits in other modes low word
+    or a2, SOM_CYCLE_MASK >> 32
+    xor a2, t4
+    sw a2, %lo(RDP_OTHER_MODES) + 0
+
+    jal_and_j RDPQ_Write16, RDPQ_Finalize
+    .endfunc
+
+
+    #############################################################
+    # RDPQCmd_PushMode
+    #
+    # Execute a push on the RDP mode stack. The current RDP mode
+    # (blender+combiner) is pushed one slot deeper in a stack,
+    # form which it can be recovered later with RDPQCmd_PopMode
+    #############################################################
+    .func RDPQCmd_PushMode
+RDPQCmd_PushMode:
+    li s0, %lo(RDP_MODE) + 0
+    li s1, %lo(RDP_MODE) + 32
+
+PushPopMode:
+    lqv $v00,0, 0x00,s0
+    lqv $v01,0, 0x10,s0
+    lqv $v02,0, 0x20,s0
+    lqv $v03,0, 0x30,s0
+    lqv $v04,0, 0x40,s0
+    lqv $v05,0, 0x50,s0
+    sqv $v00,0, 0x00,s1
+    sqv $v01,0, 0x10,s1
+    sqv $v02,0, 0x20,s1
+    sqv $v03,0, 0x30,s1
+    sqv $v04,0, 0x40,s1
+    jr ra
+    sqv $v05,0, 0x50,s1
+    .endfunc
+
+    .func RDPQCmd_PopMode
+RDPQCmd_PopMode:
+    jal RSPQ_RdpDynamicReserve
+RDPQCmd_PopMode_Static:
+    li rspq_cmd_size, 16
+    li s0, %lo(RDP_MODE) + 32
+    li s1, %lo(RDP_MODE) + 0
+    # Pop from the stack and then reconfigure the cycle type.
+    # Notice that technically it wouldn't be necessary to run
+    # the full UpdateCycleType (it would be sufficient to call
+    # RDPQ_Write16+RDPQ_Finalize after loading combiner+other_modes)
+    # but this way we get to reuse the function without adding more
+    # specialized code.
+    jal_and_j PushPopMode, UpdateCycleType
+    .endfunc
+
+

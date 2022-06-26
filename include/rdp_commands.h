@@ -1,7 +1,12 @@
 #ifndef RDP_COMMANDS_H
 #define RDP_COMMANDS_H
 
+#ifndef __ASSEMBLER__
 #include <stdint.h>
+#define cast64(x) (uint64_t)(x)
+#else
+#define cast64(x) x
+#endif
 
 #define RDP_TILE_FORMAT_RGBA  0
 #define RDP_TILE_FORMAT_YUV   1
@@ -14,11 +19,6 @@
 #define RDP_TILE_SIZE_16BIT 2
 #define RDP_TILE_SIZE_32BIT 3
 
-#define RDP_COLOR16(r,g,b,a) (uint32_t)(((r)<<11)|((g)<<6)|((b)<<1)|(a))
-#define RDP_COLOR32(r,g,b,a) (uint32_t)(((r)<<24)|((g)<<16)|((b)<<8)|(a))
-
-#define cast64(x) (uint64_t)(x)
-
 #define _NUM_ARGS2(X,X64,X63,X62,X61,X60,X59,X58,X57,X56,X55,X54,X53,X52,X51,X50,X49,X48,X47,X46,X45,X44,X43,X42,X41,X40,X39,X38,X37,X36,X35,X34,X33,X32,X31,X30,X29,X28,X27,X26,X25,X24,X23,X22,X21,X20,X19,X18,X17,X16,X15,X14,X13,X12,X11,X10,X9,X8,X7,X6,X5,X4,X3,X2,X1,N,...) N
 #define NUM_ARGS(...) _NUM_ARGS2(0, __VA_ARGS__ ,64,63,62,61,60,59,58,57,56,55,54,53,52,51,50,49,48,47,46,45,44,43,42,41,40,39,38,37,36,35,34,33,32,31,30,29,28,27,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0)
 
@@ -30,84 +30,155 @@
 #define _ORBITS_MULTI2(N, ...) _ORBITS_MULTI3(N, __VA_ARGS__)
 #define _ORBITS_MULTI(...)  _ORBITS_MULTI2(NUM_ARGS(__VA_ARGS__), __VA_ARGS__)
 
-#define COMB_RGB_SUBA_COMBINED  cast64(0)
-#define COMB_RGB_SUBA_TEX0      cast64(1)
-#define COMB_RGB_SUBA_TEX1      cast64(2)
-#define COMB_RGB_SUBA_PRIM      cast64(3)
-#define COMB_RGB_SUBA_SHADE     cast64(4)
-#define COMB_RGB_SUBA_ENV       cast64(5)
-#define COMB_RGB_SUBA_ONE       cast64(6)
-#define COMB_RGB_SUBA_NOISE     cast64(7)
-#define COMB_RGB_SUBA_ZERO      cast64(8)
+#define _RDPQ_COMB0_RGB_SUBA_COMBINED  cast64(0)
+#define _RDPQ_COMB0_RGB_SUBA_TEX0      cast64(1)
+#define _RDPQ_COMB0_RGB_SUBA_TEX1      cast64(2)
+#define _RDPQ_COMB0_RGB_SUBA_PRIM      cast64(3)
+#define _RDPQ_COMB0_RGB_SUBA_SHADE     cast64(4)
+#define _RDPQ_COMB0_RGB_SUBA_ENV       cast64(5)
+#define _RDPQ_COMB0_RGB_SUBA_ONE       cast64(6)
+#define _RDPQ_COMB0_RGB_SUBA_NOISE     cast64(7)
+#define _RDPQ_COMB0_RGB_SUBA_ZERO      cast64(8)
 
-#define COMB_RGB_SUBB_COMBINED  cast64(0)
-#define COMB_RGB_SUBB_TEX0      cast64(1)
-#define COMB_RGB_SUBB_TEX1      cast64(2)
-#define COMB_RGB_SUBB_PRIM      cast64(3)
-#define COMB_RGB_SUBB_SHADE     cast64(4)
-#define COMB_RGB_SUBB_ENV       cast64(5)
-#define COMB_RGB_SUBB_KEYCENTER cast64(6)
-#define COMB_RGB_SUBB_K4        cast64(7)
-#define COMB_RGB_SUBB_ZERO      cast64(8)
+#define _RDPQ_COMB1_RGB_SUBA_COMBINED  cast64(0)
+#define _RDPQ_COMB1_RGB_SUBA_TEX1      cast64(1)
+#define _RDPQ_COMB1_RGB_SUBA_TEX0      cast64(2)
+#define _RDPQ_COMB1_RGB_SUBA_PRIM      cast64(3)
+#define _RDPQ_COMB1_RGB_SUBA_SHADE     cast64(4)
+#define _RDPQ_COMB1_RGB_SUBA_ENV       cast64(5)
+#define _RDPQ_COMB1_RGB_SUBA_ONE       cast64(6)
+#define _RDPQ_COMB1_RGB_SUBA_NOISE     cast64(7)
+#define _RDPQ_COMB1_RGB_SUBA_ZERO      cast64(8)
 
-#define COMB_RGB_MUL_COMBINED       cast64(0)
-#define COMB_RGB_MUL_TEX0           cast64(1)
-#define COMB_RGB_MUL_TEX1           cast64(2)
-#define COMB_RGB_MUL_PRIM           cast64(3)
-#define COMB_RGB_MUL_SHADE          cast64(4)
-#define COMB_RGB_MUL_ENV            cast64(5)
-#define COMB_RGB_MUL_KEYSCALE       cast64(6)
-#define COMB_RGB_MUL_COMBINED_ALPHA cast64(7)
-#define COMB_RGB_MUL_TEX0_ALPHA     cast64(8)
-#define COMB_RGB_MUL_TEX1_ALPHA     cast64(9)
-#define COMB_RGB_MUL_PRIM_ALPHA     cast64(10)
-#define COMB_RGB_MUL_SHADE_ALPHA    cast64(11)
-#define COMB_RGB_MUL_ENV_ALPHA      cast64(12)
-#define COMB_RGB_MUL_LOD_FRAC       cast64(13)
-#define COMB_RGB_MUL_PRIM_LOD_FRAC  cast64(14)
-#define COMB_RGB_MUL_K5             cast64(15)
-#define COMB_RGB_MUL_ZERO           cast64(16)
+#define _RDPQ_COMB0_RGB_SUBB_COMBINED  cast64(0)
+#define _RDPQ_COMB0_RGB_SUBB_TEX0      cast64(1)
+#define _RDPQ_COMB0_RGB_SUBB_TEX1      cast64(2)
+#define _RDPQ_COMB0_RGB_SUBB_PRIM      cast64(3)
+#define _RDPQ_COMB0_RGB_SUBB_SHADE     cast64(4)
+#define _RDPQ_COMB0_RGB_SUBB_ENV       cast64(5)
+#define _RDPQ_COMB0_RGB_SUBB_KEYCENTER cast64(6)
+#define _RDPQ_COMB0_RGB_SUBB_K4        cast64(7)
+#define _RDPQ_COMB0_RGB_SUBB_ZERO      cast64(8)
 
-#define COMB_RGB_ADD_COMBINED  cast64(0)
-#define COMB_RGB_ADD_TEX0      cast64(1)
-#define COMB_RGB_ADD_TEX1      cast64(2)
-#define COMB_RGB_ADD_PRIM      cast64(3)
-#define COMB_RGB_ADD_SHADE     cast64(4)
-#define COMB_RGB_ADD_ENV       cast64(5)
-#define COMB_RGB_ADD_ONE       cast64(6)
-#define COMB_RGB_ADD_ZERO      cast64(7)
+#define _RDPQ_COMB1_RGB_SUBB_COMBINED  cast64(0)
+#define _RDPQ_COMB1_RGB_SUBB_TEX1      cast64(1)
+#define _RDPQ_COMB1_RGB_SUBB_TEX0      cast64(2)
+#define _RDPQ_COMB1_RGB_SUBB_PRIM      cast64(3)
+#define _RDPQ_COMB1_RGB_SUBB_SHADE     cast64(4)
+#define _RDPQ_COMB1_RGB_SUBB_ENV       cast64(5)
+#define _RDPQ_COMB1_RGB_SUBB_KEYCENTER cast64(6)
+#define _RDPQ_COMB1_RGB_SUBB_K4        cast64(7)
+#define _RDPQ_COMB1_RGB_SUBB_ZERO      cast64(8)
 
-#define COMB_ALPHA_ADDSUB_COMBINED  cast64(0)
-#define COMB_ALPHA_ADDSUB_TEX0      cast64(1)
-#define COMB_ALPHA_ADDSUB_TEX1      cast64(2)
-#define COMB_ALPHA_ADDSUB_PRIM      cast64(3)
-#define COMB_ALPHA_ADDSUB_SHADE     cast64(4)
-#define COMB_ALPHA_ADDSUB_ENV       cast64(5)
-#define COMB_ALPHA_ADDSUB_ONE       cast64(6)
-#define COMB_ALPHA_ADDSUB_ZERO      cast64(7)
+#define _RDPQ_COMB0_RGB_MUL_COMBINED       cast64(0)
+#define _RDPQ_COMB0_RGB_MUL_TEX0           cast64(1)
+#define _RDPQ_COMB0_RGB_MUL_TEX1           cast64(2)
+#define _RDPQ_COMB0_RGB_MUL_PRIM           cast64(3)
+#define _RDPQ_COMB0_RGB_MUL_SHADE          cast64(4)
+#define _RDPQ_COMB0_RGB_MUL_ENV            cast64(5)
+#define _RDPQ_COMB0_RGB_MUL_KEYSCALE       cast64(6)
+#define _RDPQ_COMB0_RGB_MUL_COMBINED_ALPHA cast64(7)
+#define _RDPQ_COMB0_RGB_MUL_TEX0_ALPHA     cast64(8)
+#define _RDPQ_COMB0_RGB_MUL_TEX1_ALPHA     cast64(9)
+#define _RDPQ_COMB0_RGB_MUL_PRIM_ALPHA     cast64(10)
+#define _RDPQ_COMB0_RGB_MUL_SHADE_ALPHA    cast64(11)
+#define _RDPQ_COMB0_RGB_MUL_ENV_ALPHA      cast64(12)
+#define _RDPQ_COMB0_RGB_MUL_LOD_FRAC       cast64(13)
+#define _RDPQ_COMB0_RGB_MUL_PRIM_LOD_FRAC  cast64(14)
+#define _RDPQ_COMB0_RGB_MUL_K5             cast64(15)
+#define _RDPQ_COMB0_RGB_MUL_ZERO           cast64(16)
 
-#define COMB_ALPHA_MUL_LOD_FRAC         cast64(0)
-#define COMB_ALPHA_MUL_TEX0             cast64(1)
-#define COMB_ALPHA_MUL_TEX1             cast64(2)
-#define COMB_ALPHA_MUL_PRIM             cast64(3)
-#define COMB_ALPHA_MUL_SHADE            cast64(4)
-#define COMB_ALPHA_MUL_ENV              cast64(5)
-#define COMB_ALPHA_MUL_PRIM_LOD_FRAC    cast64(6)
-#define COMB_ALPHA_MUL_ZERO             cast64(7)
+#define _RDPQ_COMB1_RGB_MUL_COMBINED       cast64(0)
+#define _RDPQ_COMB1_RGB_MUL_TEX1           cast64(1)
+#define _RDPQ_COMB1_RGB_MUL_TEX0           cast64(2)
+#define _RDPQ_COMB1_RGB_MUL_PRIM           cast64(3)
+#define _RDPQ_COMB1_RGB_MUL_SHADE          cast64(4)
+#define _RDPQ_COMB1_RGB_MUL_ENV            cast64(5)
+#define _RDPQ_COMB1_RGB_MUL_KEYSCALE       cast64(6)
+#define _RDPQ_COMB1_RGB_MUL_COMBINED_ALPHA cast64(7)
+#define _RDPQ_COMB1_RGB_MUL_TEX0_ALPHA     cast64(8)
+#define _RDPQ_COMB1_RGB_MUL_TEX1_ALPHA     cast64(9)
+#define _RDPQ_COMB1_RGB_MUL_PRIM_ALPHA     cast64(10)
+#define _RDPQ_COMB1_RGB_MUL_SHADE_ALPHA    cast64(11)
+#define _RDPQ_COMB1_RGB_MUL_ENV_ALPHA      cast64(12)
+#define _RDPQ_COMB1_RGB_MUL_LOD_FRAC       cast64(13)
+#define _RDPQ_COMB1_RGB_MUL_PRIM_LOD_FRAC  cast64(14)
+#define _RDPQ_COMB1_RGB_MUL_K5             cast64(15)
+#define _RDPQ_COMB1_RGB_MUL_ZERO           cast64(16)
 
-#define Comb0_Rgb(suba, subb, mul, add) \
-    ((COMB_RGB_SUBA_ ## suba)<<52) | ((COMB_RGB_SUBB_ ## subb)<<28) | ((COMB_RGB_MUL_ ## mul)<<47) | ((COMB_RGB_ADD_ ## add)<<15)
-#define Comb1_Rgb(suba, subb, mul, add) \
-    ((COMB_RGB_SUBA_ ## suba)<<37) | ((COMB_RGB_SUBB_ ## subb)<<24) | ((COMB_RGB_MUL_ ## mul)<<32) | ((COMB_RGB_ADD_ ## add)<<6)
-#define Comb0_Alpha(suba, subb, mul, add) \
-    ((COMB_ALPHA_ADDSUB_ ## suba)<<44) | ((COMB_ALPHA_ADDSUB_ ## subb)<<12) | ((COMB_ALPHA_MUL_ ## mul)<<41) | ((COMB_ALPHA_ADDSUB_ ## add)<<9)
-#define Comb1_Alpha(suba, subb, mul, add) \
-    ((COMB_ALPHA_ADDSUB_ ## suba)<<21) | ((COMB_ALPHA_ADDSUB_ ## subb)<<3) | ((COMB_ALPHA_MUL_ ## mul)<<18) | ((COMB_ALPHA_ADDSUB_ ## add)<<0)
+#define _RDPQ_COMB0_RGB_ADD_COMBINED  cast64(0)
+#define _RDPQ_COMB0_RGB_ADD_TEX0      cast64(1)
+#define _RDPQ_COMB0_RGB_ADD_TEX1      cast64(2)
+#define _RDPQ_COMB0_RGB_ADD_PRIM      cast64(3)
+#define _RDPQ_COMB0_RGB_ADD_SHADE     cast64(4)
+#define _RDPQ_COMB0_RGB_ADD_ENV       cast64(5)
+#define _RDPQ_COMB0_RGB_ADD_ONE       cast64(6)
+#define _RDPQ_COMB0_RGB_ADD_ZERO      cast64(7)
 
-#define Comb_Rgb(suba, subb, mul, add) \
-    (Comb0_Rgb(suba, subb, mul, add) | Comb1_Rgb(suba, subb, mul, add))
-#define Comb_Alpha(suba, subb, mul, add) \
-    (Comb0_Alpha(suba, subb, mul, add) | Comb1_Alpha(suba, subb, mul, add))
+#define _RDPQ_COMB1_RGB_ADD_COMBINED  cast64(0)
+#define _RDPQ_COMB1_RGB_ADD_TEX1      cast64(1)
+#define _RDPQ_COMB1_RGB_ADD_TEX0      cast64(2)
+#define _RDPQ_COMB1_RGB_ADD_PRIM      cast64(3)
+#define _RDPQ_COMB1_RGB_ADD_SHADE     cast64(4)
+#define _RDPQ_COMB1_RGB_ADD_ENV       cast64(5)
+#define _RDPQ_COMB1_RGB_ADD_ONE       cast64(6)
+#define _RDPQ_COMB1_RGB_ADD_ZERO      cast64(7)
+
+#define _RDPQ_COMB0_ALPHA_ADDSUB_COMBINED  cast64(0)
+#define _RDPQ_COMB0_ALPHA_ADDSUB_TEX0      cast64(1)
+#define _RDPQ_COMB0_ALPHA_ADDSUB_TEX1      cast64(2)
+#define _RDPQ_COMB0_ALPHA_ADDSUB_PRIM      cast64(3)
+#define _RDPQ_COMB0_ALPHA_ADDSUB_SHADE     cast64(4)
+#define _RDPQ_COMB0_ALPHA_ADDSUB_ENV       cast64(5)
+#define _RDPQ_COMB0_ALPHA_ADDSUB_ONE       cast64(6)
+#define _RDPQ_COMB0_ALPHA_ADDSUB_ZERO      cast64(7)
+
+#define _RDPQ_COMB1_ALPHA_ADDSUB_COMBINED  cast64(0)
+#define _RDPQ_COMB1_ALPHA_ADDSUB_TEX1      cast64(1)
+#define _RDPQ_COMB1_ALPHA_ADDSUB_TEX0      cast64(2)
+#define _RDPQ_COMB1_ALPHA_ADDSUB_PRIM      cast64(3)
+#define _RDPQ_COMB1_ALPHA_ADDSUB_SHADE     cast64(4)
+#define _RDPQ_COMB1_ALPHA_ADDSUB_ENV       cast64(5)
+#define _RDPQ_COMB1_ALPHA_ADDSUB_ONE       cast64(6)
+#define _RDPQ_COMB1_ALPHA_ADDSUB_ZERO      cast64(7)
+
+#define _RDPQ_COMB0_ALPHA_MUL_LOD_FRAC         cast64(0)
+#define _RDPQ_COMB0_ALPHA_MUL_TEX0             cast64(1)
+#define _RDPQ_COMB0_ALPHA_MUL_TEX1             cast64(2)
+#define _RDPQ_COMB0_ALPHA_MUL_PRIM             cast64(3)
+#define _RDPQ_COMB0_ALPHA_MUL_SHADE            cast64(4)
+#define _RDPQ_COMB0_ALPHA_MUL_ENV              cast64(5)
+#define _RDPQ_COMB0_ALPHA_MUL_PRIM_LOD_FRAC    cast64(6)
+#define _RDPQ_COMB0_ALPHA_MUL_ZERO             cast64(7)
+
+#define _RDPQ_COMB1_ALPHA_MUL_LOD_FRAC         cast64(0)
+#define _RDPQ_COMB1_ALPHA_MUL_TEX1             cast64(1)
+#define _RDPQ_COMB1_ALPHA_MUL_TEX0             cast64(2)
+#define _RDPQ_COMB1_ALPHA_MUL_PRIM             cast64(3)
+#define _RDPQ_COMB1_ALPHA_MUL_SHADE            cast64(4)
+#define _RDPQ_COMB1_ALPHA_MUL_ENV              cast64(5)
+#define _RDPQ_COMB1_ALPHA_MUL_PRIM_LOD_FRAC    cast64(6)
+#define _RDPQ_COMB1_ALPHA_MUL_ZERO             cast64(7)
+
+#define RDPQ_COMB0_MASK    ((cast64(0xF)<<52)|(cast64(0xF)<<47)|(cast64(0x7)<<44)|(cast64(0x7)<<41)|(cast64(0xF)<<28)|(cast64(0x7)<<15)|(cast64(0x7)<<12)|(cast64(0x7)<<9))
+#define RDPQ_COMB1_MASK    (~RDPQ_COMB0_MASK & cast64(0x00FFFFFFFFFFFFFF))
+
+#define __rdpq_comb0_rgb(suba, subb, mul, add) \
+    ((_RDPQ_COMB0_RGB_SUBA_ ## suba)<<52) | ((_RDPQ_COMB0_RGB_SUBB_ ## subb)<<28) | ((_RDPQ_COMB0_RGB_MUL_ ## mul)<<47) | ((_RDPQ_COMB0_RGB_ADD_ ## add)<<15)
+#define __rdpq_comb1_rgb(suba, subb, mul, add) \
+    ((_RDPQ_COMB1_RGB_SUBA_ ## suba)<<37) | ((_RDPQ_COMB1_RGB_SUBB_ ## subb)<<24) | ((_RDPQ_COMB1_RGB_MUL_ ## mul)<<32) | ((_RDPQ_COMB1_RGB_ADD_ ## add)<<6)
+#define __rdp1_comb0_alpha(suba, subb, mul, add) \
+    ((_RDPQ_COMB0_ALPHA_ADDSUB_ ## suba)<<44) | ((_RDPQ_COMB0_ALPHA_ADDSUB_ ## subb)<<12) | ((_RDPQ_COMB0_ALPHA_MUL_ ## mul)<<41) | ((_RDPQ_COMB0_ALPHA_ADDSUB_ ## add)<<9)
+#define __rdpq_comb1_alpha(suba, subb, mul, add) \
+    ((_RDPQ_COMB1_ALPHA_ADDSUB_ ## suba)<<21) | ((_RDPQ_COMB1_ALPHA_ADDSUB_ ## subb)<<3) | ((_RDPQ_COMB1_ALPHA_MUL_ ## mul)<<18) | ((_RDPQ_COMB1_ALPHA_ADDSUB_ ## add)<<0)
+
+#define RDPQ_COMBINER_2PASS   (cast64(1)<<63)
+
+#define RDPQ_COMBINER2(rgb0, alpha0, rgb1, alpha1) \
+    (__rdpq_comb0_rgb rgb0 | __rdp1_comb0_alpha alpha0 | __rdpq_comb1_rgb rgb1 | __rdpq_comb1_alpha alpha1 | RDPQ_COMBINER_2PASS)
+#define RDPQ_COMBINER1(rgb, alpha) \
+    (__rdpq_comb0_rgb rgb  | __rdp1_comb0_alpha alpha  | __rdpq_comb1_rgb rgb  | __rdpq_comb1_alpha alpha)
+
 
 #define SOM_ATOMIC_PRIM        ((cast64(1))<<55)
 
@@ -115,6 +186,7 @@
 #define SOM_CYCLE_2            ((cast64(1))<<52)
 #define SOM_CYCLE_COPY         ((cast64(2))<<52)
 #define SOM_CYCLE_FILL         ((cast64(3))<<52)
+#define SOM_CYCLE_MASK         ((cast64(3))<<52)
 
 #define SOM_TEXTURE_PERSP      (cast64(1)<<51)
 #define SOM_TEXTURE_DETAIL     (cast64(1)<<50)
@@ -124,26 +196,36 @@
 #define SOM_ENABLE_TLUT_RGB16  (cast64(2)<<46)
 #define SOM_ENABLE_TLUT_I88    (cast64(3)<<46)
 
+#define SOM_SAMPLE_MASK        (cast64(3)<<44)
 #define SOM_SAMPLE_1X1         (cast64(0)<<45)
 #define SOM_SAMPLE_2X2         (cast64(1)<<45)
-#define SOM_MIDTEXEL           (cast64(1)<<44)
+#define SOM_SAMPLE_MIDTEXEL    (cast64(1)<<44)
 
 #define SOM_TC_FILTER          (cast64(6)<<41)
 #define SOM_TC_FILTERCONV      (cast64(5)<<41)
 #define SOM_TC_CONV            (cast64(0)<<41)
 
-#define SOM_KEY_ENABLED        (cast64(1)<<41)
+#define SOM_TF_POINT           (cast64(0)<<44)
+#define SOM_TF_BILERP          (cast64(2)<<44)
+#define SOM_TF_AVERAGE         (cast64(3)<<44)
 
 #define SOM_RGBDITHER_SQUARE   ((cast64(0))<<38)
 #define SOM_RGBDITHER_BAYER    ((cast64(1))<<38)
 #define SOM_RGBDITHER_NOISE    ((cast64(2))<<38)
 #define SOM_RGBDITHER_NONE     ((cast64(3))<<38)
+#define SOM_RGBDITHER_MASK     ((cast64(4))<<38)
+#define SOM_RGBDITHER_SHIFT    38
 
 #define SOM_ALPHADITHER_SQUARE ((cast64(0))<<36)
 #define SOM_ALPHADITHER_BAYER  ((cast64(1))<<36)
 #define SOM_ALPHADITHER_NOISE  ((cast64(2))<<36)
 #define SOM_ALPHADITHER_NONE   ((cast64(3))<<36)
+#define SOM_ALPHADITHER_MASK   ((cast64(4))<<36)
+#define SOM_ALPHADITHER_SHIFT  36
 
+#define SOM_BLEND0_MASK        (cast64(0x33330000) | SOM_BLENDING | SOM_READ_ENABLE | RDPQ_BLENDER_2PASS)
+#define SOM_BLEND1_MASK        (cast64(0xCCCC0000) | SOM_BLENDING | SOM_READ_ENABLE | RDPQ_BLENDER_2PASS)
+#define SOM_BLEND_MASK         (SOM_BLEND0_MASK | SOM_BLEND1_MASK)
 #define SOM_BLENDING           ((cast64(1))<<14)
 #define SOM_ALPHA_USE_CVG      ((cast64(1))<<13)
 #define SOM_CVG_TIMES_ALPHA    ((cast64(1))<<12)
@@ -157,6 +239,7 @@
 #define SOM_Z_SOURCE_PRIM      ((cast64(1))<<2)
 #define SOM_ALPHADITHER_ENABLE ((cast64(1))<<1)
 #define SOM_ALPHA_COMPARE      ((cast64(1))<<0)
+#define SOM_ALPHACOMPARE_MASK  ((cast64(3))<<0)
 
 #define SOM_READ_ENABLE                 ((cast64(1)) << 6)
 #define SOM_AA_ENABLE                   ((cast64(1)) << 3)
@@ -182,12 +265,33 @@
 #define SOM_BLEND_B2_ONE            cast64(2)
 #define SOM_BLEND_B2_ZERO           cast64(3)
 
-#define Blend0(a1, b1, a2, b2) \
+#define __rdpq_blend_0(a1, b1, a2, b2) \
     (((SOM_BLEND_A_ ## a1) << 30) | ((SOM_BLEND_B1_ ## b1) << 26) | ((SOM_BLEND_A_ ## a2) << 22) | ((SOM_BLEND_B2_ ## b2) << 18))
-#define Blend1(a1, b1, a2, b2) \
+#define __rdpq_blend_1(a1, b1, a2, b2) \
     (((SOM_BLEND_A_ ## a1) << 28) | ((SOM_BLEND_B1_ ## b1) << 24) | ((SOM_BLEND_A_ ## a2) << 20) | ((SOM_BLEND_B2_ ## b2) << 16))
 
 #define Blend(a1, b1, a2, b2) \
-    (Blend0(a1, b1, a2, b2) | Blend1(a1, b1, a2, b2))
+    (__rdpq_blend_0(a1, b1, a2, b2) | __rdpq_blend_1(a1, b1, a2, b2))
+
+#define __rdpq_blend(a1, b1, a2, b2, sa1, sb1, sa2, sb2) ({ \
+    uint32_t _bl = \
+        ((SOM_BLEND_A_  ## a1) << sa1) | \
+        ((SOM_BLEND_B1_ ## b1) << sb1) | \
+        ((SOM_BLEND_A_  ## a2) << sa2) | \
+        ((SOM_BLEND_B2_ ## b2) << sb2);  \
+    if ((SOM_BLEND_A_  ## a1) == SOM_BLEND_A_MEMORY_RGB || \
+        (SOM_BLEND_A_  ## a2) == SOM_BLEND_A_MEMORY_RGB || \
+        (SOM_BLEND_B2_ ## b2) == SOM_BLEND_B2_MEMORY_ALPHA) \
+        _bl |= SOM_READ_ENABLE; \
+    _bl | SOM_BLENDING; \
+})
+
+#define __rdpq_blend0(a1, b1, a2, b2) __rdpq_blend(a1, b1, a2, b2, 30, 26, 22, 18)
+#define __rdpq_blend1(a1, b1, a2, b2) __rdpq_blend(a1, b1, a2, b2, 28, 24, 20, 16)
+
+#define RDPQ_BLENDER_2PASS     (1<<15)
+
+#define RDPQ_BLENDER1(bl)        (SOM_BLENDING | __rdpq_blend0 bl  | __rdpq_blend1 bl)
+#define RDPQ_BLENDER2(bl0, bl1)  (SOM_BLENDING | __rdpq_blend0 bl0 | __rdpq_blend1 bl1 | RDPQ_BLENDER_2PASS)
 
 #endif

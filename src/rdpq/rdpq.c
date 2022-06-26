@@ -158,9 +158,13 @@ DEFINE_RSP_UCODE(rsp_rdpq,
 
 typedef struct rdpq_state_s {
     uint64_t sync_full;
-    uint32_t address_table[RDPQ_ADDRESS_TABLE_SIZE];
-    uint64_t other_modes;
     uint64_t scissor_rect;
+    struct __attribute__((packed)) {
+        uint64_t comb_1cyc; uint32_t blend_1cyc;
+        uint64_t comb_2cyc; uint32_t blend_2cyc;
+        uint64_t other_modes;
+    } modes[4];
+    uint32_t address_table[RDPQ_ADDRESS_TABLE_SIZE];
     uint32_t fill_color;
     uint32_t rdram_state_address;
     uint8_t target_bitdepth;
@@ -209,10 +213,13 @@ static void __rdpq_interrupt(void) {
 void rdpq_init()
 {
     rdpq_state_t *rdpq_state = UncachedAddr(rspq_overlay_get_state(&rsp_rdpq));
+    _Static_assert(sizeof(rdpq_state->modes[0]) == 32,   "invalid sizeof: rdpq_state->modes[0]");
+    _Static_assert(sizeof(rdpq_state->modes)    == 32*4, "invalid sizeof: rdpq_state->modes");
 
     memset(rdpq_state, 0, sizeof(rdpq_state_t));
     rdpq_state->rdram_state_address = PhysicalAddr(rdpq_state);
-    rdpq_state->other_modes = ((uint64_t)RDPQ_OVL_ID << 32) + ((uint64_t)RDPQ_CMD_SET_OTHER_MODES << 56);
+    for (int i=0;i<4;i++)
+        rdpq_state->modes[i].other_modes = ((uint64_t)RDPQ_OVL_ID << 32) + ((uint64_t)RDPQ_CMD_SET_OTHER_MODES << 56);
 
     // The (1 << 12) is to prevent underflow in case set other modes is called before any set scissor command.
     // Depending on the cycle mode, 1 subpixel is subtracted from the right edge of the scissor rect.
@@ -279,6 +286,10 @@ static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
         printf("Triangles cannot be used in copy or fill mode\n");
         break;
     
+    case RDPQ_ASSERT_FILLCOPY_BLENDING:
+        printf("Cannot call rdpq_mode_blending in fill or copy mode\n");
+        break;
+
     default:
         printf("Unknown assert\n");
         break;
@@ -459,8 +470,15 @@ static inline bool in_block(void) {
 })
 
 __attribute__((noinline))
-void rdpq_fixup_write8(uint32_t cmd_id_dyn, uint32_t cmd_id_fix, int skip_size, uint32_t arg0, uint32_t arg1)
+void __rdpq_fixup_write8(uint32_t cmd_id_dyn, uint32_t cmd_id_fix, int skip_size, uint32_t arg0, uint32_t arg1)
 {
+    rdpq_fixup_write(cmd_id_dyn, cmd_id_fix, skip_size, arg0, arg1);
+}
+
+__attribute__((noinline))
+void __rdpq_fixup_write8_syncchange(uint32_t cmd_id_dyn, uint32_t cmd_id_fix, int skip_size, uint32_t arg0, uint32_t arg1, uint32_t autosync)
+{
+    autosync_change(autosync);
     rdpq_fixup_write(cmd_id_dyn, cmd_id_fix, skip_size, arg0, arg1);
 }
 
@@ -836,28 +854,25 @@ __attribute__((noinline))
 void __rdpq_set_scissor(uint32_t w0, uint32_t w1)
 {
     // NOTE: SET_SCISSOR does not require SYNC_PIPE
-    rdpq_fixup_write8(RDPQ_CMD_SET_SCISSOR_EX, RDPQ_CMD_SET_SCISSOR_EX_FIX, 2, w0, w1);
+    __rdpq_fixup_write8(RDPQ_CMD_SET_SCISSOR_EX, RDPQ_CMD_SET_SCISSOR_EX_FIX, 2, w0, w1);
 }
 
 __attribute__((noinline))
 void __rdpq_set_fill_color(uint32_t w1)
 {
-    autosync_change(AUTOSYNC_PIPE);
-    rdpq_fixup_write8(RDPQ_CMD_SET_FILL_COLOR_32, RDPQ_CMD_SET_FILL_COLOR_32_FIX, 2, 0, w1);
+    __rdpq_fixup_write8_syncchange(RDPQ_CMD_SET_FILL_COLOR_32, RDPQ_CMD_SET_FILL_COLOR_32_FIX, 2, 0, w1, AUTOSYNC_PIPE);
 }
 
 __attribute__((noinline))
 void __rdpq_set_fixup_image(uint32_t cmd_id_dyn, uint32_t cmd_id_fix, uint32_t w0, uint32_t w1)
 {
-    autosync_change(AUTOSYNC_PIPE);
-    rdpq_fixup_write8(cmd_id_dyn, cmd_id_fix, 2, w0, w1);
+    __rdpq_fixup_write8_syncchange(cmd_id_dyn, cmd_id_fix, 2, w0, w1, AUTOSYNC_PIPE);
 }
 
 __attribute__((noinline))
 void __rdpq_set_color_image(uint32_t w0, uint32_t w1)
 {
-    autosync_change(AUTOSYNC_PIPE);
-    rdpq_fixup_write8(RDPQ_CMD_SET_COLOR_IMAGE, RDPQ_CMD_SET_COLOR_IMAGE_FIX, 4, w0, w1);
+    __rdpq_fixup_write8_syncchange(RDPQ_CMD_SET_COLOR_IMAGE, RDPQ_CMD_SET_COLOR_IMAGE_FIX, 4, w0, w1, AUTOSYNC_PIPE);
 }
 
 __attribute__((noinline))
@@ -883,6 +898,13 @@ void __rdpq_modify_other_modes(uint32_t w0, uint32_t w1, uint32_t w2)
 {
     autosync_change(AUTOSYNC_PIPE);
     rdpq_fixup_write(RDPQ_CMD_MODIFY_OTHER_MODES, RDPQ_CMD_MODIFY_OTHER_MODES_FIX, 4, w0, w1, w2);
+}
+
+uint64_t rdpq_get_other_modes_raw(void)
+{
+    rspq_wait();
+    rdpq_state_t *rdpq_state = rspq_overlay_get_state(&rsp_rdpq);
+    return rdpq_state->modes[0].other_modes;
 }
 
 void rdpq_sync_full(void (*callback)(void*), void* arg)
@@ -923,7 +945,23 @@ void rdpq_sync_load(void)
     rdpq_autosync_state[0] &= ~AUTOSYNC_TMEMS;
 }
 
+void rdpq_mode_push(void)
+{
+    __rdpq_write8(RDPQ_CMD_PUSH_RENDER_MODE, 0, 0);
+}
+
+void rdpq_mode_pop(void)
+{
+    __rdpq_fixup_write8_syncchange(RDPQ_CMD_POP_RENDER_MODE, RDPQ_CMD_POP_RENDER_MODE_FIX, 4, 0, 0, AUTOSYNC_PIPE);
+}
+
 
 /* Extern inline instantiations. */
 extern inline void rdpq_set_fill_color(color_t color);
 extern inline void rdpq_set_color_image(void* dram_ptr, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride);
+extern inline void rdpq_set_other_modes_raw(uint64_t mode);
+extern inline void rdpq_change_other_mode_raw(uint64_t mask, uint64_t val);
+extern inline void rdpq_set_mode_fill(color_t color);
+extern inline void rdpq_mode_combiner(rdpq_combiner_t comb);
+extern inline void rdpq_mode_blender(rdpq_blender_t blend);
+extern inline void rdpq_mode_blender_off(void);
