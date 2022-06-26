@@ -187,7 +187,7 @@ inline void rdpq_set_chromakey_parms(color_t color,
 /**
  * @brief Low level functions to set the matrix coefficients for texture format conversion
  */
-inline void rdpq_set_convert(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k3, uint16_t k4, uint16_t k5)
+inline void rdpq_set_yuv_parms(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k3, uint16_t k4, uint16_t k5)
 {
     extern void __rdpq_write8_syncchange(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t autosync);
     __rdpq_write8_syncchange(RDPQ_CMD_SET_CONVERT,
