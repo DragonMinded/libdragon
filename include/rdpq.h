@@ -514,7 +514,7 @@ inline void rdpq_set_z_image_lookup(uint8_t index, uint32_t offset)
 
 inline void rdpq_set_z_image(void* dram_ptr)
 {
-    assertf(((uint32_t)dram_ptr & 63) == 0, "buffer pointer is not aligned to 64 bytes, so it cannot use as RDP depth image.\nAllocate it with memalign(64, len) or malloc_uncached_align(64, len)");
+    assertf(((uint32_t)dram_ptr & 7) == 0, "buffer pointer is not aligned to 8 bytes, so it cannot use as RDP depth image");
     rdpq_set_z_image_lookup(0, PhysicalAddr(dram_ptr));
 }
 
@@ -568,7 +568,7 @@ inline void rdpq_set_color_image_no_scissor(void* dram_ptr, tex_format_t format,
 
 inline void rdpq_set_color_image(void* dram_ptr, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride)
 {
-    assertf(((uint32_t)dram_ptr & 63) == 0, "buffer pointer is not aligned to 64 bytes, so it cannot use as RDP color image.\nAllocate it with memalign(64, len) or malloc_uncached_align(64, len)");
+    assertf(((uint32_t)dram_ptr & 7) == 0, "buffer pointer is not aligned to 8 bytes, so it cannot use as RDP color image");
     rdpq_set_color_image_lookup(0, PhysicalAddr(dram_ptr), format, width, height, stride);
 }
 
