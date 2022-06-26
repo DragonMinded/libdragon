@@ -98,8 +98,6 @@
  *
  * * A two-pass blender is configured.
  * * A two-pass combiner is configured.
- * * A one-pass combiner is configured and the pass accesses the second
- *   texture (`TEX1`).
  *  
  * The correct cycle-type is automatically reconfigured any time that either
  * the blender or the combiner settings are changed. Notice that this means
@@ -117,6 +115,13 @@
  *   as a passthrough (equivalent to `RDPQ_BLENDER1((PIXEL_RGB, ZERO, PIXEL_RGB, ONE))`).
  *   Notice that this is required because there is no pure passthrough in
  *   second step of the blender.
+ * * RDPQ_COMBINER1 and RDPQ_BLENDER1 define a single-pass combiner/blender in the
+ *   correct way (so they program both cycles with the same value).
+ * * RDPQ_COMBINER2 macro transparently handles the texture index swap in the
+ *   second cycle. So while using the macro, TEX0 always refers to the first
+ *   texture and TEX1 always refers to the second texture.
+ * * RDPQ_COMBINER1 does not allow to define a combiner accessing TEX1, as
+ *   multi-texturing only works in 2-cycle mode.
  * 
  * ### Fill color as standard 32-bit color
  * 
