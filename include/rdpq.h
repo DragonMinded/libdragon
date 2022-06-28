@@ -769,10 +769,17 @@ typedef uint64_t rdpq_combiner_t;
 typedef uint32_t rdpq_blender_t;
 
 typedef enum rdpq_sampler_s {
-    SAMPLER_POINT,
+    SAMPLER_POINT = 0,
     SAMPLER_BILINEAR,
     SAMPLER_MEDIAN
 } rdpq_sampler_t;
+
+typedef enum rdpq_dither_s {
+    DITHER_SQUARE = 0,
+    DITHER_BAYER,
+    DITHER_NOISE,
+    DITHER_NONE
+} rdpq_dither_t;
 
 /**
  * @brief Reset render mode to FILL type.
@@ -877,7 +884,7 @@ inline void rdpq_mode_blender_off(void) {
     __rdpq_fixup_write8(RDPQ_CMD_SET_BLENDING_MODE, RDPQ_CMD_SET_BLENDING_MODE_FIX, 4, 0, 0);
 }
 
-inline void rdpq_mode_dithering(int rgb, int alpha) {
+inline void rdpq_mode_dithering(rdpq_dither_t rgb, rdpq_dither_t alpha) {
     rdpq_change_other_modes_raw(
         SOM_RGBDITHER_MASK | SOM_ALPHADITHER_MASK,
         ((uint64_t)rgb << SOM_RGBDITHER_SHIFT) | ((uint64_t)alpha << SOM_ALPHADITHER_SHIFT));

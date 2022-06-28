@@ -824,7 +824,7 @@ void test_rdpq_automode(TestContext *ctx) {
     memset(expected_fb, 0xFF, sizeof(expected_fb));
     for (int y=0;y<TEST_RDPQ_TEXWIDTH;y++) {
         for (int x=0;x<TEST_RDPQ_TEXWIDTH;x++) {
-            color_t c = RGBA16(x, y, x+y, 1);
+            color_t c = RGBA16(RANDN(32), RANDN(32), RANDN(32), 1);
             expected_fb[(y + 4) * TEST_RDPQ_FBWIDTH + (x + 4)] = color_to_packed16(c);
             ((uint16_t*)texture)[y * TEST_RDPQ_TEXWIDTH + x] = color_to_packed16(c);
         }
@@ -834,10 +834,14 @@ void test_rdpq_automode(TestContext *ctx) {
     rdpq_set_color_image(framebuffer, FMT_RGBA16, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
     rdpq_set_texture_image(texture, FMT_RGBA16, TEST_RDPQ_TEXWIDTH);
     rdpq_set_tile(0, FMT_RGBA16, 0, TEST_RDPQ_TEXWIDTH * 2, 0);
+    rdpq_set_tile(1, FMT_RGBA16, 0, TEST_RDPQ_TEXWIDTH * 2, 0);
     rdpq_load_tile(0, 0, 0, TEST_RDPQ_TEXWIDTH, TEST_RDPQ_TEXWIDTH);
+    rdpq_load_tile(1, 0, 0, TEST_RDPQ_TEXWIDTH, TEST_RDPQ_TEXWIDTH);
     rdpq_set_mode_standard();
     rdpq_set_blend_color(RGBA32(0xFF, 0xFF, 0xFF, 0xFF));
     rdpq_set_fog_color(RGBA32(0xEE, 0xEE, 0xEE, 0xFF));
+    rdpq_set_env_color(RGBA32(0x0,0x0,0x0,0x80));
+    rdpq_set_prim_color(RGBA32(0x0,0x0,0x0,0x80));
 
     memset(framebuffer, 0xFF, TEST_RDPQ_FBSIZE);
     rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO)));
@@ -870,8 +874,8 @@ void test_rdpq_automode(TestContext *ctx) {
 
     memset(framebuffer, 0xFF, TEST_RDPQ_FBSIZE);
     rdpq_mode_combiner(RDPQ_COMBINER2(
-        (ZERO, ZERO, ZERO, ONE), (ZERO, ZERO, ZERO, ZERO),
-        (COMBINED, ZERO, TEX0, ZERO), (ZERO, ZERO, ZERO, ZERO)));
+        (ZERO, ZERO, ZERO, ENV), (ENV, ZERO, TEX0, PRIM),
+        (TEX1, ZERO, COMBINED_ALPHA, ZERO), (ZERO, ZERO, ZERO, ZERO)));
     rdpq_texture_rectangle(0, 4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4, 0, 0, 1, 1);
     rspq_wait();
     som = rdpq_get_other_modes_raw();
@@ -896,4 +900,29 @@ void test_rdpq_automode(TestContext *ctx) {
     ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_1, "invalid cycle type");
     ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 
         "Wrong data in framebuffer (comb=1pass, blender=1pass)");
+
+    // Push the current mode, then modify several states
+    rdpq_mode_push();
+    rdpq_mode_combiner(RDPQ_COMBINER2(
+        (ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO),
+        (COMBINED, ZERO, ZERO, TEX1), (ZERO, ZERO, ZERO, ZERO)
+    ));
+    rdpq_mode_blender(RDPQ_BLENDER1((PIXEL_RGB, ZERO, BLEND_RGB, ONE)));
+    rdpq_mode_dithering(DITHER_NOISE, DITHER_NOISE);
+    rdpq_mode_pop();
+    rdpq_texture_rectangle(0, 4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4, 0, 0, 1, 1);
+    rspq_wait();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_1, "invalid cycle type");
+    ASSERT_EQUAL_MEM((uint8_t*)framebuffer, (uint8_t*)expected_fb, TEST_RDPQ_FBSIZE, 
+        "Wrong data in framebuffer (comb=1pass, blender=1pass (after pop))");
+
+
+    #undef TEST_RDPQ_FBWIDTH
+    #undef TEST_RDPQ_FBAREA
+    #undef TEST_RDPQ_FBSIZE
+
+    #undef TEST_RDPQ_TEXWIDTH 
+    #undef TEST_RDPQ_TEXAREA  
+    #undef TEST_RDPQ_TEXSIZE  
 }
