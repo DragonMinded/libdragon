@@ -734,7 +734,7 @@ inline void rdpq_change_other_mode_raw(uint64_t mask, uint64_t val)
     if (mask >> 32)
         __rdpq_modify_other_modes(0, ~(mask >> 32), val >> 32);
     if ((uint32_t)mask)
-        __rdpq_modify_other_modes(4, ~(uint32_t)mask, ~(uint32_t)val);
+        __rdpq_modify_other_modes(4, ~(uint32_t)mask, (uint32_t)val);
 }
 
 uint64_t rdpq_get_other_modes_raw(void);
