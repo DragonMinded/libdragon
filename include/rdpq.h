@@ -727,7 +727,7 @@ inline void rdpq_set_other_modes_raw(uint64_t mode)
  * render mode for all the other bits, so it allows for easier composition.
  * 
  */
-inline void rdpq_change_other_mode_raw(uint64_t mask, uint64_t val)
+inline void rdpq_change_other_modes_raw(uint64_t mask, uint64_t val)
 {
     extern void __rdpq_modify_other_modes(uint32_t, uint32_t, uint32_t);
 
@@ -878,21 +878,21 @@ inline void rdpq_mode_blender_off(void) {
 }
 
 inline void rdpq_mode_dithering(int rgb, int alpha) {
-    rdpq_change_other_mode_raw(
+    rdpq_change_other_modes_raw(
         SOM_RGBDITHER_MASK | SOM_ALPHADITHER_MASK,
         ((uint64_t)rgb << SOM_RGBDITHER_SHIFT) | ((uint64_t)alpha << SOM_ALPHADITHER_SHIFT));
 }
 
 inline void rdpq_mode_alphacompare(bool enable, int threshold) {
     if (enable && threshold > 0) rdpq_set_blend_color(RGBA32(0,0,0,threshold));
-    rdpq_change_other_mode_raw(
+    rdpq_change_other_modes_raw(
         SOM_ALPHACOMPARE_MASK, enable ? SOM_ALPHA_COMPARE : 0
     );
 }
 
 inline void rdpq_mode_zoverride(bool enable, uint16_t z, int16_t deltaz) {
     if (enable) rdpq_set_prim_depth(z, deltaz);
-    rdpq_change_other_mode_raw(
+    rdpq_change_other_modes_raw(
         SOM_Z_SOURCE_PRIM, enable ? SOM_Z_SOURCE_PRIM : 0
     );
 }
@@ -904,7 +904,7 @@ inline void rdpq_mode_sampler(rdpq_sampler_t s) {
         case SAMPLER_MEDIAN:   samp = SOM_SAMPLE_2X2 | SOM_SAMPLE_MIDTEXEL; break;
         case SAMPLER_BILINEAR: samp = SOM_SAMPLE_2X2; break;
     }
-    rdpq_change_other_mode_raw(SOM_SAMPLE_MASK, samp);    
+    rdpq_change_other_modes_raw(SOM_SAMPLE_MASK, samp);    
 }
 
 #ifdef __cplusplus

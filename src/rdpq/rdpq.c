@@ -851,6 +851,8 @@ __attribute__((noinline))
 void __rdpq_texture_rectangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3)
 {
     int tile = (w1 >> 24) & 7;
+    // FIXME: this can also use tile+1 in case the combiner refers to TEX1
+    // FIXME: this can also use tile+2 and +3 in case SOM activates texture detail / sharpen
     autosync_use(AUTOSYNC_PIPE | AUTOSYNC_TILE(tile) | AUTOSYNC_TMEM(0));
     rdpq_fixup_write(RDPQ_CMD_TEXTURE_RECTANGLE_EX, RDPQ_CMD_TEXTURE_RECTANGLE_EX_FIX, 4, w0, w1, w2, w3);
 }
@@ -965,7 +967,7 @@ void rdpq_mode_pop(void)
 extern inline void rdpq_set_fill_color(color_t color);
 extern inline void rdpq_set_color_image(void* dram_ptr, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride);
 extern inline void rdpq_set_other_modes_raw(uint64_t mode);
-extern inline void rdpq_change_other_mode_raw(uint64_t mask, uint64_t val);
+extern inline void rdpq_change_other_modes_raw(uint64_t mask, uint64_t val);
 extern inline void rdpq_set_mode_fill(color_t color);
 extern inline void rdpq_mode_combiner(rdpq_combiner_t comb);
 extern inline void rdpq_mode_blender(rdpq_blender_t blend);
