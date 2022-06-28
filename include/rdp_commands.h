@@ -238,9 +238,9 @@
 #define SOM_ENABLE_TLUT_I88    (cast64(3)<<46)
 
 #define SOM_SAMPLE_MASK        (cast64(3)<<44)
-#define SOM_SAMPLE_1X1         (cast64(0)<<45)
-#define SOM_SAMPLE_2X2         (cast64(1)<<45)
-#define SOM_SAMPLE_MIDTEXEL    (cast64(1)<<44)
+#define SOM_SAMPLE_1X1         (cast64(0)<<44)
+#define SOM_SAMPLE_2X2         (cast64(2)<<44)
+#define SOM_SAMPLE_MIDTEXEL    (cast64(3)<<44)
 
 #define SOM_TC_FILTER          (cast64(6)<<41)
 #define SOM_TC_FILTERCONV      (cast64(5)<<41)
