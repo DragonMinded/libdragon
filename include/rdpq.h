@@ -698,14 +698,14 @@ void rdpq_sync_load(void);
  * @brief Low-level function to set the rendering mode register.
  * 
  * This function enqueues a low-level SET_OTHER_MODES RDP command that changes
- * the RDP current mode, setting it to a new value
+ * the RDP render mode, setting it to a new value
  * 
  * This function is very low level and requires very good knowledge of internal
  * RDP state management. Moreover, it completely overwrites any existing
  * configuration for all bits, so it must be used with caution within a block.
  * 
- * @note If possible, prefer using the rdpq_rm function family that exposes a
- * higher level API for changing the current render mode.
+ * @note If possible, prefer using the rdpq_mode_* functions that expose a
+ * higher level API for changing the RDP modes
  *
  * @param      mode     The new render mode. See the RDP_RM
  * 
@@ -737,7 +737,36 @@ inline void rdpq_change_other_modes_raw(uint64_t mask, uint64_t val)
         __rdpq_modify_other_modes(4, ~(uint32_t)mask, (uint32_t)val);
 }
 
+/**
+ * @brief Read the current render mode register.
+ * 
+ * This function executes a full sync (#rspq_wait) and then extracts the
+ * current raw render mode from the RSP state. This should be used only
+ * for debugging purposes.
+ *
+ * @return     THe current value of the render mode register.
+ */
 uint64_t rdpq_get_other_modes_raw(void);
+
+/**
+ * @brief Low-level function to change the RDP combiner.
+ * 
+ * This function enqueues a low-level SET_COMBINE RDP command that changes
+ * the RDP combiner, setting it to a new value.
+ * You can use #RDPQ_COMBINER1 and #RDPQ_COMBINER2 to create 
+ * the combiner settings for respectively a 1-pass or 2-pass combiner.
+ * 
+ * This function should be used for experimentation and debugging purposes.
+ * Prefer using #rdpq_mode_combiner (part of the RDPQ mode API), as it better
+ * handles integration with other render mode changes.
+ * 
+ * @param      mode     The new combiner setting
+ * 
+ * @see #rdpq_mode_combiner
+ * @see #RDPQ_COMBINER1
+ * @see #RDPQ_COMBINER2
+ * 
+ */
 
 inline void rdpq_set_combiner_raw(uint64_t comb) {
     extern void __rdpq_write8_syncchange(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t autosync);
@@ -752,6 +781,12 @@ inline void rdpq_set_combiner_raw(uint64_t comb) {
  * 
  * This function allows to push the current render mode into an internal stack.
  * It allows to temporarily modify the render mode, and later recover its value.
+ * 
+ * This is effective on all render mode changes that can be modified via
+ * rdpq_mode_* function. It does not affect other RDP configurations such as
+ * the various colors.
+ * 
+ * The stack has 4 slots (including the current one).
  */
 
 void rdpq_mode_push(void);
