@@ -454,8 +454,8 @@ inline rspq_write_t rspq_write_begin(uint32_t ovl_id, uint32_t cmd_id, int size)
 
     return (rspq_write_t){
         .first_word = ovl_id + (cmd_id<<24),
-        .first = cur,
         .pointer = cur + 1,
+        .first = cur,
         .is_first = 1
     };
 }
