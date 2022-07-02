@@ -384,7 +384,7 @@ void __rdpq_write16_syncuse(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint3
     __rdpq_write16(cmd_id, arg0, arg1, arg2, arg3);
 }
 
-#define TRUNCATE_S11_2(x) (0x3fff&((((x)&0x1fff) | (((x)&0x80000000)>>18))))
+#define TRUNCATE_S11_2(x) (((x)&0x1fff) | (((x)>>18)&~0x1fff))
 
 /** @brief Converts a float to a s16.16 fixed point number */
 int32_t float_to_s16_16(float f)
@@ -401,7 +401,7 @@ int32_t float_to_s16_16(float f)
         return 0x80000000;
     }
 
-    return f * 65536.f;
+    return floor(f * 65536.f);
 }
 
 typedef struct {
@@ -415,18 +415,17 @@ typedef struct {
 __attribute__((always_inline))
 inline void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, uint8_t tile, uint8_t level, const float *v1, const float *v2, const float *v3)
 {
-    const float to_fixed_11_2 = 4.0f;
-
     const float x1 = v1[0];
-    const float y1 = v1[1];
     const float x2 = v2[0];
-    const float y2 = v2[1];
     const float x3 = v3[0];
-    const float y3 = v3[1];
+    const float y1 = floorf(v1[1]*4)/4;
+    const float y2 = floorf(v2[1]*4)/4;
+    const float y3 = floorf(v3[1]*4)/4;
 
-    const int32_t y1f = TRUNCATE_S11_2((int32_t)(y1*to_fixed_11_2));
-    const int32_t y2f = TRUNCATE_S11_2((int32_t)(y2*to_fixed_11_2));
-    const int32_t y3f = TRUNCATE_S11_2((int32_t)(y3*to_fixed_11_2));
+    const float to_fixed_11_2 = 4.0f;
+    int32_t y1f = TRUNCATE_S11_2((int32_t)floorf(v1[1]*to_fixed_11_2));
+    int32_t y2f = TRUNCATE_S11_2((int32_t)floorf(v2[1]*to_fixed_11_2));
+    int32_t y3f = TRUNCATE_S11_2((int32_t)floorf(v3[1]*to_fixed_11_2));
 
     data->hx = x3 - x1;        
     data->hy = y3 - y1;        
@@ -438,21 +437,18 @@ inline void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data
     const float nz = (data->hx*data->my) - (data->hy*data->mx);
     data->attr_factor = (fabs(nz) > FLT_MIN) ? (-1.0f / nz) : 0;
     const uint32_t lft = nz < 0;
-    
-    rspq_write_arg(w, _carg(lft, 0x1, 23) | _carg(level, 0x7, 19) | _carg(tile, 0x7, 16) | _carg(y3f, 0x3FFF, 0));
-    rspq_write_arg(w, _carg(y2f, 0x3FFF, 16) | _carg(y1f, 0x3FFF, 0));
 
     data->ish = (fabs(data->hy) > FLT_MIN) ? (data->hx / data->hy) : 0;
     float ism = (fabs(data->my) > FLT_MIN) ? (data->mx / data->my) : 0;
     float isl = (fabs(ly) > FLT_MIN) ? (lx / ly) : 0;
-    data->fy = floorf(y1) - y1 + 0.25f;
-
-    float cy = ceilf(4*y2)/4 - y2;
+    data->fy = floorf(y1) - y1;
 
     const float xh = x1 + data->fy * data->ish;
     const float xm = x1 + data->fy * ism;
-    const float xl = x2 + cy * isl;
+    const float xl = x2;
 
+    rspq_write_arg(w, _carg(lft, 0x1, 23) | _carg(level, 0x7, 19) | _carg(tile, 0x7, 16) | _carg(y3f, 0x3FFF, 0));
+    rspq_write_arg(w, _carg(y2f, 0x3FFF, 16) | _carg(y1f, 0x3FFF, 0));
     rspq_write_arg(w, float_to_s16_16(xl));
     rspq_write_arg(w, float_to_s16_16(isl));
     rspq_write_arg(w, float_to_s16_16(xh));
