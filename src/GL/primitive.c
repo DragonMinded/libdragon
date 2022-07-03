@@ -187,27 +187,35 @@ void gl_clip_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
                 assertf(intersection != cur_point, "invalid intersection");
                 assertf(intersection != prev_point, "invalid intersection");
 
-                float d0 = dot_product4(prev_point->position, clip_plane);
-                float d1 = dot_product4(cur_point->position, clip_plane);
+                gl_vertex_t *p0 = cur_point;
+                gl_vertex_t *p1 = prev_point;
+
+                // For consistent calculation of the intersection point
+                if (prev_inside) {
+                    SWAP(p0, p1);
+                }
+
+                float d0 = dot_product4(p0->position, clip_plane);
+                float d1 = dot_product4(p1->position, clip_plane);
                 
                 float a = d0 / (d0 - d1);
 
                 assertf(a >= 0.f && a <= 1.f, "invalid a: %f", a);
 
-                intersection->position[0] = lerp(prev_point->position[0], cur_point->position[0], a);
-                intersection->position[1] = lerp(prev_point->position[1], cur_point->position[1], a);
-                intersection->position[2] = lerp(prev_point->position[2], cur_point->position[2], a);
-                intersection->position[3] = lerp(prev_point->position[3], cur_point->position[3], a);
+                intersection->position[0] = lerp(p0->position[0], p1->position[0], a);
+                intersection->position[1] = lerp(p0->position[1], p1->position[1], a);
+                intersection->position[2] = lerp(p0->position[2], p1->position[2], a);
+                intersection->position[3] = lerp(p0->position[3], p1->position[3], a);
 
                 gl_vertex_calc_screenspace(intersection);
 
-                intersection->color[0] = lerp(prev_point->color[0], cur_point->color[0], a);
-                intersection->color[1] = lerp(prev_point->color[1], cur_point->color[1], a);
-                intersection->color[2] = lerp(prev_point->color[2], cur_point->color[2], a);
-                intersection->color[3] = lerp(prev_point->color[3], cur_point->color[3], a);
+                intersection->color[0] = lerp(p0->color[0], p1->color[0], a);
+                intersection->color[1] = lerp(p0->color[1], p1->color[1], a);
+                intersection->color[2] = lerp(p0->color[2], p1->color[2], a);
+                intersection->color[3] = lerp(p0->color[3], p1->color[3], a);
 
-                intersection->texcoord[0] = lerp(prev_point->texcoord[0], cur_point->texcoord[0], a);
-                intersection->texcoord[1] = lerp(prev_point->texcoord[1], cur_point->texcoord[1], a);
+                intersection->texcoord[0] = lerp(p0->texcoord[0], p1->texcoord[0], a);
+                intersection->texcoord[1] = lerp(p0->texcoord[1], p1->texcoord[1], a);
 
                 out_list->vertices[out_list->count++] = intersection;
             }
