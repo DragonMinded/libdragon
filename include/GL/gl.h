@@ -3,8 +3,9 @@
 
 #include <stdint.h>
 
-#define GL_VERSION_1_1       1
-#define GL_EXT_packed_pixels 1
+#define GL_VERSION_1_1          1
+#define GL_ARB_multisample      1
+#define GL_EXT_packed_pixels    1
 
 /* Data types */
 
