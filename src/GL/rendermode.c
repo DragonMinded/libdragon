@@ -57,6 +57,7 @@ void gl_update_render_mode()
 
     uint64_t modes = SOM_CYCLE_1;
     rdpq_combiner_t comb;
+    rdpq_blender_t blend = 0;
 
     if (state.dither) {
         modes |= SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_SQUARE;
@@ -81,21 +82,22 @@ void gl_update_render_mode()
     if (1 /* antialiasing */) {
         modes |= SOM_AA_ENABLE | SOM_COLOR_ON_COVERAGE | SOM_READ_ENABLE;
         if (state.blend) {
-            modes |= SOM_COVERAGE_DEST_WRAP;
+            modes |= SOM_COVERAGE_DEST_WRAP | SOM_BLENDING;
         } else {
             modes |= SOM_ALPHA_USE_CVG | SOM_COVERAGE_DEST_CLAMP;
+            blend = RDPQ_BLENDER1((PIXEL_RGB, MUX_ALPHA, MEMORY_RGB, MEMORY_ALPHA)) & ~SOM_BLENDING;
         }
     }
 
     if (state.fog) {
-        // TODO: make this work when 2 cycle mode is activated further down!
-        modes |= SOM_BLENDING | Blend(PIXEL_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA);
-    }
-
-    if (state.blend) {
+        if (state.blend) {
+            blend = RDPQ_BLENDER2((PIXEL_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA), (PIXEL_RGB, MUX_ALPHA, MEMORY_RGB, INV_MUX_ALPHA));
+        } else {
+            blend = RDPQ_BLENDER1((PIXEL_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA));
+        }
+    } else if (state.blend) {
         // TODO: derive the blender config from blend_src and blend_dst
-        // TODO: make this work when 2 cycle mode is activated further down!
-        modes |= SOM_BLENDING | SOM_READ_ENABLE | Blend(PIXEL_RGB, MUX_ALPHA, MEMORY_RGB, INV_MUX_ALPHA);
+        blend = RDPQ_BLENDER1((PIXEL_RGB, MUX_ALPHA, MEMORY_RGB, INV_MUX_ALPHA));
     }
 
     if (state.alpha_test && state.alpha_func == GL_GREATER) {
@@ -129,6 +131,7 @@ void gl_update_render_mode()
     }
 
     rdpq_set_other_modes_raw(modes);
+    rdpq_mode_blender(blend);
     rdpq_mode_combiner(comb);
 
     state.is_rendermode_dirty = false;
