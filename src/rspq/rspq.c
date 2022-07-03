@@ -678,7 +678,7 @@ void rspq_close(void)
     unregister_SP_handler(rspq_sp_interrupt);
 }
 
-void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode)
+static void* overlay_get_state(rsp_ucode_t *overlay_ucode, int *state_size)
 {
     uint32_t rspq_data_size = rsp_queue_data_end - rsp_queue_data_start;
     rspq_overlay_header_t *overlay_header = (rspq_overlay_header_t*)(overlay_ucode->data + rspq_data_size);
@@ -689,7 +689,15 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode)
     void* state_ptr = overlay_ucode->data + state_offset;
     assertf(state_ptr + overlay_header->state_size + 1 <= overlay_ucode->data_end, "Saved overlay state must be completely within the data segment!");
 
+    if (state_size)
+        *state_size = overlay_header->state_size;
+
     return state_ptr;
+}
+
+void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode)
+{
+    return overlay_get_state(overlay_ucode, NULL);
 }
 
 static uint32_t rspq_overlay_get_command_count(rspq_overlay_header_t *header)
@@ -1193,6 +1201,21 @@ void rspq_wait(void) {
     }
 
     rspq_syncpoint_wait(rspq_syncpoint_new());
+
+    // Update the state in RDRAM of the current overlay. This makes sure all
+    // overlays have their state synced back to RDRAM
+    // FIXME: remove from here, move to rsp_overlay_get_state
+    rsp_queue_t *rspq = (rsp_queue_t*)SP_DMEM;
+    int ovl_idx; const char *ovl_name;
+    rspq_get_current_ovl(rspq, &ovl_idx, &ovl_name);
+
+    if (ovl_idx) {
+        rsp_ucode_t *overlay_ucode = rspq_overlay_ucodes[ovl_idx];
+        int state_size;
+        uint8_t* state_ptr = overlay_get_state(overlay_ucode, &state_size);
+
+        rsp_read_data(state_ptr, state_size, state_ptr - overlay_ucode->data);
+    }
 }
 
 void rspq_signal(uint32_t signal)

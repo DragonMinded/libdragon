@@ -224,19 +224,19 @@ void rdp_set_default_clipping( void )
 void rdp_enable_primitive_fill( void )
 {
     /* Set other modes to fill and other defaults */
-    rdpq_set_other_modes(SOM_CYCLE_FILL | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_BLENDING);
+    rdpq_set_other_modes_raw(SOM_CYCLE_FILL | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_BLENDING);
 }
 
 void rdp_enable_blend_fill( void )
 {
     // TODO: Macros for blend modes (this sets blend rgb times input alpha on cycle 0)
-    rdpq_set_other_modes(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | 0x80000000);
+    rdpq_set_other_modes_raw(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | 0x80000000);
 }
 
 void rdp_enable_texture_copy( void )
 {
     /* Set other modes to copy and other defaults */
-    rdpq_set_other_modes(SOM_CYCLE_COPY | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_BLENDING | SOM_ALPHA_COMPARE);
+    rdpq_set_other_modes_raw(SOM_CYCLE_COPY | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_BLENDING | SOM_ALPHA_COMPARE);
 }
 
 /**

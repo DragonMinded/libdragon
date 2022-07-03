@@ -89,12 +89,12 @@ void rspq_test_reset_log(void)
 
 void rspq_test_send_rdp(uint32_t value)
 {
-    rspq_write(test_ovl_id, 0x8, 0, value);
+    rspq_write(test_ovl_id, 0xA, 0, value);
 }
 
 void rspq_test_big_out(void *dest)
 {
-    rspq_write(test_ovl_id, 0xA, 0, PhysicalAddr(dest));
+    rspq_write(test_ovl_id, 0x9, 0, PhysicalAddr(dest));
 }
 
 void rspq_test2(uint32_t v0, uint32_t v1)
@@ -721,7 +721,7 @@ void test_rspq_big_command(TestContext *ctx)
     uint32_t output[32] __attribute__((aligned(16)));
     data_cache_hit_writeback_invalidate(output, 128);
 
-    rspq_write_t wptr = rspq_write_begin(test_ovl_id, 0x9, 33);
+    rspq_write_t wptr = rspq_write_begin(test_ovl_id, 0x8, 33);
     rspq_write_arg(&wptr, 0);
     for (uint32_t i = 0; i < 32; i++)
     {
@@ -729,7 +729,7 @@ void test_rspq_big_command(TestContext *ctx)
     }
     rspq_write_end(&wptr);
 
-    wptr = rspq_write_begin(test_ovl_id, 0x9, 33);
+    wptr = rspq_write_begin(test_ovl_id, 0x8, 33);
     rspq_write_arg(&wptr, 0);
     for (uint32_t i = 0; i < 32; i++)
     {

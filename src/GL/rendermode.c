@@ -56,7 +56,7 @@ void gl_update_render_mode()
     }
 
     uint64_t modes = SOM_CYCLE_1;
-    uint64_t combine = 0;
+    rdpq_combiner_t comb;
 
     if (state.dither) {
         modes |= SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_SQUARE;
@@ -120,18 +120,16 @@ void gl_update_render_mode()
 
         if (tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR || tex_obj->min_filter == GL_NEAREST_MIPMAP_LINEAR) {
             // Trilinear
-            modes |= SOM_CYCLE_2;
-            combine = Comb0_Rgb(TEX1, TEX0, LOD_FRAC, TEX0) | Comb0_Alpha(TEX1, TEX0, LOD_FRAC, TEX0)
-                    | Comb1_Rgb(COMBINED, ZERO, SHADE, ZERO) | Comb1_Alpha(COMBINED, ZERO, SHADE, ZERO);
+            comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (COMBINED, ZERO, SHADE, ZERO), (COMBINED, ZERO, SHADE, ZERO));
         } else {
-            combine = Comb_Rgb(TEX0, ZERO, SHADE, ZERO) | Comb_Alpha(TEX0, ZERO, SHADE, ZERO);
+            comb = RDPQ_COMBINER1((TEX0, ZERO, SHADE, ZERO), (TEX0, ZERO, SHADE, ZERO));
         }
     } else {
-        combine = Comb_Rgb(ONE, ZERO, SHADE, ZERO) | Comb_Alpha(ONE, ZERO, SHADE, ZERO);
+        comb = RDPQ_COMBINER1((ONE, ZERO, SHADE, ZERO), (ONE, ZERO, SHADE, ZERO));
     }
 
-    rdpq_set_combine_mode(combine);
-    rdpq_set_other_modes(modes);
+    rdpq_set_other_modes_raw(modes);
+    rdpq_mode_combiner(comb);
 
     state.is_rendermode_dirty = false;
 }

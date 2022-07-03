@@ -155,13 +155,14 @@ _RSPQ_SAVED_STATE_END:
 .endm
 
 # Globally reserved register. Do not use it in overlay code
-# except to read command arguments.
 #define rspq_dmem_buf_ptr gp
 
-# Is set to the command's size in bytes when jumping to the command function
+# This register will be set to the command's size in bytes when jumping to the
+# command function. It can be reused freely if the function does not need it.
 #define rspq_cmd_size t7
 
-# Can be used with l* instructions to get contents of the current command at the specified offset.
+# This macro can be used with l* instructions to get contents of the current
+# command at the specified offset.
 # The total command size needs to be specified as well.
 #define CMD_ADDR(offset, cmdsize) (%lo(RSPQ_DMEM_BUFFER) + (offset) - (cmdsize)) (rspq_dmem_buf_ptr)
 

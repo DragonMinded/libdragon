@@ -69,6 +69,7 @@ void gl_init()
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
 
+    rdpq_set_other_modes_raw(0);
     gl_set_default_framebuffer();
 }
 
@@ -212,7 +213,7 @@ void glClear(GLbitfield buf)
 {
     assert_framebuffer();
 
-    rdpq_set_other_modes(SOM_CYCLE_FILL);
+    rdpq_set_other_modes_raw(SOM_CYCLE_FILL);
     state.is_rendermode_dirty = true;
 
     gl_update_scissor();

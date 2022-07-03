@@ -35,6 +35,7 @@ N64_CFLAGS =  -march=vr4300 -mtune=vr4300 -I$(N64_INCLUDEDIR)
 N64_CFLAGS += -falign-functions=32 -ffunction-sections -fdata-sections
 N64_CFLAGS += -DN64 -O2 -Wall -Werror -Wno-error=deprecated-declarations -fdiagnostics-color=always
 N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings
+N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings
 N64_LDFLAGS = -L$(N64_LIBDIR) -ldragon -lm -ldragonsys -Tn64.ld --gc-sections --wrap __do_global_ctors
 
 N64_TOOLFLAGS = --header $(N64_HEADERPATH) --title $(N64_ROM_TITLE)
@@ -46,12 +47,15 @@ ifeq ($(D),1)
 CFLAGS+=-g3
 CXXFLAGS+=-g3
 ASFLAGS+=-g
+RSPASFLAGS+=-g
 LDFLAGS+=-g
 endif
 
-CFLAGS+=-MMD     # automatic .d dependency generationc
-CXXFLAGS+=-MMD     # automatic .d dependency generationc
-ASFLAGS+=-MMD    # automatic .d dependency generation
+# automatic .d dependency generation
+CFLAGS+=-MMD     
+CXXFLAGS+=-MMD
+ASFLAGS+=-MMD
+RSPASFLAGS+=-MMD
 
 N64_CXXFLAGS := $(N64_CFLAGS) -std=c++11
 N64_CFLAGS += -std=gnu99
@@ -64,6 +68,7 @@ N64_CFLAGS += -std=gnu99
 %.z64: CFLAGS+=$(N64_CFLAGS)
 %.z64: CXXFLAGS+=$(N64_CXXFLAGS)
 %.z64: ASFLAGS+=$(N64_ASFLAGS)
+%.z64: RSPASFLAGS+=$(N64_RSPASFLAGS)
 %.z64: LDFLAGS+=$(N64_LDFLAGS)
 %.z64: $(BUILD_DIR)/%.elf
 	@echo "    [Z64] $@"
@@ -100,10 +105,11 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.S
 		SYMPREFIX="$(subst .,_,$(subst /,_,$(basename $@)))"; \
 		TEXTSECTION="$(basename $@).text"; \
 		DATASECTION="$(basename $@).data"; \
+		BINARY="$(basename $@).elf"; \
 		echo "    [RSP] $<"; \
-		$(N64_CC) $(ASFLAGS) -nostartfiles -Wl,-Ttext=0x1000 -Wl,-Tdata=0x0 -Wl,-e0x1000 -o $@ $<; \
-		$(N64_OBJCOPY) -O binary -j .text $@ $$TEXTSECTION.bin; \
-		$(N64_OBJCOPY) -O binary -j .data $@ $$DATASECTION.bin; \
+		$(N64_CC) $(RSPASFLAGS) -nostartfiles -Wl,-Ttext=0x1000 -Wl,-Tdata=0x0 -Wl,-e0x1000 -o $$BINARY $<; \
+		$(N64_OBJCOPY) -O binary -j .text $$BINARY $$TEXTSECTION.bin; \
+		$(N64_OBJCOPY) -O binary -j .data $$BINARY $$DATASECTION.bin; \
 		$(N64_OBJCOPY) -I binary -O elf32-bigmips -B mips4300 \
 				--redefine-sym _binary_$${SYMPREFIX}_text_bin_start=$${FILENAME}_text_start \
 				--redefine-sym _binary_$${SYMPREFIX}_text_bin_end=$${FILENAME}_text_end \
@@ -116,7 +122,7 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.S
 				--redefine-sym _binary_$${SYMPREFIX}_data_bin_size=$${FILENAME}_data_size \
 				--set-section-alignment .data=8 \
 				--rename-section .text=.data $$DATASECTION.bin $$DATASECTION.o; \
-		$(N64_SIZE) -G $@; \
+		$(N64_SIZE) -G $$BINARY; \
 		$(N64_LD) -relocatable $$TEXTSECTION.o $$DATASECTION.o -o $@; \
 		rm $$TEXTSECTION.bin $$DATASECTION.bin $$TEXTSECTION.o $$DATASECTION.o; \
 	else \

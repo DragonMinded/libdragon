@@ -12,6 +12,7 @@ libdragon: AS=$(N64_AS)
 libdragon: LD=$(N64_LD)
 libdragon: CFLAGS+=$(N64_CFLAGS) -I$(CURDIR)/src -I$(CURDIR)/include 
 libdragon: ASFLAGS+=$(N64_ASFLAGS) -I$(CURDIR)/src -I$(CURDIR)/include
+libdragon: RSPASFLAGS+=$(N64_RSPASFLAGS) -I$(CURDIR)/src -I$(CURDIR)/include
 libdragon: LDFLAGS+=$(N64_LDFLAGS)
 libdragon: libdragon.a libdragonsys.a
 
