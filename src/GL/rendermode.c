@@ -79,7 +79,7 @@ void gl_update_render_mode()
         }
     }
 
-    if (1 /* antialiasing */) {
+    if (state.multisample) {
         modes |= SOM_AA_ENABLE | SOM_COLOR_ON_COVERAGE | SOM_READ_ENABLE;
         if (state.blend) {
             modes |= SOM_COVERAGE_DEST_WRAP | SOM_BLENDING;

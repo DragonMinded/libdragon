@@ -1104,6 +1104,20 @@ void glFinish(void);
 
 void glHint(GLenum target, GLenum hint);
 
+/* Multisampling */
+
+#define GL_MULTISAMPLE_ARB                  0x809D
+#define GL_SAMPLE_ALPHA_TO_COVERAGE_ARB     0x809E
+#define GL_SAMPLE_ALPHA_TO_ONE_ARB          0x809F
+#define GL_SAMPLE_COVERAGE_ARB              0x80A0
+#define GL_SAMPLE_BUFFERS_ARB               0x80A8
+#define GL_SAMPLES_ARB                      0x80A9
+#define GL_SAMPLE_COVERAGE_VALUE_ARB        0x80AA
+#define GL_SAMPLE_COVERAGE_INVERT_ARB       0x80AB
+#define GL_MULTISAMPLE_BIT_ARB              0x20000000
+
+void glSampleCoverageARB(GLclampf value, GLboolean invert);
+
 /* Queries */
 
 #define GL_SUBPIXEL_BITS                    0x0D50

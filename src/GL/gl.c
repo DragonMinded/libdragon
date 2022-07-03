@@ -141,13 +141,26 @@ void gl_set_flag(GLenum target, bool value)
     case GL_COLOR_MATERIAL:
         state.color_material = value;
         break;
+    case GL_MULTISAMPLE_ARB:
+        GL_SET_STATE(state.multisample, value, state.is_rendermode_dirty);
+        break;
     case GL_COLOR_LOGIC_OP:
     case GL_INDEX_LOGIC_OP:
         assertf(!value, "Logical pixel operation is not supported!");
         break;
+    case GL_POINT_SMOOTH:
+    case GL_LINE_SMOOTH:
+    case GL_POLYGON_SMOOTH:
+        assertf(!value, "Smooth rendering is not supported (Use multisampling instead)!");
+        break;
     case GL_LINE_STIPPLE:
     case GL_POLYGON_STIPPLE:
         assertf(!value, "Stipple is not supported!");
+        break;
+    case GL_SAMPLE_ALPHA_TO_COVERAGE_ARB:
+    case GL_SAMPLE_ALPHA_TO_ONE_ARB:
+    case GL_SAMPLE_COVERAGE_ARB:
+        assertf(!value, "Coverage value manipulation is not supported!");
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -329,6 +342,11 @@ void glFeedbackBuffer(GLsizei n, GLenum type, GLfloat *buffer)
 void glPassThrough(GLfloat token)
 {
     assertf(0, "Feedback mode is not supported!");
+}
+
+void glSampleCoverageARB(GLclampf value, GLboolean invert)
+{
+    assertf(0, "Sample coverage is not supported!");
 }
 
 void glPushAttrib(GLbitfield mask)
