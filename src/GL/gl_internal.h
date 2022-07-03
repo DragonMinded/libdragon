@@ -136,6 +136,8 @@ typedef struct {
 
     uint32_t scissor_box[4];
 
+    GLfloat persp_norm_factor;
+
     bool cull_face;
     GLenum cull_face_mode;
     GLenum front_face;

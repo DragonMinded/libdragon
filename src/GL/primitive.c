@@ -336,6 +336,12 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
     v->color[3] = CLAMP01(v->color[3]) * 255.f;
 
     gl_matrix_mult(v->position, &state.final_matrix, pos);
+
+    v->position[0] *= state.persp_norm_factor;
+    v->position[1] *= state.persp_norm_factor;
+    v->position[2] *= state.persp_norm_factor;
+    v->position[3] *= state.persp_norm_factor;
+
     gl_vertex_calc_screenspace(v);
 
     if (state.texture_2d) {
