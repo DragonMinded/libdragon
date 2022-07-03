@@ -81,10 +81,18 @@ void gl_draw_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
         }
     }
 
-    int32_t tex_offset = state.texture_2d ? 6 : -1;
+    uint8_t level = 0;
+    int32_t tex_offset = -1;
+
+    gl_texture_object_t *tex_obj = gl_get_active_texture();
+    if (tex_obj != NULL && tex_obj->is_complete) {
+        tex_offset = 6;
+        level = tex_obj->num_levels - 1;
+    }
+
     int32_t z_offset = state.depth_test ? 9 : -1;
 
-    rdpq_triangle(0, 0, 0, 2, tex_offset, z_offset, v0->screen_pos, v1->screen_pos, v2->screen_pos);
+    rdpq_triangle(0, level, 0, 2, tex_offset, z_offset, v0->screen_pos, v1->screen_pos, v2->screen_pos);
 }
 
 float dot_product4(const float *a, const float *b)
@@ -352,11 +360,13 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 
     gl_vertex_calc_screenspace(v);
 
-    if (state.texture_2d) {
-        v->texcoord[0] = state.current_texcoord[0] * state.texture_2d_object.width;
-        v->texcoord[1] = state.current_texcoord[1] * state.texture_2d_object.height;
+    gl_texture_object_t *tex_obj = gl_get_active_texture();
+    if (tex_obj != NULL && tex_obj->is_complete) {
 
-        if (state.texture_2d_object.mag_filter == GL_LINEAR) {
+        v->texcoord[0] = state.current_texcoord[0] * tex_obj->levels[0].width;
+        v->texcoord[1] = state.current_texcoord[1] * tex_obj->levels[0].height;
+
+        if (tex_obj->mag_filter == GL_LINEAR) {
             v->texcoord[0] -= 0.5f;
             v->texcoord[1] -= 0.5f;
         }

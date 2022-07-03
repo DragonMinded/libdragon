@@ -757,10 +757,9 @@ void glTexParameteriv(GLenum target, GLenum pname, const GLint *params);
 void glTexParameterfv(GLenum target, GLenum pname, const GLfloat *params);
 
 void glBindTexture(GLenum target, GLuint texture);
-void glBindTexture(GLenum target, GLuint texture);
 
 void glDeleteTextures(GLsizei n, const GLuint *textures);
-void glGenTextures(GLsizei n, const GLuint *textures);
+void glGenTextures(GLsizei n, GLuint *textures);
 
 GLboolean glAreTexturesResident(GLsizei n, const GLuint *textures, const GLboolean *residences);
 

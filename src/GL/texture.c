@@ -4,14 +4,32 @@
 
 extern gl_state_t state;
 
-void gl_texture_init()
+void gl_init_texture_object(gl_texture_object_t *obj)
 {
-    state.texture_2d_object = (gl_texture_object_t) {
+    *obj = (gl_texture_object_t) {
+        .dimensionality = GL_TEXTURE_2D,
         .wrap_s = GL_REPEAT,
         .wrap_t = GL_REPEAT,
         .min_filter = GL_NEAREST_MIPMAP_LINEAR,
         .mag_filter = GL_LINEAR,
     };
+}
+
+void gl_texture_init()
+{
+    gl_init_texture_object(&state.default_texture_1d);
+    gl_init_texture_object(&state.default_texture_2d);
+
+    for (uint32_t i = 0; i < MAX_TEXTURE_OBJECTS; i++)
+    {
+        gl_init_texture_object(&state.texture_objects[i]);
+    }
+
+    state.default_texture_1d.is_used = true;
+    state.default_texture_2d.is_used = true;
+
+    state.texture_1d_object = &state.default_texture_1d;
+    state.texture_2d_object = &state.default_texture_2d;
 }
 
 uint32_t gl_log2(uint32_t s)
@@ -21,9 +39,9 @@ uint32_t gl_log2(uint32_t s)
     return log;
 }
 
-tex_format_t gl_texture_get_format(const gl_texture_object_t *texture_object)
+tex_format_t gl_get_texture_format(GLenum format)
 {
-    switch (texture_object->internal_format) {
+    switch (format) {
     case GL_RGB5_A1:
         return FMT_RGBA16;
     case GL_RGBA8:
@@ -142,8 +160,10 @@ bool gl_copy_pixels(void *dst, const void *src, GLint dst_fmt, GLenum src_fmt, G
 gl_texture_object_t * gl_get_texture_object(GLenum target)
 {
     switch (target) {
+    case GL_TEXTURE_1D:
+        return state.texture_1d_object;
     case GL_TEXTURE_2D:
-        return &state.texture_2d_object;
+        return state.texture_2d_object;
     default:
         gl_set_error(GL_INVALID_ENUM);
         return NULL;
@@ -153,7 +173,11 @@ gl_texture_object_t * gl_get_texture_object(GLenum target)
 gl_texture_object_t * gl_get_active_texture()
 {
     if (state.texture_2d) {
-        return &state.texture_2d_object;
+        return state.texture_2d_object;
+    }
+
+    if (state.texture_1d) {
+        return state.texture_1d_object;
     }
 
     return NULL;
@@ -164,12 +188,92 @@ bool gl_texture_is_active(gl_texture_object_t *texture)
     return texture == gl_get_active_texture();
 }
 
+bool gl_get_texture_completeness(const gl_texture_object_t *texture, uint32_t *num_levels)
+{
+    const gl_texture_image_t *first_level = &texture->levels[0];
+
+    if (first_level->width == 0 || first_level->height == 0) {
+        *num_levels = 0;
+        return false;
+    }
+
+    if (texture->min_filter == GL_NEAREST || texture->min_filter == GL_LINEAR) {
+        // Mip mapping is disabled
+        *num_levels = 1;
+        return true;
+    }
+
+    GLenum format = first_level->internal_format;
+
+    uint32_t cur_width = first_level->width;
+    uint32_t cur_height = first_level->height;
+
+    for (uint32_t i = 0; i < MAX_TEXTURE_LEVELS; i++)
+    {
+        const gl_texture_image_t *level = &texture->levels[i];
+
+        if (cur_width != level->width || cur_height != level->height || level->internal_format != format) {
+            break;
+        }
+
+        if (cur_width == 1 && cur_height == 1) {
+            *num_levels = i + 1;
+            return true;
+        }
+
+        if (cur_width > 1) {
+            if (cur_width % 2 != 0) break;
+            cur_width >>= 1;
+        }
+
+        if (cur_height > 1) {
+            if (cur_height % 2 != 0) break;
+            cur_height >>= 1;
+        }
+    }
+
+    *num_levels = 0;
+    return false;
+}
+
+void gl_update_texture_completeness(gl_texture_object_t *texture)
+{
+    texture->is_complete = gl_get_texture_completeness(texture, &texture->num_levels);
+}
+
+uint32_t add_tmem_size(uint32_t current, uint32_t size)
+{
+    return ROUND_UP(current + size, 8);
+}
+
+bool gl_texture_fits_tmem(gl_texture_object_t *texture, uint32_t additional_size)
+{
+    uint32_t size = 0;
+    tex_format_t format = gl_get_texture_format(texture->levels[0].internal_format);
+    for (uint32_t i = 0; i < texture->num_levels; i++)
+    {
+        uint32_t pitch = MAX(TEX_FORMAT_BYTES_PER_PIXEL(format) * texture->levels[i].width, 8);
+        size = add_tmem_size(size, pitch * texture->levels[i].height);
+    }
+    
+    size = add_tmem_size(size, additional_size);
+
+    return size <= 0x1000;
+}
+
 void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
     gl_texture_object_t *obj = gl_get_texture_object(target);
     if (obj == NULL) {
         return;
     }
+
+    if (level < 0 || level > MAX_TEXTURE_LEVELS) {
+        gl_set_error(GL_INVALID_VALUE);
+        return;
+    }
+
+    gl_texture_image_t *image = &obj->levels[level];
 
     GLint preferred_format = gl_choose_internalformat(internalformat);
     if (preferred_format < 0) {
@@ -212,15 +316,25 @@ void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei widt
         return;
     }
 
-    obj->data = (void*)data;
-    gl_copy_pixels(obj->data, data, preferred_format, format, type);
+    uint32_t rdp_format = gl_get_texture_format(preferred_format);
+    uint32_t size = TEX_FORMAT_BYTES_PER_PIXEL(rdp_format) * width * height;
 
-    obj->width = width;
-    obj->height = height;
-    obj->internal_format = preferred_format;
-    obj->format = format;
-    obj->type = type;
-    obj->is_dirty = true;
+    if (!gl_texture_fits_tmem(obj, size)) {
+        gl_set_error(GL_INVALID_VALUE);
+        return;
+    }
+
+    // TODO: allocate buffer
+
+    image->data = (void*)data;
+    gl_copy_pixels(image->data, data, preferred_format, format, type);
+
+    image->width = width;
+    image->height = height;
+    image->internal_format = preferred_format;
+    state.is_texture_dirty = true;
+
+    gl_update_texture_completeness(obj);
 }
 
 void gl_texture_set_wrap_s(gl_texture_object_t *obj, GLenum param)
@@ -228,7 +342,7 @@ void gl_texture_set_wrap_s(gl_texture_object_t *obj, GLenum param)
     switch (param) {
     case GL_CLAMP:
     case GL_REPEAT:
-        GL_SET_STATE(obj->wrap_s, param, obj->is_dirty);
+        GL_SET_STATE(obj->wrap_s, param, state.is_texture_dirty);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -241,7 +355,7 @@ void gl_texture_set_wrap_t(gl_texture_object_t *obj, GLenum param)
     switch (param) {
     case GL_CLAMP:
     case GL_REPEAT:
-        GL_SET_STATE(obj->wrap_t, param, obj->is_dirty);
+        GL_SET_STATE(obj->wrap_t, param, state.is_texture_dirty);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -258,7 +372,11 @@ void gl_texture_set_min_filter(gl_texture_object_t *obj, GLenum param)
     case GL_LINEAR_MIPMAP_NEAREST:
     case GL_NEAREST_MIPMAP_LINEAR:
     case GL_LINEAR_MIPMAP_LINEAR:
-        GL_SET_STATE(obj->min_filter, param, obj->is_dirty);
+        GL_SET_STATE(obj->min_filter, param, state.is_texture_dirty);
+        gl_update_texture_completeness(obj);
+        if (state.is_texture_dirty && gl_texture_is_active(obj)) {
+            state.is_rendermode_dirty = true;
+        }
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -271,8 +389,8 @@ void gl_texture_set_mag_filter(gl_texture_object_t *obj, GLenum param)
     switch (param) {
     case GL_NEAREST:
     case GL_LINEAR:
-        GL_SET_STATE(obj->mag_filter, param, obj->is_dirty);
-        if (obj->is_dirty && gl_texture_is_active(obj)) {
+        GL_SET_STATE(obj->mag_filter, param, state.is_texture_dirty);
+        if (state.is_texture_dirty && gl_texture_is_active(obj)) {
             state.is_rendermode_dirty = true;
         }
         break;
@@ -288,13 +406,13 @@ void gl_texture_set_border_color(gl_texture_object_t *obj, GLclampf r, GLclampf 
     obj->border_color[1] = CLAMP01(g);
     obj->border_color[2] = CLAMP01(b);
     obj->border_color[3] = CLAMP01(a);
-    obj->is_dirty = true;
+    state.is_texture_dirty = true;
 }
 
 void gl_texture_set_priority(gl_texture_object_t *obj, GLclampf param)
 {
     obj->priority = CLAMP01(param);
-    obj->is_dirty = true;
+    state.is_texture_dirty = true;
 }
 
 void glTexParameteri(GLenum target, GLenum pname, GLint param)
@@ -419,25 +537,135 @@ void glTexParameterfv(GLenum target, GLenum pname, const GLfloat *params)
     }
 }
 
+void glBindTexture(GLenum target, GLuint texture)
+{
+    gl_texture_object_t **target_obj = NULL;
+
+    switch (target) {
+    case GL_TEXTURE_1D:
+        target_obj = &state.texture_1d_object;
+        break;
+    case GL_TEXTURE_2D:
+        target_obj = &state.texture_2d_object;
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    if (texture == 0) {
+        switch (target) {
+        case GL_TEXTURE_1D:
+            *target_obj = &state.default_texture_1d;
+            break;
+        case GL_TEXTURE_2D:
+            *target_obj = &state.default_texture_2d;
+            break;
+        }
+    } else {
+        // TODO: Any texture name should be valid!
+        assertf(texture > 0 && texture <= MAX_TEXTURE_OBJECTS, "NOT IMPLEMENTED: texture name out of range!");
+
+        gl_texture_object_t *obj = &state.texture_objects[target - 1];
+
+        if (obj->dimensionality == 0) {
+            obj->dimensionality = target;
+        }
+
+        if (obj->dimensionality != target) {
+            gl_set_error(GL_INVALID_OPERATION);
+            return;
+        }
+
+        obj->is_used = true;
+
+        *target_obj = obj;
+    }
+}
+
+void glGenTextures(GLsizei n, GLuint *textures)
+{
+    GLuint t = 0;
+
+    for (uint32_t i = 0; i < n; i++)
+    {
+        gl_texture_object_t *obj;
+
+        do {
+            obj = &state.texture_objects[t++];
+        } while (obj->is_used && t < MAX_TEXTURE_OBJECTS);
+
+        // TODO: It shouldn't be possible to run out at this point!
+        assertf(!obj->is_used, "Ran out of unused textures!");
+
+        textures[i] = t;
+        obj->is_used = true;
+    }
+}
+
+void glDeleteTextures(GLsizei n, const GLuint *textures)
+{
+    for (uint32_t i = 0; i < n; i++)
+    {
+        if (textures[i] == 0) {
+            continue;
+        }
+
+        // TODO: Any texture name should be valid!
+        assertf(textures[i] > 0 && textures[i] <= MAX_TEXTURE_OBJECTS, "NOT IMPLEMENTED: texture name out of range!");
+
+        gl_texture_object_t *obj = &state.texture_objects[textures[i] - 1];
+
+        if (obj == state.texture_1d_object) {
+            state.texture_1d_object = &state.default_texture_1d;
+        } else if (obj == state.texture_2d_object) {
+            state.texture_2d_object = &state.default_texture_2d;
+        }
+
+        gl_init_texture_object(obj);
+    }
+}
+
 void gl_update_texture()
 {
     gl_texture_object_t *tex_obj = gl_get_active_texture();
 
-    if (tex_obj == NULL || !tex_obj->is_dirty) {
+    if (tex_obj == NULL || !tex_obj->is_complete) {
         return;
     }
 
-    tex_format_t fmt = gl_texture_get_format(tex_obj);
+    uint32_t tmem_used = 0;
 
-    // TODO: min filter (mip mapping?)
-    // TODO: border color?
-    rdpq_set_texture_image(tex_obj->data, fmt, tex_obj->width);
+    // All levels must have the same format to be complete
+    tex_format_t fmt = gl_get_texture_format(tex_obj->levels[0].internal_format);
 
-    uint8_t mask_s = tex_obj->wrap_s == GL_REPEAT ? gl_log2(tex_obj->width) : 0;
-    uint8_t mask_t = tex_obj->wrap_t == GL_REPEAT ? gl_log2(tex_obj->height) : 0;
+    uint32_t full_width = tex_obj->levels[0].width;
+    uint32_t full_height = tex_obj->levels[0].height;
 
-    rdpq_set_tile_full(0, fmt, 0, tex_obj->width * TEX_FORMAT_BYTES_PER_PIXEL(fmt), 0, 0, 0, mask_t, 0, 0, 0, mask_s, 0);
-    rdpq_load_tile(0, 0, 0, tex_obj->width, tex_obj->height);
+    int32_t full_width_log = gl_log2(full_width);
+    int32_t full_height_log = gl_log2(full_height);
 
-    tex_obj->is_dirty = false;
+    for (uint32_t l = 0; l < tex_obj->num_levels; l++)
+    {
+        gl_texture_image_t *image = &tex_obj->levels[l];
+
+        rdpq_set_texture_image(image->data, fmt, image->width);
+
+        uint32_t tmem_pitch = MAX(image->width * TEX_FORMAT_BYTES_PER_PIXEL(fmt), 8);
+
+        // Levels need to halve in size every time to be complete
+        int32_t width_log = MAX(full_width_log - l, 0);
+        int32_t height_log = MAX(full_height_log - l, 0);
+
+        uint8_t mask_s = tex_obj->wrap_s == GL_REPEAT ? width_log : 0;
+        uint8_t mask_t = tex_obj->wrap_t == GL_REPEAT ? height_log : 0;
+
+        uint8_t shift_s = full_width_log - width_log;
+        uint8_t shift_t = full_height_log - height_log;
+
+        rdpq_set_tile_full(l, fmt, tmem_used, tmem_pitch, 0, 0, 0, mask_t, shift_t, 0, 0, mask_s, shift_s);
+        rdpq_load_tile(l, 0, 0, image->width, image->height);
+
+        tmem_used = add_tmem_size(tmem_used, tmem_pitch * image->height);
+    }
 }

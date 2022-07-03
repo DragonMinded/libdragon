@@ -17,6 +17,11 @@
 
 #define LIGHT_COUNT           8
 
+#define MAX_TEXTURE_OBJECTS   32
+
+#define MAX_TEXTURE_SIZE      64
+#define MAX_TEXTURE_LEVELS    7
+
 #define RADIANS(x) ((x) * M_PI / 180.0f)
 
 #define CLAMP(x, min, max) (MIN(MAX((x), (min)), (max)))
@@ -81,16 +86,21 @@ typedef struct {
     uint32_t width;
     uint32_t height;
     GLenum internal_format;
-    GLenum format;
-    GLenum type;
+    void *data;
+} gl_texture_image_t;
+
+typedef struct {
+    gl_texture_image_t levels[MAX_TEXTURE_LEVELS];
+    uint32_t num_levels;
+    GLenum dimensionality;
     GLenum wrap_s;
     GLenum wrap_t;
     GLenum min_filter;
     GLenum mag_filter;
     GLclampf border_color[4];
     GLclampf priority;
-    void *data;
-    bool is_dirty;
+    bool is_used;
+    bool is_complete;
 } gl_texture_object_t;
 
 typedef struct {
@@ -155,6 +165,7 @@ typedef struct {
 
     bool scissor_test;
     bool depth_test;
+    bool texture_1d;
     bool texture_2d;
     bool blend;
     bool alpha_test;
@@ -187,7 +198,13 @@ typedef struct {
     gl_matrix_stack_t projection_stack;
     gl_matrix_stack_t *current_matrix_stack;
 
-    gl_texture_object_t texture_2d_object;
+    gl_texture_object_t default_texture_1d;
+    gl_texture_object_t default_texture_2d;
+
+    gl_texture_object_t texture_objects[MAX_TEXTURE_OBJECTS];
+
+    gl_texture_object_t *texture_1d_object;
+    gl_texture_object_t *texture_2d_object;
 
     gl_material_t materials[2];
     gl_light_t lights[LIGHT_COUNT];
@@ -200,6 +217,7 @@ typedef struct {
 
     bool is_scissor_dirty;
     bool is_rendermode_dirty;
+    bool is_texture_dirty;
 } gl_state_t;
 
 void gl_matrix_init();
@@ -222,6 +240,6 @@ void gl_update_texture();
 
 void gl_perform_lighting(GLfloat *color, const GLfloat *v, const GLfloat *n, const gl_material_t *material);
 
-tex_format_t gl_texture_get_format(const gl_texture_object_t *texture_object);
+gl_texture_object_t * gl_get_active_texture();
 
 #endif

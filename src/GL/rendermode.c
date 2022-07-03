@@ -64,39 +64,68 @@ void gl_update_render_mode()
         modes |= SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE;
     }
 
-    if (0 /* antialiasing */) {
-        modes |= SOM_AA_ENABLE | SOM_READ_ENABLE | SOM_COLOR_ON_COVERAGE | SOM_COVERAGE_DEST_CLAMP | SOM_ALPHA_USE_CVG;
-    }
-
     if (state.depth_test) {
-        modes |= SOM_Z_WRITE | SOM_Z_OPAQUE | SOM_Z_SOURCE_PIXEL;
+        modes |= SOM_Z_SOURCE_PIXEL;
 
         if (state.depth_func == GL_LESS) {
             modes |= SOM_Z_COMPARE;
         }
+
+        if (state.blend) {
+            modes |= SOM_Z_TRANSPARENT;
+        } else {
+            modes |= SOM_Z_OPAQUE | SOM_Z_WRITE;
+        }
+    }
+
+    if (1 /* antialiasing */) {
+        modes |= SOM_AA_ENABLE | SOM_COLOR_ON_COVERAGE | SOM_READ_ENABLE;
+        if (state.blend) {
+            modes |= SOM_COVERAGE_DEST_WRAP;
+        } else {
+            modes |= SOM_ALPHA_USE_CVG | SOM_COVERAGE_DEST_CLAMP;
+        }
+    }
+
+    if (state.fog) {
+        // TODO: make this work when 2 cycle mode is activated further down!
+        modes |= SOM_BLENDING | Blend(PIXEL_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA);
     }
 
     if (state.blend) {
         // TODO: derive the blender config from blend_src and blend_dst
-        modes |= SOM_BLENDING | Blend(PIXEL_RGB, MUX_ALPHA, MEMORY_RGB, INV_MUX_ALPHA);
-    }
-
-    if (state.fog) {
-        modes |= SOM_BLENDING | Blend(PIXEL_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA);
+        // TODO: make this work when 2 cycle mode is activated further down!
+        modes |= SOM_BLENDING | SOM_READ_ENABLE | Blend(PIXEL_RGB, MUX_ALPHA, MEMORY_RGB, INV_MUX_ALPHA);
     }
 
     if (state.alpha_test && state.alpha_func == GL_GREATER) {
         modes |= SOM_ALPHA_COMPARE;
     }
     
-    if (state.texture_2d) {
+    gl_texture_object_t *tex_obj = gl_get_active_texture();
+    if (tex_obj != NULL && tex_obj->is_complete) {
         modes |= SOM_TEXTURE_PERSP | SOM_TC_FILTER;
 
-        if (state.texture_2d_object.mag_filter == GL_LINEAR) {
+        // We can't use separate modes for minification and magnification, so just use bilinear sampling when at least one of them demands it
+        if (tex_obj->mag_filter == GL_LINEAR || 
+            tex_obj->min_filter == GL_LINEAR || 
+            tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR || 
+            tex_obj->min_filter == GL_LINEAR_MIPMAP_NEAREST) {
             modes |= SOM_SAMPLE_2X2;
         }
 
-        combine = Comb_Rgb(TEX0, ZERO, SHADE, ZERO) | Comb_Alpha(TEX0, ZERO, SHADE, ZERO);
+        if (tex_obj->min_filter != GL_LINEAR && tex_obj->min_filter != GL_NEAREST) {
+            modes |= SOM_TEXTURE_LOD;
+        }
+
+        if (tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR || tex_obj->min_filter == GL_NEAREST_MIPMAP_LINEAR) {
+            // Trilinear
+            modes |= SOM_CYCLE_2;
+            combine = Comb0_Rgb(TEX1, TEX0, LOD_FRAC, TEX0) | Comb0_Alpha(TEX1, TEX0, LOD_FRAC, TEX0)
+                    | Comb1_Rgb(COMBINED, ZERO, SHADE, ZERO) | Comb1_Alpha(COMBINED, ZERO, SHADE, ZERO);
+        } else {
+            combine = Comb_Rgb(TEX0, ZERO, SHADE, ZERO) | Comb_Alpha(TEX0, ZERO, SHADE, ZERO);
+        }
     } else {
         combine = Comb_Rgb(ONE, ZERO, SHADE, ZERO) | Comb_Alpha(ONE, ZERO, SHADE, ZERO);
     }
