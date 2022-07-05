@@ -52,7 +52,7 @@ CFLAGS+=-MMD     # automatic .d dependency generationc
 CXXFLAGS+=-MMD     # automatic .d dependency generationc
 ASFLAGS+=-MMD    # automatic .d dependency generation
 
-N64_CXXFLAGS := $(N64_CFLAGS) -std=c++11
+N64_CXXFLAGS := $(N64_CFLAGS)
 N64_CFLAGS += -std=gnu99
 
 # Change all the dependency chain of z64 ROMs to use the N64 toolchain.
