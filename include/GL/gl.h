@@ -278,9 +278,9 @@ void glIndexubv(const GLubyte *v);
 void glEdgeFlagPointer(GLsizei stride, const GLvoid *pointer);
 void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
 void glTexCoordPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
-void glNormalPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
+void glNormalPointer(GLenum type, GLsizei stride, const GLvoid *pointer);
 void glColorPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
-void glIndexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
+void glIndexPointer(GLenum type, GLsizei stride, const GLvoid *pointer);
 
 void glEnableClientState(GLenum array);
 void glDisableClientState(GLenum array);
@@ -289,9 +289,9 @@ void glArrayElement(GLint i);
 
 void glDrawArrays(GLenum mode, GLint first, GLsizei count);
 
-void glDrawElements(GLenum mode, GLsizei count, GLenum type, GLvoid *indices);
+void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices);
 
-void glInterleavedArrays(GLenum format, GLsizei stride, GLvoid *pointer);
+void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer);
 
 /* Rectangles */
 

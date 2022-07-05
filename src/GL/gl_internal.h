@@ -132,6 +132,14 @@ typedef struct {
 } gl_light_t;
 
 typedef struct {
+    GLint size;
+    GLenum type;
+    GLsizei stride;
+    const GLvoid *pointer;
+    bool enabled;
+} gl_array_t;
+
+typedef struct {
     gl_framebuffer_t default_framebuffer;
     gl_framebuffer_t *cur_framebuffer;
 
@@ -216,6 +224,11 @@ typedef struct {
 
     GLenum shade_model;
 
+    gl_array_t vertex_array;
+    gl_array_t texcoord_array;
+    gl_array_t normal_array;
+    gl_array_t color_array;
+
     bool is_scissor_dirty;
     bool is_rendermode_dirty;
     bool is_texture_dirty;
@@ -225,6 +238,7 @@ void gl_matrix_init();
 void gl_texture_init();
 void gl_lighting_init();
 void gl_rendermode_init();
+void gl_array_init();
 
 void gl_set_error(GLenum error);
 

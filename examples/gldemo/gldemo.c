@@ -4,6 +4,8 @@
 #include <malloc.h>
 #include <math.h>
 
+#include "cube.h"
+
 static sprite_t *circle_sprite;
 
 static uint32_t animation = 3283;
@@ -66,111 +68,17 @@ void draw_test()
 
 void draw_cube()
 {
-    glBegin(GL_QUADS);
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+    glEnableClientState(GL_NORMAL_ARRAY);
+    glEnableClientState(GL_COLOR_ARRAY);
 
-    // +X
+    glVertexPointer(3, GL_FLOAT, sizeof(vertex_t), ((const GLvoid*)cube_vertices) + 0*sizeof(float));
+    glTexCoordPointer(2, GL_FLOAT, sizeof(vertex_t), ((const GLvoid*)cube_vertices) + 3*sizeof(float));
+    glNormalPointer(GL_FLOAT, sizeof(vertex_t), ((const GLvoid*)cube_vertices) + 5*sizeof(float));
+    glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(vertex_t), ((const GLvoid*)cube_vertices) + 8*sizeof(float));
 
-    glNormal3f(1.0f, 0.0f, 0.0f);
-    glColor3f(1, 0, 0);
-
-    glTexCoord2f(0.0f, 0.0f);
-    glVertex3f(1.f, -1.f, -1.f);
-
-    glTexCoord2f(1.0f, 0.0f);
-    glVertex3f(1.f, 1.f, -1.f);
-
-    glTexCoord2f(1.0f, 1.0f);
-    glVertex3f(1.f, 1.f, 1.f);
-
-    glTexCoord2f(0.0f, 1.0f);
-    glVertex3f(1.f, -1.f, 1.f);
-
-    // -X
-
-    glNormal3f(-1.0f, 0.0f, 0.0f);
-    glColor3f(0, 1, 1);
-
-    glTexCoord2f(0.0f, 0.0f);
-    glVertex3f(-1.f, -1.f, -1.f);
-
-    glTexCoord2f(0.0f, 1.0f);
-    glVertex3f(-1.f, -1.f, 1.f);
-
-    glTexCoord2f(1.0f, 1.0f);
-    glVertex3f(-1.f, 1.f, 1.f);
-
-    glTexCoord2f(1.0f, 0.0f);
-    glVertex3f(-1.f, 1.f, -1.f);
-
-    // +Y
-
-    glNormal3f(0.0f, 1.0f, 0.0f);
-    glColor3f(0, 1, 0);
-
-    glTexCoord2f(0.0f, 0.0f);
-    glVertex3f(-1.f, 1.f, -1.f);
-
-    glTexCoord2f(0.0f, 1.0f);
-    glVertex3f(-1.f, 1.f, 1.f);
-
-    glTexCoord2f(1.0f, 1.0f);
-    glVertex3f(1.f, 1.f, 1.f);
-
-    glTexCoord2f(1.0f, 0.0f);
-    glVertex3f(1.f, 1.f, -1.f);
-
-    // -Y
-
-    glNormal3f(0.0f, -1.0f, 0.0f);
-    glColor3f(1, 0, 1);
-
-    glTexCoord2f(0.0f, 0.0f);
-    glVertex3f(-1.f, -1.f, -1.f);
-
-    glTexCoord2f(1.0f, 0.0f);
-    glVertex3f(1.f, -1.f, -1.f);
-
-    glTexCoord2f(1.0f, 1.0f);
-    glVertex3f(1.f, -1.f, 1.f);
-
-    glTexCoord2f(0.0f, 1.0f);
-    glVertex3f(-1.f, -1.f, 1.f);
-
-    // +Z
-
-    glNormal3f(0.0f, 0.0f, 1.0f);
-    glColor3f(0, 0, 1);
-
-    glTexCoord2f(0.0f, 0.0f);
-    glVertex3f(-1.f, -1.f, 1.f);
-
-    glTexCoord2f(1.0f, 0.0f);
-    glVertex3f(1.f, -1.f, 1.f);
-
-    glTexCoord2f(1.0f, 1.0f);
-    glVertex3f(1.f, 1.f, 1.f);
-
-    glTexCoord2f(0.0f, 1.0f);
-    glVertex3f(-1.f, 1.f, 1.f);
-
-    // -Z
-
-    glNormal3f(0.0f, 0.0f, -1.0f);
-    glColor3f(1, 1, 0);
-
-    glTexCoord2f(0.0f, 0.0f);
-    glVertex3f(-1.f, -1.f, -1.f);
-
-    glTexCoord2f(0.0f, 1.0f);
-    glVertex3f(-1.f, 1.f, -1.f);
-
-    glTexCoord2f(1.0f, 1.0f);
-    glVertex3f(1.f, 1.f, -1.f);
-
-    glTexCoord2f(1.0f, 0.0f);
-    glVertex3f(1.f, -1.f, -1.f);
-
-    glEnd();
+    glDrawElements(GL_TRIANGLES, sizeof(cube_indices) / sizeof(uint16_t), GL_UNSIGNED_SHORT, cube_indices);
 }
 
 void draw_band()
@@ -299,6 +207,12 @@ int main()
         }
 
         render();
+
+        if (down.c[0].C_left) {
+            uint64_t om = rdpq_get_other_modes_raw();
+            debugf("%llx\n", om);
+        }
+
         gl_swap_buffers();
     }
 }

@@ -62,6 +62,7 @@ void gl_init()
     gl_lighting_init();
     gl_texture_init();
     gl_rendermode_init();
+    gl_array_init();
 
     glDrawBuffer(GL_FRONT);
     glDepthRange(0, 1);
