@@ -18,7 +18,7 @@ libdragon: libdragon.a libdragonsys.a
 
 libdragonsys.a: $(BUILD_DIR)/system.o
 	@echo "    [AR] $@"
-	$(AR) -rcs -o $@ $^
+	$(N64_AR) -rcs -o $@ $^
 
 libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 			 $(BUILD_DIR)/inthandler.o $(BUILD_DIR)/entrypoint.o \
@@ -39,7 +39,7 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 			 $(BUILD_DIR)/audio/ym64.o $(BUILD_DIR)/audio/ay8910.o \
 			 $(BUILD_DIR)/rspq/rspq.o $(BUILD_DIR)/rspq/rsp_queue.o
 	@echo "    [AR] $@"
-	$(AR) -rcs -o $@ $^
+	$(N64_AR) -rcs -o $@ $^
 
 examples:
 	$(MAKE) -C examples
