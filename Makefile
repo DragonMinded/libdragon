@@ -17,7 +17,7 @@ libdragon: libdragon.a libdragonsys.a
 
 libdragonsys.a: $(BUILD_DIR)/system.o
 	@echo "    [AR] $@"
-	$(AR) -rcs -o $@ $^
+	$(N64_AR) -rcs -o $@ $^
 
 libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 			 $(BUILD_DIR)/inthandler.o $(BUILD_DIR)/entrypoint.o \
@@ -42,7 +42,7 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 			 $(BUILD_DIR)/rspq/rspq.o $(BUILD_DIR)/rspq/rsp_queue.o \
 			 $(BUILD_DIR)/ugfx/ugfx.o $(BUILD_DIR)/ugfx/rsp_ugfx.o
 	@echo "    [AR] $@"
-	$(AR) -rcs -o $@ $^
+	$(N64_AR) -rcs -o $@ $^
 
 $(BUILD_DIR)/audio/rsp_mixer.o: IS_OVERLAY=1
 $(BUILD_DIR)/ugfx/rsp_ugfx.o: IS_OVERLAY=1
