@@ -5,11 +5,14 @@ set -euo pipefail
 IFS=$'\n\t'
 
 makeWithParams(){
-  make -j${CPU_COUNT} $@
+  make -j"${JOBS}" "$@" || \
+    sudo env N64_INST="$N64_INST" CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS" \
+      make -j"${JOBS}" "$@"
 }
 
 # Limit the number of make jobs to the number of CPUs
-CPU_COUNT=$(nproc)
+JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN)}"
+JOBS="${JOBS:-1}" # If getconf returned nothing, default to 1
 
 # Specify where to get libmikmod from and where to put it
 LIBMIKMOD_REPO=https://github.com/networkfusion/libmikmod.git
