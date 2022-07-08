@@ -4,6 +4,20 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+if [[ -z ${N64_INST-} ]]; then
+  echo N64_INST environment variable is not defined
+  echo Please set N64_INST to point to your libdragon toolchain directory
+  exit 1
+fi
+
+if [[ $OSTYPE == 'darwin'* ]]; then
+  if command -v brew >/dev/null; then
+    brew install libpng
+    CFLAGS="-I$(brew --prefix)/include"; export CFLAGS
+    LDFLAGS="-L$(brew --prefix)/lib"; export LDFLAGS
+  fi
+fi
+
 makeWithParams(){
   make -j"${JOBS}" "$@" || \
     sudo env N64_INST="$N64_INST" CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS" \
