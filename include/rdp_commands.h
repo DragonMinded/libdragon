@@ -290,18 +290,17 @@
 #define SOM_COVERAGE_DEST_SAVE          ((cast64(3)) << 8)
 #define SOM_COLOR_ON_COVERAGE           ((cast64(1)) << 7)
 
-#define SOM_BLEND_A_PIXEL_RGB       cast64(0)
-#define SOM_BLEND_A_CYCLE1_RGB      cast64(0)
+#define SOM_BLEND_A_IN_RGB          cast64(0)
 #define SOM_BLEND_A_MEMORY_RGB      cast64(1)
 #define SOM_BLEND_A_BLEND_RGB       cast64(2)
 #define SOM_BLEND_A_FOG_RGB         cast64(3)
 
-#define SOM_BLEND_B1_MUX_ALPHA      cast64(0)
+#define SOM_BLEND_B1_IN_ALPHA       cast64(0)
 #define SOM_BLEND_B1_FOG_ALPHA      cast64(1)
 #define SOM_BLEND_B1_SHADE_ALPHA    cast64(2)
 #define SOM_BLEND_B1_ZERO           cast64(3)
 
-#define SOM_BLEND_B2_INV_MUX_ALPHA  cast64(0)
+#define SOM_BLEND_B2_INV_MUX_A      cast64(0)
 #define SOM_BLEND_B2_MEMORY_ALPHA   cast64(1)
 #define SOM_BLEND_B2_ONE            cast64(2)
 #define SOM_BLEND_B2_ZERO           cast64(3)

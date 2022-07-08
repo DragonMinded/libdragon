@@ -162,6 +162,7 @@ typedef struct {
 
     GLenum blend_src;
     GLenum blend_dst;
+    uint32_t blend_cycle;
 
     GLenum depth_func;
 

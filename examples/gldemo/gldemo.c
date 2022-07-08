@@ -21,6 +21,8 @@ void setup()
     glEnable(GL_LIGHTING);
     glEnable(GL_MULTISAMPLE_ARB);
 
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
     float aspect_ratio = (float)display_get_width() / (float)display_get_height();
 
     glMatrixMode(GL_PROJECTION);
@@ -41,6 +43,14 @@ void setup()
 
     GLfloat mat_diffuse[] = { 1, 1, 1, 0.6f };
     glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
+
+    //glEnable(GL_FOG);
+
+    GLfloat fog_color[] = { 1, 0, 0, 1 };
+
+    glFogfv(GL_FOG_COLOR, fog_color);
+    glFogf(GL_FOG_START, 1.0f);
+    glFogf(GL_FOG_END, 6.0f);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);

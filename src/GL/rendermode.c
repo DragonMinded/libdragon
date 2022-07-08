@@ -3,6 +3,90 @@
 
 extern gl_state_t state;
 
+#define BLENDER_CYCLE(a1, b1, a2, b2) \
+    (((SOM_BLEND_A_ ## a1) << 12) | ((SOM_BLEND_B1_ ## b1) << 8) | ((SOM_BLEND_A_ ## a2) << 4) | ((SOM_BLEND_B2_ ## b2) << 0))
+
+// All possible combinations of blend functions. Configs that cannot be supported by the RDP are set to 0.
+// NOTE: We always set fog alpha to one to support GL_ONE in both factors
+static const uint32_t blend_configs[64] = {
+    BLENDER_CYCLE(IN_RGB, ZERO, MEMORY_RGB, ZERO),                 // src = ZERO, dst = ZERO
+    BLENDER_CYCLE(IN_RGB, ZERO, MEMORY_RGB, ONE),                  // src = ZERO, dst = ONE
+    BLENDER_CYCLE(MEMORY_RGB, IN_ALPHA, IN_RGB, ZERO),             // src = ZERO, dst = SRC_ALPHA
+    0,                                                             // src = ZERO, dst = ONE_MINUS_SRC_ALPHA
+    0,                                                             // src = ZERO, dst = GL_DST_COLOR
+    0,                                                             // src = ZERO, dst = GL_ONE_MINUS_DST_COLOR
+    BLENDER_CYCLE(IN_RGB, ZERO, MEMORY_RGB, MEMORY_ALPHA),         // src = ZERO, dst = DST_ALPHA
+    0,                                                             // src = ZERO, dst = ONE_MINUS_DST_ALPHA
+
+    BLENDER_CYCLE(IN_RGB, FOG_ALPHA, MEMORY_RGB, ZERO),            // src = ONE, dst = ZERO
+    BLENDER_CYCLE(IN_RGB, FOG_ALPHA, MEMORY_RGB, ONE),             // src = ONE, dst = ONE
+    BLENDER_CYCLE(MEMORY_RGB, IN_ALPHA, IN_RGB, ONE),              // src = ONE, dst = SRC_ALPHA
+    0,                                                             // src = ONE, dst = ONE_MINUS_SRC_ALPHA
+    0,                                                             // src = ONE, dst = GL_DST_COLOR
+    0,                                                             // src = ONE, dst = GL_ONE_MINUS_DST_COLOR
+    BLENDER_CYCLE(IN_RGB, FOG_ALPHA, MEMORY_RGB, MEMORY_ALPHA),    // src = ONE, dst = DST_ALPHA
+    0,                                                             // src = ONE, dst = ONE_MINUS_DST_ALPHA
+
+    BLENDER_CYCLE(IN_RGB, IN_ALPHA, MEMORY_RGB, ZERO),             // src = SRC_ALPHA, dst = ZERO
+    BLENDER_CYCLE(IN_RGB, IN_ALPHA, MEMORY_RGB, ONE),              // src = SRC_ALPHA, dst = ONE
+    0,                                                             // src = SRC_ALPHA, dst = SRC_ALPHA
+    BLENDER_CYCLE(IN_RGB, IN_ALPHA, MEMORY_RGB, INV_MUX_A),        // src = SRC_ALPHA, dst = ONE_MINUS_SRC_ALPHA
+    0,                                                             // src = SRC_ALPHA, dst = GL_DST_COLOR
+    0,                                                             // src = SRC_ALPHA, dst = GL_ONE_MINUS_DST_COLOR
+    BLENDER_CYCLE(IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_ALPHA),     // src = SRC_ALPHA, dst = DST_ALPHA
+    0,                                                             // src = SRC_ALPHA, dst = ONE_MINUS_DST_ALPHA
+
+    0,                                                             // src = ONE_MINUS_SRC_ALPHA, dst = ZERO
+    0,                                                             // src = ONE_MINUS_SRC_ALPHA, dst = ONE
+    BLENDER_CYCLE(MEMORY_RGB, IN_ALPHA, IN_RGB, INV_MUX_A),        // src = ONE_MINUS_SRC_ALPHA, dst = SRC_ALPHA
+    0,                                                             // src = ONE_MINUS_SRC_ALPHA, dst = ONE_MINUS_SRC_ALPHA
+    0,                                                             // src = ONE_MINUS_SRC_ALPHA, dst = GL_DST_COLOR
+    0,                                                             // src = ONE_MINUS_SRC_ALPHA, dst = GL_ONE_MINUS_DST_COLOR
+    0,                                                             // src = ONE_MINUS_SRC_ALPHA, dst = DST_ALPHA
+    0,                                                             // src = ONE_MINUS_SRC_ALPHA, dst = ONE_MINUS_DST_ALPHA
+
+    0, 0, 0, 0, 0, 0, 0, 0,                                        // src = GL_DST_COLOR, dst = ...
+    0, 0, 0, 0, 0, 0, 0, 0,                                        // src = GL_ONE_MINUS_DST_COLOR, dst = ...
+
+    BLENDER_CYCLE(MEMORY_RGB, ZERO, IN_RGB, MEMORY_ALPHA),         // src = DST_ALPHA, dst = ZERO
+    BLENDER_CYCLE(MEMORY_RGB, FOG_ALPHA, IN_RGB, MEMORY_ALPHA),    // src = DST_ALPHA, dst = ONE
+    BLENDER_CYCLE(MEMORY_RGB, IN_ALPHA, IN_RGB, MEMORY_ALPHA),     // src = DST_ALPHA, dst = SRC_ALPHA
+    0,                                                             // src = DST_ALPHA, dst = ONE_MINUS_SRC_ALPHA
+    0,                                                             // src = DST_ALPHA, dst = GL_DST_COLOR
+    0,                                                             // src = DST_ALPHA, dst = GL_ONE_MINUS_DST_COLOR
+    0,                                                             // src = DST_ALPHA, dst = DST_ALPHA
+    0,                                                             // src = DST_ALPHA, dst = ONE_MINUS_DST_ALPHA
+
+    0, 0, 0, 0, 0, 0, 0, 0,                                        // src = ONE_MINUS_DST_ALPHA, dst = ...
+};
+
+inline bool blender_reads_memory(uint32_t bl)
+{
+    return ((bl>>12)&3) == SOM_BLEND_A_MEMORY_RGB ||
+           ((bl>>4)&3) == SOM_BLEND_A_MEMORY_RGB ||
+           (bl&3) == SOM_BLEND_B2_MEMORY_ALPHA;
+}
+
+inline rdpq_blender_t blender1(uint32_t bl, bool force_blend)
+{
+    rdpq_blender_t blend = (bl << 18) | (bl << 16);
+    if (blender_reads_memory(bl))
+        blend |= SOM_READ_ENABLE;
+    if (force_blend)
+        blend |= SOM_BLENDING;
+    return blend;
+}
+
+inline rdpq_blender_t blender2(uint32_t bl0, uint32_t bl1, bool force_blend)
+{
+    rdpq_blender_t blend = (bl0 << 18) | (bl1 << 16);
+    if (blender_reads_memory(bl0) || blender_reads_memory(bl1))
+        blend |= SOM_READ_ENABLE;
+    if (force_blend)
+        blend |= SOM_BLENDING;
+    return blend | RDPQ_BLENDER_2PASS;
+}
+
 void gl_rendermode_init()
 {
     state.fog_start = 0.0f;
@@ -80,24 +164,34 @@ void gl_update_render_mode()
     }
 
     if (state.multisample) {
-        modes |= SOM_AA_ENABLE | SOM_COLOR_ON_COVERAGE | SOM_READ_ENABLE;
+        modes |= SOM_AA_ENABLE | SOM_READ_ENABLE;
         if (state.blend) {
-            modes |= SOM_COVERAGE_DEST_WRAP | SOM_BLENDING;
+            modes |= SOM_COLOR_ON_COVERAGE | SOM_COVERAGE_DEST_WRAP;
         } else {
             modes |= SOM_ALPHA_USE_CVG | SOM_COVERAGE_DEST_CLAMP;
-            blend = RDPQ_BLENDER1((PIXEL_RGB, MUX_ALPHA, MEMORY_RGB, MEMORY_ALPHA)) & ~SOM_BLENDING;
         }
+    } else {
+        modes |= SOM_COVERAGE_DEST_SAVE;
+    }
+
+    uint32_t blend_cycle = 0;
+
+    if (state.blend) {
+        blend_cycle = state.blend_cycle;
+    } else if (state.multisample) {
+        blend_cycle = BLENDER_CYCLE(IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_ALPHA);
     }
 
     if (state.fog) {
-        if (state.blend) {
-            blend = RDPQ_BLENDER2((PIXEL_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA), (PIXEL_RGB, MUX_ALPHA, MEMORY_RGB, INV_MUX_ALPHA));
+        uint32_t fog_blend = BLENDER_CYCLE(IN_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_A);
+
+        if (state.blend || state.multisample) {
+            blend = blender2(fog_blend, blend_cycle, state.blend);
         } else {
-            blend = RDPQ_BLENDER1((PIXEL_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA));
+            blend = blender1(fog_blend, true);
         }
-    } else if (state.blend) {
-        // TODO: derive the blender config from blend_src and blend_dst
-        blend = RDPQ_BLENDER1((PIXEL_RGB, MUX_ALPHA, MEMORY_RGB, INV_MUX_ALPHA));
+    } else {
+        blend = blender1(blend_cycle, state.blend);
     }
 
     if (state.alpha_test && state.alpha_func == GL_GREATER) {
@@ -122,12 +216,26 @@ void gl_update_render_mode()
 
         if (tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR || tex_obj->min_filter == GL_NEAREST_MIPMAP_LINEAR) {
             // Trilinear
-            comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (COMBINED, ZERO, SHADE, ZERO), (COMBINED, ZERO, SHADE, ZERO));
+            if (state.fog) {
+                comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (COMBINED, ZERO, SHADE, ZERO), (ZERO, ZERO, ZERO, COMBINED));
+            } else {
+                comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (COMBINED, ZERO, SHADE, ZERO), (COMBINED, ZERO, SHADE, ZERO));
+            }
         } else {
-            comb = RDPQ_COMBINER1((TEX0, ZERO, SHADE, ZERO), (TEX0, ZERO, SHADE, ZERO));
+            if (state.fog) {
+                comb = RDPQ_COMBINER1((TEX0, ZERO, SHADE, ZERO), (ZERO, ZERO, ZERO, TEX0));
+            } else {
+                comb = RDPQ_COMBINER1((TEX0, ZERO, SHADE, ZERO), (TEX0, ZERO, SHADE, ZERO));
+            }
         }
     } else {
-        comb = RDPQ_COMBINER1((ONE, ZERO, SHADE, ZERO), (ONE, ZERO, SHADE, ZERO));
+        // When fog is enabled, the shade alpha is (ab)used to encode the fog blending factor, so it cannot be used in the color combiner
+        // (same above)
+        if (state.fog) {
+            comb = RDPQ_COMBINER1((ONE, ZERO, SHADE, ZERO), (ZERO, ZERO, ZERO, ONE));
+        } else {
+            comb = RDPQ_COMBINER1((ONE, ZERO, SHADE, ZERO), (ONE, ZERO, SHADE, ZERO));
+        }
     }
 
     rdpq_set_other_modes_raw(modes);
@@ -187,7 +295,7 @@ void glFogiv(GLenum pname, const GLint *params)
             MAX(params[0]>>23, 0),
             MAX(params[1]>>23, 0),
             MAX(params[2]>>23, 0),
-            MAX(params[3]>>23, 0)
+            0xFF
         ));
         break;
     case GL_FOG_MODE:
@@ -211,7 +319,7 @@ void glFogfv(GLenum pname, const GLfloat *params)
             FLOAT_TO_U8(params[0]),
             FLOAT_TO_U8(params[1]),
             FLOAT_TO_U8(params[2]),
-            FLOAT_TO_U8(params[3])
+            0xFF
         ));
         break;
     case GL_FOG_MODE:
@@ -245,15 +353,17 @@ void glScissor(GLint left, GLint bottom, GLsizei width, GLsizei height)
 void glBlendFunc(GLenum src, GLenum dst)
 {
     switch (src) {
-    case GL_ZERO: 
-    case GL_ONE: 
-    case GL_DST_COLOR: 
-    case GL_ONE_MINUS_DST_COLOR: 
-    case GL_SRC_ALPHA: 
+    case GL_ZERO:
+    case GL_ONE:
+    case GL_SRC_ALPHA:
     case GL_ONE_MINUS_SRC_ALPHA: 
-    case GL_DST_ALPHA: 
+    case GL_DST_ALPHA:
+        break;
+    case GL_DST_COLOR:
+    case GL_ONE_MINUS_DST_COLOR: 
     case GL_ONE_MINUS_DST_ALPHA:
     case GL_SRC_ALPHA_SATURATE:
+        assertf(0, "Unsupported blend source factor");
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -261,22 +371,30 @@ void glBlendFunc(GLenum src, GLenum dst)
     }
 
     switch (dst) {
-    case GL_ZERO: 
-    case GL_ONE: 
-    case GL_DST_COLOR: 
-    case GL_ONE_MINUS_DST_COLOR: 
-    case GL_SRC_ALPHA: 
-    case GL_ONE_MINUS_SRC_ALPHA: 
-    case GL_DST_ALPHA: 
+    case GL_ZERO:
+    case GL_ONE:
+    case GL_SRC_ALPHA:
+    case GL_ONE_MINUS_SRC_ALPHA:
+    case GL_DST_ALPHA:
+        break;
+    case GL_SRC_COLOR:
     case GL_ONE_MINUS_DST_ALPHA:
+    case GL_ONE_MINUS_SRC_COLOR:
+        assertf(0, "Unsupported blend destination factor");
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
         return;
     }
 
+    uint32_t config_index = ((src & 0x7) << 3) | (dst & 0x7);
+
+    uint32_t cycle = blend_configs[config_index];
+    assertf(cycle != 0, "Unsupported blend function");
+
     state.blend_src = src;
     state.blend_dst = dst;
+    state.blend_cycle = cycle;
     state.is_rendermode_dirty = true;
 }
 

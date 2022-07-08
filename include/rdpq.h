@@ -898,10 +898,10 @@ inline void rdpq_mode_blender(rdpq_blender_t blend) {
         // passes, as this is what RDP expects).
         // For 2-cycle mode, instead, it needs to be changed: the configuration
         // is valid for the second pass, but the first pass needs to changed
-        // with a passthrough (PIXEL * 0 + PIXEL * 1). Notice that we can't do
+        // with a passthrough (IN * 0 + IN * 1). Notice that we can't do
         // the passthrough in the second pass because of the way the 2pass
         // blender formula works.
-        const rdpq_blender_t passthrough = RDPQ_BLENDER1((PIXEL_RGB, ZERO, PIXEL_RGB, ONE));
+        const rdpq_blender_t passthrough = RDPQ_BLENDER1((IN_RGB, ZERO, IN_RGB, ONE));
         blend_1cyc = blend;
         blend_2cyc = (passthrough & SOM_BLEND0_MASK) | 
                      (blend       & SOM_BLEND1_MASK);
