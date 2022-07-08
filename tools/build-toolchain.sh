@@ -15,6 +15,13 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+# Check that N64_INST is defined
+if [ -z "${N64_INST-}" ]; then
+  echo "N64_INST environment variable is not defined."
+  echo "Please define N64_INST and point it to the requested installation directory"
+  exit 1
+fi
+
 # Set N64_INST before calling the script to change the default installation directory path
 INSTALL_PATH="${N64_INST}"
 # Set PATH for newlib to compile using GCC for MIPS N64 (pass 1)
@@ -23,6 +30,9 @@ export PATH="$PATH:$INSTALL_PATH/bin"
 # Determine how many parallel Make jobs to run based on CPU count
 JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN)}"
 JOBS="${JOBS:-1}" # If getconf returned nothing, default to 1
+
+# Additional GCC configure arguments
+GCC_CONFIGURE_ARGS=""
 
 # Dependency source libs (Versions)
 BINUTILS_V=2.38
@@ -44,6 +54,25 @@ download () {
     return 1
   fi
 }
+
+# Compilation on macOS via homebrew
+if [[ $OSTYPE == 'darwin'* ]]; then
+  if ! command_exists brew; then
+    echo "Compilation on macOS is supported via Homebrew (https://brew.sh)"
+    echo "Please install homebrew and try again"
+    exit 1
+  fi
+
+  # Install required dependencies
+  brew install gmp mpfr libmpc gsed
+
+  # Tell GCC configure where to find the dependent libraries
+  GCC_CONFIGURE_ARGS="--with-gmp=$(brew --prefix) --with-mpfr=$(brew --prefix) --with-mpc=$(brew --prefix)"
+
+  # Install GNU sed as default sed in PATH. GCC compilation fails otherwise,
+  # because it does not work with BSD sed.
+  export PATH="$(brew --prefix gsed)/libexec/gnubin:$PATH"
+fi
 
 # Dependency source: Download stage
 test -f "binutils-$BINUTILS_V.tar.gz" || download "https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_V.tar.gz"
@@ -70,7 +99,7 @@ cd ..
 rm -rf gcc_compile
 mkdir gcc_compile
 cd gcc_compile
-../"gcc-$GCC_V"/configure \
+../"gcc-$GCC_V"/configure $GCC_CONFIGURE_ARGS \
   --prefix="$INSTALL_PATH" \
   --target=mips64-elf \
   --with-arch=vr4300 \
@@ -109,7 +138,8 @@ cd ..
 rm -rf gcc_compile
 mkdir gcc_compile
 cd gcc_compile
-CFLAGS_FOR_TARGET="-O2" CXXFLAGS_FOR_TARGET="-O2" ../"gcc-$GCC_V"/configure \
+CFLAGS_FOR_TARGET="-O2" CXXFLAGS_FOR_TARGET="-O2" \
+  ../"gcc-$GCC_V"/configure $GCC_CONFIGURE_ARGS \
   --prefix="$INSTALL_PATH" \
   --target=mips64-elf \
   --with-arch=vr4300 \

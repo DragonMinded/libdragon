@@ -62,13 +62,14 @@ quickly get libdragon up and running. Basically:
 If you want, you can also compile and run one of the examples that will
 be found in `libdragon/examples` in the skeleton project.
 
-### Option 2: Compile the toolchain (Linux only)
+### Option 2: Compile the toolchain (Linux/macOS only)
 
 1. Export the environment variable N64_INST to the path where you want your
    toolchain to be installed. For instance: `export N64_INST=/opt/n64` or
    `export N64_INST=/usr/local`.
 2. Create an empty directory and copy the `tools/build-toolchain.sh` script there
-3. Read the comments in the build script to see what additional packages are needed.
+3. Read the comments in the build script to see what additional packages are needed. 
+   If you are on macOS, make sure [homebrew](https://brew.sh) is installed.
 4. Run `./build-toolchain.sh` from the created directory, let it build and install the toolchain.
 5. Install libpng-dev if not already installed.
 6. Make sure that you still have the `N64_INST` variable pointing to the correct
