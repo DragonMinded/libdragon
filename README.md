@@ -67,10 +67,10 @@ be found in `libdragon/examples` in the skeleton project.
 1. Export the environment variable N64_INST to the path where you want your
    toolchain to be installed. For instance: `export N64_INST=/opt/n64` or
    `export N64_INST=/usr/local`.
-2. Create an empty directory and copy the `tools/build-toolchain.sh` script there
-3. Read the comments in the build script to see what additional packages are needed. 
+2. Go to the `tools/toolchain/` directory. Read the comments in the 
+   `build-toolchain.sh` to see what additional packages are needed. 
    If you are on macOS, make sure [homebrew](https://brew.sh) is installed.
-4. Run `./build-toolchain.sh` from the created directory, let it build and install the toolchain.
+4. Run `./build-toolchain.sh` to let it build and install the toolchain.
 5. Install libpng-dev if not already installed.
 6. Make sure that you still have the `N64_INST` variable pointing to the correct
    directory where the toolchain was installed (`echo $N64_INST`).
