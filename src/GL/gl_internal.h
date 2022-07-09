@@ -9,6 +9,7 @@
 
 #define MODELVIEW_STACK_SIZE  32
 #define PROJECTION_STACK_SIZE 2
+#define TEXTURE_STACK_SIZE    2
 
 #define VERTEX_CACHE_SIZE     3
 
@@ -203,9 +204,11 @@ typedef struct {
 
     gl_matrix_t modelview_stack_storage[MODELVIEW_STACK_SIZE];
     gl_matrix_t projection_stack_storage[PROJECTION_STACK_SIZE];
+    gl_matrix_t texture_stack_storage[TEXTURE_STACK_SIZE];
 
     gl_matrix_stack_t modelview_stack;
     gl_matrix_stack_t projection_stack;
+    gl_matrix_stack_t texture_stack;
     gl_matrix_stack_t *current_matrix_stack;
 
     gl_texture_object_t default_texture_1d;

@@ -462,10 +462,9 @@ void glColor4uiv(const GLuint *v)   { glColor4ui(v[0], v[1], v[2], v[3]); }
 
 void glTexCoord4f(GLfloat s, GLfloat t, GLfloat r, GLfloat q)
 {
-    state.current_texcoord[0] = s;
-    state.current_texcoord[1] = t;
-    state.current_texcoord[2] = r;
-    state.current_texcoord[3] = q;
+    GLfloat tmp[] = { s, t, r, q };
+
+    gl_matrix_mult(state.current_texcoord, gl_matrix_stack_get_matrix(&state.texture_stack), tmp);
 }
 
 void glTexCoord4s(GLshort s, GLshort t, GLshort r, GLshort q)       { glTexCoord4f(s, t, r, q); }

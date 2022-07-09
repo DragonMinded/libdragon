@@ -15,6 +15,14 @@ void gl_matrix_init()
         .size = PROJECTION_STACK_SIZE,
     };
 
+    state.texture_stack = (gl_matrix_stack_t) {
+        .storage = state.texture_stack_storage,
+        .size = TEXTURE_STACK_SIZE,
+    };
+
+    glMatrixMode(GL_TEXTURE);
+    glLoadIdentity();
+
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
 
@@ -57,7 +65,9 @@ void gl_matrix_mult_full(gl_matrix_t *d, const gl_matrix_t *l, const gl_matrix_t
 
 void gl_update_final_matrix()
 {
-    gl_matrix_mult_full(&state.final_matrix, gl_matrix_stack_get_matrix(&state.projection_stack), gl_matrix_stack_get_matrix(&state.modelview_stack));
+    if (state.matrix_mode != GL_TEXTURE) {
+        gl_matrix_mult_full(&state.final_matrix, gl_matrix_stack_get_matrix(&state.projection_stack), gl_matrix_stack_get_matrix(&state.modelview_stack));
+    }
 }
 
 void glMatrixMode(GLenum mode)
@@ -68,6 +78,9 @@ void glMatrixMode(GLenum mode)
         break;
     case GL_PROJECTION:
         state.current_matrix_stack = &state.projection_stack;
+        break;
+    case GL_TEXTURE:
+        state.current_matrix_stack = &state.texture_stack;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
