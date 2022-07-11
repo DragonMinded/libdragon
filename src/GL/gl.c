@@ -145,6 +145,18 @@ void gl_set_flag(GLenum target, bool value)
     case GL_MULTISAMPLE_ARB:
         GL_SET_STATE(state.multisample, value, state.is_rendermode_dirty);
         break;
+    case GL_TEXTURE_GEN_S:
+        state.s_gen.enabled = value;
+        break;
+    case GL_TEXTURE_GEN_T:
+        state.t_gen.enabled = value;
+        break;
+    case GL_TEXTURE_GEN_R:
+        state.r_gen.enabled = value;
+        break;
+    case GL_TEXTURE_GEN_Q:
+        state.q_gen.enabled = value;
+        break;
     case GL_COLOR_LOGIC_OP:
     case GL_INDEX_LOGIC_OP:
         assertf(!value, "Logical pixel operation is not supported!");

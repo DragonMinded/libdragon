@@ -141,6 +141,13 @@ typedef struct {
 } gl_array_t;
 
 typedef struct {
+    GLenum mode;
+    GLfloat eye_plane[4];
+    GLfloat object_plane[4];
+    bool enabled;
+} gl_tex_gen_t;
+
+typedef struct {
     gl_framebuffer_t default_framebuffer;
     gl_framebuffer_t *cur_framebuffer;
 
@@ -228,6 +235,11 @@ typedef struct {
 
     GLenum shade_model;
 
+    gl_tex_gen_t s_gen;
+    gl_tex_gen_t t_gen;
+    gl_tex_gen_t r_gen;
+    gl_tex_gen_t q_gen;
+
     gl_array_t vertex_array;
     gl_array_t texcoord_array;
     gl_array_t normal_array;
@@ -250,6 +262,7 @@ gl_matrix_t * gl_matrix_stack_get_matrix(gl_matrix_stack_t *stack);
 
 void gl_matrix_mult(GLfloat *d, const gl_matrix_t *m, const GLfloat *v);
 void gl_matrix_mult3x3(GLfloat *d, const gl_matrix_t *m, const GLfloat *v);
+void gl_matrix_mult4x2(GLfloat *d, const gl_matrix_t *m, const GLfloat *v);
 
 bool gl_is_invisible();
 
@@ -260,5 +273,8 @@ void gl_update_texture();
 void gl_perform_lighting(GLfloat *color, const GLfloat *v, const GLfloat *n, const gl_material_t *material);
 
 gl_texture_object_t * gl_get_active_texture();
+
+float dot_product3(const float *a, const float *b);
+void gl_normalize(GLfloat *d, const GLfloat *v);
 
 #endif

@@ -312,6 +312,54 @@ void gl_vertex_cache_changed()
     gl_clip_triangle(v0, v1, v2);
 }
 
+void gl_calc_texture_coord(GLfloat *dest, uint32_t coord_index, const gl_tex_gen_t *gen, const GLfloat *obj_pos, const GLfloat *eye_pos, const GLfloat *eye_normal)
+{
+    if (!gen->enabled) {
+        dest[coord_index] = state.current_texcoord[coord_index];
+        return;
+    }
+
+    switch (gen->mode) {
+    case GL_EYE_LINEAR:
+        dest[coord_index] = eye_pos[0] * gen->eye_plane[0] +
+                            eye_pos[1] * gen->eye_plane[1] +
+                            eye_pos[2] * gen->eye_plane[2] +
+                            eye_pos[3] * gen->eye_plane[3];
+        break;
+    case GL_OBJECT_LINEAR:
+        dest[coord_index] = obj_pos[0] * gen->object_plane[0] +
+                            obj_pos[1] * gen->object_plane[1] +
+                            obj_pos[2] * gen->object_plane[2] +
+                            obj_pos[3] * gen->object_plane[3];
+        break;
+    case GL_SPHERE_MAP:
+        GLfloat norm_eye_pos[3];
+        gl_normalize(norm_eye_pos, eye_pos);
+        GLfloat d2 = 2.0f * dot_product3(norm_eye_pos, eye_normal);
+        GLfloat r[3] = {
+            norm_eye_pos[0] - eye_normal[0] * d2,
+            norm_eye_pos[1] - eye_normal[1] * d2,
+            norm_eye_pos[2] - eye_normal[2] * d2 + 1.0f,
+        };
+        GLfloat m = 1.0f / (2.0f * sqrtf(dot_product3(r, r)));
+        dest[coord_index] = r[coord_index] * m + 0.5f;
+        break;
+    }
+}
+
+void gl_calc_texture_coords(GLfloat *dest, const GLfloat *obj_pos, const GLfloat *eye_pos, const GLfloat *eye_normal)
+{
+    GLfloat tmp[4];
+
+    gl_calc_texture_coord(tmp, 0, &state.s_gen, obj_pos, eye_pos, eye_normal);
+    gl_calc_texture_coord(tmp, 1, &state.t_gen, obj_pos, eye_pos, eye_normal);
+    gl_calc_texture_coord(tmp, 2, &state.r_gen, obj_pos, eye_pos, eye_normal);
+    gl_calc_texture_coord(tmp, 3, &state.q_gen, obj_pos, eye_pos, eye_normal);
+
+    // TODO: skip matrix multiplication if it is the identity
+    gl_matrix_mult4x2(dest, gl_matrix_stack_get_matrix(&state.texture_stack), tmp);
+}
+
 void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w) 
 {
     if (gl_is_invisible()) {
@@ -322,17 +370,14 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 
     GLfloat pos[] = {x, y, z, w};
     GLfloat eye_pos[4];
+    GLfloat eye_normal[3];
 
     const gl_matrix_t *mv = gl_matrix_stack_get_matrix(&state.modelview_stack);
 
-    if (state.lighting || state.fog) {
-        gl_matrix_mult(eye_pos, mv, pos);
-    }
+    gl_matrix_mult(eye_pos, mv, pos);
+    gl_matrix_mult3x3(eye_normal, mv, state.current_normal);
 
     if (state.lighting) {
-        GLfloat eye_normal[3];
-        gl_matrix_mult3x3(eye_normal, mv, state.current_normal);
-
         // TODO: Back face material?
         gl_perform_lighting(v->color, eye_pos, eye_normal, &state.materials[0]);
     } else {
@@ -362,9 +407,10 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 
     gl_texture_object_t *tex_obj = gl_get_active_texture();
     if (tex_obj != NULL && tex_obj->is_complete) {
+        gl_calc_texture_coords(v->texcoord, pos, eye_pos, eye_normal);
 
-        v->texcoord[0] = state.current_texcoord[0] * tex_obj->levels[0].width;
-        v->texcoord[1] = state.current_texcoord[1] * tex_obj->levels[0].height;
+        v->texcoord[0] *= tex_obj->levels[0].width;
+        v->texcoord[1] *= tex_obj->levels[0].height;
 
         if (tex_obj->mag_filter == GL_LINEAR) {
             v->texcoord[0] -= 0.5f;
@@ -462,9 +508,10 @@ void glColor4uiv(const GLuint *v)   { glColor4ui(v[0], v[1], v[2], v[3]); }
 
 void glTexCoord4f(GLfloat s, GLfloat t, GLfloat r, GLfloat q)
 {
-    GLfloat tmp[] = { s, t, r, q };
-
-    gl_matrix_mult(state.current_texcoord, gl_matrix_stack_get_matrix(&state.texture_stack), tmp);
+    state.current_texcoord[0] = s;
+    state.current_texcoord[1] = t;
+    state.current_texcoord[2] = r;
+    state.current_texcoord[3] = q;
 }
 
 void glTexCoord4s(GLshort s, GLshort t, GLshort r, GLshort q)       { glTexCoord4f(s, t, r, q); }
@@ -538,6 +585,148 @@ void glViewport(GLint x, GLint y, GLsizei w, GLsizei h)
     state.current_viewport.scale[1] = h * -0.5f;
     state.current_viewport.offset[0] = x + w * 0.5f;
     state.current_viewport.offset[1] = fbh - y - h * 0.5f;
+}
+
+gl_tex_gen_t *gl_get_tex_gen(GLenum coord)
+{
+    switch (coord) {
+    case GL_S:
+        return &state.s_gen;
+    case GL_T:
+        return &state.t_gen;
+    case GL_R:
+        return &state.r_gen;
+    case GL_Q:
+        return &state.q_gen;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return NULL;
+    }
+}
+
+void gl_tex_gen_set_mode(gl_tex_gen_t *gen, GLenum coord, GLint param)
+{
+    switch (param) {
+    case GL_OBJECT_LINEAR:
+    case GL_EYE_LINEAR:
+        break;
+    case GL_SPHERE_MAP:
+        if (coord == GL_R || coord == GL_Q) {
+            gl_set_error(GL_INVALID_ENUM);
+            return;
+        }
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    gen->mode = param;
+}
+
+void glTexGeni(GLenum coord, GLenum pname, GLint param)
+{
+    gl_tex_gen_t *gen = gl_get_tex_gen(coord);
+    if (gen == NULL) {
+        return;
+    }
+
+    if (pname != GL_TEXTURE_GEN_MODE) {
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    gl_tex_gen_set_mode(gen, coord, param);
+}
+
+void glTexGenf(GLenum coord, GLenum pname, GLfloat param) { glTexGeni(coord, pname, param); }
+void glTexGend(GLenum coord, GLenum pname, GLdouble param) { glTexGeni(coord, pname, param); }
+
+void glTexGenfv(GLenum coord, GLenum pname, const GLfloat *params)
+{
+    gl_tex_gen_t *gen = gl_get_tex_gen(coord);
+    if (gen == NULL) {
+        return;
+    }
+
+    switch (pname) {
+    case GL_TEXTURE_GEN_MODE:
+        gl_tex_gen_set_mode(gen, coord, params[0]);
+        break;
+    case GL_OBJECT_PLANE:
+        gen->object_plane[0] = params[0];
+        gen->object_plane[1] = params[1];
+        gen->object_plane[2] = params[2];
+        gen->object_plane[3] = params[3];
+        break;
+    case GL_EYE_PLANE:
+        gen->eye_plane[0] = params[0];
+        gen->eye_plane[1] = params[1];
+        gen->eye_plane[2] = params[2];
+        gen->eye_plane[3] = params[3];
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void glTexGeniv(GLenum coord, GLenum pname, const GLint *params)
+{
+    gl_tex_gen_t *gen = gl_get_tex_gen(coord);
+    if (gen == NULL) {
+        return;
+    }
+
+    switch (pname) {
+    case GL_TEXTURE_GEN_MODE:
+        gl_tex_gen_set_mode(gen, coord, params[0]);
+        break;
+    case GL_OBJECT_PLANE:
+        gen->object_plane[0] = params[0];
+        gen->object_plane[1] = params[1];
+        gen->object_plane[2] = params[2];
+        gen->object_plane[3] = params[3];
+        break;
+    case GL_EYE_PLANE:
+        gen->eye_plane[0] = params[0];
+        gen->eye_plane[1] = params[1];
+        gen->eye_plane[2] = params[2];
+        gen->eye_plane[3] = params[3];
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void glTexGendv(GLenum coord, GLenum pname, const GLdouble *params)
+{
+    gl_tex_gen_t *gen = gl_get_tex_gen(coord);
+    if (gen == NULL) {
+        return;
+    }
+
+    switch (pname) {
+    case GL_TEXTURE_GEN_MODE:
+        gl_tex_gen_set_mode(gen, coord, params[0]);
+        break;
+    case GL_OBJECT_PLANE:
+        gen->object_plane[0] = params[0];
+        gen->object_plane[1] = params[1];
+        gen->object_plane[2] = params[2];
+        gen->object_plane[3] = params[3];
+        break;
+    case GL_EYE_PLANE:
+        gen->eye_plane[0] = params[0];
+        gen->eye_plane[1] = params[1];
+        gen->eye_plane[2] = params[2];
+        gen->eye_plane[3] = params[3];
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
 }
 
 void glCullFace(GLenum mode)
