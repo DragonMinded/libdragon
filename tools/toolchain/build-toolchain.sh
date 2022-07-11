@@ -17,7 +17,7 @@ IFS=$'\n\t'
 
 # Check that N64_INST is defined
 if [ -z "${N64_INST-}" ]; then
-  echo "N64_INST environemnt variable is not defined."
+  echo "N64_INST environment variable is not defined."
   echo "Please define N64_INST and point it to the requested installation directory"
   exit 1
 fi

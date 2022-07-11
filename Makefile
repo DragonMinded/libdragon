@@ -18,7 +18,7 @@ libdragon: libdragon.a libdragonsys.a
 
 libdragonsys.a: $(BUILD_DIR)/system.o
 	@echo "    [AR] $@"
-	$(AR) -rcs -o $@ $^
+	$(N64_AR) -rcs -o $@ $^
 
 libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 			 $(BUILD_DIR)/inthandler.o $(BUILD_DIR)/entrypoint.o \
@@ -44,7 +44,7 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 			 $(BUILD_DIR)/GL/primitive.o $(BUILD_DIR)/GL/query.o \
 			 $(BUILD_DIR)/GL/rendermode.o $(BUILD_DIR)/GL/texture.o
 	@echo "    [AR] $@"
-	$(AR) -rcs -o $@ $^
+	$(N64_AR) -rcs -o $@ $^
 
 examples:
 	$(MAKE) -C examples

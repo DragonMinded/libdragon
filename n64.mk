@@ -19,6 +19,7 @@ COMMA:=,
 N64_CC = $(N64_GCCPREFIX)gcc
 N64_CXX = $(N64_GCCPREFIX)g++
 N64_AS = $(N64_GCCPREFIX)as
+N64_AR = $(N64_GCCPREFIX)ar
 N64_LD = $(N64_GCCPREFIX)ld
 N64_OBJCOPY = $(N64_GCCPREFIX)objcopy
 N64_OBJDUMP = $(N64_GCCPREFIX)objdump
@@ -57,7 +58,7 @@ CXXFLAGS+=-MMD
 ASFLAGS+=-MMD
 RSPASFLAGS+=-MMD
 
-N64_CXXFLAGS := $(N64_CFLAGS) -std=c++11
+N64_CXXFLAGS := $(N64_CFLAGS)
 N64_CFLAGS += -std=gnu99
 
 # Change all the dependency chain of z64 ROMs to use the N64 toolchain.
