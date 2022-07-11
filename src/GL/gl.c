@@ -157,6 +157,9 @@ void gl_set_flag(GLenum target, bool value)
     case GL_TEXTURE_GEN_Q:
         state.q_gen.enabled = value;
         break;
+    case GL_NORMALIZE:
+        state.normalize = value;
+        break;
     case GL_COLOR_LOGIC_OP:
     case GL_INDEX_LOGIC_OP:
         assertf(!value, "Logical pixel operation is not supported!");

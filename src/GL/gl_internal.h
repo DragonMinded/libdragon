@@ -191,6 +191,7 @@ typedef struct {
     bool fog;
     bool color_material;
     bool multisample;
+    bool normalize;
 
     gl_vertex_t vertex_cache[VERTEX_CACHE_SIZE];
     uint32_t vertex_cache_locked;

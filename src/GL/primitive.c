@@ -377,6 +377,10 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
     gl_matrix_mult(eye_pos, mv, pos);
     gl_matrix_mult3x3(eye_normal, mv, state.current_normal);
 
+    if (state.normalize) {
+        gl_normalize(eye_normal, eye_normal);
+    }
+
     if (state.lighting) {
         // TODO: Back face material?
         gl_perform_lighting(v->color, eye_pos, eye_normal, &state.materials[0]);
