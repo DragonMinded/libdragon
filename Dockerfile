@@ -8,7 +8,7 @@ ENV N64_INST=${N64_INST}
 
 # install dependencies
 RUN apt-get update
-RUN apt-get install -yq wget bzip2 gcc g++ make file libmpfr-dev libmpc-dev zlib1g-dev texinfo git gcc-multilib
+RUN apt-get install -yq wget bzip2 gcc g++ make file libmpfr-dev libmpc-dev zlib1g-dev texinfo git
 
 # Build
 COPY ./tools/build-toolchain.sh /tmp/tools/build-toolchain.sh
