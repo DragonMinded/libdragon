@@ -22,6 +22,9 @@ if [ -z "${N64_INST-}" ]; then
   exit 1
 fi
 
+# Path where the toolchain will be built.
+BUILD_PATH="${BUILD_PATH:-toolchain}"
+
 # Set N64_INST before calling the script to change the default installation directory path
 INSTALL_PATH="${N64_INST}"
 # Set PATH for newlib to compile using GCC for MIPS N64 (pass 1)
@@ -64,7 +67,7 @@ if [[ $OSTYPE == 'darwin'* ]]; then
   fi
 
   # Install required dependencies
-  brew install gmp mpfr libmpc gsed
+  brew install -q gmp mpfr libmpc gsed
 
   # Tell GCC configure where to find the dependent libraries
   GCC_CONFIGURE_ARGS="--with-gmp=$(brew --prefix) --with-mpfr=$(brew --prefix) --with-mpc=$(brew --prefix)"
@@ -73,6 +76,10 @@ if [[ $OSTYPE == 'darwin'* ]]; then
   # because it does not work with BSD sed.
   export PATH="$(brew --prefix gsed)/libexec/gnubin:$PATH"
 fi
+
+# Create build path and enter it
+mkdir -p "$BUILD_PATH"
+cd "$BUILD_PATH"
 
 # Dependency source: Download stage
 test -f "binutils-$BINUTILS_V.tar.gz" || download "https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_V.tar.gz"
@@ -156,3 +163,10 @@ CFLAGS_FOR_TARGET="-O2" CXXFLAGS_FOR_TARGET="-O2" \
   --with-system-zlib
 make -j "$JOBS"
 make install-strip || sudo make install-strip || su -c "make install-strip"
+
+# Final message
+echo
+echo "***********************************************"
+echo "Libdragon toolchain correctly built and installed"
+echo "Installation directory: \"${N64_INST}\""
+echo "Build directory: \"${BUILD_PATH}\" (can be removed now)"
