@@ -14,6 +14,30 @@ gl_state_t state;
     assertf(state.cur_framebuffer != NULL, "GL: No target is set!"); \
 })
 
+uint32_t gl_get_type_size(GLenum type)
+{
+    switch (type) {
+    case GL_BYTE:
+        return sizeof(GLbyte);
+    case GL_UNSIGNED_BYTE:
+        return sizeof(GLubyte);
+    case GL_SHORT:
+        return sizeof(GLshort);
+    case GL_UNSIGNED_SHORT:
+        return sizeof(GLushort);
+    case GL_INT:
+        return sizeof(GLint);
+    case GL_UNSIGNED_INT:
+        return sizeof(GLuint);
+    case GL_FLOAT:
+        return sizeof(GLfloat);
+    case GL_DOUBLE:
+        return sizeof(GLdouble);
+    default:
+        return 0;
+    }
+}
+
 void gl_set_framebuffer(gl_framebuffer_t *framebuffer)
 {
     state.cur_framebuffer = framebuffer;
@@ -63,6 +87,8 @@ void gl_init()
     gl_texture_init();
     gl_rendermode_init();
     gl_array_init();
+    gl_primitive_init();
+    gl_pixel_init();
 
     glDrawBuffer(GL_FRONT);
     glDepthRange(0, 1);
@@ -76,6 +102,7 @@ void gl_init()
 
 void gl_close()
 {
+    gl_texture_close();
     rdpq_close();
 }
 
@@ -219,6 +246,11 @@ void glDrawBuffer(GLenum buf)
         gl_set_error(GL_INVALID_ENUM);
         return;
     }
+}
+
+void glReadBuffer(GLenum src)
+{
+    assertf(0, "Reading from the frame buffer is not supported!");
 }
 
 void glIndexMask(GLuint mask)

@@ -23,6 +23,8 @@
 #define MAX_TEXTURE_SIZE      64
 #define MAX_TEXTURE_LEVELS    7
 
+#define MAX_PIXEL_MAP_SIZE    32
+
 #define RADIANS(x) ((x) * M_PI / 180.0f)
 
 #define CLAMP(x, min, max) (MIN(MAX((x), (min)), (max)))
@@ -148,6 +150,11 @@ typedef struct {
 } gl_tex_gen_t;
 
 typedef struct {
+    GLsizei size;
+    GLfloat entries[MAX_PIXEL_MAP_SIZE];
+} gl_pixel_map_t;
+
+typedef struct {
     gl_framebuffer_t default_framebuffer;
     gl_framebuffer_t *cur_framebuffer;
 
@@ -246,6 +253,21 @@ typedef struct {
     gl_array_t normal_array;
     gl_array_t color_array;
 
+    GLboolean unpack_swap_bytes;
+    GLboolean unpack_lsb_first;
+    GLint unpack_row_length;
+    GLint unpack_skip_rows;
+    GLint unpack_skip_pixels;
+    GLint unpack_alignment;
+
+    GLboolean map_color;
+    GLfloat transfer_scale[4];
+    GLfloat transfer_bias[4];
+
+    gl_pixel_map_t pixel_maps[4];
+
+    bool transfer_is_noop;
+
     bool is_scissor_dirty;
     bool is_rendermode_dirty;
     bool is_texture_dirty;
@@ -256,6 +278,10 @@ void gl_texture_init();
 void gl_lighting_init();
 void gl_rendermode_init();
 void gl_array_init();
+void gl_primitive_init();
+void gl_pixel_init();
+
+void gl_texture_close();
 
 void gl_set_error(GLenum error);
 
@@ -277,5 +303,7 @@ gl_texture_object_t * gl_get_active_texture();
 
 float dot_product3(const float *a, const float *b);
 void gl_normalize(GLfloat *d, const GLfloat *v);
+
+uint32_t gl_get_type_size(GLenum type);
 
 #endif

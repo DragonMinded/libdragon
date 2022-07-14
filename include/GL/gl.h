@@ -295,6 +295,8 @@ void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer);
 
 /* Rectangles */
 
+// TODO ?
+
 void glRects(GLshort x1, GLshort y1, GLshort x2, GLshort y2);
 void glRecti(GLint x1, GLint y1, GLint x2, GLint y2);
 void glRectf(GLfloat x1, GLfloat y1, GLfloat x2, GLfloat y2);
@@ -400,6 +402,8 @@ void glClipPlane(GLenum p, const GLdouble *eqn);
 
 /* Raster position */
 
+//TODO: mark as unsupported
+
 void glRasterPos2s(GLshort x, GLshort y);
 void glRasterPos2i(GLint x, GLint y);
 void glRasterPos2f(GLfloat x, GLfloat y);
@@ -501,6 +505,7 @@ void glShadeModel(GLenum mode);
 #define GL_POINT_SIZE_GRANULARITY   0x0B12
 #define GL_POINT_SIZE_RANGE         0x0B13
 
+// TODO
 
 void glPointSize(GLfloat size);
 
@@ -513,6 +518,8 @@ void glPointSize(GLfloat size);
 #define GL_LINE_STIPPLE             0x0B24
 #define GL_LINE_STIPPLE_PATTERN     0x0B25
 #define GL_LINE_STIPPLE_REPEAT      0x0B26
+
+// TODO
 
 void glLineWidth(GLfloat width);
 void glLineStipple(GLint factor, GLushort pattern);
@@ -621,14 +628,10 @@ void glPixelMapusv(GLenum map, GLsizei size, const GLushort *values);
 void glPixelMapuiv(GLenum map, GLsizei size, const GLuint *values);
 void glPixelMapfv(GLenum map, GLsizei size, const GLfloat *values);
 
-void glDrawPixels(GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *data);
-
 void glPixelZoom(GLfloat zx, GLfloat zy);
 
+void glDrawPixels(GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *data);
 void glReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *data);
-
-void glReadBuffer(GLenum src);
-
 void glCopyPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum type);
 
 /* Bitmaps */
@@ -738,6 +741,8 @@ void glBitmap(GLsizei w, GLsizei h, GLfloat xbo, GLfloat ybo, GLfloat xbi, GLflo
 #define GL_Q                            0x2003
 
 #define GL_MAX_TEXTURE_SIZE             0x0D33
+
+// TODO
 
 void glTexImage1D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLint border, GLenum format, GLenum type, const GLvoid *data);
 void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data);
@@ -907,6 +912,7 @@ void glLogicOp(GLenum op);
 #define GL_DRAW_BUFFER              0x0C01
 
 void glDrawBuffer(GLenum buf);
+void glReadBuffer(GLenum src);
 
 /* Masks */
 

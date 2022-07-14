@@ -1,6 +1,8 @@
 #include "gl_internal.h"
 #include "rdpq.h"
 #include "debug.h"
+#include <math.h>
+#include <string.h>
 
 extern gl_state_t state;
 
@@ -13,6 +15,16 @@ void gl_init_texture_object(gl_texture_object_t *obj)
         .min_filter = GL_NEAREST_MIPMAP_LINEAR,
         .mag_filter = GL_LINEAR,
     };
+}
+
+void gl_cleanup_texture_object(gl_texture_object_t *obj)
+{
+    for (uint32_t i = 0; i < MAX_TEXTURE_LEVELS; i++)
+    {
+        if (obj->levels[i].data != NULL) {
+            free_uncached(obj->levels[i].data);
+        }
+    }
 }
 
 void gl_texture_init()
@@ -30,6 +42,17 @@ void gl_texture_init()
 
     state.texture_1d_object = &state.default_texture_1d;
     state.texture_2d_object = &state.default_texture_2d;
+}
+
+void gl_texture_close()
+{
+    gl_cleanup_texture_object(&state.default_texture_1d);
+    gl_cleanup_texture_object(&state.default_texture_2d);
+
+    for (uint32_t i = 0; i < MAX_TEXTURE_OBJECTS; i++)
+    {
+        gl_cleanup_texture_object(&state.texture_objects[i]);
+    }
 }
 
 uint32_t gl_log2(uint32_t s)
@@ -50,11 +73,35 @@ tex_format_t gl_get_texture_format(GLenum format)
         return FMT_IA8;
     case GL_LUMINANCE8_ALPHA8:
         return FMT_IA16;
-    case GL_LUMINANCE8:
+    case GL_INTENSITY4:
+        return FMT_I4;
     case GL_INTENSITY8:
         return FMT_I8;
     default:
         return FMT_NONE;
+    }
+}
+
+uint32_t gl_get_format_element_count(GLenum format)
+{
+    switch (format) {
+    case GL_COLOR_INDEX:
+    case GL_STENCIL_INDEX:
+    case GL_DEPTH_COMPONENT:
+    case GL_RED:
+    case GL_GREEN:
+    case GL_BLUE:
+    case GL_ALPHA:
+    case GL_LUMINANCE:
+        return 1;
+    case GL_LUMINANCE_ALPHA:
+        return 2;
+    case GL_RGB:
+        return 3;
+    case GL_RGBA:
+        return 4;
+    default:
+        return 0;
     }
 }
 
@@ -67,16 +114,19 @@ GLint gl_choose_internalformat(GLint requested)
     case GL_LUMINANCE8:
     case GL_LUMINANCE12:
     case GL_LUMINANCE16:
-        return GL_LUMINANCE8;
+        assertf(0, "Luminance-only textures are not supported!");
+        break;
 
-    // TODO: is intensity semantically equivalent to alpha?
     case GL_ALPHA:
     case GL_ALPHA4:
     case GL_ALPHA8:
     case GL_ALPHA12:
     case GL_ALPHA16:
+        assertf(0, "Alpha-only textures are not supported!");
+        break;
+
     case GL_INTENSITY:
-    case GL_INTENSITY4:
+    case GL_INTENSITY4: // TODO: support this one
     case GL_INTENSITY8:
     case GL_INTENSITY12:
     case GL_INTENSITY16:
@@ -121,11 +171,147 @@ GLint gl_choose_internalformat(GLint requested)
     }
 }
 
-bool gl_copy_pixels(void *dst, const void *src, GLint dst_fmt, GLenum src_fmt, GLenum src_type)
-{
-    // TODO: Actually copy the pixels. Right now this function does nothing unless the 
-    //       source format/type does not match the destination format directly, then it asserts.
+#define BYTE_SWAP_16(x) ((((x)&0xFF)<<8) | (((x)&0xFF00)>>8))
+#define BYTE_SWAP_32(x) ((((x)&0xFF)<<24) | (((x)&0xFF00)<<8) | (((x)&0xFF0000)>>8) | (((x)&0xFF000000)>>24))
 
+#define COND_BYTE_SWAP_16(x, c) ((c) ? BYTE_SWAP_16(x) : (x))
+#define COND_BYTE_SWAP_32(x, c) ((c) ? BYTE_SWAP_32(x) : (x))
+
+void gl_unpack_pixel_byte(GLfloat *result, uint32_t num_elements, bool swap, const GLvoid *data)
+{
+    for (uint32_t i = 0; i < num_elements; i++)
+    {
+        result[i] = I8_TO_FLOAT(((const GLbyte*)data)[i]);
+    }
+}
+
+void gl_unpack_pixel_ubyte(GLfloat *result, uint32_t num_elements, bool swap, const GLvoid *data)
+{
+    for (uint32_t i = 0; i < num_elements; i++)
+    {
+        result[i] = U8_TO_FLOAT(((const GLubyte*)data)[i]);
+    }
+}
+
+void gl_unpack_pixel_short(GLfloat *result, uint32_t num_elements, bool swap, const GLvoid *data)
+{
+    for (uint32_t i = 0; i < num_elements; i++)
+    {
+        result[i] = I16_TO_FLOAT(COND_BYTE_SWAP_16(((const GLshort*)data)[i], swap));
+    }
+}
+
+void gl_unpack_pixel_ushort(GLfloat *result, uint32_t num_elements, bool swap, const GLvoid *data)
+{
+    for (uint32_t i = 0; i < num_elements; i++)
+    {
+        result[i] = U16_TO_FLOAT(COND_BYTE_SWAP_16(((const GLushort*)data)[i], swap));
+    }
+}
+
+void gl_unpack_pixel_int(GLfloat *result, uint32_t num_elements, bool swap, const GLvoid *data)
+{
+    for (uint32_t i = 0; i < num_elements; i++)
+    {
+        result[i] = I32_TO_FLOAT(COND_BYTE_SWAP_32(((const GLint*)data)[i], swap));
+    }
+}
+
+void gl_unpack_pixel_uint(GLfloat *result, uint32_t num_elements, bool swap, const GLvoid *data)
+{
+    for (uint32_t i = 0; i < num_elements; i++)
+    {
+        result[i] = U32_TO_FLOAT(COND_BYTE_SWAP_32(((const GLuint*)data)[i], swap));
+    }
+}
+
+void gl_unpack_pixel_float(GLfloat *result, uint32_t num_elements, bool swap, const GLvoid *data)
+{
+    for (uint32_t i = 0; i < num_elements; i++)
+    {
+        result[i] = ((const GLfloat*)data)[i];
+    }
+}
+
+void gl_unpack_pixel_ubyte_3_3_2(GLfloat *result, uint32_t num_elements, bool swap, const GLvoid *data)
+{
+    GLubyte value = *(const GLubyte*)data;
+    result[0] = (value>>5) / (float)(0x7);
+    result[1] = ((value>>2)&0x7) / (float)(0x7);
+    result[2] = (value&0x3) / (float)(0x3);
+}
+
+void gl_unpack_pixel_ushort_4_4_4_4(GLfloat *result, uint32_t num_elements, bool swap, const GLvoid *data)
+{
+    GLushort value = COND_BYTE_SWAP_16(*(const GLushort*)data, swap);
+    result[0] = (value>>12) / (float)(0xF);
+    result[1] = ((value>>8)&0xF) / (float)(0xF);
+    result[2] = ((value>>4)&0xF) / (float)(0xF);
+    result[3] = (value&0xF) / (float)(0xF);
+}
+
+void gl_unpack_pixel_ushort_5_5_5_1(GLfloat *result, uint32_t num_elements, bool swap, const GLvoid *data)
+{
+    GLushort value = COND_BYTE_SWAP_16(*(const GLushort*)data, swap);
+    result[0] = (value>>11) / (float)(0x1F);
+    result[1] = ((value>>6)&0x1F) / (float)(0x1F);
+    result[2] = ((value>>1)&0x1F) / (float)(0x1F);
+    result[3] = value & 0x1;
+}
+
+void gl_unpack_pixel_uint_8_8_8_8(GLfloat *result, uint32_t num_elements, bool swap, const GLvoid *data)
+{
+    GLuint value = COND_BYTE_SWAP_32(*(const GLuint*)data, swap);
+    result[0] = U8_TO_FLOAT((value>>24));
+    result[1] = U8_TO_FLOAT((value>>16)&0xFF);
+    result[2] = U8_TO_FLOAT((value>>8)&0xFF);
+    result[3] = U8_TO_FLOAT(value&0xFF);
+}
+
+void gl_unpack_pixel_uint_10_10_10_2(GLfloat *result, uint32_t num_elements, bool swap, const GLvoid *data)
+{
+    GLuint value = COND_BYTE_SWAP_32(*(const GLuint*)data, swap);
+    result[0] = (value>>22) / (float)(0x3FF);
+    result[1] = ((value>>12)&0x3FF) / (float)(0x3FF);
+    result[2] = ((value>>2)&0x3FF) / (float)(0x3FF);
+    result[3] = (value & 0x3) / (float)(0x3);
+}
+
+void gl_pack_pixel_rgb5a1(GLvoid *dest, const GLfloat *components)
+{
+    *((GLushort*)dest) = ((GLushort)roundf(components[0]*0x1F) << 11) |
+                         ((GLushort)roundf(components[1]*0x1F) << 6)  |
+                         ((GLushort)roundf(components[2]*0x1F) << 1)  |
+                         ((GLushort)roundf(components[3]));
+}
+
+void gl_pack_pixel_rgba8(GLvoid *dest, const GLfloat *components)
+{
+    *((GLuint*)dest) = ((GLuint)roundf(components[0]*0xFF) << 24) |
+                       ((GLuint)roundf(components[1]*0xFF) << 16) |
+                       ((GLuint)roundf(components[2]*0xFF) << 8)  |
+                       ((GLuint)roundf(components[3]*0xFF));
+}
+
+void gl_pack_pixel_luminance4_alpha4(GLvoid *dest, const GLfloat *components)
+{
+    *((GLubyte*)dest) = ((GLubyte)roundf(components[0]*0xF) << 4) |
+                        ((GLubyte)roundf(components[3]*0xF));
+}
+
+void gl_pack_pixel_luminance8_alpha8(GLvoid *dest, const GLfloat *components)
+{
+    *((GLushort*)dest) = ((GLushort)roundf(components[0]*0xFF) << 8) |
+                         ((GLushort)roundf(components[3]*0xFF));
+}
+
+void gl_pack_pixel_intensity8(GLvoid *dest, const GLfloat *components)
+{
+    *((GLubyte*)dest) = (GLubyte)roundf(components[0]*0xFF);
+}
+
+bool gl_do_formats_match(GLint dst_fmt, GLenum src_fmt, GLenum src_type)
+{
     switch (dst_fmt) {
     case GL_RGB5_A1:
         if (src_fmt == GL_RGBA && src_type == GL_UNSIGNED_SHORT_5_5_5_1_EXT) {
@@ -137,24 +323,167 @@ bool gl_copy_pixels(void *dst, const void *src, GLint dst_fmt, GLenum src_fmt, G
             return true;
         }
         break;
-    case GL_LUMINANCE4_ALPHA4:
-        break;
     case GL_LUMINANCE8_ALPHA8:
         if (src_fmt == GL_LUMINANCE_ALPHA && (src_type == GL_UNSIGNED_BYTE || src_type == GL_BYTE)) {
             return true;
         }
         break;
-    case GL_LUMINANCE8:
     case GL_INTENSITY8:
-        if (src_fmt == GL_LUMINANCE && (src_type == GL_UNSIGNED_BYTE || src_type == GL_BYTE)) {
+        if ((src_fmt == GL_LUMINANCE || src_fmt == GL_INTENSITY || src_fmt == GL_RED) && (src_type == GL_UNSIGNED_BYTE || src_type == GL_BYTE)) {
             return true;
         }
         break;
     }
 
-    assertf(0, "Pixel format conversion not yet implemented!");
-
     return false;
+}
+
+void gl_transfer_pixels(GLvoid *dest, GLenum dest_format, GLsizei dest_stride, GLsizei width, GLsizei height, uint32_t num_elements, GLenum format, GLenum type, const GLvoid *data)
+{
+    uint32_t src_pixel_size;
+    uint32_t dest_pixel_size;
+    void (*unpack_func)(GLfloat*,uint32_t,bool,const GLvoid*);
+    void (*pack_func)(GLvoid*,const GLfloat*);
+
+    switch (type) {
+    case GL_BYTE:
+        src_pixel_size = sizeof(GLbyte) * num_elements;
+        unpack_func = gl_unpack_pixel_byte;
+        break;
+    case GL_UNSIGNED_BYTE:
+        src_pixel_size = sizeof(GLubyte) * num_elements;
+        unpack_func = gl_unpack_pixel_ubyte;
+        break;
+    case GL_SHORT:
+        src_pixel_size = sizeof(GLshort) * num_elements;
+        unpack_func = gl_unpack_pixel_short;
+        break;
+    case GL_UNSIGNED_SHORT:
+        src_pixel_size = sizeof(GLushort) * num_elements;
+        unpack_func = gl_unpack_pixel_ushort;
+        break;
+    case GL_INT:
+        src_pixel_size = sizeof(GLint) * num_elements;
+        unpack_func = gl_unpack_pixel_int;
+        break;
+    case GL_UNSIGNED_INT:
+        src_pixel_size = sizeof(GLuint) * num_elements;
+        unpack_func = gl_unpack_pixel_uint;
+        break;
+    case GL_FLOAT:
+        src_pixel_size = sizeof(GLfloat) * num_elements;
+        unpack_func = gl_unpack_pixel_float;
+        break;
+    case GL_UNSIGNED_BYTE_3_3_2_EXT:
+        src_pixel_size = sizeof(GLubyte);
+        unpack_func = gl_unpack_pixel_ubyte_3_3_2;
+        break;
+    case GL_UNSIGNED_SHORT_4_4_4_4_EXT:
+        src_pixel_size = sizeof(GLushort);
+        unpack_func = gl_unpack_pixel_ushort_4_4_4_4;
+        break;
+    case GL_UNSIGNED_SHORT_5_5_5_1_EXT:
+        src_pixel_size = sizeof(GLushort);
+        unpack_func = gl_unpack_pixel_ushort_5_5_5_1;
+        break;
+    case GL_UNSIGNED_INT_8_8_8_8_EXT:
+        src_pixel_size = sizeof(GLuint);
+        unpack_func = gl_unpack_pixel_uint_8_8_8_8;
+        break;
+    case GL_UNSIGNED_INT_10_10_10_2_EXT:
+        src_pixel_size = sizeof(GLuint);
+        unpack_func = gl_unpack_pixel_uint_10_10_10_2;
+        break;
+    default:
+        assertf(0, "Invalid type");
+    }
+
+    // TODO: GL_INTENSITY4
+    switch (dest_format) {
+    case GL_RGB5_A1:
+        dest_pixel_size = sizeof(GLushort);
+        pack_func = gl_pack_pixel_rgb5a1;
+        break;
+    case GL_RGBA8:
+        dest_pixel_size = sizeof(GLuint);
+        pack_func = gl_pack_pixel_rgba8;
+        break;
+    case GL_LUMINANCE4_ALPHA4:
+        dest_pixel_size = sizeof(GLubyte);
+        pack_func = gl_pack_pixel_luminance4_alpha4;
+        break;
+    case GL_LUMINANCE8_ALPHA8:
+        dest_pixel_size = sizeof(GLushort);
+        pack_func = gl_pack_pixel_luminance8_alpha8;
+        break;
+    case GL_INTENSITY8:
+        dest_pixel_size = sizeof(GLubyte);
+        pack_func = gl_pack_pixel_intensity8;
+        break;
+    default:
+        assertf(0, "Unsupported destination format!");
+    }
+
+    uint32_t row_length = state.unpack_row_length > 0 ? state.unpack_row_length : width;
+
+    uint32_t src_stride = ROUND_UP(row_length * src_pixel_size, state.unpack_alignment);
+
+    const GLvoid *src_ptr = data + src_stride * state.unpack_skip_rows + src_pixel_size * state.unpack_skip_pixels;
+    GLvoid *dest_ptr = dest;
+
+    uint32_t component_offset = 0;
+    switch (format) {
+    case GL_GREEN:
+        component_offset = 1;
+        break;
+    case GL_BLUE:
+        component_offset = 2;
+        break;
+    case GL_ALPHA:
+        component_offset = 3;
+        break;
+    }
+
+    bool formats_match = gl_do_formats_match(dest_format, format, type);
+    bool can_mempcy = formats_match && state.transfer_is_noop;
+
+    for (uint32_t r = 0; r < height; r++)
+    {
+        if (can_mempcy) {
+            memcpy(dest_ptr, src_ptr, dest_pixel_size * width);
+        } else {
+            for (uint32_t c = 0; c < width; c++)
+            {
+                GLfloat components[4] = { 0, 0, 0, 1 };
+                unpack_func(&components[component_offset], num_elements, state.unpack_swap_bytes, src_ptr + c * src_pixel_size);
+
+                if (format == GL_LUMINANCE) {
+                    components[2] = components[1] = components[0];
+                } else if (format == GL_LUMINANCE_ALPHA) {
+                    components[3] = components[1];
+                    components[2] = components[1] = components[0];
+                }
+
+                for (uint32_t i = 0; i < 4; i++)
+                {
+                    components[i] = CLAMP01(components[i] * state.transfer_scale[i] + state.transfer_bias[i]);
+                }
+                
+                if (state.map_color) {
+                    for (uint32_t i = 0; i < 4; i++)
+                    {
+                        uint32_t index = floorf(components[i]) * (state.pixel_maps[i].size - 1);
+                        components[i] = CLAMP01(state.pixel_maps[i].entries[index]);
+                    }
+                }
+
+                pack_func(dest_ptr + c * dest_pixel_size, components);
+            }
+        }
+
+        src_ptr += src_stride;
+        dest_ptr += dest_stride;
+    }
 }
 
 gl_texture_object_t * gl_get_texture_object(GLenum target)
@@ -281,18 +610,8 @@ void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei widt
         return;
     }
 
-    switch (format) {
-    case GL_COLOR_INDEX:
-    case GL_RED:
-    case GL_GREEN:
-    case GL_BLUE:
-    case GL_ALPHA:
-    case GL_RGB:
-    case GL_RGBA:
-    case GL_LUMINANCE:
-    case GL_LUMINANCE_ALPHA:
-        break;
-    default:
+    uint32_t num_elements = gl_get_format_element_count(format);
+    if (num_elements == 0) {
         gl_set_error(GL_INVALID_ENUM);
         return;
     }
@@ -300,16 +619,27 @@ void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei widt
     switch (type) {
     case GL_UNSIGNED_BYTE:
     case GL_BYTE:
-    case GL_BITMAP:
     case GL_UNSIGNED_SHORT:
     case GL_SHORT:
     case GL_UNSIGNED_INT:
     case GL_INT:
+    case GL_FLOAT:
+        break;
     case GL_UNSIGNED_BYTE_3_3_2_EXT:
+        if (num_elements != 3) {
+            gl_set_error(GL_INVALID_OPERATION);
+            return;
+        }
+        break;
     case GL_UNSIGNED_SHORT_4_4_4_4_EXT:
     case GL_UNSIGNED_SHORT_5_5_5_1_EXT:
     case GL_UNSIGNED_INT_8_8_8_8_EXT:
     case GL_UNSIGNED_INT_10_10_10_2_EXT:
+        if (num_elements != 4) {
+            gl_set_error(GL_INVALID_OPERATION);
+            return;
+        }
+        break;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -317,18 +647,27 @@ void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei widt
     }
 
     uint32_t rdp_format = gl_get_texture_format(preferred_format);
-    uint32_t size = TEX_FORMAT_BYTES_PER_PIXEL(rdp_format) * width * height;
+    uint32_t stride = TEX_FORMAT_BYTES_PER_PIXEL(rdp_format) * width;
+    uint32_t size = stride * height;
 
     if (!gl_texture_fits_tmem(obj, size)) {
         gl_set_error(GL_INVALID_VALUE);
         return;
     }
 
-    // TODO: allocate buffer
+    GLvoid *new_mem = malloc_uncached(size);
+    if (new_mem == NULL) {
+        gl_set_error(GL_OUT_OF_MEMORY);
+        return;
+    }
 
-    image->data = (void*)data;
-    gl_copy_pixels(image->data, data, preferred_format, format, type);
+    gl_transfer_pixels(new_mem, preferred_format, stride, width, height, num_elements, format, type, data);
 
+    if (image->data != NULL) {
+        free_uncached(image->data);
+    }
+
+    image->data = new_mem;
     image->width = width;
     image->height = height;
     image->internal_format = preferred_format;
@@ -622,6 +961,8 @@ void glDeleteTextures(GLsizei n, const GLuint *textures)
             state.texture_2d_object = &state.default_texture_2d;
         }
 
+        gl_cleanup_texture_object(obj);
+        memset(obj, 0, sizeof(gl_texture_object_t));
         gl_init_texture_object(obj);
     }
 }
