@@ -13,6 +13,20 @@ static const float clip_planes[CLIPPING_PLANE_COUNT][4] = {
     { 0, 0, 1, -1 },
 };
 
+void gl_primitive_init()
+{
+    state.s_gen.mode = GL_EYE_LINEAR;
+    state.s_gen.object_plane[0] = 1;
+    state.s_gen.eye_plane[0] = 1;
+
+    state.t_gen.mode = GL_EYE_LINEAR;
+    state.t_gen.object_plane[1] = 1;
+    state.t_gen.eye_plane[1] = 1;
+
+    state.r_gen.mode = GL_EYE_LINEAR;
+    state.q_gen.mode = GL_EYE_LINEAR;
+}
+
 void glBegin(GLenum mode)
 {
     if (state.immediate_mode) {
