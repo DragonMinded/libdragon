@@ -248,28 +248,6 @@ void glDrawBuffer(GLenum buf)
     }
 }
 
-void glReadBuffer(GLenum src)
-{
-    assertf(0, "Reading from the frame buffer is not supported!");
-}
-
-void glIndexMask(GLuint mask)
-{
-    assertf(0, "Masking is not supported!");
-}
-void glColorMask(GLboolean r, GLboolean g, GLboolean b, GLboolean a)
-{
-    assertf(0, "Masking is not supported!");
-}
-void glDepthMask(GLboolean mask)
-{
-    assertf(0, "Masking is not supported!");
-}
-void glStencilMask(GLuint mask)
-{
-    assertf(0, "Masking is not supported!");
-}
-
 void glClear(GLbitfield buf)
 {
     assert_framebuffer();
@@ -345,71 +323,4 @@ void glClearIndex(GLfloat index)
 {
     // TODO: Can we support index mode?
     assertf(0, "Clear index is not supported!");
-}
-
-void glClearStencil(GLint s)
-{
-    assertf(0, "Clear stencil is not supported!");
-}
-
-void glClearAccum(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
-{
-    assertf(0, "Clear accum is not supported!");
-}
-
-void glAccum(GLenum op, GLfloat value)
-{
-    assertf(0, "Accumulation buffer is not supported!");
-}
-
-void glInitNames(void)
-{
-    assertf(0, "Selection mode is not supported!");
-}
-void glPopName(void)
-{
-    assertf(0, "Selection mode is not supported!");
-}
-void glPushName(GLint name)
-{
-    assertf(0, "Selection mode is not supported!");
-}
-void glLoadName(GLint name)
-{
-    assertf(0, "Selection mode is not supported!");
-}
-void glSelectBuffer(GLsizei n, GLuint *buffer)
-{
-    assertf(0, "Selection mode is not supported!");
-}
-
-void glFeedbackBuffer(GLsizei n, GLenum type, GLfloat *buffer)
-{
-    assertf(0, "Feedback mode is not supported!");
-}
-void glPassThrough(GLfloat token)
-{
-    assertf(0, "Feedback mode is not supported!");
-}
-
-void glSampleCoverageARB(GLclampf value, GLboolean invert)
-{
-    assertf(0, "Sample coverage is not supported!");
-}
-
-void glPushAttrib(GLbitfield mask)
-{
-    assertf(0, "Attribute stack is not supported!");
-}
-void glPushClientAttrib(GLbitfield mask)
-{
-    assertf(0, "Attribute stack is not supported!");
-}
-void glPopAttrib(void)
-{
-    assertf(0, "Attribute stack is not supported!");
-}
-void glPopClientAttrib(void)
-{
-    assertf(0, "Attribute stack is not supported!");
 }

@@ -773,24 +773,3 @@ void glFrontFace(GLenum dir)
         return;
     }
 }
-
-void glClipPlane(GLenum p, const GLdouble *eqn)
-{
-    assertf(0, "User-defined clip planes are not supported!");
-}
-
-void glLineStipple(GLint factor, GLushort pattern)
-{
-    assertf(0, "Stippling is not supported!");
-}
-
-void glPolygonStipple(const GLubyte *pattern)
-{
-    assertf(0, "Stippling is not supported!");
-}
-
-void glPolygonOffset(GLfloat factor, GLfloat units)
-{
-    // TODO: Might be able to support this?
-    assertf(0, "Polygon offset is not supported!");
-}

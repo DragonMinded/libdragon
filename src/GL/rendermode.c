@@ -441,18 +441,3 @@ void glAlphaFunc(GLenum func, GLclampf ref)
         return;
     }
 }
-
-void glStencilFunc(GLenum func, GLint ref, GLuint mask)
-{
-    assertf(0, "Stencil is not supported!");
-}
-
-void glStencilOp(GLenum sfail, GLenum dpfail, GLenum dppass)
-{
-    assertf(0, "Stencil is not supported!");
-}
-
-void glLogicOp(GLenum op)
-{
-    assertf(0, "Logical operation is not supported!");
-}

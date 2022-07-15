@@ -241,23 +241,3 @@ void glPixelMapfv(GLenum map, GLsizei size, const GLfloat *values)
         pixel_map->entries[i] = values[i];
     }
 }
-
-void glPixelZoom(GLfloat zx, GLfloat zy)
-{
-    assertf(0, "Pixel rectangles are not supported!");
-}
-
-void glDrawPixels(GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *data)
-{
-    assertf(0, "Pixel rectangles are not supported!");
-}
-
-void glReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *data)
-{
-    assertf(0, "Pixel rectangles are not supported!");
-}
-
-void glCopyPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum type)
-{
-    assertf(0, "Pixel rectangles are not supported!");
-}
