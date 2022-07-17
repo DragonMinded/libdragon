@@ -92,6 +92,8 @@ void gl_rendermode_init()
     state.fog_start = 0.0f;
     state.fog_end = 1.0f;
 
+    state.tex_env_mode = GL_MODULATE;
+
     state.is_rendermode_dirty = true;
     state.is_scissor_dirty = true;
 
@@ -216,13 +218,17 @@ void gl_update_render_mode()
 
         if (tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR || tex_obj->min_filter == GL_NEAREST_MIPMAP_LINEAR) {
             // Trilinear
-            if (state.fog) {
+            if (state.tex_env_mode == GL_REPLACE) {
+                comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (ZERO, ZERO, ZERO, COMBINED), (ZERO, ZERO, ZERO, COMBINED));
+            } else if (state.fog) {
                 comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (COMBINED, ZERO, SHADE, ZERO), (ZERO, ZERO, ZERO, COMBINED));
             } else {
                 comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (COMBINED, ZERO, SHADE, ZERO), (COMBINED, ZERO, SHADE, ZERO));
             }
         } else {
-            if (state.fog) {
+            if (state.tex_env_mode == GL_REPLACE) {
+                comb = RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0));
+            } else if (state.fog) {
                 comb = RDPQ_COMBINER1((TEX0, ZERO, SHADE, ZERO), (ZERO, ZERO, ZERO, TEX0));
             } else {
                 comb = RDPQ_COMBINER1((TEX0, ZERO, SHADE, ZERO), (TEX0, ZERO, SHADE, ZERO));
@@ -439,5 +445,74 @@ void glAlphaFunc(GLenum func, GLclampf ref)
     default:
         gl_set_error(GL_INVALID_ENUM);
         return;
+    }
+}
+
+void glTexEnvi(GLenum target, GLenum pname, GLint param)
+{
+    if (target != GL_TEXTURE_ENV || pname != GL_TEXTURE_ENV_MODE) {
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    switch (param) {
+    case GL_MODULATE:
+    case GL_REPLACE:
+        state.tex_env_mode = param;
+        state.is_rendermode_dirty = true;
+        break;
+    case GL_DECAL:
+    case GL_BLEND:
+        assertf(0, "Unsupported Tex Env mode!");
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+void glTexEnvf(GLenum target, GLenum pname, GLfloat param)
+{
+    glTexEnvi(target, pname, param);
+}
+
+void glTexEnviv(GLenum target, GLenum pname, const GLint *params)
+{
+    if (target != GL_TEXTURE_ENV) {
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    switch (pname) {
+    case GL_TEXTURE_ENV_COLOR:
+        state.tex_env_color[0] = I32_TO_FLOAT(params[0]);
+        state.tex_env_color[1] = I32_TO_FLOAT(params[1]);
+        state.tex_env_color[2] = I32_TO_FLOAT(params[2]);
+        state.tex_env_color[3] = I32_TO_FLOAT(params[3]);
+        state.is_rendermode_dirty = true;
+        break;
+    default:
+        glTexEnvi(target, pname, params[0]);
+        break;
+    }
+}
+
+void glTexEnvfv(GLenum target, GLenum pname, const GLfloat *params)
+{
+    if (target != GL_TEXTURE_ENV) {
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    switch (pname) {
+    case GL_TEXTURE_ENV_COLOR:
+        state.tex_env_color[0] = params[0];
+        state.tex_env_color[1] = params[1];
+        state.tex_env_color[2] = params[2];
+        state.tex_env_color[3] = params[3];
+        state.is_rendermode_dirty = true;
+        break;
+    default:
+        glTexEnvf(target, pname, params[0]);
+        break;
     }
 }

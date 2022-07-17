@@ -268,6 +268,9 @@ typedef struct {
 
     bool transfer_is_noop;
 
+    GLenum tex_env_mode;
+    GLfloat tex_env_color[4];
+
     bool is_scissor_dirty;
     bool is_rendermode_dirty;
     bool is_texture_dirty;
