@@ -164,6 +164,9 @@ typedef struct {
 
     GLenum immediate_mode;
 
+    GLfloat point_size;
+    GLfloat line_width;
+
     GLclampf clear_color[4];
     GLclampd clear_depth;
 
@@ -202,10 +205,11 @@ typedef struct {
 
     gl_vertex_t vertex_cache[VERTEX_CACHE_SIZE];
     uint32_t vertex_cache_locked;
-    uint32_t triangle_indices[3];
+    uint32_t primitive_indices[3];
+    uint32_t primitive_progress;
     uint32_t next_vertex;
-    uint32_t triangle_progress;
     uint32_t triangle_counter;
+    void (*primitive_func)(void);
 
     GLfloat current_color[4];
     GLfloat current_texcoord[4];
