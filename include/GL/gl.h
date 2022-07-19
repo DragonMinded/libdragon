@@ -500,8 +500,6 @@ void glShadeModel(GLenum mode);
 #define GL_POINT_SIZE_GRANULARITY   0x0B12
 #define GL_POINT_SIZE_RANGE         0x0B13
 
-// TODO
-
 void glPointSize(GLfloat size);
 
 /* Lines */
@@ -513,8 +511,6 @@ void glPointSize(GLfloat size);
 #define GL_LINE_STIPPLE             0x0B24
 #define GL_LINE_STIPPLE_PATTERN     0x0B25
 #define GL_LINE_STIPPLE_REPEAT      0x0B26
-
-// TODO
 
 void glLineWidth(GLfloat width);
 
@@ -546,6 +542,7 @@ void glCullFace(GLenum mode);
 
 void glFrontFace(GLenum dir);
 
+// TODO
 void glPolygonMode(GLenum face, GLenum mode);
 #define glPolygonStipple(pattern) _GL_UNSUPPORTED(glPolygonStipple)
 #define glPolygonOffset(factor, units) _GL_UNSUPPORTED(glPolygonOffset)
@@ -737,8 +734,6 @@ void glPixelMapfv(GLenum map, GLsizei size, const GLfloat *values);
 
 #define GL_MAX_TEXTURE_SIZE             0x0D33
 
-// TODO
-
 void glTexImage1D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLint border, GLenum format, GLenum type, const GLvoid *data);
 void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data);
 
@@ -761,6 +756,8 @@ void glBindTexture(GLenum target, GLuint texture);
 
 void glDeleteTextures(GLsizei n, const GLuint *textures);
 void glGenTextures(GLsizei n, GLuint *textures);
+
+// TODO
 
 GLboolean glAreTexturesResident(GLsizei n, const GLuint *textures, const GLboolean *residences);
 

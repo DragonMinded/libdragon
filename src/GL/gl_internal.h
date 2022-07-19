@@ -49,10 +49,11 @@
 #define I32_TO_FLOAT(x) MAX((x)/(float)(0x7FFFFFFF),-1.f)
 
 #define GL_SET_STATE(var, value, dirty_flag) ({ \
-    if (value != var) { \
+    typeof(value) _v = (value); \
+    if (_v != var) { \
         dirty_flag = true; \
     } \
-    var = value; \
+    var = _v; \
 })
 
 typedef struct {
@@ -162,7 +163,7 @@ typedef struct {
 
     GLenum draw_buffer;
 
-    GLenum immediate_mode;
+    GLenum primitive_mode;
 
     GLfloat point_size;
     GLfloat line_width;
@@ -274,6 +275,9 @@ typedef struct {
 
     GLenum tex_env_mode;
     GLfloat tex_env_color[4];
+
+    bool immediate_active;
+    bool is_points;
 
     bool is_scissor_dirty;
     bool is_rendermode_dirty;

@@ -16,6 +16,7 @@ static const float clip_planes[CLIPPING_PLANE_COUNT][4] = {
 
 void gl_update_triangles();
 void gl_update_lines();
+void gl_update_points();
 
 void gl_primitive_init()
 {
@@ -36,24 +37,25 @@ void gl_primitive_init()
 
 void glBegin(GLenum mode)
 {
-    if (state.immediate_mode) {
+    if (state.immediate_active) {
         gl_set_error(GL_INVALID_OPERATION);
         return;
     }
 
     switch (mode) {
+    case GL_POINTS:
+    case GL_LINES:
+    case GL_LINE_STRIP:
     case GL_TRIANGLES:
     case GL_TRIANGLE_STRIP:
     case GL_QUAD_STRIP:
-    case GL_LINES:
-    case GL_LINE_STRIP:
         // These primitive types don't need to lock any vertices
         state.vertex_cache_locked = -1;
         break;
+    case GL_LINE_LOOP:
     case GL_TRIANGLE_FAN:
     case GL_QUADS:
     case GL_POLYGON:
-    case GL_LINE_LOOP:
         // Lock the first vertex in the cache
         state.vertex_cache_locked = 0;
         break;
@@ -63,6 +65,9 @@ void glBegin(GLenum mode)
     }
 
     switch (mode) {
+    case GL_POINTS:
+        state.primitive_func = gl_update_points;
+        break;
     case GL_LINES:
     case GL_LINE_STRIP:
     case GL_LINE_LOOP:
@@ -73,10 +78,12 @@ void glBegin(GLenum mode)
         break;
     }
 
-    state.immediate_mode = mode;
+    state.immediate_active = true;
+    state.primitive_mode = mode;
     state.next_vertex = 0;
     state.primitive_progress = 0;
     state.triangle_counter = 0;
+    GL_SET_STATE(state.is_points, mode == GL_POINTS, state.is_rendermode_dirty);
 
     if (gl_is_invisible()) {
         return;
@@ -89,11 +96,11 @@ void glBegin(GLenum mode)
 
 void glEnd(void)
 {
-    if (!state.immediate_mode) {
+    if (!state.immediate_active) {
         gl_set_error(GL_INVALID_OPERATION);
     }
 
-    if (state.immediate_mode == GL_LINE_LOOP) {
+    if (state.primitive_mode == GL_LINE_LOOP) {
         state.primitive_indices[0] = state.primitive_indices[1];
         state.primitive_indices[1] = 0;
         state.primitive_progress = 2;
@@ -101,7 +108,7 @@ void glEnd(void)
         gl_update_lines();
     }
 
-    state.immediate_mode = 0;
+    state.immediate_active = false;
 }
 
 void gl_draw_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
@@ -401,7 +408,7 @@ void gl_update_triangles()
     // NOTE: Quads and quad strips are technically not quite conformant to the spec
     //       because incomplete quads are still rendered (only the first triangle)
 
-    switch (state.immediate_mode) {
+    switch (state.primitive_mode) {
     case GL_TRIANGLES:
         // Reset the triangle progress to zero since we start with a completely new primitive that
         // won't share any vertices with the previous ones
@@ -460,7 +467,7 @@ void gl_update_lines()
     gl_vertex_t *v0 = &state.vertex_cache[state.primitive_indices[0]];
     gl_vertex_t *v1 = &state.vertex_cache[state.primitive_indices[1]];
 
-    switch (state.immediate_mode) {
+    switch (state.primitive_mode) {
     case GL_LINES:
         state.primitive_progress = 0;
         break;
@@ -480,6 +487,39 @@ void gl_update_lines()
     }
 
     gl_clip_line(v0, v1);
+}
+
+void gl_update_points()
+{
+    gl_vertex_t *v0 = &state.vertex_cache[state.primitive_indices[0]];
+
+    state.primitive_progress = 0;
+
+    if (v0->clip) {
+        return;
+    }
+
+    GLfloat half_size = state.point_size * 0.5f;
+    GLfloat p0[2] = { v0->screen_pos[0] - half_size, v0->screen_pos[1] - half_size };
+    GLfloat p1[2] = { p0[0] + state.point_size, p0[1] + state.point_size };
+
+    rdpq_set_prim_color(RGBA32(
+        FLOAT_TO_U8(v0->color[0]),
+        FLOAT_TO_U8(v0->color[1]),
+        FLOAT_TO_U8(v0->color[2]),
+        FLOAT_TO_U8(v0->color[3])
+    ));
+
+    if (state.depth_test) {
+        rdpq_set_prim_depth(floorf(v0->depth), 0);
+    }
+
+    gl_texture_object_t *tex_obj = gl_get_active_texture();
+    if (tex_obj != NULL && tex_obj->is_complete) {
+        rdpq_texture_rectangle(0, p0[0], p0[1], p1[0], p1[1], v0->texcoord[0]/32.f, v0->texcoord[1]/32.f, 0, 0);
+    } else {
+        rdpq_fill_rectangle(p0[0], p0[1], p1[0], p1[1]);
+    }
 }
 
 void gl_calc_texture_coord(GLfloat *dest, uint32_t coord_index, const gl_tex_gen_t *gen, const GLfloat *obj_pos, const GLfloat *eye_pos, const GLfloat *eye_normal)
@@ -605,6 +645,7 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
     
     state.primitive_progress++;
 
+    assert(state.primitive_func != NULL);
     state.primitive_func();
 }
 
@@ -767,8 +808,8 @@ void glLineWidth(GLfloat width)
 
 void glDepthRange(GLclampd n, GLclampd f)
 {
-    state.current_viewport.scale[2] = ((f - n) * 0.5f) * 0x7FE0;
-    state.current_viewport.offset[2] = (n + (f - n) * 0.5f) * 0x7FE0;
+    state.current_viewport.scale[2] = ((f - n) * 0.5f) * 0x7FFF;
+    state.current_viewport.offset[2] = (n + (f - n) * 0.5f) * 0x7FFF;
 }
 
 void glViewport(GLint x, GLint y, GLsizei w, GLsizei h)
