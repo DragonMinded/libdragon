@@ -41,7 +41,6 @@ uint32_t gl_get_type_size(GLenum type)
 void gl_set_framebuffer(gl_framebuffer_t *framebuffer)
 {
     state.cur_framebuffer = framebuffer;
-    glViewport(0, 0, framebuffer->color_buffer->width, framebuffer->color_buffer->height);
     rdpq_set_color_image_surface_no_scissor(state.cur_framebuffer->color_buffer);
     rdpq_set_z_image(state.cur_framebuffer->depth_buffer);
 }
@@ -98,6 +97,7 @@ void gl_init()
 
     rdpq_set_other_modes_raw(0);
     gl_set_default_framebuffer();
+    glViewport(0, 0, state.default_framebuffer.color_buffer->width, state.default_framebuffer.color_buffer->height);
 }
 
 void gl_close()
