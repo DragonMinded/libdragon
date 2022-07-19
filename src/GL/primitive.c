@@ -368,6 +368,11 @@ void gl_clip_line(gl_vertex_t *v0, gl_vertex_t *v1)
             }
 
             bool v0_inside = (v0->clip & (1<<c)) == 0;
+            bool v1_inside = (v1->clip & (1<<c)) == 0;
+
+            if ((v0_inside ^ v1_inside) == 0) {
+                continue;
+            }
 
             gl_vertex_t *intersection = &vertex_cache[v0_inside ? 1 : 0];
             gl_intersect_line_plane(intersection, v0, v1, clip_planes[c]);
