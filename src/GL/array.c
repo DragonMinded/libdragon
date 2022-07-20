@@ -24,6 +24,10 @@ typedef struct {
     GLsizei s;
 } gl_interleaved_array_t;
 
+static const gl_attr_callback_t edge_callback = {
+    .cb_ubyte  = { glEdgeFlagv, NULL, NULL, NULL }
+};
+
 static const gl_attr_callback_t vertex_callback = {
     .cb_short  = { NULL, glVertex2sv, glVertex3sv, glVertex4sv },
     .cb_int    = { NULL, glVertex2iv, glVertex3iv, glVertex4iv },
@@ -79,6 +83,8 @@ static const gl_interleaved_array_t interleaved_arrays[] = {
 
 void gl_array_init()
 {
+    state.edge_array.size = 1;
+    state.edge_array.type = GL_UNSIGNED_BYTE;
     state.vertex_array.size = 4;
     state.vertex_array.type = GL_FLOAT;
     state.texcoord_array.size = 4;
@@ -101,6 +107,7 @@ gl_array_t * gl_get_array(GLenum array)
     case GL_COLOR_ARRAY:
         return &state.color_array;
     case GL_EDGE_FLAG_ARRAY:
+        return &state.edge_array;
     case GL_INDEX_ARRAY:
         return NULL;
     default:
@@ -120,6 +127,11 @@ void gl_set_array(gl_array_t *array, GLint size, GLenum type, GLsizei stride, co
     array->type = type;
     array->stride = stride;
     array->pointer = pointer;
+}
+
+void glEdgeFlagPointer(GLsizei stride, const GLvoid *pointer)
+{
+    gl_set_array(&state.edge_array, 1, GL_UNSIGNED_BYTE, stride, pointer);
 }
 
 void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
@@ -221,8 +233,6 @@ void glColorPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *point
     gl_set_array(&state.color_array, size, type, stride, pointer);
 }
 
-void glEdgeFlagPointer(GLsizei stride, const GLvoid *pointer) { }
-
 void glEnableClientState(GLenum array)
 {
     gl_array_t *array_obj = gl_get_array(array);
@@ -282,6 +292,9 @@ void gl_invoke_attr_callback(GLint i, const gl_array_t *array, const gl_attr_cal
 
 void glArrayElement(GLint i)
 {
+    if (state.edge_array.enabled) {
+        gl_invoke_attr_callback(i, &state.edge_array, &edge_callback);
+    }
     if (state.texcoord_array.enabled) {
         gl_invoke_attr_callback(i, &state.texcoord_array, &texcoord_callback);
     }
@@ -396,6 +409,8 @@ void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer)
     if (stride == 0) {
         stride = a->s;
     }
+
+    glDisableClientState(GL_EDGE_FLAG_ARRAY);
 
     if (a->et) {
         glEnableClientState(GL_TEXTURE_COORD_ARRAY);

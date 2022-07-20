@@ -69,6 +69,7 @@ typedef struct {
     GLfloat inverse_w;
     GLfloat depth;
     uint8_t clip;
+    GLboolean edge_flag;
 } gl_vertex_t;
 
 typedef struct {
@@ -109,6 +110,7 @@ typedef struct {
 
 typedef struct {
     gl_vertex_t *vertices[CLIPPING_PLANE_COUNT + 3];
+    bool edge_flags[CLIPPING_PLANE_COUNT + 3];
     uint32_t count;
 } gl_clipping_list_t;
 
@@ -216,6 +218,7 @@ typedef struct {
     GLfloat current_color[4];
     GLfloat current_texcoord[4];
     GLfloat current_normal[3];
+    GLboolean current_edge_flag;
 
     gl_viewport_t current_viewport;
 
@@ -254,6 +257,7 @@ typedef struct {
     gl_tex_gen_t r_gen;
     gl_tex_gen_t q_gen;
 
+    gl_array_t edge_array;
     gl_array_t vertex_array;
     gl_array_t texcoord_array;
     gl_array_t normal_array;
@@ -278,6 +282,7 @@ typedef struct {
     GLfloat tex_env_color[4];
 
     bool immediate_active;
+    bool force_edge_flag;
     bool is_points;
 
     bool is_scissor_dirty;

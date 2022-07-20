@@ -93,9 +93,8 @@ void glDisable(GLenum target);
 void glBegin(GLenum mode);
 void glEnd(void);
 
-// TODO
 void glEdgeFlag(GLboolean flag);
-void glEdgeFlagv(GLboolean *flag);
+void glEdgeFlagv(const GLboolean *flag);
 
 void glVertex2s(GLshort x, GLshort y);
 void glVertex2i(GLint x, GLint y);

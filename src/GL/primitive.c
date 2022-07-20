@@ -14,7 +14,7 @@ static const float clip_planes[CLIPPING_PLANE_COUNT][4] = {
     { 0, 0, 1, -1 },
 };
 
-void gl_update_triangles();
+void gl_update_polygons();
 void gl_update_lines();
 void gl_update_points();
 
@@ -34,6 +34,14 @@ void gl_primitive_init()
     state.point_size = 1;
     state.line_width = 1;
     state.polygon_mode = GL_FILL;
+
+    state.current_color[0] = 1;
+    state.current_color[1] = 1;
+    state.current_color[2] = 1;
+    state.current_color[3] = 1;
+    state.current_texcoord[3] = 1;
+    state.current_normal[2] = 1;
+    state.current_edge_flag = GL_TRUE;
 }
 
 bool gl_calc_is_points()
@@ -66,38 +74,54 @@ void glBegin(GLenum mode)
 
     switch (mode) {
     case GL_POINTS:
+        state.primitive_func = gl_update_points;
+        state.vertex_cache_locked = -1;
+        break;
     case GL_LINES:
-    case GL_LINE_STRIP:
-    case GL_TRIANGLES:
-    case GL_TRIANGLE_STRIP:
-    case GL_QUAD_STRIP:
-        // These primitive types don't need to lock any vertices
+        state.primitive_func = gl_update_lines;
         state.vertex_cache_locked = -1;
         break;
     case GL_LINE_LOOP:
+        state.primitive_func = gl_update_lines;
+        state.vertex_cache_locked = 0;
+        break;
+    case GL_LINE_STRIP:
+        state.primitive_func = gl_update_lines;
+        state.vertex_cache_locked = -1;
+        break;
+    case GL_TRIANGLES:
+        state.primitive_func = gl_update_polygons;
+        state.force_edge_flag = false;
+        state.vertex_cache_locked = -1;
+        break;
+    case GL_TRIANGLE_STRIP:
+        state.primitive_func = gl_update_polygons;
+        state.force_edge_flag = true;
+        state.vertex_cache_locked = -1;
+        break;
     case GL_TRIANGLE_FAN:
+        state.primitive_func = gl_update_polygons;
+        state.force_edge_flag = true;
+        state.vertex_cache_locked = 0;
+        break;
     case GL_QUADS:
+        state.primitive_func = gl_update_polygons;
+        state.force_edge_flag = false;
+        state.vertex_cache_locked = 0;
+        break;
+    case GL_QUAD_STRIP:
+        state.primitive_func = gl_update_polygons;
+        state.force_edge_flag = true;
+        state.vertex_cache_locked = -1;
+        break;
     case GL_POLYGON:
-        // Lock the first vertex in the cache
+        state.primitive_func = gl_update_polygons;
+        state.force_edge_flag = false;
         state.vertex_cache_locked = 0;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
         return;
-    }
-
-    switch (mode) {
-    case GL_POINTS:
-        state.primitive_func = gl_update_points;
-        break;
-    case GL_LINES:
-    case GL_LINE_STRIP:
-    case GL_LINE_LOOP:
-        state.primitive_func = gl_update_lines;
-        break;
-    default:
-        state.primitive_func = gl_update_triangles;
-        break;
     }
 
     state.immediate_active = true;
@@ -226,7 +250,7 @@ void gl_draw_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
     rdpq_triangle(0, level, 0, 2, tex_offset, z_offset, v0->screen_pos, v1->screen_pos, v2->screen_pos);
 }
 
-void gl_cull_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
+void gl_cull_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2, bool e0, bool e1, bool e2)
 {
     if (state.cull_face_mode == GL_FRONT_AND_BACK) {
         return;
@@ -248,14 +272,14 @@ void gl_cull_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
     
     switch (state.polygon_mode) {
     case GL_POINT:
-        gl_draw_point(v0);
-        gl_draw_point(v1);
-        gl_draw_point(v2);
+        if (e0) gl_draw_point(v0);
+        if (e1) gl_draw_point(v1);
+        if (e2) gl_draw_point(v2);
         break;
     case GL_LINE:
-        gl_draw_line(v0, v1);
-        gl_draw_line(v1, v2);
-        gl_draw_line(v2, v0);
+        if (e0) gl_draw_line(v0, v1);
+        if (e1) gl_draw_line(v1, v2);
+        if (e2) gl_draw_line(v2, v0);
         break;
     case GL_FILL:
         gl_draw_triangle(v0, v1, v2);
@@ -329,7 +353,7 @@ void gl_clip_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
     uint8_t any_clip = v0->clip | v1->clip | v2->clip;
 
     if (!any_clip) {
-        gl_cull_triangle(v0, v1, v2);
+        gl_cull_triangle(v0, v1, v2, v0->edge_flag, v1->edge_flag, v2->edge_flag);
         return;
     }
 
@@ -348,6 +372,9 @@ void gl_clip_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
     out_list->vertices[0] = v0;
     out_list->vertices[1] = v1;
     out_list->vertices[2] = v2;
+    out_list->edge_flags[0] = v0->edge_flag;
+    out_list->edge_flags[1] = v1->edge_flag;
+    out_list->edge_flags[2] = v2->edge_flag;
     out_list->count = 3;
     
     for (uint32_t c = 0; c < CLIPPING_PLANE_COUNT; c++)
@@ -366,8 +393,10 @@ void gl_clip_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
 
         for (uint32_t i = 0; i < in_list->count; i++)
         {
+            uint32_t prev_index = (i + in_list->count - 1) % in_list->count;
+
             gl_vertex_t *cur_point = in_list->vertices[i];
-            gl_vertex_t *prev_point = in_list->vertices[(i + in_list->count - 1) % in_list->count];
+            gl_vertex_t *prev_point = in_list->vertices[prev_index];
 
             bool cur_inside = (cur_point->clip & (1<<c)) == 0;
             bool prev_inside = (prev_point->clip & (1<<c)) == 0;
@@ -398,11 +427,15 @@ void gl_clip_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
 
                 gl_intersect_line_plane(intersection, p0, p1, clip_plane);
 
-                out_list->vertices[out_list->count++] = intersection;
+                out_list->vertices[out_list->count] = intersection;
+                out_list->edge_flags[out_list->count] = cur_inside ? in_list->edge_flags[prev_index] : false;
+                out_list->count++;
             }
 
             if (cur_inside) {
-                out_list->vertices[out_list->count++] = cur_point;
+                out_list->vertices[out_list->count] = cur_point;
+                out_list->edge_flags[out_list->count] = in_list->edge_flags[i];
+                out_list->count++;
             } else {
                 // If the point is in the clipping cache, remember it as unused
                 uint32_t diff = cur_point - clipping_cache;
@@ -418,7 +451,10 @@ void gl_clip_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
 
     for (uint32_t i = 2; i < out_list->count; i++)
     {
-        gl_cull_triangle(out_list->vertices[0], out_list->vertices[i-1], out_list->vertices[i]);
+        gl_cull_triangle(out_list->vertices[0], out_list->vertices[i-1], out_list->vertices[i], 
+                         (i == 2) ? out_list->edge_flags[0] : false, 
+                         out_list->edge_flags[i-1], 
+                         (i == out_list->count - 1) ? out_list->edge_flags[i] : false);
     }
 }
 
@@ -461,7 +497,7 @@ void gl_clip_line(gl_vertex_t *v0, gl_vertex_t *v1)
     gl_draw_line(v0, v1);
 }
 
-void gl_update_triangles()
+void gl_update_polygons()
 {
     if (state.primitive_progress < 3) {
         return;
@@ -521,6 +557,7 @@ void gl_update_triangles()
         v0->color[3] = v1->color[3] = v2->color[3];
     }
 
+    // TODO: override edge flags for interior edges of non-triangle primitives
     gl_clip_triangle(v0, v1, v2);
 }
 
@@ -681,6 +718,8 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
         v->texcoord[1] *= 32.f;
     }
 
+    v->edge_flag = state.force_edge_flag || state.current_edge_flag;
+
     state.primitive_indices[state.primitive_progress] = state.next_vertex;
 
     // Acquire the next vertex in the cache that is writable.
@@ -723,6 +762,15 @@ void glVertex4sv(const GLshort *v)  { glVertex4s(v[0], v[1], v[2], v[3]); }
 void glVertex4iv(const GLint *v)    { glVertex4i(v[0], v[1], v[2], v[3]); }
 void glVertex4fv(const GLfloat *v)  { glVertex4f(v[0], v[1], v[2], v[3]); }
 void glVertex4dv(const GLdouble *v) { glVertex4d(v[0], v[1], v[2], v[3]); }
+
+void glEdgeFlag(GLboolean flag)
+{
+    state.current_edge_flag = flag;
+}
+void glEdgeFlagv(const GLboolean *flag)
+{
+    glEdgeFlag(*flag);
+}
 
 void glColor4f(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
