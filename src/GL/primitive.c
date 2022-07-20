@@ -31,8 +31,30 @@ void gl_primitive_init()
     state.r_gen.mode = GL_EYE_LINEAR;
     state.q_gen.mode = GL_EYE_LINEAR;
 
-    state.line_width = 1;
     state.point_size = 1;
+    state.line_width = 1;
+    state.polygon_mode = GL_FILL;
+}
+
+bool gl_calc_is_points()
+{
+    switch (state.primitive_mode) {
+    case GL_POINTS:
+        return true;
+    case GL_LINES:
+    case GL_LINE_LOOP:
+    case GL_LINE_STRIP:
+        return false;
+    default:
+        return state.polygon_mode == GL_POINT;
+    }
+}
+
+void gl_update_is_points()
+{
+    bool is_points = gl_calc_is_points();
+
+    GL_SET_STATE(state.is_points, is_points, state.is_rendermode_dirty);
 }
 
 void glBegin(GLenum mode)
@@ -83,12 +105,12 @@ void glBegin(GLenum mode)
     state.next_vertex = 0;
     state.primitive_progress = 0;
     state.triangle_counter = 0;
-    GL_SET_STATE(state.is_points, mode == GL_POINTS, state.is_rendermode_dirty);
 
     if (gl_is_invisible()) {
         return;
     }
 
+    gl_update_is_points();
     gl_update_scissor();
     gl_update_render_mode();
     gl_update_texture();
@@ -111,38 +133,29 @@ void glEnd(void)
     state.immediate_active = false;
 }
 
-void gl_draw_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
+void gl_draw_point(gl_vertex_t *v0)
 {
-    if (state.cull_face_mode == GL_FRONT_AND_BACK) {
-        return;
+    GLfloat half_size = state.point_size * 0.5f;
+    GLfloat p0[2] = { v0->screen_pos[0] - half_size, v0->screen_pos[1] - half_size };
+    GLfloat p1[2] = { p0[0] + state.point_size, p0[1] + state.point_size };
+
+    rdpq_set_prim_color(RGBA32(
+        FLOAT_TO_U8(v0->color[0]),
+        FLOAT_TO_U8(v0->color[1]),
+        FLOAT_TO_U8(v0->color[2]),
+        FLOAT_TO_U8(v0->color[3])
+    ));
+
+    if (state.depth_test) {
+        rdpq_set_prim_depth(floorf(v0->depth), 0);
     }
-
-    if (state.cull_face)
-    {
-        float winding = v0->screen_pos[0] * (v1->screen_pos[1] - v2->screen_pos[1]) +
-                        v1->screen_pos[0] * (v2->screen_pos[1] - v0->screen_pos[1]) +
-                        v2->screen_pos[0] * (v0->screen_pos[1] - v1->screen_pos[1]);
-        
-        bool is_front = (state.front_face == GL_CCW) ^ (winding > 0.0f);
-        GLenum face = is_front ? GL_FRONT : GL_BACK;
-
-        if (state.cull_face_mode == face) {
-            return;
-        }
-    }
-
-    uint8_t level = 0;
-    int32_t tex_offset = -1;
 
     gl_texture_object_t *tex_obj = gl_get_active_texture();
     if (tex_obj != NULL && tex_obj->is_complete) {
-        tex_offset = 6;
-        level = tex_obj->num_levels - 1;
+        rdpq_texture_rectangle(0, p0[0], p0[1], p1[0], p1[1], v0->texcoord[0]/32.f, v0->texcoord[1]/32.f, 0, 0);
+    } else {
+        rdpq_fill_rectangle(p0[0], p0[1], p1[0], p1[1]);
     }
-
-    int32_t z_offset = state.depth_test ? 9 : -1;
-
-    rdpq_triangle(0, level, 0, 2, tex_offset, z_offset, v0->screen_pos, v1->screen_pos, v2->screen_pos);
 }
 
 void gl_draw_line(gl_vertex_t *v0, gl_vertex_t *v1)
@@ -195,6 +208,59 @@ void gl_draw_line(gl_vertex_t *v0, gl_vertex_t *v1)
 
     rdpq_triangle(0, level, 0, 2, tex_offset, z_offset, line_vertices[0].screen_pos, line_vertices[1].screen_pos, line_vertices[2].screen_pos);
     rdpq_triangle(0, level, 0, 2, tex_offset, z_offset, line_vertices[1].screen_pos, line_vertices[2].screen_pos, line_vertices[3].screen_pos);
+}
+
+void gl_draw_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
+{
+    uint8_t level = 0;
+    int32_t tex_offset = -1;
+
+    gl_texture_object_t *tex_obj = gl_get_active_texture();
+    if (tex_obj != NULL && tex_obj->is_complete) {
+        tex_offset = 6;
+        level = tex_obj->num_levels - 1;
+    }
+
+    int32_t z_offset = state.depth_test ? 9 : -1;
+
+    rdpq_triangle(0, level, 0, 2, tex_offset, z_offset, v0->screen_pos, v1->screen_pos, v2->screen_pos);
+}
+
+void gl_cull_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
+{
+    if (state.cull_face_mode == GL_FRONT_AND_BACK) {
+        return;
+    }
+
+    if (state.cull_face)
+    {
+        float winding = v0->screen_pos[0] * (v1->screen_pos[1] - v2->screen_pos[1]) +
+                        v1->screen_pos[0] * (v2->screen_pos[1] - v0->screen_pos[1]) +
+                        v2->screen_pos[0] * (v0->screen_pos[1] - v1->screen_pos[1]);
+        
+        bool is_front = (state.front_face == GL_CCW) ^ (winding > 0.0f);
+        GLenum face = is_front ? GL_FRONT : GL_BACK;
+
+        if (state.cull_face_mode == face) {
+            return;
+        }
+    }
+    
+    switch (state.polygon_mode) {
+    case GL_POINT:
+        gl_draw_point(v0);
+        gl_draw_point(v1);
+        gl_draw_point(v2);
+        break;
+    case GL_LINE:
+        gl_draw_line(v0, v1);
+        gl_draw_line(v1, v2);
+        gl_draw_line(v2, v0);
+        break;
+    case GL_FILL:
+        gl_draw_triangle(v0, v1, v2);
+        break;
+    }
 }
 
 float dot_product4(const float *a, const float *b)
@@ -263,7 +329,7 @@ void gl_clip_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
     uint8_t any_clip = v0->clip | v1->clip | v2->clip;
 
     if (!any_clip) {
-        gl_draw_triangle(v0, v1, v2);
+        gl_cull_triangle(v0, v1, v2);
         return;
     }
 
@@ -352,7 +418,7 @@ void gl_clip_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
 
     for (uint32_t i = 2; i < out_list->count; i++)
     {
-        gl_draw_triangle(out_list->vertices[0], out_list->vertices[i-1], out_list->vertices[i]);
+        gl_cull_triangle(out_list->vertices[0], out_list->vertices[i-1], out_list->vertices[i]);
     }
 }
 
@@ -499,27 +565,7 @@ void gl_update_points()
         return;
     }
 
-    GLfloat half_size = state.point_size * 0.5f;
-    GLfloat p0[2] = { v0->screen_pos[0] - half_size, v0->screen_pos[1] - half_size };
-    GLfloat p1[2] = { p0[0] + state.point_size, p0[1] + state.point_size };
-
-    rdpq_set_prim_color(RGBA32(
-        FLOAT_TO_U8(v0->color[0]),
-        FLOAT_TO_U8(v0->color[1]),
-        FLOAT_TO_U8(v0->color[2]),
-        FLOAT_TO_U8(v0->color[3])
-    ));
-
-    if (state.depth_test) {
-        rdpq_set_prim_depth(floorf(v0->depth), 0);
-    }
-
-    gl_texture_object_t *tex_obj = gl_get_active_texture();
-    if (tex_obj != NULL && tex_obj->is_complete) {
-        rdpq_texture_rectangle(0, p0[0], p0[1], p1[0], p1[1], v0->texcoord[0]/32.f, v0->texcoord[1]/32.f, 0, 0);
-    } else {
-        rdpq_fill_rectangle(p0[0], p0[1], p1[0], p1[1]);
-    }
+    gl_draw_point(v0);
 }
 
 void gl_calc_texture_coord(GLfloat *dest, uint32_t coord_index, const gl_tex_gen_t *gen, const GLfloat *obj_pos, const GLfloat *eye_pos, const GLfloat *eye_normal)
@@ -804,6 +850,33 @@ void glLineWidth(GLfloat width)
     }
 
     state.line_width = width;
+}
+
+void glPolygonMode(GLenum face, GLenum mode)
+{
+    switch (face) {
+    case GL_FRONT:
+    case GL_BACK:
+    case GL_FRONT_AND_BACK:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    switch (mode) {
+    case GL_POINT:
+    case GL_LINE:
+    case GL_FILL:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    // TODO: support separate modes for front and back
+    state.polygon_mode = mode;
+    gl_update_is_points();
 }
 
 void glDepthRange(GLclampd n, GLclampd f)

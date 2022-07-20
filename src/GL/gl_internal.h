@@ -178,6 +178,7 @@ typedef struct {
     bool cull_face;
     GLenum cull_face_mode;
     GLenum front_face;
+    GLenum polygon_mode;
 
     GLenum blend_src;
     GLenum blend_dst;

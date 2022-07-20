@@ -299,11 +299,15 @@ void glArrayElement(GLint i)
 void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 {
     switch (mode) {
+    case GL_POINTS:
+    case GL_LINES:
+    case GL_LINE_LOOP:
+    case GL_LINE_STRIP:
     case GL_TRIANGLES:
     case GL_TRIANGLE_STRIP:
-    case GL_QUAD_STRIP:
     case GL_TRIANGLE_FAN:
     case GL_QUADS:
+    case GL_QUAD_STRIP:
     case GL_POLYGON:
         break;
     default:
@@ -321,11 +325,15 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices)
 {
     switch (mode) {
+    case GL_POINTS:
+    case GL_LINES:
+    case GL_LINE_LOOP:
+    case GL_LINE_STRIP:
     case GL_TRIANGLES:
     case GL_TRIANGLE_STRIP:
-    case GL_QUAD_STRIP:
     case GL_TRIANGLE_FAN:
     case GL_QUADS:
+    case GL_QUAD_STRIP:
     case GL_POLYGON:
         break;
     default:

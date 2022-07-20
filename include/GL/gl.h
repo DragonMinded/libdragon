@@ -543,8 +543,8 @@ void glCullFace(GLenum mode);
 
 void glFrontFace(GLenum dir);
 
-// TODO
 void glPolygonMode(GLenum face, GLenum mode);
+
 #define glPolygonStipple(pattern) _GL_UNSUPPORTED(glPolygonStipple)
 #define glPolygonOffset(factor, units) _GL_UNSUPPORTED(glPolygonOffset)
 
