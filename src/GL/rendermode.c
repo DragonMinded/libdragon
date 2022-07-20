@@ -89,6 +89,8 @@ inline rdpq_blender_t blender2(uint32_t bl0, uint32_t bl1, bool force_blend)
 
 void gl_rendermode_init()
 {
+    state.dither = true;
+
     state.fog_start = 0.0f;
     state.fog_end = 1.0f;
 

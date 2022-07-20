@@ -676,6 +676,8 @@ bool gl_upload_image(gl_texture_object_t *obj, GLenum target, GLint internalform
         return false;
     }
 
+    // TODO: small textures where TMEM pitch would be < 8 bytes
+
     if (allocate) {
         GLvoid *new_buffer = malloc_uncached(size);
         if (new_buffer == NULL) {
@@ -1181,6 +1183,8 @@ void glDeleteTextures(GLsizei n, const GLuint *textures)
 
 void gl_update_texture()
 {
+    // TODO: re-implement this so that multiple textures can potentially be in TMEM at the same time
+
     gl_texture_object_t *tex_obj = gl_get_active_texture();
 
     if (tex_obj == NULL || !tex_obj->is_complete) {

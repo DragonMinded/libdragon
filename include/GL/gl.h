@@ -93,6 +93,7 @@ void glDisable(GLenum target);
 void glBegin(GLenum mode);
 void glEnd(void);
 
+// TODO
 void glEdgeFlag(GLboolean flag);
 void glEdgeFlagv(GLboolean *flag);
 
@@ -214,17 +215,16 @@ void glColor4ubv(const GLubyte *v);
 void glColor4usv(const GLushort *v);
 void glColor4uiv(const GLuint *v);
 
-void glIndexs(GLshort c);
-void glIndexi(GLint c);
-void glIndexf(GLfloat c);
-void glIndexd(GLdouble c);
-void glIndexub(GLubyte c);
-
-void glIndexsv(const GLshort *v);
-void glIndexiv(const GLint *v);
-void glIndexfv(const GLfloat *v);
-void glIndexdv(const GLdouble *v);
-void glIndexubv(const GLubyte *v);
+#define glIndexs(c) _GL_UNSUPPORTED(glIndexs)
+#define glIndexi(c) _GL_UNSUPPORTED(glIndexi)
+#define glIndexf(c) _GL_UNSUPPORTED(glIndexf)
+#define glIndexd(c) _GL_UNSUPPORTED(glIndexd)
+#define glIndexub(c) _GL_UNSUPPORTED(glIndexub)
+#define glIndexsv(v) _GL_UNSUPPORTED(glIndexsv)
+#define glIndexiv(v) _GL_UNSUPPORTED(glIndexiv)
+#define glIndexfv(v) _GL_UNSUPPORTED(glIndexfv)
+#define glIndexdv(v) _GL_UNSUPPORTED(glIndexdv)
+#define glIndexubv(v) _GL_UNSUPPORTED(glIndexubv)
 
 /* Vertex arrays */
 
@@ -282,7 +282,8 @@ void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *poin
 void glTexCoordPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
 void glNormalPointer(GLenum type, GLsizei stride, const GLvoid *pointer);
 void glColorPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
-void glIndexPointer(GLenum type, GLsizei stride, const GLvoid *pointer);
+
+#define glIndexPointer(type, stride, pointer) _GL_UNSUPPORTED(glIndexPointer)
 
 void glEnableClientState(GLenum array);
 void glDisableClientState(GLenum array);
@@ -936,8 +937,8 @@ void glClear(GLbitfield buf);
 
 void glClearColor(GLclampf r, GLclampf g, GLclampf b, GLclampf a);
 void glClearDepth(GLclampd d);
-void glClearIndex(GLfloat index);
 
+#define glClearIndex(index) _GL_UNSUPPORTED(glClearIndex)
 #define glClearStencil(s) _GL_UNSUPPORTED(glClearStencil)
 #define glClearAccum(r, g, b, a) _GL_UNSUPPORTED(glClearAccum)
 
@@ -987,35 +988,26 @@ void glClearIndex(GLfloat index);
 
 #define GL_MAX_EVAL_ORDER           0x0D30
 
-void glMap1f(GLenum type, GLfloat u1, GLfloat u2, GLint stride, GLint order, const GLfloat *points);
-void glMap1d(GLenum type, GLdouble u1, GLdouble u2, GLint stride, GLint order, const GLdouble *points);
-
-void glMap2f(GLenum target, GLfloat u1, GLfloat u2, GLint ustride, GLint uorder, GLfloat v1, GLfloat v2, GLint vstride, GLint vorder, const GLfloat *points);
-void glMap2d(GLenum target, GLdouble u1, GLdouble u2, GLint ustride, GLint uorder, GLdouble v1, GLdouble v2, GLint vstride, GLint vorder, const GLdouble *points);
-
-void glEvalCoord1f(GLfloat u);
-void glEvalCoord1d(GLdouble u);
-
-void glEvalCoord2f(GLfloat u, GLfloat v);
-void glEvalCoord2d(GLdouble u, GLdouble v);
-
-void glEvalCoord1fv(const GLfloat *v);
-void glEvalCoord1dv(const GLdouble *v);
-
-void glEvalCoord2fv(const GLfloat *v);
-void glEvalCoord2dv(const GLdouble *v);
-
-void glMapGrid1f(GLint n, GLfloat u1, GLfloat u2);
-void glMapGrid1d(GLint n, GLdouble u1, GLdouble u2);
-
-void glMapGrid2f(GLint nu, GLfloat u1, GLfloat u2, GLint nv, GLfloat v1, GLfloat v2);
-void glMapGrid2d(GLint nu, GLdouble u1, GLdouble u2, GLint nv, GLdouble v1, GLdouble v2);
-
-void glEvalMesh1(GLenum mode, GLint p1, GLint p2);
-void glEvalMesh2(GLenum mode, GLint p1, GLint p2, GLint q1, GLint q2);
-
-void glEvalPoint1(GLint p);
-void glEvalPoint2(GLint p, GLint q);
+#define glMap1f(type, u1, u2, stride, order, points) _GL_UNSUPPORTED(glMap1f)
+#define glMap1d(type, u1, u2, stride, order, points) _GL_UNSUPPORTED(glMap1d)
+#define glMap2f(target, u1, u2, ustride, uorder, v1, v2, vstride, vorder, points) _GL_UNSUPPORTED(glMap2f)
+#define glMap2d(target, u1, u2, ustride, uorder, v1, v2, vstride, vorder, points) _GL_UNSUPPORTED(glMap2d)
+#define glEvalCoord1f(u) _GL_UNSUPPORTED(glEvalCoord1f)
+#define glEvalCoord1d(u) _GL_UNSUPPORTED(glEvalCoord1d)
+#define glEvalCoord2f(u, v) _GL_UNSUPPORTED(glEvalCoord2f)
+#define glEvalCoord2d(u, v) _GL_UNSUPPORTED(glEvalCoord2d)
+#define glEvalCoord1fv(v) _GL_UNSUPPORTED(glEvalCoord1fv)
+#define glEvalCoord1dv(v) _GL_UNSUPPORTED(glEvalCoord1dv)
+#define glEvalCoord2fv(v) _GL_UNSUPPORTED(glEvalCoord2fv)
+#define glEvalCoord2dv(v) _GL_UNSUPPORTED(glEvalCoord2dv)
+#define glMapGrid1f(n, u1, u2) _GL_UNSUPPORTED(glMapGrid1f)
+#define glMapGrid1d(n, u1, u2) _GL_UNSUPPORTED(glMapGrid1d)
+#define glMapGrid2f(nu, u1, u2, nv, v1, v2) _GL_UNSUPPORTED(glMapGrid2f)
+#define glMapGrid2d(nu, u1, u2, nv, v1, v2) _GL_UNSUPPORTED(glMapGrid2d)
+#define glEvalMesh1(mode, p1, p2) _GL_UNSUPPORTED(glEvalMesh1)
+#define glEvalMesh2(mode, p1, p2, q1, q2) _GL_UNSUPPORTED(glEvalMesh2)
+#define glEvalPoint1(p) _GL_UNSUPPORTED(glEvalPoint1)
+#define glEvalPoint2(p, q) _GL_UNSUPPORTED(glEvalPoint2)
 
 /* Render mode */
 
@@ -1069,6 +1061,7 @@ void glRenderMode(GLenum mode);
 #define GL_LIST_BASE                0x0B32
 #define GL_LIST_INDEX               0x0B33
 
+// TODO
 
 void glNewList(GLuint n, GLenum mode);
 void glEndList(void);
@@ -1137,6 +1130,7 @@ void glHint(GLenum target, GLenum hint);
 #define GL_DOUBLEBUFFER                     0x0C32
 #define GL_STEREO                           0x0C33
 
+// TODO
 
 void glGetBooleanv(GLenum value, GLboolean *data);
 void glGetIntegerv(GLenum value, GLint *data);

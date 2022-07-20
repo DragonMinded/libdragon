@@ -222,7 +222,6 @@ void glColorPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *point
 }
 
 void glEdgeFlagPointer(GLsizei stride, const GLvoid *pointer) { }
-void glIndexPointer(GLenum type, GLsizei stride, const GLvoid *pointer) { }
 
 void glEnableClientState(GLenum array)
 {

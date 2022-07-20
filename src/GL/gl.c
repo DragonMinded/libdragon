@@ -139,6 +139,9 @@ void gl_set_flag(GLenum target, bool value)
     case GL_DEPTH_TEST:
         GL_SET_STATE(state.depth_test, value, state.is_rendermode_dirty);
         break;
+    case GL_TEXTURE_1D:
+        GL_SET_STATE(state.texture_1d, value, state.is_rendermode_dirty);
+        break;
     case GL_TEXTURE_2D:
         GL_SET_STATE(state.texture_2d, value, state.is_rendermode_dirty);
         break;
@@ -187,6 +190,17 @@ void gl_set_flag(GLenum target, bool value)
     case GL_NORMALIZE:
         state.normalize = value;
         break;
+    case GL_CLIP_PLANE0:
+    case GL_CLIP_PLANE1:
+    case GL_CLIP_PLANE2:
+    case GL_CLIP_PLANE3:
+    case GL_CLIP_PLANE4:
+    case GL_CLIP_PLANE5:
+        assertf(!value, "User clip planes are not supported!");
+        break;
+    case GL_STENCIL_TEST:
+        assertf(!value, "Stencil test is not supported!");
+        break;
     case GL_COLOR_LOGIC_OP:
     case GL_INDEX_LOGIC_OP:
         assertf(!value, "Logical pixel operation is not supported!");
@@ -200,10 +214,35 @@ void gl_set_flag(GLenum target, bool value)
     case GL_POLYGON_STIPPLE:
         assertf(!value, "Stipple is not supported!");
         break;
+    case GL_POLYGON_OFFSET_FILL:
+    case GL_POLYGON_OFFSET_LINE:
+    case GL_POLYGON_OFFSET_POINT:
+        assertf(!value, "Polygon offset is not supported!");
+        break;
     case GL_SAMPLE_ALPHA_TO_COVERAGE_ARB:
     case GL_SAMPLE_ALPHA_TO_ONE_ARB:
     case GL_SAMPLE_COVERAGE_ARB:
         assertf(!value, "Coverage value manipulation is not supported!");
+        break;
+    case GL_MAP1_COLOR_4:
+    case GL_MAP1_INDEX:
+    case GL_MAP1_NORMAL:
+    case GL_MAP1_TEXTURE_COORD_1:
+    case GL_MAP1_TEXTURE_COORD_2:
+    case GL_MAP1_TEXTURE_COORD_3:
+    case GL_MAP1_TEXTURE_COORD_4:
+    case GL_MAP1_VERTEX_3:
+    case GL_MAP1_VERTEX_4:
+    case GL_MAP2_COLOR_4:
+    case GL_MAP2_INDEX:
+    case GL_MAP2_NORMAL:
+    case GL_MAP2_TEXTURE_COORD_1:
+    case GL_MAP2_TEXTURE_COORD_2:
+    case GL_MAP2_TEXTURE_COORD_3:
+    case GL_MAP2_TEXTURE_COORD_4:
+    case GL_MAP2_VERTEX_3:
+    case GL_MAP2_VERTEX_4:
+        assertf(!value, "Evaluators are not supported!");
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -317,10 +356,4 @@ void glFlush(void)
 void glFinish(void)
 {
     rspq_wait();
-}
-
-void glClearIndex(GLfloat index)
-{
-    // TODO: Can we support index mode?
-    assertf(0, "Clear index is not supported!");
 }
