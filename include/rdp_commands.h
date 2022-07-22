@@ -192,7 +192,7 @@
 #define _RDPQ_COMB2B_ALPHA_MUL_PRIM_LOD_FRAC    cast64(6)
 #define _RDPQ_COMB2B_ALPHA_MUL_ZERO             cast64(7)
 
-#define RDPQ_COMB0_MASK    ((cast64(0xF)<<52)|(cast64(0xF)<<47)|(cast64(0x7)<<44)|(cast64(0x7)<<41)|(cast64(0xF)<<28)|(cast64(0x7)<<15)|(cast64(0x7)<<12)|(cast64(0x7)<<9))
+#define RDPQ_COMB0_MASK    ((cast64(0xF)<<52)|(cast64(0x1F)<<47)|(cast64(0x7)<<44)|(cast64(0x7)<<41)|(cast64(0xF)<<28)|(cast64(0x7)<<15)|(cast64(0x7)<<12)|(cast64(0x7)<<9))
 #define RDPQ_COMB1_MASK    (~RDPQ_COMB0_MASK & cast64(0x00FFFFFFFFFFFFFF))
 
 #define __rdpq_1cyc_comb_rgb(suba, subb, mul, add) \
@@ -264,8 +264,8 @@
 #define SOM_ALPHADITHER_MASK   ((cast64(4))<<36)
 #define SOM_ALPHADITHER_SHIFT  36
 
-#define SOM_BLEND0_MASK        (cast64(0x33330000) | SOM_BLENDING | SOM_READ_ENABLE | RDPQ_BLENDER_2PASS)
-#define SOM_BLEND1_MASK        (cast64(0xCCCC0000) | SOM_BLENDING | SOM_READ_ENABLE | RDPQ_BLENDER_2PASS)
+#define SOM_BLEND0_MASK        (cast64(0x33330000) | SOM_READ_ENABLE | RDPQ_BLENDER_2PASS)
+#define SOM_BLEND1_MASK        (cast64(0xCCCC0000) | SOM_READ_ENABLE | RDPQ_BLENDER_2PASS)
 #define SOM_BLEND_MASK         (SOM_BLEND0_MASK | SOM_BLEND1_MASK)
 #define SOM_BLENDING           ((cast64(1))<<14)
 #define SOM_ALPHA_USE_CVG      ((cast64(1))<<13)
@@ -290,49 +290,68 @@
 #define SOM_COVERAGE_DEST_SAVE          ((cast64(3)) << 8)
 #define SOM_COLOR_ON_COVERAGE           ((cast64(1)) << 7)
 
-#define SOM_BLEND_A_PIXEL_RGB       cast64(0)
-#define SOM_BLEND_A_CYCLE1_RGB      cast64(0)
-#define SOM_BLEND_A_MEMORY_RGB      cast64(1)
-#define SOM_BLEND_A_BLEND_RGB       cast64(2)
-#define SOM_BLEND_A_FOG_RGB         cast64(3)
+#define _RDPQ_SOM_BLEND1_A_PIXEL_RGB      cast64(0)
+#define _RDPQ_SOM_BLEND1_A_MEMORY_RGB     cast64(1)
+#define _RDPQ_SOM_BLEND1_A_BLEND_RGB      cast64(2)
+#define _RDPQ_SOM_BLEND1_A_FOG_RGB        cast64(3)
 
-#define SOM_BLEND_B1_MUX_ALPHA      cast64(0)
-#define SOM_BLEND_B1_FOG_ALPHA      cast64(1)
-#define SOM_BLEND_B1_SHADE_ALPHA    cast64(2)
-#define SOM_BLEND_B1_ZERO           cast64(3)
+#define _RDPQ_SOM_BLEND1_B1_PIXEL_ALPHA    cast64(0)
+#define _RDPQ_SOM_BLEND1_B1_FOG_ALPHA      cast64(1)
+#define _RDPQ_SOM_BLEND1_B1_SHADE_ALPHA    cast64(2)
+#define _RDPQ_SOM_BLEND1_B1_ZERO           cast64(3)
 
-#define SOM_BLEND_B2_INV_MUX_ALPHA  cast64(0)
-#define SOM_BLEND_B2_MEMORY_ALPHA   cast64(1)
-#define SOM_BLEND_B2_ONE            cast64(2)
-#define SOM_BLEND_B2_ZERO           cast64(3)
+#define _RDPQ_SOM_BLEND1_B2_INV_MUX_ALPHA  cast64(0)
+#define _RDPQ_SOM_BLEND1_B2_MEMORY_ALPHA   cast64(1)
+#define _RDPQ_SOM_BLEND1_B2_ONE            cast64(2)
+#define _RDPQ_SOM_BLEND1_B2_ZERO           cast64(3)
 
-#define __rdpq_blend_0(a1, b1, a2, b2) \
-    (((SOM_BLEND_A_ ## a1) << 30) | ((SOM_BLEND_B1_ ## b1) << 26) | ((SOM_BLEND_A_ ## a2) << 22) | ((SOM_BLEND_B2_ ## b2) << 18))
-#define __rdpq_blend_1(a1, b1, a2, b2) \
-    (((SOM_BLEND_A_ ## a1) << 28) | ((SOM_BLEND_B1_ ## b1) << 24) | ((SOM_BLEND_A_ ## a2) << 20) | ((SOM_BLEND_B2_ ## b2) << 16))
+#define _RDPQ_SOM_BLEND2A_A_PIXEL_RGB     cast64(0)
+#define _RDPQ_SOM_BLEND2A_A_BLEND_RGB     cast64(2)
+#define _RDPQ_SOM_BLEND2A_A_FOG_RGB       cast64(3)
 
-#define Blend(a1, b1, a2, b2) \
-    (__rdpq_blend_0(a1, b1, a2, b2) | __rdpq_blend_1(a1, b1, a2, b2))
+#define _RDPQ_SOM_BLEND2A_B1_PIXEL_ALPHA    cast64(0)
+#define _RDPQ_SOM_BLEND2A_B1_FOG_ALPHA      cast64(1)
+#define _RDPQ_SOM_BLEND2A_B1_SHADE_ALPHA    cast64(2)
+#define _RDPQ_SOM_BLEND2A_B1_ZERO           cast64(3)
 
-#define __rdpq_blend(a1, b1, a2, b2, sa1, sb1, sa2, sb2) ({ \
+#define _RDPQ_SOM_BLEND2A_B2_INV_MUX_ALPHA  cast64(0)    // only valid option is "1-b1" in the first pass
+
+#define _RDPQ_SOM_BLEND2B_A_CYCLE1_RGB    cast64(0)
+#define _RDPQ_SOM_BLEND2B_A_MEMORY_RGB    cast64(1)
+#define _RDPQ_SOM_BLEND2B_A_BLEND_RGB     cast64(2)
+#define _RDPQ_SOM_BLEND2B_A_FOG_RGB       cast64(3)
+
+#define _RDPQ_SOM_BLEND2B_B1_CYCLE1_ALPHA   cast64(0)
+#define _RDPQ_SOM_BLEND2B_B1_FOG_ALPHA      cast64(1)
+#define _RDPQ_SOM_BLEND2B_B1_SHADE_ALPHA    cast64(2)
+#define _RDPQ_SOM_BLEND2B_B1_ZERO           cast64(3)
+
+#define _RDPQ_SOM_BLEND2B_B2_INV_MUX_ALPHA  cast64(0)
+#define _RDPQ_SOM_BLEND2B_B2_MEMORY_ALPHA   cast64(1)
+#define _RDPQ_SOM_BLEND2B_B2_ONE            cast64(2)
+#define _RDPQ_SOM_BLEND2B_B2_ZERO           cast64(3)
+
+#define __rdpq_blend(cyc, a1, b1, a2, b2, sa1, sb1, sa2, sb2) ({ \
     uint32_t _bl = \
-        ((SOM_BLEND_A_  ## a1) << sa1) | \
-        ((SOM_BLEND_B1_ ## b1) << sb1) | \
-        ((SOM_BLEND_A_  ## a2) << sa2) | \
-        ((SOM_BLEND_B2_ ## b2) << sb2);  \
-    if ((SOM_BLEND_A_  ## a1) == SOM_BLEND_A_MEMORY_RGB || \
-        (SOM_BLEND_A_  ## a2) == SOM_BLEND_A_MEMORY_RGB || \
-        (SOM_BLEND_B2_ ## b2) == SOM_BLEND_B2_MEMORY_ALPHA) \
+        ((_RDPQ_SOM_BLEND ## cyc ## _A_  ## a1) << sa1) | \
+        ((_RDPQ_SOM_BLEND ## cyc ## _B1_ ## b1) << sb1) | \
+        ((_RDPQ_SOM_BLEND ## cyc ## _A_  ## a2) << sa2) | \
+        ((_RDPQ_SOM_BLEND ## cyc ## _B2_ ## b2) << sb2);  \
+    if ((_RDPQ_SOM_BLEND ## cyc ## _A_  ## a1) == _RDPQ_SOM_BLEND1_A_MEMORY_RGB || \
+        (_RDPQ_SOM_BLEND ## cyc ## _A_  ## a2) == _RDPQ_SOM_BLEND1_A_MEMORY_RGB || \
+        (_RDPQ_SOM_BLEND ## cyc ## _B2_ ## b2) == _RDPQ_SOM_BLEND1_B2_MEMORY_ALPHA) \
         _bl |= SOM_READ_ENABLE; \
     _bl | SOM_BLENDING; \
 })
 
-#define __rdpq_blend0(a1, b1, a2, b2) __rdpq_blend(a1, b1, a2, b2, 30, 26, 22, 18)
-#define __rdpq_blend1(a1, b1, a2, b2) __rdpq_blend(a1, b1, a2, b2, 28, 24, 20, 16)
+#define __rdpq_blend_1cyc_0(a1, b1, a2, b2) __rdpq_blend(1,  a1, b1, a2, b2, 30, 26, 22, 18)
+#define __rdpq_blend_1cyc_1(a1, b1, a2, b2) __rdpq_blend(1,  a1, b1, a2, b2, 28, 24, 20, 16)
+#define __rdpq_blend_2cyc_0(a1, b1, a2, b2) __rdpq_blend(2A, a1, b1, a2, b2, 30, 26, 22, 18)
+#define __rdpq_blend_2cyc_1(a1, b1, a2, b2) __rdpq_blend(2B, a1, b1, a2, b2, 28, 24, 20, 16)
 
 #define RDPQ_BLENDER_2PASS     (1<<15)
 
-#define RDPQ_BLENDER1(bl)        (SOM_BLENDING | __rdpq_blend0 bl  | __rdpq_blend1 bl)
-#define RDPQ_BLENDER2(bl0, bl1)  (SOM_BLENDING | __rdpq_blend0 bl0 | __rdpq_blend1 bl1 | RDPQ_BLENDER_2PASS)
+#define RDPQ_BLENDER1(bl)        (__rdpq_blend_1cyc_0 bl  | __rdpq_blend_1cyc_1 bl)
+#define RDPQ_BLENDER2(bl0, bl1)  (__rdpq_blend_2cyc_0 bl0 | __rdpq_blend_2cyc_1 bl1 | RDPQ_BLENDER_2PASS)
 
 #endif
