@@ -208,7 +208,11 @@ void gl_update_render_mode()
     
     gl_texture_object_t *tex_obj = gl_get_active_texture();
     if (tex_obj != NULL && tex_obj->is_complete) {
-        modes |= SOM_TEXTURE_PERSP | SOM_TC_FILTER;
+        modes |= SOM_TC_FILTER;
+        
+        if (!state.is_points) {
+            modes |= SOM_TEXTURE_PERSP;
+        }
 
         // We can't use separate modes for minification and magnification, so just use bilinear sampling when at least one of them demands it
         if (tex_obj->mag_filter == GL_LINEAR || 

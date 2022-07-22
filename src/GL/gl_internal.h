@@ -2,6 +2,7 @@
 #define __GL_INTERNAL
 
 #include "GL/gl.h"
+#include "obj_map.h"
 #include "surface.h"
 #include "utils.h"
 #include <stdbool.h>
@@ -17,8 +18,6 @@
 #define CLIPPING_CACHE_SIZE   9
 
 #define LIGHT_COUNT           8
-
-#define MAX_TEXTURE_OBJECTS   32
 
 #define MAX_TEXTURE_SIZE      64
 #define MAX_TEXTURE_LEVELS    7
@@ -104,7 +103,6 @@ typedef struct {
     GLenum mag_filter;
     GLclampf border_color[4];
     GLclampf priority;
-    bool is_used;
     bool is_complete;
 } gl_texture_object_t;
 
@@ -238,7 +236,8 @@ typedef struct {
     gl_texture_object_t default_texture_1d;
     gl_texture_object_t default_texture_2d;
 
-    gl_texture_object_t texture_objects[MAX_TEXTURE_OBJECTS];
+    obj_map_t texture_objects;
+    GLuint next_tex_name;
 
     gl_texture_object_t *texture_1d_object;
     gl_texture_object_t *texture_2d_object;

@@ -3,6 +3,7 @@
 #include "debug.h"
 #include <math.h>
 #include <string.h>
+#include <malloc.h>
 
 extern gl_state_t state;
 
@@ -31,13 +32,8 @@ void gl_texture_init()
     gl_init_texture_object(&state.default_texture_1d);
     gl_init_texture_object(&state.default_texture_2d);
 
-    for (uint32_t i = 0; i < MAX_TEXTURE_OBJECTS; i++)
-    {
-        gl_init_texture_object(&state.texture_objects[i]);
-    }
-
-    state.default_texture_1d.is_used = true;
-    state.default_texture_2d.is_used = true;
+    obj_map_new(&state.texture_objects);
+    state.next_tex_name = 1;
 
     state.default_texture_1d.dimensionality = GL_TEXTURE_1D;
     state.default_texture_2d.dimensionality = GL_TEXTURE_2D;
@@ -51,10 +47,12 @@ void gl_texture_close()
     gl_cleanup_texture_object(&state.default_texture_1d);
     gl_cleanup_texture_object(&state.default_texture_2d);
 
-    for (uint32_t i = 0; i < MAX_TEXTURE_OBJECTS; i++)
-    {
-        gl_cleanup_texture_object(&state.texture_objects[i]);
+    obj_map_iter_t tex_iter = obj_map_iterator(&state.texture_objects);
+    while (obj_map_iterator_next(&tex_iter)) {
+        gl_cleanup_texture_object((gl_texture_object_t*)tex_iter.value);
     }
+
+    obj_map_free(&state.texture_objects);
 }
 
 uint32_t gl_log2(uint32_t s)
@@ -1090,6 +1088,14 @@ void glTexParameterfv(GLenum target, GLenum pname, const GLfloat *params)
     }
 }
 
+gl_texture_object_t * gl_create_texture(GLuint name)
+{
+    gl_texture_object_t *new_object = calloc(1, sizeof(gl_texture_object_t));
+    gl_init_texture_object(new_object);
+    obj_map_set(&state.texture_objects, state.next_tex_name, new_object);
+    return new_object;
+}
+
 void glBindTexture(GLenum target, GLuint texture)
 {
     gl_texture_object_t **target_obj = NULL;
@@ -1116,21 +1122,17 @@ void glBindTexture(GLenum target, GLuint texture)
             break;
         }
     } else {
-        // TODO: Any texture name should be valid!
-        assertf(texture > 0 && texture <= MAX_TEXTURE_OBJECTS, "NOT IMPLEMENTED: texture name out of range!");
+        gl_texture_object_t *obj = obj_map_get(&state.texture_objects, texture);
 
-        gl_texture_object_t *obj = &state.texture_objects[target - 1];
-
-        if (obj->dimensionality == 0) {
-            obj->dimensionality = target;
-        }
-
-        if (obj->dimensionality != target) {
+        if (obj != NULL && obj->dimensionality != 0 && obj->dimensionality != target) {
             gl_set_error(GL_INVALID_OPERATION);
             return;
         }
 
-        obj->is_used = true;
+        if (obj == NULL) {
+            obj = gl_create_texture(texture);
+            obj->dimensionality = target;
+        }
 
         *target_obj = obj;
     }
@@ -1138,21 +1140,10 @@ void glBindTexture(GLenum target, GLuint texture)
 
 void glGenTextures(GLsizei n, GLuint *textures)
 {
-    GLuint t = 0;
-
     for (uint32_t i = 0; i < n; i++)
     {
-        gl_texture_object_t *obj;
-
-        do {
-            obj = &state.texture_objects[t++];
-        } while (obj->is_used && t < MAX_TEXTURE_OBJECTS);
-
-        // TODO: It shouldn't be possible to run out at this point!
-        assertf(!obj->is_used, "Ran out of unused textures!");
-
-        textures[i] = t;
-        obj->is_used = true;
+        gl_create_texture(state.next_tex_name);
+        textures[i] = state.next_tex_name++;
     }
 }
 
@@ -1164,10 +1155,10 @@ void glDeleteTextures(GLsizei n, const GLuint *textures)
             continue;
         }
 
-        // TODO: Any texture name should be valid!
-        assertf(textures[i] > 0 && textures[i] <= MAX_TEXTURE_OBJECTS, "NOT IMPLEMENTED: texture name out of range!");
-
-        gl_texture_object_t *obj = &state.texture_objects[textures[i] - 1];
+        gl_texture_object_t *obj = obj_map_remove(&state.texture_objects, textures[i]);
+        if (obj == NULL) {
+            continue;
+        }
 
         if (obj == state.texture_1d_object) {
             state.texture_1d_object = &state.default_texture_1d;
@@ -1176,8 +1167,7 @@ void glDeleteTextures(GLsizei n, const GLuint *textures)
         }
 
         gl_cleanup_texture_object(obj);
-        memset(obj, 0, sizeof(gl_texture_object_t));
-        gl_init_texture_object(obj);
+        free(obj);
     }
 }
 

@@ -6,20 +6,38 @@
 
 #include "cube.h"
 
-static sprite_t *circle_sprite;
-
 static uint32_t animation = 3283;
+static uint32_t texture_index = 0;
 static bool near = false;
+
+static GLuint textures[4];
+
+static const char *texture_paths[4] = {
+    "circle.sprite",
+    "diamond.sprite",
+    "pentagon.sprite",
+    "triangle.sprite",
+};
+
+sprite_t * load_sprite(const char *path)
+{
+    int fp = dfs_open(path);
+    sprite_t *sprite = malloc(dfs_size(fp));
+    dfs_read(sprite, 1, dfs_size(fp), fp);
+    dfs_close(fp);
+    return sprite;
+}
 
 void setup()
 {
-    glEnable(GL_DITHER);
     glEnable(GL_LIGHT0);
     //glEnable(GL_COLOR_MATERIAL);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glEnable(GL_LIGHTING);
-    glEnable(GL_MULTISAMPLE_ARB);
+    //glEnable(GL_MULTISAMPLE_ARB);
+
+    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -52,11 +70,21 @@ void setup()
     glFogf(GL_FOG_START, 1.0f);
     glFogf(GL_FOG_END, 6.0f);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, circle_sprite->width, circle_sprite->height, 0, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1_EXT, circle_sprite->data);
+    glGenTextures(4, textures);
+
+    for (uint32_t i = 0; i < 4; i++)
+    {
+        glBindTexture(GL_TEXTURE_2D, textures[i]);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+        sprite_t *sprite = load_sprite(texture_paths[i]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sprite->width, sprite->height, 0, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1_EXT, sprite->data);
+        free(sprite);
+    }
 }
 
 void draw_test()
@@ -65,12 +93,18 @@ void draw_test()
 
     glColor3f(0, 1, 1);
 
+    glEdgeFlag(GL_TRUE);
     glVertex3f(1.f, -1.f, -1.f);
+    glEdgeFlag(GL_TRUE);
     glVertex3f(1.f, -1.f, 1.f);
+    glEdgeFlag(GL_FALSE);
     glVertex3f(1.f, 1.f, 1.f);
 
+    glEdgeFlag(GL_FALSE);
     glVertex3f(1.f, -1.f, -1.f);
+    glEdgeFlag(GL_TRUE);
     glVertex3f(1.f, 1.f, 1.f);
+    glEdgeFlag(GL_TRUE);
     glVertex3f(1.f, 1.f, -1.f);
 
     glEnd();
@@ -113,7 +147,7 @@ void draw_band()
 
 void draw_circle()
 {
-    glBegin(GL_POLYGON);
+    glBegin(GL_LINE_LOOP);
 
     const uint32_t segments = 16;
 
@@ -155,6 +189,8 @@ void render()
 
     glColor3f(1.f, 1.f, 1.f);
     draw_band();
+    glColor3f(0.f, 1.f, 1.f);
+    draw_circle();
 
     glPopMatrix();
 
@@ -169,6 +205,8 @@ void render()
     glEnable(GL_CULL_FACE);
     glEnable(GL_TEXTURE_2D);
 
+    glBindTexture(GL_TEXTURE_2D, textures[texture_index]);
+
     draw_cube();
 
     glPopMatrix();
@@ -180,11 +218,6 @@ int main()
 	debug_init_usblog();
     
     dfs_init(DFS_DEFAULT_LOCATION);
-
-    int fp = dfs_open("circle.sprite");
-    circle_sprite = malloc(dfs_size(fp));
-    dfs_read(circle_sprite, 1, dfs_size(fp), fp);
-    dfs_close(fp);
 
     display_init(RESOLUTION_320x240, DEPTH_16_BPP, 1, GAMMA_NONE, ANTIALIAS_RESAMPLE_FETCH_ALWAYS);
 
@@ -214,6 +247,10 @@ int main()
 
         if (down.c[0].C_down) {
             near = !near;
+        }
+
+        if (down.c[0].C_right) {
+            texture_index = (texture_index + 1) % 4;
         }
 
         render();
