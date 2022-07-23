@@ -161,7 +161,6 @@ struct callback_link * TI_callback = 0;
 /** @brief Linked list of CART callbacks */
 struct callback_link * CART_callback = 0;
 
-static uint32_t last_cart_interrupt = 0;
 static int last_cart_interrupt_count = 0;
 
 /** 
@@ -328,21 +327,19 @@ void __TI_handler(void)
  */
 void __CART_handler(void)
 {
-    /* CART interrupts must be acknowledged by handlers. If the handler fails
+    /* Call the registered callbacks */
+    __call_callback(CART_callback);
+
+    #ifndef NDEBUG
+     /* CART interrupts must be acknowledged by handlers. If the handler fails
        to do so, the console freezes because the interrupt will retrigger
        continuously. Since a freeze is always bad for debugging, try to 
        detect it, and show a proper assertion screen. */
-    uint32_t t = TICKS_READ();
-    if (TICKS_DISTANCE(last_cart_interrupt, t) < 10000) {
-        if (last_cart_interrupt_count++ == 128)
-            assertf(0, "CART interrupt deadlock: a CART interrupt is continuously triggering, with no ack");
-    } else {
+    if (!(C0_CAUSE() & C0_INTERRUPT_CART))
         last_cart_interrupt_count = 0;
-    }
-    last_cart_interrupt = t;
-
-    /* Call the registered callbacks */
-    __call_callback(CART_callback);
+    else
+        assertf(++last_cart_interrupt_count < 128, "CART interrupt deadlock: a CART interrupt is continuously triggering, with no ack");
+    #endif
 }
 
 
@@ -488,9 +485,9 @@ void unregister_SP_handler( void (*callback)() )
  * 
  * This function is useful only if you want to do your own low level programming
  * of the internal CPU timer and handle the interrupt yourself. In this case,
- * also remember to activate the timer interrupt using
+ * also remember to activate the timer interrupt using #set_TI_interrupt.
  * 
- * @note If you use the timer library (#timer_init and #timer_new), you do not
+ * @note If you use the timer library (#timer_init and #new_timer), you do not
  * need to call this function, as timer interrupt are already handled by the timer
  * library.
  *
@@ -505,7 +502,7 @@ void register_TI_handler( void (*callback)() )
 /**
  * @brief Unregister a timer callback
  *
- * @note If you use the timer library (#timer_init and #timer_new), you do not
+ * @note If you use the timer library (#timer_init and #new_timer), you do not
  * need to call this function, as timer interrupt are already handled by the timer
  * library.
  *
@@ -666,12 +663,14 @@ void set_SP_interrupt(int active)
 /**
  * @brief Enable the timer interrupt
  * 
- * @note If you use the timer library (#timer_init and #timer_new), you do not
+ * @note If you use the timer library (#timer_init and #new_timer), you do not
  * need to call this function, as timer interrupt is already handled by the timer
  * library.
  *
  * @param[in] active
  *            Flag to specify whether the timer interrupt should be active
+ *
+ * @see #register_TI_handler
  */
 void set_TI_interrupt(int active)
 {
@@ -688,13 +687,10 @@ void set_TI_interrupt(int active)
 /**
  * @brief Enable the CART interrupt
  * 
- * CART interrupts are interrupts triggered by devices attached to the PI bus
- * (aka CART bus), for instance the 64DD, or the modem cassette. 
- * 
  * @param[in] active
- *            Flag to specify whether the timer interrupt should be active
- *            
- * @see register_CART_handler
+ *            Flag to specify whether the CART interrupt should be active
+ * 
+ * @see #register_CART_handler
  */
 void set_CART_interrupt(int active)
 {
