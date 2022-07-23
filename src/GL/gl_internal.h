@@ -2,6 +2,7 @@
 #define __GL_INTERNAL
 
 #include "GL/gl.h"
+#include "obj_map.h"
 #include "surface.h"
 #include "utils.h"
 #include <stdbool.h>
@@ -9,6 +10,7 @@
 
 #define MODELVIEW_STACK_SIZE  32
 #define PROJECTION_STACK_SIZE 2
+#define TEXTURE_STACK_SIZE    2
 
 #define VERTEX_CACHE_SIZE     3
 
@@ -17,10 +19,10 @@
 
 #define LIGHT_COUNT           8
 
-#define MAX_TEXTURE_OBJECTS   32
-
 #define MAX_TEXTURE_SIZE      64
 #define MAX_TEXTURE_LEVELS    7
+
+#define MAX_PIXEL_MAP_SIZE    32
 
 #define RADIANS(x) ((x) * M_PI / 180.0f)
 
@@ -46,10 +48,11 @@
 #define I32_TO_FLOAT(x) MAX((x)/(float)(0x7FFFFFFF),-1.f)
 
 #define GL_SET_STATE(var, value, dirty_flag) ({ \
-    if (value != var) { \
+    typeof(value) _v = (value); \
+    if (_v != var) { \
         dirty_flag = true; \
     } \
-    var = value; \
+    var = _v; \
 })
 
 typedef struct {
@@ -65,6 +68,7 @@ typedef struct {
     GLfloat inverse_w;
     GLfloat depth;
     uint8_t clip;
+    GLboolean edge_flag;
 } gl_vertex_t;
 
 typedef struct {
@@ -85,6 +89,7 @@ typedef struct {
 typedef struct {
     uint32_t width;
     uint32_t height;
+    uint32_t stride;
     GLenum internal_format;
     void *data;
 } gl_texture_image_t;
@@ -99,12 +104,12 @@ typedef struct {
     GLenum mag_filter;
     GLclampf border_color[4];
     GLclampf priority;
-    bool is_used;
     bool is_complete;
 } gl_texture_object_t;
 
 typedef struct {
     gl_vertex_t *vertices[CLIPPING_PLANE_COUNT + 3];
+    bool edge_flags[CLIPPING_PLANE_COUNT + 3];
     uint32_t count;
 } gl_clipping_list_t;
 
@@ -132,6 +137,26 @@ typedef struct {
 } gl_light_t;
 
 typedef struct {
+    GLint size;
+    GLenum type;
+    GLsizei stride;
+    const GLvoid *pointer;
+    bool enabled;
+} gl_array_t;
+
+typedef struct {
+    GLenum mode;
+    GLfloat eye_plane[4];
+    GLfloat object_plane[4];
+    bool enabled;
+} gl_tex_gen_t;
+
+typedef struct {
+    GLsizei size;
+    GLfloat entries[MAX_PIXEL_MAP_SIZE];
+} gl_pixel_map_t;
+
+typedef struct {
     gl_framebuffer_t default_framebuffer;
     gl_framebuffer_t *cur_framebuffer;
 
@@ -139,7 +164,10 @@ typedef struct {
 
     GLenum draw_buffer;
 
-    GLenum immediate_mode;
+    GLenum primitive_mode;
+
+    GLfloat point_size;
+    GLfloat line_width;
 
     GLclampf clear_color[4];
     GLclampd clear_depth;
@@ -151,9 +179,11 @@ typedef struct {
     bool cull_face;
     GLenum cull_face_mode;
     GLenum front_face;
+    GLenum polygon_mode;
 
     GLenum blend_src;
     GLenum blend_dst;
+    uint32_t blend_cycle;
 
     GLenum depth_func;
 
@@ -174,17 +204,20 @@ typedef struct {
     bool fog;
     bool color_material;
     bool multisample;
+    bool normalize;
 
     gl_vertex_t vertex_cache[VERTEX_CACHE_SIZE];
     uint32_t vertex_cache_locked;
-    uint32_t triangle_indices[3];
+    uint32_t primitive_indices[3];
+    uint32_t primitive_progress;
     uint32_t next_vertex;
-    uint32_t triangle_progress;
     uint32_t triangle_counter;
+    void (*primitive_func)(void);
 
     GLfloat current_color[4];
     GLfloat current_texcoord[4];
     GLfloat current_normal[3];
+    GLboolean current_edge_flag;
 
     gl_viewport_t current_viewport;
 
@@ -194,15 +227,18 @@ typedef struct {
 
     gl_matrix_t modelview_stack_storage[MODELVIEW_STACK_SIZE];
     gl_matrix_t projection_stack_storage[PROJECTION_STACK_SIZE];
+    gl_matrix_t texture_stack_storage[TEXTURE_STACK_SIZE];
 
     gl_matrix_stack_t modelview_stack;
     gl_matrix_stack_t projection_stack;
+    gl_matrix_stack_t texture_stack;
     gl_matrix_stack_t *current_matrix_stack;
 
     gl_texture_object_t default_texture_1d;
     gl_texture_object_t default_texture_2d;
 
-    gl_texture_object_t texture_objects[MAX_TEXTURE_OBJECTS];
+    obj_map_t texture_objects;
+    GLuint next_tex_name;
 
     gl_texture_object_t *texture_1d_object;
     gl_texture_object_t *texture_2d_object;
@@ -216,6 +252,39 @@ typedef struct {
 
     GLenum shade_model;
 
+    gl_tex_gen_t s_gen;
+    gl_tex_gen_t t_gen;
+    gl_tex_gen_t r_gen;
+    gl_tex_gen_t q_gen;
+
+    gl_array_t edge_array;
+    gl_array_t vertex_array;
+    gl_array_t texcoord_array;
+    gl_array_t normal_array;
+    gl_array_t color_array;
+
+    GLboolean unpack_swap_bytes;
+    GLboolean unpack_lsb_first;
+    GLint unpack_row_length;
+    GLint unpack_skip_rows;
+    GLint unpack_skip_pixels;
+    GLint unpack_alignment;
+
+    GLboolean map_color;
+    GLfloat transfer_scale[4];
+    GLfloat transfer_bias[4];
+
+    gl_pixel_map_t pixel_maps[4];
+
+    bool transfer_is_noop;
+
+    GLenum tex_env_mode;
+    GLfloat tex_env_color[4];
+
+    bool immediate_active;
+    bool force_edge_flag;
+    bool is_points;
+
     bool is_scissor_dirty;
     bool is_rendermode_dirty;
     bool is_texture_dirty;
@@ -225,6 +294,11 @@ void gl_matrix_init();
 void gl_texture_init();
 void gl_lighting_init();
 void gl_rendermode_init();
+void gl_array_init();
+void gl_primitive_init();
+void gl_pixel_init();
+
+void gl_texture_close();
 
 void gl_set_error(GLenum error);
 
@@ -232,6 +306,7 @@ gl_matrix_t * gl_matrix_stack_get_matrix(gl_matrix_stack_t *stack);
 
 void gl_matrix_mult(GLfloat *d, const gl_matrix_t *m, const GLfloat *v);
 void gl_matrix_mult3x3(GLfloat *d, const gl_matrix_t *m, const GLfloat *v);
+void gl_matrix_mult4x2(GLfloat *d, const gl_matrix_t *m, const GLfloat *v);
 
 bool gl_is_invisible();
 
@@ -242,5 +317,10 @@ void gl_update_texture();
 void gl_perform_lighting(GLfloat *color, const GLfloat *v, const GLfloat *n, const gl_material_t *material);
 
 gl_texture_object_t * gl_get_active_texture();
+
+float dot_product3(const float *a, const float *b);
+void gl_normalize(GLfloat *d, const GLfloat *v);
+
+uint32_t gl_get_type_size(GLenum type);
 
 #endif

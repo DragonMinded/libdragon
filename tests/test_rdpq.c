@@ -853,7 +853,7 @@ void test_rdpq_automode(TestContext *ctx) {
         "Wrong data in framebuffer (comb=1pass, blender=off)");
 
     memset(framebuffer, 0xFF, TEST_RDPQ_FBSIZE);
-    rdpq_mode_blender(RDPQ_BLENDER1((PIXEL_RGB, FOG_ALPHA, BLEND_RGB, INV_MUX_ALPHA)));
+    rdpq_mode_blender(RDPQ_BLENDER1((IN_RGB, FOG_ALPHA, BLEND_RGB, INV_MUX_ALPHA)));
     rdpq_texture_rectangle(0, 4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4, 0, 0, 1, 1);
     rspq_wait();
     som = rdpq_get_other_modes_raw();
@@ -863,7 +863,7 @@ void test_rdpq_automode(TestContext *ctx) {
 
     memset(framebuffer, 0xFF, TEST_RDPQ_FBSIZE);
     rdpq_mode_blender(RDPQ_BLENDER2(
-        (BLEND_RGB, ZERO, PIXEL_RGB, ONE),
+        (BLEND_RGB, ZERO, IN_RGB, INV_MUX_ALPHA),
         (CYCLE1_RGB, FOG_ALPHA, BLEND_RGB, INV_MUX_ALPHA)));
     rdpq_texture_rectangle(0, 4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4, 0, 0, 1, 1);
     rspq_wait();
@@ -884,7 +884,7 @@ void test_rdpq_automode(TestContext *ctx) {
         "Wrong data in framebuffer (comb=2pass, blender=2pass)");
 
     memset(framebuffer, 0xFF, TEST_RDPQ_FBSIZE);
-    rdpq_mode_blender(RDPQ_BLENDER1((PIXEL_RGB, FOG_ALPHA, BLEND_RGB, INV_MUX_ALPHA)));
+    rdpq_mode_blender(RDPQ_BLENDER1((IN_RGB, FOG_ALPHA, BLEND_RGB, INV_MUX_ALPHA)));
     rdpq_texture_rectangle(0, 4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4, 0, 0, 1, 1);
     rspq_wait();
     som = rdpq_get_other_modes_raw();
@@ -907,7 +907,7 @@ void test_rdpq_automode(TestContext *ctx) {
         (ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO),
         (COMBINED, ZERO, ZERO, TEX1), (ZERO, ZERO, ZERO, ZERO)
     ));
-    rdpq_mode_blender(RDPQ_BLENDER1((PIXEL_RGB, ZERO, BLEND_RGB, ONE)));
+    rdpq_mode_blender(RDPQ_BLENDER1((IN_RGB, ZERO, BLEND_RGB, ONE)));
     rdpq_mode_dithering(DITHER_NOISE, DITHER_NOISE);
     rdpq_mode_pop();
     rdpq_texture_rectangle(0, 4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4, 0, 0, 1, 1);

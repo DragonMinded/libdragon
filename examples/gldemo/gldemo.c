@@ -4,20 +4,42 @@
 #include <malloc.h>
 #include <math.h>
 
-static sprite_t *circle_sprite;
+#include "cube.h"
 
 static uint32_t animation = 3283;
+static uint32_t texture_index = 0;
 static bool near = false;
+
+static GLuint textures[4];
+
+static const char *texture_paths[4] = {
+    "circle.sprite",
+    "diamond.sprite",
+    "pentagon.sprite",
+    "triangle.sprite",
+};
+
+sprite_t * load_sprite(const char *path)
+{
+    int fp = dfs_open(path);
+    sprite_t *sprite = malloc(dfs_size(fp));
+    dfs_read(sprite, 1, dfs_size(fp), fp);
+    dfs_close(fp);
+    return sprite;
+}
 
 void setup()
 {
-    glEnable(GL_DITHER);
     glEnable(GL_LIGHT0);
     //glEnable(GL_COLOR_MATERIAL);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glEnable(GL_LIGHTING);
-    glEnable(GL_MULTISAMPLE_ARB);
+    //glEnable(GL_MULTISAMPLE_ARB);
+
+    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     float aspect_ratio = (float)display_get_width() / (float)display_get_height();
 
@@ -40,11 +62,29 @@ void setup()
     GLfloat mat_diffuse[] = { 1, 1, 1, 0.6f };
     glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, circle_sprite->width, circle_sprite->height, 0, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1_EXT, circle_sprite->data);
+    //glEnable(GL_FOG);
+
+    GLfloat fog_color[] = { 1, 0, 0, 1 };
+
+    glFogfv(GL_FOG_COLOR, fog_color);
+    glFogf(GL_FOG_START, 1.0f);
+    glFogf(GL_FOG_END, 6.0f);
+
+    glGenTextures(4, textures);
+
+    for (uint32_t i = 0; i < 4; i++)
+    {
+        glBindTexture(GL_TEXTURE_2D, textures[i]);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+        sprite_t *sprite = load_sprite(texture_paths[i]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sprite->width, sprite->height, 0, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1_EXT, sprite->data);
+        free(sprite);
+    }
 }
 
 void draw_test()
@@ -53,12 +93,18 @@ void draw_test()
 
     glColor3f(0, 1, 1);
 
+    glEdgeFlag(GL_TRUE);
     glVertex3f(1.f, -1.f, -1.f);
+    glEdgeFlag(GL_TRUE);
     glVertex3f(1.f, -1.f, 1.f);
+    glEdgeFlag(GL_FALSE);
     glVertex3f(1.f, 1.f, 1.f);
 
+    glEdgeFlag(GL_FALSE);
     glVertex3f(1.f, -1.f, -1.f);
+    glEdgeFlag(GL_TRUE);
     glVertex3f(1.f, 1.f, 1.f);
+    glEdgeFlag(GL_TRUE);
     glVertex3f(1.f, 1.f, -1.f);
 
     glEnd();
@@ -66,111 +112,17 @@ void draw_test()
 
 void draw_cube()
 {
-    glBegin(GL_QUADS);
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+    glEnableClientState(GL_NORMAL_ARRAY);
+    glEnableClientState(GL_COLOR_ARRAY);
 
-    // +X
+    glVertexPointer(3, GL_FLOAT, sizeof(vertex_t), ((const GLvoid*)cube_vertices) + 0*sizeof(float));
+    glTexCoordPointer(2, GL_FLOAT, sizeof(vertex_t), ((const GLvoid*)cube_vertices) + 3*sizeof(float));
+    glNormalPointer(GL_FLOAT, sizeof(vertex_t), ((const GLvoid*)cube_vertices) + 5*sizeof(float));
+    glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(vertex_t), ((const GLvoid*)cube_vertices) + 8*sizeof(float));
 
-    glNormal3f(1.0f, 0.0f, 0.0f);
-    glColor3f(1, 0, 0);
-
-    glTexCoord2f(0.0f, 0.0f);
-    glVertex3f(1.f, -1.f, -1.f);
-
-    glTexCoord2f(1.0f, 0.0f);
-    glVertex3f(1.f, 1.f, -1.f);
-
-    glTexCoord2f(1.0f, 1.0f);
-    glVertex3f(1.f, 1.f, 1.f);
-
-    glTexCoord2f(0.0f, 1.0f);
-    glVertex3f(1.f, -1.f, 1.f);
-
-    // -X
-
-    glNormal3f(-1.0f, 0.0f, 0.0f);
-    glColor3f(0, 1, 1);
-
-    glTexCoord2f(0.0f, 0.0f);
-    glVertex3f(-1.f, -1.f, -1.f);
-
-    glTexCoord2f(0.0f, 1.0f);
-    glVertex3f(-1.f, -1.f, 1.f);
-
-    glTexCoord2f(1.0f, 1.0f);
-    glVertex3f(-1.f, 1.f, 1.f);
-
-    glTexCoord2f(1.0f, 0.0f);
-    glVertex3f(-1.f, 1.f, -1.f);
-
-    // +Y
-
-    glNormal3f(0.0f, 1.0f, 0.0f);
-    glColor3f(0, 1, 0);
-
-    glTexCoord2f(0.0f, 0.0f);
-    glVertex3f(-1.f, 1.f, -1.f);
-
-    glTexCoord2f(0.0f, 1.0f);
-    glVertex3f(-1.f, 1.f, 1.f);
-
-    glTexCoord2f(1.0f, 1.0f);
-    glVertex3f(1.f, 1.f, 1.f);
-
-    glTexCoord2f(1.0f, 0.0f);
-    glVertex3f(1.f, 1.f, -1.f);
-
-    // -Y
-
-    glNormal3f(0.0f, -1.0f, 0.0f);
-    glColor3f(1, 0, 1);
-
-    glTexCoord2f(0.0f, 0.0f);
-    glVertex3f(-1.f, -1.f, -1.f);
-
-    glTexCoord2f(1.0f, 0.0f);
-    glVertex3f(1.f, -1.f, -1.f);
-
-    glTexCoord2f(1.0f, 1.0f);
-    glVertex3f(1.f, -1.f, 1.f);
-
-    glTexCoord2f(0.0f, 1.0f);
-    glVertex3f(-1.f, -1.f, 1.f);
-
-    // +Z
-
-    glNormal3f(0.0f, 0.0f, 1.0f);
-    glColor3f(0, 0, 1);
-
-    glTexCoord2f(0.0f, 0.0f);
-    glVertex3f(-1.f, -1.f, 1.f);
-
-    glTexCoord2f(1.0f, 0.0f);
-    glVertex3f(1.f, -1.f, 1.f);
-
-    glTexCoord2f(1.0f, 1.0f);
-    glVertex3f(1.f, 1.f, 1.f);
-
-    glTexCoord2f(0.0f, 1.0f);
-    glVertex3f(-1.f, 1.f, 1.f);
-
-    // -Z
-
-    glNormal3f(0.0f, 0.0f, -1.0f);
-    glColor3f(1, 1, 0);
-
-    glTexCoord2f(0.0f, 0.0f);
-    glVertex3f(-1.f, -1.f, -1.f);
-
-    glTexCoord2f(0.0f, 1.0f);
-    glVertex3f(-1.f, 1.f, -1.f);
-
-    glTexCoord2f(1.0f, 1.0f);
-    glVertex3f(1.f, 1.f, -1.f);
-
-    glTexCoord2f(1.0f, 0.0f);
-    glVertex3f(1.f, -1.f, -1.f);
-
-    glEnd();
+    glDrawElements(GL_TRIANGLES, sizeof(cube_indices) / sizeof(uint16_t), GL_UNSIGNED_SHORT, cube_indices);
 }
 
 void draw_band()
@@ -195,7 +147,7 @@ void draw_band()
 
 void draw_circle()
 {
-    glBegin(GL_POLYGON);
+    glBegin(GL_LINE_LOOP);
 
     const uint32_t segments = 16;
 
@@ -237,6 +189,8 @@ void render()
 
     glColor3f(1.f, 1.f, 1.f);
     draw_band();
+    glColor3f(0.f, 1.f, 1.f);
+    draw_circle();
 
     glPopMatrix();
 
@@ -251,6 +205,8 @@ void render()
     glEnable(GL_CULL_FACE);
     glEnable(GL_TEXTURE_2D);
 
+    glBindTexture(GL_TEXTURE_2D, textures[texture_index]);
+
     draw_cube();
 
     glPopMatrix();
@@ -262,11 +218,6 @@ int main()
 	debug_init_usblog();
     
     dfs_init(DFS_DEFAULT_LOCATION);
-
-    int fp = dfs_open("circle.sprite");
-    circle_sprite = malloc(dfs_size(fp));
-    dfs_read(circle_sprite, 1, dfs_size(fp), fp);
-    dfs_close(fp);
 
     display_init(RESOLUTION_320x240, DEPTH_16_BPP, 1, GAMMA_NONE, ANTIALIAS_RESAMPLE_FETCH_ALWAYS);
 
@@ -298,7 +249,17 @@ int main()
             near = !near;
         }
 
+        if (down.c[0].C_right) {
+            texture_index = (texture_index + 1) % 4;
+        }
+
         render();
+
+        if (down.c[0].C_left) {
+            uint64_t om = rdpq_get_other_modes_raw();
+            debugf("%llx\n", om);
+        }
+
         gl_swap_buffers();
     }
 }

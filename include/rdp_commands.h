@@ -290,12 +290,12 @@
 #define SOM_COVERAGE_DEST_SAVE          ((cast64(3)) << 8)
 #define SOM_COLOR_ON_COVERAGE           ((cast64(1)) << 7)
 
-#define _RDPQ_SOM_BLEND1_A_PIXEL_RGB      cast64(0)
+#define _RDPQ_SOM_BLEND1_A_IN_RGB         cast64(0)
 #define _RDPQ_SOM_BLEND1_A_MEMORY_RGB     cast64(1)
 #define _RDPQ_SOM_BLEND1_A_BLEND_RGB      cast64(2)
 #define _RDPQ_SOM_BLEND1_A_FOG_RGB        cast64(3)
 
-#define _RDPQ_SOM_BLEND1_B1_PIXEL_ALPHA    cast64(0)
+#define _RDPQ_SOM_BLEND1_B1_IN_ALPHA       cast64(0)
 #define _RDPQ_SOM_BLEND1_B1_FOG_ALPHA      cast64(1)
 #define _RDPQ_SOM_BLEND1_B1_SHADE_ALPHA    cast64(2)
 #define _RDPQ_SOM_BLEND1_B1_ZERO           cast64(3)
@@ -305,11 +305,11 @@
 #define _RDPQ_SOM_BLEND1_B2_ONE            cast64(2)
 #define _RDPQ_SOM_BLEND1_B2_ZERO           cast64(3)
 
-#define _RDPQ_SOM_BLEND2A_A_PIXEL_RGB     cast64(0)
+#define _RDPQ_SOM_BLEND2A_A_IN_RGB        cast64(0)
 #define _RDPQ_SOM_BLEND2A_A_BLEND_RGB     cast64(2)
 #define _RDPQ_SOM_BLEND2A_A_FOG_RGB       cast64(3)
 
-#define _RDPQ_SOM_BLEND2A_B1_PIXEL_ALPHA    cast64(0)
+#define _RDPQ_SOM_BLEND2A_B1_IN_ALPHA       cast64(0)
 #define _RDPQ_SOM_BLEND2A_B1_FOG_ALPHA      cast64(1)
 #define _RDPQ_SOM_BLEND2A_B1_SHADE_ALPHA    cast64(2)
 #define _RDPQ_SOM_BLEND2A_B1_ZERO           cast64(3)

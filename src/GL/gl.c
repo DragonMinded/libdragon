@@ -14,10 +14,33 @@ gl_state_t state;
     assertf(state.cur_framebuffer != NULL, "GL: No target is set!"); \
 })
 
+uint32_t gl_get_type_size(GLenum type)
+{
+    switch (type) {
+    case GL_BYTE:
+        return sizeof(GLbyte);
+    case GL_UNSIGNED_BYTE:
+        return sizeof(GLubyte);
+    case GL_SHORT:
+        return sizeof(GLshort);
+    case GL_UNSIGNED_SHORT:
+        return sizeof(GLushort);
+    case GL_INT:
+        return sizeof(GLint);
+    case GL_UNSIGNED_INT:
+        return sizeof(GLuint);
+    case GL_FLOAT:
+        return sizeof(GLfloat);
+    case GL_DOUBLE:
+        return sizeof(GLdouble);
+    default:
+        return 0;
+    }
+}
+
 void gl_set_framebuffer(gl_framebuffer_t *framebuffer)
 {
     state.cur_framebuffer = framebuffer;
-    glViewport(0, 0, framebuffer->color_buffer->width, framebuffer->color_buffer->height);
     rdpq_set_color_image_surface_no_scissor(state.cur_framebuffer->color_buffer);
     rdpq_set_z_image(state.cur_framebuffer->depth_buffer);
 }
@@ -62,6 +85,9 @@ void gl_init()
     gl_lighting_init();
     gl_texture_init();
     gl_rendermode_init();
+    gl_array_init();
+    gl_primitive_init();
+    gl_pixel_init();
 
     glDrawBuffer(GL_FRONT);
     glDepthRange(0, 1);
@@ -71,10 +97,12 @@ void gl_init()
 
     rdpq_set_other_modes_raw(0);
     gl_set_default_framebuffer();
+    glViewport(0, 0, state.default_framebuffer.color_buffer->width, state.default_framebuffer.color_buffer->height);
 }
 
 void gl_close()
 {
+    gl_texture_close();
     rdpq_close();
 }
 
@@ -111,6 +139,9 @@ void gl_set_flag(GLenum target, bool value)
     case GL_DEPTH_TEST:
         GL_SET_STATE(state.depth_test, value, state.is_rendermode_dirty);
         break;
+    case GL_TEXTURE_1D:
+        GL_SET_STATE(state.texture_1d, value, state.is_rendermode_dirty);
+        break;
     case GL_TEXTURE_2D:
         GL_SET_STATE(state.texture_2d, value, state.is_rendermode_dirty);
         break;
@@ -144,6 +175,32 @@ void gl_set_flag(GLenum target, bool value)
     case GL_MULTISAMPLE_ARB:
         GL_SET_STATE(state.multisample, value, state.is_rendermode_dirty);
         break;
+    case GL_TEXTURE_GEN_S:
+        state.s_gen.enabled = value;
+        break;
+    case GL_TEXTURE_GEN_T:
+        state.t_gen.enabled = value;
+        break;
+    case GL_TEXTURE_GEN_R:
+        state.r_gen.enabled = value;
+        break;
+    case GL_TEXTURE_GEN_Q:
+        state.q_gen.enabled = value;
+        break;
+    case GL_NORMALIZE:
+        state.normalize = value;
+        break;
+    case GL_CLIP_PLANE0:
+    case GL_CLIP_PLANE1:
+    case GL_CLIP_PLANE2:
+    case GL_CLIP_PLANE3:
+    case GL_CLIP_PLANE4:
+    case GL_CLIP_PLANE5:
+        assertf(!value, "User clip planes are not supported!");
+        break;
+    case GL_STENCIL_TEST:
+        assertf(!value, "Stencil test is not supported!");
+        break;
     case GL_COLOR_LOGIC_OP:
     case GL_INDEX_LOGIC_OP:
         assertf(!value, "Logical pixel operation is not supported!");
@@ -157,10 +214,35 @@ void gl_set_flag(GLenum target, bool value)
     case GL_POLYGON_STIPPLE:
         assertf(!value, "Stipple is not supported!");
         break;
+    case GL_POLYGON_OFFSET_FILL:
+    case GL_POLYGON_OFFSET_LINE:
+    case GL_POLYGON_OFFSET_POINT:
+        assertf(!value, "Polygon offset is not supported!");
+        break;
     case GL_SAMPLE_ALPHA_TO_COVERAGE_ARB:
     case GL_SAMPLE_ALPHA_TO_ONE_ARB:
     case GL_SAMPLE_COVERAGE_ARB:
         assertf(!value, "Coverage value manipulation is not supported!");
+        break;
+    case GL_MAP1_COLOR_4:
+    case GL_MAP1_INDEX:
+    case GL_MAP1_NORMAL:
+    case GL_MAP1_TEXTURE_COORD_1:
+    case GL_MAP1_TEXTURE_COORD_2:
+    case GL_MAP1_TEXTURE_COORD_3:
+    case GL_MAP1_TEXTURE_COORD_4:
+    case GL_MAP1_VERTEX_3:
+    case GL_MAP1_VERTEX_4:
+    case GL_MAP2_COLOR_4:
+    case GL_MAP2_INDEX:
+    case GL_MAP2_NORMAL:
+    case GL_MAP2_TEXTURE_COORD_1:
+    case GL_MAP2_TEXTURE_COORD_2:
+    case GL_MAP2_TEXTURE_COORD_3:
+    case GL_MAP2_TEXTURE_COORD_4:
+    case GL_MAP2_VERTEX_3:
+    case GL_MAP2_VERTEX_4:
+        assertf(!value, "Evaluators are not supported!");
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -203,23 +285,6 @@ void glDrawBuffer(GLenum buf)
         gl_set_error(GL_INVALID_ENUM);
         return;
     }
-}
-
-void glIndexMask(GLuint mask)
-{
-    assertf(0, "Masking is not supported!");
-}
-void glColorMask(GLboolean r, GLboolean g, GLboolean b, GLboolean a)
-{
-    assertf(0, "Masking is not supported!");
-}
-void glDepthMask(GLboolean mask)
-{
-    assertf(0, "Masking is not supported!");
-}
-void glStencilMask(GLuint mask)
-{
-    assertf(0, "Masking is not supported!");
 }
 
 void glClear(GLbitfield buf)
@@ -291,77 +356,4 @@ void glFlush(void)
 void glFinish(void)
 {
     rspq_wait();
-}
-
-void glClearIndex(GLfloat index)
-{
-    // TODO: Can we support index mode?
-    assertf(0, "Clear index is not supported!");
-}
-
-void glClearStencil(GLint s)
-{
-    assertf(0, "Clear stencil is not supported!");
-}
-
-void glClearAccum(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
-{
-    assertf(0, "Clear accum is not supported!");
-}
-
-void glAccum(GLenum op, GLfloat value)
-{
-    assertf(0, "Accumulation buffer is not supported!");
-}
-
-void glInitNames(void)
-{
-    assertf(0, "Selection mode is not supported!");
-}
-void glPopName(void)
-{
-    assertf(0, "Selection mode is not supported!");
-}
-void glPushName(GLint name)
-{
-    assertf(0, "Selection mode is not supported!");
-}
-void glLoadName(GLint name)
-{
-    assertf(0, "Selection mode is not supported!");
-}
-void glSelectBuffer(GLsizei n, GLuint *buffer)
-{
-    assertf(0, "Selection mode is not supported!");
-}
-
-void glFeedbackBuffer(GLsizei n, GLenum type, GLfloat *buffer)
-{
-    assertf(0, "Feedback mode is not supported!");
-}
-void glPassThrough(GLfloat token)
-{
-    assertf(0, "Feedback mode is not supported!");
-}
-
-void glSampleCoverageARB(GLclampf value, GLboolean invert)
-{
-    assertf(0, "Sample coverage is not supported!");
-}
-
-void glPushAttrib(GLbitfield mask)
-{
-    assertf(0, "Attribute stack is not supported!");
-}
-void glPushClientAttrib(GLbitfield mask)
-{
-    assertf(0, "Attribute stack is not supported!");
-}
-void glPopAttrib(void)
-{
-    assertf(0, "Attribute stack is not supported!");
-}
-void glPopClientAttrib(void)
-{
-    assertf(0, "Attribute stack is not supported!");
 }
