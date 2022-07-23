@@ -215,6 +215,10 @@ Functions</h2></td></tr>
 void&#160;</td><td class="memItemRight" valign="bottom"><b>__TI_handler</b> (void)</td></tr>
 <tr class="memdesc:gac0eece989af0383b0994b3a22c6d1960"><td class="mdescLeft">&#160;</td><td class="mdescRight">Handle a timer interrupt. <br /></td></tr>
 <tr class="separator:gac0eece989af0383b0994b3a22c6d1960"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga9cb68df23ed3587601ffac775b9a953c"><td class="memItemLeft" align="right" valign="top">
+void&#160;</td><td class="memItemRight" valign="bottom"><b>__CART_handler</b> (void)</td></tr>
+<tr class="memdesc:ga9cb68df23ed3587601ffac775b9a953c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Handle a CART interrupt. <br /></td></tr>
+<tr class="separator:ga9cb68df23ed3587601ffac775b9a953c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga2351876167328732c7ff03de3c4081db"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#ga2351876167328732c7ff03de3c4081db">register_AI_handler</a> (void(*callback)())</td></tr>
 <tr class="memdesc:ga2351876167328732c7ff03de3c4081db"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register an AI callback.  <a href="group__interrupt.html#ga2351876167328732c7ff03de3c4081db">More...</a><br /></td></tr>
 <tr class="separator:ga2351876167328732c7ff03de3c4081db"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -239,12 +243,6 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__TI_handler</b> (voi
 <tr class="memitem:ga576a9619c9c5e42863664ed1dcbb7d11"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#ga576a9619c9c5e42863664ed1dcbb7d11">unregister_DP_handler</a> (void(*callback)())</td></tr>
 <tr class="memdesc:ga576a9619c9c5e42863664ed1dcbb7d11"><td class="mdescLeft">&#160;</td><td class="mdescRight">Unregister a DP callback.  <a href="group__interrupt.html#ga576a9619c9c5e42863664ed1dcbb7d11">More...</a><br /></td></tr>
 <tr class="separator:ga576a9619c9c5e42863664ed1dcbb7d11"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga9d5470e13ad8f649ba02b833630d6abf"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#ga9d5470e13ad8f649ba02b833630d6abf">register_TI_handler</a> (void(*callback)())</td></tr>
-<tr class="memdesc:ga9d5470e13ad8f649ba02b833630d6abf"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a TI callback.  <a href="group__interrupt.html#ga9d5470e13ad8f649ba02b833630d6abf">More...</a><br /></td></tr>
-<tr class="separator:ga9d5470e13ad8f649ba02b833630d6abf"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga1cc1089f8fe22245df63d22f314a95d6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#ga1cc1089f8fe22245df63d22f314a95d6">unregister_TI_handler</a> (void(*callback)())</td></tr>
-<tr class="memdesc:ga1cc1089f8fe22245df63d22f314a95d6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Unegister a TI callback.  <a href="group__interrupt.html#ga1cc1089f8fe22245df63d22f314a95d6">More...</a><br /></td></tr>
-<tr class="separator:ga1cc1089f8fe22245df63d22f314a95d6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gae2ed676471062e227ad17ac859b22163"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#gae2ed676471062e227ad17ac859b22163">register_SI_handler</a> (void(*callback)())</td></tr>
 <tr class="memdesc:gae2ed676471062e227ad17ac859b22163"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a SI callback.  <a href="group__interrupt.html#gae2ed676471062e227ad17ac859b22163">More...</a><br /></td></tr>
 <tr class="separator:gae2ed676471062e227ad17ac859b22163"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -257,6 +255,18 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__TI_handler</b> (voi
 <tr class="memitem:gad3983fa9ec9de4022655d4153b39bead"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#gad3983fa9ec9de4022655d4153b39bead">unregister_SP_handler</a> (void(*callback)())</td></tr>
 <tr class="memdesc:gad3983fa9ec9de4022655d4153b39bead"><td class="mdescLeft">&#160;</td><td class="mdescRight">Unegister a SP callback.  <a href="group__interrupt.html#gad3983fa9ec9de4022655d4153b39bead">More...</a><br /></td></tr>
 <tr class="separator:gad3983fa9ec9de4022655d4153b39bead"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga9d5470e13ad8f649ba02b833630d6abf"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#ga9d5470e13ad8f649ba02b833630d6abf">register_TI_handler</a> (void(*callback)())</td></tr>
+<tr class="memdesc:ga9d5470e13ad8f649ba02b833630d6abf"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a timer callback.  <a href="group__interrupt.html#ga9d5470e13ad8f649ba02b833630d6abf">More...</a><br /></td></tr>
+<tr class="separator:ga9d5470e13ad8f649ba02b833630d6abf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga1cc1089f8fe22245df63d22f314a95d6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#ga1cc1089f8fe22245df63d22f314a95d6">unregister_TI_handler</a> (void(*callback)())</td></tr>
+<tr class="memdesc:ga1cc1089f8fe22245df63d22f314a95d6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Unregister a timer callback.  <a href="group__interrupt.html#ga1cc1089f8fe22245df63d22f314a95d6">More...</a><br /></td></tr>
+<tr class="separator:ga1cc1089f8fe22245df63d22f314a95d6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga0bb059c6f6872f28fec2a819541279f4"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#ga0bb059c6f6872f28fec2a819541279f4">register_CART_handler</a> (void(*callback)())</td></tr>
+<tr class="memdesc:ga0bb059c6f6872f28fec2a819541279f4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a CART interrupt callback.  <a href="group__interrupt.html#ga0bb059c6f6872f28fec2a819541279f4">More...</a><br /></td></tr>
+<tr class="separator:ga0bb059c6f6872f28fec2a819541279f4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga7f0506a6313156207431898c0fb400ec"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#ga7f0506a6313156207431898c0fb400ec">unregister_CART_handler</a> (void(*callback)())</td></tr>
+<tr class="memdesc:ga7f0506a6313156207431898c0fb400ec"><td class="mdescLeft">&#160;</td><td class="mdescRight">Unregister a CART interrupt callback.  <a href="group__interrupt.html#ga7f0506a6313156207431898c0fb400ec">More...</a><br /></td></tr>
+<tr class="separator:ga7f0506a6313156207431898c0fb400ec"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga87288d9e8d2c178572957295ff64ec40"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#ga87288d9e8d2c178572957295ff64ec40">set_AI_interrupt</a> (int active)</td></tr>
 <tr class="memdesc:ga87288d9e8d2c178572957295ff64ec40"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enable or disable the AI interrupt.  <a href="group__interrupt.html#ga87288d9e8d2c178572957295ff64ec40">More...</a><br /></td></tr>
 <tr class="separator:ga87288d9e8d2c178572957295ff64ec40"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -275,6 +285,12 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__TI_handler</b> (voi
 <tr class="memitem:ga24c9ae3233fc77e0f6a1a22843c88298"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#ga24c9ae3233fc77e0f6a1a22843c88298">set_SP_interrupt</a> (int active)</td></tr>
 <tr class="memdesc:ga24c9ae3233fc77e0f6a1a22843c88298"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enable or disable the SP interrupt.  <a href="group__interrupt.html#ga24c9ae3233fc77e0f6a1a22843c88298">More...</a><br /></td></tr>
 <tr class="separator:ga24c9ae3233fc77e0f6a1a22843c88298"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga67483ed4435081b227aa799465cb7436"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#ga67483ed4435081b227aa799465cb7436">set_TI_interrupt</a> (int active)</td></tr>
+<tr class="memdesc:ga67483ed4435081b227aa799465cb7436"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enable the timer interrupt.  <a href="group__interrupt.html#ga67483ed4435081b227aa799465cb7436">More...</a><br /></td></tr>
+<tr class="separator:ga67483ed4435081b227aa799465cb7436"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gac7ddaefc83763af0e97886beb7600d8b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#gac7ddaefc83763af0e97886beb7600d8b">set_CART_interrupt</a> (int active)</td></tr>
+<tr class="memdesc:gac7ddaefc83763af0e97886beb7600d8b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enable the CART interrupt.  <a href="group__interrupt.html#gac7ddaefc83763af0e97886beb7600d8b">More...</a><br /></td></tr>
+<tr class="separator:gac7ddaefc83763af0e97886beb7600d8b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga72e02641a29de5f343f8507140b46b8e"><td class="memItemLeft" align="right" valign="top">
 void&#160;</td><td class="memItemRight" valign="bottom"><b>__init_interrupts</b> ()</td></tr>
 <tr class="memdesc:ga72e02641a29de5f343f8507140b46b8e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize the interrupt controller. <br /></td></tr>
@@ -310,10 +326,6 @@ struct callback_link *&#160;</td><td class="memItemRight" valign="bottom"><b>PI_
 struct callback_link *&#160;</td><td class="memItemRight" valign="bottom"><b>DP_callback</b> = 0</td></tr>
 <tr class="memdesc:ga5d91906f92df789296192c5b4b0ba072"><td class="mdescLeft">&#160;</td><td class="mdescRight">Linked list of DP callbacks. <br /></td></tr>
 <tr class="separator:ga5d91906f92df789296192c5b4b0ba072"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga6f26639aff9cc91b67b52f6a7e373e63"><td class="memItemLeft" align="right" valign="top">
-struct callback_link *&#160;</td><td class="memItemRight" valign="bottom"><b>TI_callback</b> = 0</td></tr>
-<tr class="memdesc:ga6f26639aff9cc91b67b52f6a7e373e63"><td class="mdescLeft">&#160;</td><td class="mdescRight">Linked list of TI callbacks. <br /></td></tr>
-<tr class="separator:ga6f26639aff9cc91b67b52f6a7e373e63"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga5cb8e491a3e1ca60b7a10731e2c33711"><td class="memItemLeft" align="right" valign="top">
 struct callback_link *&#160;</td><td class="memItemRight" valign="bottom"><b>SI_callback</b> = 0</td></tr>
 <tr class="memdesc:ga5cb8e491a3e1ca60b7a10731e2c33711"><td class="mdescLeft">&#160;</td><td class="mdescRight">Linked list of SI callbacks. <br /></td></tr>
@@ -322,13 +334,21 @@ struct callback_link *&#160;</td><td class="memItemRight" valign="bottom"><b>SI_
 struct callback_link *&#160;</td><td class="memItemRight" valign="bottom"><b>SP_callback</b> = 0</td></tr>
 <tr class="memdesc:ga6dcb2022913d189e49c6a027ba4c1089"><td class="mdescLeft">&#160;</td><td class="mdescRight">Linked list of SP callbacks. <br /></td></tr>
 <tr class="separator:ga6dcb2022913d189e49c6a027ba4c1089"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga6f26639aff9cc91b67b52f6a7e373e63"><td class="memItemLeft" align="right" valign="top">
+struct callback_link *&#160;</td><td class="memItemRight" valign="bottom"><b>TI_callback</b> = 0</td></tr>
+<tr class="memdesc:ga6f26639aff9cc91b67b52f6a7e373e63"><td class="mdescLeft">&#160;</td><td class="mdescRight">Linked list of TI callbacks. <br /></td></tr>
+<tr class="separator:ga6f26639aff9cc91b67b52f6a7e373e63"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga573de59e71ea77bd0697642b8c4e9729"><td class="memItemLeft" align="right" valign="top">
+struct callback_link *&#160;</td><td class="memItemRight" valign="bottom"><b>CART_callback</b> = 0</td></tr>
+<tr class="memdesc:ga573de59e71ea77bd0697642b8c4e9729"><td class="mdescLeft">&#160;</td><td class="mdescRight">Linked list of CART callbacks. <br /></td></tr>
+<tr class="separator:ga573de59e71ea77bd0697642b8c4e9729"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p >Interrupt Controller. </p>
 </div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sat Jul 23 2022 19:15:46 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Sat Jul 23 2022 21:30:27 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

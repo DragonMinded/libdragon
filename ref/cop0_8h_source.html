@@ -206,35 +206,36 @@ $(function() {
 <div class="line"><a id="l00261" name="l00261"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga355848e5bf2a8f80122aba76f5701d2f">  261</a></span><span class="preprocessor">#define C0_INTERRUPT_7      0x00008000      </span></div>
 <div class="line"><a id="l00262" name="l00262"></a><span class="lineno">  262</span> </div>
 <div class="line"><a id="l00263" name="l00263"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga704100449656c8a2fbf27f4834d5746b">  263</a></span><span class="preprocessor">#define C0_INTERRUPT_RCP    C0_INTERRUPT_2  </span></div>
-<div class="line"><a id="l00264" name="l00264"></a><span class="lineno"><a class="line" href="group__n64sys.html#gaface18baac16e7e91a2132bd34b3d681">  264</a></span><span class="preprocessor">#define C0_INTERRUPT_PRENMI C0_INTERRUPT_4  </span></div>
-<div class="line"><a id="l00265" name="l00265"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga65deb85bae05eae40c9b908d8d0a14b2">  265</a></span><span class="preprocessor">#define C0_INTERRUPT_TIMER  C0_INTERRUPT_7  </span></div>
-<div class="line"><a id="l00266" name="l00266"></a><span class="lineno">  266</span> </div>
-<div class="line"><a id="l00273" name="l00273"></a><span class="lineno"><a class="line" href="group__n64sys.html#gab0ee128daa09f4992787f3d9a02130da">  273</a></span><span class="preprocessor">#define C0_GET_CAUSE_CE(cr) (((cr) &amp; C0_CAUSE_CE) &gt;&gt; 28)</span></div>
-<div class="line"><a id="l00274" name="l00274"></a><span class="lineno">  274</span> </div>
-<div class="line"><a id="l00278" name="l00278"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga2d7694469905182150475bac6179be6d">  278</a></span><span class="preprocessor">#define C0_GET_CAUSE_EXC_CODE(sr) (((sr) &amp; C0_CAUSE_EXC_CODE) &gt;&gt; 2)</span></div>
-<div class="line"><a id="l00279" name="l00279"></a><span class="lineno">  279</span> </div>
-<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span><span class="comment">/* Flag bits valid for COP0 ENTRYLO0/ENTRYLO1 registers */</span></div>
-<div class="line"><a id="l00281" name="l00281"></a><span class="lineno"><a class="line" href="group__n64sys.html#gaa623a51d6be58180e69da3991241c94e">  281</a></span><span class="preprocessor">#define C0_ENTRYLO_GLOBAL      (1&lt;&lt;0)       </span></div>
-<div class="line"><a id="l00282" name="l00282"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga22b87e58967eab3082131b8a9ab06e73">  282</a></span><span class="preprocessor">#define C0_ENTRYLO_VALID       (1&lt;&lt;1)       </span></div>
-<div class="line"><a id="l00283" name="l00283"></a><span class="lineno"><a class="line" href="group__n64sys.html#gab291285b91c8b9f5946e5f039032e56d">  283</a></span><span class="preprocessor">#define C0_ENTRYLO_DIRTY       (1&lt;&lt;2)       </span></div>
-<div class="line"><a id="l00284" name="l00284"></a><span class="lineno">  284</span> </div>
-<div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span><span class="comment">/* Flag bits valid for COP0 INDEX register */</span></div>
-<div class="line"><a id="l00286" name="l00286"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga13d30b736684b9e2d02de76dc50d8ac0">  286</a></span><span class="preprocessor">#define C0_INDEX_PROBE_FAILED  (1&lt;&lt;31)      </span></div>
-<div class="line"><a id="l00287" name="l00287"></a><span class="lineno">  287</span> </div>
+<div class="line"><a id="l00264" name="l00264"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga2f57198abe0eb87463484a1960fd9525">  264</a></span><span class="preprocessor">#define C0_INTERRUPT_CART   C0_INTERRUPT_3  </span></div>
+<div class="line"><a id="l00265" name="l00265"></a><span class="lineno"><a class="line" href="group__n64sys.html#gaface18baac16e7e91a2132bd34b3d681">  265</a></span><span class="preprocessor">#define C0_INTERRUPT_PRENMI C0_INTERRUPT_4  </span></div>
+<div class="line"><a id="l00266" name="l00266"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga65deb85bae05eae40c9b908d8d0a14b2">  266</a></span><span class="preprocessor">#define C0_INTERRUPT_TIMER  C0_INTERRUPT_7  </span></div>
+<div class="line"><a id="l00267" name="l00267"></a><span class="lineno">  267</span> </div>
+<div class="line"><a id="l00274" name="l00274"></a><span class="lineno"><a class="line" href="group__n64sys.html#gab0ee128daa09f4992787f3d9a02130da">  274</a></span><span class="preprocessor">#define C0_GET_CAUSE_CE(cr) (((cr) &amp; C0_CAUSE_CE) &gt;&gt; 28)</span></div>
+<div class="line"><a id="l00275" name="l00275"></a><span class="lineno">  275</span> </div>
+<div class="line"><a id="l00279" name="l00279"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga2d7694469905182150475bac6179be6d">  279</a></span><span class="preprocessor">#define C0_GET_CAUSE_EXC_CODE(sr) (((sr) &amp; C0_CAUSE_EXC_CODE) &gt;&gt; 2)</span></div>
+<div class="line"><a id="l00280" name="l00280"></a><span class="lineno">  280</span> </div>
+<div class="line"><a id="l00281" name="l00281"></a><span class="lineno">  281</span><span class="comment">/* Flag bits valid for COP0 ENTRYLO0/ENTRYLO1 registers */</span></div>
+<div class="line"><a id="l00282" name="l00282"></a><span class="lineno"><a class="line" href="group__n64sys.html#gaa623a51d6be58180e69da3991241c94e">  282</a></span><span class="preprocessor">#define C0_ENTRYLO_GLOBAL      (1&lt;&lt;0)       </span></div>
+<div class="line"><a id="l00283" name="l00283"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga22b87e58967eab3082131b8a9ab06e73">  283</a></span><span class="preprocessor">#define C0_ENTRYLO_VALID       (1&lt;&lt;1)       </span></div>
+<div class="line"><a id="l00284" name="l00284"></a><span class="lineno"><a class="line" href="group__n64sys.html#gab291285b91c8b9f5946e5f039032e56d">  284</a></span><span class="preprocessor">#define C0_ENTRYLO_DIRTY       (1&lt;&lt;2)       </span></div>
+<div class="line"><a id="l00285" name="l00285"></a><span class="lineno">  285</span> </div>
+<div class="line"><a id="l00286" name="l00286"></a><span class="lineno">  286</span><span class="comment">/* Flag bits valid for COP0 INDEX register */</span></div>
+<div class="line"><a id="l00287" name="l00287"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga13d30b736684b9e2d02de76dc50d8ac0">  287</a></span><span class="preprocessor">#define C0_INDEX_PROBE_FAILED  (1&lt;&lt;31)      </span></div>
 <div class="line"><a id="l00288" name="l00288"></a><span class="lineno">  288</span> </div>
-<div class="line"><a id="l00295" name="l00295"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga0c9067a58f6b9b4c3d89d3ec123de5ab">  295</a></span><span class="preprocessor">#define C0_TLBWI()           asm volatile(&quot;tlbwi; nop; nop; nop; nop&quot;</span>)</div>
-<div class="line"><a id="l00296" name="l00296"></a><span class="lineno">  296</span> </div>
-<div class="line"><a id="l00304" name="l00304"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga9064781426b89fb32d4acd176604010d">  304</a></span><span class="preprocessor">#define C0_TLBWR()           asm volatile(&quot;tlbwr; nop; nop; nop; nop&quot;</span>)</div>
-<div class="line"><a id="l00305" name="l00305"></a><span class="lineno">  305</span> </div>
-<div class="line"><a id="l00313" name="l00313"></a><span class="lineno"><a class="line" href="group__n64sys.html#gabb44eff79082cf67bcad321457adacb3">  313</a></span><span class="preprocessor">#define C0_TLBR()            asm volatile(&quot;tlbr; nop; nop; nop; nop&quot;</span>)</div>
-<div class="line"><a id="l00314" name="l00314"></a><span class="lineno">  314</span> </div>
-<div class="line"><a id="l00323" name="l00323"></a><span class="lineno"><a class="line" href="group__n64sys.html#gaba427de075f56d64d19af61b38821ae3">  323</a></span><span class="preprocessor">#define C0_TLBP()            asm volatile(&quot;tlbp; nop; nop; nop; nop&quot;</span>)</div>
-<div class="line"><a id="l00324" name="l00324"></a><span class="lineno">  324</span> </div>
-<div class="line"><a id="l00327" name="l00327"></a><span class="lineno">  327</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00289" name="l00289"></a><span class="lineno">  289</span> </div>
+<div class="line"><a id="l00296" name="l00296"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga0c9067a58f6b9b4c3d89d3ec123de5ab">  296</a></span><span class="preprocessor">#define C0_TLBWI()           asm volatile(&quot;tlbwi; nop; nop; nop; nop&quot;</span>)</div>
+<div class="line"><a id="l00297" name="l00297"></a><span class="lineno">  297</span> </div>
+<div class="line"><a id="l00305" name="l00305"></a><span class="lineno"><a class="line" href="group__n64sys.html#ga9064781426b89fb32d4acd176604010d">  305</a></span><span class="preprocessor">#define C0_TLBWR()           asm volatile(&quot;tlbwr; nop; nop; nop; nop&quot;</span>)</div>
+<div class="line"><a id="l00306" name="l00306"></a><span class="lineno">  306</span> </div>
+<div class="line"><a id="l00314" name="l00314"></a><span class="lineno"><a class="line" href="group__n64sys.html#gabb44eff79082cf67bcad321457adacb3">  314</a></span><span class="preprocessor">#define C0_TLBR()            asm volatile(&quot;tlbr; nop; nop; nop; nop&quot;</span>)</div>
+<div class="line"><a id="l00315" name="l00315"></a><span class="lineno">  315</span> </div>
+<div class="line"><a id="l00324" name="l00324"></a><span class="lineno"><a class="line" href="group__n64sys.html#gaba427de075f56d64d19af61b38821ae3">  324</a></span><span class="preprocessor">#define C0_TLBP()            asm volatile(&quot;tlbp; nop; nop; nop; nop&quot;</span>)</div>
+<div class="line"><a id="l00325" name="l00325"></a><span class="lineno">  325</span> </div>
+<div class="line"><a id="l00328" name="l00328"></a><span class="lineno">  328</span><span class="preprocessor">#endif</span></div>
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sat Jul 23 2022 19:15:46 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Sat Jul 23 2022 21:30:26 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
