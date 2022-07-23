@@ -62,21 +62,31 @@ quickly get libdragon up and running. Basically:
 If you want, you can also compile and run one of the examples that will
 be found in `libdragon/examples` in the skeleton project.
 
-### Option 2: Compile the toolchain (Linux only)
+### Option 2: Compile the toolchain (Linux/macOS only)
 
 1. Export the environment variable N64_INST to the path where you want your
    toolchain to be installed. For instance: `export N64_INST=/opt/n64` or
    `export N64_INST=/usr/local`.
-2. Create an empty directory and copy the `tools/build-toolchain.sh` script there
-3. Read the comments in the build script to see what additional packages are needed.
-4. Run `./build-toolchain.sh` from the created directory, let it build and install the toolchain.
+2. Enter the `tools` directory. Read the comments at the top of `./build-toolchain.sh` 
+   script to see what additional packages are needed. 
+   If you are on macOS, make sure [homebrew](https://brew.sh) is installed.
+3. Make sure you have at least 7 Gb of disk space available (notice that after
+   build, only about 300 Mb will be used, but during build a lot of space is
+   required).
+4. Run `./build-toolchain.sh` from the `tools` directory, let it build and
+   install the toolchain. The process will take a while depending on your computer
+   (1 hour is not unexpected).
 5. Install libpng-dev if not already installed.
 6. Make sure that you still have the `N64_INST` variable pointing to the correct
    directory where the toolchain was installed (`echo $N64_INST`).
-6. Run `./build.sh` at the top-level. This will install libdragon, its tools,
+7. Run `./build.sh` at the top-level. This will install libdragon, its tools,
    and also build all examples.
 
 You are now ready to run the examples on your N64 or emulator.
+
+Once you are sure everything is fine, you can delete the `tools/toolchain/`
+directory, where the toolchain was built. This will free around 6Gb of space.
+You will only need the installed binaries in the `N64_INST` from now on.
 
 ## Getting started: how to run a ROM
 
