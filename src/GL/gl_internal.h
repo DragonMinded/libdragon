@@ -89,6 +89,7 @@ typedef struct {
 typedef struct {
     uint32_t width;
     uint32_t height;
+    uint32_t stride;
     GLenum internal_format;
     void *data;
 } gl_texture_image_t;

@@ -624,14 +624,10 @@ bool gl_texture_fits_tmem(gl_texture_object_t *texture, uint32_t additional_size
     return size <= 0x1000;
 }
 
-bool gl_upload_image(gl_texture_object_t *obj, GLenum target, GLint internalformat, GLsizei width, GLsizei height,
-                     GLint border, GLenum format, GLenum type, const GLvoid *data, uint32_t stride_in_pixels, GLvoid **dest, bool allocate)
+bool gl_validate_upload_image(GLenum format, GLenum type, uint32_t *num_elements)
 {
-    // TODO: border?
-    assertf(border == 0, "Texture border is not implemented yet!");
-
-    uint32_t num_elements = gl_get_format_element_count(format);
-    if (num_elements == 0) {
+    *num_elements = gl_get_format_element_count(format);
+    if (*num_elements == 0) {
         gl_set_error(GL_INVALID_ENUM);
         return false;
     }
@@ -646,7 +642,7 @@ bool gl_upload_image(gl_texture_object_t *obj, GLenum target, GLint internalform
     case GL_FLOAT:
         break;
     case GL_UNSIGNED_BYTE_3_3_2_EXT:
-        if (num_elements != 3) {
+        if (*num_elements != 3) {
             gl_set_error(GL_INVALID_OPERATION);
             return false;
         }
@@ -655,7 +651,7 @@ bool gl_upload_image(gl_texture_object_t *obj, GLenum target, GLint internalform
     case GL_UNSIGNED_SHORT_5_5_5_1_EXT:
     case GL_UNSIGNED_INT_8_8_8_8_EXT:
     case GL_UNSIGNED_INT_10_10_10_2_EXT:
-        if (num_elements != 4) {
+        if (*num_elements != 4) {
             gl_set_error(GL_INVALID_OPERATION);
             return false;
         }
@@ -665,43 +661,15 @@ bool gl_upload_image(gl_texture_object_t *obj, GLenum target, GLint internalform
         gl_set_error(GL_INVALID_ENUM);
         return false;
     }
-    uint32_t rdp_format = gl_get_texture_format(internalformat);
-    uint32_t pixel_size = TEX_FORMAT_BYTES_PER_PIXEL(rdp_format);
-    uint32_t size = pixel_size * width * height;
-
-    if (!gl_texture_fits_tmem(obj, size)) {
-        gl_set_error(GL_INVALID_VALUE);
-        return false;
-    }
-
-    // TODO: small textures where TMEM pitch would be < 8 bytes
-
-    if (allocate) {
-        GLvoid *new_buffer = malloc_uncached(size);
-        if (new_buffer == NULL) {
-            gl_set_error(GL_OUT_OF_MEMORY);
-            return false;
-        }
-
-        if (*dest != NULL) {
-            free_uncached(*dest);
-        }
-
-        *dest = new_buffer;
-    }
-
-    assertf(*dest != NULL, "Image has no allocated buffer!");
-
-    if (data != NULL) {
-        uint32_t stride = pixel_size * stride_in_pixels;
-        gl_transfer_pixels(*dest, internalformat, stride, width, height, num_elements, format, type, data);
-    }
 
     return true;
 }
 
-void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data, uint32_t stride_in_pixels)
+void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
+    // TODO: border?
+    assertf(border == 0, "Texture border is not implemented yet!");
+
     gl_texture_object_t *obj;
     gl_texture_image_t *image;
 
@@ -715,10 +683,37 @@ void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei widt
         return;
     }
 
-    if (!gl_upload_image(obj, target, preferred_format, width, height, border, format, type, data, stride_in_pixels, &image->data, true)) {
+    uint32_t num_elements;
+    if (!gl_validate_upload_image(format, type, &num_elements)) {
         return;
     }
 
+    uint32_t rdp_format = gl_get_texture_format(preferred_format);
+    uint32_t pixel_size = TEX_FORMAT_BYTES_PER_PIXEL(rdp_format);
+    uint32_t stride = pixel_size * width;
+    uint32_t size = stride * height;
+
+    if (!gl_texture_fits_tmem(obj, size)) {
+        gl_set_error(GL_INVALID_VALUE);
+        return;
+    }
+
+    GLvoid *new_buffer = malloc_uncached(size);
+    if (new_buffer == NULL) {
+        gl_set_error(GL_OUT_OF_MEMORY);
+        return;
+    }
+
+    if (data != NULL) {
+        gl_transfer_pixels(new_buffer, preferred_format, stride, width, height, num_elements, format, type, data);
+    }
+
+    if (image->data != NULL) {
+        free_uncached(image->data);
+    }
+
+    image->data = new_buffer;
+    image->stride = stride;
     image->width = width;
     image->height = height;
     image->internal_format = preferred_format;
@@ -727,7 +722,7 @@ void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei widt
     gl_update_texture_completeness(obj);
 }
 
-void gl_tex_sub_image(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *data, uint32_t stride_in_pixels)
+void gl_tex_sub_image(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *data)
 {
     gl_texture_object_t *obj;
     gl_texture_image_t *image;
@@ -741,12 +736,17 @@ void gl_tex_sub_image(GLenum target, GLint level, GLint xoffset, GLint yoffset, 
         return;
     }
 
+    uint32_t num_elements;
+    if (!gl_validate_upload_image(format, type, &num_elements)) {
+        return;
+    }
+
     uint32_t rdp_format = gl_get_texture_format(image->internal_format);
     uint32_t pixel_size = TEX_FORMAT_BYTES_PER_PIXEL(rdp_format);
-    GLvoid *dest = image->data + yoffset * pixel_size * image->width + xoffset * pixel_size;
+    GLvoid *dest = image->data + yoffset * image->stride + xoffset * pixel_size;
 
-    if (!gl_upload_image(obj, target, image->internal_format, width, height, 0, format, type, data, stride_in_pixels, &dest, false)) {
-        return;
+    if (data != NULL) {
+        gl_transfer_pixels(dest, image->internal_format, image->stride, width, height, num_elements, format, type, data);
     }
 
     state.is_texture_dirty = true;
@@ -760,7 +760,7 @@ void glTexImage1D(GLenum target, GLint level, GLint internalformat, GLsizei widt
         return;
     }
 
-    gl_tex_image(target, level, internalformat, width, 1, border, format, type, data, width);
+    gl_tex_image(target, level, internalformat, width, 1, border, format, type, data);
 }
 
 void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data)
@@ -771,7 +771,7 @@ void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei widt
         return;
     }
 
-    gl_tex_image(target, level, internalformat, width, height, border, format, type, data, width);
+    gl_tex_image(target, level, internalformat, width, height, border, format, type, data);
 }
 
 void glTexSubImage1D(GLenum target, GLint level, GLint xoffset, GLsizei width, GLenum format, GLenum type, const GLvoid *data)
@@ -781,7 +781,7 @@ void glTexSubImage1D(GLenum target, GLint level, GLint xoffset, GLsizei width, G
         return;
     }
 
-    gl_tex_sub_image(target, level, xoffset, 0, width, 1, format, type, data, width);
+    gl_tex_sub_image(target, level, xoffset, 0, width, 1, format, type, data);
 }
 
 void glTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *data)
@@ -791,7 +791,7 @@ void glTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, G
         return;
     }
 
-    gl_tex_sub_image(target, level, xoffset, yoffset, width, height, format, type, data, width);
+    gl_tex_sub_image(target, level, xoffset, yoffset, width, height, format, type, data);
 }
 
 // TODO: should CopyTex[Sub]Image be supported?
