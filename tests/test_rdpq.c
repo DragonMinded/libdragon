@@ -5,6 +5,26 @@
 #include <rdp_commands.h>
 #include "../src/rspq/rspq_commands.h"
 #include "../src/rdpq/rdpq_block.h"
+#include "../src/rdpq/rdpq_debug.h"
+#include "../src/rdpq/rdpq_constants.h"
+
+#define RDPQ_INIT() \
+    rspq_init(); DEFER(rspq_close()); \
+    rdpq_init(); DEFER(rdpq_close()); \
+    rdpq_debug_start(); DEFER(rdpq_debug_stop())
+
+
+__attribute__((unused))
+static void debug_surface(const char *name, uint16_t *buf, int w, int h) {
+    debugf("Surface %s:\n", name);
+    for (int j=0;j<h;j++) {
+        for (int i=0;i<w;i++) {
+            debugf("%04x ", buf[j*w+i]);
+        }
+        debugf("\n");
+    }
+    debugf("\n");
+}
 
 void test_rdpq_rspqwait(TestContext *ctx)
 {
@@ -14,10 +34,7 @@ void test_rdpq_rspqwait(TestContext *ctx)
     DEFER(free_uncached(buffer));
     memset(buffer, 0, 128*128*4);
 
-    rspq_init();
-    DEFER(rspq_close());
-    rdpq_init();
-    DEFER(rdpq_close());
+    RDPQ_INIT();
 
     color_t color = RGBA32(0x11, 0x22, 0x33, 0xFF);
 
@@ -35,10 +52,7 @@ void test_rdpq_rspqwait(TestContext *ctx)
 
 void test_rdpq_clear(TestContext *ctx)
 {
-    rspq_init();
-    DEFER(rspq_close());
-    rdpq_init();
-    DEFER(rdpq_close());
+    RDPQ_INIT();
 
     color_t fill_color = RGBA32(0xFF, 0xFF, 0xFF, 0xFF);
 
@@ -61,10 +75,7 @@ void test_rdpq_clear(TestContext *ctx)
 
 void test_rdpq_dynamic(TestContext *ctx)
 {
-    rspq_init();
-    DEFER(rspq_close());
-    rdpq_init();
-    DEFER(rdpq_close());
+    RDPQ_INIT();
 
     #define TEST_RDPQ_FBWIDTH 64
     #define TEST_RDPQ_FBAREA  TEST_RDPQ_FBWIDTH * TEST_RDPQ_FBWIDTH
@@ -109,10 +120,7 @@ void test_rdpq_dynamic(TestContext *ctx)
 
 void test_rdpq_passthrough_big(TestContext *ctx)
 {
-    rspq_init();
-    DEFER(rspq_close());
-    rdpq_init();
-    DEFER(rdpq_close());
+    RDPQ_INIT();
 
     #define TEST_RDPQ_FBWIDTH 16
     #define TEST_RDPQ_FBAREA  TEST_RDPQ_FBWIDTH * TEST_RDPQ_FBWIDTH
@@ -146,10 +154,7 @@ void test_rdpq_passthrough_big(TestContext *ctx)
 
 void test_rdpq_block(TestContext *ctx)
 {
-    rspq_init();
-    DEFER(rspq_close());
-    rdpq_init();
-    DEFER(rdpq_close());
+    RDPQ_INIT();
 
     #define TEST_RDPQ_FBWIDTH 64
     #define TEST_RDPQ_FBAREA  TEST_RDPQ_FBWIDTH * TEST_RDPQ_FBWIDTH
@@ -198,10 +203,7 @@ void test_rdpq_block(TestContext *ctx)
 
 void test_rdpq_block_coalescing(TestContext *ctx)
 {
-    rspq_init();
-    DEFER(rspq_close());
-    rdpq_init();
-    DEFER(rdpq_close());
+    RDPQ_INIT();
 
     // The actual commands don't matter because they are never executed
     rspq_block_begin();
@@ -227,11 +229,14 @@ void test_rdpq_block_coalescing(TestContext *ctx)
 
     uint32_t expected_cmds[] = {
         // auto sync + First 3 commands + auto sync
-        (RSPQ_CMD_RDP << 24) | PhysicalAddr(rdp_cmds + 5), PhysicalAddr(rdp_cmds),
+        (RSPQ_CMD_RDP_SET_BUFFER << 24) | PhysicalAddr(rdp_cmds + 5), 
+            PhysicalAddr(rdp_cmds), 
+            PhysicalAddr(rdp_cmds + RDPQ_BLOCK_MIN_SIZE/2),
         // Fixup command (leaves a hole in rdp block)
-        (RDPQ_CMD_SET_FILL_COLOR_32_FIX + 0xC0) << 24, 0,
+        (RDPQ_CMD_SET_FILL_COLOR_32_FIX + 0xC0) << 24, 
+            0,
         // Last 3 commands
-        (RSPQ_CMD_RDP << 24) | PhysicalAddr(rdp_cmds + 9), PhysicalAddr(rdp_cmds + 6),
+        (RSPQ_CMD_RDP_APPEND_BUFFER << 24) | PhysicalAddr(rdp_cmds + 9),
     };
 
     ASSERT_EQUAL_MEM((uint8_t*)block->cmds, (uint8_t*)expected_cmds, sizeof(expected_cmds), "Block commands don't match!");
@@ -239,10 +244,7 @@ void test_rdpq_block_coalescing(TestContext *ctx)
 
 void test_rdpq_block_contiguous(TestContext *ctx)
 {
-    rspq_init();
-    DEFER(rspq_close());
-    rdpq_init();
-    DEFER(rdpq_close());
+    RDPQ_INIT();
 
     #define TEST_RDPQ_FBWIDTH 64
     #define TEST_RDPQ_FBAREA  TEST_RDPQ_FBWIDTH * TEST_RDPQ_FBWIDTH
@@ -285,10 +287,7 @@ void test_rdpq_block_contiguous(TestContext *ctx)
 
 void test_rdpq_fixup_setfillcolor(TestContext *ctx)
 {
-    rspq_init();
-    DEFER(rspq_close());
-    rdpq_init();
-    DEFER(rdpq_close());
+    RDPQ_INIT();
 
     #define TEST_RDPQ_FBWIDTH 64
     #define TEST_RDPQ_FBAREA  (TEST_RDPQ_FBWIDTH * TEST_RDPQ_FBWIDTH)
@@ -354,10 +353,7 @@ void test_rdpq_fixup_setfillcolor(TestContext *ctx)
 
 void test_rdpq_fixup_setscissor(TestContext *ctx)
 {
-    rspq_init();
-    DEFER(rspq_close());
-    rdpq_init();
-    DEFER(rdpq_close());
+    RDPQ_INIT();
 
     #define TEST_RDPQ_FBWIDTH 16
     #define TEST_RDPQ_FBAREA  (TEST_RDPQ_FBWIDTH * TEST_RDPQ_FBWIDTH)
@@ -388,7 +384,8 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
         "Wrong data in framebuffer (fill mode)");
 
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
-    rdpq_set_other_modes_raw(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | 0x80000000);
+    rdpq_set_mode_standard();
+    rdpq_mode_blender(RDPQ_BLENDER1((BLEND_RGB, IN_ALPHA, IN_RGB, INV_MUX_ALPHA)));
     rdpq_set_blend_color(TEST_COLOR);
     rdpq_set_scissor(4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
@@ -407,7 +404,8 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
 
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
     rdpq_set_scissor(4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4);
-    rdpq_set_other_modes_raw(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | 0x80000000);
+    rdpq_set_mode_standard();
+    rdpq_mode_blender(RDPQ_BLENDER1((BLEND_RGB, IN_ALPHA, IN_RGB, INV_MUX_ALPHA)));
     rdpq_set_blend_color(TEST_COLOR);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
     rspq_wait();
@@ -421,10 +419,7 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
 
 void test_rdpq_fixup_texturerect(TestContext *ctx)
 {
-    rspq_init();
-    DEFER(rspq_close());
-    rdpq_init();
-    DEFER(rdpq_close());
+    RDPQ_INIT();
 
     #define TEST_RDPQ_FBWIDTH 16
     #define TEST_RDPQ_FBAREA  (TEST_RDPQ_FBWIDTH * TEST_RDPQ_FBWIDTH)
@@ -510,10 +505,7 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
 
 void test_rdpq_lookup_address(TestContext *ctx)
 {
-    rspq_init();
-    DEFER(rspq_close());
-    rdpq_init();
-    DEFER(rdpq_close());
+    RDPQ_INIT();
 
     #define TEST_RDPQ_FBWIDTH 16
     #define TEST_RDPQ_FBAREA  (TEST_RDPQ_FBWIDTH * TEST_RDPQ_FBWIDTH)
@@ -552,10 +544,7 @@ void test_rdpq_lookup_address(TestContext *ctx)
 
 void test_rdpq_lookup_address_offset(TestContext *ctx)
 {
-    rspq_init();
-    DEFER(rspq_close());
-    rdpq_init();
-    DEFER(rdpq_close());
+    RDPQ_INIT();
 
     #define TEST_RDPQ_FBWIDTH    16
     #define TEST_RDPQ_FBAREA     (TEST_RDPQ_FBWIDTH * TEST_RDPQ_FBWIDTH)
@@ -609,10 +598,7 @@ void test_rdpq_lookup_address_offset(TestContext *ctx)
 
 void test_rdpq_syncfull(TestContext *ctx)
 {
-    rspq_init();
-    DEFER(rspq_close());
-    rdpq_init();
-    DEFER(rdpq_close());
+    RDPQ_INIT();
 
     volatile int cb_called = 0;
     volatile uint32_t cb_value = 0;
@@ -646,19 +632,15 @@ void test_rdpq_syncfull(TestContext *ctx)
 }
 
 static void __test_rdpq_autosyncs(TestContext *ctx, void (*func)(void), uint8_t exp[4], bool use_block) {
-    rspq_init();
-    DEFER(rspq_close());
-    rdpq_init();
-    DEFER(rdpq_close());
+    // Force clearing of RDP static buffers, so that we have an easier time inspecting them.
+    __rdpq_zero_blocks = true;
+    DEFER(__rdpq_zero_blocks = false);
+
+    RDPQ_INIT();
 
     const int TEST_RDPQ_FBWIDTH = 64;
     const int TEST_RDPQ_FBAREA = TEST_RDPQ_FBWIDTH * TEST_RDPQ_FBWIDTH;
     const int TEST_RDPQ_FBSIZE = TEST_RDPQ_FBAREA * 2;
-    extern void *rspq_rdp_dynamic_buffers[2];
-
-    // clear the buffer; we're going to inspect it and it contains random data
-    // (rspq doesn't need to clear it)
-    memset(rspq_rdp_dynamic_buffers[0], 0, 32*8);
 
     rspq_block_t *block = NULL;
     DEFER(if (block) rspq_block_free(block));
@@ -691,25 +673,24 @@ static void __test_rdpq_autosyncs(TestContext *ctx, void (*func)(void), uint8_t 
         }
     }
 
+    // Pointer to RDP primitives in dynamic buffer. Normally, the current
+    // buffer is the one with index 0.
+    // If we went through a block, RSPQ_RdpSend has already swapped the
+    // two buffers so the one we are interested into is the 1.
+    extern void *rspq_rdp_dynamic_buffers[2];
+    uint64_t *rdp_cmds = use_block ? rspq_rdp_dynamic_buffers[1] : rspq_rdp_dynamic_buffers[0];
     if (use_block) {
         rdpq_block_t *bb = block->rdp_block;
+        int size = RDPQ_BLOCK_MIN_SIZE * 4;
         while (bb) {
-            count_syncs((uint64_t*)bb->cmds, 32);
+            count_syncs((uint64_t*)bb->cmds, size / 8);
             bb = bb->next;
-        }        
-    }
-    
-    count_syncs(rspq_rdp_dynamic_buffers[0], 32);
-
-    for (int j=0;j<4;j++) {
-        if (cnt[j] != exp[j]) {
-            uint64_t *cmds = rspq_rdp_dynamic_buffers[0];
-            for (int i=0;i<32;i++) {
-                LOG("cmd: %016llx @ %p\n", cmds[i], &cmds[i]);
-            }
-            ASSERT_EQUAL_MEM(cnt, exp, 4, "Unexpected sync commands");
+            size *= 2;
         }
     }
+    
+    count_syncs(rdp_cmds, 32);
+    ASSERT_EQUAL_MEM(cnt, exp, 4, "Unexpected sync commands");
 }
 
 static void __autosync_pipe1(void) {
@@ -770,7 +751,7 @@ static void __autosync_load1(void) {
     rdpq_load_tile(0, 0, 0, 7, 7);
 }
 static uint8_t __autosync_load1_exp[4] = {1,0,0,1};
-static uint8_t __autosync_load1_blockexp[4] = {3,3,2,1};
+static uint8_t __autosync_load1_blockexp[4] = {3,2,2,1};
 
 void test_rdpq_autosync(TestContext *ctx) {
     LOG("__autosync_pipe1\n");
@@ -800,10 +781,7 @@ void test_rdpq_autosync(TestContext *ctx) {
 
 
 void test_rdpq_automode(TestContext *ctx) {
-    rspq_init();
-    DEFER(rspq_close());
-    rdpq_init();
-    DEFER(rdpq_close());
+    RDPQ_INIT();
 
     #define TEST_RDPQ_FBWIDTH 16
     #define TEST_RDPQ_FBAREA  (TEST_RDPQ_FBWIDTH * TEST_RDPQ_FBWIDTH)
@@ -840,8 +818,8 @@ void test_rdpq_automode(TestContext *ctx) {
     rdpq_set_mode_standard();
     rdpq_set_blend_color(RGBA32(0xFF, 0xFF, 0xFF, 0xFF));
     rdpq_set_fog_color(RGBA32(0xEE, 0xEE, 0xEE, 0xFF));
-    rdpq_set_env_color(RGBA32(0x0,0x0,0x0,0x80));
-    rdpq_set_prim_color(RGBA32(0x0,0x0,0x0,0x80));
+    rdpq_set_env_color(RGBA32(0x0,0x0,0x0,0x7F));
+    rdpq_set_prim_color(RGBA32(0x0,0x0,0x0,0x7F));
 
     memset(framebuffer, 0xFF, TEST_RDPQ_FBSIZE);
     rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO)));

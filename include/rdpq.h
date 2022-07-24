@@ -128,9 +128,9 @@ enum {
 extern "C" {
 #endif
 
-void rdpq_init();
+void rdpq_init(void);
 
-void rdpq_close();
+void rdpq_close(void);
 
 /**
  * @brief Add a fence to synchronize RSP with RDP commands.
@@ -948,6 +948,47 @@ inline void rdpq_mode_sampler(rdpq_sampler_t s) {
     }
     rdpq_change_other_modes_raw(SOM_SAMPLE_MASK, samp);    
 }
+
+/**
+ * @brief Initialize the RDPQ debugging engine
+ * 
+ * This function initializes the RDP debugging engine. After calling this function,
+ * all RDP commands sent via the rspq/rdpq libraries and overlays will be analyzed
+ * and validated, providing insights in case of progrmaming errors that trigger
+ * hardware undefined behaviors or corrupt graphics. The validation errors
+ * and warnings are emitted via #debugf, so make sure to initialize the debugging
+ * library to see it.
+ * 
+ * This is especially important with RDP because the chips is very hard to program
+ * correctly, and it is commmon to do mistakes. While rdpq tries to shield the
+ * programmer from most commmon mistakes via the fixups, it is still possible
+ * to do mistakes (eg: creating non sensical color combiners) that the debugging
+ * engine can help spotting.
+ * 
+ * Notice that the validator needs to maintain a representation of the RDP state,
+ * as it is not possible to query the RDP about it. So it is better to call
+ * #rdpq_debug_start immeidately after #rdpq_init when required, so that it can
+ * track all commands from the start. Otherwise, some spurious validation error
+ * could be emitted.
+ */
+void rdpq_debug_start(void);
+
+/**
+ * @brief Stop the rdpq debugging engine.
+ */
+void rdpq_debug_stop(void);
+
+/**
+ * @brief Show a full log of all the RDP commands
+ * 
+ * This function configures the debugging engine to also log all RDP commands
+ * to the debugging channel (via #debugf). This is extremely verbose and should
+ * be used sparingly to debug specific issues.
+ * 
+ * @param show_log    true/false to enable/disable the full log
+ */
+void rdpq_debug_log(bool show_log);
+
 
 #ifdef __cplusplus
 }

@@ -31,7 +31,9 @@
  * type. 
  * 
  * Moreover, any time the RDP cycle type changes, the current scissoring is
- * adjusted to guarantee consistent results.
+ * adjusted to guarantee consistent results. This is especially important
+ * where the scissoring covers the whole framebuffer, because otherwise the
+ * RDP might overflow the buffer while drawing.
  * 
  * ### Avoid color image buffer overflows with auto-scissoring
  * 
@@ -39,11 +41,13 @@
  * the RDP is not aware of the actual size of the buffer in terms of width/height,
  * and expects commands to be correctly clipped, or scissoring to be configured.
  * To avoid mistakes leading to memory corruption, #rdpq_set_color_image always
- * reconfigure scissoring to respect the actual buffer size.
+ * reconfigures scissoring to respect the actual buffer size.
  * 
- * Moreover, this also provides a workaround to a common programming bug causing RDP
- * to randomically freezes when no scissoring is configured at all (as sometimes
- * the internal hardware registers contain random data at boot).
+ * Note also that when the RDP is cold-booted, the internal scissoring register
+ * contains random data. This means tthat this auto-scissoring fixup also
+ * provides a workaround to this, by making sure scissoring is always configured
+ * at least once. In fact, by forgetting to configure scissoring, the RDP
+ * can happily draw outside the framebuffer, or draw nothing, or even freeze.
  * 
  * ### Autosyncs
  * 
@@ -53,7 +57,7 @@
  * but it can be complex to get right, and require extensive hardware testing
  * because emulators do not implement the bugs caused by the absence of RDP stalls.
  * 
- * rdpq implements an smart auto-syncing engine that tracks the commands sent
+ * rdpq implements a smart auto-syncing engine that tracks the commands sent
  * to RDP (on the CPU) and automatically inserts syncing whenever necessary.
  * Insertion of syncing primitives is optimal for SYNC_PIPE and SYNC_TILE, and
  * conservative for SYNC_LOAD (it does not currently handle partial TMEM updates).
@@ -109,19 +113,17 @@
  *   first passes, because the RDP hardware requires this to operate correctly.
  * * In 2 cycles mode, if a one-pass combiner was configured by the user,
  *   the second pass is automatically configured as a simple passthrough
- *   (equivalent to `RDPQ_COMBINER1((ZERO, ZERO, ZERO, COMBINED), (ZERO, ZERO, ZERO, COMBINED))`).
+ *   (equivalent to `((ZERO, ZERO, ZERO, COMBINED), (ZERO, ZERO, ZERO, COMBINED))`).
  * * In 2 cycles mode, if a one-pass blender was configured by the user,
  *   it is configured in the second pass, while the first pass is defined
- *   as a passthrough (equivalent to `RDPQ_BLENDER1((PIXEL_RGB, ZERO, PIXEL_RGB, ONE))`).
+ *   as a passthrough (equivalent to `((PIXEL_RGB, ZERO, PIXEL_RGB, ONE))`).
  *   Notice that this is required because there is no pure passthrough in
  *   second step of the blender.
- * * RDPQ_COMBINER1 and RDPQ_BLENDER1 define a single-pass combiner/blender in the
- *   correct way (so they program both cycles with the same value).
  * * RDPQ_COMBINER2 macro transparently handles the texture index swap in the
  *   second cycle. So while using the macro, TEX0 always refers to the first
- *   texture and TEX1 always refers to the second texture.
- * * RDPQ_COMBINER1 does not allow to define a combiner accessing TEX1, as
- *   multi-texturing only works in 2-cycle mode.
+ *   texture and TEX1 always refers to the second texture. Moreover, uses
+ *   of TEX0/TEX1 in passes where they are not allowed would cause compilation
+ *   errors, to avoid triggering undefined behaviours in RDP hardware.
  * 
  * ### Fill color as standard 32-bit color
  * 
@@ -140,19 +142,17 @@
 #include "rdpq.h"
 #include "rdpq_block.h"
 #include "rdpq_constants.h"
+#include "rdpq_debug.h"
 #include "rspq.h"
 #include "rspq/rspq_commands.h"
 #include "rspq_constants.h"
 #include "rdp_commands.h"
 #include "interrupt.h"
 #include "utils.h"
+#include "rdp.h"
 #include <string.h>
 #include <math.h>
 #include <float.h>
-
-#define RDPQ_MAX_COMMAND_SIZE 44
-#define RDPQ_BLOCK_MIN_SIZE   64
-#define RDPQ_BLOCK_MAX_SIZE   4192
 
 #define RDPQ_OVL_ID (0xC << 28)
 
@@ -176,6 +176,7 @@ typedef struct rdpq_state_s {
 } rdpq_state_t;
 
 bool __rdpq_inited = false;
+bool __rdpq_zero_blocks = false;
 
 static volatile uint32_t *rdpq_block_ptr;
 static volatile uint32_t *rdpq_block_end;
@@ -194,6 +195,9 @@ static void __rdpq_interrupt(void) {
     rdpq_state_t *rdpq_state = UncachedAddr(rspq_overlay_get_state(&rsp_rdpq));
 
     assert(*SP_STATUS & SP_STATUS_SIG_RDPSYNCFULL);
+
+    // Fetch the current RDP buffer for tracing
+    if (rdpq_trace_fetch) rdpq_trace_fetch();
 
     // The state has been updated to contain a copy of the last SYNC_FULL command
     // that was sent to RDP. The command might contain a callback to invoke.
@@ -317,24 +321,31 @@ static void autosync_change(uint32_t res) {
     }
 }
 
-void __rdpq_block_flush(uint32_t *start, uint32_t *end)
+void __rdpq_block_skip(int nwords)
 {
-    assertf(((uint32_t)start & 0x7) == 0, "start not aligned to 8 bytes: %lx", (uint32_t)start);
-    assertf(((uint32_t)end & 0x7) == 0, "end not aligned to 8 bytes: %lx", (uint32_t)end);
+    rdpq_block_ptr += nwords;
+    last_rdp_cmd = NULL;
+}
 
-    uint32_t phys_start = PhysicalAddr(start);
-    uint32_t phys_end = PhysicalAddr(end);
+void __rdpq_block_update(uint32_t* old, uint32_t *new)
+{
+    uint32_t phys_old = PhysicalAddr(old);
+    uint32_t phys_new = PhysicalAddr(new);
 
-    // FIXME: Updating the previous command won't work across buffer switches
-    extern volatile uint32_t *rspq_cur_pointer;
-    uint32_t diff = rspq_cur_pointer - last_rdp_cmd;
-    if (diff == 2 && (*last_rdp_cmd&0xFFFFFF) == phys_start) {
-        // Update the previous command
-        *last_rdp_cmd = (RSPQ_CMD_RDP<<24) | phys_end;
+    assertf((phys_old & 0x7) == 0, "old not aligned to 8 bytes: %lx", phys_old);
+    assertf((phys_new & 0x7) == 0, "new not aligned to 8 bytes: %lx", phys_new);
+
+    if (last_rdp_cmd && (*last_rdp_cmd & 0xFFFFFF) == phys_old) {
+        // Update the previous command.
+        // It can be either a RSPQ_CMD_RDP_SET_BUFFER or RSPQ_CMD_RDP_APPEND_BUFFER,
+        // but we still need to update it to the new END pointer.
+        *last_rdp_cmd = (*last_rdp_cmd & 0xFF000000) | phys_new;
     } else {
-        // Put a command in the regular RSP queue that will submit the last buffer of RDP commands.
+        // A fixup has emitted some commands, so we need to emit a new
+        // RSPQ_CMD_RDP_APPEND_BUFFER in the RSP queue of the block
+        extern volatile uint32_t *rspq_cur_pointer;
         last_rdp_cmd = rspq_cur_pointer;
-        rspq_int_write(RSPQ_CMD_RDP, phys_end, phys_start);
+        rspq_int_write(RSPQ_CMD_RDP_APPEND_BUFFER, phys_new);
     }
 }
 
@@ -343,11 +354,17 @@ void __rdpq_block_switch_buffer(uint32_t *new, uint32_t size)
     assert(size >= RDPQ_MAX_COMMAND_SIZE);
 
     rdpq_block_ptr = new;
-    rdpq_block_end = new + size - RDPQ_MAX_COMMAND_SIZE;
+    rdpq_block_end = new + size;
 
-    // Enqueue a command that will point RDP to the start of the block so that static fixup commands still work.
-    // Those commands rely on the fact that DP_END always points to the end of the current static block.
-    __rdpq_block_flush((uint32_t*)rdpq_block_ptr, (uint32_t*)rdpq_block_ptr);
+    assertf((PhysicalAddr(rdpq_block_ptr) & 0x7) == 0,
+        "start not aligned to 8 bytes: %lx", PhysicalAddr(rdpq_block_ptr));
+    assertf((PhysicalAddr(rdpq_block_end) & 0x7) == 0,
+        "end not aligned to 8 bytes: %lx", PhysicalAddr(rdpq_block_end));
+
+    extern volatile uint32_t *rspq_cur_pointer;
+    last_rdp_cmd = rspq_cur_pointer;
+    rspq_int_write(RSPQ_CMD_RDP_SET_BUFFER,
+        PhysicalAddr(rdpq_block_ptr), PhysicalAddr(rdpq_block_ptr), PhysicalAddr(rdpq_block_end));
 }
 
 void __rdpq_block_next_buffer()
@@ -355,9 +372,19 @@ void __rdpq_block_next_buffer()
     // Allocate next chunk (double the size of the current one).
     // We use doubling here to reduce overheads for large blocks
     // and at the same time start small.
-    rdpq_block_t *b = malloc_uncached(sizeof(rdpq_block_t) + rdpq_block_size*sizeof(uint32_t));
+    int memsz = sizeof(rdpq_block_t) + rdpq_block_size*sizeof(uint32_t);
+    rdpq_block_t *b = malloc_uncached(memsz);
+
+    // Clean the buffer if requested (in tests). Cleaning the buffer is
+    // not necessary for correct operation, but it helps writing tests that
+    // want to inspect the block contents.
+    if (__rdpq_zero_blocks)
+        memset(b, 0, memsz);
+
     b->next = NULL;
-    if (rdpq_block) rdpq_block->next = b;
+    if (rdpq_block) {
+        rdpq_block->next = b;
+    }
     rdpq_block = b;
     if (!rdpq_block_first) rdpq_block_first = b;
 
@@ -394,6 +421,8 @@ rdpq_block_t* __rdpq_block_end()
     }
     // pop on autosync state stack (recover state before building the block)
     rdpq_autosync_state[0] = rdpq_autosync_state[1];
+
+    // clean state
     rdpq_block_first = NULL;
     rdpq_block = NULL;
     last_rdp_cmd = NULL;
@@ -436,19 +465,19 @@ static void __rdpq_block_check(void)
 })
 
 #define rdpq_static_write(cmd_id, arg0, ...) ({ \
+    if (__builtin_expect(rdpq_block_ptr + 1 + __COUNT_VARARGS(__VA_ARGS___) > rdpq_block_end, 0)) \
+        __rdpq_block_next_buffer(); \
     volatile uint32_t *ptr = rdpq_block_ptr; \
     *ptr++ = (RDPQ_OVL_ID + ((cmd_id)<<24)) | (arg0); \
     __CALL_FOREACH(_rdpq_write_arg, ##__VA_ARGS__); \
-    __rdpq_block_flush((uint32_t*)rdpq_block_ptr, (uint32_t*)ptr); \
+    __rdpq_block_update((uint32_t*)rdpq_block_ptr, (uint32_t*)ptr); \
     rdpq_block_ptr = ptr; \
-    if (__builtin_expect(rdpq_block_ptr > rdpq_block_end, 0)) \
-        __rdpq_block_next_buffer(); \
 })
 
 #define rdpq_static_skip(size) ({ \
-    rdpq_block_ptr += size; \
-    if (__builtin_expect(rdpq_block_ptr > rdpq_block_end, 0)) \
+    if (__builtin_expect(rdpq_block_ptr + size > rdpq_block_end, 0)) \
         __rdpq_block_next_buffer(); \
+    __rdpq_block_skip(size); \
 })
 
 static inline bool in_block(void) {
@@ -883,7 +912,7 @@ void __rdpq_set_other_modes(uint32_t w0, uint32_t w1)
 {
     autosync_change(AUTOSYNC_PIPE);
     if (in_block()) {
-        __rdpq_block_check(); \
+        __rdpq_block_check();
         // Write set other modes normally first, because it doesn't need to be modified
         rdpq_static_write(RDPQ_CMD_SET_OTHER_MODES, w0, w1);
         // This command will just record the other modes to DMEM and output a set scissor command

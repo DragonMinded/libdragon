@@ -126,7 +126,7 @@ RDP_CMD_STAGING:       .ds.b 0xB0
     #############################################################
     .func RDPQ_Finalize
 RDPQ_Finalize:
-    j RSPQ_RdpFinalize
+    j RSPQ_RdpSend
     li s4, %lo(RDP_CMD_STAGING)
     .endfunc
 
@@ -137,7 +137,6 @@ RDPQ_Finalize:
     #############################################################
     .func RDPQCmd_Passthrough8
 RDPQCmd_Passthrough8:
-    jal RSPQ_RdpDynamicReserve
     li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
     li ra, %lo(RDPQ_Finalize)
     # fallthrough
@@ -180,7 +179,6 @@ RDPQCmd_TextureRectFlip:
     #############################################################
     .func RDPQCmd_Passthrough16
 RDPQCmd_Passthrough16:
-    jal RSPQ_RdpDynamicReserve
     li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
     li ra, %lo(RDPQ_Finalize)
     # fallthrough!
@@ -216,7 +214,6 @@ RDPQ_Write16:
     .func RDPQCmd_SetOtherModes
 RDPQCmd_SetOtherModes:
     # Reserve space for SetOtherModes + SetScissor
-    jal RSPQ_RdpDynamicReserve
 RDPQCmd_SetOtherModes_StaticWithCopy:
     li rspq_cmd_size, 16
     # Save the other modes to internal cache, then call RDPQ_WriteOtherModes
@@ -279,7 +276,6 @@ RDPQ_SaveOtherModes:
     .func RDPQCmd_ModifyOtherModes
 RDPQCmd_ModifyOtherModes:
     # Only need to reserve space in dynamic mode. In static mode, DP_END already points to the right location.
-    jal RSPQ_RdpDynamicReserve
 RDPQCmd_ModifyOtherModes_Static:
     li rspq_cmd_size, 16
     lw t1, %lo(RDP_OTHER_MODES)(a0)
@@ -340,7 +336,6 @@ RDPQ_FinalizeOtherModes:
     .func RDPQCmd_SetFixupImage
 RDPQCmd_SetFixupImage:
     # Only need to reserve space in dynamic mode. In static mode, DP_END already points to the right location.
-    jal RSPQ_RdpDynamicReserve
 RDPQCmd_SetFixupImage_Static:
     li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
     # fixup DRAM address using address slots
@@ -360,7 +355,6 @@ RDPQCmd_SetFixupImage_Static:
     .func RDPQCmd_SetColorImage
 RDPQCmd_SetColorImage:
     # Only need to reserve space in dynamic mode. In static mode, DP_END already points to the right location.
-    jal RSPQ_RdpDynamicReserve
 RDPQCmd_SetColorImage_Static:
     li rspq_cmd_size, 16
     li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
@@ -398,7 +392,6 @@ RDPQCmd_SetColorImage_Static:
     .func RDPQCmd_SetFillColor32
 RDPQCmd_SetFillColor32:
     # Only need to reserve space in dynamic mode. In static mode, DP_END already points to the right location.
-    jal RSPQ_RdpDynamicReserve
 RDPQCmd_SetFillColor32_Static:
     li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
     sw a1, %lo(RDP_FILL_COLOR)
@@ -442,8 +435,6 @@ RDPQ_WriteSetFillColor:
 RDPQCmd_SetScissorEx:
     lui t1, 0xD200 ^ 0xD300 # SetScissorEx -> SetScissorEx_Static
     xor a0, t1
-    # Only need to reserve space in dynamic mode. In static mode, DP_END already points to the right location.
-    jal RSPQ_RdpDynamicReserve
 RDPQCmd_SetScissorEx_Static:
     li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
     sw a0, %lo(RDP_SCISSOR_RECT) + 0x0
@@ -477,8 +468,6 @@ scissor_substitute:
 RDPQCmd_TextureRectEx:
     lui t1, 0xD000 ^ 0xD100 # TextureRectEx -> TextureRectEx_Static
     xor a0, t1
-    # Only need to reserve space in dynamic mode. In static mode, DP_END already points to the right location.
-    jal RSPQ_RdpDynamicReserve
 RDPQCmd_TextureRectEx_Static:
     li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
     lb t0, %lo(RDP_OTHER_MODES) + 0x1
@@ -486,7 +475,7 @@ RDPQCmd_TextureRectEx_Static:
     andi t0, 0x1 << 5
     # Leave unchanged when not in FILL or COPY mode
     beqz t0, rect_substitute
-    lui t1, 0xE400 ^ 0xD100 # TextureRectEx_Static -> TEXTURE_RECTANGLE
+    lui t1, 0xD100 ^ 0xE400  # TextureRectEx_Static -> TEXTURE_RECTANGLE
 
     # Subtract 1 pixel from XL and YL
     addiu a0, -((4 << 12) + 4)
@@ -517,7 +506,6 @@ RDPQCmd_PassthroughTriangle:
     andi t0, 0x1 << 5
     assert_eq t0, 0, RDPQ_ASSERT_TRI_FILL
 #endif
-    jal RSPQ_RdpDynamicReserve
     sub s5, rspq_dmem_buf_ptr, rspq_cmd_size
     addi s5, %lo(RSPQ_DMEM_BUFFER)
     li s6, %lo(RDP_CMD_STAGING)
@@ -600,7 +588,6 @@ RDPQCmd_SyncFull_Static:
 
     .func RDPQCmd_SetCombineMode_1Pass
 RDPQCmd_SetCombineMode_1Pass:
-    jal RSPQ_RdpDynamicReserve
 RDPQCmd_SetCombineMode_1Pass_Static:
     li rspq_cmd_size, 16
     # The combiner settings is 1 pass. Store it as-is for 1cycle mode.
@@ -621,7 +608,6 @@ RDPQCmd_SetCombineMode_1Pass_Static:
 
     .func RDPQCmd_SetCombineMode_2Pass
 RDPQCmd_SetCombineMode_2Pass:
-    jal RSPQ_RdpDynamicReserve
 RDPQCmd_SetCombineMode_2Pass_Static:
     li rspq_cmd_size, 16
     # The combiner settings is 2 pass. The flag RDPQ_COMBINER_2PASS
@@ -642,7 +628,6 @@ store_comb_2cyc:
 
     .func RDPQCmd_SetBlendingMode
 RDPQCmd_SetBlendingMode:
-    jal RSPQ_RdpDynamicReserve
 RDPQCmd_SetBlendingMode_Static:
     li rspq_cmd_size, 16
     # Bit 0-25:  Blender mode 1CYC (-> SOM 6..31)
@@ -734,7 +719,6 @@ PushPopMode:
 
     .func RDPQCmd_PopMode
 RDPQCmd_PopMode:
-    jal RSPQ_RdpDynamicReserve
 RDPQCmd_PopMode_Static:
     li rspq_cmd_size, 16
     li s0, %lo(RDP_MODE) + 32

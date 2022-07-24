@@ -39,6 +39,7 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 			 $(BUILD_DIR)/audio/ym64.o $(BUILD_DIR)/audio/ay8910.o \
 			 $(BUILD_DIR)/rspq/rspq.o $(BUILD_DIR)/rspq/rsp_queue.o \
 			 $(BUILD_DIR)/rdpq/rdpq.o $(BUILD_DIR)/rdpq/rsp_rdpq.o \
+			 $(BUILD_DIR)/rdpq/rdpq_debug.o \
 			 $(BUILD_DIR)/surface.o $(BUILD_DIR)/GL/gl.o \
 			 $(BUILD_DIR)/GL/lighting.o $(BUILD_DIR)/GL/matrix.o \
 			 $(BUILD_DIR)/GL/primitive.o $(BUILD_DIR)/GL/query.o \

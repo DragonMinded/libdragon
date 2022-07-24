@@ -2,6 +2,7 @@
 #define __LIBDRAGON_RDPQ_BLOCK_H
 
 extern bool __rdpq_inited;
+extern bool __rdpq_zero_blocks;
 
 typedef struct rdpq_block_s rdpq_block_t;
 
