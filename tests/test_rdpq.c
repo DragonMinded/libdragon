@@ -134,8 +134,10 @@ void test_rdpq_passthrough_big(TestContext *ctx)
     memset(expected_fb, 0xFF, sizeof(expected_fb));
 
     rdpq_set_color_image(framebuffer, FMT_RGBA16, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH*2);
-    rdp_enable_blend_fill();
-    rdp_set_blend_color(0xFFFFFFFF);
+    rdpq_set_blend_color(RGBA32(255,255,255,255));
+    rdpq_set_mode_standard();
+    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO,ZERO,ZERO,ZERO), (ZERO,ZERO,ZERO,ZERO)));
+    rdpq_mode_blender(RDPQ_BLENDER1((IN_RGB, ZERO, BLEND_RGB, ONE)));
 
     rdp_draw_filled_triangle(0, 0, TEST_RDPQ_FBWIDTH, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
     rdp_draw_filled_triangle(0, 0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
@@ -385,6 +387,7 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
 
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
     rdpq_set_mode_standard();
+    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO,ZERO,ZERO,ZERO),(ZERO,ZERO,ZERO,ONE)));
     rdpq_mode_blender(RDPQ_BLENDER1((BLEND_RGB, IN_ALPHA, IN_RGB, INV_MUX_ALPHA)));
     rdpq_set_blend_color(TEST_COLOR);
     rdpq_set_scissor(4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4);
@@ -405,6 +408,7 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
     memset(framebuffer, 0, TEST_RDPQ_FBSIZE);
     rdpq_set_scissor(4, 4, TEST_RDPQ_FBWIDTH-4, TEST_RDPQ_FBWIDTH-4);
     rdpq_set_mode_standard();
+    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO,ZERO,ZERO,ZERO),(ZERO,ZERO,ZERO,ONE)));
     rdpq_mode_blender(RDPQ_BLENDER1((BLEND_RGB, IN_ALPHA, IN_RGB, INV_MUX_ALPHA)));
     rdpq_set_blend_color(TEST_COLOR);
     rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
