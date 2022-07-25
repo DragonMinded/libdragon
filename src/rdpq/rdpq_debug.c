@@ -1,7 +1,10 @@
 #include "rdpq_debug.h"
 #include "rdp.h"
 #include "debug.h"
+#include "interrupt.h"
+#include "rspq_constants.h"
 #include <string.h>
+#include <assert.h>
 
 #define BITS(v, b, e)  ((unsigned int)((v) << (63-(e)) >> (63-(e)+(b)))) 
 #define BIT(v, b)      BITS(v, b, b)
@@ -47,6 +50,7 @@ struct {
 
 #define NUM_BUFFERS 12
 static rdp_buffer_t buffers[NUM_BUFFERS];
+static volatile int buf_ridx, buf_widx;
 static rdp_buffer_t last_buffer;
 static bool show_log;
 void (*rdpq_trace)(void);
@@ -58,27 +62,38 @@ void __rdpq_trace_fetch(void)
     uint64_t *end = (void*)(*DP_END | 0xA0000000);
 
     if (start == end) return;
-    if (start > end) debugf("[rdpq] invalid RDP buffer %p-%p\n", start, end);
-
-    if (!buffers[0].start && last_buffer.start == start)
-        start = last_buffer.end;
-
-    int i;
-    for (i=0;i<NUM_BUFFERS;i++)
-        if (!buffers[i].start)
-            break;
-    if (i != 0 && buffers[i-1].start == start) {
-        if (buffers[i-1].end > end)
-            debugf("[rdpq] RDP buffer shrinking %p-%p => %p-%p\n", 
-                buffers[i-1].start, buffers[i-1].end, start, end);
-        i--;
+    if (start > end) {
+        debugf("[rdpq] ERROR: invalid RDP buffer: %p-%p\n", start, end);
+        return;
     }
-    if (i == NUM_BUFFERS) {
-        debugf("[rdpq] logging buffer full, dropping %d commands\n", buffers[0].end - buffers[0].start);
-        memmove(&buffers[0], &buffers[1], sizeof(rdp_buffer_t) * (NUM_BUFFERS-1));
-        i -= 1;
+
+    disable_interrupts();
+
+    // Coalesce with last written buffer if possible. Notice that rdpq_trace put the start
+    // pointer to NULL to avoid coalescing when it begins dumping it, so this should avoid
+    // race conditions.
+    int prev = (buf_widx - 1) % NUM_BUFFERS;
+    if (buffers[prev].start == start) {
+        // If the previous buffer was bigger, it is a logic error, as RDP buffers should only grow
+        if (buffers[prev].end > end)
+            debugf("[rdpq] ERROR: RDP buffer shrinking (%p-%p => %p-%p)\n", 
+                buffers[prev].start, buffers[prev].end, start, end);
+        buffers[prev].end = end;
+        enable_interrupts();
+        return;
     }
-    buffers[i] = (rdp_buffer_t){ .start = start, .end = end };
+    // If the buffer queue is full, drop the oldest. It might create confusion in the validator,
+    // but at least the log should show the latest commands which is probably more important.
+    if ((buf_widx + 1) % NUM_BUFFERS == buf_ridx) {
+        debugf("[rdpq] logging buffer full, dropping %d commands\n", buffers[buf_ridx].end - buffers[buf_ridx].start);
+        buf_ridx = (buf_ridx + 1) % NUM_BUFFERS;
+    }
+
+    // Write the new buffer. It should be an empty slot
+    assertf(buffers[buf_widx].start == NULL, "widx:%d ridx:%d", buf_widx, buf_ridx);
+    buffers[buf_widx] = (rdp_buffer_t){ .start = start, .end = end };
+    buf_widx = (buf_widx + 1) % NUM_BUFFERS;
+    enable_interrupts();
 }
 
 void __rdpq_trace(void)
@@ -86,17 +101,25 @@ void __rdpq_trace(void)
     // Update buffers to current RDP status
     if (rdpq_trace_fetch) rdpq_trace_fetch();
 
-    for (int i=0;i<NUM_BUFFERS;i++) {
-        uint64_t *cur = buffers[i].start;
+    while (1) {
+        uint64_t *cur = 0, *end = 0;
+
+        disable_interrupts();
+        if (buf_ridx != buf_widx) {
+            cur = buffers[buf_ridx].start;
+            end = buffers[buf_ridx].end;
+            buffers[buf_ridx].start = 0;
+            buf_ridx = (buf_ridx + 1) % NUM_BUFFERS;
+        }
+        enable_interrupts();
+
         if (!cur) break;
-        while (cur < buffers[i].end) {
+        while (cur < end) {
             int sz = rdpq_disasm_size(cur);
             if (show_log) rdpq_disasm(cur, stderr);
             rdpq_validate(cur, NULL, NULL);
             cur += sz;
         }
-        last_buffer = buffers[i];
-        buffers[i].start = 0;
     }
 }
 
@@ -105,6 +128,8 @@ void rdpq_debug_start(void)
     memset(buffers, 0, sizeof(buffers));
     memset(&last_buffer, 0, sizeof(last_buffer));
     memset(&rdpq_state, 0, sizeof(rdpq_state));
+    buf_widx = buf_ridx = 0;
+    show_log = false;
 
     rdpq_trace = __rdpq_trace;
     rdpq_trace_fetch = __rdpq_trace_fetch;
