@@ -496,8 +496,8 @@ static inline bool in_block(void) {
 #define rdpq_fixup_write(cmd_id_dyn, cmd_id_fix, skip_size, arg0, ...) ({ \
     if (in_block()) { \
         __rdpq_block_check(); \
-        rdpq_dynamic_write(cmd_id_fix, arg0, ##__VA_ARGS__); \
         rdpq_static_skip(skip_size); \
+        rdpq_dynamic_write(cmd_id_fix, arg0, ##__VA_ARGS__); \
     } else { \
         rdpq_dynamic_write(cmd_id_dyn, arg0, ##__VA_ARGS__); \
     } \
