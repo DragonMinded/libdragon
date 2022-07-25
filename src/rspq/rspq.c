@@ -920,6 +920,11 @@ void rspq_next_buffer(void) {
         return;
     }
 
+    // We are about to switch buffer. If the debugging engine is activate,
+    // it is a good time to run it, so that it does not accumulate too many
+    // commands.
+    if (rdpq_trace) rdpq_trace();
+
     // Wait until the previous buffer is executed by the RSP.
     // We cannot write to it if it's still being executed.
     // FIXME: this should probably transition to a sync-point,
