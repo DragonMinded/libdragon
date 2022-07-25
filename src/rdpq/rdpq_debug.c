@@ -315,8 +315,8 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
             SBITS(buf[2], 32, 63)*FX(16), SBITS(buf[2], 0, 31)*FX(16));
         fprintf(out, "[%p] %016llx                     xm=%.4f dxmd=%.4f\n", &buf[3], buf[3],
             SBITS(buf[3], 32, 63)*FX(16), SBITS(buf[3], 0, 31)*FX(16));
-        for (int i = 4; i < words[BITS(buf[0], 56, 61)]; i++)
-            fprintf(out, "[%p] %016llx                     ", &buf[i], buf[i]);
+        for (int i = 4; i < words[BITS(buf[0], 56, 61)-0x8]; i++)
+            fprintf(out, "[%p] %016llx                     \n", &buf[i], buf[i]);
         return;
     }
     case 0x3e: fprintf(out, "SET_Z_IMAGE      dram=%08x\n", BITS(buf[0], 0, 25)); return;
