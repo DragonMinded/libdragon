@@ -45,7 +45,7 @@ struct {
 } rdpq_state;
 
 
-#define NUM_BUFFERS 8
+#define NUM_BUFFERS 12
 static rdp_buffer_t buffers[NUM_BUFFERS];
 static rdp_buffer_t last_buffer;
 static bool show_log;
