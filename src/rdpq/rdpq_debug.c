@@ -374,7 +374,10 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
 static void lazy_validate_cc(int *errs, int *warns) {
     if (rdpq_state.mode_changed) {
         rdpq_state.mode_changed = false;
-
+        if (!rdpq_state.last_cc) {
+            VALIDATE_ERR(rdpq_state.last_cc, "SET_COMBINE not called before drawing primitive");
+            return;
+        }
         struct cc_cycle_s *ccs = &rdpq_state.cc.cyc[0];
         switch (rdpq_state.som.cycle_type) {
         case 0: // 1cyc
