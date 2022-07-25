@@ -242,9 +242,9 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
         const char* rgbdither[] = { "square", "bayer", "noise", "none" };
         const char* alphadither[] = { "pat", "inv", "noise", "none" };
         const char* cvgmode[] = { "clamp", "wrap", "zap", "save" };
-        const char* blend1_a[] = { "pix", "mem", "blend", "fog" };
-        const char* blend1_b1[] = { "pix.a", "fog.a", "shade.a", "0" };
-        const char* blend1_b1inv[] = { "(1-pix.a)", "(1-fog.a)", "(1-shade.a)", "1" };
+        const char* blend1_a[] = { "in", "mem", "blend", "fog" };
+        const char* blend1_b1[] = { "in.a", "fog.a", "shade.a", "0" };
+        const char* blend1_b1inv[] = { "(1-in.a)", "(1-fog.a)", "(1-shade.a)", "1" };
         const char* blend1_b2[] = { "", "mem.a", "1", "0" };
         const char* blend2_a[] = { "cyc1", "mem", "blend", "fog" };
         const char* blend2_b1[] = { "cyc1.a", "fog.a", "shade.a", "0" };
@@ -302,7 +302,7 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
             BITS(buf[0], 32, 40)*8, BITS(buf[0], 41, 49)*8);
         fprintf(out, "\n");
     } return;
-    case 0x24: case 0x25:
+    case 0x24 ... 0x25:
         if(BITS(buf[0], 56, 61) == 0x24)
             fprintf(out, "TEX_RECT         ");
         else
@@ -327,7 +327,7 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
     case 0x33: fprintf(out, "LOAD_BLOCK       tile=%d st=(%.2f-%.2f) sh=%.2f dxt=%.5f\n",
         BITS(buf[0], 24, 26), BITS(buf[0], 44, 55)*FX(2), BITS(buf[0], 12, 23)*FX(2),
                               BITS(buf[0], 32, 43)*FX(2), BITS(buf[0], 0, 11)*FX(11)); return;
-    case 0x08: case 0x09: case 0x0A: case 0x0B: case 0x0C: case 0x0D: case 0x0E: case 0x0F: {
+    case 0x08 ... 0x0F: {
         const char *tri[] = { "TRI              ", "TRI_Z            ", "TRI_TEX          ", "TRI_TEX_Z        ",  "TRI_SHADE        ", "TRI_SHADE_Z      ", "TRI_TEX_SHADE    ", "TRI_TEX_SHADE_Z  "};
         int words[] = {4, 4+2, 4+8, 4+8+2, 4+8, 4+8+2, 4+8+8, 4+8+8+2};
         fprintf(out, "%s", tri[BITS(buf[0], 56, 61)-0x8]);
@@ -399,13 +399,17 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
 static void lazy_validate_cc(int *errs, int *warns) {
     if (rdpq_state.mode_changed) {
         rdpq_state.mode_changed = false;
+
+        // We don't care about CC setting in fill/copy mode, where the CC is not used.
+        if (rdpq_state.som.cycle_type >= 2)
+            return;
+
         if (!rdpq_state.last_cc) {
             VALIDATE_ERR(rdpq_state.last_cc, "SET_COMBINE not called before drawing primitive");
             return;
         }
         struct cc_cycle_s *ccs = &rdpq_state.cc.cyc[0];
-        switch (rdpq_state.som.cycle_type) {
-        case 0: // 1cyc
+        if (rdpq_state.som.cycle_type == 0) { // 1cyc
             VALIDATE_WARN(memcmp(&ccs[0], &ccs[1], sizeof(struct cc_cycle_s)) == 0,
                 "SET_COMBINE at %p: in 1cycle mode, the color combiner should be programmed identically in both cycles. Cycle 0 will be ignored.", rdpq_state.last_cc);
             VALIDATE_ERR(ccs[1].rgb.suba != 0 && ccs[1].rgb.suba != 0 && ccs[1].rgb.mul != 0 && ccs[1].rgb.add != 0 &&
@@ -414,8 +418,7 @@ static void lazy_validate_cc(int *errs, int *warns) {
             VALIDATE_ERR(ccs[1].rgb.suba != 2 && ccs[1].rgb.subb != 2 && ccs[1].rgb.mul != 2 && ccs[1].rgb.add != 2 &&
                          ccs[1].alpha.suba != 2 && ccs[1].alpha.subb != 2 && ccs[1].alpha.mul != 2 && ccs[1].alpha.add != 2,
                 "SET_COMBINE at %p: in 1cycle mode, the color combiner cannot access the TEX1 slot", rdpq_state.last_cc);
-            break;
-        case 1: // 2cyc
+        } else { // 2 cyc
             struct cc_cycle_s *ccs = &rdpq_state.cc.cyc[0];
             VALIDATE_ERR(ccs[0].rgb.suba != 0 && ccs[0].rgb.suba != 0 && ccs[0].rgb.mul != 0 && ccs[0].rgb.add != 0 &&
                          ccs[0].alpha.suba != 0 && ccs[0].alpha.suba != 0 && ccs[0].alpha.mul != 0 && ccs[0].alpha.add != 0,
@@ -423,14 +426,47 @@ static void lazy_validate_cc(int *errs, int *warns) {
             VALIDATE_ERR(ccs[1].rgb.suba != 2 && ccs[1].rgb.suba != 2 && ccs[1].rgb.mul != 2 && ccs[1].rgb.add != 2 &&
                          ccs[1].alpha.suba != 2 && ccs[1].alpha.suba != 2 && ccs[1].alpha.mul != 2 && ccs[1].alpha.add != 2,
                 "SET_COMBINE at %p: in 2cycle mode, the color combiner cannot access the TEX1 slot in the second cycle (but TEX0 contains the second texture)", rdpq_state.last_cc);
-            break;
         }
+    }
+}
+
+static void validate_draw_cmd(int *errs, int *warns, bool use_colors, bool use_tex, bool use_z)
+{
+    VALIDATE_ERR(rdpq_state.sent_scissor,
+        "undefined behavior: drawing command before a SET_SCISSOR was sent");
+
+    switch (rdpq_state.som.cycle_type) {
+    case 0 ... 1: // 1cyc, 2cyc
+        for (int i=1-rdpq_state.som.cycle_type; i<2; i++) {
+            struct cc_cycle_s *ccs = &rdpq_state.cc.cyc[i];
+            uint8_t slots[8] = {
+                ccs->rgb.suba,   ccs->rgb.subb,   ccs->rgb.mul,   ccs->rgb.add, 
+                ccs->alpha.suba, ccs->alpha.subb, ccs->alpha.mul, ccs->alpha.add, 
+            };
+
+            if (!use_tex) {
+                VALIDATE_ERR(!memchr(slots, 1, sizeof(slots)),
+                    "cannot draw a non-textured primitive with a color combiner using the TEX0 slot (CC set at %p)", rdpq_state.last_cc);
+                VALIDATE_ERR(!memchr(slots, 2, sizeof(slots)),
+                    "cannot draw a non-textured primitive with a color combiner using the TEX1 slot (CC set at %p)", rdpq_state.last_cc);
+            }
+            if (!use_colors) {
+                VALIDATE_ERR(!memchr(slots, 4, sizeof(slots)),
+                    "cannot draw a non-shaded primitive with a color combiner using the SHADE slot (CC set at %p)", rdpq_state.last_cc);
+            }
+        }
+
+        if (use_tex && !use_z)
+            VALIDATE_ERR(!rdpq_state.som.tex.persp,
+                "cannot draw a textured primitive with perspective correction but without per-vertex W coordinate (SOM set at %p)", rdpq_state.last_som);
+        break;
     }
 }
 
 void rdpq_validate(uint64_t *buf, int *errs, int *warns)
 {
-    switch (BITS(buf[0], 56, 61)) {
+    uint8_t cmd = BITS(buf[0], 56, 61);
+    switch (cmd) {
     case 0x2F: // SET_OTHER_MODES
         rdpq_state.som = decode_som(buf[0]);
         rdpq_state.mode_changed = &buf[0];
@@ -440,20 +476,21 @@ void rdpq_validate(uint64_t *buf, int *errs, int *warns)
         rdpq_state.last_cc = &buf[0];
         rdpq_state.mode_changed = true;
         break;
-    case 0x24: // TEX_RECT, TEX_RECT_FLIP
-        lazy_validate_cc(errs, warns);
-        VALIDATE_ERR(rdpq_state.sent_scissor,
-            "undefined behavior: drawing command before a SET_SCISSOR was sent");
-        VALIDATE_ERR(!rdpq_state.som.tex.persp,
-            "undefined behavior: texture rectangle with perspective correction");
-        break;
-    case 0x36: // FILL_RECTANGLE
-        break;
     case 0x2D: // SET_SCISSOR
         rdpq_state.sent_scissor = true;
         break;
-    case 0x8: case 0x9: case 0xA: case 0xB: case 0xC: case 0xD: case 0xE: case 0xF: // Triangles
+    case 0x24: // TEX_RECT, TEX_RECT_FLIP
         lazy_validate_cc(errs, warns);
+        validate_draw_cmd(errs, warns, false, true, false);
+        break;
+    case 0x36: // FILL_RECTANGLE
+        lazy_validate_cc(errs, warns);
+        validate_draw_cmd(errs, warns, false, false, false);
+        break;
+    case 0x8 ... 0xF: // Triangles
+        VALIDATE_ERR(rdpq_state.som.cycle_type < 2, "cannot draw triangles in copy/fill mode (SOM set at %p)", rdpq_state.last_som);
+        lazy_validate_cc(errs, warns);
+        validate_draw_cmd(errs, warns, cmd & 4, cmd & 2, cmd & 1);
         break;
     }
 }
