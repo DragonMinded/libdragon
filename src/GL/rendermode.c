@@ -1,5 +1,5 @@
 #include "gl_internal.h"
-#include "rdpq.h"
+#include "rdpq_mode.h"
 
 extern gl_state_t state;
 

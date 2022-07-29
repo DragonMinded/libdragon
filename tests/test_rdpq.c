@@ -4,7 +4,7 @@
 #include <rdpq.h>
 #include <rdp_commands.h>
 #include "../src/rspq/rspq_commands.h"
-#include "../src/rdpq/rdpq_block.h"
+#include "../src/rdpq/rdpq_internal.h"
 #include "../src/rdpq/rdpq_debug.h"
 #include "../src/rdpq/rdpq_constants.h"
 
