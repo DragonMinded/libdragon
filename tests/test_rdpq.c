@@ -235,7 +235,7 @@ void test_rdpq_block_coalescing(TestContext *ctx)
             PhysicalAddr(rdp_cmds), 
             PhysicalAddr(rdp_cmds + RDPQ_BLOCK_MIN_SIZE/2),
         // Fixup command (leaves a hole in rdp block)
-        (RDPQ_CMD_SET_FILL_COLOR_32_FIX + 0xC0) << 24, 
+        (RDPQ_CMD_SET_FILL_COLOR_32 + 0xC0) << 24, 
             0,
         // Last 3 commands
         (RSPQ_CMD_RDP_APPEND_BUFFER << 24) | PhysicalAddr(rdp_cmds + 9),
@@ -266,6 +266,7 @@ void test_rdpq_block_contiguous(TestContext *ctx)
     /* 4: implicit set scissor */
     /* 5: */ rdpq_set_mode_fill(RGBA32(0xFF, 0xFF, 0xFF, 0xFF));
     /* 6: implicit set scissor */
+    /* 7: set fill color */
     /* 8: */ rdpq_fill_rectangle(0, 0, TEST_RDPQ_FBWIDTH, TEST_RDPQ_FBWIDTH);
     /* 9: */ rdpq_fence(); // Put the fence inside the block so RDP never executes anything outside the block
     rspq_block_t *block = rspq_block_end();

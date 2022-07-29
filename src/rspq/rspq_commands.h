@@ -145,4 +145,10 @@ typedef struct rspq_block_s {
     uint32_t cmds[];            ///< Block contents (commands)
 } rspq_block_t;
 
+/** @brief True if we are currently building a block. */
+static inline bool rspq_in_block(void) {
+    extern rspq_block_t *rspq_block;
+    return rspq_block != NULL;
+}
+
 #endif

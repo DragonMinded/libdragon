@@ -51,9 +51,7 @@ enum {
     RDPQ_CMD_SET_LOOKUP_ADDRESS         = 0x01,
     RDPQ_CMD_PUSH_RENDER_MODE           = 0x02,
     RDPQ_CMD_POP_RENDER_MODE            = 0x03,
-    RDPQ_CMD_POP_RENDER_MODE_FIX        = 0x04,
     RDPQ_CMD_SET_COMBINE_MODE_2PASS     = 0x05,
-    RDPQ_CMD_SET_COMBINE_MODE_2PASS_FIX = 0x06,
     RDPQ_CMD_TRI                        = 0x08,
     RDPQ_CMD_TRI_ZBUF                   = 0x09,
     RDPQ_CMD_TRI_TEX                    = 0x0A,
@@ -64,23 +62,14 @@ enum {
     RDPQ_CMD_TRI_SHADE_TEX_ZBUF         = 0x0F,
 
     RDPQ_CMD_TEXTURE_RECTANGLE_EX       = 0x10,
-    RDPQ_CMD_TEXTURE_RECTANGLE_EX_FIX   = 0x11,
     RDPQ_CMD_SET_SCISSOR_EX             = 0x12,
-    RDPQ_CMD_SET_SCISSOR_EX_FIX         = 0x13,
     RDPQ_CMD_MODIFY_OTHER_MODES         = 0x14,
-    RDPQ_CMD_MODIFY_OTHER_MODES_FIX     = 0x15,
     RDPQ_CMD_SET_FILL_COLOR_32          = 0x16,
-    RDPQ_CMD_SET_FILL_COLOR_32_FIX      = 0x17,
     RDPQ_CMD_SET_BLENDING_MODE          = 0x18,
-    RDPQ_CMD_SET_BLENDING_MODE_FIX      = 0x19,
     RDPQ_CMD_SET_COMBINE_MODE_1PASS     = 0x1B,
-    RDPQ_CMD_SET_COMBINE_MODE_1PASS_FIX = 0x1C,
-    RDPQ_CMD_SET_TEXTURE_IMAGE_FIX      = 0x1D,
-    RDPQ_CMD_SET_Z_IMAGE_FIX            = 0x1E,
-    RDPQ_CMD_SET_COLOR_IMAGE_FIX        = 0x1F,
 
-    RDPQ_CMD_SET_OTHER_MODES_FIX        = 0x20,
-    RDPQ_CMD_SYNC_FULL_FIX              = 0x21,
+    RDPQ_CMD_SET_OTHER_MODES_NOWRITE    = 0x20,
+    RDPQ_CMD_SYNC_FULL_NOWRITE          = 0x21,
     RDPQ_CMD_TEXTURE_RECTANGLE          = 0x24,
     RDPQ_CMD_TEXTURE_RECTANGLE_FLIP     = 0x25,
     RDPQ_CMD_SYNC_LOAD                  = 0x26,
@@ -523,8 +512,8 @@ inline void rdpq_set_env_color(color_t color)
 inline void rdpq_set_texture_image_lookup(uint8_t index, uint32_t offset, tex_format_t format, uint16_t width)
 {
     assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
-    extern void __rdpq_set_fixup_image(uint32_t, uint32_t, uint32_t, uint32_t);
-    __rdpq_set_fixup_image(RDPQ_CMD_SET_TEXTURE_IMAGE, RDPQ_CMD_SET_TEXTURE_IMAGE_FIX,
+    extern void __rdpq_fixup_write8_pipe(uint32_t, uint32_t, uint32_t);
+    __rdpq_fixup_write8_pipe(RDPQ_CMD_SET_TEXTURE_IMAGE,
         _carg(format, 0x1F, 19) | _carg(width-1, 0x3FF, 0),
         _carg(index, 0xF, 28) | (offset & 0xFFFFFF));
 }
@@ -540,8 +529,8 @@ inline void rdpq_set_texture_image(const void* dram_ptr, tex_format_t format, ui
 inline void rdpq_set_z_image_lookup(uint8_t index, uint32_t offset)
 {
     assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
-    extern void __rdpq_set_fixup_image(uint32_t, uint32_t, uint32_t, uint32_t);
-    __rdpq_set_fixup_image(RDPQ_CMD_SET_Z_IMAGE, RDPQ_CMD_SET_Z_IMAGE_FIX,
+    extern void __rdpq_fixup_write8_pipe(uint32_t, uint32_t, uint32_t);
+    __rdpq_fixup_write8_pipe(RDPQ_CMD_SET_Z_IMAGE,
         0, 
         _carg(index, 0xF, 28) | (offset & 0xFFFFFF));
 }
@@ -629,8 +618,8 @@ inline void rdpq_set_color_image_surface(surface_t *surface)
 inline void rdpq_set_lookup_address(uint8_t index, void* rdram_addr)
 {
     assertf(index > 0 && index <= 15, "Lookup address index out of range [1,15]: %d", index);
-    extern void __rdpq_dynamic_write8(uint32_t, uint32_t, uint32_t);
-    __rdpq_dynamic_write8(RDPQ_CMD_SET_LOOKUP_ADDRESS, index << 2, PhysicalAddr(rdram_addr));
+    extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
+    __rdpq_write8(RDPQ_CMD_SET_LOOKUP_ADDRESS, index << 2, PhysicalAddr(rdram_addr));
 }
 
 /**
@@ -858,21 +847,21 @@ inline void rdpq_set_mode_standard(void) {
 }
 
 inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
-    extern void __rdpq_fixup_write8(uint32_t cmd_id_dyn, uint32_t cmd_id_fix, int skip_size, uint32_t arg0, uint32_t arg1);
+    extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
 
     // FIXME: autosync pipe
     if (comb & RDPQ_COMBINER_2PASS)
-        __rdpq_fixup_write8(RDPQ_CMD_SET_COMBINE_MODE_2PASS, RDPQ_CMD_SET_COMBINE_MODE_2PASS_FIX, 4,
+        __rdpq_fixup_mode(RDPQ_CMD_SET_COMBINE_MODE_2PASS,
             (comb >> 32) & 0x00FFFFFF,
             comb & 0xFFFFFFFF);
     else
-        __rdpq_fixup_write8(RDPQ_CMD_SET_COMBINE_MODE_1PASS, RDPQ_CMD_SET_COMBINE_MODE_1PASS_FIX, 4,
+        __rdpq_fixup_mode(RDPQ_CMD_SET_COMBINE_MODE_1PASS,
             (comb >> 32) & 0x00FFFFFF,
             comb & 0xFFFFFFFF);
 }
 
 inline void rdpq_mode_blender(rdpq_blender_t blend) {
-    extern void __rdpq_fixup_write8(uint32_t cmd_id_dyn, uint32_t cmd_id_fix, int skip_size, uint32_t arg0, uint32_t arg1);
+    extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
 
     // NOTE: basically everything this function does will be constant-propagated
     // when the function is called with a compile-time constant argument, which
@@ -909,14 +898,14 @@ inline void rdpq_mode_blender(rdpq_blender_t blend) {
 
     // FIXME: autosync pipe
     uint64_t cfg = MAKE_SBM_ARG(blend_1cyc, blend_2cyc);
-    __rdpq_fixup_write8(RDPQ_CMD_SET_BLENDING_MODE, RDPQ_CMD_SET_BLENDING_MODE_FIX, 4,
+    __rdpq_fixup_mode(RDPQ_CMD_SET_BLENDING_MODE,
         (cfg >> 32) & 0x00FFFFFF,
         cfg & 0xFFFFFFFF);
 }
 
 inline void rdpq_mode_blender_off(void) {
-    extern void __rdpq_fixup_write8(uint32_t cmd_id_dyn, uint32_t cmd_id_fix, int skip_size, uint32_t arg0, uint32_t arg1);
-    __rdpq_fixup_write8(RDPQ_CMD_SET_BLENDING_MODE, RDPQ_CMD_SET_BLENDING_MODE_FIX, 4, 0, 0);
+    extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
+    __rdpq_fixup_mode(RDPQ_CMD_SET_BLENDING_MODE, 0, 0);
 }
 
 inline void rdpq_mode_dithering(rdpq_dither_t rgb, rdpq_dither_t alpha) {

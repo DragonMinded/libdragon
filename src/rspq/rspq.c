@@ -339,7 +339,7 @@ static rsp_queue_t rspq_data;
 static bool rspq_initialized = 0;
 
 /** @brief Pointer to the current block being built, or NULL. */
-static rspq_block_t *rspq_block;
+rspq_block_t *rspq_block;
 /** @brief Size of the current block memory buffer (in 32-bit words). */
 static int rspq_block_size;
 

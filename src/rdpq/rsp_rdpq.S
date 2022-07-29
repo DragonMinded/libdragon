@@ -11,9 +11,9 @@
         RSPQ_DefineCommand RDPQCmd_SetLookupAddress,        8   # 0xC1 Set lookup address
         RSPQ_DefineCommand RDPQCmd_PushMode,                8   # 0xC2 Push Mode
         RSPQ_DefineCommand RDPQCmd_PopMode,                 8   # 0xC3 Pop Mode
-        RSPQ_DefineCommand RDPQCmd_PopMode_Static,          8   # 0xC4 Pop Mode Static
+        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xC4
         RSPQ_DefineCommand RDPQCmd_SetCombineMode_2Pass,    8   # 0xC5 SET_COMBINE_MODE (two pass)
-        RSPQ_DefineCommand RDPQCmd_SetCombineMode_2Pass_Static,    8   # 0xC6 SET_COMBINE_MODE (two pass)
+        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xC6
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     32  # 0xC8 Filled
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     48  # 0xC9 Filled ZBuffered
@@ -25,28 +25,28 @@
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     176 # 0xCF Shaded Textured ZBuffered
 
         RSPQ_DefineCommand RDPQCmd_TextureRectEx,           16  # 0xD0
-        RSPQ_DefineCommand RDPQCmd_TextureRectEx_Static,    16  # 0xD1
+        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD1
         RSPQ_DefineCommand RDPQCmd_SetScissorEx,            8   # 0xD2
-        RSPQ_DefineCommand RDPQCmd_SetScissorEx_Static,     8   # 0xD3
+        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD3
         RSPQ_DefineCommand RDPQCmd_ModifyOtherModes,        12  # 0xD4
-        RSPQ_DefineCommand RDPQCmd_ModifyOtherModes_Static, 12  # 0xD5
+        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD5
         RSPQ_DefineCommand RDPQCmd_SetFillColor32,          8   # 0xD6
-        RSPQ_DefineCommand RDPQCmd_SetFillColor32_Static,   8   # 0xD7
+        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD7
         RSPQ_DefineCommand RDPQCmd_SetBlendingMode,         8   # 0xD8 Set Blending Mode
-        RSPQ_DefineCommand RDPQCmd_SetBlendingMode_Static,  8   # 0xD9 Set Blending Mode (static)
+        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD9
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
         RSPQ_DefineCommand RDPQCmd_SetCombineMode_1Pass,    8   # 0xDB SET_COMBINE_MODE (one pass)
-        RSPQ_DefineCommand RDPQCmd_SetCombineMode_1Pass_Static,    8   # 0xDC SET_COMBINE_MODE (one pass)
-        RSPQ_DefineCommand RDPQCmd_SetFixupImage_Static,    8   # 0xDD
-        RSPQ_DefineCommand RDPQCmd_SetFixupImage_Static,    8   # 0xDE
-        RSPQ_DefineCommand RDPQCmd_SetColorImage_Static,    8   # 0xDF
+        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDC
+        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDD
+        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDE
+        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDF
 
-        RSPQ_DefineCommand RDPQCmd_SetOtherModes_Static,    8   # 0xE0
-        RSPQ_DefineCommand RDPQCmd_SyncFull_Static,         8   # 0xE1
+        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xE0
+        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xE1
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xE2
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
         RSPQ_DefineCommand RDPQCmd_Passthrough16,           16  # 0xE4 TEXTURE_RECTANGLE
-        RSPQ_DefineCommand RDPQCmd_TextureRectFlip,         16  # 0xE5 TEXTURE_RECTANGLE_FLIP
+        RSPQ_DefineCommand RDPQCmd_Passthrough16,           16  # 0xE5 TEXTURE_RECTANGLE_FLIP
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xE6 SYNC_LOAD
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xE7 SYNC_PIPE
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xE8 SYNC_TILE
@@ -156,23 +156,6 @@ RDPQ_Write8:
     .endfunc
 
     #############################################################
-    # RDPQCmd_TextureRectFlip
-    #
-    # Falls through to RDPQCmd_Passthrough16, but asserts that copy
-    # mode is not active (only in debug build).
-    #############################################################
-    .func RDPQCmd_TextureRectFlip
-RDPQCmd_TextureRectFlip:
-#ifndef NDEBUG
-    lb t0, %lo(RDP_OTHER_MODES) + 0x1
-    # Bit 21 of the first word is set if FILL or COPY mode is active
-    andi t0, 0x1 << 5
-    assert_eq t0, 0, RDPQ_ASSERT_FLIP_COPY
-#endif
-    # fallthrough!
-    .endfunc
-
-    #############################################################
     # RDPQCmd_Passthrough16
     #
     # Forwards the RDP command contained in a0-a3 to the RDP stream.
@@ -213,8 +196,7 @@ RDPQ_Write16:
     #############################################################
     .func RDPQCmd_SetOtherModes
 RDPQCmd_SetOtherModes:
-    # Reserve space for SetOtherModes + SetScissor
-RDPQCmd_SetOtherModes_StaticWithCopy:
+    # Reserve space for SetOtherModes + SetScissor:
     li rspq_cmd_size, 16
     # Save the other modes to internal cache, then call RDPQ_WriteOtherModes
     # RDPQ_WriteOtherModes will write both SetOtherModes and SetScissor to the staging area
@@ -275,8 +257,6 @@ RDPQ_SaveOtherModes:
     #############################################################
     .func RDPQCmd_ModifyOtherModes
 RDPQCmd_ModifyOtherModes:
-    # Only need to reserve space in dynamic mode. In static mode, DP_END already points to the right location.
-RDPQCmd_ModifyOtherModes_Static:
     li rspq_cmd_size, 16
     lw t1, %lo(RDP_OTHER_MODES)(a0)
     and t1, a1
@@ -335,8 +315,6 @@ RDPQ_FinalizeOtherModes:
     #############################################################
     .func RDPQCmd_SetFixupImage
 RDPQCmd_SetFixupImage:
-    # Only need to reserve space in dynamic mode. In static mode, DP_END already points to the right location.
-RDPQCmd_SetFixupImage_Static:
     li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
     # fixup DRAM address using address slots
     jal RDPQ_FixupAddress
@@ -354,8 +332,6 @@ RDPQCmd_SetFixupImage_Static:
     #############################################################
     .func RDPQCmd_SetColorImage
 RDPQCmd_SetColorImage:
-    # Only need to reserve space in dynamic mode. In static mode, DP_END already points to the right location.
-RDPQCmd_SetColorImage_Static:
     li rspq_cmd_size, 16
     li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
     srl t0, a0, 19
@@ -391,8 +367,6 @@ RDPQCmd_SetColorImage_Static:
     #############################################################
     .func RDPQCmd_SetFillColor32
 RDPQCmd_SetFillColor32:
-    # Only need to reserve space in dynamic mode. In static mode, DP_END already points to the right location.
-RDPQCmd_SetFillColor32_Static:
     li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
     sw a1, %lo(RDP_FILL_COLOR)
     li ra, %lo(RDPQ_Finalize)
@@ -433,9 +407,6 @@ RDPQ_WriteSetFillColor:
     #############################################################
     .func RDPQCmd_SetScissorEx
 RDPQCmd_SetScissorEx:
-    lui t1, 0xD200 ^ 0xD300 # SetScissorEx -> SetScissorEx_Static
-    xor a0, t1
-RDPQCmd_SetScissorEx_Static:
     li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
     sw a0, %lo(RDP_SCISSOR_RECT) + 0x0
     sw a1, %lo(RDP_SCISSOR_RECT) + 0x4
@@ -447,7 +418,7 @@ RDPQ_WriteSetScissor:
     andi t6, 0x1 << 5
     # Leave unchanged when not in FILL or COPY mode
     beqz t6, scissor_substitute
-    lui t1, 0xED00 ^ 0xD300 # SetScissorEx_Static -> SET_SCISSOR
+    lui t1, 0xED00 ^ 0xD200 # SetScissorEx -> SET_SCISSOR
 
     # Subtract 1 subpixel from XL (bits 23:12, as 10.2 fixed point)
     addiu a1, -(1 << 12)
@@ -466,16 +437,13 @@ scissor_substitute:
     #############################################################
     .func RDPQCmd_TextureRectEx
 RDPQCmd_TextureRectEx:
-    lui t1, 0xD000 ^ 0xD100 # TextureRectEx -> TextureRectEx_Static
-    xor a0, t1
-RDPQCmd_TextureRectEx_Static:
     li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
     lb t0, %lo(RDP_OTHER_MODES) + 0x1
     # Bit 21 of the first word is set if FILL or COPY mode is active
     andi t0, 0x1 << 5
     # Leave unchanged when not in FILL or COPY mode
     beqz t0, rect_substitute
-    lui t1, 0xD100 ^ 0xE400  # TextureRectEx_Static -> TEXTURE_RECTANGLE
+    lui t1, 0xD000 ^ 0xE400  # TextureRectEx -> TEXTURE_RECTANGLE
 
     # Subtract 1 pixel from XL and YL
     addiu a0, -((4 << 12) + 4)
@@ -500,12 +468,6 @@ rect_substitute:
     #############################################################
     .func RDPQCmd_PassthroughTriangle
 RDPQCmd_PassthroughTriangle:
-#ifndef NDEBUG
-    lb t0, %lo(RDP_OTHER_MODES) + 0x1
-    # Bit 21 of the first word is set if FILL or COPY mode is active
-    andi t0, 0x1 << 5
-    assert_eq t0, 0, RDPQ_ASSERT_TRI_FILL
-#endif
     sub s5, rspq_dmem_buf_ptr, rspq_cmd_size
     addi s5, %lo(RSPQ_DMEM_BUFFER)
     li s6, %lo(RDP_CMD_STAGING)
@@ -564,9 +526,6 @@ RDPQ_FixupAddress:
     #############################################################
     .func RDPQCmd_SyncFull
 RDPQCmd_SyncFull:
-    li ra, %lo(RDPQCmd_Passthrough8)
-RDPQCmd_SyncFull_Static:
-    move ra2, ra
     # Wait until the previous SYNC_FULL interrupt has been processed.
     jal SpStatusWait
     li t2, SP_STATUS_SIG_RDPSYNCFULL
@@ -582,13 +541,11 @@ RDPQCmd_SyncFull_Static:
     li s4, %lo(RDP_SYNCFULL)
     lw s0, %lo(RDP_RDRAM_STATE_ADDR)
     li t0, DMA_SIZE(8, 1)
-    j DMAOut
-    move ra, ra2
+    jal_and_j DMAOut, RDPQCmd_Passthrough8
     .endfunc
 
     .func RDPQCmd_SetCombineMode_1Pass
 RDPQCmd_SetCombineMode_1Pass:
-RDPQCmd_SetCombineMode_1Pass_Static:
     li rspq_cmd_size, 16
     # The combiner settings is 1 pass. Store it as-is for 1cycle mode.
     sw a0, %lo(RDP_MODE_COMBINER_1CYC) + 0
@@ -608,7 +565,6 @@ RDPQCmd_SetCombineMode_1Pass_Static:
 
     .func RDPQCmd_SetCombineMode_2Pass
 RDPQCmd_SetCombineMode_2Pass:
-RDPQCmd_SetCombineMode_2Pass_Static:
     li rspq_cmd_size, 16
     # The combiner settings is 2 pass. The flag RDPQ_COMBINER_2PASS
     # (bit 63) is set in the command thanks to the fact that the overlay
@@ -628,7 +584,6 @@ store_comb_2cyc:
 
     .func RDPQCmd_SetBlendingMode
 RDPQCmd_SetBlendingMode:
-RDPQCmd_SetBlendingMode_Static:
     li rspq_cmd_size, 16
     # Bit 0-25:  Blender mode 1CYC (-> SOM 6..31)
     # Bit 26-51: Blender mode 2CYC (-> SOM 6..31)
@@ -719,7 +674,6 @@ PushPopMode:
 
     .func RDPQCmd_PopMode
 RDPQCmd_PopMode:
-RDPQCmd_PopMode_Static:
     li rspq_cmd_size, 16
     li s0, %lo(RDP_MODE) + 32
     li s1, %lo(RDP_MODE) + 0

@@ -181,15 +181,14 @@ bool __rdpq_zero_blocks = false;
 static volatile uint32_t *rdpq_block_ptr;
 static volatile uint32_t *rdpq_block_end;
 
-static bool rdpq_block_active;
 static uint8_t rdpq_config;
-
 static uint32_t rdpq_autosync_state[2];
 
+/** True if we're currently creating a rspq block */
 static rdpq_block_t *rdpq_block, *rdpq_block_first;
 static int rdpq_block_size;
 
-static volatile uint32_t *last_rdp_cmd;
+static volatile uint32_t *last_rdp_append_buffer;
 
 static void __rdpq_interrupt(void) {
     rdpq_state_t *rdpq_state = UncachedAddr(rspq_overlay_get_state(&rsp_rdpq));
@@ -232,17 +231,15 @@ void rdpq_init()
 
     // The (1 << 12) is to prevent underflow in case set other modes is called before any set scissor command.
     // Depending on the cycle mode, 1 subpixel is subtracted from the right edge of the scissor rect.
-    rdpq_state->scissor_rect = (((uint64_t)RDPQ_OVL_ID << 32) + ((uint64_t)RDPQ_CMD_SET_SCISSOR_EX_FIX << 56)) | (1 << 12);
+    rdpq_state->scissor_rect = (((uint64_t)RDPQ_OVL_ID << 32) + ((uint64_t)RDPQ_CMD_SET_SCISSOR_EX << 56)) | (1 << 12);
 
     rspq_init();
     rspq_overlay_register_static(&rsp_rdpq, RDPQ_OVL_ID);
 
     rdpq_block = NULL;
     rdpq_block_first = NULL;
-    rdpq_block_active = false;
     rdpq_config = RDPQ_CFG_AUTOSYNCPIPE | RDPQ_CFG_AUTOSYNCLOAD | RDPQ_CFG_AUTOSYNCTILE;
     rdpq_autosync_state[0] = 0;
-
     __rdpq_inited = true;
 
     register_DP_handler(__rdpq_interrupt);
@@ -287,14 +284,6 @@ static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
 {
     switch (assert_code)
     {
-    case RDPQ_ASSERT_FLIP_COPY:
-        printf("TextureRectangleFlip cannot be used in copy mode\n");
-        break;
-
-    case RDPQ_ASSERT_TRI_FILL:
-        printf("Triangles cannot be used in copy or fill mode\n");
-        break;
-    
     case RDPQ_ASSERT_FILLCOPY_BLENDING:
         printf("Cannot call rdpq_mode_blending in fill or copy mode\n");
         break;
@@ -324,7 +313,7 @@ static void autosync_change(uint32_t res) {
 void __rdpq_block_skip(int nwords)
 {
     rdpq_block_ptr += nwords;
-    last_rdp_cmd = NULL;
+    last_rdp_append_buffer = NULL;
 }
 
 void __rdpq_block_update(uint32_t* old, uint32_t *new)
@@ -335,16 +324,16 @@ void __rdpq_block_update(uint32_t* old, uint32_t *new)
     assertf((phys_old & 0x7) == 0, "old not aligned to 8 bytes: %lx", phys_old);
     assertf((phys_new & 0x7) == 0, "new not aligned to 8 bytes: %lx", phys_new);
 
-    if (last_rdp_cmd && (*last_rdp_cmd & 0xFFFFFF) == phys_old) {
+    if (last_rdp_append_buffer && (*last_rdp_append_buffer & 0xFFFFFF) == phys_old) {
         // Update the previous command.
         // It can be either a RSPQ_CMD_RDP_SET_BUFFER or RSPQ_CMD_RDP_APPEND_BUFFER,
         // but we still need to update it to the new END pointer.
-        *last_rdp_cmd = (*last_rdp_cmd & 0xFF000000) | phys_new;
+        *last_rdp_append_buffer = (*last_rdp_append_buffer & 0xFF000000) | phys_new;
     } else {
         // A fixup has emitted some commands, so we need to emit a new
         // RSPQ_CMD_RDP_APPEND_BUFFER in the RSP queue of the block
         extern volatile uint32_t *rspq_cur_pointer;
-        last_rdp_cmd = rspq_cur_pointer;
+        last_rdp_append_buffer = rspq_cur_pointer;
         rspq_int_write(RSPQ_CMD_RDP_APPEND_BUFFER, phys_new);
     }
 }
@@ -362,7 +351,7 @@ void __rdpq_block_switch_buffer(uint32_t *new, uint32_t size)
         "end not aligned to 8 bytes: %lx", PhysicalAddr(rdpq_block_end));
 
     extern volatile uint32_t *rspq_cur_pointer;
-    last_rdp_cmd = rspq_cur_pointer;
+    last_rdp_append_buffer = rspq_cur_pointer;
     rspq_int_write(RSPQ_CMD_RDP_SET_BUFFER,
         PhysicalAddr(rdpq_block_ptr), PhysicalAddr(rdpq_block_ptr), PhysicalAddr(rdpq_block_end));
 }
@@ -397,10 +386,9 @@ void __rdpq_block_next_buffer()
 
 void __rdpq_block_begin()
 {
-    rdpq_block_active = true;
     rdpq_block = NULL;
     rdpq_block_first = NULL;
-    last_rdp_cmd = NULL;
+    last_rdp_append_buffer = NULL;
     rdpq_block_size = RDPQ_BLOCK_MIN_SIZE;
     // push on autosync state stack (to recover the state later)
     rdpq_autosync_state[1] = rdpq_autosync_state[0];
@@ -415,7 +403,6 @@ rdpq_block_t* __rdpq_block_end()
 {
     rdpq_block_t *ret = rdpq_block_first;
 
-    rdpq_block_active = false;
     if (rdpq_block_first) {
         rdpq_block_first->autosync_state = rdpq_autosync_state[0];
     }
@@ -425,7 +412,7 @@ rdpq_block_t* __rdpq_block_end()
     // clean state
     rdpq_block_first = NULL;
     rdpq_block = NULL;
-    last_rdp_cmd = NULL;
+    last_rdp_append_buffer = NULL;
 
     return ret;
 }
@@ -449,83 +436,97 @@ void __rdpq_block_free(rdpq_block_t *block)
 
 static void __rdpq_block_check(void)
 {
-    if (rdpq_block_active && rdpq_block == NULL)
+    if (rspq_in_block() && rdpq_block == NULL)
         __rdpq_block_next_buffer();
 }
 
-/// @cond
+#define __rdpcmd_count_words2(rdp_cmd_id, arg0, ...)  nwords += __COUNT_VARARGS(__VA_ARGS__) + 1;
+#define __rdpcmd_count_words(arg)                    __rdpcmd_count_words2 arg
 
-#define _rdpq_write_arg(arg) \
-    *ptr++ = (arg);
+#define __rdpcmd_write_arg(arg)                      *ptr++ = arg;
+#define __rdpcmd_write2(rdp_cmd_id, arg0, ...)        \
+        *ptr++ = (RDPQ_OVL_ID + ((rdp_cmd_id)<<24)) | (arg0); \
+        __CALL_FOREACH_BIS(__rdpcmd_write_arg, ##__VA_ARGS__);
+#define __rdpcmd_write(arg)                          __rdpcmd_write2 arg
 
-/// @endcond
+#define __rspcmd_write(...)                          ({ rspq_write(RDPQ_OVL_ID, __VA_ARGS__ ); })
 
-#define rdpq_dynamic_write(cmd_id, ...) ({ \
-    rspq_write(RDPQ_OVL_ID, (cmd_id), ##__VA_ARGS__); \
-})
-
-#define rdpq_static_write(cmd_id, arg0, ...) ({ \
-    if (__builtin_expect(rdpq_block_ptr + 1 + __COUNT_VARARGS(__VA_ARGS___) > rdpq_block_end, 0)) \
-        __rdpq_block_next_buffer(); \
-    volatile uint32_t *ptr = rdpq_block_ptr; \
-    *ptr++ = (RDPQ_OVL_ID + ((cmd_id)<<24)) | (arg0); \
-    __CALL_FOREACH(_rdpq_write_arg, ##__VA_ARGS__); \
-    __rdpq_block_update((uint32_t*)rdpq_block_ptr, (uint32_t*)ptr); \
-    rdpq_block_ptr = ptr; \
-})
-
-#define rdpq_static_skip(size) ({ \
-    if (__builtin_expect(rdpq_block_ptr + size > rdpq_block_end, 0)) \
-        __rdpq_block_next_buffer(); \
-    __rdpq_block_skip(size); \
-})
-
-static inline bool in_block(void) {
-    return rdpq_block_active;
-}
-
-#define rdpq_write(cmd_id, arg0, ...) ({ \
-    if (in_block()) { \
+/**
+ * @brief Write a passthrough RDP command into the rspq queue
+ * 
+ * This macro handles writing a single RDP command into the rspq queue. It must be
+ * used only with raw commands aka passthroughs, that is commands that are not
+ * intercepted by RSP in any way, but just forwarded to RDP.
+ * 
+ * In block mode, the RDP command will be written to the static RDP buffer instead,
+ * so that it will be sent directly to RDP without going through RSP at all.
+ * 
+ * Example syntax (notice the double parenthesis, required for uniformity 
+ * with #rdpq_fixup_write):
+ * 
+ *    rdpq_write((RDPQ_CMD_SYNC_PIPE, 0, 0));
+ */
+#define rdpq_write(rdp_cmd) ({ \
+    if (rspq_in_block()) { \
         __rdpq_block_check(); \
-        rdpq_static_write(cmd_id, arg0, ##__VA_ARGS__); \
+        int nwords = 0; __rdpcmd_count_words(rdp_cmd); \
+        if (__builtin_expect(rdpq_block_ptr + nwords > rdpq_block_end, 0)) \
+            __rdpq_block_next_buffer(); \
+        volatile uint32_t *ptr = rdpq_block_ptr; \
+        __rdpcmd_write(rdp_cmd); \
+        __rdpq_block_update((uint32_t*)rdpq_block_ptr, (uint32_t*)ptr); \
+        rdpq_block_ptr = ptr; \
     } else { \
-        rdpq_dynamic_write(cmd_id, arg0, ##__VA_ARGS__); \
+        __rspcmd_write rdp_cmd; \
     } \
 })
 
-#define rdpq_fixup_write(cmd_id_dyn, cmd_id_fix, skip_size, arg0, ...) ({ \
-    if (in_block()) { \
+/**
+ * @brief Write a fixup RDP command into the rspq queue.
+ * 
+ * Fixup commands are similar to standard RDP commands, but they are intercepted
+ * by RSP which (optionally) manipulates them before sending them to the RDP buffer.
+ * In blocks, the final modified RDP command is written to the RDP static buffer,
+ * intermixed with other commands, so there needs to be an empty slot for it.
+ * 
+ * This macro accepts the RSP command as first mandatory argument, and a list
+ * of RDP commands that will be used as placeholder in the static RDP buffer.
+ * For instance:
+ * 
+ *      rdpq_fixup_write(
+ *          (RDPQ_CMD_MODIFY_OTHER_MODES, 0, 0),                               // RSP buffer
+ *          (RDPQ_CMD_SET_OTHER_MODES, 0, 0), (RDPQ_CMD_SET_SCISSOR, 0, 0),    // RDP buffer
+ *      );
+ * 
+ * This will generate a rdpq command "modify other modes" which is a RSP-only fixup;
+ * when this fixup will run, it will generate two RDP commands: a SET_OTHER_MODES,
+ * and a SET_SCISSOR. When the function above runs in block mode, the macro reserves
+ * two slots in the RDP static buffer for the two RDP commands, and even initializes
+ * the slots with the provided commands (in case this reduces the work the
+ * fixup will have to do), and then writes the RSP command as usual. When running
+ * outside block mode, instead, only the RSP command is emitted as usual, and the
+ * RDP commands are ignored: in fact, the passthrough will simply push them into the
+ * standard RDP dynamic buffers, so no reservation is required.
+ */
+#define rdpq_fixup_write(rsp_cmd, ...) ({ \
+    if (__COUNT_VARARGS(__VA_ARGS__) != 0 && rspq_in_block()) { \
         __rdpq_block_check(); \
-        rdpq_static_skip(skip_size); \
-        rdpq_dynamic_write(cmd_id_fix, arg0, ##__VA_ARGS__); \
-    } else { \
-        rdpq_dynamic_write(cmd_id_dyn, arg0, ##__VA_ARGS__); \
+        int nwords = 0; __CALL_FOREACH(__rdpcmd_count_words, ##__VA_ARGS__) \
+        if (__builtin_expect(rdpq_block_ptr + nwords > rdpq_block_end, 0)) \
+            __rdpq_block_next_buffer(); \
+        volatile uint32_t *ptr = rdpq_block_ptr; \
+        __CALL_FOREACH(__rdpcmd_write, ##__VA_ARGS__); \
+        last_rdp_append_buffer = NULL; \
+        rdpq_block_ptr = ptr; \
     } \
+    __rspcmd_write rsp_cmd; \
 })
 
-__attribute__((noinline))
-void __rdpq_fixup_write8(uint32_t cmd_id_dyn, uint32_t cmd_id_fix, int skip_size, uint32_t arg0, uint32_t arg1)
-{
-    rdpq_fixup_write(cmd_id_dyn, cmd_id_fix, skip_size, arg0, arg1);
-}
-
-__attribute__((noinline))
-void __rdpq_fixup_write8_syncchange(uint32_t cmd_id_dyn, uint32_t cmd_id_fix, int skip_size, uint32_t arg0, uint32_t arg1, uint32_t autosync)
-{
-    autosync_change(autosync);
-    rdpq_fixup_write(cmd_id_dyn, cmd_id_fix, skip_size, arg0, arg1);
-}
-
-__attribute__((noinline))
-void __rdpq_dynamic_write8(uint32_t cmd_id, uint32_t arg0, uint32_t arg1)
-{
-    rdpq_dynamic_write(cmd_id, arg0, arg1);
-}
 
 __attribute__((noinline))
 void __rdpq_write8(uint32_t cmd_id, uint32_t arg0, uint32_t arg1)
 {
-    rdpq_write(cmd_id, arg0, arg1);
+    rdpq_write((cmd_id, arg0, arg1));
 }
 
 __attribute__((noinline))
@@ -553,7 +554,7 @@ void __rdpq_write8_syncchangeuse(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, 
 __attribute__((noinline))
 void __rdpq_write16(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3)
 {
-    rdpq_write(cmd_id, arg0, arg1, arg2, arg3);    
+    rdpq_write((cmd_id, arg0, arg1, arg2, arg3));
 }
 
 __attribute__((noinline))
@@ -879,57 +880,83 @@ void __rdpq_texture_rectangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3
     // FIXME: this can also use tile+1 in case the combiner refers to TEX1
     // FIXME: this can also use tile+2 and +3 in case SOM activates texture detail / sharpen
     autosync_use(AUTOSYNC_PIPE | AUTOSYNC_TILE(tile) | AUTOSYNC_TMEM(0));
-    rdpq_fixup_write(RDPQ_CMD_TEXTURE_RECTANGLE_EX, RDPQ_CMD_TEXTURE_RECTANGLE_EX_FIX, 4, w0, w1, w2, w3);
+    rdpq_fixup_write(
+        (RDPQ_CMD_TEXTURE_RECTANGLE_EX, w0, w1, w2, w3),  // RSP
+        (RDPQ_CMD_TEXTURE_RECTANGLE_EX, w0, w1, w2, w3)   // RDP
+    );
 }
 
 __attribute__((noinline))
 void __rdpq_set_scissor(uint32_t w0, uint32_t w1)
 {
     // NOTE: SET_SCISSOR does not require SYNC_PIPE
-    __rdpq_fixup_write8(RDPQ_CMD_SET_SCISSOR_EX, RDPQ_CMD_SET_SCISSOR_EX_FIX, 2, w0, w1);
+    rdpq_fixup_write(
+        (RDPQ_CMD_SET_SCISSOR_EX, w0, w1),  // RSP
+        (RDPQ_CMD_SET_SCISSOR_EX, w0, w1)   // RDP
+    );
 }
 
 __attribute__((noinline))
 void __rdpq_set_fill_color(uint32_t w1)
 {
-    __rdpq_fixup_write8_syncchange(RDPQ_CMD_SET_FILL_COLOR_32, RDPQ_CMD_SET_FILL_COLOR_32_FIX, 2, 0, w1, AUTOSYNC_PIPE);
+    autosync_change(AUTOSYNC_PIPE);
+    rdpq_fixup_write(
+        (RDPQ_CMD_SET_FILL_COLOR_32, 0, w1), // RSP
+        (RDPQ_CMD_SET_FILL_COLOR_32, 0, w1)  // RDP
+    );
 }
 
 __attribute__((noinline))
-void __rdpq_set_fixup_image(uint32_t cmd_id_dyn, uint32_t cmd_id_fix, uint32_t w0, uint32_t w1)
+void __rdpq_fixup_write8_pipe(uint32_t cmd_id, uint32_t w0, uint32_t w1)
 {
-    __rdpq_fixup_write8_syncchange(cmd_id_dyn, cmd_id_fix, 2, w0, w1, AUTOSYNC_PIPE);
+    autosync_change(AUTOSYNC_PIPE);
+    rdpq_fixup_write(
+        (cmd_id, w0, w1),
+        (cmd_id, w0, w1)
+    );
+}
+
+__attribute__((noinline))
+void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1)
+{
+    autosync_change(AUTOSYNC_PIPE);
+    rdpq_fixup_write(
+        (cmd_id, w0, w1),
+        (RDPQ_CMD_SET_COMBINE_MODE_RAW, w0, w1), (RDPQ_CMD_SET_OTHER_MODES, w0, w1)
+    );
 }
 
 __attribute__((noinline))
 void __rdpq_set_color_image(uint32_t w0, uint32_t w1)
 {
-    __rdpq_fixup_write8_syncchange(RDPQ_CMD_SET_COLOR_IMAGE, RDPQ_CMD_SET_COLOR_IMAGE_FIX, 4, w0, w1, AUTOSYNC_PIPE);
+    // SET_COLOR_IMAGE on RSP always generates an additional SET_SCISSOR, so make sure there is
+    // space for it in case of a static buffer (in a block).
+    autosync_change(AUTOSYNC_PIPE);
+    rdpq_fixup_write(
+        (RDPQ_CMD_SET_COLOR_IMAGE, w0, w1), // RSP
+        (RDPQ_CMD_SET_COLOR_IMAGE, w0, w1), (RDPQ_CMD_SET_SCISSOR, 0, 0) // RDP
+    );
 }
 
 __attribute__((noinline))
 void __rdpq_set_other_modes(uint32_t w0, uint32_t w1)
 {
     autosync_change(AUTOSYNC_PIPE);
-    if (in_block()) {
-        __rdpq_block_check();
-        // Write set other modes normally first, because it doesn't need to be modified
-        rdpq_static_write(RDPQ_CMD_SET_OTHER_MODES, w0, w1);
-        // This command will just record the other modes to DMEM and output a set scissor command
-        rdpq_dynamic_write(RDPQ_CMD_SET_OTHER_MODES_FIX, w0, w1);
-        // Placeholder for the set scissor
-        rdpq_static_skip(2);
-    } else {
-        // The regular dynamic command will output both the set other modes and the set scissor commands
-        rdpq_dynamic_write(RDPQ_CMD_SET_OTHER_MODES, w0, w1);
-    }
+    rdpq_fixup_write(
+        (RDPQ_CMD_SET_OTHER_MODES, w0, w1),  // RSP
+        (RDPQ_CMD_SET_OTHER_MODES, w0, w1), (RDPQ_CMD_SET_SCISSOR, 0, 0)   // RDP
+    );
 }
 
 __attribute__((noinline))
 void __rdpq_modify_other_modes(uint32_t w0, uint32_t w1, uint32_t w2)
 {
     autosync_change(AUTOSYNC_PIPE);
-    rdpq_fixup_write(RDPQ_CMD_MODIFY_OTHER_MODES, RDPQ_CMD_MODIFY_OTHER_MODES_FIX, 4, w0, w1, w2);
+    rdpq_fixup_write(
+        (RDPQ_CMD_MODIFY_OTHER_MODES, w0, w1, w2),
+        (RDPQ_CMD_SET_OTHER_MODES, 0, 0), (RDPQ_CMD_SET_SCISSOR, 0, 0)   // RDP
+
+    );
 }
 
 uint64_t rdpq_get_other_modes_raw(void)
@@ -946,14 +973,10 @@ void rdpq_sync_full(void (*callback)(void*), void* arg)
 
     // We encode in the command (w0/w1) the callback for the RDP interrupt,
     // and we need that to be forwarded to RSP dynamic command.
-    if (in_block()) {
-        // In block mode, schedule the command in both static and dynamic mode.
-        __rdpq_block_check();
-        rdpq_dynamic_write(RDPQ_CMD_SYNC_FULL_FIX, w0, w1);
-        rdpq_static_write(RDPQ_CMD_SYNC_FULL, w0, w1);
-    } else {
-        rdpq_dynamic_write(RDPQ_CMD_SYNC_FULL, w0, w1);
-    }
+    rdpq_fixup_write(
+        (RDPQ_CMD_SYNC_FULL, w0, w1), // RSP
+        (RDPQ_CMD_SYNC_FULL, w0, w1)  // RDP
+    );
 
     // The RDP is fully idle after this command, so no sync is necessary.
     rdpq_autosync_state[0] = 0;
@@ -984,7 +1007,7 @@ void rdpq_mode_push(void)
 
 void rdpq_mode_pop(void)
 {
-    __rdpq_fixup_write8_syncchange(RDPQ_CMD_POP_RENDER_MODE, RDPQ_CMD_POP_RENDER_MODE_FIX, 4, 0, 0, AUTOSYNC_PIPE);
+    __rdpq_fixup_mode(RDPQ_CMD_POP_RENDER_MODE, 0, 0);
 }
 
 
