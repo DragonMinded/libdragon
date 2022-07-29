@@ -6,6 +6,20 @@
 #include <string.h>
 #include <assert.h>
 
+// Define to 1 to active internal debugging of the rdpq debug module.
+// This is useful to trace bugs of rdpq itself, but it should not be
+// necessary for standard debugging sessions of application code, so it
+// is turned off by default.
+#ifndef RDPQ_DEBUG_DEBUG
+#define RDPQ_DEBUG_DEBUG     0
+#endif
+
+#if RDPQ_DEBUG_DEBUG
+#define intdebugf(...) debugf(__VA_ARGS__)
+#else
+#define intdebugf(...) ({ })
+#endif
+
 #define BITS(v, b, e)  ((unsigned int)((v) << (63-(e)) >> (63-(e)+(b)))) 
 #define BIT(v, b)      BITS(v, b, b)
 #define SBITS(v, b, e) (int)BITS((int64_t)(v), b, e)
@@ -13,6 +27,7 @@
 typedef struct {
     uint64_t *start;
     uint64_t *end;
+    uint64_t *traced;
 } rdp_buffer_t;
 
 typedef struct {
@@ -61,6 +76,14 @@ void __rdpq_trace_fetch(void)
     uint64_t *start = (void*)(*DP_START | 0xA0000000);
     uint64_t *end = (void*)(*DP_END | 0xA0000000);
 
+#if RDPQ_DEBUG_DEBUG
+    intdebugf("__rdpq_trace_fetch: %p-%p\n", start, end);
+    extern void *rspq_rdp_dynamic_buffers[2];
+    for (int i=0;i<2;i++)
+        if ((void*)start >= rspq_rdp_dynamic_buffers[i] && (void*)end <= rspq_rdp_dynamic_buffers[i]+RSPQ_RDP_DYNAMIC_BUFFER_SIZE)
+            intdebugf("   -> dynamic buffer %d\n", i);
+#endif
+
     if (start == end) return;
     if (start > end) {
         debugf("[rdpq] ERROR: invalid RDP buffer: %p-%p\n", start, end);
@@ -72,13 +95,28 @@ void __rdpq_trace_fetch(void)
     // Coalesce with last written buffer if possible. Notice that rdpq_trace put the start
     // pointer to NULL to avoid coalescing when it begins dumping it, so this should avoid
     // race conditions.
-    int prev = (buf_widx - 1) % NUM_BUFFERS;
+    int prev = buf_widx ? buf_widx - 1 : NUM_BUFFERS-1;
     if (buffers[prev].start == start) {
-        // If the previous buffer was bigger, it is a logic error, as RDP buffers should only grow
+        // If the previous buffer was bigger, it is a logic error, as RDP buffers should only grow            
+        if (buffers[prev].end == end) {
+            enable_interrupts();
+            intdebugf("   -> ignored because coalescing\n");
+            return;
+        }
         if (buffers[prev].end > end)
             debugf("[rdpq] ERROR: RDP buffer shrinking (%p-%p => %p-%p)\n", 
                 buffers[prev].start, buffers[prev].end, start, end);
         buffers[prev].end = end;
+
+        // If the previous buffer was already dumped, dump it again as we added more
+        // information to it. We do not modify the "traced" pointer so that previously
+        // dumped commands are not dumped again.
+        if (buf_ridx == buf_widx) {
+            intdebugf("   -> replaying from %p\n", buffers[prev].traced);
+            buf_ridx = prev;
+        }
+
+        intdebugf("   -> coalesced\n");
         enable_interrupts();
         return;
     }
@@ -90,8 +128,7 @@ void __rdpq_trace_fetch(void)
     }
 
     // Write the new buffer. It should be an empty slot
-    assertf(buffers[buf_widx].start == NULL, "widx:%d ridx:%d", buf_widx, buf_ridx);
-    buffers[buf_widx] = (rdp_buffer_t){ .start = start, .end = end };
+    buffers[buf_widx] = (rdp_buffer_t){ .start = start, .end = end, .traced = start };
     buf_widx = (buf_widx + 1) % NUM_BUFFERS;
     enable_interrupts();
 }
@@ -106,9 +143,9 @@ void __rdpq_trace(void)
 
         disable_interrupts();
         if (buf_ridx != buf_widx) {
-            cur = buffers[buf_ridx].start;
+            cur = buffers[buf_ridx].traced;
             end = buffers[buf_ridx].end;
-            buffers[buf_ridx].start = 0;
+            buffers[buf_ridx].traced = end;
             buf_ridx = (buf_ridx + 1) % NUM_BUFFERS;
         }
         enable_interrupts();
@@ -273,7 +310,7 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
         FLAG(som.chromakey, "chroma_key"); FLAG(som.atomic, "atomic");
 
         if(som.alphacmp.enable) fprintf(out, " alpha_compare%s", som.alphacmp.dither ? "[dither]" : "");
-        if(som.dither.rgb != 3 || som.dither.alpha != 3) fprintf(out, " dither=[%s,%s]", rgbdither[som.dither.rgb], alphadither[som.dither.alpha]);
+        if((som.cycle_type < 2) && (som.dither.rgb != 3 || som.dither.alpha != 3)) fprintf(out, " dither=[%s,%s]", rgbdither[som.dither.rgb], alphadither[som.dither.alpha]);
         if(som.cvg.mode || som.cvg.color || som.cvg.sel_alpha || som.cvg.mul_alpha) {
             fprintf(out, " cvg=["); FLAG_RESET();
             FLAG(som.cvg.mode, cvgmode[som.cvg.mode]); FLAG(som.cvg.color, "color"); 
@@ -479,7 +516,10 @@ void rdpq_validate(uint64_t *buf, int *errs, int *warns)
     case 0x2D: // SET_SCISSOR
         rdpq_state.sent_scissor = true;
         break;
-    case 0x24: // TEX_RECT, TEX_RECT_FLIP
+    case 0x25: // TEX_RECT_FLIP
+        VALIDATE_ERR(rdpq_state.som.cycle_type < 2, "cannot draw texture flip in copy/flip mode");
+        // passthrough
+    case 0x24: // TEX_RECT
         lazy_validate_cc(errs, warns);
         validate_draw_cmd(errs, warns, false, true, false);
         break;
