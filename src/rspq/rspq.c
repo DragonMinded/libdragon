@@ -171,7 +171,8 @@
 #include "rspq_commands.h"
 #include "rspq_constants.h"
 #include "rdp.h"
-#include "rdpq/rdpq_block.h"
+#include "rdpq/rdpq_internal.h"
+#include "rdpq/rdpq_debug.h"
 #include "interrupt.h"
 #include "utils.h"
 #include "n64sys.h"
@@ -279,10 +280,8 @@ typedef struct rsp_queue_s {
     uint32_t rspq_dram_highpri_addr;     ///< Address of the highpri queue  (special slot in the pointer stack)
     uint32_t rspq_dram_addr;             ///< Current RDRAM address being processed
     uint32_t rspq_rdp_buffers[2];        ///< RDRAM Address of dynamic RDP buffers
-    uint32_t rspq_rdp_pointer;           ///< Internal cache for last value of DP_START
     uint32_t rspq_rdp_sentinel;          ///< Internal cache for last value of DP_END
     int16_t current_ovl;                 ///< Current overlay index
-    uint8_t rdp_buf_idx;                 ///< Index of the current dynamic RDP buffer
 } __attribute__((aligned(16), packed)) rsp_queue_t;
 
 /**
@@ -340,7 +339,7 @@ static rsp_queue_t rspq_data;
 static bool rspq_initialized = 0;
 
 /** @brief Pointer to the current block being built, or NULL. */
-static rspq_block_t *rspq_block;
+rspq_block_t *rspq_block;
 /** @brief Size of the current block memory buffer (in 32-bit words). */
 static int rspq_block_size;
 
@@ -368,6 +367,10 @@ static void rspq_sp_interrupt(void)
     if (status & SP_STATUS_SIG_SYNCPOINT) {
         wstatus |= SP_WSTATUS_CLEAR_SIG_SYNCPOINT;
         ++rspq_syncpoints_done;
+    }
+    if (status & SP_STATUS_SIG0) {
+        wstatus |= SP_WSTATUS_CLEAR_SIG0;
+        if (rdpq_trace_fetch) rdpq_trace_fetch();
     }
 
     MEMORY_BARRIER();
@@ -402,7 +405,7 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
     printf("RSPQ: Highpri DRAM address: %08lx\n", rspq->rspq_dram_highpri_addr);
     printf("RSPQ: Current DRAM address: %08lx + GP=%lx = %08lx\n", 
         rspq->rspq_dram_addr, state->gpr[28], cur);
-    printf("RSPQ: RDP     DRAM address: %08lx\n", rspq->rspq_rdp_buffers[rspq->rdp_buf_idx / sizeof(uint32_t)]);
+    printf("RSPQ: RDP     DRAM address: %08lx\n", rspq->rspq_rdp_buffers[1]);
     printf("RSPQ: Current Overlay: %s (%02x)\n", ovl_name, ovl_idx);
 
     // Dump the command queue in DMEM.
@@ -606,6 +609,10 @@ void rspq_init(void)
 
     rspq_rdp_dynamic_buffers[0] = malloc_uncached(RSPQ_RDP_DYNAMIC_BUFFER_SIZE);
     rspq_rdp_dynamic_buffers[1] = malloc_uncached(RSPQ_RDP_DYNAMIC_BUFFER_SIZE);
+    if (__rdpq_zero_blocks) {
+        memset(rspq_rdp_dynamic_buffers[0], 0, RSPQ_RDP_DYNAMIC_BUFFER_SIZE);
+        memset(rspq_rdp_dynamic_buffers[1], 0, RSPQ_RDP_DYNAMIC_BUFFER_SIZE);
+    }
 
     // Load initial settings
     memset(&rspq_data, 0, sizeof(rsp_queue_t));
@@ -614,8 +621,7 @@ void rspq_init(void)
     rspq_data.rspq_dram_addr = rspq_data.rspq_dram_lowpri_addr;
     rspq_data.rspq_rdp_buffers[0] = PhysicalAddr(rspq_rdp_dynamic_buffers[0]);
     rspq_data.rspq_rdp_buffers[1] = PhysicalAddr(rspq_rdp_dynamic_buffers[1]);
-    rspq_data.rspq_rdp_pointer = rspq_data.rspq_rdp_buffers[0];
-    rspq_data.rspq_rdp_sentinel = rspq_data.rspq_rdp_pointer + RSPQ_RDP_DYNAMIC_BUFFER_SIZE;
+    rspq_data.rspq_rdp_sentinel = rspq_data.rspq_rdp_buffers[0] + RSPQ_RDP_DYNAMIC_BUFFER_SIZE;
     rspq_data.tables.overlay_descriptors[0].state = PhysicalAddr(&dummy_overlay_state);
     rspq_data.tables.overlay_descriptors[0].data_size = sizeof(uint64_t);
     rspq_data.current_ovl = 0;
@@ -914,6 +920,11 @@ void rspq_next_buffer(void) {
         return;
     }
 
+    // We are about to switch buffer. If the debugging engine is activate,
+    // it is a good time to run it, so that it does not accumulate too many
+    // commands.
+    if (rdpq_trace) rdpq_trace();
+
     // Wait until the previous buffer is executed by the RSP.
     // We cannot write to it if it's still being executed.
     // FIXME: this should probably transition to a sync-point,
@@ -977,6 +988,7 @@ void rspq_flush(void)
     if (rspq_block) return;
 
     rspq_flush_internal();
+    if (rdpq_trace) rdpq_trace();
 }
 
 void rspq_highpri_begin(void)
@@ -1201,6 +1213,9 @@ void rspq_wait(void) {
     }
 
     rspq_syncpoint_wait(rspq_syncpoint_new());
+
+    // Update the tracing engine (if enabled)
+    if (rdpq_trace) rdpq_trace();
 
     // Update the state in RDRAM of the current overlay. This makes sure all
     // overlays have their state synced back to RDRAM
