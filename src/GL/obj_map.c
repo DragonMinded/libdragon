@@ -49,7 +49,7 @@ obj_map_entry_t * obj_map_find_entry(const obj_map_t *map, uint32_t key)
     return NULL;
 }
 
-void obj_map_set_without_expanding(obj_map_t *map, uint32_t key, void *value)
+void * obj_map_set_without_expanding(obj_map_t *map, uint32_t key, void *value)
 {
     uint32_t mask = (map->capacity - 1);
 
@@ -62,14 +62,15 @@ void obj_map_set_without_expanding(obj_map_t *map, uint32_t key, void *value)
             e->key = key;
             e->value = value;
             map->count++;
-            return;
+            return NULL;
         }
 
         if (e->key == key) {
             // Key is already present
             // -> Value is changed, but no new entry is added
+            void *old_value = e->value;
             e->value = value;
-            return;
+            return old_value;
         }
     }
 
@@ -104,7 +105,7 @@ void * obj_map_get(const obj_map_t *map, uint32_t key)
     return entry == NULL ? NULL : entry->value;
 }
 
-void obj_map_set(obj_map_t *map, uint32_t key, void *value)
+void * obj_map_set(obj_map_t *map, uint32_t key, void *value)
 {
     assertf(map->entries != NULL, "Map is not initialized!");
     assertf(value != NULL, "Can't insert NULL into map!");
@@ -114,7 +115,7 @@ void obj_map_set(obj_map_t *map, uint32_t key, void *value)
         obj_map_expand(map);
     }
 
-    obj_map_set_without_expanding(map, key, value);
+    return obj_map_set_without_expanding(map, key, value);
 }
 
 void * obj_map_remove(obj_map_t *map, uint32_t key)

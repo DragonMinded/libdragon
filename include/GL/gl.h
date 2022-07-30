@@ -1055,12 +1055,14 @@ void glRenderMode(GLenum mode);
 #define GL_COMPILE                  0x1300
 #define GL_COMPILE_AND_EXECUTE      0x1301
 
+#define GL_2_BYTES                  0x1407
+#define GL_3_BYTES                  0x1408
+#define GL_4_BYTES                  0x1409
+
 #define GL_LIST_MODE                0x0B30
 #define GL_MAX_LIST_NESTING         0x0B31
 #define GL_LIST_BASE                0x0B32
 #define GL_LIST_INDEX               0x0B33
-
-// TODO
 
 void glNewList(GLuint n, GLenum mode);
 void glEndList(void);

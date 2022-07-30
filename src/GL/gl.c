@@ -88,6 +88,7 @@ void gl_init()
     gl_array_init();
     gl_primitive_init();
     gl_pixel_init();
+    gl_list_init();
 
     glDrawBuffer(GL_FRONT);
     glDepthRange(0, 1);
@@ -103,6 +104,7 @@ void gl_init()
 void gl_close()
 {
     gl_texture_close();
+    gl_list_close();
     rdpq_close();
 }
 
