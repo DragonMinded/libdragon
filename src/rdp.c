@@ -7,6 +7,7 @@
 #include <malloc.h>
 #include <string.h>
 #include "libdragon.h"
+#include "rdp_commands.h"
 
 /**
  * @defgroup rdp Hardware Display Interface
