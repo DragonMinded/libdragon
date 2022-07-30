@@ -68,19 +68,23 @@ inline bool blender_reads_memory(uint32_t bl)
            (bl&3) == _RDPQ_SOM_BLEND1_B2_MEMORY_ALPHA;
 }
 
-inline rdpq_blender_t blender1(uint32_t bl)
+inline rdpq_blender_t blender1(uint32_t bl, bool force_blend)
 {
     rdpq_blender_t blend = (bl << 18) | (bl << 16);
     if (blender_reads_memory(bl))
         blend |= SOM_READ_ENABLE;
+    if (force_blend)
+        blend |= SOM_BLENDING;
     return blend;
 }
 
-inline rdpq_blender_t blender2(uint32_t bl0, uint32_t bl1)
+inline rdpq_blender_t blender2(uint32_t bl0, uint32_t bl1, bool force_blend)
 {
     rdpq_blender_t blend = (bl0 << 18) | (bl1 << 16);
     if (blender_reads_memory(bl0) || blender_reads_memory(bl1))
         blend |= SOM_READ_ENABLE;
+    if (force_blend)
+        blend |= SOM_BLENDING;
     return blend | RDPQ_BLENDER_2PASS;
 }
 
@@ -191,16 +195,12 @@ void gl_update_render_mode()
         uint32_t fog_blend = BLENDER_CYCLE(IN_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA);
 
         if (state.blend || state.multisample) {
-            blend = blender2(fog_blend, blend_cycle);
+            blend = blender2(fog_blend, blend_cycle, state.blend);
         } else {
-            blend = blender1(fog_blend);
+            blend = blender1(fog_blend, true);
         }
     } else {
-        blend = blender1(blend_cycle);
-    }
-
-    if (state.blend || (state.fog && !state.multisample)) {
-        modes |= SOM_BLENDING;
+        blend = blender1(blend_cycle, state.blend);
     }
 
     if (state.alpha_test && state.alpha_func == GL_GREATER) {
