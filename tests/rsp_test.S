@@ -1,37 +1,42 @@
-#include "../src/rspq/rsp_queue.S"
+#include <rsp_queue.inc>
 
-#define ASSERT_GP_BACKWARD           0xF001   // Also defined in test_rsqp.c
+#define ASSERT_GP_BACKWARD           0xF001   // Also defined in test_rspq.c
 
-    .section .data.overlay
+    .set noreorder
+    .set at
 
-    RSPQ_OverlayHeader OVL_TEST_SAVED_DATA_START, OVL_TEST_SAVED_DATA_END, 0xF0
+    .data
 
-    .align 1
-COMMAND_TABLE:
-    RSPQ_DefineCommand command_test, 4           # 0xF0
-    RSPQ_DefineCommand command_test, 8           # 0xF1
-    RSPQ_DefineCommand command_test, 16          # 0xF2
-    RSPQ_DefineCommand command_wait, 8           # 0xF3
-    RSPQ_DefineCommand command_output, 8         # 0xF4
-    RSPQ_DefineCommand command_reset, 4          # 0xF5
-    RSPQ_DefineCommand command_test_high, 4      # 0xF6
-    RSPQ_DefineCommand command_reset_log, 4      # 0xF7
+    RSPQ_BeginOverlayHeader
+        RSPQ_DefineCommand command_test,      4      # 0x00
+        RSPQ_DefineCommand command_test,      8      # 0x01
+        RSPQ_DefineCommand command_test,      16     # 0x02
+        RSPQ_DefineCommand command_wait,      8      # 0x03
+        RSPQ_DefineCommand command_output,    8      # 0x04
+        RSPQ_DefineCommand command_reset,     4      # 0x05
+        RSPQ_DefineCommand command_test_high, 4      # 0x06
+        RSPQ_DefineCommand command_reset_log, 4      # 0x07
+        RSPQ_DefineCommand command_big,       132    # 0x08
+        RSPQ_DefineCommand command_big_out,   8      # 0x09
+	RSPQ_EndOverlayHeader
 
-    .align 3
-OVL_TEST_SAVED_DATA_START:
+    RSPQ_BeginSavedState
 TEST_DATA:
 TEST_PADDING:  .long 0
 TEST_VARIABLE: .long 0
 TEST_PADDING2:  .long 0
 TEST_VARIABLE2: .long 0
-OVL_TEST_SAVED_DATA_END:
+    RSPQ_EndSavedState
 
 BIG_LOG_PTR: .long 0
 
     .align 10
 BIG_LOG:  .ds.b 2048
 
-    .text 1
+    .align 2
+TEST_BIG: .ds.b 128
+
+    .text
 
 command_test:
     lw t0, %lo(TEST_VARIABLE)
@@ -104,3 +109,23 @@ command_reset_log:
     # Reset the big log pointer to the start
     jr ra
     sw zero, %lo(BIG_LOG_PTR)
+
+command_big:
+    addi s1, rspq_dmem_buf_ptr, -128
+    move s2, zero
+command_big_loop:
+    lw t0, %lo(RSPQ_DMEM_BUFFER)(s1)
+    lw t1, %lo(TEST_BIG)(s2)
+    xor t0, t1
+    sw t0, %lo(TEST_BIG)(s2)
+    add s1, 0x4
+    blt s1, rspq_dmem_buf_ptr, command_big_loop
+    add s2, 0x4
+    jr ra
+    nop
+
+command_big_out:
+    move s0, a1
+    li s4, %lo(TEST_BIG)
+    j DMAOut
+    li t0, DMA_SIZE(128, 1)

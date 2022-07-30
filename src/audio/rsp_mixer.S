@@ -103,7 +103,10 @@
 	#
 	####################################################################
 
-#include "../rspq/rsp_queue.S"
+#include <rsp_queue.inc>
+
+.set noreorder
+.set at
 
 # Maximum number of channels supported by this ucode. You can't really increase
 # this without modifying the code.
@@ -168,13 +171,11 @@
 	#define k_8000        v_shift8,8
 
 
-	.section .data.overlay
+	.data
 
-	RSPQ_OverlayHeader MIXER_STATE_START, MIXER_STATE_END, 0x10
-
-	.align 1
-COMMAND_TABLE:
-	RSPQ_DefineCommand command_exec, 16
+	RSPQ_BeginOverlayHeader
+		RSPQ_DefineCommand command_exec, 16
+	RSPQ_EndOverlayHeader
 
 ############################################################################
 
@@ -196,17 +197,17 @@ VCONST_1:
 BANNER0:    .ascii "Dragon RSP Audio"
 BANNER1:    .ascii " Coded by Rasky "
 
+	RSPQ_BeginSavedState
 	# Current volume state for each channel. This might differ from CHANNEL_VOLUMES
 	# when the volume filter is turned on: this is the actual current value that
 	# is being interpolated to CHANNEL_VOLUMES, which is the requested target
 	# volume to reach.
 	.align 4
-MIXER_STATE_START:
 XVOL_L:                   .dcb.w MAX_CHANNELS
 XVOL_R:                   .dcb.w MAX_CHANNELS
-MIXER_STATE_END:
+	RSPQ_EndSavedState
 
-	.section .bss.overlay
+	.bss
 
 ############################################################################
 # UCODE INPUT DATA

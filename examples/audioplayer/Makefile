@@ -1,7 +1,8 @@
 BUILD_DIR=build
 include $(N64_INST)/include/n64.mk
 
-src = audioplayer.c
+OBJS = $(BUILD_DIR)/audioplayer.o
+
 assets_xm1 = $(wildcard assets/*.xm)
 assets_xm2 = $(wildcard assets/*.XM)
 assets_ym1 = $(wildcard assets/*.ym)
@@ -41,7 +42,7 @@ filesystem/%.ym64: assets/%.YM
 filesystem/darkness.ym64: AUDIOCONV_FLAGS += --ym-compress true
 
 $(BUILD_DIR)/audioplayer.dfs: $(assets_conv)
-$(BUILD_DIR)/audioplayer.elf: $(src:%.c=$(BUILD_DIR)/%.o)
+$(BUILD_DIR)/audioplayer.elf: $(OBJS)
 
 audioplayer.z64: N64_ROM_TITLE="Audio Player"
 audioplayer.z64: $(BUILD_DIR)/audioplayer.dfs

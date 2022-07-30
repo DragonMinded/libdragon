@@ -201,22 +201,23 @@ static const struct Testsuite
 	uint32_t duration;
 	uint32_t flags;
 } tests[] = {
-	TEST_FUNC(test_exception,              	   5, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_exception,                  5, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_constructors,               0, TEST_FLAGS_NONE),
-	TEST_FUNC(test_ticks,                  	   0, TEST_FLAGS_NO_BENCHMARK | TEST_FLAGS_NO_EMULATOR),
-	TEST_FUNC(test_timer_ticks,          	 292, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_timer_oneshot,        	 596, TEST_FLAGS_RESET_COUNT),
-	TEST_FUNC(test_timer_slow_callback, 	1468, TEST_FLAGS_RESET_COUNT),
-	TEST_FUNC(test_timer_continuous,     	 688, TEST_FLAGS_RESET_COUNT),
-	TEST_FUNC(test_timer_mixed,         	1467, TEST_FLAGS_RESET_COUNT),
-	TEST_FUNC(test_timer_disabled_start, 	 733, TEST_FLAGS_RESET_COUNT),
-	TEST_FUNC(test_timer_disabled_restart,	 733, TEST_FLAGS_RESET_COUNT),
-	TEST_FUNC(test_irq_reentrancy,       	 230, TEST_FLAGS_RESET_COUNT),
-	TEST_FUNC(test_dfs_read,            	 948, TEST_FLAGS_IO),
+	TEST_FUNC(test_ticks,                      0, TEST_FLAGS_NO_BENCHMARK | TEST_FLAGS_NO_EMULATOR),
+	TEST_FUNC(test_timer_ticks,              292, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_timer_oneshot,            596, TEST_FLAGS_RESET_COUNT),
+	TEST_FUNC(test_timer_slow_callback,     1468, TEST_FLAGS_RESET_COUNT),
+	TEST_FUNC(test_timer_continuous,         688, TEST_FLAGS_RESET_COUNT),
+	TEST_FUNC(test_timer_mixed,             1467, TEST_FLAGS_RESET_COUNT),
+	TEST_FUNC(test_timer_context,            186, TEST_FLAGS_RESET_COUNT),
+	TEST_FUNC(test_timer_disabled_start,     733, TEST_FLAGS_RESET_COUNT),
+	TEST_FUNC(test_timer_disabled_restart,   733, TEST_FLAGS_RESET_COUNT),
+	TEST_FUNC(test_irq_reentrancy,           230, TEST_FLAGS_RESET_COUNT),
+	TEST_FUNC(test_dfs_read,                 948, TEST_FLAGS_IO),
 	TEST_FUNC(test_dfs_rom_addr,              25, TEST_FLAGS_IO),
 	TEST_FUNC(test_eepromfs,                   0, TEST_FLAGS_IO),
-	TEST_FUNC(test_cache_invalidate,    	1763, TEST_FLAGS_NONE),
-	TEST_FUNC(test_debug_sdfs,             	   0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_cache_invalidate,        1763, TEST_FLAGS_NONE),
+	TEST_FUNC(test_debug_sdfs,                 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dma_read_misalign,       7003, TEST_FLAGS_NONE),
 	TEST_FUNC(test_cop1_denormalized_float,    0, TEST_FLAGS_NO_EMULATOR),
 	TEST_FUNC(test_rspq_queue_single,          0, TEST_FLAGS_NO_BENCHMARK),
@@ -228,16 +229,16 @@ static const struct Testsuite
 	TEST_FUNC(test_rspq_load_overlay,          0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_switch_overlay,        0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_multiple_flush,        0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_rspq_sync,                  0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_wait,                  0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_rapid_sync,            0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_rspq_flush,                 0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_rspq_rapid_flush,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_flush,                 0, TEST_FLAGS_NO_BENCHMARK | TEST_FLAGS_NO_EMULATOR),
+	TEST_FUNC(test_rspq_rapid_flush,           0, TEST_FLAGS_NO_BENCHMARK | TEST_FLAGS_NO_EMULATOR),
 	TEST_FUNC(test_rspq_block,                 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_wait_sync_in_block,    0, TEST_FLAGS_NO_BENCHMARK),
-	//TEST_FUNC(test_rspq_pause,                 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_highpri_basic,         0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_highpri_multiple,      0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_highpri_overlay,       0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_big_command,           0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_ugfx_rdp_interrupt,         0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_ugfx_dram_buffer,           0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_ugfx_fill_dmem_buffer,      0, TEST_FLAGS_NO_BENCHMARK),
@@ -249,7 +250,6 @@ static const struct Testsuite
 };
 
 int main() {
-	display_init(RESOLUTION_320x240, DEPTH_32_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE);
 	console_init();
 	console_set_debug(false);
 	debug_init_isviewer();

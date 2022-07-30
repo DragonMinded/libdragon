@@ -16,72 +16,74 @@
 
 DEFINE_RSP_UCODE(rsp_mpeg1);
 
+static uint32_t ovl_id;
+
 void rsp_mpeg1_init(void) {
 	rspq_init();
-	rspq_overlay_register(&rsp_mpeg1, 0x5);
+	ovl_id = rspq_overlay_register(&rsp_mpeg1);
 }
 
 void rsp_mpeg1_load_matrix(int16_t *mtx) {
 	assert((PhysicalAddr(mtx) & 7) == 0);
 	data_cache_hit_writeback(mtx, 8*8*2);
-	rspq_write(0x50, PhysicalAddr(mtx));
+	rspq_write(ovl_id, 0x0, PhysicalAddr(mtx));
 }
 
 void rsp_mpeg1_store_matrix(int16_t *mtx) {
 	assert((PhysicalAddr(mtx) & 7) == 0);
 	data_cache_hit_writeback_invalidate(mtx, 8*8*2);
-	rspq_write(0x57, PhysicalAddr(mtx));
+	rspq_write(ovl_id, 0x7, PhysicalAddr(mtx));
 }
 
 void rsp_mpeg1_store_pixels(void) {
-	rspq_write(0x51);
+	rspq_write(ovl_id, 0x1);
 }
 
 void rsp_mpeg1_load_pixels(void) {
-	rspq_write(0x5C);
+	rspq_write(ovl_id, 0xC);
 }
 
 void rsp_mpeg1_zero_pixels(void) {
-	rspq_write(0x5D);
+	rspq_write(ovl_id, 0xD);
 }
 
 void rsp_mpeg1_idct(void) {
-	rspq_write(0x52);
+	rspq_write(ovl_id, 0x2);
 }
 
 void rsp_mpeg1_block_begin(int block, uint8_t *pixels, int pitch) {
 	assert((PhysicalAddr(pixels) & 7) == 0);
 	assert((pitch & 7) == 0);
 	assert(block == RSP_MPEG1_BLOCK_Y0 || block == RSP_MPEG1_BLOCK_CR || block == RSP_MPEG1_BLOCK_CB);
-	rspq_write(0x53, block, PhysicalAddr(pixels), pitch);
+	rspq_write(ovl_id, 0x3, block, PhysicalAddr(pixels), pitch);
 }
 
 void rsp_mpeg1_block_switch_partition(int partition) {
-	rspq_write(0x5B, partition);
+	rspq_write(ovl_id, 0xB, partition);
 }
 
 void rsp_mpeg1_block_coeff(int idx, int16_t coeff) {
-	rspq_write(0x54, ((idx & 0x3F) << 16) | (uint16_t)coeff);
+	rspq_write(ovl_id, 0x4, ((idx & 0x3F) << 16) | (uint16_t)coeff);
 }
 
 void rsp_mpeg1_block_dequant(bool intra, int scale) {
-	rspq_write(0x55, (int)intra | (scale << 8));
+	rspq_write(ovl_id, 0x5, (int)intra | (scale << 8));
 }
 
 void rsp_mpeg1_block_decode(int ncoeffs, bool intra) {
-	rspq_write(0x56, ncoeffs, intra);
+	rspq_write(ovl_id, 0x6, ncoeffs, intra);
 }
 
 void rsp_mpeg1_block_predict(uint8_t *src, int pitch, bool oddh, bool oddv, bool interpolate) {
-	rspq_write(0x5A, PhysicalAddr(src), pitch, oddv | (oddh<<1) | (interpolate<<2));
+	rspq_write(ovl_id, 0xA, PhysicalAddr(src), pitch, oddv | (oddh<<1) | (interpolate<<2));
 }
 
 void rsp_mpeg1_set_quant_matrix(bool intra, const uint8_t quant_mtx[64]) {
 	uint32_t *qmtx = (uint32_t*)quant_mtx;
-	rspq_write(0x58, intra,
+	rspq_write(ovl_id, 0x8, intra,
 		qmtx[0],  qmtx[1],  qmtx[2],  qmtx[3],
 		qmtx[4],  qmtx[5],  qmtx[6],  qmtx[7]);
-	rspq_write(0x59, intra,
+	rspq_write(ovl_id, 0x9, intra,
 		qmtx[8],  qmtx[9],  qmtx[10], qmtx[11],
 		qmtx[12], qmtx[13], qmtx[14], qmtx[15]);
 }

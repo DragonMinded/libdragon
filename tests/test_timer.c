@@ -156,6 +156,26 @@ void test_timer_slow_callback(TestContext *ctx) {
 		"invalid timer_ticks");
 }
 
+void test_timer_context(TestContext *ctx) {
+	static int ctx1 = 1;
+	static int ctx2 = 2;
+	timer_init();
+	DEFER(timer_close());
+
+	volatile int ctx_value = 0;
+	void cb_ctx(int ovlf, void *ctx) { ctx_value = *(int *)ctx; }
+
+	timer_link_t *t1 = new_timer_context(TICKS_FROM_MS(2), TF_ONE_SHOT, cb_ctx, &ctx1);
+	DEFER(delete_timer(t1));
+	wait_ms(2);
+	ASSERT_EQUAL_SIGNED(ctx_value, 1, "timer 1 bad context");
+
+	timer_link_t *t2 = new_timer_context(TICKS_FROM_MS(2), TF_ONE_SHOT, cb_ctx, &ctx2);
+	DEFER(delete_timer(t2));
+	wait_ms(2);
+	ASSERT_EQUAL_SIGNED(ctx_value, 2, "timer 2 bad context");
+}
+
 // Change the hardware count register.
 static uint32_t write_count(uint32_t x) {
 	uint32_t old = TICKS_READ();

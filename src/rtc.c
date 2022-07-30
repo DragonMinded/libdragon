@@ -11,7 +11,7 @@
 
 /**
  * @defgroup rtc Real-Time Clock Subsystem
- * @ingroup libdragon
+ * @ingroup peripherals
  * @brief Real-time clock interface.
  * @author Christopher Bonhage
  *

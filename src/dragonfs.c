@@ -1302,6 +1302,31 @@ static filesystem_t dragon_fs = {
 };
 
 /**
+ * @brief Verify that the current emulator is compatible with DFS, and assert
+ *        if it is not.
+ */
+static void __dfs_check_emulation(void)
+{
+    const uint32_t ROM_ADDR = 0x10000000;
+
+    uint32_t data = io_read(ROM_ADDR);
+    
+    /* DFS requires working support for short DMA transfers. Verify that they
+     * work and if they don't, assert out. */
+    uint8_t buf[4] __attribute__((aligned(8))) = { 0xFF, 0xFF, 0xFF, 0xFF };
+    data_cache_hit_writeback_invalidate(buf, 4);
+    dma_read(buf, ROM_ADDR, 3);
+
+    if (buf[0] == ((data >> 24) & 0xFF) &&
+        buf[1] == ((data >> 16) & 0xFF) &&
+        buf[2] == ((data >> 8) & 0xFF) &&
+        buf[3] == 0xFF)
+        return;
+
+    assertf(0, "Your emulator is not accurate enough to run this ROM.\nSpecifically, it doesn't support accurate PI DMA");
+}
+
+/**
  * @brief Initialize the filesystem.
  *
  * Given a base offset where the filesystem should be found, this function will
@@ -1318,6 +1343,9 @@ static filesystem_t dragon_fs = {
  */
 int dfs_init(uint32_t base_fs_loc)
 {
+    /* Detect if we are running on emulator accurate enough to emulate DragonFS. */
+    __dfs_check_emulation();
+
     /* Try normal (works on doctor v64) */
     int ret = __dfs_init( base_fs_loc );
 

@@ -207,8 +207,8 @@ void inst_cache_invalidate_all(void)
  * 
  * This function allocates a memory buffer that can be safely read and written
  * through uncached memory accesses only. It makes sure that that the buffer
- * does not share any cacheline with our buffers in the heap, and returns
- * a pointer in the uncached segment (0xA000_0000).
+ * does not share any cacheline with other buffers in the heap, and returns
+ * a pointer in the uncached segment (0xA0000000).
  * 
  * The buffer contents are uninitialized.
  * 

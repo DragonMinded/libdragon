@@ -1,19 +1,154 @@
 /**
- * @file rsp.h
- * @brief Low-level RSP hardware library
- * @ingroup rsp
- */
-
-/**
  * @defgroup rsp RSP interface
  * @ingroup lowlevel
  * @brief RSP basic library and command queue
  * 
  * This module is made of two libraries:
  * 
- *  * rsp.h and rsp.c: low-level routines to manipulate the RSP
+ *  * rsp.h and rsp.c: low-level routines to manipulate the RSP. This provides
+ *    basic command to run a ucode, providing input and reading back output.
+ *    It is useful for the most basic cases where you want to write a ucode
+ *    that has full control of the RSP.
+ *    
  *  * rspq.h and rspq.c: RSP command queue for efficient task processing by
- *    multiple libraries
+ *    multiple libraries. This higher-level library provides a very efficient
+ *    infrastructure for distributing work across multiple ucodes, maximizing
+ *    RSP resource usage. All libdragon-provided RSP libraries are based on
+ *    rspq. When writing more complex RSP ucode, it is advised to base them
+ *    upon rspq to allow for full interoperability with libdragon itself.
+ */
+
+/**
+ * @file rsp.h
+ * @brief Low-level RSP hardware library
+ * @ingroup rsp
+ *
+ * This library offers very low-level support for RSP programming. The goal
+ * is to provide access to the hardware by exposing macros for all
+ * hardware registers, provide a few simple helpers to load and run RSP
+ * ucode (without any constraint or limitation on how the ucode should
+ * be designed, how it should communicate with the CPU, etc.), and a few
+ * debugging helpers to aid during development.
+ * 
+ * This documentation is not a guide to become a RSP programmer. It assumes
+ * familiarity with RSP programming concepts and focus on explaining 
+ * libdragon RSP support.
+ * 
+ * ## Ucode definition and loading
+ * 
+ * To define a RSP ucode, assuming you are using the n64.mk build system,
+ * it is sufficient to do the following:
+ * 
+ *   1. Write your ucode in a file with extension `.S` and whose name starts
+ *      with `rsp`. For instance `rsp_math.S`.
+ *   2. Add the corresponding object file (`rsp_math.o`) in your Makefile in
+ *      the list of dependencies for building your ROM, like all the other
+ *      object files that come from C files.
+ *   3. Declare the existence of the ucode in the source using #DEFINE_RSP_UCODE,
+ *      for instance `DEFINE_RSP_UCODE(rsp_math)`.
+ *      
+ * At this point, you can load the ucode using #rsp_load and run it using
+ * either #rsp_run, or #rsp_run_async (and later synchronize with #rsp_wait).
+ * You can look at the `ucodetest` example which is a very minimal program
+ * that does some RSP programming.
+ * 
+ * If you don't use n64.mk, you will have to come up with your own way to
+ * load the ucode text and data segment into the ROM, and then either
+ * define your own #rsp_ucode_t structure, or manually call the lower level
+ * functions #rsp_load_code and #rsp_load_data.
+ * 
+ * ## Reading and writing data to RSP
+ * 
+ * To provide input and read output from the RSP, there are a few possible ways:
+ * 
+ *   1. Directly access RSP DMEM using the #SP_DMEM macro. The DMEM is memory
+ *      mapped into the CPU address space, so it can be accessed directly.
+ *      Only 32-bit reads and writes are supported. Note that you can only
+ *      access DMEM while the RSP is not running.
+ *   2. Run a DMA transfer using #rsp_load_data or #rsp_read_data. This is
+ *      generally faster then accessing DMEM especially for larger transfers,
+ *      but like all DMA transfers it requires the RDRAM buffer to be 8-byte
+ *      aligned.
+ *   3. Have the RSP do DMA transfers to and from RDRAM. This needs to be
+ *      part of the ucode program.
+ *  
+ * ## RSP crashes
+ * 
+ * RSP does not have any concept of exception. So in general it is not possible
+ * to tell whether something went wrong while running the ucode.
+ * 
+ * We define "RSP crash" any situation in which the RSP is behaving in an
+ * unexpected way. For instance, it may have returned corrupted data, or have
+ * stopped responding (eg: it is in an infinite loop), or has interrupted its
+ * execution before providing a result (eg: a signal has not been set in the
+ * status register).
+ * 
+ * When the CPU notices that the RSP may have crashed, it can invoke the
+ * #rsp_crash function. This function interrupts the program showing a
+ * crash screen that contains a full register dump, and then aborts execution,
+ * so it must be used in non-recoverable situations. A even more complete dump
+ * that includes also a full DMEM dump is sent via #debugf on the debugging spew
+ * (see the debugging library to check how to hook up to it). A function
+ * #rsp_crashf is also available in case the CPU wants to provide a message
+ * on the symptom that was used to detect the RSP crash (eg:
+ * `rsp_crashf("computed data is corrupted")`).
+ * 
+ * To help detect RSP crashes that involve timeouts, a macro #RSP_WAIT_LOOP
+ * is available that can be used to implement CPU busy loops where the CPU
+ * waits for the RSP to do something. The macro just simplifies the creation
+ * of a loop with a timeout that calls #rsp_crash, the actual condition to
+ * wait for is left to the caller for the maximum programming flexibility.
+ * Notice that #rsp_wait and #rsp_run use #RSP_WAIT_LOOP internally with
+ * a timeout of 500ms to wait for the RSP to finish execution of the ucode,
+ * so using those APIs is enough to detect infinite loops in ucode execution
+ * and trigger a RSP crash screen.
+ * 
+ * ## Custom ucode crash handlers
+ * 
+ * It may be useful to also dump ucode-specific information when the crash
+ * screen is triggered. For instance, a ucode might want to dump on the
+ * screen some important variable or buffers taken from DMEM, or even
+ * reconstruct some state by looking at the registers. To do so, it is
+ * possible to register a ucode-specific crash handler by filling the
+ * `crash_handler` field in the #rsp_ucode_t structure (it can be done
+ * either at runtime, or at compile-time when using the #DEFINE_RSP_UCODE
+ * macro).
+ * 
+ * The crash handler will be called by the RSP crash screen and can either
+ * add information on the screen (via printf) or dump them to the debugging
+ * log (via debugf). It receives a #rsp_snapshot_t, which is a full snapshot
+ * of the whole RSP state at the moment of crash, including all registers
+ * (scalars and vectors), all COP0/COP2 registers, and the full IMEM and DMEM
+ * contents.
+ * 
+ * ## RSP asserts
+ * 
+ * Since RSP debugging is quite complex due to the limited available
+ * communication channels, it is advised to adopt defensive programming
+ * while writing RSP ucode. The header file rsp.inc provides a set of 
+ * assert macros that can be used in the RSP ucode to check for assumptions
+ * and invariants, similar to the C assert. To use them, also include
+ * the file rsp_assert.inc in your text segment.
+ * 
+ * When the RSP hits an assert, it enters an infinite loop, that will be
+ * eventually detected by the CPU, triggering the RSP crash screen. Each
+ * assertion can define a numeric assert code that will be shown in the
+ * crash screen.
+ * 
+ * To further help with debugging, it is possible to register a custom
+ * assert manager in the ucode. Similar to the crash handler, the assert
+ * handler will be called when an assert is triggered and will be provided
+ * with a #rsp_snapshot_t, and the assert code. The assert handler can be
+ * used to parse the assert code and display a proper assert message (about
+ * two lines of text). Since each assert is placed in a specific point in the
+ * code, the assert handler can inspect the register contents at the point of
+ * assertion to provide further information on the crash. Notice that the crash
+ * handler will still be called also for asserts and remains the best place
+ * where display a dump of the main internal data structures of the overlay.
+ * 
+ * The RSP assert macros are compiled away when NDEBUG is defined (just like
+ * the C assert), so that it is possible to remove them from the final build
+ * in case of memory constraints.
  * 
  */
 
@@ -21,6 +156,7 @@
 #define __LIBDRAGON_RSP_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -145,6 +281,11 @@ typedef struct {
      * If specified, this function is invoked when a RSP crash happens,
      * while filling the information screen. It can be used to dump
      * custom ucode-specific information.
+     * 
+     * @note DO NOT ACCESS RSP hardware registers in the crash handler.
+     *       To dump information, access the state provided as argument
+     *       that contains a full snapshot of the RSP state at the point
+     *       of crash.
      */
     void (*crash_handler)(rsp_snapshot_t *state);
 
@@ -247,8 +388,11 @@ void rsp_wait(void);
 /** @brief Do a DMA transfer to load a piece of code into RSP IMEM.
  * 
  * This is a lower-level function that actually executes a DMA transfer
- * from RDRAM to IMEM. Prefer using rsp_load instead.
+ * from RDRAM to IMEM. Prefer using #rsp_load instead.
  * 
+ * @note in order for this function to be interoperable with #rsp_load, it
+ * will reset the last loaded ucode cache.
+ *
  * @param[in]     code          Pointer to buffer in RDRAM containing code. 
  *                              Must be aligned to 8 bytes.
  * @param[in]     size          Size of the code to load. Must be a multiple of 8.
@@ -296,18 +440,6 @@ void rsp_read_code(void* code, unsigned long size, unsigned int imem_offset);
  *                              be loaded from. Must be a multiple of 8.
  */
 void rsp_read_data(void* data, unsigned long size, unsigned int dmem_offset);
-
-/**
- * @brief Pause RSP execution.
- * 
- * This function pauses the RSP. It also waits until any current SP DMA
- * is finished so that the RSP unit is fully idle when this function returns
- * and is then possible to run SP DMA or access IMEM/DMEM without any bus
- * conflict.
- *
- * @param[in]  pause  If true, RSP will be paused. If false, it will resume execution.
- */
-void rsp_pause(bool pause);
 
 /**
  * @brief Abort the program showing a RSP crash screen
@@ -410,17 +542,8 @@ void run_ucode(void) {
     rsp_run_async();
 }
 
-static inline void rsp_semaphore_wait()
-{
-    while (*SP_SEMAPHORE);
-}
-
-static inline void rsp_semaphore_release()
-{
-    *SP_SEMAPHORE = 0;
-}
-
-// Internal function used by rsp_crash and rsp_crashf
+// Internal function used by rsp_crash and rsp_crashf. These are not part
+// of the public API of rsp.h. Do not call them directly.
 /// @cond
 void __rsp_crash(const char *file, int line, const char *func, const char *msg, ...)
    __attribute__((noreturn, format(printf, 4, 5)));

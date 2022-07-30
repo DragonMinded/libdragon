@@ -64,6 +64,10 @@ void rsp_load_code(void* start, unsigned long size, unsigned int imem_offset)
     assert(((uint32_t)start % 8) == 0);
     assert((imem_offset % 8) == 0);
 
+    if (cur_ucode != NULL) {
+        cur_ucode = NULL;
+    }
+
     disable_interrupts();
     __SP_DMA_wait();
 
@@ -163,25 +167,6 @@ void rsp_run(void)
     rsp_wait();
 }
 
-void rsp_pause(bool pause)
-{
-    if (pause) {
-        // Halt the RSP
-        *SP_STATUS = SP_WSTATUS_SET_HALT;
-        MEMORY_BARRIER();
-
-        // Check whether the DMA engine is idle. If it's not, wait for it.
-        if (*SP_STATUS & (SP_STATUS_DMA_BUSY|SP_STATUS_DMA_FULL)) {
-            RSP_WAIT_LOOP(200) {
-                if (!(*SP_STATUS & (SP_STATUS_DMA_BUSY|SP_STATUS_DMA_FULL)))
-                    break;
-            }
-        }
-    } else {
-        *SP_STATUS = SP_WSTATUS_CLEAR_SSTEP|SP_WSTATUS_CLEAR_HALT;
-    }
-}
-
 /// @cond
 // Check if the RSP has hit an internal assert, and call rsp_crash if so.
 // This function is invoked by #RSP_WAIT_LOOP while waiting for the RSP
@@ -215,6 +200,7 @@ __attribute__((noreturn, format(printf, 4, 5)))
 void __rsp_crash(const char *file, int line, const char *func, const char *msg, ...)
 {
     volatile uint32_t *DP_STATUS = (volatile uint32_t*)0xA410000C;
+    volatile uint32_t *SP_REGS = (volatile uint32_t*)0xA4040000;
 
     rsp_snapshot_t state __attribute__((aligned(8)));
     rsp_ucode_t *uc = cur_ucode;
@@ -227,7 +213,14 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
     // so the earlier the better.
     uint32_t sp_status = *SP_STATUS;
     uint32_t dp_status = *DP_STATUS;
-    debugf("dp_status: %lx\n", dp_status);
+    MEMORY_BARRIER();
+
+    // Now read all SP registers. Most of them are DMA-related so the earlier
+    // we read them the better. We can't freeze the DMA transfer so they might
+    // be slightly incoherent.
+    uint32_t sp_regs[8];
+    for (int i=0;i<8;i++)
+        sp_regs[i] = i==4 ? sp_status : SP_REGS[i];
     MEMORY_BARRIER();
 
     // Freeze the RDP
@@ -258,9 +251,10 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
     rsp_run();
     rsp_read_data(&state, 764, 0);
  
-    // Overwrite the status register information with the read we did at
+    // Overwrite the status register information with the reads we did at
     // the beginning of the handler
-    state.cop0[4] = sp_status;
+    for (int i=0;i<8;i++)
+        state.cop0[i] = sp_regs[i];
     state.cop0[11] = dp_status;
 
     // Write the PC now so it doesn't get overwritten by the DMA
@@ -423,4 +417,4 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
     console_render();
     abort();
 }
-/// @endconf
+/// @endcond

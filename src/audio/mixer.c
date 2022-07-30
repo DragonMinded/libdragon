@@ -1,17 +1,32 @@
-#include "libdragon.h"
-#include "regsinternal.h"
+/**
+ * @file mixer.c
+ * @brief RSP Audio mixer 
+ * @ingroup mixer
+ */
+
 #include "mixer.h"
+#include "regsinternal.h"
 #include "utils.h"
+#include "rsp.h"
+#include "rspq.h"
+#include "debug.h"
+#include "samplebuffer.h"
+#include "audio.h"
+#include "n64sys.h"
 #include <memory.h>
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
+#include <assert.h>
 
+/** @brief Set to 1 to activate debug logs */
 #define MIXER_TRACE   0
 
 #if MIXER_TRACE
+/** @brief like debugf(), but writes only if #MIXER_TRACE is not 0 */
 #define tracef(fmt, ...)  debugf(fmt, ##__VA_ARGS__)
 #else
+/** @brief like debugf(), but writes only if #MIXER_TRACE is not 0 */
 #define tracef(fmt, ...)  ({ })
 #endif
 
@@ -25,7 +40,14 @@
 #define AI_STATUS_FULL  ( 1 << 31 )
 /** @} */
 
+/** @brief Maximum number of mixer events */
 #define MAX_EVENTS              32
+/** @brief Number of expected #mixer_poll calls per second 
+ *
+ * This is used to allocate memory for the sample buffers
+ * according to the expected number of samples that must
+ * be calculated and held in memory.
+ */
 #define MIXER_POLL_PER_SECOND   8
 
 /**
@@ -33,78 +55,98 @@
  */
 DEFINE_RSP_UCODE(rsp_mixer);
 
+/** @brief Size of the ucode state that is automatically persisted by rspq */
 #define MIXER_STATE_SIZE 128
 
 // NOTE: keep these in sync with rsp_mixer.S
-#define CH_FLAGS_BPS_SHIFT  (3<<0)   // BPS shift value
-#define CH_FLAGS_16BIT      (1<<2)   // Set if the channel is 16 bit
-#define CH_FLAGS_STEREO     (1<<3)   // Set if the channel is stereo (left)
-#define CH_FLAGS_STEREO_SUB (1<<4)   // The channel is the second half of a stereo (right)
+#define CH_FLAGS_BPS_SHIFT  (3<<0)   ///< BPS shift value
+#define CH_FLAGS_16BIT      (1<<2)   ///< Set if the channel is 16 bit
+#define CH_FLAGS_STEREO     (1<<3)   ///< Set if the channel is stereo (left)
+#define CH_FLAGS_STEREO_SUB (1<<4)   ///< The channel is the second half of a stereo (right)
 
-// Fixed point value used in waveform position calculations. This is a signed
-// 64-bit integer with the fractional part using MIXER_FX64_FRAC bits.
-// You can use MIXER_FX64() to convert from float.
+/// @brief Fixed point value used in waveform position calculations.
+/// This is a signed 64-bit integer with the fractional part using
+/// #MIXER_FX64_FRAC bits. You can use #MIXER_FX64 to convert from float.
 typedef uint64_t mixer_fx64_t;
 
-// Fixed point value used for volume and panning calculations.
-// You can use MIXER_FX15() to convert from float.
+/// @brief Fixed point value used for volume and panning calculations.
+/// You can use #MIXER_FX15 to convert from float.
 typedef int16_t mixer_fx15_t;
 
-
+/// Number of fractional bits in #mixer_fx64_t
 #define MIXER_FX64_FRAC    12    // NOTE: this must be the same of WAVERFORM_POS_FRAC_BITS in rsp_mixer.S
+/// Convert a floating point value to #mixer_fx64_t
 #define MIXER_FX64(f)      (int64_t)((f) * (1<<MIXER_FX64_FRAC))
 
+/// Number of fractional bits in #mixer_fx15_t
 #define MIXER_FX15_FRAC    15
+/// Convert a floating point value to #mixer_fx15_t
 #define MIXER_FX15(f)      (int16_t)((f) * ((1<<MIXER_FX15_FRAC)-1))
 
+/// Number of fractional bits for a fixed 16.16 value
 #define MIXER_FX16_FRAC    16
+/// Convert a floating point value to a fixed 16.16 value
 #define MIXER_FX16(f)      (int16_t)((f) * ((1<<MIXER_FX16_FRAC)-1))
 
+/** @brief Mixer channel state - CPU side */
 typedef struct mixer_channel_s {
-	/* Current position within the waveform (in bytes) */
-	mixer_fx64_t pos;
-	/* Step between samples (in bytes) to playback at the correct frequency */
-	mixer_fx64_t step;
-	/* Length of the waveform (in bytes) */
-	mixer_fx64_t len;
-	/* Length of the loop in the waveform (in bytes) */
-	mixer_fx64_t loop_len;
-	/* Pointer to the waveform */
-	void *ptr;
-	/* Misc flags */
-	uint32_t flags;
+	mixer_fx64_t pos;      ///< Current position within the waveform (in bytes)
+	mixer_fx64_t step;     ///< Step between samples (in bytes) to playback at the correct frequency
+	mixer_fx64_t len;      ///< Length of the waveform (in bytes)
+	mixer_fx64_t loop_len; ///< Length of the loop in the waveform (in bytes)
+	void *ptr;             ///< Pointer to the waveform
+	uint32_t flags;        ///< Misc flags (see CH_FLAGS_*)
 } mixer_channel_t;
 
+/** @brief Mixer channel state - RSP side
+ *
+ * This structure represents the state of a mixer channel as stored in RSP
+ * DMEM. Structure-wise, it is similar to #mixer_channel_t, but waveform-related
+ * offsets are 32-bit wide rather than 64-bit, since RSP cannot easily work
+ * with 64-bit integers. Check #mixer_poll to see how this difference is handled.
+ */
 typedef struct rsp_mixer_channel_s {
-	uint32_t pos;
-	uint32_t step;
-	uint32_t len;
-	uint32_t loop_len;
-	void *ptr;
-	uint32_t flags;
+	uint32_t pos;           ///< Current position within the waveform (in bytes)
+	uint32_t step;          ///< Step between samples (in bytes) to playback at the correct frequency
+	uint32_t len;           ///< Length of the waveform (in bytes)
+	uint32_t loop_len;      ///< Length of the loop in the waveform (in bytes)
+	void *ptr;              ///< Pointer to the waveform
+	uint32_t flags;         ///< Misc flags (see CH_FLAGS_*)
 } __attribute__((packed)) rsp_mixer_channel_t;
 
+/// @cond
 _Static_assert(sizeof(rsp_mixer_channel_t) == 6*4);
+/// @endcond
 
+/** @brief Mixer ucode settings. 
+ *
+ * This struct reflects the settings defined in rsp_mixer.S.
+ */
 typedef struct rsp_mixer_settings_s {
 	uint32_t lvol[MIXER_MAX_CHANNELS/2] __attribute__((aligned(16)));
 	uint32_t rvol[MIXER_MAX_CHANNELS/2];
 	rsp_mixer_channel_t channels[MIXER_MAX_CHANNELS] __attribute__((aligned(16)));
 } rsp_mixer_settings_t;
 
+/** @brief Configured limits of a mixer channel. 
+ *
+ * This structure describes the playback limits for a mixer channel. The limits
+ * are used to avoid over-allocating memory via sample buffers.
+ */
 typedef struct {
-	int max_bits;
-	float max_frequency;
-	int max_buf_sz;
+	int max_bits;           ///< Maximum number of bits per channel
+	float max_frequency;    ///< Maximum frequency
+	int max_buf_sz;         ///< Maximum sample buffer size (bytes)
 } channel_limit_t;
 
+/** @brief A mixer event (synchronized with sample playback) */
 typedef struct {
-	int64_t ticks;
-	MixerEvent cb;
-	void *ctx;
+	int64_t ticks;          ///< Absolute time at which the event will trigger (ticks = output samples)
+	MixerEvent cb;          ///< Callback for the event
+	void *ctx;              ///< Opaque context pointer to pass to the callback
 } mixer_event_t;
 
-struct {
+static struct {
 	uint32_t sample_rate;
 	int num_channels;
 	float vol;
@@ -130,6 +172,8 @@ struct {
 /** @brief Count of ticks spent in mixer RSP, used for debugging purposes. */
 int64_t __mixer_profile_rsp = 0;
 
+static uint32_t __mixer_overlay_id;
+
 static inline int mixer_initialized(void) { return Mixer.num_channels != 0; }
 
 void mixer_init(int num_channels) {
@@ -150,7 +194,7 @@ void mixer_init(int num_channels) {
 	data_cache_hit_writeback(mixer_state, MIXER_STATE_SIZE);
 
 	rspq_init();
-    rspq_overlay_register(&rsp_mixer, 1);
+    __mixer_overlay_id = rspq_overlay_register(&rsp_mixer);
 }
 
 static void mixer_init_samplebuffers(void) {
@@ -199,6 +243,9 @@ void mixer_set_vol(float vol) {
 void mixer_close(void) {
 	assert(mixer_initialized());
 
+	rspq_overlay_unregister(__mixer_overlay_id);
+	__mixer_overlay_id = 0;
+
 	if (Mixer.ch_buf_mem) {
 		free_uncached(Mixer.ch_buf_mem);
 		Mixer.ch_buf_mem = NULL;
@@ -210,6 +257,7 @@ void mixer_close(void) {
 void mixer_ch_set_freq(int ch, float frequency) {
 	mixer_channel_t *c = &Mixer.channels[ch];
 	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_set_freq: cannot call on secondary stereo channel %d", ch);
+	assertf(frequency >= 0, "mixer_ch_set_freq: cannot set negative frequency on channel %d: %f", ch, frequency);
 	c->step = MIXER_FX64(frequency / (float)Mixer.sample_rate) << (c->flags & CH_FLAGS_BPS_SHIFT);
 }
 
@@ -227,6 +275,7 @@ void mixer_ch_set_vol_pan(int ch, float vol, float pan) {
 void mixer_ch_set_vol_dolby(int ch, float fl, float fr,
 	float c, float sl, float sr) {
 
+	/// @cond
 	#define SQRT_05   0.7071067811865476f
 	#define SQRT_075  0.8660254037844386f
 	#define SQRT_025  0.5f
@@ -241,6 +290,7 @@ void mixer_ch_set_vol_dolby(int ch, float fl, float fr,
 	#define KCn       (KC/KTOT)
 	#define KAn       (KA/KTOT)
 	#define KBn       (KB/KTOT)
+	/// @endcond
 
 	mixer_ch_set_vol(ch,
 		fl*KFn + c*KCn - sl*KBn - sr*KBn,
@@ -417,7 +467,7 @@ void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_
 	}
 }
 
-void mixer_exec(int32_t *out, int num_samples) {
+static void mixer_exec(int32_t *out, int num_samples) {
 	if (!Mixer.ch_buf_mem) {
 		// If we have not yet allocated the memory for the sample buffers,
 		// this is a good moment to do so.
@@ -586,16 +636,14 @@ void mixer_exec(int32_t *out, int num_samples) {
 	uint32_t t0 = TICKS_READ();
 
 	rspq_highpri_begin();
-	rspq_write(0x10,
+	rspq_write(__mixer_overlay_id, 0,
 		(((uint32_t)MIXER_FX16(Mixer.vol)) & 0xFFFF),
 		(num_samples << 16) | Mixer.num_channels,
 		PhysicalAddr(out),
 		PhysicalAddr(&Mixer.ucode_settings));
-
-	rspq_syncpoint_t sync = rspq_syncpoint();
 	rspq_highpri_end();
 
-	rspq_wait_syncpoint(sync);
+	rspq_highpri_sync();
 
 	__mixer_profile_rsp += TICKS_READ() - t0;
 
@@ -627,7 +675,7 @@ void mixer_add_event(int64_t delay, MixerEvent cb, void *ctx) {
 
 void mixer_remove_event(MixerEvent cb, void *ctx) {
 	for (int i=0;i<Mixer.num_events;i++) {
-		if (Mixer.events[i].cb == cb) {
+		if (Mixer.events[i].cb == cb && Mixer.events[i].ctx == ctx) {
 			memmove(&Mixer.events[i], &Mixer.events[i+1], sizeof(mixer_event_t) * (Mixer.num_events-i-1));
 			Mixer.num_events--;
 			return;

@@ -22,7 +22,7 @@ void test_mpeg1_idct(TestContext *ctx) {
 		rsp_mpeg1_load_matrix(matrix1);
 		rsp_mpeg1_idct();
 		rsp_mpeg1_store_pixels();
-		rspq_sync();
+		rspq_wait();
 
 		// Reference implementation
 		extern void plm_video_idct(int16_t *block);
@@ -79,7 +79,7 @@ void test_mpeg1_block_decode(TestContext *ctx) {
 
 				extern void plm_video_decode_block_residual(int16_t *s, int si, uint8_t *d, int di, int dw, int n, int intra);
 				plm_video_decode_block_residual(matrix2, 0, pixels2, 0, 8, ncoeffs, intra);
-				rspq_sync();
+				rspq_wait();
 
 
 				for (int j=0;j<8;j++) {	
@@ -201,7 +201,7 @@ void test_mpeg1_block_dequant(TestContext *ctx) {
 		}
 		rsp_mpeg1_block_dequant(intra, scale);
 		rsp_mpeg1_store_matrix(matrix2);
-		rspq_sync();
+		rspq_wait();
 
 		for (int j=0;j<8;j++) {	
 			for (int i=0;i<8;i++) {
@@ -300,7 +300,7 @@ void test_mpeg1_block_predict(TestContext *ctx) {
 
 		rsp_mpeg1_block_predict(src_buffer + sy*BUFFER_SIZE+sx, BUFFER_SIZE, odd_h, odd_v, interpolate);
 		if (bs == 16) {		
-			rsp_mpeg1_block_split();
+			// rsp_mpeg1_block_split();
 			rsp_mpeg1_block_switch_partition(0); rsp_mpeg1_store_pixels();
 			rsp_mpeg1_block_switch_partition(1); rsp_mpeg1_store_pixels();
 			rsp_mpeg1_block_switch_partition(2); rsp_mpeg1_store_pixels();
@@ -315,7 +315,7 @@ void test_mpeg1_block_predict(TestContext *ctx) {
 			dst_buffer1, dy*BUFFER_SIZE+dx, BUFFER_SIZE,
 			bs, odd_h, odd_v, interpolate);
 
-		rspq_sync();
+		rspq_wait();
 
 		for (int j=dy-8;j<dy+bs+8;j++) {	
 			for (int i=dx-8;i<dx+bs+8;i++) {

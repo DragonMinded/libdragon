@@ -11,21 +11,35 @@
 # sudo apt-get install texinfo
 # sudo apt-get install libmpc-dev
 
-# Exit on error
-set -e
+# Bash strict mode http://redsymbol.net/articles/unofficial-bash-strict-mode/
+set -euo pipefail
+IFS=$'\n\t'
+
+# Check that N64_INST is defined
+if [ -z "${N64_INST-}" ]; then
+  echo "N64_INST environment variable is not defined."
+  echo "Please define N64_INST and point it to the requested installation directory"
+  exit 1
+fi
+
+# Path where the toolchain will be built.
+BUILD_PATH="${BUILD_PATH:-toolchain}"
 
 # Set N64_INST before calling the script to change the default installation directory path
-INSTALL_PATH="${N64_INST:-/usr/local}"
+INSTALL_PATH="${N64_INST}"
 # Set PATH for newlib to compile using GCC for MIPS N64 (pass 1)
 export PATH="$PATH:$INSTALL_PATH/bin"
 
 # Determine how many parallel Make jobs to run based on CPU count
-JOBS="${JOBS:-`getconf _NPROCESSORS_ONLN`}"
+JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN)}"
 JOBS="${JOBS:-1}" # If getconf returned nothing, default to 1
 
+# Additional GCC configure arguments
+GCC_CONFIGURE_ARGS=""
+
 # Dependency source libs (Versions)
-BINUTILS_V=2.37
-GCC_V=11.2.0
+BINUTILS_V=2.38
+GCC_V=12.1.0
 NEWLIB_V=4.1.0
 
 # Check if a command-line tool is available: status 0 means "yes"; status 1 means "no"
@@ -39,10 +53,33 @@ download () {
   if   command_exists wget ; then wget -c  "$1"
   elif command_exists curl ; then curl -LO "$1"
   else
-    echo "Install `wget` or `curl` to download toolchain sources" 1>&2
+    echo "Install wget or curl to download toolchain sources" 1>&2
     return 1
   fi
 }
+
+# Compilation on macOS via homebrew
+if [[ $OSTYPE == 'darwin'* ]]; then
+  if ! command_exists brew; then
+    echo "Compilation on macOS is supported via Homebrew (https://brew.sh)"
+    echo "Please install homebrew and try again"
+    exit 1
+  fi
+
+  # Install required dependencies
+  brew install -q gmp mpfr libmpc gsed
+
+  # Tell GCC configure where to find the dependent libraries
+  GCC_CONFIGURE_ARGS="--with-gmp=$(brew --prefix) --with-mpfr=$(brew --prefix) --with-mpc=$(brew --prefix)"
+
+  # Install GNU sed as default sed in PATH. GCC compilation fails otherwise,
+  # because it does not work with BSD sed.
+  export PATH="$(brew --prefix gsed)/libexec/gnubin:$PATH"
+fi
+
+# Create build path and enter it
+mkdir -p "$BUILD_PATH"
+cd "$BUILD_PATH"
 
 # Dependency source: Download stage
 test -f "binutils-$BINUTILS_V.tar.gz" || download "https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_V.tar.gz"
@@ -62,14 +99,14 @@ cd "binutils-$BINUTILS_V"
   --with-cpu=mips64vr4300 \
   --disable-werror
 make -j "$JOBS"
-make install || sudo make install || su -c "make install"
+make install-strip || sudo make install-strip || su -c "make install-strip"
 
 # Compile GCC for MIPS N64 (pass 1) outside of the source tree
 cd ..
 rm -rf gcc_compile
 mkdir gcc_compile
 cd gcc_compile
-../"gcc-$GCC_V"/configure \
+../"gcc-$GCC_V"/configure $GCC_CONFIGURE_ARGS \
   --prefix="$INSTALL_PATH" \
   --target=mips64-elf \
   --with-arch=vr4300 \
@@ -88,7 +125,7 @@ cd gcc_compile
   --with-system-zlib
 make all-gcc -j "$JOBS"
 make all-target-libgcc -j "$JOBS"
-make install-gcc || sudo make install-gcc || su -c "make install-gcc"
+make install-strip-gcc || sudo make install-strip-gcc || su -c "make install-strip-gcc"
 make install-target-libgcc || sudo make install-target-libgcc || su -c "make install-target-libgcc"
 
 # Compile newlib
@@ -108,7 +145,8 @@ cd ..
 rm -rf gcc_compile
 mkdir gcc_compile
 cd gcc_compile
-CFLAGS_FOR_TARGET="-O2" CXXFLAGS_FOR_TARGET="-O2" ../"gcc-$GCC_V"/configure \
+CFLAGS_FOR_TARGET="-O2" CXXFLAGS_FOR_TARGET="-O2" \
+  ../"gcc-$GCC_V"/configure $GCC_CONFIGURE_ARGS \
   --prefix="$INSTALL_PATH" \
   --target=mips64-elf \
   --with-arch=vr4300 \
@@ -124,4 +162,11 @@ CFLAGS_FOR_TARGET="-O2" CXXFLAGS_FOR_TARGET="-O2" ../"gcc-$GCC_V"/configure \
   --disable-nls \
   --with-system-zlib
 make -j "$JOBS"
-make install || sudo make install || su -c "make install"
+make install-strip || sudo make install-strip || su -c "make install-strip"
+
+# Final message
+echo
+echo "***********************************************"
+echo "Libdragon toolchain correctly built and installed"
+echo "Installation directory: \"${N64_INST}\""
+echo "Build directory: \"${BUILD_PATH}\" (can be removed now)"

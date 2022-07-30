@@ -1,7 +1,8 @@
 BUILD_DIR=build
 include $(N64_INST)/include/n64.mk
 
-src = mixertest.c
+OBJS = $(BUILD_DIR)/mixertest.o
+
 assets = $(wildcard assets/*.wav)
 assets_conv = $(addprefix filesystem/,$(notdir $(assets:%.wav=%.wav64)))
 
@@ -16,10 +17,10 @@ filesystem/%.wav64: assets/%.wav
 	@$(N64_AUDIOCONV) -o filesystem $<
 
 $(BUILD_DIR)/mixertest.dfs: $(assets_conv)
-$(BUILD_DIR)/mixertest.elf: $(src:%.c=$(BUILD_DIR)/%.o)
+$(BUILD_DIR)/mixertest.elf: $(OBJS)
 
 mixertest.z64: N64_ROM_TITLE="Mixer Test"
-mixertest.z64: $(BUILD_DIR)/mixertest.dfs 
+mixertest.z64: $(BUILD_DIR)/mixertest.dfs
 
 clean:
 	rm -f $(BUILD_DIR)/* mixertest.z64 $(assets_conv)

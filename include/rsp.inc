@@ -235,9 +235,65 @@ makeNotImplemented tnei
     .set $v31, $31
 .endm
 
+.macro encodeVectorRegs
+    .set $v00, 0x100
+    .set $v01, 0x101
+    .set $v02, 0x102
+    .set $v03, 0x103
+    .set $v04, 0x104
+    .set $v05, 0x105
+    .set $v06, 0x106
+    .set $v07, 0x107
+    .set $v08, 0x108
+    .set $v09, 0x109
+    .set $v10, 0x10A
+    .set $v11, 0x10B
+    .set $v12, 0x10C
+    .set $v13, 0x10D
+    .set $v14, 0x10E
+    .set $v15, 0x10F
+    .set $v16, 0x110
+    .set $v17, 0x111
+    .set $v18, 0x112
+    .set $v19, 0x113
+    .set $v20, 0x114
+    .set $v21, 0x115
+    .set $v22, 0x116
+    .set $v23, 0x117
+    .set $v24, 0x118
+    .set $v25, 0x119
+    .set $v26, 0x11A
+    .set $v27, 0x11B
+    .set $v28, 0x11C
+    .set $v29, 0x11D
+    .set $v30, 0x11E
+    .set $v31, 0x11F
+.endm
+
 /** @brief Syntactic sugar for cop2 instuctions */
 .macro vectorOp opcode, vd, vs, vt, element
+    .ifgt (\element >> 4)
+        .error "Invalid element"
+        .exitm
+    .endif
+
     hexRegisters
+
+    .ifgt (\vd >> 5)
+        .error "Invalid vd register"
+        .exitm
+    .endif
+
+    .ifgt (\vs >> 5)
+        .error "Invalid vs register"
+        .exitm
+    .endif
+
+    .ifgt (\vt >> 5)
+        .error "Invalid vt register"
+        .exitm
+    .endif
+
     cop2 (\element << 21 | \vt << 16 | \vs << 11 | \vd << 6 | \opcode)
 .endm
 
@@ -254,13 +310,32 @@ makeNotImplemented tnei
 .endm
 
 .macro makeOpInstruction name, opcode
-    .macro \name vd, vs, vt, element=0
-        .ifgt (\element >> 4)
-            .error "Invalid element"
+    .macro \name vd, vsOrVt, vtOrElement, elementOrEmpty
+        # If the last argument is specified we can be sure that the full syntax is being used
+        .ifnb \elementOrEmpty
+            # All operands with element: op $v1, $v2, $v3, e(x)
+            vectorOp \opcode, \vd, \vsOrVt, \vtOrElement, \elementOrEmpty
             .exitm
         .endif
 
-        vectorOp \opcode, \vd, \vs, \vt, \element
+        # If only the last argument was omitted, we need to check which syntax is being used
+        .ifnb \vtOrElement
+            encodeVectorRegs
+            # Because we encode vector registers as numbers >= 0x100, we can check if 
+            # the third argument is vt or the vector element (which are < 0x10):
+            .if (\vtOrElement < 0x100)
+                # vs omitted with element: op $v1, $v2, e(x)
+                vectorOp \opcode, \vd, \vd, \vsOrVt, \vtOrElement
+            .else
+                # All operands without element: op $v1, $v2, $v3
+                vectorOp \opcode, \vd, \vsOrVt, \vtOrElement, 0
+            .endif
+            .exitm
+        .endif
+
+        # Otherwise it is the 2 parameter form
+        # vs omitted without element: op $v1, $v2
+        vectorOp \opcode, \vd, \vd, \vsOrVt, 0
     .endm
 .endm
 

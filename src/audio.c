@@ -88,6 +88,8 @@ static int _num_buf = NUM_BUFFERS;
 static int _buf_size = 0;
 /** @brief Array of pointers to the allocated buffers */
 static short **buffers = NULL;
+/** @brief Array of pointers to the allocated buffers (original pointers to free) */
+static short **buffers_orig = NULL;
 
 static audio_fill_buffer_callback _fill_buffer_callback = NULL;
 static audio_fill_buffer_callback _orig_fill_buffer_callback = NULL;
@@ -170,13 +172,13 @@ static void audio_callback()
         }
 
         if (_fill_buffer_callback) {
-            _fill_buffer_callback(UncachedAddr( buffers[next] ), _buf_size);
+            _fill_buffer_callback(buffers[next], _buf_size);
         }
 
         /* Enqueue next buffer. Don't mark it as empty right now because the
            DMA will run in background, and we need to avoid audio_write()
            to reuse it before the DMA is finished. */
-        AI_regs->address = UncachedAddr( buffers[next] );
+        AI_regs->address = buffers[next];
         MEMORY_BARRIER();
         AI_regs->length = (_buf_size * 2 * 2 ) & ( ~7 );
         MEMORY_BARRIER();
@@ -253,11 +255,23 @@ void audio_init(const int frequency, int numbuffers)
     _buf_size = CALC_BUFFER(_frequency);
     _num_buf = (numbuffers > 1) ? numbuffers : NUM_BUFFERS;
     buffers = malloc(_num_buf * sizeof(short *));
+    buffers_orig = malloc(_num_buf * sizeof(short *));
 
     for(int i = 0; i < _num_buf; i++)
     {
-        /* Stereo buffers, interleaved */
-        buffers[i] = malloc(sizeof(short) * 2 * _buf_size);
+        /* Stereo buffers, interleaved, plus 8 bytes of padding */
+        buffers_orig[i] = buffers[i] =
+            malloc_uncached(sizeof(short) * 2 * _buf_size + 8);
+
+        /* Workaround AI DMA hardware bug. If a buffer ends exactly
+         * at a 0x2000 address boundary, AI DMA gets confused because
+         * of a delayed internal carry. Avoid using such buffers,
+         * and since we allocated 8 bytes of padding, we can move
+         * our pointer a bit.
+         */
+        if (((uint32_t)(buffers[i] + 2 * _buf_size) & 0x1FFF) == 0)
+            buffers[i] += 4;
+
         memset(buffers[i], 0, sizeof(short) * 2 * _buf_size);
     }
 
@@ -305,16 +319,18 @@ void audio_close()
         for(int i = 0; i < _num_buf; i++)
         {
             /* Nuke anything that isn't freed */
-            if(buffers[i])
+            if(buffers_orig[i])
             {
-                free(buffers[i]);
-                buffers[i] = 0;
+                free_uncached(buffers_orig[i]);
+                buffers_orig[i] = buffers[i] = 0;
             }
         }
 
         /* Nuke array of buffers we init'd earlier */
         free(buffers);
         buffers = 0;
+        free(buffers_orig);
+        buffers_orig = 0;
     }
 
     _frequency = 0;
@@ -323,7 +339,7 @@ void audio_close()
 
 static void audio_paused_callback(short *buffer, size_t numsamples)
 {
-    memset(UncachedShortAddr(buffer), 0, numsamples * sizeof(short) * 2);
+    memset(buffer, 0, numsamples * sizeof(short) * 2);
 }
 
 /**
@@ -389,7 +405,7 @@ void audio_write(const short * const buffer)
     /* Copy buffer into local buffers */
     buf_full |= (1<<next);
     now_writing = next;
-    memcpy(UncachedShortAddr(buffers[now_writing]), buffer, _buf_size * 2 * sizeof(short));
+    memcpy(buffers[now_writing], buffer, _buf_size * 2 * sizeof(short));
     audio_callback();
     enable_interrupts();
 }
@@ -488,7 +504,7 @@ void audio_write_silence()
     /* Copy silence into local buffers */
     buf_full |= (1<<next);
     now_writing = next;
-    memset(UncachedShortAddr(buffers[now_writing]), 0, _buf_size * 2 * sizeof(short));
+    memset(buffers[now_writing], 0, _buf_size * 2 * sizeof(short));
     audio_callback();
     enable_interrupts();
 }

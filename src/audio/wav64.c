@@ -1,16 +1,24 @@
 /**
  * @file wav64.c
  * @brief Support for WAV64 audio files
- * @ingroup audio
+ * @ingroup mixer
  */
 
-#include "libdragon.h"
+#include "wav64.h"
 #include "wav64internal.h"
+#include "mixer.h"
+#include "dragonfs.h"
+#include "n64sys.h"
+#include "dma.h"
+#include "samplebuffer.h"
+#include "debug.h"
 #include <stdbool.h>
 #include <string.h>
 #include <assert.h>
 
+/** ID of a standard WAV file */
 #define WAV_RIFF_ID   "RIFF"
+/** ID of a WAVX file (big-endian WAV) */
 #define WAV_RIFX_ID   "RIFX"
 
 /** @brief Profile of DMA usage by WAV64, used for debugging purposes. */
@@ -39,6 +47,14 @@ static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, b
 void wav64_open(wav64_t *wav, const char *fn) {
 	memset(wav, 0, sizeof(*wav));
 
+	// Currently, we only support streaming WAVs from DFS (ROMs). Any other
+	// filesystem is unsupported.
+	// For backward compatibility, we also silently accept a non-prefixed path.
+	if (strstr(fn, ":/")) {
+		assertf(strncmp(fn, "rom:/", 5) == 0, "Cannot open %s: wav64 only supports files in ROM (rom:/)", fn);
+		fn += 5;
+	}
+
 	int fh = dfs_open(fn);
 	assertf(fh >= 0, "file does not exist: %s", fn);
 
@@ -66,6 +82,11 @@ void wav64_open(wav64_t *wav, const char *fn) {
 
 	wav->wave.read = waveform_read;
 	wav->wave.ctx = wav;
+}
+
+void wav64_play(wav64_t *wav, int ch)
+{
+    mixer_ch_play(ch, &wav->wave);
 }
 
 void wav64_set_loop(wav64_t *wav, bool loop) {

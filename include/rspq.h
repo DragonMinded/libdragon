@@ -47,8 +47,9 @@
  * Higher-level libraries that come with their RSP ucode can be designed to
  * use the RSP command queue to efficiently coexist with all other RSP libraries
  * provided by libdragon. In fact, by using the overlay mechanism, each library
- * can register its own overlay ID, and enqueue commands to be executed by the
- * RSP through the same unique queue.
+ * can obtain its own overlay ID, and enqueue commands to be executed by the
+ * RSP through the same unique queue. Overlay IDs are allocated dynamically by
+ * rspq in registration order, to avoid conflicts between libraries.
  * 
  * End-users can then use all these libraries at the same time, without having
  * to arrange for complex RSP synchronization, asynchronous execution or plan for
@@ -63,11 +64,11 @@
  *   * Call #rspq_init at initialization. The function can be called multiple
  *     times by different libraries, with no side-effect.
  *   * Call #rspq_overlay_register to register a #rsp_ucode_t as RSP command
- *     queue overlay, assigning an overlay ID to it.
- *   * Provide higher-level APIs that, when required, call #rspq_write_begin,
- *     #rspq_write_end and #rspq_flush to enqueue commands for the RSP. For
+ *     queue overlay, obtaining an overlay ID to use.
+ *   * Provide higher-level APIs that, when required, call #rspq_write
+ *     and #rspq_flush to enqueue commands for the RSP. For
  *     instance, a matrix library might provide a "matrix_mult" function that
- *     internally calls #rspq_write_begin/#rspq_write_end to enqueue a command
+ *     internally calls #rspq_write to enqueue a command
  *     for the RSP to perform the calculation.
  * 
  * Normally, end-users will not need to manually enqueue commands in the RSP
@@ -99,9 +100,9 @@
  * required to know when the RSP has actually executed an enqueued command or
  * not (eg: to use its result). To do so, this library offers a synchronization
  * primitive called "syncpoint" (#rspq_syncpoint_t). A syncpoint can be
- * created via #rspq_syncpoint and records the current writing position in the
- * queue. It is then possible to call #rspq_check_syncpoint to check whether
- * the RSP has reached that position, or #rspq_wait_syncpoint to wait for
+ * created via #rspq_syncpoint_new and records the current writing position in the
+ * queue. It is then possible to call #rspq_syncpoint_check to check whether
+ * the RSP has reached that position, or #rspq_syncpoint_wait to wait for
  * the RSP to reach that position.
  * 
  * Syncpoints are implemented using RSP interrupts, so their overhead is small
@@ -114,7 +115,7 @@
  * moment a high-priority queue is created via #rspq_highpri_begin, the RSP
  * immediately suspends execution of the command queue, and switches to
  * the high-priority queue, waiting for commands. All commands added via
- * standard APIs (#rspq_write_begin / #rspq_write_end) are then directed
+ * standard APIs (#rspq_write) are then directed
  * to the high-priority queue, until #rspq_highpri_end is called. Once the
  * RSP has finished executing all the commands enqueue in the high-priority
  * queue, it resumes execution of the standard queue.
@@ -150,8 +151,14 @@ extern "C" {
 #endif
 
 /** @brief Maximum size of a command (in 32-bit words). */
-#define RSPQ_MAX_COMMAND_SIZE          16
+#define RSPQ_MAX_COMMAND_SIZE          63
 
+/** @brief Maximum size of a command that it is writable with #rspq_write
+ *         (in 32-bit words).
+ *
+ * For larger commands, use #rspq_write_begin + #rspq_write_arg + #rspq_write_end.
+ */
+#define RSPQ_MAX_SHORT_COMMAND_SIZE    16
 
 /**
  * @brief A preconstructed block of commands
@@ -173,8 +180,8 @@ typedef struct rspq_block_s rspq_block_t;
  * After creation, it is possible to later check whether the RSP has reached
  * that position or not.
  * 
- * To create a syncpoint, use #rspq_syncpoint that returns a syncpoint that
- * references the current position. Call #rspq_check_syncpoint or #rspq_wait_syncpoint
+ * To create a syncpoint, use #rspq_syncpoint_new that returns a syncpoint that
+ * references the current position. Call #rspq_syncpoint_check or #rspq_syncpoint_wait
  * to respectively do a single check or block waiting for the syncpoint to be
  * reached by RSP.
  * 
@@ -207,32 +214,73 @@ void rspq_close(void);
 
 
 /**
- * @brief Register a ucode overlay into the RSP queue engine.
+ * @brief Register a rspq overlay into the RSP queue engine.
  * 
- * This function registers a ucode overlay into the queue engine.
- * An overlay is a ucode that has been written to be compatible with the
- * queue engine (see rsp_queue.inc) and is thus able to execute commands
- * that are enqueued in the queue. An overlay doesn't have an entry point:
- * it exposes multiple functions bound to different commands, that will be
- * called by the queue engine when the commands are enqueued.
+ * This function registers a rspq overlay into the queue engine.
+ * An overlay is a RSP ucode that has been written to be compatible with the
+ * queue engine (see rsp_queue.inc for instructions) and is thus able to 
+ * execute commands that are enqueued in the queue. An overlay doesn't have 
+ * a single entry point: it exposes multiple functions bound to different 
+ * commands, that will be called by the queue engine when the commands are enqueued.
  * 
- * Each command in the queue starts with a 8-bit ID, in which the
- * upper 4 bits are the overlay ID and the lower 4 bits are the command ID.
- * The ID specified with this function is the overlay ID to associated with
- * the ucode. For instance, calling this function with ID 0x3 means that 
- * the overlay will be associated with commands 0x30 - 0x3F. The overlay ID
- * 0 is reserved to the queue engine.
+ * The function returns the overlay ID, which is the ID to use to enqueue
+ * commands for this overlay. The overlay ID must be passed to #rspq_write
+ * when adding new commands. rspq allows up to 16 overlays to be registered
+ * simultaneously, as the overlay ID occupies the top 4 bits of each command.
+ * The lower 4 bits specify the command ID, so in theory each overlay could
+ * offer a maximum of 16 commands. To overcome this limitation, this function 
+ * will reserve multiple consecutive IDs in case an overlay with more than 16
+ * commands is registered. These additional IDs are silently occupied and
+ * never need to be specified explicitly when queueing commands.
  * 
- * Notice that it is possible to call this function multiple times with the
- * same ucode in case the ucode exposes more than 16 commands. For instance,
- * an ucode that handles up to 32 commands could be registered twice with
- * IDs 0x6 and 0x7, so that the whole range 0x60-0x7F is assigned to it.
- * When calling multiple times, consecutive IDs must be used.
+ * For example if an overlay with 32 commands were registered, this function
+ * could return ID 0x60, and ID 0x70 would implicitly be reserved as well.
+ * To queue the twenty first command of this overlay, you would write
+ * `rspq_write(ovl_id, 0x14, ...)`, where `ovl_id` is the value that was returned
+ * by this function.
  *             
- * @param      overlay_ucode  The ucode to register
- * @param[in]  id             The overlay ID that will be associated to this ucode.
+ * @param      overlay_ucode  The overlay to register
+ *
+ * @return     The overlay ID that has been assigned to the overlay. Note that
+ *             this value will be preshifted by 28 (eg: 0x60000000 for ID 6),
+ *             as this is the expected format used by #rspq_write.
  */
-void rspq_overlay_register(rsp_ucode_t *overlay_ucode, uint8_t id);
+uint32_t rspq_overlay_register(rsp_ucode_t *overlay_ucode);
+
+/**
+ * @brief Register an overlay into the RSP queue engine assigning a static ID to it
+ * 
+ * This function works similar to #rspq_overlay_register, except it will
+ * attempt to assign the specified ID to the overlay instead of automatically
+ * choosing one. Note that if the ID (or a consecutive IDs) is already used
+ * by another overlay, this function will assert, so careful usage is advised.
+ * 
+ * Assigning a static ID can mostly be useful for debugging purposes.
+ * 
+ * @param      overlay_ucode  The ucode to register
+ * @param      overlay_id     The ID to register the overlay with. This ID
+ *                            must be preshifted by 28 (eg: 0x40000000).
+ * 
+ * @see #rspq_overlay_register
+ */
+void rspq_overlay_register_static(rsp_ucode_t *overlay_ucode, uint32_t overlay_id);
+
+/**
+ * @brief Unregister a ucode overlay from the RSP queue engine.
+ * 
+ * This function removes an overlay that has previously been registered
+ * with #rspq_overlay_register or #rspq_overlay_register_static from the 
+ * queue engine. After calling this function, the specified overlay ID 
+ * (and consecutive IDs in case the overlay has more than 16 commands) 
+ * is no longer valid and must not be used to write new commands into the queue.
+ * 
+ * Note that when new overlays are registered, the queue engine may recycle 
+ * IDs from previously unregistered overlays.
+ *             
+ * @param      overlay_id  The ID of the ucode (as returned by
+ *                         #rspq_overlay_register) to unregister.
+ */
+void rspq_overlay_unregister(uint32_t overlay_id);
 
 /**
  * @brief Return a pointer to the overlay state (in RDRAM)
@@ -256,18 +304,38 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
  * 
  * This macro is the main entry point to add a command to the RSP queue. It can
  * be used as a variadic argument function, in which the first argument is
- * the command ID, and the other arguments are the command arguments (additional
- * 32-bit words).
+ * the overlay ID, the second argument is the command index within the overlay,
+ * and the other arguments are the command arguments (additional 32-bit words).
  * 
- * As explained in the top-level documentation, the command ID is one byte and
- * is encoded in the most significant byte of the first word. So the first
- * argument word, if provided, must have the upper MSB empty, to leave space
+ * @code{.c}
+ *      // This example adds to the queue a command called CMD_SPRITE with 
+ *      // index 0xA, with its arguments, for a total of three words. The overlay
+ *      // was previously registered via #rspq_register_overlay.
+ *      
+ *      #define CMD_SPRITE  0xA
+ *      
+ *      rspq_write(gfx_overlay_id, CMD_SPRITE,
+ *                 sprite_num, 
+ *                 (x0 << 16) | y0,
+ *                 (x1 << 16) | y1);
+ * @endcode
+ * 
+ * As explained in the top-level documentation, the overlay ID (4 bits) and the
+ * command index (4 bits) are composed to form the command ID, and are stored
+ * in the most significant byte of the first word. So, the first command argument
+ * word, if provided, must have the upper MSB empty, to leave space
  * for the command ID itself.
  * 
- * For instance, `rspq_write(0x12, 0x00FF2233)` is a correct call, which
- * writes `0x12FF2233` into the RSP queue. `rspq_write(0x12, 0x11FF2233)`
- * is an invalid call because the MSB of the first word is non-zero.
- * `rspq_write(0x12)` is also valid, and equivalent to `rspq_write(0x12, 0x0)`.
+ * For instance, assuming the overlay ID for an overlay called "gfx" is 1, 
+ * `rspq_write(gfx_id, 0x2, 0x00FF2233)` is a correct call, which
+ * writes `0x12FF2233` into the RSP queue; it will invoke command #2 in
+ * overlay with ID 0x1, and the first word contains other 24 bits of arguments
+ * that will be parsed by the RSP code. Instead, `rspq_write(gfx_id, 0x2, 0x11FF2233)`
+ * is an invalid call because the MSB of the first word is non-zero, and thus
+ * the highest byte "0x11" would clash with the overlay ID and command index.
+ * 
+ * `rspq_write(gfx_id, 0x2)` is a valid call, and equivalent to
+ * `rspq_write(gfx_id, 0x2, 0x0)`. It will write `0x12000000` in the queue.
  * 
  * Notice that after a call to #rspq_write, the command might or might not
  * get executed by the RSP, depending on timing. If you want to make sure that
@@ -275,27 +343,28 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
  * after you have finished writing a batch of related commands. See #rspq_flush
  * documentation for more information.
  * 
- * @code{.c}
- * 		// This example adds to the queue a command called CMD_SPRITE with 
- *      // code 0x3A (overlay 3, command A), with its arguments,
- * 		// for a total of three words.
- * 		
- * 		#define CMD_SPRITE  0x3A
- * 		
- * 		rspq_write(CMD_SPRITE, sprite_num, 
- *                 (x0 << 16) | y0,
- *                 (x1 << 16) | y1);
- * @endcode
+ * #rspq_write allows to write a full command with a single call, which is
+ * normally the easiest way to do it; it supports up to 16 argument words.
+ * In case it is needed to assemble larger commands, see #rspq_write_begin
+ * for an alternative API.
  *
- * @note Each command can be up to RSPQ_MAX_COMMAND_SIZE 32-bit words.
+ * @note Each command can be up to #RSPQ_MAX_SHORT_COMMAND_SIZE 32-bit words.
  * 
+ * @param      ovl_id    The overlay ID of the command to enqueue. Notice that
+ *                       this must be a value preshifted by 28, as returned
+ *                       by #rspq_overlay_register.
+ * @param      cmd_id    Index of the command to call, within the overlay.
+ * @param      ...       Optional arguments for the command
+ *
+ * @see #rspq_overlay_register
  * @see #rspq_flush
+ * @see #rspq_write_begin
  * 
  * @hideinitializer
  */
 
-#define rspq_write(cmd_id, ...) \
-    __PPCAT(_rspq_write, __HAS_VARARGS(__VA_ARGS__)) (cmd_id, ##__VA_ARGS__)
+#define rspq_write(ovl_id, cmd_id, ...) \
+    __PPCAT(_rspq_write, __HAS_VARARGS(__VA_ARGS__)) (ovl_id, cmd_id, ##__VA_ARGS__)
 
 /// @cond
 
@@ -307,30 +376,138 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
     (void)ptr;
 
 #define _rspq_write_epilog() ({ \
-    if (rspq_cur_pointer > rspq_cur_sentinel) \
+    if (__builtin_expect(rspq_cur_pointer > rspq_cur_sentinel, 0)) \
         rspq_next_buffer(); \
 })
 
 #define _rspq_write_arg(arg) \
     *ptr++ = (arg);
 
-#define _rspq_write0(cmd_id) ({ \
+#define _rspq_write0(ovl_id, cmd_id) ({ \
     _rspq_write_prolog(); \
-    rspq_cur_pointer[0] = (cmd_id)<<24; \
+    rspq_cur_pointer[0] = (ovl_id) + ((cmd_id)<<24); \
     rspq_cur_pointer += 1; \
     _rspq_write_epilog(); \
 })
 
-#define _rspq_write1(cmd_id, arg0, ...) ({ \
+#define _rspq_write1(ovl_id, cmd_id, arg0, ...) ({ \
+    _Static_assert(__COUNT_VARARGS(__VA_ARGS__) < RSPQ_MAX_SHORT_COMMAND_SIZE); \
     _rspq_write_prolog(); \
     __CALL_FOREACH(_rspq_write_arg, ##__VA_ARGS__); \
-    rspq_cur_pointer[0] = ((cmd_id)<<24) | (arg0); \
+    rspq_cur_pointer[0] = ((ovl_id) + ((cmd_id)<<24)) | (arg0); \
     rspq_cur_pointer += 1 + __COUNT_VARARGS(__VA_ARGS__); \
     _rspq_write_epilog(); \
 })
 
 /// @endcond
 
+/** @brief A write cursor, returned by #rspq_write_begin. */
+typedef struct {
+    uint32_t first_word;                  ///< value that will be written as first word
+    volatile uint32_t *pointer;           ///< current pointer into the RSP queue
+    volatile uint32_t *first;             ///< pointer to the first word of the command
+    bool is_first;                        ///< true if we are waiting for the first argument word
+} rspq_write_t;
+
+/**
+ * @brief Begin writing a new command into the RSP queue.
+ * 
+ * This command initiates a sequence to enqueue a new command into the RSP
+ * queue. Call this command passing the overlay ID and command ID of the command
+ * to create. Then, call #rspq_write_arg once per each argument word that
+ * composes the command. Finally, call #rspq_write_end to finalize and enqueue
+ * the command.
+ * 
+ * A sequence made by #rspq_write_begin, #rspq_write_arg, #rspq_write_end is
+ * functionally equivalent to a call to #rspq_write, but it allows to
+ * create bigger commands, and might better fit some situations where arguments
+ * are calculated on the fly. Performance-wise, the code generated by
+ * #rspq_write_begin + #rspq_write_arg + #rspq_write_end should be very similar
+ * to a single call to #rspq_write, though just a bit slower. It is advisable
+ * to use #rspq_write whenever possible.
+ * 
+ * Make sure to read the documentation of #rspq_write as well for further
+ * details.
+ * 
+ * @param      ovl_id    The overlay ID of the command to enqueue. Notice that
+ *                       this must be a value preshifted by 28, as returned
+ *                       by #rspq_overlay_register.
+ * @param      cmd_id    Index of the command to call, within the overlay.
+ * @param      size      The size of the commands in 32-bit words
+ * @returns              A write cursor, that must be passed to #rspq_write_arg
+ *                       and #rspq_write_end
+ * 
+ * @see #rspq_write_arg
+ * @see #rspq_write_end
+ * @see #rspq_write
+ */
+inline rspq_write_t rspq_write_begin(uint32_t ovl_id, uint32_t cmd_id, int size) {
+    extern volatile uint32_t *rspq_cur_pointer, *rspq_cur_sentinel;
+    extern void rspq_next_buffer(void);
+
+    if (__builtin_expect(rspq_cur_pointer > rspq_cur_sentinel - size, 0))
+        rspq_next_buffer();
+
+    volatile uint32_t *cur = rspq_cur_pointer;
+    rspq_cur_pointer += size;
+
+    return (rspq_write_t){
+        .first_word = ovl_id + (cmd_id<<24),
+        .pointer = cur + 1,
+        .first = cur,
+        .is_first = 1
+    };
+}
+
+/**
+ * @brief Add one argument to the command being enqueued.
+ * 
+ * This function adds one more argument to the command currently being
+ * enqueued. This function must be called after #rspq_write_begin; it should
+ * be called multiple times (one per argument word), and then #rspq_write_end
+ * should be called to terminate enqueuing the command.
+ * 
+ * See also #rspq_write for a more straightforward API for command enqueuing.
+ * 
+ * @param       w       The write cursor (returned by #rspq_write_begin)
+ * @param       value   New 32-bit argument word to add to the command.
+ * 
+ * @note The first argument must have its MSB set to 0, to leave space for
+ *       the command ID. See #rspq_write documentation for a more complete
+ *       explanation.
+ * 
+ * @see #rspq_write_begin
+ * @see #rspq_write_end
+ * @see #rspq_write
+ */
+inline void rspq_write_arg(rspq_write_t *w, uint32_t value) {
+    if (w->is_first) {
+        w->first_word |= value;
+        w->is_first = 0;
+    } else {
+        *w->pointer++ = value;
+    }
+}
+
+/**
+ * @brief Finish enqueuing a command into the queue.
+ * 
+ * This function should be called to terminate a sequence for command
+ * enqueuing, after #rspq_write_begin and (multiple) calls to #rspq_write_arg.
+ * 
+ * After calling this command, the write cursor cannot be used anymore.
+ * 
+ * @param       w       The write cursor (returned by #rspq_write_begin)
+ * 
+ * @see #rspq_write_begin
+ * @see #rspq_write_arg
+ * @see #rspq_write
+ */
+inline void rspq_write_end(rspq_write_t *w) {
+    *w->first = w->first_word;
+    w->first = 0;
+    w->pointer = 0;
+}
 
 /**
  * @brief Make sure that RSP starts executing up to the last written command.
@@ -349,7 +526,7 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
  * 
  * This function does not block: it just make sure that the RSP will run the 
  * full command queue written until now. If you need to actively wait until the
- * last written command has been executed, use #rspq_sync.
+ * last written command has been executed, use #rspq_wait.
  * 
  * It is suggested to call rspq_flush every time a new "batch" of commands
  * has been written. In general, it is not a problem to call it often because
@@ -362,11 +539,12 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
  * 		// This example shows some code configuring the lights for a scene.
  * 		// The command in this sample is called CMD_SET_LIGHT and requires
  * 		// a light index and the RGB colors for the list to update.
+ *      uint32_t gfx_overlay_id;   
  *
- * 		#define CMD_SET_LIGHT  0x47
+ * 		#define CMD_SET_LIGHT  0x7
  *
  * 		for (int i=0; i<MAX_LIGHTS; i++) {
- * 			rspq_write(CMD_SET_LIGHT, i,
+ * 			rspq_write(gfx_overlay_id, CMD_SET_LIGHT, i,
  * 			    (lights[i].r << 16) | (lights[i].g << 8) | lights[i].b);
  * 		}
  * 		
@@ -398,11 +576,11 @@ void rspq_flush(void);
  * This function exists mostly for debugging purposes. Calling this function
  * is not necessary, as the CPU can continue adding commands to the queue
  * while the RSP is running them. If you need to synchronize between RSP and CPU
- * (eg: to access data that was processed by RSP) prefer using #rspq_syncpoint /
- * #rspq_wait_syncpoint which allows for more granular synchronization.
+ * (eg: to access data that was processed by RSP) prefer using #rspq_syncpoint_new /
+ * #rspq_syncpoint_wait which allows for more granular synchronization.
  */
-#define rspq_sync() ({ \
-    rspq_wait_syncpoint(rspq_syncpoint()); \
+#define rspq_wait() ({ \
+    rspq_syncpoint_wait(rspq_syncpoint_new()); \
 })
 
 /**
@@ -410,21 +588,27 @@ void rspq_flush(void);
  * 
  * This function creates a new "syncpoint" referencing the current position
  * in the queue. It is possible to later check when the syncpoint
- * is reached by the RSP via #rspq_check_syncpoint and #rspq_wait_syncpoint.
+ * is reached by the RSP via #rspq_syncpoint_check and #rspq_syncpoint_wait.
  *
  * @return     ID of the just-created syncpoint.
  * 
- * @note It is not possible to create a syncpoint within a block
+ * @note It is not possible to create a syncpoint within a block because it
+ *       is meant to be a one-time event. Otherwise the same syncpoint would
+ *       potentially be triggered multiple times, which is not supported.
+ * 
+ * @note It is not possible to create a syncpoint from the high-priority queue
+ *       due to the implementation requiring syncpoints to be triggered
+ *       in the same order they have been created.
  * 
  * @see #rspq_syncpoint_t
  */
-rspq_syncpoint_t rspq_syncpoint(void);
+rspq_syncpoint_t rspq_syncpoint_new(void);
 
 /**
  * @brief Check whether a syncpoint was reached by RSP or not.
  * 
  * This function checks whether a syncpoint was reached. It never blocks.
- * If you need to wait for a syncpoint to be reached, use #rspq_wait_syncpoint
+ * If you need to wait for a syncpoint to be reached, use #rspq_syncpoint_wait
  * instead of polling this function.
  *
  * @param[in]  sync_id  ID of the syncpoint to check
@@ -433,7 +617,7 @@ rspq_syncpoint_t rspq_syncpoint(void);
  * 
  * @see #rspq_syncpoint_t
  */
-bool rspq_check_syncpoint(rspq_syncpoint_t sync_id);
+bool rspq_syncpoint_check(rspq_syncpoint_t sync_id);
 
 /**
  * @brief Wait until a syncpoint is reached by RSP.
@@ -446,14 +630,14 @@ bool rspq_check_syncpoint(rspq_syncpoint_t sync_id);
  * 
  * @see #rspq_syncpoint_t
  */
-void rspq_wait_syncpoint(rspq_syncpoint_t sync_id);
+void rspq_syncpoint_wait(rspq_syncpoint_t sync_id);
 
 
 /**
  * @brief Begin creating a new block.
  * 
  * This function begins writing a command block (see #rspq_block_t).
- * While a block is being written, all calls to #rspq_write_begin / #rspq_write_end
+ * While a block is being written, all calls to #rspq_write
  * will record the commands into the block, without actually scheduling them for
  * execution. Use #rspq_block_end to close the block and get a reference to it.
  * 
@@ -472,7 +656,7 @@ void rspq_block_begin(void);
  * @brief Finish creating a block.
  * 
  * This function completes a block and returns a reference to it (see #rspq_block_t).
- * After this function is called, all subsequent #rspq_write_begin / #rspq_write_end
+ * After this function is called, all subsequent #rspq_write
  * will resume working as usual: they will add commands to the queue
  * for immediate RSP execution.
  * 
@@ -539,7 +723,7 @@ void rspq_block_free(rspq_block_t *block);
  * the RSP is currently doing.
  * 
  * It is possible to create multiple high-priority queues by calling
- * #rspq_highpri_begin / #rspq_highpri_end multiples time with short
+ * #rspq_highpri_begin / #rspq_highpri_end multiple times with short
  * delays in-between. The RSP will process them in order. Notice that
  * there is a overhead in doing so, so it might be advisable to keep
  * the high-priority mode active for a longer period if possible. On the
@@ -573,11 +757,8 @@ void rspq_highpri_end(void);
  * 
  * This function will spin-lock waiting for the RSP to finish processing
  * all high-priority queues. It is meant for debugging purposes or for situations
- * in which the high-priority queue is known to be very short and fast to run,
- * so that the overhead of a syncpoint would be too high.
- * 
- * For longer/slower high-priority queues, it is advisable to use a #rspq_syncpoint_t
- * to synchronize (though it has a higher overhead).
+ * in which the high-priority queue is known to be very short and fast to run.
+ * Also note that it is not possible to create syncpoints in the high-priority queue.
  */
 void rspq_highpri_sync(void);
 
@@ -606,7 +787,7 @@ void rspq_noop(void);
  *                     defines.
  *                     
  * @note This is an advanced function that should be used rarely. Most
- * synchronization requirements should be fulfilled via #rspq_syncpoint which is
+ * synchronization requirements should be fulfilled via #rspq_syncpoint_new which is
  * easier to use.
  */
 void rspq_signal(uint32_t signal);

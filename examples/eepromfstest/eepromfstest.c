@@ -4,9 +4,6 @@
 #include <stdint.h>
 #include <libdragon.h>
 
-static resolution_t res = RESOLUTION_320x240;
-static bitdepth_t bit = DEPTH_32_BPP;
-
 typedef struct
 {
     char initials[3];
@@ -456,7 +453,6 @@ static int validate_eeprom(eeprom_type_t eeprom_type)
 int main(void)
 {
     /* Initialize peripherals */
-    display_init( res, bit, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE );
     console_init();
     controller_init();
 

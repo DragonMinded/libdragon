@@ -1,7 +1,7 @@
 /**
  * @file eepromfs.c
  * @brief EEPROM Filesystem
- * @ingroup eepfs
+ * @ingroup eeprom
  */
 #include <string.h>
 #include <stdint.h>

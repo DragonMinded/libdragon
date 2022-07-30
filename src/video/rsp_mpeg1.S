@@ -1,11 +1,9 @@
-#include "../rspq/rsp_queue.S"
+#include <rsp_queue.inc>
 #include "mpeg1_internal.h"
 
-	.section .data.overlay
+	.data
 
-    RSPQ_OverlayHeader MPEG1_STATE_START, MPEG1_STATE_END, 0x50
-
-COMMAND_TABLE:
+	RSPQ_BeginOverlayHeader
 	RSPQ_DefineCommand cmd_mpeg1_load_matrix     4  # 0x50
 	RSPQ_DefineCommand cmd_mpeg1_store_pixels    4  # 0x51
 	RSPQ_DefineCommand cmd_mpeg1_idct            4  # 0x52
@@ -21,6 +19,7 @@ COMMAND_TABLE:
     RSPQ_DefineCommand cmd_mpeg1_load_pixels     4  # 0x5C
     RSPQ_DefineCommand cmd_mpeg1_zero_pixels     4  # 0x5D
 	.dcb.w 16-14
+	RSPQ_EndOverlayHeader
 
 	vsll_data
 	vsll8_data
@@ -30,7 +29,7 @@ COMMAND_TABLE:
 	.ascii " Coded by Rasky "
 
 	.align 4
-MPEG1_STATE_START:
+	RSPQ_BeginSavedState
 IDCT_MATRIX:  .dcb.w    8*8       # 8x8 coefficient matrix
 COEFF_MASK:   .dcb.b    8
 
@@ -48,8 +47,7 @@ CUR_PIXELS:        .long   0
     .align 4
 PIXELS:            .dcb.b    (16*16 + 8*8 + 8*8)
 PIXELCHECK:        .long   0xBADC0DE
-
-MPEG1_STATE_END:
+	RSPQ_EndSavedState
 
 PIXELS_OFFSET:     .half    0, 8, 16*8, 16*8+8, 16*16, 16*16+8*8
 

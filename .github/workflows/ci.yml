@@ -1,125 +1,17 @@
 name: Build
 
-on:
-  # For default branch, wait for the "Docker Build" workflow instead so that
-  # we will run this against the latest image.
-  push:
-    branches-ignore:
-      - 'trunk'
-  pull_request:
-
-  workflow_run:
-    workflows: ["Docker Build"]
-    branches:
-      - trunk
-    types:
-      - completed
+on: [push, pull_request]
 
 jobs:
-  Compile-Library-And-Examples:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-
-      # We first compare the default branch to the event commit. In case this is
-      # the default branch, this should return 0, skipping the build and using
-      # the latest image from "Docker Build"
-      - name: Compare files to default branch
-        uses: ./.github/actions/path-diff
-        id: path_diff
-        with:
-          base: ${{ format('refs/remotes/origin/{0}', github.event.repository.default_branch) }}
-          head: ${{ github.sha }}
-
-      # Build the toolchain if toolchain files changed w.r.t default which is
-      # where we release the images and we can use from registry o/w
-      - name: Set up Docker Buildx
-        if: ${{ steps.path_diff.outputs.changed == 1 }}
-        uses: docker/setup-buildx-action@v1
-
-      - name: Build image
-        if: ${{ steps.path_diff.outputs.changed == 1 }}
-        uses: docker/build-push-action@v2
-        with:
-          push: false
-          tags: ghcr.io/dragonminded/libdragon:latest
-          load: true
-          cache-from: type=gha
-
-      # As we have a "latest" tagged image now, we can use that to run build.sh
-      # if it is built in the previous step. o/w it will be downloaded from the
-      # registry. Then verify everything is building properly
-      - name: Build libdragon
-        run: |
-          docker run \
-          --mount type=bind,source=$(pwd),target=/libdragon \
-          --workdir=/libdragon \
-          ghcr.io/dragonminded/libdragon:latest \
-          ./build.sh
-
-      - name: "Upload built ROMs to artifacts"
-        uses: actions/upload-artifact@v2
-        with:
-          name: roms
-          path: |
-            ${{ github.workspace }}/examples/**/*.z64
-            ${{ github.workspace }}/tests/*.z64
+  Build-Toolchain-Library-And-Examples:
+    uses: ./.github/workflows/build-toolchain-library-and-roms.yml
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
 
   Build-Tools-Windows:
-    runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-       include: [
-         { sys: mingw64, arch: x86_64, build: tools},
-         { sys: mingw32, arch: i686,   build: tools}
-       ]
-    steps:
-     - uses: msys2/setup-msys2@v2
-       with:
-         msystem: ${{matrix.sys}}
-         install: >-
-           mingw-w64-${{ matrix.arch }}-libpng
-           base-devel
-           mingw-w64-${{ matrix.arch }}-toolchain
-         update: true
-
-     - uses: actions/checkout@v2
-       with:
-         fetch-depth: 0
-
-     - name: Correct MSYS2 pthread.h to allow static libraries (otherwise you would need to use a lib DLL, rather than it being built into the EXE.)
-       shell: msys2 {0}
-       run: |
-         sed -z 's/#else\n#define WINPTHREAD_API __declspec(dllimport)/#else\n#define WINPTHREAD_API/' /${{matrix.sys}}/${{ matrix.arch }}-w64-mingw32/include/pthread.h
-
-     - name: Build ${{ matrix.build }}
-       shell: msys2 {0}
-       run: |
-         make ${{ matrix.build }}
-
-     - name: "Upload ${{ matrix.build }} executables"
-       uses: actions/upload-artifact@v2
-       with:
-         name: windows-${{ matrix.arch }}-${{ matrix.build }}
-         path: ${{ github.workspace }}/**/tools/**/*.exe
+    uses: ./.github/workflows/build-tool-windows.yml
 
   Build-Documentation:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Run Doxygen
-        uses: mattnotmitt/doxygen-action@v1
-        with:
-          doxyfile-path: 'doxygen-public.conf'
-
-      - name: Deploy
-        uses: peaceiris/actions-gh-pages@v3
-        if: ${{ github.ref == 'refs/heads/trunk' }}
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./website
-          enable_jekyll: true
+    uses: ./.github/workflows/build-documentation.yml
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}

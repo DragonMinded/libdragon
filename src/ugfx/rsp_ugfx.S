@@ -1,18 +1,15 @@
+#include <rsp_queue.inc>
 #include "ugfx_internal.h"
-#include "../rspq/rsp_queue.S"
 
-    .section .data.overlay
+    .data
 
     # Each overlay requires a header. The first two arguments to overlayHeader are start and end of the area in DMEM that should
     # be saved when the overlay is swapped out. Put your persistent state here.
     # The last argument is the command base (The id of the first command in the overlay).
-    RSPQ_OverlayHeader UGFX_STATE_START, UGFX_STATE_END, 0x20
-
-    .align 1
     # The command table maps the command ids to command descriptors, which are the IMEM address and the size
     # of the command encoded as a 16 bit value.
     # The first argument of RSPQ_DefineCommand is just the text label of the command, the second is the command size in bytes.
-COMMAND_TABLE:
+    RSPQ_BeginOverlayHeader
     RSPQ_DefineCommand command_fill_triangle,      32 # 0x20 
     RSPQ_DefineCommand RSPQCmd_Noop,               8
     RSPQ_DefineCommand RSPQCmd_Noop,               8
@@ -45,11 +42,12 @@ COMMAND_TABLE:
     RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x3D SET_TEXTURE_IMAGE
     RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x3E SET_Z_IMAGE
     RSPQ_DefineCommand command_rdp_passthrough_8,  8  # 0x3F SET_COLOR_IMAGE
+    RSPQ_EndOverlayHeader
 
     .align 3
     # Everything between UGFX_STATE_START and UGFX_STATE_END is persistent state that is automatically saved by the overlay system.
     # Should be kept consistent with ugfx_state_t in ugfx_internal.h
-UGFX_STATE_START:
+    RSPQ_BeginSavedState
 RDP_DMEM_BUFFER:       .ds.b UGFX_RDP_DMEM_BUFFER_SIZE
 
 RDP_OTHER_MODES:       .quad  0
@@ -60,11 +58,9 @@ RDP_DRAM_BUFFER_END:   .long  0
 RDP_DMEM_BUFFER_PTR:   .short 0
 RDP_INITIALIZED:       .short 0
 
-UGFX_STATE_END:
+    RSPQ_EndSavedState
 
-    .section .bss.overlay
-
-    .text 1
+    .text
 
     #############################################################
     # command_set_other_modes

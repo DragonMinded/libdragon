@@ -12,6 +12,7 @@ libdragon: AS=$(N64_AS)
 libdragon: LD=$(N64_LD)
 libdragon: CFLAGS+=$(N64_CFLAGS) -I$(CURDIR)/src -I$(CURDIR)/include 
 libdragon: ASFLAGS+=$(N64_ASFLAGS) -I$(CURDIR)/src -I$(CURDIR)/include
+libdragon: RSPASFLAGS+=$(N64_RSPASFLAGS) -I$(CURDIR)/src -I$(CURDIR)/include
 libdragon: LDFLAGS+=$(N64_LDFLAGS)
 libdragon: libdragon.a libdragonsys.a
 
@@ -26,7 +27,7 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 			 $(BUILD_DIR)/audio.o $(BUILD_DIR)/display.o \
 			 $(BUILD_DIR)/console.o $(BUILD_DIR)/joybus.o \
 			 $(BUILD_DIR)/controller.o $(BUILD_DIR)/rtc.o \
-			 $(BUILD_DIR)/eepromfs.o $(BUILD_DIR)/mempak.o \
+			 $(BUILD_DIR)/eeprom.o $(BUILD_DIR)/eepromfs.o $(BUILD_DIR)/mempak.o \
 			 $(BUILD_DIR)/tpak.o $(BUILD_DIR)/graphics.o $(BUILD_DIR)/rdp.o \
 			 $(BUILD_DIR)/rsp.o $(BUILD_DIR)/rsp_crash.o \
 			 $(BUILD_DIR)/dma.o $(BUILD_DIR)/timer.o \
@@ -43,16 +44,6 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 			 $(BUILD_DIR)/ugfx/ugfx.o $(BUILD_DIR)/ugfx/rsp_ugfx.o
 	@echo "    [AR] $@"
 	$(N64_AR) -rcs -o $@ $^
-
-$(BUILD_DIR)/audio/rsp_mixer.o: IS_OVERLAY=1
-$(BUILD_DIR)/ugfx/rsp_ugfx.o: IS_OVERLAY=1
-$(BUILD_DIR)/video/rsp_yuv.o: IS_OVERLAY=1
-$(BUILD_DIR)/video/rsp_mpeg1.o: IS_OVERLAY=1
-
-$(BUILD_DIR)/rspq/rspq_symbols.h: $(SOURCE_DIR)/rspq/rspq_symbols.h.template $(BUILD_DIR)/rspq/rsp_queue.o
-	sed -e "s/:OVL_DATA_ADDR:/$(shell $(N64_NM) $(BUILD_DIR)/rspq/rsp_queue.elf | awk '/_ovl_data_start/ {print $$1}')/g" $< > $@
-
-$(BUILD_DIR)/rspq/rspq.o: $(BUILD_DIR)/rspq/rspq_symbols.h
 
 examples:
 	$(MAKE) -C examples
@@ -102,6 +93,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/mempak.h $(INSTALLDIR)/mips64-elf/include/mempak.h
 	install -Cv -m 0644 include/controller.h $(INSTALLDIR)/mips64-elf/include/controller.h
 	install -Cv -m 0644 include/rtc.h $(INSTALLDIR)/mips64-elf/include/rtc.h
+	install -Cv -m 0644 include/eeprom.h $(INSTALLDIR)/mips64-elf/include/eeprom.h
 	install -Cv -m 0644 include/eepromfs.h $(INSTALLDIR)/mips64-elf/include/eepromfs.h
 	install -Cv -m 0644 include/tpak.h $(INSTALLDIR)/mips64-elf/include/tpak.h
 	install -Cv -m 0644 include/graphics.h $(INSTALLDIR)/mips64-elf/include/graphics.h

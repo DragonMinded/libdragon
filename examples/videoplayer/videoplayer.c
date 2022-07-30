@@ -87,7 +87,7 @@ int main(void) {
 		audio_poll();
 
 		PROFILE_START(PS_SYNC, 0);
-		rspq_sync();
+		rspq_wait();
 		PROFILE_STOP(PS_SYNC, 0);
 	}
 }

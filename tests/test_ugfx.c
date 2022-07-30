@@ -1,5 +1,6 @@
 
 #include <malloc.h>
+#include "../include/rdp_commands.h"
 #include "../src/ugfx/ugfx_internal.h"
 
 static volatile int dp_intr_raised;
@@ -13,9 +14,7 @@ void dp_interrupt_handler()
 
 void wait_for_dp_interrupt(unsigned long timeout)
 {
-    unsigned long time_start = get_ticks_ms();
-
-    while (get_ticks_ms() - time_start < timeout) {
+    RSP_WAIT_LOOP(timeout) {
         // Wait until the interrupt was raised
         if (dp_intr_raised) {
             break;

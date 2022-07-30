@@ -1,7 +1,7 @@
 /**
  * @file wav64.h
  * @brief Support for WAV64 audio files
- * @ingroup audio
+ * @ingroup mixer
  */
 
 #ifndef __LIBDRAGON_WAV64_H
@@ -32,13 +32,14 @@ typedef struct {
 	uint32_t rom_addr;
 } wav64_t;
 
-/** @brief Open a WAV64 file for playback from the DragonFS filesystem.  
+/** @brief Open a WAV64 file for playback.
  * 
  * This function opens the file, parses the header, and initializes for
  * playing back through the audio mixer.
  * 
- * @param 	wav       	Pointer to wav64_t structure
- * @param   fn          Filename of the wav64 (on DragonFS).
+ * @param   wav         Pointer to wav64_t structure
+ * @param   fn          Filename of the wav64 (with filesystem prefix). Currently,
+ *                      only files on DFS ("rom:/") are supported.
  */ 
 void wav64_open(wav64_t *wav, const char *fn);
 
@@ -51,8 +52,8 @@ void wav64_set_loop(wav64_t *wav, bool loop);
  * waveform (#wav64_t::wave). For advanced usages, please call directly the
  * mixer functions.
  * 
- * @param   wav 		Pointer to wav64_t structure
- * @param   ch  		Channel of the mixer to use for playback.
+ * @param   wav         Pointer to wav64_t structure
+ * @param   ch          Channel of the mixer to use for playback.
  */
 void wav64_play(wav64_t *wav, int ch);
 

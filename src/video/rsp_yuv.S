@@ -1,14 +1,13 @@
-#include "../rspq/rsp_queue.S"
+#include <rsp_queue.inc>
 #include "yuv_internal.h"
 
-	.section .data.overlay
+    .data
 
-    RSPQ_OverlayHeader YUV_STATE_START, YUV_STATE_END, 0x40
-
-COMMAND_TABLE:
+    RSPQ_BeginOverlayHeader
 	RSPQ_DefineCommand cmd_yuv_set_input                 16
 	RSPQ_DefineCommand cmd_yuv_set_output                 8
 	RSPQ_DefineCommand cmd_yuv_interleave_block_32x16,    4
+	RSPQ_EndOverlayHeader
 
 	vsll8_data
 
@@ -16,7 +15,7 @@ COMMAND_TABLE:
 	.ascii " Dragon RSP YUV "
 	.ascii " Coded by Rasky "
 
-YUV_STATE_START:
+	RSPQ_BeginSavedState
 RDRAM_YBUF_STRIDE:   .half 0
 RDRAM_CBUF_STRIDE:   .half 0
 RDRAM_OUTBUF_STRIDE: .half 0
@@ -24,7 +23,7 @@ RDRAM_YBUF: 	     .long 0
 RDRAM_CBBUF:         .long 0
 RDRAM_CRBUF:         .long 0
 RDRAM_OUTBUF: 	     .long 0
-YUV_STATE_END:
+	RSPQ_EndSavedState
 
 	# FIXME?
 	#.section bss.overlay
@@ -41,7 +40,7 @@ CBBUF:  .ds.b  (BLOCK_W/2) * (BLOCK_H/2)
 CRBUF:  .ds.b  (BLOCK_W/2) * (BLOCK_H/2)
 OUTBUF: .ds.b  BLOCK_W * BLOCK_H * 2
 
-	.text 1
+	.text
 
 	.func cmd_yuv_set_input
 cmd_yuv_set_input:

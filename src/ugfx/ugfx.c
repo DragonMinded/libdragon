@@ -24,8 +24,7 @@ void ugfx_init()
     ugfx_state->dram_buffer_size = UGFX_RDP_DRAM_BUFFER_SIZE;
 
     rspq_init();
-    rspq_overlay_register(&rsp_ugfx, 2);
-    rspq_overlay_register(&rsp_ugfx, 3);
+    rspq_overlay_register_static(&rsp_ugfx, 2<<28);
 
     __ugfx_initialized = 1;
 }
