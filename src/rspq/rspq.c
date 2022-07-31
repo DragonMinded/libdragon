@@ -746,10 +746,12 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode)
     rspq_overlay_header_t *overlay_header = (rspq_overlay_header_t*)(overlay_ucode->data + rspq_data_size);
 
     uint32_t state_offset = (overlay_header->state_start & 0xFFF);
-    assertf(state_offset >= rspq_data_size + sizeof(rspq_overlay_header_t), "Saved overlay state must start after the overlay header!");
+    assertf(state_offset >= rspq_data_size + sizeof(rspq_overlay_header_t), 
+        "Saved overlay state must start after the overlay header (overlay: %s)!", overlay_ucode->name);
 
     void* state_ptr = overlay_ucode->data + state_offset;
-    assertf(state_ptr + overlay_header->state_size + 1 <= overlay_ucode->data_end, "Saved overlay state must be completely within the data segment!");
+    assertf(state_ptr + overlay_header->state_size + 1 <= overlay_ucode->data_end, 
+    "Saved overlay state must be completely within the data segment (overlay: %s)", overlay_ucode->name);
 
     return state_ptr;
 }
@@ -872,7 +874,7 @@ static uint32_t rspq_overlay_register_internal(rsp_ucode_t *overlay_ucode, uint3
 
     // determine number of commands and try to allocate ID(s) accordingly
     rspq_overlay_header_t *overlay_header = (rspq_overlay_header_t*)overlay_data;
-    assertf((uint16_t)(overlay_header->state_size + 1) > 0, "Size of saved state must not be zero!");
+    assertf((uint16_t)(overlay_header->state_size + 1) > 0, "Size of saved state must not be zero (overlay: %s)", overlay_ucode->name);
     assertf((overlay_header->state_size + 1) <= 0x1000, "Saved state is too large: %#x", overlay_header->state_size + 1);
 
     uint32_t command_count = rspq_overlay_get_command_count(overlay_header);
@@ -924,6 +926,8 @@ uint32_t rspq_overlay_register(rsp_ucode_t *overlay_ucode)
 
 void rspq_overlay_register_static(rsp_ucode_t *overlay_ucode, uint32_t overlay_id)
 {
+    assertf((overlay_id & 0x0FFFFFFF) == 0, 
+        "the specified overlay_id should only use the top 4 bits (must be preshifted by 28) (overlay: %s)", overlay_ucode->name);
     rspq_overlay_register_internal(overlay_ucode, overlay_id);
 }
 
