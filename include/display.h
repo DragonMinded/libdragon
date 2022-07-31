@@ -7,6 +7,7 @@
 #define __LIBDRAGON_DISPLAY_H
 
 #include <stdint.h>
+#include "surface.h"
 
 /**
  * @addtogroup display
@@ -65,23 +66,26 @@ typedef enum
     ANTIALIAS_RESAMPLE_FETCH_ALWAYS
 } antialias_t;
 
-/** @brief Display context */
-typedef int display_context_t;
+/** 
+ * @brief Display context (DEPRECATED: Use #surface_t instead)
+ * 
+ * @see #surface_t
+ */
+typedef surface_t* display_context_t;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, antialias_t aa );
-display_context_t display_lock();
-void display_show(display_context_t disp);
+surface_t* display_lock(void);
+void display_show(surface_t* disp);
 void display_close();
 
-uint32_t display_get_width();
-uint32_t display_get_height();
-bitdepth_t display_get_bitdepth();
-uint32_t display_get_num_buffers();
-void * display_get_buffer(uint32_t index);
+uint32_t display_get_width(void);
+uint32_t display_get_height(void);
+uint32_t display_get_bitdepth(void);
+uint32_t display_get_num_buffers(void);
 
 #ifdef __cplusplus
 }

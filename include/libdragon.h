@@ -54,6 +54,9 @@
 #include "xm64.h"
 #include "ym64.h"
 #include "rspq.h"
-#include "ugfx.h"
+#include "rdpq.h"
+#include "rdpq_mode.h"
+#include "rdp_commands.h"
+#include "surface.h"
 
 #endif

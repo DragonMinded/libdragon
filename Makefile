@@ -41,7 +41,15 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 			 $(BUILD_DIR)/audio/libxm/context.o $(BUILD_DIR)/audio/libxm/load.o \
 			 $(BUILD_DIR)/audio/ym64.o $(BUILD_DIR)/audio/ay8910.o \
 			 $(BUILD_DIR)/rspq/rspq.o $(BUILD_DIR)/rspq/rsp_queue.o \
-			 $(BUILD_DIR)/ugfx/ugfx.o $(BUILD_DIR)/ugfx/rsp_ugfx.o
+			 $(BUILD_DIR)/rdpq/rdpq.o $(BUILD_DIR)/rdpq/rsp_rdpq.o \
+			 $(BUILD_DIR)/rdpq/rdpq_debug.o $(BUILD_DIR)/rdpq/rdpq_tri.o \
+			 $(BUILD_DIR)/rdpq/rdpq_mode.o \
+			 $(BUILD_DIR)/surface.o $(BUILD_DIR)/GL/gl.o \
+			 $(BUILD_DIR)/GL/lighting.o $(BUILD_DIR)/GL/matrix.o \
+			 $(BUILD_DIR)/GL/primitive.o $(BUILD_DIR)/GL/query.o \
+			 $(BUILD_DIR)/GL/rendermode.o $(BUILD_DIR)/GL/texture.o \
+			 $(BUILD_DIR)/GL/array.o $(BUILD_DIR)/GL/pixelrect.o \
+			 $(BUILD_DIR)/GL/obj_map.o 
 	@echo "    [AR] $@"
 	$(N64_AR) -rcs -o $@ $^
 
@@ -72,6 +80,7 @@ install-mk: n64.mk
 	install -Cv -m 0644 n64.mk $(INSTALLDIR)/include/n64.mk
 
 install: install-mk libdragon
+	mkdir -p $(INSTALLDIR)/mips64-elf/include/GL
 	install -Cv -m 0644 libdragon.a $(INSTALLDIR)/mips64-elf/lib/libdragon.a
 	install -Cv -m 0644 n64.ld $(INSTALLDIR)/mips64-elf/lib/n64.ld
 	install -Cv -m 0644 rsp.ld $(INSTALLDIR)/mips64-elf/lib/rsp.ld
@@ -117,9 +126,14 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/ym64.h $(INSTALLDIR)/mips64-elf/include/ym64.h
 	install -Cv -m 0644 include/ay8910.h $(INSTALLDIR)/mips64-elf/include/ay8910.h
 	install -Cv -m 0644 include/rspq.h $(INSTALLDIR)/mips64-elf/include/rspq.h
-	install -Cv -m 0644 include/ugfx.h $(INSTALLDIR)/mips64-elf/include/ugfx.h
 	install -Cv -m 0644 include/rdp_commands.h $(INSTALLDIR)/mips64-elf/include/rdp_commands.h
 	install -Cv -m 0644 include/rsp_queue.inc $(INSTALLDIR)/mips64-elf/include/rsp_queue.inc
+	install -Cv -m 0644 include/rdpq.h $(INSTALLDIR)/mips64-elf/include/rdpq.h
+	install -Cv -m 0644 include/rdpq_mode.h $(INSTALLDIR)/mips64-elf/include/rdpq_mode.h
+	install -Cv -m 0644 include/rdp_commands.h $(INSTALLDIR)/mips64-elf/include/rdp_commands.h
+	install -Cv -m 0644 include/surface.h $(INSTALLDIR)/mips64-elf/include/surface.h
+	install -Cv -m 0644 include/GL/gl.h $(INSTALLDIR)/mips64-elf/include/GL/gl.h
+	install -Cv -m 0644 include/GL/gl_integration.h $(INSTALLDIR)/mips64-elf/include/GL/gl_integration.h
 
 
 clean:

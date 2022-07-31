@@ -155,7 +155,6 @@ _RSPQ_SAVED_STATE_END:
 .endm
 
 # Globally reserved register. Do not use it in overlay code
-# except to read command arguments with CMD_ADDR.
 #define rspq_dmem_buf_ptr gp
 
 # This register will be set to the command's size in bytes when jumping to the
@@ -197,6 +196,12 @@ RSPQ_POINTER_STACK:           .ds.l (RSPQ_MAX_BLOCK_NESTING_LEVEL+2)
 # RDRAM address of the current command list.
 RSPQ_RDRAM_PTR:               .long 0
 
+# Two RDP output buffers (to alternate between)
+RSPQ_RDP_BUFFERS:             .long 0, 0
+
+# Pointer to the end of the current RDP output buffer
+RSPQ_RDP_SENTINEL:            .long 0
+
 # Index (not ID!) of the current overlay, as byte offset in the descriptor array
 RSPQ_CURRENT_OVL:             .half 0
 
@@ -215,6 +220,9 @@ RSPQ_DefineCommand RSPQCmd_Dma,             16    # 0x05
 RSPQ_DefineCommand RSPQCmd_WriteStatus,     4     # 0x06 -- must be even (bit 24 must be 0)
 RSPQ_DefineCommand RSPQCmd_SwapBuffers,     12    # 0x07
 RSPQ_DefineCommand RSPQCmd_TestWriteStatus, 8     # 0x08 -- must be even (bit 24 must be 0)
+RSPQ_DefineCommand RSPQCmd_RdpWaitIdle,     4     # 0x09
+RSPQ_DefineCommand RSPQCmd_RdpSetBuffer,    12    # 0x0A
+RSPQ_DefineCommand RSPQCmd_RdpAppendBuffer, 4     # 0x0B
 
 #if RSPQ_DEBUG
 RSPQ_LOG_IDX:                .long 0
@@ -558,6 +566,152 @@ RSPQCmd_Dma:
     move t0, a2
     j DMAExec
     move t2, a3
+    .endfunc
+
+    #############################################################
+    # RSPQ_RdpSend
+    #
+    # Internal API for overlays that generate RDP commands. It
+    # runs a DMA transfer from DMEM to the RDP ouput buffer in RDRAM
+    # to copy some new RDP commands, and tell RDP to run them.
+    #
+    # ARGS:
+    #   s4:                 buffer in DMEM containing RDP commands to send to RDP
+    #   t7 (rspq_cmd_size): size of commands to send
+    #############################################################
+    .func RSPQ_RdpSend
+RSPQ_RdpSend:
+    #define rdram_cur   s0
+    #define rdram_next  a0
+    #define sentinel    a2
+    #define buf_idx     t4
+
+    # Fetch current pointer in RDRAM where to write the RDP command
+    mfc0 rdram_cur, COP0_DP_END
+
+    # DMA transfer length
+    add t0, rspq_cmd_size, -1
+
+    # Fetch the sentinel (end of buffer). Check whether there is
+    # enough room to add the new command. If so, run the DMA transfer,
+    # and then call RSPQCmd_RdpAppendBuffer to update DP_END to include
+    # the new commands.
+    lw sentinel, %lo(RSPQ_RDP_SENTINEL)
+    sub sentinel, rspq_cmd_size
+    bge sentinel, rdram_cur, do_dma
+    li ra, RSPQCmd_RdpAppendBuffer
+
+    # There is not enough space in the current buffer. Switch to the
+    # next RDRAM buffer. Since there are two of them, also switch between
+    # them so next time we will pick the other one.
+    lw rdram_cur, %lo(RSPQ_RDP_BUFFERS) + 4
+    lw t1, %lo(RSPQ_RDP_BUFFERS) + 0
+    sw rdram_cur, %lo(RSPQ_RDP_BUFFERS) + 0
+    sw t1, %lo(RSPQ_RDP_BUFFERS) + 4
+
+    # Calculate new sentinel (end of buffer)
+    addi sentinel, rdram_cur, RSPQ_RDP_DYNAMIC_BUFFER_SIZE
+
+    # Run the DMA transfer now, and after that, run RSPQCmd_RdpSetBuffer via
+    # tailcall. Prepare a1 for it, containing the pointer to the new buffer,
+    # which will be written into DP_START.
+    move a1, rdram_cur
+    li ra, RSPQCmd_RdpSetBuffer
+
+do_dma:
+    # Start the transfer. Will tail-call to either RSPQCmd_RdpSetBuffer or
+    # RSPQCmd_RdpAppendBuffer (see above). For both, we need to prepare
+    # rdram_next (aka a0) with the updated pointer to RDRAM that will be 
+    # written to DP_END to run the newly written commands.
+    j DMAOut
+    add rdram_next, rdram_cur, rspq_cmd_size
+    .endfunc
+
+    #############################################################
+    # RSPQCmd_RdpSetBuffer
+    # 
+    # Configure a new output buffer in RDRAM for RDP. This can be
+    # used to either send a buffer of commands to RDP, or to setup
+    # a buffer for generation of new RDP commands.
+    # In fact, a1/a0 will be written to DP_START/DP_END, so if
+    # DP_END > DP_START, the commands contained in the buffer will
+    # be immediately processed by RDP. If DP_START==DP_END, the buffer
+    # is basically "stored" in the RDP registers but nothing happens:
+    # subsequent calls to RSPQ_RdpSend will append commands to it,
+    # until the sentinel (a2) is hit, which means that the buffer is
+    # full. At this point, RSPQ_RdpSend will get back to the
+    # standard buffers (RSPQ_RDP_BUFFERS).
+    #
+    # ARGS:
+    #   a0 (rdram_next): New end pointer (to write to DP_END)
+    #   a1:              New start buffer (to write to DP_START)
+    #   a2 (sentinel):   New sentinel (end of total capacity of the buffer)
+    #############################################################
+    .func RSPQCmd_RdpSetBuffer
+RSPQCmd_RdpSetBuffer:
+    sw sentinel, %lo(RSPQ_RDP_SENTINEL)
+
+    # Wait for RDP DMA FIFO to be not full. If there's another
+    # pending buffer, we cannot do anything but wait.
+    jal rdp_wait
+    li t3, DP_STATUS_START_VALID | DP_STATUS_END_VALID
+
+    #if RSPQ_DEBUG
+    # For debugging, generate a RSP interrupt to tell the CPU to fetch the new DP_START / DP_END
+    jal SpStatusWait
+    li t2, SP_STATUS_SIG0
+    li t0, SP_WSTATUS_SET_SIG0 | SP_WSTATUS_SET_INTR
+    mtc0 t0, COP0_SP_STATUS
+    jal SpStatusWait
+    li t2, SP_STATUS_SIG0
+    #endif
+
+    # Write new start buffer pointer, and fallthrough to 
+    # RSPQCmd_RdpAppendBuffer to write the new end pointer
+    mtc0 a1, COP0_DP_START
+    # fallthrough!
+    .endfunc
+
+
+    #############################################################
+    # RSPQCmd_RdpAppendBuffer
+    # 
+    # Tell RDP to run more commands that were appended to the end
+    # of the current RDP output buffer.
+    #
+    # ARGS:
+    #   a0 (rdram_next): New end pointer (to write to DP_END)
+    #############################################################
+    .func RSPQCmd_RdpAppendBuffer
+RSPQCmd_RdpAppendBuffer:
+    j RSPQ_Loop
+    mtc0 rdram_next, COP0_DP_END
+    .endfunc
+
+    #############################################################
+    # RSPQCmd_RdpWaitIdle
+    #
+    # Wait until RDP is idle. 
+    # 
+    # *NOTE*: a SYNC_FULL command *must* have been already written
+    # to the RDP output buffer,  otherwise this function will stall
+    # forever. In fact, once the RDP is running, it never gets back
+    # to idle state until a SYNC_FULL is found, even if it has no
+    # more commands to run.
+    #############################################################
+    .func RSPQCmd_RdpWaitIdle
+RSPQCmd_RdpWaitIdle:
+    li t3, DP_STATUS_BUSY
+
+rdp_wait:
+    mfc0 t2, COP0_DP_STATUS
+1:
+    # Wait for selected RDP status bits to become 0.
+    and t1, t2, t3
+    bnez t1, 1b
+    mfc0 t2, COP0_DP_STATUS
+    jr ra
+    nop
     .endfunc
 
 #include <rsp_dma.inc>

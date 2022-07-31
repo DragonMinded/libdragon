@@ -98,12 +98,11 @@ static struct {
  *
  * @return A pointer to the current drawing surface for the display context
  */
-#define __get_buffer( x ) __safe_buffer[(x)-1]
+#define __get_buffer( disp ) ((disp)->buffer)
 
-extern uint32_t __bitdepth;
-extern uint32_t __width;
-extern uint32_t __height;
-extern void *__safe_buffer[];
+#define __bitdepth (display_get_bitdepth())
+#define __width (display_get_width())
+#define __height (display_get_height())
 
 /**
  * @brief Generic foreground color

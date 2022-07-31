@@ -6,9 +6,12 @@
 #include <stdint.h>
 #include <malloc.h>
 #include <string.h>
-#include "libdragon.h"
 #include "regsinternal.h"
 #include "n64sys.h"
+#include "display.h"
+#include "interrupt.h"
+#include "utils.h"
+#include "debug.h"
 
 /**
  * @defgroup display Display Subsystem
@@ -38,7 +41,7 @@
  */
 
 /** @brief Maximum number of video backbuffers */
-#define NUM_BUFFERS         3
+#define NUM_BUFFERS         32
 
 /** @brief Register location in memory of VI */
 #define REGISTER_BASE       0xA4400000
@@ -162,27 +165,32 @@ static const uint32_t * const reg_values[] = {
     pal_640p, ntsc_640p, mpal_640p,
 };
 
-/** @brief Video buffer pointers */
-static void *buffer[NUM_BUFFERS];
+static surface_t *surfaces;
 /** @brief Currently active bit depth */
-uint32_t __bitdepth;
+static uint32_t __bitdepth;
 /** @brief Currently active video width (calculated) */
-uint32_t __width;
+static uint32_t __width;
 /** @brief Currently active video height (calculated) */
-uint32_t __height;
+static uint32_t __height;
 /** @brief Number of active buffers */
-uint32_t __buffers = NUM_BUFFERS;
+static uint32_t __buffers = NUM_BUFFERS;
 /** @brief Pointer to uncached 16-bit aligned version of buffers */
-void *__safe_buffer[NUM_BUFFERS];
+static void *__safe_buffer[NUM_BUFFERS];
 
 /** @brief Currently displayed buffer */
 static int now_showing = -1;
 
-/** @brief Complete drawn buffer to display next */
-static int show_next = -1;
+/** @brief True if the buffer indexed by now_drawing is currently locked */
+static uint32_t drawing_mask = 0;
 
-/** @brief Buffer currently being drawn on */
-static int now_drawing = -1;
+static volatile uint32_t ready_mask = 0;
+
+static inline int buffer_next(int idx) {
+    idx += 1;
+    if (idx == __buffers)
+        idx = 0;
+    return idx;
+}
 
 /**
  * @brief Write a set of video registers to the VI
@@ -236,12 +244,12 @@ static void __display_callback()
        if the currently displayed field is odd or even. */
     bool field = reg_base[4] & 1;
 
-    /* Only swap frames if we have a new frame to swap, otherwise just
+    /* Check if the next buffer is ready to be displayed, otherwise just
        leave up the current frame */
-    if(show_next >= 0 && show_next != now_drawing)
-    {
-        now_showing = show_next;
-        show_next = -1;
+    int next = buffer_next(now_showing);
+    if (ready_mask & (1 << next)) {
+        now_showing = next;
+        ready_mask &= ~(1 << next);
     }
 
     __write_dram_register(__safe_buffer[now_showing] + (!field ? __width * __bitdepth : 0));
@@ -250,15 +258,16 @@ static void __display_callback()
 /**
  * @brief Initialize the display to a particular resolution and bit depth
  *
- * Initialize video system.  This sets up a double or triple buffered drawing surface which can
- * be blitted or rendered to using software or hardware.
+ * Initialize video system.  This sets up a double, triple, or multiple
+ * buffered drawing surface which can be blitted or rendered to using
+ * software or hardware.
  *
  * @param[in] res
  *            The requested resolution
  * @param[in] bit
  *            The requested bit depth
  * @param[in] num_buffers
- *            Number of buffers (2 or 3)
+ *            Number of buffers, usually 2 or 3, but can be more.
  * @param[in] gamma
  *            The requested gamma setting
  * @param[in] aa
@@ -273,15 +282,8 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     /* Can't have the video interrupt happening here */
     disable_interrupts();
 
-    /* Ensure that buffering is either double or twiple */
-    if( num_buffers != 2 && num_buffers != 3 )
-    {
-        __buffers = NUM_BUFFERS;
-    }
-    else
-    {
-        __buffers = num_buffers;
-    }
+    /* Minimum is two buffers. */
+    __buffers = MAX(2, MIN(NUM_BUFFERS, num_buffers));
 
 	switch( res )
 	{
@@ -425,13 +427,17 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
 	}
     __bitdepth = ( bit == DEPTH_16_BPP ) ? 2 : 4;
 
+    surfaces = malloc(sizeof(surface_t) * __buffers);
+
     /* Initialize buffers and set parameters */
     for( int i = 0; i < __buffers; i++ )
     {
         /* Set parameters necessary for drawing */
         /* Grab a location to render to */
-        buffer[i] = memalign( 64, __width * __height * __bitdepth );
-        __safe_buffer[i] = UNCACHED_ADDR( buffer[i] );
+        __safe_buffer[i] = malloc_uncached_aligned( 64, __width * __height * __bitdepth );
+        assert(__safe_buffer[i] != NULL);
+        tex_format_t format = bit == DEPTH_16_BPP ? FMT_RGBA16 : FMT_RGBA32;
+        surface_new(&surfaces[i], __safe_buffer[i], format, __width, __height, __width * __bitdepth);
 
         /* Baseline is blank */
         memset( __safe_buffer[i], 0, __width * __height * __bitdepth );
@@ -439,8 +445,8 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
 
     /* Set the first buffer as the displaying buffer */
     now_showing = 0;
-    now_drawing = -1;
-    show_next = -1;
+    drawing_mask = 0;
+    ready_mask = 0;
 
     /* Show our screen normally */
     registers[1] = (uintptr_t) __safe_buffer[0];
@@ -468,8 +474,8 @@ void display_close()
     unregister_VI_handler( __display_callback );
 
     now_showing = -1;
-    now_drawing = -1;
-    show_next = -1;
+    drawing_mask = 0;
+    ready_mask = 0;
 
     __width = 0;
     __height = 0;
@@ -479,14 +485,16 @@ void display_close()
     for( int i = 0; i < __buffers; i++ )
     {
         /* Free framebuffer memory */
-        if( buffer[i] )
+        if( __safe_buffer[i] )
         {
-            free( buffer[i]);
+            free_uncached( __safe_buffer[i]);
         }
 
-        buffer[i] = 0;
-        __safe_buffer[i] = 0;
+        __safe_buffer[i] = NULL;
     }
+
+    free(surfaces);
+    surfaces = NULL;
 
     enable_interrupts();
 }
@@ -495,26 +503,35 @@ void display_close()
  * @brief Lock a display buffer for rendering
  *
  * Grab a display context that is safe for drawing.  If none is available
- * then this will return 0.  Do not check out more than one display
- * context at a time.
+ * then this will return 0, without blocking. 
+ * 
+ * When you are done drawing on the buffer, use #display_show to unlock
+ * the context and schedule the buffer to be displayed on the screen during
+ * next vblank.
+ * 
+ * It is possible to lock more than a display buffer at the same time, for
+ * instance to begin working on a new frame while the previous one is still
+ * being rendered in parallel through RDP. It is important to notice that
+ * display contexts will always be shown on the screen in locking order,
+ * irrespective of the order #display_show is called.
  *
  * @return A valid display context to render to or 0 if none is available.
  */
-display_context_t display_lock()
+display_context_t display_lock(void)
 {
-    display_context_t retval = 0;
+    display_context_t retval = NULL;
+    int next;
 
     /* Can't have the video interrupt happening here */
     disable_interrupts();
 
-    for( int i = 0; i < __buffers; i++ )
-    {
-        if( i != now_showing && i != now_drawing && i != show_next )
-        {
-            /* This screen should be returned */
-            now_drawing = i;
-            retval = i + 1;
-
+    /* Calculate index of next display context to draw on. We need
+       to find the first buffer which is not being drawn upon nor
+       being ready to be displayed. */
+    for (next = buffer_next(now_showing); next != now_showing; next = buffer_next(next)) {
+        if (((drawing_mask | ready_mask) & (1 << next)) == 0)  {
+            retval = &surfaces[next];
+            drawing_mask |= 1 << next;
             break;
         }
     }
@@ -530,27 +547,31 @@ display_context_t display_lock()
  *
  * Display a valid display context to the screen on the next vblank.  Display
  * contexts should be locked via #display_lock.
- *
+ * 
  * @param[in] disp
  *            A display context retrieved using #display_lock
  */
 void display_show( display_context_t disp )
 {
     /* They tried drawing on a bad context */
-    if( disp == 0 ) { return; }
+    if( disp == NULL ) { return; }
 
     /* Can't have the video interrupt screwing this up */
     disable_interrupts();
 
     /* Correct to ensure we are handling the right screen */
-    int i = disp - 1;
+    int i = disp - surfaces;
+
+    assertf(i >= 0 && i < __buffers, "Display context is not valid!");
+
+    /* Check we have not unlocked this display already and is pending drawn. */
+    assertf(!(ready_mask & (1 << i)), "display_show called again on the same display %d (mask: %lx)", i, ready_mask);
 
     /* This should match, or something went awry */
-    assertf( i == now_drawing, "display_show invoked on non-locked display" );
+    assertf(drawing_mask & (1 << i), "display_show called on non-locked display %d (mask: %lx)", i, drawing_mask);
 
-    /* Ensure we display this next time */
-    now_drawing = -1;
-    show_next = i;
+    drawing_mask &= ~(1 << i);
+    ready_mask |= 1 << i;
 
     enable_interrupts();
 }
@@ -595,9 +616,9 @@ uint32_t display_get_height()
 /**
  * @brief Get the currently configured bitdepth of the display
  */
-bitdepth_t display_get_bitdepth()
+uint32_t display_get_bitdepth()
 {
-    return __bitdepth == 2 ? DEPTH_16_BPP : DEPTH_32_BPP;
+    return __bitdepth;
 }
 
 /**
@@ -606,19 +627,6 @@ bitdepth_t display_get_bitdepth()
 uint32_t display_get_num_buffers()
 {
     return __buffers;
-}
-
-/**
- * @brief Get the pointer to the buffer at the specified index
- *
- * @param[in] index
- *            The index of the buffer for which to return the pointer.
- *            To get the buffer pointer for a previously aqcuired display context,
- *            pass the display context minus 1.
- */
-void * display_get_buffer(uint32_t index)
-{
-    return __safe_buffer[index];
 }
 
 /** @} */ /* display */

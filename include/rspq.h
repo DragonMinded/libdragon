@@ -144,6 +144,8 @@
 
 #include <stdint.h>
 #include <rsp.h>
+#include <debug.h>
+#include <n64sys.h>
 #include <pputils.h>
 
 #ifdef __cplusplus
@@ -571,7 +573,8 @@ void rspq_flush(void);
  * @brief Wait until all commands in the queue have been executed by RSP.
  *
  * This function blocks until all commands present in the queue have
- * been executed by the RSP and the RSP is idle.
+ * been executed by the RSP and the RSP is idle. If the queue contained also
+ * RDP commands, it also waits for those commands to finish drawing.
  * 
  * This function exists mostly for debugging purposes. Calling this function
  * is not necessary, as the CPU can continue adding commands to the queue
@@ -579,9 +582,7 @@ void rspq_flush(void);
  * (eg: to access data that was processed by RSP) prefer using #rspq_syncpoint_new /
  * #rspq_syncpoint_wait which allows for more granular synchronization.
  */
-#define rspq_wait() ({ \
-    rspq_syncpoint_wait(rspq_syncpoint_new()); \
-})
+void rspq_wait(void);
 
 /**
  * @brief Create a syncpoint in the queue.

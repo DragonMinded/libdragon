@@ -1,5 +1,5 @@
-all: audioplayer cpptest ctest dfsdemo mixertest mptest mputest rspqdemo spritemap test timers vrutest vtest ucodetest eepromfstest
-clean: audioplayer-clean cpptest-clean ctest-clean dfsdemo-clean mixertest-clean mptest-clean mputest-clean rspqdemo-clean spritemap-clean test-clean timers-clean vrutest-clean vtest-clean ucodetest-clean eepromfstest-clean
+all: audioplayer cpptest ctest dfsdemo gldemo mixertest mptest mputest rdpqdemo rspqdemo spritemap test timers vrutest vtest ucodetest eepromfstest
+clean: audioplayer-clean cpptest-clean ctest-clean dfsdemo-clean gldemo-clean mixertest-clean mptest-clean mputest-clean rdpqdemo-clean rspqdemo-clean spritemap-clean test-clean timers-clean vrutest-clean vtest-clean ucodetest-clean eepromfstest-clean
 
 audioplayer:
 	$(MAKE) -C audioplayer
@@ -26,6 +26,11 @@ eepromfstest:
 eepromfstest-clean:
 	$(MAKE) -C eepromfstest clean
 
+gldemo:
+	$(MAKE) -C gldemo
+gldemo-clean:
+	$(MAKE) -C gldemo clean
+
 mixertest:
 	$(MAKE) -C mixertest
 mixertest-clean:
@@ -40,6 +45,11 @@ mputest:
 	$(MAKE) -C mputest
 mputest-clean:
 	$(MAKE) -C mputest clean
+
+rdpqdemo:
+	$(MAKE) -C rdpqdemo
+rdpqdemo-clean:
+	$(MAKE) -C rdpqdemo clean
 
 rspqdemo:
 	$(MAKE) -C rspqdemo
@@ -81,5 +91,5 @@ ucodetest:
 ucodetest-clean:
 	$(MAKE) -C ucodetest clean
 
-.PHONY: audioplayer audioplayer-clean cpptest cpptest-clean ctest ctest-clean dfsdemo dfsdemo-clean mixertest mixertest-clean mptest mptest-clean mputest mputest-clean spritemap spritemap-clean
-.PHONY: rspqdemo rspqdemo-clean test test-clean timers timers-clean vrutest vrutest-clean vtest vtest-clean ucodetest ucodetest-clean eepromfstest eepromfstest-clean
+.PHONY: audioplayer audioplayer-clean cpptest cpptest-clean ctest ctest-clean dfsdemo dfsdemo-clean gldemo gldemo-clean mixertest mixertest-clean mptest mptest-clean mputest mputest-clean spritemap spritemap-clean
+.PHONY: rdpqdemo rdpqdemo-clean rspqdemo rspqdemo-clean test test-clean timers timers-clean vrutest vrutest-clean vtest vtest-clean ucodetest ucodetest-clean eepromfstest eepromfstest-clean
