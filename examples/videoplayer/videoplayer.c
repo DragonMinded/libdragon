@@ -56,8 +56,7 @@ int main(void) {
 			if (disp) break;
 		}
 
-		rdp_attach_display(disp);
-		rdp_set_default_clipping();
+		rdp_attach(disp);
 
 		mpeg2_draw_frame(&mp2, disp);
 
@@ -65,7 +64,7 @@ int main(void) {
 		rdp_detach_display();
 		display_show(disp);
 		#else
-		rdp_detach_display_async(display_show);
+		rdp_auto_show_display(disp);
 		#endif
 
 		audio_poll();

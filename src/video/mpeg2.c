@@ -1,6 +1,7 @@
 #include "mpeg2.h"
 #include "n64sys.h"
-#include "rdp.h"
+#include "rdpq.h"
+#include "rdpq_mode.h"
 #include "rdp_commands.h"
 #include "yuv.h"
 #include "debug.h"
@@ -129,18 +130,15 @@ static void yuv_draw_frame(int width, int height, enum ZoomMode mode) {
 	int ystart = (screen_height - video_height) / 2;
 
 	// Start clearing the screen
-	rdp_set_default_clipping();
 	if (screen_height > video_height || screen_width > video_width) {
-		rdp_sync_pipe();
-		rdp_set_other_modes(SOM_CYCLE_FILL);
-		rdp_set_fill_color(0);
+		rdpq_set_mode_fill(RGBA32(0,0,0,0));
 		if (screen_height > video_height) {		
-			rdp_fill_rectangle(0, 0, screen_width-1, ystart-1);
-			rdp_fill_rectangle(0, ystart+video_height, screen_width-1, screen_height-1);
+			rdpq_fill_rectangle(0, 0, screen_width, ystart);
+			rdpq_fill_rectangle(0, ystart+video_height, screen_width, screen_height);
 		}
 		if (screen_width > video_width) {
-			rdp_fill_rectangle(0, ystart, xstart+1, ystart+video_height-1);
-			rdp_fill_rectangle(xstart+video_width, ystart, screen_width-1, ystart+video_height-1);			
+			rdpq_fill_rectangle(0, ystart, xstart, ystart+video_height);
+			rdpq_fill_rectangle(xstart+video_width, ystart, screen_width, ystart+video_height);
 		}
 	}
 
@@ -154,22 +152,17 @@ static void yuv_draw_frame(int width, int height, enum ZoomMode mode) {
 	}
 
 	// Configure YUV blitting mode
-	rdp_sync_pipe();
-	rdp_set_other_modes(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_TC_CONV);
-	rdp_set_combine_mode(Comb1_Rgb(TEX0, K4, K5, ZERO));
+	rdpq_set_mode_yuv();
 
-    // BT.601 coefficients (Kr=0.299, Kb=0.114, TV range)
-    rdp_set_convert(179,-44,-91,227,19,255);
+	rdpq_set_tile(0, FMT_YUV16, 0, BLOCK_W, 0);
+	rdpq_set_tile(1, FMT_YUV16, 0, BLOCK_W, 0);
+	rdpq_set_tile(2, FMT_YUV16, 0, BLOCK_W, 0);
+	rdpq_set_tile(3, FMT_YUV16, 0, BLOCK_W, 0);
+	rdpq_set_texture_image(interleaved_buffer, FMT_YUV16, width);
 
-	rdp_set_tile(RDP_TILE_FORMAT_YUV, RDP_TILE_SIZE_16BIT, BLOCK_W/8, 0, 0, 0,0,0,0,0,0,0,0,0);
-	rdp_set_tile(RDP_TILE_FORMAT_YUV, RDP_TILE_SIZE_16BIT, BLOCK_W/8, 0, 1, 0,0,0,0,0,0,0,0,0);
-	rdp_set_tile(RDP_TILE_FORMAT_YUV, RDP_TILE_SIZE_16BIT, BLOCK_W/8, 0, 2, 0,0,0,0,0,0,0,0,0);
-	rdp_set_tile(RDP_TILE_FORMAT_YUV, RDP_TILE_SIZE_16BIT, BLOCK_W/8, 0, 3, 0,0,0,0,0,0,0,0,0);
-	rdp_set_texture_image(PhysicalAddr(interleaved_buffer), RDP_TILE_FORMAT_YUV, RDP_TILE_SIZE_16BIT, width-1);
-
-	int stepx = (int)(1024.0f / scalew);
-	int stepy = (int)(1024.0f / scaleh);
-	debugf("scalew:%.3f scaleh:%.3f stepx=%x stepy=%x\n", scalew, scaleh, stepx, stepy);
+	float stepx = 1.0f / scalew;
+	float stepy = 1.0f / scaleh;
+	debugf("scalew:%.3f scaleh:%.3f stepx=%.3f stepy=%.3f\n", scalew, scaleh, stepx, stepy);
     for (int y=0;y<height;y+=BLOCK_H) {
         for (int x=0;x<width;x+=BLOCK_W) {
         	int sx0 = x * scalew;
@@ -177,14 +170,11 @@ static void yuv_draw_frame(int width, int height, enum ZoomMode mode) {
         	int sx1 = (x+BLOCK_W) * scalew;
         	int sy1 = (y+BLOCK_H) * scaleh;
 
-            rdp_load_tile(0, 
-            	x<<2, y<<2, 
-            	(x+BLOCK_W-1)<<2, (y+BLOCK_H-1)<<2);
-            rdp_texture_rectangle(0, 
-            	(sx0+xstart)<<2, (sy0+ystart)<<2,
-            	(sx1+xstart)<<2, (sy1+ystart)<<2,
-            	x<<5, y<<5, stepx, stepy);
-            rdp_sync_tile();
+            rdpq_load_tile(0, x, y, x+BLOCK_W, y+BLOCK_H);
+            rdpq_texture_rectangle(0,
+				sx0+xstart, sy0+ystart,
+				sx1+xstart, sy1+ystart,
+				x, y, stepx, stepy);
         }
 		rspq_flush();
     }
@@ -243,13 +233,7 @@ bool mpeg2_next_frame(mpeg2_t *mp2) {
 void mpeg2_draw_frame(mpeg2_t *mp2, display_context_t disp) {
 	PROFILE_START(PS_YUV, 0);
 	if (YUV_MODE == 0) {	
-		extern void *__safe_buffer[];
-		extern uint32_t __width;
-		#define __get_buffer( x ) __safe_buffer[(x)-1]
-
-		uint8_t *rgb = __get_buffer(disp);
-		int stride = __width * 4;
-	    plm_frame_to_rgba(mp2->f, rgb, stride);
+	    plm_frame_to_rgba(mp2->f, disp->buffer, disp->stride);
 	} else {
 		plm_frame_t *frame = mp2->f;
 		yuv_set_input_buffer(frame->y.data, frame->cb.data, frame->cr.data, frame->width);
