@@ -31,15 +31,15 @@ int main(void) {
 	mixer_init(8);
 
 	mpeg2_t mp2;
-	mpeg2_open(&mp2, "rom:/live.m1v");
+	mpeg2_open(&mp2, "rom:/bbb.m1v");
 
-	wav64_t music;
-	wav64_open(&music, "live.wav64");
+	// wav64_t music;
+	// wav64_open(&music, "bbb.wav64");
 
 	float fps = mpeg2_get_framerate(&mp2);
 	throttle_init(fps, 0, 8);
 
-	mixer_ch_play(0, &music.wave);
+	// mixer_ch_play(0, &music.wave);
 
 	debugf("start\n");
 	int nframes = 0;
