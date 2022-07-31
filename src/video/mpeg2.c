@@ -193,6 +193,8 @@ static void yuv_draw_frame(int width, int height, enum ZoomMode mode) {
 void mpeg2_open(mpeg2_t *mp2, const char *fn) {
 	memset(mp2, 0, sizeof(mpeg2_t));
 
+	rsp_mpeg1_init();
+
 	mp2->buf = plm_buffer_create_with_filename(fn);
 	assertf(mp2->buf, "File not found: %s", fn);
 
@@ -207,8 +209,6 @@ void mpeg2_open(mpeg2_t *mp2, const char *fn) {
 
 	mp2->v = plm_video_create_with_buffer(mp2->buf, 1);
 	assert(mp2->v);
-
-	rsp_mpeg1_init();
 
 	// Fetch resolution. These calls will automatically decode enough of the
 	// stream header to acquire these data.
