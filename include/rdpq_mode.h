@@ -85,6 +85,20 @@ inline void rdpq_set_mode_standard(void) {
     rdpq_set_other_modes_raw(SOM_CYCLE_1 | SOM_TC_FILTER | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE);
 }
 
+/**
+ * @brief Reset render mode to YUV mode.
+ * 
+ * This is a helper function to configure a render mode for YUV conversion.
+ * In addition of setting the render mode, this funciton also configures a
+ * combiner (given that YUV conversion happens also at the combiner level),
+ * and set standard YUV parameters (for BT.601 TV Range).
+ */ 
+inline void rdpq_set_mode_yuv(void) {
+	rdpq_set_other_modes_raw(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_TC_CONV);
+	rdpq_set_combiner_raw(RDPQ_COMBINER1((TEX0, K4, K5, ZERO), (ZERO, ZERO, ZERO, ONE)));
+    rdpq_set_yuv_parms(179,-44,-91,227,19,255);  // BT.601 coefficients (Kr=0.299, Kb=0.114, TV range)
+}
+
 inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
     extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
 
