@@ -361,9 +361,9 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
         return;
     case 0x30: fprintf(out, "LOAD_TLUT        tile=%d palidx=(%d-%d)\n",
         BITS(buf[0], 24, 26), BITS(buf[0], 46, 55), BITS(buf[0], 14, 23)); return;
-    case 0x33: fprintf(out, "LOAD_BLOCK       tile=%d st=(%.2f-%.2f) sh=%.2f dxt=%.5f\n",
-        BITS(buf[0], 24, 26), BITS(buf[0], 44, 55)*FX(2), BITS(buf[0], 12, 23)*FX(2),
-                              BITS(buf[0], 32, 43)*FX(2), BITS(buf[0], 0, 11)*FX(11)); return;
+    case 0x33: fprintf(out, "LOAD_BLOCK       tile=%d st=(%d,%d) n=%d dxt=%.5f\n",
+        BITS(buf[0], 24, 26), BITS(buf[0], 44, 55), BITS(buf[0], 32, 43),
+                              BITS(buf[0], 12, 23)+1, BITS(buf[0], 0, 11)*FX(11)); return;
     case 0x08 ... 0x0F: {
         const char *tri[] = { "TRI              ", "TRI_Z            ", "TRI_TEX          ", "TRI_TEX_Z        ",  "TRI_SHADE        ", "TRI_SHADE_Z      ", "TRI_TEX_SHADE    ", "TRI_TEX_SHADE_Z  "};
         int words[] = {4, 4+2, 4+8, 4+8+2, 4+8, 4+8+2, 4+8+8, 4+8+8+2};
