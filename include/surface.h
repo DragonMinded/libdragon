@@ -6,6 +6,7 @@
 #define TEX_FORMAT_CODE(fmt, size)        (((fmt)<<2)|(size))
 #define TEX_FORMAT_BITDEPTH(fmt)          (4 << ((fmt) & 0x3))
 #define TEX_FORMAT_BYTES_PER_PIXEL(fmt)   (TEX_FORMAT_BITDEPTH(fmt) >> 3)
+#define TEX_FORMAT_GET_STRIDE(fmt, width) ((TEX_FORMAT_BITDEPTH(fmt) * width) >> 3)
 
 typedef enum {
     FMT_NONE   = 0,
