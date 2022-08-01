@@ -281,6 +281,11 @@ typedef struct {
     GLenum tex_env_mode;
     GLfloat tex_env_color[4];
 
+    obj_map_t list_objects;
+    GLuint next_list_name;
+    GLuint list_base;
+    GLuint current_list;
+
     bool immediate_active;
     bool force_edge_flag;
     bool is_points;
@@ -297,8 +302,10 @@ void gl_rendermode_init();
 void gl_array_init();
 void gl_primitive_init();
 void gl_pixel_init();
+void gl_list_init();
 
 void gl_texture_close();
+void gl_list_close();
 
 void gl_set_error(GLenum error);
 

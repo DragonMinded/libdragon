@@ -39,7 +39,7 @@ inline uint32_t obj_map_count(const obj_map_t *map)
 }
 
 void * obj_map_get(const obj_map_t *map, uint32_t key);
-void obj_map_set(obj_map_t *map, uint32_t key, void *value);
+void * obj_map_set(obj_map_t *map, uint32_t key, void *value);
 void * obj_map_remove(obj_map_t *map, uint32_t key);
 
 obj_map_iter_t obj_map_iterator(obj_map_t *map);

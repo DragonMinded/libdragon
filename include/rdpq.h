@@ -291,20 +291,26 @@ inline void rdpq_set_tile_size_fx(uint8_t tile, uint16_t s0, uint16_t t0, uint16
 /**
  * @brief Low level function to load a texture image into TMEM in a single memory transfer
  */
-inline void rdpq_load_block_fx(uint8_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t dxt)
+inline void rdpq_load_block_fx(uint8_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t dxt)
 {
     extern void __rdpq_write8_syncchangeuse(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_write8_syncchangeuse(RDPQ_CMD_LOAD_BLOCK,
-        _carg(s0, 0xFFC, 12) | _carg(t0, 0xFFC, 0),
-        _carg(tile, 0x7, 24) | _carg(s1-4, 0xFFC, 12) | _carg(dxt, 0xFFF, 0),
+        _carg(s0, 0xFFF, 12) | _carg(t0, 0xFFC, 0),
+        _carg(tile, 0x7, 24) | _carg(num_texels-1, 0xFFF, 12) | _carg(dxt, 0xFFF, 0),
         AUTOSYNC_TMEM(0),
         AUTOSYNC_TILE(tile));
 }
 
-// TODO: perform ceiling function on dxt
-#define rdpq_load_block(tile, s0, t0, s1, dxt) ({ \
-    rdpq_load_block_fx((tile), (s0)*4, (t0)*4, (s1)*4, (dxt)*2048); \
-})
+/**
+ * @brief Low level function to load a texture image into TMEM in a single memory transfer
+ */
+inline void rdpq_load_block(uint8_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t tmem_pitch)
+{
+    assertf((tmem_pitch % 8) == 0, "invalid tmem_pitch %d: must be multiple of 8", tmem_pitch);
+    // Dxt is the reciprocal of the number of 64 bit words in a line in 1.11 format, rounded up
+    uint32_t words = tmem_pitch / 8;
+    rdpq_load_block_fx(tile, s0, t0, num_texels, (2048 + words - 1) / words);
+}
 
 /**
  * @brief Low level function to load a texture image into TMEM

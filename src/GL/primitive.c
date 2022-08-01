@@ -189,7 +189,10 @@ void gl_draw_line(gl_vertex_t *v0, gl_vertex_t *v1)
     int32_t z_offset = -1;
 
     GLfloat perp[2] = { v0->screen_pos[1] - v1->screen_pos[1], v1->screen_pos[0] - v0->screen_pos[0] };
-    GLfloat width_factor = (state.line_width * 0.5f) / sqrtf(perp[0]*perp[0] + perp[1]*perp[1]);
+    GLfloat mag = sqrtf(perp[0]*perp[0] + perp[1]*perp[1]);
+    if (mag == 0.0f) return;
+    
+    GLfloat width_factor = (state.line_width * 0.5f) / mag;
     perp[0] *= width_factor;
     perp[1] *= width_factor;
 
