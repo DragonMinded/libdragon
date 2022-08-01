@@ -607,3 +607,4 @@ extern inline void rdpq_set_fill_color(color_t color);
 extern inline void rdpq_set_color_image(void* dram_ptr, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride);
 extern inline void rdpq_set_other_modes_raw(uint64_t mode);
 extern inline void rdpq_change_other_modes_raw(uint64_t mask, uint64_t val);
+extern inline void rdpq_fill_rectangle_fx(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1);
