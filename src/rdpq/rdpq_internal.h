@@ -63,14 +63,13 @@ void __rdpq_write16(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2
 #define rdpq_write(rdp_cmd) ({ \
     if (rspq_in_block()) { \
         extern volatile uint32_t *rdpq_block_ptr, *rdpq_block_end; \
-        __rdpq_block_check(); \
         int nwords = 0; __rdpcmd_count_words(rdp_cmd); \
         if (__builtin_expect(rdpq_block_ptr + nwords > rdpq_block_end, 0)) \
             __rdpq_block_next_buffer(); \
-        volatile uint32_t *ptr = rdpq_block_ptr; \
+        volatile uint32_t *ptr = rdpq_block_ptr, *old = ptr; \
         __rdpcmd_write(rdp_cmd); \
-        __rdpq_block_update((uint32_t*)rdpq_block_ptr, (uint32_t*)ptr); \
         rdpq_block_ptr = ptr; \
+        __rdpq_block_update((uint32_t*)old, (uint32_t*)ptr); \
     } else { \
         __rspcmd_write rdp_cmd; \
     } \
@@ -106,7 +105,6 @@ void __rdpq_write16(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2
 #define rdpq_fixup_write(rsp_cmd, ...) ({ \
     if (__COUNT_VARARGS(__VA_ARGS__) != 0 && rspq_in_block()) { \
         extern volatile uint32_t *rdpq_block_ptr, *rdpq_block_end; \
-        __rdpq_block_check(); \
         int nwords = 0; __CALL_FOREACH(__rdpcmd_count_words, ##__VA_ARGS__) \
         if (__builtin_expect(rdpq_block_ptr + nwords > rdpq_block_end, 0)) \
             __rdpq_block_next_buffer(); \

@@ -385,6 +385,8 @@ void __rdpq_block_begin()
 {
     rdpq_block = NULL;
     rdpq_block_first = NULL;
+    rdpq_block_ptr = NULL;
+    rdpq_block_end = NULL;
     last_rdp_append_buffer = NULL;
     rdpq_block_size = RDPQ_BLOCK_MIN_SIZE;
     // push on autosync state stack (to recover the state later)
@@ -429,12 +431,6 @@ void __rdpq_block_free(rdpq_block_t *block)
         block = block->next;
         free_uncached(b);
     }
-}
-
-void __rdpq_block_check(void)
-{
-    if (rspq_in_block() && rdpq_block == NULL)
-        __rdpq_block_next_buffer();
 }
 
 __attribute__((noinline))
