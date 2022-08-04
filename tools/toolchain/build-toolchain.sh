@@ -67,11 +67,7 @@ if [[ $OSTYPE == 'darwin'* ]]; then
   fi
 
   # Install required dependencies
-<<<<<<< HEAD:tools/toolchain/build-toolchain.sh
-  brew install gmp mpfr libmpc gsed
-=======
   brew install -q gmp mpfr libmpc gsed
->>>>>>> trunk:tools/build-toolchain.sh
 
   # Tell GCC configure where to find the dependent libraries
   GCC_CONFIGURE_ARGS="--with-gmp=$(brew --prefix) --with-mpfr=$(brew --prefix) --with-mpc=$(brew --prefix)"
@@ -81,13 +77,10 @@ if [[ $OSTYPE == 'darwin'* ]]; then
   export PATH="$(brew --prefix gsed)/libexec/gnubin:$PATH"
 fi
 
-<<<<<<< HEAD:tools/toolchain/build-toolchain.sh
-=======
 # Create build path and enter it
 mkdir -p "$BUILD_PATH"
 cd "$BUILD_PATH"
 
->>>>>>> trunk:tools/build-toolchain.sh
 # Dependency source: Download stage
 test -f "binutils-$BINUTILS_V.tar.gz" || download "https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_V.tar.gz"
 test -f "gcc-$GCC_V.tar.gz"           || download "https://ftp.gnu.org/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz"
