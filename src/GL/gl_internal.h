@@ -243,7 +243,7 @@ typedef struct {
     gl_texture_object_t *texture_1d_object;
     gl_texture_object_t *texture_2d_object;
 
-    gl_material_t materials[2];
+    gl_material_t material;
     gl_light_t lights[LIGHT_COUNT];
 
     GLfloat light_model_ambient[4];

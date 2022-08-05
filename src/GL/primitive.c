@@ -678,8 +678,7 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
     }
 
     if (state.lighting) {
-        // TODO: Back face material?
-        gl_perform_lighting(v->color, eye_pos, eye_normal, &state.materials[0]);
+        gl_perform_lighting(v->color, eye_pos, eye_normal, &state.material);
     } else {
         v->color[0] = state.current_color[0];
         v->color[1] = state.current_color[1];
@@ -908,6 +907,8 @@ void glPolygonMode(GLenum face, GLenum mode)
     switch (face) {
     case GL_FRONT:
     case GL_BACK:
+        assertf(0, "Separate polygon modes for front and back faces are not supported!");
+        break;
     case GL_FRONT_AND_BACK:
         break;
     default:
@@ -925,7 +926,6 @@ void glPolygonMode(GLenum face, GLenum mode)
         return;
     }
 
-    // TODO: support separate modes for front and back
     state.polygon_mode = mode;
     gl_update_is_points();
 }

@@ -87,10 +87,6 @@ tex_format_t gl_get_texture_format(GLenum format)
 uint32_t gl_get_format_element_count(GLenum format)
 {
     switch (format) {
-    // TODO: should any of these be supported?
-    //case GL_COLOR_INDEX:
-    //case GL_STENCIL_INDEX:
-    //case GL_DEPTH_COMPONENT:
     case GL_RED:
     case GL_GREEN:
     case GL_BLUE:
@@ -103,6 +99,9 @@ uint32_t gl_get_format_element_count(GLenum format)
         return 3;
     case GL_RGBA:
         return 4;
+    case GL_COLOR_INDEX:
+        assertf(0, "Color index format is not supported!");
+        return 0;
     default:
         return 0;
     }
@@ -679,8 +678,7 @@ bool gl_validate_upload_image(GLenum format, GLenum type, uint32_t *num_elements
 
 void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
-    // TODO: border?
-    assertf(border == 0, "Texture border is not implemented yet!");
+    assertf(border == 0, "Texture border is not supported!");
 
     gl_texture_object_t *obj;
     gl_texture_image_t *image;
@@ -773,8 +771,13 @@ void gl_tex_sub_image(GLenum target, GLint level, GLint xoffset, GLint yoffset, 
 
 void glTexImage1D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
-    // TODO: proxy texture
-    if (target != GL_TEXTURE_1D) {
+    switch (target) {
+    case GL_TEXTURE_1D:
+        break;
+    case GL_PROXY_TEXTURE_1D:
+        assertf(0, "Proxy texture targets are not supported!");
+        break;
+    default:
         gl_set_error(GL_INVALID_ENUM);
         return;
     }
@@ -784,8 +787,13 @@ void glTexImage1D(GLenum target, GLint level, GLint internalformat, GLsizei widt
 
 void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
-    // TODO: proxy texture
-    if (target != GL_TEXTURE_2D) {
+    switch (target) {
+    case GL_TEXTURE_2D:
+        break;
+    case GL_PROXY_TEXTURE_2D:
+        assertf(0, "Proxy texture targets are not supported!");
+        break;
+    default:
         gl_set_error(GL_INVALID_ENUM);
         return;
     }

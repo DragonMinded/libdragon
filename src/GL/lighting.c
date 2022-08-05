@@ -36,8 +36,7 @@ void gl_init_light(gl_light_t *light)
 
 void gl_lighting_init()
 {
-    gl_init_material(&state.materials[0]);
-    gl_init_material(&state.materials[1]);
+    gl_init_material(&state.material);
 
     for (uint32_t i = 0; i < LIGHT_COUNT; i++)
     {
@@ -233,6 +232,20 @@ void gl_perform_lighting(GLfloat *color, const GLfloat *v, const GLfloat *n, con
     }
 }
 
+bool gl_validate_material_face(GLenum face)
+{
+    switch (face) {
+    case GL_FRONT_AND_BACK:
+        return true;
+    case GL_FRONT:
+    case GL_BACK:
+        assertf(0, "Separate materials for front and back faces are not supported!");
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return false;
+    }
+}
+
 void gl_set_material_paramf(gl_material_t *material, GLenum pname, const GLfloat *params)
 {
     switch (pname) {
@@ -335,21 +348,11 @@ void glMaterialf(GLenum face, GLenum pname, GLfloat param)
         return;
     }
 
-    switch (face) {
-    case GL_FRONT:
-        gl_set_material_paramf(&state.materials[0], pname, &param);
-        break;
-    case GL_BACK:
-        gl_set_material_paramf(&state.materials[1], pname, &param);
-        break;
-    case GL_FRONT_AND_BACK:
-        gl_set_material_paramf(&state.materials[0], pname, &param);
-        gl_set_material_paramf(&state.materials[1], pname, &param);
-        break;
-    default:
-        gl_set_error(GL_INVALID_ENUM);
+    if (!gl_validate_material_face(face)) {
         return;
     }
+
+    gl_set_material_paramf(&state.material, pname, &param);
 }
 
 void glMateriali(GLenum face, GLenum pname, GLint param) { glMaterialf(face, pname, param); }
@@ -369,21 +372,11 @@ void glMaterialiv(GLenum face, GLenum pname, const GLint *params)
         return;
     }
 
-    switch (face) {
-    case GL_FRONT:
-        gl_set_material_parami(&state.materials[0], pname, params);
-        break;
-    case GL_BACK:
-        gl_set_material_parami(&state.materials[1], pname, params);
-        break;
-    case GL_FRONT_AND_BACK:
-        gl_set_material_parami(&state.materials[0], pname, params);
-        gl_set_material_parami(&state.materials[1], pname, params);
-        break;
-    default:
-        gl_set_error(GL_INVALID_ENUM);
+    if (!gl_validate_material_face(face)) {
         return;
     }
+
+    gl_set_material_parami(&state.material, pname, params);
 }
 
 void glMaterialfv(GLenum face, GLenum pname, const GLfloat *params)
@@ -401,21 +394,11 @@ void glMaterialfv(GLenum face, GLenum pname, const GLfloat *params)
         return;
     }
 
-    switch (face) {
-    case GL_FRONT:
-        gl_set_material_paramf(&state.materials[0], pname, params);
-        break;
-    case GL_BACK:
-        gl_set_material_paramf(&state.materials[1], pname, params);
-        break;
-    case GL_FRONT_AND_BACK:
-        gl_set_material_paramf(&state.materials[0], pname, params);
-        gl_set_material_paramf(&state.materials[1], pname, params);
-        break;
-    default:
-        gl_set_error(GL_INVALID_ENUM);
+    if (!gl_validate_material_face(face)) {
         return;
     }
+
+    gl_set_material_paramf(&state.material, pname, params);
 }
 
 gl_light_t * gl_get_light(GLenum light)
@@ -631,21 +614,11 @@ void glLightModelfv(GLenum pname, const GLfloat *params)
 
 void glColorMaterial(GLenum face, GLenum mode)
 {
-    switch (face) {
-    case GL_FRONT:
-        state.materials[0].color_target = mode;
-        break;
-    case GL_BACK:
-        state.materials[1].color_target = mode;
-        break;
-    case GL_FRONT_AND_BACK:
-        state.materials[0].color_target = mode;
-        state.materials[1].color_target = mode;
-        break;
-    default:
-        gl_set_error(GL_INVALID_ENUM);
+    if (!gl_validate_material_face(face)) {
         return;
     }
+
+    state.material.color_target = mode;
 }
 
 void glShadeModel(GLenum mode)
