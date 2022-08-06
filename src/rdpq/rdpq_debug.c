@@ -467,7 +467,7 @@ static void lazy_validate_cc(int *errs, int *warns) {
     }
 }
 
-static void validate_draw_cmd(int *errs, int *warns, bool use_colors, bool use_tex, bool use_z)
+static void validate_draw_cmd(int *errs, int *warns, bool use_colors, bool use_tex, bool use_z, bool use_w)
 {
     VALIDATE_ERR(rdpq_state.sent_scissor,
         "undefined behavior: drawing command before a SET_SCISSOR was sent");
@@ -493,9 +493,14 @@ static void validate_draw_cmd(int *errs, int *warns, bool use_colors, bool use_t
             }
         }
 
-        if (use_tex && !use_z)
+        if (use_tex && !use_w)
             VALIDATE_ERR(!rdpq_state.som.tex.persp,
                 "cannot draw a textured primitive with perspective correction but without per-vertex W coordinate (SOM set at %p)", rdpq_state.last_som);
+
+        if (!use_z)
+            VALIDATE_ERR(!rdpq_state.som.z.cmp && !rdpq_state.som.z.upd,
+                "cannot draw a primitive without Z coordinate if Z buffer access is activated (SOM set at %p)", rdpq_state.last_som);
+
         break;
     }
 }
@@ -521,16 +526,16 @@ void rdpq_validate(uint64_t *buf, int *errs, int *warns)
         // passthrough
     case 0x24: // TEX_RECT
         lazy_validate_cc(errs, warns);
-        validate_draw_cmd(errs, warns, false, true, false);
+        validate_draw_cmd(errs, warns, false, true, false, false);
         break;
     case 0x36: // FILL_RECTANGLE
         lazy_validate_cc(errs, warns);
-        validate_draw_cmd(errs, warns, false, false, false);
+        validate_draw_cmd(errs, warns, false, false, false, false);
         break;
     case 0x8 ... 0xF: // Triangles
         VALIDATE_ERR(rdpq_state.som.cycle_type < 2, "cannot draw triangles in copy/fill mode (SOM set at %p)", rdpq_state.last_som);
         lazy_validate_cc(errs, warns);
-        validate_draw_cmd(errs, warns, cmd & 4, cmd & 2, cmd & 1);
+        validate_draw_cmd(errs, warns, cmd & 4, cmd & 2, cmd & 1, cmd & 2);
         break;
     }
 }
