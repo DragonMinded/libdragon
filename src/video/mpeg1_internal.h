@@ -1,11 +1,12 @@
 #ifndef __LIBDRAGON_MPEG1_INTERNAL_H
 #define __LIBDRAGON_MPEG1_INTERNAL_H
 
-// The IDCT of pl_mpeg requires 17 or 18 bits of precision.
+// The IDCT of pl_mpeg requires about 19 bits of precision
 // Since RSP has 16-bit vector registers, we need to scale
 // input data. This macro decides by how much.
-// TODO: try with 1
-#define RSP_IDCT_SCALER       2
+// 3 is the minimum value that does not seem to produce
+// artifacts in videos.
+#define RSP_IDCT_SCALER       3
 
 // Usage of RSP in MPEG-1 player:
 //   0: None (full CPU)
