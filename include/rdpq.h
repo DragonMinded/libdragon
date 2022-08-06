@@ -154,20 +154,24 @@ uint32_t rdpq_change_config(uint32_t on, uint32_t off);
  * 
  * This function allows to draw a triangle into the framebuffer using RDP, in screen coordinates.
  * RDP does not handle transform and lightning, so it only reasons of screen level coordinates.
- * 
+ *
  * Each vertex of a triangle is made of up to 4 components:
  * 
  *   * Position. 2 values: X, Y. The values must be in screen coordinates, that is they refer
  *     to the framebuffer pixels. Fractional values allow for subpixel precision.
  *   * Depth. 1 value: Z.
  *   * Shade. 4 values: R, G, B, A. The values must be in the 0..1 range.
- *   * Texturing. 3 values: S, T, W. The values S,T address the texture specified by the tile
- *     descriptor, while W is the vertex coordinate in clip space (after projection) that
- *     will be used to do perspective-corrected texturing.
+ *   * Texturing. 3 values: S, T, INV_W. The values S,T address the texture specified by the tile
+ *     descriptor. INV_W is the inverse of the W vertex coordinate in clip space (after
+ *     projection), a value commonly used to do the final perspective division. the same value that is used to do perspective-corrected texturing.
  * 
  * Only the position is mandatory, all other components are optionals, depending on the kind of
  * triangle that needs to be drawn. For instance, specifying only position and shade will allow
  * to draw a goraud-shaded triangle with no texturing and no zbuffer usage.
+ * 
+ * The vertex components must be provided via arrays of floating point values. The order of
+ * the components within the array is flexible, and can be specified at call time via the
+ * pos_offset, shade_offset, tex_offset and z_offset arguments.
  * 
  * Notice that it is important to configure the correct render modes before calling this function.
  * Specifically:
@@ -188,6 +192,10 @@ uint32_t rdpq_change_config(uint32_t on, uint32_t off);
  * component), RDP will fall into undefined behavior that can vary from nothig being rendered, garbage
  * on the screen or even a freeze. The rdpq validator will do its best to help you catching these mistakes,
  * so remember to activate it via #rdpq_debug_init whenever you get a surprising result.
+ * 
+ * The three vertices (v1, v2, v3) can be provided in any order (clockwise or counter-clockwise). The
+ * function will render the triangle in any case (so backface culling must be handled before calling
+ * it).
  * 
  * @param tile           RDP tile descriptor that describes the texture (0-7). This argument is unused
  *                       if the triangle is not textured. In case of multi-texturing, tile+1 will be
