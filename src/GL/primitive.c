@@ -670,11 +670,19 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 
     const gl_matrix_t *mv = gl_matrix_stack_get_matrix(&state.modelview_stack);
 
-    gl_matrix_mult(eye_pos, mv, pos);
-    gl_matrix_mult3x3(eye_normal, mv, state.current_normal);
+    gl_texture_object_t *tex_obj = gl_get_active_texture();
+    bool is_texture_active = tex_obj != NULL && tex_obj->is_complete;
 
-    if (state.normalize) {
-        gl_normalize(eye_normal, eye_normal);
+    if (state.lighting || state.fog || is_texture_active) {
+        gl_matrix_mult(eye_pos, mv, pos);
+    }
+
+    if (state.lighting || is_texture_active) {
+        gl_matrix_mult3x3(eye_normal, mv, state.current_normal);
+
+        if (state.normalize) {
+            gl_normalize(eye_normal, eye_normal);
+        }
     }
 
     if (state.lighting) {
@@ -704,8 +712,7 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 
     gl_vertex_calc_screenspace(v);
 
-    gl_texture_object_t *tex_obj = gl_get_active_texture();
-    if (tex_obj != NULL && tex_obj->is_complete) {
+    if (is_texture_active) {
         gl_calc_texture_coords(v->texcoord, pos, eye_pos, eye_normal);
 
         v->texcoord[0] *= tex_obj->levels[0].width;
