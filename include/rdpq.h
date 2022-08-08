@@ -753,14 +753,11 @@ inline void rdpq_set_z_image(void* dram_ptr)
 inline void rdpq_set_color_image_lookup_no_scissor(uint8_t index, uint32_t offset, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride)
 {
     assertf(format == FMT_RGBA32 || format == FMT_RGBA16 || format == FMT_CI8, "Image format is not supported!\nIt must be FMT_RGBA32, FMT_RGBA16 or FMT_CI8");
-
-    uint32_t bitdepth = TEX_FORMAT_BYTES_PER_PIXEL(format);
-    assertf(stride % bitdepth == 0, "Stride must be a multiple of the bitdepth!");
     assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
 
     extern void __rdpq_set_color_image(uint32_t, uint32_t);
     __rdpq_set_color_image(
-        _carg(format, 0x1F, 19) | _carg((stride/bitdepth)-1, 0x3FF, 0),
+        _carg(format, 0x1F, 19) | _carg(TEX_FORMAT_BYTES2PIX(format, stride)-1, 0x3FF, 0),
         _carg(index, 0xF, 28) | (offset & 0xFFFFFF));
 }
 

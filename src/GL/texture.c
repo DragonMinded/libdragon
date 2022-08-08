@@ -1227,7 +1227,7 @@ void gl_update_texture()
         gl_texture_image_t *image = &tex_obj->levels[l];
 
         uint32_t tmem_pitch = image->stride;
-        uint32_t load_width = tmem_pitch / TEX_FORMAT_BYTES_PER_PIXEL(load_fmt);
+        uint32_t load_width = TEX_FORMAT_BYTES2PIX(load_fmt, tmem_pitch);
 
         rdpq_set_texture_image(image->data, load_fmt, load_width);
         rdpq_set_tile(LOAD_TILE, load_fmt, tmem_used, 0, 0);

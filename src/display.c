@@ -614,7 +614,7 @@ uint32_t display_get_height()
 }
 
 /**
- * @brief Get the currently configured bitdepth of the display
+ * @brief Get the currently configured bitdepth of the display (in bytes per pixels)
  */
 uint32_t display_get_bitdepth()
 {

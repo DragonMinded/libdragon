@@ -64,12 +64,20 @@ extern "C" {
 #define _RDP_FORMAT_CODE(rdp_fmt, rdp_size)        (((rdp_fmt)<<2)|(rdp_size))
 /// @endcond
 
-/** @brief Extract the bitdepth from a #tex_format_t (eg: `FMT_RGBA16` => 16) */
-#define TEX_FORMAT_BITDEPTH(fmt)          (4 << ((fmt) & 0x3))
-/** @brief Extract the bytes per pixel from a #tex_format_t (eg: `FMT_RGBA16` => 2) */
-#define TEX_FORMAT_BYTES_PER_PIXEL(fmt)   (TEX_FORMAT_BITDEPTH(fmt) >> 3)
+/** @brief Extract the depth (number of bits per pixel) from a #tex_format_t. (eg: `FMT_RGBA16` => 16) 
+ * 
+ * Note that there are texture format that are 4bpp, so don't divide this by 8 to get the number of bytes
+ * per pixels, but rather use #TEX_FORMAT_BYTES2PIX and #TEX_FORMAT_PIX2BYTES. */
+#define TEX_FORMAT_BITDEPTH(fmt)             (4 << ((fmt) & 0x3))
 /** @brief Calculate the default stride for a surface of the given width and a pixel format. */
-#define TEX_FORMAT_GET_STRIDE(fmt, width) ((TEX_FORMAT_BITDEPTH(fmt) * width) >> 3)
+#define TEX_FORMAT_GET_STRIDE(fmt, width)    ((TEX_FORMAT_BITDEPTH(fmt) * width) >> 3)
+/** @brief Convert the specifified number of bytes in pixels. */
+#define TEX_FORMAT_BYTES2PIX(fmt, bytes)     (((bytes) << 1) >> ((fmt) & 3))
+/** @brief Convert the specifified number of pixels in bytes. */
+#define TEX_FORMAT_PIX2BYTES(fmt, pixels)    {( \
+    int __rdp_size = (fmt) & 3;  typeof(pixels) __pixels = pixels; \
+    __rdp_size ? __pixels << (__rdp_size-1) : (__pixels|1) >> 1; \
+})
 
 /**
  * @brief Pixel format enum
