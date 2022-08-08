@@ -38,7 +38,7 @@ void surface_new_sub(surface_t *sub, surface_t *parent, uint32_t x0, uint32_t y0
 
     tex_format_t fmt = surface_get_format(parent);
 
-    sub->buffer = parent->buffer + y0 * parent->stride + TEX_FORMAT_GET_STRIDE(fmt, x0);
+    sub->buffer = parent->buffer + y0 * parent->stride + TEX_FORMAT_PIX2BYTES(fmt, x0);
     sub->width = width;
     sub->height = height;
     sub->stride = parent->stride;

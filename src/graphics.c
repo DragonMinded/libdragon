@@ -118,12 +118,10 @@ static uint32_t f_color = 0xFFFFFFFF;
 static uint32_t b_color = 0x00000000;
 
 /**
- * @brief Return a 32-bit representation of an RGBA color
+ * @brief Return a packed 32-bit representation of an RGBA color
  *
- * @note In 16 bpp mode, this function will return a packed 16-bit color
- * in BOTH the lower 16 bits and the upper 16 bits.  For software color assignment,
- * this doesn't matter.  However, for drawing solid shapes using the RDP, this is
- * required.
+ * This is exactly the same as calling `graphics_convert_color(RGBA32(r,g,b,a))`.
+ * Refer to #graphics_convert_color for more information.
  *
  * @param[in] r
  *            8-bit red value
@@ -135,6 +133,8 @@ static uint32_t b_color = 0x00000000;
  *            8-bit alpha value.  Note that 255 is opaque and 0 is transparent
  *
  * @return a 32-bit representation of the color suitable for blitting in software or hardware
+ * 
+ * @see #graphics_convert_color
  */
 uint32_t graphics_make_color( int r, int g, int b, int a )
 {
@@ -150,7 +150,17 @@ uint32_t graphics_make_color( int r, int g, int b, int a )
 
 /**
  * @brief Convert a color structure to a 32-bit representation of an RGBA color
+ * 
+ * This function is similar to #color_to_packed16 and #color_to_packed32, but
+ * automatically picks the version matching with the current display configuration.
+ * Notice that this might be wrong if you are drawing to an arbitrary surface rather
+ * than a framebuffer.
  *
+ * @note In 16 bpp mode, this function will return a packed 16-bit color
+ * in BOTH the lower 16 bits and the upper 16 bits. In general, this is not necessary.
+ * However, for drawing with the old deprecated RDP API (in particular,
+ * #rdp_set_primitive_color), this is still required.
+ * 
  * @param[in] color
  *            A color structure representing an RGBA color
  * 
@@ -160,19 +170,13 @@ uint32_t graphics_convert_color( color_t color )
 {
     if( __bitdepth == 2 )
     {
-        // 8 to 5 bit;
-        int r = color.r >> 3;
-        int g = color.g >> 3;
-        int b = color.b >> 3;
-
-        // Pack twice for compatibility with RDP packed colors
-        uint32_t conv = ((r & 0x1F) << 11) | ((g & 0x1F) << 6) | ((b & 0x1F) << 1) | (color.a >> 7);
-
+        // Pack twice for compatibility with RDP packed colors and the old deprecated RDP API.
+        uint32_t conv = color_to_packed16(color);
         return conv | (conv << 16);
     }
     else
     {
-        return (color.r << 24) | (color.g << 16) | (color.b << 8) | (color.a);
+        return color_to_packed32(color);
     }
 }
 
