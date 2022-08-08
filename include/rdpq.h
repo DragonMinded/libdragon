@@ -33,6 +33,35 @@
  * obtained via fixups or not. For more information on these, see the
  * documentation of rdpq.c, which gives an overview of many implementation details.
  * 
+ * ## Render modes
+ * 
+ * The most complicated part of programming RDP is getting the correct render mode
+ * configuration. At the lowest level (hardware commands), this can be done via
+ * two functions: #rdpq_set_other_modes_raw (that maps to the RDP command `SET_OTHER_MODES`,
+ * usually shortened as SOM) and #rdpq_set_combiner_raw (that maps to the RDP
+ * commmand `SET_COMBINE`). These functions are meant for programmers already
+ * familiar with the RDP hardware, and allow you to manipulate configurations
+ * freely.
+ * 
+ * To help with partial SOM changes, rdpq also offers #rdpq_change_other_modes_raw that
+ * allows to change only some bits of the SOM state. This is done by tracking the
+ * current SOM state (within the RSP) so that a partial update can be sent. It is
+ * useful to make programming more modular, so that for instance a portion of code
+ * can temporarily enable (eg.) fogging, without having to restate the full render
+ * mode.
+ * 
+ * Alternatively, rdpq offers a higher level render mode API, which is hopefully
+ * clearer to understand and more accessible, that tries to hide some of the most
+ * common pitfalls. This API can be found in the #rdpq_mode.h file. It is possible
+ * to switch from this the higher level API to the lower level one at any time
+ * in the code with no overhead, so that it can be adopted wherever it is a good
+ * fit, falling back to lower level programming if/when necessary.
+ * 
+ * ## Blocks and address lookups
+ * 
+ * Being a RSPQ overlay, it is possible to record rdpq commands in blocks (via
+ * #rspq_block_begin / #rspq_block_end, like for any other overlay), to quickly
+ * replay them with zero CPU time.
  * 
  * 
  * 
@@ -120,31 +149,25 @@ enum {
 extern "C" {
 #endif
 
+/**
+ * @brief Initialize the RDPQ library.
+ * 
+ * This should be called by the initialization functions of the higher-level
+ * libraries using RDPQ to emit RDP commands, and/or by the application main
+ * if the application itself calls rdpq functions.
+ * 
+ * It is safe to call this function multiple times (it does nothing), so that
+ * multiple independent libraries using rdpq can call #rdpq_init with no side
+ * effects.
+ */
 void rdpq_init(void);
 
-void rdpq_close(void);
-
 /**
- * @brief Add a fence to synchronize RSP with RDP commands.
- * 
- * This function schedules a fence in the RSP queue that makes RSP waits until
- * all previously enqueued RDP commands have finished executing. This is useful
- * in the rare cases in which you need to post-process the output of RDP with RSP
- * commands.
- * 
- * Notice that the RSP will spin-lock waiting for RDP to become idle, so, if
- * possible, call rdpq_fence as late as possible, to allow for parallel RDP/RSP
- * execution for the longest possible time.
- * 
- * Notice that this does not block the CPU in any way; the CPU will just
- * schedule the fence command in the RSP queue and continue execution. If you
- * need to block the CPU until the RDP is done, check #rspq_wait or #rdpq_sync_full
- * instead.
- * 
- * @see #rdpq_sync_full
- * @see #rspq_wait
+ * @brief Shutdown the RDPQ library.
+ *
+ * This is mainly used for testing.
  */
-void rdpq_fence(void);
+void rdpq_close(void);
 
 void rdpq_set_config(uint32_t cfg);
 uint32_t rdpq_change_config(uint32_t on, uint32_t off);
@@ -163,7 +186,8 @@ uint32_t rdpq_change_config(uint32_t on, uint32_t off);
  *   * Shade. 4 values: R, G, B, A. The values must be in the 0..1 range.
  *   * Texturing. 3 values: S, T, INV_W. The values S,T address the texture specified by the tile
  *     descriptor. INV_W is the inverse of the W vertex coordinate in clip space (after
- *     projection), a value commonly used to do the final perspective division. the same value that is used to do perspective-corrected texturing.
+ *     projection), a value commonly used to do the final perspective division. This value is
+ *     required to do perspective-corrected texturing.
  * 
  * Only the position is mandatory, all other components are optionals, depending on the kind of
  * triangle that needs to be drawn. For instance, specifying only position and shade will allow
@@ -225,7 +249,26 @@ void rdpq_triangle(uint8_t tile, uint8_t mipmaps,
 
 
 /**
- * @brief Low level function to draw a textured rectangl
+ * @brief Enqueue a RDP texture rectangle command (fixed point version)
+ * 
+ * This function is similar to #rdpq_texture_rectangle, but uses fixed point
+ * numbers for the arguments. Prefer using #rdpq_texture_rectangle when possible.
+ * 
+ * Refer to #rdpq_texture_rectangle for more details on how this command works.
+ * 
+ * @param[in]   tile    Tile descriptor referring to the texture in TMEM to use for drawing
+ * @param[in]   x0      Top-left X coordinate of the rectangle (fx 10.2)
+ * @param[in]   y0      Top-left Y coordinate of the rectangle (fx 10.2)
+ * @param[in]   x1      Bottom-right *exclusive* X coordinate of the rectangle (fx 10.2)
+ * @param[in]   y1      Bottom-right *exclusive* Y coordinate of the rectangle (fx 10.2)
+ * @param[in]   s       S coordinate of the texture at the top-left corner (fx 1.10.5)
+ * @param[in]   t       T coordinate of the texture at the top-left corner (fx 1.10.5)
+ * @param[in]   dsdx    Signed increment of S coordinate for each horizontal pixel. Eg: passing 2.0f
+ *                      will horizontally stretch the texture to 50%. (fx 1.5.10)
+ * @param[in]   dtdy    Signed increment of T coordinate for each vertical pixel. Eg: passing 2.0f
+ *                      will vertically stretch the texture to 50%. (fx 1.5.10)
+ * 
+ * @see #rdpq_texture_rectangle
  */
 inline void rdpq_texture_rectangle_fx(uint8_t tile, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, int16_t s, int16_t t, int16_t dsdx, int16_t dtdy)
 {
@@ -238,14 +281,70 @@ inline void rdpq_texture_rectangle_fx(uint8_t tile, uint16_t x0, uint16_t y0, ui
         _carg(dsdx, 0xFFFF, 16) | _carg(dtdy, 0xFFFF, 0));
 }
 
+
+/**
+ * @brief Enqueue a RDP TEXTURE_RECTANGLE command 
+ * 
+ * This function enqueues a RDP TEXTURE_RECTANGLE command, that allows to draw a
+ * textured rectangle onto the framebuffer (similar to a sprite).
+ * 
+ * The texture must have been already loaded into TMEM via #rdpq_load_tile or
+ * #rdpq_load_block, and a tile descriptor referring to it must be passed to this
+ * function.
+ * 
+ * Before calling this function, make sure to also configure an appropriate
+ * render mode. It is possible to use the fast COPY mode (#rdpq_set_mode_copy) with
+ * this function, assuming that no advanced blending or color combiner capabilities
+ * are needed. The copy mode can in fact just blit the pixels from the texture
+ * unmodified, applying only a per-pixel rejection to mask out transparent pixels
+ * (via alpha compare). See #rdpq_set_mode_copy for more information.
+ * 
+ * Alternatively, it is possible to use this command also in standard render mode
+ * (#rdpq_set_mode_standard), with all the per-pixel blending / combining features.
+ * Notice that it is not possible to specify a depth value for the rectangle, nor
+ * a shade value for the four vertices, so no gouraud shading or zbuffering can be
+ * performed. If you need to use these kind of advanced features, call
+ * #rdpq_triangle to draw the rectangle as two triangles.
+ * 
+ * @param[in]   tile    Tile descriptor referring to the texture in TMEM to use for drawing
+ * @param[in]   x0      Top-left X coordinate of the rectangle
+ * @param[in]   y0      Top-left Y coordinate of the rectangle
+ * @param[in]   x1      Bottom-right *exclusive* X coordinate of the rectangle
+ * @param[in]   y1      Bottom-right *exclusive* Y coordinate of the rectangle
+ * @param[in]   s       S coordinate of the texture at the top-left corner
+ * @param[in]   t       T coordinate of the texture at the top-left corner
+ * @param[in]   dsdx    Signed increment of S coordinate for each horizontal pixel. Eg: passing 2.0f
+ *                      will horizontally stretch the texture to 50%.
+ * @param[in]   dtdy    Signed increment of T coordinate for each vertical pixel. Eg: passing 2.0f
+ *                      will vertically stretch the texture to 50%.
+ * 
+ * @hideinitializer
+ */
 #define rdpq_texture_rectangle(tile, x0, y0, x1, y1, s, t, dsdx, dtdy) ({ \
     rdpq_texture_rectangle_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s)*32, (t)*32, (dsdx)*1024, (dtdy)*1024); \
 })
 
 /**
- * @brief Low level function to draw a textured rectangle (s and t coordinates flipped)
+ * @brief Enqueue a RDP texture rectangle command (fixed point version)
+ * 
+ * This function is similar to #rdpq_texture_rectangle_flip, but uses fixed point
+ * numbers for the arguments. Prefer using #rdpq_texture_rectangle_flip when possible.
+ * 
+ * Refer to #rdpq_texture_rectangle_flip for more details on how this command works.
+ * 
+ * @param[in]   tile    Tile descriptor referring to the texture in TMEM to use for drawing
+ * @param[in]   x0      Top-left X coordinate of the rectangle (fx 10.2)
+ * @param[in]   y0      Top-left Y coordinate of the rectangle (fx 10.2)
+ * @param[in]   x1      Bottom-right *exclusive* X coordinate of the rectangle (fx 10.2)
+ * @param[in]   y1      Bottom-right *exclusive* Y coordinate of the rectangle (fx 10.2)
+ * @param[in]   s       S coordinate of the texture at the top-left corner (fx 1.10.5)
+ * @param[in]   t       T coordinate of the texture at the top-left corner (fx 1.10.5)
+ * @param[in]   dsdy    Signed increment of S coordinate for each horizontal pixel. (fx 1.5.10)
+ * @param[in]   dtdx    Signed increment of T coordinate for each vertical pixel. (fx 1.5.10)
+ * 
+ * @see #rdpq_texture_rectangle_flip
  */
-inline void rdpq_texture_rectangle_flip_fx(uint8_t tile, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, int16_t s, int16_t t, int16_t dsdx, int16_t dtdy)
+inline void rdpq_texture_rectangle_flip_fx(uint8_t tile, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, int16_t s, int16_t t, int16_t dsdy, int16_t dtdx)
 {
     extern void __rdpq_write16_syncuse(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 
@@ -256,12 +355,37 @@ inline void rdpq_texture_rectangle_flip_fx(uint8_t tile, uint16_t x0, uint16_t y
         _carg(x1, 0xFFF, 12) | _carg(y1, 0xFFF, 0),
         _carg(tile, 0x7, 24) | _carg(x0, 0xFFF, 12) | _carg(y0, 0xFFF, 0),
         _carg(s, 0xFFFF, 16) | _carg(t, 0xFFFF, 0),
-        _carg(dsdx, 0xFFFF, 16) | _carg(dtdy, 0xFFFF, 0),
+        _carg(dsdy, 0xFFFF, 16) | _carg(dtdx, 0xFFFF, 0),
         AUTOSYNC_PIPE | AUTOSYNC_TILE(tile) | AUTOSYNC_TMEM(0));
 }
 
-#define rdpq_texture_rectangle_flip(tile, x0, y0, x1, y1, s, t, dsdx, dtdy) ({ \
-    rdpq_texture_rectangle_flip_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s)*32, (t)*32, (dsdx)*1024, (dtdy)*1024); \
+/**
+ * @brief Enqueue a RDP TEXTURE_RECTANGLE_FLIP command 
+ * 
+ * The RDP command TEXTURE_RECTANGLE_FLIP is similar to TEXTURE_RECTANGLE, but the 
+ * texture S coordinate is incremented over the Y axis, while the texture T coordinate
+ * is incremented over the X axis. The graphical effect is similar to a 90° degree
+ * rotation plus a mirroring of the texture.
+ * 
+ * Notice that this command cannot work in COPY mode, so the standard rendere mode
+ * must be activated (via #rdpq_set_mode_standard).
+ * 
+ * Refer to #rdpq_texture_rectangle for further information.
+ * 
+ * @param[in]   tile    Tile descriptor referring to the texture in TMEM to use for drawing
+ * @param[in]   x0      Top-left X coordinate of the rectangle
+ * @param[in]   y0      Top-left Y coordinate of the rectangle
+ * @param[in]   x1      Bottom-right *exclusive* X coordinate of the rectangle
+ * @param[in]   y1      Bottom-right *exclusive* Y coordinate of the rectangle
+ * @param[in]   s       S coordinate of the texture at the top-left corner
+ * @param[in]   t       T coordinate of the texture at the top-left corner
+ * @param[in]   dsdy    Signed increment of S coordinate for each verttical pixel.
+ * @param[in]   dtdx    Signed increment of T coordinate for each vertical pixel.
+ * 
+ * @hideinitializer
+ */
+#define rdpq_texture_rectangle_flip(tile, x0, y0, x1, y1, s, t, dsdy, dtdx) ({ \
+    rdpq_texture_rectangle_flip_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s)*32, (t)*32, (dsdy)*1024, (dtdx)*1024); \
 })
 
 /**
@@ -457,12 +581,12 @@ inline void rdpq_set_tile(uint8_t tile, tex_format_t format,
  * This function is similar to #rdpq_fill_rectangle, but coordinates must be
  * specified using fixed point numbers (0.10.2).
  *
- * @param[x0]   x0      Top-left X coordinate of the rectangle
- * @param[y0]   y0      Top-left Y coordinate of the rectangle
- * @param[x1]   x1      Bottom-right *exclusive* X coordinate of the rectangle
- * @param[y1]   y1      Bottom-right *exclusive* Y coordinate of the rectangle
+ * @param[in]   x0      Top-left X coordinate of the rectangle
+ * @param[in]   y0      Top-left Y coordinate of the rectangle
+ * @param[in]   x1      Bottom-right *exclusive* X coordinate of the rectangle
+ * @param[in]   y1      Bottom-right *exclusive* Y coordinate of the rectangle
  * 
- * @see rdpq_fill_rectangle
+ * @see #rdpq_fill_rectangle
  */
 inline void rdpq_fill_rectangle_fx(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 {
@@ -735,6 +859,21 @@ void rdpq_sync_pipe(void);
 void rdpq_sync_tile(void);
 
 /**
+ * @brief Schedule a RDP SYNC_LOAD command.
+ * 
+ * This command must be sent before loading an area of TMEM if the
+ * RDP is currently drawing using that same area. 
+ * 
+ * Normally, you do not need to call this function because rdpq automatically
+ * emits sync commands whenever necessary. You must call this function only
+ * if you have disabled autosync for SYNC_LOAD (see #RDPQ_CFG_AUTOSYNCLOAD).
+ * 
+ * @note No software emulator currently requires this command, so manually
+ *       sending SYNC_LOAD should be developed on real hardware.
+ */
+void rdpq_sync_load(void);
+
+/**
  * @brief Schedule a RDP SYNC_FULL command and register a callback when it is done.
  * 
  * This function schedules a RDP SYNC_FULL command into the RSP queue. This
@@ -758,11 +897,6 @@ void rdpq_sync_tile(void);
  * 
  */
 void rdpq_sync_full(void (*callback)(void*), void* arg);
-
-/**
- * @brief Low level function to synchronize RDP texture load operations
- */
-void rdpq_sync_load(void);
 
 
 /**
@@ -846,6 +980,28 @@ inline void rdpq_set_combiner_raw(uint64_t comb) {
         comb & 0xFFFFFFFF,
         AUTOSYNC_PIPE);   
 }
+
+/**
+ * @brief Add a fence to synchronize RSP with RDP commands.
+ * 
+ * This function schedules a fence in the RSP queue that makes RSP waits until
+ * all previously enqueued RDP commands have finished executing. This is useful
+ * in the rare cases in which you need to post-process the output of RDP with RSP
+ * commands.
+ * 
+ * Notice that the RSP will spin-lock waiting for RDP to become idle, so, if
+ * possible, call rdpq_fence as late as possible, to allow for parallel RDP/RSP
+ * execution for the longest possible time.
+ * 
+ * Notice that this does not block the CPU in any way; the CPU will just
+ * schedule the fence command in the RSP queue and continue execution. If you
+ * need to block the CPU until the RDP is done, check #rspq_wait or #rdpq_sync_full
+ * instead.
+ * 
+ * @see #rdpq_sync_full
+ * @see #rspq_wait
+ */
+void rdpq_fence(void);
 
 
 /**

@@ -218,6 +218,10 @@ static void __rdpq_interrupt(void) {
 
 void rdpq_init()
 {
+    // Do nothing if rdpq was already initialized
+    if (__rdpq_inited)
+        return;
+
     rdpq_state_t *rdpq_state = UncachedAddr(rspq_overlay_get_state(&rsp_rdpq));
     _Static_assert(sizeof(rdpq_state->modes[0]) == 32,   "invalid sizeof: rdpq_state->modes[0]");
     _Static_assert(sizeof(rdpq_state->modes)    == 32*4, "invalid sizeof: rdpq_state->modes");

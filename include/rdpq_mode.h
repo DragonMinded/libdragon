@@ -72,7 +72,12 @@ inline void rdpq_set_mode_fill(color_t color) {
  * optionally be discarded during blit, so that the target buffer contents is
  * not overwritten for those pixels. This is implemented using alpha compare.
  * 
+ * The COPY mode is approximately 4 times faster at drawing than the standard
+ * mode, so make sure to enable it whenever it is possible.
+ * 
  * @param[in]  transparency   If true, pixels with alpha set to 0 are not drawn
+ * 
+ * @see #rdpq_set_mode_standard
  */
 inline void rdpq_set_mode_copy(bool transparency) {
     if (transparency) rdpq_set_blend_color(RGBA32(0,0,0,1));

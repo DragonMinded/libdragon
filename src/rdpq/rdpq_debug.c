@@ -522,7 +522,7 @@ void rdpq_validate(uint64_t *buf, int *errs, int *warns)
         rdpq_state.sent_scissor = true;
         break;
     case 0x25: // TEX_RECT_FLIP
-        VALIDATE_ERR(rdpq_state.som.cycle_type < 2, "cannot draw texture flip in copy/flip mode");
+        VALIDATE_ERR(rdpq_state.som.cycle_type < 2, "cannot draw texture rectangle flip in copy/fill mode");
         // passthrough
     case 0x24: // TEX_RECT
         lazy_validate_cc(errs, warns);
