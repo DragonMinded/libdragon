@@ -779,23 +779,6 @@ inline void rdpq_set_env_color(color_t color)
 }
 
 /**
- * @brief Low level function to set RDRAM pointer to a texture image
- */
-inline void rdpq_set_texture_image_lookup(uint8_t index, uint32_t offset, tex_format_t format, uint16_t width)
-{
-    assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
-    extern void __rdpq_fixup_write8_pipe(uint32_t, uint32_t, uint32_t);
-    __rdpq_fixup_write8_pipe(RDPQ_CMD_SET_TEXTURE_IMAGE,
-        _carg(format, 0x1F, 19) | _carg(width-1, 0x3FF, 0),
-        _carg(index, 0xF, 28) | (offset & 0xFFFFFF));
-}
-
-inline void rdpq_set_texture_image(const void* dram_ptr, tex_format_t format, uint16_t width)
-{
-    rdpq_set_texture_image_lookup(0, PhysicalAddr(dram_ptr), format, width);
-}
-
-/**
  * @brief Enqueue a SET_COLOR_IMAGE RDP command.
  * 
  * This command is used to specify the render target that the RDP will draw to.
@@ -820,7 +803,8 @@ void rdpq_set_color_image(surface_t *buffer);
 /**
  * @brief Enqueue a SET_Z_IMAGE RDP command.
  * 
- * This commands is used to specify the Z-buffer that will be used by RDP.
+ * This commands is used to specify the Z-buffer that will be used by RDP for the next
+ * rendering commands.
  * 
  * The surface must have the same width and height of the surface set as render target
  * (via #rdpq_set_color_image or #rdpq_set_color_image_raw). The color format should be
@@ -831,6 +815,22 @@ void rdpq_set_color_image(surface_t *buffer);
  * @see #rdpq_set_z_image_raw
  */
 void rdpq_set_z_image(surface_t* surface);
+
+/**
+ * @brief Enqueue a SET_TEX_IMAGE RDP command.
+ * 
+ * This commands is used to specify the texture image that will be used by RDP for
+ * the next load commands (#rdpq_load_tile and #rdpq_load_block).
+ * 
+ * The surface must have the same width and height of the surface set as render target
+ * (via #rdpq_set_color_image or #rdpq_set_color_image_raw). The color format should be
+ * FMT_RGBA16, even though Z values will be written to it.
+ * 
+ * @param surface      Surface to set as Z buffer
+ * 
+ * @see #rdpq_set_texture_image_raw
+ */
+void rdpq_set_texture_image(surface_t* surface);
 
 /**
  * @brief Low-level version of #rdpq_set_color_image, with address lookup capability.
@@ -880,6 +880,13 @@ inline void rdpq_set_color_image_raw(uint8_t index, uint32_t offset, tex_format_
  * RDP a physical constraint of 64-byte alignment for render targets, so make sure to respect
  * that while configuring a buffer. The validator will flag such a mistake.
  * 
+ * @param index        Index in the rdpq lookup table of the buffer to set as render target.
+ * @param offset       Byte offset to add to the buffer stored in the lookup table. Notice that
+ *                     if index is 0, this can be a physical address to a buffer (use
+ *                     #PhysicalAddr to convert a C pointer to a physical address).
+ * 
+ * @see #rdpq_set_z_image
+ * @see #rdpq_set_lookup_address
  */
 inline void rdpq_set_z_image_raw(uint8_t index, uint32_t offset)
 {
@@ -890,8 +897,57 @@ inline void rdpq_set_z_image_raw(uint8_t index, uint32_t offset)
         _carg(index, 0xF, 28) | (offset & 0xFFFFFF));
 }
 
+/**
+ * @brief Low-level version of #rdpq_set_texture_image, with address lookup capability.
+ * 
+ * This is a low-level verson of #rdpq_set_texture_image, that exposes the address lookup
+ * capability. It allows to either pass a direct buffer, or to use a buffer already stored
+ * in the address lookup table, adding optionally an offset. See #rdpq_set_lookup_address
+ * for more information.
+ * 
+ * @param index        Index in the rdpq lookup table of the buffer to set as texture image.
+ * @param offset       Byte offset to add to the buffer stored in the lookup table. Notice that
+ *                     if index is 0, this can be a physical address to a buffer (use
+ *                     #PhysicalAddr to convert a C pointer to a physical address).
+ * @param width        Width of the texture in pixel
+ * @param height       Height of the texture in pixel
+ * 
+ * @see #rdpq_set_texture_image
+ * @see #rdpq_set_lookup_address
+ */
+inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_format_t format, uint16_t width, uint16_t height)
+{
+    assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
+    extern void __rdpq_fixup_write8_pipe(uint32_t, uint32_t, uint32_t);
+    // NOTE: we also encode the texture height in the command (split in two halves...)
+    // to help the validator to a better job. The RDP hardware ignores those bits.
+    __rdpq_fixup_write8_pipe(RDPQ_CMD_SET_TEXTURE_IMAGE,
+        _carg(format, 0x1F, 19) | _carg(width-1, 0x3FF, 0) | _carg(height-1, 0x1FF, 10),
+        _carg(index, 0xF, 28) | (offset & 0xFFFFFF) | _carg((height-1)>>9, 0x1, 31));
+}
 
-
+/**
+ * @brief Store an address into the rdpq lookup table
+ * 
+ * This function is for advanced usages, it is not normally required to call it.
+ * 
+ * This function modifies the internal RDPQ address lookup table, by storing
+ * an address into on of the available slots.
+ * 
+ * The lookup table is used to allow for an indirect access to surface pointers.
+ * For instance, some library code might want to record a block that manipulates
+ * several surfaces, but without saving the actual surface pointers within the
+ * block. Instead, all commands referring to a surface, will actually refer to
+ * an index into the lookup table. The caller of the block will then store
+ * the actual buffer pointers in the table, before playing back the block.
+ * 
+ * The rdpq functions that can optionally load an address from the table are
+ * #rdpq_set_color_image_raw, #rdpq_set_z_image_raw and #rdpq_set_tex_image_raw.
+ * 
+ * @param index           Index of the slot in the table. Available slots are 1-15
+ *                        (slot 0 is reserved).
+ * @param rdram_addr      Pointer of the buffer to store into the address table.
+ */
 inline void rdpq_set_lookup_address(uint8_t index, void* rdram_addr)
 {
     assertf(index > 0 && index <= 15, "Lookup address index out of range [1,15]: %d", index);

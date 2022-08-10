@@ -557,6 +557,15 @@ void rdpq_set_z_image(surface_t *surface)
     rdpq_set_z_image_raw(0, PhysicalAddr(surface->buffer));
 }
 
+void rdpq_set_texture_image(surface_t *surface)
+{
+    // FIXME: we currently don't know how to handle a texture which is a sub-surface, that is
+    // with excess space. So better rule it out for now, and we can enbale that later once we
+    // make sure it works correctly.
+    assertf(TEX_FORMAT_PIX2BYTES(surface_get_format(surface), surface->width) == surface->stride,
+        "configure sub-surfaces as textures is not supported");
+    rdpq_set_texture_image_raw(0, PhysicalAddr(surface->buffer), surface_get_format(surface), surface->width, surface->height);
+}
 
 __attribute__((noinline))
 void __rdpq_set_other_modes(uint32_t w0, uint32_t w1)

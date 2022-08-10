@@ -218,7 +218,7 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     tex_format_t sprite_format = (sprite->bitdepth == 2) ? FMT_RGBA16 : FMT_RGBA32;
 
     /* Point the RDP at the actual sprite data */
-    rdpq_set_texture_image(sprite->data, sprite_format, sprite->width);
+    rdpq_set_texture_image_raw(0, PhysicalAddr(sprite->data), sprite_format, sprite->width, sprite->height);
 
     /* Figure out the s,t coordinates of the sprite we are copying out of */
     int twidth = sh - sl + 1;

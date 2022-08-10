@@ -1229,7 +1229,7 @@ void gl_update_texture()
         uint32_t tmem_pitch = image->stride;
         uint32_t load_width = TEX_FORMAT_BYTES2PIX(load_fmt, tmem_pitch);
 
-        rdpq_set_texture_image(image->data, load_fmt, load_width);
+        rdpq_set_texture_image_raw(0, PhysicalAddr(image->data), load_fmt, load_width, image->height);
         rdpq_set_tile(LOAD_TILE, load_fmt, tmem_used, 0, 0);
         rdpq_load_block(LOAD_TILE, 0, 0, load_width * image->height, tmem_pitch);
 
