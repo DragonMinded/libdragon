@@ -159,7 +159,7 @@ uint32_t graphics_make_color( int r, int g, int b, int a )
  * @note In 16 bpp mode, this function will return a packed 16-bit color
  * in BOTH the lower 16 bits and the upper 16 bits. In general, this is not necessary.
  * However, for drawing with the old deprecated RDP API (in particular,
- * #rdp_set_primitive_color), this is still required.
+ * rdp_set_primitive_color), this is still required.
  * 
  * @param[in] color
  *            A color structure representing an RGBA color

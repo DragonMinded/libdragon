@@ -509,6 +509,16 @@ void rdpq_validate(uint64_t *buf, int *errs, int *warns)
 {
     uint8_t cmd = BITS(buf[0], 56, 61);
     switch (cmd) {
+    case 0x3F: { // SET_COLOR_IMAGE
+        tex_format_t fmt = _RDP_FORMAT_CODE(BITS(buf[0], 53, 55), BITS(buf[0], 51, 52));
+        VALIDATE_ERR(BITS(buf[0], 0, 5) == 0, "color image must be aligned to 64 bytes");
+        VALIDATE_ERR(fmt == FMT_RGBA32 || fmt == FMT_RGBA16 || fmt == FMT_CI8,
+            "color image has invalid format %s: must be FMT_RGBA32, FMT_RGBA16 or FMT_CI8",
+                tex_format_name(fmt));
+    }   break;
+    case 0x3E:   // SET_Z_IMAGE
+        VALIDATE_ERR(BITS(buf[0], 0, 5) == 0, "Z image must be aligned to 64 bytes");
+        break;
     case 0x2F: // SET_OTHER_MODES
         rdpq_state.som = decode_som(buf[0]);
         rdpq_state.mode_changed = &buf[0];

@@ -144,7 +144,7 @@
 #include "rdpq_constants.h"
 #include "rdpq_debug.h"
 #include "rspq.h"
-#include "rspq/rspq_commands.h"
+#include "rspq/rspq_internal.h"
 #include "rspq_constants.h"
 #include "rdp_commands.h"
 #include "interrupt.h"
@@ -179,7 +179,7 @@ bool __rdpq_zero_blocks = false;
 volatile uint32_t *rdpq_block_ptr;
 volatile uint32_t *rdpq_block_end;
 
-static uint8_t rdpq_config;
+static uint32_t rdpq_config;
 static uint32_t rdpq_autosync_state[2];
 
 /** True if we're currently creating a rspq block */
@@ -240,7 +240,7 @@ void rdpq_init()
 
     rdpq_block = NULL;
     rdpq_block_first = NULL;
-    rdpq_config = RDPQ_CFG_AUTOSYNCPIPE | RDPQ_CFG_AUTOSYNCLOAD | RDPQ_CFG_AUTOSYNCTILE;
+    rdpq_config = RDPQ_CFG_DEFAULT;
     rdpq_autosync_state[0] = 0;
     __rdpq_inited = true;
 
@@ -257,24 +257,22 @@ void rdpq_close()
     unregister_DP_handler(__rdpq_interrupt);
 }
 
-uint32_t rdpq_get_config(void)
+uint32_t rdpq_config_set(uint32_t cfg)
 {
-    return rdpq_config;
-}
-
-void rdpq_set_config(uint32_t cfg)
-{
+    uint32_t prev = rdpq_config;
     rdpq_config = cfg;
+    return prev;
 }
 
-uint32_t rdpq_change_config(uint32_t on, uint32_t off)
+uint32_t rdpq_config_enable(uint32_t cfg)
 {
-    uint32_t old = rdpq_config;
-    rdpq_config |= on;
-    rdpq_config &= ~off;
-    return old;
+    return rdpq_config_set(rdpq_config | cfg);
 }
 
+uint32_t rdpq_config_disable(uint32_t cfg)
+{
+    return rdpq_config_set(rdpq_config & ~cfg);
+}
 
 void rdpq_fence(void)
 {
@@ -529,7 +527,7 @@ void __rdpq_fixup_write8_pipe(uint32_t cmd_id, uint32_t w0, uint32_t w1)
 }
 
 __attribute__((noinline))
-void __rdpq_set_color_image(uint32_t w0, uint32_t w1)
+void __rdpq_set_color_image(uint32_t w0, uint32_t w1, uint32_t sw0, uint32_t sw1)
 {
     // SET_COLOR_IMAGE on RSP always generates an additional SET_SCISSOR, so make sure there is
     // space for it in case of a static buffer (in a block).
@@ -538,7 +536,27 @@ void __rdpq_set_color_image(uint32_t w0, uint32_t w1)
         (RDPQ_CMD_SET_COLOR_IMAGE, w0, w1), // RSP
         (RDPQ_CMD_SET_COLOR_IMAGE, w0, w1), (RDPQ_CMD_SET_SCISSOR, 0, 0) // RDP
     );
+
+    if (rdpq_config & RDPQ_CFG_AUTOSCISSOR)
+        __rdpq_set_scissor(sw0, sw1);
 }
+
+void rdpq_set_color_image(surface_t *surface)
+{
+    assertf((PhysicalAddr(surface->buffer) & 63) == 0,
+        "buffer pointer is not aligned to 64 bytes, so it cannot be used as RDP color image");
+    rdpq_set_color_image_raw(0, PhysicalAddr(surface->buffer), 
+        surface_get_format(surface), surface->width, surface->height, surface->stride);
+}
+
+void rdpq_set_z_image(surface_t *surface)
+{
+    assertf(surface_get_format(surface) == FMT_RGBA16, "the format of the Z-buffer surface must be RGBA16");
+    assertf((PhysicalAddr(surface->buffer) & 63) == 0,
+        "buffer pointer is not aligned to 64 bytes, so it cannot be used as RDP Z image");
+    rdpq_set_z_image_raw(0, PhysicalAddr(surface->buffer));
+}
+
 
 __attribute__((noinline))
 void __rdpq_set_other_modes(uint32_t w0, uint32_t w1)
@@ -604,7 +622,6 @@ void rdpq_sync_load(void)
 
 /* Extern inline instantiations. */
 extern inline void rdpq_set_fill_color(color_t color);
-extern inline void rdpq_set_color_image(void* dram_ptr, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride);
 extern inline void rdpq_set_other_modes_raw(uint64_t mode);
 extern inline void rdpq_change_other_modes_raw(uint64_t mask, uint64_t val);
 extern inline void rdpq_fill_rectangle_fx(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1);

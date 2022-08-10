@@ -33,7 +33,7 @@
  * In some cases, you might want to interact with a rectangular portion of
  * an existing surface (for instance, you want to draw with RDP only in the
  * top portion of the screen for some reason). To do so, you can use
- * #surface_sub to create a #surface_t instance that is referring only to
+ * #surface_make_sub to create a #surface_t instance that is referring only to
  * a portion of the original surface:
  * 
  * @code
@@ -82,7 +82,7 @@ extern "C" {
  * 
  * Notice that only some of those can be used by RDP as framebuffer (specifically,
  * #FMT_RGBA16, #FMT_RGBA32 and #FMT_CI8). Moreover, the CPU-based graphics library
- * #graphics.h only accepts surfaces in either #FMT_RGBA16 or #FMT_RGBA32 as target buffers.
+ * graphics.h only accepts surfaces in either #FMT_RGBA16 or #FMT_RGBA32 as target buffers.
  */
 typedef enum {
     FMT_NONE   = 0,                        ///< Placeholder for no format defined
@@ -111,7 +111,7 @@ const char* tex_format_name(tex_format_t fmt);
  * This structure holds the basic information about a buffer used to hold graphics.
  * It is commonly used by graphics routines in libdragon as either a source (eg: texture)
  * or a target (eg: framebuffer). It can be used for both CPU-based drawing
- * (such as #graphics.h) or RDP-basic drawing (such as #rdp.h and #rdpq.h).
+ * (such as graphics.h) or RDP-basic drawing (such as rdp.h and rdpq.h).
  * 
  * Use #surface_alloc / #surface_free to allocate / free a surface. If you already have
  * a memory pointer to a graphics buffer and you just need to wrap it in a #surface_t,
@@ -167,7 +167,6 @@ inline surface_t surface_make(void *buffer, tex_format_t format, uint32_t width,
  * (passed to #rdp_attach) because it is guarateed to have the required
  * alignment of 64 bytes.
  *
- * @param[out] surface  Surface to allocate
  * @param[in]  format   Pixel format of the surface
  * @param[in]  width    Width in pixels
  * @param[in]  height   Height in pixels

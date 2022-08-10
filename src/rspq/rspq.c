@@ -107,10 +107,10 @@
  * 
  * Internally, double buffering is used to implement the queue. The size of
  * each of the buffers is RSPQ_DRAM_LOWPRI_BUFFER_SIZE. When a buffer is full,
- * the queue engine writes a RSPQ_CMD_JUMP command with the address of the
+ * the queue engine writes a #RSPQ_CMD_JUMP command with the address of the
  * other buffer, to tell the RSP to jump there when it is done. 
  * 
- * Moreover, just before the jump, the engine also enqueue a RSPQ_CMD_WRITE_STATUS
+ * Moreover, just before the jump, the engine also enqueue a #RSPQ_CMD_WRITE_STATUS
  * command that sets the SP_STATUS_SIG_BUFDONE_LOW signal. This is used to
  * keep track when the RSP has finished processing a buffer, so that we know
  * it becomes free again for more commands.
@@ -123,12 +123,12 @@
  * allocated for the block. The starting size for this buffer is
  * RSPQ_BLOCK_MIN_SIZE. If the buffer becomes full, a new buffer is allocated
  * with double the size (to achieve exponential growth), and it is linked
- * to the previous buffer via a RSPQ_CMD_JUMP. So a block can end up being
+ * to the previous buffer via a #RSPQ_CMD_JUMP. So a block can end up being
  * defined by multiple memory buffers linked via jumps.
  * 
  * Calling a block requires some work because of the nesting calls we want
  * to support. To make the RSP ucode as short as possible, the two internal
- * command dedicated to block calls (RSPQ_CMD_CALL and RSPQ_CMD_RET) do not
+ * command dedicated to block calls (#RSPQ_CMD_CALL and #RSPQ_CMD_RET) do not
  * manage a call stack by themselves, but only allow to save/restore the
  * current queue position from a "save slot", whose index must be provided
  * by the CPU. 
@@ -151,13 +151,13 @@
  * When #rspq_highpri_begin is called, the CPU notifies the RSP that it must
  * switch to the highpri queues by setting signal SP_STATUS_SIG_HIGHPRI_REQUESTED.
  * The RSP checks for that signal between each command, and when it sees it, it
- * internally calls RSPQ_CMD_SWAP_BUFFERS. This command loads the highpri queue
+ * internally calls #RSPQ_CMD_SWAP_BUFFERS. This command loads the highpri queue
  * pointer from a special call slot, saves the current lowpri queue position
  * in another special save slot, and finally clear SP_STATUS_SIG_HIGHPRI_REQUESTED
  * and set SP_STATUS_SIG_HIGHPRI_RUNNING instead.
  * 
  * When the #rspq_highpri_end is called, the opposite is done. The CPU writes
- * in the queue a RSPQ_CMD_SWAP_BUFFERS that saves the current highpri pointer
+ * in the queue a #RSPQ_CMD_SWAP_BUFFERS that saves the current highpri pointer
  * into its call slot, recover the previous lowpri position, and turns off
  * SP_STATUS_SIG_HIGHPRI_RUNNING.
  * 
@@ -168,7 +168,7 @@
 
 #include "rsp.h"
 #include "rspq.h"
-#include "rspq_commands.h"
+#include "rspq_internal.h"
 #include "rspq_constants.h"
 #include "rdp.h"
 #include "rdpq/rdpq_internal.h"

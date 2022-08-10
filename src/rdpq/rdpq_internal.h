@@ -2,7 +2,7 @@
 #define __LIBDRAGON_RDPQ_INTERNAL_H
 
 #include "pputils.h"
-#include "../rspq/rspq_commands.h"
+#include "../rspq/rspq_internal.h"
 
 #define RDPQ_OVL_ID (0xC << 28)
 

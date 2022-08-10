@@ -132,9 +132,11 @@ enum {
     RDPQ_CMD_SET_COLOR_IMAGE            = 0x3F,
 };
 
-#define RDPQ_CFG_AUTOSYNCPIPE   (1 << 0)
-#define RDPQ_CFG_AUTOSYNCLOAD   (1 << 1)
-#define RDPQ_CFG_AUTOSYNCTILE   (1 << 2)
+#define RDPQ_CFG_AUTOSYNCPIPE   (1 << 0)     ///< Configuration flag: enable automatic generation of SYNC_PIPE commands
+#define RDPQ_CFG_AUTOSYNCLOAD   (1 << 1)     ///< Configuration flag: enable automatic generation of SYNC_LOAD commands
+#define RDPQ_CFG_AUTOSYNCTILE   (1 << 2)     ///< Configuration flag: enable automatic generation of SYNC_TILE commands
+#define RDPQ_CFG_AUTOSCISSOR    (1 << 3)     ///< Configuration flag: enable automatic generation of SET_SCISSOR commands on render target change
+#define RDPQ_CFG_DEFAULT        (0xFFFF)     ///< Configuration flag: default configuration
 
 #define AUTOSYNC_TILE(n)  (1    << (0+(n)))
 #define AUTOSYNC_TILES    (0xFF << 0)
@@ -169,8 +171,73 @@ void rdpq_init(void);
  */
 void rdpq_close(void);
 
-void rdpq_set_config(uint32_t cfg);
-uint32_t rdpq_change_config(uint32_t on, uint32_t off);
+
+/**
+ * @brief Set the configuration of the RDPQ module.
+ * 
+ * This function allows you to change the configuration of rdpq to enable/disable
+ * features. This is useful mainly for advanced users that want to manually tune
+ * RDP programming disabling some commododities performed by rdpq.
+ * 
+ * The configuration is a bitmask that can be composed using the `RDPQ_CFG_*` macros.
+ * 
+ * To enable or disable specific configuration options use #rdpq_config_enable or
+ * #rdpq_config_disable.
+ * 
+ * @param cfg         The new configuration to set
+ * @return            The previous configuration
+ * 
+ * @see #rdpq_config_enable
+ * @see #rdpq_config_disable
+ */
+uint32_t rdpq_config_set(uint32_t cfg);
+
+/**
+ * @brief Enable a specific set of configuration flags
+ * 
+ * This function allows you to modify the confiuration of rdpq activating a specific
+ * set of features. It can be useful to temporarily modify the configuration and then
+ * restore it.
+ * 
+ * @param cfg_enable_bits    Configuration flags to enable
+ * @return                   The previous configuration
+ * 
+ * @see #rdpq_config_set
+ * @see #rdpq_config_disable
+ */
+uint32_t rdpq_config_enable(uint32_t cfg_enable_bits);
+
+
+/**
+ * @brief Disable a specific set of configuration flags
+ * 
+ * This function allows you to modify the confiuration of rdpq disabing a specific
+ * set of features. It can be useful to temporarily modify the configuration and then
+ * restore it.
+ * 
+ * @code
+ *      // Disable automatic scissor generation
+ *      uint32_t old_cfg = rdpq_config_disable(RDPQ_CFG_AUTOSCISSOR);
+ *  
+ *      // This will change the render target but will NOT issue a corresponding SET_SCISSOR.
+ *      // This is dangerous as the currently-configured scissor might allow to draw outside of
+ *      // the surface boundary, but an advanced user will know if this is correct.
+ *      rdpq_set_color_image(surface);
+ * 
+ *      [...]
+ * 
+ *      // Restore the previous configuration
+ *      rdpq_config_set(old_cfg);
+ * @endcode
+ * 
+ * @param cfg_disable_bits   Configuration flags to disable
+ * @return                   The previous configuration
+ * 
+ * @see #rdpq_config_set
+ * @see #rdpq_config_enable
+ */
+uint32_t rdpq_config_disable(uint32_t cfg_disable_bits);
+
 
 /**
  * @brief Enqueue a RDP triangle command
@@ -246,7 +313,6 @@ uint32_t rdpq_change_config(uint32_t on, uint32_t off);
 void rdpq_triangle(uint8_t tile, uint8_t mipmaps,
     int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, 
     const float *v1, const float *v2, const float *v3);
-
 
 /**
  * @brief Enqueue a RDP texture rectangle command (fixed point version)
@@ -730,9 +796,92 @@ inline void rdpq_set_texture_image(const void* dram_ptr, tex_format_t format, ui
 }
 
 /**
- * @brief Low level function to set RDRAM pointer to the depth buffer
+ * @brief Enqueue a SET_COLOR_IMAGE RDP command.
+ * 
+ * This command is used to specify the render target that the RDP will draw to.
+ *
+ * Calling this function also automatically configures scissoring (via
+ * #rdpq_set_scissor), so that all draw commands are clipped within the buffer,
+ * to avoid overwriting memory around it. Use `rdpq_config_disable(RDPQ_CFG_AUTOSCISSOR)`
+ * if you need to disable this behavior.
+ * 
+ * If you have a raw pointer instead of a #surface_t, you can use #surface_make to create
+ * a temporary surface structure to pass the information to #rdpq_set_color_image.
+ * 
+ * The only valid formats for a surface to be used as a render taget are: #FMT_RGBA16,
+ * #FMT_RGBA8, and #FMT_CI8.
+ *
+ * @param[in]  surface   Surface to set as render target
+ * 
+ * @see #rdpq_set_color_image_raw
  */
-inline void rdpq_set_z_image_lookup(uint8_t index, uint32_t offset)
+void rdpq_set_color_image(surface_t *buffer);
+
+/**
+ * @brief Enqueue a SET_Z_IMAGE RDP command.
+ * 
+ * This commands is used to specify the Z-buffer that will be used by RDP.
+ * 
+ * The surface must have the same width and height of the surface set as render target
+ * (via #rdpq_set_color_image or #rdpq_set_color_image_raw). The color format should be
+ * FMT_RGBA16, even though Z values will be written to it.
+ * 
+ * @param surface      Surface to set as Z buffer
+ * 
+ * @see #rdpq_set_z_image_raw
+ */
+void rdpq_set_z_image(surface_t* surface);
+
+/**
+ * @brief Low-level version of #rdpq_set_color_image, with address lookup capability.
+ * 
+ * This is a low-level verson of #rdpq_set_color_image, that exposes the address lookup
+ * capability. It allows to either pass a direct buffer, or to use a buffer already stored
+ * in the address lookup table, adding optionally an offset. See #rdpq_set_lookup_address
+ * for more information.
+ * 
+ * RDP a physical constraint of 64-byte alignment for render targets, so make sure to respect
+ * that while configuring a buffer. The validator will flag such a mistake.
+ * 
+ * @param index        Index in the rdpq lookup table of the buffer to set as render target.
+ * @param offset       Byte offset to add to the buffer stored in the lookup table. Notice that
+ *                     if index is 0, this can be a physical address to a buffer (use
+ *                     #PhysicalAddr to convert a C pointer to a physical address).
+ * @param format       Format of the buffer. Only FMT_RGBA32, FMT_RGBA16 or FMT_CI8 are
+ *                     possible to use as a render target.
+ * @param width        Width of the buffer in pixel
+ * @param height       Height of the buffer in pixel
+ * @param stride       Stride of the buffer in bytes (length of a row)
+ * 
+ * @see #rdpq_set_color_image
+ * @see #rdpq_set_lookup_address
+ */
+inline void rdpq_set_color_image_raw(uint8_t index, uint32_t offset, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride)
+{
+    assertf(format == FMT_RGBA32 || format == FMT_RGBA16 || format == FMT_CI8, "Image format is not supported as color image!\nIt must be FMT_RGBA32, FMT_RGBA16 or FMT_CI8");
+    assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
+
+    extern void __rdpq_set_color_image(uint32_t, uint32_t, uint32_t, uint32_t);
+    __rdpq_set_color_image(
+        _carg(format, 0x1F, 19) | _carg(TEX_FORMAT_BYTES2PIX(format, stride)-1, 0x3FF, 0),
+        _carg(index, 0xF, 28) | (offset & 0xFFFFFF),
+        _carg(0, 0xFFF, 12) | _carg(0, 0xFFF, 0),                 // for set_scissor
+        _carg(width*4, 0xFFF, 12) | _carg(height*4, 0xFFF, 0));   // for set_scissor
+}
+
+/**
+ * @brief Low-level version of #rdpq_set_z_image, with address lookup capability.
+ * 
+ * This is a low-level verson of #rdpq_set_z_image, that exposes the address lookup
+ * capability. It allows to either pass a direct buffer, or to use a buffer already stored
+ * in the address lookup table, adding optionally an offset. See #rdpq_set_lookup_address
+ * for more information.
+ * 
+ * RDP a physical constraint of 64-byte alignment for render targets, so make sure to respect
+ * that while configuring a buffer. The validator will flag such a mistake.
+ * 
+ */
+inline void rdpq_set_z_image_raw(uint8_t index, uint32_t offset)
 {
     assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
     extern void __rdpq_fixup_write8_pipe(uint32_t, uint32_t, uint32_t);
@@ -741,82 +890,7 @@ inline void rdpq_set_z_image_lookup(uint8_t index, uint32_t offset)
         _carg(index, 0xF, 28) | (offset & 0xFFFFFF));
 }
 
-inline void rdpq_set_z_image(void* dram_ptr)
-{
-    assertf(((uint32_t)dram_ptr & 7) == 0, "buffer pointer is not aligned to 8 bytes, so it cannot use as RDP depth image");
-    rdpq_set_z_image_lookup(0, PhysicalAddr(dram_ptr));
-}
 
-/**
- * @brief Low level function to set RDRAM pointer to the color buffer
- */
-inline void rdpq_set_color_image_lookup_no_scissor(uint8_t index, uint32_t offset, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride)
-{
-    assertf(format == FMT_RGBA32 || format == FMT_RGBA16 || format == FMT_CI8, "Image format is not supported!\nIt must be FMT_RGBA32, FMT_RGBA16 or FMT_CI8");
-    assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
-
-    extern void __rdpq_set_color_image(uint32_t, uint32_t);
-    __rdpq_set_color_image(
-        _carg(format, 0x1F, 19) | _carg(TEX_FORMAT_BYTES2PIX(format, stride)-1, 0x3FF, 0),
-        _carg(index, 0xF, 28) | (offset & 0xFFFFFF));
-}
-
-inline void rdpq_set_color_image_lookup(uint8_t index, uint32_t offset, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride)
-{
-    rdpq_set_color_image_lookup_no_scissor(index, offset, format, width, height, stride);
-    rdpq_set_scissor(0, 0, width, height);
-}
-
-/**
- * @brief Enqueue a SET_COLOR_IMAGE RDP command.
- * 
- * This command is used to specify the target buffer that the RDP will draw to.
- *
- * Calling this function also automatically configures scissoring (via
- * #rdpq_set_scissor), so that all draw commands are clipped within the buffer,
- * to avoid overwriting memory around it.
- *
- * @param      dram_ptr  Pointer to the buffer in RAM
- * @param[in]  format    Format of the buffer. Supported formats are:
- *                       #FMT_RGBA32, #FMT_RGBA16, #FMT_I8.
- * @param[in]  width     Width of the buffer in pixels
- * @param[in]  height    Height of the buffer in pixels
- * @param[in]  stride    Stride of the buffer in bytes (distance between one
- *                       row and the next one)
- *                       
- * @see #rdpq_set_color_image_surface
- */
-inline void rdpq_set_color_image_no_scissor(void* dram_ptr, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride)
-{
-    assertf(((uint32_t)dram_ptr & 63) == 0, "buffer pointer is not aligned to 64 bytes, so it cannot use as RDP color image.\nAllocate it with memalign(64, len) or malloc_uncached_align(64, len)");
-    rdpq_set_color_image_lookup_no_scissor(0, PhysicalAddr(dram_ptr), format, width, height, stride);
-}
-
-inline void rdpq_set_color_image(void* dram_ptr, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride)
-{
-    assertf(((uint32_t)dram_ptr & 7) == 0, "buffer pointer is not aligned to 8 bytes, so it cannot use as RDP color image");
-    rdpq_set_color_image_lookup(0, PhysicalAddr(dram_ptr), format, width, height, stride);
-}
-
-/**
- * @brief Enqueue a SET_COLOR_IMAGE RDP command, using a #surface_t
- * 
- * This command is similar to #rdpq_set_color_image, but the target buffer is
- * specified using a #surface_t.
- * 
- * @param[in]  surface  Target buffer to draw to
- * 
- * @see #rdpq_set_color_image
- */
-inline void rdpq_set_color_image_surface_no_scissor(surface_t *surface)
-{
-    rdpq_set_color_image_no_scissor(surface->buffer, surface_get_format(surface), surface->width, surface->height, surface->stride);
-}
-
-inline void rdpq_set_color_image_surface(surface_t *surface)
-{
-    rdpq_set_color_image(surface->buffer, surface_get_format(surface), surface->width, surface->height, surface->stride);
-}
 
 inline void rdpq_set_lookup_address(uint8_t index, void* rdram_addr)
 {
