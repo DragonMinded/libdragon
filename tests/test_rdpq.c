@@ -389,33 +389,30 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
 {
     RDPQ_INIT();
 
-    #define TEST_RDPQ_TEXWIDTH (FBWIDTH - 8)
-    #define TEST_RDPQ_TEXAREA  (TEST_RDPQ_TEXWIDTH * TEST_RDPQ_TEXWIDTH)
-    #define TEST_RDPQ_TEXSIZE  (TEST_RDPQ_TEXAREA * 2)
-
     const int FBWIDTH = 16;
+    const int TEXWIDTH = FBWIDTH - 8;
     surface_t fb = surface_alloc(FMT_RGBA16, FBWIDTH, FBWIDTH);
     DEFER(surface_free(&fb));
     surface_clear(&fb, 0);
 
-    void *texture = malloc_uncached(TEST_RDPQ_TEXSIZE);
-    DEFER(free_uncached(texture));
-    memset(texture, 0, TEST_RDPQ_TEXSIZE);
+    surface_t tex = surface_alloc(FMT_RGBA16, TEXWIDTH, TEXWIDTH);
+    DEFER(surface_free(&tex));
+    surface_clear(&tex, 0);
 
     uint16_t expected_fb[FBWIDTH*FBWIDTH];
     memset(expected_fb, 0xFF, sizeof(expected_fb));
-    for (int y=0;y<TEST_RDPQ_TEXWIDTH;y++) {
-        for (int x=0;x<TEST_RDPQ_TEXWIDTH;x++) {
+    for (int y=0;y<TEXWIDTH;y++) {
+        for (int x=0;x<TEXWIDTH;x++) {
             color_t c = RGBA16(x, y, x+y, 1);
             expected_fb[(y + 4) * FBWIDTH + (x + 4)] = color_to_packed16(c);
-            ((uint16_t*)texture)[y * TEST_RDPQ_TEXWIDTH + x] = color_to_packed16(c);
+            ((uint16_t*)tex.buffer)[y * TEXWIDTH + x] = color_to_packed16(c);
         }
     }
 
     rdpq_set_color_image(&fb);
-    rdpq_set_texture_image(texture, FMT_RGBA16, TEST_RDPQ_TEXWIDTH);
-    rdpq_set_tile(0, FMT_RGBA16, 0, TEST_RDPQ_TEXWIDTH * 2, 0);
-    rdpq_load_tile(0, 0, 0, TEST_RDPQ_TEXWIDTH, TEST_RDPQ_TEXWIDTH);
+    rdpq_set_texture_image(&tex);
+    rdpq_set_tile(0, FMT_RGBA16, 0, TEXWIDTH * 2, 0);
+    rdpq_load_tile(0, 0, 0, TEXWIDTH, TEXWIDTH);
 
     surface_clear(&fb, 0xFF);
     rdpq_set_mode_copy(false);
@@ -691,10 +688,10 @@ static uint8_t __autosync_tile1_exp[4] = {0,2,0,1};
 static uint8_t __autosync_tile1_blockexp[4] = {0,5,0,1};
 
 static void __autosync_load1(void) {
-    uint8_t *tex = malloc_uncached(8*8);
-    DEFER(free_uncached(tex));
+    surface_t tex = surface_alloc(FMT_I8, 8, 8);
+    DEFER(surface_free(&tex));
 
-    rdpq_set_texture_image(tex, FMT_I8, 8);
+    rdpq_set_texture_image(&tex);
     rdpq_set_tile(0, FMT_RGBA16, 0, 128, 0);
     // NO LOADSYNC HERE
     rdpq_load_tile(0, 0, 0, 7, 7);
@@ -744,31 +741,28 @@ void test_rdpq_automode(TestContext *ctx) {
     DEFER(surface_free(&fb));
     surface_clear(&fb, 0);
 
-    #define TEST_RDPQ_TEXWIDTH (FBWIDTH - 8)
-    #define TEST_RDPQ_TEXAREA  (TEST_RDPQ_TEXWIDTH * TEST_RDPQ_TEXWIDTH)
-    #define TEST_RDPQ_TEXSIZE  (TEST_RDPQ_TEXAREA * 2)
-
-    void *texture = malloc_uncached(TEST_RDPQ_TEXSIZE);
-    DEFER(free_uncached(texture));
-    memset(texture, 0, TEST_RDPQ_TEXSIZE);
+    const int TEXWIDTH = FBWIDTH - 8;
+    surface_t tex = surface_alloc(FMT_RGBA16, TEXWIDTH, TEXWIDTH);
+    DEFER(surface_free(&tex));
+    surface_clear(&tex, 0);
 
     uint16_t expected_fb[FBWIDTH*FBWIDTH];
     memset(expected_fb, 0xFF, sizeof(expected_fb));
-    for (int y=0;y<TEST_RDPQ_TEXWIDTH;y++) {
-        for (int x=0;x<TEST_RDPQ_TEXWIDTH;x++) {
+    for (int y=0;y<TEXWIDTH;y++) {
+        for (int x=0;x<TEXWIDTH;x++) {
             color_t c = RGBA16(RANDN(32), RANDN(32), RANDN(32), 1);
             expected_fb[(y + 4) * FBWIDTH + (x + 4)] = color_to_packed16(c);
-            ((uint16_t*)texture)[y * TEST_RDPQ_TEXWIDTH + x] = color_to_packed16(c);
+            ((uint16_t*)tex.buffer)[y * TEXWIDTH + x] = color_to_packed16(c);
         }
     }
 
     uint64_t som;
     rdpq_set_color_image(&fb);
-    rdpq_set_texture_image(texture, FMT_RGBA16, TEST_RDPQ_TEXWIDTH);
-    rdpq_set_tile(0, FMT_RGBA16, 0, TEST_RDPQ_TEXWIDTH * 2, 0);
-    rdpq_set_tile(1, FMT_RGBA16, 0, TEST_RDPQ_TEXWIDTH * 2, 0);
-    rdpq_load_tile(0, 0, 0, TEST_RDPQ_TEXWIDTH, TEST_RDPQ_TEXWIDTH);
-    rdpq_load_tile(1, 0, 0, TEST_RDPQ_TEXWIDTH, TEST_RDPQ_TEXWIDTH);
+    rdpq_set_texture_image(&tex);
+    rdpq_set_tile(0, FMT_RGBA16, 0, TEXWIDTH * 2, 0);
+    rdpq_set_tile(1, FMT_RGBA16, 0, TEXWIDTH * 2, 0);
+    rdpq_load_tile(0, 0, 0, TEXWIDTH, TEXWIDTH);
+    rdpq_load_tile(1, 0, 0, TEXWIDTH, TEXWIDTH);
     rdpq_set_mode_standard();
     rdpq_set_blend_color(RGBA32(0xFF, 0xFF, 0xFF, 0xFF));
     rdpq_set_fog_color(RGBA32(0xEE, 0xEE, 0xEE, 0xFF));
@@ -848,8 +842,4 @@ void test_rdpq_automode(TestContext *ctx) {
     ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_1, "invalid cycle type");
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (comb=1pass, blender=1pass (after pop))");
-
-    #undef TEST_RDPQ_TEXWIDTH 
-    #undef TEST_RDPQ_TEXAREA  
-    #undef TEST_RDPQ_TEXSIZE  
 }
