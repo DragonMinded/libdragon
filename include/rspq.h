@@ -294,10 +294,15 @@ void rspq_overlay_unregister(uint32_t overlay_id);
  * This function returns a pointer to the state area in RDRAM (not DMEM). It is
  * meant to modify the state on the CPU side while the overlay is not loaded.
  * The layout of the state and its size should be known to the caller.
+ * 
+ * To avoid race conditions between overlay state access by CPU and RSP, this
+ * function first calls #rspq_wait to force a full sync and make sure the RSP is
+ * idle. As such, it should be treated as a debugging function.
  *
  * @param      overlay_ucode  The ucode overlay for which the state pointer will be returned.
  *
- * @return     Pointer to the overlay state (in RDRAM)
+ * @return     Pointer to the overlay state (in RDRAM). The pointer is returned in
+ *             the cached segment, so make sure to handle cache coherency appropriately.
  */
 void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
 

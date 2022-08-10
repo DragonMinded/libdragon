@@ -705,6 +705,24 @@ static void* overlay_get_state(rsp_ucode_t *overlay_ucode, int *state_size)
 
 void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode)
 {
+    // Make sure the RSP is idle, otherwise the overlay state could be modified
+    // at any time causing race conditions.
+    rspq_wait();
+
+    // Get the RDRAM pointers to the overlay state
+    int state_size;
+    uint8_t* state_ptr = overlay_get_state(overlay_ucode, &state_size);
+
+    // Check if the current overlay is the one that we are requesting the
+    // state for. If so, read back the latest updated state from DMEM
+    // manually via DMA, so that the caller finds the latest contents.
+    int ovl_idx; const char *ovl_name;
+    rspq_get_current_ovl((rsp_queue_t*)SP_DMEM, &ovl_idx, &ovl_name);
+
+    if (ovl_idx && rspq_overlay_ucodes[ovl_idx] == overlay_ucode) {
+        rsp_read_data(state_ptr, state_size, state_ptr - overlay_ucode->data);
+    }
+
     return overlay_get_state(overlay_ucode, NULL);
 }
 
@@ -1220,21 +1238,6 @@ void rspq_wait(void) {
 
     // Update the tracing engine (if enabled)
     if (rdpq_trace) rdpq_trace();
-
-    // Update the state in RDRAM of the current overlay. This makes sure all
-    // overlays have their state synced back to RDRAM
-    // FIXME: remove from here, move to rsp_overlay_get_state
-    rsp_queue_t *rspq = (rsp_queue_t*)SP_DMEM;
-    int ovl_idx; const char *ovl_name;
-    rspq_get_current_ovl(rspq, &ovl_idx, &ovl_name);
-
-    if (ovl_idx) {
-        rsp_ucode_t *overlay_ucode = rspq_overlay_ucodes[ovl_idx];
-        int state_size;
-        uint8_t* state_ptr = overlay_get_state(overlay_ucode, &state_size);
-
-        rsp_read_data(state_ptr, state_size, state_ptr - overlay_ucode->data);
-    }
 }
 
 void rspq_signal(uint32_t signal)

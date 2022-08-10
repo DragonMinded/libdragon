@@ -551,7 +551,7 @@ display_context_t display_lock(void)
  * @param[in] disp
  *            A display context retrieved using #display_lock
  */
-void display_show( display_context_t disp )
+void display_show( surface_t* disp )
 {
     /* They tried drawing on a bad context */
     if( disp == NULL ) { return; }

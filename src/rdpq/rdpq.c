@@ -179,6 +179,7 @@ bool __rdpq_zero_blocks = false;
 volatile uint32_t *rdpq_block_ptr;
 volatile uint32_t *rdpq_block_end;
 
+static rdpq_state_t *rdpq_state;
 static uint32_t rdpq_config;
 static uint32_t rdpq_autosync_state[2];
 
@@ -189,8 +190,6 @@ static int rdpq_block_size;
 static volatile uint32_t *last_rdp_append_buffer;
 
 static void __rdpq_interrupt(void) {
-    rdpq_state_t *rdpq_state = UncachedAddr(rspq_overlay_get_state(&rsp_rdpq));
-
     assert(*SP_STATUS & SP_STATUS_SIG_RDPSYNCFULL);
 
     // Fetch the current RDP buffer for tracing
@@ -222,7 +221,7 @@ void rdpq_init()
     if (__rdpq_inited)
         return;
 
-    rdpq_state_t *rdpq_state = UncachedAddr(rspq_overlay_get_state(&rsp_rdpq));
+    rdpq_state = UncachedAddr(rspq_overlay_get_state(&rsp_rdpq));
     _Static_assert(sizeof(rdpq_state->modes[0]) == 32,   "invalid sizeof: rdpq_state->modes[0]");
     _Static_assert(sizeof(rdpq_state->modes)    == 32*4, "invalid sizeof: rdpq_state->modes");
 
