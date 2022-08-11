@@ -557,12 +557,13 @@ void rdpq_validate(uint64_t *buf, int *errs, int *warns)
 surface_t rdpq_debug_get_tmem(void) {
     // Dump the TMEM as a 32x64 surface of 16bit pixels
     surface_t surf = surface_alloc(FMT_RGBA16, 32, 64);
+    const int TILE = 7;
     
     rdpq_set_color_image(&surf);
     rdpq_set_mode_copy(false);
-    rdpq_set_tile(0, FMT_RGBA16, 0, 32*2, 0);   // pitch: 32 px * 16-bit
-    rdpq_set_tile_size(0, 0, 0, 32, 64);
-    rdpq_texture_rectangle(0,  // tile
+    rdpq_set_tile(TILE, FMT_RGBA16, 0, 32*2, 0);   // pitch: 32 px * 16-bit
+    rdpq_set_tile_size(TILE, 0, 0, 32, 64);
+    rdpq_texture_rectangle(TILE,
         0, 0, 32, 64,          // x0,y0, x1,y1
         0, 0, 1.0f, 1.0f       // s,t, ds,dt
     );
