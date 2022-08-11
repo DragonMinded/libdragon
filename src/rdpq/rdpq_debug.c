@@ -1,7 +1,11 @@
 #include "rdpq_debug.h"
+#include "rdpq.h"
+#include "rspq.h"
+#include "rdpq_mode.h"
 #include "rdp.h"
 #include "debug.h"
 #include "interrupt.h"
+#include "utils.h"
 #include "rspq_constants.h"
 #include <string.h>
 #include <assert.h>
@@ -548,4 +552,33 @@ void rdpq_validate(uint64_t *buf, int *errs, int *warns)
         validate_draw_cmd(errs, warns, cmd & 4, cmd & 2, cmd & 1, cmd & 2);
         break;
     }
+}
+
+surface_t rdpq_debug_get_tmem(void) {
+    // Dump the TMEM as a 32x64 surface of 16bit pixels
+    surface_t surf = surface_alloc(FMT_RGBA16, 32, 64);
+    
+    rdpq_set_color_image(&surf);
+    rdpq_set_mode_copy(false);
+    rdpq_set_tile(0, FMT_RGBA16, 0, 32*2, 0);   // pitch: 32 px * 16-bit
+    rdpq_set_tile_size(0, 0, 0, 32, 64);
+    rdpq_texture_rectangle(0,  // tile
+        0, 0, 32, 64,          // x0,y0, x1,y1
+        0, 0, 1.0f, 1.0f       // s,t, ds,dt
+    );
+    rspq_wait();
+
+	// We dumped TMEM contents using a rectangle. When RDP accesses TMEM
+    // for drawing, odd lines are dword-swapped. So we need to swap back
+    // the contents of our buffer to restore the original TMEM layout.
+    uint8_t *tmem = surf.buffer;
+	for (int y=0;y<4096;y+=64) {
+		if ((y/64)&1) { // odd line of 64x64 rectangle
+			uint32_t *s = (uint32_t*)&tmem[y];
+			for (int i=0;i<16;i+=2)
+				SWAP(s[i], s[i+1]);
+		}
+	}
+
+    return surf;
 }

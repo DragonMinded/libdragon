@@ -1288,6 +1288,36 @@ void rdpq_debug_stop(void);
 void rdpq_debug_log(bool show_log);
 
 
+/**
+ * @brief Acquire a dump of the current contents of TMEM
+ * 
+ * Inspecting TMEM can be useful for debugging purposes, so this function
+ * dumps it to RDRAM for inspection. It returns a surface that contains the
+ * contents of TMEM as a 32x64 FMT_RGBA16 (4K) buffer, but obviously the
+ * contents can vary and have nothing to do with this layout.
+ * 
+ * The function will do a full sync (via #rspq_wait) to make sure the
+ * surface data has been fully written by RDP when the function returns.
+ * 
+ * For the debugging, you can easily dump the contents of the surface calling
+ * #debugf_hexdump.
+ * 
+ * The surface must be freed via #surface_free when it is not useful anymore.
+ * 
+ * @code
+ *      // Get the TMEM contents
+ *      surface_t surf = rdpq_debug_get_tmem();
+ * 
+ *      // Dump TMEM in the debug spew
+ *      debugf_hexdump(surf.buffer, 4096);
+ * 
+ *      surface_free(&surf);
+ * @endcode
+ * 
+ * @return    A surface with TMEM contents, that must be freed via #surface_free.
+ */
+surface_t rdpq_debug_get_tmem(void);
+
 #ifdef __cplusplus
 }
 #endif
