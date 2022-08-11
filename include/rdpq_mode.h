@@ -97,7 +97,11 @@ inline void rdpq_set_mode_standard(void) {
  * In addition of setting the render mode, this funciton also configures a
  * combiner (given that YUV conversion happens also at the combiner level),
  * and set standard YUV parameters (for BT.601 TV Range).
- */ 
+ * 
+ * After setting the YUV mode, you can load YUV textures to TMEM (using a
+ * surface with #FMT_YUV16), and then draw them on the screen as part of
+ * triangles or rectangles.
+ */
 inline void rdpq_set_mode_yuv(void) {
 	rdpq_set_other_modes_raw(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_TC_CONV);
 	rdpq_set_combiner_raw(RDPQ_COMBINER1((TEX0, K4, K5, ZERO), (ZERO, ZERO, ZERO, ONE)));

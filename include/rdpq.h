@@ -315,6 +315,52 @@ void rdpq_triangle(uint8_t tile, uint8_t mipmaps,
     const float *v1, const float *v2, const float *v3);
 
 /**
+ * @brief Enqueue a RDP TEXTURE_RECTANGLE command 
+ * 
+ * This function enqueues a RDP TEXTURE_RECTANGLE command, that allows to draw a
+ * textured rectangle onto the framebuffer (similar to a sprite).
+ * 
+ * The texture must have been already loaded into TMEM via #rdpq_load_tile or
+ * #rdpq_load_block, and a tile descriptor referring to it must be passed to this
+ * function.
+ * 
+ * Before calling this function, make sure to also configure an appropriate
+ * render mode. It is possible to use the fast COPY mode (#rdpq_set_mode_copy) with
+ * this function, assuming that no advanced blending or color combiner capabilities
+ * are needed. The copy mode can in fact just blit the pixels from the texture
+ * unmodified, applying only a per-pixel rejection to mask out transparent pixels
+ * (via alpha compare). See #rdpq_set_mode_copy for more information.
+ * 
+ * Alternatively, it is possible to use this command also in standard render mode
+ * (#rdpq_set_mode_standard), with all the per-pixel blending / combining features.
+ * Notice that it is not possible to specify a depth value for the rectangle, nor
+ * a shade value for the four vertices, so no gouraud shading or zbuffering can be
+ * performed. If you need to use these kind of advanced features, call
+ * #rdpq_triangle to draw the rectangle as two triangles.
+ * 
+ * Notice that coordinates are unsigned numbers, so negative numbers are not
+ * supported. Coordinates bigger than the target buffer will be automatically
+ * clipped (thanks to scissoring).
+ * 
+ * @param[in]   tile    Tile descriptor referring to the texture in TMEM to use for drawing
+ * @param[in]   x0      Top-left X coordinate of the rectangle
+ * @param[in]   y0      Top-left Y coordinate of the rectangle
+ * @param[in]   x1      Bottom-right *exclusive* X coordinate of the rectangle
+ * @param[in]   y1      Bottom-right *exclusive* Y coordinate of the rectangle
+ * @param[in]   s       S coordinate of the texture at the top-left corner
+ * @param[in]   t       T coordinate of the texture at the top-left corner
+ * @param[in]   dsdx    Signed increment of S coordinate for each horizontal pixel. Eg: passing 2.0f
+ *                      will horizontally stretch the texture to 50%.
+ * @param[in]   dtdy    Signed increment of T coordinate for each vertical pixel. Eg: passing 2.0f
+ *                      will vertically stretch the texture to 50%.
+ * 
+ * @hideinitializer
+ */
+#define rdpq_texture_rectangle(tile, x0, y0, x1, y1, s, t, dsdx, dtdy) ({ \
+    rdpq_texture_rectangle_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s)*32, (t)*32, (dsdx)*1024, (dtdy)*1024); \
+})
+
+/**
  * @brief Enqueue a RDP texture rectangle command (fixed point version)
  * 
  * This function is similar to #rdpq_texture_rectangle, but uses fixed point
@@ -347,30 +393,18 @@ inline void rdpq_texture_rectangle_fx(uint8_t tile, uint16_t x0, uint16_t y0, ui
         _carg(dsdx, 0xFFFF, 16) | _carg(dtdy, 0xFFFF, 0));
 }
 
-
 /**
- * @brief Enqueue a RDP TEXTURE_RECTANGLE command 
+ * @brief Enqueue a RDP TEXTURE_RECTANGLE_FLIP command 
  * 
- * This function enqueues a RDP TEXTURE_RECTANGLE command, that allows to draw a
- * textured rectangle onto the framebuffer (similar to a sprite).
+ * The RDP command TEXTURE_RECTANGLE_FLIP is similar to TEXTURE_RECTANGLE, but the 
+ * texture S coordinate is incremented over the Y axis, while the texture T coordinate
+ * is incremented over the X axis. The graphical effect is similar to a 90° degree
+ * rotation plus a mirroring of the texture.
  * 
- * The texture must have been already loaded into TMEM via #rdpq_load_tile or
- * #rdpq_load_block, and a tile descriptor referring to it must be passed to this
- * function.
+ * Notice that this command cannot work in COPY mode, so the standard rendere mode
+ * must be activated (via #rdpq_set_mode_standard).
  * 
- * Before calling this function, make sure to also configure an appropriate
- * render mode. It is possible to use the fast COPY mode (#rdpq_set_mode_copy) with
- * this function, assuming that no advanced blending or color combiner capabilities
- * are needed. The copy mode can in fact just blit the pixels from the texture
- * unmodified, applying only a per-pixel rejection to mask out transparent pixels
- * (via alpha compare). See #rdpq_set_mode_copy for more information.
- * 
- * Alternatively, it is possible to use this command also in standard render mode
- * (#rdpq_set_mode_standard), with all the per-pixel blending / combining features.
- * Notice that it is not possible to specify a depth value for the rectangle, nor
- * a shade value for the four vertices, so no gouraud shading or zbuffering can be
- * performed. If you need to use these kind of advanced features, call
- * #rdpq_triangle to draw the rectangle as two triangles.
+ * Refer to #rdpq_texture_rectangle for further information.
  * 
  * @param[in]   tile    Tile descriptor referring to the texture in TMEM to use for drawing
  * @param[in]   x0      Top-left X coordinate of the rectangle
@@ -379,19 +413,17 @@ inline void rdpq_texture_rectangle_fx(uint8_t tile, uint16_t x0, uint16_t y0, ui
  * @param[in]   y1      Bottom-right *exclusive* Y coordinate of the rectangle
  * @param[in]   s       S coordinate of the texture at the top-left corner
  * @param[in]   t       T coordinate of the texture at the top-left corner
- * @param[in]   dsdx    Signed increment of S coordinate for each horizontal pixel. Eg: passing 2.0f
- *                      will horizontally stretch the texture to 50%.
- * @param[in]   dtdy    Signed increment of T coordinate for each vertical pixel. Eg: passing 2.0f
- *                      will vertically stretch the texture to 50%.
+ * @param[in]   dsdy    Signed increment of S coordinate for each verttical pixel.
+ * @param[in]   dtdx    Signed increment of T coordinate for each vertical pixel.
  * 
  * @hideinitializer
  */
-#define rdpq_texture_rectangle(tile, x0, y0, x1, y1, s, t, dsdx, dtdy) ({ \
-    rdpq_texture_rectangle_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s)*32, (t)*32, (dsdx)*1024, (dtdy)*1024); \
+#define rdpq_texture_rectangle_flip(tile, x0, y0, x1, y1, s, t, dsdy, dtdx) ({ \
+    rdpq_texture_rectangle_flip_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s)*32, (t)*32, (dsdy)*1024, (dtdx)*1024); \
 })
 
 /**
- * @brief Enqueue a RDP texture rectangle command (fixed point version)
+ * @brief Enqueue a RDP TEXTURE_RECTANGLE_FLIP command (fixed point version)
  * 
  * This function is similar to #rdpq_texture_rectangle_flip, but uses fixed point
  * numbers for the arguments. Prefer using #rdpq_texture_rectangle_flip when possible.
@@ -426,33 +458,66 @@ inline void rdpq_texture_rectangle_flip_fx(uint8_t tile, uint16_t x0, uint16_t y
 }
 
 /**
- * @brief Enqueue a RDP TEXTURE_RECTANGLE_FLIP command 
+ * @brief Enqueue a FILL_RECTANGLE RDP command.
  * 
- * The RDP command TEXTURE_RECTANGLE_FLIP is similar to TEXTURE_RECTANGLE, but the 
- * texture S coordinate is incremented over the Y axis, while the texture T coordinate
- * is incremented over the X axis. The graphical effect is similar to a 90° degree
- * rotation plus a mirroring of the texture.
+ * This command is used to render a rectangle filled with a solid color.
+ * The color must have been configured via #rdpq_set_fill_color, and the
+ * render mode should be set to FILL via #rdpq_set_mode_fill.
  * 
- * Notice that this command cannot work in COPY mode, so the standard rendere mode
- * must be activated (via #rdpq_set_mode_standard).
+ * The rectangle must be defined using exclusive bottom-right bounds, so for
+ * instance `rdpq_fill_rectangle(10,10,30,30)` will draw a square of exactly
+ * 20x20 pixels.
  * 
- * Refer to #rdpq_texture_rectangle for further information.
+ * Fractional values can be used, and will create a semi-transparent edge. For
+ * instance, `rdp_fill_rectangle(9.75,9.75,30.25,30.25)` will create a 22x22 pixel
+ * square, with the most external pixel rows and columns having a alpha of 25%.
+ * This obviously makes more sense in RGBA32 mode where there is enough alpha
+ * bitdepth to appreciate the result. Make sure to configure the blender via
+ * #rdpq_set_other_modes to decide the blending formula.
  * 
- * @param[in]   tile    Tile descriptor referring to the texture in TMEM to use for drawing
+ * Notice that coordinates are unsigned numbers, so negative numbers are not
+ * supported. Coordinates bigger than the target buffer will be automatically
+ * clipped (thanks to scissoring).
+ * 
+ * @param[x0]   x0      Top-left X coordinate of the rectangle (integer or float)
+ * @param[y0]   y0      Top-left Y coordinate of the rectangle (integer or float)
+ * @param[x1]   x1      Bottom-right *exclusive* X coordinate of the rectangle (integer or float)
+ * @param[y1]   y1      Bottom-right *exclusive* Y coordinate of the rectangle (integer or float)
+ * 
+ * @see rdpq_fill_rectangle_fx
+ * @see rdpq_set_fill_color
+ * @see rdpq_set_fill_color_stripes
+ * @see rdpq_set_other_modes
+ * 
+ */
+#define rdpq_fill_rectangle(x0, y0, x1, y1) ({ \
+    rdpq_fill_rectangle_fx((x0)*4, (y0)*4, (x1)*4, (y1)*4); \
+})
+
+
+/**
+ * @brief Enqueue a FILL_RECTANGLE RDP command (fixed point version).
+ * 
+ * This function is similar to #rdpq_fill_rectangle, but coordinates must be
+ * specified using fixed point numbers (0.10.2).
+ *
  * @param[in]   x0      Top-left X coordinate of the rectangle
  * @param[in]   y0      Top-left Y coordinate of the rectangle
  * @param[in]   x1      Bottom-right *exclusive* X coordinate of the rectangle
  * @param[in]   y1      Bottom-right *exclusive* Y coordinate of the rectangle
- * @param[in]   s       S coordinate of the texture at the top-left corner
- * @param[in]   t       T coordinate of the texture at the top-left corner
- * @param[in]   dsdy    Signed increment of S coordinate for each verttical pixel.
- * @param[in]   dtdx    Signed increment of T coordinate for each vertical pixel.
  * 
- * @hideinitializer
+ * @see #rdpq_fill_rectangle
  */
-#define rdpq_texture_rectangle_flip(tile, x0, y0, x1, y1, s, t, dsdy, dtdx) ({ \
-    rdpq_texture_rectangle_flip_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s)*32, (t)*32, (dsdy)*1024, (dtdx)*1024); \
-})
+inline void rdpq_fill_rectangle_fx(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
+{
+    extern void __rdpq_write8_syncuse(uint32_t, uint32_t, uint32_t, uint32_t);
+    __rdpq_write8_syncuse(RDPQ_CMD_FILL_RECTANGLE,
+        _carg(x1, 0xFFF, 12) | _carg(y1, 0xFFF, 0),
+        _carg(x0, 0xFFF, 12) | _carg(y0, 0xFFF, 0),
+        AUTOSYNC_PIPE);
+}
+
+
 
 /**
  * @brief Low level function to set the green and blue components of the chroma key
@@ -498,18 +563,43 @@ inline void rdpq_set_yuv_parms(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k
 }
 
 /**
- * @brief Low level function to set the scissoring region
+ * @brief Enqueue a RDP SET_SCISSOR command to configure a scissoring rectangle
+ * 
+ * This function is used to configure a scissor region that the RDP with adhere to
+ * while drawing primitives (triangles or rectangles). Any points that fall outside
+ * of the specified scissoring rectangle will be ignored.
+ * 
+ * The scissoring capability is also the only one that prevents the RDP from drawing
+ * outside of the current framebuffer (color suface) extents. As such, rdpq actually
+ * calls #rdpq_set_scissor automatically any time a new render target is configured
+ * (eg: via #rdpq_set_color_image), because forgetting to do so might easily cause
+ * crashes.
+ * 
+ * Because #rdpq_set_color_image will configure a scissoring region automatically,
+ * it is normally not required to call this funciton. Use this function if you want
+ * to restrict drawing to a smaller area of the framebuffer.
+ * 
+ * The scissoring rectangle is defined using unsigned coordinates, and thus negative
+ * coordinates will always be clipped. Rectangle-drawing primitives do not allow to
+ * specify them at all, but triangle-drawing primitives do.
+ * 
+ * @param[in]   x0      Top-left X coordinate of the rectangle
+ * @param[in]   y0      Top-left Y coordinate of the rectangle
+ * @param[in]   x1      Bottom-right *exclusive* X coordinate of the rectangle
+ * @param[in]   y1      Bottom-right *exclusive* Y coordinate of the rectangle
+ * 
+ * @see #rdpq_set_color_image
  */
 #define rdpq_set_scissor(x0, y0, x1, y1) ({ \
     extern void __rdpq_set_scissor(uint32_t, uint32_t); \
-    uint32_t x0fx = (x0)*4; \
-    uint32_t y0fx = (y0)*4; \
-    uint32_t x1fx = (x1)*4; \
-    uint32_t y1fx = (y1)*4; \
-    assertf(x0fx <= x1fx, "x0 must not be greater than x1!"); \
-    assertf(y0fx <= y1fx, "y0 must not be greater than y1!"); \
-    assertf(x1fx > 0, "x1 must not be zero!"); \
-    assertf(y1fx > 0, "y1 must not be zero!"); \
+    int32_t x0fx = (x0)*4; \
+    int32_t y0fx = (y0)*4; \
+    int32_t x1fx = (x1)*4; \
+    int32_t y1fx = (y1)*4; \
+    assertf(x0fx < x1fx, "x1 must be greater than x0"); \
+    assertf(y0fx < y1fx, "y1 must be greater than y0"); \
+    assertf(x0fx >= 0, "x0 must be positive"); \
+    assertf(y0fx >= 0, "y0 must be positive"); \
     __rdpq_set_scissor( \
         _carg(x0fx, 0xFFF, 12) | _carg(y0fx, 0xFFF, 0), \
         _carg(x1fx, 0xFFF, 12) | _carg(y1fx, 0xFFF, 0)); \
@@ -625,7 +715,7 @@ inline void rdpq_set_tile_full(uint8_t tile, tex_format_t format,
  * @param[in]  format      Texture format
  * @param[in]  tmem_addr   Address in tmem where the texture is (or will be loaded)
  * @param[in]  tmem_pitch  Pitch of the texture in tmem in bytes (must be multiple of 8)
- * @param[in]  palette     Optional palette associated to the tile. For textures in
+ * @param[in]  palette     Optional palette associated to the texture. For textures in
  *                         #FMT_CI4 format, specify the palette index (0-15),
  *                         otherwise use 0.
  */
@@ -642,70 +732,17 @@ inline void rdpq_set_tile(uint8_t tile, tex_format_t format,
 }
 
 /**
- * @brief Enqueue a FILL_RECTANGLE RDP command using fixed point coordinates.
- * 
- * This function is similar to #rdpq_fill_rectangle, but coordinates must be
- * specified using fixed point numbers (0.10.2).
- *
- * @param[in]   x0      Top-left X coordinate of the rectangle
- * @param[in]   y0      Top-left Y coordinate of the rectangle
- * @param[in]   x1      Bottom-right *exclusive* X coordinate of the rectangle
- * @param[in]   y1      Bottom-right *exclusive* Y coordinate of the rectangle
- * 
- * @see #rdpq_fill_rectangle
- */
-inline void rdpq_fill_rectangle_fx(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
-{
-    extern void __rdpq_write8_syncuse(uint32_t, uint32_t, uint32_t, uint32_t);
-    __rdpq_write8_syncuse(RDPQ_CMD_FILL_RECTANGLE,
-        _carg(x1, 0xFFF, 12) | _carg(y1, 0xFFF, 0),
-        _carg(x0, 0xFFF, 12) | _carg(y0, 0xFFF, 0),
-        AUTOSYNC_PIPE);
-}
-
-/**
- * @brief Enqueue a FILL_RECTANGLE RDP command.
- * 
- * This command is used to render a rectangle filled with a solid color.
- * The color must have been configured via #rdpq_set_fill_color, and the
- * render mode should be set to #SOM_CYCLE_FILL via #rdpq_set_other_modes.
- * 
- * The rectangle must be defined using exclusive bottom-right bounds, so for
- * instance `rdpq_fill_rectangle(10,10,30,30)` will draw a square of exactly
- * 20x20 pixels.
- * 
- * Fractional values can be used, and will create a semi-transparent edge. For
- * instance, `rdp_fill_rectangle(9.75,9.75,30.25,30.25)` will create a 22x22 pixel
- * square, with the most external pixel rows and columns having a alpha of 25%.
- * This obviously makes more sense in RGBA32 mode where there is enough alpha
- * bitdepth to appreciate the result. Make sure to configure the blender via
- * #rdpq_set_other_modes to decide the blending formula.
- * 
- * Notice that coordinates are unsigned numbers, so negative numbers are not
- * supported. Coordinates bigger than the target buffer will be automatically
- * clipped.
- * 
- * @param[x0]   x0      Top-left X coordinate of the rectangle (integer or float)
- * @param[y0]   y0      Top-left Y coordinate of the rectangle (integer or float)
- * @param[x1]   x1      Bottom-right *exclusive* X coordinate of the rectangle (integer or float)
- * @param[y1]   y1      Bottom-right *exclusive* Y coordinate of the rectangle (integer or float)
- * 
- * @see rdpq_fill_rectangle_fx
- * @see rdpq_set_fill_color
- * @see rdpq_set_fill_color_stripes
- * @see rdpq_set_other_modes
- * 
- */
-#define rdpq_fill_rectangle(x0, y0, x1, y1) ({ \
-    rdpq_fill_rectangle_fx((x0)*4, (y0)*4, (x1)*4, (y1)*4); \
-})
-
-/**
  * @brief Enqueue a SET_FILL_COLOR RDP command.
  * 
- * This command is used to configure the color used by #rdpq_fill_rectangle.
+ * This command is used to configure the color used by RDP when running in FILL mode
+ * (#rdpq_set_mode_fill) and normally used by #rdpq_fill_rectangle.
+ * 
+ * Notice that #rdpq_set_mode_fill automatically calls this function, because in general
+ * it makes no sense to configure the FILL mode without also setting a FILL color.
  * 
  * @param[in]    color   The color to use to fill
+ * 
+ * @see #rdpq_set_mode_fill
  */
 inline void rdpq_set_fill_color(color_t color) {
     extern void __rdpq_set_fill_color(uint32_t);
@@ -739,7 +776,25 @@ inline void rdpq_set_fill_color_stripes(color_t color1, color_t color2) {
 }
 
 /**
- * @brief Low level function to set the fog color
+ * @brief Set the RDP FOG blender register
+ * 
+ * This function sets the internal RDP FOG register, part of the blender unit.
+ * As the name implies, this register is normally used as part of fog calcuation,
+ * but it is actually a generic color register that can be used in custom
+ * blender formulas. 
+ * 
+ * Another similar blender register is the BLEND register, configured via
+ * #rdpq_set_blend_color.
+ * 
+ * See #RDPQ_BLENDER1 and #RDPQ_BLENDER2 on how to configure
+ * the blender (typicall, via #rdpq_mode_blender).
+ * 
+ * @param[in] color             Color to set the FOG register to
+ * 
+ * @see #RDPQ_BLENDER1
+ * @see #RDPQ_BLENDER2
+ * @see #rdpq_set_blend_color
+ * @see #rdpq_mode_blender
  */
 inline void rdpq_set_fog_color(color_t color)
 {
@@ -749,7 +804,25 @@ inline void rdpq_set_fog_color(color_t color)
 }
 
 /**
- * @brief Low level function to set the blend color
+ * @brief Set the RDP BLEND blender register
+ * 
+ * This function sets the internal RDP BLEND register, part of the blender unit.
+ * As the name implies, this register is normally used as part of fog calcuation,
+ * but it is actually a generic color register that can be used in custom
+ * blender formulas. 
+ * 
+ * Another similar blender register is the FOG register, configured via
+ * #rdpq_set_fog_color.
+ * 
+ * See #RDPQ_BLENDER1 and #RDPQ_BLENDER2 on how to configure
+ * the blender (typicall, via #rdpq_mode_blender).
+ * 
+ * @param[in] color             Color to set the BLEND register to
+ * 
+ * @see #RDPQ_BLENDER1
+ * @see #RDPQ_BLENDER2
+ * @see #rdpq_set_fog_color
+ * @see #rdpq_mode_blender
  */
 inline void rdpq_set_blend_color(color_t color)
 {
@@ -759,7 +832,25 @@ inline void rdpq_set_blend_color(color_t color)
 }
 
 /**
- * @brief Low level function to set the primitive color
+ * @brief Set the RDP PRIM combiner register
+ * 
+ * This function sets the internal RDP PRIM register, part of the
+ * color combiner unit. Naming aside, it is a generic color register that
+ * can be used in custom color combiner formulas. 
+ * 
+ * Another similar blender register is the ENV register, configured via
+ * #rdpq_set_env_color.
+ * 
+ * See #RDPQ_COMBINER1 and #RDPQ_COMBINER2 on how to configure
+ * the color combiner (typicall, via #rdpq_mode_combiner).
+ * 
+ * @param[in] color             Color to set the PRIM register to
+ * 
+ * @see #RDPQ_COMBINER1
+ * @see #RDPQ_COMBINER2
+ * @see #rdpq_set_env_color
+ * @see #rdpq_mode_combiner
+ * 
  */
 inline void rdpq_set_prim_color(color_t color)
 {
@@ -769,7 +860,25 @@ inline void rdpq_set_prim_color(color_t color)
 }
 
 /**
- * @brief Low level function to set the environment color
+ * @brief Set the RDP ENV combiner register
+ * 
+ * This function sets the internal RDP ENV register, part of the
+ * color combiner unit. Naming aside, it is a generic color register that
+ * can be used in custom color combiner formulas. 
+ * 
+ * Another similar blender register is the PRIM register, configured via
+ * #rdpq_set_prim_color.
+ * 
+ * See #RDPQ_COMBINER1 and #RDPQ_COMBINER2 on how to configure
+ * the color combiner (typicall, via #rdpq_mode_combiner).
+ * 
+ * @param[in] color             Color to set the ENV register to
+ * 
+ * @see #RDPQ_COMBINER1
+ * @see #RDPQ_COMBINER2
+ * @see #rdpq_set_prim_color
+ * @see #rdpq_mode_combiner
+ * 
  */
 inline void rdpq_set_env_color(color_t color)
 {
@@ -1036,8 +1145,8 @@ void rdpq_sync_full(void (*callback)(void*), void* arg);
  * RDP state management. Moreover, it completely overwrites any existing
  * configuration for all bits, so it must be used with caution within a block.
  * 
- * @note If possible, prefer using the rdpq_mode_* functions that expose a
- * higher level API for changing the RDP modes
+ * @note If possible, prefer using the RDPQ mode API (defined in rdpq_mode.h),
+ * that expose a higher level API for changing the RDP modes
  *
  * @param      mode     The new render mode. See the RDP_RM
  * 
@@ -1053,10 +1162,19 @@ inline void rdpq_set_other_modes_raw(uint64_t mode)
 /**
  * @brief Low-level function to partly change the rendering mode register.
  * 
- * This function allows to partially change the RDP render mode register, 
- * enqueuing a command that will modify only the requested bits. This function
+ * This function is very low level and requires very good knowledge of internal
+ * RDP state management.
+ * 
+ * It allows to partially change the RDP render mode register, enqueuing a
+ * command that will modify only the requested bits. This function
  * is to be preferred to #rdpq_set_other_modes_raw as it preservers existing
  * render mode for all the other bits, so it allows for easier composition.
+ * 
+ * @note If possible, prefer using the RDPQ mode API (defined in rdpq_mode.h),
+ * that expose a higher level API for changing the RDP modes
+ * 
+ * @param[in] mask          Mask of bits of the SOM register that must be changed
+ * @param[in] val           New value for the bits selected by the mask.
  * 
  */
 inline void rdpq_change_other_modes_raw(uint64_t mask, uint64_t val)
@@ -1088,8 +1206,7 @@ uint64_t rdpq_get_other_modes_raw(void);
  * You can use #RDPQ_COMBINER1 and #RDPQ_COMBINER2 to create 
  * the combiner settings for respectively a 1-pass or 2-pass combiner.
  * 
- * This function should be used for experimentation and debugging purposes.
- * Prefer using #rdpq_mode_combiner (part of the RDPQ mode API), as it better
+ * @note Prefer using #rdpq_mode_combiner (part of the RDPQ mode API), as it better
  * handles integration with other render mode changes.
  * 
  * @param      mode     The new combiner setting
@@ -1099,7 +1216,6 @@ uint64_t rdpq_get_other_modes_raw(void);
  * @see #RDPQ_COMBINER2
  * 
  */
-
 inline void rdpq_set_combiner_raw(uint64_t comb) {
     extern void __rdpq_write8_syncchange(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t autosync);
     __rdpq_write8_syncchange(RDPQ_CMD_SET_COMBINE_MODE_RAW,
