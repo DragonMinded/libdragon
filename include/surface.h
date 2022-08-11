@@ -17,7 +17,7 @@
  * To allocate a new surface, use #surface_alloc. Then later, you can release
  * the memory using #surface_free.
  * 
- * @code
+ * @code{.c}
  *      // Allocate a 64x64 buffer in RGBA 16-bit format
  *      surface_t buf = surface_alloc(FMT_RGBA16, 64, 64);
  *  
@@ -36,7 +36,7 @@
  * #surface_make_sub to create a #surface_t instance that is referring only to
  * a portion of the original surface:
  * 
- * @code
+ * @code{.c}
  *      surface_t *fb;
  *      while (fb = display_lock()) ;  // wait for a framebuffer to be ready
  *      

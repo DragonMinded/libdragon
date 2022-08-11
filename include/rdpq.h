@@ -215,7 +215,7 @@ uint32_t rdpq_config_enable(uint32_t cfg_enable_bits);
  * set of features. It can be useful to temporarily modify the configuration and then
  * restore it.
  * 
- * @code
+ * @code{.c}
  *      // Disable automatic scissor generation
  *      uint32_t old_cfg = rdpq_config_disable(RDPQ_CFG_AUTOSCISSOR);
  *  
@@ -479,6 +479,13 @@ inline void rdpq_texture_rectangle_flip_fx(uint8_t tile, uint16_t x0, uint16_t y
  * supported. Coordinates bigger than the target buffer will be automatically
  * clipped (thanks to scissoring).
  * 
+ * @code{.c}
+ *      // Fill the screen with red color.
+ *      rdpq_set_mode_fill(RGBA32(255, 0, 0, 0));
+ *      rdpq_fill_rectangle(0, 0, 320, 240);
+ * @endcode
+ * 
+ * 
  * @param[x0]   x0      Top-left X coordinate of the rectangle (integer or float)
  * @param[y0]   y0      Top-left Y coordinate of the rectangle (integer or float)
  * @param[x1]   x1      Bottom-right *exclusive* X coordinate of the rectangle (integer or float)
@@ -739,6 +746,18 @@ inline void rdpq_set_tile(uint8_t tile, tex_format_t format,
  * 
  * Notice that #rdpq_set_mode_fill automatically calls this function, because in general
  * it makes no sense to configure the FILL mode without also setting a FILL color.
+ * 
+ * @code{.c}
+ *      // Fill top half of the screen in red
+ *      rdpq_set_mode_fill(RGBA32(255, 0, 0, 0));
+ *      rdpq_fill_rectangle(0, 0, 320, 120);
+ * 
+ *      // Fill bottom half of the screen in blue.
+ *      // No need to change mode again (it's already in fill mode),
+ *      // so just change the fill color.
+ *      rdpq_set_fill_color(RGBA32(0, 0, 255, 0));
+ *      rdpq_fill_rectangle(0, 120, 320, 240);
+ * @endcode
  * 
  * @param[in]    color   The color to use to fill
  * 
@@ -1052,6 +1071,30 @@ inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_forma
  * 
  * The rdpq functions that can optionally load an address from the table are
  * #rdpq_set_color_image_raw, #rdpq_set_z_image_raw and #rdpq_set_tex_image_raw.
+ * 
+ * @code{.c}
+ *      // Start recording a block.
+ *      rspq_block_begin();
+ *      rdpq_set_mode_standard();
+ *      
+ *      // Load texture from lookup table (slot 3) and draw it to the screen
+ *      rdpq_set_texture_image_raw(3, 0, FMT_RGBA16, 32, 32, 32*2);
+ *      rdpq_load_tile(0, 0, 32, 32);
+ *      rdpq_texture_rectangle(0, 0, 32, 32);
+ *      
+ *      // Load texture from lookup table (slot 4) and draw it to the screen
+ *      rdpq_set_texture_image_raw(3, 0, FMT_RGBA16, 32, 32, 32*2);
+ *      rdpq_load_tile(0, 0, 32, 32);
+ *      rdpq_texture_rectangle(32, 0, 64, 32);
+ * 
+ *      rspq_block_t *bl = rspq_block_end();
+ * 
+ *      [...]
+ *
+ *      // Set two textures into the the lookup table and call the block
+ *      rdpq_set_lookup_address(3, tex1.buffer);
+ *      rdpq_set_lookup_address(4, tex2.buffer);
+ *      rspq_block_run(bl);
  * 
  * @param index           Index of the slot in the table. Available slots are 1-15
  *                        (slot 0 is reserved).
