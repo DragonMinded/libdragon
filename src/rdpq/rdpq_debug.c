@@ -569,17 +569,17 @@ surface_t rdpq_debug_get_tmem(void) {
     );
     rspq_wait();
 
-	// We dumped TMEM contents using a rectangle. When RDP accesses TMEM
+    // We dumped TMEM contents using a rectangle. When RDP accesses TMEM
     // for drawing, odd lines are dword-swapped. So we need to swap back
     // the contents of our buffer to restore the original TMEM layout.
     uint8_t *tmem = surf.buffer;
-	for (int y=0;y<4096;y+=64) {
-		if ((y/64)&1) { // odd line of 64x64 rectangle
-			uint32_t *s = (uint32_t*)&tmem[y];
-			for (int i=0;i<16;i+=2)
-				SWAP(s[i], s[i+1]);
-		}
-	}
+    for (int y=0;y<4096;y+=64) {
+        if ((y/64)&1) { // odd line of 64x64 rectangle
+            uint32_t *s = (uint32_t*)&tmem[y];
+            for (int i=0;i<16;i+=2)
+                SWAP(s[i], s[i+1]);
+        }
+    }
 
     return surf;
 }
