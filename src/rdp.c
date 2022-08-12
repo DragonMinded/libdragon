@@ -419,8 +419,10 @@ void rdp_enable_primitive_fill( void )
 
 void rdp_enable_blend_fill( void )
 {
-    // TODO: Macros for blend modes (this sets blend rgb times input alpha on cycle 0)
-    rdpq_set_other_modes_raw(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | 0x80000000);
+    // Set a "blend fill mode": we use the alpha channel coming from the combiner
+    // multiplied by the BLEND register (that must be configured).
+    rdpq_set_other_modes_raw(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | 
+        RDPQ_BLENDER((BLEND_RGB, IN_ALPHA, IN_RGB, INV_MUX_ALPHA)));
 }
 
 void rdp_enable_texture_copy( void )
