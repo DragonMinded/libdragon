@@ -17,7 +17,7 @@
 #include <string.h>
 
 /**
- * @defgroup rdp Hardware Display Interface
+ * @defgroup rdp RDP: hardware rasterizer
  * @ingroup display
  * @brief Interface to the hardware sprite/triangle rasterizer (RDP).
  *

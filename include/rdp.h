@@ -1,6 +1,6 @@
 /**
  * @file rdp.h
- * @brief Hardware Display Interface
+ * @brief RDP: Hardware Display Interface
  * @ingroup rdp
  */
 #ifndef __LIBDRAGON_RDP_H

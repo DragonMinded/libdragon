@@ -119,7 +119,7 @@
  *
  * ## Blocks
  * 
- * Blocks are implemented by redirecting rspq_write to a different memory buffer,
+ * Blocks are implemented by redirecting #rspq_write to a different memory buffer,
  * allocated for the block. The starting size for this buffer is
  * RSPQ_BLOCK_MIN_SIZE. If the buffer becomes full, a new buffer is allocated
  * with double the size (to achieve exponential growth), and it is linked
@@ -163,6 +163,25 @@
  * 
  * Some careful tricks are necessary to allow multiple highpri queues to be
  * pending, see #rspq_highpri_begin for details.
+ * 
+ * ## rdpq integrations
+ * 
+ * There are a few places where the rsqp code is hooked with rdpq to provide
+ * for coherent usage of the two peripherals. In particular:
+ * 
+ *  * #rspq_wait automatically calls #rdpq_fence. This means that
+ *    it will also wait for RDP to finish executing all commands, which is
+ *    actually expected for its intended usage of "full sync for debugging
+ *    purposes".
+ *  * All rsqp block creation functions call into hooks in rdpq. This is
+ *    necessary because blocks are specially handled by rdpq via static
+ *    buffer, to make sure RDP commands in the block don't passthrough
+ *    via RSP, but are directly DMA from RDRAM into RDP. Moreover,
+ *    See rdpq.c documentation for more details. 
+ *  * In specific places, we call into the rdpq debugging module to help
+ *    tracing the RDP commands. For instance, when switching RDP RDRAM
+ *    buffers, RSP will generate an interrupt to inform the debugging
+ *    code that it needs to finish dumping the previous RDP buffer.
  * 
  */
 
@@ -330,6 +349,7 @@ rspq_ctx_t *rspq_ctx;                   ///< Current context
 volatile uint32_t *rspq_cur_pointer;    ///< Copy of the current write pointer (see #rspq_ctx_t)
 volatile uint32_t *rspq_cur_sentinel;   ///< Copy of the current write sentinel (see #rspq_ctx_t)
 
+/** @brief Buffers that hold outgoing RDP commands (generated via RSP). */
 void *rspq_rdp_dynamic_buffers[2];
 
 /** @brief RSP queue data in DMEM. */
@@ -607,6 +627,7 @@ void rspq_init(void)
     // Start in low-priority mode
     rspq_switch_context(&lowpri);
 
+    // Allocate the RDP dynamic buffers.
     rspq_rdp_dynamic_buffers[0] = malloc_uncached(RSPQ_RDP_DYNAMIC_BUFFER_SIZE);
     rspq_rdp_dynamic_buffers[1] = malloc_uncached(RSPQ_RDP_DYNAMIC_BUFFER_SIZE);
     if (__rdpq_zero_blocks) {
@@ -1228,11 +1249,8 @@ void rspq_syncpoint_wait(rspq_syncpoint_t sync_id)
 
 void rspq_wait(void) {
     // Check if the RDPQ module was initialized.
-    if (__rdpq_inited) {
-        // If so, a full sync requires also waiting for RDP to finish.
-        extern void rdpq_fence(void);
-        rdpq_fence();
-    }
+    // If so, a full sync requires also waiting for RDP to finish.
+    if (__rdpq_inited) rdpq_fence();
 
     rspq_syncpoint_wait(rspq_syncpoint_new());
 

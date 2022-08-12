@@ -6,8 +6,14 @@
 
 #define RDPQ_OVL_ID (0xC << 28)
 
+/** @brief True if the rdpq module was inited */
 extern bool __rdpq_inited;
+
+/** @brief True if the RDP buffers should be cleared on alloc (for debugging) */
 extern bool __rdpq_zero_blocks;
+
+/** @brief Public rdpq_fence API, redefined it */
+extern void rdpq_fence(void);
 
 typedef struct rdpq_block_s rdpq_block_t;
 

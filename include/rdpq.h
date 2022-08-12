@@ -1,7 +1,7 @@
 /**
  * @file rdpq.h
  * @brief RDP Command queue
- * @ingroup rsp
+ * @ingroup rdp
  * 
  * The RDP command queue is a library that allows to enqueue RDP commands for
  * asynchronous execution. It is the most low-level RDP library provided by
@@ -986,7 +986,7 @@ void rdpq_set_texture_image(surface_t* surface);
  */
 inline void rdpq_set_color_image_raw(uint8_t index, uint32_t offset, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride)
 {
-    assertf(format == FMT_RGBA32 || format == FMT_RGBA16 || format == FMT_CI8, "Image format is not supported as color image!\nIt must be FMT_RGBA32, FMT_RGBA16 or FMT_CI8");
+    assertf(format == FMT_RGBA32 || format == FMT_RGBA16 || format == FMT_CI8, "Image format is not supported as color image: %s\nIt must be FMT_RGBA32, FMT_RGBA16 or FMT_CI8", tex_format_name(format));
     assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
 
     extern void __rdpq_set_color_image(uint32_t, uint32_t, uint32_t, uint32_t);
@@ -1095,6 +1095,7 @@ inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_forma
  *      rdpq_set_lookup_address(3, tex1.buffer);
  *      rdpq_set_lookup_address(4, tex2.buffer);
  *      rspq_block_run(bl);
+ * @endcode
  * 
  * @param index           Index of the slot in the table. Available slots are 1-15
  *                        (slot 0 is reserved).
