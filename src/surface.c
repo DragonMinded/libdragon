@@ -22,6 +22,17 @@ const char* tex_format_name(tex_format_t fmt)
     }
 }
 
+surface_t surface_alloc(tex_format_t format, uint32_t width, uint32_t height)
+{
+    return (surface_t){ 
+        .flags = format | SURFACE_FLAGS_OWNEDBUFFER,
+        .width = width,
+        .height = height,
+        .stride = TEX_FORMAT_PIX2BYTES(format, width),
+        .buffer = malloc_uncached_aligned(64, height * TEX_FORMAT_PIX2BYTES(format, width)),
+    };
+}
+
 void surface_free(surface_t *surface)
 {
     if (surface->buffer && surface->flags & SURFACE_FLAGS_OWNEDBUFFER) {
@@ -46,5 +57,4 @@ void surface_new_sub(surface_t *sub, surface_t *parent, uint32_t x0, uint32_t y0
 }
 
 extern inline surface_t surface_make(void *buffer, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride);
-extern inline surface_t surface_alloc(tex_format_t format, uint32_t width, uint32_t height);
 extern inline tex_format_t surface_get_format(const surface_t *surface);

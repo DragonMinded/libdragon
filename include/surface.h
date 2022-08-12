@@ -172,16 +172,7 @@ inline surface_t surface_make(void *buffer, tex_format_t format, uint32_t width,
  * @param[in]  height   Height in pixels
  * @return              The initialized surface
  */
-inline surface_t surface_alloc(tex_format_t format, uint32_t width, uint32_t height) {
-    return (surface_t){ 
-        .flags = format | SURFACE_FLAGS_OWNEDBUFFER,
-        .width = width,
-        .height = height,
-        .stride = TEX_FORMAT_PIX2BYTES(format, width),
-        .buffer = malloc_uncached_aligned(64, height * TEX_FORMAT_PIX2BYTES(format, width)),
-    };
-}
-
+surface_t surface_alloc(tex_format_t format, uint32_t width, uint32_t height);
 
 /**
  * @brief Initialize a surface_t structure, pointing to a rectangular portion of another
