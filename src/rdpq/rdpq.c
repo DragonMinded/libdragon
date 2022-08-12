@@ -589,7 +589,6 @@ void __rdpq_modify_other_modes(uint32_t w0, uint32_t w1, uint32_t w2)
 
 uint64_t rdpq_get_other_modes_raw(void)
 {
-    rspq_wait();
     rdpq_state_t *rdpq_state = rspq_overlay_get_state(&rsp_rdpq);
     return rdpq_state->modes[0].other_modes;
 }
