@@ -9,6 +9,10 @@
 #include "rdpq.h"
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief Push the current render mode into the stack
  * 
@@ -48,6 +52,12 @@ typedef enum rdpq_dither_s {
     DITHER_NOISE,
     DITHER_NONE
 } rdpq_dither_t;
+
+typedef enum rdpq_tlut_s {
+    TLUT_NONE   = 0,
+    TLUT_RGBA16 = 2,
+    TLUT_IA16   = 3,
+} rdpq_tlut_t;
 
 /**
  * @brief Reset render mode to FILL type.
@@ -173,6 +183,10 @@ inline void rdpq_mode_zoverride(bool enable, uint16_t z, int16_t deltaz) {
     );
 }
 
+inline void rdpq_mode_tlut(rdpq_tlut_t tlut) {
+    rdpq_change_other_modes_raw(SOM_TLUT_MASK, (uint64_t)tlut << 46);
+}
+
 inline void rdpq_mode_sampler(rdpq_sampler_t s) {
     uint64_t samp;
     switch (s) {
@@ -183,5 +197,8 @@ inline void rdpq_mode_sampler(rdpq_sampler_t s) {
     rdpq_change_other_modes_raw(SOM_SAMPLE_MASK, samp);    
 }
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif

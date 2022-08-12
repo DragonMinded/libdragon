@@ -931,3 +931,45 @@ void test_rdpq_blender(TestContext *ctx) {
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_blend, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (blender=pass0)");
 }
+
+void test_rdpq_tex_load(TestContext *ctx) {
+    RDPQ_INIT();
+    rdpq_debug_log(true);
+
+    const int FBWIDTH = 16;
+    surface_t fb = surface_alloc(FMT_RGBA16, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    surface_clear(&fb, 0);
+
+    const int TEXWIDTH = 16;
+    surface_t tex = surface_alloc(FMT_CI4, TEXWIDTH, TEXWIDTH);
+    DEFER(surface_free(&tex));
+
+    // surface_t sub = surface_make_sub(&tex, 4, 4, 8, 8);
+    uint16_t* tlut = malloc_uncached(256*2);
+
+    for (int i=0;i<256;i++) {
+        tlut[i] = (i<<1)|1;
+    }
+    for (int j=0;j<TEXWIDTH;j++) {
+        for (int i=0;i<TEXWIDTH/2;i++) {
+            ((uint8_t*)tex.buffer)[j * TEXWIDTH/2 + i] = 
+                (((j+i*2)&15)<<4) | ((j+i*2+1)&15);
+        }
+    }
+
+    rdpq_set_color_image(&fb);
+    rdpq_set_mode_standard();
+    rdpq_tex_load_ci4(0, &tex, 0, 4);
+    rdpq_tex_load_tlut(tlut, 0, 256);
+    rdpq_mode_tlut(TLUT_RGBA16);
+    rdpq_texture_rectangle(0, 0, 0, 16, 16, 0, 0, 1.0f, 1.0f);
+    rspq_wait();
+
+    debug_surface("Found:", fb.buffer, FBWIDTH, FBWIDTH);
+
+    surface_t tmem = rdpq_debug_get_tmem();
+    debugf("TMEM:\n");
+    debugf_hexdump(tmem.buffer, 4096);
+    surface_free(&tmem);
+}

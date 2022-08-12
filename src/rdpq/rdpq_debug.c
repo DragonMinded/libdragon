@@ -347,9 +347,11 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
             alpha_addsub[cc.cyc[1].alpha.suba], alpha_addsub[cc.cyc[1].alpha.subb],   alpha_mul[cc.cyc[1].alpha.mul], alpha_addsub[cc.cyc[1].alpha.add]);
     } return;
     case 0x35: { fprintf(out, "SET_TILE         ");
+        uint8_t f = BITS(buf[0], 53, 55);
         fprintf(out, "tile=%d %s%s tmem[0x%x,line=%d]", 
-            BITS(buf[0], 24, 26), fmt[BITS(buf[0], 53, 55)], size[BITS(buf[0], 51, 52)],
+            BITS(buf[0], 24, 26), fmt[f], size[BITS(buf[0], 51, 52)],
             BITS(buf[0], 32, 40)*8, BITS(buf[0], 41, 49)*8);
+        if (f==2) fprintf(out, " pal=%d", BITS(buf[0], 20, 23));
         fprintf(out, "\n");
     } return;
     case 0x24 ... 0x25:
@@ -540,7 +542,7 @@ void rdpq_validate(uint64_t *buf, int *errs, int *warns)
             "color image has invalid format %s: must be FMT_RGBA32, FMT_RGBA16 or FMT_CI8",
                 tex_format_name(fmt));
     }   break;
-    case 0x3E:   // SET_Z_IMAGE
+    case 0x3E: // SET_Z_IMAGE
         VALIDATE_ERR(BITS(buf[0], 0, 5) == 0, "Z image must be aligned to 64 bytes");
         break;
     case 0x2F: // SET_OTHER_MODES
@@ -578,13 +580,12 @@ void rdpq_validate(uint64_t *buf, int *errs, int *warns)
 surface_t rdpq_debug_get_tmem(void) {
     // Dump the TMEM as a 32x64 surface of 16bit pixels
     surface_t surf = surface_alloc(FMT_RGBA16, 32, 64);
-    const int TILE = 7;
     
     rdpq_set_color_image(&surf);
     rdpq_set_mode_copy(false);
-    rdpq_set_tile(TILE, FMT_RGBA16, 0, 32*2, 0);   // pitch: 32 px * 16-bit
-    rdpq_set_tile_size(TILE, 0, 0, 32, 64);
-    rdpq_texture_rectangle(TILE,
+    rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_RGBA16, 0, 32*2, 0);   // pitch: 32 px * 16-bit
+    rdpq_set_tile_size(RDPQ_TILE_INTERNAL, 0, 0, 32, 64);
+    rdpq_texture_rectangle(RDPQ_TILE_INTERNAL,
         0, 0, 32, 64,          // x0,y0, x1,y1
         0, 0, 1.0f, 1.0f       // s,t, ds,dt
     );

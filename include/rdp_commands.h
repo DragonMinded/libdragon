@@ -372,8 +372,10 @@
 #define SOM_TEXTURE_SHARPEN    (cast64(1)<<49)
 #define SOM_TEXTURE_LOD        (cast64(1)<<48)
 
-#define SOM_ENABLE_TLUT_RGB16  (cast64(2)<<46)
-#define SOM_ENABLE_TLUT_I88    (cast64(3)<<46)
+#define SOM_TLUT_NONE          (cast64(0)<<46)
+#define SOM_TLUT_RGBA16        (cast64(2)<<46)
+#define SOM_TLUT_IA16          (cast64(3)<<46)
+#define SOM_TLUT_MASK          (cast64(3)<<46)
 
 #define SOM_SAMPLE_MASK        (cast64(3)<<44)
 #define SOM_SAMPLE_1X1         (cast64(0)<<44)

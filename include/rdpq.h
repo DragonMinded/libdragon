@@ -147,6 +147,9 @@ enum {
 /** @brief Used internally for bit-packing RDP commands. */
 #define _carg(value, mask, shift) (((uint32_t)((value) & mask)) << shift)
 
+/** @brief Tile descriptor internally used by some RDPQ functions. Avoid using if possible */
+#define RDPQ_TILE_INTERNAL           7
+
 #ifdef __cplusplus
 extern "C" {
 #endif
