@@ -130,8 +130,8 @@ void test_rdpq_passthrough_big(TestContext *ctx)
     rdpq_set_color_image(&fb);
     rdpq_set_blend_color(RGBA32(255,255,255,255));
     rdpq_set_mode_standard();
-    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO,ZERO,ZERO,ZERO), (ZERO,ZERO,ZERO,ZERO)));
-    rdpq_mode_blender(RDPQ_BLENDER1((IN_RGB, ZERO, BLEND_RGB, ONE)));
+    rdpq_mode_combiner_func(RDPQ_COMBINER1((ZERO,ZERO,ZERO,ZERO), (ZERO,ZERO,ZERO,ZERO)));
+    rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, ONE)) | SOM_BLENDING);
 
     rdp_draw_filled_triangle(0, 0, WIDTH, 0, WIDTH, WIDTH);
     rdp_draw_filled_triangle(0, 0, 0, WIDTH, WIDTH, WIDTH);
@@ -355,8 +355,8 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
 
     surface_clear(&fb, 0);
     rdpq_set_mode_standard();
-    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO,ZERO,ZERO,ZERO),(ZERO,ZERO,ZERO,ONE)));
-    rdpq_mode_blender(RDPQ_BLENDER1((BLEND_RGB, IN_ALPHA, IN_RGB, INV_MUX_ALPHA)));
+    rdpq_mode_combiner_func(RDPQ_COMBINER1((ZERO,ZERO,ZERO,ZERO),(ZERO,ZERO,ZERO,ONE)));
+    rdpq_mode_blending(RDPQ_BLENDER((BLEND_RGB, IN_ALPHA, IN_RGB, INV_MUX_ALPHA)));
     rdpq_set_blend_color(TEST_COLOR);
     rdpq_set_scissor(4, 4, WIDTH-4, WIDTH-4);
     rdpq_fill_rectangle(0, 0, WIDTH, WIDTH);
@@ -376,8 +376,8 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
     surface_clear(&fb, 0);
     rdpq_set_scissor(4, 4, WIDTH-4, WIDTH-4);
     rdpq_set_mode_standard();
-    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO,ZERO,ZERO,ZERO),(ZERO,ZERO,ZERO,ONE)));
-    rdpq_mode_blender(RDPQ_BLENDER1((BLEND_RGB, IN_ALPHA, IN_RGB, INV_MUX_ALPHA)));
+    rdpq_mode_combiner_func(RDPQ_COMBINER1((ZERO,ZERO,ZERO,ZERO),(ZERO,ZERO,ZERO,ONE)));
+    rdpq_mode_blending(RDPQ_BLENDER((BLEND_RGB, IN_ALPHA, IN_RGB, INV_MUX_ALPHA)));
     rdpq_set_blend_color(TEST_COLOR);
     rdpq_fill_rectangle(0, 0, WIDTH, WIDTH);
     rspq_wait();
@@ -423,7 +423,7 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
 
     surface_clear(&fb, 0xFF);
     rdpq_set_mode_standard();
-    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0)));
+    rdpq_mode_combiner_func(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
@@ -446,7 +446,7 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
         surface_clear(&fb, 0xFF);
         rspq_block_begin();
         rdpq_set_mode_standard();
-        rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0)));
+        rdpq_mode_combiner_func(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0)));
         // rdpq_set_other_modes(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_TC_FILTER | SOM_BLENDING | SOM_SAMPLE_1X1 | SOM_MIDTEXEL);
         // rdpq_set_combine_mode(Comb_Rgb(ZERO, ZERO, ZERO, TEX0) | Comb_Alpha(ZERO, ZERO, ZERO, TEX0));
         rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
@@ -503,6 +503,7 @@ void test_rdpq_lookup_address(TestContext *ctx)
 void test_rdpq_lookup_address_offset(TestContext *ctx)
 {
     RDPQ_INIT();
+    rdpq_debug_log(true);
 
     const int WIDTH = 16;
     surface_t fb = surface_alloc(FMT_RGBA16, WIDTH, WIDTH);
@@ -769,8 +770,9 @@ void test_rdpq_automode(TestContext *ctx) {
     rdpq_set_env_color(RGBA32(0x0,0x0,0x0,0x7F));
     rdpq_set_prim_color(RGBA32(0x0,0x0,0x0,0x7F));
 
+    // Set simple 1-pass combiner => 1 cycle
     surface_clear(&fb, 0xFF);
-    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO)));
+    rdpq_mode_combiner_func(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
     rspq_wait();
     som = rdpq_get_other_modes_raw();
@@ -778,8 +780,9 @@ void test_rdpq_automode(TestContext *ctx) {
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (comb=1pass, blender=off)");
 
+    // Activate blending (1-pass blender) => 1 cycle
     surface_clear(&fb, 0xFF);
-    rdpq_mode_blender(RDPQ_BLENDER1((IN_RGB, FOG_ALPHA, BLEND_RGB, INV_MUX_ALPHA)));
+    rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, FOG_ALPHA, BLEND_RGB, INV_MUX_ALPHA)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
     rspq_wait();
     som = rdpq_get_other_modes_raw();
@@ -787,10 +790,9 @@ void test_rdpq_automode(TestContext *ctx) {
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (comb=1pass, blender=1pass)");
 
+    // Activate fogging (2-pass blender) => 2 cycle
     surface_clear(&fb, 0xFF);
-    rdpq_mode_blender(RDPQ_BLENDER2(
-        (BLEND_RGB, ZERO, IN_RGB, INV_MUX_ALPHA),
-        (CYCLE1_RGB, FOG_ALPHA, BLEND_RGB, INV_MUX_ALPHA)));
+    rdpq_mode_fog(RDPQ_BLENDER((BLEND_RGB, ZERO, IN_RGB, INV_MUX_ALPHA)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
     rspq_wait();
     som = rdpq_get_other_modes_raw();
@@ -798,19 +800,21 @@ void test_rdpq_automode(TestContext *ctx) {
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (comb=1pass, blender=2pass)");
 
+    // Set two-pass combiner => 2 cycle
     surface_clear(&fb, 0xFF);
-    rdpq_mode_combiner(RDPQ_COMBINER2(
+    rdpq_mode_combiner_func(RDPQ_COMBINER2(
         (ZERO, ZERO, ZERO, ENV), (ENV, ZERO, TEX0, PRIM),
         (TEX1, ZERO, COMBINED_ALPHA, ZERO), (ZERO, ZERO, ZERO, ZERO)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
-    rspq_wait();
+    rspq_wait();    
     som = rdpq_get_other_modes_raw();
     ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_2, "invalid cycle type");
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (comb=2pass, blender=2pass)");
 
+    // Disable fogging (1 pass blender) => 2 cycle
     surface_clear(&fb, 0xFF);
-    rdpq_mode_blender(RDPQ_BLENDER1((IN_RGB, FOG_ALPHA, BLEND_RGB, INV_MUX_ALPHA)));
+    rdpq_mode_fog(0);
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
     rspq_wait();
     som = rdpq_get_other_modes_raw();
@@ -818,8 +822,9 @@ void test_rdpq_automode(TestContext *ctx) {
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (comb=2pass, blender=1pass)");
 
+    // Set simple combiner => 1 cycle
     surface_clear(&fb, 0xFF);
-    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO)));
+    rdpq_mode_combiner_func(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
     rspq_wait();
     som = rdpq_get_other_modes_raw();
@@ -827,13 +832,13 @@ void test_rdpq_automode(TestContext *ctx) {
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (comb=1pass, blender=1pass)");
 
-    // Push the current mode, then modify several states
+    // Push the current mode, then modify several states, then pop.
     rdpq_mode_push();
-    rdpq_mode_combiner(RDPQ_COMBINER2(
+    rdpq_mode_combiner_func(RDPQ_COMBINER2(
         (ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO),
         (COMBINED, ZERO, ZERO, TEX1), (ZERO, ZERO, ZERO, ZERO)
     ));
-    rdpq_mode_blender(RDPQ_BLENDER1((IN_RGB, ZERO, BLEND_RGB, ONE)));
+    rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, ONE)));
     rdpq_mode_dithering(DITHER_NOISE, DITHER_NOISE);
     rdpq_mode_pop();
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
@@ -842,4 +847,88 @@ void test_rdpq_automode(TestContext *ctx) {
     ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_1, "invalid cycle type");
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (comb=1pass, blender=1pass (after pop))");
+}
+
+void test_rdpq_blender(TestContext *ctx) {
+    RDPQ_INIT();
+
+    const int FBWIDTH = 16;
+    surface_t fb = surface_alloc(FMT_RGBA16, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    surface_clear(&fb, 0);
+
+    const int TEXWIDTH = FBWIDTH;
+    surface_t tex = surface_alloc(FMT_RGBA16, TEXWIDTH, TEXWIDTH);
+    DEFER(surface_free(&tex));
+    surface_clear(&tex, 0xAA);
+
+    const color_t BLEND_COLOR = RGBA32(0x30, 0x30, 0x30, 0xFF);
+    const color_t BLEND_COLOR2 = RGBA32(0x30*2-1, 0x30*2-1, 0x30*2-1, 0xFF);
+
+    uint16_t expected_fb_blend[FBWIDTH*FBWIDTH], expected_fb_blend2[FBWIDTH*FBWIDTH], expected_fb_tex[FBWIDTH*FBWIDTH];
+    memset(expected_fb_blend, 0, sizeof(expected_fb_blend));
+    memset(expected_fb_blend2, 0, sizeof(expected_fb_blend2));
+    memset(expected_fb_tex, 0, sizeof(expected_fb_tex));
+    for (int y=4;y<FBWIDTH-4;y++) {
+        for (int x=4;x<FBWIDTH-4;x++) {
+            expected_fb_blend[y * FBWIDTH + x] = color_to_packed16(BLEND_COLOR);
+            expected_fb_blend2[y * FBWIDTH + x] = color_to_packed16(BLEND_COLOR2);
+            expected_fb_tex[y * FBWIDTH + x] = 0xAAAA | 1;
+        }
+    }
+
+    rdpq_set_color_image(&fb);
+    rdpq_set_texture_image(&tex);
+    rdpq_set_tile(0, FMT_RGBA16, 0, TEXWIDTH * 2, 0);
+    rdpq_set_tile(1, FMT_RGBA16, 0, TEXWIDTH * 2, 0);
+    rdpq_load_tile(0, 0, 0, TEXWIDTH, TEXWIDTH);
+    rdpq_load_tile(1, 0, 0, TEXWIDTH, TEXWIDTH);
+
+    rdpq_set_mode_standard();
+    rdpq_mode_combiner_func(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0)));
+    rdpq_set_blend_color(BLEND_COLOR);
+    rdpq_set_fog_color(RGBA32(0xEE, 0xEE, 0xEE, 0xFF));
+
+    // Enable blending
+    rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, INV_MUX_ALPHA)) | SOM_BLENDING);
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1.0f, 1.0f);
+    rspq_wait();
+    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_blend, FBWIDTH*FBWIDTH*2, 
+        "Wrong data in framebuffer (blender=pass1)");
+
+    // Disable blending
+    rdpq_mode_blending(0);
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1.0f, 1.0f);
+    rspq_wait();
+    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_tex, FBWIDTH*FBWIDTH*2, 
+        "Wrong data in framebuffer (blender=none)");
+
+    // Enable fogging
+    rdpq_mode_fog(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, INV_MUX_ALPHA)) | SOM_BLENDING);
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1.0f, 1.0f);
+    rspq_wait();
+    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_blend, FBWIDTH*FBWIDTH*2, 
+        "Wrong data in framebuffer (blender=pass0)");
+
+    // Disable fogging
+    rdpq_mode_fog(0);
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1.0f, 1.0f);
+    rspq_wait();
+    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_tex, FBWIDTH*FBWIDTH*2, 
+        "Wrong data in framebuffer (blender=none)");
+
+    // Enable both, with blending adding the input of fog
+    rdpq_mode_fog(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, INV_MUX_ALPHA)) | SOM_BLENDING);
+    rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, FOG_ALPHA, BLEND_RGB, ONE)) | SOM_BLENDING);
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1.0f, 1.0f);
+    rspq_wait();
+    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_blend2, FBWIDTH*FBWIDTH*2, 
+        "Wrong data in framebuffer (blender=pass0+1)");
+
+    // Disable blend
+    rdpq_mode_blending(0);
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1.0f, 1.0f);
+    rspq_wait();
+    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_blend, FBWIDTH*FBWIDTH*2, 
+        "Wrong data in framebuffer (blender=pass0)");
 }

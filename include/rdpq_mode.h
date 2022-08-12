@@ -1,3 +1,8 @@
+/**
+ * @file rdpq_mode.h
+ * @brief RDP Command queue: mode setting
+ * @ingroup rdp
+ */
 #ifndef LIBDRAGON_RDPQ_MODE_H
 #define LIBDRAGON_RDPQ_MODE_H
 
@@ -84,10 +89,16 @@ inline void rdpq_set_mode_copy(bool transparency) {
     rdpq_set_other_modes_raw(SOM_CYCLE_COPY | (transparency ? SOM_ALPHA_COMPARE : 0));
 }
 
+
+inline void rdpq_mode_blending(rdpq_blender_t blend);
+inline void rdpq_mode_fog(rdpq_blender_t fog);
+inline void rdpq_mode_combiner_func(rdpq_combiner_t comb);
+
 inline void rdpq_set_mode_standard(void) {
-    // FIXME: accept structure?
-    // FIXME: reset combiner?
     rdpq_set_other_modes_raw(SOM_CYCLE_1 | SOM_TC_FILTER | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE);
+    rdpq_mode_combiner_func(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0)));
+    rdpq_mode_blending(0);
+    rdpq_mode_fog(0);
 }
 
 /**
@@ -108,7 +119,12 @@ inline void rdpq_set_mode_yuv(void) {
     rdpq_set_yuv_parms(179,-44,-91,227,19,255);  // BT.601 coefficients (Kr=0.299, Kb=0.114, TV range)
 }
 
-inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
+inline void rdpq_mode_antialias(bool enable) 
+{
+    // TODO
+}
+
+inline void rdpq_mode_combiner_func(rdpq_combiner_t comb) {
     extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
 
     // FIXME: autosync pipe
@@ -122,52 +138,20 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
             comb & 0xFFFFFFFF);
 }
 
-inline void rdpq_mode_blender(rdpq_blender_t blend) {
+#define RDPQ_BLEND_MULTIPLY       RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, INV_MUX_ALPHA))
+#define RDPQ_BLEND_ADDITIVE       RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, ONE))      
+#define RDPQ_FOG_STANDARD         RDPQ_BLENDER((IN_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA))
+
+inline void rdpq_mode_blending(rdpq_blender_t blend) {
     extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
-
-    // NOTE: basically everything this function does will be constant-propagated
-    // when the function is called with a compile-time constant argument, which
-    // should be the vast majority of times.
-
-    // RDPQ_CMD_SET_BLENDING_MODE accepts two blender configurations: the one
-    // to use in 1cycle mode, and the one to use in 2cycle mode. MAKE_SBM_ARG
-    // encodes the two configurations into a 64-bit word to be used with the command.
-    #define MAKE_SBM_ARG(blend_1cyc, blend_2cyc) \
-        ((((uint64_t)(blend_1cyc) >> 6) & 0x3FFFFFF) | \
-         (((uint64_t)(blend_2cyc) >> 6) & 0x3FFFFFF) << 26)
-
-    rdpq_blender_t blend_1cyc, blend_2cyc;
-    if (blend & RDPQ_BLENDER_2PASS) {
-        // A 2-pass blender will force 2cycle mode, so we don't care about the
-        // configuration for 1cycle mode. Let's just use 0 for it, it will not
-        // be used anyway.
-        blend_1cyc = 0;
-        blend_2cyc = blend;
-    } else {
-        // A single pass blender can be used as-is in 1cycle mode (the macros
-        // in rdp_commands have internally configured the same settings in both
-        // passes, as this is what RDP expects).
-        // For 2-cycle mode, instead, it needs to be changed: the configuration
-        // is valid for the second pass, but the first pass needs to changed
-        // with a passthrough (IN * 0 + IN * 1). Notice that we can't do
-        // the passthrough in the second pass because of the way the 2pass
-        // blender formula works.
-        const rdpq_blender_t passthrough = RDPQ_BLENDER1((IN_RGB, ZERO, IN_RGB, ONE));
-        blend_1cyc = blend;
-        blend_2cyc = (passthrough & SOM_BLEND0_MASK) | 
-                     (blend       & SOM_BLEND1_MASK);
-    }
-
-    // FIXME: autosync pipe
-    uint64_t cfg = MAKE_SBM_ARG(blend_1cyc, blend_2cyc);
-    __rdpq_fixup_mode(RDPQ_CMD_SET_BLENDING_MODE,
-        (cfg >> 32) & 0x00FFFFFF,
-        cfg & 0xFFFFFFFF);
+    if (blend) blend |= SOM_BLENDING;
+    __rdpq_fixup_mode(RDPQ_CMD_SET_BLENDING_MODE, 4, blend);
 }
 
-inline void rdpq_mode_blender_off(void) {
+inline void rdpq_mode_fog(rdpq_blender_t fog) {
     extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
-    __rdpq_fixup_mode(RDPQ_CMD_SET_BLENDING_MODE, 0, 0);
+    if (fog) fog |= SOM_BLENDING;
+    __rdpq_fixup_mode(RDPQ_CMD_SET_BLENDING_MODE, 0, fog);
 }
 
 inline void rdpq_mode_dithering(rdpq_dither_t rgb, rdpq_dither_t alpha) {
@@ -199,5 +183,6 @@ inline void rdpq_mode_sampler(rdpq_sampler_t s) {
     }
     rdpq_change_other_modes_raw(SOM_SAMPLE_MASK, samp);    
 }
+
 
 #endif

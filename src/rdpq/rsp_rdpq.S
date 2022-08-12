@@ -90,12 +90,11 @@ RDP_SCISSOR_RECT:      .quad  0
 RDP_MODE:
     # Combiner setting to use in 1 cycle mode
     RDP_MODE_COMBINER_1CYC: .quad  0
-    # Blender setting to use in 1 cycle mode
-    RDP_MODE_BLENDER_1CYC:  .word  0
     # Combiner setting to use in 2 cycle mode
-    RDP_MODE_COMBINER_2CYC: .word  0,0    # this is a .quad, but misaligned
-    # Blender setting to use in 2 cycle mode
-    RDP_MODE_BLENDER_2CYC:  .word  0
+    RDP_MODE_COMBINER_2CYC: .quad  0
+    # Blender settings: up to two steps. Either of them
+    # is already in a format valid for both 1cyc and 2cyc mode.
+    RDP_MODE_BLENDER_STEPS: .word  0,0
     # Other modes
     RDP_OTHER_MODES:        .quad  0
 
@@ -584,15 +583,8 @@ store_comb_2cyc:
 
     .func RDPQCmd_SetBlendingMode
 RDPQCmd_SetBlendingMode:
+    sw a1, %lo(RDP_MODE_BLENDER_STEPS)(a0)
     li rspq_cmd_size, 16
-    # Bit 0-25:  Blender mode 1CYC (-> SOM 6..31)
-    # Bit 26-51: Blender mode 2CYC (-> SOM 6..31)
-    sll a0, 12
-    srl t0, a1, 26
-    or a0, t0
-    sll a1, 6
-    sw a1, %lo(RDP_MODE_BLENDER_1CYC)
-    sw a0, %lo(RDP_MODE_BLENDER_2CYC)
     # fallthrough
     .endfunc
 
@@ -600,25 +592,48 @@ RDPQCmd_SetBlendingMode:
 UpdateCycleType:
     # Pointer to staging area where RDP SetCombine+SetOtherModes will be written
     li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
+
+    #define blend_1cyc  t3
+    #define blend_2cyc  t4
+    #define passthrough t5
+
+    # Merge the two blender steps.
+    li passthrough, 0
+    lw t0, %lo(RDP_MODE_BLENDER_STEPS) + 0   # Load step0
+    lw t1, %lo(RDP_MODE_BLENDER_STEPS) + 4   # Load step1
+    
+    beqz t0, blender_merge
+    move blend_1cyc, t1
+    
+    beqz t1, blender_merge
+    move blend_1cyc, t0
+
+    and passthrough, t1, SOM_BLEND1_MASK
+    or passthrough, RDPQ_BLENDER_2PASS
+blender_merge:
+    and blend_1cyc, SOM_BLEND0_MASK
+    or blend_2cyc, blend_1cyc, passthrough
+
     # Check if either the current blender and combiner configuration require
     # 2cycle mode:
     #   * Blender: bit 15 is set if 2cyc mode is required
     #   * Combiner: bit 63 is set if 2cyc mode is required
-    lh t0, %lo(RDP_MODE_BLENDER_2CYC) + 2
+    sll t2, blend_2cyc, 16
     lw t1, %lo(RDP_MODE_COMBINER_2CYC)
-    or t0, t1
+    or t1, t2
     # Point to either the 2cyc or 1cyc configuration, depending on what we need
     # to load.
     li s0, %lo(RDP_MODE_COMBINER_2CYC)
-    bltz t0, set_2cyc
+    move t0, blend_2cyc
+    bltz t1, set_2cyc
     li t4, (SOM_CYCLE_MASK ^ SOM_CYCLE_2) >> 32
 set_1cyc:
     li s0, %lo(RDP_MODE_COMBINER_1CYC)
+    move t0, blend_1cyc
     li t4, (SOM_CYCLE_MASK ^ SOM_CYCLE_1) >> 32
 set_2cyc:
     lw a0, 0(s0)   # Combiner
     lw a1, 4(s0)   # Combiner
-    lw t0, 8(s0)   # Blender
     lw a2, %lo(RDP_OTHER_MODES) + 0
     lw a3, %lo(RDP_OTHER_MODES) + 4
 
@@ -642,6 +657,10 @@ set_2cyc:
 
     jal_and_j RDPQ_Write16, RDPQ_Finalize
     .endfunc
+
+    #undef blend_1cyc
+    #undef blend_2cyc
+    #undef passhthrough
 
 
     #############################################################
