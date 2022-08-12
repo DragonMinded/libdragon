@@ -50,7 +50,7 @@ typedef struct {
     uint8_t tf_mode;
     bool chromakey;
     struct { uint8_t rgb, alpha; } dither;
-    struct { uint8_t p, a, q, b; } blender[2];
+    struct blender_s { uint8_t p, a, q, b; } blender[2];
     bool blend, read, aa;
     struct { uint8_t mode; bool color, sel_alpha, mul_alpha; } cvg;
     struct { uint8_t mode; bool upd, cmp, prim; } z;
@@ -297,13 +297,19 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
         if((som.cycle_type < 2) && (som.tex.persp || som.tex.detail || som.tex.sharpen || som.tex.lod || som.sample_type != 0 || som.tf_mode != 6)) {
             fprintf(out, " tex=["); FLAG_RESET();
             FLAG(som.tex.persp, "persp"); FLAG(som.tex.persp, "detail"); FLAG(som.tex.lod, "lod"); 
-            FLAG(som.sample_type, "yuv"); FLAG(som.tf_mode != 6, texinterp[som.tf_mode]);
+            FLAG(som.tf_mode != 6, "yuv"); FLAG(som.sample_type != 0, texinterp[som.sample_type]);
             fprintf(out, "]");
         }
         if(som.tlut.enable) fprintf(out, " tlut%s", som.tlut.type ? "=[ia]" : "");
-        if(BITS(buf[0], 16, 31)) fprintf(out, " blend=[%s*%s + %s*%s, %s*%s + %s*%s]",
-            blend1_a[som.blender[0].p],  blend1_b1[som.blender[0].a], blend1_a[som.blender[0].q], som.blender[0].b ? blend1_b2[som.blender[0].b] : blend1_b1inv[som.blender[0].a],
-            blend2_a[som.blender[1].p],  blend2_b1[som.blender[1].a], blend2_a[som.blender[1].q], som.blender[1].b ? blend2_b2[som.blender[1].b] : blend2_b1inv[som.blender[1].a]);
+        if(BITS(buf[0], 16, 31)) {
+                fprintf(out, " blend=[%s*%s + %s*%s, ",
+                    blend1_a[som.blender[0].p],  blend1_b1[som.blender[0].a], blend1_a[som.blender[0].q], som.blender[0].b ? blend1_b2[som.blender[0].b] : blend1_b1inv[som.blender[0].a]);
+            if (som.blender[1].p==0 && som.blender[1].a==0 && som.blender[1].q==0 && som.blender[1].b==0)
+                fprintf(out, "<passthrough>]");
+            else
+                fprintf(out, "%s*%s + %s*%s]",
+                    blend2_a[som.blender[1].p],  blend2_b1[som.blender[1].a], blend2_a[som.blender[1].q], som.blender[1].b ? blend2_b2[som.blender[1].b] : blend2_b1inv[som.blender[1].a]);
+        }
         if(som.z.upd || som.z.cmp) {
             fprintf(out, " z=["); FLAG_RESET();
             FLAG(som.z.cmp, "cmp"); FLAG(som.z.upd, "upd"); FLAG(som.z.prim, "prim"); FLAG(true, zmode[som.z.mode]);
@@ -331,9 +337,12 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
         const char* alpha_addsub[8] = {"comb", "tex0", "tex1", "prim", "shade", "env", "1", "0"};
         const char* alpha_mul[8] = {"lod_frac", "tex0", "tex1", "prim", "shade", "env", "prim_lod_frac", "0"};
         colorcombiner_t cc = decode_cc(buf[0]);
-        fprintf(out, "cyc0=[(%s-%s)*%s+%s, (%s-%s)*%s+%s], cyc1=[(%s-%s)*%s+%s, (%s-%s)*%s+%s]\n",
+        fprintf(out, "cyc0=[(%s-%s)*%s+%s, (%s-%s)*%s+%s], ",
             rgb_suba[cc.cyc[0].rgb.suba], rgb_subb[cc.cyc[0].rgb.subb], rgb_mul[cc.cyc[0].rgb.mul], rgb_add[cc.cyc[0].rgb.add],
-            alpha_addsub[cc.cyc[0].alpha.suba], alpha_addsub[cc.cyc[0].alpha.subb], alpha_mul[cc.cyc[0].alpha.mul], alpha_addsub[cc.cyc[0].alpha.subb],
+            alpha_addsub[cc.cyc[0].alpha.suba], alpha_addsub[cc.cyc[0].alpha.subb], alpha_mul[cc.cyc[0].alpha.mul], alpha_addsub[cc.cyc[0].alpha.add]);
+        const struct cc_cycle_s passthrough = {0};
+        if (!memcmp(&cc.cyc[1], &passthrough, sizeof(struct cc_cycle_s))) fprintf(out, "cyc1=[<passthrough>]\n");
+        else fprintf(out, "cyc1=[(%s-%s)*%s+%s, (%s-%s)*%s+%s]\n",
             rgb_suba[cc.cyc[1].rgb.suba], rgb_subb[cc.cyc[1].rgb.subb], rgb_mul[cc.cyc[1].rgb.mul], rgb_add[cc.cyc[1].rgb.add],
             alpha_addsub[cc.cyc[1].alpha.suba], alpha_addsub[cc.cyc[1].alpha.subb],   alpha_mul[cc.cyc[1].alpha.mul], alpha_addsub[cc.cyc[1].alpha.add]);
     } return;
@@ -445,6 +454,15 @@ static void lazy_validate_cc(int *errs, int *warns) {
         if (rdpq_state.som.cycle_type >= 2)
             return;
 
+        // Validate blender setting. If there is any blender fomula configure, we should expect one between SOM_BLENDING or SOM_ANTIALIAS,
+        // otherwise the formula will be ignored.
+        struct blender_s *b0 = &rdpq_state.som.blender[0];
+        struct blender_s *b1 = &rdpq_state.som.blender[1];
+        bool has_bl0 = b0->p || b0->a || b0->q || b0->b;
+        bool has_bl1 = b1->p || b1->a || b1->q || b1->b;
+        VALIDATE_WARN(rdpq_state.som.blend || rdpq_state.som.aa || !(has_bl0 || has_bl1),
+            "SOM at %p: blender function will be ignored because SOM_BLENDING and SOM_ANTIALIAS are both disabled", rdpq_state.last_som);
+
         if (!rdpq_state.last_cc) {
             VALIDATE_ERR(rdpq_state.last_cc, "SET_COMBINE not called before drawing primitive");
             return;
@@ -467,6 +485,8 @@ static void lazy_validate_cc(int *errs, int *warns) {
             VALIDATE_ERR(ccs[1].rgb.suba != 2 && ccs[1].rgb.suba != 2 && ccs[1].rgb.mul != 2 && ccs[1].rgb.add != 2 &&
                          ccs[1].alpha.suba != 2 && ccs[1].alpha.suba != 2 && ccs[1].alpha.mul != 2 && ccs[1].alpha.add != 2,
                 "SET_COMBINE at %p: in 2cycle mode, the color combiner cannot access the TEX1 slot in the second cycle (but TEX0 contains the second texture)", rdpq_state.last_cc);
+            VALIDATE_ERR((b0->b == 0) || (b0->b == 2 && b0->a == 3),
+                "SOM at %p: in 2 cycle mode, the first pass of the blender must use INV_MUX_ALPHA or equivalent", rdpq_state.last_som);
         }
     }
 }
@@ -525,7 +545,8 @@ void rdpq_validate(uint64_t *buf, int *errs, int *warns)
         break;
     case 0x2F: // SET_OTHER_MODES
         rdpq_state.som = decode_som(buf[0]);
-        rdpq_state.mode_changed = &buf[0];
+        rdpq_state.last_som = &buf[0];
+        rdpq_state.mode_changed = true;
         break;
     case 0x3C: // SET_COMBINE
         rdpq_state.cc = decode_cc(buf[0]);
