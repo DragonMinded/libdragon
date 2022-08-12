@@ -24,4 +24,4 @@ void rdpq_mode_pop(void)
 
 /* Extern inline instantiations. */
 extern inline void rdpq_set_mode_fill(color_t color);
-extern inline void rdpq_mode_combiner_func(rdpq_combiner_t comb);
+extern inline void rdpq_mode_combiner(rdpq_combiner_t comb);

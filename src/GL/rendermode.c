@@ -220,7 +220,7 @@ void gl_update_render_mode()
     }
 
     rdpq_set_other_modes_raw(modes);
-    rdpq_mode_combiner_func(comb);
+    rdpq_mode_combiner(comb);
     rdpq_mode_fog(fog_cycle);
     rdpq_mode_blending(blend_cycle);
 

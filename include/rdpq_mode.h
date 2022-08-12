@@ -92,11 +92,11 @@ inline void rdpq_set_mode_copy(bool transparency) {
 
 inline void rdpq_mode_blending(rdpq_blender_t blend);
 inline void rdpq_mode_fog(rdpq_blender_t fog);
-inline void rdpq_mode_combiner_func(rdpq_combiner_t comb);
+inline void rdpq_mode_combiner(rdpq_combiner_t comb);
 
 inline void rdpq_set_mode_standard(void) {
     rdpq_set_other_modes_raw(SOM_CYCLE_1 | SOM_TC_FILTER | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE);
-    rdpq_mode_combiner_func(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0)));
+    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0)));
     rdpq_mode_blending(0);
     rdpq_mode_fog(0);
 }
@@ -124,10 +124,9 @@ inline void rdpq_mode_antialias(bool enable)
     // TODO
 }
 
-inline void rdpq_mode_combiner_func(rdpq_combiner_t comb) {
+inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
     extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
 
-    // FIXME: autosync pipe
     if (comb & RDPQ_COMBINER_2PASS)
         __rdpq_fixup_mode(RDPQ_CMD_SET_COMBINE_MODE_2PASS,
             (comb >> 32) & 0x00FFFFFF,

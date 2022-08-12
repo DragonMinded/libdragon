@@ -130,7 +130,7 @@ void test_rdpq_passthrough_big(TestContext *ctx)
     rdpq_set_color_image(&fb);
     rdpq_set_blend_color(RGBA32(255,255,255,255));
     rdpq_set_mode_standard();
-    rdpq_mode_combiner_func(RDPQ_COMBINER1((ZERO,ZERO,ZERO,ZERO), (ZERO,ZERO,ZERO,ZERO)));
+    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO,ZERO,ZERO,ZERO), (ZERO,ZERO,ZERO,ZERO)));
     rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, ONE)) | SOM_BLENDING);
 
     rdp_draw_filled_triangle(0, 0, WIDTH, 0, WIDTH, WIDTH);
@@ -355,7 +355,7 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
 
     surface_clear(&fb, 0);
     rdpq_set_mode_standard();
-    rdpq_mode_combiner_func(RDPQ_COMBINER1((ZERO,ZERO,ZERO,ZERO),(ZERO,ZERO,ZERO,ONE)));
+    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO,ZERO,ZERO,ZERO),(ZERO,ZERO,ZERO,ONE)));
     rdpq_mode_blending(RDPQ_BLENDER((BLEND_RGB, IN_ALPHA, IN_RGB, INV_MUX_ALPHA)));
     rdpq_set_blend_color(TEST_COLOR);
     rdpq_set_scissor(4, 4, WIDTH-4, WIDTH-4);
@@ -376,7 +376,7 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
     surface_clear(&fb, 0);
     rdpq_set_scissor(4, 4, WIDTH-4, WIDTH-4);
     rdpq_set_mode_standard();
-    rdpq_mode_combiner_func(RDPQ_COMBINER1((ZERO,ZERO,ZERO,ZERO),(ZERO,ZERO,ZERO,ONE)));
+    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO,ZERO,ZERO,ZERO),(ZERO,ZERO,ZERO,ONE)));
     rdpq_mode_blending(RDPQ_BLENDER((BLEND_RGB, IN_ALPHA, IN_RGB, INV_MUX_ALPHA)));
     rdpq_set_blend_color(TEST_COLOR);
     rdpq_fill_rectangle(0, 0, WIDTH, WIDTH);
@@ -423,7 +423,7 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
 
     surface_clear(&fb, 0xFF);
     rdpq_set_mode_standard();
-    rdpq_mode_combiner_func(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0)));
+    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
@@ -446,7 +446,7 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
         surface_clear(&fb, 0xFF);
         rspq_block_begin();
         rdpq_set_mode_standard();
-        rdpq_mode_combiner_func(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0)));
+        rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0)));
         // rdpq_set_other_modes(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_TC_FILTER | SOM_BLENDING | SOM_SAMPLE_1X1 | SOM_MIDTEXEL);
         // rdpq_set_combine_mode(Comb_Rgb(ZERO, ZERO, ZERO, TEX0) | Comb_Alpha(ZERO, ZERO, ZERO, TEX0));
         rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
@@ -503,7 +503,6 @@ void test_rdpq_lookup_address(TestContext *ctx)
 void test_rdpq_lookup_address_offset(TestContext *ctx)
 {
     RDPQ_INIT();
-    rdpq_debug_log(true);
 
     const int WIDTH = 16;
     surface_t fb = surface_alloc(FMT_RGBA16, WIDTH, WIDTH);
@@ -772,7 +771,7 @@ void test_rdpq_automode(TestContext *ctx) {
 
     // Set simple 1-pass combiner => 1 cycle
     surface_clear(&fb, 0xFF);
-    rdpq_mode_combiner_func(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO)));
+    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
     rspq_wait();
     som = rdpq_get_other_modes_raw();
@@ -802,7 +801,7 @@ void test_rdpq_automode(TestContext *ctx) {
 
     // Set two-pass combiner => 2 cycle
     surface_clear(&fb, 0xFF);
-    rdpq_mode_combiner_func(RDPQ_COMBINER2(
+    rdpq_mode_combiner(RDPQ_COMBINER2(
         (ZERO, ZERO, ZERO, ENV), (ENV, ZERO, TEX0, PRIM),
         (TEX1, ZERO, COMBINED_ALPHA, ZERO), (ZERO, ZERO, ZERO, ZERO)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
@@ -824,7 +823,7 @@ void test_rdpq_automode(TestContext *ctx) {
 
     // Set simple combiner => 1 cycle
     surface_clear(&fb, 0xFF);
-    rdpq_mode_combiner_func(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO)));
+    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
     rspq_wait();
     som = rdpq_get_other_modes_raw();
@@ -834,7 +833,7 @@ void test_rdpq_automode(TestContext *ctx) {
 
     // Push the current mode, then modify several states, then pop.
     rdpq_mode_push();
-    rdpq_mode_combiner_func(RDPQ_COMBINER2(
+    rdpq_mode_combiner(RDPQ_COMBINER2(
         (ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO),
         (COMBINED, ZERO, ZERO, TEX1), (ZERO, ZERO, ZERO, ZERO)
     ));
@@ -885,7 +884,7 @@ void test_rdpq_blender(TestContext *ctx) {
     rdpq_load_tile(1, 0, 0, TEXWIDTH, TEXWIDTH);
 
     rdpq_set_mode_standard();
-    rdpq_mode_combiner_func(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0)));
+    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0)));
     rdpq_set_blend_color(BLEND_COLOR);
     rdpq_set_fog_color(RGBA32(0xEE, 0xEE, 0xEE, 0xFF));
 
