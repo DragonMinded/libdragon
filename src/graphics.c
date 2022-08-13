@@ -1185,4 +1185,9 @@ void graphics_draw_sprite_trans_stride( surface_t* disp, int x, int y, sprite_t 
     }
 }
 
+extern inline uint16_t color_to_packed16(color_t c);
+extern inline uint32_t color_to_packed32(color_t c);
+extern inline color_t color_from_packed16(uint16_t c);
+extern inline color_t color_from_packed32(uint32_t c);
+
 /** @} */ /* graphics */

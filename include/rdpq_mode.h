@@ -94,22 +94,9 @@ inline void rdpq_set_mode_fill(color_t color) {
  * 
  * @see #rdpq_set_mode_standard
  */
-inline void rdpq_set_mode_copy(bool transparency) {
-    if (transparency) rdpq_set_blend_color(RGBA32(0,0,0,1));
-    rdpq_set_other_modes_raw(SOM_CYCLE_COPY | (transparency ? SOM_ALPHA_COMPARE : 0));
-}
+void rdpq_set_mode_copy(bool transparency);
 
-
-inline void rdpq_mode_blending(rdpq_blender_t blend);
-inline void rdpq_mode_fog(rdpq_blender_t fog);
-inline void rdpq_mode_combiner(rdpq_combiner_t comb);
-
-inline void rdpq_set_mode_standard(void) {
-    rdpq_set_other_modes_raw(SOM_CYCLE_1 | SOM_TC_FILTER | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE);
-    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0)));
-    rdpq_mode_blending(0);
-    rdpq_mode_fog(0);
-}
+void rdpq_set_mode_standard(void);
 
 /**
  * @brief Reset render mode to YUV mode.
@@ -123,11 +110,7 @@ inline void rdpq_set_mode_standard(void) {
  * surface with #FMT_YUV16), and then draw them on the screen as part of
  * triangles or rectangles.
  */
-inline void rdpq_set_mode_yuv(void) {
-	rdpq_set_other_modes_raw(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_TC_CONV);
-	rdpq_set_combiner_raw(RDPQ_COMBINER1((TEX0, K4, K5, ZERO), (ZERO, ZERO, ZERO, ONE)));
-    rdpq_set_yuv_parms(179,-44,-91,227,19,255);  // BT.601 coefficients (Kr=0.299, Kb=0.114, TV range)
-}
+void rdpq_set_mode_yuv(void);
 
 inline void rdpq_mode_antialias(bool enable) 
 {
@@ -188,7 +171,7 @@ inline void rdpq_mode_tlut(rdpq_tlut_t tlut) {
 }
 
 inline void rdpq_mode_sampler(rdpq_sampler_t s) {
-    uint64_t samp;
+    uint64_t samp = 0;
     switch (s) {
         case SAMPLER_POINT:    samp = SOM_SAMPLE_1X1; break;
         case SAMPLER_MEDIAN:   samp = SOM_SAMPLE_2X2 | SOM_SAMPLE_MIDTEXEL; break;
