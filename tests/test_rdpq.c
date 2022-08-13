@@ -666,11 +666,14 @@ static uint8_t __autosync_pipe1_blockexp[4] = {0,0,4,1};
 
 static void __autosync_tile1(void) {
     rdpq_set_tile(0, FMT_RGBA16, 0, 128, 0);
+    rdpq_set_tile_size(0, 0, 0, 16, 16);
     rdpq_texture_rectangle(0, 0, 0, 4, 4, 0, 0, 1, 1);    
     // NO TILESYNC HERE
     rdpq_set_tile(1, FMT_RGBA16, 0, 128, 0);
+    rdpq_set_tile_size(1, 0, 0, 16, 16);
     rdpq_texture_rectangle(1, 0, 0, 4, 4, 0, 0, 1, 1);    
     rdpq_set_tile(2, FMT_RGBA16, 0, 128, 0);
+    rdpq_set_tile_size(2, 0, 0, 16, 16);
     // NO TILESYNC HERE
     rdpq_set_tile(2, FMT_RGBA16, 0, 256, 0);
     // NO TILESYNC HERE

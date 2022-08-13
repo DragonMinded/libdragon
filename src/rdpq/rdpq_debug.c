@@ -58,12 +58,21 @@ typedef struct {
 } setothermodes_t;
 
 struct {
+    struct { bool pipe; bool tile[8]; uint8_t tmem[64]; } busy;
     bool sent_scissor;
     bool mode_changed;
     uint64_t *last_som;
     uint64_t *last_cc;
+    uint64_t *last_tex;
     setothermodes_t som;
     colorcombiner_t cc;
+    struct tile_s { 
+        uint8_t fmt, size; uint8_t pal;
+        bool has_extents;
+        float s0, t0, s1, t1;
+        int16_t tmem_addr, tmem_pitch;
+    } tile[8];
+    struct { uint8_t fmt, size; } tex;
 } rdpq_state;
 
 
@@ -74,6 +83,7 @@ static rdp_buffer_t last_buffer;
 static bool show_log;
 void (*rdpq_trace)(void);
 void (*rdpq_trace_fetch)(void);
+static int warns, errs;
 
 void __rdpq_trace_fetch(void)
 {
@@ -171,6 +181,7 @@ void rdpq_debug_start(void)
     memset(&rdpq_state, 0, sizeof(rdpq_state));
     buf_widx = buf_ridx = 0;
     show_log = false;
+    warns = errs = 0;
 
     rdpq_trace = __rdpq_trace;
     rdpq_trace_fetch = __rdpq_trace_fetch;
@@ -417,7 +428,7 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
     if (!(cond)) { \
         debugf("[RDPQ_VALIDATION] ERROR: "); \
         debugf(msg "\n", ##__VA_ARGS__); \
-        if (errs) *errs += 1; \
+        errs += 1; \
     }; \
 })
 
@@ -435,7 +446,7 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
     if (!(cond)) { \
         debugf("[RDPQ_VALIDATION] WARN: "); \
         debugf(msg "\n", ##__VA_ARGS__); \
-        if (warns) *warns += 1; \
+        warns += 1; \
     }; \
 })
 
@@ -448,7 +459,7 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
  * 
  * Validation of CC is thus run lazily whenever a draw command is issued.
  */
-static void lazy_validate_cc(int *errs, int *warns) {
+static void lazy_validate_cc(void) {
     if (rdpq_state.mode_changed) {
         rdpq_state.mode_changed = false;
 
@@ -493,7 +504,7 @@ static void lazy_validate_cc(int *errs, int *warns) {
     }
 }
 
-static void validate_draw_cmd(int *errs, int *warns, bool use_colors, bool use_tex, bool use_z, bool use_w)
+static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool use_w)
 {
     VALIDATE_ERR(rdpq_state.sent_scissor,
         "undefined behavior: drawing command before a SET_SCISSOR was sent");
@@ -531,11 +542,61 @@ static void validate_draw_cmd(int *errs, int *warns, bool use_colors, bool use_t
     }
 }
 
-void rdpq_validate(uint64_t *buf, int *errs, int *warns)
+static void validate_busy_pipe(void) {
+    VALIDATE_WARN(!rdpq_state.busy.pipe, "pipe might be busy, SYNC_PIPE is missing");
+    rdpq_state.busy.pipe = false;
+}
+
+static void validate_busy_tile(int tidx) {
+    VALIDATE_WARN(!rdpq_state.busy.tile[tidx],
+        "tile %d might be busy, SYNC_TILE is missing", tidx);
+    rdpq_state.busy.tile[tidx] = false;
+}
+
+static void mark_busy_tmem(int addr, int size) {
+    int x0 = MIN(addr, 0x1000)/8, x1 = MIN(addr+size, 0x1000)/8, x = x0;
+    while ((x&7) && x < x1) { rdpq_state.busy.tmem[x/8] |= 1 << (x&7); x++;  }
+    while (x+8 < x1)        { rdpq_state.busy.tmem[x/8] = 0xFF;        x+=8; }
+    while (x < x1)          { rdpq_state.busy.tmem[x/8] |= 1 << (x&7); x++;  }
+}
+
+static bool is_busy_tmem(int addr, int size) {
+    int x0 = MIN(addr, 0x1000)/8, x1 = MIN(addr+size, 0x1000)/8, x = x0;
+    while ((x&7) && x < x1) { if (rdpq_state.busy.tmem[x/8] & 1 << (x&7)) return true; x++;  }
+    while (x+8 < x1)        { if (rdpq_state.busy.tmem[x/8] != 0)         return true; x+=8; }
+    while (x < x1)          { if (rdpq_state.busy.tmem[x/8] & 1 << (x&7)) return true; x++;  }
+    return false;
+}
+
+static void validate_busy_tmem(int addr, int size) {
+    VALIDATE_WARN(!is_busy_tmem(addr, size), "writing to TMEM[0x%x:0x%x] while busy, SYNC_LOAD missing", addr, addr+size);
+}
+
+static void use_tile(int tidx) {
+    struct tile_s *t = &rdpq_state.tile[tidx];
+    VALIDATE_ERR(t->has_extents, "tile %d has no extents set, missing LOAD_TILE or SET_TILE_SIZE", tidx);
+    rdpq_state.busy.tile[tidx] = true;
+    mark_busy_tmem(t->tmem_addr, (t->t1-t->t0+1)*t->tmem_pitch);
+    switch (t->fmt) {
+    case 2: // color-index: mark also palette area of TMEM as used
+        if (t->size == 0) mark_busy_tmem(0x800 + t->pal*64, 64);  // CI4
+        if (t->size == 1) mark_busy_tmem(0x800, 0x800);           // CI8
+        break;
+    case 1: // YUV: use also upper-half of TMEM
+        mark_busy_tmem(t->tmem_addr+0x800, (t->t1-t->t0+1)*t->tmem_pitch);
+        break;
+    }
+}
+
+void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
 {
+    if (r_errs)  *r_errs  = errs;
+    if (r_warns) *r_warns = warns;
+
     uint8_t cmd = BITS(buf[0], 56, 61);
     switch (cmd) {
     case 0x3F: { // SET_COLOR_IMAGE
+        validate_busy_pipe();
         tex_format_t fmt = _RDP_FORMAT_CODE(BITS(buf[0], 53, 55), BITS(buf[0], 51, 52));
         VALIDATE_ERR(BITS(buf[0], 0, 5) == 0, "color image must be aligned to 64 bytes");
         VALIDATE_ERR(fmt == FMT_RGBA32 || fmt == FMT_RGBA16 || fmt == FMT_CI8,
@@ -543,14 +604,58 @@ void rdpq_validate(uint64_t *buf, int *errs, int *warns)
                 tex_format_name(fmt));
     }   break;
     case 0x3E: // SET_Z_IMAGE
+        validate_busy_pipe();
         VALIDATE_ERR(BITS(buf[0], 0, 5) == 0, "Z image must be aligned to 64 bytes");
         break;
+    case 0x3D: // SET_TEX_IMAGE
+        validate_busy_pipe();
+        rdpq_state.tex.fmt = BITS(buf[0], 53, 55);
+        rdpq_state.tex.size = BITS(buf[0], 51, 52);
+        rdpq_state.last_tex = &buf[0];        
+        break;
+    case 0x35: { // SET_TILE
+        int tidx = BITS(buf[0], 24, 26);
+        validate_busy_tile(tidx);
+        struct tile_s *t = &rdpq_state.tile[tidx];
+        *t = (struct tile_s){
+            .fmt = BITS(buf[0], 53, 55), .size = BITS(buf[0], 51, 52),
+            .pal = BITS(buf[0], 20, 23),
+            .has_extents = false,
+            .tmem_addr = BITS(buf[0], 32, 40)*8,
+            .tmem_pitch = BITS(buf[0], 41, 49)*8,
+        };
+        if (t->fmt == 2 && t->size == 1)
+            VALIDATE_WARN(t->pal == 0, "invalid non-zero palette for CI8 tile");
+    }   break;
+    case 0x32: case 0x34: { // SET_TILE_SIZE, LOAD_TILE
+        bool load = cmd == 0x34;
+        int tidx = BITS(buf[0], 24, 26);
+        struct tile_s *t = &rdpq_state.tile[tidx];
+        validate_busy_tile(tidx);
+        if (load) VALIDATE_ERR(rdpq_state.tex.size != 0, "LOAD_TILE does not support 4-bit textures (set at %p)", rdpq_state.last_tex);
+        t->has_extents = true;
+        t->s0 = BITS(buf[0], 44, 55)*FX(2); t->t0 = BITS(buf[0], 32, 43)*FX(2);
+        t->s1 = BITS(buf[0], 12, 23)*FX(2); t->t1 = BITS(buf[0],  0, 11)*FX(2);
+        if (load) validate_busy_tmem(t->tmem_addr, (t->t1-t->t0+1) * t->tmem_pitch);
+    }   break;
+    case 0x30: { // LOAD_TLUT
+        int tidx = BITS(buf[0], 24, 26);
+        struct tile_s *t = &rdpq_state.tile[tidx];
+        int low = BITS(buf[0], 44, 55), high = BITS(buf[0], 12, 23);
+        VALIDATE_ERR(rdpq_state.tex.fmt == 0 && rdpq_state.tex.size==2, "LOAD_TLUT requires texure in RGBA16 format (set at %p)", rdpq_state.last_tex);
+        VALIDATE_ERR(t->tmem_addr >= 0x800, "palettes must be loaded in upper half of TMEM (address >= 0x800)");
+        VALIDATE_WARN(!(low&3) && !(high&3), "lowest 2 bits of palette start/stop must be 0");
+        VALIDATE_ERR(low>>2 < 256, "palette start index must be < 256");
+        VALIDATE_ERR(high>>2 < 256, "palette stop index must be < 256");
+    }   break;
     case 0x2F: // SET_OTHER_MODES
+        validate_busy_pipe();
         rdpq_state.som = decode_som(buf[0]);
         rdpq_state.last_som = &buf[0];
         rdpq_state.mode_changed = true;
         break;
     case 0x3C: // SET_COMBINE
+        validate_busy_pipe();
         rdpq_state.cc = decode_cc(buf[0]);
         rdpq_state.last_cc = &buf[0];
         rdpq_state.mode_changed = true;
@@ -562,19 +667,49 @@ void rdpq_validate(uint64_t *buf, int *errs, int *warns)
         VALIDATE_ERR(rdpq_state.som.cycle_type < 2, "cannot draw texture rectangle flip in copy/fill mode");
         // passthrough
     case 0x24: // TEX_RECT
-        lazy_validate_cc(errs, warns);
-        validate_draw_cmd(errs, warns, false, true, false, false);
+        rdpq_state.busy.pipe = true;
+        lazy_validate_cc();
+        validate_draw_cmd(false, true, false, false);
+        use_tile(BITS(buf[0], 24, 26));
         break;
     case 0x36: // FILL_RECTANGLE
-        lazy_validate_cc(errs, warns);
-        validate_draw_cmd(errs, warns, false, false, false, false);
+        rdpq_state.busy.pipe = true;
+        lazy_validate_cc();
+        validate_draw_cmd(false, false, false, false);
         break;
     case 0x8 ... 0xF: // Triangles
+        rdpq_state.busy.pipe = true;
         VALIDATE_ERR(rdpq_state.som.cycle_type < 2, "cannot draw triangles in copy/fill mode (SOM set at %p)", rdpq_state.last_som);
-        lazy_validate_cc(errs, warns);
-        validate_draw_cmd(errs, warns, cmd & 4, cmd & 2, cmd & 1, cmd & 2);
+        lazy_validate_cc();
+        validate_draw_cmd(cmd & 4, cmd & 2, cmd & 1, cmd & 2);
+        if (cmd & 2) use_tile(BITS(buf[0], 24, 26));
+        break;
+    case 0x27: // SYNC_PIPE
+        rdpq_state.busy.pipe = false;
+        break;
+    case 0x29: // SYNC_FULL
+        memset(&rdpq_state.busy, 0, sizeof(rdpq_state.busy));
+        break;
+    case 0x28: // SYNC_TILE
+        memset(&rdpq_state.busy.tile, 0, sizeof(rdpq_state.busy.tile));
+        break;
+    case 0x26: // SYNC_LOAD
+        memset(&rdpq_state.busy.tmem, 0, sizeof(rdpq_state.busy.tmem));
+        break;
+    case 0x2E: // SET_PRIM_DEPTH
+        break;
+    case 0x3A: // SET_PRIM_COLOR
+        break;
+    case 0x37: // SET_FILL_COLOR
+    case 0x38: // SET_FOG_COLOR
+    case 0x39: // SET_BLEND_COLOR
+    case 0x3B: // SET_ENV_COLOR
+        validate_busy_pipe();
         break;
     }
+
+    if (r_errs)  *r_errs  = errs - *r_errs;
+    if (r_warns) *r_warns = warns - *r_warns;
 }
 
 surface_t rdpq_debug_get_tmem(void) {
