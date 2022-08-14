@@ -110,31 +110,31 @@ float gl_clamped_dot(const GLfloat *a, const GLfloat *b)
     return MAX(dot_product3(a, b), 0.0f);
 }
 
-const GLfloat * gl_material_get_color(const gl_material_t *material, GLenum color)
+const GLfloat * gl_material_get_color(const gl_material_t *material, GLenum color, const GLfloat *input)
 {
     GLenum target = material->color_target;
 
     switch (color) {
     case GL_EMISSION:
-        return state.color_material && target == GL_EMISSION ? state.current_color : material->emissive;
+        return state.color_material && target == GL_EMISSION ? input : material->emissive;
     case GL_AMBIENT:
-        return state.color_material && (target == GL_AMBIENT || target == GL_AMBIENT_AND_DIFFUSE) ? state.current_color : material->ambient;
+        return state.color_material && (target == GL_AMBIENT || target == GL_AMBIENT_AND_DIFFUSE) ? input : material->ambient;
     case GL_DIFFUSE:
-        return state.color_material && (target == GL_DIFFUSE || target == GL_AMBIENT_AND_DIFFUSE) ? state.current_color : material->diffuse;
+        return state.color_material && (target == GL_DIFFUSE || target == GL_AMBIENT_AND_DIFFUSE) ? input : material->diffuse;
     case GL_SPECULAR:
-        return state.color_material && target == GL_SPECULAR ? state.current_color : material->specular;
+        return state.color_material && target == GL_SPECULAR ? input : material->specular;
     default:
         assertf(0, "Invalid material color!");
         return NULL;
     }
 }
 
-void gl_perform_lighting(GLfloat *color, const GLfloat *v, const GLfloat *n, const gl_material_t *material)
+void gl_perform_lighting(GLfloat *color, const GLfloat *input, const GLfloat *v, const GLfloat *n, const gl_material_t *material)
 {
-    const GLfloat *emissive = gl_material_get_color(material, GL_EMISSION);
-    const GLfloat *ambient = gl_material_get_color(material, GL_AMBIENT);
-    const GLfloat *diffuse = gl_material_get_color(material, GL_DIFFUSE);
-    const GLfloat *specular = gl_material_get_color(material, GL_SPECULAR);
+    const GLfloat *emissive = gl_material_get_color(material, GL_EMISSION, input);
+    const GLfloat *ambient = gl_material_get_color(material, GL_AMBIENT, input);
+    const GLfloat *diffuse = gl_material_get_color(material, GL_DIFFUSE, input);
+    const GLfloat *specular = gl_material_get_color(material, GL_SPECULAR, input);
 
     // Emission and ambient
     color[0] = emissive[0] + ambient[0] * state.light_model_ambient[0];

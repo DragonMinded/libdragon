@@ -68,7 +68,6 @@ typedef struct {
     GLfloat inverse_w;
     GLfloat depth;
     uint8_t clip;
-    GLboolean edge_flag;
 } gl_vertex_t;
 
 typedef struct {
@@ -137,12 +136,39 @@ typedef struct {
 } gl_light_t;
 
 typedef struct {
+    GLuint name;
+    uint32_t size;
+    GLenum usage;
+    GLenum access;
+    bool mapped;
+    GLvoid *pointer;
+    GLvoid *data;
+} gl_buffer_object_t;
+
+typedef struct {
     GLint size;
     GLenum type;
     GLsizei stride;
     const GLvoid *pointer;
+    gl_buffer_object_t *binding;
     bool enabled;
 } gl_array_t;
+
+typedef void (*read_attrib_func)(GLfloat*,const void*,uint32_t);
+
+typedef struct {
+    const GLvoid *pointer;
+    read_attrib_func read_func;
+    uint16_t stride;
+    uint8_t size;
+    uint8_t elem_size;
+    bool copy_before_draw;
+    void *tmp_buffer;
+    uint32_t tmp_buffer_size;
+    const void *final_pointer;
+    uint16_t final_stride;
+    uint16_t offset;
+} gl_vertex_source_t;
 
 typedef struct {
     GLenum mode;
@@ -217,7 +243,10 @@ typedef struct {
     GLfloat current_color[4];
     GLfloat current_texcoord[4];
     GLfloat current_normal[3];
-    GLboolean current_edge_flag;
+
+    gl_vertex_source_t vertex_sources[4];
+    void *tmp_index_buffer;
+    uint32_t tmp_index_buffer_size;
 
     gl_viewport_t current_viewport;
 
@@ -257,7 +286,6 @@ typedef struct {
     gl_tex_gen_t r_gen;
     gl_tex_gen_t q_gen;
 
-    gl_array_t edge_array;
     gl_array_t vertex_array;
     gl_array_t texcoord_array;
     gl_array_t normal_array;
@@ -286,6 +314,12 @@ typedef struct {
     GLuint list_base;
     GLuint current_list;
 
+    obj_map_t buffer_objects;
+    GLuint next_buffer_name;
+
+    gl_buffer_object_t *array_buffer;
+    gl_buffer_object_t *element_array_buffer;
+
     bool immediate_active;
     bool force_edge_flag;
     bool is_points;
@@ -303,9 +337,12 @@ void gl_array_init();
 void gl_primitive_init();
 void gl_pixel_init();
 void gl_list_init();
+void gl_buffer_init();
 
 void gl_texture_close();
+void gl_primitive_close();
 void gl_list_close();
+void gl_buffer_close();
 
 void gl_set_error(GLenum error);
 
@@ -321,7 +358,7 @@ void gl_update_scissor();
 void gl_update_render_mode();
 void gl_update_texture();
 
-void gl_perform_lighting(GLfloat *color, const GLfloat *v, const GLfloat *n, const gl_material_t *material);
+void gl_perform_lighting(GLfloat *color, const GLfloat *input, const GLfloat *v, const GLfloat *n, const gl_material_t *material);
 
 gl_texture_object_t * gl_get_active_texture();
 
@@ -329,5 +366,7 @@ float dot_product3(const float *a, const float *b);
 void gl_normalize(GLfloat *d, const GLfloat *v);
 
 uint32_t gl_get_type_size(GLenum type);
+
+void read_f32(GLfloat *dst, const float *src, uint32_t count);
 
 #endif

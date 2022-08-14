@@ -1,6 +1,7 @@
 #include "gl_internal.h"
 #include "utils.h"
 #include "rdpq.h"
+#include <malloc.h>
 #include <string.h>
 
 extern gl_state_t state;
@@ -41,7 +42,20 @@ void gl_primitive_init()
     state.current_color[3] = 1;
     state.current_texcoord[3] = 1;
     state.current_normal[2] = 1;
-    state.current_edge_flag = GL_TRUE;
+}
+
+void gl_primitive_close()
+{
+    for (uint32_t i = 0; i < 4; i++)
+    {
+        if (state.vertex_sources[i].tmp_buffer != NULL) {
+            free(state.vertex_sources[i].tmp_buffer);
+        }
+    }
+
+    if (state.tmp_index_buffer != NULL) {
+        free(state.tmp_index_buffer);
+    }
 }
 
 bool gl_calc_is_points()
@@ -253,7 +267,7 @@ void gl_draw_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
     rdpq_triangle(0, level, 0, 2, tex_offset, z_offset, v0->screen_pos, v1->screen_pos, v2->screen_pos);
 }
 
-void gl_cull_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2, bool e0, bool e1, bool e2)
+void gl_cull_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
 {
     if (state.cull_face_mode == GL_FRONT_AND_BACK) {
         return;
@@ -275,14 +289,14 @@ void gl_cull_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2, bool e0
     
     switch (state.polygon_mode) {
     case GL_POINT:
-        if (e0) gl_draw_point(v0);
-        if (e1) gl_draw_point(v1);
-        if (e2) gl_draw_point(v2);
+        gl_draw_point(v0);
+        gl_draw_point(v1);
+        gl_draw_point(v2);
         break;
     case GL_LINE:
-        if (e0) gl_draw_line(v0, v1);
-        if (e1) gl_draw_line(v1, v2);
-        if (e2) gl_draw_line(v2, v0);
+        gl_draw_line(v0, v1);
+        gl_draw_line(v1, v2);
+        gl_draw_line(v2, v0);
         break;
     case GL_FILL:
         gl_draw_triangle(v0, v1, v2);
@@ -356,7 +370,7 @@ void gl_clip_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
     uint8_t any_clip = v0->clip | v1->clip | v2->clip;
 
     if (!any_clip) {
-        gl_cull_triangle(v0, v1, v2, v0->edge_flag, v1->edge_flag, v2->edge_flag);
+        gl_cull_triangle(v0, v1, v2);
         return;
     }
 
@@ -375,9 +389,6 @@ void gl_clip_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
     out_list->vertices[0] = v0;
     out_list->vertices[1] = v1;
     out_list->vertices[2] = v2;
-    out_list->edge_flags[0] = v0->edge_flag;
-    out_list->edge_flags[1] = v1->edge_flag;
-    out_list->edge_flags[2] = v2->edge_flag;
     out_list->count = 3;
     
     for (uint32_t c = 0; c < CLIPPING_PLANE_COUNT; c++)
@@ -454,10 +465,7 @@ void gl_clip_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
 
     for (uint32_t i = 2; i < out_list->count; i++)
     {
-        gl_cull_triangle(out_list->vertices[0], out_list->vertices[i-1], out_list->vertices[i], 
-                         (i == 2) ? out_list->edge_flags[0] : false, 
-                         out_list->edge_flags[i-1], 
-                         (i == out_list->count - 1) ? out_list->edge_flags[i] : false);
+        gl_cull_triangle(out_list->vertices[0], out_list->vertices[i-1], out_list->vertices[i]);
     }
 }
 
@@ -608,10 +616,10 @@ void gl_update_points()
     gl_draw_point(v0);
 }
 
-void gl_calc_texture_coord(GLfloat *dest, uint32_t coord_index, const gl_tex_gen_t *gen, const GLfloat *obj_pos, const GLfloat *eye_pos, const GLfloat *eye_normal)
+void gl_calc_texture_coord(GLfloat *dest, const GLfloat *input, uint32_t coord_index, const gl_tex_gen_t *gen, const GLfloat *obj_pos, const GLfloat *eye_pos, const GLfloat *eye_normal)
 {
     if (!gen->enabled) {
-        dest[coord_index] = state.current_texcoord[coord_index];
+        dest[coord_index] = input[coord_index];
         return;
     }
 
@@ -643,34 +651,46 @@ void gl_calc_texture_coord(GLfloat *dest, uint32_t coord_index, const gl_tex_gen
     }
 }
 
-void gl_calc_texture_coords(GLfloat *dest, const GLfloat *obj_pos, const GLfloat *eye_pos, const GLfloat *eye_normal)
+void gl_calc_texture_coords(GLfloat *dest, const GLfloat *input, const GLfloat *obj_pos, const GLfloat *eye_pos, const GLfloat *eye_normal)
 {
     GLfloat tmp[4];
 
-    gl_calc_texture_coord(tmp, 0, &state.s_gen, obj_pos, eye_pos, eye_normal);
-    gl_calc_texture_coord(tmp, 1, &state.t_gen, obj_pos, eye_pos, eye_normal);
-    gl_calc_texture_coord(tmp, 2, &state.r_gen, obj_pos, eye_pos, eye_normal);
-    gl_calc_texture_coord(tmp, 3, &state.q_gen, obj_pos, eye_pos, eye_normal);
+    gl_calc_texture_coord(tmp, input, 0, &state.s_gen, obj_pos, eye_pos, eye_normal);
+    gl_calc_texture_coord(tmp, input, 1, &state.t_gen, obj_pos, eye_pos, eye_normal);
+    gl_calc_texture_coord(tmp, input, 2, &state.r_gen, obj_pos, eye_pos, eye_normal);
+    gl_calc_texture_coord(tmp, input, 3, &state.q_gen, obj_pos, eye_pos, eye_normal);
 
     // TODO: skip matrix multiplication if it is the identity
     gl_matrix_mult4x2(dest, gl_matrix_stack_get_matrix(&state.texture_stack), tmp);
 }
 
-void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w) 
+typedef uint32_t (*read_index_func)(const void*,uint32_t);
+
+void read_from_source(GLfloat* dst, const gl_vertex_source_t *src, uint32_t i, const GLfloat *alt_value, uint32_t alt_count)
 {
-    if (gl_is_invisible()) {
-        return;
+    if (src->pointer == NULL) {
+        read_f32(dst, alt_value, alt_count);
+    } else {
+        const void *p = src->final_pointer + (i - src->offset) * src->final_stride;
+        src->read_func(dst, p, src->size);
     }
+}
 
-    gl_vertex_t *v = &state.vertex_cache[state.next_vertex];
+void gl_vertex_t_l(gl_vertex_t *v, gl_vertex_source_t sources[4], uint32_t i, const gl_matrix_t *mv, const gl_texture_object_t *tex_obj)
+{
+    GLfloat pos[4] = { 0, 0, 0, 1 };
+    GLfloat color[4] = { 0, 0, 0, 1 };
+    GLfloat texcoord[4] = { 0, 0, 0, 1 };
+    GLfloat normal[3];
 
-    GLfloat pos[] = {x, y, z, w};
+    read_from_source(pos, &sources[0], i, NULL, 0);
+    read_from_source(color, &sources[1], i, state.current_color, 4);
+    read_from_source(texcoord, &sources[2], i, state.current_texcoord, 4);
+    read_from_source(normal, &sources[3], i, state.current_normal, 3);
+
     GLfloat eye_pos[4];
     GLfloat eye_normal[3];
 
-    const gl_matrix_t *mv = gl_matrix_stack_get_matrix(&state.modelview_stack);
-
-    gl_texture_object_t *tex_obj = gl_get_active_texture();
     bool is_texture_active = tex_obj != NULL && tex_obj->is_complete;
 
     if (state.lighting || state.fog || is_texture_active) {
@@ -678,7 +698,7 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
     }
 
     if (state.lighting || is_texture_active) {
-        gl_matrix_mult3x3(eye_normal, mv, state.current_normal);
+        gl_matrix_mult3x3(eye_normal, mv, normal);
 
         if (state.normalize) {
             gl_normalize(eye_normal, eye_normal);
@@ -686,12 +706,12 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
     }
 
     if (state.lighting) {
-        gl_perform_lighting(v->color, eye_pos, eye_normal, &state.material);
+        gl_perform_lighting(v->color, color, eye_pos, eye_normal, &state.material);
     } else {
-        v->color[0] = state.current_color[0];
-        v->color[1] = state.current_color[1];
-        v->color[2] = state.current_color[2];
-        v->color[3] = state.current_color[3];
+        v->color[0] = color[0];
+        v->color[1] = color[1];
+        v->color[2] = color[2];
+        v->color[3] = color[3];
     }
 
     if (state.fog) {
@@ -713,7 +733,7 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
     gl_vertex_calc_screenspace(v);
 
     if (is_texture_active) {
-        gl_calc_texture_coords(v->texcoord, pos, eye_pos, eye_normal);
+        gl_calc_texture_coords(v->texcoord, texcoord, pos, eye_pos, eye_normal);
 
         v->texcoord[0] *= tex_obj->levels[0].width;
         v->texcoord[1] *= tex_obj->levels[0].height;
@@ -726,21 +746,214 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
         v->texcoord[0] *= 32.f;
         v->texcoord[1] *= 32.f;
     }
+}
 
-    v->edge_flag = state.force_edge_flag || state.current_edge_flag;
+uint32_t read_index_8(const uint8_t *src, uint32_t i)
+{
+    return src[i];
+}
 
-    state.primitive_indices[state.primitive_progress] = state.next_vertex;
+uint32_t read_index_16(const uint16_t *src, uint32_t i)
+{
+    return src[i];
+}
 
-    // Acquire the next vertex in the cache that is writable.
-    // Up to one vertex can be locked to keep it from being overwritten.
-    do {
-        state.next_vertex = (state.next_vertex + 1) % VERTEX_CACHE_SIZE;
-    } while (state.next_vertex == state.vertex_cache_locked);
+uint32_t read_index_32(const uint32_t *src, uint32_t i)
+{
+    return src[i];
+}
+
+void gl_copy_sources(uint32_t offset, uint32_t count)
+{
+    for (uint32_t i = 0; i < 4; i++)
+    {
+        gl_vertex_source_t *src = &state.vertex_sources[i];
+
+        if (!src->copy_before_draw) {
+            src->final_pointer = src->pointer;
+            src->offset = 0;
+            continue;
+        }
+
+        uint32_t buffer_size = src->elem_size * count;
+
+        if (buffer_size > src->tmp_buffer_size) {
+            if (src->tmp_buffer != NULL) {
+                free(src->tmp_buffer);
+            }
+
+            src->tmp_buffer = malloc(buffer_size);
+            src->tmp_buffer_size = buffer_size;
+        }
+
+        for (uint32_t e = 0; e < count; e++)
+        {
+            void *dst_ptr = src->tmp_buffer + e * src->elem_size;
+            const void *src_ptr = src->pointer + (e + offset) * src->stride;
+            memcpy(dst_ptr, src_ptr, src->elem_size);
+        }
+
+        src->final_pointer = src->tmp_buffer;
+        src->offset = offset;
+    }
+}
+
+void gl_draw(gl_vertex_source_t *sources, uint32_t offset, uint32_t count, const void *indices, read_index_func read_index)
+{
+    if (sources[0].pointer == NULL) {
+        return;
+    }
+
+    const gl_matrix_t *mv = gl_matrix_stack_get_matrix(&state.modelview_stack);
+
+    gl_texture_object_t *tex_obj = gl_get_active_texture();
+
+    for (uint32_t i = 0; i < count; i++)
+    {
+        gl_vertex_t *v = &state.vertex_cache[state.next_vertex];
+
+        uint32_t index = indices != NULL ? read_index(indices, i) : offset + i;
+
+        gl_vertex_t_l(v, sources, index, mv, tex_obj);
+
+        state.primitive_indices[state.primitive_progress] = state.next_vertex;
+
+        // Acquire the next vertex in the cache that is writable.
+        // Up to one vertex can be locked to keep it from being overwritten.
+        do {
+            state.next_vertex = (state.next_vertex + 1) % VERTEX_CACHE_SIZE;
+        } while (state.next_vertex == state.vertex_cache_locked);
+        
+        state.primitive_progress++;
+
+        assert(state.primitive_func != NULL);
+        state.primitive_func();
+    }
+}
+
+void glDrawArrays(GLenum mode, GLint first, GLsizei count)
+{
+    switch (mode) {
+    case GL_POINTS:
+    case GL_LINES:
+    case GL_LINE_LOOP:
+    case GL_LINE_STRIP:
+    case GL_TRIANGLES:
+    case GL_TRIANGLE_STRIP:
+    case GL_TRIANGLE_FAN:
+    case GL_QUADS:
+    case GL_QUAD_STRIP:
+    case GL_POLYGON:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    glBegin(mode);
+    gl_copy_sources(first, count);
+    gl_draw(state.vertex_sources, first, count, NULL, NULL);
+    glEnd();
+}
+
+void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices)
+{
+    switch (mode) {
+    case GL_POINTS:
+    case GL_LINES:
+    case GL_LINE_LOOP:
+    case GL_LINE_STRIP:
+    case GL_TRIANGLES:
+    case GL_TRIANGLE_STRIP:
+    case GL_TRIANGLE_FAN:
+    case GL_QUADS:
+    case GL_QUAD_STRIP:
+    case GL_POLYGON:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    read_index_func read_index;
+    uint32_t index_size_shift = 0;
+
+    switch (type) {
+    case GL_UNSIGNED_BYTE:
+        read_index = (read_index_func)read_index_8;
+        index_size_shift = 0;
+        break;
+    case GL_UNSIGNED_SHORT:
+        read_index = (read_index_func)read_index_16;
+        index_size_shift = 1;
+        break;
+    case GL_UNSIGNED_INT:
+        read_index = (read_index_func)read_index_32;
+        index_size_shift = 2;
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    if (state.element_array_buffer != NULL) {
+        indices = state.element_array_buffer->data + (uint32_t)indices;
+    } else {
+        uint32_t index_buffer_size = count << index_size_shift;
+
+        if (index_buffer_size > state.tmp_index_buffer_size) {
+            if (state.tmp_index_buffer != NULL) {
+                free(state.tmp_index_buffer);
+            }
+            state.tmp_index_buffer = malloc(index_buffer_size);
+            state.tmp_index_buffer_size = index_buffer_size;
+        }
+
+        memcpy(state.tmp_index_buffer, indices, index_buffer_size);
+        indices = state.tmp_index_buffer;
+    }
+
+    uint32_t min_index = UINT32_MAX, max_index = 0;
+
+    for (uint32_t i = 0; i < count; i++)
+    {
+        uint32_t index = read_index(indices, i);
+        min_index = MIN(min_index, index);
+        max_index = MAX(max_index, index);
+    }
+
+    glBegin(mode);
+    gl_copy_sources(min_index, max_index - min_index + 1);
+    gl_draw(state.vertex_sources, 0, count, indices, read_index);
+    glEnd();
+}
+
+void glArrayElement(GLint i)
+{
+    // TODO: batch these
+
+    gl_copy_sources(i, 1);
+    gl_draw(state.vertex_sources, i, 1, NULL, NULL);
+}
+
+static GLfloat vertex_tmp[4];
+static gl_vertex_source_t dummy_sources[4] = {
+    { .pointer = vertex_tmp, .size = 4, .stride = 0, .read_func = (read_attrib_func)read_f32, .final_pointer = vertex_tmp },
+    { .pointer = NULL },
+    { .pointer = NULL },
+    { .pointer = NULL },
+};
+
+void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
+{
+    // TODO: batch these
     
-    state.primitive_progress++;
+    vertex_tmp[0] = x;
+    vertex_tmp[1] = y;
+    vertex_tmp[2] = z;
+    vertex_tmp[3] = w;
 
-    assert(state.primitive_func != NULL);
-    state.primitive_func();
+    gl_draw(dummy_sources, 0, 1, NULL, NULL);
 }
 
 void glVertex4s(GLshort x, GLshort y, GLshort z, GLshort w)     { glVertex4f(x, y, z, w); }
@@ -771,15 +984,6 @@ void glVertex4sv(const GLshort *v)  { glVertex4s(v[0], v[1], v[2], v[3]); }
 void glVertex4iv(const GLint *v)    { glVertex4i(v[0], v[1], v[2], v[3]); }
 void glVertex4fv(const GLfloat *v)  { glVertex4f(v[0], v[1], v[2], v[3]); }
 void glVertex4dv(const GLdouble *v) { glVertex4d(v[0], v[1], v[2], v[3]); }
-
-void glEdgeFlag(GLboolean flag)
-{
-    state.current_edge_flag = flag;
-}
-void glEdgeFlagv(const GLboolean *flag)
-{
-    glEdgeFlag(*flag);
-}
 
 void glColor4f(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
