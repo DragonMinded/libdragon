@@ -1252,6 +1252,7 @@ void gl_update_texture()
         uint8_t shift_t = full_height_log - height_log;
 
         rdpq_set_tile_full(l, fmt, tmem_used, tmem_pitch, 0, 0, 0, mask_t, shift_t, 0, 0, mask_s, shift_s);
+        rdpq_set_tile_size(l, 0, 0, image->width, image->height);
 
         tmem_used = add_tmem_size(tmem_used, tmem_pitch * image->height);
     }
