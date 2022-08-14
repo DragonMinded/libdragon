@@ -16,11 +16,17 @@ void rdpq_tex_load_tlut(uint16_t *tlut, int color_idx, int num_colors)
 
 int rdpq_tex_load_ci4(int tile, surface_t *tex, int tmem_addr, int tlut)
 {
-    int tmem_pitch = ROUND_UP(tex->width / 2, 8);
+    int tmem_pitch = ROUND_UP(tex->stride, 8);
 
+    // LOAD_TILE does not support loading from a CI4 texture. We need to pretend
+    // it's CI8 instead during loading, and then configure the tile with CI4. 
     rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_CI8, tmem_addr, tmem_pitch, 0);
     rdpq_set_texture_image_raw(0, PhysicalAddr(tex->buffer), FMT_CI8, tex->width/2, tex->height);
-    rdpq_load_tile(RDPQ_TILE_INTERNAL, 0, 0, tex->width/2, tex->height);
+    if (tex->stride == tex->width/2 && tex->stride%8 == 0) {
+        rdpq_load_block(tile, 0, 0, tex->stride * tex->height, tmem_pitch);
+    } else {
+        rdpq_load_tile(RDPQ_TILE_INTERNAL, 0, 0, tex->width/2, tex->height);
+    }
     rdpq_set_tile(tile, FMT_CI4, tmem_addr, tmem_pitch, tlut);
     rdpq_set_tile_size(tile, 0, 0, tex->width, tex->height);
 
@@ -30,8 +36,14 @@ int rdpq_tex_load_ci4(int tile, surface_t *tex, int tmem_addr, int tlut)
 int rdpq_tex_load(int tile, surface_t *tex, int tmem_addr)
 {
     tex_format_t fmt = surface_get_format(tex);
-    switch (fmt) {
-    case FMT_CI4: return rdpq_tex_load_ci4(tile, tex, tmem_addr, 0);
-    default:      assertf(0, "format %s not yet supported", tex_format_name(fmt));
-    }
+    if (fmt == FMT_CI4)
+        return rdpq_tex_load_ci4(tile, tex, tmem_addr, 0);
+
+    int tmem_pitch = ROUND_UP(TEX_FORMAT_PIX2BYTES(fmt, tex->width), 8);
+
+    rdpq_set_tile(tile, fmt, tmem_addr, tmem_pitch, 0);
+    rdpq_set_texture_image(tex);
+    rdpq_load_tile(tile, 0, 0, tex->width, tex->height);
+
+    return tmem_pitch * tex->height;
 }
