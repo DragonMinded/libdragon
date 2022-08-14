@@ -88,7 +88,7 @@ void render()
         }
     }
 
-    rdp_auto_show_display(disp);
+    rdp_detach_show(disp);
 }
 
 int main()

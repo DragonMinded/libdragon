@@ -13,10 +13,13 @@ fi
 if [[ $OSTYPE == 'darwin'* ]]; then
   if command -v brew >/dev/null; then
     brew install libpng
-    CFLAGS="-I$(brew --prefix)/include"; export CFLAGS
-    LDFLAGS="-L$(brew --prefix)/lib"; export LDFLAGS
+    CFLAGS="-I$(brew --prefix)/include"
+    LDFLAGS="-L$(brew --prefix)/lib"
   fi
 fi
+
+CFLAGS=${CFLAGS:-}; export CFLAGS
+LDFLAGS=${LDFLAGS:-}; export LDFLAGS
 
 makeWithParams(){
   make -j"${JOBS}" "$@" || \
