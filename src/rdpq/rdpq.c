@@ -221,6 +221,8 @@ void rdpq_init()
     if (__rdpq_inited)
         return;
 
+    rspq_init();
+
     rdpq_state = UncachedAddr(rspq_overlay_get_state(&rsp_rdpq));
     _Static_assert(sizeof(rdpq_state->modes[0]) == 32,   "invalid sizeof: rdpq_state->modes[0]");
     _Static_assert(sizeof(rdpq_state->modes)    == 32*4, "invalid sizeof: rdpq_state->modes");
@@ -233,8 +235,7 @@ void rdpq_init()
     // The (1 << 12) is to prevent underflow in case set other modes is called before any set scissor command.
     // Depending on the cycle mode, 1 subpixel is subtracted from the right edge of the scissor rect.
     rdpq_state->scissor_rect = (((uint64_t)RDPQ_OVL_ID << 32) + ((uint64_t)RDPQ_CMD_SET_SCISSOR_EX << 56)) | (1 << 12);
-
-    rspq_init();
+    
     rspq_overlay_register_static(&rsp_rdpq, RDPQ_OVL_ID);
 
     rdpq_block = NULL;
