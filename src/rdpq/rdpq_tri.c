@@ -34,7 +34,7 @@ typedef struct {
 } rdpq_tri_edge_data_t;
 
 __attribute__((always_inline))
-inline void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, uint8_t tile, uint8_t level, const float *v1, const float *v2, const float *v3)
+inline void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, uint8_t tile, uint8_t mipmaps, const float *v1, const float *v2, const float *v3)
 {
     const float x1 = v1[0];
     const float x2 = v2[0];
@@ -68,7 +68,7 @@ inline void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data
     const float xm = x1 + data->fy * ism;
     const float xl = x2;
 
-    rspq_write_arg(w, _carg(lft, 0x1, 23) | _carg(level, 0x7, 19) | _carg(tile, 0x7, 16) | _carg(y3f, 0x3FFF, 0));
+    rspq_write_arg(w, _carg(lft, 0x1, 23) | _carg(mipmaps-1, 0x7, 19) | _carg(tile, 0x7, 16) | _carg(y3f, 0x3FFF, 0));
     rspq_write_arg(w, _carg(y2f, 0x3FFF, 16) | _carg(y1f, 0x3FFF, 0));
     rspq_write_arg(w, float_to_s16_16(xl));
     rspq_write_arg(w, float_to_s16_16(isl));
@@ -259,7 +259,7 @@ inline void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data
 }
 
 __attribute__((noinline))
-void rdpq_triangle(uint8_t tile, uint8_t level, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
+void rdpq_triangle(tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
 {
     uint32_t res = AUTOSYNC_PIPE;
     if (tex_offset >= 0) {
@@ -290,7 +290,7 @@ void rdpq_triangle(uint8_t tile, uint8_t level, int32_t pos_offset, int32_t shad
     if( v1[pos_offset + 1] > v2[pos_offset + 1] ) { SWAP(v1, v2); }
 
     rdpq_tri_edge_data_t data;
-    __rdpq_write_edge_coeffs(&w, &data, tile, level, v1 + pos_offset, v2 + pos_offset, v3 + pos_offset);
+    __rdpq_write_edge_coeffs(&w, &data, tile, mipmaps, v1 + pos_offset, v2 + pos_offset, v3 + pos_offset);
 
     if (shade_offset >= 0) {
         __rdpq_write_shade_coeffs(&w, &data, v1 + shade_offset, v2 + shade_offset, v3 + shade_offset);

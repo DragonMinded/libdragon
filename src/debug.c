@@ -551,3 +551,27 @@ void debug_assert_func(const char *file, int line, const char *func, const char 
 {
 	debug_assert_func_f(file, line, func, failedexpr, NULL);
 }
+
+void debugf_hexdump(const uint8_t *buf, int size)
+{
+    bool lineskip = false;
+    for (int i = 0; i < size/16; i++) {
+        const uint8_t *d = buf + i*16;
+        // If the current line of data is identical to the previous one,
+        // just dump one "*" and skip all other similar lines
+        if (i!=0 && memcmp(d, d-16, 16) == 0) {
+            if (!lineskip) debugf("*\n");
+            lineskip = true;
+        } else {
+            lineskip = false;
+            debugf("%04x  ", i*16);
+            for (int j=0;j<16;j++) {
+                debugf("%02x ", d[j]);
+                if (j==7) debugf(" ");
+            }
+            debugf("  |");
+            for (int j=0;j<16;j++) debugf("%c", d[j] >= 32 && d[j] < 127 ? d[j] : '.');
+            debugf("|\n");
+        }
+    }
+}

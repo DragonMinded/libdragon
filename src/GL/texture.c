@@ -463,7 +463,7 @@ void gl_transfer_pixels(GLvoid *dest, GLenum dest_format, GLsizei dest_stride, G
     for (uint32_t r = 0; r < height; r++)
     {
         if (can_mempcy) {
-            memcpy(dest_ptr + TEX_FORMAT_GET_STRIDE(dest_tex_fmt, xoffset), src_ptr, TEX_FORMAT_GET_STRIDE(dest_tex_fmt, width));
+            memcpy(dest_ptr + TEX_FORMAT_PIX2BYTES(dest_tex_fmt, xoffset), src_ptr, TEX_FORMAT_PIX2BYTES(dest_tex_fmt, width));
         } else {
             for (uint32_t c = 0; c < width; c++)
             {
@@ -491,7 +491,7 @@ void gl_transfer_pixels(GLvoid *dest, GLenum dest_format, GLsizei dest_stride, G
                 }
 
                 uint32_t x = xoffset + c;
-                pack_func(dest_ptr + TEX_FORMAT_GET_STRIDE(dest_tex_fmt, x), x, components);
+                pack_func(dest_ptr + TEX_FORMAT_PIX2BYTES(dest_tex_fmt, x), x, components);
             }
         }
 
@@ -709,7 +709,7 @@ void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei widt
     }
 
     uint32_t rdp_format = gl_get_texture_format(preferred_format);
-    uint32_t stride = MAX(TEX_FORMAT_GET_STRIDE(rdp_format, width), 8);
+    uint32_t stride = MAX(TEX_FORMAT_PIX2BYTES(rdp_format, width), 8);
     uint32_t size = stride * height;
 
     if (!gl_texture_fits_tmem(obj, size)) {
@@ -1235,9 +1235,9 @@ void gl_update_texture()
         gl_texture_image_t *image = &tex_obj->levels[l];
 
         uint32_t tmem_pitch = image->stride;
-        uint32_t load_width = tmem_pitch / TEX_FORMAT_BYTES_PER_PIXEL(load_fmt);
+        uint32_t load_width = TEX_FORMAT_BYTES2PIX(load_fmt, tmem_pitch);
 
-        rdpq_set_texture_image(image->data, load_fmt, load_width);
+        rdpq_set_texture_image_raw(0, PhysicalAddr(image->data), load_fmt, load_width, image->height);
         rdpq_set_tile(LOAD_TILE, load_fmt, tmem_used, 0, 0);
         rdpq_load_block(LOAD_TILE, 0, 0, load_width * image->height, tmem_pitch);
 

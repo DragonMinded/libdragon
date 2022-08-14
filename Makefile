@@ -40,7 +40,7 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 			 $(BUILD_DIR)/rspq/rspq.o $(BUILD_DIR)/rspq/rsp_queue.o \
 			 $(BUILD_DIR)/rdpq/rdpq.o $(BUILD_DIR)/rdpq/rsp_rdpq.o \
 			 $(BUILD_DIR)/rdpq/rdpq_debug.o $(BUILD_DIR)/rdpq/rdpq_tri.o \
-			 $(BUILD_DIR)/rdpq/rdpq_mode.o \
+			 $(BUILD_DIR)/rdpq/rdpq_mode.o $(BUILD_DIR)/rdpq/rdpq_tex.o \
 			 $(BUILD_DIR)/surface.o $(BUILD_DIR)/GL/gl.o \
 			 $(BUILD_DIR)/GL/lighting.o $(BUILD_DIR)/GL/matrix.o \
 			 $(BUILD_DIR)/GL/primitive.o $(BUILD_DIR)/GL/query.o \
@@ -125,6 +125,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/rsp_queue.inc $(INSTALLDIR)/mips64-elf/include/rsp_queue.inc
 	install -Cv -m 0644 include/rdpq.h $(INSTALLDIR)/mips64-elf/include/rdpq.h
 	install -Cv -m 0644 include/rdpq_mode.h $(INSTALLDIR)/mips64-elf/include/rdpq_mode.h
+	install -Cv -m 0644 include/rdpq_tex.h $(INSTALLDIR)/mips64-elf/include/rdpq_tex.h
 	install -Cv -m 0644 include/rdp_commands.h $(INSTALLDIR)/mips64-elf/include/rdp_commands.h
 	install -Cv -m 0644 include/surface.h $(INSTALLDIR)/mips64-elf/include/surface.h
 	install -Cv -m 0644 include/GL/gl.h $(INSTALLDIR)/mips64-elf/include/GL/gl.h

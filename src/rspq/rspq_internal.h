@@ -1,5 +1,11 @@
-#ifndef __LIBDRAGON_RSPQ_COMMANDS_H
-#define __LIBDRAGON_RSPQ_COMMANDS_H
+/**
+ * @file rspq_internal.h
+ * @brief RSP Command queue
+ * @ingroup rsp
+ */
+
+#ifndef __LIBDRAGON_RSPQ_INTERNAL_H
+#define __LIBDRAGON_RSPQ_INTERNAL_H
 
 /**
  * RSPQ internal commands (overlay 0)

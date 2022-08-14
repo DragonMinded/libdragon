@@ -144,7 +144,7 @@
 #include "rdpq_constants.h"
 #include "rdpq_debug.h"
 #include "rspq.h"
-#include "rspq/rspq_commands.h"
+#include "rspq/rspq_internal.h"
 #include "rspq_constants.h"
 #include "rdp_commands.h"
 #include "interrupt.h"
@@ -179,7 +179,8 @@ bool __rdpq_zero_blocks = false;
 volatile uint32_t *rdpq_block_ptr;
 volatile uint32_t *rdpq_block_end;
 
-static uint8_t rdpq_config;
+static rdpq_state_t *rdpq_state;
+static uint32_t rdpq_config;
 static uint32_t rdpq_autosync_state[2];
 
 /** True if we're currently creating a rspq block */
@@ -189,8 +190,6 @@ static int rdpq_block_size;
 static volatile uint32_t *last_rdp_append_buffer;
 
 static void __rdpq_interrupt(void) {
-    rdpq_state_t *rdpq_state = UncachedAddr(rspq_overlay_get_state(&rsp_rdpq));
-
     assert(*SP_STATUS & SP_STATUS_SIG_RDPSYNCFULL);
 
     // Fetch the current RDP buffer for tracing
@@ -218,7 +217,11 @@ static void __rdpq_interrupt(void) {
 
 void rdpq_init()
 {
-    rdpq_state_t *rdpq_state = UncachedAddr(rspq_overlay_get_state(&rsp_rdpq));
+    // Do nothing if rdpq was already initialized
+    if (__rdpq_inited)
+        return;
+
+    rdpq_state = UncachedAddr(rspq_overlay_get_state(&rsp_rdpq));
     _Static_assert(sizeof(rdpq_state->modes[0]) == 32,   "invalid sizeof: rdpq_state->modes[0]");
     _Static_assert(sizeof(rdpq_state->modes)    == 32*4, "invalid sizeof: rdpq_state->modes");
 
@@ -236,7 +239,7 @@ void rdpq_init()
 
     rdpq_block = NULL;
     rdpq_block_first = NULL;
-    rdpq_config = RDPQ_CFG_AUTOSYNCPIPE | RDPQ_CFG_AUTOSYNCLOAD | RDPQ_CFG_AUTOSYNCTILE;
+    rdpq_config = RDPQ_CFG_DEFAULT;
     rdpq_autosync_state[0] = 0;
     __rdpq_inited = true;
 
@@ -253,24 +256,22 @@ void rdpq_close()
     unregister_DP_handler(__rdpq_interrupt);
 }
 
-uint32_t rdpq_get_config(void)
+uint32_t rdpq_config_set(uint32_t cfg)
 {
-    return rdpq_config;
-}
-
-void rdpq_set_config(uint32_t cfg)
-{
+    uint32_t prev = rdpq_config;
     rdpq_config = cfg;
+    return prev;
 }
 
-uint32_t rdpq_change_config(uint32_t on, uint32_t off)
+uint32_t rdpq_config_enable(uint32_t cfg)
 {
-    uint32_t old = rdpq_config;
-    rdpq_config |= on;
-    rdpq_config &= ~off;
-    return old;
+    return rdpq_config_set(rdpq_config | cfg);
 }
 
+uint32_t rdpq_config_disable(uint32_t cfg)
+{
+    return rdpq_config_set(rdpq_config & ~cfg);
+}
 
 void rdpq_fence(void)
 {
@@ -385,6 +386,8 @@ void __rdpq_block_begin()
 {
     rdpq_block = NULL;
     rdpq_block_first = NULL;
+    rdpq_block_ptr = NULL;
+    rdpq_block_end = NULL;
     last_rdp_append_buffer = NULL;
     rdpq_block_size = RDPQ_BLOCK_MIN_SIZE;
     // push on autosync state stack (to recover the state later)
@@ -429,12 +432,6 @@ void __rdpq_block_free(rdpq_block_t *block)
         block = block->next;
         free_uncached(b);
     }
-}
-
-void __rdpq_block_check(void)
-{
-    if (rspq_in_block() && rdpq_block == NULL)
-        __rdpq_block_next_buffer();
 }
 
 __attribute__((noinline))
@@ -529,7 +526,7 @@ void __rdpq_fixup_write8_pipe(uint32_t cmd_id, uint32_t w0, uint32_t w1)
 }
 
 __attribute__((noinline))
-void __rdpq_set_color_image(uint32_t w0, uint32_t w1)
+void __rdpq_set_color_image(uint32_t w0, uint32_t w1, uint32_t sw0, uint32_t sw1)
 {
     // SET_COLOR_IMAGE on RSP always generates an additional SET_SCISSOR, so make sure there is
     // space for it in case of a static buffer (in a block).
@@ -538,6 +535,35 @@ void __rdpq_set_color_image(uint32_t w0, uint32_t w1)
         (RDPQ_CMD_SET_COLOR_IMAGE, w0, w1), // RSP
         (RDPQ_CMD_SET_COLOR_IMAGE, w0, w1), (RDPQ_CMD_SET_SCISSOR, 0, 0) // RDP
     );
+
+    if (rdpq_config & RDPQ_CFG_AUTOSCISSOR)
+        __rdpq_set_scissor(sw0, sw1);
+}
+
+void rdpq_set_color_image(surface_t *surface)
+{
+    assertf((PhysicalAddr(surface->buffer) & 63) == 0,
+        "buffer pointer is not aligned to 64 bytes, so it cannot be used as RDP color image");
+    rdpq_set_color_image_raw(0, PhysicalAddr(surface->buffer), 
+        surface_get_format(surface), surface->width, surface->height, surface->stride);
+}
+
+void rdpq_set_z_image(surface_t *surface)
+{
+    assertf(surface_get_format(surface) == FMT_RGBA16, "the format of the Z-buffer surface must be RGBA16");
+    assertf((PhysicalAddr(surface->buffer) & 63) == 0,
+        "buffer pointer is not aligned to 64 bytes, so it cannot be used as RDP Z image");
+    rdpq_set_z_image_raw(0, PhysicalAddr(surface->buffer));
+}
+
+void rdpq_set_texture_image(surface_t *surface)
+{
+    // FIXME: we currently don't know how to handle a texture which is a sub-surface, that is
+    // with excess space. So better rule it out for now, and we can enbale that later once we
+    // make sure it works correctly.
+    assertf(TEX_FORMAT_PIX2BYTES(surface_get_format(surface), surface->width) == surface->stride,
+        "configure sub-surfaces as textures is not supported");
+    rdpq_set_texture_image_raw(0, PhysicalAddr(surface->buffer), surface_get_format(surface), surface->width, surface->height);
 }
 
 __attribute__((noinline))
@@ -563,7 +589,6 @@ void __rdpq_modify_other_modes(uint32_t w0, uint32_t w1, uint32_t w2)
 
 uint64_t rdpq_get_other_modes_raw(void)
 {
-    rspq_wait();
     rdpq_state_t *rdpq_state = rspq_overlay_get_state(&rsp_rdpq);
     return rdpq_state->modes[0].other_modes;
 }
@@ -604,7 +629,23 @@ void rdpq_sync_load(void)
 
 /* Extern inline instantiations. */
 extern inline void rdpq_set_fill_color(color_t color);
-extern inline void rdpq_set_color_image(void* dram_ptr, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride);
+extern inline void rdpq_set_fill_color_stripes(color_t color1, color_t color2);
+extern inline void rdpq_set_fog_color(color_t color);
+extern inline void rdpq_set_blend_color(color_t color);
+extern inline void rdpq_set_prim_color(color_t color);
+extern inline void rdpq_set_env_color(color_t color);
+extern inline void rdpq_set_prim_depth(uint16_t primitive_z, int16_t primitive_delta_z);
+extern inline void rdpq_load_tlut(tile_t tile, uint8_t lowidx, uint8_t highidx);
+extern inline void rdpq_set_tile_size_fx(tile_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1);
+extern inline void rdpq_load_block(tile_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t tmem_pitch);
+extern inline void rdpq_load_block_fx(tile_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t dxt);
+extern inline void rdpq_load_tile_fx(tile_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1);
+extern inline void rdpq_set_tile_full(tile_t tile, tex_format_t format, uint16_t tmem_addr, uint16_t tmem_pitch, uint8_t palette, uint8_t ct, uint8_t mt, uint8_t mask_t, uint8_t shift_t, uint8_t cs, uint8_t ms, uint8_t mask_s, uint8_t shift_s);
 extern inline void rdpq_set_other_modes_raw(uint64_t mode);
 extern inline void rdpq_change_other_modes_raw(uint64_t mask, uint64_t val);
 extern inline void rdpq_fill_rectangle_fx(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1);
+extern inline void rdpq_set_color_image_raw(uint8_t index, uint32_t offset, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride);
+extern inline void rdpq_set_z_image_raw(uint8_t index, uint32_t offset);
+extern inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_format_t format, uint16_t width, uint16_t height);
+extern inline void rdpq_set_lookup_address(uint8_t index, void* rdram_addr);
+extern inline void rdpq_set_tile(tile_t tile, tex_format_t format, uint16_t tmem_addr, uint16_t tmem_pitch, uint8_t palette);

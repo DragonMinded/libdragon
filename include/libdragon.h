@@ -54,6 +54,7 @@
 #include "rspq.h"
 #include "rdpq.h"
 #include "rdpq_mode.h"
+#include "rdpq_tex.h"
 #include "rdp_commands.h"
 #include "surface.h"
 

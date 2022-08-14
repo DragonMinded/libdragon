@@ -3,43 +3,40 @@
 
 extern gl_state_t state;
 
-#define BLENDER_CYCLE(a1, b1, a2, b2) \
-    (((_RDPQ_SOM_BLEND1_A_ ## a1) << 12) | ((_RDPQ_SOM_BLEND1_B1_ ## b1) << 8) | ((_RDPQ_SOM_BLEND1_A_ ## a2) << 4) | ((_RDPQ_SOM_BLEND1_B2_ ## b2) << 0))
-
 // All possible combinations of blend functions. Configs that cannot be supported by the RDP are set to 0.
 // NOTE: We always set fog alpha to one to support GL_ONE in both factors
 // TODO: src = ZERO, dst = ONE_MINUS_SRC_ALPHA could be done with BLEND_RGB * IN_ALPHA + MEMORY_RGB * INV_MUX_ALPHA
-static const uint32_t blend_configs[64] = {
-    BLENDER_CYCLE(IN_RGB, ZERO, MEMORY_RGB, ZERO),                 // src = ZERO, dst = ZERO
-    BLENDER_CYCLE(IN_RGB, ZERO, MEMORY_RGB, ONE),                  // src = ZERO, dst = ONE
-    BLENDER_CYCLE(MEMORY_RGB, IN_ALPHA, IN_RGB, ZERO),             // src = ZERO, dst = SRC_ALPHA
+static const rdpq_blender_t blend_configs[64] = {
+    RDPQ_BLENDER((IN_RGB, ZERO, MEMORY_RGB, ZERO)),                // src = ZERO, dst = ZERO
+    RDPQ_BLENDER((IN_RGB, ZERO, MEMORY_RGB, ONE)),                 // src = ZERO, dst = ONE
+    RDPQ_BLENDER((MEMORY_RGB, IN_ALPHA, IN_RGB, ZERO)),            // src = ZERO, dst = SRC_ALPHA
     0,                                                             // src = ZERO, dst = ONE_MINUS_SRC_ALPHA
     0,                                                             // src = ZERO, dst = GL_DST_COLOR
     0,                                                             // src = ZERO, dst = GL_ONE_MINUS_DST_COLOR
-    BLENDER_CYCLE(IN_RGB, ZERO, MEMORY_RGB, MEMORY_ALPHA),         // src = ZERO, dst = DST_ALPHA
+    RDPQ_BLENDER((IN_RGB, ZERO, MEMORY_RGB, MEMORY_ALPHA)),        // src = ZERO, dst = DST_ALPHA
     0,                                                             // src = ZERO, dst = ONE_MINUS_DST_ALPHA
 
-    BLENDER_CYCLE(IN_RGB, FOG_ALPHA, MEMORY_RGB, ZERO),            // src = ONE, dst = ZERO
-    BLENDER_CYCLE(IN_RGB, FOG_ALPHA, MEMORY_RGB, ONE),             // src = ONE, dst = ONE
-    BLENDER_CYCLE(MEMORY_RGB, IN_ALPHA, IN_RGB, ONE),              // src = ONE, dst = SRC_ALPHA
+    RDPQ_BLENDER((IN_RGB, FOG_ALPHA, MEMORY_RGB, ZERO)),           // src = ONE, dst = ZERO
+    RDPQ_BLENDER((IN_RGB, FOG_ALPHA, MEMORY_RGB, ONE)),            // src = ONE, dst = ONE
+    RDPQ_BLENDER((MEMORY_RGB, IN_ALPHA, IN_RGB, ONE)),             // src = ONE, dst = SRC_ALPHA
     0,                                                             // src = ONE, dst = ONE_MINUS_SRC_ALPHA
     0,                                                             // src = ONE, dst = GL_DST_COLOR
     0,                                                             // src = ONE, dst = GL_ONE_MINUS_DST_COLOR
-    BLENDER_CYCLE(IN_RGB, FOG_ALPHA, MEMORY_RGB, MEMORY_ALPHA),    // src = ONE, dst = DST_ALPHA
+    RDPQ_BLENDER((IN_RGB, FOG_ALPHA, MEMORY_RGB, MEMORY_ALPHA)),   // src = ONE, dst = DST_ALPHA
     0,                                                             // src = ONE, dst = ONE_MINUS_DST_ALPHA
 
-    BLENDER_CYCLE(IN_RGB, IN_ALPHA, MEMORY_RGB, ZERO),             // src = SRC_ALPHA, dst = ZERO
-    BLENDER_CYCLE(IN_RGB, IN_ALPHA, MEMORY_RGB, ONE),              // src = SRC_ALPHA, dst = ONE
+    RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, ZERO)),            // src = SRC_ALPHA, dst = ZERO
+    RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, ONE)),             // src = SRC_ALPHA, dst = ONE
     0,                                                             // src = SRC_ALPHA, dst = SRC_ALPHA
-    BLENDER_CYCLE(IN_RGB, IN_ALPHA, MEMORY_RGB, INV_MUX_ALPHA),    // src = SRC_ALPHA, dst = ONE_MINUS_SRC_ALPHA
+    RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, INV_MUX_ALPHA)),   // src = SRC_ALPHA, dst = ONE_MINUS_SRC_ALPHA
     0,                                                             // src = SRC_ALPHA, dst = GL_DST_COLOR
     0,                                                             // src = SRC_ALPHA, dst = GL_ONE_MINUS_DST_COLOR
-    BLENDER_CYCLE(IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_ALPHA),     // src = SRC_ALPHA, dst = DST_ALPHA
+    RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_ALPHA)),    // src = SRC_ALPHA, dst = DST_ALPHA
     0,                                                             // src = SRC_ALPHA, dst = ONE_MINUS_DST_ALPHA
 
     0,                                                             // src = ONE_MINUS_SRC_ALPHA, dst = ZERO
     0,                                                             // src = ONE_MINUS_SRC_ALPHA, dst = ONE
-    BLENDER_CYCLE(MEMORY_RGB, IN_ALPHA, IN_RGB, INV_MUX_ALPHA),    // src = ONE_MINUS_SRC_ALPHA, dst = SRC_ALPHA
+    RDPQ_BLENDER((MEMORY_RGB, IN_ALPHA, IN_RGB, INV_MUX_ALPHA)),   // src = ONE_MINUS_SRC_ALPHA, dst = SRC_ALPHA
     0,                                                             // src = ONE_MINUS_SRC_ALPHA, dst = ONE_MINUS_SRC_ALPHA
     0,                                                             // src = ONE_MINUS_SRC_ALPHA, dst = GL_DST_COLOR
     0,                                                             // src = ONE_MINUS_SRC_ALPHA, dst = GL_ONE_MINUS_DST_COLOR
@@ -49,9 +46,9 @@ static const uint32_t blend_configs[64] = {
     0, 0, 0, 0, 0, 0, 0, 0,                                        // src = GL_DST_COLOR, dst = ...
     0, 0, 0, 0, 0, 0, 0, 0,                                        // src = GL_ONE_MINUS_DST_COLOR, dst = ...
 
-    BLENDER_CYCLE(MEMORY_RGB, ZERO, IN_RGB, MEMORY_ALPHA),         // src = DST_ALPHA, dst = ZERO
-    BLENDER_CYCLE(MEMORY_RGB, FOG_ALPHA, IN_RGB, MEMORY_ALPHA),    // src = DST_ALPHA, dst = ONE
-    BLENDER_CYCLE(MEMORY_RGB, IN_ALPHA, IN_RGB, MEMORY_ALPHA),     // src = DST_ALPHA, dst = SRC_ALPHA
+    RDPQ_BLENDER((MEMORY_RGB, ZERO, IN_RGB, MEMORY_ALPHA)),        // src = DST_ALPHA, dst = ZERO
+    RDPQ_BLENDER((MEMORY_RGB, FOG_ALPHA, IN_RGB, MEMORY_ALPHA)),   // src = DST_ALPHA, dst = ONE
+    RDPQ_BLENDER((MEMORY_RGB, IN_ALPHA, IN_RGB, MEMORY_ALPHA)),    // src = DST_ALPHA, dst = SRC_ALPHA
     0,                                                             // src = DST_ALPHA, dst = ONE_MINUS_SRC_ALPHA
     0,                                                             // src = DST_ALPHA, dst = GL_DST_COLOR
     0,                                                             // src = DST_ALPHA, dst = GL_ONE_MINUS_DST_COLOR
@@ -60,33 +57,6 @@ static const uint32_t blend_configs[64] = {
 
     0, 0, 0, 0, 0, 0, 0, 0,                                        // src = ONE_MINUS_DST_ALPHA, dst = ...
 };
-
-inline bool blender_reads_memory(uint32_t bl)
-{
-    return ((bl>>12)&3) == _RDPQ_SOM_BLEND1_A_MEMORY_RGB ||
-           ((bl>>4)&3) == _RDPQ_SOM_BLEND1_A_MEMORY_RGB ||
-           (bl&3) == _RDPQ_SOM_BLEND1_B2_MEMORY_ALPHA;
-}
-
-inline rdpq_blender_t blender1(uint32_t bl, bool force_blend)
-{
-    rdpq_blender_t blend = (bl << 18) | (bl << 16);
-    if (blender_reads_memory(bl))
-        blend |= SOM_READ_ENABLE;
-    if (force_blend)
-        blend |= SOM_BLENDING;
-    return blend;
-}
-
-inline rdpq_blender_t blender2(uint32_t bl0, uint32_t bl1, bool force_blend)
-{
-    rdpq_blender_t blend = (bl0 << 18) | (bl1 << 16);
-    if (blender_reads_memory(bl0) || blender_reads_memory(bl1))
-        blend |= SOM_READ_ENABLE;
-    if (force_blend)
-        blend |= SOM_BLENDING;
-    return blend | RDPQ_BLENDER_2PASS;
-}
 
 void gl_rendermode_init()
 {
@@ -146,19 +116,19 @@ void gl_update_render_mode()
 
     uint64_t modes = SOM_CYCLE_1;
     rdpq_combiner_t comb;
-    rdpq_blender_t blend = 0;
+    rdpq_blender_t blend_cycle = 0, fog_cycle = 0;
 
     if (state.dither) {
-        modes |= SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_SQUARE;
+        modes |= SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_SAME;
     } else {
         modes |= SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE;
     }
 
     if (state.depth_test) {
         if (state.is_points) {
-            modes |= SOM_Z_SOURCE_PRIM;
+            modes |= SOM_ZSOURCE_PRIM;
         } else {
-            modes |= SOM_Z_SOURCE_PIXEL;
+            modes |= SOM_ZSOURCE_PIXEL;
         }
 
         if (state.depth_func == GL_LESS) {
@@ -166,9 +136,9 @@ void gl_update_render_mode()
         }
 
         if (state.blend) {
-            modes |= SOM_Z_TRANSPARENT;
+            modes |= SOM_ZMODE_TRANSPARENT;
         } else {
-            modes |= SOM_Z_OPAQUE | SOM_Z_WRITE;
+            modes |= SOM_ZMODE_OPAQUE | SOM_Z_WRITE;
         }
     }
 
@@ -183,28 +153,18 @@ void gl_update_render_mode()
         modes |= SOM_COVERAGE_DEST_SAVE;
     }
 
-    uint32_t blend_cycle = 0;
-
     if (state.blend) {
-        blend_cycle = state.blend_cycle;
+        blend_cycle = state.blend_cycle | SOM_BLENDING;
     } else if (state.multisample) {
-        blend_cycle = BLENDER_CYCLE(IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_ALPHA);
+        blend_cycle = RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_ALPHA));
     }
 
     if (state.fog) {
-        uint32_t fog_blend = BLENDER_CYCLE(IN_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA);
-
-        if (state.blend || state.multisample) {
-            blend = blender2(fog_blend, blend_cycle, state.blend);
-        } else {
-            blend = blender1(fog_blend, true);
-        }
-    } else {
-        blend = blender1(blend_cycle, state.blend);
+        fog_cycle = RDPQ_BLENDER((IN_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA)) | SOM_BLENDING;
     }
 
     if (state.alpha_test && state.alpha_func == GL_GREATER) {
-        modes |= SOM_ALPHA_COMPARE;
+        modes |= SOM_ALPHACOMPARE_THRESHOLD;
     }
     
     gl_texture_object_t *tex_obj = gl_get_active_texture();
@@ -220,7 +180,7 @@ void gl_update_render_mode()
             tex_obj->min_filter == GL_LINEAR || 
             tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR || 
             tex_obj->min_filter == GL_LINEAR_MIPMAP_NEAREST) {
-            modes |= SOM_SAMPLE_2X2;
+            modes |= SOM_SAMPLE_BILINEAR;
         }
 
         if (tex_obj->min_filter != GL_LINEAR && tex_obj->min_filter != GL_NEAREST && !state.is_points) {
@@ -260,8 +220,9 @@ void gl_update_render_mode()
     }
 
     rdpq_set_other_modes_raw(modes);
-    rdpq_mode_blender(blend);
     rdpq_mode_combiner(comb);
+    rdpq_mode_fog(fog_cycle);
+    rdpq_mode_blending(blend_cycle);
 
     state.is_rendermode_dirty = false;
 }

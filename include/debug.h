@@ -202,6 +202,16 @@ extern "C" {
 	#define assertf(expr, msg, ...)    ({ })
 #endif
 
+/**
+ * @brief Do a hexdump of the specified buffer via #debugf
+ * 
+ * This is useful to dump a binary buffer for debugging purposes.
+ * 
+ * @param[in] buffer 	Buffer to dump
+ * @param[in] size 		Size of the buffer in bytes
+ */
+void debugf_hexdump(const uint8_t *buffer, int size);
+
 /** @brief Underlying implementation function for assert() and #assertf. */ 
 void debug_assert_func_f(const char *file, int line, const char *func, const char *failedexpr, const char *msg, ...)
    __attribute__((noreturn, format(printf, 5, 6)));

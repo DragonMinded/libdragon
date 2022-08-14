@@ -41,8 +41,8 @@ uint32_t gl_get_type_size(GLenum type)
 void gl_set_framebuffer(gl_framebuffer_t *framebuffer)
 {
     state.cur_framebuffer = framebuffer;
-    rdpq_set_color_image_surface_no_scissor(state.cur_framebuffer->color_buffer);
-    rdpq_set_z_image(state.cur_framebuffer->depth_buffer);
+    rdpq_set_color_image(state.cur_framebuffer->color_buffer);
+    rdpq_set_z_image_raw(0, PhysicalAddr(state.cur_framebuffer->depth_buffer));
 }
 
 void gl_set_default_framebuffer()
@@ -308,11 +308,15 @@ void glClear(GLbitfield buf)
     }
 
     if (buf & GL_DEPTH_BUFFER_BIT) {
-        rdpq_set_color_image_no_scissor(fb->depth_buffer, FMT_RGBA16, fb->color_buffer->width, fb->color_buffer->height, fb->color_buffer->width * 2);
+        uint32_t old_cfg = rdpq_config_disable(RDPQ_CFG_AUTOSCISSOR);
+
+        rdpq_set_color_image_raw(0, PhysicalAddr(fb->depth_buffer), FMT_RGBA16, fb->color_buffer->width, fb->color_buffer->height, fb->color_buffer->width * 2);
         rdpq_set_fill_color(color_from_packed16(state.clear_depth * 0xFFFC));
         rdpq_fill_rectangle(0, 0, fb->color_buffer->width, fb->color_buffer->height);
 
-        rdpq_set_color_image_surface_no_scissor(fb->color_buffer);
+        rdpq_set_color_image(fb->color_buffer);
+
+        rdpq_config_set(old_cfg);
     }
 
     if (buf & GL_COLOR_BUFFER_BIT) {

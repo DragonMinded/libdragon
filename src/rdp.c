@@ -17,7 +17,7 @@
 #include <string.h>
 
 /**
- * @defgroup rdp Hardware Display Interface
+ * @defgroup rdp RDP: hardware rasterizer
  * @ingroup display
  * @brief Interface to the hardware sprite/triangle rasterizer (RDP).
  *
@@ -32,30 +32,26 @@
  *
  * Code wishing to use the hardware rasterizer should first acquire a display context
  * using #display_lock.  Once a display context has been acquired, the RDP can be
- * attached to the display context with #rdp_attach_display.  Once the display has been
+ * attached to the display context with #rdp_attach.  Once the display has been
  * attached, the RDP can be used to draw sprites, rectangles and textured/untextured
  * triangles to the display context.  Note that some functions require additional setup,
  * so read the descriptions for each function before use.  After code has finished
  * rendering hardware assisted graphics to the display context, the RDP can be detached
- * from the context using #rdp_detach_display.  After calling thie function, it is safe
+ * from the context using #rdp_detach.  After calling this function, it is safe
  * to immediately display the rendered graphics to the screen using #display_show, or
  * additional software graphics manipulation can take place using functions from the
  * @ref graphics.
  *
- * Careful use of the #rdp_sync operation is required for proper rasterization.  Before
- * performing settings changes such as clipping changes or setting up texture or solid
- * fill modes, code should perform a #SYNC_PIPE.  A #SYNC_PIPE should be performed again
- * before any new texture load.  This is to ensure that the last texture operation is
- * completed before attempting to change texture memory.  Careful execution of texture
- * operations can allow code to skip some sync operations.  Be careful with excessive
- * sync operations as it can stall the pipeline and cause triangles/rectangles to be
- * drawn on the next display context instead of the current.
- *
- * #rdp_detach_display will automatically perform a #SYNC_FULL to ensure that everything
- * has been completed in the RDP.  This call generates an interrupt when complete which
- * signals the main thread that it is safe to detach.  Consequently, interrupts must be
- * enabled for proper operation.  This also means that code should under normal circumstances
- * never use #SYNC_FULL.
+ * #rdp_detach will automatically force a full RDP sync (via the `SYNC_FULL` RDP command)
+ * and wait that everything has been completed in the RDP. This call generates an interrupt
+ * when complete which signals the main thread that it is safe to detach. To avoid
+ * waiting for rendering to complete, use #rdp_detach_async, or even #rdp_detach_show
+ * that will not block and also automatically call #display_show when the rendering is done.
+ * 
+ * In addition to surfaces returned by #display_lock, it is possible to attach
+ * to any other #surface_t instance, such as an offscreen buffer created by
+ * #surface_alloc. This allows to use the RDP for offscreen rendering.
+ * 
  * @{
  */
 
@@ -92,11 +88,6 @@ static surface_t *attached_surface = NULL;
 bool rdp_is_attached()
 {
     return attached_surface != NULL;
-}
-
-static inline void rdp_ensure_attached()
-{
-    assertf(rdp_is_attached(), "No render target is currently attached!");
 }
 
 /**
@@ -169,12 +160,12 @@ void rdp_attach( surface_t *surface )
     attached_surface = surface;
 
     /* Set the rasterization buffer */
-    rdpq_set_color_image_surface(surface);
+    rdpq_set_color_image(surface);
 }
 
 void rdp_detach_async( void (*cb)(void*), void *arg )
 {
-    rdp_ensure_attached();
+    assertf(rdp_is_attached(), "No render target is currently attached!");
     rdpq_sync_full(cb, arg);
     rspq_flush();
     attached_surface = NULL;
@@ -188,55 +179,6 @@ void rdp_detach(void)
     // interrupts disabled, rather than asserting out. Keep the behavior.
     if (get_interrupts_state() == INTERRUPTS_ENABLED)
         rspq_wait();
-}
-
-void rdp_sync( sync_t sync )
-{
-    switch( sync )
-    {
-        case SYNC_FULL:
-            rdpq_sync_full(NULL, NULL);
-            break;
-        case SYNC_PIPE:
-            rdpq_sync_pipe();
-            break;
-        case SYNC_TILE:
-            rdpq_sync_tile();
-            break;
-        case SYNC_LOAD:
-            rdpq_sync_load();
-            break;
-    }
-}
-
-void rdp_set_clipping( uint32_t tx, uint32_t ty, uint32_t bx, uint32_t by )
-{
-    /* Convert pixel space to screen space in command */
-    rdpq_set_scissor(tx, ty, bx, by);
-}
-
-void rdp_set_default_clipping( void )
-{
-    /* Clip box is the whole screen */
-    rdpq_set_scissor( 0, 0, display_get_width(), display_get_height() );
-}
-
-void rdp_enable_primitive_fill( void )
-{
-    /* Set other modes to fill and other defaults */
-    rdpq_set_other_modes_raw(SOM_CYCLE_FILL | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_BLENDING);
-}
-
-void rdp_enable_blend_fill( void )
-{
-    // TODO: Macros for blend modes (this sets blend rgb times input alpha on cycle 0)
-    rdpq_set_other_modes_raw(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | 0x80000000);
-}
-
-void rdp_enable_texture_copy( void )
-{
-    /* Set other modes to copy and other defaults */
-    rdpq_set_other_modes_raw(SOM_CYCLE_COPY | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_BLENDING | SOM_ALPHA_COMPARE);
 }
 
 /**
@@ -276,7 +218,7 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     tex_format_t sprite_format = (sprite->bitdepth == 2) ? FMT_RGBA16 : FMT_RGBA32;
 
     /* Point the RDP at the actual sprite data */
-    rdpq_set_texture_image(sprite->data, sprite_format, sprite->width);
+    rdpq_set_texture_image_raw(0, PhysicalAddr(sprite->data), sprite_format, sprite->width, sprite->height);
 
     /* Figure out the s,t coordinates of the sprite we are copying out of */
     int twidth = sh - sl + 1;
@@ -412,14 +354,6 @@ void rdp_set_blend_color( uint32_t color )
     rdpq_set_blend_color(color_from_packed32(color));
 }
 
-void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by )
-{
-    if( tx < 0 ) { tx = 0; }
-    if( ty < 0 ) { ty = 0; }
-
-    rdpq_fill_rectangle(tx, ty, bx, by);
-}
-
 void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3, float y3 )
 {
     float v1[] = {x1, y1};
@@ -432,5 +366,73 @@ void rdp_set_texture_flush( flush_t flush )
 {
     flush_strategy = flush;
 }
+
+/**************************************
+ *  DEPRECATED FUNCTIONS 
+ **************************************/
+
+///@cond
+void rdp_sync( sync_t sync )
+{
+    switch( sync )
+    {
+        case SYNC_FULL:
+            rdpq_sync_full(NULL, NULL);
+            break;
+        case SYNC_PIPE:
+            rdpq_sync_pipe();
+            break;
+        case SYNC_TILE:
+            rdpq_sync_tile();
+            break;
+        case SYNC_LOAD:
+            rdpq_sync_load();
+            break;
+    }
+}
+
+void rdp_set_clipping( uint32_t tx, uint32_t ty, uint32_t bx, uint32_t by )
+{
+    /* Convert pixel space to screen space in command */
+    rdpq_set_scissor(tx, ty, bx, by);
+}
+
+void rdp_set_default_clipping( void )
+{
+    /* Clip box is the whole screen */
+    rdpq_set_scissor( 0, 0, display_get_width(), display_get_height() );
+}
+
+void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by )
+{
+    if( tx < 0 ) { tx = 0; }
+    if( ty < 0 ) { ty = 0; }
+
+    rdpq_fill_rectangle(tx, ty, bx, by);
+}
+
+void rdp_enable_primitive_fill( void )
+{
+    /* Set other modes to fill and other defaults */
+    rdpq_set_other_modes_raw(SOM_CYCLE_FILL | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_BLENDING);
+}
+
+void rdp_enable_blend_fill( void )
+{
+    // Set a "blend fill mode": we use the alpha channel coming from the combiner
+    // multiplied by the BLEND register (that must be configured).
+    rdpq_set_other_modes_raw(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | 
+        RDPQ_BLENDER((BLEND_RGB, IN_ALPHA, IN_RGB, INV_MUX_ALPHA)));
+}
+
+void rdp_enable_texture_copy( void )
+{
+    /* Set other modes to copy and other defaults */
+    rdpq_set_other_modes_raw(SOM_CYCLE_COPY | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_BLENDING | SOM_ALPHACOMPARE_THRESHOLD);
+}
+
+
+///@endcond
+
 
 /** @} */

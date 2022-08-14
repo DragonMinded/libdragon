@@ -1,8 +1,17 @@
+/**
+ * @file rdpq_mode.h
+ * @brief RDP Command queue: mode setting
+ * @ingroup rdp
+ */
 #ifndef LIBDRAGON_RDPQ_MODE_H
 #define LIBDRAGON_RDPQ_MODE_H
 
 #include "rdpq.h"
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * @brief Push the current render mode into the stack
@@ -32,9 +41,9 @@ typedef uint64_t rdpq_combiner_t;
 typedef uint32_t rdpq_blender_t;
 
 typedef enum rdpq_sampler_s {
-    SAMPLER_POINT = 0,
-    SAMPLER_BILINEAR,
-    SAMPLER_MEDIAN
+    SAMPLER_POINT    = SOM_SAMPLE_POINT    >> SOM_SAMPLE_SHIFT,
+    SAMPLER_BILINEAR = SOM_SAMPLE_BILINEAR >> SOM_SAMPLE_SHIFT,
+    SAMPLER_MEDIAN   = SOM_SAMPLE_MEDIAN   >> SOM_SAMPLE_SHIFT,
 } rdpq_sampler_t;
 
 typedef enum rdpq_dither_s {
@@ -43,6 +52,12 @@ typedef enum rdpq_dither_s {
     DITHER_NOISE,
     DITHER_NONE
 } rdpq_dither_t;
+
+typedef enum rdpq_tlut_s {
+    TLUT_NONE   = 0,
+    TLUT_RGBA16 = 2,
+    TLUT_IA16   = 3,
+} rdpq_tlut_t;
 
 /**
  * @brief Reset render mode to FILL type.
@@ -72,18 +87,16 @@ inline void rdpq_set_mode_fill(color_t color) {
  * optionally be discarded during blit, so that the target buffer contents is
  * not overwritten for those pixels. This is implemented using alpha compare.
  * 
+ * The COPY mode is approximately 4 times faster at drawing than the standard
+ * mode, so make sure to enable it whenever it is possible.
+ * 
  * @param[in]  transparency   If true, pixels with alpha set to 0 are not drawn
+ * 
+ * @see #rdpq_set_mode_standard
  */
-inline void rdpq_set_mode_copy(bool transparency) {
-    if (transparency) rdpq_set_blend_color(RGBA32(0,0,0,1));
-    rdpq_set_other_modes_raw(SOM_CYCLE_COPY | (transparency ? SOM_ALPHA_COMPARE : 0));
-}
+void rdpq_set_mode_copy(bool transparency);
 
-inline void rdpq_set_mode_standard(void) {
-    // FIXME: accept structure?
-    // FIXME: reset combiner?
-    rdpq_set_other_modes_raw(SOM_CYCLE_1 | SOM_TC_FILTER | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE);
-}
+void rdpq_set_mode_standard(void);
 
 /**
  * @brief Reset render mode to YUV mode.
@@ -92,17 +105,21 @@ inline void rdpq_set_mode_standard(void) {
  * In addition of setting the render mode, this funciton also configures a
  * combiner (given that YUV conversion happens also at the combiner level),
  * and set standard YUV parameters (for BT.601 TV Range).
- */ 
-inline void rdpq_set_mode_yuv(void) {
-	rdpq_set_other_modes_raw(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_TC_CONV);
-	rdpq_set_combiner_raw(RDPQ_COMBINER1((TEX0, K4, K5, ZERO), (ZERO, ZERO, ZERO, ONE)));
-    rdpq_set_yuv_parms(179,-44,-91,227,19,255);  // BT.601 coefficients (Kr=0.299, Kb=0.114, TV range)
+ * 
+ * After setting the YUV mode, you can load YUV textures to TMEM (using a
+ * surface with #FMT_YUV16), and then draw them on the screen as part of
+ * triangles or rectangles.
+ */
+void rdpq_set_mode_yuv(void);
+
+inline void rdpq_mode_antialias(bool enable) 
+{
+    // TODO
 }
 
 inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
     extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
 
-    // FIXME: autosync pipe
     if (comb & RDPQ_COMBINER_2PASS)
         __rdpq_fixup_mode(RDPQ_CMD_SET_COMBINE_MODE_2PASS,
             (comb >> 32) & 0x00FFFFFF,
@@ -113,52 +130,20 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
             comb & 0xFFFFFFFF);
 }
 
-inline void rdpq_mode_blender(rdpq_blender_t blend) {
+#define RDPQ_BLEND_MULTIPLY       RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, INV_MUX_ALPHA))
+#define RDPQ_BLEND_ADDITIVE       RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, ONE))      
+#define RDPQ_FOG_STANDARD         RDPQ_BLENDER((IN_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA))
+
+inline void rdpq_mode_blending(rdpq_blender_t blend) {
     extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
-
-    // NOTE: basically everything this function does will be constant-propagated
-    // when the function is called with a compile-time constant argument, which
-    // should be the vast majority of times.
-
-    // RDPQ_CMD_SET_BLENDING_MODE accepts two blender configurations: the one
-    // to use in 1cycle mode, and the one to use in 2cycle mode. MAKE_SBM_ARG
-    // encodes the two configurations into a 64-bit word to be used with the command.
-    #define MAKE_SBM_ARG(blend_1cyc, blend_2cyc) \
-        ((((uint64_t)(blend_1cyc) >> 6) & 0x3FFFFFF) | \
-         (((uint64_t)(blend_2cyc) >> 6) & 0x3FFFFFF) << 26)
-
-    rdpq_blender_t blend_1cyc, blend_2cyc;
-    if (blend & RDPQ_BLENDER_2PASS) {
-        // A 2-pass blender will force 2cycle mode, so we don't care about the
-        // configuration for 1cycle mode. Let's just use 0 for it, it will not
-        // be used anyway.
-        blend_1cyc = 0;
-        blend_2cyc = blend;
-    } else {
-        // A single pass blender can be used as-is in 1cycle mode (the macros
-        // in rdp_commands have internally configured the same settings in both
-        // passes, as this is what RDP expects).
-        // For 2-cycle mode, instead, it needs to be changed: the configuration
-        // is valid for the second pass, but the first pass needs to changed
-        // with a passthrough (IN * 0 + IN * 1). Notice that we can't do
-        // the passthrough in the second pass because of the way the 2pass
-        // blender formula works.
-        const rdpq_blender_t passthrough = RDPQ_BLENDER1((IN_RGB, ZERO, IN_RGB, ONE));
-        blend_1cyc = blend;
-        blend_2cyc = (passthrough & SOM_BLEND0_MASK) | 
-                     (blend       & SOM_BLEND1_MASK);
-    }
-
-    // FIXME: autosync pipe
-    uint64_t cfg = MAKE_SBM_ARG(blend_1cyc, blend_2cyc);
-    __rdpq_fixup_mode(RDPQ_CMD_SET_BLENDING_MODE,
-        (cfg >> 32) & 0x00FFFFFF,
-        cfg & 0xFFFFFFFF);
+    if (blend) blend |= SOM_BLENDING;
+    __rdpq_fixup_mode(RDPQ_CMD_SET_BLENDING_MODE, 4, blend);
 }
 
-inline void rdpq_mode_blender_off(void) {
+inline void rdpq_mode_fog(rdpq_blender_t fog) {
     extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
-    __rdpq_fixup_mode(RDPQ_CMD_SET_BLENDING_MODE, 0, 0);
+    if (fog) fog |= SOM_BLENDING;
+    __rdpq_fixup_mode(RDPQ_CMD_SET_BLENDING_MODE, 0, fog);
 }
 
 inline void rdpq_mode_dithering(rdpq_dither_t rgb, rdpq_dither_t alpha) {
@@ -170,25 +155,27 @@ inline void rdpq_mode_dithering(rdpq_dither_t rgb, rdpq_dither_t alpha) {
 inline void rdpq_mode_alphacompare(bool enable, int threshold) {
     if (enable && threshold > 0) rdpq_set_blend_color(RGBA32(0,0,0,threshold));
     rdpq_change_other_modes_raw(
-        SOM_ALPHACOMPARE_MASK, enable ? SOM_ALPHA_COMPARE : 0
+        SOM_ALPHACOMPARE_MASK, enable ? SOM_ALPHACOMPARE_THRESHOLD : 0
     );
 }
 
 inline void rdpq_mode_zoverride(bool enable, uint16_t z, int16_t deltaz) {
     if (enable) rdpq_set_prim_depth(z, deltaz);
     rdpq_change_other_modes_raw(
-        SOM_Z_SOURCE_PRIM, enable ? SOM_Z_SOURCE_PRIM : 0
+        SOM_ZSOURCE_PRIM, enable ? SOM_ZSOURCE_PRIM : 0
     );
 }
 
-inline void rdpq_mode_sampler(rdpq_sampler_t s) {
-    uint64_t samp;
-    switch (s) {
-        case SAMPLER_POINT:    samp = SOM_SAMPLE_1X1; break;
-        case SAMPLER_MEDIAN:   samp = SOM_SAMPLE_2X2 | SOM_SAMPLE_MIDTEXEL; break;
-        case SAMPLER_BILINEAR: samp = SOM_SAMPLE_2X2; break;
-    }
-    rdpq_change_other_modes_raw(SOM_SAMPLE_MASK, samp);    
+inline void rdpq_mode_tlut(rdpq_tlut_t tlut) {
+    rdpq_change_other_modes_raw(SOM_TLUT_MASK, (uint64_t)tlut << SOM_TLUT_SHIFT);
 }
+
+inline void rdpq_mode_sampler(rdpq_sampler_t samp) {
+    rdpq_change_other_modes_raw(SOM_SAMPLE_MASK, (uint64_t)samp << SOM_SAMPLE_SHIFT);
+}
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
