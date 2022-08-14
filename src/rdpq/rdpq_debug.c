@@ -682,7 +682,7 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         VALIDATE_ERR(rdpq_state.som.cycle_type < 2, "cannot draw triangles in copy/fill mode (SOM set at %p)", rdpq_state.last_som);
         lazy_validate_cc();
         validate_draw_cmd(cmd & 4, cmd & 2, cmd & 1, cmd & 2);
-        if (cmd & 2) use_tile(BITS(buf[0], 24, 26));
+        if (cmd & 2) use_tile(BITS(buf[0], 48, 50));
         break;
     case 0x27: // SYNC_PIPE
         rdpq_state.busy.pipe = false;
