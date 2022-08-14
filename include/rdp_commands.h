@@ -343,8 +343,16 @@
  *      rdpq_set_env_color(RGBA32(0, 0, 0, 0.7*255));
  * 
  *      // Activate blending with the background
- *      rdpq_mode_blender
+ *      rdpq_mode_blending(RDPQ_BLENDER(IN_RGB, ENV_ALPHA, MEMORY_RGB, INV_MUX_ALPHA));
  * 
+ *      // Load the texture in TMEM
+ *      rdpq_tex_load(TILE0, texture, 0);
+ * 
+ *      // Draw the rectangle
+ *      rdpq_texture_rectangle(TILE0,
+ *          0, 0, 100, 80,
+ *          0, 0, 1.f, 1.0f);
+ * @endcode
  * 
  * @param[in]  rgb      The RGB formula as `(A, B, C, D)`
  * @param[in]  alpha    The ALPHA formula as `(A, B, C, D)`
@@ -359,77 +367,105 @@
      RDPQ_COMBINER_2PASS)
 
 
-#define SOM_ATOMIC_PRIM        ((cast64(1))<<55)
+/** @name SET_OTHER_MODES bit macros
+ * 
+ * These macros can be used to assemble a raw `SET_OTHER_MODES` command to send
+ * via #rdpq_set_other_modes_raw (or #rdpq_change_other_modes_raw). Assembling
+ * this command manually can be complex because of the different interwinded
+ * render modes that can be created. Beginngers should lookinto the RDPQ
+ * mode API before (rdpq_mode.h),
+ * 
+ * rdpq stores some special flag within unused bits of this register. These
+ * flags are defined using the prefix `SOMX_`.
+ */
+///@{
+#define SOM_ATOMIC_PRIM        ((cast64(1))<<55)            ///< Atomic: serialize command execution 
 
-#define SOM_CYCLE_1            ((cast64(0))<<52)
-#define SOM_CYCLE_2            ((cast64(1))<<52)
-#define SOM_CYCLE_COPY         ((cast64(2))<<52)
-#define SOM_CYCLE_FILL         ((cast64(3))<<52)
-#define SOM_CYCLE_MASK         ((cast64(3))<<52)
+#define SOM_CYCLE_1            ((cast64(0))<<52)            ///< Set cycle-type: 1cyc
+#define SOM_CYCLE_2            ((cast64(1))<<52)            ///< Set cycle-type: 2cyc
+#define SOM_CYCLE_COPY         ((cast64(2))<<52)            ///< Set cycle-type: copy
+#define SOM_CYCLE_FILL         ((cast64(3))<<52)            ///< Set cycle-type: fill
+#define SOM_CYCLE_MASK         ((cast64(3))<<52)            ///< Cycle-type mask
 
-#define SOM_TEXTURE_PERSP      (cast64(1)<<51)
-#define SOM_TEXTURE_DETAIL     (cast64(1)<<50)
-#define SOM_TEXTURE_SHARPEN    (cast64(1)<<49)
-#define SOM_TEXTURE_LOD        (cast64(1)<<48)
+#define SOM_TEXTURE_PERSP      (cast64(1)<<51)              ///< Texture: enable perspective correction
+#define SOM_TEXTURE_DETAIL     (cast64(1)<<50)              ///< Texture: enable "detail"
+#define SOM_TEXTURE_SHARPEN    (cast64(1)<<49)              ///< Texture: enable "sharpen"
+#define SOM_TEXTURE_LOD        (cast64(1)<<48)              ///< Texture: enable LODs.
 
-#define SOM_TLUT_NONE          (cast64(0)<<46)
-#define SOM_TLUT_RGBA16        (cast64(2)<<46)
-#define SOM_TLUT_IA16          (cast64(3)<<46)
-#define SOM_TLUT_MASK          (cast64(3)<<46)
+#define SOM_TLUT_NONE          (cast64(0)<<46)              ///< TLUT: no palettes
+#define SOM_TLUT_RGBA16        (cast64(2)<<46)              ///< TLUT: draw with palettes in formato RGB16
+#define SOM_TLUT_IA16          (cast64(3)<<46)              ///< TLUT: draw with palettes in formato IA16
+#define SOM_TLUT_MASK          (cast64(3)<<46)              ///< TLUT mask
+#define SOM_TLUT_SHIFT         46                           ///< TLUT mask shift
 
-#define SOM_SAMPLE_MASK        (cast64(3)<<44)
-#define SOM_SAMPLE_1X1         (cast64(0)<<44)
-#define SOM_SAMPLE_2X2         (cast64(2)<<44)
-#define SOM_SAMPLE_MIDTEXEL    (cast64(3)<<44)
+#define SOM_SAMPLE_POINT       (cast64(0)<<44)              ///< Texture sampling: point sampling (1x1)
+#define SOM_SAMPLE_BILINEAR    (cast64(2)<<44)              ///< Texture sampling: bilinear interpolation (2x2)
+#define SOM_SAMPLE_MEDIAN      (cast64(3)<<44)              ///< Texture sampling: midtexel average (2x2)
+#define SOM_SAMPLE_MASK        (cast64(3)<<44)              ///< Texture sampling mask
+#define SOM_SAMPLE_SHIFT       44                           ///< Texture sampling mask shift
 
-#define SOM_TC_FILTER          (cast64(6)<<41)
-#define SOM_TC_FILTERCONV      (cast64(5)<<41)
-#define SOM_TC_CONV            (cast64(0)<<41)
+#define SOM_TC_FILTER          (cast64(6)<<41)              ///< Texture: filtering (RGB textures)
+#define SOM_TC_FILTERCONV      (cast64(5)<<41)              ///< Texture: unknwon (?)
+#define SOM_TC_CONV            (cast64(0)<<41)              ///< Texture: color conversion (YUV textures)
 
-#define SOM_TF_POINT           (cast64(0)<<44)
-#define SOM_TF_BILERP          (cast64(2)<<44)
-#define SOM_TF_AVERAGE         (cast64(3)<<44)
+#define SOM_RGBDITHER_SQUARE   ((cast64(0))<<38)            ///< RGB Dithering: square filter
+#define SOM_RGBDITHER_BAYER    ((cast64(1))<<38)            ///< RGB Dithering: bayer filter
+#define SOM_RGBDITHER_NOISE    ((cast64(2))<<38)            ///< RGB Dithering: noise
+#define SOM_RGBDITHER_NONE     ((cast64(3))<<38)            ///< RGB Dithering: none
+#define SOM_RGBDITHER_MASK     ((cast64(4))<<38)            ///< RGB Dithering mask
+#define SOM_RGBDITHER_SHIFT    38                           ///< RGB Dithering mask shift
 
-#define SOM_RGBDITHER_SQUARE   ((cast64(0))<<38)
-#define SOM_RGBDITHER_BAYER    ((cast64(1))<<38)
-#define SOM_RGBDITHER_NOISE    ((cast64(2))<<38)
-#define SOM_RGBDITHER_NONE     ((cast64(3))<<38)
-#define SOM_RGBDITHER_MASK     ((cast64(4))<<38)
-#define SOM_RGBDITHER_SHIFT    38
+#define SOM_ALPHADITHER_SAME   ((cast64(0))<<36)            ///< Alpha Dithering: same as RGB
+#define SOM_ALPHADITHER_INVERT ((cast64(1))<<36)            ///< Alpha Dithering: invert pattern compared to RG
+#define SOM_ALPHADITHER_NOISE  ((cast64(2))<<36)            ///< Alpha Dithering: noise
+#define SOM_ALPHADITHER_NONE   ((cast64(3))<<36)            ///< Alpha Dithering: none
+#define SOM_ALPHADITHER_MASK   ((cast64(4))<<36)            ///< Alpha Dithering mask
+#define SOM_ALPHADITHER_SHIFT  36                           ///< Alpha Dithering mask shift
 
-#define SOM_ALPHADITHER_SQUARE ((cast64(0))<<36)
-#define SOM_ALPHADITHER_BAYER  ((cast64(1))<<36)
-#define SOM_ALPHADITHER_NOISE  ((cast64(2))<<36)
-#define SOM_ALPHADITHER_NONE   ((cast64(3))<<36)
-#define SOM_ALPHADITHER_MASK   ((cast64(4))<<36)
-#define SOM_ALPHADITHER_SHIFT  36
+#define SOM_BLEND0_MASK        (cast64(0xCCCC0000) | SOM_BLENDING | SOM_READ_ENABLE | SOMX_BLEND_2PASS)     ///< Blender: mask of settings related to pass 0
+#define SOM_BLEND1_MASK        (cast64(0x33330000) | SOM_BLENDING | SOM_READ_ENABLE | SOMX_BLEND_2PASS)     ///< Blender: mask of settings related to pass 1
+#define SOM_BLEND_MASK         (SOM_BLEND0_MASK | SOM_BLEND1_MASK)                                          ///< Blender: mask of all settings
 
-#define SOM_BLEND0_MASK        (cast64(0xCCCC0000) | SOM_BLENDING | SOM_READ_ENABLE | RDPQ_BLENDER_2PASS)
-#define SOM_BLEND1_MASK        (cast64(0x33330000) | SOM_BLENDING | SOM_READ_ENABLE | RDPQ_BLENDER_2PASS)
-#define SOM_BLEND_MASK         (SOM_BLEND0_MASK | SOM_BLEND1_MASK)
-#define SOM_BLENDING           ((cast64(1))<<14)
-#define SOM_ALPHA_USE_CVG      ((cast64(1))<<13)
-#define SOM_CVG_TIMES_ALPHA    ((cast64(1))<<12)
-#define SOM_Z_OPAQUE           ((cast64(0))<<10)
-#define SOM_Z_INTERPENETRATING ((cast64(1))<<10)
-#define SOM_Z_TRANSPARENT      ((cast64(2))<<10)
-#define SOM_Z_DECAL            ((cast64(3))<<10)
-#define SOM_Z_WRITE            ((cast64(1))<<5)
-#define SOM_Z_COMPARE          ((cast64(1))<<4)
-#define SOM_Z_SOURCE_PIXEL     ((cast64(0))<<2)
-#define SOM_Z_SOURCE_PRIM      ((cast64(1))<<2)
-#define SOM_ALPHADITHER_ENABLE ((cast64(1))<<1)
-#define SOM_ALPHA_COMPARE      ((cast64(1))<<0)
-#define SOM_ALPHACOMPARE_MASK  ((cast64(3))<<0)
+#define SOMX_BLEND_2PASS       cast64(1<<15)                ///< RDPQ special state: record that the blender is made of 2 passes
 
-#define SOM_READ_ENABLE                 ((cast64(1)) << 6)
-#define SOM_AA_ENABLE                   ((cast64(1)) << 3)
-#define SOM_COVERAGE_DEST_CLAMP         ((cast64(0)) << 8)
-#define SOM_COVERAGE_DEST_WRAP          ((cast64(1)) << 8)
-#define SOM_COVERAGE_DEST_ZAP           ((cast64(2)) << 8)
-#define SOM_COVERAGE_DEST_SAVE          ((cast64(3)) << 8)
-#define SOM_COLOR_ON_COVERAGE           ((cast64(1)) << 7)
+#define SOM_BLENDING           ((cast64(1))<<14)            ///< Activate blending for all pixels
+#define SOM_ALPHA_USE_CVG      ((cast64(1))<<13)            ///< Replace alpha channel with coverage
+#define SOM_CVG_TIMES_ALPHA    ((cast64(1))<<12)            ///< Multiply coverage by alpha
 
+#define SOM_ZMODE_OPAQUE           ((cast64(0))<<10)        ///< Z-mode: opaque surface
+#define SOM_ZMODE_INTERPENETRATING ((cast64(1))<<10)        ///< Z-mode: interprenating surfaces
+#define SOM_ZMODE_TRANSPARENT      ((cast64(2))<<10)        ///< Z-mode: transparent surface
+#define SOM_ZMODE_DECAL            ((cast64(3))<<10)        ///< Z-mode: decal surface
+#define SOM_ZMODE_MASK             ((cast64(3))<<10)        ///< Z-mode mask
+#define SOM_ZMODE_SHIFT            10                       ///< Z-mode mask shift
+
+#define SOM_Z_WRITE            ((cast64(1))<<5)             ///< Activate Z-buffer write
+#define SOM_Z_COMPARE          ((cast64(1))<<4)             ///< Activate Z-buffer compare
+
+#define SOM_ZSOURCE_PIXEL      ((cast64(0))<<2)             ///< Z-source: per-pixel Z
+#define SOM_ZSOURCE_PRIM       ((cast64(1))<<2)             ///< Z-source: fixed value
+#define SOM_ZSOURCE_MASK       ((cast64(1))<<2)             ///< Z-source mask
+#define SOM_ZSOURCE_SHIFT      2                            ///< Z-source mask shift
+
+#define SOM_ALPHACOMPARE_THRESHOLD  ((cast64(1))<<1)        ///< Alpha Compare: use blend alpha as threshold
+#define SOM_ALPHACOMPARE_NOISE      ((cast64(1))<<3)        ///< Alpha Compare: use noise as threshold
+#define SOM_ALPHACOMPARE_MASK       ((cast64(3))<<0)        ///< Alpha Compare mask
+#define SOM_ALPHACOMPARE_SHIFT      0                       ///< Alpha Compare mask shift
+
+#define SOM_READ_ENABLE                 ((cast64(1)) << 6)  ///< Enable reads from framebuffer
+#define SOM_AA_ENABLE                   ((cast64(1)) << 3)  ///< Enable anti-alias
+
+#define SOM_COVERAGE_DEST_CLAMP         ((cast64(0)) << 8)  ///< Coverage: add and clamp to 7 (full)
+#define SOM_COVERAGE_DEST_WRAP          ((cast64(1)) << 8)  ///< Coverage: add and wrap from 0
+#define SOM_COVERAGE_DEST_ZAP           ((cast64(2)) << 8)  ///< Coverage: force 7 (full)
+#define SOM_COVERAGE_DEST_SAVE          ((cast64(3)) << 8)  ///< Coverage: save (don't write)
+#define SOM_COVERAGE_DEST_MASK          ((cast64(3)) << 8)  ///< Coverage mask
+#define SOM_COVERAGE_DEST_SHIFT         8                   ///< Coverage mask shift
+
+#define SOM_COLOR_ON_COVERAGE           ((cast64(1)) << 7)  ///< Update color buffer only on coverage overflow
+///@}
+
+///@cond
 #define _RDPQ_SOM_BLEND1_A_IN_RGB         cast64(0)
 #define _RDPQ_SOM_BLEND1_A_MEMORY_RGB     cast64(1)
 #define _RDPQ_SOM_BLEND1_A_BLEND_RGB      cast64(2)
@@ -472,7 +508,7 @@
 #define _RDPQ_SOM_BLEND2B_B2_ZERO           cast64(3)
 
 #define _RDPQ_SOM_BLEND_EXTRA_A_IN_RGB          cast64(0)
-#define _RDPQ_SOM_BLEND_EXTRA_A_MEMORY_RGB      (SOM_READ_ENABLE | RDPQ_BLENDER_2PASS)
+#define _RDPQ_SOM_BLEND_EXTRA_A_MEMORY_RGB      (SOM_READ_ENABLE | SOMX_BLEND_2PASS)
 #define _RDPQ_SOM_BLEND_EXTRA_A_BLEND_RGB       cast64(0)
 #define _RDPQ_SOM_BLEND_EXTRA_A_FOG_RGB         cast64(0)
 
@@ -482,7 +518,7 @@
 #define _RDPQ_SOM_BLEND_EXTRA_B1_ZERO           cast64(0)
 
 #define _RDPQ_SOM_BLEND_EXTRA_B2_INV_MUX_ALPHA  cast64(0)
-#define _RDPQ_SOM_BLEND_EXTRA_B2_MEMORY_ALPHA   (SOM_READ_ENABLE | RDPQ_BLENDER_2PASS)
+#define _RDPQ_SOM_BLEND_EXTRA_B2_MEMORY_ALPHA   (SOM_READ_ENABLE | SOMX_BLEND_2PASS)
 #define _RDPQ_SOM_BLEND_EXTRA_B2_ONE            cast64(0)
 #define _RDPQ_SOM_BLEND_EXTRA_B2_ZERO           cast64(0)
 
@@ -501,8 +537,7 @@
 #define __rdpq_blend_1cyc_1(a1, b1, a2, b2) __rdpq_blend(1,  a1, b1, a2, b2, 28, 24, 20, 16)
 #define __rdpq_blend_2cyc_0(a1, b1, a2, b2) __rdpq_blend(2A, a1, b1, a2, b2, 30, 26, 22, 18)
 #define __rdpq_blend_2cyc_1(a1, b1, a2, b2) __rdpq_blend(2B, a1, b1, a2, b2, 28, 24, 20, 16)
-
-#define RDPQ_BLENDER_2PASS     cast64(1<<15)
+///@endcond
 
 #define RDPQ_BLENDER(bl)        (__rdpq_blend_1cyc_0 bl  | __rdpq_blend_1cyc_1 bl)
 // #define RDPQ_BLENDER2(bl0, bl1)  (__rdpq_blend_2cyc_0 bl0 | __rdpq_blend_2cyc_1 bl1 | RDPQ_BLENDER_2PASS)

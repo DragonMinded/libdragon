@@ -609,7 +609,7 @@ UpdateCycleType:
     move blend_1cyc, t0
 
     and passthrough, t1, SOM_BLEND1_MASK
-    or passthrough, RDPQ_BLENDER_2PASS
+    or passthrough, SOMX_BLEND_2PASS
 blender_merge:
     and blend_1cyc, SOM_BLEND0_MASK
     or blend_2cyc, blend_1cyc, passthrough

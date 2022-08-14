@@ -31,7 +31,7 @@ void rdpq_set_mode_standard(void) {
 
 void rdpq_set_mode_copy(bool transparency) {
     if (transparency) rdpq_set_blend_color(RGBA32(0,0,0,1));
-    rdpq_set_other_modes_raw(SOM_CYCLE_COPY | (transparency ? SOM_ALPHA_COMPARE : 0));
+    rdpq_set_other_modes_raw(SOM_CYCLE_COPY | (transparency ? SOM_ALPHACOMPARE_THRESHOLD : 0));
 }
 
 void rdpq_set_mode_yuv(void) {

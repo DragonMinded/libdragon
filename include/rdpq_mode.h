@@ -41,9 +41,9 @@ typedef uint64_t rdpq_combiner_t;
 typedef uint32_t rdpq_blender_t;
 
 typedef enum rdpq_sampler_s {
-    SAMPLER_POINT = 0,
-    SAMPLER_BILINEAR,
-    SAMPLER_MEDIAN
+    SAMPLER_POINT    = SOM_SAMPLE_POINT    >> SOM_SAMPLE_SHIFT,
+    SAMPLER_BILINEAR = SOM_SAMPLE_BILINEAR >> SOM_SAMPLE_SHIFT,
+    SAMPLER_MEDIAN   = SOM_SAMPLE_MEDIAN   >> SOM_SAMPLE_SHIFT,
 } rdpq_sampler_t;
 
 typedef enum rdpq_dither_s {
@@ -155,29 +155,23 @@ inline void rdpq_mode_dithering(rdpq_dither_t rgb, rdpq_dither_t alpha) {
 inline void rdpq_mode_alphacompare(bool enable, int threshold) {
     if (enable && threshold > 0) rdpq_set_blend_color(RGBA32(0,0,0,threshold));
     rdpq_change_other_modes_raw(
-        SOM_ALPHACOMPARE_MASK, enable ? SOM_ALPHA_COMPARE : 0
+        SOM_ALPHACOMPARE_MASK, enable ? SOM_ALPHACOMPARE_THRESHOLD : 0
     );
 }
 
 inline void rdpq_mode_zoverride(bool enable, uint16_t z, int16_t deltaz) {
     if (enable) rdpq_set_prim_depth(z, deltaz);
     rdpq_change_other_modes_raw(
-        SOM_Z_SOURCE_PRIM, enable ? SOM_Z_SOURCE_PRIM : 0
+        SOM_ZSOURCE_PRIM, enable ? SOM_ZSOURCE_PRIM : 0
     );
 }
 
 inline void rdpq_mode_tlut(rdpq_tlut_t tlut) {
-    rdpq_change_other_modes_raw(SOM_TLUT_MASK, (uint64_t)tlut << 46);
+    rdpq_change_other_modes_raw(SOM_TLUT_MASK, (uint64_t)tlut << SOM_TLUT_SHIFT);
 }
 
-inline void rdpq_mode_sampler(rdpq_sampler_t s) {
-    uint64_t samp = 0;
-    switch (s) {
-        case SAMPLER_POINT:    samp = SOM_SAMPLE_1X1; break;
-        case SAMPLER_MEDIAN:   samp = SOM_SAMPLE_2X2 | SOM_SAMPLE_MIDTEXEL; break;
-        case SAMPLER_BILINEAR: samp = SOM_SAMPLE_2X2; break;
-    }
-    rdpq_change_other_modes_raw(SOM_SAMPLE_MASK, samp);    
+inline void rdpq_mode_sampler(rdpq_sampler_t samp) {
+    rdpq_change_other_modes_raw(SOM_SAMPLE_MASK, (uint64_t)samp << SOM_SAMPLE_SHIFT);
 }
 
 #ifdef __cplusplus

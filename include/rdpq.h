@@ -147,8 +147,25 @@ enum {
 /** @brief Used internally for bit-packing RDP commands. */
 #define _carg(value, mask, shift) (((uint32_t)((value) & mask)) << shift)
 
+/** @brief Tile descriptors. 
+ * 
+ * These are enums that map to integers 0-7, but they can be used in place of the
+ * integers for code redability.
+ */
+typedef enum {
+    TILE0 = 0,  // Tile #0 (for code readability)
+    TILE1 = 1,  // Tile #1 (for code readability)
+    TILE2 = 2,  // Tile #2 (for code readability)
+    TILE3 = 3,  // Tile #3 (for code readability)
+    TILE4 = 4,  // Tile #4 (for code readability)
+    TIlE5 = 5,  // Tile #5 (for code readability)
+    TILE6 = 6,  // Tile #6 (for code readability)
+    TILE7 = 7,  // Tile #7 (for code readability)
+} tile_t;
+
 /** @brief Tile descriptor internally used by some RDPQ functions. Avoid using if possible */
-#define RDPQ_TILE_INTERNAL           7
+#define RDPQ_TILE_INTERNAL           TILE7
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -313,7 +330,7 @@ uint32_t rdpq_config_disable(uint32_t cfg_disable_bits);
  * @param v2             Array of components for vertex 2
  * @param v3             Array of components for vertex 3
  */
-void rdpq_triangle(uint8_t tile, uint8_t mipmaps,
+void rdpq_triangle(tile_t tile, uint8_t mipmaps,
     int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, 
     const float *v1, const float *v2, const float *v3);
 
@@ -385,7 +402,7 @@ void rdpq_triangle(uint8_t tile, uint8_t mipmaps,
  * 
  * @see #rdpq_texture_rectangle
  */
-inline void rdpq_texture_rectangle_fx(uint8_t tile, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, int16_t s, int16_t t, int16_t dsdx, int16_t dtdy)
+inline void rdpq_texture_rectangle_fx(tile_t tile, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, int16_t s, int16_t t, int16_t dsdx, int16_t dtdy)
 {
     extern void __rdpq_texture_rectangle(uint32_t, uint32_t, uint32_t, uint32_t);
 
@@ -445,7 +462,7 @@ inline void rdpq_texture_rectangle_fx(uint8_t tile, uint16_t x0, uint16_t y0, ui
  * 
  * @see #rdpq_texture_rectangle_flip
  */
-inline void rdpq_texture_rectangle_flip_fx(uint8_t tile, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, int16_t s, int16_t t, int16_t dsdy, int16_t dtdx)
+inline void rdpq_texture_rectangle_flip_fx(tile_t tile, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, int16_t s, int16_t t, int16_t dsdy, int16_t dtdx)
 {
     extern void __rdpq_write16_syncuse(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 
@@ -628,7 +645,7 @@ inline void rdpq_set_prim_depth(uint16_t primitive_z, int16_t primitive_delta_z)
 /**
  * @brief Low level function to load a texture palette into TMEM
  */
-inline void rdpq_load_tlut(uint8_t tile, uint8_t lowidx, uint8_t highidx)
+inline void rdpq_load_tlut(tile_t tile, uint8_t lowidx, uint8_t highidx)
 {
     extern void __rdpq_write8_syncchangeuse(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_write8_syncchangeuse(RDPQ_CMD_LOAD_TLUT, 
@@ -641,7 +658,7 @@ inline void rdpq_load_tlut(uint8_t tile, uint8_t lowidx, uint8_t highidx)
 /**
  * @brief Low level function to set the size of a tile descriptor
  */
-inline void rdpq_set_tile_size_fx(uint8_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1)
+inline void rdpq_set_tile_size_fx(tile_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1)
 {
     extern void __rdpq_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_write8_syncchange(RDPQ_CMD_SET_TILE_SIZE,
@@ -657,7 +674,7 @@ inline void rdpq_set_tile_size_fx(uint8_t tile, uint16_t s0, uint16_t t0, uint16
 /**
  * @brief Low level function to load a texture image into TMEM in a single memory transfer
  */
-inline void rdpq_load_block_fx(uint8_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t dxt)
+inline void rdpq_load_block_fx(tile_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t dxt)
 {
     extern void __rdpq_write8_syncchangeuse(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_write8_syncchangeuse(RDPQ_CMD_LOAD_BLOCK,
@@ -670,7 +687,7 @@ inline void rdpq_load_block_fx(uint8_t tile, uint16_t s0, uint16_t t0, uint16_t 
 /**
  * @brief Low level function to load a texture image into TMEM in a single memory transfer
  */
-inline void rdpq_load_block(uint8_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t tmem_pitch)
+inline void rdpq_load_block(tile_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t tmem_pitch)
 {
     assertf((tmem_pitch % 8) == 0, "invalid tmem_pitch %d: must be multiple of 8", tmem_pitch);
     // Dxt is the reciprocal of the number of 64 bit words in a line in 1.11 format, rounded up
@@ -681,7 +698,7 @@ inline void rdpq_load_block(uint8_t tile, uint16_t s0, uint16_t t0, uint16_t num
 /**
  * @brief Low level function to load a texture image into TMEM
  */
-inline void rdpq_load_tile_fx(uint8_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1)
+inline void rdpq_load_tile_fx(tile_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1)
 {
     extern void __rdpq_write8_syncchangeuse(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_write8_syncchangeuse(RDPQ_CMD_LOAD_TILE,
@@ -698,7 +715,7 @@ inline void rdpq_load_tile_fx(uint8_t tile, uint16_t s0, uint16_t t0, uint16_t s
 /**
  * @brief Enqueue a RDP SET_TILE command (full version)
  */
-inline void rdpq_set_tile_full(uint8_t tile, tex_format_t format, 
+inline void rdpq_set_tile_full(tile_t tile, tex_format_t format, 
     uint16_t tmem_addr, uint16_t tmem_pitch, uint8_t palette,
     uint8_t ct, uint8_t mt, uint8_t mask_t, uint8_t shift_t,
     uint8_t cs, uint8_t ms, uint8_t mask_s, uint8_t shift_s)
@@ -729,7 +746,7 @@ inline void rdpq_set_tile_full(uint8_t tile, tex_format_t format,
  *                         #FMT_CI4 format, specify the palette index (0-15),
  *                         otherwise use 0.
  */
-inline void rdpq_set_tile(uint8_t tile, tex_format_t format, 
+inline void rdpq_set_tile(tile_t tile, tex_format_t format, 
     uint16_t tmem_addr, uint16_t tmem_pitch, uint8_t palette)
 {
     assertf((tmem_addr % 8) == 0, "invalid tmem_addr %d: must be multiple of 8", tmem_addr);

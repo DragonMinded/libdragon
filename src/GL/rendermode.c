@@ -119,16 +119,16 @@ void gl_update_render_mode()
     rdpq_blender_t blend_cycle = 0, fog_cycle = 0;
 
     if (state.dither) {
-        modes |= SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_SQUARE;
+        modes |= SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_SAME;
     } else {
         modes |= SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE;
     }
 
     if (state.depth_test) {
         if (state.is_points) {
-            modes |= SOM_Z_SOURCE_PRIM;
+            modes |= SOM_ZSOURCE_PRIM;
         } else {
-            modes |= SOM_Z_SOURCE_PIXEL;
+            modes |= SOM_ZSOURCE_PIXEL;
         }
 
         if (state.depth_func == GL_LESS) {
@@ -136,9 +136,9 @@ void gl_update_render_mode()
         }
 
         if (state.blend) {
-            modes |= SOM_Z_TRANSPARENT;
+            modes |= SOM_ZMODE_TRANSPARENT;
         } else {
-            modes |= SOM_Z_OPAQUE | SOM_Z_WRITE;
+            modes |= SOM_ZMODE_OPAQUE | SOM_Z_WRITE;
         }
     }
 
@@ -164,7 +164,7 @@ void gl_update_render_mode()
     }
 
     if (state.alpha_test && state.alpha_func == GL_GREATER) {
-        modes |= SOM_ALPHA_COMPARE;
+        modes |= SOM_ALPHACOMPARE_THRESHOLD;
     }
     
     gl_texture_object_t *tex_obj = gl_get_active_texture();
@@ -180,7 +180,7 @@ void gl_update_render_mode()
             tex_obj->min_filter == GL_LINEAR || 
             tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR || 
             tex_obj->min_filter == GL_LINEAR_MIPMAP_NEAREST) {
-            modes |= SOM_SAMPLE_2X2;
+            modes |= SOM_SAMPLE_BILINEAR;
         }
 
         if (tex_obj->min_filter != GL_LINEAR && tex_obj->min_filter != GL_NEAREST && !state.is_points) {
