@@ -989,7 +989,7 @@ void test_rdpq_blender_memory(TestContext *ctx) {
     );
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*4, "Wrong data in framebuffer");
-    uint32_t som = rdpq_get_other_modes_raw();
+    uint64_t som = rdpq_get_other_modes_raw();
     ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_1, "invalid cycle type");
 }
 
