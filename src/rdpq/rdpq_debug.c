@@ -249,6 +249,7 @@ int rdpq_disasm_size(uint64_t *buf) {
 }
 
 #define FX(n)          (1.0f / (1<<(n)))
+#define FX32(hi,lo)    ((hi) + (lo) * (1.f / 65536.f))
 
 void rdpq_disasm(uint64_t *buf, FILE *out)
 {
@@ -313,13 +314,13 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
         }
         if(som.tlut.enable) fprintf(out, " tlut%s", som.tlut.type ? "=[ia]" : "");
         if(BITS(buf[0], 16, 31)) {
+            if (som.blender[0].p==0 && som.blender[0].a==0 && som.blender[0].q==0 && som.blender[0].b==0)
+                fprintf(out, " blend=[<passthrough>, ");
+            else            
                 fprintf(out, " blend=[%s*%s + %s*%s, ",
                     blend1_a[som.blender[0].p],  blend1_b1[som.blender[0].a], blend1_a[som.blender[0].q], som.blender[0].b ? blend1_b2[som.blender[0].b] : blend1_b1inv[som.blender[0].a]);
-            if (som.blender[1].p==0 && som.blender[1].a==0 && som.blender[1].q==0 && som.blender[1].b==0)
-                fprintf(out, "<passthrough>]");
-            else
-                fprintf(out, "%s*%s + %s*%s]",
-                    blend2_a[som.blender[1].p],  blend2_b1[som.blender[1].a], blend2_a[som.blender[1].q], som.blender[1].b ? blend2_b2[som.blender[1].b] : blend2_b1inv[som.blender[1].a]);
+            fprintf(out, "%s*%s + %s*%s]",
+                blend2_a[som.blender[1].p],  blend2_b1[som.blender[1].a], blend2_a[som.blender[1].q], som.blender[1].b ? blend2_b2[som.blender[1].b] : blend2_b1inv[som.blender[1].a]);
         }
         if(som.z.upd || som.z.cmp) {
             fprintf(out, " z=["); FLAG_RESET();
@@ -391,9 +392,10 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
         BITS(buf[0], 24, 26), BITS(buf[0], 44, 55), BITS(buf[0], 32, 43),
                               BITS(buf[0], 12, 23)+1, BITS(buf[0], 0, 11)*FX(11)); return;
     case 0x08 ... 0x0F: {
+        int cmd = BITS(buf[0], 56, 61)-0x8;
         const char *tri[] = { "TRI              ", "TRI_Z            ", "TRI_TEX          ", "TRI_TEX_Z        ",  "TRI_SHADE        ", "TRI_SHADE_Z      ", "TRI_TEX_SHADE    ", "TRI_TEX_SHADE_Z  "};
-        int words[] = {4, 4+2, 4+8, 4+8+2, 4+8, 4+8+2, 4+8+8, 4+8+8+2};
-        fprintf(out, "%s", tri[BITS(buf[0], 56, 61)-0x8]);
+        // int words[] = {4, 4+2, 4+8, 4+8+2, 4+8, 4+8+2, 4+8+8, 4+8+8+2};
+        fprintf(out, "%s", tri[cmd]);
         fprintf(out, "%s tile=%d lvl=%d y=(%.2f, %.2f, %.2f)\n",
             BITS(buf[0], 55, 55) ? "left" : "right", BITS(buf[0], 48, 50), BITS(buf[0], 51, 53),
             SBITS(buf[0], 32, 45)*FX(2), SBITS(buf[0], 16, 29)*FX(2), SBITS(buf[0], 0, 13)*FX(2));
@@ -403,8 +405,41 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
             SBITS(buf[2], 32, 63)*FX(16), SBITS(buf[2], 0, 31)*FX(16));
         fprintf(out, "[%p] %016llx                     xm=%.4f dxmd=%.4f\n", &buf[3], buf[3],
             SBITS(buf[3], 32, 63)*FX(16), SBITS(buf[3], 0, 31)*FX(16));
-        for (int i = 4; i < words[BITS(buf[0], 56, 61)-0x8]; i++)
-            fprintf(out, "[%p] %016llx                     \n", &buf[i], buf[i]);
+        int i=4;
+        if (cmd & 0x4) {
+            for (int j=0;j<8;j++,i++)
+                fprintf(out, "[%p] %016llx                     [shade]\n", &buf[i], buf[i]);
+        }
+        if (cmd & 0x2) {
+            fprintf(out, "[%p] %016llx                     s=%.5f t=%.5f w=%.5f\n", &buf[i], buf[i],
+                FX32(BITS(buf[i], 48, 63), BITS(buf[i+2], 48, 63)), 
+                FX32(BITS(buf[i], 32, 47), BITS(buf[i+2], 32, 47)),
+                FX32(BITS(buf[i], 16, 31), BITS(buf[i+2], 16, 31))); i++;
+            fprintf(out, "[%p] %016llx                     dsdx=%.5f dtdx=%.5f dwdx=%.5f\n", &buf[i], buf[i],
+                FX32(BITS(buf[i], 48, 63), BITS(buf[i+2], 48, 63)), 
+                FX32(BITS(buf[i], 32, 47), BITS(buf[i+2], 32, 47)),
+                FX32(BITS(buf[i], 16, 31), BITS(buf[i+2], 16, 31))); i++;
+            fprintf(out, "[%p] %016llx                     \n", &buf[i], buf[i]); i++;
+            fprintf(out, "[%p] %016llx                     \n", &buf[i], buf[i]); i++;
+            fprintf(out, "[%p] %016llx                     dsde=%.5f dtde=%.5f dwde=%.5f\n", &buf[i], buf[i],
+                FX32(BITS(buf[i], 48, 63), BITS(buf[i+2], 48, 63)), 
+                FX32(BITS(buf[i], 32, 47), BITS(buf[i+2], 32, 47)),
+                FX32(BITS(buf[i], 16, 31), BITS(buf[i+2], 16, 31))); i++;
+            fprintf(out, "[%p] %016llx                     dsdy=%.5f dtdy=%.5f dwdy=%.5f\n", &buf[i], buf[i],
+                FX32(BITS(buf[i], 48, 63), BITS(buf[i+2], 48, 63)), 
+                FX32(BITS(buf[i], 32, 47), BITS(buf[i+2], 32, 47)),
+                FX32(BITS(buf[i], 16, 31), BITS(buf[i+2], 16, 31))); i++;
+            fprintf(out, "[%p] %016llx                     \n", &buf[i], buf[i]); i++;
+            fprintf(out, "[%p] %016llx                     \n", &buf[i], buf[i]); i++;
+        }
+        if (cmd & 0x1) {
+            fprintf(out, "[%p] %016llx                     z=%.5f dzdx=%.5f\n", &buf[i], buf[i],
+                FX32(BITS(buf[i], 48, 63), BITS(buf[i], 32, 47)), 
+                FX32(BITS(buf[i], 16, 31), BITS(buf[i],  0, 15))); i++;
+            fprintf(out, "[%p] %016llx                     dzde=%.5f dzdy=%.5f\n", &buf[i], buf[i],
+                FX32(BITS(buf[i], 48, 63), BITS(buf[i], 32, 47)), 
+                FX32(BITS(buf[i], 16, 31), BITS(buf[i],  0, 15))); i++;
+        }
         return;
     }
     case 0x3e: fprintf(out, "SET_Z_IMAGE      dram=%08x\n", BITS(buf[0], 0, 25)); return;
