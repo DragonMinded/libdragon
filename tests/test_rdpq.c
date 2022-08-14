@@ -29,6 +29,18 @@ static void debug_surface(const char *name, uint16_t *buf, int w, int h) {
     debugf("\n");
 }
 
+__attribute__((unused))
+static void debug_surface32(const char *name, uint32_t *buf, int w, int h) {
+    debugf("Surface %s:\n", name);
+    for (int j=0;j<h;j++) {
+        for (int i=0;i<w;i++) {
+            debugf("%08lx ", buf[j*w+i]);
+        }
+        debugf("\n");
+    }
+    debugf("\n");
+}
+
 void test_rdpq_rspqwait(TestContext *ctx)
 {
     // Verify that rspq_wait() correctly also wait for RDP to terminate
@@ -892,7 +904,7 @@ void test_rdpq_blender(TestContext *ctx) {
     rdpq_set_fog_color(RGBA32(0xEE, 0xEE, 0xEE, 0xFF));
 
     // Enable blending
-    rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, INV_MUX_ALPHA)) | SOM_BLENDING);
+    rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, INV_MUX_ALPHA)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1.0f, 1.0f);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_blend, FBWIDTH*FBWIDTH*2, 
@@ -906,7 +918,7 @@ void test_rdpq_blender(TestContext *ctx) {
         "Wrong data in framebuffer (blender=none)");
 
     // Enable fogging
-    rdpq_mode_fog(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, INV_MUX_ALPHA)) | SOM_BLENDING);
+    rdpq_mode_fog(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, INV_MUX_ALPHA)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1.0f, 1.0f);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_blend, FBWIDTH*FBWIDTH*2, 
@@ -920,8 +932,8 @@ void test_rdpq_blender(TestContext *ctx) {
         "Wrong data in framebuffer (blender=none)");
 
     // Enable both, with blending adding the input of fog
-    rdpq_mode_fog(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, INV_MUX_ALPHA)) | SOM_BLENDING);
-    rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, FOG_ALPHA, BLEND_RGB, ONE)) | SOM_BLENDING);
+    rdpq_mode_fog(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, INV_MUX_ALPHA)));
+    rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, FOG_ALPHA, BLEND_RGB, ONE)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1.0f, 1.0f);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_blend2, FBWIDTH*FBWIDTH*2, 
@@ -935,9 +947,55 @@ void test_rdpq_blender(TestContext *ctx) {
         "Wrong data in framebuffer (blender=pass0)");
 }
 
+void test_rdpq_blender_memory(TestContext *ctx) {
+    RDPQ_INIT();
+
+    const int FBWIDTH = 16;
+    surface_t fb = surface_alloc(FMT_RGBA32, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+
+    uint32_t expected_fb[FBWIDTH*FBWIDTH];
+
+    for (int j=0;j<FBWIDTH;j++) {
+        for (int i=0;i<FBWIDTH;i++) {
+            bool alt = (i % (j/2+1) < 3);
+            ((uint32_t*)fb.buffer)[j * FBWIDTH + i] = alt ? 0xB0B0B080 : 0x30303080;
+            if (i >= 4 && i < 12 && j >= 4 && j <12)
+                expected_fb[j * FBWIDTH + i] = alt ? 0x989898e0 : 0x585858e0;
+            else
+                expected_fb[j * FBWIDTH + i] = alt ? 0xB0B0B080 : 0x30303080;
+        }
+    }
+
+    const int TEXWIDTH = 8;
+    surface_t tex = surface_alloc(FMT_RGBA32, TEXWIDTH, TEXWIDTH);
+    DEFER(surface_free(&tex));
+    surface_clear(&tex, 0x80);
+
+    rdpq_set_fog_color(RGBA32(0,0,0,0x80));
+    rdpq_set_color_image(&fb);
+    rdpq_tex_load(TILE0, &tex, 0);
+    rdpq_set_mode_standard();
+    rdpq_mode_blending(RDPQ_BLEND_MULTIPLY);
+    rdpq_triangle(TILE0, 0, 0, -1, 2, 0,
+        (float[]){ 4.0f,   4.0f, 0.0f, 0.0f, 1.0f },
+        (float[]){ 12.0f,  4.0f, 8.0f, 0.0f, 1.0f },
+        (float[]){ 12.0f, 12.0f, 8.0f, 8.0f, 1.0f }
+    );
+    rdpq_triangle(TILE0, 0, 0, -1, 2, -1,
+        (float[]){ 4.0f,   4.0f, 0.0f, 0.0f },
+        (float[]){ 4.0f,  12.0f, 0.0f, 8.0f },
+        (float[]){ 12.0f, 12.0f, 8.0f, 8.0f }
+    );
+    rspq_wait();
+    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*4, "Wrong data in framebuffer");
+    uint32_t som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_1, "invalid cycle type");
+}
+
+
 void test_rdpq_tex_load(TestContext *ctx) {
     RDPQ_INIT();
-    rdpq_debug_log(true);
 
     const int FBWIDTH = 16;
     surface_t fb = surface_alloc(FMT_RGBA16, FBWIDTH, FBWIDTH);
