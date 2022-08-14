@@ -259,7 +259,7 @@ void gl_draw_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
     gl_texture_object_t *tex_obj = gl_get_active_texture();
     if (tex_obj != NULL && tex_obj->is_complete) {
         tex_offset = 6;
-        level = tex_obj->num_levels - 1;
+        level = tex_obj->num_levels;
     }
 
     int32_t z_offset = state.depth_test ? 9 : -1;
@@ -947,7 +947,7 @@ static gl_vertex_source_t dummy_sources[4] = {
 void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 {
     // TODO: batch these
-    
+
     vertex_tmp[0] = x;
     vertex_tmp[1] = y;
     vertex_tmp[2] = z;

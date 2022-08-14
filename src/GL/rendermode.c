@@ -154,13 +154,13 @@ void gl_update_render_mode()
     }
 
     if (state.blend) {
-        blend_cycle = state.blend_cycle | SOM_BLENDING;
+        blend_cycle = state.blend_cycle;
     } else if (state.multisample) {
-        blend_cycle = RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_ALPHA));
+        //blend_cycle = RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_ALPHA));
     }
 
     if (state.fog) {
-        fog_cycle = RDPQ_BLENDER((IN_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA)) | SOM_BLENDING;
+        fog_cycle = RDPQ_BLENDER((IN_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA));
     }
 
     if (state.alpha_test && state.alpha_func == GL_GREATER) {
@@ -223,6 +223,7 @@ void gl_update_render_mode()
     rdpq_mode_combiner(comb);
     rdpq_mode_fog(fog_cycle);
     rdpq_mode_blending(blend_cycle);
+    rdpq_mode_antialias(state.multisample);
 
     state.is_rendermode_dirty = false;
 }

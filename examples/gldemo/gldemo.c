@@ -209,6 +209,9 @@ int main()
 
     gl_init();
 
+    //rdpq_debug_start();
+    //rdpq_debug_log(true);
+
     setup();
 
     controller_init();
@@ -240,11 +243,6 @@ int main()
         }
 
         render();
-
-        if (down.c[0].C_left) {
-            uint64_t om = rdpq_get_other_modes_raw();
-            debugf("%llx\n", om);
-        }
 
         gl_swap_buffers();
     }
