@@ -470,6 +470,7 @@
 ///@}
 
 ///@cond
+// Helpers macros for RDPQ_BLENDER
 #define _RDPQ_SOM_BLEND1_A_IN_RGB         cast64(0)
 #define _RDPQ_SOM_BLEND1_A_MEMORY_RGB     cast64(1)
 #define _RDPQ_SOM_BLEND1_A_BLEND_RGB      cast64(2)
@@ -481,7 +482,7 @@
 #define _RDPQ_SOM_BLEND1_B1_ZERO           cast64(3)
 
 #define _RDPQ_SOM_BLEND1_B2_INV_MUX_ALPHA  cast64(0)
-#define _RDPQ_SOM_BLEND1_B2_MEMORY_ALPHA   cast64(1)
+#define _RDPQ_SOM_BLEND1_B2_MEMORY_CVG     cast64(1)
 #define _RDPQ_SOM_BLEND1_B2_ONE            cast64(2)
 #define _RDPQ_SOM_BLEND1_B2_ZERO           cast64(3)
 
@@ -501,13 +502,13 @@
 #define _RDPQ_SOM_BLEND2B_A_BLEND_RGB     cast64(2)
 #define _RDPQ_SOM_BLEND2B_A_FOG_RGB       cast64(3)
 
-#define _RDPQ_SOM_BLEND2B_B1_CYCLE1_ALPHA   cast64(0)
+#define _RDPQ_SOM_BLEND2B_B1_IN_ALPHA       cast64(0)
 #define _RDPQ_SOM_BLEND2B_B1_FOG_ALPHA      cast64(1)
 #define _RDPQ_SOM_BLEND2B_B1_SHADE_ALPHA    cast64(2)
 #define _RDPQ_SOM_BLEND2B_B1_ZERO           cast64(3)
 
 #define _RDPQ_SOM_BLEND2B_B2_INV_MUX_ALPHA  cast64(0)
-#define _RDPQ_SOM_BLEND2B_B2_MEMORY_ALPHA   cast64(1)
+#define _RDPQ_SOM_BLEND2B_B2_MEMORY_CVG     cast64(1)
 #define _RDPQ_SOM_BLEND2B_B2_ONE            cast64(2)
 #define _RDPQ_SOM_BLEND2B_B2_ZERO           cast64(3)
 
@@ -522,7 +523,7 @@
 #define _RDPQ_SOM_BLEND_EXTRA_B1_ZERO           cast64(0)
 
 #define _RDPQ_SOM_BLEND_EXTRA_B2_INV_MUX_ALPHA  cast64(0)
-#define _RDPQ_SOM_BLEND_EXTRA_B2_MEMORY_ALPHA   (SOM_READ_ENABLE)
+#define _RDPQ_SOM_BLEND_EXTRA_B2_MEMORY_CVG     (SOM_READ_ENABLE)
 #define _RDPQ_SOM_BLEND_EXTRA_B2_ONE            cast64(0)
 #define _RDPQ_SOM_BLEND_EXTRA_B2_ZERO           cast64(0)
 

@@ -13,7 +13,7 @@ static const rdpq_blender_t blend_configs[64] = {
     0,                                                             // src = ZERO, dst = ONE_MINUS_SRC_ALPHA
     0,                                                             // src = ZERO, dst = GL_DST_COLOR
     0,                                                             // src = ZERO, dst = GL_ONE_MINUS_DST_COLOR
-    RDPQ_BLENDER((IN_RGB, ZERO, MEMORY_RGB, MEMORY_ALPHA)),        // src = ZERO, dst = DST_ALPHA
+    RDPQ_BLENDER((IN_RGB, ZERO, MEMORY_RGB, MEMORY_CVG)),          // src = ZERO, dst = DST_ALPHA
     0,                                                             // src = ZERO, dst = ONE_MINUS_DST_ALPHA
 
     RDPQ_BLENDER((IN_RGB, FOG_ALPHA, MEMORY_RGB, ZERO)),           // src = ONE, dst = ZERO
@@ -22,7 +22,7 @@ static const rdpq_blender_t blend_configs[64] = {
     0,                                                             // src = ONE, dst = ONE_MINUS_SRC_ALPHA
     0,                                                             // src = ONE, dst = GL_DST_COLOR
     0,                                                             // src = ONE, dst = GL_ONE_MINUS_DST_COLOR
-    RDPQ_BLENDER((IN_RGB, FOG_ALPHA, MEMORY_RGB, MEMORY_ALPHA)),   // src = ONE, dst = DST_ALPHA
+    RDPQ_BLENDER((IN_RGB, FOG_ALPHA, MEMORY_RGB, MEMORY_CVG)),     // src = ONE, dst = DST_ALPHA
     0,                                                             // src = ONE, dst = ONE_MINUS_DST_ALPHA
 
     RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, ZERO)),            // src = SRC_ALPHA, dst = ZERO
@@ -31,7 +31,7 @@ static const rdpq_blender_t blend_configs[64] = {
     RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, INV_MUX_ALPHA)),   // src = SRC_ALPHA, dst = ONE_MINUS_SRC_ALPHA
     0,                                                             // src = SRC_ALPHA, dst = GL_DST_COLOR
     0,                                                             // src = SRC_ALPHA, dst = GL_ONE_MINUS_DST_COLOR
-    RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_ALPHA)),    // src = SRC_ALPHA, dst = DST_ALPHA
+    RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_CVG)),      // src = SRC_ALPHA, dst = DST_ALPHA
     0,                                                             // src = SRC_ALPHA, dst = ONE_MINUS_DST_ALPHA
 
     0,                                                             // src = ONE_MINUS_SRC_ALPHA, dst = ZERO
@@ -46,9 +46,9 @@ static const rdpq_blender_t blend_configs[64] = {
     0, 0, 0, 0, 0, 0, 0, 0,                                        // src = GL_DST_COLOR, dst = ...
     0, 0, 0, 0, 0, 0, 0, 0,                                        // src = GL_ONE_MINUS_DST_COLOR, dst = ...
 
-    RDPQ_BLENDER((MEMORY_RGB, ZERO, IN_RGB, MEMORY_ALPHA)),        // src = DST_ALPHA, dst = ZERO
-    RDPQ_BLENDER((MEMORY_RGB, FOG_ALPHA, IN_RGB, MEMORY_ALPHA)),   // src = DST_ALPHA, dst = ONE
-    RDPQ_BLENDER((MEMORY_RGB, IN_ALPHA, IN_RGB, MEMORY_ALPHA)),    // src = DST_ALPHA, dst = SRC_ALPHA
+    RDPQ_BLENDER((MEMORY_RGB, ZERO, IN_RGB, MEMORY_CVG)),          // src = DST_ALPHA, dst = ZERO
+    RDPQ_BLENDER((MEMORY_RGB, FOG_ALPHA, IN_RGB, MEMORY_CVG)),     // src = DST_ALPHA, dst = ONE
+    RDPQ_BLENDER((MEMORY_RGB, IN_ALPHA, IN_RGB, MEMORY_CVG)),      // src = DST_ALPHA, dst = SRC_ALPHA
     0,                                                             // src = DST_ALPHA, dst = ONE_MINUS_SRC_ALPHA
     0,                                                             // src = DST_ALPHA, dst = GL_DST_COLOR
     0,                                                             // src = DST_ALPHA, dst = GL_ONE_MINUS_DST_COLOR
