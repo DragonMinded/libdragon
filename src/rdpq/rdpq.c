@@ -584,7 +584,6 @@ void __rdpq_modify_other_modes(uint32_t w0, uint32_t w1, uint32_t w2)
     rdpq_fixup_write(
         (RDPQ_CMD_MODIFY_OTHER_MODES, w0, w1, w2),
         (RDPQ_CMD_SET_OTHER_MODES, 0, 0), (RDPQ_CMD_SET_SCISSOR, 0, 0)   // RDP
-
     );
 }
 

@@ -291,6 +291,7 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
     case 0x2F: { fprintf(out, "SET_OTHER_MODES  ");
         const char* cyc[] = { "1cyc", "2cyc", "copy", "fill" };
         const char* texinterp[] = { "point", "point", "bilinear", "mid" };
+        const char* yuv1[] = { "yuv1", "yuv1_tex0" };
         const char* zmode[] = { "opaque", "inter", "trans", "decal" };
         const char* rgbdither[] = { "square", "bayer", "noise", "none" };
         const char* alphadither[] = { "pat", "inv", "noise", "none" };
@@ -309,7 +310,8 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
         if((som.cycle_type < 2) && (som.tex.persp || som.tex.detail || som.tex.sharpen || som.tex.lod || som.sample_type != 0 || som.tf_mode != 6)) {
             fprintf(out, " tex=["); FLAG_RESET();
             FLAG(som.tex.persp, "persp"); FLAG(som.tex.persp, "detail"); FLAG(som.tex.lod, "lod"); 
-            FLAG(som.tf_mode != 6, "yuv"); FLAG(som.sample_type != 0, texinterp[som.sample_type]);
+            FLAG(!(som.tf_mode & 4), "yuv0"); FLAG(!(som.tf_mode & 2), yuv1[som.tf_mode&1]); 
+            FLAG(som.sample_type != 0, texinterp[som.sample_type]);
             fprintf(out, "]");
         }
         if(som.tlut.enable) fprintf(out, " tlut%s", som.tlut.type ? "=[ia]" : "");
@@ -485,6 +487,19 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
     }; \
 })
 
+static bool cc_use_tex1(void) {
+    struct cc_cycle_s *cc = rdpq_state.cc.cyc;
+    if (rdpq_state.som.cycle_type != 1)
+        return false;
+    if ((rdpq_state.som.tf_mode & 3) == 1) // TEX1 is the color-conversion of TEX0, so TEX1 is not used
+        return false;
+    return 
+        // Cycle0: reference to TEX1 slot
+        (cc[0].rgb.suba == 2 || cc[0].rgb.subb == 2 || cc[0].rgb.mul == 2 || cc[0].rgb.add == 2) || 
+        // Cycle1: reference to TEX0 slot
+        (cc[1].rgb.suba == 1 || cc[1].rgb.subb == 1 || cc[1].rgb.mul == 1 || cc[1].rgb.add == 1);
+}
+
 /** 
  * @brief Perform lazy evaluation of SOM and CC changes.
  * 
@@ -607,20 +622,42 @@ static void validate_busy_tmem(int addr, int size) {
     VALIDATE_WARN(!is_busy_tmem(addr, size), "writing to TMEM[0x%x:0x%x] while busy, SYNC_LOAD missing", addr, addr+size);
 }
 
-static void use_tile(int tidx) {
+static void use_tile(int tidx, int cycle) {
     struct tile_s *t = &rdpq_state.tile[tidx];
     VALIDATE_ERR(t->has_extents, "tile %d has no extents set, missing LOAD_TILE or SET_TILE_SIZE", tidx);
     rdpq_state.busy.tile[tidx] = true;
-    mark_busy_tmem(t->tmem_addr, (t->t1-t->t0+1)*t->tmem_pitch);
+
+    if (t->fmt == 1) { // YUV
+        VALIDATE_WARN(!(rdpq_state.som.tf_mode & (4>>cycle)), "tile %d is YUV but texture filter in cycle %d does not activate YUV color conversion (SOM set at %p)", tidx, cycle, rdpq_state.last_som);
+        VALIDATE_ERR(rdpq_state.som.sample_type == 0 || (rdpq_state.som.tf_mode == 6 && rdpq_state.som.cycle_type == 1), 
+            "tile %d is YUV, so for bilinear filtering it needs 2-cycle mode and the special TF1_YUVTEX0 mode (SOM set at %p)", tidx, rdpq_state.last_som);
+    } else
+        VALIDATE_WARN((rdpq_state.som.tf_mode & (4>>cycle)), "tile %d is not YUV but texture filter in cycle %d does not disable YUV color conversion (SOM set at %p)", tidx, cycle, rdpq_state.last_som);
+
+    // Mark used area of tmem
     switch (t->fmt) {
+    case 0: // RGBA
+        if (t->size == 3) { // 32-bit: split between lo and hi TMEM
+            mark_busy_tmem(t->tmem_addr,         (t->t1-t->t0+1)*t->tmem_pitch / 2);
+            mark_busy_tmem(t->tmem_addr + 0x800, (t->t1-t->t0+1)*t->tmem_pitch / 2);
+        } else {
+            mark_busy_tmem(t->tmem_addr,         (t->t1-t->t0+1)*t->tmem_pitch);
+        }
+        break;
     case 2: // color-index: mark also palette area of TMEM as used
         if (t->size == 0) mark_busy_tmem(0x800 + t->pal*64, 64);  // CI4
         if (t->size == 1) mark_busy_tmem(0x800, 0x800);           // CI8
         break;
-    case 1: // YUV: use also upper-half of TMEM
-        mark_busy_tmem(t->tmem_addr+0x800, (t->t1-t->t0+1)*t->tmem_pitch);
+    case 1: // YUV: split between low and hi TMEM
+        mark_busy_tmem(t->tmem_addr,         (t->t1-t->t0+1)*t->tmem_pitch / 2);
+        mark_busy_tmem(t->tmem_addr+0x800,   (t->t1-t->t0+1)*t->tmem_pitch / 2);
         break;
     }
+
+    // If this is the tile for cycle0 and the combiner uses TEX1,
+    // then also tile+1 is used. Process that as well.
+    if (cycle == 0 && cc_use_tex1())
+        use_tile(tidx+1, 1);
 }
 
 void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
@@ -661,6 +698,8 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         };
         if (t->fmt == 2 && t->size == 1)
             VALIDATE_WARN(t->pal == 0, "invalid non-zero palette for CI8 tile");
+        if (t->fmt == 1 || (t->fmt == 0 && t->size == 3))  // YUV && RGBA32
+            VALIDATE_ERR(t->tmem_addr < 0x800, "format %s requires address in low TMEM (< 0x800)", t->fmt==1 ? "YUV" : "RGBA32");
     }   break;
     case 0x32: case 0x34: { // SET_TILE_SIZE, LOAD_TILE
         bool load = cmd == 0x34;
@@ -705,7 +744,7 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         rdpq_state.busy.pipe = true;
         lazy_validate_cc();
         validate_draw_cmd(false, true, false, false);
-        use_tile(BITS(buf[0], 24, 26));
+        use_tile(BITS(buf[0], 24, 26), 0);
         break;
     case 0x36: // FILL_RECTANGLE
         rdpq_state.busy.pipe = true;
@@ -717,7 +756,7 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         VALIDATE_ERR(rdpq_state.som.cycle_type < 2, "cannot draw triangles in copy/fill mode (SOM set at %p)", rdpq_state.last_som);
         lazy_validate_cc();
         validate_draw_cmd(cmd & 4, cmd & 2, cmd & 1, cmd & 2);
-        if (cmd & 2) use_tile(BITS(buf[0], 48, 50));
+        if (cmd & 2) use_tile(BITS(buf[0], 48, 50), 0);
         break;
     case 0x27: // SYNC_PIPE
         rdpq_state.busy.pipe = false;

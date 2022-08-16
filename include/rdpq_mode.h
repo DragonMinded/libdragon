@@ -2,6 +2,46 @@
  * @file rdpq_mode.h
  * @brief RDP Command queue: mode setting
  * @ingroup rdp
+ * 
+ * The mode API is a high level API to simplify mode setting with RDP. Configuring
+ * render modes is possibly the most complex task with RDP programming, as the RDP
+ * is full of hardware features that interact badly between them or are in general
+ * non-orthogonal. The mode API tries to hide much of the complexity between an API
+ * more similar to a modern graphic API like OpenGL.
+ * 
+ * In general, mode setting with RDP is performed via two commands SET_COMBINE_MODE
+ * and SET_OTHER_MODES. These two commands are available as "raw" commands in the
+ * basic rdpq API as #rdpq_set_combiner_raw and #rdpq_set_other_modes_raw. These
+ * two functions set the specified configurations into the RDP hardware registers,
+ * and do nothing else, so they can always be used to do manual RDP programming.
+ * 
+ * Instead, the mode API follows the following pattern:
+ * 
+ *   * First, one of the basic render modes must be set via one of the `rdpq_set_mode_*` functions.
+ *   * Afterwards, it is possible to tweak the current render mode via on of the various
+ *     `rdpq_mode_*` functions.
+ * 
+ * The rdpq mode API currently offers the following render modes:
+ * 
+ *   * **Standard** (#rdpq_set_mode_standard). This is the most basic and general
+ *     render mode. It allows to use all RDP features (that must be activated via the
+ *     various `rdpq_set_mode_*` functions). In RDP parlance, this uses either
+ *     the 1-cycle or 2-cycle mode, and switches automatically between them as needed.
+ *   * **Copy** (#rdpq_set_mode_copy). This is a fast (4x) mode in which the RDP
+ *     can perform fast blitting of textured rectangles (aka sprites). All texture
+ *     formats are supported, and color 0 can be masked for transparency. Textures
+ *     can be scaled and rotated, but not mirrored.
+ *   * **Fill** (#rdpq_set_mode_fill). This is a fast (4x) mode in which the RDP
+ *     is able to quickly fill a rectangular portion of the target buffer with a
+ *     fixed color. It can be used to clear the screen.
+ *   * **YUV** (#rdpq_set_mode_yuv). This is a render mode that can be used to
+ *     blit YUV textures, converting them to RGB. Support for YUV textures in RDP
+ *     does in fact require a specific render mode (you cannot use YUV textures
+ *     otherwise). It is possible to decide whether to activate or not bilinear
+ *     filtering, as it makes RDP 2x slow when used in this mode.
+ *   
+ * 
+ * 
  */
 #ifndef LIBDRAGON_RDPQ_MODE_H
 #define LIBDRAGON_RDPQ_MODE_H

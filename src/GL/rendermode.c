@@ -169,7 +169,7 @@ void gl_update_render_mode()
     
     gl_texture_object_t *tex_obj = gl_get_active_texture();
     if (tex_obj != NULL && tex_obj->is_complete) {
-        modes |= SOM_TC_FILTER;
+        modes |= SOM_TF0_RGB | SOM_TF1_RGB;
         
         if (!state.is_points) {
             modes |= SOM_TEXTURE_PERSP;
