@@ -656,16 +656,25 @@ static void use_tile(int tidx, int cycle) {
     VALIDATE_ERR(t->has_extents, "tile %d has no extents set, missing LOAD_TILE or SET_TILE_SIZE", tidx);
     rdpq_state.busy.tile[tidx] = true;
 
-    if (t->fmt == 1) { // YUV
-        VALIDATE_WARN(!(rdpq_state.som.tf_mode & (4>>cycle)), "tile %d is YUV but texture filter in cycle %d does not activate YUV color conversion (SOM set at %p)", tidx, cycle, rdpq_state.last_som);
-        VALIDATE_ERR(rdpq_state.som.sample_type == 0 || (rdpq_state.som.tf_mode == 6 && rdpq_state.som.cycle_type == 1), 
-            "tile %d is YUV, so for bilinear filtering it needs 2-cycle mode and the special TF1_YUVTEX0 mode (SOM set at %p)", tidx, rdpq_state.last_som);
-    } else
-        VALIDATE_WARN((rdpq_state.som.tf_mode & (4>>cycle)), "tile %d is not YUV but texture filter in cycle %d does not disable YUV color conversion (SOM set at %p)", tidx, cycle, rdpq_state.last_som);
+    if (rdpq_state.som.cycle_type < 2) {
+        // YUV render mode mistakes in 1-cyc/2-cyc, that is when YUV conversion can be done.
+        // In copy mode, YUV textures are copied as-is
+        if (t->fmt == 1) {
+            VALIDATE_WARN(!(rdpq_state.som.tf_mode & (4>>cycle)), "tile %d is YUV but texture filter in cycle %d does not activate YUV color conversion (SOM set at %p)", tidx, cycle, rdpq_state.last_som);
+            VALIDATE_ERR(rdpq_state.som.sample_type == 0 || (rdpq_state.som.tf_mode == 6 && rdpq_state.som.cycle_type == 1), 
+                "tile %d is YUV, so for bilinear filtering it needs 2-cycle mode and the special TF1_YUVTEX0 mode (SOM set at %p)", tidx, rdpq_state.last_som);
+        } else
+            VALIDATE_WARN((rdpq_state.som.tf_mode & (4>>cycle)), "tile %d is RGB-based, but texture filter in cycle %d does not disable YUV color conversion (SOM set at %p)", tidx, cycle, rdpq_state.last_som);
+    }
 
-    // Mark used area of tmem
+    if (t->fmt == 2) // Color index
+        VALIDATE_ERR(rdpq_state.som.tlut.enable, "tile %d is CI (color index), but TLUT mode was not activated (SOM set at %p)", tidx, rdpq_state.last_som);
+    else
+        VALIDATE_ERR(!rdpq_state.som.tlut.enable, "tile %d is not CI (color index), but TLUT mode is active (SOM set at %p)", tidx, rdpq_state.last_som);
+
+    // Mark used areas of tmem
     switch (t->fmt) {
-    case 0: // RGBA
+    case 0: case 3: case 4: // RGBA, IA, I
         if (t->size == 3) { // 32-bit: split between lo and hi TMEM
             mark_busy_tmem(t->tmem_addr,         (t->t1-t->t0+1)*t->tmem_pitch / 2);
             mark_busy_tmem(t->tmem_addr + 0x800, (t->t1-t->t0+1)*t->tmem_pitch / 2);
@@ -673,13 +682,14 @@ static void use_tile(int tidx, int cycle) {
             mark_busy_tmem(t->tmem_addr,         (t->t1-t->t0+1)*t->tmem_pitch);
         }
         break;
-    case 2: // color-index: mark also palette area of TMEM as used
-        if (t->size == 0) mark_busy_tmem(0x800 + t->pal*64, 64);  // CI4
-        if (t->size == 1) mark_busy_tmem(0x800, 0x800);           // CI8
-        break;
     case 1: // YUV: split between low and hi TMEM
         mark_busy_tmem(t->tmem_addr,         (t->t1-t->t0+1)*t->tmem_pitch / 2);
         mark_busy_tmem(t->tmem_addr+0x800,   (t->t1-t->t0+1)*t->tmem_pitch / 2);
+        break;
+    case 2: // color-index: mark also palette area of TMEM as used
+        mark_busy_tmem(t->tmem_addr,         (t->t1-t->t0+1)*t->tmem_pitch);
+        if (t->size == 0) mark_busy_tmem(0x800 + t->pal*64, 64);  // CI4
+        if (t->size == 1) mark_busy_tmem(0x800, 0x800);           // CI8
         break;
     }
 
