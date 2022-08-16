@@ -145,7 +145,7 @@ void gl_update_render_mode()
     if (state.multisample) {
         modes |= SOM_AA_ENABLE | SOM_READ_ENABLE;
         if (state.blend) {
-            modes |= SOM_COLOR_ON_COVERAGE | SOM_COVERAGE_DEST_WRAP;
+            modes |= SOM_COLOR_ON_CVG_OVERFLOW | SOM_COVERAGE_DEST_WRAP;
         } else {
             modes |= SOM_ALPHA_USE_CVG | SOM_COVERAGE_DEST_CLAMP;
         }

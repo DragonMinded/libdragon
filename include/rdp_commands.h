@@ -466,7 +466,7 @@
 #define SOM_COVERAGE_DEST_MASK          ((cast64(3)) << 8)  ///< Coverage mask
 #define SOM_COVERAGE_DEST_SHIFT         8                   ///< Coverage mask shift
 
-#define SOM_COLOR_ON_COVERAGE           ((cast64(1)) << 7)  ///< Update color buffer only on coverage overflow
+#define SOM_COLOR_ON_CVG_OVERFLOW       ((cast64(1)) << 7)  ///< Update color buffer only on coverage overflow
 ///@}
 
 ///@cond

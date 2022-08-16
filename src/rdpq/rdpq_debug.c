@@ -361,7 +361,7 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
         if((som.cycle_type < 2) && (som.dither.rgb != 3 || som.dither.alpha != 3)) fprintf(out, " dither=[%s,%s]", rgbdither[som.dither.rgb], alphadither[som.dither.alpha]);
         if(som.cvg.mode || som.cvg.color || som.cvg.sel_alpha || som.cvg.mul_alpha) {
             fprintf(out, " cvg=["); FLAG_RESET();
-            FLAG(som.cvg.mode, cvgmode[som.cvg.mode]); FLAG(som.cvg.color, "color"); 
+            FLAG(som.cvg.mode, cvgmode[som.cvg.mode]); FLAG(som.cvg.color, "color_ovf"); 
             FLAG(som.cvg.mul_alpha, "mul_alpha"); FLAG(som.cvg.sel_alpha, "sel_alpha");
             fprintf(out, "]");
         }
