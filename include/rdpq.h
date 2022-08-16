@@ -1371,9 +1371,57 @@ void rdpq_debug_stop(void);
  * to the debugging channel (via #debugf). This is extremely verbose and should
  * be used sparingly to debug specific issues.
  * 
- * @param show_log    true/false to enable/disable the full log
+ * This function does enqueue a command in the rspq queue, so it is executed
+ * in order with respect to all rspq/rdpq commands. You can thus delimit
+ * specific portions of your code with `rdpq_debug_log(true)` /
+ * `rdpq_debug_log(false)`, to see only the RDP log produced by those
+ * code lines.
+ * 
+ * @param show_log    true/false to enable/disable the RDP log.
  */
 void rdpq_debug_log(bool show_log);
+
+/**
+ * @brief Add a custom message in the RDP logging
+ * 
+ * If the debug log is active, this functon adds a custom message to the log.
+ * It can be useful to annotate different portions of the disassembly.
+ * 
+ * For instance, the following code:
+ * 
+ * @code{.c}
+ *      rdpq_debug_log(true);
+ * 
+ *      rdpq_debug_log_msg("Black rectangle");
+ *      rdpq_set_mode_fill(RGBA32(0,0,0,0));
+ *      rdpq_fill_rectangle(0, 0, 320, 120);
+ * 
+ *      rdpq_debug_log_msg("Red rectangle");
+ *      rdpq_set_fill_color(RGBA32(255,0,0,0));
+ *      rdpq_fill_rectangle(0, 120, 320, 240);
+ * 
+ *      rdpq_debug_log(false);
+ * @endcode
+ * 
+ * produces this output:
+ * 
+ *      [0xa00e96a8] f102000000034010    RDPQ_MESSAGE     Black rectangle
+ *      [0xa00e96b0] d200000000000000    ???
+ *      [0xa00e96b8] ed00000000000000    SET_SCISSOR      xy=(0.00,0.00)-(0.00,0.00)
+ *      [0xa00e96c0] f700000000000000    SET_FILL_COLOR   rgba16=(0,0,0,0) rgba32=(0,0,0,0)
+ *      [0xa00e96c8] f65001e000000000    FILL_RECT        xy=(0.00,0.00)-(320.00,13.50)
+ *      [0xa00e96d0] f102000000034020    RDPQ_MESSAGE     Red rectangle
+ *      [0xa00e96d8] e700000000000000    SYNC_PIPE
+ *      [0xa00e96e0] f7000000f800f800    SET_FILL_COLOR   rgba16=(31,0,0,0) rgba32=(248,0,248,0)
+ *      [0xa00e96e8] f65003c0000001e0    FILL_RECT        xy=(0.00,120.00)-(320.00,13.50)
+ *      [0xa00e96f0] f101000000000000    RDPQ_SHOWLOG     show=0
+ * 
+ * where you can see the `RDPQ_MESSAGE` lines which helps isolate portion of commands with
+ * respect to the source lines that generated them.
+ * 
+ * @param str           message to display
+ */
+void rdpq_debug_log_msg(const char *str);
 
 
 /**

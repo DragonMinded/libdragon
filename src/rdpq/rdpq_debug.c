@@ -13,6 +13,7 @@
 
 /** @brief RDP Debug command: turn on/off logging */
 #define RDPQ_CMD_DEBUG_SHOWLOG  0x00010000
+#define RDPQ_CMD_DEBUG_MESSAGE  0x00020000
 
 // Define to 1 to active internal debugging of the rdpq debug module.
 // This is useful to trace bugs of rdpq itself, but it should not be
@@ -157,6 +158,8 @@ void __rdpq_debug_cmd(uint64_t cmd)
     case 0x01: // Show log
         show_log += BIT(cmd, 0) ? 1 : -1;
         return;
+    case 0x02: // Message
+        return;
     }
 }
 
@@ -206,6 +209,12 @@ void rdpq_debug_log(bool log)
 {
     assertf(rdpq_trace, "rdpq trace engine not started");
     rdpq_write((RDPQ_CMD_DEBUG, RDPQ_CMD_DEBUG_SHOWLOG, log ? 1 : 0));
+}
+
+void rdpq_debug_log_msg(const char *msg)
+{
+    assertf(rdpq_trace, "rdpq trace engine not started");
+    rdpq_write((RDPQ_CMD_DEBUG, RDPQ_CMD_DEBUG_MESSAGE, PhysicalAddr(msg)));
 }
 
 void rdpq_debug_stop(void)
@@ -468,6 +477,7 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
         return;
     case 0x31: switch(BITS(buf[0], 48, 55)) {
         case 0x01: fprintf(out, "RDPQ_SHOWLOG     show=%d\n", BIT(buf[0], 0)); return;
+        case 0x02: fprintf(out, "RDPQ_MESSAGE     %s\n", (char*)CachedAddr(0x80000000|BITS(buf[0], 0, 24))); return;
         default:   fprintf(out, "RDPQ_DEBUG       <unkwnown>\n"); return;
     }
     }
