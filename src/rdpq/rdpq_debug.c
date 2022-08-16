@@ -2,6 +2,7 @@
 #include "rdpq.h"
 #include "rspq.h"
 #include "rdpq_mode.h"
+#include "rdpq_internal.h"
 #include "rdp.h"
 #include "debug.h"
 #include "interrupt.h"
@@ -9,6 +10,9 @@
 #include "rspq_constants.h"
 #include <string.h>
 #include <assert.h>
+
+/** @brief RDP Debug command: turn on/off logging */
+#define RDPQ_CMD_DEBUG_SHOWLOG  0x00010000
 
 // Define to 1 to active internal debugging of the rdpq debug module.
 // This is useful to trace bugs of rdpq itself, but it should not be
@@ -80,7 +84,7 @@ struct {
 static rdp_buffer_t buffers[NUM_BUFFERS];
 static volatile int buf_ridx, buf_widx;
 static rdp_buffer_t last_buffer;
-static bool show_log;
+static int show_log;
 void (*rdpq_trace)(void);
 void (*rdpq_trace_fetch)(void);
 static int warns, errs;
@@ -147,6 +151,16 @@ void __rdpq_trace_fetch(void)
     enable_interrupts();
 }
 
+void __rdpq_debug_cmd(uint64_t cmd)
+{
+    switch(BITS(cmd, 48, 55)) {
+    case 0x01: // Show log
+        show_log += BIT(cmd, 0) ? 1 : -1;
+        return;
+    }
+}
+
+
 void __rdpq_trace(void)
 {
     // Update buffers to current RDP status
@@ -167,8 +181,9 @@ void __rdpq_trace(void)
         if (!cur) break;
         while (cur < end) {
             int sz = rdpq_disasm_size(cur);
-            if (show_log) rdpq_disasm(cur, stderr);
+            if (show_log > 0) rdpq_disasm(cur, stderr);
             rdpq_validate(cur, NULL, NULL);
+            if (BITS(cur[0],56,61) == 0x31) __rdpq_debug_cmd(cur[0]);
             cur += sz;
         }
     }
@@ -180,7 +195,7 @@ void rdpq_debug_start(void)
     memset(&last_buffer, 0, sizeof(last_buffer));
     memset(&rdpq_state, 0, sizeof(rdpq_state));
     buf_widx = buf_ridx = 0;
-    show_log = false;
+    show_log = 0;
     warns = errs = 0;
 
     rdpq_trace = __rdpq_trace;
@@ -190,7 +205,7 @@ void rdpq_debug_start(void)
 void rdpq_debug_log(bool log)
 {
     assertf(rdpq_trace, "rdpq trace engine not started");
-    show_log = log;
+    rdpq_write((RDPQ_CMD_DEBUG, RDPQ_CMD_DEBUG_SHOWLOG, log ? 1 : 0));
 }
 
 void rdpq_debug_stop(void)
@@ -451,6 +466,10 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
     case 0x3f: fprintf(out, "SET_COLOR_IMAGE  dram=%08x w=%d %s%s\n", 
         BITS(buf[0], 0, 25), BITS(buf[0], 32, 41)+1, fmt[BITS(buf[0], 53, 55)], size[BITS(buf[0], 51, 52)]);
         return;
+    case 0x31: switch(BITS(buf[0], 48, 55)) {
+        case 0x01: fprintf(out, "RDPQ_SHOWLOG     show=%d\n", BIT(buf[0], 0)); return;
+        default:   fprintf(out, "RDPQ_DEBUG       <unkwnown>\n"); return;
+    }
     }
 }
 

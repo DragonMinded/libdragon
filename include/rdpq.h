@@ -65,6 +65,29 @@
  * 
  * 
  * 
+ * ## Debugging: tracer and validator
+ * 
+ * To help writing correct code, rdpq comes with two very important features:
+ * 
+ *   * A command tracer with disassembler. rdpq is able to intercept all commands
+ *     sent to RDP (including commands assembled directly by third-party rspq
+ *     overlays), and log them via #debugf. The log includes a full disassembly
+ *     of the commands, to help readability.
+ *   * A validator. rdpq can re-interpret all commands sent to RDP and validate
+ *     that they are correct, not only syntactically but also semantically. It is
+ *     extremely easy to make mistakes in programming RDP by setting wrong mode
+ *     flags or forgetting to configure a register, so the validator tries to help by
+ *     flagging potential problems. All validation errors and warnings are sent
+ *     via #debugf.
+ * 
+ * To initialize the debugging engine, call #rdpq_debug_start just after #rdpq_init
+ * (or as early as possible). This will start intercepting and validating all
+ * commands sent to RDP, showing validation errors on the debug spew.
+ * 
+ * To see a log of RDP commands, call #rdpq_debug_log passing true or false. You
+ * can activate/deactivate logging around portions of code that you want to analyze,
+ * as keeping the log active for a whole frame can produce too many information.
+ * 
  */
 
 #ifndef __LIBDRAGON_RDPQ_H
@@ -116,6 +139,7 @@ enum {
     RDPQ_CMD_SET_OTHER_MODES            = 0x2F,
 
     RDPQ_CMD_LOAD_TLUT                  = 0x30,
+    RDPQ_CMD_DEBUG                      = 0x31,
     RDPQ_CMD_SET_TILE_SIZE              = 0x32,
     RDPQ_CMD_LOAD_BLOCK                 = 0x33,
     RDPQ_CMD_LOAD_TILE                  = 0x34,
