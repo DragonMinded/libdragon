@@ -12,7 +12,7 @@
 #define PROJECTION_STACK_SIZE 2
 #define TEXTURE_STACK_SIZE    2
 
-#define VERTEX_CACHE_SIZE     3
+#define VERTEX_CACHE_SIZE     16
 
 #define CLIPPING_PLANE_COUNT  6
 #define CLIPPING_CACHE_SIZE   9
@@ -233,11 +233,17 @@ typedef struct {
     bool normalize;
 
     gl_vertex_t vertex_cache[VERTEX_CACHE_SIZE];
-    uint32_t vertex_cache_locked;
+    uint32_t vertex_cache_indices[VERTEX_CACHE_SIZE];
+    uint32_t lru_age_table[VERTEX_CACHE_SIZE];
+    uint32_t lru_next_age;
+    uint8_t next_cache_index;
+    bool lock_next_vertex;
+    uint8_t locked_vertex;
+
+    uint32_t prim_size;
     uint32_t primitive_indices[3];
     uint32_t primitive_progress;
-    uint32_t next_vertex;
-    uint32_t triangle_counter;
+    uint32_t prim_counter;
     void (*primitive_func)(void);
 
     GLfloat current_color[4];
@@ -321,7 +327,6 @@ typedef struct {
     gl_buffer_object_t *element_array_buffer;
 
     bool immediate_active;
-    bool force_edge_flag;
     bool is_points;
 
     bool is_scissor_dirty;
