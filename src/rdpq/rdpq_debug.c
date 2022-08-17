@@ -1,4 +1,5 @@
 #include "rdpq_debug.h"
+#include "rdpq_debug_internal.h"
 #include "rdpq.h"
 #include "rspq.h"
 #include "rdpq_mode.h"
@@ -183,8 +184,8 @@ void __rdpq_trace(void)
 
         if (!cur) break;
         while (cur < end) {
-            int sz = rdpq_disasm_size(cur);
-            if (show_log > 0) rdpq_disasm(cur, stderr);
+            int sz = rdpq_debug_disasm_size(cur);
+            if (show_log > 0) rdpq_debug_disasm(cur, stderr);
             rdpq_validate(cur, NULL, NULL);
             if (BITS(cur[0],56,61) == 0x31) __rdpq_debug_cmd(cur[0]);
             cur += sz;
@@ -256,7 +257,7 @@ static inline setothermodes_t decode_som(uint64_t som) {
     };
 }
 
-int rdpq_disasm_size(uint64_t *buf) {
+int rdpq_debug_disasm_size(uint64_t *buf) {
     switch (BITS(buf[0], 56, 61)) {
     default:   return 1;
     case 0x24: return 2;  // TEX_RECT
@@ -275,7 +276,7 @@ int rdpq_disasm_size(uint64_t *buf) {
 #define FX(n)          (1.0f / (1<<(n)))
 #define FX32(hi,lo)    ((hi) + (lo) * (1.f / 65536.f))
 
-void rdpq_disasm(uint64_t *buf, FILE *out)
+void rdpq_debug_disasm(uint64_t *buf, FILE *out)
 {
     const char* flag_prefix = "";
     #define FLAG_RESET()   ({ flag_prefix = ""; })

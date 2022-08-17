@@ -191,7 +191,7 @@
 #include "rspq_constants.h"
 #include "rdp.h"
 #include "rdpq/rdpq_internal.h"
-#include "rdpq/rdpq_debug.h"
+#include "rdpq/rdpq_debug_internal.h"
 #include "interrupt.h"
 #include "utils.h"
 #include "n64sys.h"

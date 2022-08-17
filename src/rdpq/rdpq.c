@@ -142,7 +142,7 @@
 #include "rdpq.h"
 #include "rdpq_internal.h"
 #include "rdpq_constants.h"
-#include "rdpq_debug.h"
+#include "rdpq_debug_internal.h"
 #include "rspq.h"
 #include "rspq/rspq_internal.h"
 #include "rspq_constants.h"
