@@ -19,6 +19,14 @@ void gl_clip_triangle();
 void gl_clip_line();
 void gl_clip_point();
 
+uint8_t gl_points();
+uint8_t gl_lines();
+uint8_t gl_line_strip();
+uint8_t gl_triangles();
+uint8_t gl_triangle_strip();
+uint8_t gl_triangle_fan();
+uint8_t gl_quads();
+
 void gl_reset_vertex_cache();
 
 void gl_primitive_init()
@@ -92,45 +100,48 @@ void glBegin(GLenum mode)
 
     switch (mode) {
     case GL_POINTS:
-        state.primitive_func = gl_clip_point;
+        state.prim_func = gl_points;
         state.prim_size = 1;
         break;
     case GL_LINES:
-        state.primitive_func = gl_clip_line;
+        state.prim_func = gl_lines;
         state.prim_size = 2;
         break;
     case GL_LINE_LOOP:
-        state.primitive_func = gl_clip_line;
+        // Line loop is equivalent to line strip, except for special case handled in glEnd
+        state.prim_func = gl_line_strip;
         state.lock_next_vertex = true;
         state.prim_size = 2;
         break;
     case GL_LINE_STRIP:
-        state.primitive_func = gl_clip_line;
+        state.prim_func = gl_line_strip;
         state.prim_size = 2;
         break;
     case GL_TRIANGLES:
-        state.primitive_func = gl_clip_triangle;
+        state.prim_func = gl_triangles;
         state.prim_size = 3;
         break;
     case GL_TRIANGLE_STRIP:
-        state.primitive_func = gl_clip_triangle;
+        state.prim_func = gl_triangle_strip;
         state.prim_size = 3;
         break;
     case GL_TRIANGLE_FAN:
-        state.primitive_func = gl_clip_triangle;
+        state.prim_func = gl_triangle_fan;
         state.lock_next_vertex = true;
         state.prim_size = 3;
         break;
     case GL_QUADS:
-        state.primitive_func = gl_clip_triangle;
+        state.prim_func = gl_quads;
         state.prim_size = 3;
         break;
     case GL_QUAD_STRIP:
-        state.primitive_func = gl_clip_triangle;
+        // Quad strip is equivalent to triangle strip
+        state.prim_func = gl_triangle_strip;
         state.prim_size = 3;
         break;
     case GL_POLYGON:
-        state.primitive_func = gl_clip_triangle;
+        // Polygon is equivalent to triangle fan
+        state.prim_func = gl_triangle_fan;
         state.lock_next_vertex = true;
         state.prim_size = 3;
         break;
@@ -141,7 +152,7 @@ void glBegin(GLenum mode)
 
     state.immediate_active = true;
     state.primitive_mode = mode;
-    state.primitive_progress = 0;
+    state.prim_progress = 0;
     state.prim_counter = 0;
 
     if (gl_is_invisible()) {
@@ -163,9 +174,9 @@ void glEnd(void)
     }
 
     if (state.primitive_mode == GL_LINE_LOOP) {
-        state.primitive_indices[0] = state.primitive_indices[1];
-        state.primitive_indices[1] = state.locked_vertex;
-        state.primitive_progress = 2;
+        state.prim_indices[0] = state.prim_indices[1];
+        state.prim_indices[1] = state.locked_vertex;
+        state.prim_progress = 2;
 
         gl_clip_line();
     }
@@ -365,9 +376,9 @@ void gl_intersect_line_plane(gl_vertex_t *intersection, const gl_vertex_t *p0, c
 
 void gl_clip_triangle()
 {
-    gl_vertex_t *v0 = &state.vertex_cache[state.primitive_indices[0]];
-    gl_vertex_t *v1 = &state.vertex_cache[state.primitive_indices[1]];
-    gl_vertex_t *v2 = &state.vertex_cache[state.primitive_indices[2]];
+    gl_vertex_t *v0 = &state.vertex_cache[state.prim_indices[0]];
+    gl_vertex_t *v1 = &state.vertex_cache[state.prim_indices[1]];
+    gl_vertex_t *v2 = &state.vertex_cache[state.prim_indices[2]];
 
     if (v0->clip & v1->clip & v2->clip) {
         return;
@@ -485,8 +496,8 @@ void gl_clip_triangle()
 
 void gl_clip_line()
 {
-    gl_vertex_t *v0 = &state.vertex_cache[state.primitive_indices[0]];
-    gl_vertex_t *v1 = &state.vertex_cache[state.primitive_indices[1]];
+    gl_vertex_t *v0 = &state.vertex_cache[state.prim_indices[0]];
+    gl_vertex_t *v1 = &state.vertex_cache[state.prim_indices[1]];
 
     if (v0->clip & v1->clip) {
         return;
@@ -535,7 +546,7 @@ void gl_clip_line()
 
 void gl_clip_point()
 {
-    gl_vertex_t *v0 = &state.vertex_cache[state.primitive_indices[0]];
+    gl_vertex_t *v0 = &state.vertex_cache[state.prim_indices[0]];
 
     if (v0->clip) {
         return;
@@ -544,58 +555,85 @@ void gl_clip_point()
     gl_draw_point(v0);
 }
 
+uint8_t gl_points()
+{
+    gl_clip_point();
+    // Reset the progress to zero since we start with a completely new primitive that
+    // won't share any vertices with the previous ones
+    return 0;
+}
+
+uint8_t gl_lines()
+{
+    gl_clip_line();
+
+    // Reset the progress to zero since we start with a completely new primitive that
+    // won't share any vertices with the previous ones
+    return 0;
+}
+
+uint8_t gl_line_strip()
+{
+    gl_clip_line();
+
+    state.prim_indices[0] = state.prim_indices[1];
+
+    return 1;
+}
+
+uint8_t gl_triangles()
+{
+    gl_clip_triangle();
+
+    // Reset the progress to zero since we start with a completely new primitive that
+    // won't share any vertices with the previous ones
+    return 0;
+}
+
+uint8_t gl_triangle_strip()
+{
+    gl_clip_triangle();
+
+    // Which vertices are shared depends on whether the primitive counter is odd or even
+    state.prim_indices[state.prim_counter & 1] = state.prim_indices[2];
+
+    // The next triangle will share two vertices with the previous one, so reset progress to 2
+    return 2;
+}
+
+uint8_t gl_triangle_fan()
+{
+    gl_clip_triangle();
+
+    state.prim_indices[1] = state.prim_indices[2];
+
+    // The next triangle will share two vertices with the previous one, so reset progress to 2
+    // It will always share the last one and the very first vertex that was specified.
+    // To make sure the first vertex is not overwritten it was locked earlier (see glBegin)
+    return 2;
+}
+
+uint8_t gl_quads()
+{
+    gl_clip_triangle();
+
+    state.prim_indices[1] = state.prim_indices[2];
+
+    // This is equivalent to state.prim_counter % 2 == 0 ? 2 : 0
+    return ((state.prim_counter & 1) ^ 1) << 1;
+}
+
 void gl_prim_assembly(uint8_t cache_index)
 {
-    state.primitive_indices[state.primitive_progress] = cache_index;
-    state.primitive_progress++;
+    state.prim_indices[state.prim_progress] = cache_index;
+    state.prim_progress++;
 
-    if (state.primitive_progress < state.prim_size) {
+    if (state.prim_progress < state.prim_size) {
         return;
     }
 
-    assert(state.primitive_func != NULL);
-    state.primitive_func();
-
-    // NOTE: Quads and quad strips are technically not quite conformant to the spec
-    //       because incomplete quads are still rendered (only the first triangle)
-
-    // TODO: simplify this somehow?
-
-    switch (state.primitive_mode) {
-    case GL_POINTS:
-    case GL_LINES:
-    case GL_TRIANGLES:
-        // Reset the progress to zero since we start with a completely new primitive that
-        // won't share any vertices with the previous ones
-        state.primitive_progress = 0;
-        break;
-    case GL_LINE_STRIP:
-    case GL_LINE_LOOP:
-        state.primitive_progress = 1;
-        state.primitive_indices[0] = state.primitive_indices[1];
-        break;
-    case GL_TRIANGLE_STRIP:
-    case GL_QUAD_STRIP:
-        // The next triangle will share two vertices with the previous one, so reset progress to 2
-        state.primitive_progress = 2;
-        // Which vertices are shared depends on whether the triangle counter is odd or even
-        state.primitive_indices[state.prim_counter & 1] = state.primitive_indices[2];
-        break;
-    case GL_POLYGON:
-    case GL_TRIANGLE_FAN:
-        // The next triangle will share two vertices with the previous one, so reset progress to 2
-        // It will always share the last one and the very first vertex that was specified.
-        // To make sure the first vertex is not overwritten it was locked earlier (see glBegin)
-        state.primitive_progress = 2;
-        state.primitive_indices[1] = state.primitive_indices[2];
-        break;
-    case GL_QUADS:
-        // This is equivalent to state.triangle_counter % 2 == 0 ? 2 : 0
-        state.primitive_progress = ((state.prim_counter & 1) ^ 1) << 1;
-        state.primitive_indices[1] = state.primitive_indices[2];
-        break;
-    }
-
+    assert(state.prim_func != NULL);
+    state.prim_progress = state.prim_func();
     state.prim_counter++;
 }
 

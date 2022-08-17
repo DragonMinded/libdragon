@@ -240,11 +240,11 @@ typedef struct {
     bool lock_next_vertex;
     uint8_t locked_vertex;
 
-    uint32_t prim_size;
-    uint32_t primitive_indices[3];
-    uint32_t primitive_progress;
+    uint8_t prim_size;
+    uint8_t prim_indices[3];
+    uint8_t prim_progress;
     uint32_t prim_counter;
-    void (*primitive_func)(void);
+    uint8_t (*prim_func)(void);
 
     GLfloat current_color[4];
     GLfloat current_texcoord[4];
