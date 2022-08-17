@@ -14,7 +14,7 @@
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xC4
         RSPQ_DefineCommand RDPQCmd_SetCombineMode_2Pass,    8   # 0xC5 SET_COMBINE_MODE (two pass)
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xC6
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xC7
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     32  # 0xC8 Filled
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     48  # 0xC9 Filled ZBuffered
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     96  # 0xCA Textured
@@ -28,13 +28,13 @@
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD1
         RSPQ_DefineCommand RDPQCmd_SetScissorEx,            8   # 0xD2
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD3
-        RSPQ_DefineCommand RDPQCmd_ModifyOtherModes,        12  # 0xD4
+        RSPQ_DefineCommand RDPQCmd_ModifyOtherModes,        12  # 0xD4 Modify SOM
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD5
         RSPQ_DefineCommand RDPQCmd_SetFillColor32,          8   # 0xD6
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD7
         RSPQ_DefineCommand RDPQCmd_SetBlendingMode,         8   # 0xD8 Set Blending Mode
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD9
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDA
         RSPQ_DefineCommand RDPQCmd_SetCombineMode_1Pass,    8   # 0xDB SET_COMBINE_MODE (one pass)
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDC
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDD
@@ -44,7 +44,7 @@
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xE0
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xE1
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xE2
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # Invalid
+        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xE3
         RSPQ_DefineCommand RDPQCmd_Passthrough16,           16  # 0xE4 TEXTURE_RECTANGLE
         RSPQ_DefineCommand RDPQCmd_Passthrough16,           16  # 0xE5 TEXTURE_RECTANGLE_FLIP
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xE6 SYNC_LOAD
@@ -110,6 +110,8 @@ RDP_TARGET_BITDEPTH:   .byte  0
 
 COMB0_MASK:            .quad RDPQ_COMB0_MASK
 
+RDP_CMD_PTR:           .word RDP_CMD_STAGING
+
     .bss
 
     .align 4
@@ -125,8 +127,10 @@ RDP_CMD_STAGING:       .ds.b 0xB0
     #############################################################
     .func RDPQ_Finalize
 RDPQ_Finalize:
-    j RSPQ_RdpSend
     li s4, %lo(RDP_CMD_STAGING)
+    lw s3, %lo(RDP_CMD_PTR)
+    j RSPQ_RdpSend
+    sw s4, %lo(RDP_CMD_PTR)
     .endfunc
 
     #############################################################
@@ -136,7 +140,6 @@ RDPQ_Finalize:
     #############################################################
     .func RDPQCmd_Passthrough8
 RDPQCmd_Passthrough8:
-    li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
     li ra, %lo(RDPQ_Finalize)
     # fallthrough
     .endfunc
@@ -148,10 +151,12 @@ RDPQCmd_Passthrough8:
     #############################################################
     .func RDPQ_Write8
 RDPQ_Write8:
-    sw a0, 0x00(rdpq_write_ptr)
-    sw a1, 0x04(rdpq_write_ptr)
+    lw s0, %lo(RDP_CMD_PTR)
+    sw a0, 0x00(s0)
+    sw a1, 0x04(s0)
+    addi s0, 8
     jr ra
-    addi rdpq_write_ptr, 8
+    sw s0, %lo(RDP_CMD_PTR)
     .endfunc
 
     #############################################################
@@ -161,7 +166,6 @@ RDPQ_Write8:
     #############################################################
     .func RDPQCmd_Passthrough16
 RDPQCmd_Passthrough16:
-    li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
     li ra, %lo(RDPQ_Finalize)
     # fallthrough!
     .endfunc
@@ -173,12 +177,14 @@ RDPQCmd_Passthrough16:
     #############################################################
     .func RDPQ_Write16
 RDPQ_Write16:
-    sw a0, 0x00(rdpq_write_ptr)
-    sw a1, 0x04(rdpq_write_ptr)
-    sw a2, 0x08(rdpq_write_ptr)
-    sw a3, 0x0C(rdpq_write_ptr)
+    lw s0, %lo(RDP_CMD_PTR)
+    sw a0, 0x00(s0)
+    sw a1, 0x04(s0)
+    sw a2, 0x08(s0)
+    sw a3, 0x0C(s0)
+    addi s0, 16
     jr ra
-    addi rdpq_write_ptr, 16
+    sw s0, %lo(RDP_CMD_PTR)
     .endfunc
 
     #############################################################
@@ -195,8 +201,6 @@ RDPQ_Write16:
     #############################################################
     .func RDPQCmd_SetOtherModes
 RDPQCmd_SetOtherModes:
-    # Reserve space for SetOtherModes + SetScissor:
-    li rspq_cmd_size, 16
     # Save the other modes to internal cache, then call RDPQ_WriteOtherModes
     # RDPQ_WriteOtherModes will write both SetOtherModes and SetScissor to the staging area
     jal_and_j RDPQ_SaveOtherModes, RDPQ_WriteOtherModes
@@ -256,7 +260,6 @@ RDPQ_SaveOtherModes:
     #############################################################
     .func RDPQCmd_ModifyOtherModes
 RDPQCmd_ModifyOtherModes:
-    li rspq_cmd_size, 16
     lw t1, %lo(RDP_OTHER_MODES)(a0)
     and t1, a1
     or t1, a2
@@ -278,7 +281,8 @@ RDPQCmd_ModifyOtherModes:
 RDPQ_WriteOtherModes:
     # Write other modes command to staging area
     jal RDPQ_Write8
-    # fallthrough and delay slot!
+    nop
+    # fallthrough!
     .endfunc
 
     #############################################################
@@ -290,8 +294,6 @@ RDPQ_WriteOtherModes:
     #############################################################
     .func RDPQ_FinalizeOtherModes
 RDPQ_FinalizeOtherModes:
-    li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
-
     # Update other commands that need to change some state depending on the other modes
 
     # SetScissor:
@@ -314,7 +316,6 @@ RDPQ_FinalizeOtherModes:
     #############################################################
     .func RDPQCmd_SetFixupImage
 RDPQCmd_SetFixupImage:
-    li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
     # fixup DRAM address using address slots
     jal RDPQ_FixupAddress
     lui t3, 0xF000
@@ -331,8 +332,6 @@ RDPQCmd_SetFixupImage:
     #############################################################
     .func RDPQCmd_SetColorImage
 RDPQCmd_SetColorImage:
-    li rspq_cmd_size, 16
-    li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
     srl t0, a0, 19
     andi t0, 3
     # fixup DRAM address using address slots
@@ -366,7 +365,6 @@ RDPQCmd_SetColorImage:
     #############################################################
     .func RDPQCmd_SetFillColor32
 RDPQCmd_SetFillColor32:
-    li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
     sw a1, %lo(RDP_FILL_COLOR)
     li ra, %lo(RDPQ_Finalize)
 
@@ -406,7 +404,6 @@ RDPQ_WriteSetFillColor:
     #############################################################
     .func RDPQCmd_SetScissorEx
 RDPQCmd_SetScissorEx:
-    li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
     sw a0, %lo(RDP_SCISSOR_RECT) + 0x0
     sw a1, %lo(RDP_SCISSOR_RECT) + 0x4
     li ra, %lo(RDPQ_Finalize)
@@ -436,7 +433,6 @@ scissor_substitute:
     #############################################################
     .func RDPQCmd_TextureRectEx
 RDPQCmd_TextureRectEx:
-    li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
     lb t0, %lo(RDP_OTHER_MODES) + 0x1
     # Bit 21 of the first word is set if FILL or COPY mode is active
     andi t0, 0x1 << 5
@@ -467,20 +463,19 @@ rect_substitute:
     #############################################################
     .func RDPQCmd_PassthroughTriangle
 RDPQCmd_PassthroughTriangle:
-    sub s5, rspq_dmem_buf_ptr, rspq_cmd_size
-    addi s5, %lo(RSPQ_DMEM_BUFFER)
-    li s6, %lo(RDP_CMD_STAGING)
+    addi s1, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER)   # End of command in RSPQ buffer
+    sub s0, s1, rspq_cmd_size                           # Start of command in RSPQ buffer
+    li s4, %lo(RDP_CMD_STAGING)                         # Pointer into RDPQ buffer
 passthrough_copy_loop:
-    lqv $v00,0, 0x00,s5
-    lrv $v00,0, 0x10,s5
-    sqv $v00,0, 0x00,s6
-    addi s5, 0x10
-    addi t1, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER)
-    blt s5, t1, passthrough_copy_loop
-    addi s6, 0x10
+    lqv $v00,0, 0x00,s0
+    lrv $v00,0, 0x10,s0
+    sqv $v00,0, 0x00,s4
+    addi s0, 0x10
+    blt s0, s1, passthrough_copy_loop
+    addi s4, 0x10
 
     j RDPQ_Finalize
-    nop
+    sw s4, %lo(RDP_CMD_PTR)
     .endfunc
 
     #############################################################
@@ -545,7 +540,6 @@ RDPQCmd_SyncFull:
 
     .func RDPQCmd_SetCombineMode_1Pass
 RDPQCmd_SetCombineMode_1Pass:
-    li rspq_cmd_size, 16
     # The combiner settings is 1 pass. Store it as-is for 1cycle mode.
     sw a0, %lo(RDP_MODE_COMBINER_1CYC) + 0
     sw a1, %lo(RDP_MODE_COMBINER_1CYC) + 4
@@ -564,13 +558,12 @@ RDPQCmd_SetCombineMode_1Pass:
 
     .func RDPQCmd_SetCombineMode_2Pass
 RDPQCmd_SetCombineMode_2Pass:
-    li rspq_cmd_size, 16
     # The combiner settings is 2 pass. The flag RDPQ_COMBINER_2PASS
     # (bit 63) is set in the command thanks to the fact that the overlay
     # is registered in slots 0xC0-0xF0 (with the top bit already set).
     # To be resistant to overlay ID changes, we would need the following
     # instruction, but we keep it disabled for now.
-    #   or a0, RDP1_COMBINER_2PASS >> 32
+    #   or a0, RDPQ_COMBINER_2PASS >> 32
 
     # This combiner setting will force 2cycle mode. Store it
     # in the 2cyc slot, and ignore the 1cyc slot (it's not going
@@ -584,14 +577,11 @@ store_comb_2cyc:
     .func RDPQCmd_SetBlendingMode
 RDPQCmd_SetBlendingMode:
     sw a1, %lo(RDP_MODE_BLENDER_STEPS)(a0)
-    li rspq_cmd_size, 16
     # fallthrough
     .endfunc
 
     .func UpdateCycleType
 UpdateCycleType:
-    # Pointer to staging area where RDP SetCombine+SetOtherModes will be written
-    li rdpq_write_ptr, %lo(RDP_CMD_STAGING)
 
     #define blend_1cyc  t3
     #define blend_2cyc  t4
@@ -691,9 +681,15 @@ PushPopMode:
     sqv $v05,0, 0x50,s1
     .endfunc
 
+    #############################################################
+    # RDPQCmd_PopMode
+    #
+    # Execute a pop on the RDP mode stack. The current RDP mode
+    # (blender+combiner) is popped one slot in a stack, recovering
+    # the mode that was active when RDPQCmd_PushMode was last called.
+    #############################################################
     .func RDPQCmd_PopMode
 RDPQCmd_PopMode:
-    li rspq_cmd_size, 16
     li s0, %lo(RDP_MODE) + 32
     li s1, %lo(RDP_MODE) + 0
     # Pop from the stack and then reconfigure the cycle type.

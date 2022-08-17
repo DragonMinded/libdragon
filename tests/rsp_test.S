@@ -115,6 +115,7 @@ command_reset_log:
 
 command_send_rdp:
     li s4, %lo(TEST_RDP_STAGING)
+    li s3, %lo(TEST_RDP_STAGING) + 8
     sw zero, 0(s4)
     j RSPQ_RdpSend
     sw a1, 4(s4)
