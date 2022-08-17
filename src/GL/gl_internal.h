@@ -55,6 +55,14 @@
     var = _v; \
 })
 
+enum {
+    ATTRIB_VERTEX,
+    ATTRIB_COLOR,
+    ATTRIB_TEXCOORD,
+    ATTRIB_NORMAL,
+    ATTRIB_COUNT
+};
+
 typedef struct {
     surface_t *color_buffer;
     void *depth_buffer;
@@ -136,13 +144,17 @@ typedef struct {
 } gl_light_t;
 
 typedef struct {
-    GLuint name;
+    GLvoid *data;
     uint32_t size;
+} gl_storage_t;
+
+typedef struct {
+    GLuint name;
     GLenum usage;
     GLenum access;
     bool mapped;
     GLvoid *pointer;
-    GLvoid *data;
+    gl_storage_t storage;
 } gl_buffer_object_t;
 
 typedef struct {
@@ -151,6 +163,8 @@ typedef struct {
     GLsizei stride;
     const GLvoid *pointer;
     gl_buffer_object_t *binding;
+    gl_storage_t tmp_storage;
+    bool normalize;
     bool enabled;
 } gl_array_t;
 
@@ -159,16 +173,10 @@ typedef void (*read_attrib_func)(GLfloat*,const void*,uint32_t);
 typedef struct {
     const GLvoid *pointer;
     read_attrib_func read_func;
+    uint16_t offset;
     uint16_t stride;
     uint8_t size;
-    uint8_t elem_size;
-    bool copy_before_draw;
-    void *tmp_buffer;
-    uint32_t tmp_buffer_size;
-    const void *final_pointer;
-    uint16_t final_stride;
-    uint16_t offset;
-} gl_vertex_source_t;
+} gl_attrib_source_t;
 
 typedef struct {
     GLenum mode;
@@ -232,6 +240,8 @@ typedef struct {
     bool multisample;
     bool normalize;
 
+    gl_array_t arrays[ATTRIB_COUNT];
+
     gl_vertex_t vertex_cache[VERTEX_CACHE_SIZE];
     uint32_t vertex_cache_indices[VERTEX_CACHE_SIZE];
     uint32_t lru_age_table[VERTEX_CACHE_SIZE];
@@ -246,13 +256,10 @@ typedef struct {
     uint32_t prim_counter;
     uint8_t (*prim_func)(void);
 
-    GLfloat current_color[4];
-    GLfloat current_texcoord[4];
-    GLfloat current_normal[3];
+    GLfloat current_attribs[ATTRIB_COUNT][4];
 
-    gl_vertex_source_t vertex_sources[4];
-    void *tmp_index_buffer;
-    uint32_t tmp_index_buffer_size;
+    gl_attrib_source_t attrib_sources[ATTRIB_COUNT];
+    gl_storage_t tmp_index_storage;
 
     gl_viewport_t current_viewport;
 
@@ -291,11 +298,6 @@ typedef struct {
     gl_tex_gen_t t_gen;
     gl_tex_gen_t r_gen;
     gl_tex_gen_t q_gen;
-
-    gl_array_t vertex_array;
-    gl_array_t texcoord_array;
-    gl_array_t normal_array;
-    gl_array_t color_array;
 
     GLboolean unpack_swap_bytes;
     GLboolean unpack_lsb_first;
@@ -372,6 +374,8 @@ void gl_normalize(GLfloat *d, const GLfloat *v);
 
 uint32_t gl_get_type_size(GLenum type);
 
-void read_f32(GLfloat *dst, const float *src, uint32_t count);
+bool gl_storage_alloc(gl_storage_t *storage, uint32_t size);
+void gl_storage_free(gl_storage_t *storage);
+bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size);
 
 #endif

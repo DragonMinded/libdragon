@@ -16,9 +16,9 @@ void gl_buffer_object_init(gl_buffer_object_t *obj, GLuint name)
 
 void gl_buffer_object_free(gl_buffer_object_t *obj)
 {
-    if (obj->data != NULL)
+    if (obj->storage.data != NULL)
     {
-        free_uncached(obj->data);
+        free_uncached(obj->storage.data);
     }
 
     free(obj);
@@ -89,10 +89,10 @@ void glDeleteBuffersARB(GLsizei n, const GLuint *buffers)
         gl_unbind_buffer(obj, &state.array_buffer);
         gl_unbind_buffer(obj, &state.element_array_buffer);
 
-        gl_unbind_buffer(obj, &state.vertex_array.binding);
-        gl_unbind_buffer(obj, &state.color_array.binding);
-        gl_unbind_buffer(obj, &state.texcoord_array.binding);
-        gl_unbind_buffer(obj, &state.normal_array.binding);
+        for (uint32_t a = 0; a < ATTRIB_COUNT; a++)
+        {
+            gl_unbind_buffer(obj, &state.arrays[a].binding);
+        }
 
         // TODO: keep alive until no longer in use
 
@@ -158,27 +158,19 @@ void glBufferDataARB(GLenum target, GLsizeiptrARB size, const GLvoid *data, GLen
         return;
     }
 
-    void *new_data = malloc_uncached(size);
-    if (new_data == NULL) {
+    if (!gl_storage_resize(&obj->storage, size)) {
         gl_set_error(GL_OUT_OF_MEMORY);
         return;
     }
 
-    if (obj->data != NULL) {
-        // TODO: keep around until not used anymore
-        free_uncached(obj->data);
-    }
-
     if (data != NULL) {
-        memcpy(new_data, data, size);
+        memcpy(obj->storage.data, data, size);
     }
 
-    obj->size = size;
     obj->usage = usage;
     obj->access = GL_READ_WRITE_ARB;
     obj->mapped = false;
     obj->pointer = NULL;
-    obj->data = new_data;
 }
 
 void glBufferSubDataARB(GLenum target, GLintptrARB offset, GLsizeiptrARB size, const GLvoid *data)
@@ -193,12 +185,12 @@ void glBufferSubDataARB(GLenum target, GLintptrARB offset, GLsizeiptrARB size, c
         return;
     }
 
-    if ((offset < 0) || (offset >= obj->size) || (offset + size > obj->size)) {
+    if ((offset < 0) || (offset >= obj->storage.size) || (offset + size > obj->storage.size)) {
         gl_set_error(GL_INVALID_VALUE);
         return;
     }
 
-    memcpy(obj->data + offset, data, size);
+    memcpy(obj->storage.data + offset, data, size);
 }
 
 void glGetBufferSubDataARB(GLenum target, GLintptrARB offset, GLsizeiptrARB size, GLvoid *data)
@@ -213,12 +205,12 @@ void glGetBufferSubDataARB(GLenum target, GLintptrARB offset, GLsizeiptrARB size
         return;
     }
 
-    if ((offset < 0) || (offset >= obj->size) || (offset + size > obj->size)) {
+    if ((offset < 0) || (offset >= obj->storage.size) || (offset + size > obj->storage.size)) {
         gl_set_error(GL_INVALID_VALUE);
         return;
     }
 
-    memcpy(data, obj->data + offset, size);
+    memcpy(data, obj->storage.data + offset, size);
 }
 
 GLvoid * glMapBufferARB(GLenum target, GLenum access)
@@ -245,7 +237,7 @@ GLvoid * glMapBufferARB(GLenum target, GLenum access)
 
     obj->access = access;
     obj->mapped = true;
-    obj->pointer = obj->data;
+    obj->pointer = obj->storage.data;
 
     return obj->pointer;
 }
@@ -277,7 +269,7 @@ void glGetBufferParameterivARB(GLenum target, GLenum pname, GLint *params)
 
     switch (pname) {
     case GL_BUFFER_SIZE_ARB:
-        *params = obj->size;
+        *params = obj->storage.size;
         break;
     case GL_BUFFER_USAGE_ARB:
         *params = obj->usage;
