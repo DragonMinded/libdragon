@@ -106,6 +106,7 @@ enum {
     RDPQ_CMD_SET_LOOKUP_ADDRESS         = 0x01,
     RDPQ_CMD_PUSH_RENDER_MODE           = 0x02,
     RDPQ_CMD_POP_RENDER_MODE            = 0x03,
+    RDPQ_CMD_RESET_RENDER_MODE          = 0x04,
     RDPQ_CMD_SET_COMBINE_MODE_2PASS     = 0x05,
     RDPQ_CMD_TRI                        = 0x08,
     RDPQ_CMD_TRI_ZBUF                   = 0x09,
@@ -1353,9 +1354,12 @@ void rdpq_fence(void);
  * 
  * Notice that the validator needs to maintain a representation of the RDP state,
  * as it is not possible to query the RDP about it. So it is better to call
- * #rdpq_debug_start immeidately after #rdpq_init when required, so that it can
+ * #rdpq_debug_start immediately after #rdpq_init when required, so that it can
  * track all commands from the start. Otherwise, some spurious validation error
  * could be emitted.
+ * 
+ * @note The validator does cause a measurable overhead. It is advised to enable
+ *       it only in debugging builds.
  */
 void rdpq_debug_start(void);
 
@@ -1405,16 +1409,16 @@ void rdpq_debug_log(bool show_log);
  * 
  * produces this output:
  * 
- *      [0xa00e96a8] f102000000034010    RDPQ_MESSAGE     Black rectangle
- *      [0xa00e96b0] d200000000000000    ???
- *      [0xa00e96b8] ed00000000000000    SET_SCISSOR      xy=(0.00,0.00)-(0.00,0.00)
- *      [0xa00e96c0] f700000000000000    SET_FILL_COLOR   rgba16=(0,0,0,0) rgba32=(0,0,0,0)
- *      [0xa00e96c8] f65001e000000000    FILL_RECT        xy=(0.00,0.00)-(320.00,13.50)
- *      [0xa00e96d0] f102000000034020    RDPQ_MESSAGE     Red rectangle
- *      [0xa00e96d8] e700000000000000    SYNC_PIPE
- *      [0xa00e96e0] f7000000f800f800    SET_FILL_COLOR   rgba16=(31,0,0,0) rgba32=(248,0,248,0)
- *      [0xa00e96e8] f65003c0000001e0    FILL_RECT        xy=(0.00,120.00)-(320.00,13.50)
- *      [0xa00e96f0] f101000000000000    RDPQ_SHOWLOG     show=0
+ *      [0xa00e7128] f1020000000332a8    RDPQ_MESSAGE     Black rectangle
+ *      [0xa00e7130] ef30000000000000    SET_OTHER_MODES  fill
+ *      [0xa00e7138] ed00000000000000    SET_SCISSOR      xy=(0.00,0.00)-(0.00,0.00)
+ *      [0xa00e7140] f700000000000000    SET_FILL_COLOR   rgba16=(0,0,0,0) rgba32=(0,0,0,0)
+ *      [0xa00e7148] f65001e000000000    FILL_RECT        xy=(0.00,0.00)-(320.00,120.00)
+ *      [0xa00e7150] f1020000000332b8    RDPQ_MESSAGE     Red rectangle
+ *      [0xa00e7158] e700000000000000    SYNC_PIPE
+ *      [0xa00e7160] f7000000f800f800    SET_FILL_COLOR   rgba16=(31,0,0,0) rgba32=(248,0,248,0)
+ *      [0xa00e7168] f65003c0000001e0    FILL_RECT        xy=(0.00,120.00)-(320.00,240.00)
+ *      [0xa00e7170] f101000000000000    RDPQ_SHOWLOG     show=0
  * 
  * where you can see the `RDPQ_MESSAGE` lines which helps isolate portion of commands with
  * respect to the source lines that generated them.

@@ -11,7 +11,7 @@
         RSPQ_DefineCommand RDPQCmd_SetLookupAddress,        8   # 0xC1 Set lookup address
         RSPQ_DefineCommand RDPQCmd_PushMode,                8   # 0xC2 Push Mode
         RSPQ_DefineCommand RDPQCmd_PopMode,                 8   # 0xC3 Pop Mode
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xC4
+        RSPQ_DefineCommand RDPQCmd_ResetMode,               16  # 0xC4 Reset Mode (set mode standard)
         RSPQ_DefineCommand RDPQCmd_SetCombineMode_2Pass,    8   # 0xC5 SET_COMBINE_MODE (two pass)
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xC6
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xC7
@@ -109,6 +109,20 @@ RDP_TARGET_BITDEPTH:   .byte  0
     RSPQ_EndSavedState
 
 COMB0_MASK:            .quad RDPQ_COMB0_MASK
+
+AA_BLEND_MASK:
+    #  MASK
+    .word SOM_COVERAGE_DEST_MASK | SOM_BLEND_MASK | SOM_BLALPHA_MASK | SOM_COLOR_ON_CVG_OVERFLOW
+AA_BLEND_TABLE:
+    #  AA=0 / BLEND=0
+    .word SOM_COVERAGE_DEST_ZAP
+    #  AA=0 / BLEND=1
+    .word SOM_COVERAGE_DEST_ZAP
+    #  AA=1 / BLEND=0
+    .word SOM_BLALPHA_CVG | SOM_COVERAGE_DEST_CLAMP | \
+          RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_CVG))  # Includes SOM_READ_ENABLE
+    #  AA=1 / BLEND=1
+    .word SOM_COLOR_ON_CVG_OVERFLOW | SOM_COVERAGE_DEST_WRAP
 
 RDP_CMD_PTR:           .word RDP_CMD_STAGING
 
@@ -249,12 +263,21 @@ RDPQ_SaveOtherModes:
     #############################################################
     # RDPQCmd_ModifyOtherModes
     #
-    # Modifies a specific part of the other modes and sends the updated value to the RDP.
+    # Modifies a specific part of the other modes and sends the updated
+    # value to the RDP.
+    # This function can be used as a standard fixup (in which case,
+    # it will potential emit a SET_SCISSOR in case the cycle type
+    # changed between COPY/FILL and 1CYC/2CYC), or as a mode fixup,
+    # part of the mode API, in which case it must call RDPQ_UpdateRenderMode
+    # to regenerate the new render mode.
+    #
     # NOTE: The new value in a2 should never have bits set outside of
     #       the inverse bitmask to ensure correct results.
     #
     # ARGS:
-    #   a0: Command id and word offset into other modes (0 or 4)
+    #   a0: Bit 24..31: Command id
+    #       Bit 15:     If 1, call RDPQ_UpdateRenderMode.
+    #       Bit 12-0:   Word offset into other modes (0 or 4)
     #   a1: Inverse bit mask of the value to be written
     #   a2: New value
     #############################################################
@@ -264,6 +287,8 @@ RDPQCmd_ModifyOtherModes:
     and t1, a1
     or t1, a2
     sw t1, %lo(RDP_OTHER_MODES)(a0)
+    sll a0, 16
+    bltz a0, RDPQ_UpdateRenderMode
 
     # Prepare the updated command in a0-a1 for the following steps
     lw a0, %lo(RDP_OTHER_MODES) + 0x0
@@ -404,25 +429,28 @@ RDPQ_WriteSetFillColor:
     #############################################################
     .func RDPQCmd_SetScissorEx
 RDPQCmd_SetScissorEx:
-    sw a0, %lo(RDP_SCISSOR_RECT) + 0x0
-    sw a1, %lo(RDP_SCISSOR_RECT) + 0x4
+    lui t1, 0xED00 ^ 0xD200 # SetScissorEx -> SET_SCISSOR
+    xor a0, t1
     li ra, %lo(RDPQ_Finalize)
 
+    # Given a SET_SCISSOR command in a0/a1, write it into RDP_SCISSOR_RECT
+    # as-is (exclusive), and then send it to RDP after optionally adjusting
+    # the extents to match the current SOM cycle type.
+    # Returns to caller.
 RDPQ_WriteSetScissor:
+    sw a0, %lo(RDP_SCISSOR_RECT) + 0x0
     lb t6, %lo(RDP_OTHER_MODES) + 0x1
     # Bit 21 of the first word is set if FILL or COPY mode is active
     andi t6, 0x1 << 5
     # Leave unchanged when not in FILL or COPY mode
     beqz t6, scissor_substitute
-    lui t1, 0xED00 ^ 0xD200 # SetScissorEx -> SET_SCISSOR
+    sw a1, %lo(RDP_SCISSOR_RECT) + 0x4
 
     # Subtract 1 subpixel from XL (bits 23:12, as 10.2 fixed point)
     addiu a1, -(1 << 12)
 
 scissor_substitute:
-    # Substitute command ID
     j RDPQ_Write8
-    xor a0, t1
     .endfunc
 
     #############################################################
@@ -433,6 +461,7 @@ scissor_substitute:
     #############################################################
     .func RDPQCmd_TextureRectEx
 RDPQCmd_TextureRectEx:
+    # WARN: delay slot of above jump
     lb t0, %lo(RDP_OTHER_MODES) + 0x1
     # Bit 21 of the first word is set if FILL or COPY mode is active
     andi t0, 0x1 << 5
@@ -570,7 +599,7 @@ RDPQCmd_SetCombineMode_2Pass:
     # to be used).
 store_comb_2cyc:
     sw a0, %lo(RDP_MODE_COMBINER_2CYC) + 0
-    j UpdateCycleType
+    j RDPQ_UpdateRenderMode
     sw a1, %lo(RDP_MODE_COMBINER_2CYC) + 4
     .endfunc
 
@@ -580,14 +609,35 @@ RDPQCmd_SetBlendingMode:
     # fallthrough
     .endfunc
 
-    .func UpdateCycleType
-UpdateCycleType:
 
+    ###############################################################
+    # RDPQ_UpdateRenderMode
+    #
+    # This function is part of the mode API. It recalculates the
+    # render mode given the current settings, and emits the RDP
+    # commands necessary to configure it (SET_OTHER_MODES + SET_COMBINE).
+    #
+    # It is called by the mode API any time a mode changes.
+    ################################################################
+    .func RDPQ_UpdateRenderMode
+RDPQ_UpdateRenderMode:
     #define blend_1cyc  t3
     #define blend_2cyc  t4
+    #define blend_final t4
     #define passthrough t5
+    #define cycle_type  t6
 
-    # Merge the two blender steps.
+    # Merge the two blender steps (fogging + blending). If either
+    # is not set (0), we just configure the other one as follows:
+    #
+    # 1cyc: we turn off the second step (and'ing with SOM_BLEND0_MASK).
+    #       This is strictly not necessary as the second step is ignored.
+    # 2cyc: we change the first step into a passthrough (all values 0),
+    #       and keep the formula in the second step.
+    #
+    # If both steps are configured, we need to merge them: we keep fogging
+    # in the first step, and blending in the second. We also set SOMX_BLEND_2PASS
+    # to remember that we must force 2cycle mode.
     li passthrough, 0
     lw t0, %lo(RDP_MODE_BLENDER_STEPS) + 0   # Load step0
     lw t1, %lo(RDP_MODE_BLENDER_STEPS) + 4   # Load step1
@@ -604,53 +654,81 @@ blender_merge:
     and blend_1cyc, SOM_BLEND0_MASK
     or blend_2cyc, blend_1cyc, passthrough
 
+    # Automatic configuration of 1cycle / 2cycle.
+    #
     # Check if either the current blender and combiner configuration require
     # 2cycle mode:
-    #   * Blender: bit 15 is set if 2cyc mode is required
-    #   * Combiner: bit 63 is set if 2cyc mode is required
+    #   * Blender: bit 15 is set if 2cyc mode is required (SOMX_BLEND_2PASS)
+    #   * Combiner: bit 63 is set if 2cyc mode is required (RDPQ_COMBINER_2PASS)
+    #
+    # First, we align both bits in bit 31 and we OR them together.
     sll t2, blend_2cyc, 16
-    lw t1, %lo(RDP_MODE_COMBINER_2CYC)
+    lw t1, %lo(RDP_MODE_COMBINER_2CYC)  # Fetch high word
     or t1, t2
     # Point to either the 2cyc or 1cyc configuration, depending on what we need
     # to load.
     li s0, %lo(RDP_MODE_COMBINER_2CYC)
-    move t0, blend_2cyc
     bltz t1, set_2cyc
-    li t4, (SOM_CYCLE_MASK ^ SOM_CYCLE_2) >> 32
+    li cycle_type, (SOM_CYCLE_MASK ^ SOM_CYCLE_2) >> 32
 set_1cyc:
     li s0, %lo(RDP_MODE_COMBINER_1CYC)
-    move t0, blend_1cyc
-    li t4, (SOM_CYCLE_MASK ^ SOM_CYCLE_1) >> 32
+    move blend_final, blend_1cyc
+    li cycle_type, (SOM_CYCLE_MASK ^ SOM_CYCLE_1) >> 32
 set_2cyc:
-    lw a0, 0(s0)   # Combiner
-    lw a1, 4(s0)   # Combiner
-    lw a2, %lo(RDP_OTHER_MODES) + 0
-    lw a3, %lo(RDP_OTHER_MODES) + 4
+    #define comb_hi a0
+    #define comb_lo a1
+    #define som_hi  a2
+    #define som_lo  a3
+    lw comb_hi, 0(s0)
+    lw comb_lo, 4(s0)
+    lw som_hi, %lo(RDP_OTHER_MODES) + 0
+    lw som_lo, %lo(RDP_OTHER_MODES) + 4
 
     # Set correct SET_COMBINE opcode (0xFC). The opcode can be anything of
     # the other 4 (1pass/2pass dynamic/static).
-    or a0, 0xFF000000
-    xor a0, 0xFF000000 ^ 0xFC000000
+    or comb_hi, 0xFF000000
+    xor comb_hi, 0xFF000000 ^ 0xFC000000
 
-    # Change blender bits in other modes low word
-    li t1, SOM_BLEND_MASK
+    # Coverage calculation. We need to configure the coverage bits depending
+    # on the AA (SOM_AA_ENABLE) and blender settings (SOM_BLENDING). The bits
+    # to set are written in the AA_BLEND_TABLE.
+    #
+    # Notice that if either fogging or blending are set, SOM_BLENDING will be
+    # set in blend_final (which is the blender configuration to apply).
+    and t0, som_lo, SOM_AA_ENABLE      # Bit 3
+    and t1, blend_final, SOM_BLENDING  # Bit 14 -> 2
+    srl t1, 14-2
+    or t0, t1
+    lw t0, %lo(AA_BLEND_TABLE)(t0)    # Load values to set
+    lw t1, %lo(AA_BLEND_MASK)         # Load mask
+    or t0, blend_final                # Merge blend_final formula into the coverage bits
+
+    # Apply changes to SOM lower bits. These changes in t0 are the combination
+    # of blender settings and coverage bits.
     and t0, t1
     not t1, t1
-    and a3, t1
-    or a3, t0
-    sw a3, %lo(RDP_OTHER_MODES) + 4
+    and som_lo, t1
+    or som_lo, t0
+    sw som_lo, %lo(RDP_OTHER_MODES) + 4
 
-    # Change cycle type bits in other modes low word
-    or a2, SOM_CYCLE_MASK >> 32
-    xor a2, t4
-    sw a2, %lo(RDP_OTHER_MODES) + 0
+    # Set cycle type bits in other modes high word
+    or som_hi, SOM_CYCLE_MASK >> 32
+    xor som_hi, cycle_type
+    sw som_hi, %lo(RDP_OTHER_MODES) + 0
 
     jal_and_j RDPQ_Write16, RDPQ_Finalize
     .endfunc
 
+    #undef comb_hi
+    #undef comb_lo
+    #undef som_hi
+    #undef som_lo
+
     #undef blend_1cyc
     #undef blend_2cyc
+    #undef blend_final
     #undef passhthrough
+    #undef cycle_type
 
 
     #############################################################
@@ -694,11 +772,43 @@ RDPQCmd_PopMode:
     li s1, %lo(RDP_MODE) + 0
     # Pop from the stack and then reconfigure the cycle type.
     # Notice that technically it wouldn't be necessary to run
-    # the full UpdateCycleType (it would be sufficient to call
+    # the full RDPQ_UpdateRenderMode (it would be sufficient to call
     # RDPQ_Write16+RDPQ_Finalize after loading combiner+other_modes)
     # but this way we get to reuse the function without adding more
     # specialized code.
-    jal_and_j PushPopMode, UpdateCycleType
+    jal_and_j PushPopMode, RDPQ_UpdateRenderMode
     .endfunc
 
+    #############################################################
+    # RDPQCmd_ResetMode
+    #
+    # Reset the current RDP mode to the default setting. This is
+    # called by rdpq_mode_standard to configure a base setting.
+    #
+    #  a0,a1: Color combiner to configure
+    #  a2,a3: SOM to configure
+    #############################################################
+RDPQCmd_ResetMode:
+    # Clear RDP_MODE
+    li s0, %lo(RDP_MODE)
+    vxor $v00, $v00, $v00
+    sqv $v00,0, 0x00,s0
+    sqv $v00,0, 0x10,s0
 
+    move t0, a0
+    move t1, a1
+
+    # We are going in either 1-cycle or 2-cycle mode. We emit
+    # a SET_SCISSOR in case we are coming from FILL / COPY mode.
+    lw a0, %lo(RDP_SCISSOR_RECT) + 0x0
+    jal RDPQ_Write8
+    lw a1, %lo(RDP_SCISSOR_RECT) + 0x4
+
+    move a0, t0
+    move a1, t1
+    
+    # Set standard SOM and then call RDPQCmd_SetCombineMode_1Pass, which
+    # will set the standard CC and call RDPQ_UpdateRenderMode once
+    sw a2, %lo(RDP_OTHER_MODES) + 0
+    j RDPQCmd_SetCombineMode_1Pass
+    sw a3, %lo(RDP_OTHER_MODES) + 4

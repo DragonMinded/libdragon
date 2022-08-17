@@ -356,15 +356,16 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
 
     rdpq_set_color_image(&fb);
 
+    rdpq_debug_log_msg("Fill mode");
     surface_clear(&fb, 0);
-    rdpq_set_other_modes_raw(SOM_CYCLE_FILL);
-    rdpq_set_fill_color(TEST_COLOR);
+    rdpq_set_mode_fill(TEST_COLOR);
     rdpq_set_scissor(4, 4, WIDTH-4, WIDTH-4);
     rdpq_fill_rectangle(0, 0, WIDTH, WIDTH);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, WIDTH*WIDTH*2, 
         "Wrong data in framebuffer (fill mode)");
 
+    rdpq_debug_log_msg("1-cycle mode");
     surface_clear(&fb, 0);
     rdpq_set_mode_standard();
     rdpq_mode_combiner(RDPQ_COMBINER1((ZERO,ZERO,ZERO,ZERO),(ZERO,ZERO,ZERO,ONE)));
@@ -376,6 +377,7 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, WIDTH*WIDTH*2, 
         "Wrong data in framebuffer (1 cycle mode)");
 
+    rdpq_debug_log_msg("Fill mode (update)");
     surface_clear(&fb, 0);
     rdpq_set_scissor(4, 4, WIDTH-4, WIDTH-4);
     rdpq_set_other_modes_raw(SOM_CYCLE_FILL);
@@ -385,6 +387,7 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, WIDTH*WIDTH*2, 
         "Wrong data in framebuffer (fill mode, update)");
 
+    rdpq_debug_log_msg("1-cycle mode (update)");
     surface_clear(&fb, 0);
     rdpq_set_scissor(4, 4, WIDTH-4, WIDTH-4);
     rdpq_set_mode_standard();
@@ -459,8 +462,6 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
         rspq_block_begin();
         rdpq_set_mode_standard();
         rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0)));
-        // rdpq_set_other_modes(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_TC_FILTER | SOM_BLENDING | SOM_SAMPLE_1X1 | SOM_MIDTEXEL);
-        // rdpq_set_combine_mode(Comb_Rgb(ZERO, ZERO, ZERO, TEX0) | Comb_Alpha(ZERO, ZERO, ZERO, TEX0));
         rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
         rspq_block_t *block = rspq_block_end();
         DEFER(rspq_block_free(block));
@@ -611,7 +612,8 @@ static void __test_rdpq_autosyncs(TestContext *ctx, void (*func)(void), uint8_t 
 
     rspq_block_t *block = NULL;
     DEFER(if (block) rspq_block_free(block));
-
+    
+    rdpq_set_mode_standard();
     rdpq_set_color_image(&fb);
 
     if (use_block) {

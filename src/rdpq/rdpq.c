@@ -234,7 +234,7 @@ void rdpq_init()
 
     // The (1 << 12) is to prevent underflow in case set other modes is called before any set scissor command.
     // Depending on the cycle mode, 1 subpixel is subtracted from the right edge of the scissor rect.
-    rdpq_state->scissor_rect = (((uint64_t)RDPQ_OVL_ID << 32) + ((uint64_t)RDPQ_CMD_SET_SCISSOR_EX << 56)) | (1 << 12);
+    rdpq_state->scissor_rect = (((uint64_t)RDPQ_OVL_ID << 32) + ((uint64_t)RDPQ_CMD_SET_SCISSOR << 56)) | (1 << 12);
     
     rspq_overlay_register_static(&rsp_rdpq, RDPQ_OVL_ID);
 
@@ -534,7 +534,7 @@ void __rdpq_set_color_image(uint32_t w0, uint32_t w1, uint32_t sw0, uint32_t sw1
     __rdpq_autosync_change(AUTOSYNC_PIPE);
     rdpq_fixup_write(
         (RDPQ_CMD_SET_COLOR_IMAGE, w0, w1), // RSP
-        (RDPQ_CMD_SET_COLOR_IMAGE, w0, w1), (RDPQ_CMD_SET_SCISSOR, 0, 0) // RDP
+        (RDPQ_CMD_SET_COLOR_IMAGE, w0, w1), (RDPQ_CMD_SET_FILL_COLOR, 0, 0) // RDP
     );
 
     if (rdpq_config & RDPQ_CFG_AUTOSCISSOR)

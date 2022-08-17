@@ -147,7 +147,7 @@ void gl_update_render_mode()
         if (state.blend) {
             modes |= SOM_COLOR_ON_CVG_OVERFLOW | SOM_COVERAGE_DEST_WRAP;
         } else {
-            modes |= SOM_ALPHA_USE_CVG | SOM_COVERAGE_DEST_CLAMP;
+            modes |= SOM_BLALPHA_CVG | SOM_COVERAGE_DEST_CLAMP;
         }
     } else {
         modes |= SOM_COVERAGE_DEST_SAVE;

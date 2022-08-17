@@ -433,8 +433,12 @@
 #define SOMX_BLEND_2PASS       cast64(1<<15)                ///< RDPQ special state: record that the blender is made of 2 passes
 
 #define SOM_BLENDING           ((cast64(1))<<14)            ///< Activate blending for all pixels
-#define SOM_ALPHA_USE_CVG      ((cast64(1))<<13)            ///< Replace alpha channel with coverage
-#define SOM_CVG_TIMES_ALPHA    ((cast64(1))<<12)            ///< Multiply coverage by alpha
+
+#define SOM_BLALPHA_CC           ((cast64(0))<<12)          ///< Blender IN_ALPHA is the output of the combiner output (default)
+#define SOM_BLALPHA_CVG          ((cast64(2))<<12)          ///< Blender IN_ALPHA is the coverage of the current pixel
+#define SOM_BLALPHA_CVG_TIMES_CC ((cast64(3))<<12)          ///< Blender IN_ALPHA is the product of the combiner output and the coverage
+#define SOM_BLALPHA_MASK         ((cast64(3))<<12)          ///< Blender alpha configuration mask
+#define SOM_BLALPHA_SHIFT        12                         ///< Blender alpha configuration shift
 
 #define SOM_ZMODE_OPAQUE           ((cast64(0))<<10)        ///< Z-mode: opaque surface
 #define SOM_ZMODE_INTERPENETRATING ((cast64(1))<<10)        ///< Z-mode: interprenating surfaces
