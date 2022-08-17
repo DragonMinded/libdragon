@@ -689,6 +689,9 @@ inline void rdpq_set_prim_depth(uint16_t primitive_z, int16_t primitive_delta_z)
 {
     // NOTE: this does not require a pipe sync
     extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
+    assertf(primitive_z <= 0x7FFF, "primitive_z must be in [0..0x7FFF]");
+    assertf((primitive_delta_z & -primitive_delta_z) == (primitive_delta_z >= 0 ? primitive_delta_z : -primitive_delta_z),
+        "primitive_delta_z must be a power of 2");
     __rdpq_write8(RDPQ_CMD_SET_PRIM_DEPTH, 0, _carg(primitive_z, 0xFFFF, 16) | _carg(primitive_delta_z, 0xFFFF, 0));
 }
 
