@@ -1,3 +1,8 @@
+/**
+ * @file rdpq_debug.c
+ * @brief RDP Command queue: debugging helpers
+ * @ingroup rdp
+ */
 #include "rdpq_debug.h"
 #include "rdpq_debug_internal.h"
 #include "rdpq.h"
@@ -14,40 +19,56 @@
 
 /** @brief RDP Debug command: turn on/off logging */
 #define RDPQ_CMD_DEBUG_SHOWLOG  0x00010000
+/** @brief RDP Debug command: debug message */
 #define RDPQ_CMD_DEBUG_MESSAGE  0x00020000
 
-// Define to 1 to active internal debugging of the rdpq debug module.
-// This is useful to trace bugs of rdpq itself, but it should not be
-// necessary for standard debugging sessions of application code, so it
-// is turned off by default.
 #ifndef RDPQ_DEBUG_DEBUG
+/**
+ * @brief Internal debugging of rdpq_debug.
+ * 
+ * Define to 1 to active internal debugging of the rdpq debug module.
+ * This is useful to trace bugs of rdpq itself, but it should not be
+ * necessary for standard debugging sessions of application code, so it
+ * is turned off by default.
+ */
 #define RDPQ_DEBUG_DEBUG     0
 #endif
 
 #if RDPQ_DEBUG_DEBUG
+/** @brief Like debugf, but guarded by #RDPQ_DEBUG_DEBUG */
 #define intdebugf(...) debugf(__VA_ARGS__)
 #else
+/** @brief Like debugf, but guarded by #RDPQ_DEBUG_DEBUG */
 #define intdebugf(...) ({ })
 #endif
 
+/** @brief Extract bits from word */
 #define BITS(v, b, e)  ((unsigned int)((v) << (63-(e)) >> (63-(e)+(b)))) 
+/** @brief Extract bit from word */
 #define BIT(v, b)      BITS(v, b, b)
+/** @brief Extract bits from word as signed quantity */
 #define SBITS(v, b, e) (int)BITS((int64_t)(v), b, e)
 
+/** @brief A buffer sent to RDP via DMA */
 typedef struct {
-    uint64_t *start;
-    uint64_t *end;
-    uint64_t *traced;
+    uint64_t *start;    ///< Start pointer
+    uint64_t *end;      ///< End pointer
+    uint64_t *traced;   ///< End pointer of already-traced commands
 } rdp_buffer_t;
 
+/** @brief Decoded SET_COMBINE command */
 typedef struct {
+    ///@cond
     struct cc_cycle_s {
         struct { uint8_t suba, subb, mul, add; } rgb;
         struct { uint8_t suba, subb, mul, add; } alpha;
     } cyc[2];
+    ///@endcond
 } colorcombiner_t;
 
+/** @brief Decoded SET_OTHER_MODES command */
 typedef struct {
+    ///@cond
     bool atomic;
     uint8_t cycle_type;
     struct { bool persp, detail, sharpen, lod; } tex;
@@ -61,38 +82,58 @@ typedef struct {
     struct { uint8_t mode; bool color, sel_alpha, mul_alpha; } cvg;
     struct { uint8_t mode; bool upd, cmp, prim; } z;
     struct { bool enable, dither; } alphacmp;
+    ///@endcond
 } setothermodes_t;
 
-struct {
-    struct { bool pipe; bool tile[8]; uint8_t tmem[64]; } busy;
-    bool sent_scissor;
-    bool mode_changed;
-    uint64_t *last_som;
-    uint64_t *last_cc;
-    uint64_t *last_tex;
-    setothermodes_t som;
-    colorcombiner_t cc;
+/** 
+ * @brief Current RDP state 
+ * 
+ * This structure represents a mirror of the internal state of the RDP.
+ * It is updated by the validator as commands flow through, and is then used
+ * to validate the consistency of next commands.
+ */
+static struct {
+    struct { 
+        bool pipe;                         ///< True if the pipe is busy (SYNC_PIPE required)
+        bool tile[8];                      ///< True if each tile is a busy (SYNC_TILE required)
+        uint8_t tmem[64];                  ///< Bitarray: busy state for each 8-byte word of TMEM (SYNC_LOAD required)
+    } busy;                              ///< Busy entities (for SYNC commands)
+    bool sent_scissor;                   ///< True if at least one SET_SCISSOR was sent since reset
+    bool mode_changed;                   ///< True if there is a pending mode change to validate (SET_OTHER_MODES / SET_COMBINE)
+    uint64_t *last_som;                  ///< Pointer to last SOM command sent
+    uint64_t *last_cc;                   ///< Pointer to last CC command sent
+    uint64_t *last_tex;                  ///< Pointer to last SET_TEX_IMAGE command sent
+    setothermodes_t som;                 ///< Current SOM state
+    colorcombiner_t cc;                  ///< Current CC state
     struct tile_s { 
-        uint8_t fmt, size; uint8_t pal;
-        bool has_extents;
-        float s0, t0, s1, t1;
-        int16_t tmem_addr, tmem_pitch;
-    } tile[8];
-    struct { uint8_t fmt, size; } tex;
-} rdpq_state;
+        uint8_t fmt, size;                 ///< Format & size (RDP format/size bits)
+        uint8_t pal;                       ///< Palette number
+        bool has_extents;                  ///< True if extents were set (via LOAD_TILE / SET_TILE_SIZE)
+        float s0, t0, s1, t1;              ///< Extents of tile in TMEM
+        int16_t tmem_addr;                 ///< Address in TMEM
+        int16_t tmem_pitch;                ///< Pitch in TMEM
+    } tile[8];                           ///< Current tile descriptors
+    struct { 
+        uint8_t fmt, size;                 ///< Format & size (RDP format/size bits)
+    } tex;                               ///< Current associated texture image
+} rdp;
 
+/** @brief Maximum number of pending RDP buffers */
+#define MAX_BUFFERS 12 
+static rdp_buffer_t buffers[MAX_BUFFERS];     ///< Pending RDP buffers (ring buffer)
+static volatile int buf_ridx, buf_widx;       ///< Read/write index into the ring buffer of RDP buffers
+static rdp_buffer_t last_buffer;              ///< Last RDP buffer that was processed
+static int show_log;                          ///< True if logging is enabled
+static int warns, errs;                       ///< Validators warnings/errors (stats)
 
-#define NUM_BUFFERS 12
-static rdp_buffer_t buffers[NUM_BUFFERS];
-static volatile int buf_ridx, buf_widx;
-static rdp_buffer_t last_buffer;
-static int show_log;
+// Documented in rdpq_debug_internal.h
 void (*rdpq_trace)(void);
 void (*rdpq_trace_fetch)(void);
-static int warns, errs;
 
+/** @brief Implementation of #rdpq_trace_fetch */
 void __rdpq_trace_fetch(void)
 {
+    // Extract current start/end pointers from RDP registers (in the uncached segment)
     uint64_t *start = (void*)(*DP_START | 0xA0000000);
     uint64_t *end = (void*)(*DP_END | 0xA0000000);
 
@@ -115,7 +156,7 @@ void __rdpq_trace_fetch(void)
     // Coalesce with last written buffer if possible. Notice that rdpq_trace put the start
     // pointer to NULL to avoid coalescing when it begins dumping it, so this should avoid
     // race conditions.
-    int prev = buf_widx ? buf_widx - 1 : NUM_BUFFERS-1;
+    int prev = buf_widx ? buf_widx - 1 : MAX_BUFFERS-1;
     if (buffers[prev].start == start) {
         // If the previous buffer was bigger, it is a logic error, as RDP buffers should only grow            
         if (buffers[prev].end == end) {
@@ -142,17 +183,18 @@ void __rdpq_trace_fetch(void)
     }
     // If the buffer queue is full, drop the oldest. It might create confusion in the validator,
     // but at least the log should show the latest commands which is probably more important.
-    if ((buf_widx + 1) % NUM_BUFFERS == buf_ridx) {
+    if ((buf_widx + 1) % MAX_BUFFERS == buf_ridx) {
         debugf("[rdpq] logging buffer full, dropping %d commands\n", buffers[buf_ridx].end - buffers[buf_ridx].start);
-        buf_ridx = (buf_ridx + 1) % NUM_BUFFERS;
+        buf_ridx = (buf_ridx + 1) % MAX_BUFFERS;
     }
 
     // Write the new buffer. It should be an empty slot
     buffers[buf_widx] = (rdp_buffer_t){ .start = start, .end = end, .traced = start };
-    buf_widx = (buf_widx + 1) % NUM_BUFFERS;
+    buf_widx = (buf_widx + 1) % MAX_BUFFERS;
     enable_interrupts();
 }
 
+/** @brief Process a RDPQ_DEBUG command */
 void __rdpq_debug_cmd(uint64_t cmd)
 {
     switch(BITS(cmd, 48, 55)) {
@@ -160,33 +202,41 @@ void __rdpq_debug_cmd(uint64_t cmd)
         show_log += BIT(cmd, 0) ? 1 : -1;
         return;
     case 0x02: // Message
+        // Nothing to do. Debugging messages are shown by the disassembler
         return;
     }
 }
 
-
+/** @brief Implementation of #rdpq_trace */
 void __rdpq_trace(void)
 {
-    // Update buffers to current RDP status
+    // Update buffers to current RDP status. This make sure the trace
+    // is up to date.
     if (rdpq_trace_fetch) rdpq_trace_fetch();
 
     while (1) {
         uint64_t *cur = 0, *end = 0;
 
+        // Pop next RDP buffer from ring buffer. Do it atomically to avoid races
         disable_interrupts();
         if (buf_ridx != buf_widx) {
             cur = buffers[buf_ridx].traced;
             end = buffers[buf_ridx].end;
             buffers[buf_ridx].traced = end;
-            buf_ridx = (buf_ridx + 1) % NUM_BUFFERS;
+            buf_ridx = (buf_ridx + 1) % MAX_BUFFERS;
         }
         enable_interrupts();
 
+        // If there are no more pending buffers, we are done
         if (!cur) break;
+
+        // Go through the RDP buffer. If log is active, disassemble.
+        // Run the validator on all the commands.
         while (cur < end) {
             int sz = rdpq_debug_disasm_size(cur);
             if (show_log > 0) rdpq_debug_disasm(cur, stderr);
             rdpq_validate(cur, NULL, NULL);
+            // If this is a RDPQ_DEBUG command, execute it
             if (BITS(cur[0],56,61) == 0x31) __rdpq_debug_cmd(cur[0]);
             cur += sz;
         }
@@ -197,7 +247,7 @@ void rdpq_debug_start(void)
 {
     memset(buffers, 0, sizeof(buffers));
     memset(&last_buffer, 0, sizeof(last_buffer));
-    memset(&rdpq_state, 0, sizeof(rdpq_state));
+    memset(&rdp, 0, sizeof(rdp));
     buf_widx = buf_ridx = 0;
     show_log = 0;
     warns = errs = 0;
@@ -224,6 +274,7 @@ void rdpq_debug_stop(void)
     rdpq_trace_fetch = NULL;
 }
 
+/** @brief Decode a SET_COMBINE command into a #colorcombiner_t structure */
 static inline colorcombiner_t decode_cc(uint64_t cc) {
     return (colorcombiner_t){
         .cyc = {{
@@ -236,6 +287,7 @@ static inline colorcombiner_t decode_cc(uint64_t cc) {
     };
 }
 
+/** @brief Decode a SET_OTHER_MODES command into a #setothermodes_t structure */
 static inline setothermodes_t decode_som(uint64_t som) {
     return (setothermodes_t){
         .atomic = BIT(som, 55),
@@ -273,14 +325,18 @@ int rdpq_debug_disasm_size(uint64_t *buf) {
     }
 }
 
+/** @brief Multiplication factor to convert a number to fixed point with precision n */
 #define FX(n)          (1.0f / (1<<(n)))
+/** @brief Convert a 16.16 fixed point number into floating point */
 #define FX32(hi,lo)    ((hi) + (lo) * (1.f / 65536.f))
 
 void rdpq_debug_disasm(uint64_t *buf, FILE *out)
 {
     const char* flag_prefix = "";
+    ///@cond
     #define FLAG_RESET()   ({ flag_prefix = ""; })
     #define FLAG(v, s)     ({ if (v) fprintf(out, "%s%s", flag_prefix, s), flag_prefix = " "; })
+    ///@endcond
 
     const char *fmt[8] = {"rgba", "yuv", "ci", "ia", "i", "?fmt=5?", "?fmt=6?", "?fmt=7?"};
     const char *size[4] = {"4", "8", "16", "32" };
@@ -517,16 +573,17 @@ void rdpq_debug_disasm(uint64_t *buf, FILE *out)
     }; \
 })
 
+/** @brief True if the current CC uses the TEX1 slot aka the second texture */
 static bool cc_use_tex1(void) {
-    struct cc_cycle_s *cc = rdpq_state.cc.cyc;
-    if (rdpq_state.som.cycle_type != 1)
+    struct cc_cycle_s *cc = rdp.cc.cyc;
+    if (rdp.som.cycle_type != 1)    // TEX1 is used only in 2-cycle mode
         return false;
-    if ((rdpq_state.som.tf_mode & 3) == 1) // TEX1 is the color-conversion of TEX0, so TEX1 is not used
+    if ((rdp.som.tf_mode & 3) == 1) // TEX1 is the color-conversion of TEX0, so TEX1 is not used
         return false;
     return 
         // Cycle0: reference to TEX1 slot
         (cc[0].rgb.suba == 2 || cc[0].rgb.subb == 2 || cc[0].rgb.mul == 2 || cc[0].rgb.add == 2) || 
-        // Cycle1: reference to TEX0 slot
+        // Cycle1: reference to TEX0 slot (which actually points to TEX1)
         (cc[1].rgb.suba == 1 || cc[1].rgb.subb == 1 || cc[1].rgb.mul == 1 || cc[1].rgb.add == 1);
 }
 
@@ -540,59 +597,67 @@ static bool cc_use_tex1(void) {
  * Validation of CC is thus run lazily whenever a draw command is issued.
  */
 static void lazy_validate_cc(void) {
-    if (rdpq_state.mode_changed) {
-        rdpq_state.mode_changed = false;
+    if (rdp.mode_changed) {
+        rdp.mode_changed = false;
 
         // We don't care about CC setting in fill/copy mode, where the CC is not used.
-        if (rdpq_state.som.cycle_type >= 2)
+        if (rdp.som.cycle_type >= 2)
             return;
 
-        // Validate blender setting. If there is any blender fomula configure, we should expect one between SOM_BLENDING or SOM_ANTIALIAS,
-        // otherwise the formula will be ignored.
-        struct blender_s *b0 = &rdpq_state.som.blender[0];
-        struct blender_s *b1 = &rdpq_state.som.blender[1];
+        // Validate blender setting. If there is any blender fomula configured, we should
+        // expect one between SOM_BLENDING or SOM_ANTIALIAS, otherwise the formula will be ignored.
+        struct blender_s *b0 = &rdp.som.blender[0];
+        struct blender_s *b1 = &rdp.som.blender[1];
         bool has_bl0 = b0->p || b0->a || b0->q || b0->b;
         bool has_bl1 = b1->p || b1->a || b1->q || b1->b;
-        VALIDATE_WARN(rdpq_state.som.blend || rdpq_state.som.aa || !(has_bl0 || has_bl1),
-            "SOM at %p: blender function will be ignored because SOM_BLENDING and SOM_ANTIALIAS are both disabled", rdpq_state.last_som);
+        VALIDATE_WARN(rdp.som.blend || rdp.som.aa || !(has_bl0 || has_bl1),
+            "SOM at %p: blender function will be ignored because SOM_BLENDING and SOM_ANTIALIAS are both disabled", rdp.last_som);
 
-        if (!rdpq_state.last_cc) {
-            VALIDATE_ERR(rdpq_state.last_cc, "SET_COMBINE not called before drawing primitive");
+        if (!rdp.last_cc) {
+            VALIDATE_ERR(rdp.last_cc, "SET_COMBINE not called before drawing primitive");
             return;
         }
-        struct cc_cycle_s *ccs = &rdpq_state.cc.cyc[0];
-        if (rdpq_state.som.cycle_type == 0) { // 1cyc
+        struct cc_cycle_s *ccs = &rdp.cc.cyc[0];
+        if (rdp.som.cycle_type == 0) { // 1cyc
             VALIDATE_WARN(memcmp(&ccs[0], &ccs[1], sizeof(struct cc_cycle_s)) == 0,
-                "SET_COMBINE at %p: in 1cycle mode, the color combiner should be programmed identically in both cycles. Cycle 0 will be ignored.", rdpq_state.last_cc);
+                "SET_COMBINE at %p: in 1cycle mode, the color combiner should be programmed identically in both cycles. Cycle 0 will be ignored.", rdp.last_cc);
             VALIDATE_ERR(ccs[1].rgb.suba != 0 && ccs[1].rgb.suba != 0 && ccs[1].rgb.mul != 0 && ccs[1].rgb.add != 0 &&
                          ccs[1].alpha.suba != 0 && ccs[1].alpha.suba != 0 && ccs[1].alpha.mul != 0 && ccs[1].alpha.add != 0,
-                "SET_COMBINE at %p: in 1cycle mode, the color combiner cannot access the COMBINED slot", rdpq_state.last_cc);
+                "SET_COMBINE at %p: in 1cycle mode, the color combiner cannot access the COMBINED slot", rdp.last_cc);
             VALIDATE_ERR(ccs[1].rgb.suba != 2 && ccs[1].rgb.subb != 2 && ccs[1].rgb.mul != 2 && ccs[1].rgb.add != 2 &&
                          ccs[1].alpha.suba != 2 && ccs[1].alpha.subb != 2 && ccs[1].alpha.mul != 2 && ccs[1].alpha.add != 2,
-                "SET_COMBINE at %p: in 1cycle mode, the color combiner cannot access the TEX1 slot", rdpq_state.last_cc);
+                "SET_COMBINE at %p: in 1cycle mode, the color combiner cannot access the TEX1 slot", rdp.last_cc);
         } else { // 2 cyc
-            struct cc_cycle_s *ccs = &rdpq_state.cc.cyc[0];
+            struct cc_cycle_s *ccs = &rdp.cc.cyc[0];
             VALIDATE_ERR(ccs[0].rgb.suba != 0 && ccs[0].rgb.suba != 0 && ccs[0].rgb.mul != 0 && ccs[0].rgb.add != 0 &&
                          ccs[0].alpha.suba != 0 && ccs[0].alpha.suba != 0 && ccs[0].alpha.mul != 0 && ccs[0].alpha.add != 0,
-                "SET_COMBINE at %p: in 2cycle mode, the color combiner cannot access the COMBINED slot in the first cycle", rdpq_state.last_cc);
+                "SET_COMBINE at %p: in 2cycle mode, the color combiner cannot access the COMBINED slot in the first cycle", rdp.last_cc);
             VALIDATE_ERR(ccs[1].rgb.suba != 2 && ccs[1].rgb.suba != 2 && ccs[1].rgb.mul != 2 && ccs[1].rgb.add != 2 &&
                          ccs[1].alpha.suba != 2 && ccs[1].alpha.suba != 2 && ccs[1].alpha.mul != 2 && ccs[1].alpha.add != 2,
-                "SET_COMBINE at %p: in 2cycle mode, the color combiner cannot access the TEX1 slot in the second cycle (but TEX0 contains the second texture)", rdpq_state.last_cc);
-            VALIDATE_ERR((b0->b == 0) || (b0->b == 2 && b0->a == 3),
-                "SOM at %p: in 2 cycle mode, the first pass of the blender must use INV_MUX_ALPHA or equivalent", rdpq_state.last_som);
+                "SET_COMBINE at %p: in 2cycle mode, the color combiner cannot access the TEX1 slot in the second cycle (but TEX0 contains the second texture)", rdp.last_cc);
+            VALIDATE_ERR((b0->b == 0) || (b0->b == 2 && b0->a == 3),  // INV_MUX_ALPHA, or ONE/ZERO (which still works)
+                "SOM at %p: in 2 cycle mode, the first pass of the blender must use INV_MUX_ALPHA or equivalent", rdp.last_som);
         }
     }
 }
 
+/**
+ * @brief Perform validaation of a draw command (rectangle or triangle)
+ * 
+ * @param use_colors     True if the draw command has the shade component
+ * @param use_tex        True if the draw command has the texture component
+ * @param use_z          True if the draw command has the Z component
+ * @param use_w          True if the draw command has the W component
+ */
 static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool use_w)
 {
-    VALIDATE_ERR(rdpq_state.sent_scissor,
+    VALIDATE_ERR(rdp.sent_scissor,
         "undefined behavior: drawing command before a SET_SCISSOR was sent");
 
-    switch (rdpq_state.som.cycle_type) {
+    switch (rdp.som.cycle_type) {
     case 0 ... 1: // 1cyc, 2cyc
-        for (int i=1-rdpq_state.som.cycle_type; i<2; i++) {
-            struct cc_cycle_s *ccs = &rdpq_state.cc.cyc[i];
+        for (int i=1-rdp.som.cycle_type; i<2; i++) {
+            struct cc_cycle_s *ccs = &rdp.cc.cyc[i];
             uint8_t slots[8] = {
                 ccs->rgb.suba,   ccs->rgb.subb,   ccs->rgb.mul,   ccs->rgb.add, 
                 ccs->alpha.suba, ccs->alpha.subb, ccs->alpha.mul, ccs->alpha.add, 
@@ -600,51 +665,53 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
 
             if (!use_tex) {
                 VALIDATE_ERR(!memchr(slots, 1, sizeof(slots)),
-                    "cannot draw a non-textured primitive with a color combiner using the TEX0 slot (CC set at %p)", rdpq_state.last_cc);
+                    "cannot draw a non-textured primitive with a color combiner using the TEX0 slot (CC set at %p)", rdp.last_cc);
                 VALIDATE_ERR(!memchr(slots, 2, sizeof(slots)),
-                    "cannot draw a non-textured primitive with a color combiner using the TEX1 slot (CC set at %p)", rdpq_state.last_cc);
+                    "cannot draw a non-textured primitive with a color combiner using the TEX1 slot (CC set at %p)", rdp.last_cc);
             }
             if (!use_colors) {
                 VALIDATE_ERR(!memchr(slots, 4, sizeof(slots)),
-                    "cannot draw a non-shaded primitive with a color combiner using the SHADE slot (CC set at %p)", rdpq_state.last_cc);
+                    "cannot draw a non-shaded primitive with a color combiner using the SHADE slot (CC set at %p)", rdp.last_cc);
             }
         }
 
         if (use_tex && !use_w)
-            VALIDATE_ERR(!rdpq_state.som.tex.persp,
-                "cannot draw a textured primitive with perspective correction but without per-vertex W coordinate (SOM set at %p)", rdpq_state.last_som);
+            VALIDATE_ERR(!rdp.som.tex.persp,
+                "cannot draw a textured primitive with perspective correction but without per-vertex W coordinate (SOM set at %p)", rdp.last_som);
 
         if (!use_z)
-            VALIDATE_ERR(!rdpq_state.som.z.cmp && !rdpq_state.som.z.upd,
-                "cannot draw a primitive without Z coordinate if Z buffer access is activated (SOM set at %p)", rdpq_state.last_som);
+            VALIDATE_ERR(!rdp.som.z.cmp && !rdp.som.z.upd,
+                "cannot draw a primitive without Z coordinate if Z buffer access is activated (SOM set at %p)", rdp.last_som);
 
         break;
     }
 }
 
 static void validate_busy_pipe(void) {
-    VALIDATE_WARN(!rdpq_state.busy.pipe, "pipe might be busy, SYNC_PIPE is missing");
-    rdpq_state.busy.pipe = false;
+    VALIDATE_WARN(!rdp.busy.pipe, "pipe might be busy, SYNC_PIPE is missing");
+    rdp.busy.pipe = false;
 }
 
 static void validate_busy_tile(int tidx) {
-    VALIDATE_WARN(!rdpq_state.busy.tile[tidx],
+    VALIDATE_WARN(!rdp.busy.tile[tidx],
         "tile %d might be busy, SYNC_TILE is missing", tidx);
-    rdpq_state.busy.tile[tidx] = false;
+    rdp.busy.tile[tidx] = false;
 }
 
+/** @brief Mark TMEM as busy in range [addr..addr+size] */
 static void mark_busy_tmem(int addr, int size) {
     int x0 = MIN(addr, 0x1000)/8, x1 = MIN(addr+size, 0x1000)/8, x = x0;
-    while ((x&7) && x < x1) { rdpq_state.busy.tmem[x/8] |= 1 << (x&7); x++;  }
-    while (x+8 < x1)        { rdpq_state.busy.tmem[x/8] = 0xFF;        x+=8; }
-    while (x < x1)          { rdpq_state.busy.tmem[x/8] |= 1 << (x&7); x++;  }
+    while ((x&7) && x < x1) { rdp.busy.tmem[x/8] |= 1 << (x&7); x++;  }
+    while (x+8 < x1)        { rdp.busy.tmem[x/8] = 0xFF;        x+=8; }
+    while (x < x1)          { rdp.busy.tmem[x/8] |= 1 << (x&7); x++;  }
 }
 
+/** @brief Check if TMEM is busy in range [addr..addr+size] */
 static bool is_busy_tmem(int addr, int size) {
     int x0 = MIN(addr, 0x1000)/8, x1 = MIN(addr+size, 0x1000)/8, x = x0;
-    while ((x&7) && x < x1) { if (rdpq_state.busy.tmem[x/8] & 1 << (x&7)) return true; x++;  }
-    while (x+8 < x1)        { if (rdpq_state.busy.tmem[x/8] != 0)         return true; x+=8; }
-    while (x < x1)          { if (rdpq_state.busy.tmem[x/8] & 1 << (x&7)) return true; x++;  }
+    while ((x&7) && x < x1) { if (rdp.busy.tmem[x/8] & 1 << (x&7)) return true; x++;  }
+    while (x+8 < x1)        { if (rdp.busy.tmem[x/8] != 0)         return true; x+=8; }
+    while (x < x1)          { if (rdp.busy.tmem[x/8] & 1 << (x&7)) return true; x++;  }
     return false;
 }
 
@@ -652,26 +719,33 @@ static void validate_busy_tmem(int addr, int size) {
     VALIDATE_WARN(!is_busy_tmem(addr, size), "writing to TMEM[0x%x:0x%x] while busy, SYNC_LOAD missing", addr, addr+size);
 }
 
+/**
+ * @brief Perform validation of a tile descriptor being used as part of a drawing command.
+ * 
+ * @param tidx      tile ID
+ * @param cycle     Number of the cycle in which the the tile is being used (0 or 1)
+ */
 static void use_tile(int tidx, int cycle) {
-    struct tile_s *t = &rdpq_state.tile[tidx];
+    struct tile_s *t = &rdp.tile[tidx];
     VALIDATE_ERR(t->has_extents, "tile %d has no extents set, missing LOAD_TILE or SET_TILE_SIZE", tidx);
-    rdpq_state.busy.tile[tidx] = true;
+    rdp.busy.tile[tidx] = true;
 
-    if (rdpq_state.som.cycle_type < 2) {
+    if (rdp.som.cycle_type < 2) {
         // YUV render mode mistakes in 1-cyc/2-cyc, that is when YUV conversion can be done.
         // In copy mode, YUV textures are copied as-is
         if (t->fmt == 1) {
-            VALIDATE_WARN(!(rdpq_state.som.tf_mode & (4>>cycle)), "tile %d is YUV but texture filter in cycle %d does not activate YUV color conversion (SOM set at %p)", tidx, cycle, rdpq_state.last_som);
-            VALIDATE_ERR(rdpq_state.som.sample_type == 0 || (rdpq_state.som.tf_mode == 6 && rdpq_state.som.cycle_type == 1), 
-                "tile %d is YUV, so for bilinear filtering it needs 2-cycle mode and the special TF1_YUVTEX0 mode (SOM set at %p)", tidx, rdpq_state.last_som);
+            VALIDATE_WARN(!(rdp.som.tf_mode & (4>>cycle)), "tile %d is YUV but texture filter in cycle %d does not activate YUV color conversion (SOM set at %p)", tidx, cycle, rdp.last_som);
+            VALIDATE_ERR(rdp.som.sample_type == 0 || (rdp.som.tf_mode == 6 && rdp.som.cycle_type == 1), 
+                "tile %d is YUV, so for bilinear filtering it needs 2-cycle mode and the special TF1_YUVTEX0 mode (SOM set at %p)", tidx, rdp.last_som);
         } else
-            VALIDATE_WARN((rdpq_state.som.tf_mode & (4>>cycle)), "tile %d is RGB-based, but texture filter in cycle %d does not disable YUV color conversion (SOM set at %p)", tidx, cycle, rdpq_state.last_som);
+            VALIDATE_WARN((rdp.som.tf_mode & (4>>cycle)), "tile %d is RGB-based, but texture filter in cycle %d does not disable YUV color conversion (SOM set at %p)", tidx, cycle, rdp.last_som);
     }
 
+    // Check that TLUT mode in SOM is active if the tile requires it (and vice-versa)
     if (t->fmt == 2) // Color index
-        VALIDATE_ERR(rdpq_state.som.tlut.enable, "tile %d is CI (color index), but TLUT mode was not activated (SOM set at %p)", tidx, rdpq_state.last_som);
+        VALIDATE_ERR(rdp.som.tlut.enable, "tile %d is CI (color index), but TLUT mode was not activated (SOM set at %p)", tidx, rdp.last_som);
     else
-        VALIDATE_ERR(!rdpq_state.som.tlut.enable, "tile %d is not CI (color index), but TLUT mode is active (SOM set at %p)", tidx, rdpq_state.last_som);
+        VALIDATE_ERR(!rdp.som.tlut.enable, "tile %d is not CI (color index), but TLUT mode is active (SOM set at %p)", tidx, rdp.last_som);
 
     // Mark used areas of tmem
     switch (t->fmt) {
@@ -721,14 +795,14 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         break;
     case 0x3D: // SET_TEX_IMAGE
         validate_busy_pipe();
-        rdpq_state.tex.fmt = BITS(buf[0], 53, 55);
-        rdpq_state.tex.size = BITS(buf[0], 51, 52);
-        rdpq_state.last_tex = &buf[0];        
+        rdp.tex.fmt = BITS(buf[0], 53, 55);
+        rdp.tex.size = BITS(buf[0], 51, 52);
+        rdp.last_tex = &buf[0];        
         break;
     case 0x35: { // SET_TILE
         int tidx = BITS(buf[0], 24, 26);
         validate_busy_tile(tidx);
-        struct tile_s *t = &rdpq_state.tile[tidx];
+        struct tile_s *t = &rdp.tile[tidx];
         *t = (struct tile_s){
             .fmt = BITS(buf[0], 53, 55), .size = BITS(buf[0], 51, 52),
             .pal = BITS(buf[0], 20, 23),
@@ -744,9 +818,9 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
     case 0x32: case 0x34: { // SET_TILE_SIZE, LOAD_TILE
         bool load = cmd == 0x34;
         int tidx = BITS(buf[0], 24, 26);
-        struct tile_s *t = &rdpq_state.tile[tidx];
+        struct tile_s *t = &rdp.tile[tidx];
         validate_busy_tile(tidx);
-        if (load) VALIDATE_ERR(rdpq_state.tex.size != 0, "LOAD_TILE does not support 4-bit textures (set at %p)", rdpq_state.last_tex);
+        if (load) VALIDATE_ERR(rdp.tex.size != 0, "LOAD_TILE does not support 4-bit textures (set at %p)", rdp.last_tex);
         t->has_extents = true;
         t->s0 = BITS(buf[0], 44, 55)*FX(2); t->t0 = BITS(buf[0], 32, 43)*FX(2);
         t->s1 = BITS(buf[0], 12, 23)*FX(2); t->t1 = BITS(buf[0],  0, 11)*FX(2);
@@ -754,9 +828,9 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
     }   break;
     case 0x30: { // LOAD_TLUT
         int tidx = BITS(buf[0], 24, 26);
-        struct tile_s *t = &rdpq_state.tile[tidx];
+        struct tile_s *t = &rdp.tile[tidx];
         int low = BITS(buf[0], 44, 55), high = BITS(buf[0], 12, 23);
-        VALIDATE_ERR(rdpq_state.tex.fmt == 0 && rdpq_state.tex.size==2, "LOAD_TLUT requires texure in RGBA16 format (set at %p)", rdpq_state.last_tex);
+        VALIDATE_ERR(rdp.tex.fmt == 0 && rdp.tex.size==2, "LOAD_TLUT requires texure in RGBA16 format (set at %p)", rdp.last_tex);
         VALIDATE_ERR(t->tmem_addr >= 0x800, "palettes must be loaded in upper half of TMEM (address >= 0x800)");
         VALIDATE_WARN(!(low&3) && !(high&3), "lowest 2 bits of palette start/stop must be 0");
         VALIDATE_ERR(low>>2 < 256, "palette start index must be < 256");
@@ -764,51 +838,51 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
     }   break;
     case 0x2F: // SET_OTHER_MODES
         validate_busy_pipe();
-        rdpq_state.som = decode_som(buf[0]);
-        rdpq_state.last_som = &buf[0];
-        rdpq_state.mode_changed = true;
+        rdp.som = decode_som(buf[0]);
+        rdp.last_som = &buf[0];
+        rdp.mode_changed = true;
         break;
     case 0x3C: // SET_COMBINE
         validate_busy_pipe();
-        rdpq_state.cc = decode_cc(buf[0]);
-        rdpq_state.last_cc = &buf[0];
-        rdpq_state.mode_changed = true;
+        rdp.cc = decode_cc(buf[0]);
+        rdp.last_cc = &buf[0];
+        rdp.mode_changed = true;
         break;
     case 0x2D: // SET_SCISSOR
-        rdpq_state.sent_scissor = true;
+        rdp.sent_scissor = true;
         break;
     case 0x25: // TEX_RECT_FLIP
-        VALIDATE_ERR(rdpq_state.som.cycle_type < 2, "cannot draw texture rectangle flip in copy/fill mode");
+        VALIDATE_ERR(rdp.som.cycle_type < 2, "cannot draw texture rectangle flip in copy/fill mode");
         // passthrough
     case 0x24: // TEX_RECT
-        rdpq_state.busy.pipe = true;
+        rdp.busy.pipe = true;
         lazy_validate_cc();
         validate_draw_cmd(false, true, false, false);
         use_tile(BITS(buf[0], 24, 26), 0);
         break;
     case 0x36: // FILL_RECTANGLE
-        rdpq_state.busy.pipe = true;
+        rdp.busy.pipe = true;
         lazy_validate_cc();
         validate_draw_cmd(false, false, false, false);
         break;
     case 0x8 ... 0xF: // Triangles
-        rdpq_state.busy.pipe = true;
-        VALIDATE_ERR(rdpq_state.som.cycle_type < 2, "cannot draw triangles in copy/fill mode (SOM set at %p)", rdpq_state.last_som);
+        rdp.busy.pipe = true;
+        VALIDATE_ERR(rdp.som.cycle_type < 2, "cannot draw triangles in copy/fill mode (SOM set at %p)", rdp.last_som);
         lazy_validate_cc();
         validate_draw_cmd(cmd & 4, cmd & 2, cmd & 1, cmd & 2);
         if (cmd & 2) use_tile(BITS(buf[0], 48, 50), 0);
         break;
     case 0x27: // SYNC_PIPE
-        rdpq_state.busy.pipe = false;
+        rdp.busy.pipe = false;
         break;
     case 0x29: // SYNC_FULL
-        memset(&rdpq_state.busy, 0, sizeof(rdpq_state.busy));
+        memset(&rdp.busy, 0, sizeof(rdp.busy));
         break;
     case 0x28: // SYNC_TILE
-        memset(&rdpq_state.busy.tile, 0, sizeof(rdpq_state.busy.tile));
+        memset(&rdp.busy.tile, 0, sizeof(rdp.busy.tile));
         break;
     case 0x26: // SYNC_LOAD
-        memset(&rdpq_state.busy.tmem, 0, sizeof(rdpq_state.busy.tmem));
+        memset(&rdp.busy.tmem, 0, sizeof(rdp.busy.tmem));
         break;
     case 0x2E: // SET_PRIM_DEPTH
         break;

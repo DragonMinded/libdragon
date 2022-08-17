@@ -352,7 +352,7 @@ uint32_t rdpq_config_disable(uint32_t cfg_disable_bits);
  * but then fail to provide the component (eg: activate z buffering but then fail to provide a depth
  * component), RDP will fall into undefined behavior that can vary from nothing being rendered, garbage
  * on the screen or even a freeze. The rdpq validator will do its best to help you catching these mistakes,
- * so remember to activate it via #rdpq_debug_init whenever you get a surprising result.
+ * so remember to activate it via #rdpq_debug_start whenever you get a surprising result.
  * 
  * The three vertices (v1, v2, v3) can be provided in any order (clockwise or counter-clockwise). The
  * function will render the triangle in any case (so back-face culling must be handled before calling

@@ -6,7 +6,7 @@
 #include <stdbool.h>
 
 /**
- * @brief Log all the commmands run by RDP until the time of this call.
+ * @brief Log all the commands run by RDP until the time of this call.
  * 
  * Given that RDP buffers get reused as circular buffers, it is important
  * to call this function often enough.
