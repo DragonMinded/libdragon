@@ -2,6 +2,7 @@
 #include "rdpq.h"
 #include "rspq.h"
 #include "rdpq_mode.h"
+#include "rdpq_internal.h"
 #include "rdp.h"
 #include "debug.h"
 #include "interrupt.h"
@@ -9,6 +10,10 @@
 #include "rspq_constants.h"
 #include <string.h>
 #include <assert.h>
+
+/** @brief RDP Debug command: turn on/off logging */
+#define RDPQ_CMD_DEBUG_SHOWLOG  0x00010000
+#define RDPQ_CMD_DEBUG_MESSAGE  0x00020000
 
 // Define to 1 to active internal debugging of the rdpq debug module.
 // This is useful to trace bugs of rdpq itself, but it should not be
@@ -80,7 +85,7 @@ struct {
 static rdp_buffer_t buffers[NUM_BUFFERS];
 static volatile int buf_ridx, buf_widx;
 static rdp_buffer_t last_buffer;
-static bool show_log;
+static int show_log;
 void (*rdpq_trace)(void);
 void (*rdpq_trace_fetch)(void);
 static int warns, errs;
@@ -147,6 +152,18 @@ void __rdpq_trace_fetch(void)
     enable_interrupts();
 }
 
+void __rdpq_debug_cmd(uint64_t cmd)
+{
+    switch(BITS(cmd, 48, 55)) {
+    case 0x01: // Show log
+        show_log += BIT(cmd, 0) ? 1 : -1;
+        return;
+    case 0x02: // Message
+        return;
+    }
+}
+
+
 void __rdpq_trace(void)
 {
     // Update buffers to current RDP status
@@ -167,8 +184,9 @@ void __rdpq_trace(void)
         if (!cur) break;
         while (cur < end) {
             int sz = rdpq_disasm_size(cur);
-            if (show_log) rdpq_disasm(cur, stderr);
+            if (show_log > 0) rdpq_disasm(cur, stderr);
             rdpq_validate(cur, NULL, NULL);
+            if (BITS(cur[0],56,61) == 0x31) __rdpq_debug_cmd(cur[0]);
             cur += sz;
         }
     }
@@ -180,7 +198,7 @@ void rdpq_debug_start(void)
     memset(&last_buffer, 0, sizeof(last_buffer));
     memset(&rdpq_state, 0, sizeof(rdpq_state));
     buf_widx = buf_ridx = 0;
-    show_log = false;
+    show_log = 0;
     warns = errs = 0;
 
     rdpq_trace = __rdpq_trace;
@@ -190,7 +208,13 @@ void rdpq_debug_start(void)
 void rdpq_debug_log(bool log)
 {
     assertf(rdpq_trace, "rdpq trace engine not started");
-    show_log = log;
+    rdpq_write((RDPQ_CMD_DEBUG, RDPQ_CMD_DEBUG_SHOWLOG, log ? 1 : 0));
+}
+
+void rdpq_debug_log_msg(const char *msg)
+{
+    assertf(rdpq_trace, "rdpq trace engine not started");
+    rdpq_write((RDPQ_CMD_DEBUG, RDPQ_CMD_DEBUG_MESSAGE, PhysicalAddr(msg)));
 }
 
 void rdpq_debug_stop(void)
@@ -249,6 +273,7 @@ int rdpq_disasm_size(uint64_t *buf) {
 }
 
 #define FX(n)          (1.0f / (1<<(n)))
+#define FX32(hi,lo)    ((hi) + (lo) * (1.f / 65536.f))
 
 void rdpq_disasm(uint64_t *buf, FILE *out)
 {
@@ -290,6 +315,7 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
     case 0x2F: { fprintf(out, "SET_OTHER_MODES  ");
         const char* cyc[] = { "1cyc", "2cyc", "copy", "fill" };
         const char* texinterp[] = { "point", "point", "bilinear", "mid" };
+        const char* yuv1[] = { "yuv1", "yuv1_tex0" };
         const char* zmode[] = { "opaque", "inter", "trans", "decal" };
         const char* rgbdither[] = { "square", "bayer", "noise", "none" };
         const char* alphadither[] = { "pat", "inv", "noise", "none" };
@@ -308,18 +334,19 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
         if((som.cycle_type < 2) && (som.tex.persp || som.tex.detail || som.tex.sharpen || som.tex.lod || som.sample_type != 0 || som.tf_mode != 6)) {
             fprintf(out, " tex=["); FLAG_RESET();
             FLAG(som.tex.persp, "persp"); FLAG(som.tex.persp, "detail"); FLAG(som.tex.lod, "lod"); 
-            FLAG(som.tf_mode != 6, "yuv"); FLAG(som.sample_type != 0, texinterp[som.sample_type]);
+            FLAG(!(som.tf_mode & 4), "yuv0"); FLAG(!(som.tf_mode & 2), yuv1[som.tf_mode&1]); 
+            FLAG(som.sample_type != 0, texinterp[som.sample_type]);
             fprintf(out, "]");
         }
         if(som.tlut.enable) fprintf(out, " tlut%s", som.tlut.type ? "=[ia]" : "");
         if(BITS(buf[0], 16, 31)) {
+            if (som.blender[0].p==0 && som.blender[0].a==0 && som.blender[0].q==0 && som.blender[0].b==0)
+                fprintf(out, " blend=[<passthrough>, ");
+            else            
                 fprintf(out, " blend=[%s*%s + %s*%s, ",
                     blend1_a[som.blender[0].p],  blend1_b1[som.blender[0].a], blend1_a[som.blender[0].q], som.blender[0].b ? blend1_b2[som.blender[0].b] : blend1_b1inv[som.blender[0].a]);
-            if (som.blender[1].p==0 && som.blender[1].a==0 && som.blender[1].q==0 && som.blender[1].b==0)
-                fprintf(out, "<passthrough>]");
-            else
-                fprintf(out, "%s*%s + %s*%s]",
-                    blend2_a[som.blender[1].p],  blend2_b1[som.blender[1].a], blend2_a[som.blender[1].q], som.blender[1].b ? blend2_b2[som.blender[1].b] : blend2_b1inv[som.blender[1].a]);
+            fprintf(out, "%s*%s + %s*%s]",
+                blend2_a[som.blender[1].p],  blend2_b1[som.blender[1].a], blend2_a[som.blender[1].q], som.blender[1].b ? blend2_b2[som.blender[1].b] : blend2_b1inv[som.blender[1].a]);
         }
         if(som.z.upd || som.z.cmp) {
             fprintf(out, " z=["); FLAG_RESET();
@@ -334,7 +361,7 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
         if((som.cycle_type < 2) && (som.dither.rgb != 3 || som.dither.alpha != 3)) fprintf(out, " dither=[%s,%s]", rgbdither[som.dither.rgb], alphadither[som.dither.alpha]);
         if(som.cvg.mode || som.cvg.color || som.cvg.sel_alpha || som.cvg.mul_alpha) {
             fprintf(out, " cvg=["); FLAG_RESET();
-            FLAG(som.cvg.mode, cvgmode[som.cvg.mode]); FLAG(som.cvg.color, "color"); 
+            FLAG(som.cvg.mode, cvgmode[som.cvg.mode]); FLAG(som.cvg.color, "color_ovf"); 
             FLAG(som.cvg.mul_alpha, "mul_alpha"); FLAG(som.cvg.sel_alpha, "sel_alpha");
             fprintf(out, "]");
         }
@@ -391,9 +418,10 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
         BITS(buf[0], 24, 26), BITS(buf[0], 44, 55), BITS(buf[0], 32, 43),
                               BITS(buf[0], 12, 23)+1, BITS(buf[0], 0, 11)*FX(11)); return;
     case 0x08 ... 0x0F: {
+        int cmd = BITS(buf[0], 56, 61)-0x8;
         const char *tri[] = { "TRI              ", "TRI_Z            ", "TRI_TEX          ", "TRI_TEX_Z        ",  "TRI_SHADE        ", "TRI_SHADE_Z      ", "TRI_TEX_SHADE    ", "TRI_TEX_SHADE_Z  "};
-        int words[] = {4, 4+2, 4+8, 4+8+2, 4+8, 4+8+2, 4+8+8, 4+8+8+2};
-        fprintf(out, "%s", tri[BITS(buf[0], 56, 61)-0x8]);
+        // int words[] = {4, 4+2, 4+8, 4+8+2, 4+8, 4+8+2, 4+8+8, 4+8+8+2};
+        fprintf(out, "%s", tri[cmd]);
         fprintf(out, "%s tile=%d lvl=%d y=(%.2f, %.2f, %.2f)\n",
             BITS(buf[0], 55, 55) ? "left" : "right", BITS(buf[0], 48, 50), BITS(buf[0], 51, 53),
             SBITS(buf[0], 32, 45)*FX(2), SBITS(buf[0], 16, 29)*FX(2), SBITS(buf[0], 0, 13)*FX(2));
@@ -403,8 +431,41 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
             SBITS(buf[2], 32, 63)*FX(16), SBITS(buf[2], 0, 31)*FX(16));
         fprintf(out, "[%p] %016llx                     xm=%.4f dxmd=%.4f\n", &buf[3], buf[3],
             SBITS(buf[3], 32, 63)*FX(16), SBITS(buf[3], 0, 31)*FX(16));
-        for (int i = 4; i < words[BITS(buf[0], 56, 61)-0x8]; i++)
-            fprintf(out, "[%p] %016llx                     \n", &buf[i], buf[i]);
+        int i=4;
+        if (cmd & 0x4) {
+            for (int j=0;j<8;j++,i++)
+                fprintf(out, "[%p] %016llx                     [shade]\n", &buf[i], buf[i]);
+        }
+        if (cmd & 0x2) {
+            fprintf(out, "[%p] %016llx                     s=%.5f t=%.5f w=%.5f\n", &buf[i], buf[i],
+                FX32(BITS(buf[i], 48, 63), BITS(buf[i+2], 48, 63)), 
+                FX32(BITS(buf[i], 32, 47), BITS(buf[i+2], 32, 47)),
+                FX32(BITS(buf[i], 16, 31), BITS(buf[i+2], 16, 31))); i++;
+            fprintf(out, "[%p] %016llx                     dsdx=%.5f dtdx=%.5f dwdx=%.5f\n", &buf[i], buf[i],
+                FX32(BITS(buf[i], 48, 63), BITS(buf[i+2], 48, 63)), 
+                FX32(BITS(buf[i], 32, 47), BITS(buf[i+2], 32, 47)),
+                FX32(BITS(buf[i], 16, 31), BITS(buf[i+2], 16, 31))); i++;
+            fprintf(out, "[%p] %016llx                     \n", &buf[i], buf[i]); i++;
+            fprintf(out, "[%p] %016llx                     \n", &buf[i], buf[i]); i++;
+            fprintf(out, "[%p] %016llx                     dsde=%.5f dtde=%.5f dwde=%.5f\n", &buf[i], buf[i],
+                FX32(BITS(buf[i], 48, 63), BITS(buf[i+2], 48, 63)), 
+                FX32(BITS(buf[i], 32, 47), BITS(buf[i+2], 32, 47)),
+                FX32(BITS(buf[i], 16, 31), BITS(buf[i+2], 16, 31))); i++;
+            fprintf(out, "[%p] %016llx                     dsdy=%.5f dtdy=%.5f dwdy=%.5f\n", &buf[i], buf[i],
+                FX32(BITS(buf[i], 48, 63), BITS(buf[i+2], 48, 63)), 
+                FX32(BITS(buf[i], 32, 47), BITS(buf[i+2], 32, 47)),
+                FX32(BITS(buf[i], 16, 31), BITS(buf[i+2], 16, 31))); i++;
+            fprintf(out, "[%p] %016llx                     \n", &buf[i], buf[i]); i++;
+            fprintf(out, "[%p] %016llx                     \n", &buf[i], buf[i]); i++;
+        }
+        if (cmd & 0x1) {
+            fprintf(out, "[%p] %016llx                     z=%.5f dzdx=%.5f\n", &buf[i], buf[i],
+                FX32(BITS(buf[i], 48, 63), BITS(buf[i], 32, 47)), 
+                FX32(BITS(buf[i], 16, 31), BITS(buf[i],  0, 15))); i++;
+            fprintf(out, "[%p] %016llx                     dzde=%.5f dzdy=%.5f\n", &buf[i], buf[i],
+                FX32(BITS(buf[i], 48, 63), BITS(buf[i], 32, 47)), 
+                FX32(BITS(buf[i], 16, 31), BITS(buf[i],  0, 15))); i++;
+        }
         return;
     }
     case 0x3e: fprintf(out, "SET_Z_IMAGE      dram=%08x\n", BITS(buf[0], 0, 25)); return;
@@ -414,6 +475,11 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
     case 0x3f: fprintf(out, "SET_COLOR_IMAGE  dram=%08x w=%d %s%s\n", 
         BITS(buf[0], 0, 25), BITS(buf[0], 32, 41)+1, fmt[BITS(buf[0], 53, 55)], size[BITS(buf[0], 51, 52)]);
         return;
+    case 0x31: switch(BITS(buf[0], 48, 55)) {
+        case 0x01: fprintf(out, "RDPQ_SHOWLOG     show=%d\n", BIT(buf[0], 0)); return;
+        case 0x02: fprintf(out, "RDPQ_MESSAGE     %s\n", (char*)CachedAddr(0x80000000|BITS(buf[0], 0, 24))); return;
+        default:   fprintf(out, "RDPQ_DEBUG       <unkwnown>\n"); return;
+    }
     }
 }
 
@@ -449,6 +515,19 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
         warns += 1; \
     }; \
 })
+
+static bool cc_use_tex1(void) {
+    struct cc_cycle_s *cc = rdpq_state.cc.cyc;
+    if (rdpq_state.som.cycle_type != 1)
+        return false;
+    if ((rdpq_state.som.tf_mode & 3) == 1) // TEX1 is the color-conversion of TEX0, so TEX1 is not used
+        return false;
+    return 
+        // Cycle0: reference to TEX1 slot
+        (cc[0].rgb.suba == 2 || cc[0].rgb.subb == 2 || cc[0].rgb.mul == 2 || cc[0].rgb.add == 2) || 
+        // Cycle1: reference to TEX0 slot
+        (cc[1].rgb.suba == 1 || cc[1].rgb.subb == 1 || cc[1].rgb.mul == 1 || cc[1].rgb.add == 1);
+}
 
 /** 
  * @brief Perform lazy evaluation of SOM and CC changes.
@@ -572,20 +651,52 @@ static void validate_busy_tmem(int addr, int size) {
     VALIDATE_WARN(!is_busy_tmem(addr, size), "writing to TMEM[0x%x:0x%x] while busy, SYNC_LOAD missing", addr, addr+size);
 }
 
-static void use_tile(int tidx) {
+static void use_tile(int tidx, int cycle) {
     struct tile_s *t = &rdpq_state.tile[tidx];
     VALIDATE_ERR(t->has_extents, "tile %d has no extents set, missing LOAD_TILE or SET_TILE_SIZE", tidx);
     rdpq_state.busy.tile[tidx] = true;
-    mark_busy_tmem(t->tmem_addr, (t->t1-t->t0+1)*t->tmem_pitch);
+
+    if (rdpq_state.som.cycle_type < 2) {
+        // YUV render mode mistakes in 1-cyc/2-cyc, that is when YUV conversion can be done.
+        // In copy mode, YUV textures are copied as-is
+        if (t->fmt == 1) {
+            VALIDATE_WARN(!(rdpq_state.som.tf_mode & (4>>cycle)), "tile %d is YUV but texture filter in cycle %d does not activate YUV color conversion (SOM set at %p)", tidx, cycle, rdpq_state.last_som);
+            VALIDATE_ERR(rdpq_state.som.sample_type == 0 || (rdpq_state.som.tf_mode == 6 && rdpq_state.som.cycle_type == 1), 
+                "tile %d is YUV, so for bilinear filtering it needs 2-cycle mode and the special TF1_YUVTEX0 mode (SOM set at %p)", tidx, rdpq_state.last_som);
+        } else
+            VALIDATE_WARN((rdpq_state.som.tf_mode & (4>>cycle)), "tile %d is RGB-based, but texture filter in cycle %d does not disable YUV color conversion (SOM set at %p)", tidx, cycle, rdpq_state.last_som);
+    }
+
+    if (t->fmt == 2) // Color index
+        VALIDATE_ERR(rdpq_state.som.tlut.enable, "tile %d is CI (color index), but TLUT mode was not activated (SOM set at %p)", tidx, rdpq_state.last_som);
+    else
+        VALIDATE_ERR(!rdpq_state.som.tlut.enable, "tile %d is not CI (color index), but TLUT mode is active (SOM set at %p)", tidx, rdpq_state.last_som);
+
+    // Mark used areas of tmem
     switch (t->fmt) {
+    case 0: case 3: case 4: // RGBA, IA, I
+        if (t->size == 3) { // 32-bit: split between lo and hi TMEM
+            mark_busy_tmem(t->tmem_addr,         (t->t1-t->t0+1)*t->tmem_pitch / 2);
+            mark_busy_tmem(t->tmem_addr + 0x800, (t->t1-t->t0+1)*t->tmem_pitch / 2);
+        } else {
+            mark_busy_tmem(t->tmem_addr,         (t->t1-t->t0+1)*t->tmem_pitch);
+        }
+        break;
+    case 1: // YUV: split between low and hi TMEM
+        mark_busy_tmem(t->tmem_addr,         (t->t1-t->t0+1)*t->tmem_pitch / 2);
+        mark_busy_tmem(t->tmem_addr+0x800,   (t->t1-t->t0+1)*t->tmem_pitch / 2);
+        break;
     case 2: // color-index: mark also palette area of TMEM as used
+        mark_busy_tmem(t->tmem_addr,         (t->t1-t->t0+1)*t->tmem_pitch);
         if (t->size == 0) mark_busy_tmem(0x800 + t->pal*64, 64);  // CI4
         if (t->size == 1) mark_busy_tmem(0x800, 0x800);           // CI8
         break;
-    case 1: // YUV: use also upper-half of TMEM
-        mark_busy_tmem(t->tmem_addr+0x800, (t->t1-t->t0+1)*t->tmem_pitch);
-        break;
     }
+
+    // If this is the tile for cycle0 and the combiner uses TEX1,
+    // then also tile+1 is used. Process that as well.
+    if (cycle == 0 && cc_use_tex1())
+        use_tile(tidx+1, 1);
 }
 
 void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
@@ -626,6 +737,8 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         };
         if (t->fmt == 2 && t->size == 1)
             VALIDATE_WARN(t->pal == 0, "invalid non-zero palette for CI8 tile");
+        if (t->fmt == 1 || (t->fmt == 0 && t->size == 3))  // YUV && RGBA32
+            VALIDATE_ERR(t->tmem_addr < 0x800, "format %s requires address in low TMEM (< 0x800)", t->fmt==1 ? "YUV" : "RGBA32");
     }   break;
     case 0x32: case 0x34: { // SET_TILE_SIZE, LOAD_TILE
         bool load = cmd == 0x34;
@@ -670,7 +783,7 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         rdpq_state.busy.pipe = true;
         lazy_validate_cc();
         validate_draw_cmd(false, true, false, false);
-        use_tile(BITS(buf[0], 24, 26));
+        use_tile(BITS(buf[0], 24, 26), 0);
         break;
     case 0x36: // FILL_RECTANGLE
         rdpq_state.busy.pipe = true;
@@ -682,7 +795,7 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         VALIDATE_ERR(rdpq_state.som.cycle_type < 2, "cannot draw triangles in copy/fill mode (SOM set at %p)", rdpq_state.last_som);
         lazy_validate_cc();
         validate_draw_cmd(cmd & 4, cmd & 2, cmd & 1, cmd & 2);
-        if (cmd & 2) use_tile(BITS(buf[0], 48, 50));
+        if (cmd & 2) use_tile(BITS(buf[0], 48, 50), 0);
         break;
     case 0x27: // SYNC_PIPE
         rdpq_state.busy.pipe = false;

@@ -23,7 +23,7 @@ void rdpq_mode_pop(void)
 }
 
 void rdpq_set_mode_standard(void) {
-    rdpq_set_other_modes_raw(SOM_CYCLE_1 | SOM_TC_FILTER | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE);
+    rdpq_set_other_modes_raw(SOM_CYCLE_1 | SOM_TF0_RGB | SOM_TF1_RGB | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE);
     rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0)));
     rdpq_mode_blending(0);
     rdpq_mode_fog(0);
@@ -35,7 +35,7 @@ void rdpq_set_mode_copy(bool transparency) {
 }
 
 void rdpq_set_mode_yuv(void) {
-	rdpq_set_other_modes_raw(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_TC_CONV);
+	rdpq_set_other_modes_raw(SOM_CYCLE_1 | SOM_RGBDITHER_NONE | SOM_TF0_YUV | SOM_TF1_YUV);
 	rdpq_set_combiner_raw(RDPQ_COMBINER1((TEX0, K4, K5, ZERO), (ZERO, ZERO, ZERO, ONE)));
     rdpq_set_yuv_parms(179,-44,-91,227,19,255);  // BT.601 coefficients (Kr=0.299, Kb=0.114, TV range)
 }

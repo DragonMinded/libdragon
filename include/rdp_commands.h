@@ -33,7 +33,7 @@
 #define RDP_TILE_SIZE_32BIT 3      ///< RDP internal format size: 32-bit (see #tex_format_t)
 
 /// @cond
-// Intenral helpers to build a color combiner setting
+// Internal helpers to build a color combiner setting
 #define _RDPQ_COMB1_RGB_SUBA_TEX0      cast64(1)
 #define _RDPQ_COMB1_RGB_SUBA_PRIM      cast64(3)
 #define _RDPQ_COMB1_RGB_SUBA_SHADE     cast64(4)
@@ -251,12 +251,12 @@
  * 
  *      (A - B) * C + D
  * 
- * where A, B, C, D can be configured picking several possibile
+ * where A, B, C, D can be configured picking several possible
  * inputs called "slots". Two different formulas (with the same structure
  * but different inputs) must be configured: one for the RGB 
  * channels and for the alpha channel.
  * 
- * This is the list of all possibile slots. Not all slots are
+ * This is the list of all possible slots. Not all slots are
  * available for the four variables (see the table below).
  *  
  *  * `TEX0`: texel of the texture being drawn.
@@ -275,7 +275,7 @@
  *  * `TEX0_ALPHA`: alpha of the text of the texture being drawn.
  *  * `SHADE_ALPHA`: alpha of the per-pixel interpolated color.
  *  * `PRIM_ALPHA`: alpha of the PRIM register (set via #rdp_set_prim_color)
- *  * `ENV_ALPHA`: alpha o fthe ENV register (set via #rdp_set_env_color)
+ *  * `ENV_ALPHA`: alpha of the ENV register (set via #rdp_set_env_color)
  *  * `LOD_FRAC`
  *  * `PRIM_LOD_FRAC`
  *  * `KEYSCALE`
@@ -371,8 +371,8 @@
  * 
  * These macros can be used to assemble a raw `SET_OTHER_MODES` command to send
  * via #rdpq_set_other_modes_raw (or #rdpq_change_other_modes_raw). Assembling
- * this command manually can be complex because of the different interwinded
- * render modes that can be created. Beginngers should lookinto the RDPQ
+ * this command manually can be complex because of the different intertwined
+ * render modes that can be created. Beginners should look into the RDPQ
  * mode API before (rdpq_mode.h),
  * 
  * rdpq stores some special flag within unused bits of this register. These
@@ -393,20 +393,24 @@
 #define SOM_TEXTURE_LOD        (cast64(1)<<48)              ///< Texture: enable LODs.
 
 #define SOM_TLUT_NONE          (cast64(0)<<46)              ///< TLUT: no palettes
-#define SOM_TLUT_RGBA16        (cast64(2)<<46)              ///< TLUT: draw with palettes in formato RGB16
-#define SOM_TLUT_IA16          (cast64(3)<<46)              ///< TLUT: draw with palettes in formato IA16
+#define SOM_TLUT_RGBA16        (cast64(2)<<46)              ///< TLUT: draw with palettes in format RGB16
+#define SOM_TLUT_IA16          (cast64(3)<<46)              ///< TLUT: draw with palettes in format IA16
 #define SOM_TLUT_MASK          (cast64(3)<<46)              ///< TLUT mask
 #define SOM_TLUT_SHIFT         46                           ///< TLUT mask shift
 
 #define SOM_SAMPLE_POINT       (cast64(0)<<44)              ///< Texture sampling: point sampling (1x1)
 #define SOM_SAMPLE_BILINEAR    (cast64(2)<<44)              ///< Texture sampling: bilinear interpolation (2x2)
-#define SOM_SAMPLE_MEDIAN      (cast64(3)<<44)              ///< Texture sampling: midtexel average (2x2)
+#define SOM_SAMPLE_MEDIAN      (cast64(3)<<44)              ///< Texture sampling: mid-texel average (2x2)
 #define SOM_SAMPLE_MASK        (cast64(3)<<44)              ///< Texture sampling mask
 #define SOM_SAMPLE_SHIFT       44                           ///< Texture sampling mask shift
 
-#define SOM_TC_FILTER          (cast64(6)<<41)              ///< Texture: filtering (RGB textures)
-#define SOM_TC_FILTERCONV      (cast64(5)<<41)              ///< Texture: unknwon (?)
-#define SOM_TC_CONV            (cast64(0)<<41)              ///< Texture: color conversion (YUV textures)
+#define SOM_TF0_RGB           (cast64(1)<<43)               ///< Texture Filter, cycle 0 (TEX0): standard fetching (for RGB)
+#define SOM_TF0_YUV           (cast64(0)<<43)               ///< Texture Filter, cycle 0 (TEX0): fetch nearest and do first step of color conversion (for YUV)
+#define SOM_TF1_RGB           (cast64(2)<<41)               ///< Texture Filter, cycle 1 (TEX1): standard fetching (for RGB)
+#define SOM_TF1_YUV           (cast64(0)<<41)               ///< Texture Filter, cycle 1 (TEX1): fetch nearest and do first step of color conversion (for YUV)
+#define SOM_TF1_YUVTEX0       (cast64(1)<<41)               ///< Texture Filter, cycle 1 (TEX1): don't fetch, and instead do color conversion on TEX0 (allows YUV with bilinear filtering)
+#define SOM_TF_MASK           (cast64(7)<<41)               ///< Texture Filter mask
+#define SOM_TF_SHIFT          41                            ///< Texture filter mask shift
 
 #define SOM_RGBDITHER_SQUARE   ((cast64(0))<<38)            ///< RGB Dithering: square filter
 #define SOM_RGBDITHER_BAYER    ((cast64(1))<<38)            ///< RGB Dithering: bayer filter
@@ -462,10 +466,11 @@
 #define SOM_COVERAGE_DEST_MASK          ((cast64(3)) << 8)  ///< Coverage mask
 #define SOM_COVERAGE_DEST_SHIFT         8                   ///< Coverage mask shift
 
-#define SOM_COLOR_ON_COVERAGE           ((cast64(1)) << 7)  ///< Update color buffer only on coverage overflow
+#define SOM_COLOR_ON_CVG_OVERFLOW       ((cast64(1)) << 7)  ///< Update color buffer only on coverage overflow
 ///@}
 
 ///@cond
+// Helpers macros for RDPQ_BLENDER
 #define _RDPQ_SOM_BLEND1_A_IN_RGB         cast64(0)
 #define _RDPQ_SOM_BLEND1_A_MEMORY_RGB     cast64(1)
 #define _RDPQ_SOM_BLEND1_A_BLEND_RGB      cast64(2)
@@ -477,7 +482,7 @@
 #define _RDPQ_SOM_BLEND1_B1_ZERO           cast64(3)
 
 #define _RDPQ_SOM_BLEND1_B2_INV_MUX_ALPHA  cast64(0)
-#define _RDPQ_SOM_BLEND1_B2_MEMORY_ALPHA   cast64(1)
+#define _RDPQ_SOM_BLEND1_B2_MEMORY_CVG     cast64(1)
 #define _RDPQ_SOM_BLEND1_B2_ONE            cast64(2)
 #define _RDPQ_SOM_BLEND1_B2_ZERO           cast64(3)
 
@@ -497,13 +502,13 @@
 #define _RDPQ_SOM_BLEND2B_A_BLEND_RGB     cast64(2)
 #define _RDPQ_SOM_BLEND2B_A_FOG_RGB       cast64(3)
 
-#define _RDPQ_SOM_BLEND2B_B1_CYCLE1_ALPHA   cast64(0)
+#define _RDPQ_SOM_BLEND2B_B1_IN_ALPHA       cast64(0)
 #define _RDPQ_SOM_BLEND2B_B1_FOG_ALPHA      cast64(1)
 #define _RDPQ_SOM_BLEND2B_B1_SHADE_ALPHA    cast64(2)
 #define _RDPQ_SOM_BLEND2B_B1_ZERO           cast64(3)
 
 #define _RDPQ_SOM_BLEND2B_B2_INV_MUX_ALPHA  cast64(0)
-#define _RDPQ_SOM_BLEND2B_B2_MEMORY_ALPHA   cast64(1)
+#define _RDPQ_SOM_BLEND2B_B2_MEMORY_CVG     cast64(1)
 #define _RDPQ_SOM_BLEND2B_B2_ONE            cast64(2)
 #define _RDPQ_SOM_BLEND2B_B2_ZERO           cast64(3)
 
@@ -518,7 +523,7 @@
 #define _RDPQ_SOM_BLEND_EXTRA_B1_ZERO           cast64(0)
 
 #define _RDPQ_SOM_BLEND_EXTRA_B2_INV_MUX_ALPHA  cast64(0)
-#define _RDPQ_SOM_BLEND_EXTRA_B2_MEMORY_ALPHA   (SOM_READ_ENABLE)
+#define _RDPQ_SOM_BLEND_EXTRA_B2_MEMORY_CVG     (SOM_READ_ENABLE)
 #define _RDPQ_SOM_BLEND_EXTRA_B2_ONE            cast64(0)
 #define _RDPQ_SOM_BLEND_EXTRA_B2_ZERO           cast64(0)
 

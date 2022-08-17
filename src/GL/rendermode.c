@@ -13,7 +13,7 @@ static const rdpq_blender_t blend_configs[64] = {
     0,                                                             // src = ZERO, dst = ONE_MINUS_SRC_ALPHA
     0,                                                             // src = ZERO, dst = GL_DST_COLOR
     0,                                                             // src = ZERO, dst = GL_ONE_MINUS_DST_COLOR
-    RDPQ_BLENDER((IN_RGB, ZERO, MEMORY_RGB, MEMORY_ALPHA)),        // src = ZERO, dst = DST_ALPHA
+    RDPQ_BLENDER((IN_RGB, ZERO, MEMORY_RGB, MEMORY_CVG)),          // src = ZERO, dst = DST_ALPHA
     0,                                                             // src = ZERO, dst = ONE_MINUS_DST_ALPHA
 
     RDPQ_BLENDER((IN_RGB, FOG_ALPHA, MEMORY_RGB, ZERO)),           // src = ONE, dst = ZERO
@@ -22,7 +22,7 @@ static const rdpq_blender_t blend_configs[64] = {
     0,                                                             // src = ONE, dst = ONE_MINUS_SRC_ALPHA
     0,                                                             // src = ONE, dst = GL_DST_COLOR
     0,                                                             // src = ONE, dst = GL_ONE_MINUS_DST_COLOR
-    RDPQ_BLENDER((IN_RGB, FOG_ALPHA, MEMORY_RGB, MEMORY_ALPHA)),   // src = ONE, dst = DST_ALPHA
+    RDPQ_BLENDER((IN_RGB, FOG_ALPHA, MEMORY_RGB, MEMORY_CVG)),     // src = ONE, dst = DST_ALPHA
     0,                                                             // src = ONE, dst = ONE_MINUS_DST_ALPHA
 
     RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, ZERO)),            // src = SRC_ALPHA, dst = ZERO
@@ -31,7 +31,7 @@ static const rdpq_blender_t blend_configs[64] = {
     RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, INV_MUX_ALPHA)),   // src = SRC_ALPHA, dst = ONE_MINUS_SRC_ALPHA
     0,                                                             // src = SRC_ALPHA, dst = GL_DST_COLOR
     0,                                                             // src = SRC_ALPHA, dst = GL_ONE_MINUS_DST_COLOR
-    RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_ALPHA)),    // src = SRC_ALPHA, dst = DST_ALPHA
+    RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_CVG)),      // src = SRC_ALPHA, dst = DST_ALPHA
     0,                                                             // src = SRC_ALPHA, dst = ONE_MINUS_DST_ALPHA
 
     0,                                                             // src = ONE_MINUS_SRC_ALPHA, dst = ZERO
@@ -46,9 +46,9 @@ static const rdpq_blender_t blend_configs[64] = {
     0, 0, 0, 0, 0, 0, 0, 0,                                        // src = GL_DST_COLOR, dst = ...
     0, 0, 0, 0, 0, 0, 0, 0,                                        // src = GL_ONE_MINUS_DST_COLOR, dst = ...
 
-    RDPQ_BLENDER((MEMORY_RGB, ZERO, IN_RGB, MEMORY_ALPHA)),        // src = DST_ALPHA, dst = ZERO
-    RDPQ_BLENDER((MEMORY_RGB, FOG_ALPHA, IN_RGB, MEMORY_ALPHA)),   // src = DST_ALPHA, dst = ONE
-    RDPQ_BLENDER((MEMORY_RGB, IN_ALPHA, IN_RGB, MEMORY_ALPHA)),    // src = DST_ALPHA, dst = SRC_ALPHA
+    RDPQ_BLENDER((MEMORY_RGB, ZERO, IN_RGB, MEMORY_CVG)),          // src = DST_ALPHA, dst = ZERO
+    RDPQ_BLENDER((MEMORY_RGB, FOG_ALPHA, IN_RGB, MEMORY_CVG)),     // src = DST_ALPHA, dst = ONE
+    RDPQ_BLENDER((MEMORY_RGB, IN_ALPHA, IN_RGB, MEMORY_CVG)),      // src = DST_ALPHA, dst = SRC_ALPHA
     0,                                                             // src = DST_ALPHA, dst = ONE_MINUS_SRC_ALPHA
     0,                                                             // src = DST_ALPHA, dst = GL_DST_COLOR
     0,                                                             // src = DST_ALPHA, dst = GL_ONE_MINUS_DST_COLOR
@@ -145,7 +145,7 @@ void gl_update_render_mode()
     if (state.multisample) {
         modes |= SOM_AA_ENABLE | SOM_READ_ENABLE;
         if (state.blend) {
-            modes |= SOM_COLOR_ON_COVERAGE | SOM_COVERAGE_DEST_WRAP;
+            modes |= SOM_COLOR_ON_CVG_OVERFLOW | SOM_COVERAGE_DEST_WRAP;
         } else {
             modes |= SOM_ALPHA_USE_CVG | SOM_COVERAGE_DEST_CLAMP;
         }
@@ -169,7 +169,7 @@ void gl_update_render_mode()
     
     gl_texture_object_t *tex_obj = gl_get_active_texture();
     if (tex_obj != NULL && tex_obj->is_complete) {
-        modes |= SOM_TC_FILTER;
+        modes |= SOM_TF0_RGB | SOM_TF1_RGB;
         
         if (!state.is_points) {
             modes |= SOM_TEXTURE_PERSP;
