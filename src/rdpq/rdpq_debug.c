@@ -303,7 +303,7 @@ void rdpq_disasm(uint64_t *buf, FILE *out)
                             if(BITS(buf[0], 25, 25)) fprintf(out, " field=%s", BITS(buf[0], 24, 24) ? "odd" : "even");
                             fprintf(out, "\n"); return;
     case 0x36: fprintf(out, "FILL_RECT        xy=(%.2f,%.2f)-(%.2f,%.2f)\n",
-                            BITS(buf[0], 12, 23)*FX(2), BITS(buf[0], 0, 11)*FX(2), BITS(buf[0], 44, 55)*FX(2), BITS(buf[0], 56, 61)*FX(2)); return;
+                            BITS(buf[0], 12, 23)*FX(2), BITS(buf[0], 0, 11)*FX(2), BITS(buf[0], 44, 55)*FX(2), BITS(buf[0], 32, 43)*FX(2)); return;
     case 0x2E: fprintf(out, "SET_PRIM_DEPTH   z=0x%x deltaz=0x%x\n", BITS(buf[0], 16, 31), BITS(buf[1], 0, 15)); return;
     case 0x37: fprintf(out, "SET_FILL_COLOR   rgba16=(%d,%d,%d,%d) rgba32=(%d,%d,%d,%d)\n",
                             BITS(buf[0], 11, 15), BITS(buf[0], 6, 10), BITS(buf[0], 1, 5), BITS(buf[0], 0, 0),
