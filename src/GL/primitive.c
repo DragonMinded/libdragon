@@ -706,10 +706,10 @@ void gl_vertex_t_l(gl_vertex_t *v, gl_vertex_source_t sources[4], uint32_t i, co
         v->color[3] = (state.fog_end - fabsf(eye_pos[2])) / (state.fog_end - state.fog_start);
     }
 
-    v->color[0] = CLAMP01(v->color[0]) * 255.f;
-    v->color[1] = CLAMP01(v->color[1]) * 255.f;
-    v->color[2] = CLAMP01(v->color[2]) * 255.f;
-    v->color[3] = CLAMP01(v->color[3]) * 255.f;
+    v->color[0] = CLAMP01(v->color[0]);
+    v->color[1] = CLAMP01(v->color[1]);
+    v->color[2] = CLAMP01(v->color[2]);
+    v->color[3] = CLAMP01(v->color[3]);
 
     gl_matrix_mult(v->position, &state.final_matrix, pos);
 
@@ -730,9 +730,6 @@ void gl_vertex_t_l(gl_vertex_t *v, gl_vertex_source_t sources[4], uint32_t i, co
             v->texcoord[0] -= 0.5f;
             v->texcoord[1] -= 0.5f;
         }
-
-        v->texcoord[0] *= 32.f;
-        v->texcoord[1] *= 32.f;
     }
 }
 
@@ -980,7 +977,7 @@ static gl_vertex_source_t dummy_sources[4] = {
 
 void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 {
-    // TODO: batch these
+    // TODO: batch these (?)
 
     vertex_tmp[0] = x;
     vertex_tmp[1] = y;
@@ -1177,8 +1174,8 @@ void glPolygonMode(GLenum face, GLenum mode)
 
 void glDepthRange(GLclampd n, GLclampd f)
 {
-    state.current_viewport.scale[2] = ((f - n) * 0.5f) * 0x7FFF;
-    state.current_viewport.offset[2] = (n + (f - n) * 0.5f) * 0x7FFF;
+    state.current_viewport.scale[2] = (f - n) * 0.5f;
+    state.current_viewport.offset[2] = n + (f - n) * 0.5f;
 }
 
 void glViewport(GLint x, GLint y, GLsizei w, GLsizei h)
