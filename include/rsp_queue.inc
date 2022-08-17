@@ -577,7 +577,7 @@ RSPQCmd_Dma:
     #
     # ARGS:
     #   s4:                 buffer in DMEM containing RDP commands to send to RDP
-    #   t7 (rspq_cmd_size): size of commands to send
+    #   s3:                 pointer to the end of the buffer in DMEM  (s3-s4 = size)
     #############################################################
     .func RSPQ_RdpSend
 RSPQ_RdpSend:
@@ -589,7 +589,8 @@ RSPQ_RdpSend:
     # Fetch current pointer in RDRAM where to write the RDP command
     mfc0 rdram_cur, COP0_DP_END
 
-    # DMA transfer length
+    # Calculate buffer size and DMA transfer length
+    sub rspq_cmd_size, s3, s4
     add t0, rspq_cmd_size, -1
 
     # Fetch the sentinel (end of buffer). Check whether there is

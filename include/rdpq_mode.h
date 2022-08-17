@@ -25,8 +25,7 @@
  * 
  *   * **Standard** (#rdpq_set_mode_standard). This is the most basic and general
  *     render mode. It allows to use all RDP features (that must be activated via the
- *     various `rdpq_set_mode_*` functions). In RDP parlance, this uses either
- *     the 1-cycle or 2-cycle mode, and switches automatically between them as needed.
+ *     various `rdpq_set_mode_*` functions). 
  *   * **Copy** (#rdpq_set_mode_copy). This is a fast (4x) mode in which the RDP
  *     can perform fast blitting of textured rectangles (aka sprites). All texture
  *     formats are supported, and color 0 can be masked for transparency. Textures
@@ -40,7 +39,29 @@
  *     otherwise). It is possible to decide whether to activate or not bilinear
  *     filtering, as it makes RDP 2x slow when used in this mode.
  *   
+ * @note From a hardware perspective, rdpq handles automatically the "RDP cycle type".
+ *       That is, it transparently switches from "1-cycle mode" to "2-cycle mode"
+ *       whenever it is necessary. If you come from a RDP low-level programming
+ *       background, it might be confusing at first because everything "just works"
+ *       without needing to adjust settings any time you need to switch between
+ *       the two modes.
  * 
+ * ## Mode setting stack
+ * 
+ * The mode API also keeps a small (4 entry) stack of mode configurations. This
+ * allows client code to temporarily switch render mode and then get back to 
+ * the previous mode, which helps modularizing the code.
+ * 
+ * To save the current render mode onto the stack, use #rdpq_mode_push. To restore
+ * the previous render mode from the stack, use #rdpq_mode_pop.
+ * 
+ * Notice the mode settings being part of this stack are those which are configured
+ * via the mode API functions itself (`rdpq_set_mode_*` and `rdpq_mode_*`). Anything
+ * that doesn't go through the mode API is not saved/restored. For instance,
+ * activating blending via #rdpq_mode_blending is saved onto the stack, whilst
+ * changing the BLEND color register (via #rdpq_set_blend_color) is not, and you
+ * can tell by the fact that the function called to configure it is not part of
+ * the mode API.
  * 
  */
 #ifndef LIBDRAGON_RDPQ_MODE_H
@@ -52,6 +73,11 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+///@cond
+// Internal helpers, not part of the public API
+inline void __rdpq_mode_change_som(uint64_t mask, uint64_t val);
+///@endcond
 
 /**
  * @brief Push the current render mode into the stack
@@ -100,6 +126,21 @@ typedef enum rdpq_tlut_s {
 } rdpq_tlut_t;
 
 /**
+ * @brief Reset render mode to standard.
+ * 
+ * This is the most basic and general mode reset function. It configures the RDP
+ * processor in a standard and very basic way:
+ * 
+ *   * Basic texturing (without shading)
+ *   * No dithering, antialiasing, blending, etc.
+ * 
+ * You can further configure the mode by calling one of the many functions
+ * in the mode API (`rdpq_mode_*`).
+ */
+void rdpq_set_mode_standard(void);
+
+
+/**
  * @brief Reset render mode to FILL type.
  * 
  * This function sets the render mode type to FILL, which is used to quickly
@@ -136,25 +177,49 @@ inline void rdpq_set_mode_fill(color_t color) {
  */
 void rdpq_set_mode_copy(bool transparency);
 
-void rdpq_set_mode_standard(void);
-
 /**
  * @brief Reset render mode to YUV mode.
  * 
  * This is a helper function to configure a render mode for YUV conversion.
- * In addition of setting the render mode, this funciton also configures a
+ * In addition of setting the render mode, this function also configures a
  * combiner (given that YUV conversion happens also at the combiner level),
  * and set standard YUV parameters (for BT.601 TV Range).
  * 
  * After setting the YUV mode, you can load YUV textures to TMEM (using a
  * surface with #FMT_YUV16), and then draw them on the screen as part of
  * triangles or rectangles.
+ * 
+ * @param[in] bilinear      If true, YUV textures will also be filtered with
+ *                          bilinear interpolation (note: this will require
+ *                          2-cycle mode so it will be twice as slow).
  */
-void rdpq_set_mode_yuv(void);
+void rdpq_set_mode_yuv(bool bilinear);
 
+/**
+ * @brief Activate antialiasing
+ * 
+ * This function can be used to enable/disable antialias at the RDP level.
+ * There are two different kinds of antialias on N64:
+ * 
+ *   * Antialias on internal edges: this is fully performed by RDP.
+ *   * Antialias on external edges: this is prepared by RDP but is actually
+ *     performed as a post-processing filter by VI.
+ * 
+ * This function activates both kinds of antialias, but to display correctly
+ * the second type, make sure that you did not pass #ANTIALIAS_OFF to
+ * #display_init.
+ * 
+ * @note Antialiasing internally uses the blender unit. If you already
+ *       configured a formula via #rdpq_mode_blending, antialias will just
+ *       rely on that one to correctly blend pixels with the framebuffer.
+ * 
+ * @param enable        Enable/disable antialiasing
+ */
 inline void rdpq_mode_antialias(bool enable) 
 {
-    // TODO
+    // Just enable/disable SOM_AA_ENABLE. The RSP will then update the render mode
+    // which would trigger different other bits in SOM depending on the current mode.
+    __rdpq_mode_change_som(SOM_AA_ENABLE, enable ? SOM_AA_ENABLE : 0);
 }
 
 inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
@@ -170,15 +235,22 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
             comb & 0xFFFFFFFF);
 }
 
+/** @brief Blending mode: multiplicative alpha.
+ * You can pass this macro to #rdpq_mode_blending. */
 #define RDPQ_BLEND_MULTIPLY       RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, INV_MUX_ALPHA))
+/** @brief Blending mode: additive alpha.
+ * You can pass this macro to #rdpq_mode_blending. */
 #define RDPQ_BLEND_ADDITIVE       RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, ONE))      
-#define RDPQ_FOG_STANDARD         RDPQ_BLENDER((IN_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA))
 
 inline void rdpq_mode_blending(rdpq_blender_t blend) {
     extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
     if (blend) blend |= SOM_BLENDING;
     __rdpq_fixup_mode(RDPQ_CMD_SET_BLENDING_MODE, 4, blend);
 }
+
+/** @brief Fogging mode: standard.
+ * You can pass this macro to #rdpq_mode_fog. */
+#define RDPQ_FOG_STANDARD         RDPQ_BLENDER((IN_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA))
 
 inline void rdpq_mode_fog(rdpq_blender_t fog) {
     extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
@@ -213,6 +285,27 @@ inline void rdpq_mode_tlut(rdpq_tlut_t tlut) {
 inline void rdpq_mode_sampler(rdpq_sampler_t samp) {
     rdpq_change_other_modes_raw(SOM_SAMPLE_MASK, (uint64_t)samp << SOM_SAMPLE_SHIFT);
 }
+
+/********************************************************************
+ * Internal functions (not part of public API)
+ ********************************************************************/
+
+///@cond
+inline void __rdpq_mode_change_som(uint64_t mask, uint64_t val)
+{
+    // This is identical to #rdpq_change_other_modes_raw, but we also
+    // set bit 1<<15 in the first word. That flag tells the RSP code
+    // to recalculate the render mode, in addition to flipping the bits.
+    // #rdpq_change_other_modes_raw instead just changes the bits as
+    // you would expect from a raw API.
+    extern void __rdpq_fixup_mode3(uint32_t cmd_id, uint32_t w0, uint32_t w1, uint32_t w2);
+    if (mask >> 32)
+        __rdpq_fixup_mode3(RDPQ_CMD_MODIFY_OTHER_MODES, 0 | (1<<15), ~(mask >> 32), val >> 32);
+    if ((uint32_t)mask)
+        __rdpq_fixup_mode3(RDPQ_CMD_MODIFY_OTHER_MODES, 4 | (1<<15), ~(uint32_t)mask, (uint32_t)val);
+}
+///@endcond
+
 
 #ifdef __cplusplus
 }
