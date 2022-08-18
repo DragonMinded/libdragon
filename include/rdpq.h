@@ -66,12 +66,12 @@
  * 
  * Alternatively, rdpq offers a higher level render mode API, which is hopefully
  * clearer to understand and more accessible, that tries to hide some of the most
- * common pitfalls. This API can be found in the #rdpq_mode.h file. It is possible
+ * common pitfalls. This API can be found in the rdpq_mode.h file. It is possible
  * to switch from this the higher level API to the lower level one at any time
  * in the code with no overhead, so that it can be adopted wherever it is a good
  * fit, falling back to lower level programming if/when necessary.
  * 
- * Beginners of RDP programming are strongly encouraged to use #rdpq_mode.h, and
+ * Beginners of RDP programming are strongly encouraged to use rdpq_mode.h, and
  * only later dive into lower-level RDP programming, if necessary.
  * 
  * ## Blocks and address lookups
@@ -118,6 +118,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 #include "graphics.h"
 #include "n64sys.h"
 #include "rdp_commands.h"
@@ -186,11 +187,14 @@ enum {
 #define RDPQ_CFG_AUTOSCISSOR    (1 << 3)     ///< Configuration flag: enable automatic generation of SET_SCISSOR commands on render target change
 #define RDPQ_CFG_DEFAULT        (0xFFFF)     ///< Configuration flag: default configuration
 
+///@cond
+// Used in inline functions as part of the autosync engine. Not part of public API.
 #define AUTOSYNC_TILE(n)  (1    << (0+(n)))
 #define AUTOSYNC_TILES    (0xFF << 0)
 #define AUTOSYNC_TMEM(n)  (1    << (8+(n)))
 #define AUTOSYNC_TMEMS    (0xFF << 8)
 #define AUTOSYNC_PIPE     (1    << 16)
+///@endcond
 
 ///@cond
 /* Used internally for bit-packing RDP commands. Not part of public API. */
@@ -310,7 +314,7 @@ uint32_t rdpq_config_disable(uint32_t cfg_disable_bits);
 
 
 /**
- * @brief Enqueue a RDP triangle command
+ * @brief Draw a triangle (RDP command: TRI_*)
  * 
  * This function allows to draw a triangle into the framebuffer using RDP, in screen coordinates.
  * RDP does not handle transform and lightning, so it only reasons of screen level coordinates.
@@ -385,7 +389,7 @@ void rdpq_triangle(tile_t tile, uint8_t mipmaps,
     const float *v1, const float *v2, const float *v3);
 
 /**
- * @brief Enqueue a RDP TEXTURE_RECTANGLE command 
+ * @brief Draw a textured rectangle (RDP command: TEXTURE_RECTANGLE)
  * 
  * This function enqueues a RDP TEXTURE_RECTANGLE command, that allows to draw a
  * textured rectangle onto the framebuffer (similar to a sprite).
@@ -431,7 +435,7 @@ void rdpq_triangle(tile_t tile, uint8_t mipmaps,
 })
 
 /**
- * @brief Enqueue a RDP texture rectangle command (fixed point version)
+ * @brief Draw a textured rectangle -- fixed point version (RDP command: TEXTURE_RECTANGLE)
  * 
  * This function is similar to #rdpq_texture_rectangle, but uses fixed point
  * numbers for the arguments. Prefer using #rdpq_texture_rectangle when possible.
@@ -464,7 +468,7 @@ inline void rdpq_texture_rectangle_fx(tile_t tile, uint16_t x0, uint16_t y0, uin
 }
 
 /**
- * @brief Enqueue a RDP TEXTURE_RECTANGLE_FLIP command 
+ * @brief Draw a textured flipped rectangle (RDP command: TEXTURE_RECTANGLE_FLIP)
  * 
  * The RDP command TEXTURE_RECTANGLE_FLIP is similar to TEXTURE_RECTANGLE, but the 
  * texture S coordinate is incremented over the Y axis, while the texture T coordinate
@@ -493,7 +497,7 @@ inline void rdpq_texture_rectangle_fx(tile_t tile, uint16_t x0, uint16_t y0, uin
 })
 
 /**
- * @brief Enqueue a RDP TEXTURE_RECTANGLE_FLIP command (fixed point version)
+ * @brief Draw a textured flipped rectangle -- fixed point version (RDP command: TEXTURE_RECTANGLE_FLIP)
  * 
  * This function is similar to #rdpq_texture_rectangle_flip, but uses fixed point
  * numbers for the arguments. Prefer using #rdpq_texture_rectangle_flip when possible.
@@ -528,7 +532,7 @@ inline void rdpq_texture_rectangle_flip_fx(tile_t tile, uint16_t x0, uint16_t y0
 }
 
 /**
- * @brief Enqueue a FILL_RECTANGLE RDP command.
+ * @brief Draw a filled rectangle (RDP command: FILL_RECTANGLE)
  * 
  * This command is used to render a rectangle filled with a solid color.
  * The color must have been configured via #rdpq_set_fill_color, and the
@@ -543,7 +547,8 @@ inline void rdpq_texture_rectangle_flip_fx(tile_t tile, uint16_t x0, uint16_t y0
  * square, with the most external pixel rows and columns having a alpha of 25%.
  * This obviously makes more sense in RGBA32 mode where there is enough alpha
  * bitdepth to appreciate the result. Make sure to configure the blender via
- * #rdpq_set_other_modes to decide the blending formula.
+ * #rdpq_mode_blending (part of the mode API) or via the lower-level #rdpq_set_other_modes_raw,
+ * to decide the blending formula.
  * 
  * Notice that coordinates are unsigned numbers, so negative numbers are not
  * supported. Coordinates bigger than the target buffer will be automatically
@@ -564,7 +569,6 @@ inline void rdpq_texture_rectangle_flip_fx(tile_t tile, uint16_t x0, uint16_t y0
  * @see rdpq_fill_rectangle_fx
  * @see rdpq_set_fill_color
  * @see rdpq_set_fill_color_stripes
- * @see rdpq_set_other_modes
  * 
  */
 #define rdpq_fill_rectangle(x0, y0, x1, y1) ({ \
@@ -573,7 +577,7 @@ inline void rdpq_texture_rectangle_flip_fx(tile_t tile, uint16_t x0, uint16_t y0
 
 
 /**
- * @brief Enqueue a FILL_RECTANGLE RDP command (fixed point version).
+ * @brief Draw a filled rectangle -- fixed point version (RDP command: FILL_RECTANGLE)
  * 
  * This function is similar to #rdpq_fill_rectangle, but coordinates must be
  * specified using fixed point numbers (0.10.2).
@@ -640,7 +644,7 @@ inline void rdpq_set_yuv_parms(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k
 }
 
 /**
- * @brief Enqueue a RDP SET_SCISSOR command to configure a scissoring rectangle
+ * @brief Configure a scissoring rectangle in screen coordinates (RDP command: SET_SCISSOR)
  * 
  * This function is used to configure a scissor region that the RDP with adhere to
  * while drawing primitives (triangles or rectangles). Any points that fall outside
@@ -682,34 +686,219 @@ inline void rdpq_set_yuv_parms(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k
         _carg(x1fx, 0xFFF, 12) | _carg(y1fx, 0xFFF, 0)); \
 })
 
-/**
- * @brief Low level function to set the primitive depth
- */
-inline void rdpq_set_prim_depth(uint16_t primitive_z, int16_t primitive_delta_z)
+inline void rdpq_set_prim_depth_fx(uint16_t prim_z, int16_t prim_dz)
 {
     // NOTE: this does not require a pipe sync
     extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
-    assertf(primitive_z <= 0x7FFF, "primitive_z must be in [0..0x7FFF]");
-    assertf((primitive_delta_z & -primitive_delta_z) == (primitive_delta_z >= 0 ? primitive_delta_z : -primitive_delta_z),
-        "primitive_delta_z must be a power of 2");
-    __rdpq_write8(RDPQ_CMD_SET_PRIM_DEPTH, 0, _carg(primitive_z, 0xFFFF, 16) | _carg(primitive_delta_z, 0xFFFF, 0));
+    assertf(prim_z <= 0x7FFF, "prim_z must be in [0..0x7FFF]");
+    assertf((prim_dz & -prim_dz) == (prim_dz >= 0 ? prim_dz : -prim_dz),
+        "prim_dz must be a power of 2");
+    __rdpq_write8(RDPQ_CMD_SET_PRIM_DEPTH, 0, _carg(prim_z, 0xFFFF, 16) | _carg(prim_dz, 0xFFFF, 0));
 }
 
 /**
- * @brief Low level function to load a texture palette into TMEM
+ * @brief Set a fixed Z value to be used instead of a per-pixel value (RDP command; SET_PRIM_DEPTH)
+ * 
+ * When using z-buffering, normally the Z value used for z-buffering is
+ * calculated by interpolating the Z of each vertex onto each pixel.
+ * The RDP allows for usage of a fixed Z value instead, for special
+ * effects like particles or decals.
+ * 
+ * This function allows to configure the RDP register that
+ * holds the fixed Z value. It is then necessary to activate this
+ * special RDP mode: either manually turning on SOM_ZSOURCE_PRIM via
+ * #rdpq_change_other_modes_raw, or using the mode API (#rdpq_mode_zoverride).
+ * 
+ * @param[in] prim_z     Fixed Z value (in range 0..1)
+ * @param[in] prim_dz    Delta Z value (range -32768..16384). This
+ *                       must be a signed power of two, corresponding
+ *                       to an approximate 
+ * 
  */
-inline void rdpq_load_tlut(tile_t tile, uint8_t lowidx, uint8_t highidx)
+#define rdpq_set_prim_depth(prim_z, prim_dz) ({ \
+    float __prim_dz = (prim_dz); \
+    uint16_t __z = (prim_z) * 0x7FFF; \
+    float __dz   = __prim_dz * 0x7FFF; \
+    int32_t __dzi; memcpy(&__dzi, &__dz, 4); \
+    debugf("set_prim: %f %f %lx\n", __prim_dz, __dz, __dzi); \
+    int __b = __dzi << 9 != 0; \
+    int16_t __dz2 = 1 << (__dzi ? (__dzi >> 23) - 127 + __b : 0); \
+    rdpq_set_prim_depth_fx(__z, __dz2); \
+})\
+
+
+/**
+ * @brief Load a portion of a texture into TMEM (RDP command: LOAD_TILE)
+ * 
+ * This is the main command to load data from RDRAM into TMEM. It is
+ * normally used to load a texture (or a portion of it), before using
+ * it for drawing.
+ * 
+ * @note Beginners are advised to use the rdpq texture API (rdpq_tex.h), 
+ * for instance #rdpq_tex_load that takes care of everything required.
+ * 
+ * Before calling #rdpq_load_tile, the tile must have been configured
+ * using #rdpq_set_tile or #rdpq_set_tile_full to specify the TMEM
+ * address and pitch, and the texture in RDRAM must have been
+ * set via #rdpq_set_texture_image.
+ * 
+ * In addition to loading TMEM, this command also records into the
+ * tile descriptor the extents of the loaded texture (that is, the
+ * texture coordinates), so that subsequence draw commands can still
+ * refer to original texture's coordinates to draw. For instance,
+ * if you have a large 512x128 texture and you load only a small
+ * portion into TMEM, for instance the rectangle at coordinates
+ * (16,16) - (48,48), the RDP will remember (through the tile descriptor)
+ * that the TMEM contains that specific rectangle, and subsequent
+ * triangles or rectangles commands can specify S,T texture
+ * coordinates within the range (16,16)-(48,48).
+ * 
+ * If the portion being loaded is consecutive in RDRAM (rather
+ * than being a rectangle within a wider image), prefer using
+ * #rdpq_load_block for increased performance.
+ * 
+ * @param[in]   tile        Tile descriptor to use (TILE0-TILE7).
+ * @param[in]   s0          Upper-left X coordinate of the portion of the texture to load (integer or float).
+ *                          Range: 0-1024
+ * @param[in]   t0          Upper-left Y coordinate of the portion of the texture to load (integer or float),
+ *                          Range: 0-1024
+ * @param[in]   s1          Bottom-right X coordinate of the portion of the texture to load (integer or float),
+ *                          Range: 0-1024
+ * @param[in]   t1          Bottom-right Y coordinate of the portion of the texture to load (integer or float),
+ *                          Range: 0-1024
+ * 
+ * @see #rdpq_tex_load
+ * @see #rdpq_set_texture_image
+ * @see #rdpq_load_block
+ * @see #rdpq_set_tile
+ * @see #rdpq_set_tile_full
+ * @see #rdpq_load_tile_fx
+ */
+#define rdpq_load_tile(tile, s0, t0, s1, t1) ({ \
+    assertf((s0) >= 0 && (t0) >= 0 && (s1) >= 0 && (t1) >= 0, "texture coordinates must be positive"); \
+    assertf((s0) < 1024 && (t0) < 1024 && (s1) < 1024 && (t1) < 1024, "texture coordinates must be smaller than 1024"); \
+    rdpq_load_tile_fx((tile), (s0)*4, (t0)*4, (s1)*4, (t1)*4); \
+})
+
+/**
+ * @brief Load a portion of a texture into TMEM -- fixed point version (RDP command: LOAD_TILE)
+ * 
+ * This function is similar to #rdpq_load_tile, but coordinates can be specified
+ * in fixed point format (0.10.2). Refer to #rdpq_load_tile for increased performance
+ * 
+ * @note Beginners are advised to use the rdpq texture API (rdpq_tex.h), 
+ * for instance #rdpq_tex_load that takes care of everything required.
+ * 
+ * 
+ * @param[in]   tile        Tile descriptor to use (TILE0-TILE7).
+ * @param[in]   s0          Upper-left X coordinate of the portion of the texture to load (fx 0.10.2).
+ *                          Range: 0-4096
+ * @param[in]   t0          Upper-left Y coordinate of the portion of the texture to load (fx 0.10.2),
+ *                          Range: 0-4096
+ * @param[in]   s1          Bottom-right X coordinate of the portion of the texture to load (fx 0.10.2),
+ *                          Range: 0-4096
+ * @param[in]   t1          Bottom-right Y coordinate of the portion of the texture to load (fx 0.10.2),
+ *                          Range: 0-4096
+ * 
+ * @see #rdpq_load_tile
+ * @see #rdpq_tex_load
+ */
+inline void rdpq_load_tile_fx(tile_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1)
+{
+    extern void __rdpq_write8_syncchangeuse(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    __rdpq_write8_syncchangeuse(RDPQ_CMD_LOAD_TILE,
+        _carg(s0, 0xFFF, 12) | _carg(t0, 0xFFF, 0),
+        _carg(tile, 0x7, 24) | _carg(s1-4, 0xFFF, 12) | _carg(t1-4, 0xFFF, 0),
+        AUTOSYNC_TMEM(0),
+        AUTOSYNC_TILE(tile));
+}
+
+
+/**
+ * @brief Load a palette of colors into TMEM (RDP command: LOAD_TLUT)
+ * 
+ * This command is used to load a palette into TMEM. TMEM can hold up
+ * to 256 16-bit colors in total to be used as palette, and they must be
+ * stored in the upper half of TMEM. These colors are arranged as a single
+ * 256-color palette when drawing #FMT_CI8 images, or 16 16-colors palettes
+ * when drawing #FMT_CI4 images.
+ * 
+ * Storage of colors in TMEM is a bit wasteful, as each color is replicated
+ * four times (in fact, 256 colors * 16-bit + 4 = 2048 bytes, which is
+ * in fact half of TMEM). This command should be preferred for palette
+ * loading as it automatically handles this replication.
+ * 
+ * Loading a palette manually is a bit involved. It requires configuring
+ * the palette in RDRAM via #rdpq_set_texture_image, and also configure a 
+ * tile descriptor with the TMEM destination address (via #rdpq_set_tile).
+ * Instead, prefer using the simpler rdpq texture API (rdpq_tex.h), via
+ * #rdpq_tex_load_tlut.
+ * 
+ * @param[in] tile         Tile descriptor to use (TILE0-TILE7). This is used
+ *                         to extract the destination TMEM address (all other fields
+ *                         of the descriptor are ignored).
+ * @param[in] color_idx    Index of the first color to load into TMEM (0-255).
+ *                         This is a 16-bit offset into the RDRAM buffer
+ *                         set via #rdpq_set_texture_image.
+ * @param[in] num_colors   Number of colors to load (1-256).
+ * 
+ * @see #rdpq_tex_load_tlut
+ */
+inline void rdpq_load_tlut(tile_t tile, uint8_t color_idx, uint8_t num_colors)
 {
     extern void __rdpq_write8_syncchangeuse(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_write8_syncchangeuse(RDPQ_CMD_LOAD_TLUT, 
-        _carg(lowidx, 0xFF, 14), 
-        _carg(tile, 0x7, 24) | _carg(highidx, 0xFF, 14),
+        _carg(color_idx, 0xFF, 14), 
+        _carg(tile, 0x7, 24) | _carg(color_idx+num_colors-1, 0xFF, 14),
         AUTOSYNC_TMEM(0),
         AUTOSYNC_TILE(tile));
 }
 
 /**
- * @brief Low level function to set the size of a tile descriptor
+ * @brief Configure the extents of a tile descriptor (RDP command: SET_TILE_SIZE)
+ * 
+ * This function allows to set the extents (s0,s1 - t0,t1) of a tile descriptor.
+ * Normally, it is not required to call this function because extents are
+ * automatically configured when #rdpq_load_tile is called to load contents
+ * in TMEM. This function is mostly useful when loading contents using
+ * #rdpq_load_block, or when reinterpreting existing contents of TMEM.
+ * 
+ * For beginners, it is suggest to use the rdpq texture API (rdpq_tex.h)
+ * which automatically configures tile descriptors correctly: for instance,
+ * #rdpq_tex_load.
+ * 
+ * @param[in] tile          Tile descriptor (TILE0-TILE7)
+ * @param[in] s0            Top-left X texture coordinate to store in the descriptor (integer or float).
+ *                          Range: 0-1024
+ * @param[in] t0            Top-left Y texture coordinate to store in the descriptor (integer or float).
+ *                          Range: 0-1024
+ * @param[in] s1            Bottom-right X texture coordinate to store in the descriptor (integer or float).
+ *                          Range: 0-1024
+ * @param[in] t1            Bottom-right Y texture coordinate to store in the descriptor (integer or float).
+ * 
+ * @see #rdpq_tex_load
+ * @see #rdpq_set_tile_size_fx
+ */
+#define rdpq_set_tile_size(tile, s0, t0, s1, t1) ({ \
+    assertf((s0) >= 0 && (t0) >= 0 && (s1) >= 0 && (t1) >= 0, "texture coordinates must be positive"); \
+    assertf((s0) < 1024 && (t0) < 1024 && (s1) < 1024 && (t1) < 1024, "texture coordinates must be smaller than 1024"); \
+    rdpq_set_tile_size_fx((tile), (s0)*4, (t0)*4, (s1)*4, (t1)*4); \
+})
+
+/**
+ * @brief Configure the extents of a tile descriptor -- fixed point version (RDP command: SET_TILE_SIZE)
+ * 
+ * This function is similar to #rdpq_set_tile_size, but coordinates must be
+ * specified using fixed point numbers (10.2).
+ * 
+ * @param tile              Tile descriptor (TILE0-TILE7)
+ * @param[in] s0            Top-left X texture coordinate to store in the descriptor (fx 10.2)
+ * @param[in] t0            Top-left Y texture coordinate to store in the descriptor (fx 10.2)
+ * @param[in] s1            Bottom-right X texture coordinate to store in the descriptor (fx 10.2)
+ * @param[in] t1            Bottom-right Y texture coordinate to store in the descriptor (fx 10.2)
+ *
+ * @see #rdpq_tex_load
+ * @see #rdpq_set_tile_size
  */
 inline void rdpq_set_tile_size_fx(tile_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1)
 {
@@ -720,9 +909,6 @@ inline void rdpq_set_tile_size_fx(tile_t tile, uint16_t s0, uint16_t t0, uint16_
         AUTOSYNC_TILE(tile));
 }
 
-#define rdpq_set_tile_size(tile, s0, t0, s1, t1) ({ \
-    rdpq_set_tile_size_fx((tile), (s0)*4, (t0)*4, (s1)*4, (t1)*4); \
-})
 
 /**
  * @brief Low level function to load a texture image into TMEM in a single memory transfer
@@ -748,22 +934,6 @@ inline void rdpq_load_block(tile_t tile, uint16_t s0, uint16_t t0, uint16_t num_
     rdpq_load_block_fx(tile, s0, t0, num_texels, (2048 + words - 1) / words);
 }
 
-/**
- * @brief Low level function to load a texture image into TMEM
- */
-inline void rdpq_load_tile_fx(tile_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1)
-{
-    extern void __rdpq_write8_syncchangeuse(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-    __rdpq_write8_syncchangeuse(RDPQ_CMD_LOAD_TILE,
-        _carg(s0, 0xFFF, 12) | _carg(t0, 0xFFF, 0),
-        _carg(tile, 0x7, 24) | _carg(s1-4, 0xFFF, 12) | _carg(t1-4, 0xFFF, 0),
-        AUTOSYNC_TMEM(0),
-        AUTOSYNC_TILE(tile));
-}
-
-#define rdpq_load_tile(tile, s0, t0, s1, t1) ({ \
-    rdpq_load_tile_fx((tile), (s0)*4, (t0)*4, (s1)*4, (t1)*4); \
-})
 
 /**
  * @brief Enqueue a RDP SET_TILE command (full version)
@@ -1143,7 +1313,7 @@ inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_forma
  * the actual buffer pointers in the table, before playing back the block.
  * 
  * The rdpq functions that can optionally load an address from the table are
- * #rdpq_set_color_image_raw, #rdpq_set_z_image_raw and #rdpq_set_tex_image_raw.
+ * #rdpq_set_color_image_raw, #rdpq_set_z_image_raw and #rdpq_set_texture_image_raw.
  * 
  * @code{.c}
  *      // Start recording a block.
