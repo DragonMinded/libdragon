@@ -6,21 +6,21 @@
 #include "../../src/rdpq/rdpq_debug_internal.h"
 
 void usage(void) {
-	printf("rdpvalidate -- RDP validation tool\n");
-	printf("\n");
+    printf("rdpvalidate -- RDP validation tool\n");
+    printf("\n");
     printf("This tool disassembles and validates a sequence of RDP commands provided in binary or hex format.\n");
     printf("Validation is accurate only if the sequence of commands is complete; partial sequences might\n");
     printf("have spurious warnings or errors.\n");
-	printf("\n");
-	printf("Usage:\n");
-	printf("   rdpvalidate [flags] <file>\n");
-	printf("\n");
-	printf("Options:\n");
-	printf("   -H / --hex            File is ASCII in hex format. Default is autodetect.\n");
-	printf("   -B / --binary         File is binary. Default is autodetect.\n");
-	printf("\n");
-	printf("Hex format is an ASCII file: one line per RDP command, written in hexadecimal format.\n");
-	printf("Lines starting with '#' are skipped.\n");
+    printf("\n");
+    printf("Usage:\n");
+    printf("   rdpvalidate [flags] <file>\n");
+    printf("\n");
+    printf("Options:\n");
+    printf("   -H / --hex            File is ASCII in hex format. Default is autodetect.\n");
+    printf("   -B / --binary         File is binary. Default is autodetect.\n");
+    printf("\n");
+    printf("Hex format is an ASCII file: one line per RDP command, written in hexadecimal format.\n");
+    printf("Lines starting with '#' are skipped.\n");
     printf("Binary format is a raw sequence of 8-bytes RDP commands.\n");
 }
 
@@ -47,22 +47,22 @@ bool detect_ascii(FILE *f) {
 
 int main(int argc, char *argv[])
 {
-	if (argc < 2) {
-		usage();
-		return 1;
-	}
+    if (argc < 2) {
+        usage();
+        return 1;
+    }
 
     enum { MODE_BINARY=0, MODE_HEX=1, MODE_AUTODETECT=-1 };
 
     int mode = MODE_AUTODETECT;
     int i;
-	for (i=1; i<argc; i++) {
-		if (argv[i][0] == '-') {	
-			if (!strcmp(argv[i], "-H") || !strcmp(argv[i], "--hex"))  {
+    for (i=1; i<argc; i++) {
+        if (argv[i][0] == '-') {	
+            if (!strcmp(argv[i], "-H") || !strcmp(argv[i], "--hex"))  {
                 mode = MODE_HEX;
             } else if (!strcmp(argv[i], "-B") || !strcmp(argv[i], "--binary")) {
                 mode = MODE_BINARY;
-			} else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
+            } else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
                 usage();
                 return 0;
             } else {
