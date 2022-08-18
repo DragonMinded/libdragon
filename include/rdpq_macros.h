@@ -21,17 +21,6 @@
 #endif
 ///@endcond
 
-#define RDP_TILE_FORMAT_RGBA  0    ///< RDP internal format: RGBA (see #tex_format_t)
-#define RDP_TILE_FORMAT_YUV   1    ///< RDP internal format: YUV (see #tex_format_t)
-#define RDP_TILE_FORMAT_INDEX 2    ///< RDP internal format: INDEX (see #tex_format_t)
-#define RDP_TILE_FORMAT_IA    3    ///< RDP internal format: IA (see #tex_format_t)
-#define RDP_TILE_FORMAT_I     4    ///< RDP internal format: I (see #tex_format_t)
-
-#define RDP_TILE_SIZE_4BIT  0      ///< RDP internal format size: 4-bit (see #tex_format_t)
-#define RDP_TILE_SIZE_8BIT  1      ///< RDP internal format size: 8-bit (see #tex_format_t)
-#define RDP_TILE_SIZE_16BIT 2      ///< RDP internal format size: 16-bit (see #tex_format_t)
-#define RDP_TILE_SIZE_32BIT 3      ///< RDP internal format size: 32-bit (see #tex_format_t)
-
 /// @cond
 // Internal helpers to build a color combiner setting
 #define _RDPQ_COMB1_RGB_SUBA_TEX0      cast64(1)
@@ -299,7 +288,7 @@
  * <tr><th>D</th><td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `ONE`, `ZERO`</td></tr>
  * </table>
  * 
- * For instance, to draw a goraud-shaded textured triangle, one might want to calculate
+ * For instance, to draw a gouraud-shaded textured triangle, one might want to calculate
  * the following combiner formula:
  * 
  *        RGB   = TEX0 * SHADE
@@ -322,13 +311,13 @@
  * 
  * which will obtain exactly the same result.
  * 
- * Please note the use of the double parantheses within the `RDP1_COMBINER` call. These are required
+ * Please note the use of the double parentheses within the `RDP1_COMBINER` call. These are required
  * for the macro to work correctly.
  * 
  * The output of the combiner goes into the blender unit. See #RDPQ_BLENDER1 for information on
  * how to configure the blender.
  * 
- * A complete example drawing a textured rectangle with a fixed semitransparency of 0.7:
+ * A complete example drawing a textured rectangle with a fixed semi-transparency of 0.7:
  * 
  * @code{.c}
  *      // Set standard mode
@@ -336,7 +325,7 @@
  *      
  *      // Set a combiner to sample TEX0 as-is in RGB channels, and put a fixed value
  *      // as alpha channel, coming from the ENV register.
- *      rdpq_mode_combiner(RDPQ_COMBINER((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ENV)));
+ *      rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ENV)));
  * 
  *      // Set the fixed value in the ENV register. RGB components are ignored as the slot
  *      // ENV is not used in the RGB combiner formula, so we just put zero there.
@@ -548,7 +537,150 @@
 #define __rdpq_blend_2cyc_1(a1, b1, a2, b2) __rdpq_blend(2B, a1, b1, a2, b2, 28, 24, 20, 16)
 ///@endcond
 
+/**
+ * @brief Build a 1-pass blender formula
+ * 
+ * This macro allows to build a 1-pass blender formula. 
+ * In general, the blender is able to execute the following
+ * per-pixel formula:
+ * 
+ *      (P * A) + (Q * B)
+ * 
+ * where P and Q are usually pixel inputs, while A and B are
+ * blending factors. `P`, `Q`, `A`, `B` can be configured picking
+ * several possible inputs called "slots".
+ * 
+ * The macro must be invoked as:
+ * 
+ *      RDPQ_BLENDER((P, A, Q, B))
+ * 
+ * where `P`, `A`, `Q`, `B` can be any of the values described below.
+ * Please notice the double parenthesis.
+ * 
+ * For example, this macro:
+ * 
+ *      RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, ONE))
+ * 
+ * configures the formula:
+ * 
+ *      (IN_RGB * IN_ALPHA) + (MEMORY_RGB * 1.0)
+ * 
+ * The value created is of type #rdpq_blender_t. They can be used
+ * in two different ways:
+ * 
+ *  * When using the higher-level mode API (rdpq_mode.h), the blender
+ *    formula can be passed to either #rdpq_mode_fog or #rdpq_mode_blending.
+ *    The blender unit is in fact capable of running up two passes
+ *    in sequence, so each function configures one different pass.
+ *  * When using the lower-level API (#rdpq_set_other_modes_raw),
+ *    the value created by #RDPQ_BLENDER can be directly combined
+ *    with other `SOM_*` macros to create the final value to
+ *    pass to the function. If a two-pass blender must be configured,
+ *    use #RDPQ_BLENDER2 instead.
+ * 
+ * Pre-made formulas for common scenarios are available: see
+ * #RDPQ_BLEND_MULTIPLY, #RDPQ_BLEND_ADDITIVE, #RDPQ_FOG_STANDARD.
+ * 
+ * These are all possible inputs for `P` and `Q`:
+ * 
+ *  * `IN_RGB`: The RGB channels of the pixel being drawn. This is
+ *    actually the output of the color combiner (that can be
+ *    configured via #rdpq_mode_combiner, #RDPQ_COMBINER1,
+ *    and #RDPQ_COMBINER2).
+ *  * `MEMORY_RGB`: Current contents of the framebuffer, where the
+ *    current pixel will be drawn. Reading the framebuffer contents
+ *    and using them in the formula allows to create the typical
+ *    blending effect.
+ *  * `BLEND_RGB`: A fixed RGB value programmed into the BLEND register.
+ *    This can be configured via #rdpq_set_blend_color.
+ *  * `FOG_RGB`: A fixed RGB value programmed into the FOG register.
+ *    This can be configured via #rdpq_set_fog_color.
+ * 
+ * These are all possible inputs for `A`:
+ * 
+ *  * `IN_ALPHA`: The alpha channel of the pixel being drawn. This is
+ *    actually the output of the color combiner (that can be
+ *    configured via #rdpq_mode_combiner, #RDPQ_COMBINER1,
+ *    and #RDPQ_COMBINER2).
+ *  * `FOG_ALPHA`: The alpha channel of the FOG register.
+ *    This can be configured via #rdpq_set_fog_color.
+ *  * `SHADE_ALPHA`: The alpha channel of the shade color.
+ *    The shade component is the color optionally set on
+ *    each vertex when drawing a triangle (see #rdpq_triangle).
+ *    The RDP interpolates it on each pixel.
+ *  * `ZERO`: the constant value 0.
+ * 
+ * These are all possible inputs for `B`:
+ * 
+ *  * `INV_MUX_ALPHA`: This value is the inverse of whatever input
+ *    was selected for `A`. For instance, if `A` was configured
+ *    as `FOG_ALPHA`, setting `B` to `INV_MUX_ALPHA` means using
+ *    `1.0 - FOG_ALPHA` in the calculation. This basically allows
+ *    to do a linear interpolation between `P` and `Q` where
+ *    `A` is the interpolation factor.
+ *  * `MEMORY_CVG`: This is the subpixel coverage value stored in
+ *    the framebuffer at the position where the current pixel will
+ *    be drawn. The coverage is normally stored as a value in the
+ *    range 0-7, but the blender normalizes in the range 0.0-1.0.
+ *  * `ONE`: the constant value 1.
+ *  * `ZERO`: the constant value 0.
+ * 
+ * The blender uses the framebuffer precision for the RGB channels:
+ * when drawing to a 32-bit framebuffer, `P` and `Q` will have
+ * 8-bit precision per channel, whilst when drawing to a 16-bit
+ * framebuffer, `P` and `Q` will be 5-bit. You can add 
+ * dithering if needed, via #rdpq_mode_dithering.
+ * 
+ * On the other hand, `A` and `B` always have a reduced 5-bit
+ * precision, even on 32-bit framebuffers. This means that the
+ * alpha values will be quantized during the blending, possibly
+ * creating mach banding. Consider using dithering via
+ * #rdpq_mode_dithering to improve the quality of the picture.
+ * 
+ * Notice that the blender formula only works on RGB channels. Alpha
+ * channels can be used as input (as multiplicative factor), but the
+ * blender does not produce an alpha channel as output. In fact,
+ * the RGB output will be written to the framebuffer after the blender,
+ * while the bits normally used for alpha in each framebuffer pixel
+ * will contain information about subpixel coverage (that will
+ * be then used by VI for doing antialiasing as a post-process filter
+ * -- see #rdpq_mode_antialias for a brief explanation).
+ * 
+ * @see #rdpq_mode_blending
+ * @see #rdpq_mode_fog
+ * @see #rdpq_mode_dithering
+ * @see #rdpq_set_fog_color
+ * @see #rdpq_set_blend_color
+ * @see #rdpq_set_other_modes_raw
+ * 
+ * @hideinitializer
+ */
 #define RDPQ_BLENDER(bl)        (__rdpq_blend_1cyc_0 bl  | __rdpq_blend_1cyc_1 bl)
-// #define RDPQ_BLENDER2(bl0, bl1)  (__rdpq_blend_2cyc_0 bl0 | __rdpq_blend_2cyc_1 bl1 | RDPQ_BLENDER_2PASS)
+
+/**
+ * @brief Build a 2-pass blender formula
+ *
+ * This macro is similar to #RDPQ_BLENDER, but it can be used to build a
+ * two-passes blender formula.
+ * 
+ * When using the blender-related functions in the rdpq mode API
+ * (#rdpq_mode_blending and #rdpq_mode_fog), usage of #RDPQ_BLENDER2
+ * is not required because the two blender passes supported by RDP 
+ * can be configured separately.
+ * 
+ * Instead, #RDPQ_BLENDER2 must be used when using directly the low-level
+ * APIs (#rdpq_set_other_modes_raw).
+ * 
+ * Refer to #RDPQ_BLENDER for information on how to build a blender formula.
+ * 
+ * @see #RDPQ_BLENDER
+ * @see #rdpq_mode_blending
+ * @see #rdpq_mode_fog
+ * @see #rdpq_set_other_modes_raw
+ * 
+ * @hideinitializer
+ */
+
+#define RDPQ_BLENDER2(bl0, bl1) (__rdpq_blend_2cyc_0 bl0 | __rdpq_blend_2cyc_1 bl1 | RDPQ_BLENDER_2PASS)
 
 #endif

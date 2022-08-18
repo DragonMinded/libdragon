@@ -634,7 +634,7 @@ extern inline void rdpq_set_fog_color(color_t color);
 extern inline void rdpq_set_blend_color(color_t color);
 extern inline void rdpq_set_prim_color(color_t color);
 extern inline void rdpq_set_env_color(color_t color);
-extern inline void rdpq_set_prim_depth(uint16_t primitive_z, int16_t primitive_delta_z);
+extern inline void rdpq_set_prim_depth_fx(uint16_t primitive_z, int16_t primitive_delta_z);
 extern inline void rdpq_load_tlut(tile_t tile, uint8_t lowidx, uint8_t highidx);
 extern inline void rdpq_set_tile_size_fx(tile_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1);
 extern inline void rdpq_load_block(tile_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t tmem_pitch);

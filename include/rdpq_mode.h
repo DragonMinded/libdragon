@@ -242,6 +242,61 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
  * You can pass this macro to #rdpq_mode_blending. */
 #define RDPQ_BLEND_ADDITIVE       RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, ONE))      
 
+/**
+ * @brief Configure the formula for the second pass of the blender unit.
+ * 
+ * This function can be used to configure the formula used for the
+ * second pass of the blender unit. This pass is conventionally used
+ * to implement the blending between the polygon being drawn and the
+ * background, so the name of the function reflects that.
+ * 
+ * The other pass can be configured with #rdpq_mode_fog. If the other
+ * pass is disabled, the pass configured via #rdpq_mode_blending will
+ * be the only one to run.
+ * 
+ * The standard blending formulas are:
+ * 
+ *  * #RDPQ_BLEND_MULTIPLY: multiplicative alpha blending
+ *  * #RDPQ_BLEND_ADDITIVE: additive alpha blending
+ * 
+ * but custom formulas can be created using the #RDPQ_BLENDER macro.
+ * 
+ * The following example shows how to draw a texture rectangle using
+ * a fixed blending value of 0.5 (ignoring the alpha channel of the
+ * texture):
+ * 
+ * @code{.c}
+ *      // Set standard mode
+ *      rdpq_set_mode_standard();
+ * 
+ *      // Configure the formula:
+ *      //      (IN_RGB * FOG_ALPHA) + (MEMORY_RGB * (1 - FOG_ALPHA))
+ *      //
+ *      // where FOG_ALPHA is the fixed alpha value coming from the FOG register.
+ *      rdpq_mode_blending(RDPQ_BLENDER(IN_RGB, FOG_ALPHA, MEMORY_RGB, INV_MUX_ALPHA));
+ * 
+ *      // Configure the FOG_ALPHA value to 128 (= 0.5). The RGB components are
+ *      // not used.
+ *      rdpq_set_fog_color(RGBA32(0,0,0, 128));
+ * 
+ *      // Load a texture into TMEM
+ *      rdpq_tex_load(TILE0, texture, 0);
+ * 
+ *      // Draw it
+ *      rdpq_texture_rectangle(TILE0,
+ *          0, 0, 64, 64,   // x0,y0 - x1,y1
+ *          0, 0, 1.0, 1.0  // s0,t0 - ds,dt
+ *      );
+ * @endcode 
+ *
+ * @param blend          Blending formula created with #RDPQ_BLENDER,
+ *                       or 0 to disable.
+ * 
+ * @see #rdpq_mode_fog
+ * @see #RDPQ_BLENDER
+ * @see #RDPQ_BLEND_MULTIPLY
+ * @see #RDPQ_BLEND_ADDITIVE
+ */
 inline void rdpq_mode_blending(rdpq_blender_t blend) {
     extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
     if (blend) blend |= SOM_BLENDING;
@@ -252,6 +307,30 @@ inline void rdpq_mode_blending(rdpq_blender_t blend) {
  * You can pass this macro to #rdpq_mode_fog. */
 #define RDPQ_FOG_STANDARD         RDPQ_BLENDER((IN_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA))
 
+
+/**
+ * @brief Configure the formula for the first pass of the blender unit.
+ * 
+ * This function can be used to configure the formula used for the
+ * first pass of the blender unit. This pass is conventionally used
+ * to implement fogging, so the name of the function reflects that.
+ * 
+ * The other pass can be configured with #rdpq_mode_blending. If the other
+ * pass is disabled, the pass configured via #rdpq_mode_fog will
+ * be the only one to run.
+ * 
+ * A standard fog formula is #RDPQ_FOG_STANDARD, or a custom formula
+ * can be created using #RDPQ_BLENDER.
+ * 
+ * See #rdpq_mode_blending for an example.
+ * 
+ * @param fog            Fog formula created with #RDPQ_BLENDER,
+ *                       or 0 to disable.
+ * 
+ * @see #rdpq_mode_blending
+ * @see #RDPQ_BLENDER
+ * @see #RDPQ_FOG_STANDARD
+ */
 inline void rdpq_mode_fog(rdpq_blender_t fog) {
     extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
     if (fog) fog |= SOM_BLENDING;

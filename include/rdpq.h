@@ -1048,15 +1048,15 @@ inline void rdpq_set_fill_color_stripes(color_t color1, color_t color2) {
  * Another similar blender register is the BLEND register, configured via
  * #rdpq_set_blend_color.
  * 
- * See #RDPQ_BLENDER1 and #RDPQ_BLENDER2 on how to configure
- * the blender (typically, via #rdpq_mode_blender).
+ * See #RDPQ_BLENDER and #RDPQ_BLENDER2 on how to configure
+ * the blender (typically, via #rdpq_mode_blending).
  * 
  * @param[in] color             Color to set the FOG register to
  * 
- * @see #RDPQ_BLENDER1
+ * @see #RDPQ_BLENDER
  * @see #RDPQ_BLENDER2
  * @see #rdpq_set_blend_color
- * @see #rdpq_mode_blender
+ * @see #rdpq_mode_blending
  */
 inline void rdpq_set_fog_color(color_t color)
 {
@@ -1076,15 +1076,15 @@ inline void rdpq_set_fog_color(color_t color)
  * Another similar blender register is the FOG register, configured via
  * #rdpq_set_fog_color.
  * 
- * See #RDPQ_BLENDER1 and #RDPQ_BLENDER2 on how to configure
- * the blender (typically, via #rdpq_mode_blender).
+ * See #RDPQ_BLENDER and #RDPQ_BLENDER2 on how to configure
+ * the blender (typically, via #rdpq_mode_blending).
  * 
  * @param[in] color             Color to set the BLEND register to
  * 
- * @see #RDPQ_BLENDER1
+ * @see #RDPQ_BLENDER
  * @see #RDPQ_BLENDER2
  * @see #rdpq_set_fog_color
- * @see #rdpq_mode_blender
+ * @see #rdpq_mode_blending
  */
 inline void rdpq_set_blend_color(color_t color)
 {
@@ -1094,7 +1094,7 @@ inline void rdpq_set_blend_color(color_t color)
 }
 
 /**
- * @brief Set the RDP PRIM combiner register
+ * @brief Set the RDP PRIM combiner register (RDP command: SET_PRIM_COLOR)
  * 
  * This function sets the internal RDP PRIM register, part of the
  * color combiner unit. Naming aside, it is a generic color register that
@@ -1122,7 +1122,7 @@ inline void rdpq_set_prim_color(color_t color)
 }
 
 /**
- * @brief Set the RDP ENV combiner register
+ * @brief Set the RDP ENV combiner register (RDP command: SET_ENV_COLOR)
  * 
  * This function sets the internal RDP ENV register, part of the
  * color combiner unit. Naming aside, it is a generic color register that
@@ -1132,7 +1132,7 @@ inline void rdpq_set_prim_color(color_t color)
  * #rdpq_set_prim_color.
  * 
  * See #RDPQ_COMBINER1 and #RDPQ_COMBINER2 on how to configure
- * the color combiner (typicall, via #rdpq_mode_combiner).
+ * the color combiner (typically, via #rdpq_mode_combiner).
  * 
  * @param[in] color             Color to set the ENV register to
  * 
@@ -1150,7 +1150,7 @@ inline void rdpq_set_env_color(color_t color)
 }
 
 /**
- * @brief Enqueue a SET_COLOR_IMAGE RDP command.
+ * @brief Configure the framebuffer to render to (RDP command: SET_COLOR_IMAGE)
  * 
  * This command is used to specify the render target that the RDP will draw to.
  *
@@ -1162,17 +1162,17 @@ inline void rdpq_set_env_color(color_t color)
  * If you have a raw pointer instead of a #surface_t, you can use #surface_make to create
  * a temporary surface structure to pass the information to #rdpq_set_color_image.
  * 
- * The only valid formats for a surface to be used as a render taget are: #FMT_RGBA16,
- * #FMT_RGBA8, and #FMT_CI8.
+ * The only valid formats for a surface to be used as a render target are: #FMT_RGBA16,
+ * #FMT_RGBA32, and #FMT_I8.
  *
  * @param[in]  surface   Surface to set as render target
  * 
  * @see #rdpq_set_color_image_raw
  */
-void rdpq_set_color_image(surface_t *buffer);
+void rdpq_set_color_image(surface_t *surface);
 
 /**
- * @brief Enqueue a SET_Z_IMAGE RDP command.
+ * @brief Configure the Z-buffer to use (RDP command: SET_Z_IMAGE)
  * 
  * This commands is used to specify the Z-buffer that will be used by RDP for the next
  * rendering commands.
@@ -1188,16 +1188,16 @@ void rdpq_set_color_image(surface_t *buffer);
 void rdpq_set_z_image(surface_t* surface);
 
 /**
- * @brief Enqueue a SET_TEX_IMAGE RDP command.
+ * @brief Configure the texture to use (RDP command: SET_TEX_IMAGE)
  * 
  * This commands is used to specify the texture image that will be used by RDP for
  * the next load commands (#rdpq_load_tile and #rdpq_load_block).
  * 
  * The surface must have the same width and height of the surface set as render target
  * (via #rdpq_set_color_image or #rdpq_set_color_image_raw). The color format should be
- * FMT_RGBA16, even though Z values will be written to it.
+ * #FMT_RGBA16, even though Z values will be written to it.
  * 
- * @param surface      Surface to set as Z buffer
+ * @param surface      Surface to set as texture
  * 
  * @see #rdpq_set_texture_image_raw
  */
@@ -1218,7 +1218,7 @@ void rdpq_set_texture_image(surface_t* surface);
  * @param offset       Byte offset to add to the buffer stored in the lookup table. Notice that
  *                     if index is 0, this can be a physical address to a buffer (use
  *                     #PhysicalAddr to convert a C pointer to a physical address).
- * @param format       Format of the buffer. Only FMT_RGBA32, FMT_RGBA16 or FMT_CI8 are
+ * @param format       Format of the buffer. Only #FMT_RGBA32, #FMT_RGBA16 or #FMT_I8 are
  *                     possible to use as a render target.
  * @param width        Width of the buffer in pixel
  * @param height       Height of the buffer in pixel
@@ -1229,7 +1229,7 @@ void rdpq_set_texture_image(surface_t* surface);
  */
 inline void rdpq_set_color_image_raw(uint8_t index, uint32_t offset, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride)
 {
-    assertf(format == FMT_RGBA32 || format == FMT_RGBA16 || format == FMT_CI8, "Image format is not supported as color image: %s\nIt must be FMT_RGBA32, FMT_RGBA16 or FMT_CI8", tex_format_name(format));
+    assertf(format == FMT_RGBA32 || format == FMT_RGBA16 || format == FMT_I8, "Image format is not supported as color image: %s\nIt must be FMT_RGBA32, FMT_RGBA16 or FMT_CI8", tex_format_name(format));
     assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
 
     extern void __rdpq_set_color_image(uint32_t, uint32_t, uint32_t, uint32_t);
@@ -1280,6 +1280,7 @@ inline void rdpq_set_z_image_raw(uint8_t index, uint32_t offset)
  * @param offset       Byte offset to add to the buffer stored in the lookup table. Notice that
  *                     if index is 0, this can be a physical address to a buffer (use
  *                     #PhysicalAddr to convert a C pointer to a physical address).
+ * @param format       Format of the texture (#tex_format_t)
  * @param width        Width of the texture in pixel
  * @param height       Height of the texture in pixel
  * 
