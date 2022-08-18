@@ -749,7 +749,7 @@ static void use_tile(int tidx, int cycle) {
             VALIDATE_ERR(rdp.som.sample_type == 0 || (rdp.som.tf_mode == 6 && rdp.som.cycle_type == 1), 
                 "tile %d is YUV, so for bilinear filtering it needs 2-cycle mode and the special TF1_YUVTEX0 mode (SOM set at %p)", tidx, rdp.last_som);
         } else
-            VALIDATE_WARN((rdp.som.tf_mode & (4>>cycle)), "tile %d is RGB-based, but texture filter in cycle %d does not disable YUV color conversion (SOM set at %p)", tidx, cycle, rdp.last_som);
+            VALIDATE_WARN((rdp.som.tf_mode & (4>>cycle)), "tile %d is RGB-based, but cycle %d is configured for YUV color conversion; try setting SOM_TF%d_RGB (SOM set at %p)", tidx, cycle, cycle, rdp.last_som);
     }
 
     // Check that TLUT mode in SOM is active if the tile requires it (and vice-versa)
