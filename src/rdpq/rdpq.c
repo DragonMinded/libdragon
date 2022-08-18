@@ -146,7 +146,7 @@
 #include "rspq.h"
 #include "rspq/rspq_internal.h"
 #include "rspq_constants.h"
-#include "rdp_commands.h"
+#include "rdpq_macros.h"
 #include "interrupt.h"
 #include "utils.h"
 #include "rdp.h"

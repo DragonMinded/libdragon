@@ -1,5 +1,5 @@
 /**
- * @file rdp_commands.h
+ * @file rdpq_macros.h
  * @brief RDP command macros
  * @ingroup rdp
  * 
@@ -9,8 +9,8 @@
  * The file is meant to be included also from RSP assembly code, for readability
  * while manipulating these commands.
  */
-#ifndef LIBDRAGON_RDP_COMMANDS_H
-#define LIBDRAGON_RDP_COMMANDS_H
+#ifndef LIBDRAGON_RDPQ_MACROS_H
+#define LIBDRAGON_RDPQ_MACROS_H
 
 ///@cond
 #ifndef __ASSEMBLER__
