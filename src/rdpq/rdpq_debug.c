@@ -5,6 +5,7 @@
  */
 #include "rdpq_debug.h"
 #include "rdpq_debug_internal.h"
+#ifdef N64
 #include "rdpq.h"
 #include "rspq.h"
 #include "rdpq_mode.h"
@@ -14,6 +15,12 @@
 #include "interrupt.h"
 #include "utils.h"
 #include "rspq_constants.h"
+#else
+#define debugf(msg, ...)  fprintf(stderr, msg, ##__VA_ARGS__)
+#define MIN(a,b)          ((a)<(b)?(a):(b))
+#define MAX(a,b)          ((a)>(b)?(a):(b))
+#endif
+#include <stdio.h>
 #include <string.h>
 #include <assert.h>
 
@@ -118,13 +125,14 @@ static struct {
     } tex;                               ///< Current associated texture image
 } rdp;
 
+static int warns, errs;                       ///< Validators warnings/errors (stats)
+#ifdef N64
 /** @brief Maximum number of pending RDP buffers */
 #define MAX_BUFFERS 12 
 static rdp_buffer_t buffers[MAX_BUFFERS];     ///< Pending RDP buffers (ring buffer)
 static volatile int buf_ridx, buf_widx;       ///< Read/write index into the ring buffer of RDP buffers
 static rdp_buffer_t last_buffer;              ///< Last RDP buffer that was processed
 static int show_log;                          ///< True if logging is enabled
-static int warns, errs;                       ///< Validators warnings/errors (stats)
 
 // Documented in rdpq_debug_internal.h
 void (*rdpq_trace)(void);
@@ -273,6 +281,7 @@ void rdpq_debug_stop(void)
     rdpq_trace = NULL;
     rdpq_trace_fetch = NULL;
 }
+#endif
 
 /** @brief Decode a SET_COMBINE command into a #colorcombiner_t structure */
 static inline colorcombiner_t decode_cc(uint64_t cc) {
@@ -534,7 +543,9 @@ void rdpq_debug_disasm(uint64_t *buf, FILE *out)
         return;
     case 0x31: switch(BITS(buf[0], 48, 55)) {
         case 0x01: fprintf(out, "RDPQ_SHOWLOG     show=%d\n", BIT(buf[0], 0)); return;
+        #ifdef N64
         case 0x02: fprintf(out, "RDPQ_MESSAGE     %s\n", (char*)CachedAddr(0x80000000|BITS(buf[0], 0, 24))); return;
+        #endif
         default:   fprintf(out, "RDPQ_DEBUG       <unkwnown>\n"); return;
     }
     }
@@ -783,11 +794,11 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
     switch (cmd) {
     case 0x3F: { // SET_COLOR_IMAGE
         validate_busy_pipe();
-        tex_format_t fmt = _RDP_FORMAT_CODE(BITS(buf[0], 53, 55), BITS(buf[0], 51, 52));
+        int fmt = BITS(buf[0], 53, 55); int size = 4 << BITS(buf[0], 51, 52);
         VALIDATE_ERR(BITS(buf[0], 0, 5) == 0, "color image must be aligned to 64 bytes");
-        VALIDATE_ERR(fmt == FMT_RGBA32 || fmt == FMT_RGBA16 || fmt == FMT_CI8,
-            "color image has invalid format %s: must be FMT_RGBA32, FMT_RGBA16 or FMT_CI8",
-                tex_format_name(fmt));
+        VALIDATE_ERR((fmt == 0 && (size == 32 || size == 16)) || (fmt == 2 && size == 8),
+            "color image has invalid format %s%d: must be RGBA32, RGBA16 or CI8",
+                (char*[]){"RGBA","YUV","CI","IA","I","?","?","?"}[fmt], size);
     }   break;
     case 0x3E: // SET_Z_IMAGE
         validate_busy_pipe();
@@ -900,6 +911,7 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
     if (r_warns) *r_warns = warns - *r_warns;
 }
 
+#ifdef N64
 surface_t rdpq_debug_get_tmem(void) {
     // Dump the TMEM as a 32x64 surface of 16bit pixels
     surface_t surf = surface_alloc(FMT_RGBA16, 32, 64);
@@ -928,3 +940,4 @@ surface_t rdpq_debug_get_tmem(void) {
 
     return surf;
 }
+#endif
