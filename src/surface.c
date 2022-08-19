@@ -1,6 +1,6 @@
 #include "surface.h"
 #include "n64sys.h"
-#include "rdp_commands.h"
+#include "rdpq_macros.h"
 #include "debug.h"
 #include <assert.h>
 #include <string.h>

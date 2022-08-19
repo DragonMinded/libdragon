@@ -1,12 +1,12 @@
-#ifndef LIBDRAGON_RDPQ_DEBUG_H
-#define LIBDRAGON_RDPQ_DEBUG_H
+#ifndef LIBDRAGON_RDPQ_DEBUG_INTERNAL_H
+#define LIBDRAGON_RDPQ_DEBUG_INTERNAL_H
 
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
 
 /**
- * @brief Log all the commmands run by RDP until the time of this call.
+ * @brief Log all the commands run by RDP until the time of this call.
  * 
  * Given that RDP buffers get reused as circular buffers, it is important
  * to call this function often enough.
@@ -37,21 +37,4 @@ extern void (*rdpq_trace_fetch)(void);
  */
 void rdpq_validate(uint64_t *buf, int *errs, int *warns);
 
-/**
- * @brief Return the size of the next RDP commands
- * 
- * @param       buf     Pointer to RDP command
- * @return      Number of 64-bit words the command is composed of
- */
-int rdpq_disasm_size(uint64_t *out);
-
-/**
- * @brief Disassemble a RDP command
- * 
- * @param   buf     Pointer to the RDP command 
- * @param   out     Ouput stream where to write the disassembled string   
- * @return  Number of 64-bit words the command is composed of
- */
-void rdpq_disasm(uint64_t *buf, FILE *out);
-
-#endif /* LIBDRAGON_RDPQ_DEBUG_H */
+#endif /* LIBDRAGON_RDPQ_DEBUG_INTERNAL_H */

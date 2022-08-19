@@ -17,10 +17,20 @@ extern void rdpq_fence(void);
 
 typedef struct rdpq_block_s rdpq_block_t;
 
+/**
+ * @brief A buffer that piggybacks onto rspq_block_t to store RDP commands
+ * 
+ * In rspq blocks, raw RDP commands are not stored as passthroughs for performance.
+ * Instead, they are stored in a parallel buffer in RDRAM and the RSP block contains
+ * commands to send (portions of) this buffer directly to RDP via DMA. This saves
+ * memory bandwidth compared to doing passthrough for every command.
+ * 
+ * Since the buffer can grow during creation, it is stored as a linked list of buffers.
+ */
 typedef struct rdpq_block_s {
-    rdpq_block_t *next;
-    uint32_t autosync_state;
-    uint32_t cmds[] __attribute__((aligned(8)));
+    rdpq_block_t *next;                           ///< Link to next buffer (or NULL if this is the last one for this block)
+    uint32_t autosync_state;                      ///< Autosync state at the end of the block (this is populated only on the first link)
+    uint32_t cmds[] __attribute__((aligned(8)));  ///< RDP commands
 } rdpq_block_t;
 
 void __rdpq_reset_buffer();

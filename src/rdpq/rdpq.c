@@ -142,11 +142,11 @@
 #include "rdpq.h"
 #include "rdpq_internal.h"
 #include "rdpq_constants.h"
-#include "rdpq_debug.h"
+#include "rdpq_debug_internal.h"
 #include "rspq.h"
 #include "rspq/rspq_internal.h"
 #include "rspq_constants.h"
-#include "rdp_commands.h"
+#include "rdpq_macros.h"
 #include "interrupt.h"
 #include "utils.h"
 #include "rdp.h"
@@ -634,7 +634,7 @@ extern inline void rdpq_set_fog_color(color_t color);
 extern inline void rdpq_set_blend_color(color_t color);
 extern inline void rdpq_set_prim_color(color_t color);
 extern inline void rdpq_set_env_color(color_t color);
-extern inline void rdpq_set_prim_depth(uint16_t primitive_z, int16_t primitive_delta_z);
+extern inline void rdpq_set_prim_depth_fx(uint16_t primitive_z, int16_t primitive_delta_z);
 extern inline void rdpq_load_tlut(tile_t tile, uint8_t lowidx, uint8_t highidx);
 extern inline void rdpq_set_tile_size_fx(tile_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1);
 extern inline void rdpq_load_block(tile_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t tmem_pitch);

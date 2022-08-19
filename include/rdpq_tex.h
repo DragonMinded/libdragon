@@ -25,8 +25,8 @@ extern "C" {
  * In addition to the standard parameters, this variant also allows to
  * configure the palette number associated with the texture.
  * 
- * @note Remember to call #rdpq_mode_tlut before drawing a palettized
- *       texture.
+ * @note Remember to call #rdpq_mode_tlut before drawing a texture
+ *       using a palette.
  * 
  * @param tile       Tile descriptor that will be initialized with this texture
  * @param tex        Surface containing the texture to load
@@ -43,7 +43,7 @@ int rdpq_tex_load_ci4(int tile, surface_t *tex, int tmem_addr, int tlut);
  * normally involves:
  *  
  *   * Configuring a tile descriptor (via #rdpq_set_tile)
- *   * Setting the source texture image (via #rdpq_set_texutre_image)
+ *   * Setting the source texture image (via #rdpq_set_texture_image)
  *   * Loading the texture (via #rdpq_load_tile or #rdpq_load_block)
  * 
  * This function works with all pixel formats, by dispatching the actual
@@ -54,10 +54,10 @@ int rdpq_tex_load_ci4(int tile, surface_t *tex, int tmem_addr, int tlut);
  * After calling this function, the specified tile descriptor will be ready
  * to be used in drawing primitives like #rdpq_triangle or #rdpq_texture_rectangle.
  * 
- * If the texture is palettized (#FMT_CI8 or #FMT_CI4), the tile descriptor
+ * If the texture uses a palette (#FMT_CI8 or #FMT_CI4), the tile descriptor
  * will be initialized pointing to palette 0. In the case of #FMT_CI4, this
  * might not be the correct palette; to specify a different palette number,
- * call #rdpq_tex_load_ci4 directly. Before drawing a palettized texture,
+ * call #rdpq_tex_load_ci4 directly. Before drawing a texture with palette,
  * remember to call #rdpq_mode_tlut to activate palette mode.
  * 
  * @param tile       Tile descriptor that will be initialized with this texture
@@ -73,8 +73,8 @@ int rdpq_tex_load(int tile, surface_t *tex, int tmem_addr);
  * This function allows to load one or more palettes into TMEM.
  * 
  * When using palettes, the upper half of TMEM is allocated to them. There is room
- * for 256 colors in total, which allows for one pallete for a CI8 texture, or up
- * to 16 paletter for CI4 textures.
+ * for 256 colors in total, which allows for one palette for a CI8 texture, or up
+ * to 16 palettes for CI4 textures.
  * 
  * @param tlut          Pointer to the color entries to load 
  * @param color_idx     First color entry in TMEM that will be written to (0-255)

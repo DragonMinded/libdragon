@@ -55,7 +55,8 @@
 #include "rdpq.h"
 #include "rdpq_mode.h"
 #include "rdpq_tex.h"
-#include "rdp_commands.h"
+#include "rdpq_debug.h"
+#include "rdpq_macros.h"
 #include "surface.h"
 
 #endif

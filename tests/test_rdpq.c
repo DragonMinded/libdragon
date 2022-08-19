@@ -1,11 +1,6 @@
 #include <malloc.h>
-#include <rspq.h>
-#include <rspq_constants.h>
-#include <rdpq.h>
-#include <rdp_commands.h>
 #include "../src/rspq/rspq_internal.h"
 #include "../src/rdpq/rdpq_internal.h"
-#include "../src/rdpq/rdpq_debug.h"
 #include "../src/rdpq/rdpq_constants.h"
 
 #define RDPQ_INIT() \

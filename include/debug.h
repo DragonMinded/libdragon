@@ -205,7 +205,18 @@ extern "C" {
 /**
  * @brief Do a hexdump of the specified buffer via #debugf
  * 
- * This is useful to dump a binary buffer for debugging purposes.
+ * This is useful to dump a binary buffer for debugging purposes. The hexdump shown
+ * contains both the hexadecimal and ASCII values, similar to what hex editors do.
+ * 
+ * Sample output:
+ * 
+ * <pre>
+ * 0000  80 80 80 80 80 80 80 80  80 80 80 80 80 80 80 80   |................|
+ * 0010  45 67 cd ef aa aa aa aa  aa aa aa aa aa aa aa aa   |Eg..............| 
+ * 0020  9a bc 12 34 80 80 80 80  80 80 80 80 80 80 80 80   |...4............|
+ * 0030  aa aa aa aa aa aa aa aa  ef 01 67 89 aa aa aa aa   |..........g.....|
+ * 0040  80 80 80 80 80 80 80 80  00 00 00 00 80 80 80 80   |................|
+ * </pre>
  * 
  * @param[in] buffer 	Buffer to dump
  * @param[in] size 		Size of the buffer in bytes

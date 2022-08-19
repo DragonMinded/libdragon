@@ -5,8 +5,8 @@
  */
 #include "rspq.h"
 #include "rdp.h"
-#include "rdp_commands.h"
 #include "rdpq.h"
+#include "rdpq_macros.h"
 #include "interrupt.h"
 #include "display.h"
 #include "debug.h"
