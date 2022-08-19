@@ -121,7 +121,7 @@
 #include <string.h>
 #include "graphics.h"
 #include "n64sys.h"
-#include "rdp_commands.h"
+#include "rdpq_macros.h"
 #include "surface.h"
 #include "debug.h"
 

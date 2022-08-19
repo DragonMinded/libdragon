@@ -1,6 +1,6 @@
 #include <rsp_queue.inc>
 #include "rdpq_constants.h"
-#include "rdp_commands.h"
+#include "rdpq_macros.h"
 
 #define rdpq_write_ptr s7
 
