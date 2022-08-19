@@ -86,7 +86,7 @@ extern inline void rdpq_set_mode_standard(void);
 extern inline void rdpq_mode_combiner(rdpq_combiner_t comb);
 extern inline void rdpq_mode_blending(rdpq_blender_t blend);
 extern inline void rdpq_mode_fog(rdpq_blender_t fog);
-extern inline void rdpq_mode_dithering(rdpq_dither_t rgb, rdpq_dither_t alpha);
+extern inline void rdpq_mode_dithering(rdpq_dither_t dither);
 extern inline void rdpq_mode_alphacompare(bool enable, int threshold);
 extern inline void rdpq_mode_zoverride(bool enable, uint16_t z, int16_t deltaz);
 extern inline void rdpq_mode_tlut(rdpq_tlut_t tlut);
