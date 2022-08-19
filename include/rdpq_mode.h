@@ -103,20 +103,93 @@ void rdpq_mode_push(void);
 
 void rdpq_mode_pop(void);
 
-typedef uint64_t rdpq_combiner_t;
-typedef uint32_t rdpq_blender_t;
-
 typedef enum rdpq_sampler_s {
     SAMPLER_POINT    = SOM_SAMPLE_POINT    >> SOM_SAMPLE_SHIFT,
     SAMPLER_BILINEAR = SOM_SAMPLE_BILINEAR >> SOM_SAMPLE_SHIFT,
     SAMPLER_MEDIAN   = SOM_SAMPLE_MEDIAN   >> SOM_SAMPLE_SHIFT,
 } rdpq_sampler_t;
 
+/**
+ * @brief Dithering configuration
+ * 
+ * RDP can optionally perform dithering on RGB and Alpha channel of the texture.
+ * The dithering is performed by the blender unit, which is also in charge of
+ * adapting the pixel color depth to that of the framebuffer. Dithering is
+ * a good way to reduce the mach banding effect created by color depth
+ * reduction.
+ * 
+ * The blender in fact will reduce the RGB components of the pixel (coming
+ * from the color combiner) to 5-bit when the framebuffer is 16-bit. If the
+ * framebuffer is 32-bit, the blender formula will be calculated with 8-bit
+ * per channel, so no dithering is required.
+ * 
+ * On the other hand, the alpha channels (used as multiplicative factors
+ * in the blender formulas) will always be reduced to 5-bit depth, even if
+ * the framebuffer is 32-bit. If you see banding artifacts in transparency levels
+ * of blended polygons, you may want to activate dithering on the alpha channel.
+ * 
+ * It is important to notice that the VI can optionally run an "dither filter"
+ * on the final image, while sending it to the video output. This
+ * algorithm tries to recover color depth precision by averaging lower bits
+ * in neighborhood pixels, and reducing the small noise created by dithering.
+ * #display_init currently activates it by default on all 16-bit display modes,
+ * if passed #ANTIALIAS_RESAMPLE_FETCH_NEEDED or #ANTIALIAS_RESAMPLE_FETCH_ALWAYS.
+ * 
+ * If you are using an emulator, make sure it correctly emulates the VI
+ * dither filter to judge the quality of the final image. For instance,
+ * the RDP plugin parallel-RDP (based on Vulkan) emulates it very accurately,
+ * so emulators like Ares, dgb-n64 or m64p will produce a picture closer to
+ * real hardware.
+ * 
+ * The supported dither algorithms are:
+ * 
+ *   * `SQUARE` (aka "magic square"). This is a custom dithering
+ *     algorithm, designed to work best with the VI dither filter. When
+ *     using it, the VI will reconstruct a virtually perfect 32-bit image
+ *     even though the framebuffer is only 16-bit.
+ *   * `BAYER`: standard Bayer dithering. This algorithm looks
+ *     better than the magic square when the VI dither filter is disabled,
+ *     or in some specific scenarios like large blended polygons. Make
+ *     sure to test it as well.
+ *   * `INVSQUARE` and `INVBAYER`: these are the same algorithms, but using
+ *     an inverse (symmetrical) pattern. They can be selected for alpha
+ *     channels to avoid making transparency phase with color dithering,
+ *     which is sometimes awkward.
+ *   * `NOISE`: random noise dithering. The dithering is performed
+ *     by perturbing the lower bit of each pixel with random noise.
+ *     This will create a specific visual effect as it changes from frame to
+ *     frame even on still images; it is especially apparent when used on
+ *     alpha channel as it can affect transparency. It is more commonly used
+ *     as a graphic effect rather than an actual dithering.
+ *   * `NONE`: disable dithering.
+ * 
+ * While the RDP hardware allows to configure different dither algorithms
+ * for RGB and Alpha channels, unfortunately not all combinations are
+ * available. This enumerator defines the available combinations. For
+ * instance, #DITHER_BAYER_NOISE selects the Bayer dithering for the
+ * RGB channels, and the noise dithering for alpha channel.
+ */
+
 typedef enum rdpq_dither_s {
-    DITHER_SQUARE = 0,
-    DITHER_BAYER,
-    DITHER_NOISE,
-    DITHER_NONE
+    DITHER_SQUARE_SQUARE       = (SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_SAME)   >> SOM_ALPHADITHER_SHIFT,
+    DITHER_SQUARE_INVSQUARE    = (SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_INVERT) >> SOM_ALPHADITHER_SHIFT,
+    DITHER_SQUARE_NOISE        = (SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_NOISE)  >> SOM_ALPHADITHER_SHIFT,
+    DITHER_SQUARE_NONE         = (SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_NONE)   >> SOM_ALPHADITHER_SHIFT,
+
+    DITHER_BAYER_BAYER         = (SOM_RGBDITHER_BAYER  | SOM_ALPHADITHER_SAME)   >> SOM_ALPHADITHER_SHIFT,
+    DITHER_BAYER_INVBAYER      = (SOM_RGBDITHER_BAYER  | SOM_ALPHADITHER_INVERT) >> SOM_ALPHADITHER_SHIFT,
+    DITHER_BAYER_NOISE         = (SOM_RGBDITHER_BAYER  | SOM_ALPHADITHER_NOISE)  >> SOM_ALPHADITHER_SHIFT,
+    DITHER_BAYER_NONE          = (SOM_RGBDITHER_BAYER  | SOM_ALPHADITHER_NONE)   >> SOM_ALPHADITHER_SHIFT,
+
+    DITHER_NOISE_SQUARE        = (SOM_RGBDITHER_NOISE  | SOM_ALPHADITHER_SAME)   >> SOM_ALPHADITHER_SHIFT,
+    DITHER_NOISE_INVSQUARE     = (SOM_RGBDITHER_NOISE  | SOM_ALPHADITHER_INVERT) >> SOM_ALPHADITHER_SHIFT,
+    DITHER_NOISE_NOISE         = (SOM_RGBDITHER_NOISE  | SOM_ALPHADITHER_NOISE)  >> SOM_ALPHADITHER_SHIFT,
+    DITHER_NOISE_NONE          = (SOM_RGBDITHER_NOISE  | SOM_ALPHADITHER_NONE)   >> SOM_ALPHADITHER_SHIFT,
+
+    DITHER_NONE_BAYER          = (SOM_RGBDITHER_NONE   | SOM_ALPHADITHER_SAME)   >> SOM_ALPHADITHER_SHIFT,
+    DITHER_NONE_INVBAYER       = (SOM_RGBDITHER_NONE   | SOM_ALPHADITHER_INVERT) >> SOM_ALPHADITHER_SHIFT,
+    DITHER_NONE_NOISE          = (SOM_RGBDITHER_NONE   | SOM_ALPHADITHER_NOISE)  >> SOM_ALPHADITHER_SHIFT,
+    DITHER_NONE_NONE           = (SOM_RGBDITHER_NONE   | SOM_ALPHADITHER_NONE)   >> SOM_ALPHADITHER_SHIFT,
 } rdpq_dither_t;
 
 typedef enum rdpq_tlut_s {
@@ -222,6 +295,26 @@ inline void rdpq_mode_antialias(bool enable)
     __rdpq_mode_change_som(SOM_AA_ENABLE, enable ? SOM_AA_ENABLE : 0);
 }
 
+/**
+ * @brief Configure the color combiner formula
+ * 
+ * This function allows to configure the color combiner formula to be used.
+ * The formula can be specified using #RDPQ_COMBINER1 (for 1-pass formulas)
+ * or #RDPQ_COMBINER2 (for 2-pass formulas). Refer to #RDPQ_COMBINER1 for more
+ * information.
+ * 
+ * This function makes sure that the current render mode can work correctly
+ * with the specified combiner formula. Specifically, it switches automatically
+ * between "1-cycle mode" and "2-cycle mode" depending on the formula being
+ * set and the blender unit configuration, and also automatically adapts 
+ * combiner formulas to the required cycle mode. See the documentation
+ * in rdpq.c for more information.
+ * 
+ * @param comb      The combiner formula to configure
+ * 
+ * @see #RDPQ_COMBINER1
+ * @see #RDPQ_COMBINER2
+ */
 inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
     extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
 
@@ -337,10 +430,23 @@ inline void rdpq_mode_fog(rdpq_blender_t fog) {
     __rdpq_fixup_mode(RDPQ_CMD_SET_BLENDING_MODE, 0, fog);
 }
 
-inline void rdpq_mode_dithering(rdpq_dither_t rgb, rdpq_dither_t alpha) {
+/**
+ * @brief Change dithering mode
+ * 
+ * This function allows to change the dithering algorithm performed by 
+ * RDP on RGB and alpha channels. Note that by default, #rdpq_set_mode_standard
+ * disables any dithering.
+ * 
+ * See #rdpq_dither_t for an explanation of how RDP applies dithering and 
+ * how the different dithering algorithms work.
+ * 
+ * @param dither    Dithering to perform
+ * 
+ * @see #rdpq_dither_t
+ */
+inline void rdpq_mode_dithering(rdpq_dither_t dither) {
     rdpq_change_other_modes_raw(
-        SOM_RGBDITHER_MASK | SOM_ALPHADITHER_MASK,
-        ((uint64_t)rgb << SOM_RGBDITHER_SHIFT) | ((uint64_t)alpha << SOM_ALPHADITHER_SHIFT));
+        SOM_RGBDITHER_MASK | SOM_ALPHADITHER_MASK, ((uint64_t)dither << SOM_ALPHADITHER_SHIFT));
 }
 
 inline void rdpq_mode_alphacompare(bool enable, int threshold) {

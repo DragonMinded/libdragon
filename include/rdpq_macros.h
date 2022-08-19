@@ -12,12 +12,25 @@
 #ifndef LIBDRAGON_RDPQ_MACROS_H
 #define LIBDRAGON_RDPQ_MACROS_H
 
+#ifndef __ASSEMBLER__
+
+/** @brief A combiner formula, created by #RDPQ_COMBINER1 or #RDPQ_COMBINER2 */
+typedef uint64_t rdpq_combiner_t;
+/** @brief A blender formula, created by #RDPQ_BLENDER or #RDPQ_BLENDER2 */
+typedef uint32_t rdpq_blender_t;
+
+#endif
+
 ///@cond
 #ifndef __ASSEMBLER__
 #include <stdint.h>
 #define cast64(x) (uint64_t)(x)
+#define castcc(x) (rdpq_combiner_t)(x)
+#define castbl(x) (rdpq_blender_t)(x)
 #else
 #define cast64(x) x
+#define castcc(x) x
+#define castbl(x) 
 #endif
 ///@endcond
 
@@ -245,6 +258,46 @@
  * but different inputs) must be configured: one for the RGB 
  * channels and for the alpha channel.
  * 
+ * The macro must be invoked as:
+ * 
+ *      RDPQ_COMBINER1((A1, B1, C1, D1), (A2, B2, C2, D2))
+ * 
+ * where `A1`, `B1`, `C1`, `D1` define the formula used for RGB channels,
+ * while `A2`, `B2`, `C2`, `D2` define the formula for the alpha channel. 
+ * Please notice the double parenthesis.
+ * 
+ * For example, this macro:
+ * 
+ *      RDPQ_COMBINER1((TEX0, ZERO, SHADE, ZERO), (ZERO, ZERO, ZERO, TEX0))
+ * 
+ * configures the formulas:
+ * 
+ *      RGB = (TEX0 - 0) * SHADE + 0 = TEX0 * SHADE
+ *      ALPHA = (0 - 0) * 0 + TEX0   = TEX0
+ * 
+ * In the RGB channels, the texel color is multiplied by the shade color
+ * (which is the per-pixel interpolated vertex color), basically applying
+ * gouraud shading. The alpha channel of the texel is instead passed through
+ * with no modifications.
+ *
+ * The output of the combiner goes into the blender unit, that allows for further
+ * operations on the RGB channels, especially allowing to blend it with the
+ * framebuffer contents. See #RDPQ_BLENDER for information on how to configure the blender.
+ * 
+ * The values created by #RDPQ_COMBINER1 are of type #rdpq_combiner_t. They can be used
+ * in two different ways:
+ * 
+ *  * When using the higher-level mode API (rdpq_mode.h), pass it to
+ *    #rdpq_mode_combiner. This will take care of everything else required
+ *    to make the combiner work (eg: render mode tweaks). See the
+ *    documentation of #rdpq_mode_combiner for more information.
+ *  * When using the lower-level API (#rdpq_set_combiner_raw),
+ *    the combiner is configured into RDP, but it is up to the programmer
+ *    to make sure the current render mode is compatible with it,
+ *    or tweak it by calling #rdpq_set_other_modes_raw. For instance,
+ *    if the render mode is in 2-cycle mode, only a 2-pass combiner
+ *    should be set.
+ * 
  * This is the list of all possible slots. Not all slots are
  * available for the four variables (see the table below).
  *  
@@ -252,8 +305,8 @@
  *  * `SHADE`: per-pixel interpolated color. This can be set on each
  *    vertex of a triangle, and is interpolated across each pixel. It
  *    cannot be used while drawing rectangles.
- *  * `PRIM`: value of the PRIM register (set via #rdp_set_prim_color)
- *  * `ENV`: value of the ENV register (set via #rdp_set_env_color)
+ *  * `PRIM`: value of the PRIM register (set via #rdpq_set_prim_color)
+ *  * `ENV`: value of the ENV register (set via #rdpq_set_env_color)
  *  * `NOISE`: a random value
  *  * `ONE`: the constant value 1.0
  *  * `ZERO`: the constant value 0.0
@@ -263,8 +316,8 @@
  *    (via #rdpq_set_yuv_parms).
  *  * `TEX0_ALPHA`: alpha of the text of the texture being drawn.
  *  * `SHADE_ALPHA`: alpha of the per-pixel interpolated color.
- *  * `PRIM_ALPHA`: alpha of the PRIM register (set via #rdp_set_prim_color)
- *  * `ENV_ALPHA`: alpha of the ENV register (set via #rdp_set_env_color)
+ *  * `PRIM_ALPHA`: alpha of the PRIM register (set via #rdpq_set_prim_color)
+ *  * `ENV_ALPHA`: alpha of the ENV register (set via #rdpq_set_env_color)
  *  * `LOD_FRAC`
  *  * `PRIM_LOD_FRAC`
  *  * `KEYSCALE`
@@ -311,12 +364,6 @@
  * 
  * which will obtain exactly the same result.
  * 
- * Please note the use of the double parentheses within the `RDP1_COMBINER` call. These are required
- * for the macro to work correctly.
- * 
- * The output of the combiner goes into the blender unit. See #RDPQ_BLENDER1 for information on
- * how to configure the blender.
- * 
  * A complete example drawing a textured rectangle with a fixed semi-transparency of 0.7:
  * 
  * @code{.c}
@@ -346,14 +393,39 @@
  * @param[in]  rgb      The RGB formula as `(A, B, C, D)`
  * @param[in]  alpha    The ALPHA formula as `(A, B, C, D)`
  * 
+ * @see #rdpq_mode_combiner
+ * @see #rdpq_set_combiner_raw
+ * @see #RDPQ_COMBINER2
+ * @see #RDPQ_BLENDER
+ * 
  * @hideinitializer
  */
 #define RDPQ_COMBINER1(rgb, alpha) \
-    (__rdpq_1cyc_comb_rgb rgb   | __rdpq_1cyc_comb_alpha alpha)
+    castcc(__rdpq_1cyc_comb_rgb rgb   | __rdpq_1cyc_comb_alpha alpha)
+
+/**
+ * @brief Build a 2-pass combiner formula
+ * 
+ * This is similar to #RDPQ_COMBINER1, but it creates a two-passes combiner.
+ * The combiner unit in RDP in fact allows up to two sequential combiner
+ * formulas that can be applied to each pixel. 
+ * 
+ * In the second pass, you can refer to the output of the first pass using
+ * the `COMBINED` slot (not available in the first pass).
+ * 
+ * Refer to #RDPQ_COMBINER1 for more information.
+ * 
+ * @see #rdpq_mode_combiner
+ * @see #rdpq_set_combiner_raw
+ * @see #RDPQ_COMBINER1
+ * @see #RDPQ_BLENDER
+ * 
+ * @hideinitializer
+ */
 #define RDPQ_COMBINER2(rgb0, alpha0, rgb1, alpha1) \
-    (__rdpq_2cyc_comb2a_rgb rgb0 | __rdpq_2cyc_comb2a_alpha alpha0 | \
-     __rdpq_2cyc_comb2b_rgb rgb1 | __rdpq_2cyc_comb2b_alpha alpha1 | \
-     RDPQ_COMBINER_2PASS)
+    castcc(__rdpq_2cyc_comb2a_rgb rgb0 | __rdpq_2cyc_comb2a_alpha alpha0 | \
+           __rdpq_2cyc_comb2b_rgb rgb1 | __rdpq_2cyc_comb2b_alpha alpha1 | \
+           RDPQ_COMBINER_2PASS)
 
 
 /** @name SET_OTHER_MODES bit macros
@@ -655,7 +727,7 @@
  * 
  * @hideinitializer
  */
-#define RDPQ_BLENDER(bl)        (__rdpq_blend_1cyc_0 bl  | __rdpq_blend_1cyc_1 bl)
+#define RDPQ_BLENDER(bl)        castbl(__rdpq_blend_1cyc_0 bl  | __rdpq_blend_1cyc_1 bl)
 
 /**
  * @brief Build a 2-pass blender formula
@@ -680,7 +752,6 @@
  * 
  * @hideinitializer
  */
-
-#define RDPQ_BLENDER2(bl0, bl1) (__rdpq_blend_2cyc_0 bl0 | __rdpq_blend_2cyc_1 bl1 | RDPQ_BLENDER_2PASS)
+#define RDPQ_BLENDER2(bl0, bl1) castbl(__rdpq_blend_2cyc_0 bl0 | __rdpq_blend_2cyc_1 bl1 | RDPQ_BLENDER_2PASS)
 
 #endif

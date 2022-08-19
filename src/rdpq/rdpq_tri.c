@@ -1,3 +1,20 @@
+/**
+ * @file rdpq_tri.c
+ * @brief RDP Command queue: triangle drawing routine
+ * @ingroup rdp
+ * 
+ * This file contains the implementation of a single function: #rdpq_triangle.
+ * 
+ * The RDP triangle commands are complex to assemble because they are designed
+ * for the hardware that will be drawing them, rather than for the programmer
+ * that needs to create them. Specifically, they contain explicit gradients
+ * (partial derivatives aka horizontal and vertical per-pixel increments)
+ * for all attributes that need to be interpolated. Moreover, the RDP is able
+ * to draw triangles with subpixel precision, so input coordinates are fixed
+ * point and the setup code must take into account exactly how the rasterizer
+ * will handle fractional values.
+ */
+
 #include <math.h>
 #include <float.h>
 #include "rdpq.h"
@@ -8,7 +25,7 @@
 #define TRUNCATE_S11_2(x) (((x)&0x1fff) | (((x)>>18)&~0x1fff))
 
 /** @brief Converts a float to a s16.16 fixed point number */
-int32_t float_to_s16_16(float f)
+static int32_t float_to_s16_16(float f)
 {
     // Currently the float must be clamped to this range because
     // otherwise the trunc.w.s instruction can potentially trigger
@@ -25,16 +42,19 @@ int32_t float_to_s16_16(float f)
     return floor(f * 65536.f);
 }
 
+/** @brief Precomputed information about edges and slopes. */
 typedef struct {
-    float hx, hy;
-    float mx, my;
-    float fy;
-    float ish;
-    float attr_factor;
+    float hx;               ///< High edge (X)
+    float hy;               ///< High edge (Y)
+    float mx;               ///< Middle edge (X)
+    float my;               ///< Middle edge (Y)
+    float fy;               ///< Fractional part of Y1 (top vertex)
+    float ish;              ///< Inverse slope of higher edge
+    float attr_factor;      ///< Inverse triangle normal (used to calculate gradients)
 } rdpq_tri_edge_data_t;
 
 __attribute__((always_inline))
-inline void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, uint8_t tile, uint8_t mipmaps, const float *v1, const float *v2, const float *v3)
+static inline void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, uint8_t tile, uint8_t mipmaps, const float *v1, const float *v2, const float *v3)
 {
     const float x1 = v1[0];
     const float x2 = v2[0];
@@ -152,7 +172,7 @@ static inline void __rdpq_write_shade_coeffs(rspq_write_t *w, rdpq_tri_edge_data
 }
 
 __attribute__((always_inline))
-inline void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, const float *v1, const float *v2, const float *v3)
+static inline void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, const float *v1, const float *v2, const float *v3)
 {
     float s1 = v1[0] * 32.f, t1 = v1[1] * 32.f, w1 = v1[2];
     float s2 = v2[0] * 32.f, t2 = v2[1] * 32.f, w2 = v2[2];
@@ -235,7 +255,7 @@ inline void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data,
 }
 
 __attribute__((always_inline))
-inline void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, const float *v1, const float *v2, const float *v3)
+static inline void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, const float *v1, const float *v2, const float *v3)
 {
     const float z1 = v1[0] * 0x7FFF;
     const float z2 = v2[0] * 0x7FFF;
@@ -262,11 +282,13 @@ inline void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data
     rspq_write_arg(w, DzDy_fixed);
 }
 
-__attribute__((noinline))
 void rdpq_triangle(tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
 {
     uint32_t res = AUTOSYNC_PIPE;
     if (tex_offset >= 0) {
+        // FIXME: this can be using multiple tiles depending on color combiner and texture
+        // effects such as detail and sharpen. Figure it out a way to handle these in the
+        // autosync engine.
         res |= AUTOSYNC_TILE(tile);
     }
     __rdpq_autosync_use(res);
