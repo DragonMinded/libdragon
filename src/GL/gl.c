@@ -1,5 +1,6 @@
 #include "GL/gl.h"
 #include "rdpq.h"
+#include "rdpq_mode.h"
 #include "rspq.h"
 #include "display.h"
 #include "rdp.h"
@@ -97,7 +98,7 @@ void gl_init()
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
 
-    rdpq_set_other_modes_raw(0);
+    rdpq_set_mode_standard();
     gl_set_default_framebuffer();
     glViewport(0, 0, state.default_framebuffer.color_buffer->width, state.default_framebuffer.color_buffer->height);
 }
@@ -135,32 +136,35 @@ void gl_set_flag(GLenum target, bool value)
 {
     switch (target) {
     case GL_SCISSOR_TEST:
-        state.is_scissor_dirty = value != state.scissor_test;
-        state.scissor_test = value;
+        GL_SET_STATE_FLAG(state.scissor_test, value, DIRTY_FLAG_SCISSOR);
+        break;
+    case GL_DEPTH_TEST:
+        GL_SET_STATE_FLAG(state.depth_test, value, DIRTY_FLAG_RENDERMODE);
+        break;
+    case GL_BLEND:
+        GL_SET_STATE_FLAG(state.blend, value, DIRTY_FLAG_RENDERMODE | DIRTY_FLAG_BLEND);
+        break;
+    case GL_ALPHA_TEST:
+        GL_SET_STATE_FLAG(state.alpha_test, value, DIRTY_FLAG_RENDERMODE);
+        break;
+    case GL_DITHER:
+        GL_SET_STATE_FLAG(state.dither, value, DIRTY_FLAG_RENDERMODE);
+        break;
+    case GL_FOG:
+        GL_SET_STATE_FLAG(state.fog, value, DIRTY_FLAG_FOG | DIRTY_FLAG_COMBINER);
+        break;
+    case GL_MULTISAMPLE_ARB:
+        GL_SET_STATE_FLAG(state.multisample, value, DIRTY_FLAG_ANTIALIAS);
+        break;
+    case GL_TEXTURE_1D:
+        state.texture_1d = value;
+        break;
+    case GL_TEXTURE_2D:
+        state.texture_2d = value;
         break;
     case GL_CULL_FACE:
         state.cull_face = value;
         break;
-    case GL_DEPTH_TEST:
-        GL_SET_STATE(state.depth_test, value, state.is_rendermode_dirty);
-        break;
-    case GL_TEXTURE_1D:
-        GL_SET_STATE(state.texture_1d, value, state.is_rendermode_dirty);
-        break;
-    case GL_TEXTURE_2D:
-        GL_SET_STATE(state.texture_2d, value, state.is_rendermode_dirty);
-        break;
-    case GL_BLEND:
-        GL_SET_STATE(state.blend, value, state.is_rendermode_dirty);
-        break;
-    case GL_ALPHA_TEST:
-        GL_SET_STATE(state.alpha_test, value, state.is_rendermode_dirty);
-        break;
-    case GL_DITHER:
-        GL_SET_STATE(state.dither, value, state.is_rendermode_dirty);
-        break;
-    case GL_FOG:
-        GL_SET_STATE(state.fog, value, state.is_rendermode_dirty);
     case GL_LIGHTING:
         state.lighting = value;
         break;
@@ -176,9 +180,6 @@ void gl_set_flag(GLenum target, bool value)
         break;
     case GL_COLOR_MATERIAL:
         state.color_material = value;
-        break;
-    case GL_MULTISAMPLE_ARB:
-        GL_SET_STATE(state.multisample, value, state.is_rendermode_dirty);
         break;
     case GL_TEXTURE_GEN_S:
         state.s_gen.enabled = value;
@@ -294,10 +295,15 @@ void glDrawBuffer(GLenum buf)
 
 void glClear(GLbitfield buf)
 {
+    if (!buf) {
+        return;
+    }
+
     assert_framebuffer();
 
+    rdpq_mode_push();
+
     rdpq_set_other_modes_raw(SOM_CYCLE_FILL);
-    state.is_rendermode_dirty = true;
 
     gl_update_scissor();
 
@@ -327,6 +333,8 @@ void glClear(GLbitfield buf)
             CLAMPF_TO_U8(state.clear_color[3])));
         rdpq_fill_rectangle(0, 0, fb->color_buffer->width, fb->color_buffer->height);
     }
+
+    rdpq_mode_pop();
 }
 
 void glClearColor(GLclampf r, GLclampf g, GLclampf b, GLclampf a)
@@ -383,7 +391,7 @@ bool gl_storage_alloc(gl_storage_t *storage, uint32_t size)
 void gl_storage_free(gl_storage_t *storage)
 {
     // TODO: need to wait until buffer is no longer used!
-    
+
     if (storage->data != NULL) {
         free_uncached(storage->data);
         storage->data = NULL;

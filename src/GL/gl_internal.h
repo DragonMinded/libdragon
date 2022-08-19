@@ -47,12 +47,22 @@
 #define I16_TO_FLOAT(x) MAX((x)/(float)(0x7FFF),-1.f)
 #define I32_TO_FLOAT(x) MAX((x)/(float)(0x7FFFFFFF),-1.f)
 
+#define GL_SET_DIRTY_FLAG(flag) ({ state.dirty_flags |= (flag); })
+#define GL_IS_DIRTY_FLAG_SET(flag) (state.dirty_flags & (flag))
+
 #define GL_SET_STATE(var, value, dirty_flag) ({ \
     typeof(value) _v = (value); \
-    if (_v != var) { \
-        dirty_flag = true; \
-    } \
+    dirty_flag = _v != var; \
     var = _v; \
+    dirty_flag; \
+})
+
+#define GL_SET_STATE_FLAG(var, value, flag) ({ \
+    typeof(value) _v = (value); \
+    if (_v != var) { \
+        var = _v; \
+        GL_SET_DIRTY_FLAG(flag); \
+    } \
 })
 
 enum {
@@ -62,6 +72,16 @@ enum {
     ATTRIB_NORMAL,
     ATTRIB_COUNT
 };
+
+typedef enum {
+    DIRTY_FLAG_RENDERMODE = 0x01,
+    DIRTY_FLAG_BLEND      = 0x02,
+    DIRTY_FLAG_FOG        = 0x04,
+    DIRTY_FLAG_COMBINER   = 0x08,
+    DIRTY_FLAG_SCISSOR    = 0x10,
+    DIRTY_FLAG_ALPHA_REF  = 0x20,
+    DIRTY_FLAG_ANTIALIAS  = 0x40,
+} gl_dirty_flags_t;
 
 typedef struct {
     surface_t *color_buffer;
@@ -103,6 +123,7 @@ typedef struct {
 
 typedef struct {
     gl_texture_image_t levels[MAX_TEXTURE_LEVELS];
+    uint64_t modes;
     uint32_t num_levels;
     GLenum dimensionality;
     GLenum wrap_s;
@@ -112,6 +133,8 @@ typedef struct {
     GLclampf border_color[4];
     GLclampf priority;
     bool is_complete;
+    bool is_upload_dirty;
+    bool is_modes_dirty;
 } gl_texture_object_t;
 
 typedef struct {
@@ -239,6 +262,7 @@ typedef struct {
     bool color_material;
     bool multisample;
     bool normalize;
+    bool depth_mask;
 
     gl_array_t arrays[ATTRIB_COUNT];
 
@@ -285,6 +309,9 @@ typedef struct {
     gl_texture_object_t *texture_1d_object;
     gl_texture_object_t *texture_2d_object;
 
+    gl_texture_object_t *uploaded_texture;
+    gl_texture_object_t *last_used_texture;
+
     gl_material_t material;
     gl_light_t lights[LIGHT_COUNT];
 
@@ -329,11 +356,8 @@ typedef struct {
     gl_buffer_object_t *element_array_buffer;
 
     bool immediate_active;
-    bool is_points;
 
-    bool is_scissor_dirty;
-    bool is_rendermode_dirty;
-    bool is_texture_dirty;
+    gl_dirty_flags_t dirty_flags;
 } gl_state_t;
 
 void gl_matrix_init();
@@ -361,9 +385,16 @@ void gl_matrix_mult4x2(GLfloat *d, const gl_matrix_t *m, const GLfloat *v);
 
 bool gl_is_invisible();
 
+bool gl_calc_is_points();
+
 void gl_update_scissor();
-void gl_update_render_mode();
+void gl_update_blend_func();
+void gl_update_fog();
+void gl_update_rendermode();
+void gl_update_combiner();
+void gl_update_alpha_ref();
 void gl_update_texture();
+void gl_update_multisample();
 
 void gl_perform_lighting(GLfloat *color, const GLfloat *input, const GLfloat *v, const GLfloat *n, const gl_material_t *material);
 

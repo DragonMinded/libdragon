@@ -1,6 +1,7 @@
 #include "gl_internal.h"
 #include "utils.h"
 #include "rdpq.h"
+#include "rdpq_mode.h"
 #include <malloc.h>
 #include <string.h>
 
@@ -78,13 +79,6 @@ bool gl_calc_is_points()
     }
 }
 
-void gl_update_is_points()
-{
-    bool is_points = gl_calc_is_points();
-
-    GL_SET_STATE(state.is_points, is_points, state.is_rendermode_dirty);
-}
-
 void glBegin(GLenum mode)
 {
     if (state.immediate_active) {
@@ -155,10 +149,16 @@ void glBegin(GLenum mode)
         return;
     }
 
-    gl_update_is_points();
     gl_update_scissor();
-    gl_update_render_mode();
     gl_update_texture();
+    gl_update_blend_func();
+    gl_update_fog();
+    gl_update_rendermode();
+    gl_update_combiner();
+    gl_update_alpha_ref();
+    gl_update_multisample();
+
+    state.dirty_flags = 0;
 
     gl_reset_vertex_cache();
 }
@@ -193,7 +193,7 @@ void gl_draw_point(gl_vertex_t *v0)
         FLOAT_TO_U8(v0->color[3])
     ));
 
-    if (state.depth_test) {
+    if (state.depth_test || state.depth_mask) {
         rdpq_set_prim_depth(floorf(v0->depth), 0);
     }
 
@@ -262,7 +262,7 @@ void gl_draw_line(gl_vertex_t *v0, gl_vertex_t *v1)
 
 void gl_draw_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
 {
-    uint8_t level = 0;
+    uint8_t level = 1;
     int32_t tex_offset = -1;
 
     gl_texture_object_t *tex_obj = gl_get_active_texture();
@@ -1351,8 +1351,7 @@ void glPolygonMode(GLenum face, GLenum mode)
         return;
     }
 
-    state.polygon_mode = mode;
-    gl_update_is_points();
+    GL_SET_STATE_FLAG(state.polygon_mode, mode, DIRTY_FLAG_RENDERMODE | DIRTY_FLAG_COMBINER);
 }
 
 void glDepthRange(GLclampd n, GLclampd f)

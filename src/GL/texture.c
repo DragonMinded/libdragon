@@ -736,7 +736,8 @@ void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei widt
     image->width = width;
     image->height = height;
     image->internal_format = preferred_format;
-    state.is_texture_dirty = true;
+
+    obj->is_upload_dirty = true;
 
     gl_update_texture_completeness(obj);
 }
@@ -764,9 +765,8 @@ void gl_tex_sub_image(GLenum target, GLint level, GLint xoffset, GLint yoffset, 
 
     if (data != NULL) {
         gl_transfer_pixels(dest, image->internal_format, image->stride, width, height, num_elements, format, type, xoffset, data);
+        obj->is_upload_dirty = true;
     }
-
-    state.is_texture_dirty = true;
 }
 
 void glTexImage1D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLint border, GLenum format, GLenum type, const GLvoid *data)
@@ -920,7 +920,7 @@ void gl_texture_set_wrap_s(gl_texture_object_t *obj, GLenum param)
     switch (param) {
     case GL_CLAMP:
     case GL_REPEAT:
-        GL_SET_STATE(obj->wrap_s, param, state.is_texture_dirty);
+        GL_SET_STATE(obj->wrap_s, param, obj->is_upload_dirty);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -933,7 +933,7 @@ void gl_texture_set_wrap_t(gl_texture_object_t *obj, GLenum param)
     switch (param) {
     case GL_CLAMP:
     case GL_REPEAT:
-        GL_SET_STATE(obj->wrap_t, param, state.is_texture_dirty);
+        GL_SET_STATE(obj->wrap_t, param, obj->is_upload_dirty);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -950,10 +950,8 @@ void gl_texture_set_min_filter(gl_texture_object_t *obj, GLenum param)
     case GL_LINEAR_MIPMAP_NEAREST:
     case GL_NEAREST_MIPMAP_LINEAR:
     case GL_LINEAR_MIPMAP_LINEAR:
-        GL_SET_STATE(obj->min_filter, param, state.is_texture_dirty);
-        gl_update_texture_completeness(obj);
-        if (state.is_texture_dirty && gl_texture_is_active(obj)) {
-            state.is_rendermode_dirty = true;
+        if (GL_SET_STATE(obj->min_filter, param, obj->is_modes_dirty)) {
+            gl_update_texture_completeness(obj);
         }
         break;
     default:
@@ -967,10 +965,7 @@ void gl_texture_set_mag_filter(gl_texture_object_t *obj, GLenum param)
     switch (param) {
     case GL_NEAREST:
     case GL_LINEAR:
-        GL_SET_STATE(obj->mag_filter, param, state.is_texture_dirty);
-        if (state.is_texture_dirty && gl_texture_is_active(obj)) {
-            state.is_rendermode_dirty = true;
-        }
+        GL_SET_STATE(obj->mag_filter, param, obj->is_modes_dirty);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -984,13 +979,11 @@ void gl_texture_set_border_color(gl_texture_object_t *obj, GLclampf r, GLclampf 
     obj->border_color[1] = CLAMP01(g);
     obj->border_color[2] = CLAMP01(b);
     obj->border_color[3] = CLAMP01(a);
-    state.is_texture_dirty = true;
 }
 
 void gl_texture_set_priority(gl_texture_object_t *obj, GLclampf param)
 {
     obj->priority = CLAMP01(param);
-    state.is_texture_dirty = true;
 }
 
 void glTexParameteri(GLenum target, GLenum pname, GLint param)
@@ -1198,16 +1191,10 @@ void glDeleteTextures(GLsizei n, const GLuint *textures)
     }
 }
 
-void gl_update_texture()
+void gl_upload_texture(gl_texture_object_t *tex_obj)
 {
-    // TODO: only submit commands if anything actually changed
     // TODO: re-implement this so that multiple textures can potentially be in TMEM at the same time
-
-    gl_texture_object_t *tex_obj = gl_get_active_texture();
-
-    if (tex_obj == NULL || !tex_obj->is_complete) {
-        return;
-    }
+    // TODO: seperate uploading from updating tile descriptors
 
     uint32_t tmem_used = 0;
 
@@ -1215,6 +1202,7 @@ void gl_update_texture()
     tex_format_t fmt = gl_get_texture_format(tex_obj->levels[0].internal_format);
     tex_format_t load_fmt = fmt;
 
+    // TODO: do this for 8-bit formats as well
     switch (fmt) {
     case FMT_CI4:
     case FMT_I4:
@@ -1255,5 +1243,32 @@ void gl_update_texture()
         rdpq_set_tile_size(l, 0, 0, image->width, image->height);
 
         tmem_used = add_tmem_size(tmem_used, tmem_pitch * image->height);
+    }
+}
+
+void gl_update_texture()
+{
+    gl_texture_object_t *tex_obj = gl_get_active_texture();
+    if (tex_obj != NULL && !tex_obj->is_complete) {
+        tex_obj = NULL;
+    }
+
+    bool is_applied = tex_obj != NULL;
+
+    if (is_applied && (tex_obj != state.uploaded_texture || tex_obj->is_upload_dirty)) {
+        gl_upload_texture(tex_obj);
+
+        tex_obj->is_upload_dirty = false;
+        state.uploaded_texture = tex_obj;
+    }
+
+    if (tex_obj != state.last_used_texture || (is_applied && tex_obj->is_modes_dirty)) {
+        if (is_applied) {
+            tex_obj->is_modes_dirty = false;
+        }
+
+        state.last_used_texture = tex_obj;
+
+        GL_SET_DIRTY_FLAG(DIRTY_FLAG_RENDERMODE | DIRTY_FLAG_COMBINER);
     }
 }

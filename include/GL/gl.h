@@ -972,9 +972,10 @@ void glDrawBuffer(GLenum buf);
 #define GL_DEPTH_WRITEMASK          0x0B72
 #define GL_STENCIL_WRITEMASK        0x0B98
 
+void glDepthMask(GLboolean mask);
+
 #define glIndexMask(mask) _GL_UNSUPPORTED(glIndexMask)
 #define glColorMask(r, g, b, a) _GL_UNSUPPORTED(glColorMask)
-#define glDepthMask(mask) _GL_UNSUPPORTED(glDepthMask)
 #define glStencilMask(mask) _GL_UNSUPPORTED(glStencilMask)
 
 /* Clearing */
