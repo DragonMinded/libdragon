@@ -1,6 +1,6 @@
 #include "gl_internal.h"
 #include "rdpq_mode.h"
-#include "rdp_commands.h"
+#include "rdpq_macros.h"
 #include "rspq.h"
 
 extern gl_state_t state;
