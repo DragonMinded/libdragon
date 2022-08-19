@@ -47,13 +47,41 @@
 #define I16_TO_FLOAT(x) MAX((x)/(float)(0x7FFF),-1.f)
 #define I32_TO_FLOAT(x) MAX((x)/(float)(0x7FFFFFFF),-1.f)
 
+#define GL_SET_DIRTY_FLAG(flag) ({ state.dirty_flags |= (flag); })
+#define GL_IS_DIRTY_FLAG_SET(flag) (state.dirty_flags & (flag))
+
 #define GL_SET_STATE(var, value, dirty_flag) ({ \
     typeof(value) _v = (value); \
-    if (_v != var) { \
-        dirty_flag = true; \
-    } \
+    dirty_flag = _v != var; \
     var = _v; \
+    dirty_flag; \
 })
+
+#define GL_SET_STATE_FLAG(var, value, flag) ({ \
+    typeof(value) _v = (value); \
+    if (_v != var) { \
+        var = _v; \
+        GL_SET_DIRTY_FLAG(flag); \
+    } \
+})
+
+enum {
+    ATTRIB_VERTEX,
+    ATTRIB_COLOR,
+    ATTRIB_TEXCOORD,
+    ATTRIB_NORMAL,
+    ATTRIB_COUNT
+};
+
+typedef enum {
+    DIRTY_FLAG_RENDERMODE = 0x01,
+    DIRTY_FLAG_BLEND      = 0x02,
+    DIRTY_FLAG_FOG        = 0x04,
+    DIRTY_FLAG_COMBINER   = 0x08,
+    DIRTY_FLAG_SCISSOR    = 0x10,
+    DIRTY_FLAG_ALPHA_REF  = 0x20,
+    DIRTY_FLAG_ANTIALIAS  = 0x40,
+} gl_dirty_flags_t;
 
 typedef struct {
     surface_t *color_buffer;
@@ -95,6 +123,7 @@ typedef struct {
 
 typedef struct {
     gl_texture_image_t levels[MAX_TEXTURE_LEVELS];
+    uint64_t modes;
     uint32_t num_levels;
     GLenum dimensionality;
     GLenum wrap_s;
@@ -104,6 +133,8 @@ typedef struct {
     GLclampf border_color[4];
     GLclampf priority;
     bool is_complete;
+    bool is_upload_dirty;
+    bool is_modes_dirty;
 } gl_texture_object_t;
 
 typedef struct {
@@ -136,13 +167,17 @@ typedef struct {
 } gl_light_t;
 
 typedef struct {
-    GLuint name;
+    GLvoid *data;
     uint32_t size;
+} gl_storage_t;
+
+typedef struct {
+    GLuint name;
     GLenum usage;
     GLenum access;
     bool mapped;
     GLvoid *pointer;
-    GLvoid *data;
+    gl_storage_t storage;
 } gl_buffer_object_t;
 
 typedef struct {
@@ -151,6 +186,8 @@ typedef struct {
     GLsizei stride;
     const GLvoid *pointer;
     gl_buffer_object_t *binding;
+    gl_storage_t tmp_storage;
+    bool normalize;
     bool enabled;
 } gl_array_t;
 
@@ -159,16 +196,10 @@ typedef void (*read_attrib_func)(GLfloat*,const void*,uint32_t);
 typedef struct {
     const GLvoid *pointer;
     read_attrib_func read_func;
+    uint16_t offset;
     uint16_t stride;
     uint8_t size;
-    uint8_t elem_size;
-    bool copy_before_draw;
-    void *tmp_buffer;
-    uint32_t tmp_buffer_size;
-    const void *final_pointer;
-    uint16_t final_stride;
-    uint16_t offset;
-} gl_vertex_source_t;
+} gl_attrib_source_t;
 
 typedef struct {
     GLenum mode;
@@ -231,6 +262,9 @@ typedef struct {
     bool color_material;
     bool multisample;
     bool normalize;
+    bool depth_mask;
+
+    gl_array_t arrays[ATTRIB_COUNT];
 
     gl_vertex_t vertex_cache[VERTEX_CACHE_SIZE];
     uint32_t vertex_cache_indices[VERTEX_CACHE_SIZE];
@@ -240,19 +274,16 @@ typedef struct {
     bool lock_next_vertex;
     uint8_t locked_vertex;
 
-    uint32_t prim_size;
-    uint32_t primitive_indices[3];
-    uint32_t primitive_progress;
+    uint8_t prim_size;
+    uint8_t prim_indices[3];
+    uint8_t prim_progress;
     uint32_t prim_counter;
-    void (*primitive_func)(void);
+    uint8_t (*prim_func)(void);
 
-    GLfloat current_color[4];
-    GLfloat current_texcoord[4];
-    GLfloat current_normal[3];
+    GLfloat current_attribs[ATTRIB_COUNT][4];
 
-    gl_vertex_source_t vertex_sources[4];
-    void *tmp_index_buffer;
-    uint32_t tmp_index_buffer_size;
+    gl_attrib_source_t attrib_sources[ATTRIB_COUNT];
+    gl_storage_t tmp_index_storage;
 
     gl_viewport_t current_viewport;
 
@@ -278,6 +309,9 @@ typedef struct {
     gl_texture_object_t *texture_1d_object;
     gl_texture_object_t *texture_2d_object;
 
+    gl_texture_object_t *uploaded_texture;
+    gl_texture_object_t *last_used_texture;
+
     gl_material_t material;
     gl_light_t lights[LIGHT_COUNT];
 
@@ -291,11 +325,6 @@ typedef struct {
     gl_tex_gen_t t_gen;
     gl_tex_gen_t r_gen;
     gl_tex_gen_t q_gen;
-
-    gl_array_t vertex_array;
-    gl_array_t texcoord_array;
-    gl_array_t normal_array;
-    gl_array_t color_array;
 
     GLboolean unpack_swap_bytes;
     GLboolean unpack_lsb_first;
@@ -327,11 +356,8 @@ typedef struct {
     gl_buffer_object_t *element_array_buffer;
 
     bool immediate_active;
-    bool is_points;
 
-    bool is_scissor_dirty;
-    bool is_rendermode_dirty;
-    bool is_texture_dirty;
+    gl_dirty_flags_t dirty_flags;
 } gl_state_t;
 
 void gl_matrix_init();
@@ -359,9 +385,16 @@ void gl_matrix_mult4x2(GLfloat *d, const gl_matrix_t *m, const GLfloat *v);
 
 bool gl_is_invisible();
 
+bool gl_calc_is_points();
+
 void gl_update_scissor();
-void gl_update_render_mode();
+void gl_update_blend_func();
+void gl_update_fog();
+void gl_update_rendermode();
+void gl_update_combiner();
+void gl_update_alpha_ref();
 void gl_update_texture();
+void gl_update_multisample();
 
 void gl_perform_lighting(GLfloat *color, const GLfloat *input, const GLfloat *v, const GLfloat *n, const gl_material_t *material);
 
@@ -372,6 +405,8 @@ void gl_normalize(GLfloat *d, const GLfloat *v);
 
 uint32_t gl_get_type_size(GLenum type);
 
-void read_f32(GLfloat *dst, const float *src, uint32_t count);
+bool gl_storage_alloc(gl_storage_t *storage, uint32_t size);
+void gl_storage_free(gl_storage_t *storage);
+bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size);
 
 #endif

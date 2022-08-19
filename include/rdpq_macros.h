@@ -477,14 +477,14 @@ typedef uint32_t rdpq_blender_t;
 #define SOM_RGBDITHER_BAYER    ((cast64(1))<<38)            ///< RGB Dithering: bayer filter
 #define SOM_RGBDITHER_NOISE    ((cast64(2))<<38)            ///< RGB Dithering: noise
 #define SOM_RGBDITHER_NONE     ((cast64(3))<<38)            ///< RGB Dithering: none
-#define SOM_RGBDITHER_MASK     ((cast64(4))<<38)            ///< RGB Dithering mask
+#define SOM_RGBDITHER_MASK     ((cast64(3))<<38)            ///< RGB Dithering mask
 #define SOM_RGBDITHER_SHIFT    38                           ///< RGB Dithering mask shift
 
 #define SOM_ALPHADITHER_SAME   ((cast64(0))<<36)            ///< Alpha Dithering: same as RGB
 #define SOM_ALPHADITHER_INVERT ((cast64(1))<<36)            ///< Alpha Dithering: invert pattern compared to RG
 #define SOM_ALPHADITHER_NOISE  ((cast64(2))<<36)            ///< Alpha Dithering: noise
 #define SOM_ALPHADITHER_NONE   ((cast64(3))<<36)            ///< Alpha Dithering: none
-#define SOM_ALPHADITHER_MASK   ((cast64(4))<<36)            ///< Alpha Dithering mask
+#define SOM_ALPHADITHER_MASK   ((cast64(3))<<36)            ///< Alpha Dithering mask
 #define SOM_ALPHADITHER_SHIFT  36                           ///< Alpha Dithering mask shift
 
 #define SOM_BLEND0_MASK        (cast64(0xCCCC0000) | SOM_BLENDING | SOM_READ_ENABLE | SOMX_BLEND_2PASS)     ///< Blender: mask of settings related to pass 0

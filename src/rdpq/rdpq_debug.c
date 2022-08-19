@@ -401,7 +401,7 @@ void rdpq_debug_disasm(uint64_t *buf, FILE *out)
         fprintf(out, "%s", cyc[som.cycle_type]);
         if((som.cycle_type < 2) && (som.tex.persp || som.tex.detail || som.tex.sharpen || som.tex.lod || som.sample_type != 0 || som.tf_mode != 6)) {
             fprintf(out, " tex=["); FLAG_RESET();
-            FLAG(som.tex.persp, "persp"); FLAG(som.tex.persp, "detail"); FLAG(som.tex.lod, "lod"); 
+            FLAG(som.tex.persp, "persp"); FLAG(som.tex.detail, "detail"); FLAG(som.tex.sharpen, "sharpen"); FLAG(som.tex.lod, "lod"); 
             FLAG(!(som.tf_mode & 4), "yuv0"); FLAG(!(som.tf_mode & 2), yuv1[som.tf_mode&1]); 
             FLAG(som.sample_type != 0, texinterp[som.sample_type]);
             fprintf(out, "]");

@@ -33,147 +33,14 @@ static const gl_interleaved_array_t interleaved_arrays[] = {
 
 void gl_array_init()
 {
-    state.vertex_array.size = 4;
-    state.vertex_array.type = GL_FLOAT;
-    state.texcoord_array.size = 4;
-    state.texcoord_array.type = GL_FLOAT;
-    state.normal_array.size = 3;
-    state.normal_array.type = GL_FLOAT;
-    state.color_array.size = 4;
-    state.color_array.type = GL_FLOAT;
-}
-
-void read_u8(GLfloat *dst, const uint8_t *src, uint32_t count)
-{
-    for (uint32_t i = 0; i < count; i++) dst[i] = U8_TO_FLOAT(src[i]);
-}
-
-void read_i8(GLfloat *dst, const int8_t *src, uint32_t count)
-{
-    for (uint32_t i = 0; i < count; i++) dst[i] = I8_TO_FLOAT(src[i]);
-}
-
-void read_u16(GLfloat *dst, const uint16_t *src, uint32_t count)
-{
-    for (uint32_t i = 0; i < count; i++) dst[i] = U16_TO_FLOAT(src[i]);
-}
-
-void read_i16(GLfloat *dst, const int16_t *src, uint32_t count)
-{
-    for (uint32_t i = 0; i < count; i++) dst[i] = I16_TO_FLOAT(src[i]);
-}
-
-void read_u32(GLfloat *dst, const uint32_t *src, uint32_t count)
-{
-    for (uint32_t i = 0; i < count; i++) dst[i] = U32_TO_FLOAT(src[i]);
-}
-
-void read_i32(GLfloat *dst, const int32_t *src, uint32_t count)
-{
-    for (uint32_t i = 0; i < count; i++) dst[i] = I32_TO_FLOAT(src[i]);
-}
-
-void read_u8n(GLfloat *dst, const uint8_t *src, uint32_t count)
-{
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
-}
-
-void read_i8n(GLfloat *dst, const int8_t *src, uint32_t count)
-{
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
-}
-
-void read_u16n(GLfloat *dst, const uint16_t *src, uint32_t count)
-{
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
-}
-
-void read_i16n(GLfloat *dst, const int16_t *src, uint32_t count)
-{
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
-}
-
-void read_u32n(GLfloat *dst, const uint32_t *src, uint32_t count)
-{
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
-}
-
-void read_i32n(GLfloat *dst, const int32_t *src, uint32_t count)
-{
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
-}
-
-void read_f32(GLfloat *dst, const float *src, uint32_t count)
-{
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
-}
-
-void read_f64(GLfloat *dst, const double *src, uint32_t count)
-{
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
-}
-
-void gl_get_vertex_source(gl_vertex_source_t *source, const gl_array_t *array, bool normalize)
-{
-    if (!array->enabled) {
-        return;
-    }
-
-    source->size = array->size;
-    source->stride = array->stride;
-
-    uint32_t size_shift = 0;
-    
-    switch (array->type) {
-    case GL_BYTE:
-        source->read_func = normalize ? (read_attrib_func)read_i8n : (read_attrib_func)read_i8;
-        size_shift = 0;
-        break;
-    case GL_UNSIGNED_BYTE:
-        source->read_func = normalize ? (read_attrib_func)read_u8n : (read_attrib_func)read_u8;
-        size_shift = 0;
-        break;
-    case GL_SHORT:
-        source->read_func = normalize ? (read_attrib_func)read_i16n : (read_attrib_func)read_i16;
-        size_shift = 1;
-        break;
-    case GL_UNSIGNED_SHORT:
-        source->read_func = normalize ? (read_attrib_func)read_u16n : (read_attrib_func)read_u16;
-        size_shift = 1;
-        break;
-    case GL_INT:
-        source->read_func = normalize ? (read_attrib_func)read_i32n : (read_attrib_func)read_i32;
-        size_shift = 2;
-        break;
-    case GL_UNSIGNED_INT:
-        source->read_func = normalize ? (read_attrib_func)read_u32n : (read_attrib_func)read_u32;
-        size_shift = 2;
-        break;
-    case GL_FLOAT:
-        source->read_func = (read_attrib_func)read_f32;
-        size_shift = 3;
-        break;
-    case GL_DOUBLE:
-        source->read_func = (read_attrib_func)read_f64;
-        size_shift = 3;
-        break;
-    }
-
-    source->elem_size = source->size << size_shift;
-
-    if (source->stride == 0) {
-        source->stride = source->elem_size;
-    }
-
-    if (array->binding != NULL) {
-        source->pointer = array->binding->data + (uint32_t)array->pointer;
-        source->copy_before_draw = false;
-        source->final_stride = source->stride;
-    } else {
-        source->pointer = array->pointer;
-        source->copy_before_draw = true;
-        source->final_stride = source->elem_size;
-    }
+    state.arrays[ATTRIB_VERTEX].size = 4;
+    state.arrays[ATTRIB_VERTEX].type = GL_FLOAT;
+    state.arrays[ATTRIB_COLOR].size = 4;
+    state.arrays[ATTRIB_COLOR].type = GL_FLOAT;
+    state.arrays[ATTRIB_TEXCOORD].size = 4;
+    state.arrays[ATTRIB_TEXCOORD].type = GL_FLOAT;
+    state.arrays[ATTRIB_NORMAL].size = 3;
+    state.arrays[ATTRIB_NORMAL].type = GL_FLOAT;
 }
 
 void gl_set_array(gl_array_t *array, GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
@@ -213,8 +80,7 @@ void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *poin
         return;
     }
 
-    gl_set_array(&state.vertex_array, size, type, stride, pointer);
-    gl_get_vertex_source(&state.vertex_sources[0], &state.vertex_array, false);
+    gl_set_array(&state.arrays[ATTRIB_VERTEX], size, type, stride, pointer);
 }
 
 void glTexCoordPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
@@ -241,8 +107,7 @@ void glTexCoordPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *po
         return;
     }
 
-    gl_set_array(&state.texcoord_array, size, type, stride, pointer);
-    gl_get_vertex_source(&state.vertex_sources[2], &state.texcoord_array, false);
+    gl_set_array(&state.arrays[ATTRIB_TEXCOORD], size, type, stride, pointer);
 }
 
 void glNormalPointer(GLenum type, GLsizei stride, const GLvoid *pointer)
@@ -259,8 +124,7 @@ void glNormalPointer(GLenum type, GLsizei stride, const GLvoid *pointer)
         return;
     }
 
-    gl_set_array(&state.normal_array, 3, type, stride, pointer);
-    gl_get_vertex_source(&state.vertex_sources[3], &state.normal_array, true);
+    gl_set_array(&state.arrays[ATTRIB_NORMAL], 3, type, stride, pointer);
 }
 
 void glColorPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
@@ -289,28 +153,23 @@ void glColorPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *point
         return;
     }
 
-    gl_set_array(&state.color_array, size, type, stride, pointer);
-    gl_get_vertex_source(&state.vertex_sources[1], &state.color_array, true);
+    gl_set_array(&state.arrays[ATTRIB_COLOR], size, type, stride, pointer);
 }
 
 void glEnableClientState(GLenum array)
 {
     switch (array) {
     case GL_VERTEX_ARRAY:
-        state.vertex_array.enabled = true;
-        gl_get_vertex_source(&state.vertex_sources[0], &state.vertex_array, false);
+        state.arrays[ATTRIB_VERTEX].enabled = true;
         break;
     case GL_TEXTURE_COORD_ARRAY:
-        state.texcoord_array.enabled = true;
-        gl_get_vertex_source(&state.vertex_sources[2], &state.texcoord_array, false);
+        state.arrays[ATTRIB_TEXCOORD].enabled = true;
         break;
     case GL_NORMAL_ARRAY:
-        state.normal_array.enabled = true;
-        gl_get_vertex_source(&state.vertex_sources[3], &state.normal_array, true);
+        state.arrays[ATTRIB_NORMAL].enabled = true;
         break;
     case GL_COLOR_ARRAY:
-        state.color_array.enabled = true;
-        gl_get_vertex_source(&state.vertex_sources[1], &state.color_array, true);
+        state.arrays[ATTRIB_COLOR].enabled = true;
         break;
     case GL_EDGE_FLAG_ARRAY:
     case GL_INDEX_ARRAY:
@@ -324,20 +183,16 @@ void glDisableClientState(GLenum array)
 {
     switch (array) {
     case GL_VERTEX_ARRAY:
-        state.vertex_array.enabled = false;
-        gl_get_vertex_source(&state.vertex_sources[0], &state.vertex_array, false);
+        state.arrays[ATTRIB_VERTEX].enabled = false;
         break;
     case GL_TEXTURE_COORD_ARRAY:
-        state.texcoord_array.enabled = false;
-        gl_get_vertex_source(&state.vertex_sources[2], &state.texcoord_array, false);
+        state.arrays[ATTRIB_TEXCOORD].enabled = false;
         break;
     case GL_NORMAL_ARRAY:
-        state.normal_array.enabled = false;
-        gl_get_vertex_source(&state.vertex_sources[3], &state.normal_array, true);
+        state.arrays[ATTRIB_NORMAL].enabled = false;
         break;
     case GL_COLOR_ARRAY:
-        state.color_array.enabled = false;
-        gl_get_vertex_source(&state.vertex_sources[1], &state.color_array, true);
+        state.arrays[ATTRIB_COLOR].enabled = false;
         break;
     case GL_EDGE_FLAG_ARRAY:
     case GL_INDEX_ARRAY:
