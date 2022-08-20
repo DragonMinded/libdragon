@@ -30,7 +30,7 @@ typedef uint32_t rdpq_blender_t;
 #else
 #define cast64(x) x
 #define castcc(x) x
-#define castbl(x) 
+#define castbl(x) x
 #endif
 ///@endcond
 
