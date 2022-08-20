@@ -16,15 +16,19 @@
 #include "utils.h"
 #include "rspq_constants.h"
 #else
+///@cond
 #define debugf(msg, ...)  fprintf(stderr, msg, ##__VA_ARGS__)
 #define MIN(a,b)          ((a)<(b)?(a):(b))
 #define MAX(a,b)          ((a)>(b)?(a):(b))
+///@endcond
 #endif
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+///@cond
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
+///@endcond
 
 /** @brief RDP Debug command: turn on/off logging */
 #define RDPQ_CMD_DEBUG_SHOWLOG  0x00010000

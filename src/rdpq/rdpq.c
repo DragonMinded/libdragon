@@ -75,10 +75,10 @@
  * to just change the dithering algorithm).
  * 
  * rdpq instead tracks the current render mode on the RSP, and allows to do
- * partial updates via either the low-level #rdpq_change_other_mode_raw
+ * partial updates via either the low-level #rdpq_change_other_modes_raw
  * function (where it is possible to change only a subset of the 56 bits),
  * or via the high-level rdpq_mode_* APIs (eg: #rdpq_mode_dithering), which
- * mostly build upon #rdpq_change_other_mode_raw in their implementation.
+ * mostly build upon #rdpq_change_other_modes_raw in their implementation.
  *
  * ### Automatic 1/2 cycle type selection
  * 
@@ -159,18 +159,21 @@ static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code);
 DEFINE_RSP_UCODE(rsp_rdpq, 
     .assert_handler=rdpq_assert_handler);
 
+/** @brief State of the rdpq overlay */
 typedef struct rdpq_state_s {
-    uint64_t sync_full;
-    uint64_t scissor_rect;
+    uint64_t sync_full;                 ///< Last SYNC_FULL command
+    uint64_t scissor_rect;              ///< Current scissoring rectangle
     struct __attribute__((packed)) {
-        uint64_t comb_1cyc; uint32_t blend_1cyc;
-        uint64_t comb_2cyc; uint32_t blend_2cyc;
-        uint64_t other_modes;
-    } modes[4];
-    uint32_t address_table[RDPQ_ADDRESS_TABLE_SIZE];
-    uint32_t fill_color;
-    uint32_t rdram_state_address;
-    uint8_t target_bitdepth;
+        uint64_t comb_1cyc;             ///< Combiner to use in 1cycle mode
+        uint32_t blend_1cyc;            ///< Blender to use in 1cycle mode
+        uint64_t comb_2cyc;             ///< Combiner to use in 2cycle mode
+        uint32_t blend_2cyc;            ///< Blender to use in 2cycle mode
+        uint64_t other_modes;           ///< SET_OTHER_MODES configuration
+    } modes[4];                         ///< Modes stack (position 0 is current)
+    uint32_t address_table[RDPQ_ADDRESS_TABLE_SIZE];    ///< Address lookup table
+    uint32_t fill_color;                ///< Current fill color (FMT_RGBA32)
+    uint32_t rdram_state_address;       ///< Address of this state in RDRAM
+    uint8_t target_bitdepth;            ///< Current render target bitdepth
 } rdpq_state_t;
 
 bool __rdpq_inited = false;

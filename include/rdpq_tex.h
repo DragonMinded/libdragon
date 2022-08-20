@@ -10,7 +10,9 @@
 #include "rdpq.h"
 #include <stdint.h>
 
+///@cond
 typedef struct surface_s surface_t;
+///@endcond
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,7 +49,7 @@ int rdpq_tex_load_ci4(int tile, surface_t *tex, int tmem_addr, int tlut);
  *   * Loading the texture (via #rdpq_load_tile or #rdpq_load_block)
  * 
  * This function works with all pixel formats, by dispatching the actual
- * implementations to several variants (eg: #rdpq_tex_load_rgba16). If you
+ * implementations to several variants (eg: #rdpq_tex_load_ci4). If you
  * know the format of your texture, feel free to call directly the correct
  * variant to save a bit of overhead.
  * 
