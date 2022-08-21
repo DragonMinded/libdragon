@@ -181,9 +181,8 @@ interrupt:
 	jal __onResetException
 	nop
 
-	j end_interrupt
-	nop
-
+	# Reload cause register and test for other interrupts
+	lw cause, STACK_CR(sp)
 notprenmi:
 
 	/* check for count=compare */
@@ -200,8 +199,9 @@ notprenmi:
 	jal __TI_handler
 	nop
 
-	j end_interrupt
-	nop
+	# Reload cause register and test for other interrupts
+	lw cause, STACK_CR(sp)
+
 notcount:
 	and t0, cause, 0x800
 	beqz t0, notcart
@@ -211,15 +211,16 @@ notcount:
 	jal __CART_handler
 	nop
 
-	j end_interrupt
-	nop
+	# Reload cause register and test for other interrupts
+	lw cause, STACK_CR(sp)
 
 notcart:
 	/* pass anything else along to MI (RCP) handler */
 	jal __MI_handler
 	addiu a0, sp, 32
-	j end_interrupt
-	nop
+
+	# No more interrupts to process, we can exit
+	# (fallthrough)
 
 end_interrupt:
 	mfc0 t0, C0_SR
