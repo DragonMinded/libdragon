@@ -36,7 +36,7 @@ extern "C" {
  * @param tlut       Palette number to associate with this texture in the tile
  * @return           Number of bytes used in TMEM for this texture
  */
-int rdpq_tex_load_ci4(int tile, surface_t *tex, int tmem_addr, int tlut);
+int rdpq_tex_load_ci4(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int tlut);
 
 /**
  * @brief Load a texture into TMEM
@@ -67,7 +67,7 @@ int rdpq_tex_load_ci4(int tile, surface_t *tex, int tmem_addr, int tlut);
  * @param tmem_addr  Address in TMEM where the texture will be loaded
  * @return           Number of bytes used in TMEM for this texture
  */
-int rdpq_tex_load(int tile, surface_t *tex, int tmem_addr);
+int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, int tmem_addr);
 
 /**
  * @brief Load one or more palettes into TMEM

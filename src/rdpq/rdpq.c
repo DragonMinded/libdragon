@@ -176,22 +176,70 @@ typedef struct rdpq_state_s {
     uint8_t target_bitdepth;            ///< Current render target bitdepth
 } rdpq_state_t;
 
-bool __rdpq_inited = false;
+bool __rdpq_inited = false;             ///< True if #rdpq_init was called
+
+/** 
+ * @brief Force clearing of RDP buffers (debug function).
+ * 
+ * When this variable is set to true, al RDP buffers (the two dynamic
+ * buffers in rspq.c and all buffers allocated for blocks) are cleared
+ * to zero after allocation. This is normally not required as the
+ * contents are always written before being sent to RDP, but it can
+ * simplify writing tests that inspect the contents of the buffers.
+ */
 bool __rdpq_zero_blocks = false;
 
+/** @brief During block creation, current write pointer within the RDP buffer. */
 volatile uint32_t *rdpq_block_ptr;
+/** @brief During block creation, pointer to the end of the RDP buffer. */
 volatile uint32_t *rdpq_block_end;
 
+/** @brief Mirror in RDRAM of the state of the rdpq ucode. */ 
 static rdpq_state_t *rdpq_state;
+/** @brief Current configuration of the rdpq library. */ 
 static uint32_t rdpq_config;
+/** 
+ * @brief State of the autosync engine (stack).
+ * 
+ * The state of the autosync engine is a 32-bit word, where bits are
+ * mapped to specific internal resources of the RDP that might be in
+ * use. The mapping of the bits is indicated by the `AUTOSYNC_TILE`,
+ * `AUTOSYNC_TMEM`, and `AUTOSYNC_PIPE`
+ * 
+ * When a bit is set to 1, the corresponding resource is "in use"
+ * by the RDP. For instance, drawing a textured rectangle can use
+ * a tile and the pipe (which contains most of the mode registers).
+ * 
+ * This array contains 2 states because it acts a small stack:
+ * whenever a block is created, the current autosync state is
+ * "paused" and a new state is calculated for the block. When
+ * the block creation is finished, the previous autostate is
+ * restored.
+ */ 
 static uint32_t rdpq_autosync_state[2];
 
-/** True if we're currently creating a rspq block */
-static rdpq_block_t *rdpq_block, *rdpq_block_first;
+/** @brief Point to the RDP block being created */
+static rdpq_block_t *rdpq_block;
+/** @brief Point to the first link of the RDP block being created */
+static *rdpq_block_first;
+/** @brief Current buffer size for RDP blocks */
 static int rdpq_block_size;
-
+/** 
+ * During block creation, this variable points to the last
+ * #RSPQ_CMD_RDP_APPEND_BUFFER command, that can be coalesced
+ * in case a pure RDP command is enqueued next.
+ */
 static volatile uint32_t *last_rdp_append_buffer;
 
+/** 
+ * @brief RDP interrupt handler 
+ *
+ * The RDP interrupt is triggered after a SYNC_FULL command is finished
+ * (all previous RDP commands are fully completed). In case the user
+ * requested a callback to be called when that specific SYNC_FULL
+ * instance has finished, the interrupt routine must call the specified
+ * callback.
+ */
 static void __rdpq_interrupt(void) {
     assert(*SP_STATUS & SP_STATUS_SIG_RDPSYNCFULL);
 
@@ -226,10 +274,12 @@ void rdpq_init()
 
     rspq_init();
 
+    // Get a pointer to the RDRAM copy of the rdpq ucode state.
     rdpq_state = UncachedAddr(rspq_overlay_get_state(&rsp_rdpq));
     _Static_assert(sizeof(rdpq_state->modes[0]) == 32,   "invalid sizeof: rdpq_state->modes[0]");
     _Static_assert(sizeof(rdpq_state->modes)    == 32*4, "invalid sizeof: rdpq_state->modes");
 
+    // Initialize the ucode state.
     memset(rdpq_state, 0, sizeof(rdpq_state_t));
     rdpq_state->rdram_state_address = PhysicalAddr(rdpq_state);
     for (int i=0;i<4;i++)
@@ -239,16 +289,21 @@ void rdpq_init()
     // Depending on the cycle mode, 1 subpixel is subtracted from the right edge of the scissor rect.
     rdpq_state->scissor_rect = (((uint64_t)RDPQ_OVL_ID << 32) + ((uint64_t)RDPQ_CMD_SET_SCISSOR << 56)) | (1 << 12);
     
+    // Register the rdpq overlay at a fixed position (0xC)
     rspq_overlay_register_static(&rsp_rdpq, RDPQ_OVL_ID);
 
+    // Clear library globals
     rdpq_block = NULL;
     rdpq_block_first = NULL;
     rdpq_config = RDPQ_CFG_DEFAULT;
     rdpq_autosync_state[0] = 0;
-    __rdpq_inited = true;
 
+    // Register an interrupt handler for DP interrupts, and activate them.
     register_DP_handler(__rdpq_interrupt);
     set_DP_interrupt(1);
+
+    // Remember that initialization is complete
+    __rdpq_inited = true;
 }
 
 void rdpq_close()
@@ -638,12 +693,12 @@ extern inline void rdpq_set_blend_color(color_t color);
 extern inline void rdpq_set_prim_color(color_t color);
 extern inline void rdpq_set_env_color(color_t color);
 extern inline void rdpq_set_prim_depth_fx(uint16_t primitive_z, int16_t primitive_delta_z);
-extern inline void rdpq_load_tlut(tile_t tile, uint8_t lowidx, uint8_t highidx);
-extern inline void rdpq_set_tile_size_fx(tile_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1);
-extern inline void rdpq_load_block(tile_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t tmem_pitch);
-extern inline void rdpq_load_block_fx(tile_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t dxt);
-extern inline void rdpq_load_tile_fx(tile_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1);
-extern inline void rdpq_set_tile_full(tile_t tile, tex_format_t format, uint16_t tmem_addr, uint16_t tmem_pitch, uint8_t palette, uint8_t ct, uint8_t mt, uint8_t mask_t, uint8_t shift_t, uint8_t cs, uint8_t ms, uint8_t mask_s, uint8_t shift_s);
+extern inline void rdpq_load_tlut(rdpq_tile_t tile, uint8_t lowidx, uint8_t highidx);
+extern inline void rdpq_set_tile_size_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1);
+extern inline void rdpq_load_block(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t tmem_pitch);
+extern inline void rdpq_load_block_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t dxt);
+extern inline void rdpq_load_tile_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1);
+extern inline void rdpq_set_tile_full(rdpq_tile_t tile, tex_format_t format, uint16_t tmem_addr, uint16_t tmem_pitch, uint8_t palette, uint8_t ct, uint8_t mt, uint8_t mask_t, uint8_t shift_t, uint8_t cs, uint8_t ms, uint8_t mask_s, uint8_t shift_s);
 extern inline void rdpq_set_other_modes_raw(uint64_t mode);
 extern inline void rdpq_change_other_modes_raw(uint64_t mask, uint64_t val);
 extern inline void rdpq_fill_rectangle_fx(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1);
@@ -651,4 +706,4 @@ extern inline void rdpq_set_color_image_raw(uint8_t index, uint32_t offset, tex_
 extern inline void rdpq_set_z_image_raw(uint8_t index, uint32_t offset);
 extern inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_format_t format, uint16_t width, uint16_t height);
 extern inline void rdpq_set_lookup_address(uint8_t index, void* rdram_addr);
-extern inline void rdpq_set_tile(tile_t tile, tex_format_t format, uint16_t tmem_addr, uint16_t tmem_pitch, uint8_t palette);
+extern inline void rdpq_set_tile(rdpq_tile_t tile, tex_format_t format, uint16_t tmem_addr, uint16_t tmem_pitch, uint8_t palette);

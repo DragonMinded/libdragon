@@ -14,7 +14,7 @@ void rdpq_tex_load_tlut(uint16_t *tlut, int color_idx, int num_colors)
     rdpq_load_tlut(RDPQ_TILE_INTERNAL, color_idx, color_idx + num_colors - 1);
 }
 
-int rdpq_tex_load_ci4(int tile, surface_t *tex, int tmem_addr, int tlut)
+int rdpq_tex_load_ci4(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int tlut)
 {
     int tmem_pitch = ROUND_UP(tex->stride, 8);
 
@@ -33,7 +33,7 @@ int rdpq_tex_load_ci4(int tile, surface_t *tex, int tmem_addr, int tlut)
     return tmem_pitch * tex->height;
 }
 
-int rdpq_tex_load(int tile, surface_t *tex, int tmem_addr)
+int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, int tmem_addr)
 {
     tex_format_t fmt = surface_get_format(tex);
     if (fmt == FMT_CI4)
