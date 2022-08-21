@@ -322,7 +322,8 @@ uint32_t rdpq_config_disable(uint32_t cfg_disable_bits);
  * Each vertex of a triangle is made of up to 4 components:
  * 
  *   * Position. 2 values: X, Y. The values must be in screen coordinates, that is they refer
- *     to the framebuffer pixels. Fractional values allow for subpixel precision.
+ *     to the framebuffer pixels. Fractional values allow for subpixel precision. Supported
+ *     range is [-4096..4095] (numbers outside that range will be clamped).
  *   * Depth. 1 value: Z.
  *   * Shade. 4 values: R, G, B, A. The values must be in the 0..1 range.
  *   * Texturing. 3 values: S, T, INV_W. The values S,T address the texture specified by the tile
