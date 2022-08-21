@@ -7,6 +7,9 @@
 #ifndef __LIBDRAGON_RSPQ_INTERNAL_H
 #define __LIBDRAGON_RSPQ_INTERNAL_H
 
+#include "rsp.h"
+#include "rspq_constants.h"
+
 /**
  * RSPQ internal commands (overlay 0)
  */
@@ -150,6 +153,65 @@ typedef struct rspq_block_s {
     rdpq_block_t *rdp_block;
     uint32_t cmds[];            ///< Block contents (commands)
 } rspq_block_t;
+
+typedef struct __attribute__((packed)) {
+    uint64_t comb_1cyc;
+    uint64_t comb_2cyc; 
+    uint32_t blend_step0;
+    uint32_t blend_step1;
+    uint64_t other_modes;
+} rspq_rdp_mode_t;
+
+// TODO: We could save 4 bytes in the overlay descriptor by assuming that data == code + code_size and that code_size is always a multiple of 8
+/** @brief A RSPQ overlay ucode. This is similar to rsp_ucode_t, but is used
+ * internally to managed it as a RSPQ overlay */
+typedef struct rspq_overlay_t {
+    uint32_t code;              ///< Address of the overlay code in RDRAM
+    uint32_t data;              ///< Address of the overlay data in RDRAM
+    uint32_t state;             ///< Address of the overlay state in RDRAM (within data)
+    uint16_t code_size;         ///< Size of the code in bytes - 1
+    uint16_t data_size;         ///< Size of the data in bytes - 1
+} rspq_overlay_t;
+
+/// @cond
+_Static_assert(sizeof(rspq_overlay_t) == RSPQ_OVERLAY_DESC_SIZE);
+/// @endcond
+
+/**
+ * @brief The overlay table in DMEM. 
+ *
+ * This structure is defined in DMEM by rsp_queue.S, and contains the descriptors
+ * for the overlays, used by the queue engine to load each overlay when needed.
+ */
+typedef struct rspq_overlay_tables_s {
+    /** @brief Table mapping overlay ID to overlay index (used for the descriptors) */
+    uint8_t overlay_table[RSPQ_OVERLAY_TABLE_SIZE];
+    /** @brief Descriptor for each overlay, indexed by the previous table. */
+    rspq_overlay_t overlay_descriptors[RSPQ_MAX_OVERLAY_COUNT];
+} rspq_overlay_tables_t;
+
+/**
+ * @brief RSP Queue data in DMEM.
+ * 
+ * This structure is defined by rsp_queue.S, and represents the
+ * top portion of DMEM.
+ */
+typedef struct rsp_queue_s {
+    rspq_overlay_tables_t tables;        ///< Overlay table
+    /** @brief Pointer stack used by #RSPQ_CMD_CALL and #RSPQ_CMD_RET. */
+    uint32_t rspq_pointer_stack[RSPQ_MAX_BLOCK_NESTING_LEVEL];
+    uint32_t rspq_dram_lowpri_addr;      ///< Address of the lowpri queue (special slot in the pointer stack)
+    uint32_t rspq_dram_highpri_addr;     ///< Address of the highpri queue  (special slot in the pointer stack)
+    uint32_t rspq_dram_addr;             ///< Current RDRAM address being processed
+    uint32_t rspq_rdp_sentinel;          ///< Internal cache for last value of DP_END
+    rspq_rdp_mode_t rdp_mode;
+    uint32_t rspq_rdp_buffers[2];        ///< RDRAM Address of dynamic RDP buffers
+    uint64_t rdp_scissor_rect;
+    uint32_t rdp_fill_color;
+    uint8_t rdp_target_bitdepth;
+    uint8_t unused;
+    int16_t current_ovl;                 ///< Current overlay index
+} __attribute__((aligned(16), packed)) rsp_queue_t;
 
 /** @brief True if we are currently building a block. */
 static inline bool rspq_in_block(void) {
