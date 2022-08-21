@@ -1,7 +1,7 @@
 /**
  * @file rdpq.c
  * @brief RDP Command queue
- * @ingroup rsp
+ * @ingroup rdp
  *
  *
  * ## Improvements over raw hardware programming
@@ -156,17 +156,21 @@
 
 static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code);
 
+/** @brief The rdpq ucode overlay */
 DEFINE_RSP_UCODE(rsp_rdpq, 
     .assert_handler=rdpq_assert_handler);
 
-/** @brief State of the rdpq overlay */
+/** @brief State of the rdpq ucode overlay.
+ * 
+ * This must be kept in sync with rsp_rdpq.S.
+ */
 typedef struct rdpq_state_s {
     uint64_t sync_full;                 ///< Last SYNC_FULL command
     uint64_t scissor_rect;              ///< Current scissoring rectangle
     struct __attribute__((packed)) {
         uint64_t comb_1cyc;             ///< Combiner to use in 1cycle mode
-        uint32_t blend_1cyc;            ///< Blender to use in 1cycle mode
         uint64_t comb_2cyc;             ///< Combiner to use in 2cycle mode
+        uint32_t blend_1cyc;            ///< Blender to use in 1cycle mode
         uint32_t blend_2cyc;            ///< Blender to use in 2cycle mode
         uint64_t other_modes;           ///< SET_OTHER_MODES configuration
     } modes[4];                         ///< Modes stack (position 0 is current)
@@ -175,6 +179,9 @@ typedef struct rdpq_state_s {
     uint32_t rdram_state_address;       ///< Address of this state in RDRAM
     uint8_t target_bitdepth;            ///< Current render target bitdepth
 } rdpq_state_t;
+
+/** @brief Mirror in RDRAM of the state of the rdpq ucode. */ 
+static rdpq_state_t *rdpq_state;
 
 bool __rdpq_inited = false;             ///< True if #rdpq_init was called
 
@@ -189,15 +196,9 @@ bool __rdpq_inited = false;             ///< True if #rdpq_init was called
  */
 bool __rdpq_zero_blocks = false;
 
-/** @brief During block creation, current write pointer within the RDP buffer. */
-volatile uint32_t *rdpq_block_ptr;
-/** @brief During block creation, pointer to the end of the RDP buffer. */
-volatile uint32_t *rdpq_block_end;
-
-/** @brief Mirror in RDRAM of the state of the rdpq ucode. */ 
-static rdpq_state_t *rdpq_state;
 /** @brief Current configuration of the rdpq library. */ 
 static uint32_t rdpq_config;
+
 /** 
  * @brief State of the autosync engine (stack).
  * 
@@ -218,18 +219,8 @@ static uint32_t rdpq_config;
  */ 
 static uint32_t rdpq_autosync_state[2];
 
-/** @brief Point to the RDP block being created */
-static rdpq_block_t *rdpq_block;
-/** @brief Point to the first link of the RDP block being created */
-static rdpq_block_t *rdpq_block_first;
-/** @brief Current buffer size for RDP blocks */
-static int rdpq_block_size;
-/** 
- * During block creation, this variable points to the last
- * #RSPQ_CMD_RDP_APPEND_BUFFER command, that can be coalesced
- * in case a pure RDP command is enqueued next.
- */
-static volatile uint32_t *last_rdp_append_buffer;
+/** @brief RDP block management state */
+rdpq_block_state_t rdpq_block_state;
 
 /** 
  * @brief RDP interrupt handler 
@@ -293,8 +284,7 @@ void rdpq_init()
     rspq_overlay_register_static(&rsp_rdpq, RDPQ_OVL_ID);
 
     // Clear library globals
-    rdpq_block = NULL;
-    rdpq_block_first = NULL;
+    memset(&rdpq_block_state, 0, sizeof(rdpq_block_state));
     rdpq_config = RDPQ_CFG_DEFAULT;
     rdpq_autosync_state[0] = 0;
 
@@ -309,10 +299,11 @@ void rdpq_init()
 void rdpq_close()
 {
     rspq_overlay_unregister(RDPQ_OVL_ID);
-    __rdpq_inited = false;
 
     set_DP_interrupt( 0 );
     unregister_DP_handler(__rdpq_interrupt);
+
+    __rdpq_inited = false;
 }
 
 uint32_t rdpq_config_set(uint32_t cfg)
@@ -334,10 +325,15 @@ uint32_t rdpq_config_disable(uint32_t cfg)
 
 void rdpq_fence(void)
 {
+    // We want the RSP to wait until the RDP is finished. We do this in
+    // two steps: first we issue a SYNC_FULL (we don't need CPU-side callbacks),
+    // then we send the internal rspq command that make the RSP spin-wait
+    // until the RDP is idle. The RDP becomes idle only after SYNC_FULL is done.
     rdpq_sync_full(NULL, NULL);
     rspq_int_write(RSPQ_CMD_RDP_WAIT_IDLE);
 }
 
+/** @brief Assert handler for RSP asserts (see "RSP asserts" documentation in rsp.h) */
 static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
 {
     switch (assert_code)
@@ -352,10 +348,20 @@ static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
     }
 }
 
+/** @brief Autosync engine: mark certain resources as in use */
 void __rdpq_autosync_use(uint32_t res) { 
     rdpq_autosync_state[0] |= res;
 }
 
+/** 
+ * @brief Autosync engine: mark certain resources as being changed.
+ * 
+ * This is the core of the autosync engine. Whenever a resource is "changed"
+ * while "in use", a SYNC command must be issued. This is a slightly conservative
+ * approach, as the RDP might already have finished using that resource,
+ * but we have no way to know it.
+ * The SYNC command will then reset the "use" status of each respective resource.
+ */
 void __rdpq_autosync_change(uint32_t res) {
     res &= rdpq_autosync_state[0];
     if (res) {
@@ -368,87 +374,34 @@ void __rdpq_autosync_change(uint32_t res) {
     }
 }
 
-void __rdpq_block_update_reset(void)
-{
-    last_rdp_append_buffer = NULL;
-}
+/**
+ * @name RDP block management functions.
+ * 
+ * All the functions in this group are called in the context of creation
+ * of a RDP block (part of a rspq block). See the top-level documentation
+ * for a general overview of how RDP blocks work.
+ * 
+ * @{
+ */
 
-void __rdpq_block_update(uint32_t* old, uint32_t *new)
-{
-    uint32_t phys_old = PhysicalAddr(old);
-    uint32_t phys_new = PhysicalAddr(new);
-
-    assertf((phys_old & 0x7) == 0, "old not aligned to 8 bytes: %lx", phys_old);
-    assertf((phys_new & 0x7) == 0, "new not aligned to 8 bytes: %lx", phys_new);
-
-    if (last_rdp_append_buffer && (*last_rdp_append_buffer & 0xFFFFFF) == phys_old) {
-        // Update the previous command.
-        // It can be either a RSPQ_CMD_RDP_SET_BUFFER or RSPQ_CMD_RDP_APPEND_BUFFER,
-        // but we still need to update it to the new END pointer.
-        *last_rdp_append_buffer = (*last_rdp_append_buffer & 0xFF000000) | phys_new;
-    } else {
-        // A fixup has emitted some commands, so we need to emit a new
-        // RSPQ_CMD_RDP_APPEND_BUFFER in the RSP queue of the block
-        extern volatile uint32_t *rspq_cur_pointer;
-        last_rdp_append_buffer = rspq_cur_pointer;
-        rspq_int_write(RSPQ_CMD_RDP_APPEND_BUFFER, phys_new);
-    }
-}
-
-void __rdpq_block_switch_buffer(uint32_t *new, uint32_t size)
-{
-    assert(size >= RDPQ_MAX_COMMAND_SIZE);
-
-    rdpq_block_ptr = new;
-    rdpq_block_end = new + size;
-
-    assertf((PhysicalAddr(rdpq_block_ptr) & 0x7) == 0,
-        "start not aligned to 8 bytes: %lx", PhysicalAddr(rdpq_block_ptr));
-    assertf((PhysicalAddr(rdpq_block_end) & 0x7) == 0,
-        "end not aligned to 8 bytes: %lx", PhysicalAddr(rdpq_block_end));
-
-    extern volatile uint32_t *rspq_cur_pointer;
-    last_rdp_append_buffer = rspq_cur_pointer;
-    rspq_int_write(RSPQ_CMD_RDP_SET_BUFFER,
-        PhysicalAddr(rdpq_block_ptr), PhysicalAddr(rdpq_block_ptr), PhysicalAddr(rdpq_block_end));
-}
-
-void __rdpq_block_next_buffer(void)
-{
-    // Allocate next chunk (double the size of the current one).
-    // We use doubling here to reduce overheads for large blocks
-    // and at the same time start small.
-    int memsz = sizeof(rdpq_block_t) + rdpq_block_size*sizeof(uint32_t);
-    rdpq_block_t *b = malloc_uncached(memsz);
-
-    // Clean the buffer if requested (in tests). Cleaning the buffer is
-    // not necessary for correct operation, but it helps writing tests that
-    // want to inspect the block contents.
-    if (__rdpq_zero_blocks)
-        memset(b, 0, memsz);
-
-    b->next = NULL;
-    if (rdpq_block) {
-        rdpq_block->next = b;
-    }
-    rdpq_block = b;
-    if (!rdpq_block_first) rdpq_block_first = b;
-
-    // Switch to new buffer
-    __rdpq_block_switch_buffer(rdpq_block->cmds, rdpq_block_size);
-
-    // Grow size for next buffer
-    if (rdpq_block_size < RDPQ_BLOCK_MAX_SIZE) rdpq_block_size *= 2;
-}
-
+/** 
+ * @brief Initialize RDP block mangament
+ * 
+ * This is called by #rspq_block_begin. It resets all the block management
+ * state to default.
+ * 
+ * Notice that no allocation is performed. This is because we do block
+ * allocation lazily as soon as a rdpq command is issued. In fact, if
+ * the block does not contain rdpq commands, it would be a waste of time
+ * and memory to allocate a RDP buffer. The allocations will be performed
+ * by #__rdpq_block_next_buffer as soon as a rdpq command is written.
+ * 
+ * @see #rspq_block_begin
+ * @see #__rdpq_block_next_buffer
+ */
 void __rdpq_block_begin()
 {
-    rdpq_block = NULL;
-    rdpq_block_first = NULL;
-    rdpq_block_ptr = NULL;
-    rdpq_block_end = NULL;
-    last_rdp_append_buffer = NULL;
-    rdpq_block_size = RDPQ_BLOCK_MIN_SIZE;
+    memset(&rdpq_block_state, 0, sizeof(rdpq_block_state));
     // push on autosync state stack (to recover the state later)
     rdpq_autosync_state[1] = rdpq_autosync_state[0];
     // current autosync status is unknown because blocks can be
@@ -458,40 +411,161 @@ void __rdpq_block_begin()
     rdpq_autosync_state[0] = 0xFFFFFFFF;
 }
 
+/** 
+ * @brief Allocate a new RDP block buffer, chaining it to the current one (if any) 
+ * 
+ * This function is called by #rdpq_write and #rdpq_fixup_write when we are about
+ * to write a rdpq command in a block, and the current RDP buffer is full
+ * (`wptr + cmdsize >= wend`). By extension, it is also called when the current
+ * RDP buffer has not been allocated yet (`wptr == wend == NULL`).
+ * 
+ * @see #rdpq_write
+ * @see #rdpq_fixup_write
+ */
+void __rdpq_block_next_buffer(void)
+{
+    struct rdpq_block_state_s *st = &rdpq_block_state;
+
+    // Configure block minimum size
+    if (st->bufsize == 0) {
+        st->bufsize = RDPQ_BLOCK_MIN_SIZE;
+        assert(RDPQ_BLOCK_MIN_SIZE >= RDPQ_MAX_COMMAND_SIZE);
+    }
+
+    // Allocate next chunk (double the size of the current one).
+    // We use doubling here to reduce overheads for large blocks
+    // and at the same time start small.
+    int memsz = sizeof(rdpq_block_t) + st->bufsize*sizeof(uint32_t);
+    rdpq_block_t *b = malloc_uncached(memsz);
+
+    // Clean the buffer if requested (in tests). Cleaning the buffer is
+    // not necessary for correct operation, but it helps writing tests that
+    // want to inspect the block contents.
+    if (__rdpq_zero_blocks)
+        memset(b, 0, memsz);
+
+    // Chain the block to the current one (if any)
+    b->next = NULL;
+    if (st->last_node) {
+        st->last_node->next = b;
+    }
+    st->last_node = b;
+    if (!st->first_node) st->first_node = b;
+
+    // Set write pointer and sentinel for the new buffer
+    st->wptr = b->cmds;
+    st->wend = b->cmds + st->bufsize;
+
+    assertf((PhysicalAddr(st->wptr) & 0x7) == 0,
+        "start not aligned to 8 bytes: %lx", PhysicalAddr(st->wptr));
+    assertf((PhysicalAddr(st->wend) & 0x7) == 0,
+        "end not aligned to 8 bytes: %lx", PhysicalAddr(st->wend));
+
+    // Save the pointer to the current position in the RSP queue. We're about
+    // to write a RSPQ_CMD_RDP_SET_BUFFER that we might need to coalesce later.
+    extern volatile uint32_t *rspq_cur_pointer;
+    st->last_rdp_append_buffer = rspq_cur_pointer;
+
+    // Enqueue a rspq command that will make the RDP DMA registers point to the
+    // new buffer (though with DP_START==DP_END, as the buffer is currently empty).
+    rspq_int_write(RSPQ_CMD_RDP_SET_BUFFER,
+        PhysicalAddr(st->wptr), PhysicalAddr(st->wptr), PhysicalAddr(st->wend));
+
+    // Grow size for next buffer
+    if (st->bufsize < RDPQ_BLOCK_MAX_SIZE) st->bufsize *= 2;
+}
+
+/**
+ * @brief Finish creation of a RDP block.
+ * 
+ * This is called by #rspq_block_end. It finalizes block creation
+ * and return a pointer to the first node of the block, which will
+ * be put within the #rspq_block_t structure, so to be able to 
+ * reference it in #__rdpq_block_run and #__rdpq_block_free.
+ * 
+ * @return rdpq_block_t*  The created block (first node)
+ * 
+ * @see #rspq_block_end
+ * @see #__rdpq_block_run
+ * @see #__rdpq_block_free
+ */
 rdpq_block_t* __rdpq_block_end()
 {
-    rdpq_block_t *ret = rdpq_block_first;
+    struct rdpq_block_state_s *st = &rdpq_block_state;
+    rdpq_block_t *ret = st->first_node;
 
-    if (rdpq_block_first) {
-        rdpq_block_first->autosync_state = rdpq_autosync_state[0];
-    }
-    // pop on autosync state stack (recover state before building the block)
+    // Save the current autosync state in the first node of the RDP block.
+    // This makes it easy to recover it when the block is run
+    if (st->first_node)
+        st->first_node->autosync_state = rdpq_autosync_state[0];
+    // Pop on autosync state stack (recover state before building the block)
     rdpq_autosync_state[0] = rdpq_autosync_state[1];
-
-    // clean state
-    rdpq_block_first = NULL;
-    rdpq_block = NULL;
-    last_rdp_append_buffer = NULL;
 
     return ret;
 }
 
+/** @brief Run a block (called by #rspq_block_run). */
 void __rdpq_block_run(rdpq_block_t *block)
 {
-    // Set as current autosync state the one recorded at the end of
-    // the block that is going to be played.
+    // We are about to run a block that contains rdpq commands.
+    // During creation, we calculate the autosync state for the block
+    // and recorded it; set it as current, because from now on we can
+    // assume the block would and the state of the engine must match
+    // the state at the end of the block.
     if (block)
         rdpq_autosync_state[0] = block->autosync_state;
 }
 
+/** 
+ * @brief Free a block 
+ * 
+ * This function is called when a block is freed. It is called
+ * by #rspq_block_free.
+ * 
+ * @see #rspq_block_free.
+ */
 void __rdpq_block_free(rdpq_block_t *block)
 {
+    // Go through the chain and free all nodes
     while (block) {
         void *b = block;
         block = block->next;
         free_uncached(b);
     }
 }
+
+void __rdpq_block_update(uint32_t* old, uint32_t *new)
+{
+    struct rdpq_block_state_s *st = &rdpq_block_state;
+    uint32_t phys_old = PhysicalAddr(old);
+    uint32_t phys_new = PhysicalAddr(new);
+
+    assertf((phys_old & 0x7) == 0, "old not aligned to 8 bytes: %lx", phys_old);
+    assertf((phys_new & 0x7) == 0, "new not aligned to 8 bytes: %lx", phys_new);
+
+    if (st->last_rdp_append_buffer && (*st->last_rdp_append_buffer & 0xFFFFFF) == phys_old) {
+        // Update the previous command.
+        // It can be either a RSPQ_CMD_RDP_SET_BUFFER or RSPQ_CMD_RDP_APPEND_BUFFER,
+        // but we still need to update it to the new END pointer.
+        *st->last_rdp_append_buffer = (*st->last_rdp_append_buffer & 0xFF000000) | phys_new;
+    } else {
+        // A fixup has emitted some commands, so we need to emit a new
+        // RSPQ_CMD_RDP_APPEND_BUFFER in the RSP queue of the block
+        extern volatile uint32_t *rspq_cur_pointer;
+        st->last_rdp_append_buffer = rspq_cur_pointer;
+        rspq_int_write(RSPQ_CMD_RDP_APPEND_BUFFER, phys_new);
+    }
+}
+
+/** @brief */
+void __rdpq_block_update_reset(void)
+{
+    struct rdpq_block_state_s *st = &rdpq_block_state;
+    st->last_rdp_append_buffer = NULL;
+}
+
+
+/** @} */
 
 __attribute__((noinline))
 void __rdpq_write8(uint32_t cmd_id, uint32_t arg0, uint32_t arg1)
