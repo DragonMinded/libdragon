@@ -850,7 +850,7 @@ void test_rdpq_automode(TestContext *ctx) {
         (COMBINED, ZERO, ZERO, TEX1), (ZERO, ZERO, ZERO, ZERO)
     ));
     rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, ONE)));
-    rdpq_mode_dithering(DITHER_NOISE, DITHER_NOISE);
+    rdpq_mode_dithering(DITHER_NOISE_NOISE);
     rdpq_mode_pop();
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
     rspq_wait();

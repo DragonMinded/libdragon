@@ -221,7 +221,7 @@ static uint32_t rdpq_autosync_state[2];
 /** @brief Point to the RDP block being created */
 static rdpq_block_t *rdpq_block;
 /** @brief Point to the first link of the RDP block being created */
-static *rdpq_block_first;
+static rdpq_block_t *rdpq_block_first;
 /** @brief Current buffer size for RDP blocks */
 static int rdpq_block_size;
 /** 
