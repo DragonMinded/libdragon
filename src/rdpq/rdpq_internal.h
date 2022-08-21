@@ -70,8 +70,8 @@ rdpq_block_t* __rdpq_block_end();
 void __rdpq_block_free(rdpq_block_t *block);
 void __rdpq_block_run(rdpq_block_t *block);
 void __rdpq_block_next_buffer(void);
-void __rdpq_block_update(uint32_t* old, uint32_t *new);
-void __rdpq_block_update_reset(void);
+void __rdpq_block_update(volatile uint32_t *wptr);
+void __rdpq_block_update_norsp(volatile uint32_t *wptr);
 
 void __rdpq_autosync_use(uint32_t res);
 void __rdpq_autosync_change(uint32_t res);
@@ -116,10 +116,9 @@ void __rdpq_write16(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2
         int nwords = 0; __rdpcmd_count_words(rdp_cmd); \
         if (__builtin_expect(rdpq_block_state.wptr + nwords > rdpq_block_state.wend, 0)) \
             __rdpq_block_next_buffer(); \
-        volatile uint32_t *ptr = rdpq_block_state.wptr, *old = ptr; \
+        volatile uint32_t *ptr = rdpq_block_state.wptr; \
         __rdpcmd_write(rdp_cmd); \
-        rdpq_block_state.wptr = ptr; \
-        __rdpq_block_update((uint32_t*)old, (uint32_t*)ptr); \
+        __rdpq_block_update((uint32_t*)ptr); \
     } else { \
         __rspcmd_write rdp_cmd; \
     } \
@@ -162,8 +161,7 @@ void __rdpq_write16(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2
             __rdpq_block_next_buffer(); \
         volatile uint32_t *ptr = rdpq_block_state.wptr; \
         __CALL_FOREACH(__rdpcmd_write, ##__VA_ARGS__); \
-        __rdpq_block_update_reset(); \
-        rdpq_block_state.wptr = ptr; \
+        __rdpq_block_update_norsp(ptr); \
     } \
     __rspcmd_write rsp_cmd; \
 })

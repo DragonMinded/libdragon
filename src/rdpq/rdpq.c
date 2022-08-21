@@ -534,11 +534,27 @@ void __rdpq_block_free(rdpq_block_t *block)
     }
 }
 
-void __rdpq_block_update(uint32_t* old, uint32_t *new)
+/**
+ * @brief Set a new RDP write pointer, and enqueue a RSP command to run the buffer until there
+ * 
+ * This function is called by #rdpq_write after some RDP commands have been written
+ * into the block's RDP buffer. A rspq command #RSPQ_CMD_RDP_APPEND_BUFFER will be issued
+ * so that the RSP will tell the RDP to fetch and run the new commands, appended at
+ * the end of the current buffer.
+ * 
+ * If possible, though, this function will coalesce the command with an immediately
+ * preceding RSPQ_CMD_RDP_APPEND_BUFFER (or even RSPQ_CMD_RDP_SET_BUFFER, if we are
+ * at the start of the buffer), so that only a single RSP command is issued, which
+ * covers multiple RDP commands.
+ * 
+ * @param wptr    New block's RDP write pointer
+ */
+void __rdpq_block_update(volatile uint32_t *wptr)
 {
     struct rdpq_block_state_s *st = &rdpq_block_state;
-    uint32_t phys_old = PhysicalAddr(old);
-    uint32_t phys_new = PhysicalAddr(new);
+    uint32_t phys_old = PhysicalAddr(st->wptr);
+    uint32_t phys_new = PhysicalAddr(wptr);
+    st->wptr = wptr;
 
     assertf((phys_old & 0x7) == 0, "old not aligned to 8 bytes: %lx", phys_old);
     assertf((phys_new & 0x7) == 0, "new not aligned to 8 bytes: %lx", phys_new);
@@ -557,13 +573,22 @@ void __rdpq_block_update(uint32_t* old, uint32_t *new)
     }
 }
 
-/** @brief */
-void __rdpq_block_update_reset(void)
+/** 
+ * @brief Set a new RDP write pointer, but don't enqueue RSP commands
+ * 
+ * This is semantically like #__rdpq_block_update, but it doesn't enqueue any RSP
+ * command. It is called by #rdpq_fixup_write: in fact, the fixup is already
+ * a RSP command which will then be in charge of sending the commands to RDP,
+ * so no action is required here.
+ * 
+ * @param wptr    New block's RDP write pointer
+ */
+void __rdpq_block_update_norsp(volatile uint32_t *wptr)
 {
     struct rdpq_block_state_s *st = &rdpq_block_state;
+    st->wptr = wptr;
     st->last_rdp_append_buffer = NULL;
 }
-
 
 /** @} */
 
