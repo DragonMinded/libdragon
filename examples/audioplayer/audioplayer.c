@@ -24,7 +24,7 @@ int menu_sel = 0;
 static char* songfiles[4096];
 static int num_songs = 0;
 
-static void draw_header(int disp) {
+static void draw_header(display_context_t disp) {
 	graphics_draw_text(disp, 200-70, 10, "XM/YM Module Audio Player");
 	graphics_draw_text(disp, 200-45, 20, "v2.0 - by Rasky");
 }
