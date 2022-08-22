@@ -154,6 +154,11 @@ typedef struct rspq_block_s {
     uint32_t cmds[];            ///< Block contents (commands)
 } rspq_block_t;
 
+/** @brief RDP render mode definition 
+ * 
+ * This is the definition of the current RDP render mode 
+ * 
+ */
 typedef struct __attribute__((packed)) {
     uint64_t comb_1cyc;
     uint64_t comb_2cyc; 
@@ -204,12 +209,12 @@ typedef struct rsp_queue_s {
     uint32_t rspq_dram_highpri_addr;     ///< Address of the highpri queue  (special slot in the pointer stack)
     uint32_t rspq_dram_addr;             ///< Current RDRAM address being processed
     uint32_t rspq_rdp_sentinel;          ///< Internal cache for last value of DP_END
-    rspq_rdp_mode_t rdp_mode;
+    rspq_rdp_mode_t rdp_mode;            ///< RDP current render mode definition
     uint32_t rspq_rdp_buffers[2];        ///< RDRAM Address of dynamic RDP buffers
-    uint64_t rdp_scissor_rect;
-    uint32_t rdp_fill_color;
-    uint8_t rdp_target_bitdepth;
-    uint8_t unused;
+    uint64_t rdp_scissor_rect;           ///< Current RDP scissor rectangle
+    uint32_t rdp_fill_color;             ///< Current RDP fill color
+    uint8_t rdp_target_bitdepth;         ///< Current RDP target buffer bitdepth
+    uint8_t unused;                      ///< Unused
     int16_t current_ovl;                 ///< Current overlay index
 } __attribute__((aligned(16), packed)) rsp_queue_t;
 
