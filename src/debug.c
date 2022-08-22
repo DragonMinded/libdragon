@@ -552,7 +552,7 @@ void debug_assert_func(const char *file, int line, const char *func, const char 
 	debug_assert_func_f(file, line, func, failedexpr, NULL);
 }
 
-void debugf_hexdump(const uint8_t *buf, int size)
+void debug_hexdump(const uint8_t *buf, int size)
 {
     bool lineskip = false;
     for (int i = 0; i < size/16; i++) {

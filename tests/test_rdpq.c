@@ -1028,6 +1028,6 @@ void test_rdpq_tex_load(TestContext *ctx) {
 
     surface_t tmem = rdpq_debug_get_tmem();
     debugf("TMEM:\n");
-    debugf_hexdump(tmem.buffer, 4096);
+    debuf_hexdump(tmem.buffer, 4096);
     surface_free(&tmem);
 }

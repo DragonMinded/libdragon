@@ -392,7 +392,7 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
 
     // Full dump of DMEM into the debug log.
     debugf("DMEM:\n");
-    debugf_hexdump(state.dmem, 4096);
+    debug_hexdump(state.dmem, 4096);
 
     // OK we're done. Render on the screen and abort
     console_render();

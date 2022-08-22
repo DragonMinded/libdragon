@@ -122,7 +122,7 @@ void rdpq_debug_log_msg(const char *str);
  * surface data has been fully written by RDP when the function returns.
  * 
  * For the debugging, you can easily dump the contents of the surface calling
- * #debugf_hexdump.
+ * #debug_hexdump.
  * 
  * The surface must be freed via #surface_free when it is not useful anymore.
  * 
@@ -131,7 +131,7 @@ void rdpq_debug_log_msg(const char *str);
  *      surface_t surf = rdpq_debug_get_tmem();
  * 
  *      // Dump TMEM in the debug spew
- *      debugf_hexdump(surf.buffer, 4096);
+ *      debug_hexdump(surf.buffer, 4096);
  * 
  *      surface_free(&surf);
  * @endcode
