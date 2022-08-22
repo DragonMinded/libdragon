@@ -1170,6 +1170,17 @@ rspq_syncpoint_t rspq_syncpoint_new(void)
     assertf(rspq_ctx != &highpri, "cannot create syncpoint in highpri mode");
     assertf(!rspq_block, "cannot create syncpoint in a block");
     assertf(rspq_ctx != &highpri, "cannot create syncpoint in highpri mode");
+
+    // To create a syncpoint, schedule a CMD_TEST_WRITE_STATUS command that:
+    //   1. Wait for SP_STATUS_SIG_SYNCPOINT to go zero. This is cleared in
+    //      the RSP interrupt routine and basically make sure that any other
+    //      pending interrupt had been acknowledged. Otherwise, we might
+    //      end up coalescing multiple RSP interrupts, and thus missing
+    //      syncpoints (as we need exactly one handled interrupt per syncpoint).
+    //   2. Write SP_STATUS with SP_WSTATUS_SET_SIG_SYNCPOINT and SP_WSTATUS_SET_INTR,
+    //      forcing a new RSP interrupt to be generated. The interrupt routine
+    //      (#rspq_sp_interrupt) will notice the SP_STATUS_SIG_SYNCPOINT and know
+    //      that the interrupt has been generated for a syncpoint.
     rspq_int_write(RSPQ_CMD_TEST_WRITE_STATUS, 
         SP_WSTATUS_SET_INTR | SP_WSTATUS_SET_SIG_SYNCPOINT,
         SP_STATUS_SIG_SYNCPOINT);
