@@ -1,4 +1,24 @@
-#include <rsp.inc>
+##############################################################################
+#  RDPQ library
+##############################################################################
+#
+# This library allows rspq overlays to emit RDP commands.
+#
+# If you want to write a rspq overlay that emits RDP commands, do the following:
+#
+#   * Include rsp_rdpq.inc (this file) at the *end* of your overlay source
+#     code.
+#   * In your code, prepare the RDP command in a0/a1 (+ a2/a3 for 16 bytes
+#     commands) and then call RDPQ_Write8 or RDPQ_Write16 to store it into
+#     a temporary DMEM buffer (RDP_CMD_STAING). You can do this as many times
+#     as you need.
+#   * Call RDPQ_Finalize to send the commands to RDP for drawing. This must
+#     currently be the last thing your command does, as that function
+#     doesn't return but go back to processing next command (RSPQ_Loop).
+#
+##############################################################################
+
+
 #include "rdpq_macros.h"
 
     .data
@@ -20,59 +40,59 @@ AA_BLEND_TABLE:
     .word SOM_COLOR_ON_CVG_OVERFLOW | SOM_COVERAGE_DEST_WRAP
 
 # TODO: get rid of the constant offset
-RDP_CMD_PTR:           .word RDP_CMD_STAGING - 0x04000000
+RDPQ_CMD_PTR:           .word RDPQ_CMD_STAGING - 0x04000000
 
     .bss
 
     .align 4
     # Enough for a full triangle command
-RDP_CMD_STAGING:       .ds.b 0xB0
+RDPQ_CMD_STAGING:       .ds.b 0xB0
 
     .text
 
     #############################################################
     # RDPQ_Finalize
     #
-    # Submits the RDP command(s) in RDP_CMD_STAGING to the RDP.
+    # Submits the RDP command(s) in RDPQ_CMD_STAGING to the RDP.
     #############################################################
     .func RDPQ_Finalize
 RDPQ_Finalize:
-    li s4, %lo(RDP_CMD_STAGING)
-    lw s3, %lo(RDP_CMD_PTR)
+    li s4, %lo(RDPQ_CMD_STAGING)
+    lw s3, %lo(RDPQ_CMD_PTR)
     j RSPQ_RdpSend
-    sw s4, %lo(RDP_CMD_PTR)
+    sw s4, %lo(RDPQ_CMD_PTR)
     .endfunc
 
     #############################################################
     # RDPQ_Write8
     #
-    # Appends 8 bytes from a0-a1 to the staging area (RDP_CMD_STAGING).
+    # Appends 8 bytes from a0-a1 to the staging area (RDPQ_CMD_STAGING).
     #############################################################
     .func RDPQ_Write8
 RDPQ_Write8:
-    lw s0, %lo(RDP_CMD_PTR)
+    lw s0, %lo(RDPQ_CMD_PTR)
     sw a0, 0x00(s0)
     sw a1, 0x04(s0)
     addi s0, 8
     jr ra
-    sw s0, %lo(RDP_CMD_PTR)
+    sw s0, %lo(RDPQ_CMD_PTR)
     .endfunc
 
     #############################################################
     # RDPQ_Write16
     #
-    # Appends 16 bytes from a0-a3 to the staging area (RDP_CMD_STAGING).
+    # Appends 16 bytes from a0-a3 to the staging area (RDPQ_CMD_STAGING).
     #############################################################
     .func RDPQ_Write16
 RDPQ_Write16:
-    lw s0, %lo(RDP_CMD_PTR)
+    lw s0, %lo(RDPQ_CMD_PTR)
     sw a0, 0x00(s0)
     sw a1, 0x04(s0)
     sw a2, 0x08(s0)
     sw a3, 0x0C(s0)
     addi s0, 16
     jr ra
-    sw s0, %lo(RDP_CMD_PTR)
+    sw s0, %lo(RDPQ_CMD_PTR)
     .endfunc
 
     #############################################################
@@ -98,16 +118,16 @@ RDPQ_Write16:
     #############################################################
     .func RDPQCmd_ModifyOtherModes
 RDPQCmd_ModifyOtherModes:
-    lw t1, %lo(RDP_OTHER_MODES)(a0)
+    lw t1, %lo(RDPQ_OTHER_MODES)(a0)
     and t1, a1
     or t1, a2
-    sw t1, %lo(RDP_OTHER_MODES)(a0)
+    sw t1, %lo(RDPQ_OTHER_MODES)(a0)
     sll a0, 16
     bltz a0, RDPQ_UpdateRenderMode
 
     # Prepare the updated command in a0-a1 for the following steps
-    lw a0, %lo(RDP_OTHER_MODES) + 0x0
-    lw a1, %lo(RDP_OTHER_MODES) + 0x4
+    lw a0, %lo(RDPQ_OTHER_MODES) + 0x0
+    lw a1, %lo(RDPQ_OTHER_MODES) + 0x4
     # fallthrough
     .endfunc
 
@@ -138,8 +158,8 @@ RDPQ_FinalizeOtherModes:
 
     # SetScissor:
     # load the cached command first
-    lw a0, %lo(RDP_SCISSOR_RECT) + 0x0
-    lw a1, %lo(RDP_SCISSOR_RECT) + 0x4
+    lw a0, %lo(RDPQ_SCISSOR_RECT) + 0x0
+    lw a1, %lo(RDPQ_SCISSOR_RECT) + 0x4
     # Append the fixed up SetScissor command to staging area and then finalize
     jal_and_j RDPQ_WriteSetScissor, RDPQ_Finalize
     .endfunc
@@ -162,11 +182,11 @@ RDPQ_FinalizeOtherModes:
     #############################################################
     .func RDPQCmd_SetFillColor32
 RDPQCmd_SetFillColor32:
-    sw a1, %lo(RDP_FILL_COLOR)
+    sw a1, %lo(RDPQ_FILL_COLOR)
     li ra, %lo(RDPQ_Finalize)
 
 RDPQ_WriteSetFillColor:
-    lbu t0, %lo(RDP_TARGET_BITDEPTH)
+    lbu t0, %lo(RDPQ_TARGET_BITDEPTH)
     beq t0, 3, RDPQ_Write8
     lui a0, 0xF700   # SET_FILL_COLOR
     srl t0, a1, 24 + (8-5) - 11
@@ -205,18 +225,18 @@ RDPQCmd_SetScissorEx:
     xor a0, t1
     li ra, %lo(RDPQ_Finalize)
 
-    # Given a SET_SCISSOR command in a0/a1, write it into RDP_SCISSOR_RECT
+    # Given a SET_SCISSOR command in a0/a1, write it into RDPQ_SCISSOR_RECT
     # as-is (exclusive), and then send it to RDP after optionally adjusting
     # the extents to match the current SOM cycle type.
     # Returns to caller.
 RDPQ_WriteSetScissor:
-    sw a0, %lo(RDP_SCISSOR_RECT) + 0x0
-    lb t6, %lo(RDP_OTHER_MODES) + 0x1
+    sw a0, %lo(RDPQ_SCISSOR_RECT) + 0x0
+    lb t6, %lo(RDPQ_OTHER_MODES) + 0x1
     # Bit 21 of the first word is set if FILL or COPY mode is active
     andi t6, 0x1 << 5
     # Leave unchanged when not in FILL or COPY mode
     beqz t6, scissor_substitute
-    sw a1, %lo(RDP_SCISSOR_RECT) + 0x4
+    sw a1, %lo(RDPQ_SCISSOR_RECT) + 0x4
 
     # Subtract 1 subpixel from XL (bits 23:12, as 10.2 fixed point)
     addiu a1, -(1 << 12)
@@ -229,8 +249,8 @@ scissor_substitute:
     .func RDPQCmd_SetCombineMode_1Pass
 RDPQCmd_SetCombineMode_1Pass:
     # The combiner settings is 1 pass. Store it as-is for 1cycle mode.
-    sw a0, %lo(RDP_MODE_COMBINER_1CYC) + 0
-    sw a1, %lo(RDP_MODE_COMBINER_1CYC) + 4
+    sw a0, %lo(RDPQ_MODE_COMBINER_1CYC) + 0
+    sw a1, %lo(RDPQ_MODE_COMBINER_1CYC) + 4
 
     # For 2 cycle mode, we need to adjust it changing the second pass
     # to be a pure passthrough. We can do this by simply setting to 0
@@ -257,14 +277,14 @@ RDPQCmd_SetCombineMode_2Pass:
     # in the 2cyc slot, and ignore the 1cyc slot (it's not going
     # to be used).
 store_comb_2cyc:
-    sw a0, %lo(RDP_MODE_COMBINER_2CYC) + 0
+    sw a0, %lo(RDPQ_MODE_COMBINER_2CYC) + 0
     j RDPQ_UpdateRenderMode
-    sw a1, %lo(RDP_MODE_COMBINER_2CYC) + 4
+    sw a1, %lo(RDPQ_MODE_COMBINER_2CYC) + 4
     .endfunc
 
     .func RDPQCmd_SetBlendingMode
 RDPQCmd_SetBlendingMode:
-    sw a1, %lo(RDP_MODE_BLENDER_STEPS)(a0)
+    sw a1, %lo(RDPQ_MODE_BLENDER_STEPS)(a0)
     # fallthrough
     .endfunc
 
@@ -297,8 +317,8 @@ RDPQ_UpdateRenderMode:
     # in the first step, and blending in the second. We also set SOMX_BLEND_2PASS
     # to remember that we must force 2cycle mode.
     li passthrough, 0
-    lw t0, %lo(RDP_MODE_BLENDER_STEPS) + 0   # Load step0
-    lw t1, %lo(RDP_MODE_BLENDER_STEPS) + 4   # Load step1
+    lw t0, %lo(RDPQ_MODE_BLENDER_STEPS) + 0   # Load step0
+    lw t1, %lo(RDPQ_MODE_BLENDER_STEPS) + 4   # Load step1
     
     beqz t0, blender_merge
     move blend_1cyc, t1
@@ -321,15 +341,15 @@ blender_merge:
     #
     # First, we align both bits in bit 31 and we OR them together.
     sll t2, blend_2cyc, 16
-    lw t1, %lo(RDP_MODE_COMBINER_2CYC)  # Fetch high word
+    lw t1, %lo(RDPQ_MODE_COMBINER_2CYC)  # Fetch high word
     or t1, t2
     # Point to either the 2cyc or 1cyc configuration, depending on what we need
     # to load.
-    li s0, %lo(RDP_MODE_COMBINER_2CYC)
+    li s0, %lo(RDPQ_MODE_COMBINER_2CYC)
     bltz t1, set_2cyc
     li cycle_type, (SOM_CYCLE_MASK ^ SOM_CYCLE_2) >> 32
 set_1cyc:
-    li s0, %lo(RDP_MODE_COMBINER_1CYC)
+    li s0, %lo(RDPQ_MODE_COMBINER_1CYC)
     move blend_final, blend_1cyc
     li cycle_type, (SOM_CYCLE_MASK ^ SOM_CYCLE_1) >> 32
 set_2cyc:
@@ -339,8 +359,8 @@ set_2cyc:
     #define som_lo  a3
     lw comb_hi, 0(s0)
     lw comb_lo, 4(s0)
-    lw som_hi, %lo(RDP_OTHER_MODES) + 0
-    lw som_lo, %lo(RDP_OTHER_MODES) + 4
+    lw som_hi, %lo(RDPQ_OTHER_MODES) + 0
+    lw som_lo, %lo(RDPQ_OTHER_MODES) + 4
 
     # Set correct SET_COMBINE opcode (0xFC). The opcode can be anything of
     # the other 4 (1pass/2pass dynamic/static).
@@ -367,12 +387,12 @@ set_2cyc:
     not t1, t1
     and som_lo, t1
     or som_lo, t0
-    sw som_lo, %lo(RDP_OTHER_MODES) + 4
+    sw som_lo, %lo(RDPQ_OTHER_MODES) + 4
 
     # Set cycle type bits in other modes high word
     or som_hi, SOM_CYCLE_MASK >> 32
     xor som_hi, cycle_type
-    sw som_hi, %lo(RDP_OTHER_MODES) + 0
+    sw som_hi, %lo(RDPQ_OTHER_MODES) + 0
 
     jal_and_j RDPQ_Write16, RDPQ_Finalize
     .endfunc

@@ -190,6 +190,7 @@
 #include "rspq_internal.h"
 #include "rspq_constants.h"
 #include "rdp.h"
+#include "rdpq_constants.h"
 #include "rdpq/rdpq_internal.h"
 #include "rdpq/rdpq_debug_internal.h"
 #include "interrupt.h"
@@ -582,11 +583,11 @@ void rspq_init(void)
     rspq_switch_context(&lowpri);
 
     // Allocate the RDP dynamic buffers.
-    rspq_rdp_dynamic_buffers[0] = malloc_uncached(RSPQ_RDP_DYNAMIC_BUFFER_SIZE);
-    rspq_rdp_dynamic_buffers[1] = malloc_uncached(RSPQ_RDP_DYNAMIC_BUFFER_SIZE);
+    rspq_rdp_dynamic_buffers[0] = malloc_uncached(RDPQ_DYNAMIC_BUFFER_SIZE);
+    rspq_rdp_dynamic_buffers[1] = malloc_uncached(RDPQ_DYNAMIC_BUFFER_SIZE);
     if (__rdpq_zero_blocks) {
-        memset(rspq_rdp_dynamic_buffers[0], 0, RSPQ_RDP_DYNAMIC_BUFFER_SIZE);
-        memset(rspq_rdp_dynamic_buffers[1], 0, RSPQ_RDP_DYNAMIC_BUFFER_SIZE);
+        memset(rspq_rdp_dynamic_buffers[0], 0, RDPQ_DYNAMIC_BUFFER_SIZE);
+        memset(rspq_rdp_dynamic_buffers[1], 0, RDPQ_DYNAMIC_BUFFER_SIZE);
     }
 
     // Load initial settings
@@ -596,7 +597,7 @@ void rspq_init(void)
     rspq_data.rspq_dram_addr = rspq_data.rspq_dram_lowpri_addr;
     rspq_data.rspq_rdp_buffers[0] = PhysicalAddr(rspq_rdp_dynamic_buffers[0]);
     rspq_data.rspq_rdp_buffers[1] = PhysicalAddr(rspq_rdp_dynamic_buffers[1]);
-    rspq_data.rspq_rdp_sentinel = rspq_data.rspq_rdp_buffers[0] + RSPQ_RDP_DYNAMIC_BUFFER_SIZE;
+    rspq_data.rspq_rdp_sentinel = rspq_data.rspq_rdp_buffers[0] + RDPQ_DYNAMIC_BUFFER_SIZE;
     rspq_data.tables.overlay_descriptors[0].state = PhysicalAddr(&dummy_overlay_state);
     rspq_data.tables.overlay_descriptors[0].data_size = sizeof(uint64_t);
     rspq_data.current_ovl = 0;

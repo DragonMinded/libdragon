@@ -1,7 +1,7 @@
 #include <malloc.h>
 #include "../src/rspq/rspq_internal.h"
 #include "../src/rdpq/rdpq_internal.h"
-#include "../src/rdpq/rdpq_constants.h"
+#include <rdpq_constants.h> 
 
 #define RDPQ_INIT() \
     rspq_init(); DEFER(rspq_close()); \

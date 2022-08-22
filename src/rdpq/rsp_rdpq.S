@@ -81,18 +81,16 @@
 
     .align 4
     RSPQ_BeginSavedState
-RDP_SYNCFULL:          .quad  0   # Last syncfull command (includes callback). NOTE: this must stay as first variable in the state
+RDPQ_SYNCFULL:          .quad  0   # Last syncfull command (includes callback). NOTE: this must stay as first variable in the state
 
-RDP_ADDRESS_TABLE:     .ds.l  RDPQ_ADDRESS_TABLE_SIZE
+RDPQ_ADDRESS_TABLE:     .ds.l  RDPQ_ADDRESS_TABLE_SIZE
 
 # Stack slots for 3 saved RDP modes
-RDP_MODE_STACK:        .ds.b 32*3    
+RDPQ_MODE_STACK:        .ds.b 32*3    
 
-RDP_RDRAM_STATE_ADDR:  .word  0
+RDPQ_RDRAM_STATE_ADDR:  .word  0
 
     RSPQ_EndSavedState
-
-#include <rsp_rdpq.inc>
 
     .text
 
@@ -170,9 +168,9 @@ RDPQCmd_SetOtherModes_Static:
 RDPQ_SaveOtherModes:
     lui t0, 0xEF00
     or a0, t0
-    sw a0, %lo(RDP_OTHER_MODES) + 0x0
+    sw a0, %lo(RDPQ_OTHER_MODES) + 0x0
     jr ra
-    sw a1, %lo(RDP_OTHER_MODES) + 0x4
+    sw a1, %lo(RDPQ_OTHER_MODES) + 0x4
     .endfunc
 
     #############################################################
@@ -207,14 +205,14 @@ RDPQCmd_SetColorImage:
     andi t0, 3
     # fixup DRAM address using address slots
     jal RDPQ_FixupAddress
-    sb t0, %lo(RDP_TARGET_BITDEPTH)
+    sb t0, %lo(RDPQ_TARGET_BITDEPTH)
     lui t1, 0xF000
     # Append this command to staging area
     jal RDPQ_Write8
     or a0, t1
 
     # Append SetFillColor next, then submit everything
-    lw a1, %lo(RDP_FILL_COLOR)
+    lw a1, %lo(RDPQ_FILL_COLOR)
     jal_and_j RDPQ_WriteSetFillColor, RDPQ_Finalize
     .endfunc
 
@@ -227,7 +225,7 @@ RDPQCmd_SetColorImage:
     .func RDPQCmd_TextureRectEx
 RDPQCmd_TextureRectEx:
     # WARN: delay slot of above jump
-    lb t0, %lo(RDP_OTHER_MODES) + 0x1
+    lb t0, %lo(RDPQ_OTHER_MODES) + 0x1
     # Bit 21 of the first word is set if FILL or COPY mode is active
     andi t0, 0x1 << 5
     # Leave unchanged when not in FILL or COPY mode
@@ -259,7 +257,7 @@ rect_substitute:
 RDPQCmd_PassthroughTriangle:
     addi s1, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER)   # End of command in RSPQ buffer
     sub s0, s1, rspq_cmd_size                           # Start of command in RSPQ buffer
-    li s4, %lo(RDP_CMD_STAGING)                         # Pointer into RDPQ buffer
+    li s4, %lo(RDPQ_CMD_STAGING)                        # Pointer into RDPQ buffer
 passthrough_copy_loop:
     lqv $v00,0, 0x00,s0
     lrv $v00,0, 0x10,s0
@@ -269,7 +267,7 @@ passthrough_copy_loop:
     addi s4, 0x10
 
     j RDPQ_Finalize
-    sw s4, %lo(RDP_CMD_PTR)
+    sw s4, %lo(RDPQ_CMD_PTR)
     .endfunc
 
     #############################################################
@@ -285,7 +283,7 @@ passthrough_copy_loop:
     .func RDPQCmd_SetLookupAddress
 RDPQCmd_SetLookupAddress:
     jr ra
-    sw a1, %lo(RDP_ADDRESS_TABLE)(a0)
+    sw a1, %lo(RDPQ_ADDRESS_TABLE)(a0)
     .endfunc
 
     #############################################################
@@ -301,7 +299,7 @@ RDPQCmd_SetLookupAddress:
     .func RDPQ_FixupAddress
 RDPQ_FixupAddress:
     srl t0, a1, 26
-    lw t1, %lo(RDP_ADDRESS_TABLE)(t0)
+    lw t1, %lo(RDPQ_ADDRESS_TABLE)(t0)
     jr ra
     add a1, t1
     .endfunc
@@ -324,10 +322,10 @@ RDPQCmd_SyncFull:
 
     # Store the current SYNC_FULL command in the state and DMA it to RDRAM.
     # This includes the interrupt callback that the CPU will have to run.
-    sw a0, %lo(RDP_SYNCFULL) + 0
-    sw a1, %lo(RDP_SYNCFULL) + 4
-    li s4, %lo(RDP_SYNCFULL)
-    lw s0, %lo(RDP_RDRAM_STATE_ADDR)
+    sw a0, %lo(RDPQ_SYNCFULL) + 0
+    sw a1, %lo(RDPQ_SYNCFULL) + 4
+    li s4, %lo(RDPQ_SYNCFULL)
+    lw s0, %lo(RDPQ_RDRAM_STATE_ADDR)
     li t0, DMA_SIZE(8, 1)
     jal_and_j DMAOut, RDPQCmd_Passthrough8
     .endfunc
@@ -341,8 +339,8 @@ RDPQCmd_SyncFull:
     #############################################################
     .func RDPQCmd_PushMode
 RDPQCmd_PushMode:
-    li s0, %lo(RDP_MODE)
-    li s1, %lo(RDP_MODE_STACK)
+    li s0, %lo(RDPQ_MODE)
+    li s1, %lo(RDPQ_MODE_STACK)
 
 PushPopMode:
     lqv $v00,0, 0x00,s0
@@ -369,8 +367,8 @@ PushPopMode:
     #############################################################
     .func RDPQCmd_PopMode
 RDPQCmd_PopMode:
-    li s0, %lo(RDP_MODE_STACK)
-    li s1, %lo(RDP_MODE)
+    li s0, %lo(RDPQ_MODE_STACK)
+    li s1, %lo(RDPQ_MODE)
     # Pop from the stack and then reconfigure the cycle type.
     # Notice that technically it wouldn't be necessary to run
     # the full RDPQ_UpdateRenderMode (it would be sufficient to call
@@ -402,8 +400,8 @@ RDPQCmd_PopMode:
     #  a2,a3: SOM to configure
     #############################################################
 RDPQCmd_ResetMode:
-    # Clear RDP_MODE
-    li s0, %lo(RDP_MODE)
+    # Clear RDPQ_MODE
+    li s0, %lo(RDPQ_MODE)
     vxor $v00, $v00, $v00
     sqv $v00,0, 0x00,s0
     sqv $v00,0, 0x10,s0
@@ -413,15 +411,18 @@ RDPQCmd_ResetMode:
 
     # We are going in either 1-cycle or 2-cycle mode. We emit
     # a SET_SCISSOR in case we are coming from FILL / COPY mode.
-    lw a0, %lo(RDP_SCISSOR_RECT) + 0x0
+    lw a0, %lo(RDPQ_SCISSOR_RECT) + 0x0
     jal RDPQ_Write8
-    lw a1, %lo(RDP_SCISSOR_RECT) + 0x4
+    lw a1, %lo(RDPQ_SCISSOR_RECT) + 0x4
 
     move a0, t0
     move a1, t1
     
     # Set standard SOM and then call RDPQCmd_SetCombineMode_1Pass, which
     # will set the standard CC and call RDPQ_UpdateRenderMode once
-    sw a2, %lo(RDP_OTHER_MODES) + 0
+    sw a2, %lo(RDPQ_OTHER_MODES) + 0
     j RDPQCmd_SetCombineMode_1Pass
-    sw a3, %lo(RDP_OTHER_MODES) + 4
+    sw a3, %lo(RDPQ_OTHER_MODES) + 4
+
+# Include RDPQ library
+#include <rsp_rdpq.inc>
