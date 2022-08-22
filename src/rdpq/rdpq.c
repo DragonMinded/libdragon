@@ -3,7 +3,12 @@
  * @brief RDP Command queue
  * @ingroup rdp
  *
- *
+ * # RDP Queue: implementation
+ * 
+ * This documentation block describes the internal workings of the RDP Queue.
+ * This is useful to understand the implementation. For description of the
+ * API of the RDP queue, see rdpq.h
+ * 
  * ## Improvements over raw hardware programming
  * 
  * RDPQ provides a very low-level API over the RDP graphics chips,
@@ -44,12 +49,12 @@
  * reconfigures scissoring to respect the actual buffer size.
  * 
  * Note also that when the RDP is cold-booted, the internal scissoring register
- * contains random data. This means tthat this auto-scissoring fixup also
+ * contains random data. This means that this auto-scissoring fixup also
  * provides a workaround to this, by making sure scissoring is always configured
  * at least once. In fact, by forgetting to configure scissoring, the RDP
  * can happily draw outside the framebuffer, or draw nothing, or even freeze.
  * 
- * ### Autosyncs
+ * ### Autosync
  * 
  * The RDP has different internal parallel units and exposes three different
  * syncing primitives to stall and avoid write-during-use bugs: SYNC_PIPE,
@@ -62,9 +67,11 @@
  * Insertion of syncing primitives is optimal for SYNC_PIPE and SYNC_TILE, and
  * conservative for SYNC_LOAD (it does not currently handle partial TMEM updates).
  * 
- * Autosyncing also works within blocks, but since it is not possible to know
+ * Autosync also works within blocks, but since it is not possible to know
  * the context in which a block will be run, it has to be conservative and
  * might issue more stalls than necessary.
+ * 
+ * More details on the autosync engine are below.
  * 
  * ### Partial render mode changes
  * 
@@ -85,7 +92,7 @@
  * The RDP has two main operating modes: 1 cycle per pixel and 2 cycles per pixel.
  * The latter is twice as slow, as the name implies, but it allows more complex
  * color combiners and/or blenders. Moreover, 2-cycles mode also allows for
- * multitexturing.
+ * multi-texturing.
  * 
  * At the hardware level, it is up to the programmer to explicitly activate
  * either 1-cycle or 2-cycle mode. The problem with this is that there are
@@ -136,6 +143,181 @@
  * #rdpq_set_fill_color, instead, accepts a #color_t argument and does the
  * conversion to the "packed" format internally, depending on the current
  * framebuffer's color depth.
+ * 
+ * ## Usage of inline functions vs no-inline
+ * 
+ * Most of the rdpq APIs are defined as inline functions in the header rdpq.h,
+ * but they then internally call some non-public function to do emit the command.
+ * So basically the actual function is split in tow parts: an inlined part and
+ * a non-inlined part.
+ * 
+ * The reason for this split is to help the compiler generate better code. In fact,
+ * it is extremely common to call rdpq functions using many constant parameters,
+ * and we want those constants to be propagated into the various bit shifts and masks
+ * to be assembled into single words. Once the (often constant) arguments have been
+ * handled, the rest of the operation can normally be performed in a separate
+ * out-of-line function.
+ * 
+ * ## Sending commands to RDP
+ * 
+ * This section describes in general how the commands flow from CPU to RDP via RSP.
+ * There are several different code-paths here depending on whether the command has
+ * a fixup or not, and it is part of a block.
+ * 
+ * ### RDRAM vs XBUS
+ * 
+ * In general, the rdpq library sends the commands to RDP using a buffer in RDRAM.
+ * The hardware feature called XBUS (which allows to send commands from RSP DMEM
+ * to RDP directly) is not used or supported. There are a few reasons for this
+ * architectural choice:
+ * 
+ *  * DMEM is limited (4K), RSP is fast and RDP is slow. Using XBUS means that
+ *    you need to create a buffer in DMEM to hold the commands; as the buffer
+ *    fills, RSP can trigger RDP to fetch from it, but in general RSP will
+ *    generally be faster at filling it than RDP at executing it. At that point,
+ *    as the buffer can't grow too much, the RSP will have to stall, slowing
+ *    down the rspq queue, which in turns could also cause stalls on the CPU. The
+ *    back-pressure from RDP would basically propagate to RSP and then CPU.
+ *  * One of the main advantages of using XBUS is that there is no need to copy
+ *    data from RSP to RDRAM, saving memory bandwidth. To partially cope up
+ *    with it, rdpq has some other tricks up its sleeve to save memory
+ *    bandwidth (specifically how it works in block mode, see below).
+ * 
+ * The buffer in RDRAM where RDP commands are enqueued by RSP is called
+ * "RDP dynamic buffer". It is used as a ring buffer, so once full, it is
+ * recycled, making sure not to overwrite commands that the RDP has not
+ * executed yet.
+ * 
+ * ### RDP commands in standard mode
+ * 
+ * Let's check the workflow for a standard RDP command, that is one for which
+ * rdpq provides no fixups:
+ * 
+ *  * CPU (application code): a calls to a rdpq function is made (eg: #rdpq_load_block).
+ *  * CPU (rdpq code): the implementation of #rdpq_load_block enqueues a rspq command
+ *    for the rdpq overlay. This command has the same binary encoding of a real RDP
+ *    LOAD_BLOCK command, while still being a valid rspq command following the rspq
+ *    structure of overlay ID + command ID. In fact, the rdpq overlay is registered
+ *    to cover 4 overlay IDs (0xC - 0xF), so that the whole RDP command space can be
+ *    represented by it. In our example, the command is `0xF3`.
+ *  * RSP (rspq code): later at some point, in parallel, the rspq engine will read
+ *    the command `0xF3`, and dispatch it to the rdpq overlay.
+ *  * RSP (rdpq code): the implementation for command `0xF3` is the same for all
+ *    non-fixup commands: it writes the 8 bytes of the command into a temporary
+ *    buffer in DMEM, and then sends it via DMA to the RDP dynamic buffer in RDRAM.
+ *    This act of forwarding a command through CPU -> RSP -> RDP is called 
+ *    "passthrough", and is implemented by `RDPQCmd_Passthrough8` and
+ *    `RDPQCmd_Passthrough16` in the ucode (rsp_rdpq.S), and `RSPQ_RdpSend`
+ *    in rsp_queue.inc.
+ *  * RSP (rdpq code): after the DMA is finished, the RSP tells the RDP that
+ *    a new command has been added to the dynamic buffer and can be executed
+ *    whenever the RDP is ready. This is easily done by advancing the RDP
+ *    `DP_END` register. When the buffer is finished, recycling it requires
+ *    instead to write both `DP_START` and `DP_END`. See `RSPQCmd_RdpAppendBuffer`
+ *    and `RSPQCmd_RdpSetBuffer` respectively.
+ *   
+ * ### RDP fixups in standard mode
+ * 
+ * Now let's see the workflow for a RDP fixup: these are the RDP commands which
+ * are modified/tweaked by RSP to provide a more sane programming interface
+ * to the programmer.
+ * 
+ *  * CPU (application code): a calls to a rdpq function is made (eg: #rdpq_set_scissor).
+ *  * CPU (rdpq code): the implementation of #rdpq_set_scissor enqueues a rspq command
+ *    for the rdpq overlay. This command does not need to have the same encoding of
+ *    a real RDP command, but it is usually similar (to simplify work on the RSP).
+ *    For instance, in our example the rdpq command is 0xD2, which is meaningless
+ *    if sent to RDP, but has otherwise the same encoding of a real SET_SCISSOR
+ *    (whose ID would be 0xED).
+ *  * RSP (rspq code): later at some point, in parallel, the rspq engine will read
+ *    the command `0xD2`, and dispatch it to the rdpq overlay.
+ *  * RSP (rdpq code): the implementation for command `0xD2` is a RSP function called
+ *    `RDPQCmd_SetScissorEx`. It inspects the RDP state to check the current cycle
+ *    type and adapts the scissoring bounds if required. Then, it assembles a real
+ *    SET_SCISSOR (with ID 0xD2) and calls `RSPQ_RdpSend` to send it to the RDP
+ *    dynamic buffer.
+ *  * RSP (rdpq code): after the DMA is finished, the RSP tells the RDP that
+ *    a new command has been added to the dynamic buffer and can be executed
+ *    whenever the RDP is ready.
+ * 
+ * The overall workflow is similar to the passthrough, but the command is
+ * tweaked by RSP in the process.
+ * 
+ * ### RDP commands in block mode
+ * 
+ * In block mode, rdpq completely changes the way of operating. 
+ * 
+ * A rspq block (as described in rspq.c) is a buffer containing a sequence
+ * of rspq commands that can be played back by RSP itself, with the CPU just
+ * triggering it via #rspq_block_run. When using rdpq, the rspq block is
+ * contains one additional buffer: a "RDP static buffer", which contains
+ * RDP commands.
+ * 
+ * At block creation time, in fact, RDP commands are not enqueued as
+ * rspq commands, but are rather written into this separate buffer. Instead,
+ * 
+ *   TO BE FINISHED ***********************
+ * 
+ * 
+ * ## Autosync engine
+ * 
+ * As explained above, the autosync engine is able to emit sync commands
+ * (SYNC_PIPE, SYNC_TILE, SYNC_LOAD) automatically when necessary, liberating
+ * the developer from this additional task. This section describes how it
+ * works.
+ * 
+ * The autosync engine works around one simple abstraction and logic. There are
+ * "hardware resources" that can be either "used" or "changed" (aka configured)
+ * by RDP commands. If a resource is in use, a command changing it requires
+ * a sync before. Each resource is tracked by one bit in a single 32-bit word
+ * called the "autosync state".
+ * 
+ * The following resources are tracked:
+ * 
+ *  * Pipe. This is a generic resource encompassing all render mode and hardware
+ *    register changes. It maps to a single bit (`AUTOSYNC_PIPE`). All render
+ *    mode commands "change" this bit (eg: #rdpq_set_other_modes_raw or
+ *    #rdpq_set_yuv_parms). All draw commands "use" this bit (eg: #rdpq_triangle).
+ *    So for instance, if you draw a triangle, next #rdpq_set_mode_standard call will
+ *    automatically issue a `SYNC_PIPE`.
+ *  * Tiles. These are 8 resources (8 bits) mapping to the 8 tile descriptors
+ *    in RDP hardware, used to describe textures. There is one bit per each descriptor
+ *    (`AUTOSYNC_TILE(n)`) so that tracking is actually done at the single tile
+ *    granularity. Commands modifying the tile descriptor (such as #rdpq_set_tile
+ *    or #rdpq_load_tile) will "change" the resource corresponding for the affect tile.
+ *    Commands drawing textured primitives (eg: #rdpq_texture_rectangle) will "use"
+ *    the resource. For instance, calling #rdpq_texture_rectangle using #TILE4, and
+ *    later calling #rdpq_load_tile on #TILE4 will cause a `SYNC_TILE` to be issued
+ *    just before the `LOAD_TILE` command. Notice that if #rdpq_load_tile used
+ *    #TILE5 instead, no `SYNC_TILE` would have been issued, assuming #TILE5 was 
+ *    never used before. This means that having a logic to cycle through tile
+ *    descriptors (instead of always using the same) will reduce the number of
+ *    `SYNC_TILE` commands.
+ *  * TMEM. Currently, the whole TMEM is tracking as a single resource (using
+ *    the bit defined by `AUTOSYNC_TMEM(0)`. Any command that writes to TMEM
+ *    (eg: #rdpq_load_block) will "change" the resource. Any command that reads
+ *    from TMEM (eg: #rdpq_triangle with a texture) will "use" the resource.
+ *    Writing to TMEM while something is reading requires a `SYNC_LOAD` command
+ *    to be issued.
+ * 
+ * Note that there is a limit with the current implementation: the RDP can use
+ * multiple tiles with a single command (eg: when using multi-texturing or LODs),
+ * but we are not able to track that correctly: all drawing commands for now
+ * assume that a single tile will be used. If this proves to be a problem, it is
+ * always possible to call #rdpq_sync_tile to manually issue a sync.
+ * 
+ * Autosync also works with blocks, albeit conservatively. When recording
+ * a block, it is not possible to know what the autosync state will be at the
+ * point of call (and obviously, it could be called in different situations
+ * with different states). The engine thus handles the worst case: at the
+ * beginning of a block, it assumes that all resources are "in use". This might
+ * cause some sync commands to be run in situations where it would not be
+ * strictly required, but the performance impact is unlikely to be noticeable.
+ * 
+ * Autosync engine can be enabled or disabled via #rdpq_config_enable /
+ * #rdpq_config_disable. Remember that manually issuing sync commands require
+ * careful debugging on real hardware, as no emulator today is able to 
+ * reproduce the effects of a missing sync command.
  * 
  */
 
@@ -592,12 +774,25 @@ void __rdpq_block_update_norsp(volatile uint32_t *wptr)
 
 /** @} */
 
+
+/**
+ * @name Helpers to write RDP commands
+ * 
+ * All the functions in this group are wrappers around #rdpq_write to help
+ * generating RDP commands. The goal is to reduce code-size and 
+ * 
+ * @{
+ */
+
+
+/** @brief Write a standard 8-byte RDP command */
 __attribute__((noinline))
 void __rdpq_write8(uint32_t cmd_id, uint32_t arg0, uint32_t arg1)
 {
     rdpq_write((cmd_id, arg0, arg1));
 }
 
+/** @brief Write a standard 8-byte RDP command, which changes some autosync resources  */
 __attribute__((noinline))
 void __rdpq_write8_syncchange(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t autosync)
 {
@@ -605,6 +800,7 @@ void __rdpq_write8_syncchange(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uin
     __rdpq_write8(cmd_id, arg0, arg1);
 }
 
+/** @brief Write a standard 8-byte RDP command, which uses some autosync resources  */
 __attribute__((noinline))
 void __rdpq_write8_syncuse(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t autosync)
 {
@@ -612,6 +808,7 @@ void __rdpq_write8_syncuse(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32
     __rdpq_write8(cmd_id, arg0, arg1);
 }
 
+/** @brief Write a standard 8-byte RDP command, which changes some autosync resources and uses others. */
 __attribute__((noinline))
 void __rdpq_write8_syncchangeuse(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t autosync_c, uint32_t autosync_u)
 {
@@ -624,13 +821,6 @@ __attribute__((noinline))
 void __rdpq_write16(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3)
 {
     rdpq_write((cmd_id, arg0, arg1, arg2, arg3));
-}
-
-__attribute__((noinline))
-void __rdpq_write16_syncchange(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t autosync)
-{
-    __rdpq_autosync_change(autosync);
-    __rdpq_write16(cmd_id, arg0, arg1, arg2, arg3);
 }
 
 __attribute__((noinline))

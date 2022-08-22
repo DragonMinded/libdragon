@@ -26,7 +26,7 @@
 
         RSPQ_DefineCommand RDPQCmd_TextureRectEx,           16  # 0xD0
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD1
-        RSPQ_DefineCommand RDPQCmd_SetScissorEx,            8   # 0xD2
+        RSPQ_DefineCommand RDPQCmd_SetScissorEx,            8   # 0xD2 Set Scissor (exclusive bounds)
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD3
         RSPQ_DefineCommand RDPQCmd_ModifyOtherModes,        12  # 0xD4 Modify SOM
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD5

@@ -212,7 +212,7 @@ typedef enum {
     TILE2 = 2,  ///< Tile #2 (for code readability)
     TILE3 = 3,  ///< Tile #3 (for code readability)
     TILE4 = 4,  ///< Tile #4 (for code readability)
-    TIlE5 = 5,  ///< Tile #5 (for code readability)
+    TILE5 = 5,  ///< Tile #5 (for code readability)
     TILE6 = 6,  ///< Tile #6 (for code readability)
     TILE7 = 7,  ///< Tile #7 (for code readability)
 } rdpq_tile_t;
