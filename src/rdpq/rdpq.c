@@ -350,18 +350,9 @@ DEFINE_RSP_UCODE(rsp_rdpq,
  */
 typedef struct rdpq_state_s {
     uint64_t sync_full;                 ///< Last SYNC_FULL command
-    uint64_t scissor_rect;              ///< Current scissoring rectangle
-    struct __attribute__((packed)) {
-        uint64_t comb_1cyc;             ///< Combiner to use in 1cycle mode
-        uint64_t comb_2cyc;             ///< Combiner to use in 2cycle mode
-        uint32_t blend_1cyc;            ///< Blender to use in 1cycle mode
-        uint32_t blend_2cyc;            ///< Blender to use in 2cycle mode
-        uint64_t other_modes;           ///< SET_OTHER_MODES configuration
-    } modes[4];                         ///< Modes stack (position 0 is current)
     uint32_t address_table[RDPQ_ADDRESS_TABLE_SIZE];    ///< Address lookup table
-    uint32_t fill_color;                ///< Current fill color (FMT_RGBA32)
+    rspq_rdp_mode_t modes[3];           ///< Modes stack
     uint32_t rdram_state_address;       ///< Address of this state in RDRAM
-    uint8_t target_bitdepth;            ///< Current render target bitdepth
 } rdpq_state_t;
 
 /** @brief Mirror in RDRAM of the state of the rdpq ucode. */ 
@@ -452,17 +443,13 @@ void rdpq_init()
     // Get a pointer to the RDRAM copy of the rdpq ucode state.
     rdpq_state = UncachedAddr(rspq_overlay_get_state(&rsp_rdpq));
     _Static_assert(sizeof(rdpq_state->modes[0]) == 32,   "invalid sizeof: rdpq_state->modes[0]");
-    _Static_assert(sizeof(rdpq_state->modes)    == 32*4, "invalid sizeof: rdpq_state->modes");
+    _Static_assert(sizeof(rdpq_state->modes)    == 32*3, "invalid sizeof: rdpq_state->modes");
 
     // Initialize the ucode state.
     memset(rdpq_state, 0, sizeof(rdpq_state_t));
     rdpq_state->rdram_state_address = PhysicalAddr(rdpq_state);
-    for (int i=0;i<4;i++)
+    for (int i=0;i<3;i++)
         rdpq_state->modes[i].other_modes = ((uint64_t)RDPQ_OVL_ID << 32) + ((uint64_t)RDPQ_CMD_SET_OTHER_MODES << 56);
-
-    // The (1 << 12) is to prevent underflow in case set other modes is called before any set scissor command.
-    // Depending on the cycle mode, 1 subpixel is subtracted from the right edge of the scissor rect.
-    rdpq_state->scissor_rect = (((uint64_t)RDPQ_OVL_ID << 32) + ((uint64_t)RDPQ_CMD_SET_SCISSOR << 56)) | (1 << 12);
     
     // Register the rdpq overlay at a fixed position (0xC)
     rspq_overlay_register_static(&rsp_rdpq, RDPQ_OVL_ID);
@@ -960,8 +947,15 @@ void __rdpq_change_other_modes(uint32_t w0, uint32_t w1, uint32_t w2)
 
 uint64_t rdpq_get_other_modes_raw(void)
 {
-    rdpq_state_t *rdpq_state = rspq_overlay_get_state(&rsp_rdpq);
-    return rdpq_state->modes[0].other_modes;
+    uint64_t result;
+    
+    rsp_queue_t *tmp = NULL;
+    uint32_t offset = (uint32_t)(&tmp->rdp_mode.other_modes);
+
+    rspq_wait();
+    rsp_read_data(&result, sizeof(uint64_t), offset);
+
+    return result;
 }
 
 void rdpq_sync_full(void (*callback)(void*), void* arg)

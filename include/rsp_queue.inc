@@ -196,11 +196,30 @@ RSPQ_POINTER_STACK:           .ds.l (RSPQ_MAX_BLOCK_NESTING_LEVEL+2)
 # RDRAM address of the current command list.
 RSPQ_RDRAM_PTR:               .long 0
 
+# Pointer to the end of the current RDP output buffer
+RSPQ_RDP_SENTINEL:            .long 0
+
+# RDP MODE (32 bytes). NOTE: This must be 16-byte aligned (because we use lqv in push/pop),
+# but we can't use .align 4 here, otherwise it's not easy to keep this structure layout
+# in sync with the C side (rdpq_state_t in rdpq.c).
+RDP_MODE:
+    # Combiner setting to use in 1 cycle mode
+    RDP_MODE_COMBINER_1CYC: .quad  0
+    # Combiner setting to use in 2 cycle mode
+    RDP_MODE_COMBINER_2CYC: .quad  0
+    # Blender settings: up to two steps. Either of them
+    # is already in a format valid for both 1cyc and 2cyc mode.
+    RDP_MODE_BLENDER_STEPS: .word  0,0
+    # Other modes
+    RDP_OTHER_MODES:        .quad  0xEF << 56
+
 # Two RDP output buffers (to alternate between)
 RSPQ_RDP_BUFFERS:             .long 0, 0
 
-# Pointer to the end of the current RDP output buffer
-RSPQ_RDP_SENTINEL:            .long 0
+RDP_SCISSOR_RECT:      .quad  (0xED << 56) | (1 << 12)
+RDP_FILL_COLOR:        .word  0
+RDP_TARGET_BITDEPTH:   .byte  0
+    .byte 0
 
 # Index (not ID!) of the current overlay, as byte offset in the descriptor array
 RSPQ_CURRENT_OVL:             .half 0
