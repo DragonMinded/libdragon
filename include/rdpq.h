@@ -1468,12 +1468,12 @@ inline void rdpq_set_other_modes_raw(uint64_t mode)
  */
 inline void rdpq_change_other_modes_raw(uint64_t mask, uint64_t val)
 {
-    extern void __rdpq_modify_other_modes(uint32_t, uint32_t, uint32_t);
+    extern void __rdpq_change_other_modes(uint32_t, uint32_t, uint32_t);
 
     if (mask >> 32)
-        __rdpq_modify_other_modes(0, ~(mask >> 32), val >> 32);
+        __rdpq_change_other_modes(0, ~(mask >> 32), val >> 32);
     if ((uint32_t)mask)
-        __rdpq_modify_other_modes(4, ~(uint32_t)mask, (uint32_t)val);
+        __rdpq_change_other_modes(4, ~(uint32_t)mask, (uint32_t)val);
 }
 
 /**
@@ -1498,7 +1498,7 @@ uint64_t rdpq_get_other_modes_raw(void);
  * @note Prefer using #rdpq_mode_combiner (part of the RDPQ mode API), as it better
  * handles integration with other render mode changes.
  * 
- * @param      mode     The new combiner setting
+ * @param      comb     The new combiner setting
  * 
  * @see #rdpq_mode_combiner
  * @see #RDPQ_COMBINER1

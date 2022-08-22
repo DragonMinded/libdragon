@@ -179,6 +179,13 @@ bool rdp_is_attached( void );
 })
 
 /**
+ * @brief Enable display of 2D filled (untextured) triangles, with possible alpha blending.
+ *
+ * This must be called before using #rdp_draw_filled_triangle.
+ */
+void rdp_enable_blend_fill( void );
+
+/**
  * @brief Load a sprite into RDP TMEM
  *
  * @param[in] texslot
@@ -232,8 +239,8 @@ uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mi
  * If the rectangle is larger than the texture, it will be tiled or mirrored based on the* mirror setting
  * given in the load texture command.
  *
- * Before using this command to draw a textured rectangle, use #rdp_enable_texture_copy to set the RDP
- * up in texture mode.
+ * Before using this command to draw a textured rectangle, use #rdpq_set_mode_copy (or the deprecated
+ * rdp_enable_texture_copy) to set the RDP up in texture copy mode.
  *
  * @param[in] texslot
  *            The texture slot that the texture was previously loaded into (0-7)
@@ -258,8 +265,8 @@ void rdp_draw_textured_rectangle( uint32_t texslot, int tx, int ty, int bx, int 
  * If the rectangle is larger than the texture after scaling, it will be tiled or mirrored based on the
  * mirror setting given in the load texture command.
  *
- * Before using this command to draw a textured rectangle, use #rdp_enable_texture_copy to set the RDP
- * up in texture mode.
+ * Before using this command to draw a textured rectangle, use #rdpq_set_mode_copy (or the deprecated
+ * rdp_enable_texture_copy) to set the RDP up in texture copy mode.
  *
  * @param[in] texslot
  *            The texture slot that the texture was previously loaded into (0-7)
@@ -285,8 +292,8 @@ void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int b
  *
  * Given an already loaded texture, this function will draw a rectangle textured with the loaded texture.
  *
- * Before using this command to draw a textured rectangle, use #rdp_enable_texture_copy to set the RDP
- * up in texture mode.
+ * Before using this command to draw a textured rectangle, use #rdpq_set_mode_copy (or the deprecated
+ * rdp_enable_texture_copy) to set the RDP up in texture copy mode.
  *
  * @param[in] texslot
  *            The texture slot that the texture was previously loaded into (0-7)
@@ -304,8 +311,8 @@ void rdp_draw_sprite( uint32_t texslot, int x, int y ,  mirror_t mirror);
  *
  * Given an already loaded texture, this function will draw a rectangle textured with the loaded texture.
  *
- * Before using this command to draw a textured rectangle, use #rdp_enable_texture_copy to set the RDP
- * up in texture mode.
+ * Before using this command to draw a textured rectangle, use #rdpq_set_mode_copy (or the deprecated
+ * rdp_enable_texture_copy) to set the RDP up in texture copy mode.
  *
  * @param[in] texslot
  *            The texture slot that the texture was previously loaded into (0-7)
@@ -433,9 +440,6 @@ void rdp_set_primitive_color(uint32_t color) {
 
 __attribute__((deprecated("use rdpq_set_mode_fill instead")))
 void rdp_enable_primitive_fill( void );
-
-__attribute__((deprecated("use rdpq_set_mode_standard instead")))
-void rdp_enable_blend_fill( void );
 
 __attribute__((deprecated("use rdpq_set_mode_copy instead")))
 void rdp_enable_texture_copy( void );

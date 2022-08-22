@@ -3,11 +3,13 @@
  * @brief RDP Command queue
  * @ingroup rdp
  *
- * # RDP Queue: implementation
+ * # RDP Queue: implementation details
  * 
  * This documentation block describes the internal workings of the RDP Queue.
- * This is useful to understand the implementation. For description of the
- * API of the RDP queue, see rdpq.h
+ * This is useful to understand the implementation, but it is not required
+ * to read or understand this to use rdpq. 
+ * 
+ * For description of the API of the RDP queue, see rdpq.h
  * 
  * ## Improvements over raw hardware programming
  * 
@@ -776,14 +778,15 @@ void __rdpq_block_update_norsp(volatile uint32_t *wptr)
 
 
 /**
- * @name Helpers to write RDP commands
+ * @name Helpers to write generic RDP commands
  * 
  * All the functions in this group are wrappers around #rdpq_write to help
- * generating RDP commands. The goal is to reduce code-size and 
- * 
+ * generating RDP commands. They are called by inlined functions in rdpq.h.
+ * See the top-level documentation about inline functions to understand the
+ * reason of this split.
+ *  
  * @{
  */
-
 
 /** @brief Write a standard 8-byte RDP command */
 __attribute__((noinline))
@@ -817,12 +820,14 @@ void __rdpq_write8_syncchangeuse(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, 
     __rdpq_write8(cmd_id, arg0, arg1);
 }
 
+/** @brief Write a standard 16-byte RDP command  */
 __attribute__((noinline))
 void __rdpq_write16(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3)
 {
     rdpq_write((cmd_id, arg0, arg1, arg2, arg3));
 }
 
+/** @brief Write a standard 16-byte RDP command, which uses some autosync resources  */
 __attribute__((noinline))
 void __rdpq_write16_syncuse(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t autosync)
 {
@@ -830,6 +835,30 @@ void __rdpq_write16_syncuse(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint3
     __rdpq_write16(cmd_id, arg0, arg1, arg2, arg3);
 }
 
+/** @brief Write a 8-byte RDP command fixup. */
+__attribute__((noinline))
+void __rdpq_fixup_write8_pipe(uint32_t cmd_id, uint32_t w0, uint32_t w1)
+{
+    __rdpq_autosync_change(AUTOSYNC_PIPE);
+    rdpq_fixup_write(
+        (cmd_id, w0, w1),
+        (cmd_id, w0, w1)
+    );
+}
+
+/** @} */
+
+
+/**
+ * @name RDP fixups out-of-line implementations
+ *
+ * These are the out-of line implementations of RDP commands which needs specific logic,
+ * mostly because they are fixups.
+ * 
+ * @{
+ */
+
+/** @brief Out-of-line implementation of #rdpq_texture_rectangle */
 __attribute__((noinline))
 void __rdpq_texture_rectangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3)
 {
@@ -843,6 +872,7 @@ void __rdpq_texture_rectangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3
     );
 }
 
+/** @brief Out-of-line implementation of #rdpq_set_scissor */
 __attribute__((noinline))
 void __rdpq_set_scissor(uint32_t w0, uint32_t w1)
 {
@@ -853,6 +883,7 @@ void __rdpq_set_scissor(uint32_t w0, uint32_t w1)
     );
 }
 
+/** @brief Out-of-line implementation of #rdpq_set_fill_color */
 __attribute__((noinline))
 void __rdpq_set_fill_color(uint32_t w1)
 {
@@ -863,16 +894,7 @@ void __rdpq_set_fill_color(uint32_t w1)
     );
 }
 
-__attribute__((noinline))
-void __rdpq_fixup_write8_pipe(uint32_t cmd_id, uint32_t w0, uint32_t w1)
-{
-    __rdpq_autosync_change(AUTOSYNC_PIPE);
-    rdpq_fixup_write(
-        (cmd_id, w0, w1),
-        (cmd_id, w0, w1)
-    );
-}
-
+/** @brief Out-of-line implementation of #rdpq_set_color_image */
 __attribute__((noinline))
 void __rdpq_set_color_image(uint32_t w0, uint32_t w1, uint32_t sw0, uint32_t sw1)
 {
@@ -914,6 +936,7 @@ void rdpq_set_texture_image(surface_t *surface)
     rdpq_set_texture_image_raw(0, PhysicalAddr(surface->buffer), surface_get_format(surface), surface->width, surface->height);
 }
 
+/** @brief Out-of-line implementation of #rdpq_set_other_modes_raw */
 __attribute__((noinline))
 void __rdpq_set_other_modes(uint32_t w0, uint32_t w1)
 {
@@ -924,8 +947,9 @@ void __rdpq_set_other_modes(uint32_t w0, uint32_t w1)
     );
 }
 
+/** @brief Out-of-line implementation of #rdpq_change_other_modes_raw */
 __attribute__((noinline))
-void __rdpq_modify_other_modes(uint32_t w0, uint32_t w1, uint32_t w2)
+void __rdpq_change_other_modes(uint32_t w0, uint32_t w1, uint32_t w2)
 {
     __rdpq_autosync_change(AUTOSYNC_PIPE);
     rdpq_fixup_write(
@@ -973,6 +997,8 @@ void rdpq_sync_load(void)
     __rdpq_write8(RDPQ_CMD_SYNC_LOAD, 0, 0);
     rdpq_autosync_state[0] &= ~AUTOSYNC_TMEMS;
 }
+
+/** @} */
 
 /* Extern inline instantiations. */
 extern inline void rdpq_set_fill_color(color_t color);

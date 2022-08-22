@@ -341,7 +341,7 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode);
  * @code{.c}
  *      // This example adds to the queue a command called CMD_SPRITE with 
  *      // index 0xA, with its arguments, for a total of three words. The overlay
- *      // was previously registered via #rspq_register_overlay.
+ *      // was previously registered via #rspq_overlay_register.
  *      
  *      #define CMD_SPRITE  0xA
  *      

@@ -10,6 +10,11 @@
 #include "pputils.h"
 #include "../rspq/rspq_internal.h"
 
+/** 
+ * @brief Static overlay ID of rdpq library.
+ * 
+ * The rdpq overlay must be registered at this ID via #rspq_overlay_register_static.
+ */
 #define RDPQ_OVL_ID (0xC << 28)
 
 /** @brief True if the rdpq module was inited */
