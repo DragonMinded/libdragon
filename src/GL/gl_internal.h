@@ -26,7 +26,6 @@
 
 #define RADIANS(x) ((x) * M_PI / 180.0f)
 
-#define CLAMP(x, min, max) (MIN(MAX((x), (min)), (max)))
 #define CLAMP01(x) CLAMP((x), 0, 1)
 
 #define CLAMPF_TO_BOOL(x)  ((x)!=0.0)

@@ -22,8 +22,6 @@
 #include "rdpq_internal.h"
 #include "utils.h"
 
-#define TRUNCATE_S11_2(x) (((x)&0x1fff) | (((x)>>18)&~0x1fff))
-
 /** @brief Converts a float to a s16.16 fixed point number */
 static int32_t float_to_s16_16(float f)
 {
@@ -64,9 +62,9 @@ static inline void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_
     const float y3 = floorf(v3[1]*4)/4;
 
     const float to_fixed_11_2 = 4.0f;
-    int32_t y1f = TRUNCATE_S11_2((int32_t)floorf(v1[1]*to_fixed_11_2));
-    int32_t y2f = TRUNCATE_S11_2((int32_t)floorf(v2[1]*to_fixed_11_2));
-    int32_t y3f = TRUNCATE_S11_2((int32_t)floorf(v3[1]*to_fixed_11_2));
+    int32_t y1f = CLAMP((int32_t)floorf(v1[1]*to_fixed_11_2), -4096*4, 4095*4);
+    int32_t y2f = CLAMP((int32_t)floorf(v2[1]*to_fixed_11_2), -4096*4, 4095*4);
+    int32_t y3f = CLAMP((int32_t)floorf(v3[1]*to_fixed_11_2), -4096*4, 4095*4);
 
     data->hx = x3 - x1;        
     data->hy = y3 - y1;        
@@ -282,7 +280,7 @@ static inline void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_
     rspq_write_arg(w, DzDy_fixed);
 }
 
-void rdpq_triangle(tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
+void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
 {
     uint32_t res = AUTOSYNC_PIPE;
     if (tex_offset >= 0) {

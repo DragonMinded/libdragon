@@ -7,7 +7,7 @@
 #define RDPQ_ASSERT_FILLCOPY_BLENDING  0xC003
 
 #define RDPQ_MAX_COMMAND_SIZE 44
-#define RDPQ_BLOCK_MIN_SIZE   64
-#define RDPQ_BLOCK_MAX_SIZE   4192
+#define RDPQ_BLOCK_MIN_SIZE   64    ///< RDPQ block minimum size (in 32-bit words)
+#define RDPQ_BLOCK_MAX_SIZE   4192  ///< RDPQ block minimum size (in 32-bit words)
 
 #endif

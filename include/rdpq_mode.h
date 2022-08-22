@@ -171,31 +171,34 @@ typedef enum rdpq_sampler_s {
  */
 
 typedef enum rdpq_dither_s {
-    DITHER_SQUARE_SQUARE       = (SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_SAME)   >> SOM_ALPHADITHER_SHIFT,
-    DITHER_SQUARE_INVSQUARE    = (SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_INVERT) >> SOM_ALPHADITHER_SHIFT,
-    DITHER_SQUARE_NOISE        = (SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_NOISE)  >> SOM_ALPHADITHER_SHIFT,
-    DITHER_SQUARE_NONE         = (SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_NONE)   >> SOM_ALPHADITHER_SHIFT,
+    DITHER_SQUARE_SQUARE       = (SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_SAME)   >> SOM_ALPHADITHER_SHIFT, ///< Dithering: RGB=Square, Alpha=Square
+    DITHER_SQUARE_INVSQUARE    = (SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_INVERT) >> SOM_ALPHADITHER_SHIFT, ///< Dithering: RGB=Square, Alpha=InvSquare
+    DITHER_SQUARE_NOISE        = (SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_NOISE)  >> SOM_ALPHADITHER_SHIFT, ///< Dithering: RGB=Square, Alpha=Noise
+    DITHER_SQUARE_NONE         = (SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_NONE)   >> SOM_ALPHADITHER_SHIFT, ///< Dithering: RGB=Square, Alpha=None
 
-    DITHER_BAYER_BAYER         = (SOM_RGBDITHER_BAYER  | SOM_ALPHADITHER_SAME)   >> SOM_ALPHADITHER_SHIFT,
-    DITHER_BAYER_INVBAYER      = (SOM_RGBDITHER_BAYER  | SOM_ALPHADITHER_INVERT) >> SOM_ALPHADITHER_SHIFT,
-    DITHER_BAYER_NOISE         = (SOM_RGBDITHER_BAYER  | SOM_ALPHADITHER_NOISE)  >> SOM_ALPHADITHER_SHIFT,
-    DITHER_BAYER_NONE          = (SOM_RGBDITHER_BAYER  | SOM_ALPHADITHER_NONE)   >> SOM_ALPHADITHER_SHIFT,
+    DITHER_BAYER_BAYER         = (SOM_RGBDITHER_BAYER  | SOM_ALPHADITHER_SAME)   >> SOM_ALPHADITHER_SHIFT, ///< Dithering: RGB=Bayer, Alpha=Bayer
+    DITHER_BAYER_INVBAYER      = (SOM_RGBDITHER_BAYER  | SOM_ALPHADITHER_INVERT) >> SOM_ALPHADITHER_SHIFT, ///< Dithering: RGB=Bayer, Alpha=InvBayer
+    DITHER_BAYER_NOISE         = (SOM_RGBDITHER_BAYER  | SOM_ALPHADITHER_NOISE)  >> SOM_ALPHADITHER_SHIFT, ///< Dithering: RGB=Bayer, Alpha=Noise
+    DITHER_BAYER_NONE          = (SOM_RGBDITHER_BAYER  | SOM_ALPHADITHER_NONE)   >> SOM_ALPHADITHER_SHIFT, ///< Dithering: RGB=Bayer, Alpha=None
 
-    DITHER_NOISE_SQUARE        = (SOM_RGBDITHER_NOISE  | SOM_ALPHADITHER_SAME)   >> SOM_ALPHADITHER_SHIFT,
-    DITHER_NOISE_INVSQUARE     = (SOM_RGBDITHER_NOISE  | SOM_ALPHADITHER_INVERT) >> SOM_ALPHADITHER_SHIFT,
-    DITHER_NOISE_NOISE         = (SOM_RGBDITHER_NOISE  | SOM_ALPHADITHER_NOISE)  >> SOM_ALPHADITHER_SHIFT,
-    DITHER_NOISE_NONE          = (SOM_RGBDITHER_NOISE  | SOM_ALPHADITHER_NONE)   >> SOM_ALPHADITHER_SHIFT,
+    DITHER_NOISE_SQUARE        = (SOM_RGBDITHER_NOISE  | SOM_ALPHADITHER_SAME)   >> SOM_ALPHADITHER_SHIFT, ///< Dithering: RGB=Noise, Alpha=Square
+    DITHER_NOISE_INVSQUARE     = (SOM_RGBDITHER_NOISE  | SOM_ALPHADITHER_INVERT) >> SOM_ALPHADITHER_SHIFT, ///< Dithering: RGB=Noise, Alpha=InvSquare
+    DITHER_NOISE_NOISE         = (SOM_RGBDITHER_NOISE  | SOM_ALPHADITHER_NOISE)  >> SOM_ALPHADITHER_SHIFT, ///< Dithering: RGB=Noise, Alpha=Noise
+    DITHER_NOISE_NONE          = (SOM_RGBDITHER_NOISE  | SOM_ALPHADITHER_NONE)   >> SOM_ALPHADITHER_SHIFT, ///< Dithering: RGB=Noise, Alpha=None
 
-    DITHER_NONE_BAYER          = (SOM_RGBDITHER_NONE   | SOM_ALPHADITHER_SAME)   >> SOM_ALPHADITHER_SHIFT,
-    DITHER_NONE_INVBAYER       = (SOM_RGBDITHER_NONE   | SOM_ALPHADITHER_INVERT) >> SOM_ALPHADITHER_SHIFT,
-    DITHER_NONE_NOISE          = (SOM_RGBDITHER_NONE   | SOM_ALPHADITHER_NOISE)  >> SOM_ALPHADITHER_SHIFT,
-    DITHER_NONE_NONE           = (SOM_RGBDITHER_NONE   | SOM_ALPHADITHER_NONE)   >> SOM_ALPHADITHER_SHIFT,
+    DITHER_NONE_BAYER          = (SOM_RGBDITHER_NONE   | SOM_ALPHADITHER_SAME)   >> SOM_ALPHADITHER_SHIFT, ///< Dithering: RGB=None, Alpha=Bayer
+    DITHER_NONE_INVBAYER       = (SOM_RGBDITHER_NONE   | SOM_ALPHADITHER_INVERT) >> SOM_ALPHADITHER_SHIFT, ///< Dithering: RGB=None, Alpha=InvBayer
+    DITHER_NONE_NOISE          = (SOM_RGBDITHER_NONE   | SOM_ALPHADITHER_NOISE)  >> SOM_ALPHADITHER_SHIFT, ///< Dithering: RGB=None, Alpha=Noise
+    DITHER_NONE_NONE           = (SOM_RGBDITHER_NONE   | SOM_ALPHADITHER_NONE)   >> SOM_ALPHADITHER_SHIFT, ///< Dithering: RGB=None, Alpha=None
 } rdpq_dither_t;
 
+/**
+ * @brief Types of palettes supported by RDP
+ */
 typedef enum rdpq_tlut_s {
-    TLUT_NONE   = 0,
-    TLUT_RGBA16 = 2,
-    TLUT_IA16   = 3,
+    TLUT_NONE   = 0,     ///< No palette
+    TLUT_RGBA16 = 2,     ///< Palette made of #FMT_RGBA16 colors
+    TLUT_IA16   = 3,     ///< Palette made of #FMT_IA16 colors
 } rdpq_tlut_t;
 
 /**
@@ -463,6 +466,23 @@ inline void rdpq_mode_zoverride(bool enable, uint16_t z, int16_t deltaz) {
     );
 }
 
+
+/**
+ * @brief Activate palette lookup during drawing
+ * 
+ * This function allows to enable / disable palette lookup during
+ * drawing. To draw using a texture with palette, it is necessary
+ * to first load the texture into TMEM (eg: via #rdpq_tex_load or
+ * #rdpq_text_load_ci4), then load the palette (eg: via #rdpq_tex_load_tlut),
+ * and finally activate the palette drawing mode via #rdpq_mode_tlut.
+ * 
+ * @param tlut     Palette type, or 0 to disable.
+ * 
+ * @see #rdpq_tex_load
+ * @see #rdpq_tex_load_ci4
+ * @see #rdpq_tex_load_tlut
+ * @see #rdpq_tlut_t
+ */
 inline void rdpq_mode_tlut(rdpq_tlut_t tlut) {
     rdpq_change_other_modes_raw(SOM_TLUT_MASK, (uint64_t)tlut << SOM_TLUT_SHIFT);
 }
