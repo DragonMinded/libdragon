@@ -386,7 +386,7 @@ void rdpq_debug_disasm(uint64_t *buf, FILE *out)
     case 0x3B: fprintf(out, "SET_ENV_COLOR    rgba32=(%d,%d,%d,%d)\n", BITS(buf[0], 24, 31), BITS(buf[0], 16, 23), BITS(buf[0], 8, 15), BITS(buf[0], 0, 7)); return;
     case 0x2F: { fprintf(out, "SET_OTHER_MODES  ");
         const char* cyc[] = { "1cyc", "2cyc", "copy", "fill" };
-        const char* texinterp[] = { "point", "point", "bilinear", "mid" };
+        const char* texinterp[] = { "point", "point", "bilinear", "median" };
         const char* yuv1[] = { "yuv1", "yuv1_tex0" };
         const char* zmode[] = { "opaque", "inter", "trans", "decal" };
         const char* rgbdither[] = { "square", "bayer", "noise", "none" };
@@ -752,8 +752,13 @@ static void use_tile(int tidx, int cycle) {
         // In copy mode, YUV textures are copied as-is
         if (t->fmt == 1) {
             VALIDATE_WARN(!(rdp.som.tf_mode & (4>>cycle)), "tile %d is YUV but texture filter in cycle %d does not activate YUV color conversion (SOM set at %p)", tidx, cycle, rdp.last_som);
-            VALIDATE_ERR(rdp.som.sample_type == 0 || (rdp.som.tf_mode == 6 && rdp.som.cycle_type == 1), 
-                "tile %d is YUV, so for bilinear filtering it needs 2-cycle mode and the special TF1_YUVTEX0 mode (SOM set at %p)", tidx, rdp.last_som);
+            if (rdp.som.sample_type > 1) {
+                const char* texinterp[] = { "point", "point", "bilinear", "median" };
+                VALIDATE_ERR(rdp.som.tf_mode == 6 && rdp.som.cycle_type == 1,
+                    "tile %d is YUV and %s filtering is active: TF1_YUVTEX0 mode must be configured in SOM (SOM set at %p)", tidx, texinterp[rdp.som.sample_type], rdp.last_som);
+                VALIDATE_ERR(rdp.som.cycle_type == 1,
+                    "tile %d is YUV and %s filtering is active: 2-cycle mode must be configured (SOM set at %p)", tidx, texinterp[rdp.som.sample_type], rdp.last_som);
+            }
         } else
             VALIDATE_WARN((rdp.som.tf_mode & (4>>cycle)), "tile %d is RGB-based, but cycle %d is configured for YUV color conversion; try setting SOM_TF%d_RGB (SOM set at %p)", tidx, cycle, cycle, rdp.last_som);
     }
