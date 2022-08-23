@@ -14,6 +14,12 @@
 #include "rspq.h"
 #include "rdpq_internal.h"
 
+/** 
+ * @brief Write a fixup that changes the current render mode (8-byte command)
+ * 
+ * All the mode fixups always need to update the RDP render mode
+ * and thus generate two RDP commands: SET_COMBINE and SET_OTHER_MODES.
+ */
 __attribute__((noinline))
 void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1)
 {
@@ -24,6 +30,7 @@ void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1)
     );
 }
 
+/** @brief Write a fixup that changes the current render mode (12-byte command) */
 __attribute__((noinline))
 void __rdpq_fixup_mode3(uint32_t cmd_id, uint32_t w0, uint32_t w1, uint32_t w2)
 {
@@ -34,6 +41,7 @@ void __rdpq_fixup_mode3(uint32_t cmd_id, uint32_t w0, uint32_t w1, uint32_t w2)
     );
 }
 
+/** @brief Write a fixup to reset the render mode */
 __attribute__((noinline))
 void __rdpq_reset_render_mode(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3)
 {
