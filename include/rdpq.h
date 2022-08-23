@@ -1406,7 +1406,7 @@ void rdpq_sync_load(void);
  * sent to it before it, and then generate an interrupt when it is done.
  * 
  * This is normally useful at the end of the frame. For instance, it is used
- * internally by #rdp_detach_display to make sure RDP is finished drawing on
+ * internally by #rdp_detach to make sure RDP is finished drawing on
  * the target display before detaching it.
  * 
  * The function can be passed an optional callback that will be called

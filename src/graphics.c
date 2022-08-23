@@ -21,13 +21,13 @@
  * However, they are slightly more flexible and offer no hardware limitations
  * in terms of sprite size.
  *
- * Code wishing to draw to the screen should first acquire a display contect
+ * Code wishing to draw to the screen should first acquire a display context
  * using #display_lock.  Once the display context is acquired, code may draw to
  * the context using any of the graphics functions present.  Wherever practical,
  * two versions of graphics functions are available: a transparent variety and
  * a non-transparent variety.  Code that wishes to display sprites without
  * transparency can get a slight performance boost by using the non-transparent
- * viariety of calls since no software alpha blending needs to occur.  Once
+ * variety of calls since no software alpha blending needs to occur.  Once
  * code has finished drawing to the display context, it can be displayed to the
  * screen using #display_show.
  *
@@ -89,20 +89,12 @@ static struct {
 /**
  * @brief Get the correct video buffer given a display context
  *
- * @note This macro requires that display contexts be integers.  If display
- * contexts turn into structures or pointers to structures, this function will
- * need updating.
- *
- * @param[in] x
+ * @param[in] disp
  *            The current display context
  *
  * @return A pointer to the current drawing surface for the display context
  */
 #define __get_buffer( disp ) ((disp)->buffer)
-
-#define __bitdepth (display_get_bitdepth())
-#define __width (disp->width)
-#define __height (disp->height)
 
 /**
  * @brief Generic foreground color
@@ -161,6 +153,9 @@ uint32_t graphics_make_color( int r, int g, int b, int a )
  * However, for drawing with the old deprecated RDP API (in particular,
  * rdp_set_primitive_color), this is still required.
  * 
+ * @deprecated By switching to the rdpq API, this function should not be required
+ * anymore. Please avoid using it in new code if possible.
+ * 
  * @param[in] color
  *            A color structure representing an RGBA color
  * 
@@ -168,7 +163,7 @@ uint32_t graphics_make_color( int r, int g, int b, int a )
  */
 uint32_t graphics_convert_color( color_t color )
 {
-    if( __bitdepth == 2 )
+    if( display_get_bitdepth() == 2 )
     {
         // Pack twice for compatibility with RDP packed colors and the old deprecated RDP API.
         uint32_t conv = color_to_packed16(color);
@@ -246,7 +241,7 @@ void graphics_draw_pixel( surface_t* disp, int x, int y, uint32_t color )
     if( disp == 0 ) { return; }
     int pix_stride = TEX_FORMAT_BYTES2PIX(surface_get_format(disp), disp->stride);
 
-    if( __bitdepth == 2 )
+    if( TEX_FORMAT_BITDEPTH(surface_get_format( disp )) == 16 )
     {
         __set_pixel( (uint16_t *)__get_buffer( disp ), x, y, color );
     }
@@ -277,7 +272,7 @@ void graphics_draw_pixel_trans( surface_t* disp, int x, int y, uint32_t color )
     if( disp == 0 ) { return; }
     int pix_stride = TEX_FORMAT_BYTES2PIX(surface_get_format(disp), disp->stride);
 
-    if( __bitdepth == 2 )
+    if( TEX_FORMAT_BITDEPTH(surface_get_format( disp )) == 16 )
     {
         /* Only display the pixel if alpha bit is set */
         if( !__is_transparent( 2, color ) )
@@ -500,7 +495,7 @@ void graphics_draw_box( surface_t* disp, int x, int y, int width, int height, ui
     if( disp == 0 ) { return; }
 
     int pix_stride = TEX_FORMAT_BYTES2PIX(surface_get_format(disp), disp->stride);
-    if( __bitdepth == 2 )
+    if( TEX_FORMAT_BITDEPTH(surface_get_format( disp )) == 16 )
     {
         uint16_t *buffer16 = (uint16_t *)__get_buffer( disp );
 
@@ -551,7 +546,7 @@ void graphics_draw_box_trans( surface_t* disp, int x, int y, int width, int heig
     if( disp == 0 ) { return; }
 
     int pix_stride = TEX_FORMAT_BYTES2PIX(surface_get_format(disp), disp->stride);
-    if( __bitdepth == 2 )
+    if( TEX_FORMAT_BITDEPTH(surface_get_format( disp )) == 16 )
     {
         uint16_t *buffer16 = (uint16_t *)__get_buffer( disp );
 
@@ -625,7 +620,7 @@ void graphics_fill_screen( surface_t* disp, uint32_t c )
 {
     if( disp == 0 ) { return; }
 
-    int len = (__bitdepth == 2) ? __width * __height / 4 : __width * __height / 2;
+    int len = TEX_FORMAT_PIX2BYTES(surface_get_format(disp), disp->width * disp->height) / 8;
 
     uint64_t c64 = ((uint64_t)c << 32) | c;
     uint64_t *buffer = (uint64_t *)__get_buffer(disp);
@@ -638,7 +633,7 @@ void graphics_fill_screen( surface_t* disp, uint32_t c )
  */
 void graphics_set_default_font( void )
 {
-    sprite_t *font = (sprite_t *)(__bitdepth == 2 ? __font_data_16 : __font_data_32);
+    sprite_t *font = (sprite_t *)(display_get_bitdepth() == 2 ? __font_data_16 : __font_data_32);
     graphics_set_font_sprite( font );
 }
 
@@ -686,10 +681,10 @@ void graphics_draw_character( surface_t* disp, int x, int y, char ch )
     if( disp == 0 ) { return; }
 
     int pix_stride = TEX_FORMAT_BYTES2PIX(surface_get_format(disp), disp->stride);
-    int depth = __bitdepth;
+    int depth = display_get_bitdepth();
 
     // setting default font if none was set previously
-    if( sprite_font.sprite == NULL || __bitdepth != sprite_font.sprite->bitdepth )
+    if( sprite_font.sprite == NULL || depth != sprite_font.sprite->bitdepth )
     {
         graphics_set_default_font();
     }
@@ -918,10 +913,10 @@ void graphics_draw_sprite_stride( surface_t* disp, int x, int y, sprite_t *sprit
     if( (ty + ey) <= 0 ) { return; }
 
     /* Too far right */
-    if( tx >= (int)__width ) { return; }
+    if( tx >= (int)disp->width ) { return; }
 
     /* Too far down */
-    if( ty >= (int)__height ) { return; }
+    if( ty >= (int)disp->height ) { return; }
 
     /* Clipping left */
     if( x < 0 )
@@ -936,21 +931,22 @@ void graphics_draw_sprite_stride( surface_t* disp, int x, int y, sprite_t *sprit
     }
 
     /* Clipping right */
-    if( (tx + ex) >= (int)__width )
+    if( (tx + ex) >= (int)disp->width )
     {
-        ex = __width - tx;
+        ex = disp->width - tx;
     }
 
     /* Clipping bottom */
-    if( (ty + ey) >= __height )
+    if( (ty + ey) >= disp->height )
     {
-        ey = __height - ty;
+        ey = disp->height - ty;
     }
 
     int pix_stride = TEX_FORMAT_BYTES2PIX(surface_get_format(disp), disp->stride);
+    int depth = TEX_FORMAT_BITDEPTH(surface_get_format( disp ));
 
     /* Only display sprite if it matches the bitdepth */
-    if( __bitdepth == 2 && sprite->bitdepth == 2 )
+    if( depth == 16 && sprite->bitdepth == 2 )
     {
         uint16_t *buffer = (uint16_t *)__get_buffer( disp );
         uint16_t *sp_data = (uint16_t *)sprite->data;
@@ -965,7 +961,7 @@ void graphics_draw_sprite_stride( surface_t* disp, int x, int y, sprite_t *sprit
             }
         }
     }
-    else if( __bitdepth == 4 && sprite->bitdepth == 4 )
+    else if( depth == 32 && sprite->bitdepth == 4 )
     {
         uint32_t *buffer = (uint32_t *)__get_buffer( disp );
         uint32_t *sp_data = (uint32_t *)sprite->data;
@@ -1088,10 +1084,10 @@ void graphics_draw_sprite_trans_stride( surface_t* disp, int x, int y, sprite_t 
     if( (ty + ey) <= 0 ) { return; }
 
     /* Too far right */
-    if( tx >= (int)__width ) { return; }
+    if( tx >= (int)disp->width ) { return; }
 
     /* Too far down */
-    if( ty >= (int)__height ) { return; }
+    if( ty >= (int)disp->height ) { return; }
 
     /* Clipping left */
     if( x < 0 )
@@ -1106,21 +1102,22 @@ void graphics_draw_sprite_trans_stride( surface_t* disp, int x, int y, sprite_t 
     }
 
     /* Clipping right */
-    if( (tx + ex) >= (int)__width )
+    if( (tx + ex) >= (int)disp->width )
     {
-        ex = __width - tx;
+        ex = disp->width - tx;
     }
 
     /* Clipping bottom */
-    if( (ty + ey) >= __height )
+    if( (ty + ey) >= disp->height )
     {
-        ey = __height - ty;
+        ey = disp->height - ty;
     }
 
     int pix_stride = TEX_FORMAT_BYTES2PIX(surface_get_format(disp), disp->stride);
+    int depth = TEX_FORMAT_BITDEPTH(surface_get_format( disp ));
 
     /* Only display sprite if it matches the bitdepth */
-    if( __bitdepth == 2 && sprite->bitdepth == 2 )
+    if( depth == 16 && sprite->bitdepth == 2 )
     {
         uint16_t *buffer = (uint16_t *)__get_buffer( disp );
         uint16_t *sp_data = (uint16_t *)sprite->data;
@@ -1139,7 +1136,7 @@ void graphics_draw_sprite_trans_stride( surface_t* disp, int x, int y, sprite_t 
             }
         }
     }
-    else if( __bitdepth == 4 && sprite->bitdepth == 4 )
+    else if( depth == 32 && sprite->bitdepth == 4 )
     {
         uint32_t *buffer = (uint32_t *)__get_buffer( disp );
         uint32_t *sp_data = (uint32_t *)sprite->data;
