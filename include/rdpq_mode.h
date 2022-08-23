@@ -17,34 +17,56 @@
  * 
  * Instead, the mode API follows the following pattern:
  * 
- *   * First, one of the basic render modes must be set via one of the `rdpq_set_mode_*` functions.
- *   * Afterwards, it is possible to tweak the current render mode via on of the various
- *     `rdpq_mode_*` functions.
+ *   * First, one of the basic **render modes** must be set via one of
+ *     the `rdpq_set_mode_*` functions.
+ *   * Afterwards, it is possible to tweak the render mode by changing
+ *     one or more **render states** via  `rdpq_mode_*` functions.
  * 
  * The rdpq mode API currently offers the following render modes:
  * 
  *   * **Standard** (#rdpq_set_mode_standard). This is the most basic and general
- *     render mode. It allows to use all RDP features (that must be activated via the
- *     various `rdpq_set_mode_*` functions). 
+ *     render mode. It allows to use all RDP render states (that must be activated via the
+ *     various `rdpq_mode_*` functions). 
  *   * **Copy** (#rdpq_set_mode_copy). This is a fast (4x) mode in which the RDP
  *     can perform fast blitting of textured rectangles (aka sprites). All texture
  *     formats are supported, and color 0 can be masked for transparency. Textures
- *     can be scaled and rotated, but not mirrored.
+ *     can be scaled and rotated, but not mirrored. Blending is not supported.
  *   * **Fill** (#rdpq_set_mode_fill). This is a fast (4x) mode in which the RDP
  *     is able to quickly fill a rectangular portion of the target buffer with a
- *     fixed color. It can be used to clear the screen.
+ *     fixed color. It can be used to clear the screen. Blending is not supported.
  *   * **YUV** (#rdpq_set_mode_yuv). This is a render mode that can be used to
  *     blit YUV textures, converting them to RGB. Support for YUV textures in RDP
  *     does in fact require a specific render mode (you cannot use YUV textures
  *     otherwise). It is possible to decide whether to activate or not bilinear
  *     filtering, as it makes RDP 2x slow when used in this mode.
- *   
+ * 
+ * After setting the render mode, you can configure the render states. An important
+ * implementation effort has been made to try and make the render states orthogonal,
+ * so that each one can be toggled separately without inter-dependence (a task
+ * which is particularly complex on the RDP hardware). Not all render states are
+ * available in all modes, refer to the documentation of each render state for
+ * further information.
+ * 
+ *   * Antialiasing (#rdpq_mode_antialias). Activate antialiasing on both internal
+ *     and external edges.
+ *   * Combiner (FIXME)
+ *   * Blending (FIXME)
+ *   * Fog (FIXME)
+ *   * Dithering (#rdpq_mode_dithering). Activate dithering on either the RGB channels,
+ *     the alpha channel, or both.
+ *   * Alpha compare (#rdpq_mode_alphacompare). Activate alpha compare function using
+ *     a fixed threshold.
+ *   * Z-Override (#rdpq_mode_zoverride): Give a fixed Z value to a whole triangle or
+ *     rectangle.
+ *   * TLUT (#rdpq_mode_tlut): activate usage of palettes.
+ *   * Filtering (#rdpq_mode_filter): activate bilinear filtering.
+ * 
  * @note From a hardware perspective, rdpq handles automatically the "RDP cycle type".
  *       That is, it transparently switches from "1-cycle mode" to "2-cycle mode"
  *       whenever it is necessary. If you come from a RDP low-level programming
  *       background, it might be confusing at first because everything "just works"
- *       without needing to adjust settings any time you need to switch between
- *       the two modes.
+ *       without needing to adjust settings any time you need to change a render state.
+ * 
  * 
  * ## Mode setting stack
  * 
@@ -103,11 +125,14 @@ void rdpq_mode_push(void);
 
 void rdpq_mode_pop(void);
 
-typedef enum rdpq_sampler_s {
-    SAMPLER_POINT    = SOM_SAMPLE_POINT    >> SOM_SAMPLE_SHIFT,
-    SAMPLER_BILINEAR = SOM_SAMPLE_BILINEAR >> SOM_SAMPLE_SHIFT,
-    SAMPLER_MEDIAN   = SOM_SAMPLE_MEDIAN   >> SOM_SAMPLE_SHIFT,
-} rdpq_sampler_t;
+/**
+ * @brief Texture filtering types
+ */
+typedef enum rdpq_filter_s {
+    FILTER_POINT    = SOM_SAMPLE_POINT    >> SOM_SAMPLE_SHIFT,  ///< Point filtering (aka nearest)
+    FILTER_BILINEAR = SOM_SAMPLE_BILINEAR >> SOM_SAMPLE_SHIFT,  ///< Bilinear filtering
+    FILTER_MEDIAN   = SOM_SAMPLE_MEDIAN   >> SOM_SAMPLE_SHIFT,  ///< Median filtering
+} rdpq_filter_t;
 
 /**
  * @brief Dithering configuration
@@ -202,6 +227,15 @@ typedef enum rdpq_tlut_s {
 } rdpq_tlut_t;
 
 /**
+ * @name Render modes
+ * 
+ * These functions set a new render mode from scratch. Every render state is 
+ * reset to some value (or default), so no previous state is kept valid.
+ * 
+ * @{
+ */
+
+/**
  * @brief Reset render mode to standard.
  * 
  * This is the most basic and general mode reset function. It configures the RDP
@@ -270,6 +304,18 @@ void rdpq_set_mode_copy(bool transparency);
  *                          2-cycle mode so it will be twice as slow).
  */
 void rdpq_set_mode_yuv(bool bilinear);
+
+/** @} */
+
+/**
+ * @name Render states
+ * 
+ * These functions allow to tweak individual render states. They should be called
+ * after one of the render mode reset functions to configure the render states.
+ * 
+ * @{
+ */
+
 
 /**
  * @brief Activate antialiasing
@@ -487,9 +533,23 @@ inline void rdpq_mode_tlut(rdpq_tlut_t tlut) {
     rdpq_change_other_modes_raw(SOM_TLUT_MASK, (uint64_t)tlut << SOM_TLUT_SHIFT);
 }
 
-inline void rdpq_mode_sampler(rdpq_sampler_t samp) {
+/**
+ * @brief Activate texture filtering
+ *
+ * This function allows to configure the kind of texture filtering that will be used
+ * while sampling textures.
+ * 
+ * Available in render modes: standard, copy.
+ * 
+ * @param filt      Texture filtering type
+ * 
+ * @see #rdpq_filter_t
+ */
+inline void rdpq_mode_filter(rdpq_filter_t filt) {
     rdpq_change_other_modes_raw(SOM_SAMPLE_MASK, (uint64_t)samp << SOM_SAMPLE_SHIFT);
 }
+
+/** @} */
 
 /********************************************************************
  * Internal functions (not part of public API)

@@ -1,3 +1,15 @@
+/**
+ * @file rdpq_mode.c
+ * @brief RDP Command queue: mode setting
+ * @ingroup rdp
+ * 
+ * 
+ * 
+ * 
+ * 
+ *
+ */
+
 #include "rdpq_mode.h"
 #include "rspq.h"
 #include "rdpq_internal.h"
@@ -68,7 +80,7 @@ void rdpq_set_mode_yuv(bool bilinear) {
         som = (0xEFull << 56) | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_TF0_YUV;
         cc = RDPQ_COMBINER1((TEX0, K4, K5, ZERO), (ZERO, ZERO, ZERO, ONE));
     } else {
-        som = (0xEFull << 56) | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_TF0_RGB | SOM_TF1_YUVTEX0;
+        som = (0xEFull << 56) | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_SAMPLE_BILINEAR | SOM_TF0_RGB | SOM_TF1_YUVTEX0;
         cc = RDPQ_COMBINER2((TEX1, K4, K5, ZERO), (ZERO, ZERO, ZERO, ONE),
                             (ZERO, ZERO, ZERO, COMBINED), (ZERO, ZERO, ZERO, COMBINED));
     }
@@ -90,4 +102,4 @@ extern inline void rdpq_mode_dithering(rdpq_dither_t dither);
 extern inline void rdpq_mode_alphacompare(bool enable, int threshold);
 extern inline void rdpq_mode_zoverride(bool enable, uint16_t z, int16_t deltaz);
 extern inline void rdpq_mode_tlut(rdpq_tlut_t tlut);
-extern inline void rdpq_mode_sampler(rdpq_sampler_t s);
+extern inline void rdpq_mode_filter(rdpq_filter_t s);

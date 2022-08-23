@@ -115,6 +115,9 @@ static uint32_t b_color = 0x00000000;
  * This is exactly the same as calling `graphics_convert_color(RGBA32(r,g,b,a))`.
  * Refer to #graphics_convert_color for more information.
  *
+ * @deprecated By switching to the rdpq API, this function should not be required
+ * anymore. Use #RGBA32 or #RGBA16 instead. Please avoid using it in new code if possible.
+ *
  * @param[in] r
  *            8-bit red value
  * @param[in] g
@@ -127,6 +130,7 @@ static uint32_t b_color = 0x00000000;
  * @return a 32-bit representation of the color suitable for blitting in software or hardware
  * 
  * @see #graphics_convert_color
+ * 
  */
 uint32_t graphics_make_color( int r, int g, int b, int a )
 {
