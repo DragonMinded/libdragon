@@ -145,9 +145,11 @@ enum {
 /** @brief Write an internal command to the RSP queue */
 #define rspq_int_write(cmd_id, ...) rspq_write(0, cmd_id, ##__VA_ARGS__)
 
+///@cond
 typedef struct rdpq_block_s rdpq_block_t;
+///@endcond
 
-/** @brief A pre-built block of commands */
+/** @brief A rspq block: pre-recorded array of commands */
 typedef struct rspq_block_s {
     uint32_t nesting_level;     ///< Nesting level of the block
     rdpq_block_t *rdp_block;
