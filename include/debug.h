@@ -221,7 +221,7 @@ extern "C" {
  * @param[in] buffer 	Buffer to dump
  * @param[in] size 		Size of the buffer in bytes
  */
-void debug_hexdump(const uint8_t *buffer, int size);
+void debug_hexdump(const void *buffer, int size);
 
 /** @brief Underlying implementation function for assert() and #assertf. */ 
 void debug_assert_func_f(const char *file, int line, const char *func, const char *failedexpr, const char *msg, ...)

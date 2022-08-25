@@ -552,11 +552,12 @@ void debug_assert_func(const char *file, int line, const char *func, const char 
 	debug_assert_func_f(file, line, func, failedexpr, NULL);
 }
 
-void debug_hexdump(const uint8_t *buf, int size)
+void debug_hexdump(const void *vbuf, int size)
 {
+	const uint8_t *buf = vbuf;
     bool lineskip = false;
-    for (int i = 0; i < size/16; i++) {
-        const uint8_t *d = buf + i*16;
+    for (int i = 0; i < size; i+=16) {
+        const uint8_t *d = buf + i;
         // If the current line of data is identical to the previous one,
         // just dump one "*" and skip all other similar lines
         if (i!=0 && memcmp(d, d-16, 16) == 0) {
@@ -564,13 +565,21 @@ void debug_hexdump(const uint8_t *buf, int size)
             lineskip = true;
         } else {
             lineskip = false;
-            debugf("%04x  ", i*16);
+            debugf("%04x  ", i);
             for (int j=0;j<16;j++) {
-                debugf("%02x ", d[j]);
+				if (i+j < size)
+					debugf("%02x ", d[j]);
+				else
+					debugf("   ");
                 if (j==7) debugf(" ");
             }
             debugf("  |");
-            for (int j=0;j<16;j++) debugf("%c", d[j] >= 32 && d[j] < 127 ? d[j] : '.');
+            for (int j=0;j<16;j++) {
+				if (i+j < size)
+					debugf("%c", d[j] >= 32 && d[j] < 127 ? d[j] : '.');
+				else
+					debugf(" ");
+			}
             debugf("|\n");
         }
     }
