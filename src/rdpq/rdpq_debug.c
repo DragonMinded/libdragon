@@ -401,8 +401,8 @@ void rdpq_debug_disasm(uint64_t *buf, FILE *out)
         static const char* blend1_b1inv[] = { "(1-in.a)", "(1-fog.a)", "(1-shade.a)", "1" };
         static const char* blend1_b2[] = { "", "mem.a", "1", "0" };
         static const char* blend2_a[] = { "cyc1", "mem", "blend", "fog" };
-        static const char* blend2_b1[] = { "cyc1.a", "fog.a", "shade.a", "0" };
-        static const char* blend2_b1inv[] = { "(1-cyc1.a)", "(1-fog.a)", "(1-shade.a)", "1" };
+        static const char* blend2_b1[] = { "in.a", "fog.a", "shade.a", "0" };
+        static const char* blend2_b1inv[] = { "(1-in.a)", "(1-fog.a)", "(1-shade.a)", "1" };
         static const char* blend2_b2[] = { "", "mem.a", "1", "0" };
         setothermodes_t som = decode_som(buf[0]);
 
