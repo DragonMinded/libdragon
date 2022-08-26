@@ -111,3 +111,4 @@ extern inline void rdpq_mode_alphacompare(bool enable, int threshold);
 extern inline void rdpq_mode_zoverride(bool enable, uint16_t z, int16_t deltaz);
 extern inline void rdpq_mode_tlut(rdpq_tlut_t tlut);
 extern inline void rdpq_mode_filter(rdpq_filter_t s);
+extern inline void __rdpq_mode_change_som(uint64_t mask, uint64_t val);
