@@ -495,7 +495,7 @@ void rdpq_debug_disasm(uint64_t *buf, FILE *out)
         // int words[] = {4, 4+2, 4+8, 4+8+2, 4+8, 4+8+2, 4+8+8, 4+8+8+2};
         fprintf(out, "%s", tri[cmd]);
         fprintf(out, "%s tile=%d lvl=%d y=(%.2f, %.2f, %.2f)\n",
-            BITS(buf[0], 55, 55) ? "left" : "right", BITS(buf[0], 48, 50), BITS(buf[0], 51, 53),
+            BITS(buf[0], 55, 55) ? "left" : "right", BITS(buf[0], 48, 50), BITS(buf[0], 51, 53)+1,
             SBITS(buf[0], 32, 45)*FX(2), SBITS(buf[0], 16, 29)*FX(2), SBITS(buf[0], 0, 13)*FX(2));
         fprintf(out, "[%p] %016" PRIx64 "                     xl=%.4f dxld=%.4f\n", &buf[1], buf[1],
             SBITS(buf[1], 32, 63)*FX(16), SBITS(buf[1], 0, 31)*FX(16));
@@ -505,8 +505,30 @@ void rdpq_debug_disasm(uint64_t *buf, FILE *out)
             SBITS(buf[3], 32, 63)*FX(16), SBITS(buf[3], 0, 31)*FX(16));
         int i=4;
         if (cmd & 0x4) {
-            for (int j=0;j<8;j++,i++)
-                fprintf(out, "[%p] %016" PRIx64 "                     [shade]\n", &buf[i], buf[i]);
+            fprintf(out, "[%p] %016" PRIx64 "                     r=%.5f g=%.5f b=%.5f a=%.5f\n", &buf[i], buf[i],
+                FX32(BITS(buf[i], 48, 63), BITS(buf[i+2], 48, 63)),
+                FX32(BITS(buf[i], 32, 47), BITS(buf[i+2], 32, 47)),
+                FX32(BITS(buf[i], 16, 31), BITS(buf[i+2], 16, 31)),
+                FX32(BITS(buf[i],  0, 15), BITS(buf[i+2],  0, 15))); i++;
+            fprintf(out, "[%p] %016" PRIx64 "                     drdx=%.5f dgdx=%.5f dbdx=%.5f dadx=%.5f\n", &buf[i], buf[i],
+                FX32(BITS(buf[i], 48, 63), BITS(buf[i+2], 48, 63)),
+                FX32(BITS(buf[i], 32, 47), BITS(buf[i+2], 32, 47)),
+                FX32(BITS(buf[i], 16, 31), BITS(buf[i+2], 16, 31)),
+                FX32(BITS(buf[i],  0, 15), BITS(buf[i+2],  0, 15))); i++;
+            fprintf(out, "[%p] %016" PRIx64 "                     \n", &buf[i], buf[i]); i++;
+            fprintf(out, "[%p] %016" PRIx64 "                     \n", &buf[i], buf[i]); i++;
+            fprintf(out, "[%p] %016" PRIx64 "                     drde=%.5f dgde=%.5f dbde=%.5f dade=%.5f\n", &buf[i], buf[i],
+                FX32(BITS(buf[i], 48, 63), BITS(buf[i+2], 48, 63)),
+                FX32(BITS(buf[i], 32, 47), BITS(buf[i+2], 32, 47)),
+                FX32(BITS(buf[i], 16, 31), BITS(buf[i+2], 16, 31)),
+                FX32(BITS(buf[i],  0, 15), BITS(buf[i+2],  0, 15))); i++;
+            fprintf(out, "[%p] %016" PRIx64 "                     drdy=%.5f dgdy=%.5f dbdy=%.5f dady=%.5f\n", &buf[i], buf[i],
+                FX32(BITS(buf[i], 48, 63), BITS(buf[i+2], 48, 63)),
+                FX32(BITS(buf[i], 32, 47), BITS(buf[i+2], 32, 47)),
+                FX32(BITS(buf[i], 16, 31), BITS(buf[i+2], 16, 31)),
+                FX32(BITS(buf[i],  0, 15), BITS(buf[i+2],  0, 15))); i++;
+            fprintf(out, "[%p] %016" PRIx64 "                     \n", &buf[i], buf[i]); i++;
+            fprintf(out, "[%p] %016" PRIx64 "                     \n", &buf[i], buf[i]); i++;
         }
         if (cmd & 0x2) {
             fprintf(out, "[%p] %016" PRIx64 "                     s=%.5f t=%.5f w=%.5f\n", &buf[i], buf[i],
