@@ -546,7 +546,7 @@ inline void rdpq_mode_tlut(rdpq_tlut_t tlut) {
  * @see #rdpq_filter_t
  */
 inline void rdpq_mode_filter(rdpq_filter_t filt) {
-    rdpq_change_other_modes_raw(SOM_SAMPLE_MASK, (uint64_t)samp << SOM_SAMPLE_SHIFT);
+    rdpq_change_other_modes_raw(SOM_SAMPLE_MASK, (uint64_t)filt << SOM_SAMPLE_SHIFT);
 }
 
 /** @} */
