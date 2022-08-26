@@ -217,15 +217,19 @@ RDPQ_SENTINEL:              .long 0
 # but we can't use .align 4 here, otherwise it's not easy to keep this structure layout
 # in sync with the C side (rdpq_state_t in rdpq.c).
 RDPQ_MODE:
+    # Combiner formula set by the application (1pass or 2pass)
+    RDPQ_COMB_BASE:              .quad  0
+    RDPQ_COMB_BASE_MIPMAPMASK:   .quad  0
     # Combiner setting to use in 1 cycle mode
-    RDPQ_MODE_COMBINER_1CYC: .quad  0
+    RDPQ_MODE_COMBINER_1CYC:     .quad  0
     # Combiner setting to use in 2 cycle mode
-    RDPQ_MODE_COMBINER_2CYC: .quad  0
+    RDPQ_MODE_COMBINER_2CYC:     .quad  0
     # Blender settings: up to two steps. Either of them
     # is already in a format valid for both 1cyc and 2cyc mode.
-    RDPQ_MODE_BLENDER_STEPS: .word  0,0
+    RDPQ_MODE_BLENDER_STEPS:     .word  0,0
     # Other modes
-    RDPQ_OTHER_MODES:        .quad  0xEF << 56
+    RDPQ_OTHER_MODES:            .quad  0xEF << 56
+RDPQ_MODE_END:
 
 # Two RDP output buffers (to alternate between)
 RDPQ_DYNAMIC_BUFFERS:        .long 0, 0

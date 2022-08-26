@@ -41,6 +41,17 @@ void __rdpq_fixup_mode3(uint32_t cmd_id, uint32_t w0, uint32_t w1, uint32_t w2)
     );
 }
 
+/** @brief Write a fixup that changes the current render mode (16-byte command) */
+__attribute__((noinline))
+void __rdpq_fixup_mode4(uint32_t cmd_id, uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3)
+{
+    __rdpq_autosync_change(AUTOSYNC_PIPE);
+    rdpq_fixup_write(
+        (cmd_id, w0, w1, w2, w3),
+        (RDPQ_CMD_SET_COMBINE_MODE_RAW, w0, w1), (RDPQ_CMD_SET_OTHER_MODES, w0, w1)
+    );
+}
+
 /** @brief Write a fixup to reset the render mode */
 __attribute__((noinline))
 void __rdpq_reset_render_mode(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3)

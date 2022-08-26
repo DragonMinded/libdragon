@@ -442,8 +442,6 @@ void rdpq_init()
 
     // Get a pointer to the RDRAM copy of the rdpq ucode state.
     rdpq_state = UncachedAddr(rspq_overlay_get_state(&rsp_rdpq));
-    _Static_assert(sizeof(rdpq_state->modes[0]) == 32,   "invalid sizeof: rdpq_state->modes[0]");
-    _Static_assert(sizeof(rdpq_state->modes)    == 32*3, "invalid sizeof: rdpq_state->modes");
 
     // Initialize the ucode state.
     memset(rdpq_state, 0, sizeof(rdpq_state_t));
@@ -947,15 +945,15 @@ void __rdpq_change_other_modes(uint32_t w0, uint32_t w1, uint32_t w2)
 
 uint64_t rdpq_get_other_modes_raw(void)
 {
-    uint64_t result;
-    
-    rsp_queue_t *tmp = NULL;
-    uint32_t offset = (uint32_t)(&tmp->rdp_mode.other_modes);
+    rsp_queue_t *state = __rspq_get_state();
+    return state->rdp_mode.other_modes;
+}
 
-    rspq_wait();
-    rsp_read_data(&result, sizeof(uint64_t), offset);
-
-    return result;
+uint64_t rdpq_get_combine_raw(void)
+{
+    rsp_queue_t *state = __rspq_get_state();
+    return (state->rdp_mode.other_modes & SOM_CYCLE_2) ? 
+        state->rdp_mode.comb_2cyc : state->rdp_mode.comb_1cyc;
 }
 
 void rdpq_sync_full(void (*callback)(void*), void* arg)

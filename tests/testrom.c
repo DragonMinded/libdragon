@@ -250,6 +250,7 @@ static const struct Testsuite
 	TEST_FUNC(test_rdpq_blender,               0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_blender_memory,        0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_tex_load,              0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_fog,                   0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {

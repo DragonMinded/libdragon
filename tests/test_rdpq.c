@@ -36,6 +36,28 @@ static void debug_surface32(const char *name, uint32_t *buf, int w, int h) {
     debugf("\n");
 }
 
+static void assert_surface(TestContext *ctx, surface_t *surf, color_t (*check)(int, int))
+{
+    for (int y=0;y<surf->height;y++) {
+        uint32_t *line = (uint32_t*)(surf->buffer + y*surf->stride);
+        for (int x=0;x<surf->width;x++) {
+            color_t exp = check(x, y);
+            uint32_t exp32 = color_to_packed32(exp);
+            if (line[x] != exp32) {
+                debug_surface32("Found:", surf->buffer, surf->width, surf->height);
+                ASSERT_EQUAL_HEX(line[x], exp32, "invalid pixel at (%d,%d)", x, y);
+            }
+        }
+    }
+}
+
+#define ASSERT_SURFACE(surf, func_body) ({ \
+    color_t __check_surface(int x, int y) func_body; \
+    assert_surface(ctx, surf, __check_surface); \
+    if (ctx->result == TEST_FAILED) return; \
+})
+
+
 void test_rdpq_rspqwait(TestContext *ctx)
 {
     // Verify that rspq_wait() correctly also wait for RDP to terminate
@@ -137,8 +159,8 @@ void test_rdpq_passthrough_big(TestContext *ctx)
     rdpq_set_color_image(&fb);
     rdpq_set_blend_color(RGBA32(255,255,255,255));
     rdpq_set_mode_standard();
-    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO,ZERO,ZERO,ZERO), (ZERO,ZERO,ZERO,ZERO)));
-    rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, ONE)) | SOM_BLENDING);
+    rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,0), (0,0,0,0)));
+    rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, 0, BLEND_RGB, 1)));
 
     rdp_draw_filled_triangle(0, 0, WIDTH, 0, WIDTH, WIDTH);
     rdp_draw_filled_triangle(0, 0, 0, WIDTH, WIDTH, WIDTH);
@@ -1030,4 +1052,92 @@ void test_rdpq_tex_load(TestContext *ctx) {
     debugf("TMEM:\n");
     debug_hexdump(tmem.buffer, 4096);
     surface_free(&tmem);
+}
+
+void test_rdpq_fog(TestContext *ctx) {
+    RDPQ_INIT();
+
+    const int FULL_CVG = 7 << 5;   // full coverage
+    const int FBWIDTH = 16;
+    surface_t fb = surface_alloc(FMT_RGBA32, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    rdpq_set_color_image(&fb);
+    rdpq_set_fog_color(RGBA32(0,255,0,255));
+    rdpq_set_blend_color(RGBA32(0,0,255,255));
+    surface_clear(&fb, 0);
+
+    // Draw with standard texturing
+    rdpq_debug_log_msg("Standard combiner SHADE - no fog");
+    rdpq_set_mode_standard();
+    rdpq_mode_combiner(RDPQ_COMBINER_SHADE);
+    rdpq_triangle(TILE0, 0, 0, 2, -1, -1,
+        //         X              Y  R     G     B     A
+        (float[]){ 0,             0, 1.0f, 0.0f, 1.0f, 0.5f, },
+        (float[]){ FBWIDTH,       0, 1.0f, 0.0f, 1.0f, 0.5f, },
+        (float[]){ FBWIDTH, FBWIDTH, 1.0f, 0.0f, 1.0f, 0.5f, }
+    );
+    rdpq_triangle(TILE0, 0, 0, 2, -1, -1,
+        //         X              Y  R     G     B     A
+        (float[]){ 0,             0, 1.0f, 0.0f, 1.0f, 0.5f, },
+        (float[]){ 0,       FBWIDTH, 1.0f, 0.0f, 1.0f, 0.5f, },
+        (float[]){ FBWIDTH, FBWIDTH, 1.0f, 0.0f, 1.0f, 0.5f, }
+    );
+    rspq_wait();
+    ASSERT_SURFACE(&fb, { return RGBA32(255,0,255,FULL_CVG); });
+
+    // Activate fog
+    rdpq_debug_log_msg("Standard combiner SHADE - fog");
+    rdpq_mode_fog(RDPQ_FOG_STANDARD);
+    // Set also a blender that uses IN_ALPHA.
+    // This has two effects: it tests the whole pipeline after switching to
+    // 2cycle mode, and then also checks that IN_ALPHA is 1, which is what
+    // we expect for COMBINER_SHADE when fog is in effect.
+    rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, IN_ALPHA, BLEND_RGB, INV_MUX_ALPHA)));
+    rdpq_triangle(TILE0, 0, 0, 2, -1, -1,
+        //         X              Y  R     G     B     A
+        (float[]){ 0,             0, 1.0f, 0.0f, 1.0f, 0.5f, },
+        (float[]){ FBWIDTH,       0, 1.0f, 0.0f, 1.0f, 0.5f, },
+        (float[]){ FBWIDTH, FBWIDTH, 1.0f, 0.0f, 1.0f, 0.5f, }
+    );
+    rdpq_triangle(TILE0, 0, 0, 2, -1, -1,
+        //         X              Y  R     G     B     A
+        (float[]){ 0,             0, 1.0f, 0.0f, 1.0f, 0.5f, },
+        (float[]){ 0,       FBWIDTH, 1.0f, 0.0f, 1.0f, 0.5f, },
+        (float[]){ FBWIDTH, FBWIDTH, 1.0f, 0.0f, 1.0f, 0.5f, }
+    );
+    rspq_wait();
+    ASSERT_SURFACE(&fb, { return RGBA32(0x77,0x87,0x77,FULL_CVG); });
+
+    // Draw with a custom combiner
+    rdpq_debug_log_msg("Custom combiner - no fog");
+    rdpq_set_mode_standard();
+    rdpq_mode_combiner(RDPQ_COMBINER1((1,0,PRIM,0), (1,0,PRIM,0)));
+    rdpq_set_prim_color(RGBA32(255,0,0,255));
+    rdpq_fill_rectangle(0, 0, FBWIDTH, FBWIDTH);
+    rspq_wait();
+    ASSERT_SURFACE(&fb, { return RGBA32(254,0,0,FULL_CVG); });
+
+    // Activate fog
+    rdpq_debug_log_msg("Custom combiner - fog");
+    rdpq_mode_fog(RDPQ_FOG_STANDARD);
+    rdpq_triangle(TILE0, 0, 0, 2, -1, -1,
+        //         X              Y  R     G     B     A
+        (float[]){ 0,             0, 1.0f, 1.0f, 1.0f, 0.5f, },
+        (float[]){ FBWIDTH,       0, 1.0f, 1.0f, 1.0f, 0.5f, },
+        (float[]){ FBWIDTH, FBWIDTH, 1.0f, 1.0f, 1.0f, 0.5f, }
+    );
+    rdpq_triangle(TILE0, 0, 0, 2, -1, -1,
+        //         X              Y  R     G     B     A
+        (float[]){ 0,             0, 1.0f, 1.0f, 1.0f, 0.5f, },
+        (float[]){ 0,       FBWIDTH, 1.0f, 1.0f, 1.0f, 0.5f, },
+        (float[]){ FBWIDTH, FBWIDTH, 1.0f, 1.0f, 1.0f, 0.5f, }
+    );
+    rspq_wait();
+    ASSERT_SURFACE(&fb, { return RGBA32(0x77,0x87,0,FULL_CVG); });
+
+    // Disable fog
+    rdpq_mode_fog(0);
+    rdpq_fill_rectangle(0, 0, FBWIDTH, FBWIDTH);
+    rspq_wait();
+    ASSERT_SURFACE(&fb, { return RGBA32(254,0,0,FULL_CVG); });
 }

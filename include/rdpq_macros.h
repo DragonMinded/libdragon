@@ -451,6 +451,21 @@ typedef uint32_t rdpq_blender_t;
            RDPQ_COMBINER_2PASS)
 
 
+/**
+ * @name Standard color combiners
+ * 
+ * These macros offer some standard color combiner configuration that can be
+ * used to implement common render modes.
+ * 
+ * @{
+ */
+#define RDPQ_COMBINER_FLAT       RDPQ_COMBINER1((0,0,0,PRIM),       (0,0,0,PRIM))
+#define RDPQ_COMBINER_SHADE      RDPQ_COMBINER1((0,0,0,SHADE),      (0,0,0,SHADE))
+#define RDPQ_COMBINER_TEX        RDPQ_COMBINER1((0,0,0,TEX0),       (0,0,0,TEX0))
+#define RDPQ_COMBINER_TEX_FLAT   RDPQ_COMBINER1((TEX0,0,PRIM,0),    (TEX0,0,PRIM,0))
+#define RDPQ_COMBINER_TEX_SHADE  RDPQ_COMBINER1((TEX0,0,SHADE,0),   (TEX0,0,SHADE,0))
+/** @} */
+
 /** @name SET_OTHER_MODES bit macros
  * 
  * These macros can be used to assemble a raw `SET_OTHER_MODES` command to send
@@ -510,11 +525,13 @@ typedef uint32_t rdpq_blender_t;
 #define SOM_ALPHADITHER_MASK   ((cast64(3))<<36)            ///< Alpha Dithering mask
 #define SOM_ALPHADITHER_SHIFT  36                           ///< Alpha Dithering mask shift
 
+#define SOMX_FOG               ((cast64(1))<<32)            ///< RDPQ special state: fogging is enabled
+
 #define SOM_BLEND0_MASK        (cast64(0xCCCC0000) | SOM_BLENDING | SOM_READ_ENABLE | SOMX_BLEND_2PASS)     ///< Blender: mask of settings related to pass 0
 #define SOM_BLEND1_MASK        (cast64(0x33330000) | SOM_BLENDING | SOM_READ_ENABLE | SOMX_BLEND_2PASS)     ///< Blender: mask of settings related to pass 1
 #define SOM_BLEND_MASK         (SOM_BLEND0_MASK | SOM_BLEND1_MASK)                                          ///< Blender: mask of all settings
 
-#define SOMX_BLEND_2PASS       cast64(1<<15)                ///< RDPQ special state: record that the blender is made of 2 passes
+#define SOMX_BLEND_2PASS       ((cast64(1))<<15)            ///< RDPQ special state: record that the blender is made of 2 passes
 
 #define SOM_BLENDING           ((cast64(1))<<14)            ///< Activate blending for all pixels
 

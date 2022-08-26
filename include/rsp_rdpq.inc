@@ -23,8 +23,6 @@
 
     .data
 
-COMB0_MASK:            .quad RDPQ_COMB0_MASK
-
 AA_BLEND_MASK:
     #  MASK
     .word SOM_COVERAGE_DEST_MASK | SOM_BLEND_MASK | SOM_BLALPHA_MASK | SOM_COLOR_ON_CVG_OVERFLOW
@@ -38,6 +36,20 @@ AA_BLEND_TABLE:
           RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_CVG))  # Includes SOM_READ_ENABLE
     #  AA=1 / BLEND=1
     .word SOM_COLOR_ON_CVG_OVERFLOW | SOM_COVERAGE_DEST_WRAP
+
+
+#define RDPQ_COMB_MIPMAP2       RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (0,0,0,0), (0,0,0,0))
+#define RDPQ_COMB_SHADE_FOG     RDPQ_COMBINER1((0,0,0,SHADE),      (0,0,0,1))
+#define RDPQ_COMB_TEX_SHADE_FOG RDPQ_COMBINER1((TEX0,0,SHADE,0),   (0,0,0,TEX0))
+
+COMB0_MASK:             .quad RDPQ_COMB0_MASK
+COMBINER_SHADE:         .quad RDPQ_COMBINER_SHADE
+COMBINER_SHADE_FOG:     .quad RDPQ_COMB_SHADE_FOG
+COMBINER_TEX_SHADE:     .quad RDPQ_COMBINER_TEX_SHADE
+COMBINER_TEX_SHADE_FOG: .quad RDPQ_COMB_TEX_SHADE_FOG
+
+COMBINER_MIPMAP2:       .quad (RDPQ_COMB_MIPMAP2 & RDPQ_COMB0_MASK) | RDPQ_COMBINER_2PASS
+
 
 # TODO: get rid of the constant offset
 RDPQ_CMD_PTR:           .word RDPQ_CMD_STAGING - 0x04000000
@@ -246,11 +258,128 @@ scissor_substitute:
     nop
     .endfunc
 
+    ###############################################################
+    # 
+    #
+    ###############################################################
+    .func RDPQCmd_SetBlendingMode
+RDPQCmd_SetBlendingMode:
+    j RDPQ_UpdateCombiner
+    sw a1, %lo(RDPQ_MODE_BLENDER_STEPS)(a0)
+    # fallthrough
+    .endfunc
+
     .func RDPQCmd_SetCombineMode_1Pass
 RDPQCmd_SetCombineMode_1Pass:
+    # Turn off RDPQ_COMBINER_2PASS (bit 63). This is set by default
+    # because the overlay is regisred in slots 0xC0-0xF0.
+    # We need to remember that this combiner does not require 2 passes
+    xor a0, RDPQ_COMBINER_2PASS >> 32
+    # fallthrough!
+    .endfunc
+
+    .func RDPQCmd_SetCombineMode_2Pass
+RDPQCmd_SetCombineMode_2Pass:
+    # Set correct SET_COMBINE opcode (0xFC). The opcode can be anything of
+    # the other 4 (1pass/2pass dynamic/static).
+    or a0, 0x7F000000
+    xor a0, 0x7F000000 ^ 0x7C000000
+    # Save the input combiner
+    sw a0, %lo(RDPQ_COMB_BASE) + 0
+    sw a1, %lo(RDPQ_COMB_BASE) + 4
+    sw a2, %lo(RDPQ_COMB_BASE_MIPMAPMASK) + 0
+    sw a3, %lo(RDPQ_COMB_BASE_MIPMAPMASK) + 4
+    # fallthrough!
+    .endfunc
+
+    ###########################################################
+    # RDPQ_UpdateCombiner
+    #
+    # Process the combiner set by the user in RDPQ_COMB_BASE
+    # together with other render states, and write the final
+    # combiner into RDPQ_MODE_COMBINER_1CYC and
+    # RDPQ_MODE_COMBINER_2CYC.
+    #
+    # This must be called any time a new combiner is set in
+    # RDPQ_COMB_BASE.
+    # 
+    # * a0/a1 RDPQ_COMB_BASE
+    # * a2/a3 RDPQ_COMB_BASE_MIPMAPMASK
+    #
+    ###########################################################
+
+    .func RDPQ_UpdateCombiner
+RDPQ_UpdateCombiner:
+    #define som_hi       t4
+    #define comb_hi      a0
+    #define comb_lo      a1
+    #define comb_hi_noid t5
+
+    lw comb_hi, %lo(RDPQ_COMB_BASE) + 0
+    lw comb_lo, %lo(RDPQ_COMB_BASE) + 4
+    lw a2, %lo(RDPQ_COMB_BASE_MIPMAPMASK) + 0
+    lw a3, %lo(RDPQ_COMB_BASE_MIPMAPMASK) + 4
+
+    # If the input combiner is 2-passes, we can just store it.
+    bltz a0, store_comb_2cyc    
+    # One-pass combiners needs to be adapated for mipmap, by setting a second step.
+    lw som_hi, %lo(RDPQ_OTHER_MODES) + 0
+
+    # Check if fogging is active
+    andi t0, som_hi, SOMX_FOG >> 32
+    beqz t0, check_mipmap
+
+    # Create a copy of comb_hi without the cmd ID in the top MSB.
+    # The ID is kept sort of "random" for the whole computation,
+    # because it is reset to SET_COMBINE_MODE just at the end.
+    # So we cannot use it for the next comparisons.
+    sll comb_hi_noid, comb_hi, 8
+    srl comb_hi_noid, 8
+
+    # When fogging is active, we need to adapt the standard color combiners to avoid
+    # using SHADE alpha, because it contains depth. We currently have two of them:
+    # COMBINER_TEX_SHADE and COMBINER_SHADE.
+check_fog_tex_shade:
+    lw t0, %lo(COMBINER_TEX_SHADE) + 0
+    bne t0, comb_hi_noid, check_fog_shade
+    lw t0, %lo(COMBINER_TEX_SHADE) + 4
+    beq t0, comb_lo, fog_change
+    li s0, %lo(COMBINER_TEX_SHADE_FOG)
+
+check_fog_shade:
+    lw t0, %lo(COMBINER_SHADE) + 0
+    bne t0, comb_hi_noid, check_mipmap
+    lw t0, %lo(COMBINER_SHADE) + 4
+    bne t0, comb_lo, check_mipmap
+    li s0, %lo(COMBINER_SHADE_FOG)
+
+fog_change:
+    lw comb_hi, 0(s0)
+    lw comb_lo, 4(s0)
+
+check_mipmap:
+    and t0, som_hi, SOM_TEXTURE_LOD >> 32
+    beqz t0, store_comb_1cyc
+
+    # Mipmapping is active. We want to add RDPQ_COMB_MIPMAP as step0
+    # and use only step 1 of the incoming formula. Unfortunately, this
+    # also means that all TEX0 slots must be converted into COMBINED slots.
+    # We do this by using the mask already loaded in a2/a3
+    lw t0, %lo(COMBINER_MIPMAP2) + 0
+    lw t1, %lo(COMBINER_MIPMAP2) + 4
+    and comb_hi, a2
+    and comb_lo, a3
+    # Since this combiner now requires two-cycle mode, we can simply store in the
+    # 2-cycle mode slot. No need to touch the 1-cycle mode slot as it will not
+    # be used anyway.
+    or comb_hi, t0
+    j store_comb_2cyc
+    or comb_lo, t1
+
+store_comb_1cyc:
     # The combiner settings is 1 pass. Store it as-is for 1cycle mode.
-    sw a0, %lo(RDPQ_MODE_COMBINER_1CYC) + 0
-    sw a1, %lo(RDPQ_MODE_COMBINER_1CYC) + 4
+    sw comb_hi, %lo(RDPQ_MODE_COMBINER_1CYC) + 0
+    sw comb_lo, %lo(RDPQ_MODE_COMBINER_1CYC) + 4
 
     # For 2 cycle mode, we need to adjust it changing the second pass
     # to be a pure passthrough. We can do this by simply setting to 0
@@ -259,34 +388,22 @@ RDPQCmd_SetCombineMode_1Pass:
     # The 2PASS flag will not be set, as this combiner does not require 2cycle.
     lw t0, %lo(COMB0_MASK) + 0
     lw t1, %lo(COMB0_MASK) + 4
-    and a0, t0
-    j store_comb_2cyc
-    and a1, t1
-    .endfunc
-
-    .func RDPQCmd_SetCombineMode_2Pass
-RDPQCmd_SetCombineMode_2Pass:
-    # The combiner settings is 2 pass. The flag RDPQ_COMBINER_2PASS
-    # (bit 63) is set in the command thanks to the fact that the overlay
-    # is registered in slots 0xC0-0xF0 (with the top bit already set).
-    # To be resistant to overlay ID changes, we would need the following
-    # instruction, but we keep it disabled for now.
-    #   or a0, RDPQ_COMBINER_2PASS >> 32
+    and comb_hi, t0
+    and comb_lo, t1
 
     # This combiner setting will force 2cycle mode. Store it
     # in the 2cyc slot, and ignore the 1cyc slot (it's not going
     # to be used).
 store_comb_2cyc:
-    sw a0, %lo(RDPQ_MODE_COMBINER_2CYC) + 0
-    j RDPQ_UpdateRenderMode
-    sw a1, %lo(RDPQ_MODE_COMBINER_2CYC) + 4
+    sw comb_hi, %lo(RDPQ_MODE_COMBINER_2CYC) + 0
+    sw comb_lo, %lo(RDPQ_MODE_COMBINER_2CYC) + 4
+    # fallthrough1
     .endfunc
 
-    .func RDPQCmd_SetBlendingMode
-RDPQCmd_SetBlendingMode:
-    sw a1, %lo(RDPQ_MODE_BLENDER_STEPS)(a0)
-    # fallthrough
-    .endfunc
+    #undef som_hi
+    #undef comb_hi
+    #undef comb_lo
+    #undef comb_hi_noid
 
     ###############################################################
     # RDPQ_UpdateRenderMode

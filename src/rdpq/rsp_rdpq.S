@@ -35,7 +35,7 @@
         RSPQ_DefineCommand RDPQCmd_SetBlendingMode,         8   # 0xD8 Set Blending Mode
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD9
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDA
-        RSPQ_DefineCommand RDPQCmd_SetCombineMode_1Pass,    8   # 0xDB SET_COMBINE_MODE (one pass)
+        RSPQ_DefineCommand RDPQCmd_SetCombineMode_1Pass,    16  # 0xDB SET_COMBINE_MODE (one pass)
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDC
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDD
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDE
@@ -86,7 +86,7 @@ RDPQ_SYNCFULL:          .quad  0   # Last syncfull command (includes callback). 
 RDPQ_ADDRESS_TABLE:     .ds.l  RDPQ_ADDRESS_TABLE_SIZE
 
 # Stack slots for 3 saved RDP modes
-RDPQ_MODE_STACK:        .ds.b 32*3    
+RDPQ_MODE_STACK:        .ds.b (RDPQ_MODE_END - RDPQ_MODE)*3    
 
 RDPQ_RDRAM_STATE_ADDR:  .word  0
 
@@ -345,17 +345,24 @@ RDPQCmd_PushMode:
 PushPopMode:
     lqv $v00,0, 0x00,s0
     lqv $v01,0, 0x10,s0
-    lqv $v02,0, 0x00,s1
-    lqv $v03,0, 0x10,s1
-    lqv $v04,0, 0x20,s1
-    lqv $v05,0, 0x30,s1
+    lqv $v02,0, 0x20,s0
+    lqv $v03,0, 0x00,s1
+    lqv $v04,0, 0x10,s1
+    lqv $v05,0, 0x20,s1
+    lqv $v06,0, 0x30,s1
+    lqv $v07,0, 0x40,s1
+    lqv $v08,0, 0x50,s1
+
     sqv $v00,0, 0x00,s1
     sqv $v01,0, 0x10,s1
     sqv $v02,0, 0x20,s1
     sqv $v03,0, 0x30,s1
     sqv $v04,0, 0x40,s1
-    jr ra
     sqv $v05,0, 0x50,s1
+    sqv $v06,0, 0x60,s1
+    sqv $v07,0, 0x70,s1
+    jr ra
+    sqv $v08,0, 0x80,s1
     .endfunc
 
     #############################################################
@@ -381,13 +388,20 @@ RDPQCmd_PopMode:
     lqv $v03,0, 0x30,s0
     lqv $v04,0, 0x40,s0
     lqv $v05,0, 0x50,s0
+    lqv $v06,0, 0x60,s0
+    lqv $v07,0, 0x70,s0
+    lqv $v08,0, 0x80,s0
+
     sqv $v00,0, 0x00,s1
     sqv $v01,0, 0x10,s1
-    sqv $v02,0, 0x00,s0
-    sqv $v03,0, 0x10,s0
-    sqv $v04,0, 0x20,s0
+    sqv $v02,0, 0x20,s1
+    sqv $v03,0, 0x00,s0
+    sqv $v04,0, 0x10,s0
+    sqv $v05,0, 0x20,s0
+    sqv $v06,0, 0x30,s0
+    sqv $v07,0, 0x40,s0
     j RDPQ_UpdateRenderMode
-    sqv $v05,0, 0x30,s0
+    sqv $v08,0, 0x50,s0
     .endfunc
 
     #############################################################
@@ -405,6 +419,7 @@ RDPQCmd_ResetMode:
     vxor $v00, $v00, $v00
     sqv $v00,0, 0x00,s0
     sqv $v00,0, 0x10,s0
+    sqv $v00,0, 0x20,s0
 
     move t0, a0
     move t1, a1

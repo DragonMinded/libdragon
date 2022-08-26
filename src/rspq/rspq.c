@@ -681,25 +681,39 @@ static void* overlay_get_state(rsp_ucode_t *overlay_ucode, int *state_size)
 
 void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode)
 {
-    // Make sure the RSP is idle, otherwise the overlay state could be modified
-    // at any time causing race conditions.
-    rspq_wait();
-
     // Get the RDRAM pointers to the overlay state
     int state_size;
     uint8_t* state_ptr = overlay_get_state(overlay_ucode, &state_size);
 
-    // Check if the current overlay is the one that we are requesting the
-    // state for. If so, read back the latest updated state from DMEM
-    // manually via DMA, so that the caller finds the latest contents.
-    int ovl_idx; const char *ovl_name;
-    rspq_get_current_ovl((rsp_queue_t*)SP_DMEM, &ovl_idx, &ovl_name);
+    if (rspq_is_running)
+    {
+        // Make sure the RSP is idle, otherwise the overlay state could be modified
+        // at any time causing race conditions.
+        rspq_wait();
 
-    if (ovl_idx && rspq_overlay_ucodes[ovl_idx] == overlay_ucode) {
-        rsp_read_data(state_ptr, state_size, state_ptr - overlay_ucode->data);
+        // Check if the current overlay is the one that we are requesting the
+        // state for. If so, read back the latest updated state from DMEM
+        // manually via DMA, so that the caller finds the latest contents.
+        int ovl_idx; const char *ovl_name;
+        rspq_get_current_ovl((rsp_queue_t*)SP_DMEM, &ovl_idx, &ovl_name);
+
+        if (ovl_idx && rspq_overlay_ucodes[ovl_idx] == overlay_ucode) {
+            rsp_read_data(state_ptr, state_size, state_ptr - overlay_ucode->data);
+        }
     }
 
-    return overlay_get_state(overlay_ucode, NULL);
+    return state_ptr;
+}
+
+rsp_queue_t* __rspq_get_state(void)
+{
+    // Make sure the RSP is idle, otherwise the state could be modified
+    // at any time causing race conditions.
+    rspq_wait();
+
+    // Read the state and return it
+    rsp_read_data(&rspq_data, sizeof(rsp_queue_t), 0);
+    return &rspq_data;
 }
 
 static uint32_t rspq_overlay_get_command_count(rspq_overlay_header_t *header)
