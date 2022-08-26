@@ -111,8 +111,11 @@ static struct {
         bool tile[8];                      ///< True if each tile is a busy (SYNC_TILE required)
         uint8_t tmem[64];                  ///< Bitarray: busy state for each 8-byte word of TMEM (SYNC_LOAD required)
     } busy;                              ///< Busy entities (for SYNC commands)
-    bool sent_scissor;                   ///< True if at least one SET_SCISSOR was sent since reset
-    bool mode_changed;                   ///< True if there is a pending mode change to validate (SET_OTHER_MODES / SET_COMBINE)
+    struct {
+        bool sent_scissor : 1;               ///< True if at least one SET_SCISSOR was sent since reset
+        bool sent_color_image : 1;           ///< True if
+        bool mode_changed : 1;               ///< True if there is a pending mode change to validate (SET_OTHER_MODES / SET_COMBINE)
+    };
     uint64_t *last_som;                  ///< Pointer to last SOM command sent
     uint64_t *last_cc;                   ///< Pointer to last CC command sent
     uint64_t *last_tex;                  ///< Pointer to last SET_TEX_IMAGE command sent
@@ -353,8 +356,8 @@ void rdpq_debug_disasm(uint64_t *buf, FILE *out)
     #define FLAG(v, s)     ({ if (v) fprintf(out, "%s%s", flag_prefix, s), flag_prefix = " "; })
     ///@endcond
 
-    const char *fmt[8] = {"rgba", "yuv", "ci", "ia", "i", "?fmt=5?", "?fmt=6?", "?fmt=7?"};
-    const char *size[4] = {"4", "8", "16", "32" };
+    static const char *fmt[8] = {"rgba", "yuv", "ci", "ia", "i", "?fmt=5?", "?fmt=6?", "?fmt=7?"};
+    static const char *size[4] = {"4", "8", "16", "32" };
 
     fprintf(out, "[%p] %016" PRIx64 "    ", buf, buf[0]);
     switch (BITS(buf[0], 56, 61)) {
@@ -385,21 +388,21 @@ void rdpq_debug_disasm(uint64_t *buf, FILE *out)
     case 0x3A: fprintf(out, "SET_PRIM_COLOR   rgba32=(%d,%d,%d,%d)\n", BITS(buf[0], 24, 31), BITS(buf[0], 16, 23), BITS(buf[0], 8, 15), BITS(buf[0], 0, 7)); return;
     case 0x3B: fprintf(out, "SET_ENV_COLOR    rgba32=(%d,%d,%d,%d)\n", BITS(buf[0], 24, 31), BITS(buf[0], 16, 23), BITS(buf[0], 8, 15), BITS(buf[0], 0, 7)); return;
     case 0x2F: { fprintf(out, "SET_OTHER_MODES  ");
-        const char* cyc[] = { "1cyc", "2cyc", "copy", "fill" };
-        const char* texinterp[] = { "point", "point", "bilinear", "median" };
-        const char* yuv1[] = { "yuv1", "yuv1_tex0" };
-        const char* zmode[] = { "opaque", "inter", "trans", "decal" };
-        const char* rgbdither[] = { "square", "bayer", "noise", "none" };
-        const char* alphadither[] = { "pat", "inv", "noise", "none" };
-        const char* cvgmode[] = { "clamp", "wrap", "zap", "save" };
-        const char* blend1_a[] = { "in", "mem", "blend", "fog" };
-        const char* blend1_b1[] = { "in.a", "fog.a", "shade.a", "0" };
-        const char* blend1_b1inv[] = { "(1-in.a)", "(1-fog.a)", "(1-shade.a)", "1" };
-        const char* blend1_b2[] = { "", "mem.a", "1", "0" };
-        const char* blend2_a[] = { "cyc1", "mem", "blend", "fog" };
-        const char* blend2_b1[] = { "cyc1.a", "fog.a", "shade.a", "0" };
-        const char* blend2_b1inv[] = { "(1-cyc1.a)", "(1-fog.a)", "(1-shade.a)", "1" };
-        const char* blend2_b2[] = { "", "mem.a", "1", "0" };
+        static const char* cyc[] = { "1cyc", "2cyc", "copy", "fill" };
+        static const char* texinterp[] = { "point", "point", "bilinear", "median" };
+        static const char* yuv1[] = { "yuv1", "yuv1_tex0" };
+        static const char* zmode[] = { "opaque", "inter", "trans", "decal" };
+        static const char* rgbdither[] = { "square", "bayer", "noise", "none" };
+        static const char* alphadither[] = { "pat", "inv", "noise", "none" };
+        static const char* cvgmode[] = { "clamp", "wrap", "zap", "save" };
+        static const char* blend1_a[] = { "in", "mem", "blend", "fog" };
+        static const char* blend1_b1[] = { "in.a", "fog.a", "shade.a", "0" };
+        static const char* blend1_b1inv[] = { "(1-in.a)", "(1-fog.a)", "(1-shade.a)", "1" };
+        static const char* blend1_b2[] = { "", "mem.a", "1", "0" };
+        static const char* blend2_a[] = { "cyc1", "mem", "blend", "fog" };
+        static const char* blend2_b1[] = { "cyc1.a", "fog.a", "shade.a", "0" };
+        static const char* blend2_b1inv[] = { "(1-cyc1.a)", "(1-fog.a)", "(1-shade.a)", "1" };
+        static const char* blend2_b2[] = { "", "mem.a", "1", "0" };
         setothermodes_t som = decode_som(buf[0]);
 
         fprintf(out, "%s", cyc[som.cycle_type]);
@@ -440,18 +443,18 @@ void rdpq_debug_disasm(uint64_t *buf, FILE *out)
         fprintf(out, "\n");
     }; return;
     case 0x3C: { fprintf(out, "SET_COMBINE_MODE ");
-        const char* rgb_suba[16] = {"comb", "tex0", "tex1", "prim", "shade", "env", "1", "noise", "0","0","0","0","0","0","0","0"};
-        const char* rgb_subb[16] = {"comb", "tex0", "tex1", "prim", "shade", "env", "keycenter", "k4", "0","0","0","0","0","0","0","0"};
-        const char* rgb_mul[32] = {"comb", "tex0", "tex1", "prim", "shade", "env", "keyscale", "comb.a", "tex0.a", "tex1.a", "prim.a", "shade.a", "env.a", "lod_frac", "prim_lod_frac", "k5", "0","0","0","0","0","0","0","0", "0","0","0","0","0","0","0","0"};
-        const char* rgb_add[8] = {"comb", "tex0", "tex1", "prim", "shade", "env", "1", "0"};
-        const char* alpha_addsub[8] = {"comb", "tex0", "tex1", "prim", "shade", "env", "1", "0"};
-        const char* alpha_mul[8] = {"lod_frac", "tex0", "tex1", "prim", "shade", "env", "prim_lod_frac", "0"};
+        static const char* rgb_suba[16] = {"comb", "tex0", "tex1", "prim", "shade", "env", "1", "noise", "0","0","0","0","0","0","0","0"};
+        static const char* rgb_subb[16] = {"comb", "tex0", "tex1", "prim", "shade", "env", "keycenter", "k4", "0","0","0","0","0","0","0","0"};
+        static const char* rgb_mul[32] = {"comb", "tex0", "tex1", "prim", "shade", "env", "keyscale", "comb.a", "tex0.a", "tex1.a", "prim.a", "shade.a", "env.a", "lod_frac", "prim_lod_frac", "k5", "0","0","0","0","0","0","0","0", "0","0","0","0","0","0","0","0"};
+        static const char* rgb_add[8] = {"comb", "tex0", "tex1", "prim", "shade", "env", "1", "0"};
+        static const char* alpha_addsub[8] = {"comb", "tex0", "tex1", "prim", "shade", "env", "1", "0"};
+        static const char* alpha_mul[8] = {"lod_frac", "tex0", "tex1", "prim", "shade", "env", "prim_lod_frac", "0"};
         colorcombiner_t cc = decode_cc(buf[0]);
         fprintf(out, "cyc0=[(%s-%s)*%s+%s, (%s-%s)*%s+%s], ",
             rgb_suba[cc.cyc[0].rgb.suba], rgb_subb[cc.cyc[0].rgb.subb], rgb_mul[cc.cyc[0].rgb.mul], rgb_add[cc.cyc[0].rgb.add],
             alpha_addsub[cc.cyc[0].alpha.suba], alpha_addsub[cc.cyc[0].alpha.subb], alpha_mul[cc.cyc[0].alpha.mul], alpha_addsub[cc.cyc[0].alpha.add]);
         const struct cc_cycle_s passthrough = {0};
-        if (!memcmp(&cc.cyc[1], &passthrough, sizeof(struct cc_cycle_s))) fprintf(out, "cyc1=[<passthrough>]\n");
+        if (!__builtin_memcmp(&cc.cyc[1], &passthrough, sizeof(struct cc_cycle_s))) fprintf(out, "cyc1=[<passthrough>]\n");
         else fprintf(out, "cyc1=[(%s-%s)*%s+%s, (%s-%s)*%s+%s]\n",
             rgb_suba[cc.cyc[1].rgb.suba], rgb_subb[cc.cyc[1].rgb.subb], rgb_mul[cc.cyc[1].rgb.mul], rgb_add[cc.cyc[1].rgb.add],
             alpha_addsub[cc.cyc[1].alpha.suba], alpha_addsub[cc.cyc[1].alpha.subb],   alpha_mul[cc.cyc[1].alpha.mul], alpha_addsub[cc.cyc[1].alpha.add]);
@@ -491,7 +494,7 @@ void rdpq_debug_disasm(uint64_t *buf, FILE *out)
                               BITS(buf[0], 12, 23)+1, BITS(buf[0], 0, 11)*FX(11)); return;
     case 0x08 ... 0x0F: {
         int cmd = BITS(buf[0], 56, 61)-0x8;
-        const char *tri[] = { "TRI              ", "TRI_Z            ", "TRI_TEX          ", "TRI_TEX_Z        ",  "TRI_SHADE        ", "TRI_SHADE_Z      ", "TRI_TEX_SHADE    ", "TRI_TEX_SHADE_Z  "};
+        static const char *tri[] = { "TRI              ", "TRI_Z            ", "TRI_TEX          ", "TRI_TEX_Z        ",  "TRI_SHADE        ", "TRI_SHADE_Z      ", "TRI_TEX_SHADE    ", "TRI_TEX_SHADE_Z  "};
         // int words[] = {4, 4+2, 4+8, 4+8+2, 4+8, 4+8+2, 4+8+8, 4+8+8+2};
         fprintf(out, "%s", tri[cmd]);
         fprintf(out, "%s tile=%d lvl=%d y=(%.2f, %.2f, %.2f)\n",
@@ -700,6 +703,8 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
 {
     VALIDATE_ERR(rdp.sent_scissor,
         "undefined behavior: drawing command before a SET_SCISSOR was sent");
+    VALIDATE_ERR(rdp.sent_color_image,
+        "undefined behavior: drawing command before a SET_COLOR_IMAGE was sent");
 
     switch (rdp.som.cycle_type) {
     case 0 ... 1: // 1cyc, 2cyc
@@ -790,7 +795,7 @@ static void use_tile(int tidx, int cycle) {
         if (t->fmt == 1) {
             VALIDATE_WARN(!(rdp.som.tf_mode & (4>>cycle)), "tile %d is YUV but texture filter in cycle %d does not activate YUV color conversion (SOM set at %p)", tidx, cycle, rdp.last_som);
             if (rdp.som.sample_type > 1) {
-                const char* texinterp[] = { "point", "point", "bilinear", "median" };
+                static const char* texinterp[] = { "point", "point", "bilinear", "median" };
                 VALIDATE_ERR(rdp.som.tf_mode == 6 && rdp.som.cycle_type == 1,
                     "tile %d is YUV and %s filtering is active: TF1_YUVTEX0 mode must be configured in SOM (SOM set at %p)", tidx, texinterp[rdp.som.sample_type], rdp.last_som);
                 VALIDATE_ERR(rdp.som.cycle_type == 1,
@@ -842,6 +847,7 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
     switch (cmd) {
     case 0x3F: { // SET_COLOR_IMAGE
         validate_busy_pipe();
+        rdp.sent_color_image = true;
         int fmt = BITS(buf[0], 53, 55); int size = 4 << BITS(buf[0], 51, 52);
         VALIDATE_ERR(BITS(buf[0], 0, 5) == 0, "color image must be aligned to 64 bytes");
         VALIDATE_ERR((fmt == 0 && (size == 32 || size == 16)) || (fmt == 2 && size == 8),
