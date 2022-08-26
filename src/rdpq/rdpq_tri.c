@@ -86,7 +86,7 @@ static inline void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_
     const float xm = x1 + data->fy * ism;
     const float xl = x2;
 
-    rspq_write_arg(w, _carg(lft, 0x1, 23) | _carg(mipmaps-1, 0x7, 19) | _carg(tile, 0x7, 16) | _carg(y3f, 0x3FFF, 0));
+    rspq_write_arg(w, _carg(lft, 0x1, 23) | _carg(mipmaps ? mipmaps-1 : 0, 0x7, 19) | _carg(tile, 0x7, 16) | _carg(y3f, 0x3FFF, 0));
     rspq_write_arg(w, _carg(y2f, 0x3FFF, 16) | _carg(y1f, 0x3FFF, 0));
     rspq_write_arg(w, float_to_s16_16(xl));
     rspq_write_arg(w, float_to_s16_16(isl));

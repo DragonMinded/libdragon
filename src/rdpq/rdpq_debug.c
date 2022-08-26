@@ -930,6 +930,9 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         lazy_validate_cc();
         validate_draw_cmd(cmd & 4, cmd & 2, cmd & 1, cmd & 2);
         if (cmd & 2) use_tile(BITS(buf[0], 48, 50), 0);
+        if (BITS(buf[0], 51, 53))
+            VALIDATE_WARN(rdp.som.tex.lod, "triangle with %d mipmaps specified, but mipmapping is disabled (SOM set at %p)",
+                BITS(buf[0], 51, 53)+1, rdp.last_som);
         break;
     case 0x27: // SYNC_PIPE
         rdp.busy.pipe = false;
