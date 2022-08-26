@@ -505,6 +505,9 @@ static void mixer_exec(int32_t *out, int num_samples) {
 				// actually present in the waveform.
 				if (wpos+wlen > len)
 					wlen = len-wpos;
+				// FIXME: due to a limit in the RSP ucode, we need to overread
+				// more data, possibly even past the end of the sample
+				wlen += MIXER_LOOP_OVERREAD >> bps;
 				assert(wlen >= 0);
 			} else if (loop_len < sbuf->size) {
 				// If the whole loop fits the sample buffer, we just need to
