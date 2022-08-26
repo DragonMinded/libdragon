@@ -198,7 +198,7 @@ enum {
 
 ///@cond
 /* Used internally for bit-packing RDP commands. Not part of public API. */
-#define _carg(value, mask, shift) (((uint32_t)((value) & mask)) << shift)
+#define _carg(value, mask, shift) (((uint32_t)((value) & (mask))) << (shift))
 ///@endcond
 
 /** @brief Tile descriptors. 
