@@ -113,7 +113,8 @@ static struct {
     } busy;                              ///< Busy entities (for SYNC commands)
     struct {
         bool sent_scissor : 1;               ///< True if at least one SET_SCISSOR was sent since reset
-        bool sent_color_image : 1;           ///< True if
+        bool sent_color_image : 1;           ///< True if SET_COLOR_IMAGE was sent
+        bool sent_zprim : 1;                 ///< True if SET_PRIM_DEPTH was sent
         bool mode_changed : 1;               ///< True if there is a pending mode change to validate (SET_OTHER_MODES / SET_COMBINE)
     };
     uint64_t *last_som;                  ///< Pointer to last SOM command sent
@@ -706,6 +707,12 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
     VALIDATE_ERR(rdp.sent_color_image,
         "undefined behavior: drawing command before a SET_COLOR_IMAGE was sent");
 
+    if (rdp.som.z.prim) {
+        VALIDATE_WARN(!use_z, "per-vertex Z value will be ignored because Z-source is set to primitive (SOM set at %p)", rdp.last_som);
+        VALIDATE_ERR(rdp.sent_zprim, "Z-source is set to primitive but SET_PRIM_DEPTH was never sent (SOM at %p)", rdp.last_som);
+        use_z = true;
+    }
+
     switch (rdp.som.cycle_type) {
     case 0 ... 1: // 1cyc, 2cyc
         for (int i=0; i<=rdp.som.cycle_type; i++) {
@@ -738,9 +745,10 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
             VALIDATE_ERR(!rdp.som.tex.persp,
                 "cannot draw a textured primitive with perspective correction but without per-vertex W coordinate (SOM set at %p)", rdp.last_som);
 
-        if (!use_z)
+        if (!use_z) {
             VALIDATE_ERR(!rdp.som.z.cmp && !rdp.som.z.upd,
                 "cannot draw a primitive without Z coordinate if Z buffer access is activated (SOM set at %p)", rdp.last_som);
+        }
 
         break;
     }
@@ -953,6 +961,7 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         memset(&rdp.busy.tmem, 0, sizeof(rdp.busy.tmem));
         break;
     case 0x2E: // SET_PRIM_DEPTH
+        rdp.sent_zprim = true;
         break;
     case 0x3A: // SET_PRIM_COLOR
         break;
