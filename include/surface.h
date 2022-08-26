@@ -119,10 +119,10 @@ const char* tex_format_name(tex_format_t fmt);
  */
 typedef struct surface_s
 {
-    uint32_t flags;       ///< Flags (including pixel format)
-    uint32_t width;       ///< Width in pixels
-    uint32_t height;      ///< Height in pixels
-    uint32_t stride;      ///< Stride in bytes (length of a row)
+    uint16_t flags;       ///< Flags (including pixel format)
+    uint16_t width;       ///< Width in pixels
+    uint16_t height;      ///< Height in pixels
+    uint16_t stride;      ///< Stride in bytes (length of a row)
     void *buffer;         ///< Buffer pointer
 } surface_t;
 
