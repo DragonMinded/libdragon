@@ -598,10 +598,10 @@ static bool cc_use_tex1(void) {
     if ((rdp.som.tf_mode & 3) == 1) // TEX1 is the color-conversion of TEX0, so TEX1 is not used
         return false;
     return 
-        // Cycle0: reference to TEX1 slot
-        (cc[0].rgb.suba == 2 || cc[0].rgb.subb == 2 || cc[0].rgb.mul == 2 || cc[0].rgb.add == 2) || 
-        // Cycle1: reference to TEX0 slot (which actually points to TEX1)
-        (cc[1].rgb.suba == 1 || cc[1].rgb.subb == 1 || cc[1].rgb.mul == 1 || cc[1].rgb.add == 1);
+        // Cycle0: reference to TEX1/TEX1_ALPHA slot
+        (cc[0].rgb.suba == 2 || cc[0].rgb.subb == 2 || cc[0].rgb.mul == 2 || cc[0].rgb.mul == 9 || cc[0].rgb.add == 2) || 
+        // Cycle1: reference to TEX0/TEX0_ALPHA slot (which actually points to TEX1)
+        (cc[1].rgb.suba == 1 || cc[1].rgb.subb == 1 || cc[1].rgb.mul == 1 || cc[0].rgb.mul == 8 || cc[1].rgb.add == 1);
 }
 
 /** 
@@ -644,6 +644,10 @@ static void lazy_validate_cc(void) {
             VALIDATE_ERR(ccs[1].rgb.suba != 2 && ccs[1].rgb.subb != 2 && ccs[1].rgb.mul != 2 && ccs[1].rgb.add != 2 &&
                          ccs[1].alpha.suba != 2 && ccs[1].alpha.subb != 2 && ccs[1].alpha.mul != 2 && ccs[1].alpha.add != 2,
                 "SET_COMBINE at %p: in 1cycle mode, the color combiner cannot access the TEX1 slot", rdp.last_cc);
+            VALIDATE_ERR(ccs[1].rgb.mul != 7,
+                "SET_COMBINE at %p: in 1cycle mode, the color combiner cannot access the COMBINED_ALPHA slot", rdp.last_cc);
+            VALIDATE_ERR(ccs[1].rgb.mul != 9,
+                "SET_COMBINE at %p: in 1cycle mode, the color combiner cannot access the TEX1_ALPHA slot", rdp.last_cc);
         } else { // 2 cyc
             struct cc_cycle_s *ccs = &rdp.cc.cyc[0];
             VALIDATE_ERR(ccs[0].rgb.suba != 0 && ccs[0].rgb.suba != 0 && ccs[0].rgb.mul != 0 && ccs[0].rgb.add != 0 &&
@@ -652,6 +656,10 @@ static void lazy_validate_cc(void) {
             VALIDATE_ERR(ccs[1].rgb.suba != 2 && ccs[1].rgb.suba != 2 && ccs[1].rgb.mul != 2 && ccs[1].rgb.add != 2 &&
                          ccs[1].alpha.suba != 2 && ccs[1].alpha.suba != 2 && ccs[1].alpha.mul != 2 && ccs[1].alpha.add != 2,
                 "SET_COMBINE at %p: in 2cycle mode, the color combiner cannot access the TEX1 slot in the second cycle (but TEX0 contains the second texture)", rdp.last_cc);
+            VALIDATE_ERR(ccs[0].rgb.mul != 7,
+                "SET_COMBINE at %p: in 2cycle mode, the color combiner cannot access the COMBINED_ALPHA slot in the first cycle", rdp.last_cc);
+            VALIDATE_ERR(ccs[1].rgb.mul != 9,
+                "SET_COMBINE at %p: in 1cycle mode, the color combiner cannot access the TEX1_ALPHA slot in the second cycle (but TEX0_ALPHA contains the second texture)", rdp.last_cc);
             VALIDATE_ERR((b0->b == 0) || (b0->b == 2 && b0->a == 3),  // INV_MUX_ALPHA, or ONE/ZERO (which still works)
                 "SOM at %p: in 2 cycle mode, the first pass of the blender must use INV_MUX_ALPHA or equivalent", rdp.last_som);
         }
@@ -673,8 +681,9 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
 
     switch (rdp.som.cycle_type) {
     case 0 ... 1: // 1cyc, 2cyc
-        for (int i=1-rdp.som.cycle_type; i<2; i++) {
-            struct cc_cycle_s *ccs = &rdp.cc.cyc[i];
+        for (int i=0; i<=rdp.som.cycle_type; i++) {
+            struct blender_s *bls = &rdp.som.blender[i];
+            struct cc_cycle_s *ccs = &rdp.cc.cyc[i^1];
             uint8_t slots[8] = {
                 ccs->rgb.suba,   ccs->rgb.subb,   ccs->rgb.mul,   ccs->rgb.add, 
                 ccs->alpha.suba, ccs->alpha.subb, ccs->alpha.mul, ccs->alpha.add, 
@@ -685,10 +694,16 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
                     "cannot draw a non-textured primitive with a color combiner using the TEX0 slot (CC set at %p)", rdp.last_cc);
                 VALIDATE_ERR(!memchr(slots, 2, sizeof(slots)),
                     "cannot draw a non-textured primitive with a color combiner using the TEX1 slot (CC set at %p)", rdp.last_cc);
+                VALIDATE_ERR(ccs->rgb.mul != 8 && ccs->rgb.mul != 9,
+                    "cannot draw a non-shaded primitive with a color combiner using the TEX%d_ALPHA slot (CC set at %p)", ccs->rgb.mul-8, rdp.last_cc);
             }
             if (!use_colors) {
                 VALIDATE_ERR(!memchr(slots, 4, sizeof(slots)),
                     "cannot draw a non-shaded primitive with a color combiner using the SHADE slot (CC set at %p)", rdp.last_cc);
+                VALIDATE_ERR(ccs->rgb.mul != 11,
+                    "cannot draw a non-shaded primitive with a color combiner using the SHADE_ALPHA slot (CC set at %p)", rdp.last_cc);
+                VALIDATE_ERR(bls->a != 2,
+                    "cannot draw a non-shaded primitive with a blender using the SHADE_ALPHA slot (SOM set at %p)", rdp.last_som);
             }
         }
 
