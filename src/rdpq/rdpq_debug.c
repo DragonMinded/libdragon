@@ -24,6 +24,7 @@
 #endif
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 #include <assert.h>
 ///@cond
 #define __STDC_FORMAT_MACROS
@@ -118,8 +119,11 @@ static struct {
         bool mode_changed : 1;               ///< True if there is a pending mode change to validate (SET_OTHER_MODES / SET_COMBINE)
     };
     uint64_t *last_som;                  ///< Pointer to last SOM command sent
+    uint64_t last_som_data;              ///< Last SOM command (raw)
     uint64_t *last_cc;                   ///< Pointer to last CC command sent
+    uint64_t last_cc_data;               ///< Last CC command (raw)
     uint64_t *last_tex;                  ///< Pointer to last SET_TEX_IMAGE command sent
+    uint64_t last_tex_data;              ///< Last TEX command (raw)
     setothermodes_t som;                 ///< Current SOM state
     colorcombiner_t cc;                  ///< Current CC state
     struct tile_s { 
@@ -356,7 +360,7 @@ int rdpq_debug_disasm_size(uint64_t *buf) {
 /** @brief Convert a 16.16 fixed point number into floating point */
 #define FX32(hi,lo)    ((hi) + (lo) * (1.f / 65536.f))
 
-void rdpq_debug_disasm(uint64_t *buf, FILE *out)
+static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
 {
     const char* flag_prefix = "";
     ///@cond
@@ -367,7 +371,7 @@ void rdpq_debug_disasm(uint64_t *buf, FILE *out)
     static const char *fmt[8] = {"rgba", "yuv", "ci", "ia", "i", "?fmt=5?", "?fmt=6?", "?fmt=7?"};
     static const char *size[4] = {"4", "8", "16", "32" };
 
-    fprintf(out, "[%p] %016" PRIx64 "    ", buf, buf[0]);
+    fprintf(out, "[%p] %016" PRIx64 "    ", addr, buf[0]);
     switch (BITS(buf[0], 56, 61)) {
     default:   fprintf(out, "???\n"); return;
     case 0x00: fprintf(out, "NOP\n"); return;
@@ -482,7 +486,7 @@ void rdpq_debug_disasm(uint64_t *buf, FILE *out)
             fprintf(out, "TEX_RECT_FLIP    ");
         fprintf(out, "tile=%d xy=(%.2f,%.2f)-(%.2f,%.2f)\n", BITS(buf[0], 24, 26),
             BITS(buf[0], 12, 23)*FX(2), BITS(buf[0], 0, 11)*FX(2), BITS(buf[0], 44, 55)*FX(2), BITS(buf[0], 32, 43)*FX(2));
-        fprintf(out, "[%p] %016" PRIx64 "                     ", &buf[1], buf[1]);
+        fprintf(out, "[%p] %016" PRIx64 "                     ", &addr[1], buf[1]);
         fprintf(out, "st=(%.2f,%.2f) dst=(%.5f,%.5f)\n",
             SBITS(buf[1], 48, 63)*FX(5), SBITS(buf[1], 32, 47)*FX(5), SBITS(buf[1], 16, 31)*FX(10), SBITS(buf[1], 0, 15)*FX(10));
         return;
@@ -508,15 +512,15 @@ void rdpq_debug_disasm(uint64_t *buf, FILE *out)
         fprintf(out, "%s tile=%d lvl=%d y=(%.2f, %.2f, %.2f)\n",
             BITS(buf[0], 55, 55) ? "left" : "right", BITS(buf[0], 48, 50), BITS(buf[0], 51, 53)+1,
             SBITS(buf[0], 32, 45)*FX(2), SBITS(buf[0], 16, 29)*FX(2), SBITS(buf[0], 0, 13)*FX(2));
-        fprintf(out, "[%p] %016" PRIx64 "                     xl=%.4f dxld=%.4f\n", &buf[1], buf[1],
+        fprintf(out, "[%p] %016" PRIx64 "                     xl=%.4f dxld=%.4f\n", &addr[1], buf[1],
             SBITS(buf[1], 32, 63)*FX(16), SBITS(buf[1], 0, 31)*FX(16));
-        fprintf(out, "[%p] %016" PRIx64 "                     xh=%.4f dxhd=%.4f\n", &buf[2], buf[2],
+        fprintf(out, "[%p] %016" PRIx64 "                     xh=%.4f dxhd=%.4f\n", &addr[2], buf[2],
             SBITS(buf[2], 32, 63)*FX(16), SBITS(buf[2], 0, 31)*FX(16));
-        fprintf(out, "[%p] %016" PRIx64 "                     xm=%.4f dxmd=%.4f\n", &buf[3], buf[3],
+        fprintf(out, "[%p] %016" PRIx64 "                     xm=%.4f dxmd=%.4f\n", &addr[3], buf[3],
             SBITS(buf[3], 32, 63)*FX(16), SBITS(buf[3], 0, 31)*FX(16));
         int i=4;
         if (cmd & 0x4) {
-            fprintf(out, "[%p] %016" PRIx64 "                     r=%.5f g=%.5f b=%.5f a=%.5f\n", &buf[i], buf[i],
+            fprintf(out, "[%p] %016" PRIx64 "                     r=%.5f g=%.5f b=%.5f a=%.5f\n", &addr[i], buf[i],
                 FX32(BITS(buf[i], 48, 63), BITS(buf[i+2], 48, 63)),
                 FX32(BITS(buf[i], 32, 47), BITS(buf[i+2], 32, 47)),
                 FX32(BITS(buf[i], 16, 31), BITS(buf[i+2], 16, 31)),
@@ -526,48 +530,48 @@ void rdpq_debug_disasm(uint64_t *buf, FILE *out)
                 FX32(BITS(buf[i], 32, 47), BITS(buf[i+2], 32, 47)),
                 FX32(BITS(buf[i], 16, 31), BITS(buf[i+2], 16, 31)),
                 FX32(BITS(buf[i],  0, 15), BITS(buf[i+2],  0, 15))); i++;
-            fprintf(out, "[%p] %016" PRIx64 "                     \n", &buf[i], buf[i]); i++;
-            fprintf(out, "[%p] %016" PRIx64 "                     \n", &buf[i], buf[i]); i++;
-            fprintf(out, "[%p] %016" PRIx64 "                     drde=%.5f dgde=%.5f dbde=%.5f dade=%.5f\n", &buf[i], buf[i],
+            fprintf(out, "[%p] %016" PRIx64 "                     \n", &addr[i], buf[i]); i++;
+            fprintf(out, "[%p] %016" PRIx64 "                     \n", &addr[i], buf[i]); i++;
+            fprintf(out, "[%p] %016" PRIx64 "                     drde=%.5f dgde=%.5f dbde=%.5f dade=%.5f\n", &addr[i], buf[i],
                 FX32(BITS(buf[i], 48, 63), BITS(buf[i+2], 48, 63)),
                 FX32(BITS(buf[i], 32, 47), BITS(buf[i+2], 32, 47)),
                 FX32(BITS(buf[i], 16, 31), BITS(buf[i+2], 16, 31)),
                 FX32(BITS(buf[i],  0, 15), BITS(buf[i+2],  0, 15))); i++;
-            fprintf(out, "[%p] %016" PRIx64 "                     drdy=%.5f dgdy=%.5f dbdy=%.5f dady=%.5f\n", &buf[i], buf[i],
+            fprintf(out, "[%p] %016" PRIx64 "                     drdy=%.5f dgdy=%.5f dbdy=%.5f dady=%.5f\n", &addr[i], buf[i],
                 FX32(BITS(buf[i], 48, 63), BITS(buf[i+2], 48, 63)),
                 FX32(BITS(buf[i], 32, 47), BITS(buf[i+2], 32, 47)),
                 FX32(BITS(buf[i], 16, 31), BITS(buf[i+2], 16, 31)),
                 FX32(BITS(buf[i],  0, 15), BITS(buf[i+2],  0, 15))); i++;
-            fprintf(out, "[%p] %016" PRIx64 "                     \n", &buf[i], buf[i]); i++;
-            fprintf(out, "[%p] %016" PRIx64 "                     \n", &buf[i], buf[i]); i++;
+            fprintf(out, "[%p] %016" PRIx64 "                     \n", &addr[i], buf[i]); i++;
+            fprintf(out, "[%p] %016" PRIx64 "                     \n", &addr[i], buf[i]); i++;
         }
         if (cmd & 0x2) {
-            fprintf(out, "[%p] %016" PRIx64 "                     s=%.5f t=%.5f w=%.5f\n", &buf[i], buf[i],
+            fprintf(out, "[%p] %016" PRIx64 "                     s=%.5f t=%.5f w=%.5f\n", &addr[i], buf[i],
                 FX32(BITS(buf[i], 48, 63), BITS(buf[i+2], 48, 63)), 
                 FX32(BITS(buf[i], 32, 47), BITS(buf[i+2], 32, 47)),
                 FX32(BITS(buf[i], 16, 31), BITS(buf[i+2], 16, 31))); i++;
-            fprintf(out, "[%p] %016" PRIx64 "                     dsdx=%.5f dtdx=%.5f dwdx=%.5f\n", &buf[i], buf[i],
+            fprintf(out, "[%p] %016" PRIx64 "                     dsdx=%.5f dtdx=%.5f dwdx=%.5f\n", &addr[i], buf[i],
                 FX32(BITS(buf[i], 48, 63), BITS(buf[i+2], 48, 63)), 
                 FX32(BITS(buf[i], 32, 47), BITS(buf[i+2], 32, 47)),
                 FX32(BITS(buf[i], 16, 31), BITS(buf[i+2], 16, 31))); i++;
-            fprintf(out, "[%p] %016" PRIx64 "                     \n", &buf[i], buf[i]); i++;
-            fprintf(out, "[%p] %016" PRIx64 "                     \n", &buf[i], buf[i]); i++;
-            fprintf(out, "[%p] %016" PRIx64 "                     dsde=%.5f dtde=%.5f dwde=%.5f\n", &buf[i], buf[i],
+            fprintf(out, "[%p] %016" PRIx64 "                     \n", &addr[i], buf[i]); i++;
+            fprintf(out, "[%p] %016" PRIx64 "                     \n", &addr[i], buf[i]); i++;
+            fprintf(out, "[%p] %016" PRIx64 "                     dsde=%.5f dtde=%.5f dwde=%.5f\n", &addr[i], buf[i],
                 FX32(BITS(buf[i], 48, 63), BITS(buf[i+2], 48, 63)), 
                 FX32(BITS(buf[i], 32, 47), BITS(buf[i+2], 32, 47)),
                 FX32(BITS(buf[i], 16, 31), BITS(buf[i+2], 16, 31))); i++;
-            fprintf(out, "[%p] %016" PRIx64 "                     dsdy=%.5f dtdy=%.5f dwdy=%.5f\n", &buf[i], buf[i],
+            fprintf(out, "[%p] %016" PRIx64 "                     dsdy=%.5f dtdy=%.5f dwdy=%.5f\n", &addr[i], buf[i],
                 FX32(BITS(buf[i], 48, 63), BITS(buf[i+2], 48, 63)), 
                 FX32(BITS(buf[i], 32, 47), BITS(buf[i+2], 32, 47)),
                 FX32(BITS(buf[i], 16, 31), BITS(buf[i+2], 16, 31))); i++;
-            fprintf(out, "[%p] %016" PRIx64 "                     \n", &buf[i], buf[i]); i++;
-            fprintf(out, "[%p] %016" PRIx64 "                     \n", &buf[i], buf[i]); i++;
+            fprintf(out, "[%p] %016" PRIx64 "                     \n", &addr[i], buf[i]); i++;
+            fprintf(out, "[%p] %016" PRIx64 "                     \n", &addr[i], buf[i]); i++;
         }
         if (cmd & 0x1) {
-            fprintf(out, "[%p] %016" PRIx64 "                     z=%.5f dzdx=%.5f\n", &buf[i], buf[i],
+            fprintf(out, "[%p] %016" PRIx64 "                     z=%.5f dzdx=%.5f\n", &addr[i], buf[i],
                 FX32(BITS(buf[i], 48, 63), BITS(buf[i], 32, 47)), 
                 FX32(BITS(buf[i], 16, 31), BITS(buf[i],  0, 15))); i++;
-            fprintf(out, "[%p] %016" PRIx64 "                     dzde=%.5f dzdy=%.5f\n", &buf[i], buf[i],
+            fprintf(out, "[%p] %016" PRIx64 "                     dzde=%.5f dzdy=%.5f\n", &addr[i], buf[i],
                 FX32(BITS(buf[i], 48, 63), BITS(buf[i], 32, 47)), 
                 FX32(BITS(buf[i], 16, 31), BITS(buf[i],  0, 15))); i++;
         }
@@ -590,6 +594,43 @@ void rdpq_debug_disasm(uint64_t *buf, FILE *out)
     }
 }
 
+void rdpq_debug_disasm(uint64_t *buf, FILE *out) {
+    __rdpq_debug_disasm(buf, buf, out);
+}
+
+static void validate_emit_error(int flags, const char *msg, ...)
+{
+    va_list args;
+    #ifndef N64
+    // In the PC validation tool, we always show the log, so act like in show_log mode.
+    bool show_log = true;
+    #endif
+
+    if (!show_log) {
+        if (flags & 2) __rdpq_debug_disasm(rdp.last_som, &rdp.last_som_data, stderr);
+        if (flags & 4) __rdpq_debug_disasm(rdp.last_cc,  &rdp.last_cc_data,  stderr);
+        if (flags & 8) __rdpq_debug_disasm(rdp.last_tex, &rdp.last_tex_data, stderr);
+        rdpq_debug_disasm(vctx.buf, stderr);
+    }
+    if (flags & 1) {
+        fprintf(stderr, "[RDPQ_VALIDATION] WARN:  ");
+        vctx.warns += 1;
+    } else {
+        fprintf(stderr, "[RDPQ_VALIDATION] ERROR: ");
+        vctx.errs += 1;
+    }
+
+    va_start(args, msg);
+    vfprintf(stderr, msg, args);
+    va_end(args);
+
+    if (show_log) {
+        if (flags & 2) fprintf(stderr, "[RDPQ_VALIDATION]        SET_OTHER_MODES last sent at %p\n", rdp.last_som);
+        if (flags & 4) fprintf(stderr, "[RDPQ_VALIDATION]        SET_COMBINE_MODE last sent at %p\n", rdp.last_cc);
+        if (flags & 8) fprintf(stderr, "[RDPQ_VALIDATION]        SET_TEX_IMAGE last sent at %p\n", rdp.last_tex);
+    }
+}
+
 /** 
  * @brief Check and trigger a RDP validation error. 
  * 
@@ -597,14 +638,14 @@ void rdpq_debug_disasm(uint64_t *buf, FILE *out)
  * behaviour or in general strongly misbehave with respect to the reasonable
  * expectation of the programmer. Typical expected outcome on real hardware should be
  * garbled graphcis or hardware freezes. */
-#define VALIDATE_ERR(cond, msg, ...) ({ \
-    if (__builtin_expect(!(cond), 0)) { \
-        if (!show_log) rdpq_debug_disasm(vctx.buf, stderr); \
-        debugf("[RDPQ_VALIDATION] ERROR: "); \
-        debugf(msg "\n", ##__VA_ARGS__); \
-        vctx.errs += 1; \
-    }; \
+#define __VALIDATE_ERR(flags, cond, msg, ...) ({ \
+    if (!(cond)) validate_emit_error(flags, msg "\n", ##__VA_ARGS__); \
 })
+
+#define VALIDATE_ERR(cond, msg, ...)      __VALIDATE_ERR(0, cond, msg, ##__VA_ARGS__)
+#define VALIDATE_ERR_SOM(cond, msg, ...)  __VALIDATE_ERR(2, cond, msg, ##__VA_ARGS__)
+#define VALIDATE_ERR_CC(cond, msg, ...)   __VALIDATE_ERR(4, cond, msg, ##__VA_ARGS__)
+#define VALIDATE_ERR_TEX(cond, msg, ...)  __VALIDATE_ERR(8, cond, msg, ##__VA_ARGS__)
 
 /** 
  * @brief Check and trigger a RDP validation warning.
@@ -616,13 +657,10 @@ void rdpq_debug_disasm(uint64_t *buf, FILE *out)
  * becomes too unwiedly, we can later add a way to disable classes of warning in specific
  * programs.
  */
-#define VALIDATE_WARN(cond, msg, ...) ({ \
-    if (!(cond)) { \
-        debugf("[RDPQ_VALIDATION] WARN: "); \
-        debugf(msg "\n", ##__VA_ARGS__); \
-        vctx.warns += 1; \
-    }; \
-})
+#define VALIDATE_WARN(cond, msg, ...)      __VALIDATE_ERR(1, cond, msg, ##__VA_ARGS__)
+#define VALIDATE_WARN_SOM(cond, msg, ...)  __VALIDATE_ERR(3, cond, msg, ##__VA_ARGS__)
+#define VALIDATE_WARN_CC(cond, msg, ...)   __VALIDATE_ERR(5, cond, msg, ##__VA_ARGS__)
+#define VALIDATE_WARN_TEX(cond, msg, ...)  __VALIDATE_ERR(9, cond, msg, ##__VA_ARGS__)
 
 /** @brief True if the current CC uses the TEX1 slot aka the second texture */
 static bool cc_use_tex1(void) {
@@ -661,8 +699,8 @@ static void lazy_validate_cc(void) {
         struct blender_s *b1 = &rdp.som.blender[1];
         bool has_bl0 = b0->p || b0->a || b0->q || b0->b;
         bool has_bl1 = b1->p || b1->a || b1->q || b1->b;
-        VALIDATE_WARN(rdp.som.blend || rdp.som.aa || !(has_bl0 || has_bl1),
-            "SOM at %p: blender function will be ignored because SOM_BLENDING and SOM_ANTIALIAS are both disabled", rdp.last_som);
+        VALIDATE_WARN_SOM(rdp.som.blend || rdp.som.aa || !(has_bl0 || has_bl1),
+            "blender function will be ignored because SOM_BLENDING and SOM_ANTIALIAS are both disabled");
 
         if (!rdp.last_cc) {
             VALIDATE_ERR(rdp.last_cc, "SET_COMBINE not called before drawing primitive");
@@ -670,32 +708,32 @@ static void lazy_validate_cc(void) {
         }
         struct cc_cycle_s *ccs = &rdp.cc.cyc[0];
         if (rdp.som.cycle_type == 0) { // 1cyc
-            VALIDATE_WARN(memcmp(&ccs[0], &ccs[1], sizeof(struct cc_cycle_s)) == 0,
-                "SET_COMBINE at %p: in 1cycle mode, the color combiner should be programmed identically in both cycles. Cycle 0 will be ignored.", rdp.last_cc);
-            VALIDATE_ERR(ccs[1].rgb.suba != 0 && ccs[1].rgb.suba != 0 && ccs[1].rgb.mul != 0 && ccs[1].rgb.add != 0 &&
+            VALIDATE_WARN_CC(memcmp(&ccs[0], &ccs[1], sizeof(struct cc_cycle_s)) == 0,
+                "in 1cycle mode, the color combiner should be programmed identically in both cycles. Cycle 0 will be ignored.");
+            VALIDATE_ERR_CC(ccs[1].rgb.suba != 0 && ccs[1].rgb.suba != 0 && ccs[1].rgb.mul != 0 && ccs[1].rgb.add != 0 &&
                          ccs[1].alpha.suba != 0 && ccs[1].alpha.suba != 0 && ccs[1].alpha.mul != 0 && ccs[1].alpha.add != 0,
-                "SET_COMBINE at %p: in 1cycle mode, the color combiner cannot access the COMBINED slot", rdp.last_cc);
-            VALIDATE_ERR(ccs[1].rgb.suba != 2 && ccs[1].rgb.subb != 2 && ccs[1].rgb.mul != 2 && ccs[1].rgb.add != 2 &&
+                "in 1cycle mode, the color combiner cannot access the COMBINED slot");
+            VALIDATE_ERR_CC(ccs[1].rgb.suba != 2 && ccs[1].rgb.subb != 2 && ccs[1].rgb.mul != 2 && ccs[1].rgb.add != 2 &&
                          ccs[1].alpha.suba != 2 && ccs[1].alpha.subb != 2 && ccs[1].alpha.mul != 2 && ccs[1].alpha.add != 2,
-                "SET_COMBINE at %p: in 1cycle mode, the color combiner cannot access the TEX1 slot", rdp.last_cc);
-            VALIDATE_ERR(ccs[1].rgb.mul != 7,
-                "SET_COMBINE at %p: in 1cycle mode, the color combiner cannot access the COMBINED_ALPHA slot", rdp.last_cc);
-            VALIDATE_ERR(ccs[1].rgb.mul != 9,
-                "SET_COMBINE at %p: in 1cycle mode, the color combiner cannot access the TEX1_ALPHA slot", rdp.last_cc);
+                "in 1cycle mode, the color combiner cannot access the TEX1 slot");
+            VALIDATE_ERR_CC(ccs[1].rgb.mul != 7,
+                "in 1cycle mode, the color combiner cannot access the COMBINED_ALPHA slot");
+            VALIDATE_ERR_CC(ccs[1].rgb.mul != 9,
+                "in 1cycle mode, the color combiner cannot access the TEX1_ALPHA slot");
         } else { // 2 cyc
             struct cc_cycle_s *ccs = &rdp.cc.cyc[0];
-            VALIDATE_ERR(ccs[0].rgb.suba != 0 && ccs[0].rgb.suba != 0 && ccs[0].rgb.mul != 0 && ccs[0].rgb.add != 0 &&
+            VALIDATE_ERR_CC(ccs[0].rgb.suba != 0 && ccs[0].rgb.suba != 0 && ccs[0].rgb.mul != 0 && ccs[0].rgb.add != 0 &&
                          ccs[0].alpha.suba != 0 && ccs[0].alpha.suba != 0 && ccs[0].alpha.mul != 0 && ccs[0].alpha.add != 0,
-                "SET_COMBINE at %p: in 2cycle mode, the color combiner cannot access the COMBINED slot in the first cycle", rdp.last_cc);
-            VALIDATE_ERR(ccs[1].rgb.suba != 2 && ccs[1].rgb.suba != 2 && ccs[1].rgb.mul != 2 && ccs[1].rgb.add != 2 &&
+                "in 2cycle mode, the color combiner cannot access the COMBINED slot in the first cycle");
+            VALIDATE_ERR_CC(ccs[1].rgb.suba != 2 && ccs[1].rgb.suba != 2 && ccs[1].rgb.mul != 2 && ccs[1].rgb.add != 2 &&
                          ccs[1].alpha.suba != 2 && ccs[1].alpha.suba != 2 && ccs[1].alpha.mul != 2 && ccs[1].alpha.add != 2,
-                "SET_COMBINE at %p: in 2cycle mode, the color combiner cannot access the TEX1 slot in the second cycle (but TEX0 contains the second texture)", rdp.last_cc);
-            VALIDATE_ERR(ccs[0].rgb.mul != 7,
-                "SET_COMBINE at %p: in 2cycle mode, the color combiner cannot access the COMBINED_ALPHA slot in the first cycle", rdp.last_cc);
-            VALIDATE_ERR(ccs[1].rgb.mul != 9,
-                "SET_COMBINE at %p: in 1cycle mode, the color combiner cannot access the TEX1_ALPHA slot in the second cycle (but TEX0_ALPHA contains the second texture)", rdp.last_cc);
-            VALIDATE_ERR((b0->b == 0) || (b0->b == 2 && b0->a == 3),  // INV_MUX_ALPHA, or ONE/ZERO (which still works)
-                "SOM at %p: in 2 cycle mode, the first pass of the blender must use INV_MUX_ALPHA or equivalent", rdp.last_som);
+                "in 2cycle mode, the color combiner cannot access the TEX1 slot in the second cycle (but TEX0 contains the second texture)");
+            VALIDATE_ERR_CC(ccs[0].rgb.mul != 7,
+                "in 2cycle mode, the color combiner cannot access the COMBINED_ALPHA slot in the first cycle");
+            VALIDATE_ERR_CC(ccs[1].rgb.mul != 9,
+                "in 1cycle mode, the color combiner cannot access the TEX1_ALPHA slot in the second cycle (but TEX0_ALPHA contains the second texture)");
+            VALIDATE_ERR_SOM((b0->b == 0) || (b0->b == 2 && b0->a == 3),  // INV_MUX_ALPHA, or ONE/ZERO (which still works)
+                "in 2 cycle mode, the first pass of the blender must use INV_MUX_ALPHA or equivalent");
         }
     }
 }
@@ -716,8 +754,8 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
         "undefined behavior: drawing command before a SET_COLOR_IMAGE was sent");
 
     if (rdp.som.z.prim) {
-        VALIDATE_WARN(!use_z, "per-vertex Z value will be ignored because Z-source is set to primitive (SOM set at %p)", rdp.last_som);
-        VALIDATE_ERR(rdp.sent_zprim, "Z-source is set to primitive but SET_PRIM_DEPTH was never sent (SOM at %p)", rdp.last_som);
+        VALIDATE_WARN_SOM(!use_z, "per-vertex Z value will be ignored because Z-source is set to primitive");
+        VALIDATE_ERR_SOM(rdp.sent_zprim, "Z-source is set to primitive but SET_PRIM_DEPTH was never sent");
         use_z = true;
     }
 
@@ -732,30 +770,29 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
             };
 
             if (!use_tex) {
-                VALIDATE_ERR(!memchr(slots, 1, sizeof(slots)),
-                    "cannot draw a non-textured primitive with a color combiner using the TEX0 slot (CC set at %p)", rdp.last_cc);
-                VALIDATE_ERR(!memchr(slots, 2, sizeof(slots)),
-                    "cannot draw a non-textured primitive with a color combiner using the TEX1 slot (CC set at %p)", rdp.last_cc);
-                VALIDATE_ERR(ccs->rgb.mul != 8 && ccs->rgb.mul != 9,
-                    "cannot draw a non-shaded primitive with a color combiner using the TEX%d_ALPHA slot (CC set at %p)", ccs->rgb.mul-8, rdp.last_cc);
+                VALIDATE_ERR_CC(!memchr(slots, 1, sizeof(slots)),
+                    "cannot draw a non-textured primitive with a color combiner using the TEX0 slot");
+                VALIDATE_ERR_CC(!memchr(slots, 2, sizeof(slots)),
+                    "cannot draw a non-textured primitive with a color combiner using the TEX1 slot");
+                VALIDATE_ERR_CC(ccs->rgb.mul != 8 && ccs->rgb.mul != 9,
+                    "cannot draw a non-shaded primitive with a color combiner using the TEX%d_ALPHA slot");
             }
             if (!use_colors) {
-                VALIDATE_ERR(!memchr(slots, 4, sizeof(slots)),
-                    "cannot draw a non-shaded primitive with a color combiner using the SHADE slot (CC set at %p)", rdp.last_cc);
-                VALIDATE_ERR(ccs->rgb.mul != 11,
-                    "cannot draw a non-shaded primitive with a color combiner using the SHADE_ALPHA slot (CC set at %p)", rdp.last_cc);
-                VALIDATE_ERR(bls->a != 2,
-                    "cannot draw a non-shaded primitive with a blender using the SHADE_ALPHA slot (SOM set at %p)", rdp.last_som);
+                VALIDATE_ERR_CC(!memchr(slots, 4, sizeof(slots)),
+                    "cannot draw a non-shaded primitive with a color combiner using the SHADE slot");
+                VALIDATE_ERR_CC(ccs->rgb.mul != 11,
+                    "cannot draw a non-shaded primitive with a color combiner using the SHADE_ALPHA slot");
+                VALIDATE_ERR_SOM(bls->a != 2, "cannot draw a non-shaded primitive with a blender using the SHADE_ALPHA slot");
             }
         }
 
         if (use_tex && !use_w)
-            VALIDATE_ERR(!rdp.som.tex.persp,
-                "cannot draw a textured primitive with perspective correction but without per-vertex W coordinate (SOM set at %p)", rdp.last_som);
+            VALIDATE_ERR_SOM(!rdp.som.tex.persp,
+                "cannot draw a textured primitive with perspective correction but without per-vertex W coordinate");
 
         if (!use_z) {
-            VALIDATE_ERR(!rdp.som.z.cmp && !rdp.som.z.upd,
-                "cannot draw a primitive without Z coordinate if Z buffer access is activated (SOM set at %p)", rdp.last_som);
+            VALIDATE_ERR_SOM(!rdp.som.z.cmp && !rdp.som.z.upd,
+                "cannot draw a primitive without Z coordinate if Z buffer access is activated");
         }
 
         break;
@@ -809,23 +846,25 @@ static void use_tile(int tidx, int cycle) {
         // YUV render mode mistakes in 1-cyc/2-cyc, that is when YUV conversion can be done.
         // In copy mode, YUV textures are copied as-is
         if (t->fmt == 1) {
-            VALIDATE_WARN(!(rdp.som.tf_mode & (4>>cycle)), "tile %d is YUV but texture filter in cycle %d does not activate YUV color conversion (SOM set at %p)", tidx, cycle, rdp.last_som);
+            VALIDATE_WARN_SOM(!(rdp.som.tf_mode & (4>>cycle)),
+                "tile %d is YUV but texture filter in cycle %d does not activate YUV color conversion", tidx, cycle);
             if (rdp.som.sample_type > 1) {
                 static const char* texinterp[] = { "point", "point", "bilinear", "median" };
-                VALIDATE_ERR(rdp.som.tf_mode == 6 && rdp.som.cycle_type == 1,
-                    "tile %d is YUV and %s filtering is active: TF1_YUVTEX0 mode must be configured in SOM (SOM set at %p)", tidx, texinterp[rdp.som.sample_type], rdp.last_som);
-                VALIDATE_ERR(rdp.som.cycle_type == 1,
-                    "tile %d is YUV and %s filtering is active: 2-cycle mode must be configured (SOM set at %p)", tidx, texinterp[rdp.som.sample_type], rdp.last_som);
+                VALIDATE_ERR_SOM(rdp.som.tf_mode == 6 && rdp.som.cycle_type == 1,
+                    "tile %d is YUV and %s filtering is active: TF1_YUVTEX0 mode must be configured in SOM", tidx, texinterp[rdp.som.sample_type]);
+                VALIDATE_ERR_SOM(rdp.som.cycle_type == 1,
+                    "tile %d is YUV and %s filtering is active: 2-cycle mode must be configured", tidx, texinterp[rdp.som.sample_type]);
             }
         } else
-            VALIDATE_WARN((rdp.som.tf_mode & (4>>cycle)), "tile %d is RGB-based, but cycle %d is configured for YUV color conversion; try setting SOM_TF%d_RGB (SOM set at %p)", tidx, cycle, cycle, rdp.last_som);
+            VALIDATE_WARN_SOM((rdp.som.tf_mode & (4>>cycle)),
+                "tile %d is RGB-based, but cycle %d is configured for YUV color conversion; try setting SOM_TF%d_RGB", tidx, cycle, cycle);
     }
 
     // Check that TLUT mode in SOM is active if the tile requires it (and vice-versa)
     if (t->fmt == 2) // Color index
-        VALIDATE_ERR(rdp.som.tlut.enable, "tile %d is CI (color index), but TLUT mode was not activated (SOM set at %p)", tidx, rdp.last_som);
+        VALIDATE_ERR_SOM(rdp.som.tlut.enable, "tile %d is CI (color index), but TLUT mode was not activated", tidx);
     else
-        VALIDATE_ERR(!rdp.som.tlut.enable, "tile %d is not CI (color index), but TLUT mode is active (SOM set at %p)", tidx, rdp.last_som);
+        VALIDATE_ERR_SOM(!rdp.som.tlut.enable, "tile %d is not CI (color index), but TLUT mode is active", tidx);
 
     // Mark used areas of tmem
     switch (t->fmt) {
@@ -880,6 +919,7 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         rdp.tex.fmt = BITS(buf[0], 53, 55);
         rdp.tex.size = BITS(buf[0], 51, 52);
         rdp.last_tex = &buf[0];        
+        rdp.last_tex_data = buf[0];
         break;
     case 0x35: { // SET_TILE
         int tidx = BITS(buf[0], 24, 26);
@@ -902,7 +942,7 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         int tidx = BITS(buf[0], 24, 26);
         struct tile_s *t = &rdp.tile[tidx];
         validate_busy_tile(tidx);
-        if (load) VALIDATE_ERR(rdp.tex.size != 0, "LOAD_TILE does not support 4-bit textures (set at %p)", rdp.last_tex);
+        if (load) VALIDATE_ERR_TEX(rdp.tex.size != 0, "LOAD_TILE does not support 4-bit textures");
         t->has_extents = true;
         t->s0 = BITS(buf[0], 44, 55)*FX(2); t->t0 = BITS(buf[0], 32, 43)*FX(2);
         t->s1 = BITS(buf[0], 12, 23)*FX(2); t->t1 = BITS(buf[0],  0, 11)*FX(2);
@@ -912,7 +952,7 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         int tidx = BITS(buf[0], 24, 26);
         struct tile_s *t = &rdp.tile[tidx];
         int low = BITS(buf[0], 44, 55), high = BITS(buf[0], 12, 23);
-        VALIDATE_ERR(rdp.tex.fmt == 0 && rdp.tex.size==2, "LOAD_TLUT requires texure in RGBA16 format (set at %p)", rdp.last_tex);
+        VALIDATE_ERR_TEX(rdp.tex.fmt == 0 && rdp.tex.size==2, "LOAD_TLUT requires texure in RGBA16 format");
         VALIDATE_ERR(t->tmem_addr >= 0x800, "palettes must be loaded in upper half of TMEM (address >= 0x800)");
         VALIDATE_WARN(!(low&3) && !(high&3), "lowest 2 bits of palette start/stop must be 0");
         VALIDATE_ERR(low>>2 < 256, "palette start index must be < 256");
@@ -922,12 +962,14 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         validate_busy_pipe();
         rdp.som = decode_som(buf[0]);
         rdp.last_som = &buf[0];
+        rdp.last_som_data = buf[0];
         rdp.mode_changed = true;
         break;
     case 0x3C: // SET_COMBINE
         validate_busy_pipe();
         rdp.cc = decode_cc(buf[0]);
         rdp.last_cc = &buf[0];
+        rdp.last_cc_data = buf[0];
         rdp.mode_changed = true;
         break;
     case 0x2D: // SET_SCISSOR
@@ -949,13 +991,13 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         break;
     case 0x8 ... 0xF: // Triangles
         rdp.busy.pipe = true;
-        VALIDATE_ERR(rdp.som.cycle_type < 2, "cannot draw triangles in copy/fill mode (SOM set at %p)", rdp.last_som);
+        VALIDATE_ERR_SOM(rdp.som.cycle_type < 2, "cannot draw triangles in copy/fill mode");
         lazy_validate_cc();
         validate_draw_cmd(cmd & 4, cmd & 2, cmd & 1, cmd & 2);
         if (cmd & 2) use_tile(BITS(buf[0], 48, 50), 0);
         if (BITS(buf[0], 51, 53))
-            VALIDATE_WARN(rdp.som.tex.lod, "triangle with %d mipmaps specified, but mipmapping is disabled (SOM set at %p)",
-                BITS(buf[0], 51, 53)+1, rdp.last_som);
+            VALIDATE_WARN_SOM(rdp.som.tex.lod, "triangle with %d mipmaps specified, but mipmapping is disabled",
+                BITS(buf[0], 51, 53)+1);
         break;
     case 0x27: // SYNC_PIPE
         rdp.busy.pipe = false;
