@@ -96,6 +96,7 @@ typedef struct {
     struct { uint8_t mode; bool color, sel_alpha, mul_alpha; } cvg;
     struct { uint8_t mode; bool upd, cmp, prim; } z;
     struct { bool enable, dither; } alphacmp;
+    struct { bool fog, freeze, bl2; } rdpqx;     // rdpq extensions
     ///@endcond
 } setothermodes_t;
 
@@ -336,6 +337,7 @@ static inline setothermodes_t decode_som(uint64_t som) {
         .cvg = { .mode = BITS(som, 8, 9), .color = BIT(som, 7), .mul_alpha = BIT(som, 12), .sel_alpha=BIT(som, 13) },
         .z = { .mode = BITS(som, 10, 11), .upd = BIT(som, 5), .cmp = BIT(som, 4), .prim = BIT(som, 2) },
         .alphacmp = { .enable = BIT(som, 0), .dither = BIT(som, 1) },
+        .rdpqx = { .fog = BIT(som, 32), .freeze = BIT(som, 33), .bl2 = BIT(som, 15) },
     };
 }
 
@@ -450,6 +452,12 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
             fprintf(out, " cvg=["); FLAG_RESET();
             FLAG(som.cvg.mode, cvgmode[som.cvg.mode]); FLAG(som.cvg.color, "color_ovf"); 
             FLAG(som.cvg.mul_alpha, "mul_alpha"); FLAG(som.cvg.sel_alpha, "sel_alpha");
+            fprintf(out, "]");
+        }
+        if(som.rdpqx.bl2 || som.rdpqx.freeze || som.rdpqx.fog) {
+            fprintf(out, " rdpq=["); FLAG_RESET();
+            FLAG(som.rdpqx.bl2, "bl2"); FLAG(som.rdpqx.freeze, "freeze"); 
+            FLAG(som.rdpqx.fog, "fog");
             fprintf(out, "]");
         }
         fprintf(out, "\n");
