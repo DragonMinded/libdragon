@@ -473,7 +473,7 @@ typedef uint32_t rdpq_blender_t;
 /**
  * @brief Draw with a texture.
  * This is standard texture mapping, without any lights.
- * It can be used for rectangles (#rdpq_textured_rectangle)
+ * It can be used for rectangles (#rdpq_texture_rectangle)
  * or triangles (#rdpq_triangle).
  */
 #define RDPQ_COMBINER_TEX        RDPQ_COMBINER1((0,0,0,TEX0),       (0,0,0,TEX0))
@@ -646,10 +646,12 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_SOM_BLEND2B_B2_INV_MUX_ALPHA  cast64(0)
 #define _RDPQ_SOM_BLEND2B_B2_MEMORY_CVG     cast64(1)
 #define _RDPQ_SOM_BLEND2B_B2_ONE            cast64(2)
+#define _RDPQ_SOM_BLEND2B_B2_1              cast64(2)
 #define _RDPQ_SOM_BLEND2B_B2_ZERO           cast64(3)
 #define _RDPQ_SOM_BLEND2B_B2_0              cast64(3)
 
 #define _RDPQ_SOM_BLEND_EXTRA_A_IN_RGB          cast64(0)
+#define _RDPQ_SOM_BLEND_EXTRA_A_CYCLE1_RGB      cast64(0)
 #define _RDPQ_SOM_BLEND_EXTRA_A_MEMORY_RGB      (SOM_READ_ENABLE)
 #define _RDPQ_SOM_BLEND_EXTRA_A_BLEND_RGB       cast64(0)
 #define _RDPQ_SOM_BLEND_EXTRA_A_FOG_RGB         cast64(0)
@@ -808,25 +810,23 @@ typedef uint32_t rdpq_blender_t;
  * @brief Build a 2-pass blender formula
  *
  * This macro is similar to #RDPQ_BLENDER, but it can be used to build a
- * two-passes blender formula.
- * 
- * When using the blender-related functions in the rdpq mode API
- * (#rdpq_mode_blending and #rdpq_mode_fog), usage of #RDPQ_BLENDER2
- * is not required because the two blender passes supported by RDP 
- * can be configured separately.
- * 
- * Instead, #RDPQ_BLENDER2 must be used when using directly the low-level
- * APIs (#rdpq_set_other_modes_raw).
+ * two-passes blender formula. This formula can be then configured using the
+ * mode API via #rdpq_mode_blending, or using the lower-level API via
+ * #rdpq_change_other_modes_raw.
  * 
  * Refer to #RDPQ_BLENDER for information on how to build a blender formula.
  * 
+ * Notice that in the second pass, `IN_RGB` is not available, and you can
+ * instead use `CYCLE1_RGB` to refer to the output of the first cycle.
+ * `IN_ALPHA` is still available (as the blender does not produce a alpha
+ * output, so the input alpha is available also in the second pass):
+ * 
  * @see #RDPQ_BLENDER
  * @see #rdpq_mode_blending
- * @see #rdpq_mode_fog
  * @see #rdpq_set_other_modes_raw
  * 
  * @hideinitializer
  */
-#define RDPQ_BLENDER2(bl0, bl1) castbl(__rdpq_blend_2cyc_0 bl0 | __rdpq_blend_2cyc_1 bl1 | RDPQ_BLENDER_2PASS)
+#define RDPQ_BLENDER2(bl0, bl1) castbl(__rdpq_blend_2cyc_0 bl0 | __rdpq_blend_2cyc_1 bl1 | SOMX_BLEND_2PASS)
 
 #endif

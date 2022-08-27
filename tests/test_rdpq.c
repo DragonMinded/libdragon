@@ -950,9 +950,11 @@ void test_rdpq_blender(TestContext *ctx) {
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_tex, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (blender=none)");
 
-    // Enable both, with blending adding the input of fog
-    rdpq_mode_fog(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, INV_MUX_ALPHA)));
-    rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, FOG_ALPHA, BLEND_RGB, ONE)));
+    // Enable two-pass bleder
+    rdpq_mode_blending(RDPQ_BLENDER2(
+        (IN_RGB, 0, BLEND_RGB, INV_MUX_ALPHA),
+        (CYCLE1_RGB, FOG_ALPHA, BLEND_RGB, 1)
+    ));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1.0f, 1.0f);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_blend2, FBWIDTH*FBWIDTH*2, 
