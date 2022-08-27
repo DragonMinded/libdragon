@@ -135,7 +135,14 @@ static struct {
     } tex;                               ///< Current associated texture image
 } rdp;
 
-static int warns, errs;                       ///< Validators warnings/errors (stats)
+/**
+ * @brief Validator context
+ */
+struct {
+    uint64_t *buf;                         ///< Current instruction
+    int warns, errs;                       ///< Validators warnings/errors (stats)
+} vctx;
+
 #ifdef N64
 /** @brief Maximum number of pending RDP buffers */
 #define MAX_BUFFERS 12 
@@ -266,9 +273,9 @@ void rdpq_debug_start(void)
     memset(buffers, 0, sizeof(buffers));
     memset(&last_buffer, 0, sizeof(last_buffer));
     memset(&rdp, 0, sizeof(rdp));
+    memset(&vctx, 0, sizeof(vctx));
     buf_widx = buf_ridx = 0;
     show_log = 0;
-    warns = errs = 0;
 
     rdpq_trace = __rdpq_trace;
     rdpq_trace_fetch = __rdpq_trace_fetch;
@@ -591,10 +598,11 @@ void rdpq_debug_disasm(uint64_t *buf, FILE *out)
  * expectation of the programmer. Typical expected outcome on real hardware should be
  * garbled graphcis or hardware freezes. */
 #define VALIDATE_ERR(cond, msg, ...) ({ \
-    if (!(cond)) { \
+    if (__builtin_expect(!(cond), 0)) { \
+        if (!show_log) rdpq_debug_disasm(vctx.buf, stderr); \
         debugf("[RDPQ_VALIDATION] ERROR: "); \
         debugf(msg "\n", ##__VA_ARGS__); \
-        errs += 1; \
+        vctx.errs += 1; \
     }; \
 })
 
@@ -612,7 +620,7 @@ void rdpq_debug_disasm(uint64_t *buf, FILE *out)
     if (!(cond)) { \
         debugf("[RDPQ_VALIDATION] WARN: "); \
         debugf(msg "\n", ##__VA_ARGS__); \
-        warns += 1; \
+        vctx.warns += 1; \
     }; \
 })
 
@@ -848,8 +856,9 @@ static void use_tile(int tidx, int cycle) {
 
 void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
 {
-    if (r_errs)  *r_errs  = errs;
-    if (r_warns) *r_warns = warns;
+    vctx.buf = buf;
+    if (r_errs)  *r_errs  = vctx.errs;
+    if (r_warns) *r_warns = vctx.warns;
 
     uint8_t cmd = BITS(buf[0], 56, 61);
     switch (cmd) {
@@ -973,8 +982,9 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         break;
     }
 
-    if (r_errs)  *r_errs  = errs - *r_errs;
-    if (r_warns) *r_warns = warns - *r_warns;
+    if (r_errs)  *r_errs  = vctx.errs - *r_errs;
+    if (r_warns) *r_warns = vctx.warns - *r_warns;
+    vctx.buf = NULL;
 }
 
 #ifdef N64
