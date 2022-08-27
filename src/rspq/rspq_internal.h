@@ -169,10 +169,8 @@ typedef struct rspq_block_s {
  * 
  */
 typedef struct __attribute__((packed)) {
-    uint64_t comb_base;
-    uint64_t comb_base_mipmapmask;
-    uint64_t comb_1cyc;
-    uint64_t comb_2cyc; 
+    uint64_t combiner;
+    uint64_t combiner_mipmapmask;
     uint32_t blend_step0;
     uint32_t blend_step1;
     uint64_t other_modes;

@@ -218,12 +218,8 @@ RDPQ_SENTINEL:              .long 0
 # in sync with the C side (rdpq_state_t in rdpq.c).
 RDPQ_MODE:
     # Combiner formula set by the application (1pass or 2pass)
-    RDPQ_COMB_BASE:              .quad  0
-    RDPQ_COMB_BASE_MIPMAPMASK:   .quad  0
-    # Combiner setting to use in 1 cycle mode
-    RDPQ_MODE_COMBINER_1CYC:     .quad  0
-    # Combiner setting to use in 2 cycle mode
-    RDPQ_MODE_COMBINER_2CYC:     .quad  0
+    RDPQ_COMBINER:               .quad  0
+    RDPQ_COMBINER_MIPMAPMASK:    .quad  0
     # Blender settings: up to two steps. Either of them
     # is already in a format valid for both 1cyc and 2cyc mode.
     RDPQ_MODE_BLENDER_STEPS:     .word  0,0

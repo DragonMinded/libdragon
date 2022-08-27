@@ -459,10 +459,34 @@ typedef uint32_t rdpq_blender_t;
  * 
  * @{
  */
+/** @brief Draw a flat color.
+ *  Configure the color via #rdpq_set_prim_color.
+ */
 #define RDPQ_COMBINER_FLAT       RDPQ_COMBINER1((0,0,0,PRIM),       (0,0,0,PRIM))
+/** @brief Draw an interpolated color.
+ * This can be used for solid, non-textured triangles with
+ * per-vertex lighting (gouraud shading). The colors must be
+ * specified on each vertex. Only triangles allow to specify
+ * a per-vertex color, so you cannot draw rectangles with this.
+ */
 #define RDPQ_COMBINER_SHADE      RDPQ_COMBINER1((0,0,0,SHADE),      (0,0,0,SHADE))
+/**
+ * @brief Draw with a texture.
+ * This is standard texture mapping, without any lights.
+ * It can be used for rectangles (#rdpq_textured_rectangle)
+ * or triangles (#rdpq_triangle).
+ */
 #define RDPQ_COMBINER_TEX        RDPQ_COMBINER1((0,0,0,TEX0),       (0,0,0,TEX0))
+/**
+ * @brief Draw with a texture modulated with a flat color.
+ * Configure the color via #rdpq_set_prim_color.
+*/
 #define RDPQ_COMBINER_TEX_FLAT   RDPQ_COMBINER1((TEX0,0,PRIM,0),    (TEX0,0,PRIM,0))
+/**
+ * @brief Draw with a texture modulated with an interpolated color.
+ * This does texturing with gouraud shading, and can be used for textured triangles
+ * with per-vertex lighting.
+*/
 #define RDPQ_COMBINER_TEX_SHADE  RDPQ_COMBINER1((TEX0,0,SHADE,0),   (TEX0,0,SHADE,0))
 /** @} */
 

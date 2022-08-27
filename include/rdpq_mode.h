@@ -354,39 +354,51 @@ inline void rdpq_mode_antialias(bool enable)
  * the polygon is solid), the value produced by the combiner is the one
  * that will be written into the framebuffer.
  * 
- * You can use one of the predefined combiners to do simple, standard configurations:
+ * For common use cases, rdpq offers ready-to-use macros that you can pass
+ * to #rdpq_mode_combiner: #RDPQ_COMBINER_FLAT, #RDPQ_COMBINER_SHADE,
+ * #RDPQ_COMBINER_TEX, #RDPQ_COMBINER_TEX_FLAT, #RDPQ_COMBINER_TEX_SHADE.
  * 
- *    * #RDPQ_COMBINER_FLAT: Fill a flat color, configured via #rdpq_set_prim_color.
- *    * #RDPQ_COMBINER_SHADE: Fill with an interpolated color, specified on each vertex
- *      (gouraud shading). Only triangles allow to specify a per-vertex color.
- *      This can be used for solid, non-textured triangles with per-vertex lighting.
- *    * #RDPQ_COMBINER_TEX: Fill with a texture. This is standard texture mapping, without
- *      any lights. Can be used for rectangles (#rdpq_textured_rectangle) or triangles
- *      (#rdpq_triangle).
- *    * #RDPQ_COMBINER_TEX_FLAT: Fill with a texture, modulated with a fixed flat color.
- *      The flat color must e configured via #rdpq_set_prim_color.
- *    * #RDPQ_COMBINER_TEX_SHADE: Fill with a texture, modulated with an interpolated color.
- *      This does texturing with gouraud shading, and can be used for textured triangles
- *      with per-vertex lighting.
+ * For example, to draw a texture rectangle modulated with a flat color:
+ * 
+ * @code{.c}
+ *      // Reset to standard rendering mode.
+ *      rdpq_set_mode_standard();
+ * 
+ *      // Configure the combiner
+ *      rdpq_mode_combiner(RDPQ_COMBINER_TEX_FLAT);
+ * 
+ *      // Configure the flat color that will modulate the texture
+ *      rdpq_set_prim_color(RGBA32(192, 168, 74, 255));
+ *
+ *      // Load a texture into TMEM (tile descriptor #4)
+ *      rdpq_tex_load(TILE4, &texture, 0);
+ * 
+ *      // Draw the rectangle
+ *      rdpq_texture_rectangle(TILE4,
+ *          0, 0, 32, 16,     // x0, y0, x1, y1
+ *          0, 0, 1.0, 1.0f   // s, t, ds, dt
+ *      );
+ * @endcode
  * 
  * Alternatively, you can use your own combiner formulas, created with either
  * #RDPQ_COMBINER1 (one pass) or #RDPQ_COMBINER2 (two passes). See the respective
- * documentation for all the details on how to crate a custom formula.
+ * documentation for all the details on how to create a custom formula.
  * 
  * When using a custom formula, you must take into account that some render states
- * also rely on the combiner to work. Specifically, #rdpq_mode_fog and #rdpq_mode_mipmap
- * both also configure a custom combiner to be able to work. Thus, if you set a custom
- * formula, #rdpq_mode_combiner will behave as follows:
+ * also rely on the combiner to work. Specifically:
  * 
- *  * One-pass combiner (created by #RDPQ_COMBINER1): Fogging and mipmap will 
- *    work correctly, as a second pass will be created to integrate those render states.
- *    Notice that in this case, you can't have both fogging and mipmap at the same
- *    time, though.
- *  * Two-pass combiner (created by #RDPQ_COMBINER2): Fogging and mipmap will not
- *    work automatically. Everything is up to your custom formula.
- * 
- * Invalid combinations will generate a runtime RSP assertion and crash the
- * application.
+ *  * Mipmap (#rdpq_mode_mipmap): this requires a dedicated color combiner pass,
+ *    so if you set a custom formula, it has to be a one-pass formula. Otherwise,
+ *    a RSP assertion will trigger.
+ *  * Fog (#rdpq_mode_fog): fogging is generally made by substituting the alpha
+ *    component of the shade color with a depth value, which is then used in
+ *    the blender formula (eg: #RDPQ_FOG_STANDARD). The only interaction with the
+ *    color combiner is that the SHADE alpha component should not be used as
+ *    a modulation factor in the combiner, otherwise you get wrong results
+ *    (if you then use the alpha for blending). rdpq automatically adjusts
+ *    standard combiners using shade (#RDPQ_COMBINER_SHADE and #RDPQ_COMBINER_TEX_SHADE)
+ *    when fog is enabled, but for custom combiners it is up to the user to
+ *    take care of that.
  * 
  * @param comb      The combiner formula to configure
  * 
@@ -598,6 +610,10 @@ inline void rdpq_mode_tlut(rdpq_tlut_t tlut) {
  */
 inline void rdpq_mode_filter(rdpq_filter_t filt) {
     rdpq_change_other_modes_raw(SOM_SAMPLE_MASK, (uint64_t)filt << SOM_SAMPLE_SHIFT);
+}
+
+inline void rdpq_mode_mipmap(bool enable) {
+    __rdpq_mode_change_som(SOM_TEXTURE_LOD, enable ? SOM_TEXTURE_LOD : 0);
 }
 
 /** @} */

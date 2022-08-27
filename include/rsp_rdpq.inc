@@ -38,6 +38,10 @@ AA_BLEND_TABLE:
     .word SOM_COLOR_ON_CVG_OVERFLOW | SOM_COVERAGE_DEST_WRAP
 
 
+# Temporary combiner memory location for RDPQ_UpdateRenderMode
+RDPQ_MODE_COMBINER_1CYC:     .quad  0
+RDPQ_MODE_COMBINER_2CYC:     .quad  0
+
 #define RDPQ_COMB_MIPMAP2       RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (0,0,0,0), (0,0,0,0))
 #define RDPQ_COMB_SHADE_FOG     RDPQ_COMBINER1((0,0,0,SHADE),      (0,0,0,1))
 #define RDPQ_COMB_TEX_SHADE_FOG RDPQ_COMBINER1((TEX0,0,SHADE,0),   (0,0,0,TEX0))
@@ -259,12 +263,16 @@ scissor_substitute:
     .endfunc
 
     ###############################################################
-    # 
+    # MODE API FUNCTIONS 
     #
+    # These functions implement the mode API. They can be useful
+    # for overlays that want to change RDP render mode, using the
+    # mode API for simplicity and interoperability.
     ###############################################################
+
     .func RDPQCmd_SetBlendingMode
 RDPQCmd_SetBlendingMode:
-    j RDPQ_UpdateCombiner
+    j RDPQ_UpdateRenderMode
     sw a1, %lo(RDPQ_MODE_BLENDER_STEPS)(a0)
     # fallthrough
     .endfunc
@@ -275,6 +283,8 @@ RDPQCmd_SetCombineMode_1Pass:
     # because the overlay is regisred in slots 0xC0-0xF0.
     # We need to remember that this combiner does not require 2 passes
     xor a0, RDPQ_COMBINER_2PASS >> 32
+    sw a2, %lo(RDPQ_COMBINER_MIPMAPMASK) + 0
+    sw a3, %lo(RDPQ_COMBINER_MIPMAPMASK) + 4
     # fallthrough!
     .endfunc
 
@@ -285,45 +295,62 @@ RDPQCmd_SetCombineMode_2Pass:
     or a0, 0x7F000000
     xor a0, 0x7F000000 ^ 0x7C000000
     # Save the input combiner
-    sw a0, %lo(RDPQ_COMB_BASE) + 0
-    sw a1, %lo(RDPQ_COMB_BASE) + 4
-    sw a2, %lo(RDPQ_COMB_BASE_MIPMAPMASK) + 0
-    sw a3, %lo(RDPQ_COMB_BASE_MIPMAPMASK) + 4
+    sw a0, %lo(RDPQ_COMBINER) + 0
+    sw a1, %lo(RDPQ_COMBINER) + 4
     # fallthrough!
     .endfunc
 
     ###########################################################
-    # RDPQ_UpdateCombiner
+    # RDPQ_UpdateRenderMode
     #
-    # Process the combiner set by the user in RDPQ_COMB_BASE
-    # together with other render states, and write the final
-    # combiner into RDPQ_MODE_COMBINER_1CYC and
-    # RDPQ_MODE_COMBINER_2CYC.
+    # This function is the core of the rdpq mode API.
     #
-    # This must be called any time a new combiner is set in
-    # RDPQ_COMB_BASE.
-    # 
-    # * a0/a1 RDPQ_COMB_BASE
-    # * a2/a3 RDPQ_COMB_BASE_MIPMAPMASK
+    # It performs several calculations and finally emit a
+    # new render mode (with SET_COMBINE_MODE + SET_OTHER_MODES).
+    #
+    # It handles:
+    #
+    #   * If fog is enabled, tweak standard combiners to avoid
+    #     passing SHADE_ALPHA to the blender as IN_ALPHA.
+    #   * If mipmap is enabled, modify the color combiner adding
+    #     the mipmap formula.
+    #   * Merge the two blender steps (fogging / blending), taking
+    #     care of adjustments if either is active or not.
+    #   * Decide whether to use 1cycle or 2cycle mode, depending
+    #     on color combiner and blender.
+    #   * Adjust coverage modes depending on antialias and
+    #     blending settings.
     #
     ###########################################################
 
-    .func RDPQ_UpdateCombiner
-RDPQ_UpdateCombiner:
-    #define som_hi       t4
+    .func RDPQ_UpdateRenderMode
+RDPQ_UpdateRenderMode:
     #define comb_hi      a0
     #define comb_lo      a1
+    #define som_hi       a2
+    #define som_lo       a3
     #define comb_hi_noid t5
+    #define blend_1cyc   v0
+    #define blend_2cyc   v1
+    #define blend_final  v1
+    #define passthrough  t7
+    #define cycle_type   t6
 
-    lw comb_hi, %lo(RDPQ_COMB_BASE) + 0
-    lw comb_lo, %lo(RDPQ_COMB_BASE) + 4
-    lw a2, %lo(RDPQ_COMB_BASE_MIPMAPMASK) + 0
-    lw a3, %lo(RDPQ_COMB_BASE_MIPMAPMASK) + 4
+    lw comb_hi, %lo(RDPQ_COMBINER) + 0
+    lw comb_lo, %lo(RDPQ_COMBINER) + 4
 
     # If the input combiner is 2-passes, we can just store it.
-    bltz a0, store_comb_2cyc    
-    # One-pass combiners needs to be adapated for mipmap, by setting a second step.
     lw som_hi, %lo(RDPQ_OTHER_MODES) + 0
+    bgez a0, calc_comb_1cyc
+    lw som_lo, %lo(RDPQ_OTHER_MODES) + 4
+
+    # This is a 2-pass combiner. It is not compatible with mipmapping.
+    and t0, som_hi, SOM_TEXTURE_LOD >> 32
+    assert_eq t0, zero, RDPQ_ASSERT_MIPMAP_COMB2
+    j store_comb_2cyc
+
+calc_comb_1cyc:    
+    # One-pass combiners needs to be adapated for mipmap, by setting a second step.
 
     # Check if fogging is active
     andi t0, som_hi, SOMX_FOG >> 32
@@ -365,13 +392,15 @@ check_mipmap:
     # and use only step 1 of the incoming formula. Unfortunately, this
     # also means that all TEX0 slots must be converted into COMBINED slots.
     # We do this by using the mask already loaded in a2/a3
-    lw t0, %lo(COMBINER_MIPMAP2) + 0
-    lw t1, %lo(COMBINER_MIPMAP2) + 4
-    and comb_hi, a2
-    and comb_lo, a3
+    lw t0, %lo(RDPQ_COMBINER_MIPMAPMASK) + 0
+    lw t1, %lo(RDPQ_COMBINER_MIPMAPMASK) + 4
+    and comb_hi, t0
+    and comb_lo, t1
     # Since this combiner now requires two-cycle mode, we can simply store in the
     # 2-cycle mode slot. No need to touch the 1-cycle mode slot as it will not
     # be used anyway.
+    lw t0, %lo(COMBINER_MIPMAP2) + 0
+    lw t1, %lo(COMBINER_MIPMAP2) + 4
     or comb_hi, t0
     j store_comb_2cyc
     or comb_lo, t1
@@ -397,30 +426,6 @@ store_comb_1cyc:
 store_comb_2cyc:
     sw comb_hi, %lo(RDPQ_MODE_COMBINER_2CYC) + 0
     sw comb_lo, %lo(RDPQ_MODE_COMBINER_2CYC) + 4
-    # fallthrough1
-    .endfunc
-
-    #undef som_hi
-    #undef comb_hi
-    #undef comb_lo
-    #undef comb_hi_noid
-
-    ###############################################################
-    # RDPQ_UpdateRenderMode
-    #
-    # This function is part of the mode API. It recalculates the
-    # render mode given the current settings, and emits the RDP
-    # commands necessary to configure it (SET_OTHER_MODES + SET_COMBINE).
-    #
-    # It is called by the mode API any time a mode changes.
-    ################################################################
-    .func RDPQ_UpdateRenderMode
-RDPQ_UpdateRenderMode:
-    #define blend_1cyc  t3
-    #define blend_2cyc  t4
-    #define blend_final t4
-    #define passthrough t5
-    #define cycle_type  t6
 
     # Merge the two blender steps (fogging + blending). If either
     # is not set (0), we just configure the other one as follows:
@@ -470,14 +475,8 @@ set_1cyc:
     move blend_final, blend_1cyc
     li cycle_type, (SOM_CYCLE_MASK ^ SOM_CYCLE_1) >> 32
 set_2cyc:
-    #define comb_hi a0
-    #define comb_lo a1
-    #define som_hi  a2
-    #define som_lo  a3
     lw comb_hi, 0(s0)
     lw comb_lo, 4(s0)
-    lw som_hi, %lo(RDPQ_OTHER_MODES) + 0
-    lw som_lo, %lo(RDPQ_OTHER_MODES) + 4
 
     # Set correct SET_COMBINE opcode (0xFC). The opcode can be anything of
     # the other 4 (1pass/2pass dynamic/static).
@@ -518,7 +517,7 @@ set_2cyc:
     #undef comb_lo
     #undef som_hi
     #undef som_lo
-
+    #undef comb_hi_noid
     #undef blend_1cyc
     #undef blend_2cyc
     #undef blend_final

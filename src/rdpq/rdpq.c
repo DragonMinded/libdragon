@@ -511,6 +511,10 @@ static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
         printf("Cannot call rdpq_mode_blending in fill or copy mode\n");
         break;
 
+    case RDPQ_ASSERT_MIPMAP_COMB2:
+        printf("Mipmap cannot work with a custom 2-pass combiner\n");
+        break;
+
     default:
         printf("Unknown assert\n");
         break;
@@ -947,13 +951,6 @@ uint64_t rdpq_get_other_modes_raw(void)
 {
     rsp_queue_t *state = __rspq_get_state();
     return state->rdp_mode.other_modes;
-}
-
-uint64_t rdpq_get_combine_raw(void)
-{
-    rsp_queue_t *state = __rspq_get_state();
-    return (state->rdp_mode.other_modes & SOM_CYCLE_2) ? 
-        state->rdp_mode.comb_2cyc : state->rdp_mode.comb_1cyc;
 }
 
 void rdpq_sync_full(void (*callback)(void*), void* arg)
