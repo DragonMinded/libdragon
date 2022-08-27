@@ -30,6 +30,24 @@ extern void rdpq_fence(void);
 typedef struct rdpq_block_s rdpq_block_t;
 ///@endcond
 
+typedef struct {
+    /** 
+     * @brief State of the autosync engine.
+     * 
+     * The state of the autosync engine is a 32-bit word, where bits are
+     * mapped to specific internal resources of the RDP that might be in
+     * use. The mapping of the bits is indicated by the `AUTOSYNC_TILE`,
+     * `AUTOSYNC_TMEM`, and `AUTOSYNC_PIPE`
+     * 
+     * When a bit is set to 1, the corresponding resource is "in use"
+     * by the RDP. For instance, drawing a textured rectangle can use
+     * a tile and the pipe (which contains most of the mode registers).
+     */ 
+    uint32_t autosync : 17;
+} rdpq_tracking_t;
+
+extern rdpq_tracking_t rdpq_tracking;
+
 /**
  * @brief A buffer that piggybacks onto rspq_block_t to store RDP commands
  * 
@@ -42,7 +60,7 @@ typedef struct rdpq_block_s rdpq_block_t;
  */
 typedef struct rdpq_block_s {
     rdpq_block_t *next;                           ///< Link to next buffer (or NULL if this is the last one for this block)
-    uint32_t autosync_state;                      ///< Autosync state at the end of the block (this is populated only on the first link)
+    rdpq_tracking_t tracking;                     ///< Tracking state at the end of a block (this is populated only on the first link)
     uint32_t cmds[] __attribute__((aligned(8)));  ///< RDP commands
 } rdpq_block_t;
 
@@ -68,6 +86,10 @@ typedef struct rdpq_block_state_s {
      * in case a pure RDP command is enqueued next.
      */
     volatile uint32_t *last_rdp_append_buffer;
+    /**
+     * @brief Tracking state before starting building the block.
+     */
+    rdpq_tracking_t previous_tracking;
 } rdpq_block_state_t;
 
 void __rdpq_block_begin();
