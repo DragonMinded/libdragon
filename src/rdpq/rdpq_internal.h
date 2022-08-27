@@ -30,6 +30,21 @@ extern void rdpq_fence(void);
 typedef struct rdpq_block_s rdpq_block_t;
 ///@endcond
 
+/**
+ * @brief RDP tracking state
+ * 
+ * This structure contains information that refer to the state of the RDP,
+ * tracked by the CPU as it enqueues RDP instructions.ì
+ * 
+ * Tracking the RDP state on the CPU is in general possible (as all 
+ * RDP commands are supposed to go through rdpq, when it is used), but it
+ * doesn't fully work across blocks. In fact, blocks can be called in
+ * multiple call sites with different RDP states, so it would be wrong
+ * to do any assumption on the RDP state while generating the block.
+ * 
+ * Thus, this structure is reset at some default by #__rdpq_block_begin,
+ * and then its previous state is restored by #__rdpq_block_end.
+ */
 typedef struct {
     /** 
      * @brief State of the autosync engine.

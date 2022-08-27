@@ -639,6 +639,11 @@ static void validate_emit_error(int flags, const char *msg, ...)
     }
 }
 
+/** @brief Internal validation macros (for both errors and warnings) */
+#define __VALIDATE(flags, cond, msg, ...) ({ \
+    if (!(cond)) validate_emit_error(flags, msg "\n", ##__VA_ARGS__); \
+})
+
 /** 
  * @brief Check and trigger a RDP validation error. 
  * 
@@ -646,14 +651,13 @@ static void validate_emit_error(int flags, const char *msg, ...)
  * behaviour or in general strongly misbehave with respect to the reasonable
  * expectation of the programmer. Typical expected outcome on real hardware should be
  * garbled graphcis or hardware freezes. */
-#define __VALIDATE_ERR(flags, cond, msg, ...) ({ \
-    if (!(cond)) validate_emit_error(flags, msg "\n", ##__VA_ARGS__); \
-})
-
-#define VALIDATE_ERR(cond, msg, ...)      __VALIDATE_ERR(0, cond, msg, ##__VA_ARGS__)
-#define VALIDATE_ERR_SOM(cond, msg, ...)  __VALIDATE_ERR(2, cond, msg, ##__VA_ARGS__)
-#define VALIDATE_ERR_CC(cond, msg, ...)   __VALIDATE_ERR(4, cond, msg, ##__VA_ARGS__)
-#define VALIDATE_ERR_TEX(cond, msg, ...)  __VALIDATE_ERR(8, cond, msg, ##__VA_ARGS__)
+#define VALIDATE_ERR(cond, msg, ...)      __VALIDATE(0, cond, msg, ##__VA_ARGS__)
+/** @brief Validate and trgger an error, with SOM context */
+#define VALIDATE_ERR_SOM(cond, msg, ...)  __VALIDATE(2, cond, msg, ##__VA_ARGS__)
+/** @brief Validate and trgger an error, with CC context */
+#define VALIDATE_ERR_CC(cond, msg, ...)   __VALIDATE(4, cond, msg, ##__VA_ARGS__)
+/** @brief Validate and trgger an error, with SET_TEX_IMAGE context */
+#define VALIDATE_ERR_TEX(cond, msg, ...)  __VALIDATE(8, cond, msg, ##__VA_ARGS__)
 
 /** 
  * @brief Check and trigger a RDP validation warning.
@@ -665,10 +669,13 @@ static void validate_emit_error(int flags, const char *msg, ...)
  * becomes too unwiedly, we can later add a way to disable classes of warning in specific
  * programs.
  */
-#define VALIDATE_WARN(cond, msg, ...)      __VALIDATE_ERR(1, cond, msg, ##__VA_ARGS__)
-#define VALIDATE_WARN_SOM(cond, msg, ...)  __VALIDATE_ERR(3, cond, msg, ##__VA_ARGS__)
-#define VALIDATE_WARN_CC(cond, msg, ...)   __VALIDATE_ERR(5, cond, msg, ##__VA_ARGS__)
-#define VALIDATE_WARN_TEX(cond, msg, ...)  __VALIDATE_ERR(9, cond, msg, ##__VA_ARGS__)
+#define VALIDATE_WARN(cond, msg, ...)      __VALIDATE(1, cond, msg, ##__VA_ARGS__)
+/** @brief Validate and trigger a warning, with SOM context */
+#define VALIDATE_WARN_SOM(cond, msg, ...)  __VALIDATE(3, cond, msg, ##__VA_ARGS__)
+/** @brief Validate and trigger a warning, with CC context */
+#define VALIDATE_WARN_CC(cond, msg, ...)   __VALIDATE(5, cond, msg, ##__VA_ARGS__)
+/** @brief Validate and trigger a warning, with SET_TEX_IMAGE context */
+#define VALIDATE_WARN_TEX(cond, msg, ...)  __VALIDATE(9, cond, msg, ##__VA_ARGS__)
 
 /** @brief True if the current CC uses the TEX1 slot aka the second texture */
 static bool cc_use_tex1(void) {

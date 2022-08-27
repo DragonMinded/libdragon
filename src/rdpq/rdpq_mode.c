@@ -2,18 +2,19 @@
  * @file rdpq_mode.c
  * @brief RDP Command queue: mode setting
  * @ingroup rdp
- * 
- * 
- * 
- * 
- * 
- *
  */
 
 #include "rdpq_mode.h"
 #include "rspq.h"
 #include "rdpq_internal.h"
 
+/** 
+ * @brief Like #rdpq_fixup_write, but for mode commands.
+ * 
+ * During freeze (#rdpq_mode_begin), mode commands don't emit RDP commands
+ * as they are batched instead, so we can avoid reserving space in the
+ * RDP static buffer in blocks.
+ */
 #define rdpq_mode_fixup_write(rsp_cmd, ...) ({ \
     if (rdpq_tracking.mode_freeze) \
         rdpq_fixup_write(rsp_cmd); \
