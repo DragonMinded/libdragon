@@ -509,6 +509,7 @@ typedef uint32_t rdpq_blender_t;
 #define SOM_CYCLE_COPY         ((cast64(2))<<52)            ///< Set cycle-type: copy
 #define SOM_CYCLE_FILL         ((cast64(3))<<52)            ///< Set cycle-type: fill
 #define SOM_CYCLE_MASK         ((cast64(3))<<52)            ///< Cycle-type mask
+#define SOM_CYCLE_SHIFT        52                           ///< Cycle-type shift
 
 #define SOM_TEXTURE_PERSP      (cast64(1)<<51)              ///< Texture: enable perspective correction
 #define SOM_TEXTURE_DETAIL     (cast64(1)<<50)              ///< Texture: enable "detail"
