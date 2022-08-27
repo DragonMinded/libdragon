@@ -75,8 +75,8 @@ RDPQ_CMD_STAGING:       .ds.b 0xB0
 RDPQ_Finalize:
     li s4, %lo(RDPQ_CMD_STAGING)
     lw s3, %lo(RDPQ_CMD_PTR)
-    j RSPQ_RdpSend
     sw s4, %lo(RDPQ_CMD_PTR)
+    jal_and_j RSPQ_RdpSend, RSPQ_Loop
     .endfunc
 
     #############################################################

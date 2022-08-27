@@ -624,6 +624,8 @@ RSPQ_RdpSend:
     #define rdram_next  a0
     #define sentinel    a2
     #define buf_idx     t4
+    #define next_func   t5
+    move ra2, ra
 
     # Fetch current pointer in RDRAM where to write the RDP command
     mfc0 rdram_cur, COP0_DP_END
@@ -639,7 +641,7 @@ RSPQ_RdpSend:
     lw sentinel, %lo(RDPQ_SENTINEL)
     sub sentinel, rspq_cmd_size
     bge sentinel, rdram_cur, do_dma
-    li ra, RSPQCmd_RdpAppendBuffer
+    li next_func, RSPQCmd_RdpAppendBuffer
 
     # There is not enough space in the current buffer. Switch to the
     # next RDRAM buffer. Since there are two of them, also switch between
@@ -656,15 +658,20 @@ RSPQ_RdpSend:
     # tailcall. Prepare a1 for it, containing the pointer to the new buffer,
     # which will be written into DP_START.
     move a1, rdram_cur
-    li ra, RSPQCmd_RdpSetBuffer
+    li next_func, RSPQCmd_RdpSetBuffer
 
 do_dma:
     # Start the transfer. Will tail-call to either RSPQCmd_RdpSetBuffer or
     # RSPQCmd_RdpAppendBuffer (see above). For both, we need to prepare
     # rdram_next (aka a0) with the updated pointer to RDRAM that will be 
     # written to DP_END to run the newly written commands.
-    j DMAOut
+    jal DMAOut
     add rdram_next, rdram_cur, rspq_cmd_size
+
+    # Jump to continuation function (either RSPQCmd_RdpSetBuffer or
+    # RSPQCmd_RdpAppendBuffer), after recovering original return address.
+    jr next_func
+    move ra, ra2
     .endfunc
 
     #############################################################
@@ -690,6 +697,7 @@ do_dma:
     .func RSPQCmd_RdpSetBuffer
 RSPQCmd_RdpSetBuffer:
     sw sentinel, %lo(RDPQ_SENTINEL)
+    move ra2, ra
 
     # Wait for RDP DMA FIFO to be not full. If there's another
     # pending buffer, we cannot do anything but wait.
@@ -705,6 +713,8 @@ RSPQCmd_RdpSetBuffer:
     jal SpStatusWait
     li t2, SP_STATUS_SIG0
     #endif
+
+    move ra, ra2
 
     # Write new start buffer pointer, and fallthrough to 
     # RSPQCmd_RdpAppendBuffer to write the new end pointer
@@ -724,7 +734,7 @@ RSPQCmd_RdpSetBuffer:
     #############################################################
     .func RSPQCmd_RdpAppendBuffer
 RSPQCmd_RdpAppendBuffer:
-    j RSPQ_Loop
+    jr ra
     mtc0 rdram_next, COP0_DP_END
     .endfunc
 
