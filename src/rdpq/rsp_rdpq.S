@@ -402,24 +402,33 @@ RDPQCmd_PopMode:
     #  a2,a3: SOM to configure
     #############################################################
 RDPQCmd_ResetMode:
+    # Keep SOMX_UPDATE_FREEZE if set in the current state.
+    # This is the only special state that we keep valid over
+    # a reset mode, which in general always resets SOM.
+    lw t3, %lo(RDPQ_OTHER_MODES) + 0
+    andi t2, t3, SOMX_UPDATE_FREEZE >> 32
+    or a2, t2
+
     # Clear RDPQ_MODE
     li s0, %lo(RDPQ_MODE)
     vxor $v00, $v00, $v00
     sqv $v00,0, 0x00,s0
     sqv $v00,0, 0x10,s0
 
+    # We are going in either 1-cycle or 2-cycle mode. We emit
+    # a SET_SCISSOR if we are coming from FILL / COPY mode.
+    sll t3, 63 - (SOM_CYCLE_SHIFT+1)
+    bgez t3, reset_end
+ 
     move t0, a0
     move t1, a1
-
-    # We are going in either 1-cycle or 2-cycle mode. We emit
-    # a SET_SCISSOR in case we are coming from FILL / COPY mode.
     lw a0, %lo(RDPQ_SCISSOR_RECT) + 0x0
     jal RDPQ_Write8
     lw a1, %lo(RDPQ_SCISSOR_RECT) + 0x4
-
     move a0, t0
     move a1, t1
     
+reset_end:
     # Set standard SOM and then call RDPQCmd_SetCombineMode_1Pass, which
     # will set the standard CC and call RDPQ_UpdateRenderMode once
     sw a2, %lo(RDPQ_OTHER_MODES) + 0

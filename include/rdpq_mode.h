@@ -618,6 +618,45 @@ inline void rdpq_mode_mipmap(bool enable) {
 
 /** @} */
 
+/**
+ * @brief Start a batch of RDP mode changes
+ * 
+ * This function can be used as an optimization when changing render mode
+ * and/or multiple render states. It allows to batch the changes, so that
+ * RDP hardware registers are updated only once.
+ * 
+ * To use it, put a call to #rdpq_mode_begin and #rdpq_mode_end around
+ * the mode functions that you would like to batch. For instance:
+ * 
+ * @code{.c}
+ *      rdpq_mode_begin();
+ *          rdpq_set_mode_standard();
+ *          rdpq_mode_mipmap(true);
+ *          rdpq_mode_dithering(DITHER_SQUARE_SQUARE);
+ *          rdpq_mode_blending(RDPQ_BLENDING_MULTIPLY);
+ *      rdpq_mode_end();
+ * @endcode
+ * 
+ * The only effect of using #rdpq_mode_begin is more efficient RSP
+ * and RDP usage, there is no semantic change in the way RDP is
+ * programmed when #rdpq_mode_end is called.
+ * 
+ * @note The functions affected by #rdpq_mode_begin / #rdpq_mode_end
+ *       are just those that are part of the mode API (that is,
+ *       `rdpq_set_mode_*` and `rdpq_mode_*`). Any other function
+ *       is not batched and will be issued immediately.
+ */
+void rdpq_mode_begin(void);
+
+/**
+ * @brief Finish a batch of RDP mode changes
+ * 
+ * This function completes a batch of changes started with #rdpq_mode_begin.
+ * 
+ * @see #rdpq_mode_begin
+ */
+void rdpq_mode_end(void);
+
 /********************************************************************
  * Internal functions (not part of public API)
  ********************************************************************/

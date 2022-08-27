@@ -1141,3 +1141,117 @@ void test_rdpq_fog(TestContext *ctx) {
     rspq_wait();
     ASSERT_SURFACE(&fb, { return RGBA32(254,0,0,FULL_CVG); });
 }
+
+void test_rdpq_mode_freeze(TestContext *ctx) {
+    // Force clearing of RDP static buffers, so that we have an easier time inspecting them.
+    __rdpq_zero_blocks = true;
+    DEFER(__rdpq_zero_blocks = false);
+
+    RDPQ_INIT();
+    rdpq_debug_log(true);
+
+    const int FULL_CVG = 7 << 5;   // full coverage
+    const int FBWIDTH = 16;
+    surface_t fb = surface_alloc(FMT_RGBA32, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    rdpq_set_color_image(&fb);
+    surface_clear(&fb, 0);
+
+    rdpq_debug_log_msg("Mode freeze: standard");
+    rdpq_set_mode_fill(RGBA32(255,255,255,255));
+    rdpq_debug_log_msg("Freeze start");
+    rdpq_mode_begin();
+        rdpq_set_mode_standard();
+        rdpq_set_blend_color(RGBA32(255,255,255,255));
+        rdpq_set_mode_standard();
+        rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,0), (0,0,0,0)));
+        rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, 0, BLEND_RGB, 1)));
+        rdpq_debug_log_msg("Freeze end");
+    rdpq_mode_end();
+
+    rdp_draw_filled_triangle(0, 0, FBWIDTH, 0, FBWIDTH, FBWIDTH);
+    rdp_draw_filled_triangle(0, 0, 0, FBWIDTH, FBWIDTH, FBWIDTH);
+    rspq_wait();
+
+    ASSERT_SURFACE(&fb, { return RGBA32(255,255,255,FULL_CVG); });
+
+    // Inspect the dynamic buffer. We want to verify that only the right number of SOM/CC
+    extern void *rspq_rdp_dynamic_buffers[2];
+
+    int num_cc = 0, num_som = 0;
+    uint64_t *rdp_buf = (uint64_t*)rspq_rdp_dynamic_buffers[0];
+    for (uint64_t i = 0; i < 32; i++)
+    {
+        if ((rdp_buf[i] >> 56) == 0xFC) num_cc++;
+        if ((rdp_buf[i] >> 56) == 0xEF) num_som++;
+    }
+    ASSERT_EQUAL_SIGNED(num_cc, 1, "too many SET_COMBINE_MODE");
+    ASSERT_EQUAL_SIGNED(num_som, 2, "too many SET_OTHER_MODES"); // 1 SOM for fill, 1 SOM for standard
+
+    // Try again within a block.
+    surface_clear(&fb, 0);
+    rdpq_debug_log_msg("Mode freeze: in block");
+    rspq_block_begin();
+        rdpq_set_mode_fill(RGBA32(255,255,255,255));
+        rdpq_debug_log_msg("Freeze start");
+        rdpq_mode_begin();
+            rdpq_set_mode_standard();
+            rdpq_set_blend_color(RGBA32(255,255,255,255));
+            rdpq_set_mode_standard();
+            rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,0), (0,0,0,0)));
+            rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, 0, BLEND_RGB, 1)));
+        rdpq_mode_end();
+        rdp_draw_filled_triangle(0, 0, FBWIDTH, 0, FBWIDTH, FBWIDTH);
+        rdp_draw_filled_triangle(0, 0, 0, FBWIDTH, FBWIDTH, FBWIDTH);
+    rspq_block_t *block = rspq_block_end();
+    DEFER(rspq_block_free(block));
+
+    rspq_block_run(block);
+    rspq_wait();
+    ASSERT_SURFACE(&fb, { return RGBA32(255,255,255,FULL_CVG); });
+
+    num_cc = 0; num_som = 0; int num_nops = 0;
+    rdp_buf = (uint64_t*)block->rdp_block->cmds;
+    for (int i=0; i<RDPQ_BLOCK_MIN_SIZE; i++) {
+        if ((rdp_buf[i] >> 56) == 0xFC) num_cc++;
+        if ((rdp_buf[i] >> 56) == 0xEF) num_som++;
+        if ((rdp_buf[i] >> 56) == 0xC0) num_nops++;
+    }
+    ASSERT_EQUAL_SIGNED(num_cc, 1, "too many SET_COMBINE_MODE");
+    ASSERT_EQUAL_SIGNED(num_som, 2, "too many SET_OTHER_MODES"); // 1 SOM for fill, 1 SOM for standard
+    ASSERT_EQUAL_SIGNED(num_nops, 0, "too many NOPs"); 
+
+    // Try again within a block, but doing the freeze outside of it
+    surface_clear(&fb, 0);
+    rdpq_debug_log_msg("Mode freeze: calling a block in frozen mode");
+
+    rspq_block_begin();
+        rdpq_set_mode_standard();
+        rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,0), (0,0,0,0)));
+        rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, 0, BLEND_RGB, 1)));
+        rdpq_set_blend_color(RGBA32(255,255,255,255));
+    rspq_block_t *block2 = rspq_block_end();
+    DEFER(rspq_block_free(block2));
+
+    rdpq_set_mode_fill(RGBA32(255,255,255,255));
+    rdpq_debug_log_msg("Freeze start");
+    rdpq_mode_begin();
+        rspq_block_run(block2);
+    rdpq_debug_log_msg("Freeze end");
+    rdpq_mode_end();
+    rdp_draw_filled_triangle(0, 0, FBWIDTH, 0, FBWIDTH, FBWIDTH);
+    rdp_draw_filled_triangle(0, 0, 0, FBWIDTH, FBWIDTH, FBWIDTH);
+    rspq_wait();
+    ASSERT_SURFACE(&fb, { return RGBA32(255,255,255,FULL_CVG); });
+
+    num_cc = 0; num_som = 0; num_nops = 0;
+    rdp_buf = (uint64_t*)block2->rdp_block->cmds;
+    for (int i=0; i<RDPQ_BLOCK_MIN_SIZE; i++) {
+        if ((rdp_buf[i] >> 56) == 0xFC) num_cc++;
+        if ((rdp_buf[i] >> 56) == 0xEF) num_som++;
+        if ((rdp_buf[i] >> 56) == 0xC0) num_nops++;
+    }
+    ASSERT_EQUAL_SIGNED(num_cc, 1, "too many SET_COMBINE_MODE");
+    ASSERT_EQUAL_SIGNED(num_som, 1, "too many SET_OTHER_MODES"); // 1 SOM for fill, 1 SOM for standard
+    ASSERT_EQUAL_SIGNED(num_nops, 7, "wrong number of NOPs"); 
+}

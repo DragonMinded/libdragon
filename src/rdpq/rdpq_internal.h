@@ -44,6 +44,8 @@ typedef struct {
      * a tile and the pipe (which contains most of the mode registers).
      */ 
     uint32_t autosync : 17;
+    /** @brief True if the mode changes are currently frozen. */
+    bool mode_freeze : 1;
 } rdpq_tracking_t;
 
 extern rdpq_tracking_t rdpq_tracking;

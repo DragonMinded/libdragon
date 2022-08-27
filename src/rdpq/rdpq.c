@@ -439,6 +439,7 @@ void rdpq_init()
     memset(&rdpq_block_state, 0, sizeof(rdpq_block_state));
     rdpq_config = RDPQ_CFG_DEFAULT;
     rdpq_tracking.autosync = 0;
+    rdpq_tracking.mode_freeze = false;
 
     // Register an interrupt handler for DP interrupts, and activate them.
     register_DP_handler(__rdpq_interrupt);
@@ -569,6 +570,10 @@ void __rdpq_block_begin()
         // are being used. This will cause all SYNCs to be generated,
         // which is the safest option.
         .autosync = ~0,
+        // we don't know whether mode changes will be frozen or not
+        // when the block will play. Assume the worst (and thus
+        // do not optimize out mode changes).
+        .mode_freeze = false,
     };
 }
 

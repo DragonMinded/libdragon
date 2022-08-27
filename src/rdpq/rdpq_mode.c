@@ -14,6 +14,13 @@
 #include "rspq.h"
 #include "rdpq_internal.h"
 
+#define rdpq_mode_fixup_write(rsp_cmd, ...) ({ \
+    if (rdpq_tracking.mode_freeze) \
+        rdpq_fixup_write(rsp_cmd); \
+    else \
+        rdpq_fixup_write(rsp_cmd, ##__VA_ARGS__); \
+})
+
 /** 
  * @brief Write a fixup that changes the current render mode (8-byte command)
  * 
@@ -24,9 +31,9 @@ __attribute__((noinline))
 void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1)
 {
     __rdpq_autosync_change(AUTOSYNC_PIPE);
-    rdpq_fixup_write(
+    rdpq_mode_fixup_write(
         (cmd_id, w0, w1),
-        (RDPQ_CMD_SET_COMBINE_MODE_RAW, w0, w1), (RDPQ_CMD_SET_OTHER_MODES, w0, w1)
+        (0 /*RDPQ_CMD_SET_COMBINE_MODE_RAW*/, 0, 0), (0 /*RDPQ_CMD_SET_OTHER_MODES*/, 0, 0)
     );
 }
 
@@ -35,9 +42,9 @@ __attribute__((noinline))
 void __rdpq_fixup_mode3(uint32_t cmd_id, uint32_t w0, uint32_t w1, uint32_t w2)
 {
     __rdpq_autosync_change(AUTOSYNC_PIPE);
-    rdpq_fixup_write(
+    rdpq_mode_fixup_write(
         (cmd_id, w0, w1, w2),
-        (RDPQ_CMD_SET_COMBINE_MODE_RAW, w0, w1), (RDPQ_CMD_SET_OTHER_MODES, w0, w1)
+        (0 /*RDPQ_CMD_SET_COMBINE_MODE_RAW*/, 0, 0), (0 /*RDPQ_CMD_SET_OTHER_MODES*/, 0, 0)
     );
 }
 
@@ -46,9 +53,9 @@ __attribute__((noinline))
 void __rdpq_fixup_mode4(uint32_t cmd_id, uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3)
 {
     __rdpq_autosync_change(AUTOSYNC_PIPE);
-    rdpq_fixup_write(
+    rdpq_mode_fixup_write(
         (cmd_id, w0, w1, w2, w3),
-        (RDPQ_CMD_SET_COMBINE_MODE_RAW, w0, w1), (RDPQ_CMD_SET_OTHER_MODES, w0, w1)
+        (0 /*RDPQ_CMD_SET_COMBINE_MODE_RAW*/, 0, 0), (0 /*RDPQ_CMD_SET_OTHER_MODES*/, 0, 0)
     );
 }
 
@@ -57,9 +64,9 @@ __attribute__((noinline))
 void __rdpq_reset_render_mode(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3)
 {
     __rdpq_autosync_change(AUTOSYNC_PIPE);
-    rdpq_fixup_write(
+    rdpq_mode_fixup_write(
         (RDPQ_CMD_RESET_RENDER_MODE, w0, w1, w2, w3),
-        (0 /* Optional SET_SCISSOR */, 0, 0), (RDPQ_CMD_SET_COMBINE_MODE_RAW, w0, w1), (RDPQ_CMD_SET_OTHER_MODES, w2, w3)
+        (0 /* Optional SET_SCISSOR */, 0, 0), (0 /*RDPQ_CMD_SET_COMBINE_MODE_RAW*/, 0, 0), (0 /*RDPQ_CMD_SET_OTHER_MODES*/, 0, 0)
     );
 }
 
@@ -108,6 +115,22 @@ void rdpq_set_mode_yuv(bool bilinear) {
         som >> 32, som & 0xFFFFFFFF);
 
     rdpq_set_yuv_parms(179,-44,-91,227,19,255);  // BT.601 coefficients (Kr=0.299, Kb=0.114, TV range)
+}
+
+void rdpq_mode_begin(void)
+{
+    // Freeze render mode updates. We call rdpq_change_other_modes_raw here
+    // (instead of __rdpq_mode_change_som) because there will be no RDP
+    // commands emitted from this call.
+    rdpq_tracking.mode_freeze = true;
+    __rdpq_mode_change_som(SOMX_UPDATE_FREEZE, SOMX_UPDATE_FREEZE);
+}
+
+void rdpq_mode_end(void)
+{
+    // Unfreeze render mode updates and recalculate new render mode.
+    rdpq_tracking.mode_freeze = false;
+    __rdpq_mode_change_som(SOMX_UPDATE_FREEZE, 0);
 }
 
 

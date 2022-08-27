@@ -336,13 +336,16 @@ RDPQ_UpdateRenderMode:
     #define passthrough  t7
     #define cycle_type   t6
 
-    lw comb_hi, %lo(RDPQ_COMBINER) + 0
-    lw comb_lo, %lo(RDPQ_COMBINER) + 4
-
-    # If the input combiner is 2-passes, we can just store it.
+    # If updates are frozen, do nothing
     lw som_hi, %lo(RDPQ_OTHER_MODES) + 0
-    bgez a0, calc_comb_1cyc
+    andi t0, som_hi, SOMX_UPDATE_FREEZE >> 32
+    bnez t0, RSPQ_Loop
     lw som_lo, %lo(RDPQ_OTHER_MODES) + 4
+
+    # If the input combiner is 1-pass, proceed working on it
+    lw comb_hi, %lo(RDPQ_COMBINER) + 0
+    bgez comb_hi, calc_comb_1cyc
+    lw comb_lo, %lo(RDPQ_COMBINER) + 4
 
     # This is a 2-pass combiner. It is not compatible with mipmapping.
     and t0, som_hi, SOM_TEXTURE_LOD >> 32
@@ -350,8 +353,6 @@ RDPQ_UpdateRenderMode:
     j store_comb_2cyc
 
 calc_comb_1cyc:    
-    # One-pass combiners needs to be adapated for mipmap, by setting a second step.
-
     # Check if fogging is active
     andi t0, som_hi, SOMX_FOG >> 32
     beqz t0, check_mipmap

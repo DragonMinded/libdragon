@@ -551,6 +551,7 @@ typedef uint32_t rdpq_blender_t;
 #define SOM_ALPHADITHER_SHIFT  36                           ///< Alpha Dithering mask shift
 
 #define SOMX_FOG               ((cast64(1))<<32)            ///< RDPQ special state: fogging is enabled
+#define SOMX_UPDATE_FREEZE     ((cast64(1))<<33)            ///< RDPQ special state: render mode update is frozen (see #rdpq_mode_begin)
 
 #define SOM_BLEND0_MASK        (cast64(0xCCCC0000) | SOM_BLENDING | SOM_READ_ENABLE | SOMX_BLEND_2PASS)     ///< Blender: mask of settings related to pass 0
 #define SOM_BLEND1_MASK        (cast64(0x33330000) | SOM_BLENDING | SOM_READ_ENABLE | SOMX_BLEND_2PASS)     ///< Blender: mask of settings related to pass 1
