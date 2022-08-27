@@ -846,7 +846,7 @@ static void use_tile(int tidx, int cycle) {
         // YUV render mode mistakes in 1-cyc/2-cyc, that is when YUV conversion can be done.
         // In copy mode, YUV textures are copied as-is
         if (t->fmt == 1) {
-            VALIDATE_WARN_SOM(!(rdp.som.tf_mode & (4>>cycle)),
+            VALIDATE_ERR_SOM(!(rdp.som.tf_mode & (4>>cycle)),
                 "tile %d is YUV but texture filter in cycle %d does not activate YUV color conversion", tidx, cycle);
             if (rdp.som.sample_type > 1) {
                 static const char* texinterp[] = { "point", "point", "bilinear", "median" };
@@ -856,7 +856,7 @@ static void use_tile(int tidx, int cycle) {
                     "tile %d is YUV and %s filtering is active: 2-cycle mode must be configured", tidx, texinterp[rdp.som.sample_type]);
             }
         } else
-            VALIDATE_WARN_SOM((rdp.som.tf_mode & (4>>cycle)),
+            VALIDATE_ERR_SOM((rdp.som.tf_mode & (4>>cycle)),
                 "tile %d is RGB-based, but cycle %d is configured for YUV color conversion; try setting SOM_TF%d_RGB", tidx, cycle, cycle);
     }
 
