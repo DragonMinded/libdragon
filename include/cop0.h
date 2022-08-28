@@ -12,6 +12,8 @@
 #ifndef __LIBDRAGON_COP0_H
 #define __LIBDRAGON_COP0_H
 
+#include <stdint.h>
+
 /** @brief Read the COP0 Count register (see also TICKS_READ). */
 #define C0_COUNT() ({ \
     uint32_t x; \

@@ -1,0 +1,6 @@
+#ifndef __RSPQ_SYMBOLS
+#define __RSPQ_SYMBOLS
+
+#define RSPQ_OVL_DATA_ADDR (0x:OVL_DATA_ADDR: & 0xFFF)
+
+#endif

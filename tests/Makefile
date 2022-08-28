@@ -18,6 +18,8 @@ $(BUILD_DIR)/testrom_emu.o: $(SOURCE_DIR)/testrom.c
 	@echo "    [CC] $<"
 	$(CC) -c $(CFLAGS) -DIN_EMULATOR=1 -o $@ $<
 
+${BUILD_DIR}/rsp_test.o: IS_OVERLAY=1
+
 clean:
 	rm -rf $(BUILD_DIR) testrom.z64 testrom_emu.z64
 
