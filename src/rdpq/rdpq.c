@@ -338,6 +338,14 @@
 #include <math.h>
 #include <float.h>
 
+// The fixup for fill rectangle and texture rectangle uses the exact same code in IMEM.
+// It needs to also adjust the command ID with the same constant (via XOR), so make
+// sure that we defined the fixups in the right position to make that happen.
+_Static_assert(
+    (RDPQ_CMD_FILL_RECTANGLE ^ RDPQ_CMD_FILL_RECTANGLE_EX) == 
+    (RDPQ_CMD_TEXTURE_RECTANGLE ^ RDPQ_CMD_TEXTURE_RECTANGLE_EX),
+    "invalid command numbering");
+
 static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code);
 
 /** @brief The rdpq ucode overlay */
@@ -854,6 +862,18 @@ void __rdpq_texture_rectangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3
         (RDPQ_CMD_TEXTURE_RECTANGLE_EX, w0, w1, w2, w3)   // RDP
     );
 }
+
+/** @brief Out-of-line implementation of #rdpq_texture_rectangle */
+__attribute__((noinline))
+void __rdpq_fill_rectangle(uint32_t w0, uint32_t w1)
+{
+    __rdpq_autosync_use(AUTOSYNC_PIPE);
+    rdpq_fixup_write(
+        (RDPQ_CMD_FILL_RECTANGLE_EX, w0, w1),  // RSP
+        (RDPQ_CMD_FILL_RECTANGLE_EX, w0, w1)   // RDP
+    );
+}
+
 
 /** @brief Out-of-line implementation of #rdpq_set_scissor */
 __attribute__((noinline))

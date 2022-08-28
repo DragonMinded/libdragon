@@ -226,7 +226,7 @@ void test_rdpq_block_coalescing(TestContext *ctx)
     // the 3 RSPQ_CMD_RDP commands will be coalesced into one 
     rdpq_set_env_color(RGBA32(0,0,0,0));
     rdpq_set_blend_color(RGBA32(0, 0, 0, 0));
-    rdpq_fill_rectangle(0, 0, 0, 0);
+    rdpq_set_tile(TILE0, FMT_RGBA16, 0, 16, 0);
 
     // This command is a fixup
     rdpq_set_fill_color(RGBA16(0, 0, 0, 0));
@@ -234,7 +234,7 @@ void test_rdpq_block_coalescing(TestContext *ctx)
     // These 3 should also have their RSPQ_CMD_RDP coalesced
     rdpq_set_env_color(RGBA32(0,0,0,0));
     rdpq_set_blend_color(RGBA32(0, 0, 0, 0));
-    rdpq_fill_rectangle(0, 0, 0, 0);
+    rdpq_set_tile(TILE0, FMT_RGBA16, 0, 16, 0);
 
     rspq_block_t *block = rspq_block_end();
     DEFER(rspq_block_free(block));
@@ -491,6 +491,69 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
     #undef TEST_RDPQ_TEXWIDTH
     #undef TEST_RDPQ_TEXAREA
     #undef TEST_RDPQ_TEXSIZE
+}
+
+void test_rdpq_fixup_fillrect(TestContext *ctx)
+{
+    RDPQ_INIT();
+
+    const int FULL_CVG = 7 << 5;
+    const int FBWIDTH = 16;
+    surface_t fb = surface_alloc(FMT_RGBA32, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    surface_clear(&fb, 0);
+    rdpq_set_color_image(&fb);
+
+    rdpq_set_mode_fill(RGBA32(255,0,255,0));
+    rdpq_fill_rectangle(4, 4, FBWIDTH-4, FBWIDTH-4);
+    rspq_wait();
+    ASSERT_SURFACE(&fb, {
+        return (x >= 4 && y >= 4 && x < FBWIDTH-4 && y < FBWIDTH-4) ?
+            RGBA32(255,0,255,0) : RGBA32(0,0,0,0);
+    });
+
+    surface_clear(&fb, 0);
+    rdpq_set_mode_standard();
+    rdpq_mode_combiner(RDPQ_COMBINER_FLAT);
+    rdpq_set_prim_color(RGBA32(255,128,255,0));
+    rdpq_fill_rectangle(4, 4, FBWIDTH-4, FBWIDTH-4);
+    rspq_wait();
+    ASSERT_SURFACE(&fb, {
+        return (x >= 4 && y >= 4 && x < FBWIDTH-4 && y < FBWIDTH-4) ?
+            RGBA32(255,128,255,FULL_CVG) : RGBA32(0,0,0,0);
+    });
+
+    {
+        surface_clear(&fb, 0);
+        rspq_block_begin();
+            rdpq_set_mode_fill(RGBA32(255,0,255,0));
+            rdpq_fill_rectangle(4, 4, FBWIDTH-4, FBWIDTH-4);
+        rspq_block_t *block = rspq_block_end();
+        DEFER(rspq_block_free(block));
+        rspq_block_run(block);
+        rspq_wait();
+        ASSERT_SURFACE(&fb, {
+            return (x >= 4 && y >= 4 && x < FBWIDTH-4 && y < FBWIDTH-4) ?
+                RGBA32(255,0,255,0) : RGBA32(0,0,0,0);
+        });
+    }
+
+    {
+        surface_clear(&fb, 0);
+        rspq_block_begin();
+            rdpq_set_mode_standard();
+            rdpq_mode_combiner(RDPQ_COMBINER_FLAT);
+            rdpq_set_prim_color(RGBA32(255,128,255,0));
+            rdpq_fill_rectangle(4, 4, FBWIDTH-4, FBWIDTH-4);
+        rspq_block_t *block = rspq_block_end();
+        DEFER(rspq_block_free(block));
+        rspq_block_run(block);
+        rspq_wait();
+        ASSERT_SURFACE(&fb, {
+            return (x >= 4 && y >= 4 && x < FBWIDTH-4 && y < FBWIDTH-4) ?
+                RGBA32(255,128,255,FULL_CVG) : RGBA32(0,0,0,0);
+        });
+    }
 }
 
 void test_rdpq_lookup_address(TestContext *ctx)
@@ -1277,7 +1340,7 @@ void test_rdpq_mode_freeze_stack(TestContext *ctx) {
     rspq_wait();
     
     ASSERT_SURFACE(&fb, { 
-        return (x>=2 && x<=FBWIDTH-2) ? 
+        return (x>=2 && x<FBWIDTH-2) ? 
             RGBA32(255,255,255,0) : 
             RGBA32(0,0,0,0); 
     });

@@ -128,10 +128,11 @@
 enum {
     RDPQ_CMD_NOOP                       = 0x00,
     RDPQ_CMD_SET_LOOKUP_ADDRESS         = 0x01,
-    RDPQ_CMD_PUSH_RENDER_MODE           = 0x02,
-    RDPQ_CMD_POP_RENDER_MODE            = 0x03,
+    RDPQ_CMD_FILL_RECTANGLE_EX          = 0x02,
     RDPQ_CMD_RESET_RENDER_MODE          = 0x04,
     RDPQ_CMD_SET_COMBINE_MODE_2PASS     = 0x05,
+    RDPQ_CMD_PUSH_RENDER_MODE           = 0x06,
+    RDPQ_CMD_POP_RENDER_MODE            = 0x07,
     RDPQ_CMD_TRI                        = 0x08,
     RDPQ_CMD_TRI_ZBUF                   = 0x09,
     RDPQ_CMD_TRI_TEX                    = 0x0A,
@@ -593,11 +594,10 @@ inline void rdpq_texture_rectangle_flip_fx(rdpq_tile_t tile, uint16_t x0, uint16
  */
 inline void rdpq_fill_rectangle_fx(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 {
-    extern void __rdpq_write8_syncuse(uint32_t, uint32_t, uint32_t, uint32_t);
-    __rdpq_write8_syncuse(RDPQ_CMD_FILL_RECTANGLE,
+    extern void __rdpq_fill_rectangle(uint32_t w0, uint32_t w1);
+    __rdpq_fill_rectangle(
         _carg(x1, 0xFFF, 12) | _carg(y1, 0xFFF, 0),
-        _carg(x0, 0xFFF, 12) | _carg(y0, 0xFFF, 0),
-        AUTOSYNC_PIPE);
+        _carg(x0, 0xFFF, 12) | _carg(y0, 0xFFF, 0));
 }
 
 

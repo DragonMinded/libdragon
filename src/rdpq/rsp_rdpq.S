@@ -9,12 +9,12 @@
     RSPQ_BeginOverlayHeader
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xC0 NOOP
         RSPQ_DefineCommand RDPQCmd_SetLookupAddress,        8   # 0xC1 Set lookup address
-        RSPQ_DefineCommand RDPQCmd_PushMode,                8   # 0xC2 Push Mode
-        RSPQ_DefineCommand RDPQCmd_PopMode,                 8   # 0xC3 Pop Mode
+        RSPQ_DefineCommand RDPQCmd_RectEx,                  8   # 0xC2 Fill Rectangle (esclusive bounds)
+        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xC3
         RSPQ_DefineCommand RDPQCmd_ResetMode,               16  # 0xC4 Reset Mode (set mode standard)
         RSPQ_DefineCommand RDPQCmd_SetCombineMode_2Pass,    8   # 0xC5 SET_COMBINE_MODE (two pass)
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xC6
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xC7
+        RSPQ_DefineCommand RDPQCmd_PushMode,                8   # 0xC6 Push Mode
+        RSPQ_DefineCommand RDPQCmd_PopMode,                 8   # 0xC7 Pop Mode
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     32  # 0xC8 Filled
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     48  # 0xC9 Filled ZBuffered
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     96  # 0xCA Textured
@@ -24,7 +24,7 @@
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     160 # 0xCE Shaded Textured
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     176 # 0xCF Shaded Textured ZBuffered
 
-        RSPQ_DefineCommand RDPQCmd_TextureRectEx,           16  # 0xD0 Texture Rectangle (esclusive bounds)
+        RSPQ_DefineCommand RDPQCmd_RectEx,                  16  # 0xD0 Texture Rectangle (esclusive bounds)
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD1
         RSPQ_DefineCommand RDPQCmd_SetScissorEx,            8   # 0xD2 Set Scissor (exclusive bounds)
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD3
@@ -217,20 +217,19 @@ RDPQCmd_SetColorImage:
     .endfunc
 
     #############################################################
-    # RDPQCmd_TextureRectEx
+    # RDPQCmd_RectEx
     #
-    # Provides a consistent API for the TextureRectangle command
-    # that always uses exclusive ranges across all cycle modes.
+    # Provides a consistent API for the FlllRectangle/TextureRectangle
+    # command that always uses exclusive ranges across all cycle modes.
     #############################################################
-    .func RDPQCmd_TextureRectEx
-RDPQCmd_TextureRectEx:
-    # WARN: delay slot of above jump
+    .func RDPQCmd_RectEx
+RDPQCmd_RectEx:
     lb t0, %lo(RDPQ_OTHER_MODES) + 0x1
     # Bit 21 of the first word is set if FILL or COPY mode is active
     andi t0, 0x1 << 5
     # Leave unchanged when not in FILL or COPY mode
     beqz t0, rect_substitute
-    lui t1, 0xD000 ^ 0xE400  # TextureRectEx -> TEXTURE_RECTANGLE
+    lui t1, 0xD000 ^ 0xE400  # TextureRectEx -> TEXTURE_RECTANGLE (or FillRectEx -> FILL_RECTANGLE)
 
     # Subtract 1 pixel from XL and YL
     addiu a0, -((4 << 12) + 4)
@@ -244,7 +243,14 @@ RDPQCmd_TextureRectEx:
 rect_substitute:
     # Substitute command ID
     xor a0, t1
-    jal_and_j RDPQ_Write16, RDPQ_Finalize
+    # Call Write16 for TexRect and Wirte8 for FillRect, and then RDPQ_Finalize in tailcall
+    sll t0, a0, 3
+    bltz t0, rect_end
+    li s0, RDPQ_Write8
+    li s0, RDPQ_Write16
+rect_end:
+    jr s0
+    li ra, RDPQ_Finalize
     .endfunc
 
     #############################################################
