@@ -608,66 +608,6 @@ RSPQCmd_Dma:
     .endfunc
 
     #############################################################
-    # RSPQ_RdpSend
-    #
-    # Internal API for overlays that generate RDP commands. It
-    # runs a DMA transfer from DMEM to the RDP ouput buffer in RDRAM
-    # to copy some new RDP commands, and tell RDP to run them.
-    #
-    # ARGS:
-    #   s4:                 buffer in DMEM containing RDP commands to send to RDP
-    #   s3:                 pointer to the end of the buffer in DMEM  (s3-s4 = size)
-    #############################################################
-    .func RSPQ_RdpSend
-RSPQ_RdpSend:
-    #define rdram_cur   s0
-    #define rdram_next  a0
-    #define sentinel    a2
-    #define buf_idx     t4
-
-    # Fetch current pointer in RDRAM where to write the RDP command
-    mfc0 rdram_cur, COP0_DP_END
-
-    # Calculate buffer size and DMA transfer length
-    sub rspq_cmd_size, s3, s4
-    add t0, rspq_cmd_size, -1
-
-    # Fetch the sentinel (end of buffer). Check whether there is
-    # enough room to add the new command. If so, run the DMA transfer,
-    # and then call RSPQCmd_RdpAppendBuffer to update DP_END to include
-    # the new commands.
-    lw sentinel, %lo(RDPQ_SENTINEL)
-    sub sentinel, rspq_cmd_size
-    bge sentinel, rdram_cur, do_dma
-    li ra, RSPQCmd_RdpAppendBuffer
-
-    # There is not enough space in the current buffer. Switch to the
-    # next RDRAM buffer. Since there are two of them, also switch between
-    # them so next time we will pick the other one.
-    lw rdram_cur, %lo(RDPQ_DYNAMIC_BUFFERS) + 4
-    lw t1, %lo(RDPQ_DYNAMIC_BUFFERS) + 0
-    sw rdram_cur, %lo(RDPQ_DYNAMIC_BUFFERS) + 0
-    sw t1, %lo(RDPQ_DYNAMIC_BUFFERS) + 4
-
-    # Calculate new sentinel (end of buffer)
-    addi sentinel, rdram_cur, RDPQ_DYNAMIC_BUFFER_SIZE
-
-    # Run the DMA transfer now, and after that, run RSPQCmd_RdpSetBuffer via
-    # tailcall. Prepare a1 for it, containing the pointer to the new buffer,
-    # which will be written into DP_START.
-    move a1, rdram_cur
-    li ra, RSPQCmd_RdpSetBuffer
-
-do_dma:
-    # Start the transfer. Will tail-call to either RSPQCmd_RdpSetBuffer or
-    # RSPQCmd_RdpAppendBuffer (see above). For both, we need to prepare
-    # rdram_next (aka a0) with the updated pointer to RDRAM that will be 
-    # written to DP_END to run the newly written commands.
-    j DMAOut
-    add rdram_next, rdram_cur, rspq_cmd_size
-    .endfunc
-
-    #############################################################
     # RSPQCmd_RdpSetBuffer
     # 
     # Configure a new output buffer in RDRAM for RDP. This can be
@@ -689,6 +629,8 @@ do_dma:
     #############################################################
     .func RSPQCmd_RdpSetBuffer
 RSPQCmd_RdpSetBuffer:
+    #define rdram_next  a0
+    #define sentinel    a2
     sw sentinel, %lo(RDPQ_SENTINEL)
 
     # Wait for RDP DMA FIFO to be not full. If there's another
