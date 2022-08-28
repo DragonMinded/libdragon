@@ -64,7 +64,7 @@ int main(void) {
 		rdp_detach_display();
 		display_show(disp);
 		#else
-		rdp_auto_show_display(disp);
+		rdp_detach_show(disp);
 		#endif
 
 		audio_poll();

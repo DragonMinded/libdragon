@@ -15,9 +15,6 @@
 #define RSPQ_OVERLAY_ID_COUNT          16
 #define RSPQ_MAX_OVERLAY_COMMAND_COUNT ((RSPQ_MAX_OVERLAY_COUNT - 1) * 16)
 
-#define RSPQ_RDP_DYNAMIC_BUFFER_SIZE   0x800
-#define RSPQ_RDP_MAX_COMMAND_SIZE      0xB0
-
 /** Minimum / maximum size of a block's chunk (contiguous memory buffer) */
 #define RSPQ_BLOCK_MIN_SIZE            64
 #define RSPQ_BLOCK_MAX_SIZE            4192

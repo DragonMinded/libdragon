@@ -2,12 +2,14 @@
 #define __LIBDRAGON_GL_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 #define _GL_UNSUPPORTED(func) _Static_assert(0, #func " is not supported!")
 
-#define GL_VERSION_1_1          1
-#define GL_ARB_multisample      1
-#define GL_EXT_packed_pixels    1
+#define GL_VERSION_1_1              1
+#define GL_ARB_multisample          1
+#define GL_EXT_packed_pixels        1
+#define GL_ARB_vertex_buffer_object 1
 
 /* Data types */
 
@@ -26,6 +28,9 @@ typedef float	    GLclampf;
 typedef double	    GLdouble;
 typedef double	    GLclampd;
 typedef void	    GLvoid;
+
+typedef intptr_t    GLintptrARB;
+typedef size_t      GLsizeiptrARB;
 
 #define GL_BYTE                 0x1400
 #define GL_UNSIGNED_BYTE        0x1401
@@ -93,8 +98,8 @@ void glDisable(GLenum target);
 void glBegin(GLenum mode);
 void glEnd(void);
 
-void glEdgeFlag(GLboolean flag);
-void glEdgeFlagv(const GLboolean *flag);
+#define glEdgeFlag(flag) _GL_UNSUPPORTED(glEdgeFlag)
+#define glEdgeFlagv(flag) _GL_UNSUPPORTED(glEdgeFlagv)
 
 void glVertex2s(GLshort x, GLshort y);
 void glVertex2i(GLint x, GLint y);
@@ -276,12 +281,12 @@ void glColor4uiv(const GLuint *v);
 #define GL_TEXTURE_COORD_ARRAY_POINTER  0x8092
 #define GL_EDGE_FLAG_ARRAY_POINTER      0x8093
 
-void glEdgeFlagPointer(GLsizei stride, const GLvoid *pointer);
 void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
 void glTexCoordPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
 void glNormalPointer(GLenum type, GLsizei stride, const GLvoid *pointer);
 void glColorPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
 
+#define glEdgeFlagPointer(stride, pointer) _GL_UNSUPPORTED(glEdgeFlagPointer)
 #define glIndexPointer(type, stride, pointer) _GL_UNSUPPORTED(glIndexPointer)
 
 void glEnableClientState(GLenum array);
@@ -294,6 +299,59 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count);
 void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices);
 
 void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer);
+
+/* Buffer Objects */
+
+#define GL_ARRAY_BUFFER_ARB                             0x8892
+#define GL_ELEMENT_ARRAY_BUFFER_ARB                     0x8893
+
+#define GL_ARRAY_BUFFER_BINDING_ARB                     0x8894
+#define GL_ELEMENT_ARRAY_BUFFER_BINDING_ARB             0x8895
+#define GL_VERTEX_ARRAY_BUFFER_BINDING_ARB              0x8896
+#define GL_NORMAL_ARRAY_BUFFER_BINDING_ARB              0x8897
+#define GL_COLOR_ARRAY_BUFFER_BINDING_ARB               0x8898
+#define GL_INDEX_ARRAY_BUFFER_BINDING_ARB               0x8899
+#define GL_TEXTURE_COORD_ARRAY_BUFFER_BINDING_ARB       0x889A
+#define GL_EDGE_FLAG_ARRAY_BUFFER_BINDING_ARB           0x889B
+
+#define GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING_ARB       0x889F
+
+#define GL_STREAM_DRAW_ARB                              0x88E0
+#define GL_STREAM_READ_ARB                              0x88E1
+#define GL_STREAM_COPY_ARB                              0x88E2
+#define GL_STATIC_DRAW_ARB                              0x88E4
+#define GL_STATIC_READ_ARB                              0x88E5
+#define GL_STATIC_COPY_ARB                              0x88E6
+#define GL_DYNAMIC_DRAW_ARB                             0x88E8
+#define GL_DYNAMIC_READ_ARB                             0x88E9
+#define GL_DYNAMIC_COPY_ARB                             0x88EA
+
+#define GL_READ_ONLY_ARB                                0x88B8
+#define GL_WRITE_ONLY_ARB                               0x88B9
+#define GL_READ_WRITE_ARB                               0x88BA
+
+#define GL_BUFFER_SIZE_ARB                              0x8764
+#define GL_BUFFER_USAGE_ARB                             0x8765
+#define GL_BUFFER_ACCESS_ARB                            0x88BB
+#define GL_BUFFER_MAPPED_ARB                            0x88BC
+
+#define GL_BUFFER_MAP_POINTER_ARB                       0x88BD
+
+void glBindBufferARB(GLenum target, GLuint buffer);
+void glDeleteBuffersARB(GLsizei n, const GLuint *buffers);
+void glGenBuffersARB(GLsizei n, GLuint *buffers);
+GLboolean glIsBufferARB(GLuint buffer);
+
+void glBufferDataARB(GLenum target, GLsizeiptrARB size, const GLvoid *data, GLenum usage);
+void glBufferSubDataARB(GLenum target, GLintptrARB offset, GLsizeiptrARB size, const GLvoid *data);
+
+void glGetBufferSubDataARB(GLenum target, GLintptrARB offset, GLsizeiptrARB size, GLvoid *data);
+
+GLvoid * glMapBufferARB(GLenum target, GLenum access);
+GLboolean glUnmapBufferARB(GLenum target);
+
+void glGetBufferParameterivARB(GLenum target, GLenum pname, GLint *params);
+void glGetBufferPointervARB(GLenum target, GLenum pname, GLvoid **params);
 
 /* Rectangles */
 
@@ -914,9 +972,10 @@ void glDrawBuffer(GLenum buf);
 #define GL_DEPTH_WRITEMASK          0x0B72
 #define GL_STENCIL_WRITEMASK        0x0B98
 
+void glDepthMask(GLboolean mask);
+
 #define glIndexMask(mask) _GL_UNSUPPORTED(glIndexMask)
 #define glColorMask(r, g, b, a) _GL_UNSUPPORTED(glColorMask)
-#define glDepthMask(mask) _GL_UNSUPPORTED(glDepthMask)
 #define glStencilMask(mask) _GL_UNSUPPORTED(glStencilMask)
 
 /* Clearing */
@@ -1055,12 +1114,14 @@ void glRenderMode(GLenum mode);
 #define GL_COMPILE                  0x1300
 #define GL_COMPILE_AND_EXECUTE      0x1301
 
+#define GL_2_BYTES                  0x1407
+#define GL_3_BYTES                  0x1408
+#define GL_4_BYTES                  0x1409
+
 #define GL_LIST_MODE                0x0B30
 #define GL_MAX_LIST_NESTING         0x0B31
 #define GL_LIST_BASE                0x0B32
 #define GL_LIST_INDEX               0x0B33
-
-// TODO
 
 void glNewList(GLuint n, GLenum mode);
 void glEndList(void);

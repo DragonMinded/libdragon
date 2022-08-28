@@ -1,69 +1,219 @@
+/**
+ * @file surface.h
+ * @brief Surface buffers used to draw images
+ * @ingroup graphics
+ * 
+ * This module implements a structure #surface_t which holds the basic
+ * information for a buffer of memory to be used for graphics rendering.
+ * 
+ * A surface is described by the following properties:
+ * 
+ *  * Size (width. height)
+ *  * Pixel format
+ *  * Stride (distance in bytes between rows)
+ * 
+ * #surface_t simply represents an aggregation of these properties.
+ * 
+ * To allocate a new surface, use #surface_alloc. Then later, you can release
+ * the memory using #surface_free.
+ * 
+ * @code{.c}
+ *      // Allocate a 64x64 buffer in RGBA 16-bit format
+ *      surface_t buf = surface_alloc(FMT_RGBA16, 64, 64);
+ *  
+ *      // Draw some text on it (with the CPU)
+ *      graphics_draw_text(&buf, 0, 0, "ABC");
+ * @endcode
+ *
+ * Sometimes, you might have an existing raw pointer to a buffer and need to pass it
+ * to an API that accepts a #surface_t. For those cases, you can use
+ * #surface_make to create a #surface_t instance, that you can throw away
+ * after you called the function.
+ * 
+ * In some cases, you might want to interact with a rectangular portion of
+ * an existing surface (for instance, you want to draw with RDP only in the
+ * top portion of the screen for some reason). To do so, you can use
+ * #surface_make_sub to create a #surface_t instance that is referring only to
+ * a portion of the original surface:
+ * 
+ * @code{.c}
+ *      surface_t *fb;
+ *      while (fb = display_lock()) ;  // wait for a framebuffer to be ready
+ *      
+ *      // Attach the RDP to the top 40 rows of the framebuffer
+ *      surface_t fbtop = surface_make_sub(fb, 0, 0, 320, 40);
+ *      rdp_attach(&fbtop);
+ * @endcode
+ * 
+ */
+
 #ifndef __LIBDRAGON_SURFACE_H
 #define __LIBDRAGON_SURFACE_H
 
 #include <stdint.h>
-
-#define TEX_FORMAT_CODE(fmt, size)        (((fmt)<<2)|(size))
-#define TEX_FORMAT_BITDEPTH(fmt)          (4 << ((fmt) & 0x3))
-#define TEX_FORMAT_BYTES_PER_PIXEL(fmt)   (TEX_FORMAT_BITDEPTH(fmt) >> 3)
-
-typedef enum {
-    FMT_NONE   = 0,
-
-    FMT_RGBA16 = TEX_FORMAT_CODE(0, 2),
-    FMT_RGBA32 = TEX_FORMAT_CODE(0, 3),
-    FMT_YUV16  = TEX_FORMAT_CODE(1, 2),
-    FMT_CI4    = TEX_FORMAT_CODE(2, 0),
-    FMT_CI8    = TEX_FORMAT_CODE(2, 1),
-    FMT_IA4    = TEX_FORMAT_CODE(3, 0),
-    FMT_IA8    = TEX_FORMAT_CODE(3, 1),
-    FMT_IA16   = TEX_FORMAT_CODE(3, 2),
-    FMT_I4     = TEX_FORMAT_CODE(4, 0),
-    FMT_I8     = TEX_FORMAT_CODE(4, 1),
-} tex_format_t;
-
-#define SURFACE_FLAGS_TEXFORMAT    0x1F   ///< Pixel format of the surface
-#define SURFACE_FLAGS_OWNEDBUFFER  0x20   ///< Set if the buffer must be freed
-
-typedef struct surface_s
-{
-    uint32_t flags;
-    uint32_t width;
-    uint32_t height;
-    uint32_t stride;
-    void *buffer;
-} surface_t;
+#include "n64sys.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/// @cond
+// Macro to create a texture format, combining the RDP native "fmt/size" tuple.
+// This macro is used to genearte the #tex_format_t enums creating identifiers
+// which are easy to convert back into RDP native fields.
+#define _RDP_FORMAT_CODE(rdp_fmt, rdp_size)        (((rdp_fmt)<<2)|(rdp_size))
+/// @endcond
+
+/** @brief Extract the depth (number of bits per pixel) from a #tex_format_t. (eg: `FMT_RGBA16` => 16) 
+ * 
+ * Note that there are texture format that are 4bpp, so don't divide this by 8 to get the number of bytes
+ * per pixels, but rather use #TEX_FORMAT_BYTES2PIX and #TEX_FORMAT_PIX2BYTES. */
+#define TEX_FORMAT_BITDEPTH(fmt)             (4 << ((fmt) & 0x3))
+/** @brief Convert the specifified number of pixels in bytes. */
+#define TEX_FORMAT_PIX2BYTES(fmt, pixels)    ((TEX_FORMAT_BITDEPTH(fmt) * pixels) >> 3)
+/** @brief Convert the specifified number of bytes in pixels. */
+#define TEX_FORMAT_BYTES2PIX(fmt, bytes)     (((bytes) << 1) >> ((fmt) & 3))
+
 /**
- * @brief Initialize a surface_t structure, optionally allocating memory
+ * @brief Pixel format enum
+ * 
+ * This enum defines the pixel formats that can be used for #surface_t buffers.
+ * The list corresponds to the pixel formats that the RDP can use as textures.
+ * 
+ * Notice that only some of those can be used by RDP as framebuffer (specifically,
+ * #FMT_RGBA16, #FMT_RGBA32 and #FMT_CI8). Moreover, the CPU-based graphics library
+ * graphics.h only accepts surfaces in either #FMT_RGBA16 or #FMT_RGBA32 as target buffers.
+ */
+typedef enum {
+    FMT_NONE   = 0,                        ///< Placeholder for no format defined
+
+    FMT_RGBA16 = _RDP_FORMAT_CODE(0, 2),   ///< Format RGBA 5551 (16-bit)
+    FMT_RGBA32 = _RDP_FORMAT_CODE(0, 3),   ///< Format RGBA 8888 (32-bit)
+    FMT_YUV16  = _RDP_FORMAT_CODE(1, 2),   ///< Format YUV2 4:2:2 (data interleaved as YUYV)
+    FMT_CI4    = _RDP_FORMAT_CODE(2, 0),   ///< Format CI4: color index 4-bit (paletted, 2 indices per byte)
+    FMT_CI8    = _RDP_FORMAT_CODE(2, 1),   ///< Format CI8: color index 8-bit (paletted, 1 index per byte)
+    FMT_IA4    = _RDP_FORMAT_CODE(3, 0),   ///< Format IA4: 3-bit intensity + 1-bit alpha (4-bit per pixel)
+    FMT_IA8    = _RDP_FORMAT_CODE(3, 1),   ///< Format IA8: 4-bit intensity + 4-bit alpha (8-bit per pixel)
+    FMT_IA16   = _RDP_FORMAT_CODE(3, 2),   ///< Format IA16: 8-bit intenity + 8-bit alpha (16-bit per pixel)
+    FMT_I4     = _RDP_FORMAT_CODE(4, 0),   ///< Format I4: 4-bit intensity (4-bit per pixel)
+    FMT_I8     = _RDP_FORMAT_CODE(4, 1),   ///< Format I8: 8-bit intensity (8-bit per pixel)
+} tex_format_t;
+
+/** @brief Return the name of the texture format as a string (for debugging purposes) */
+const char* tex_format_name(tex_format_t fmt);
+
+#define SURFACE_FLAGS_TEXFORMAT    0x1F   ///< Pixel format of the surface
+#define SURFACE_FLAGS_OWNEDBUFFER  0x20   ///< Set if the buffer must be freed
+
+/**
+ * @brief A surface buffer for graphics
+ * 
+ * This structure holds the basic information about a buffer used to hold graphics.
+ * It is commonly used by graphics routines in libdragon as either a source (eg: texture)
+ * or a target (eg: framebuffer). It can be used for both CPU-based drawing
+ * (such as graphics.h) or RDP-basic drawing (such as rdp.h and rdpq.h).
+ * 
+ * Use #surface_alloc / #surface_free to allocate / free a surface. If you already have
+ * a memory pointer to a graphics buffer and you just need to wrap it in a #surface_t,
+ * use #surface_make.
+ */
+typedef struct surface_s
+{
+    uint16_t flags;       ///< Flags (including pixel format)
+    uint16_t width;       ///< Width in pixels
+    uint16_t height;      ///< Height in pixels
+    uint16_t stride;      ///< Stride in bytes (length of a row)
+    void *buffer;         ///< Buffer pointer
+} surface_t;
+
+/**
+ * @brief Initialize a surface_t structure with the provided buffer.
+ * 
+ * This functions initializes a surface_t structure with the provided buffer and information.
+ * It is just a helper to fill the structure fields.
+ * 
+ * It is not necessary to call #surface_free on surfaces created by #surface_make as there
+ * is nothing to free: the provided buffer will not be owned by the structure, so it is up
+ * to the caller to handle its lifetime.
+ * 
+ * If you plan to use this format as RDP framebuffer, make sure that the provided buffer
+ * respects the required alginment of 64 bytes, otherwise #rdp_attach will fail.
+ * 
+ * @param[in] buffer    Pointer to the memory buffer
+ * @param[in] format    Pixel format
+ * @param[in] width     Width in pixels
+ * @param[in] height    Height in pixels
+ * @param[in] stride    Stride in bytes (length of a row)
+ * @return              The initialized surface
+ */
+inline surface_t surface_make(void *buffer, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride) {
+    return (surface_t){
+        .flags = format,
+        .width = width,
+        .height = height,
+        .stride = stride,
+        .buffer = buffer,
+    };
+}
+
+/**
+ * @brief Allocate a new surface in memory
+ * 
+ * This function allocates a new surface with the specified pixel format,
+ * width and height. The surface must be freed via #surface_free when it is
+ * not needed anymore.
+ * 
+ * A surface allocated via #surface_alloc can be used as a RDP frame buffer
+ * (passed to #rdp_attach) because it is guarateed to have the required
+ * alignment of 64 bytes.
  *
- * @param      surface  Surface to initialize
- * @param[in]  buffer   Buffer to use, or NULL to auto-allocate it
  * @param[in]  format   Pixel format of the surface
  * @param[in]  width    Width in pixels
  * @param[in]  height   Height in pixels
- * @param[in]  stride   Stride in bytes (distance between rows)
+ * @return              The initialized surface
  */
-void surface_new(surface_t *surface, 
-    void *buffer, tex_format_t format,
-    uint32_t width, uint32_t height, uint32_t stride);
+surface_t surface_alloc(tex_format_t format, uint32_t width, uint32_t height);
 
 /**
  * @brief Initialize a surface_t structure, pointing to a rectangular portion of another
  *        surface.
+ * 
+ * The surface returned by this function will point to a portion of the buffer of
+ * the parent surface, and will have of course the smae pixel format.
+ * 
+ * @param[in]  parent   Parent surface that will be pointed to
+ * @param[in]  x0       X coordinate of the top-left corner of the parent surface
+ * @param[in]  y0       Y coordinate of the top-left corner of the parent surface
+ * @param[in]  width    Width of the surface that will be returned
+ * @param[in]  height   Height of the surface that will be returned
+ * @return              The initialized surface
  */
-void surface_new_sub(surface_t *sub, 
-    surface_t *parent, uint32_t x0, uint32_t y0, uint32_t width, uint32_t height);
+surface_t surface_make_sub(surface_t *parent, 
+    uint32_t x0, uint32_t y0, uint32_t width, uint32_t height);
 
+/**
+ * @brief Free the buffer allocated in a surface.
+ * 
+ * This function should be called after a surface allocated via #surface_alloc is not
+ * needed anymore. 
+ * 
+ * Calling this function on surfaces allocated via #surface_make (that is, surfaces
+ * initialized with an existing buffer pointer) has no effect but clearing the contents
+ * of the surface structure.
+ * 
+ * @param[in]  surface   The surface to free
+ */
 void surface_free(surface_t *surface);
 
+/**
+ * @brief Returns the pixel format of a surface
+ * 
+ * @param[in] surface   Surface
+ * @return              The pixel format of the provided surface
+ */
 inline tex_format_t surface_get_format(const surface_t *surface)
 {
-    return (tex_format_t)(surface->flags & 0x1F);
+    return (tex_format_t)(surface->flags & SURFACE_FLAGS_TEXFORMAT);
 }
 
 #ifdef __cplusplus

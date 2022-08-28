@@ -1,45 +1,44 @@
 #include "gl_internal.h"
 #include "rdpq_mode.h"
+#include "rdpq_macros.h"
+#include "rspq.h"
 
 extern gl_state_t state;
-
-#define BLENDER_CYCLE(a1, b1, a2, b2) \
-    (((_RDPQ_SOM_BLEND1_A_ ## a1) << 12) | ((_RDPQ_SOM_BLEND1_B1_ ## b1) << 8) | ((_RDPQ_SOM_BLEND1_A_ ## a2) << 4) | ((_RDPQ_SOM_BLEND1_B2_ ## b2) << 0))
 
 // All possible combinations of blend functions. Configs that cannot be supported by the RDP are set to 0.
 // NOTE: We always set fog alpha to one to support GL_ONE in both factors
 // TODO: src = ZERO, dst = ONE_MINUS_SRC_ALPHA could be done with BLEND_RGB * IN_ALPHA + MEMORY_RGB * INV_MUX_ALPHA
-static const uint32_t blend_configs[64] = {
-    BLENDER_CYCLE(IN_RGB, ZERO, MEMORY_RGB, ZERO),                 // src = ZERO, dst = ZERO
-    BLENDER_CYCLE(IN_RGB, ZERO, MEMORY_RGB, ONE),                  // src = ZERO, dst = ONE
-    BLENDER_CYCLE(MEMORY_RGB, IN_ALPHA, IN_RGB, ZERO),             // src = ZERO, dst = SRC_ALPHA
+static const rdpq_blender_t blend_configs[64] = {
+    RDPQ_BLENDER((IN_RGB, ZERO, MEMORY_RGB, ZERO)),                // src = ZERO, dst = ZERO
+    RDPQ_BLENDER((IN_RGB, ZERO, MEMORY_RGB, ONE)),                 // src = ZERO, dst = ONE
+    RDPQ_BLENDER((MEMORY_RGB, IN_ALPHA, IN_RGB, ZERO)),            // src = ZERO, dst = SRC_ALPHA
     0,                                                             // src = ZERO, dst = ONE_MINUS_SRC_ALPHA
     0,                                                             // src = ZERO, dst = GL_DST_COLOR
     0,                                                             // src = ZERO, dst = GL_ONE_MINUS_DST_COLOR
-    BLENDER_CYCLE(IN_RGB, ZERO, MEMORY_RGB, MEMORY_ALPHA),         // src = ZERO, dst = DST_ALPHA
+    RDPQ_BLENDER((IN_RGB, ZERO, MEMORY_RGB, MEMORY_CVG)),          // src = ZERO, dst = DST_ALPHA
     0,                                                             // src = ZERO, dst = ONE_MINUS_DST_ALPHA
 
-    BLENDER_CYCLE(IN_RGB, FOG_ALPHA, MEMORY_RGB, ZERO),            // src = ONE, dst = ZERO
-    BLENDER_CYCLE(IN_RGB, FOG_ALPHA, MEMORY_RGB, ONE),             // src = ONE, dst = ONE
-    BLENDER_CYCLE(MEMORY_RGB, IN_ALPHA, IN_RGB, ONE),              // src = ONE, dst = SRC_ALPHA
+    RDPQ_BLENDER((IN_RGB, FOG_ALPHA, MEMORY_RGB, ZERO)),           // src = ONE, dst = ZERO
+    RDPQ_BLENDER((IN_RGB, FOG_ALPHA, MEMORY_RGB, ONE)),            // src = ONE, dst = ONE
+    RDPQ_BLENDER((MEMORY_RGB, IN_ALPHA, IN_RGB, ONE)),             // src = ONE, dst = SRC_ALPHA
     0,                                                             // src = ONE, dst = ONE_MINUS_SRC_ALPHA
     0,                                                             // src = ONE, dst = GL_DST_COLOR
     0,                                                             // src = ONE, dst = GL_ONE_MINUS_DST_COLOR
-    BLENDER_CYCLE(IN_RGB, FOG_ALPHA, MEMORY_RGB, MEMORY_ALPHA),    // src = ONE, dst = DST_ALPHA
+    RDPQ_BLENDER((IN_RGB, FOG_ALPHA, MEMORY_RGB, MEMORY_CVG)),     // src = ONE, dst = DST_ALPHA
     0,                                                             // src = ONE, dst = ONE_MINUS_DST_ALPHA
 
-    BLENDER_CYCLE(IN_RGB, IN_ALPHA, MEMORY_RGB, ZERO),             // src = SRC_ALPHA, dst = ZERO
-    BLENDER_CYCLE(IN_RGB, IN_ALPHA, MEMORY_RGB, ONE),              // src = SRC_ALPHA, dst = ONE
+    RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, ZERO)),            // src = SRC_ALPHA, dst = ZERO
+    RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, ONE)),             // src = SRC_ALPHA, dst = ONE
     0,                                                             // src = SRC_ALPHA, dst = SRC_ALPHA
-    BLENDER_CYCLE(IN_RGB, IN_ALPHA, MEMORY_RGB, INV_MUX_ALPHA),    // src = SRC_ALPHA, dst = ONE_MINUS_SRC_ALPHA
+    RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, INV_MUX_ALPHA)),   // src = SRC_ALPHA, dst = ONE_MINUS_SRC_ALPHA
     0,                                                             // src = SRC_ALPHA, dst = GL_DST_COLOR
     0,                                                             // src = SRC_ALPHA, dst = GL_ONE_MINUS_DST_COLOR
-    BLENDER_CYCLE(IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_ALPHA),     // src = SRC_ALPHA, dst = DST_ALPHA
+    RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_CVG)),      // src = SRC_ALPHA, dst = DST_ALPHA
     0,                                                             // src = SRC_ALPHA, dst = ONE_MINUS_DST_ALPHA
 
     0,                                                             // src = ONE_MINUS_SRC_ALPHA, dst = ZERO
     0,                                                             // src = ONE_MINUS_SRC_ALPHA, dst = ONE
-    BLENDER_CYCLE(MEMORY_RGB, IN_ALPHA, IN_RGB, INV_MUX_ALPHA),    // src = ONE_MINUS_SRC_ALPHA, dst = SRC_ALPHA
+    RDPQ_BLENDER((MEMORY_RGB, IN_ALPHA, IN_RGB, INV_MUX_ALPHA)),   // src = ONE_MINUS_SRC_ALPHA, dst = SRC_ALPHA
     0,                                                             // src = ONE_MINUS_SRC_ALPHA, dst = ONE_MINUS_SRC_ALPHA
     0,                                                             // src = ONE_MINUS_SRC_ALPHA, dst = GL_DST_COLOR
     0,                                                             // src = ONE_MINUS_SRC_ALPHA, dst = GL_ONE_MINUS_DST_COLOR
@@ -49,9 +48,9 @@ static const uint32_t blend_configs[64] = {
     0, 0, 0, 0, 0, 0, 0, 0,                                        // src = GL_DST_COLOR, dst = ...
     0, 0, 0, 0, 0, 0, 0, 0,                                        // src = GL_ONE_MINUS_DST_COLOR, dst = ...
 
-    BLENDER_CYCLE(MEMORY_RGB, ZERO, IN_RGB, MEMORY_ALPHA),         // src = DST_ALPHA, dst = ZERO
-    BLENDER_CYCLE(MEMORY_RGB, FOG_ALPHA, IN_RGB, MEMORY_ALPHA),    // src = DST_ALPHA, dst = ONE
-    BLENDER_CYCLE(MEMORY_RGB, IN_ALPHA, IN_RGB, MEMORY_ALPHA),     // src = DST_ALPHA, dst = SRC_ALPHA
+    RDPQ_BLENDER((MEMORY_RGB, ZERO, IN_RGB, MEMORY_CVG)),          // src = DST_ALPHA, dst = ZERO
+    RDPQ_BLENDER((MEMORY_RGB, FOG_ALPHA, IN_RGB, MEMORY_CVG)),     // src = DST_ALPHA, dst = ONE
+    RDPQ_BLENDER((MEMORY_RGB, IN_ALPHA, IN_RGB, MEMORY_CVG)),      // src = DST_ALPHA, dst = SRC_ALPHA
     0,                                                             // src = DST_ALPHA, dst = ONE_MINUS_SRC_ALPHA
     0,                                                             // src = DST_ALPHA, dst = GL_DST_COLOR
     0,                                                             // src = DST_ALPHA, dst = GL_ONE_MINUS_DST_COLOR
@@ -61,51 +60,23 @@ static const uint32_t blend_configs[64] = {
     0, 0, 0, 0, 0, 0, 0, 0,                                        // src = ONE_MINUS_DST_ALPHA, dst = ...
 };
 
-inline bool blender_reads_memory(uint32_t bl)
-{
-    return ((bl>>12)&3) == _RDPQ_SOM_BLEND1_A_MEMORY_RGB ||
-           ((bl>>4)&3) == _RDPQ_SOM_BLEND1_A_MEMORY_RGB ||
-           (bl&3) == _RDPQ_SOM_BLEND1_B2_MEMORY_ALPHA;
-}
-
-inline rdpq_blender_t blender1(uint32_t bl, bool force_blend)
-{
-    rdpq_blender_t blend = (bl << 18) | (bl << 16);
-    if (blender_reads_memory(bl))
-        blend |= SOM_READ_ENABLE;
-    if (force_blend)
-        blend |= SOM_BLENDING;
-    return blend;
-}
-
-inline rdpq_blender_t blender2(uint32_t bl0, uint32_t bl1, bool force_blend)
-{
-    rdpq_blender_t blend = (bl0 << 18) | (bl1 << 16);
-    if (blender_reads_memory(bl0) || blender_reads_memory(bl1))
-        blend |= SOM_READ_ENABLE;
-    if (force_blend)
-        blend |= SOM_BLENDING;
-    return blend | RDPQ_BLENDER_2PASS;
-}
-
 void gl_rendermode_init()
 {
-    state.dither = true;
-
     state.fog_start = 0.0f;
     state.fog_end = 1.0f;
 
     state.tex_env_mode = GL_MODULATE;
 
-    state.is_rendermode_dirty = true;
-    state.is_scissor_dirty = true;
-
+    glEnable(GL_DITHER);
     glBlendFunc(GL_ONE, GL_ZERO);
     glDepthFunc(GL_LESS);
+    glDepthMask(GL_TRUE);
     glAlphaFunc(GL_ALWAYS, 0.0f);
 
     GLfloat fog_color[] = {0, 0, 0, 0};
     glFogfv(GL_FOG_COLOR, fog_color);
+
+    state.dirty_flags = -1;
 }
 
 bool gl_is_invisible()
@@ -117,7 +88,7 @@ bool gl_is_invisible()
 
 void gl_update_scissor()
 {
-    if (!state.is_scissor_dirty) {
+    if (!GL_IS_DIRTY_FLAG_SET(DIRTY_FLAG_SCISSOR)) {
         return;
     }
 
@@ -134,136 +105,149 @@ void gl_update_scissor()
     } else {
         rdpq_set_scissor(0, 0, w, h);
     }
-
-    state.is_scissor_dirty = false;
 }
 
-void gl_update_render_mode()
+#define DITHER_MASK         SOM_RGBDITHER_MASK | SOM_ALPHADITHER_MASK
+#define BLEND_MASK          SOM_ZMODE_MASK
+#define DEPTH_TEST_MASK     SOM_Z_COMPARE
+#define DEPTH_MASK_MASK     SOM_Z_WRITE
+#define POINTS_MASK         SOM_ZSOURCE_MASK | SOM_TEXTURE_PERSP
+#define ALPHA_TEST_MASK     SOM_ALPHACOMPARE_MASK
+
+#define RENDERMODE_MASK     DITHER_MASK | BLEND_MASK | DEPTH_TEST_MASK | DEPTH_MASK_MASK | POINTS_MASK | ALPHA_TEST_MASK
+
+void gl_update_rendermode()
 {
-    if (!state.is_rendermode_dirty) {
+    if (!GL_IS_DIRTY_FLAG_SET(DIRTY_FLAG_RENDERMODE)) {
         return;
     }
 
-    uint64_t modes = SOM_CYCLE_1;
-    rdpq_combiner_t comb;
-    rdpq_blender_t blend = 0;
-
-    if (state.dither) {
-        modes |= SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_SQUARE;
-    } else {
-        modes |= SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE;
-    }
-
-    if (state.depth_test) {
-        if (state.is_points) {
-            modes |= SOM_Z_SOURCE_PRIM;
-        } else {
-            modes |= SOM_Z_SOURCE_PIXEL;
-        }
-
-        if (state.depth_func == GL_LESS) {
-            modes |= SOM_Z_COMPARE;
-        }
-
-        if (state.blend) {
-            modes |= SOM_Z_TRANSPARENT;
-        } else {
-            modes |= SOM_Z_OPAQUE | SOM_Z_WRITE;
-        }
-    }
-
-    if (state.multisample) {
-        modes |= SOM_AA_ENABLE | SOM_READ_ENABLE;
-        if (state.blend) {
-            modes |= SOM_COLOR_ON_COVERAGE | SOM_COVERAGE_DEST_WRAP;
-        } else {
-            modes |= SOM_ALPHA_USE_CVG | SOM_COVERAGE_DEST_CLAMP;
-        }
-    } else {
-        modes |= SOM_COVERAGE_DEST_SAVE;
-    }
-
-    uint32_t blend_cycle = 0;
-
-    if (state.blend) {
-        blend_cycle = state.blend_cycle;
-    } else if (state.multisample) {
-        blend_cycle = BLENDER_CYCLE(IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_ALPHA);
-    }
-
-    if (state.fog) {
-        uint32_t fog_blend = BLENDER_CYCLE(IN_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA);
-
-        if (state.blend || state.multisample) {
-            blend = blender2(fog_blend, blend_cycle, state.blend);
-        } else {
-            blend = blender1(fog_blend, true);
-        }
-    } else {
-        blend = blender1(blend_cycle, state.blend);
-    }
-
-    if (state.alpha_test && state.alpha_func == GL_GREATER) {
-        modes |= SOM_ALPHA_COMPARE;
-    }
-    
     gl_texture_object_t *tex_obj = gl_get_active_texture();
-    if (tex_obj != NULL && tex_obj->is_complete) {
-        modes |= SOM_TC_FILTER;
-        
-        if (!state.is_points) {
-            modes |= SOM_TEXTURE_PERSP;
-        }
+    bool is_points = gl_calc_is_points();
 
+    uint64_t modes = SOM_TF0_RGB | SOM_TF1_RGB;
+
+    // dither
+    modes |= state.dither ? SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_SAME : SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE;
+
+    // blend
+    modes |= state.blend ? SOM_ZMODE_TRANSPARENT : SOM_ZMODE_OPAQUE;
+
+    // depth test
+    modes |= state.depth_test && state.depth_func == GL_LESS ? SOM_Z_COMPARE : 0;
+
+    // depth mask
+    modes |= state.depth_test && state.depth_mask ? SOM_Z_WRITE : 0;
+
+    // points
+    modes |= is_points ? SOM_ZSOURCE_PRIM : SOM_ZSOURCE_PIXEL | SOM_TEXTURE_PERSP;
+
+    // alpha test
+    modes |= state.alpha_test && state.alpha_func == GL_GREATER ? SOM_ALPHACOMPARE_THRESHOLD : 0;
+
+    // texture
+    if (tex_obj != NULL && tex_obj->is_complete) {
         // We can't use separate modes for minification and magnification, so just use bilinear sampling when at least one of them demands it
         if (tex_obj->mag_filter == GL_LINEAR || 
             tex_obj->min_filter == GL_LINEAR || 
             tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR || 
             tex_obj->min_filter == GL_LINEAR_MIPMAP_NEAREST) {
-            modes |= SOM_SAMPLE_2X2;
+            modes |= SOM_SAMPLE_BILINEAR;
+        } else {
+            modes |= SOM_SAMPLE_POINT;
         }
 
-        if (tex_obj->min_filter != GL_LINEAR && tex_obj->min_filter != GL_NEAREST && !state.is_points) {
+        if (tex_obj->min_filter != GL_LINEAR && tex_obj->min_filter != GL_NEAREST && !gl_calc_is_points()) {
             modes |= SOM_TEXTURE_LOD;
-        }
-
-        if ((tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR || tex_obj->min_filter == GL_NEAREST_MIPMAP_LINEAR) && !state.is_points) {
-            // Trilinear
-            if (state.tex_env_mode == GL_REPLACE) {
-                comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (ZERO, ZERO, ZERO, COMBINED), (ZERO, ZERO, ZERO, COMBINED));
-            } else if (state.fog) {
-                comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (COMBINED, ZERO, SHADE, ZERO), (ZERO, ZERO, ZERO, COMBINED));
-            } else {
-                comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (COMBINED, ZERO, SHADE, ZERO), (COMBINED, ZERO, SHADE, ZERO));
-            }
-        } else {
-            if (state.tex_env_mode == GL_REPLACE) {
-                comb = RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0));
-            } else if (state.is_points) {
-                comb = RDPQ_COMBINER1((TEX0, ZERO, PRIM, ZERO), (TEX0, ZERO, PRIM, ZERO));
-            } else if (state.fog) {
-                comb = RDPQ_COMBINER1((TEX0, ZERO, SHADE, ZERO), (ZERO, ZERO, ZERO, TEX0));
-            } else {
-                comb = RDPQ_COMBINER1((TEX0, ZERO, SHADE, ZERO), (TEX0, ZERO, SHADE, ZERO));
-            }
-        }
-    } else {
-        if (state.is_points) {
-            comb = RDPQ_COMBINER1((ZERO, ZERO, ZERO, PRIM), (ZERO, ZERO, ZERO, PRIM));
-        } else if (state.fog) {
-            // When fog is enabled, the shade alpha is (ab)used to encode the fog blending factor, so it cannot be used in the color combiner
-            // (same above)
-            comb = RDPQ_COMBINER1((ZERO, ZERO, ZERO, SHADE), (ZERO, ZERO, ZERO, ONE));
-        } else {
-            comb = RDPQ_COMBINER1((ZERO, ZERO, ZERO, SHADE), (ZERO, ZERO, ZERO, SHADE));
         }
     }
 
-    rdpq_set_other_modes_raw(modes);
-    rdpq_mode_blender(blend);
-    rdpq_mode_combiner(comb);
+    rdpq_change_other_modes_raw(RENDERMODE_MASK, modes);
+}
 
-    state.is_rendermode_dirty = false;
+void gl_update_blend_func()
+{
+    if (!GL_IS_DIRTY_FLAG_SET(DIRTY_FLAG_BLEND)) {
+        return;
+    }
+
+    rdpq_blender_t blend_cycle = state.blend ? state.blend_cycle : 0;
+    rdpq_mode_blending(blend_cycle);
+}
+
+void gl_update_fog()
+{
+    if (!GL_IS_DIRTY_FLAG_SET(DIRTY_FLAG_FOG)) {
+        return;
+    }
+
+    rdpq_blender_t fog_cycle = state.fog ? RDPQ_BLENDER((IN_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA)) : 0;
+    rdpq_mode_fog(fog_cycle);
+}
+
+void gl_update_combiner()
+{
+    if (!GL_IS_DIRTY_FLAG_SET(DIRTY_FLAG_COMBINER)) {
+        return;
+    }
+
+    rdpq_combiner_t comb;
+
+    bool is_points = gl_calc_is_points();
+
+    gl_texture_object_t *tex_obj = gl_get_active_texture();
+    if (tex_obj != NULL && tex_obj->is_complete) {
+        if ((tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR || tex_obj->min_filter == GL_NEAREST_MIPMAP_LINEAR) && !is_points) {
+            // Trilinear
+            if (state.tex_env_mode == GL_REPLACE) {
+                comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (0, 0, 0, COMBINED), (0, 0, 0, COMBINED));
+            } else if (state.fog) {
+                comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (COMBINED, 0, SHADE, 0), (0, 0, 0, COMBINED));
+            } else {
+                comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (COMBINED, 0, SHADE, 0), (COMBINED, 0, SHADE, 0));
+            }
+        } else {
+            if (state.tex_env_mode == GL_REPLACE) {
+                comb = RDPQ_COMBINER1((0, 0, 0, TEX0), (0, 0, 0, TEX0));
+            } else if (is_points) {
+                comb = RDPQ_COMBINER1((TEX0, 0, PRIM, 0), (TEX0, 0, PRIM, 0));
+            } else if (state.fog) {
+                comb = RDPQ_COMBINER1((TEX0, 0, SHADE, 0), (0, 0, 0, TEX0));
+            } else {
+                comb = RDPQ_COMBINER1((TEX0, 0, SHADE, 0), (TEX0, 0, SHADE, 0));
+            }
+        }
+    } else {
+        if (is_points) {
+            comb = RDPQ_COMBINER1((0, 0, 0, PRIM), (0, 0, 0, PRIM));
+        } else if (state.fog) {
+            // When fog is enabled, the shade alpha is (ab)used to encode the fog blending factor, so it cannot be used in the color combiner
+            // (same above)
+            comb = RDPQ_COMBINER1((0, 0, 0, SHADE), (0, 0, 0, 1));
+        } else {
+            comb = RDPQ_COMBINER1((0, 0, 0, SHADE), (0, 0, 0, SHADE));
+        }
+    }
+
+    rdpq_mode_combiner(comb);
+}
+
+void gl_update_alpha_ref()
+{
+    if (!GL_IS_DIRTY_FLAG_SET(DIRTY_FLAG_ALPHA_REF)) {
+        return;
+    }
+
+    rdpq_set_blend_color(RGBA32(0, 0, 0, FLOAT_TO_U8(state.alpha_ref)));
+}
+
+void gl_update_multisample()
+{
+    if (!GL_IS_DIRTY_FLAG_SET(DIRTY_FLAG_ANTIALIAS)) {
+        return;
+    }
+
+    rdpq_mode_antialias(state.multisample);
 }
 
 void glFogi(GLenum pname, GLint param)
@@ -368,7 +352,7 @@ void glScissor(GLint left, GLint bottom, GLsizei width, GLsizei height)
     state.scissor_box[2] = width;
     state.scissor_box[3] = height;
 
-    state.is_scissor_dirty = true;
+    GL_SET_DIRTY_FLAG(DIRTY_FLAG_SCISSOR);
 }
 
 void glBlendFunc(GLenum src, GLenum dst)
@@ -415,8 +399,8 @@ void glBlendFunc(GLenum src, GLenum dst)
 
     state.blend_src = src;
     state.blend_dst = dst;
-    state.blend_cycle = cycle;
-    state.is_rendermode_dirty = true;
+
+    GL_SET_STATE_FLAG(state.blend_cycle, cycle, DIRTY_FLAG_BLEND);
 }
 
 void glDepthFunc(GLenum func)
@@ -425,7 +409,7 @@ void glDepthFunc(GLenum func)
     case GL_NEVER:
     case GL_LESS:
     case GL_ALWAYS:
-        GL_SET_STATE(state.depth_func, func, state.is_rendermode_dirty);
+        GL_SET_STATE_FLAG(state.depth_func, func, DIRTY_FLAG_RENDERMODE);
         break;
     case GL_EQUAL:
     case GL_LEQUAL:
@@ -440,15 +424,19 @@ void glDepthFunc(GLenum func)
     }
 }
 
+void glDepthMask(GLboolean mask)
+{
+    GL_SET_STATE_FLAG(state.depth_mask, mask, DIRTY_FLAG_RENDERMODE);
+}
+
 void glAlphaFunc(GLenum func, GLclampf ref)
 {
     switch (func) {
     case GL_NEVER:
     case GL_GREATER:
     case GL_ALWAYS:
-        GL_SET_STATE(state.alpha_func, func, state.is_rendermode_dirty);
-        state.alpha_ref = ref;
-        rdpq_set_blend_color(RGBA32(0, 0, 0, FLOAT_TO_U8(ref)));
+        GL_SET_STATE_FLAG(state.alpha_func, func, DIRTY_FLAG_RENDERMODE);
+        GL_SET_STATE_FLAG(state.alpha_ref, ref, DIRTY_FLAG_ALPHA_REF);
         break;
     case GL_EQUAL:
     case GL_LEQUAL:
@@ -474,7 +462,6 @@ void glTexEnvi(GLenum target, GLenum pname, GLint param)
     case GL_MODULATE:
     case GL_REPLACE:
         state.tex_env_mode = param;
-        state.is_rendermode_dirty = true;
         break;
     case GL_DECAL:
     case GL_BLEND:
@@ -503,7 +490,6 @@ void glTexEnviv(GLenum target, GLenum pname, const GLint *params)
         state.tex_env_color[1] = I32_TO_FLOAT(params[1]);
         state.tex_env_color[2] = I32_TO_FLOAT(params[2]);
         state.tex_env_color[3] = I32_TO_FLOAT(params[3]);
-        state.is_rendermode_dirty = true;
         break;
     default:
         glTexEnvi(target, pname, params[0]);
@@ -524,7 +510,6 @@ void glTexEnvfv(GLenum target, GLenum pname, const GLfloat *params)
         state.tex_env_color[1] = params[1];
         state.tex_env_color[2] = params[2];
         state.tex_env_color[3] = params[3];
-        state.is_rendermode_dirty = true;
         break;
     default:
         glTexEnvf(target, pname, params[0]);

@@ -1,6 +1,6 @@
 /**
  * @file rdp.h
- * @brief Hardware Display Interface
+ * @brief RDP: Hardware Display Interface
  * @ingroup rdp
  */
 #ifndef __LIBDRAGON_RDP_H
@@ -116,7 +116,7 @@ void rdp_init( void );
  * This function allows the RDP to operate on surfaces, that is memory buffers
  * that can be used as render targets. For instance, it can be used with
  * framebuffers acquired by calling #display_lock, or to render to an offscreen
- * buffer created with #surface_new.
+ * buffer created with #surface_alloc or #surface_make.
  * 
  * This should be performed before any rendering operations to ensure that the RDP
  * has a valid output buffer to operate on.
@@ -168,48 +168,22 @@ void rdp_detach( void );
 bool rdp_is_attached( void );
 
 /**
- * @brief Check if it is currently possible to attach a new display context to the RDP.
- *
- * Since #rdp_detach_display_async will not detach a display context immediately, but asynchronously,
- * it may still be attached when trying to attach the next one. Attempting to attach a display context
- * while another is already attached will lead to an error, so use this function to check whether it
- * is possible first. It will return true if no display context is currently attached, and false otherwise.
- */
-#define rdp_can_attach() (!rdp_is_attached())
-
-
-/**
  * @brief Asynchronously detach the current display from the RDP and automatically call #display_show on it
  *
- * This macro is just a shortcut for `rdp_detach_display_async(display_show)`. Use this if you
+ * This macro is just a shortcut for `void rdp_detach_async(display_show, disp)`. Use this if you
  * are done rendering with the RDP and just want to submit the attached display context to be shown without
  * any further postprocessing.
  */
-#define rdp_auto_show_display(disp) ({ \
+#define rdp_detach_show(disp) ({ \
     rdp_detach_async((void(*)(void*))display_show, (disp)); \
 })
 
 /**
- * @brief Enable display of 2D filled (untextured) rectangles
- *
- * This must be called before using #rdp_draw_filled_rectangle.
- */
-void rdp_enable_primitive_fill( void );
-
-/**
- * @brief Enable display of 2D filled (untextured) triangles
+ * @brief Enable display of 2D filled (untextured) triangles, with possible alpha blending.
  *
  * This must be called before using #rdp_draw_filled_triangle.
  */
 void rdp_enable_blend_fill( void );
-
-/**
- * @brief Enable display of 2D sprites
- *
- * This must be called before using #rdp_draw_textured_rectangle_scaled,
- * #rdp_draw_textured_rectangle, #rdp_draw_sprite or #rdp_draw_sprite_scaled.
- */
-void rdp_enable_texture_copy( void );
 
 /**
  * @brief Load a sprite into RDP TMEM
@@ -265,8 +239,8 @@ uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mi
  * If the rectangle is larger than the texture, it will be tiled or mirrored based on the* mirror setting
  * given in the load texture command.
  *
- * Before using this command to draw a textured rectangle, use #rdp_enable_texture_copy to set the RDP
- * up in texture mode.
+ * Before using this command to draw a textured rectangle, use #rdpq_set_mode_copy (or the deprecated
+ * rdp_enable_texture_copy) to set the RDP up in texture copy mode.
  *
  * @param[in] texslot
  *            The texture slot that the texture was previously loaded into (0-7)
@@ -291,8 +265,8 @@ void rdp_draw_textured_rectangle( uint32_t texslot, int tx, int ty, int bx, int 
  * If the rectangle is larger than the texture after scaling, it will be tiled or mirrored based on the
  * mirror setting given in the load texture command.
  *
- * Before using this command to draw a textured rectangle, use #rdp_enable_texture_copy to set the RDP
- * up in texture mode.
+ * Before using this command to draw a textured rectangle, use #rdpq_set_mode_copy (or the deprecated
+ * rdp_enable_texture_copy) to set the RDP up in texture copy mode.
  *
  * @param[in] texslot
  *            The texture slot that the texture was previously loaded into (0-7)
@@ -318,8 +292,8 @@ void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int b
  *
  * Given an already loaded texture, this function will draw a rectangle textured with the loaded texture.
  *
- * Before using this command to draw a textured rectangle, use #rdp_enable_texture_copy to set the RDP
- * up in texture mode.
+ * Before using this command to draw a textured rectangle, use #rdpq_set_mode_copy (or the deprecated
+ * rdp_enable_texture_copy) to set the RDP up in texture copy mode.
  *
  * @param[in] texslot
  *            The texture slot that the texture was previously loaded into (0-7)
@@ -337,8 +311,8 @@ void rdp_draw_sprite( uint32_t texslot, int x, int y ,  mirror_t mirror);
  *
  * Given an already loaded texture, this function will draw a rectangle textured with the loaded texture.
  *
- * Before using this command to draw a textured rectangle, use #rdp_enable_texture_copy to set the RDP
- * up in texture mode.
+ * Before using this command to draw a textured rectangle, use #rdpq_set_mode_copy (or the deprecated
+ * rdp_enable_texture_copy) to set the RDP up in texture copy mode.
  *
  * @param[in] texslot
  *            The texture slot that the texture was previously loaded into (0-7)
@@ -364,29 +338,6 @@ void rdp_draw_sprite_scaled( uint32_t texslot, int x, int y, double x_scale, dou
  *            Color to draw primitives in
  */
 void rdp_set_blend_color( uint32_t color );
-
-/**
- * @brief Draw a filled rectangle
- *
- * Given a color set with #rdp_set_primitive_color, this will draw a filled rectangle
- * to the screen.  This is most often useful for erasing a buffer before drawing to it
- * by displaying a black rectangle the size of the screen.  This is much faster than
- * setting the buffer blank in software.  However, if you are planning on drawing to
- * the entire screen, blanking may be unnecessary.  
- *
- * Before calling this function, make sure that the RDP is set to primitive mode by
- * calling #rdp_enable_primitive_fill.
- *
- * @param[in] tx
- *            Pixel X location of the top left of the rectangle
- * @param[in] ty
- *            Pixel Y location of the top left of the rectangle
- * @param[in] bx
- *            Pixel X location of the bottom right of the rectangle
- * @param[in] by
- *            Pixel Y location of the bottom right of the rectangle
- */
-void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by );
 
 /**
  * @brief Draw a filled triangle
@@ -437,6 +388,16 @@ void rdp_set_texture_flush( flush_t flush );
 void rdp_close( void );
 
 
+/**************************************************************************************************
+ * Deprecated functions
+ * 
+ * This is the old rdp.c API which has been replaced by the new API in rdpq.h.
+ * 
+ * The API is still working correctly. The implementation is based on rspq so that it can be mix
+ * and matched with existing rdpq constructs. It will emit deprecation warnings when used, trying
+ * to suggest possible replacements.
+ **************************************************************************************************/
+
 /// @cond
 
 typedef enum
@@ -468,11 +429,20 @@ void rdp_set_default_clipping( void );
 __attribute__((deprecated("syncs are now performed automatically -- or use rdpq_sync_* functions otherwise")))
 void rdp_sync( sync_t sync );
 
+__attribute__((deprecated("use rdpq_fill_rectangle instead")))
+void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by );
+
 static inline __attribute__((deprecated("use rdpq_set_fill_color instead")))
 void rdp_set_primitive_color(uint32_t color) {
     extern void __rdpq_set_fill_color(uint32_t);
     __rdpq_set_fill_color(color);
 }
+
+__attribute__((deprecated("use rdpq_set_mode_fill instead")))
+void rdp_enable_primitive_fill( void );
+
+__attribute__((deprecated("use rdpq_set_mode_copy instead")))
+void rdp_enable_texture_copy( void );
 
 /// @endcond
 

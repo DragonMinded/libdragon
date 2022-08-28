@@ -1,6 +1,8 @@
 #include "gl_internal.h"
 #include "utils.h"
 #include "rdpq.h"
+#include "rdpq_mode.h"
+#include <malloc.h>
 #include <string.h>
 
 extern gl_state_t state;
@@ -14,9 +16,19 @@ static const float clip_planes[CLIPPING_PLANE_COUNT][4] = {
     { 0, 0, 1, -1 },
 };
 
-void gl_update_polygons();
-void gl_update_lines();
-void gl_update_points();
+void gl_clip_triangle();
+void gl_clip_line();
+void gl_clip_point();
+
+uint8_t gl_points();
+uint8_t gl_lines();
+uint8_t gl_line_strip();
+uint8_t gl_triangles();
+uint8_t gl_triangle_strip();
+uint8_t gl_triangle_fan();
+uint8_t gl_quads();
+
+void gl_reset_vertex_cache();
 
 void gl_primitive_init()
 {
@@ -35,13 +47,22 @@ void gl_primitive_init()
     state.line_width = 1;
     state.polygon_mode = GL_FILL;
 
-    state.current_color[0] = 1;
-    state.current_color[1] = 1;
-    state.current_color[2] = 1;
-    state.current_color[3] = 1;
-    state.current_texcoord[3] = 1;
-    state.current_normal[2] = 1;
-    state.current_edge_flag = GL_TRUE;
+    state.current_attribs[ATTRIB_COLOR][0] = 1;
+    state.current_attribs[ATTRIB_COLOR][1] = 1;
+    state.current_attribs[ATTRIB_COLOR][2] = 1;
+    state.current_attribs[ATTRIB_COLOR][3] = 1;
+    state.current_attribs[ATTRIB_TEXCOORD][3] = 1;
+    state.current_attribs[ATTRIB_NORMAL][2] = 1;
+}
+
+void gl_primitive_close()
+{
+    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
+    {
+        gl_storage_free(&state.arrays[i].tmp_storage);
+    }
+
+    gl_storage_free(&state.tmp_index_storage);
 }
 
 bool gl_calc_is_points()
@@ -58,13 +79,6 @@ bool gl_calc_is_points()
     }
 }
 
-void gl_update_is_points()
-{
-    bool is_points = gl_calc_is_points();
-
-    GL_SET_STATE(state.is_points, is_points, state.is_rendermode_dirty);
-}
-
 void glBegin(GLenum mode)
 {
     if (state.immediate_active) {
@@ -72,52 +86,54 @@ void glBegin(GLenum mode)
         return;
     }
 
+    state.lock_next_vertex = false;
+
     switch (mode) {
     case GL_POINTS:
-        state.primitive_func = gl_update_points;
-        state.vertex_cache_locked = -1;
+        state.prim_func = gl_points;
+        state.prim_size = 1;
         break;
     case GL_LINES:
-        state.primitive_func = gl_update_lines;
-        state.vertex_cache_locked = -1;
+        state.prim_func = gl_lines;
+        state.prim_size = 2;
         break;
     case GL_LINE_LOOP:
-        state.primitive_func = gl_update_lines;
-        state.vertex_cache_locked = 0;
+        // Line loop is equivalent to line strip, except for special case handled in glEnd
+        state.prim_func = gl_line_strip;
+        state.lock_next_vertex = true;
+        state.prim_size = 2;
         break;
     case GL_LINE_STRIP:
-        state.primitive_func = gl_update_lines;
-        state.vertex_cache_locked = -1;
+        state.prim_func = gl_line_strip;
+        state.prim_size = 2;
         break;
     case GL_TRIANGLES:
-        state.primitive_func = gl_update_polygons;
-        state.force_edge_flag = false;
-        state.vertex_cache_locked = -1;
+        state.prim_func = gl_triangles;
+        state.prim_size = 3;
         break;
     case GL_TRIANGLE_STRIP:
-        state.primitive_func = gl_update_polygons;
-        state.force_edge_flag = true;
-        state.vertex_cache_locked = -1;
+        state.prim_func = gl_triangle_strip;
+        state.prim_size = 3;
         break;
     case GL_TRIANGLE_FAN:
-        state.primitive_func = gl_update_polygons;
-        state.force_edge_flag = true;
-        state.vertex_cache_locked = 0;
+        state.prim_func = gl_triangle_fan;
+        state.lock_next_vertex = true;
+        state.prim_size = 3;
         break;
     case GL_QUADS:
-        state.primitive_func = gl_update_polygons;
-        state.force_edge_flag = false;
-        state.vertex_cache_locked = 0;
+        state.prim_func = gl_quads;
+        state.prim_size = 3;
         break;
     case GL_QUAD_STRIP:
-        state.primitive_func = gl_update_polygons;
-        state.force_edge_flag = true;
-        state.vertex_cache_locked = -1;
+        // Quad strip is equivalent to triangle strip
+        state.prim_func = gl_triangle_strip;
+        state.prim_size = 3;
         break;
     case GL_POLYGON:
-        state.primitive_func = gl_update_polygons;
-        state.force_edge_flag = false;
-        state.vertex_cache_locked = 0;
+        // Polygon is equivalent to triangle fan
+        state.prim_func = gl_triangle_fan;
+        state.lock_next_vertex = true;
+        state.prim_size = 3;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -126,18 +142,25 @@ void glBegin(GLenum mode)
 
     state.immediate_active = true;
     state.primitive_mode = mode;
-    state.next_vertex = 0;
-    state.primitive_progress = 0;
-    state.triangle_counter = 0;
+    state.prim_progress = 0;
+    state.prim_counter = 0;
 
     if (gl_is_invisible()) {
         return;
     }
 
-    gl_update_is_points();
     gl_update_scissor();
-    gl_update_render_mode();
     gl_update_texture();
+    gl_update_blend_func();
+    gl_update_fog();
+    gl_update_rendermode();
+    gl_update_combiner();
+    gl_update_alpha_ref();
+    gl_update_multisample();
+
+    state.dirty_flags = 0;
+
+    gl_reset_vertex_cache();
 }
 
 void glEnd(void)
@@ -147,11 +170,11 @@ void glEnd(void)
     }
 
     if (state.primitive_mode == GL_LINE_LOOP) {
-        state.primitive_indices[0] = state.primitive_indices[1];
-        state.primitive_indices[1] = 0;
-        state.primitive_progress = 2;
+        state.prim_indices[0] = state.prim_indices[1];
+        state.prim_indices[1] = state.locked_vertex;
+        state.prim_progress = 2;
 
-        gl_update_lines();
+        gl_clip_line();
     }
 
     state.immediate_active = false;
@@ -170,7 +193,7 @@ void gl_draw_point(gl_vertex_t *v0)
         FLOAT_TO_U8(v0->color[3])
     ));
 
-    if (state.depth_test) {
+    if (state.depth_test || state.depth_mask) {
         rdpq_set_prim_depth(floorf(v0->depth), 0);
     }
 
@@ -189,7 +212,10 @@ void gl_draw_line(gl_vertex_t *v0, gl_vertex_t *v1)
     int32_t z_offset = -1;
 
     GLfloat perp[2] = { v0->screen_pos[1] - v1->screen_pos[1], v1->screen_pos[0] - v0->screen_pos[0] };
-    GLfloat width_factor = (state.line_width * 0.5f) / sqrtf(perp[0]*perp[0] + perp[1]*perp[1]);
+    GLfloat mag = sqrtf(perp[0]*perp[0] + perp[1]*perp[1]);
+    if (mag == 0.0f) return;
+    
+    GLfloat width_factor = (state.line_width * 0.5f) / mag;
     perp[0] *= width_factor;
     perp[1] *= width_factor;
 
@@ -236,13 +262,13 @@ void gl_draw_line(gl_vertex_t *v0, gl_vertex_t *v1)
 
 void gl_draw_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
 {
-    uint8_t level = 0;
+    uint8_t level = 1;
     int32_t tex_offset = -1;
 
     gl_texture_object_t *tex_obj = gl_get_active_texture();
     if (tex_obj != NULL && tex_obj->is_complete) {
         tex_offset = 6;
-        level = tex_obj->num_levels - 1;
+        level = tex_obj->num_levels;
     }
 
     int32_t z_offset = state.depth_test ? 9 : -1;
@@ -250,7 +276,7 @@ void gl_draw_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
     rdpq_triangle(0, level, 0, 2, tex_offset, z_offset, v0->screen_pos, v1->screen_pos, v2->screen_pos);
 }
 
-void gl_cull_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2, bool e0, bool e1, bool e2)
+void gl_cull_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
 {
     if (state.cull_face_mode == GL_FRONT_AND_BACK) {
         return;
@@ -272,14 +298,14 @@ void gl_cull_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2, bool e0
     
     switch (state.polygon_mode) {
     case GL_POINT:
-        if (e0) gl_draw_point(v0);
-        if (e1) gl_draw_point(v1);
-        if (e2) gl_draw_point(v2);
+        gl_draw_point(v0);
+        gl_draw_point(v1);
+        gl_draw_point(v2);
         break;
     case GL_LINE:
-        if (e0) gl_draw_line(v0, v1);
-        if (e1) gl_draw_line(v1, v2);
-        if (e2) gl_draw_line(v2, v0);
+        gl_draw_line(v0, v1);
+        gl_draw_line(v1, v2);
+        gl_draw_line(v2, v0);
         break;
     case GL_FILL:
         gl_draw_triangle(v0, v1, v2);
@@ -344,16 +370,28 @@ void gl_intersect_line_plane(gl_vertex_t *intersection, const gl_vertex_t *p0, c
     intersection->texcoord[1] = lerp(p0->texcoord[1], p1->texcoord[1], a);
 }
 
-void gl_clip_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
+void gl_clip_triangle()
 {
+    gl_vertex_t *v0 = &state.vertex_cache[state.prim_indices[0]];
+    gl_vertex_t *v1 = &state.vertex_cache[state.prim_indices[1]];
+    gl_vertex_t *v2 = &state.vertex_cache[state.prim_indices[2]];
+
     if (v0->clip & v1->clip & v2->clip) {
         return;
+    }
+
+    // Flat shading
+    if (state.shade_model == GL_FLAT) {
+        v0->color[0] = v1->color[0] = v2->color[0];
+        v0->color[1] = v1->color[1] = v2->color[1];
+        v0->color[2] = v1->color[2] = v2->color[2];
+        v0->color[3] = v1->color[3] = v2->color[3];
     }
 
     uint8_t any_clip = v0->clip | v1->clip | v2->clip;
 
     if (!any_clip) {
-        gl_cull_triangle(v0, v1, v2, v0->edge_flag, v1->edge_flag, v2->edge_flag);
+        gl_cull_triangle(v0, v1, v2);
         return;
     }
 
@@ -372,9 +410,6 @@ void gl_clip_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
     out_list->vertices[0] = v0;
     out_list->vertices[1] = v1;
     out_list->vertices[2] = v2;
-    out_list->edge_flags[0] = v0->edge_flag;
-    out_list->edge_flags[1] = v1->edge_flag;
-    out_list->edge_flags[2] = v2->edge_flag;
     out_list->count = 3;
     
     for (uint32_t c = 0; c < CLIPPING_PLANE_COUNT; c++)
@@ -451,17 +486,25 @@ void gl_clip_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
 
     for (uint32_t i = 2; i < out_list->count; i++)
     {
-        gl_cull_triangle(out_list->vertices[0], out_list->vertices[i-1], out_list->vertices[i], 
-                         (i == 2) ? out_list->edge_flags[0] : false, 
-                         out_list->edge_flags[i-1], 
-                         (i == out_list->count - 1) ? out_list->edge_flags[i] : false);
+        gl_cull_triangle(out_list->vertices[0], out_list->vertices[i-1], out_list->vertices[i]);
     }
 }
 
-void gl_clip_line(gl_vertex_t *v0, gl_vertex_t *v1)
+void gl_clip_line()
 {
+    gl_vertex_t *v0 = &state.vertex_cache[state.prim_indices[0]];
+    gl_vertex_t *v1 = &state.vertex_cache[state.prim_indices[1]];
+
     if (v0->clip & v1->clip) {
         return;
+    }
+
+    // Flat shading
+    if (state.shade_model == GL_FLAT) {
+        v0->color[0] = v1->color[0];
+        v0->color[1] = v1->color[1];
+        v0->color[2] = v1->color[2];
+        v0->color[3] = v1->color[3];
     }
 
     uint8_t any_clip = v0->clip | v1->clip;
@@ -497,106 +540,9 @@ void gl_clip_line(gl_vertex_t *v0, gl_vertex_t *v1)
     gl_draw_line(v0, v1);
 }
 
-void gl_update_polygons()
+void gl_clip_point()
 {
-    if (state.primitive_progress < 3) {
-        return;
-    }
-
-    gl_vertex_t *v0 = &state.vertex_cache[state.primitive_indices[0]];
-    gl_vertex_t *v1 = &state.vertex_cache[state.primitive_indices[1]];
-    gl_vertex_t *v2 = &state.vertex_cache[state.primitive_indices[2]];
-
-    // NOTE: Quads and quad strips are technically not quite conformant to the spec
-    //       because incomplete quads are still rendered (only the first triangle)
-
-    switch (state.primitive_mode) {
-    case GL_TRIANGLES:
-        // Reset the triangle progress to zero since we start with a completely new primitive that
-        // won't share any vertices with the previous ones
-        state.primitive_progress = 0;
-        break;
-    case GL_TRIANGLE_STRIP:
-    case GL_QUAD_STRIP:
-        // The next triangle will share two vertices with the previous one, so reset progress to 2
-        state.primitive_progress = 2;
-        // Which vertices are shared depends on whether the triangle counter is odd or even
-        state.primitive_indices[state.triangle_counter % 2] = state.primitive_indices[2];
-        break;
-    case GL_POLYGON:
-    case GL_TRIANGLE_FAN:
-        // The next triangle will share two vertices with the previous one, so reset progress to 2
-        // It will always share the last one and the very first vertex that was specified.
-        // To make sure the first vertex is not overwritten it was locked earlier (see glBegin)
-        state.primitive_progress = 2;
-        state.primitive_indices[1] = state.primitive_indices[2];
-        break;
-    case GL_QUADS:
-        if (state.triangle_counter % 2 == 0) {
-            // We have just finished the first of two triangles in this quad. This means the next
-            // triangle will share the first vertex and the last.
-            // To make sure the first vertex is not overwritten it was locked earlier (see glBegin)
-            state.primitive_progress = 2;
-            state.primitive_indices[1] = state.primitive_indices[2];
-        } else {
-            // We have just finished the second triangle of this quad, so reset the triangle progress completely.
-            // Also reset the cache counter so the next vertex will be locked again.
-            state.primitive_progress = 0;
-            state.next_vertex = 0;
-        }
-        break;
-    }
-
-    state.triangle_counter++;
-
-    // Flat shading
-    if (state.shade_model == GL_FLAT) {
-        v0->color[0] = v1->color[0] = v2->color[0];
-        v0->color[1] = v1->color[1] = v2->color[1];
-        v0->color[2] = v1->color[2] = v2->color[2];
-        v0->color[3] = v1->color[3] = v2->color[3];
-    }
-
-    // TODO: override edge flags for interior edges of non-triangle primitives
-    gl_clip_triangle(v0, v1, v2);
-}
-
-void gl_update_lines()
-{
-    if (state.primitive_progress < 2) {
-        return;
-    }
-
-    gl_vertex_t *v0 = &state.vertex_cache[state.primitive_indices[0]];
-    gl_vertex_t *v1 = &state.vertex_cache[state.primitive_indices[1]];
-
-    switch (state.primitive_mode) {
-    case GL_LINES:
-        state.primitive_progress = 0;
-        break;
-    case GL_LINE_STRIP:
-    case GL_LINE_LOOP:
-        state.primitive_progress = 1;
-        state.primitive_indices[0] = state.primitive_indices[1];
-        break;
-    }
-
-    // Flat shading
-    if (state.shade_model == GL_FLAT) {
-        v0->color[0] = v1->color[0];
-        v0->color[1] = v1->color[1];
-        v0->color[2] = v1->color[2];
-        v0->color[3] = v1->color[3];
-    }
-
-    gl_clip_line(v0, v1);
-}
-
-void gl_update_points()
-{
-    gl_vertex_t *v0 = &state.vertex_cache[state.primitive_indices[0]];
-
-    state.primitive_progress = 0;
+    gl_vertex_t *v0 = &state.vertex_cache[state.prim_indices[0]];
 
     if (v0->clip) {
         return;
@@ -605,10 +551,92 @@ void gl_update_points()
     gl_draw_point(v0);
 }
 
-void gl_calc_texture_coord(GLfloat *dest, uint32_t coord_index, const gl_tex_gen_t *gen, const GLfloat *obj_pos, const GLfloat *eye_pos, const GLfloat *eye_normal)
+uint8_t gl_points()
+{
+    gl_clip_point();
+    // Reset the progress to zero since we start with a completely new primitive that
+    // won't share any vertices with the previous ones
+    return 0;
+}
+
+uint8_t gl_lines()
+{
+    gl_clip_line();
+
+    // Reset the progress to zero since we start with a completely new primitive that
+    // won't share any vertices with the previous ones
+    return 0;
+}
+
+uint8_t gl_line_strip()
+{
+    gl_clip_line();
+
+    state.prim_indices[0] = state.prim_indices[1];
+
+    return 1;
+}
+
+uint8_t gl_triangles()
+{
+    gl_clip_triangle();
+
+    // Reset the progress to zero since we start with a completely new primitive that
+    // won't share any vertices with the previous ones
+    return 0;
+}
+
+uint8_t gl_triangle_strip()
+{
+    gl_clip_triangle();
+
+    // Which vertices are shared depends on whether the primitive counter is odd or even
+    state.prim_indices[state.prim_counter & 1] = state.prim_indices[2];
+
+    // The next triangle will share two vertices with the previous one, so reset progress to 2
+    return 2;
+}
+
+uint8_t gl_triangle_fan()
+{
+    gl_clip_triangle();
+
+    state.prim_indices[1] = state.prim_indices[2];
+
+    // The next triangle will share two vertices with the previous one, so reset progress to 2
+    // It will always share the last one and the very first vertex that was specified.
+    // To make sure the first vertex is not overwritten it was locked earlier (see glBegin)
+    return 2;
+}
+
+uint8_t gl_quads()
+{
+    gl_clip_triangle();
+
+    state.prim_indices[1] = state.prim_indices[2];
+
+    // This is equivalent to state.prim_counter % 2 == 0 ? 2 : 0
+    return ((state.prim_counter & 1) ^ 1) << 1;
+}
+
+void gl_prim_assembly(uint8_t cache_index)
+{
+    state.prim_indices[state.prim_progress] = cache_index;
+    state.prim_progress++;
+
+    if (state.prim_progress < state.prim_size) {
+        return;
+    }
+
+    assert(state.prim_func != NULL);
+    state.prim_progress = state.prim_func();
+    state.prim_counter++;
+}
+
+void gl_calc_texture_coord(GLfloat *dest, const GLfloat *input, uint32_t coord_index, const gl_tex_gen_t *gen, const GLfloat *obj_pos, const GLfloat *eye_pos, const GLfloat *eye_normal)
 {
     if (!gen->enabled) {
-        dest[coord_index] = state.current_texcoord[coord_index];
+        dest[coord_index] = input[coord_index];
         return;
     }
 
@@ -640,58 +668,62 @@ void gl_calc_texture_coord(GLfloat *dest, uint32_t coord_index, const gl_tex_gen
     }
 }
 
-void gl_calc_texture_coords(GLfloat *dest, const GLfloat *obj_pos, const GLfloat *eye_pos, const GLfloat *eye_normal)
+void gl_calc_texture_coords(GLfloat *dest, const GLfloat *input, const GLfloat *obj_pos, const GLfloat *eye_pos, const GLfloat *eye_normal)
 {
     GLfloat tmp[4];
 
-    gl_calc_texture_coord(tmp, 0, &state.s_gen, obj_pos, eye_pos, eye_normal);
-    gl_calc_texture_coord(tmp, 1, &state.t_gen, obj_pos, eye_pos, eye_normal);
-    gl_calc_texture_coord(tmp, 2, &state.r_gen, obj_pos, eye_pos, eye_normal);
-    gl_calc_texture_coord(tmp, 3, &state.q_gen, obj_pos, eye_pos, eye_normal);
+    gl_calc_texture_coord(tmp, input, 0, &state.s_gen, obj_pos, eye_pos, eye_normal);
+    gl_calc_texture_coord(tmp, input, 1, &state.t_gen, obj_pos, eye_pos, eye_normal);
+    gl_calc_texture_coord(tmp, input, 2, &state.r_gen, obj_pos, eye_pos, eye_normal);
+    gl_calc_texture_coord(tmp, input, 3, &state.q_gen, obj_pos, eye_pos, eye_normal);
 
     // TODO: skip matrix multiplication if it is the identity
     gl_matrix_mult4x2(dest, gl_matrix_stack_get_matrix(&state.texture_stack), tmp);
 }
 
-void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w) 
+void gl_vertex_t_l(uint8_t cache_index, const gl_matrix_t *mv, const gl_texture_object_t *tex_obj)
 {
-    if (gl_is_invisible()) {
-        return;
-    }
+    gl_vertex_t *v = &state.vertex_cache[cache_index];
 
-    gl_vertex_t *v = &state.vertex_cache[state.next_vertex];
+    GLfloat *pos = state.current_attribs[ATTRIB_VERTEX];
+    GLfloat *color = state.current_attribs[ATTRIB_COLOR];
+    GLfloat *texcoord = state.current_attribs[ATTRIB_TEXCOORD];
+    GLfloat *normal = state.current_attribs[ATTRIB_NORMAL];
 
-    GLfloat pos[] = {x, y, z, w};
     GLfloat eye_pos[4];
     GLfloat eye_normal[3];
 
-    const gl_matrix_t *mv = gl_matrix_stack_get_matrix(&state.modelview_stack);
+    bool is_texture_active = tex_obj != NULL && tex_obj->is_complete;
 
-    gl_matrix_mult(eye_pos, mv, pos);
-    gl_matrix_mult3x3(eye_normal, mv, state.current_normal);
+    if (state.lighting || state.fog || is_texture_active) {
+        gl_matrix_mult(eye_pos, mv, pos);
+    }
 
-    if (state.normalize) {
-        gl_normalize(eye_normal, eye_normal);
+    if (state.lighting || is_texture_active) {
+        gl_matrix_mult3x3(eye_normal, mv, normal);
+
+        if (state.normalize) {
+            gl_normalize(eye_normal, eye_normal);
+        }
     }
 
     if (state.lighting) {
-        // TODO: Back face material?
-        gl_perform_lighting(v->color, eye_pos, eye_normal, &state.materials[0]);
+        gl_perform_lighting(v->color, color, eye_pos, eye_normal, &state.material);
     } else {
-        v->color[0] = state.current_color[0];
-        v->color[1] = state.current_color[1];
-        v->color[2] = state.current_color[2];
-        v->color[3] = state.current_color[3];
+        v->color[0] = color[0];
+        v->color[1] = color[1];
+        v->color[2] = color[2];
+        v->color[3] = color[3];
     }
 
     if (state.fog) {
         v->color[3] = (state.fog_end - fabsf(eye_pos[2])) / (state.fog_end - state.fog_start);
     }
 
-    v->color[0] = CLAMP01(v->color[0]) * 255.f;
-    v->color[1] = CLAMP01(v->color[1]) * 255.f;
-    v->color[2] = CLAMP01(v->color[2]) * 255.f;
-    v->color[3] = CLAMP01(v->color[3]) * 255.f;
+    v->color[0] = CLAMP01(v->color[0]);
+    v->color[1] = CLAMP01(v->color[1]);
+    v->color[2] = CLAMP01(v->color[2]);
+    v->color[3] = CLAMP01(v->color[3]);
 
     gl_matrix_mult(v->position, &state.final_matrix, pos);
 
@@ -702,9 +734,8 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 
     gl_vertex_calc_screenspace(v);
 
-    gl_texture_object_t *tex_obj = gl_get_active_texture();
-    if (tex_obj != NULL && tex_obj->is_complete) {
-        gl_calc_texture_coords(v->texcoord, pos, eye_pos, eye_normal);
+    if (is_texture_active) {
+        gl_calc_texture_coords(v->texcoord, texcoord, pos, eye_pos, eye_normal);
 
         v->texcoord[0] *= tex_obj->levels[0].width;
         v->texcoord[1] *= tex_obj->levels[0].height;
@@ -713,25 +744,430 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
             v->texcoord[0] -= 0.5f;
             v->texcoord[1] -= 0.5f;
         }
+    }
+}
 
-        v->texcoord[0] *= 32.f;
-        v->texcoord[1] *= 32.f;
+typedef uint32_t (*read_index_func)(const void*,uint32_t);
+
+uint32_t read_index_8(const uint8_t *src, uint32_t i)
+{
+    return src[i];
+}
+
+uint32_t read_index_16(const uint16_t *src, uint32_t i)
+{
+    return src[i];
+}
+
+uint32_t read_index_32(const uint32_t *src, uint32_t i)
+{
+    return src[i];
+}
+
+void gl_reset_vertex_cache()
+{
+    memset(state.vertex_cache_indices, 0xFF, sizeof(state.vertex_cache_indices));
+    memset(state.lru_age_table, 0, sizeof(state.lru_age_table));
+    state.lru_next_age = 1;
+    state.locked_vertex = 0xFF;
+}
+
+bool gl_check_vertex_cache(uint32_t vert_index, uint8_t *cache_index)
+{
+    bool miss = true;
+
+    uint32_t min_age = 0xFFFFFFFF;
+    for (uint8_t ci = 0; ci < VERTEX_CACHE_SIZE; ci++)
+    {
+        if (state.vertex_cache_indices[ci] == vert_index) {
+            miss = false;
+            *cache_index = ci;
+            break;
+        }
+
+        if (state.lru_age_table[ci] < min_age) {
+            min_age = state.lru_age_table[ci];
+            *cache_index = ci;
+        }
     }
 
-    v->edge_flag = state.force_edge_flag || state.current_edge_flag;
+    if (state.lock_next_vertex) {
+        state.lru_age_table[*cache_index] = 0xFFFFFFFF;
+    } else {
+        state.lru_age_table[*cache_index] = state.lru_next_age++;
+    }
 
-    state.primitive_indices[state.primitive_progress] = state.next_vertex;
+    state.vertex_cache_indices[*cache_index] = vert_index;
 
-    // Acquire the next vertex in the cache that is writable.
-    // Up to one vertex can be locked to keep it from being overwritten.
-    do {
-        state.next_vertex = (state.next_vertex + 1) % VERTEX_CACHE_SIZE;
-    } while (state.next_vertex == state.vertex_cache_locked);
+    return miss;
+}
+
+void gl_load_attribs(const gl_attrib_source_t *sources, const uint32_t index)
+{
+    static const GLfloat default_values[] = {0, 0, 0, 1};
+
+    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
+    {
+        const gl_attrib_source_t *src = &sources[i];
+        if (src->pointer == NULL) {
+            continue;
+        }
+
+        GLfloat *dst = state.current_attribs[i];
+
+        const void *p = src->pointer + (index - src->offset) * src->stride;
+        src->read_func(dst, p, src->size);
+
+        // Fill in the rest with default values
+        for (uint32_t r = 3; r >= src->size; r--)
+        {
+            dst[r] = default_values[r];
+        }
+    }
+}
+
+void gl_draw(const gl_attrib_source_t *sources, uint32_t offset, uint32_t count, const void *indices, read_index_func read_index)
+{
+    if (sources[ATTRIB_VERTEX].pointer == NULL) {
+        return;
+    }
+
+    const gl_matrix_t *mv = gl_matrix_stack_get_matrix(&state.modelview_stack);
+
+    gl_texture_object_t *tex_obj = gl_get_active_texture();
+
+    for (uint32_t i = 0; i < count; i++)
+    {
+        uint32_t index;
+        uint8_t cache_index = 0;
+        bool miss = true;
+
+        if (indices != NULL) {
+            index = read_index(indices, i);
+            miss = gl_check_vertex_cache(index, &cache_index);
+        } else {
+            index = offset + i;
+            do {
+                cache_index = state.next_cache_index;
+                state.next_cache_index = (state.next_cache_index + 1) % VERTEX_CACHE_SIZE;
+            } while (cache_index == state.locked_vertex);
+        }
+        
+        if (miss) {
+            gl_load_attribs(sources, index);
+            gl_vertex_t_l(cache_index, mv, tex_obj);
+        }
+
+        if (state.lock_next_vertex) {
+            state.locked_vertex = cache_index;
+            state.lock_next_vertex = false;
+        }
+
+        gl_prim_assembly(cache_index);
+    }
+}
+
+void read_u8(GLfloat *dst, const uint8_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = U8_TO_FLOAT(src[i]);
+}
+
+void read_i8(GLfloat *dst, const int8_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = I8_TO_FLOAT(src[i]);
+}
+
+void read_u16(GLfloat *dst, const uint16_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = U16_TO_FLOAT(src[i]);
+}
+
+void read_i16(GLfloat *dst, const int16_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = I16_TO_FLOAT(src[i]);
+}
+
+void read_u32(GLfloat *dst, const uint32_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = U32_TO_FLOAT(src[i]);
+}
+
+void read_i32(GLfloat *dst, const int32_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = I32_TO_FLOAT(src[i]);
+}
+
+void read_u8n(GLfloat *dst, const uint8_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+}
+
+void read_i8n(GLfloat *dst, const int8_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+}
+
+void read_u16n(GLfloat *dst, const uint16_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+}
+
+void read_i16n(GLfloat *dst, const int16_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+}
+
+void read_u32n(GLfloat *dst, const uint32_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+}
+
+void read_i32n(GLfloat *dst, const int32_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+}
+
+void read_f32(GLfloat *dst, const float *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+}
+
+void read_f64(GLfloat *dst, const double *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+}
+
+bool gl_array_copy_data(gl_array_t *array, uint32_t offset, uint32_t count, uint32_t elem_size, uint32_t stride)
+{
+    uint32_t buffer_size = elem_size * count;
+
+    if (!gl_storage_resize(&array->tmp_storage, buffer_size)) {
+        gl_set_error(GL_OUT_OF_MEMORY);
+        return false;
+    }
+
+    for (uint32_t e = 0; e < count; e++)
+    {
+        void *dst_ptr = array->tmp_storage.data + e * elem_size;
+        const void *src_ptr = array->pointer + (e + offset) * stride;
+        memcpy(dst_ptr, src_ptr, elem_size);
+    }
+
+    return true;
+}
+
+bool gl_prepare_attrib_source(gl_attrib_source_t *attrib_src, gl_array_t *array, uint32_t offset, uint32_t count)
+{
+    if (!array->enabled) {
+        attrib_src->pointer = NULL;
+        return true;
+    }
+
+    uint32_t size_shift = 0;
     
-    state.primitive_progress++;
+    switch (array->type) {
+    case GL_BYTE:
+        attrib_src->read_func = array->normalize ? (read_attrib_func)read_i8n : (read_attrib_func)read_i8;
+        size_shift = 0;
+        break;
+    case GL_UNSIGNED_BYTE:
+        attrib_src->read_func = array->normalize ? (read_attrib_func)read_u8n : (read_attrib_func)read_u8;
+        size_shift = 0;
+        break;
+    case GL_SHORT:
+        attrib_src->read_func = array->normalize ? (read_attrib_func)read_i16n : (read_attrib_func)read_i16;
+        size_shift = 1;
+        break;
+    case GL_UNSIGNED_SHORT:
+        attrib_src->read_func = array->normalize ? (read_attrib_func)read_u16n : (read_attrib_func)read_u16;
+        size_shift = 1;
+        break;
+    case GL_INT:
+        attrib_src->read_func = array->normalize ? (read_attrib_func)read_i32n : (read_attrib_func)read_i32;
+        size_shift = 2;
+        break;
+    case GL_UNSIGNED_INT:
+        attrib_src->read_func = array->normalize ? (read_attrib_func)read_u32n : (read_attrib_func)read_u32;
+        size_shift = 2;
+        break;
+    case GL_FLOAT:
+        attrib_src->read_func = (read_attrib_func)read_f32;
+        size_shift = 3;
+        break;
+    case GL_DOUBLE:
+        attrib_src->read_func = (read_attrib_func)read_f64;
+        size_shift = 3;
+        break;
+    }
 
-    assert(state.primitive_func != NULL);
-    state.primitive_func();
+    uint32_t elem_size = array->size << size_shift;
+
+    attrib_src->size = array->size;
+
+    uint32_t stride = array->stride;
+    if (stride == 0) {
+        stride = elem_size;
+    }
+
+    if (array->binding != NULL) {
+        attrib_src->pointer = array->binding->storage.data + (uint32_t)array->pointer;
+        attrib_src->offset = 0;
+        attrib_src->stride = stride;
+    } else {
+        if (!gl_array_copy_data(array, offset, count, elem_size, stride)) {
+            gl_set_error(GL_OUT_OF_MEMORY);
+            return false;
+        }
+
+        attrib_src->pointer = array->tmp_storage.data;
+        attrib_src->offset = offset;
+        attrib_src->stride = elem_size;
+    }
+
+    return true;
+}
+
+bool gl_prepare_attrib_sources(uint32_t offset, uint32_t count)
+{
+    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
+    {
+        if (!gl_prepare_attrib_source(&state.attrib_sources[i], &state.arrays[i], offset, count)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void glDrawArrays(GLenum mode, GLint first, GLsizei count)
+{
+    switch (mode) {
+    case GL_POINTS:
+    case GL_LINES:
+    case GL_LINE_LOOP:
+    case GL_LINE_STRIP:
+    case GL_TRIANGLES:
+    case GL_TRIANGLE_STRIP:
+    case GL_TRIANGLE_FAN:
+    case GL_QUADS:
+    case GL_QUAD_STRIP:
+    case GL_POLYGON:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    if (gl_prepare_attrib_sources(first, count)) {
+        return;
+    }
+
+    glBegin(mode);
+    gl_draw(state.attrib_sources, first, count, NULL, NULL);
+    glEnd();
+}
+
+void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices)
+{
+    switch (mode) {
+    case GL_POINTS:
+    case GL_LINES:
+    case GL_LINE_LOOP:
+    case GL_LINE_STRIP:
+    case GL_TRIANGLES:
+    case GL_TRIANGLE_STRIP:
+    case GL_TRIANGLE_FAN:
+    case GL_QUADS:
+    case GL_QUAD_STRIP:
+    case GL_POLYGON:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    read_index_func read_index;
+    uint32_t index_size_shift = 0;
+
+    switch (type) {
+    case GL_UNSIGNED_BYTE:
+        read_index = (read_index_func)read_index_8;
+        index_size_shift = 0;
+        break;
+    case GL_UNSIGNED_SHORT:
+        read_index = (read_index_func)read_index_16;
+        index_size_shift = 1;
+        break;
+    case GL_UNSIGNED_INT:
+        read_index = (read_index_func)read_index_32;
+        index_size_shift = 2;
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    if (state.element_array_buffer != NULL) {
+        indices = state.element_array_buffer->storage.data + (uint32_t)indices;
+    } else {
+        uint32_t index_buffer_size = count << index_size_shift;
+
+        if (!gl_storage_resize(&state.tmp_index_storage, index_buffer_size)) {
+            gl_set_error(GL_OUT_OF_MEMORY);
+            return;
+        }
+
+        memcpy(state.tmp_index_storage.data, indices, index_buffer_size);
+        indices = state.tmp_index_storage.data;
+    }
+
+    uint32_t min_index = UINT32_MAX, max_index = 0;
+
+    for (uint32_t i = 0; i < count; i++)
+    {
+        uint32_t index = read_index(indices, i);
+        min_index = MIN(min_index, index);
+        max_index = MAX(max_index, index);
+    }
+
+    if (!gl_prepare_attrib_sources(min_index, max_index - min_index + 1)) {
+        return;
+    }
+
+    glBegin(mode);
+    gl_draw(state.attrib_sources, 0, count, indices, read_index);
+    glEnd();
+}
+
+void glArrayElement(GLint i)
+{
+    // TODO: batch these
+
+    if (!gl_prepare_attrib_sources(i, 1)) {
+        return;
+    }
+
+    gl_draw(state.attrib_sources, i, 1, NULL, NULL);
+}
+
+static GLfloat vertex_tmp[4];
+static gl_attrib_source_t dummy_sources[ATTRIB_COUNT] = {
+    { .pointer = vertex_tmp, .size = 4, .stride = sizeof(GLfloat) * 4, .offset = 0, .read_func = (read_attrib_func)read_f32 },
+    { .pointer = NULL },
+    { .pointer = NULL },
+    { .pointer = NULL },
+};
+
+void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
+{
+    // TODO: batch these (?)
+
+    vertex_tmp[0] = x;
+    vertex_tmp[1] = y;
+    vertex_tmp[2] = z;
+    vertex_tmp[3] = w;
+
+    gl_draw(dummy_sources, 0, 1, NULL, NULL);
 }
 
 void glVertex4s(GLshort x, GLshort y, GLshort z, GLshort w)     { glVertex4f(x, y, z, w); }
@@ -763,21 +1199,12 @@ void glVertex4iv(const GLint *v)    { glVertex4i(v[0], v[1], v[2], v[3]); }
 void glVertex4fv(const GLfloat *v)  { glVertex4f(v[0], v[1], v[2], v[3]); }
 void glVertex4dv(const GLdouble *v) { glVertex4d(v[0], v[1], v[2], v[3]); }
 
-void glEdgeFlag(GLboolean flag)
-{
-    state.current_edge_flag = flag;
-}
-void glEdgeFlagv(const GLboolean *flag)
-{
-    glEdgeFlag(*flag);
-}
-
 void glColor4f(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
-    state.current_color[0] = r;
-    state.current_color[1] = g;
-    state.current_color[2] = b;
-    state.current_color[3] = a;
+    state.current_attribs[ATTRIB_COLOR][0] = r;
+    state.current_attribs[ATTRIB_COLOR][1] = g;
+    state.current_attribs[ATTRIB_COLOR][2] = b;
+    state.current_attribs[ATTRIB_COLOR][3] = a;
 }
 
 void glColor4d(GLdouble r, GLdouble g, GLdouble b, GLdouble a)  { glColor4f(r, g, b, a); }
@@ -817,10 +1244,10 @@ void glColor4uiv(const GLuint *v)   { glColor4ui(v[0], v[1], v[2], v[3]); }
 
 void glTexCoord4f(GLfloat s, GLfloat t, GLfloat r, GLfloat q)
 {
-    state.current_texcoord[0] = s;
-    state.current_texcoord[1] = t;
-    state.current_texcoord[2] = r;
-    state.current_texcoord[3] = q;
+    state.current_attribs[ATTRIB_TEXCOORD][0] = s;
+    state.current_attribs[ATTRIB_TEXCOORD][1] = t;
+    state.current_attribs[ATTRIB_TEXCOORD][2] = r;
+    state.current_attribs[ATTRIB_TEXCOORD][3] = q;
 }
 
 void glTexCoord4s(GLshort s, GLshort t, GLshort r, GLshort q)       { glTexCoord4f(s, t, r, q); }
@@ -864,9 +1291,9 @@ void glTexCoord4dv(const GLdouble *v)   { glTexCoord4d(v[0], v[1], v[2], v[3]); 
 
 void glNormal3f(GLfloat nx, GLfloat ny, GLfloat nz)
 {
-    state.current_normal[0] = nx;
-    state.current_normal[1] = ny;
-    state.current_normal[2] = nz;
+    state.current_attribs[ATTRIB_NORMAL][0] = nx;
+    state.current_attribs[ATTRIB_NORMAL][1] = ny;
+    state.current_attribs[ATTRIB_NORMAL][2] = nz;
 }
 
 void glNormal3b(GLbyte nx, GLbyte ny, GLbyte nz)        { glNormal3f(I8_TO_FLOAT(nx), I8_TO_FLOAT(ny), I8_TO_FLOAT(nz)); }
@@ -905,6 +1332,8 @@ void glPolygonMode(GLenum face, GLenum mode)
     switch (face) {
     case GL_FRONT:
     case GL_BACK:
+        assertf(0, "Separate polygon modes for front and back faces are not supported!");
+        break;
     case GL_FRONT_AND_BACK:
         break;
     default:
@@ -922,15 +1351,13 @@ void glPolygonMode(GLenum face, GLenum mode)
         return;
     }
 
-    // TODO: support separate modes for front and back
-    state.polygon_mode = mode;
-    gl_update_is_points();
+    GL_SET_STATE_FLAG(state.polygon_mode, mode, DIRTY_FLAG_RENDERMODE | DIRTY_FLAG_COMBINER);
 }
 
 void glDepthRange(GLclampd n, GLclampd f)
 {
-    state.current_viewport.scale[2] = ((f - n) * 0.5f) * 0x7FFF;
-    state.current_viewport.offset[2] = (n + (f - n) * 0.5f) * 0x7FFF;
+    state.current_viewport.scale[2] = (f - n) * 0.5f;
+    state.current_viewport.offset[2] = n + (f - n) * 0.5f;
 }
 
 void glViewport(GLint x, GLint y, GLsizei w, GLsizei h)

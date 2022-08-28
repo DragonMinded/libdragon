@@ -152,13 +152,13 @@ static void yuv_draw_frame(int width, int height, enum ZoomMode mode) {
 	}
 
 	// Configure YUV blitting mode
-	rdpq_set_mode_yuv();
+	rdpq_set_mode_yuv(false);
 
 	rdpq_set_tile(0, FMT_YUV16, 0, BLOCK_W, 0);
 	rdpq_set_tile(1, FMT_YUV16, 0, BLOCK_W, 0);
 	rdpq_set_tile(2, FMT_YUV16, 0, BLOCK_W, 0);
 	rdpq_set_tile(3, FMT_YUV16, 0, BLOCK_W, 0);
-	rdpq_set_texture_image(interleaved_buffer, FMT_YUV16, width);
+	rdpq_set_texture_image_raw(0, PhysicalAddr(interleaved_buffer), FMT_YUV16, width, height);
 
 	float stepx = 1.0f / scalew;
 	float stepy = 1.0f / scaleh;

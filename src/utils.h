@@ -9,6 +9,7 @@
 
 #define MAX(a,b)  ({ typeof(a) _a = a; typeof(b) _b = b; _a > _b ? _a : _b; })
 #define MIN(a,b)  ({ typeof(a) _a = a; typeof(b) _b = b; _a < _b ? _a : _b; })
+#define CLAMP(x, min, max) (MIN(MAX((x), (min)), (max)))
 
 /** Round n up to the next multiple of d */
 #define ROUND_UP(n, d) ({ \

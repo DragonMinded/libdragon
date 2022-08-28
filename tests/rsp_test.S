@@ -115,8 +115,9 @@ command_reset_log:
 
 command_send_rdp:
     li s4, %lo(TEST_RDP_STAGING)
+    li s3, %lo(TEST_RDP_STAGING) + 8
     sw zero, 0(s4)
-    j RSPQ_RdpSend
+    j RDPQ_Send
     sw a1, 4(s4)
 
 command_big:
@@ -138,3 +139,5 @@ command_big_out:
     li s4, %lo(TEST_BIG)
     j DMAOut
     li t0, DMA_SIZE(128, 1)
+
+#include <rsp_rdpq.inc>

@@ -434,10 +434,10 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     {
         /* Set parameters necessary for drawing */
         /* Grab a location to render to */
-        __safe_buffer[i] = malloc_uncached_aligned( 64, __width * __height * __bitdepth );
-        assert(__safe_buffer[i] != NULL);
         tex_format_t format = bit == DEPTH_16_BPP ? FMT_RGBA16 : FMT_RGBA32;
-        surface_new(&surfaces[i], __safe_buffer[i], format, __width, __height, __width * __bitdepth);
+        surfaces[i] = surface_alloc(format, __width, __height);
+        __safe_buffer[i] = surfaces[i].buffer;
+        assert(__safe_buffer[i] != NULL);
 
         /* Baseline is blank */
         memset( __safe_buffer[i], 0, __width * __height * __bitdepth );
@@ -551,7 +551,7 @@ display_context_t display_lock(void)
  * @param[in] disp
  *            A display context retrieved using #display_lock
  */
-void display_show( display_context_t disp )
+void display_show( surface_t* disp )
 {
     /* They tried drawing on a bad context */
     if( disp == NULL ) { return; }
@@ -614,7 +614,7 @@ uint32_t display_get_height()
 }
 
 /**
- * @brief Get the currently configured bitdepth of the display
+ * @brief Get the currently configured bitdepth of the display (in bytes per pixels)
  */
 uint32_t display_get_bitdepth()
 {

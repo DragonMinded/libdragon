@@ -1,5 +1,5 @@
 /**
- * @defgroup rsp RSP interface
+ * @defgroup rsp RSP: vector coprocessor
  * @ingroup lowlevel
  * @brief RSP basic library and command queue
  * 

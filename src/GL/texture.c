@@ -5,6 +5,8 @@
 #include <string.h>
 #include <malloc.h>
 
+#define LOAD_TILE 7
+
 extern gl_state_t state;
 
 void gl_init_texture_object(gl_texture_object_t *obj)
@@ -85,10 +87,6 @@ tex_format_t gl_get_texture_format(GLenum format)
 uint32_t gl_get_format_element_count(GLenum format)
 {
     switch (format) {
-    // TODO: should any of these be supported?
-    //case GL_COLOR_INDEX:
-    //case GL_STENCIL_INDEX:
-    //case GL_DEPTH_COMPONENT:
     case GL_RED:
     case GL_GREEN:
     case GL_BLUE:
@@ -101,6 +99,9 @@ uint32_t gl_get_format_element_count(GLenum format)
         return 3;
     case GL_RGBA:
         return 4;
+    case GL_COLOR_INDEX:
+        assertf(0, "Color index format is not supported!");
+        return 0;
     default:
         return 0;
     }
@@ -126,8 +127,10 @@ GLint gl_choose_internalformat(GLint requested)
         assertf(0, "Alpha-only textures are not supported!");
         break;
 
+    case GL_INTENSITY4:
+        return GL_INTENSITY4;
+
     case GL_INTENSITY:
-    case GL_INTENSITY4: // TODO: support this one
     case GL_INTENSITY8:
     case GL_INTENSITY12:
     case GL_INTENSITY16:
@@ -278,7 +281,7 @@ void gl_unpack_pixel_uint_10_10_10_2(GLfloat *result, uint32_t num_elements, boo
     result[3] = (value & 0x3) / (float)(0x3);
 }
 
-void gl_pack_pixel_rgb5a1(GLvoid *dest, const GLfloat *components)
+void gl_pack_pixel_rgb5a1(GLvoid *dest, uint32_t x, const GLfloat *components)
 {
     *((GLushort*)dest) = ((GLushort)roundf(components[0]*0x1F) << 11) |
                          ((GLushort)roundf(components[1]*0x1F) << 6)  |
@@ -286,7 +289,7 @@ void gl_pack_pixel_rgb5a1(GLvoid *dest, const GLfloat *components)
                          ((GLushort)roundf(components[3]));
 }
 
-void gl_pack_pixel_rgba8(GLvoid *dest, const GLfloat *components)
+void gl_pack_pixel_rgba8(GLvoid *dest, uint32_t x, const GLfloat *components)
 {
     *((GLuint*)dest) = ((GLuint)roundf(components[0]*0xFF) << 24) |
                        ((GLuint)roundf(components[1]*0xFF) << 16) |
@@ -294,19 +297,30 @@ void gl_pack_pixel_rgba8(GLvoid *dest, const GLfloat *components)
                        ((GLuint)roundf(components[3]*0xFF));
 }
 
-void gl_pack_pixel_luminance4_alpha4(GLvoid *dest, const GLfloat *components)
+void gl_pack_pixel_luminance4_alpha4(GLvoid *dest, uint32_t x, const GLfloat *components)
 {
     *((GLubyte*)dest) = ((GLubyte)roundf(components[0]*0xF) << 4) |
                         ((GLubyte)roundf(components[3]*0xF));
 }
 
-void gl_pack_pixel_luminance8_alpha8(GLvoid *dest, const GLfloat *components)
+void gl_pack_pixel_luminance8_alpha8(GLvoid *dest, uint32_t x, const GLfloat *components)
 {
     *((GLushort*)dest) = ((GLushort)roundf(components[0]*0xFF) << 8) |
                          ((GLushort)roundf(components[3]*0xFF));
 }
 
-void gl_pack_pixel_intensity8(GLvoid *dest, const GLfloat *components)
+void gl_pack_pixel_intensity4(GLvoid *dest, uint32_t x, const GLfloat *components)
+{
+    GLubyte c = (GLubyte)roundf(components[0]*0xF);
+
+    if (x & 1) {
+        *((GLubyte*)dest) = (*((GLubyte*)dest) & 0xF0) | c;
+    } else {
+        *((GLubyte*)dest) = (*((GLubyte*)dest) & 0xF) | (c << 4);
+    }
+}
+
+void gl_pack_pixel_intensity8(GLvoid *dest, uint32_t x, const GLfloat *components)
 {
     *((GLubyte*)dest) = (GLubyte)roundf(components[0]*0xFF);
 }
@@ -339,12 +353,11 @@ bool gl_do_formats_match(GLint dst_fmt, GLenum src_fmt, GLenum src_type)
     return false;
 }
 
-void gl_transfer_pixels(GLvoid *dest, GLenum dest_format, GLsizei dest_stride, GLsizei width, GLsizei height, uint32_t num_elements, GLenum format, GLenum type, const GLvoid *data)
+void gl_transfer_pixels(GLvoid *dest, GLenum dest_format, GLsizei dest_stride, GLsizei width, GLsizei height, uint32_t num_elements, GLenum format, GLenum type, uint32_t xoffset, const GLvoid *data)
 {
     uint32_t src_pixel_size;
-    uint32_t dest_pixel_size;
     void (*unpack_func)(GLfloat*,uint32_t,bool,const GLvoid*);
-    void (*pack_func)(GLvoid*,const GLfloat*);
+    void (*pack_func)(GLvoid*,uint32_t,const GLfloat*);
 
     switch (type) {
     case GL_BYTE:
@@ -399,31 +412,30 @@ void gl_transfer_pixels(GLvoid *dest, GLenum dest_format, GLsizei dest_stride, G
         assertf(0, "Invalid type");
     }
 
-    // TODO: GL_INTENSITY4
     switch (dest_format) {
     case GL_RGB5_A1:
-        dest_pixel_size = sizeof(GLushort);
         pack_func = gl_pack_pixel_rgb5a1;
         break;
     case GL_RGBA8:
-        dest_pixel_size = sizeof(GLuint);
         pack_func = gl_pack_pixel_rgba8;
         break;
     case GL_LUMINANCE4_ALPHA4:
-        dest_pixel_size = sizeof(GLubyte);
         pack_func = gl_pack_pixel_luminance4_alpha4;
         break;
     case GL_LUMINANCE8_ALPHA8:
-        dest_pixel_size = sizeof(GLushort);
         pack_func = gl_pack_pixel_luminance8_alpha8;
         break;
+    case GL_INTENSITY4:
+        pack_func = gl_pack_pixel_intensity4;
+        break;
     case GL_INTENSITY8:
-        dest_pixel_size = sizeof(GLubyte);
         pack_func = gl_pack_pixel_intensity8;
         break;
     default:
         assertf(0, "Unsupported destination format!");
     }
+
+    tex_format_t dest_tex_fmt = gl_get_texture_format(dest_format);
 
     uint32_t row_length = state.unpack_row_length > 0 ? state.unpack_row_length : width;
 
@@ -451,7 +463,7 @@ void gl_transfer_pixels(GLvoid *dest, GLenum dest_format, GLsizei dest_stride, G
     for (uint32_t r = 0; r < height; r++)
     {
         if (can_mempcy) {
-            memcpy(dest_ptr, src_ptr, dest_pixel_size * width);
+            memcpy(dest_ptr + TEX_FORMAT_PIX2BYTES(dest_tex_fmt, xoffset), src_ptr, TEX_FORMAT_PIX2BYTES(dest_tex_fmt, width));
         } else {
             for (uint32_t c = 0; c < width; c++)
             {
@@ -478,7 +490,8 @@ void gl_transfer_pixels(GLvoid *dest, GLenum dest_format, GLsizei dest_stride, G
                     }
                 }
 
-                pack_func(dest_ptr + c * dest_pixel_size, components);
+                uint32_t x = xoffset + c;
+                pack_func(dest_ptr + TEX_FORMAT_PIX2BYTES(dest_tex_fmt, x), x, components);
             }
         }
 
@@ -612,11 +625,9 @@ uint32_t add_tmem_size(uint32_t current, uint32_t size)
 bool gl_texture_fits_tmem(gl_texture_object_t *texture, uint32_t additional_size)
 {
     uint32_t size = 0;
-    tex_format_t format = gl_get_texture_format(texture->levels[0].internal_format);
     for (uint32_t i = 0; i < texture->num_levels; i++)
     {
-        uint32_t pitch = MAX(TEX_FORMAT_BYTES_PER_PIXEL(format) * texture->levels[i].width, 8);
-        size = add_tmem_size(size, pitch * texture->levels[i].height);
+        size = add_tmem_size(size, texture->levels[i].stride * texture->levels[i].height);
     }
     
     size = add_tmem_size(size, additional_size);
@@ -667,13 +678,22 @@ bool gl_validate_upload_image(GLenum format, GLenum type, uint32_t *num_elements
 
 void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
-    // TODO: border?
-    assertf(border == 0, "Texture border is not implemented yet!");
+    assertf(border == 0, "Texture border is not supported!");
 
     gl_texture_object_t *obj;
     gl_texture_image_t *image;
 
     if (!gl_get_texture_object_and_image(target, level, &obj, &image)) {
+        return;
+    }
+
+    GLsizei width_without_border = width - 2 * border;
+    GLsizei height_without_border = height - 2 * border;
+
+    // Check for power of two
+    if ((width_without_border & (width_without_border - 1)) || 
+        (height_without_border & (height_without_border - 1))) {
+        gl_set_error(GL_INVALID_VALUE);
         return;
     }
 
@@ -689,8 +709,7 @@ void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei widt
     }
 
     uint32_t rdp_format = gl_get_texture_format(preferred_format);
-    uint32_t pixel_size = TEX_FORMAT_BYTES_PER_PIXEL(rdp_format);
-    uint32_t stride = pixel_size * width;
+    uint32_t stride = MAX(TEX_FORMAT_PIX2BYTES(rdp_format, width), 8);
     uint32_t size = stride * height;
 
     if (!gl_texture_fits_tmem(obj, size)) {
@@ -705,7 +724,7 @@ void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei widt
     }
 
     if (data != NULL) {
-        gl_transfer_pixels(new_buffer, preferred_format, stride, width, height, num_elements, format, type, data);
+        gl_transfer_pixels(new_buffer, preferred_format, stride, width, height, num_elements, format, type, 0, data);
     }
 
     if (image->data != NULL) {
@@ -717,7 +736,8 @@ void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei widt
     image->width = width;
     image->height = height;
     image->internal_format = preferred_format;
-    state.is_texture_dirty = true;
+
+    obj->is_upload_dirty = true;
 
     gl_update_texture_completeness(obj);
 }
@@ -741,21 +761,23 @@ void gl_tex_sub_image(GLenum target, GLint level, GLint xoffset, GLint yoffset, 
         return;
     }
 
-    uint32_t rdp_format = gl_get_texture_format(image->internal_format);
-    uint32_t pixel_size = TEX_FORMAT_BYTES_PER_PIXEL(rdp_format);
-    GLvoid *dest = image->data + yoffset * image->stride + xoffset * pixel_size;
+    GLvoid *dest = image->data + yoffset * image->stride;
 
     if (data != NULL) {
-        gl_transfer_pixels(dest, image->internal_format, image->stride, width, height, num_elements, format, type, data);
+        gl_transfer_pixels(dest, image->internal_format, image->stride, width, height, num_elements, format, type, xoffset, data);
+        obj->is_upload_dirty = true;
     }
-
-    state.is_texture_dirty = true;
 }
 
 void glTexImage1D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
-    // TODO: proxy texture
-    if (target != GL_TEXTURE_1D) {
+    switch (target) {
+    case GL_TEXTURE_1D:
+        break;
+    case GL_PROXY_TEXTURE_1D:
+        assertf(0, "Proxy texture targets are not supported!");
+        break;
+    default:
         gl_set_error(GL_INVALID_ENUM);
         return;
     }
@@ -765,8 +787,13 @@ void glTexImage1D(GLenum target, GLint level, GLint internalformat, GLsizei widt
 
 void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
-    // TODO: proxy texture
-    if (target != GL_TEXTURE_2D) {
+    switch (target) {
+    case GL_TEXTURE_2D:
+        break;
+    case GL_PROXY_TEXTURE_2D:
+        assertf(0, "Proxy texture targets are not supported!");
+        break;
+    default:
         gl_set_error(GL_INVALID_ENUM);
         return;
     }
@@ -893,7 +920,7 @@ void gl_texture_set_wrap_s(gl_texture_object_t *obj, GLenum param)
     switch (param) {
     case GL_CLAMP:
     case GL_REPEAT:
-        GL_SET_STATE(obj->wrap_s, param, state.is_texture_dirty);
+        GL_SET_STATE(obj->wrap_s, param, obj->is_upload_dirty);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -906,7 +933,7 @@ void gl_texture_set_wrap_t(gl_texture_object_t *obj, GLenum param)
     switch (param) {
     case GL_CLAMP:
     case GL_REPEAT:
-        GL_SET_STATE(obj->wrap_t, param, state.is_texture_dirty);
+        GL_SET_STATE(obj->wrap_t, param, obj->is_upload_dirty);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -923,10 +950,8 @@ void gl_texture_set_min_filter(gl_texture_object_t *obj, GLenum param)
     case GL_LINEAR_MIPMAP_NEAREST:
     case GL_NEAREST_MIPMAP_LINEAR:
     case GL_LINEAR_MIPMAP_LINEAR:
-        GL_SET_STATE(obj->min_filter, param, state.is_texture_dirty);
-        gl_update_texture_completeness(obj);
-        if (state.is_texture_dirty && gl_texture_is_active(obj)) {
-            state.is_rendermode_dirty = true;
+        if (GL_SET_STATE(obj->min_filter, param, obj->is_modes_dirty)) {
+            gl_update_texture_completeness(obj);
         }
         break;
     default:
@@ -940,10 +965,7 @@ void gl_texture_set_mag_filter(gl_texture_object_t *obj, GLenum param)
     switch (param) {
     case GL_NEAREST:
     case GL_LINEAR:
-        GL_SET_STATE(obj->mag_filter, param, state.is_texture_dirty);
-        if (state.is_texture_dirty && gl_texture_is_active(obj)) {
-            state.is_rendermode_dirty = true;
-        }
+        GL_SET_STATE(obj->mag_filter, param, obj->is_modes_dirty);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -957,13 +979,11 @@ void gl_texture_set_border_color(gl_texture_object_t *obj, GLclampf r, GLclampf 
     obj->border_color[1] = CLAMP01(g);
     obj->border_color[2] = CLAMP01(b);
     obj->border_color[3] = CLAMP01(a);
-    state.is_texture_dirty = true;
 }
 
 void gl_texture_set_priority(gl_texture_object_t *obj, GLclampf param)
 {
     obj->priority = CLAMP01(param);
-    state.is_texture_dirty = true;
 }
 
 void glTexParameteri(GLenum target, GLenum pname, GLint param)
@@ -1171,20 +1191,26 @@ void glDeleteTextures(GLsizei n, const GLuint *textures)
     }
 }
 
-void gl_update_texture()
+void gl_upload_texture(gl_texture_object_t *tex_obj)
 {
     // TODO: re-implement this so that multiple textures can potentially be in TMEM at the same time
-
-    gl_texture_object_t *tex_obj = gl_get_active_texture();
-
-    if (tex_obj == NULL || !tex_obj->is_complete) {
-        return;
-    }
+    // TODO: seperate uploading from updating tile descriptors
 
     uint32_t tmem_used = 0;
 
     // All levels must have the same format to be complete
     tex_format_t fmt = gl_get_texture_format(tex_obj->levels[0].internal_format);
+    tex_format_t load_fmt = fmt;
+
+    // TODO: do this for 8-bit formats as well
+    switch (fmt) {
+    case FMT_CI4:
+    case FMT_I4:
+        load_fmt = FMT_RGBA16;
+        break;
+    default:
+        break;
+    }
 
     uint32_t full_width = tex_obj->levels[0].width;
     uint32_t full_height = tex_obj->levels[0].height;
@@ -1196,9 +1222,12 @@ void gl_update_texture()
     {
         gl_texture_image_t *image = &tex_obj->levels[l];
 
-        rdpq_set_texture_image(image->data, fmt, image->width);
+        uint32_t tmem_pitch = image->stride;
+        uint32_t load_width = TEX_FORMAT_BYTES2PIX(load_fmt, tmem_pitch);
 
-        uint32_t tmem_pitch = MAX(image->width * TEX_FORMAT_BYTES_PER_PIXEL(fmt), 8);
+        rdpq_set_texture_image_raw(0, PhysicalAddr(image->data), load_fmt, load_width, image->height);
+        rdpq_set_tile(LOAD_TILE, load_fmt, tmem_used, 0, 0);
+        rdpq_load_block(LOAD_TILE, 0, 0, load_width * image->height, tmem_pitch);
 
         // Levels need to halve in size every time to be complete
         int32_t width_log = MAX(full_width_log - l, 0);
@@ -1211,8 +1240,35 @@ void gl_update_texture()
         uint8_t shift_t = full_height_log - height_log;
 
         rdpq_set_tile_full(l, fmt, tmem_used, tmem_pitch, 0, 0, 0, mask_t, shift_t, 0, 0, mask_s, shift_s);
-        rdpq_load_tile(l, 0, 0, image->width, image->height);
+        rdpq_set_tile_size(l, 0, 0, image->width, image->height);
 
         tmem_used = add_tmem_size(tmem_used, tmem_pitch * image->height);
+    }
+}
+
+void gl_update_texture()
+{
+    gl_texture_object_t *tex_obj = gl_get_active_texture();
+    if (tex_obj != NULL && !tex_obj->is_complete) {
+        tex_obj = NULL;
+    }
+
+    bool is_applied = tex_obj != NULL;
+
+    if (is_applied && (tex_obj != state.uploaded_texture || tex_obj->is_upload_dirty)) {
+        gl_upload_texture(tex_obj);
+
+        tex_obj->is_upload_dirty = false;
+        state.uploaded_texture = tex_obj;
+    }
+
+    if (tex_obj != state.last_used_texture || (is_applied && tex_obj->is_modes_dirty)) {
+        if (is_applied) {
+            tex_obj->is_modes_dirty = false;
+        }
+
+        state.last_used_texture = tex_obj;
+
+        GL_SET_DIRTY_FLAG(DIRTY_FLAG_RENDERMODE | DIRTY_FLAG_COMBINER);
     }
 }

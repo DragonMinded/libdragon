@@ -10,6 +10,7 @@ static uint32_t animation = 3283;
 static uint32_t texture_index = 0;
 static bool near = false;
 
+static GLuint buffers[2];
 static GLuint textures[4];
 
 static const char *texture_paths[4] = {
@@ -30,6 +31,14 @@ sprite_t * load_sprite(const char *path)
 
 void setup()
 {
+    glGenBuffersARB(2, buffers);
+
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffers[0]);
+    glBufferDataARB(GL_ARRAY_BUFFER_ARB, sizeof(cube_vertices), cube_vertices, GL_STATIC_DRAW_ARB);
+
+    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffers[1]);
+    glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, sizeof(cube_indices), cube_indices, GL_STATIC_DRAW_ARB);
+
     glEnable(GL_LIGHT0);
     //glEnable(GL_COLOR_MATERIAL);
     glEnable(GL_DEPTH_TEST);
@@ -87,29 +96,6 @@ void setup()
     }
 }
 
-void draw_test()
-{
-    glBegin(GL_TRIANGLES);
-
-    glColor3f(0, 1, 1);
-
-    glEdgeFlag(GL_TRUE);
-    glVertex3f(1.f, -1.f, -1.f);
-    glEdgeFlag(GL_TRUE);
-    glVertex3f(1.f, -1.f, 1.f);
-    glEdgeFlag(GL_FALSE);
-    glVertex3f(1.f, 1.f, 1.f);
-
-    glEdgeFlag(GL_FALSE);
-    glVertex3f(1.f, -1.f, -1.f);
-    glEdgeFlag(GL_TRUE);
-    glVertex3f(1.f, 1.f, 1.f);
-    glEdgeFlag(GL_TRUE);
-    glVertex3f(1.f, 1.f, -1.f);
-
-    glEnd();
-}
-
 void draw_cube()
 {
     glEnableClientState(GL_VERTEX_ARRAY);
@@ -117,12 +103,12 @@ void draw_cube()
     glEnableClientState(GL_NORMAL_ARRAY);
     glEnableClientState(GL_COLOR_ARRAY);
 
-    glVertexPointer(3, GL_FLOAT, sizeof(vertex_t), ((const GLvoid*)cube_vertices) + 0*sizeof(float));
-    glTexCoordPointer(2, GL_FLOAT, sizeof(vertex_t), ((const GLvoid*)cube_vertices) + 3*sizeof(float));
-    glNormalPointer(GL_FLOAT, sizeof(vertex_t), ((const GLvoid*)cube_vertices) + 5*sizeof(float));
-    glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(vertex_t), ((const GLvoid*)cube_vertices) + 8*sizeof(float));
+    glVertexPointer(3, GL_FLOAT, sizeof(vertex_t), NULL + 0*sizeof(float));
+    glTexCoordPointer(2, GL_FLOAT, sizeof(vertex_t), NULL + 3*sizeof(float));
+    glNormalPointer(GL_FLOAT, sizeof(vertex_t), NULL + 5*sizeof(float));
+    glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(vertex_t), NULL + 8*sizeof(float));
 
-    glDrawElements(GL_TRIANGLES, sizeof(cube_indices) / sizeof(uint16_t), GL_UNSIGNED_SHORT, cube_indices);
+    glDrawElements(GL_TRIANGLES, sizeof(cube_indices) / sizeof(uint16_t), GL_UNSIGNED_SHORT, 0);
 }
 
 void draw_band()
@@ -223,6 +209,9 @@ int main()
 
     gl_init();
 
+    //rdpq_debug_start();
+    //rdpq_debug_log(true);
+
     setup();
 
     controller_init();
@@ -254,11 +243,6 @@ int main()
         }
 
         render();
-
-        if (down.c[0].C_left) {
-            uint64_t om = rdpq_get_other_modes_raw();
-            debugf("%llx\n", om);
-        }
 
         gl_swap_buffers();
     }

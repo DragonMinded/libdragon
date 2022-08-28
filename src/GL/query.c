@@ -27,10 +27,10 @@ void glGetIntegerv(GLenum value, GLint *data)
         data[3] = CLAMPF_TO_I32(state.clear_color[3]);
         break;
     case GL_CURRENT_COLOR:
-        data[0] = CLAMPF_TO_I32(state.current_color[0]);
-        data[1] = CLAMPF_TO_I32(state.current_color[1]);
-        data[2] = CLAMPF_TO_I32(state.current_color[2]);
-        data[3] = CLAMPF_TO_I32(state.current_color[3]);
+        data[0] = CLAMPF_TO_I32(state.current_attribs[ATTRIB_COLOR][0]);
+        data[1] = CLAMPF_TO_I32(state.current_attribs[ATTRIB_COLOR][1]);
+        data[2] = CLAMPF_TO_I32(state.current_attribs[ATTRIB_COLOR][2]);
+        data[3] = CLAMPF_TO_I32(state.current_attribs[ATTRIB_COLOR][3]);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -48,10 +48,10 @@ void glGetFloatv(GLenum value, GLfloat *data)
         data[3] = state.clear_color[3];
         break;
     case GL_CURRENT_COLOR:
-        data[0] = state.current_color[0];
-        data[1] = state.current_color[1];
-        data[2] = state.current_color[2];
-        data[3] = state.current_color[3];
+        data[0] = state.current_attribs[ATTRIB_COLOR][0];
+        data[1] = state.current_attribs[ATTRIB_COLOR][1];
+        data[2] = state.current_attribs[ATTRIB_COLOR][2];
+        data[3] = state.current_attribs[ATTRIB_COLOR][3];
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -69,10 +69,10 @@ void glGetDoublev(GLenum value, GLdouble *data)
         data[3] = state.clear_color[3];
         break;
     case GL_CURRENT_COLOR:
-        data[0] = state.current_color[0];
-        data[1] = state.current_color[1];
-        data[2] = state.current_color[2];
-        data[3] = state.current_color[3];
+        data[0] = state.current_attribs[ATTRIB_COLOR][0];
+        data[1] = state.current_attribs[ATTRIB_COLOR][1];
+        data[2] = state.current_attribs[ATTRIB_COLOR][2];
+        data[3] = state.current_attribs[ATTRIB_COLOR][3];
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -90,7 +90,7 @@ GLubyte *glGetString(GLenum name)
     case GL_VERSION:
         return (GLubyte*)"1.1";
     case GL_EXTENSIONS:
-        return (GLubyte*)"GL_ARB_multisample GL_EXT_packed_pixels";
+        return (GLubyte*)"GL_ARB_multisample GL_EXT_packed_pixels GL_ARB_vertex_buffer_object";
     default:
         gl_set_error(GL_INVALID_ENUM);
         return NULL;

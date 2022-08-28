@@ -1,3 +1,20 @@
+/**
+ * @file rdpq_tri.c
+ * @brief RDP Command queue: triangle drawing routine
+ * @ingroup rdp
+ * 
+ * This file contains the implementation of a single function: #rdpq_triangle.
+ * 
+ * The RDP triangle commands are complex to assemble because they are designed
+ * for the hardware that will be drawing them, rather than for the programmer
+ * that needs to create them. Specifically, they contain explicit gradients
+ * (partial derivatives aka horizontal and vertical per-pixel increments)
+ * for all attributes that need to be interpolated. Moreover, the RDP is able
+ * to draw triangles with subpixel precision, so input coordinates are fixed
+ * point and the setup code must take into account exactly how the rasterizer
+ * will handle fractional values.
+ */
+
 #include <math.h>
 #include <float.h>
 #include "rdpq.h"
@@ -5,10 +22,8 @@
 #include "rdpq_internal.h"
 #include "utils.h"
 
-#define TRUNCATE_S11_2(x) (((x)&0x1fff) | (((x)>>18)&~0x1fff))
-
 /** @brief Converts a float to a s16.16 fixed point number */
-int32_t float_to_s16_16(float f)
+static int32_t float_to_s16_16(float f)
 {
     // Currently the float must be clamped to this range because
     // otherwise the trunc.w.s instruction can potentially trigger
@@ -25,16 +40,19 @@ int32_t float_to_s16_16(float f)
     return floor(f * 65536.f);
 }
 
+/** @brief Precomputed information about edges and slopes. */
 typedef struct {
-    float hx, hy;
-    float mx, my;
-    float fy;
-    float ish;
-    float attr_factor;
+    float hx;               ///< High edge (X)
+    float hy;               ///< High edge (Y)
+    float mx;               ///< Middle edge (X)
+    float my;               ///< Middle edge (Y)
+    float fy;               ///< Fractional part of Y1 (top vertex)
+    float ish;              ///< Inverse slope of higher edge
+    float attr_factor;      ///< Inverse triangle normal (used to calculate gradients)
 } rdpq_tri_edge_data_t;
 
 __attribute__((always_inline))
-inline void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, uint8_t tile, uint8_t level, const float *v1, const float *v2, const float *v3)
+static inline void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, uint8_t tile, uint8_t mipmaps, const float *v1, const float *v2, const float *v3)
 {
     const float x1 = v1[0];
     const float x2 = v2[0];
@@ -44,9 +62,9 @@ inline void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data
     const float y3 = floorf(v3[1]*4)/4;
 
     const float to_fixed_11_2 = 4.0f;
-    int32_t y1f = TRUNCATE_S11_2((int32_t)floorf(v1[1]*to_fixed_11_2));
-    int32_t y2f = TRUNCATE_S11_2((int32_t)floorf(v2[1]*to_fixed_11_2));
-    int32_t y3f = TRUNCATE_S11_2((int32_t)floorf(v3[1]*to_fixed_11_2));
+    int32_t y1f = CLAMP((int32_t)floorf(v1[1]*to_fixed_11_2), -4096*4, 4095*4);
+    int32_t y2f = CLAMP((int32_t)floorf(v2[1]*to_fixed_11_2), -4096*4, 4095*4);
+    int32_t y3f = CLAMP((int32_t)floorf(v3[1]*to_fixed_11_2), -4096*4, 4095*4);
 
     data->hx = x3 - x1;        
     data->hy = y3 - y1;        
@@ -68,7 +86,7 @@ inline void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data
     const float xm = x1 + data->fy * ism;
     const float xl = x2;
 
-    rspq_write_arg(w, _carg(lft, 0x1, 23) | _carg(level, 0x7, 19) | _carg(tile, 0x7, 16) | _carg(y3f, 0x3FFF, 0));
+    rspq_write_arg(w, _carg(lft, 0x1, 23) | _carg(mipmaps ? mipmaps-1 : 0, 0x7, 19) | _carg(tile, 0x7, 16) | _carg(y3f, 0x3FFF, 0));
     rspq_write_arg(w, _carg(y2f, 0x3FFF, 16) | _carg(y1f, 0x3FFF, 0));
     rspq_write_arg(w, float_to_s16_16(xl));
     rspq_write_arg(w, float_to_s16_16(isl));
@@ -81,14 +99,14 @@ inline void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data
 __attribute__((always_inline))
 static inline void __rdpq_write_shade_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, const float *v1, const float *v2, const float *v3)
 {
-    const float mr = v2[0] - v1[0];
-    const float mg = v2[1] - v1[1];
-    const float mb = v2[2] - v1[2];
-    const float ma = v2[3] - v1[3];
-    const float hr = v3[0] - v1[0];
-    const float hg = v3[1] - v1[1];
-    const float hb = v3[2] - v1[2];
-    const float ha = v3[3] - v1[3];
+    const float mr = (v2[0] - v1[0]) * 255.f;
+    const float mg = (v2[1] - v1[1]) * 255.f;
+    const float mb = (v2[2] - v1[2]) * 255.f;
+    const float ma = (v2[3] - v1[3]) * 255.f;
+    const float hr = (v3[0] - v1[0]) * 255.f;
+    const float hg = (v3[1] - v1[1]) * 255.f;
+    const float hb = (v3[2] - v1[2]) * 255.f;
+    const float ha = (v3[3] - v1[3]) * 255.f;
 
     const float nxR = data->hy*mr - data->my*hr;
     const float nxG = data->hy*mg - data->my*hg;
@@ -113,10 +131,10 @@ static inline void __rdpq_write_shade_coeffs(rspq_write_t *w, rdpq_tri_edge_data
     const float DbDe = DbDy + DbDx * data->ish;
     const float DaDe = DaDy + DaDx * data->ish;
 
-    const int32_t final_r = float_to_s16_16(v1[0] + data->fy * DrDe);
-    const int32_t final_g = float_to_s16_16(v1[1] + data->fy * DgDe);
-    const int32_t final_b = float_to_s16_16(v1[2] + data->fy * DbDe);
-    const int32_t final_a = float_to_s16_16(v1[3] + data->fy * DaDe);
+    const int32_t final_r = float_to_s16_16(v1[0] * 255.f + data->fy * DrDe);
+    const int32_t final_g = float_to_s16_16(v1[1] * 255.f + data->fy * DgDe);
+    const int32_t final_b = float_to_s16_16(v1[2] * 255.f + data->fy * DbDe);
+    const int32_t final_a = float_to_s16_16(v1[3] * 255.f + data->fy * DaDe);
 
     const int32_t DrDx_fixed = float_to_s16_16(DrDx);
     const int32_t DgDx_fixed = float_to_s16_16(DgDx);
@@ -152,11 +170,11 @@ static inline void __rdpq_write_shade_coeffs(rspq_write_t *w, rdpq_tri_edge_data
 }
 
 __attribute__((always_inline))
-inline void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, const float *v1, const float *v2, const float *v3)
+static inline void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, const float *v1, const float *v2, const float *v3)
 {
-    float s1 = v1[0], t1 = v1[1], w1 = v1[2];
-    float s2 = v2[0], t2 = v2[1], w2 = v2[2];
-    float s3 = v3[0], t3 = v3[1], w3 = v3[2];
+    float s1 = v1[0] * 32.f, t1 = v1[1] * 32.f, w1 = v1[2];
+    float s2 = v2[0] * 32.f, t2 = v2[1] * 32.f, w2 = v2[2];
+    float s3 = v3[0] * 32.f, t3 = v3[1] * 32.f, w3 = v3[2];
 
     const float w_factor = 1.0f / MAX(MAX(w1, w2), w3);
 
@@ -235,10 +253,14 @@ inline void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data,
 }
 
 __attribute__((always_inline))
-inline void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, const float *v1, const float *v2, const float *v3)
+static inline void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, const float *v1, const float *v2, const float *v3)
 {
-    const float mz = v2[0] - v1[0];
-    const float hz = v3[0] - v1[0];
+    const float z1 = v1[0] * 0x7FFF;
+    const float z2 = v2[0] * 0x7FFF;
+    const float z3 = v3[0] * 0x7FFF;
+
+    const float mz = z2 - z1;
+    const float hz = z3 - z1;
 
     const float nxz = data->hy*mz - data->my*hz;
     const float nyz = data->mx*hz - data->hx*mz;
@@ -247,7 +269,7 @@ inline void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data
     const float DzDy = nyz * data->attr_factor;
     const float DzDe = DzDy + DzDx * data->ish;
 
-    const int32_t final_z = float_to_s16_16(v1[0] + data->fy * DzDe);
+    const int32_t final_z = float_to_s16_16(z1 + data->fy * DzDe);
     const int32_t DzDx_fixed = float_to_s16_16(DzDx);
     const int32_t DzDe_fixed = float_to_s16_16(DzDe);
     const int32_t DzDy_fixed = float_to_s16_16(DzDy);
@@ -258,11 +280,13 @@ inline void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data
     rspq_write_arg(w, DzDy_fixed);
 }
 
-__attribute__((noinline))
-void rdpq_triangle(uint8_t tile, uint8_t level, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
+void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
 {
     uint32_t res = AUTOSYNC_PIPE;
     if (tex_offset >= 0) {
+        // FIXME: this can be using multiple tiles depending on color combiner and texture
+        // effects such as detail and sharpen. Figure it out a way to handle these in the
+        // autosync engine.
         res |= AUTOSYNC_TILE(tile);
     }
     __rdpq_autosync_use(res);
@@ -290,7 +314,7 @@ void rdpq_triangle(uint8_t tile, uint8_t level, int32_t pos_offset, int32_t shad
     if( v1[pos_offset + 1] > v2[pos_offset + 1] ) { SWAP(v1, v2); }
 
     rdpq_tri_edge_data_t data;
-    __rdpq_write_edge_coeffs(&w, &data, tile, level, v1 + pos_offset, v2 + pos_offset, v3 + pos_offset);
+    __rdpq_write_edge_coeffs(&w, &data, tile, mipmaps, v1 + pos_offset, v2 + pos_offset, v3 + pos_offset);
 
     if (shade_offset >= 0) {
         __rdpq_write_shade_coeffs(&w, &data, v1 + shade_offset, v2 + shade_offset, v3 + shade_offset);
