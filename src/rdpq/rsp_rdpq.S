@@ -130,28 +130,7 @@ RDPQCmd_Passthrough16:
 RDPQCmd_SetOtherModes:
     # Save the other modes to internal cache, then call RDPQ_WriteOtherModes
     # RDPQ_WriteOtherModes will write both SetOtherModes and SetScissor to the staging area
-    jal_and_j RDPQ_SaveOtherModes, RDPQ_WriteOtherModes
-    .endfunc
-
-    #############################################################
-    # RDPQCmd_SetOtherModes_Static
-    #
-    # This is the static mode version of #RDPQCmd_SetOtherModes.
-    # It will also save the other modes to the internal cache, but doesn't
-    # submit the command to the static buffer because it already got written on the CPU side.
-    # It will however submit commands that depend on the other modes, just like the dynamic 
-    # mode version does.
-    #
-    # ARGS:
-    #   a0: Command id and upper word of other modes
-    #   a1: Lower word of other modes
-    #############################################################
-    .func RDPQCmd_SetOtherModes_Static
-RDPQCmd_SetOtherModes_Static:
-    # This will fall through to RDPQ_SaveOtherModes first, and then call RDPQ_FinalizeOtherModes.
-    # We don't want to jump to RDPQ_WriteOtherModes in this case, because the SetOtherModes command
-    # is already in the static buffer!
-    li ra, %lo(RDPQ_FinalizeOtherModes)
+    li ra, RDPQ_WriteOtherModes
     # fallthrough!
     .endfunc
 
