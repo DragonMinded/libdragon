@@ -19,7 +19,7 @@
  * 
  *   * First, one of the basic **render modes** must be set via one of
  *     the `rdpq_set_mode_*` functions.
- *   * Afterwards, it is possible to tweak the render mode by changing
+ *   * Afterwards, it is possible to tweak the render mode by chang ing
  *     one or more **render states** via  `rdpq_mode_*` functions.
  * 
  * The rdpq mode API currently offers the following render modes:
@@ -345,36 +345,99 @@ inline void rdpq_mode_antialias(bool enable)
 }
 
 /**
- * @brief Configure the color combiner formula
+ * @brief Configure the color combiner
  * 
  * This function allows to configure the color combiner formula to be used.
- * The formula can be specified using #RDPQ_COMBINER1 (for 1-pass formulas)
- * or #RDPQ_COMBINER2 (for 2-pass formulas). Refer to #RDPQ_COMBINER1 for more
- * information.
+ * The color combiner is the internal RDP hardware unit that mixes inputs
+ * from textures, colors and other sources and produces a RGB/Alpha value,
+ * that is then sent to the blender unit. If the blender is disabled (eg:
+ * the polygon is solid), the value produced by the combiner is the one
+ * that will be written into the framebuffer.
  * 
- * This function makes sure that the current render mode can work correctly
- * with the specified combiner formula. Specifically, it switches automatically
- * between "1-cycle mode" and "2-cycle mode" depending on the formula being
- * set and the blender unit configuration, and also automatically adapts 
- * combiner formulas to the required cycle mode. See the documentation
- * in rdpq.c for more information.
+ * For common use cases, rdpq offers ready-to-use macros that you can pass
+ * to #rdpq_mode_combiner: #RDPQ_COMBINER_FLAT, #RDPQ_COMBINER_SHADE,
+ * #RDPQ_COMBINER_TEX, #RDPQ_COMBINER_TEX_FLAT, #RDPQ_COMBINER_TEX_SHADE.
+ * 
+ * For example, to draw a texture rectangle modulated with a flat color:
+ * 
+ * @code{.c}
+ *      // Reset to standard rendering mode.
+ *      rdpq_set_mode_standard();
+ * 
+ *      // Configure the combiner
+ *      rdpq_mode_combiner(RDPQ_COMBINER_TEX_FLAT);
+ * 
+ *      // Configure the flat color that will modulate the texture
+ *      rdpq_set_prim_color(RGBA32(192, 168, 74, 255));
+ *
+ *      // Load a texture into TMEM (tile descriptor #4)
+ *      rdpq_tex_load(TILE4, &texture, 0);
+ * 
+ *      // Draw the rectangle
+ *      rdpq_texture_rectangle(TILE4,
+ *          0, 0, 32, 16,     // x0, y0, x1, y1
+ *          0, 0, 1.0, 1.0f   // s, t, ds, dt
+ *      );
+ * @endcode
+ * 
+ * Alternatively, you can use your own combiner formulas, created with either
+ * #RDPQ_COMBINER1 (one pass) or #RDPQ_COMBINER2 (two passes). See the respective
+ * documentation for all the details on how to create a custom formula.
+ * 
+ * When using a custom formula, you must take into account that some render states
+ * also rely on the combiner to work. Specifically:
+ * 
+ *  * Mipmap (#rdpq_mode_mipmap): this requires a dedicated color combiner pass,
+ *    so if you set a custom formula, it has to be a one-pass formula. Otherwise,
+ *    a RSP assertion will trigger.
+ *  * Fog (#rdpq_mode_fog): fogging is generally made by substituting the alpha
+ *    component of the shade color with a depth value, which is then used in
+ *    the blender formula (eg: #RDPQ_FOG_STANDARD). The only interaction with the
+ *    color combiner is that the SHADE alpha component should not be used as
+ *    a modulation factor in the combiner, otherwise you get wrong results
+ *    (if you then use the alpha for blending). rdpq automatically adjusts
+ *    standard combiners using shade (#RDPQ_COMBINER_SHADE and #RDPQ_COMBINER_TEX_SHADE)
+ *    when fog is enabled, but for custom combiners it is up to the user to
+ *    take care of that.
  * 
  * @param comb      The combiner formula to configure
  * 
  * @see #RDPQ_COMBINER1
  * @see #RDPQ_COMBINER2
+ * 
+ * @note For programmers with previous RDP programming experience: this function
+ *       makes sure that the current cycle type can work correctly with the
+ *       specified combiner formula. Specifically, it switches automatically
+ *       between 1-cycle and 2-cycle depending on the formula being set and the
+ *       blender unit configuration, and also automatically adapts combiner
+ *       formulas to the required cycle mode. See the documentation in rdpq.c
+ *       for more information.
  */
 inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
     extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
+    extern void __rdpq_fixup_mode4(uint32_t cmd_id, uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3);
 
     if (comb & RDPQ_COMBINER_2PASS)
         __rdpq_fixup_mode(RDPQ_CMD_SET_COMBINE_MODE_2PASS,
             (comb >> 32) & 0x00FFFFFF,
             comb & 0xFFFFFFFF);
-    else
-        __rdpq_fixup_mode(RDPQ_CMD_SET_COMBINE_MODE_1PASS,
+    else {
+        rdpq_combiner_t comb1_mask = RDPQ_COMB1_MASK;
+        if (((comb1_mask >> 0 ) &  7) == 1) comb1_mask ^= 1ull << 0;
+        if (((comb1_mask >> 3 ) &  7) == 1) comb1_mask ^= 1ull << 3;
+        if (((comb1_mask >> 6 ) &  7) == 1) comb1_mask ^= 1ull << 6;
+        if (((comb1_mask >> 18) &  7) == 1) comb1_mask ^= 1ull << 18;
+        if (((comb1_mask >> 21) &  7) == 1) comb1_mask ^= 1ull << 21;
+        if (((comb1_mask >> 24) &  7) == 1) comb1_mask ^= 1ull << 24;
+        if (((comb1_mask >> 32) & 31) == 1) comb1_mask ^= 1ull << 32;
+        if (((comb1_mask >> 37) & 15) == 1) comb1_mask ^= 1ull << 37;
+
+        __rdpq_fixup_mode4(RDPQ_CMD_SET_COMBINE_MODE_1PASS,
             (comb >> 32) & 0x00FFFFFF,
-            comb & 0xFFFFFFFF);
+            comb & 0xFFFFFFFF,
+            (comb1_mask >> 32) & 0x00FFFFFF,
+            comb1_mask & 0xFFFFFFFF);
+    }
 }
 
 /** @brief Blending mode: multiplicative alpha.
@@ -385,23 +448,22 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
 #define RDPQ_BLEND_ADDITIVE       RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, ONE))      
 
 /**
- * @brief Configure the formula for the second pass of the blender unit.
+ * @brief Configure the formula to use for blending.
  * 
- * This function can be used to configure the formula used for the
- * second pass of the blender unit. This pass is conventionally used
- * to implement the blending between the polygon being drawn and the
- * background, so the name of the function reflects that.
- * 
- * The other pass can be configured with #rdpq_mode_fog. If the other
- * pass is disabled, the pass configured via #rdpq_mode_blending will
- * be the only one to run.
+ * This function can be used to configure the formula used
+ * in the blender unit.
  * 
  * The standard blending formulas are:
  * 
  *  * #RDPQ_BLEND_MULTIPLY: multiplicative alpha blending
  *  * #RDPQ_BLEND_ADDITIVE: additive alpha blending
  * 
- * but custom formulas can be created using the #RDPQ_BLENDER macro.
+ * It is possible to also create custom formulas. The blender unit
+ * allows for up to two passes. Use #RDPQ_BLENDER to create a one-pass
+ * blending formula, or #RDPQ_BLENDER2 to create a two-pass formula.
+ * 
+ * Please notice that two-pass formulas are not compatible with fogging
+ * (#rdpq_mode_fog).
  * 
  * The following example shows how to draw a texture rectangle using
  * a fixed blending value of 0.5 (ignoring the alpha channel of the
@@ -415,6 +477,8 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
  *      //      (IN_RGB * FOG_ALPHA) + (MEMORY_RGB * (1 - FOG_ALPHA))
  *      //
  *      // where FOG_ALPHA is the fixed alpha value coming from the FOG register.
+ *      // Notice that the FOG register is not necessarily about fogging... it is
+ *      // just one of the two registers that can be used in blending formulas.
  *      rdpq_mode_blending(RDPQ_BLENDER(IN_RGB, FOG_ALPHA, MEMORY_RGB, INV_MUX_ALPHA));
  * 
  *      // Configure the FOG_ALPHA value to 128 (= 0.5). The RGB components are
@@ -442,6 +506,8 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
 inline void rdpq_mode_blending(rdpq_blender_t blend) {
     extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
     if (blend) blend |= SOM_BLENDING;
+    if (blend & SOMX_BLEND_2PASS)
+        __rdpq_fixup_mode(RDPQ_CMD_SET_BLENDING_MODE, 0, blend);
     __rdpq_fixup_mode(RDPQ_CMD_SET_BLENDING_MODE, 4, blend);
 }
 
@@ -449,33 +515,49 @@ inline void rdpq_mode_blending(rdpq_blender_t blend) {
  * You can pass this macro to #rdpq_mode_fog. */
 #define RDPQ_FOG_STANDARD         RDPQ_BLENDER((IN_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA))
 
-
 /**
- * @brief Configure the formula for the first pass of the blender unit.
+ * @brief Enable or disable fog 
  * 
- * This function can be used to configure the formula used for the
- * first pass of the blender unit. This pass is conventionally used
- * to implement fogging, so the name of the function reflects that.
+ * This function enables fog on RDP. Fog on RDP is simulated in the
+ * following way:
+ *   
+ *  * The T&L pipeline must calculate a depth information for each
+ *    vertex of the primitive and put it into the alpha channel of
+ *    the per-vertex color. This is outside of the scope of rdpq,
+ *    so rdpq assumes that this has been done when #rdpq_enable_fog
+ *    is called.
+ *  * The RDP blender unit is programmed to modulate a "fog color"
+ *    with the polygon pixel, using SHADE_ALPHA as interpolation
+ *    factor. Since SHADE_ALPHA contains a depth information, the
+ *    farther the object, the stronger it will assume the fog color.
  * 
- * The other pass can be configured with #rdpq_mode_blending. If the other
- * pass is disabled, the pass configured via #rdpq_mode_fog will
- * be the only one to run.
+ * To enable fog, pass #RDPQ_FOG_STANDARD to this function, and
+ * call #rdpq_set_fog_color to configure the fog color. This is
+ * the standard fogging formula. 
  * 
- * A standard fog formula is #RDPQ_FOG_STANDARD, or a custom formula
- * can be created using #RDPQ_BLENDER.
+ * If you want, you can instead build a custom fogging formula
+ * using #RDPQ_BLENDER.
  * 
- * See #rdpq_mode_blending for an example.
+ * To disable fog, call #rdpq_mode_fog passing 0.
+ * 
+ * @note Fogging uses one pass of the blender unit (the first),
+ *       so this can coexist with a blending formula (#rdpq_mode_blending)
+ *       as long as it's a single pass one (created via #RDPQ_BLENDER).
+ *       If a two-pass blending formula (#RDPQ_BLENDER2) was set with
+ *       #rdpq_mode_blending, fogging cannot be used.
  * 
  * @param fog            Fog formula created with #RDPQ_BLENDER,
  *                       or 0 to disable.
  * 
- * @see #rdpq_mode_blending
- * @see #RDPQ_BLENDER
  * @see #RDPQ_FOG_STANDARD
+ * @see #rdpq_set_fog_color
+ * @see #RDPQ_BLENDER
+ * @see #rdpq_mode_blending
  */
 inline void rdpq_mode_fog(rdpq_blender_t fog) {
     extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
     if (fog) fog |= SOM_BLENDING;
+    __rdpq_mode_change_som(SOMX_FOG, fog ? SOMX_FOG : 0);
     __rdpq_fixup_mode(RDPQ_CMD_SET_BLENDING_MODE, 0, fog);
 }
 
@@ -549,7 +631,50 @@ inline void rdpq_mode_filter(rdpq_filter_t filt) {
     rdpq_change_other_modes_raw(SOM_SAMPLE_MASK, (uint64_t)filt << SOM_SAMPLE_SHIFT);
 }
 
+inline void rdpq_mode_mipmap(bool enable) {
+    __rdpq_mode_change_som(SOM_TEXTURE_LOD, enable ? SOM_TEXTURE_LOD : 0);
+}
+
 /** @} */
+
+/**
+ * @brief Start a batch of RDP mode changes
+ * 
+ * This function can be used as an optimization when changing render mode
+ * and/or multiple render states. It allows to batch the changes, so that
+ * RDP hardware registers are updated only once.
+ * 
+ * To use it, put a call to #rdpq_mode_begin and #rdpq_mode_end around
+ * the mode functions that you would like to batch. For instance:
+ * 
+ * @code{.c}
+ *      rdpq_mode_begin();
+ *          rdpq_set_mode_standard();
+ *          rdpq_mode_mipmap(true);
+ *          rdpq_mode_dithering(DITHER_SQUARE_SQUARE);
+ *          rdpq_mode_blending(RDPQ_BLENDING_MULTIPLY);
+ *      rdpq_mode_end();
+ * @endcode
+ * 
+ * The only effect of using #rdpq_mode_begin is more efficient RSP
+ * and RDP usage, there is no semantic change in the way RDP is
+ * programmed when #rdpq_mode_end is called.
+ * 
+ * @note The functions affected by #rdpq_mode_begin / #rdpq_mode_end
+ *       are just those that are part of the mode API (that is,
+ *       `rdpq_set_mode_*` and `rdpq_mode_*`). Any other function
+ *       is not batched and will be issued immediately.
+ */
+void rdpq_mode_begin(void);
+
+/**
+ * @brief Finish a batch of RDP mode changes
+ * 
+ * This function completes a batch of changes started with #rdpq_mode_begin.
+ * 
+ * @see #rdpq_mode_begin
+ */
+void rdpq_mode_end(void);
 
 /********************************************************************
  * Internal functions (not part of public API)

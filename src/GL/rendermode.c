@@ -200,32 +200,32 @@ void gl_update_combiner()
         if ((tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR || tex_obj->min_filter == GL_NEAREST_MIPMAP_LINEAR) && !is_points) {
             // Trilinear
             if (state.tex_env_mode == GL_REPLACE) {
-                comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (ZERO, ZERO, ZERO, COMBINED), (ZERO, ZERO, ZERO, COMBINED));
+                comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (0, 0, 0, COMBINED), (0, 0, 0, COMBINED));
             } else if (state.fog) {
-                comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (COMBINED, ZERO, SHADE, ZERO), (ZERO, ZERO, ZERO, COMBINED));
+                comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (COMBINED, 0, SHADE, 0), (0, 0, 0, COMBINED));
             } else {
-                comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (COMBINED, ZERO, SHADE, ZERO), (COMBINED, ZERO, SHADE, ZERO));
+                comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (COMBINED, 0, SHADE, 0), (COMBINED, 0, SHADE, 0));
             }
         } else {
             if (state.tex_env_mode == GL_REPLACE) {
-                comb = RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0));
+                comb = RDPQ_COMBINER1((0, 0, 0, TEX0), (0, 0, 0, TEX0));
             } else if (is_points) {
-                comb = RDPQ_COMBINER1((TEX0, ZERO, PRIM, ZERO), (TEX0, ZERO, PRIM, ZERO));
+                comb = RDPQ_COMBINER1((TEX0, 0, PRIM, 0), (TEX0, 0, PRIM, 0));
             } else if (state.fog) {
-                comb = RDPQ_COMBINER1((TEX0, ZERO, SHADE, ZERO), (ZERO, ZERO, ZERO, TEX0));
+                comb = RDPQ_COMBINER1((TEX0, 0, SHADE, 0), (0, 0, 0, TEX0));
             } else {
-                comb = RDPQ_COMBINER1((TEX0, ZERO, SHADE, ZERO), (TEX0, ZERO, SHADE, ZERO));
+                comb = RDPQ_COMBINER1((TEX0, 0, SHADE, 0), (TEX0, 0, SHADE, 0));
             }
         }
     } else {
         if (is_points) {
-            comb = RDPQ_COMBINER1((ZERO, ZERO, ZERO, PRIM), (ZERO, ZERO, ZERO, PRIM));
+            comb = RDPQ_COMBINER1((0, 0, 0, PRIM), (0, 0, 0, PRIM));
         } else if (state.fog) {
             // When fog is enabled, the shade alpha is (ab)used to encode the fog blending factor, so it cannot be used in the color combiner
             // (same above)
-            comb = RDPQ_COMBINER1((ZERO, ZERO, ZERO, SHADE), (ZERO, ZERO, ZERO, ONE));
+            comb = RDPQ_COMBINER1((0, 0, 0, SHADE), (0, 0, 0, 1));
         } else {
-            comb = RDPQ_COMBINER1((ZERO, ZERO, ZERO, SHADE), (ZERO, ZERO, ZERO, SHADE));
+            comb = RDPQ_COMBINER1((0, 0, 0, SHADE), (0, 0, 0, SHADE));
         }
     }
 

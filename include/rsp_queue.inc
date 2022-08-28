@@ -217,15 +217,15 @@ RDPQ_SENTINEL:              .long 0
 # but we can't use .align 4 here, otherwise it's not easy to keep this structure layout
 # in sync with the C side (rdpq_state_t in rdpq.c).
 RDPQ_MODE:
-    # Combiner setting to use in 1 cycle mode
-    RDPQ_MODE_COMBINER_1CYC: .quad  0
-    # Combiner setting to use in 2 cycle mode
-    RDPQ_MODE_COMBINER_2CYC: .quad  0
+    # Combiner formula set by the application (1pass or 2pass)
+    RDPQ_COMBINER:               .quad  0
+    RDPQ_COMBINER_MIPMAPMASK:    .quad  0
     # Blender settings: up to two steps. Either of them
     # is already in a format valid for both 1cyc and 2cyc mode.
-    RDPQ_MODE_BLENDER_STEPS: .word  0,0
+    RDPQ_MODE_BLENDER_STEPS:     .word  0,0
     # Other modes
-    RDPQ_OTHER_MODES:        .quad  0xEF << 56
+    RDPQ_OTHER_MODES:            .quad  0xEF << 56
+RDPQ_MODE_END:
 
 # Two RDP output buffers (to alternate between)
 RDPQ_DYNAMIC_BUFFERS:        .long 0, 0
@@ -623,19 +623,18 @@ RSPQCmd_Dma:
     # standard buffers (RDPQ_DYNAMIC_BUFFERS).
     #
     # ARGS:
-    #   a0 (rdram_next): New end pointer (to write to DP_END)
-    #   a1:              New start buffer (to write to DP_START)
-    #   a2 (sentinel):   New sentinel (end of total capacity of the buffer)
+    #   a0: New end pointer (to write to DP_END)
+    #   a1: New start buffer (to write to DP_START)
+    #   a2: New sentinel (end of total capacity of the buffer)
     #############################################################
     .func RSPQCmd_RdpSetBuffer
 RSPQCmd_RdpSetBuffer:
-    #define rdram_next  a0
-    #define sentinel    a2
-    sw sentinel, %lo(RDPQ_SENTINEL)
+    sw a2, %lo(RDPQ_SENTINEL)
+    move ra2, ra
 
     # Wait for RDP DMA FIFO to be not full. If there's another
     # pending buffer, we cannot do anything but wait.
-    jal rdp_wait
+    jal RSPQ_RdpWait
     li t3, DP_STATUS_START_VALID | DP_STATUS_END_VALID
 
     #if RSPQ_DEBUG
@@ -647,6 +646,8 @@ RSPQCmd_RdpSetBuffer:
     jal SpStatusWait
     li t2, SP_STATUS_SIG0
     #endif
+
+    move ra, ra2
 
     # Write new start buffer pointer, and fallthrough to 
     # RSPQCmd_RdpAppendBuffer to write the new end pointer
@@ -662,12 +663,12 @@ RSPQCmd_RdpSetBuffer:
     # of the current RDP output buffer.
     #
     # ARGS:
-    #   a0 (rdram_next): New end pointer (to write to DP_END)
+    #   a0: New end pointer (to write to DP_END)
     #############################################################
     .func RSPQCmd_RdpAppendBuffer
 RSPQCmd_RdpAppendBuffer:
-    j RSPQ_Loop
-    mtc0 rdram_next, COP0_DP_END
+    jr ra
+    mtc0 a0, COP0_DP_END
     .endfunc
 
     #############################################################
@@ -685,7 +686,7 @@ RSPQCmd_RdpAppendBuffer:
 RSPQCmd_RdpWaitIdle:
     li t3, DP_STATUS_BUSY
 
-rdp_wait:
+RSPQ_RdpWait:
     mfc0 t2, COP0_DP_STATUS
 1:
     # Wait for selected RDP status bits to become 0.

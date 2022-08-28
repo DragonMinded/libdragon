@@ -2,17 +2,25 @@
  * @file rdpq_mode.c
  * @brief RDP Command queue: mode setting
  * @ingroup rdp
- * 
- * 
- * 
- * 
- * 
- *
  */
 
 #include "rdpq_mode.h"
 #include "rspq.h"
 #include "rdpq_internal.h"
+
+/** 
+ * @brief Like #rdpq_fixup_write, but for mode commands.
+ * 
+ * During freeze (#rdpq_mode_begin), mode commands don't emit RDP commands
+ * as they are batched instead, so we can avoid reserving space in the
+ * RDP static buffer in blocks.
+ */
+#define rdpq_mode_fixup_write(rsp_cmd, ...) ({ \
+    if (rdpq_tracking.mode_freeze) \
+        rdpq_fixup_write(rsp_cmd); \
+    else \
+        rdpq_fixup_write(rsp_cmd, ##__VA_ARGS__); \
+})
 
 /** 
  * @brief Write a fixup that changes the current render mode (8-byte command)
@@ -24,9 +32,9 @@ __attribute__((noinline))
 void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1)
 {
     __rdpq_autosync_change(AUTOSYNC_PIPE);
-    rdpq_fixup_write(
+    rdpq_mode_fixup_write(
         (cmd_id, w0, w1),
-        (RDPQ_CMD_SET_COMBINE_MODE_RAW, w0, w1), (RDPQ_CMD_SET_OTHER_MODES, w0, w1)
+        (0 /*RDPQ_CMD_SET_COMBINE_MODE_RAW*/, 0, 0), (0 /*RDPQ_CMD_SET_OTHER_MODES*/, 0, 0)
     );
 }
 
@@ -35,9 +43,20 @@ __attribute__((noinline))
 void __rdpq_fixup_mode3(uint32_t cmd_id, uint32_t w0, uint32_t w1, uint32_t w2)
 {
     __rdpq_autosync_change(AUTOSYNC_PIPE);
-    rdpq_fixup_write(
+    rdpq_mode_fixup_write(
         (cmd_id, w0, w1, w2),
-        (RDPQ_CMD_SET_COMBINE_MODE_RAW, w0, w1), (RDPQ_CMD_SET_OTHER_MODES, w0, w1)
+        (0 /*RDPQ_CMD_SET_COMBINE_MODE_RAW*/, 0, 0), (0 /*RDPQ_CMD_SET_OTHER_MODES*/, 0, 0)
+    );
+}
+
+/** @brief Write a fixup that changes the current render mode (16-byte command) */
+__attribute__((noinline))
+void __rdpq_fixup_mode4(uint32_t cmd_id, uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3)
+{
+    __rdpq_autosync_change(AUTOSYNC_PIPE);
+    rdpq_mode_fixup_write(
+        (cmd_id, w0, w1, w2, w3),
+        (0 /*RDPQ_CMD_SET_COMBINE_MODE_RAW*/, 0, 0), (0 /*RDPQ_CMD_SET_OTHER_MODES*/, 0, 0)
     );
 }
 
@@ -46,9 +65,9 @@ __attribute__((noinline))
 void __rdpq_reset_render_mode(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3)
 {
     __rdpq_autosync_change(AUTOSYNC_PIPE);
-    rdpq_fixup_write(
+    rdpq_mode_fixup_write(
         (RDPQ_CMD_RESET_RENDER_MODE, w0, w1, w2, w3),
-        (0 /* Optional SET_SCISSOR */, 0, 0), (RDPQ_CMD_SET_COMBINE_MODE_RAW, w0, w1), (RDPQ_CMD_SET_OTHER_MODES, w2, w3)
+        (0 /* Optional SET_SCISSOR */, 0, 0), (0 /*RDPQ_CMD_SET_COMBINE_MODE_RAW*/, 0, 0), (0 /*RDPQ_CMD_SET_OTHER_MODES*/, 0, 0)
     );
 }
 
@@ -99,6 +118,22 @@ void rdpq_set_mode_yuv(bool bilinear) {
     rdpq_set_yuv_parms(179,-44,-91,227,19,255);  // BT.601 coefficients (Kr=0.299, Kb=0.114, TV range)
 }
 
+void rdpq_mode_begin(void)
+{
+    // Freeze render mode updates. We call rdpq_change_other_modes_raw here
+    // (instead of __rdpq_mode_change_som) because there will be no RDP
+    // commands emitted from this call.
+    rdpq_tracking.mode_freeze = true;
+    __rdpq_mode_change_som(SOMX_UPDATE_FREEZE, SOMX_UPDATE_FREEZE);
+}
+
+void rdpq_mode_end(void)
+{
+    // Unfreeze render mode updates and recalculate new render mode.
+    rdpq_tracking.mode_freeze = false;
+    __rdpq_mode_change_som(SOMX_UPDATE_FREEZE, 0);
+}
+
 
 /* Extern inline instantiations. */
 extern inline void rdpq_set_mode_fill(color_t color);
@@ -111,3 +146,4 @@ extern inline void rdpq_mode_alphacompare(bool enable, int threshold);
 extern inline void rdpq_mode_zoverride(bool enable, uint16_t z, int16_t deltaz);
 extern inline void rdpq_mode_tlut(rdpq_tlut_t tlut);
 extern inline void rdpq_mode_filter(rdpq_filter_t s);
+extern inline void __rdpq_mode_change_som(uint64_t mask, uint64_t val);

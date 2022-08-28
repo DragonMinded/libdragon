@@ -374,28 +374,11 @@ bool __rdpq_zero_blocks = false;
 /** @brief Current configuration of the rdpq library. */ 
 static uint32_t rdpq_config;
 
-/** 
- * @brief State of the autosync engine (stack).
- * 
- * The state of the autosync engine is a 32-bit word, where bits are
- * mapped to specific internal resources of the RDP that might be in
- * use. The mapping of the bits is indicated by the `AUTOSYNC_TILE`,
- * `AUTOSYNC_TMEM`, and `AUTOSYNC_PIPE`
- * 
- * When a bit is set to 1, the corresponding resource is "in use"
- * by the RDP. For instance, drawing a textured rectangle can use
- * a tile and the pipe (which contains most of the mode registers).
- * 
- * This array contains 2 states because it acts a small stack:
- * whenever a block is created, the current autosync state is
- * "paused" and a new state is calculated for the block. When
- * the block creation is finished, the previous autostate is
- * restored.
- */ 
-static uint32_t rdpq_autosync_state[2];
-
 /** @brief RDP block management state */
 rdpq_block_state_t rdpq_block_state;
+
+/** @brief Tracking state of RDP */
+rdpq_tracking_t rdpq_tracking;
 
 /** 
  * @brief RDP interrupt handler 
@@ -442,8 +425,6 @@ void rdpq_init()
 
     // Get a pointer to the RDRAM copy of the rdpq ucode state.
     rdpq_state = UncachedAddr(rspq_overlay_get_state(&rsp_rdpq));
-    _Static_assert(sizeof(rdpq_state->modes[0]) == 32,   "invalid sizeof: rdpq_state->modes[0]");
-    _Static_assert(sizeof(rdpq_state->modes)    == 32*3, "invalid sizeof: rdpq_state->modes");
 
     // Initialize the ucode state.
     memset(rdpq_state, 0, sizeof(rdpq_state_t));
@@ -457,7 +438,8 @@ void rdpq_init()
     // Clear library globals
     memset(&rdpq_block_state, 0, sizeof(rdpq_block_state));
     rdpq_config = RDPQ_CFG_DEFAULT;
-    rdpq_autosync_state[0] = 0;
+    rdpq_tracking.autosync = 0;
+    rdpq_tracking.mode_freeze = false;
 
     // Register an interrupt handler for DP interrupts, and activate them.
     register_DP_handler(__rdpq_interrupt);
@@ -513,6 +495,10 @@ static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
         printf("Cannot call rdpq_mode_blending in fill or copy mode\n");
         break;
 
+    case RDPQ_ASSERT_MIPMAP_COMB2:
+        printf("Mipmap cannot work with a custom 2-pass combiner\n");
+        break;
+
     default:
         printf("Unknown assert\n");
         break;
@@ -521,7 +507,7 @@ static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
 
 /** @brief Autosync engine: mark certain resources as in use */
 void __rdpq_autosync_use(uint32_t res) { 
-    rdpq_autosync_state[0] |= res;
+    rdpq_tracking.autosync |= res;
 }
 
 /** 
@@ -534,7 +520,7 @@ void __rdpq_autosync_use(uint32_t res) {
  * The SYNC command will then reset the "use" status of each respective resource.
  */
 void __rdpq_autosync_change(uint32_t res) {
-    res &= rdpq_autosync_state[0];
+    res &= rdpq_tracking.autosync;
     if (res) {
         if ((res & AUTOSYNC_TILES) && (rdpq_config & RDPQ_CFG_AUTOSYNCTILE))
             rdpq_sync_tile();
@@ -573,13 +559,22 @@ void __rdpq_autosync_change(uint32_t res) {
 void __rdpq_block_begin()
 {
     memset(&rdpq_block_state, 0, sizeof(rdpq_block_state));
-    // push on autosync state stack (to recover the state later)
-    rdpq_autosync_state[1] = rdpq_autosync_state[0];
-    // current autosync status is unknown because blocks can be
-    // played in any context. So assume the worst: all resources
-    // are being used. This will cause all SYNCs to be generated,
-    // which is the safest option.
-    rdpq_autosync_state[0] = 0xFFFFFFFF;
+
+    // Save the tracking state (to be recovered when the block is done)
+    rdpq_block_state.previous_tracking = rdpq_tracking;
+
+    // Initialize tracking state for a new block
+    rdpq_tracking = (rdpq_tracking_t){
+        // current autosync status is unknown because blocks can be
+        // played in any context. So assume the worst: all resources
+        // are being used. This will cause all SYNCs to be generated,
+        // which is the safest option.
+        .autosync = ~0,
+        // we don't know whether mode changes will be frozen or not
+        // when the block will play. Assume the worst (and thus
+        // do not optimize out mode changes).
+        .mode_freeze = false,
+    };
 }
 
 /** 
@@ -668,9 +663,10 @@ rdpq_block_t* __rdpq_block_end()
     // Save the current autosync state in the first node of the RDP block.
     // This makes it easy to recover it when the block is run
     if (st->first_node)
-        st->first_node->autosync_state = rdpq_autosync_state[0];
-    // Pop on autosync state stack (recover state before building the block)
-    rdpq_autosync_state[0] = rdpq_autosync_state[1];
+        st->first_node->tracking = rdpq_tracking;
+
+    // Recover tracking state before the block creation started
+    rdpq_tracking = st->previous_tracking;
 
     return ret;
 }
@@ -679,12 +675,12 @@ rdpq_block_t* __rdpq_block_end()
 void __rdpq_block_run(rdpq_block_t *block)
 {
     // We are about to run a block that contains rdpq commands.
-    // During creation, we calculate the autosync state for the block
-    // and recorded it; set it as current, because from now on we can
-    // assume the block would and the state of the engine must match
-    // the state at the end of the block.
+    // During creation, we tracked some state for the block 
+    // and saved it into the block structure; set it as current,
+    // because from now on we can assume the block would and the
+    // state of the engine must match the state at the end of the block.
     if (block)
-        rdpq_autosync_state[0] = block->autosync_state;
+        rdpq_tracking = block->tracking;
 }
 
 /** 
@@ -947,15 +943,8 @@ void __rdpq_change_other_modes(uint32_t w0, uint32_t w1, uint32_t w2)
 
 uint64_t rdpq_get_other_modes_raw(void)
 {
-    uint64_t result;
-    
-    rsp_queue_t *tmp = NULL;
-    uint32_t offset = (uint32_t)(&tmp->rdp_mode.other_modes);
-
-    rspq_wait();
-    rsp_read_data(&result, sizeof(uint64_t), offset);
-
-    return result;
+    rsp_queue_t *state = __rspq_get_state();
+    return state->rdp_mode.other_modes;
 }
 
 void rdpq_sync_full(void (*callback)(void*), void* arg)
@@ -971,25 +960,25 @@ void rdpq_sync_full(void (*callback)(void*), void* arg)
     );
 
     // The RDP is fully idle after this command, so no sync is necessary.
-    rdpq_autosync_state[0] = 0;
+    rdpq_tracking.autosync = 0;
 }
 
 void rdpq_sync_pipe(void)
 {
     __rdpq_write8(RDPQ_CMD_SYNC_PIPE, 0, 0);
-    rdpq_autosync_state[0] &= ~AUTOSYNC_PIPE;
+    rdpq_tracking.autosync &= ~AUTOSYNC_PIPE;
 }
 
 void rdpq_sync_tile(void)
 {
     __rdpq_write8(RDPQ_CMD_SYNC_TILE, 0, 0);
-    rdpq_autosync_state[0] &= ~AUTOSYNC_TILES;
+    rdpq_tracking.autosync &= ~AUTOSYNC_TILES;
 }
 
 void rdpq_sync_load(void)
 {
     __rdpq_write8(RDPQ_CMD_SYNC_LOAD, 0, 0);
-    rdpq_autosync_state[0] &= ~AUTOSYNC_TMEMS;
+    rdpq_tracking.autosync &= ~AUTOSYNC_TMEMS;
 }
 
 /** @} */

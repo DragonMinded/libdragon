@@ -149,10 +149,17 @@ enum {
 typedef struct rdpq_block_s rdpq_block_t;
 ///@endcond
 
-/** @brief A rspq block: pre-recorded array of commands */
+/**
+ * @brief A rspq block: pre-recorded array of commands
+ *
+ * A block (#rspq_block_t) is a prerecorded sequence of RSP commands that can
+ * be played back. Blocks can be created via #rspq_block_begin / #rspq_block_end,
+ * and then executed by #rspq_block_run. It is also possible to do nested
+ * calls (a block can call another block), up to 8 levels deep.
+ */
 typedef struct rspq_block_s {
     uint32_t nesting_level;     ///< Nesting level of the block
-    rdpq_block_t *rdp_block;
+    rdpq_block_t *rdp_block;    ///< Option RDP static buffer (with RDP commands)
     uint32_t cmds[];            ///< Block contents (commands)
 } rspq_block_t;
 
@@ -162,8 +169,8 @@ typedef struct rspq_block_s {
  * 
  */
 typedef struct __attribute__((packed)) {
-    uint64_t comb_1cyc;
-    uint64_t comb_2cyc; 
+    uint64_t combiner;
+    uint64_t combiner_mipmapmask;
     uint32_t blend_step0;
     uint32_t blend_step1;
     uint64_t other_modes;
@@ -225,5 +232,13 @@ static inline bool rspq_in_block(void) {
     extern rspq_block_t *rspq_block;
     return rspq_block != NULL;
 }
+
+/** 
+ * @brief Return a pointer to a copy of the current RSPQ state. 
+ * 
+ * @note This function forces a full sync by calling #rspq_wait to
+ *       avoid race conditions.
+ */
+rsp_queue_t *__rspq_get_state(void);
 
 #endif

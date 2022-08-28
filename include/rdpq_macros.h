@@ -41,8 +41,10 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_COMB1_RGB_SUBA_SHADE     cast64(4)
 #define _RDPQ_COMB1_RGB_SUBA_ENV       cast64(5)
 #define _RDPQ_COMB1_RGB_SUBA_ONE       cast64(6)
+#define _RDPQ_COMB1_RGB_SUBA_1         cast64(6)
 #define _RDPQ_COMB1_RGB_SUBA_NOISE     cast64(7)
 #define _RDPQ_COMB1_RGB_SUBA_ZERO      cast64(8)
+#define _RDPQ_COMB1_RGB_SUBA_0         cast64(8)
 
 #define _RDPQ_COMB2A_RGB_SUBA_TEX0      cast64(1)
 #define _RDPQ_COMB2A_RGB_SUBA_TEX1      cast64(2)
@@ -50,8 +52,10 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_COMB2A_RGB_SUBA_SHADE     cast64(4)
 #define _RDPQ_COMB2A_RGB_SUBA_ENV       cast64(5)
 #define _RDPQ_COMB2A_RGB_SUBA_ONE       cast64(6)
+#define _RDPQ_COMB2A_RGB_SUBA_1         cast64(6)
 #define _RDPQ_COMB2A_RGB_SUBA_NOISE     cast64(7)
 #define _RDPQ_COMB2A_RGB_SUBA_ZERO      cast64(8)
+#define _RDPQ_COMB2A_RGB_SUBA_0         cast64(8)
 
 #define _RDPQ_COMB2B_RGB_SUBA_COMBINED  cast64(0)
 #define _RDPQ_COMB2B_RGB_SUBA_TEX1      cast64(1)  // TEX0 not available in 2nd cycle (pipelined)
@@ -59,8 +63,10 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_COMB2B_RGB_SUBA_SHADE     cast64(4)
 #define _RDPQ_COMB2B_RGB_SUBA_ENV       cast64(5)
 #define _RDPQ_COMB2B_RGB_SUBA_ONE       cast64(6)
+#define _RDPQ_COMB2B_RGB_SUBA_1         cast64(6)
 #define _RDPQ_COMB2B_RGB_SUBA_NOISE     cast64(7)
 #define _RDPQ_COMB2B_RGB_SUBA_ZERO      cast64(8)
+#define _RDPQ_COMB2B_RGB_SUBA_0         cast64(8)
 
 #define _RDPQ_COMB1_RGB_SUBB_TEX0      cast64(1)
 #define _RDPQ_COMB1_RGB_SUBB_PRIM      cast64(3)
@@ -69,6 +75,7 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_COMB1_RGB_SUBB_KEYCENTER cast64(6)
 #define _RDPQ_COMB1_RGB_SUBB_K4        cast64(7)
 #define _RDPQ_COMB1_RGB_SUBB_ZERO      cast64(8)
+#define _RDPQ_COMB1_RGB_SUBB_0         cast64(8)
 
 #define _RDPQ_COMB2A_RGB_SUBB_TEX0      cast64(1)
 #define _RDPQ_COMB2A_RGB_SUBB_TEX1      cast64(2)
@@ -78,6 +85,7 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_COMB2A_RGB_SUBB_KEYCENTER cast64(6)
 #define _RDPQ_COMB2A_RGB_SUBB_K4        cast64(7)
 #define _RDPQ_COMB2A_RGB_SUBB_ZERO      cast64(8)
+#define _RDPQ_COMB2A_RGB_SUBB_0         cast64(8)
 
 #define _RDPQ_COMB2B_RGB_SUBB_COMBINED  cast64(0)
 #define _RDPQ_COMB2B_RGB_SUBB_TEX1      cast64(1)  // TEX0 not available in 2nd cycle (pipelined)
@@ -87,15 +95,14 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_COMB2B_RGB_SUBB_KEYCENTER cast64(6)
 #define _RDPQ_COMB2B_RGB_SUBB_K4        cast64(7)
 #define _RDPQ_COMB2B_RGB_SUBB_ZERO      cast64(8)
+#define _RDPQ_COMB2B_RGB_SUBB_0         cast64(8)
 
 #define _RDPQ_COMB1_RGB_MUL_TEX0           cast64(1)
 #define _RDPQ_COMB1_RGB_MUL_PRIM           cast64(3)
 #define _RDPQ_COMB1_RGB_MUL_SHADE          cast64(4)
 #define _RDPQ_COMB1_RGB_MUL_ENV            cast64(5)
 #define _RDPQ_COMB1_RGB_MUL_KEYSCALE       cast64(6)
-#define _RDPQ_COMB1_RGB_MUL_COMBINED_ALPHA cast64(7)
 #define _RDPQ_COMB1_RGB_MUL_TEX0_ALPHA     cast64(8)
-#define _RDPQ_COMB1_RGB_MUL_TEX1_ALPHA     cast64(9)
 #define _RDPQ_COMB1_RGB_MUL_PRIM_ALPHA     cast64(10)
 #define _RDPQ_COMB1_RGB_MUL_SHADE_ALPHA    cast64(11)
 #define _RDPQ_COMB1_RGB_MUL_ENV_ALPHA      cast64(12)
@@ -103,6 +110,7 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_COMB1_RGB_MUL_PRIM_LOD_FRAC  cast64(14)
 #define _RDPQ_COMB1_RGB_MUL_K5             cast64(15)
 #define _RDPQ_COMB1_RGB_MUL_ZERO           cast64(16)
+#define _RDPQ_COMB1_RGB_MUL_0              cast64(16)
 
 #define _RDPQ_COMB2A_RGB_MUL_TEX0           cast64(1)
 #define _RDPQ_COMB2A_RGB_MUL_TEX1           cast64(2)
@@ -110,7 +118,6 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_COMB2A_RGB_MUL_SHADE          cast64(4)
 #define _RDPQ_COMB2A_RGB_MUL_ENV            cast64(5)
 #define _RDPQ_COMB2A_RGB_MUL_KEYSCALE       cast64(6)
-#define _RDPQ_COMB2A_RGB_MUL_COMBINED_ALPHA cast64(7)
 #define _RDPQ_COMB2A_RGB_MUL_TEX0_ALPHA     cast64(8)
 #define _RDPQ_COMB2A_RGB_MUL_TEX1_ALPHA     cast64(9)
 #define _RDPQ_COMB2A_RGB_MUL_PRIM_ALPHA     cast64(10)
@@ -120,6 +127,7 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_COMB2A_RGB_MUL_PRIM_LOD_FRAC  cast64(14)
 #define _RDPQ_COMB2A_RGB_MUL_K5             cast64(15)
 #define _RDPQ_COMB2A_RGB_MUL_ZERO           cast64(16)
+#define _RDPQ_COMB2A_RGB_MUL_0              cast64(16)
 
 #define _RDPQ_COMB2B_RGB_MUL_COMBINED       cast64(0)
 #define _RDPQ_COMB2B_RGB_MUL_TEX1           cast64(1)  // TEX0 not available in 2nd cycle (pipelined)
@@ -128,8 +136,7 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_COMB2B_RGB_MUL_ENV            cast64(5)
 #define _RDPQ_COMB2B_RGB_MUL_KEYSCALE       cast64(6)
 #define _RDPQ_COMB2B_RGB_MUL_COMBINED_ALPHA cast64(7)
-#define _RDPQ_COMB2B_RGB_MUL_TEX0_ALPHA     cast64(8)
-#define _RDPQ_COMB2B_RGB_MUL_TEX1_ALPHA     cast64(9)
+#define _RDPQ_COMB2B_RGB_MUL_TEX1_ALPHA     cast64(8) // TEX0_ALPHA not available in 2nd cycle (pipelined)
 #define _RDPQ_COMB2B_RGB_MUL_PRIM_ALPHA     cast64(10)
 #define _RDPQ_COMB2B_RGB_MUL_SHADE_ALPHA    cast64(11)
 #define _RDPQ_COMB2B_RGB_MUL_ENV_ALPHA      cast64(12)
@@ -137,13 +144,16 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_COMB2B_RGB_MUL_PRIM_LOD_FRAC  cast64(14)
 #define _RDPQ_COMB2B_RGB_MUL_K5             cast64(15)
 #define _RDPQ_COMB2B_RGB_MUL_ZERO           cast64(16)
+#define _RDPQ_COMB2B_RGB_MUL_0              cast64(16)
 
 #define _RDPQ_COMB1_RGB_ADD_TEX0      cast64(1)
 #define _RDPQ_COMB1_RGB_ADD_PRIM      cast64(3)
 #define _RDPQ_COMB1_RGB_ADD_SHADE     cast64(4)
 #define _RDPQ_COMB1_RGB_ADD_ENV       cast64(5)
 #define _RDPQ_COMB1_RGB_ADD_ONE       cast64(6)
+#define _RDPQ_COMB1_RGB_ADD_1         cast64(6)
 #define _RDPQ_COMB1_RGB_ADD_ZERO      cast64(7)
+#define _RDPQ_COMB1_RGB_ADD_0         cast64(7)
 
 #define _RDPQ_COMB2A_RGB_ADD_TEX0      cast64(1)
 #define _RDPQ_COMB2A_RGB_ADD_TEX1      cast64(2)
@@ -151,7 +161,9 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_COMB2A_RGB_ADD_SHADE     cast64(4)
 #define _RDPQ_COMB2A_RGB_ADD_ENV       cast64(5)
 #define _RDPQ_COMB2A_RGB_ADD_ONE       cast64(6)
+#define _RDPQ_COMB2A_RGB_ADD_1         cast64(6)
 #define _RDPQ_COMB2A_RGB_ADD_ZERO      cast64(7)
+#define _RDPQ_COMB2A_RGB_ADD_0         cast64(7)
 
 #define _RDPQ_COMB2B_RGB_ADD_COMBINED  cast64(0)
 #define _RDPQ_COMB2B_RGB_ADD_TEX1      cast64(1)  // TEX0 not available in 2nd cycle (pipelined)
@@ -159,14 +171,18 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_COMB2B_RGB_ADD_SHADE     cast64(4)
 #define _RDPQ_COMB2B_RGB_ADD_ENV       cast64(5)
 #define _RDPQ_COMB2B_RGB_ADD_ONE       cast64(6)
+#define _RDPQ_COMB2B_RGB_ADD_1         cast64(6)
 #define _RDPQ_COMB2B_RGB_ADD_ZERO      cast64(7)
+#define _RDPQ_COMB2B_RGB_ADD_0         cast64(7)
 
 #define _RDPQ_COMB1_ALPHA_ADDSUB_TEX0      cast64(1)
 #define _RDPQ_COMB1_ALPHA_ADDSUB_PRIM      cast64(3)
 #define _RDPQ_COMB1_ALPHA_ADDSUB_SHADE     cast64(4)
 #define _RDPQ_COMB1_ALPHA_ADDSUB_ENV       cast64(5)
 #define _RDPQ_COMB1_ALPHA_ADDSUB_ONE       cast64(6)
+#define _RDPQ_COMB1_ALPHA_ADDSUB_1         cast64(6)
 #define _RDPQ_COMB1_ALPHA_ADDSUB_ZERO      cast64(7)
+#define _RDPQ_COMB1_ALPHA_ADDSUB_0         cast64(7)
 
 #define _RDPQ_COMB2A_ALPHA_ADDSUB_TEX0      cast64(1)
 #define _RDPQ_COMB2A_ALPHA_ADDSUB_TEX1      cast64(2)
@@ -174,7 +190,9 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_COMB2A_ALPHA_ADDSUB_SHADE     cast64(4)
 #define _RDPQ_COMB2A_ALPHA_ADDSUB_ENV       cast64(5)
 #define _RDPQ_COMB2A_ALPHA_ADDSUB_ONE       cast64(6)
+#define _RDPQ_COMB2A_ALPHA_ADDSUB_1         cast64(6)
 #define _RDPQ_COMB2A_ALPHA_ADDSUB_ZERO      cast64(7)
+#define _RDPQ_COMB2A_ALPHA_ADDSUB_0         cast64(7)
 
 #define _RDPQ_COMB2B_ALPHA_ADDSUB_COMBINED  cast64(0)
 #define _RDPQ_COMB2B_ALPHA_ADDSUB_TEX1      cast64(1)   // TEX0 not available in 2nd cycle (pipelined)
@@ -182,7 +200,9 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_COMB2B_ALPHA_ADDSUB_SHADE     cast64(4)
 #define _RDPQ_COMB2B_ALPHA_ADDSUB_ENV       cast64(5)
 #define _RDPQ_COMB2B_ALPHA_ADDSUB_ONE       cast64(6)
+#define _RDPQ_COMB2B_ALPHA_ADDSUB_1         cast64(6)
 #define _RDPQ_COMB2B_ALPHA_ADDSUB_ZERO      cast64(7)
+#define _RDPQ_COMB2B_ALPHA_ADDSUB_0         cast64(7)
 
 #define _RDPQ_COMB1_ALPHA_MUL_LOD_FRAC         cast64(0)
 #define _RDPQ_COMB1_ALPHA_MUL_TEX0             cast64(1)
@@ -191,6 +211,7 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_COMB1_ALPHA_MUL_ENV              cast64(5)
 #define _RDPQ_COMB1_ALPHA_MUL_PRIM_LOD_FRAC    cast64(6)
 #define _RDPQ_COMB1_ALPHA_MUL_ZERO             cast64(7)
+#define _RDPQ_COMB1_ALPHA_MUL_0                cast64(7)
 
 #define _RDPQ_COMB2A_ALPHA_MUL_LOD_FRAC         cast64(0)
 #define _RDPQ_COMB2A_ALPHA_MUL_TEX0             cast64(1)
@@ -200,6 +221,7 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_COMB2A_ALPHA_MUL_ENV              cast64(5)
 #define _RDPQ_COMB2A_ALPHA_MUL_PRIM_LOD_FRAC    cast64(6)
 #define _RDPQ_COMB2A_ALPHA_MUL_ZERO             cast64(7)
+#define _RDPQ_COMB2A_ALPHA_MUL_0                cast64(7)
 
 #define _RDPQ_COMB2B_ALPHA_MUL_LOD_FRAC         cast64(0)
 #define _RDPQ_COMB2B_ALPHA_MUL_TEX1             cast64(1)  // TEX0 not available in 2nd cycle (pipelined)
@@ -208,6 +230,7 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_COMB2B_ALPHA_MUL_ENV              cast64(5)
 #define _RDPQ_COMB2B_ALPHA_MUL_PRIM_LOD_FRAC    cast64(6)
 #define _RDPQ_COMB2B_ALPHA_MUL_ZERO             cast64(7)
+#define _RDPQ_COMB2B_ALPHA_MUL_0                cast64(7)
 
 #define __rdpq_1cyc_comb_rgb(suba, subb, mul, add) \
     (((_RDPQ_COMB1_RGB_SUBA_ ## suba)<<52) | ((_RDPQ_COMB1_RGB_SUBB_ ## subb)<<28) | ((_RDPQ_COMB1_RGB_MUL_ ## mul)<<47) | ((_RDPQ_COMB1_RGB_ADD_ ## add)<<15) | \
@@ -268,12 +291,12 @@ typedef uint32_t rdpq_blender_t;
  * 
  * For example, this macro:
  * 
- *      RDPQ_COMBINER1((TEX0, ZERO, SHADE, ZERO), (ZERO, ZERO, ZERO, TEX0))
+ *      RDPQ_COMBINER1((TEX0, 0, SHADE, 0), (0, 0, 0, TEX0))
  * 
  * configures the formulas:
  * 
- *      RGB = (TEX0 - 0) * SHADE + 0 = TEX0 * SHADE
- *      ALPHA = (0 - 0) * 0 + TEX0   = TEX0
+ *      RGB   = (TEX0 - 0) * SHADE + 0    = TEX0 * SHADE
+ *      ALPHA = (0    - 0) * 0     + TEX0 = TEX0
  * 
  * In the RGB channels, the texel color is multiplied by the shade color
  * (which is the per-pixel interpolated vertex color), basically applying
@@ -308,8 +331,8 @@ typedef uint32_t rdpq_blender_t;
  *  * `PRIM`: value of the PRIM register (set via #rdpq_set_prim_color)
  *  * `ENV`: value of the ENV register (set via #rdpq_set_env_color)
  *  * `NOISE`: a random value
- *  * `ONE`: the constant value 1.0
- *  * `ZERO`: the constant value 0.0
+ *  * `1`: the constant value 1.0
+ *  * `0`: the constant value 0.0
  *  * `K4`: the constant value configured as `k4` as part of YUV parameters
  *    (via #rdpq_set_yuv_parms).
  *  * `K5`: the constant value configured as `k5` as part of YUV parameters
@@ -327,18 +350,18 @@ typedef uint32_t rdpq_blender_t;
  * 
  * <table>
  * <tr><th rowspan="4" width="60em">RGB</th>
- *     <th>A</th><td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `NOISE`, `ONE`, `ZERO`</td></tr>
- * <tr><th>B</th> <td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `KEYCENTER`, `K4`, `ZERO`</td></tr>
- * <tr><th>C</th> <td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `TEX0_ALPHA`, `SHADE_ALPHA`, `PRIM_ALPHA`, `ENV_ALPHA`, `LOD_FRAC`, `PRIM_LOD_FRAC`, `K5`, `ZERO`</td></tr>
- * <tr><th>D</th></tr><td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `ONE`, `ZERO`</td></tr>
+ *     <th>A</th><td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `NOISE`, `1`, `0`</td></tr>
+ * <tr><th>B</th> <td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `KEYCENTER`, `K4`, `0`</td></tr>
+ * <tr><th>C</th> <td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `TEX0_ALPHA`, `SHADE_ALPHA`, `PRIM_ALPHA`, `ENV_ALPHA`, `LOD_FRAC`, `PRIM_LOD_FRAC`, `K5`, `0`</td></tr>
+ * <tr><th>D</th></tr><td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `1`, `0`</td></tr>
  * </table>
  * 
  * <table>
  * <tr><th rowspan="4" width="60em">ALPHA</th>
- *     <th>A</th><td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `ONE`, `ZERO`</td></tr>
- * <tr><th>B</th><td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `ONE`, `ZERO`</td></tr>
- * <tr><th>C</th><td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `LOD_FRAC`, `PRIM_LOD_FRAC`, `ZERO`</td></tr>
- * <tr><th>D</th><td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `ONE`, `ZERO`</td></tr>
+ *     <th>A</th><td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `1`, `0`</td></tr>
+ * <tr><th>B</th><td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `1`, `0`</td></tr>
+ * <tr><th>C</th><td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `LOD_FRAC`, `PRIM_LOD_FRAC`, `0`</td></tr>
+ * <tr><th>D</th><td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `1`, `0`</td></tr>
  * </table>
  * 
  * For instance, to draw a gouraud-shaded textured triangle, one might want to calculate
@@ -351,16 +374,16 @@ typedef uint32_t rdpq_blender_t;
  * with the per-pixel interpolated color coming from the triangle vertex. To do so,
  * we need to adapt the formula to the 4-variable combiner structure:
  * 
- *        RGB   = (TEX0 - ZERO) * SHADE + ZERO
- *        ALPHA = (TEX0 - ZERO) * SHADE + ZERO
+ *        RGB   = (TEX0 - 0) * SHADE + 0
+ *        ALPHA = (TEX0 - 0) * SHADE + 0
  * 
  * To program this into the combiner, we can issue the following command:
  * 
- *        rdpq_mode_combiner(RDPQ1_COMBINER((TEX0, ZERO, SHADE, ZERO), (TEX0, ZERO, SHADE, ZERO)));
+ *        rdpq_mode_combiner(RDPQ1_COMBINER((TEX0, 0, SHADE, 0), (TEX0, 0, SHADE, 0)));
  *
  * Notice that this is just a way to obtain the formula above. Another possibility is:
  * 
- *        rdpq_mode_combiner(RDPQ1_COMBINER((ONE, ZERO, SHADE, TEX0), (ONE, ZERO, SHADE, TEX0)));
+ *        rdpq_mode_combiner(RDPQ1_COMBINER((1, 0, SHADE, TEX0), (1, 0, SHADE, TEX0)));
  * 
  * which will obtain exactly the same result.
  * 
@@ -428,6 +451,45 @@ typedef uint32_t rdpq_blender_t;
            RDPQ_COMBINER_2PASS)
 
 
+/**
+ * @name Standard color combiners
+ * 
+ * These macros offer some standard color combiner configuration that can be
+ * used to implement common render modes.
+ * 
+ * @{
+ */
+/** @brief Draw a flat color.
+ *  Configure the color via #rdpq_set_prim_color.
+ */
+#define RDPQ_COMBINER_FLAT       RDPQ_COMBINER1((0,0,0,PRIM),       (0,0,0,PRIM))
+/** @brief Draw an interpolated color.
+ * This can be used for solid, non-textured triangles with
+ * per-vertex lighting (gouraud shading). The colors must be
+ * specified on each vertex. Only triangles allow to specify
+ * a per-vertex color, so you cannot draw rectangles with this.
+ */
+#define RDPQ_COMBINER_SHADE      RDPQ_COMBINER1((0,0,0,SHADE),      (0,0,0,SHADE))
+/**
+ * @brief Draw with a texture.
+ * This is standard texture mapping, without any lights.
+ * It can be used for rectangles (#rdpq_texture_rectangle)
+ * or triangles (#rdpq_triangle).
+ */
+#define RDPQ_COMBINER_TEX        RDPQ_COMBINER1((0,0,0,TEX0),       (0,0,0,TEX0))
+/**
+ * @brief Draw with a texture modulated with a flat color.
+ * Configure the color via #rdpq_set_prim_color.
+*/
+#define RDPQ_COMBINER_TEX_FLAT   RDPQ_COMBINER1((TEX0,0,PRIM,0),    (TEX0,0,PRIM,0))
+/**
+ * @brief Draw with a texture modulated with an interpolated color.
+ * This does texturing with gouraud shading, and can be used for textured triangles
+ * with per-vertex lighting.
+*/
+#define RDPQ_COMBINER_TEX_SHADE  RDPQ_COMBINER1((TEX0,0,SHADE,0),   (TEX0,0,SHADE,0))
+/** @} */
+
 /** @name SET_OTHER_MODES bit macros
  * 
  * These macros can be used to assemble a raw `SET_OTHER_MODES` command to send
@@ -447,6 +509,7 @@ typedef uint32_t rdpq_blender_t;
 #define SOM_CYCLE_COPY         ((cast64(2))<<52)            ///< Set cycle-type: copy
 #define SOM_CYCLE_FILL         ((cast64(3))<<52)            ///< Set cycle-type: fill
 #define SOM_CYCLE_MASK         ((cast64(3))<<52)            ///< Cycle-type mask
+#define SOM_CYCLE_SHIFT        52                           ///< Cycle-type shift
 
 #define SOM_TEXTURE_PERSP      (cast64(1)<<51)              ///< Texture: enable perspective correction
 #define SOM_TEXTURE_DETAIL     (cast64(1)<<50)              ///< Texture: enable "detail"
@@ -487,11 +550,14 @@ typedef uint32_t rdpq_blender_t;
 #define SOM_ALPHADITHER_MASK   ((cast64(3))<<36)            ///< Alpha Dithering mask
 #define SOM_ALPHADITHER_SHIFT  36                           ///< Alpha Dithering mask shift
 
+#define SOMX_FOG               ((cast64(1))<<32)            ///< RDPQ special state: fogging is enabled
+#define SOMX_UPDATE_FREEZE     ((cast64(1))<<33)            ///< RDPQ special state: render mode update is frozen (see #rdpq_mode_begin)
+
 #define SOM_BLEND0_MASK        (cast64(0xCCCC0000) | SOM_BLENDING | SOM_READ_ENABLE | SOMX_BLEND_2PASS)     ///< Blender: mask of settings related to pass 0
 #define SOM_BLEND1_MASK        (cast64(0x33330000) | SOM_BLENDING | SOM_READ_ENABLE | SOMX_BLEND_2PASS)     ///< Blender: mask of settings related to pass 1
 #define SOM_BLEND_MASK         (SOM_BLEND0_MASK | SOM_BLEND1_MASK)                                          ///< Blender: mask of all settings
 
-#define SOMX_BLEND_2PASS       cast64(1<<15)                ///< RDPQ special state: record that the blender is made of 2 passes
+#define SOMX_BLEND_2PASS       ((cast64(1))<<15)            ///< RDPQ special state: record that the blender is made of 2 passes
 
 #define SOM_BLENDING           ((cast64(1))<<14)            ///< Activate blending for all pixels
 
@@ -545,11 +611,14 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_SOM_BLEND1_B1_FOG_ALPHA      cast64(1)
 #define _RDPQ_SOM_BLEND1_B1_SHADE_ALPHA    cast64(2)
 #define _RDPQ_SOM_BLEND1_B1_ZERO           cast64(3)
+#define _RDPQ_SOM_BLEND1_B1_0              cast64(3)
 
 #define _RDPQ_SOM_BLEND1_B2_INV_MUX_ALPHA  cast64(0)
 #define _RDPQ_SOM_BLEND1_B2_MEMORY_CVG     cast64(1)
 #define _RDPQ_SOM_BLEND1_B2_ONE            cast64(2)
+#define _RDPQ_SOM_BLEND1_B2_1              cast64(2)
 #define _RDPQ_SOM_BLEND1_B2_ZERO           cast64(3)
+#define _RDPQ_SOM_BLEND1_B2_0              cast64(3)
 
 #define _RDPQ_SOM_BLEND2A_A_IN_RGB        cast64(0)
 #define _RDPQ_SOM_BLEND2A_A_BLEND_RGB     cast64(2)
@@ -559,6 +628,7 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_SOM_BLEND2A_B1_FOG_ALPHA      cast64(1)
 #define _RDPQ_SOM_BLEND2A_B1_SHADE_ALPHA    cast64(2)
 #define _RDPQ_SOM_BLEND2A_B1_ZERO           cast64(3)
+#define _RDPQ_SOM_BLEND2A_B1_0              cast64(3)
 
 #define _RDPQ_SOM_BLEND2A_B2_INV_MUX_ALPHA  cast64(0)    // only valid option is "1-b1" in the first pass
 
@@ -571,13 +641,17 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_SOM_BLEND2B_B1_FOG_ALPHA      cast64(1)
 #define _RDPQ_SOM_BLEND2B_B1_SHADE_ALPHA    cast64(2)
 #define _RDPQ_SOM_BLEND2B_B1_ZERO           cast64(3)
+#define _RDPQ_SOM_BLEND2B_B1_0              cast64(3)
 
 #define _RDPQ_SOM_BLEND2B_B2_INV_MUX_ALPHA  cast64(0)
 #define _RDPQ_SOM_BLEND2B_B2_MEMORY_CVG     cast64(1)
 #define _RDPQ_SOM_BLEND2B_B2_ONE            cast64(2)
+#define _RDPQ_SOM_BLEND2B_B2_1              cast64(2)
 #define _RDPQ_SOM_BLEND2B_B2_ZERO           cast64(3)
+#define _RDPQ_SOM_BLEND2B_B2_0              cast64(3)
 
 #define _RDPQ_SOM_BLEND_EXTRA_A_IN_RGB          cast64(0)
+#define _RDPQ_SOM_BLEND_EXTRA_A_CYCLE1_RGB      cast64(0)
 #define _RDPQ_SOM_BLEND_EXTRA_A_MEMORY_RGB      (SOM_READ_ENABLE)
 #define _RDPQ_SOM_BLEND_EXTRA_A_BLEND_RGB       cast64(0)
 #define _RDPQ_SOM_BLEND_EXTRA_A_FOG_RGB         cast64(0)
@@ -586,11 +660,14 @@ typedef uint32_t rdpq_blender_t;
 #define _RDPQ_SOM_BLEND_EXTRA_B1_FOG_ALPHA      cast64(0)
 #define _RDPQ_SOM_BLEND_EXTRA_B1_SHADE_ALPHA    cast64(0)
 #define _RDPQ_SOM_BLEND_EXTRA_B1_ZERO           cast64(0)
+#define _RDPQ_SOM_BLEND_EXTRA_B1_0              cast64(0)
 
 #define _RDPQ_SOM_BLEND_EXTRA_B2_INV_MUX_ALPHA  cast64(0)
 #define _RDPQ_SOM_BLEND_EXTRA_B2_MEMORY_CVG     (SOM_READ_ENABLE)
 #define _RDPQ_SOM_BLEND_EXTRA_B2_ONE            cast64(0)
+#define _RDPQ_SOM_BLEND_EXTRA_B2_1              cast64(0)
 #define _RDPQ_SOM_BLEND_EXTRA_B2_ZERO           cast64(0)
+#define _RDPQ_SOM_BLEND_EXTRA_B2_0              cast64(0)
 
 #define __rdpq_blend(cyc, a1, b1, a2, b2, sa1, sb1, sa2, sb2) (\
         ((_RDPQ_SOM_BLEND ## cyc ## _A_  ## a1) << sa1) | \
@@ -631,7 +708,7 @@ typedef uint32_t rdpq_blender_t;
  * 
  * For example, this macro:
  * 
- *      RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, ONE))
+ *      RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, 1))
  * 
  * configures the formula:
  * 
@@ -680,7 +757,7 @@ typedef uint32_t rdpq_blender_t;
  *    The shade component is the color optionally set on
  *    each vertex when drawing a triangle (see #rdpq_triangle).
  *    The RDP interpolates it on each pixel.
- *  * `ZERO`: the constant value 0.
+ *  * `0`: the constant value 0.
  * 
  * These are all possible inputs for `B`:
  * 
@@ -694,8 +771,8 @@ typedef uint32_t rdpq_blender_t;
  *    the framebuffer at the position where the current pixel will
  *    be drawn. The coverage is normally stored as a value in the
  *    range 0-7, but the blender normalizes in the range 0.0-1.0.
- *  * `ONE`: the constant value 1.
- *  * `ZERO`: the constant value 0.
+ *  * `1`: the constant value 1.
+ *  * `0`: the constant value 0.
  * 
  * The blender uses the framebuffer precision for the RGB channels:
  * when drawing to a 32-bit framebuffer, `P` and `Q` will have
@@ -733,25 +810,23 @@ typedef uint32_t rdpq_blender_t;
  * @brief Build a 2-pass blender formula
  *
  * This macro is similar to #RDPQ_BLENDER, but it can be used to build a
- * two-passes blender formula.
- * 
- * When using the blender-related functions in the rdpq mode API
- * (#rdpq_mode_blending and #rdpq_mode_fog), usage of #RDPQ_BLENDER2
- * is not required because the two blender passes supported by RDP 
- * can be configured separately.
- * 
- * Instead, #RDPQ_BLENDER2 must be used when using directly the low-level
- * APIs (#rdpq_set_other_modes_raw).
+ * two-passes blender formula. This formula can be then configured using the
+ * mode API via #rdpq_mode_blending, or using the lower-level API via
+ * #rdpq_change_other_modes_raw.
  * 
  * Refer to #RDPQ_BLENDER for information on how to build a blender formula.
  * 
+ * Notice that in the second pass, `IN_RGB` is not available, and you can
+ * instead use `CYCLE1_RGB` to refer to the output of the first cycle.
+ * `IN_ALPHA` is still available (as the blender does not produce a alpha
+ * output, so the input alpha is available also in the second pass):
+ * 
  * @see #RDPQ_BLENDER
  * @see #rdpq_mode_blending
- * @see #rdpq_mode_fog
  * @see #rdpq_set_other_modes_raw
  * 
  * @hideinitializer
  */
-#define RDPQ_BLENDER2(bl0, bl1) castbl(__rdpq_blend_2cyc_0 bl0 | __rdpq_blend_2cyc_1 bl1 | RDPQ_BLENDER_2PASS)
+#define RDPQ_BLENDER2(bl0, bl1) castbl(__rdpq_blend_2cyc_0 bl0 | __rdpq_blend_2cyc_1 bl1 | SOMX_BLEND_2PASS)
 
 #endif
