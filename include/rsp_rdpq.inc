@@ -415,6 +415,10 @@ RDPQ_UpdateRenderMode:
     bnez t0, RSPQ_Loop
     lw som_lo, %lo(RDPQ_OTHER_MODES) + 4
 
+    # If we are in fill/copy mode, we just need to emit SOM
+    sll t0, som_hi, 63 - (SOM_CYCLE_SHIFT+1)
+    bltz t0, rdpq_update_fillcopy
+
     # If the input combiner is 1-pass, proceed working on it
     lw comb_hi, %lo(RDPQ_COMBINER) + 0
     bgez comb_hi, calc_comb_1cyc
@@ -585,6 +589,14 @@ set_2cyc:
     sw som_hi, %lo(RDPQ_OTHER_MODES) + 0
 
     jal_and_j RDPQ_Write16, RDPQ_Finalize
+
+rdpq_update_fillcopy:
+    # We are in copy/fill mode. It is sufficient to emit a SET_OTHER_MODES
+    # to configure it.
+    move a0, som_hi
+    move a1, som_lo
+    jal_and_j RDPQ_Write8, RDPQ_Finalize
+
     .endfunc
 
     #undef comb_hi

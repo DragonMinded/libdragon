@@ -83,14 +83,15 @@ void rdpq_mode_pop(void)
 
 void rdpq_set_mode_copy(bool transparency) {
     if (transparency) rdpq_set_blend_color(RGBA32(0,0,0,1));
-    rdpq_set_other_modes_raw(SOM_CYCLE_COPY | (transparency ? SOM_ALPHACOMPARE_THRESHOLD : 0));
+    uint64_t som = SOM_CYCLE_COPY | (transparency ? SOM_ALPHACOMPARE_THRESHOLD : 0);
+    __rdpq_reset_render_mode(0, 0, som >> 32, som & 0xFFFFFFFF);
 }
 
 void rdpq_set_mode_standard(void) {
     uint64_t cc = RDPQ_COMBINER1(
         (ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0)
     );
-    uint64_t som = (0xEFull << 56) | 
+    uint64_t som =
         SOM_TF0_RGB | SOM_TF1_RGB |
         SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE |
         SOM_COVERAGE_DEST_ZAP;

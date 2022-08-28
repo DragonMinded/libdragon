@@ -1150,7 +1150,6 @@ void test_rdpq_mode_freeze(TestContext *ctx) {
     DEFER(__rdpq_zero_blocks = false);
 
     RDPQ_INIT();
-    rdpq_debug_log(true);
 
     const int FULL_CVG = 7 << 5;   // full coverage
     const int FBWIDTH = 16;
@@ -1255,5 +1254,49 @@ void test_rdpq_mode_freeze(TestContext *ctx) {
     }
     ASSERT_EQUAL_SIGNED(num_cc, 1, "too many SET_COMBINE_MODE");
     ASSERT_EQUAL_SIGNED(num_som, 1, "too many SET_OTHER_MODES"); // 1 SOM for fill, 1 SOM for standard
-    ASSERT_EQUAL_SIGNED(num_nops, 7, "wrong number of NOPs"); 
+    ASSERT_EQUAL_SIGNED(num_nops, 7, "wrong number of NOPs");
+}
+
+void test_rdpq_mode_freeze_stack(TestContext *ctx) {
+    RDPQ_INIT();
+
+    const int FULL_CVG = 7 << 5;   // full coverage
+    const int FBWIDTH = 16;
+    surface_t fb = surface_alloc(FMT_RGBA32, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    rdpq_set_color_image(&fb);
+    surface_clear(&fb, 0);
+
+    rdpq_set_mode_standard();
+    rdpq_mode_begin();
+        rdpq_mode_push();
+        rdpq_set_mode_fill(RGBA32(255,255,255,0));
+    rdpq_mode_end();
+
+    rdpq_fill_rectangle(2, 0, FBWIDTH-2, FBWIDTH);
+    rspq_wait();
+    
+    ASSERT_SURFACE(&fb, { 
+        return (x>=2 && x<=FBWIDTH-2) ? 
+            RGBA32(255,255,255,0) : 
+            RGBA32(0,0,0,0); 
+    });
+
+    surface_clear(&fb, 0);
+    rdpq_mode_begin();
+        rdpq_mode_pop();
+        rdpq_mode_combiner(RDPQ_COMBINER_FLAT);
+        rdpq_set_prim_color(RGBA32(255,0,0,0));
+    rdpq_mode_end();
+
+    rdpq_fill_rectangle(2, 0, FBWIDTH-2, FBWIDTH);
+    rspq_wait();
+
+    ASSERT_SURFACE(&fb, { 
+        return (x>=2 && x<FBWIDTH-2) ? 
+            RGBA32(255,0,0,FULL_CVG) : 
+            RGBA32(0,0,0,0); 
+    });
+
+    rspq_wait();
 }

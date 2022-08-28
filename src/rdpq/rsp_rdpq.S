@@ -24,7 +24,7 @@
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     160 # 0xCE Shaded Textured
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     176 # 0xCF Shaded Textured ZBuffered
 
-        RSPQ_DefineCommand RDPQCmd_TextureRectEx,           16  # 0xD0
+        RSPQ_DefineCommand RDPQCmd_TextureRectEx,           16  # 0xD0 Texture Rectangle (esclusive bounds)
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD1
         RSPQ_DefineCommand RDPQCmd_SetScissorEx,            8   # 0xD2 Set Scissor (exclusive bounds)
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD3
@@ -415,25 +415,32 @@ RDPQCmd_ResetMode:
     sqv $v00,0, 0x00,s0
     sqv $v00,0, 0x10,s0
 
-    # We are going in either 1-cycle or 2-cycle mode. We emit
-    # a SET_SCISSOR if we are coming from FILL / COPY mode.
+    # Save SOM right away, after adding SOM 
+    # FIXME: duplication with SaveOtherModes
+    lui t0, 0xEF00
+    or a2, t0
+    sw a2, %lo(RDPQ_OTHER_MODES) + 0
+    sw a3, %lo(RDPQ_OTHER_MODES) + 4
+
+    # Check if the FILL/COPY bit is changed compared to the current mode
+    # If so, update scissoring
+    xor t3, a2
     sll t3, 63 - (SOM_CYCLE_SHIFT+1)
     bgez t3, reset_end
  
     move t0, a0
     move t1, a1
     lw a0, %lo(RDPQ_SCISSOR_RECT) + 0x0
-    jal RDPQ_Write8
+    jal RDPQ_WriteSetScissor
     lw a1, %lo(RDPQ_SCISSOR_RECT) + 0x4
     move a0, t0
     move a1, t1
     
 reset_end:
-    # Set standard SOM and then call RDPQCmd_SetCombineMode_1Pass, which
-    # will set the standard CC and call RDPQ_UpdateRenderMode once
-    sw a2, %lo(RDPQ_OTHER_MODES) + 0
+    # Call RDPQCmd_SetCombineMode_1Pass, which will set the standard CC 
+    # and call RDPQ_UpdateRenderMode once
     j RDPQCmd_SetCombineMode_1Pass
-    sw a3, %lo(RDPQ_OTHER_MODES) + 4
+    nop
 
 # Include RDPQ library
 #include <rsp_rdpq.inc>
