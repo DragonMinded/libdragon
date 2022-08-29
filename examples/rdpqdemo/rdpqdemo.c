@@ -135,6 +135,10 @@ int main()
     dfs_read(tiles_sprite, 1, dfs_size(fp), fp);
     dfs_close(fp);
 
+    surface_t tiles_surf = surface_make(tiles_sprite->data, 
+        tiles_sprite->bitdepth == 2 ? FMT_RGBA16 : FMT_RGBA32,
+        tiles_sprite->width, tiles_sprite->height, tiles_sprite->width * tiles_sprite->bitdepth);
+
     rspq_block_begin();
 
     uint32_t tile_width = tiles_sprite->width / tiles_sprite->hslices;
@@ -144,8 +148,9 @@ int main()
     {
         for (uint32_t tx = 0; tx < display_width; tx += tile_width)
         {
-            rdp_load_texture_stride(0, 0, MIRROR_DISABLED, tiles_sprite, RANDN(4));
-            rdp_draw_sprite(0, tx, ty, MIRROR_DISABLED);
+            int s = RANDN(2)*32, t = RANDN(2)*32;
+            rdpq_tex_load_sub(TILE0, &tiles_surf, 0, s, t, s+32, t+32);
+            rdpq_texture_rectangle(TILE0, tx, ty, tx+32, ty+32, s, t, 1, 1);
         }
     }
 
