@@ -87,7 +87,7 @@ void dma_read_raw_async(void * ram_address, unsigned long pi_address, unsigned l
     MEMORY_BARRIER();
     PI_regs->ram_address = ram_address;
     MEMORY_BARRIER();
-    PI_regs->pi_address = (pi_address | 0x10000000) & 0x1FFFFFFF;
+    PI_regs->pi_address = pi_address;
     MEMORY_BARRIER();
     PI_regs->write_length = len-1;
     MEMORY_BARRIER();
@@ -123,7 +123,7 @@ void dma_write_raw_async(const void * ram_address, unsigned long pi_address, uns
     MEMORY_BARRIER();
     PI_regs->ram_address = (void*)ram_address;
     MEMORY_BARRIER();
-    PI_regs->pi_address = (pi_address | 0x10000000) & 0x1FFFFFFF;
+    PI_regs->pi_address = pi_address;
     MEMORY_BARRIER();
     PI_regs->read_length = len-1;
     MEMORY_BARRIER();
@@ -220,7 +220,7 @@ static uint8_t __io_read8(void *pi_pointer) {
  * falls back to a CPU memory copy to realign the data when required.
  * 
  * @param[out] ram_pointer
- *             Pointer to a buffer to place read data
+ *             Pointer to a buffer in RDRAM to place read data
  * @param[in]  pi_address
  *             Memory address of the peripheral to read from
  * @param[in]  len
@@ -293,7 +293,7 @@ void dma_read_async(void *ram_pointer, unsigned long pi_address, unsigned long l
 
     // Start the actual DMA transfer, if still needed.
     if (len)
-        dma_read_raw_async(ram, (unsigned long)rom, len);
+        dma_read_raw_async(ram, PhysicalAddr(rom), len);
 
     enable_interrupts();
 }
@@ -307,9 +307,27 @@ void dma_wait(void)
 }
 
 
-/** @brief Read data from a peripheral through PI DMA, waiting for completion. */
+/** 
+ * @brief Read data from a peripheral through PI DMA, waiting for completion.
+ * 
+ * This function performs a blocking read. See #dma_read_async for more information.
+ * 
+ * @param[out] ram_address
+ *             Pointer to a buffer in RDRAM to place read data
+ * @param[in]  pi_address
+ *             ROM address to read from (must be in range (0x10000000-0x1FFFFFFF).
+ * @param[in]  len
+ *             Length in bytes to read into ram_address
+ * 
+ * @note This function has always had an historical mistake: the pi_address is mangled
+ *       to be forced into the ROM area (0x10000000-0x1FFFFFFF). This is wrong as the
+ *       PI bus has full 32-bit address, and the same function could have been used
+ *       to access the whole range.
+ *       If you need to read outside the ROM area, use #dma_read_async instead.
+ */
 void dma_read(void *ram_address, unsigned long pi_address, unsigned long len)
 {
+    pi_address = (pi_address | 0x10000000) & 0x1FFFFFFF;
     dma_read_async(ram_address, pi_address, len);
     dma_wait();
 }
@@ -321,16 +339,21 @@ void dma_read(void *ram_address, unsigned long pi_address, unsigned long len)
  *
  * @param[in] ram_address
  *            Pointer to a buffer to read data from
- * @param[in] pi_address
- *            Memory address of the peripheral to write to
+ * @param[in] rom_address
+ *            Cartridge address to write to (must be in range (0x10000000-0x1FFFFFFF).
  * @param[in] len
  *            Length in bytes to write to peripheral
+ * 
+ * @note This function has always had an historical mistake: the pi_address is mangled
+ *       to be forced into the ROM area (0x10000000-0x1FFFFFFF). This is wrong as the
+ *       PI bus has full 32-bit address, and the same function could have been used
+ *       to access the whole range.
+ *       If you need to read outside the ROM area, use #dma_write_raw_async instead.
  */
-void dma_write(const void * ram_address, unsigned long pi_address, unsigned long len) 
+void dma_write(const void * ram_address, unsigned long rom_address, unsigned long len) 
 {
-    assert(len > 0);
-
-    dma_write_raw_async(ram_address, pi_address, len);
+    rom_address = (rom_address | 0x10000000) & 0x1FFFFFFF;
+    dma_write_raw_async(ram_address, rom_address, len);
     dma_wait();
 }
 
