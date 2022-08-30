@@ -500,7 +500,7 @@ static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
     switch (assert_code)
     {
     case RDPQ_ASSERT_FILLCOPY_BLENDING:
-        printf("Cannot call rdpq_mode_blending in fill or copy mode\n");
+        printf("Cannot call rdpq_mode_blender in fill or copy mode\n");
         break;
 
     case RDPQ_ASSERT_MIPMAP_COMB2:

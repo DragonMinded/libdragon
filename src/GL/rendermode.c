@@ -172,7 +172,7 @@ void gl_update_blend_func()
     }
 
     rdpq_blender_t blend_cycle = state.blend ? state.blend_cycle : 0;
-    rdpq_mode_blending(blend_cycle);
+    rdpq_mode_blender(blend_cycle);
 }
 
 void gl_update_fog()

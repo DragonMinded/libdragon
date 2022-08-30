@@ -140,7 +140,7 @@ void rdpq_mode_end(void)
 extern inline void rdpq_set_mode_fill(color_t color);
 extern inline void rdpq_set_mode_standard(void);
 extern inline void rdpq_mode_combiner(rdpq_combiner_t comb);
-extern inline void rdpq_mode_blending(rdpq_blender_t blend);
+extern inline void rdpq_mode_blender(rdpq_blender_t blend);
 extern inline void rdpq_mode_fog(rdpq_blender_t fog);
 extern inline void rdpq_mode_dithering(rdpq_dither_t dither);
 extern inline void rdpq_mode_alphacompare(bool enable, int threshold);

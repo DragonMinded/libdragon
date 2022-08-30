@@ -80,7 +80,7 @@
  * Notice the mode settings being part of this stack are those which are configured
  * via the mode API functions itself (`rdpq_set_mode_*` and `rdpq_mode_*`). Anything
  * that doesn't go through the mode API is not saved/restored. For instance,
- * activating blending via #rdpq_mode_blending is saved onto the stack, whilst
+ * activating blending via #rdpq_mode_blender is saved onto the stack, whilst
  * changing the BLEND color register (via #rdpq_set_blend_color) is not, and you
  * can tell by the fact that the function called to configure it is not part of
  * the mode API.
@@ -334,7 +334,7 @@ void rdpq_set_mode_yuv(bool bilinear);
  * #display_init.
  * 
  * @note Antialiasing internally uses the blender unit. If you already
- *       configured a formula via #rdpq_mode_blending, antialias will just
+ *       configured a formula via #rdpq_mode_blender, antialias will just
  *       rely on that one to correctly blend pixels with the framebuffer.
  * 
  * @param enable        Enable/disable antialiasing
@@ -443,11 +443,11 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
 }
 
 /** @brief Blending mode: multiplicative alpha.
- * You can pass this macro to #rdpq_mode_blending. */
-#define RDPQ_BLEND_MULTIPLY       RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, INV_MUX_ALPHA))
+ * You can pass this macro to #rdpq_mode_blender. */
+#define RDPQ_BLENDER_MULTIPLY       RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, INV_MUX_ALPHA))
 /** @brief Blending mode: additive alpha.
- * You can pass this macro to #rdpq_mode_blending. */
-#define RDPQ_BLEND_ADDITIVE       RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, ONE))      
+ * You can pass this macro to #rdpq_mode_blender. */
+#define RDPQ_BLENDER_ADDITIVE       RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, ONE))      
 
 /**
  * @brief Configure the formula to use for blending.
@@ -457,8 +457,8 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
  * 
  * The standard blending formulas are:
  * 
- *  * #RDPQ_BLEND_MULTIPLY: multiplicative alpha blending
- *  * #RDPQ_BLEND_ADDITIVE: additive alpha blending
+ *  * #RDPQ_BLENDER_MULTIPLY: multiplicative alpha blending
+ *  * #RDPQ_BLENDER_ADDITIVE: additive alpha blending
  * 
  * It is possible to also create custom formulas. The blender unit
  * allows for up to two passes. Use #RDPQ_BLENDER to create a one-pass
@@ -481,7 +481,7 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
  *      // where FOG_ALPHA is the fixed alpha value coming from the FOG register.
  *      // Notice that the FOG register is not necessarily about fogging... it is
  *      // just one of the two registers that can be used in blending formulas.
- *      rdpq_mode_blending(RDPQ_BLENDER(IN_RGB, FOG_ALPHA, MEMORY_RGB, INV_MUX_ALPHA));
+ *      rdpq_mode_blender(RDPQ_BLENDER(IN_RGB, FOG_ALPHA, MEMORY_RGB, INV_MUX_ALPHA));
  * 
  *      // Configure the FOG_ALPHA value to 128 (= 0.5). The RGB components are
  *      // not used.
@@ -502,10 +502,10 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
  * 
  * @see #rdpq_mode_fog
  * @see #RDPQ_BLENDER
- * @see #RDPQ_BLEND_MULTIPLY
- * @see #RDPQ_BLEND_ADDITIVE
+ * @see #RDPQ_BLENDER_MULTIPLY
+ * @see #RDPQ_BLENDER_ADDITIVE
  */
-inline void rdpq_mode_blending(rdpq_blender_t blend) {
+inline void rdpq_mode_blender(rdpq_blender_t blend) {
     extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
     if (blend) blend |= SOM_BLENDING;
     if (blend & SOMX_BLEND_2PASS)
@@ -543,10 +543,10 @@ inline void rdpq_mode_blending(rdpq_blender_t blend) {
  * To disable fog, call #rdpq_mode_fog passing 0.
  * 
  * @note Fogging uses one pass of the blender unit (the first),
- *       so this can coexist with a blending formula (#rdpq_mode_blending)
+ *       so this can coexist with a blending formula (#rdpq_mode_blender)
  *       as long as it's a single pass one (created via #RDPQ_BLENDER).
  *       If a two-pass blending formula (#RDPQ_BLENDER2) was set with
- *       #rdpq_mode_blending, fogging cannot be used.
+ *       #rdpq_mode_blender, fogging cannot be used.
  * 
  * @param fog            Fog formula created with #RDPQ_BLENDER,
  *                       or 0 to disable.
@@ -554,7 +554,7 @@ inline void rdpq_mode_blending(rdpq_blender_t blend) {
  * @see #RDPQ_FOG_STANDARD
  * @see #rdpq_set_fog_color
  * @see #RDPQ_BLENDER
- * @see #rdpq_mode_blending
+ * @see #rdpq_mode_blender
  */
 inline void rdpq_mode_fog(rdpq_blender_t fog) {
     extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
@@ -671,7 +671,7 @@ inline void rdpq_mode_mipmap(int num_levels) {
  *          rdpq_set_mode_standard();
  *          rdpq_mode_mipmap(2);
  *          rdpq_mode_dithering(DITHER_SQUARE_SQUARE);
- *          rdpq_mode_blending(RDPQ_BLENDING_MULTIPLY);
+ *          rdpq_mode_blender(RDPQ_BLENDING_MULTIPLY);
  *      rdpq_mode_end();
  * @endcode
  * 

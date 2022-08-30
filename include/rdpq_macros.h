@@ -402,7 +402,7 @@ typedef uint32_t rdpq_blender_t;
  *      rdpq_set_env_color(RGBA32(0, 0, 0, 0.7*255));
  * 
  *      // Activate blending with the background
- *      rdpq_mode_blending(RDPQ_BLENDER(IN_RGB, ENV_ALPHA, MEMORY_RGB, INV_MUX_ALPHA));
+ *      rdpq_mode_blender(RDPQ_BLENDER(IN_RGB, ENV_ALPHA, MEMORY_RGB, INV_MUX_ALPHA));
  * 
  *      // Load the texture in TMEM
  *      rdpq_tex_load(TILE0, texture, 0);
@@ -721,7 +721,7 @@ typedef uint32_t rdpq_blender_t;
  * in two different ways:
  * 
  *  * When using the higher-level mode API (rdpq_mode.h), the blender
- *    formula can be passed to either #rdpq_mode_fog or #rdpq_mode_blending.
+ *    formula can be passed to either #rdpq_mode_fog or #rdpq_mode_blender.
  *    The blender unit is in fact capable of running up two passes
  *    in sequence, so each function configures one different pass.
  *  * When using the lower-level API (#rdpq_set_other_modes_raw),
@@ -731,7 +731,7 @@ typedef uint32_t rdpq_blender_t;
  *    use #RDPQ_BLENDER2 instead.
  * 
  * Pre-made formulas for common scenarios are available: see
- * #RDPQ_BLEND_MULTIPLY, #RDPQ_BLEND_ADDITIVE, #RDPQ_FOG_STANDARD.
+ * #RDPQ_BLENDER_MULTIPLY, #RDPQ_BLENDER_ADDITIVE, #RDPQ_FOG_STANDARD.
  * 
  * These are all possible inputs for `P` and `Q`:
  * 
@@ -798,7 +798,7 @@ typedef uint32_t rdpq_blender_t;
  * be then used by VI for doing antialiasing as a post-process filter
  * -- see #rdpq_mode_antialias for a brief explanation).
  * 
- * @see #rdpq_mode_blending
+ * @see #rdpq_mode_blender
  * @see #rdpq_mode_fog
  * @see #rdpq_mode_dithering
  * @see #rdpq_set_fog_color
@@ -814,7 +814,7 @@ typedef uint32_t rdpq_blender_t;
  *
  * This macro is similar to #RDPQ_BLENDER, but it can be used to build a
  * two-passes blender formula. This formula can be then configured using the
- * mode API via #rdpq_mode_blending, or using the lower-level API via
+ * mode API via #rdpq_mode_blender, or using the lower-level API via
  * #rdpq_change_other_modes_raw.
  * 
  * Refer to #RDPQ_BLENDER for information on how to build a blender formula.
@@ -825,7 +825,7 @@ typedef uint32_t rdpq_blender_t;
  * output, so the input alpha is available also in the second pass):
  * 
  * @see #RDPQ_BLENDER
- * @see #rdpq_mode_blending
+ * @see #rdpq_mode_blender
  * @see #rdpq_set_other_modes_raw
  * 
  * @hideinitializer

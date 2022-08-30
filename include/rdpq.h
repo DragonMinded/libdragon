@@ -550,7 +550,7 @@ inline void rdpq_texture_rectangle_flip_fx(rdpq_tile_t tile, uint16_t x0, uint16
  * square, with the most external pixel rows and columns having a alpha of 25%.
  * This obviously makes more sense in RGBA32 mode where there is enough alpha
  * bitdepth to appreciate the result. Make sure to configure the blender via
- * #rdpq_mode_blending (part of the mode API) or via the lower-level #rdpq_set_other_modes_raw,
+ * #rdpq_mode_blender (part of the mode API) or via the lower-level #rdpq_set_other_modes_raw,
  * to decide the blending formula.
  * 
  * Notice that coordinates are unsigned numbers, so negative numbers are not
@@ -1051,14 +1051,14 @@ inline void rdpq_set_fill_color_stripes(color_t color1, color_t color2) {
  * #rdpq_set_blend_color.
  * 
  * See #RDPQ_BLENDER and #RDPQ_BLENDER2 on how to configure
- * the blender (typically, via #rdpq_mode_blending).
+ * the blender (typically, via #rdpq_mode_blender).
  * 
  * @param[in] color             Color to set the FOG register to
  * 
  * @see #RDPQ_BLENDER
  * @see #RDPQ_BLENDER2
  * @see #rdpq_set_blend_color
- * @see #rdpq_mode_blending
+ * @see #rdpq_mode_blender
  */
 inline void rdpq_set_fog_color(color_t color)
 {
@@ -1079,14 +1079,14 @@ inline void rdpq_set_fog_color(color_t color)
  * #rdpq_set_fog_color.
  * 
  * See #RDPQ_BLENDER and #RDPQ_BLENDER2 on how to configure
- * the blender (typically, via #rdpq_mode_blending).
+ * the blender (typically, via #rdpq_mode_blender).
  * 
  * @param[in] color             Color to set the BLEND register to
  * 
  * @see #RDPQ_BLENDER
  * @see #RDPQ_BLENDER2
  * @see #rdpq_set_fog_color
- * @see #rdpq_mode_blending
+ * @see #rdpq_mode_blender
  */
 inline void rdpq_set_blend_color(color_t color)
 {
