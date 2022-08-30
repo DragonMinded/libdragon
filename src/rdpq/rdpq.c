@@ -932,6 +932,8 @@ void rdpq_set_z_image(surface_t *surface)
 void rdpq_set_texture_image(surface_t *surface)
 {
     tex_format_t fmt = surface_get_format(surface);
+    assertf((PhysicalAddr(surface->buffer) & 7) == 0,
+        "buffer pointer is not aligned to 8 bytes, so it cannot be used as RDP texture image");
     rdpq_set_texture_image_raw(0, PhysicalAddr(surface->buffer), fmt, 
         TEX_FORMAT_BYTES2PIX(fmt, surface->stride), surface->height);
 }

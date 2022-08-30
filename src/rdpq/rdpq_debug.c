@@ -931,6 +931,7 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         break;
     case 0x3D: // SET_TEX_IMAGE
         validate_busy_pipe();
+        VALIDATE_ERR(BITS(buf[0], 0, 2) == 0, "texutre image must be aligned to 8 bytes");
         rdp.tex.fmt = BITS(buf[0], 53, 55);
         rdp.tex.size = BITS(buf[0], 51, 52);
         rdp.last_tex = &buf[0];        

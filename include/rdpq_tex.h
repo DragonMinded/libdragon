@@ -122,6 +122,10 @@ int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, int tmem_addr);
  *          1.0, 1.0);                          // texture increments (= no scaling)
  * @endcode{.c}
  * 
+ * The only limit of this second solution is that the sub-surface pointer must
+ * be 8-byte aligned (like all RDP textures), so it can only be used if the
+ * rectangle that needs to be loaded respects such constraint as well.
+ * 
  * @param tile       Tile descriptor that will be initialized with this texture
  * @param tex        Surface containing the texture to load
  * @param tmem_addr  Address in TMEM where the texture will be loaded

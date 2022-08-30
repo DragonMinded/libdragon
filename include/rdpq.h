@@ -1278,6 +1278,9 @@ inline void rdpq_set_z_image_raw(uint8_t index, uint32_t offset)
  * in the address lookup table, adding optionally an offset. See #rdpq_set_lookup_address
  * for more information.
  * 
+ * RDP a physical constraint of 8-byte alignment for textures, so make sure to respect
+ * that while configuring a buffer. The validator will flag such a mistake.
+ * 
  * @param index        Index in the rdpq lookup table of the buffer to set as texture image.
  * @param offset       Byte offset to add to the buffer stored in the lookup table. Notice that
  *                     if index is 0, this can be a physical address to a buffer (use
@@ -1343,9 +1346,13 @@ inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_forma
  *      rspq_block_run(bl);
  * @endcode
  * 
+ * @note RDP has some alignment constraints: color and Z buffers must be 64-byte aligned,
+ *       and textures must be 8-byte aligned.
+ *
  * @param index           Index of the slot in the table. Available slots are 1-15
  *                        (slot 0 is reserved).
  * @param rdram_addr      Pointer of the buffer to store into the address table.
+ * 
  */
 inline void rdpq_set_lookup_address(uint8_t index, void* rdram_addr)
 {
