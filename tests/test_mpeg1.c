@@ -12,7 +12,7 @@ void test_mpeg1_idct(TestContext *ctx) {
 		SRAND(nt+1);	
 		for (int j=0;j<8;j++) {	
 			for (int i=0;i<8;i++) {
-				matrix1[j*8+i] = RANDN(256)-128;
+				matrix1[j*8+i] = RANDN(128)-64;
 				matrix2[j*8+i] = matrix1[j*8+i];
 			}
 		}
