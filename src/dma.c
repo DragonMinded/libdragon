@@ -47,6 +47,54 @@ static volatile int __dma_busy(void)
     return PI_regs->status & (PI_STATUS_DMA_BUSY | PI_STATUS_IO_BUSY);
 }
 
+/**
+ * @brief Check whether the specified PI address can be accessed doing I/O from CPU
+ * 
+ * The PI bus covers the full 32-bit address range. The full range is only accessible
+ * via DMA, though. A part of the range is also memory mapped to the CPU and can be
+ * accessed via #io_read and #io_write.
+ * 
+ * The ranges of PI address that can be accessed via CPU are:
+ * 
+ *  * 0x0500_0000 - 0x0FFF_FFFF: used by N64DD and SRAM on cartridge
+ *  * 0x1000_0000 - 0x1FBF_FFFF: cartridge ROM
+ *  * 0x1FD0_0000 - 0x1FFF_FFFF: no known PI peripherals use this
+ * 
+ * The rest of the 32-bit address range is only accessible via DMA.
+ * 
+ * Notice also that the range 0x2000_0000 - 0x7FFF_FFFF is theoretically accessible
+ * by the CPU but only via 64-bit addressing, so it requires assembly instructions
+ * (as the libdragon toolchain uses 32-bit pointers). No known PI peripherals use this
+ * range anyway.
+ * 
+ * This function checks whether the specified address falls into the range accessible
+ * via CPU or not.
+ * 
+ * @param pi_address        PI address to check
+ * @return                  True if the address is memory mapped, false if it is not
+ */
+bool io_accessible(uint32_t pi_address)
+{
+    // Below 0x0500_0000, there is RDRAM and RCP registers.
+    if (pi_address < 0x05000000)
+        return false;
+
+    // Using 32-bit addresses (like those available from within our C code),
+    // the CPU can only access addresses up to 0x1FFF_FFFF. 
+    // FIXME: we could theoretically lift this limit up to 0x7FFF_FFFF if the
+    // I/O functions were rewritten in assembly using 64-bit addresses, but
+    // there is currently no known PI peripheral that operates in that range anyway.
+    if (pi_address > 0x1FFFFFFF)
+        return false;
+
+    // The SI bus is partially covering the PI range in the CPU memory map
+    if (pi_address >= 0x1FC00000 && pi_address <= 0x1FCFFFFF)
+        return false;    
+
+    // All other addresses are memory mapped and can be accessed via CPU.
+    return true;
+}
+
 /** 
  * @brief Return whether the DMA controller is currently busy
  *
@@ -364,6 +412,11 @@ void dma_write(const void * ram_address, unsigned long rom_address, unsigned lon
  *            Memory address of the peripheral to read from
  *
  * @return The 32 bit value read from the peripheral
+ * 
+ * @note This function only works if the specified PI address falls within a range
+ *       which is memory mapped on the CPU. See #io_accessible for more information.
+ * 
+ * @see #io_accessible
  */
 uint32_t io_read(uint32_t pi_address)
 {
@@ -387,6 +440,11 @@ uint32_t io_read(uint32_t pi_address)
  *            Memory address of the peripheral to write to
  * @param[in] data
  *            32 bit value to write to peripheral
+ *
+ * @note This function only works if the specified PI address falls within a range
+ *       which is memory mapped on the CPU. See #io_accessible for more information.
+ *
+ * @see #io_accessible
  */
 void io_write(uint32_t pi_address, uint32_t data) 
 {
