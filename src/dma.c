@@ -135,17 +135,17 @@ void dma_write_raw_async(const void * ram_address, unsigned long pi_address, uns
  * 
  * @note This function must be called with interrupts disabled.
  */
-static uint32_t __io_read32(unsigned long pi_address) {
+static uint32_t __io_read32(void* pi_pointer) {
     while (__dma_busy()) {}
     MEMORY_BARRIER();
-    return *(volatile uint32_t*)pi_address;
+    return *(volatile uint32_t*)pi_pointer;
 }
 
 /** @brief Low-level 32-bit unaligned PI ROM read.
  * 
  * @note This function must be called with interrupts disabled.
  */
-static uint32_t __io_read32u(unsigned long pi_address) {
+static uint32_t __io_read32u(void *pi_pointer) {
     uint32_t val = 0;
 
     // We need to manually issue assembly opcodes here because we must
@@ -154,11 +154,11 @@ static uint32_t __io_read32u(unsigned long pi_address) {
     // we would only be able to wait once before both of them.
     while (__dma_busy()) {}
     MEMORY_BARRIER();
-    __asm volatile("lwl %0,0(%1)" : "+r"(val) : "r"(pi_address));    
+    __asm volatile("lwl %0,0(%1)" : "+r"(val) : "r"(pi_pointer));    
 
     while (__dma_busy()) {}
     MEMORY_BARRIER();
-    __asm volatile("lwr %0,3(%1)" : "+r"(val) : "r"(pi_address));
+    __asm volatile("lwr %0,3(%1)" : "+r"(val) : "r"(pi_pointer));
 
     return val;
 }
@@ -171,13 +171,14 @@ static uint32_t __io_read32u(unsigned long pi_address) {
  * 
  * @note This function must be called with interrupts disabled.
  */
-static uint16_t __io_read16(unsigned long pi_address) {
+static uint16_t __io_read16(void *pi_pointer) {
+    uint32_t pi_address = (uint32_t)pi_pointer;
     if (pi_address & 2) {
-        return (uint16_t)__io_read32(pi_address^2);
+        return (uint16_t)__io_read32((void*)(pi_address^2));
     } else {
         while (__dma_busy()) {}
         MEMORY_BARRIER();
-        return *(volatile uint16_t*)pi_address;
+        return *(volatile uint16_t*)pi_pointer;
     }
 }
 
@@ -190,11 +191,12 @@ static uint16_t __io_read16(unsigned long pi_address) {
  * 
  * @note This function must be called with interrupts disabled.
  */
-static uint8_t __io_read8(unsigned long pi_address) {
+static uint8_t __io_read8(void *pi_pointer) {
+    uint32_t pi_address = (uint32_t)pi_pointer;
     if (pi_address&1)
-        return (uint8_t)__io_read16(pi_address^1);
+        return (uint8_t)__io_read16((void*)(pi_address^1));
     else
-        return __io_read16(pi_address)>>8;
+        return __io_read16(pi_pointer)>>8;
 }
 
 /**
@@ -217,27 +219,28 @@ static uint8_t __io_read8(unsigned long pi_address) {
  * ROM at loading time, a better option is to use DragonFS, where #dfs_read
  * falls back to a CPU memory copy to realign the data when required.
  * 
- * @param[out] ram_address
+ * @param[out] ram_pointer
  *             Pointer to a buffer to place read data
  * @param[in]  pi_address
  *             Memory address of the peripheral to read from
  * @param[in]  len
- *             Length in bytes to read into ram_address
+ *             Length in bytes to read into ram_pointer
  */
-void dma_read_async(void *ram_address, unsigned long pi_address, unsigned long len)
+void dma_read_async(void *ram_pointer, unsigned long pi_address, unsigned long len)
 {
-    unsigned long ram = (unsigned long)UncachedAddr(ram_address);
-    unsigned long rom = pi_address;
+    void *ram = UncachedAddr(ram_pointer);
+    uint32_t ram_address = (uint32_t)ram;
 
     assert(len > 0);
-    assert(((ram ^ rom) & 1) == 0); 
+    assert(((ram_address ^ pi_address) & 1) == 0); 
 
     disable_interrupts();
     union { uint64_t mem64; uint32_t mem32[2]; uint16_t mem16[4]; uint8_t mem8[8]; } val;
+    void *rom = (void*)(pi_address | 0xA0000000);
 
     // Check if the RDRAM address is misaligned. If so, this requires some
     // handling as it's officially "not supported".
-    int misalign = ram & 7;
+    int misalign = (uint32_t)ram & 7;
 
     if (misalign) {
         if ((misalign&1) == 0 && len < 0x7F-misalign*2) {
@@ -290,12 +293,14 @@ void dma_read_async(void *ram_address, unsigned long pi_address, unsigned long l
 
     // Start the actual DMA transfer, if still needed.
     if (len)
-        dma_read_raw_async((void*)ram, (unsigned long)rom, len);
+        dma_read_raw_async(ram, (unsigned long)rom, len);
 
     enable_interrupts();
 }
 
-/** @brief Wait until an async DMA transfer is finished. */
+/** 
+ * @brief Wait until an async DMA or I/O transfer is finished.
+ */
 void dma_wait(void)
 {
     while (__dma_busy()) {}
@@ -330,7 +335,7 @@ void dma_write(const void * ram_address, unsigned long pi_address, unsigned long
 }
 
 /**
- * @brief Read a 32 bit integer from a peripheral
+ * @brief Read a 32 bit integer from a peripheral using the CPU.
  *
  * @param[in] pi_address
  *            Memory address of the peripheral to read from
@@ -342,14 +347,18 @@ uint32_t io_read(uint32_t pi_address)
     uint32_t retval;
 
     disable_interrupts();
-    retval = __io_read32(pi_address | 0xA0000000);
+    retval = __io_read32((void*)(pi_address | 0xA0000000));
     enable_interrupts();
 
     return retval;
 }
 
 /**
- * @brief Write a 32 bit integer to a peripheral
+ * @brief Write a 32 bit integer to a peripheral using the CPU.
+ * 
+ * Notice that writes are performed asynchronously, so the data might have not been
+ * fully written to the peripheral yet when the function returns. Use #dma_wait if
+ * you need to wait for the transfer to be finished.
  *
  * @param[in] pi_address
  *            Memory address of the peripheral to write to
