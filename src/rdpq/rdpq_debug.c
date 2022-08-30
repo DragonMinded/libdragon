@@ -700,56 +700,63 @@ static bool cc_use_tex1(void) {
  * 
  * Validation of CC is thus run lazily whenever a draw command is issued.
  */
-static void lazy_validate_cc(void) {
-    if (rdp.mode_changed) {
-        rdp.mode_changed = false;
+static void lazy_validate_rendermode(void) {
+    if (!rdp.mode_changed) return;
+    rdp.mode_changed = false;
 
-        // We don't care about CC setting in fill/copy mode, where the CC is not used.
-        if (rdp.som.cycle_type >= 2)
-            return;
+    // We don't care about SOM/CC setting in fill/copy mode, where the CC is not used.
+    if (rdp.som.cycle_type >= 2)
+        return;
 
-        // Validate blender setting. If there is any blender fomula configured, we should
-        // expect one between SOM_BLENDING or SOM_ANTIALIAS, otherwise the formula will be ignored.
-        struct blender_s *b0 = &rdp.som.blender[0];
-        struct blender_s *b1 = &rdp.som.blender[1];
-        bool has_bl0 = b0->p || b0->a || b0->q || b0->b;
-        bool has_bl1 = b1->p || b1->a || b1->q || b1->b;
-        VALIDATE_WARN_SOM(rdp.som.blend || rdp.som.aa || !(has_bl0 || has_bl1),
-            "blender function will be ignored because SOM_BLENDING and SOM_ANTIALIAS are both disabled");
+    // Validate blender setting. If there is any blender fomula configured, we should
+    // expect one between SOM_BLENDING or SOM_ANTIALIAS, otherwise the formula will be ignored.
+    struct blender_s *b0 = &rdp.som.blender[0];
+    struct blender_s *b1 = &rdp.som.blender[1];
+    bool has_bl0 = b0->p || b0->a || b0->q || b0->b;
+    bool has_bl1 = b1->p || b1->a || b1->q || b1->b;
+    VALIDATE_WARN_SOM(rdp.som.blend || rdp.som.aa || !(has_bl0 || has_bl1),
+        "blender function will be ignored because SOM_BLENDING and SOM_ANTIALIAS are both disabled");
 
-        if (!rdp.last_cc) {
-            VALIDATE_ERR(rdp.last_cc, "SET_COMBINE not called before drawing primitive");
-            return;
-        }
+    // Validate other SOM states
+    if (rdp.som.tex.lod) {
+        VALIDATE_ERR_SOM(rdp.som.cycle_type == 1, "in 1-cycle mode, texture LOD does not work");
+    } else {
+        VALIDATE_ERR_SOM(!rdp.som.tex.sharpen && !rdp.som.tex.detail,
+            "sharpen/detail texture require texture LOD to be active");
+    }
+
+    if (!rdp.last_cc) {
+        VALIDATE_ERR(rdp.last_cc, "SET_COMBINE not called before drawing primitive");
+        return;
+    }
+    struct cc_cycle_s *ccs = &rdp.cc.cyc[0];
+    if (rdp.som.cycle_type == 0) { // 1cyc
+        VALIDATE_WARN_CC(memcmp(&ccs[0], &ccs[1], sizeof(struct cc_cycle_s)) == 0,
+            "in 1cycle mode, the color combiner should be programmed identically in both cycles. Cycle 0 will be ignored.");
+        VALIDATE_ERR_CC(ccs[1].rgb.suba != 0 && ccs[1].rgb.subb != 0 && ccs[1].rgb.mul != 0 && ccs[1].rgb.add != 0 &&
+                        ccs[1].alpha.suba != 0 && ccs[1].alpha.subb != 0 && ccs[1].alpha.add != 0,
+            "in 1cycle mode, the color combiner cannot access the COMBINED slot");
+        VALIDATE_ERR_CC(ccs[1].rgb.suba != 2 && ccs[1].rgb.subb != 2 && ccs[1].rgb.mul != 2 && ccs[1].rgb.add != 2 &&
+                        ccs[1].alpha.suba != 2 && ccs[1].alpha.subb != 2 && ccs[1].alpha.mul != 2 && ccs[1].alpha.add != 2,
+            "in 1cycle mode, the color combiner cannot access the TEX1 slot");
+        VALIDATE_ERR_CC(ccs[1].rgb.mul != 7,
+            "in 1cycle mode, the color combiner cannot access the COMBINED_ALPHA slot");
+        VALIDATE_ERR_CC(ccs[1].rgb.mul != 9,
+            "in 1cycle mode, the color combiner cannot access the TEX1_ALPHA slot");
+    } else { // 2 cyc
         struct cc_cycle_s *ccs = &rdp.cc.cyc[0];
-        if (rdp.som.cycle_type == 0) { // 1cyc
-            VALIDATE_WARN_CC(memcmp(&ccs[0], &ccs[1], sizeof(struct cc_cycle_s)) == 0,
-                "in 1cycle mode, the color combiner should be programmed identically in both cycles. Cycle 0 will be ignored.");
-            VALIDATE_ERR_CC(ccs[1].rgb.suba != 0 && ccs[1].rgb.subb != 0 && ccs[1].rgb.mul != 0 && ccs[1].rgb.add != 0 &&
-                         ccs[1].alpha.suba != 0 && ccs[1].alpha.subb != 0 && ccs[1].alpha.add != 0,
-                "in 1cycle mode, the color combiner cannot access the COMBINED slot");
-            VALIDATE_ERR_CC(ccs[1].rgb.suba != 2 && ccs[1].rgb.subb != 2 && ccs[1].rgb.mul != 2 && ccs[1].rgb.add != 2 &&
-                         ccs[1].alpha.suba != 2 && ccs[1].alpha.subb != 2 && ccs[1].alpha.mul != 2 && ccs[1].alpha.add != 2,
-                "in 1cycle mode, the color combiner cannot access the TEX1 slot");
-            VALIDATE_ERR_CC(ccs[1].rgb.mul != 7,
-                "in 1cycle mode, the color combiner cannot access the COMBINED_ALPHA slot");
-            VALIDATE_ERR_CC(ccs[1].rgb.mul != 9,
-                "in 1cycle mode, the color combiner cannot access the TEX1_ALPHA slot");
-        } else { // 2 cyc
-            struct cc_cycle_s *ccs = &rdp.cc.cyc[0];
-            VALIDATE_ERR_CC(ccs[0].rgb.suba != 0 && ccs[0].rgb.subb != 0 && ccs[0].rgb.mul != 0 && ccs[0].rgb.add != 0 &&
-                         ccs[0].alpha.suba != 0 && ccs[0].alpha.subb != 0 && ccs[0].alpha.add != 0,
-                "in 2cycle mode, the color combiner cannot access the COMBINED slot in the first cycle");
-            VALIDATE_ERR_CC(ccs[1].rgb.suba != 2 && ccs[1].rgb.subb != 2 && ccs[1].rgb.mul != 2 && ccs[1].rgb.add != 2 &&
-                         ccs[1].alpha.suba != 2 && ccs[1].alpha.subb != 2 && ccs[1].alpha.mul != 2 && ccs[1].alpha.add != 2,
-                "in 2cycle mode, the color combiner cannot access the TEX1 slot in the second cycle (but TEX0 contains the second texture)");
-            VALIDATE_ERR_CC(ccs[0].rgb.mul != 7,
-                "in 2cycle mode, the color combiner cannot access the COMBINED_ALPHA slot in the first cycle");
-            VALIDATE_ERR_CC(ccs[1].rgb.mul != 9,
-                "in 1cycle mode, the color combiner cannot access the TEX1_ALPHA slot in the second cycle (but TEX0_ALPHA contains the second texture)");
-            VALIDATE_ERR_SOM((b0->b == 0) || (b0->b == 2 && b0->a == 3),  // INV_MUX_ALPHA, or ONE/ZERO (which still works)
-                "in 2 cycle mode, the first pass of the blender must use INV_MUX_ALPHA or equivalent");
-        }
+        VALIDATE_ERR_CC(ccs[0].rgb.suba != 0 && ccs[0].rgb.subb != 0 && ccs[0].rgb.mul != 0 && ccs[0].rgb.add != 0 &&
+                        ccs[0].alpha.suba != 0 && ccs[0].alpha.subb != 0 && ccs[0].alpha.add != 0,
+            "in 2cycle mode, the color combiner cannot access the COMBINED slot in the first cycle");
+        VALIDATE_ERR_CC(ccs[1].rgb.suba != 2 && ccs[1].rgb.subb != 2 && ccs[1].rgb.mul != 2 && ccs[1].rgb.add != 2 &&
+                        ccs[1].alpha.suba != 2 && ccs[1].alpha.subb != 2 && ccs[1].alpha.mul != 2 && ccs[1].alpha.add != 2,
+            "in 2cycle mode, the color combiner cannot access the TEX1 slot in the second cycle (but TEX0 contains the second texture)");
+        VALIDATE_ERR_CC(ccs[0].rgb.mul != 7,
+            "in 2cycle mode, the color combiner cannot access the COMBINED_ALPHA slot in the first cycle");
+        VALIDATE_ERR_CC(ccs[1].rgb.mul != 9,
+            "in 1cycle mode, the color combiner cannot access the TEX1_ALPHA slot in the second cycle (but TEX0_ALPHA contains the second texture)");
+        VALIDATE_ERR_SOM((b0->b == 0) || (b0->b == 2 && b0->a == 3),  // INV_MUX_ALPHA, or ONE/ZERO (which still works)
+            "in 2 cycle mode, the first pass of the blender must use INV_MUX_ALPHA or equivalent");
     }
 }
 
@@ -996,19 +1003,19 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         // passthrough
     case 0x24: // TEX_RECT
         rdp.busy.pipe = true;
-        lazy_validate_cc();
+        lazy_validate_rendermode();
         validate_draw_cmd(false, true, false, false);
         use_tile(BITS(buf[0], 24, 26), 0);
         break;
     case 0x36: // FILL_RECTANGLE
         rdp.busy.pipe = true;
-        lazy_validate_cc();
+        lazy_validate_rendermode();
         validate_draw_cmd(false, false, false, false);
         break;
     case 0x8 ... 0xF: // Triangles
         rdp.busy.pipe = true;
         VALIDATE_ERR_SOM(rdp.som.cycle_type < 2, "cannot draw triangles in copy/fill mode");
-        lazy_validate_cc();
+        lazy_validate_rendermode();
         validate_draw_cmd(cmd & 4, cmd & 2, cmd & 1, cmd & 2);
         if (cmd & 2) use_tile(BITS(buf[0], 48, 50), 0);
         if (BITS(buf[0], 51, 53))
