@@ -283,6 +283,17 @@ void dma_read_async(void *ram_pointer, unsigned long pi_address, unsigned long l
     assert(((ram_address ^ pi_address) & 1) == 0); 
 
     disable_interrupts();
+
+    // Check if the PI address can be accessed with CPU.
+    // If not, we cannot perform a misaligned transfer.
+    if (!io_accessible(pi_address)) {        
+        assertf((pi_address & 2) == 0 && (ram_address & 7) == 0,
+            "misaligned transfer not supported at this PI address");
+        dma_read_raw_async(ram_pointer, pi_address, len);
+        enable_interrupts();
+        return;
+    }
+
     union { uint64_t mem64; uint32_t mem32[2]; uint16_t mem16[4]; uint8_t mem8[8]; } val;
     void *rom = (void*)(pi_address | 0xA0000000);
 
