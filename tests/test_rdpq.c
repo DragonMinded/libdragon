@@ -1363,3 +1363,56 @@ void test_rdpq_mode_freeze_stack(TestContext *ctx) {
 
     rspq_wait();
 }
+
+void test_rdpq_mipmap(TestContext *ctx) {
+    RDPQ_INIT();
+
+    const int FBWIDTH = 16;
+    const int TEXWIDTH = FBWIDTH - 8;
+    surface_t fb = surface_alloc(FMT_RGBA16, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    surface_clear(&fb, 0);
+
+    surface_t tex = surface_alloc(FMT_RGBA16, TEXWIDTH, TEXWIDTH);
+    DEFER(surface_free(&tex));
+    surface_clear(&tex, 0);
+
+    uint16_t expected_fb[FBWIDTH*FBWIDTH];
+    memset(expected_fb, 0xFF, sizeof(expected_fb));
+    for (int y=0;y<TEXWIDTH;y++) {
+        for (int x=0;x<TEXWIDTH;x++) {
+            color_t c = RGBA16(x, y, x+y, 1);
+            expected_fb[(y + 4) * FBWIDTH + (x + 4)] = color_to_packed16(c);
+            ((uint16_t*)tex.buffer)[y * TEXWIDTH + x] = color_to_packed16(c);
+        }
+    }
+
+    rdpq_set_color_image(&fb);
+    rdpq_set_texture_image(&tex);
+    rdpq_set_tile(0, FMT_RGBA16, 0, TEXWIDTH * 2, 0);
+    rdpq_set_tile(1, FMT_RGBA16, 0, TEXWIDTH * 2, 0);
+    rdpq_load_tile(0, 0, 0, TEXWIDTH, TEXWIDTH);
+    rdpq_load_tile(1, 0, 0, TEXWIDTH, TEXWIDTH);
+
+    rdpq_set_mode_standard();
+    rdpq_mode_mipmap(4);
+    rdpq_triangle(TILE0, 0, 0, -1, 2, 0,
+        (float[]){ 4.0f,   4.0f, 0.0f, 0.0f, 1.0f },
+        (float[]){ 12.0f,  4.0f, 8.0f, 0.0f, 1.0f },
+        (float[]){ 12.0f, 12.0f, 8.0f, 8.0f, 1.0f }
+    );
+    rspq_wait();
+
+    // Go through the generated RDP primitives and check if the triangle
+    // was patched the correct number of mipmap levels
+    extern void *rspq_rdp_dynamic_buffers[2];
+    uint64_t *rdp_buf = (uint64_t*)rspq_rdp_dynamic_buffers[0];
+    for (uint64_t i = 0; i < 32; i++)
+    {
+        if ((rdp_buf[i] >> 56) == 0xCB) {
+            int levels = ((rdp_buf[i] >> 51) & 7) + 1;
+            ASSERT_EQUAL_SIGNED(levels, 4, "invalid number of mipmap levels");
+        }
+    }
+}
+

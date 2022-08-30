@@ -264,7 +264,7 @@ void rdpq_set_mode_standard(void);
  */
 inline void rdpq_set_mode_fill(color_t color) {
     extern void __rdpq_reset_render_mode(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3);
-    uint64_t som = SOM_CYCLE_FILL;
+    uint64_t som = (0xEFull << 56) | SOM_CYCLE_FILL;
     __rdpq_reset_render_mode(0, 0, som >> 32, som & 0xFFFFFFFF);
     rdpq_set_fill_color(color);
 }
@@ -526,8 +526,8 @@ inline void rdpq_mode_blending(rdpq_blender_t blend) {
  *  * The T&L pipeline must calculate a depth information for each
  *    vertex of the primitive and put it into the alpha channel of
  *    the per-vertex color. This is outside of the scope of rdpq,
- *    so rdpq assumes that this has been done when #rdpq_enable_fog
- *    is called.
+ *    so rdpq assumes that this has already been done when
+ *    #rdpq_mode_fog is called.
  *  * The RDP blender unit is programmed to modulate a "fog color"
  *    with the polygon pixel, using SHADE_ALPHA as interpolation
  *    factor. Since SHADE_ALPHA contains a depth information, the
@@ -633,8 +633,25 @@ inline void rdpq_mode_filter(rdpq_filter_t filt) {
     rdpq_change_other_modes_raw(SOM_SAMPLE_MASK, (uint64_t)filt << SOM_SAMPLE_SHIFT);
 }
 
-inline void rdpq_mode_mipmap(bool enable) {
-    __rdpq_mode_change_som(SOM_TEXTURE_LOD, enable ? SOM_TEXTURE_LOD : 0);
+/**
+ * @brief Activate mip-mapping.
+ * 
+ * This function can be used to turn on mip-mapping.
+ * 
+ * TMEM must have been loaded with multiple level of details (LOds) of the texture
+ * (a task for which rdpq is currently missing a helper, so it has to be done manually).
+ * Also, multiple consecutive tile descriptors (one for each LOD) must have been configured.
+ * 
+ * If you call #rdpq_triangle when mipmap is active, pass 0 to the number of mipmaps
+ * of that function, as the number of levels set here will win over it.
+ * 
+ * @param num_levels    Number of mipmap levels to use (or 0 to disable mip-mapping)
+ */
+inline void rdpq_mode_mipmap(int num_levels) {
+    __rdpq_mode_change_som(SOM_TEXTURE_LOD | SOMX_NUMLODS_MASK, 
+        num_levels
+            ? SOM_TEXTURE_LOD | ((uint64_t)(num_levels-1) << SOMX_NUMLODS_SHIFT) 
+            : 0);
 }
 
 /** @} */
@@ -652,7 +669,7 @@ inline void rdpq_mode_mipmap(bool enable) {
  * @code{.c}
  *      rdpq_mode_begin();
  *          rdpq_set_mode_standard();
- *          rdpq_mode_mipmap(true);
+ *          rdpq_mode_mipmap(2);
  *          rdpq_mode_dithering(DITHER_SQUARE_SQUARE);
  *          rdpq_mode_blending(RDPQ_BLENDING_MULTIPLY);
  *      rdpq_mode_end();

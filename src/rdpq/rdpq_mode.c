@@ -83,7 +83,7 @@ void rdpq_mode_pop(void)
 
 void rdpq_set_mode_copy(bool transparency) {
     if (transparency) rdpq_set_blend_color(RGBA32(0,0,0,1));
-    uint64_t som = SOM_CYCLE_COPY | (transparency ? SOM_ALPHACOMPARE_THRESHOLD : 0);
+    uint64_t som = (0xEFull << 56) | SOM_CYCLE_COPY | (transparency ? SOM_ALPHACOMPARE_THRESHOLD : 0);
     __rdpq_reset_render_mode(0, 0, som >> 32, som & 0xFFFFFFFF);
 }
 
@@ -105,10 +105,10 @@ void rdpq_set_mode_yuv(bool bilinear) {
     uint64_t cc, som;
 
     if (!bilinear) {
-        som = (0xEFull << 56) | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_TF0_YUV;
+        som = SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_TF0_YUV;
         cc = RDPQ_COMBINER1((TEX0, K4, K5, ZERO), (ZERO, ZERO, ZERO, ONE));
     } else {
-        som = (0xEFull << 56) | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_SAMPLE_BILINEAR | SOM_TF0_RGB | SOM_TF1_YUVTEX0;
+        som = SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_SAMPLE_BILINEAR | SOM_TF0_RGB | SOM_TF1_YUVTEX0;
         cc = RDPQ_COMBINER2((TEX1, K4, K5, ZERO), (ZERO, ZERO, ZERO, ONE),
                             (ZERO, ZERO, ZERO, COMBINED), (ZERO, ZERO, ZERO, COMBINED));
     }

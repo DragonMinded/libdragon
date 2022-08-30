@@ -224,7 +224,7 @@ RDPQ_MODE:
     # is already in a format valid for both 1cyc and 2cyc mode.
     RDPQ_MODE_BLENDER_STEPS:     .word  0,0
     # Other modes
-    RDPQ_OTHER_MODES:            .quad  0xEF << 56
+    RDPQ_OTHER_MODES:            .quad  0
 RDPQ_MODE_END:
 
 # Two RDP output buffers (to alternate between)

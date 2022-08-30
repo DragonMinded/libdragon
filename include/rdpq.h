@@ -368,8 +368,8 @@ uint32_t rdpq_config_disable(uint32_t cfg_disable_bits);
  *                       if the triangle is not textured. In case of multi-texturing, tile+1 will be
  *                       used for the second texture.
  * @param mipmaps        Number of mip-maps that will be used. This argument is unused if the triangle
- *                       is not textured or mipmapping is not enabled (via #SOM_TEXTURE_LOD or 
- *                       #rdpq_mode_mipmap). Pass 0 in this case.
+ *                       is not textured or mipmapping is not enabled. If you are using the mode API
+ *                       and set mipmap levels via #rdpq_mode_mipmap, pass 0 here.
  * @param pos_offset     Index of the position component within the vertex arrays. For instance, 
  *                       if pos_offset==4, v1[4] and v1[5] must be the X and Y coordinates of the first vertex.
  * @param shade_offset   Index of the shade component within the vertex arrays. For instance,

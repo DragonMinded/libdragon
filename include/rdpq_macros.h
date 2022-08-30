@@ -502,6 +502,9 @@ typedef uint32_t rdpq_blender_t;
  * flags are defined using the prefix `SOMX_`.
  */
 ///@{
+#define SOMX_NUMLODS_MASK      ((cast64(7))<<59)            ///< Rdpq extension: number of LODs
+#define SOMX_NUMLODS_SHIFT     59                           ///< Rdpq extension: number of LODs shift
+
 #define SOM_ATOMIC_PRIM        ((cast64(1))<<55)            ///< Atomic: serialize command execution 
 
 #define SOM_CYCLE_1            ((cast64(0))<<52)            ///< Set cycle-type: 1cyc

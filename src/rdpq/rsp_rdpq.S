@@ -166,8 +166,6 @@ RDPQCmd_SetOtherModes_Static:
     #############################################################
     .func RDPQ_SaveOtherModes
 RDPQ_SaveOtherModes:
-    lui t0, 0xEF00
-    or a0, t0
     sw a0, %lo(RDPQ_OTHER_MODES) + 0x0
     jr ra
     sw a1, %lo(RDPQ_OTHER_MODES) + 0x4
@@ -264,6 +262,12 @@ RDPQCmd_PassthroughTriangle:
     addi s1, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER)   # End of command in RSPQ buffer
     sub s0, s1, rspq_cmd_size                           # Start of command in RSPQ buffer
     li s4, %lo(RDPQ_CMD_STAGING)                        # Pointer into RDPQ buffer
+    # Add num mipmap levels to the triangle
+    lbu t1, %lo(RDPQ_OTHER_MODES) + 0
+    lbu t0, 1(s0)
+    andi t1, 0x38     # Isolate bits 2-5 (aka 59-61 of SOM)
+    or t0, t1
+    sb t0, 1(s0)
 passthrough_copy_loop:
     lqv $v00,0, 0x00,s0
     lrv $v00,0, 0x10,s0
@@ -421,10 +425,7 @@ RDPQCmd_ResetMode:
     sqv $v00,0, 0x00,s0
     sqv $v00,0, 0x10,s0
 
-    # Save SOM right away, after adding SOM 
-    # FIXME: duplication with SaveOtherModes
-    lui t0, 0xEF00
-    or a2, t0
+    # Save SOM right away
     sw a2, %lo(RDPQ_OTHER_MODES) + 0
     sw a3, %lo(RDPQ_OTHER_MODES) + 4
 

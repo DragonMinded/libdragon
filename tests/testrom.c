@@ -263,6 +263,7 @@ static const struct Testsuite
 	TEST_FUNC(test_rdpq_fog,                   0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_mode_freeze,           0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_mode_freeze_stack,     0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_mipmap,                0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mpeg1_idct,                 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mpeg1_block_decode,         0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mpeg1_block_dequant,        0, TEST_FLAGS_NO_BENCHMARK),
