@@ -147,6 +147,7 @@ void glRotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z)
     y /= mag;
     z /= mag;
 
+#if 0
     gl_matrix_t rotation = (gl_matrix_t){ .m={
         {x*x*ic+c,   y*x*ic+z*s, z*x*ic-y*s, 0.f},
         {x*y*ic-z*s, y*y*ic+c,   z*y*ic+x*s, 0.f},
@@ -155,11 +156,44 @@ void glRotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z)
     }};
 
     glMultMatrixf(rotation.m[0]);
+#else
+    float A = x*x*ic+c;
+    float B = y*x*ic+z*s;
+    float C = z*x*ic-y*s;
+    float D = x*y*ic-z*s;
+    float E = y*y*ic+c;
+    float F = z*y*ic+x*s;
+    float G = x*z*ic+y*s;
+    float H = y*z*ic-x*s;
+    float I = z*z*ic+c;
+
+    gl_matrix_t tmp = *state.current_matrix;
+    float* o = tmp.m[0];
+    float* m = state.current_matrix->m[0];
+
+    m[ 0] = o[ 0] * A + o[ 4] * B + o[ 8] * C;
+    m[ 1] = o[ 1] * A + o[ 5] * B + o[ 9] * C;
+    m[ 2] = o[ 2] * A + o[ 6] * B + o[10] * C;
+    m[ 3] = o[ 3] * A + o[ 7] * B + o[11] * C;
+
+    m[ 4] = o[ 0] * D + o[ 4] * E + o[ 8] * F;
+    m[ 5] = o[ 1] * D + o[ 5] * E + o[ 9] * F;
+    m[ 6] = o[ 2] * D + o[ 6] * E + o[10] * F;
+    m[ 7] = o[ 3] * D + o[ 7] * E + o[11] * F;
+
+    m[ 8] = o[ 0] * G + o[ 4] * H + o[ 8] * I;
+    m[ 9] = o[ 1] * G + o[ 5] * H + o[ 9] * I;
+    m[10] = o[ 2] * G + o[ 6] * H + o[10] * I;
+    m[11] = o[ 3] * G + o[ 7] * H + o[11] * I;
+
+    state.final_matrix_dirty = true;
+#endif
 }
 void glRotated(GLdouble angle, GLdouble x, GLdouble y, GLdouble z);
 
 void glTranslatef(GLfloat x, GLfloat y, GLfloat z)
 {
+#if 0
     gl_matrix_t translation = (gl_matrix_t){ .m={
         {1.f, 0.f, 0.f, 0.f},
         {0.f, 1.f, 0.f, 0.f},
@@ -168,11 +202,22 @@ void glTranslatef(GLfloat x, GLfloat y, GLfloat z)
     }};
 
     glMultMatrixf(translation.m[0]);
+#else
+    float* m = state.current_matrix->m[0];
+
+    m[12] += m[0] * x + m[4] * y + m[ 8] * z;
+    m[13] += m[1] * x + m[5] * y + m[ 9] * z;
+    m[14] += m[2] * x + m[6] * y + m[10] * z;
+    m[15] += m[3] * x + m[7] * y + m[11] * z;
+
+    state.final_matrix_dirty = true;
+#endif
 }
 void glTranslated(GLdouble x, GLdouble y, GLdouble z);
 
 void glScalef(GLfloat x, GLfloat y, GLfloat z)
 {
+#if 0
     gl_matrix_t scale = (gl_matrix_t){ .m={
         {x,   0.f, 0.f, 0.f},
         {0.f, y,   0.f, 0.f},
@@ -181,6 +226,15 @@ void glScalef(GLfloat x, GLfloat y, GLfloat z)
     }};
 
     glMultMatrixf(scale.m[0]);
+#else
+    float* m = state.current_matrix->m[0];
+
+    m[0] *= x; m[1] *= x; m[2] *= x; m[3] *= x;
+    m[4] *= y; m[5] *= y; m[6] *= y; m[7] *= y;
+    m[8] *= z; m[9] *= z; m[10] *= z; m[11] *= z;
+
+    state.final_matrix_dirty = true;
+#endif
 }
 void glScaled(GLdouble x, GLdouble y, GLdouble z);
 
