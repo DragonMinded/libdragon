@@ -107,7 +107,7 @@ void gl_update_rendermode()
     gl_texture_object_t *tex_obj = gl_get_active_texture();
 
     rdpq_filter_t filter = FILTER_POINT;
-    bool mipmap = false;
+    int mipmaps = 0;
 
     // texture
     if (tex_obj != NULL && tex_obj->is_complete) {
@@ -120,12 +120,12 @@ void gl_update_rendermode()
         }
 
         if (tex_obj->min_filter != GL_LINEAR && tex_obj->min_filter != GL_NEAREST && !gl_calc_is_points()) {
-            mipmap = true;
+            mipmaps = tex_obj->levels - 1;
         }
     }
 
     rdpq_mode_filter(filter);
-    rdpq_mode_mipmap(mipmap);
+    rdpq_mode_mipmap(mipmaps);
 }
 
 void gl_update_combiner()
