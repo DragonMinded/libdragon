@@ -283,6 +283,7 @@ typedef struct {
     GLenum matrix_mode;
     gl_matrix_t final_matrix;
     gl_matrix_t *current_matrix;
+    bool final_matrix_dirty;
 
     gl_matrix_t modelview_stack_storage[MODELVIEW_STACK_SIZE];
     gl_matrix_t projection_stack_storage[PROJECTION_STACK_SIZE];
@@ -384,6 +385,8 @@ void gl_buffer_close();
 void gl_set_error(GLenum error);
 
 gl_matrix_t * gl_matrix_stack_get_matrix(gl_matrix_stack_t *stack);
+
+void gl_update_final_matrix();
 
 void gl_matrix_mult(GLfloat *d, const gl_matrix_t *m, const GLfloat *v);
 void gl_matrix_mult3x3(GLfloat *d, const gl_matrix_t *m, const GLfloat *v);

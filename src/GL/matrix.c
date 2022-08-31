@@ -71,8 +71,9 @@ void gl_matrix_mult_full(gl_matrix_t *d, const gl_matrix_t *l, const gl_matrix_t
 
 void gl_update_final_matrix()
 {
-    if (state.matrix_mode != GL_TEXTURE) {
+    if (state.final_matrix_dirty) {
         gl_matrix_mult_full(&state.final_matrix, gl_matrix_stack_get_matrix(&state.projection_stack), gl_matrix_stack_get_matrix(&state.modelview_stack));
+        state.final_matrix_dirty = false;
     }
 }
 
@@ -101,7 +102,7 @@ void glMatrixMode(GLenum mode)
 void glLoadMatrixf(const GLfloat *m)
 {
     memcpy(state.current_matrix, m, sizeof(gl_matrix_t));
-    gl_update_final_matrix();
+    state.final_matrix_dirty = true;
 }
 
 void glLoadMatrixd(const GLdouble *m)
@@ -110,14 +111,14 @@ void glLoadMatrixd(const GLdouble *m)
     {
         state.current_matrix->m[i/4][i%4] = m[i];
     }
-    gl_update_final_matrix();
+    state.final_matrix_dirty = true;
 }
 
 void glMultMatrixf(const GLfloat *m)
 {
     gl_matrix_t tmp = *state.current_matrix;
     gl_matrix_mult_full(state.current_matrix, &tmp, (gl_matrix_t*)m);
-    gl_update_final_matrix();
+    state.final_matrix_dirty = true;
 }
 
 void glMultMatrixd(const GLdouble *m);
@@ -131,7 +132,7 @@ void glLoadIdentity(void)
         {0,0,0,1},
     }};
 
-    gl_update_final_matrix();
+    state.final_matrix_dirty = true;
 }
 
 void glRotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z)
@@ -239,4 +240,5 @@ void glPopMatrix(void)
     stack->cur_depth = new_depth;
 
     gl_update_current_matrix();
+    state.final_matrix_dirty = true;
 }

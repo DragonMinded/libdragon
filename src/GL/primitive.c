@@ -158,6 +158,7 @@ void glBegin(GLenum mode)
     gl_update_combiner();
 
     gl_reset_vertex_cache();
+    gl_update_final_matrix();
 
     rdpq_mode_end();
 }
