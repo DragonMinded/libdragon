@@ -133,7 +133,7 @@ void draw_band()
 
 void draw_circle()
 {
-    glBegin(GL_LINE_LOOP);
+    glBegin(GL_POINTS);
 
     const uint32_t segments = 16;
 
@@ -151,16 +151,38 @@ void draw_circle()
     glEnd();
 }
 
+void draw_quads()
+{
+    glBegin(GL_QUADS);
+
+    glVertex3f(0, 0, 0);
+    glVertex3f(1, 0, 0);
+    glVertex3f(1, 1, 0);
+    glVertex3f(0, 1, 0);
+
+    glVertex3f(0, 0, 1);
+    glVertex3f(1, 0, 1);
+    glVertex3f(1, 1, 1);
+    glVertex3f(0, 1, 1);
+
+    glVertex3f(0, 0, 2);
+    glVertex3f(1, 0, 2);
+    glVertex3f(1, 1, 2);
+    glVertex3f(0, 1, 2);
+
+    glEnd();
+}
+
 void render()
 {
     glClearColor(0.3f, 0.1f, 0.6f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    float rotation = animation * 0.01f;
+    float rotation = animation;
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    glTranslatef(0, sinf(rotation*0.8f), near ? -2.2f : -3.5f);
+    glTranslatef(0, sinf(rotation*0.02f), near ? -2.2f : -3.5f);
 
     glPushMatrix();
 
@@ -172,11 +194,14 @@ void render()
     glDisable(GL_BLEND);
     glDisable(GL_CULL_FACE);
     glDisable(GL_TEXTURE_2D);
+    glDepthMask(GL_TRUE);
 
     glColor3f(1.f, 1.f, 1.f);
     draw_band();
     glColor3f(0.f, 1.f, 1.f);
     draw_circle();
+
+    draw_quads();
 
     glPopMatrix();
 
@@ -190,6 +215,7 @@ void render()
     glEnable(GL_BLEND);
     glEnable(GL_CULL_FACE);
     glEnable(GL_TEXTURE_2D);
+    glDepthMask(GL_FALSE);
 
     glBindTexture(GL_TEXTURE_2D, textures[texture_index]);
 
@@ -208,9 +234,6 @@ int main()
     display_init(RESOLUTION_320x240, DEPTH_16_BPP, 1, GAMMA_NONE, ANTIALIAS_RESAMPLE_FETCH_ALWAYS);
 
     gl_init();
-
-    //rdpq_debug_start();
-    //rdpq_debug_log(true);
 
     setup();
 

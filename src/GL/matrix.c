@@ -137,8 +137,9 @@ void glLoadIdentity(void)
 
 void glRotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z)
 {
-    float c = cosf(angle);
-    float s = sinf(angle);
+    float a = angle * (M_PI / 180.0f);
+    float c = cosf(a);
+    float s = sinf(a);
     float ic = 1.f - c;
 
     float mag = sqrtf(x*x + y*y + z*z);
