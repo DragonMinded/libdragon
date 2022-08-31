@@ -120,7 +120,7 @@ void gl_update_rendermode()
         }
 
         if (tex_obj->min_filter != GL_LINEAR && tex_obj->min_filter != GL_NEAREST && !gl_calc_is_points()) {
-            mipmaps = tex_obj->levels - 1;
+            mipmaps = tex_obj->num_levels - 1;
         }
     }
 
