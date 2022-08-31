@@ -547,11 +547,11 @@ blender_merge:
     # to load.
     li s0, %lo(RDPQ_MODE_COMBINER_2CYC)
     bltz t1, set_2cyc
-    li cycle_type, (SOM_CYCLE_MASK ^ SOM_CYCLE_2) >> 32
+    li cycle_type, ((SOM_CYCLE_MASK ^ SOM_CYCLE_2) >> 32) | 0x10000000
 set_1cyc:
     li s0, %lo(RDPQ_MODE_COMBINER_1CYC)
     move blend_final, blend_1cyc
-    li cycle_type, (SOM_CYCLE_MASK ^ SOM_CYCLE_1) >> 32
+    li cycle_type, ((SOM_CYCLE_MASK ^ SOM_CYCLE_1) >> 32)  | 0x10000000
 set_2cyc:
     lw comb_hi, 0(s0)
     lw comb_lo, 4(s0)
@@ -581,12 +581,22 @@ set_2cyc:
     not t1, t1
     and som_lo, t1
     or som_lo, t0
-    sw som_lo, %lo(RDPQ_OTHER_MODES) + 4
 
-    # Set cycle type bits in other modes high word
-    or som_hi, SOM_CYCLE_MASK >> 32
+    # Set cycle type bits in other modes high word. Also put the correct
+    # command (0xEF) in the top byte: we achieve this by first setting the
+    # top byte to 0xFF, and then xoring with 0x10 (which is included in
+    # cycle_type).
+    or som_hi, (SOM_CYCLE_MASK >> 32) | 0xFF000000
     xor som_hi, cycle_type
+
+    # Store calculated SOM into RDPQ_OTHER_MODES for debugging purposes
+    # (to implemented rdpq_get_other_modes_raw). Notice that we don't
+    # overwrite the MSB with 0xEF: it contains extended flags tha we don't
+    # want to lose
+    lbu t0, %lo(RDPQ_OTHER_MODES) + 0
     sw som_hi, %lo(RDPQ_OTHER_MODES) + 0
+    sw som_lo, %lo(RDPQ_OTHER_MODES) + 4
+    sb t0, %lo(RDPQ_OTHER_MODES) + 0
 
     jal_and_j RDPQ_Write16, RDPQ_Finalize
 

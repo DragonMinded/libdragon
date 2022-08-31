@@ -33,7 +33,7 @@ int rdpq_tex_load_ci4(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int tlut)
     return tmem_pitch * tex->height;
 }
 
-int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, int tmem_addr)
+int rdpq_tex_load_sub(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int s0, int t0, int s1, int t1)
 {
     tex_format_t fmt = surface_get_format(tex);
     if (fmt == FMT_CI4)
@@ -43,7 +43,12 @@ int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, int tmem_addr)
 
     rdpq_set_tile(tile, fmt, tmem_addr, tmem_pitch, 0);
     rdpq_set_texture_image(tex);
-    rdpq_load_tile(tile, 0, 0, tex->width, tex->height);
+    rdpq_load_tile(tile, s0, t0, s1, t1);
 
     return tmem_pitch * tex->height;
+}
+
+int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, int tmem_addr)
+{
+    return rdpq_tex_load_sub(tile, tex, tmem_addr, 0, 0, tex->width, tex->height);
 }

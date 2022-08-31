@@ -1,6 +1,9 @@
 #include <rsp.inc>
 .text
 
+li t1, SP_WSTATUS_SET_INTR_ON_BREAK
+mtc0 t1, COP0_SP_STATUS
+
 lqv $v01, 0, 0, $2
 
 vabs $v01, $v02, $v03, 1

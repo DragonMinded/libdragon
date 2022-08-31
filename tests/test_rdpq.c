@@ -160,7 +160,7 @@ void test_rdpq_passthrough_big(TestContext *ctx)
     rdpq_set_blend_color(RGBA32(255,255,255,255));
     rdpq_set_mode_standard();
     rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,0), (0,0,0,0)));
-    rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, 0, BLEND_RGB, 1)));
+    rdpq_mode_blender(RDPQ_BLENDER((IN_RGB, 0, BLEND_RGB, 1)));
 
     rdp_draw_filled_triangle(0, 0, WIDTH, 0, WIDTH, WIDTH);
     rdp_draw_filled_triangle(0, 0, 0, WIDTH, WIDTH, WIDTH);
@@ -226,7 +226,7 @@ void test_rdpq_block_coalescing(TestContext *ctx)
     // the 3 RSPQ_CMD_RDP commands will be coalesced into one 
     rdpq_set_env_color(RGBA32(0,0,0,0));
     rdpq_set_blend_color(RGBA32(0, 0, 0, 0));
-    rdpq_fill_rectangle(0, 0, 0, 0);
+    rdpq_set_tile(TILE0, FMT_RGBA16, 0, 16, 0);
 
     // This command is a fixup
     rdpq_set_fill_color(RGBA16(0, 0, 0, 0));
@@ -234,7 +234,7 @@ void test_rdpq_block_coalescing(TestContext *ctx)
     // These 3 should also have their RSPQ_CMD_RDP coalesced
     rdpq_set_env_color(RGBA32(0,0,0,0));
     rdpq_set_blend_color(RGBA32(0, 0, 0, 0));
-    rdpq_fill_rectangle(0, 0, 0, 0);
+    rdpq_set_tile(TILE0, FMT_RGBA16, 0, 16, 0);
 
     rspq_block_t *block = rspq_block_end();
     DEFER(rspq_block_free(block));
@@ -386,7 +386,7 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
     surface_clear(&fb, 0);
     rdpq_set_mode_standard();
     rdpq_mode_combiner(RDPQ_COMBINER1((ZERO,ZERO,ZERO,ZERO),(ZERO,ZERO,ZERO,ONE)));
-    rdpq_mode_blending(RDPQ_BLENDER((BLEND_RGB, IN_ALPHA, IN_RGB, INV_MUX_ALPHA)));
+    rdpq_mode_blender(RDPQ_BLENDER((BLEND_RGB, IN_ALPHA, IN_RGB, INV_MUX_ALPHA)));
     rdpq_set_blend_color(TEST_COLOR);
     rdpq_set_scissor(4, 4, WIDTH-4, WIDTH-4);
     rdpq_fill_rectangle(0, 0, WIDTH, WIDTH);
@@ -409,7 +409,7 @@ void test_rdpq_fixup_setscissor(TestContext *ctx)
     rdpq_set_scissor(4, 4, WIDTH-4, WIDTH-4);
     rdpq_set_mode_standard();
     rdpq_mode_combiner(RDPQ_COMBINER1((ZERO,ZERO,ZERO,ZERO),(ZERO,ZERO,ZERO,ONE)));
-    rdpq_mode_blending(RDPQ_BLENDER((BLEND_RGB, IN_ALPHA, IN_RGB, INV_MUX_ALPHA)));
+    rdpq_mode_blender(RDPQ_BLENDER((BLEND_RGB, IN_ALPHA, IN_RGB, INV_MUX_ALPHA)));
     rdpq_set_blend_color(TEST_COLOR);
     rdpq_fill_rectangle(0, 0, WIDTH, WIDTH);
     rspq_wait();
@@ -491,6 +491,69 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
     #undef TEST_RDPQ_TEXWIDTH
     #undef TEST_RDPQ_TEXAREA
     #undef TEST_RDPQ_TEXSIZE
+}
+
+void test_rdpq_fixup_fillrect(TestContext *ctx)
+{
+    RDPQ_INIT();
+
+    const int FULL_CVG = 7 << 5;
+    const int FBWIDTH = 16;
+    surface_t fb = surface_alloc(FMT_RGBA32, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    surface_clear(&fb, 0);
+    rdpq_set_color_image(&fb);
+
+    rdpq_set_mode_fill(RGBA32(255,0,255,0));
+    rdpq_fill_rectangle(4, 4, FBWIDTH-4, FBWIDTH-4);
+    rspq_wait();
+    ASSERT_SURFACE(&fb, {
+        return (x >= 4 && y >= 4 && x < FBWIDTH-4 && y < FBWIDTH-4) ?
+            RGBA32(255,0,255,0) : RGBA32(0,0,0,0);
+    });
+
+    surface_clear(&fb, 0);
+    rdpq_set_mode_standard();
+    rdpq_mode_combiner(RDPQ_COMBINER_FLAT);
+    rdpq_set_prim_color(RGBA32(255,128,255,0));
+    rdpq_fill_rectangle(4, 4, FBWIDTH-4, FBWIDTH-4);
+    rspq_wait();
+    ASSERT_SURFACE(&fb, {
+        return (x >= 4 && y >= 4 && x < FBWIDTH-4 && y < FBWIDTH-4) ?
+            RGBA32(255,128,255,FULL_CVG) : RGBA32(0,0,0,0);
+    });
+
+    {
+        surface_clear(&fb, 0);
+        rspq_block_begin();
+            rdpq_set_mode_fill(RGBA32(255,0,255,0));
+            rdpq_fill_rectangle(4, 4, FBWIDTH-4, FBWIDTH-4);
+        rspq_block_t *block = rspq_block_end();
+        DEFER(rspq_block_free(block));
+        rspq_block_run(block);
+        rspq_wait();
+        ASSERT_SURFACE(&fb, {
+            return (x >= 4 && y >= 4 && x < FBWIDTH-4 && y < FBWIDTH-4) ?
+                RGBA32(255,0,255,0) : RGBA32(0,0,0,0);
+        });
+    }
+
+    {
+        surface_clear(&fb, 0);
+        rspq_block_begin();
+            rdpq_set_mode_standard();
+            rdpq_mode_combiner(RDPQ_COMBINER_FLAT);
+            rdpq_set_prim_color(RGBA32(255,128,255,0));
+            rdpq_fill_rectangle(4, 4, FBWIDTH-4, FBWIDTH-4);
+        rspq_block_t *block = rspq_block_end();
+        DEFER(rspq_block_free(block));
+        rspq_block_run(block);
+        rspq_wait();
+        ASSERT_SURFACE(&fb, {
+            return (x >= 4 && y >= 4 && x < FBWIDTH-4 && y < FBWIDTH-4) ?
+                RGBA32(255,128,255,FULL_CVG) : RGBA32(0,0,0,0);
+        });
+    }
 }
 
 void test_rdpq_lookup_address(TestContext *ctx)
@@ -815,7 +878,7 @@ void test_rdpq_automode(TestContext *ctx) {
 
     // Activate blending (1-pass blender) => 1 cycle
     surface_clear(&fb, 0xFF);
-    rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, FOG_ALPHA, BLEND_RGB, INV_MUX_ALPHA)));
+    rdpq_mode_blender(RDPQ_BLENDER((IN_RGB, FOG_ALPHA, BLEND_RGB, INV_MUX_ALPHA)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
     rspq_wait();
     som = rdpq_get_other_modes_raw();
@@ -871,7 +934,7 @@ void test_rdpq_automode(TestContext *ctx) {
         (ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO),
         (COMBINED, ZERO, ZERO, TEX1), (ZERO, ZERO, ZERO, ZERO)
     ));
-    rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, ONE)));
+    rdpq_mode_blender(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, ONE)));
     rdpq_mode_dithering(DITHER_NOISE_NOISE);
     rdpq_mode_pop();
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
@@ -923,14 +986,14 @@ void test_rdpq_blender(TestContext *ctx) {
     rdpq_set_fog_color(RGBA32(0xEE, 0xEE, 0xEE, 0xFF));
 
     // Enable blending
-    rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, INV_MUX_ALPHA)));
+    rdpq_mode_blender(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, INV_MUX_ALPHA)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1.0f, 1.0f);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_blend, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (blender=pass1)");
 
     // Disable blending
-    rdpq_mode_blending(0);
+    rdpq_mode_blender(0);
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1.0f, 1.0f);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_tex, FBWIDTH*FBWIDTH*2, 
@@ -951,7 +1014,7 @@ void test_rdpq_blender(TestContext *ctx) {
         "Wrong data in framebuffer (blender=none)");
 
     // Enable two-pass bleder
-    rdpq_mode_blending(RDPQ_BLENDER2(
+    rdpq_mode_blender(RDPQ_BLENDER2(
         (IN_RGB, 0, BLEND_RGB, INV_MUX_ALPHA),
         (CYCLE1_RGB, FOG_ALPHA, BLEND_RGB, 1)
     ));
@@ -961,7 +1024,7 @@ void test_rdpq_blender(TestContext *ctx) {
         "Wrong data in framebuffer (blender=pass0+1)");
 
     // Disable blend
-    rdpq_mode_blending(0);
+    rdpq_mode_blender(0);
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1.0f, 1.0f);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_blend, FBWIDTH*FBWIDTH*2, 
@@ -997,7 +1060,7 @@ void test_rdpq_blender_memory(TestContext *ctx) {
     rdpq_set_color_image(&fb);
     rdpq_tex_load(TILE0, &tex, 0);
     rdpq_set_mode_standard();
-    rdpq_mode_blending(RDPQ_BLEND_MULTIPLY);
+    rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
     rdpq_triangle(TILE0, 0, 0, -1, 2, 0,
         (float[]){ 4.0f,   4.0f, 0.0f, 0.0f, 1.0f },
         (float[]){ 12.0f,  4.0f, 8.0f, 0.0f, 1.0f },
@@ -1094,7 +1157,7 @@ void test_rdpq_fog(TestContext *ctx) {
     // This has two effects: it tests the whole pipeline after switching to
     // 2cycle mode, and then also checks that IN_ALPHA is 1, which is what
     // we expect for COMBINER_SHADE when fog is in effect.
-    rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, IN_ALPHA, BLEND_RGB, INV_MUX_ALPHA)));
+    rdpq_mode_blender(RDPQ_BLENDER((IN_RGB, IN_ALPHA, BLEND_RGB, INV_MUX_ALPHA)));
     rdpq_triangle(TILE0, 0, 0, 2, -1, -1,
         //         X              Y  R     G     B     A
         (float[]){ 0,             0, 1.0f, 0.0f, 1.0f, 0.5f, },
@@ -1166,7 +1229,7 @@ void test_rdpq_mode_freeze(TestContext *ctx) {
         rdpq_set_blend_color(RGBA32(255,255,255,255));
         rdpq_set_mode_standard();
         rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,0), (0,0,0,0)));
-        rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, 0, BLEND_RGB, 1)));
+        rdpq_mode_blender(RDPQ_BLENDER((IN_RGB, 0, BLEND_RGB, 1)));
         rdpq_debug_log_msg("Freeze end");
     rdpq_mode_end();
 
@@ -1200,7 +1263,7 @@ void test_rdpq_mode_freeze(TestContext *ctx) {
             rdpq_set_blend_color(RGBA32(255,255,255,255));
             rdpq_set_mode_standard();
             rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,0), (0,0,0,0)));
-            rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, 0, BLEND_RGB, 1)));
+            rdpq_mode_blender(RDPQ_BLENDER((IN_RGB, 0, BLEND_RGB, 1)));
         rdpq_mode_end();
         rdp_draw_filled_triangle(0, 0, FBWIDTH, 0, FBWIDTH, FBWIDTH);
         rdp_draw_filled_triangle(0, 0, 0, FBWIDTH, FBWIDTH, FBWIDTH);
@@ -1229,7 +1292,7 @@ void test_rdpq_mode_freeze(TestContext *ctx) {
     rspq_block_begin();
         rdpq_set_mode_standard();
         rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,0), (0,0,0,0)));
-        rdpq_mode_blending(RDPQ_BLENDER((IN_RGB, 0, BLEND_RGB, 1)));
+        rdpq_mode_blender(RDPQ_BLENDER((IN_RGB, 0, BLEND_RGB, 1)));
         rdpq_set_blend_color(RGBA32(255,255,255,255));
     rspq_block_t *block2 = rspq_block_end();
     DEFER(rspq_block_free(block2));
@@ -1277,7 +1340,7 @@ void test_rdpq_mode_freeze_stack(TestContext *ctx) {
     rspq_wait();
     
     ASSERT_SURFACE(&fb, { 
-        return (x>=2 && x<=FBWIDTH-2) ? 
+        return (x>=2 && x<FBWIDTH-2) ? 
             RGBA32(255,255,255,0) : 
             RGBA32(0,0,0,0); 
     });
@@ -1300,3 +1363,56 @@ void test_rdpq_mode_freeze_stack(TestContext *ctx) {
 
     rspq_wait();
 }
+
+void test_rdpq_mipmap(TestContext *ctx) {
+    RDPQ_INIT();
+
+    const int FBWIDTH = 16;
+    const int TEXWIDTH = FBWIDTH - 8;
+    surface_t fb = surface_alloc(FMT_RGBA16, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    surface_clear(&fb, 0);
+
+    surface_t tex = surface_alloc(FMT_RGBA16, TEXWIDTH, TEXWIDTH);
+    DEFER(surface_free(&tex));
+    surface_clear(&tex, 0);
+
+    uint16_t expected_fb[FBWIDTH*FBWIDTH];
+    memset(expected_fb, 0xFF, sizeof(expected_fb));
+    for (int y=0;y<TEXWIDTH;y++) {
+        for (int x=0;x<TEXWIDTH;x++) {
+            color_t c = RGBA16(x, y, x+y, 1);
+            expected_fb[(y + 4) * FBWIDTH + (x + 4)] = color_to_packed16(c);
+            ((uint16_t*)tex.buffer)[y * TEXWIDTH + x] = color_to_packed16(c);
+        }
+    }
+
+    rdpq_set_color_image(&fb);
+    rdpq_set_texture_image(&tex);
+    rdpq_set_tile(0, FMT_RGBA16, 0, TEXWIDTH * 2, 0);
+    rdpq_set_tile(1, FMT_RGBA16, 0, TEXWIDTH * 2, 0);
+    rdpq_load_tile(0, 0, 0, TEXWIDTH, TEXWIDTH);
+    rdpq_load_tile(1, 0, 0, TEXWIDTH, TEXWIDTH);
+
+    rdpq_set_mode_standard();
+    rdpq_mode_mipmap(4);
+    rdpq_triangle(TILE0, 0, 0, -1, 2, 0,
+        (float[]){ 4.0f,   4.0f, 0.0f, 0.0f, 1.0f },
+        (float[]){ 12.0f,  4.0f, 8.0f, 0.0f, 1.0f },
+        (float[]){ 12.0f, 12.0f, 8.0f, 8.0f, 1.0f }
+    );
+    rspq_wait();
+
+    // Go through the generated RDP primitives and check if the triangle
+    // was patched the correct number of mipmap levels
+    extern void *rspq_rdp_dynamic_buffers[2];
+    uint64_t *rdp_buf = (uint64_t*)rspq_rdp_dynamic_buffers[0];
+    for (uint64_t i = 0; i < 32; i++)
+    {
+        if ((rdp_buf[i] >> 56) == 0xCB) {
+            int levels = ((rdp_buf[i] >> 51) & 7) + 1;
+            ASSERT_EQUAL_SIGNED(levels, 4, "invalid number of mipmap levels");
+        }
+    }
+}
+

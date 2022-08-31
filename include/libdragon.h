@@ -46,6 +46,8 @@
 #include "timer.h"
 #include "exception.h"
 #include "dir.h"
+#include "mpeg2.h"
+#include "throttle.h"
 #include "mixer.h"
 #include "samplebuffer.h"
 #include "wav64.h"

@@ -128,10 +128,11 @@
 enum {
     RDPQ_CMD_NOOP                       = 0x00,
     RDPQ_CMD_SET_LOOKUP_ADDRESS         = 0x01,
-    RDPQ_CMD_PUSH_RENDER_MODE           = 0x02,
-    RDPQ_CMD_POP_RENDER_MODE            = 0x03,
+    RDPQ_CMD_FILL_RECTANGLE_EX          = 0x02,
     RDPQ_CMD_RESET_RENDER_MODE          = 0x04,
     RDPQ_CMD_SET_COMBINE_MODE_2PASS     = 0x05,
+    RDPQ_CMD_PUSH_RENDER_MODE           = 0x06,
+    RDPQ_CMD_POP_RENDER_MODE            = 0x07,
     RDPQ_CMD_TRI                        = 0x08,
     RDPQ_CMD_TRI_ZBUF                   = 0x09,
     RDPQ_CMD_TRI_TEX                    = 0x0A,
@@ -367,8 +368,8 @@ uint32_t rdpq_config_disable(uint32_t cfg_disable_bits);
  *                       if the triangle is not textured. In case of multi-texturing, tile+1 will be
  *                       used for the second texture.
  * @param mipmaps        Number of mip-maps that will be used. This argument is unused if the triangle
- *                       is not textured or mipmapping is not enabled (via #SOM_TEXTURE_LOD or 
- *                       #rdpq_mode_mipmap). Pass 0 in this case.
+ *                       is not textured or mipmapping is not enabled. If you are using the mode API
+ *                       and set mipmap levels via #rdpq_mode_mipmap, pass 0 here.
  * @param pos_offset     Index of the position component within the vertex arrays. For instance, 
  *                       if pos_offset==4, v1[4] and v1[5] must be the X and Y coordinates of the first vertex.
  * @param shade_offset   Index of the shade component within the vertex arrays. For instance,
@@ -549,7 +550,7 @@ inline void rdpq_texture_rectangle_flip_fx(rdpq_tile_t tile, uint16_t x0, uint16
  * square, with the most external pixel rows and columns having a alpha of 25%.
  * This obviously makes more sense in RGBA32 mode where there is enough alpha
  * bitdepth to appreciate the result. Make sure to configure the blender via
- * #rdpq_mode_blending (part of the mode API) or via the lower-level #rdpq_set_other_modes_raw,
+ * #rdpq_mode_blender (part of the mode API) or via the lower-level #rdpq_set_other_modes_raw,
  * to decide the blending formula.
  * 
  * Notice that coordinates are unsigned numbers, so negative numbers are not
@@ -593,11 +594,10 @@ inline void rdpq_texture_rectangle_flip_fx(rdpq_tile_t tile, uint16_t x0, uint16
  */
 inline void rdpq_fill_rectangle_fx(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 {
-    extern void __rdpq_write8_syncuse(uint32_t, uint32_t, uint32_t, uint32_t);
-    __rdpq_write8_syncuse(RDPQ_CMD_FILL_RECTANGLE,
+    extern void __rdpq_fill_rectangle(uint32_t w0, uint32_t w1);
+    __rdpq_fill_rectangle(
         _carg(x1, 0xFFF, 12) | _carg(y1, 0xFFF, 0),
-        _carg(x0, 0xFFF, 12) | _carg(y0, 0xFFF, 0),
-        AUTOSYNC_PIPE);
+        _carg(x0, 0xFFF, 12) | _carg(y0, 0xFFF, 0));
 }
 
 
@@ -1051,14 +1051,14 @@ inline void rdpq_set_fill_color_stripes(color_t color1, color_t color2) {
  * #rdpq_set_blend_color.
  * 
  * See #RDPQ_BLENDER and #RDPQ_BLENDER2 on how to configure
- * the blender (typically, via #rdpq_mode_blending).
+ * the blender (typically, via #rdpq_mode_blender).
  * 
  * @param[in] color             Color to set the FOG register to
  * 
  * @see #RDPQ_BLENDER
  * @see #RDPQ_BLENDER2
  * @see #rdpq_set_blend_color
- * @see #rdpq_mode_blending
+ * @see #rdpq_mode_blender
  */
 inline void rdpq_set_fog_color(color_t color)
 {
@@ -1079,14 +1079,14 @@ inline void rdpq_set_fog_color(color_t color)
  * #rdpq_set_fog_color.
  * 
  * See #RDPQ_BLENDER and #RDPQ_BLENDER2 on how to configure
- * the blender (typically, via #rdpq_mode_blending).
+ * the blender (typically, via #rdpq_mode_blender).
  * 
  * @param[in] color             Color to set the BLEND register to
  * 
  * @see #RDPQ_BLENDER
  * @see #RDPQ_BLENDER2
  * @see #rdpq_set_fog_color
- * @see #rdpq_mode_blending
+ * @see #rdpq_mode_blender
  */
 inline void rdpq_set_blend_color(color_t color)
 {
@@ -1278,6 +1278,9 @@ inline void rdpq_set_z_image_raw(uint8_t index, uint32_t offset)
  * in the address lookup table, adding optionally an offset. See #rdpq_set_lookup_address
  * for more information.
  * 
+ * RDP a physical constraint of 8-byte alignment for textures, so make sure to respect
+ * that while configuring a buffer. The validator will flag such a mistake.
+ * 
  * @param index        Index in the rdpq lookup table of the buffer to set as texture image.
  * @param offset       Byte offset to add to the buffer stored in the lookup table. Notice that
  *                     if index is 0, this can be a physical address to a buffer (use
@@ -1343,9 +1346,13 @@ inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_forma
  *      rspq_block_run(bl);
  * @endcode
  * 
+ * @note RDP has some alignment constraints: color and Z buffers must be 64-byte aligned,
+ *       and textures must be 8-byte aligned.
+ *
  * @param index           Index of the slot in the table. Available slots are 1-15
  *                        (slot 0 is reserved).
  * @param rdram_addr      Pointer of the buffer to store into the address table.
+ * 
  */
 inline void rdpq_set_lookup_address(uint8_t index, void* rdram_addr)
 {

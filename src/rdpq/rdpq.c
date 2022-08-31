@@ -338,6 +338,14 @@
 #include <math.h>
 #include <float.h>
 
+// The fixup for fill rectangle and texture rectangle uses the exact same code in IMEM.
+// It needs to also adjust the command ID with the same constant (via XOR), so make
+// sure that we defined the fixups in the right position to make that happen.
+_Static_assert(
+    (RDPQ_CMD_FILL_RECTANGLE ^ RDPQ_CMD_FILL_RECTANGLE_EX) == 
+    (RDPQ_CMD_TEXTURE_RECTANGLE ^ RDPQ_CMD_TEXTURE_RECTANGLE_EX),
+    "invalid command numbering");
+
 static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code);
 
 /** @brief The rdpq ucode overlay */
@@ -492,7 +500,7 @@ static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
     switch (assert_code)
     {
     case RDPQ_ASSERT_FILLCOPY_BLENDING:
-        printf("Cannot call rdpq_mode_blending in fill or copy mode\n");
+        printf("Cannot call rdpq_mode_blender in fill or copy mode\n");
         break;
 
     case RDPQ_ASSERT_MIPMAP_COMB2:
@@ -855,6 +863,18 @@ void __rdpq_texture_rectangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3
     );
 }
 
+/** @brief Out-of-line implementation of #rdpq_texture_rectangle */
+__attribute__((noinline))
+void __rdpq_fill_rectangle(uint32_t w0, uint32_t w1)
+{
+    __rdpq_autosync_use(AUTOSYNC_PIPE);
+    rdpq_fixup_write(
+        (RDPQ_CMD_FILL_RECTANGLE_EX, w0, w1),  // RSP
+        (RDPQ_CMD_FILL_RECTANGLE_EX, w0, w1)   // RDP
+    );
+}
+
+
 /** @brief Out-of-line implementation of #rdpq_set_scissor */
 __attribute__((noinline))
 void __rdpq_set_scissor(uint32_t w0, uint32_t w1)
@@ -911,12 +931,11 @@ void rdpq_set_z_image(surface_t *surface)
 
 void rdpq_set_texture_image(surface_t *surface)
 {
-    // FIXME: we currently don't know how to handle a texture which is a sub-surface, that is
-    // with excess space. So better rule it out for now, and we can enbale that later once we
-    // make sure it works correctly.
-    assertf(TEX_FORMAT_PIX2BYTES(surface_get_format(surface), surface->width) == surface->stride,
-        "configure sub-surfaces as textures is not supported");
-    rdpq_set_texture_image_raw(0, PhysicalAddr(surface->buffer), surface_get_format(surface), surface->width, surface->height);
+    tex_format_t fmt = surface_get_format(surface);
+    assertf((PhysicalAddr(surface->buffer) & 7) == 0,
+        "buffer pointer is not aligned to 8 bytes, so it cannot be used as RDP texture image");
+    rdpq_set_texture_image_raw(0, PhysicalAddr(surface->buffer), fmt, 
+        TEX_FORMAT_BYTES2PIX(fmt, surface->stride), surface->height);
 }
 
 /** @brief Out-of-line implementation of #rdpq_set_other_modes_raw */

@@ -977,6 +977,18 @@ makeLsInstructionQuad store, swv, 0b00111
         lui $1, \code
         .set at
     .endm
+    .macro assert_gt v0, v1, code
+        ble \v0, \v1, assertion_failed
+        .set noat
+        lui $1, \code
+        .set at
+    .endm
+    .macro assert_lt v0, v1, code
+        bge \v0, \v1, assertion_failed
+        .set noat
+        lui $1, \code
+        .set at
+    .endm
 
 #else
     .macro assert code
@@ -986,6 +998,10 @@ makeLsInstructionQuad store, swv, 0b00111
     .macro assert_ne v0, v1, code
     .endm
     .macro assert_ge v0, v1, code
+    .endm
+    .macro assert_gt v0, v1, code
+    .endm
+    .macro assert_lt v0, v1, code
     .endm
 #endif
 

@@ -9,12 +9,12 @@
     RSPQ_BeginOverlayHeader
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xC0 NOOP
         RSPQ_DefineCommand RDPQCmd_SetLookupAddress,        8   # 0xC1 Set lookup address
-        RSPQ_DefineCommand RDPQCmd_PushMode,                8   # 0xC2 Push Mode
-        RSPQ_DefineCommand RDPQCmd_PopMode,                 8   # 0xC3 Pop Mode
+        RSPQ_DefineCommand RDPQCmd_RectEx,                  8   # 0xC2 Fill Rectangle (esclusive bounds)
+        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xC3
         RSPQ_DefineCommand RDPQCmd_ResetMode,               16  # 0xC4 Reset Mode (set mode standard)
         RSPQ_DefineCommand RDPQCmd_SetCombineMode_2Pass,    8   # 0xC5 SET_COMBINE_MODE (two pass)
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xC6
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xC7
+        RSPQ_DefineCommand RDPQCmd_PushMode,                8   # 0xC6 Push Mode
+        RSPQ_DefineCommand RDPQCmd_PopMode,                 8   # 0xC7 Pop Mode
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     32  # 0xC8 Filled
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     48  # 0xC9 Filled ZBuffered
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     96  # 0xCA Textured
@@ -24,7 +24,7 @@
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     160 # 0xCE Shaded Textured
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     176 # 0xCF Shaded Textured ZBuffered
 
-        RSPQ_DefineCommand RDPQCmd_TextureRectEx,           16  # 0xD0 Texture Rectangle (esclusive bounds)
+        RSPQ_DefineCommand RDPQCmd_RectEx,                  16  # 0xD0 Texture Rectangle (esclusive bounds)
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD1
         RSPQ_DefineCommand RDPQCmd_SetScissorEx,            8   # 0xD2 Set Scissor (exclusive bounds)
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD3
@@ -145,8 +145,6 @@ RDPQCmd_SetOtherModes:
     #############################################################
     .func RDPQ_SaveOtherModes
 RDPQ_SaveOtherModes:
-    lui t0, 0xEF00
-    or a0, t0
     sw a0, %lo(RDPQ_OTHER_MODES) + 0x0
     jr ra
     sw a1, %lo(RDPQ_OTHER_MODES) + 0x4
@@ -196,20 +194,19 @@ RDPQCmd_SetColorImage:
     .endfunc
 
     #############################################################
-    # RDPQCmd_TextureRectEx
+    # RDPQCmd_RectEx
     #
-    # Provides a consistent API for the TextureRectangle command
-    # that always uses exclusive ranges across all cycle modes.
+    # Provides a consistent API for the FlllRectangle/TextureRectangle
+    # command that always uses exclusive ranges across all cycle modes.
     #############################################################
-    .func RDPQCmd_TextureRectEx
-RDPQCmd_TextureRectEx:
-    # WARN: delay slot of above jump
+    .func RDPQCmd_RectEx
+RDPQCmd_RectEx:
     lb t0, %lo(RDPQ_OTHER_MODES) + 0x1
     # Bit 21 of the first word is set if FILL or COPY mode is active
     andi t0, 0x1 << 5
     # Leave unchanged when not in FILL or COPY mode
     beqz t0, rect_substitute
-    lui t1, 0xD000 ^ 0xE400  # TextureRectEx -> TEXTURE_RECTANGLE
+    lui t1, 0xD000 ^ 0xE400  # TextureRectEx -> TEXTURE_RECTANGLE (or FillRectEx -> FILL_RECTANGLE)
 
     # Subtract 1 pixel from XL and YL
     addiu a0, -((4 << 12) + 4)
@@ -223,7 +220,14 @@ RDPQCmd_TextureRectEx:
 rect_substitute:
     # Substitute command ID
     xor a0, t1
-    jal_and_j RDPQ_Write16, RDPQ_Finalize
+    # Call Write16 for TexRect and Wirte8 for FillRect, and then RDPQ_Finalize in tailcall
+    sll t0, a0, 3
+    bltz t0, rect_end
+    li s0, RDPQ_Write8
+    li s0, RDPQ_Write16
+rect_end:
+    jr s0
+    li ra, RDPQ_Finalize
     .endfunc
 
     #############################################################
@@ -237,6 +241,12 @@ RDPQCmd_PassthroughTriangle:
     addi s1, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER)   # End of command in RSPQ buffer
     sub s0, s1, rspq_cmd_size                           # Start of command in RSPQ buffer
     li s4, %lo(RDPQ_CMD_STAGING)                        # Pointer into RDPQ buffer
+    # Add num mipmap levels to the triangle
+    lbu t1, %lo(RDPQ_OTHER_MODES) + 0
+    lbu t0, 1(s0)
+    andi t1, 0x38     # Isolate bits 2-5 (aka 59-61 of SOM)
+    or t0, t1
+    sb t0, 1(s0)
 passthrough_copy_loop:
     lqv $v00,0, 0x00,s0
     lrv $v00,0, 0x10,s0
@@ -394,10 +404,7 @@ RDPQCmd_ResetMode:
     sqv $v00,0, 0x00,s0
     sqv $v00,0, 0x10,s0
 
-    # Save SOM right away, after adding SOM 
-    # FIXME: duplication with SaveOtherModes
-    lui t0, 0xEF00
-    or a2, t0
+    # Save SOM right away
     sw a2, %lo(RDPQ_OTHER_MODES) + 0
     sw a3, %lo(RDPQ_OTHER_MODES) + 4
 

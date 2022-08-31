@@ -5,7 +5,7 @@
 
 #define RDPQ_DYNAMIC_BUFFER_SIZE   0x800
 
-// Asserted if #rdpq_mode_blending was called in fill/copy mode
+// Asserted if #rdpq_mode_blender was called in fill/copy mode
 #define RDPQ_ASSERT_FILLCOPY_BLENDING  0xC003
 
 // Asserted if a 2-pass combiner is set with #rdpq_mode_combiner while mipmap is enabled.
