@@ -56,7 +56,6 @@ void gl_lighting_init()
     state.light_model_ambient[2] = 0.2f;
     state.light_model_ambient[3] = 1.0f;
     state.light_model_local_viewer = false;
-    state.light_model_two_side = false;
 }
 
 float gl_mag2(const GLfloat *v)
@@ -562,7 +561,7 @@ void glLightModeli(GLenum pname, GLint param)
         state.light_model_local_viewer = param != 0;
         break;
     case GL_LIGHT_MODEL_TWO_SIDE:
-        state.light_model_two_side = param != 0;
+        assertf(0, "Two sided lighting is not supported!");
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -584,7 +583,7 @@ void glLightModeliv(GLenum pname, const GLint *params)
         state.light_model_local_viewer = params[0] != 0;
         break;
     case GL_LIGHT_MODEL_TWO_SIDE:
-        state.light_model_two_side = params[0] != 0;
+        assertf(0, "Two sided lighting is not supported!");
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -604,7 +603,7 @@ void glLightModelfv(GLenum pname, const GLfloat *params)
         state.light_model_local_viewer = params[0] != 0;
         break;
     case GL_LIGHT_MODEL_TWO_SIDE:
-        state.light_model_two_side = params[0] != 0;
+        assertf(0, "Two sided lighting is not supported!");
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);

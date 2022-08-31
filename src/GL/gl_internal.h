@@ -7,22 +7,9 @@
 #include "utils.h"
 #include <stdbool.h>
 #include <math.h>
-
-#define MODELVIEW_STACK_SIZE  32
-#define PROJECTION_STACK_SIZE 2
-#define TEXTURE_STACK_SIZE    2
-
-#define VERTEX_CACHE_SIZE     16
-
-#define CLIPPING_PLANE_COUNT  6
-#define CLIPPING_CACHE_SIZE   9
-
-#define LIGHT_COUNT           8
-
-#define MAX_TEXTURE_SIZE      64
-#define MAX_TEXTURE_LEVELS    7
-
-#define MAX_PIXEL_MAP_SIZE    32
+#include "gl_constants.h"
+#include "rspq.h"
+#include "rdpq.h"
 
 #define RADIANS(x) ((x) * M_PI / 180.0f)
 
@@ -64,6 +51,32 @@
     } \
 })
 
+extern uint32_t gl_overlay_id;
+
+#define gl_write(cmd_id, ...) rspq_write(gl_overlay_id, cmd_id, ##__VA_ARGS__)
+
+enum {
+    GL_CMD_SET_FLAG     = 0x0,
+    GL_CMD_SET_BYTE     = 0x1,
+    GL_CMD_SET_SHORT    = 0x2,
+    GL_CMD_SET_WORD     = 0x3,
+    GL_CMD_SET_LONG     = 0x4,
+    GL_CMD_UPDATE       = 0x5,
+};
+
+typedef enum {
+    GL_UPDATE_NONE          = 0x0,
+    GL_UPDATE_DEPTH_TEST    = 0x1,
+    GL_UPDATE_DEPTH_MASK    = 0x2,
+    GL_UPDATE_BLEND         = 0x3,
+    GL_UPDATE_DITHER        = 0x4,
+    GL_UPDATE_POINTS        = 0x5,
+    GL_UPDATE_ALPHA_TEST    = 0x6,
+    GL_UPDATE_BLEND_CYCLE   = 0x7,
+    GL_UPDATE_FOG_CYCLE     = 0x8,
+    GL_UPDATE_SCISSOR       = 0x9,
+} gl_update_func_t;
+
 enum {
     ATTRIB_VERTEX,
     ATTRIB_COLOR,
@@ -71,16 +84,6 @@ enum {
     ATTRIB_NORMAL,
     ATTRIB_COUNT
 };
-
-typedef enum {
-    DIRTY_FLAG_RENDERMODE = 0x01,
-    DIRTY_FLAG_BLEND      = 0x02,
-    DIRTY_FLAG_FOG        = 0x04,
-    DIRTY_FLAG_COMBINER   = 0x08,
-    DIRTY_FLAG_SCISSOR    = 0x10,
-    DIRTY_FLAG_ALPHA_REF  = 0x20,
-    DIRTY_FLAG_ANTIALIAS  = 0x40,
-} gl_dirty_flags_t;
 
 typedef struct {
     surface_t *color_buffer;
@@ -122,14 +125,12 @@ typedef struct {
 
 typedef struct {
     gl_texture_image_t levels[MAX_TEXTURE_LEVELS];
-    uint64_t modes;
     uint32_t num_levels;
     GLenum dimensionality;
     GLenum wrap_s;
     GLenum wrap_t;
     GLenum min_filter;
     GLenum mag_filter;
-    GLclampf border_color[4];
     GLclampf priority;
     bool is_complete;
     bool is_upload_dirty;
@@ -237,14 +238,9 @@ typedef struct {
     GLenum front_face;
     GLenum polygon_mode;
 
-    GLenum blend_src;
-    GLenum blend_dst;
-    uint32_t blend_cycle;
-
     GLenum depth_func;
 
     GLenum alpha_func;
-    GLclampf alpha_ref;
 
     GLfloat fog_start;
     GLfloat fog_end;
@@ -255,13 +251,11 @@ typedef struct {
     bool texture_2d;
     bool blend;
     bool alpha_test;
-    bool dither;
     bool lighting;
     bool fog;
     bool color_material;
     bool multisample;
     bool normalize;
-    bool depth_mask;
 
     gl_array_t arrays[ATTRIB_COUNT];
 
@@ -316,7 +310,6 @@ typedef struct {
 
     GLfloat light_model_ambient[4];
     bool light_model_local_viewer;
-    bool light_model_two_side;
 
     GLenum shade_model;
 
@@ -341,7 +334,6 @@ typedef struct {
     bool transfer_is_noop;
 
     GLenum tex_env_mode;
-    GLfloat tex_env_color[4];
 
     obj_map_t list_objects;
     GLuint next_list_name;
@@ -355,9 +347,24 @@ typedef struct {
     gl_buffer_object_t *element_array_buffer;
 
     bool immediate_active;
-
-    gl_dirty_flags_t dirty_flags;
 } gl_state_t;
+
+typedef struct {
+    uint64_t scissor;
+    uint32_t flags;
+    uint32_t depth_func;
+    uint32_t alpha_func;
+    uint32_t blend_src;
+    uint32_t blend_dst;
+    uint32_t blend_cycle;
+    uint32_t tex_env_mode;
+    uint32_t polygon_mode;
+    uint32_t prim_type;
+    uint32_t fog_color;
+    uint16_t fb_size[2];
+    uint16_t scissor_rect[4];
+    uint8_t alpha_ref;
+} __attribute__((aligned(16), packed)) gl_server_state_t;
 
 void gl_matrix_init();
 void gl_texture_init();
@@ -387,13 +394,9 @@ bool gl_is_invisible();
 bool gl_calc_is_points();
 
 void gl_update_scissor();
-void gl_update_blend_func();
-void gl_update_fog();
 void gl_update_rendermode();
 void gl_update_combiner();
-void gl_update_alpha_ref();
 void gl_update_texture();
-void gl_update_multisample();
 
 void gl_perform_lighting(GLfloat *color, const GLfloat *input, const GLfloat *v, const GLfloat *n, const gl_material_t *material);
 
@@ -407,5 +410,35 @@ uint32_t gl_get_type_size(GLenum type);
 bool gl_storage_alloc(gl_storage_t *storage, uint32_t size);
 void gl_storage_free(gl_storage_t *storage);
 bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size);
+
+inline void gl_set_flag(gl_update_func_t update_func, uint32_t flag, bool value)
+{
+    gl_write(GL_CMD_SET_FLAG, _carg(update_func, 0x7FF, 13) | _carg(value, 0x1, 11), value ? flag : ~flag);
+}
+
+inline void gl_set_byte(gl_update_func_t update_func, uint32_t offset, uint8_t value)
+{
+    gl_write(GL_CMD_SET_BYTE, _carg(update_func, 0x7FF, 13) | _carg(offset, 0xFFF, 0), value);
+}
+
+inline void gl_set_short(gl_update_func_t update_func, uint32_t offset, uint16_t value)
+{
+    gl_write(GL_CMD_SET_SHORT, _carg(update_func, 0x7FF, 13) | _carg(offset, 0xFFF, 0), value);
+}
+
+inline void gl_set_word(gl_update_func_t update_func, uint32_t offset, uint32_t value)
+{
+    gl_write(GL_CMD_SET_WORD, _carg(update_func, 0x7FF, 13) | _carg(offset, 0xFFF, 0), value);
+}
+
+inline void gl_set_long(gl_update_func_t update_func, uint32_t offset, uint64_t value)
+{
+    gl_write(GL_CMD_SET_LONG, _carg(update_func, 0x7FF, 13) | _carg(offset, 0xFFF, 0), value >> 32, value & 0xFFFFFFFF);
+}
+
+inline void gl_update(gl_update_func_t update_func)
+{
+    gl_write(GL_CMD_UPDATE, _carg(update_func, 0x7FF, 13));
+}
 
 #endif

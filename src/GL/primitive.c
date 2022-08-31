@@ -2,6 +2,7 @@
 #include "utils.h"
 #include "rdpq.h"
 #include "rdpq_mode.h"
+#include "rdpq_debug.h"
 #include <malloc.h>
 #include <string.h>
 
@@ -45,7 +46,6 @@ void gl_primitive_init()
 
     state.point_size = 1;
     state.line_width = 1;
-    state.polygon_mode = GL_FILL;
 
     state.current_attribs[ATTRIB_COLOR][0] = 1;
     state.current_attribs[ATTRIB_COLOR][1] = 1;
@@ -53,6 +53,8 @@ void gl_primitive_init()
     state.current_attribs[ATTRIB_COLOR][3] = 1;
     state.current_attribs[ATTRIB_TEXCOORD][3] = 1;
     state.current_attribs[ATTRIB_NORMAL][2] = 1;
+
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 }
 
 void gl_primitive_close()
@@ -145,22 +147,19 @@ void glBegin(GLenum mode)
     state.prim_progress = 0;
     state.prim_counter = 0;
 
+    gl_set_word(GL_UPDATE_POINTS, offsetof(gl_server_state_t, prim_type), mode);
+
     if (gl_is_invisible()) {
         return;
     }
 
-    gl_update_scissor();
     gl_update_texture();
-    gl_update_blend_func();
-    gl_update_fog();
     gl_update_rendermode();
     gl_update_combiner();
-    gl_update_alpha_ref();
-    gl_update_multisample();
-
-    state.dirty_flags = 0;
 
     gl_reset_vertex_cache();
+
+    rdpq_mode_end();
 }
 
 void glEnd(void)
@@ -178,6 +177,8 @@ void glEnd(void)
     }
 
     state.immediate_active = false;
+
+    rdpq_mode_begin();
 }
 
 void gl_draw_point(gl_vertex_t *v0)
@@ -193,8 +194,8 @@ void gl_draw_point(gl_vertex_t *v0)
         FLOAT_TO_U8(v0->color[3])
     ));
 
-    if (state.depth_test || state.depth_mask) {
-        rdpq_set_prim_depth(floorf(v0->depth), 0);
+    if (state.depth_test) {
+        rdpq_set_prim_depth(v0->depth, 0);
     }
 
     gl_texture_object_t *tex_obj = gl_get_active_texture();
@@ -1351,7 +1352,8 @@ void glPolygonMode(GLenum face, GLenum mode)
         return;
     }
 
-    GL_SET_STATE_FLAG(state.polygon_mode, mode, DIRTY_FLAG_RENDERMODE | DIRTY_FLAG_COMBINER);
+    gl_set_word(GL_UPDATE_POINTS, offsetof(gl_server_state_t, polygon_mode), mode);
+    state.polygon_mode = mode;
 }
 
 void glDepthRange(GLclampd n, GLclampd f)

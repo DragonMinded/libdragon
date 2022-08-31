@@ -973,14 +973,6 @@ void gl_texture_set_mag_filter(gl_texture_object_t *obj, GLenum param)
     }
 }
 
-void gl_texture_set_border_color(gl_texture_object_t *obj, GLclampf r, GLclampf g, GLclampf b, GLclampf a)
-{
-    obj->border_color[0] = CLAMP01(r);
-    obj->border_color[1] = CLAMP01(g);
-    obj->border_color[2] = CLAMP01(b);
-    obj->border_color[3] = CLAMP01(a);
-}
-
 void gl_texture_set_priority(gl_texture_object_t *obj, GLclampf param)
 {
     obj->priority = CLAMP01(param);
@@ -1065,7 +1057,7 @@ void glTexParameteriv(GLenum target, GLenum pname, const GLint *params)
         gl_texture_set_mag_filter(obj, params[0]);
         break;
     case GL_TEXTURE_BORDER_COLOR:
-        gl_texture_set_border_color(obj, I32_TO_FLOAT(params[0]), I32_TO_FLOAT(params[1]), I32_TO_FLOAT(params[2]), I32_TO_FLOAT(params[3]));
+        assertf(0, "Texture border color is not supported!");
         break;
     case GL_TEXTURE_PRIORITY:
         gl_texture_set_priority(obj, I32_TO_FLOAT(params[0]));
@@ -1097,7 +1089,7 @@ void glTexParameterfv(GLenum target, GLenum pname, const GLfloat *params)
         gl_texture_set_mag_filter(obj, params[0]);
         break;
     case GL_TEXTURE_BORDER_COLOR:
-        gl_texture_set_border_color(obj, params[0], params[1], params[2], params[3]);
+        assertf(0, "Texture border color is not supported!");
         break;
     case GL_TEXTURE_PRIORITY:
         gl_texture_set_priority(obj, params[0]);
@@ -1268,7 +1260,5 @@ void gl_update_texture()
         }
 
         state.last_used_texture = tex_obj;
-
-        GL_SET_DIRTY_FLAG(DIRTY_FLAG_RENDERMODE | DIRTY_FLAG_COMBINER);
     }
 }

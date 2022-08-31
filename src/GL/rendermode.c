@@ -1,5 +1,6 @@
 #include "gl_internal.h"
 #include "rdpq_mode.h"
+#include "rdpq_debug.h"
 #include "rdpq_macros.h"
 #include "rspq.h"
 
@@ -75,8 +76,6 @@ void gl_rendermode_init()
 
     GLfloat fog_color[] = {0, 0, 0, 0};
     glFogfv(GL_FOG_COLOR, fog_color);
-
-    state.dirty_flags = -1;
 }
 
 bool gl_is_invisible()
@@ -88,10 +87,6 @@ bool gl_is_invisible()
 
 void gl_update_scissor()
 {
-    if (!GL_IS_DIRTY_FLAG_SET(DIRTY_FLAG_SCISSOR)) {
-        return;
-    }
-
     uint32_t w = state.cur_framebuffer->color_buffer->width;
     uint32_t h = state.cur_framebuffer->color_buffer->height;
 
@@ -107,43 +102,12 @@ void gl_update_scissor()
     }
 }
 
-#define DITHER_MASK         SOM_RGBDITHER_MASK | SOM_ALPHADITHER_MASK
-#define BLEND_MASK          SOM_ZMODE_MASK
-#define DEPTH_TEST_MASK     SOM_Z_COMPARE
-#define DEPTH_MASK_MASK     SOM_Z_WRITE
-#define POINTS_MASK         SOM_ZSOURCE_MASK | SOM_TEXTURE_PERSP
-#define ALPHA_TEST_MASK     SOM_ALPHACOMPARE_MASK
-
-#define RENDERMODE_MASK     DITHER_MASK | BLEND_MASK | DEPTH_TEST_MASK | DEPTH_MASK_MASK | POINTS_MASK | ALPHA_TEST_MASK
-
 void gl_update_rendermode()
 {
-    if (!GL_IS_DIRTY_FLAG_SET(DIRTY_FLAG_RENDERMODE)) {
-        return;
-    }
-
     gl_texture_object_t *tex_obj = gl_get_active_texture();
-    bool is_points = gl_calc_is_points();
 
-    uint64_t modes = SOM_TF0_RGB | SOM_TF1_RGB;
-
-    // dither
-    modes |= state.dither ? SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_SAME : SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE;
-
-    // blend
-    modes |= state.blend ? SOM_ZMODE_TRANSPARENT : SOM_ZMODE_OPAQUE;
-
-    // depth test
-    modes |= state.depth_test && state.depth_func == GL_LESS ? SOM_Z_COMPARE : 0;
-
-    // depth mask
-    modes |= state.depth_test && state.depth_mask ? SOM_Z_WRITE : 0;
-
-    // points
-    modes |= is_points ? SOM_ZSOURCE_PRIM : SOM_ZSOURCE_PIXEL | SOM_TEXTURE_PERSP;
-
-    // alpha test
-    modes |= state.alpha_test && state.alpha_func == GL_GREATER ? SOM_ALPHACOMPARE_THRESHOLD : 0;
+    rdpq_filter_t filter = FILTER_POINT;
+    bool mipmap = false;
 
     // texture
     if (tex_obj != NULL && tex_obj->is_complete) {
@@ -152,45 +116,20 @@ void gl_update_rendermode()
             tex_obj->min_filter == GL_LINEAR || 
             tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR || 
             tex_obj->min_filter == GL_LINEAR_MIPMAP_NEAREST) {
-            modes |= SOM_SAMPLE_BILINEAR;
-        } else {
-            modes |= SOM_SAMPLE_POINT;
+            filter = FILTER_BILINEAR;
         }
 
         if (tex_obj->min_filter != GL_LINEAR && tex_obj->min_filter != GL_NEAREST && !gl_calc_is_points()) {
-            modes |= SOM_TEXTURE_LOD;
+            mipmap = true;
         }
     }
 
-    rdpq_change_other_modes_raw(RENDERMODE_MASK, modes);
-}
-
-void gl_update_blend_func()
-{
-    if (!GL_IS_DIRTY_FLAG_SET(DIRTY_FLAG_BLEND)) {
-        return;
-    }
-
-    rdpq_blender_t blend_cycle = state.blend ? state.blend_cycle : 0;
-    rdpq_mode_blending(blend_cycle);
-}
-
-void gl_update_fog()
-{
-    if (!GL_IS_DIRTY_FLAG_SET(DIRTY_FLAG_FOG)) {
-        return;
-    }
-
-    rdpq_blender_t fog_cycle = state.fog ? RDPQ_BLENDER((IN_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA)) : 0;
-    rdpq_mode_fog(fog_cycle);
+    rdpq_mode_filter(filter);
+    rdpq_mode_mipmap(mipmap);
 }
 
 void gl_update_combiner()
 {
-    if (!GL_IS_DIRTY_FLAG_SET(DIRTY_FLAG_COMBINER)) {
-        return;
-    }
-
     rdpq_combiner_t comb;
 
     bool is_points = gl_calc_is_points();
@@ -201,8 +140,6 @@ void gl_update_combiner()
             // Trilinear
             if (state.tex_env_mode == GL_REPLACE) {
                 comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (0, 0, 0, COMBINED), (0, 0, 0, COMBINED));
-            } else if (state.fog) {
-                comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (COMBINED, 0, SHADE, 0), (0, 0, 0, COMBINED));
             } else {
                 comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (COMBINED, 0, SHADE, 0), (COMBINED, 0, SHADE, 0));
             }
@@ -211,8 +148,6 @@ void gl_update_combiner()
                 comb = RDPQ_COMBINER1((0, 0, 0, TEX0), (0, 0, 0, TEX0));
             } else if (is_points) {
                 comb = RDPQ_COMBINER1((TEX0, 0, PRIM, 0), (TEX0, 0, PRIM, 0));
-            } else if (state.fog) {
-                comb = RDPQ_COMBINER1((TEX0, 0, SHADE, 0), (0, 0, 0, TEX0));
             } else {
                 comb = RDPQ_COMBINER1((TEX0, 0, SHADE, 0), (TEX0, 0, SHADE, 0));
             }
@@ -220,34 +155,12 @@ void gl_update_combiner()
     } else {
         if (is_points) {
             comb = RDPQ_COMBINER1((0, 0, 0, PRIM), (0, 0, 0, PRIM));
-        } else if (state.fog) {
-            // When fog is enabled, the shade alpha is (ab)used to encode the fog blending factor, so it cannot be used in the color combiner
-            // (same above)
-            comb = RDPQ_COMBINER1((0, 0, 0, SHADE), (0, 0, 0, 1));
         } else {
             comb = RDPQ_COMBINER1((0, 0, 0, SHADE), (0, 0, 0, SHADE));
         }
     }
 
     rdpq_mode_combiner(comb);
-}
-
-void gl_update_alpha_ref()
-{
-    if (!GL_IS_DIRTY_FLAG_SET(DIRTY_FLAG_ALPHA_REF)) {
-        return;
-    }
-
-    rdpq_set_blend_color(RGBA32(0, 0, 0, FLOAT_TO_U8(state.alpha_ref)));
-}
-
-void gl_update_multisample()
-{
-    if (!GL_IS_DIRTY_FLAG_SET(DIRTY_FLAG_ANTIALIAS)) {
-        return;
-    }
-
-    rdpq_mode_antialias(state.multisample);
 }
 
 void glFogi(GLenum pname, GLint param)
@@ -347,12 +260,10 @@ void glScissor(GLint left, GLint bottom, GLsizei width, GLsizei height)
         return;
     }
 
-    state.scissor_box[0] = left;
-    state.scissor_box[1] = bottom;
-    state.scissor_box[2] = width;
-    state.scissor_box[3] = height;
+    uint64_t rect = (((uint64_t)left) << 48) | (((uint64_t)bottom) << 32) | (((uint64_t)width) << 16) | ((uint64_t)height);
+    gl_set_long(GL_UPDATE_SCISSOR, offsetof(gl_server_state_t, scissor_rect), rect);
 
-    GL_SET_DIRTY_FLAG(DIRTY_FLAG_SCISSOR);
+    gl_update_scissor(); // TODO: remove this
 }
 
 void glBlendFunc(GLenum src, GLenum dst)
@@ -394,13 +305,11 @@ void glBlendFunc(GLenum src, GLenum dst)
 
     uint32_t config_index = ((src & 0x7) << 3) | (dst & 0x7);
 
-    uint32_t cycle = blend_configs[config_index];
+    uint32_t cycle = blend_configs[config_index] | SOM_BLENDING;
     assertf(cycle != 0, "Unsupported blend function");
 
-    state.blend_src = src;
-    state.blend_dst = dst;
-
-    GL_SET_STATE_FLAG(state.blend_cycle, cycle, DIRTY_FLAG_BLEND);
+    gl_set_long(GL_UPDATE_NONE, offsetof(gl_server_state_t, blend_src), (((uint64_t)src) << 32) | (uint64_t)dst);
+    gl_set_word(GL_UPDATE_BLEND_CYCLE, offsetof(gl_server_state_t, blend_cycle), cycle);
 }
 
 void glDepthFunc(GLenum func)
@@ -409,7 +318,8 @@ void glDepthFunc(GLenum func)
     case GL_NEVER:
     case GL_LESS:
     case GL_ALWAYS:
-        GL_SET_STATE_FLAG(state.depth_func, func, DIRTY_FLAG_RENDERMODE);
+        gl_set_word(GL_UPDATE_DEPTH_TEST, offsetof(gl_server_state_t, depth_func), func);
+        state.depth_func = func;
         break;
     case GL_EQUAL:
     case GL_LEQUAL:
@@ -426,7 +336,7 @@ void glDepthFunc(GLenum func)
 
 void glDepthMask(GLboolean mask)
 {
-    GL_SET_STATE_FLAG(state.depth_mask, mask, DIRTY_FLAG_RENDERMODE);
+    gl_set_flag(GL_UPDATE_DEPTH_MASK, FLAG_DEPTH_MASK, mask);
 }
 
 void glAlphaFunc(GLenum func, GLclampf ref)
@@ -435,8 +345,10 @@ void glAlphaFunc(GLenum func, GLclampf ref)
     case GL_NEVER:
     case GL_GREATER:
     case GL_ALWAYS:
-        GL_SET_STATE_FLAG(state.alpha_func, func, DIRTY_FLAG_RENDERMODE);
-        GL_SET_STATE_FLAG(state.alpha_ref, ref, DIRTY_FLAG_ALPHA_REF);
+        gl_set_word(GL_UPDATE_ALPHA_TEST, offsetof(gl_server_state_t, alpha_func), func);
+        gl_set_byte(GL_UPDATE_NONE, offsetof(gl_server_state_t, alpha_ref), FLOAT_TO_U8(ref));
+        rdpq_set_blend_color(RGBA32(0, 0, 0, FLOAT_TO_U8(ref)));
+        state.alpha_func = func;
         break;
     case GL_EQUAL:
     case GL_LEQUAL:
@@ -486,10 +398,7 @@ void glTexEnviv(GLenum target, GLenum pname, const GLint *params)
 
     switch (pname) {
     case GL_TEXTURE_ENV_COLOR:
-        state.tex_env_color[0] = I32_TO_FLOAT(params[0]);
-        state.tex_env_color[1] = I32_TO_FLOAT(params[1]);
-        state.tex_env_color[2] = I32_TO_FLOAT(params[2]);
-        state.tex_env_color[3] = I32_TO_FLOAT(params[3]);
+        assertf(0, "Tex env color is not supported!");
         break;
     default:
         glTexEnvi(target, pname, params[0]);
@@ -506,10 +415,7 @@ void glTexEnvfv(GLenum target, GLenum pname, const GLfloat *params)
 
     switch (pname) {
     case GL_TEXTURE_ENV_COLOR:
-        state.tex_env_color[0] = params[0];
-        state.tex_env_color[1] = params[1];
-        state.tex_env_color[2] = params[2];
-        state.tex_env_color[3] = params[3];
+        assertf(0, "Tex env color is not supported!");
         break;
     default:
         glTexEnvf(target, pname, params[0]);

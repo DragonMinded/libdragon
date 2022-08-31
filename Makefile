@@ -47,7 +47,7 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o \
 			 $(BUILD_DIR)/GL/rendermode.o $(BUILD_DIR)/GL/texture.o \
 			 $(BUILD_DIR)/GL/array.o $(BUILD_DIR)/GL/pixelrect.o \
 			 $(BUILD_DIR)/GL/obj_map.o $(BUILD_DIR)/GL/list.o \
-			 $(BUILD_DIR)/GL/buffer.o
+			 $(BUILD_DIR)/GL/buffer.o $(BUILD_DIR)/GL/rsp_gl.o
 	@echo "    [AR] $@"
 	$(N64_AR) -rcs -o $@ $^
 
@@ -132,6 +132,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/rsp_rdpq.inc $(INSTALLDIR)/mips64-elf/include/rsp_rdpq.inc
 	install -Cv -m 0644 include/surface.h $(INSTALLDIR)/mips64-elf/include/surface.h
 	install -Cv -m 0644 include/GL/gl.h $(INSTALLDIR)/mips64-elf/include/GL/gl.h
+	install -Cv -m 0644 include/GL/gl_enums.h $(INSTALLDIR)/mips64-elf/include/GL/gl_enums.h
 	install -Cv -m 0644 include/GL/gl_integration.h $(INSTALLDIR)/mips64-elf/include/GL/gl_integration.h
 
 

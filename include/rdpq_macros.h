@@ -575,7 +575,10 @@ typedef uint32_t rdpq_blender_t;
 #define SOM_ZMODE_SHIFT            10                       ///< Z-mode mask shift
 
 #define SOM_Z_WRITE            ((cast64(1))<<5)             ///< Activate Z-buffer write
+#define SOM_Z_WRITE_SHIFT      5                            ///< Z-buffer write bit shift
+
 #define SOM_Z_COMPARE          ((cast64(1))<<4)             ///< Activate Z-buffer compare
+#define SOM_Z_COMPARE_SHIFT    4                            ///< Z-buffer compare bit shift
 
 #define SOM_ZSOURCE_PIXEL      ((cast64(0))<<2)             ///< Z-source: per-pixel Z
 #define SOM_ZSOURCE_PRIM       ((cast64(1))<<2)             ///< Z-source: fixed value

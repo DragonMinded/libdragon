@@ -1,13 +1,18 @@
 #include "GL/gl.h"
 #include "rdpq.h"
 #include "rdpq_mode.h"
+#include "rdpq_debug.h"
 #include "rspq.h"
 #include "display.h"
 #include "rdp.h"
 #include "utils.h"
-#include "gl_internal.h"
 #include <string.h>
 #include <math.h>
+#include "gl_internal.h"
+
+DEFINE_RSP_UCODE(rsp_gl);
+
+uint32_t gl_overlay_id;
 
 gl_state_t state;
 
@@ -80,7 +85,18 @@ void gl_init()
 {
     rdpq_init();
 
+    //rdpq_debug_start();
+    //rdpq_debug_log(true);
+
+    rdpq_mode_begin();
+    rdpq_set_mode_standard();
+
     memset(&state, 0, sizeof(state));
+
+    gl_server_state_t *server_state = rspq_overlay_get_state(&rsp_gl);
+    memset(&server_state, 0, sizeof(gl_server_state_t));
+
+    gl_overlay_id = rspq_overlay_register(&rsp_gl);
 
     gl_matrix_init();
     gl_lighting_init();
@@ -98,9 +114,12 @@ void gl_init()
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
 
-    rdpq_set_mode_standard();
     gl_set_default_framebuffer();
     glViewport(0, 0, state.default_framebuffer.color_buffer->width, state.default_framebuffer.color_buffer->height);
+
+    uint32_t packed_size = ((uint32_t)state.default_framebuffer.color_buffer->width) << 16 | (uint32_t)state.default_framebuffer.color_buffer->height;
+
+    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, fb_size), packed_size);
 }
 
 void gl_close()
@@ -109,6 +128,7 @@ void gl_close()
     gl_list_close();
     gl_primitive_close();
     gl_texture_close();
+    rspq_overlay_unregister(gl_overlay_id);
     rdpq_close();
 }
 
@@ -132,29 +152,37 @@ void gl_set_error(GLenum error)
     assert(error);
 }
 
-void gl_set_flag(GLenum target, bool value)
+void gl_set_flag2(GLenum target, bool value)
 {
     switch (target) {
     case GL_SCISSOR_TEST:
-        GL_SET_STATE_FLAG(state.scissor_test, value, DIRTY_FLAG_SCISSOR);
+        gl_set_flag(GL_UPDATE_SCISSOR, FLAG_SCISSOR_TEST, value);
+        state.scissor_test = value;
+        gl_update_scissor(); // TODO: remove this
         break;
     case GL_DEPTH_TEST:
-        GL_SET_STATE_FLAG(state.depth_test, value, DIRTY_FLAG_RENDERMODE);
+        gl_set_flag(GL_UPDATE_DEPTH_TEST, FLAG_DEPTH_TEST, value);
+        gl_update(GL_UPDATE_DEPTH_MASK);
+        state.depth_test = value;
         break;
     case GL_BLEND:
-        GL_SET_STATE_FLAG(state.blend, value, DIRTY_FLAG_RENDERMODE | DIRTY_FLAG_BLEND);
+        gl_set_flag(GL_UPDATE_BLEND, FLAG_BLEND, value);
+        gl_update(GL_UPDATE_BLEND_CYCLE);
         break;
     case GL_ALPHA_TEST:
-        GL_SET_STATE_FLAG(state.alpha_test, value, DIRTY_FLAG_RENDERMODE);
+        gl_set_flag(GL_UPDATE_ALPHA_TEST, FLAG_ALPHA_TEST, value);
+        state.alpha_test = value;
         break;
     case GL_DITHER:
-        GL_SET_STATE_FLAG(state.dither, value, DIRTY_FLAG_RENDERMODE);
+        gl_set_flag(GL_UPDATE_DITHER, FLAG_DITHER, value);
         break;
     case GL_FOG:
-        GL_SET_STATE_FLAG(state.fog, value, DIRTY_FLAG_FOG | DIRTY_FLAG_COMBINER);
+        gl_set_flag(GL_UPDATE_FOG_CYCLE, FLAG_FOG, value);
+        state.fog = value;
         break;
     case GL_MULTISAMPLE_ARB:
-        GL_SET_STATE_FLAG(state.multisample, value, DIRTY_FLAG_ANTIALIAS);
+        gl_set_flag(GL_UPDATE_NONE, FLAG_MULTISAMPLE, value);
+        rdpq_mode_antialias(value);
         break;
     case GL_TEXTURE_1D:
         state.texture_1d = value;
@@ -258,12 +286,12 @@ void gl_set_flag(GLenum target, bool value)
 
 void glEnable(GLenum target)
 {
-    gl_set_flag(target, true);
+    gl_set_flag2(target, true);
 }
 
 void glDisable(GLenum target)
 {
-    gl_set_flag(target, false);
+    gl_set_flag2(target, false);
 }
 
 void glDrawBuffer(GLenum buf)
@@ -303,7 +331,7 @@ void glClear(GLbitfield buf)
 
     rdpq_mode_push();
 
-    rdpq_set_other_modes_raw(SOM_CYCLE_FILL);
+    rdpq_set_mode_fill(RGBA16(0,0,0,0));
 
     gl_update_scissor();
 
@@ -312,6 +340,8 @@ void glClear(GLbitfield buf)
     if (buf & (GL_STENCIL_BUFFER_BIT | GL_ACCUM_BUFFER_BIT)) {
         assertf(0, "Only color and depth buffers are supported!");
     }
+
+    rdpq_mode_end();
 
     if (buf & GL_DEPTH_BUFFER_BIT) {
         uint32_t old_cfg = rdpq_config_disable(RDPQ_CFG_AUTOSCISSOR);
@@ -334,6 +364,7 @@ void glClear(GLbitfield buf)
         rdpq_fill_rectangle(0, 0, fb->color_buffer->width, fb->color_buffer->height);
     }
 
+    rdpq_mode_begin();
     rdpq_mode_pop();
 }
 
