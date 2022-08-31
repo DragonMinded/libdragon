@@ -722,7 +722,6 @@ inline void rdpq_set_prim_depth_fx(uint16_t prim_z, int16_t prim_dz)
     uint16_t __z = (prim_z) * 0x7FFF; \
     float __dz   = __prim_dz * 0x7FFF; \
     int32_t __dzi; memcpy(&__dzi, &__dz, 4); \
-    debugf("set_prim: %f %f %lx\n", __prim_dz, __dz, __dzi); \
     int __b = __dzi << 9 != 0; \
     int16_t __dz2 = 1 << (__dzi ? (__dzi >> 23) - 127 + __b : 0); \
     rdpq_set_prim_depth_fx(__z, __dz2); \
