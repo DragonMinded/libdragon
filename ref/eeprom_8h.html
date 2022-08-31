@@ -168,6 +168,27 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a id="abf6fdff1ec1d5c3f51e1ab79cdec3530" name="abf6fdff1ec1d5c3f51e1ab79cdec3530"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abf6fdff1ec1d5c3f51e1ab79cdec3530">&#9670;&nbsp;</a></span>eeprom_total_blocks()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">size_t eeprom_total_blocks </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Determine how many blocks of EEPROM exist on the cartridge. </p>
+<dl class="section return"><dt>Returns</dt><dd>0 if EEPROM was not detected or the number of EEPROM 8-byte save blocks available. </dd></dl>
+
+</div>
+</div>
 <a id="a8d4e5d5cd58c25c23954b9b0e8b02ac0" name="a8d4e5d5cd58c25c23954b9b0e8b02ac0"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a8d4e5d5cd58c25c23954b9b0e8b02ac0">&#9670;&nbsp;</a></span>eeprom_read()</h2>
 
@@ -202,6 +223,44 @@ Functions</h2></td></tr>
   </table>
   </dd>
 </dl>
+
+</div>
+</div>
+<a id="af2aa704e1a317e4544a5be6e020f4d53" name="af2aa704e1a317e4544a5be6e020f4d53"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af2aa704e1a317e4544a5be6e020f4d53">&#9670;&nbsp;</a></span>eeprom_write()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint8_t eeprom_write </td>
+          <td>(</td>
+          <td class="paramtype">uint8_t&#160;</td>
+          <td class="paramname"><em>block</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const uint8_t *&#160;</td>
+          <td class="paramname"><em>src</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Write a block to EEPROM. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">block</td><td>Block to write data to. Joybus accesses EEPROM in 8-byte blocks.</td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">src</td><td>Source buffer for the eight bytes of data to write to EEPROM.</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>the EEPROM status byte </dd></dl>
 
 </div>
 </div>
@@ -247,65 +306,6 @@ Functions</h2></td></tr>
   </table>
   </dd>
 </dl>
-
-</div>
-</div>
-<a id="abf6fdff1ec1d5c3f51e1ab79cdec3530" name="abf6fdff1ec1d5c3f51e1ab79cdec3530"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#abf6fdff1ec1d5c3f51e1ab79cdec3530">&#9670;&nbsp;</a></span>eeprom_total_blocks()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">size_t eeprom_total_blocks </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Determine how many blocks of EEPROM exist on the cartridge. </p>
-<dl class="section return"><dt>Returns</dt><dd>0 if EEPROM was not detected or the number of EEPROM 8-byte save blocks available. </dd></dl>
-
-</div>
-</div>
-<a id="af2aa704e1a317e4544a5be6e020f4d53" name="af2aa704e1a317e4544a5be6e020f4d53"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af2aa704e1a317e4544a5be6e020f4d53">&#9670;&nbsp;</a></span>eeprom_write()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">uint8_t eeprom_write </td>
-          <td>(</td>
-          <td class="paramtype">uint8_t&#160;</td>
-          <td class="paramname"><em>block</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const uint8_t *&#160;</td>
-          <td class="paramname"><em>src</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Write a block to EEPROM. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">block</td><td>Block to write data to. Joybus accesses EEPROM in 8-byte blocks.</td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">src</td><td>Source buffer for the eight bytes of data to write to EEPROM.</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>the EEPROM status byte </dd></dl>
 
 </div>
 </div>
@@ -363,7 +363,7 @@ Functions</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:58 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

@@ -146,29 +146,11 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>ym64player_close</b> 
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
-<a id="ac2f49185869569f91066b6f53627a941" name="ac2f49185869569f91066b6f53627a941"></a><a class="el" href="structAY8910.html">AY8910</a></td>
+<a id="a7a66bebab0cec3b2b39b25b2728a1116" name="a7a66bebab0cec3b2b39b25b2728a1116"></a><a class="el" href="mixer_8h.html#structwaveform__t">waveform_t</a></td>
 <td class="fieldname">
-ay</td>
+wave</td>
 <td class="fielddoc">
-<a class="el" href="structAY8910.html" title="A AY-3-8910 emulator.">AY8910</a> emulator. </td></tr>
-<tr><td class="fieldtype">
-<a id="ad7231c5507b1760911011cc8287f1b16" name="ad7231c5507b1760911011cc8287f1b16"></a>uint32_t</td>
-<td class="fieldname">
-chipfreq</td>
-<td class="fielddoc">
-Operating frequency of the AY chip. </td></tr>
-<tr><td class="fieldtype">
-<a id="af81831f2e8e54fb4a3ba2751d2cecb94" name="af81831f2e8e54fb4a3ba2751d2cecb94"></a>int</td>
-<td class="fieldname">
-curframe</td>
-<td class="fielddoc">
-Current audio frame being played. </td></tr>
-<tr><td class="fieldtype">
-<a id="a4a4fba21853dbea6f5a99c5af07224cb" name="a4a4fba21853dbea6f5a99c5af07224cb"></a>LHANewDecoder *</td>
-<td class="fieldname">
-decoder</td>
-<td class="fielddoc">
-Optional LHA decoder (compressed YM files) </td></tr>
+waveform for playback with the mixer </td></tr>
 <tr><td class="fieldtype">
 <a id="a134cf98f97982482e86d944eae146a0b" name="a134cf98f97982482e86d944eae146a0b"></a>FILE *</td>
 <td class="fieldname">
@@ -176,29 +158,11 @@ f</td>
 <td class="fielddoc">
 Open file handle. </td></tr>
 <tr><td class="fieldtype">
-<a id="a80cbce65e91254965a4d4437c26a144f" name="a80cbce65e91254965a4d4437c26a144f"></a>int</td>
+<a id="a4a4fba21853dbea6f5a99c5af07224cb" name="a4a4fba21853dbea6f5a99c5af07224cb"></a>LHANewDecoder *</td>
 <td class="fieldname">
-first_ch</td>
+decoder</td>
 <td class="fielddoc">
-First channel used in the mixer for playback. </td></tr>
-<tr><td class="fieldtype">
-<a id="a4d0bfabaf6acb99704f85516dad02575" name="a4d0bfabaf6acb99704f85516dad02575"></a>uint32_t</td>
-<td class="fieldname">
-nframes</td>
-<td class="fielddoc">
-Number of YM audio frames. </td></tr>
-<tr><td class="fieldtype">
-<a id="a40fbf0786b24afe8a1b1a5803d4f6bb6" name="a40fbf0786b24afe8a1b1a5803d4f6bb6"></a>uint16_t</td>
-<td class="fieldname">
-playfreq</td>
-<td class="fielddoc">
-Frequency of an audio frame (typically 50Hz or 60Hz) </td></tr>
-<tr><td class="fieldtype">
-<a id="a71a262eeda9d8f81c6ff22173a2757d7" name="a71a262eeda9d8f81c6ff22173a2757d7"></a>uint8_t</td>
-<td class="fieldname">
-regs[16]</td>
-<td class="fielddoc">
-Current cached value of the AY registers. </td></tr>
+Optional LHA decoder (compressed YM files) </td></tr>
 <tr><td class="fieldtype">
 <a id="a3c2766541bc86056b9f0ca03c4180d0b" name="a3c2766541bc86056b9f0ca03c4180d0b"></a>int</td>
 <td class="fieldname">
@@ -206,11 +170,47 @@ start_off</td>
 <td class="fielddoc">
 Starting offset of the first audio frame. </td></tr>
 <tr><td class="fieldtype">
-<a id="a7a66bebab0cec3b2b39b25b2728a1116" name="a7a66bebab0cec3b2b39b25b2728a1116"></a><a class="el" href="mixer_8h.html#structwaveform__t">waveform_t</a></td>
+<a id="ac2f49185869569f91066b6f53627a941" name="ac2f49185869569f91066b6f53627a941"></a><a class="el" href="structAY8910.html">AY8910</a></td>
 <td class="fieldname">
-wave</td>
+ay</td>
 <td class="fielddoc">
-waveform for playback with the mixer </td></tr>
+<a class="el" href="structAY8910.html" title="A AY-3-8910 emulator.">AY8910</a> emulator. </td></tr>
+<tr><td class="fieldtype">
+<a id="a71a262eeda9d8f81c6ff22173a2757d7" name="a71a262eeda9d8f81c6ff22173a2757d7"></a>uint8_t</td>
+<td class="fieldname">
+regs[16]</td>
+<td class="fielddoc">
+Current cached value of the AY registers. </td></tr>
+<tr><td class="fieldtype">
+<a id="a4d0bfabaf6acb99704f85516dad02575" name="a4d0bfabaf6acb99704f85516dad02575"></a>uint32_t</td>
+<td class="fieldname">
+nframes</td>
+<td class="fielddoc">
+Number of YM audio frames. </td></tr>
+<tr><td class="fieldtype">
+<a id="ad7231c5507b1760911011cc8287f1b16" name="ad7231c5507b1760911011cc8287f1b16"></a>uint32_t</td>
+<td class="fieldname">
+chipfreq</td>
+<td class="fielddoc">
+Operating frequency of the AY chip. </td></tr>
+<tr><td class="fieldtype">
+<a id="a40fbf0786b24afe8a1b1a5803d4f6bb6" name="a40fbf0786b24afe8a1b1a5803d4f6bb6"></a>uint16_t</td>
+<td class="fieldname">
+playfreq</td>
+<td class="fielddoc">
+Frequency of an audio frame (typically 50Hz or 60Hz) </td></tr>
+<tr><td class="fieldtype">
+<a id="af81831f2e8e54fb4a3ba2751d2cecb94" name="af81831f2e8e54fb4a3ba2751d2cecb94"></a>int</td>
+<td class="fieldname">
+curframe</td>
+<td class="fielddoc">
+Current audio frame being played. </td></tr>
+<tr><td class="fieldtype">
+<a id="a80cbce65e91254965a4d4437c26a144f" name="a80cbce65e91254965a4d4437c26a144f"></a>int</td>
+<td class="fieldname">
+first_ch</td>
+<td class="fielddoc">
+First channel used in the mixer for playback. </td></tr>
 </table>
 
 </div>
@@ -230,6 +230,12 @@ waveform for playback with the mixer </td></tr>
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
+<a id="adcc9f5f6ca833cf0bd09c62875ffd758" name="adcc9f5f6ca833cf0bd09c62875ffd758"></a>char</td>
+<td class="fieldname">
+name[128]</td>
+<td class="fielddoc">
+Name of the song. </td></tr>
+<tr><td class="fieldtype">
 <a id="a294e33c591e9385f2dd616b2de3412bc" name="a294e33c591e9385f2dd616b2de3412bc"></a>char</td>
 <td class="fieldname">
 author[128]</td>
@@ -241,17 +247,120 @@ Author of the song. </td></tr>
 comment[128]</td>
 <td class="fielddoc">
 Comment of the song. </td></tr>
-<tr><td class="fieldtype">
-<a id="adcc9f5f6ca833cf0bd09c62875ffd758" name="adcc9f5f6ca833cf0bd09c62875ffd758"></a>char</td>
-<td class="fieldname">
-name[128]</td>
-<td class="fielddoc">
-Name of the song. </td></tr>
 </table>
 
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="abcdd214e679c150f55bf8bd5797709ce" name="abcdd214e679c150f55bf8bd5797709ce"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abcdd214e679c150f55bf8bd5797709ce">&#9670;&nbsp;</a></span>ym64player_open()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void ym64player_open </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="ym64_8h.html#structym64player__t">ym64player_t</a> *&#160;</td>
+          <td class="paramname"><em>player</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>fn</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="ym64_8h.html#structym64player__songinfo__t">ym64player_songinfo_t</a> *&#160;</td>
+          <td class="paramname"><em>info</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Open a YM64 file for playback. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">player</td><td>YM64 player to initialize </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">fn</td><td>Filename of the XM64 (with filesystem prefix, e.g. <code>rom://</code>). </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">info</td><td>Optional structure to fill with information on the song (pass NULL if not needed) </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="a199d02446b392cf78f2feec784daa94a" name="a199d02446b392cf78f2feec784daa94a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a199d02446b392cf78f2feec784daa94a">&#9670;&nbsp;</a></span>ym64player_num_channels()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int ym64player_num_channels </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="ym64_8h.html#structym64player__t">ym64player_t</a> *&#160;</td>
+          <td class="paramname"><em>player</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Return the number of channels used in the mixer for playback. </p>
+<p >Depending on the AY emulator compile-time settings, this could be either 1 or 2 (mono or stereo). Notice that the YM64 currently mixes itself the 3 internal channels of the <a class="el" href="structAY8910.html" title="A AY-3-8910 emulator.">AY8910</a> chip, so only a final output stream is passed to the mixer.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">player</td><td>YM64 player </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>Number of mixer channels. </dd></dl>
+
+</div>
+</div>
+<a id="a1bd503b38d52911bdea824bb8b9396ab" name="a1bd503b38d52911bdea824bb8b9396ab"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1bd503b38d52911bdea824bb8b9396ab">&#9670;&nbsp;</a></span>ym64player_play()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void ym64player_play </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="ym64_8h.html#structym64player__t">ym64player_t</a> *&#160;</td>
+          <td class="paramname"><em>player</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>first_ch</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Start playback of a YM file. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">player</td><td>YM64 player </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">first_ch</td><td>First mixer channel to use for playback </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 <a id="a62bcf1bff28a16722a7f7b6ddb80a4ad" name="a62bcf1bff28a16722a7f7b6ddb80a4ad"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a62bcf1bff28a16722a7f7b6ddb80a4ad">&#9670;&nbsp;</a></span>ym64player_duration()</h2>
 
@@ -297,42 +406,14 @@ Name of the song. </td></tr>
 
 </div>
 </div>
-<a id="a199d02446b392cf78f2feec784daa94a" name="a199d02446b392cf78f2feec784daa94a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a199d02446b392cf78f2feec784daa94a">&#9670;&nbsp;</a></span>ym64player_num_channels()</h2>
+<a id="a43a506a86fa0a0e29a68192cacf36f7a" name="a43a506a86fa0a0e29a68192cacf36f7a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a43a506a86fa0a0e29a68192cacf36f7a">&#9670;&nbsp;</a></span>ym64player_tell()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">int ym64player_num_channels </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="ym64_8h.html#structym64player__t">ym64player_t</a> *&#160;</td>
-          <td class="paramname"><em>player</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Return the number of channels used in the mixer for playback. </p>
-<p >Depending on the AY emulator compile-time settings, this could be either 1 or 2 (mono or stereo). Notice that the YM64 currently mixes itself the 3 internal channels of the <a class="el" href="structAY8910.html" title="A AY-3-8910 emulator.">AY8910</a> chip, so only a final output stream is passed to the mixer.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">player</td><td>YM64 player </td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>Number of mixer channels. </dd></dl>
-
-</div>
-</div>
-<a id="abcdd214e679c150f55bf8bd5797709ce" name="abcdd214e679c150f55bf8bd5797709ce"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#abcdd214e679c150f55bf8bd5797709ce">&#9670;&nbsp;</a></span>ym64player_open()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void ym64player_open </td>
+          <td class="memname">void ym64player_tell </td>
           <td>(</td>
           <td class="paramtype"><a class="el" href="ym64_8h.html#structym64player__t">ym64player_t</a> *&#160;</td>
           <td class="paramname"><em>player</em>, </td>
@@ -340,14 +421,14 @@ Name of the song. </td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>fn</em>, </td>
+          <td class="paramtype">int *&#160;</td>
+          <td class="paramname"><em>pos</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="el" href="ym64_8h.html#structym64player__songinfo__t">ym64player_songinfo_t</a> *&#160;</td>
-          <td class="paramname"><em>info</em>&#160;</td>
+          <td class="paramtype">float *&#160;</td>
+          <td class="paramname"><em>secs</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -357,49 +438,13 @@ Name of the song. </td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Open a YM64 file for playback. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">player</td><td>YM64 player to initialize </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">fn</td><td>Filename of the XM64 (with filesystem prefix, e.g. <code>rom://</code>). </td></tr>
-    <tr><td class="paramdir">[out]</td><td class="paramname">info</td><td>Optional structure to fill with information on the song (pass NULL if not needed) </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="a1bd503b38d52911bdea824bb8b9396ab" name="a1bd503b38d52911bdea824bb8b9396ab"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1bd503b38d52911bdea824bb8b9396ab">&#9670;&nbsp;</a></span>ym64player_play()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void ym64player_play </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="ym64_8h.html#structym64player__t">ym64player_t</a> *&#160;</td>
-          <td class="paramname"><em>player</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>first_ch</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Start playback of a YM file. </p>
+<p>Read the current position of the YM module. </p>
+<p >The function returns the current position expressed in ticks (internal YM position), and also expressed as number of seconds. You can pass NULL to information that you are not interested in receiving.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">player</td><td>YM64 player </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">first_ch</td><td>First mixer channel to use for playback </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">pos</td><td>Current position in ticks </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">secs</td><td>Current position in seconds </td></tr>
   </table>
   </dd>
 </dl>
@@ -466,55 +511,10 @@ Name of the song. </td></tr>
 
 </div>
 </div>
-<a id="a43a506a86fa0a0e29a68192cacf36f7a" name="a43a506a86fa0a0e29a68192cacf36f7a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a43a506a86fa0a0e29a68192cacf36f7a">&#9670;&nbsp;</a></span>ym64player_tell()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void ym64player_tell </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="ym64_8h.html#structym64player__t">ym64player_t</a> *&#160;</td>
-          <td class="paramname"><em>player</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int *&#160;</td>
-          <td class="paramname"><em>pos</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">float *&#160;</td>
-          <td class="paramname"><em>secs</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Read the current position of the YM module. </p>
-<p >The function returns the current position expressed in ticks (internal YM position), and also expressed as number of seconds. You can pass NULL to information that you are not interested in receiving.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">player</td><td>YM64 player </td></tr>
-    <tr><td class="paramdir">[out]</td><td class="paramname">pos</td><td>Current position in ticks </td></tr>
-    <tr><td class="paramdir">[out]</td><td class="paramname">secs</td><td>Current position in seconds </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:58 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

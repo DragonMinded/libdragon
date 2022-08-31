@@ -132,10 +132,28 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>debug_assert_func_f</
 void&#160;</td><td class="memItemRight" valign="bottom"><b>debug_assert_func</b> (const char *file, int line, const char *func, const char *failedexpr)</td></tr>
 <tr class="memdesc:a6c3c99fed44410bc1ef618e77c7201d4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Assertion function that is registered into <a class="el" href="system_8c.html" title="newlib Interface Hooks">system.c</a> at startup. <br /></td></tr>
 <tr class="separator:a6c3c99fed44410bc1ef618e77c7201d4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af507aade880b5f43ac256c1c1a8c8d5f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="debug_8c.html#af507aade880b5f43ac256c1c1a8c8d5f">debug_hexdump</a> (const void *vbuf, int size)</td></tr>
+<tr class="memdesc:af507aade880b5f43ac256c1c1a8c8d5f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Do a hexdump of the specified buffer via <a class="el" href="debug_8h.html#aa3e8be416ef1525cfd3230204b56d184" title="Write a message to the debugging channel.">debugf</a>.  <a href="debug_8c.html#af507aade880b5f43ac256c1c1a8c8d5f">More...</a><br /></td></tr>
+<tr class="separator:af507aade880b5f43ac256c1c1a8c8d5f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p >Debugging Support. </p>
 </div><h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="afc19541124f4e8e53c6deb3367030740" name="afc19541124f4e8e53c6deb3367030740"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afc19541124f4e8e53c6deb3367030740">&#9670;&nbsp;</a></span>ISVIEWER_WRITE_LEN</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define ISVIEWER_WRITE_LEN&#160;&#160;&#160;((volatile uint32_t *)0xB3FF0014)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<p >ISViewer register for buffer write length </p>
+
+</div>
+</div>
 <a id="ac8ee018ab83421d4023d62dbf101a3a7" name="ac8ee018ab83421d4023d62dbf101a3a7"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ac8ee018ab83421d4023d62dbf101a3a7">&#9670;&nbsp;</a></span>ISVIEWER_BUFFER</h2>
 
@@ -166,21 +184,6 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>debug_assert_func</b>
 
 </div>
 </div>
-<a id="afc19541124f4e8e53c6deb3367030740" name="afc19541124f4e8e53c6deb3367030740"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#afc19541124f4e8e53c6deb3367030740">&#9670;&nbsp;</a></span>ISVIEWER_WRITE_LEN</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define ISVIEWER_WRITE_LEN&#160;&#160;&#160;((volatile uint32_t *)0xB3FF0014)</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-<p >ISViewer register for buffer write length </p>
-
-</div>
-</div>
 <a id="aa96bc6bb5bf359ae13b78e7ff9a3527e" name="aa96bc6bb5bf359ae13b78e7ff9a3527e"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#aa96bc6bb5bf359ae13b78e7ff9a3527e">&#9670;&nbsp;</a></span>MAX_FAT_FILES</h2>
 
@@ -196,10 +199,56 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>debug_assert_func</b>
 
 </div>
 </div>
+<h2 class="groupheader">Function Documentation</h2>
+<a id="af507aade880b5f43ac256c1c1a8c8d5f" name="af507aade880b5f43ac256c1c1a8c8d5f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af507aade880b5f43ac256c1c1a8c8d5f">&#9670;&nbsp;</a></span>debug_hexdump()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void debug_hexdump </td>
+          <td>(</td>
+          <td class="paramtype">const void *&#160;</td>
+          <td class="paramname"><em>buffer</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Do a hexdump of the specified buffer via <a class="el" href="debug_8h.html#aa3e8be416ef1525cfd3230204b56d184" title="Write a message to the debugging channel.">debugf</a>. </p>
+<p >This is useful to dump a binary buffer for debugging purposes. The hexdump shown contains both the hexadecimal and ASCII values, similar to what hex editors do.</p>
+<p >Sample output:</p>
+<pre>
+0000  80 80 80 80 80 80 80 80  80 80 80 80 80 80 80 80   |................|
+0010  45 67 cd ef aa aa aa aa  aa aa aa aa aa aa aa aa   |Eg..............| 
+0020  9a bc 12 34 80 80 80 80  80 80 80 80 80 80 80 80   |...4............|
+0030  aa aa aa aa aa aa aa aa  ef 01 67 89 aa aa aa aa   |..........g.....|
+0040  80 80 80 80 80 80 80 80  00 00 00 00 80 80 80 80   |................|
+</pre><dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">buffer</td><td>Buffer to dump </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">size</td><td>Size of the buffer in bytes </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:58 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

@@ -279,17 +279,17 @@ Functions</h2></td></tr>
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
-<a id="a84f604e87ab95da1b5043478a1f23e47" name="a84f604e87ab95da1b5043478a1f23e47"></a><a class="el" href="tpak_8h.html#aeb7d7f2f674a409d5610dd6f55a2eed6">gbc_support_type</a></td>
-<td class="fieldname">
-gbc_support</td>
-<td class="fielddoc">
-Game Boy Color support. </td></tr>
-<tr><td class="fieldtype">
 <a id="a2deb6664a65f3730dab275d3f80ef8ff" name="a2deb6664a65f3730dab275d3f80ef8ff"></a>uint8_t</td>
 <td class="fieldname">
 title[15]</td>
 <td class="fielddoc">
 Game title in ASCII. </td></tr>
+<tr><td class="fieldtype">
+<a id="a84f604e87ab95da1b5043478a1f23e47" name="a84f604e87ab95da1b5043478a1f23e47"></a><a class="el" href="tpak_8h.html#aeb7d7f2f674a409d5610dd6f55a2eed6">gbc_support_type</a></td>
+<td class="fieldname">
+gbc_support</td>
+<td class="fielddoc">
+Game Boy Color support. </td></tr>
 </table>
 
 </div>
@@ -310,11 +310,11 @@ Game title in ASCII. </td></tr>
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
-<a id="a1be5afca55abb4669fea0a290590b000" name="a1be5afca55abb4669fea0a290590b000"></a><a class="el" href="tpak_8h.html#aeb7d7f2f674a409d5610dd6f55a2eed6">gbc_support_type</a></td>
+<a id="aa29305e39a06eae4929829858aa2e3fa" name="aa29305e39a06eae4929829858aa2e3fa"></a>uint8_t</td>
 <td class="fieldname">
-gbc_support</td>
+title[11]</td>
 <td class="fielddoc">
-Game Boy Color support. </td></tr>
+Game title in ASCII. </td></tr>
 <tr><td class="fieldtype">
 <a id="ab1c9ffba2682d5265444f20815c81f0e" name="ab1c9ffba2682d5265444f20815c81f0e"></a>uint8_t</td>
 <td class="fieldname">
@@ -322,11 +322,11 @@ manufacturer_code[4]</td>
 <td class="fielddoc">
 Manufacturer identifier. </td></tr>
 <tr><td class="fieldtype">
-<a id="aa29305e39a06eae4929829858aa2e3fa" name="aa29305e39a06eae4929829858aa2e3fa"></a>uint8_t</td>
+<a id="a1be5afca55abb4669fea0a290590b000" name="a1be5afca55abb4669fea0a290590b000"></a><a class="el" href="tpak_8h.html#aeb7d7f2f674a409d5610dd6f55a2eed6">gbc_support_type</a></td>
 <td class="fieldname">
-title[11]</td>
+gbc_support</td>
 <td class="fielddoc">
-Game title in ASCII. </td></tr>
+Game Boy Color support. </td></tr>
 </table>
 
 </div>
@@ -347,47 +347,11 @@ Game title in ASCII. </td></tr>
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
-<a id="aab7ff50f56710b4e908964d2c8259541" name="aab7ff50f56710b4e908964d2c8259541"></a>union <a class="el" href="tpak_8h.html#uniongameboy__cartridge__header_8____unnamed21____">gameboy_cartridge_header.__unnamed21__</a></td>
-<td class="fieldname">
-__unnamed__</td>
-<td class="fielddoc">
-Union of possible structures for the game title bytes. </td></tr>
-<tr><td class="fieldtype">
-<a id="acdb04295a92ab65a54d50561a63ea99b" name="acdb04295a92ab65a54d50561a63ea99b"></a><a class="el" href="tpak_8h.html#ab52492e99bfa703b0c320bf872ccf0eb">gb_cart_type_t</a></td>
-<td class="fieldname">
-cartridge_type</td>
-<td class="fielddoc">
-Cartridge type. </td></tr>
-<tr><td class="fieldtype">
-<a id="a00a88388538792b386dfadb75decbaf1" name="a00a88388538792b386dfadb75decbaf1"></a>uint8_t</td>
-<td class="fieldname">
-destination_code</td>
-<td class="fielddoc">
-Japan-only identifier. </td></tr>
-<tr><td class="fieldtype">
 <a id="ac476b4130c9762d331280ba2c9487505" name="ac476b4130c9762d331280ba2c9487505"></a>uint8_t</td>
 <td class="fieldname">
 entry_point[4]</td>
 <td class="fielddoc">
 Z80 instructions to boot the main program. </td></tr>
-<tr><td class="fieldtype">
-<a id="a5ac66f3681bc55d8a5501a625a704f38" name="a5ac66f3681bc55d8a5501a625a704f38"></a>uint16_t</td>
-<td class="fieldname">
-global_checksum</td>
-<td class="fielddoc">
-Checksum of entire cartridge ROM. </td></tr>
-<tr><td class="fieldtype">
-<a id="a8a2a5b5485fb8418c9e4e0369b1bf309" name="a8a2a5b5485fb8418c9e4e0369b1bf309"></a>uint8_t</td>
-<td class="fieldname">
-header_checksum</td>
-<td class="fielddoc">
-Checksum of cartridge ROM header. </td></tr>
-<tr><td class="fieldtype">
-<a id="a302756cfef331ca9e94ad4eb49e814c1" name="a302756cfef331ca9e94ad4eb49e814c1"></a><a class="el" href="tpak_8h.html#a65a36b9bf504ca51cd9b616a61fe75af">sgb_support_type</a></td>
-<td class="fieldname">
-is_sgb_supported</td>
-<td class="fielddoc">
-Super Game Boy support. </td></tr>
 <tr><td class="fieldtype">
 <a id="a5f99e891c7e4e8906bf5822bca1e6e81" name="a5f99e891c7e4e8906bf5822bca1e6e81"></a>uint8_t</td>
 <td class="fieldname">
@@ -395,29 +359,29 @@ logo[48]</td>
 <td class="fielddoc">
 Bitmap image data for the boot logo. </td></tr>
 <tr><td class="fieldtype">
+<a id="aab7ff50f56710b4e908964d2c8259541" name="aab7ff50f56710b4e908964d2c8259541"></a>union <a class="el" href="tpak_8h.html#uniongameboy__cartridge__header_8____unnamed21____">gameboy_cartridge_header.__unnamed21__</a></td>
+<td class="fieldname">
+__unnamed__</td>
+<td class="fielddoc">
+Union of possible structures for the game title bytes. </td></tr>
+<tr><td class="fieldtype">
 <a id="aaeb2406d462fee70ed472cb37af7988a" name="aaeb2406d462fee70ed472cb37af7988a"></a>uint16_t</td>
 <td class="fieldname">
 new_licensee_code</td>
 <td class="fielddoc">
 "New" publisher identifier. </td></tr>
 <tr><td class="fieldtype">
-<a id="abf1e36b71ecfa4bd6f034abda03c05fe" name="abf1e36b71ecfa4bd6f034abda03c05fe"></a>uint8_t</td>
+<a id="a302756cfef331ca9e94ad4eb49e814c1" name="a302756cfef331ca9e94ad4eb49e814c1"></a><a class="el" href="tpak_8h.html#a65a36b9bf504ca51cd9b616a61fe75af">sgb_support_type</a></td>
 <td class="fieldname">
-old_licensee_code</td>
+is_sgb_supported</td>
 <td class="fielddoc">
-"Old" publisher identifier. </td></tr>
+Super Game Boy support. </td></tr>
 <tr><td class="fieldtype">
-<a id="ae603e8df3dabd3574512053a9bd26d83" name="ae603e8df3dabd3574512053a9bd26d83"></a>uint8_t</td>
+<a id="acdb04295a92ab65a54d50561a63ea99b" name="acdb04295a92ab65a54d50561a63ea99b"></a><a class="el" href="tpak_8h.html#ab52492e99bfa703b0c320bf872ccf0eb">gb_cart_type_t</a></td>
 <td class="fieldname">
-overflow[16]</td>
+cartridge_type</td>
 <td class="fielddoc">
-Padding. </td></tr>
-<tr><td class="fieldtype">
-<a id="a0969c89ebf119da8111dd43c00cf76cb" name="a0969c89ebf119da8111dd43c00cf76cb"></a><a class="el" href="tpak_8h.html#aced465bf5424f9a54d5f34c05a9b90d2">gb_cart_ram_size_t</a></td>
-<td class="fieldname">
-ram_size_code</td>
-<td class="fielddoc">
-RAM size identifier. </td></tr>
+Cartridge type. </td></tr>
 <tr><td class="fieldtype">
 <a id="a8681d565d1586a01ef7312153314947e" name="a8681d565d1586a01ef7312153314947e"></a><a class="el" href="tpak_8h.html#ae64e3e4ce4a64f4df1b457cc439396f5">gb_cart_rom_size_t</a></td>
 <td class="fieldname">
@@ -425,11 +389,47 @@ rom_size_code</td>
 <td class="fielddoc">
 ROM size identifier. </td></tr>
 <tr><td class="fieldtype">
+<a id="a0969c89ebf119da8111dd43c00cf76cb" name="a0969c89ebf119da8111dd43c00cf76cb"></a><a class="el" href="tpak_8h.html#aced465bf5424f9a54d5f34c05a9b90d2">gb_cart_ram_size_t</a></td>
+<td class="fieldname">
+ram_size_code</td>
+<td class="fielddoc">
+RAM size identifier. </td></tr>
+<tr><td class="fieldtype">
+<a id="a00a88388538792b386dfadb75decbaf1" name="a00a88388538792b386dfadb75decbaf1"></a>uint8_t</td>
+<td class="fieldname">
+destination_code</td>
+<td class="fielddoc">
+Japan-only identifier. </td></tr>
+<tr><td class="fieldtype">
+<a id="abf1e36b71ecfa4bd6f034abda03c05fe" name="abf1e36b71ecfa4bd6f034abda03c05fe"></a>uint8_t</td>
+<td class="fieldname">
+old_licensee_code</td>
+<td class="fielddoc">
+"Old" publisher identifier. </td></tr>
+<tr><td class="fieldtype">
 <a id="ab742ef846978b3ffe4a313374479c0b8" name="ab742ef846978b3ffe4a313374479c0b8"></a>uint8_t</td>
 <td class="fieldname">
 version_number</td>
 <td class="fielddoc">
 Version number of the game. </td></tr>
+<tr><td class="fieldtype">
+<a id="a8a2a5b5485fb8418c9e4e0369b1bf309" name="a8a2a5b5485fb8418c9e4e0369b1bf309"></a>uint8_t</td>
+<td class="fieldname">
+header_checksum</td>
+<td class="fielddoc">
+Checksum of cartridge ROM header. </td></tr>
+<tr><td class="fieldtype">
+<a id="a5ac66f3681bc55d8a5501a625a704f38" name="a5ac66f3681bc55d8a5501a625a704f38"></a>uint16_t</td>
+<td class="fieldname">
+global_checksum</td>
+<td class="fielddoc">
+Checksum of entire cartridge ROM. </td></tr>
+<tr><td class="fieldtype">
+<a id="ae603e8df3dabd3574512053a9bd26d83" name="ae603e8df3dabd3574512053a9bd26d83"></a>uint8_t</td>
+<td class="fieldname">
+overflow[16]</td>
+<td class="fielddoc">
+Padding. </td></tr>
 </table>
 
 </div>
@@ -449,11 +449,11 @@ Version number of the game. </td></tr>
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
-<a id="a628b48f1fc47acbf7fa5252948e92c6c" name="a628b48f1fc47acbf7fa5252948e92c6c"></a>struct <a class="el" href="tpak_8h.html#structnew__gbc__title">new_gbc_title</a></td>
+<a id="aa1ee0253bc36c6c63d78b3d19566c793" name="aa1ee0253bc36c6c63d78b3d19566c793"></a>uint8_t</td>
 <td class="fieldname">
-new_title</td>
+title[16]</td>
 <td class="fielddoc">
-"New" Game Boy Color title structure. </td></tr>
+Game title in ASCII. </td></tr>
 <tr><td class="fieldtype">
 <a id="a6256f37c03a9662f5dbbfcafeb5120cf" name="a6256f37c03a9662f5dbbfcafeb5120cf"></a>struct <a class="el" href="tpak_8h.html#structold__gbc__title">old_gbc_title</a></td>
 <td class="fieldname">
@@ -461,50 +461,16 @@ old_title</td>
 <td class="fielddoc">
 "Old" Game Boy Color title structure. </td></tr>
 <tr><td class="fieldtype">
-<a id="aa1ee0253bc36c6c63d78b3d19566c793" name="aa1ee0253bc36c6c63d78b3d19566c793"></a>uint8_t</td>
+<a id="a628b48f1fc47acbf7fa5252948e92c6c" name="a628b48f1fc47acbf7fa5252948e92c6c"></a>struct <a class="el" href="tpak_8h.html#structnew__gbc__title">new_gbc_title</a></td>
 <td class="fieldname">
-title[16]</td>
+new_title</td>
 <td class="fielddoc">
-Game title in ASCII. </td></tr>
+"New" Game Boy Color title structure. </td></tr>
 </table>
 
 </div>
 </div>
 <h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="a2179bb6ebadeb7c6bcf50c382f370f7b" name="a2179bb6ebadeb7c6bcf50c382f370f7b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2179bb6ebadeb7c6bcf50c382f370f7b">&#9670;&nbsp;</a></span>TPAK_STATUS_IS_RESETTING</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define TPAK_STATUS_IS_RESETTING&#160;&#160;&#160;0x08</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Transfer Pak status bit 3: Reset detected. </p>
-<p >If set, the Game Boy cartridge has been reset since the last status read. </p>
-
-</div>
-</div>
-<a id="af1f9331836522eb5670e3abf54652eab" name="af1f9331836522eb5670e3abf54652eab"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af1f9331836522eb5670e3abf54652eab">&#9670;&nbsp;</a></span>TPAK_STATUS_POWERED</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define TPAK_STATUS_POWERED&#160;&#160;&#160;0x80</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Transfer Pak status bit 7: Power status. </p>
-<p >If set, the Transfer Pak has enabled power to the Game Boy cartridge. </p>
-
-</div>
-</div>
 <a id="a26d7ded15ec0669b1f3a6b21dc18bc0c" name="a26d7ded15ec0669b1f3a6b21dc18bc0c"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a26d7ded15ec0669b1f3a6b21dc18bc0c">&#9670;&nbsp;</a></span>TPAK_STATUS_READY</h2>
 
@@ -519,23 +485,6 @@ Game title in ASCII. </td></tr>
 
 <p>Transfer Pak status bit 0: Ready. </p>
 <p >Also referred to as the "Access Mode" flag. If not set, Transfer Pak cartridge reads/writes will fail. </p>
-
-</div>
-</div>
-<a id="a1c0abf459a3b943c08efa42f026076e1" name="a1c0abf459a3b943c08efa42f026076e1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1c0abf459a3b943c08efa42f026076e1">&#9670;&nbsp;</a></span>TPAK_STATUS_REMOVED</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define TPAK_STATUS_REMOVED&#160;&#160;&#160;0x40</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Transfer Pak status bit 6: Cartridge removed. </p>
-<p >If set, there is no Game Boy cartridge in the Transfer Pak. </p>
 
 </div>
 </div>
@@ -556,81 +505,58 @@ Game title in ASCII. </td></tr>
 
 </div>
 </div>
+<a id="a2179bb6ebadeb7c6bcf50c382f370f7b" name="a2179bb6ebadeb7c6bcf50c382f370f7b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2179bb6ebadeb7c6bcf50c382f370f7b">&#9670;&nbsp;</a></span>TPAK_STATUS_IS_RESETTING</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define TPAK_STATUS_IS_RESETTING&#160;&#160;&#160;0x08</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Transfer Pak status bit 3: Reset detected. </p>
+<p >If set, the Game Boy cartridge has been reset since the last status read. </p>
+
+</div>
+</div>
+<a id="a1c0abf459a3b943c08efa42f026076e1" name="a1c0abf459a3b943c08efa42f026076e1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1c0abf459a3b943c08efa42f026076e1">&#9670;&nbsp;</a></span>TPAK_STATUS_REMOVED</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define TPAK_STATUS_REMOVED&#160;&#160;&#160;0x40</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Transfer Pak status bit 6: Cartridge removed. </p>
+<p >If set, there is no Game Boy cartridge in the Transfer Pak. </p>
+
+</div>
+</div>
+<a id="af1f9331836522eb5670e3abf54652eab" name="af1f9331836522eb5670e3abf54652eab"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af1f9331836522eb5670e3abf54652eab">&#9670;&nbsp;</a></span>TPAK_STATUS_POWERED</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define TPAK_STATUS_POWERED&#160;&#160;&#160;0x80</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Transfer Pak status bit 7: Power status. </p>
+<p >If set, the Transfer Pak has enabled power to the Game Boy cartridge. </p>
+
+</div>
+</div>
 <h2 class="groupheader">Enumeration Type Documentation</h2>
-<a id="aced465bf5424f9a54d5f34c05a9b90d2" name="aced465bf5424f9a54d5f34c05a9b90d2"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aced465bf5424f9a54d5f34c05a9b90d2">&#9670;&nbsp;</a></span>gb_cart_ram_size_t</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">enum <a class="el" href="tpak_8h.html#aced465bf5424f9a54d5f34c05a9b90d2">gb_cart_ram_size_t</a></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Game Boy cartridge RAM size types. </p>
-<p >Describes how much SRAM is available on the cartridge. </p>
-<table class="fieldtable">
-<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="aced465bf5424f9a54d5f34c05a9b90d2a31058242216904f7a029cd8e5d10dc89" name="aced465bf5424f9a54d5f34c05a9b90d2a31058242216904f7a029cd8e5d10dc89"></a>GB_RAM_NONE&#160;</td><td class="fielddoc"><p >RAM not available. </p>
-</td></tr>
-<tr><td class="fieldname"><a id="aced465bf5424f9a54d5f34c05a9b90d2a01d1a6685a97c9f56bb06f2ed3e5e71e" name="aced465bf5424f9a54d5f34c05a9b90d2a01d1a6685a97c9f56bb06f2ed3e5e71e"></a>GB_RAM_2KB&#160;</td><td class="fielddoc"><p >RAM size: 2KB (no banks) </p>
-</td></tr>
-<tr><td class="fieldname"><a id="aced465bf5424f9a54d5f34c05a9b90d2ab38a5159e77094c00e6dfadd5b760af3" name="aced465bf5424f9a54d5f34c05a9b90d2ab38a5159e77094c00e6dfadd5b760af3"></a>GB_RAM_8KB&#160;</td><td class="fielddoc"><p >RAM size: 8KB (no banks) </p>
-</td></tr>
-<tr><td class="fieldname"><a id="aced465bf5424f9a54d5f34c05a9b90d2a52534594463af95b4aa501a6a2480c6a" name="aced465bf5424f9a54d5f34c05a9b90d2a52534594463af95b4aa501a6a2480c6a"></a>GB_RAM_32KB&#160;</td><td class="fielddoc"><p >RAM size: 32KB (4 banks) </p>
-</td></tr>
-<tr><td class="fieldname"><a id="aced465bf5424f9a54d5f34c05a9b90d2a2745a5c0d69f12166102e161428ba754" name="aced465bf5424f9a54d5f34c05a9b90d2a2745a5c0d69f12166102e161428ba754"></a>GB_RAM_64KB&#160;</td><td class="fielddoc"><p >RAM size: 64KB (8 banks) </p>
-</td></tr>
-<tr><td class="fieldname"><a id="aced465bf5424f9a54d5f34c05a9b90d2a1823abc6293a754fef626ed4da9b1c00" name="aced465bf5424f9a54d5f34c05a9b90d2a1823abc6293a754fef626ed4da9b1c00"></a>GB_RAM_128KB&#160;</td><td class="fielddoc"><p >RAM size: 128KB (16 banks) </p>
-</td></tr>
-</table>
-
-</div>
-</div>
-<a id="ae64e3e4ce4a64f4df1b457cc439396f5" name="ae64e3e4ce4a64f4df1b457cc439396f5"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae64e3e4ce4a64f4df1b457cc439396f5">&#9670;&nbsp;</a></span>gb_cart_rom_size_t</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">enum <a class="el" href="tpak_8h.html#ae64e3e4ce4a64f4df1b457cc439396f5">gb_cart_rom_size_t</a></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Game Boy cartridge ROM size types. </p>
-<p >Describes how many ROM banks are available on the cartridge. </p>
-<table class="fieldtable">
-<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5ab69a9b9f11399bd1ed3bcf1e4874cb69" name="ae64e3e4ce4a64f4df1b457cc439396f5ab69a9b9f11399bd1ed3bcf1e4874cb69"></a>GB_ROM_32KB&#160;</td><td class="fielddoc"><p >ROM size: 32KB (no banks) </p>
-</td></tr>
-<tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5a16aa2a6ada6a1836f2d37c650ea3ef17" name="ae64e3e4ce4a64f4df1b457cc439396f5a16aa2a6ada6a1836f2d37c650ea3ef17"></a>GB_ROM_64KB&#160;</td><td class="fielddoc"><p >ROM size: 64KB (4 banks) </p>
-</td></tr>
-<tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5ad5ade46ffb89f883d3d970f1b482d47d" name="ae64e3e4ce4a64f4df1b457cc439396f5ad5ade46ffb89f883d3d970f1b482d47d"></a>GB_ROM_128KB&#160;</td><td class="fielddoc"><p >ROM size: 128KB (8 banks) </p>
-</td></tr>
-<tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5a95603f5373065120d978325c8bd85455" name="ae64e3e4ce4a64f4df1b457cc439396f5a95603f5373065120d978325c8bd85455"></a>GB_ROM_256KB&#160;</td><td class="fielddoc"><p >ROM size: 256KB (16 banks) </p>
-</td></tr>
-<tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5a83d13c9dfa8c33413499f7ed503c2bd5" name="ae64e3e4ce4a64f4df1b457cc439396f5a83d13c9dfa8c33413499f7ed503c2bd5"></a>GB_ROM_512KB&#160;</td><td class="fielddoc"><p >ROM size: 512KB (32 banks) </p>
-</td></tr>
-<tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5a19826ba8daf3e85859d62c81c75e557d" name="ae64e3e4ce4a64f4df1b457cc439396f5a19826ba8daf3e85859d62c81c75e557d"></a>GB_ROM_1MB&#160;</td><td class="fielddoc"><p >ROM size: 1MB (64 banks) </p>
-</td></tr>
-<tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5af6d64341b7a6b11d6aad4025a12efcfd" name="ae64e3e4ce4a64f4df1b457cc439396f5af6d64341b7a6b11d6aad4025a12efcfd"></a>GB_ROM_2MB&#160;</td><td class="fielddoc"><p >ROM size: 2MB (128 banks) </p>
-</td></tr>
-<tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5afea805597732aa6ca8a80b8bf6afd2b9" name="ae64e3e4ce4a64f4df1b457cc439396f5afea805597732aa6ca8a80b8bf6afd2b9"></a>GB_ROM_4MB&#160;</td><td class="fielddoc"><p >ROM size: 4MB (256 banks) </p>
-</td></tr>
-<tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5ab7066097de215f01918639fab70c5523" name="ae64e3e4ce4a64f4df1b457cc439396f5ab7066097de215f01918639fab70c5523"></a>GB_ROM_8MB&#160;</td><td class="fielddoc"><p >ROM size: 8MB (512 banks) </p>
-</td></tr>
-<tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5a6563d85dd4e73ba6f66e7c08075ae5bc" name="ae64e3e4ce4a64f4df1b457cc439396f5a6563d85dd4e73ba6f66e7c08075ae5bc"></a>GB_ROM_1152KB&#160;</td><td class="fielddoc"><p >ROM size: 1.1MB (72 banks) </p>
-</td></tr>
-<tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5acb662c90c81748d3b03be01ddd8e006c" name="ae64e3e4ce4a64f4df1b457cc439396f5acb662c90c81748d3b03be01ddd8e006c"></a>GB_ROM_1280KB&#160;</td><td class="fielddoc"><p >ROM size: 1.2MB (80 banks) </p>
-</td></tr>
-<tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5a15942cf5d95a375e677983874a8b14dc" name="ae64e3e4ce4a64f4df1b457cc439396f5a15942cf5d95a375e677983874a8b14dc"></a>GB_ROM_1536KB&#160;</td><td class="fielddoc"><p >ROM size: 1.5MB (96 banks) </p>
-</td></tr>
-</table>
-
-</div>
-</div>
 <a id="ab52492e99bfa703b0c320bf872ccf0eb" name="ab52492e99bfa703b0c320bf872ccf0eb"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ab52492e99bfa703b0c320bf872ccf0eb">&#9670;&nbsp;</a></span>gb_cart_type_t</h2>
 
@@ -706,6 +632,80 @@ Game title in ASCII. </td></tr>
 
 </div>
 </div>
+<a id="ae64e3e4ce4a64f4df1b457cc439396f5" name="ae64e3e4ce4a64f4df1b457cc439396f5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae64e3e4ce4a64f4df1b457cc439396f5">&#9670;&nbsp;</a></span>gb_cart_rom_size_t</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="tpak_8h.html#ae64e3e4ce4a64f4df1b457cc439396f5">gb_cart_rom_size_t</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Game Boy cartridge ROM size types. </p>
+<p >Describes how many ROM banks are available on the cartridge. </p>
+<table class="fieldtable">
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5ab69a9b9f11399bd1ed3bcf1e4874cb69" name="ae64e3e4ce4a64f4df1b457cc439396f5ab69a9b9f11399bd1ed3bcf1e4874cb69"></a>GB_ROM_32KB&#160;</td><td class="fielddoc"><p >ROM size: 32KB (no banks) </p>
+</td></tr>
+<tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5a16aa2a6ada6a1836f2d37c650ea3ef17" name="ae64e3e4ce4a64f4df1b457cc439396f5a16aa2a6ada6a1836f2d37c650ea3ef17"></a>GB_ROM_64KB&#160;</td><td class="fielddoc"><p >ROM size: 64KB (4 banks) </p>
+</td></tr>
+<tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5ad5ade46ffb89f883d3d970f1b482d47d" name="ae64e3e4ce4a64f4df1b457cc439396f5ad5ade46ffb89f883d3d970f1b482d47d"></a>GB_ROM_128KB&#160;</td><td class="fielddoc"><p >ROM size: 128KB (8 banks) </p>
+</td></tr>
+<tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5a95603f5373065120d978325c8bd85455" name="ae64e3e4ce4a64f4df1b457cc439396f5a95603f5373065120d978325c8bd85455"></a>GB_ROM_256KB&#160;</td><td class="fielddoc"><p >ROM size: 256KB (16 banks) </p>
+</td></tr>
+<tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5a83d13c9dfa8c33413499f7ed503c2bd5" name="ae64e3e4ce4a64f4df1b457cc439396f5a83d13c9dfa8c33413499f7ed503c2bd5"></a>GB_ROM_512KB&#160;</td><td class="fielddoc"><p >ROM size: 512KB (32 banks) </p>
+</td></tr>
+<tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5a19826ba8daf3e85859d62c81c75e557d" name="ae64e3e4ce4a64f4df1b457cc439396f5a19826ba8daf3e85859d62c81c75e557d"></a>GB_ROM_1MB&#160;</td><td class="fielddoc"><p >ROM size: 1MB (64 banks) </p>
+</td></tr>
+<tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5af6d64341b7a6b11d6aad4025a12efcfd" name="ae64e3e4ce4a64f4df1b457cc439396f5af6d64341b7a6b11d6aad4025a12efcfd"></a>GB_ROM_2MB&#160;</td><td class="fielddoc"><p >ROM size: 2MB (128 banks) </p>
+</td></tr>
+<tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5afea805597732aa6ca8a80b8bf6afd2b9" name="ae64e3e4ce4a64f4df1b457cc439396f5afea805597732aa6ca8a80b8bf6afd2b9"></a>GB_ROM_4MB&#160;</td><td class="fielddoc"><p >ROM size: 4MB (256 banks) </p>
+</td></tr>
+<tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5ab7066097de215f01918639fab70c5523" name="ae64e3e4ce4a64f4df1b457cc439396f5ab7066097de215f01918639fab70c5523"></a>GB_ROM_8MB&#160;</td><td class="fielddoc"><p >ROM size: 8MB (512 banks) </p>
+</td></tr>
+<tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5a6563d85dd4e73ba6f66e7c08075ae5bc" name="ae64e3e4ce4a64f4df1b457cc439396f5a6563d85dd4e73ba6f66e7c08075ae5bc"></a>GB_ROM_1152KB&#160;</td><td class="fielddoc"><p >ROM size: 1.1MB (72 banks) </p>
+</td></tr>
+<tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5acb662c90c81748d3b03be01ddd8e006c" name="ae64e3e4ce4a64f4df1b457cc439396f5acb662c90c81748d3b03be01ddd8e006c"></a>GB_ROM_1280KB&#160;</td><td class="fielddoc"><p >ROM size: 1.2MB (80 banks) </p>
+</td></tr>
+<tr><td class="fieldname"><a id="ae64e3e4ce4a64f4df1b457cc439396f5a15942cf5d95a375e677983874a8b14dc" name="ae64e3e4ce4a64f4df1b457cc439396f5a15942cf5d95a375e677983874a8b14dc"></a>GB_ROM_1536KB&#160;</td><td class="fielddoc"><p >ROM size: 1.5MB (96 banks) </p>
+</td></tr>
+</table>
+
+</div>
+</div>
+<a id="aced465bf5424f9a54d5f34c05a9b90d2" name="aced465bf5424f9a54d5f34c05a9b90d2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aced465bf5424f9a54d5f34c05a9b90d2">&#9670;&nbsp;</a></span>gb_cart_ram_size_t</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="tpak_8h.html#aced465bf5424f9a54d5f34c05a9b90d2">gb_cart_ram_size_t</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Game Boy cartridge RAM size types. </p>
+<p >Describes how much SRAM is available on the cartridge. </p>
+<table class="fieldtable">
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="aced465bf5424f9a54d5f34c05a9b90d2a31058242216904f7a029cd8e5d10dc89" name="aced465bf5424f9a54d5f34c05a9b90d2a31058242216904f7a029cd8e5d10dc89"></a>GB_RAM_NONE&#160;</td><td class="fielddoc"><p >RAM not available. </p>
+</td></tr>
+<tr><td class="fieldname"><a id="aced465bf5424f9a54d5f34c05a9b90d2a01d1a6685a97c9f56bb06f2ed3e5e71e" name="aced465bf5424f9a54d5f34c05a9b90d2a01d1a6685a97c9f56bb06f2ed3e5e71e"></a>GB_RAM_2KB&#160;</td><td class="fielddoc"><p >RAM size: 2KB (no banks) </p>
+</td></tr>
+<tr><td class="fieldname"><a id="aced465bf5424f9a54d5f34c05a9b90d2ab38a5159e77094c00e6dfadd5b760af3" name="aced465bf5424f9a54d5f34c05a9b90d2ab38a5159e77094c00e6dfadd5b760af3"></a>GB_RAM_8KB&#160;</td><td class="fielddoc"><p >RAM size: 8KB (no banks) </p>
+</td></tr>
+<tr><td class="fieldname"><a id="aced465bf5424f9a54d5f34c05a9b90d2a52534594463af95b4aa501a6a2480c6a" name="aced465bf5424f9a54d5f34c05a9b90d2a52534594463af95b4aa501a6a2480c6a"></a>GB_RAM_32KB&#160;</td><td class="fielddoc"><p >RAM size: 32KB (4 banks) </p>
+</td></tr>
+<tr><td class="fieldname"><a id="aced465bf5424f9a54d5f34c05a9b90d2a2745a5c0d69f12166102e161428ba754" name="aced465bf5424f9a54d5f34c05a9b90d2a2745a5c0d69f12166102e161428ba754"></a>GB_RAM_64KB&#160;</td><td class="fielddoc"><p >RAM size: 64KB (8 banks) </p>
+</td></tr>
+<tr><td class="fieldname"><a id="aced465bf5424f9a54d5f34c05a9b90d2a1823abc6293a754fef626ed4da9b1c00" name="aced465bf5424f9a54d5f34c05a9b90d2a1823abc6293a754fef626ed4da9b1c00"></a>GB_RAM_128KB&#160;</td><td class="fielddoc"><p >RAM size: 128KB (16 banks) </p>
+</td></tr>
+</table>
+
+</div>
+</div>
 <a id="aeb7d7f2f674a409d5610dd6f55a2eed6" name="aeb7d7f2f674a409d5610dd6f55a2eed6"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#aeb7d7f2f674a409d5610dd6f55a2eed6">&#9670;&nbsp;</a></span>gbc_support_type</h2>
 
@@ -758,98 +758,6 @@ Game title in ASCII. </td></tr>
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a4d4815b2643fdb64a0d12f99beaa7d0a" name="a4d4815b2643fdb64a0d12f99beaa7d0a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4d4815b2643fdb64a0d12f99beaa7d0a">&#9670;&nbsp;</a></span>tpak_check_header()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">bool tpak_check_header </td>
-          <td>(</td>
-          <td class="paramtype">struct <a class="el" href="tpak_8h.html#structgameboy__cartridge__header">gameboy_cartridge_header</a> *&#160;</td>
-          <td class="paramname"><em>header</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Verify a Game Boy cartridge ROM header checksum. </p>
-<p >Confirms that the Transfer Pak is connected and working properly.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">header</td><td>The Game Boy ROM header to check. </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="ac275be37f853abac5bc64548f3722607" name="ac275be37f853abac5bc64548f3722607"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac275be37f853abac5bc64548f3722607">&#9670;&nbsp;</a></span>tpak_get_cartridge_header()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int tpak_get_cartridge_header </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>controller</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">struct <a class="el" href="tpak_8h.html#structgameboy__cartridge__header">gameboy_cartridge_header</a> *&#160;</td>
-          <td class="paramname"><em>header</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Read the Game Boy cartridge ROM header from a Transfer Pak. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) with Transfer Pak connected. </td></tr>
-    <tr><td class="paramdir">[out]</td><td class="paramname">header</td><td>Pointer to destination Game Boy cartridge ROM header data structure. </td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>0 if successful or <a class="el" href="tpak_8h.html#TPAK_ERROR">TPAK_ERROR</a> otherwise. </dd></dl>
-
-</div>
-</div>
-<a id="afd9cdb4edd60438bf470cc07e2bba208" name="afd9cdb4edd60438bf470cc07e2bba208"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#afd9cdb4edd60438bf470cc07e2bba208">&#9670;&nbsp;</a></span>tpak_get_status()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">uint8_t tpak_get_status </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>controller</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Get the status flags for a Transfer Pak. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) with Transfer Pak connected. </td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>The status byte with <a class="el" href="tpak_8h.html#TPAK_STATUS">TPAK_STATUS</a> flags </dd></dl>
-
-</div>
-</div>
 <a id="a01be95d7571316576742cb8c90e44c8a" name="a01be95d7571316576742cb8c90e44c8a"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a01be95d7571316576742cb8c90e44c8a">&#9670;&nbsp;</a></span>tpak_init()</h2>
 
@@ -878,14 +786,14 @@ Game title in ASCII. </td></tr>
 
 </div>
 </div>
-<a id="a1e1f0e50ff7db26b5813049a1987c508" name="a1e1f0e50ff7db26b5813049a1987c508"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1e1f0e50ff7db26b5813049a1987c508">&#9670;&nbsp;</a></span>tpak_read()</h2>
+<a id="a9791ad189ddca33d64d1911afc96b1e0" name="a9791ad189ddca33d64d1911afc96b1e0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9791ad189ddca33d64d1911afc96b1e0">&#9670;&nbsp;</a></span>tpak_set_value()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">int tpak_read </td>
+          <td class="memname">int tpak_set_value </td>
           <td>(</td>
           <td class="paramtype">int&#160;</td>
           <td class="paramname"><em>controller</em>, </td>
@@ -899,14 +807,8 @@ Game title in ASCII. </td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">uint8_t *&#160;</td>
-          <td class="paramname"><em>buffer</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint16_t&#160;</td>
-          <td class="paramname"><em>size</em>&#160;</td>
+          <td class="paramtype">uint8_t&#160;</td>
+          <td class="paramname"><em>value</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -916,55 +818,16 @@ Game title in ASCII. </td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Read data from a Game Boy cartridge to a buffer via Transfer Pak. </p>
+<p>Set Transfer Pak or Game Boy cartridge status/control value. </p>
+<p >This is an internal helper to set a Transfer Pak status or control setting. This function is not suitable for setting individual bytes in Save RAM!</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) with Transfer Pak connected. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">address</td><td>address in Game Boy cartridge space to read from. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">buffer</td><td>buffer to copy cartridge data into. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">size</td><td>length of the data to be read. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">address</td><td>Address of the setting. Should be between 0x8000 and 0xBFE0 </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">value</td><td>A byte of data to fill the write buffer with. </td></tr>
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd>0 if successful or <a class="el" href="tpak_8h.html#TPAK_ERROR">TPAK_ERROR</a> otherwise. </dd></dl>
-
-</div>
-</div>
-<a id="a1867478e8966e18aa852f51af573a099" name="a1867478e8966e18aa852f51af573a099"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1867478e8966e18aa852f51af573a099">&#9670;&nbsp;</a></span>tpak_set_access()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int tpak_set_access </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>controller</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">bool&#160;</td>
-          <td class="paramname"><em>access_state</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Set the access mode flag for a Transfer Pak. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) with Transfer Pak connected. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">access_state</td><td>Whether to allow access to the Game Boy cartridge. </td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>0 if successful or <a class="el" href="tpak_8h.html#TPAK_ERROR">TPAK_ERROR</a> otherwise. </dd></dl>
 
 </div>
 </div>
@@ -1045,14 +908,14 @@ Game title in ASCII. </td></tr>
 
 </div>
 </div>
-<a id="a9791ad189ddca33d64d1911afc96b1e0" name="a9791ad189ddca33d64d1911afc96b1e0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9791ad189ddca33d64d1911afc96b1e0">&#9670;&nbsp;</a></span>tpak_set_value()</h2>
+<a id="a1867478e8966e18aa852f51af573a099" name="a1867478e8966e18aa852f51af573a099"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1867478e8966e18aa852f51af573a099">&#9670;&nbsp;</a></span>tpak_set_access()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">int tpak_set_value </td>
+          <td class="memname">int tpak_set_access </td>
           <td>(</td>
           <td class="paramtype">int&#160;</td>
           <td class="paramname"><em>controller</em>, </td>
@@ -1060,14 +923,8 @@ Game title in ASCII. </td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">uint16_t&#160;</td>
-          <td class="paramname"><em>address</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint8_t&#160;</td>
-          <td class="paramname"><em>value</em>&#160;</td>
+          <td class="paramtype">bool&#160;</td>
+          <td class="paramname"><em>access_state</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -1077,13 +934,104 @@ Game title in ASCII. </td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Set Transfer Pak or Game Boy cartridge status/control value. </p>
-<p >This is an internal helper to set a Transfer Pak status or control setting. This function is not suitable for setting individual bytes in Save RAM!</p>
+<p>Set the access mode flag for a Transfer Pak. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) with Transfer Pak connected. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">address</td><td>Address of the setting. Should be between 0x8000 and 0xBFE0 </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">value</td><td>A byte of data to fill the write buffer with. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">access_state</td><td>Whether to allow access to the Game Boy cartridge. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 if successful or <a class="el" href="tpak_8h.html#TPAK_ERROR">TPAK_ERROR</a> otherwise. </dd></dl>
+
+</div>
+</div>
+<a id="afd9cdb4edd60438bf470cc07e2bba208" name="afd9cdb4edd60438bf470cc07e2bba208"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afd9cdb4edd60438bf470cc07e2bba208">&#9670;&nbsp;</a></span>tpak_get_status()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint8_t tpak_get_status </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>controller</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the status flags for a Transfer Pak. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) with Transfer Pak connected. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The status byte with <a class="el" href="tpak_8h.html#TPAK_STATUS">TPAK_STATUS</a> flags </dd></dl>
+
+</div>
+</div>
+<a id="ac275be37f853abac5bc64548f3722607" name="ac275be37f853abac5bc64548f3722607"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac275be37f853abac5bc64548f3722607">&#9670;&nbsp;</a></span>tpak_get_cartridge_header()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int tpak_get_cartridge_header </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>controller</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">struct <a class="el" href="tpak_8h.html#structgameboy__cartridge__header">gameboy_cartridge_header</a> *&#160;</td>
+          <td class="paramname"><em>header</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Read the Game Boy cartridge ROM header from a Transfer Pak. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) with Transfer Pak connected. </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">header</td><td>Pointer to destination Game Boy cartridge ROM header data structure. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 if successful or <a class="el" href="tpak_8h.html#TPAK_ERROR">TPAK_ERROR</a> otherwise. </dd></dl>
+
+</div>
+</div>
+<a id="a4d4815b2643fdb64a0d12f99beaa7d0a" name="a4d4815b2643fdb64a0d12f99beaa7d0a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4d4815b2643fdb64a0d12f99beaa7d0a">&#9670;&nbsp;</a></span>tpak_check_header()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool tpak_check_header </td>
+          <td>(</td>
+          <td class="paramtype">struct <a class="el" href="tpak_8h.html#structgameboy__cartridge__header">gameboy_cartridge_header</a> *&#160;</td>
+          <td class="paramname"><em>header</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Verify a Game Boy cartridge ROM header checksum. </p>
+<p >Confirms that the Transfer Pak is connected and working properly.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">header</td><td>The Game Boy ROM header to check. </td></tr>
   </table>
   </dd>
 </dl>
@@ -1143,10 +1091,62 @@ Game title in ASCII. </td></tr>
 
 </div>
 </div>
+<a id="a1e1f0e50ff7db26b5813049a1987c508" name="a1e1f0e50ff7db26b5813049a1987c508"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1e1f0e50ff7db26b5813049a1987c508">&#9670;&nbsp;</a></span>tpak_read()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int tpak_read </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>controller</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>address</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint8_t *&#160;</td>
+          <td class="paramname"><em>buffer</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Read data from a Game Boy cartridge to a buffer via Transfer Pak. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) with Transfer Pak connected. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">address</td><td>address in Game Boy cartridge space to read from. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">buffer</td><td>buffer to copy cartridge data into. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">size</td><td>length of the data to be read. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 if successful or <a class="el" href="tpak_8h.html#TPAK_ERROR">TPAK_ERROR</a> otherwise. </dd></dl>
+
+</div>
+</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:58 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

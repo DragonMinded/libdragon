@@ -146,57 +146,6 @@ Functions</h2></td></tr>
 <p >Console support is provided as a poor-man's console for simple debugging on the N64. It does not respect common escape sequences and is nonstandard in size. When using the console, code should be careful to make sure that the display system has not been initialized. Similarly, if the display system is needed, code should be sure that the console is not initialized.</p>
 <p >Code wishing to use the console should first initialize the console support in libdragon with <a class="el" href="group__console.html#ga463df5bcb42f4d4ad7d73c17c555e53d" title="Initialize the console.">console_init</a>. Once the console has been initialized, it wil operate in one of two modes. In automatic mode, every write to the console will be immediately displayed on the screen. The console will be scrolled when the buffer fills. In manual mode, the console will only be displayed after calling <a class="el" href="group__console.html#ga24ccc39d7786d9c45e14389efdd64f70" title="Render the console.">console_render</a>. To set the render mode, use <a class="el" href="group__console.html#ga4767e9d68500cb84a81984a525325112" title="Set the console rendering mode.">console_set_render_mode</a>. To add data to the console, use printf or iprintf. To clear the console and reset the scroll, use <a class="el" href="group__console.html#ga54a293959bd682e2c2ec170f9a50011f" title="Clear the console.">console_clear</a>. Once the console is not needed or when the code wishes to switch to the display subsystem, <a class="el" href="group__console.html#ga54a293959bd682e2c2ec170f9a50011f" title="Clear the console.">console_clear</a> should be called to cleanly shut down the console support. </p>
 <h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="ga157ee137a3acabff3d7612bff73b448b" name="ga157ee137a3acabff3d7612bff73b448b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga157ee137a3acabff3d7612bff73b448b">&#9670;&nbsp;</a></span>CONSOLE_HEIGHT</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define CONSOLE_HEIGHT&#160;&#160;&#160;28</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>The console height in characters. </p>
-<dl class="section note"><dt>Note</dt><dd>Bottom padding is not enforced by code, adjust this to fit into [vertical resolution] - 2 * VERTICAL_PADDING </dd></dl>
-
-</div>
-</div>
-<a id="gac8a565248bf80a622adcf61f4fe6dbc3" name="gac8a565248bf80a622adcf61f4fe6dbc3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gac8a565248bf80a622adcf61f4fe6dbc3">&#9670;&nbsp;</a></span>CONSOLE_WIDTH</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define CONSOLE_WIDTH&#160;&#160;&#160;64</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>The console width in characters. </p>
-<dl class="section note"><dt>Note</dt><dd>Right padding is not enforced by code, adjust this to fit into [horizontal resolution] - 2 * HORIZONTAL_PADDING </dd></dl>
-
-</div>
-</div>
-<a id="ga8cc8f6d4d0d42230b0d6b887e2c8e3a0" name="ga8cc8f6d4d0d42230b0d6b887e2c8e3a0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga8cc8f6d4d0d42230b0d6b887e2c8e3a0">&#9670;&nbsp;</a></span>HORIZONTAL_PADDING</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define HORIZONTAL_PADDING&#160;&#160;&#160;64</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Padding from the left and right ends of the screen in pixels. </p>
-<dl class="section note"><dt>Note</dt><dd>This should be ~10% of the horizontal resolution to be safely visible </dd></dl>
-
-</div>
-</div>
 <a id="ga0493bc0de60ff266e7f4e9a4256d27f0" name="ga0493bc0de60ff266e7f4e9a4256d27f0"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga0493bc0de60ff266e7f4e9a4256d27f0">&#9670;&nbsp;</a></span>move_buffer</h2>
 
@@ -220,6 +169,23 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a id="ga4d4483f024061765e1c6cf1de58875d1" name="ga4d4483f024061765e1c6cf1de58875d1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga4d4483f024061765e1c6cf1de58875d1">&#9670;&nbsp;</a></span>RENDER_MANUAL</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define RENDER_MANUAL&#160;&#160;&#160;0</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Manual Rendering. </p>
+<p >The user must call <a class="el" href="group__console.html#ga24ccc39d7786d9c45e14389efdd64f70" title="Render the console.">console_render</a> when the screen should be updated </p>
+
+</div>
+</div>
 <a id="ga6ae7fe1a8fe3564834d9377ba285a477" name="ga6ae7fe1a8fe3564834d9377ba285a477"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga6ae7fe1a8fe3564834d9377ba285a477">&#9670;&nbsp;</a></span>RENDER_AUTOMATIC</h2>
 
@@ -237,20 +203,37 @@ Functions</h2></td></tr>
 
 </div>
 </div>
-<a id="ga4d4483f024061765e1c6cf1de58875d1" name="ga4d4483f024061765e1c6cf1de58875d1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga4d4483f024061765e1c6cf1de58875d1">&#9670;&nbsp;</a></span>RENDER_MANUAL</h2>
+<a id="gac8a565248bf80a622adcf61f4fe6dbc3" name="gac8a565248bf80a622adcf61f4fe6dbc3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gac8a565248bf80a622adcf61f4fe6dbc3">&#9670;&nbsp;</a></span>CONSOLE_WIDTH</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define RENDER_MANUAL&#160;&#160;&#160;0</td>
+          <td class="memname">#define CONSOLE_WIDTH&#160;&#160;&#160;64</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Manual Rendering. </p>
-<p >The user must call <a class="el" href="group__console.html#ga24ccc39d7786d9c45e14389efdd64f70" title="Render the console.">console_render</a> when the screen should be updated </p>
+<p>The console width in characters. </p>
+<dl class="section note"><dt>Note</dt><dd>Right padding is not enforced by code, adjust this to fit into [horizontal resolution] - 2 * HORIZONTAL_PADDING </dd></dl>
+
+</div>
+</div>
+<a id="ga157ee137a3acabff3d7612bff73b448b" name="ga157ee137a3acabff3d7612bff73b448b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga157ee137a3acabff3d7612bff73b448b">&#9670;&nbsp;</a></span>CONSOLE_HEIGHT</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define CONSOLE_HEIGHT&#160;&#160;&#160;28</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>The console height in characters. </p>
+<dl class="section note"><dt>Note</dt><dd>Bottom padding is not enforced by code, adjust this to fit into [vertical resolution] - 2 * VERTICAL_PADDING </dd></dl>
 
 </div>
 </div>
@@ -271,15 +254,59 @@ Functions</h2></td></tr>
 
 </div>
 </div>
-<h2 class="groupheader">Function Documentation</h2>
-<a id="ga54a293959bd682e2c2ec170f9a50011f" name="ga54a293959bd682e2c2ec170f9a50011f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga54a293959bd682e2c2ec170f9a50011f">&#9670;&nbsp;</a></span>console_clear()</h2>
+<a id="ga8cc8f6d4d0d42230b0d6b887e2c8e3a0" name="ga8cc8f6d4d0d42230b0d6b887e2c8e3a0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga8cc8f6d4d0d42230b0d6b887e2c8e3a0">&#9670;&nbsp;</a></span>HORIZONTAL_PADDING</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void console_clear </td>
+          <td class="memname">#define HORIZONTAL_PADDING&#160;&#160;&#160;64</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Padding from the left and right ends of the screen in pixels. </p>
+<dl class="section note"><dt>Note</dt><dd>This should be ~10% of the horizontal resolution to be safely visible </dd></dl>
+
+</div>
+</div>
+<h2 class="groupheader">Function Documentation</h2>
+<a id="ga4767e9d68500cb84a81984a525325112" name="ga4767e9d68500cb84a81984a525325112"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga4767e9d68500cb84a81984a525325112">&#9670;&nbsp;</a></span>console_set_render_mode()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void console_set_render_mode </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>mode</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Set the console rendering mode. </p>
+<p >This sets the render mode of the console. The <a class="el" href="group__console.html#ga6ae7fe1a8fe3564834d9377ba285a477" title="Automatic Rendering.">RENDER_AUTOMATIC</a> mode allows console_printf to immediately be placed onto the screen. This is very similar to a normal console on a unix/windows system. The <a class="el" href="group__console.html#ga4d4483f024061765e1c6cf1de58875d1" title="Manual Rendering.">RENDER_MANUAL</a> mode allows console_printf to be buffered, and displayed at a later date using <a class="el" href="group__console.html#ga24ccc39d7786d9c45e14389efdd64f70" title="Render the console.">console_render()</a>. This is to allow a rendering interface somewhat analogous to curses</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">mode</td><td>Render mode (<a class="el" href="group__console.html#ga6ae7fe1a8fe3564834d9377ba285a477" title="Automatic Rendering.">RENDER_AUTOMATIC</a> or <a class="el" href="group__console.html#ga4d4483f024061765e1c6cf1de58875d1" title="Manual Rendering.">RENDER_MANUAL</a>) </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ga463df5bcb42f4d4ad7d73c17c555e53d" name="ga463df5bcb42f4d4ad7d73c17c555e53d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga463df5bcb42f4d4ad7d73c17c555e53d">&#9670;&nbsp;</a></span>console_init()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void console_init </td>
           <td>(</td>
           <td class="paramname"></td><td>)</td>
           <td></td>
@@ -287,8 +314,8 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Clear the console. </p>
-<p >Clear the console and set the virtual cursor back to the top left. </p>
+<p>Initialize the console. </p>
+<p >Initialize the console system. This will initialize the video properly, so a call to the <a class="el" href="group__display.html#gac3446a497399d2c8d90e6a51a53b45c8" title="Initialize the display to a particular resolution and bit depth.">display_init()</a> fuction is not necessary. </p>
 
 </div>
 </div>
@@ -312,14 +339,14 @@ Functions</h2></td></tr>
 
 </div>
 </div>
-<a id="ga463df5bcb42f4d4ad7d73c17c555e53d" name="ga463df5bcb42f4d4ad7d73c17c555e53d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga463df5bcb42f4d4ad7d73c17c555e53d">&#9670;&nbsp;</a></span>console_init()</h2>
+<a id="ga54a293959bd682e2c2ec170f9a50011f" name="ga54a293959bd682e2c2ec170f9a50011f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga54a293959bd682e2c2ec170f9a50011f">&#9670;&nbsp;</a></span>console_clear()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void console_init </td>
+          <td class="memname">void console_clear </td>
           <td>(</td>
           <td class="paramname"></td><td>)</td>
           <td></td>
@@ -327,8 +354,8 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Initialize the console. </p>
-<p >Initialize the console system. This will initialize the video properly, so a call to the <a class="el" href="group__display.html#gac3446a497399d2c8d90e6a51a53b45c8" title="Initialize the display to a particular resolution and bit depth.">display_init()</a> fuction is not necessary. </p>
+<p>Clear the console. </p>
+<p >Clear the console and set the virtual cursor back to the top left. </p>
 
 </div>
 </div>
@@ -381,37 +408,10 @@ Functions</h2></td></tr>
 
 </div>
 </div>
-<a id="ga4767e9d68500cb84a81984a525325112" name="ga4767e9d68500cb84a81984a525325112"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga4767e9d68500cb84a81984a525325112">&#9670;&nbsp;</a></span>console_set_render_mode()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void console_set_render_mode </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>mode</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Set the console rendering mode. </p>
-<p >This sets the render mode of the console. The <a class="el" href="group__console.html#ga6ae7fe1a8fe3564834d9377ba285a477" title="Automatic Rendering.">RENDER_AUTOMATIC</a> mode allows console_printf to immediately be placed onto the screen. This is very similar to a normal console on a unix/windows system. The <a class="el" href="group__console.html#ga4d4483f024061765e1c6cf1de58875d1" title="Manual Rendering.">RENDER_MANUAL</a> mode allows console_printf to be buffered, and displayed at a later date using <a class="el" href="group__console.html#ga24ccc39d7786d9c45e14389efdd64f70" title="Render the console.">console_render()</a>. This is to allow a rendering interface somewhat analogous to curses</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">mode</td><td>Render mode (<a class="el" href="group__console.html#ga6ae7fe1a8fe3564834d9377ba285a477" title="Automatic Rendering.">RENDER_AUTOMATIC</a> or <a class="el" href="group__console.html#ga4d4483f024061765e1c6cf1de58875d1" title="Manual Rendering.">RENDER_MANUAL</a>) </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:58 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

@@ -111,6 +111,24 @@ uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>start_pc</b></td>
 <p >This small structure holds the text/data pointers to a RSP ucode program in RDRAM. It also contains the name (for the debugging purposes) and the initial PC (usually 0).</p>
 <p >If you're using libdragon's build system (n64.mk), use <a class="el" href="rsp_8h.html#a1c69c50ce3eccc8d661dce878129b0b0" title="Define one RSP ucode compiled via libdragon&#39;s build system (n64.mk).">DEFINE_RSP_UCODE()</a> to initialize one of these. </p>
 </div><h2 class="groupheader">Field Documentation</h2>
+<a id="ac825f330aa0bbca94ab129df3e6f9071" name="ac825f330aa0bbca94ab129df3e6f9071"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac825f330aa0bbca94ab129df3e6f9071">&#9670;&nbsp;</a></span>crash_handler</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void(* rsp_ucode_t::crash_handler) (<a class="el" href="rsp_8h.html#structrsp__snapshot__t">rsp_snapshot_t</a> *state)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Custom crash handler. </p>
+<p >If specified, this function is invoked when a RSP crash happens, while filling the information screen. It can be used to dump custom ucode-specific information.</p>
+<dl class="section note"><dt>Note</dt><dd>DO NOT ACCESS RSP hardware registers in the crash handler. To dump information, access the state provided as argument that contains a full snapshot of the RSP state at the point of crash. </dd></dl>
+
+</div>
+</div>
 <a id="a4e6b8b919f54b9af109d67cd6f851ebe" name="a4e6b8b919f54b9af109d67cd6f851ebe"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a4e6b8b919f54b9af109d67cd6f851ebe">&#9670;&nbsp;</a></span>assert_handler</h2>
 
@@ -130,31 +148,13 @@ uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>start_pc</b></td>
 
 </div>
 </div>
-<a id="ac825f330aa0bbca94ab129df3e6f9071" name="ac825f330aa0bbca94ab129df3e6f9071"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac825f330aa0bbca94ab129df3e6f9071">&#9670;&nbsp;</a></span>crash_handler</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void(* rsp_ucode_t::crash_handler) (<a class="el" href="rsp_8h.html#structrsp__snapshot__t">rsp_snapshot_t</a> *state)</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Custom crash handler. </p>
-<p >If specified, this function is invoked when a RSP crash happens, while filling the information screen. It can be used to dump custom ucode-specific information.</p>
-<dl class="section note"><dt>Note</dt><dd>DO NOT ACCESS RSP hardware registers in the crash handler. To dump information, access the state provided as argument that contains a full snapshot of the RSP state at the point of crash. </dd></dl>
-
-</div>
-</div>
 <hr/>The documentation for this struct was generated from the following file:<ul>
 <li><a class="el" href="rsp_8h_source.html">rsp.h</a></li>
 </ul>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:59 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

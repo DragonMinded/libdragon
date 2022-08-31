@@ -164,18 +164,11 @@ Functions</h2></td></tr>
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
-<a id="a93cca58c3728111ce6c8b925009afa83" name="a93cca58c3728111ce6c8b925009afa83"></a>uint8_t</td>
+<a id="a4e65c83bc81eb966642da54ae8c885f5" name="a4e65c83bc81eb966642da54ae8c885f5"></a>uint32_t</td>
 <td class="fieldname">
-blocks</td>
+vendor</td>
 <td class="fielddoc">
-Number of blocks used by this entry. <dl class="section see"><dt>See also</dt><dd><a class="el" href="group__mempak.html#ga8291313350e93f54e8c397f6d13f9454" title="Size in bytes of a Mempak block.">MEMPAK_BLOCK_SIZE</a> </dd></dl>
-</td></tr>
-<tr><td class="fieldtype">
-<a id="ad6124aefb1425f190a3665f7a0c3aefc" name="ad6124aefb1425f190a3665f7a0c3aefc"></a>uint8_t</td>
-<td class="fieldname">
-entry_id</td>
-<td class="fielddoc">
-ID of this entry. </td></tr>
+Vendor ID. </td></tr>
 <tr><td class="fieldtype">
 <a id="a33ec60ad39db8ebf53de0a72bee466bd" name="a33ec60ad39db8ebf53de0a72bee466bd"></a>uint16_t</td>
 <td class="fieldname">
@@ -189,6 +182,31 @@ inode</td>
 <td class="fielddoc">
 Inode pointer. </td></tr>
 <tr><td class="fieldtype">
+<a id="a738a028e4829b69dedb17ae6a8375c79" name="a738a028e4829b69dedb17ae6a8375c79"></a>uint8_t</td>
+<td class="fieldname">
+region</td>
+<td class="fielddoc">
+Intended region. </td></tr>
+<tr><td class="fieldtype">
+<a id="a93cca58c3728111ce6c8b925009afa83" name="a93cca58c3728111ce6c8b925009afa83"></a>uint8_t</td>
+<td class="fieldname">
+blocks</td>
+<td class="fielddoc">
+Number of blocks used by this entry. <dl class="section see"><dt>See also</dt><dd><a class="el" href="group__mempak.html#ga8291313350e93f54e8c397f6d13f9454" title="Size in bytes of a Mempak block.">MEMPAK_BLOCK_SIZE</a> </dd></dl>
+</td></tr>
+<tr><td class="fieldtype">
+<a id="ac6f84c97a7f4614d2a89463baa8874be" name="ac6f84c97a7f4614d2a89463baa8874be"></a>uint8_t</td>
+<td class="fieldname">
+valid</td>
+<td class="fielddoc">
+Validity of this entry. </td></tr>
+<tr><td class="fieldtype">
+<a id="ad6124aefb1425f190a3665f7a0c3aefc" name="ad6124aefb1425f190a3665f7a0c3aefc"></a>uint8_t</td>
+<td class="fieldname">
+entry_id</td>
+<td class="fielddoc">
+ID of this entry. </td></tr>
+<tr><td class="fieldtype">
 <a id="a2b6ef9f926b80b33797c6989ef4018e7" name="a2b6ef9f926b80b33797c6989ef4018e7"></a>char</td>
 <td class="fieldname">
 name[19]</td>
@@ -198,37 +216,19 @@ Name of this entry. <p >The complete list of valid ASCII characters in a note na
 ABCDEFGHIJKLMNOPQRSTUVWXYZ!"#`*+,-./:=?@
 </pre><p >The space character is also allowed. Any other character will be converted to a space before writing to the mempak. </p>
 </td></tr>
-<tr><td class="fieldtype">
-<a id="a738a028e4829b69dedb17ae6a8375c79" name="a738a028e4829b69dedb17ae6a8375c79"></a>uint8_t</td>
-<td class="fieldname">
-region</td>
-<td class="fielddoc">
-Intended region. </td></tr>
-<tr><td class="fieldtype">
-<a id="ac6f84c97a7f4614d2a89463baa8874be" name="ac6f84c97a7f4614d2a89463baa8874be"></a>uint8_t</td>
-<td class="fieldname">
-valid</td>
-<td class="fielddoc">
-Validity of this entry. </td></tr>
-<tr><td class="fieldtype">
-<a id="a4e65c83bc81eb966642da54ae8c885f5" name="a4e65c83bc81eb966642da54ae8c885f5"></a>uint32_t</td>
-<td class="fieldname">
-vendor</td>
-<td class="fielddoc">
-Vendor ID. </td></tr>
 </table>
 
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="gaa56a78fe3d1d2b9427afe8d5894156df" name="gaa56a78fe3d1d2b9427afe8d5894156df"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaa56a78fe3d1d2b9427afe8d5894156df">&#9670;&nbsp;</a></span>delete_mempak_entry()</h2>
+<a id="ga3811bed7584fee9426fa21cb77c6d669" name="ga3811bed7584fee9426fa21cb77c6d669"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga3811bed7584fee9426fa21cb77c6d669">&#9670;&nbsp;</a></span>read_mempak_sector()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">int delete_mempak_entry </td>
+          <td class="memname">int read_mempak_sector </td>
           <td>(</td>
           <td class="paramtype">int&#160;</td>
           <td class="paramname"><em>controller</em>, </td>
@@ -236,8 +236,14 @@ Vendor ID. </td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="el" href="group__mempak.html#structentry__structure__t">entry_structure_t</a> *&#160;</td>
-          <td class="paramname"><em>entry</em>&#160;</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>sector</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint8_t *&#160;</td>
+          <td class="paramname"><em>sector_data</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -247,34 +253,88 @@ Vendor ID. </td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Delete a mempak entry and associated data. </p>
-<p >Given a valid mempak entry fetched by <a class="el" href="group__mempak.html#gaaa54d6b5cea4be11738f951318ebc758" title="Read an entry on a mempak.">get_mempak_entry</a>, removes the entry and frees all associated blocks.</p>
+<p>Read a sector from a mempak. </p>
+<p >This will read a sector from a mempak. Sectors on mempaks are always 256 bytes in size.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) to delete the note from </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">entry</td><td>The entry structure that is to be deleted from the mempak</td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) to read a sector from </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">sector</td><td>The sector (0-127) to read from </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">sector_data</td><td>Buffer to place 256 read bytes of data</td></tr>
   </table>
   </dd>
 </dl>
 <dl class="retval"><dt>Return values</dt><dd>
   <table class="retval">
-    <tr><td class="paramname">0</td><td>if the entry was deleted successfully </td></tr>
-    <tr><td class="paramname">-1</td><td>if the entry was invalid </td></tr>
-    <tr><td class="paramname">-2</td><td>if the mempak was bad or not present </td></tr>
+    <tr><td class="paramname">0</td><td>if reading was successful </td></tr>
+    <tr><td class="paramname">-1</td><td>if the sector was out of bounds or sector_data was null </td></tr>
+    <tr><td class="paramname">-2</td><td>if there was an error reading part of a sector </td></tr>
   </table>
   </dd>
 </dl>
 
 </div>
 </div>
-<a id="ga14df2d1b0aeb7436cabd95294eb29b9f" name="ga14df2d1b0aeb7436cabd95294eb29b9f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga14df2d1b0aeb7436cabd95294eb29b9f">&#9670;&nbsp;</a></span>format_mempak()</h2>
+<a id="gacb6424e211071cbb4fa7990fca01b96c" name="gacb6424e211071cbb4fa7990fca01b96c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gacb6424e211071cbb4fa7990fca01b96c">&#9670;&nbsp;</a></span>write_mempak_sector()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">int format_mempak </td>
+          <td class="memname">int write_mempak_sector </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>controller</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>sector</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint8_t *&#160;</td>
+          <td class="paramname"><em>sector_data</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Write a sector to a mempak. </p>
+<p >This will write a sector to a mempak. Sectors on mempaks are always 256 bytes in size.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) to write a sector to </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">sector</td><td>The sector (0-127) to write to </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">sector_data</td><td>Buffer containing 256 bytes of data to write to sector</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="retval"><dt>Return values</dt><dd>
+  <table class="retval">
+    <tr><td class="paramname">0</td><td>if writing was successful </td></tr>
+    <tr><td class="paramname">-1</td><td>if the sector was out of bounds or sector_data was null </td></tr>
+    <tr><td class="paramname">-2</td><td>if there was an error writing part of a sector </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="gaf245021aed55de7a17cf417d41cdc32f" name="gaf245021aed55de7a17cf417d41cdc32f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaf245021aed55de7a17cf417d41cdc32f">&#9670;&nbsp;</a></span>validate_mempak()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int validate_mempak </td>
           <td>(</td>
           <td class="paramtype">int&#160;</td>
           <td class="paramname"><em>controller</em></td><td>)</td>
@@ -283,18 +343,19 @@ Vendor ID. </td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Format a mempak. </p>
-<p >Formats a mempak. Should only be done to wipe a mempak or to initialize the filesystem in case of a blank or corrupt mempak.</p>
+<p>Return whether a mempak is valid. </p>
+<p >This function will return whether the mempak in a particular controller is formatted and valid.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) to format the mempak on</td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) to validate</td></tr>
   </table>
   </dd>
 </dl>
 <dl class="retval"><dt>Return values</dt><dd>
   <table class="retval">
-    <tr><td class="paramname">0</td><td>if the mempak was formatted successfully </td></tr>
-    <tr><td class="paramname">-2</td><td>if the mempak was not present or couldn't be formatted </td></tr>
+    <tr><td class="paramname">0</td><td>if the mempak is valid and ready to be used </td></tr>
+    <tr><td class="paramname">-2</td><td>if the mempak is not present or couldn't be read </td></tr>
+    <tr><td class="paramname">-3</td><td>if the mempak is bad or unformatted </td></tr>
   </table>
   </dd>
 </dl>
@@ -382,6 +443,40 @@ Vendor ID. </td></tr>
 
 </div>
 </div>
+<a id="ga14df2d1b0aeb7436cabd95294eb29b9f" name="ga14df2d1b0aeb7436cabd95294eb29b9f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga14df2d1b0aeb7436cabd95294eb29b9f">&#9670;&nbsp;</a></span>format_mempak()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int format_mempak </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>controller</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Format a mempak. </p>
+<p >Formats a mempak. Should only be done to wipe a mempak or to initialize the filesystem in case of a blank or corrupt mempak.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) to format the mempak on</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="retval"><dt>Return values</dt><dd>
+  <table class="retval">
+    <tr><td class="paramname">0</td><td>if the mempak was formatted successfully </td></tr>
+    <tr><td class="paramname">-2</td><td>if the mempak was not present or couldn't be formatted </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 <a id="ga7e07b0ab92a7f383b355f5ed99c5f727" name="ga7e07b0ab92a7f383b355f5ed99c5f727"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga7e07b0ab92a7f383b355f5ed99c5f727">&#9670;&nbsp;</a></span>read_mempak_entry_data()</h2>
 
@@ -430,94 +525,6 @@ Vendor ID. </td></tr>
     <tr><td class="paramname">-1</td><td>if input parameters were out of bounds or the entry was corrupted somehow </td></tr>
     <tr><td class="paramname">-2</td><td>if the mempak was not present or bad </td></tr>
     <tr><td class="paramname">-3</td><td>if the data couldn't be read </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="ga3811bed7584fee9426fa21cb77c6d669" name="ga3811bed7584fee9426fa21cb77c6d669"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga3811bed7584fee9426fa21cb77c6d669">&#9670;&nbsp;</a></span>read_mempak_sector()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int read_mempak_sector </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>controller</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>sector</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint8_t *&#160;</td>
-          <td class="paramname"><em>sector_data</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Read a sector from a mempak. </p>
-<p >This will read a sector from a mempak. Sectors on mempaks are always 256 bytes in size.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) to read a sector from </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">sector</td><td>The sector (0-127) to read from </td></tr>
-    <tr><td class="paramdir">[out]</td><td class="paramname">sector_data</td><td>Buffer to place 256 read bytes of data</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="retval"><dt>Return values</dt><dd>
-  <table class="retval">
-    <tr><td class="paramname">0</td><td>if reading was successful </td></tr>
-    <tr><td class="paramname">-1</td><td>if the sector was out of bounds or sector_data was null </td></tr>
-    <tr><td class="paramname">-2</td><td>if there was an error reading part of a sector </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="gaf245021aed55de7a17cf417d41cdc32f" name="gaf245021aed55de7a17cf417d41cdc32f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaf245021aed55de7a17cf417d41cdc32f">&#9670;&nbsp;</a></span>validate_mempak()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int validate_mempak </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>controller</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Return whether a mempak is valid. </p>
-<p >This function will return whether the mempak in a particular controller is formatted and valid.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) to validate</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="retval"><dt>Return values</dt><dd>
-  <table class="retval">
-    <tr><td class="paramname">0</td><td>if the mempak is valid and ready to be used </td></tr>
-    <tr><td class="paramname">-2</td><td>if the mempak is not present or couldn't be read </td></tr>
-    <tr><td class="paramname">-3</td><td>if the mempak is bad or unformatted </td></tr>
   </table>
   </dd>
 </dl>
@@ -580,14 +587,14 @@ Vendor ID. </td></tr>
 
 </div>
 </div>
-<a id="gacb6424e211071cbb4fa7990fca01b96c" name="gacb6424e211071cbb4fa7990fca01b96c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gacb6424e211071cbb4fa7990fca01b96c">&#9670;&nbsp;</a></span>write_mempak_sector()</h2>
+<a id="gaa56a78fe3d1d2b9427afe8d5894156df" name="gaa56a78fe3d1d2b9427afe8d5894156df"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaa56a78fe3d1d2b9427afe8d5894156df">&#9670;&nbsp;</a></span>delete_mempak_entry()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">int write_mempak_sector </td>
+          <td class="memname">int delete_mempak_entry </td>
           <td>(</td>
           <td class="paramtype">int&#160;</td>
           <td class="paramname"><em>controller</em>, </td>
@@ -595,14 +602,8 @@ Vendor ID. </td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>sector</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint8_t *&#160;</td>
-          <td class="paramname"><em>sector_data</em>&#160;</td>
+          <td class="paramtype"><a class="el" href="group__mempak.html#structentry__structure__t">entry_structure_t</a> *&#160;</td>
+          <td class="paramname"><em>entry</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -612,21 +613,20 @@ Vendor ID. </td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Write a sector to a mempak. </p>
-<p >This will write a sector to a mempak. Sectors on mempaks are always 256 bytes in size.</p>
+<p>Delete a mempak entry and associated data. </p>
+<p >Given a valid mempak entry fetched by <a class="el" href="group__mempak.html#gaaa54d6b5cea4be11738f951318ebc758" title="Read an entry on a mempak.">get_mempak_entry</a>, removes the entry and frees all associated blocks.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) to write a sector to </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">sector</td><td>The sector (0-127) to write to </td></tr>
-    <tr><td class="paramdir">[out]</td><td class="paramname">sector_data</td><td>Buffer containing 256 bytes of data to write to sector</td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) to delete the note from </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">entry</td><td>The entry structure that is to be deleted from the mempak</td></tr>
   </table>
   </dd>
 </dl>
 <dl class="retval"><dt>Return values</dt><dd>
   <table class="retval">
-    <tr><td class="paramname">0</td><td>if writing was successful </td></tr>
-    <tr><td class="paramname">-1</td><td>if the sector was out of bounds or sector_data was null </td></tr>
-    <tr><td class="paramname">-2</td><td>if there was an error writing part of a sector </td></tr>
+    <tr><td class="paramname">0</td><td>if the entry was deleted successfully </td></tr>
+    <tr><td class="paramname">-1</td><td>if the entry was invalid </td></tr>
+    <tr><td class="paramname">-2</td><td>if the mempak was bad or not present </td></tr>
   </table>
   </dd>
 </dl>
@@ -636,7 +636,7 @@ Vendor ID. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:59 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

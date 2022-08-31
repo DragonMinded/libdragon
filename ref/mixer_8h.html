@@ -187,6 +187,12 @@ bool&#160;</td><td class="memItemRight" valign="bottom"><b>mixer_ch_playing</b> 
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
+<a id="adb40944ddf35cee0a6cd8f135de2b8d8" name="adb40944ddf35cee0a6cd8f135de2b8d8"></a>const char *</td>
+<td class="fieldname">
+name</td>
+<td class="fielddoc">
+Name of the waveform (for debugging purposes) </td></tr>
+<tr><td class="fieldtype">
 <a id="a1f19c0bdeedcaf8076b2c32ff9804005" name="a1f19c0bdeedcaf8076b2c32ff9804005"></a>uint8_t</td>
 <td class="fieldname">
 bits</td>
@@ -200,12 +206,6 @@ channels</td>
 <td class="fielddoc">
 Number of interleaved audio channels in this waveforms. <p >Supported values are 1 and 2 (mono and stereo waveforms). Notice that a stereo waveform will use two consecutive mixer channels to be played back. </p>
 </td></tr>
-<tr><td class="fieldtype">
-<a id="a1df77203f9cfc69e3772196faa5e1a9d" name="a1df77203f9cfc69e3772196faa5e1a9d"></a>void *</td>
-<td class="fieldname">
-ctx</td>
-<td class="fielddoc">
-Opaque pointer provided as context to the read function. </td></tr>
 <tr><td class="fieldtype">
 <a id="abf0009a0d23a1c1f93e21d64d7d18027" name="abf0009a0d23a1c1f93e21d64d7d18027"></a>float</td>
 <td class="fieldname">
@@ -227,18 +227,18 @@ loop_len</td>
 Length of the loop of the waveform (from the end). <p >This value describes how many samples of the tail of the waveform needs to be played in a loop. For instance, if len==1200 and loop_len=500, the waveform will be played once, and then the last 700 samples will be repeated in loop. </p>
 </td></tr>
 <tr><td class="fieldtype">
-<a id="adb40944ddf35cee0a6cd8f135de2b8d8" name="adb40944ddf35cee0a6cd8f135de2b8d8"></a>const char *</td>
-<td class="fieldname">
-name</td>
-<td class="fielddoc">
-Name of the waveform (for debugging purposes) </td></tr>
-<tr><td class="fieldtype">
 <a id="a5bcbece8e4db3e873a29bb9a227ac4e4" name="a5bcbece8e4db3e873a29bb9a227ac4e4"></a><a class="el" href="mixer_8h.html#ab0e995bf04880a3e14f689f48fdb2475">WaveformRead</a></td>
 <td class="fieldname">
 read</td>
 <td class="fielddoc">
 Read function of the waveform. <p >This is the callback that will be invoked by the mixer to generate the samples. See <a class="el" href="mixer_8h.html#ab0e995bf04880a3e14f689f48fdb2475" title="Waveform callback function invoked by the mixer to read/generate samples.">WaveformRead</a> for more information. </p>
 </td></tr>
+<tr><td class="fieldtype">
+<a id="a1df77203f9cfc69e3772196faa5e1a9d" name="a1df77203f9cfc69e3772196faa5e1a9d"></a>void *</td>
+<td class="fieldname">
+ctx</td>
+<td class="fielddoc">
+Opaque pointer provided as context to the read function. </td></tr>
 </table>
 
 </div>
@@ -344,29 +344,83 @@ Read function of the waveform. <p >This is the callback that will be invoked by 
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a21ead4fd7433fbf4a328a216dc5a56a8" name="a21ead4fd7433fbf4a328a216dc5a56a8"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a21ead4fd7433fbf4a328a216dc5a56a8">&#9670;&nbsp;</a></span>mixer_add_event()</h2>
+<a id="a6d0758de0074e1a44dea7cf1b8d298d5" name="a6d0758de0074e1a44dea7cf1b8d298d5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6d0758de0074e1a44dea7cf1b8d298d5">&#9670;&nbsp;</a></span>mixer_init()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void mixer_add_event </td>
+          <td class="memname">void mixer_init </td>
           <td>(</td>
-          <td class="paramtype">int64_t&#160;</td>
-          <td class="paramname"><em>delay</em>, </td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>num_channels</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Initialize the mixer. </p>
+<p >The mixer must be initialized after the audio subsystem (audio_init). The number of channels specified is the maximum number of channels used by the application. Specifying a higher number means using more memory as the mixer will allocate one sample buffer per channel, but it does not affect performance (which correlates to the actual number of simultaneously playing channels).</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">num_channels</td><td>Number of channels to initialize. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ae8ed9fdb3bfcb119d56764dd401848ba" name="ae8ed9fdb3bfcb119d56764dd401848ba"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae8ed9fdb3bfcb119d56764dd401848ba">&#9670;&nbsp;</a></span>mixer_set_vol()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void mixer_set_vol </td>
+          <td>(</td>
+          <td class="paramtype">float&#160;</td>
+          <td class="paramname"><em>vol</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Set master volume. </p>
+<p >This is a global attenuation factor (range [0..1]) that will be applied to all channels and simplify implementing a global volume control.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">vol</td><td>Master volume (range [0..1]) </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="a56bc7f412e9cd0cde06c44e8acaa85ae" name="a56bc7f412e9cd0cde06c44e8acaa85ae"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a56bc7f412e9cd0cde06c44e8acaa85ae">&#9670;&nbsp;</a></span>mixer_ch_set_vol()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void mixer_ch_set_vol </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>ch</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype"><a class="el" href="mixer_8h.html#a509fb916b04893006f91d4bc5f7fc69e">MixerEvent</a>&#160;</td>
-          <td class="paramname"><em>cb</em>, </td>
+          <td class="paramtype">float&#160;</td>
+          <td class="paramname"><em>lvol</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>ctx</em>&#160;</td>
+          <td class="paramtype">float&#160;</td>
+          <td class="paramname"><em>rvol</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -376,43 +430,133 @@ Read function of the waveform. <p >This is the callback that will be invoked by 
       </table>
 </div><div class="memdoc">
 
-<p>Register a time-based event into the mixer. </p>
-<p >Register a new event into the mixer. "delay" is the number of samples to wait before calling the event callback. "cb" is the event callback. "ctx" is an opaque pointer that will be passed to the callback when invoked.</p>
+<p>Set channel volume (as left/right). </p>
+<p >Configure channel volume for the specified channel, specifying two values: one for the left output and one for the right output.</p>
+<p >The volume is an attenuation (no amplification is performed). Valid volume range in [0..1], where 0 is silence and 1 is original channel sample volume (no attenuation performed).</p>
+<p >Notice that it's perfectly valid to set left/right volumes even if the channel itself will play a mono waveforms, as it allows to balance a mono sample between the two final output channels.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">delay</td><td>Number of samples to wait before invoking the event. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">cb</td><td>Event callback to invoke </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">ctx</td><td>Context opaque pointer to pass to the callback </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">ch</td><td>Channel index </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">lvol</td><td>Left volume (range [0..1]) </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">rvol</td><td>Right volume (range [0..1]) </td></tr>
   </table>
   </dd>
 </dl>
 
 </div>
 </div>
-<a id="afc8e8eb8b434ec042c44d8159648ef39" name="afc8e8eb8b434ec042c44d8159648ef39"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#afc8e8eb8b434ec042c44d8159648ef39">&#9670;&nbsp;</a></span>mixer_ch_get_pos()</h2>
+<a id="a5fbe88215add4d8f5cd68807616ae9b1" name="a5fbe88215add4d8f5cd68807616ae9b1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5fbe88215add4d8f5cd68807616ae9b1">&#9670;&nbsp;</a></span>mixer_ch_set_vol_pan()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">float mixer_ch_get_pos </td>
+          <td class="memname">void mixer_ch_set_vol_pan </td>
           <td>(</td>
           <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>ch</em></td><td>)</td>
+          <td class="paramname"><em>ch</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype">float&#160;</td>
+          <td class="paramname"><em>vol</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float&#160;</td>
+          <td class="paramname"><em>pan</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
         </tr>
       </table>
 </div><div class="memdoc">
-<p >Read the current playback position of the waveform in the channel.</p>
-<p >The position is returned as number of samples. Fractional values account for accurate resampling position.</p>
+
+<p>Set channel volume (as volume and panning). </p>
+<p >Configure the left and right channel volumes for the specified channel, Using a central volume value and a panning value to specify left/right balance.</p>
+<p >Valid volume range in [0..1], where 0 is silence and 1 is maximum volume (no attenuation).</p>
+<p >Valid panning range is [0..1] where 0 is 100% left, and 1 is 100% right.</p>
+<p >Notice that panning 0.5 balance the sound but causes an attenuation of 50%.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">ch</td><td>Channel index </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">vol</td><td>Central volume (range [0..1]) </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">pan</td><td>Panning (range [0..1], center is 0.5) </td></tr>
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd>Playback position (in number of samples) </dd></dl>
+
+</div>
+</div>
+<a id="a9cf6854f30c27595b941525a6116c617" name="a9cf6854f30c27595b941525a6116c617"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9cf6854f30c27595b941525a6116c617">&#9670;&nbsp;</a></span>mixer_ch_set_vol_dolby()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void mixer_ch_set_vol_dolby </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>ch</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float&#160;</td>
+          <td class="paramname"><em>fl</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float&#160;</td>
+          <td class="paramname"><em>fr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float&#160;</td>
+          <td class="paramname"><em>c</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float&#160;</td>
+          <td class="paramname"><em>sl</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float&#160;</td>
+          <td class="paramname"><em>sr</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Set channel volume with Dolby Pro Logic II encoding. </p>
+<p >Configure the volumes of the specified channel according to the Dolby Pro Logic II matrix encoding. This allows to encode samples with a virtual surround system, that can be decoded with a Dolby 5.1 compatible equipment.</p>
+<p >The function accepts the volumes configured for the 5 channels: front left, front right, center, surround left, surround right. These values can be calculated from a 3D scene</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">ch</td><td>Channel index </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">fl</td><td>Front left volume (range [0..1]) </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">fr</td><td>Front right volume (range [0..1]) </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">c</td><td>Central volume (range [0..1]) </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">sl</td><td>Surround left volume (range [0..1]) </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">sr</td><td>Surround right volume (range [0..1]) </td></tr>
+  </table>
+  </dd>
+</dl>
 
 </div>
 </div>
@@ -496,6 +640,72 @@ Read function of the waveform. <p >This is the callback that will be invoked by 
 
 </div>
 </div>
+<a id="a827e0c459c6a250ccc74b977f9c64c5e" name="a827e0c459c6a250ccc74b977f9c64c5e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a827e0c459c6a250ccc74b977f9c64c5e">&#9670;&nbsp;</a></span>mixer_ch_set_pos()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void mixer_ch_set_pos </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>ch</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float&#160;</td>
+          <td class="paramname"><em>pos</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Change the current playback position within a waveform. </p>
+<p >This function can be useful to seek to a specific point of the waveform. The position must be specified in number of samples (not bytes). Fractional values account for accurate resampling position.</p>
+<p >This function must be called after mixer_ch_play, as otherwise the position is reset to the beginning of the waveform.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">ch</td><td>Channel index </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">pos</td><td>Playback position (in number of samples) </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="afc8e8eb8b434ec042c44d8159648ef39" name="afc8e8eb8b434ec042c44d8159648ef39"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afc8e8eb8b434ec042c44d8159648ef39">&#9670;&nbsp;</a></span>mixer_ch_get_pos()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">float mixer_ch_get_pos </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>ch</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<p >Read the current playback position of the waveform in the channel.</p>
+<p >The position is returned as number of samples. Fractional values account for accurate resampling position.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">ch</td><td>Channel index </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>Playback position (in number of samples) </dd></dl>
+
+</div>
+</div>
 <a id="aa6151c20fc5ddfa953c9d2dabe1da294" name="aa6151c20fc5ddfa953c9d2dabe1da294"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#aa6151c20fc5ddfa953c9d2dabe1da294">&#9670;&nbsp;</a></span>mixer_ch_set_limits()</h2>
 
@@ -552,234 +762,6 @@ Read function of the waveform. <p >This is the callback that will be invoked by 
 
 </div>
 </div>
-<a id="a827e0c459c6a250ccc74b977f9c64c5e" name="a827e0c459c6a250ccc74b977f9c64c5e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a827e0c459c6a250ccc74b977f9c64c5e">&#9670;&nbsp;</a></span>mixer_ch_set_pos()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void mixer_ch_set_pos </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>ch</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">float&#160;</td>
-          <td class="paramname"><em>pos</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Change the current playback position within a waveform. </p>
-<p >This function can be useful to seek to a specific point of the waveform. The position must be specified in number of samples (not bytes). Fractional values account for accurate resampling position.</p>
-<p >This function must be called after mixer_ch_play, as otherwise the position is reset to the beginning of the waveform.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">ch</td><td>Channel index </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">pos</td><td>Playback position (in number of samples) </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="a56bc7f412e9cd0cde06c44e8acaa85ae" name="a56bc7f412e9cd0cde06c44e8acaa85ae"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a56bc7f412e9cd0cde06c44e8acaa85ae">&#9670;&nbsp;</a></span>mixer_ch_set_vol()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void mixer_ch_set_vol </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>ch</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">float&#160;</td>
-          <td class="paramname"><em>lvol</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">float&#160;</td>
-          <td class="paramname"><em>rvol</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Set channel volume (as left/right). </p>
-<p >Configure channel volume for the specified channel, specifying two values: one for the left output and one for the right output.</p>
-<p >The volume is an attenuation (no amplification is performed). Valid volume range in [0..1], where 0 is silence and 1 is original channel sample volume (no attenuation performed).</p>
-<p >Notice that it's perfectly valid to set left/right volumes even if the channel itself will play a mono waveforms, as it allows to balance a mono sample between the two final output channels.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">ch</td><td>Channel index </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">lvol</td><td>Left volume (range [0..1]) </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">rvol</td><td>Right volume (range [0..1]) </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="a9cf6854f30c27595b941525a6116c617" name="a9cf6854f30c27595b941525a6116c617"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9cf6854f30c27595b941525a6116c617">&#9670;&nbsp;</a></span>mixer_ch_set_vol_dolby()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void mixer_ch_set_vol_dolby </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>ch</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">float&#160;</td>
-          <td class="paramname"><em>fl</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">float&#160;</td>
-          <td class="paramname"><em>fr</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">float&#160;</td>
-          <td class="paramname"><em>c</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">float&#160;</td>
-          <td class="paramname"><em>sl</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">float&#160;</td>
-          <td class="paramname"><em>sr</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Set channel volume with Dolby Pro Logic II encoding. </p>
-<p >Configure the volumes of the specified channel according to the Dolby Pro Logic II matrix encoding. This allows to encode samples with a virtual surround system, that can be decoded with a Dolby 5.1 compatible equipment.</p>
-<p >The function accepts the volumes configured for the 5 channels: front left, front right, center, surround left, surround right. These values can be calculated from a 3D scene</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">ch</td><td>Channel index </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">fl</td><td>Front left volume (range [0..1]) </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">fr</td><td>Front right volume (range [0..1]) </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">c</td><td>Central volume (range [0..1]) </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">sl</td><td>Surround left volume (range [0..1]) </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">sr</td><td>Surround right volume (range [0..1]) </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="a5fbe88215add4d8f5cd68807616ae9b1" name="a5fbe88215add4d8f5cd68807616ae9b1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a5fbe88215add4d8f5cd68807616ae9b1">&#9670;&nbsp;</a></span>mixer_ch_set_vol_pan()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void mixer_ch_set_vol_pan </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>ch</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">float&#160;</td>
-          <td class="paramname"><em>vol</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">float&#160;</td>
-          <td class="paramname"><em>pan</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Set channel volume (as volume and panning). </p>
-<p >Configure the left and right channel volumes for the specified channel, Using a central volume value and a panning value to specify left/right balance.</p>
-<p >Valid volume range in [0..1], where 0 is silence and 1 is maximum volume (no attenuation).</p>
-<p >Valid panning range is [0..1] where 0 is 100% left, and 1 is 100% right.</p>
-<p >Notice that panning 0.5 balance the sound but causes an attenuation of 50%.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">ch</td><td>Channel index </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">vol</td><td>Central volume (range [0..1]) </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">pan</td><td>Panning (range [0..1], center is 0.5) </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="a6d0758de0074e1a44dea7cf1b8d298d5" name="a6d0758de0074e1a44dea7cf1b8d298d5"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a6d0758de0074e1a44dea7cf1b8d298d5">&#9670;&nbsp;</a></span>mixer_init()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void mixer_init </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>num_channels</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Initialize the mixer. </p>
-<p >The mixer must be initialized after the audio subsystem (audio_init). The number of channels specified is the maximum number of channels used by the application. Specifying a higher number means using more memory as the mixer will allocate one sample buffer per channel, but it does not affect performance (which correlates to the actual number of simultaneously playing channels).</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">num_channels</td><td>Number of channels to initialize. </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
 <a id="a49057735de9c408b332975d72c05390c" name="a49057735de9c408b332975d72c05390c"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a49057735de9c408b332975d72c05390c">&#9670;&nbsp;</a></span>mixer_poll()</h2>
 
@@ -815,6 +797,51 @@ Read function of the waveform. <p >This is the callback that will be invoked by 
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">out</td><td>Output buffer were samples will be written. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">nsamples</td><td>Number of stereo samples to generate. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="a21ead4fd7433fbf4a328a216dc5a56a8" name="a21ead4fd7433fbf4a328a216dc5a56a8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a21ead4fd7433fbf4a328a216dc5a56a8">&#9670;&nbsp;</a></span>mixer_add_event()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void mixer_add_event </td>
+          <td>(</td>
+          <td class="paramtype">int64_t&#160;</td>
+          <td class="paramname"><em>delay</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="mixer_8h.html#a509fb916b04893006f91d4bc5f7fc69e">MixerEvent</a>&#160;</td>
+          <td class="paramname"><em>cb</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>ctx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Register a time-based event into the mixer. </p>
+<p >Register a new event into the mixer. "delay" is the number of samples to wait before calling the event callback. "cb" is the event callback. "ctx" is an opaque pointer that will be passed to the callback when invoked.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">delay</td><td>Number of samples to wait before invoking the event. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">cb</td><td>Event callback to invoke </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">ctx</td><td>Context opaque pointer to pass to the callback </td></tr>
   </table>
   </dd>
 </dl>
@@ -859,37 +886,10 @@ Read function of the waveform. <p >This is the callback that will be invoked by 
 
 </div>
 </div>
-<a id="ae8ed9fdb3bfcb119d56764dd401848ba" name="ae8ed9fdb3bfcb119d56764dd401848ba"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae8ed9fdb3bfcb119d56764dd401848ba">&#9670;&nbsp;</a></span>mixer_set_vol()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void mixer_set_vol </td>
-          <td>(</td>
-          <td class="paramtype">float&#160;</td>
-          <td class="paramname"><em>vol</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Set master volume. </p>
-<p >This is a global attenuation factor (range [0..1]) that will be applied to all channels and simplify implementing a global volume control.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">vol</td><td>Master volume (range [0..1]) </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:58 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

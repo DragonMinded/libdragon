@@ -193,87 +193,6 @@ Functions</h2></td></tr>
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="ga762b8b0c8957798c66ee158ce513e05e" name="ga762b8b0c8957798c66ee158ce513e05e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga762b8b0c8957798c66ee158ce513e05e">&#9670;&nbsp;</a></span>audio_can_write()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">volatile int audio_can_write </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Return whether there is an empty buffer to write to. </p>
-<p >This function will check to see if there are any buffers that are not full to write data to. If all buffers are full, wait until the AI has played back the next buffer in its queue and try writing again. </p>
-
-</div>
-</div>
-<a id="gad927b510bc46c3e0ebcfae81706fec06" name="gad927b510bc46c3e0ebcfae81706fec06"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gad927b510bc46c3e0ebcfae81706fec06">&#9670;&nbsp;</a></span>audio_close()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void audio_close </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Close the audio subsystem. </p>
-<p >This function closes the audio system and cleans up any internal memory allocated by <a class="el" href="group__audio.html#ga8ef2eb966a8552f3d19526753b98427f" title="Initialize the audio subsystem.">audio_init</a>. </p>
-
-</div>
-</div>
-<a id="ga12decba34a007365bf749874e044b88d" name="ga12decba34a007365bf749874e044b88d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga12decba34a007365bf749874e044b88d">&#9670;&nbsp;</a></span>audio_get_buffer_length()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int audio_get_buffer_length </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Get the number of stereo samples that fit into an allocated buffer. </p>
-<dl class="section note"><dt>Note</dt><dd>To get the number of bytes to allocate, multiply the return by 2 * sizeof( short )</dd></dl>
-<dl class="section return"><dt>Returns</dt><dd>The number of stereo samples in an allocated buffer </dd></dl>
-
-</div>
-</div>
-<a id="ga6892c9dfdd99e00a4285fe05058d6a37" name="ga6892c9dfdd99e00a4285fe05058d6a37"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga6892c9dfdd99e00a4285fe05058d6a37">&#9670;&nbsp;</a></span>audio_get_frequency()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int audio_get_frequency </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Return actual frequency of audio playback. </p>
-<dl class="section return"><dt>Returns</dt><dd>Frequency in Hz of the audio playback </dd></dl>
-
-</div>
-</div>
 <a id="ga8ef2eb966a8552f3d19526753b98427f" name="ga8ef2eb966a8552f3d19526753b98427f"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga8ef2eb966a8552f3d19526753b98427f">&#9670;&nbsp;</a></span>audio_init()</h2>
 
@@ -313,27 +232,6 @@ Functions</h2></td></tr>
 
 </div>
 </div>
-<a id="ga977622d0345b9951d9259d5ff202de8c" name="ga977622d0345b9951d9259d5ff202de8c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga977622d0345b9951d9259d5ff202de8c">&#9670;&nbsp;</a></span>audio_pause()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void audio_pause </td>
-          <td>(</td>
-          <td class="paramtype">bool&#160;</td>
-          <td class="paramname"><em>pause</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Pause or resume audio playback. </p>
-<p >Should only be used when a fill_buffer_callback has been set in <a class="el" href="group__audio.html#ga8ef2eb966a8552f3d19526753b98427f" title="Initialize the audio subsystem.">audio_init</a>. Silence will be generated while playback is paused. </p>
-
-</div>
-</div>
 <a id="ga456542c1cf5d749b2a351778f932f7a6" name="ga456542c1cf5d749b2a351778f932f7a6"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga456542c1cf5d749b2a351778f932f7a6">&#9670;&nbsp;</a></span>audio_set_buffer_callback()</h2>
 
@@ -358,6 +256,47 @@ Functions</h2></td></tr>
   </table>
   </dd>
 </dl>
+
+</div>
+</div>
+<a id="gad927b510bc46c3e0ebcfae81706fec06" name="gad927b510bc46c3e0ebcfae81706fec06"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gad927b510bc46c3e0ebcfae81706fec06">&#9670;&nbsp;</a></span>audio_close()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void audio_close </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Close the audio subsystem. </p>
+<p >This function closes the audio system and cleans up any internal memory allocated by <a class="el" href="group__audio.html#ga8ef2eb966a8552f3d19526753b98427f" title="Initialize the audio subsystem.">audio_init</a>. </p>
+
+</div>
+</div>
+<a id="ga977622d0345b9951d9259d5ff202de8c" name="ga977622d0345b9951d9259d5ff202de8c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga977622d0345b9951d9259d5ff202de8c">&#9670;&nbsp;</a></span>audio_pause()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void audio_pause </td>
+          <td>(</td>
+          <td class="paramtype">bool&#160;</td>
+          <td class="paramname"><em>pause</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Pause or resume audio playback. </p>
+<p >Should only be used when a fill_buffer_callback has been set in <a class="el" href="group__audio.html#ga8ef2eb966a8552f3d19526753b98427f" title="Initialize the audio subsystem.">audio_init</a>. Silence will be generated while playback is paused. </p>
 
 </div>
 </div>
@@ -457,10 +396,71 @@ Functions</h2></td></tr>
 
 </div>
 </div>
+<a id="ga762b8b0c8957798c66ee158ce513e05e" name="ga762b8b0c8957798c66ee158ce513e05e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga762b8b0c8957798c66ee158ce513e05e">&#9670;&nbsp;</a></span>audio_can_write()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">volatile int audio_can_write </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Return whether there is an empty buffer to write to. </p>
+<p >This function will check to see if there are any buffers that are not full to write data to. If all buffers are full, wait until the AI has played back the next buffer in its queue and try writing again. </p>
+
+</div>
+</div>
+<a id="ga6892c9dfdd99e00a4285fe05058d6a37" name="ga6892c9dfdd99e00a4285fe05058d6a37"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga6892c9dfdd99e00a4285fe05058d6a37">&#9670;&nbsp;</a></span>audio_get_frequency()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int audio_get_frequency </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Return actual frequency of audio playback. </p>
+<dl class="section return"><dt>Returns</dt><dd>Frequency in Hz of the audio playback </dd></dl>
+
+</div>
+</div>
+<a id="ga12decba34a007365bf749874e044b88d" name="ga12decba34a007365bf749874e044b88d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga12decba34a007365bf749874e044b88d">&#9670;&nbsp;</a></span>audio_get_buffer_length()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int audio_get_buffer_length </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the number of stereo samples that fit into an allocated buffer. </p>
+<dl class="section note"><dt>Note</dt><dd>To get the number of bytes to allocate, multiply the return by 2 * sizeof( short )</dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>The number of stereo samples in an allocated buffer </dd></dl>
+
+</div>
+</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:58 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

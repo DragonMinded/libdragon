@@ -408,73 +408,6 @@ struct callback_link *&#160;</td><td class="memItemRight" valign="bottom"><b>CAR
 
 </div>
 </div>
-<a id="ga52651bf1923b2c97e8b4da0ac6b99fdb" name="ga52651bf1923b2c97e8b4da0ac6b99fdb"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga52651bf1923b2c97e8b4da0ac6b99fdb">&#9670;&nbsp;</a></span>disable_interrupts()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void disable_interrupts </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Disable interrupts systemwide. </p>
-<dl class="section note"><dt>Note</dt><dd>If interrupts are already disabled on the system or interrupts have not been initialized, this function will not modify the system state. </dd></dl>
-
-</div>
-</div>
-<a id="ga154b837080a092ecbab0735a0254c4b4" name="ga154b837080a092ecbab0735a0254c4b4"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga154b837080a092ecbab0735a0254c4b4">&#9670;&nbsp;</a></span>enable_interrupts()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void enable_interrupts </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Enable interrupts systemwide. </p>
-<dl class="section note"><dt>Note</dt><dd>If this is called inside a nested disable call, it will have no effect on the system. Therefore it is safe to nest disable/enable calls. After the last nested interrupt is enabled, systemwide interrupts will be reenabled. </dd></dl>
-
-</div>
-</div>
-<a id="gaf84369f06d965c3fdba355cad7e71e89" name="gaf84369f06d965c3fdba355cad7e71e89"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaf84369f06d965c3fdba355cad7e71e89">&#9670;&nbsp;</a></span>get_interrupts_state()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="group__interrupt.html#ga366982e291c08c36c7352ea07a6e096c">interrupt_state_t</a> get_interrupts_state </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Return the current state of interrupts. </p>
-<dl class="retval"><dt>Return values</dt><dd>
-  <table class="retval">
-    <tr><td class="paramname">INTERRUPTS_UNINITIALIZED</td><td>if the interrupt system has not been initialized yet. </td></tr>
-    <tr><td class="paramname">INTERRUPTS_DISABLED</td><td>if interrupts have been disabled for some reason. </td></tr>
-    <tr><td class="paramname">INTERRUPTS_ENABLED</td><td>if interrupts are currently enabled. </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
 <a id="ga2351876167328732c7ff03de3c4081db" name="ga2351876167328732c7ff03de3c4081db"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga2351876167328732c7ff03de3c4081db">&#9670;&nbsp;</a></span>register_AI_handler()</h2>
 
@@ -501,14 +434,14 @@ struct callback_link *&#160;</td><td class="memItemRight" valign="bottom"><b>CAR
 
 </div>
 </div>
-<a id="ga0bb059c6f6872f28fec2a819541279f4" name="ga0bb059c6f6872f28fec2a819541279f4"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga0bb059c6f6872f28fec2a819541279f4">&#9670;&nbsp;</a></span>register_CART_handler()</h2>
+<a id="ga05ed635fdfe7b72490e6bca3d82a9844" name="ga05ed635fdfe7b72490e6bca3d82a9844"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga05ed635fdfe7b72490e6bca3d82a9844">&#9670;&nbsp;</a></span>unregister_AI_handler()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void register_CART_handler </td>
+          <td class="memname">void unregister_AI_handler </td>
           <td>(</td>
           <td class="paramtype">void(*)()&#160;</td>
           <td class="paramname"><em>callback</em></td><td>)</td>
@@ -517,27 +450,24 @@ struct callback_link *&#160;</td><td class="memItemRight" valign="bottom"><b>CAR
       </table>
 </div><div class="memdoc">
 
-<p>Register a CART interrupt callback. </p>
-<p >The callback will be called when a CART interrupt is triggered. CART interrupts are interrupts triggered by devices attached to the PI bus (aka CART bus), for instance the 64DD, or the modem cassette.</p>
-<p >CART interrupts are disabled by default in libdragon. Use <a class="el" href="group__interrupt.html#gac7ddaefc83763af0e97886beb7600d8b" title="Enable the CART interrupt.">set_CART_interrupt</a> to enable/disable them.</p>
-<p >Notice that there is no generic way to acknowledge those interrupts, so if you activate CART interrupts, make also sure to register an handler that acknowledge them, otherwise the interrupt will deadlock the console.</p>
+<p>Unregister an AI callback. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function that should no longer be called on CART interrupts </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function that should no longer be called on AI interrupts </td></tr>
   </table>
   </dd>
 </dl>
 
 </div>
 </div>
-<a id="gaf41859f72b17670b89d7a117721f599f" name="gaf41859f72b17670b89d7a117721f599f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaf41859f72b17670b89d7a117721f599f">&#9670;&nbsp;</a></span>register_DP_handler()</h2>
+<a id="gab3d1ab2fc7617f717482d0a8896372ab" name="gab3d1ab2fc7617f717482d0a8896372ab"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gab3d1ab2fc7617f717482d0a8896372ab">&#9670;&nbsp;</a></span>register_VI_handler()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void register_DP_handler </td>
+          <td class="memname">void register_VI_handler </td>
           <td>(</td>
           <td class="paramtype">void(*)()&#160;</td>
           <td class="paramname"><em>callback</em></td><td>)</td>
@@ -546,10 +476,36 @@ struct callback_link *&#160;</td><td class="memItemRight" valign="bottom"><b>CAR
       </table>
 </div><div class="memdoc">
 
-<p>Register a DP callback. </p>
+<p>Register a VI callback. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function to call when a DP interrupt occurs </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function to call when a VI interrupt occurs </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ga432eef7630772dfe5a26b2440122c379" name="ga432eef7630772dfe5a26b2440122c379"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga432eef7630772dfe5a26b2440122c379">&#9670;&nbsp;</a></span>unregister_VI_handler()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void unregister_VI_handler </td>
+          <td>(</td>
+          <td class="paramtype">void(*)()&#160;</td>
+          <td class="paramname"><em>callback</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Unregister a VI callback. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function that should no longer be called on VI interrupts </td></tr>
   </table>
   </dd>
 </dl>
@@ -582,6 +538,84 @@ struct callback_link *&#160;</td><td class="memItemRight" valign="bottom"><b>CAR
 
 </div>
 </div>
+<a id="ga7d6944493768b6d604359d0cdbe5bed4" name="ga7d6944493768b6d604359d0cdbe5bed4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga7d6944493768b6d604359d0cdbe5bed4">&#9670;&nbsp;</a></span>unregister_PI_handler()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void unregister_PI_handler </td>
+          <td>(</td>
+          <td class="paramtype">void(*)()&#160;</td>
+          <td class="paramname"><em>callback</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Unegister a PI callback. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function that should no longer be called on PI interrupts </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="gaf41859f72b17670b89d7a117721f599f" name="gaf41859f72b17670b89d7a117721f599f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaf41859f72b17670b89d7a117721f599f">&#9670;&nbsp;</a></span>register_DP_handler()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void register_DP_handler </td>
+          <td>(</td>
+          <td class="paramtype">void(*)()&#160;</td>
+          <td class="paramname"><em>callback</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Register a DP callback. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function to call when a DP interrupt occurs </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ga576a9619c9c5e42863664ed1dcbb7d11" name="ga576a9619c9c5e42863664ed1dcbb7d11"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga576a9619c9c5e42863664ed1dcbb7d11">&#9670;&nbsp;</a></span>unregister_DP_handler()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void unregister_DP_handler </td>
+          <td>(</td>
+          <td class="paramtype">void(*)()&#160;</td>
+          <td class="paramname"><em>callback</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Unregister a DP callback. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function that should no longer be called on DP interrupts </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 <a id="gae2ed676471062e227ad17ac859b22163" name="gae2ed676471062e227ad17ac859b22163"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#gae2ed676471062e227ad17ac859b22163">&#9670;&nbsp;</a></span>register_SI_handler()</h2>
 
@@ -608,6 +642,32 @@ struct callback_link *&#160;</td><td class="memItemRight" valign="bottom"><b>CAR
 
 </div>
 </div>
+<a id="ga082b7cf2be05e8d07404572f0d5a96b0" name="ga082b7cf2be05e8d07404572f0d5a96b0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga082b7cf2be05e8d07404572f0d5a96b0">&#9670;&nbsp;</a></span>unregister_SI_handler()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void unregister_SI_handler </td>
+          <td>(</td>
+          <td class="paramtype">void(*)()&#160;</td>
+          <td class="paramname"><em>callback</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Unegister a SI callback. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function that should no longer be called on SI interrupts </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 <a id="gaf3079522044b52381718fc0f7348879e" name="gaf3079522044b52381718fc0f7348879e"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#gaf3079522044b52381718fc0f7348879e">&#9670;&nbsp;</a></span>register_SP_handler()</h2>
 
@@ -628,6 +688,32 @@ struct callback_link *&#160;</td><td class="memItemRight" valign="bottom"><b>CAR
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function to call when a SP interrupt occurs </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="gad3983fa9ec9de4022655d4153b39bead" name="gad3983fa9ec9de4022655d4153b39bead"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gad3983fa9ec9de4022655d4153b39bead">&#9670;&nbsp;</a></span>unregister_SP_handler()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void unregister_SP_handler </td>
+          <td>(</td>
+          <td class="paramtype">void(*)()&#160;</td>
+          <td class="paramname"><em>callback</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Unegister a SP callback. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function that should no longer be called on SP interrupts </td></tr>
   </table>
   </dd>
 </dl>
@@ -663,14 +749,14 @@ struct callback_link *&#160;</td><td class="memItemRight" valign="bottom"><b>CAR
 
 </div>
 </div>
-<a id="gab3d1ab2fc7617f717482d0a8896372ab" name="gab3d1ab2fc7617f717482d0a8896372ab"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gab3d1ab2fc7617f717482d0a8896372ab">&#9670;&nbsp;</a></span>register_VI_handler()</h2>
+<a id="ga1cc1089f8fe22245df63d22f314a95d6" name="ga1cc1089f8fe22245df63d22f314a95d6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga1cc1089f8fe22245df63d22f314a95d6">&#9670;&nbsp;</a></span>unregister_TI_handler()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void register_VI_handler </td>
+          <td class="memname">void unregister_TI_handler </td>
           <td>(</td>
           <td class="paramtype">void(*)()&#160;</td>
           <td class="paramname"><em>callback</em></td><td>)</td>
@@ -679,10 +765,66 @@ struct callback_link *&#160;</td><td class="memItemRight" valign="bottom"><b>CAR
       </table>
 </div><div class="memdoc">
 
-<p>Register a VI callback. </p>
+<p>Unregister a timer callback. </p>
+<dl class="section note"><dt>Note</dt><dd>If you use the timer library (<a class="el" href="group__timer.html#ga7b8ab79df77b57475a5494f5f81c3bd9" title="Initialize the timer subsystem.">timer_init</a> and <a class="el" href="group__timer.html#ga62dc88d941d6790a7427371df59d1eeb" title="Create a new timer and add to list.">new_timer</a>), you do not need to call this function, as timer interrupt are already handled by the timer library.</dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function to call when a VI interrupt occurs </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function that should no longer be called on timer interrupts </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ga0bb059c6f6872f28fec2a819541279f4" name="ga0bb059c6f6872f28fec2a819541279f4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga0bb059c6f6872f28fec2a819541279f4">&#9670;&nbsp;</a></span>register_CART_handler()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void register_CART_handler </td>
+          <td>(</td>
+          <td class="paramtype">void(*)()&#160;</td>
+          <td class="paramname"><em>callback</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Register a CART interrupt callback. </p>
+<p >The callback will be called when a CART interrupt is triggered. CART interrupts are interrupts triggered by devices attached to the PI bus (aka CART bus), for instance the 64DD, or the modem cassette.</p>
+<p >CART interrupts are disabled by default in libdragon. Use <a class="el" href="group__interrupt.html#gac7ddaefc83763af0e97886beb7600d8b" title="Enable the CART interrupt.">set_CART_interrupt</a> to enable/disable them.</p>
+<p >Notice that there is no generic way to acknowledge those interrupts, so if you activate CART interrupts, make also sure to register an handler that acknowledge them, otherwise the interrupt will deadlock the console.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function that should no longer be called on CART interrupts </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ga7f0506a6313156207431898c0fb400ec" name="ga7f0506a6313156207431898c0fb400ec"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga7f0506a6313156207431898c0fb400ec">&#9670;&nbsp;</a></span>unregister_CART_handler()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void unregister_CART_handler </td>
+          <td>(</td>
+          <td class="paramtype">void(*)()&#160;</td>
+          <td class="paramname"><em>callback</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Unregister a CART interrupt callback. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function that should no longer be called on CART interrupts </td></tr>
   </table>
   </dd>
 </dl>
@@ -715,53 +857,37 @@ struct callback_link *&#160;</td><td class="memItemRight" valign="bottom"><b>CAR
 
 </div>
 </div>
-<a id="gac7ddaefc83763af0e97886beb7600d8b" name="gac7ddaefc83763af0e97886beb7600d8b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gac7ddaefc83763af0e97886beb7600d8b">&#9670;&nbsp;</a></span>set_CART_interrupt()</h2>
+<a id="gaf53fd03f791d5a936e7db39f5c7959c1" name="gaf53fd03f791d5a936e7db39f5c7959c1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaf53fd03f791d5a936e7db39f5c7959c1">&#9670;&nbsp;</a></span>set_VI_interrupt()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void set_CART_interrupt </td>
+          <td class="memname">void set_VI_interrupt </td>
           <td>(</td>
           <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>active</em></td><td>)</td>
-          <td></td>
+          <td class="paramname"><em>active</em>, </td>
         </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Enable the CART interrupt. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">active</td><td>Flag to specify whether the CART interrupt should be active</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section see"><dt>See also</dt><dd><a class="el" href="group__interrupt.html#ga0bb059c6f6872f28fec2a819541279f4" title="Register a CART interrupt callback.">register_CART_handler</a> </dd></dl>
-
-</div>
-</div>
-<a id="gad0b3939ccf8c8eff2289c08a75cbc624" name="gad0b3939ccf8c8eff2289c08a75cbc624"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gad0b3939ccf8c8eff2289c08a75cbc624">&#9670;&nbsp;</a></span>set_DP_interrupt()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
         <tr>
-          <td class="memname">void set_DP_interrupt </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>active</em></td><td>)</td>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype">unsigned long&#160;</td>
+          <td class="paramname"><em>line</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Enable or disable the DP interrupt. </p>
+<p>Enable or disable the VI interrupt. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">active</td><td>Flag to specify whether the DP interrupt should be active </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">active</td><td>Flag to specify whether the VI interrupt should be active </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">line</td><td>The vertical line that causes this interrupt to fire. Ignored when setting the interrupt inactive </td></tr>
   </table>
   </dd>
 </dl>
@@ -788,6 +914,32 @@ struct callback_link *&#160;</td><td class="memItemRight" valign="bottom"><b>CAR
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">active</td><td>Flag to specify whether the PI interrupt should be active </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="gad0b3939ccf8c8eff2289c08a75cbc624" name="gad0b3939ccf8c8eff2289c08a75cbc624"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gad0b3939ccf8c8eff2289c08a75cbc624">&#9670;&nbsp;</a></span>set_DP_interrupt()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void set_DP_interrupt </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>active</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Enable or disable the DP interrupt. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">active</td><td>Flag to specify whether the DP interrupt should be active </td></tr>
   </table>
   </dd>
 </dl>
@@ -874,246 +1026,94 @@ struct callback_link *&#160;</td><td class="memItemRight" valign="bottom"><b>CAR
 
 </div>
 </div>
-<a id="gaf53fd03f791d5a936e7db39f5c7959c1" name="gaf53fd03f791d5a936e7db39f5c7959c1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaf53fd03f791d5a936e7db39f5c7959c1">&#9670;&nbsp;</a></span>set_VI_interrupt()</h2>
+<a id="gac7ddaefc83763af0e97886beb7600d8b" name="gac7ddaefc83763af0e97886beb7600d8b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gac7ddaefc83763af0e97886beb7600d8b">&#9670;&nbsp;</a></span>set_CART_interrupt()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void set_VI_interrupt </td>
+          <td class="memname">void set_CART_interrupt </td>
           <td>(</td>
           <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>active</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
+          <td class="paramname"><em>active</em></td><td>)</td>
           <td></td>
-          <td class="paramtype">unsigned long&#160;</td>
-          <td class="paramname"><em>line</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Enable or disable the VI interrupt. </p>
+<p>Enable the CART interrupt. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">active</td><td>Flag to specify whether the VI interrupt should be active </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">line</td><td>The vertical line that causes this interrupt to fire. Ignored when setting the interrupt inactive </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">active</td><td>Flag to specify whether the CART interrupt should be active</td></tr>
   </table>
   </dd>
 </dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="group__interrupt.html#ga0bb059c6f6872f28fec2a819541279f4" title="Register a CART interrupt callback.">register_CART_handler</a> </dd></dl>
 
 </div>
 </div>
-<a id="ga05ed635fdfe7b72490e6bca3d82a9844" name="ga05ed635fdfe7b72490e6bca3d82a9844"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga05ed635fdfe7b72490e6bca3d82a9844">&#9670;&nbsp;</a></span>unregister_AI_handler()</h2>
+<a id="ga52651bf1923b2c97e8b4da0ac6b99fdb" name="ga52651bf1923b2c97e8b4da0ac6b99fdb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga52651bf1923b2c97e8b4da0ac6b99fdb">&#9670;&nbsp;</a></span>disable_interrupts()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void unregister_AI_handler </td>
+          <td class="memname">void disable_interrupts </td>
           <td>(</td>
-          <td class="paramtype">void(*)()&#160;</td>
-          <td class="paramname"><em>callback</em></td><td>)</td>
+          <td class="paramname"></td><td>)</td>
           <td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Unregister an AI callback. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function that should no longer be called on AI interrupts </td></tr>
-  </table>
-  </dd>
-</dl>
+<p>Disable interrupts systemwide. </p>
+<dl class="section note"><dt>Note</dt><dd>If interrupts are already disabled on the system or interrupts have not been initialized, this function will not modify the system state. </dd></dl>
 
 </div>
 </div>
-<a id="ga7f0506a6313156207431898c0fb400ec" name="ga7f0506a6313156207431898c0fb400ec"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga7f0506a6313156207431898c0fb400ec">&#9670;&nbsp;</a></span>unregister_CART_handler()</h2>
+<a id="ga154b837080a092ecbab0735a0254c4b4" name="ga154b837080a092ecbab0735a0254c4b4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga154b837080a092ecbab0735a0254c4b4">&#9670;&nbsp;</a></span>enable_interrupts()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void unregister_CART_handler </td>
+          <td class="memname">void enable_interrupts </td>
           <td>(</td>
-          <td class="paramtype">void(*)()&#160;</td>
-          <td class="paramname"><em>callback</em></td><td>)</td>
+          <td class="paramname"></td><td>)</td>
           <td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Unregister a CART interrupt callback. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function that should no longer be called on CART interrupts </td></tr>
-  </table>
-  </dd>
-</dl>
+<p>Enable interrupts systemwide. </p>
+<dl class="section note"><dt>Note</dt><dd>If this is called inside a nested disable call, it will have no effect on the system. Therefore it is safe to nest disable/enable calls. After the last nested interrupt is enabled, systemwide interrupts will be reenabled. </dd></dl>
 
 </div>
 </div>
-<a id="ga576a9619c9c5e42863664ed1dcbb7d11" name="ga576a9619c9c5e42863664ed1dcbb7d11"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga576a9619c9c5e42863664ed1dcbb7d11">&#9670;&nbsp;</a></span>unregister_DP_handler()</h2>
+<a id="gaf84369f06d965c3fdba355cad7e71e89" name="gaf84369f06d965c3fdba355cad7e71e89"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaf84369f06d965c3fdba355cad7e71e89">&#9670;&nbsp;</a></span>get_interrupts_state()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void unregister_DP_handler </td>
+          <td class="memname"><a class="el" href="group__interrupt.html#ga366982e291c08c36c7352ea07a6e096c">interrupt_state_t</a> get_interrupts_state </td>
           <td>(</td>
-          <td class="paramtype">void(*)()&#160;</td>
-          <td class="paramname"><em>callback</em></td><td>)</td>
+          <td class="paramname"></td><td>)</td>
           <td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Unregister a DP callback. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function that should no longer be called on DP interrupts </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="ga7d6944493768b6d604359d0cdbe5bed4" name="ga7d6944493768b6d604359d0cdbe5bed4"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga7d6944493768b6d604359d0cdbe5bed4">&#9670;&nbsp;</a></span>unregister_PI_handler()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void unregister_PI_handler </td>
-          <td>(</td>
-          <td class="paramtype">void(*)()&#160;</td>
-          <td class="paramname"><em>callback</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Unegister a PI callback. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function that should no longer be called on PI interrupts </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="ga082b7cf2be05e8d07404572f0d5a96b0" name="ga082b7cf2be05e8d07404572f0d5a96b0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga082b7cf2be05e8d07404572f0d5a96b0">&#9670;&nbsp;</a></span>unregister_SI_handler()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void unregister_SI_handler </td>
-          <td>(</td>
-          <td class="paramtype">void(*)()&#160;</td>
-          <td class="paramname"><em>callback</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Unegister a SI callback. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function that should no longer be called on SI interrupts </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="gad3983fa9ec9de4022655d4153b39bead" name="gad3983fa9ec9de4022655d4153b39bead"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gad3983fa9ec9de4022655d4153b39bead">&#9670;&nbsp;</a></span>unregister_SP_handler()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void unregister_SP_handler </td>
-          <td>(</td>
-          <td class="paramtype">void(*)()&#160;</td>
-          <td class="paramname"><em>callback</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Unegister a SP callback. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function that should no longer be called on SP interrupts </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="ga1cc1089f8fe22245df63d22f314a95d6" name="ga1cc1089f8fe22245df63d22f314a95d6"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga1cc1089f8fe22245df63d22f314a95d6">&#9670;&nbsp;</a></span>unregister_TI_handler()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void unregister_TI_handler </td>
-          <td>(</td>
-          <td class="paramtype">void(*)()&#160;</td>
-          <td class="paramname"><em>callback</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Unregister a timer callback. </p>
-<dl class="section note"><dt>Note</dt><dd>If you use the timer library (<a class="el" href="group__timer.html#ga7b8ab79df77b57475a5494f5f81c3bd9" title="Initialize the timer subsystem.">timer_init</a> and <a class="el" href="group__timer.html#ga62dc88d941d6790a7427371df59d1eeb" title="Create a new timer and add to list.">new_timer</a>), you do not need to call this function, as timer interrupt are already handled by the timer library.</dd></dl>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function that should no longer be called on timer interrupts </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="ga432eef7630772dfe5a26b2440122c379" name="ga432eef7630772dfe5a26b2440122c379"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga432eef7630772dfe5a26b2440122c379">&#9670;&nbsp;</a></span>unregister_VI_handler()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void unregister_VI_handler </td>
-          <td>(</td>
-          <td class="paramtype">void(*)()&#160;</td>
-          <td class="paramname"><em>callback</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Unregister a VI callback. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">callback</td><td>Function that should no longer be called on VI interrupts </td></tr>
+<p>Return the current state of interrupts. </p>
+<dl class="retval"><dt>Return values</dt><dd>
+  <table class="retval">
+    <tr><td class="paramname">INTERRUPTS_UNINITIALIZED</td><td>if the interrupt system has not been initialized yet. </td></tr>
+    <tr><td class="paramname">INTERRUPTS_DISABLED</td><td>if interrupts have been disabled for some reason. </td></tr>
+    <tr><td class="paramname">INTERRUPTS_ENABLED</td><td>if interrupts are currently enabled. </td></tr>
   </table>
   </dd>
 </dl>
@@ -1141,7 +1141,7 @@ struct callback_link *&#160;</td><td class="memItemRight" valign="bottom"><b>CAR
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:59 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

@@ -130,45 +130,6 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__joybus_init</b> (vo
 <p >Internally, the JoyBus subsystem communicates with the PIF controller via the SI DMA, via the JoyBus protocol which is a standard master/slave binary protocol. Each message of the protocol is a block of 64 bytes, and can contain multiple commands. Currently, there are no macros or functions to help composing a JoyBus message, so higher-level libraries currently hard code the binary messages.</p>
 <p >All communications is made asynchronously because SI DMA is quite slow: its completion is bound to the PIF actually processing the data, rather than just being the memory transfer. A queue of pending JoyBus messages is kept in a ring buffer, and is then executed under interrupt when the previous SI DMA completes. The internal entry point is <a class="el" href="group__joybus.html#ga67a0b9a8881c8ca94d35be1db9e6030f" title="Execute an asynchronous joybus message.">joybus_exec_async</a>, that schedules a message to be sent to PIF, and calls a callback with the reply whenever it is available. A blocking API (<a class="el" href="group__joybus.html#ga6d62432ce8ecd83cd1588716fd28fdb7" title="Write a 64-byte block of data to the PIF and read the 64-byte result.">joybus_exec</a>) is made available for simpler usage. </p>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="ga6d62432ce8ecd83cd1588716fd28fdb7" name="ga6d62432ce8ecd83cd1588716fd28fdb7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga6d62432ce8ecd83cd1588716fd28fdb7">&#9670;&nbsp;</a></span>joybus_exec()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void joybus_exec </td>
-          <td>(</td>
-          <td class="paramtype">const void *&#160;</td>
-          <td class="paramname"><em>input</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>output</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Write a 64-byte block of data to the PIF and read the 64-byte result. </p>
-<p >This function is not a stable feature of the libdragon API and should be considered experimental!</p>
-<p >The usage of this function will likely change as a result of the ongoing effort to integrate the multitasking kernel with asynchronous operations.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">input</td><td>Source buffer for the input block to send to the PIF</td></tr>
-    <tr><td class="paramdir">[out]</td><td class="paramname">output</td><td>Destination buffer to place the output block from the PIF </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
 <a id="ga67a0b9a8881c8ca94d35be1db9e6030f" name="ga67a0b9a8881c8ca94d35be1db9e6030f"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga67a0b9a8881c8ca94d35be1db9e6030f">&#9670;&nbsp;</a></span>joybus_exec_async()</h2>
 
@@ -218,10 +179,49 @@ This function is not part of the public API yet because we want to evaluate the 
 
 </div>
 </div>
+<a id="ga6d62432ce8ecd83cd1588716fd28fdb7" name="ga6d62432ce8ecd83cd1588716fd28fdb7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga6d62432ce8ecd83cd1588716fd28fdb7">&#9670;&nbsp;</a></span>joybus_exec()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void joybus_exec </td>
+          <td>(</td>
+          <td class="paramtype">const void *&#160;</td>
+          <td class="paramname"><em>input</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>output</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Write a 64-byte block of data to the PIF and read the 64-byte result. </p>
+<p >This function is not a stable feature of the libdragon API and should be considered experimental!</p>
+<p >The usage of this function will likely change as a result of the ongoing effort to integrate the multitasking kernel with asynchronous operations.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">input</td><td>Source buffer for the input block to send to the PIF</td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">output</td><td>Destination buffer to place the output block from the PIF </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:59 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

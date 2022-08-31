@@ -115,86 +115,6 @@ uint8_t&#160;</td><td class="memItemRight" valign="bottom"><b>holding</b></td></
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p >Envelope of AY-3-8910. </p>
 </div><h2 class="groupheader">Field Documentation</h2>
-<a id="a83cc06194995ba0ccac61a5fefc85760" name="a83cc06194995ba0ccac61a5fefc85760"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a83cc06194995ba0ccac61a5fefc85760">&#9670;&nbsp;</a></span>alternate</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">uint8_t AYEnvelope::alternate</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>True if attack and release alternate (jigsaw) </p>
-
-</div>
-</div>
-<a id="ad32733abe56129ddcf068f8ee5d1e1b1" name="ad32733abe56129ddcf068f8ee5d1e1b1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ad32733abe56129ddcf068f8ee5d1e1b1">&#9670;&nbsp;</a></span>attack</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">uint8_t AYEnvelope::attack</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>0x0 if in attack, 0xF if in the release </p>
-
-</div>
-</div>
-<a id="a4eae001d0b07d34dcfb74b4758bb586b" name="a4eae001d0b07d34dcfb74b4758bb586b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4eae001d0b07d34dcfb74b4758bb586b">&#9670;&nbsp;</a></span>count</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">uint16_t AYEnvelope::count</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Current tick count for the period. </p>
-
-</div>
-</div>
-<a id="ae6af4ce2a69f5d4cd3870089d38a8948" name="ae6af4ce2a69f5d4cd3870089d38a8948"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae6af4ce2a69f5d4cd3870089d38a8948">&#9670;&nbsp;</a></span>hold</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">uint8_t AYEnvelope::hold</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>True if the envelope holds after attack. </p>
-
-</div>
-</div>
-<a id="a235b48e588cfaa046987aa652fde8f9a" name="a235b48e588cfaa046987aa652fde8f9a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a235b48e588cfaa046987aa652fde8f9a">&#9670;&nbsp;</a></span>holding</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">uint8_t AYEnvelope::holding</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>True if the envelope is currently holding. </p>
-
-</div>
-</div>
 <a id="a96bf5fdf2bbe39c0c17760d707fffaf1" name="a96bf5fdf2bbe39c0c17760d707fffaf1"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a96bf5fdf2bbe39c0c17760d707fffaf1">&#9670;&nbsp;</a></span>period</h2>
 
@@ -224,6 +144,70 @@ uint8_t&#160;</td><td class="memItemRight" valign="bottom"><b>holding</b></td></
 </div><div class="memdoc">
 
 <p>Shape of the envelope (jigsaw, etc.) </p>
+
+</div>
+</div>
+<a id="ad32733abe56129ddcf068f8ee5d1e1b1" name="ad32733abe56129ddcf068f8ee5d1e1b1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad32733abe56129ddcf068f8ee5d1e1b1">&#9670;&nbsp;</a></span>attack</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint8_t AYEnvelope::attack</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>0x0 if in attack, 0xF if in the release </p>
+
+</div>
+</div>
+<a id="a83cc06194995ba0ccac61a5fefc85760" name="a83cc06194995ba0ccac61a5fefc85760"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a83cc06194995ba0ccac61a5fefc85760">&#9670;&nbsp;</a></span>alternate</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint8_t AYEnvelope::alternate</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>True if attack and release alternate (jigsaw) </p>
+
+</div>
+</div>
+<a id="ae6af4ce2a69f5d4cd3870089d38a8948" name="ae6af4ce2a69f5d4cd3870089d38a8948"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae6af4ce2a69f5d4cd3870089d38a8948">&#9670;&nbsp;</a></span>hold</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint8_t AYEnvelope::hold</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>True if the envelope holds after attack. </p>
+
+</div>
+</div>
+<a id="a4eae001d0b07d34dcfb74b4758bb586b" name="a4eae001d0b07d34dcfb74b4758bb586b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4eae001d0b07d34dcfb74b4758bb586b">&#9670;&nbsp;</a></span>count</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint16_t AYEnvelope::count</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Current tick count for the period. </p>
 
 </div>
 </div>
@@ -259,13 +243,29 @@ uint8_t&#160;</td><td class="memItemRight" valign="bottom"><b>holding</b></td></
 
 </div>
 </div>
+<a id="a235b48e588cfaa046987aa652fde8f9a" name="a235b48e588cfaa046987aa652fde8f9a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a235b48e588cfaa046987aa652fde8f9a">&#9670;&nbsp;</a></span>holding</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint8_t AYEnvelope::holding</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>True if the envelope is currently holding. </p>
+
+</div>
+</div>
 <hr/>The documentation for this struct was generated from the following file:<ul>
 <li><a class="el" href="ay8910_8h_source.html">ay8910.h</a></li>
 </ul>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:59 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

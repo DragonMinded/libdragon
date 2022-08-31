@@ -450,6 +450,9 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__data_cache_hit_inva
 <tr class="memitem:gaf9f812fb3f12eaee7f5186b893266d3a"><td class="memItemLeft" align="right" valign="top">void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a">malloc_uncached</a> (size_t size)</td></tr>
 <tr class="memdesc:gaf9f812fb3f12eaee7f5186b893266d3a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Allocate a buffer that will be accessed as uncached memory.  <a href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a">More...</a><br /></td></tr>
 <tr class="separator:gaf9f812fb3f12eaee7f5186b893266d3a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaa32bea9ddd5d2931d27945d63cc71e01"><td class="memItemLeft" align="right" valign="top">void *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gaa32bea9ddd5d2931d27945d63cc71e01">malloc_uncached_aligned</a> (int align, size_t size)</td></tr>
+<tr class="memdesc:gaa32bea9ddd5d2931d27945d63cc71e01"><td class="mdescLeft">&#160;</td><td class="mdescRight">Allocate a buffer that will be accessed as uncached memory, specifying alignment.  <a href="group__n64sys.html#gaa32bea9ddd5d2931d27945d63cc71e01">More...</a><br /></td></tr>
+<tr class="separator:gaa32bea9ddd5d2931d27945d63cc71e01"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gad7eb2952f66b4c6158a161eddc6f6a7d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#gad7eb2952f66b4c6158a161eddc6f6a7d">free_uncached</a> (void *buf)</td></tr>
 <tr class="memdesc:gad7eb2952f66b4c6158a161eddc6f6a7d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Free an uncached memory buffer.  <a href="group__n64sys.html#gad7eb2952f66b4c6158a161eddc6f6a7d">More...</a><br /></td></tr>
 <tr class="separator:gad7eb2952f66b4c6158a161eddc6f6a7d"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -491,14 +494,59 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
 <p >N64 bootup and cache interfaces. </p>
 <p >The N64 system interface provides a way for code to interact with the memory setup on the system. This includes cache operations to invalidate or flush regions and the ability to set the boot CIC. The <a class="el" href="group__system.html">newlib Interface Hooks</a> use the knowledge of the boot CIC to properly determine if the expansion pak is present, giving 4MB of additional memory. Aside from this, the MIPS r4300 uses a manual cache management strategy, where SW that requires passing buffers to and from hardware components using DMA controllers needs to ensure that cache and RDRAM are in sync. A set of operations to invalidate and/or write back cache is provided for both instruction cache and data cache. </p>
 <h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="ga2c0eaba2123f76f15834eab8e2a40e8c" name="ga2c0eaba2123f76f15834eab8e2a40e8c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga2c0eaba2123f76f15834eab8e2a40e8c">&#9670;&nbsp;</a></span>C0_BADVADDR</h2>
+<a id="gac69e8a7b3752d227238ff76b56b3fa17" name="gac69e8a7b3752d227238ff76b56b3fa17"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gac69e8a7b3752d227238ff76b56b3fa17">&#9670;&nbsp;</a></span>cache_op</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define C0_BADVADDR</td>
+          <td class="memname">#define cache_op</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">op, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">linesize&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
+<div class="line">    if (length) { \</div>
+<div class="line">        void *cur = (<span class="keywordtype">void</span>*)((<span class="keywordtype">unsigned</span> <span class="keywordtype">long</span>)addr &amp; ~(linesize-1)); \</div>
+<div class="line">        int count = (int)length + (addr-cur); \</div>
+<div class="line">        for (<span class="keywordtype">int</span> i = 0; i &lt; count; i += linesize) \</div>
+<div class="line">            <span class="keyword">asm</span> (<span class="stringliteral">&quot;\tcache %0,(%1)\n&quot;</span>::<span class="stringliteral">&quot;i&quot;</span> (op), <span class="stringliteral">&quot;r&quot;</span> (cur+i)); \</div>
+<div class="line">    } \</div>
+<div class="line">})</div>
+</div><!-- fragment -->
+<p>Helper macro to perform cache refresh operations. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">op</td><td>Operation to perform </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">linesize</td><td>Size of a cacheline in bytes </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ga06cc6d925caa4db67e81281eef124d28" name="ga06cc6d925caa4db67e81281eef124d28"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga06cc6d925caa4db67e81281eef124d28">&#9670;&nbsp;</a></span>C0_COUNT</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define C0_COUNT</td>
           <td>(</td>
           <td class="paramname"></td><td>)</td>
           <td></td>
@@ -507,12 +555,128 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
 <div class="line">    uint32_t x; \</div>
-<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mfc0 %0,$8&quot;</span> : <span class="stringliteral">&quot;=r&quot;</span> (x) : ); \</div>
+<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mfc0 %0,$9&quot;</span>:<span class="stringliteral">&quot;=r&quot;</span>(x)); \</div>
 <div class="line">    x; \</div>
 <div class="line">})</div>
 </div><!-- fragment -->
-<p>Returns the COP0 register $8 (BadVAddr) </p>
-<p >The coprocessor 0 (system control coprocessor - COP0) register $8 is a read only register holding the last virtual address to be translated which became invalid, or a virtual address for which an addressing error occurred. </p>
+<p>Read the COP0 Count register (see also TICKS_READ). </p>
+
+</div>
+</div>
+<a id="ga69b664bbbc0e14604ecfd09623008fd6" name="ga69b664bbbc0e14604ecfd09623008fd6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga69b664bbbc0e14604ecfd09623008fd6">&#9670;&nbsp;</a></span>C0_WRITE_COUNT</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define C0_WRITE_COUNT</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">x</td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
+<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mtc0 %0,$9&quot;</span>::<span class="stringliteral">&quot;r&quot;</span>(x)); \</div>
+<div class="line">})</div>
+</div><!-- fragment -->
+<p>Write the COP0 Count register. </p>
+
+</div>
+</div>
+<a id="ga3ec3fa2068670095b1c6a07ff07a456b" name="ga3ec3fa2068670095b1c6a07ff07a456b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga3ec3fa2068670095b1c6a07ff07a456b">&#9670;&nbsp;</a></span>C0_COMPARE</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define C0_COMPARE</td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
+<div class="line">    uint32_t x; \</div>
+<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mfc0 %0,$11&quot;</span>:<span class="stringliteral">&quot;=r&quot;</span>(x)); \</div>
+<div class="line">    x; \</div>
+<div class="line">})</div>
+</div><!-- fragment -->
+<p>Read the COP0 Compare register. </p>
+
+</div>
+</div>
+<a id="ga666712469205d6847d0120a7ac3e856d" name="ga666712469205d6847d0120a7ac3e856d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga666712469205d6847d0120a7ac3e856d">&#9670;&nbsp;</a></span>C0_WRITE_COMPARE</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define C0_WRITE_COMPARE</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">x</td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
+<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mtc0 %0,$11&quot;</span>::<span class="stringliteral">&quot;r&quot;</span>(x)); \</div>
+<div class="line">})</div>
+</div><!-- fragment -->
+<p>Write the COP0 Compare register. </p>
+
+</div>
+</div>
+<a id="gaeeaf9cf4736be55054b718e5577618fc" name="gaeeaf9cf4736be55054b718e5577618fc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaeeaf9cf4736be55054b718e5577618fc">&#9670;&nbsp;</a></span>C0_STATUS</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define C0_STATUS</td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
+<div class="line">    uint32_t x; \</div>
+<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mfc0 %0,$12&quot;</span>:<span class="stringliteral">&quot;=r&quot;</span>(x)); \</div>
+<div class="line">    x; \</div>
+<div class="line">})</div>
+</div><!-- fragment -->
+<p>Read the COP0 Status register. </p>
+
+</div>
+</div>
+<a id="ga18dd4fdf1ca79c2976239698b8abdaac" name="ga18dd4fdf1ca79c2976239698b8abdaac"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga18dd4fdf1ca79c2976239698b8abdaac">&#9670;&nbsp;</a></span>C0_WRITE_STATUS</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define C0_WRITE_STATUS</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">x</td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
+<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mtc0 %0,$12&quot;</span>::<span class="stringliteral">&quot;r&quot;</span>(x)); \</div>
+<div class="line">})</div>
+</div><!-- fragment -->
+<p>Write the COP0 Status register. </p>
 
 </div>
 </div>
@@ -542,14 +706,38 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
 
 </div>
 </div>
-<a id="ga3ec3fa2068670095b1c6a07ff07a456b" name="ga3ec3fa2068670095b1c6a07ff07a456b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga3ec3fa2068670095b1c6a07ff07a456b">&#9670;&nbsp;</a></span>C0_COMPARE</h2>
+<a id="gaa3ce6c31c752f1764961c80e054b2d40" name="gaa3ce6c31c752f1764961c80e054b2d40"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaa3ce6c31c752f1764961c80e054b2d40">&#9670;&nbsp;</a></span>C0_WRITE_CAUSE</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define C0_COMPARE</td>
+          <td class="memname">#define C0_WRITE_CAUSE</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">x</td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
+<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mtc0 %0,$13&quot;</span>::<span class="stringliteral">&quot;r&quot;</span>(x)); \</div>
+<div class="line">})</div>
+</div><!-- fragment -->
+<p>Write the COP0 register $13 (Cause register) </p>
+<p >Use this to update it for a custom exception handler. </p>
+
+</div>
+</div>
+<a id="ga2c0eaba2123f76f15834eab8e2a40e8c" name="ga2c0eaba2123f76f15834eab8e2a40e8c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga2c0eaba2123f76f15834eab8e2a40e8c">&#9670;&nbsp;</a></span>C0_BADVADDR</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define C0_BADVADDR</td>
           <td>(</td>
           <td class="paramname"></td><td>)</td>
           <td></td>
@@ -558,22 +746,23 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
 <div class="line">    uint32_t x; \</div>
-<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mfc0 %0,$11&quot;</span>:<span class="stringliteral">&quot;=r&quot;</span>(x)); \</div>
+<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mfc0 %0,$8&quot;</span> : <span class="stringliteral">&quot;=r&quot;</span> (x) : ); \</div>
 <div class="line">    x; \</div>
 <div class="line">})</div>
 </div><!-- fragment -->
-<p>Read the COP0 Compare register. </p>
+<p>Returns the COP0 register $8 (BadVAddr) </p>
+<p >The coprocessor 0 (system control coprocessor - COP0) register $8 is a read only register holding the last virtual address to be translated which became invalid, or a virtual address for which an addressing error occurred. </p>
 
 </div>
 </div>
-<a id="ga06cc6d925caa4db67e81281eef124d28" name="ga06cc6d925caa4db67e81281eef124d28"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga06cc6d925caa4db67e81281eef124d28">&#9670;&nbsp;</a></span>C0_COUNT</h2>
+<a id="gaa7422a36ebf589991fa8408afdb100d5" name="gaa7422a36ebf589991fa8408afdb100d5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaa7422a36ebf589991fa8408afdb100d5">&#9670;&nbsp;</a></span>C0_EPC</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define C0_COUNT</td>
+          <td class="memname">#define C0_EPC</td>
           <td>(</td>
           <td class="paramname"></td><td>)</td>
           <td></td>
@@ -582,11 +771,58 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
 <div class="line">    uint32_t x; \</div>
-<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mfc0 %0,$9&quot;</span>:<span class="stringliteral">&quot;=r&quot;</span>(x)); \</div>
+<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mfc0 %0,$14&quot;</span> : <span class="stringliteral">&quot;=r&quot;</span> (x) : ); \</div>
 <div class="line">    x; \</div>
 <div class="line">})</div>
 </div><!-- fragment -->
-<p>Read the COP0 Count register (see also TICKS_READ). </p>
+<p>Read the COP0 register $14 (EPC) </p>
+<p >The coprocessor 0 (system control coprocessor - COP0) register $14 is the return from exception program counter. For asynchronous exceptions it points to the place to continue execution whereas for synchronous (caused by code) exceptions, point to the instruction causing the fault condition, which needs correction in the exception handler. This macro is for reading its value. </p>
+
+</div>
+</div>
+<a id="ga8b28c8fdc6397b49616a494a69b7ea6d" name="ga8b28c8fdc6397b49616a494a69b7ea6d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga8b28c8fdc6397b49616a494a69b7ea6d">&#9670;&nbsp;</a></span>C0_INDEX</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define C0_INDEX</td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
+<div class="line">    uint32_t x; \</div>
+<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mfc0 %0,$0&quot;</span>:<span class="stringliteral">&quot;=r&quot;</span>(x)); \</div>
+<div class="line">    x; \</div>
+<div class="line">})</div>
+</div><!-- fragment -->
+<p>Read the COP0 INDEX register. </p>
+<p >This register is used during TLB programming. It holds the index of the TLB entry being accessed (0-31). </p>
+
+</div>
+</div>
+<a id="ga03738b353bc8fb592d1de0e04deab548" name="ga03738b353bc8fb592d1de0e04deab548"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga03738b353bc8fb592d1de0e04deab548">&#9670;&nbsp;</a></span>C0_WRITE_INDEX</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define C0_WRITE_INDEX</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">x</td><td>)</td>
+          <td>&#160;&#160;&#160;asm volatile(&quot;mtc0 %0,$0; nop; nop&quot;::&quot;r&quot;(x))</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Write the COP0 INDEX register. </p>
+<p >This register is used during TLB programming. It holds the index of the TLB entry being accessed (0-31). </p>
 
 </div>
 </div>
@@ -615,6 +851,27 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
 
 </div>
 </div>
+<a id="ga04b2274990f863599b9c9aba56d20c24" name="ga04b2274990f863599b9c9aba56d20c24"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga04b2274990f863599b9c9aba56d20c24">&#9670;&nbsp;</a></span>C0_WRITE_ENTRYHI</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define C0_WRITE_ENTRYHI</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">x</td><td>)</td>
+          <td>&#160;&#160;&#160;asm volatile(&quot;mtc0 %0,$10; nop; nop&quot;::&quot;r&quot;(x))</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Write the COP0 ENTRYHI register. </p>
+<p >This register is used during TLB programming. </p>
+
+</div>
+</div>
 <a id="ga161d0e63d1b4e2749984e9e548a993cb" name="ga161d0e63d1b4e2749984e9e548a993cb"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga161d0e63d1b4e2749984e9e548a993cb">&#9670;&nbsp;</a></span>C0_ENTRYLO0</h2>
 
@@ -636,6 +893,27 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
 <div class="line">})</div>
 </div><!-- fragment -->
 <p>Read the COP0 ENTRYLO0 register. </p>
+<p >This register is used during TLB programming. It holds the configuration of the physical memory entry (even bank) for the TLB slot being accessed. </p>
+
+</div>
+</div>
+<a id="gaf0400812af6bd1c9f594727092f22afb" name="gaf0400812af6bd1c9f594727092f22afb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaf0400812af6bd1c9f594727092f22afb">&#9670;&nbsp;</a></span>C0_WRITE_ENTRYLO0</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define C0_WRITE_ENTRYLO0</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">x</td><td>)</td>
+          <td>&#160;&#160;&#160;asm volatile(&quot;mtc0 %0,$2; nop; nop&quot;::&quot;r&quot;(x))</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Write the COP0 ENTRYLO0 register. </p>
 <p >This register is used during TLB programming. It holds the configuration of the physical memory entry (even bank) for the TLB slot being accessed. </p>
 
 </div>
@@ -665,74 +943,24 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
 
 </div>
 </div>
-<a id="gaa7422a36ebf589991fa8408afdb100d5" name="gaa7422a36ebf589991fa8408afdb100d5"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaa7422a36ebf589991fa8408afdb100d5">&#9670;&nbsp;</a></span>C0_EPC</h2>
+<a id="ga21d4746ec6141ca47e79af8b3567cd21" name="ga21d4746ec6141ca47e79af8b3567cd21"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga21d4746ec6141ca47e79af8b3567cd21">&#9670;&nbsp;</a></span>C0_WRITE_ENTRYLO1</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define C0_EPC</td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
-<div class="line">    uint32_t x; \</div>
-<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mfc0 %0,$14&quot;</span> : <span class="stringliteral">&quot;=r&quot;</span> (x) : ); \</div>
-<div class="line">    x; \</div>
-<div class="line">})</div>
-</div><!-- fragment -->
-<p>Read the COP0 register $14 (EPC) </p>
-<p >The coprocessor 0 (system control coprocessor - COP0) register $14 is the return from exception program counter. For asynchronous exceptions it points to the place to continue execution whereas for synchronous (caused by code) exceptions, point to the instruction causing the fault condition, which needs correction in the exception handler. This macro is for reading its value. </p>
-
-</div>
-</div>
-<a id="gab0ee128daa09f4992787f3d9a02130da" name="gab0ee128daa09f4992787f3d9a02130da"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gab0ee128daa09f4992787f3d9a02130da">&#9670;&nbsp;</a></span>C0_GET_CAUSE_CE</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define C0_GET_CAUSE_CE</td>
+          <td class="memname">#define C0_WRITE_ENTRYLO1</td>
           <td>(</td>
           <td class="paramtype">&#160;</td>
-          <td class="paramname">cr</td><td>)</td>
-          <td>&#160;&#160;&#160;(((cr) &amp; <a class="el" href="group__n64sys.html#ga312cb5b3b8a176e307f05f7462b0b195">C0_CAUSE_CE</a>) &gt;&gt; 28)</td>
+          <td class="paramname">x</td><td>)</td>
+          <td>&#160;&#160;&#160;asm volatile(&quot;mtc0 %0,$3; nop; nop&quot;::&quot;r&quot;(x))</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Get the CE value from the COP0 status register. </p>
-<p >Gets the Coprocessor unit number referenced by a coprocessor unusable exception from the given COP0 Status register value. </p>
-
-</div>
-</div>
-<a id="ga8b28c8fdc6397b49616a494a69b7ea6d" name="ga8b28c8fdc6397b49616a494a69b7ea6d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga8b28c8fdc6397b49616a494a69b7ea6d">&#9670;&nbsp;</a></span>C0_INDEX</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define C0_INDEX</td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
-<div class="line">    uint32_t x; \</div>
-<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mfc0 %0,$0&quot;</span>:<span class="stringliteral">&quot;=r&quot;</span>(x)); \</div>
-<div class="line">    x; \</div>
-<div class="line">})</div>
-</div><!-- fragment -->
-<p>Read the COP0 INDEX register. </p>
-<p >This register is used during TLB programming. It holds the index of the TLB entry being accessed (0-31). </p>
+<p>Write the COP0 ENTRYLO1 register. </p>
+<p >This register is used during TLB programming. It holds the configuration of the physical memory entry (even bank) for the TLB slot being accessed. </p>
 
 </div>
 </div>
@@ -761,14 +989,35 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
 
 </div>
 </div>
-<a id="gaeeaf9cf4736be55054b718e5577618fc" name="gaeeaf9cf4736be55054b718e5577618fc"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaeeaf9cf4736be55054b718e5577618fc">&#9670;&nbsp;</a></span>C0_STATUS</h2>
+<a id="gaea93ec852849f2ffd39dd8e8f20a33fc" name="gaea93ec852849f2ffd39dd8e8f20a33fc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaea93ec852849f2ffd39dd8e8f20a33fc">&#9670;&nbsp;</a></span>C0_WRITE_PAGEMASK</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define C0_STATUS</td>
+          <td class="memname">#define C0_WRITE_PAGEMASK</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">x</td><td>)</td>
+          <td>&#160;&#160;&#160;asm volatile(&quot;mtc0 %0,$5; nop; nop&quot;::&quot;r&quot;(x))</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Write the COP0 PAGEMASK register. </p>
+<p >This register is used during TLB programming. It holds the bitmask that configures the page size of the TLB slot being accessed. </p>
+
+</div>
+</div>
+<a id="ga5fa34561986e5c2ba44159a362f65abb" name="ga5fa34561986e5c2ba44159a362f65abb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga5fa34561986e5c2ba44159a362f65abb">&#9670;&nbsp;</a></span>C0_WIRED</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define C0_WIRED</td>
           <td>(</td>
           <td class="paramname"></td><td>)</td>
           <td></td>
@@ -777,51 +1026,54 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
 <div class="line">    uint32_t x; \</div>
-<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mfc0 %0,$12&quot;</span>:<span class="stringliteral">&quot;=r&quot;</span>(x)); \</div>
+<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mfc0 %0,$6&quot;</span>:<span class="stringliteral">&quot;=r&quot;</span>(x)); \</div>
 <div class="line">    x; \</div>
 <div class="line">})</div>
 </div><!-- fragment -->
-<p>Read the COP0 Status register. </p>
+<p>Read the COP0 WIRED register. </p>
+<p >This register is used during TLB programming. It allows to partition TLB slots between fixed slots and random slots. The fixed slot pool is the range [0..WIRED[ and the random pool is the range [WIRED..32[ </p>
 
 </div>
 </div>
-<a id="gaba427de075f56d64d19af61b38821ae3" name="gaba427de075f56d64d19af61b38821ae3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaba427de075f56d64d19af61b38821ae3">&#9670;&nbsp;</a></span>C0_TLBP</h2>
+<a id="gace54d6bc9240a2ca470d2312fd3bd5f3" name="gace54d6bc9240a2ca470d2312fd3bd5f3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gace54d6bc9240a2ca470d2312fd3bd5f3">&#9670;&nbsp;</a></span>C0_WRITE_WIRED</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define C0_TLBP</td>
+          <td class="memname">#define C0_WRITE_WIRED</td>
           <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td>&#160;&#160;&#160;asm volatile(&quot;tlbp; nop; nop; nop; nop&quot;)</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">x</td><td>)</td>
+          <td>&#160;&#160;&#160;asm volatile(&quot;mtc0 %0,$6; nop; nop&quot;::&quot;r&quot;(x))</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>COP0 TLBP opcode. </p>
-<p >This opcode is used during TLB programming. It probes the current TLB slots using ENTRYHI (virtual address) to find a matching slot. If it finds, it loads its index into INDEX. Otherwise, it sets the C0_INDEX_PROBE_FAILED bit in INDEX. </p>
+<p>Write the COP0 WIRED register. </p>
+<p >This register is used during TLB programming. It allows to partition TLB slots between fixed slots and random slots. The fixed slot pool is the range [0..WIRED[ and the random pool is the range [WIRED..32[ </p>
 
 </div>
 </div>
-<a id="gabb44eff79082cf67bcad321457adacb3" name="gabb44eff79082cf67bcad321457adacb3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gabb44eff79082cf67bcad321457adacb3">&#9670;&nbsp;</a></span>C0_TLBR</h2>
+<a id="gab0ee128daa09f4992787f3d9a02130da" name="gab0ee128daa09f4992787f3d9a02130da"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gab0ee128daa09f4992787f3d9a02130da">&#9670;&nbsp;</a></span>C0_GET_CAUSE_CE</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define C0_TLBR</td>
+          <td class="memname">#define C0_GET_CAUSE_CE</td>
           <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td>&#160;&#160;&#160;asm volatile(&quot;tlbr; nop; nop; nop; nop&quot;)</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">cr</td><td>)</td>
+          <td>&#160;&#160;&#160;(((cr) &amp; <a class="el" href="group__n64sys.html#ga312cb5b3b8a176e307f05f7462b0b195">C0_CAUSE_CE</a>) &gt;&gt; 28)</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>COP0 TLBR opcode. </p>
-<p >This opcode is used during TLB programming. It reads the contents of the TLB slot referenced by INDEX into the registers PAGEMASK, ENTRYHI, ENTRYLO0 and ENTRYLO1. </p>
+<p>Get the CE value from the COP0 status register. </p>
+<p >Gets the Coprocessor unit number referenced by a coprocessor unusable exception from the given COP0 Status register value. </p>
 
 </div>
 </div>
@@ -865,247 +1117,43 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
 
 </div>
 </div>
-<a id="ga5fa34561986e5c2ba44159a362f65abb" name="ga5fa34561986e5c2ba44159a362f65abb"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga5fa34561986e5c2ba44159a362f65abb">&#9670;&nbsp;</a></span>C0_WIRED</h2>
+<a id="gabb44eff79082cf67bcad321457adacb3" name="gabb44eff79082cf67bcad321457adacb3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gabb44eff79082cf67bcad321457adacb3">&#9670;&nbsp;</a></span>C0_TLBR</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define C0_WIRED</td>
+          <td class="memname">#define C0_TLBR</td>
           <td>(</td>
           <td class="paramname"></td><td>)</td>
-          <td></td>
+          <td>&#160;&#160;&#160;asm volatile(&quot;tlbr; nop; nop; nop; nop&quot;)</td>
         </tr>
       </table>
 </div><div class="memdoc">
-<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
-<div class="line">    uint32_t x; \</div>
-<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mfc0 %0,$6&quot;</span>:<span class="stringliteral">&quot;=r&quot;</span>(x)); \</div>
-<div class="line">    x; \</div>
-<div class="line">})</div>
-</div><!-- fragment -->
-<p>Read the COP0 WIRED register. </p>
-<p >This register is used during TLB programming. It allows to partition TLB slots between fixed slots and random slots. The fixed slot pool is the range [0..WIRED[ and the random pool is the range [WIRED..32[ </p>
+
+<p>COP0 TLBR opcode. </p>
+<p >This opcode is used during TLB programming. It reads the contents of the TLB slot referenced by INDEX into the registers PAGEMASK, ENTRYHI, ENTRYLO0 and ENTRYLO1. </p>
 
 </div>
 </div>
-<a id="gaa3ce6c31c752f1764961c80e054b2d40" name="gaa3ce6c31c752f1764961c80e054b2d40"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaa3ce6c31c752f1764961c80e054b2d40">&#9670;&nbsp;</a></span>C0_WRITE_CAUSE</h2>
+<a id="gaba427de075f56d64d19af61b38821ae3" name="gaba427de075f56d64d19af61b38821ae3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaba427de075f56d64d19af61b38821ae3">&#9670;&nbsp;</a></span>C0_TLBP</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define C0_WRITE_CAUSE</td>
+          <td class="memname">#define C0_TLBP</td>
           <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">x</td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
-<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mtc0 %0,$13&quot;</span>::<span class="stringliteral">&quot;r&quot;</span>(x)); \</div>
-<div class="line">})</div>
-</div><!-- fragment -->
-<p>Write the COP0 register $13 (Cause register) </p>
-<p >Use this to update it for a custom exception handler. </p>
-
-</div>
-</div>
-<a id="ga666712469205d6847d0120a7ac3e856d" name="ga666712469205d6847d0120a7ac3e856d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga666712469205d6847d0120a7ac3e856d">&#9670;&nbsp;</a></span>C0_WRITE_COMPARE</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define C0_WRITE_COMPARE</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">x</td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
-<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mtc0 %0,$11&quot;</span>::<span class="stringliteral">&quot;r&quot;</span>(x)); \</div>
-<div class="line">})</div>
-</div><!-- fragment -->
-<p>Write the COP0 Compare register. </p>
-
-</div>
-</div>
-<a id="ga69b664bbbc0e14604ecfd09623008fd6" name="ga69b664bbbc0e14604ecfd09623008fd6"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga69b664bbbc0e14604ecfd09623008fd6">&#9670;&nbsp;</a></span>C0_WRITE_COUNT</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define C0_WRITE_COUNT</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">x</td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
-<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mtc0 %0,$9&quot;</span>::<span class="stringliteral">&quot;r&quot;</span>(x)); \</div>
-<div class="line">})</div>
-</div><!-- fragment -->
-<p>Write the COP0 Count register. </p>
-
-</div>
-</div>
-<a id="ga04b2274990f863599b9c9aba56d20c24" name="ga04b2274990f863599b9c9aba56d20c24"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga04b2274990f863599b9c9aba56d20c24">&#9670;&nbsp;</a></span>C0_WRITE_ENTRYHI</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define C0_WRITE_ENTRYHI</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">x</td><td>)</td>
-          <td>&#160;&#160;&#160;asm volatile(&quot;mtc0 %0,$10; nop; nop&quot;::&quot;r&quot;(x))</td>
+          <td class="paramname"></td><td>)</td>
+          <td>&#160;&#160;&#160;asm volatile(&quot;tlbp; nop; nop; nop; nop&quot;)</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Write the COP0 ENTRYHI register. </p>
-<p >This register is used during TLB programming. </p>
-
-</div>
-</div>
-<a id="gaf0400812af6bd1c9f594727092f22afb" name="gaf0400812af6bd1c9f594727092f22afb"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaf0400812af6bd1c9f594727092f22afb">&#9670;&nbsp;</a></span>C0_WRITE_ENTRYLO0</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define C0_WRITE_ENTRYLO0</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">x</td><td>)</td>
-          <td>&#160;&#160;&#160;asm volatile(&quot;mtc0 %0,$2; nop; nop&quot;::&quot;r&quot;(x))</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Write the COP0 ENTRYLO0 register. </p>
-<p >This register is used during TLB programming. It holds the configuration of the physical memory entry (even bank) for the TLB slot being accessed. </p>
-
-</div>
-</div>
-<a id="ga21d4746ec6141ca47e79af8b3567cd21" name="ga21d4746ec6141ca47e79af8b3567cd21"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga21d4746ec6141ca47e79af8b3567cd21">&#9670;&nbsp;</a></span>C0_WRITE_ENTRYLO1</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define C0_WRITE_ENTRYLO1</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">x</td><td>)</td>
-          <td>&#160;&#160;&#160;asm volatile(&quot;mtc0 %0,$3; nop; nop&quot;::&quot;r&quot;(x))</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Write the COP0 ENTRYLO1 register. </p>
-<p >This register is used during TLB programming. It holds the configuration of the physical memory entry (even bank) for the TLB slot being accessed. </p>
-
-</div>
-</div>
-<a id="ga03738b353bc8fb592d1de0e04deab548" name="ga03738b353bc8fb592d1de0e04deab548"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga03738b353bc8fb592d1de0e04deab548">&#9670;&nbsp;</a></span>C0_WRITE_INDEX</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define C0_WRITE_INDEX</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">x</td><td>)</td>
-          <td>&#160;&#160;&#160;asm volatile(&quot;mtc0 %0,$0; nop; nop&quot;::&quot;r&quot;(x))</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Write the COP0 INDEX register. </p>
-<p >This register is used during TLB programming. It holds the index of the TLB entry being accessed (0-31). </p>
-
-</div>
-</div>
-<a id="gaea93ec852849f2ffd39dd8e8f20a33fc" name="gaea93ec852849f2ffd39dd8e8f20a33fc"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaea93ec852849f2ffd39dd8e8f20a33fc">&#9670;&nbsp;</a></span>C0_WRITE_PAGEMASK</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define C0_WRITE_PAGEMASK</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">x</td><td>)</td>
-          <td>&#160;&#160;&#160;asm volatile(&quot;mtc0 %0,$5; nop; nop&quot;::&quot;r&quot;(x))</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Write the COP0 PAGEMASK register. </p>
-<p >This register is used during TLB programming. It holds the bitmask that configures the page size of the TLB slot being accessed. </p>
-
-</div>
-</div>
-<a id="ga18dd4fdf1ca79c2976239698b8abdaac" name="ga18dd4fdf1ca79c2976239698b8abdaac"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga18dd4fdf1ca79c2976239698b8abdaac">&#9670;&nbsp;</a></span>C0_WRITE_STATUS</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define C0_WRITE_STATUS</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">x</td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
-<div class="line">    asm <span class="keyword">volatile</span>(<span class="stringliteral">&quot;mtc0 %0,$12&quot;</span>::<span class="stringliteral">&quot;r&quot;</span>(x)); \</div>
-<div class="line">})</div>
-</div><!-- fragment -->
-<p>Write the COP0 Status register. </p>
-
-</div>
-</div>
-<a id="gace54d6bc9240a2ca470d2312fd3bd5f3" name="gace54d6bc9240a2ca470d2312fd3bd5f3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gace54d6bc9240a2ca470d2312fd3bd5f3">&#9670;&nbsp;</a></span>C0_WRITE_WIRED</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define C0_WRITE_WIRED</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">x</td><td>)</td>
-          <td>&#160;&#160;&#160;asm volatile(&quot;mtc0 %0,$6; nop; nop&quot;::&quot;r&quot;(x))</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Write the COP0 WIRED register. </p>
-<p >This register is used during TLB programming. It allows to partition TLB slots between fixed slots and random slots. The fixed slot pool is the range [0..WIRED[ and the random pool is the range [WIRED..32[ </p>
+<p>COP0 TLBP opcode. </p>
+<p >This opcode is used during TLB programming. It probes the current TLB slots using ENTRYHI (virtual address) to find a matching slot. If it finds, it loads its index into INDEX. Otherwise, it sets the C0_INDEX_PROBE_FAILED bit in INDEX. </p>
 
 </div>
 </div>
@@ -1157,48 +1205,138 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
 
 </div>
 </div>
-<a id="gac69e8a7b3752d227238ff76b56b3fa17" name="gac69e8a7b3752d227238ff76b56b3fa17"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gac69e8a7b3752d227238ff76b56b3fa17">&#9670;&nbsp;</a></span>cache_op</h2>
+<a id="ga2a6fc83e86b9c1a343f50a219edd10c7" name="ga2a6fc83e86b9c1a343f50a219edd10c7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga2a6fc83e86b9c1a343f50a219edd10c7">&#9670;&nbsp;</a></span>UncachedAddr</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define cache_op</td>
+          <td class="memname">#define UncachedAddr</td>
           <td>(</td>
           <td class="paramtype">&#160;</td>
-          <td class="paramname">op, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">linesize&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
+          <td class="paramname">_addr</td><td>)</td>
+          <td>&#160;&#160;&#160;((void *)(((unsigned long)(_addr))|0x20000000))</td>
         </tr>
       </table>
 </div><div class="memdoc">
-<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
-<div class="line">    if (length) { \</div>
-<div class="line">        void *cur = (<span class="keywordtype">void</span>*)((<span class="keywordtype">unsigned</span> <span class="keywordtype">long</span>)addr &amp; ~(linesize-1)); \</div>
-<div class="line">        int count = (int)length + (addr-cur); \</div>
-<div class="line">        for (<span class="keywordtype">int</span> i = 0; i &lt; count; i += linesize) \</div>
-<div class="line">            <span class="keyword">asm</span> (<span class="stringliteral">&quot;\tcache %0,(%1)\n&quot;</span>::<span class="stringliteral">&quot;i&quot;</span> (op), <span class="stringliteral">&quot;r&quot;</span> (cur+i)); \</div>
-<div class="line">    } \</div>
-<div class="line">})</div>
-</div><!-- fragment -->
-<p>Helper macro to perform cache refresh operations. </p>
+
+<p>Return the uncached memory address for a given address. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">op</td><td>Operation to perform </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">linesize</td><td>Size of a cacheline in bytes </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">_addr</td><td>Address in RAM to convert to an uncached address</td></tr>
   </table>
   </dd>
 </dl>
+<dl class="section return"><dt>Returns</dt><dd>A void pointer to the uncached memory address in RAM </dd></dl>
+
+</div>
+</div>
+<a id="gab1557f26ee61d78b2efa5751fa324274" name="gab1557f26ee61d78b2efa5751fa324274"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gab1557f26ee61d78b2efa5751fa324274">&#9670;&nbsp;</a></span>UncachedShortAddr</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define UncachedShortAddr</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">_addr</td><td>)</td>
+          <td>&#160;&#160;&#160;((short *)(((unsigned long)(_addr))|0x20000000))</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Return the uncached memory address for a given address. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">_addr</td><td>Address in RAM to convert to an uncached address</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>A short pointer to the uncached memory address in RAM </dd></dl>
+
+</div>
+</div>
+<a id="ga8ecc863830830637fd78ceb0ba79760f" name="ga8ecc863830830637fd78ceb0ba79760f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga8ecc863830830637fd78ceb0ba79760f">&#9670;&nbsp;</a></span>UncachedUShortAddr</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define UncachedUShortAddr</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">_addr</td><td>)</td>
+          <td>&#160;&#160;&#160;((unsigned short *)(((unsigned long)(_addr))|0x20000000))</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Return the uncached memory address for a given address. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">_addr</td><td>Address in RAM to convert to an uncached address</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>An unsigned short pointer to the uncached memory address in RAM </dd></dl>
+
+</div>
+</div>
+<a id="gaacd99170f53fc12c555e2501f24f7d09" name="gaacd99170f53fc12c555e2501f24f7d09"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaacd99170f53fc12c555e2501f24f7d09">&#9670;&nbsp;</a></span>UncachedLongAddr</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define UncachedLongAddr</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">_addr</td><td>)</td>
+          <td>&#160;&#160;&#160;((long *)(((unsigned long)(_addr))|0x20000000))</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Return the uncached memory address for a given address. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">_addr</td><td>Address in RAM to convert to an uncached address</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>A long pointer to the uncached memory address in RAM </dd></dl>
+
+</div>
+</div>
+<a id="ga925b2fcddd75e274b1588f3df87c3cfc" name="ga925b2fcddd75e274b1588f3df87c3cfc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga925b2fcddd75e274b1588f3df87c3cfc">&#9670;&nbsp;</a></span>UncachedULongAddr</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define UncachedULongAddr</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">_addr</td><td>)</td>
+          <td>&#160;&#160;&#160;((unsigned long *)(((unsigned long)(_addr))|0x20000000))</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Return the uncached memory address for a given address. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">_addr</td><td>Address in RAM to convert to an uncached address</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>An unsigned long pointer to the uncached memory address in RAM </dd></dl>
 
 </div>
 </div>
@@ -1226,6 +1364,156 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
   </dd>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>A void pointer to the cached memory address in RAM </dd></dl>
+
+</div>
+</div>
+<a id="ga54fca3c0f8e1be138f320b3dcce4366f" name="ga54fca3c0f8e1be138f320b3dcce4366f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga54fca3c0f8e1be138f320b3dcce4366f">&#9670;&nbsp;</a></span>PhysicalAddr</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define PhysicalAddr</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">_addr</td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
+<div class="line">    const <span class="keyword">volatile</span> <span class="keywordtype">void</span> *_addrp = (_addr); \</div>
+<div class="line">    (((<span class="keywordtype">unsigned</span> long)(_addrp))&amp;~0xE0000000); \</div>
+<div class="line">})</div>
+</div><!-- fragment -->
+<p>Return the physical memory address for a given address. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">_addr</td><td>Address in RAM to convert to a physical address</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>A void pointer to the physical memory address in RAM </dd></dl>
+
+</div>
+</div>
+<a id="ga56d4cbe1e093c683432a147eb1ccb293" name="ga56d4cbe1e093c683432a147eb1ccb293"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga56d4cbe1e093c683432a147eb1ccb293">&#9670;&nbsp;</a></span>MEMORY_BARRIER</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define MEMORY_BARRIER</td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td>&#160;&#160;&#160;asm volatile (&quot;&quot; : : : &quot;memory&quot;)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Memory barrier to ensure in-order execution. </p>
+<p >Since GCC seems to reorder volatile at -O2, a memory barrier is required to ensure that DMA setup is done in the correct order. Otherwise, the library is useless at higher optimization levels. </p>
+
+</div>
+</div>
+<a id="ga3f00b2f3f7a3bb391282d0b2da8969f1" name="ga3f00b2f3f7a3bb391282d0b2da8969f1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga3f00b2f3f7a3bb391282d0b2da8969f1">&#9670;&nbsp;</a></span>TICKS_READ</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define TICKS_READ</td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td>&#160;&#160;&#160;<a class="el" href="group__n64sys.html#ga06cc6d925caa4db67e81281eef124d28">C0_COUNT</a>()</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Returns the COP0 register $9 (count). </p>
+<p >The coprocessor 0 (system control coprocessor - COP0) register $9 is incremented at "half maximum instruction issue rate" which is the processor clock speed (93.75MHz) divided by two. (also see TICKS_PER_SECOND) It will always produce a 32-bit unsigned value which overflows back to zero in 91.625 seconds. The counter will increment irrespective of instructions actually being executed. This macro is for reading that value. Do not use for comparison without special handling. </p>
+
+</div>
+</div>
+<a id="ga3dd7b7d41c220904632461a2d95d61cf" name="ga3dd7b7d41c220904632461a2d95d61cf"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga3dd7b7d41c220904632461a2d95d61cf">&#9670;&nbsp;</a></span>TICKS_PER_SECOND</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define TICKS_PER_SECOND&#160;&#160;&#160;(<a class="el" href="group__n64sys.html#gaf73acdf7fb3be35ff98322b7e827d349">CPU_FREQUENCY</a>/2)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Number of updates to the count register per second. </p>
+<p >Every second, this many counts will have passed in the count register </p>
+
+</div>
+</div>
+<a id="ga39042176fdaeae838e23bf77575da2a7" name="ga39042176fdaeae838e23bf77575da2a7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga39042176fdaeae838e23bf77575da2a7">&#9670;&nbsp;</a></span>TICKS_DISTANCE</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define TICKS_DISTANCE</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">from, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">to&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td>&#160;&#160;&#160;((int32_t)((uint32_t)(to) - (uint32_t)(from)))</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>The signed difference of time between "from" and "to". </p>
+<p >If "from" is before "to", the distance in time is positive, otherwise it is negative. </p>
+
+</div>
+</div>
+<a id="ga5f0c6ccf7791e58f7f392e6f733fc66b" name="ga5f0c6ccf7791e58f7f392e6f733fc66b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga5f0c6ccf7791e58f7f392e6f733fc66b">&#9670;&nbsp;</a></span>TICKS_BEFORE</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define TICKS_BEFORE</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">t1, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">t2&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td>&#160;&#160;&#160;({ <a class="el" href="group__n64sys.html#ga39042176fdaeae838e23bf77575da2a7">TICKS_DISTANCE</a>(t1, t2) &gt; 0; })</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Returns true if "t1" is before "t2". </p>
+<p >This is similar to t1 &lt; t2, but it correctly handles timer overflows which are very frequent. Notice that the N64 counter overflows every ~91 seconds, so it's not possible to compare times that are more than ~45 seconds apart. </p>
 
 </div>
 </div>
@@ -1275,291 +1563,6 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
 
 </div>
 </div>
-<a id="ga56d4cbe1e093c683432a147eb1ccb293" name="ga56d4cbe1e093c683432a147eb1ccb293"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga56d4cbe1e093c683432a147eb1ccb293">&#9670;&nbsp;</a></span>MEMORY_BARRIER</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define MEMORY_BARRIER</td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td>&#160;&#160;&#160;asm volatile (&quot;&quot; : : : &quot;memory&quot;)</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Memory barrier to ensure in-order execution. </p>
-<p >Since GCC seems to reorder volatile at -O2, a memory barrier is required to ensure that DMA setup is done in the correct order. Otherwise, the library is useless at higher optimization levels. </p>
-
-</div>
-</div>
-<a id="ga54fca3c0f8e1be138f320b3dcce4366f" name="ga54fca3c0f8e1be138f320b3dcce4366f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga54fca3c0f8e1be138f320b3dcce4366f">&#9670;&nbsp;</a></span>PhysicalAddr</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define PhysicalAddr</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">_addr</td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
-<div class="line">    const <span class="keyword">volatile</span> <span class="keywordtype">void</span> *_addrp = (_addr); \</div>
-<div class="line">    (((<span class="keywordtype">unsigned</span> long)(_addrp))&amp;~0xE0000000); \</div>
-<div class="line">})</div>
-</div><!-- fragment -->
-<p>Return the physical memory address for a given address. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">_addr</td><td>Address in RAM to convert to a physical address</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>A void pointer to the physical memory address in RAM </dd></dl>
-
-</div>
-</div>
-<a id="ga5f0c6ccf7791e58f7f392e6f733fc66b" name="ga5f0c6ccf7791e58f7f392e6f733fc66b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga5f0c6ccf7791e58f7f392e6f733fc66b">&#9670;&nbsp;</a></span>TICKS_BEFORE</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define TICKS_BEFORE</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">t1, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">t2&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td>&#160;&#160;&#160;({ <a class="el" href="group__n64sys.html#ga39042176fdaeae838e23bf77575da2a7">TICKS_DISTANCE</a>(t1, t2) &gt; 0; })</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Returns true if "t1" is before "t2". </p>
-<p >This is similar to t1 &lt; t2, but it correctly handles timer overflows which are very frequent. Notice that the N64 counter overflows every ~91 seconds, so it's not possible to compare times that are more than ~45 seconds apart. </p>
-
-</div>
-</div>
-<a id="ga39042176fdaeae838e23bf77575da2a7" name="ga39042176fdaeae838e23bf77575da2a7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga39042176fdaeae838e23bf77575da2a7">&#9670;&nbsp;</a></span>TICKS_DISTANCE</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define TICKS_DISTANCE</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">from, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">to&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td>&#160;&#160;&#160;((int32_t)((uint32_t)(to) - (uint32_t)(from)))</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>The signed difference of time between "from" and "to". </p>
-<p >If "from" is before "to", the distance in time is positive, otherwise it is negative. </p>
-
-</div>
-</div>
-<a id="ga3dd7b7d41c220904632461a2d95d61cf" name="ga3dd7b7d41c220904632461a2d95d61cf"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga3dd7b7d41c220904632461a2d95d61cf">&#9670;&nbsp;</a></span>TICKS_PER_SECOND</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define TICKS_PER_SECOND&#160;&#160;&#160;(<a class="el" href="group__n64sys.html#gaf73acdf7fb3be35ff98322b7e827d349">CPU_FREQUENCY</a>/2)</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Number of updates to the count register per second. </p>
-<p >Every second, this many counts will have passed in the count register </p>
-
-</div>
-</div>
-<a id="ga3f00b2f3f7a3bb391282d0b2da8969f1" name="ga3f00b2f3f7a3bb391282d0b2da8969f1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga3f00b2f3f7a3bb391282d0b2da8969f1">&#9670;&nbsp;</a></span>TICKS_READ</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define TICKS_READ</td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td>&#160;&#160;&#160;<a class="el" href="group__n64sys.html#ga06cc6d925caa4db67e81281eef124d28">C0_COUNT</a>()</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Returns the COP0 register $9 (count). </p>
-<p >The coprocessor 0 (system control coprocessor - COP0) register $9 is incremented at "half maximum instruction issue rate" which is the processor clock speed (93.75MHz) divided by two. (also see TICKS_PER_SECOND) It will always produce a 32-bit unsigned value which overflows back to zero in 91.625 seconds. The counter will increment irrespective of instructions actually being executed. This macro is for reading that value. Do not use for comparison without special handling. </p>
-
-</div>
-</div>
-<a id="ga2a6fc83e86b9c1a343f50a219edd10c7" name="ga2a6fc83e86b9c1a343f50a219edd10c7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga2a6fc83e86b9c1a343f50a219edd10c7">&#9670;&nbsp;</a></span>UncachedAddr</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define UncachedAddr</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">_addr</td><td>)</td>
-          <td>&#160;&#160;&#160;((void *)(((unsigned long)(_addr))|0x20000000))</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Return the uncached memory address for a given address. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">_addr</td><td>Address in RAM to convert to an uncached address</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>A void pointer to the uncached memory address in RAM </dd></dl>
-
-</div>
-</div>
-<a id="gaacd99170f53fc12c555e2501f24f7d09" name="gaacd99170f53fc12c555e2501f24f7d09"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaacd99170f53fc12c555e2501f24f7d09">&#9670;&nbsp;</a></span>UncachedLongAddr</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define UncachedLongAddr</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">_addr</td><td>)</td>
-          <td>&#160;&#160;&#160;((long *)(((unsigned long)(_addr))|0x20000000))</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Return the uncached memory address for a given address. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">_addr</td><td>Address in RAM to convert to an uncached address</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>A long pointer to the uncached memory address in RAM </dd></dl>
-
-</div>
-</div>
-<a id="gab1557f26ee61d78b2efa5751fa324274" name="gab1557f26ee61d78b2efa5751fa324274"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gab1557f26ee61d78b2efa5751fa324274">&#9670;&nbsp;</a></span>UncachedShortAddr</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define UncachedShortAddr</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">_addr</td><td>)</td>
-          <td>&#160;&#160;&#160;((short *)(((unsigned long)(_addr))|0x20000000))</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Return the uncached memory address for a given address. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">_addr</td><td>Address in RAM to convert to an uncached address</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>A short pointer to the uncached memory address in RAM </dd></dl>
-
-</div>
-</div>
-<a id="ga925b2fcddd75e274b1588f3df87c3cfc" name="ga925b2fcddd75e274b1588f3df87c3cfc"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga925b2fcddd75e274b1588f3df87c3cfc">&#9670;&nbsp;</a></span>UncachedULongAddr</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define UncachedULongAddr</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">_addr</td><td>)</td>
-          <td>&#160;&#160;&#160;((unsigned long *)(((unsigned long)(_addr))|0x20000000))</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Return the uncached memory address for a given address. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">_addr</td><td>Address in RAM to convert to an uncached address</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>An unsigned long pointer to the uncached memory address in RAM </dd></dl>
-
-</div>
-</div>
-<a id="ga8ecc863830830637fd78ceb0ba79760f" name="ga8ecc863830830637fd78ceb0ba79760f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga8ecc863830830637fd78ceb0ba79760f">&#9670;&nbsp;</a></span>UncachedUShortAddr</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define UncachedUShortAddr</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">_addr</td><td>)</td>
-          <td>&#160;&#160;&#160;((unsigned short *)(((unsigned long)(_addr))|0x20000000))</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Return the uncached memory address for a given address. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">_addr</td><td>Address in RAM to convert to an uncached address</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>An unsigned short pointer to the uncached memory address in RAM </dd></dl>
-
-</div>
-</div>
 <h2 class="groupheader">Enumeration Type Documentation</h2>
 <a id="ga7f74bd3e9215d217f484cb5441a04e09" name="ga7f74bd3e9215d217f484cb5441a04e09"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga7f74bd3e9215d217f484cb5441a04e09">&#9670;&nbsp;</a></span>tv_type_t</h2>
@@ -1586,6 +1589,53 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="gadf0a7fb10dd4580b87d1c88536bf1ff2" name="gadf0a7fb10dd4580b87d1c88536bf1ff2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gadf0a7fb10dd4580b87d1c88536bf1ff2">&#9670;&nbsp;</a></span>sys_get_boot_cic()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int sys_get_boot_cic </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Return the boot CIC. </p>
+<dl class="section return"><dt>Returns</dt><dd>The boot CIC as an integer </dd></dl>
+
+</div>
+</div>
+<a id="gaa3abd91a3b4d2ff33ad07556f7e7856e" name="gaa3abd91a3b4d2ff33ad07556f7e7856e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaa3abd91a3b4d2ff33ad07556f7e7856e">&#9670;&nbsp;</a></span>sys_set_boot_cic()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void sys_set_boot_cic </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>bc</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Set the boot CIC. </p>
+<p >This function will set the boot CIC. If the value isn't in the range of 6102-6106, the boot CIC is set to the default of 6102.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">bc</td><td>Boot CIC value </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 <a id="gacc2164dd0c39d2d949291bb9b2379c0f" name="gacc2164dd0c39d2d949291bb9b2379c0f"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#gacc2164dd0c39d2d949291bb9b2379c0f">&#9670;&nbsp;</a></span>data_cache_hit_writeback()</h2>
 
@@ -1720,72 +1770,41 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
 
 </div>
 </div>
-<a id="gad7eb2952f66b4c6158a161eddc6f6a7d" name="gad7eb2952f66b4c6158a161eddc6f6a7d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gad7eb2952f66b4c6158a161eddc6f6a7d">&#9670;&nbsp;</a></span>free_uncached()</h2>
+<a id="gac57f15648738d8f8575ec655a1678b73" name="gac57f15648738d8f8575ec655a1678b73"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gac57f15648738d8f8575ec655a1678b73">&#9670;&nbsp;</a></span>inst_cache_hit_writeback()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void free_uncached </td>
+          <td class="memname">void inst_cache_hit_writeback </td>
           <td>(</td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>buf</em></td><td>)</td>
+          <td class="paramtype">volatile const void *&#160;</td>
+          <td class="paramname"><em>addr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype">unsigned long&#160;</td>
+          <td class="paramname"><em>length</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Free an uncached memory buffer. </p>
-<p >This function frees a memory buffer previously allocated via <a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a" title="Allocate a buffer that will be accessed as uncached memory.">malloc_uncached</a>.</p>
+<p>Force an instruction cache writeback over a memory region. </p>
+<p >Use this to force cached memory to be written to RDRAM.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">buf</td><td>The buffer to free</td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">addr</td><td>Pointer to memory in question </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">length</td><td>Length in bytes of the data pointed at by addr </td></tr>
   </table>
   </dd>
 </dl>
-<dl class="section see"><dt>See also</dt><dd><a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a" title="Allocate a buffer that will be accessed as uncached memory.">malloc_uncached</a> </dd></dl>
-
-</div>
-</div>
-<a id="ga4496cbe7966a01738242c1b214028eb0" name="ga4496cbe7966a01738242c1b214028eb0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga4496cbe7966a01738242c1b214028eb0">&#9670;&nbsp;</a></span>get_memory_size()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int get_memory_size </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Get amount of available memory. </p>
-<dl class="section return"><dt>Returns</dt><dd>amount of total available memory in bytes. </dd></dl>
-
-</div>
-</div>
-<a id="ga4cd768cc5d84485110ecf4991727b00b" name="ga4cd768cc5d84485110ecf4991727b00b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga4cd768cc5d84485110ecf4991727b00b">&#9670;&nbsp;</a></span>get_tv_type()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="group__n64sys.html#ga7f74bd3e9215d217f484cb5441a04e09">tv_type_t</a> get_tv_type </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Is system NTSC/PAL/MPAL. </p>
-<p >Checks enum hard-coded in PIF BootROM to indicate the tv type of the system.</p>
-<dl class="section return"><dt>Returns</dt><dd>enum value indicating PAL, NTSC or MPAL </dd></dl>
 
 </div>
 </div>
@@ -1817,44 +1836,6 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
 
 <p>Force an instruction cache invalidate over a memory region. </p>
 <p >Use this to force the N64 to update cache from RDRAM.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">addr</td><td>Pointer to memory in question </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">length</td><td>Length in bytes of the data pointed at by addr </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="gac57f15648738d8f8575ec655a1678b73" name="gac57f15648738d8f8575ec655a1678b73"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gac57f15648738d8f8575ec655a1678b73">&#9670;&nbsp;</a></span>inst_cache_hit_writeback()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void inst_cache_hit_writeback </td>
-          <td>(</td>
-          <td class="paramtype">volatile const void *&#160;</td>
-          <td class="paramname"><em>addr</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">unsigned long&#160;</td>
-          <td class="paramname"><em>length</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Force an instruction cache writeback over a memory region. </p>
-<p >Use this to force cached memory to be written to RDRAM.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">addr</td><td>Pointer to memory in question </td></tr>
@@ -1923,28 +1904,6 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
 
 </div>
 </div>
-<a id="ga28ba352e296d379426531772b874046d" name="ga28ba352e296d379426531772b874046d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga28ba352e296d379426531772b874046d">&#9670;&nbsp;</a></span>is_memory_expanded()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">bool is_memory_expanded </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Is expansion pak in use. </p>
-<p >Checks whether the maximum available memory has been expanded to 8MB</p>
-<dl class="section return"><dt>Returns</dt><dd>true if expansion pak detected, false otherwise.</dd></dl>
-<dl class="section note"><dt>Note</dt><dd>On iQue, this function returns true only if the game has been assigned exactly 8MB of RAM. </dd></dl>
-
-</div>
-</div>
 <a id="gaf9f812fb3f12eaee7f5186b893266d3a" name="gaf9f812fb3f12eaee7f5186b893266d3a"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#gaf9f812fb3f12eaee7f5186b893266d3a">&#9670;&nbsp;</a></span>malloc_uncached()</h2>
 
@@ -1976,14 +1935,82 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
 
 </div>
 </div>
-<a id="gadf0a7fb10dd4580b87d1c88536bf1ff2" name="gadf0a7fb10dd4580b87d1c88536bf1ff2"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gadf0a7fb10dd4580b87d1c88536bf1ff2">&#9670;&nbsp;</a></span>sys_get_boot_cic()</h2>
+<a id="gaa32bea9ddd5d2931d27945d63cc71e01" name="gaa32bea9ddd5d2931d27945d63cc71e01"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaa32bea9ddd5d2931d27945d63cc71e01">&#9670;&nbsp;</a></span>malloc_uncached_aligned()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">int sys_get_boot_cic </td>
+          <td class="memname">void * malloc_uncached_aligned </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>align</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Allocate a buffer that will be accessed as uncached memory, specifying alignment. </p>
+<p >This function is similar to <a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a" title="Allocate a buffer that will be accessed as uncached memory.">malloc_uncached</a>, but allows to force a higher alignment to the buffer (just like memalign does). See <a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a" title="Allocate a buffer that will be accessed as uncached memory.">malloc_uncached</a> for reference.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">align</td><td>The alignment of the buffer in bytes (eg: 64) </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">size</td><td>The size of the buffer to allocate</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>a pointer to the start of the buffer (in the uncached segment)</dd></dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a" title="Allocate a buffer that will be accessed as uncached memory.">malloc_uncached</a> </dd></dl>
+
+</div>
+</div>
+<a id="gad7eb2952f66b4c6158a161eddc6f6a7d" name="gad7eb2952f66b4c6158a161eddc6f6a7d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gad7eb2952f66b4c6158a161eddc6f6a7d">&#9670;&nbsp;</a></span>free_uncached()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void free_uncached </td>
+          <td>(</td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>buf</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Free an uncached memory buffer. </p>
+<p >This function frees a memory buffer previously allocated via <a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a" title="Allocate a buffer that will be accessed as uncached memory.">malloc_uncached</a>.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">buf</td><td>The buffer to free</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="group__n64sys.html#gaf9f812fb3f12eaee7f5186b893266d3a" title="Allocate a buffer that will be accessed as uncached memory.">malloc_uncached</a> </dd></dl>
+
+</div>
+</div>
+<a id="ga4496cbe7966a01738242c1b214028eb0" name="ga4496cbe7966a01738242c1b214028eb0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga4496cbe7966a01738242c1b214028eb0">&#9670;&nbsp;</a></span>get_memory_size()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int get_memory_size </td>
           <td>(</td>
           <td class="paramname"></td><td>)</td>
           <td></td>
@@ -1991,32 +2018,74 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
       </table>
 </div><div class="memdoc">
 
-<p>Return the boot CIC. </p>
-<dl class="section return"><dt>Returns</dt><dd>The boot CIC as an integer </dd></dl>
+<p>Get amount of available memory. </p>
+<dl class="section return"><dt>Returns</dt><dd>amount of total available memory in bytes. </dd></dl>
 
 </div>
 </div>
-<a id="gaa3abd91a3b4d2ff33ad07556f7e7856e" name="gaa3abd91a3b4d2ff33ad07556f7e7856e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaa3abd91a3b4d2ff33ad07556f7e7856e">&#9670;&nbsp;</a></span>sys_set_boot_cic()</h2>
+<a id="ga28ba352e296d379426531772b874046d" name="ga28ba352e296d379426531772b874046d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga28ba352e296d379426531772b874046d">&#9670;&nbsp;</a></span>is_memory_expanded()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void sys_set_boot_cic </td>
+          <td class="memname">bool is_memory_expanded </td>
           <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>bc</em></td><td>)</td>
+          <td class="paramname"></td><td>)</td>
           <td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Set the boot CIC. </p>
-<p >This function will set the boot CIC. If the value isn't in the range of 6102-6106, the boot CIC is set to the default of 6102.</p>
+<p>Is expansion pak in use. </p>
+<p >Checks whether the maximum available memory has been expanded to 8MB</p>
+<dl class="section return"><dt>Returns</dt><dd>true if expansion pak detected, false otherwise.</dd></dl>
+<dl class="section note"><dt>Note</dt><dd>On iQue, this function returns true only if the game has been assigned exactly 8MB of RAM. </dd></dl>
+
+</div>
+</div>
+<a id="ga4cd768cc5d84485110ecf4991727b00b" name="ga4cd768cc5d84485110ecf4991727b00b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga4cd768cc5d84485110ecf4991727b00b">&#9670;&nbsp;</a></span>get_tv_type()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="group__n64sys.html#ga7f74bd3e9215d217f484cb5441a04e09">tv_type_t</a> get_tv_type </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Is system NTSC/PAL/MPAL. </p>
+<p >Checks enum hard-coded in PIF BootROM to indicate the tv type of the system.</p>
+<dl class="section return"><dt>Returns</dt><dd>enum value indicating PAL, NTSC or MPAL </dd></dl>
+
+</div>
+</div>
+<a id="gaf92492d6d351321a5974768b17e16d82" name="gaf92492d6d351321a5974768b17e16d82"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaf92492d6d351321a5974768b17e16d82">&#9670;&nbsp;</a></span>wait_ticks()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void wait_ticks </td>
+          <td>(</td>
+          <td class="paramtype">unsigned long&#160;</td>
+          <td class="paramname"><em>wait</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Spin wait until the number of ticks have elapsed. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">bc</td><td>Boot CIC value </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">wait</td><td>Number of ticks to wait Maximum accepted value is 0xFFFFFFFF ticks </td></tr>
   </table>
   </dd>
 </dl>
@@ -2049,32 +2118,6 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
 
 </div>
 </div>
-<a id="gaf92492d6d351321a5974768b17e16d82" name="gaf92492d6d351321a5974768b17e16d82"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaf92492d6d351321a5974768b17e16d82">&#9670;&nbsp;</a></span>wait_ticks()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void wait_ticks </td>
-          <td>(</td>
-          <td class="paramtype">unsigned long&#160;</td>
-          <td class="paramname"><em>wait</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Spin wait until the number of ticks have elapsed. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">wait</td><td>Number of ticks to wait Maximum accepted value is 0xFFFFFFFF ticks </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
 <h2 class="groupheader">Variable Documentation</h2>
 <a id="ga7bde5bc5b3121ab6d4d1293f29a2718b" name="ga7bde5bc5b3121ab6d4d1293f29a2718b"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga7bde5bc5b3121ab6d4d1293f29a2718b">&#9670;&nbsp;</a></span>__bootcic</h2>
@@ -2096,7 +2139,7 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:59 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

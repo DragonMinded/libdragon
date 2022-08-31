@@ -379,6 +379,24 @@ RSP asserts</h2>
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
+<a id="adad471a4ff79cf1d28e4a90e3c7d1ea2" name="adad471a4ff79cf1d28e4a90e3c7d1ea2"></a>uint32_t</td>
+<td class="fieldname">
+gpr[32]</td>
+<td class="fielddoc">
+General purpose registers. </td></tr>
+<tr><td class="fieldtype">
+<a id="a007496e4e8d0e57e66462151c8156051" name="a007496e4e8d0e57e66462151c8156051"></a>uint16_t</td>
+<td class="fieldname">
+vpr[32][8]</td>
+<td class="fielddoc">
+Vector registers. </td></tr>
+<tr><td class="fieldtype">
+<a id="a0a922c0b0bd1e4a58a389d53125d5bd3" name="a0a922c0b0bd1e4a58a389d53125d5bd3"></a>uint16_t</td>
+<td class="fieldname">
+vaccum[3][8]</td>
+<td class="fielddoc">
+Vector accumulator. </td></tr>
+<tr><td class="fieldtype">
 <a id="a283f7940a89ffc52fcc04cc67401439c" name="a283f7940a89ffc52fcc04cc67401439c"></a>uint32_t</td>
 <td class="fieldname">
 cop0[16]</td>
@@ -391,41 +409,23 @@ cop2[3]</td>
 <td class="fielddoc">
 COP2 control registers. </td></tr>
 <tr><td class="fieldtype">
-<a id="a828abbd16a038db42094df8831602934" name="a828abbd16a038db42094df8831602934"></a>uint8_t</td>
-<td class="fieldname">
-dmem[4096]</td>
-<td class="fielddoc">
-Contents of DMEM. </td></tr>
-<tr><td class="fieldtype">
-<a id="adad471a4ff79cf1d28e4a90e3c7d1ea2" name="adad471a4ff79cf1d28e4a90e3c7d1ea2"></a>uint32_t</td>
-<td class="fieldname">
-gpr[32]</td>
-<td class="fielddoc">
-General purpose registers. </td></tr>
-<tr><td class="fieldtype">
-<a id="ae1405b13440ab3b2280cdddde0e9ab67" name="ae1405b13440ab3b2280cdddde0e9ab67"></a>uint8_t</td>
-<td class="fieldname">
-imem[4096]</td>
-<td class="fielddoc">
-Contents of IMEM. </td></tr>
-<tr><td class="fieldtype">
 <a id="a290a25cf74ccb2417b8165f0fb373b3e" name="a290a25cf74ccb2417b8165f0fb373b3e"></a>uint32_t</td>
 <td class="fieldname">
 pc</td>
 <td class="fielddoc">
 Program counter. </td></tr>
 <tr><td class="fieldtype">
-<a id="a0a922c0b0bd1e4a58a389d53125d5bd3" name="a0a922c0b0bd1e4a58a389d53125d5bd3"></a>uint16_t</td>
+<a id="a828abbd16a038db42094df8831602934" name="a828abbd16a038db42094df8831602934"></a>uint8_t</td>
 <td class="fieldname">
-vaccum[3][8]</td>
+dmem[4096]</td>
 <td class="fielddoc">
-Vector accumulator. </td></tr>
+Contents of DMEM. </td></tr>
 <tr><td class="fieldtype">
-<a id="a007496e4e8d0e57e66462151c8156051" name="a007496e4e8d0e57e66462151c8156051"></a>uint16_t</td>
+<a id="ae1405b13440ab3b2280cdddde0e9ab67" name="ae1405b13440ab3b2280cdddde0e9ab67"></a>uint8_t</td>
 <td class="fieldname">
-vpr[32][8]</td>
+imem[4096]</td>
 <td class="fielddoc">
-Vector registers. </td></tr>
+Contents of IMEM. </td></tr>
 </table>
 
 </div>
@@ -618,6 +618,69 @@ Vector registers. </td></tr>
 
 </div>
 </div>
+<a id="a9b06ba89506266ccb7c962872f0c783b" name="a9b06ba89506266ccb7c962872f0c783b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9b06ba89506266ccb7c962872f0c783b">&#9670;&nbsp;</a></span>rsp_run()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void rsp_run </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Run RSP ucode. </p>
+<p >This function starts running the RSP, and wait until the ucode is finished. </p>
+
+</div>
+</div>
+<a id="a896f4959706e9ecb62ecf2de43bcb276" name="a896f4959706e9ecb62ecf2de43bcb276"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a896f4959706e9ecb62ecf2de43bcb276">&#9670;&nbsp;</a></span>rsp_run_async()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void rsp_run_async </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Run RSP async. </p>
+<p >This function starts running the RSP in background. Use <a class="el" href="rsp_8h.html#a5d8697b67857ad9bd55885c0eb79c984" title="Wait until RSP has finished processing.">rsp_wait()</a> to synchronize later. </p>
+
+</div>
+</div>
+<a id="a5d8697b67857ad9bd55885c0eb79c984" name="a5d8697b67857ad9bd55885c0eb79c984"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5d8697b67857ad9bd55885c0eb79c984">&#9670;&nbsp;</a></span>rsp_wait()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void rsp_wait </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Wait until RSP has finished processing. </p>
+<p >This function will wait until the RSP is halted. It contains a fixed timeout of 500 ms, after which <a class="el" href="rsp_8h.html#ae79047e3c1b28e7ed6b5e71025bcd1bb" title="Abort the program showing a RSP crash screen.">rsp_crash</a> is invoked to abort the program. </p>
+
+</div>
+</div>
 <a id="a0508fe05f465102e111d6f6ae0598058" name="a0508fe05f465102e111d6f6ae0598058"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a0508fe05f465102e111d6f6ae0598058">&#9670;&nbsp;</a></span>rsp_load_code()</h2>
 
@@ -799,73 +862,10 @@ Vector registers. </td></tr>
 
 </div>
 </div>
-<a id="a9b06ba89506266ccb7c962872f0c783b" name="a9b06ba89506266ccb7c962872f0c783b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9b06ba89506266ccb7c962872f0c783b">&#9670;&nbsp;</a></span>rsp_run()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void rsp_run </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Run RSP ucode. </p>
-<p >This function starts running the RSP, and wait until the ucode is finished. </p>
-
-</div>
-</div>
-<a id="a896f4959706e9ecb62ecf2de43bcb276" name="a896f4959706e9ecb62ecf2de43bcb276"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a896f4959706e9ecb62ecf2de43bcb276">&#9670;&nbsp;</a></span>rsp_run_async()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void rsp_run_async </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Run RSP async. </p>
-<p >This function starts running the RSP in background. Use <a class="el" href="rsp_8h.html#a5d8697b67857ad9bd55885c0eb79c984" title="Wait until RSP has finished processing.">rsp_wait()</a> to synchronize later. </p>
-
-</div>
-</div>
-<a id="a5d8697b67857ad9bd55885c0eb79c984" name="a5d8697b67857ad9bd55885c0eb79c984"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a5d8697b67857ad9bd55885c0eb79c984">&#9670;&nbsp;</a></span>rsp_wait()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void rsp_wait </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Wait until RSP has finished processing. </p>
-<p >This function will wait until the RSP is halted. It contains a fixed timeout of 500 ms, after which <a class="el" href="rsp_8h.html#ae79047e3c1b28e7ed6b5e71025bcd1bb" title="Abort the program showing a RSP crash screen.">rsp_crash</a> is invoked to abort the program. </p>
-
-</div>
-</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:58 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

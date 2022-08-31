@@ -208,6 +208,30 @@ volatile uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>ticks64_
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
+<a id="a1a43ae02c45b019d92e86f914ea53e64" name="a1a43ae02c45b019d92e86f914ea53e64"></a>uint32_t</td>
+<td class="fieldname">
+left</td>
+<td class="fielddoc">
+Absolute ticks value at which the timer expires. </td></tr>
+<tr><td class="fieldtype">
+<a id="a5e2a607418a0f509228cb0eceac24d3e" name="a5e2a607418a0f509228cb0eceac24d3e"></a>uint32_t</td>
+<td class="fieldname">
+set</td>
+<td class="fielddoc">
+Ticks to set if continuous. </td></tr>
+<tr><td class="fieldtype">
+<a id="a0c3b254603351985be855dbdb5143612" name="a0c3b254603351985be855dbdb5143612"></a>int</td>
+<td class="fieldname">
+ovfl</td>
+<td class="fielddoc">
+To correct for drift. </td></tr>
+<tr><td class="fieldtype">
+<a id="a0adb419b9e3755f1428ecadf89e15ad3" name="a0adb419b9e3755f1428ecadf89e15ad3"></a>int</td>
+<td class="fieldname">
+flags</td>
+<td class="fielddoc">
+Timer flags. See <a class="el" href="group__timer.html#ga387733f20ee4f2fa74635b6d676e8d50" title="Timer should fire only once.">TF_ONE_SHOT</a>, <a class="el" href="group__timer.html#gac49f69831e3d0b10c226a479c9cee814" title="Timer should fire at a regular interval.">TF_CONTINUOUS</a>, and <a class="el" href="group__timer.html#ga699880aeaaabbb6de0ea3ab6c507b3cb" title="Timer is enabled or not. Can be used to get a new timer that&#39;s not started.">TF_DISABLED</a>. </td></tr>
+<tr><td class="fieldtype">
 <a id="abcee4d9b2d06ecf402a63fb2efe5797d" name="abcee4d9b2d06ecf402a63fb2efe5797d"></a>union <a class="el" href="group__timer.html#uniontimer__link__t_8____unnamed19____">timer_link_t.__unnamed19__</a></td>
 <td class="fieldname">
 __unnamed__</td>
@@ -220,35 +244,11 @@ ctx</td>
 <td class="fielddoc">
 Callback context parameter. </td></tr>
 <tr><td class="fieldtype">
-<a id="a0adb419b9e3755f1428ecadf89e15ad3" name="a0adb419b9e3755f1428ecadf89e15ad3"></a>int</td>
-<td class="fieldname">
-flags</td>
-<td class="fielddoc">
-Timer flags. See <a class="el" href="group__timer.html#ga387733f20ee4f2fa74635b6d676e8d50" title="Timer should fire only once.">TF_ONE_SHOT</a>, <a class="el" href="group__timer.html#gac49f69831e3d0b10c226a479c9cee814" title="Timer should fire at a regular interval.">TF_CONTINUOUS</a>, and <a class="el" href="group__timer.html#ga699880aeaaabbb6de0ea3ab6c507b3cb" title="Timer is enabled or not. Can be used to get a new timer that&#39;s not started.">TF_DISABLED</a>. </td></tr>
-<tr><td class="fieldtype">
-<a id="a1a43ae02c45b019d92e86f914ea53e64" name="a1a43ae02c45b019d92e86f914ea53e64"></a>uint32_t</td>
-<td class="fieldname">
-left</td>
-<td class="fielddoc">
-Absolute ticks value at which the timer expires. </td></tr>
-<tr><td class="fieldtype">
 <a id="ad88bff2fb44d459872d97304bd7d0297" name="ad88bff2fb44d459872d97304bd7d0297"></a>struct timer_link *</td>
 <td class="fieldname">
 next</td>
 <td class="fielddoc">
 Link to next timer. </td></tr>
-<tr><td class="fieldtype">
-<a id="a0c3b254603351985be855dbdb5143612" name="a0c3b254603351985be855dbdb5143612"></a>int</td>
-<td class="fieldname">
-ovfl</td>
-<td class="fielddoc">
-To correct for drift. </td></tr>
-<tr><td class="fieldtype">
-<a id="a5e2a607418a0f509228cb0eceac24d3e" name="a5e2a607418a0f509228cb0eceac24d3e"></a>uint32_t</td>
-<td class="fieldname">
-set</td>
-<td class="fielddoc">
-Ticks to set if continuous. </td></tr>
 </table>
 
 </div>
@@ -284,60 +284,6 @@ callback_with_context</td>
 </div>
 </div>
 <h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="ga7a8376a5a1aab3ac8b63d0234ddf1646" name="ga7a8376a5a1aab3ac8b63d0234ddf1646"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga7a8376a5a1aab3ac8b63d0234ddf1646">&#9670;&nbsp;</a></span>TIMER_MICROS</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define TIMER_MICROS</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">tk</td><td>)</td>
-          <td>&#160;&#160;&#160;((int)<a class="el" href="group__timer.html#gafcf1f9937f1a0a29fdf3df054090f968">TIMER_MICROS_LL</a>(tk))</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Calculate microseconds based on timer ticks. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">tk</td><td>Ticks to convert to microseconds</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>Microseconds </dd></dl>
-
-</div>
-</div>
-<a id="gafcf1f9937f1a0a29fdf3df054090f968" name="gafcf1f9937f1a0a29fdf3df054090f968"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gafcf1f9937f1a0a29fdf3df054090f968">&#9670;&nbsp;</a></span>TIMER_MICROS_LL</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define TIMER_MICROS_LL</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">tk</td><td>)</td>
-          <td>&#160;&#160;&#160;((long long)(tk) * 1000000 / <a class="el" href="group__n64sys.html#ga3dd7b7d41c220904632461a2d95d61cf">TICKS_PER_SECOND</a>)</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Calculate microseconds based on timer ticks. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">tk</td><td>Ticks to convert to microseconds</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>Microseconds as a long long </dd></dl>
-
-</div>
-</div>
 <a id="ga5fc22e0d1f470acf22c7ad695e504cc3" name="ga5fc22e0d1f470acf22c7ad695e504cc3"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga5fc22e0d1f470acf22c7ad695e504cc3">&#9670;&nbsp;</a></span>TIMER_TICKS</h2>
 
@@ -362,6 +308,33 @@ callback_with_context</td>
   </dd>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>Timer ticks </dd></dl>
+
+</div>
+</div>
+<a id="ga7a8376a5a1aab3ac8b63d0234ddf1646" name="ga7a8376a5a1aab3ac8b63d0234ddf1646"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga7a8376a5a1aab3ac8b63d0234ddf1646">&#9670;&nbsp;</a></span>TIMER_MICROS</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define TIMER_MICROS</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">tk</td><td>)</td>
+          <td>&#160;&#160;&#160;((int)<a class="el" href="group__timer.html#gafcf1f9937f1a0a29fdf3df054090f968">TIMER_MICROS_LL</a>(tk))</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Calculate microseconds based on timer ticks. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">tk</td><td>Ticks to convert to microseconds</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>Microseconds </dd></dl>
 
 </div>
 </div>
@@ -392,30 +365,53 @@ callback_with_context</td>
 
 </div>
 </div>
-<h2 class="groupheader">Function Documentation</h2>
-<a id="ga9be3a07bf5bcebee5509b64c37121083" name="ga9be3a07bf5bcebee5509b64c37121083"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga9be3a07bf5bcebee5509b64c37121083">&#9670;&nbsp;</a></span>delete_timer()</h2>
+<a id="gafcf1f9937f1a0a29fdf3df054090f968" name="gafcf1f9937f1a0a29fdf3df054090f968"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gafcf1f9937f1a0a29fdf3df054090f968">&#9670;&nbsp;</a></span>TIMER_MICROS_LL</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void delete_timer </td>
+          <td class="memname">#define TIMER_MICROS_LL</td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="group__timer.html#structtimer__link__t">timer_link_t</a> *&#160;</td>
-          <td class="paramname"><em>timer</em></td><td>)</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">tk</td><td>)</td>
+          <td>&#160;&#160;&#160;((long long)(tk) * 1000000 / <a class="el" href="group__n64sys.html#ga3dd7b7d41c220904632461a2d95d61cf">TICKS_PER_SECOND</a>)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Calculate microseconds based on timer ticks. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">tk</td><td>Ticks to convert to microseconds</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>Microseconds as a long long </dd></dl>
+
+</div>
+</div>
+<h2 class="groupheader">Function Documentation</h2>
+<a id="ga7b8ab79df77b57475a5494f5f81c3bd9" name="ga7b8ab79df77b57475a5494f5f81c3bd9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga7b8ab79df77b57475a5494f5f81c3bd9">&#9670;&nbsp;</a></span>timer_init()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void timer_init </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
           <td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Remove a timer from the list and delete it. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">timer</td><td>Timer structure to stop, remove and free </td></tr>
-  </table>
-  </dd>
-</dl>
+<p>Initialize the timer subsystem. </p>
+<p >This function will reset the COP0 ticks counter to 0. Even if you later access the hardware counter directly (via <a class="el" href="group__n64sys.html#ga3f00b2f3f7a3bb391282d0b2da8969f1" title="Returns the COP0 register $9 (count).">TICKS_READ()</a>), it should not be a problem if you call <a class="el" href="group__timer.html#ga7b8ab79df77b57475a5494f5f81c3bd9" title="Initialize the timer subsystem.">timer_init()</a> early in the application main.</p>
+<p >Do not modify the COP0 ticks counter after calling this function. Doing so will impede functionality of the timer module. </p>
 
 </div>
 </div>
@@ -515,32 +511,6 @@ callback_with_context</td>
   </dd>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>A pointer to the timer structure created </dd></dl>
-
-</div>
-</div>
-<a id="gafe8d0916cf8318fb9d399fc58d510ffd" name="gafe8d0916cf8318fb9d399fc58d510ffd"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gafe8d0916cf8318fb9d399fc58d510ffd">&#9670;&nbsp;</a></span>restart_timer()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void restart_timer </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="group__timer.html#structtimer__link__t">timer_link_t</a> *&#160;</td>
-          <td class="paramname"><em>timer</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Reset a timer and add to list. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">timer</td><td>Pointer to timer structure to reinsert and start </td></tr>
-  </table>
-  </dd>
-</dl>
 
 </div>
 </div>
@@ -655,6 +625,32 @@ callback_with_context</td>
 
 </div>
 </div>
+<a id="gafe8d0916cf8318fb9d399fc58d510ffd" name="gafe8d0916cf8318fb9d399fc58d510ffd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gafe8d0916cf8318fb9d399fc58d510ffd">&#9670;&nbsp;</a></span>restart_timer()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void restart_timer </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="group__timer.html#structtimer__link__t">timer_link_t</a> *&#160;</td>
+          <td class="paramname"><em>timer</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Reset a timer and add to list. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">timer</td><td>Pointer to timer structure to reinsert and start </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 <a id="ga8fbd392a5ec8e5d27f79cc4a660b1aed" name="ga8fbd392a5ec8e5d27f79cc4a660b1aed"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga8fbd392a5ec8e5d27f79cc4a660b1aed">&#9670;&nbsp;</a></span>stop_timer()</h2>
 
@@ -682,6 +678,32 @@ callback_with_context</td>
 
 </div>
 </div>
+<a id="ga9be3a07bf5bcebee5509b64c37121083" name="ga9be3a07bf5bcebee5509b64c37121083"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga9be3a07bf5bcebee5509b64c37121083">&#9670;&nbsp;</a></span>delete_timer()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void delete_timer </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="group__timer.html#structtimer__link__t">timer_link_t</a> *&#160;</td>
+          <td class="paramname"><em>timer</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Remove a timer from the list and delete it. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">timer</td><td>Timer structure to stop, remove and free </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 <a id="ga32c93080b7ed9264d7db8e5137a17c0d" name="ga32c93080b7ed9264d7db8e5137a17c0d"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga32c93080b7ed9264d7db8e5137a17c0d">&#9670;&nbsp;</a></span>timer_close()</h2>
 
@@ -700,28 +722,6 @@ callback_with_context</td>
 
 <p>Free and close the timer subsystem. </p>
 <p >This function will ensure all recurring timers are deleted from the list before closing. One-shot timers that have expired will need to be manually deleted with <a class="el" href="group__timer.html#ga9be3a07bf5bcebee5509b64c37121083" title="Remove a timer from the list and delete it.">delete_timer</a>. </p>
-
-</div>
-</div>
-<a id="ga7b8ab79df77b57475a5494f5f81c3bd9" name="ga7b8ab79df77b57475a5494f5f81c3bd9"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga7b8ab79df77b57475a5494f5f81c3bd9">&#9670;&nbsp;</a></span>timer_init()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void timer_init </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Initialize the timer subsystem. </p>
-<p >This function will reset the COP0 ticks counter to 0. Even if you later access the hardware counter directly (via <a class="el" href="group__n64sys.html#ga3f00b2f3f7a3bb391282d0b2da8969f1" title="Returns the COP0 register $9 (count).">TICKS_READ()</a>), it should not be a problem if you call <a class="el" href="group__timer.html#ga7b8ab79df77b57475a5494f5f81c3bd9" title="Initialize the timer subsystem.">timer_init()</a> early in the application main.</p>
-<p >Do not modify the COP0 ticks counter after calling this function. Doing so will impede functionality of the timer module. </p>
 
 </div>
 </div>
@@ -775,7 +775,7 @@ callback_with_context</td>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:59 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

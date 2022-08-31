@@ -182,6 +182,18 @@ Functions</h2></td></tr>
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
+<a id="a812da29fb4a23cf0e138f530283c7bb8" name="a812da29fb4a23cf0e138f530283c7bb8"></a>uint16_t</td>
+<td class="fieldname">
+year</td>
+<td class="fielddoc">
+Year. [1900-20XX]. </td></tr>
+<tr><td class="fieldtype">
+<a id="a72c1fb304848005b837a5966123feeb5" name="a72c1fb304848005b837a5966123feeb5"></a>uint8_t</td>
+<td class="fieldname">
+month</td>
+<td class="fielddoc">
+Month. [0-11]. </td></tr>
+<tr><td class="fieldtype">
 <a id="abcae6772be689db12a9a97451b9accb7" name="abcae6772be689db12a9a97451b9accb7"></a>uint8_t</td>
 <td class="fieldname">
 day</td>
@@ -200,12 +212,6 @@ min</td>
 <td class="fielddoc">
 Minutes. [0-59]. </td></tr>
 <tr><td class="fieldtype">
-<a id="a72c1fb304848005b837a5966123feeb5" name="a72c1fb304848005b837a5966123feeb5"></a>uint8_t</td>
-<td class="fieldname">
-month</td>
-<td class="fielddoc">
-Month. [0-11]. </td></tr>
-<tr><td class="fieldtype">
 <a id="a9e6b7c9a15685fe8c90a969550b80e76" name="a9e6b7c9a15685fe8c90a969550b80e76"></a>uint8_t</td>
 <td class="fieldname">
 sec</td>
@@ -217,52 +223,11 @@ Seconds. [0-59]. </td></tr>
 week_day</td>
 <td class="fielddoc">
 Day of week. [0-6] (Sun-Sat) </td></tr>
-<tr><td class="fieldtype">
-<a id="a812da29fb4a23cf0e138f530283c7bb8" name="a812da29fb4a23cf0e138f530283c7bb8"></a>uint16_t</td>
-<td class="fieldname">
-year</td>
-<td class="fielddoc">
-Year. [1900-20XX]. </td></tr>
 </table>
 
 </div>
 </div>
 <h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="gad02da8fec42199c4c2d3ae5ab18e4395" name="gad02da8fec42199c4c2d3ae5ab18e4395"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gad02da8fec42199c4c2d3ae5ab18e4395">&#9670;&nbsp;</a></span>JOYBUS_RTC_CONTROL_MODE_RUN</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define JOYBUS_RTC_CONTROL_MODE_RUN&#160;&#160;&#160;0x0300</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Control mode for normal operation of the Joybus RTC. </p>
-<p >Clears the stop bit sets the write-protection bits.</p>
-<p >0x0100 is the block 1 write-protection bit. 0x0200 is the block 2 write-protection bit. </p>
-
-</div>
-</div>
-<a id="ga0879c2dcd0a902265cccaa8f9a617800" name="ga0879c2dcd0a902265cccaa8f9a617800"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga0879c2dcd0a902265cccaa8f9a617800">&#9670;&nbsp;</a></span>JOYBUS_RTC_CONTROL_MODE_SET</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define JOYBUS_RTC_CONTROL_MODE_SET&#160;&#160;&#160;0x0004</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Control mode for setting the Joybus RTC date/time. </p>
-<p >Clears the write-protection bits and sets the stop bit. </p>
-
-</div>
-</div>
 <a id="ga0dc5d7e2affd2f2156180e815dd14ad4" name="ga0dc5d7e2affd2f2156180e815dd14ad4"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga0dc5d7e2affd2f2156180e815dd14ad4">&#9670;&nbsp;</a></span>JOYBUS_RTC_IDENTIFIER</h2>
 
@@ -277,40 +242,6 @@ Year. [1900-20XX]. </td></tr>
 
 <p>Joybus real-time clock identifier. </p>
 <p >A magic value in the SI RTC status response that indicates the Joybus RTC is present. </p>
-
-</div>
-</div>
-<a id="ga71dbc88287ffa0ab478324f96781d52b" name="ga71dbc88287ffa0ab478324f96781d52b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga71dbc88287ffa0ab478324f96781d52b">&#9670;&nbsp;</a></span>JOYBUS_RTC_STATUS_RUNNING</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define JOYBUS_RTC_STATUS_RUNNING&#160;&#160;&#160;0x00</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>The Joybus RTC is running. </p>
-<p >It is safe to read the current time from the RTC. </p>
-
-</div>
-</div>
-<a id="gaa78b824bcfec61517abb64c6aebd995b" name="gaa78b824bcfec61517abb64c6aebd995b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaa78b824bcfec61517abb64c6aebd995b">&#9670;&nbsp;</a></span>JOYBUS_RTC_STATUS_STOPPED</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define JOYBUS_RTC_STATUS_STOPPED&#160;&#160;&#160;0x80</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>The Joybus RTC is stopped. </p>
-<p >It is safe to write new time data to the RTC. </p>
 
 </div>
 </div>
@@ -349,6 +280,75 @@ Year. [1900-20XX]. </td></tr>
 
 </div>
 </div>
+<a id="ga71dbc88287ffa0ab478324f96781d52b" name="ga71dbc88287ffa0ab478324f96781d52b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga71dbc88287ffa0ab478324f96781d52b">&#9670;&nbsp;</a></span>JOYBUS_RTC_STATUS_RUNNING</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define JOYBUS_RTC_STATUS_RUNNING&#160;&#160;&#160;0x00</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>The Joybus RTC is running. </p>
+<p >It is safe to read the current time from the RTC. </p>
+
+</div>
+</div>
+<a id="gaa78b824bcfec61517abb64c6aebd995b" name="gaa78b824bcfec61517abb64c6aebd995b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaa78b824bcfec61517abb64c6aebd995b">&#9670;&nbsp;</a></span>JOYBUS_RTC_STATUS_STOPPED</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define JOYBUS_RTC_STATUS_STOPPED&#160;&#160;&#160;0x80</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>The Joybus RTC is stopped. </p>
+<p >It is safe to write new time data to the RTC. </p>
+
+</div>
+</div>
+<a id="ga0879c2dcd0a902265cccaa8f9a617800" name="ga0879c2dcd0a902265cccaa8f9a617800"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga0879c2dcd0a902265cccaa8f9a617800">&#9670;&nbsp;</a></span>JOYBUS_RTC_CONTROL_MODE_SET</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define JOYBUS_RTC_CONTROL_MODE_SET&#160;&#160;&#160;0x0004</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Control mode for setting the Joybus RTC date/time. </p>
+<p >Clears the write-protection bits and sets the stop bit. </p>
+
+</div>
+</div>
+<a id="gad02da8fec42199c4c2d3ae5ab18e4395" name="gad02da8fec42199c4c2d3ae5ab18e4395"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gad02da8fec42199c4c2d3ae5ab18e4395">&#9670;&nbsp;</a></span>JOYBUS_RTC_CONTROL_MODE_RUN</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define JOYBUS_RTC_CONTROL_MODE_RUN&#160;&#160;&#160;0x0300</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Control mode for normal operation of the Joybus RTC. </p>
+<p >Clears the stop bit sets the write-protection bits.</p>
+<p >0x0100 is the block 1 write-protection bit. 0x0200 is the block 2 write-protection bit. </p>
+
+</div>
+</div>
 <h2 class="groupheader">Enumeration Type Documentation</h2>
 <a id="gaf4e6e809a36c78b63cd09260d3a5f561" name="gaf4e6e809a36c78b63cd09260d3a5f561"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#gaf4e6e809a36c78b63cd09260d3a5f561">&#9670;&nbsp;</a></span>rtc_type_t</h2>
@@ -377,59 +377,6 @@ Year. [1900-20XX]. </td></tr>
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="gae6a9800f8788fe1d2232b36724e037aa" name="gae6a9800f8788fe1d2232b36724e037aa"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gae6a9800f8788fe1d2232b36724e037aa">&#9670;&nbsp;</a></span>rtc_close()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void rtc_close </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Close the RTC Subsystem, disabling system hooks. </p>
-<p >Unhooks the RTC from the newlib gettimeofday function. This will cause subsequent calls to gettimeofday to error with ENOSYS.</p>
-<p >The only reason you should ever need to call this is if you need to stop the Timer Subsystem, which the RTC Subsystem depends on. If you do need to do this, make sure to call <a class="el" href="group__rtc.html#gae6a9800f8788fe1d2232b36724e037aa" title="Close the RTC Subsystem, disabling system hooks.">rtc_close</a> BEFORE <a class="el" href="group__timer.html#ga32c93080b7ed9264d7db8e5137a17c0d" title="Free and close the timer subsystem.">timer_close</a> and then call <a class="el" href="group__rtc.html#ga7d2152c20235fcc3520e5b1931e86405" title="High-level convenience helper to initialize the RTC subsystem.">rtc_init</a> again after you call <a class="el" href="group__timer.html#ga7b8ab79df77b57475a5494f5f81c3bd9" title="Initialize the timer subsystem.">timer_init</a> to restart the Timer Subsystem! </p>
-
-</div>
-</div>
-<a id="gaf9cee899189bcaef3244ed0643ee181a" name="gaf9cee899189bcaef3244ed0643ee181a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaf9cee899189bcaef3244ed0643ee181a">&#9670;&nbsp;</a></span>rtc_get()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">bool rtc_get </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="group__rtc.html#structrtc__time__t">rtc_time_t</a> *&#160;</td>
-          <td class="paramname"><em>rtc_time</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Read the current date/time from the real-time clock. </p>
-<p >If the RTC is not detected or supported, this function will not modify the destination rtc_time parameter.</p>
-<p >Your code should call this once per frame to update the <a class="el" href="group__rtc.html#structrtc__time__t" title="Structure for storing RTC time data.">rtc_time_t</a> data structure. The RTC Subsystem maintains a cache of the most-recent RTC time that was read and will only perform an actual RTC read command if the cache is invalidated. The destination rtc_time parameter will be updated regardless of the cache validity.</p>
-<p >Cache will invalidate every <a class="el" href="group__rtc.html#ga52141232434243f8a5442db59d3f4d17" title="Invalidate the most-recent RTC time cache after 1 second.">RTC_GET_CACHE_INVALIDATE_TICKS</a>. Calling <a class="el" href="group__rtc.html#ga49e1f7e05969bedd4b4e4789861c2944" title="High-level convenience helper to set the RTC date/time.">rtc_set</a> will also invalidate the cache.</p>
-<p >If an actual RTC read command is needed, this function can take a few milliseconds to complete.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[out]</td><td class="paramname">rtc_time</td><td>Destination pointer for the RTC time data structure</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>whether the rtc_time destination pointer data was modified </dd></dl>
-
-</div>
-</div>
 <a id="ga7d2152c20235fcc3520e5b1931e86405" name="ga7d2152c20235fcc3520e5b1931e86405"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga7d2152c20235fcc3520e5b1931e86405">&#9670;&nbsp;</a></span>rtc_init()</h2>
 
@@ -456,14 +403,14 @@ Year. [1900-20XX]. </td></tr>
 
 </div>
 </div>
-<a id="gae5c739084610784801c6689fa99f0bd4" name="gae5c739084610784801c6689fa99f0bd4"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gae5c739084610784801c6689fa99f0bd4">&#9670;&nbsp;</a></span>rtc_is_writable()</h2>
+<a id="gae6a9800f8788fe1d2232b36724e037aa" name="gae6a9800f8788fe1d2232b36724e037aa"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gae6a9800f8788fe1d2232b36724e037aa">&#9670;&nbsp;</a></span>rtc_close()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">bool rtc_is_writable </td>
+          <td class="memname">void rtc_close </td>
           <td>(</td>
           <td class="paramtype">void&#160;</td>
           <td class="paramname"></td><td>)</td>
@@ -472,12 +419,9 @@ Year. [1900-20XX]. </td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Determine whether the RTC supports writing the time. </p>
-<p >Some emulators and flash carts do not support writing to the RTC, so this function makes an attempt to detect silent write failures and will return <code>false</code> if it is unable to change the time on the RTC.</p>
-<p >This function is useful if your program wants to conditionally offer the ability to set the time based on hardware/emulator support.</p>
-<p >Unfortunately this operation may introduce a slight drift in the clock, but it is the only way to determine if the RTC supports the write command.</p>
-<p >This operation will take approximately 1 second to complete.</p>
-<dl class="section return"><dt>Returns</dt><dd>whether RTC writes appear to be supported </dd></dl>
+<p>Close the RTC Subsystem, disabling system hooks. </p>
+<p >Unhooks the RTC from the newlib gettimeofday function. This will cause subsequent calls to gettimeofday to error with ENOSYS.</p>
+<p >The only reason you should ever need to call this is if you need to stop the Timer Subsystem, which the RTC Subsystem depends on. If you do need to do this, make sure to call <a class="el" href="group__rtc.html#gae6a9800f8788fe1d2232b36724e037aa" title="Close the RTC Subsystem, disabling system hooks.">rtc_close</a> BEFORE <a class="el" href="group__timer.html#ga32c93080b7ed9264d7db8e5137a17c0d" title="Free and close the timer subsystem.">timer_close</a> and then call <a class="el" href="group__rtc.html#ga7d2152c20235fcc3520e5b1931e86405" title="High-level convenience helper to initialize the RTC subsystem.">rtc_init</a> again after you call <a class="el" href="group__timer.html#ga7b8ab79df77b57475a5494f5f81c3bd9" title="Initialize the timer subsystem.">timer_init</a> to restart the Timer Subsystem! </p>
 
 </div>
 </div>
@@ -512,6 +456,37 @@ Year. [1900-20XX]. </td></tr>
 
 </div>
 </div>
+<a id="gaf9cee899189bcaef3244ed0643ee181a" name="gaf9cee899189bcaef3244ed0643ee181a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaf9cee899189bcaef3244ed0643ee181a">&#9670;&nbsp;</a></span>rtc_get()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool rtc_get </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="group__rtc.html#structrtc__time__t">rtc_time_t</a> *&#160;</td>
+          <td class="paramname"><em>rtc_time</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Read the current date/time from the real-time clock. </p>
+<p >If the RTC is not detected or supported, this function will not modify the destination rtc_time parameter.</p>
+<p >Your code should call this once per frame to update the <a class="el" href="group__rtc.html#structrtc__time__t" title="Structure for storing RTC time data.">rtc_time_t</a> data structure. The RTC Subsystem maintains a cache of the most-recent RTC time that was read and will only perform an actual RTC read command if the cache is invalidated. The destination rtc_time parameter will be updated regardless of the cache validity.</p>
+<p >Cache will invalidate every <a class="el" href="group__rtc.html#ga52141232434243f8a5442db59d3f4d17" title="Invalidate the most-recent RTC time cache after 1 second.">RTC_GET_CACHE_INVALIDATE_TICKS</a>. Calling <a class="el" href="group__rtc.html#ga49e1f7e05969bedd4b4e4789861c2944" title="High-level convenience helper to set the RTC date/time.">rtc_set</a> will also invalidate the cache.</p>
+<p >If an actual RTC read command is needed, this function can take a few milliseconds to complete.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[out]</td><td class="paramname">rtc_time</td><td>Destination pointer for the RTC time data structure</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>whether the rtc_time destination pointer data was modified </dd></dl>
+
+</div>
+</div>
 <a id="ga49e1f7e05969bedd4b4e4789861c2944" name="ga49e1f7e05969bedd4b4e4789861c2944"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga49e1f7e05969bedd4b4e4789861c2944">&#9670;&nbsp;</a></span>rtc_set()</h2>
 
@@ -542,10 +517,35 @@ Year. [1900-20XX]. </td></tr>
 
 </div>
 </div>
+<a id="gae5c739084610784801c6689fa99f0bd4" name="gae5c739084610784801c6689fa99f0bd4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gae5c739084610784801c6689fa99f0bd4">&#9670;&nbsp;</a></span>rtc_is_writable()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool rtc_is_writable </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Determine whether the RTC supports writing the time. </p>
+<p >Some emulators and flash carts do not support writing to the RTC, so this function makes an attempt to detect silent write failures and will return <code>false</code> if it is unable to change the time on the RTC.</p>
+<p >This function is useful if your program wants to conditionally offer the ability to set the time based on hardware/emulator support.</p>
+<p >Unfortunately this operation may introduce a slight drift in the clock, but it is the only way to determine if the RTC supports the write command.</p>
+<p >This operation will take approximately 1 second to complete.</p>
+<dl class="section return"><dt>Returns</dt><dd>whether RTC writes appear to be supported </dd></dl>
+
+</div>
+</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:59 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

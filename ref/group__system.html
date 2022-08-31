@@ -328,18 +328,18 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>end</b></td></tr>
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
-<a id="a97474076859ee78d8a726ee9ca7a6d82" name="a97474076859ee78d8a726ee9ca7a6d82"></a><a class="el" href="structfilesystem__t.html">filesystem_t</a> *</td>
-<td class="fieldname">
-fs</td>
-<td class="fielddoc">
-Filesystem callback pointers. </td></tr>
-<tr><td class="fieldtype">
 <a id="abfd00866b2e96f01d819383aa3e7cb02" name="abfd00866b2e96f01d819383aa3e7cb02"></a>char *</td>
 <td class="fieldname">
 prefix</td>
 <td class="fielddoc">
 Filesystem prefix. <p >This controls what filesystem prefix should link to this filesystem (eg. 'rom:/' or 'cf:/') </p>
 </td></tr>
+<tr><td class="fieldtype">
+<a id="a97474076859ee78d8a726ee9ca7a6d82" name="a97474076859ee78d8a726ee9ca7a6d82"></a><a class="el" href="structfilesystem__t.html">filesystem_t</a> *</td>
+<td class="fieldname">
+fs</td>
+<td class="fielddoc">
+Filesystem callback pointers. </td></tr>
 </table>
 
 </div>
@@ -360,12 +360,6 @@ Filesystem prefix. <p >This controls what filesystem prefix should link to this 
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
-<a id="a063dee96aca8905dae49a6375d4a033b" name="a063dee96aca8905dae49a6375d4a033b"></a>int</td>
-<td class="fieldname">
-fileno</td>
-<td class="fielddoc">
-The handle assigned by the filesystem code that will be returned to newlib. All subsequent newlib calls will use this handle which will be used to look up the internal reference. </td></tr>
-<tr><td class="fieldtype">
 <a id="a984ea58ce3fa03cd2585813a3eb59f80" name="a984ea58ce3fa03cd2585813a3eb59f80"></a>int</td>
 <td class="fieldname">
 fs_mapping</td>
@@ -377,6 +371,12 @@ Index into <code>filesystems</code> array. </td></tr>
 handle</td>
 <td class="fielddoc">
 The handle assigned to this open file as returned by the filesystem code called to handle the open operation. Will be passed to all subsequent file operations on the file. </td></tr>
+<tr><td class="fieldtype">
+<a id="a063dee96aca8905dae49a6375d4a033b" name="a063dee96aca8905dae49a6375d4a033b"></a>int</td>
+<td class="fieldname">
+fileno</td>
+<td class="fielddoc">
+The handle assigned by the filesystem code that will be returned to newlib. All subsequent newlib calls will use this handle which will be used to look up the internal reference. </td></tr>
 </table>
 
 </div>
@@ -412,6 +412,23 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
 </div>
 </div>
 <h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="ga6423a880df59733d2d9b509c7718d3a9" name="ga6423a880df59733d2d9b509c7718d3a9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga6423a880df59733d2d9b509c7718d3a9">&#9670;&nbsp;</a></span>STACK_SIZE</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define STACK_SIZE&#160;&#160;&#160;0x10000</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Stack size. </p>
+<p >This is the maximum stack size for the purpose of malloc. Any malloc call that tries to allocate data will not allocate within this range. However, there is no guarantee that user code won't blow the stack and cause heap corruption. Use this as loose protection at best. </p>
+
+</div>
+</div>
 <a id="gab0c7932a38248a4a2527c35dc39564cb" name="gab0c7932a38248a4a2527c35dc39564cb"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#gab0c7932a38248a4a2527c35dc39564cb">&#9670;&nbsp;</a></span>DEBUG_OUT</h2>
 
@@ -438,67 +455,7 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
 
 </div>
 </div>
-<a id="ga6423a880df59733d2d9b509c7718d3a9" name="ga6423a880df59733d2d9b509c7718d3a9"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga6423a880df59733d2d9b509c7718d3a9">&#9670;&nbsp;</a></span>STACK_SIZE</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define STACK_SIZE&#160;&#160;&#160;0x10000</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Stack size. </p>
-<p >This is the maximum stack size for the purpose of malloc. Any malloc call that tries to allocate data will not allocate within this range. However, there is no guarantee that user code won't blow the stack and cause heap corruption. Use this as loose protection at best. </p>
-
-</div>
-</div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="ga620a4f992f76741d22c71a8736391bf6" name="ga620a4f992f76741d22c71a8736391bf6"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga620a4f992f76741d22c71a8736391bf6">&#9670;&nbsp;</a></span>__assert_func()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void __assert_func </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>file</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>line</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>func</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>failedexpr</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Implement underlying function for assert() </p>
-<p >Implementation of the function called when an assert fails. By default, we just abort execution, but this will be overriden at startup with a function that prints the assertion on the screen and via the debug channel (if initialized). </p>
-
-</div>
-</div>
 <a id="ga2d1bf5fe189639067937a3af7a0028e0" name="ga2d1bf5fe189639067937a3af7a0028e0"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga2d1bf5fe189639067937a3af7a0028e0">&#9670;&nbsp;</a></span>__do_global_ctors()</h2>
 
@@ -520,61 +477,70 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
 
 </div>
 </div>
-<a id="ga92f3a2a875b4e08083b83d032adddc4d" name="ga92f3a2a875b4e08083b83d032adddc4d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga92f3a2a875b4e08083b83d032adddc4d">&#9670;&nbsp;</a></span>_exit()</h2>
+<a id="ga154b837080a092ecbab0735a0254c4b4" name="ga154b837080a092ecbab0735a0254c4b4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga154b837080a092ecbab0735a0254c4b4">&#9670;&nbsp;</a></span>enable_interrupts()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void _exit </td>
+          <td class="memname">void enable_interrupts </td>
           <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>rc</em></td><td>)</td>
+          <td class="paramname"></td><td>)</td>
           <td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>End execution on current thread. </p>
-<dl class="section note"><dt>Note</dt><dd>This function does not exit. If this is the last thread, the system will hang.</dd></dl>
+<p>Enable interrupts systemwide. </p>
+<dl class="section note"><dt>Note</dt><dd>If this is called inside a nested disable call, it will have no effect on the system. Therefore it is safe to nest disable/enable calls. After the last nested interrupt is enabled, systemwide interrupts will be reenabled. </dd></dl>
+
+</div>
+</div>
+<a id="ga52651bf1923b2c97e8b4da0ac6b99fdb" name="ga52651bf1923b2c97e8b4da0ac6b99fdb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga52651bf1923b2c97e8b4da0ac6b99fdb">&#9670;&nbsp;</a></span>disable_interrupts()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void disable_interrupts </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Disable interrupts systemwide. </p>
+<dl class="section note"><dt>Note</dt><dd>If interrupts are already disabled on the system or interrupts have not been initialized, this function will not modify the system state. </dd></dl>
+
+</div>
+</div>
+<a id="gaacad1d135ca2779b583623678e36db7c" name="gaacad1d135ca2779b583623678e36db7c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaacad1d135ca2779b583623678e36db7c">&#9670;&nbsp;</a></span>close()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int close </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>fildes</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Close a file. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">rc</td><td>Return value of the exiting program </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">fildes</td><td>File handle of the file to close</td></tr>
   </table>
   </dd>
 </dl>
-
-</div>
-</div>
-<a id="gad4f9b5b6613b1151a03915ee7b0ad21c" name="gad4f9b5b6613b1151a03915ee7b0ad21c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gad4f9b5b6613b1151a03915ee7b0ad21c">&#9670;&nbsp;</a></span>_flush_cache()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void _flush_cache </td>
-          <td>(</td>
-          <td class="paramtype">uint8_t *&#160;</td>
-          <td class="paramname"><em>addr</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">unsigned long&#160;</td>
-          <td class="paramname"><em>bytes</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Implement _flush_cache as required by GCC for nested functions. </p>
-<p >When using the nested function extensions of GCC, a call to _flush_cache is generated which must be supplied by the operating system or runtime to allow flushing the instruction cache for the generated trampoline. </p>
+<dl class="section return"><dt>Returns</dt><dd>0 on success or a negative value on error. </dd></dl>
 
 </div>
 </div>
@@ -620,6 +586,41 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
     <tr><td class="paramname">-2</td><td>if the prefix is already in use </td></tr>
     <tr><td class="paramname">-3</td><td>if there are no more slots for filesystems </td></tr>
     <tr><td class="paramname">0</td><td>if the filesystem was registered successfully </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ga87492c7a75157f1aa852aedaf78e4d59" name="ga87492c7a75157f1aa852aedaf78e4d59"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga87492c7a75157f1aa852aedaf78e4d59">&#9670;&nbsp;</a></span>detach_filesystem()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int detach_filesystem </td>
+          <td>(</td>
+          <td class="paramtype">const char *const&#160;</td>
+          <td class="paramname"><em>prefix</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Unregister a filesystem from newlib. </p>
+<dl class="section note"><dt>Note</dt><dd>This function will make sure all files are closed before unregistering the filesystem.</dd></dl>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">prefix</td><td>The prefix that was used to register the filesystem</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="retval"><dt>Return values</dt><dd>
+  <table class="retval">
+    <tr><td class="paramname">-1</td><td>if the parameters were invalid </td></tr>
+    <tr><td class="paramname">-2</td><td>if the filesystem couldn't be found </td></tr>
+    <tr><td class="paramname">0</td><td>if the filesystem was successfully unregistered </td></tr>
   </table>
   </dd>
 </dl>
@@ -672,186 +673,6 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
 
 </div>
 </div>
-<a id="gaacad1d135ca2779b583623678e36db7c" name="gaacad1d135ca2779b583623678e36db7c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaacad1d135ca2779b583623678e36db7c">&#9670;&nbsp;</a></span>close()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int close </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>fildes</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Close a file. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">fildes</td><td>File handle of the file to close</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>0 on success or a negative value on error. </dd></dl>
-
-</div>
-</div>
-<a id="ga87492c7a75157f1aa852aedaf78e4d59" name="ga87492c7a75157f1aa852aedaf78e4d59"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga87492c7a75157f1aa852aedaf78e4d59">&#9670;&nbsp;</a></span>detach_filesystem()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int detach_filesystem </td>
-          <td>(</td>
-          <td class="paramtype">const char *const&#160;</td>
-          <td class="paramname"><em>prefix</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Unregister a filesystem from newlib. </p>
-<dl class="section note"><dt>Note</dt><dd>This function will make sure all files are closed before unregistering the filesystem.</dd></dl>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">prefix</td><td>The prefix that was used to register the filesystem</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="retval"><dt>Return values</dt><dd>
-  <table class="retval">
-    <tr><td class="paramname">-1</td><td>if the parameters were invalid </td></tr>
-    <tr><td class="paramname">-2</td><td>if the filesystem couldn't be found </td></tr>
-    <tr><td class="paramname">0</td><td>if the filesystem was successfully unregistered </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="gaf069d9aae45f54cadde63548780ca64a" name="gaf069d9aae45f54cadde63548780ca64a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaf069d9aae45f54cadde63548780ca64a">&#9670;&nbsp;</a></span>dir_findfirst()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int dir_findfirst </td>
-          <td>(</td>
-          <td class="paramtype">const char *const&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="group__system.html#structdir__t">dir_t</a> *&#160;</td>
-          <td class="paramname"><em>dir</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Find the first file in a directory. </p>
-<p >This function should be called to start enumerating a directory or whenever a directory enumeration should be restarted.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">path</td><td>Path to the directory structure </td></tr>
-    <tr><td class="paramdir">[out]</td><td class="paramname">dir</td><td>Directory entry structure to populate with first entry</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>0 on successful lookup or a negative value on error. </dd></dl>
-
-</div>
-</div>
-<a id="ga9f45aada2a3237bc3c59c8ceb3d88d20" name="ga9f45aada2a3237bc3c59c8ceb3d88d20"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga9f45aada2a3237bc3c59c8ceb3d88d20">&#9670;&nbsp;</a></span>dir_findnext()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int dir_findnext </td>
-          <td>(</td>
-          <td class="paramtype">const char *const&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="group__system.html#structdir__t">dir_t</a> *&#160;</td>
-          <td class="paramname"><em>dir</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Find the next file in a directory. </p>
-<p >After finding the first file in a directory using <a class="el" href="group__system.html#gaf069d9aae45f54cadde63548780ca64a" title="Find the first file in a directory.">dir_findfirst</a>, call this to retrieve the rest of the directory entries. Call this repeatedly until a negative error is returned signifying that there are no more directory entries in the directory.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">path</td><td>Path to the directory structure </td></tr>
-    <tr><td class="paramdir">[out]</td><td class="paramname">dir</td><td>Directory entry structure to populate with next entry</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>0 on successful lookup or a negative value on error. </dd></dl>
-
-</div>
-</div>
-<a id="ga52651bf1923b2c97e8b4da0ac6b99fdb" name="ga52651bf1923b2c97e8b4da0ac6b99fdb"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga52651bf1923b2c97e8b4da0ac6b99fdb">&#9670;&nbsp;</a></span>disable_interrupts()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void disable_interrupts </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Disable interrupts systemwide. </p>
-<dl class="section note"><dt>Note</dt><dd>If interrupts are already disabled on the system or interrupts have not been initialized, this function will not modify the system state. </dd></dl>
-
-</div>
-</div>
-<a id="ga154b837080a092ecbab0735a0254c4b4" name="ga154b837080a092ecbab0735a0254c4b4"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga154b837080a092ecbab0735a0254c4b4">&#9670;&nbsp;</a></span>enable_interrupts()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void enable_interrupts </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Enable interrupts systemwide. </p>
-<dl class="section note"><dt>Note</dt><dd>If this is called inside a nested disable call, it will have no effect on the system. Therefore it is safe to nest disable/enable calls. After the last nested interrupt is enabled, systemwide interrupts will be reenabled. </dd></dl>
-
-</div>
-</div>
 <a id="gaff1a7676150de79a9e494a9f7d926ae0" name="gaff1a7676150de79a9e494a9f7d926ae0"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#gaff1a7676150de79a9e494a9f7d926ae0">&#9670;&nbsp;</a></span>execve()</h2>
 
@@ -895,6 +716,33 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
   </dd>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>0 on success or a negative value on error. </dd></dl>
+
+</div>
+</div>
+<a id="ga92f3a2a875b4e08083b83d032adddc4d" name="ga92f3a2a875b4e08083b83d032adddc4d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga92f3a2a875b4e08083b83d032adddc4d">&#9670;&nbsp;</a></span>_exit()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void _exit </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>rc</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>End execution on current thread. </p>
+<dl class="section note"><dt>Note</dt><dd>This function does not exit. If this is the last thread, the system will hang.</dd></dl>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">rc</td><td>Return value of the exiting program </td></tr>
+  </table>
+  </dd>
+</dl>
 
 </div>
 </div>
@@ -1015,60 +863,6 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
   </dd>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>0 on success or a negative value on error. </dd></dl>
-
-</div>
-</div>
-<a id="ga5a2591289aeb5ec5d9f73419533edc39" name="ga5a2591289aeb5ec5d9f73419533edc39"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga5a2591289aeb5ec5d9f73419533edc39">&#9670;&nbsp;</a></span>hook_stdio_calls()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int hook_stdio_calls </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structstdio__t.html">stdio_t</a> *&#160;</td>
-          <td class="paramname"><em>stdio_calls</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Hook into stdio for STDIN, STDOUT and STDERR callbacks. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">stdio_calls</td><td>Pointer to structure containing callbacks for stdio functions</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>0 on successful hook or a negative value on failure. </dd></dl>
-
-</div>
-</div>
-<a id="ga52ba40f92821927553a30e3c6e8c5214" name="ga52ba40f92821927553a30e3c6e8c5214"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga52ba40f92821927553a30e3c6e8c5214">&#9670;&nbsp;</a></span>hook_time_call()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int hook_time_call </td>
-          <td>(</td>
-          <td class="paramtype">time_t(*)(void)&#160;</td>
-          <td class="paramname"><em>time_fn</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Hook into gettimeofday with a current time callback. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">time_fn</td><td>Pointer to callback for the current time function</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>0 if successful or a negative value on failure. </dd></dl>
 
 </div>
 </div>
@@ -1490,60 +1284,6 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
 
 </div>
 </div>
-<a id="ga6ba22042b3c62d9213ac9121ce32b96f" name="ga6ba22042b3c62d9213ac9121ce32b96f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga6ba22042b3c62d9213ac9121ce32b96f">&#9670;&nbsp;</a></span>unhook_stdio_calls()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int unhook_stdio_calls </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="structstdio__t.html">stdio_t</a> *&#160;</td>
-          <td class="paramname"><em>stdio_calls</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Unhook from stdio. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">stdio_calls</td><td>Pointer to structure containing callbacks for stdio functions</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>0 on successful hook or a negative value on failure. </dd></dl>
-
-</div>
-</div>
-<a id="ga7c3a0415a3cd3586014fdc4d1a793bf1" name="ga7c3a0415a3cd3586014fdc4d1a793bf1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga7c3a0415a3cd3586014fdc4d1a793bf1">&#9670;&nbsp;</a></span>unhook_time_call()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int unhook_time_call </td>
-          <td>(</td>
-          <td class="paramtype">time_t(*)(void)&#160;</td>
-          <td class="paramname"><em>time_fn</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Unhook from gettimeofday current time callback. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">time_fn</td><td>Pointer to callback for the current time function</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>0 if successful or a negative value on failure. </dd></dl>
-
-</div>
-</div>
 <a id="gae6e154f3d23907c2f499b54d2d386fc9" name="gae6e154f3d23907c2f499b54d2d386fc9"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#gae6e154f3d23907c2f499b54d2d386fc9">&#9670;&nbsp;</a></span>unlink()</h2>
 
@@ -1644,6 +1384,266 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
 
 </div>
 </div>
+<a id="gaf069d9aae45f54cadde63548780ca64a" name="gaf069d9aae45f54cadde63548780ca64a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaf069d9aae45f54cadde63548780ca64a">&#9670;&nbsp;</a></span>dir_findfirst()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int dir_findfirst </td>
+          <td>(</td>
+          <td class="paramtype">const char *const&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="group__system.html#structdir__t">dir_t</a> *&#160;</td>
+          <td class="paramname"><em>dir</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Find the first file in a directory. </p>
+<p >This function should be called to start enumerating a directory or whenever a directory enumeration should be restarted.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">path</td><td>Path to the directory structure </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">dir</td><td>Directory entry structure to populate with first entry</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 on successful lookup or a negative value on error. </dd></dl>
+
+</div>
+</div>
+<a id="ga9f45aada2a3237bc3c59c8ceb3d88d20" name="ga9f45aada2a3237bc3c59c8ceb3d88d20"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga9f45aada2a3237bc3c59c8ceb3d88d20">&#9670;&nbsp;</a></span>dir_findnext()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int dir_findnext </td>
+          <td>(</td>
+          <td class="paramtype">const char *const&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="group__system.html#structdir__t">dir_t</a> *&#160;</td>
+          <td class="paramname"><em>dir</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Find the next file in a directory. </p>
+<p >After finding the first file in a directory using <a class="el" href="group__system.html#gaf069d9aae45f54cadde63548780ca64a" title="Find the first file in a directory.">dir_findfirst</a>, call this to retrieve the rest of the directory entries. Call this repeatedly until a negative error is returned signifying that there are no more directory entries in the directory.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">path</td><td>Path to the directory structure </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">dir</td><td>Directory entry structure to populate with next entry</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 on successful lookup or a negative value on error. </dd></dl>
+
+</div>
+</div>
+<a id="ga5a2591289aeb5ec5d9f73419533edc39" name="ga5a2591289aeb5ec5d9f73419533edc39"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga5a2591289aeb5ec5d9f73419533edc39">&#9670;&nbsp;</a></span>hook_stdio_calls()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int hook_stdio_calls </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structstdio__t.html">stdio_t</a> *&#160;</td>
+          <td class="paramname"><em>stdio_calls</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Hook into stdio for STDIN, STDOUT and STDERR callbacks. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">stdio_calls</td><td>Pointer to structure containing callbacks for stdio functions</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 on successful hook or a negative value on failure. </dd></dl>
+
+</div>
+</div>
+<a id="ga6ba22042b3c62d9213ac9121ce32b96f" name="ga6ba22042b3c62d9213ac9121ce32b96f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga6ba22042b3c62d9213ac9121ce32b96f">&#9670;&nbsp;</a></span>unhook_stdio_calls()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int unhook_stdio_calls </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="structstdio__t.html">stdio_t</a> *&#160;</td>
+          <td class="paramname"><em>stdio_calls</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Unhook from stdio. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">stdio_calls</td><td>Pointer to structure containing callbacks for stdio functions</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 on successful hook or a negative value on failure. </dd></dl>
+
+</div>
+</div>
+<a id="ga52ba40f92821927553a30e3c6e8c5214" name="ga52ba40f92821927553a30e3c6e8c5214"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga52ba40f92821927553a30e3c6e8c5214">&#9670;&nbsp;</a></span>hook_time_call()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int hook_time_call </td>
+          <td>(</td>
+          <td class="paramtype">time_t(*)(void)&#160;</td>
+          <td class="paramname"><em>time_fn</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Hook into gettimeofday with a current time callback. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">time_fn</td><td>Pointer to callback for the current time function</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 if successful or a negative value on failure. </dd></dl>
+
+</div>
+</div>
+<a id="ga7c3a0415a3cd3586014fdc4d1a793bf1" name="ga7c3a0415a3cd3586014fdc4d1a793bf1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga7c3a0415a3cd3586014fdc4d1a793bf1">&#9670;&nbsp;</a></span>unhook_time_call()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int unhook_time_call </td>
+          <td>(</td>
+          <td class="paramtype">time_t(*)(void)&#160;</td>
+          <td class="paramname"><em>time_fn</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Unhook from gettimeofday current time callback. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">time_fn</td><td>Pointer to callback for the current time function</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 if successful or a negative value on failure. </dd></dl>
+
+</div>
+</div>
+<a id="gad4f9b5b6613b1151a03915ee7b0ad21c" name="gad4f9b5b6613b1151a03915ee7b0ad21c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gad4f9b5b6613b1151a03915ee7b0ad21c">&#9670;&nbsp;</a></span>_flush_cache()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void _flush_cache </td>
+          <td>(</td>
+          <td class="paramtype">uint8_t *&#160;</td>
+          <td class="paramname"><em>addr</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long&#160;</td>
+          <td class="paramname"><em>bytes</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Implement _flush_cache as required by GCC for nested functions. </p>
+<p >When using the nested function extensions of GCC, a call to _flush_cache is generated which must be supplied by the operating system or runtime to allow flushing the instruction cache for the generated trampoline. </p>
+
+</div>
+</div>
+<a id="ga620a4f992f76741d22c71a8736391bf6" name="ga620a4f992f76741d22c71a8736391bf6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga620a4f992f76741d22c71a8736391bf6">&#9670;&nbsp;</a></span>__assert_func()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void __assert_func </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>file</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>line</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>func</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>failedexpr</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Implement underlying function for assert() </p>
+<p >Implementation of the function called when an assert fails. By default, we just abort execution, but this will be overriden at startup with a function that prints the assertion on the screen and via the debug channel (if initialized). </p>
+
+</div>
+</div>
 <h2 class="groupheader">Variable Documentation</h2>
 <a id="ga7bde5bc5b3121ab6d4d1293f29a2718b" name="ga7bde5bc5b3121ab6d4d1293f29a2718b"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga7bde5bc5b3121ab6d4d1293f29a2718b">&#9670;&nbsp;</a></span>__bootcic</h2>
@@ -1673,7 +1673,7 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:59 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

@@ -236,24 +236,6 @@ void *&#160;</td><td class="memItemRight" valign="bottom"><b>__safe_buffer</b> [
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
-<a id="afd2effaabb96eda3574341f43ac8ff7a" name="afd2effaabb96eda3574341f43ac8ff7a"></a>uint32_t</td>
-<td class="fieldname">
-height</td>
-<td class="fielddoc">
-Height of the texture. </td></tr>
-<tr><td class="fieldtype">
-<a id="a389a8584bd57aba7b0bfc3841e59609b" name="a389a8584bd57aba7b0bfc3841e59609b"></a>uint16_t</td>
-<td class="fieldname">
-real_height</td>
-<td class="fielddoc">
-Height of the texture rounded up to next power of 2. </td></tr>
-<tr><td class="fieldtype">
-<a id="a091938da21cd59082eae8bc21d9b8cdb" name="a091938da21cd59082eae8bc21d9b8cdb"></a>uint16_t</td>
-<td class="fieldname">
-real_width</td>
-<td class="fielddoc">
-Width of the texture rounded up to next power of 2. </td></tr>
-<tr><td class="fieldtype">
 <a id="a833a86af3d3e39d4cff0e0ef6187e82b" name="a833a86af3d3e39d4cff0e0ef6187e82b"></a>uint32_t</td>
 <td class="fieldname">
 s</td>
@@ -271,6 +253,24 @@ T location of the top left of the texture relative to the original texture. </td
 width</td>
 <td class="fielddoc">
 Width of the texture. </td></tr>
+<tr><td class="fieldtype">
+<a id="afd2effaabb96eda3574341f43ac8ff7a" name="afd2effaabb96eda3574341f43ac8ff7a"></a>uint32_t</td>
+<td class="fieldname">
+height</td>
+<td class="fielddoc">
+Height of the texture. </td></tr>
+<tr><td class="fieldtype">
+<a id="a091938da21cd59082eae8bc21d9b8cdb" name="a091938da21cd59082eae8bc21d9b8cdb"></a>uint16_t</td>
+<td class="fieldname">
+real_width</td>
+<td class="fielddoc">
+Width of the texture rounded up to next power of 2. </td></tr>
+<tr><td class="fieldtype">
+<a id="a389a8584bd57aba7b0bfc3841e59609b" name="a389a8584bd57aba7b0bfc3841e59609b"></a>uint16_t</td>
+<td class="fieldname">
+real_height</td>
+<td class="fielddoc">
+Height of the texture rounded up to next power of 2. </td></tr>
 </table>
 
 </div>
@@ -321,28 +321,6 @@ Width of the texture. </td></tr>
 </div>
 </div>
 <h2 class="groupheader">Enumeration Type Documentation</h2>
-<a id="gad599802089c5bf7cab2f8ad6dd55a707" name="gad599802089c5bf7cab2f8ad6dd55a707"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gad599802089c5bf7cab2f8ad6dd55a707">&#9670;&nbsp;</a></span>flush_t</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">enum <a class="el" href="group__rdp.html#gad599802089c5bf7cab2f8ad6dd55a707">flush_t</a></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Caching strategy for loaded textures. </p>
-<table class="fieldtable">
-<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="ggad599802089c5bf7cab2f8ad6dd55a707af412fc46e8fdded24bddea5a61463a38" name="ggad599802089c5bf7cab2f8ad6dd55a707af412fc46e8fdded24bddea5a61463a38"></a>FLUSH_STRATEGY_NONE&#160;</td><td class="fielddoc"><p >Textures are assumed to be pre-flushed. </p>
-</td></tr>
-<tr><td class="fieldname"><a id="ggad599802089c5bf7cab2f8ad6dd55a707acf9b62af9f7aa0a66b438ec6d9f937f5" name="ggad599802089c5bf7cab2f8ad6dd55a707acf9b62af9f7aa0a66b438ec6d9f937f5"></a>FLUSH_STRATEGY_AUTOMATIC&#160;</td><td class="fielddoc"><p >Cache will be flushed on all incoming textures. </p>
-</td></tr>
-</table>
-
-</div>
-</div>
 <a id="ga363c9ad4c9c12367c6a635021d483ef0" name="ga363c9ad4c9c12367c6a635021d483ef0"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga363c9ad4c9c12367c6a635021d483ef0">&#9670;&nbsp;</a></span>mirror_t</h2>
 
@@ -395,7 +373,50 @@ Width of the texture. </td></tr>
 
 </div>
 </div>
+<a id="gad599802089c5bf7cab2f8ad6dd55a707" name="gad599802089c5bf7cab2f8ad6dd55a707"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gad599802089c5bf7cab2f8ad6dd55a707">&#9670;&nbsp;</a></span>flush_t</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">enum <a class="el" href="group__rdp.html#gad599802089c5bf7cab2f8ad6dd55a707">flush_t</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Caching strategy for loaded textures. </p>
+<table class="fieldtable">
+<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="ggad599802089c5bf7cab2f8ad6dd55a707af412fc46e8fdded24bddea5a61463a38" name="ggad599802089c5bf7cab2f8ad6dd55a707af412fc46e8fdded24bddea5a61463a38"></a>FLUSH_STRATEGY_NONE&#160;</td><td class="fielddoc"><p >Textures are assumed to be pre-flushed. </p>
+</td></tr>
+<tr><td class="fieldname"><a id="ggad599802089c5bf7cab2f8ad6dd55a707acf9b62af9f7aa0a66b438ec6d9f937f5" name="ggad599802089c5bf7cab2f8ad6dd55a707acf9b62af9f7aa0a66b438ec6d9f937f5"></a>FLUSH_STRATEGY_AUTOMATIC&#160;</td><td class="fielddoc"><p >Cache will be flushed on all incoming textures. </p>
+</td></tr>
+</table>
+
+</div>
+</div>
 <h2 class="groupheader">Function Documentation</h2>
+<a id="gaa426c528f1fd82e86b0845521fd105ec" name="gaa426c528f1fd82e86b0845521fd105ec"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaa426c528f1fd82e86b0845521fd105ec">&#9670;&nbsp;</a></span>rdp_close()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void rdp_close </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Close the RDP system. </p>
+<p >This function closes out the RDP system and cleans up any internal memory allocated by <a class="el" href="group__rdp.html#gade336d6c4a9954be187b54205d748274" title="Initialize the RDP system.">rdp_init</a>. </p>
+
+</div>
+</div>
 <a id="ga6ccaeee90fa1b3f948dd2964d8dcbbb3" name="ga6ccaeee90fa1b3f948dd2964d8dcbbb3"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga6ccaeee90fa1b3f948dd2964d8dcbbb3">&#9670;&nbsp;</a></span>rdp_attach_display()</h2>
 
@@ -423,27 +444,6 @@ Width of the texture. </td></tr>
 
 </div>
 </div>
-<a id="gaa426c528f1fd82e86b0845521fd105ec" name="gaa426c528f1fd82e86b0845521fd105ec"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaa426c528f1fd82e86b0845521fd105ec">&#9670;&nbsp;</a></span>rdp_close()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void rdp_close </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Close the RDP system. </p>
-<p >This function closes out the RDP system and cleans up any internal memory allocated by <a class="el" href="group__rdp.html#gade336d6c4a9954be187b54205d748274" title="Initialize the RDP system.">rdp_init</a>. </p>
-
-</div>
-</div>
 <a id="gaecee4b9b8be7dda19e9495b2c3172553" name="gaecee4b9b8be7dda19e9495b2c3172553"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#gaecee4b9b8be7dda19e9495b2c3172553">&#9670;&nbsp;</a></span>rdp_detach_display()</h2>
 
@@ -466,34 +466,61 @@ Width of the texture. </td></tr>
 
 </div>
 </div>
-<a id="ga0594d5e105801a8476ba45756c093e97" name="ga0594d5e105801a8476ba45756c093e97"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga0594d5e105801a8476ba45756c093e97">&#9670;&nbsp;</a></span>rdp_draw_filled_rectangle()</h2>
+<a id="ga061d105f7b37d0f2302afefc80dfd4ea" name="ga061d105f7b37d0f2302afefc80dfd4ea"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga061d105f7b37d0f2302afefc80dfd4ea">&#9670;&nbsp;</a></span>rdp_sync()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void rdp_draw_filled_rectangle </td>
+          <td class="memname">void rdp_sync </td>
           <td>(</td>
-          <td class="paramtype">int&#160;</td>
+          <td class="paramtype"><a class="el" href="group__rdp.html#gaa2dbbcba64b87654ad46b6ceb1187c9d">sync_t</a>&#160;</td>
+          <td class="paramname"><em>sync</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Perform a sync operation. </p>
+<p >Do not use excessive sync operations between commands as this can cause the RDP to stall. If the RDP stalls due to too many sync operations, graphics may not be displayed until the next render cycle, causing bizarre artifacts. The rule of thumb is to only add a sync operation if the data you need is not yet available in the pipeline.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">sync</td><td>The sync operation to perform on the RDP </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="gabe6e794ca6126cd7ad19badca1622b48" name="gabe6e794ca6126cd7ad19badca1622b48"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gabe6e794ca6126cd7ad19badca1622b48">&#9670;&nbsp;</a></span>rdp_set_clipping()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void rdp_set_clipping </td>
+          <td>(</td>
+          <td class="paramtype">uint32_t&#160;</td>
           <td class="paramname"><em>tx</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">int&#160;</td>
+          <td class="paramtype">uint32_t&#160;</td>
           <td class="paramname"><em>ty</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">int&#160;</td>
+          <td class="paramtype">uint32_t&#160;</td>
           <td class="paramname"><em>bx</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">int&#160;</td>
+          <td class="paramtype">uint32_t&#160;</td>
           <td class="paramname"><em>by</em>&#160;</td>
         </tr>
         <tr>
@@ -504,375 +531,16 @@ Width of the texture. </td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Draw a filled rectangle. </p>
-<p >Given a color set with <a class="el" href="group__rdp.html#gad88e954893ff559081133701e56d648f" title="Set the primitive draw color for subsequent filled primitive operations.">rdp_set_primitive_color</a>, this will draw a filled rectangle to the screen. This is most often useful for erasing a buffer before drawing to it by displaying a black rectangle the size of the screen. This is much faster than setting the buffer blank in software. However, if you are planning on drawing to the entire screen, blanking may be unnecessary. <br  />
-</p>
-<p >Before calling this function, make sure that the RDP is set to primitive mode by calling <a class="el" href="group__rdp.html#gaba26ecfc00922b5b70ef2a8f767da97d" title="Enable display of 2D filled (untextured) rectangles.">rdp_enable_primitive_fill</a>.</p>
+<p>Set the hardware clipping boundary. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">tx</td><td>Pixel X location of the top left of the rectangle </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">ty</td><td>Pixel Y location of the top left of the rectangle </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">bx</td><td>Pixel X location of the bottom right of the rectangle </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">by</td><td>Pixel Y location of the bottom right of the rectangle </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">tx</td><td>Top left X coordinate in pixels </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">ty</td><td>Top left Y coordinate in pixels </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">bx</td><td>Bottom right X coordinate in pixels </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">by</td><td>Bottom right Y coordinate in pixels </td></tr>
   </table>
   </dd>
 </dl>
-
-</div>
-</div>
-<a id="gaa40249cb1bc7e833b376c0e81181cd2c" name="gaa40249cb1bc7e833b376c0e81181cd2c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaa40249cb1bc7e833b376c0e81181cd2c">&#9670;&nbsp;</a></span>rdp_draw_filled_triangle()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void rdp_draw_filled_triangle </td>
-          <td>(</td>
-          <td class="paramtype">float&#160;</td>
-          <td class="paramname"><em>x1</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">float&#160;</td>
-          <td class="paramname"><em>y1</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">float&#160;</td>
-          <td class="paramname"><em>x2</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">float&#160;</td>
-          <td class="paramname"><em>y2</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">float&#160;</td>
-          <td class="paramname"><em>x3</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">float&#160;</td>
-          <td class="paramname"><em>y3</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Draw a filled triangle. </p>
-<p >Given a color set with <a class="el" href="group__rdp.html#gaf39038c345d5b3053cfd11ffd62867be" title="Set the blend draw color for subsequent filled primitive operations.">rdp_set_blend_color</a>, this will draw a filled triangle to the screen. Vertex order is not important.</p>
-<p >Before calling this function, make sure that the RDP is set to blend mode by calling <a class="el" href="group__rdp.html#ga8f51e769907369e0c3b3852b68cdeacc" title="Enable display of 2D filled (untextured) triangles.">rdp_enable_blend_fill</a>.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">x1</td><td>Pixel X1 location of triangle </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">y1</td><td>Pixel Y1 location of triangle </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">x2</td><td>Pixel X2 location of triangle </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">y2</td><td>Pixel Y2 location of triangle </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">x3</td><td>Pixel X3 location of triangle </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">y3</td><td>Pixel Y3 location of triangle </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="ga7eeff61e93f78b8a0afe72cf8c57fb1c" name="ga7eeff61e93f78b8a0afe72cf8c57fb1c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga7eeff61e93f78b8a0afe72cf8c57fb1c">&#9670;&nbsp;</a></span>rdp_draw_sprite()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void rdp_draw_sprite </td>
-          <td>(</td>
-          <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>texslot</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>x</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>y</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="group__rdp.html#ga363c9ad4c9c12367c6a635021d483ef0">mirror_t</a>&#160;</td>
-          <td class="paramname"><em>mirror</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Draw a texture to the screen as a sprite. </p>
-<p >Given an already loaded texture, this function will draw a rectangle textured with the loaded texture.</p>
-<p >Before using this command to draw a textured rectangle, use <a class="el" href="group__rdp.html#gab02203f5bbdac48588291f6427a05130" title="Enable display of 2D sprites.">rdp_enable_texture_copy</a> to set the RDP up in texture mode.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">texslot</td><td>The texture slot that the texture was previously loaded into (0-7) </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">x</td><td>The pixel X location of the top left of the sprite </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">y</td><td>The pixel Y location of the top left of the sprite </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">mirror</td><td>Whether the texture should be mirrored </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="ga172d79320254027ad5114993fafe71af" name="ga172d79320254027ad5114993fafe71af"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga172d79320254027ad5114993fafe71af">&#9670;&nbsp;</a></span>rdp_draw_sprite_scaled()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void rdp_draw_sprite_scaled </td>
-          <td>(</td>
-          <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>texslot</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>x</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>y</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">double&#160;</td>
-          <td class="paramname"><em>x_scale</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">double&#160;</td>
-          <td class="paramname"><em>y_scale</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="group__rdp.html#ga363c9ad4c9c12367c6a635021d483ef0">mirror_t</a>&#160;</td>
-          <td class="paramname"><em>mirror</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Draw a texture to the screen as a scaled sprite. </p>
-<p >Given an already loaded texture, this function will draw a rectangle textured with the loaded texture.</p>
-<p >Before using this command to draw a textured rectangle, use <a class="el" href="group__rdp.html#gab02203f5bbdac48588291f6427a05130" title="Enable display of 2D sprites.">rdp_enable_texture_copy</a> to set the RDP up in texture mode.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">texslot</td><td>The texture slot that the texture was previously loaded into (0-7) </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">x</td><td>The pixel X location of the top left of the sprite </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">y</td><td>The pixel Y location of the top left of the sprite </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">x_scale</td><td>Horizontal scaling factor </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">y_scale</td><td>Vertical scaling factor </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">mirror</td><td>Whether the texture should be mirrored </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="ga4fe6d979026de817a0bfc6faef79396c" name="ga4fe6d979026de817a0bfc6faef79396c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga4fe6d979026de817a0bfc6faef79396c">&#9670;&nbsp;</a></span>rdp_draw_textured_rectangle()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void rdp_draw_textured_rectangle </td>
-          <td>(</td>
-          <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>texslot</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>tx</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>ty</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>bx</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>by</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="group__rdp.html#ga363c9ad4c9c12367c6a635021d483ef0">mirror_t</a>&#160;</td>
-          <td class="paramname"><em>mirror</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Draw a textured rectangle. </p>
-<p >Given an already loaded texture, this function will draw a rectangle textured with the loaded texture. If the rectangle is larger than the texture, it will be tiled or mirrored based on the* mirror setting given in the load texture command.</p>
-<p >Before using this command to draw a textured rectangle, use <a class="el" href="group__rdp.html#gab02203f5bbdac48588291f6427a05130" title="Enable display of 2D sprites.">rdp_enable_texture_copy</a> to set the RDP up in texture mode.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">texslot</td><td>The texture slot that the texture was previously loaded into (0-7) </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">tx</td><td>The pixel X location of the top left of the rectangle </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">ty</td><td>The pixel Y location of the top left of the rectangle </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">bx</td><td>The pixel X location of the bottom right of the rectangle </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">by</td><td>The pixel Y location of the bottom right of the rectangle </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">mirror</td><td>Whether the texture should be mirrored </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="ga07dbf2d229c0caaeff2c67860c3944a8" name="ga07dbf2d229c0caaeff2c67860c3944a8"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga07dbf2d229c0caaeff2c67860c3944a8">&#9670;&nbsp;</a></span>rdp_draw_textured_rectangle_scaled()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void rdp_draw_textured_rectangle_scaled </td>
-          <td>(</td>
-          <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>texslot</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>tx</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>ty</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>bx</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>by</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">double&#160;</td>
-          <td class="paramname"><em>x_scale</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">double&#160;</td>
-          <td class="paramname"><em>y_scale</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype"><a class="el" href="group__rdp.html#ga363c9ad4c9c12367c6a635021d483ef0">mirror_t</a>&#160;</td>
-          <td class="paramname"><em>mirror</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Draw a textured rectangle with a scaled texture. </p>
-<p >Given an already loaded texture, this function will draw a rectangle textured with the loaded texture at a scale other than 1. This allows rectangles to be drawn with stretched or squashed textures. If the rectangle is larger than the texture after scaling, it will be tiled or mirrored based on the mirror setting given in the load texture command.</p>
-<p >Before using this command to draw a textured rectangle, use <a class="el" href="group__rdp.html#gab02203f5bbdac48588291f6427a05130" title="Enable display of 2D sprites.">rdp_enable_texture_copy</a> to set the RDP up in texture mode.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">texslot</td><td>The texture slot that the texture was previously loaded into (0-7) </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">tx</td><td>The pixel X location of the top left of the rectangle </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">ty</td><td>The pixel Y location of the top left of the rectangle </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">bx</td><td>The pixel X location of the bottom right of the rectangle </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">by</td><td>The pixel Y location of the bottom right of the rectangle </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">x_scale</td><td>Horizontal scaling factor </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">y_scale</td><td>Vertical scaling factor </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">mirror</td><td>Whether the texture should be mirrored </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="ga8f51e769907369e0c3b3852b68cdeacc" name="ga8f51e769907369e0c3b3852b68cdeacc"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga8f51e769907369e0c3b3852b68cdeacc">&#9670;&nbsp;</a></span>rdp_enable_blend_fill()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void rdp_enable_blend_fill </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Enable display of 2D filled (untextured) triangles. </p>
-<p >This must be called before using <a class="el" href="group__rdp.html#gaa40249cb1bc7e833b376c0e81181cd2c" title="Draw a filled triangle.">rdp_draw_filled_triangle</a>. </p>
 
 </div>
 </div>
@@ -894,6 +562,27 @@ Width of the texture. </td></tr>
 
 <p>Enable display of 2D filled (untextured) rectangles. </p>
 <p >This must be called before using <a class="el" href="group__rdp.html#ga0594d5e105801a8476ba45756c093e97" title="Draw a filled rectangle.">rdp_draw_filled_rectangle</a>. </p>
+
+</div>
+</div>
+<a id="ga8f51e769907369e0c3b3852b68cdeacc" name="ga8f51e769907369e0c3b3852b68cdeacc"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga8f51e769907369e0c3b3852b68cdeacc">&#9670;&nbsp;</a></span>rdp_enable_blend_fill()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void rdp_enable_blend_fill </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Enable display of 2D filled (untextured) triangles. </p>
+<p >This must be called before using <a class="el" href="group__rdp.html#gaa40249cb1bc7e833b376c0e81181cd2c" title="Draw a filled triangle.">rdp_draw_filled_triangle</a>. </p>
 
 </div>
 </div>
@@ -1037,62 +726,59 @@ Width of the texture. </td></tr>
 
 </div>
 </div>
-<a id="gaf39038c345d5b3053cfd11ffd62867be" name="gaf39038c345d5b3053cfd11ffd62867be"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaf39038c345d5b3053cfd11ffd62867be">&#9670;&nbsp;</a></span>rdp_set_blend_color()</h2>
+<a id="ga07dbf2d229c0caaeff2c67860c3944a8" name="ga07dbf2d229c0caaeff2c67860c3944a8"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga07dbf2d229c0caaeff2c67860c3944a8">&#9670;&nbsp;</a></span>rdp_draw_textured_rectangle_scaled()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void rdp_set_blend_color </td>
+          <td class="memname">void rdp_draw_textured_rectangle_scaled </td>
           <td>(</td>
           <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>color</em></td><td>)</td>
-          <td></td>
+          <td class="paramname"><em>texslot</em>, </td>
         </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Set the blend draw color for subsequent filled primitive operations. </p>
-<p >This function sets the color of all <a class="el" href="group__rdp.html#gaa40249cb1bc7e833b376c0e81181cd2c" title="Draw a filled triangle.">rdp_draw_filled_triangle</a> operations that follow.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">color</td><td>Color to draw primitives in </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="gabe6e794ca6126cd7ad19badca1622b48" name="gabe6e794ca6126cd7ad19badca1622b48"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gabe6e794ca6126cd7ad19badca1622b48">&#9670;&nbsp;</a></span>rdp_set_clipping()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
         <tr>
-          <td class="memname">void rdp_set_clipping </td>
-          <td>(</td>
-          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
           <td class="paramname"><em>tx</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramtype">int&#160;</td>
           <td class="paramname"><em>ty</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramtype">int&#160;</td>
           <td class="paramname"><em>bx</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>by</em>&#160;</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>by</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>x_scale</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>y_scale</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="group__rdp.html#ga363c9ad4c9c12367c6a635021d483ef0">mirror_t</a>&#160;</td>
+          <td class="paramname"><em>mirror</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -1102,13 +788,206 @@ Width of the texture. </td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Set the hardware clipping boundary. </p>
+<p>Draw a textured rectangle with a scaled texture. </p>
+<p >Given an already loaded texture, this function will draw a rectangle textured with the loaded texture at a scale other than 1. This allows rectangles to be drawn with stretched or squashed textures. If the rectangle is larger than the texture after scaling, it will be tiled or mirrored based on the mirror setting given in the load texture command.</p>
+<p >Before using this command to draw a textured rectangle, use <a class="el" href="group__rdp.html#gab02203f5bbdac48588291f6427a05130" title="Enable display of 2D sprites.">rdp_enable_texture_copy</a> to set the RDP up in texture mode.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">tx</td><td>Top left X coordinate in pixels </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">ty</td><td>Top left Y coordinate in pixels </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">bx</td><td>Bottom right X coordinate in pixels </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">by</td><td>Bottom right Y coordinate in pixels </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">texslot</td><td>The texture slot that the texture was previously loaded into (0-7) </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">tx</td><td>The pixel X location of the top left of the rectangle </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">ty</td><td>The pixel Y location of the top left of the rectangle </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">bx</td><td>The pixel X location of the bottom right of the rectangle </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">by</td><td>The pixel Y location of the bottom right of the rectangle </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">x_scale</td><td>Horizontal scaling factor </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">y_scale</td><td>Vertical scaling factor </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">mirror</td><td>Whether the texture should be mirrored </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ga4fe6d979026de817a0bfc6faef79396c" name="ga4fe6d979026de817a0bfc6faef79396c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga4fe6d979026de817a0bfc6faef79396c">&#9670;&nbsp;</a></span>rdp_draw_textured_rectangle()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void rdp_draw_textured_rectangle </td>
+          <td>(</td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>texslot</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>tx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>ty</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>bx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>by</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="group__rdp.html#ga363c9ad4c9c12367c6a635021d483ef0">mirror_t</a>&#160;</td>
+          <td class="paramname"><em>mirror</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Draw a textured rectangle. </p>
+<p >Given an already loaded texture, this function will draw a rectangle textured with the loaded texture. If the rectangle is larger than the texture, it will be tiled or mirrored based on the* mirror setting given in the load texture command.</p>
+<p >Before using this command to draw a textured rectangle, use <a class="el" href="group__rdp.html#gab02203f5bbdac48588291f6427a05130" title="Enable display of 2D sprites.">rdp_enable_texture_copy</a> to set the RDP up in texture mode.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">texslot</td><td>The texture slot that the texture was previously loaded into (0-7) </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">tx</td><td>The pixel X location of the top left of the rectangle </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">ty</td><td>The pixel Y location of the top left of the rectangle </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">bx</td><td>The pixel X location of the bottom right of the rectangle </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">by</td><td>The pixel Y location of the bottom right of the rectangle </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">mirror</td><td>Whether the texture should be mirrored </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ga7eeff61e93f78b8a0afe72cf8c57fb1c" name="ga7eeff61e93f78b8a0afe72cf8c57fb1c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga7eeff61e93f78b8a0afe72cf8c57fb1c">&#9670;&nbsp;</a></span>rdp_draw_sprite()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void rdp_draw_sprite </td>
+          <td>(</td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>texslot</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>x</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>y</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="group__rdp.html#ga363c9ad4c9c12367c6a635021d483ef0">mirror_t</a>&#160;</td>
+          <td class="paramname"><em>mirror</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Draw a texture to the screen as a sprite. </p>
+<p >Given an already loaded texture, this function will draw a rectangle textured with the loaded texture.</p>
+<p >Before using this command to draw a textured rectangle, use <a class="el" href="group__rdp.html#gab02203f5bbdac48588291f6427a05130" title="Enable display of 2D sprites.">rdp_enable_texture_copy</a> to set the RDP up in texture mode.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">texslot</td><td>The texture slot that the texture was previously loaded into (0-7) </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">x</td><td>The pixel X location of the top left of the sprite </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">y</td><td>The pixel Y location of the top left of the sprite </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">mirror</td><td>Whether the texture should be mirrored </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ga172d79320254027ad5114993fafe71af" name="ga172d79320254027ad5114993fafe71af"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga172d79320254027ad5114993fafe71af">&#9670;&nbsp;</a></span>rdp_draw_sprite_scaled()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void rdp_draw_sprite_scaled </td>
+          <td>(</td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>texslot</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>x</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>y</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>x_scale</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">double&#160;</td>
+          <td class="paramname"><em>y_scale</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype"><a class="el" href="group__rdp.html#ga363c9ad4c9c12367c6a635021d483ef0">mirror_t</a>&#160;</td>
+          <td class="paramname"><em>mirror</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Draw a texture to the screen as a scaled sprite. </p>
+<p >Given an already loaded texture, this function will draw a rectangle textured with the loaded texture.</p>
+<p >Before using this command to draw a textured rectangle, use <a class="el" href="group__rdp.html#gab02203f5bbdac48588291f6427a05130" title="Enable display of 2D sprites.">rdp_enable_texture_copy</a> to set the RDP up in texture mode.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">texslot</td><td>The texture slot that the texture was previously loaded into (0-7) </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">x</td><td>The pixel X location of the top left of the sprite </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">y</td><td>The pixel Y location of the top left of the sprite </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">x_scale</td><td>Horizontal scaling factor </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">y_scale</td><td>Vertical scaling factor </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">mirror</td><td>Whether the texture should be mirrored </td></tr>
   </table>
   </dd>
 </dl>
@@ -1142,6 +1021,154 @@ Width of the texture. </td></tr>
 
 </div>
 </div>
+<a id="gaf39038c345d5b3053cfd11ffd62867be" name="gaf39038c345d5b3053cfd11ffd62867be"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaf39038c345d5b3053cfd11ffd62867be">&#9670;&nbsp;</a></span>rdp_set_blend_color()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void rdp_set_blend_color </td>
+          <td>(</td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>color</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Set the blend draw color for subsequent filled primitive operations. </p>
+<p >This function sets the color of all <a class="el" href="group__rdp.html#gaa40249cb1bc7e833b376c0e81181cd2c" title="Draw a filled triangle.">rdp_draw_filled_triangle</a> operations that follow.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">color</td><td>Color to draw primitives in </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ga0594d5e105801a8476ba45756c093e97" name="ga0594d5e105801a8476ba45756c093e97"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga0594d5e105801a8476ba45756c093e97">&#9670;&nbsp;</a></span>rdp_draw_filled_rectangle()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void rdp_draw_filled_rectangle </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>tx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>ty</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>bx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>by</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Draw a filled rectangle. </p>
+<p >Given a color set with <a class="el" href="group__rdp.html#gad88e954893ff559081133701e56d648f" title="Set the primitive draw color for subsequent filled primitive operations.">rdp_set_primitive_color</a>, this will draw a filled rectangle to the screen. This is most often useful for erasing a buffer before drawing to it by displaying a black rectangle the size of the screen. This is much faster than setting the buffer blank in software. However, if you are planning on drawing to the entire screen, blanking may be unnecessary. <br  />
+</p>
+<p >Before calling this function, make sure that the RDP is set to primitive mode by calling <a class="el" href="group__rdp.html#gaba26ecfc00922b5b70ef2a8f767da97d" title="Enable display of 2D filled (untextured) rectangles.">rdp_enable_primitive_fill</a>.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">tx</td><td>Pixel X location of the top left of the rectangle </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">ty</td><td>Pixel Y location of the top left of the rectangle </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">bx</td><td>Pixel X location of the bottom right of the rectangle </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">by</td><td>Pixel Y location of the bottom right of the rectangle </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="gaa40249cb1bc7e833b376c0e81181cd2c" name="gaa40249cb1bc7e833b376c0e81181cd2c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaa40249cb1bc7e833b376c0e81181cd2c">&#9670;&nbsp;</a></span>rdp_draw_filled_triangle()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void rdp_draw_filled_triangle </td>
+          <td>(</td>
+          <td class="paramtype">float&#160;</td>
+          <td class="paramname"><em>x1</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float&#160;</td>
+          <td class="paramname"><em>y1</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float&#160;</td>
+          <td class="paramname"><em>x2</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float&#160;</td>
+          <td class="paramname"><em>y2</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float&#160;</td>
+          <td class="paramname"><em>x3</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float&#160;</td>
+          <td class="paramname"><em>y3</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Draw a filled triangle. </p>
+<p >Given a color set with <a class="el" href="group__rdp.html#gaf39038c345d5b3053cfd11ffd62867be" title="Set the blend draw color for subsequent filled primitive operations.">rdp_set_blend_color</a>, this will draw a filled triangle to the screen. Vertex order is not important.</p>
+<p >Before calling this function, make sure that the RDP is set to blend mode by calling <a class="el" href="group__rdp.html#ga8f51e769907369e0c3b3852b68cdeacc" title="Enable display of 2D filled (untextured) triangles.">rdp_enable_blend_fill</a>.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">x1</td><td>Pixel X1 location of triangle </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">y1</td><td>Pixel Y1 location of triangle </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">x2</td><td>Pixel X2 location of triangle </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">y2</td><td>Pixel Y2 location of triangle </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">x3</td><td>Pixel X3 location of triangle </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">y3</td><td>Pixel Y3 location of triangle </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 <a id="ga07ef50a341281abbce29eccbdcfae76f" name="ga07ef50a341281abbce29eccbdcfae76f"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga07ef50a341281abbce29eccbdcfae76f">&#9670;&nbsp;</a></span>rdp_set_texture_flush()</h2>
 
@@ -1169,37 +1196,10 @@ Width of the texture. </td></tr>
 
 </div>
 </div>
-<a id="ga061d105f7b37d0f2302afefc80dfd4ea" name="ga061d105f7b37d0f2302afefc80dfd4ea"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga061d105f7b37d0f2302afefc80dfd4ea">&#9670;&nbsp;</a></span>rdp_sync()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void rdp_sync </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="group__rdp.html#gaa2dbbcba64b87654ad46b6ceb1187c9d">sync_t</a>&#160;</td>
-          <td class="paramname"><em>sync</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Perform a sync operation. </p>
-<p >Do not use excessive sync operations between commands as this can cause the RDP to stall. If the RDP stalls due to too many sync operations, graphics may not be displayed until the next render cycle, causing bizarre artifacts. The rule of thumb is to only add a sync operation if the data you need is not yet available in the pipeline.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">sync</td><td>The sync operation to perform on the RDP </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:59 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

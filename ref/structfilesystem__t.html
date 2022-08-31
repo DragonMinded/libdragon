@@ -107,6 +107,129 @@ Data Fields</h2></td></tr>
 <div class="textblock"><p >Filesystem hook structure. </p>
 <p >Filesystems that do not support one of more of the following methods should provide null pointers instead of empty functions. The newlib hooks will set errno to ENOSYS and return a proper error to userspace. </p>
 </div><h2 class="groupheader">Field Documentation</h2>
+<a id="a65220025714418f98076e1334237408e" name="a65220025714418f98076e1334237408e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a65220025714418f98076e1334237408e">&#9670;&nbsp;</a></span>open</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void *(* filesystem_t::open) (char *name, int flags)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Function to call when performing an open command. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">name</td><td>Full path of the file to be opened, relative to the root of the filesystem. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">flags</td><td>Open flags, such as binary, append, etc. Follows POSIX flags.</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>A pointer to an arbitrary file handle assigned by the filesystem code or NULL on error. </dd></dl>
+
+</div>
+</div>
+<a id="a57af83b0f926cbd4779eb400fc2b7398" name="a57af83b0f926cbd4779eb400fc2b7398"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a57af83b0f926cbd4779eb400fc2b7398">&#9670;&nbsp;</a></span>fstat</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int(* filesystem_t::fstat) (void *file, struct <a class="el" href="group__system.html#ga6267ee98ea4ca67296665534d549132a">stat</a> *st)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Function to call when performing a fstat command. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">file</td><td>Arbitrary file handle returned by <a class="el" href="structfilesystem__t.html#a65220025714418f98076e1334237408e" title="Function to call when performing an open command.">filesystem_t::open</a> </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">st</td><td>Stat structure to populate with file statistics</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 on success or a negative value on error. </dd></dl>
+
+</div>
+</div>
+<a id="aed5c8fa5f3f3ff7d1e1c876a8864642d" name="aed5c8fa5f3f3ff7d1e1c876a8864642d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aed5c8fa5f3f3ff7d1e1c876a8864642d">&#9670;&nbsp;</a></span>lseek</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int(* filesystem_t::lseek) (void *file, int ptr, int dir)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Function to call when performing an lseek command. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">file</td><td>Arbitrary file handle returned by <a class="el" href="structfilesystem__t.html#a65220025714418f98076e1334237408e" title="Function to call when performing an open command.">filesystem_t::open</a> </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">ptr</td><td>An offset from dir to seek. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">dir</td><td>A direction to see, either SEEK_SET, SEEK_CUR or SEEK_END</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The absolute offset in bytes after the seek. </dd></dl>
+
+</div>
+</div>
+<a id="abff74937fb519579b4afcb843c52c5cb" name="abff74937fb519579b4afcb843c52c5cb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abff74937fb519579b4afcb843c52c5cb">&#9670;&nbsp;</a></span>read</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int(* filesystem_t::read) (void *file, uint8_t *ptr, int len)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Function to call when performing a read operation. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">file</td><td>Arbitrary file handle returned by <a class="el" href="structfilesystem__t.html#a65220025714418f98076e1334237408e" title="Function to call when performing an open command.">filesystem_t::open</a> </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">ptr</td><td>Buffer to place data read into </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">len</td><td>Length of data that should be read into ptr</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The actual number of bytes read into ptr or a negative value on failure. </dd></dl>
+
+</div>
+</div>
+<a id="a283b797a834091ca6c45c5ac9c5a940e" name="a283b797a834091ca6c45c5ac9c5a940e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a283b797a834091ca6c45c5ac9c5a940e">&#9670;&nbsp;</a></span>write</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int(* filesystem_t::write) (void *file, uint8_t *ptr, int len)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Function to call when performing a write operation. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">file</td><td>Arbitrary file handle returned by <a class="el" href="structfilesystem__t.html#a65220025714418f98076e1334237408e" title="Function to call when performing an open command.">filesystem_t::open</a> </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">ptr</td><td>Buffer to grab the data to be written </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">len</td><td>Length of data that should be written out of ptr</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The actual number of bytes written or a negative value on failure. </dd></dl>
+
+</div>
+</div>
 <a id="adf08d0bafd5ed04bad0aad60ecaef8d3" name="adf08d0bafd5ed04bad0aad60ecaef8d3"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#adf08d0bafd5ed04bad0aad60ecaef8d3">&#9670;&nbsp;</a></span>close</h2>
 
@@ -123,6 +246,29 @@ Data Fields</h2></td></tr>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">file</td><td>Arbitrary file handle returned by <a class="el" href="structfilesystem__t.html#a65220025714418f98076e1334237408e" title="Function to call when performing an open command.">filesystem_t::open</a></td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 on success or a negative value on failure. </dd></dl>
+
+</div>
+</div>
+<a id="aa36c93c6c464e4893a7adf781bf05520" name="aa36c93c6c464e4893a7adf781bf05520"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aa36c93c6c464e4893a7adf781bf05520">&#9670;&nbsp;</a></span>unlink</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int(* filesystem_t::unlink) (char *name)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Function to call when performing an unlink operation. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">name</td><td>Full path of the file to be opened, relative to the root of the filesystem.</td></tr>
   </table>
   </dd>
 </dl>
@@ -177,159 +323,13 @@ Data Fields</h2></td></tr>
 
 </div>
 </div>
-<a id="a57af83b0f926cbd4779eb400fc2b7398" name="a57af83b0f926cbd4779eb400fc2b7398"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a57af83b0f926cbd4779eb400fc2b7398">&#9670;&nbsp;</a></span>fstat</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int(* filesystem_t::fstat) (void *file, struct <a class="el" href="group__system.html#ga6267ee98ea4ca67296665534d549132a">stat</a> *st)</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Function to call when performing a fstat command. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">file</td><td>Arbitrary file handle returned by <a class="el" href="structfilesystem__t.html#a65220025714418f98076e1334237408e" title="Function to call when performing an open command.">filesystem_t::open</a> </td></tr>
-    <tr><td class="paramdir">[out]</td><td class="paramname">st</td><td>Stat structure to populate with file statistics</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>0 on success or a negative value on error. </dd></dl>
-
-</div>
-</div>
-<a id="aed5c8fa5f3f3ff7d1e1c876a8864642d" name="aed5c8fa5f3f3ff7d1e1c876a8864642d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aed5c8fa5f3f3ff7d1e1c876a8864642d">&#9670;&nbsp;</a></span>lseek</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int(* filesystem_t::lseek) (void *file, int ptr, int dir)</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Function to call when performing an lseek command. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">file</td><td>Arbitrary file handle returned by <a class="el" href="structfilesystem__t.html#a65220025714418f98076e1334237408e" title="Function to call when performing an open command.">filesystem_t::open</a> </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">ptr</td><td>An offset from dir to seek. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">dir</td><td>A direction to see, either SEEK_SET, SEEK_CUR or SEEK_END</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>The absolute offset in bytes after the seek. </dd></dl>
-
-</div>
-</div>
-<a id="a65220025714418f98076e1334237408e" name="a65220025714418f98076e1334237408e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a65220025714418f98076e1334237408e">&#9670;&nbsp;</a></span>open</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void *(* filesystem_t::open) (char *name, int flags)</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Function to call when performing an open command. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">name</td><td>Full path of the file to be opened, relative to the root of the filesystem. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">flags</td><td>Open flags, such as binary, append, etc. Follows POSIX flags.</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>A pointer to an arbitrary file handle assigned by the filesystem code or NULL on error. </dd></dl>
-
-</div>
-</div>
-<a id="abff74937fb519579b4afcb843c52c5cb" name="abff74937fb519579b4afcb843c52c5cb"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#abff74937fb519579b4afcb843c52c5cb">&#9670;&nbsp;</a></span>read</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int(* filesystem_t::read) (void *file, uint8_t *ptr, int len)</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Function to call when performing a read operation. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">file</td><td>Arbitrary file handle returned by <a class="el" href="structfilesystem__t.html#a65220025714418f98076e1334237408e" title="Function to call when performing an open command.">filesystem_t::open</a> </td></tr>
-    <tr><td class="paramdir">[out]</td><td class="paramname">ptr</td><td>Buffer to place data read into </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">len</td><td>Length of data that should be read into ptr</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>The actual number of bytes read into ptr or a negative value on failure. </dd></dl>
-
-</div>
-</div>
-<a id="aa36c93c6c464e4893a7adf781bf05520" name="aa36c93c6c464e4893a7adf781bf05520"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa36c93c6c464e4893a7adf781bf05520">&#9670;&nbsp;</a></span>unlink</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int(* filesystem_t::unlink) (char *name)</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Function to call when performing an unlink operation. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">name</td><td>Full path of the file to be opened, relative to the root of the filesystem.</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>0 on success or a negative value on failure. </dd></dl>
-
-</div>
-</div>
-<a id="a283b797a834091ca6c45c5ac9c5a940e" name="a283b797a834091ca6c45c5ac9c5a940e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a283b797a834091ca6c45c5ac9c5a940e">&#9670;&nbsp;</a></span>write</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int(* filesystem_t::write) (void *file, uint8_t *ptr, int len)</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Function to call when performing a write operation. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">file</td><td>Arbitrary file handle returned by <a class="el" href="structfilesystem__t.html#a65220025714418f98076e1334237408e" title="Function to call when performing an open command.">filesystem_t::open</a> </td></tr>
-    <tr><td class="paramdir">[out]</td><td class="paramname">ptr</td><td>Buffer to grab the data to be written </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">len</td><td>Length of data that should be written out of ptr</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>The actual number of bytes written or a negative value on failure. </dd></dl>
-
-</div>
-</div>
 <hr/>The documentation for this struct was generated from the following file:<ul>
 <li><a class="el" href="system_8h_source.html">system.h</a></li>
 </ul>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:59 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

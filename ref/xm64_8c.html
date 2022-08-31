@@ -117,27 +117,6 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>xm64player_close</b> 
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p >Efficient XM module player. </p>
 </div><h2 class="groupheader">Function Documentation</h2>
-<a id="a3b269dee89e84dfe3141eb265cdca674" name="a3b269dee89e84dfe3141eb265cdca674"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3b269dee89e84dfe3141eb265cdca674">&#9670;&nbsp;</a></span>xm64player_num_channels()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int xm64player_num_channels </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="xm64_8h.html#structxm64player__t">xm64player_t</a> *&#160;</td>
-          <td class="paramname"><em>player</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Get the number of channels in the XM64 file. </p>
-<p >Notice that the player needs to use one mixer channel per each XM64 channel. </p>
-
-</div>
-</div>
 <a id="a383af585a7658e0efbca88bbe424aef6" name="a383af585a7658e0efbca88bbe424aef6"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a383af585a7658e0efbca88bbe424aef6">&#9670;&nbsp;</a></span>xm64player_open()</h2>
 
@@ -176,132 +155,24 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>xm64player_close</b> 
 
 </div>
 </div>
-<a id="a91ca77d888f0905ff760426d1b3d7198" name="a91ca77d888f0905ff760426d1b3d7198"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a91ca77d888f0905ff760426d1b3d7198">&#9670;&nbsp;</a></span>xm64player_play()</h2>
+<a id="a3b269dee89e84dfe3141eb265cdca674" name="a3b269dee89e84dfe3141eb265cdca674"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3b269dee89e84dfe3141eb265cdca674">&#9670;&nbsp;</a></span>xm64player_num_channels()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void xm64player_play </td>
+          <td class="memname">int xm64player_num_channels </td>
           <td>(</td>
           <td class="paramtype"><a class="el" href="xm64_8h.html#structxm64player__t">xm64player_t</a> *&#160;</td>
-          <td class="paramname"><em>player</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
+          <td class="paramname"><em>player</em></td><td>)</td>
           <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>first_ch</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Start playing the XM64 module. </p>
-<p >Notice that the player needs to use one mixer channel per each XM64 channel.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramname">player</td><td>XM64 player </td></tr>
-    <tr><td class="paramname">first_ch</td><td>Index of the first mixer channel to use for playback. </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="aaf3f8ec58af6369d738ea0aab2297733" name="aaf3f8ec58af6369d738ea0aab2297733"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aaf3f8ec58af6369d738ea0aab2297733">&#9670;&nbsp;</a></span>xm64player_seek()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void xm64player_seek </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="xm64_8h.html#structxm64player__t">xm64player_t</a> *&#160;</td>
-          <td class="paramname"><em>player</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>patidx</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>row</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>tick</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Seek to a specific position of the XM module. </p>
-<p >Seeking in XM module is "broken by design". What this function does is to move the playback cursor to the specified position, but it doesn't take into effect what samples / effects should be active at the seeking point.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramname">player</td><td>XM64 player </td></tr>
-    <tr><td class="paramname">patidx</td><td>Index of the XM pattern to seek to </td></tr>
-    <tr><td class="paramname">row</td><td>Row within the pattern to seek to </td></tr>
-    <tr><td class="paramname">tick</td><td>Tick within the row to seek to </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="a99da8b60e1b6e12562cdff1efa078301" name="a99da8b60e1b6e12562cdff1efa078301"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a99da8b60e1b6e12562cdff1efa078301">&#9670;&nbsp;</a></span>xm64player_set_effect_callback()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void xm64player_set_effect_callback </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="xm64_8h.html#structxm64player__t">xm64player_t</a> *&#160;</td>
-          <td class="paramname"><em>player</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void(*)(void *, uint8_t, uint8_t, uint8_t)&#160;</td>
-          <td class="paramname"><em>cb</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>ctx</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Set a custom effect callback to allow music synchronization. </p>
-<p >This function configures a callback that will be called whenever the player finds an unknown / unsupported effect in any channel. These unknown effects can be used to add custom "sync cues" in the music score, and synchronize graphic effects or gameplay logic to them.</p>
-<p >There are many unused effect letters in XM format. For instance, a good choice can be effect Xxx which is used as modplug hack for MIDI support, but is unimplemented by standard XM players like this one.</p>
-<p >The callback will be called passing as arguments a custom context, the channel number, and the effect code and the effect parameter. The effect code is the code in extended hex format (A-F are 10-15 as in normal hex, but then G-Z are 16-35), while the effect parameter is one free byte that can be inserted in the music score. </p>
+<p>Get the number of channels in the XM64 file. </p>
+<p >Notice that the player needs to use one mixer channel per each XM64 channel. </p>
 
 </div>
 </div>
@@ -343,14 +214,14 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>xm64player_close</b> 
 
 </div>
 </div>
-<a id="aab86ce566f574688ca90b8ee448beabb" name="aab86ce566f574688ca90b8ee448beabb"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aab86ce566f574688ca90b8ee448beabb">&#9670;&nbsp;</a></span>xm64player_set_vol()</h2>
+<a id="a91ca77d888f0905ff760426d1b3d7198" name="a91ca77d888f0905ff760426d1b3d7198"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a91ca77d888f0905ff760426d1b3d7198">&#9670;&nbsp;</a></span>xm64player_play()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">void xm64player_set_vol </td>
+          <td class="memname">void xm64player_play </td>
           <td>(</td>
           <td class="paramtype"><a class="el" href="xm64_8h.html#structxm64player__t">xm64player_t</a> *&#160;</td>
           <td class="paramname"><em>player</em>, </td>
@@ -358,8 +229,8 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>xm64player_close</b> 
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">float&#160;</td>
-          <td class="paramname"><em>volume</em>&#160;</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>first_ch</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -369,8 +240,15 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>xm64player_close</b> 
       </table>
 </div><div class="memdoc">
 
-<p>Change the volume of the player. </p>
-<p >This allows to tune the volume of playback. The default volume is 1.0; smaller values will lower the volume, higher values will amplificate (but may clip). </p>
+<p>Start playing the XM64 module. </p>
+<p >Notice that the player needs to use one mixer channel per each XM64 channel.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">player</td><td>XM64 player </td></tr>
+    <tr><td class="paramname">first_ch</td><td>Index of the first mixer channel to use for playback. </td></tr>
+  </table>
+  </dd>
+</dl>
 
 </div>
 </div>
@@ -447,10 +325,132 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>xm64player_close</b> 
 
 </div>
 </div>
+<a id="aaf3f8ec58af6369d738ea0aab2297733" name="aaf3f8ec58af6369d738ea0aab2297733"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aaf3f8ec58af6369d738ea0aab2297733">&#9670;&nbsp;</a></span>xm64player_seek()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void xm64player_seek </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="xm64_8h.html#structxm64player__t">xm64player_t</a> *&#160;</td>
+          <td class="paramname"><em>player</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>patidx</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>row</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>tick</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Seek to a specific position of the XM module. </p>
+<p >Seeking in XM module is "broken by design". What this function does is to move the playback cursor to the specified position, but it doesn't take into effect what samples / effects should be active at the seeking point.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">player</td><td>XM64 player </td></tr>
+    <tr><td class="paramname">patidx</td><td>Index of the XM pattern to seek to </td></tr>
+    <tr><td class="paramname">row</td><td>Row within the pattern to seek to </td></tr>
+    <tr><td class="paramname">tick</td><td>Tick within the row to seek to </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="aab86ce566f574688ca90b8ee448beabb" name="aab86ce566f574688ca90b8ee448beabb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aab86ce566f574688ca90b8ee448beabb">&#9670;&nbsp;</a></span>xm64player_set_vol()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void xm64player_set_vol </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="xm64_8h.html#structxm64player__t">xm64player_t</a> *&#160;</td>
+          <td class="paramname"><em>player</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float&#160;</td>
+          <td class="paramname"><em>volume</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Change the volume of the player. </p>
+<p >This allows to tune the volume of playback. The default volume is 1.0; smaller values will lower the volume, higher values will amplificate (but may clip). </p>
+
+</div>
+</div>
+<a id="a99da8b60e1b6e12562cdff1efa078301" name="a99da8b60e1b6e12562cdff1efa078301"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a99da8b60e1b6e12562cdff1efa078301">&#9670;&nbsp;</a></span>xm64player_set_effect_callback()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void xm64player_set_effect_callback </td>
+          <td>(</td>
+          <td class="paramtype"><a class="el" href="xm64_8h.html#structxm64player__t">xm64player_t</a> *&#160;</td>
+          <td class="paramname"><em>player</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void(*)(void *, uint8_t, uint8_t, uint8_t)&#160;</td>
+          <td class="paramname"><em>cb</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>ctx</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Set a custom effect callback to allow music synchronization. </p>
+<p >This function configures a callback that will be called whenever the player finds an unknown / unsupported effect in any channel. These unknown effects can be used to add custom "sync cues" in the music score, and synchronize graphic effects or gameplay logic to them.</p>
+<p >There are many unused effect letters in XM format. For instance, a good choice can be effect Xxx which is used as modplug hack for MIDI support, but is unimplemented by standard XM players like this one.</p>
+<p >The callback will be called passing as arguments a custom context, the channel number, and the effect code and the effect parameter. The effect code is the code in extended hex format (A-F are 10-15 as in normal hex, but then G-Z are 16-35), while the effect parameter is one free byte that can be inserted in the music score. </p>
+
+</div>
+</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:58 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

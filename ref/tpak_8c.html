@@ -156,30 +156,218 @@ Functions</h2></td></tr>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p >Transfer Pak interface. </p>
 </div><h2 class="groupheader">Function Documentation</h2>
-<a id="a4d4815b2643fdb64a0d12f99beaa7d0a" name="a4d4815b2643fdb64a0d12f99beaa7d0a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4d4815b2643fdb64a0d12f99beaa7d0a">&#9670;&nbsp;</a></span>tpak_check_header()</h2>
+<a id="a9791ad189ddca33d64d1911afc96b1e0" name="a9791ad189ddca33d64d1911afc96b1e0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9791ad189ddca33d64d1911afc96b1e0">&#9670;&nbsp;</a></span>tpak_set_value()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">bool tpak_check_header </td>
+          <td class="memname">int tpak_set_value </td>
           <td>(</td>
-          <td class="paramtype">struct <a class="el" href="tpak_8h.html#structgameboy__cartridge__header">gameboy_cartridge_header</a> *&#160;</td>
-          <td class="paramname"><em>header</em></td><td>)</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>controller</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>address</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint8_t&#160;</td>
+          <td class="paramname"><em>value</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Set Transfer Pak or Game Boy cartridge status/control value. </p>
+<p >This is an internal helper to set a Transfer Pak status or control setting. This function is not suitable for setting individual bytes in Save RAM!</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) with Transfer Pak connected. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">address</td><td>Address of the setting. Should be between 0x8000 and 0xBFE0 </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">value</td><td>A byte of data to fill the write buffer with. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="a01be95d7571316576742cb8c90e44c8a" name="a01be95d7571316576742cb8c90e44c8a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a01be95d7571316576742cb8c90e44c8a">&#9670;&nbsp;</a></span>tpak_init()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int tpak_init </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>controller</em></td><td>)</td>
           <td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Verify a Game Boy cartridge ROM header checksum. </p>
-<p >Confirms that the Transfer Pak is connected and working properly.</p>
+<p>Prepare a Transfer Pak for read/write commands. </p>
+<p >Powers on the Transfer Pak and enables access to the Game Boy cartridge. Also performs status checks to confirm the Transfer Pak can be accessed reliably.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">header</td><td>The Game Boy ROM header to check. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) with Transfer Pak connected. </td></tr>
   </table>
   </dd>
 </dl>
+<dl class="section return"><dt>Returns</dt><dd>0 if successful or <a class="el" href="tpak_8h.html#TPAK_ERROR">TPAK_ERROR</a> otherwise. </dd></dl>
+
+</div>
+</div>
+<a id="a1867478e8966e18aa852f51af573a099" name="a1867478e8966e18aa852f51af573a099"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1867478e8966e18aa852f51af573a099">&#9670;&nbsp;</a></span>tpak_set_access()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int tpak_set_access </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>controller</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">bool&#160;</td>
+          <td class="paramname"><em>access_state</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Set the access mode flag for a Transfer Pak. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) with Transfer Pak connected. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">access_state</td><td>Whether to allow access to the Game Boy cartridge. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 if successful or <a class="el" href="tpak_8h.html#TPAK_ERROR">TPAK_ERROR</a> otherwise. </dd></dl>
+
+</div>
+</div>
+<a id="a3462ab638f177b4f9c8d41939b06df94" name="a3462ab638f177b4f9c8d41939b06df94"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3462ab638f177b4f9c8d41939b06df94">&#9670;&nbsp;</a></span>tpak_set_power()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int tpak_set_power </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>controller</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">bool&#160;</td>
+          <td class="paramname"><em>power_state</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Set the power enabled flag for a Transfer Pak. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) with Transfer Pak connected. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">power_state</td><td>True to power the Transfer Pak and cartridge on, false to turn it off. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 if successful or <a class="el" href="tpak_8h.html#TPAK_ERROR">TPAK_ERROR</a> otherwise. </dd></dl>
+
+</div>
+</div>
+<a id="ad3d24b52bb770047091cacbc94960241" name="ad3d24b52bb770047091cacbc94960241"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad3d24b52bb770047091cacbc94960241">&#9670;&nbsp;</a></span>tpak_set_bank()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int tpak_set_bank </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>controller</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>bank</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Set the cartridge data address memory bank for a Transfer Pak. </p>
+<p >Change the bank of address space that is available for <a class="el" href="tpak_8c.html#a1e1f0e50ff7db26b5813049a1987c508" title="Read data from a Game Boy cartridge to a buffer via Transfer Pak.">tpak_read</a> and <a class="el" href="tpak_8c.html#ae308ff35ec377df7108eebde198dfbe2" title="Write data from a buffer to a Game Boy cartridge via Transfer Pak.">tpak_write</a> between Transfer Pak addresses 0xC000 and 0xFFFF.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) with Transfer Pak connected. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">bank</td><td>The bank (0-3) to switch to. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>0 if successful or <a class="el" href="tpak_8h.html#TPAK_ERROR">TPAK_ERROR</a> otherwise. </dd></dl>
+
+</div>
+</div>
+<a id="afd9cdb4edd60438bf470cc07e2bba208" name="afd9cdb4edd60438bf470cc07e2bba208"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afd9cdb4edd60438bf470cc07e2bba208">&#9670;&nbsp;</a></span>tpak_get_status()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint8_t tpak_get_status </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>controller</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get the status flags for a Transfer Pak. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) with Transfer Pak connected. </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The status byte with <a class="el" href="tpak_8h.html#TPAK_STATUS">TPAK_STATUS</a> flags </dd></dl>
 
 </div>
 </div>
@@ -221,54 +409,52 @@ Functions</h2></td></tr>
 
 </div>
 </div>
-<a id="afd9cdb4edd60438bf470cc07e2bba208" name="afd9cdb4edd60438bf470cc07e2bba208"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#afd9cdb4edd60438bf470cc07e2bba208">&#9670;&nbsp;</a></span>tpak_get_status()</h2>
+<a id="ae308ff35ec377df7108eebde198dfbe2" name="ae308ff35ec377df7108eebde198dfbe2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae308ff35ec377df7108eebde198dfbe2">&#9670;&nbsp;</a></span>tpak_write()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">uint8_t tpak_get_status </td>
+          <td class="memname">int tpak_write </td>
           <td>(</td>
           <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>controller</em></td><td>)</td>
-          <td></td>
+          <td class="paramname"><em>controller</em>, </td>
         </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Get the status flags for a Transfer Pak. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) with Transfer Pak connected. </td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>The status byte with <a class="el" href="tpak_8h.html#TPAK_STATUS">TPAK_STATUS</a> flags </dd></dl>
-
-</div>
-</div>
-<a id="a01be95d7571316576742cb8c90e44c8a" name="a01be95d7571316576742cb8c90e44c8a"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a01be95d7571316576742cb8c90e44c8a">&#9670;&nbsp;</a></span>tpak_init()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
         <tr>
-          <td class="memname">int tpak_init </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>controller</em></td><td>)</td>
+          <td class="paramkey"></td>
           <td></td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>address</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint8_t *&#160;</td>
+          <td class="paramname"><em>data</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">uint16_t&#160;</td>
+          <td class="paramname"><em>size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Prepare a Transfer Pak for read/write commands. </p>
-<p >Powers on the Transfer Pak and enables access to the Game Boy cartridge. Also performs status checks to confirm the Transfer Pak can be accessed reliably.</p>
+<p>Write data from a buffer to a Game Boy cartridge via Transfer Pak. </p>
+<p >Save RAM is located between gameboy addresses 0xA000 and 0xBFFF, which is in the Transfer Pak's bank 2. This function does not account for cartridge bank switching, so to switch between MBC1 RAM banks, for example, you'll need to switch to Tpak bank 1, and write to address 0xE000, which translates to address 0x6000 on the gameboy.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) with Transfer Pak connected. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">address</td><td>address in Game Boy cartridge space to write to. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">data</td><td>buffer containing the data to write. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">size</td><td>length of the buffer. </td></tr>
   </table>
   </dd>
 </dl>
@@ -328,223 +514,37 @@ Functions</h2></td></tr>
 
 </div>
 </div>
-<a id="a1867478e8966e18aa852f51af573a099" name="a1867478e8966e18aa852f51af573a099"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1867478e8966e18aa852f51af573a099">&#9670;&nbsp;</a></span>tpak_set_access()</h2>
+<a id="a4d4815b2643fdb64a0d12f99beaa7d0a" name="a4d4815b2643fdb64a0d12f99beaa7d0a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4d4815b2643fdb64a0d12f99beaa7d0a">&#9670;&nbsp;</a></span>tpak_check_header()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">int tpak_set_access </td>
+          <td class="memname">bool tpak_check_header </td>
           <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>controller</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
+          <td class="paramtype">struct <a class="el" href="tpak_8h.html#structgameboy__cartridge__header">gameboy_cartridge_header</a> *&#160;</td>
+          <td class="paramname"><em>header</em></td><td>)</td>
           <td></td>
-          <td class="paramtype">bool&#160;</td>
-          <td class="paramname"><em>access_state</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Set the access mode flag for a Transfer Pak. </p>
+<p>Verify a Game Boy cartridge ROM header checksum. </p>
+<p >Confirms that the Transfer Pak is connected and working properly.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) with Transfer Pak connected. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">access_state</td><td>Whether to allow access to the Game Boy cartridge. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">header</td><td>The Game Boy ROM header to check. </td></tr>
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd>0 if successful or <a class="el" href="tpak_8h.html#TPAK_ERROR">TPAK_ERROR</a> otherwise. </dd></dl>
-
-</div>
-</div>
-<a id="ad3d24b52bb770047091cacbc94960241" name="ad3d24b52bb770047091cacbc94960241"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ad3d24b52bb770047091cacbc94960241">&#9670;&nbsp;</a></span>tpak_set_bank()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int tpak_set_bank </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>controller</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>bank</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Set the cartridge data address memory bank for a Transfer Pak. </p>
-<p >Change the bank of address space that is available for <a class="el" href="tpak_8c.html#a1e1f0e50ff7db26b5813049a1987c508" title="Read data from a Game Boy cartridge to a buffer via Transfer Pak.">tpak_read</a> and <a class="el" href="tpak_8c.html#ae308ff35ec377df7108eebde198dfbe2" title="Write data from a buffer to a Game Boy cartridge via Transfer Pak.">tpak_write</a> between Transfer Pak addresses 0xC000 and 0xFFFF.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) with Transfer Pak connected. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">bank</td><td>The bank (0-3) to switch to. </td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>0 if successful or <a class="el" href="tpak_8h.html#TPAK_ERROR">TPAK_ERROR</a> otherwise. </dd></dl>
-
-</div>
-</div>
-<a id="a3462ab638f177b4f9c8d41939b06df94" name="a3462ab638f177b4f9c8d41939b06df94"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3462ab638f177b4f9c8d41939b06df94">&#9670;&nbsp;</a></span>tpak_set_power()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int tpak_set_power </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>controller</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">bool&#160;</td>
-          <td class="paramname"><em>power_state</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Set the power enabled flag for a Transfer Pak. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) with Transfer Pak connected. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">power_state</td><td>True to power the Transfer Pak and cartridge on, false to turn it off. </td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>0 if successful or <a class="el" href="tpak_8h.html#TPAK_ERROR">TPAK_ERROR</a> otherwise. </dd></dl>
-
-</div>
-</div>
-<a id="a9791ad189ddca33d64d1911afc96b1e0" name="a9791ad189ddca33d64d1911afc96b1e0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9791ad189ddca33d64d1911afc96b1e0">&#9670;&nbsp;</a></span>tpak_set_value()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int tpak_set_value </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>controller</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint16_t&#160;</td>
-          <td class="paramname"><em>address</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint8_t&#160;</td>
-          <td class="paramname"><em>value</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Set Transfer Pak or Game Boy cartridge status/control value. </p>
-<p >This is an internal helper to set a Transfer Pak status or control setting. This function is not suitable for setting individual bytes in Save RAM!</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) with Transfer Pak connected. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">address</td><td>Address of the setting. Should be between 0x8000 and 0xBFE0 </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">value</td><td>A byte of data to fill the write buffer with. </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="ae308ff35ec377df7108eebde198dfbe2" name="ae308ff35ec377df7108eebde198dfbe2"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae308ff35ec377df7108eebde198dfbe2">&#9670;&nbsp;</a></span>tpak_write()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int tpak_write </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>controller</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint16_t&#160;</td>
-          <td class="paramname"><em>address</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint8_t *&#160;</td>
-          <td class="paramname"><em>data</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">uint16_t&#160;</td>
-          <td class="paramname"><em>size</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Write data from a buffer to a Game Boy cartridge via Transfer Pak. </p>
-<p >Save RAM is located between gameboy addresses 0xA000 and 0xBFFF, which is in the Transfer Pak's bank 2. This function does not account for cartridge bank switching, so to switch between MBC1 RAM banks, for example, you'll need to switch to Tpak bank 1, and write to address 0xE000, which translates to address 0x6000 on the gameboy.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) with Transfer Pak connected. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">address</td><td>address in Game Boy cartridge space to write to. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">data</td><td>buffer containing the data to write. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">size</td><td>length of the buffer. </td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>0 if successful or <a class="el" href="tpak_8h.html#TPAK_ERROR">TPAK_ERROR</a> otherwise. </dd></dl>
 
 </div>
 </div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:58 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

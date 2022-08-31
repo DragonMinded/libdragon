@@ -254,11 +254,11 @@ Functions</h2></td></tr>
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
-<a id="a747d34ff6a7415f9d56a9cf2cc354503" name="a747d34ff6a7415f9d56a9cf2cc354503"></a>uint32_t</td>
+<a id="a72bcf7e7400afd36488dbe14e50d2cde" name="a72bcf7e7400afd36488dbe14e50d2cde"></a>uint32_t</td>
 <td class="fieldname">
-file_pointer</td>
+next_entry</td>
 <td class="fielddoc">
-Offset to start sector of the file. </td></tr>
+Offset to next directory entry. </td></tr>
 <tr><td class="fieldtype">
 <a id="a57e42046242d6298d88a50a15614f6f9" name="a57e42046242d6298d88a50a15614f6f9"></a>uint32_t</td>
 <td class="fieldname">
@@ -266,17 +266,17 @@ flags</td>
 <td class="fielddoc">
 File size and flags. See <a class="el" href="group__dfs.html#ga40f46638c929774a7c8867451487239f" title="This is a file entry.">FLAGS_FILE</a>, <a class="el" href="group__dfs.html#ga72132c67f7a158fce46a1113c0b0e7eb" title="This is a directory entry.">FLAGS_DIR</a> and <a class="el" href="group__dfs.html#ga4b6222e558984bbd372129daf4d0f6ee" title="This is the end of a directory list.">FLAGS_EOF</a>. </td></tr>
 <tr><td class="fieldtype">
-<a id="a72bcf7e7400afd36488dbe14e50d2cde" name="a72bcf7e7400afd36488dbe14e50d2cde"></a>uint32_t</td>
-<td class="fieldname">
-next_entry</td>
-<td class="fielddoc">
-Offset to next directory entry. </td></tr>
-<tr><td class="fieldtype">
 <a id="ada5908f5c2a33e7ab5ff1d10a0e088d6" name="ada5908f5c2a33e7ab5ff1d10a0e088d6"></a>char</td>
 <td class="fieldname">
 path[<a class="el" href="group__dfs.html#gacc9794f655f61a3246ba3fd5c9c67e14">MAX_FILENAME_LEN</a>+1]</td>
 <td class="fielddoc">
 The file or directory name. </td></tr>
+<tr><td class="fieldtype">
+<a id="a747d34ff6a7415f9d56a9cf2cc354503" name="a747d34ff6a7415f9d56a9cf2cc354503"></a>uint32_t</td>
+<td class="fieldname">
+file_pointer</td>
+<td class="fielddoc">
+Offset to start sector of the file. </td></tr>
 </table>
 
 </div>
@@ -309,17 +309,17 @@ cached_loc</td>
 <td class="fielddoc">
 location of the cached data </td></tr>
 <tr><td class="fieldtype">
-<a id="a5a6b9ed326d780740246d5b4bc61166b" name="a5a6b9ed326d780740246d5b4bc61166b"></a>uint32_t</td>
-<td class="fieldname">
-cart_start_loc</td>
-<td class="fielddoc">
-The offset within the filesystem where the file is stored. </td></tr>
-<tr><td class="fieldtype">
 <a id="ad78cc43a1c22a246771e0bb868016336" name="ad78cc43a1c22a246771e0bb868016336"></a>uint32_t</td>
 <td class="fieldname">
 handle</td>
 <td class="fielddoc">
 The unique file handle to refer to this file by. </td></tr>
+<tr><td class="fieldtype">
+<a id="ac68ef47138956a1685d11820c9ef9869" name="ac68ef47138956a1685d11820c9ef9869"></a>uint32_t</td>
+<td class="fieldname">
+size</td>
+<td class="fielddoc">
+The size in bytes of this file. </td></tr>
 <tr><td class="fieldtype">
 <a id="a011176dcc2349b1415d49c33b22ff625" name="a011176dcc2349b1415d49c33b22ff625"></a>uint32_t</td>
 <td class="fieldname">
@@ -327,11 +327,11 @@ loc</td>
 <td class="fielddoc">
 The offset of the current location in the file. </td></tr>
 <tr><td class="fieldtype">
-<a id="ac68ef47138956a1685d11820c9ef9869" name="ac68ef47138956a1685d11820c9ef9869"></a>uint32_t</td>
+<a id="a5a6b9ed326d780740246d5b4bc61166b" name="a5a6b9ed326d780740246d5b4bc61166b"></a>uint32_t</td>
 <td class="fieldname">
-size</td>
+cart_start_loc</td>
 <td class="fielddoc">
-The size in bytes of this file. </td></tr>
+The offset within the filesystem where the file is stored. </td></tr>
 </table>
 
 </div>
@@ -351,6 +351,23 @@ The size in bytes of this file. </td></tr>
 
 <p>Default filesystem location. </p>
 <p >The default is 1MB into the ROM space, plus the header offset </p>
+
+</div>
+</div>
+<a id="gacc9794f655f61a3246ba3fd5c9c67e14" name="gacc9794f655f61a3246ba3fd5c9c67e14"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gacc9794f655f61a3246ba3fd5c9c67e14">&#9670;&nbsp;</a></span>MAX_FILENAME_LEN</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define MAX_FILENAME_LEN&#160;&#160;&#160;243</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Maximum filename length. </p>
+<p >This value is due to the direcory structure </p>
 
 </div>
 </div>
@@ -378,23 +395,6 @@ The size in bytes of this file. </td></tr>
   </dd>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>The file type flag </dd></dl>
-
-</div>
-</div>
-<a id="gacc9794f655f61a3246ba3fd5c9c67e14" name="gacc9794f655f61a3246ba3fd5c9c67e14"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gacc9794f655f61a3246ba3fd5c9c67e14">&#9670;&nbsp;</a></span>MAX_FILENAME_LEN</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">#define MAX_FILENAME_LEN&#160;&#160;&#160;243</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Maximum filename length. </p>
-<p >This value is due to the direcory structure </p>
 
 </div>
 </div>
@@ -475,33 +475,6 @@ The size in bytes of this file. </td></tr>
 
 </div>
 </div>
-<a id="gac645811e9856f35930238d945dc48e9f" name="gac645811e9856f35930238d945dc48e9f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gac645811e9856f35930238d945dc48e9f">&#9670;&nbsp;</a></span>dfs_close()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int dfs_close </td>
-          <td>(</td>
-          <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>handle</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Close an already open file handle. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">handle</td><td>A valid file handle as returned from <a class="el" href="group__dfs.html#ga5b32978567d57be77b43b6ce537cf620" title="Open a file given a path.">dfs_open</a>.</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>DFS_ESUCCESS on success or a negative value on error. </dd></dl>
-
-</div>
-</div>
 <a id="ga33dacb81cbf0f03a8588ffa8d9ee86ac" name="ga33dacb81cbf0f03a8588ffa8d9ee86ac"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga33dacb81cbf0f03a8588ffa8d9ee86ac">&#9670;&nbsp;</a></span>dfs_dir_findfirst()</h2>
 
@@ -569,61 +542,6 @@ The size in bytes of this file. </td></tr>
 
 </div>
 </div>
-<a id="gaf21f4f45f32308ee7769f71224a10616" name="gaf21f4f45f32308ee7769f71224a10616"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaf21f4f45f32308ee7769f71224a10616">&#9670;&nbsp;</a></span>dfs_eof()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int dfs_eof </td>
-          <td>(</td>
-          <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>handle</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Return whether the end of file has been reached. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">handle</td><td>A valid file handle as returned from <a class="el" href="group__dfs.html#ga5b32978567d57be77b43b6ce537cf620" title="Open a file given a path.">dfs_open</a>.</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>1 if the end of file is reached, 0 if not, and a negative value on error. </dd></dl>
-
-</div>
-</div>
-<a id="ga7ca0762367965bd8a6dbbe07b7ad3022" name="ga7ca0762367965bd8a6dbbe07b7ad3022"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga7ca0762367965bd8a6dbbe07b7ad3022">&#9670;&nbsp;</a></span>dfs_init()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int dfs_init </td>
-          <td>(</td>
-          <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>base_fs_loc</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Initialize the filesystem. </p>
-<p >Given a base offset where the filesystem should be found, this function will initialize the filesystem to read from cartridge space. This function will also register DragonFS with newlib so that standard POSIX file operations work with DragonFS.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">base_fs_loc</td><td>Memory mapped location at which to find the filesystem. This is normally 0xB0000000 + the offset used when building your ROM + the size of the header file used.</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>DFS_ESUCCESS on success or a negative error otherwise. </dd></dl>
-
-</div>
-</div>
 <a id="ga5b32978567d57be77b43b6ce537cf620" name="ga5b32978567d57be77b43b6ce537cf620"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga5b32978567d57be77b43b6ce537cf620">&#9670;&nbsp;</a></span>dfs_open()</h2>
 
@@ -649,6 +567,105 @@ The size in bytes of this file. </td></tr>
   </dd>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>A valid file handle to reference the file by or a negative error on failure. </dd></dl>
+
+</div>
+</div>
+<a id="gac645811e9856f35930238d945dc48e9f" name="gac645811e9856f35930238d945dc48e9f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gac645811e9856f35930238d945dc48e9f">&#9670;&nbsp;</a></span>dfs_close()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int dfs_close </td>
+          <td>(</td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>handle</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Close an already open file handle. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">handle</td><td>A valid file handle as returned from <a class="el" href="group__dfs.html#ga5b32978567d57be77b43b6ce537cf620" title="Open a file given a path.">dfs_open</a>.</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>DFS_ESUCCESS on success or a negative value on error. </dd></dl>
+
+</div>
+</div>
+<a id="ga11e474fe0dcd37e0061ad6853c7f996d" name="ga11e474fe0dcd37e0061ad6853c7f996d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga11e474fe0dcd37e0061ad6853c7f996d">&#9670;&nbsp;</a></span>dfs_seek()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int dfs_seek </td>
+          <td>(</td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>handle</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>offset</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>origin</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Seek to an offset in the file. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">handle</td><td>A valid file handle as returned from <a class="el" href="group__dfs.html#ga5b32978567d57be77b43b6ce537cf620" title="Open a file given a path.">dfs_open</a>. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">offset</td><td>A byte offset from the origin to seek from. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">origin</td><td>An offset to seek from. Either <code>SEEK_SET</code>, <code>SEEK_CUR</code> or <code>SEEK_END</code>.</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>DFS_ESUCCESS on success or a negative value on error. </dd></dl>
+
+</div>
+</div>
+<a id="gab3350daf670c94a8ea241bafe2c9b6b5" name="gab3350daf670c94a8ea241bafe2c9b6b5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gab3350daf670c94a8ea241bafe2c9b6b5">&#9670;&nbsp;</a></span>dfs_tell()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int dfs_tell </td>
+          <td>(</td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>handle</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Return the current offset into a file. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">handle</td><td>A valid file handle as returned from <a class="el" href="group__dfs.html#ga5b32978567d57be77b43b6ce537cf620" title="Open a file given a path.">dfs_open</a>.</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The current byte offset into a file or a negative error on failure. </dd></dl>
 
 </div>
 </div>
@@ -704,6 +721,33 @@ The size in bytes of this file. </td></tr>
 
 </div>
 </div>
+<a id="ga16adfb1647241b51f362517c3992f05e" name="ga16adfb1647241b51f362517c3992f05e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga16adfb1647241b51f362517c3992f05e">&#9670;&nbsp;</a></span>dfs_size()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int dfs_size </td>
+          <td>(</td>
+          <td class="paramtype">uint32_t&#160;</td>
+          <td class="paramname"><em>handle</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Return the file size of an open file. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">handle</td><td>A valid file handle as returned from <a class="el" href="group__dfs.html#ga5b32978567d57be77b43b6ce537cf620" title="Open a file given a path.">dfs_open</a>.</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>The file size in bytes or a negative value on failure. </dd></dl>
+
+</div>
+</div>
 <a id="ga8b526624aebcf3d93a825edeb1ae4e63" name="ga8b526624aebcf3d93a825edeb1ae4e63"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga8b526624aebcf3d93a825edeb1ae4e63">&#9670;&nbsp;</a></span>dfs_rom_addr()</h2>
 
@@ -733,59 +777,14 @@ The size in bytes of this file. </td></tr>
 
 </div>
 </div>
-<a id="ga11e474fe0dcd37e0061ad6853c7f996d" name="ga11e474fe0dcd37e0061ad6853c7f996d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga11e474fe0dcd37e0061ad6853c7f996d">&#9670;&nbsp;</a></span>dfs_seek()</h2>
+<a id="gaf21f4f45f32308ee7769f71224a10616" name="gaf21f4f45f32308ee7769f71224a10616"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaf21f4f45f32308ee7769f71224a10616">&#9670;&nbsp;</a></span>dfs_eof()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">int dfs_seek </td>
-          <td>(</td>
-          <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>handle</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>offset</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>origin</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Seek to an offset in the file. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">handle</td><td>A valid file handle as returned from <a class="el" href="group__dfs.html#ga5b32978567d57be77b43b6ce537cf620" title="Open a file given a path.">dfs_open</a>. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">offset</td><td>A byte offset from the origin to seek from. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">origin</td><td>An offset to seek from. Either <code>SEEK_SET</code>, <code>SEEK_CUR</code> or <code>SEEK_END</code>.</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>DFS_ESUCCESS on success or a negative value on error. </dd></dl>
-
-</div>
-</div>
-<a id="ga16adfb1647241b51f362517c3992f05e" name="ga16adfb1647241b51f362517c3992f05e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga16adfb1647241b51f362517c3992f05e">&#9670;&nbsp;</a></span>dfs_size()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int dfs_size </td>
+          <td class="memname">int dfs_eof </td>
           <td>(</td>
           <td class="paramtype">uint32_t&#160;</td>
           <td class="paramname"><em>handle</em></td><td>)</td>
@@ -794,48 +793,49 @@ The size in bytes of this file. </td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Return the file size of an open file. </p>
+<p>Return whether the end of file has been reached. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">handle</td><td>A valid file handle as returned from <a class="el" href="group__dfs.html#ga5b32978567d57be77b43b6ce537cf620" title="Open a file given a path.">dfs_open</a>.</td></tr>
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd>The file size in bytes or a negative value on failure. </dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>1 if the end of file is reached, 0 if not, and a negative value on error. </dd></dl>
 
 </div>
 </div>
-<a id="gab3350daf670c94a8ea241bafe2c9b6b5" name="gab3350daf670c94a8ea241bafe2c9b6b5"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gab3350daf670c94a8ea241bafe2c9b6b5">&#9670;&nbsp;</a></span>dfs_tell()</h2>
+<a id="ga7ca0762367965bd8a6dbbe07b7ad3022" name="ga7ca0762367965bd8a6dbbe07b7ad3022"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga7ca0762367965bd8a6dbbe07b7ad3022">&#9670;&nbsp;</a></span>dfs_init()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">int dfs_tell </td>
+          <td class="memname">int dfs_init </td>
           <td>(</td>
           <td class="paramtype">uint32_t&#160;</td>
-          <td class="paramname"><em>handle</em></td><td>)</td>
+          <td class="paramname"><em>base_fs_loc</em></td><td>)</td>
           <td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Return the current offset into a file. </p>
+<p>Initialize the filesystem. </p>
+<p >Given a base offset where the filesystem should be found, this function will initialize the filesystem to read from cartridge space. This function will also register DragonFS with newlib so that standard POSIX file operations work with DragonFS.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">handle</td><td>A valid file handle as returned from <a class="el" href="group__dfs.html#ga5b32978567d57be77b43b6ce537cf620" title="Open a file given a path.">dfs_open</a>.</td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">base_fs_loc</td><td>Memory mapped location at which to find the filesystem. This is normally 0xB0000000 + the offset used when building your ROM + the size of the header file used.</td></tr>
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd>The current byte offset into a file or a negative error on failure. </dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>DFS_ESUCCESS on success or a negative error otherwise. </dd></dl>
 
 </div>
 </div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:59 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

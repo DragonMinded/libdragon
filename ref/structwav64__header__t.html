@@ -115,19 +115,35 @@ int32_t&#160;</td><td class="memItemRight" valign="bottom"><b>start_offset</b></
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p >Header of a WAV64 file. </p>
 </div><h2 class="groupheader">Field Documentation</h2>
-<a id="a3fa0551b5e1289116b50725333b46fe7" name="a3fa0551b5e1289116b50725333b46fe7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3fa0551b5e1289116b50725333b46fe7">&#9670;&nbsp;</a></span>channels</h2>
+<a id="a731e481e8b944449ba2574fe96292192" name="a731e481e8b944449ba2574fe96292192"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a731e481e8b944449ba2574fe96292192">&#9670;&nbsp;</a></span>id</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">int8_t wav64_header_t::channels</td>
+          <td class="memname">char wav64_header_t::id[4]</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Number of interleaved channels. </p>
+<p>ID of the file (WAV64_ID) </p>
+
+</div>
+</div>
+<a id="a41f089df9c3a1121a13adeecca288596" name="a41f089df9c3a1121a13adeecca288596"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a41f089df9c3a1121a13adeecca288596">&#9670;&nbsp;</a></span>version</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int8_t wav64_header_t::version</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Version of the file (WAV64_FILE_VERSION) </p>
 
 </div>
 </div>
@@ -147,6 +163,38 @@ int32_t&#160;</td><td class="memItemRight" valign="bottom"><b>start_offset</b></
 
 </div>
 </div>
+<a id="a3fa0551b5e1289116b50725333b46fe7" name="a3fa0551b5e1289116b50725333b46fe7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3fa0551b5e1289116b50725333b46fe7">&#9670;&nbsp;</a></span>channels</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int8_t wav64_header_t::channels</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Number of interleaved channels. </p>
+
+</div>
+</div>
+<a id="a75fcad20f98c085f88156fd895bb4ec0" name="a75fcad20f98c085f88156fd895bb4ec0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a75fcad20f98c085f88156fd895bb4ec0">&#9670;&nbsp;</a></span>nbits</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int8_t wav64_header_t::nbits</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Width of sample in bits (8 or 16) </p>
+
+</div>
+</div>
 <a id="a8e3bcb1d56422423ed0b61ab40d2bfb3" name="a8e3bcb1d56422423ed0b61ab40d2bfb3"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a8e3bcb1d56422423ed0b61ab40d2bfb3">&#9670;&nbsp;</a></span>freq</h2>
 
@@ -160,22 +208,6 @@ int32_t&#160;</td><td class="memItemRight" valign="bottom"><b>start_offset</b></
 </div><div class="memdoc">
 
 <p>Default playback frequency. </p>
-
-</div>
-</div>
-<a id="a731e481e8b944449ba2574fe96292192" name="a731e481e8b944449ba2574fe96292192"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a731e481e8b944449ba2574fe96292192">&#9670;&nbsp;</a></span>id</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">char wav64_header_t::id[4]</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>ID of the file (WAV64_ID) </p>
 
 </div>
 </div>
@@ -211,22 +243,6 @@ int32_t&#160;</td><td class="memItemRight" valign="bottom"><b>start_offset</b></
 
 </div>
 </div>
-<a id="a75fcad20f98c085f88156fd895bb4ec0" name="a75fcad20f98c085f88156fd895bb4ec0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a75fcad20f98c085f88156fd895bb4ec0">&#9670;&nbsp;</a></span>nbits</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int8_t wav64_header_t::nbits</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Width of sample in bits (8 or 16) </p>
-
-</div>
-</div>
 <a id="a9aa5ebc3583435bfd293640f50bfb16b" name="a9aa5ebc3583435bfd293640f50bfb16b"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a9aa5ebc3583435bfd293640f50bfb16b">&#9670;&nbsp;</a></span>start_offset</h2>
 
@@ -243,29 +259,13 @@ int32_t&#160;</td><td class="memItemRight" valign="bottom"><b>start_offset</b></
 
 </div>
 </div>
-<a id="a41f089df9c3a1121a13adeecca288596" name="a41f089df9c3a1121a13adeecca288596"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a41f089df9c3a1121a13adeecca288596">&#9670;&nbsp;</a></span>version</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int8_t wav64_header_t::version</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Version of the file (WAV64_FILE_VERSION) </p>
-
-</div>
-</div>
 <hr/>The documentation for this struct was generated from the following file:<ul>
 <li><a class="el" href="wav64internal_8h_source.html">wav64internal.h</a></li>
 </ul>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:59 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

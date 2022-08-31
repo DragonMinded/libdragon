@@ -188,60 +188,6 @@ File size in bytes. <p >In order to make the most use of limited EEPROM space, f
 </div>
 </div>
 <h2 class="groupheader">Function Documentation</h2>
-<a id="a6dc04e21588af5d151c605ed8b383a86" name="a6dc04e21588af5d151c605ed8b383a86"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a6dc04e21588af5d151c605ed8b383a86">&#9670;&nbsp;</a></span>eepfs_close()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int eepfs_close </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>De-initializes the EEPROM filesystem. </p>
-<p >This cleans up the file lookup table.</p>
-<p >You probably won't ever need to call this.</p>
-<dl class="section return"><dt>Returns</dt><dd>EEPFS_ESUCCESS on success or a negative error otherwise </dd></dl>
-
-</div>
-</div>
-<a id="ad18fa8a50b23c9f82ead1ea91781b491" name="ad18fa8a50b23c9f82ead1ea91781b491"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ad18fa8a50b23c9f82ead1ea91781b491">&#9670;&nbsp;</a></span>eepfs_erase()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int eepfs_erase </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Erases a file in the EEPROM filesystem. </p>
-<p >Note that "erasing" a file just means writing it full of zeroes. All files in the filesystem must always exist at the size specified during <a class="el" href="eepromfs_8c.html#a85e57900d8cccd4cce21a50273fe0662" title="Initializes the EEPROM filesystem.">eepfs_init</a></p>
-<p >Each EEPROM block write takes approximately 15 milliseconds; this operation may block for a while!</p>
-<p >Be advised: this is a destructive operation that cannot be undone!</p>
-<dl class="retval"><dt>Return values</dt><dd>
-  <table class="retval">
-    <tr><td class="paramname">EEPFS_ESUCCESS</td><td>if successful </td></tr>
-    <tr><td class="paramname">EEPFS_ENOFILE</td><td>if the path is not a valid file </td></tr>
-    <tr><td class="paramname">EEPFS_EBADINPUT</td><td>if the path is NULL </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
 <a id="a85e57900d8cccd4cce21a50273fe0662" name="a85e57900d8cccd4cce21a50273fe0662"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a85e57900d8cccd4cce21a50273fe0662">&#9670;&nbsp;</a></span>eepfs_init()</h2>
 
@@ -288,6 +234,29 @@ File size in bytes. <p >In order to make the most use of limited EEPROM space, f
 
 </div>
 </div>
+<a id="a6dc04e21588af5d151c605ed8b383a86" name="a6dc04e21588af5d151c605ed8b383a86"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6dc04e21588af5d151c605ed8b383a86">&#9670;&nbsp;</a></span>eepfs_close()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int eepfs_close </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>De-initializes the EEPROM filesystem. </p>
+<p >This cleans up the file lookup table.</p>
+<p >You probably won't ever need to call this.</p>
+<dl class="section return"><dt>Returns</dt><dd>EEPFS_ESUCCESS on success or a negative error otherwise </dd></dl>
+
+</div>
+</div>
 <a id="a3daef0029a484a9a26aa7118c93d4473" name="a3daef0029a484a9a26aa7118c93d4473"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a3daef0029a484a9a26aa7118c93d4473">&#9670;&nbsp;</a></span>eepfs_read()</h2>
 
@@ -330,6 +299,83 @@ File size in bytes. <p >In order to make the most use of limited EEPROM space, f
   </dd>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>EEPFS_ESUCCESS on success or a negative error otherwise </dd></dl>
+
+</div>
+</div>
+<a id="a9e190ba715069bcda5d391699a4dfb43" name="a9e190ba715069bcda5d391699a4dfb43"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9e190ba715069bcda5d391699a4dfb43">&#9670;&nbsp;</a></span>eepfs_write()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int eepfs_write </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const void *&#160;</td>
+          <td class="paramname"><em>src</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">size_t&#160;</td>
+          <td class="paramname"><em>size</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Writes an entire file to the EEPROM filesystem. </p>
+<p >Each EEPROM block write takes approximately 15 milliseconds; this operation may block for a while!</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">path</td><td>Path of file in EEPROM filesystem to write to </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">src</td><td>Buffer of data to be written </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">size</td><td>Size of the source buffer (in bytes)</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>EEPFS_ESUCCESS on success or a negative error otherwise </dd></dl>
+
+</div>
+</div>
+<a id="ad18fa8a50b23c9f82ead1ea91781b491" name="ad18fa8a50b23c9f82ead1ea91781b491"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad18fa8a50b23c9f82ead1ea91781b491">&#9670;&nbsp;</a></span>eepfs_erase()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int eepfs_erase </td>
+          <td>(</td>
+          <td class="paramtype">const char *&#160;</td>
+          <td class="paramname"><em>path</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Erases a file in the EEPROM filesystem. </p>
+<p >Note that "erasing" a file just means writing it full of zeroes. All files in the filesystem must always exist at the size specified during <a class="el" href="eepromfs_8c.html#a85e57900d8cccd4cce21a50273fe0662" title="Initializes the EEPROM filesystem.">eepfs_init</a></p>
+<p >Each EEPROM block write takes approximately 15 milliseconds; this operation may block for a while!</p>
+<p >Be advised: this is a destructive operation that cannot be undone!</p>
+<dl class="retval"><dt>Return values</dt><dd>
+  <table class="retval">
+    <tr><td class="paramname">EEPFS_ESUCCESS</td><td>if successful </td></tr>
+    <tr><td class="paramname">EEPFS_ENOFILE</td><td>if the path is not a valid file </td></tr>
+    <tr><td class="paramname">EEPFS_EBADINPUT</td><td>if the path is NULL </td></tr>
+  </table>
+  </dd>
+</dl>
 
 </div>
 </div>
@@ -395,56 +441,10 @@ File size in bytes. <p >In order to make the most use of limited EEPROM space, f
 
 </div>
 </div>
-<a id="a9e190ba715069bcda5d391699a4dfb43" name="a9e190ba715069bcda5d391699a4dfb43"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a9e190ba715069bcda5d391699a4dfb43">&#9670;&nbsp;</a></span>eepfs_write()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int eepfs_write </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>path</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const void *&#160;</td>
-          <td class="paramname"><em>src</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">size_t&#160;</td>
-          <td class="paramname"><em>size</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Writes an entire file to the EEPROM filesystem. </p>
-<p >Each EEPROM block write takes approximately 15 milliseconds; this operation may block for a while!</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">path</td><td>Path of file in EEPROM filesystem to write to </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">src</td><td>Buffer of data to be written </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">size</td><td>Size of the source buffer (in bytes)</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>EEPFS_ESUCCESS on success or a negative error otherwise </dd></dl>
-
-</div>
-</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:58 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

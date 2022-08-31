@@ -266,21 +266,9 @@ Functions</h2></td></tr>
 </div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
-<a id="a73d5c95590ea8964b416412703b719d4" name="a73d5c95590ea8964b416412703b719d4"></a>union <a class="el" href="group__controller.html#union__SI__condat_8____unnamed6____">_SI_condat.__unnamed6__</a></td>
-<td class="fieldname">
-__unnamed__</td>
-<td class="fielddoc">
-</td></tr>
-<tr><td class="fieldtype">
 <a id="a9d55f6a808529317eea1a9c6e6a2d203" name="a9d55f6a808529317eea1a9c6e6a2d203"></a>unsigned</td>
 <td class="fieldname">
 __pad0__: 16</td>
-<td class="fielddoc">
-Unused padding bits. </td></tr>
-<tr><td class="fieldtype">
-<a id="ae1549b09333a3d1e0ee817606319e15f" name="ae1549b09333a3d1e0ee817606319e15f"></a>unsigned</td>
-<td class="fieldname">
-__pad1__: 14</td>
 <td class="fielddoc">
 Unused padding bits. </td></tr>
 <tr><td class="fieldtype">
@@ -289,6 +277,18 @@ Unused padding bits. </td></tr>
 err: 2</td>
 <td class="fielddoc">
 Status of the last command. </td></tr>
+<tr><td class="fieldtype">
+<a id="ae1549b09333a3d1e0ee817606319e15f" name="ae1549b09333a3d1e0ee817606319e15f"></a>unsigned</td>
+<td class="fieldname">
+__pad1__: 14</td>
+<td class="fielddoc">
+Unused padding bits. </td></tr>
+<tr><td class="fieldtype">
+<a id="a73d5c95590ea8964b416412703b719d4" name="a73d5c95590ea8964b416412703b719d4"></a>union <a class="el" href="group__controller.html#union__SI__condat_8____unnamed6____">_SI_condat.__unnamed6__</a></td>
+<td class="fieldname">
+__unnamed__</td>
+<td class="fielddoc">
+</td></tr>
 </table>
 
 </div>
@@ -424,13 +424,13 @@ Array of GameCube controller origin data for each controller port. </td></tr>
 <div class="textblock"></div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
-<a id="a292e4a2c5dcece13fd75f0a1bc0a4dbe" name="a292e4a2c5dcece13fd75f0a1bc0a4dbe"></a>struct <a class="el" href="group__controller.html#struct__SI__condat_8____unnamed6_____8____unnamed10____">_SI_condat.__unnamed6__.__unnamed10__</a></td>
+<a id="a63f5f87eab8bf5d1395b98caa0a448ba" name="a63f5f87eab8bf5d1395b98caa0a448ba"></a>struct <a class="el" href="group__controller.html#struct__SI__condat_8____unnamed6_____8____unnamed8____">_SI_condat.__unnamed6__.__unnamed8__</a></td>
 <td class="fieldname">
 __unnamed__</td>
 <td class="fielddoc">
 </td></tr>
 <tr><td class="fieldtype">
-<a id="a63f5f87eab8bf5d1395b98caa0a448ba" name="a63f5f87eab8bf5d1395b98caa0a448ba"></a>struct <a class="el" href="group__controller.html#struct__SI__condat_8____unnamed6_____8____unnamed8____">_SI_condat.__unnamed6__.__unnamed8__</a></td>
+<a id="a292e4a2c5dcece13fd75f0a1bc0a4dbe" name="a292e4a2c5dcece13fd75f0a1bc0a4dbe"></a>struct <a class="el" href="group__controller.html#struct__SI__condat_8____unnamed6_____8____unnamed10____">_SI_condat.__unnamed6__.__unnamed10__</a></td>
 <td class="fieldname">
 __unnamed__</td>
 <td class="fielddoc">
@@ -476,12 +476,6 @@ data: 32</td>
 <div class="textblock"></div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
-<a id="a74a47a7eac047138ff811ede153943e6" name="a74a47a7eac047138ff811ede153943e6"></a>unsigned</td>
-<td class="fieldname">
-__pad0__: 2</td>
-<td class="fielddoc">
-Unused padding bits. </td></tr>
-<tr><td class="fieldtype">
 <a id="a7fc56270e7a70fa81a5935b72eacbe29" name="a7fc56270e7a70fa81a5935b72eacbe29"></a>unsigned</td>
 <td class="fieldname">
 A: 1</td>
@@ -493,6 +487,66 @@ State of the A button. </td></tr>
 B: 1</td>
 <td class="fielddoc">
 State of the B button. </td></tr>
+<tr><td class="fieldtype">
+<a id="a21c2e59531c8710156d34a3c30ac81d5" name="a21c2e59531c8710156d34a3c30ac81d5"></a>unsigned</td>
+<td class="fieldname">
+Z: 1</td>
+<td class="fielddoc">
+State of the Z button. </td></tr>
+<tr><td class="fieldtype">
+<a id="aea2b2676c28c0db26d39331a336c6b92" name="aea2b2676c28c0db26d39331a336c6b92"></a>unsigned</td>
+<td class="fieldname">
+start: 1</td>
+<td class="fielddoc">
+State of the start button. </td></tr>
+<tr><td class="fieldtype">
+<a id="a46c48bec0d282018b9d167eef7711b2c" name="a46c48bec0d282018b9d167eef7711b2c"></a>unsigned</td>
+<td class="fieldname">
+up: 1</td>
+<td class="fielddoc">
+State of the up button. </td></tr>
+<tr><td class="fieldtype">
+<a id="a74e8333ad11685ff3bdae589c8f6e34d" name="a74e8333ad11685ff3bdae589c8f6e34d"></a>unsigned</td>
+<td class="fieldname">
+down: 1</td>
+<td class="fielddoc">
+State of the down button. </td></tr>
+<tr><td class="fieldtype">
+<a id="a811882fecd5c7618d7099ebbd39ea254" name="a811882fecd5c7618d7099ebbd39ea254"></a>unsigned</td>
+<td class="fieldname">
+left: 1</td>
+<td class="fielddoc">
+State of the left button. </td></tr>
+<tr><td class="fieldtype">
+<a id="a7c4f29407893c334a6cb7a87bf045c0d" name="a7c4f29407893c334a6cb7a87bf045c0d"></a>unsigned</td>
+<td class="fieldname">
+right: 1</td>
+<td class="fielddoc">
+State of the right button. </td></tr>
+<tr><td class="fieldtype">
+<a id="a74a47a7eac047138ff811ede153943e6" name="a74a47a7eac047138ff811ede153943e6"></a>unsigned</td>
+<td class="fieldname">
+__pad0__: 2</td>
+<td class="fielddoc">
+Unused padding bits. </td></tr>
+<tr><td class="fieldtype">
+<a id="ad20caec3b48a1eef164cb4ca81ba2587" name="ad20caec3b48a1eef164cb4ca81ba2587"></a>unsigned</td>
+<td class="fieldname">
+L: 1</td>
+<td class="fielddoc">
+State of the L button. </td></tr>
+<tr><td class="fieldtype">
+<a id="ae1e1d3d40573127e9ee0480caf1283d6" name="ae1e1d3d40573127e9ee0480caf1283d6"></a>unsigned</td>
+<td class="fieldname">
+R: 1</td>
+<td class="fielddoc">
+State of the R button. </td></tr>
+<tr><td class="fieldtype">
+<a id="aede164777e0881bcd8796adfb8c20482" name="aede164777e0881bcd8796adfb8c20482"></a>unsigned</td>
+<td class="fieldname">
+C_up: 1</td>
+<td class="fielddoc">
+State of the C up button. </td></tr>
 <tr><td class="fieldtype">
 <a id="a28b262ffd60b744bec2f0e19a5398b45" name="a28b262ffd60b744bec2f0e19a5398b45"></a>unsigned</td>
 <td class="fieldname">
@@ -512,54 +566,6 @@ C_right: 1</td>
 <td class="fielddoc">
 State of the C right button. </td></tr>
 <tr><td class="fieldtype">
-<a id="aede164777e0881bcd8796adfb8c20482" name="aede164777e0881bcd8796adfb8c20482"></a>unsigned</td>
-<td class="fieldname">
-C_up: 1</td>
-<td class="fielddoc">
-State of the C up button. </td></tr>
-<tr><td class="fieldtype">
-<a id="a74e8333ad11685ff3bdae589c8f6e34d" name="a74e8333ad11685ff3bdae589c8f6e34d"></a>unsigned</td>
-<td class="fieldname">
-down: 1</td>
-<td class="fielddoc">
-State of the down button. </td></tr>
-<tr><td class="fieldtype">
-<a id="ad20caec3b48a1eef164cb4ca81ba2587" name="ad20caec3b48a1eef164cb4ca81ba2587"></a>unsigned</td>
-<td class="fieldname">
-L: 1</td>
-<td class="fielddoc">
-State of the L button. </td></tr>
-<tr><td class="fieldtype">
-<a id="a811882fecd5c7618d7099ebbd39ea254" name="a811882fecd5c7618d7099ebbd39ea254"></a>unsigned</td>
-<td class="fieldname">
-left: 1</td>
-<td class="fielddoc">
-State of the left button. </td></tr>
-<tr><td class="fieldtype">
-<a id="ae1e1d3d40573127e9ee0480caf1283d6" name="ae1e1d3d40573127e9ee0480caf1283d6"></a>unsigned</td>
-<td class="fieldname">
-R: 1</td>
-<td class="fielddoc">
-State of the R button. </td></tr>
-<tr><td class="fieldtype">
-<a id="a7c4f29407893c334a6cb7a87bf045c0d" name="a7c4f29407893c334a6cb7a87bf045c0d"></a>unsigned</td>
-<td class="fieldname">
-right: 1</td>
-<td class="fielddoc">
-State of the right button. </td></tr>
-<tr><td class="fieldtype">
-<a id="aea2b2676c28c0db26d39331a336c6b92" name="aea2b2676c28c0db26d39331a336c6b92"></a>unsigned</td>
-<td class="fieldname">
-start: 1</td>
-<td class="fielddoc">
-State of the start button. </td></tr>
-<tr><td class="fieldtype">
-<a id="a46c48bec0d282018b9d167eef7711b2c" name="a46c48bec0d282018b9d167eef7711b2c"></a>unsigned</td>
-<td class="fieldname">
-up: 1</td>
-<td class="fielddoc">
-State of the up button. </td></tr>
-<tr><td class="fieldtype">
 <a id="a9dd4e461268c8034f5c8564e155c67a6" name="a9dd4e461268c8034f5c8564e155c67a6"></a>signed</td>
 <td class="fieldname">
 x: 8</td>
@@ -571,12 +577,6 @@ State of the X button. </td></tr>
 y: 8</td>
 <td class="fielddoc">
 State of the Y button. </td></tr>
-<tr><td class="fieldtype">
-<a id="a21c2e59531c8710156d34a3c30ac81d5" name="a21c2e59531c8710156d34a3c30ac81d5"></a>unsigned</td>
-<td class="fieldname">
-Z: 1</td>
-<td class="fielddoc">
-State of the Z button. </td></tr>
 </table>
 
 </div>
@@ -647,63 +647,9 @@ data</td>
 <div class="textblock"></div><table class="fieldtable">
 <tr><th colspan="3">Data Fields</th></tr>
 <tr><td class="fieldtype">
-<a id="a0cc175b9c0f1b6a831c399e269772661" name="a0cc175b9c0f1b6a831c399e269772661"></a>unsigned</td>
-<td class="fieldname">
-a: 1</td>
-<td class="fielddoc">
-</td></tr>
-<tr><td class="fieldtype">
-<a id="a6d4151e97bdddd489972ca91fd9b922c" name="a6d4151e97bdddd489972ca91fd9b922c"></a>unsigned</td>
-<td class="fieldname">
-analog_l: 8</td>
-<td class="fielddoc">
-</td></tr>
-<tr><td class="fieldtype">
-<a id="ac4e876853cbad4b00ba346bfc233f6ce" name="ac4e876853cbad4b00ba346bfc233f6ce"></a>unsigned</td>
-<td class="fieldname">
-analog_r: 8</td>
-<td class="fielddoc">
-</td></tr>
-<tr><td class="fieldtype">
-<a id="a92eb5ffee6ae2fec3ad71c777531578f" name="a92eb5ffee6ae2fec3ad71c777531578f"></a>unsigned</td>
-<td class="fieldname">
-b: 1</td>
-<td class="fielddoc">
-</td></tr>
-<tr><td class="fieldtype">
-<a id="afcb2d7d70ad1b2011f0644c6c7611eab" name="afcb2d7d70ad1b2011f0644c6c7611eab"></a>unsigned</td>
-<td class="fieldname">
-cstick_x: 8</td>
-<td class="fielddoc">
-</td></tr>
-<tr><td class="fieldtype">
-<a id="a9cce4c93a92c16281814433d47745094" name="a9cce4c93a92c16281814433d47745094"></a>unsigned</td>
-<td class="fieldname">
-cstick_y: 8</td>
-<td class="fielddoc">
-</td></tr>
-<tr><td class="fieldtype">
-<a id="a74e8333ad11685ff3bdae589c8f6e34d" name="a74e8333ad11685ff3bdae589c8f6e34d"></a>unsigned</td>
-<td class="fieldname">
-down: 1</td>
-<td class="fielddoc">
-</td></tr>
-<tr><td class="fieldtype">
 <a id="a56bd7107802ebe56c6918992f0608ec6" name="a56bd7107802ebe56c6918992f0608ec6"></a>unsigned</td>
 <td class="fieldname">
 err: 2</td>
-<td class="fielddoc">
-</td></tr>
-<tr><td class="fieldtype">
-<a id="a2db95e8e1a9267b7a1188556b2013b33" name="a2db95e8e1a9267b7a1188556b2013b33"></a>unsigned</td>
-<td class="fieldname">
-l: 1</td>
-<td class="fielddoc">
-</td></tr>
-<tr><td class="fieldtype">
-<a id="a811882fecd5c7618d7099ebbd39ea254" name="a811882fecd5c7618d7099ebbd39ea254"></a>unsigned</td>
-<td class="fieldname">
-left: 1</td>
 <td class="fielddoc">
 </td></tr>
 <tr><td class="fieldtype">
@@ -713,9 +659,69 @@ origin_unchecked: 1</td>
 <td class="fielddoc">
 </td></tr>
 <tr><td class="fieldtype">
+<a id="aea2b2676c28c0db26d39331a336c6b92" name="aea2b2676c28c0db26d39331a336c6b92"></a>unsigned</td>
+<td class="fieldname">
+start: 1</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a415290769594460e2e485922904f345d" name="a415290769594460e2e485922904f345d"></a>unsigned</td>
+<td class="fieldname">
+y: 1</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a9dd4e461268c8034f5c8564e155c67a6" name="a9dd4e461268c8034f5c8564e155c67a6"></a>unsigned</td>
+<td class="fieldname">
+x: 1</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a92eb5ffee6ae2fec3ad71c777531578f" name="a92eb5ffee6ae2fec3ad71c777531578f"></a>unsigned</td>
+<td class="fieldname">
+b: 1</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a0cc175b9c0f1b6a831c399e269772661" name="a0cc175b9c0f1b6a831c399e269772661"></a>unsigned</td>
+<td class="fieldname">
+a: 1</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a3dedb9d6c16bf09840253c47bcac7928" name="a3dedb9d6c16bf09840253c47bcac7928"></a>unsigned</td>
+<td class="fieldname">
+unused2: 1</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a2db95e8e1a9267b7a1188556b2013b33" name="a2db95e8e1a9267b7a1188556b2013b33"></a>unsigned</td>
+<td class="fieldname">
+l: 1</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
 <a id="a4b43b0aee35624cd95b910189b3dc231" name="a4b43b0aee35624cd95b910189b3dc231"></a>unsigned</td>
 <td class="fieldname">
 r: 1</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="afbade9e36a3f36d3d676c1b808451dd7" name="afbade9e36a3f36d3d676c1b808451dd7"></a>unsigned</td>
+<td class="fieldname">
+z: 1</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a46c48bec0d282018b9d167eef7711b2c" name="a46c48bec0d282018b9d167eef7711b2c"></a>unsigned</td>
+<td class="fieldname">
+up: 1</td>
+<td class="fielddoc">
+</td></tr>
+<tr><td class="fieldtype">
+<a id="a74e8333ad11685ff3bdae589c8f6e34d" name="a74e8333ad11685ff3bdae589c8f6e34d"></a>unsigned</td>
+<td class="fieldname">
+down: 1</td>
 <td class="fielddoc">
 </td></tr>
 <tr><td class="fieldtype">
@@ -725,9 +731,9 @@ right: 1</td>
 <td class="fielddoc">
 </td></tr>
 <tr><td class="fieldtype">
-<a id="aea2b2676c28c0db26d39331a336c6b92" name="aea2b2676c28c0db26d39331a336c6b92"></a>unsigned</td>
+<a id="a811882fecd5c7618d7099ebbd39ea254" name="a811882fecd5c7618d7099ebbd39ea254"></a>unsigned</td>
 <td class="fieldname">
-start: 1</td>
+left: 1</td>
 <td class="fielddoc">
 </td></tr>
 <tr><td class="fieldtype">
@@ -743,33 +749,27 @@ stick_y: 8</td>
 <td class="fielddoc">
 </td></tr>
 <tr><td class="fieldtype">
-<a id="a3dedb9d6c16bf09840253c47bcac7928" name="a3dedb9d6c16bf09840253c47bcac7928"></a>unsigned</td>
+<a id="afcb2d7d70ad1b2011f0644c6c7611eab" name="afcb2d7d70ad1b2011f0644c6c7611eab"></a>unsigned</td>
 <td class="fieldname">
-unused2: 1</td>
+cstick_x: 8</td>
 <td class="fielddoc">
 </td></tr>
 <tr><td class="fieldtype">
-<a id="a46c48bec0d282018b9d167eef7711b2c" name="a46c48bec0d282018b9d167eef7711b2c"></a>unsigned</td>
+<a id="a9cce4c93a92c16281814433d47745094" name="a9cce4c93a92c16281814433d47745094"></a>unsigned</td>
 <td class="fieldname">
-up: 1</td>
+cstick_y: 8</td>
 <td class="fielddoc">
 </td></tr>
 <tr><td class="fieldtype">
-<a id="a9dd4e461268c8034f5c8564e155c67a6" name="a9dd4e461268c8034f5c8564e155c67a6"></a>unsigned</td>
+<a id="a6d4151e97bdddd489972ca91fd9b922c" name="a6d4151e97bdddd489972ca91fd9b922c"></a>unsigned</td>
 <td class="fieldname">
-x: 1</td>
+analog_l: 8</td>
 <td class="fielddoc">
 </td></tr>
 <tr><td class="fieldtype">
-<a id="a415290769594460e2e485922904f345d" name="a415290769594460e2e485922904f345d"></a>unsigned</td>
+<a id="ac4e876853cbad4b00ba346bfc233f6ce" name="ac4e876853cbad4b00ba346bfc233f6ce"></a>unsigned</td>
 <td class="fieldname">
-y: 1</td>
-<td class="fielddoc">
-</td></tr>
-<tr><td class="fieldtype">
-<a id="afbade9e36a3f36d3d676c1b808451dd7" name="afbade9e36a3f36d3d676c1b808451dd7"></a>unsigned</td>
-<td class="fieldname">
-z: 1</td>
+analog_r: 8</td>
 <td class="fielddoc">
 </td></tr>
 </table>
@@ -913,6 +913,122 @@ z: 1</td>
 
 </div>
 </div>
+<a id="ga92b83722d2ec11528c89b1585363c466" name="ga92b83722d2ec11528c89b1585363c466"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga92b83722d2ec11528c89b1585363c466">&#9670;&nbsp;</a></span>get_keys_down()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">struct controller_data get_keys_down </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get keys that were pressed since the last inspection. </p>
+<p >Return keys pressed since last detection. This returns a standard <a class="el" href="group__controller.html#structSI__controllers__state__t" title="SI controller data for all controller ports.">SI_controllers_state_t</a> struct identical to <a class="el" href="group__controller.html#ga33c9483e9fcfd46e159f8a0f5dae9842" title="Read the controller button status for all controllers.">controller_read</a>. However, buttons are only set if they were pressed down since the last read.</p>
+<dl class="section return"><dt>Returns</dt><dd>A structure representing which buttons were just pressed down </dd></dl>
+
+</div>
+</div>
+<a id="gac4f138275a4e0fef9e40c529a5a3ecf3" name="gac4f138275a4e0fef9e40c529a5a3ecf3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gac4f138275a4e0fef9e40c529a5a3ecf3">&#9670;&nbsp;</a></span>get_keys_up()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">struct controller_data get_keys_up </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get keys that were released since the last inspection. </p>
+<p >Return keys released since last detection. This returns a standard <a class="el" href="group__controller.html#structSI__controllers__state__t" title="SI controller data for all controller ports.">SI_controllers_state_t</a> struct identical to <a class="el" href="group__controller.html#ga33c9483e9fcfd46e159f8a0f5dae9842" title="Read the controller button status for all controllers.">controller_read</a>. However, buttons are only set if they were released since the last read.</p>
+<dl class="section return"><dt>Returns</dt><dd>A structure representing which buttons were just released </dd></dl>
+
+</div>
+</div>
+<a id="ga1a3b18210b8784f8b415dd5919f1693d" name="ga1a3b18210b8784f8b415dd5919f1693d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga1a3b18210b8784f8b415dd5919f1693d">&#9670;&nbsp;</a></span>get_keys_held()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">struct controller_data get_keys_held </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get keys that were held since the last inspection. </p>
+<p >Return keys held since last detection. This returns a standard <a class="el" href="group__controller.html#structSI__controllers__state__t" title="SI controller data for all controller ports.">SI_controllers_state_t</a> struct identical to <a class="el" href="group__controller.html#ga33c9483e9fcfd46e159f8a0f5dae9842" title="Read the controller button status for all controllers.">controller_read</a>. However, buttons are only set if they were held since the last read.</p>
+<dl class="section return"><dt>Returns</dt><dd>A structure representing which buttons were held </dd></dl>
+
+</div>
+</div>
+<a id="ga4fa8c731f50728b6dac1e62237b77b8c" name="ga4fa8c731f50728b6dac1e62237b77b8c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga4fa8c731f50728b6dac1e62237b77b8c">&#9670;&nbsp;</a></span>get_keys_pressed()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">struct controller_data get_keys_pressed </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Get keys that are currently pressed, regardless of previous state. </p>
+<p >This function works identically to <a class="el" href="group__controller.html#ga33c9483e9fcfd46e159f8a0f5dae9842" title="Read the controller button status for all controllers.">controller_read</a> except that it returns the cached data from the last background autoscan.</p>
+<dl class="section return"><dt>Returns</dt><dd>A structure representing which buttons were pressed </dd></dl>
+
+</div>
+</div>
+<a id="gabd39e2716caae5d5053e3df48ffc03b7" name="gabd39e2716caae5d5053e3df48ffc03b7"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gabd39e2716caae5d5053e3df48ffc03b7">&#9670;&nbsp;</a></span>get_dpad_direction()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int get_dpad_direction </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>controller</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Return the DPAD calculated direction. </p>
+<p >Return the direction of the DPAD specified in controller. Follows standard polar coordinates, where 0 = 0, pi/4 = 1, pi/2 = 2, etc... Returns -1 when not pressed.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) to inspect</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>A value 0-7 to represent which direction is held, or -1 when not pressed </dd></dl>
+
+</div>
+</div>
 <a id="ga7bfd7d39fbe5db64593e60ee0fc3200e" name="ga7bfd7d39fbe5db64593e60ee0fc3200e"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga7bfd7d39fbe5db64593e60ee0fc3200e">&#9670;&nbsp;</a></span>execute_raw_command()</h2>
 
@@ -979,28 +1095,6 @@ z: 1</td>
 
 </div>
 </div>
-<a id="ga3b8cc7be547152d029df99d63c3f32c3" name="ga3b8cc7be547152d029df99d63c3f32c3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga3b8cc7be547152d029df99d63c3f32c3">&#9670;&nbsp;</a></span>get_accessories_present()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int get_accessories_present </td>
-          <td>(</td>
-          <td class="paramtype">struct controller_data *&#160;</td>
-          <td class="paramname"><em>out</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Return a bitmask specifying which controllers have recognized accessories. </p>
-<p >Queries the controller interface and returns a bitmask specifying which controllers have recognized accessories present. See <a class="el" href="group__controller.html#ga1f0ad743a77d38d91bc89c3c503ffabb" title="Controller 1 Inserted.">CONTROLLER_1_INSERTED</a>, <a class="el" href="group__controller.html#ga05f798db822b24bb71e87a7bc28049d2" title="Controller 2 Inserted.">CONTROLLER_2_INSERTED</a>, <a class="el" href="group__controller.html#ga7279e196ed98473b46f9f30279c8bb00" title="Controller 3 Inserted.">CONTROLLER_3_INSERTED</a> and <a class="el" href="group__controller.html#gab038c3cbedcb291b7a8dd6949708d483" title="Controller 4 Inserted.">CONTROLLER_4_INSERTED</a>.</p>
-<dl class="section return"><dt>Returns</dt><dd>A bitmask representing accessories recognized </dd></dl>
-
-</div>
-</div>
 <a id="gaf9adab7d3d9543819c84f7064b1aa1c1" name="gaf9adab7d3d9543819c84f7064b1aa1c1"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#gaf9adab7d3d9543819c84f7064b1aa1c1">&#9670;&nbsp;</a></span>get_controllers_present()</h2>
 
@@ -1023,156 +1117,25 @@ z: 1</td>
 
 </div>
 </div>
-<a id="gabd39e2716caae5d5053e3df48ffc03b7" name="gabd39e2716caae5d5053e3df48ffc03b7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gabd39e2716caae5d5053e3df48ffc03b7">&#9670;&nbsp;</a></span>get_dpad_direction()</h2>
+<a id="ga3b8cc7be547152d029df99d63c3f32c3" name="ga3b8cc7be547152d029df99d63c3f32c3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga3b8cc7be547152d029df99d63c3f32c3">&#9670;&nbsp;</a></span>get_accessories_present()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">int get_dpad_direction </td>
+          <td class="memname">int get_accessories_present </td>
           <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>controller</em></td><td>)</td>
+          <td class="paramtype">struct controller_data *&#160;</td>
+          <td class="paramname"><em>out</em></td><td>)</td>
           <td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Return the DPAD calculated direction. </p>
-<p >Return the direction of the DPAD specified in controller. Follows standard polar coordinates, where 0 = 0, pi/4 = 1, pi/2 = 2, etc... Returns -1 when not pressed.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) to inspect</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>A value 0-7 to represent which direction is held, or -1 when not pressed </dd></dl>
-
-</div>
-</div>
-<a id="ga92b83722d2ec11528c89b1585363c466" name="ga92b83722d2ec11528c89b1585363c466"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga92b83722d2ec11528c89b1585363c466">&#9670;&nbsp;</a></span>get_keys_down()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">struct controller_data get_keys_down </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Get keys that were pressed since the last inspection. </p>
-<p >Return keys pressed since last detection. This returns a standard <a class="el" href="group__controller.html#structSI__controllers__state__t" title="SI controller data for all controller ports.">SI_controllers_state_t</a> struct identical to <a class="el" href="group__controller.html#ga33c9483e9fcfd46e159f8a0f5dae9842" title="Read the controller button status for all controllers.">controller_read</a>. However, buttons are only set if they were pressed down since the last read.</p>
-<dl class="section return"><dt>Returns</dt><dd>A structure representing which buttons were just pressed down </dd></dl>
-
-</div>
-</div>
-<a id="ga1a3b18210b8784f8b415dd5919f1693d" name="ga1a3b18210b8784f8b415dd5919f1693d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga1a3b18210b8784f8b415dd5919f1693d">&#9670;&nbsp;</a></span>get_keys_held()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">struct controller_data get_keys_held </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Get keys that were held since the last inspection. </p>
-<p >Return keys held since last detection. This returns a standard <a class="el" href="group__controller.html#structSI__controllers__state__t" title="SI controller data for all controller ports.">SI_controllers_state_t</a> struct identical to <a class="el" href="group__controller.html#ga33c9483e9fcfd46e159f8a0f5dae9842" title="Read the controller button status for all controllers.">controller_read</a>. However, buttons are only set if they were held since the last read.</p>
-<dl class="section return"><dt>Returns</dt><dd>A structure representing which buttons were held </dd></dl>
-
-</div>
-</div>
-<a id="ga4fa8c731f50728b6dac1e62237b77b8c" name="ga4fa8c731f50728b6dac1e62237b77b8c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga4fa8c731f50728b6dac1e62237b77b8c">&#9670;&nbsp;</a></span>get_keys_pressed()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">struct controller_data get_keys_pressed </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Get keys that are currently pressed, regardless of previous state. </p>
-<p >This function works identically to <a class="el" href="group__controller.html#ga33c9483e9fcfd46e159f8a0f5dae9842" title="Read the controller button status for all controllers.">controller_read</a> except that it returns the cached data from the last background autoscan.</p>
-<dl class="section return"><dt>Returns</dt><dd>A structure representing which buttons were pressed </dd></dl>
-
-</div>
-</div>
-<a id="gac4f138275a4e0fef9e40c529a5a3ecf3" name="gac4f138275a4e0fef9e40c529a5a3ecf3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gac4f138275a4e0fef9e40c529a5a3ecf3">&#9670;&nbsp;</a></span>get_keys_up()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">struct controller_data get_keys_up </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Get keys that were released since the last inspection. </p>
-<p >Return keys released since last detection. This returns a standard <a class="el" href="group__controller.html#structSI__controllers__state__t" title="SI controller data for all controller ports.">SI_controllers_state_t</a> struct identical to <a class="el" href="group__controller.html#ga33c9483e9fcfd46e159f8a0f5dae9842" title="Read the controller button status for all controllers.">controller_read</a>. However, buttons are only set if they were released since the last read.</p>
-<dl class="section return"><dt>Returns</dt><dd>A structure representing which buttons were just released </dd></dl>
-
-</div>
-</div>
-<a id="ga61f79691c93aed5a6abaf2d962823680" name="ga61f79691c93aed5a6abaf2d962823680"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga61f79691c93aed5a6abaf2d962823680">&#9670;&nbsp;</a></span>identify_accessory()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int identify_accessory </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>controller</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Identify the accessory connected to a controller. </p>
-<p >Given a controller, identify the particular accessory type inserted.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) to identify accessories on</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="retval"><dt>Return values</dt><dd>
-  <table class="retval">
-    <tr><td class="paramname"><a class="el" href="group__controller.html#gae4c3a3d37d2a9ee04aafcb17be25bb6a" title="Rumblepak present.">ACCESSORY_RUMBLEPAK</a></td><td>The accessory connected is a rumblepak </td></tr>
-    <tr><td class="paramname"><a class="el" href="group__controller.html#gad1b687f0cf37b7ac2b3b0915f17f1088" title="Mempak present.">ACCESSORY_MEMPAK</a></td><td>The accessory connected is a mempak </td></tr>
-    <tr><td class="paramname"><a class="el" href="group__controller.html#ga58cd90360dac7543fca4c7db1c463c49" title="Transferpak present.">ACCESSORY_TRANSFERPAK</a></td><td>The accessory connected is a transferpak </td></tr>
-    <tr><td class="paramname"><a class="el" href="group__controller.html#gabbc271e55081e96ae33b11b2b5deea45" title="VRU present.">ACCESSORY_VRU</a></td><td>The accessory connected is a VRU </td></tr>
-    <tr><td class="paramname"><a class="el" href="group__controller.html#gaa20aa25432487e902807c68553ce3767" title="No accessory present.">ACCESSORY_NONE</a></td><td>The accessory was not recognized </td></tr>
-  </table>
-  </dd>
-</dl>
+<p>Return a bitmask specifying which controllers have recognized accessories. </p>
+<p >Queries the controller interface and returns a bitmask specifying which controllers have recognized accessories present. See <a class="el" href="group__controller.html#ga1f0ad743a77d38d91bc89c3c503ffabb" title="Controller 1 Inserted.">CONTROLLER_1_INSERTED</a>, <a class="el" href="group__controller.html#ga05f798db822b24bb71e87a7bc28049d2" title="Controller 2 Inserted.">CONTROLLER_2_INSERTED</a>, <a class="el" href="group__controller.html#ga7279e196ed98473b46f9f30279c8bb00" title="Controller 3 Inserted.">CONTROLLER_3_INSERTED</a> and <a class="el" href="group__controller.html#gab038c3cbedcb291b7a8dd6949708d483" title="Controller 4 Inserted.">CONTROLLER_4_INSERTED</a>.</p>
+<dl class="section return"><dt>Returns</dt><dd>A bitmask representing accessories recognized </dd></dl>
 
 </div>
 </div>
@@ -1224,58 +1187,6 @@ z: 1</td>
     <tr><td class="paramname">-1</td><td>if the controller was out of range </td></tr>
     <tr><td class="paramname">-2</td><td>if there was no mempak present in the controller </td></tr>
     <tr><td class="paramname">-3</td><td>if the mempak returned invalid data </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="ga309a5a14096994b5aa400c50dee2eb0f" name="ga309a5a14096994b5aa400c50dee2eb0f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga309a5a14096994b5aa400c50dee2eb0f">&#9670;&nbsp;</a></span>rumble_start()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void rumble_start </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>controller</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Turn rumble on for a particular controller. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) who's rumblepak should activate </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="ga89c2c699a83e5c896352cedab3563285" name="ga89c2c699a83e5c896352cedab3563285"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga89c2c699a83e5c896352cedab3563285">&#9670;&nbsp;</a></span>rumble_stop()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void rumble_stop </td>
-          <td>(</td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>controller</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Turn rumble off for a particular controller. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) who's rumblepak should deactivate </td></tr>
   </table>
   </dd>
 </dl>
@@ -1336,10 +1247,99 @@ z: 1</td>
 
 </div>
 </div>
+<a id="ga61f79691c93aed5a6abaf2d962823680" name="ga61f79691c93aed5a6abaf2d962823680"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga61f79691c93aed5a6abaf2d962823680">&#9670;&nbsp;</a></span>identify_accessory()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int identify_accessory </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>controller</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Identify the accessory connected to a controller. </p>
+<p >Given a controller, identify the particular accessory type inserted.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) to identify accessories on</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="retval"><dt>Return values</dt><dd>
+  <table class="retval">
+    <tr><td class="paramname"><a class="el" href="group__controller.html#gae4c3a3d37d2a9ee04aafcb17be25bb6a" title="Rumblepak present.">ACCESSORY_RUMBLEPAK</a></td><td>The accessory connected is a rumblepak </td></tr>
+    <tr><td class="paramname"><a class="el" href="group__controller.html#gad1b687f0cf37b7ac2b3b0915f17f1088" title="Mempak present.">ACCESSORY_MEMPAK</a></td><td>The accessory connected is a mempak </td></tr>
+    <tr><td class="paramname"><a class="el" href="group__controller.html#ga58cd90360dac7543fca4c7db1c463c49" title="Transferpak present.">ACCESSORY_TRANSFERPAK</a></td><td>The accessory connected is a transferpak </td></tr>
+    <tr><td class="paramname"><a class="el" href="group__controller.html#gabbc271e55081e96ae33b11b2b5deea45" title="VRU present.">ACCESSORY_VRU</a></td><td>The accessory connected is a VRU </td></tr>
+    <tr><td class="paramname"><a class="el" href="group__controller.html#gaa20aa25432487e902807c68553ce3767" title="No accessory present.">ACCESSORY_NONE</a></td><td>The accessory was not recognized </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ga309a5a14096994b5aa400c50dee2eb0f" name="ga309a5a14096994b5aa400c50dee2eb0f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga309a5a14096994b5aa400c50dee2eb0f">&#9670;&nbsp;</a></span>rumble_start()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void rumble_start </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>controller</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Turn rumble on for a particular controller. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) who's rumblepak should activate </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ga89c2c699a83e5c896352cedab3563285" name="ga89c2c699a83e5c896352cedab3563285"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga89c2c699a83e5c896352cedab3563285">&#9670;&nbsp;</a></span>rumble_stop()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void rumble_stop </td>
+          <td>(</td>
+          <td class="paramtype">int&#160;</td>
+          <td class="paramname"><em>controller</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Turn rumble off for a particular controller. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">controller</td><td>The controller (0-3) who's rumblepak should deactivate </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:59 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

@@ -89,30 +89,6 @@ Data Fields</h2></td></tr>
 <div class="textblock"><p >Standard I/O hook structure. </p>
 <p >This structure provides optional callback hooks for code wishing to respond to reads from STDIN or writes to STDOUT or STDERR. Any function that code does not wish to handle should be left as a null pointer. </p>
 </div><h2 class="groupheader">Field Documentation</h2>
-<a id="ae597caf3c9e293510cba3970e2505d8b" name="ae597caf3c9e293510cba3970e2505d8b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ae597caf3c9e293510cba3970e2505d8b">&#9670;&nbsp;</a></span>stderr_write</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">int(* stdio_t::stderr_write) (char *data, unsigned int len)</td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Function to call when performing a STDERR write. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">data</td><td>Pointer to data buffer containing the data to write </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">len</td><td>Length of data in bytes expected to be written</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>Actual number of bytes written from data, not to exceed the original length. </dd></dl>
-
-</div>
-</div>
 <a id="a5eaf55e713e812d9b2c18bf29695602b" name="a5eaf55e713e812d9b2c18bf29695602b"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a5eaf55e713e812d9b2c18bf29695602b">&#9670;&nbsp;</a></span>stdin_read</h2>
 
@@ -161,13 +137,37 @@ Data Fields</h2></td></tr>
 
 </div>
 </div>
+<a id="ae597caf3c9e293510cba3970e2505d8b" name="ae597caf3c9e293510cba3970e2505d8b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae597caf3c9e293510cba3970e2505d8b">&#9670;&nbsp;</a></span>stderr_write</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">int(* stdio_t::stderr_write) (char *data, unsigned int len)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Function to call when performing a STDERR write. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">data</td><td>Pointer to data buffer containing the data to write </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">len</td><td>Length of data in bytes expected to be written</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section return"><dt>Returns</dt><dd>Actual number of bytes written from data, not to exceed the original length. </dd></dl>
+
+</div>
+</div>
 <hr/>The documentation for this struct was generated from the following file:<ul>
 <li><a class="el" href="system_8h_source.html">system.h</a></li>
 </ul>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:59 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

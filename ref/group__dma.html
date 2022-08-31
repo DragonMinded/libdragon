@@ -153,6 +153,99 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>dma_read</b> (void *r
 
 </div>
 </div>
+<a id="gad868ada6b4e5c6eafb40a70f7377b900" name="gad868ada6b4e5c6eafb40a70f7377b900"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gad868ada6b4e5c6eafb40a70f7377b900">&#9670;&nbsp;</a></span>dma_read_raw_async()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void dma_read_raw_async </td>
+          <td>(</td>
+          <td class="paramtype">void *&#160;</td>
+          <td class="paramname"><em>ram_address</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long&#160;</td>
+          <td class="paramname"><em>pi_address</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long&#160;</td>
+          <td class="paramname"><em>len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Start reading data from a peripheral through PI DMA (low-level) </p>
+<p >This function should be used when reading from a cartridge peripheral (typically ROM). This function just begins executing a raw DMA transfer, which is well-defined only for RAM addresses which are multiple of 8, ROM addresses which are multiple of 2, and lengths which are multiple of 2.</p>
+<p >Use <a class="el" href="group__dma.html#ga89a297ad5b901919cc3c44f08d16dfb0" title="Wait until an async DMA transfer is finished.">dma_wait</a> to wait for the end of the transfer.</p>
+<p >See <a class="el" href="group__dma.html#ga67b2fbe3459597747359794ce2e3ddcc" title="Start reading data from a peripheral through PI DMA.">dma_read_async</a> for a higher level primitive which can perform almost arbitrary transfers.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[out]</td><td class="paramname">ram_address</td><td>Pointer to a buffer to place read data (must be 8-byte aligned) </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">pi_address</td><td>Memory address of the peripheral to read from (must be 2-byte aligned) </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">len</td><td>Length in bytes to read into ram_address (must be multiple of 2) </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<a id="ga2cade71044285df66fb11e4187b8a09d" name="ga2cade71044285df66fb11e4187b8a09d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga2cade71044285df66fb11e4187b8a09d">&#9670;&nbsp;</a></span>dma_write_raw_async()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void dma_write_raw_async </td>
+          <td>(</td>
+          <td class="paramtype">const void *&#160;</td>
+          <td class="paramname"><em>ram_address</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long&#160;</td>
+          <td class="paramname"><em>pi_address</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">unsigned long&#160;</td>
+          <td class="paramname"><em>len</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Start writing data to a peripheral through PI DMA (low-level) </p>
+<p >This function should be used when writing to a cartridge peripheral (typically ROM). This function just begins executing a raw DMA transfer, which is well-defined only for RAM addresses which are multiple of 8, ROM addresses which are multiple of 2, and lengths which are multiple of 2.</p>
+<p >Use <a class="el" href="group__dma.html#ga89a297ad5b901919cc3c44f08d16dfb0" title="Wait until an async DMA transfer is finished.">dma_wait</a> to wait for the end of the transfer.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[out]</td><td class="paramname">ram_address</td><td>Pointer to a buffer to read data from (must be 8-byte aligned) </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">pi_address</td><td>Memory address of the peripheral to write to (must be 2-byte aligned) </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">len</td><td>Length in bytes to write into pi_address (must be multiple of 2) </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 <a id="ga67b2fbe3459597747359794ce2e3ddcc" name="ga67b2fbe3459597747359794ce2e3ddcc"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga67b2fbe3459597747359794ce2e3ddcc">&#9670;&nbsp;</a></span>dma_read_async()</h2>
 
@@ -201,53 +294,6 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>dma_read</b> (void *r
 
 </div>
 </div>
-<a id="gad868ada6b4e5c6eafb40a70f7377b900" name="gad868ada6b4e5c6eafb40a70f7377b900"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gad868ada6b4e5c6eafb40a70f7377b900">&#9670;&nbsp;</a></span>dma_read_raw_async()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void dma_read_raw_async </td>
-          <td>(</td>
-          <td class="paramtype">void *&#160;</td>
-          <td class="paramname"><em>ram_address</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">unsigned long&#160;</td>
-          <td class="paramname"><em>pi_address</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">unsigned long&#160;</td>
-          <td class="paramname"><em>len</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Start reading data from a peripheral through PI DMA (low-level) </p>
-<p >This function should be used when reading from a cartridge peripheral (typically ROM). This function just begins executing a raw DMA transfer, which is well-defined only for RAM addresses which are multiple of 8, ROM addresses which are multiple of 2, and lengths which are multiple of 2.</p>
-<p >Use <a class="el" href="group__dma.html#ga89a297ad5b901919cc3c44f08d16dfb0" title="Wait until an async DMA transfer is finished.">dma_wait</a> to wait for the end of the transfer.</p>
-<p >See <a class="el" href="group__dma.html#ga67b2fbe3459597747359794ce2e3ddcc" title="Start reading data from a peripheral through PI DMA.">dma_read_async</a> for a higher level primitive which can perform almost arbitrary transfers.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[out]</td><td class="paramname">ram_address</td><td>Pointer to a buffer to place read data (must be 8-byte aligned) </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">pi_address</td><td>Memory address of the peripheral to read from (must be 2-byte aligned) </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">len</td><td>Length in bytes to read into ram_address (must be multiple of 2) </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
 <a id="ga2af83b128e112eaaf3f27057e0042058" name="ga2af83b128e112eaaf3f27057e0042058"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga2af83b128e112eaaf3f27057e0042058">&#9670;&nbsp;</a></span>dma_write()</h2>
 
@@ -287,52 +333,6 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>dma_read</b> (void *r
     <tr><td class="paramdir">[in]</td><td class="paramname">ram_address</td><td>Pointer to a buffer to read data from </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">pi_address</td><td>Memory address of the peripheral to write to </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">len</td><td>Length in bytes to write to peripheral </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="ga2cade71044285df66fb11e4187b8a09d" name="ga2cade71044285df66fb11e4187b8a09d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga2cade71044285df66fb11e4187b8a09d">&#9670;&nbsp;</a></span>dma_write_raw_async()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void dma_write_raw_async </td>
-          <td>(</td>
-          <td class="paramtype">const void *&#160;</td>
-          <td class="paramname"><em>ram_address</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">unsigned long&#160;</td>
-          <td class="paramname"><em>pi_address</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">unsigned long&#160;</td>
-          <td class="paramname"><em>len</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Start writing data to a peripheral through PI DMA (low-level) </p>
-<p >This function should be used when writing to a cartridge peripheral (typically ROM). This function just begins executing a raw DMA transfer, which is well-defined only for RAM addresses which are multiple of 8, ROM addresses which are multiple of 2, and lengths which are multiple of 2.</p>
-<p >Use <a class="el" href="group__dma.html#ga89a297ad5b901919cc3c44f08d16dfb0" title="Wait until an async DMA transfer is finished.">dma_wait</a> to wait for the end of the transfer.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[out]</td><td class="paramname">ram_address</td><td>Pointer to a buffer to read data from (must be 8-byte aligned) </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">pi_address</td><td>Memory address of the peripheral to write to (must be 2-byte aligned) </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">len</td><td>Length in bytes to write into pi_address (must be multiple of 2) </td></tr>
   </table>
   </dd>
 </dl>
@@ -406,7 +406,7 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>dma_read</b> (void *r
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Aug 15 2022 00:26:59 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
