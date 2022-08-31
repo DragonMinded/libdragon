@@ -729,10 +729,10 @@ void gl_vertex_t_l(uint8_t cache_index, const gl_matrix_t *mv, const gl_texture_
 
     gl_matrix_mult(v->position, &state.final_matrix, pos);
 
-    v->position[0] *= state.persp_norm_factor;
-    v->position[1] *= state.persp_norm_factor;
-    v->position[2] *= state.persp_norm_factor;
-    v->position[3] *= state.persp_norm_factor;
+    //v->position[0] *= state.persp_norm_factor;
+    //v->position[1] *= state.persp_norm_factor;
+    //v->position[2] *= state.persp_norm_factor;
+    //v->position[3] *= state.persp_norm_factor;
 
     gl_vertex_calc_screenspace(v);
 
