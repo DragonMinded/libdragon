@@ -87,7 +87,7 @@ Welcome to libdragon</h1>
 <h1><a class="anchor" id="autotoc_md2"></a>
 Getting started: how to build a ROM</h1>
 <h2><a class="anchor" id="autotoc_md3"></a>
-Option 1: Use the libdragon CLI with Docker (Windows, macOS, Linux)</h2>
+Option 1: Use the libdragon CLI with Docker (Windows, macOS x86/arm, Linux)</h2>
 <p >See <a href="https://github.com/anacierdem/libdragon-docker">the libdragon CLI</a> to quickly get libdragon up and running. Basically:</p>
 <ol type="1">
 <li>Make sure that you have Docker installed correctly (on Windows and Mac, use Docker Desktop). You can run <code>docker system info</code> to check that it is working correctly.</li>
@@ -100,8 +100,10 @@ Option 1: Use the libdragon CLI with Docker (Windows, macOS, Linux)</h2>
 <li>Run <code>libdragon make</code> to compile a build a ROM</li>
 </ol>
 <p >If you want, you can also compile and run one of the examples that will be found in <code>libdragon/examples</code> in the skeleton project.</p>
+<p >Note for Apple Silicon users: we ship and update the docker container image for both x86-64 and arm64, so this option works on Apple Silicon machines too.</p>
 <h2><a class="anchor" id="autotoc_md4"></a>
-Option 2: Compile the toolchain (Linux/macOS only)</h2>
+Option 2: Compile the toolchain (Windows WSL2, macOS x86/arm, Linux)</h2>
+<p >These instructions work for Linux, macOS (Intel / Apple Silicon) and Windows with WSL2. WSL1 users must <a href="https://docs.microsoft.com/en-us/windows/wsl/install#upgrade-version-from-wsl-1-to-wsl-2">upgrade to WSL2 first</a>.</p>
 <ol type="1">
 <li>Export the environment variable N64_INST to the path where you want your toolchain to be installed. For instance: <code>export N64_INST=/opt/n64</code> or <code>export N64_INST=/usr/local</code>.</li>
 <li>Enter the <code>tools</code> directory. Read the comments at the top of <code>./build-toolchain.sh</code> script to see what additional packages are needed. If you are on macOS, make sure <a href="https://brew.sh">homebrew</a> is installed.</li>
@@ -133,7 +135,7 @@ Documentation</h1>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Aug 31 2022 17:48:24 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Thu Sep 1 2022 23:52:27 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
