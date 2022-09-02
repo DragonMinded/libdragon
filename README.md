@@ -76,10 +76,9 @@ be found in `libdragon/examples` in the skeleton project.
 4. Run `./build-toolchain.sh` from the `tools` directory, let it build and
    install the toolchain. The process will take a while depending on your computer
    (1 hour is not unexpected).
-5. Install libpng-dev if not already installed.
-6. Make sure that you still have the `N64_INST` variable pointing to the correct
+5. Make sure that you still have the `N64_INST` variable pointing to the correct
    directory where the toolchain was installed (`echo $N64_INST`).
-7. Run `./build.sh` at the top-level. This will install libdragon, its tools,
+6. Run `./build.sh` at the top-level. This will install libdragon, its tools,
    and also build all examples.
 
 You are now ready to run the examples on your N64 or emulator.

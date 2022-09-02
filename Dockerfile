@@ -26,6 +26,6 @@ ENV PATH="${N64_INST}/bin:$PATH"
 
 COPY --from=0 ${N64_INST} ${N64_INST}
 RUN apt-get update && \
-    apt-get install -yq gcc g++ make libpng-dev git  && \
+    apt-get install -yq gcc g++ make git  && \
     apt-get clean && \
     apt autoremove -yq
