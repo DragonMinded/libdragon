@@ -186,6 +186,43 @@ int convert(const char *infn, const char *outfn, tex_format_t outfmt, int hslice
     }
     free(png);
 
+    if (outfmt == FMT_CI4) {
+        LodePNGColorMode newmode = lodepng_color_mode_make(LCT_PALETTE, 8);
+        uint16_t outcolors[256];
+
+        // Remove duplicated colors from the palette (or rather: colors that become
+        // unique after conversion to RGBA5551). These are common when converting
+        // from RGBA16/RGBA32 using tools like ImageMagick. Doing so will hopefully
+        // help fitting the requested CI4 format.
+        newmode.palette = malloc(state.info_png.color.palettesize * 4);
+        newmode.palettesize = 0;
+        for (int i=0;i<state.info_png.color.palettesize;i++) {
+            uint8_t *cin = state.info_png.color.palette + i*4;
+            uint16_t cin16 = conv_rgb5551(cin[0], cin[1], cin[2], cin[3]);
+
+            bool found = false;
+            for (int j=0;j<newmode.palettesize;j++) {
+                if (cin16 == outcolors[j]) {
+                    found = true;
+                    // Remap color index in image
+                    for (int x=0;x<width*height;x++)
+                        if (image[x] == i)
+                            image[x] = j;
+                    break;
+                }
+            }
+            if (!found) {
+                uint8_t *cout = newmode.palette + newmode.palettesize*4;
+                memcpy(cout, cin, 4);
+                outcolors[newmode.palettesize] = cin16;
+                newmode.palettesize++;
+            }
+        }
+        if (flag_verbose)
+            printf("unique palette colors: %zu (original: %zu)\n", newmode.palettesize, state.info_png.color.palettesize);
+        state.info_raw = newmode;
+    }
+
     // If we're autodetecting the output format and the PNG had a palette, go
     // through the pixels and count the colors to see if it fits CI4. 
     // We do the same also if the user explicitly selected CI4, to be able to
