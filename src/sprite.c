@@ -72,7 +72,7 @@ surface_t sprite_get_pixels(sprite_t *sprite) {
         TEX_FORMAT_PIX2BYTES(sprite->format, sprite->width));
 }
 
-uint16_t* sprite_palette(sprite_t *sprite) {
+uint16_t* sprite_get_palette(sprite_t *sprite) {
     if (sprite->format == FMT_CI4 || sprite->format == FMT_CI8)
         return (uint16_t*)sprite->data;
     return NULL;

@@ -104,7 +104,7 @@ surface_t sprite_get_tile(sprite_t *sprite, int h, int v);
  * @param   sprite      The sprite to access
  * @return              A pointer to the palette data, or NULL if the sprite does not have a palette
  */
-surface_t sprite_get_palette(sprite_t *sprite);
+uint16_t* sprite_get_palette(sprite_t *sprite);
 
 #ifdef __cplusplus
 }
