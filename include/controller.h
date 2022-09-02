@@ -6,6 +6,8 @@
 #ifndef __LIBDRAGON_CONTROLLER_H
 #define __LIBDRAGON_CONTROLLER_H
 
+#include <stdint.h>
+
 /**
  * @addtogroup controller
  * @{

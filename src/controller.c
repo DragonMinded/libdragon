@@ -4,9 +4,13 @@
  * @ingroup controller
  */
 
-#include <string.h>
-#include "libdragon.h"
+#include "controller.h"
+#include "interrupt.h"
+#include "joybus.h"
 #include "joybusinternal.h"
+#include "debug.h"
+#include <string.h>
+#include <stdbool.h>
 
 /**
  * @defgroup controller Controller Subsystem
