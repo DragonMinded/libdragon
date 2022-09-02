@@ -110,6 +110,7 @@ int main()
     mixer_init(32);
 
     rdp_init();
+    rdpq_debug_start();
 
     brew_sprite = sprite_load("rom:/n64brew.sprite");
 
@@ -133,6 +134,12 @@ int main()
 
     rspq_block_begin();
 
+    // Enable palette mode and load palette into TMEM
+    if (tiles_sprite->format == FMT_CI4 || tiles_sprite->format == FMT_CI8) {
+        rdpq_mode_tlut(TLUT_RGBA16);
+        rdpq_tex_load_tlut(sprite_get_palette(tiles_sprite), 0, 16);
+    }
+
     uint32_t tile_width = tiles_sprite->width / tiles_sprite->hslices;
     uint32_t tile_height = tiles_sprite->height / tiles_sprite->vslices;
 
@@ -146,6 +153,7 @@ int main()
         }
     }
 
+    rdpq_mode_tlut(TLUT_NONE);    
     tiles_block = rspq_block_end();
     
     
