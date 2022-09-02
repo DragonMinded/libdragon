@@ -70,7 +70,7 @@ void render()
 
     rdp_attach(disp);
     
-    rdp_enable_texture_copy();
+    rdpq_set_mode_copy(true);
 
     rspq_block_run(tiles_block);
     
@@ -111,10 +111,7 @@ int main()
 
     rdp_init();
 
-    int fp = dfs_open("n64brew.sprite");
-    brew_sprite = malloc(dfs_size(fp));
-    dfs_read(brew_sprite, 1, dfs_size(fp), fp);
-    dfs_close(fp);
+    brew_sprite = sprite_load("rom:/n64brew.sprite");
 
     obj_max_x = display_width - brew_sprite->width;
     obj_max_y = display_height - brew_sprite->height;
@@ -130,14 +127,9 @@ int main()
         obj->dy = -3 + RANDN(7);
     }
 
-    fp = dfs_open("tiles.sprite");
-    tiles_sprite = malloc(dfs_size(fp));
-    dfs_read(tiles_sprite, 1, dfs_size(fp), fp);
-    dfs_close(fp);
+    tiles_sprite = sprite_load("rom:/tiles.sprite");
 
-    surface_t tiles_surf = surface_make(tiles_sprite->data, 
-        tiles_sprite->bitdepth == 2 ? FMT_RGBA16 : FMT_RGBA32,
-        tiles_sprite->width, tiles_sprite->height, tiles_sprite->width * tiles_sprite->bitdepth);
+    surface_t tiles_surf = sprite_get_pixels(tiles_sprite);
 
     rspq_block_begin();
 
