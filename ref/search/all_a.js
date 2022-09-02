@@ -19,13 +19,14 @@ var searchData=
   ['interrupts_5fenabled_16',['INTERRUPTS_ENABLED',['../group__interrupt.html#gga366982e291c08c36c7352ea07a6e096ca63f9f656dbca41f104246bcb920cc110',1,'interrupt.h']]],
   ['interrupts_5funinitialized_17',['INTERRUPTS_UNINITIALIZED',['../group__interrupt.html#gga366982e291c08c36c7352ea07a6e096ca8391f9b3514597a92d66f4ec813bbe22',1,'interrupt.h']]],
   ['intr_18',['intr',['../group__lowlevel.html#a5a5097a9eb34a41cbccc0ca68b3939d1',1,'MI_regs_t']]],
-  ['io_5fread_19',['io_read',['../group__dma.html#ga3594a5188d4cebfeab4ae572dfdeaf0d',1,'io_read(uint32_t pi_address):&#160;dma.c'],['../group__dma.html#ga3594a5188d4cebfeab4ae572dfdeaf0d',1,'io_read(uint32_t pi_address):&#160;dma.c']]],
-  ['io_5fwrite_20',['io_write',['../group__dma.html#gac5eb65e76faecd29c36757cdae3b6e36',1,'io_write(uint32_t pi_address, uint32_t data):&#160;dma.c'],['../group__dma.html#gac5eb65e76faecd29c36757cdae3b6e36',1,'io_write(uint32_t pi_address, uint32_t data):&#160;dma.c']]],
-  ['is_5ffirst_21',['is_first',['../rspq_8h.html#a86af89ac420fb4ad8c2a71416becdef8',1,'rspq_write_t']]],
-  ['is_5fmemory_5fexpanded_22',['is_memory_expanded',['../group__n64sys.html#ga28ba352e296d379426531772b874046d',1,'n64sys.c']]],
-  ['is_5fsgb_5fsupported_23',['is_sgb_supported',['../tpak_8h.html#a302756cfef331ca9e94ad4eb49e814c1',1,'gameboy_cartridge_header']]],
-  ['isatty_24',['isatty',['../group__system.html#ga2cf4c4b087df7b15fb2aa7401ddfc010',1,'system.c']]],
-  ['isviewer_5fbuffer_25',['ISVIEWER_BUFFER',['../debug_8c.html#ac8ee018ab83421d4023d62dbf101a3a7',1,'debug.c']]],
-  ['isviewer_5fbuffer_5flen_26',['ISVIEWER_BUFFER_LEN',['../debug_8c.html#a27745d9b9c5d96c55b87b67b1aa998d6',1,'debug.c']]],
-  ['isviewer_5fwrite_5flen_27',['ISVIEWER_WRITE_LEN',['../debug_8c.html#afc19541124f4e8e53c6deb3367030740',1,'debug.c']]]
+  ['io_5faccessible_19',['io_accessible',['../group__dma.html#ga64122532e1682bc912ad46e241730c75',1,'io_accessible(uint32_t pi_address):&#160;dma.c'],['../group__dma.html#ga64122532e1682bc912ad46e241730c75',1,'io_accessible(uint32_t pi_address):&#160;dma.c']]],
+  ['io_5fread_20',['io_read',['../group__dma.html#ga3594a5188d4cebfeab4ae572dfdeaf0d',1,'io_read(uint32_t pi_address):&#160;dma.c'],['../group__dma.html#ga3594a5188d4cebfeab4ae572dfdeaf0d',1,'io_read(uint32_t pi_address):&#160;dma.c']]],
+  ['io_5fwrite_21',['io_write',['../group__dma.html#gac5eb65e76faecd29c36757cdae3b6e36',1,'io_write(uint32_t pi_address, uint32_t data):&#160;dma.c'],['../group__dma.html#gac5eb65e76faecd29c36757cdae3b6e36',1,'io_write(uint32_t pi_address, uint32_t data):&#160;dma.c']]],
+  ['is_5ffirst_22',['is_first',['../rspq_8h.html#a86af89ac420fb4ad8c2a71416becdef8',1,'rspq_write_t']]],
+  ['is_5fmemory_5fexpanded_23',['is_memory_expanded',['../group__n64sys.html#ga28ba352e296d379426531772b874046d',1,'n64sys.c']]],
+  ['is_5fsgb_5fsupported_24',['is_sgb_supported',['../tpak_8h.html#a302756cfef331ca9e94ad4eb49e814c1',1,'gameboy_cartridge_header']]],
+  ['isatty_25',['isatty',['../group__system.html#ga2cf4c4b087df7b15fb2aa7401ddfc010',1,'system.c']]],
+  ['isviewer_5fbuffer_26',['ISVIEWER_BUFFER',['../debug_8c.html#ac8ee018ab83421d4023d62dbf101a3a7',1,'debug.c']]],
+  ['isviewer_5fbuffer_5flen_27',['ISVIEWER_BUFFER_LEN',['../debug_8c.html#a27745d9b9c5d96c55b87b67b1aa998d6',1,'debug.c']]],
+  ['isviewer_5fwrite_5flen_28',['ISVIEWER_WRITE_LEN',['../debug_8c.html#afc19541124f4e8e53c6deb3367030740',1,'debug.c']]]
 ];
