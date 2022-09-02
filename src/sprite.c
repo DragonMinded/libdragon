@@ -60,7 +60,7 @@ void sprite_free(sprite_t *s)
         last_spritemap = NULL;
 }
 
-surface_t sprite_surf_full(sprite_t *sprite) {
+surface_t sprite_get_pixels(sprite_t *sprite) {
     uint8_t *data = (uint8_t*)sprite->data;
 
     // Skip palette (if any)
@@ -91,7 +91,7 @@ surface_t sprite_get_tile(sprite_t *sprite, int h, int v) {
         tile_height = sprite->height / sprite->vslices;
     }
 
-    surface_t surf = sprite_surf_full(sprite);
+    surface_t surf = sprite_get_pixels(sprite);
     return surface_make_sub(&surf, 
         h*tile_width, v*tile_height,
         tile_width, tile_height);
