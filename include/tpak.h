@@ -7,7 +7,12 @@
 #ifndef __LIBDRAGON_TPAK_H
 #define __LIBDRAGON_TPAK_H
 
-#include "libdragon.h"
+#include <stdint.h>
+#include <stdbool.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * @anchor TPAK_ERROR
@@ -319,5 +324,9 @@ int tpak_get_cartridge_header(int controller, struct gameboy_cartridge_header* h
 bool tpak_check_header(struct gameboy_cartridge_header* header);
 int tpak_write(int controller, uint16_t address, uint8_t* data, uint16_t size);
 int tpak_read(int controller, uint16_t address, uint8_t* buffer, uint16_t size);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
