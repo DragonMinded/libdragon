@@ -92,6 +92,7 @@ int convert(const char *infn, const char *outfn, tex_format_t outfmt, int hslice
     unsigned width, height;
     LodePNGState state;
     bool autofmt = (outfmt == FMT_NONE);
+    bool inspected = false;
 
     // Initialize lodepng and load the input file into memory (without decoding).
     lodepng_state_init(&state);
@@ -109,6 +110,7 @@ int convert(const char *infn, const char *outfn, tex_format_t outfmt, int hslice
             fprintf(stderr, "%s: PNG reading error: %u: %s\n", infn, error, lodepng_error_text(error));
             return 1;
         }
+        inspected = true;
 
         // Autodetect the best output format depending on the input format
         // The rule of thumb is that we want to preserve the information on the
@@ -142,6 +144,21 @@ int convert(const char *infn, const char *outfn, tex_format_t outfmt, int hslice
         state.info_raw.bitdepth = 8;
         break;
     case FMT_CI8: case FMT_CI4:
+        // Inspect the PNG if we haven't already
+        if (!inspected) {
+            error = lodepng_inspect(&width, &height, &state, png, pngsize);
+            if(error) {
+                fprintf(stderr, "%s: PNG reading error: %u: %s\n", infn, error, lodepng_error_text(error));
+                return 1;
+            }
+            inspected = true;
+        }
+        if (state.info_png.color.colortype != LCT_PALETTE) {
+            // lodepng does not support creating a palette from a non-palettized image, even
+            // if the number of colors is very little
+            fprintf(stderr, "%s: PNG has no palette, cannot convert to %s\n", infn, tex_format_name(outfmt));
+            return 1;
+        }
         // lodepng does not encode to 4bit palettized, so for now just force 8bit
         state.info_raw.colortype = LCT_PALETTE;
         state.info_raw.bitdepth = 8;
