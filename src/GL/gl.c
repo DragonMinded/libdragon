@@ -98,7 +98,7 @@ void gl_init()
     memset(&state, 0, sizeof(state));
 
     gl_server_state_t *server_state = rspq_overlay_get_state(&rsp_gl);
-    memset(&server_state, 0, sizeof(gl_server_state_t));
+    memset(server_state, 0, sizeof(gl_server_state_t));
 
     gl_overlay_id = rspq_overlay_register(&rsp_gl);
 

@@ -61,6 +61,24 @@ static const rdpq_blender_t blend_configs[64] = {
     0, 0, 0, 0, 0, 0, 0, 0,                                        // src = ONE_MINUS_DST_ALPHA, dst = ...
 };
 
+#define TEXTURE_REPLACE 0x1
+#define COLOR_CONSTANT  0x2
+#define TEXTURE_ENABLED 0x4
+
+static const rdpq_combiner_t combiner_table[] = {
+    // No texture
+    RDPQ_COMBINER1((0, 0, 0, SHADE), (0, 0, 0, SHADE)),         // "modulate"
+    RDPQ_COMBINER1((0, 0, 0, SHADE), (0, 0, 0, SHADE)),         // "replace"
+    RDPQ_COMBINER1((0, 0, 0, PRIM), (0, 0, 0, PRIM)),           // constant "modulate"
+    RDPQ_COMBINER1((0, 0, 0, PRIM), (0, 0, 0, PRIM)),           // constant "replace"
+
+    // Texture enabled
+    RDPQ_COMBINER1((TEX0, 0, SHADE, 0), (TEX0, 0, SHADE, 0)),   // modulate
+    RDPQ_COMBINER1((0, 0, 0, TEX0), (0, 0, 0, TEX0)),           // replace
+    RDPQ_COMBINER1((TEX0, 0, PRIM, 0), (TEX0, 0, PRIM, 0)),     // constant modulate
+    RDPQ_COMBINER1((0, 0, 0, TEX0), (0, 0, 0, TEX0)),           // constant replace
+};
+
 void gl_rendermode_init()
 {
     state.fog_start = 0.0f;
@@ -107,37 +125,11 @@ void gl_update_rendermode()
         }
     }
 
+    // TODO: enable/disable mipmap interpolation
+
     rdpq_mode_filter(filter);
     rdpq_mode_mipmap(mipmaps);
 }
-
-rdpq_combiner_t combiner_table[] = {
-    // Texture enabled
-    RDPQ_COMBINER1((TEX0, 0, SHADE, 0), (TEX0, 0, SHADE, 0)),   // modulate
-    RDPQ_COMBINER1((0, 0, 0, TEX0), (0, 0, 0, TEX0)),           // replace
-    RDPQ_COMBINER1((TEX0, 0, PRIM, 0), (TEX0, 0, PRIM, 0)),     // constant modulate
-    0,
-
-    // No texture
-    RDPQ_COMBINER1((0, 0, 0, SHADE), (0, 0, 0, SHADE)),         // "modulate"
-    0,
-    RDPQ_COMBINER1((0, 0, 0, PRIM), (0, 0, 0, PRIM)),           // constant "modulate"
-    0,
-
-    // Texture with mipmap interpolation
-    // TODO: remove when mipmap interpolation is built into rdpq_mode
-    RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (0, 0, 0, COMBINED), (0, 0, 0, COMBINED)),           // replace
-    RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (COMBINED, 0, SHADE, 0), (COMBINED, 0, SHADE, 0)),   // modulate
-    RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (COMBINED, 0, PRIM, 0), (COMBINED, 0, PRIM, 0)),     // constant modulate
-    0,
-
-    // "No texture with mipmap interpolation" is missing because it makes no sense and will never happen
-};
-
-#define TEXTURE_REPLACE     0x1
-#define COLOR_CONSTANT      0x2
-#define TEXTURE_DISABLED    0x4
-#define MIPMAP_INTERPOLATE  0x8
 
 void gl_update_combiner()
 {
@@ -149,16 +141,11 @@ void gl_update_combiner()
 
     gl_texture_object_t *tex_obj = gl_get_active_texture();
     if (tex_obj != NULL && tex_obj->is_complete) {
-        if ((tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR || tex_obj->min_filter == GL_NEAREST_MIPMAP_LINEAR)) {
-            mode |= MIPMAP_INTERPOLATE;
-        }
+        mode |= TEXTURE_ENABLED;
+    }
 
-        if (state.tex_env_mode == GL_REPLACE) {
-            mode |= TEXTURE_REPLACE;
-        }
-
-    } else {
-        mode |= TEXTURE_DISABLED;
+    if (state.tex_env_mode == GL_REPLACE) {
+        mode |= TEXTURE_REPLACE;
     }
 
     rdpq_mode_combiner(combiner_table[mode]);
