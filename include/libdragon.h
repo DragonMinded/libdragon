@@ -60,5 +60,6 @@
 #include "rdpq_debug.h"
 #include "rdpq_macros.h"
 #include "surface.h"
+#include "sprite.h"
 
 #endif

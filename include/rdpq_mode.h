@@ -333,6 +333,12 @@ void rdpq_set_mode_yuv(bool bilinear);
  * the second type, make sure that you did not pass #ANTIALIAS_OFF to
  * #display_init.
  * 
+ * On the other hand, if you want to make sure that no antialias is performed,
+ * disable antialias with `rdpq_mode_antialias(false)` (which is the default
+ * for #rdpq_mode_standard), and that will make sure that the VI will not
+ * do anything to the image, even if #display_init was called with
+ * #ANTIALIAS_RESAMPLE.
+ *
  * @note Antialiasing internally uses the blender unit. If you already
  *       configured a formula via #rdpq_mode_blender, antialias will just
  *       rely on that one to correctly blend pixels with the framebuffer.
@@ -425,14 +431,15 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
             comb & 0xFFFFFFFF);
     else {
         rdpq_combiner_t comb1_mask = RDPQ_COMB1_MASK;
-        if (((comb1_mask >> 0 ) &  7) == 1) comb1_mask ^= 1ull << 0;
-        if (((comb1_mask >> 3 ) &  7) == 1) comb1_mask ^= 1ull << 3;
-        if (((comb1_mask >> 6 ) &  7) == 1) comb1_mask ^= 1ull << 6;
-        if (((comb1_mask >> 18) &  7) == 1) comb1_mask ^= 1ull << 18;
-        if (((comb1_mask >> 21) &  7) == 1) comb1_mask ^= 1ull << 21;
-        if (((comb1_mask >> 24) &  7) == 1) comb1_mask ^= 1ull << 24;
-        if (((comb1_mask >> 32) & 31) == 1) comb1_mask ^= 1ull << 32;
-        if (((comb1_mask >> 37) & 15) == 1) comb1_mask ^= 1ull << 37;
+        if (((comb >> 0 ) &  7) == 1) comb1_mask ^= 1ull << 0;
+        if (((comb >> 3 ) &  7) == 1) comb1_mask ^= 1ull << 3;
+        if (((comb >> 6 ) &  7) == 1) comb1_mask ^= 1ull << 6;
+        if (((comb >> 18) &  7) == 1) comb1_mask ^= 1ull << 18;
+        if (((comb >> 21) &  7) == 1) comb1_mask ^= 1ull << 21;
+        if (((comb >> 24) &  7) == 1) comb1_mask ^= 1ull << 24;
+        if (((comb >> 32) & 31) == 1) comb1_mask ^= 1ull << 32;
+        if (((comb >> 37) & 15) == 1) comb1_mask ^= 1ull << 37;
+        debugf("COMB1_MASK: %016llx\n", comb1_mask);
 
         __rdpq_fixup_mode4(RDPQ_CMD_SET_COMBINE_MODE_1PASS,
             (comb >> 32) & 0x00FFFFFF,

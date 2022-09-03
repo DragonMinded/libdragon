@@ -7,8 +7,11 @@
 #define __LIBDRAGON_RDP_H
 
 #include "display.h"
-#include "graphics.h"
 #include <stdbool.h>
+
+///@cond
+typedef struct sprite_s sprite_t;
+///@endcond
 
 /**
  * @addtogroup rdp

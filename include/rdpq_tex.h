@@ -126,6 +126,10 @@ int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, int tmem_addr);
  * be 8-byte aligned (like all RDP textures), so it can only be used if the
  * rectangle that needs to be loaded respects such constraint as well.
  * 
+ * There is also a variation for CI4 surfaces that lets you specify the palette number:
+ * #rdpq_tex_load_sub_ci4. You can still use #rdpq_tex_load_sub for CI4 surfaces, but
+ * the output tile descriptor will always be bound to palette 0.
+ * 
  * @param tile       Tile descriptor that will be initialized with this texture
  * @param tex        Surface containing the texture to load
  * @param tmem_addr  Address in TMEM where the texture will be loaded
@@ -136,9 +140,35 @@ int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, int tmem_addr);
  * @return int       Number of bytes used in TMEM for this texture
  * 
  * @see #rdpq_tex_load
+ * @see #rdpq_tex_load_sub_ci4
  * @see #surface_make_sub
  */
 int rdpq_tex_load_sub(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int s0, int t0, int s1, int t1);
+
+/**
+ * @brief Load a portion of a CI4 texture into TMEM
+ * 
+ * This is similar to #rdpq_tex_load_sub, but is specialized for CI4 textures, and allows
+ * to specify the palette number to use.
+ * 
+ * See #rdpq_tex_load_sub for a detailed description.
+ * 
+ * @param tile       Tile descriptor that will be initialized with this texture
+ * @param tex        Surface containing the texture to load
+ * @param tmem_addr  Address in TMEM where the texture will be loaded
+ * @param tlut       Palette number
+ * @param s0         Top-left X coordinate of the rectangle to load
+ * @param t0         Top-left Y coordinate of the rectangle to load
+ * @param s1         Bottom-right *exclusive* X coordinate of the rectangle
+ * @param t1         Bottom-right *exclusive* Y coordinate of the rectangle
+ * @return int       Number of bytes used in TMEM for this texture
+ * 
+ * @see #rdpq_tex_load_sub
+ * @see #rdpq_tex_load_ci4
+ * @see #surface_make_sub
+ */
+
+int rdpq_tex_load_sub_ci4(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int tlut, int s0, int t0, int s1, int t1);
 
 /**
  * @brief Load one or more palettes into TMEM

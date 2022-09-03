@@ -12,6 +12,7 @@
 #include "debug.h"
 #include "n64sys.h"
 #include "utils.h"
+#include "sprite.h"
 #include <stdint.h>
 #include <malloc.h>
 #include <string.h>
@@ -212,13 +213,11 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     /* Invalidate data associated with sprite in cache */
     if( flush_strategy == FLUSH_STRATEGY_AUTOMATIC )
     {
-        data_cache_hit_writeback_invalidate( sprite->data, sprite->width * sprite->height * sprite->bitdepth );
+        data_cache_hit_writeback_invalidate( sprite->data, sprite->width * sprite->height * TEX_FORMAT_BITDEPTH(sprite->format) / 8 );
     }
 
-    tex_format_t sprite_format = (sprite->bitdepth == 2) ? FMT_RGBA16 : FMT_RGBA32;
-
     /* Point the RDP at the actual sprite data */
-    rdpq_set_texture_image_raw(0, PhysicalAddr(sprite->data), sprite_format, sprite->width, sprite->height);
+    rdpq_set_texture_image_raw(0, PhysicalAddr(sprite->data), sprite->format, sprite->width, sprite->height);
 
     /* Figure out the s,t coordinates of the sprite we are copying out of */
     int twidth = sh - sl + 1;
@@ -230,12 +229,12 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     uint32_t wbits = __rdp_log2( real_width );
     uint32_t hbits = __rdp_log2( real_height );
 
-    uint32_t tmem_pitch = ROUND_UP(real_width * sprite->bitdepth, 8);
+    uint32_t tmem_pitch = ROUND_UP(real_width * TEX_FORMAT_BITDEPTH(sprite->format) / 8, 8);
 
     /* Instruct the RDP to copy the sprite data out */
     rdpq_set_tile_full(
         texslot,
-        sprite_format,
+        sprite->format,
         texloc,
         tmem_pitch,
         0, 
@@ -266,6 +265,8 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
 uint32_t rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror, sprite_t *sprite )
 {
     if( !sprite ) { return 0; }
+    assertf(sprite->format == FMT_RGBA16 || sprite->format == FMT_RGBA32,
+        "only sprites in FMT_RGBA16 or FMT_RGBA32 are supported");
 
     return __rdp_load_texture( texslot, texloc, mirror, sprite, 0, 0, sprite->width - 1, sprite->height - 1 );
 }
@@ -273,6 +274,8 @@ uint32_t rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror, s
 uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mirror, sprite_t *sprite, int offset )
 {
     if( !sprite ) { return 0; }
+    assertf(sprite->format == FMT_RGBA16 || sprite->format == FMT_RGBA32,
+        "only sprites in FMT_RGBA16 or FMT_RGBA32 are supported");
 
     /* Figure out the s,t coordinates of the sprite we are copying out of */
     int twidth = sprite->width / sprite->hslices;

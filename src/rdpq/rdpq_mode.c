@@ -99,6 +99,7 @@ void rdpq_set_mode_standard(void) {
     __rdpq_reset_render_mode(
         cc >> 32,   cc & 0xFFFFFFFF,
         som >> 32, som & 0xFFFFFFFF);
+    rdpq_mode_combiner(cc); // FIXME: this should not be required, but we need it for the mipmap mask
 }
 
 void rdpq_set_mode_yuv(bool bilinear) {

@@ -4,7 +4,8 @@
  * @ingroup transferpak
  */
 
-#include "libdragon.h"
+#include "tpak.h"
+#include "controller.h"
 #include <string.h>
 
 /**

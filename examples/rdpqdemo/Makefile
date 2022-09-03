@@ -28,10 +28,10 @@ filesystem/%.wav64: assets/%.wav
 filesystem/%.sprite: assets/%.png
 	@mkdir -p $(dir $@)
 	@echo "    [SPRITE] $@"
-	@$(N64_MKSPRITE) $(MKSPRITE_FLAGS) "$<" "$@"
+	@$(N64_MKSPRITE) $(MKSPRITE_FLAGS) -o filesystem "$<"
 
-filesystem/n64brew.sprite: MKSPRITE_FLAGS=16 2 3
-filesystem/tiles.sprite: MKSPRITE_FLAGS=16 2 2
+filesystem/n64brew.sprite: MKSPRITE_FLAGS=--format RGBA16 --tiles 32,32
+filesystem/tiles.sprite: MKSPRITE_FLAGS=--format CI4 --tiles 32,32
 
 $(BUILD_DIR)/rdpqdemo.dfs: $(assets_conv)
 $(BUILD_DIR)/rdpqdemo.elf: $(src:%.c=$(BUILD_DIR)/%.o)
