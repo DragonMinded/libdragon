@@ -121,20 +121,18 @@ void gl_update_rendermode()
             filter = FILTER_BILINEAR;
         }
 
-        if (tex_obj->min_filter == GL_NEAREST_MIPMAP_NEAREST || 
-            tex_obj->min_filter == GL_LINEAR_MIPMAP_NEAREST) {
-            mipmap = MIPMAP_NEAREST;
-        } else if (tex_obj->min_filter == GL_NEAREST_MIPMAP_LINEAR || 
-                   tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR) {
-            mipmap = MIPMAP_INTERPOLATE;
-        }
+        if (!gl_calc_is_points()) {
+            if (tex_obj->min_filter == GL_NEAREST_MIPMAP_NEAREST || 
+                tex_obj->min_filter == GL_LINEAR_MIPMAP_NEAREST) {
+                mipmap = MIPMAP_NEAREST;
+            } else if (tex_obj->min_filter == GL_NEAREST_MIPMAP_LINEAR || 
+                    tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR) {
+                mipmap = MIPMAP_INTERPOLATE;
+            }
 
-        if (tex_obj->min_filter != GL_LINEAR && tex_obj->min_filter != GL_NEAREST && !gl_calc_is_points()) {
             levels = tex_obj->num_levels;
         }
     }
-
-    // TODO: enable/disable mipmap interpolation
 
     rdpq_mode_filter(filter);
     rdpq_mode_mipmap(mipmap, levels);
