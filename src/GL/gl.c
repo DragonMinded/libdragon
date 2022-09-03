@@ -47,8 +47,12 @@ uint32_t gl_get_type_size(GLenum type)
 void gl_set_framebuffer(gl_framebuffer_t *framebuffer)
 {
     state.cur_framebuffer = framebuffer;
+    // TODO: disable auto scissor?
     rdpq_set_color_image(state.cur_framebuffer->color_buffer);
     rdpq_set_z_image_raw(0, PhysicalAddr(state.cur_framebuffer->depth_buffer));
+
+    uint32_t size = (framebuffer->color_buffer->width << 16) | framebuffer->color_buffer->height;
+    gl_set_word(GL_UPDATE_SCISSOR, offsetof(gl_server_state_t, fb_size), size);
 }
 
 void gl_set_default_framebuffer()
@@ -116,6 +120,7 @@ void gl_init()
 
     gl_set_default_framebuffer();
     glViewport(0, 0, state.default_framebuffer.color_buffer->width, state.default_framebuffer.color_buffer->height);
+    glScissor(0, 0, state.default_framebuffer.color_buffer->width, state.default_framebuffer.color_buffer->height);
 
     uint32_t packed_size = ((uint32_t)state.default_framebuffer.color_buffer->width) << 16 | (uint32_t)state.default_framebuffer.color_buffer->height;
 
@@ -157,8 +162,6 @@ void gl_set_flag2(GLenum target, bool value)
     switch (target) {
     case GL_SCISSOR_TEST:
         gl_set_flag(GL_UPDATE_SCISSOR, FLAG_SCISSOR_TEST, value);
-        state.scissor_test = value;
-        gl_update_scissor(); // TODO: remove this
         break;
     case GL_DEPTH_TEST:
         gl_set_flag(GL_UPDATE_DEPTH_TEST, FLAG_DEPTH_TEST, value);
@@ -332,8 +335,6 @@ void glClear(GLbitfield buf)
     rdpq_mode_push();
 
     rdpq_set_mode_fill(RGBA16(0,0,0,0));
-
-    gl_update_scissor();
 
     gl_framebuffer_t *fb = state.cur_framebuffer;
 

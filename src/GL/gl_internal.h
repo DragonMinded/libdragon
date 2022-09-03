@@ -245,16 +245,15 @@ typedef struct {
     GLfloat fog_start;
     GLfloat fog_end;
 
-    bool scissor_test;
     bool depth_test;
+    bool alpha_test;
+
     bool texture_1d;
     bool texture_2d;
-    bool blend;
-    bool alpha_test;
+    
     bool lighting;
     bool fog;
     bool color_material;
-    bool multisample;
     bool normalize;
 
     gl_array_t arrays[ATTRIB_COUNT];
@@ -351,7 +350,6 @@ typedef struct {
 } gl_state_t;
 
 typedef struct {
-    uint64_t scissor;
     uint32_t flags;
     uint32_t depth_func;
     uint32_t alpha_func;
@@ -396,7 +394,6 @@ bool gl_is_invisible();
 
 bool gl_calc_is_points();
 
-void gl_update_scissor();
 void gl_update_rendermode();
 void gl_update_combiner();
 void gl_update_texture();
