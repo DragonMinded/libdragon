@@ -110,7 +110,6 @@ void gl_init()
     gl_primitive_init();
     gl_pixel_init();
     gl_list_init();
-    gl_buffer_init();
 
     glDrawBuffer(GL_FRONT);
     glDepthRange(0, 1);
@@ -129,7 +128,6 @@ void gl_init()
 
 void gl_close()
 {
-    gl_buffer_close();
     gl_list_close();
     gl_primitive_close();
     gl_texture_close();

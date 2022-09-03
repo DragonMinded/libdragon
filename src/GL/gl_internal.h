@@ -172,12 +172,11 @@ typedef struct {
 } gl_storage_t;
 
 typedef struct {
-    GLuint name;
     GLenum usage;
     GLenum access;
-    bool mapped;
     GLvoid *pointer;
     gl_storage_t storage;
+    bool mapped;
 } gl_buffer_object_t;
 
 typedef struct {
@@ -250,7 +249,7 @@ typedef struct {
 
     bool texture_1d;
     bool texture_2d;
-    
+
     bool lighting;
     bool fog;
     bool color_material;
@@ -296,9 +295,6 @@ typedef struct {
     gl_texture_object_t default_texture_1d;
     gl_texture_object_t default_texture_2d;
 
-    obj_map_t texture_objects;
-    GLuint next_tex_name;
-
     gl_texture_object_t *texture_1d_object;
     gl_texture_object_t *texture_2d_object;
 
@@ -340,9 +336,6 @@ typedef struct {
     GLuint list_base;
     GLuint current_list;
 
-    obj_map_t buffer_objects;
-    GLuint next_buffer_name;
-
     gl_buffer_object_t *array_buffer;
     gl_buffer_object_t *element_array_buffer;
 
@@ -373,12 +366,10 @@ void gl_array_init();
 void gl_primitive_init();
 void gl_pixel_init();
 void gl_list_init();
-void gl_buffer_init();
 
 void gl_texture_close();
 void gl_primitive_close();
 void gl_list_close();
-void gl_buffer_close();
 
 void gl_set_error(GLenum error);
 
@@ -410,6 +401,17 @@ uint32_t gl_get_type_size(GLenum type);
 bool gl_storage_alloc(gl_storage_t *storage, uint32_t size);
 void gl_storage_free(gl_storage_t *storage);
 bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size);
+
+inline bool is_in_heap_memory(void *ptr)
+{
+    extern char end;
+    return ptr >= (void*)&end && ptr < ((void*)KSEG0_START_ADDR + get_memory_size());
+}
+
+inline bool is_valid_object_id(GLuint id)
+{
+    return is_in_heap_memory((void*)id);
+}
 
 inline void gl_set_flag(gl_update_func_t update_func, uint32_t flag, bool value)
 {

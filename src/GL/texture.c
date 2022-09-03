@@ -34,9 +34,6 @@ void gl_texture_init()
     gl_init_texture_object(&state.default_texture_1d);
     gl_init_texture_object(&state.default_texture_2d);
 
-    obj_map_new(&state.texture_objects);
-    state.next_tex_name = 1;
-
     state.default_texture_1d.dimensionality = GL_TEXTURE_1D;
     state.default_texture_2d.dimensionality = GL_TEXTURE_2D;
 
@@ -48,13 +45,6 @@ void gl_texture_close()
 {
     gl_cleanup_texture_object(&state.default_texture_1d);
     gl_cleanup_texture_object(&state.default_texture_2d);
-
-    obj_map_iter_t tex_iter = obj_map_iterator(&state.texture_objects);
-    while (obj_map_iterator_next(&tex_iter)) {
-        gl_cleanup_texture_object((gl_texture_object_t*)tex_iter.value);
-    }
-
-    obj_map_free(&state.texture_objects);
 }
 
 uint32_t gl_log2(uint32_t s)
@@ -723,12 +713,12 @@ void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei widt
         return;
     }
 
-    if (data != NULL) {
-        gl_transfer_pixels(new_buffer, preferred_format, stride, width, height, num_elements, format, type, 0, data);
-    }
-
     if (image->data != NULL) {
         free_uncached(image->data);
+    }
+
+    if (data != NULL) {
+        gl_transfer_pixels(new_buffer, preferred_format, stride, width, height, num_elements, format, type, 0, data);
     }
 
     image->data = new_buffer;
@@ -1100,16 +1090,18 @@ void glTexParameterfv(GLenum target, GLenum pname, const GLfloat *params)
     }
 }
 
-gl_texture_object_t * gl_create_texture(GLuint name)
+GLboolean glIsTexture(GLuint texture)
 {
-    gl_texture_object_t *new_object = calloc(1, sizeof(gl_texture_object_t));
-    gl_init_texture_object(new_object);
-    obj_map_set(&state.texture_objects, state.next_tex_name, new_object);
-    return new_object;
+    // FIXME: This doesn't actually guarantee that it's a valid texture object, but just uses the heuristic of
+    //        "is it somewhere in the heap memory?". This way we can at least rule out arbitrarily chosen integer constants,
+    //        which used to be valid texture IDs in legacy OpenGL.
+    return is_valid_object_id(texture);
 }
 
 void glBindTexture(GLenum target, GLuint texture)
 {
+    assertf(texture == 0 || is_valid_object_id(texture), "Not a valid texture object: %#lx", texture);
+
     gl_texture_object_t **target_obj = NULL;
 
     switch (target) {
@@ -1134,17 +1126,14 @@ void glBindTexture(GLenum target, GLuint texture)
             break;
         }
     } else {
-        gl_texture_object_t *obj = obj_map_get(&state.texture_objects, texture);
+        gl_texture_object_t *obj = (gl_texture_object_t*)texture;
 
         if (obj != NULL && obj->dimensionality != 0 && obj->dimensionality != target) {
             gl_set_error(GL_INVALID_OPERATION);
             return;
         }
 
-        if (obj == NULL) {
-            obj = gl_create_texture(texture);
-            obj->dimensionality = target;
-        }
+        obj->dimensionality = target;
 
         *target_obj = obj;
     }
@@ -1154,8 +1143,9 @@ void glGenTextures(GLsizei n, GLuint *textures)
 {
     for (uint32_t i = 0; i < n; i++)
     {
-        gl_create_texture(state.next_tex_name);
-        textures[i] = state.next_tex_name++;
+        gl_texture_object_t *new_object = calloc(1, sizeof(gl_texture_object_t));
+        gl_init_texture_object(new_object);
+        textures[i] = (GLuint)new_object;
     }
 }
 
@@ -1163,11 +1153,9 @@ void glDeleteTextures(GLsizei n, const GLuint *textures)
 {
     for (uint32_t i = 0; i < n; i++)
     {
-        if (textures[i] == 0) {
-            continue;
-        }
+        assertf(textures[i] == 0 || is_valid_object_id(textures[i]), "Not a valid texture object: %#lx", textures[i]);
 
-        gl_texture_object_t *obj = obj_map_remove(&state.texture_objects, textures[i]);
+        gl_texture_object_t *obj = (gl_texture_object_t*)textures[i];
         if (obj == NULL) {
             continue;
         }

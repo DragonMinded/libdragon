@@ -5,6 +5,7 @@ extern gl_state_t state;
 
 void gl_list_init()
 {
+    // TODO: Get rid of the hash map. This will be difficult due to the semantics of glGenLists (it's guaranteed to generate consecutive IDs)
     obj_map_new(&state.list_objects);
     state.next_list_name = 1;
 }
