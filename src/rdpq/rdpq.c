@@ -504,7 +504,7 @@ static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
         break;
 
     case RDPQ_ASSERT_MIPMAP_COMB2:
-        printf("Mipmap cannot work with a custom 2-pass combiner\n");
+        printf("Interpolated mipmap cannot work with a custom 2-pass combiner\n");
         break;
 
     default:

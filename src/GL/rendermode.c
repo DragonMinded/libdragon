@@ -108,27 +108,36 @@ void gl_update_rendermode()
     gl_texture_object_t *tex_obj = gl_get_active_texture();
 
     rdpq_filter_t filter = FILTER_POINT;
-    int mipmaps = 0;
+    rdpq_mipmap_t mipmap = MIPMAP_NONE;
+    int levels = 0;
 
     // texture
     if (tex_obj != NULL && tex_obj->is_complete) {
         // We can't use separate modes for minification and magnification, so just use bilinear sampling when at least one of them demands it
         if (tex_obj->mag_filter == GL_LINEAR || 
-            tex_obj->min_filter == GL_LINEAR || 
+            tex_obj->min_filter == GL_LINEAR ||
             tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR || 
             tex_obj->min_filter == GL_LINEAR_MIPMAP_NEAREST) {
             filter = FILTER_BILINEAR;
         }
 
+        if (tex_obj->min_filter == GL_NEAREST_MIPMAP_NEAREST || 
+            tex_obj->min_filter == GL_LINEAR_MIPMAP_NEAREST) {
+            mipmap = MIPMAP_NEAREST;
+        } else if (tex_obj->min_filter == GL_NEAREST_MIPMAP_LINEAR || 
+                   tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR) {
+            mipmap = MIPMAP_INTERPOLATE;
+        }
+
         if (tex_obj->min_filter != GL_LINEAR && tex_obj->min_filter != GL_NEAREST && !gl_calc_is_points()) {
-            mipmaps = tex_obj->num_levels - 1;
+            levels = tex_obj->num_levels;
         }
     }
 
     // TODO: enable/disable mipmap interpolation
 
     rdpq_mode_filter(filter);
-    rdpq_mode_mipmap(mipmaps);
+    rdpq_mode_mipmap(mipmap, levels);
 }
 
 void gl_update_combiner()

@@ -1395,7 +1395,7 @@ void test_rdpq_mipmap(TestContext *ctx) {
     rdpq_load_tile(1, 0, 0, TEXWIDTH, TEXWIDTH);
 
     rdpq_set_mode_standard();
-    rdpq_mode_mipmap(4);
+    rdpq_mode_mipmap(MIPMAP_NEAREST, 4);
     rdpq_triangle(TILE0, 0, 0, -1, 2, 0,
         (float[]){ 4.0f,   4.0f, 0.0f, 0.0f, 1.0f },
         (float[]){ 12.0f,  4.0f, 8.0f, 0.0f, 1.0f },

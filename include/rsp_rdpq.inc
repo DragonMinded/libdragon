@@ -424,8 +424,8 @@ RDPQ_UpdateRenderMode:
     bgez comb_hi, calc_comb_1cyc
     lw comb_lo, %lo(RDPQ_COMBINER) + 4
 
-    # This is a 2-pass combiner. It is not compatible with mipmapping.
-    and t0, som_hi, SOM_TEXTURE_LOD >> 32
+    # This is a 2-pass combiner. It is not compatible with interpolated mipmaps.
+    and t0, som_hi, SOMX_LOD_INTERPOLATE >> 32
     assert_eq t0, zero, RDPQ_ASSERT_MIPMAP_COMB2
     j store_comb_2cyc
 
@@ -463,7 +463,7 @@ fog_change:
     lw comb_lo, 4(s0)
 
 check_mipmap:
-    and t0, som_hi, SOM_TEXTURE_LOD >> 32
+    and t0, som_hi, SOMX_LOD_INTERPOLATE >> 32
     beqz t0, store_comb_1cyc
 
     # Mipmapping is active. We want to add RDPQ_COMB_MIPMAP as step0

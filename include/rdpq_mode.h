@@ -227,6 +227,15 @@ typedef enum rdpq_tlut_s {
 } rdpq_tlut_t;
 
 /**
+ * @brief Types of mipmap supported by RDP
+ */
+typedef enum rdpq_mipmap_s {
+    MIPMAP_NONE        = 0,                                                ///< Mipmap disabled
+    MIPMAP_NEAREST     = SOM_TEXTURE_LOD >> 32,                            ///< Choose the nearest mipmap level
+    MIPMAP_INTERPOLATE = (SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE) >> 32,   ///< Interpolate between the two nearest mipmap levels (also known as "trilinear")
+} rdpq_mipmap_t;
+
+/**
  * @name Render modes
  * 
  * These functions set a new render mode from scratch. Every render state is 
@@ -395,9 +404,10 @@ inline void rdpq_mode_antialias(bool enable)
  * When using a custom formula, you must take into account that some render states
  * also rely on the combiner to work. Specifically:
  * 
- *  * Mipmap (#rdpq_mode_mipmap): this requires a dedicated color combiner pass,
- *    so if you set a custom formula, it has to be a one-pass formula. Otherwise,
- *    a RSP assertion will trigger.
+ *  * Mipmap (#rdpq_mode_mipmap): when activating interpolated mipmapping
+ *    (#MIPMAP_INTERPOLATE, also known as "trilinear filterig"), a dedicated
+ *    color combiner pass is needed, so if you set a custom formula, it has to be
+ *    a one-pass formula. Otherwise, a RSP assertion will trigger.
  *  * Fog (#rdpq_mode_fog): fogging is generally made by substituting the alpha
  *    component of the shade color with a depth value, which is then used in
  *    the blender formula (eg: #RDPQ_FOG_STANDARD). The only interaction with the
@@ -439,7 +449,6 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
         if (((comb >> 24) &  7) == 1) comb1_mask ^= 1ull << 24;
         if (((comb >> 32) & 31) == 1) comb1_mask ^= 1ull << 32;
         if (((comb >> 37) & 15) == 1) comb1_mask ^= 1ull << 37;
-        debugf("COMB1_MASK: %016llx\n", comb1_mask);
 
         __rdpq_fixup_mode4(RDPQ_CMD_SET_COMBINE_MODE_1PASS,
             (comb >> 32) & 0x00FFFFFF,
@@ -649,17 +658,21 @@ inline void rdpq_mode_filter(rdpq_filter_t filt) {
  * (a task for which rdpq is currently missing a helper, so it has to be done manually).
  * Also, multiple consecutive tile descriptors (one for each LOD) must have been configured.
  * 
- * If you call #rdpq_triangle when mipmap is active, pass 0 to the number of mipmaps
- * of that function, as the number of levels set here will win over it.
+ * If you call #rdpq_triangle when mipmap is active via #rdpq_mode_mipmap, pass 0
+ * to the number of mipmaps of that function, as the number of levels set here
+ * will win over it.
  * 
- * @param num_levels    Number of mipmap levels to use (or 0 to disable mip-mapping)
+ * @param mode          Mipmapping mode (use #MIPMAP_NONE to disable)
+ * @param num_levels    Number of mipmap levels to use. Pass 0 when setting MIPMAP_NONE.
  */
-inline void rdpq_mode_mipmap(int num_levels) {
-    __rdpq_mode_change_som(SOM_TEXTURE_LOD | SOMX_NUMLODS_MASK, 
-        num_levels
-            ? SOM_TEXTURE_LOD | ((uint64_t)(num_levels-1) << SOMX_NUMLODS_SHIFT) 
-            : 0);
-}
+inline void rdpq_mode_mipmap(rdpq_mipmap_t mode, int num_levels) {
+    if (mode == MIPMAP_NONE)
+        num_levels = 0;
+    if (num_levels)
+        num_levels -= 1;
+    __rdpq_mode_change_som(SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE | SOMX_NUMLODS_MASK, 
+        ((uint64_t)mode << 32) | ((uint64_t)num_levels << SOMX_NUMLODS_SHIFT));
+};
 
 /** @} */
 
@@ -676,7 +689,7 @@ inline void rdpq_mode_mipmap(int num_levels) {
  * @code{.c}
  *      rdpq_mode_begin();
  *          rdpq_set_mode_standard();
- *          rdpq_mode_mipmap(2);
+ *          rdpq_mode_mipmap(MIPMAP_INTERPOLATE, 2);
  *          rdpq_mode_dithering(DITHER_SQUARE_SQUARE);
  *          rdpq_mode_blender(RDPQ_BLENDING_MULTIPLY);
  *      rdpq_mode_end();

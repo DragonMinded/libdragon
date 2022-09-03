@@ -555,6 +555,7 @@ typedef uint32_t rdpq_blender_t;
 
 #define SOMX_FOG               ((cast64(1))<<32)            ///< RDPQ special state: fogging is enabled
 #define SOMX_UPDATE_FREEZE     ((cast64(1))<<33)            ///< RDPQ special state: render mode update is frozen (see #rdpq_mode_begin)
+#define SOMX_LOD_INTERPOLATE   ((cast64(1))<<34)            ///< RDPQ special state: mimap interpolation (aka trilinear) requested
 
 #define SOM_BLEND0_MASK        (cast64(0xCCCC0000) | SOM_BLENDING | SOM_READ_ENABLE | SOMX_BLEND_2PASS)     ///< Blender: mask of settings related to pass 0
 #define SOM_BLEND1_MASK        (cast64(0x33330000) | SOM_BLENDING | SOM_READ_ENABLE | SOMX_BLEND_2PASS)     ///< Blender: mask of settings related to pass 1
