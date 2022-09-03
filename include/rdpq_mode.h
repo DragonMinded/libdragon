@@ -431,14 +431,15 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
             comb & 0xFFFFFFFF);
     else {
         rdpq_combiner_t comb1_mask = RDPQ_COMB1_MASK;
-        if (((comb1_mask >> 0 ) &  7) == 1) comb1_mask ^= 1ull << 0;
-        if (((comb1_mask >> 3 ) &  7) == 1) comb1_mask ^= 1ull << 3;
-        if (((comb1_mask >> 6 ) &  7) == 1) comb1_mask ^= 1ull << 6;
-        if (((comb1_mask >> 18) &  7) == 1) comb1_mask ^= 1ull << 18;
-        if (((comb1_mask >> 21) &  7) == 1) comb1_mask ^= 1ull << 21;
-        if (((comb1_mask >> 24) &  7) == 1) comb1_mask ^= 1ull << 24;
-        if (((comb1_mask >> 32) & 31) == 1) comb1_mask ^= 1ull << 32;
-        if (((comb1_mask >> 37) & 15) == 1) comb1_mask ^= 1ull << 37;
+        if (((comb >> 0 ) &  7) == 1) comb1_mask ^= 1ull << 0;
+        if (((comb >> 3 ) &  7) == 1) comb1_mask ^= 1ull << 3;
+        if (((comb >> 6 ) &  7) == 1) comb1_mask ^= 1ull << 6;
+        if (((comb >> 18) &  7) == 1) comb1_mask ^= 1ull << 18;
+        if (((comb >> 21) &  7) == 1) comb1_mask ^= 1ull << 21;
+        if (((comb >> 24) &  7) == 1) comb1_mask ^= 1ull << 24;
+        if (((comb >> 32) & 31) == 1) comb1_mask ^= 1ull << 32;
+        if (((comb >> 37) & 15) == 1) comb1_mask ^= 1ull << 37;
+        debugf("COMB1_MASK: %016llx\n", comb1_mask);
 
         __rdpq_fixup_mode4(RDPQ_CMD_SET_COMBINE_MODE_1PASS,
             (comb >> 32) & 0x00FFFFFF,
