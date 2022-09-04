@@ -589,6 +589,7 @@ typedef uint32_t rdpq_blender_t;
 #define SOM_ZSOURCE_MASK       ((cast64(1))<<2)             ///< Z-source mask
 #define SOM_ZSOURCE_SHIFT      2                            ///< Z-source mask shift
 
+#define SOM_ALPHACOMPARE_NONE       ((cast64(0))<<0)        ///< Alpha Compare: disable
 #define SOM_ALPHACOMPARE_THRESHOLD  ((cast64(1))<<0)        ///< Alpha Compare: use blend alpha as threshold
 #define SOM_ALPHACOMPARE_NOISE      ((cast64(3))<<0)        ///< Alpha Compare: use noise as threshold
 #define SOM_ALPHACOMPARE_MASK       ((cast64(3))<<0)        ///< Alpha Compare mask

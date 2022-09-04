@@ -146,8 +146,10 @@ extern inline void rdpq_mode_combiner(rdpq_combiner_t comb);
 extern inline void rdpq_mode_blender(rdpq_blender_t blend);
 extern inline void rdpq_mode_fog(rdpq_blender_t fog);
 extern inline void rdpq_mode_dithering(rdpq_dither_t dither);
-extern inline void rdpq_mode_alphacompare(bool enable, int threshold);
+extern inline void rdpq_mode_alphacompare(rdpq_alphacompare_t ac);
 extern inline void rdpq_mode_zoverride(bool enable, uint16_t z, int16_t deltaz);
 extern inline void rdpq_mode_tlut(rdpq_tlut_t tlut);
 extern inline void rdpq_mode_filter(rdpq_filter_t s);
+///@cond
 extern inline void __rdpq_mode_change_som(uint64_t mask, uint64_t val);
+///@endcond

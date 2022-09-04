@@ -348,9 +348,9 @@ uint32_t rdpq_config_disable(uint32_t cfg_disable_bits);
  *      The formula must use the SHADE slot, to specify the exact pixel formula that will combine the
  *      per-pixel color value with other components, like the texture.
  *    * To use the texturing component, you must configure a color combiner formula via #rdpq_mode_combiner
- *      that uses the TEX0 (and/or TEX1) slot, to specify the exact pixel formula that will combine the
- *      per-pixel color value with other components, like the shade. Moreover, you can activate
- *      perspective texturing via #rdpq_mode_persp.
+ *      that uses the TEX0 (and/or TEX1) slot, such as #RDPQ_COMBINER_TEX or #RDPQ_COMBINER_SHADE,
+ *      to specify the exact pixel formula that will combine the per-pixel color value with other
+ *      components, like the shade. Moreover, you can activate perspective texturing via #rdpq_mode_persp.
  * 
  * If you fail to activate a specific render mode for a provided component, the component will be ignored
  * by RDP. For instance, if you provide S,T,W but do not configure a combiner formula that accesses

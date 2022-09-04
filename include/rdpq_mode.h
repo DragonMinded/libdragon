@@ -234,6 +234,16 @@ typedef enum rdpq_mipmap_s {
     MIPMAP_NEAREST     = SOM_TEXTURE_LOD >> 32,                            ///< Choose the nearest mipmap level
     MIPMAP_INTERPOLATE = (SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE) >> 32,   ///< Interpolate between the two nearest mipmap levels (also known as "trilinear")
 } rdpq_mipmap_t;
+ 
+/*
+ * @brief Types of alpha compare functions available in RDP
+ */
+typedef enum rdpq_alphacompare_s {
+    ALPHACOMPARE_NONE      = SOM_ALPHACOMPARE_NONE,       ///< Alpha compare: disabled
+    ALPHACOMPARE_THRESHOLD = SOM_ALPHACOMPARE_THRESHOLD,  ///< Alpha compare: mask pixel depending on a certain treshold
+    ALPHACOMPARE_NOISE     = SOM_ALPHACOMPARE_NOISE,      ///< Alpha compare: mask pixel using random noise
+} rdpq_alphacompare_t;
+
 
 /**
  * @name Render modes
@@ -598,10 +608,25 @@ inline void rdpq_mode_dithering(rdpq_dither_t dither) {
         SOM_RGBDITHER_MASK | SOM_ALPHADITHER_MASK, ((uint64_t)dither << SOM_ALPHADITHER_SHIFT));
 }
 
-inline void rdpq_mode_alphacompare(bool enable, int threshold) {
-    if (enable && threshold > 0) rdpq_set_blend_color(RGBA32(0,0,0,threshold));
+/**
+ * @brief Activate alpha compare feature
+ * 
+ * This function activates the alpha compare feature. It allows to do per-pixel
+ * rejection (masking) depending on the value of the alpha component of the pixel.
+ * The value output from the combiner is compared with a configured threshold
+ * and if the value is lower or equal, the pixel is not written to the framebuffer.
+ * 
+ * There are two types of alpha compares:
+ *   * Based on a fixed threshold, using #ALPHACOMPARE_THRESHOLD. The threshold must
+ *     be configured in the alpha channel of the BLEND register, via #rdpq_set_blend_color.
+ *   * Based on a random noise, using #ALPHACOMPARE_NOISE. This can be useful for
+ *     special graphical effects.
+ * 
+ * @param ac           Type of alpha compare function (or #ALPHACOMPARE_NONE to disable)
+ */
+inline void rdpq_mode_alphacompare(rdpq_alphacompare_t ac) {
     rdpq_change_other_modes_raw(
-        SOM_ALPHACOMPARE_MASK, enable ? SOM_ALPHACOMPARE_THRESHOLD : 0
+        SOM_ALPHACOMPARE_MASK, ac
     );
 }
 
@@ -673,6 +698,23 @@ inline void rdpq_mode_mipmap(rdpq_mipmap_t mode, int num_levels) {
     __rdpq_mode_change_som(SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE | SOMX_NUMLODS_MASK, 
         ((uint64_t)mode << 32) | ((uint64_t)num_levels << SOMX_NUMLODS_SHIFT));
 };
+
+/**
+ * @brief Activate perspective correction for textures
+ * 
+ * This function enables or disables the perspective correction for texturing.
+ * Perspective correction does not slow down rendering, and thus it is basically
+ * free.
+ * 
+ * To be able to use perspective correction, make sure to pass the Z and W values 
+ * in the triangle vertices.
+ * 
+ * @param perspective       True to activate perspective correction, false to disable it.
+ */
+inline void rdpq_mode_persp(bool perspective)
+{
+    rdpq_change_other_modes_raw(SOM_TEXTURE_PERSP, perspective ? SOM_TEXTURE_PERSP : 0);
+}
 
 /** @} */
 
