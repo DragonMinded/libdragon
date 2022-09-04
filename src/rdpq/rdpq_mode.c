@@ -73,7 +73,9 @@ void __rdpq_reset_render_mode(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3
 
 void rdpq_mode_push(void)
 {
-    __rdpq_write8(RDPQ_CMD_PUSH_RENDER_MODE, 0, 0);
+    // Push is not a RDP passthrough/fixup command, it's just a standard
+    // RSP command. Use rspq_write.
+    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_PUSH_RENDER_MODE, 0, 0);
 }
 
 void rdpq_mode_pop(void)
