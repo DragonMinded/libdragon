@@ -47,8 +47,12 @@ uint32_t gl_get_type_size(GLenum type)
 void gl_set_framebuffer(gl_framebuffer_t *framebuffer)
 {
     state.cur_framebuffer = framebuffer;
+    // TODO: disable auto scissor?
     rdpq_set_color_image(state.cur_framebuffer->color_buffer);
     rdpq_set_z_image_raw(0, PhysicalAddr(state.cur_framebuffer->depth_buffer));
+
+    uint32_t size = (framebuffer->color_buffer->width << 16) | framebuffer->color_buffer->height;
+    gl_set_word(GL_UPDATE_SCISSOR, offsetof(gl_server_state_t, fb_size), size);
 }
 
 void gl_set_default_framebuffer()
@@ -94,7 +98,7 @@ void gl_init()
     memset(&state, 0, sizeof(state));
 
     gl_server_state_t *server_state = rspq_overlay_get_state(&rsp_gl);
-    memset(&server_state, 0, sizeof(gl_server_state_t));
+    memset(server_state, 0, sizeof(gl_server_state_t));
 
     gl_overlay_id = rspq_overlay_register(&rsp_gl);
 
@@ -106,7 +110,6 @@ void gl_init()
     gl_primitive_init();
     gl_pixel_init();
     gl_list_init();
-    gl_buffer_init();
 
     glDrawBuffer(GL_FRONT);
     glDepthRange(0, 1);
@@ -116,6 +119,7 @@ void gl_init()
 
     gl_set_default_framebuffer();
     glViewport(0, 0, state.default_framebuffer.color_buffer->width, state.default_framebuffer.color_buffer->height);
+    glScissor(0, 0, state.default_framebuffer.color_buffer->width, state.default_framebuffer.color_buffer->height);
 
     uint32_t packed_size = ((uint32_t)state.default_framebuffer.color_buffer->width) << 16 | (uint32_t)state.default_framebuffer.color_buffer->height;
 
@@ -124,7 +128,6 @@ void gl_init()
 
 void gl_close()
 {
-    gl_buffer_close();
     gl_list_close();
     gl_primitive_close();
     gl_texture_close();
@@ -157,8 +160,6 @@ void gl_set_flag2(GLenum target, bool value)
     switch (target) {
     case GL_SCISSOR_TEST:
         gl_set_flag(GL_UPDATE_SCISSOR, FLAG_SCISSOR_TEST, value);
-        state.scissor_test = value;
-        gl_update_scissor(); // TODO: remove this
         break;
     case GL_DEPTH_TEST:
         gl_set_flag(GL_UPDATE_DEPTH_TEST, FLAG_DEPTH_TEST, value);
@@ -332,8 +333,6 @@ void glClear(GLbitfield buf)
     rdpq_mode_push();
 
     rdpq_set_mode_fill(RGBA16(0,0,0,0));
-
-    gl_update_scissor();
 
     gl_framebuffer_t *fb = state.cur_framebuffer;
 

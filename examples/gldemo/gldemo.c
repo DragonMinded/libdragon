@@ -13,11 +13,11 @@ static bool near = false;
 static GLuint buffers[2];
 static GLuint textures[4];
 
-static const char *texture_paths[4] = {
-    "circle.sprite",
-    "diamond.sprite",
-    "pentagon.sprite",
-    "triangle.sprite",
+static const char *texture_path_formats[4] = {
+    "circle%d.sprite",
+    "diamond%d.sprite",
+    "pentagon%d.sprite",
+    "triangle%d.sprite",
 };
 
 sprite_t * load_sprite(const char *path)
@@ -54,7 +54,7 @@ void setup()
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glFrustum(-1*aspect_ratio, 1*aspect_ratio, -1, 1, 1, 10);
+    glFrustum(-1*aspect_ratio, 1*aspect_ratio, -1, 1, 1, 20);
     //glOrtho(-2*aspect_ratio, 2*aspect_ratio, -2, 2, 5, -5);
 
     glMatrixMode(GL_MODELVIEW);
@@ -81,18 +81,30 @@ void setup()
 
     glGenTextures(4, textures);
 
+    #if 0
+    GLenum min_filter = GL_LINEAR_MIPMAP_LINEAR;
+    #else
+    GLenum min_filter = GL_LINEAR;
+    #endif
+
+
     for (uint32_t i = 0; i < 4; i++)
     {
         glBindTexture(GL_TEXTURE_2D, textures[i]);
 
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, min_filter);
 
-        sprite_t *sprite = load_sprite(texture_paths[i]);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sprite->width, sprite->height, 0, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1_EXT, sprite->data);
-        free(sprite);
+        for (uint32_t j = 0; j < 6; j++)
+        {
+            char path_buf[64];
+            sprintf(path_buf, texture_path_formats[i], j);
+            sprite_t *sprite = load_sprite(path_buf);
+            glTexImage2D(GL_TEXTURE_2D, j, GL_RGBA, sprite->width, sprite->height, 0, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1_EXT, sprite->data);
+            free(sprite);
+        }
     }
 }
 
@@ -178,11 +190,11 @@ void render()
     glClearColor(0.3f, 0.1f, 0.6f, 1.f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    float rotation = animation;
+    float rotation = animation * 0.5f;
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    glTranslatef(0, sinf(rotation*0.02f), near ? -2.2f : -3.5f);
+    glTranslatef(0, sinf(rotation*0.02f), (near ? -2.2f : -3.5f) - 5 - cosf(rotation*0.01f)*5);
 
     glPushMatrix();
 

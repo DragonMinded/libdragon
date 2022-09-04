@@ -61,6 +61,24 @@ static const rdpq_blender_t blend_configs[64] = {
     0, 0, 0, 0, 0, 0, 0, 0,                                        // src = ONE_MINUS_DST_ALPHA, dst = ...
 };
 
+#define TEXTURE_REPLACE 0x1
+#define COLOR_CONSTANT  0x2
+#define TEXTURE_ENABLED 0x4
+
+static const rdpq_combiner_t combiner_table[] = {
+    // No texture
+    RDPQ_COMBINER1((0, 0, 0, SHADE), (0, 0, 0, SHADE)),         // "modulate"
+    RDPQ_COMBINER1((0, 0, 0, SHADE), (0, 0, 0, SHADE)),         // "replace"
+    RDPQ_COMBINER1((0, 0, 0, PRIM), (0, 0, 0, PRIM)),           // constant "modulate"
+    RDPQ_COMBINER1((0, 0, 0, PRIM), (0, 0, 0, PRIM)),           // constant "replace"
+
+    // Texture enabled
+    RDPQ_COMBINER1((TEX0, 0, SHADE, 0), (TEX0, 0, SHADE, 0)),   // modulate
+    RDPQ_COMBINER1((0, 0, 0, TEX0), (0, 0, 0, TEX0)),           // replace
+    RDPQ_COMBINER1((TEX0, 0, PRIM, 0), (TEX0, 0, PRIM, 0)),     // constant modulate
+    RDPQ_COMBINER1((0, 0, 0, TEX0), (0, 0, 0, TEX0)),           // constant replace
+};
+
 void gl_rendermode_init()
 {
     state.fog_start = 0.0f;
@@ -85,23 +103,6 @@ bool gl_is_invisible()
         || (state.alpha_test && state.alpha_func == GL_NEVER);
 }
 
-void gl_update_scissor()
-{
-    uint32_t w = state.cur_framebuffer->color_buffer->width;
-    uint32_t h = state.cur_framebuffer->color_buffer->height;
-
-    if (state.scissor_test) {
-        rdpq_set_scissor(
-            state.scissor_box[0],
-            h - state.scissor_box[1] - state.scissor_box[3],
-            state.scissor_box[0] + state.scissor_box[2],
-            h - state.scissor_box[1]
-        );
-    } else {
-        rdpq_set_scissor(0, 0, w, h);
-    }
-}
-
 void gl_update_rendermode()
 {
     gl_texture_object_t *tex_obj = gl_get_active_texture();
@@ -120,15 +121,15 @@ void gl_update_rendermode()
             filter = FILTER_BILINEAR;
         }
 
-        if (tex_obj->min_filter == GL_NEAREST_MIPMAP_NEAREST || 
-            tex_obj->min_filter == GL_LINEAR_MIPMAP_NEAREST) {
-            mipmap = MIPMAP_NEAREST;
-        } else if (tex_obj->min_filter == GL_NEAREST_MIPMAP_LINEAR || 
-                   tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR) {
-            mipmap = MIPMAP_INTERPOLATE;
-        }
+        if (!gl_calc_is_points()) {
+            if (tex_obj->min_filter == GL_NEAREST_MIPMAP_NEAREST || 
+                tex_obj->min_filter == GL_LINEAR_MIPMAP_NEAREST) {
+                mipmap = MIPMAP_NEAREST;
+            } else if (tex_obj->min_filter == GL_NEAREST_MIPMAP_LINEAR || 
+                    tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR) {
+                mipmap = MIPMAP_INTERPOLATE;
+            }
 
-        if (tex_obj->min_filter != GL_LINEAR && tex_obj->min_filter != GL_NEAREST && !gl_calc_is_points()) {
             levels = tex_obj->num_levels;
         }
     }
@@ -139,37 +140,22 @@ void gl_update_rendermode()
 
 void gl_update_combiner()
 {
-    rdpq_combiner_t comb;
+    uint32_t mode = 0;
 
-    bool is_points = gl_calc_is_points();
+    if (gl_calc_is_points()) {
+        mode |= COLOR_CONSTANT;
+    }
 
     gl_texture_object_t *tex_obj = gl_get_active_texture();
     if (tex_obj != NULL && tex_obj->is_complete) {
-        if ((tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR || tex_obj->min_filter == GL_NEAREST_MIPMAP_LINEAR) && !is_points) {
-            // Trilinear
-            if (state.tex_env_mode == GL_REPLACE) {
-                comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (0, 0, 0, COMBINED), (0, 0, 0, COMBINED));
-            } else {
-                comb = RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (COMBINED, 0, SHADE, 0), (COMBINED, 0, SHADE, 0));
-            }
-        } else {
-            if (state.tex_env_mode == GL_REPLACE) {
-                comb = RDPQ_COMBINER1((0, 0, 0, TEX0), (0, 0, 0, TEX0));
-            } else if (is_points) {
-                comb = RDPQ_COMBINER1((TEX0, 0, PRIM, 0), (TEX0, 0, PRIM, 0));
-            } else {
-                comb = RDPQ_COMBINER1((TEX0, 0, SHADE, 0), (TEX0, 0, SHADE, 0));
-            }
-        }
-    } else {
-        if (is_points) {
-            comb = RDPQ_COMBINER1((0, 0, 0, PRIM), (0, 0, 0, PRIM));
-        } else {
-            comb = RDPQ_COMBINER1((0, 0, 0, SHADE), (0, 0, 0, SHADE));
-        }
+        mode |= TEXTURE_ENABLED;
     }
 
-    rdpq_mode_combiner(comb);
+    if (state.tex_env_mode == GL_REPLACE) {
+        mode |= TEXTURE_REPLACE;
+    }
+
+    rdpq_mode_combiner(combiner_table[mode]);
 }
 
 void glFogi(GLenum pname, GLint param)
@@ -271,8 +257,6 @@ void glScissor(GLint left, GLint bottom, GLsizei width, GLsizei height)
 
     uint64_t rect = (((uint64_t)left) << 48) | (((uint64_t)bottom) << 32) | (((uint64_t)width) << 16) | ((uint64_t)height);
     gl_set_long(GL_UPDATE_SCISSOR, offsetof(gl_server_state_t, scissor_rect), rect);
-
-    gl_update_scissor(); // TODO: remove this
 }
 
 void glBlendFunc(GLenum src, GLenum dst)

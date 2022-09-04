@@ -5,68 +5,31 @@
 
 extern gl_state_t state;
 
-void gl_buffer_object_init(gl_buffer_object_t *obj, GLuint name)
+
+GLboolean glIsBufferARB(GLuint buffer)
 {
-    memset(obj, 0, sizeof(gl_buffer_object_t));
-
-    obj->name = name;
-    obj->usage = GL_STATIC_DRAW_ARB;
-    obj->access = GL_READ_WRITE_ARB;
-}
-
-void gl_buffer_object_free(gl_buffer_object_t *obj)
-{
-    if (obj->storage.data != NULL)
-    {
-        free_uncached(obj->storage.data);
-    }
-
-    free(obj);
-}
-
-void gl_buffer_init()
-{
-    obj_map_new(&state.buffer_objects);
-    state.next_buffer_name = 1;
-}
-
-void gl_buffer_close()
-{
-    obj_map_iter_t buffer_iter = obj_map_iterator(&state.buffer_objects);
-    while (obj_map_iterator_next(&buffer_iter)) {
-        gl_buffer_object_free((gl_buffer_object_t*)buffer_iter.value);
-    }
-
-    obj_map_free(&state.buffer_objects);
+    // FIXME: This doesn't actually guarantee that it's a valid buffer object, but just uses the heuristic of
+    //        "is it somewhere in the heap memory?". This way we can at least rule out arbitrarily chosen integer constants,
+    //        which used to be valid buffer IDs in legacy OpenGL.
+    return is_valid_object_id(buffer);
 }
 
 void glBindBufferARB(GLenum target, GLuint buffer)
 {
-    gl_buffer_object_t **obj = NULL;
+    assertf(buffer == 0 || is_valid_object_id(buffer), "Not a valid buffer object: %#lx", buffer);
+
+    gl_buffer_object_t *obj = (gl_buffer_object_t*)buffer;
 
     switch (target) {
     case GL_ARRAY_BUFFER_ARB:
-        obj = &state.array_buffer;
+        state.array_buffer = obj;
         break;
     case GL_ELEMENT_ARRAY_BUFFER_ARB:
-        obj = &state.element_array_buffer;
+        state.element_array_buffer = obj;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
         return;
-    }
-
-    if (buffer == 0) {
-        *obj = NULL;
-        return;
-    }
-
-    *obj = obj_map_get(&state.buffer_objects, buffer);
-
-    if (*obj == NULL) {
-        *obj = malloc(sizeof(gl_buffer_object_t));
-        obj_map_set(&state.buffer_objects, buffer, *obj);
-        gl_buffer_object_init(*obj, buffer);
     }
 }
 
@@ -81,7 +44,9 @@ void glDeleteBuffersARB(GLsizei n, const GLuint *buffers)
 {
     for (GLsizei i = 0; i < n; i++)
     {
-        gl_buffer_object_t *obj = obj_map_remove(&state.buffer_objects, buffers[i]);
+        assertf(buffers[i] == 0 || is_valid_object_id(buffers[i]), "Not a valid buffer object: %#lx", buffers[i]);
+
+        gl_buffer_object_t *obj = (gl_buffer_object_t*)buffers[i];
         if (obj == NULL) {
             continue;
         }
@@ -96,7 +61,12 @@ void glDeleteBuffersARB(GLsizei n, const GLuint *buffers)
 
         // TODO: keep alive until no longer in use
 
-        gl_buffer_object_free(obj);
+        if (obj->storage.data != NULL)
+        {
+            free_uncached(obj->storage.data);
+        }
+
+        free(obj);
     }
 }
 
@@ -104,13 +74,11 @@ void glGenBuffersARB(GLsizei n, GLuint *buffers)
 {
     for (GLsizei i = 0; i < n; i++)
     {
-        buffers[i] = state.next_buffer_name++;
+        gl_buffer_object_t *new_obj = calloc(sizeof(gl_buffer_object_t), 1);
+        new_obj->usage = GL_STATIC_DRAW_ARB;
+        new_obj->access = GL_READ_WRITE_ARB;
+        buffers[i] = (GLuint)new_obj;
     }
-}
-
-GLboolean glIsBufferARB(GLuint buffer)
-{
-    return obj_map_get(&state.buffer_objects, buffer) != NULL;
 }
 
 bool gl_get_buffer_object(GLenum target, gl_buffer_object_t **obj)

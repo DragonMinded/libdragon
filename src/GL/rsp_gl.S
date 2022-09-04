@@ -16,7 +16,6 @@
 
     RSPQ_BeginSavedState
 GL_STATE:
-    GL_STATE_SCISSOR:         .quad   0
     GL_STATE_FLAGS:           .word   0
     GL_STATE_DEPTH_FUNC:      .word   0
     GL_STATE_ALPHA_FUNC:      .word   0
@@ -235,9 +234,33 @@ fog_cycle_none:
     sw t1, %lo(RDPQ_OTHER_MODES) + 0x0
 
 GL_UpdateScissor:
-    # TODO RDPQ_SCISSOR_RECT
+    lhu t6, %lo(GL_STATE_FB_SIZE) + 0x0
+    lhu t7, %lo(GL_STATE_FB_SIZE) + 0x2
+    lw t4, %lo(GL_STATE_FLAGS)
+    andi t4, FLAG_SCISSOR_TEST
+    beqz t4, scissor_disabled
+    move t2, zero
+
+    lhu t2, %lo(GL_STATE_SCISSOR_RECT) + 0x2
+    lhu t4, %lo(GL_STATE_SCISSOR_RECT) + 0x0
+    subu t7, t2
+    lhu t6, %lo(GL_STATE_SCISSOR_RECT) + 0x4
+    lhu t2, %lo(GL_STATE_SCISSOR_RECT) + 0x6
+    addu t6, t4
+    subu t2, t7, t2
+    
+scissor_disabled:
+    sll t2, 2
+    sll t4, 14
+    or t4, t2
+    lui t2, 0xED00
+    or t4, t2
+    sll t7, 2
+    sll t6, 14
+    or t6, t7
+    sw t4, %lo(RDPQ_SCISSOR_RECT) + 0x0
     jr ra
-    nop
+    sw t6, %lo(RDPQ_SCISSOR_RECT) + 0x4
 
 /*
 GLCmd_Begin:
