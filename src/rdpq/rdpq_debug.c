@@ -136,7 +136,10 @@ static struct {
         int16_t tmem_addr;                 ///< Address in TMEM
         int16_t tmem_pitch;                ///< Pitch in TMEM
     } tile[8];                           ///< Current tile descriptors
-    struct { 
+    struct {
+        uint8_t fmt, size;                 ///< Format & size (RDP format/size bits)
+    } col;                               ///< Current associated color image
+    struct {
         uint8_t fmt, size;                 ///< Format & size (RDP format/size bits)
     } tex;                               ///< Current associated texture image
 } rdp;
@@ -735,8 +738,7 @@ static void lazy_validate_rendermode(void) {
     // Fill mode validation
     if (rdp.som.cycle_type == 3) {
         if (rdp.last_col) {
-            int size = BITS(rdp.last_col_data, 51, 52);
-            VALIDATE_CRASH_SOM(size != 0, "FILL mode not supported on 4-bit framebuffers");   
+            VALIDATE_CRASH_SOM(rdp.col.size != 0, "FILL mode not supported on 4-bit framebuffers");   
         }
         // These are a bunch of SOM settings that, in addition of being useless in FILL mode, they cause
         // a RDP crash.
@@ -967,11 +969,13 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
     switch (cmd) {
     case 0x3F: { // SET_COLOR_IMAGE
         validate_busy_pipe();
-        int fmt = BITS(buf[0], 53, 55); int size = 4 << BITS(buf[0], 51, 52);
+        rdp.col.fmt = BITS(buf[0], 53, 55);
+        rdp.col.size = BITS(buf[0], 51, 52);
+        int size = 4 << rdp.col.size;
         VALIDATE_ERR(BITS(buf[0], 0, 5) == 0, "color image must be aligned to 64 bytes");
-        VALIDATE_ERR((fmt == 0 && (size == 32 || size == 16)) || (fmt == 2 && size == 8),
+        VALIDATE_ERR((rdp.col.fmt == 0 && (size == 32 || size == 16)) || (rdp.col.fmt == 2 && size == 8),
             "color image has invalid format %s%d: must be RGBA32, RGBA16 or CI8",
-                (char*[]){"RGBA","YUV","CI","IA","I","?","?","?"}[fmt], size);
+                (char*[]){"RGBA","YUV","CI","IA","I","?","?","?"}[rdp.col.fmt], size);
         rdp.last_col = &buf[0];
         rdp.last_col_data = buf[0];        
     }   break;
