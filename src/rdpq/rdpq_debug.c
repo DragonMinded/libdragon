@@ -718,9 +718,7 @@ static void lazy_validate_rendermode(void) {
         "blender function will be ignored because SOM_BLENDING and SOM_ANTIALIAS are both disabled");
 
     // Validate other SOM states
-    if (rdp.som.tex.lod) {
-        VALIDATE_ERR_SOM(rdp.som.cycle_type == 1, "in 1-cycle mode, texture LOD does not work");
-    } else {
+    if (!rdp.som.tex.lod) {
         VALIDATE_ERR_SOM(!rdp.som.tex.sharpen && !rdp.som.tex.detail,
             "sharpen/detail texture require texture LOD to be active");
     }
