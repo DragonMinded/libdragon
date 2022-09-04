@@ -115,7 +115,6 @@ static struct {
     } busy;                              ///< Busy entities (for SYNC commands)
     struct {
         bool sent_scissor : 1;               ///< True if at least one SET_SCISSOR was sent since reset
-        bool sent_color_image : 1;           ///< True if SET_COLOR_IMAGE was sent
         bool sent_zprim : 1;                 ///< True if SET_PRIM_DEPTH was sent
         bool mode_changed : 1;               ///< True if there is a pending mode change to validate (SET_OTHER_MODES / SET_COMBINE)
     };
@@ -123,6 +122,8 @@ static struct {
     uint64_t last_som_data;              ///< Last SOM command (raw)
     uint64_t *last_cc;                   ///< Pointer to last CC command sent
     uint64_t last_cc_data;               ///< Last CC command (raw)
+    uint64_t *last_col;                  ///< Pointer to last SET_COLOR_IMAGE command sent
+    uint64_t last_col_data;              ///< Last COLOR command (raw)
     uint64_t *last_tex;                  ///< Pointer to last SET_TEX_IMAGE command sent
     uint64_t last_tex_data;              ///< Last TEX command (raw)
     setothermodes_t som;                 ///< Current SOM state
@@ -146,6 +147,7 @@ static struct {
 struct {
     uint64_t *buf;                         ///< Current instruction
     int warns, errs;                       ///< Validators warnings/errors (stats)
+    bool crashed;                          ///< True if the RDP chip crashed
 } vctx;
 
 #ifdef N64
@@ -615,27 +617,34 @@ static void validate_emit_error(int flags, const char *msg, ...)
     #endif
 
     if (!show_log) {
-        if (flags & 2) __rdpq_debug_disasm(rdp.last_som, &rdp.last_som_data, stderr);
-        if (flags & 4) __rdpq_debug_disasm(rdp.last_cc,  &rdp.last_cc_data,  stderr);
-        if (flags & 8) __rdpq_debug_disasm(rdp.last_tex, &rdp.last_tex_data, stderr);
+        if (flags & 4)  __rdpq_debug_disasm(rdp.last_som, &rdp.last_som_data, stderr);
+        if (flags & 8)  __rdpq_debug_disasm(rdp.last_cc,  &rdp.last_cc_data,  stderr);
+        if (flags & 16) __rdpq_debug_disasm(rdp.last_tex, &rdp.last_tex_data, stderr);
         rdpq_debug_disasm(vctx.buf, stderr);
     }
-    if (flags & 1) {
-        fprintf(stderr, "[RDPQ_VALIDATION] WARN:  ");
-        vctx.warns += 1;
-    } else {
+    switch (flags & 3) {
+    case 0:
+        fprintf(stderr, "[RDPQ_VALIDATION] CRASH: ");
+        vctx.crashed = true;
+    case 1:
         fprintf(stderr, "[RDPQ_VALIDATION] ERROR: ");
         vctx.errs += 1;
+    case 2:
+        fprintf(stderr, "[RDPQ_VALIDATION] WARN:  ");
+        vctx.warns += 1;
     }
 
     va_start(args, msg);
     vfprintf(stderr, msg, args);
     va_end(args);
 
+    if ((flags & 3) == 0)
+        fprintf(stderr, "[RDPQ_VALIDATION]        This is a fatal error: a real RDP chip would stop working until reboot\n");
+
     if (show_log) {
-        if (flags & 2) fprintf(stderr, "[RDPQ_VALIDATION]        SET_OTHER_MODES last sent at %p\n", rdp.last_som);
-        if (flags & 4) fprintf(stderr, "[RDPQ_VALIDATION]        SET_COMBINE_MODE last sent at %p\n", rdp.last_cc);
-        if (flags & 8) fprintf(stderr, "[RDPQ_VALIDATION]        SET_TEX_IMAGE last sent at %p\n", rdp.last_tex);
+        if (flags & 4)  fprintf(stderr, "[RDPQ_VALIDATION]        SET_OTHER_MODES last sent at %p\n", rdp.last_som);
+        if (flags & 8)  fprintf(stderr, "[RDPQ_VALIDATION]        SET_COMBINE_MODE last sent at %p\n", rdp.last_cc);
+        if (flags & 16) fprintf(stderr, "[RDPQ_VALIDATION]        SET_TEX_IMAGE last sent at %p\n", rdp.last_tex);
     }
 }
 
@@ -645,19 +654,33 @@ static void validate_emit_error(int flags, const char *msg, ...)
 })
 
 /** 
+ * @brief Check and trigger a RDP crash.
+ * 
+ * This is the most fatal error condition, in which the RDP chip freezes and stop processing
+ * commands until reboot.
+ */
+#define VALIDATE_CRASH(cond, msg, ...)      __VALIDATE(0, cond, msg, ##__VA_ARGS__)
+/** @brief Validate and trigger a crash, with SOM context */
+#define VALIDATE_CRASH_SOM(cond, msg, ...)  __VALIDATE(4, cond, msg, ##__VA_ARGS__)
+/** @brief Validate and trigger an error, with CC context */
+#define VALIDATE_CRASH_CC(cond, msg, ...)   __VALIDATE(8, cond, msg, ##__VA_ARGS__)
+/** @brief Validate and trigger an error, with SET_TEX_IMAGE context */
+#define VALIDATE_CRASH_TEX(cond, msg, ...)  __VALIDATE(16, cond, msg, ##__VA_ARGS__)
+
+/** 
  * @brief Check and trigger a RDP validation error. 
  * 
  * This should be triggered only whenever the commands rely on an undefined hardware 
  * behaviour or in general strongly misbehave with respect to the reasonable
  * expectation of the programmer. Typical expected outcome on real hardware should be
  * garbled graphcis or hardware freezes. */
-#define VALIDATE_ERR(cond, msg, ...)      __VALIDATE(0, cond, msg, ##__VA_ARGS__)
-/** @brief Validate and trgger an error, with SOM context */
-#define VALIDATE_ERR_SOM(cond, msg, ...)  __VALIDATE(2, cond, msg, ##__VA_ARGS__)
-/** @brief Validate and trgger an error, with CC context */
-#define VALIDATE_ERR_CC(cond, msg, ...)   __VALIDATE(4, cond, msg, ##__VA_ARGS__)
-/** @brief Validate and trgger an error, with SET_TEX_IMAGE context */
-#define VALIDATE_ERR_TEX(cond, msg, ...)  __VALIDATE(8, cond, msg, ##__VA_ARGS__)
+#define VALIDATE_ERR(cond, msg, ...)      __VALIDATE(1, cond, msg, ##__VA_ARGS__)
+/** @brief Validate and trigger an error, with SOM context */
+#define VALIDATE_ERR_SOM(cond, msg, ...)  __VALIDATE(5, cond, msg, ##__VA_ARGS__)
+/** @brief Validate and trigger an error, with CC context */
+#define VALIDATE_ERR_CC(cond, msg, ...)   __VALIDATE(9, cond, msg, ##__VA_ARGS__)
+/** @brief Validate and trigger an error, with SET_TEX_IMAGE context */
+#define VALIDATE_ERR_TEX(cond, msg, ...)  __VALIDATE(17, cond, msg, ##__VA_ARGS__)
 
 /** 
  * @brief Check and trigger a RDP validation warning.
@@ -669,13 +692,13 @@ static void validate_emit_error(int flags, const char *msg, ...)
  * becomes too unwiedly, we can later add a way to disable classes of warning in specific
  * programs.
  */
-#define VALIDATE_WARN(cond, msg, ...)      __VALIDATE(1, cond, msg, ##__VA_ARGS__)
+#define VALIDATE_WARN(cond, msg, ...)      __VALIDATE(2, cond, msg, ##__VA_ARGS__)
 /** @brief Validate and trigger a warning, with SOM context */
-#define VALIDATE_WARN_SOM(cond, msg, ...)  __VALIDATE(3, cond, msg, ##__VA_ARGS__)
+#define VALIDATE_WARN_SOM(cond, msg, ...)  __VALIDATE(6, cond, msg, ##__VA_ARGS__)
 /** @brief Validate and trigger a warning, with CC context */
-#define VALIDATE_WARN_CC(cond, msg, ...)   __VALIDATE(5, cond, msg, ##__VA_ARGS__)
+#define VALIDATE_WARN_CC(cond, msg, ...)   __VALIDATE(10, cond, msg, ##__VA_ARGS__)
 /** @brief Validate and trigger a warning, with SET_TEX_IMAGE context */
-#define VALIDATE_WARN_TEX(cond, msg, ...)  __VALIDATE(9, cond, msg, ##__VA_ARGS__)
+#define VALIDATE_WARN_TEX(cond, msg, ...)  __VALIDATE(18, cond, msg, ##__VA_ARGS__)
 
 /** @brief True if the current CC uses the TEX1 slot aka the second texture */
 static bool cc_use_tex1(void) {
@@ -704,9 +727,35 @@ static void lazy_validate_rendermode(void) {
     if (!rdp.mode_changed) return;
     rdp.mode_changed = false;
 
-    // We don't care about SOM/CC setting in fill/copy mode, where the CC is not used.
-    if (rdp.som.cycle_type >= 2)
+    VALIDATE_ERR(rdp.sent_scissor,
+        "undefined behavior: drawing command before a SET_SCISSOR was sent");
+    VALIDATE_ERR(rdp.last_col,
+        "undefined behavior: drawing command before a SET_COLOR_IMAGE was sent");
+
+    // Fill mode validation
+    if (rdp.som.cycle_type == 3) {
+        if (rdp.last_col) {
+            int size = BITS(rdp.last_col_data, 51, 52);
+            VALIDATE_CRASH_SOM(size != 0, "FILL mode not supported on 4-bit framebuffers");   
+        }
+        // These are a bunch of SOM settings that, in addition of being useless in FILL mode, they cause
+        // a RDP crash.
+        VALIDATE_CRASH_SOM(!rdp.som.read, "image read is enabled but is not supported in FILL mode");
+        VALIDATE_CRASH_SOM(!rdp.som.z.cmp, "Z buffer compare is enabled but is not supported in FILL mode");
+        VALIDATE_CRASH_SOM(!rdp.som.z.upd || rdp.som.z.prim, "Z buffer write is enabled but is not supported in FILL mode");
         return;
+    }
+
+    // Copy mode validation
+    if (rdp.som.cycle_type == 2) {
+        if (rdp.last_col) {
+            int size = BITS(rdp.last_col_data, 51, 52);
+            VALIDATE_CRASH_SOM(size != 3, "COPY mode not supported on 32-bit framebuffers");   
+        }
+        return;
+    }
+
+    // We are in 1-cycle/2-cycle mode. Proceed to validate blender and color combiner.
 
     // Validate blender setting. If there is any blender fomula configured, we should
     // expect one between SOM_BLENDING or SOM_ANTIALIAS, otherwise the formula will be ignored.
@@ -768,11 +817,6 @@ static void lazy_validate_rendermode(void) {
  */
 static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool use_w)
 {
-    VALIDATE_ERR(rdp.sent_scissor,
-        "undefined behavior: drawing command before a SET_SCISSOR was sent");
-    VALIDATE_ERR(rdp.sent_color_image,
-        "undefined behavior: drawing command before a SET_COLOR_IMAGE was sent");
-
     if (rdp.som.z.prim) {
         VALIDATE_WARN_SOM(!use_z, "per-vertex Z value will be ignored because Z-source is set to primitive");
         VALIDATE_ERR_SOM(rdp.sent_zprim, "Z-source is set to primitive but SET_PRIM_DEPTH was never sent");
@@ -923,12 +967,13 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
     switch (cmd) {
     case 0x3F: { // SET_COLOR_IMAGE
         validate_busy_pipe();
-        rdp.sent_color_image = true;
         int fmt = BITS(buf[0], 53, 55); int size = 4 << BITS(buf[0], 51, 52);
         VALIDATE_ERR(BITS(buf[0], 0, 5) == 0, "color image must be aligned to 64 bytes");
         VALIDATE_ERR((fmt == 0 && (size == 32 || size == 16)) || (fmt == 2 && size == 8),
             "color image has invalid format %s%d: must be RGBA32, RGBA16 or CI8",
                 (char*[]){"RGBA","YUV","CI","IA","I","?","?","?"}[fmt], size);
+        rdp.last_col = &buf[0];
+        rdp.last_col_data = buf[0];        
     }   break;
     case 0x3E: // SET_Z_IMAGE
         validate_busy_pipe();
@@ -963,7 +1008,7 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         int tidx = BITS(buf[0], 24, 26);
         struct tile_s *t = &rdp.tile[tidx];
         validate_busy_tile(tidx);
-        if (load) VALIDATE_ERR_TEX(rdp.tex.size != 0, "LOAD_TILE does not support 4-bit textures");
+        if (load) VALIDATE_CRASH_TEX(rdp.tex.size != 0, "LOAD_TILE does not support 4-bit textures");
         t->has_extents = true;
         t->s0 = BITS(buf[0], 44, 55)*FX(2); t->t0 = BITS(buf[0], 32, 43)*FX(2);
         t->s1 = BITS(buf[0], 12, 23)*FX(2); t->t1 = BITS(buf[0],  0, 11)*FX(2);
@@ -973,11 +1018,15 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         int tidx = BITS(buf[0], 24, 26);
         struct tile_s *t = &rdp.tile[tidx];
         int low = BITS(buf[0], 44, 55), high = BITS(buf[0], 12, 23);
-        VALIDATE_ERR_TEX(rdp.tex.fmt == 0 && rdp.tex.size==2, "LOAD_TLUT requires texure in RGBA16 format");
+        if (rdp.tex.size == 0)
+            VALIDATE_CRASH_TEX(rdp.tex.size != 0, "LOAD_TLUT does not support 4-bit textures");
+        else
+            VALIDATE_ERR_TEX(rdp.tex.fmt == 0 && rdp.tex.size == 2, "LOAD_TLUT requires texture in RGBA16 format");
         VALIDATE_ERR(t->tmem_addr >= 0x800, "palettes must be loaded in upper half of TMEM (address >= 0x800)");
         VALIDATE_WARN(!(low&3) && !(high&3), "lowest 2 bits of palette start/stop must be 0");
         VALIDATE_ERR(low>>2 < 256, "palette start index must be < 256");
         VALIDATE_ERR(high>>2 < 256, "palette stop index must be < 256");
+        VALIDATE_CRASH(low>>2 <= high>>2, "palette stop index is lower than palette start index");
     }   break;
     case 0x2F: // SET_OTHER_MODES
         validate_busy_pipe();
