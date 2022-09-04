@@ -956,7 +956,7 @@ static void use_tile(int tidx, int cycle) {
     // If this is the tile for cycle0 and the combiner uses TEX1,
     // then also tile+1 is used. Process that as well.
     if (cycle == 0 && cc_use_tex1())
-        use_tile(tidx+1, 1);
+        use_tile((tidx+1) & 7, 1);
 }
 
 void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
