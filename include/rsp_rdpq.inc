@@ -20,6 +20,7 @@
 
 
 #include "rdpq_macros.h"
+#include "rdpq_constants.h"
 
     .data
 
@@ -619,3 +620,206 @@ rdpq_update_fillcopy:
     #undef blend_final
     #undef passhthrough
     #undef cycle_type
+
+#if RDPQ_TRIANGLE_REFERENCE
+    .text
+    .func RDPQCmd_Triangle
+RDPQCmd_Triangle:
+    assert RDPQ_ASSERT_INVALID_CMD_TRI
+#else
+    .text
+
+    #####################################################################
+    # RDPQ_Triangle
+    #
+    #####################################################################
+
+    #define VTX_ATTR_X   0
+    #define VTX_ATTR_Y   4 
+
+
+    .func RDPQCmd_Triangle
+RDPQCmd_Triangle:
+    #define vtx0   s0
+    #define vtx1   s1
+    #define vtx2   s2
+
+    la vtx0, CMD_ADDR( 4, 7*4)
+    la vtx1, CMD_ADDR(12, 7*4)
+    la vtx2, CMD_ADDR(20, 7*4)
+    
+    #define y0     t4
+    #define y1     t5
+    #define y2     t6
+
+    j half_swap
+    li t0, 1
+
+swap_loop:
+    lw y1, VTX_ATTR_Y(vtx1)
+    lw y2, VTX_ATTR_Y(vtx2)
+    blt y1, y2, half_swap
+    nop
+    xor vtx1, vtx2
+    xor vtx2, vtx1
+    xor vtx1, vtx2
+
+half_swap:
+    lw y0, VTX_ATTR_Y(vtx0)
+    lw y1, VTX_ATTR_Y(vtx1)
+    blt y0, y1, swap_end
+    nop
+    xor vtx0, vtx1
+    xor vtx1, vtx0
+    xor vtx0, vtx1
+
+swap_end:
+    bnez t0, swap_loop
+    addi t0, -1
+
+    #
+    # 
+    #
+    #
+
+    # r, g, b, a, s, t, w, z
+    #define final_i          $v00
+    #define final_f          $v01
+    #define dx_i             $v02
+    #define dx_f             $v03
+    #define de_i             $v04
+    #define de_f             $v05
+    #define dy_i             $v06
+    #define dy_f             $v07
+
+    #define a1_i             $v08
+    #define a1_f             $v09
+    #define a2_i             $v10
+    #define a2_f             $v11
+    #define a3_i             $v12
+    #define a3_f             $v13
+
+    #define ma_i             $v14
+    #define ma_f             $v15
+    #define ha_i             $v16
+    #define ha_f             $v17
+
+    #define v__              $v29
+    #define fy_i             $v30,e(0)
+    #define fy_f             $v30,e(1)
+    #define hx_i             $v30,e(2)
+    #define hx_f             $v30,e(3)
+    #define mx_i             $v30,e(4)
+    #define mx_f             $v30,e(5)
+    #define hy_i             $v31,e(0)
+    #define hy_f             $v31,e(1)
+    #define my_i             $v31,e(2)
+    #define my_f             $v31,e(3)
+    #define invn_i           $v31,e(4)
+    #define invn_f           $v31,e(5)
+    #define invsh_i          $v31,e(6)
+    #define invsh_f          $v31,e(7)
+
+    # MA = A2 - A1
+    vsubc ma_f, a2_f, a1_f
+    vsub  ma_i, a2_i, a1_i
+
+    # HA = A3 - A1
+    vsubc ha_f, a3_f, a1_f
+    vsub  ha_i, a3_i, a1_i
+
+    # DX = MA * HY - HA * MY
+    # TODO: MY must be negated
+    vmudl v__,  ma_f, hy_f
+    vmadm v__,  ma_f, hy_i
+    vmadn v__,  ma_i, hy_f
+    vmadh v__,  ma_i, hy_i
+    vmadl v__,  ha_f, my_f
+    vmadm v__,  ha_f, my_i
+    vmadn dx_f, ha_i, my_f
+    vmadh dx_i, ha_i, my_i
+
+    # DY = HA * MX - MA * HX
+    # TODO: HX must be negated
+    vmudl v__,  ma_f, hx_f
+    vmadm v__,  ma_f, hx_i
+    vmadn v__,  ma_i, hx_f
+    vmadh v__,  ma_i, hx_i
+    vmadl v__,  ha_f, mx_f
+    vmadm v__,  ha_f, mx_i
+    vmadn dx_f, ha_i, mx_f
+    vmadh dx_i, ha_i, mx_i
+
+    # DX * 1/N (TODO: check if we can pre-multiply edges to avoid this)
+    vmudl v__,  dx_f, invn_f
+    vmadm v__,  dx_i, invn_f
+    vmadn dx_f, dx_f, invn_i
+    vmadh dx_i, dx_i, invn_i
+
+    # DY * 1/N (TODO: check if we can pre-multiply edges to avoid this)
+    vmudl v__,  dy_f, invn_f
+    vmadm v__,  dy_i, invn_f
+    vmadn dy_f, dy_f, invn_i
+    vmadh dy_i, dy_i, invn_i
+
+    # DE = DX * invsh + DY
+    vmudl v__,  dx_f, invsh_f
+    vmadm v__,  dx_i, invsh_f
+    vmadn de_f, dx_f, invsh_i
+    vmadh de_i, dx_i, invsh_i
+    vaddc de_f, dy_f
+    vadd  de_i, dy_i
+
+    # FINAL = A1 + DE * FY
+    vmudl v__,     de_f, fy_f
+    vmadm v__,     de_i, fy_f
+    vmadn final_f, de_f, fy_i
+    vmadh final_i, de_i, fy_i
+    vaddc final_f, a1_f
+    vadd  final_i, a1_i
+
+    li s4, %lo(RDPQ_CMD_STAGING)
+    move s3, s4
+
+    # Store color
+    sdv final_i, 0, 0x00,s3
+    sdv dx_i,    0, 0x08,s3
+    sdv final_f, 0, 0x10,s3
+    sdv dx_f,    0, 0x18,s3
+    sdv de_i,    0, 0x20,s3
+    sdv dy_i,    0, 0x28,s3
+    sdv de_f,    0, 0x30,s3
+    sdv dy_f,    0, 0x38,s3
+    addi s3, 0x40
+
+    # Store texture
+    sdv final_i, 8, 0x00,s3
+    sdv dx_i,    8, 0x08,s3
+    sdv final_f, 8, 0x10,s3
+    sdv dx_f,    8, 0x18,s3
+    sdv de_i,    8, 0x20,s3
+    sdv dy_i,    8, 0x28,s3
+    sdv de_f,    8, 0x30,s3
+    sdv dy_f,    8, 0x38,s3
+    addi s3, 0x40
+
+    # Store z
+    ssv final_i, 14, 0x00,s3
+    ssv final_f, 14, 0x02,s3
+    ssv dx_i,    14, 0x04,s3
+    ssv dx_f,    14, 0x06,s3
+    ssv de_i,    14, 0x08,s3
+    ssv de_f,    14, 0x0A,s3
+    ssv dy_i,    14, 0x0C,s3
+    ssv dy_f,    14, 0x0E,s3
+    addi s3, 0x10
+
+    j RDPQ_Send
+    nop
+
+    .endfunc
+
+
+#endif
+
+

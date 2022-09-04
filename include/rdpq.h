@@ -148,6 +148,8 @@ enum {
     RDPQ_CMD_SET_FILL_COLOR_32          = 0x16,
     RDPQ_CMD_SET_BLENDING_MODE          = 0x18,
     RDPQ_CMD_SET_COMBINE_MODE_1PASS     = 0x1B,
+    RDPQ_CMD_TRIANGLE                   = 0x1E,
+    RDPQ_CMD_TRIANGLE_DATA              = 0x1F,
 
     RDPQ_CMD_SET_OTHER_MODES_NOWRITE    = 0x20,
     RDPQ_CMD_SYNC_FULL_NOWRITE          = 0x21,

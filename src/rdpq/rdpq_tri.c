@@ -20,6 +20,7 @@
 #include "rdpq.h"
 #include "rspq.h"
 #include "rdpq_internal.h"
+#include "rdpq_constants.h"
 #include "utils.h"
 
 /** @brief Converts a float to a s16.16 fixed point number */
@@ -291,6 +292,7 @@ void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_
     }
     __rdpq_autosync_use(res);
 
+#if RDPQ_TRIANGLE_REFERENCE
     uint32_t cmd_id = RDPQ_CMD_TRI;
 
     uint32_t size = 8;
@@ -329,4 +331,41 @@ void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_
     }
 
     rspq_write_end(&w);
+#else
+    #define TRI_DATA_LEN  ((2+1+1+3)*4)
+
+    const float *vtx[3] = {v1, v2, v3};
+    for (int i=0;i<3;i++) {
+        const float *v = vtx[i];
+
+        int32_t x = float_to_s16_16(v[pos_offset+0]);
+        int32_t y = float_to_s16_16(v[pos_offset+1]);
+        
+        int32_t z = 0;
+        if (z_offset >= 0) {
+            z = float_to_s16_16(v[z_offset+0]);
+        } 
+
+        int32_t rgba = 0;
+        if (shade_offset >= 0) {
+            uint32_t r = v[shade_offset+0] * 255.0;
+            uint32_t g = v[shade_offset+1] * 255.0;
+            uint32_t b = v[shade_offset+2] * 255.0;
+            uint32_t a = v[shade_offset+3] * 255.0;
+            rgba = (r << 24) | (g << 16) | (b << 8) | a;
+        }
+
+        int32_t s=0, t=0, inv_w=0;
+        if (tex_offset >= 0) {
+            s     = float_to_s16_16(v[tex_offset+0]);
+            t     = float_to_s16_16(v[tex_offset+1]);
+            inv_w = float_to_s16_16(v[tex_offset+2]);
+        }
+
+        rspq_write(RDPQ_OVL_ID, RDPQ_CMD_TRIANGLE_DATA,
+            TRI_DATA_LEN * i, x, y, z, rgba, s, t, inv_w);
+    }
+
+    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_TRIANGLE, 0);
+#endif
 }

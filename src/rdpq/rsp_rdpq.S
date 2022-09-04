@@ -38,8 +38,8 @@
         RSPQ_DefineCommand RDPQCmd_SetCombineMode_1Pass,    16  # 0xDB SET_COMBINE_MODE (one pass)
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDC
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDD
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDE
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDF
+        RSPQ_DefineCommand RDPQCmd_Triangle,                8   # 0xDE Triangle (assembled by RSP)
+        RSPQ_DefineCommand RDPQCmd_TriangleData,            8   # 0xDF Set Triangle Data
 
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xE0
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xE1
@@ -90,7 +90,16 @@ RDPQ_MODE_STACK:        .ds.b (RDPQ_MODE_END - RDPQ_MODE)*3
 
 RDPQ_RDRAM_STATE_ADDR:  .word  0
 
+    .align 4
+RDPQ_TRI_DATA0:          .dcb.l 7
+    .align 4
+RDPQ_TRI_DATA1:          .dcb.l 7
+    .align 4
+RDPQ_TRI_DATA2:          .dcb.l 7
+
     RSPQ_EndSavedState
+
+    .bss
 
     .text
 
@@ -427,6 +436,26 @@ reset_end:
     # and call RDPQ_UpdateRenderMode once
     j RDPQCmd_SetCombineMode_1Pass
     nop
+
+
+    .func RDPQCmd_TriangleData
+RDPQCmd_TriangleData:
+    sw a1, %lo(RDPQ_TRI_DATA0) + 0(a0)  # X
+    sw a2, %lo(RDPQ_TRI_DATA0) + 4(a0)  # Y
+    sw a3, %lo(RDPQ_TRI_DATA0) + 8(a0)  # Z
+
+    lw t0, CMD_ADDR(16, 32)
+    lw t1, CMD_ADDR(20, 32)
+    lw t2, CMD_ADDR(24, 32)
+    lw t3, CMD_ADDR(28, 32)
+
+    sw t0, %lo(RDPQ_TRI_DATA0) + 12(a0)  # RGBA
+    sw t1, %lo(RDPQ_TRI_DATA0) + 16(a0)  # S
+    sw t2, %lo(RDPQ_TRI_DATA0) + 20(a0)  # T 
+    jr ra
+    sw t3, %lo(RDPQ_TRI_DATA0) + 24(a0)  # INV_W
+    .endfunc
+
 
 # Include RDPQ library
 #include <rsp_rdpq.inc>

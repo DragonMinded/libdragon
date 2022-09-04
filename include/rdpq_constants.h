@@ -11,8 +11,14 @@
 // Asserted if a 2-pass combiner is set with #rdpq_mode_combiner while mipmap is enabled.
 #define RDPQ_ASSERT_MIPMAP_COMB2  0xC004
 
+// Asserted if RDPQCmd_Triangle is called with RDPQ_TRIANGLE_REFERENCE == 0
+#define RDPQ_ASSERT_INVALID_CMD_TRI  0xC005
+
 #define RDPQ_MAX_COMMAND_SIZE 44
 #define RDPQ_BLOCK_MIN_SIZE   64    ///< RDPQ block minimum size (in 32-bit words)
 #define RDPQ_BLOCK_MAX_SIZE   4192  ///< RDPQ block minimum size (in 32-bit words)
+
+/** @brief Set to 1 for the reference implementation of RDPQ_TRIANGLE (on CPU) */
+#define RDPQ_TRIANGLE_REFERENCE    1
 
 #endif
