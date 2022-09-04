@@ -629,12 +629,15 @@ static void validate_emit_error(int flags, const char *msg, ...)
     case 0:
         fprintf(stderr, "[RDPQ_VALIDATION] CRASH: ");
         vctx.crashed = true;
+        break;
     case 1:
         fprintf(stderr, "[RDPQ_VALIDATION] ERROR: ");
         vctx.errs += 1;
+        break;
     case 2:
         fprintf(stderr, "[RDPQ_VALIDATION] WARN:  ");
         vctx.warns += 1;
+        break;
     }
 
     va_start(args, msg);
