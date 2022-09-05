@@ -154,12 +154,14 @@ struct {
 } vctx;
 
 #ifdef N64
-/** @brief Maximum number of pending RDP buffers */
-#define MAX_BUFFERS 12 
-static rdp_buffer_t buffers[MAX_BUFFERS];     ///< Pending RDP buffers (ring buffer)
-static volatile int buf_ridx, buf_widx;       ///< Read/write index into the ring buffer of RDP buffers
-static rdp_buffer_t last_buffer;              ///< Last RDP buffer that was processed
-static int show_log;                          ///< True if logging is enabled
+#define MAX_BUFFERS 12                                    ///< Maximum number of pending RDP buffers
+#define MAX_HOOKS 4                                       ///< Maximum number of custom hooks
+static rdp_buffer_t buffers[MAX_BUFFERS];                 ///< Pending RDP buffers (ring buffer)
+static volatile int buf_ridx, buf_widx;                   ///< Read/write index into the ring buffer of RDP buffers
+static rdp_buffer_t last_buffer;                          ///< Last RDP buffer that was processed
+static int show_log;                                      ///< True if logging is enabled
+static void (*hooks[MAX_HOOKS])(void*, uint64_t*, int);   ///< Custom hooks
+static void* hooks_ctx[MAX_HOOKS];                        ///< Context for the hooks
 
 // Documented in rdpq_debug_internal.h
 void (*rdpq_trace)(void);
@@ -271,6 +273,8 @@ void __rdpq_trace(void)
             int sz = rdpq_debug_disasm_size(cur);
             if (show_log > 0) rdpq_debug_disasm(cur, stderr);
             rdpq_validate(cur, NULL, NULL);
+            for (int i=0;i<MAX_HOOKS && hooks[i];i++)
+                hooks[i](hooks_ctx[i], cur, sz);
             // If this is a RDPQ_DEBUG command, execute it
             if (BITS(cur[0],56,61) == 0x31) __rdpq_debug_cmd(cur[0]);
             cur += sz;
@@ -284,6 +288,7 @@ void rdpq_debug_start(void)
     memset(&last_buffer, 0, sizeof(last_buffer));
     memset(&rdp, 0, sizeof(rdp));
     memset(&vctx, 0, sizeof(vctx));
+    memset(&hooks, 0, sizeof(hooks));
     buf_widx = buf_ridx = 0;
     show_log = 0;
 
@@ -308,6 +313,18 @@ void rdpq_debug_stop(void)
     rdpq_trace = NULL;
     rdpq_trace_fetch = NULL;
 }
+
+void rdpq_debug_install_hook(void (*hook)(void*, uint64_t*, int), void* ctx)
+{
+    for (int i=0;i<MAX_HOOKS;i++)
+        if (!hooks[i]) {
+            hooks[i] = hook;
+            hooks_ctx[i] = ctx;
+            return;
+        }
+    assertf(0, "reached maximum number of hooks (%d)", MAX_HOOKS);
+}
+
 #endif
 
 /** @brief Decode a SET_COMBINE command into a #colorcombiner_t structure */

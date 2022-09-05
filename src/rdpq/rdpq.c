@@ -368,17 +368,6 @@ static rdpq_state_t *rdpq_state;
 
 bool __rdpq_inited = false;             ///< True if #rdpq_init was called
 
-/** 
- * @brief Force clearing of RDP buffers (debug function).
- * 
- * When this variable is set to true, al RDP buffers (the two dynamic
- * buffers in rspq.c and all buffers allocated for blocks) are cleared
- * to zero after allocation. This is normally not required as the
- * contents are always written before being sent to RDP, but it can
- * simplify writing tests that inspect the contents of the buffers.
- */
-bool __rdpq_zero_blocks = false;
-
 /** @brief Current configuration of the rdpq library. */ 
 static uint32_t rdpq_config;
 
@@ -611,12 +600,6 @@ void __rdpq_block_next_buffer(void)
     // and at the same time start small.
     int memsz = sizeof(rdpq_block_t) + st->bufsize*sizeof(uint32_t);
     rdpq_block_t *b = malloc_uncached(memsz);
-
-    // Clean the buffer if requested (in tests). Cleaning the buffer is
-    // not necessary for correct operation, but it helps writing tests that
-    // want to inspect the block contents.
-    if (__rdpq_zero_blocks)
-        memset(b, 0, memsz);
 
     // Chain the block to the current one (if any)
     b->next = NULL;

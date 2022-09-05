@@ -585,10 +585,6 @@ void rspq_init(void)
     // Allocate the RDP dynamic buffers.
     rspq_rdp_dynamic_buffers[0] = malloc_uncached(RDPQ_DYNAMIC_BUFFER_SIZE);
     rspq_rdp_dynamic_buffers[1] = malloc_uncached(RDPQ_DYNAMIC_BUFFER_SIZE);
-    if (__rdpq_zero_blocks) {
-        memset(rspq_rdp_dynamic_buffers[0], 0, RDPQ_DYNAMIC_BUFFER_SIZE);
-        memset(rspq_rdp_dynamic_buffers[1], 0, RDPQ_DYNAMIC_BUFFER_SIZE);
-    }
 
     // Load initial settings
     memset(&rspq_data, 0, sizeof(rsp_queue_t));

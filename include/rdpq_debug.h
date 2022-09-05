@@ -141,6 +141,20 @@ void rdpq_debug_log_msg(const char *str);
 surface_t rdpq_debug_get_tmem(void);
 
 /**
+ * @brief Install a custom hook that will be called every time a RDP command is processed.
+ * 
+ * This function can be used to perform custom analysis on the RDP stream. It allows
+ * you to register a callback that will be called any time a RDP command is processed
+ * by the debugging engine.
+ * 
+ * @param   hook    Hook function that will be called for each RDP command
+ * @param   ctx     Context passed to the hook function
+ * 
+ * @note You can currently install only one hook
+ */
+void rdpq_debug_install_hook(void (*hook)(void *ctx, uint64_t* cmd, int cmd_size), void* ctx);
+
+/**
  * @brief Disassemble a RDP command
  * 
  * This function allows to access directly the disassembler which is part

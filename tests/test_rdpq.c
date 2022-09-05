@@ -3,10 +3,62 @@
 #include "../src/rdpq/rdpq_internal.h"
 #include <rdpq_constants.h> 
 
+#define BITS(v, b, e)  ((unsigned int)((v) << (63-(e)) >> (63-(e)+(b)))) 
+
+static uint64_t rdp_stream[4096];
+static struct {
+    int idx;
+    int num_cmds;
+    int num_soms;
+    int num_ccs;
+    int last_som;
+    int last_cc;
+} rdp_stream_ctx;
+
+static void debug_rdp_stream(void *ctx, uint64_t *cmd, int sz) {
+    if (rdp_stream_ctx.idx+sz >= 4096) return;
+
+    switch (BITS(cmd[0],56,61)) {
+    case 0x2F:
+        rdp_stream_ctx.last_som = rdp_stream_ctx.idx;
+        rdp_stream_ctx.num_soms++;
+        break;
+    case 0x3C:
+        rdp_stream_ctx.last_cc = rdp_stream_ctx.idx;
+        rdp_stream_ctx.num_ccs++;
+        break;
+    }
+    memcpy(rdp_stream + rdp_stream_ctx.idx, cmd, sz*8);
+    rdp_stream_ctx.idx += sz;
+    rdp_stream_ctx.num_cmds++;
+}
+
+static void debug_rdp_stream_reset(void) {
+    memset(&rdp_stream_ctx, 0, sizeof(rdp_stream_ctx));
+    rdp_stream_ctx.last_som = -1;
+    rdp_stream_ctx.last_cc = -1;
+}
+
+static void debug_rdp_stream_init(void) {
+    debug_rdp_stream_reset();
+    rdpq_debug_install_hook(debug_rdp_stream, NULL);
+}
+
+uint64_t debug_rdp_stream_last_som(void) {
+    if (rdp_stream_ctx.last_som < 0) return 0;
+    return rdp_stream[rdp_stream_ctx.last_som];
+}
+
+uint64_t debug_rdp_stream_last_cc(void) {
+    if (rdp_stream_ctx.last_cc < 0) return 0;
+    return rdp_stream[rdp_stream_ctx.last_cc];
+}
+
 #define RDPQ_INIT() \
     rspq_init(); DEFER(rspq_close()); \
     rdpq_init(); DEFER(rdpq_close()); \
-    rdpq_debug_start(); DEFER(rdpq_debug_stop())
+    rdpq_debug_start(); DEFER(rdpq_debug_stop());
+
 
 static void surface_clear(surface_t *s, uint8_t c) {
     memset(s->buffer, c, s->height * s->stride);
@@ -679,11 +731,8 @@ void test_rdpq_syncfull(TestContext *ctx)
 }
 
 static void __test_rdpq_autosyncs(TestContext *ctx, void (*func)(void), uint8_t exp[4], bool use_block) {
-    // Force clearing of RDP static buffers, so that we have an easier time inspecting them.
-    __rdpq_zero_blocks = true;
-    DEFER(__rdpq_zero_blocks = false);
-
     RDPQ_INIT();
+    debug_rdp_stream_init();
 
     const int WIDTH = 64;
     surface_t fb = surface_alloc(FMT_RGBA16, WIDTH, WIDTH);
@@ -709,34 +758,15 @@ static void __test_rdpq_autosyncs(TestContext *ctx, void (*func)(void), uint8_t 
     func();
     rspq_wait();
 
+    // Go through the stream of RDP commands and count the syncs
     uint8_t cnt[4] = {0};
-    void count_syncs(uint64_t *cmds, int n) {
-        for (int i=0;i<n;i++) {
-            uint8_t cmd = cmds[i] >> 56;
-            if (cmd == RDPQ_CMD_SYNC_LOAD+0xC0) cnt[0]++;
-            if (cmd == RDPQ_CMD_SYNC_TILE+0xC0) cnt[1]++;
-            if (cmd == RDPQ_CMD_SYNC_PIPE+0xC0) cnt[2]++;
-            if (cmd == RDPQ_CMD_SYNC_FULL+0xC0) cnt[3]++;            
-        }
+    for (int i=0;i<rdp_stream_ctx.idx;i++) {
+        uint8_t cmd = rdp_stream[i] >> 56;
+        if (cmd == RDPQ_CMD_SYNC_LOAD+0xC0) cnt[0]++;
+        if (cmd == RDPQ_CMD_SYNC_TILE+0xC0) cnt[1]++;
+        if (cmd == RDPQ_CMD_SYNC_PIPE+0xC0) cnt[2]++;
+        if (cmd == RDPQ_CMD_SYNC_FULL+0xC0) cnt[3]++;
     }
-
-    // Pointer to RDP primitives in dynamic buffer. Normally, the current
-    // buffer is the one with index 0.
-    // If we went through a block, RSPQ_RdpSend has already swapped the
-    // two buffers so the one we are interested into is the 1.
-    extern void *rspq_rdp_dynamic_buffers[2];
-    uint64_t *rdp_cmds = use_block ? rspq_rdp_dynamic_buffers[1] : rspq_rdp_dynamic_buffers[0];
-    if (use_block) {
-        rdpq_block_t *bb = block->rdp_block;
-        int size = RDPQ_BLOCK_MIN_SIZE * 4;
-        while (bb) {
-            count_syncs((uint64_t*)bb->cmds, size / 8);
-            bb = bb->next;
-            size *= 2;
-        }
-    }
-    
-    count_syncs(rdp_cmds, 32);
     ASSERT_EQUAL_MEM(cnt, exp, 4, "Unexpected sync commands");
 }
 
@@ -1208,11 +1238,8 @@ void test_rdpq_fog(TestContext *ctx) {
 }
 
 void test_rdpq_mode_freeze(TestContext *ctx) {
-    // Force clearing of RDP static buffers, so that we have an easier time inspecting them.
-    __rdpq_zero_blocks = true;
-    DEFER(__rdpq_zero_blocks = false);
-
     RDPQ_INIT();
+    debug_rdp_stream_init();
 
     const int FULL_CVG = 7 << 5;   // full coverage
     const int FBWIDTH = 16;
@@ -1240,19 +1267,11 @@ void test_rdpq_mode_freeze(TestContext *ctx) {
     ASSERT_SURFACE(&fb, { return RGBA32(255,255,255,FULL_CVG); });
 
     // Inspect the dynamic buffer. We want to verify that only the right number of SOM/CC
-    extern void *rspq_rdp_dynamic_buffers[2];
-
-    int num_cc = 0, num_som = 0;
-    uint64_t *rdp_buf = (uint64_t*)rspq_rdp_dynamic_buffers[0];
-    for (uint64_t i = 0; i < 32; i++)
-    {
-        if ((rdp_buf[i] >> 56) == 0xFC) num_cc++;
-        if ((rdp_buf[i] >> 56) == 0xEF) num_som++;
-    }
-    ASSERT_EQUAL_SIGNED(num_cc, 1, "too many SET_COMBINE_MODE");
-    ASSERT_EQUAL_SIGNED(num_som, 2, "too many SET_OTHER_MODES"); // 1 SOM for fill, 1 SOM for standard
+    ASSERT_EQUAL_SIGNED(rdp_stream_ctx.num_ccs, 1, "too many SET_COMBINE_MODE");
+    ASSERT_EQUAL_SIGNED(rdp_stream_ctx.num_soms, 2, "too many SET_OTHER_MODES"); // 1 SOM for fill, 1 SOM for standard
 
     // Try again within a block.
+    debug_rdp_stream_reset();
     surface_clear(&fb, 0);
     rdpq_debug_log_msg("Mode freeze: in block");
     rspq_block_begin();
@@ -1274,18 +1293,15 @@ void test_rdpq_mode_freeze(TestContext *ctx) {
     rspq_wait();
     ASSERT_SURFACE(&fb, { return RGBA32(255,255,255,FULL_CVG); });
 
-    num_cc = 0; num_som = 0; int num_nops = 0;
-    rdp_buf = (uint64_t*)block->rdp_block->cmds;
-    for (int i=0; i<RDPQ_BLOCK_MIN_SIZE; i++) {
-        if ((rdp_buf[i] >> 56) == 0xFC) num_cc++;
-        if ((rdp_buf[i] >> 56) == 0xEF) num_som++;
-        if ((rdp_buf[i] >> 56) == 0xC0) num_nops++;
-    }
-    ASSERT_EQUAL_SIGNED(num_cc, 1, "too many SET_COMBINE_MODE");
-    ASSERT_EQUAL_SIGNED(num_som, 2, "too many SET_OTHER_MODES"); // 1 SOM for fill, 1 SOM for standard
+    int num_nops = 0;
+    for (int i=0; i<rdp_stream_ctx.idx; i++)
+        if ((rdp_stream[i] >> 56) == 0xC0) num_nops++;
+    ASSERT_EQUAL_SIGNED(rdp_stream_ctx.num_ccs, 1, "too many SET_COMBINE_MODE");
+    ASSERT_EQUAL_SIGNED(rdp_stream_ctx.num_soms, 2, "too many SET_OTHER_MODES"); // 1 SOM for fill, 1 SOM for standard
     ASSERT_EQUAL_SIGNED(num_nops, 0, "too many NOPs"); 
 
     // Try again within a block, but doing the freeze outside of it
+    debug_rdp_stream_reset();
     surface_clear(&fb, 0);
     rdpq_debug_log_msg("Mode freeze: calling a block in frozen mode");
 
@@ -1308,15 +1324,11 @@ void test_rdpq_mode_freeze(TestContext *ctx) {
     rspq_wait();
     ASSERT_SURFACE(&fb, { return RGBA32(255,255,255,FULL_CVG); });
 
-    num_cc = 0; num_som = 0; num_nops = 0;
-    rdp_buf = (uint64_t*)block2->rdp_block->cmds;
-    for (int i=0; i<RDPQ_BLOCK_MIN_SIZE; i++) {
-        if ((rdp_buf[i] >> 56) == 0xFC) num_cc++;
-        if ((rdp_buf[i] >> 56) == 0xEF) num_som++;
-        if ((rdp_buf[i] >> 56) == 0xC0) num_nops++;
-    }
-    ASSERT_EQUAL_SIGNED(num_cc, 1, "too many SET_COMBINE_MODE");
-    ASSERT_EQUAL_SIGNED(num_som, 1, "too many SET_OTHER_MODES"); // 1 SOM for fill, 1 SOM for standard
+    num_nops = 0;
+    for (int i=0; i<rdp_stream_ctx.idx; i++)
+        if ((rdp_stream[i] >> 56) == 0xC0) num_nops++;
+    ASSERT_EQUAL_SIGNED(rdp_stream_ctx.num_ccs, 1, "too many SET_COMBINE_MODE");
+    ASSERT_EQUAL_SIGNED(rdp_stream_ctx.num_soms, 2, "too many SET_OTHER_MODES"); // 1 SOM for fill, 1 SOM for standard
     ASSERT_EQUAL_SIGNED(num_nops, 7, "wrong number of NOPs");
 }
 
@@ -1366,6 +1378,7 @@ void test_rdpq_mode_freeze_stack(TestContext *ctx) {
 
 void test_rdpq_mipmap(TestContext *ctx) {
     RDPQ_INIT();
+    debug_rdp_stream_init();
 
     const int FBWIDTH = 16;
     const int TEXWIDTH = FBWIDTH - 8;
@@ -1405,12 +1418,9 @@ void test_rdpq_mipmap(TestContext *ctx) {
 
     // Go through the generated RDP primitives and check if the triangle
     // was patched the correct number of mipmap levels
-    extern void *rspq_rdp_dynamic_buffers[2];
-    uint64_t *rdp_buf = (uint64_t*)rspq_rdp_dynamic_buffers[0];
-    for (uint64_t i = 0; i < 32; i++)
-    {
-        if ((rdp_buf[i] >> 56) == 0xCB) {
-            int levels = ((rdp_buf[i] >> 51) & 7) + 1;
+    for (int i=0;i<rdp_stream_ctx.idx;i++) {
+        if ((rdp_stream[i] >> 56) == 0xCB) {
+            int levels = ((rdp_stream[i] >> 51) & 7) + 1;
             ASSERT_EQUAL_SIGNED(levels, 4, "invalid number of mipmap levels");
         }
     }
