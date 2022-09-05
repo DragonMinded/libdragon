@@ -75,31 +75,39 @@ $(function() {
 <div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span> </div>
 <div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span><span class="preprocessor">#include &quot;<a class="code" href="mixer_8h.html">mixer.h</a>&quot;</span></div>
 <div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span> </div>
-<div class="line"><a id="l00024" name="l00024"></a><span class="lineno"><a class="line" href="wav64_8h.html">   24</a></span><span class="keyword">typedef</span> <span class="keyword">struct </span>{</div>
-<div class="line"><a id="l00029" name="l00029"></a><span class="lineno"><a class="line" href="wav64_8h.html#a4201df70d0e73f29e11d22666cc0b0bd">   29</a></span>    <a class="code hl_struct" href="mixer_8h.html#structwaveform__t">waveform_t</a> <a class="code hl_variable" href="wav64_8h.html#a4201df70d0e73f29e11d22666cc0b0bd">wave</a>;</div>
-<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span> </div>
-<div class="line"><a id="l00032" name="l00032"></a><span class="lineno"><a class="line" href="wav64_8h.html#aff33a7f2c7737303555452395080954c">   32</a></span>    uint32_t <a class="code hl_variable" href="wav64_8h.html#aff33a7f2c7737303555452395080954c">rom_addr</a>;</div>
-<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span>} <a class="code hl_struct" href="wav64_8h.html#structwav64__t">wav64_t</a>;</div>
+<div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span><span class="preprocessor">#ifdef __cplusplus</span></div>
+<div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span><span class="keyword">extern</span> <span class="stringliteral">&quot;C&quot;</span> {</div>
+<div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span> </div>
+<div class="line"><a id="l00028" name="l00028"></a><span class="lineno"><a class="line" href="wav64_8h.html">   28</a></span><span class="keyword">typedef</span> <span class="keyword">struct </span>{</div>
+<div class="line"><a id="l00033" name="l00033"></a><span class="lineno"><a class="line" href="wav64_8h.html#a4201df70d0e73f29e11d22666cc0b0bd">   33</a></span>    <a class="code hl_struct" href="mixer_8h.html#structwaveform__t">waveform_t</a> <a class="code hl_variable" href="wav64_8h.html#a4201df70d0e73f29e11d22666cc0b0bd">wave</a>;</div>
 <div class="line"><a id="l00034" name="l00034"></a><span class="lineno">   34</span> </div>
-<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span><span class="keywordtype">void</span> <a class="code hl_function" href="wav64_8h.html#ad66af3ff9f0c1d51211cc72c1b92a6e9">wav64_open</a>(<a class="code hl_struct" href="wav64_8h.html#structwav64__t">wav64_t</a> *wav, <span class="keyword">const</span> <span class="keywordtype">char</span> *fn);</div>
-<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span> </div>
-<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span><span class="keywordtype">void</span> <a class="code hl_function" href="wav64_8h.html#ac8b7880f777dec27e73713a6e78cd9e3">wav64_set_loop</a>(<a class="code hl_struct" href="wav64_8h.html#structwav64__t">wav64_t</a> *wav, <span class="keywordtype">bool</span> loop);</div>
-<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span> </div>
-<div class="line"><a id="l00058" name="l00058"></a><span class="lineno">   58</span><span class="keywordtype">void</span> <a class="code hl_function" href="wav64_8h.html#af0355ddf406260d86dd082bfd4f1ed0b">wav64_play</a>(<a class="code hl_struct" href="wav64_8h.html#structwav64__t">wav64_t</a> *wav, <span class="keywordtype">int</span> ch);</div>
-<div class="line"><a id="l00059" name="l00059"></a><span class="lineno">   59</span> </div>
-<div class="line"><a id="l00060" name="l00060"></a><span class="lineno">   60</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00036" name="l00036"></a><span class="lineno"><a class="line" href="wav64_8h.html#aff33a7f2c7737303555452395080954c">   36</a></span>    uint32_t <a class="code hl_variable" href="wav64_8h.html#aff33a7f2c7737303555452395080954c">rom_addr</a>;</div>
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno">   37</span>} <a class="code hl_struct" href="wav64_8h.html#structwav64__t">wav64_t</a>;</div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span> </div>
+<div class="line"><a id="l00048" name="l00048"></a><span class="lineno">   48</span><span class="keywordtype">void</span> <a class="code hl_function" href="wav64_8h.html#ad66af3ff9f0c1d51211cc72c1b92a6e9">wav64_open</a>(<a class="code hl_struct" href="wav64_8h.html#structwav64__t">wav64_t</a> *wav, <span class="keyword">const</span> <span class="keywordtype">char</span> *fn);</div>
+<div class="line"><a id="l00049" name="l00049"></a><span class="lineno">   49</span> </div>
+<div class="line"><a id="l00051" name="l00051"></a><span class="lineno">   51</span><span class="keywordtype">void</span> <a class="code hl_function" href="wav64_8h.html#ac8b7880f777dec27e73713a6e78cd9e3">wav64_set_loop</a>(<a class="code hl_struct" href="wav64_8h.html#structwav64__t">wav64_t</a> *wav, <span class="keywordtype">bool</span> loop);</div>
+<div class="line"><a id="l00052" name="l00052"></a><span class="lineno">   52</span> </div>
+<div class="line"><a id="l00062" name="l00062"></a><span class="lineno">   62</span><span class="keywordtype">void</span> <a class="code hl_function" href="wav64_8h.html#af0355ddf406260d86dd082bfd4f1ed0b">wav64_play</a>(<a class="code hl_struct" href="wav64_8h.html#structwav64__t">wav64_t</a> *wav, <span class="keywordtype">int</span> ch);</div>
+<div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span> </div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span><span class="preprocessor">#ifdef __cplusplus</span></div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span>}</div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span> </div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span><span class="preprocessor">#endif</span></div>
 <div class="ttc" id="amixer_8h_html"><div class="ttname"><a href="mixer_8h.html">mixer.h</a></div><div class="ttdoc">RSP Audio mixer.</div></div>
 <div class="ttc" id="amixer_8h_html_structwaveform__t"><div class="ttname"><a href="mixer_8h.html#structwaveform__t">waveform_t</a></div><div class="ttdoc">A waveform that can be played back through the mixer.</div><div class="ttdef"><b>Definition:</b> mixer.h:439</div></div>
-<div class="ttc" id="awav64_8h_html_a4201df70d0e73f29e11d22666cc0b0bd"><div class="ttname"><a href="wav64_8h.html#a4201df70d0e73f29e11d22666cc0b0bd">wav64_t::wave</a></div><div class="ttdeci">waveform_t wave</div><div class="ttdoc">waveform_t for this WAV64.</div><div class="ttdef"><b>Definition:</b> wav64.h:29</div></div>
+<div class="ttc" id="awav64_8h_html_a4201df70d0e73f29e11d22666cc0b0bd"><div class="ttname"><a href="wav64_8h.html#a4201df70d0e73f29e11d22666cc0b0bd">wav64_t::wave</a></div><div class="ttdeci">waveform_t wave</div><div class="ttdoc">waveform_t for this WAV64.</div><div class="ttdef"><b>Definition:</b> wav64.h:33</div></div>
 <div class="ttc" id="awav64_8h_html_ac8b7880f777dec27e73713a6e78cd9e3"><div class="ttname"><a href="wav64_8h.html#ac8b7880f777dec27e73713a6e78cd9e3">wav64_set_loop</a></div><div class="ttdeci">void wav64_set_loop(wav64_t *wav, bool loop)</div><div class="ttdoc">Configure a WAV64 file for looping playback.</div><div class="ttdef"><b>Definition:</b> wav64.c:92</div></div>
 <div class="ttc" id="awav64_8h_html_ad66af3ff9f0c1d51211cc72c1b92a6e9"><div class="ttname"><a href="wav64_8h.html#ad66af3ff9f0c1d51211cc72c1b92a6e9">wav64_open</a></div><div class="ttdeci">void wav64_open(wav64_t *wav, const char *fn)</div><div class="ttdoc">Open a WAV64 file for playback.</div><div class="ttdef"><b>Definition:</b> wav64.c:47</div></div>
 <div class="ttc" id="awav64_8h_html_af0355ddf406260d86dd082bfd4f1ed0b"><div class="ttname"><a href="wav64_8h.html#af0355ddf406260d86dd082bfd4f1ed0b">wav64_play</a></div><div class="ttdeci">void wav64_play(wav64_t *wav, int ch)</div><div class="ttdoc">Start playing a WAV64 file.</div><div class="ttdef"><b>Definition:</b> wav64.c:87</div></div>
-<div class="ttc" id="awav64_8h_html_aff33a7f2c7737303555452395080954c"><div class="ttname"><a href="wav64_8h.html#aff33a7f2c7737303555452395080954c">wav64_t::rom_addr</a></div><div class="ttdeci">uint32_t rom_addr</div><div class="ttdoc">Absolute ROM address of WAV64.</div><div class="ttdef"><b>Definition:</b> wav64.h:32</div></div>
-<div class="ttc" id="awav64_8h_html_structwav64__t"><div class="ttname"><a href="wav64_8h.html#structwav64__t">wav64_t</a></div><div class="ttdoc">WAV64 structure.</div><div class="ttdef"><b>Definition:</b> wav64.h:24</div></div>
+<div class="ttc" id="awav64_8h_html_aff33a7f2c7737303555452395080954c"><div class="ttname"><a href="wav64_8h.html#aff33a7f2c7737303555452395080954c">wav64_t::rom_addr</a></div><div class="ttdeci">uint32_t rom_addr</div><div class="ttdoc">Absolute ROM address of WAV64.</div><div class="ttdef"><b>Definition:</b> wav64.h:36</div></div>
+<div class="ttc" id="awav64_8h_html_structwav64__t"><div class="ttname"><a href="wav64_8h.html#structwav64__t">wav64_t</a></div><div class="ttdoc">WAV64 structure.</div><div class="ttdef"><b>Definition:</b> wav64.h:28</div></div>
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Fri Sep 2 2022 06:43:19 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Mon Sep 5 2022 15:52:35 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
