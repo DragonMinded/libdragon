@@ -35,7 +35,7 @@ JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN)}"
 JOBS="${JOBS:-1}" # If getconf returned nothing, default to 1
 
 # Additional GCC configure arguments
-GCC_CONFIGURE_ARGS=""
+GCC_CONFIGURE_ARGS=()
 
 # Dependency source libs (Versions)
 BINUTILS_V=2.38
@@ -70,7 +70,11 @@ if [[ $OSTYPE == 'darwin'* ]]; then
   brew install -q gmp mpfr libmpc gsed
 
   # Tell GCC configure where to find the dependent libraries
-  GCC_CONFIGURE_ARGS="--with-gmp=$(brew --prefix) --with-mpfr=$(brew --prefix) --with-mpc=$(brew --prefix)"
+  GCC_CONFIGURE_ARGS=(
+    "--with-gmp=$(brew --prefix)"
+    "--with-mpfr=$(brew --prefix)"
+    "--with-mpc=$(brew --prefix)"
+  )
 
   # Install GNU sed as default sed in PATH. GCC compilation fails otherwise,
   # because it does not work with BSD sed.
@@ -106,7 +110,7 @@ cd ..
 rm -rf gcc_compile
 mkdir gcc_compile
 cd gcc_compile
-../"gcc-$GCC_V"/configure $GCC_CONFIGURE_ARGS \
+../"gcc-$GCC_V"/configure "${GCC_CONFIGURE_ARGS[@]}" \
   --prefix="$INSTALL_PATH" \
   --target=mips64-elf \
   --with-arch=vr4300 \
@@ -146,7 +150,7 @@ rm -rf gcc_compile
 mkdir gcc_compile
 cd gcc_compile
 CFLAGS_FOR_TARGET="-O2" CXXFLAGS_FOR_TARGET="-O2" \
-  ../"gcc-$GCC_V"/configure $GCC_CONFIGURE_ARGS \
+  ../"gcc-$GCC_V"/configure "${GCC_CONFIGURE_ARGS[@]}" \
   --prefix="$INSTALL_PATH" \
   --target=mips64-elf \
   --with-arch=vr4300 \
