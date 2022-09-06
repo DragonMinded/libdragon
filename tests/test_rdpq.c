@@ -9,8 +9,6 @@ static uint64_t rdp_stream[4096];
 static struct {
     int idx;
     int num_cmds;
-    int num_soms;
-    int num_ccs;
     int last_som;
     int last_cc;
 } rdp_stream_ctx;
@@ -21,11 +19,9 @@ static void debug_rdp_stream(void *ctx, uint64_t *cmd, int sz) {
     switch (BITS(cmd[0],56,61)) {
     case 0x2F:
         rdp_stream_ctx.last_som = rdp_stream_ctx.idx;
-        rdp_stream_ctx.num_soms++;
         break;
     case 0x3C:
         rdp_stream_ctx.last_cc = rdp_stream_ctx.idx;
-        rdp_stream_ctx.num_ccs++;
         break;
     }
     memcpy(rdp_stream + rdp_stream_ctx.idx, cmd, sz*8);
@@ -52,6 +48,16 @@ uint64_t debug_rdp_stream_last_som(void) {
 uint64_t debug_rdp_stream_last_cc(void) {
     if (rdp_stream_ctx.last_cc < 0) return 0;
     return rdp_stream[rdp_stream_ctx.last_cc];
+}
+
+uint32_t debug_rdp_stream_count_cmd(uint32_t cmd_id) {
+    uint32_t count = 0;
+    for (int i=0;i<rdp_stream_ctx.idx;i++) {
+        if ((rdp_stream[i] >> 56) == cmd_id) {
+            ++count;
+        }
+    }
+    return count;
 }
 
 #define RDPQ_INIT() \
@@ -1266,9 +1272,12 @@ void test_rdpq_mode_freeze(TestContext *ctx) {
 
     ASSERT_SURFACE(&fb, { return RGBA32(255,255,255,FULL_CVG); });
 
+    uint32_t num_ccs = debug_rdp_stream_count_cmd(RDPQ_CMD_SET_COMBINE_MODE_RAW + 0xC0);
+    uint32_t num_soms = debug_rdp_stream_count_cmd(RDPQ_CMD_SET_OTHER_MODES + 0xC0);
+
     // Inspect the dynamic buffer. We want to verify that only the right number of SOM/CC
-    ASSERT_EQUAL_SIGNED(rdp_stream_ctx.num_ccs, 1, "too many SET_COMBINE_MODE");
-    ASSERT_EQUAL_SIGNED(rdp_stream_ctx.num_soms, 2, "too many SET_OTHER_MODES"); // 1 SOM for fill, 1 SOM for standard
+    ASSERT_EQUAL_SIGNED(num_ccs, 1, "too many SET_COMBINE_MODE");
+    ASSERT_EQUAL_SIGNED(num_soms, 2, "too many SET_OTHER_MODES"); // 1 SOM for fill, 1 SOM for standard
 
     // Try again within a block.
     debug_rdp_stream_reset();
@@ -1293,11 +1302,11 @@ void test_rdpq_mode_freeze(TestContext *ctx) {
     rspq_wait();
     ASSERT_SURFACE(&fb, { return RGBA32(255,255,255,FULL_CVG); });
 
-    int num_nops = 0;
-    for (int i=0; i<rdp_stream_ctx.idx; i++)
-        if ((rdp_stream[i] >> 56) == 0xC0) num_nops++;
-    ASSERT_EQUAL_SIGNED(rdp_stream_ctx.num_ccs, 1, "too many SET_COMBINE_MODE");
-    ASSERT_EQUAL_SIGNED(rdp_stream_ctx.num_soms, 2, "too many SET_OTHER_MODES"); // 1 SOM for fill, 1 SOM for standard
+    num_ccs = debug_rdp_stream_count_cmd(RDPQ_CMD_SET_COMBINE_MODE_RAW + 0xC0);
+    num_soms = debug_rdp_stream_count_cmd(RDPQ_CMD_SET_OTHER_MODES + 0xC0);
+    int num_nops = debug_rdp_stream_count_cmd(0xC0);
+    ASSERT_EQUAL_SIGNED(num_ccs, 1, "too many SET_COMBINE_MODE");
+    ASSERT_EQUAL_SIGNED(num_soms, 2, "too many SET_OTHER_MODES"); // 1 SOM for fill, 1 SOM for standard
     ASSERT_EQUAL_SIGNED(num_nops, 0, "too many NOPs"); 
 
     // Try again within a block, but doing the freeze outside of it
@@ -1324,11 +1333,11 @@ void test_rdpq_mode_freeze(TestContext *ctx) {
     rspq_wait();
     ASSERT_SURFACE(&fb, { return RGBA32(255,255,255,FULL_CVG); });
 
-    num_nops = 0;
-    for (int i=0; i<rdp_stream_ctx.idx; i++)
-        if ((rdp_stream[i] >> 56) == 0xC0) num_nops++;
-    ASSERT_EQUAL_SIGNED(rdp_stream_ctx.num_ccs, 1, "too many SET_COMBINE_MODE");
-    ASSERT_EQUAL_SIGNED(rdp_stream_ctx.num_soms, 2, "too many SET_OTHER_MODES"); // 1 SOM for fill, 1 SOM for standard
+    num_ccs = debug_rdp_stream_count_cmd(RDPQ_CMD_SET_COMBINE_MODE_RAW + 0xC0);
+    num_soms = debug_rdp_stream_count_cmd(RDPQ_CMD_SET_OTHER_MODES + 0xC0);
+    num_nops = debug_rdp_stream_count_cmd(0xC0);
+    ASSERT_EQUAL_SIGNED(num_ccs, 1, "too many SET_COMBINE_MODE");
+    ASSERT_EQUAL_SIGNED(num_soms, 2, "too many SET_OTHER_MODES"); // 1 SOM for fill, 1 SOM for standard
     ASSERT_EQUAL_SIGNED(num_nops, 7, "wrong number of NOPs");
 }
 

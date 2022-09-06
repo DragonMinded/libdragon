@@ -181,6 +181,7 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 #include "test_rspq.c"
 #include "test_rdpq.c"
 #include "test_mpeg1.c"
+#include "test_gl.c"
 
 /**********************************************************************
  * MAIN
@@ -268,6 +269,7 @@ static const struct Testsuite
 	TEST_FUNC(test_mpeg1_block_decode,         0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mpeg1_block_dequant,        0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mpeg1_block_predict,        0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_gl_clear,                   0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {
