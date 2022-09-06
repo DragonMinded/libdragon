@@ -53,7 +53,7 @@ extern "C" {
  *
  *   * cen64 (https://github.com/n64dev/cen64) - run with -is-viewer command line flag
  *   * Ares (https://ares-emulator.github.io)
- *   * m64p (https://m64p.github.io)
+ *   * simple64 (https://simple64.github.io)
  *   * dgb-n64 (https://github.com/Dillonb/n64)
  *
  */
