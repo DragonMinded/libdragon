@@ -163,7 +163,7 @@ typedef enum rdpq_filter_s {
  * If you are using an emulator, make sure it correctly emulates the VI
  * dither filter to judge the quality of the final image. For instance,
  * the RDP plugin parallel-RDP (based on Vulkan) emulates it very accurately,
- * so emulators like Ares, dgb-n64 or m64p will produce a picture closer to
+ * so emulators like Ares, dgb-n64 or simple64 will produce a picture closer to
  * real hardware.
  * 
  * The supported dither algorithms are:
