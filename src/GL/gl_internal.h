@@ -2,6 +2,7 @@
 #define __GL_INTERNAL
 
 #include "GL/gl.h"
+#include "GL/gl_integration.h"
 #include "obj_map.h"
 #include "surface.h"
 #include "utils.h"
@@ -213,6 +214,8 @@ typedef struct {
 } gl_pixel_map_t;
 
 typedef struct {
+    gl_open_surf_func_t open_surface;
+    gl_close_surf_func_t close_surface;
     gl_framebuffer_t default_framebuffer;
     gl_framebuffer_t *cur_framebuffer;
 
