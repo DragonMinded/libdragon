@@ -786,7 +786,7 @@ static void __autosync_pipe1(void) {
     // NO PIPESYNC HERE
     rdpq_set_prim_color(RGBA32(1,1,1,1));
     // NO PIPESYNC HERE
-    rdpq_set_prim_depth(0, 1);
+    rdpq_set_prim_depth_raw(0, 1);
     // NO PIPESYNC HERE
     rdpq_set_scissor(0,0,1,1);
     rdpq_fill_rectangle(0, 0, 8, 8);
