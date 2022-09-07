@@ -80,7 +80,7 @@ surface_t sprite_get_pixels(sprite_t *sprite);
  * 
  * A sprite can be used as a spritemap, that is a collection of multiple
  * smaller images of equal size, called "tiles". In this case, the number
- * of tiles is stored in the members #hslices and #vslices of the
+ * of tiles is stored in the members `hslices` and `vslices` of the
  * sprite structure.
  * 
  * This function allows to get a surface that points to the specific sub-tile,
@@ -109,7 +109,5 @@ uint16_t* sprite_get_palette(sprite_t *sprite);
 #ifdef __cplusplus
 }
 #endif
-
-/** @} */ /* graphics */
 
 #endif

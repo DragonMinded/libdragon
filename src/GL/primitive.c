@@ -196,7 +196,7 @@ void gl_draw_point(gl_vertex_t *v0)
     ));
 
     if (state.depth_test) {
-        rdpq_set_prim_depth(v0->depth, 0);
+        rdpq_set_prim_depth_raw(v0->depth * 0x7FFF, 0);
     }
 
     gl_texture_object_t *tex_obj = gl_get_active_texture();

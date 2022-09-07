@@ -332,7 +332,7 @@ void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_
 
     rspq_write_end(&w);
 #else
-    #define TRI_DATA_LEN  ((2+1+1+3)*4)
+    const int TRI_DATA_LEN = (2+1+1+3)*4;
 
     const float *vtx[3] = {v1, v2, v3};
     for (int i=0;i<3;i++) {
