@@ -14,7 +14,7 @@ programming and debugging. These are the main features:
   (commercial games and libultra are based on a 32-bit ABI and is not possible
   to use 64-bit registers and opcodes with it)
 * Can be developed with newer-generation emulators (cen64, Ares, Dillonb's n64,
-  m64p) or development cartridges (64drive, EverDrive64).
+  simple64) or development cartridges (64drive, EverDrive64).
 * Support both vanilla N64 and iQue Player (chinese variant). The support is
   experimental and done fully at runtime, so it is possible to run ROMs built
   with libdragon on iQue without modifying the source code.
@@ -102,7 +102,7 @@ libdragon requires a modern N64 emulator (the first generation of emulators
 are basically HLE-only and can only play the old commercial games). Suggested
 emulators for homebrew developemnt are: [Ares](https://ares-emulator.github.io),
 [cen64](https://github.com/n64dev/cen64), [dgb-n64](https://github.com/Dillonb/n64),
-[m64p](https://m64p.github.io).
+[simple64](https://simple64.github.io).
 
 On all the above emulators, you are also able to see in console anything printed
 via `fprintf(stderr)`, see the debug library for more information.

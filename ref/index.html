@@ -72,7 +72,7 @@ Welcome to libdragon</h1>
 <ul>
 <li>Based on modern GCC (12.2) and Newlib, for a full C11 programming experience. A Docker container is available to quickly set up the programming environment.</li>
 <li>The GCC toolchain is 64 bit capable to be able to use the full R4300 capabilities (commercial games and libultra are based on a 32-bit ABI and is not possible to use 64-bit registers and opcodes with it)</li>
-<li>Can be developed with newer-generation emulators (cen64, Ares, Dillonb's n64, m64p) or development cartridges (64drive, EverDrive64).</li>
+<li>Can be developed with newer-generation emulators (cen64, Ares, Dillonb's n64, simple64) or development cartridges (64drive, EverDrive64).</li>
 <li>Support both vanilla N64 and iQue Player (chinese variant). The support is experimental and done fully at runtime, so it is possible to run ROMs built with libdragon on iQue without modifying the source code.</li>
 <li>In-ROM filesystem implementation for assets. Assets can be loaded with <code>fopen("rom://asset.dat")</code> without having to do complex things to link them in.</li>
 <li>Efficient interrupt-based timer library (also features a monotone 64-bit timer to avoid dealing with 32-bit overflows)</li>
@@ -119,7 +119,7 @@ Option 2: Compile the toolchain (Windows WSL2, macOS x86/arm, Linux)</h2>
 Getting started: how to run a ROM</h1>
 <h2><a class="anchor" id="autotoc_md6"></a>
 Using emulators</h2>
-<p >libdragon requires a modern N64 emulator (the first generation of emulators are basically HLE-only and can only play the old commercial games). Suggested emulators for homebrew developemnt are: <a href="https://ares-emulator.github.io">Ares</a>, <a href="https://github.com/n64dev/cen64">cen64</a>, <a href="https://github.com/Dillonb/n64">dgb-n64</a>, <a href="https://m64p.github.io">m64p</a>.</p>
+<p >libdragon requires a modern N64 emulator (the first generation of emulators are basically HLE-only and can only play the old commercial games). Suggested emulators for homebrew developemnt are: <a href="https://ares-emulator.github.io">Ares</a>, <a href="https://github.com/n64dev/cen64">cen64</a>, <a href="https://github.com/Dillonb/n64">dgb-n64</a>, <a href="https://simple64.github.io">simple64</a>.</p>
 <p >On all the above emulators, you are also able to see in console anything printed via <code>fprintf(stderr)</code>, see the debug library for more information.</p>
 <h2><a class="anchor" id="autotoc_md7"></a>
 Using a development cartridge on a real N64</h2>
@@ -135,7 +135,7 @@ Documentation</h1>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Sep 7 2022 11:40:42 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Sep 7 2022 14:43:11 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
