@@ -987,10 +987,6 @@ int readlink( const char *path, char *buf, size_t bufsize )
     return -1;
 }
 
-/** @brief Symbol at the end of code, data, and sdata (set by the linker) */
-// Do not allow this in small data or it will seem larger than it actually is
-extern char end __attribute__((section (".data")));
-
 /**
  * @brief Return a new chunk of memory to be used as heap
  *
@@ -1009,7 +1005,7 @@ void *sbrk( int incr )
 
     if( heap_end == 0 )
     {
-        heap_end = &end;
+        heap_end = (char*)HEAP_START_ADDR;
         heap_top = (char*)KSEG0_START_ADDR + get_memory_size() - STACK_SIZE;
     }
 
