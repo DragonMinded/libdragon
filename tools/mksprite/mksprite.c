@@ -392,7 +392,10 @@ int main(int argc, char *argv[])
      
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '-') {
-            if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--verbose")) {
+            if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
+                print_args(argv[0]);
+                return 0;
+            } else if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--verbose")) {
                 flag_verbose = true;
             } else if (!strcmp(argv[i], "-o") || !strcmp(argv[i], "--output")) {
                 if (++i == argc) {
