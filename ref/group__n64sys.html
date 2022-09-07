@@ -375,6 +375,10 @@ Macros</h2></td></tr>
 <tr class="memitem:ga54fca3c0f8e1be138f320b3dcce4366f"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga54fca3c0f8e1be138f320b3dcce4366f">PhysicalAddr</a>(_addr)</td></tr>
 <tr class="memdesc:ga54fca3c0f8e1be138f320b3dcce4366f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the physical memory address for a given address.  <a href="group__n64sys.html#ga54fca3c0f8e1be138f320b3dcce4366f">More...</a><br /></td></tr>
 <tr class="separator:ga54fca3c0f8e1be138f320b3dcce4366f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaa83770c8bb3d7811f16af764871ed75f"><td class="memItemLeft" align="right" valign="top"><a id="gaa83770c8bb3d7811f16af764871ed75f" name="gaa83770c8bb3d7811f16af764871ed75f"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>HEAP_START_ADDR</b>&#160;&#160;&#160;((void*)<a class="el" href="group__n64sys.html#ga4e07cc711f6f6d1853ee441b43cb54cb">__rom_end</a>)</td></tr>
+<tr class="memdesc:gaa83770c8bb3d7811f16af764871ed75f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Void pointer to the start of heap memory. <br /></td></tr>
+<tr class="separator:gaa83770c8bb3d7811f16af764871ed75f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga56d4cbe1e093c683432a147eb1ccb293"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga56d4cbe1e093c683432a147eb1ccb293">MEMORY_BARRIER</a>()&#160;&#160;&#160;asm volatile (&quot;&quot; : : : &quot;memory&quot;)</td></tr>
 <tr class="memdesc:ga56d4cbe1e093c683432a147eb1ccb293"><td class="mdescLeft">&#160;</td><td class="mdescRight">Memory barrier to ensure in-order execution.  <a href="group__n64sys.html#ga56d4cbe1e093c683432a147eb1ccb293">More...</a><br /></td></tr>
 <tr class="separator:ga56d4cbe1e093c683432a147eb1ccb293"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -489,6 +493,10 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b> = 0</td
 int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></tr>
 <tr class="memdesc:gacd3b316e4428bf20c80fa403921feeb5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Indicates whether we are running on a vanilla N64 or a iQue player. <br /></td></tr>
 <tr class="separator:gacd3b316e4428bf20c80fa403921feeb5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga4e07cc711f6f6d1853ee441b43cb54cb"><td class="memItemLeft" align="right" valign="top"><a id="ga4e07cc711f6f6d1853ee441b43cb54cb" name="ga4e07cc711f6f6d1853ee441b43cb54cb"></a>
+char&#160;</td><td class="memItemRight" valign="bottom"><b>__rom_end</b> []</td></tr>
+<tr class="memdesc:ga4e07cc711f6f6d1853ee441b43cb54cb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Symbol at the end of code, data, and sdata (set by the linker) <br /></td></tr>
+<tr class="separator:ga4e07cc711f6f6d1853ee441b43cb54cb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <p >N64 bootup and cache interfaces. </p>
@@ -2139,7 +2147,7 @@ int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></t
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Sep 5 2022 21:35:52 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Sep 7 2022 08:17:25 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

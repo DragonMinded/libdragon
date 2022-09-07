@@ -13,7 +13,8 @@ var searchData=
   ['_5f_5fmixer_5fprofile_5frsp_10',['__mixer_profile_rsp',['../mixer_8c.html#adb6462ba394e665c815abb852d8e341f',1,'mixer.c']]],
   ['_5f_5fpad0_5f_5f_11',['__pad0__',['../group__controller.html#a9d55f6a808529317eea1a9c6e6a2d203',1,'_SI_condat']]],
   ['_5f_5fpad1_5f_5f_12',['__pad1__',['../group__controller.html#ae1549b09333a3d1e0ee817606319e15f',1,'_SI_condat']]],
-  ['_5f_5fsafe_5fbuffer_13',['__safe_buffer',['../group__display.html#gad9ed2f29d5beb330f196848b51ea8b61',1,'__safe_buffer():&#160;display.c'],['../group__graphics.html#ga2d9495ad3a35a245cd3a17785bc768ad',1,'__safe_buffer():&#160;display.c'],['../group__rdp.html#ga2d9495ad3a35a245cd3a17785bc768ad',1,'__safe_buffer():&#160;display.c']]],
-  ['_5f_5fwav64_5fprofile_5fdma_14',['__wav64_profile_dma',['../wav64_8c.html#a6090ed2c8a2f8e13225458264164e11a',1,'wav64.c']]],
-  ['_5f_5fwidth_15',['__width',['../group__display.html#ga0c4e53651e92263e2c94bcb616dee5bb',1,'__width():&#160;display.c'],['../group__graphics.html#ga0c4e53651e92263e2c94bcb616dee5bb',1,'__width():&#160;display.c'],['../group__rdp.html#ga0c4e53651e92263e2c94bcb616dee5bb',1,'__width():&#160;display.c']]]
+  ['_5f_5from_5fend_13',['__rom_end',['../group__n64sys.html#ga4e07cc711f6f6d1853ee441b43cb54cb',1,'n64sys.h']]],
+  ['_5f_5fsafe_5fbuffer_14',['__safe_buffer',['../group__display.html#gad9ed2f29d5beb330f196848b51ea8b61',1,'__safe_buffer():&#160;display.c'],['../group__graphics.html#ga2d9495ad3a35a245cd3a17785bc768ad',1,'__safe_buffer():&#160;display.c'],['../group__rdp.html#ga2d9495ad3a35a245cd3a17785bc768ad',1,'__safe_buffer():&#160;display.c']]],
+  ['_5f_5fwav64_5fprofile_5fdma_15',['__wav64_profile_dma',['../wav64_8c.html#a6090ed2c8a2f8e13225458264164e11a',1,'wav64.c']]],
+  ['_5f_5fwidth_16',['__width',['../group__display.html#ga0c4e53651e92263e2c94bcb616dee5bb',1,'__width():&#160;display.c'],['../group__graphics.html#ga0c4e53651e92263e2c94bcb616dee5bb',1,'__width():&#160;display.c'],['../group__rdp.html#ga0c4e53651e92263e2c94bcb616dee5bb',1,'__width():&#160;display.c']]]
 ];
