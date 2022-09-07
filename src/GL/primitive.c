@@ -994,7 +994,7 @@ bool gl_prepare_attrib_source(gl_attrib_source_t *attrib_src, gl_array_t *array,
         break;
     case GL_FLOAT:
         attrib_src->read_func = (read_attrib_func)read_f32;
-        size_shift = 3;
+        size_shift = 2;
         break;
     case GL_DOUBLE:
         attrib_src->read_func = (read_attrib_func)read_f64;
@@ -1060,7 +1060,7 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
         return;
     }
 
-    if (gl_prepare_attrib_sources(first, count)) {
+    if (!gl_prepare_attrib_sources(first, count)) {
         return;
     }
 

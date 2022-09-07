@@ -870,10 +870,10 @@ void rspq_overlay_unregister(uint32_t overlay_id)
 
     // Un-shift ID to convert to acual index again
     uint32_t overlay_index = rspq_data.tables.overlay_table[unshifted_id] / sizeof(rspq_overlay_t);
-    assertf(overlay_index != 0, "No overlay is registered at id %ld!", overlay_id);
+    assertf(overlay_index != 0, "No overlay is registered at id %#lx!", overlay_id);
 
     rspq_overlay_t *overlay = &rspq_data.tables.overlay_descriptors[overlay_index];
-    assertf(overlay->code != 0, "No overlay is registered at id %ld!", overlay_id);
+    assertf(overlay->code != 0, "No overlay is registered at id %#lx!", overlay_id);
 
     rspq_overlay_header_t *overlay_header = (rspq_overlay_header_t*)(overlay->data | 0x80000000);
     uint32_t command_count = rspq_overlay_get_command_count(overlay_header);

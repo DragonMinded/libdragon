@@ -448,6 +448,9 @@ void rdpq_init()
 
 void rdpq_close()
 {
+    if (!__rdpq_inited)
+        return;
+    
     rspq_overlay_unregister(RDPQ_OVL_ID);
 
     set_DP_interrupt( 0 );

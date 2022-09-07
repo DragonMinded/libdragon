@@ -57,10 +57,10 @@ void gl_set_framebuffer(gl_framebuffer_t *framebuffer)
 
 void gl_set_default_framebuffer()
 {
-    surface_t *ctx;
+    surface_t *surf;
 
     RSP_WAIT_LOOP(200) {
-        if ((ctx = display_lock())) {
+        if ((surf = state.open_surface())) {
             break;
         }
     }
@@ -68,24 +68,29 @@ void gl_set_default_framebuffer()
     gl_framebuffer_t *fb = &state.default_framebuffer;
 
     if (fb->depth_buffer != NULL && (fb->color_buffer == NULL 
-                                    || fb->color_buffer->width != ctx->width 
-                                    || fb->color_buffer->height != ctx->height)) {
+                                    || fb->color_buffer->width != surf->width 
+                                    || fb->color_buffer->height != surf->height)) {
         free_uncached(fb->depth_buffer);
         fb->depth_buffer = NULL;
     }
 
-    fb->color_buffer = ctx;
+    fb->color_buffer = surf;
 
     // TODO: only allocate depth buffer if depth test is enabled? Lazily allocate?
     if (fb->depth_buffer == NULL) {
         // TODO: allocate in separate RDRAM bank?
-        fb->depth_buffer = malloc_uncached_aligned(64, ctx->width * ctx->height * 2);
+        fb->depth_buffer = malloc_uncached_aligned(64, surf->width * surf->height * 2);
     }
 
     gl_set_framebuffer(fb);
 }
 
 void gl_init()
+{
+    gl_init_with_callbacks(display_lock, display_show);
+}
+
+void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func_t close_surface)
 {
     rdpq_init();
 
@@ -96,6 +101,9 @@ void gl_init()
     rdpq_set_mode_standard();
 
     memset(&state, 0, sizeof(state));
+
+    state.open_surface = open_surface;
+    state.close_surface = close_surface;
 
     gl_server_state_t *server_state = rspq_overlay_get_state(&rsp_gl);
     memset(server_state, 0, sizeof(gl_server_state_t));
@@ -137,7 +145,7 @@ void gl_close()
 
 void gl_swap_buffers()
 {
-    rdpq_sync_full((void(*)(void*))display_show, state.default_framebuffer.color_buffer);
+    rdpq_sync_full((void(*)(void*))state.close_surface, state.default_framebuffer.color_buffer);
     rspq_flush();
     gl_set_default_framebuffer();
 }

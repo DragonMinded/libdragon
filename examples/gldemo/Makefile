@@ -13,12 +13,7 @@ all: gldemo.z64
 filesystem/%.sprite: assets/%.png
 	@mkdir -p $(dir $@)
 	@echo "    [SPRITE] $@"
-	@$(N64_MKSPRITE) $(MKSPRITE_FLAGS) "$<" "$@"
-
-filesystem/circle%.sprite: MKSPRITE_FLAGS=16 1 1
-filesystem/diamond%.sprite: MKSPRITE_FLAGS=16 1 1
-filesystem/pentagon%.sprite: MKSPRITE_FLAGS=16 1 1
-filesystem/triangle%.sprite: MKSPRITE_FLAGS=16 1 1
+	@$(N64_MKSPRITE) -f RGBA16 -t 1,1 -o "$(dir $@)" "$<"
 
 $(BUILD_DIR)/gldemo.dfs: $(assets_conv)
 $(BUILD_DIR)/gldemo.elf: $(src:%.c=$(BUILD_DIR)/%.o)
