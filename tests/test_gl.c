@@ -45,3 +45,47 @@ void test_gl_clear(TestContext *ctx)
     rect_count = debug_rdp_stream_count_cmd(RDPQ_CMD_FILL_RECTANGLE + 0xC0);
     ASSERT_EQUAL_UNSIGNED(rect_count, 2, "Wrong number of rectangles!");
 }
+
+void test_gl_draw_arrays(TestContext *ctx)
+{
+    GL_INIT();
+
+    debug_rdp_stream_init();
+
+    static const GLfloat vertices[] = {
+        0.0f, 0.0f,
+        0.5f, 0.0f,
+        0.5f, 0.5f
+    };
+
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glVertexPointer(2, GL_FLOAT, 0, vertices);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glFinish();
+
+    uint32_t tri_count = debug_rdp_stream_count_cmd(RDPQ_CMD_TRI_SHADE + 0xC0);
+    ASSERT_EQUAL_UNSIGNED(tri_count, 1, "Wrong number of triangles!");
+}
+
+void test_gl_draw_elements(TestContext *ctx)
+{
+    GL_INIT();
+
+    debug_rdp_stream_init();
+
+    static const GLfloat vertices[] = {
+        0.0f, 0.0f,
+        0.5f, 0.0f,
+        0.5f, 0.5f
+    };
+
+    static const GLushort indices[] = {0, 1, 2};
+
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glVertexPointer(2, GL_FLOAT, 0, vertices);
+    glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_SHORT, indices);
+    glFinish();
+
+    uint32_t tri_count = debug_rdp_stream_count_cmd(RDPQ_CMD_TRI_SHADE + 0xC0);
+    ASSERT_EQUAL_UNSIGNED(tri_count, 1, "Wrong number of triangles!");
+}
