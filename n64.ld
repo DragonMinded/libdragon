@@ -154,5 +154,8 @@ SECTIONS {
     } > mem
 
     . = ALIGN(8);
+    __rom_end = .;
+
+    /* Deprecated */
     end = .;
 }

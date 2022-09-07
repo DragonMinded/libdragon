@@ -8,7 +8,7 @@ Libdragon is an open-source SDK for Nintendo 64. It aims for a complete N64
 programming experience while providing programmers with modern approach to
 programming and debugging. These are the main features:
 
-* Based on modern GCC (12.1) and Newlib, for a full C11 programming experience.
+* Based on modern GCC (12.2) and Newlib, for a full C11 programming experience.
   A Docker container is available to quickly set up the programming environment.
 * The GCC toolchain is 64 bit capable to be able to use the full R4300 capabilities
   (commercial games and libultra are based on a 32-bit ABI and is not possible
@@ -42,7 +42,7 @@ programming and debugging. These are the main features:
 
 ## Getting started: how to build a ROM
 
-### Option 1: Use the libdragon CLI with Docker (Windows, macOS, Linux)
+### Option 1: Use the libdragon CLI with Docker (Windows, macOS x86/arm, Linux)
 
 See [the libdragon CLI](https://github.com/anacierdem/libdragon-docker) to
 quickly get libdragon up and running. Basically:
@@ -62,7 +62,13 @@ quickly get libdragon up and running. Basically:
 If you want, you can also compile and run one of the examples that will
 be found in `libdragon/examples` in the skeleton project.
 
-### Option 2: Compile the toolchain (Linux/macOS only)
+Note for Apple Silicon users: we ship and update the docker container image for both
+x86-64 and arm64, so this option works on Apple Silicon machines too.
+
+### Option 2: Compile the toolchain (Windows WSL2, macOS x86/arm, Linux)
+
+These instructions work for Linux, macOS (Intel / Apple Silicon) and Windows with WSL2.
+WSL1 users must [upgrade to WSL2 first](https://docs.microsoft.com/en-us/windows/wsl/install#upgrade-version-from-wsl-1-to-wsl-2).
 
 1. Export the environment variable N64_INST to the path where you want your
    toolchain to be installed. For instance: `export N64_INST=/opt/n64` or

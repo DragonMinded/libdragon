@@ -47,6 +47,54 @@ static volatile int __dma_busy(void)
     return PI_regs->status & (PI_STATUS_DMA_BUSY | PI_STATUS_IO_BUSY);
 }
 
+/**
+ * @brief Check whether the specified PI address can be accessed doing I/O from CPU
+ * 
+ * The PI bus covers the full 32-bit address range. The full range is only accessible
+ * via DMA, though. A part of the range is also memory mapped to the CPU and can be
+ * accessed via #io_read and #io_write.
+ * 
+ * The ranges of PI address that can be accessed via CPU are:
+ * 
+ *  * 0x0500_0000 - 0x0FFF_FFFF: used by N64DD and SRAM on cartridge
+ *  * 0x1000_0000 - 0x1FBF_FFFF: cartridge ROM
+ *  * 0x1FD0_0000 - 0x1FFF_FFFF: no known PI peripherals use this
+ * 
+ * The rest of the 32-bit address range is only accessible via DMA.
+ * 
+ * Notice also that the range 0x2000_0000 - 0x7FFF_FFFF is theoretically accessible
+ * by the CPU but only via 64-bit addressing, so it requires assembly instructions
+ * (as the libdragon toolchain uses 32-bit pointers). No known PI peripherals use this
+ * range anyway.
+ * 
+ * This function checks whether the specified address falls into the range accessible
+ * via CPU or not.
+ * 
+ * @param pi_address        PI address to check
+ * @return                  True if the address is memory mapped, false if it is not
+ */
+bool io_accessible(uint32_t pi_address)
+{
+    // Below 0x0500_0000, there is RDRAM and RCP registers.
+    if (pi_address < 0x05000000)
+        return false;
+
+    // Using 32-bit addresses (like those available from within our C code),
+    // the CPU can only access addresses up to 0x1FFF_FFFF. 
+    // FIXME: we could theoretically lift this limit up to 0x7FFF_FFFF if the
+    // I/O functions were rewritten in assembly using 64-bit addresses, but
+    // there is currently no known PI peripheral that operates in that range anyway.
+    if (pi_address > 0x1FFFFFFF)
+        return false;
+
+    // The SI bus is partially covering the PI range in the CPU memory map
+    if (pi_address >= 0x1FC00000 && pi_address <= 0x1FCFFFFF)
+        return false;    
+
+    // All other addresses are memory mapped and can be accessed via CPU.
+    return true;
+}
+
 /** 
  * @brief Return whether the DMA controller is currently busy
  *
@@ -87,7 +135,7 @@ void dma_read_raw_async(void * ram_address, unsigned long pi_address, unsigned l
     MEMORY_BARRIER();
     PI_regs->ram_address = ram_address;
     MEMORY_BARRIER();
-    PI_regs->pi_address = (pi_address | 0x10000000) & 0x1FFFFFFF;
+    PI_regs->pi_address = pi_address;
     MEMORY_BARRIER();
     PI_regs->write_length = len-1;
     MEMORY_BARRIER();
@@ -123,7 +171,7 @@ void dma_write_raw_async(const void * ram_address, unsigned long pi_address, uns
     MEMORY_BARRIER();
     PI_regs->ram_address = (void*)ram_address;
     MEMORY_BARRIER();
-    PI_regs->pi_address = (pi_address | 0x10000000) & 0x1FFFFFFF;
+    PI_regs->pi_address = pi_address;
     MEMORY_BARRIER();
     PI_regs->read_length = len-1;
     MEMORY_BARRIER();
@@ -135,17 +183,17 @@ void dma_write_raw_async(const void * ram_address, unsigned long pi_address, uns
  * 
  * @note This function must be called with interrupts disabled.
  */
-static uint32_t __io_read32(unsigned long pi_address) {
+static uint32_t __io_read32(void* pi_pointer) {
     while (__dma_busy()) {}
     MEMORY_BARRIER();
-    return *(volatile uint32_t*)pi_address;
+    return *(volatile uint32_t*)pi_pointer;
 }
 
 /** @brief Low-level 32-bit unaligned PI ROM read.
  * 
  * @note This function must be called with interrupts disabled.
  */
-static uint32_t __io_read32u(unsigned long pi_address) {
+static uint32_t __io_read32u(void *pi_pointer) {
     uint32_t val = 0;
 
     // We need to manually issue assembly opcodes here because we must
@@ -154,11 +202,11 @@ static uint32_t __io_read32u(unsigned long pi_address) {
     // we would only be able to wait once before both of them.
     while (__dma_busy()) {}
     MEMORY_BARRIER();
-    __asm volatile("lwl %0,0(%1)" : "+r"(val) : "r"(pi_address));    
+    __asm volatile("lwl %0,0(%1)" : "+r"(val) : "r"(pi_pointer));    
 
     while (__dma_busy()) {}
     MEMORY_BARRIER();
-    __asm volatile("lwr %0,3(%1)" : "+r"(val) : "r"(pi_address));
+    __asm volatile("lwr %0,3(%1)" : "+r"(val) : "r"(pi_pointer));
 
     return val;
 }
@@ -171,13 +219,14 @@ static uint32_t __io_read32u(unsigned long pi_address) {
  * 
  * @note This function must be called with interrupts disabled.
  */
-static uint16_t __io_read16(unsigned long pi_address) {
+static uint16_t __io_read16(void *pi_pointer) {
+    uint32_t pi_address = (uint32_t)pi_pointer;
     if (pi_address & 2) {
-        return (uint16_t)__io_read32(pi_address^2);
+        return (uint16_t)__io_read32((void*)(pi_address^2));
     } else {
         while (__dma_busy()) {}
         MEMORY_BARRIER();
-        return *(volatile uint16_t*)pi_address;
+        return *(volatile uint16_t*)pi_pointer;
     }
 }
 
@@ -190,11 +239,12 @@ static uint16_t __io_read16(unsigned long pi_address) {
  * 
  * @note This function must be called with interrupts disabled.
  */
-static uint8_t __io_read8(unsigned long pi_address) {
+static uint8_t __io_read8(void *pi_pointer) {
+    uint32_t pi_address = (uint32_t)pi_pointer;
     if (pi_address&1)
-        return (uint8_t)__io_read16(pi_address^1);
+        return (uint8_t)__io_read16((void*)(pi_address^1));
     else
-        return __io_read16(pi_address)>>8;
+        return __io_read16(pi_pointer)>>8;
 }
 
 /**
@@ -217,27 +267,39 @@ static uint8_t __io_read8(unsigned long pi_address) {
  * ROM at loading time, a better option is to use DragonFS, where #dfs_read
  * falls back to a CPU memory copy to realign the data when required.
  * 
- * @param[out] ram_address
- *             Pointer to a buffer to place read data
+ * @param[out] ram_pointer
+ *             Pointer to a buffer in RDRAM to place read data
  * @param[in]  pi_address
  *             Memory address of the peripheral to read from
  * @param[in]  len
- *             Length in bytes to read into ram_address
+ *             Length in bytes to read into ram_pointer
  */
-void dma_read_async(void *ram_address, unsigned long pi_address, unsigned long len)
+void dma_read_async(void *ram_pointer, unsigned long pi_address, unsigned long len)
 {
-    unsigned long ram = (unsigned long)UncachedAddr(ram_address);
-    unsigned long rom = pi_address;
+    void *ram = UncachedAddr(ram_pointer);
+    uint32_t ram_address = (uint32_t)ram;
 
     assert(len > 0);
-    assert(((ram ^ rom) & 1) == 0); 
+    assert(((ram_address ^ pi_address) & 1) == 0); 
 
     disable_interrupts();
+
+    // Check if the PI address can be accessed with CPU.
+    // If not, we cannot perform a misaligned transfer.
+    if (!io_accessible(pi_address)) {        
+        assertf((pi_address & 2) == 0 && (ram_address & 7) == 0,
+            "misaligned transfer not supported at this PI address");
+        dma_read_raw_async(ram_pointer, pi_address, len);
+        enable_interrupts();
+        return;
+    }
+
     union { uint64_t mem64; uint32_t mem32[2]; uint16_t mem16[4]; uint8_t mem8[8]; } val;
+    void *rom = (void*)(pi_address | 0xA0000000);
 
     // Check if the RDRAM address is misaligned. If so, this requires some
     // handling as it's officially "not supported".
-    int misalign = ram & 7;
+    int misalign = (uint32_t)ram & 7;
 
     if (misalign) {
         if ((misalign&1) == 0 && len < 0x7F-misalign*2) {
@@ -290,21 +352,41 @@ void dma_read_async(void *ram_address, unsigned long pi_address, unsigned long l
 
     // Start the actual DMA transfer, if still needed.
     if (len)
-        dma_read_raw_async((void*)ram, (unsigned long)rom, len);
+        dma_read_raw_async(ram, PhysicalAddr(rom), len);
 
     enable_interrupts();
 }
 
-/** @brief Wait until an async DMA transfer is finished. */
+/** 
+ * @brief Wait until an async DMA or I/O transfer is finished.
+ */
 void dma_wait(void)
 {
     while (__dma_busy()) {}
 }
 
 
-/** @brief Read data from a peripheral through PI DMA, waiting for completion. */
+/** 
+ * @brief Read data from a peripheral through PI DMA, waiting for completion.
+ * 
+ * This function performs a blocking read. See #dma_read_async for more information.
+ * 
+ * @param[out] ram_address
+ *             Pointer to a buffer in RDRAM to place read data
+ * @param[in]  pi_address
+ *             ROM address to read from (must be in range (0x10000000-0x1FFFFFFF).
+ * @param[in]  len
+ *             Length in bytes to read into ram_address
+ * 
+ * @note This function has always had an historical mistake: the pi_address is mangled
+ *       to be forced into the ROM area (0x10000000-0x1FFFFFFF). This is wrong as the
+ *       PI bus has full 32-bit address, and the same function could have been used
+ *       to access the whole range.
+ *       If you need to read outside the ROM area, use #dma_read_async instead.
+ */
 void dma_read(void *ram_address, unsigned long pi_address, unsigned long len)
 {
+    pi_address = (pi_address | 0x10000000) & 0x1FFFFFFF;
     dma_read_async(ram_address, pi_address, len);
     dma_wait();
 }
@@ -316,45 +398,64 @@ void dma_read(void *ram_address, unsigned long pi_address, unsigned long len)
  *
  * @param[in] ram_address
  *            Pointer to a buffer to read data from
- * @param[in] pi_address
- *            Memory address of the peripheral to write to
+ * @param[in] rom_address
+ *            Cartridge address to write to (must be in range (0x10000000-0x1FFFFFFF).
  * @param[in] len
  *            Length in bytes to write to peripheral
+ * 
+ * @note This function has always had an historical mistake: the pi_address is mangled
+ *       to be forced into the ROM area (0x10000000-0x1FFFFFFF). This is wrong as the
+ *       PI bus has full 32-bit address, and the same function could have been used
+ *       to access the whole range.
+ *       If you need to read outside the ROM area, use #dma_write_raw_async instead.
  */
-void dma_write(const void * ram_address, unsigned long pi_address, unsigned long len) 
+void dma_write(const void * ram_address, unsigned long rom_address, unsigned long len) 
 {
-    assert(len > 0);
-
-    dma_write_raw_async(ram_address, pi_address, len);
+    rom_address = (rom_address | 0x10000000) & 0x1FFFFFFF;
+    dma_write_raw_async(ram_address, rom_address, len);
     dma_wait();
 }
 
 /**
- * @brief Read a 32 bit integer from a peripheral
+ * @brief Read a 32 bit integer from a peripheral using the CPU.
  *
  * @param[in] pi_address
  *            Memory address of the peripheral to read from
  *
  * @return The 32 bit value read from the peripheral
+ * 
+ * @note This function only works if the specified PI address falls within a range
+ *       which is memory mapped on the CPU. See #io_accessible for more information.
+ * 
+ * @see #io_accessible
  */
 uint32_t io_read(uint32_t pi_address)
 {
     uint32_t retval;
 
     disable_interrupts();
-    retval = __io_read32(pi_address | 0xA0000000);
+    retval = __io_read32((void*)(pi_address | 0xA0000000));
     enable_interrupts();
 
     return retval;
 }
 
 /**
- * @brief Write a 32 bit integer to a peripheral
+ * @brief Write a 32 bit integer to a peripheral using the CPU.
+ * 
+ * Notice that writes are performed asynchronously, so the data might have not been
+ * fully written to the peripheral yet when the function returns. Use #dma_wait if
+ * you need to wait for the transfer to be finished.
  *
  * @param[in] pi_address
  *            Memory address of the peripheral to write to
  * @param[in] data
  *            32 bit value to write to peripheral
+ *
+ * @note This function only works if the specified PI address falls within a range
+ *       which is memory mapped on the CPU. See #io_accessible for more information.
+ *
+ * @see #io_accessible
  */
 void io_write(uint32_t pi_address, uint32_t data) 
 {
