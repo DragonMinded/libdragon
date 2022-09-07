@@ -67,6 +67,7 @@ $(function() {
 </div><!-- top -->
 <div class="header">
   <div class="summary">
+<a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a> &#124;
 <a href="#var-members">Variables</a>  </div>
   <div class="headertitle"><div class="title">exception.c File Reference<div class="ingroups"><a class="el" href="group__libdragon.html">libdragon</a> &raquo; <a class="el" href="group__lowlevel.html">Low Level Hardware Interfaces</a> &raquo; <a class="el" href="group__exceptions.html">Exception Handler</a></div></div></div>
@@ -78,11 +79,20 @@ $(function() {
 <div class="textblock"><code>#include &quot;<a class="el" href="exception_8h_source.html">exception.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="console_8h_source.html">console.h</a>&quot;</code><br />
 <code>#include &quot;<a class="el" href="n64sys_8h_source.html">n64sys.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="debug_8h_source.html">debug.h</a>&quot;</code><br />
+<code>#include &quot;<a class="el" href="regsinternal_8h_source.html">regsinternal.h</a>&quot;</code><br />
 <code>#include &lt;stdio.h&gt;</code><br />
 <code>#include &lt;string.h&gt;</code><br />
 <code>#include &lt;stdlib.h&gt;</code><br />
 <code>#include &lt;stdbool.h&gt;</code><br />
 </div><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
+Macros</h2></td></tr>
+<tr class="memitem:gaf76584f6b55e9cac50bf3f3a706f3428"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>MAX_RESET_HANDLERS</b>&#160;&#160;&#160;4</td></tr>
+<tr class="memdesc:gaf76584f6b55e9cac50bf3f3a706f3428"><td class="mdescLeft">&#160;</td><td class="mdescRight">Maximum number of reset handlers that can be registered. <br /></td></tr>
+<tr class="separator:gaf76584f6b55e9cac50bf3f3a706f3428"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:ga75b3553e5039dff6c46c8700e1100ffa"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__exceptions.html#ga75b3553e5039dff6c46c8700e1100ffa">register_exception_handler</a> (void(*cb)(<a class="el" href="group__exceptions.html#structexception__t">exception_t</a> *))</td></tr>
@@ -95,9 +105,14 @@ Functions</h2></td></tr>
 void&#160;</td><td class="memItemRight" valign="bottom"><b>__onCriticalException</b> (volatile <a class="el" href="group__exceptions.html#structreg__block__t">reg_block_t</a> *regs)</td></tr>
 <tr class="memdesc:gac59c5f2646dd725b5c0f48274a919798"><td class="mdescLeft">&#160;</td><td class="mdescRight">Respond to a critical exception. <br /></td></tr>
 <tr class="separator:gac59c5f2646dd725b5c0f48274a919798"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga9c3cfbce70e7317d19e7f6cbaf1a018d"><td class="memItemLeft" align="right" valign="top">
-void&#160;</td><td class="memItemRight" valign="bottom"><b>__onResetException</b> (volatile <a class="el" href="group__exceptions.html#structreg__block__t">reg_block_t</a> *regs)</td></tr>
-<tr class="memdesc:ga9c3cfbce70e7317d19e7f6cbaf1a018d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Respond to a reset exception. <br /></td></tr>
+<tr class="memitem:gab4eaf121d8885fc09d13b89c2e219ab2"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__exceptions.html#gab4eaf121d8885fc09d13b89c2e219ab2">register_reset_handler</a> (void(*cb)(void))</td></tr>
+<tr class="memdesc:gab4eaf121d8885fc09d13b89c2e219ab2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a handler that will be called when the user presses the RESET button.  <a href="group__exceptions.html#gab4eaf121d8885fc09d13b89c2e219ab2">More...</a><br /></td></tr>
+<tr class="separator:gab4eaf121d8885fc09d13b89c2e219ab2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga288a573e9c25f474c0e71cfcde6f388a"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__exceptions.html#ga288a573e9c25f474c0e71cfcde6f388a">exception_reset_time</a> (void)</td></tr>
+<tr class="memdesc:ga288a573e9c25f474c0e71cfcde6f388a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Check whether the RESET button was pressed and how long we are into the reset process.  <a href="group__exceptions.html#ga288a573e9c25f474c0e71cfcde6f388a">More...</a><br /></td></tr>
+<tr class="separator:ga288a573e9c25f474c0e71cfcde6f388a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga9c3cfbce70e7317d19e7f6cbaf1a018d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__exceptions.html#ga9c3cfbce70e7317d19e7f6cbaf1a018d">__onResetException</a> (volatile <a class="el" href="group__exceptions.html#structreg__block__t">reg_block_t</a> *regs)</td></tr>
+<tr class="memdesc:ga9c3cfbce70e7317d19e7f6cbaf1a018d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Respond to a reset exception.  <a href="group__exceptions.html#ga9c3cfbce70e7317d19e7f6cbaf1a018d">More...</a><br /></td></tr>
 <tr class="separator:ga9c3cfbce70e7317d19e7f6cbaf1a018d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
@@ -112,7 +127,7 @@ volatile <a class="el" href="group__exceptions.html#structreg__block__t">reg_blo
 </div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Sep 7 2022 08:17:25 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Sep 7 2022 11:40:42 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

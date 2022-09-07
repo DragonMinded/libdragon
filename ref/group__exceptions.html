@@ -65,6 +65,7 @@ $(function() {
   <div class="summary">
 <a href="#files">Files</a> &#124;
 <a href="#nested-classes">Data Structures</a> &#124;
+<a href="#define-members">Macros</a> &#124;
 <a href="#enum-members">Enumerations</a> &#124;
 <a href="#func-members">Functions</a> &#124;
 <a href="#var-members">Variables</a>  </div>
@@ -92,6 +93,16 @@ Data Structures</h2></td></tr>
 <tr class="memitem:structexception__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__exceptions.html#structexception__t">exception_t</a></td></tr>
 <tr class="memdesc:structexception__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Structure representing an exception.  <a href="group__exceptions.html#structexception__t">More...</a><br /></td></tr>
 <tr class="separator:structexception__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
+Macros</h2></td></tr>
+<tr class="memitem:gaf76584f6b55e9cac50bf3f3a706f3428"><td class="memItemLeft" align="right" valign="top"><a id="gaf76584f6b55e9cac50bf3f3a706f3428" name="gaf76584f6b55e9cac50bf3f3a706f3428"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>MAX_RESET_HANDLERS</b>&#160;&#160;&#160;4</td></tr>
+<tr class="memdesc:gaf76584f6b55e9cac50bf3f3a706f3428"><td class="mdescLeft">&#160;</td><td class="mdescRight">Maximum number of reset handlers that can be registered. <br /></td></tr>
+<tr class="separator:gaf76584f6b55e9cac50bf3f3a706f3428"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga32eeb0dea6b0c382ea7bb73cdd56b521"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__exceptions.html#ga32eeb0dea6b0c382ea7bb73cdd56b521">RESET_TIME_LENGTH</a>&#160;&#160;&#160;<a class="el" href="group__n64sys.html#gac393c76be44d9322b9b06c2b334f38ad">TICKS_FROM_MS</a>(200)</td></tr>
+<tr class="memdesc:ga32eeb0dea6b0c382ea7bb73cdd56b521"><td class="mdescLeft">&#160;</td><td class="mdescRight">Guaranteed length of the reset time.  <a href="group__exceptions.html#ga32eeb0dea6b0c382ea7bb73cdd56b521">More...</a><br /></td></tr>
+<tr class="separator:ga32eeb0dea6b0c382ea7bb73cdd56b521"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
 Enumerations</h2></td></tr>
@@ -138,9 +149,14 @@ Functions</h2></td></tr>
 void&#160;</td><td class="memItemRight" valign="bottom"><b>__onCriticalException</b> (volatile <a class="el" href="group__exceptions.html#structreg__block__t">reg_block_t</a> *regs)</td></tr>
 <tr class="memdesc:gac59c5f2646dd725b5c0f48274a919798"><td class="mdescLeft">&#160;</td><td class="mdescRight">Respond to a critical exception. <br /></td></tr>
 <tr class="separator:gac59c5f2646dd725b5c0f48274a919798"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga9c3cfbce70e7317d19e7f6cbaf1a018d"><td class="memItemLeft" align="right" valign="top"><a id="ga9c3cfbce70e7317d19e7f6cbaf1a018d" name="ga9c3cfbce70e7317d19e7f6cbaf1a018d"></a>
-void&#160;</td><td class="memItemRight" valign="bottom"><b>__onResetException</b> (volatile <a class="el" href="group__exceptions.html#structreg__block__t">reg_block_t</a> *regs)</td></tr>
-<tr class="memdesc:ga9c3cfbce70e7317d19e7f6cbaf1a018d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Respond to a reset exception. <br /></td></tr>
+<tr class="memitem:gab4eaf121d8885fc09d13b89c2e219ab2"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__exceptions.html#gab4eaf121d8885fc09d13b89c2e219ab2">register_reset_handler</a> (void(*cb)(void))</td></tr>
+<tr class="memdesc:gab4eaf121d8885fc09d13b89c2e219ab2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a handler that will be called when the user presses the RESET button.  <a href="group__exceptions.html#gab4eaf121d8885fc09d13b89c2e219ab2">More...</a><br /></td></tr>
+<tr class="separator:gab4eaf121d8885fc09d13b89c2e219ab2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga288a573e9c25f474c0e71cfcde6f388a"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__exceptions.html#ga288a573e9c25f474c0e71cfcde6f388a">exception_reset_time</a> (void)</td></tr>
+<tr class="memdesc:ga288a573e9c25f474c0e71cfcde6f388a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Check whether the RESET button was pressed and how long we are into the reset process.  <a href="group__exceptions.html#ga288a573e9c25f474c0e71cfcde6f388a">More...</a><br /></td></tr>
+<tr class="separator:ga288a573e9c25f474c0e71cfcde6f388a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga9c3cfbce70e7317d19e7f6cbaf1a018d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__exceptions.html#ga9c3cfbce70e7317d19e7f6cbaf1a018d">__onResetException</a> (volatile <a class="el" href="group__exceptions.html#structreg__block__t">reg_block_t</a> *regs)</td></tr>
+<tr class="memdesc:ga9c3cfbce70e7317d19e7f6cbaf1a018d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Respond to a reset exception.  <a href="group__exceptions.html#ga9c3cfbce70e7317d19e7f6cbaf1a018d">More...</a><br /></td></tr>
 <tr class="separator:ga9c3cfbce70e7317d19e7f6cbaf1a018d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
@@ -265,6 +281,25 @@ Registers at point of exception. </td></tr>
 
 </div>
 </div>
+<h2 class="groupheader">Macro Definition Documentation</h2>
+<a id="ga32eeb0dea6b0c382ea7bb73cdd56b521" name="ga32eeb0dea6b0c382ea7bb73cdd56b521"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga32eeb0dea6b0c382ea7bb73cdd56b521">&#9670;&nbsp;</a></span>RESET_TIME_LENGTH</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define RESET_TIME_LENGTH&#160;&#160;&#160;<a class="el" href="group__n64sys.html#gac393c76be44d9322b9b06c2b334f38ad">TICKS_FROM_MS</a>(200)</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Guaranteed length of the reset time. </p>
+<p >This is the guaranteed length of the reset time, that is the time that goes between the user pressing the reset button, and the CPU actually resetting. See <a class="el" href="group__exceptions.html#ga288a573e9c25f474c0e71cfcde6f388a" title="Check whether the RESET button was pressed and how long we are into the reset process.">exception_reset_time</a> for more details.</p>
+<dl class="section note"><dt>Note</dt><dd>The general knowledge about this is that the reset time should be 500 ms. Testing on different consoles show that, while most seem to reset after 500 ms, a few EU models reset after 200ms. So we define the timer shorter for greater compatibility. </dd></dl>
+
+</div>
+</div>
 <h2 class="groupheader">Enumeration Type Documentation</h2>
 <a id="ga80155586fa275b28773c9b203f52caba" name="ga80155586fa275b28773c9b203f52caba"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#ga80155586fa275b28773c9b203f52caba">&#9670;&nbsp;</a></span>anonymous enum</h2>
@@ -342,10 +377,90 @@ Registers at point of exception. </td></tr>
 
 </div>
 </div>
+<a id="gab4eaf121d8885fc09d13b89c2e219ab2" name="gab4eaf121d8885fc09d13b89c2e219ab2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gab4eaf121d8885fc09d13b89c2e219ab2">&#9670;&nbsp;</a></span>register_reset_handler()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void register_reset_handler </td>
+          <td>(</td>
+          <td class="paramtype">void(*)(void)&#160;</td>
+          <td class="paramname"><em>cb</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Register a handler that will be called when the user presses the RESET button. </p>
+<p >The N64 sends an interrupt when the RESET button is pressed, and then actually resets the console after about ~500ms (but less on some models, see <a class="el" href="group__exceptions.html#ga32eeb0dea6b0c382ea7bb73cdd56b521" title="Guaranteed length of the reset time.">RESET_TIME_LENGTH</a>).</p>
+<p >Registering a handler can be used to perform a clean reset. Technically, at the hardware level, it is important that the RCP is completely idle when the reset happens, or it might freeze and require a power-cycle to unfreeze. This means that any I/O, audio, video activity must cease before <a class="el" href="group__exceptions.html#ga32eeb0dea6b0c382ea7bb73cdd56b521" title="Guaranteed length of the reset time.">RESET_TIME_LENGTH</a> has elapsed.</p>
+<p >This entry point can be used by the game code to basically halts itself and stops issuing commands. Libdragon itself will register handlers to halt internal modules so to provide a basic good reset experience.</p>
+<p >Handlers can use <a class="el" href="group__exceptions.html#ga288a573e9c25f474c0e71cfcde6f388a" title="Check whether the RESET button was pressed and how long we are into the reset process.">exception_reset_time</a> to read how much has passed since the RESET button was pressed.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">cb</td><td>Callback to invoke when the reset button is pressed.</td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="section note"><dt>Note</dt><dd>Reset handlers are called under interrupt. </dd></dl>
+
+</div>
+</div>
+<a id="ga288a573e9c25f474c0e71cfcde6f388a" name="ga288a573e9c25f474c0e71cfcde6f388a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga288a573e9c25f474c0e71cfcde6f388a">&#9670;&nbsp;</a></span>exception_reset_time()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">uint32_t exception_reset_time </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Check whether the RESET button was pressed and how long we are into the reset process. </p>
+<p >This function returns how many ticks have elapsed since the user has pressed the RESET button, or 0 if the user has not pressed it.</p>
+<p >It can be used by user code to perform actions during the RESET process (see <a class="el" href="group__exceptions.html#gab4eaf121d8885fc09d13b89c2e219ab2" title="Register a handler that will be called when the user presses the RESET button.">register_reset_handler</a>). It is also possible to simply poll this value to check at any time if the button has been pressed or not.</p>
+<p >The reset process takes about 500ms between the user pressing the RESET button and the CPU being actually reset, though on some consoles it seems to be much less. See <a class="el" href="group__exceptions.html#ga32eeb0dea6b0c382ea7bb73cdd56b521" title="Guaranteed length of the reset time.">RESET_TIME_LENGTH</a> for more information. For the broadest compatibility, please use <a class="el" href="group__exceptions.html#ga32eeb0dea6b0c382ea7bb73cdd56b521" title="Guaranteed length of the reset time.">RESET_TIME_LENGTH</a> to implement the reset logic.</p>
+<p >Notice also that the reset process is initiated when the user presses the button, but the reset will not happen until the user releases the button. So keeping the button pressed is a good way to check if the application actually winds down correctly.</p>
+<dl class="section return"><dt>Returns</dt><dd>Ticks elapsed since RESET button was pressed, or 0 if the RESET button was not pressed.</dd></dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="group__exceptions.html#gab4eaf121d8885fc09d13b89c2e219ab2" title="Register a handler that will be called when the user presses the RESET button.">register_reset_handler</a> </dd>
+<dd>
+<a class="el" href="group__exceptions.html#ga32eeb0dea6b0c382ea7bb73cdd56b521" title="Guaranteed length of the reset time.">RESET_TIME_LENGTH</a> </dd></dl>
+
+</div>
+</div>
+<a id="ga9c3cfbce70e7317d19e7f6cbaf1a018d" name="ga9c3cfbce70e7317d19e7f6cbaf1a018d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga9c3cfbce70e7317d19e7f6cbaf1a018d">&#9670;&nbsp;</a></span>__onResetException()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void __onResetException </td>
+          <td>(</td>
+          <td class="paramtype">volatile <a class="el" href="group__exceptions.html#structreg__block__t">reg_block_t</a> *&#160;</td>
+          <td class="paramname"><em>regs</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Respond to a reset exception. </p>
+<p >Calls the handlers registered by <a class="el" href="group__exceptions.html#gab4eaf121d8885fc09d13b89c2e219ab2" title="Register a handler that will be called when the user presses the RESET button.">register_reset_handler</a>. </p>
+
+</div>
+</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Sep 7 2022 08:17:25 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Sep 7 2022 11:40:42 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

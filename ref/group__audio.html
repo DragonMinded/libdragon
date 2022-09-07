@@ -95,7 +95,11 @@ Macros</h2></td></tr>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>NUM_BUFFERS</b>&#160;&#160;&#160;4</td></tr>
 <tr class="memdesc:gaac028f4c15ac7f78a44be5db76cfbec7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Number of buffers the audio subsytem allocates and manages. <br /></td></tr>
 <tr class="separator:gaac028f4c15ac7f78a44be5db76cfbec7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga1b0880357ad7cafc9780a3ed72447816"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__audio.html#ga1b0880357ad7cafc9780a3ed72447816">CALC_BUFFER</a>(x)&#160;&#160;&#160;( ( ( ( x ) / 25 ) &gt;&gt; 3 ) &lt;&lt; 3 )</td></tr>
+<tr class="memitem:ga517eab55c83f18dba8405316f23b02d2"><td class="memItemLeft" align="right" valign="top"><a id="ga517eab55c83f18dba8405316f23b02d2" name="ga517eab55c83f18dba8405316f23b02d2"></a>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>BUFFERS_PER_SECOND</b>&#160;&#160;&#160;25</td></tr>
+<tr class="memdesc:ga517eab55c83f18dba8405316f23b02d2"><td class="mdescLeft">&#160;</td><td class="mdescRight">How many different audio buffers we want to schedule in one second. <br /></td></tr>
+<tr class="separator:ga517eab55c83f18dba8405316f23b02d2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga1b0880357ad7cafc9780a3ed72447816"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__audio.html#ga1b0880357ad7cafc9780a3ed72447816">CALC_BUFFER</a>(x)&#160;&#160;&#160;( ( ( ( x ) / <a class="el" href="group__audio.html#ga517eab55c83f18dba8405316f23b02d2">BUFFERS_PER_SECOND</a> ) &gt;&gt; 3 ) &lt;&lt; 3 )</td></tr>
 <tr class="memdesc:ga1b0880357ad7cafc9780a3ed72447816"><td class="mdescLeft">&#160;</td><td class="mdescRight">Macro that calculates the size of a buffer based on frequency.  <a href="group__audio.html#ga1b0880357ad7cafc9780a3ed72447816">More...</a><br /></td></tr>
 <tr class="separator:ga1b0880357ad7cafc9780a3ed72447816"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
@@ -176,7 +180,7 @@ Functions</h2></td></tr>
           <td>(</td>
           <td class="paramtype">&#160;</td>
           <td class="paramname">x</td><td>)</td>
-          <td>&#160;&#160;&#160;( ( ( ( x ) / 25 ) &gt;&gt; 3 ) &lt;&lt; 3 )</td>
+          <td>&#160;&#160;&#160;( ( ( ( x ) / <a class="el" href="group__audio.html#ga517eab55c83f18dba8405316f23b02d2">BUFFERS_PER_SECOND</a> ) &gt;&gt; 3 ) &lt;&lt; 3 )</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -460,7 +464,7 @@ Functions</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Sep 7 2022 08:17:25 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Sep 7 2022 11:40:42 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
