@@ -177,13 +177,21 @@ interrupt:
 	nop
 
 	/* handle reset */
-	addiu a0, sp, 32
 	jal __onResetException
-	nop
+	addiu a0, sp, 32
 
-	j end_interrupt
-	nop
+	# There is no way to ack the pre-NMI interrupt, so it will
+	# stay pending in CR. Let's disable it in SR to avoid
+	# looping here. If another unrelated interrupt triggers, 
+	# CR will still have 0x1000 set, but __onResetException will
+	# do nothing after the first call.
+	li t0, ~0x1000
+	lw t1, STACK_SR(sp)
+	and t1, t0
+	sw t1, STACK_SR(sp)
 
+	# Reload cause register (might be reused by C code) and test for other interrupts
+	lw cause, STACK_CR(sp)
 notprenmi:
 
 	/* check for count=compare */
@@ -200,8 +208,9 @@ notprenmi:
 	jal __TI_handler
 	nop
 
-	j end_interrupt
-	nop
+	# Reload cause register (might be reused by C code) and test for other interrupts
+	lw cause, STACK_CR(sp)
+
 notcount:
 	and t0, cause, 0x800
 	beqz t0, notcart
@@ -211,15 +220,16 @@ notcount:
 	jal __CART_handler
 	nop
 
-	j end_interrupt
-	nop
+	# Reload cause register (might be reused by C code) and test for other interrupts
+	lw cause, STACK_CR(sp)
 
 notcart:
 	/* pass anything else along to MI (RCP) handler */
 	jal __MI_handler
 	addiu a0, sp, 32
-	j end_interrupt
-	nop
+
+	# No more interrupts to process, we can exit
+	# (fallthrough)
 
 end_interrupt:
 	mfc0 t0, C0_SR

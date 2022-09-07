@@ -316,7 +316,7 @@ void test_exception(TestContext *ctx) {
     ASSERT_EQUAL_HEX(exception_regs.epc, (uint32_t)&test_break_label, "EPC not available to the handler");
 
     // If the other tests change SR these may fail unnecessarily, but we expect tests to do proper cleanup
-    ASSERT_EQUAL_HEX(exception_regs.sr, 0x241004E3, "SR not available to the handler");
+    ASSERT_EQUAL_HEX(exception_regs.sr, 0x241014E3, "SR not available to the handler");
     ASSERT_EQUAL_HEX(exception_regs.cr, 0x24, "CR not available to the handler");
     ASSERT_EQUAL_HEX(exception_regs.fc31, 0x0, "FCR31 not available to the handler");
 }

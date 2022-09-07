@@ -106,6 +106,14 @@ extern int __bbplayer;
     (((unsigned long)(_addrp))&~0xE0000000); \
 })
 
+/** @brief Symbol at the end of code, data, and sdata (set by the linker) */
+extern char __rom_end[];
+
+/**
+ * @brief Void pointer to the start of heap memory
+ */
+#define HEAP_START_ADDR ((void*)__rom_end)
+
 /**
  * @brief Memory barrier to ensure in-order execution
  *
@@ -142,6 +150,9 @@ extern int __bbplayer;
  * otherwise it is negative.
  */
 #define TICKS_DISTANCE(from, to) ((int32_t)((uint32_t)(to) - (uint32_t)(from)))
+
+/** @brief Return how much time has passed since the instant t0. */
+#define TICKS_SINCE(t0)          TICKS_DISTANCE(t0, TICKS_READ())
 
 /**
  * @brief Returns true if "t1" is before "t2".
