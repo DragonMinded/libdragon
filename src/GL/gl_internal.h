@@ -407,8 +407,7 @@ bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size);
 
 inline bool is_in_heap_memory(void *ptr)
 {
-    extern char end;
-    return ptr >= (void*)&end && ptr < ((void*)KSEG0_START_ADDR + get_memory_size());
+    return ptr >= HEAP_START_ADDR && ptr < ((void*)KSEG0_START_ADDR + get_memory_size());
 }
 
 inline bool is_valid_object_id(GLuint id)
