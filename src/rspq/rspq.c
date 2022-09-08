@@ -392,8 +392,8 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
     }
 
     // Dump the command queue in RDRAM (both data before and after the current pointer).
-    debugf("RSPQ: RDRAM Command queue:\n");
-    uint32_t *q = (uint32_t*)(0xA0000000 | (cur & 0xFFFFFF));
+    debugf("RSPQ: RDRAM Command queue: %s\n", (cur&3) ? "MISALIGNED" : "");
+    uint32_t *q = (uint32_t*)(0xA0000000 | (cur & 0xFFFFFC));
     for (int j=0;j<4;j++) {        
         for (int i=0;i<16;i++)
             debugf("%08lx%c", q[i+j*16-32], i+j*16-32==0 ? '*' : ' ');
