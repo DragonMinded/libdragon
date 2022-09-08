@@ -125,6 +125,13 @@
 #include "surface.h"
 #include "debug.h"
 
+/** 
+ * @brief Static overlay ID of rdpq library.
+ * 
+ * The rdpq overlay must be registered at this ID via #rspq_overlay_register_static.
+ */
+#define RDPQ_OVL_ID (0xC << 28)
+
 enum {
     RDPQ_CMD_NOOP                       = 0x00,
     RDPQ_CMD_SET_LOOKUP_ADDRESS         = 0x01,
