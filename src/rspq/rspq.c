@@ -371,7 +371,7 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
 {
     rsp_queue_t *rspq = (rsp_queue_t*)state->dmem;
     uint32_t cur = rspq->rspq_dram_addr + state->gpr[28];
-    uint32_t dmem_buffer = RSPQ_DEBUG ? 0x140 : 0x100;
+    uint32_t dmem_buffer = RSPQ_DEBUG ? 0x180 : 0x100;
 
     int ovl_idx; const char *ovl_name;
     rspq_get_current_ovl(rspq, &ovl_idx, &ovl_name);
@@ -383,8 +383,13 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
     printf("RSPQ: RDP     DRAM address: %08lx\n", rspq->rspq_rdp_buffers[1]);
     printf("RSPQ: Current Overlay: %s (%02x)\n", ovl_name, ovl_idx);
 
-    // Dump the command queue in DMEM.
+    // Dump the command queue in DMEM. In debug mode, there is a marker to check
+    // if we know the correct address. TODO: find a way to expose the symbols
+    // from rsp_queue.inc.
     debugf("RSPQ: Command queue:\n");
+    if (RSPQ_DEBUG)
+        assertf(((uint32_t*)state->dmem)[dmem_buffer/4-1] == 0xABCD0123, 
+            "invalid RSPQ_DMEM_BUFFER address; please update rspq_crash_handler()");
     for (int j=0;j<4;j++) {        
         for (int i=0;i<16;i++)
             debugf("%08lx%c", ((uint32_t*)state->dmem)[dmem_buffer/4+i+j*16], state->gpr[28] == (j*16+i)*4 ? '*' : ' ');
