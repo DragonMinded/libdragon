@@ -405,8 +405,8 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
         debugf("\n");
     }
 
-    debugf("RSPQ: RDP Command queue:\n");
-    q = (uint32_t*)(0xA0000000 | (state->cop0[10] & 0xFFFFFF));
+    debugf("RSPQ: RDP Command queue: %s\n", (cur&7) ? "MISALIGNED" : "");
+    q = (uint32_t*)(0xA0000000 | (state->cop0[10] & 0xFFFFF8));
     for (int j=0;j<4;j++) {        
         for (int i=0;i<16;i+=2) {
             debugf("%08lx", q[i+0+j*16-32]);
