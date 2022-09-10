@@ -13,21 +13,12 @@ static bool near = false;
 static GLuint buffers[2];
 static GLuint textures[4];
 
-static const char *texture_path_formats[4] = {
-    "circle%d.sprite",
-    "diamond%d.sprite",
-    "pentagon%d.sprite",
-    "triangle%d.sprite",
+static const char *texture_path[4] = {
+    "rom:/circle0.sprite",
+    "rom:/diamond0.sprite",
+    "rom:/pentagon0.sprite",
+    "rom:/triangle0.sprite",
 };
-
-sprite_t * load_sprite(const char *path)
-{
-    int fp = dfs_open(path);
-    sprite_t *sprite = malloc(dfs_size(fp));
-    dfs_read(sprite, 1, dfs_size(fp), fp);
-    dfs_close(fp);
-    return sprite;
-}
 
 void setup()
 {
@@ -96,15 +87,18 @@ void setup()
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, min_filter);
+        
+        sprite_t *sprite = sprite_load(texture_path[i]);
 
-        for (uint32_t j = 0; j < 6; j++)
+        for (uint32_t j = 0; j < 8; j++)
         {
-            char path_buf[64];
-            sprintf(path_buf, texture_path_formats[i], j);
-            sprite_t *sprite = load_sprite(path_buf);
-            glTexImage2D(GL_TEXTURE_2D, j, GL_RGBA, sprite->width, sprite->height, 0, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1_EXT, sprite->data);
-            free(sprite);
+            surface_t surf = sprite_get_lod_pixels(sprite, j);
+            if (!surf.buffer) break;
+
+            glTexImage2D(GL_TEXTURE_2D, j, GL_RGBA, surf.width, surf.height, 0, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1_EXT, surf.buffer);
         }
+        
+        sprite_free(sprite);
     }
 }
 
