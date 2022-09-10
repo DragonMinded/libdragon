@@ -361,6 +361,15 @@ __attribute__((constructor)) void __init_cop1()
     /* Read initialized value from cop1 control register */
     uint32_t fcr31 = C1_FCR31();
     
+    /* Disable all pending exceptions to avoid triggering one immediately.
+       These can be survived from a soft reset. */
+    fcr31 &= ~(C1_CAUSE_OVERFLOW | 
+               C1_CAUSE_UNDERFLOW | 
+               C1_CAUSE_NOT_IMPLEMENTED | 
+               C1_CAUSE_DIV_BY_0 | 
+               C1_CAUSE_INEXACT_OP | 
+               C1_CAUSE_INVALID_OP);
+
     /* Set FS bit to allow flashing of denormalized floats
        The FPU inside the N64 CPU does not implement denormalized floats
        and will generate an unmaskable exception if a denormalized float
