@@ -1,11 +1,30 @@
 #include "sprite.h"
+#include "debug.h"
 #include "surface.h"
 #include "sprite_internal.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 static sprite_t *last_spritemap = NULL;
+
+/** @brief Access the sprite extended structure, or NULL if the structure does not exist */
+__attribute__((noinline))
+sprite_ext_t *__sprite_ext(sprite_t *sprite)
+{
+    if (!(sprite->flags & SPRITE_FLAGS_EXT))
+        return NULL;
+
+    uint8_t *data = (uint8_t*)sprite->data;
+    tex_format_t format = sprite_get_format(sprite);
+    data += TEX_FORMAT_PIX2BYTES(format, sprite->width * sprite->height);
+
+    // Access extended header
+    sprite_ext_t *sx = (sprite_ext_t*)data;
+    assert(sx->version == 1);
+    return sx;
+}
 
 bool __sprite_upgrade(sprite_t *sprite)
 {
@@ -17,13 +36,10 @@ bool __sprite_upgrade(sprite_t *sprite)
     // Notice also that it is not enough to do this in sprite_load, because
     // sprite_load didn't exist at the time, and sprites were loaded manually
     // via fopen/fread.
-    if (sprite->format == FMT_NONE) {
+    if (sprite->flags == 0) {
         // Read the bitdepth field without triggering the deprecation warning
         uint8_t bitdepth = ((uint8_t*)sprite)[4];
-        if (bitdepth == 2)
-            sprite->format = FMT_RGBA16;
-        else
-            sprite->format = FMT_RGBA32;
+        sprite->flags = bitdepth == 2 ? FMT_RGBA16 : FMT_RGBA32;
         return true;
     }
     return false;
@@ -32,8 +48,7 @@ bool __sprite_upgrade(sprite_t *sprite)
 sprite_t *sprite_load(const char *fn)
 {
     FILE *f = fopen(fn, "rb");
-    if (!f)
-        return NULL;
+    assertf(f, "File not found: %s\n", fn);
     fseek(f, 0, SEEK_END);
 
     int sz = ftell(f);
@@ -61,21 +76,38 @@ void sprite_free(sprite_t *s)
 }
 
 surface_t sprite_get_pixels(sprite_t *sprite) {
-    uint8_t *data = (uint8_t*)sprite->data;
+    return surface_make_linear(sprite->data, sprite_get_format(sprite),
+        sprite->width, sprite->height);
+}
 
-    // Skip palette (if any)
-    if (sprite->format == FMT_CI4) data += 16*2;
-    if (sprite->format == FMT_CI8) data += 256*2;
+surface_t sprite_get_lod_pixels(sprite_t *sprite, int num_level) {
+    assert(num_level >= 0 && num_level < 8);
 
-    return surface_make(data, sprite->format,
-        sprite->width, sprite->height,
-        TEX_FORMAT_PIX2BYTES(sprite->format, sprite->width));
+    // First LOD = image. Return the image pixels
+    if (num_level == 0)
+        return sprite_get_pixels(sprite);
+
+    // Get access to the extended sprite structure
+    sprite_ext_t *sx = __sprite_ext(sprite);
+    if (!sx)
+        return (surface_t){0};
+
+    // Get access to the lod structure
+    struct sprite_lod_s *lod = &sx->lods[num_level-1];
+    if (lod->width == 0)
+        return (surface_t){0};
+
+    // Return the surface that refers to this LOD
+    tex_format_t fmt = lod->fmt_file_pos >> 24;
+    void *pixels = (void*)sprite + (lod->fmt_file_pos & 0x00FFFFFF);
+    return surface_make_linear(pixels, fmt, lod->width, lod->height);
 }
 
 uint16_t* sprite_get_palette(sprite_t *sprite) {
-    if (sprite->format == FMT_CI4 || sprite->format == FMT_CI8)
-        return (uint16_t*)sprite->data;
-    return NULL;
+    sprite_ext_t *sx = __sprite_ext(sprite);
+    if(!sx || !sx->pal_file_pos)
+        return NULL;
+    return (void*)sprite + sx->pal_file_pos;
 }
 
 surface_t sprite_get_tile(sprite_t *sprite, int h, int v) {
