@@ -370,6 +370,14 @@ __attribute__((constructor)) void __init_cop1()
                C1_CAUSE_INEXACT_OP | 
                C1_CAUSE_INVALID_OP);
 
+#ifndef NDEBUG
+    /* Enable FPU exceptions that can help programmers avoid bugs in their code. */
+    fcr31 |= C1_ENABLE_OVERFLOW | 
+             C1_ENABLE_UNDERFLOW | 
+             C1_ENABLE_DIV_BY_0 | 
+             C1_ENABLE_INVALID_OP;
+#endif
+
     /* Set FS bit to allow flashing of denormalized floats
        The FPU inside the N64 CPU does not implement denormalized floats
        and will generate an unmaskable exception if a denormalized float
