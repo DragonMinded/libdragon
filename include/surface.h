@@ -68,9 +68,9 @@ extern "C" {
  * Note that there are texture format that are 4bpp, so don't divide this by 8 to get the number of bytes
  * per pixels, but rather use #TEX_FORMAT_BYTES2PIX and #TEX_FORMAT_PIX2BYTES. */
 #define TEX_FORMAT_BITDEPTH(fmt)             (4 << ((fmt) & 0x3))
-/** @brief Convert the specifified number of pixels in bytes. */
-#define TEX_FORMAT_PIX2BYTES(fmt, pixels)    ((TEX_FORMAT_BITDEPTH(fmt) * pixels) >> 3)
-/** @brief Convert the specifified number of bytes in pixels. */
+/** @brief Convert the specified number of pixels in bytes. */
+#define TEX_FORMAT_PIX2BYTES(fmt, pixels)    ((pixels) << (((fmt) & 3) + 2) >> 3)
+/** @brief Convert the specified number of bytes in pixels. */
 #define TEX_FORMAT_BYTES2PIX(fmt, bytes)     (((bytes) << 1) >> ((fmt) & 3))
 
 /**
