@@ -622,7 +622,6 @@
 #define GL_SAMPLES_ARB                                  0x80A9
 #define GL_SAMPLE_COVERAGE_VALUE_ARB                    0x80AA
 #define GL_SAMPLE_COVERAGE_INVERT_ARB                   0x80AB
-#define GL_MULTISAMPLE_BIT_ARB                          0x20000000
 
 #define GL_SUBPIXEL_BITS                                0x0D50
 #define GL_INDEX_BITS                                   0x0D51
@@ -663,6 +662,7 @@
 #define GL_LIST_BIT                                     0x00020000
 #define GL_TEXTURE_BIT                                  0x00040000
 #define GL_SCISSOR_BIT                                  0x00080000
+#define GL_MULTISAMPLE_BIT_ARB                          0x20000000
 #define GL_ALL_ATTRIB_BITS                              0xFFFFFFFF
 
 #define GL_CLIENT_PIXEL_STORE_BIT                       0x00000001

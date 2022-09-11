@@ -67,18 +67,11 @@ void gl_primitive_close()
     gl_storage_free(&state.tmp_index_storage);
 }
 
-bool gl_calc_is_points()
+bool gl_is_invisible()
 {
-    switch (state.primitive_mode) {
-    case GL_POINTS:
-        return true;
-    case GL_LINES:
-    case GL_LINE_LOOP:
-    case GL_LINE_STRIP:
-        return false;
-    default:
-        return state.polygon_mode == GL_POINT;
-    }
+    return state.draw_buffer == GL_NONE 
+        || (state.depth_test && state.depth_func == GL_NEVER)
+        || (state.alpha_test && state.alpha_func == GL_NEVER);
 }
 
 void glBegin(GLenum mode)
@@ -147,20 +140,34 @@ void glBegin(GLenum mode)
     state.prim_progress = 0;
     state.prim_counter = 0;
 
-    gl_set_word(GL_UPDATE_POINTS, offsetof(gl_server_state_t, prim_type), mode);
+    gl_set_short(GL_UPDATE_POINTS, offsetof(gl_server_state_t, prim_type), (uint16_t)mode);
 
-    if (gl_is_invisible()) {
-        return;
+    gl_texture_object_t *tex_obj = gl_get_active_texture();
+    if (tex_obj != NULL && gl_tex_is_complete(tex_obj)) {
+        state.prim_texture = true;
+        state.prim_mipmaps = gl_tex_get_levels(tex_obj);
+        state.prim_tex_width = tex_obj->levels[0].width;
+        state.prim_tex_height = tex_obj->levels[0].height;
+        state.prim_bilinear = tex_obj->mag_filter == GL_LINEAR ||
+                              tex_obj->min_filter == GL_LINEAR ||
+                              tex_obj->min_filter == GL_LINEAR_MIPMAP_NEAREST ||
+                              tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR;
+    } else {
+        state.prim_texture = false;
+        state.prim_mipmaps = 0;
+        state.prim_tex_width = 0;
+        state.prim_tex_height = 0;
+        state.prim_bilinear = false;
     }
 
-    gl_update_texture();
-    gl_update_rendermode();
     gl_update_combiner();
 
     gl_reset_vertex_cache();
     gl_update_final_matrix();
 
     rdpq_mode_end();
+
+    gl_update(GL_UPDATE_TEXTURE_UPLOAD);
 }
 
 void glEnd(void)
@@ -174,7 +181,7 @@ void glEnd(void)
         state.prim_indices[1] = state.locked_vertex;
         state.prim_progress = 2;
 
-        gl_clip_line();
+        gl_clip_line(state.prim_texture, state.prim_mipmaps);
     }
 
     state.immediate_active = false;
@@ -199,8 +206,7 @@ void gl_draw_point(gl_vertex_t *v0)
         rdpq_set_prim_depth(v0->depth, 0);
     }
 
-    gl_texture_object_t *tex_obj = gl_get_active_texture();
-    if (tex_obj != NULL && tex_obj->is_complete) {
+    if (state.prim_texture) {
         rdpq_texture_rectangle(0, p0[0], p0[1], p1[0], p1[1], v0->texcoord[0]/32.f, v0->texcoord[1]/32.f, 0, 0);
     } else {
         rdpq_fill_rectangle(p0[0], p0[1], p1[0], p1[1]);
@@ -209,7 +215,6 @@ void gl_draw_point(gl_vertex_t *v0)
 
 void gl_draw_line(gl_vertex_t *v0, gl_vertex_t *v1)
 {
-    uint8_t level = 0;
     int32_t tex_offset = -1;
     int32_t z_offset = -1;
 
@@ -238,10 +243,8 @@ void gl_draw_line(gl_vertex_t *v0, gl_vertex_t *v1)
     memcpy(line_vertices[2].color, v1->color, sizeof(float) * 4);
     memcpy(line_vertices[3].color, v1->color, sizeof(float) * 4);
 
-    gl_texture_object_t *tex_obj = gl_get_active_texture();
-    if (tex_obj != NULL && tex_obj->is_complete) {
+    if (state.prim_texture) {
         tex_offset = 6;
-        level = tex_obj->num_levels - 1;
 
         memcpy(line_vertices[0].texcoord, v0->texcoord, sizeof(float) * 3);
         memcpy(line_vertices[1].texcoord, v0->texcoord, sizeof(float) * 3);
@@ -258,24 +261,16 @@ void gl_draw_line(gl_vertex_t *v0, gl_vertex_t *v1)
         line_vertices[3].depth = v1->depth;
     }
 
-    rdpq_triangle(0, level, 0, 2, tex_offset, z_offset, line_vertices[0].screen_pos, line_vertices[1].screen_pos, line_vertices[2].screen_pos);
-    rdpq_triangle(0, level, 0, 2, tex_offset, z_offset, line_vertices[1].screen_pos, line_vertices[2].screen_pos, line_vertices[3].screen_pos);
+    rdpq_triangle(0, state.prim_mipmaps, 0, 2, tex_offset, z_offset, line_vertices[0].screen_pos, line_vertices[1].screen_pos, line_vertices[2].screen_pos);
+    rdpq_triangle(0, state.prim_mipmaps, 0, 2, tex_offset, z_offset, line_vertices[1].screen_pos, line_vertices[2].screen_pos, line_vertices[3].screen_pos);
 }
 
 void gl_draw_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
 {
-    uint8_t level = 1;
-    int32_t tex_offset = -1;
-
-    gl_texture_object_t *tex_obj = gl_get_active_texture();
-    if (tex_obj != NULL && tex_obj->is_complete) {
-        tex_offset = 6;
-        level = tex_obj->num_levels;
-    }
-
+    int32_t tex_offset = state.prim_texture ? 6 : -1;
     int32_t z_offset = state.depth_test ? 9 : -1;
 
-    rdpq_triangle(0, level, 0, 2, tex_offset, z_offset, v0->screen_pos, v1->screen_pos, v2->screen_pos);
+    rdpq_triangle(0, state.prim_mipmaps, 0, 2, tex_offset, z_offset, v0->screen_pos, v1->screen_pos, v2->screen_pos);
 }
 
 void gl_cull_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
@@ -465,13 +460,11 @@ void gl_clip_triangle()
                 gl_intersect_line_plane(intersection, p0, p1, clip_plane);
 
                 out_list->vertices[out_list->count] = intersection;
-                out_list->edge_flags[out_list->count] = cur_inside ? in_list->edge_flags[prev_index] : false;
                 out_list->count++;
             }
 
             if (cur_inside) {
                 out_list->vertices[out_list->count] = cur_point;
-                out_list->edge_flags[out_list->count] = in_list->edge_flags[i];
                 out_list->count++;
             } else {
                 // If the point is in the clipping cache, remember it as unused
@@ -683,7 +676,7 @@ void gl_calc_texture_coords(GLfloat *dest, const GLfloat *input, const GLfloat *
     gl_matrix_mult4x2(dest, gl_matrix_stack_get_matrix(&state.texture_stack), tmp);
 }
 
-void gl_vertex_t_l(uint8_t cache_index, const gl_matrix_t *mv, const gl_texture_object_t *tex_obj)
+void gl_vertex_t_l(uint8_t cache_index, const gl_matrix_t *mv)
 {
     gl_vertex_t *v = &state.vertex_cache[cache_index];
 
@@ -695,13 +688,11 @@ void gl_vertex_t_l(uint8_t cache_index, const gl_matrix_t *mv, const gl_texture_
     GLfloat eye_pos[4];
     GLfloat eye_normal[3];
 
-    bool is_texture_active = tex_obj != NULL && tex_obj->is_complete;
-
-    if (state.lighting || state.fog || is_texture_active) {
+    if (state.lighting || state.fog || state.prim_texture) {
         gl_matrix_mult(eye_pos, mv, pos);
     }
 
-    if (state.lighting || is_texture_active) {
+    if (state.lighting || state.prim_texture) {
         gl_matrix_mult3x3(eye_normal, mv, normal);
 
         if (state.normalize) {
@@ -736,13 +727,13 @@ void gl_vertex_t_l(uint8_t cache_index, const gl_matrix_t *mv, const gl_texture_
 
     gl_vertex_calc_screenspace(v);
 
-    if (is_texture_active) {
+    if (state.prim_texture) {
         gl_calc_texture_coords(v->texcoord, texcoord, pos, eye_pos, eye_normal);
 
-        v->texcoord[0] *= tex_obj->levels[0].width;
-        v->texcoord[1] *= tex_obj->levels[0].height;
+        v->texcoord[0] *= state.prim_tex_width;
+        v->texcoord[1] *= state.prim_tex_height;
 
-        if (tex_obj->mag_filter == GL_LINEAR) {
+        if (state.prim_bilinear) {
             v->texcoord[0] -= 0.5f;
             v->texcoord[1] -= 0.5f;
         }
@@ -830,13 +821,14 @@ void gl_load_attribs(const gl_attrib_source_t *sources, const uint32_t index)
 
 void gl_draw(const gl_attrib_source_t *sources, uint32_t offset, uint32_t count, const void *indices, read_index_func read_index)
 {
-    if (sources[ATTRIB_VERTEX].pointer == NULL) {
+    // FIXME: If the current render mode makes everything "invisible", we should technically still
+    //        execute the vertex fetch pipeline so that after the draw call, the current attributes
+    //        have the correct values. Fix this if anyone actually relies on this behavior.
+    if (sources[ATTRIB_VERTEX].pointer == NULL || gl_is_invisible()) {
         return;
     }
 
     const gl_matrix_t *mv = gl_matrix_stack_get_matrix(&state.modelview_stack);
-
-    gl_texture_object_t *tex_obj = gl_get_active_texture();
 
     for (uint32_t i = 0; i < count; i++)
     {
@@ -856,8 +848,11 @@ void gl_draw(const gl_attrib_source_t *sources, uint32_t offset, uint32_t count,
         }
         
         if (miss) {
+            // FIXME: Technically the attributes should be loaded regardless of whether a cache miss happens
+            //        just so that after the draw call, the current attributes have the correct values (according to spec).
+            //        Ignore this for now as it would waste performance. Fix this if someone actually relies on this behavior.
             gl_load_attribs(sources, index);
-            gl_vertex_t_l(cache_index, mv, tex_obj);
+            gl_vertex_t_l(cache_index, mv);
         }
 
         if (state.lock_next_vertex) {
@@ -1353,7 +1348,7 @@ void glPolygonMode(GLenum face, GLenum mode)
         return;
     }
 
-    gl_set_word(GL_UPDATE_POINTS, offsetof(gl_server_state_t, polygon_mode), mode);
+    gl_set_short(GL_UPDATE_POINTS, offsetof(gl_server_state_t, polygon_mode), (uint16_t)mode);
     state.polygon_mode = mode;
 }
 
