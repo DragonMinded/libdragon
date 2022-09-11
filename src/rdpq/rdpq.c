@@ -499,6 +499,10 @@ static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
         printf("Interpolated mipmap cannot work with a custom 2-pass combiner\n");
         break;
 
+    case RDPQ_ASSERT_SEND_INVALID_SIZE:
+        printf("RDPSend buffer: %lx %lx\n", state->gpr[19], state->gpr[20]); // s3, s4
+        break;
+
     default:
         printf("Unknown assert\n");
         break;

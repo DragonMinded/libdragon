@@ -38,8 +38,8 @@
         RSPQ_DefineCommand RDPQCmd_SetCombineMode_1Pass,    16  # 0xDB SET_COMBINE_MODE (one pass)
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDC
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDD
-        RSPQ_DefineCommand RDPQCmd_Triangle,                8   # 0xDE Triangle (assembled by RSP)
-        RSPQ_DefineCommand RDPQCmd_TriangleData,            8   # 0xDF Set Triangle Data
+        RSPQ_DefineCommand RDPQCmd_Triangle,                4   # 0xDE Triangle (assembled by RSP)
+        RSPQ_DefineCommand RDPQCmd_TriangleData,            28  # 0xDF Set Triangle Data
 
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xE0
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xE1
@@ -440,22 +440,31 @@ reset_end:
 
     .func RDPQCmd_TriangleData
 RDPQCmd_TriangleData:
-    sw a1, %lo(RDPQ_TRI_DATA0) + 0(a0)  # X
-    sw a2, %lo(RDPQ_TRI_DATA0) + 4(a0)  # Y
-    sw a3, %lo(RDPQ_TRI_DATA0) + 8(a0)  # Z
+    sw a1, %lo(RDPQ_TRI_DATA0) + 0(a0)  # X/Y
+    sw a2, %lo(RDPQ_TRI_DATA0) + 8(a0)  # Z
+    sw a3, %lo(RDPQ_TRI_DATA0) + 8(a0)  # RGBA
 
-    lw t0, CMD_ADDR(16, 32)
-    lw t1, CMD_ADDR(20, 32)
-    lw t2, CMD_ADDR(24, 32)
-    lw t3, CMD_ADDR(28, 32)
+    lw t0, CMD_ADDR(16, 28)
+    lw t1, CMD_ADDR(20, 28)
+    lw t2, CMD_ADDR(24, 28)
 
-    sw t0, %lo(RDPQ_TRI_DATA0) + 12(a0)  # RGBA
-    sw t1, %lo(RDPQ_TRI_DATA0) + 16(a0)  # S
-    sw t2, %lo(RDPQ_TRI_DATA0) + 20(a0)  # T 
+    sw t0, %lo(RDPQ_TRI_DATA0) + 12(a0)  # S
+    sw t1, %lo(RDPQ_TRI_DATA0) + 16(a0)  # T
     jr ra
-    sw t3, %lo(RDPQ_TRI_DATA0) + 24(a0)  # INV_W
+    sw t2, %lo(RDPQ_TRI_DATA0) + 20(a0)  # INV_W 
     .endfunc
 
+    .func RDPQCmd_Triangle
+RDPQCmd_Triangle:
+#if RDPQ_TRIANGLE_REFERENCE
+    assert RDPQ_ASSERT_INVALID_CMD_TRI
+#else
+    li a0, %lo(RDPQ_TRI_DATA0)
+    li a1, %lo(RDPQ_TRI_DATA1)
+    j RDPQ_Triangle
+    li a2, %lo(RDPQ_TRI_DATA2)
+#endif /* RDPQ_TRIANGLE_REFERENCE */
+    .endfunc
 
 # Include RDPQ library
 #include <rsp_rdpq.inc>
