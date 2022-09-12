@@ -735,134 +735,134 @@ swap_end:
     #define nz_f             $v15
     #define slope_i          $v16
     #define slope_f          $v17
-    #define vv1              $v18
-    #define vv2              $v19
-    #define vv3              $v20
-    #define vh               $v21
-    #define vm               $v22
-    #define vl               $v23
+    #define vxy32            $v18
+    #define vxy21            $v19
+    #define vhml             $v21
     #define fy               $v24
 
-    # Load X/Y attributes
-    lsv vv1,0, VTX_ATTR_X,vtx1
-    lsv vv2,0, VTX_ATTR_X,vtx2
-    lsv vv3,0, VTX_ATTR_X,vtx3
+    # We want to build this layout
+    #  vxy32 = X3 X2 X3 --    Y3 Y2 Y3 --
+    #  vxy21 = X1 -- X2 --    Y1 -- Y2 --
 
-    lsv vv1,8, VTX_ATTR_Y,vtx1
-    lsv vv2,8, VTX_ATTR_Y,vtx2
-    lsv vv3,8, VTX_ATTR_Y,vtx3
+    lsv vxy32,0,  VTX_ATTR_X,vtx3
+    lsv vxy32,8,  VTX_ATTR_Y,vtx3
+    vxor $v00,$v00
+    vor vxy32, $v00, vxy32,e(0h)
+    lsv vxy32,2,  VTX_ATTR_X,vtx2
+    lsv vxy32,10, VTX_ATTR_Y,vtx2
+
+    lsv vxy21,0,  VTX_ATTR_X,vtx1
+    lsv vxy21,4,  VTX_ATTR_X,vtx2
+    lsv vxy21,8,  VTX_ATTR_Y,vtx1
+    lsv vxy21,12, VTX_ATTR_Y,vtx2
 
     # Store Y values in output
-    ssv vv1,8, 6,s3
-    ssv vv2,8, 4,s3
-    ssv vv3,8, 2,s3
+    ssv vxy21,8,  6,s3    # y1
+    ssv vxy32,10, 4,s3    # y2
+    ssv vxy32,8,  2,s3    # y3
 
-    vsub vh, vv3, vv1
-    vsub vm, vv2, vv1
-    vsub vl, vv3, vv2
+    # Now calculate:
+    #  vxy32    = X3 X2 X3 --    Y3 Y2 Y3 --
+    #    -
+    #  vxy21.0q = X1 X1 X2 X2    Y1 Y1 Y2 Y2
+    #    = 
+    #  vhml     = HX MX LX --    HY MY LY --
+    vsub vhml, vxy32, vxy21,e(0q)
 
-    # Copy MY into lane 1
-    # Copy MX into lane 5
-    vmov vm,13, vm,8
-    vmov vm,9,  vm,12
+    #  vhml     = HX MX LX MY    HY MY LY MX
+    vmov vhml,15, vhml,9
+    vmov vhml,11, vhml,13
 
-    # Negate lane 5 (-MX)
-    #li s0, %lo(TRI_NEGATE)
-    #lqv v__,0, 0,s0
-    #vmudn vm, v__
-
-    # HX   0   0   0  HY    0    0   0 
-    # MX  MY   0   0  MY   -MX   0   0
-
-    # Calculate normal: compute 32-bit cross product NZ = H x M.
-    vmudh nz_f, vh, vm,e(1h)
+    # Calculate normal: compute 32-bit cross product:
+    #
+    #  vhml     = HX MX LX MY    HY MY LY MX
+    #    *
+    #  vhml.3h  = MY MY MY MY    MX MX MX MX
+    #    =
+    #  nz       = HX*MY -- -- --    HY*MX -- -- -- --
+    vmudh nz_f, vhml, vhml,e(3h)
     vsar nz_i, v__, v__,e(0)
     vsar nz_f, v__, v__,e(1)
     vsubc nz_f, nz_f,e(4)
     vsub  nz_i, nz_i,e(4)
 
-    # Reciprocal
-    vrcph $v31,12, nz_i,8
-    vrcpl $v31,13, nz_f,8
-    vrcph $v31,12, v__,8
+    # Compute SLOPE vector
 
+    # slope    =  1/HY 1/MY 1/LY 1/NZ  -- -- -- --
+
+    # Reciprocal 1/NX
+    vrcph slope_i,11, nz_i,e(0)
+    vrcpl slope_f,11, nz_f,e(0)
+    vrcph slope_i,11, v__,e(0)
     # Absolute value
     vsra8 v__, nz_i, 15
-    vxor $v31, v__,e(0)
+    vxor slope_f, v__,e(0)
+    vxor slope_i, v__,e(0)
 
-    # FY = floorf(y1) - y1
-    vsll8 fy, vv1, 14
+    # Compute L slope. 1/LY  (s14.1)
+    vrcp  slope_f,10, vhml,e(6)
+    vrcph slope_i,10, vhml,e(6)
+    # Compute M slope. 1/MY  (s14.1)
+    vrcp  slope_f,9,  vhml,e(5)
+    vrcph slope_i,9,  vhml,e(5)
+    # Compute H slope. 1/HY  (s14.1)
+    vrcp  slope_f,8,  vhml,e(4)
+    vrcph slope_i,8,  vhml,e(4)
+
+    #if 0
+    # TODO: 1 NR pass
+    #  vnr      =   HY  MY   LY   NZ
+    # slope     = 1/HY 1/MY 1/LY 1/NZ
+    #endif
+
+    # FY.e4 = floorf(y1) - y1
+    vsll8 fy, vxy21, 14
     vsrl8 fy, fy, 14
 
-
-    # FINAL = X2 into 16.16
-    vsra final_i, vv2, 2
-    vsll8 final_f, vv2, 14
-
-    # Compute L slope. 1/ML  (s14.1)
-    vrcp  slope_f,0, vl,e(4)
-    vrcph slope_i,0, vl,e(4)
-    #   ML * (1/ML). Repeat twice to compensate 1 bit loss by reciprocal
-    vmudl v__,     slope_f, vl,e(0)
-    vmadl v__,     slope_f, vl,e(0)
-    vmadn slope_f, slope_i, vl,e(0)
-    vmadn slope_f, slope_i, vl,e(0)
+    # Finalize slope divisions by multiplying by the reciprocal.
+    #  vhml     =   HX    MX    LX    MY    HY MY LY MX
+    #    *
+    #  slope    =  1/HY  1/MY  1/LY  1/NZ   -- -- -- --
+    #    =
+    #  slope    =  HX/HY MX/MY LX/LY  --    -- -- -- --
+    #
+    # Notice that we need to repeat the MAC sequence twice to compensate
+    # for 1-bit shift right introduced by the reciprocals
+    vmudl v__,     slope_f, vhml
+    vmadl v__,     slope_f, vhml
+    vmadn slope_f, slope_i, vhml
+    vmadn slope_f, slope_i, vhml
     vsar  slope_i, v__, v__,e(1)
+ 
+    # Store slopes
+    ssv slope_f,4, 14,s3  # ISL_F
+    ssv slope_i,4, 12,s3  # ISL_I
+    ssv slope_f,2, 30,s3  # ISM_F
+    ssv slope_i,2, 28,s3  # ISM_I
+    ssv slope_f,0, 22,s3  # ISH_F
+    ssv slope_i,0, 20,s3  # ISH_I
 
-    ssv slope_f,0, 14,s3  # ISL_F
-    ssv slope_i,0, 12,s3  # ISL_I
+    #  vxy21 =   X1   --    X2   --  Y1 -- Y2 --
+    #  slope = HX/HY MX/MY LX/LY --  -- -- -- --
 
-    ssv final_f,0, 10,s3  # XL_F
-    ssv final_i,0,  8,s3  # Xl_I
+    # FINAL = X1/X2 in 16.16 precision
+    vsra final_i, vxy21, 2
+    vsll8 final_f, vxy21, 14
 
+    # Store X2 value in output (as XL)
+    ssv final_f,4, 10,s3  # XL_F
+    ssv final_i,4,  8,s3  # Xl_I
 
-    # FINAL = X1 into 16.16
-    vsra final_i, vv1, 2
-    vsll8 final_f, vv1, 14
-
-    # Compute M slope. 1/MY  (s14.1)
-    vrcp  slope_f,0, vm,e(4)
-    vrcph slope_i,0, vm,e(4)
-    #   MX * (1/MY). Repeat twice to compensate 1 bit loss by reciprocal
-    vmudl v__,     slope_f, vm,e(0)
-    vmadl v__,     slope_f, vm,e(0)
-    vmadn slope_f, slope_i, vm,e(0)
-    vmadn slope_f, slope_i, vm,e(0)
-    vsar  slope_i, v__, v__,e(1)
-
-    ssv slope_f,0, 30,s3  # ISM_F
-    ssv slope_i,0, 28,s3  # ISM_I
-
+    # Compute XH/XM
     vmudn slope_f, fy,e(4)
     vmadh slope_i, fy,e(4)
-
-    vaddc slope_f, final_f
-    vadd slope_i, final_i
+    vaddc slope_f, final_f,e(0q)
+    vadd  slope_i, final_i,e(0q)
 
     ssv slope_f,0, 26,s3  # XM_F
     ssv slope_i,0, 24,s3  # XM_I
-
-    # Compute H slope. 1/HY  (s14.1)
-    vrcp  slope_f,0,     vh,e(4)
-    vrcph slope_i,0, vh,e(4)
-    #   HX * (1/HY). Repeat twice to compensate 1 bit loss by reciprocal
-    vmudl v__,     slope_f, vh,e(0)
-    vmadl v__,     slope_f, vh,e(0)
-    vmadn slope_f, slope_i, vh,e(0)
-    vmadn slope_f, slope_i, vh,e(0)
-    vsar  slope_i, v__, v__,e(1)
-
-    ssv slope_f,0, 22,s3  # ISM_F
-    ssv slope_i,0, 20,s3  # ISM_I
-
-    vmudn slope_f, fy,e(4)
-    vmadh slope_i, fy,e(4)
-
-    vaddc slope_f, final_f
-    vadd slope_i, final_i
-
-    ssv slope_f,0, 18,s3  # XM_F
-    ssv slope_i,0, 16,s3  # XM_I
+    ssv slope_f,2, 18,s3  # XH_F
+    ssv slope_i,2, 16,s3  # XH_I
 
     li t0, 0xC8
     sb t0, 0(s3)
