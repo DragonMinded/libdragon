@@ -91,8 +91,8 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
 {
     rdpq_init();
 
-    rdpq_debug_start();
-    rdpq_debug_log(true);
+    //rdpq_debug_start();
+    //rdpq_debug_log(true);
 
     memset(&state, 0, sizeof(state));
 
