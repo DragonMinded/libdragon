@@ -7,6 +7,7 @@
 #define __LIBDRAGON_RDP_H
 
 #include "display.h"
+#include "rdpq.h"
 #include <stdbool.h>
 
 ///@cond
@@ -437,8 +438,8 @@ void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by );
 
 static inline __attribute__((deprecated("use rdpq_set_fill_color instead")))
 void rdp_set_primitive_color(uint32_t color) {
-    extern void __rdpq_set_fill_color(uint32_t);
-    __rdpq_set_fill_color(color);
+    extern void __rdpq_write8_syncchange(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t autosync);
+    __rdpq_write8_syncchange(RDPQ_CMD_SET_FILL_COLOR, 0, color, AUTOSYNC_PIPE);
 }
 
 __attribute__((deprecated("use rdpq_set_mode_fill instead")))

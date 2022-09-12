@@ -264,9 +264,10 @@ RSPQ_DefineCommand RSPQCmd_RdpSetBuffer,    12    # 0x0A
 RSPQ_DefineCommand RSPQCmd_RdpAppendBuffer, 4     # 0x0B
 
 #if RSPQ_DEBUG
+    .align 3
 RSPQ_LOG_IDX:                .long 0
 RSPQ_LOG:                    .ds.l 16
-RSPQ_LOG_END:                .long 0xFFFFFFFF
+RSPQ_LOG_END:                .long 0xABCD0123
 #endif
 
     .align 3

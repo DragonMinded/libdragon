@@ -68,9 +68,9 @@ extern "C" {
  * Note that there are texture format that are 4bpp, so don't divide this by 8 to get the number of bytes
  * per pixels, but rather use #TEX_FORMAT_BYTES2PIX and #TEX_FORMAT_PIX2BYTES. */
 #define TEX_FORMAT_BITDEPTH(fmt)             (4 << ((fmt) & 0x3))
-/** @brief Convert the specifified number of pixels in bytes. */
-#define TEX_FORMAT_PIX2BYTES(fmt, pixels)    ((TEX_FORMAT_BITDEPTH(fmt) * pixels) >> 3)
-/** @brief Convert the specifified number of bytes in pixels. */
+/** @brief Convert the specified number of pixels in bytes. */
+#define TEX_FORMAT_PIX2BYTES(fmt, pixels)    ((pixels) << (((fmt) & 3) + 2) >> 3)
+/** @brief Convert the specified number of bytes in pixels. */
 #define TEX_FORMAT_BYTES2PIX(fmt, bytes)     (((bytes) << 1) >> ((fmt) & 3))
 
 /**
@@ -93,7 +93,7 @@ typedef enum {
     FMT_CI8    = _RDP_FORMAT_CODE(2, 1),   ///< Format CI8: color index 8-bit (paletted, 1 index per byte)
     FMT_IA4    = _RDP_FORMAT_CODE(3, 0),   ///< Format IA4: 3-bit intensity + 1-bit alpha (4-bit per pixel)
     FMT_IA8    = _RDP_FORMAT_CODE(3, 1),   ///< Format IA8: 4-bit intensity + 4-bit alpha (8-bit per pixel)
-    FMT_IA16   = _RDP_FORMAT_CODE(3, 2),   ///< Format IA16: 8-bit intenity + 8-bit alpha (16-bit per pixel)
+    FMT_IA16   = _RDP_FORMAT_CODE(3, 2),   ///< Format IA16: 8-bit intensity + 8-bit alpha (16-bit per pixel)
     FMT_I4     = _RDP_FORMAT_CODE(4, 0),   ///< Format I4: 4-bit intensity (4-bit per pixel)
     FMT_I8     = _RDP_FORMAT_CODE(4, 1),   ///< Format I8: 8-bit intensity (8-bit per pixel)
 } tex_format_t;
@@ -136,7 +136,7 @@ typedef struct surface_s
  * to the caller to handle its lifetime.
  * 
  * If you plan to use this format as RDP framebuffer, make sure that the provided buffer
- * respects the required alginment of 64 bytes, otherwise #rdp_attach will fail.
+ * respects the required alignment of 64 bytes, otherwise #rdp_attach will fail.
  * 
  * @param[in] buffer    Pointer to the memory buffer
  * @param[in] format    Pixel format
@@ -144,6 +144,8 @@ typedef struct surface_s
  * @param[in] height    Height in pixels
  * @param[in] stride    Stride in bytes (length of a row)
  * @return              The initialized surface
+ * 
+ * @see #surface_make_linear
  */
 inline surface_t surface_make(void *buffer, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride) {
     return (surface_t){
@@ -153,6 +155,27 @@ inline surface_t surface_make(void *buffer, tex_format_t format, uint32_t width,
         .stride = stride,
         .buffer = buffer,
     };
+}
+
+/**
+ * @brief Initialize a surface_t structure with the provided linear buffer.
+ *
+ * This function is similar to #surface_make, but it works for images that
+ * are linearly mapped with no per-line padding or extraneous data.
+ * 
+ * Compared to #surface_make, it does not accept a stride parameter, and
+ * calculate the stride from the width and the pixel format.
+ * 
+ * @param[in] buffer    Pointer to the memory buffer
+ * @param[in] format    Pixel format
+ * @param[in] width     Width in pixels
+ * @param[in] height    Height in pixels
+ * @return              The initialized surface
+ * 
+ * @see #surface_make
+ */
+inline surface_t surface_make_linear(void *buffer, tex_format_t format, uint32_t width, uint32_t height) {
+    return surface_make(buffer, format, width, height, TEX_FORMAT_PIX2BYTES(format, width));
 }
 
 /**

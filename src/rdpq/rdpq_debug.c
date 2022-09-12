@@ -541,7 +541,7 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
         fprintf(out, "%s", tri[cmd]);
         fprintf(out, "%s tile=%d lvl=%d y=(%.2f, %.2f, %.2f)\n",
             BITS(buf[0], 55, 55) ? "left" : "right", BITS(buf[0], 48, 50), BITS(buf[0], 51, 53)+1,
-            SBITS(buf[0], 32, 45)*FX(2), SBITS(buf[0], 16, 29)*FX(2), SBITS(buf[0], 0, 13)*FX(2));
+            SBITS(buf[0], 0, 13)*FX(2), SBITS(buf[0], 16, 29)*FX(2), SBITS(buf[0], 32, 45)*FX(2));
         fprintf(out, "[%p] %016" PRIx64 "                     xl=%.4f dxld=%.4f\n", &addr[1], buf[1],
             SBITS(buf[1], 32, 63)*FX(16), SBITS(buf[1], 0, 31)*FX(16));
         fprintf(out, "[%p] %016" PRIx64 "                     xh=%.4f dxhd=%.4f\n", &addr[2], buf[2],

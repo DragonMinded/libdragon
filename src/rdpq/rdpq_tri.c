@@ -332,14 +332,15 @@ void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_
 
     rspq_write_end(&w);
 #else
-    #define TRI_DATA_LEN  ((2+1+1+3)*4)
+    const int TRI_DATA_LEN = ROUND_UP((2+1+1+3)*4, 16);
 
     const float *vtx[3] = {v1, v2, v3};
     for (int i=0;i<3;i++) {
         const float *v = vtx[i];
 
-        int32_t x = float_to_s16_16(v[pos_offset+0]);
-        int32_t y = float_to_s16_16(v[pos_offset+1]);
+        // X,Y: s13.2
+        int16_t x = floorf(v[pos_offset+0] * 4.0f);
+        int16_t y = floorf(v[pos_offset+1] * 4.0f);
         
         int32_t z = 0;
         if (z_offset >= 0) {
@@ -363,7 +364,7 @@ void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_
         }
 
         rspq_write(RDPQ_OVL_ID, RDPQ_CMD_TRIANGLE_DATA,
-            TRI_DATA_LEN * i, x, y, z, rgba, s, t, inv_w);
+            TRI_DATA_LEN * i, (x << 16) | (y & 0xFFFF), z, rgba, s, t, inv_w);
     }
 
     rspq_write(RDPQ_OVL_ID, RDPQ_CMD_TRIANGLE, 0);

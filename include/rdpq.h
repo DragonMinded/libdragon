@@ -125,6 +125,13 @@
 #include "surface.h"
 #include "debug.h"
 
+/** 
+ * @brief Static overlay ID of rdpq library.
+ * 
+ * The rdpq overlay must be registered at this ID via #rspq_overlay_register_static.
+ */
+#define RDPQ_OVL_ID (0xC << 28)
+
 enum {
     RDPQ_CMD_NOOP                       = 0x00,
     RDPQ_CMD_SET_LOOKUP_ADDRESS         = 0x01,
@@ -417,6 +424,11 @@ void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps,
  * performed. If you need to use these kind of advanced features, call
  * #rdpq_triangle to draw the rectangle as two triangles.
  * 
+ * It is not possible to specify a per-vertex Z value in rectangles, but if you
+ * want to draw using Z-buffer, you can use #rdpq_mode_zoverride in the mode API
+ * (or manually call #rdpq_set_prim_depth_raw) to force a Z value that will be used
+ * for the whole primitive (in all pixels).
+ * 
  * Notice that coordinates are unsigned numbers, so negative numbers are not
  * supported. Coordinates bigger than the target buffer will be automatically
  * clipped (thanks to scissoring).
@@ -690,16 +702,6 @@ inline void rdpq_set_yuv_parms(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k
         _carg(x1fx, 0xFFF, 12) | _carg(y1fx, 0xFFF, 0)); \
 })
 
-inline void rdpq_set_prim_depth_fx(uint16_t prim_z, int16_t prim_dz)
-{
-    // NOTE: this does not require a pipe sync
-    extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
-    assertf(prim_z <= 0x7FFF, "prim_z must be in [0..0x7FFF]");
-    assertf((prim_dz & -prim_dz) == (prim_dz >= 0 ? prim_dz : -prim_dz),
-        "prim_dz must be a power of 2");
-    __rdpq_write8(RDPQ_CMD_SET_PRIM_DEPTH, 0, _carg(prim_z, 0xFFFF, 16) | _carg(prim_dz, 0xFFFF, 0));
-}
-
 /**
  * @brief Set a fixed Z value to be used instead of a per-pixel value (RDP command; SET_PRIM_DEPTH)
  * 
@@ -711,24 +713,29 @@ inline void rdpq_set_prim_depth_fx(uint16_t prim_z, int16_t prim_dz)
  * This function allows to configure the RDP register that
  * holds the fixed Z value. It is then necessary to activate this
  * special RDP mode: either manually turning on SOM_ZSOURCE_PRIM via
- * #rdpq_change_other_modes_raw, or using the mode API (#rdpq_mode_zoverride).
+ * #rdpq_change_other_modes_raw.
  * 
- * @param[in] prim_z     Fixed Z value (in range 0..1)
- * @param[in] prim_dz    Delta Z value (range -32768..16384). This
- *                       must be a signed power of two, corresponding
- *                       to an approximate 
+ * For beginners, it is suggested to use the mode API instead, via
+ * #rdpq_mode_zoverride.
  * 
+ * @param[in] prim_z     Fixed Z value (in range 0..0x7FFF)
+ * @param[in] prim_dz    Delta Z value (must be a signed power of two).
+ *                       Pass 0 initially, and increment to next power of two
+ *                       in case of problems with objects with the same Z.
+ * 
+ * @note Pending further investigation of the exact usage of this function,
+ *       and specifically the prim_dz parameter, rdpq does not currently
+ *       offer a higher-level function (`rdpq_set_prim_depth`).
  */
-#define rdpq_set_prim_depth(prim_z, prim_dz) ({ \
-    float __prim_dz = (prim_dz); \
-    uint16_t __z = (prim_z) * 0x7FFF; \
-    float __dz   = __prim_dz * 0x7FFF; \
-    int32_t __dzi; memcpy(&__dzi, &__dz, 4); \
-    int __b = __dzi << 9 != 0; \
-    int16_t __dz2 = 1 << (__dzi ? (__dzi >> 23) - 127 + __b : 0); \
-    rdpq_set_prim_depth_fx(__z, __dz2); \
-})\
-
+ inline void rdpq_set_prim_depth_raw(uint16_t prim_z, int16_t prim_dz)
+{
+    // NOTE: this does not require a pipe sync
+    extern void __rdpq_write8(uint32_t, uint32_t, uint32_t);
+    assertf(prim_z <= 0x7FFF, "prim_z must be in [0..0x7FFF]");
+    assertf((prim_dz & -prim_dz) == (prim_dz >= 0 ? prim_dz : -prim_dz),
+        "prim_dz must be a power of 2");
+    __rdpq_write8(RDPQ_CMD_SET_PRIM_DEPTH, 0, _carg(prim_z, 0xFFFF, 16) | _carg(prim_dz, 0xFFFF, 0));
+}
 
 /**
  * @brief Load a portion of a texture into TMEM (RDP command: LOAD_TILE)

@@ -691,7 +691,7 @@ void graphics_draw_character( surface_t* disp, int x, int y, char ch )
     int depth = display_get_bitdepth();
 
     // setting default font if none was set previously
-    if( sprite_font.sprite == NULL || depth*8 != TEX_FORMAT_BITDEPTH(sprite_font.sprite->format) )
+    if( sprite_font.sprite == NULL || depth*8 != TEX_FORMAT_BITDEPTH(sprite_get_format(sprite_font.sprite)) )
     {
         graphics_set_default_font();
     }
@@ -954,7 +954,7 @@ void graphics_draw_sprite_stride( surface_t* disp, int x, int y, sprite_t *sprit
     int depth = TEX_FORMAT_BITDEPTH(surface_get_format( disp ));
 
     /* Only display sprite if it matches the bitdepth */
-    if( depth == 16 && TEX_FORMAT_BITDEPTH(sprite->format) == 16 )
+    if( depth == 16 && TEX_FORMAT_BITDEPTH(sprite_get_format(sprite)) == 16 )
     {
         uint16_t *buffer = (uint16_t *)__get_buffer( disp );
         uint16_t *sp_data = (uint16_t *)sprite->data;
@@ -969,7 +969,7 @@ void graphics_draw_sprite_stride( surface_t* disp, int x, int y, sprite_t *sprit
             }
         }
     }
-    else if( depth == 32 && TEX_FORMAT_BITDEPTH(sprite->format) == 32 )
+    else if( depth == 32 && TEX_FORMAT_BITDEPTH(sprite_get_format(sprite)) == 32 )
     {
         uint32_t *buffer = (uint32_t *)__get_buffer( disp );
         uint32_t *sp_data = (uint32_t *)sprite->data;
@@ -1126,7 +1126,7 @@ void graphics_draw_sprite_trans_stride( surface_t* disp, int x, int y, sprite_t 
     int depth = TEX_FORMAT_BITDEPTH(surface_get_format( disp ));
 
     /* Only display sprite if it matches the bitdepth */
-    if( depth == 16 && TEX_FORMAT_BITDEPTH(sprite->format) == 16 )
+    if( depth == 16 && TEX_FORMAT_BITDEPTH(sprite_get_format(sprite)) == 16 )
     {
         uint16_t *buffer = (uint16_t *)__get_buffer( disp );
         uint16_t *sp_data = (uint16_t *)sprite->data;
@@ -1145,7 +1145,7 @@ void graphics_draw_sprite_trans_stride( surface_t* disp, int x, int y, sprite_t 
             }
         }
     }
-    else if( depth == 32 && TEX_FORMAT_BITDEPTH(sprite->format) == 32 )
+    else if( depth == 32 && TEX_FORMAT_BITDEPTH(sprite_get_format(sprite)) == 32 )
     {
         uint32_t *buffer = (uint32_t *)__get_buffer( disp );
         uint32_t *sp_data = (uint32_t *)sprite->data;

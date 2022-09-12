@@ -135,7 +135,8 @@ int main()
     rspq_block_begin();
 
     // Enable palette mode and load palette into TMEM
-    if (tiles_sprite->format == FMT_CI4 || tiles_sprite->format == FMT_CI8) {
+    tex_format_t tiles_format = sprite_get_format(tiles_sprite);
+    if (tiles_format == FMT_CI4 || tiles_format == FMT_CI8) {
         rdpq_mode_tlut(TLUT_RGBA16);
         rdpq_tex_load_tlut(sprite_get_palette(tiles_sprite), 0, 16);
     }

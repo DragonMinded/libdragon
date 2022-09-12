@@ -45,7 +45,7 @@ int rdpq_tex_load_sub(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int s0, i
     if (fmt == FMT_CI4)
         return rdpq_tex_load_sub_ci4(tile, tex, tmem_addr, 0, s0, t0, s1, t1);
 
-    int tmem_pitch = ROUND_UP(TEX_FORMAT_PIX2BYTES(fmt, tex->width), 8);
+    int tmem_pitch = ROUND_UP(TEX_FORMAT_PIX2BYTES(fmt, s1 - s0), 8);
 
     rdpq_set_tile(tile, fmt, tmem_addr, tmem_pitch, 0);
     rdpq_set_texture_image(tex);

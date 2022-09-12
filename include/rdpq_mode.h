@@ -163,7 +163,7 @@ typedef enum rdpq_filter_s {
  * If you are using an emulator, make sure it correctly emulates the VI
  * dither filter to judge the quality of the final image. For instance,
  * the RDP plugin parallel-RDP (based on Vulkan) emulates it very accurately,
- * so emulators like Ares, dgb-n64 or m64p will produce a picture closer to
+ * so emulators like Ares, dgb-n64 or simple64 will produce a picture closer to
  * real hardware.
  * 
  * The supported dither algorithms are:
@@ -235,7 +235,7 @@ typedef enum rdpq_mipmap_s {
     MIPMAP_INTERPOLATE = (SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE) >> 32,   ///< Interpolate between the two nearest mipmap levels (also known as "trilinear")
 } rdpq_mipmap_t;
  
-/*
+/**
  * @brief Types of alpha compare functions available in RDP
  */
 typedef enum rdpq_alphacompare_s {
@@ -354,7 +354,7 @@ void rdpq_set_mode_yuv(bool bilinear);
  * 
  * On the other hand, if you want to make sure that no antialias is performed,
  * disable antialias with `rdpq_mode_antialias(false)` (which is the default
- * for #rdpq_mode_standard), and that will make sure that the VI will not
+ * for #rdpq_set_mode_standard), and that will make sure that the VI will not
  * do anything to the image, even if #display_init was called with
  * #ANTIALIAS_RESAMPLE.
  *
@@ -630,8 +630,48 @@ inline void rdpq_mode_alphacompare(rdpq_alphacompare_t ac) {
     );
 }
 
-inline void rdpq_mode_zoverride(bool enable, uint16_t z, int16_t deltaz) {
-    if (enable) rdpq_set_prim_depth(z, deltaz);
+/**
+ * @brief Activate z-buffer usage
+ * 
+ * Activate usage of Z-buffer. The Z-buffer surface must be configured
+ * via #rdpq_set_z_image.
+ * 
+ * It is possible to separately activate the depth comparison
+ * (*reading* from the Z-buffer) and the Z update (*writing* to
+ * the Z-buffer).
+ * 
+ * @param compare     True if per-pixel depth test must be performed
+ * @param update      True if per-pixel depth write must be performed
+ * 
+ * @see #rdpq_set_z_image
+ */
+inline void rdpq_mode_zbuf(bool compare, bool update) {
+    rdpq_change_other_modes_raw(
+        SOM_Z_COMPARE | SOM_Z_WRITE, 
+        (compare ? SOM_Z_COMPARE : 0) |
+        (update  ? SOM_Z_WRITE   : 0)
+    );
+}
+
+/**
+ * @brief Set a fixed override of Z value
+ * 
+ * This function activates a special mode in which RDP will use a fixed value
+ * of Z for the next drawn primitives. This works with both rectangles
+ * (#rdpq_fill_rectangle and #rdpq_texture_rectangle) and triangles
+ * (#rdpq_triangle). 
+ * 
+ * If a triangle is drawn with per-vertex Z while the Z-override is active,
+ * the per-vertex Z will be ignored.
+ * 
+ * @param enable    Enable/disable the Z-override mode
+ * @param z         Z value to use (range 0..1)
+ * @param deltaz    DeltaZ value to use.
+ * 
+ * @see #rdpq_set_prim_depth_raw
+ */
+inline void rdpq_mode_zoverride(bool enable, float z, int16_t deltaz) {
+    if (enable) rdpq_set_prim_depth_raw(z * 0x7FFF, deltaz);
     rdpq_change_other_modes_raw(
         SOM_ZSOURCE_PRIM, enable ? SOM_ZSOURCE_PRIM : 0
     );

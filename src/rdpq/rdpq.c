@@ -499,6 +499,10 @@ static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
         printf("Interpolated mipmap cannot work with a custom 2-pass combiner\n");
         break;
 
+    case RDPQ_ASSERT_SEND_INVALID_SIZE:
+        printf("RDPSend buffer: %lx %lx\n", state->gpr[19], state->gpr[20]); // s3, s4
+        break;
+
     default:
         printf("Unknown assert\n");
         break;
@@ -995,7 +999,7 @@ extern inline void rdpq_set_fog_color(color_t color);
 extern inline void rdpq_set_blend_color(color_t color);
 extern inline void rdpq_set_prim_color(color_t color);
 extern inline void rdpq_set_env_color(color_t color);
-extern inline void rdpq_set_prim_depth_fx(uint16_t primitive_z, int16_t primitive_delta_z);
+extern inline void rdpq_set_prim_depth_raw(uint16_t primitive_z, int16_t primitive_delta_z);
 extern inline void rdpq_load_tlut(rdpq_tile_t tile, uint8_t lowidx, uint8_t highidx);
 extern inline void rdpq_set_tile_size_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1);
 extern inline void rdpq_load_block(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t tmem_pitch);

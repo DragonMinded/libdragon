@@ -91,6 +91,11 @@ RDPQ_Send:
     mfc0 rdram_cur, COP0_DP_END
 
     # Calculate buffer size and DMA transfer length
+    #ifndef NDEBUG
+    andi s3, 0xFFF
+    andi s4, 0xFFF
+    assert_gt s3, s4, RDPQ_ASSERT_SEND_INVALID_SIZE
+    #endif
     sub rspq_cmd_size, s3, s4
     add t0, rspq_cmd_size, -1
 
@@ -621,66 +626,33 @@ rdpq_update_fillcopy:
     #undef passhthrough
     #undef cycle_type
 
-#if RDPQ_TRIANGLE_REFERENCE
-    .text
-    .func RDPQCmd_Triangle
-RDPQCmd_Triangle:
-    assert RDPQ_ASSERT_INVALID_CMD_TRI
-#else
-    .text
-
     #####################################################################
     # RDPQ_Triangle
     #
     #####################################################################
 
-    #define VTX_ATTR_X   0
-    #define VTX_ATTR_Y   4 
-
-
-    .func RDPQCmd_Triangle
-RDPQCmd_Triangle:
-    #define vtx0   s0
-    #define vtx1   s1
-    #define vtx2   s2
-
-    la vtx0, CMD_ADDR( 4, 7*4)
-    la vtx1, CMD_ADDR(12, 7*4)
-    la vtx2, CMD_ADDR(20, 7*4)
     
-    #define y0     t4
-    #define y1     t5
-    #define y2     t6
+    .data
+    .align 4
+TRI_NEGATE: .half 1,1,1,1, 1,-1,1,1
+vsll_data
+vsll8_data
 
-    j half_swap
-    li t0, 1
+    .text
 
-swap_loop:
-    lw y1, VTX_ATTR_Y(vtx1)
-    lw y2, VTX_ATTR_Y(vtx2)
-    blt y1, y2, half_swap
-    nop
-    xor vtx1, vtx2
-    xor vtx2, vtx1
-    xor vtx1, vtx2
 
-half_swap:
-    lw y0, VTX_ATTR_Y(vtx0)
-    lw y1, VTX_ATTR_Y(vtx1)
-    blt y0, y1, swap_end
-    nop
-    xor vtx0, vtx1
-    xor vtx1, vtx0
-    xor vtx0, vtx1
+    .func RDPQ_Triangle
+RDPQ_Triangle:
+    #define vtx1   a0
+    #define vtx2   a1
+    #define vtx3   a2
 
-swap_end:
-    bnez t0, swap_loop
-    addi t0, -1
-
-    #
-    # 
-    #
-    #
+    #define y1     t4
+    #define y2     t5
+    #define y3     t6
+    #define x1     t7
+    #define x2     t8
+    #define x3     v0
 
     # r, g, b, a, s, t, w, z
     #define final_i          $v00
@@ -704,6 +676,8 @@ swap_end:
     #define ha_i             $v16
     #define ha_f             $v17
 
+    #define vshift8          $v27
+    #define vshift           $v28
     #define v__              $v29
     #define fy_i             $v30,e(0)
     #define fy_f             $v30,e(1)
@@ -719,6 +693,187 @@ swap_end:
     #define invn_f           $v31,e(5)
     #define invsh_i          $v31,e(6)
     #define invsh_f          $v31,e(7)
+
+    #define VTX_ATTR_X   0
+    #define VTX_ATTR_Y   2
+
+    setup_vsll vshift
+    setup_vsll8 vshift8
+
+    li s4, %lo(RDPQ_CMD_STAGING)
+    move s3, s4
+    sw zero, 0(s4)
+    sw zero, 4(s4)
+
+    j half_swap
+    li t0, 1
+
+swap_loop:
+    lh y2, VTX_ATTR_Y(vtx2)
+    lh y3, VTX_ATTR_Y(vtx3)
+    blt y2, y3, half_swap
+    nop
+    xor vtx2, vtx3
+    xor vtx3, vtx2
+    xor vtx2, vtx3
+
+half_swap:
+    lh y1, VTX_ATTR_Y(vtx1)
+    lh y2, VTX_ATTR_Y(vtx2)
+    blt y1, y2, swap_end
+    nop
+    xor vtx1, vtx2
+    xor vtx2, vtx1
+    xor vtx1, vtx2
+
+swap_end:
+    bnez t0, swap_loop
+    addi t0, -1
+
+    ###########################################################
+    #define nz_i             $v14
+    #define nz_f             $v15
+    #define slope_i          $v16
+    #define slope_f          $v17
+    #define vv1              $v18
+    #define vv2              $v19
+    #define vv3              $v20
+    #define vh               $v21
+    #define vm               $v22
+    #define vl               $v23
+    #define fy               $v24
+
+    # Load X/Y attributes
+    lsv vv1,0, VTX_ATTR_X,vtx1
+    lsv vv2,0, VTX_ATTR_X,vtx2
+    lsv vv3,0, VTX_ATTR_X,vtx3
+
+    lsv vv1,8, VTX_ATTR_Y,vtx1
+    lsv vv2,8, VTX_ATTR_Y,vtx2
+    lsv vv3,8, VTX_ATTR_Y,vtx3
+
+    # Store Y values in output
+    ssv vv1,8, 6,s3
+    ssv vv2,8, 4,s3
+    ssv vv3,8, 2,s3
+
+    vsub vh, vv3, vv1
+    vsub vm, vv2, vv1
+    vsub vl, vv3, vv2
+
+    # Copy MY into lane 1
+    # Copy MX into lane 5
+    vmov vm,13, vm,8
+    vmov vm,9,  vm,12
+
+    # Negate lane 5 (-MX)
+    #li s0, %lo(TRI_NEGATE)
+    #lqv v__,0, 0,s0
+    #vmudn vm, v__
+
+    # HX   0   0   0  HY    0    0   0 
+    # MX  MY   0   0  MY   -MX   0   0
+
+    # Calculate normal: compute 32-bit cross product NZ = H x M.
+    vmudh nz_f, vh, vm,e(1h)
+    vsar nz_i, v__, v__,e(0)
+    vsar nz_f, v__, v__,e(1)
+    vsubc nz_f, nz_f,e(4)
+    vsub  nz_i, nz_i,e(4)
+
+    # Reciprocal
+    vrcph $v31,12, nz_i,8
+    vrcpl $v31,13, nz_f,8
+    vrcph $v31,12, v__,8
+
+    # Absolute value
+    vsra8 v__, nz_i, 15
+    vxor $v31, v__,e(0)
+
+    # FY = floorf(y1) - y1
+    vsll8 fy, vv1, 14
+    vsrl8 fy, fy, 14
+
+
+    # FINAL = X2 into 16.16
+    vsra final_i, vv2, 2
+    vsll8 final_f, vv2, 14
+
+    # Compute L slope. 1/ML  (s14.1)
+    vrcp  slope_f,0, vl,e(4)
+    vrcph slope_i,0, vl,e(4)
+    #   ML * (1/ML). Repeat twice to compensate 1 bit loss by reciprocal
+    vmudl v__,     slope_f, vl,e(0)
+    vmadl v__,     slope_f, vl,e(0)
+    vmadn slope_f, slope_i, vl,e(0)
+    vmadn slope_f, slope_i, vl,e(0)
+    vsar  slope_i, v__, v__,e(1)
+
+    ssv slope_f,0, 14,s3  # ISL_F
+    ssv slope_i,0, 12,s3  # ISL_I
+
+    ssv final_f,0, 10,s3  # XL_F
+    ssv final_i,0,  8,s3  # Xl_I
+
+
+    # FINAL = X1 into 16.16
+    vsra final_i, vv1, 2
+    vsll8 final_f, vv1, 14
+
+    # Compute M slope. 1/MY  (s14.1)
+    vrcp  slope_f,0, vm,e(4)
+    vrcph slope_i,0, vm,e(4)
+    #   MX * (1/MY). Repeat twice to compensate 1 bit loss by reciprocal
+    vmudl v__,     slope_f, vm,e(0)
+    vmadl v__,     slope_f, vm,e(0)
+    vmadn slope_f, slope_i, vm,e(0)
+    vmadn slope_f, slope_i, vm,e(0)
+    vsar  slope_i, v__, v__,e(1)
+
+    ssv slope_f,0, 30,s3  # ISM_F
+    ssv slope_i,0, 28,s3  # ISM_I
+
+    vmudn slope_f, fy,e(4)
+    vmadh slope_i, fy,e(4)
+
+    vaddc slope_f, final_f
+    vadd slope_i, final_i
+
+    ssv slope_f,0, 26,s3  # XM_F
+    ssv slope_i,0, 24,s3  # XM_I
+
+    # Compute H slope. 1/HY  (s14.1)
+    vrcp  slope_f,0,     vh,e(4)
+    vrcph slope_i,0, vh,e(4)
+    #   HX * (1/HY). Repeat twice to compensate 1 bit loss by reciprocal
+    vmudl v__,     slope_f, vh,e(0)
+    vmadl v__,     slope_f, vh,e(0)
+    vmadn slope_f, slope_i, vh,e(0)
+    vmadn slope_f, slope_i, vh,e(0)
+    vsar  slope_i, v__, v__,e(1)
+
+    ssv slope_f,0, 22,s3  # ISM_F
+    ssv slope_i,0, 20,s3  # ISM_I
+
+    vmudn slope_f, fy,e(4)
+    vmadh slope_i, fy,e(4)
+
+    vaddc slope_f, final_f
+    vadd slope_i, final_i
+
+    ssv slope_f,0, 18,s3  # XM_F
+    ssv slope_i,0, 16,s3  # XM_I
+
+    li t0, 0xC8
+    sb t0, 0(s3)
+
+    addi s3, 32
+    j RDPQ_Send
+    nop
+
+    ########################################################
+    # ATTRIBUTES
+    ########################################################
 
     # MA = A2 - A1
     vsubc ma_f, a2_f, a1_f
@@ -739,6 +894,12 @@ swap_end:
     vmadn dx_f, ha_i, my_f
     vmadh dx_i, ha_i, my_i
 
+    # DX * 1/N (TODO: check if we can pre-multiply edges to avoid this)
+    vmudl v__,  dx_f, invn_f
+    vmadm v__,  dx_i, invn_f
+    vmadn dx_f, dx_f, invn_i
+    vmadh dx_i, dx_i, invn_i
+
     # DY = HA * MX - MA * HX
     # TODO: HX must be negated
     vmudl v__,  ma_f, hx_f
@@ -747,14 +908,8 @@ swap_end:
     vmadh v__,  ma_i, hx_i
     vmadl v__,  ha_f, mx_f
     vmadm v__,  ha_f, mx_i
-    vmadn dx_f, ha_i, mx_f
-    vmadh dx_i, ha_i, mx_i
-
-    # DX * 1/N (TODO: check if we can pre-multiply edges to avoid this)
-    vmudl v__,  dx_f, invn_f
-    vmadm v__,  dx_i, invn_f
-    vmadn dx_f, dx_f, invn_i
-    vmadh dx_i, dx_i, invn_i
+    vmadn dy_f, ha_i, mx_f
+    vmadh dy_i, ha_i, mx_i
 
     # DY * 1/N (TODO: check if we can pre-multiply edges to avoid this)
     vmudl v__,  dy_f, invn_f
@@ -777,9 +932,6 @@ swap_end:
     vmadh final_i, de_i, fy_i
     vaddc final_f, a1_f
     vadd  final_i, a1_i
-
-    li s4, %lo(RDPQ_CMD_STAGING)
-    move s3, s4
 
     # Store color
     sdv final_i, 0, 0x00,s3
@@ -818,8 +970,5 @@ swap_end:
     nop
 
     .endfunc
-
-
-#endif
 
 

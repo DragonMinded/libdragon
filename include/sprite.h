@@ -38,8 +38,8 @@ typedef struct sprite_s
     uint16_t height;
     /** @brief DEPRECATED: do not use this field. Use TEX_FORMAT_BITDEPTH(sprite->format) instead.  */
     uint8_t bitdepth __attribute__((deprecated("use TEX_FORMAT_BITDEPTH(sprite->format) instead")));
-    /** @brief Sprite format (#tex_format_t) */
-    uint8_t format;
+    /** @brief Various flags, including texture format */
+    uint8_t flags;
     /** @brief Number of horizontal sub-tiles  */
     uint8_t hslices;
     /** @brief Number of vertical sub-tiles */
@@ -48,6 +48,9 @@ typedef struct sprite_s
     /** @brief Start of graphics data */
     uint32_t data[0];
 } sprite_t;
+
+#define SPRITE_FLAGS_TEXFORMAT     0x1F  ///< Pixel format of the sprite
+#define SPRITE_FLAGS_EXT           0x80  ///< Sprite contains extended information (new format)
 
 /**
  * @brief Load a sprite from disk
@@ -60,6 +63,11 @@ sprite_t *sprite_load(const char *fn);
 
 /** @brief Deallocate a sprite */
 void sprite_free(sprite_t *sprite);
+
+/** @brief Get the sprite tex format */
+inline tex_format_t sprite_get_format(sprite_t *sprite) {
+    return sprite->flags & SPRITE_FLAGS_TEXFORMAT;
+}
 
 /** 
  * @brief Create a surface_t pointing to the full sprite contents.
@@ -75,12 +83,32 @@ void sprite_free(sprite_t *sprite);
  */
 surface_t sprite_get_pixels(sprite_t *sprite);
 
+/**
+ * @brief Create a surface_t pointing to the contents of a LOD level.
+ * 
+ * This function can be used to access LOD images within a sprite file.
+ * It is useful for sprites created by mksprite containing multiple
+ * mipmap levels.
+ * 
+ * LOD levels are indexed from 1 upward. 0 refers to the main sprite,
+ * so calling `sprite_get_lod_pixels(s, 0)` is equivalent to 
+ * `sprite_get_pixels(s)`.
+ * 
+ * Notice that no memory allocations or copies are performed:
+ * the returned surface will point to the sprite contents.
+ * 
+ * @param sprite        The sprite to access
+ * @param num_level     The number of LOD level. 0 is the main sprite.
+ * @return surface_t    The surface containing the data.
+ */
+surface_t sprite_get_lod_pixels(sprite_t *sprite, int num_level);
+
 /** 
  * @brief Return a surface_t pointing to a specific tile of the spritemap.
  * 
  * A sprite can be used as a spritemap, that is a collection of multiple
  * smaller images of equal size, called "tiles". In this case, the number
- * of tiles is stored in the members #hslices and #vslices of the
+ * of tiles is stored in the members `hslices` and `vslices` of the
  * sprite structure.
  * 
  * This function allows to get a surface that points to the specific sub-tile,
@@ -109,7 +137,5 @@ uint16_t* sprite_get_palette(sprite_t *sprite);
 #ifdef __cplusplus
 }
 #endif
-
-/** @} */ /* graphics */
 
 #endif
