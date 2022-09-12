@@ -173,33 +173,33 @@ static inline void __rdpq_write_shade_coeffs(rspq_write_t *w, rdpq_tri_edge_data
 __attribute__((always_inline))
 static inline void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, const float *v1, const float *v2, const float *v3)
 {
-    float s1 = v1[0] * 32.f, t1 = v1[1] * 32.f, w1 = v1[2];
-    float s2 = v2[0] * 32.f, t2 = v2[1] * 32.f, w2 = v2[2];
-    float s3 = v3[0] * 32.f, t3 = v3[1] * 32.f, w3 = v3[2];
+    float s1 = v1[0] * 32.f, t1 = v1[1] * 32.f, invw1 = v1[2];
+    float s2 = v2[0] * 32.f, t2 = v2[1] * 32.f, invw2 = v2[2];
+    float s3 = v3[0] * 32.f, t3 = v3[1] * 32.f, invw3 = v3[2];
 
-    const float w_factor = 1.0f / MAX(MAX(w1, w2), w3);
+    const float minw = 1.0f / MAX(MAX(invw1, invw2), invw3);
 
-    w1 *= w_factor;
-    w2 *= w_factor;
-    w3 *= w_factor;
+    invw1 *= minw;
+    invw2 *= minw;
+    invw3 *= minw;
 
-    s1 *= w1;
-    t1 *= w1;
-    s2 *= w2;
-    t2 *= w2;
-    s3 *= w3;
-    t3 *= w3;
+    s1 *= invw1;
+    t1 *= invw1;
+    s2 *= invw2;
+    t2 *= invw2;
+    s3 *= invw3;
+    t3 *= invw3;
 
-    w1 *= 0x7FFF;
-    w2 *= 0x7FFF;
-    w3 *= 0x7FFF;
+    invw1 *= 0x7FFF;
+    invw2 *= 0x7FFF;
+    invw3 *= 0x7FFF;
 
     const float ms = s2 - s1;
     const float mt = t2 - t1;
-    const float mw = w2 - w1;
+    const float mw = invw2 - invw1;
     const float hs = s3 - s1;
     const float ht = t3 - t1;
-    const float hw = w3 - w1;
+    const float hw = invw3 - invw1;
 
     const float nxS = data->hy*ms - data->my*hs;
     const float nxT = data->hy*mt - data->my*ht;
@@ -221,7 +221,7 @@ static inline void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t
 
     const int32_t final_s = float_to_s16_16(s1 + data->fy * DsDe);
     const int32_t final_t = float_to_s16_16(t1 + data->fy * DtDe);
-    const int32_t final_w = float_to_s16_16(w1 + data->fy * DwDe);
+    const int32_t final_w = float_to_s16_16(invw1 + data->fy * DwDe);
 
     const int32_t DsDx_fixed = float_to_s16_16(DsDx);
     const int32_t DtDx_fixed = float_to_s16_16(DtDx);
