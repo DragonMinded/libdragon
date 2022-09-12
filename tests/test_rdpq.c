@@ -1097,15 +1097,15 @@ void test_rdpq_blender_memory(TestContext *ctx) {
     rdpq_tex_load(TILE0, &tex, 0);
     rdpq_set_mode_standard();
     rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
-    rdpq_triangle(TILE0, 0, 0, -1, 2, 0,
+    rdpq_triangle(TILE0, 0, 0, -1, 2, -1,
         (float[]){ 4.0f,   4.0f, 0.0f, 0.0f, 1.0f },
         (float[]){ 12.0f,  4.0f, 8.0f, 0.0f, 1.0f },
         (float[]){ 12.0f, 12.0f, 8.0f, 8.0f, 1.0f }
     );
     rdpq_triangle(TILE0, 0, 0, -1, 2, -1,
-        (float[]){ 4.0f,   4.0f, 0.0f, 0.0f },
-        (float[]){ 4.0f,  12.0f, 0.0f, 8.0f },
-        (float[]){ 12.0f, 12.0f, 8.0f, 8.0f }
+        (float[]){ 4.0f,   4.0f, 0.0f, 0.0f, 1.0f },
+        (float[]){ 4.0f,  12.0f, 0.0f, 8.0f, 1.0f },
+        (float[]){ 12.0f, 12.0f, 8.0f, 8.0f, 1.0f }
     );
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*4, "Wrong data in framebuffer");
