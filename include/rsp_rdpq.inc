@@ -777,6 +777,7 @@ swap_end:
     # Calculate normal: compute 32-bit cross product NZ = H x M.
     vmudh nz_f, vh, vm,e(1h)
     vsar nz_i, v__, v__,e(0)
+    vsar nz_f, v__, v__,e(1)
     vsubc nz_f, nz_f,e(4)
     vsub  nz_i, nz_i,e(4)
 
@@ -795,16 +796,18 @@ swap_end:
 
 
     # FINAL = X2 into 16.16
-    vsrl final_i, vv2, 2
+    vsra final_i, vv2, 2
     vsll8 final_f, vv2, 14
 
     # Compute L slope. 1/ML  (s14.1)
-    vrcp  v__,0,     vl,e(4)
+    vrcp  slope_f,0, vl,e(4)
     vrcph slope_i,0, vl,e(4)
-    #   ML * (1/ML)
-    vsll vl, vl, 1
-    vmudn slope_f, slope_i, vl,e(0)
-    vsar  slope_i, v__, v__,e(0)
+    #   ML * (1/ML). Repeat twice to compensate 1 bit loss by reciprocal
+    vmudl v__,     slope_f, vl,e(0)
+    vmadl v__,     slope_f, vl,e(0)
+    vmadn slope_f, slope_i, vl,e(0)
+    vmadn slope_f, slope_i, vl,e(0)
+    vsar  slope_i, v__, v__,e(1)
 
     ssv slope_f,0, 14,s3  # ISL_F
     ssv slope_i,0, 12,s3  # ISL_I
@@ -814,16 +817,18 @@ swap_end:
 
 
     # FINAL = X1 into 16.16
-    vsrl final_i, vv1, 2
+    vsra final_i, vv1, 2
     vsll8 final_f, vv1, 14
 
     # Compute M slope. 1/MY  (s14.1)
-    vrcp  v__,0,     vm,e(4)
+    vrcp  slope_f,0, vm,e(4)
     vrcph slope_i,0, vm,e(4)
-    #   MX * (1/MY)
-    vsll vm, vm, 1
-    vmudn slope_f, slope_i, vm,e(0)
-    vsar slope_i, v__, v__,e(0)
+    #   MX * (1/MY). Repeat twice to compensate 1 bit loss by reciprocal
+    vmudl v__,     slope_f, vm,e(0)
+    vmadl v__,     slope_f, vm,e(0)
+    vmadn slope_f, slope_i, vm,e(0)
+    vmadn slope_f, slope_i, vm,e(0)
+    vsar  slope_i, v__, v__,e(1)
 
     ssv slope_f,0, 30,s3  # ISM_F
     ssv slope_i,0, 28,s3  # ISM_I
@@ -837,14 +842,15 @@ swap_end:
     ssv slope_f,0, 26,s3  # XM_F
     ssv slope_i,0, 24,s3  # XM_I
 
-
-    # Compute H slope. 1/MY  (s14.1)
-    vrcp  v__,0,     vh,e(4)
+    # Compute H slope. 1/HY  (s14.1)
+    vrcp  slope_f,0,     vh,e(4)
     vrcph slope_i,0, vh,e(4)
-    #   HX * (1/HY)
-    vsll vh, vh, 1
-    vmudn slope_f, slope_i, vh,e(0)
-    vsar slope_i, v__, v__,e(0)
+    #   HX * (1/HY). Repeat twice to compensate 1 bit loss by reciprocal
+    vmudl v__,     slope_f, vh,e(0)
+    vmadl v__,     slope_f, vh,e(0)
+    vmadn slope_f, slope_i, vh,e(0)
+    vmadn slope_f, slope_i, vh,e(0)
+    vsar  slope_i, v__, v__,e(1)
 
     ssv slope_f,0, 22,s3  # ISM_F
     ssv slope_i,0, 20,s3  # ISM_I
