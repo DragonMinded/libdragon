@@ -669,6 +669,19 @@ static void validate_emit_error(int flags, const char *msg, ...)
         if (flags & 8)  fprintf(stderr, "[RDPQ_VALIDATION]        SET_COMBINE_MODE last sent at %p\n", rdp.last_cc);
         if (flags & 16) fprintf(stderr, "[RDPQ_VALIDATION]        SET_TEX_IMAGE last sent at %p\n", rdp.last_tex);
     }
+
+    #ifdef N64
+    // On a real N64, let's assert on RDP crashes. This makes them very visible to everybody,
+    // including people that don't have the debugging log on.
+    // We just dump the message here, more information are in the log.
+    if ((flags & 3) == 0) {
+        char buf[1024];
+        va_start(args, msg);
+        vsprintf(buf, msg, args);
+        va_end(args);
+        assertf(0, "RDP CRASHED: the code triggered a RDP hardware bug.\n%s", buf);
+    }
+    #endif
 }
 
 /** @brief Internal validation macros (for both errors and warnings) */

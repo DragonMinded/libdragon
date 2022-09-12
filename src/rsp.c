@@ -17,6 +17,7 @@
 #include "regsinternal.h"
 #include "n64sys.h"
 #include "interrupt.h"
+#include "rdpq/rdpq_debug_internal.h"
 
 /**
  * RSP crash handler ucode (rsp_crash.S)
@@ -260,6 +261,12 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
     // Write the PC now so it doesn't get overwritten by the DMA
     state.pc = pc;
 
+    // If the validator is active, this is a good moment to flush its buffered
+    // output. This could also trigger a RDP crash (which might be the
+    // underlying cause for the RSP crash), so better try that before start
+    // filling the output buffer.
+    if (rdpq_trace) rdpq_trace();
+
     // Dump information on the current ucode name and CPU point of crash
     const char *uc_name = uc ? uc->name : "???";
     char pcpos[120];
@@ -277,6 +284,25 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
         vprintf(msg, args);
         va_end(args);
         printf("\n");
+    }
+
+    // Check if the RDP crashed. If the RDP crashed while the validator was active,
+    // theoretically it should have caught it before (in the rdpq_trace above),
+    // so we shouldn't event get here.
+    // Still, there are a few cases where this can happen:
+    //   * the validator could be disabled
+    //   * some unknown RDP crash conditions not yet handled by the validator
+    //   * some race condition for which the validator missed the command that
+    //     triggered the crash
+    //   * validator asserts could be disabled, in which case we dumped the crash
+    //     condition in the debug output, but we still get here.
+    // NOTE: unfortunately, RDP doesn't always sets the FREEZE bit when it crashes
+    // (it is unknown why sometimes it doesn't). So this is just a best effort to
+    // highlight the presence of the important FREEZE bit in DP STATUS that could
+    // otherwise go unnoticed.
+    if (state.cop0[11] & 2) {
+        printf("RDP CRASHED: the code triggered a RDP hardware bug.\n");
+        printf("Use the rdpq validator (rdpq_debug_start()) to analyze.\n");
     }
 
     // Check if a RSP assert triggered. We check that we reached an
