@@ -334,7 +334,7 @@ uint32_t rdpq_config_disable(uint32_t cfg_disable_bits);
  *   * Position. 2 values: X, Y. The values must be in screen coordinates, that is they refer
  *     to the framebuffer pixels. Fractional values allow for subpixel precision. Supported
  *     range is [-4096..4095] (numbers outside that range will be clamped).
- *   * Depth. 1 value: Z.
+ *   * Depth. 1 value: Z. Supported range in [0..1].
  *   * Shade. 4 values: R, G, B, A. The values must be in the 0..1 range.
  *   * Texturing. 3 values: S, T, INV_W. The values S,T address the texture specified by the tile
  *     descriptor. INV_W is the inverse of the W vertex coordinate in clip space (after
