@@ -227,6 +227,9 @@ typedef struct rsp_queue_s {
     int16_t current_ovl;                 ///< Current overlay index
 } __attribute__((aligned(16), packed)) rsp_queue_t;
 
+/** @brief Address of the RSPQ data header in DMEM (see #rsp_queue_t) */
+#define RSPQ_DATA_ADDRESS                32
+
 /** @brief True if we are currently building a block. */
 static inline bool rspq_in_block(void) {
     extern rspq_block_t *rspq_block;

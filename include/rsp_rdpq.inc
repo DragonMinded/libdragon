@@ -635,8 +635,6 @@ rdpq_update_fillcopy:
     .data
     .align 4
 TRI_NEGATE: .half 1,1,1,1, 1,-1,1,1
-vsll_data
-vsll8_data
 
     .text
 
@@ -655,7 +653,7 @@ RDPQ_Triangle:
     #define x3     v0
 
     # r, g, b, a, s, t, w, z
-    #define final_i          $v00
+    #define final_i          $v28
     #define final_f          $v01
     #define dx_i             $v02
     #define dx_f             $v03
@@ -676,29 +674,24 @@ RDPQ_Triangle:
     #define ha_i             $v16
     #define ha_f             $v17
 
-    #define vshift8          $v27
-    #define vshift           $v28
     #define v__              $v29
-    #define fy_i             $v30,e(0)
-    #define fy_f             $v30,e(1)
-    #define hx_i             $v30,e(2)
-    #define hx_f             $v30,e(3)
-    #define mx_i             $v30,e(4)
-    #define mx_f             $v30,e(5)
-    #define hy_i             $v31,e(0)
-    #define hy_f             $v31,e(1)
-    #define my_i             $v31,e(2)
-    #define my_f             $v31,e(3)
-    #define invn_i           $v31,e(4)
-    #define invn_f           $v31,e(5)
-    #define invsh_i          $v31,e(6)
-    #define invsh_f          $v31,e(7)
+    #define fy_i             $v27,e(0)
+    #define fy_f             $v27,e(1)
+    #define hx_i             $v27,e(2)
+    #define hx_f             $v27,e(3)
+    #define mx_i             $v27,e(4)
+    #define mx_f             $v27,e(5)
+    #define hy_i             $v26,e(0)
+    #define hy_f             $v26,e(1)
+    #define my_i             $v26,e(2)
+    #define my_f             $v26,e(3)
+    #define invn_i           $v26,e(4)
+    #define invn_f           $v26,e(5)
+    #define invsh_i          $v26,e(6)
+    #define invsh_f          $v26,e(7)
 
     #define VTX_ATTR_X   0
     #define VTX_ATTR_Y   2
-
-    setup_vsll vshift
-    setup_vsll8 vshift8
 
     li s4, %lo(RDPQ_CMD_STAGING)
     move s3, s4
@@ -731,14 +724,14 @@ swap_end:
     addi t0, -1
 
     ###########################################################
-    #define nz_i             $v14
-    #define nz_f             $v15
-    #define slope_i          $v16
-    #define slope_f          $v17
-    #define vxy32            $v18
-    #define vxy21            $v19
-    #define vhml             $v21
-    #define fy               $v24
+    #define nz_i             $v18
+    #define nz_f             $v19
+    #define slope_i          $v20
+    #define slope_f          $v21
+    #define vxy32            $v22
+    #define vxy21            $v23
+    #define vhml             $v24
+    #define fy               $v25
 
     # We want to build this layout
     #  vxy32 = X3 X2 X3 --    Y3 Y2 Y3 --
@@ -746,8 +739,7 @@ swap_end:
 
     lsv vxy32,0,  VTX_ATTR_X,vtx3
     lsv vxy32,8,  VTX_ATTR_Y,vtx3
-    vxor $v00,$v00
-    vor vxy32, $v00, vxy32,e(0h)
+    vor vxy32, vzero, vxy32,e(0h)
     lsv vxy32,2,  VTX_ATTR_X,vtx2
     lsv vxy32,10, VTX_ATTR_Y,vtx2
 

@@ -21,9 +21,6 @@
     .dcb.w 16-14
     RSPQ_EndOverlayHeader
 
-    vsll_data
-    vsll8_data
-
     .align 4
     .ascii "Dragon RSP MPEG1"
     .ascii " Coded by Rasky "
@@ -111,9 +108,7 @@ SOURCE_PIXELS: .dcb.b 24*16
 #define pred5  $v26
 #define pred6  $v27
 #define pred7  $v28
-#define vshift  $v29
-#define vshift8 $v30
-#define vconst  $v31
+#define vconst  $v29
 #define k473   vconst,e(0)
 #define km196  vconst,e(1)
 #define k362   vconst,e(2)
@@ -126,16 +121,8 @@ SOURCE_PIXELS: .dcb.b 24*16
     .func load_idct_consts
 load_idct_consts:
     li s1, %lo(IDCT_CONSTS)
-    lqv vconst,0, 0,s1
-    # fallthrough
-    .endfunc
-
-    .func load_shifts
-load_shifts:
-    setup_vsll vshift
-    setup_vsll8 vshift8
     jr ra
-    nop
+    lqv vconst,0, 0,s1
     .endfunc
 
     .func cmd_mpeg1_set_quant_mtx2
@@ -283,7 +270,7 @@ cmd_mpeg1_block_dequant:
     #define loop_idx    t4
     #define dc          t7
     #define v_scale     $v08
-    #define v_const2    $v31
+    #define v_const2    $v29
     #define kp1         v_const2,e(0)
     #define km1         v_const2,e(1)
     #define kp2         v_const2,e(2)
@@ -296,8 +283,6 @@ cmd_mpeg1_block_dequant:
     lw t0, %lo(PIXELCHECK)
     assert_eq t0, 0xBADC0DE, ASSERT_PIXELCHECK(5)
 
-    jal load_shifts
-    nop
     li s0, %lo(DEQUANT_CONSTS)
     lqv v_const2,0, 0,s0
 
@@ -1361,9 +1346,6 @@ cmd_mpeg1_block_predict:
     # a2: oddh/oddv
 
     #define src_pitch a1
-
-    jal load_shifts
-    nop
 
     # Calculate DMA size. In general, for filtering, we need to
     # DMA one pixel more both horizontally and vertically. Given the
