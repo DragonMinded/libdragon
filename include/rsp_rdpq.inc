@@ -641,9 +641,10 @@ TRI_NEGATE: .half 1,1,1,1, 1,-1,1,1
 
     .func RDPQ_Triangle
 RDPQ_Triangle:
-    #define vtx1   a0
-    #define vtx2   a1
-    #define vtx3   a2
+    #define tricmd a0
+    #define vtx1   a1
+    #define vtx2   a2
+    #define vtx3   a3
 
     #define y1     t4
     #define y2     t5
@@ -675,23 +676,22 @@ RDPQ_Triangle:
     #define ha_f             $v17
 
     #define v__              $v29
-    #define fy_i             $v27,e(0)
-    #define fy_f             $v27,e(1)
-    #define hx_i             $v27,e(2)
-    #define hx_f             $v27,e(3)
-    #define mx_i             $v27,e(4)
-    #define mx_f             $v27,e(5)
-    #define hy_i             $v26,e(0)
-    #define hy_f             $v26,e(1)
-    #define my_i             $v26,e(2)
-    #define my_f             $v26,e(3)
-    #define invn_i           $v26,e(4)
-    #define invn_f           $v26,e(5)
-    #define invsh_i          $v26,e(6)
-    #define invsh_f          $v26,e(7)
+    #define invn_i           $v31,e(4)
+    #define invn_f           $v31,e(5)
+    #define invsh_i          $v31,e(6)
+    #define invsh_f          $v31,e(7)
 
-    #define VTX_ATTR_X   0
-    #define VTX_ATTR_Y   2
+    #define VTX_ATTR_X      0
+    #define VTX_ATTR_Y      2
+    #define VTX_ATTR_Zi     4
+    #define VTX_ATTR_Zf     6
+    #define VTX_ATTR_RGBA   8
+    #define VTX_ATTR_Si    12
+    #define VTX_ATTR_Sf    14
+    #define VTX_ATTR_Ti    16
+    #define VTX_ATTR_Tf    18
+    #define VTX_ATTR_INVWi 20
+    #define VTX_ATTR_INVWf 22
 
     li s4, %lo(RDPQ_CMD_STAGING)
     move s3, s4
@@ -731,7 +731,8 @@ swap_end:
     #define vxy32            $v22
     #define vxy21            $v23
     #define vhml             $v24
-    #define fy               $v25
+    #define fy_i             $v25
+    #define fy_f             $v26
 
     # We want to build this layout
     #  vxy32 = X3 X2 X3 --    Y3 Y2 Y3 --
@@ -807,9 +808,15 @@ swap_end:
     # slope     = 1/HY 1/MY 1/LY 1/NZ
     #endif
 
+    # FY.e4 = fy (s15.16)
+    vsll8 fy_f, vxy21, 14
+    vsra fy_i, vxy21, 2
     # FY.e4 = floorf(y1) - y1
-    vsll8 fy, vxy21, 14
-    vsrl8 fy, fy, 14
+    # TODO: this is always a negative fraction, so fy_i is always 0xFFFF.
+    # See if we can take advantage of this somehow to simplify later.
+    vsubc fy_f, vzero, fy_f
+    vsub  fy_i, fy_i
+
 
     # Finalize slope divisions by multiplying by the reciprocal.
     #  vhml     =   HX    MX    LX    MY    HY MY LY MX
@@ -820,11 +827,12 @@ swap_end:
     #
     # Notice that we need to repeat the MAC sequence twice to compensate
     # for 1-bit shift right introduced by the reciprocals
-    vmudl v__,     slope_f, vhml
-    vmadl v__,     slope_f, vhml
-    vmadn slope_f, slope_i, vhml
-    vmadn slope_f, slope_i, vhml
-    vsar  slope_i, v__, v__,e(1)
+    vmudn v__,     slope_f, vhml
+    vmadn v__,     slope_f, vhml
+    vmadh v__,     slope_i, vhml
+    vmadh v__,     slope_i, vhml
+    vsar  slope_f, COP2_ACC_MD
+    vsar  slope_i, COP2_ACC_HI
  
     # Store slopes
     ssv slope_f,4, 14,s3  # ISL_F
@@ -838,6 +846,7 @@ swap_end:
     #  slope = HX/HY MX/MY LX/LY --  -- -- -- --
 
     # FINAL = X1/X2 in 16.16 precision
+    # TODO: maybe fold into the next MAC sequence?
     vsra final_i, vxy21, 2
     vsll8 final_f, vxy21, 14
 
@@ -846,27 +855,37 @@ swap_end:
     ssv final_i,4,  8,s3  # Xl_I
 
     # Compute XH/XM
-    vmudn slope_f, fy,e(4)
-    vmadh slope_i, fy,e(4)
-    vaddc slope_f, final_f,e(0q)
-    vadd  slope_i, final_i,e(0q)
+    # TODO: fy_i is always 0xFFFFFFFF here. See if we can benefit from this.
+    vmudl v__,     slope_f, fy_f,e(4)
+    vmadm v__,     slope_i, fy_f,e(4)
+    vmadn slope_f, slope_f, fy_i,e(4)
+    vmadh slope_i, slope_i, fy_i,e(4)
 
-    ssv slope_f,0, 26,s3  # XM_F
-    ssv slope_i,0, 24,s3  # XM_I
-    ssv slope_f,2, 18,s3  # XH_F
-    ssv slope_i,2, 16,s3  # XH_I
+    vaddc slope_f, final_f.q0
+    vadd  slope_i, final_i.q0
 
-    li t0, 0xC8
-    sb t0, 0(s3)
+    ssv slope_f,2, 26,s3  # XM_F
+    ssv slope_i,2, 24,s3  # XM_I
+    ssv slope_f,0, 18,s3  # XH_F
+    ssv slope_i,0, 16,s3  # XH_I
 
-    addi s3, 32
+    sb tricmd, 0(s3)
+    add s3, 32
+
     j RDPQ_Send
     nop
+#if 0
+    lsv a1_f,14, VTX_ATTR_Zf,vtx1
+    lsv a1_i,14, VTX_ATTR_Zi,vtx1
+    lsv a2_f,14, VTX_ATTR_Zf,vtx2
+    lsv a2_i,14, VTX_ATTR_Zi,vtx2
+    lsv a3_f,14, VTX_ATTR_Zf,vtx3
+    lsv a3_i,14, VTX_ATTR_Zi,vtx3
 
     ########################################################
     # ATTRIBUTES
     ########################################################
-
+calc_attrs:
     # MA = A2 - A1
     vsubc ma_f, a2_f, a1_f
     vsub  ma_i, a2_i, a1_i
@@ -925,6 +944,9 @@ swap_end:
     vaddc final_f, a1_f
     vadd  final_i, a1_i
 
+    andi t0, tricmd, 4
+    beqz t0, no_color
+
     # Store color
     sdv final_i, 0, 0x00,s3
     sdv dx_i,    0, 0x08,s3
@@ -935,6 +957,10 @@ swap_end:
     sdv de_f,    0, 0x30,s3
     sdv dy_f,    0, 0x38,s3
     addi s3, 0x40
+
+no_color:
+    andi t0, tricmd, 2
+    beqz t0, no_texture
 
     # Store texture
     sdv final_i, 8, 0x00,s3
@@ -947,6 +973,10 @@ swap_end:
     sdv dy_f,    8, 0x38,s3
     addi s3, 0x40
 
+no_texture:
+    andi t0, tricmd, 2
+    beqz t0, no_z
+
     # Store z
     ssv final_i, 14, 0x00,s3
     ssv final_f, 14, 0x02,s3
@@ -958,9 +988,10 @@ swap_end:
     ssv dy_f,    14, 0x0E,s3
     addi s3, 0x10
 
+no_z:
     j RDPQ_Send
     nop
-
+#endif
     .endfunc
 
 
