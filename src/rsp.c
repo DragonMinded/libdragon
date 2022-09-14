@@ -143,6 +143,7 @@ void rsp_read_data(void* start, unsigned long size, unsigned int dmem_offset)
     enable_interrupts();
 }
 
+/** @brief Internal implementation of #rsp_run_async */
 void __rsp_run_async(uint32_t status_flags)
 {
     // set RSP program counter
