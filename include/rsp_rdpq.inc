@@ -654,26 +654,20 @@ RDPQ_Triangle:
     #define x3     v0
 
     # r, g, b, a, s, t, w, z
-    #define final_i          $v28
-    #define final_f          $v01
-    #define dx_i             $v02
-    #define dx_f             $v03
-    #define de_i             $v04
-    #define de_f             $v05
-    #define dy_i             $v06
-    #define dy_f             $v07
+    #define final_i          $v01
+    #define final_f          $v02
+    #define dx_i             $v03
+    #define dx_f             $v04
+    #define de_i             $v05
+    #define de_f             $v06
+    #define dy_i             $v07
+    #define dy_f             $v08
 
-    #define a1_i             $v08
-    #define a1_f             $v09
-    #define a2_i             $v10
-    #define a2_f             $v11
-    #define a3_i             $v12
-    #define a3_f             $v13
-
-    #define ma_i             $v14
-    #define ma_f             $v15
-    #define ha_i             $v16
-    #define ha_f             $v17
+    #define attr1            $v09
+    #define attr2            $v10
+    #define attr3            $v11
+    #define ma               $v12
+    #define ha               $v13
 
     #define v__              $v29
     #define invn_i           $v31,e(4)
@@ -683,8 +677,7 @@ RDPQ_Triangle:
 
     #define VTX_ATTR_X      0
     #define VTX_ATTR_Y      2
-    #define VTX_ATTR_Zi     4
-    #define VTX_ATTR_Zf     6
+    #define VTX_ATTR_Z      6
     #define VTX_ATTR_RGBA   8
     #define VTX_ATTR_Si    12
     #define VTX_ATTR_Sf    14
@@ -724,6 +717,8 @@ swap_end:
     addi t0, -1
 
     ###########################################################
+    #define edges_i          $v16
+    #define edges_f          $v17
     #define nz_i             $v18
     #define nz_f             $v19
     #define slope_i          $v20
@@ -761,6 +756,14 @@ swap_end:
     #    = 
     #  vhml     = HX MX LX --    HY MY LY --
     vsub vhml, vxy32, vxy21,e(0q)
+    #define hx  vhml,e(0)
+    #define mx  vhml,e(1)
+    #define lx  vhml,e(2)
+    #define my1 vhml,e(3)
+    #define hy  vhml,e(4)
+    #define my  vhml,e(5)
+    #define ly  vhml,e(6)
+    #define mx1 vhml,e(7)
 
     #  vhml     = HX MX LX MY    HY MY LY MX
     vmov vhml,15, vhml,9
@@ -776,37 +779,43 @@ swap_end:
     vmudh nz_f, vhml, vhml,e(3h)
     vsar nz_i, v__, v__,e(0)
     vsar nz_f, v__, v__,e(1)
-    vsubc nz_f, nz_f,e(4)
-    vsub  nz_i, nz_i,e(4)
+
+    # Compute HY*MX - HX*MY. Result in e(4).
+    vsubc nz_f, nz_f,e(0)
+    vsub  nz_i, nz_i,e(0)
+
+    # Calculate reciprocal of normal
+    vrcph nz_i,e(0), nz_i,e(4)
+    vrcpl nz_f,e(0),  nz_f,e(4)
+    vrcph nz_i,e(0), v__,e(0)
+    #define inz_f   nz_f,e(0)
+    #define inz_i   nz_i,e(0)
 
     # Compute SLOPE vector
-
     # slope    =  1/HY 1/MY 1/LY 1/NZ  -- -- -- --
 
-    # Reciprocal 1/NX
-    vrcph slope_i,11, nz_i,e(0)
-    vrcpl slope_f,11, nz_f,e(0)
-    vrcph slope_i,11, v__,e(0)
-    # Absolute value
-    vsra8 v__, nz_i, 15
-    vxor slope_f, v__,e(0)
-    vxor slope_i, v__,e(0)
-
-    # Compute L slope. 1/LY  (s14.1)
+    # Compute ISL (L slope). 1/LY  (s14.1)
     vrcp  slope_f,10, vhml,e(6)
     vrcph slope_i,10, vhml,e(6)
-    # Compute M slope. 1/MY  (s14.1)
+    # Compute ISM (M slope). 1/MY  (s14.1)
     vrcp  slope_f,9,  vhml,e(5)
     vrcph slope_i,9,  vhml,e(5)
-    # Compute H slope. 1/HY  (s14.1)
+    # Compute ISH (H slope). 1/HY  (s14.1)
     vrcp  slope_f,8,  vhml,e(4)
     vrcph slope_i,8,  vhml,e(4)
 
     #if 0
     # TODO: 1 NR pass
-    #  vnr      =   HY  MY   LY   NZ
-    # slope     = 1/HY 1/MY 1/LY 1/NZ
+    vmov slope_f,11, inz_f
+    vmov slope_f,11, inz_i
+    #  vnr      =   HY  MY   LY     NZ
+    # slope     = 1/HY 1/MY 1/LY ABS(1/NZ)
     #endif
+
+    # Shift left NZ by 3, to align with the fixed point precision
+    # that will be required later.
+    vmudn nz_f, nz_f, K8
+    vmadh nz_i, nz_i, K8
 
     # FY.e4 = fy (s15.16)
     vsll8 fy_f, vxy21, 14
@@ -817,9 +826,8 @@ swap_end:
     vsubc fy_f, vzero, fy_f
     vsub  fy_i, fy_i
 
-
     # Finalize slope divisions by multiplying by the reciprocal.
-    #  vhml     =   HX    MX    LX    MY    HY MY LY MX
+    #  vhml     =   HX    MX    LX    1     HY MY LY MX
     #    *
     #  slope    =  1/HY  1/MY  1/LY  1/NZ   -- -- -- --
     #    =
@@ -833,14 +841,21 @@ swap_end:
     vmadh v__,     slope_i, vhml
     vsar  slope_f, COP2_ACC_MD
     vsar  slope_i, COP2_ACC_HI
- 
+
+    #define ish_f   slope_f,e(0)
+    #define ish_i   slope_i,e(0)
+    #define ism_f   slope_f,e(1)
+    #define ism_i   slope_i,e(1)
+    #define isl_f   slope_f,e(2)
+    #define isl_i   slope_i,e(2)
+
     # Store slopes
-    ssv slope_f,4, 14,s3  # ISL_F
-    ssv slope_i,4, 12,s3  # ISL_I
-    ssv slope_f,2, 30,s3  # ISM_F
-    ssv slope_i,2, 28,s3  # ISM_I
-    ssv slope_f,0, 22,s3  # ISH_F
-    ssv slope_i,0, 20,s3  # ISH_I
+    ssv isl_f, 14,s3
+    ssv isl_i, 12,s3
+    ssv ism_f, 30,s3
+    ssv ism_i, 28,s3
+    ssv ish_f, 22,s3
+    ssv ish_i, 20,s3
 
     #  vxy21 =   X1   --    X2   --  Y1 -- Y2 --
     #  slope = HX/HY MX/MY LX/LY --  -- -- -- --
@@ -858,91 +873,94 @@ swap_end:
     # TODO: fy_i is always 0xFFFFFFFF here. See if we can benefit from this.
     vmudl v__,     slope_f, fy_f,e(4)
     vmadm v__,     slope_i, fy_f,e(4)
-    vmadn slope_f, slope_f, fy_i,e(4)
-    vmadh slope_i, slope_i, fy_i,e(4)
+    vmadn edges_f, slope_f, fy_i,e(4)
+    vmadh edges_i, slope_i, fy_i,e(4)
 
-    vaddc slope_f, final_f.q0
-    vadd  slope_i, final_i.q0
+    vaddc edges_f, final_f.q0
+    vadd  edges_i, final_i.q0
 
-    ssv slope_f,2, 26,s3  # XM_F
-    ssv slope_i,2, 24,s3  # XM_I
-    ssv slope_f,0, 18,s3  # XH_F
-    ssv slope_i,0, 16,s3  # XH_I
+    ssv edges_f,2, 26,s3  # XM_F
+    ssv edges_i,2, 24,s3  # XM_I
+    ssv edges_f,0, 18,s3  # XH_F
+    ssv edges_i,0, 16,s3  # XH_I
 
     sb tricmd, 0(s3)
     add s3, 32
 
-    j RDPQ_Send
-    nop
-#if 0
-    lsv a1_f,14, VTX_ATTR_Zf,vtx1
-    lsv a1_i,14, VTX_ATTR_Zi,vtx1
-    lsv a2_f,14, VTX_ATTR_Zf,vtx2
-    lsv a2_i,14, VTX_ATTR_Zi,vtx2
-    lsv a3_f,14, VTX_ATTR_Zf,vtx3
-    lsv a3_i,14, VTX_ATTR_Zi,vtx3
+    # Load attributes into ATTR registers.
+    # TODO: we can interleave these in all the code above, and at that point
+    # it's useless to test for tricmd to save loads. Just load them all.
+
+    #define attr1_z     attr1,e(7)
+    #define attr2_z     attr2,e(7)
+    #define attr3_z     attr3,e(7)
+    lsv attr1_z, VTX_ATTR_Z,vtx1
+    lsv attr2_z, VTX_ATTR_Z,vtx2
+    lsv attr3_z, VTX_ATTR_Z,vtx3
 
     ########################################################
     # ATTRIBUTES
     ########################################################
 calc_attrs:
     # MA = A2 - A1
-    vsubc ma_f, a2_f, a1_f
-    vsub  ma_i, a2_i, a1_i
-
     # HA = A3 - A1
-    vsubc ha_f, a3_f, a1_f
-    vsub  ha_i, a3_i, a1_i
+    vsub  ma, attr2, attr1
+    vsub  ha, attr3, attr1
+
+    #  vhml     = HX MX LX MY1    HY MY LY MX1
+
+    # TODO: find other strategies to negate MY and HX?
+    # Or maybe this is good as we can probably interleave it, being scalar ops.
+    # TODO: or we could also compute -MA / -HA. But that's even more vector ops.
+    mfc2 t0, my
+    mfc2 t1, hx
+    neg t0
+    neg t1
+    mtc2 t0, my
+    mtc2 t1, hx
 
     # DX = MA * HY - HA * MY
-    # TODO: MY must be negated
-    vmudl v__,  ma_f, hy_f
-    vmadm v__,  ma_f, hy_i
-    vmadn v__,  ma_i, hy_f
-    vmadh v__,  ma_i, hy_i
-    vmadl v__,  ha_f, my_f
-    vmadm v__,  ha_f, my_i
-    vmadn dx_f, ha_i, my_f
-    vmadh dx_i, ha_i, my_i
-
-    # DX * 1/N (TODO: check if we can pre-multiply edges to avoid this)
-    vmudl v__,  dx_f, invn_f
-    vmadm v__,  dx_i, invn_f
-    vmadn dx_f, dx_f, invn_i
-    vmadh dx_i, dx_i, invn_i
+    vmudh dx_f, ma, hy
+    vmadh dx_f, ha, my
+    vsar dx_f, COP2_ACC_MD
+    vsar dx_i, COP2_ACC_HI
 
     # DY = HA * MX - MA * HX
-    # TODO: HX must be negated
-    vmudl v__,  ma_f, hx_f
-    vmadm v__,  ma_f, hx_i
-    vmadn v__,  ma_i, hx_f
-    vmadh v__,  ma_i, hx_i
-    vmadl v__,  ha_f, mx_f
-    vmadm v__,  ha_f, mx_i
-    vmadn dy_f, ha_i, mx_f
-    vmadh dy_i, ha_i, mx_i
+    vmudh dy_f, ha, mx
+    vmadh dy_f, ma, hx
+    vsar dy_f, COP2_ACC_MD
+    vsar dy_i, COP2_ACC_HI
+
+    # DX * 1/N (TODO: check if we can pre-multiply edges to avoid this)
+    vmudl v__,  dx_f, inz_f
+    vmadm v__,  dx_i, inz_f
+    vmadn dx_f, dx_f, inz_i
+    vmadh dx_i, dx_i, inz_i
 
     # DY * 1/N (TODO: check if we can pre-multiply edges to avoid this)
-    vmudl v__,  dy_f, invn_f
-    vmadm v__,  dy_i, invn_f
-    vmadn dy_f, dy_f, invn_i
-    vmadh dy_i, dy_i, invn_i
+    vmudl v__,  dy_f, inz_f
+    vmadm v__,  dy_i, inz_f
+    vmadn dy_f, dy_f, inz_i
+    vmadh dy_i, dy_i, inz_i
 
     # DE = DX * invsh + DY
-    vmudl v__,  dx_f, invsh_f
-    vmadm v__,  dx_i, invsh_f
-    vmadn de_f, dx_f, invsh_i
-    vmadh de_i, dx_i, invsh_i
+    vmudl v__,  dx_f, ish_f
+    vmadm v__,  dx_i, ish_f
+    vmadn de_f, dx_f, ish_i
+    vmadh de_i, dx_i, ish_i
     vaddc de_f, dy_f
     vadd  de_i, dy_i
 
-    # FINAL = A1 + DE * FY
-    vmudl v__,     de_f, fy_f
-    vmadm v__,     de_i, fy_f
-    vmadn final_f, de_f, fy_i
-    vmadh final_i, de_i, fy_i
-    vaddc final_f, a1_f
-    vadd  final_i, a1_i
+    # FINAL = ATTR1 + DE * FY
+    # TODO: fy_i is always 0xFFFFFFFF here. See if we can benefit from this.
+    # TODO: actually, it can also be fy_i = fy_f = 0.
+    vmudl v__,     de_f, fy_f,e(4)
+    vmadm v__,     de_i, fy_f,e(4)
+    vmadn final_f, de_f, fy_i,e(4)
+    vmadh final_i, de_i, fy_i,e(4)
+    #vaddc final_f, a1_f
+    vsar final_f, COP2_ACC_MD
+    vadd  final_i, attr1
 
     andi t0, tricmd, 4
     beqz t0, no_color
@@ -974,7 +992,7 @@ no_color:
     addi s3, 0x40
 
 no_texture:
-    andi t0, tricmd, 2
+    andi t0, tricmd, 1
     beqz t0, no_z
 
     # Store z
@@ -991,7 +1009,7 @@ no_texture:
 no_z:
     j RDPQ_Send
     nop
-#endif
+
     .endfunc
 
 
