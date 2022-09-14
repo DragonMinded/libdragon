@@ -639,12 +639,9 @@ static void rspq_start(void)
     MEMORY_BARRIER();
 
     // Off we go!
-    rsp_run_async();
-
-    // Disable INTR_ON_BREAK as that it is not useful in the RSPQ engine, and
-    // might even cause excessive interrupts.
-    // It was turned on by rsp_run_async.
-    *SP_STATUS = SP_WSTATUS_CLEAR_INTR_BREAK;
+    // Do not turn on INTR_BREAK as we don't need it.
+    extern void __rsp_run_async(uint32_t status_flags);
+    __rsp_run_async(0);
 }
 
 /** @brief Initialize a rspq_ctx_t structure */
