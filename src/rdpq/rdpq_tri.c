@@ -391,7 +391,7 @@ void rdpq_triangle_rsp(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, in
             inv_w);
     }
 
-    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_TRIANGLE, 0xC0 + cmd_id);
+    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_TRIANGLE, 0xC000 | (cmd_id << 8) | (tile & 7));
 }
 
 void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)

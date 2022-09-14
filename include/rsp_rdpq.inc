@@ -793,7 +793,12 @@ swap_end:
     mfc2 t0, nz_i,e(4)
     sge t0, t0, zero
     sll t0, 7
-    sb t0, 1(s3)
+    or tricmd, t0
+
+    # Add num mipmap levels
+    lbu t1, %lo(RDPQ_OTHER_MODES) + 0
+    andi t1, 0x38     # Isolate bits 2-5 (aka 59-61 of SOM)
+    or tricmd, t1
 
     # Calculate reciprocal of normal
     vrcph nz_i,e(0), nz_i,e(4)
@@ -895,7 +900,7 @@ swap_end:
     ssv edges_f,0, 18,s3  # XH_F
     ssv edges_i,0, 16,s3  # XH_I
 
-    sb tricmd, 0(s3)
+    sh tricmd, 0(s3)
     add s3, 32
 
     # Load attributes into ATTR registers.
@@ -1047,7 +1052,7 @@ calc_attrs:
     vsar final_f, COP2_ACC_MD
     vadd  final_i, attr1
 
-    andi t0, tricmd, 4
+    andi t0, tricmd, 0x400
     beqz t0, no_color
 
     # Store color
@@ -1062,7 +1067,7 @@ calc_attrs:
     addi s3, 0x40
 
 no_color:
-    andi t0, tricmd, 2
+    andi t0, tricmd, 0x200
     beqz t0, no_texture
 
     # Store texture
@@ -1077,7 +1082,7 @@ no_color:
     addi s3, 0x40
 
 no_texture:
-    andi t0, tricmd, 1
+    andi t0, tricmd, 0x100
     beqz t0, no_z
 
     # Store z
