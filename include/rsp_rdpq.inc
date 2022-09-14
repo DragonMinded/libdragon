@@ -1,3 +1,4 @@
+    #define VTX_ATTR_Wi      16
 ##############################################################################
 #  RDPQ library
 ##############################################################################
@@ -631,10 +632,10 @@ rdpq_update_fillcopy:
     #
     #####################################################################
 
-    
     .data
     .align 4
-TRI_NEGATE: .half 1,1,1,1, 1,-1,1,1
+TRICONST1: .half 0,0,0,0,0x200,0x200,0x200,0x200
+
 
     .text
 
@@ -669,6 +670,23 @@ RDPQ_Triangle:
     #define ma               $v12
     #define ha               $v13
 
+    #define invw_i           $v14
+    #define invw_f           $v15
+
+    #define edges_i          $v16
+    #define edges_f          $v17
+    #define nz_i             $v18
+    #define nz_f             $v19
+    #define slope_i          $v20
+    #define slope_f          $v21
+    #define vxy32            $v22
+    #define vxy21            $v23
+    #define vhml             $v24
+    #define fy_i             $v25
+    #define fy_f             $v26
+
+    #define inv_W
+
     #define v__              $v29
     #define invn_i           $v31,e(4)
     #define invn_f           $v31,e(5)
@@ -679,12 +697,11 @@ RDPQ_Triangle:
     #define VTX_ATTR_Y      2
     #define VTX_ATTR_Z      6
     #define VTX_ATTR_RGBA   8
-    #define VTX_ATTR_Si    12
-    #define VTX_ATTR_Sf    14
-    #define VTX_ATTR_Ti    16
-    #define VTX_ATTR_Tf    18
-    #define VTX_ATTR_INVWi 20
-    #define VTX_ATTR_INVWf 22
+    #define VTX_ATTR_S      12
+    #define VTX_ATTR_T      14
+    #define VTX_ATTR_W      16
+    #define VTX_ATTR_INVWi  20
+    #define VTX_ATTR_INVWf  22
 
     li s4, %lo(RDPQ_CMD_STAGING)
     move s3, s4
@@ -715,19 +732,6 @@ half_swap:
 swap_end:
     bnez t0, swap_loop
     addi t0, -1
-
-    ###########################################################
-    #define edges_i          $v16
-    #define edges_f          $v17
-    #define nz_i             $v18
-    #define nz_f             $v19
-    #define slope_i          $v20
-    #define slope_f          $v21
-    #define vxy32            $v22
-    #define vxy21            $v23
-    #define vhml             $v24
-    #define fy_i             $v25
-    #define fy_f             $v26
 
     # We want to build this layout
     #  vxy32 = X3 X2 X3 --    Y3 Y2 Y3 --
@@ -894,16 +898,81 @@ swap_end:
     #define attr1_r     attr1,e(0)
     #define attr2_r     attr2,e(0)
     #define attr3_r     attr3,e(0)
+    #define attr1_s     attr1,e(4)
+    #define attr2_s     attr2,e(4)
+    #define attr3_s     attr3,e(4)
+    #define attr1_invw  attr1,e(6)
+    #define attr2_invw  attr2,e(6)
+    #define attr3_invw  attr3,e(6)
     #define attr1_z     attr1,e(7)
     #define attr2_z     attr2,e(7)
     #define attr3_z     attr3,e(7)
-    luv attr1_r, VTX_ATTR_RGBA,vtx1
+    luv attr1_r, VTX_ATTR_RGBA,vtx1 # RGBA
     luv attr2_r, VTX_ATTR_RGBA,vtx2
     luv attr3_r, VTX_ATTR_RGBA,vtx3
-    vsrl attr1, attr1, 7
-    vsrl attr2, attr2, 7
-    vsrl attr3, attr3, 7
-    lsv attr1_z, VTX_ATTR_Z,vtx1
+    #vsrl attr1, attr1, 7
+    #vsrl attr2, attr2, 7
+    #vsrl attr3, attr3, 7
+
+    llv attr1_s, VTX_ATTR_S,vtx1  # S & T
+    llv attr2_s, VTX_ATTR_S,vtx2
+    llv attr3_s, VTX_ATTR_S,vtx3
+
+    lw t0, VTX_ATTR_W(vtx1)
+    lw t1, VTX_ATTR_W(vtx2)
+    blt t0, t1, 1f
+    lw t2, VTX_ATTR_W(vtx3)
+    move t0, t1
+1:
+    blt t0, t2, 1f
+    nop
+    move t0, t2
+1:
+    mtc2 t0, invw_f,e(0)
+    srl t0, 16
+    mtc2 t0, invw_i,e(0)
+
+    lsv invw_i,e(4), VTX_ATTR_INVWi,vtx1
+    lsv invw_i,e(5), VTX_ATTR_INVWi,vtx2
+    lsv invw_i,e(6), VTX_ATTR_INVWi,vtx3
+
+    lsv invw_f,e(4), VTX_ATTR_INVWf,vtx1
+    lsv invw_f,e(5), VTX_ATTR_INVWf,vtx2
+    lsv invw_f,e(6), VTX_ATTR_INVWf,vtx3
+
+    # invw:     minw -- -- --            invw1 invw2 invw3 --
+    #
+    # We need to multiply minw with the three invw. All numbers are unsigned 0.31,
+    # the result is known to fit 0..1 and so will be 0.31 again. and we want to keep
+    # only the higher part of it, so shift the result right by 16.
+    # Change the usual sequence to put vmudl last, to extract the correct
+    # portion of the accumulator. Don't do the vmudh part as it's guaranteed to be
+    # 0, and we don't need it.
+    vmudm v__,    invw_i, invw_f,e(0)
+    vmadn v__,    invw_f, invw_i,e(0)
+    vmadl invw_i, invw_f, invw_f,e(0)
+
+    # Load 0x200 in the first 4 lanes of the vector, using a misaliged lqv.
+    # 0x200 is the constant that can be used to >>7, which will be used for
+    # the RGBA components.
+    #
+    # invw:  0x200 0x200 0x200 0x200   invw1 invw2 invw3 --
+    li s0, %lo(TRICONST1)+8
+    lqv invw_i,0, 0,s0
+
+    vmudm attr1, invw_i.h0
+    vmudm attr2, invw_i.h1
+    vmudm attr3, invw_i.h2
+
+    # Change inv_w from 0.16 to s0.15 by shifting by one
+    vsrl invw_i, invw_i, 1
+
+    # Copy inv_w components into ATTRn
+    vmov attr1,14, invw_i,12
+    vmov attr2,14, invw_i,13
+    vmov attr3,14, invw_i,14
+
+    lsv attr1_z, VTX_ATTR_Z,vtx1  # Load Z
     lsv attr2_z, VTX_ATTR_Z,vtx2
     lsv attr3_z, VTX_ATTR_Z,vtx3
 
