@@ -891,9 +891,18 @@ swap_end:
     # TODO: we can interleave these in all the code above, and at that point
     # it's useless to test for tricmd to save loads. Just load them all.
 
+    #define attr1_r     attr1,e(0)
+    #define attr2_r     attr2,e(0)
+    #define attr3_r     attr3,e(0)
     #define attr1_z     attr1,e(7)
     #define attr2_z     attr2,e(7)
     #define attr3_z     attr3,e(7)
+    luv attr1_r, VTX_ATTR_RGBA,vtx1
+    luv attr2_r, VTX_ATTR_RGBA,vtx2
+    luv attr3_r, VTX_ATTR_RGBA,vtx3
+    vsrl attr1, attr1, 7
+    vsrl attr2, attr2, 7
+    vsrl attr3, attr3, 7
     lsv attr1_z, VTX_ATTR_Z,vtx1
     lsv attr2_z, VTX_ATTR_Z,vtx2
     lsv attr3_z, VTX_ATTR_Z,vtx3
