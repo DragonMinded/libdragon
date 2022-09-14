@@ -281,7 +281,7 @@ static inline void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_
     rspq_write_arg(w, DzDy_fixed);
 }
 
-void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
+void rdpq_triangle_cpu(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
 {
     uint32_t res = AUTOSYNC_PIPE;
     if (tex_offset >= 0) {
@@ -292,7 +292,6 @@ void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_
     }
     __rdpq_autosync_use(res);
 
-#if RDPQ_TRIANGLE_REFERENCE
     uint32_t cmd_id = RDPQ_CMD_TRI;
 
     uint32_t size = 8;
@@ -331,7 +330,24 @@ void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_
     }
 
     rspq_write_end(&w);
-#else
+}
+
+void rdpq_triangle_rsp(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
+{
+    uint32_t res = AUTOSYNC_PIPE;
+    if (tex_offset >= 0) {
+        // FIXME: this can be using multiple tiles depending on color combiner and texture
+        // effects such as detail and sharpen. Figure it out a way to handle these in the
+        // autosync engine.
+        res |= AUTOSYNC_TILE(tile);
+    }
+    __rdpq_autosync_use(res);
+
+    uint32_t cmd_id = RDPQ_CMD_TRI;
+    if (shade_offset >= 0) cmd_id |= 0x4;
+    if (tex_offset >= 0)   cmd_id |= 0x2;
+    if (z_offset >= 0)     cmd_id |= 0x1;
+
     const int TRI_DATA_LEN = ROUND_UP((2+1+1+3)*4, 16);
 
     const float *vtx[3] = {v1, v2, v3};
@@ -342,9 +358,9 @@ void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_
         int16_t x = floorf(v[pos_offset+0] * 4.0f);
         int16_t y = floorf(v[pos_offset+1] * 4.0f);
         
-        int32_t z = 0;
+        int16_t z = 0;
         if (z_offset >= 0) {
-            z = float_to_s16_16(v[z_offset+0]);
+            z = v[z_offset+0] * 0x7FFF;
         } 
 
         int32_t rgba = 0;
@@ -356,17 +372,33 @@ void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_
             rgba = (r << 24) | (g << 16) | (b << 8) | a;
         }
 
-        int32_t s=0, t=0, inv_w=0;
+        int16_t s=0, t=0;
+        int32_t w=0, inv_w=0;
         if (tex_offset >= 0) {
-            s     = float_to_s16_16(v[tex_offset+0]);
-            t     = float_to_s16_16(v[tex_offset+1]);
-            inv_w = float_to_s16_16(v[tex_offset+2]);
+            s     = v[tex_offset+0] * 32.0f;
+            t     = v[tex_offset+1] * 32.0f;
+            w     = float_to_s16_16(1.0f / v[tex_offset+2]);
+            inv_w = float_to_s16_16(       v[tex_offset+2]);
         }
 
         rspq_write(RDPQ_OVL_ID, RDPQ_CMD_TRIANGLE_DATA,
-            TRI_DATA_LEN * i, (x << 16) | (y & 0xFFFF), z, rgba, s, t, inv_w);
+            TRI_DATA_LEN * i, 
+            (x << 16) | (y & 0xFFFF), 
+            z, 
+            rgba, 
+            (s << 16) | (t & 0xFFFF), 
+            w,
+            inv_w);
     }
 
-    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_TRIANGLE, 0);
+    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_TRIANGLE, 0xC0 + cmd_id);
+}
+
+void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
+{
+#if RDPQ_TRIANGLE_REFERENCE
+    rdpq_triangle_cpu(tile, mipmaps, pos_offset, shade_offset, tex_offset, z_offset, v1, v2, v3);
+#else
+    rdpq_triangle_rsp(tile, mipmaps, pos_offset, shade_offset, tex_offset, z_offset, v1, v2, v3);
 #endif
 }

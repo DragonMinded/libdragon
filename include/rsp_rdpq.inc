@@ -788,6 +788,13 @@ swap_end:
     vsubc nz_f, nz_f,e(0)
     vsub  nz_i, nz_i,e(0)
 
+    # Extract left flag from the sign of NZ.
+    # Since we calculated -NZ, we need to reverse the sign
+    mfc2 t0, nz_i,e(4)
+    sge t0, t0, zero
+    sll t0, 7
+    sb t0, 1(s3)
+
     # Calculate reciprocal of normal
     vrcph nz_i,e(0), nz_i,e(4)
     vrcpl nz_f,e(0),  nz_f,e(4)
