@@ -22,6 +22,6 @@
 #define RDPQ_BLOCK_MAX_SIZE   4192  ///< RDPQ block minimum size (in 32-bit words)
 
 /** @brief Set to 1 for the reference implementation of RDPQ_TRIANGLE (on CPU) */
-#define RDPQ_TRIANGLE_REFERENCE    1
+#define RDPQ_TRIANGLE_REFERENCE    0
 
 #endif
