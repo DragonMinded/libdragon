@@ -143,12 +143,12 @@ void rsp_read_data(void* start, unsigned long size, unsigned int dmem_offset)
     enable_interrupts();
 }
 
-void rsp_run_async(void)
+void __rsp_run_async(uint32_t status_flags)
 {
     // set RSP program counter
     *SP_PC = cur_ucode ? cur_ucode->start_pc : 0;
     MEMORY_BARRIER();
-    *SP_STATUS = SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE | SP_WSTATUS_SET_INTR_BREAK;
+    *SP_STATUS = SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE | status_flags;
 }
 
 void rsp_wait(void)
@@ -425,3 +425,5 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
     abort();
 }
 /// @endcond
+
+extern inline void rsp_run_async(void);
