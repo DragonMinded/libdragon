@@ -118,9 +118,15 @@ clean:
 	rm -f *.o *.a
 	rm -rf $(CURDIR)/build
 
-clobber: clean doxygen-clean examples-clean tools-clean
+test:
+	$(MAKE) -C tests
 
-.PHONY : clobber clean doxygen-clean doxygen doxygen-api examples examples-clean tools tools-clean tools-install
+test-clean:
+	$(MAKE) -C tests clean
+
+clobber: clean doxygen-clean examples-clean tools-clean test-clean
+
+.PHONY : clobber clean doxygen-clean doxygen doxygen-api examples examples-clean tools tools-clean tools-install test test-clean
 
 # Automatic dependency tracking
 -include $(wildcard $(BUILD_DIR)/*.d) $(wildcard $(BUILD_DIR)/*/*.d)
