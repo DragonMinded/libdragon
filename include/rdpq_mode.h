@@ -302,6 +302,10 @@ inline void rdpq_set_mode_fill(color_t color) {
  * The COPY mode is approximately 4 times faster at drawing than the standard
  * mode, so make sure to enable it whenever it is possible.
  * 
+ * @note The COPY mode only works with 16-bpp framebuffers. It will trigger a
+ *       hardware crash (!) on 32-bpp framebuffers, so avoid using it. The
+ *       validator will warn you about this anyway.
+ * 
  * @param[in]  transparency   If true, pixels with alpha set to 0 are not drawn
  * 
  * @see #rdpq_set_mode_standard
