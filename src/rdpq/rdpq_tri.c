@@ -281,6 +281,7 @@ static inline void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_
     rspq_write_arg(w, DzDy_fixed);
 }
 
+/** @brief RDP triangle primitive assembled on the CPU */
 void rdpq_triangle_cpu(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
 {
     uint32_t res = AUTOSYNC_PIPE;
@@ -332,6 +333,7 @@ void rdpq_triangle_cpu(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, in
     rspq_write_end(&w);
 }
 
+/** @brief RDP triangle primitive assembled on the RSP */
 void rdpq_triangle_rsp(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
 {
     uint32_t res = AUTOSYNC_PIPE;
