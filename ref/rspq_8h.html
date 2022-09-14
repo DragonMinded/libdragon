@@ -372,7 +372,7 @@ true if we are waiting for the first argument word </td></tr>
 <b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
 <div class="line">    rspq_syncpoint_wait(<a class="code hl_function" href="rspq_8h.html#a4d6fb26b5312a98ad83f758cd7514e6e">rspq_syncpoint_new</a>()); \</div>
 <div class="line">})</div>
-<div class="ttc" id="arspq_8h_html_a4d6fb26b5312a98ad83f758cd7514e6e"><div class="ttname"><a href="rspq_8h.html#a4d6fb26b5312a98ad83f758cd7514e6e">rspq_syncpoint_new</a></div><div class="ttdeci">rspq_syncpoint_t rspq_syncpoint_new(void)</div><div class="ttdoc">Create a syncpoint in the queue.</div><div class="ttdef"><b>Definition:</b> rspq.c:1224</div></div>
+<div class="ttc" id="arspq_8h_html_a4d6fb26b5312a98ad83f758cd7514e6e"><div class="ttname"><a href="rspq_8h.html#a4d6fb26b5312a98ad83f758cd7514e6e">rspq_syncpoint_new</a></div><div class="ttdeci">rspq_syncpoint_t rspq_syncpoint_new(void)</div><div class="ttdoc">Create a syncpoint in the queue.</div><div class="ttdef"><b>Definition:</b> rspq.c:1221</div></div>
 </div><!-- fragment -->
 <p>Wait until all commands in the queue have been executed by RSP. </p>
 <p >This function blocks until all commands present in the queue have been executed by the RSP and the RSP is idle.</p>
@@ -782,7 +782,7 @@ true if we are waiting for the first argument word </td></tr>
 <div class="line">   <span class="comment">// to call rspq_flush once to make sure the RSP runs them (in case</span></div>
 <div class="line">   <span class="comment">// it was idling).</span></div>
 <div class="line">   <a class="code hl_function" href="rspq_8c.html#a115e1839ffd27c126ed6076e2b5de0b8">rspq_flush</a>();</div>
-<div class="ttc" id="arspq_8c_html_a115e1839ffd27c126ed6076e2b5de0b8"><div class="ttname"><a href="rspq_8c.html#a115e1839ffd27c126ed6076e2b5de0b8">rspq_flush</a></div><div class="ttdeci">void rspq_flush(void)</div><div class="ttdoc">Make sure that RSP starts executing up to the last written command.</div><div class="ttdef"><b>Definition:</b> rspq.c:1052</div></div>
+<div class="ttc" id="arspq_8c_html_a115e1839ffd27c126ed6076e2b5de0b8"><div class="ttname"><a href="rspq_8c.html#a115e1839ffd27c126ed6076e2b5de0b8">rspq_flush</a></div><div class="ttdeci">void rspq_flush(void)</div><div class="ttdoc">Make sure that RSP starts executing up to the last written command.</div><div class="ttdef"><b>Definition:</b> rspq.c:1049</div></div>
 </div><!-- fragment --><dl class="section note"><dt>Note</dt><dd>This is an experimental API. In the future, it might become a no-op, and flushing could happen automatically at every <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a>. We are keeping it separate from <a class="el" href="rspq_8h.html#aefec193be7de05f725738beeb3775634" title="Write a new command into the RSP queue.">rspq_write</a> while experimenting more with the RSPQ API.</dd>
 <dd>
 This function is a no-op if it is called while a block is being recorded (see <a class="el" href="rspq_8h.html#a41f292fc1f7b261f84c55fc356f86acf" title="Begin creating a new block.">rspq_block_begin</a> / <a class="el" href="rspq_8h.html#a81339d69802148a09829d1c6d9a9f9f6" title="Finish creating a block.">rspq_block_end</a>). This means calling this function in a block recording context will not guarantee the execution of commands that were queued prior to starting the block. </dd></dl>
@@ -1207,7 +1207,7 @@ It is currently not possible to call a block from the high-priority queue. (FIXM
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Sep 12 2022 22:26:20 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Sep 14 2022 23:17:26 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

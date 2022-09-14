@@ -111,15 +111,19 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>rsp_init</b> (void)</
 <tr class="memitem:a13524caf97a386c71c050bd234129e56"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rsp_8c.html#a13524caf97a386c71c050bd234129e56">rsp_read_data</a> (void *start, unsigned long size, unsigned int dmem_offset)</td></tr>
 <tr class="memdesc:a13524caf97a386c71c050bd234129e56"><td class="mdescLeft">&#160;</td><td class="mdescRight">Do a DMA transfer to load a piece of data from RSP DMEM to RDRAM.  <a href="rsp_8c.html#a13524caf97a386c71c050bd234129e56">More...</a><br /></td></tr>
 <tr class="separator:a13524caf97a386c71c050bd234129e56"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a896f4959706e9ecb62ecf2de43bcb276"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rsp_8c.html#a896f4959706e9ecb62ecf2de43bcb276">rsp_run_async</a> (void)</td></tr>
-<tr class="memdesc:a896f4959706e9ecb62ecf2de43bcb276"><td class="mdescLeft">&#160;</td><td class="mdescRight">Run RSP async.  <a href="rsp_8c.html#a896f4959706e9ecb62ecf2de43bcb276">More...</a><br /></td></tr>
-<tr class="separator:a896f4959706e9ecb62ecf2de43bcb276"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a59afeb53c45d1c7956187b7c8059e23a"><td class="memItemLeft" align="right" valign="top"><a id="a59afeb53c45d1c7956187b7c8059e23a" name="a59afeb53c45d1c7956187b7c8059e23a"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><b>__rsp_run_async</b> (uint32_t status_flags)</td></tr>
+<tr class="memdesc:a59afeb53c45d1c7956187b7c8059e23a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Internal implementation of <a class="el" href="rsp_8c.html#a896f4959706e9ecb62ecf2de43bcb276" title="Run RSP async.">rsp_run_async</a>. <br /></td></tr>
+<tr class="separator:a59afeb53c45d1c7956187b7c8059e23a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5d8697b67857ad9bd55885c0eb79c984"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rsp_8c.html#a5d8697b67857ad9bd55885c0eb79c984">rsp_wait</a> (void)</td></tr>
 <tr class="memdesc:a5d8697b67857ad9bd55885c0eb79c984"><td class="mdescLeft">&#160;</td><td class="mdescRight">Wait until RSP has finished processing.  <a href="rsp_8c.html#a5d8697b67857ad9bd55885c0eb79c984">More...</a><br /></td></tr>
 <tr class="separator:a5d8697b67857ad9bd55885c0eb79c984"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9b06ba89506266ccb7c962872f0c783b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rsp_8c.html#a9b06ba89506266ccb7c962872f0c783b">rsp_run</a> (void)</td></tr>
 <tr class="memdesc:a9b06ba89506266ccb7c962872f0c783b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Run RSP ucode.  <a href="rsp_8c.html#a9b06ba89506266ccb7c962872f0c783b">More...</a><br /></td></tr>
 <tr class="separator:a9b06ba89506266ccb7c962872f0c783b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a896f4959706e9ecb62ecf2de43bcb276"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="rsp_8c.html#a896f4959706e9ecb62ecf2de43bcb276">rsp_run_async</a> (void)</td></tr>
+<tr class="memdesc:a896f4959706e9ecb62ecf2de43bcb276"><td class="mdescLeft">&#160;</td><td class="mdescRight">Run RSP async.  <a href="rsp_8c.html#a896f4959706e9ecb62ecf2de43bcb276">More...</a><br /></td></tr>
+<tr class="separator:a896f4959706e9ecb62ecf2de43bcb276"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p >Low-level RSP hardware library. </p>
@@ -352,27 +356,6 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>rsp_init</b> (void)</
 
 </div>
 </div>
-<a id="a896f4959706e9ecb62ecf2de43bcb276" name="a896f4959706e9ecb62ecf2de43bcb276"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a896f4959706e9ecb62ecf2de43bcb276">&#9670;&nbsp;</a></span>rsp_run_async()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void rsp_run_async </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Run RSP async. </p>
-<p >This function starts running the RSP in background. Use <a class="el" href="rsp_8h.html#a5d8697b67857ad9bd55885c0eb79c984" title="Wait until RSP has finished processing.">rsp_wait()</a> to synchronize later. </p>
-
-</div>
-</div>
 <a id="a5d8697b67857ad9bd55885c0eb79c984" name="a5d8697b67857ad9bd55885c0eb79c984"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a5d8697b67857ad9bd55885c0eb79c984">&#9670;&nbsp;</a></span>rsp_wait()</h2>
 
@@ -415,10 +398,39 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>rsp_init</b> (void)</
 
 </div>
 </div>
+<a id="a896f4959706e9ecb62ecf2de43bcb276" name="a896f4959706e9ecb62ecf2de43bcb276"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a896f4959706e9ecb62ecf2de43bcb276">&#9670;&nbsp;</a></span>rsp_run_async()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void rsp_run_async </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Run RSP async. </p>
+<p >This function starts running the RSP in background. Use <a class="el" href="rsp_8h.html#a5d8697b67857ad9bd55885c0eb79c984" title="Wait until RSP has finished processing.">rsp_wait()</a> to synchronize later. </p>
+
+</div>
+</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Sep 12 2022 22:26:20 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Sep 14 2022 23:17:26 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

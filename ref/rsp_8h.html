@@ -566,7 +566,7 @@ Contents of IMEM. </td></tr>
 <div class="line">         __rsp_check_assert(__FILE__, __LINE__, __func__))</div>
 <div class="ttc" id="agroup__n64sys_html_ga3f00b2f3f7a3bb391282d0b2da8969f1"><div class="ttname"><a href="group__n64sys.html#ga3f00b2f3f7a3bb391282d0b2da8969f1">TICKS_READ</a></div><div class="ttdeci">#define TICKS_READ()</div><div class="ttdoc">Returns the COP0 register $9 (count).</div><div class="ttdef"><b>Definition:</b> n64sys.h:137</div></div>
 <div class="ttc" id="agroup__n64sys_html_gac393c76be44d9322b9b06c2b334f38ad"><div class="ttname"><a href="group__n64sys.html#gac393c76be44d9322b9b06c2b334f38ad">TICKS_FROM_MS</a></div><div class="ttdeci">#define TICKS_FROM_MS(val)</div><div class="ttdoc">Returns equivalent count ticks for the given millis.</div><div class="ttdef"><b>Definition:</b> n64sys.h:170</div></div>
-<div class="ttc" id="arsp_8h_html_a67ef683f18a90998c1711cd03a220ca9"><div class="ttname"><a href="rsp_8h.html#a67ef683f18a90998c1711cd03a220ca9">rsp_crashf</a></div><div class="ttdeci">#define rsp_crashf(msg,...)</div><div class="ttdoc">Abort the program showing a RSP crash screen with a symptom message.</div><div class="ttdef"><b>Definition:</b> rsp.h:486</div></div>
+<div class="ttc" id="arsp_8h_html_a67ef683f18a90998c1711cd03a220ca9"><div class="ttname"><a href="rsp_8h.html#a67ef683f18a90998c1711cd03a220ca9">rsp_crashf</a></div><div class="ttdeci">#define rsp_crashf(msg,...)</div><div class="ttdoc">Abort the program showing a RSP crash screen with a symptom message.</div><div class="ttdef"><b>Definition:</b> rsp.h:490</div></div>
 </div><!-- fragment -->
 <p>Create a loop that waits for some condition that is related to RSP, aborting with a RSP crash after a timeout. </p>
 <p >This macro simplifies the creation of a loop that busy-waits for operations performed by the RSP. If the condition is not reached within a timeout, it is assumed that the RSP has crashed or otherwise stalled and <a class="el" href="rsp_8h.html#ae79047e3c1b28e7ed6b5e71025bcd1bb" title="Abort the program showing a RSP crash screen.">rsp_crash</a> is invoked to abort the program showing a debugging screen.</p>
@@ -578,7 +578,7 @@ Contents of IMEM. </td></tr>
 <div class="line">    <span class="keywordflow">if</span> (*<a class="code hl_define" href="rsp_8h.html#afb7ef6177f79ef5225e5c9cebaa023c2">SP_STATUS</a> &amp; SP_STATUS_SIG_2)</div>
 <div class="line">        <span class="keywordflow">break</span>;</div>
 <div class="line">}</div>
-<div class="ttc" id="arsp_8h_html_aef223885601547c7ff27b55520714076"><div class="ttname"><a href="rsp_8h.html#aef223885601547c7ff27b55520714076">RSP_WAIT_LOOP</a></div><div class="ttdeci">#define RSP_WAIT_LOOP(timeout_ms)</div><div class="ttdoc">Create a loop that waits for some condition that is related to RSP, aborting with a RSP crash after a...</div><div class="ttdef"><b>Definition:</b> rsp.h:515</div></div>
+<div class="ttc" id="arsp_8h_html_aef223885601547c7ff27b55520714076"><div class="ttname"><a href="rsp_8h.html#aef223885601547c7ff27b55520714076">RSP_WAIT_LOOP</a></div><div class="ttdeci">#define RSP_WAIT_LOOP(timeout_ms)</div><div class="ttdoc">Create a loop that waits for some condition that is related to RSP, aborting with a RSP crash after a...</div><div class="ttdef"><b>Definition:</b> rsp.h:519</div></div>
 <div class="ttc" id="arsp_8h_html_afb7ef6177f79ef5225e5c9cebaa023c2"><div class="ttname"><a href="rsp_8h.html#afb7ef6177f79ef5225e5c9cebaa023c2">SP_STATUS</a></div><div class="ttdeci">#define SP_STATUS</div><div class="ttdoc">SP status register.</div><div class="ttdef"><b>Definition:</b> rsp.h:175</div></div>
 </div><!-- fragment --><dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
@@ -644,6 +644,9 @@ Contents of IMEM. </td></tr>
 
 <div class="memitem">
 <div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
       <table class="memname">
         <tr>
           <td class="memname">void rsp_run_async </td>
@@ -653,6 +656,11 @@ Contents of IMEM. </td></tr>
           <td></td>
         </tr>
       </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
 </div><div class="memdoc">
 
 <p>Run RSP async. </p>
@@ -865,7 +873,7 @@ Contents of IMEM. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Sep 12 2022 22:26:20 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Sep 14 2022 23:17:25 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
