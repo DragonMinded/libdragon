@@ -382,7 +382,7 @@ int rdpq_debug_disasm_size(uint64_t *buf) {
 /** @brief Multiplication factor to convert a number to fixed point with precision n */
 #define FX(n)          (1.0f / (1<<(n)))
 /** @brief Convert a 16.16 fixed point number into floating point */
-#define FX32(hi,lo)    ((hi) + (lo) * (1.f / 65536.f))
+#define FX32(hi,lo)    ((int16_t)(hi) + (lo) * (1.f / 65536.f))
 
 static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
 {
