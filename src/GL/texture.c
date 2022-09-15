@@ -683,15 +683,6 @@ bool gl_validate_upload_image(GLenum format, GLenum type, uint32_t *num_elements
     return true;
 }
 
-void gl_delete_image(void *new_data)
-{
-    uint32_t ptr = state.deleted_image & 0xFFFFFFFF;
-    assertf(ptr == 0, "can't delete images yet!");
-    // TODO
-    //if (ptr != 0) {
-        //free_uncached(UncachedAddr(KSEG0_START_ADDR + ptr));
-    //}
-}
 
 void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
@@ -741,8 +732,8 @@ void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei widt
     uint32_t offset = gl_texture_get_offset(target);
     uint32_t img_offset = offset + level * sizeof(gl_texture_image_t);
     
-    //gl_get_value(&state.deleted_image, img_offset + offsetof(gl_texture_image_t, tex_image), 8);
-    //rdpq_sync_full(gl_delete_image, NULL);
+    uint64_t *deletion_slot = gl_reserve_deletion_slot();
+    gl_get_value(deletion_slot, img_offset + offsetof(gl_texture_image_t, tex_image), sizeof(uint64_t));
 
     uint8_t width_log = gl_log2(width);
     uint8_t height_log = gl_log2(height);
@@ -783,6 +774,8 @@ void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei widt
 
 void gl_tex_sub_image(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *data)
 {
+    assertf(0, "glTexSubImage* is temporarily unsupported. Please check again later!");
+
     // TODO: can't access the image here!
     gl_texture_object_t *obj;
     gl_texture_image_t *image;

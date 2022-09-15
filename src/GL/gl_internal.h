@@ -238,6 +238,12 @@ typedef struct {
 } gl_pixel_map_t;
 
 typedef struct {
+    int frame_id;
+    uint32_t count;
+    uint64_t *slots;
+} gl_deletion_list_t;
+
+typedef struct {
     gl_open_surf_func_t open_surface;
     gl_close_surf_func_t close_surface;
     gl_framebuffer_t default_framebuffer;
@@ -373,7 +379,11 @@ typedef struct {
 
     bool immediate_active;
 
-    uint64_t deleted_image;
+    gl_deletion_list_t deletion_lists[MAX_DELETION_LISTS];
+    gl_deletion_list_t *current_deletion_list;
+
+    int frame_id;
+    volatile int frames_complete;
 } gl_state_t;
 
 typedef struct {
@@ -434,7 +444,6 @@ void gl_storage_free(gl_storage_t *storage);
 bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size);
 
 uint64_t * gl_reserve_deletion_slot();
-void gl_free_deletion_slot(uint64_t *slot);
 
 inline bool is_in_heap_memory(void *ptr)
 {
@@ -494,7 +503,7 @@ inline void gl_update(gl_update_func_t update_func)
 
 inline void gl_get_value(void *dst, uint32_t offset, uint32_t size)
 {
-    gl_write(GL_CMD_GET_VALUE, _carg(size-1, 0xFFF, 13) | _carg(offset, 0xFFF, 0), PhysicalAddr(dst));
+    gl_write(GL_CMD_GET_VALUE, _carg(size-1, 0xFFF, 12) | _carg(offset, 0xFFF, 0), PhysicalAddr(dst));
 }
 
 inline void gl_bind_texture(GLenum target, gl_texture_object_t *texture)

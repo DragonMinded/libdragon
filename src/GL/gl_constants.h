@@ -48,7 +48,8 @@
 
 #define MAX_PIXEL_MAP_SIZE    32
 
-#define DELETION_QUEUE_SIZE   64
+#define DELETION_LIST_SIZE   64
+#define MAX_DELETION_LISTS   4
 
 #define FLAG_DITHER         (1 << 0)
 #define FLAG_BLEND          (1 << 1)

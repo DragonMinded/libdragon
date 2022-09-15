@@ -138,6 +138,14 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
 
 void gl_close()
 {
+    for (uint32_t i = 0; i < MAX_DELETION_LISTS; i++)
+    {
+        gl_deletion_list_t *list = &state.deletion_lists[i];
+        if (list->slots != NULL) {
+            free_uncached(list->slots);
+        }
+    }
+    
     gl_list_close();
     gl_primitive_close();
     gl_texture_close();
@@ -145,11 +153,92 @@ void gl_close()
     rdpq_close();
 }
 
+gl_deletion_list_t * gl_find_empty_deletion_list()
+{
+    gl_deletion_list_t *list = NULL;
+    // Look for unused deletion list
+    for (uint32_t i = 0; i < MAX_DELETION_LISTS; i++)
+    {
+        if (state.deletion_lists[i].count == 0) {
+            list = &state.deletion_lists[i];
+            break;
+        }
+    }
+
+    assertf(list != NULL, "Ran out of deletion lists!");
+
+    if (list->slots == NULL) {
+        // TODO: maybe cached memory is more efficient in this case?
+        list->slots = malloc_uncached(sizeof(uint64_t) * DELETION_LIST_SIZE);
+    }
+
+    list->frame_id = state.frame_id;
+    return list;
+}
+
+uint64_t * gl_reserve_deletion_slot()
+{
+    if (state.current_deletion_list == NULL) {
+        state.current_deletion_list = gl_find_empty_deletion_list();
+    }
+
+    gl_deletion_list_t *list = state.current_deletion_list;
+
+    // TODO: how to deal with list being full?
+    assertf(list->count < DELETION_LIST_SIZE, "Deletion list is full!");
+
+    uint64_t *slot = &list->slots[list->count];
+    list->count++;
+    return slot;
+}
+
+void gl_handle_deletion_lists()
+{
+    int frames_complete = state.frames_complete;
+    MEMORY_BARRIER();
+
+    for (uint32_t i = 0; i < MAX_DELETION_LISTS; i++)
+    {
+        gl_deletion_list_t *list = &state.deletion_lists[i];
+        if (list->count == 0) continue;
+        
+        // Skip if the frame is not complete yet
+        int difference = (int)((uint32_t)(list->frame_id) - (uint32_t)(frames_complete));
+        if (difference >= 0) {
+            continue;
+        }
+        
+        for (uint32_t j = 0; j < list->count; j++)
+        {
+            volatile uint32_t *slots = (volatile uint32_t*)list->slots;
+            uint32_t phys_ptr = slots[j*2 + 1];
+            if (phys_ptr == 0) continue;
+
+            // Both cached and uncached allocations will work
+            void *ptr = KSEG0_START_ADDR + (phys_ptr & 0xFFFFFFFF);
+            free(ptr);
+        }
+
+        list->count = 0;
+    }
+
+    state.current_deletion_list = NULL;
+}
+
+void gl_on_frame_complete(surface_t *surface)
+{
+    state.frames_complete++;
+    state.close_surface(surface);
+}
+
 void gl_swap_buffers()
 {
-    rdpq_sync_full((void(*)(void*))state.close_surface, state.default_framebuffer.color_buffer);
+    rdpq_sync_full((void(*)(void*))gl_on_frame_complete, state.default_framebuffer.color_buffer);
     rspq_flush();
+    gl_handle_deletion_lists();
     gl_set_default_framebuffer();
+
+    state.frame_id++;
 }
 
 GLenum glGetError(void)

@@ -115,8 +115,10 @@ GLCmd_Update:
     nop
 
 GLCmd_GetValue:
-    srl t0, a0, 13
+    srl t0, a0, 12
     addiu s4, a0, %lo(GL_STATE)
+    andi s4, 0xFFF
+    andi t0, 0xFFF
     j DMAOut
     move s0, a1
 
@@ -126,7 +128,7 @@ GLCmd_BindTexture:
     # Do nothing if texture is already bound
     beq s0, a1, RSPQ_Loop
     sll s4, a0, TEXTURE_OBJECT_SIZE_LOG
-    addiu s4, GL_BOUND_TEXTURES
+    addiu s4, %lo(GL_BOUND_TEXTURES)
 
     # DMA currently bound texture out
     jal DMAOutAsync
