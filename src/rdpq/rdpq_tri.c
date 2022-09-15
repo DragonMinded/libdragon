@@ -22,6 +22,19 @@
 #include "rdpq_internal.h"
 #include "rdpq_constants.h"
 #include "utils.h"
+#include "debug.h"
+
+/** @brief Set to 1 to activate tracing of all parameters of all triangles. */
+#define TRIANGLE_TRACE   0
+
+#if TRIANGLE_TRACE
+/** @brief like debugf(), but writes only if #TRIANGLE_TRACE is not 0 */
+#define tracef(fmt, ...)  debugf(fmt, ##__VA_ARGS__)
+#else
+/** @brief like debugf(), but writes only if #TRIANGLE_TRACE is not 0 */
+#define tracef(fmt, ...)  ({ })
+#endif
+
 
 /** @brief Converts a float to a s16.16 fixed point number */
 static int32_t float_to_s16_16(float f)
@@ -67,8 +80,8 @@ static inline void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_
     int32_t y2f = CLAMP((int32_t)floorf(v2[1]*to_fixed_11_2), -4096*4, 4095*4);
     int32_t y3f = CLAMP((int32_t)floorf(v3[1]*to_fixed_11_2), -4096*4, 4095*4);
 
-    data->hx = x3 - x1;        
-    data->hy = y3 - y1;        
+    data->hx = x3 - x1;
+    data->hy = y3 - y1;
     data->mx = x2 - x1;
     data->my = y2 - y1;
     float lx = x3 - x2;
@@ -95,6 +108,35 @@ static inline void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_
     rspq_write_arg(w, float_to_s16_16(data->ish));
     rspq_write_arg(w, float_to_s16_16(xm));
     rspq_write_arg(w, float_to_s16_16(ism));
+
+    tracef("x1:  %f (%08lx)\n", x1, (int32_t)(x1 * 4.0f));
+    tracef("x2:  %f (%08lx)\n", x2, (int32_t)(x2 * 4.0f));
+    tracef("x3:  %f (%08lx)\n", x3, (int32_t)(x3 * 4.0f));
+    tracef("y1:  %f (%08lx)\n", y1, (int32_t)(y1 * 4.0f));
+    tracef("y2:  %f (%08lx)\n", y2, (int32_t)(y2 * 4.0f));
+    tracef("y3:  %f (%08lx)\n", y3, (int32_t)(y3 * 4.0f));
+
+    tracef("hx:  %f (%08lx)\n", data->hx, (int32_t)(data->hx * 4.0f));
+    tracef("hy:  %f (%08lx)\n", data->hy, (int32_t)(data->hy * 4.0f));
+    tracef("mx:  %f (%08lx)\n", data->mx, (int32_t)(data->mx * 4.0f));
+    tracef("my:  %f (%08lx)\n", data->my, (int32_t)(data->my * 4.0f));
+    tracef("lx:  %f (%08lx)\n", lx, (int32_t)(lx * 4.0f));
+    tracef("ly:  %f (%08lx)\n", ly, (int32_t)(ly * 4.0f));
+
+    tracef("p1: %f (%08lx)\n", (data->hx*data->my), (int32_t)(data->hx*data->my*16.0f));
+    tracef("p2: %f (%08lx)\n", (data->hy*data->mx), (int32_t)(data->hy*data->mx*16.0f));
+    tracef("nz: %f (%08lx)\n", nz, (int32_t)(nz * 16.0f));
+    tracef("-nz: %f (%08lx)\n", -nz, -(int32_t)(nz * 16.0f));
+    tracef("inv_nz: %f (%08lx)\n", data->attr_factor, (int32_t)(data->attr_factor * 65536.0f * 65536.0f / 2.0f / 16.0f));
+    
+    tracef("fy:  %f (%08lx)\n", data->fy, (int32_t)(data->fy * 65536.0f));
+    tracef("ish: %f (%08lx)\n", data->ish, (int32_t)(data->ish * 65536.0f));
+    tracef("ism: %f (%08lx)\n", ism, (int32_t)(ism * 65536.0f));
+    tracef("isl: %f (%08lx)\n", isl, (int32_t)(isl * 65536.0f));
+
+    tracef("xh: %f (%08lx)\n", xh, (int32_t)(xh * 65536.0f));
+    tracef("xm: %f (%08lx)\n", xm, (int32_t)(xm * 65536.0f));
+    tracef("xl: %f (%08lx)\n", xl, (int32_t)(xl * 65536.0f));
 }
 
 __attribute__((always_inline))
@@ -179,6 +221,16 @@ static inline void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t
 
     const float minw = 1.0f / MAX(MAX(invw1, invw2), invw3);
 
+    tracef("s1: %f (%04x)\n", s1, (int16_t)s1);
+    tracef("t1: %f (%04x)\n", t1, (int16_t)t1);
+    tracef("s2: %f (%04x)\n", s2, (int16_t)s2);
+    tracef("t2: %f (%04x)\n", t2, (int16_t)t2);
+
+    tracef("invw1: %f (%08lx)\n", invw1, (int32_t)(invw1*65536));
+    tracef("invw2: %f (%08lx)\n", invw2, (int32_t)(invw2*65536));
+    tracef("invw3: %f (%08lx)\n", invw3, (int32_t)(invw3*65536));
+    tracef("minw: %f (%08lx)\n", minw, (int32_t)(minw*65536));
+
     invw1 *= minw;
     invw2 *= minw;
     invw3 *= minw;
@@ -251,6 +303,15 @@ static inline void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t
     rspq_write_arg(w, (DwDe_fixed<<16));
     rspq_write_arg(w, (DsDy_fixed<<16) | (DtDy_fixed&&0xffff));
     rspq_write_arg(w, (DwDy_fixed<<16));
+
+    tracef("invw1-mul: %f (%08lx)\n", invw1, (int32_t)(invw1*65536));
+    tracef("invw2-mul: %f (%08lx)\n", invw2, (int32_t)(invw2*65536));
+    tracef("invw3-mul: %f (%08lx)\n", invw3, (int32_t)(invw3*65536));
+
+    tracef("s1w: %f (%04x)\n", s1, (int16_t)s1);
+    tracef("t1w: %f (%04x)\n", t1, (int16_t)t1);
+    tracef("s2w: %f (%04x)\n", s2, (int16_t)s2);
+    tracef("t2w: %f (%04x)\n", t2, (int16_t)t2);
 }
 
 __attribute__((always_inline))
@@ -279,6 +340,20 @@ static inline void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_
     rspq_write_arg(w, DzDx_fixed);
     rspq_write_arg(w, DzDe_fixed);
     rspq_write_arg(w, DzDy_fixed);
+
+    tracef("z1: %f (%04x)\n", v1[0], (uint16_t)(z1));
+    tracef("z2: %f (%04x)\n", v2[0], (uint16_t)(z2));
+    tracef("z3: %f (%04x)\n", v3[0], (uint16_t)(z3));
+
+    tracef("mz: %f (%04x)\n", mz, (uint16_t)(mz));
+    tracef("hz: %f (%04x)\n", hz, (uint16_t)(hz));
+
+    tracef("nxz: %f (%08lx)\n", nxz, (uint32_t)(nxz * 4.0f));
+    tracef("nyz: %f (%08lx)\n", nyz, (uint32_t)(nyz * 4.0f));
+
+    tracef("invn: %f (%08lx)\n", data->attr_factor, (uint32_t)(data->attr_factor * 65536.0f * 65536.0f / 4));
+    tracef("dzdx: %f (%08lx)\n", DzDx, (uint32_t)(DzDx * 65536.0f));
+    tracef("dzdy: %f (%08lx)\n", DzDy, (uint32_t)(DzDy * 65536.0f));
 }
 
 /** @brief RDP triangle primitive assembled on the CPU */
