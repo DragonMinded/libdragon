@@ -208,8 +208,8 @@ static inline void __rdpq_write_shade_coeffs(rspq_write_t *w, rdpq_tri_edge_data
     rspq_write_arg(w, (DbDy_fixed&0xffff0000) | (0xffff&(DaDy_fixed>>16)));
     rspq_write_arg(w, (DrDe_fixed<<16) | (DgDe_fixed&0xffff));
     rspq_write_arg(w, (DbDe_fixed<<16) | (DaDe_fixed&0xffff));
-    rspq_write_arg(w, (DrDy_fixed<<16) | (DgDy_fixed&&0xffff));
-    rspq_write_arg(w, (DbDy_fixed<<16) | (DaDy_fixed&&0xffff));
+    rspq_write_arg(w, (DrDy_fixed<<16) | (DgDy_fixed&0xffff));
+    rspq_write_arg(w, (DbDy_fixed<<16) | (DaDy_fixed&0xffff));
 }
 
 __attribute__((always_inline))
