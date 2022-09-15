@@ -664,11 +664,9 @@ static void validate_emit_error(int flags, const char *msg, ...)
     if ((flags & 3) == 0)
         fprintf(stderr, "[RDPQ_VALIDATION]        This is a fatal error: a real RDP chip would stop working until reboot\n");
 
-    if (show_log) {
-        if (flags & 4)  fprintf(stderr, "[RDPQ_VALIDATION]        SET_OTHER_MODES last sent at %p\n", rdp.last_som);
-        if (flags & 8)  fprintf(stderr, "[RDPQ_VALIDATION]        SET_COMBINE_MODE last sent at %p\n", rdp.last_cc);
-        if (flags & 16) fprintf(stderr, "[RDPQ_VALIDATION]        SET_TEX_IMAGE last sent at %p\n", rdp.last_tex);
-    }
+    if (flags & 4)  fprintf(stderr, "[RDPQ_VALIDATION]        SET_OTHER_MODES last sent at %p\n", rdp.last_som);
+    if (flags & 8)  fprintf(stderr, "[RDPQ_VALIDATION]        SET_COMBINE_MODE last sent at %p\n", rdp.last_cc);
+    if (flags & 16) fprintf(stderr, "[RDPQ_VALIDATION]        SET_TEX_IMAGE last sent at %p\n", rdp.last_tex);
 
     #ifdef N64
     // On a real N64, let's assert on RDP crashes. This makes them very visible to everybody,
