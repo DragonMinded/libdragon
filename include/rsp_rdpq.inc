@@ -639,6 +639,25 @@ TRICONST1: .half 0,0,0,0,0x200,0x200,0x200,0x200
 
     .text
 
+    # Implementation limits of the RSP version. These are all edge cases that are probably
+    # not necessary to get 100% right as they are really degenerate situations. Notice that
+    # most extreme/degenerated/saturated cases are still handled correctly, as verified
+    # by the fuzzing performed by test_rdpq_triangle; these are just the three leftovers.
+    #
+    # * Texture coordinates are accepted in s10.5 format, but a subtraction between two of them
+    #   must not overflow a 16-bit number. This is a limit of the attribute calculation where the
+    #   edges MA/HA are calculated with 16-bit numbers. It looks like it's not a real problem as
+    #   it would mean having a triangle where either S or T spans more than 1024 texels within it.
+    #   Fixing it wuold require changing MA/HA into 32-bit numbers, which has other annoying fallouts.
+    # * In case of quasi-degenerate triangles (lines), when the Y difference between two vertices
+    #   is just 0.25 (0x00000001), the correct normal reciprocal would be 1.0, but it is calculated
+    #   as 0x7FFF8000 which is 0.5 (because it's basically saturating s15.16). This means that the calculated
+    #   edge is twice as big. Again, it doesn't matter as it can't really be seen within a 0.25 slope.
+    #   test_rdpq_triangle has a triangle that triggers this, commented out.
+    # * In some cases, Z/W-related derivates (DwDx, DwDy, DzDx, DzDy) can saturate during calculation.
+    #   in this case, the dependent D*De derivates will be wrong (how much it will depend on how far
+    #   the real result is from the saturated number). In any case, much better than an overflow.
+    #   test_rdpq_triangle checks if there's a saturation and skip checks for known-wrong values.
 
     .func RDPQ_Triangle
 RDPQ_Triangle:
