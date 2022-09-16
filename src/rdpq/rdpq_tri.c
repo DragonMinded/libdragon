@@ -127,7 +127,7 @@ static inline void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_
     tracef("p2: %f (%08lx)\n", (data->hy*data->mx), (int32_t)(data->hy*data->mx*16.0f));
     tracef("nz: %f (%08lx)\n", nz, (int32_t)(nz * 16.0f));
     tracef("-nz: %f (%08lx)\n", -nz, -(int32_t)(nz * 16.0f));
-    tracef("inv_nz: %f (%08lx)\n", data->attr_factor, (int32_t)(data->attr_factor * 65536.0f * 65536.0f / 2.0f / 16.0f));
+    tracef("inv_nz: %f (%08lx)\n", data->attr_factor, (int32_t)(data->attr_factor * 65536.0f / 2.0f / 16.0f));
     
     tracef("fy:  %f (%08lx)\n", data->fy, (int32_t)(data->fy * 65536.0f));
     tracef("ish: %f (%08lx)\n", data->ish, (int32_t)(data->ish * 65536.0f));
@@ -210,6 +210,15 @@ static inline void __rdpq_write_shade_coeffs(rspq_write_t *w, rdpq_tri_edge_data
     rspq_write_arg(w, (DbDe_fixed<<16) | (DaDe_fixed&0xffff));
     rspq_write_arg(w, (DrDy_fixed<<16) | (DgDy_fixed&0xffff));
     rspq_write_arg(w, (DbDy_fixed<<16) | (DaDy_fixed&0xffff));
+
+    tracef("b1: %f (%08lx)\n", v1[2], (uint32_t)(v1[2]*255.0f));
+    tracef("b2: %f (%08lx)\n", v2[2], (uint32_t)(v2[2]*255.0f));
+    tracef("b3: %f (%08lx)\n", v3[2], (uint32_t)(v3[2]*255.0f));
+    tracef("mb: %f (%08lx)\n", mb, (uint32_t)(int32_t)mb);
+    tracef("hb: %f (%08lx)\n", hb, (uint32_t)(int32_t)hb);
+    tracef("nxB: %f (%08lx)\n", nxB, (int32_t)(nxB * 4.0f));
+    tracef("DbDx: %f (%08lx)\n", DbDx, (uint32_t)(DbDx * 65536.0f));
+    tracef("DbDx_fixed: (%08lx)\n", DbDx_fixed);
 }
 
 __attribute__((always_inline))
@@ -312,6 +321,16 @@ static inline void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t
     tracef("t1w: %f (%04x)\n", t1, (int16_t)t1);
     tracef("s2w: %f (%04x)\n", s2, (int16_t)s2);
     tracef("t2w: %f (%04x)\n", t2, (int16_t)t2);
+
+    tracef("ms: %f (%04x)\n", ms, (int16_t)(ms));
+    tracef("mt: %f (%04x)\n", mt, (int16_t)(mt));
+    tracef("hs: %f (%04x)\n", hs, (int16_t)(hs));
+    tracef("ht: %f (%04x)\n", ht, (int16_t)(ht));
+
+    tracef("nxS: %f (%04x)\n", nxS, (int16_t)(nxS / 65536.0f));
+    tracef("nxT: %f (%04x)\n", nxT, (int16_t)(nxT / 65536.0f));
+    tracef("nyS: %f (%04x)\n", nyS, (int16_t)(nyS / 65536.0f));
+    tracef("nyT: %f (%04x)\n", nyT, (int16_t)(nyT / 65536.0f));
 }
 
 __attribute__((always_inline))
@@ -351,9 +370,9 @@ static inline void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_
     tracef("nxz: %f (%08lx)\n", nxz, (uint32_t)(nxz * 4.0f));
     tracef("nyz: %f (%08lx)\n", nyz, (uint32_t)(nyz * 4.0f));
 
-    tracef("invn: %f (%08lx)\n", data->attr_factor, (uint32_t)(data->attr_factor * 65536.0f * 65536.0f / 4));
-    tracef("dzdx: %f (%08lx)\n", DzDx, (uint32_t)(DzDx * 65536.0f));
-    tracef("dzdy: %f (%08lx)\n", DzDy, (uint32_t)(DzDy * 65536.0f));
+    tracef("dzdx: %f (%08llx)\n", DzDx, (uint64_t)(DzDx * 65536.0f));
+    tracef("dzdy: %f (%08llx)\n", DzDy, (uint64_t)(DzDy * 65536.0f));
+    tracef("dzde: %f (%08llx)\n", DzDe, (uint64_t)(DzDe * 65536.0f));
 }
 
 /** @brief RDP triangle primitive assembled on the CPU */
