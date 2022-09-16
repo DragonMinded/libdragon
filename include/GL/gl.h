@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <surface.h>
 
 #include <GL/gl_enums.h>
 
@@ -394,6 +395,8 @@ void glTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, G
 
 void glCopyTexSubImage1D(GLenum target, GLint level, GLint xoffset, GLint x, GLint y, GLint width);
 void glCopyTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height);
+
+void glTexImageN64(GLenum target, GLint level, const surface_t *surface);
 
 void glTexParameteri(GLenum target, GLenum pname, GLint param);
 void glTexParameterf(GLenum target, GLenum pname, GLfloat param);

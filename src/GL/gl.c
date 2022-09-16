@@ -8,6 +8,7 @@
 #include "utils.h"
 #include <string.h>
 #include <math.h>
+#include <malloc.h>
 #include "gl_internal.h"
 
 DEFINE_RSP_UCODE(rsp_gl);
@@ -214,9 +215,8 @@ void gl_handle_deletion_lists()
             uint32_t phys_ptr = slots[j*2 + 1];
             if (phys_ptr == 0) continue;
 
-            // Both cached and uncached allocations will work
-            void *ptr = KSEG0_START_ADDR + (phys_ptr & 0xFFFFFFFF);
-            free(ptr);
+            void *ptr = UncachedAddr(KSEG0_START_ADDR + (phys_ptr & 0xFFFFFFFF));
+            free_uncached(ptr);
         }
 
         list->count = 0;
@@ -235,7 +235,7 @@ void gl_swap_buffers()
 {
     rdpq_sync_full((void(*)(void*))gl_on_frame_complete, state.default_framebuffer.color_buffer);
     rspq_flush();
-    gl_handle_deletion_lists();
+    //gl_handle_deletion_lists();
     gl_set_default_framebuffer();
 
     state.frame_id++;

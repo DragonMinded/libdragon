@@ -460,7 +460,8 @@ GL_UpdateTextureUpload:
     #define out_ptr         s3
     #define image           s5
     #define level           s6
-    #define num_levels      s7
+    #define tex_id          s7
+    #define num_levels      t4
     #define wrap_s          t5
     #define wrap_t          t6
     #define tex_flags       t7
@@ -479,7 +480,13 @@ GL_UpdateTextureUpload:
     beqz t0, JrRa
     move tmem_addr, zero
 
-    bne active_tex, uploaded_tex, gl_upload_tex
+    # Load ID of active texture
+    li t0, %lo(GL_BOUND_TEXTURES)
+    sub t0, active_tex, t0
+    srl t0, (TEXTURE_OBJECT_SIZE_LOG - 2)
+    lw tex_id, %lo(GL_STATE_TEXTURE_IDS)(t0)
+
+    bne tex_id, uploaded_tex, gl_upload_tex
     andi t0, tex_flags, TEX_FLAG_UPLOAD_DIRTY
 
     beqz t0, JrRa
@@ -569,7 +576,7 @@ gl_clamp_t:
     li t0, ~TEX_FLAG_UPLOAD_DIRTY
     and tex_flags, t0
     sw tex_flags, TEXTURE_FLAGS_OFFSET(active_tex)
-    sw active_tex, %lo(GL_STATE_UPLOADED_TEX)
+    sw tex_id, %lo(GL_STATE_UPLOADED_TEX)
 
     j RDPQ_Send
     li s4, %lo(RDPQ_CMD_STAGING)

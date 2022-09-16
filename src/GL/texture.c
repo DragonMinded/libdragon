@@ -58,7 +58,7 @@ uint32_t gl_log2(uint32_t s)
     return log;
 }
 
-tex_format_t gl_get_texture_format(GLenum format)
+tex_format_t gl_tex_format_to_rdp(GLenum format)
 {
     switch (format) {
     case GL_RGB5_A1:
@@ -75,6 +75,26 @@ tex_format_t gl_get_texture_format(GLenum format)
         return FMT_I8;
     default:
         return FMT_NONE;
+    }
+}
+
+GLenum rdp_tex_format_to_gl(tex_format_t format)
+{
+    switch (format) {
+    case FMT_RGBA16:
+        return GL_RGB5_A1;
+    case FMT_RGBA32:
+        return GL_RGBA8;
+    case FMT_IA8:
+        return GL_LUMINANCE4_ALPHA4;
+    case FMT_IA16:
+        return GL_LUMINANCE8_ALPHA8;
+    case FMT_I4:
+        return GL_INTENSITY4;
+    case FMT_I8:
+        return GL_INTENSITY8;
+    default:
+        return 0;
     }
 }
 
@@ -429,7 +449,7 @@ void gl_transfer_pixels(GLvoid *dest, GLenum dest_format, GLsizei dest_stride, G
         assertf(0, "Unsupported destination format!");
     }
 
-    tex_format_t dest_tex_fmt = gl_get_texture_format(dest_format);
+    tex_format_t dest_tex_fmt = gl_tex_format_to_rdp(dest_format);
 
     uint32_t row_length = state.unpack_row_length > 0 ? state.unpack_row_length : width;
 
@@ -686,6 +706,7 @@ bool gl_validate_upload_image(GLenum format, GLenum type, uint32_t *num_elements
 
 void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
+    assertf(0, "glTexImage1D/glTexImage2D is currently unsupported. Please use glTexImageN64 instead!");
     assertf(border == 0, "Texture border is not supported!");
 
     GLsizei width_without_border = width - 2 * border;
@@ -709,7 +730,7 @@ void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei widt
         return;
     }
 
-    uint32_t rdp_format = gl_get_texture_format(preferred_format);
+    uint32_t rdp_format = gl_tex_format_to_rdp(preferred_format);
     uint32_t stride = MAX(TEX_FORMAT_PIX2BYTES(rdp_format, width), 8);
     uint32_t size = stride * height;
 
@@ -766,6 +787,60 @@ void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei widt
     gl_set_long(GL_UPDATE_NONE, img_offset + offsetof(gl_texture_image_t, set_load_tile), ((uint64_t)set_load_tile << 32) | load_block);
     gl_set_long(GL_UPDATE_NONE, img_offset + offsetof(gl_texture_image_t, set_tile), ((uint64_t)set_tile << 32) | ((uint64_t)width << 16) | height);
     gl_set_long(GL_UPDATE_NONE, img_offset + offsetof(gl_texture_image_t, stride), ((uint64_t)stride << 48) | ((uint64_t)preferred_format << 32) | ((uint64_t)tmem_size << 16) | ((uint64_t)width_log << 8) | height_log);
+
+    gl_set_flag_raw(GL_UPDATE_NONE, offset + TEXTURE_FLAGS_OFFSET, TEX_FLAG_UPLOAD_DIRTY, true);
+
+    gl_update_texture_completeness(offset);
+}
+
+void glTexImageN64(GLenum target, GLint level, const surface_t *surface)
+{
+    uint32_t offset = gl_texture_get_offset(target);
+    if (offset == 0) return;
+
+    tex_format_t rdp_format = surface_get_format(surface);
+
+    GLenum internal_format = rdp_tex_format_to_gl(rdp_format);
+    if (internal_format == 0) {
+        gl_set_error(GL_INVALID_VALUE);
+        return;
+    }
+
+    uint32_t img_offset = offset + level * sizeof(gl_texture_image_t);
+
+    uint8_t width_log = gl_log2(surface->width);
+    uint8_t height_log = gl_log2(surface->height);
+
+    tex_format_t load_fmt = rdp_format;
+
+    // TODO: do this for 8-bit formats as well?
+    switch (rdp_format) {
+    case FMT_CI4:
+    case FMT_I4:
+        load_fmt = FMT_RGBA16;
+        break;
+    default:
+        break;
+    }
+
+    // TODO: this doesn't work with sub-surfaces yet!
+
+    uint16_t load_width = TEX_FORMAT_BYTES2PIX(load_fmt, surface->stride);
+    uint16_t num_texels = load_width * surface->height;
+    uint16_t words = surface->stride / 8;
+    uint16_t dxt = (2048 + words - 1) / words;
+    uint16_t tmem_size = (surface->stride * surface->height) / 8;
+
+    uint32_t tex_image = ((0xC0 + RDPQ_CMD_SET_TEXTURE_IMAGE) << 24) | (load_fmt << 19);
+    uint32_t set_load_tile = ((0xC0 + RDPQ_CMD_SET_TILE) << 24) | (load_fmt << 19);
+    uint32_t load_block = (LOAD_TILE << 24) | ((num_texels-1) << 12) | dxt;
+    uint32_t set_tile = ((0xC0 + RDPQ_CMD_SET_TILE) << 24) | (rdp_format << 19) | ((surface->stride/8) << 9);
+
+    // TODO: do this in one command?
+    gl_set_long(GL_UPDATE_NONE, img_offset + offsetof(gl_texture_image_t, tex_image), ((uint64_t)tex_image << 32) | PhysicalAddr(surface->buffer));
+    gl_set_long(GL_UPDATE_NONE, img_offset + offsetof(gl_texture_image_t, set_load_tile), ((uint64_t)set_load_tile << 32) | load_block);
+    gl_set_long(GL_UPDATE_NONE, img_offset + offsetof(gl_texture_image_t, set_tile), ((uint64_t)set_tile << 32) | ((uint64_t)surface->width << 16) | surface->height);
+    gl_set_long(GL_UPDATE_NONE, img_offset + offsetof(gl_texture_image_t, stride), ((uint64_t)surface->stride << 48) | ((uint64_t)internal_format << 32) | ((uint64_t)tmem_size << 16) | ((uint64_t)width_log << 8) | height_log);
 
     gl_set_flag_raw(GL_UPDATE_NONE, offset + TEXTURE_FLAGS_OFFSET, TEX_FLAG_UPLOAD_DIRTY, true);
 
@@ -1231,7 +1306,7 @@ void gl_upload_texture(gl_texture_object_t *tex_obj)
     uint32_t tmem_used = 0;
 
     // All levels must have the same format to be complete
-    tex_format_t fmt = gl_get_texture_format(tex_obj->levels[0].internal_format);
+    tex_format_t fmt = gl_tex_format_to_rdp(tex_obj->levels[0].internal_format);
     tex_format_t load_fmt = fmt;
 
     // TODO: do this for 8-bit formats as well
