@@ -20,8 +20,28 @@ static const char *texture_path[4] = {
     "rom:/triangle0.sprite",
 };
 
+static sprite_t *sprites[4];
+
+void load_texture(GLenum target, sprite_t *sprite)
+{
+    for (uint32_t i = 0; i < 4; i++)
+    {
+        surface_t surf = sprite_get_lod_pixels(sprite, i);
+        if (!surf.buffer) break;
+
+        data_cache_hit_writeback(surf.buffer, surf.stride * surf.height);
+
+        glTexImageN64(GL_TEXTURE_2D, i, &surf);
+    }
+}
+
 void setup()
 {
+    for (uint32_t i = 0; i < 4; i++)
+    {
+        sprites[i] = sprite_load(texture_path[i]);
+    }
+
     glGenBuffersARB(2, buffers);
 
     glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffers[0]);
@@ -87,18 +107,8 @@ void setup()
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, min_filter);
-        
-        sprite_t *sprite = sprite_load(texture_path[i]);
 
-        for (uint32_t j = 0; j < 8; j++)
-        {
-            surface_t surf = sprite_get_lod_pixels(sprite, j);
-            if (!surf.buffer) break;
-
-            glTexImage2D(GL_TEXTURE_2D, j, GL_RGBA, surf.width, surf.height, 0, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1_EXT, surf.buffer);
-        }
-        
-        sprite_free(sprite);
+        load_texture(GL_TEXTURE_2D, sprites[i]);
     }
 }
 
@@ -109,10 +119,10 @@ void draw_cube()
     glEnableClientState(GL_NORMAL_ARRAY);
     glEnableClientState(GL_COLOR_ARRAY);
 
-    glVertexPointer(3, GL_FLOAT, sizeof(vertex_t), NULL + 0*sizeof(float));
-    glTexCoordPointer(2, GL_FLOAT, sizeof(vertex_t), NULL + 3*sizeof(float));
-    glNormalPointer(GL_FLOAT, sizeof(vertex_t), NULL + 5*sizeof(float));
-    glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(vertex_t), NULL + 8*sizeof(float));
+    glVertexPointer(3, GL_FLOAT, sizeof(vertex_t), (void*)(0*sizeof(float)));
+    glTexCoordPointer(2, GL_FLOAT, sizeof(vertex_t), (void*)(3*sizeof(float)));
+    glNormalPointer(GL_FLOAT, sizeof(vertex_t), (void*)(5*sizeof(float)));
+    glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(vertex_t), (void*)(8*sizeof(float)));
 
     glDrawElements(GL_TRIANGLES, sizeof(cube_indices) / sizeof(uint16_t), GL_UNSIGNED_SHORT, 0);
 }

@@ -141,6 +141,7 @@ void glBegin(GLenum mode)
     state.prim_counter = 0;
 
     gl_set_short(GL_UPDATE_POINTS, offsetof(gl_server_state_t, prim_type), (uint16_t)mode);
+    gl_update(GL_UPDATE_COMBINER);
 
     gl_texture_object_t *tex_obj = gl_get_active_texture();
     if (tex_obj != NULL && gl_tex_is_complete(tex_obj)) {
@@ -159,8 +160,6 @@ void glBegin(GLenum mode)
         state.prim_tex_height = 0;
         state.prim_bilinear = false;
     }
-
-    gl_update_combiner();
 
     gl_reset_vertex_cache();
     gl_update_final_matrix();
@@ -1349,6 +1348,7 @@ void glPolygonMode(GLenum face, GLenum mode)
     }
 
     gl_set_short(GL_UPDATE_POINTS, offsetof(gl_server_state_t, polygon_mode), (uint16_t)mode);
+    gl_update(GL_UPDATE_COMBINER);
     state.polygon_mode = mode;
 }
 

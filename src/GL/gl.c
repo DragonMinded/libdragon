@@ -102,7 +102,7 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
 
     gl_texture_init();
 
-    gl_server_state_t *server_state = rspq_overlay_get_state(&rsp_gl);
+    gl_server_state_t *server_state = UncachedAddr(rspq_overlay_get_state(&rsp_gl));
     memset(server_state, 0, sizeof(gl_server_state_t));
 
     memcpy(&server_state->bound_textures, state.default_textures, sizeof(gl_texture_object_t) * 2);

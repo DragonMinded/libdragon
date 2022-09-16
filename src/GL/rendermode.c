@@ -61,24 +61,6 @@ static const rdpq_blender_t blend_configs[64] = {
     0, 0, 0, 0, 0, 0, 0, 0,                                        // src = ONE_MINUS_DST_ALPHA, dst = ...
 };
 
-#define TEXTURE_REPLACE 0x1
-#define COLOR_CONSTANT  0x2
-#define TEXTURE_ENABLED 0x4
-
-static const rdpq_combiner_t combiner_table[] = {
-    // No texture
-    RDPQ_COMBINER1((0, 0, 0, SHADE), (0, 0, 0, SHADE)),         // "modulate"
-    RDPQ_COMBINER1((0, 0, 0, SHADE), (0, 0, 0, SHADE)),         // "replace"
-    RDPQ_COMBINER1((0, 0, 0, PRIM), (0, 0, 0, PRIM)),           // constant "modulate"
-    RDPQ_COMBINER1((0, 0, 0, PRIM), (0, 0, 0, PRIM)),           // constant "replace"
-
-    // Texture enabled
-    RDPQ_COMBINER1((TEX0, 0, SHADE, 0), (TEX0, 0, SHADE, 0)),   // modulate
-    RDPQ_COMBINER1((0, 0, 0, TEX0), (0, 0, 0, TEX0)),           // replace
-    RDPQ_COMBINER1((TEX0, 0, PRIM, 0), (TEX0, 0, PRIM, 0)),     // constant modulate
-    RDPQ_COMBINER1((0, 0, 0, TEX0), (0, 0, 0, TEX0)),           // constant replace
-};
-
 void gl_rendermode_init()
 {
     state.fog_start = 0.0f;
@@ -93,40 +75,6 @@ void gl_rendermode_init()
 
     GLfloat fog_color[] = {0, 0, 0, 0};
     glFogfv(GL_FOG_COLOR, fog_color);
-}
-
-bool gl_calc_is_points()
-{
-    switch (state.primitive_mode) {
-    case GL_POINTS:
-        return true;
-    case GL_LINES:
-    case GL_LINE_LOOP:
-    case GL_LINE_STRIP:
-        return false;
-    default:
-        return state.polygon_mode == GL_POINT;
-    }
-}
-
-void gl_update_combiner()
-{
-    uint32_t mode = 0;
-
-    if (gl_calc_is_points()) {
-        mode |= COLOR_CONSTANT;
-    }
-
-    gl_texture_object_t *tex_obj = gl_get_active_texture();
-    if (tex_obj != NULL && gl_tex_is_complete(tex_obj)) {
-        mode |= TEXTURE_ENABLED;
-    }
-
-    if (state.tex_env_mode == GL_REPLACE) {
-        mode |= TEXTURE_REPLACE;
-    }
-
-    rdpq_mode_combiner(combiner_table[mode]);
 }
 
 void glFogi(GLenum pname, GLint param)
@@ -339,7 +287,6 @@ void glTexEnvi(GLenum target, GLenum pname, GLint param)
     case GL_MODULATE:
     case GL_REPLACE:
         gl_set_short(GL_UPDATE_COMBINER, offsetof(gl_server_state_t, tex_env_mode), (uint16_t)param);
-        state.tex_env_mode = param;
         break;
     case GL_DECAL:
     case GL_BLEND:

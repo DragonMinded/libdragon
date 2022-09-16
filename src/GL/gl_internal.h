@@ -261,8 +261,6 @@ typedef struct {
     GLclampf clear_color[4];
     GLclampd clear_depth;
 
-    uint32_t scissor_box[4];
-
     GLfloat persp_norm_factor;
 
     bool cull_face;
@@ -336,9 +334,6 @@ typedef struct {
     gl_texture_object_t *texture_1d_object;
     gl_texture_object_t *texture_2d_object;
 
-    gl_texture_object_t *uploaded_texture;
-    gl_texture_object_t *last_used_texture;
-
     gl_material_t material;
     gl_light_t lights[LIGHT_COUNT];
 
@@ -366,8 +361,6 @@ typedef struct {
     gl_pixel_map_t pixel_maps[4];
 
     bool transfer_is_noop;
-
-    GLenum tex_env_mode;
 
     obj_map_t list_objects;
     GLuint next_list_name;
@@ -427,8 +420,6 @@ void gl_update_final_matrix();
 void gl_matrix_mult(GLfloat *d, const gl_matrix_t *m, const GLfloat *v);
 void gl_matrix_mult3x3(GLfloat *d, const gl_matrix_t *m, const GLfloat *v);
 void gl_matrix_mult4x2(GLfloat *d, const gl_matrix_t *m, const GLfloat *v);
-
-void gl_update_combiner();
 
 void gl_perform_lighting(GLfloat *color, const GLfloat *input, const GLfloat *v, const GLfloat *n, const gl_material_t *material);
 
