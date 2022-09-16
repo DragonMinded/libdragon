@@ -685,8 +685,6 @@ RDPQ_Triangle:
     #define fy_i             $v25
     #define fy_f             $v26
 
-    #define inv_W
-
     #define v__              $v29
     #define invn_i           $v31,e(4)
     #define invn_f           $v31,e(5)
@@ -705,8 +703,6 @@ RDPQ_Triangle:
 
     li s4, %lo(RDPQ_CMD_STAGING)
     move s3, s4
-    sw zero, 0(s4)
-    sw zero, 4(s4)
 
     j half_swap
     li t0, 1
@@ -781,8 +777,8 @@ swap_end:
     #    =
     #  nz       = HX*MY -- -- --    HY*MX -- -- -- --
     vmudh nz_f, vhml, vhml,e(3h)
-    vsar nz_i, v__, v__,e(0)
-    vsar nz_f, v__, v__,e(1)
+    vsar nz_i, COP2_ACC_HI
+    vsar nz_f, COP2_ACC_MD
 
     # Compute HY*MX - HX*MY. Result in e(4).
     vsubc nz_f, nz_f,e(0)
@@ -808,36 +804,86 @@ swap_end:
     #define inz_i   nz_i,e(0)
 
     # Compute SLOPE vector
-    # slope    =  1/HY 1/MY 1/LY 1/NZ  -- -- -- --
+    # slope    =  -- -- -- --    1/HY 1/MY 1/LY 1/NZ
 
     # Compute ISL (L slope). 1/LY  (s14.1)
-    vrcp  slope_f,10, vhml,e(6)
-    vrcph slope_i,10, vhml,e(6)
+    vrcp  slope_f,14, vhml,e(6)
+    vrcph slope_i,14, vhml,e(6)
     # Compute ISM (M slope). 1/MY  (s14.1)
-    vrcp  slope_f,9,  vhml,e(5)
-    vrcph slope_i,9,  vhml,e(5)
+    vrcp  slope_f,13,  vhml,e(5)
+    vrcph slope_i,13,  vhml,e(5)
     # Compute ISH (H slope). 1/HY  (s14.1)
-    vrcp  slope_f,8,  vhml,e(4)
-    vrcph slope_i,8,  vhml,e(4)
+    vrcp  slope_f,12,  vhml,e(4)
+    vrcph slope_i,12,  vhml,e(4)
 
-    #if 0
-    # TODO: 1 NR pass
-    vmov slope_f,11, inz_f
-    vmov slope_f,11, inz_i
-    #  vnr      =   HY  MY   LY     NZ
-    # slope     = 1/HY 1/MY 1/LY ABS(1/NZ)
-    #endif
+    ##################
+    # 1 NR pass
+    ##################
+    vmov slope_f,15, inz_f
+    vmov slope_i,15, inz_i
 
-    # Shift left NZ by 3, to align with the fixed point precision
+    # Adjust multiplying by 2 (required after reciprocal)
+    #vmudn slope_f, slope_f, K2
+    #vmadh slope_i, slope_i, K2
+    vaddc slope_f, slope_f
+    vadd slope_i, slope_i
+
+    # Prepare 32-bit number containing the source of the reciprocal
+    # Notice that we're calculating NR over 1 32-bit input (NZ) and
+    # 3 16-bit inputs (HY, MY, LY), for which we provide 0 in the lower
+    # part.
+    #    vhml      =   HX MX LX MY    HY   MY   LY   NZf
+    #    v__       =    0 0  0  0     0    0    0    NZi
+    vxor v__, v__
+    vmov v__,15, nz_i,e(4)
+    vmov vhml,15, nz_f,e(4)
+
+    #define vtmp_f  attr1
+    #define vtmp_i  attr2
+    #define vk2     attr3
+
+    # NR: R*X
+    vmudl vtmp_f, slope_f, vhml
+    vmadm vtmp_f, slope_i, vhml
+    vmadn vtmp_f, slope_f, v__
+    vmadh vtmp_i, slope_i, v__
+
+    # NR: 2 - R*X   
+    vor vk2, vzero, K2
+    vsubc vtmp_f, vzero, vtmp_f
+    vsub  vtmp_i, vk2,   vtmp_i
+
+    # NR: X * (2 - R*X)
+    vmudl vk2, vtmp_f, slope_f
+    vmadm vk2, vtmp_i, slope_f
+    vmadn slope_f, vtmp_f, slope_i
+    vmadh slope_i, vtmp_i, slope_i
+    #vmadn slope_f, vzero, vzero     # re-read slope_f in case of overflow
+
+    # vhml      =   HX MX LX MY    HY   MY   LY   NZf
+    # v__       =    0 0  0  0     0    0    0    NZi
+    # slope     =   -- -- -- --   1/HY 1/MY 1/LY  1/NZ
+    
+    vmov nz_f,8, slope_f,e(7)
+    vmov nz_i,8, slope_i,e(7)
+
+    # Rotate slope
+    # slope     =   1/HY 1/MY 1/LY 1/NZ   -- -- -- --
+    sqv slope_f,e(4), 0x10,s3
+    lqv slope_f,e(0)  0x10,s3
+    sqv slope_i,e(4), 0x10,s3
+    lqv slope_i,e(0)  0x10,s3
+
+    # Shift left NZ (that contains INVNZ) by 2, to align with the fixed point precision
     # that will be required later.
-    vmudn nz_f, nz_f, K8
-    vmadh nz_i, nz_i, K8
+    vmudn nz_f, nz_f, K4
+    vmadh nz_i, nz_i, K4
 
     # FY.e4 = fy (s15.16)
     vsll8 fy_f, vxy21, 14
     vsra fy_i, vxy21, 2
     # FY.e4 = floorf(y1) - y1
-    # TODO: this is always a negative fraction, so fy_i is always 0xFFFF.
+    # TODO: this is always a negative fraction, so fy_i is always 0xFFFF (or fy_i=fy_f=0).
     # See if we can take advantage of this somehow to simplify later.
     vsubc fy_f, vzero, fy_f
     vsub  fy_i, fy_i
@@ -848,12 +894,7 @@ swap_end:
     #  slope    =  1/HY  1/MY  1/LY  1/NZ   -- -- -- --
     #    =
     #  slope    =  HX/HY MX/MY LX/LY  --    -- -- -- --
-    #
-    # Notice that we need to repeat the MAC sequence twice to compensate
-    # for 1-bit shift right introduced by the reciprocals
     vmudn v__,     slope_f, vhml
-    vmadn v__,     slope_f, vhml
-    vmadh v__,     slope_i, vhml
     vmadh v__,     slope_i, vhml
     vsar  slope_f, COP2_ACC_MD
     vsar  slope_i, COP2_ACC_HI
@@ -922,14 +963,13 @@ swap_end:
     luv attr1_r, VTX_ATTR_RGBA,vtx1 # RGBA
     luv attr2_r, VTX_ATTR_RGBA,vtx2
     luv attr3_r, VTX_ATTR_RGBA,vtx3
-    #vsrl attr1, attr1, 7
-    #vsrl attr2, attr2, 7
-    #vsrl attr3, attr3, 7
 
     llv attr1_s, VTX_ATTR_S,vtx1  # S & T
     llv attr2_s, VTX_ATTR_S,vtx2
     llv attr3_s, VTX_ATTR_S,vtx3
 
+    # We need to normalize INV_W in [0..1], by dividing them by the maximum INV_W.
+    # We will multiply by W instead, and thus we search for the minimum W.
     lw t0, VTX_ATTR_W(vtx1)
     lw t1, VTX_ATTR_W(vtx2)
     blt t0, t1, 1f
@@ -994,6 +1034,10 @@ swap_end:
 calc_attrs:
     # MA = A2 - A1
     # HA = A3 - A1
+    # NOTE: S/T coordinates are kept as s10.5, so they can overflow here.
+    # The subtraction is saturated so the error is minimized, but it is 
+    # indeed there. To fix this, we would have to produce a 32-bit result here
+    # and then change the DX/DY calculations to use 32-bit numbers as well.
     vsub  ma, attr2, attr1
     vsub  ha, attr3, attr1
 
@@ -1034,12 +1078,10 @@ calc_attrs:
     vmadh dy_i, dy_i, inz_i
 
     # DE = DX * invsh + DY
-    vmudl v__,  dx_f, ish_f
+    vmadl v__,  dx_f, ish_f
     vmadm v__,  dx_i, ish_f
     vmadn de_f, dx_f, ish_i
     vmadh de_i, dx_i, ish_i
-    vaddc de_f, dy_f
-    vadd  de_i, dy_i
 
     # FINAL = ATTR1 + DE * FY
     # TODO: fy_i is always 0xFFFFFFFF here. See if we can benefit from this.
@@ -1048,9 +1090,7 @@ calc_attrs:
     vmadm v__,     de_i, fy_f,e(4)
     vmadn final_f, de_f, fy_i,e(4)
     vmadh final_i, de_i, fy_i,e(4)
-    #vaddc final_f, a1_f
-    vsar final_f, COP2_ACC_MD
-    vadd  final_i, attr1
+    vmadh final_i, attr1, K1
 
     andi t0, tricmd, 0x400
     beqz t0, no_color
