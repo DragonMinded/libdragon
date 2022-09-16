@@ -382,7 +382,7 @@ int rdpq_debug_disasm_size(uint64_t *buf) {
 /** @brief Multiplication factor to convert a number to fixed point with precision n */
 #define FX(n)          (1.0f / (1<<(n)))
 /** @brief Convert a 16.16 fixed point number into floating point */
-#define FX32(hi,lo)    ((hi) + (lo) * (1.f / 65536.f))
+#define FX32(hi,lo)    ((int16_t)(hi) + (lo) * (1.f / 65536.f))
 
 static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
 {
@@ -542,11 +542,11 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
         fprintf(out, "%s tile=%d lvl=%d y=(%.2f, %.2f, %.2f)\n",
             BITS(buf[0], 55, 55) ? "left" : "right", BITS(buf[0], 48, 50), BITS(buf[0], 51, 53)+1,
             SBITS(buf[0], 0, 13)*FX(2), SBITS(buf[0], 16, 29)*FX(2), SBITS(buf[0], 32, 45)*FX(2));
-        fprintf(out, "[%p] %016" PRIx64 "                     xl=%.4f dxld=%.4f\n", &addr[1], buf[1],
+        fprintf(out, "[%p] %016" PRIx64 "                     xl=%.4f isl=%.4f\n", &addr[1], buf[1],
             SBITS(buf[1], 32, 63)*FX(16), SBITS(buf[1], 0, 31)*FX(16));
-        fprintf(out, "[%p] %016" PRIx64 "                     xh=%.4f dxhd=%.4f\n", &addr[2], buf[2],
+        fprintf(out, "[%p] %016" PRIx64 "                     xh=%.4f ish=%.4f\n", &addr[2], buf[2],
             SBITS(buf[2], 32, 63)*FX(16), SBITS(buf[2], 0, 31)*FX(16));
-        fprintf(out, "[%p] %016" PRIx64 "                     xm=%.4f dxmd=%.4f\n", &addr[3], buf[3],
+        fprintf(out, "[%p] %016" PRIx64 "                     xm=%.4f ism=%.4f\n", &addr[3], buf[3],
             SBITS(buf[3], 32, 63)*FX(16), SBITS(buf[3], 0, 31)*FX(16));
         int i=4;
         if (cmd & 0x4) {
@@ -664,11 +664,22 @@ static void validate_emit_error(int flags, const char *msg, ...)
     if ((flags & 3) == 0)
         fprintf(stderr, "[RDPQ_VALIDATION]        This is a fatal error: a real RDP chip would stop working until reboot\n");
 
-    if (show_log) {
-        if (flags & 4)  fprintf(stderr, "[RDPQ_VALIDATION]        SET_OTHER_MODES last sent at %p\n", rdp.last_som);
-        if (flags & 8)  fprintf(stderr, "[RDPQ_VALIDATION]        SET_COMBINE_MODE last sent at %p\n", rdp.last_cc);
-        if (flags & 16) fprintf(stderr, "[RDPQ_VALIDATION]        SET_TEX_IMAGE last sent at %p\n", rdp.last_tex);
+    if (flags & 4)  fprintf(stderr, "[RDPQ_VALIDATION]        SET_OTHER_MODES last sent at %p\n", rdp.last_som);
+    if (flags & 8)  fprintf(stderr, "[RDPQ_VALIDATION]        SET_COMBINE_MODE last sent at %p\n", rdp.last_cc);
+    if (flags & 16) fprintf(stderr, "[RDPQ_VALIDATION]        SET_TEX_IMAGE last sent at %p\n", rdp.last_tex);
+
+    #ifdef N64
+    // On a real N64, let's assert on RDP crashes. This makes them very visible to everybody,
+    // including people that don't have the debugging log on.
+    // We just dump the message here, more information are in the log.
+    if ((flags & 3) == 0) {
+        char buf[1024];
+        va_start(args, msg);
+        vsprintf(buf, msg, args);
+        va_end(args);
+        assertf(0, "RDP CRASHED: the code triggered a RDP hardware bug.\n%s", buf);
     }
+    #endif
 }
 
 /** @brief Internal validation macros (for both errors and warnings) */

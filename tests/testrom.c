@@ -123,6 +123,18 @@ static uint32_t rand(void) {
 	} \
 })
 
+// ASSERT_EQUAL_FLAOT(a, b, msg): fail the test if a!=b (and log a/b as float values)
+#define ASSERT_EQUAL_FLOAT(_a, _b, msg, ...) ({ \
+	float a = _a; float b = _b; \
+	if (a != b) { \
+		ERR("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
+		ERR("%s != %s (%f != %f)\n", #_a, #_b, a, b); \
+		ERR(msg "\n", ##__VA_ARGS__); \
+		ctx->result = TEST_FAILED; \
+		return; \
+	} \
+})
+
 void hexdump(char *out, const uint8_t *buf, int buflen, int start, int count) {
 	for (int i=start;i<start+count;i++) {
 		if (i >= 0 && i < buflen) {
@@ -265,6 +277,7 @@ static const struct Testsuite
 	TEST_FUNC(test_rdpq_mode_freeze,           0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_mode_freeze_stack,     0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_mipmap,                0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_triangle,              0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mpeg1_idct,                 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mpeg1_block_decode,         0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mpeg1_block_dequant,        0, TEST_FLAGS_NO_BENCHMARK),

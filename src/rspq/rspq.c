@@ -371,7 +371,7 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
 {
     rsp_queue_t *rspq = (rsp_queue_t*)state->dmem;
     uint32_t cur = rspq->rspq_dram_addr + state->gpr[28];
-    uint32_t dmem_buffer = RSPQ_DEBUG ? 0x180 : 0x100;
+    uint32_t dmem_buffer = RSPQ_DEBUG ? 0x1A0 : 0x100;
 
     int ovl_idx; const char *ovl_name;
     rspq_get_current_ovl(rspq, &ovl_idx, &ovl_name);
@@ -423,7 +423,7 @@ static void rspq_assert_invalid_command(rsp_snapshot_t *state)
     int ovl_idx; const char *ovl_name;
     rspq_get_current_ovl(rspq, &ovl_idx, &ovl_name);
 
-    uint32_t dmem_buffer = RSPQ_DEBUG ? 0x140 : 0x100;
+    uint32_t dmem_buffer = RSPQ_DEBUG ? 0x1A0 : 0x100;
     uint32_t cur = dmem_buffer + state->gpr[28];
     printf("Invalid command\nCommand %02x not found in overlay %s (0x%01x)\n", state->dmem[cur], ovl_name, ovl_idx);
 }
@@ -509,7 +509,7 @@ static void rspq_start(void)
 
     // Load data with initialized overlays into DMEM
     data_cache_hit_writeback(&rspq_data, sizeof(rsp_queue_t));
-    rsp_load_data(&rspq_data, sizeof(rsp_queue_t), 0);
+    rsp_load_data(&rspq_data, sizeof(rsp_queue_t), RSPQ_DATA_ADDRESS);
 
     static rspq_overlay_header_t dummy_header = (rspq_overlay_header_t){
         .state_start = 0,
@@ -535,12 +535,9 @@ static void rspq_start(void)
     MEMORY_BARRIER();
 
     // Off we go!
-    rsp_run_async();
-
-    // Disable INTR_ON_BREAK as that it is not useful in the RSPQ engine, and
-    // might even cause excessive interrupts.
-    // It was turned on by rsp_run_async.
-    *SP_STATUS = SP_WSTATUS_CLEAR_INTR_BREAK;
+    // Do not turn on INTR_BREAK as we don't need it.
+    extern void __rsp_run_async(uint32_t status_flags);
+    __rsp_run_async(0);
 }
 
 /** @brief Initialize a rspq_ctx_t structure */
@@ -713,7 +710,7 @@ rsp_queue_t* __rspq_get_state(void)
     rspq_wait();
 
     // Read the state and return it
-    rsp_read_data(&rspq_data, sizeof(rsp_queue_t), 0);
+    rsp_read_data(&rspq_data, sizeof(rsp_queue_t), RSPQ_DATA_ADDRESS);
     return &rspq_data;
 }
 
@@ -777,7 +774,9 @@ static void rspq_update_tables(bool is_highpri)
     // point will be able to use the newly registered overlay.
     data_cache_hit_writeback_invalidate(&rspq_data.tables, sizeof(rspq_overlay_tables_t));
     if (is_highpri) rspq_highpri_begin();
-    rspq_dma_to_dmem(0, &rspq_data.tables, sizeof(rspq_overlay_tables_t), false);
+    rspq_dma_to_dmem(
+        RSPQ_DATA_ADDRESS + offsetof(rsp_queue_t, tables),
+        &rspq_data.tables, sizeof(rspq_overlay_tables_t), false);
     if (is_highpri) rspq_highpri_end();
 }
 

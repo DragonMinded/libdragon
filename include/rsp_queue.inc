@@ -155,6 +155,17 @@ _RSPQ_SAVED_STATE_END:
     .short 0
 .endm
 
+########################################################
+# Global register allocations
+#
+# rspq does only reserver one register (gp), which needs
+# to be preserved by overlays.
+# 
+# It then initializes a few registers to save some work
+# from overlays, but they can be freely reused.
+#
+########################################################
+
 # Globally reserved register. Do not use it in overlay code
 #define rspq_dmem_buf_ptr gp
 
@@ -166,6 +177,26 @@ _RSPQ_SAVED_STATE_END:
 # command at the specified offset.
 # The total command size needs to be specified as well.
 #define CMD_ADDR(offset, cmdsize) (%lo(RSPQ_DMEM_BUFFER) + (offset) - (cmdsize)) (rspq_dmem_buf_ptr)
+
+# This register is initialized to zero any time a command is called
+#define vzero    $v00
+
+# These registers are initialized with the constant data required to make
+# vector shift macros code works (power of twos).
+#define vshift   $v30
+#define vshift8  $v31
+
+# We also define direct access to small constants as they can be useful in some
+# calculatios.
+#define K1       vshift,e(7)
+#define K2       vshift,e(6)
+#define K4       vshift,e(5)
+#define K8       vshift,e(4)
+#define K16      vshift,e(3)
+#define K32      vshift,e(2)
+#define K64      vshift,e(1)
+#define K128     vshift,e(0)
+
 
 ########################################################
 #
@@ -184,6 +215,11 @@ _RSPQ_SAVED_STATE_END:
 
     .data
 _data_start:
+
+# Data for vector shift registers.
+# We put this at the top of the DMEM as we need an absolute address to save one opcode.
+    vsll_data
+    vsll8_data
 
 # Overlay tables. See rsp_overlay_t in rsp.c
 RSPQ_OVERLAY_TABLE:           .ds.b RSPQ_OVERLAY_TABLE_SIZE
@@ -279,6 +315,10 @@ RSPQ_DMEM_BUFFER:            .ds.b RSPQ_DMEM_BUFFER_SIZE
 _ovl_data_start:
 
     .text
+
+    # Just declare the shift macros, without emitting code. We will be emitting it later
+    setup_vsll      vshift, 0
+    setup_vsll8    vshift8, 0
 
     .globl _start
 _start:
@@ -428,6 +468,11 @@ rspq_execute_command:
     lw a2, %lo(RSPQ_DMEM_BUFFER) + 0x8 (rspq_dmem_buf_ptr)
     lw a3, %lo(RSPQ_DMEM_BUFFER) + 0xC (rspq_dmem_buf_ptr)
     add rspq_dmem_buf_ptr, rspq_cmd_size
+
+    # Initialize vzero, vshift, vshift8.
+    vxor vzero, vzero,0
+    lqv vshift,  0x00,zero
+    lqv vshift8, 0x10,zero
 
     # Jump to command. Set ra to the loop function, so that commands can 
     # either do "j RSPQ_Loop" or "jr ra" (or a tail call) to get back to the main loop

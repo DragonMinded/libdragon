@@ -375,7 +375,11 @@ void rsp_run(void);
  * This function starts running the RSP in background. Use rsp_wait() to
  * synchronize later.
  */
-void rsp_run_async(void);
+inline void rsp_run_async(void)
+{
+    extern void __rsp_run_async(uint32_t status_flags);
+    __rsp_run_async(SP_WSTATUS_SET_INTR_BREAK);
+}
 
 /** 
  * @brief Wait until RSP has finished processing. 

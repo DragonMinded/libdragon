@@ -441,7 +441,7 @@ reset_end:
     .func RDPQCmd_TriangleData
 RDPQCmd_TriangleData:
     sw a1, %lo(RDPQ_TRI_DATA0) + 0(a0)  # X/Y
-    sw a2, %lo(RDPQ_TRI_DATA0) + 8(a0)  # Z
+    sw a2, %lo(RDPQ_TRI_DATA0) + 4(a0)  # Z
     sw a3, %lo(RDPQ_TRI_DATA0) + 8(a0)  # RGBA
 
     lw t0, CMD_ADDR(16, 28)
@@ -459,10 +459,10 @@ RDPQCmd_Triangle:
 #if RDPQ_TRIANGLE_REFERENCE
     assert RDPQ_ASSERT_INVALID_CMD_TRI
 #else
-    li a0, %lo(RDPQ_TRI_DATA0)
-    li a1, %lo(RDPQ_TRI_DATA1)
+    li a1, %lo(RDPQ_TRI_DATA0)
+    li a2, %lo(RDPQ_TRI_DATA1)
     j RDPQ_Triangle
-    li a2, %lo(RDPQ_TRI_DATA2)
+    li a3, %lo(RDPQ_TRI_DATA2)
 #endif /* RDPQ_TRIANGLE_REFERENCE */
     .endfunc
 

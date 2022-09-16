@@ -9,8 +9,6 @@
 	RSPQ_DefineCommand cmd_yuv_interleave_block_32x16,    4
 	RSPQ_EndOverlayHeader
 
-	vsll8_data
-
 	.align 4
 	.ascii " Dragon RSP YUV "
 	.ascii " Coded by Rasky "
@@ -74,8 +72,6 @@ cmd_yuv_interleave_block_32x16:
     #define cbbuf      s1
     #define crbuf      s2
     #define outbuf     s3
-
-    setup_vsll8 $v31
 
 	# Calculate y0*stride+x0 for both input and output buffers
 	li s0, %lo(RDRAM_YBUF_STRIDE)

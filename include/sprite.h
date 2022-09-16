@@ -66,7 +66,7 @@ void sprite_free(sprite_t *sprite);
 
 /** @brief Get the sprite tex format */
 inline tex_format_t sprite_get_format(sprite_t *sprite) {
-    return sprite->flags & SPRITE_FLAGS_TEXFORMAT;
+    return (tex_format_t)(sprite->flags & SPRITE_FLAGS_TEXFORMAT);
 }
 
 /** 

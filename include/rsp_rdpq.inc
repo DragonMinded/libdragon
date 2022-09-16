@@ -1,3 +1,4 @@
+    #define VTX_ATTR_Wi      16
 ##############################################################################
 #  RDPQ library
 ##############################################################################
@@ -631,21 +632,39 @@ rdpq_update_fillcopy:
     #
     #####################################################################
 
-    
     .data
     .align 4
-TRI_NEGATE: .half 1,1,1,1, 1,-1,1,1
-vsll_data
-vsll8_data
+TRICONST1: .half 0,0,0,0,0x200,0x200,0x200,0x200
+
 
     .text
 
+    # Implementation limits of the RSP version. These are all edge cases that are probably
+    # not necessary to get 100% right as they are really degenerate situations. Notice that
+    # most extreme/degenerated/saturated cases are still handled correctly, as verified
+    # by the fuzzing performed by test_rdpq_triangle; these are just the three leftovers.
+    #
+    # * Texture coordinates are accepted in s10.5 format, but a subtraction between two of them
+    #   must not overflow a 16-bit number. This is a limit of the attribute calculation where the
+    #   edges MA/HA are calculated with 16-bit numbers. It looks like it's not a real problem as
+    #   it would mean having a triangle where either S or T spans more than 1024 texels within it.
+    #   Fixing it wuold require changing MA/HA into 32-bit numbers, which has other annoying fallouts.
+    # * In case of quasi-degenerate triangles (lines), when the Y difference between two vertices
+    #   is just 0.25 (0x00000001), the correct normal reciprocal would be 1.0, but it is calculated
+    #   as 0x7FFF8000 which is 0.5 (because it's basically saturating s15.16). This means that the calculated
+    #   edge is twice as big. Again, it doesn't matter as it can't really be seen within a 0.25 slope.
+    #   test_rdpq_triangle has a triangle that triggers this, commented out.
+    # * In some cases, Z/W-related derivates (DwDx, DwDy, DzDx, DzDy) can saturate during calculation.
+    #   in this case, the dependent D*De derivates will be wrong (how much it will depend on how far
+    #   the real result is from the saturated number). In any case, much better than an overflow.
+    #   test_rdpq_triangle checks if there's a saturation and skip checks for known-wrong values.
 
     .func RDPQ_Triangle
 RDPQ_Triangle:
-    #define vtx1   a0
-    #define vtx2   a1
-    #define vtx3   a2
+    #define tricmd a0
+    #define vtx1   a1
+    #define vtx2   a2
+    #define vtx3   a3
 
     #define y1     t4
     #define y2     t5
@@ -655,55 +674,54 @@ RDPQ_Triangle:
     #define x3     v0
 
     # r, g, b, a, s, t, w, z
-    #define final_i          $v00
-    #define final_f          $v01
-    #define dx_i             $v02
-    #define dx_f             $v03
-    #define de_i             $v04
-    #define de_f             $v05
-    #define dy_i             $v06
-    #define dy_f             $v07
+    #define final_i          $v01
+    #define final_f          $v02
+    #define dx_i             $v03
+    #define dx_f             $v04
+    #define de_i             $v05
+    #define de_f             $v06
+    #define dy_i             $v07
+    #define dy_f             $v08
 
-    #define a1_i             $v08
-    #define a1_f             $v09
-    #define a2_i             $v10
-    #define a2_f             $v11
-    #define a3_i             $v12
-    #define a3_f             $v13
+    #define attr1            $v09
+    #define attr2            $v10
+    #define attr3            $v11
+    #define ma               $v12
+    #define ha               $v13
 
-    #define ma_i             $v14
-    #define ma_f             $v15
-    #define ha_i             $v16
-    #define ha_f             $v17
+    #define invw_i           $v14
+    #define invw_f           $v15
 
-    #define vshift8          $v27
-    #define vshift           $v28
+    #define edges_i          $v16
+    #define edges_f          $v17
+    #define nz_i             $v18
+    #define nz_f             $v19
+    #define slope_i          $v20
+    #define slope_f          $v21
+    #define vxy32            $v22
+    #define vxy21            $v23
+    #define vhml             $v24
+    #define fy_i             $v25
+    #define fy_f             $v26
+
     #define v__              $v29
-    #define fy_i             $v30,e(0)
-    #define fy_f             $v30,e(1)
-    #define hx_i             $v30,e(2)
-    #define hx_f             $v30,e(3)
-    #define mx_i             $v30,e(4)
-    #define mx_f             $v30,e(5)
-    #define hy_i             $v31,e(0)
-    #define hy_f             $v31,e(1)
-    #define my_i             $v31,e(2)
-    #define my_f             $v31,e(3)
     #define invn_i           $v31,e(4)
     #define invn_f           $v31,e(5)
     #define invsh_i          $v31,e(6)
     #define invsh_f          $v31,e(7)
 
-    #define VTX_ATTR_X   0
-    #define VTX_ATTR_Y   2
-
-    setup_vsll vshift
-    setup_vsll8 vshift8
+    #define VTX_ATTR_X      0
+    #define VTX_ATTR_Y      2
+    #define VTX_ATTR_Z      6
+    #define VTX_ATTR_RGBA   8
+    #define VTX_ATTR_S      12
+    #define VTX_ATTR_T      14
+    #define VTX_ATTR_W      16
+    #define VTX_ATTR_INVWi  20
+    #define VTX_ATTR_INVWf  22
 
     li s4, %lo(RDPQ_CMD_STAGING)
     move s3, s4
-    sw zero, 0(s4)
-    sw zero, 4(s4)
 
     j half_swap
     li t0, 1
@@ -730,24 +748,13 @@ swap_end:
     bnez t0, swap_loop
     addi t0, -1
 
-    ###########################################################
-    #define nz_i             $v14
-    #define nz_f             $v15
-    #define slope_i          $v16
-    #define slope_f          $v17
-    #define vxy32            $v18
-    #define vxy21            $v19
-    #define vhml             $v21
-    #define fy               $v24
-
     # We want to build this layout
     #  vxy32 = X3 X2 X3 --    Y3 Y2 Y3 --
     #  vxy21 = X1 -- X2 --    Y1 -- Y2 --
 
     lsv vxy32,0,  VTX_ATTR_X,vtx3
     lsv vxy32,8,  VTX_ATTR_Y,vtx3
-    vxor $v00,$v00
-    vor vxy32, $v00, vxy32,e(0h)
+    vor vxy32, vzero, vxy32,e(0h)
     lsv vxy32,2,  VTX_ATTR_X,vtx2
     lsv vxy32,10, VTX_ATTR_Y,vtx2
 
@@ -768,6 +775,14 @@ swap_end:
     #    = 
     #  vhml     = HX MX LX --    HY MY LY --
     vsub vhml, vxy32, vxy21,e(0q)
+    #define hx  vhml,e(0)
+    #define mx  vhml,e(1)
+    #define lx  vhml,e(2)
+    #define my1 vhml,e(3)
+    #define hy  vhml,e(4)
+    #define my  vhml,e(5)
+    #define ly  vhml,e(6)
+    #define mx1 vhml,e(7)
 
     #  vhml     = HX MX LX MY    HY MY LY MX
     vmov vhml,15, vhml,9
@@ -781,71 +796,148 @@ swap_end:
     #    =
     #  nz       = HX*MY -- -- --    HY*MX -- -- -- --
     vmudh nz_f, vhml, vhml,e(3h)
-    vsar nz_i, v__, v__,e(0)
-    vsar nz_f, v__, v__,e(1)
-    vsubc nz_f, nz_f,e(4)
-    vsub  nz_i, nz_i,e(4)
+    vsar nz_i, COP2_ACC_HI
+    vsar nz_f, COP2_ACC_MD
+
+    # Compute HY*MX - HX*MY. Result in e(4).
+    vsubc nz_f, nz_f,e(0)
+    vsub  nz_i, nz_i,e(0)
+
+    # Extract left flag from the sign of NZ.
+    # Since we calculated -NZ, we need to reverse the sign
+    mfc2 t0, nz_i,e(4)
+    sge t0, t0, zero
+    sll t0, 7
+    or tricmd, t0
+
+    # Add num mipmap levels
+    lbu t1, %lo(RDPQ_OTHER_MODES) + 0
+    andi t1, 0x38     # Isolate bits 2-5 (aka 59-61 of SOM)
+    or tricmd, t1
+
+    # Calculate reciprocal of normal
+    vrcph nz_i,e(0), nz_i,e(4)
+    vrcpl nz_f,e(0),  nz_f,e(4)
+    vrcph nz_i,e(0), v__,e(0)
+    #define inz_f   nz_f,e(0)
+    #define inz_i   nz_i,e(0)
 
     # Compute SLOPE vector
+    # slope    =  -- -- -- --    1/HY 1/MY 1/LY 1/NZ
 
-    # slope    =  1/HY 1/MY 1/LY 1/NZ  -- -- -- --
+    # Compute ISL (L slope). 1/LY  (s14.1)
+    vrcp  slope_f,14, vhml,e(6)
+    vrcph slope_i,14, vhml,e(6)
+    # Compute ISM (M slope). 1/MY  (s14.1)
+    vrcp  slope_f,13,  vhml,e(5)
+    vrcph slope_i,13,  vhml,e(5)
+    # Compute ISH (H slope). 1/HY  (s14.1)
+    vrcp  slope_f,12,  vhml,e(4)
+    vrcph slope_i,12,  vhml,e(4)
 
-    # Reciprocal 1/NX
-    vrcph slope_i,11, nz_i,e(0)
-    vrcpl slope_f,11, nz_f,e(0)
-    vrcph slope_i,11, v__,e(0)
-    # Absolute value
-    vsra8 v__, nz_i, 15
-    vxor slope_f, v__,e(0)
-    vxor slope_i, v__,e(0)
+    ##################
+    # 1 NR pass
+    ##################
+    vmov slope_f,15, inz_f
+    vmov slope_i,15, inz_i
 
-    # Compute L slope. 1/LY  (s14.1)
-    vrcp  slope_f,10, vhml,e(6)
-    vrcph slope_i,10, vhml,e(6)
-    # Compute M slope. 1/MY  (s14.1)
-    vrcp  slope_f,9,  vhml,e(5)
-    vrcph slope_i,9,  vhml,e(5)
-    # Compute H slope. 1/HY  (s14.1)
-    vrcp  slope_f,8,  vhml,e(4)
-    vrcph slope_i,8,  vhml,e(4)
+    # Adjust multiplying by 2 (required after reciprocal)
+    #vmudn slope_f, slope_f, K2
+    #vmadh slope_i, slope_i, K2
+    vaddc slope_f, slope_f
+    vadd slope_i, slope_i
 
-    #if 0
-    # TODO: 1 NR pass
-    #  vnr      =   HY  MY   LY   NZ
-    # slope     = 1/HY 1/MY 1/LY 1/NZ
-    #endif
+    # Prepare 32-bit number containing the source of the reciprocal
+    # Notice that we're calculating NR over 1 32-bit input (NZ) and
+    # 3 16-bit inputs (HY, MY, LY), for which we provide 0 in the lower
+    # part.
+    #    vhml      =   HX MX LX MY    HY   MY   LY   NZf
+    #    v__       =    0 0  0  0     0    0    0    NZi
+    vxor v__, v__
+    vmov v__,15, nz_i,e(4)
+    vmov vhml,15, nz_f,e(4)
 
+    #define vtmp_f  attr1
+    #define vtmp_i  attr2
+    #define vk2     attr3
+
+    # NR: R*X
+    vmudl vtmp_f, slope_f, vhml
+    vmadm vtmp_f, slope_i, vhml
+    vmadn vtmp_f, slope_f, v__
+    vmadh vtmp_i, slope_i, v__
+
+    # NR: 2 - R*X   
+    vor vk2, vzero, K2
+    vsubc vtmp_f, vzero, vtmp_f
+    vsub  vtmp_i, vk2,   vtmp_i
+
+    # NR: X * (2 - R*X)
+    vmudl vk2, vtmp_f, slope_f
+    vmadm vk2, vtmp_i, slope_f
+    vmadn slope_f, vtmp_f, slope_i
+    vmadh slope_i, vtmp_i, slope_i
+    #vmadn slope_f, vzero, vzero     # re-read slope_f in case of overflow
+
+    # vhml      =   HX MX LX MY    HY   MY   LY   NZf
+    # v__       =    0 0  0  0     0    0    0    NZi
+    # slope     =   -- -- -- --   1/HY 1/MY 1/LY  1/NZ
+    
+    vmov nz_f,8, slope_f,e(7)
+    vmov nz_i,8, slope_i,e(7)
+
+    # Rotate slope
+    # slope     =   1/HY 1/MY 1/LY 1/NZ   -- -- -- --
+    sqv slope_f,e(4), 0x10,s3
+    lqv slope_f,e(0)  0x10,s3
+    sqv slope_i,e(4), 0x10,s3
+    lqv slope_i,e(0)  0x10,s3
+
+    # Shift left NZ (that contains INVNZ) by 2, to align with the fixed point precision
+    # that will be required later.
+    vmudn nz_f, nz_f, K4
+    vmadh nz_i, nz_i, K4
+
+    # FY.e4 = fy (s15.16)
+    vsll8 fy_f, vxy21, 14
+    vsra fy_i, vxy21, 2
     # FY.e4 = floorf(y1) - y1
-    vsll8 fy, vxy21, 14
-    vsrl8 fy, fy, 14
+    # TODO: this is always a negative fraction, so fy_i is always 0xFFFF (or fy_i=fy_f=0).
+    # See if we can take advantage of this somehow to simplify later.
+    vsubc fy_f, vzero, fy_f
+    vsub  fy_i, fy_i
 
     # Finalize slope divisions by multiplying by the reciprocal.
-    #  vhml     =   HX    MX    LX    MY    HY MY LY MX
+    #  vhml     =   HX    MX    LX    1     HY MY LY MX
     #    *
     #  slope    =  1/HY  1/MY  1/LY  1/NZ   -- -- -- --
     #    =
     #  slope    =  HX/HY MX/MY LX/LY  --    -- -- -- --
-    #
-    # Notice that we need to repeat the MAC sequence twice to compensate
-    # for 1-bit shift right introduced by the reciprocals
-    vmudl v__,     slope_f, vhml
-    vmadl v__,     slope_f, vhml
-    vmadn slope_f, slope_i, vhml
-    vmadn slope_f, slope_i, vhml
-    vsar  slope_i, v__, v__,e(1)
- 
+    vmudn v__,     slope_f, vhml
+    vmadh v__,     slope_i, vhml
+    vsar  slope_f, COP2_ACC_MD
+    vsar  slope_i, COP2_ACC_HI
+
+    #define ish_f   slope_f,e(0)
+    #define ish_i   slope_i,e(0)
+    #define ism_f   slope_f,e(1)
+    #define ism_i   slope_i,e(1)
+    #define isl_f   slope_f,e(2)
+    #define isl_i   slope_i,e(2)
+
     # Store slopes
-    ssv slope_f,4, 14,s3  # ISL_F
-    ssv slope_i,4, 12,s3  # ISL_I
-    ssv slope_f,2, 30,s3  # ISM_F
-    ssv slope_i,2, 28,s3  # ISM_I
-    ssv slope_f,0, 22,s3  # ISH_F
-    ssv slope_i,0, 20,s3  # ISH_I
+    ssv isl_f, 14,s3
+    ssv isl_i, 12,s3
+    ssv ism_f, 30,s3
+    ssv ism_i, 28,s3
+    ssv ish_f, 22,s3
+    ssv ish_i, 20,s3
 
     #  vxy21 =   X1   --    X2   --  Y1 -- Y2 --
     #  slope = HX/HY MX/MY LX/LY --  -- -- -- --
 
     # FINAL = X1/X2 in 16.16 precision
+    # TODO: maybe fold into the next MAC sequence?
     vsra final_i, vxy21, 2
     vsll8 final_f, vxy21, 14
 
@@ -854,84 +946,173 @@ swap_end:
     ssv final_i,4,  8,s3  # Xl_I
 
     # Compute XH/XM
-    vmudn slope_f, fy,e(4)
-    vmadh slope_i, fy,e(4)
-    vaddc slope_f, final_f,e(0q)
-    vadd  slope_i, final_i,e(0q)
+    # TODO: fy_i is always 0xFFFFFFFF here. See if we can benefit from this.
+    vmudl v__,     slope_f, fy_f,e(4)
+    vmadm v__,     slope_i, fy_f,e(4)
+    vmadn edges_f, slope_f, fy_i,e(4)
+    vmadh edges_i, slope_i, fy_i,e(4)
 
-    ssv slope_f,0, 26,s3  # XM_F
-    ssv slope_i,0, 24,s3  # XM_I
-    ssv slope_f,2, 18,s3  # XH_F
-    ssv slope_i,2, 16,s3  # XH_I
+    vaddc edges_f, final_f.q0
+    vadd  edges_i, final_i.q0
 
-    li t0, 0xC8
-    sb t0, 0(s3)
+    ssv edges_f,2, 26,s3  # XM_F
+    ssv edges_i,2, 24,s3  # XM_I
+    ssv edges_f,0, 18,s3  # XH_F
+    ssv edges_i,0, 16,s3  # XH_I
 
-    addi s3, 32
-    j RDPQ_Send
+    sh tricmd, 0(s3)
+    add s3, 32
+
+    # Load attributes into ATTR registers.
+    # TODO: we can interleave these in all the code above, and at that point
+    # it's useless to test for tricmd to save loads. Just load them all.
+
+    #define attr1_r     attr1,e(0)
+    #define attr2_r     attr2,e(0)
+    #define attr3_r     attr3,e(0)
+    #define attr1_s     attr1,e(4)
+    #define attr2_s     attr2,e(4)
+    #define attr3_s     attr3,e(4)
+    #define attr1_invw  attr1,e(6)
+    #define attr2_invw  attr2,e(6)
+    #define attr3_invw  attr3,e(6)
+    #define attr1_z     attr1,e(7)
+    #define attr2_z     attr2,e(7)
+    #define attr3_z     attr3,e(7)
+    luv attr1_r, VTX_ATTR_RGBA,vtx1 # RGBA
+    luv attr2_r, VTX_ATTR_RGBA,vtx2
+    luv attr3_r, VTX_ATTR_RGBA,vtx3
+
+    llv attr1_s, VTX_ATTR_S,vtx1  # S & T
+    llv attr2_s, VTX_ATTR_S,vtx2
+    llv attr3_s, VTX_ATTR_S,vtx3
+
+    # We need to normalize INV_W in [0..1], by dividing them by the maximum INV_W.
+    # We will multiply by W instead, and thus we search for the minimum W.
+    lw t0, VTX_ATTR_W(vtx1)
+    lw t1, VTX_ATTR_W(vtx2)
+    blt t0, t1, 1f
+    lw t2, VTX_ATTR_W(vtx3)
+    move t0, t1
+1:
+    blt t0, t2, 1f
     nop
+    move t0, t2
+1:
+    mtc2 t0, invw_f,e(0)
+    srl t0, 16
+    mtc2 t0, invw_i,e(0)
+
+    lsv invw_i,e(4), VTX_ATTR_INVWi,vtx1
+    lsv invw_i,e(5), VTX_ATTR_INVWi,vtx2
+    lsv invw_i,e(6), VTX_ATTR_INVWi,vtx3
+
+    lsv invw_f,e(4), VTX_ATTR_INVWf,vtx1
+    lsv invw_f,e(5), VTX_ATTR_INVWf,vtx2
+    lsv invw_f,e(6), VTX_ATTR_INVWf,vtx3
+
+    # invw:     minw -- -- --            invw1 invw2 invw3 --
+    #
+    # We need to multiply minw with the three invw. All numbers are unsigned 0.31,
+    # the result is known to fit 0..1 and so will be 0.31 again. and we want to keep
+    # only the higher part of it, so shift the result right by 16.
+    # Change the usual sequence to put vmudl last, to extract the correct
+    # portion of the accumulator. Don't do the vmudh part as it's guaranteed to be
+    # 0, and we don't need it.
+    vmudm v__,    invw_i, invw_f,e(0)
+    vmadn v__,    invw_f, invw_i,e(0)
+    vmadl invw_i, invw_f, invw_f,e(0)
+
+    # Load 0x200 in the first 4 lanes of the vector, using a misaliged lqv.
+    # 0x200 is the constant that can be used to >>7, which will be used for
+    # the RGBA components.
+    #
+    # invw:  0x200 0x200 0x200 0x200   invw1 invw2 invw3 --
+    li s0, %lo(TRICONST1)+8
+    lqv invw_i,0, 0,s0
+
+    vmudm attr1, invw_i.h0
+    vmudm attr2, invw_i.h1
+    vmudm attr3, invw_i.h2
+
+    # Change inv_w from 0.16 to s0.15 by shifting by one
+    vsrl invw_i, invw_i, 1
+
+    # Copy inv_w components into ATTRn
+    vmov attr1,14, invw_i,12
+    vmov attr2,14, invw_i,13
+    vmov attr3,14, invw_i,14
+
+    lsv attr1_z, VTX_ATTR_Z,vtx1  # Load Z
+    lsv attr2_z, VTX_ATTR_Z,vtx2
+    lsv attr3_z, VTX_ATTR_Z,vtx3
 
     ########################################################
     # ATTRIBUTES
     ########################################################
-
+calc_attrs:
     # MA = A2 - A1
-    vsubc ma_f, a2_f, a1_f
-    vsub  ma_i, a2_i, a1_i
-
     # HA = A3 - A1
-    vsubc ha_f, a3_f, a1_f
-    vsub  ha_i, a3_i, a1_i
+    # NOTE: S/T coordinates are kept as s10.5, so they can overflow here.
+    # The subtraction is saturated so the error is minimized, but it is 
+    # indeed there. To fix this, we would have to produce a 32-bit result here
+    # and then change the DX/DY calculations to use 32-bit numbers as well.
+    vsub  ma, attr2, attr1
+    vsub  ha, attr3, attr1
+
+    #  vhml     = HX MX LX MY1    HY MY LY MX1
+
+    # TODO: find other strategies to negate MY and HX?
+    # Or maybe this is good as we can probably interleave it, being scalar ops.
+    # TODO: or we could also compute -MA / -HA. But that's even more vector ops.
+    mfc2 t0, my
+    mfc2 t1, hx
+    neg t0
+    neg t1
+    mtc2 t0, my
+    mtc2 t1, hx
 
     # DX = MA * HY - HA * MY
-    # TODO: MY must be negated
-    vmudl v__,  ma_f, hy_f
-    vmadm v__,  ma_f, hy_i
-    vmadn v__,  ma_i, hy_f
-    vmadh v__,  ma_i, hy_i
-    vmadl v__,  ha_f, my_f
-    vmadm v__,  ha_f, my_i
-    vmadn dx_f, ha_i, my_f
-    vmadh dx_i, ha_i, my_i
-
-    # DX * 1/N (TODO: check if we can pre-multiply edges to avoid this)
-    vmudl v__,  dx_f, invn_f
-    vmadm v__,  dx_i, invn_f
-    vmadn dx_f, dx_f, invn_i
-    vmadh dx_i, dx_i, invn_i
+    vmudh dx_f, ma, hy
+    vmadh dx_f, ha, my
+    vsar dx_f, COP2_ACC_MD
+    vsar dx_i, COP2_ACC_HI
 
     # DY = HA * MX - MA * HX
-    # TODO: HX must be negated
-    vmudl v__,  ma_f, hx_f
-    vmadm v__,  ma_f, hx_i
-    vmadn v__,  ma_i, hx_f
-    vmadh v__,  ma_i, hx_i
-    vmadl v__,  ha_f, mx_f
-    vmadm v__,  ha_f, mx_i
-    vmadn dy_f, ha_i, mx_f
-    vmadh dy_i, ha_i, mx_i
+    vmudh dy_f, ha, mx
+    vmadh dy_f, ma, hx
+    vsar dy_f, COP2_ACC_MD
+    vsar dy_i, COP2_ACC_HI
+
+    # DX * 1/N (TODO: check if we can pre-multiply edges to avoid this)
+    vmudl v__,  dx_f, inz_f
+    vmadm v__,  dx_i, inz_f
+    vmadn dx_f, dx_f, inz_i
+    vmadh dx_i, dx_i, inz_i
 
     # DY * 1/N (TODO: check if we can pre-multiply edges to avoid this)
-    vmudl v__,  dy_f, invn_f
-    vmadm v__,  dy_i, invn_f
-    vmadn dy_f, dy_f, invn_i
-    vmadh dy_i, dy_i, invn_i
+    vmudl v__,  dy_f, inz_f
+    vmadm v__,  dy_i, inz_f
+    vmadn dy_f, dy_f, inz_i
+    vmadh dy_i, dy_i, inz_i
 
     # DE = DX * invsh + DY
-    vmudl v__,  dx_f, invsh_f
-    vmadm v__,  dx_i, invsh_f
-    vmadn de_f, dx_f, invsh_i
-    vmadh de_i, dx_i, invsh_i
-    vaddc de_f, dy_f
-    vadd  de_i, dy_i
+    vmadl v__,  dx_f, ish_f
+    vmadm v__,  dx_i, ish_f
+    vmadn de_f, dx_f, ish_i
+    vmadh de_i, dx_i, ish_i
 
-    # FINAL = A1 + DE * FY
-    vmudl v__,     de_f, fy_f
-    vmadm v__,     de_i, fy_f
-    vmadn final_f, de_f, fy_i
-    vmadh final_i, de_i, fy_i
-    vaddc final_f, a1_f
-    vadd  final_i, a1_i
+    # FINAL = ATTR1 + DE * FY
+    # TODO: fy_i is always 0xFFFFFFFF here. See if we can benefit from this.
+    # TODO: actually, it can also be fy_i = fy_f = 0.
+    vmudl v__,     de_f, fy_f,e(4)
+    vmadm v__,     de_i, fy_f,e(4)
+    vmadn final_f, de_f, fy_i,e(4)
+    vmadh final_i, de_i, fy_i,e(4)
+    vmadh final_i, attr1, K1
+
+    andi t0, tricmd, 0x400
+    beqz t0, no_color
 
     # Store color
     sdv final_i, 0, 0x00,s3
@@ -944,6 +1125,10 @@ swap_end:
     sdv dy_f,    0, 0x38,s3
     addi s3, 0x40
 
+no_color:
+    andi t0, tricmd, 0x200
+    beqz t0, no_texture
+
     # Store texture
     sdv final_i, 8, 0x00,s3
     sdv dx_i,    8, 0x08,s3
@@ -954,6 +1139,10 @@ swap_end:
     sdv de_f,    8, 0x30,s3
     sdv dy_f,    8, 0x38,s3
     addi s3, 0x40
+
+no_texture:
+    andi t0, tricmd, 0x100
+    beqz t0, no_z
 
     # Store z
     ssv final_i, 14, 0x00,s3
@@ -966,6 +1155,7 @@ swap_end:
     ssv dy_f,    14, 0x0E,s3
     addi s3, 0x10
 
+no_z:
     j RDPQ_Send
     nop
 

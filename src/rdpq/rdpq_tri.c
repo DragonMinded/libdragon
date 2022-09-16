@@ -22,6 +22,19 @@
 #include "rdpq_internal.h"
 #include "rdpq_constants.h"
 #include "utils.h"
+#include "debug.h"
+
+/** @brief Set to 1 to activate tracing of all parameters of all triangles. */
+#define TRIANGLE_TRACE   0
+
+#if TRIANGLE_TRACE
+/** @brief like debugf(), but writes only if #TRIANGLE_TRACE is not 0 */
+#define tracef(fmt, ...)  debugf(fmt, ##__VA_ARGS__)
+#else
+/** @brief like debugf(), but writes only if #TRIANGLE_TRACE is not 0 */
+#define tracef(fmt, ...)  ({ })
+#endif
+
 
 /** @brief Converts a float to a s16.16 fixed point number */
 static int32_t float_to_s16_16(float f)
@@ -67,8 +80,8 @@ static inline void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_
     int32_t y2f = CLAMP((int32_t)floorf(v2[1]*to_fixed_11_2), -4096*4, 4095*4);
     int32_t y3f = CLAMP((int32_t)floorf(v3[1]*to_fixed_11_2), -4096*4, 4095*4);
 
-    data->hx = x3 - x1;        
-    data->hy = y3 - y1;        
+    data->hx = x3 - x1;
+    data->hy = y3 - y1;
     data->mx = x2 - x1;
     data->my = y2 - y1;
     float lx = x3 - x2;
@@ -95,6 +108,35 @@ static inline void __rdpq_write_edge_coeffs(rspq_write_t *w, rdpq_tri_edge_data_
     rspq_write_arg(w, float_to_s16_16(data->ish));
     rspq_write_arg(w, float_to_s16_16(xm));
     rspq_write_arg(w, float_to_s16_16(ism));
+
+    tracef("x1:  %f (%08lx)\n", x1, (int32_t)(x1 * 4.0f));
+    tracef("x2:  %f (%08lx)\n", x2, (int32_t)(x2 * 4.0f));
+    tracef("x3:  %f (%08lx)\n", x3, (int32_t)(x3 * 4.0f));
+    tracef("y1:  %f (%08lx)\n", y1, (int32_t)(y1 * 4.0f));
+    tracef("y2:  %f (%08lx)\n", y2, (int32_t)(y2 * 4.0f));
+    tracef("y3:  %f (%08lx)\n", y3, (int32_t)(y3 * 4.0f));
+
+    tracef("hx:  %f (%08lx)\n", data->hx, (int32_t)(data->hx * 4.0f));
+    tracef("hy:  %f (%08lx)\n", data->hy, (int32_t)(data->hy * 4.0f));
+    tracef("mx:  %f (%08lx)\n", data->mx, (int32_t)(data->mx * 4.0f));
+    tracef("my:  %f (%08lx)\n", data->my, (int32_t)(data->my * 4.0f));
+    tracef("lx:  %f (%08lx)\n", lx, (int32_t)(lx * 4.0f));
+    tracef("ly:  %f (%08lx)\n", ly, (int32_t)(ly * 4.0f));
+
+    tracef("p1: %f (%08lx)\n", (data->hx*data->my), (int32_t)(data->hx*data->my*16.0f));
+    tracef("p2: %f (%08lx)\n", (data->hy*data->mx), (int32_t)(data->hy*data->mx*16.0f));
+    tracef("nz: %f (%08lx)\n", nz, (int32_t)(nz * 16.0f));
+    tracef("-nz: %f (%08lx)\n", -nz, -(int32_t)(nz * 16.0f));
+    tracef("inv_nz: %f (%08lx)\n", data->attr_factor, (int32_t)(data->attr_factor * 65536.0f / 2.0f / 16.0f));
+    
+    tracef("fy:  %f (%08lx)\n", data->fy, (int32_t)(data->fy * 65536.0f));
+    tracef("ish: %f (%08lx)\n", data->ish, (int32_t)(data->ish * 65536.0f));
+    tracef("ism: %f (%08lx)\n", ism, (int32_t)(ism * 65536.0f));
+    tracef("isl: %f (%08lx)\n", isl, (int32_t)(isl * 65536.0f));
+
+    tracef("xh: %f (%08lx)\n", xh, (int32_t)(xh * 65536.0f));
+    tracef("xm: %f (%08lx)\n", xm, (int32_t)(xm * 65536.0f));
+    tracef("xl: %f (%08lx)\n", xl, (int32_t)(xl * 65536.0f));
 }
 
 __attribute__((always_inline))
@@ -166,40 +208,59 @@ static inline void __rdpq_write_shade_coeffs(rspq_write_t *w, rdpq_tri_edge_data
     rspq_write_arg(w, (DbDy_fixed&0xffff0000) | (0xffff&(DaDy_fixed>>16)));
     rspq_write_arg(w, (DrDe_fixed<<16) | (DgDe_fixed&0xffff));
     rspq_write_arg(w, (DbDe_fixed<<16) | (DaDe_fixed&0xffff));
-    rspq_write_arg(w, (DrDy_fixed<<16) | (DgDy_fixed&&0xffff));
-    rspq_write_arg(w, (DbDy_fixed<<16) | (DaDy_fixed&&0xffff));
+    rspq_write_arg(w, (DrDy_fixed<<16) | (DgDy_fixed&0xffff));
+    rspq_write_arg(w, (DbDy_fixed<<16) | (DaDy_fixed&0xffff));
+
+    tracef("b1: %f (%08lx)\n", v1[2], (uint32_t)(v1[2]*255.0f));
+    tracef("b2: %f (%08lx)\n", v2[2], (uint32_t)(v2[2]*255.0f));
+    tracef("b3: %f (%08lx)\n", v3[2], (uint32_t)(v3[2]*255.0f));
+    tracef("mb: %f (%08lx)\n", mb, (uint32_t)(int32_t)mb);
+    tracef("hb: %f (%08lx)\n", hb, (uint32_t)(int32_t)hb);
+    tracef("nxB: %f (%08lx)\n", nxB, (int32_t)(nxB * 4.0f));
+    tracef("DbDx: %f (%08lx)\n", DbDx, (uint32_t)(DbDx * 65536.0f));
+    tracef("DbDx_fixed: (%08lx)\n", DbDx_fixed);
 }
 
 __attribute__((always_inline))
 static inline void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t *data, const float *v1, const float *v2, const float *v3)
 {
-    float s1 = v1[0] * 32.f, t1 = v1[1] * 32.f, w1 = v1[2];
-    float s2 = v2[0] * 32.f, t2 = v2[1] * 32.f, w2 = v2[2];
-    float s3 = v3[0] * 32.f, t3 = v3[1] * 32.f, w3 = v3[2];
+    float s1 = v1[0] * 32.f, t1 = v1[1] * 32.f, invw1 = v1[2];
+    float s2 = v2[0] * 32.f, t2 = v2[1] * 32.f, invw2 = v2[2];
+    float s3 = v3[0] * 32.f, t3 = v3[1] * 32.f, invw3 = v3[2];
 
-    const float w_factor = 1.0f / MAX(MAX(w1, w2), w3);
+    const float minw = 1.0f / MAX(MAX(invw1, invw2), invw3);
 
-    w1 *= w_factor;
-    w2 *= w_factor;
-    w3 *= w_factor;
+    tracef("s1: %f (%04x)\n", s1, (int16_t)s1);
+    tracef("t1: %f (%04x)\n", t1, (int16_t)t1);
+    tracef("s2: %f (%04x)\n", s2, (int16_t)s2);
+    tracef("t2: %f (%04x)\n", t2, (int16_t)t2);
 
-    s1 *= w1;
-    t1 *= w1;
-    s2 *= w2;
-    t2 *= w2;
-    s3 *= w3;
-    t3 *= w3;
+    tracef("invw1: %f (%08lx)\n", invw1, (int32_t)(invw1*65536));
+    tracef("invw2: %f (%08lx)\n", invw2, (int32_t)(invw2*65536));
+    tracef("invw3: %f (%08lx)\n", invw3, (int32_t)(invw3*65536));
+    tracef("minw: %f (%08lx)\n", minw, (int32_t)(minw*65536));
 
-    w1 *= 0x7FFF;
-    w2 *= 0x7FFF;
-    w3 *= 0x7FFF;
+    invw1 *= minw;
+    invw2 *= minw;
+    invw3 *= minw;
+
+    s1 *= invw1;
+    t1 *= invw1;
+    s2 *= invw2;
+    t2 *= invw2;
+    s3 *= invw3;
+    t3 *= invw3;
+
+    invw1 *= 0x7FFF;
+    invw2 *= 0x7FFF;
+    invw3 *= 0x7FFF;
 
     const float ms = s2 - s1;
     const float mt = t2 - t1;
-    const float mw = w2 - w1;
+    const float mw = invw2 - invw1;
     const float hs = s3 - s1;
     const float ht = t3 - t1;
-    const float hw = w3 - w1;
+    const float hw = invw3 - invw1;
 
     const float nxS = data->hy*ms - data->my*hs;
     const float nxT = data->hy*mt - data->my*ht;
@@ -221,7 +282,7 @@ static inline void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t
 
     const int32_t final_s = float_to_s16_16(s1 + data->fy * DsDe);
     const int32_t final_t = float_to_s16_16(t1 + data->fy * DtDe);
-    const int32_t final_w = float_to_s16_16(w1 + data->fy * DwDe);
+    const int32_t final_w = float_to_s16_16(invw1 + data->fy * DwDe);
 
     const int32_t DsDx_fixed = float_to_s16_16(DsDx);
     const int32_t DtDx_fixed = float_to_s16_16(DtDx);
@@ -251,6 +312,25 @@ static inline void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t
     rspq_write_arg(w, (DwDe_fixed<<16));
     rspq_write_arg(w, (DsDy_fixed<<16) | (DtDy_fixed&&0xffff));
     rspq_write_arg(w, (DwDy_fixed<<16));
+
+    tracef("invw1-mul: %f (%08lx)\n", invw1, (int32_t)(invw1*65536));
+    tracef("invw2-mul: %f (%08lx)\n", invw2, (int32_t)(invw2*65536));
+    tracef("invw3-mul: %f (%08lx)\n", invw3, (int32_t)(invw3*65536));
+
+    tracef("s1w: %f (%04x)\n", s1, (int16_t)s1);
+    tracef("t1w: %f (%04x)\n", t1, (int16_t)t1);
+    tracef("s2w: %f (%04x)\n", s2, (int16_t)s2);
+    tracef("t2w: %f (%04x)\n", t2, (int16_t)t2);
+
+    tracef("ms: %f (%04x)\n", ms, (int16_t)(ms));
+    tracef("mt: %f (%04x)\n", mt, (int16_t)(mt));
+    tracef("hs: %f (%04x)\n", hs, (int16_t)(hs));
+    tracef("ht: %f (%04x)\n", ht, (int16_t)(ht));
+
+    tracef("nxS: %f (%04x)\n", nxS, (int16_t)(nxS / 65536.0f));
+    tracef("nxT: %f (%04x)\n", nxT, (int16_t)(nxT / 65536.0f));
+    tracef("nyS: %f (%04x)\n", nyS, (int16_t)(nyS / 65536.0f));
+    tracef("nyT: %f (%04x)\n", nyT, (int16_t)(nyT / 65536.0f));
 }
 
 __attribute__((always_inline))
@@ -279,9 +359,24 @@ static inline void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_
     rspq_write_arg(w, DzDx_fixed);
     rspq_write_arg(w, DzDe_fixed);
     rspq_write_arg(w, DzDy_fixed);
+
+    tracef("z1: %f (%04x)\n", v1[0], (uint16_t)(z1));
+    tracef("z2: %f (%04x)\n", v2[0], (uint16_t)(z2));
+    tracef("z3: %f (%04x)\n", v3[0], (uint16_t)(z3));
+
+    tracef("mz: %f (%04x)\n", mz, (uint16_t)(mz));
+    tracef("hz: %f (%04x)\n", hz, (uint16_t)(hz));
+
+    tracef("nxz: %f (%08lx)\n", nxz, (uint32_t)(nxz * 4.0f));
+    tracef("nyz: %f (%08lx)\n", nyz, (uint32_t)(nyz * 4.0f));
+
+    tracef("dzdx: %f (%08llx)\n", DzDx, (uint64_t)(DzDx * 65536.0f));
+    tracef("dzdy: %f (%08llx)\n", DzDy, (uint64_t)(DzDy * 65536.0f));
+    tracef("dzde: %f (%08llx)\n", DzDe, (uint64_t)(DzDe * 65536.0f));
 }
 
-void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
+/** @brief RDP triangle primitive assembled on the CPU */
+void rdpq_triangle_cpu(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
 {
     uint32_t res = AUTOSYNC_PIPE;
     if (tex_offset >= 0) {
@@ -292,7 +387,6 @@ void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_
     }
     __rdpq_autosync_use(res);
 
-#if RDPQ_TRIANGLE_REFERENCE
     uint32_t cmd_id = RDPQ_CMD_TRI;
 
     uint32_t size = 8;
@@ -331,7 +425,25 @@ void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_
     }
 
     rspq_write_end(&w);
-#else
+}
+
+/** @brief RDP triangle primitive assembled on the RSP */
+void rdpq_triangle_rsp(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
+{
+    uint32_t res = AUTOSYNC_PIPE;
+    if (tex_offset >= 0) {
+        // FIXME: this can be using multiple tiles depending on color combiner and texture
+        // effects such as detail and sharpen. Figure it out a way to handle these in the
+        // autosync engine.
+        res |= AUTOSYNC_TILE(tile);
+    }
+    __rdpq_autosync_use(res);
+
+    uint32_t cmd_id = RDPQ_CMD_TRI;
+    if (shade_offset >= 0) cmd_id |= 0x4;
+    if (tex_offset >= 0)   cmd_id |= 0x2;
+    if (z_offset >= 0)     cmd_id |= 0x1;
+
     const int TRI_DATA_LEN = ROUND_UP((2+1+1+3)*4, 16);
 
     const float *vtx[3] = {v1, v2, v3};
@@ -342,9 +454,9 @@ void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_
         int16_t x = floorf(v[pos_offset+0] * 4.0f);
         int16_t y = floorf(v[pos_offset+1] * 4.0f);
         
-        int32_t z = 0;
+        int16_t z = 0;
         if (z_offset >= 0) {
-            z = float_to_s16_16(v[z_offset+0]);
+            z = v[z_offset+0] * 0x7FFF;
         } 
 
         int32_t rgba = 0;
@@ -356,17 +468,36 @@ void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_
             rgba = (r << 24) | (g << 16) | (b << 8) | a;
         }
 
-        int32_t s=0, t=0, inv_w=0;
+        int16_t s=0, t=0;
+        int32_t w=0, inv_w=0;
         if (tex_offset >= 0) {
-            s     = float_to_s16_16(v[tex_offset+0]);
-            t     = float_to_s16_16(v[tex_offset+1]);
-            inv_w = float_to_s16_16(v[tex_offset+2]);
+            s     = v[tex_offset+0] * 32.0f;
+            t     = v[tex_offset+1] * 32.0f;
+            w     = float_to_s16_16(1.0f / v[tex_offset+2]);
+            inv_w = float_to_s16_16(       v[tex_offset+2]);
         }
 
         rspq_write(RDPQ_OVL_ID, RDPQ_CMD_TRIANGLE_DATA,
-            TRI_DATA_LEN * i, (x << 16) | (y & 0xFFFF), z, rgba, s, t, inv_w);
+            TRI_DATA_LEN * i, 
+            (x << 16) | (y & 0xFFFF), 
+            z, 
+            rgba, 
+            (s << 16) | (t & 0xFFFF), 
+            w,
+            inv_w);
     }
 
-    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_TRIANGLE, 0);
+    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_TRIANGLE, 
+        0xC000 | (cmd_id << 8) | 
+        (mipmaps ? (mipmaps-1) << 3 : 0) | 
+        (tile & 7));
+}
+
+void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
+{
+#if RDPQ_TRIANGLE_REFERENCE
+    rdpq_triangle_cpu(tile, mipmaps, pos_offset, shade_offset, tex_offset, z_offset, v1, v2, v3);
+#else
+    rdpq_triangle_rsp(tile, mipmaps, pos_offset, shade_offset, tex_offset, z_offset, v1, v2, v3);
 #endif
 }
