@@ -727,8 +727,6 @@ makeOpInstruction vmadl, 0b001100
 makeOpInstruction vmadm, 0b001101
 /** @brief Vector Multiply-Accumulate of Mid Partial Products */
 makeOpInstruction vmadn, 0b001110
-/** @brief Vector Element Scalar Move */
-makeOpInstruction vmov, 0b110011
 /** @brief Vector Select Merge */
 makeOpInstruction vmrg, 0b100111
 /** @brief Vector Multiply of High Partial Products */
@@ -749,32 +747,99 @@ makeOpInstruction vmulu, 0b000001
 makeOpInstruction vnand, 0b101001
 /** @brief Vector Select Not Equal */
 makeOpInstruction vne, 0b100010
-/** @brief Vector Null Instruction */
-makeOpInstruction vnop, 0b110111
 /** @brief Vector NOR of Short Elements */
 makeOpInstruction vnor, 0b101011
 /** @brief Vector NXOR of Short Elements */
 makeOpInstruction vnxor, 0b101101
 /** @brief Vector OR of Short Elements */
 makeOpInstruction vor, 0b101010
-/** @brief Vector Element Scalar Reciprocal (Single Precision) */
-makeOpInstruction vrcp, 0b110000
-/** @brief Vector Element Scalar Reciprocal (Double Prec. High) */
-makeOpInstruction vrcph, 0b110010
-/** @brief Vector Element Scalar Reciprocal (Double Prec. Low) */
-makeOpInstruction vrcpl, 0b110001
-/** @brief Vector Element Scalar SQRT Reciprocal */
-makeOpInstruction vrsq, 0b110100
-/** @brief Vector Element Scalar SQRT Reciprocal (Double Prec. High) */
-makeOpInstruction vrsqh, 0b110110
-/** @brief Vector Element Scalar SQRT Reciprocal (Double Prec. Low) */
-makeOpInstruction vrsql, 0b110101
 /** @brief Vector Subtraction of Short Elements */
 makeOpInstruction vsub, 0b010001
 /** @brief Vector Subtraction of Short Elements With Carry */
 makeOpInstruction vsubc, 0b010101
 /** @brief Vector XOR of Short Elements */
 makeOpInstruction vxor, 0b101100
+
+.macro makeSingleLaneInstruction name, opcode
+    # Overloads:
+    #   op vd, de, vt, element
+    #   op vd, de, vt.e
+    #   op vd.e, vt, element
+    #   op vd.e, vt.e
+    .macro \name vd, edOrVt, vtOrElement, elementOrEmpty
+        veVectorElements
+        
+        .ifnb \elementOrEmpty
+            # 4-arg syntax: op $v1, e(x), $v2, e(x)
+            vectorOp \opcode, \vd, \edOrVt, \vtOrElement, \elementOrEmpty
+            .exitm
+        .endif
+
+        laneVectorAccessors
+        encodeVectorRegs
+
+        .iflt (\vd)
+            .error "Invalid destination element"
+            .exitm
+        .endif
+
+        .ifnb \vtOrElement
+            .iflt (\vtOrElement)
+                .error "Invalid source element"
+                .exitm
+            .endif
+
+            .if (\vtOrElement >= 0x200)
+                # 3-arg syntax: op $v1, e(x), $v2.e
+                vectorOp \opcode, \vd, \edOrVt, ((\vtOrElement >> 4) & 0x1F), (\vtOrElement & 0xF)
+            .elseif (\vd >= 0x200)
+                # 3-arg syntax: op $v1.e, $v2, e(x)
+                vectorOp \opcode, ((\vd >> 4) & 0x1F), (\vd & 0xF), \edOrVt, \vtOrElement
+            .else 
+                .error "Invalid syntax"
+            .endif
+            .exitm
+        .endif
+
+        .iflt (\edOrVt)
+            .error "Invalid source element"
+            .exitm
+        .endif
+
+        .if (\vd < 0x200)
+            .error "Element is required on destination register"
+            .exitm
+        .endif
+
+        .if (\edOrVt < 0x200)
+            .error "Element is required on source register"
+            .exitm
+        .endif
+
+        # 2-arg syntax: op $v1.e, $v2.e
+        vectorOp \opcode, ((\vd >> 4) & 0x1F), (\vd & 0xF), ((\edOrVt >> 4) & 0x1F), (\edOrVt & 0xF)
+    .endm
+.endm
+
+/** @brief Vector Element Scalar Move */
+makeSingleLaneInstruction vmov, 0b110011
+/** @brief Vector Element Scalar Reciprocal (Single Precision) */
+makeSingleLaneInstruction vrcp, 0b110000
+/** @brief Vector Element Scalar Reciprocal (Double Prec. High) */
+makeSingleLaneInstruction vrcph, 0b110010
+/** @brief Vector Element Scalar Reciprocal (Double Prec. Low) */
+makeSingleLaneInstruction vrcpl, 0b110001
+/** @brief Vector Element Scalar SQRT Reciprocal */
+makeSingleLaneInstruction vrsq, 0b110100
+/** @brief Vector Element Scalar SQRT Reciprocal (Double Prec. High) */
+makeSingleLaneInstruction vrsqh, 0b110110
+/** @brief Vector Element Scalar SQRT Reciprocal (Double Prec. Low) */
+makeSingleLaneInstruction vrsql, 0b110101
+
+/** @brief Vector Null Instruction */
+.macro vnop
+    vectorOp 0b110111, 0, 0, 0, 0
+.endm
 
 #define COP2_ACC_HI             0x8
 #define COP2_ACC_MD             0x9
