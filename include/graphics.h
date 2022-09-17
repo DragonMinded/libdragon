@@ -14,7 +14,7 @@
  */
 
 /** @brief Generic color structure */
-typedef struct
+typedef struct __attribute__((packed))
 {
     /** @brief Red component */
     uint8_t r;
@@ -25,6 +25,38 @@ typedef struct
     /** @brief Alpha component */
     uint8_t a;
 } color_t;
+
+_Static_assert(sizeof(color_t) == 4, "invalid sizeof for color_t");
+
+/** @brief Create a #color_t from the R,G,B,A components in the RGBA16 range (that is: RGB in 0-31, A in 0-1) */
+#define RGBA16(rx,gx,bx,ax) ({ \
+    int rx1 = rx, gx1 = gx, bx1 = bx; \
+    (color_t){.r=(rx1<<3)|(rx1>>3), .g=(gx1<<3)|(gx1>>3), .b=(bx1<<3)|(bx1>>3), .a=ax ? 0xFF : 0}; \
+})
+
+/** @brief Create a #color_t from the R,G,B,A components in the RGBA32 range (0-255). */
+#define RGBA32(rx,gx,bx,ax) ({ \
+    (color_t){.r=rx, .g=gx, .b=bx, .a=ax}; \
+})
+
+/** @brief Convert a #color_t to the 16-bit packed format used by a #FMT_RGBA16 surface (RGBA 5551) */
+inline uint16_t color_to_packed16(color_t c) {
+    return (((int)c.r >> 3) << 11) | (((int)c.g >> 3) << 6) | (((int)c.b >> 3) << 1) | (c.a >> 7);
+}
+
+/** @brief Convert a #color_t to the 32-bit packed format used by a #FMT_RGBA32 surface (RGBA 8888) */
+inline uint32_t color_to_packed32(color_t c) {
+    return *(uint32_t*)&c;
+}
+/** @brief Create a #color_t from the 16-bit packed format used by a #FMT_RGBA16 surface (RGBA 5551) */
+inline color_t color_from_packed16(uint16_t c) {
+    return (color_t){ .r=((c>>11)&0x1F)<<3, .g=((c>>6)&0x1F)<<3, .b=((c>>1)&0x1F)<<3, .a=(c&0x1) ? 0xFF : 0 };
+}
+
+/** @brief Create a #color_t from the 32-bit packed format used by a #FMT_RGBA32 surface (RGBA 8888) */
+inline color_t color_from_packed32(uint32_t c) {
+    return (color_t){ .r=(c>>24)&0xFF, .g=(c>>16)&0xFF, .b=(c>>8)&0xFF, .a=c&0xFF };
+}
 
 /** @brief Sprite structure */
 typedef struct
