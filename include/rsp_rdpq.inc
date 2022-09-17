@@ -705,10 +705,10 @@ RDPQ_Triangle:
     #define vfy_f            $v26
 
     #define v__              $v29
-    #define invn_i           $v31,e(4)
-    #define invn_f           $v31,e(5)
-    #define invsh_i          $v31,e(6)
-    #define invsh_f          $v31,e(7)
+    #define invn_i           $v31.e4
+    #define invn_f           $v31.e5
+    #define invsh_i          $v31.e6
+    #define invsh_f          $v31.e7
 
     #define VTX_ATTR_X      0
     #define VTX_ATTR_Y      2
@@ -774,19 +774,20 @@ swap_end:
     #  vxy21.0q = X1 X1 X2 X2    Y1 Y1 Y2 Y2
     #    = 
     #  vhml     = HX MX LX --    HY MY LY --
-    vsub vhml, vxy32, vxy21,e(0q)
-    #define hx  vhml,e(0)
-    #define mx  vhml,e(1)
-    #define lx  vhml,e(2)
-    #define my1 vhml,e(3)
-    #define hy  vhml,e(4)
-    #define my  vhml,e(5)
-    #define ly  vhml,e(6)
-    #define mx1 vhml,e(7)
+    vsub vhml, vxy32, vxy21.q0
+    #define hx  vhml.e0
+    #define mx  vhml.e1
+    #define lx  vhml.e2
+    #define my1 vhml.e3
+    #define hy  vhml.e4
+    #define my  vhml.e5
+    #define ly  vhml.e6
+    #define mx1 vhml.e7
 
+    # Duplicate MX and MY into the two empty lanes.
     #  vhml     = HX MX LX MY    HY MY LY MX
-    vmov vhml,e(7), vhml,e(1)
-    vmov vhml,e(3), vhml,e(5)
+    vmov mx1, mx
+    vmov my1, my
 
     # Calculate normal: compute 32-bit cross product:
     #
@@ -799,7 +800,7 @@ swap_end:
     vsar vnz_i, COP2_ACC_HI
     vsar vnz_f, COP2_ACC_MD
 
-    # Compute HY*MX - HX*MY. Result in e(4).
+    # Compute HY*MX - HX*MY. Result in e4.
     vsubc vnz_f, vnz_f.e0
     vsub  vnz_i, vnz_i.e0
 
@@ -816,30 +817,30 @@ swap_end:
     or tricmd, t1
 
     # Calculate reciprocal of normal
-    vrcph vnz_i,e(0), vnz_i,e(4)
-    vrcpl vnz_f,e(0),  vnz_f,e(4)
-    vrcph vnz_i,e(0), v__,e(0)
-    #define inz_f   vnz_f,e(0)
-    #define inz_i   vnz_i,e(0)
+    vrcph vnz_i.e0, vnz_i.e4
+    vrcpl vnz_f.e0, vnz_f.e4
+    vrcph vnz_i.e0, v__.e0
+    #define inz_f   vnz_f.e0
+    #define inz_i   vnz_i.e0
 
     # Compute SLOPE vector
     # slope    =  -- -- -- --    1/HY 1/MY 1/LY 1/NZ
 
     # Compute ISL (L slope). 1/LY  (s14.1)
-    vrcp  vslope_f,e(6), vhml,e(6)
-    vrcph vslope_i,e(6), vhml,e(6)
+    vrcp  vslope_f.e6, vhml.e6
+    vrcph vslope_i.e6, vhml.e6
     # Compute ISM (M slope). 1/MY  (s14.1)
-    vrcp  vslope_f,e(5), vhml,e(5)
-    vrcph vslope_i,e(5), vhml,e(5)
+    vrcp  vslope_f.e5, vhml.e5
+    vrcph vslope_i.e5, vhml.e5
     # Compute ISH (H slope). 1/HY  (s14.1)
-    vrcp  vslope_f,e(4), vhml,e(4)
-    vrcph vslope_i,e(4), vhml,e(4)
+    vrcp  vslope_f.e4, vhml.e4
+    vrcph vslope_i.e4, vhml.e4
 
     ##################
     # 1 NR pass
     ##################
-    vmov vslope_f,15, inz_f
-    vmov vslope_i,15, inz_i
+    vmov vslope_f.e7, inz_f
+    vmov vslope_i.e7, inz_i
 
     # Adjust multiplying by 2 (required after reciprocal)
     #vmudn vslope_f, vslope_f, K2
@@ -854,8 +855,8 @@ swap_end:
     #    vhml      =   HX MX LX MY    HY   MY   LY   NZf
     #    v__       =    0 0  0  0     0    0    0    NZi
     vxor v__, v__
-    vmov v__,15,  vnz_i,e(4)
-    vmov vhml,15, vnz_f,e(4)
+    vmov v__.e7,  vnz_i.e4
+    vmov vhml.e7, vnz_f.e4
 
     #define vtmp_f  vattr1
     #define vtmp_i  vattr2
@@ -883,8 +884,8 @@ swap_end:
     # v__       =    0 0  0  0     0    0    0    NZi
     # slope     =   -- -- -- --   1/HY 1/MY 1/LY  1/NZ
     
-    vmov vnz_f,8, vslope_f,e(7)
-    vmov vnz_i,8, vslope_i,e(7)
+    vmov vnz_f.e0, vslope_f.e7
+    vmov vnz_i.e0, vslope_i.e7
 
     # Rotate slope
     # slope     =   1/HY 1/MY 1/LY 1/NZ   -- -- -- --
@@ -918,12 +919,12 @@ swap_end:
     vsar  vslope_f, COP2_ACC_MD
     vsar  vslope_i, COP2_ACC_HI
 
-    #define ish_f   vslope_f,e(0)
-    #define ish_i   vslope_i,e(0)
-    #define ism_f   vslope_f,e(1)
-    #define ism_i   vslope_i,e(1)
-    #define isl_f   vslope_f,e(2)
-    #define isl_i   vslope_i,e(2)
+    #define ish_f   vslope_f.e0
+    #define ish_i   vslope_i.e0
+    #define ism_f   vslope_f.e1
+    #define ism_i   vslope_i.e1
+    #define isl_f   vslope_f.e2
+    #define isl_i   vslope_i.e2
 
     # Store slopes
     ssv isl_f, 14,s3
@@ -942,15 +943,15 @@ swap_end:
     vsll8 vfinal_f, vxy21, 14
 
     # Store X2 value in output (as XL)
-    ssv vfinal_f,4, 10,s3  # XL_F
-    ssv vfinal_i,4,  8,s3  # Xl_I
+    ssv vfinal_f.e2, 10,s3  # XL_F
+    ssv vfinal_i.e2,  8,s3  # Xl_I
 
     # Compute XH/XM
     # TODO: fy_i is always 0xFFFFFFFF here. See if we can benefit from this.
-    vmudl v__,      vslope_f, vfy_f,e(4)
-    vmadm v__,      vslope_i, vfy_f,e(4)
-    vmadn vedges_f, vslope_f, vfy_i,e(4)
-    vmadh vedges_i, vslope_i, vfy_i,e(4)
+    vmudl v__,      vslope_f, vfy_f.e4
+    vmadm v__,      vslope_i, vfy_f.e4
+    vmadn vedges_f, vslope_f, vfy_i.e4
+    vmadh vedges_i, vslope_i, vfy_i.e4
 
     vaddc vedges_f, vfinal_f.q0
     vadd  vedges_i, vfinal_i.q0
@@ -967,18 +968,18 @@ swap_end:
     # TODO: we can interleave these in all the code above, and at that point
     # it's useless to test for tricmd to save loads. Just load them all.
 
-    #define attr1_r     vattr1,e(0)
-    #define attr2_r     vattr2,e(0)
-    #define attr3_r     vattr3,e(0)
-    #define attr1_s     vattr1,e(4)
-    #define attr2_s     vattr2,e(4)
-    #define attr3_s     vattr3,e(4)
-    #define attr1_invw  vattr1,e(6)
-    #define attr2_invw  vattr2,e(6)
-    #define attr3_invw  vattr3,e(6)
-    #define attr1_z     vattr1,e(7)
-    #define attr2_z     vattr2,e(7)
-    #define attr3_z     vattr3,e(7)
+    #define attr1_r     vattr1.e0
+    #define attr2_r     vattr2.e0
+    #define attr3_r     vattr3.e0
+    #define attr1_s     vattr1.e4
+    #define attr2_s     vattr2.e4
+    #define attr3_s     vattr3.e4
+    #define attr1_invw  vattr1.e6
+    #define attr2_invw  vattr2.e6
+    #define attr3_invw  vattr3.e6
+    #define attr1_z     vattr1.e7
+    #define attr2_z     vattr2.e7
+    #define attr3_z     vattr3.e7
     luv attr1_r, VTX_ATTR_RGBA,vtx1 # RGBA
     luv attr2_r, VTX_ATTR_RGBA,vtx2
     luv attr3_r, VTX_ATTR_RGBA,vtx3
@@ -1039,9 +1040,9 @@ swap_end:
     vsrl vinvw_i, vinvw_i, 1
 
     # Copy inv_w components into ATTRn
-    vmov vattr1,14, vinvw_i,12
-    vmov vattr2,14, vinvw_i,13
-    vmov vattr3,14, vinvw_i,14
+    vmov vattr1.e6, vinvw_i.e4
+    vmov vattr2.e6, vinvw_i.e5
+    vmov vattr3.e6, vinvw_i.e6
 
     lsv attr1_z, VTX_ATTR_Z,vtx1  # Load Z
     lsv attr2_z, VTX_ATTR_Z,vtx2
