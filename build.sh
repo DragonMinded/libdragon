@@ -50,4 +50,4 @@ rm -Rf $LIBMIKMOD_DIR
 # installed version rather than using local artifacts.
 makeWithParams clobber
 makeWithParams examples
-makeWithParams -C ./tests
+makeWithParams test
