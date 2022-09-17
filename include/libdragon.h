@@ -52,5 +52,6 @@
 #include "xm64.h"
 #include "ym64.h"
 #include "rspq.h"
+#include "surface.h"
 
 #endif
