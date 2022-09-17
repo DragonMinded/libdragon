@@ -34,22 +34,11 @@
 #define I16_TO_FLOAT(x) MAX((x)/(float)(0x7FFF),-1.f)
 #define I32_TO_FLOAT(x) MAX((x)/(float)(0x7FFFFFFF),-1.f)
 
-#define GL_SET_DIRTY_FLAG(flag) ({ state.dirty_flags |= (flag); })
-#define GL_IS_DIRTY_FLAG_SET(flag) (state.dirty_flags & (flag))
-
-#define GL_SET_STATE(var, value, dirty_flag) ({ \
+#define GL_SET_STATE(var, value) ({ \
     typeof(value) _v = (value); \
-    dirty_flag = _v != var; \
+    bool dirty_flag = _v != var; \
     var = _v; \
     dirty_flag; \
-})
-
-#define GL_SET_STATE_FLAG(var, value, flag) ({ \
-    typeof(value) _v = (value); \
-    if (_v != var) { \
-        var = _v; \
-        GL_SET_DIRTY_FLAG(flag); \
-    } \
 })
 
 extern uint32_t gl_overlay_id;
@@ -63,19 +52,25 @@ enum {
     GL_CMD_SET_WORD     = 0x3,
     GL_CMD_SET_LONG     = 0x4,
     GL_CMD_UPDATE       = 0x5,
+    GL_CMD_BIND_TEXTURE = 0x6,
+    GL_CMD_GET_VALUE    = 0x7,
 };
 
 typedef enum {
-    GL_UPDATE_NONE          = 0x0,
-    GL_UPDATE_DEPTH_TEST    = 0x1,
-    GL_UPDATE_DEPTH_MASK    = 0x2,
-    GL_UPDATE_BLEND         = 0x3,
-    GL_UPDATE_DITHER        = 0x4,
-    GL_UPDATE_POINTS        = 0x5,
-    GL_UPDATE_ALPHA_TEST    = 0x6,
-    GL_UPDATE_BLEND_CYCLE   = 0x7,
-    GL_UPDATE_FOG_CYCLE     = 0x8,
-    GL_UPDATE_SCISSOR       = 0x9,
+    GL_UPDATE_NONE                  = 0x0,
+    GL_UPDATE_DEPTH_TEST            = 0x1,
+    GL_UPDATE_DEPTH_MASK            = 0x2,
+    GL_UPDATE_BLEND                 = 0x3,
+    GL_UPDATE_DITHER                = 0x4,
+    GL_UPDATE_POINTS                = 0x5,
+    GL_UPDATE_ALPHA_TEST            = 0x6,
+    GL_UPDATE_BLEND_CYCLE           = 0x7,
+    GL_UPDATE_FOG_CYCLE             = 0x8,
+    GL_UPDATE_SCISSOR               = 0x9,
+    GL_UPDATE_COMBINER              = 0xA,
+    GL_UPDATE_TEXTURE               = 0xB,
+    GL_UPDATE_TEXTURE_COMPLETENESS  = 0xC,
+    GL_UPDATE_TEXTURE_UPLOAD        = 0xD,
 } gl_update_func_t;
 
 enum {
@@ -117,30 +112,59 @@ typedef struct {
 } gl_matrix_stack_t;
 
 typedef struct {
-    uint32_t width;
-    uint32_t height;
-    uint32_t stride;
-    GLenum internal_format;
+    uint32_t tex_image;
     void *data;
-} gl_texture_image_t;
+    uint32_t set_load_tile;
+    uint32_t load_block;
+    uint32_t set_tile;
+    uint16_t width;
+    uint16_t height;
+    uint16_t stride;
+    uint16_t internal_format;
+    uint16_t tmem_size;
+    uint8_t width_log;
+    uint8_t height_log;
+} __attribute__((aligned(16), packed)) gl_texture_image_t;
+_Static_assert(sizeof(gl_texture_image_t) == TEXTURE_IMAGE_SIZE, "Texture image has incorrect size!");
+_Static_assert(offsetof(gl_texture_image_t, tex_image) == IMAGE_TEX_IMAGE_OFFSET, "Texture image has incorrect layout!");
+_Static_assert(offsetof(gl_texture_image_t, data) == IMAGE_DATA_OFFSET, "Texture image has incorrect layout!");
+_Static_assert(offsetof(gl_texture_image_t, set_load_tile) == IMAGE_SET_LOAD_TILE_OFFSET, "Texture image has incorrect layout!");
+_Static_assert(offsetof(gl_texture_image_t, load_block) == IMAGE_LOAD_BLOCK_OFFSET, "Texture image has incorrect layout!");
+_Static_assert(offsetof(gl_texture_image_t, set_tile) == IMAGE_SET_TILE_OFFSET, "Texture image has incorrect layout!");
+_Static_assert(offsetof(gl_texture_image_t, width) == IMAGE_WIDTH_OFFSET, "Texture image has incorrect layout!");
+_Static_assert(offsetof(gl_texture_image_t, height) == IMAGE_HEIGHT_OFFSET, "Texture image has incorrect layout!");
+_Static_assert(offsetof(gl_texture_image_t, stride) == IMAGE_STRIDE_OFFSET, "Texture image has incorrect layout!");
+_Static_assert(offsetof(gl_texture_image_t, internal_format) == IMAGE_INTERNAL_FORMAT_OFFSET, "Texture image has incorrect layout!");
+_Static_assert(offsetof(gl_texture_image_t, tmem_size) == IMAGE_TMEM_SIZE_OFFSET, "Texture image has incorrect layout!");
+_Static_assert(offsetof(gl_texture_image_t, width_log) == IMAGE_WIDTH_LOG_OFFSET, "Texture image has incorrect layout!");
+_Static_assert(offsetof(gl_texture_image_t, height_log) == IMAGE_HEIGHT_LOG_OFFSET, "Texture image has incorrect layout!");
 
 typedef struct {
     gl_texture_image_t levels[MAX_TEXTURE_LEVELS];
-    uint32_t num_levels;
-    GLenum dimensionality;
-    GLenum wrap_s;
-    GLenum wrap_t;
-    GLenum min_filter;
-    GLenum mag_filter;
-    GLclampf priority;
-    bool is_complete;
-    bool is_upload_dirty;
-    bool is_modes_dirty;
-} gl_texture_object_t;
+
+    uint32_t flags;
+    int32_t priority;
+    uint16_t wrap_s;
+    uint16_t wrap_t;
+    uint16_t min_filter;
+    uint16_t mag_filter;
+
+    // These properties are not DMA'd
+    uint16_t dimensionality;
+    uint16_t padding[7];
+} __attribute__((aligned(16), packed)) gl_texture_object_t;
+_Static_assert(sizeof(gl_texture_object_t) == TEXTURE_OBJECT_SIZE, "Texture object has incorrect size!");
+_Static_assert((1 << TEXTURE_OBJECT_SIZE_LOG) == TEXTURE_OBJECT_SIZE, "Texture object has incorrect size!");
+_Static_assert(offsetof(gl_texture_object_t, flags)             == TEXTURE_FLAGS_OFFSET, "Texture object has incorrect layout!");
+_Static_assert(offsetof(gl_texture_object_t, priority)          == TEXTURE_PRIORITY_OFFSET, "Texture object has incorrect layout!");
+_Static_assert(offsetof(gl_texture_object_t, wrap_s)            == TEXTURE_WRAP_S_OFFSET, "Texture object has incorrect layout!");
+_Static_assert(offsetof(gl_texture_object_t, wrap_t)            == TEXTURE_WRAP_T_OFFSET, "Texture object has incorrect layout!");
+_Static_assert(offsetof(gl_texture_object_t, min_filter)        == TEXTURE_MIN_FILTER_OFFSET, "Texture object has incorrect layout!");
+_Static_assert(offsetof(gl_texture_object_t, mag_filter)        == TEXTURE_MAG_FILTER_OFFSET, "Texture object has incorrect layout!");
+_Static_assert(offsetof(gl_texture_object_t, dimensionality)    == TEXTURE_DIMENSIONALITY_OFFSET, "Texture object has incorrect layout!");
 
 typedef struct {
     gl_vertex_t *vertices[CLIPPING_PLANE_COUNT + 3];
-    bool edge_flags[CLIPPING_PLANE_COUNT + 3];
     uint32_t count;
 } gl_clipping_list_t;
 
@@ -214,6 +238,12 @@ typedef struct {
 } gl_pixel_map_t;
 
 typedef struct {
+    int frame_id;
+    uint32_t count;
+    uint64_t *slots;
+} gl_deletion_list_t;
+
+typedef struct {
     gl_open_surf_func_t open_surface;
     gl_close_surf_func_t close_surface;
     gl_framebuffer_t default_framebuffer;
@@ -230,8 +260,6 @@ typedef struct {
 
     GLclampf clear_color[4];
     GLclampd clear_depth;
-
-    uint32_t scissor_box[4];
 
     GLfloat persp_norm_factor;
 
@@ -274,6 +302,12 @@ typedef struct {
     uint32_t prim_counter;
     uint8_t (*prim_func)(void);
 
+    uint16_t prim_tex_width;
+    uint16_t prim_tex_height;
+    bool prim_texture;
+    bool prim_bilinear;
+    uint8_t prim_mipmaps;
+
     GLfloat current_attribs[ATTRIB_COUNT][4];
 
     gl_attrib_source_t attrib_sources[ATTRIB_COUNT];
@@ -295,14 +329,10 @@ typedef struct {
     gl_matrix_stack_t texture_stack;
     gl_matrix_stack_t *current_matrix_stack;
 
-    gl_texture_object_t default_texture_1d;
-    gl_texture_object_t default_texture_2d;
+    gl_texture_object_t *default_textures;
 
     gl_texture_object_t *texture_1d_object;
     gl_texture_object_t *texture_2d_object;
-
-    gl_texture_object_t *uploaded_texture;
-    gl_texture_object_t *last_used_texture;
 
     gl_material_t material;
     gl_light_t lights[LIGHT_COUNT];
@@ -332,8 +362,6 @@ typedef struct {
 
     bool transfer_is_noop;
 
-    GLenum tex_env_mode;
-
     obj_map_t list_objects;
     GLuint next_list_name;
     GLuint list_base;
@@ -343,23 +371,32 @@ typedef struct {
     gl_buffer_object_t *element_array_buffer;
 
     bool immediate_active;
+
+    gl_deletion_list_t deletion_lists[MAX_DELETION_LISTS];
+    gl_deletion_list_t *current_deletion_list;
+
+    int frame_id;
+    volatile int frames_complete;
 } gl_state_t;
 
 typedef struct {
-    uint32_t flags;
-    uint32_t depth_func;
-    uint32_t alpha_func;
-    uint32_t blend_src;
-    uint32_t blend_dst;
-    uint32_t blend_cycle;
-    uint32_t tex_env_mode;
-    uint32_t polygon_mode;
-    uint32_t prim_type;
-    uint32_t fog_color;
-    uint16_t fb_size[2];
+    gl_texture_object_t bound_textures[2];
     uint16_t scissor_rect[4];
+    uint32_t flags;
+    uint32_t blend_cycle;
+    uint32_t fog_color;
+    uint32_t texture_ids[2];
+    uint32_t uploaded_tex;
+    uint16_t fb_size[2];
+    uint16_t depth_func;
+    uint16_t alpha_func;
+    uint16_t blend_src;
+    uint16_t blend_dst;
+    uint16_t tex_env_mode;
+    uint16_t polygon_mode;
+    uint16_t prim_type;
     uint8_t alpha_ref;
-} __attribute__((aligned(16), packed)) gl_server_state_t;
+} __attribute__((aligned(8), packed)) gl_server_state_t;
 
 void gl_matrix_init();
 void gl_texture_init();
@@ -384,14 +421,6 @@ void gl_matrix_mult(GLfloat *d, const gl_matrix_t *m, const GLfloat *v);
 void gl_matrix_mult3x3(GLfloat *d, const gl_matrix_t *m, const GLfloat *v);
 void gl_matrix_mult4x2(GLfloat *d, const gl_matrix_t *m, const GLfloat *v);
 
-bool gl_is_invisible();
-
-bool gl_calc_is_points();
-
-void gl_update_rendermode();
-void gl_update_combiner();
-void gl_update_texture();
-
 void gl_perform_lighting(GLfloat *color, const GLfloat *input, const GLfloat *v, const GLfloat *n, const gl_material_t *material);
 
 gl_texture_object_t * gl_get_active_texture();
@@ -405,8 +434,11 @@ bool gl_storage_alloc(gl_storage_t *storage, uint32_t size);
 void gl_storage_free(gl_storage_t *storage);
 bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size);
 
+uint64_t * gl_reserve_deletion_slot();
+
 inline bool is_in_heap_memory(void *ptr)
 {
+    ptr = CachedAddr(ptr);
     return ptr >= HEAP_START_ADDR && ptr < ((void*)KSEG0_START_ADDR + get_memory_size());
 }
 
@@ -415,9 +447,24 @@ inline bool is_valid_object_id(GLuint id)
     return is_in_heap_memory((void*)id);
 }
 
+inline bool gl_tex_is_complete(const gl_texture_object_t *obj)
+{
+    return obj->flags & TEX_FLAG_COMPLETE;
+}
+
+inline uint8_t gl_tex_get_levels(const gl_texture_object_t *obj)
+{
+    return obj->flags & 0x7;
+}
+
+inline void gl_set_flag_raw(gl_update_func_t update_func, uint32_t offset, uint32_t flag, bool value)
+{
+    gl_write(GL_CMD_SET_FLAG, _carg(update_func, 0x7FF, 13) | _carg(offset, 0xFFC, 0) | _carg(value, 0x1, 0), value ? flag : ~flag);
+}
+
 inline void gl_set_flag(gl_update_func_t update_func, uint32_t flag, bool value)
 {
-    gl_write(GL_CMD_SET_FLAG, _carg(update_func, 0x7FF, 13) | _carg(value, 0x1, 11), value ? flag : ~flag);
+    gl_set_flag_raw(update_func, offsetof(gl_server_state_t, flags), flag, value);
 }
 
 inline void gl_set_byte(gl_update_func_t update_func, uint32_t offset, uint8_t value)
@@ -443,6 +490,22 @@ inline void gl_set_long(gl_update_func_t update_func, uint32_t offset, uint64_t 
 inline void gl_update(gl_update_func_t update_func)
 {
     gl_write(GL_CMD_UPDATE, _carg(update_func, 0x7FF, 13));
+}
+
+inline void gl_get_value(void *dst, uint32_t offset, uint32_t size)
+{
+    gl_write(GL_CMD_GET_VALUE, _carg(size-1, 0xFFF, 12) | _carg(offset, 0xFFF, 0), PhysicalAddr(dst));
+}
+
+inline void gl_bind_texture(GLenum target, gl_texture_object_t *texture)
+{
+    uint32_t is_2d = target == GL_TEXTURE_2D ? 1 : 0;
+    gl_write(GL_CMD_BIND_TEXTURE, is_2d, PhysicalAddr(texture));
+}
+
+inline void gl_update_texture_completeness(uint32_t offset)
+{
+    gl_write(GL_CMD_UPDATE, _carg(GL_UPDATE_TEXTURE_COMPLETENESS, 0x7FF, 13) | offset);
 }
 
 #endif

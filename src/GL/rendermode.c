@@ -61,101 +61,20 @@ static const rdpq_blender_t blend_configs[64] = {
     0, 0, 0, 0, 0, 0, 0, 0,                                        // src = ONE_MINUS_DST_ALPHA, dst = ...
 };
 
-#define TEXTURE_REPLACE 0x1
-#define COLOR_CONSTANT  0x2
-#define TEXTURE_ENABLED 0x4
-
-static const rdpq_combiner_t combiner_table[] = {
-    // No texture
-    RDPQ_COMBINER1((0, 0, 0, SHADE), (0, 0, 0, SHADE)),         // "modulate"
-    RDPQ_COMBINER1((0, 0, 0, SHADE), (0, 0, 0, SHADE)),         // "replace"
-    RDPQ_COMBINER1((0, 0, 0, PRIM), (0, 0, 0, PRIM)),           // constant "modulate"
-    RDPQ_COMBINER1((0, 0, 0, PRIM), (0, 0, 0, PRIM)),           // constant "replace"
-
-    // Texture enabled
-    RDPQ_COMBINER1((TEX0, 0, SHADE, 0), (TEX0, 0, SHADE, 0)),   // modulate
-    RDPQ_COMBINER1((0, 0, 0, TEX0), (0, 0, 0, TEX0)),           // replace
-    RDPQ_COMBINER1((TEX0, 0, PRIM, 0), (TEX0, 0, PRIM, 0)),     // constant modulate
-    RDPQ_COMBINER1((0, 0, 0, TEX0), (0, 0, 0, TEX0)),           // constant replace
-};
-
 void gl_rendermode_init()
 {
     state.fog_start = 0.0f;
     state.fog_end = 1.0f;
-
-    state.tex_env_mode = GL_MODULATE;
 
     glEnable(GL_DITHER);
     glBlendFunc(GL_ONE, GL_ZERO);
     glDepthFunc(GL_LESS);
     glDepthMask(GL_TRUE);
     glAlphaFunc(GL_ALWAYS, 0.0f);
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
     GLfloat fog_color[] = {0, 0, 0, 0};
     glFogfv(GL_FOG_COLOR, fog_color);
-}
-
-bool gl_is_invisible()
-{
-    return state.draw_buffer == GL_NONE 
-        || (state.depth_test && state.depth_func == GL_NEVER)
-        || (state.alpha_test && state.alpha_func == GL_NEVER);
-}
-
-void gl_update_rendermode()
-{
-    gl_texture_object_t *tex_obj = gl_get_active_texture();
-
-    rdpq_filter_t filter = FILTER_POINT;
-    rdpq_mipmap_t mipmap = MIPMAP_NONE;
-    int levels = 0;
-
-    // texture
-    if (tex_obj != NULL && tex_obj->is_complete) {
-        // We can't use separate modes for minification and magnification, so just use bilinear sampling when at least one of them demands it
-        if (tex_obj->mag_filter == GL_LINEAR || 
-            tex_obj->min_filter == GL_LINEAR ||
-            tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR || 
-            tex_obj->min_filter == GL_LINEAR_MIPMAP_NEAREST) {
-            filter = FILTER_BILINEAR;
-        }
-
-        if (!gl_calc_is_points()) {
-            if (tex_obj->min_filter == GL_NEAREST_MIPMAP_NEAREST || 
-                tex_obj->min_filter == GL_LINEAR_MIPMAP_NEAREST) {
-                mipmap = MIPMAP_NEAREST;
-            } else if (tex_obj->min_filter == GL_NEAREST_MIPMAP_LINEAR || 
-                    tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR) {
-                mipmap = MIPMAP_INTERPOLATE;
-            }
-
-            levels = tex_obj->num_levels;
-        }
-    }
-
-    rdpq_mode_filter(filter);
-    rdpq_mode_mipmap(mipmap, levels);
-}
-
-void gl_update_combiner()
-{
-    uint32_t mode = 0;
-
-    if (gl_calc_is_points()) {
-        mode |= COLOR_CONSTANT;
-    }
-
-    gl_texture_object_t *tex_obj = gl_get_active_texture();
-    if (tex_obj != NULL && tex_obj->is_complete) {
-        mode |= TEXTURE_ENABLED;
-    }
-
-    if (state.tex_env_mode == GL_REPLACE) {
-        mode |= TEXTURE_REPLACE;
-    }
-
-    rdpq_mode_combiner(combiner_table[mode]);
 }
 
 void glFogi(GLenum pname, GLint param)
@@ -301,7 +220,8 @@ void glBlendFunc(GLenum src, GLenum dst)
     uint32_t cycle = blend_configs[config_index] | SOM_BLENDING;
     assertf(cycle != 0, "Unsupported blend function");
 
-    gl_set_long(GL_UPDATE_NONE, offsetof(gl_server_state_t, blend_src), (((uint64_t)src) << 32) | (uint64_t)dst);
+    // TODO: coalesce these
+    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, blend_src), (((uint32_t)src) << 16) | (uint32_t)dst);
     gl_set_word(GL_UPDATE_BLEND_CYCLE, offsetof(gl_server_state_t, blend_cycle), cycle);
 }
 
@@ -311,7 +231,7 @@ void glDepthFunc(GLenum func)
     case GL_NEVER:
     case GL_LESS:
     case GL_ALWAYS:
-        gl_set_word(GL_UPDATE_DEPTH_TEST, offsetof(gl_server_state_t, depth_func), func);
+        gl_set_short(GL_UPDATE_DEPTH_TEST, offsetof(gl_server_state_t, depth_func), (uint16_t)func);
         state.depth_func = func;
         break;
     case GL_EQUAL:
@@ -338,7 +258,7 @@ void glAlphaFunc(GLenum func, GLclampf ref)
     case GL_NEVER:
     case GL_GREATER:
     case GL_ALWAYS:
-        gl_set_word(GL_UPDATE_ALPHA_TEST, offsetof(gl_server_state_t, alpha_func), func);
+        gl_set_short(GL_UPDATE_ALPHA_TEST, offsetof(gl_server_state_t, alpha_func), (uint16_t)func);
         gl_set_byte(GL_UPDATE_NONE, offsetof(gl_server_state_t, alpha_ref), FLOAT_TO_U8(ref));
         rdpq_set_blend_color(RGBA32(0, 0, 0, FLOAT_TO_U8(ref)));
         state.alpha_func = func;
@@ -366,7 +286,7 @@ void glTexEnvi(GLenum target, GLenum pname, GLint param)
     switch (param) {
     case GL_MODULATE:
     case GL_REPLACE:
-        state.tex_env_mode = param;
+        gl_set_short(GL_UPDATE_COMBINER, offsetof(gl_server_state_t, tex_env_mode), (uint16_t)param);
         break;
     case GL_DECAL:
     case GL_BLEND:

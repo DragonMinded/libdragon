@@ -8,6 +8,7 @@
 #include "utils.h"
 #include <string.h>
 #include <math.h>
+#include <malloc.h>
 #include "gl_internal.h"
 
 DEFINE_RSP_UCODE(rsp_gl);
@@ -50,9 +51,6 @@ void gl_set_framebuffer(gl_framebuffer_t *framebuffer)
     // TODO: disable auto scissor?
     rdpq_set_color_image(state.cur_framebuffer->color_buffer);
     rdpq_set_z_image_raw(0, PhysicalAddr(state.cur_framebuffer->depth_buffer));
-
-    uint32_t size = (framebuffer->color_buffer->width << 16) | framebuffer->color_buffer->height;
-    gl_set_word(GL_UPDATE_SCISSOR, offsetof(gl_server_state_t, fb_size), size);
 }
 
 void gl_set_default_framebuffer()
@@ -97,22 +95,27 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
     //rdpq_debug_start();
     //rdpq_debug_log(true);
 
-    rdpq_mode_begin();
-    rdpq_set_mode_standard();
-
     memset(&state, 0, sizeof(state));
 
     state.open_surface = open_surface;
     state.close_surface = close_surface;
 
-    gl_server_state_t *server_state = rspq_overlay_get_state(&rsp_gl);
+    gl_texture_init();
+
+    gl_server_state_t *server_state = UncachedAddr(rspq_overlay_get_state(&rsp_gl));
     memset(server_state, 0, sizeof(gl_server_state_t));
+
+    memcpy(&server_state->bound_textures, state.default_textures, sizeof(gl_texture_object_t) * 2);
+    server_state->texture_ids[0] = PhysicalAddr(&state.default_textures[0]);
+    server_state->texture_ids[1] = PhysicalAddr(&state.default_textures[1]);
 
     gl_overlay_id = rspq_overlay_register(&rsp_gl);
 
+    rdpq_mode_begin();
+    rdpq_set_mode_standard();
+
     gl_matrix_init();
     gl_lighting_init();
-    gl_texture_init();
     gl_rendermode_init();
     gl_array_init();
     gl_primitive_init();
@@ -127,15 +130,23 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
 
     gl_set_default_framebuffer();
     glViewport(0, 0, state.default_framebuffer.color_buffer->width, state.default_framebuffer.color_buffer->height);
-    glScissor(0, 0, state.default_framebuffer.color_buffer->width, state.default_framebuffer.color_buffer->height);
 
     uint32_t packed_size = ((uint32_t)state.default_framebuffer.color_buffer->width) << 16 | (uint32_t)state.default_framebuffer.color_buffer->height;
+    gl_set_word(GL_UPDATE_SCISSOR, offsetof(gl_server_state_t, fb_size), packed_size);
 
-    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, fb_size), packed_size);
+    glScissor(0, 0, state.default_framebuffer.color_buffer->width, state.default_framebuffer.color_buffer->height);
 }
 
 void gl_close()
 {
+    for (uint32_t i = 0; i < MAX_DELETION_LISTS; i++)
+    {
+        gl_deletion_list_t *list = &state.deletion_lists[i];
+        if (list->slots != NULL) {
+            free_uncached(list->slots);
+        }
+    }
+    
     gl_list_close();
     gl_primitive_close();
     gl_texture_close();
@@ -143,11 +154,91 @@ void gl_close()
     rdpq_close();
 }
 
+gl_deletion_list_t * gl_find_empty_deletion_list()
+{
+    gl_deletion_list_t *list = NULL;
+    // Look for unused deletion list
+    for (uint32_t i = 0; i < MAX_DELETION_LISTS; i++)
+    {
+        if (state.deletion_lists[i].count == 0) {
+            list = &state.deletion_lists[i];
+            break;
+        }
+    }
+
+    assertf(list != NULL, "Ran out of deletion lists!");
+
+    if (list->slots == NULL) {
+        // TODO: maybe cached memory is more efficient in this case?
+        list->slots = malloc_uncached(sizeof(uint64_t) * DELETION_LIST_SIZE);
+    }
+
+    list->frame_id = state.frame_id;
+    return list;
+}
+
+uint64_t * gl_reserve_deletion_slot()
+{
+    if (state.current_deletion_list == NULL) {
+        state.current_deletion_list = gl_find_empty_deletion_list();
+    }
+
+    gl_deletion_list_t *list = state.current_deletion_list;
+
+    // TODO: how to deal with list being full?
+    assertf(list->count < DELETION_LIST_SIZE, "Deletion list is full!");
+
+    uint64_t *slot = &list->slots[list->count];
+    list->count++;
+    return slot;
+}
+
+void gl_handle_deletion_lists()
+{
+    int frames_complete = state.frames_complete;
+    MEMORY_BARRIER();
+
+    for (uint32_t i = 0; i < MAX_DELETION_LISTS; i++)
+    {
+        gl_deletion_list_t *list = &state.deletion_lists[i];
+        if (list->count == 0) continue;
+        
+        // Skip if the frame is not complete yet
+        int difference = (int)((uint32_t)(list->frame_id) - (uint32_t)(frames_complete));
+        if (difference >= 0) {
+            continue;
+        }
+        
+        for (uint32_t j = 0; j < list->count; j++)
+        {
+            volatile uint32_t *slots = (volatile uint32_t*)list->slots;
+            uint32_t phys_ptr = slots[j*2 + 1];
+            if (phys_ptr == 0) continue;
+
+            void *ptr = UncachedAddr(KSEG0_START_ADDR + (phys_ptr & 0xFFFFFFFF));
+            free_uncached(ptr);
+        }
+
+        list->count = 0;
+    }
+
+    state.current_deletion_list = NULL;
+}
+
+void gl_on_frame_complete(surface_t *surface)
+{
+    state.frames_complete++;
+    state.close_surface(surface);
+}
+
 void gl_swap_buffers()
 {
-    rdpq_sync_full((void(*)(void*))state.close_surface, state.default_framebuffer.color_buffer);
+    rdpq_sync_full((void(*)(void*))gl_on_frame_complete, state.default_framebuffer.color_buffer);
     rspq_flush();
+    //gl_handle_deletion_lists();
     gl_set_default_framebuffer();
+
+    state.frame_id++;
 }
 
 GLenum glGetError(void)
@@ -194,9 +285,11 @@ void gl_set_flag2(GLenum target, bool value)
         rdpq_mode_antialias(value);
         break;
     case GL_TEXTURE_1D:
+        gl_set_flag(GL_UPDATE_TEXTURE, FLAG_TEXTURE_1D, value);
         state.texture_1d = value;
         break;
     case GL_TEXTURE_2D:
+        gl_set_flag(GL_UPDATE_TEXTURE, FLAG_TEXTURE_2D, value);
         state.texture_2d = value;
         break;
     case GL_CULL_FACE:

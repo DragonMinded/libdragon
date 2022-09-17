@@ -5,12 +5,12 @@
 #include <string.h>
 #include <malloc.h>
 
-#define LOAD_TILE 7
-
 extern gl_state_t state;
 
 void gl_init_texture_object(gl_texture_object_t *obj)
 {
+    memset(obj, 0, sizeof(gl_texture_object_t));
+
     *obj = (gl_texture_object_t) {
         .wrap_s = GL_REPEAT,
         .wrap_t = GL_REPEAT,
@@ -31,20 +31,24 @@ void gl_cleanup_texture_object(gl_texture_object_t *obj)
 
 void gl_texture_init()
 {
-    gl_init_texture_object(&state.default_texture_1d);
-    gl_init_texture_object(&state.default_texture_2d);
+    state.default_textures = malloc_uncached(sizeof(gl_texture_object_t) * 2);
 
-    state.default_texture_1d.dimensionality = GL_TEXTURE_1D;
-    state.default_texture_2d.dimensionality = GL_TEXTURE_2D;
+    gl_init_texture_object(&state.default_textures[0]);
+    gl_init_texture_object(&state.default_textures[1]);
 
-    state.texture_1d_object = &state.default_texture_1d;
-    state.texture_2d_object = &state.default_texture_2d;
+    state.default_textures[0].dimensionality = GL_TEXTURE_1D;
+    state.default_textures[1].dimensionality = GL_TEXTURE_2D;
+
+    state.texture_1d_object = &state.default_textures[0];
+    state.texture_2d_object = &state.default_textures[1];
 }
 
 void gl_texture_close()
 {
-    gl_cleanup_texture_object(&state.default_texture_1d);
-    gl_cleanup_texture_object(&state.default_texture_2d);
+    gl_cleanup_texture_object(&state.default_textures[0]);
+    gl_cleanup_texture_object(&state.default_textures[1]);
+
+    free_uncached(state.default_textures);
 }
 
 uint32_t gl_log2(uint32_t s)
@@ -54,7 +58,7 @@ uint32_t gl_log2(uint32_t s)
     return log;
 }
 
-tex_format_t gl_get_texture_format(GLenum format)
+tex_format_t gl_tex_format_to_rdp(GLenum format)
 {
     switch (format) {
     case GL_RGB5_A1:
@@ -74,6 +78,383 @@ tex_format_t gl_get_texture_format(GLenum format)
     }
 }
 
+GLenum rdp_tex_format_to_gl(tex_format_t format)
+{
+    switch (format) {
+    case FMT_RGBA16:
+        return GL_RGB5_A1;
+    case FMT_RGBA32:
+        return GL_RGBA8;
+    case FMT_IA8:
+        return GL_LUMINANCE4_ALPHA4;
+    case FMT_IA16:
+        return GL_LUMINANCE8_ALPHA8;
+    case FMT_I4:
+        return GL_INTENSITY4;
+    case FMT_I8:
+        return GL_INTENSITY8;
+    default:
+        return 0;
+    }
+}
+
+gl_texture_object_t * gl_get_active_texture()
+{
+    if (state.texture_2d) {
+        return state.texture_2d_object;
+    }
+
+    if (state.texture_1d) {
+        return state.texture_1d_object;
+    }
+
+    return NULL;
+}
+
+uint32_t gl_texture_get_offset(GLenum target)
+{
+    switch (target) {
+    case GL_TEXTURE_1D:
+        return offsetof(gl_server_state_t, bound_textures) + sizeof(gl_texture_object_t) * 0;
+    case GL_TEXTURE_2D:
+        return offsetof(gl_server_state_t, bound_textures) + sizeof(gl_texture_object_t) * 1;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return 0;
+    }
+}
+
+void glTexImageN64(GLenum target, GLint level, const surface_t *surface)
+{
+    uint32_t offset = gl_texture_get_offset(target);
+    if (offset == 0) return;
+
+    tex_format_t rdp_format = surface_get_format(surface);
+
+    GLenum internal_format = rdp_tex_format_to_gl(rdp_format);
+    if (internal_format == 0) {
+        gl_set_error(GL_INVALID_VALUE);
+        return;
+    }
+
+    uint32_t img_offset = offset + level * sizeof(gl_texture_image_t);
+
+    uint8_t width_log = gl_log2(surface->width);
+    uint8_t height_log = gl_log2(surface->height);
+
+    tex_format_t load_fmt = rdp_format;
+
+    // TODO: do this for 8-bit formats as well?
+    switch (rdp_format) {
+    case FMT_CI4:
+    case FMT_I4:
+        load_fmt = FMT_RGBA16;
+        break;
+    default:
+        break;
+    }
+
+    // TODO: this doesn't work with sub-surfaces yet!
+
+    uint16_t load_width = TEX_FORMAT_BYTES2PIX(load_fmt, surface->stride);
+    uint16_t num_texels = load_width * surface->height;
+    uint16_t words = surface->stride / 8;
+    uint16_t dxt = (2048 + words - 1) / words;
+    uint16_t tmem_size = (surface->stride * surface->height) / 8;
+
+    uint32_t tex_image = ((0xC0 + RDPQ_CMD_SET_TEXTURE_IMAGE) << 24) | (load_fmt << 19);
+    uint32_t set_load_tile = ((0xC0 + RDPQ_CMD_SET_TILE) << 24) | (load_fmt << 19);
+    uint32_t load_block = (LOAD_TILE << 24) | ((num_texels-1) << 12) | dxt;
+    uint32_t set_tile = ((0xC0 + RDPQ_CMD_SET_TILE) << 24) | (rdp_format << 19) | ((surface->stride/8) << 9);
+
+    // TODO: do this in one command?
+    gl_set_long(GL_UPDATE_NONE, img_offset + offsetof(gl_texture_image_t, tex_image), ((uint64_t)tex_image << 32) | PhysicalAddr(surface->buffer));
+    gl_set_long(GL_UPDATE_NONE, img_offset + offsetof(gl_texture_image_t, set_load_tile), ((uint64_t)set_load_tile << 32) | load_block);
+    gl_set_long(GL_UPDATE_NONE, img_offset + offsetof(gl_texture_image_t, set_tile), ((uint64_t)set_tile << 32) | ((uint64_t)surface->width << 16) | surface->height);
+    gl_set_long(GL_UPDATE_NONE, img_offset + offsetof(gl_texture_image_t, stride), ((uint64_t)surface->stride << 48) | ((uint64_t)internal_format << 32) | ((uint64_t)tmem_size << 16) | ((uint64_t)width_log << 8) | height_log);
+
+    gl_set_flag_raw(GL_UPDATE_NONE, offset + TEXTURE_FLAGS_OFFSET, TEX_FLAG_UPLOAD_DIRTY, true);
+
+    gl_update_texture_completeness(offset);
+}
+
+void gl_texture_set_wrap_s(uint32_t offset, GLenum param)
+{
+    switch (param) {
+    case GL_CLAMP:
+    case GL_REPEAT:
+        gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_texture_object_t, wrap_s), (uint16_t)param);
+        gl_set_flag_raw(GL_UPDATE_NONE, offset + TEXTURE_FLAGS_OFFSET, TEX_FLAG_UPLOAD_DIRTY, true);
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void gl_texture_set_wrap_t(uint32_t offset, GLenum param)
+{
+    switch (param) {
+    case GL_CLAMP:
+    case GL_REPEAT:
+        gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_texture_object_t, wrap_t), (uint16_t)param);
+        gl_set_flag_raw(GL_UPDATE_NONE, offset + TEXTURE_FLAGS_OFFSET, TEX_FLAG_UPLOAD_DIRTY, true);
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void gl_texture_set_min_filter(uint32_t offset, GLenum param)
+{
+    switch (param) {
+    case GL_NEAREST:
+    case GL_LINEAR:
+    case GL_NEAREST_MIPMAP_NEAREST:
+    case GL_LINEAR_MIPMAP_NEAREST:
+    case GL_NEAREST_MIPMAP_LINEAR:
+    case GL_LINEAR_MIPMAP_LINEAR:
+        gl_set_short(GL_UPDATE_TEXTURE, offset + offsetof(gl_texture_object_t, min_filter), (uint16_t)param);
+        gl_update_texture_completeness(offset);
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void gl_texture_set_mag_filter(uint32_t offset, GLenum param)
+{
+    switch (param) {
+    case GL_NEAREST:
+    case GL_LINEAR:
+        gl_set_short(GL_UPDATE_TEXTURE, offset + offsetof(gl_texture_object_t, mag_filter), (uint16_t)param);
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void gl_texture_set_priority(uint32_t offset, GLint param)
+{
+    gl_set_word(GL_UPDATE_NONE, offset + offsetof(gl_texture_object_t, priority), param);
+}
+
+void glTexParameteri(GLenum target, GLenum pname, GLint param)
+{
+    uint32_t offset = gl_texture_get_offset(target);
+    if (offset == 0) {
+        return;
+    }
+
+    switch (pname) {
+    case GL_TEXTURE_WRAP_S:
+        gl_texture_set_wrap_s(offset, param);
+        break;
+    case GL_TEXTURE_WRAP_T:
+        gl_texture_set_wrap_t(offset, param);
+        break;
+    case GL_TEXTURE_MIN_FILTER:
+        gl_texture_set_min_filter(offset, param);
+        break;
+    case GL_TEXTURE_MAG_FILTER:
+        gl_texture_set_mag_filter(offset, param);
+        break;
+    case GL_TEXTURE_PRIORITY:
+        gl_texture_set_priority(offset, param);
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void glTexParameterf(GLenum target, GLenum pname, GLfloat param)
+{
+    uint32_t offset = gl_texture_get_offset(target);
+    if (offset == 0) {
+        return;
+    }
+
+    switch (pname) {
+    case GL_TEXTURE_WRAP_S:
+        gl_texture_set_wrap_s(offset, param);
+        break;
+    case GL_TEXTURE_WRAP_T:
+        gl_texture_set_wrap_t(offset, param);
+        break;
+    case GL_TEXTURE_MIN_FILTER:
+        gl_texture_set_min_filter(offset, param);
+        break;
+    case GL_TEXTURE_MAG_FILTER:
+        gl_texture_set_mag_filter(offset, param);
+        break;
+    case GL_TEXTURE_PRIORITY:
+        gl_texture_set_priority(offset, CLAMPF_TO_I32(param));
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void glTexParameteriv(GLenum target, GLenum pname, const GLint *params)
+{
+    uint32_t offset = gl_texture_get_offset(target);
+    if (offset == 0) {
+        return;
+    }
+
+    switch (pname) {
+    case GL_TEXTURE_WRAP_S:
+        gl_texture_set_wrap_s(offset, params[0]);
+        break;
+    case GL_TEXTURE_WRAP_T:
+        gl_texture_set_wrap_t(offset, params[0]);
+        break;
+    case GL_TEXTURE_MIN_FILTER:
+        gl_texture_set_min_filter(offset, params[0]);
+        break;
+    case GL_TEXTURE_MAG_FILTER:
+        gl_texture_set_mag_filter(offset, params[0]);
+        break;
+    case GL_TEXTURE_BORDER_COLOR:
+        assertf(0, "Texture border color is not supported!");
+        break;
+    case GL_TEXTURE_PRIORITY:
+        gl_texture_set_priority(offset, I32_TO_FLOAT(params[0]));
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+void glTexParameterfv(GLenum target, GLenum pname, const GLfloat *params)
+{
+    uint32_t offset = gl_texture_get_offset(target);
+    if (offset == 0) {
+        return;
+    }
+
+    switch (pname) {
+    case GL_TEXTURE_WRAP_S:
+        gl_texture_set_wrap_s(offset, params[0]);
+        break;
+    case GL_TEXTURE_WRAP_T:
+        gl_texture_set_wrap_t(offset, params[0]);
+        break;
+    case GL_TEXTURE_MIN_FILTER:
+        gl_texture_set_min_filter(offset, params[0]);
+        break;
+    case GL_TEXTURE_MAG_FILTER:
+        gl_texture_set_mag_filter(offset, params[0]);
+        break;
+    case GL_TEXTURE_BORDER_COLOR:
+        assertf(0, "Texture border color is not supported!");
+        break;
+    case GL_TEXTURE_PRIORITY:
+        gl_texture_set_priority(offset, params[0]);
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+}
+
+GLboolean glIsTexture(GLuint texture)
+{
+    // FIXME: This doesn't actually guarantee that it's a valid texture object, but just uses the heuristic of
+    //        "is it somewhere in the heap memory?". This way we can at least rule out arbitrarily chosen integer constants,
+    //        which used to be valid texture IDs in legacy OpenGL.
+    return is_valid_object_id(texture);
+}
+
+void glBindTexture(GLenum target, GLuint texture)
+{
+    assertf(texture == 0 || is_valid_object_id(texture), "Not a valid texture object: %#lx", texture);
+
+    gl_texture_object_t **target_obj = NULL;
+
+    switch (target) {
+    case GL_TEXTURE_1D:
+        target_obj = &state.texture_1d_object;
+        break;
+    case GL_TEXTURE_2D:
+        target_obj = &state.texture_2d_object;
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    if (texture == 0) {
+        switch (target) {
+        case GL_TEXTURE_1D:
+            *target_obj = &state.default_textures[0];
+            break;
+        case GL_TEXTURE_2D:
+            *target_obj = &state.default_textures[1];
+            break;
+        }
+    } else {
+        gl_texture_object_t *obj = (gl_texture_object_t*)texture;
+
+        // TODO: Is syncing the dimensionality required? It always gets set before the texture is ever bound
+        //       and is never modified on RSP.
+        if (obj->dimensionality == 0) {
+            obj->dimensionality = target;
+        }
+
+        if (obj->dimensionality != target) {
+            gl_set_error(GL_INVALID_OPERATION);
+            return;
+        }
+
+        *target_obj = obj;
+    }
+
+    gl_bind_texture(target, *target_obj);
+}
+
+void glGenTextures(GLsizei n, GLuint *textures)
+{
+    for (uint32_t i = 0; i < n; i++)
+    {
+        gl_texture_object_t *new_object = malloc_uncached(sizeof(gl_texture_object_t));
+        gl_init_texture_object(new_object);
+        textures[i] = (GLuint)new_object;
+    }
+}
+
+void glDeleteTextures(GLsizei n, const GLuint *textures)
+{
+    for (uint32_t i = 0; i < n; i++)
+    {
+        assertf(textures[i] == 0 || is_valid_object_id(textures[i]), "Not a valid texture object: %#lx", textures[i]);
+
+        gl_texture_object_t *obj = (gl_texture_object_t*)textures[i];
+        if (obj == NULL) {
+            continue;
+        }
+
+        // TODO: Unbind properly (on RSP too)
+
+        if (obj == state.texture_1d_object) {
+            state.texture_1d_object = &state.default_textures[0];
+        } else if (obj == state.texture_2d_object) {
+            state.texture_2d_object = &state.default_textures[1];
+        }
+
+        gl_cleanup_texture_object(obj);
+        free_uncached(obj);
+    }
+}
+
+// Anything below might be thrown away at some point
+/*
 uint32_t gl_get_format_element_count(GLenum format)
 {
     switch (format) {
@@ -425,7 +806,7 @@ void gl_transfer_pixels(GLvoid *dest, GLenum dest_format, GLsizei dest_stride, G
         assertf(0, "Unsupported destination format!");
     }
 
-    tex_format_t dest_tex_fmt = gl_get_texture_format(dest_format);
+    tex_format_t dest_tex_fmt = gl_tex_format_to_rdp(dest_format);
 
     uint32_t row_length = state.unpack_row_length > 0 ? state.unpack_row_length : width;
 
@@ -536,95 +917,6 @@ bool gl_get_texture_object_and_image(GLenum target, GLint level, gl_texture_obje
     return true;
 }
 
-gl_texture_object_t * gl_get_active_texture()
-{
-    if (state.texture_2d) {
-        return state.texture_2d_object;
-    }
-
-    if (state.texture_1d) {
-        return state.texture_1d_object;
-    }
-
-    return NULL;
-}
-
-bool gl_texture_is_active(gl_texture_object_t *texture)
-{
-    return texture == gl_get_active_texture();
-}
-
-bool gl_get_texture_completeness(const gl_texture_object_t *texture, uint32_t *num_levels)
-{
-    const gl_texture_image_t *first_level = &texture->levels[0];
-
-    if (first_level->width == 0 || first_level->height == 0) {
-        *num_levels = 0;
-        return false;
-    }
-
-    if (texture->min_filter == GL_NEAREST || texture->min_filter == GL_LINEAR) {
-        // Mip mapping is disabled
-        *num_levels = 1;
-        return true;
-    }
-
-    GLenum format = first_level->internal_format;
-
-    uint32_t cur_width = first_level->width;
-    uint32_t cur_height = first_level->height;
-
-    for (uint32_t i = 0; i < MAX_TEXTURE_LEVELS; i++)
-    {
-        const gl_texture_image_t *level = &texture->levels[i];
-
-        if (cur_width != level->width || cur_height != level->height || level->internal_format != format) {
-            break;
-        }
-
-        if (cur_width == 1 && cur_height == 1) {
-            *num_levels = i + 1;
-            return true;
-        }
-
-        if (cur_width > 1) {
-            if (cur_width % 2 != 0) break;
-            cur_width >>= 1;
-        }
-
-        if (cur_height > 1) {
-            if (cur_height % 2 != 0) break;
-            cur_height >>= 1;
-        }
-    }
-
-    *num_levels = 0;
-    return false;
-}
-
-void gl_update_texture_completeness(gl_texture_object_t *texture)
-{
-    texture->is_complete = gl_get_texture_completeness(texture, &texture->num_levels);
-}
-
-uint32_t add_tmem_size(uint32_t current, uint32_t size)
-{
-    return ROUND_UP(current + size, 8);
-}
-
-bool gl_texture_fits_tmem(gl_texture_object_t *texture, uint32_t additional_size)
-{
-    uint32_t size = 0;
-    for (uint32_t i = 0; i < texture->num_levels; i++)
-    {
-        size = add_tmem_size(size, texture->levels[i].stride * texture->levels[i].height);
-    }
-    
-    size = add_tmem_size(size, additional_size);
-
-    return size <= 0x1000;
-}
-
 bool gl_validate_upload_image(GLenum format, GLenum type, uint32_t *num_elements)
 {
     *num_elements = gl_get_format_element_count(format);
@@ -666,16 +958,11 @@ bool gl_validate_upload_image(GLenum format, GLenum type, uint32_t *num_elements
     return true;
 }
 
+
 void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
+    assertf(0, "glTexImage1D/glTexImage2D is currently unsupported. Please use glTexImageN64 instead!");
     assertf(border == 0, "Texture border is not supported!");
-
-    gl_texture_object_t *obj;
-    gl_texture_image_t *image;
-
-    if (!gl_get_texture_object_and_image(target, level, &obj, &image)) {
-        return;
-    }
 
     GLsizei width_without_border = width - 2 * border;
     GLsizei height_without_border = height - 2 * border;
@@ -698,14 +985,15 @@ void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei widt
         return;
     }
 
-    uint32_t rdp_format = gl_get_texture_format(preferred_format);
+    uint32_t rdp_format = gl_tex_format_to_rdp(preferred_format);
     uint32_t stride = MAX(TEX_FORMAT_PIX2BYTES(rdp_format, width), 8);
     uint32_t size = stride * height;
 
-    if (!gl_texture_fits_tmem(obj, size)) {
-        gl_set_error(GL_INVALID_VALUE);
-        return;
-    }
+    // TODO: How to validate this?
+    //if (!gl_texture_fits_tmem(obj, size)) {
+    //    gl_set_error(GL_INVALID_VALUE);
+    //    return;
+    //}
 
     GLvoid *new_buffer = malloc_uncached(size);
     if (new_buffer == NULL) {
@@ -713,27 +1001,58 @@ void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei widt
         return;
     }
 
-    if (image->data != NULL) {
-        free_uncached(image->data);
-    }
-
     if (data != NULL) {
         gl_transfer_pixels(new_buffer, preferred_format, stride, width, height, num_elements, format, type, 0, data);
     }
 
-    image->data = new_buffer;
-    image->stride = stride;
-    image->width = width;
-    image->height = height;
-    image->internal_format = preferred_format;
+    uint32_t offset = gl_texture_get_offset(target);
+    uint32_t img_offset = offset + level * sizeof(gl_texture_image_t);
+    
+    uint64_t *deletion_slot = gl_reserve_deletion_slot();
+    gl_get_value(deletion_slot, img_offset + offsetof(gl_texture_image_t, tex_image), sizeof(uint64_t));
 
-    obj->is_upload_dirty = true;
+    uint8_t width_log = gl_log2(width);
+    uint8_t height_log = gl_log2(height);
 
-    gl_update_texture_completeness(obj);
+    tex_format_t load_fmt = rdp_format;
+
+    // TODO: do this for 8-bit formats as well?
+    switch (rdp_format) {
+    case FMT_CI4:
+    case FMT_I4:
+        load_fmt = FMT_RGBA16;
+        break;
+    default:
+        break;
+    }
+
+    uint16_t load_width = TEX_FORMAT_BYTES2PIX(load_fmt, stride);
+    uint16_t num_texels = load_width * height;
+    uint16_t words = stride / 8;
+    uint16_t dxt = (2048 + words - 1) / words;
+    uint16_t tmem_size = (stride * height) / 8;
+
+    uint32_t tex_image = ((0xC0 + RDPQ_CMD_SET_TEXTURE_IMAGE) << 24) | (load_fmt << 19);
+    uint32_t set_load_tile = ((0xC0 + RDPQ_CMD_SET_TILE) << 24) | (load_fmt << 19);
+    uint32_t load_block = (LOAD_TILE << 24) | ((num_texels-1) << 12) | dxt;
+    uint32_t set_tile = ((0xC0 + RDPQ_CMD_SET_TILE) << 24) | (rdp_format << 19) | ((stride/8) << 9);
+
+    // TODO: do this in one command?
+    gl_set_long(GL_UPDATE_NONE, img_offset + offsetof(gl_texture_image_t, tex_image), ((uint64_t)tex_image << 32) | PhysicalAddr(new_buffer));
+    gl_set_long(GL_UPDATE_NONE, img_offset + offsetof(gl_texture_image_t, set_load_tile), ((uint64_t)set_load_tile << 32) | load_block);
+    gl_set_long(GL_UPDATE_NONE, img_offset + offsetof(gl_texture_image_t, set_tile), ((uint64_t)set_tile << 32) | ((uint64_t)width << 16) | height);
+    gl_set_long(GL_UPDATE_NONE, img_offset + offsetof(gl_texture_image_t, stride), ((uint64_t)stride << 48) | ((uint64_t)preferred_format << 32) | ((uint64_t)tmem_size << 16) | ((uint64_t)width_log << 8) | height_log);
+
+    gl_set_flag_raw(GL_UPDATE_NONE, offset + TEXTURE_FLAGS_OFFSET, TEX_FLAG_UPLOAD_DIRTY, true);
+
+    gl_update_texture_completeness(offset);
 }
 
 void gl_tex_sub_image(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *data)
 {
+    assertf(0, "glTexSubImage* is temporarily unsupported. Please check again later!");
+
+    // TODO: can't access the image here!
     gl_texture_object_t *obj;
     gl_texture_image_t *image;
 
@@ -755,7 +1074,7 @@ void gl_tex_sub_image(GLenum target, GLint level, GLint xoffset, GLint yoffset, 
 
     if (data != NULL) {
         gl_transfer_pixels(dest, image->internal_format, image->stride, width, height, num_elements, format, type, xoffset, data);
-        obj->is_upload_dirty = true;
+        obj->flags |= TEX_FLAG_UPLOAD_DIRTY;
     }
 }
 
@@ -810,443 +1129,4 @@ void glTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, G
 
     gl_tex_sub_image(target, level, xoffset, yoffset, width, height, format, type, data);
 }
-
-// TODO: should CopyTex[Sub]Image be supported?
-/*
-void gl_get_fb_data_for_copy(GLint x, GLint y, GLenum *format, GLenum *type, uint32_t *stride, const GLvoid **ptr)
-{
-    const surface_t *fb_surface = state.cur_framebuffer->color_buffer;
-
-    tex_format_t src_format = surface_get_format(fb_surface);
-    uint32_t pixel_size = TEX_FORMAT_BYTES_PER_PIXEL(src_format);
-
-    switch (src_format) {
-    case FMT_RGBA16:
-        *format = GL_RGBA;
-        *type = GL_UNSIGNED_SHORT_5_5_5_1_EXT;
-        break;
-    case FMT_RGBA32:
-        *format = GL_RGBA;
-        *type = GL_UNSIGNED_BYTE;
-        break;
-    case FMT_IA16:
-        *format = GL_LUMINANCE_ALPHA;
-        *type = GL_UNSIGNED_BYTE;
-        break;
-    case FMT_I8:
-        *format = GL_LUMINANCE;
-        *type = GL_UNSIGNED_BYTE;
-        break;
-    default:
-        assertf(0, "Unsupported framebuffer format!");
-        return;
-    }
-
-    // TODO: validate rectangle
-    // TODO: from bottom left corner?
-    *ptr = fb_surface->buffer + y * fb_surface->stride + x * pixel_size;
-    *stride = fb_surface->stride;
-}
-
-void gl_copy_tex_image(GLenum target, GLint level, GLenum internalformat, GLint x, GLint y, GLsizei width, GLsizei height, GLint border)
-{
-    GLenum format, type;
-    const GLvoid *ptr;
-    uint32_t stride;
-    gl_get_fb_data_for_copy(x, y, &format, &type, &ptr, &stride);
-    rspq_wait();
-    gl_tex_image(target, level, internalformat, width, height, border, format, type, ptr, stride);
-}
-
-void gl_copy_tex_sub_image(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height)
-{
-    GLenum format, type;
-    const GLvoid *ptr;
-    uint32_t stride;
-    gl_get_fb_data_for_copy(x, y, &format, &type, &ptr, &stride);
-    rspq_wait();
-    gl_tex_sub_image(target, level, xoffset, yoffset, width, height, format, type, ptr, );
-}
-
-void glCopyTexImage1D(GLenum target, GLint level, GLenum internalformat, GLint x, GLint y, GLsizei width, GLint border)
-{
-    if (target != GL_TEXTURE_1D) {
-        gl_set_error(GL_INVALID_ENUM);
-        return;
-    }
-
-    gl_copy_tex_image(target, level, internalformat, x, y, width, 1, border);
-}
-
-void glCopyTexImage2D(GLenum target, GLint level, GLenum internalformat, GLint x, GLint y, GLsizei width, GLsizei height, GLint border)
-{
-    if (target != GL_TEXTURE_2D) {
-        gl_set_error(GL_INVALID_ENUM);
-        return;
-    }
-
-    gl_copy_tex_image(target, level, internalformat, x, y, width, height, border);
-}
-
-void glCopyTexSubImage1D(GLenum target, GLint level, GLint xoffset, GLint x, GLint y, GLint width)
-{
-    if (target != GL_TEXTURE_1D) {
-        gl_set_error(GL_INVALID_ENUM);
-        return;
-    }
-}
-
-void glCopyTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height)
-{
-    if (target != GL_TEXTURE_2D) {
-        gl_set_error(GL_INVALID_ENUM);
-        return;
-    }
-}
 */
-
-void gl_texture_set_wrap_s(gl_texture_object_t *obj, GLenum param)
-{
-    switch (param) {
-    case GL_CLAMP:
-    case GL_REPEAT:
-        GL_SET_STATE(obj->wrap_s, param, obj->is_upload_dirty);
-        break;
-    default:
-        gl_set_error(GL_INVALID_ENUM);
-        return;
-    }
-}
-
-void gl_texture_set_wrap_t(gl_texture_object_t *obj, GLenum param)
-{
-    switch (param) {
-    case GL_CLAMP:
-    case GL_REPEAT:
-        GL_SET_STATE(obj->wrap_t, param, obj->is_upload_dirty);
-        break;
-    default:
-        gl_set_error(GL_INVALID_ENUM);
-        return;
-    }
-}
-
-void gl_texture_set_min_filter(gl_texture_object_t *obj, GLenum param)
-{
-    switch (param) {
-    case GL_NEAREST:
-    case GL_LINEAR:
-    case GL_NEAREST_MIPMAP_NEAREST:
-    case GL_LINEAR_MIPMAP_NEAREST:
-    case GL_NEAREST_MIPMAP_LINEAR:
-    case GL_LINEAR_MIPMAP_LINEAR:
-        if (GL_SET_STATE(obj->min_filter, param, obj->is_modes_dirty)) {
-            gl_update_texture_completeness(obj);
-        }
-        break;
-    default:
-        gl_set_error(GL_INVALID_ENUM);
-        return;
-    }
-}
-
-void gl_texture_set_mag_filter(gl_texture_object_t *obj, GLenum param)
-{
-    switch (param) {
-    case GL_NEAREST:
-    case GL_LINEAR:
-        GL_SET_STATE(obj->mag_filter, param, obj->is_modes_dirty);
-        break;
-    default:
-        gl_set_error(GL_INVALID_ENUM);
-        return;
-    }
-}
-
-void gl_texture_set_priority(gl_texture_object_t *obj, GLclampf param)
-{
-    obj->priority = CLAMP01(param);
-}
-
-void glTexParameteri(GLenum target, GLenum pname, GLint param)
-{
-    gl_texture_object_t *obj = gl_get_texture_object(target);
-    if (obj == NULL) {
-        return;
-    }
-
-    switch (pname) {
-    case GL_TEXTURE_WRAP_S:
-        gl_texture_set_wrap_s(obj, param);
-        break;
-    case GL_TEXTURE_WRAP_T:
-        gl_texture_set_wrap_t(obj, param);
-        break;
-    case GL_TEXTURE_MIN_FILTER:
-        gl_texture_set_min_filter(obj, param);
-        break;
-    case GL_TEXTURE_MAG_FILTER:
-        gl_texture_set_mag_filter(obj, param);
-        break;
-    case GL_TEXTURE_PRIORITY:
-        gl_texture_set_priority(obj, I32_TO_FLOAT(param));
-        break;
-    default:
-        gl_set_error(GL_INVALID_ENUM);
-        return;
-    }
-}
-
-void glTexParameterf(GLenum target, GLenum pname, GLfloat param)
-{
-    gl_texture_object_t *obj = gl_get_texture_object(target);
-    if (obj == NULL) {
-        return;
-    }
-
-    switch (pname) {
-    case GL_TEXTURE_WRAP_S:
-        gl_texture_set_wrap_s(obj, param);
-        break;
-    case GL_TEXTURE_WRAP_T:
-        gl_texture_set_wrap_t(obj, param);
-        break;
-    case GL_TEXTURE_MIN_FILTER:
-        gl_texture_set_min_filter(obj, param);
-        break;
-    case GL_TEXTURE_MAG_FILTER:
-        gl_texture_set_mag_filter(obj, param);
-        break;
-    case GL_TEXTURE_PRIORITY:
-        gl_texture_set_priority(obj, param);
-        break;
-    default:
-        gl_set_error(GL_INVALID_ENUM);
-        return;
-    }
-}
-
-void glTexParameteriv(GLenum target, GLenum pname, const GLint *params)
-{
-    gl_texture_object_t *obj = gl_get_texture_object(target);
-    if (obj == NULL) {
-        return;
-    }
-
-    switch (pname) {
-    case GL_TEXTURE_WRAP_S:
-        gl_texture_set_wrap_s(obj, params[0]);
-        break;
-    case GL_TEXTURE_WRAP_T:
-        gl_texture_set_wrap_t(obj, params[0]);
-        break;
-    case GL_TEXTURE_MIN_FILTER:
-        gl_texture_set_min_filter(obj, params[0]);
-        break;
-    case GL_TEXTURE_MAG_FILTER:
-        gl_texture_set_mag_filter(obj, params[0]);
-        break;
-    case GL_TEXTURE_BORDER_COLOR:
-        assertf(0, "Texture border color is not supported!");
-        break;
-    case GL_TEXTURE_PRIORITY:
-        gl_texture_set_priority(obj, I32_TO_FLOAT(params[0]));
-        break;
-    default:
-        gl_set_error(GL_INVALID_ENUM);
-        return;
-    }
-}
-
-void glTexParameterfv(GLenum target, GLenum pname, const GLfloat *params)
-{
-    gl_texture_object_t *obj = gl_get_texture_object(target);
-    if (obj == NULL) {
-        return;
-    }
-
-    switch (pname) {
-    case GL_TEXTURE_WRAP_S:
-        gl_texture_set_wrap_s(obj, params[0]);
-        break;
-    case GL_TEXTURE_WRAP_T:
-        gl_texture_set_wrap_t(obj, params[0]);
-        break;
-    case GL_TEXTURE_MIN_FILTER:
-        gl_texture_set_min_filter(obj, params[0]);
-        break;
-    case GL_TEXTURE_MAG_FILTER:
-        gl_texture_set_mag_filter(obj, params[0]);
-        break;
-    case GL_TEXTURE_BORDER_COLOR:
-        assertf(0, "Texture border color is not supported!");
-        break;
-    case GL_TEXTURE_PRIORITY:
-        gl_texture_set_priority(obj, params[0]);
-        break;
-    default:
-        gl_set_error(GL_INVALID_ENUM);
-        return;
-    }
-}
-
-GLboolean glIsTexture(GLuint texture)
-{
-    // FIXME: This doesn't actually guarantee that it's a valid texture object, but just uses the heuristic of
-    //        "is it somewhere in the heap memory?". This way we can at least rule out arbitrarily chosen integer constants,
-    //        which used to be valid texture IDs in legacy OpenGL.
-    return is_valid_object_id(texture);
-}
-
-void glBindTexture(GLenum target, GLuint texture)
-{
-    assertf(texture == 0 || is_valid_object_id(texture), "Not a valid texture object: %#lx", texture);
-
-    gl_texture_object_t **target_obj = NULL;
-
-    switch (target) {
-    case GL_TEXTURE_1D:
-        target_obj = &state.texture_1d_object;
-        break;
-    case GL_TEXTURE_2D:
-        target_obj = &state.texture_2d_object;
-        break;
-    default:
-        gl_set_error(GL_INVALID_ENUM);
-        return;
-    }
-
-    if (texture == 0) {
-        switch (target) {
-        case GL_TEXTURE_1D:
-            *target_obj = &state.default_texture_1d;
-            break;
-        case GL_TEXTURE_2D:
-            *target_obj = &state.default_texture_2d;
-            break;
-        }
-    } else {
-        gl_texture_object_t *obj = (gl_texture_object_t*)texture;
-
-        if (obj != NULL && obj->dimensionality != 0 && obj->dimensionality != target) {
-            gl_set_error(GL_INVALID_OPERATION);
-            return;
-        }
-
-        obj->dimensionality = target;
-
-        *target_obj = obj;
-    }
-}
-
-void glGenTextures(GLsizei n, GLuint *textures)
-{
-    for (uint32_t i = 0; i < n; i++)
-    {
-        gl_texture_object_t *new_object = calloc(1, sizeof(gl_texture_object_t));
-        gl_init_texture_object(new_object);
-        textures[i] = (GLuint)new_object;
-    }
-}
-
-void glDeleteTextures(GLsizei n, const GLuint *textures)
-{
-    for (uint32_t i = 0; i < n; i++)
-    {
-        assertf(textures[i] == 0 || is_valid_object_id(textures[i]), "Not a valid texture object: %#lx", textures[i]);
-
-        gl_texture_object_t *obj = (gl_texture_object_t*)textures[i];
-        if (obj == NULL) {
-            continue;
-        }
-
-        if (obj == state.texture_1d_object) {
-            state.texture_1d_object = &state.default_texture_1d;
-        } else if (obj == state.texture_2d_object) {
-            state.texture_2d_object = &state.default_texture_2d;
-        }
-
-        gl_cleanup_texture_object(obj);
-        free(obj);
-    }
-}
-
-void gl_upload_texture(gl_texture_object_t *tex_obj)
-{
-    // TODO: re-implement this so that multiple textures can potentially be in TMEM at the same time
-    // TODO: seperate uploading from updating tile descriptors
-
-    uint32_t tmem_used = 0;
-
-    // All levels must have the same format to be complete
-    tex_format_t fmt = gl_get_texture_format(tex_obj->levels[0].internal_format);
-    tex_format_t load_fmt = fmt;
-
-    // TODO: do this for 8-bit formats as well
-    switch (fmt) {
-    case FMT_CI4:
-    case FMT_I4:
-        load_fmt = FMT_RGBA16;
-        break;
-    default:
-        break;
-    }
-
-    uint32_t full_width = tex_obj->levels[0].width;
-    uint32_t full_height = tex_obj->levels[0].height;
-
-    int32_t full_width_log = gl_log2(full_width);
-    int32_t full_height_log = gl_log2(full_height);
-
-    for (uint32_t l = 0; l < tex_obj->num_levels; l++)
-    {
-        gl_texture_image_t *image = &tex_obj->levels[l];
-
-        uint32_t tmem_pitch = image->stride;
-        uint32_t load_width = TEX_FORMAT_BYTES2PIX(load_fmt, tmem_pitch);
-
-        rdpq_set_texture_image_raw(0, PhysicalAddr(image->data), load_fmt, load_width, image->height);
-        rdpq_set_tile(LOAD_TILE, load_fmt, tmem_used, 0, 0);
-        rdpq_load_block(LOAD_TILE, 0, 0, load_width * image->height, tmem_pitch);
-
-        // Levels need to halve in size every time to be complete
-        int32_t width_log = MAX(full_width_log - l, 0);
-        int32_t height_log = MAX(full_height_log - l, 0);
-
-        uint8_t mask_s = tex_obj->wrap_s == GL_REPEAT ? width_log : 0;
-        uint8_t mask_t = tex_obj->wrap_t == GL_REPEAT ? height_log : 0;
-
-        uint8_t shift_s = full_width_log - width_log;
-        uint8_t shift_t = full_height_log - height_log;
-
-        rdpq_set_tile_full(l, fmt, tmem_used, tmem_pitch, 0, 0, 0, mask_t, shift_t, 0, 0, mask_s, shift_s);
-        rdpq_set_tile_size(l, 0, 0, image->width, image->height);
-
-        tmem_used = add_tmem_size(tmem_used, tmem_pitch * image->height);
-    }
-}
-
-void gl_update_texture()
-{
-    gl_texture_object_t *tex_obj = gl_get_active_texture();
-    if (tex_obj != NULL && !tex_obj->is_complete) {
-        tex_obj = NULL;
-    }
-
-    bool is_applied = tex_obj != NULL;
-
-    if (is_applied && (tex_obj != state.uploaded_texture || tex_obj->is_upload_dirty)) {
-        gl_upload_texture(tex_obj);
-
-        tex_obj->is_upload_dirty = false;
-        state.uploaded_texture = tex_obj;
-    }
-
-    if (tex_obj != state.last_used_texture || (is_applied && tex_obj->is_modes_dirty)) {
-        if (is_applied) {
-            tex_obj->is_modes_dirty = false;
-        }
-
-        state.last_used_texture = tex_obj;
-    }
-}

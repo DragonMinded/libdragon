@@ -12,38 +12,71 @@
         RSPQ_DefineCommand GLCmd_SetWord,       8
         RSPQ_DefineCommand GLCmd_SetLong,       12
         RSPQ_DefineCommand GLCmd_Update,        4
+        RSPQ_DefineCommand GLCmd_BindTexture,   8
+        RSPQ_DefineCommand GLCmd_GetValue,      8
     RSPQ_EndOverlayHeader
 
     RSPQ_BeginSavedState
 GL_STATE:
-    GL_STATE_FLAGS:           .word   0
-    GL_STATE_DEPTH_FUNC:      .word   0
-    GL_STATE_ALPHA_FUNC:      .word   0
-    GL_STATE_BLEND_SRC:       .word   0
-    GL_STATE_BLEND_DST:       .word   0
-    GL_STATE_BLEND_CYCLE:     .word   0
-    GL_STATE_TEX_ENV_MODE:    .word   0
-    GL_STATE_POLYGON_MODE:    .word   0
-    GL_STATE_PRIM_TYPE:       .word   0
-    GL_STATE_FOG_COLOR:       .word   0
-    GL_STATE_FB_SIZE:         .short  0, 0
-    GL_STATE_SCISSOR_RECT:    .short  0, 0, 0, 0
-    GL_STATE_ALPHA_REF:       .byte   0
+    GL_BOUND_TEXTURES:      .ds.b TEXTURE_OBJECT_SIZE * 2
+    GL_STATE_SCISSOR_RECT:  .short  0, 0, 0, 0
+    GL_STATE_FLAGS:         .word   0
+    GL_STATE_BLEND_CYCLE:   .word   0
+    GL_STATE_FOG_COLOR:     .word   0
+    GL_STATE_TEXTURE_IDS:   .word   0, 0
+    GL_STATE_UPLOADED_TEX:  .word   0
+    GL_STATE_FB_SIZE:       .short  0, 0
+    GL_STATE_DEPTH_FUNC:    .short  0
+    GL_STATE_ALPHA_FUNC:    .short  0
+    GL_STATE_BLEND_SRC:     .short  0
+    GL_STATE_BLEND_DST:     .short  0
+    GL_STATE_TEX_ENV_MODE:  .short  0
+    GL_STATE_POLYGON_MODE:  .short  0
+    GL_STATE_PRIM_TYPE:     .short  0
+    GL_STATE_ALPHA_REF:     .byte   0
     RSPQ_EndSavedState
 
-CONVERT_CONST:  .short 1, 2, 0x8000, 0x200, 0xFF, 134, 0x7F, 0x80
+COMBINER_TABLE:
+    # No texture
+    .quad RDPQ_COMBINER1((0, 0, 0, SHADE), (0, 0, 0, SHADE))         # "modulate"
+    .quad RDPQ_COMBINER1((0, 0, 0, PRIM), (0, 0, 0, PRIM))           # constant "modulate"
+    .quad RDPQ_COMBINER1((0, 0, 0, SHADE), (0, 0, 0, SHADE))         # "replace"
+    .quad RDPQ_COMBINER1((0, 0, 0, PRIM), (0, 0, 0, PRIM))           # constant "replace"
+
+    # Texture enabled
+    .quad RDPQ_COMBINER1((TEX0, 0, SHADE, 0), (TEX0, 0, SHADE, 0))   # modulate
+    .quad RDPQ_COMBINER1((TEX0, 0, PRIM, 0), (TEX0, 0, PRIM, 0))     # constant modulate
+    .quad RDPQ_COMBINER1((0, 0, 0, TEX0), (0, 0, 0, TEX0))           # replace
+    .quad RDPQ_COMBINER1((0, 0, 0, TEX0), (0, 0, 0, TEX0))           # constant replace
+
+COMBINER_MIPMAPMASK_TABLE: 
+    .quad RDPQ_COMB1_MASK
+    .quad RDPQ_COMB1_MASK
+    .quad RDPQ_COMB1_MASK
+    .quad RDPQ_COMB1_MASK
+
+    .quad RDPQ_COMB1_MASK ^ (1<<37) ^ (1<<21)
+    .quad RDPQ_COMB1_MASK ^ (1<<37) ^ (1<<21)
+    .quad RDPQ_COMB1_MASK ^ (1<<6) ^ (1<<0)
+    .quad RDPQ_COMB1_MASK ^ (1<<6) ^ (1<<0)
 
 UPDATE_FUNCTIONS:
-    .short RSPQ_Loop            - _start  # Do nothing
-    .short GL_UpdateDepthTest   - _start
-    .short GL_UpdateDepthMask   - _start
-    .short GL_UpdateBlend       - _start
-    .short GL_UpdateDither      - _start
-    .short GL_UpdatePoints      - _start
-    .short GL_UpdateAlphaTest   - _start
-    .short GL_UpdateBlendCycle  - _start
-    .short GL_UpdateFogCycle    - _start
-    .short GL_UpdateScissor     - _start
+    .short RSPQ_Loop                    - _start  # Do nothing
+    .short GL_UpdateDepthTest           - _start
+    .short GL_UpdateDepthMask           - _start
+    .short GL_UpdateBlend               - _start
+    .short GL_UpdateDither              - _start
+    .short GL_UpdatePoints              - _start
+    .short GL_UpdateAlphaTest           - _start
+    .short GL_UpdateBlendCycle          - _start
+    .short GL_UpdateFogCycle            - _start
+    .short GL_UpdateScissor             - _start
+    .short GL_UpdateCombiner            - _start
+    .short GL_UpdateTexture             - _start
+    .short GL_UpdateTextureCompleteness - _start
+    .short GL_UpdateTextureUpload       - _start
+
+CONVERT_CONST:  .short 1, 2, 0x8000, 0x200, 0xFF, 134, 0x7F, 0x80
 
     .text
 
@@ -55,20 +88,23 @@ UPDATE_FUNCTIONS:
     # ARGS:
     #   a0: Bit 31..24: Command id
     #       Bit 23..12: Offset into UPDATE_FUNCTIONS jump table
-    #       Bit 11:     If 1, set the flag, otherwise clear it
+    #       Bit 11..2: Offset of flag value in GL_STATE
+    #       Bit 0:     If 1, set the flag, otherwise clear it
     #   a1: flag mask (inverted if clearing)
     #############################################################
     .func GLCmd_SetFlag
 GLCmd_SetFlag:
-    sll t0, a0, 20
-    lw t1, %lo(GL_STATE_FLAGS)
-    bgez t0, flag_clear
-    and t2, t1, a1
-    or t2, t1, a1
+    li t0, ~0x3
+    and t0, a0, t0
+    andi t1, a0, 1
+    lw t2, %lo(GL_STATE)(t0)
+    beqz t1, flag_clear
+    and t3, t2, a1
+    or t3, t2, a1
 
 flag_clear:
     j GLCmd_Update
-    sw t2, %lo(GL_STATE_FLAGS)
+    sw t3, %lo(GL_STATE)(t0)
     .endfunc
 
     .func GLCmd_SetByte
@@ -102,9 +138,38 @@ GLCmd_Update:
     jr t1
     nop
 
+GLCmd_GetValue:
+    srl t0, a0, 12
+    addiu s4, a0, %lo(GL_STATE)
+    andi s4, 0xFFF
+    andi t0, 0xFFF
+    j DMAOut
+    move s0, a1
+
+GLCmd_BindTexture:
+    sll t3, a0, 2
+    lw s0, %lo(GL_STATE_TEXTURE_IDS)(t3)
+    # Do nothing if texture is already bound
+    beq s0, a1, RSPQ_Loop
+    sll s4, a0, TEXTURE_OBJECT_SIZE_LOG
+    addiu s4, %lo(GL_BOUND_TEXTURES)
+
+    # DMA currently bound texture out
+    jal DMAOutAsync
+    li t0, DMA_SIZE(TEXTURE_OBJECT_DMA_SIZE, 1)
+
+    # DMA new texture in
+    jal DMAIn
+    move s0, a1
+
+    jal GL_UpdateTexture
+    sw s0, %lo(GL_STATE_TEXTURE_IDS)(t3)
+
+    jal_and_j GL_UpdateCombiner, RSPQ_Loop
+
 GL_UpdateDepthTest:
     lw t0, %lo(GL_STATE_FLAGS)
-    lw t1, %lo(GL_STATE_DEPTH_FUNC)
+    lhu t1, %lo(GL_STATE_DEPTH_FUNC)
 
     andi t0, FLAG_DEPTH_TEST            # a2 = (GL_STATE_FLAGS & FLAG_DEPTH_TEST)
     beqz t0, depth_test_disable         #
@@ -121,7 +186,7 @@ depth_test_disable:
 
 GL_UpdateAlphaTest:
     lw t0, %lo(GL_STATE_FLAGS)
-    lw t1, %lo(GL_STATE_ALPHA_FUNC)
+    lhu t1, %lo(GL_STATE_ALPHA_FUNC)
 
     andi t0, FLAG_ALPHA_TEST            
     beqz t0, alpha_test_disable         
@@ -177,23 +242,31 @@ dither_disable:
     jr ra
     sw t2, %lo(RDPQ_OTHER_MODES) + 0x0
 
+# output: v0
+GL_IsPoints:
+    lhu t0, %lo(GL_STATE_PRIM_TYPE)
+    beqz t0, JrRa                       # prim_type == GL_POINTS
+    li v0, 1
+
+    addi t0, -1
+    sltu t0, (GL_TRIANGLES - 1)
+    bne t0, zero, JrRa                  # prim_type == GL_LINES || prim_type == GL_LINE_LOOP || prim_type == GL_LINE_STRIP
+    move v0, zero
+
+    lhu t0, %lo(GL_STATE_POLYGON_MODE)
+    xori t0, GL_POINT
+    jr ra
+    sltu v0, t0, 1                      # polygon_mode == GL_POINT
+
 GL_UpdatePoints:
-    lw t2, %lo(GL_STATE_PRIM_TYPE)
-    beqz t2, is_points                  # prim_type == GL_POINTS
-    li t3, SOM_ZSOURCE_PRIM
+    move ra2, ra
+    jal GL_IsPoints
+    move t2, zero
 
-    addi t2, -1
-    sltu t2, (GL_TRIANGLES - 1)
-    bne t2, zero, is_not_points         # prim_type == GL_LINES || prim_type == GL_LINE_LOOP || prim_type == GL_LINE_STRIP
-    lw t0, %lo(GL_STATE_POLYGON_MODE)
+    bnez v0, is_points
+    sll t3, v0, SOM_ZSOURCE_SHIFT
 
-    li t1, GL_POINT                     # polygon_mode == GL_POINT
-    beq t0, t1, is_points
-    nop
-
-is_not_points:
     li t2, SOM_TEXTURE_PERSP >> 32
-    li t3, SOM_ZSOURCE_PIXEL
 
 is_points:
     lw t4, %lo(RDPQ_OTHER_MODES) + 0x0
@@ -205,7 +278,7 @@ is_points:
     or t4, t2
     or t5, t3
     sw t4, %lo(RDPQ_OTHER_MODES) + 0x0
-    jr ra
+    jr ra2
     sw t5, %lo(RDPQ_OTHER_MODES) + 0x4
 
 GL_UpdateBlendCycle:
@@ -261,6 +334,318 @@ scissor_disabled:
     sw t4, %lo(RDPQ_SCISSOR_RECT) + 0x0
     jr ra
     sw t6, %lo(RDPQ_SCISSOR_RECT) + 0x4
+
+# OUTPUT: s0 (zero if none is active)
+GL_GetActiveTexture:
+    lw t0, %lo(GL_STATE_FLAGS)
+    andi t1, t0, FLAG_TEXTURE_2D
+    bnez t1, JrRa
+    li s0, %lo(GL_BOUND_TEXTURES) + TEXTURE_OBJECT_SIZE
+    andi t1, t0, FLAG_TEXTURE_1D
+    bnez t1, JrRa
+    li s0, %lo(GL_BOUND_TEXTURES)
+    jr ra
+    move s0, zero
+
+GL_UpdateCombiner:
+    move ra2, ra
+    jal GL_IsPoints
+    lw t3, %lo(GL_STATE_TEX_ENV_MODE)
+
+    li t4, GL_REPLACE
+    bne t3, t4, gl_combiner_modulate
+    nop
+    ori v0, 0x2
+
+gl_combiner_modulate:
+    jal GL_GetActiveTexture
+    nop
+
+    beqz s0, gl_combiner_no_texture
+    lw t0, TEXTURE_FLAGS_OFFSET(s0)
+    andi t0, TEX_FLAG_COMPLETE
+    srl t0, 1
+    or v0, t0
+
+gl_combiner_no_texture:
+    sll v0, 3
+    lw t0, %lo(COMBINER_TABLE) + 0x0(v0)
+    lw t1, %lo(COMBINER_TABLE) + 0x4(v0)
+    lw t2, %lo(COMBINER_MIPMAPMASK_TABLE) + 0x0(v0)
+    lw t3, %lo(COMBINER_MIPMAPMASK_TABLE) + 0x4(v0)
+
+    sw t0, %lo(RDPQ_COMBINER) + 0x0
+    sw t1, %lo(RDPQ_COMBINER) + 0x4
+    sw t2, %lo(RDPQ_COMBINER_MIPMAPMASK) + 0x0
+    jr ra2
+    sw t3, %lo(RDPQ_COMBINER_MIPMAPMASK) + 0x4
+
+GL_UpdateTexture:
+    move ra2, ra
+    jal GL_GetActiveTexture
+    move t7, zero
+
+    beqz s0, texture_set_modes
+    lw t4, TEXTURE_FLAGS_OFFSET(s0)
+
+    andi t5, t4, TEX_FLAG_COMPLETE
+    beqz t5, texture_set_modes
+    lhu t3, TEXTURE_MIN_FILTER_OFFSET(s0)
+    lhu t2, TEXTURE_MAG_FILTER_OFFSET(s0)
+
+    andi t5, t3, TEXTURE_MIPMAP_MASK
+    or t2, t3
+    andi t2, TEXTURE_BILINEAR_MASK
+    beqz t5, texture_no_lod
+    sll t2, 13 # shift to SOM_SAMPLE_BILINEAR
+    or t2, SOM_TEXTURE_LOD >> 32
+
+texture_no_lod:
+    andi t3, TEXTURE_INTERPOLATE_MASK
+    beqz t3, texture_no_interpolate
+    nop # :(
+    ori t2, SOMX_LOD_INTERPOLATE >> 32
+
+texture_no_interpolate:
+    andi t4, 0x7
+    addi t4, -1
+    sll t4, SOMX_NUMLODS_SHIFT - 32
+    or t7, t4, t2
+
+texture_set_modes:
+    lw t2, %lo(RDPQ_OTHER_MODES)
+    li t4, ~((SOM_SAMPLE_MASK | SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE | SOMX_NUMLODS_MASK) >> 32)
+    and t2, t4
+    or t2, t7
+    jr ra2
+    sw t2, %lo(RDPQ_OTHER_MODES)
+
+GL_UpdateTextureCompleteness:
+    #define result      t7
+    #define width       t1
+    #define height      t2
+    #define loop_max    t3
+    #define one         t6
+    #define loop_var    t0
+    #define image       s1
+    #define format      s2
+    #define ra3         k0
+    move result, zero   # levels = 0; complete = false
+
+    # If either width or height is zero, the texture is incomplete
+    lhu width, (%lo(GL_BOUND_TEXTURES) + IMAGE_WIDTH_OFFSET)(a0)
+    beqz width, gl_tex_incomplete
+    lhu height, (%lo(GL_BOUND_TEXTURES) + IMAGE_HEIGHT_OFFSET)(a0)
+    beqz height, gl_tex_incomplete
+    lhu t3, (%lo(GL_BOUND_TEXTURES) + TEXTURE_MIN_FILTER_OFFSET)(a0)
+
+    # Otherwise, if mipmaps are disabled, the texture is complete and has a single level
+    andi t3, TEXTURE_MIPMAP_MASK
+    beqz t3, gl_tex_mipmaps_disabled
+    li one, 1
+
+    # Init the loop
+    addiu image, a0, %lo(GL_BOUND_TEXTURES)
+    lhu format, IMAGE_INTERNAL_FORMAT_OFFSET(image)
+    move loop_var, zero
+    li loop_max, MAX_TEXTURE_LEVELS - 1
+
+gl_tex_completeness_loop:
+    # Check that image size and format matches the expected values
+    lhu t4, IMAGE_WIDTH_OFFSET(image)
+    bne t4, width, gl_tex_incomplete
+    lhu t5, IMAGE_HEIGHT_OFFSET(image)
+    bne t5, height, gl_tex_incomplete
+    lhu t4, IMAGE_INTERNAL_FORMAT_OFFSET(image)
+    bne t4, format, gl_tex_incomplete
+    or t5, width, height
+
+    # TODO: is this true: (w | h) == 1 <=> (w == 1) && (h == 1)
+    # If width and height are both 1 we have reached the end of the mipmap chain
+    beq t5, one, gl_tex_complete
+    andi t4, width, 0x1
+
+    # If width is already 1 skip this check
+    beq width, one, gl_check_height
+    srl t5, width, 1
+
+    # If width is odd and not equal to one it means the original width is not a power of two,
+    # which is not allowed
+    bnez t4, gl_tex_incomplete
+    move width, t5
+
+gl_check_height:
+    andi t5, height, 0x1
+
+    # If height is already 1 skip this check
+    beq height, one, gl_completeness_step
+    srl t4, height, 1
+    
+    # If height is odd and not equal to one it means the original height is not a power of two,
+    # which is not allowed
+    bnez t5, gl_tex_incomplete
+    move height, t4
+
+gl_completeness_step:
+    # Check if we have reached the maximum number of loops
+    beq loop_var, loop_max, gl_tex_incomplete
+    addiu image, TEXTURE_IMAGE_SIZE
+
+    # Loop!
+    b gl_tex_completeness_loop
+    addiu loop_var, 1
+
+gl_tex_complete:
+    move result, loop_var               # levels = i
+gl_tex_mipmaps_disabled:
+    addiu result, TEX_FLAG_COMPLETE | 1 # levels += 1; complete = true
+gl_tex_incomplete:
+    # Save the result
+    lw t0, (%lo(GL_BOUND_TEXTURES) + TEXTURE_FLAGS_OFFSET)(a0)
+    and t0, ~(TEX_FLAG_COMPLETE | TEX_LEVELS_MASK)
+    or t0, result
+    move ra3, ra
+    jal GL_UpdateTexture
+    sw t0, (%lo(GL_BOUND_TEXTURES) + TEXTURE_FLAGS_OFFSET)(a0)
+    j GL_UpdateCombiner
+    move ra, ra3
+    #undef result
+    #undef width
+    #undef height
+    #undef loop_max
+    #undef one
+    #undef loop_var
+    #undef image
+    #undef format
+    #undef ra3
+
+GL_UpdateTextureUpload:
+    #define active_tex      s0
+    #define uploaded_tex    s1
+    #define tmem_addr       s2
+    #define out_ptr         s3
+    #define image           s5
+    #define level           s6
+    #define tex_id          s7
+    #define num_levels      t4
+    #define wrap_s          t5
+    #define wrap_t          t6
+    #define tex_flags       t7
+    #define full_width_log  t8
+    #define full_height_log t9
+    move ra2, ra
+    jal GL_GetActiveTexture
+    lw uploaded_tex, %lo(GL_STATE_UPLOADED_TEX)
+
+    beqz active_tex, JrRa
+    move ra, ra2
+
+    lw tex_flags, TEXTURE_FLAGS_OFFSET(active_tex)
+    andi t0, tex_flags, TEX_FLAG_COMPLETE
+
+    beqz t0, JrRa
+    move tmem_addr, zero
+
+    # Load ID of active texture
+    li t0, %lo(GL_BOUND_TEXTURES)
+    sub t0, active_tex, t0
+    srl t0, (TEXTURE_OBJECT_SIZE_LOG - 2)
+    lw tex_id, %lo(GL_STATE_TEXTURE_IDS)(t0)
+
+    bne tex_id, uploaded_tex, gl_upload_tex
+    andi t0, tex_flags, TEX_FLAG_UPLOAD_DIRTY
+
+    beqz t0, JrRa
+    nop
+
+gl_upload_tex:
+    lhu wrap_s, TEXTURE_WRAP_S_OFFSET(active_tex)
+    lhu wrap_t, TEXTURE_WRAP_T_OFFSET(active_tex)
+    lbu full_width_log, IMAGE_WIDTH_LOG_OFFSET(active_tex)
+    lbu full_height_log, IMAGE_HEIGHT_LOG_OFFSET(active_tex)
+    xori wrap_s, GL_REPEAT
+    xori wrap_t, GL_REPEAT
+    li out_ptr, %lo(RDPQ_CMD_STAGING)
+    move image, active_tex
+    move level, zero
+    andi num_levels, tex_flags, 0x7
+
+gl_upload_loop:
+    lw a0, IMAGE_TEX_IMAGE_OFFSET(image)
+    lw a1, IMAGE_DATA_OFFSET(image)
+    lw a2, IMAGE_SET_LOAD_TILE_OFFSET(image)
+    lw a3, IMAGE_LOAD_BLOCK_OFFSET(image)
+
+    add a2, tmem_addr
+    lui t0, LOAD_TILE << 8
+    lui t1, 0xF300
+
+    # SET_TEX_IMAGE
+    sw a0, 0x00(out_ptr)
+    sw a1, 0x04(out_ptr)
+    # SET_TILE
+    sw a2, 0x08(out_ptr)
+    sw t0, 0x0C(out_ptr)
+    # LOAD_BLOCK
+    sw t1, 0x10(out_ptr)
+    sw a3, 0x14(out_ptr)
+
+    lw a0, IMAGE_SET_TILE_OFFSET(image)
+    lbu v0, IMAGE_WIDTH_LOG_OFFSET(image)
+    lbu v1, IMAGE_HEIGHT_LOG_OFFSET(image)
+
+    sll t0, level, 24
+    add a0, tmem_addr
+
+    # mask_s
+    bnez wrap_s, gl_clamp_s
+    move a1, zero
+    sll a1, v0, 4
+gl_clamp_s:
+
+    # mask_t
+    bnez wrap_t, gl_clamp_t
+    sll t1, v1, 14
+    or a1, t1
+gl_clamp_t:
+
+    # shift_s, shift_t
+    subu t1, full_width_log, v0
+    subu t2, full_height_log, v1
+    sll t2, 10
+    or a1, t0
+    or a1, t1
+    or a1, t2
+
+    lhu t1, IMAGE_WIDTH_OFFSET(image)
+    lhu a3, IMAGE_HEIGHT_OFFSET(image)
+    lui a2, 0xF200
+    sll a3, 2
+    sll t1, 14
+    or a3, t1
+    or a3, t0
+
+    # SET_TILE
+    sw a0, 0x18(out_ptr)
+    sw a1, 0x1C(out_ptr)
+    # SET_TILE_SIZE
+    sw a2, 0x20(out_ptr)
+    sw a3, 0x24(out_ptr)
+
+    lhu t0, IMAGE_TMEM_SIZE_OFFSET(image)
+    addiu level, 1
+    addiu image, TEXTURE_IMAGE_SIZE
+    add tmem_addr, t0
+    blt level, num_levels, gl_upload_loop
+    addiu out_ptr, 5 * 8
+
+    li t0, ~TEX_FLAG_UPLOAD_DIRTY
+    and tex_flags, t0
+    sw tex_flags, TEXTURE_FLAGS_OFFSET(active_tex)
+    sw tex_id, %lo(GL_STATE_UPLOADED_TEX)
+
+    j RDPQ_Send
+    li s4, %lo(RDPQ_CMD_STAGING)
 
 /*
 GLCmd_Begin:
