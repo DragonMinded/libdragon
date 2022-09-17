@@ -369,6 +369,43 @@ makeNotImplemented tnei
     .set \prefix\().b15, -1
 .endm
 
+# This will encode element accessors for computational
+# opcodes, which interpret the element as either lane index + 8
+# or broadcast specifiers. For these, the .bN accessors are not valid.
+.macro singleLaneAccessorEncoder prefix, base
+    .set \prefix\().v,   -1
+    .set \prefix\().q0,  -1
+    .set \prefix\().q1,  -1
+    .set \prefix\().h0,  -1
+    .set \prefix\().h1,  -1
+    .set \prefix\().h2,  -1
+    .set \prefix\().h3,  -1
+    .set \prefix\().e0,  (\base + 0x8)
+    .set \prefix\().e1,  (\base + 0x9)
+    .set \prefix\().e2,  (\base + 0xA)
+    .set \prefix\().e3,  (\base + 0xB)
+    .set \prefix\().e4,  (\base + 0xC)
+    .set \prefix\().e5,  (\base + 0xD)
+    .set \prefix\().e6,  (\base + 0xE)
+    .set \prefix\().e7,  (\base + 0xF)
+    .set \prefix\().b0,  -1
+    .set \prefix\().b1,  -1
+    .set \prefix\().b2,  -1
+    .set \prefix\().b3,  -1
+    .set \prefix\().b4,  -1
+    .set \prefix\().b5,  -1
+    .set \prefix\().b6,  -1
+    .set \prefix\().b7,  -1
+    .set \prefix\().b8,  -1
+    .set \prefix\().b9,  -1
+    .set \prefix\().b10, -1
+    .set \prefix\().b11, -1
+    .set \prefix\().b12, -1
+    .set \prefix\().b13, -1
+    .set \prefix\().b14, -1
+    .set \prefix\().b15, -1
+.endm
+
 # This will encode element accessors for opcodes which interpret
 # the element as lane index (only packed load/store ops).
 # For these, only the .eN accessors are valid.
@@ -522,6 +559,10 @@ makeNotImplemented tnei
 
 .macro veVectorAccessors
     defineVectorAccessors veAccessorEncoder
+.endm
+
+.macro singleLaneVectorAccessors
+    defineVectorAccessors singleLaneAccessorEncoder
 .endm
 
 .macro laneVectorAccessors
@@ -775,8 +816,7 @@ makeOpInstruction vxor, 0b101100
             .exitm
         .endif
 
-        laneVectorAccessors
-        encodeVectorRegs
+        singleLaneVectorAccessors
 
         .iflt (\vd)
             .error "Invalid destination element"
