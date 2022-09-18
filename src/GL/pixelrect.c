@@ -1,6 +1,6 @@
 #include "gl_internal.h"
 #include <debug.h>
-
+/*
 extern gl_state_t state;
 
 bool gl_calc_transfer_is_noop()
@@ -241,3 +241,4 @@ void glPixelMapfv(GLenum map, GLsizei size, const GLfloat *values)
         pixel_map->entries[i] = values[i];
     }
 }
+*/

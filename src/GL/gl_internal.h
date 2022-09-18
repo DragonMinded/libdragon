@@ -261,8 +261,6 @@ typedef struct {
     GLclampf clear_color[4];
     GLclampd clear_depth;
 
-    GLfloat persp_norm_factor;
-
     bool cull_face;
     GLenum cull_face_mode;
     GLenum front_face;
@@ -347,6 +345,16 @@ typedef struct {
     gl_tex_gen_t r_gen;
     gl_tex_gen_t q_gen;
 
+    obj_map_t list_objects;
+    GLuint next_list_name;
+    GLuint list_base;
+    GLuint current_list;
+
+    gl_buffer_object_t *array_buffer;
+    gl_buffer_object_t *element_array_buffer;
+
+    bool immediate_active;
+/*
     GLboolean unpack_swap_bytes;
     GLboolean unpack_lsb_first;
     GLint unpack_row_length;
@@ -362,21 +370,12 @@ typedef struct {
 
     bool transfer_is_noop;
 
-    obj_map_t list_objects;
-    GLuint next_list_name;
-    GLuint list_base;
-    GLuint current_list;
-
-    gl_buffer_object_t *array_buffer;
-    gl_buffer_object_t *element_array_buffer;
-
-    bool immediate_active;
-
     gl_deletion_list_t deletion_lists[MAX_DELETION_LISTS];
     gl_deletion_list_t *current_deletion_list;
 
     int frame_id;
     volatile int frames_complete;
+*/
 } gl_state_t;
 
 typedef struct {

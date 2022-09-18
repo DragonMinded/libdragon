@@ -194,8 +194,6 @@ void glFrustum(GLdouble l, GLdouble r, GLdouble b, GLdouble t, GLdouble n, GLdou
     }};
 
     glMultMatrixf(frustum.m[0]);
-
-    //state.persp_norm_factor = 2.0f / (n + f);
 }
 
 void glOrtho(GLdouble l, GLdouble r, GLdouble b, GLdouble t, GLdouble n, GLdouble f)
