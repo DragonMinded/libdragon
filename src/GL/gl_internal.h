@@ -86,15 +86,24 @@ typedef struct {
     void *depth_buffer;
 } gl_framebuffer_t;
 
+#define VTX_FLAG_TLDONE 0x1
+
 typedef struct {
     GLfloat position[4];
-    GLfloat screen_pos[2];
     GLfloat color[4];
-    GLfloat texcoord[2];
-    GLfloat inverse_w;
+    GLfloat texcoord[4];
+    GLfloat normal[3];
     GLfloat depth;
+    GLfloat cs_position[4];
+    GLfloat screen_pos[2];
     uint8_t clip;
+    uint8_t flags;
 } gl_vertex_t;
+
+#define VTX_SCREEN_POS_OFFSET   (offsetof(gl_vertex_t, screen_pos)  / sizeof(float))
+#define VTX_COLOR_OFFSET        (offsetof(gl_vertex_t, color)       / sizeof(float))
+#define VTX_TEXCOORD_OFFSET     (offsetof(gl_vertex_t, texcoord)    / sizeof(float))
+#define VTX_DEPTH_OFFSET        (offsetof(gl_vertex_t, depth)       / sizeof(float))
 
 typedef struct {
     GLfloat m[4][4];
@@ -287,6 +296,7 @@ typedef struct {
     gl_array_t arrays[ATTRIB_COUNT];
 
     gl_vertex_t vertex_cache[VERTEX_CACHE_SIZE];
+    gl_material_t material_cache[VERTEX_CACHE_SIZE];
     uint32_t vertex_cache_indices[VERTEX_CACHE_SIZE];
     uint32_t lru_age_table[VERTEX_CACHE_SIZE];
     uint32_t lru_next_age;

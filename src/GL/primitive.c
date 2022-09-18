@@ -31,6 +31,8 @@ uint8_t gl_quads();
 
 void gl_reset_vertex_cache();
 
+void gl_vertex_t_l(uint8_t cache_index);
+
 void gl_primitive_init()
 {
     state.s_gen.mode = GL_EYE_LINEAR;
@@ -74,15 +76,8 @@ bool gl_is_invisible()
         || (state.alpha_test && state.alpha_func == GL_NEVER);
 }
 
-void glBegin(GLenum mode)
+bool gl_begin(GLenum mode)
 {
-    if (state.immediate_active) {
-        gl_set_error(GL_INVALID_OPERATION);
-        return;
-    }
-
-    state.lock_next_vertex = false;
-
     switch (mode) {
     case GL_POINTS:
         state.prim_func = gl_points;
@@ -132,10 +127,10 @@ void glBegin(GLenum mode)
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
-        return;
+        return false;
     }
 
-    state.immediate_active = true;
+    state.lock_next_vertex = false;
     state.primitive_mode = mode;
     state.prim_progress = 0;
     state.prim_counter = 0;
@@ -167,14 +162,11 @@ void glBegin(GLenum mode)
     rdpq_mode_end();
 
     gl_update(GL_UPDATE_TEXTURE_UPLOAD);
+    return true;
 }
 
-void glEnd(void)
+void gl_end()
 {
-    if (!state.immediate_active) {
-        gl_set_error(GL_INVALID_OPERATION);
-    }
-
     if (state.primitive_mode == GL_LINE_LOOP) {
         state.prim_indices[0] = state.prim_indices[1];
         state.prim_indices[1] = state.locked_vertex;
@@ -183,9 +175,29 @@ void glEnd(void)
         gl_clip_line(state.prim_texture, state.prim_mipmaps);
     }
 
-    state.immediate_active = false;
-
     rdpq_mode_begin();
+}
+
+void glBegin(GLenum mode)
+{
+    if (state.immediate_active) {
+        gl_set_error(GL_INVALID_OPERATION);
+        return;
+    }
+
+    if (gl_begin(mode)) {
+        state.immediate_active = true;
+    }
+}
+
+void glEnd(void)
+{
+    if (!state.immediate_active) {
+        gl_set_error(GL_INVALID_OPERATION);
+        return;
+    }
+
+    state.immediate_active = false;
 }
 
 void gl_draw_point(gl_vertex_t *v0)
@@ -243,7 +255,7 @@ void gl_draw_line(gl_vertex_t *v0, gl_vertex_t *v1)
     memcpy(line_vertices[3].color, v1->color, sizeof(float) * 4);
 
     if (state.prim_texture) {
-        tex_offset = 6;
+        tex_offset = VTX_TEXCOORD_OFFSET;
 
         memcpy(line_vertices[0].texcoord, v0->texcoord, sizeof(float) * 3);
         memcpy(line_vertices[1].texcoord, v0->texcoord, sizeof(float) * 3);
@@ -252,7 +264,7 @@ void gl_draw_line(gl_vertex_t *v0, gl_vertex_t *v1)
     }
 
     if (state.depth_test) {
-        z_offset = 9;
+        z_offset = VTX_DEPTH_OFFSET;
 
         line_vertices[0].depth = v0->depth;
         line_vertices[1].depth = v0->depth;
@@ -260,16 +272,16 @@ void gl_draw_line(gl_vertex_t *v0, gl_vertex_t *v1)
         line_vertices[3].depth = v1->depth;
     }
 
-    rdpq_triangle(0, state.prim_mipmaps, 0, 2, tex_offset, z_offset, line_vertices[0].screen_pos, line_vertices[1].screen_pos, line_vertices[2].screen_pos);
-    rdpq_triangle(0, state.prim_mipmaps, 0, 2, tex_offset, z_offset, line_vertices[1].screen_pos, line_vertices[2].screen_pos, line_vertices[3].screen_pos);
+    rdpq_triangle(0, state.prim_mipmaps, VTX_SCREEN_POS_OFFSET, VTX_COLOR_OFFSET, tex_offset, z_offset, (float*)&line_vertices[0], (float*)&line_vertices[1], (float*)&line_vertices[2]);
+    rdpq_triangle(0, state.prim_mipmaps, VTX_SCREEN_POS_OFFSET, VTX_COLOR_OFFSET, tex_offset, z_offset, (float*)&line_vertices[1], (float*)&line_vertices[2], (float*)&line_vertices[3]);
 }
 
 void gl_draw_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
 {
-    int32_t tex_offset = state.prim_texture ? 6 : -1;
-    int32_t z_offset = state.depth_test ? 9 : -1;
+    int32_t tex_offset = state.prim_texture ? VTX_TEXCOORD_OFFSET : -1;
+    int32_t z_offset = state.depth_test ? VTX_DEPTH_OFFSET : -1;
 
-    rdpq_triangle(0, state.prim_mipmaps, 0, 2, tex_offset, z_offset, v0->screen_pos, v1->screen_pos, v2->screen_pos);
+    rdpq_triangle(0, state.prim_mipmaps, VTX_SCREEN_POS_OFFSET, VTX_COLOR_OFFSET, tex_offset, z_offset, (float*)v0, (float*)v1, (float*)v2);
 }
 
 void gl_cull_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
@@ -321,21 +333,24 @@ float lerp(float a, float b, float t)
 
 void gl_vertex_calc_screenspace(gl_vertex_t *v)
 {
-    float inverse_w = 1.0f / v->position[3];
+    float inverse_w = 1.0f / v->cs_position[3];
 
-    v->screen_pos[0] = v->position[0] * inverse_w * state.current_viewport.scale[0] + state.current_viewport.offset[0];
-    v->screen_pos[1] = v->position[1] * inverse_w * state.current_viewport.scale[1] + state.current_viewport.offset[1];
+    v->screen_pos[0] = v->cs_position[0] * inverse_w * state.current_viewport.scale[0] + state.current_viewport.offset[0];
+    v->screen_pos[1] = v->cs_position[1] * inverse_w * state.current_viewport.scale[1] + state.current_viewport.offset[1];
 
-    v->depth = v->position[2] * inverse_w * state.current_viewport.scale[2] + state.current_viewport.offset[2];
+    v->depth = v->cs_position[2] * inverse_w * state.current_viewport.scale[2] + state.current_viewport.offset[2];
 
-    v->inverse_w = inverse_w;
+    v->texcoord[2] = inverse_w;
+}
 
+void gl_vertex_calc_clip_codes(gl_vertex_t *v)
+{
     v->clip = 0;
     for (uint32_t i = 0; i < 3; i++)
     {
-        if (v->position[i] < - v->position[3]) {
+        if (v->cs_position[i] < - v->cs_position[3]) {
             v->clip |= 1 << i;
-        } else if (v->position[i] > v->position[3]) {
+        } else if (v->cs_position[i] > v->cs_position[3]) {
             v->clip |= 1 << (i + 3);
         }
     }
@@ -343,19 +358,17 @@ void gl_vertex_calc_screenspace(gl_vertex_t *v)
 
 void gl_intersect_line_plane(gl_vertex_t *intersection, const gl_vertex_t *p0, const gl_vertex_t *p1, const float *clip_plane)
 {
-    float d0 = dot_product4(p0->position, clip_plane);
-    float d1 = dot_product4(p1->position, clip_plane);
+    float d0 = dot_product4(p0->cs_position, clip_plane);
+    float d1 = dot_product4(p1->cs_position, clip_plane);
     
     float a = d0 / (d0 - d1);
 
     assertf(a >= 0.f && a <= 1.f, "invalid a: %f", a);
 
-    intersection->position[0] = lerp(p0->position[0], p1->position[0], a);
-    intersection->position[1] = lerp(p0->position[1], p1->position[1], a);
-    intersection->position[2] = lerp(p0->position[2], p1->position[2], a);
-    intersection->position[3] = lerp(p0->position[3], p1->position[3], a);
-
-    gl_vertex_calc_screenspace(intersection);
+    intersection->cs_position[0] = lerp(p0->cs_position[0], p1->cs_position[0], a);
+    intersection->cs_position[1] = lerp(p0->cs_position[1], p1->cs_position[1], a);
+    intersection->cs_position[2] = lerp(p0->cs_position[2], p1->cs_position[2], a);
+    intersection->cs_position[3] = lerp(p0->cs_position[3], p1->cs_position[3], a);
 
     intersection->color[0] = lerp(p0->color[0], p1->color[0], a);
     intersection->color[1] = lerp(p0->color[1], p1->color[1], a);
@@ -364,17 +377,28 @@ void gl_intersect_line_plane(gl_vertex_t *intersection, const gl_vertex_t *p0, c
 
     intersection->texcoord[0] = lerp(p0->texcoord[0], p1->texcoord[0], a);
     intersection->texcoord[1] = lerp(p0->texcoord[1], p1->texcoord[1], a);
+
+    gl_vertex_calc_clip_codes(intersection);
+    gl_vertex_calc_screenspace(intersection);
 }
 
 void gl_clip_triangle()
 {
-    gl_vertex_t *v0 = &state.vertex_cache[state.prim_indices[0]];
-    gl_vertex_t *v1 = &state.vertex_cache[state.prim_indices[1]];
-    gl_vertex_t *v2 = &state.vertex_cache[state.prim_indices[2]];
+    uint8_t i0 = state.prim_indices[0];
+    uint8_t i1 = state.prim_indices[1];
+    uint8_t i2 = state.prim_indices[2];
+
+    gl_vertex_t *v0 = &state.vertex_cache[i0];
+    gl_vertex_t *v1 = &state.vertex_cache[i1];
+    gl_vertex_t *v2 = &state.vertex_cache[i2];
 
     if (v0->clip & v1->clip & v2->clip) {
         return;
     }
+
+    gl_vertex_t_l(i0);
+    gl_vertex_t_l(i1);
+    gl_vertex_t_l(i2);
 
     // Flat shading
     if (state.shade_model == GL_FLAT) {
@@ -486,12 +510,18 @@ void gl_clip_triangle()
 
 void gl_clip_line()
 {
-    gl_vertex_t *v0 = &state.vertex_cache[state.prim_indices[0]];
-    gl_vertex_t *v1 = &state.vertex_cache[state.prim_indices[1]];
+    uint8_t i0 = state.prim_indices[0];
+    uint8_t i1 = state.prim_indices[1];
+
+    gl_vertex_t *v0 = &state.vertex_cache[i0];
+    gl_vertex_t *v1 = &state.vertex_cache[i1];
 
     if (v0->clip & v1->clip) {
         return;
     }
+
+    gl_vertex_t_l(i0);
+    gl_vertex_t_l(i1);
 
     // Flat shading
     if (state.shade_model == GL_FLAT) {
@@ -536,12 +566,14 @@ void gl_clip_line()
 
 void gl_clip_point()
 {
-    gl_vertex_t *v0 = &state.vertex_cache[state.prim_indices[0]];
+    uint8_t i0 = state.prim_indices[0];
+    gl_vertex_t *v0 = &state.vertex_cache[i0];
 
     if (v0->clip) {
         return;
     }
 
+    gl_vertex_t_l(i0);
     gl_draw_point(v0);
 }
 
@@ -675,24 +707,41 @@ void gl_calc_texture_coords(GLfloat *dest, const GLfloat *input, const GLfloat *
     gl_matrix_mult4x2(dest, gl_matrix_stack_get_matrix(&state.texture_stack), tmp);
 }
 
-void gl_vertex_t_l(uint8_t cache_index, const gl_matrix_t *mv)
+void gl_vertex_pre_clip(uint8_t cache_index)
 {
     gl_vertex_t *v = &state.vertex_cache[cache_index];
 
-    GLfloat *pos = state.current_attribs[ATTRIB_VERTEX];
-    GLfloat *color = state.current_attribs[ATTRIB_COLOR];
-    GLfloat *texcoord = state.current_attribs[ATTRIB_TEXCOORD];
-    GLfloat *normal = state.current_attribs[ATTRIB_NORMAL];
+    memcpy(v, state.current_attribs, sizeof(float)*15);
+
+    v->flags = 0;
+
+    gl_matrix_mult(v->cs_position, &state.final_matrix, v->position);
+    gl_vertex_calc_clip_codes(v);
+
+    if (state.immediate_active) {
+        gl_material_t *m = &state.material_cache[cache_index];
+        memcpy(m, &state.material, sizeof(gl_material_t));
+    }
+}
+
+void gl_vertex_t_l(uint8_t cache_index)
+{
+    gl_vertex_t *v = &state.vertex_cache[cache_index];
+
+    if (v->flags & VTX_FLAG_TLDONE) return;
+
+    gl_matrix_t *mv = gl_matrix_stack_get_matrix(&state.modelview_stack);
 
     GLfloat eye_pos[4];
     GLfloat eye_normal[3];
+    GLfloat out_color[4];
 
     if (state.lighting || state.fog || state.prim_texture) {
-        gl_matrix_mult(eye_pos, mv, pos);
+        gl_matrix_mult(eye_pos, mv, v->position);
     }
 
     if (state.lighting || state.prim_texture) {
-        gl_matrix_mult3x3(eye_normal, mv, normal);
+        gl_matrix_mult3x3(eye_normal, mv, v->normal);
 
         if (state.normalize) {
             gl_normalize(eye_normal, eye_normal);
@@ -700,43 +749,40 @@ void gl_vertex_t_l(uint8_t cache_index, const gl_matrix_t *mv)
     }
 
     if (state.lighting) {
-        gl_perform_lighting(v->color, color, eye_pos, eye_normal, &state.material);
+        gl_material_t *mat = state.immediate_active ? &state.material_cache[cache_index] : &state.material;
+        gl_perform_lighting(out_color, v->color, eye_pos, eye_normal, mat);
     } else {
-        v->color[0] = color[0];
-        v->color[1] = color[1];
-        v->color[2] = color[2];
-        v->color[3] = color[3];
+        out_color[0] = v->color[0];
+        out_color[1] = v->color[1];
+        out_color[2] = v->color[2];
+        out_color[3] = v->color[3];
     }
 
     if (state.fog) {
-        v->color[3] = (state.fog_end - fabsf(eye_pos[2])) / (state.fog_end - state.fog_start);
+        out_color[3] = (state.fog_end - fabsf(eye_pos[2])) / (state.fog_end - state.fog_start);
     }
 
-    v->color[0] = CLAMP01(v->color[0]);
-    v->color[1] = CLAMP01(v->color[1]);
-    v->color[2] = CLAMP01(v->color[2]);
-    v->color[3] = CLAMP01(v->color[3]);
-
-    gl_matrix_mult(v->position, &state.final_matrix, pos);
-
-    //v->position[0] *= state.persp_norm_factor;
-    //v->position[1] *= state.persp_norm_factor;
-    //v->position[2] *= state.persp_norm_factor;
-    //v->position[3] *= state.persp_norm_factor;
-
-    gl_vertex_calc_screenspace(v);
+    v->color[0] = CLAMP01(out_color[0]);
+    v->color[1] = CLAMP01(out_color[1]);
+    v->color[2] = CLAMP01(out_color[2]);
+    v->color[3] = CLAMP01(out_color[3]);
 
     if (state.prim_texture) {
-        gl_calc_texture_coords(v->texcoord, texcoord, pos, eye_pos, eye_normal);
+        GLfloat out_texcoord[2];
+        gl_calc_texture_coords(out_texcoord, v->texcoord, v->position, eye_pos, eye_normal);
 
-        v->texcoord[0] *= state.prim_tex_width;
-        v->texcoord[1] *= state.prim_tex_height;
+        v->texcoord[0] = out_texcoord[0] * state.prim_tex_width;
+        v->texcoord[1] = out_texcoord[1] * state.prim_tex_height;
 
         if (state.prim_bilinear) {
             v->texcoord[0] -= 0.5f;
             v->texcoord[1] -= 0.5f;
         }
     }
+
+    gl_vertex_calc_screenspace(v);
+
+    v->flags |= VTX_FLAG_TLDONE;
 }
 
 typedef uint32_t (*read_index_func)(const void*,uint32_t);
@@ -827,8 +873,6 @@ void gl_draw(const gl_attrib_source_t *sources, uint32_t offset, uint32_t count,
         return;
     }
 
-    const gl_matrix_t *mv = gl_matrix_stack_get_matrix(&state.modelview_stack);
-
     for (uint32_t i = 0; i < count; i++)
     {
         uint32_t index;
@@ -851,7 +895,7 @@ void gl_draw(const gl_attrib_source_t *sources, uint32_t offset, uint32_t count,
             //        just so that after the draw call, the current attributes have the correct values (according to spec).
             //        Ignore this for now as it would waste performance. Fix this if someone actually relies on this behavior.
             gl_load_attribs(sources, index);
-            gl_vertex_t_l(cache_index, mv);
+            gl_vertex_pre_clip(cache_index);
         }
 
         if (state.lock_next_vertex) {
@@ -1058,9 +1102,9 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
         return;
     }
 
-    glBegin(mode);
+    gl_begin(mode);
     gl_draw(state.attrib_sources, first, count, NULL, NULL);
-    glEnd();
+    gl_end();
 }
 
 void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices)
@@ -1130,9 +1174,9 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
         return;
     }
 
-    glBegin(mode);
+    gl_begin(mode);
     gl_draw(state.attrib_sources, 0, count, indices, read_index);
-    glEnd();
+    gl_end();
 }
 
 void glArrayElement(GLint i)
