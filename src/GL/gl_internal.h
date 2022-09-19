@@ -365,7 +365,7 @@ typedef struct {
     gl_buffer_object_t *element_array_buffer;
 
     bool immediate_active;
-/*
+
     GLboolean unpack_swap_bytes;
     GLboolean unpack_lsb_first;
     GLint unpack_row_length;
@@ -386,7 +386,6 @@ typedef struct {
 
     int frame_id;
     volatile int frames_complete;
-*/
 } gl_state_t;
 
 typedef struct {

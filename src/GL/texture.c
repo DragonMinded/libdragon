@@ -454,7 +454,7 @@ void glDeleteTextures(GLsizei n, const GLuint *textures)
 }
 
 // Anything below might be thrown away at some point
-/*
+
 uint32_t gl_get_format_element_count(GLenum format)
 {
     switch (format) {
@@ -961,7 +961,6 @@ bool gl_validate_upload_image(GLenum format, GLenum type, uint32_t *num_elements
 
 void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
-    assertf(0, "glTexImage1D/glTexImage2D is currently unsupported. Please use glTexImageN64 instead!");
     assertf(border == 0, "Texture border is not supported!");
 
     GLsizei width_without_border = width - 2 * border;
@@ -1048,36 +1047,6 @@ void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei widt
     gl_update_texture_completeness(offset);
 }
 
-void gl_tex_sub_image(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *data)
-{
-    assertf(0, "glTexSubImage* is temporarily unsupported. Please check again later!");
-
-    // TODO: can't access the image here!
-    gl_texture_object_t *obj;
-    gl_texture_image_t *image;
-
-    if (!gl_get_texture_object_and_image(target, level, &obj, &image)) {
-        return;
-    }
-
-    if (image->data == NULL) {
-        gl_set_error(GL_INVALID_OPERATION);
-        return;
-    }
-
-    uint32_t num_elements;
-    if (!gl_validate_upload_image(format, type, &num_elements)) {
-        return;
-    }
-
-    GLvoid *dest = image->data + yoffset * image->stride;
-
-    if (data != NULL) {
-        gl_transfer_pixels(dest, image->internal_format, image->stride, width, height, num_elements, format, type, xoffset, data);
-        obj->flags |= TEX_FLAG_UPLOAD_DIRTY;
-    }
-}
-
 void glTexImage1D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
     switch (target) {
@@ -1108,6 +1077,37 @@ void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei widt
     }
 
     gl_tex_image(target, level, internalformat, width, height, border, format, type, data);
+}
+
+/*
+void gl_tex_sub_image(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *data)
+{
+    assertf(0, "glTexSubImage* is temporarily unsupported. Please check again later!");
+
+    // TODO: can't access the image here!
+    gl_texture_object_t *obj;
+    gl_texture_image_t *image;
+
+    if (!gl_get_texture_object_and_image(target, level, &obj, &image)) {
+        return;
+    }
+
+    if (image->data == NULL) {
+        gl_set_error(GL_INVALID_OPERATION);
+        return;
+    }
+
+    uint32_t num_elements;
+    if (!gl_validate_upload_image(format, type, &num_elements)) {
+        return;
+    }
+
+    GLvoid *dest = image->data + yoffset * image->stride;
+
+    if (data != NULL) {
+        gl_transfer_pixels(dest, image->internal_format, image->stride, width, height, num_elements, format, type, xoffset, data);
+        obj->flags |= TEX_FLAG_UPLOAD_DIRTY;
+    }
 }
 
 void glTexSubImage1D(GLenum target, GLint level, GLint xoffset, GLsizei width, GLenum format, GLenum type, const GLvoid *data)

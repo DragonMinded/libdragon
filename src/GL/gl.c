@@ -119,7 +119,7 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
     gl_rendermode_init();
     gl_array_init();
     gl_primitive_init();
-    //gl_pixel_init();
+    gl_pixel_init();
     gl_list_init();
 
     glDrawBuffer(GL_FRONT);
@@ -139,7 +139,6 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
 
 void gl_close()
 {
-    /*
     for (uint32_t i = 0; i < MAX_DELETION_LISTS; i++)
     {
         gl_deletion_list_t *list = &state.deletion_lists[i];
@@ -147,7 +146,6 @@ void gl_close()
             free_uncached(list->slots);
         }
     }
-    */
     
     gl_list_close();
     gl_primitive_close();
@@ -156,7 +154,6 @@ void gl_close()
     rdpq_close();
 }
 
-/*
 gl_deletion_list_t * gl_find_empty_deletion_list()
 {
     gl_deletion_list_t *list = NULL;
@@ -227,11 +224,10 @@ void gl_handle_deletion_lists()
 
     state.current_deletion_list = NULL;
 }
-*/
 
 void gl_on_frame_complete(surface_t *surface)
 {
-    //state.frames_complete++;
+    state.frames_complete++;
     state.close_surface(surface);
 }
 
@@ -239,10 +235,10 @@ void gl_swap_buffers()
 {
     rdpq_sync_full((void(*)(void*))gl_on_frame_complete, state.default_framebuffer.color_buffer);
     rspq_flush();
-    //gl_handle_deletion_lists();
+    gl_handle_deletion_lists();
     gl_set_default_framebuffer();
 
-    //state.frame_id++;
+    state.frame_id++;
 }
 
 GLenum glGetError(void)
