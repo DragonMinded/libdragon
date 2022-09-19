@@ -9,11 +9,11 @@
 extern gl_state_t state;
 
 static const float clip_planes[CLIPPING_PLANE_COUNT][4] = {
-    { 1, 0, 0, 1 },
-    { 0, 1, 0, 1 },
+    { 1, 0, 0, GUARD_BAND_FACTOR },
+    { 0, 1, 0, GUARD_BAND_FACTOR },
     { 0, 0, 1, 1 },
-    { 1, 0, 0, -1 },
-    { 0, 1, 0, -1 },
+    { 1, 0, 0, -GUARD_BAND_FACTOR },
+    { 0, 1, 0, -GUARD_BAND_FACTOR },
     { 0, 0, 1, -1 },
 };
 
@@ -337,6 +337,21 @@ float lerp(float a, float b, float t)
     return a + (b - a) * t;
 }
 
+uint8_t gl_get_clip_codes(GLfloat *pos, GLfloat *ref)
+{
+    // This corresponds to vcl + vch on RSP
+    uint8_t codes = 0;
+    for (uint32_t i = 0; i < 3; i++)
+    {
+        if (pos[i] < - ref[i]) {
+            codes |= 1 << i;
+        } else if (pos[i] > ref[i]) {
+            codes |= 1 << (i + 3);
+        }
+    }
+    return codes;
+}
+
 void gl_vertex_calc_screenspace(gl_vertex_t *v)
 {
     float inverse_w = 1.0f / v->cs_position[3];
@@ -347,19 +362,14 @@ void gl_vertex_calc_screenspace(gl_vertex_t *v)
     v->depth = v->cs_position[2] * inverse_w * state.current_viewport.scale[2] + state.current_viewport.offset[2];
 
     v->texcoord[2] = inverse_w;
-}
 
-void gl_vertex_calc_clip_codes(gl_vertex_t *v)
-{
-    v->clip = 0;
-    for (uint32_t i = 0; i < 3; i++)
-    {
-        if (v->cs_position[i] < - v->cs_position[3]) {
-            v->clip |= 1 << i;
-        } else if (v->cs_position[i] > v->cs_position[3]) {
-            v->clip |= 1 << (i + 3);
-        }
-    }
+    GLfloat clip_ref[] = { 
+        v->cs_position[3] * GUARD_BAND_FACTOR,
+        v->cs_position[3] * GUARD_BAND_FACTOR,
+        v->cs_position[3]
+    };
+
+    v->clip_code = gl_get_clip_codes(v->cs_position, clip_ref);
 }
 
 void gl_intersect_line_plane(gl_vertex_t *intersection, const gl_vertex_t *p0, const gl_vertex_t *p1, const float *clip_plane)
@@ -384,7 +394,6 @@ void gl_intersect_line_plane(gl_vertex_t *intersection, const gl_vertex_t *p0, c
     intersection->texcoord[0] = lerp(p0->texcoord[0], p1->texcoord[0], a);
     intersection->texcoord[1] = lerp(p0->texcoord[1], p1->texcoord[1], a);
 
-    gl_vertex_calc_clip_codes(intersection);
     gl_vertex_calc_screenspace(intersection);
 }
 
@@ -398,7 +407,7 @@ void gl_clip_triangle()
     gl_vertex_t *v1 = &state.vertex_cache[i1];
     gl_vertex_t *v2 = &state.vertex_cache[i2];
 
-    if (v0->clip & v1->clip & v2->clip) {
+    if (v0->tr_code & v1->tr_code & v2->tr_code) {
         return;
     }
 
@@ -414,7 +423,7 @@ void gl_clip_triangle()
         v0->color[3] = v1->color[3] = v2->color[3];
     }
 
-    uint8_t any_clip = v0->clip | v1->clip | v2->clip;
+    uint8_t any_clip = v0->clip_code | v1->clip_code | v2->clip_code;
 
     if (!any_clip) {
         gl_cull_triangle(v0, v1, v2);
@@ -459,8 +468,8 @@ void gl_clip_triangle()
             gl_vertex_t *cur_point = in_list->vertices[i];
             gl_vertex_t *prev_point = in_list->vertices[prev_index];
 
-            bool cur_inside = (cur_point->clip & (1<<c)) == 0;
-            bool prev_inside = (prev_point->clip & (1<<c)) == 0;
+            bool cur_inside = (cur_point->clip_code & (1<<c)) == 0;
+            bool prev_inside = (prev_point->clip_code & (1<<c)) == 0;
 
             if (cur_inside ^ prev_inside) {
                 gl_vertex_t *intersection = NULL;
@@ -522,7 +531,7 @@ void gl_clip_line()
     gl_vertex_t *v0 = &state.vertex_cache[i0];
     gl_vertex_t *v1 = &state.vertex_cache[i1];
 
-    if (v0->clip & v1->clip) {
+    if (v0->tr_code & v1->tr_code) {
         return;
     }
 
@@ -537,7 +546,7 @@ void gl_clip_line()
         v0->color[3] = v1->color[3];
     }
 
-    uint8_t any_clip = v0->clip | v1->clip;
+    uint8_t any_clip = v0->clip_code | v1->clip_code;
 
     if (any_clip) {
         gl_vertex_t vertex_cache[2];
@@ -549,8 +558,8 @@ void gl_clip_line()
                 continue;
             }
 
-            bool v0_inside = (v0->clip & (1<<c)) == 0;
-            bool v1_inside = (v1->clip & (1<<c)) == 0;
+            bool v0_inside = (v0->clip_code & (1<<c)) == 0;
+            bool v1_inside = (v1->clip_code & (1<<c)) == 0;
 
             if ((v0_inside ^ v1_inside) == 0) {
                 continue;
@@ -575,7 +584,7 @@ void gl_clip_point()
     uint8_t i0 = state.prim_indices[0];
     gl_vertex_t *v0 = &state.vertex_cache[i0];
 
-    if (v0->clip) {
+    if (v0->tr_code) {
         return;
     }
 
@@ -722,7 +731,14 @@ void gl_vertex_pre_clip(uint8_t cache_index)
     v->flags = 0;
 
     gl_matrix_mult(v->cs_position, &state.final_matrix, v->position);
-    gl_vertex_calc_clip_codes(v);
+
+    GLfloat tr_ref[] = {
+        v->cs_position[3],
+        v->cs_position[3],
+        v->cs_position[3]
+    };
+    
+    v->tr_code = gl_get_clip_codes(v->cs_position, tr_ref);
 
     if (state.immediate_active) {
         gl_material_t *m = &state.material_cache[cache_index];

@@ -75,4 +75,8 @@
 
 #define LOAD_TILE 7
 
+#define VTX_FLAG_TLDONE 0x1
+
+#define GUARD_BAND_FACTOR 4
+
 #endif

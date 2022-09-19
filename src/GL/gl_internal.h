@@ -86,8 +86,6 @@ typedef struct {
     void *depth_buffer;
 } gl_framebuffer_t;
 
-#define VTX_FLAG_TLDONE 0x1
-
 typedef struct {
     GLfloat position[4];
     GLfloat color[4];
@@ -96,7 +94,8 @@ typedef struct {
     GLfloat depth;
     GLfloat cs_position[4];
     GLfloat screen_pos[2];
-    uint8_t clip;
+    uint8_t tr_code;
+    uint8_t clip_code;
     uint8_t flags;
 } gl_vertex_t;
 
