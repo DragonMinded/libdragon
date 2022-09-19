@@ -81,10 +81,12 @@ bool gl_begin(GLenum mode)
     switch (mode) {
     case GL_POINTS:
         state.prim_func = gl_points;
+        state.lock_next_vertex = false;
         state.prim_size = 1;
         break;
     case GL_LINES:
         state.prim_func = gl_lines;
+        state.lock_next_vertex = false;
         state.prim_size = 2;
         break;
     case GL_LINE_LOOP:
@@ -95,14 +97,17 @@ bool gl_begin(GLenum mode)
         break;
     case GL_LINE_STRIP:
         state.prim_func = gl_line_strip;
+        state.lock_next_vertex = false;
         state.prim_size = 2;
         break;
     case GL_TRIANGLES:
         state.prim_func = gl_triangles;
+        state.lock_next_vertex = false;
         state.prim_size = 3;
         break;
     case GL_TRIANGLE_STRIP:
         state.prim_func = gl_triangle_strip;
+        state.lock_next_vertex = false;
         state.prim_size = 3;
         break;
     case GL_TRIANGLE_FAN:
@@ -112,11 +117,13 @@ bool gl_begin(GLenum mode)
         break;
     case GL_QUADS:
         state.prim_func = gl_quads;
+        state.lock_next_vertex = false;
         state.prim_size = 3;
         break;
     case GL_QUAD_STRIP:
         // Quad strip is equivalent to triangle strip
         state.prim_func = gl_triangle_strip;
+        state.lock_next_vertex = false;
         state.prim_size = 3;
         break;
     case GL_POLYGON:
@@ -130,7 +137,6 @@ bool gl_begin(GLenum mode)
         return false;
     }
 
-    state.lock_next_vertex = false;
     state.primitive_mode = mode;
     state.prim_progress = 0;
     state.prim_counter = 0;
