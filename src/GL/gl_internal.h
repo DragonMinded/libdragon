@@ -194,6 +194,7 @@ typedef struct {
     GLfloat direction[3];
     GLfloat spot_exponent;
     GLfloat spot_cutoff;
+    GLfloat spot_cutoff_cos;
     GLfloat constant_attenuation;
     GLfloat linear_attenuation;
     GLfloat quadratic_attenuation;

@@ -159,7 +159,7 @@ void gl_perform_lighting(GLfloat *color, const GLfloat *input, const GLfloat *v,
 
             float plvds = gl_clamped_dot(plv, s);
 
-            if (plvds < cosf(RADIANS(light->spot_cutoff))) {
+            if (plvds < light->spot_cutoff_cos) {
                 // Outside of spotlight cutoff
                 continue;
             }
@@ -410,6 +410,12 @@ gl_light_t * gl_get_light(GLenum light)
     return &state.lights[light - GL_LIGHT0];
 }
 
+void gl_light_set_spot_cutoff(gl_light_t *light, float param)
+{
+    light->spot_cutoff = param;
+    light->spot_cutoff_cos = cosf(RADIANS(param));
+}
+
 void glLightf(GLenum light, GLenum pname, GLfloat param)
 {
     gl_light_t *l = gl_get_light(light);
@@ -422,7 +428,7 @@ void glLightf(GLenum light, GLenum pname, GLfloat param)
         l->spot_exponent = param;
         break;
     case GL_SPOT_CUTOFF:
-        l->spot_cutoff = param;
+        gl_light_set_spot_cutoff(l, param);
         break;
     case GL_CONSTANT_ATTENUATION:
         l->constant_attenuation = param;
@@ -484,7 +490,7 @@ void glLightiv(GLenum light, GLenum pname, const GLint *params)
         l->spot_exponent = params[0];
         break;
     case GL_SPOT_CUTOFF:
-        l->spot_cutoff = params[0];
+        gl_light_set_spot_cutoff(l, params[0]);
         break;
     case GL_CONSTANT_ATTENUATION:
         l->constant_attenuation = params[0];
@@ -537,7 +543,7 @@ void glLightfv(GLenum light, GLenum pname, const GLfloat *params)
         l->spot_exponent = params[0];
         break;
     case GL_SPOT_CUTOFF:
-        l->spot_cutoff = params[0];
+        gl_light_set_spot_cutoff(l, params[0]);
         break;
     case GL_CONSTANT_ATTENUATION:
         l->constant_attenuation = params[0];
