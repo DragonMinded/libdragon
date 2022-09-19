@@ -1,14 +1,7 @@
 #ifndef CUBE_H
 #define CUBE_H
 
-#include <stdint.h>
-
-typedef struct {
-    float position[3];
-    float texcoord[2];
-    float normal[3];
-    uint32_t color;
-} vertex_t;
+#include "vertex.h"
 
 static const vertex_t cube_vertices[] = {
     // +X
@@ -56,5 +49,36 @@ static const uint16_t cube_indices[] = {
     16, 17, 18, 16, 18, 19,
     20, 21, 22, 20, 22, 23,
 };
+
+static GLuint buffers[2];
+
+void setup_cube()
+{
+    glGenBuffersARB(2, buffers);
+
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffers[0]);
+    glBufferDataARB(GL_ARRAY_BUFFER_ARB, sizeof(cube_vertices), cube_vertices, GL_STATIC_DRAW_ARB);
+
+    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffers[1]);
+    glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, sizeof(cube_indices), cube_indices, GL_STATIC_DRAW_ARB);
+}
+
+void draw_cube()
+{
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffers[0]);
+    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffers[1]);
+
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+    glEnableClientState(GL_NORMAL_ARRAY);
+    glEnableClientState(GL_COLOR_ARRAY);
+
+    glVertexPointer(3, GL_FLOAT, sizeof(vertex_t), (void*)(0*sizeof(float)));
+    glTexCoordPointer(2, GL_FLOAT, sizeof(vertex_t), (void*)(3*sizeof(float)));
+    glNormalPointer(GL_FLOAT, sizeof(vertex_t), (void*)(5*sizeof(float)));
+    glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(vertex_t), (void*)(8*sizeof(float)));
+
+    glDrawElements(GL_TRIANGLES, sizeof(cube_indices) / sizeof(uint16_t), GL_UNSIGNED_SHORT, 0);
+}
 
 #endif
