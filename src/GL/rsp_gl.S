@@ -533,6 +533,8 @@ GL_UpdateTextureUpload:
     #define tex_flags       t7
     #define full_width_log  t8
     #define full_height_log t9
+    #define mirror          k0
+
     move ra2, ra
     jal GL_GetActiveTexture
     lw uploaded_tex, %lo(GL_STATE_UPLOADED_TEX)
@@ -563,8 +565,18 @@ gl_upload_tex:
     lhu wrap_t, TEXTURE_WRAP_T_OFFSET(active_tex)
     lbu full_width_log, IMAGE_WIDTH_LOG_OFFSET(active_tex)
     lbu full_height_log, IMAGE_HEIGHT_LOG_OFFSET(active_tex)
-    xori wrap_s, GL_REPEAT
-    xori wrap_t, GL_REPEAT
+
+    xori t0, wrap_s, GL_MIRRORED_REPEAT_ARB
+    xori t1, wrap_t, GL_MIRRORED_REPEAT_ARB
+    sltu t0, 1
+    sltu t1, 1
+    sll mirror, t0, 8
+    sll t1, 18
+    or mirror, t1
+
+    xori wrap_s, GL_CLAMP
+    xori wrap_t, GL_CLAMP
+
     li out_ptr, %lo(RDPQ_CMD_STAGING)
     move image, active_tex
     move level, zero
@@ -598,13 +610,14 @@ gl_upload_loop:
     add a0, tmem_addr
 
     # mask_s
-    bnez wrap_s, gl_clamp_s
-    move a1, zero
-    sll a1, v0, 4
+    move a1, mirror
+    beqz wrap_s, gl_clamp_s
+    sll t1, v0, 4
+    or a1, t1
 gl_clamp_s:
 
     # mask_t
-    bnez wrap_t, gl_clamp_t
+    beqz wrap_t, gl_clamp_t
     sll t1, v1, 14
     or a1, t1
 gl_clamp_t:
