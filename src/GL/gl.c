@@ -547,3 +547,15 @@ bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size)
 
     return true;
 }
+
+extern inline bool is_in_heap_memory(void *ptr);
+extern inline void gl_set_flag_raw(gl_update_func_t update_func, uint32_t offset, uint32_t flag, bool value);
+extern inline void gl_set_flag(gl_update_func_t update_func, uint32_t flag, bool value);
+extern inline void gl_set_byte(gl_update_func_t update_func, uint32_t offset, uint8_t value);
+extern inline void gl_set_short(gl_update_func_t update_func, uint32_t offset, uint16_t value);
+extern inline void gl_set_word(gl_update_func_t update_func, uint32_t offset, uint32_t value);
+extern inline void gl_set_long(gl_update_func_t update_func, uint32_t offset, uint64_t value);
+extern inline void gl_update(gl_update_func_t update_func);
+extern inline void gl_get_value(void *dst, uint32_t offset, uint32_t size);
+extern inline void gl_bind_texture(GLenum target, gl_texture_object_t *texture);
+extern inline void gl_update_texture_completeness(uint32_t offset);
