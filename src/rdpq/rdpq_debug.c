@@ -507,6 +507,21 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
             BITS(buf[0], 24, 26), fmt[f], size[BITS(buf[0], 51, 52)],
             BITS(buf[0], 32, 40)*8, BITS(buf[0], 41, 49)*8);
         if (f==2) fprintf(out, " pal=%d", BITS(buf[0], 20, 23));
+        fprintf(out, " mask=[%d, %d]", BITS(buf[0], 4, 7), BITS(buf[0], 14, 17));
+        bool clamp = BIT(buf[0], 19) || BIT(buf[0], 9);
+        bool mirror = BIT(buf[0], 18) || BIT(buf[0], 8);
+        if (clamp) {
+            fprintf(out, " clamp=["); FLAG_RESET();
+            FLAG(BIT(buf[0], 9), "s"); FLAG(BIT(buf[0], 19), "t");
+            fprintf(out, "]");
+        }
+        if (mirror) {
+            fprintf(out, " mirror=["); FLAG_RESET();
+            FLAG(BIT(buf[0], 8), "s"); FLAG(BIT(buf[0], 18), "t");
+            fprintf(out, "]");
+        }
+        if (BITS(buf[0], 0, 3) || BITS(buf[0], 10, 13))
+            fprintf(out, " shift=[%d, %d]", BITS(buf[0], 0, 3), BITS(buf[0], 10, 13));
         fprintf(out, "\n");
     } return;
     case 0x24 ... 0x25:
