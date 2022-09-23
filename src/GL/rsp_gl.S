@@ -595,12 +595,16 @@ gl_upload_loop:
     # SET_TEX_IMAGE
     sw a0, 0x00(out_ptr)
     sw a1, 0x04(out_ptr)
+    # SYNC_TILE
+    lui a0, 0xE800
+    sw a0, 0x08(out_ptr)
+    sw zero, 0x0C(out_ptr)
     # SET_TILE
-    sw a2, 0x08(out_ptr)
-    sw t0, 0x0C(out_ptr)
+    sw a2, 0x10(out_ptr)
+    sw t0, 0x14(out_ptr)
     # LOAD_BLOCK
-    sw t1, 0x10(out_ptr)
-    sw a3, 0x14(out_ptr)
+    sw t1, 0x18(out_ptr)
+    sw a3, 0x1C(out_ptr)
 
     lw a0, IMAGE_SET_TILE_OFFSET(image)
     lbu v0, IMAGE_WIDTH_LOG_OFFSET(image)
@@ -639,18 +643,18 @@ gl_clamp_t:
     or a3, t0
 
     # SET_TILE
-    sw a0, 0x18(out_ptr)
-    sw a1, 0x1C(out_ptr)
+    sw a0, 0x20(out_ptr)
+    sw a1, 0x24(out_ptr)
     # SET_TILE_SIZE
-    sw a2, 0x20(out_ptr)
-    sw a3, 0x24(out_ptr)
+    sw a2, 0x28(out_ptr)
+    sw a3, 0x2C(out_ptr)
 
     lhu t0, IMAGE_TMEM_SIZE_OFFSET(image)
     addiu level, 1
     addiu image, TEXTURE_IMAGE_SIZE
     add tmem_addr, t0
     blt level, num_levels, gl_upload_loop
-    addiu out_ptr, 5 * 8
+    addiu out_ptr, 6 * 8
 
     li t0, ~TEX_FLAG_UPLOAD_DIRTY
     and tex_flags, t0

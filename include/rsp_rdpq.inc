@@ -64,7 +64,7 @@ RDPQ_CMD_PTR:           .word RDPQ_CMD_STAGING - 0x04000000
 
     .align 4
     # Enough for a full triangle command
-RDPQ_CMD_STAGING:       .ds.b 0x118
+RDPQ_CMD_STAGING:       .ds.b 0x150
 
     .text
 
