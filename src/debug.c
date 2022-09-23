@@ -13,6 +13,7 @@
 #include "regsinternal.h"
 #include "system.h"
 #include "usb.h"
+#include "utils.h"
 #include "fatfs/ff.h"
 #include "fatfs/ffconf.h"
 #include "fatfs/diskio.h"
@@ -20,6 +21,7 @@
 // SD implementations
 #include "debug_sdfs_ed64.c"
 #include "debug_sdfs_64drive.c"
+#include "debug_sdfs_sc64.c"
 
 /**
  * @defgroup debug Debugging Support
@@ -211,6 +213,15 @@ static fat_disk_t fat_disk_64drive =
 	fat_disk_status_default,
 	fat_disk_read_64drive,
 	fat_disk_write_64drive,
+	fat_disk_ioctl_default
+};
+
+static fat_disk_t fat_disk_sc64 =
+{
+	fat_disk_initialize_sc64,
+	fat_disk_status_default,
+	fat_disk_read_sc64,
+	fat_disk_write_sc64,
 	fat_disk_ioctl_default
 };
 
@@ -457,6 +468,9 @@ bool debug_init_sdfs(const char *prefix, int npart)
 		break;
 	case CART_EVERDRIVE:
 		fat_disks[FAT_VOLUME_SD] = fat_disk_everdrive;
+		break;
+	case CART_SC64:
+		fat_disks[FAT_VOLUME_SD] = fat_disk_sc64;
 		break;
 	default:
 		return false;
