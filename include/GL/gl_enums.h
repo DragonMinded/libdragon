@@ -395,6 +395,7 @@
 
 #define GL_CLAMP                                        0x2900
 #define GL_REPEAT                                       0x2901
+#define GL_MIRRORED_REPEAT_ARB                          0x8370
 
 #define GL_TEXTURE_ENV                                  0x2300
 #define GL_TEXTURE_ENV_MODE                             0x2200

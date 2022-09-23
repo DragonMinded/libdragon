@@ -9,10 +9,11 @@
 
 #define _GL_UNSUPPORTED(func) _Static_assert(0, #func " is not supported!")
 
-#define GL_VERSION_1_1              1
-#define GL_ARB_multisample          1
-#define GL_EXT_packed_pixels        1
-#define GL_ARB_vertex_buffer_object 1
+#define GL_VERSION_1_1                  1
+#define GL_ARB_multisample              1
+#define GL_EXT_packed_pixels            1
+#define GL_ARB_vertex_buffer_object     1
+#define GL_ARB_texture_mirrored_repeat  1
 
 /* Data types */
 

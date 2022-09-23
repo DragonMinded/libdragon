@@ -183,6 +183,7 @@ void gl_texture_set_wrap_s(uint32_t offset, GLenum param)
     switch (param) {
     case GL_CLAMP:
     case GL_REPEAT:
+    case GL_MIRRORED_REPEAT_ARB:
         gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_texture_object_t, wrap_s), (uint16_t)param);
         gl_set_flag_raw(GL_UPDATE_NONE, offset + TEXTURE_FLAGS_OFFSET, TEX_FLAG_UPLOAD_DIRTY, true);
         break;
@@ -197,6 +198,7 @@ void gl_texture_set_wrap_t(uint32_t offset, GLenum param)
     switch (param) {
     case GL_CLAMP:
     case GL_REPEAT:
+    case GL_MIRRORED_REPEAT_ARB:
         gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_texture_object_t, wrap_t), (uint16_t)param);
         gl_set_flag_raw(GL_UPDATE_NONE, offset + TEXTURE_FLAGS_OFFSET, TEX_FLAG_UPLOAD_DIRTY, true);
         break;

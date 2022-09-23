@@ -3,6 +3,7 @@
 #include "rdpq.h"
 #include "rdpq_mode.h"
 #include "rdpq_debug.h"
+#include "../rdpq/rdpq_internal.h"
 #include <malloc.h>
 #include <string.h>
 
@@ -167,6 +168,7 @@ bool gl_begin(GLenum mode)
 
     rdpq_mode_end();
 
+    __rdpq_autosync_change(AUTOSYNC_TILES);
     gl_update(GL_UPDATE_TEXTURE_UPLOAD);
     return true;
 }
