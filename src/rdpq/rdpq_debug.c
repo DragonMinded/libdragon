@@ -1114,15 +1114,24 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         bool load = cmd == 0x34;
         int tidx = BITS(buf[0], 24, 26);
         struct tile_s *t = &rdp.tile[tidx];
-        validate_busy_tile(tidx);
-        if (load) VALIDATE_CRASH_TEX(rdp.tex.size != 0, "LOAD_TILE does not support 4-bit textures");
+        if (load) {
+            rdp.busy.tile[tidx] = true;  // mask as in use
+            VALIDATE_CRASH_TEX(rdp.tex.size != 0, "LOAD_TILE does not support 4-bit textures");
+        } else {
+            validate_busy_tile(tidx);
+        }
         t->has_extents = true;
         t->s0 = BITS(buf[0], 44, 55)*FX(2); t->t0 = BITS(buf[0], 32, 43)*FX(2);
         t->s1 = BITS(buf[0], 12, 23)*FX(2); t->t1 = BITS(buf[0],  0, 11)*FX(2);
         if (load) validate_busy_tmem(t->tmem_addr, (t->t1-t->t0+1) * t->tmem_pitch);
     }   break;
+    case 0x33: { // LOAD_BLOCK
+        int tidx = BITS(buf[0], 24, 26);
+        rdp.busy.tile[tidx] = true;  // mask as in use
+    }   break;
     case 0x30: { // LOAD_TLUT
         int tidx = BITS(buf[0], 24, 26);
+        rdp.busy.tile[tidx] = true;  // mask as in use
         struct tile_s *t = &rdp.tile[tidx];
         int low = BITS(buf[0], 44, 55), high = BITS(buf[0], 12, 23);
         if (rdp.tex.size == 0)
