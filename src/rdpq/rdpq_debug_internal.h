@@ -37,4 +37,10 @@ extern void (*rdpq_trace_fetch)(void);
  */
 void rdpq_validate(uint64_t *buf, int *errs, int *warns);
 
+/** @brief Show all triangles in logging (default: off) */
+#define RDPQ_LOG_FLAG_SHOWTRIS       0x00000001
+
+/** @brief Flags that configure the logging */
+extern int __rdpq_debug_log_flags;
+
 #endif /* LIBDRAGON_RDPQ_DEBUG_INTERNAL_H */
