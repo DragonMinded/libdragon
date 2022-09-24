@@ -126,6 +126,10 @@ RDPQ_Send:
     move a1, rdram_cur
     li next_func, RSPQCmd_RdpSetBuffer
 
+    # FIXME: This fixes a race condition. Is there a better solution?
+    jal RSPQ_RdpWait
+    li t3, DP_STATUS_START_VALID | DP_STATUS_END_VALID
+
 do_dma:
     # Start the transfer. Will tail-call to either RSPQCmd_RdpSetBuffer or
     # RSPQCmd_RdpAppendBuffer (see above). For both, we need to prepare
