@@ -15,6 +15,7 @@
 #include "interrupt.h"
 #include "utils.h"
 #include "rspq_constants.h"
+#include "rdpq_constants.h"
 #else
 ///@cond
 #define debugf(msg, ...)  fprintf(stderr, msg, ##__VA_ARGS__)
@@ -35,6 +36,9 @@
 #define RDPQ_CMD_DEBUG_SHOWLOG  0x00010000
 /** @brief RDP Debug command: debug message */
 #define RDPQ_CMD_DEBUG_MESSAGE  0x00020000
+
+/** @brief Show all triangles in logging (default: off) */
+#define LOG_FLAG_SHOWTRIS       0x00000001
 
 #ifndef RDPQ_DEBUG_DEBUG
 /**
@@ -62,6 +66,10 @@
 #define BIT(v, b)      BITS(v, b, b)
 /** @brief Extract bits from word as signed quantity */
 #define SBITS(v, b, e) (int)BITS((int64_t)(v), b, e)
+/** @brief Extract command ID from RDP command word */
+#define CMD(v)         BITS((v), 56, 61)
+/** @brief Check if a command is a triangle */
+#define CMD_IS_TRI(cmd) ((cmd) >= RDPQ_CMD_TRI && (cmd) <= RDPQ_CMD_TRI_SHADE_TEX_ZBUF)
 
 /** @brief A buffer sent to RDP via DMA */
 typedef struct {
@@ -153,13 +161,17 @@ struct {
     bool crashed;                          ///< True if the RDP chip crashed
 } vctx;
 
+/** @brief Triangle primitives names */
+static const char *tri_name[] = { "TRI", "TRI_Z", "TRI_TEX", "TRI_TEX_Z",  "TRI_SHADE", "TRI_SHADE_Z", "TRI_TEX_SHADE", "TRI_TEX_SHADE_Z"};
+
 #ifdef N64
 #define MAX_BUFFERS 12                                    ///< Maximum number of pending RDP buffers
 #define MAX_HOOKS 4                                       ///< Maximum number of custom hooks
 static rdp_buffer_t buffers[MAX_BUFFERS];                 ///< Pending RDP buffers (ring buffer)
 static volatile int buf_ridx, buf_widx;                   ///< Read/write index into the ring buffer of RDP buffers
 static rdp_buffer_t last_buffer;                          ///< Last RDP buffer that was processed
-static int show_log;                                      ///< True if logging is enabled
+static int show_log;                                      ///< != 0 if logging is enabled
+static int log_flags;                                     ///< Flags that configure the logging
 static void (*hooks[MAX_HOOKS])(void*, uint64_t*, int);   ///< Custom hooks
 static void* hooks_ctx[MAX_HOOKS];                        ///< Context for the hooks
 
@@ -167,9 +179,14 @@ static void* hooks_ctx[MAX_HOOKS];                        ///< Context for the h
 void (*rdpq_trace)(void);
 void (*rdpq_trace_fetch)(void);
 
+/** @brief Run the actual trace flushing the cached buffers */
+void __rdpq_trace_flush(void);
+
 /** @brief Implementation of #rdpq_trace_fetch */
 void __rdpq_trace_fetch(void)
 {
+    disable_interrupts();
+
     // Extract current start/end pointers from RDP registers (in the uncached segment)
     uint64_t *start = (void*)(*DP_START | 0xA0000000);
     uint64_t *end = (void*)(*DP_END | 0xA0000000);
@@ -178,17 +195,15 @@ void __rdpq_trace_fetch(void)
     intdebugf("__rdpq_trace_fetch: %p-%p\n", start, end);
     extern void *rspq_rdp_dynamic_buffers[2];
     for (int i=0;i<2;i++)
-        if ((void*)start >= rspq_rdp_dynamic_buffers[i] && (void*)end <= rspq_rdp_dynamic_buffers[i]+RSPQ_RDP_DYNAMIC_BUFFER_SIZE)
+        if ((void*)start >= rspq_rdp_dynamic_buffers[i] && (void*)end <= rspq_rdp_dynamic_buffers[i]+RDPQ_DYNAMIC_BUFFER_SIZE)
             intdebugf("   -> dynamic buffer %d\n", i);
 #endif
 
-    if (start == end) return;
-    if (start > end) {
-        debugf("[rdpq] ERROR: invalid RDP buffer: %p-%p\n", start, end);
+    if (start == end) {
+        enable_interrupts();
         return;
     }
-
-    disable_interrupts();
+    assertf(start <= end, "rdpq_debug: invalid RDP buffer: %p-%p\n", start, end);
 
     // Coalesce with last written buffer if possible. Notice that rdpq_trace put the start
     // pointer to NULL to avoid coalescing when it begins dumping it, so this should avoid
@@ -201,8 +216,7 @@ void __rdpq_trace_fetch(void)
             intdebugf("   -> ignored because coalescing\n");
             return;
         }
-        if (buffers[prev].end > end)
-            debugf("[rdpq] ERROR: RDP buffer shrinking (%p-%p => %p-%p)\n", 
+        assertf(buffers[prev].end <= end, "rdpq_debug: RDP buffer shrinking (%p-%p => %p-%p)\n", 
                 buffers[prev].start, buffers[prev].end, start, end);
         buffers[prev].end = end;
 
@@ -215,19 +229,21 @@ void __rdpq_trace_fetch(void)
         }
 
         intdebugf("   -> coalesced\n");
+        __rdpq_trace_flush();  // FIXME: remove this (see __rdpq_trace)
         enable_interrupts();
         return;
     }
-    // If the buffer queue is full, drop the oldest. It might create confusion in the validator,
-    // but at least the log should show the latest commands which is probably more important.
-    if ((buf_widx + 1) % MAX_BUFFERS == buf_ridx) {
-        debugf("[rdpq] logging buffer full, dropping %d commands\n", buffers[buf_ridx].end - buffers[buf_ridx].start);
-        buf_ridx = (buf_ridx + 1) % MAX_BUFFERS;
-    }
+
+    // If the buffer is full, we could continue logging by skipping a buffer, but the validator
+    // is done with. So for now just abort.
+    assertf((buf_widx + 1) % MAX_BUFFERS != buf_ridx, "validator buffer full\n");
 
     // Write the new buffer. It should be an empty slot
     buffers[buf_widx] = (rdp_buffer_t){ .start = start, .end = end, .traced = start };
+    intdebugf("   -> written to slot %d\n", buf_widx);
     buf_widx = (buf_widx + 1) % MAX_BUFFERS;
+
+    __rdpq_trace_flush();  // FIXME: remove this (see __rdpq_trace)
     enable_interrupts();
 }
 
@@ -247,10 +263,42 @@ void __rdpq_debug_cmd(uint64_t cmd)
 /** @brief Implementation of #rdpq_trace */
 void __rdpq_trace(void)
 {
+    // FIXME: we currently ignore the trace calls and just flush everything under interrupt
+    // from within __rdpq_trace_fetch() (see calls to __rdpq_trace_flush there). This is
+    // required because we can't really rely optimistically on __rdpq_trace() being called
+    // often enough to see the data before it gets overwritten.
+    // We need to devise a better system.
+    return;
+
     // Update buffers to current RDP status. This make sure the trace
     // is up to date.
-    if (rdpq_trace_fetch) rdpq_trace_fetch();
+    __rdpq_trace_fetch();
+    __rdpq_trace_flush();
+}
 
+bool log_coalesce_tris(uint8_t cmd, uint8_t *last_tri_cmd, int *num_tris) {
+    if (!CMD_IS_TRI(cmd)) {
+        if (*last_tri_cmd) {
+            debugf("[..........] ................    %-16s num_cmds=%d\n", tri_name[*last_tri_cmd - RDPQ_CMD_TRI], *num_tris);
+            *last_tri_cmd = 0;
+            *num_tris = 0;
+        }
+        return true;
+    } else {
+        if (*last_tri_cmd && *last_tri_cmd != cmd) {
+            debugf("[..........] ................    %-16s num_cmds=%d\n", tri_name[*last_tri_cmd - RDPQ_CMD_TRI], *num_tris);
+            *last_tri_cmd = 0;
+            *num_tris = 0;
+        }
+        *last_tri_cmd = cmd;
+        *num_tris = *num_tris+1;
+        return false;
+    }
+}
+
+void __rdpq_trace_flush(void)
+{
+    uint8_t last_tri_cmd = 0; int num_tris = 0;
     while (1) {
         uint64_t *cur = 0, *end = 0;
 
@@ -270,16 +318,23 @@ void __rdpq_trace(void)
         // Go through the RDP buffer. If log is active, disassemble.
         // Run the validator on all the commands.
         while (cur < end) {
+            uint8_t cmd = BITS(cur[0],56,61);
             int sz = rdpq_debug_disasm_size(cur);
-            if (show_log > 0) rdpq_debug_disasm(cur, stderr);
+            if (show_log > 0) {
+                if((log_flags & LOG_FLAG_SHOWTRIS) || log_coalesce_tris(cmd, &last_tri_cmd, &num_tris))
+                    rdpq_debug_disasm(cur, stderr);
+            }
             rdpq_validate(cur, NULL, NULL);
             for (int i=0;i<MAX_HOOKS && hooks[i];i++)
                 hooks[i](hooks_ctx[i], cur, sz);
             // If this is a RDPQ_DEBUG command, execute it
-            if (BITS(cur[0],56,61) == 0x31) __rdpq_debug_cmd(cur[0]);
+            if (cmd == RDPQ_CMD_DEBUG) __rdpq_debug_cmd(cur[0]);
             cur += sz;
         }
     }
+
+    // show the accumulated tris (if any)
+    log_coalesce_tris(0, &last_tri_cmd, &num_tris);
 }
 
 void rdpq_debug_start(void)
@@ -291,6 +346,7 @@ void rdpq_debug_start(void)
     memset(&hooks, 0, sizeof(hooks));
     buf_widx = buf_ridx = 0;
     show_log = 0;
+    log_flags = 0;
 
     rdpq_trace = __rdpq_trace;
     rdpq_trace_fetch = __rdpq_trace_fetch;
@@ -551,9 +607,7 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
                               BITS(buf[0], 12, 23)+1, BITS(buf[0], 0, 11)*FX(11)); return;
     case 0x08 ... 0x0F: {
         int cmd = BITS(buf[0], 56, 61)-0x8;
-        static const char *tri[] = { "TRI              ", "TRI_Z            ", "TRI_TEX          ", "TRI_TEX_Z        ",  "TRI_SHADE        ", "TRI_SHADE_Z      ", "TRI_TEX_SHADE    ", "TRI_TEX_SHADE_Z  "};
-        // int words[] = {4, 4+2, 4+8, 4+8+2, 4+8, 4+8+2, 4+8+8, 4+8+8+2};
-        fprintf(out, "%s", tri[cmd]);
+        fprintf(out, "%-17s", tri_name[cmd]);
         fprintf(out, "%s tile=%d lvl=%d y=(%.2f, %.2f, %.2f)\n",
             BITS(buf[0], 55, 55) ? "left" : "right", BITS(buf[0], 48, 50), BITS(buf[0], 51, 53)+1,
             SBITS(buf[0], 0, 13)*FX(2), SBITS(buf[0], 16, 29)*FX(2), SBITS(buf[0], 32, 45)*FX(2));
@@ -656,7 +710,10 @@ static void validate_emit_error(int flags, const char *msg, ...)
         if (flags & 8)  __rdpq_debug_disasm(rdp.last_cc,  &rdp.last_cc_data,  stderr);
         if (flags & 16) __rdpq_debug_disasm(rdp.last_tex, &rdp.last_tex_data, stderr);
         rdpq_debug_disasm(vctx.buf, stderr);
+    } else if ((log_flags & LOG_FLAG_SHOWTRIS) == 0 && CMD_IS_TRI(CMD(vctx.buf[0]))) {
+        rdpq_debug_disasm(vctx.buf, stderr);
     }
+
     switch (flags & 3) {
     case 0:
         fprintf(stderr, "[RDPQ_VALIDATION] CRASH: ");
