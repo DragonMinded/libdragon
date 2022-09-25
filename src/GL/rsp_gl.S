@@ -192,8 +192,7 @@ GL_UpdateAlphaTest:
     beqz t0, alpha_test_disable         
     lw t2, %lo(RDPQ_OTHER_MODES) + 0x4
     xori t1, GL_GREATER                 
-    sltu t1, 1                          
-    sll t0, t1, 1  
+    sltu t0, t1, 1
 alpha_test_disable:
     li t3, ~ALPHA_TEST_MASK
     and t2, t3
