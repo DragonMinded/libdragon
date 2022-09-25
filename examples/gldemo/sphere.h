@@ -110,9 +110,9 @@ void make_sphere_mesh()
             ring_indices[s * 6 + 0] = first_ring_index + s;
             ring_indices[s * 6 + 1] = second_ring_index + s;
             ring_indices[s * 6 + 2] = first_ring_index + next_segment;
-            ring_indices[s * 6 + 3] = second_ring_index + next_segment;
-            ring_indices[s * 6 + 4] = first_ring_index + next_segment;
-            ring_indices[s * 6 + 5] = second_ring_index + s;
+            ring_indices[s * 6 + 3] = second_ring_index + s;
+            ring_indices[s * 6 + 4] = second_ring_index + next_segment;
+            ring_indices[s * 6 + 5] = first_ring_index + next_segment;
         }
     }
 

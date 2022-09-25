@@ -12,6 +12,8 @@ static uint32_t texture_index = 0;
 
 static GLuint textures[4];
 
+static GLenum shade_model = GL_SMOOTH;
+
 static const char *texture_path[4] = {
     "rom:/circle0.sprite",
     "rom:/diamond0.sprite",
@@ -23,7 +25,7 @@ static sprite_t *sprites[4];
 
 void load_texture(GLenum target, sprite_t *sprite)
 {
-    for (uint32_t i = 0; i < 4; i++)
+    for (uint32_t i = 0; i < 7; i++)
     {
         surface_t surf = sprite_get_lod_pixels(sprite, i);
         if (!surf.buffer) break;
@@ -46,26 +48,19 @@ void setup()
 
     setup_cube();
 
-    glEnable(GL_LIGHT0);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
-    glEnable(GL_LIGHTING);
-    //glEnable(GL_MULTISAMPLE_ARB);
-
-    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     float aspect_ratio = (float)display_get_width() / (float)display_get_height();
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     glFrustum(-1*aspect_ratio, 1*aspect_ratio, -1, 1, 1, 20);
-    //glOrtho(-2*aspect_ratio, 2*aspect_ratio, -2, 2, 5, -5);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
+    glEnable(GL_LIGHT0);
     GLfloat light_pos[] = { 0, 0, -3, 1 };
     glLightfv(GL_LIGHT0, GL_POSITION, light_pos);
 
@@ -76,14 +71,6 @@ void setup()
 
     GLfloat mat_diffuse[] = { 0.3f, 0.5f, 0.9f, 1.0f };
     glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
-
-    //glEnable(GL_FOG);
-
-    GLfloat fog_color[] = { 1, 0, 0, 1 };
-
-    glFogfv(GL_FOG_COLOR, fog_color);
-    glFogf(GL_FOG_START, 1.0f);
-    glFogf(GL_FOG_END, 6.0f);
 
     glGenTextures(4, textures);
 
@@ -156,7 +143,7 @@ int main()
     
     dfs_init(DFS_DEFAULT_LOCATION);
 
-    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 1, GAMMA_NONE, ANTIALIAS_RESAMPLE_FETCH_ALWAYS);
+    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE_FETCH_ALWAYS);
 
     gl_init();
 
@@ -180,6 +167,11 @@ int main()
 
         if (down.c[0].start) {
             debugf("%ld\n", animation);
+        }
+
+        if (down.c[0].R) {
+            shade_model = shade_model == GL_SMOOTH ? GL_FLAT : GL_SMOOTH;
+            glShadeModel(shade_model);
         }
 
         if (down.c[0].C_up) {
