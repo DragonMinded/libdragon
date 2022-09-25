@@ -37,8 +37,8 @@
 /** @brief RDP Debug command: debug message */
 #define RDPQ_CMD_DEBUG_MESSAGE  0x00020000
 
-/** @brief Show all triangles in logging (default: off) */
-#define LOG_FLAG_SHOWTRIS       0x00000001
+/** @brief Flags that configure the logging */
+int __rdpq_debug_log_flags;
 
 #ifndef RDPQ_DEBUG_DEBUG
 /**
@@ -69,7 +69,7 @@
 /** @brief Extract command ID from RDP command word */
 #define CMD(v)         BITS((v), 56, 61)
 /** @brief Check if a command is a triangle */
-#define CMD_IS_TRI(cmd) ((cmd) >= RDPQ_CMD_TRI && (cmd) <= RDPQ_CMD_TRI_SHADE_TEX_ZBUF)
+#define CMD_IS_TRI(cmd) ((cmd) >= 0x8 && (cmd) <= 0xF)
 
 /** @brief A buffer sent to RDP via DMA */
 typedef struct {
@@ -171,7 +171,6 @@ static rdp_buffer_t buffers[MAX_BUFFERS];                 ///< Pending RDP buffe
 static volatile int buf_ridx, buf_widx;                   ///< Read/write index into the ring buffer of RDP buffers
 static rdp_buffer_t last_buffer;                          ///< Last RDP buffer that was processed
 static int show_log;                                      ///< != 0 if logging is enabled
-static int log_flags;                                     ///< Flags that configure the logging
 static void (*hooks[MAX_HOOKS])(void*, uint64_t*, int);   ///< Custom hooks
 static void* hooks_ctx[MAX_HOOKS];                        ///< Context for the hooks
 
@@ -321,7 +320,7 @@ void __rdpq_trace_flush(void)
             uint8_t cmd = BITS(cur[0],56,61);
             int sz = rdpq_debug_disasm_size(cur);
             if (show_log > 0) {
-                if((log_flags & LOG_FLAG_SHOWTRIS) || log_coalesce_tris(cmd, &last_tri_cmd, &num_tris))
+                if((__rdpq_debug_log_flags & RDPQ_LOG_FLAG_SHOWTRIS) || log_coalesce_tris(cmd, &last_tri_cmd, &num_tris))
                     rdpq_debug_disasm(cur, stderr);
             }
             rdpq_validate(cur, NULL, NULL);
@@ -346,7 +345,7 @@ void rdpq_debug_start(void)
     memset(&hooks, 0, sizeof(hooks));
     buf_widx = buf_ridx = 0;
     show_log = 0;
-    log_flags = 0;
+    __rdpq_debug_log_flags = 0;
 
     rdpq_trace = __rdpq_trace;
     rdpq_trace_fetch = __rdpq_trace_fetch;
@@ -420,7 +419,7 @@ static inline setothermodes_t decode_som(uint64_t som) {
 }
 
 int rdpq_debug_disasm_size(uint64_t *buf) {
-    switch (BITS(buf[0], 56, 61)) {
+    switch (CMD(buf[0])) {
     default:   return 1;
     case 0x24: return 2;  // TEX_RECT
     case 0x25: return 2;  // TEX_RECT_FLIP
@@ -452,7 +451,7 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
     static const char *size[4] = {"4", "8", "16", "32" };
 
     fprintf(out, "[%p] %016" PRIx64 "    ", addr, buf[0]);
-    switch (BITS(buf[0], 56, 61)) {
+    switch (CMD(buf[0])) {
     default:   fprintf(out, "???\n"); return;
     case 0x00: fprintf(out, "NOP\n"); return;
     case 0x27: fprintf(out, "SYNC_PIPE\n"); return;
@@ -581,7 +580,7 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
         fprintf(out, "\n");
     } return;
     case 0x24 ... 0x25:
-        if(BITS(buf[0], 56, 61) == 0x24)
+        if(CMD(buf[0]) == 0x24)
             fprintf(out, "TEX_RECT         ");
         else
             fprintf(out, "TEX_RECT_FLIP    ");
@@ -592,7 +591,7 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
             SBITS(buf[1], 48, 63)*FX(5), SBITS(buf[1], 32, 47)*FX(5), SBITS(buf[1], 16, 31)*FX(10), SBITS(buf[1], 0, 15)*FX(10));
         return;
     case 0x32: case 0x34:
-        if(BITS(buf[0], 56, 61) == 0x32)
+        if(CMD(buf[0]) == 0x32)
             fprintf(out, "SET_TILE_SIZE    ");
         else
             fprintf(out, "LOAD_TILE        ");    
@@ -606,7 +605,7 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
         BITS(buf[0], 24, 26), BITS(buf[0], 44, 55), BITS(buf[0], 32, 43),
                               BITS(buf[0], 12, 23)+1, BITS(buf[0], 0, 11)*FX(11)); return;
     case 0x08 ... 0x0F: {
-        int cmd = BITS(buf[0], 56, 61)-0x8;
+        int cmd = CMD(buf[0])-0x8;
         fprintf(out, "%-17s", tri_name[cmd]);
         fprintf(out, "%s tile=%d lvl=%d y=(%.2f, %.2f, %.2f)\n",
             BITS(buf[0], 55, 55) ? "left" : "right", BITS(buf[0], 48, 50), BITS(buf[0], 51, 53)+1,
@@ -710,7 +709,8 @@ static void validate_emit_error(int flags, const char *msg, ...)
         if (flags & 8)  __rdpq_debug_disasm(rdp.last_cc,  &rdp.last_cc_data,  stderr);
         if (flags & 16) __rdpq_debug_disasm(rdp.last_tex, &rdp.last_tex_data, stderr);
         rdpq_debug_disasm(vctx.buf, stderr);
-    } else if ((log_flags & LOG_FLAG_SHOWTRIS) == 0 && CMD_IS_TRI(CMD(vctx.buf[0]))) {
+    } else if ((__rdpq_debug_log_flags & RDPQ_LOG_FLAG_SHOWTRIS) == 0
+                && CMD_IS_TRI(CMD(vctx.buf[0]))) {
         rdpq_debug_disasm(vctx.buf, stderr);
     }
 
@@ -1068,7 +1068,7 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
     if (r_errs)  *r_errs  = vctx.errs;
     if (r_warns) *r_warns = vctx.warns;
 
-    uint8_t cmd = BITS(buf[0], 56, 61);
+    uint8_t cmd = CMD(buf[0]);
     switch (cmd) {
     case 0x3F: { // SET_COLOR_IMAGE
         validate_busy_pipe();
@@ -1114,15 +1114,24 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         bool load = cmd == 0x34;
         int tidx = BITS(buf[0], 24, 26);
         struct tile_s *t = &rdp.tile[tidx];
-        validate_busy_tile(tidx);
-        if (load) VALIDATE_CRASH_TEX(rdp.tex.size != 0, "LOAD_TILE does not support 4-bit textures");
+        if (load) {
+            rdp.busy.tile[tidx] = true;  // mask as in use
+            VALIDATE_CRASH_TEX(rdp.tex.size != 0, "LOAD_TILE does not support 4-bit textures");
+        } else {
+            validate_busy_tile(tidx);
+        }
         t->has_extents = true;
         t->s0 = BITS(buf[0], 44, 55)*FX(2); t->t0 = BITS(buf[0], 32, 43)*FX(2);
         t->s1 = BITS(buf[0], 12, 23)*FX(2); t->t1 = BITS(buf[0],  0, 11)*FX(2);
         if (load) validate_busy_tmem(t->tmem_addr, (t->t1-t->t0+1) * t->tmem_pitch);
     }   break;
+    case 0x33: { // LOAD_BLOCK
+        int tidx = BITS(buf[0], 24, 26);
+        rdp.busy.tile[tidx] = true;  // mask as in use
+    }   break;
     case 0x30: { // LOAD_TLUT
         int tidx = BITS(buf[0], 24, 26);
+        rdp.busy.tile[tidx] = true;  // mask as in use
         struct tile_s *t = &rdp.tile[tidx];
         int low = BITS(buf[0], 44, 55), high = BITS(buf[0], 12, 23);
         if (rdp.tex.size == 0)

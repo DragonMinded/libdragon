@@ -112,6 +112,9 @@ int main(int argc, char *argv[])
         arr_append(&cmds, &size, &cap, cmd);
     }
 
+    // Enable dump of all triangles
+    __rdpq_debug_log_flags = RDPQ_LOG_FLAG_SHOWTRIS;
+
     uint64_t *cur = cmds;
     uint64_t *end = cmds + size;
     while (cur < end) {
