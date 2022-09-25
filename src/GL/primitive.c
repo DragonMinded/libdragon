@@ -257,8 +257,14 @@ void gl_draw_line(gl_vertex_t *v0, gl_vertex_t *v1)
     line_vertices[3].screen_pos[0] = v1->screen_pos[0] - perp[0];
     line_vertices[3].screen_pos[1] = v1->screen_pos[1] - perp[1];
     
-    memcpy(line_vertices[0].color, v0->color, sizeof(float) * 4);
-    memcpy(line_vertices[1].color, v0->color, sizeof(float) * 4);
+    if (state.shade_model == GL_FLAT) {
+        memcpy(line_vertices[0].color, v1->color, sizeof(float) * 4);
+        memcpy(line_vertices[1].color, v1->color, sizeof(float) * 4);
+    } else {
+        memcpy(line_vertices[0].color, v0->color, sizeof(float) * 4);
+        memcpy(line_vertices[1].color, v0->color, sizeof(float) * 4);
+    }
+    
     memcpy(line_vertices[2].color, v1->color, sizeof(float) * 4);
     memcpy(line_vertices[3].color, v1->color, sizeof(float) * 4);
 
@@ -280,8 +286,8 @@ void gl_draw_line(gl_vertex_t *v0, gl_vertex_t *v1)
         line_vertices[3].depth = v1->depth;
     }
 
-    rdpq_triangle(0, state.prim_mipmaps, VTX_SCREEN_POS_OFFSET, VTX_COLOR_OFFSET, tex_offset, z_offset, (float*)&line_vertices[0], (float*)&line_vertices[1], (float*)&line_vertices[2]);
-    rdpq_triangle(0, state.prim_mipmaps, VTX_SCREEN_POS_OFFSET, VTX_COLOR_OFFSET, tex_offset, z_offset, (float*)&line_vertices[1], (float*)&line_vertices[2], (float*)&line_vertices[3]);
+    rdpq_triangle(0, state.prim_mipmaps, false, VTX_SCREEN_POS_OFFSET, VTX_COLOR_OFFSET, tex_offset, z_offset, (float*)&line_vertices[0], (float*)&line_vertices[1], (float*)&line_vertices[2]);
+    rdpq_triangle(0, state.prim_mipmaps, false, VTX_SCREEN_POS_OFFSET, VTX_COLOR_OFFSET, tex_offset, z_offset, (float*)&line_vertices[1], (float*)&line_vertices[2], (float*)&line_vertices[3]);
 }
 
 void gl_draw_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
@@ -289,7 +295,7 @@ void gl_draw_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
     int32_t tex_offset = state.prim_texture ? VTX_TEXCOORD_OFFSET : -1;
     int32_t z_offset = state.depth_test ? VTX_DEPTH_OFFSET : -1;
 
-    rdpq_triangle(0, state.prim_mipmaps, VTX_SCREEN_POS_OFFSET, VTX_COLOR_OFFSET, tex_offset, z_offset, (float*)v0, (float*)v1, (float*)v2);
+    rdpq_triangle(0, state.prim_mipmaps, state.shade_model == GL_FLAT, VTX_SCREEN_POS_OFFSET, VTX_COLOR_OFFSET, tex_offset, z_offset, (float*)v2, (float*)v0, (float*)v1);
 }
 
 void gl_cull_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
@@ -310,6 +316,10 @@ void gl_cull_triangle(gl_vertex_t *v0, gl_vertex_t *v1, gl_vertex_t *v2)
         if (state.cull_face_mode == face) {
             return;
         }
+    }
+
+    if (state.shade_model == GL_FLAT) {
+        memcpy(v2->color, state.flat_color, sizeof(state.flat_color));
     }
     
     switch (state.polygon_mode) {
@@ -419,10 +429,7 @@ void gl_clip_triangle()
 
     // Flat shading
     if (state.shade_model == GL_FLAT) {
-        v0->color[0] = v1->color[0] = v2->color[0];
-        v0->color[1] = v1->color[1] = v2->color[1];
-        v0->color[2] = v1->color[2] = v2->color[2];
-        v0->color[3] = v1->color[3] = v2->color[3];
+        memcpy(state.flat_color, v2->color, sizeof(state.flat_color));
     }
 
     uint8_t any_clip = v0->clip_code | v1->clip_code | v2->clip_code;

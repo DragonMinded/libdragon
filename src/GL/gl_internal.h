@@ -321,6 +321,8 @@ typedef struct {
     gl_attrib_source_t attrib_sources[ATTRIB_COUNT];
     gl_storage_t tmp_index_storage;
 
+    GLfloat flat_color[4];
+
     gl_viewport_t current_viewport;
 
     GLenum matrix_mode;

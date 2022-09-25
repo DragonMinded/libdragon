@@ -376,7 +376,7 @@ static inline void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_
 }
 
 /** @brief RDP triangle primitive assembled on the CPU */
-void rdpq_triangle_cpu(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
+void rdpq_triangle_cpu(rdpq_tile_t tile, uint8_t mipmaps, bool flat_shading, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
 {
     uint32_t res = AUTOSYNC_PIPE;
     if (tex_offset >= 0) {
@@ -413,7 +413,9 @@ void rdpq_triangle_cpu(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, in
     __rdpq_write_edge_coeffs(&w, &data, tile, mipmaps, v1 + pos_offset, v2 + pos_offset, v3 + pos_offset);
 
     if (shade_offset >= 0) {
-        __rdpq_write_shade_coeffs(&w, &data, v1 + shade_offset, v2 + shade_offset, v3 + shade_offset);
+        const float *shade_v2 = flat_shading ? v1 : v2;
+        const float *shade_v3 = flat_shading ? v1 : v3;
+        __rdpq_write_shade_coeffs(&w, &data, v1 + shade_offset, shade_v2 + shade_offset, shade_v3 + shade_offset);
     }
 
     if (tex_offset >= 0) {
@@ -428,7 +430,7 @@ void rdpq_triangle_cpu(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, in
 }
 
 /** @brief RDP triangle primitive assembled on the RSP */
-void rdpq_triangle_rsp(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
+void rdpq_triangle_rsp(rdpq_tile_t tile, uint8_t mipmaps, bool flat_shading, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
 {
     uint32_t res = AUTOSYNC_PIPE;
     if (tex_offset >= 0) {
@@ -461,10 +463,11 @@ void rdpq_triangle_rsp(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, in
 
         int32_t rgba = 0;
         if (shade_offset >= 0) {
-            uint32_t r = v[shade_offset+0] * 255.0;
-            uint32_t g = v[shade_offset+1] * 255.0;
-            uint32_t b = v[shade_offset+2] * 255.0;
-            uint32_t a = v[shade_offset+3] * 255.0;
+            const float *v_shade = flat_shading ? v1 : v;
+            uint32_t r = v_shade[shade_offset+0] * 255.0;
+            uint32_t g = v_shade[shade_offset+1] * 255.0;
+            uint32_t b = v_shade[shade_offset+2] * 255.0;
+            uint32_t a = v_shade[shade_offset+3] * 255.0;
             rgba = (r << 24) | (g << 16) | (b << 8) | a;
         }
 
@@ -493,11 +496,11 @@ void rdpq_triangle_rsp(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, in
         (tile & 7));
 }
 
-void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
+void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, bool flat_shading, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3)
 {
 #if RDPQ_TRIANGLE_REFERENCE
-    rdpq_triangle_cpu(tile, mipmaps, pos_offset, shade_offset, tex_offset, z_offset, v1, v2, v3);
+    rdpq_triangle_cpu(tile, mipmaps, flat_shading, pos_offset, shade_offset, tex_offset, z_offset, v1, v2, v3);
 #else
-    rdpq_triangle_rsp(tile, mipmaps, pos_offset, shade_offset, tex_offset, z_offset, v1, v2, v3);
+    rdpq_triangle_rsp(tile, mipmaps, flat_shading, pos_offset, shade_offset, tex_offset, z_offset, v1, v2, v3);
 #endif
 }
