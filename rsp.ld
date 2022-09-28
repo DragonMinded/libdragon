@@ -29,21 +29,22 @@ MEMORY
 
 SECTIONS
 {
-    .text : { *(.text) } > ram_text AT > rom_imem
+    .text : { 
+        KEEP(*(.text))
+        *(.text.*)
+    } > ram_text AT > rom_imem
 
-    .data : { *(.data) } > ram_data AT > rom_dmem
-
-    . = ALIGN(8);
-
-    .bss  : { *(.bss)  } > ram_data AT > rom_dmem
-
-    . = ALIGN(8);
-
-    .data.overlay : { *(.data.overlay) } > ram_data AT > rom_dmem
+    .data : { 
+        KEEP(*(.data))
+        *(.data.*)
+    } > ram_data AT > rom_dmem
 
     . = ALIGN(8);
 
-    .bss.overlay  : { *(.bss.overlay)  } > ram_data AT > rom_dmem
+    .bss  : { 
+        KEEP(*(.bss))
+        *(.bss.*)
+    } > ram_data AT > rom_dmem
 
     /DISCARD/ : { *(.MIPS.abiflags) }
 }
