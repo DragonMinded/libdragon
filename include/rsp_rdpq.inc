@@ -521,6 +521,8 @@ TRICONST1: .half 0,0,0,0,0x200,0x200,0x200,0x200
     # * a0: high 32-bit word of the triangle command. This will be
     #       completed with the left/right flag and the mipmap level.
     # * a1,a2,a3: pointer to the triangle structures in DMEM
+    # * v0: 0=cull back, 1=cull front, any other value = culling disabled
+    # * s3: output buffer pointer
     #####################################################################
 
     # Implementation limits of the RSP version. These are all edge cases that are probably
@@ -549,6 +551,7 @@ RDPQ_Triangle:
     #define vtx1   a1
     #define vtx2   a2
     #define vtx3   a3
+    #define cull   v0
 
     #define y1     t4
     #define y2     t5
@@ -604,9 +607,6 @@ RDPQ_Triangle:
     #define VTX_ATTR_INVWi  20
     #define VTX_ATTR_INVWf  22
 
-    li s4, %lo(RDPQ_CMD_STAGING)
-    move s3, s4
-
     j half_swap
     li t0, 1
 
@@ -614,19 +614,19 @@ swap_loop:
     lh y2, VTX_ATTR_Y(vtx2)
     lh y3, VTX_ATTR_Y(vtx3)
     blt y2, y3, half_swap
-    nop
-    xor vtx2, vtx3
-    xor vtx3, vtx2
-    xor vtx2, vtx3
+    move t1, vtx2
+    move vtx2, vtx3
+    move vtx3, t1
+    xor cull, 1
 
 half_swap:
     lh y1, VTX_ATTR_Y(vtx1)
     lh y2, VTX_ATTR_Y(vtx2)
     blt y1, y2, swap_end
-    nop
-    xor vtx1, vtx2
-    xor vtx2, vtx1
-    xor vtx1, vtx2
+    move t1, vtx1
+    move vtx1, vtx2
+    move vtx2, t1
+    xor cull, 1
 
 swap_end:
     bnez t0, swap_loop
@@ -692,6 +692,7 @@ swap_end:
     # Since we calculated -NZ, we need to reverse the sign
     mfc2 t0, vnz_i.e4
     sge t0, t0, zero
+    beq t0, cull, JrRa
     sll t0, 7
     or tricmd, t0
 
@@ -1027,7 +1028,7 @@ no_color:
 
 no_texture:
     andi t0, tricmd, 0x100
-    beqz t0, no_z
+    beqz t0, JrRa
 
     # Store z
     ssv vfinal_i.e7, 0x00,s3
@@ -1038,12 +1039,70 @@ no_texture:
     ssv    vde_f.e7, 0x0A,s3
     ssv    vdy_i.e7, 0x0C,s3
     ssv    vdy_f.e7, 0x0E,s3
+    jr ra
     addi s3, 0x10
 
-no_z:
-    j RDPQ_Send
-    nop
+    #undef tricm
+    #undef vtx1 
+    #undef vtx2 
+    #undef vtx3 
+    #undef cull 
+
+    #undef y1   
+    #undef y2   
+    #undef y3   
+    #undef x1   
+    #undef x2   
+    #undef x3   
+
+    # r, g, b, a, s, t, w, z
+    #undef vfinal_i         
+    #undef vfinal_f         
+    #undef vdx_i            
+    #undef vdx_f            
+    #undef vde_i            
+    #undef vde_f            
+    #undef vdy_i            
+    #undef vdy_f            
+
+    #undef vattr1           
+    #undef vattr2           
+    #undef vattr3           
+    #undef vma              
+    #undef vha              
+
+    #undef vinvw_i          
+    #undef vinvw_f          
+
+    #undef vedges_i         
+    #undef vedges_f         
+    #undef vnz_i            
+    #undef vnz_f            
+    #undef vslope_i         
+    #undef vslope_f         
+    #undef vxy32            
+    #undef vxy21            
+    #undef vhml             
+    #undef vfy_i            
+    #undef vfy_f            
+
+    #undef v__         
+    #undef invn_i      
+    #undef invn_f      
+    #undef invsh_i     
+    #undef invsh_f     
+
+    #undef VTX_ATTR_X   
+    #undef VTX_ATTR_Y   
+    #undef VTX_ATTR_Z   
+    #undef VTX_ATTR_RGBA
+    #undef VTX_ATTR_S    
+    #undef VTX_ATTR_T    
+    #undef VTX_ATTR_W    
+    #undef VTX_ATTR_INVWi
+    #undef VTX_ATTR_INVWf
 
     .endfunc
+
 
 

@@ -616,8 +616,8 @@ RDPQCmd_TriangleData:
     lw t1, CMD_ADDR(20, 28)
     lw t2, CMD_ADDR(24, 28)
 
-    sw t0, %lo(RDPQ_TRI_DATA0) + 12(a0)  # S
-    sw t1, %lo(RDPQ_TRI_DATA0) + 16(a0)  # T
+    sw t0, %lo(RDPQ_TRI_DATA0) + 12(a0)  # S/T
+    sw t1, %lo(RDPQ_TRI_DATA0) + 16(a0)  # W
     jr ra
     sw t2, %lo(RDPQ_TRI_DATA0) + 20(a0)  # INV_W 
     .endfunc
@@ -627,10 +627,15 @@ RDPQCmd_Triangle:
 #if RDPQ_TRIANGLE_REFERENCE
     assert RDPQ_ASSERT_INVALID_CMD_TRI
 #else
+    li s4, %lo(RDPQ_CMD_STAGING)
+    move s3, s4
+    li v0, 2   # disable culling
     li a1, %lo(RDPQ_TRI_DATA0)
     li a2, %lo(RDPQ_TRI_DATA1)
-    j RDPQ_Triangle
+    jal RDPQ_Triangle
     li a3, %lo(RDPQ_TRI_DATA2)
+    jal_and_j RDPQ_Send, RSPQ_Loop
+
 #endif /* RDPQ_TRIANGLE_REFERENCE */
     .endfunc
 
