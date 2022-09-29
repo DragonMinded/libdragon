@@ -599,7 +599,7 @@ RDPQ_Triangle:
 
     #define VTX_ATTR_X      0
     #define VTX_ATTR_Y      2
-    #define VTX_ATTR_Z      6
+    #define VTX_ATTR_Z      4
     #define VTX_ATTR_RGBA   8
     #define VTX_ATTR_S      12
     #define VTX_ATTR_T      14
