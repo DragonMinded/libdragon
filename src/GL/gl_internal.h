@@ -391,8 +391,10 @@ typedef struct {
 
 typedef struct {
     gl_texture_object_t bound_textures[2];
-    uint16_t scissor_rect[4];
     uint32_t flags;
+    uint16_t polygon_mode;
+    uint16_t prim_type;
+    uint16_t scissor_rect[4];
     uint32_t blend_cycle;
     uint32_t fog_color;
     uint32_t texture_ids[2];
@@ -403,8 +405,6 @@ typedef struct {
     uint16_t blend_src;
     uint16_t blend_dst;
     uint16_t tex_env_mode;
-    uint16_t polygon_mode;
-    uint16_t prim_type;
     uint8_t alpha_ref;
 } __attribute__((aligned(8), packed)) gl_server_state_t;
 

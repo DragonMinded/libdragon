@@ -18,9 +18,14 @@
 
     RSPQ_BeginSavedState
 GL_STATE:
+    # These are required by the pipeline
     GL_BOUND_TEXTURES:      .ds.b TEXTURE_OBJECT_SIZE * 2
-    GL_STATE_SCISSOR_RECT:  .short  0, 0, 0, 0
     GL_STATE_FLAGS:         .word   0
+    GL_STATE_POLYGON_MODE:  .short  0
+    GL_STATE_PRIM_TYPE:     .short  0
+
+    # These are only required for RDP state changes
+    GL_STATE_SCISSOR_RECT:  .short  0, 0, 0, 0  # Needs to be aligned to 8 bytes
     GL_STATE_BLEND_CYCLE:   .word   0
     GL_STATE_FOG_COLOR:     .word   0
     GL_STATE_TEXTURE_IDS:   .word   0, 0
@@ -31,8 +36,6 @@ GL_STATE:
     GL_STATE_BLEND_SRC:     .short  0
     GL_STATE_BLEND_DST:     .short  0
     GL_STATE_TEX_ENV_MODE:  .short  0
-    GL_STATE_POLYGON_MODE:  .short  0
-    GL_STATE_PRIM_TYPE:     .short  0
     GL_STATE_ALPHA_REF:     .byte   0
     RSPQ_EndSavedState
 
