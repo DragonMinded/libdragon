@@ -483,7 +483,7 @@ void rdpq_triangle_rsp(rdpq_tile_t tile, uint8_t mipmaps, bool flat_shading, int
         rspq_write(RDPQ_OVL_ID, RDPQ_CMD_TRIANGLE_DATA,
             TRI_DATA_LEN * i, 
             (x << 16) | (y & 0xFFFF), 
-            z, 
+            (z << 16), 
             rgba, 
             (s << 16) | (t & 0xFFFF), 
             w,

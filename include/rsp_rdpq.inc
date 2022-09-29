@@ -1,4 +1,4 @@
-    #define VTX_ATTR_Wi      16
+
 ##############################################################################
 #  RDPQ library
 ##############################################################################
@@ -23,50 +23,25 @@
 #include "rdpq_macros.h"
 #include "rdpq_constants.h"
 
-    .data
+#########################################################################
+#
+#  RDPQ_Send: send commands from DMEM to RDP
+#
+##########################################################################
 
-AA_BLEND_MASK:
-    #  MASK
-    .word SOM_COVERAGE_DEST_MASK | SOM_BLEND_MASK | SOM_BLALPHA_MASK | SOM_COLOR_ON_CVG_OVERFLOW
-AA_BLEND_TABLE:
-    #  AA=0 / BLEND=0
-    .word SOM_COVERAGE_DEST_ZAP
-    #  AA=0 / BLEND=1
-    .word SOM_COVERAGE_DEST_ZAP
-    #  AA=1 / BLEND=0
-    .word SOM_BLALPHA_CVG | SOM_COVERAGE_DEST_CLAMP | \
-          RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_CVG))  # Includes SOM_READ_ENABLE
-    #  AA=1 / BLEND=1
-    .word SOM_COLOR_ON_CVG_OVERFLOW | SOM_COVERAGE_DEST_WRAP
-
-
-# Temporary combiner memory location for RDPQ_UpdateRenderMode
-RDPQ_MODE_COMBINER_1CYC:     .quad  0
-RDPQ_MODE_COMBINER_2CYC:     .quad  0
-
-#define RDPQ_COMB_MIPMAP2       RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (0,0,0,0), (0,0,0,0))
-#define RDPQ_COMB_SHADE_FOG     RDPQ_COMBINER1((0,0,0,SHADE),      (0,0,0,1))
-#define RDPQ_COMB_TEX_SHADE_FOG RDPQ_COMBINER1((TEX0,0,SHADE,0),   (0,0,0,TEX0))
-
-COMB0_MASK:             .quad RDPQ_COMB0_MASK
-COMBINER_SHADE:         .quad RDPQ_COMBINER_SHADE
-COMBINER_SHADE_FOG:     .quad RDPQ_COMB_SHADE_FOG
-COMBINER_TEX_SHADE:     .quad RDPQ_COMBINER_TEX_SHADE
-COMBINER_TEX_SHADE_FOG: .quad RDPQ_COMB_TEX_SHADE_FOG
-
-COMBINER_MIPMAP2:       .quad (RDPQ_COMB_MIPMAP2 & RDPQ_COMB0_MASK) | RDPQ_COMBINER_2PASS
-
+    .section .data.rdpq_send
 
 # TODO: get rid of the constant offset
 RDPQ_CMD_PTR:           .word RDPQ_CMD_STAGING - 0x04000000
 
-    .bss
+    .section .bss.rdpq_send
+
 
     .align 4
     # Enough for a full triangle command
 RDPQ_CMD_STAGING:       .ds.b 0x150
 
-    .text
+    .section .text.rdpq_send
 
     #############################################################
     # RDPQ_Send
@@ -86,19 +61,21 @@ RDPQ_Send:
     #define sentinel    a2
     #define buf_idx     t4
     #define next_func   t5
-    move ra2, ra
-
-    # Fetch current pointer in RDRAM where to write the RDP command
-    mfc0 rdram_cur, COP0_DP_END
 
     # Calculate buffer size and DMA transfer length
     #ifndef NDEBUG
     andi s3, 0xFFF
     andi s4, 0xFFF
-    assert_gt s3, s4, RDPQ_ASSERT_SEND_INVALID_SIZE
+    assert_ge s3, s4, RDPQ_ASSERT_SEND_INVALID_SIZE
     #endif
     sub rspq_cmd_size, s3, s4
+    beqz rspq_cmd_size, JrRa   # Exit if s3==s4 (0 byte transfer)
     add t0, rspq_cmd_size, -1
+
+    move ra2, ra
+
+    # Fetch current pointer in RDRAM where to write the RDP command
+    mfc0 rdram_cur, COP0_DP_END
 
     # Fetch the sentinel (end of buffer). Check whether there is
     # enough room to add the new command. If so, run the DMA transfer,
@@ -195,174 +172,66 @@ RDPQ_Write16:
     sw s0, %lo(RDPQ_CMD_PTR)
     .endfunc
 
-    #############################################################
-    # RDPQCmd_ModifyOtherModes
-    #
-    # Modifies a specific part of the other modes and sends the updated
-    # value to the RDP.
-    # This function can be used as a standard fixup (in which case,
-    # it will potential emit a SET_SCISSOR in case the cycle type
-    # changed between COPY/FILL and 1CYC/2CYC), or as a mode fixup,
-    # part of the mode API, in which case it must call RDPQ_UpdateRenderMode
-    # to regenerate the new render mode.
-    #
-    # NOTE: The new value in a2 should never have bits set outside of
-    #       the inverse bitmask to ensure correct results.
-    #
-    # ARGS:
-    #   a0: Bit 24..31: Command id
-    #       Bit 15:     If 1, call RDPQ_UpdateRenderMode.
-    #       Bit 12-0:   Word offset into other modes (0 or 4)
-    #   a1: Inverse bit mask of the value to be written
-    #   a2: New value
-    #############################################################
-    .func RDPQCmd_ModifyOtherModes
-RDPQCmd_ModifyOtherModes:
-    lw t1, %lo(RDPQ_OTHER_MODES)(a0)
-    and t1, a1
-    or t1, a2
-    sw t1, %lo(RDPQ_OTHER_MODES)(a0)
-    sll a0, 16
-    bltz a0, RDPQ_UpdateRenderMode
 
-    # Prepare the updated command in a0-a1 for the following steps
-    lw a0, %lo(RDPQ_OTHER_MODES) + 0x0
-    lw a1, %lo(RDPQ_OTHER_MODES) + 0x4
-    # fallthrough
-    .endfunc
+#########################################################################
+#########################################################################
+#
+#  RDPQ Mode API: smart, assisted render-mode changes
+#
+# These functions implement the mode API. They can be useful
+# for overlays that want to change RDP render mode, using the
+# mode API for simplicity and interoperability.
+#
+##########################################################################
+#########################################################################
 
-    #############################################################
-    # RDPQ_WriteOtherModes
-    #
-    # Appends the other modes command in a0-a1 to the staging area
-    # and falls through to #RDPQ_FinalizeOtherModes.
-    #############################################################
-    .func RDPQ_WriteOtherModes
-RDPQ_WriteOtherModes:
-    # Write other modes command to staging area
-    jal RDPQ_Write8
-    nop
-    # fallthrough!
-    .endfunc
 
-    #############################################################
-    # RDPQ_FinalizeOtherModes
-    #
-    # Re-evaluates any commands that depend on the other modes,
-    # appends them to the staging area, and finally calls #RDPQ_Finalize,
-    # finishing the current command.
-    #############################################################
-    .func RDPQ_FinalizeOtherModes
-RDPQ_FinalizeOtherModes:
-    # Update other commands that need to change some state depending on the other modes
+    .section .data.rdpq_mode_api
 
-    # SetScissor:
-    # load the cached command first
-    lw a0, %lo(RDPQ_SCISSOR_RECT) + 0x0
-    lw a1, %lo(RDPQ_SCISSOR_RECT) + 0x4
-    # Append the fixed up SetScissor command to staging area and then finalize
-    jal_and_j RDPQ_WriteSetScissor, RDPQ_Finalize
-    .endfunc
+AA_BLEND_MASK:
+    #  MASK
+    .word SOM_COVERAGE_DEST_MASK | SOM_BLEND_MASK | SOM_BLALPHA_MASK | SOM_COLOR_ON_CVG_OVERFLOW
+AA_BLEND_TABLE:
+    #  AA=0 / BLEND=0
+    .word SOM_COVERAGE_DEST_ZAP
+    #  AA=0 / BLEND=1
+    .word SOM_COVERAGE_DEST_ZAP
+    #  AA=1 / BLEND=0
+    .word SOM_BLALPHA_CVG | SOM_COVERAGE_DEST_CLAMP | \
+          RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_CVG))  # Includes SOM_READ_ENABLE
+    #  AA=1 / BLEND=1
+    .word SOM_COLOR_ON_CVG_OVERFLOW | SOM_COVERAGE_DEST_WRAP
 
-    #############################################################
-    # RDPQCmd_SetFillColor32
-    #
-    # The RDP command SetFillColor expects a 32-bit value which
-    # is a "packed color", that is the 32-bit value that must be
-    # blindly repeated in the framebuffer. Semantically, for 32-bit
-    # framebuffers, this is the standard RGBA8888 format. For 16-bit
-    # framebuffers, it must be RGBA5551 repeated two times.
-    #
-    # To allow a more flexible approach where the same fill color
-    # command can be used irrespective of the target framebuffer, 
-    # we create our own SetFillColor32 that only accepts a 
-    # RGBA8888 color but convert it automatically to RGBA5551
-    # depending on the target bitdepth (using the last value stored
-    # by SetColorImage).
-    #############################################################
-    .func RDPQCmd_SetFillColor32
-RDPQCmd_SetFillColor32:
-    sw a1, %lo(RDPQ_FILL_COLOR)
-    li ra, %lo(RDPQ_Finalize)
+#define RDPQ_COMB_MIPMAP2       RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (0,0,0,0), (0,0,0,0))
+#define RDPQ_COMB_SHADE_FOG     RDPQ_COMBINER1((0,0,0,SHADE),      (0,0,0,1))
+#define RDPQ_COMB_TEX_SHADE_FOG RDPQ_COMBINER1((TEX0,0,SHADE,0),   (0,0,0,TEX0))
 
-RDPQ_WriteSetFillColor:
-    lbu t0, %lo(RDPQ_TARGET_BITDEPTH)
-    beq t0, 3, RDPQ_Write8
-    lui a0, 0xF700   # SET_FILL_COLOR
-    srl t0, a1, 24 + (8-5) - 11
-    srl t1, a1, 16 + (8-5) - 6
-    srl t2, a1, 8  + (8-5) - 1
-    srl t3, a1, 0  + (8-1) - 0
-    andi t0, 0x1F << 11
-    andi t1, 0x1F << 6
-    andi t2, 0x1F << 1
-    andi t3, 0x01 << 0
-    or t4, t0, t1
-    or t5, t2, t3
-    or a1, t4, t5
-    sll t0, a1, 16
-    j RDPQ_Write8
-    or a1, t0
-    .endfunc
+COMB0_MASK:             .quad RDPQ_COMB0_MASK
+COMBINER_SHADE:         .quad RDPQ_COMBINER_SHADE
+COMBINER_SHADE_FOG:     .quad RDPQ_COMB_SHADE_FOG
+COMBINER_TEX_SHADE:     .quad RDPQ_COMBINER_TEX_SHADE
+COMBINER_TEX_SHADE_FOG: .quad RDPQ_COMB_TEX_SHADE_FOG
 
-    #############################################################
-    # RDPQCmd_SetScissorEx
-    #
-    # The RDP command SetScissor has slightly different behavior
-    # for rectangles depending on the current cycle mode. In 1cycle/2cycle 
-    # mode the right edge works as an "exclusive" range, meaning
-    # that pixels with the same x-coordinate as the edge are not
-    # rendered to. In fill/copy mode on the other hand, it's an inclusive
-    # range, so one additional column of pixels is included.
-    #
-    # To make the API more consistent across all cycle modes, this
-    # command will adjust the coordinate of the right edge to compensate
-    # for this behavior depending on the current cycle mode.
-    #############################################################
-    .func RDPQCmd_SetScissorEx
-RDPQCmd_SetScissorEx:
-    lui t1, 0xED00 ^ 0xD200 # SetScissorEx -> SET_SCISSOR
-    xor a0, t1
-    li ra, %lo(RDPQ_Finalize)
+COMBINER_MIPMAP2:       .quad (RDPQ_COMB_MIPMAP2 & RDPQ_COMB0_MASK) | RDPQ_COMBINER_2PASS
 
-    # Given a SET_SCISSOR command in a0/a1, write it into RDPQ_SCISSOR_RECT
-    # as-is (exclusive), and then send it to RDP after optionally adjusting
-    # the extents to match the current SOM cycle type.
-    # Returns to caller.
-RDPQ_WriteSetScissor:
-    sw a0, %lo(RDPQ_SCISSOR_RECT) + 0x0
-    lb t6, %lo(RDPQ_OTHER_MODES) + 0x1
-    # Bit 21 of the first word is set if FILL or COPY mode is active
-    andi t6, 0x1 << 5
-    # Leave unchanged when not in FILL or COPY mode
-    beqz t6, scissor_substitute
-    sw a1, %lo(RDPQ_SCISSOR_RECT) + 0x4
+    .section .bss.rdpq_mode_api
 
-    # Subtract 1 subpixel from XL (bits 23:12, as 10.2 fixed point)
-    addiu a1, -(1 << 12)
+# Temporary combiner memory location for RDPQ_UpdateRenderMode
+RDPQ_MODE_COMBINER_1CYC:     .quad  0
+RDPQ_MODE_COMBINER_2CYC:     .quad  0
 
-scissor_substitute:
-    j RDPQ_Write8
-    nop
-    .endfunc
 
-    ###############################################################
-    # MODE API FUNCTIONS 
-    #
-    # These functions implement the mode API. They can be useful
-    # for overlays that want to change RDP render mode, using the
-    # mode API for simplicity and interoperability.
-    ###############################################################
+    .section .text.rdpq_mode_api
 
-    .func RDPQCmd_SetBlendingMode
-RDPQCmd_SetBlendingMode:
+    .func RDPQ_SetBlendingMode
+RDPQ_SetBlendingMode:
     j RDPQ_UpdateRenderMode
     sw a1, %lo(RDPQ_MODE_BLENDER_STEPS)(a0)
     # fallthrough
     .endfunc
 
-    .func RDPQCmd_SetCombineMode_1Pass
-RDPQCmd_SetCombineMode_1Pass:
+    .func RDPQ_SetCombineMode_1Pass
+RDPQ_SetCombineMode_1Pass:
     # Turn off RDPQ_COMBINER_2PASS (bit 63). This is set by default
     # because the overlay is regisred in slots 0xC0-0xF0.
     # We need to remember that this combiner does not require 2 passes
@@ -372,8 +241,8 @@ RDPQCmd_SetCombineMode_1Pass:
     # fallthrough!
     .endfunc
 
-    .func RDPQCmd_SetCombineMode_2Pass
-RDPQCmd_SetCombineMode_2Pass:
+    .func RDPQ_SetCombineMode_2Pass
+RDPQ_SetCombineMode_2Pass:
     # Set correct SET_COMBINE opcode (0xFC). The opcode can be anything of
     # the other 4 (1pass/2pass dynamic/static).
     or a0, 0x7F000000
@@ -631,17 +500,30 @@ rdpq_update_fillcopy:
     #undef passhthrough
     #undef cycle_type
 
-    #####################################################################
-    # RDPQ_Triangle
-    #
-    #####################################################################
 
-    .data
+#########################################################################
+#
+#  RDPQ_Triangle: assemble a RDP triangle command
+#
+##########################################################################
+
+    .section .data.rdpq_triangle
     .align 4
 TRICONST1: .half 0,0,0,0,0x200,0x200,0x200,0x200
 
 
-    .text
+    .section .text.rdpq_triangle
+
+    #####################################################################
+    # RDPQ_Triangle
+    #
+    # INPUT:
+    # * a0: high 32-bit word of the triangle command. This will be
+    #       completed with the left/right flag and the mipmap level.
+    # * a1,a2,a3: pointer to the triangle structures in DMEM
+    # * v0: 0=cull back, 1=cull front, any other value = culling disabled
+    # * s3: output buffer pointer
+    #####################################################################
 
     # Implementation limits of the RSP version. These are all edge cases that are probably
     # not necessary to get 100% right as they are really degenerate situations. Notice that
@@ -669,6 +551,7 @@ RDPQ_Triangle:
     #define vtx1   a1
     #define vtx2   a2
     #define vtx3   a3
+    #define cull   v0
 
     #define y1     t4
     #define y2     t5
@@ -716,16 +599,13 @@ RDPQ_Triangle:
 
     #define VTX_ATTR_X      0
     #define VTX_ATTR_Y      2
-    #define VTX_ATTR_Z      6
+    #define VTX_ATTR_Z      4
     #define VTX_ATTR_RGBA   8
     #define VTX_ATTR_S      12
     #define VTX_ATTR_T      14
     #define VTX_ATTR_W      16
     #define VTX_ATTR_INVWi  20
     #define VTX_ATTR_INVWf  22
-
-    li s4, %lo(RDPQ_CMD_STAGING)
-    move s3, s4
 
     j half_swap
     li t0, 1
@@ -734,19 +614,19 @@ swap_loop:
     lh y2, VTX_ATTR_Y(vtx2)
     lh y3, VTX_ATTR_Y(vtx3)
     blt y2, y3, half_swap
-    nop
-    xor vtx2, vtx3
-    xor vtx3, vtx2
-    xor vtx2, vtx3
+    move t1, vtx2
+    move vtx2, vtx3
+    move vtx3, t1
+    xor cull, 1
 
 half_swap:
     lh y1, VTX_ATTR_Y(vtx1)
     lh y2, VTX_ATTR_Y(vtx2)
     blt y1, y2, swap_end
-    nop
-    xor vtx1, vtx2
-    xor vtx2, vtx1
-    xor vtx1, vtx2
+    move t1, vtx1
+    move vtx1, vtx2
+    move vtx2, t1
+    xor cull, 1
 
 swap_end:
     bnez t0, swap_loop
@@ -812,6 +692,7 @@ swap_end:
     # Since we calculated -NZ, we need to reverse the sign
     mfc2 t0, vnz_i.e4
     sge t0, t0, zero
+    beq t0, cull, JrRa
     sll t0, 7
     or tricmd, t0
 
@@ -1147,7 +1028,7 @@ no_color:
 
 no_texture:
     andi t0, tricmd, 0x100
-    beqz t0, no_z
+    beqz t0, JrRa
 
     # Store z
     ssv vfinal_i.e7, 0x00,s3
@@ -1158,12 +1039,70 @@ no_texture:
     ssv    vde_f.e7, 0x0A,s3
     ssv    vdy_i.e7, 0x0C,s3
     ssv    vdy_f.e7, 0x0E,s3
+    jr ra
     addi s3, 0x10
 
-no_z:
-    j RDPQ_Send
-    nop
+    #undef tricm
+    #undef vtx1 
+    #undef vtx2 
+    #undef vtx3 
+    #undef cull 
+
+    #undef y1   
+    #undef y2   
+    #undef y3   
+    #undef x1   
+    #undef x2   
+    #undef x3   
+
+    # r, g, b, a, s, t, w, z
+    #undef vfinal_i         
+    #undef vfinal_f         
+    #undef vdx_i            
+    #undef vdx_f            
+    #undef vde_i            
+    #undef vde_f            
+    #undef vdy_i            
+    #undef vdy_f            
+
+    #undef vattr1           
+    #undef vattr2           
+    #undef vattr3           
+    #undef vma              
+    #undef vha              
+
+    #undef vinvw_i          
+    #undef vinvw_f          
+
+    #undef vedges_i         
+    #undef vedges_f         
+    #undef vnz_i            
+    #undef vnz_f            
+    #undef vslope_i         
+    #undef vslope_f         
+    #undef vxy32            
+    #undef vxy21            
+    #undef vhml             
+    #undef vfy_i            
+    #undef vfy_f            
+
+    #undef v__         
+    #undef invn_i      
+    #undef invn_f      
+    #undef invsh_i     
+    #undef invsh_f     
+
+    #undef VTX_ATTR_X   
+    #undef VTX_ATTR_Y   
+    #undef VTX_ATTR_Z   
+    #undef VTX_ATTR_RGBA
+    #undef VTX_ATTR_S    
+    #undef VTX_ATTR_T    
+    #undef VTX_ATTR_W    
+    #undef VTX_ATTR_INVWi
+    #undef VTX_ATTR_INVWf
 
     .endfunc
+
 
 
