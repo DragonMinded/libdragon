@@ -70,13 +70,6 @@ void gl_primitive_close()
     gl_storage_free(&state.tmp_index_storage);
 }
 
-bool gl_is_invisible()
-{
-    return state.draw_buffer == GL_NONE 
-        || (state.depth_test && state.depth_func == GL_NEVER)
-        || (state.alpha_test && state.alpha_func == GL_NEVER);
-}
-
 bool gl_begin(GLenum mode)
 {
     switch (mode) {
@@ -900,7 +893,7 @@ void gl_draw(const gl_attrib_source_t *sources, uint32_t offset, uint32_t count,
     // FIXME: If the current render mode makes everything "invisible", we should technically still
     //        execute the vertex fetch pipeline so that after the draw call, the current attributes
     //        have the correct values. Fix this if anyone actually relies on this behavior.
-    if (sources[ATTRIB_VERTEX].pointer == NULL || gl_is_invisible()) {
+    if (sources[ATTRIB_VERTEX].pointer == NULL) {
         return;
     }
 

@@ -253,47 +253,62 @@ typedef struct {
 } gl_deletion_list_t;
 
 typedef struct {
-    gl_open_surf_func_t open_surface;
-    gl_close_surf_func_t close_surface;
-    gl_framebuffer_t default_framebuffer;
-    gl_framebuffer_t *cur_framebuffer;
+    // Pipeline state
 
-    GLenum current_error;
-
-    GLenum draw_buffer;
+    bool cull_face;
+    bool texture_1d;
+    bool texture_2d;
+    bool depth_test;
+    bool lighting;
+    bool fog;
+    bool color_material;
+    bool normalize;
+    
+    GLenum cull_face_mode;
+    GLenum front_face;
+    GLenum polygon_mode;
 
     GLenum primitive_mode;
 
     GLfloat point_size;
     GLfloat line_width;
 
-    GLclampf clear_color[4];
-    GLclampd clear_depth;
-
-    bool cull_face;
-    GLenum cull_face_mode;
-    GLenum front_face;
-    GLenum polygon_mode;
-
-    GLenum depth_func;
-
-    GLenum alpha_func;
-
     GLfloat fog_start;
     GLfloat fog_end;
 
-    bool depth_test;
-    bool alpha_test;
+    gl_viewport_t current_viewport;
 
-    bool texture_1d;
-    bool texture_2d;
+    GLenum matrix_mode;
+    gl_matrix_t final_matrix;
+    gl_matrix_t *current_matrix;
+    bool final_matrix_dirty;
 
-    bool lighting;
-    bool fog;
-    bool color_material;
-    bool normalize;
+    gl_matrix_t modelview_stack_storage[MODELVIEW_STACK_SIZE];
+    gl_matrix_t projection_stack_storage[PROJECTION_STACK_SIZE];
+    gl_matrix_t texture_stack_storage[TEXTURE_STACK_SIZE];
 
-    gl_array_t arrays[ATTRIB_COUNT];
+    gl_matrix_stack_t modelview_stack;
+    gl_matrix_stack_t projection_stack;
+    gl_matrix_stack_t texture_stack;
+    gl_matrix_stack_t *current_matrix_stack;
+
+    gl_material_t material;
+    gl_light_t lights[LIGHT_COUNT];
+
+    GLfloat light_model_ambient[4];
+    bool light_model_local_viewer;
+
+    GLenum shade_model;
+
+    gl_tex_gen_t s_gen;
+    gl_tex_gen_t t_gen;
+    gl_tex_gen_t r_gen;
+    gl_tex_gen_t q_gen;
+
+    bool immediate_active;
+
+    gl_texture_object_t *texture_1d_object;
+    gl_texture_object_t *texture_2d_object;
 
     gl_vertex_t vertex_cache[VERTEX_CACHE_SIZE];
     gl_material_t material_cache[VERTEX_CACHE_SIZE];
@@ -318,44 +333,28 @@ typedef struct {
 
     GLfloat current_attribs[ATTRIB_COUNT][4];
 
+    GLfloat flat_color[4];
+
+    // RDP state
+
+    GLclampf clear_color[4];
+    GLclampd clear_depth;
+
+    // Client state
+
+    gl_open_surf_func_t open_surface;
+    gl_close_surf_func_t close_surface;
+    gl_framebuffer_t default_framebuffer;
+    gl_framebuffer_t *cur_framebuffer;
+
+    GLenum current_error;
+
+    gl_array_t arrays[ATTRIB_COUNT];
+
     gl_attrib_source_t attrib_sources[ATTRIB_COUNT];
     gl_storage_t tmp_index_storage;
 
-    GLfloat flat_color[4];
-
-    gl_viewport_t current_viewport;
-
-    GLenum matrix_mode;
-    gl_matrix_t final_matrix;
-    gl_matrix_t *current_matrix;
-    bool final_matrix_dirty;
-
-    gl_matrix_t modelview_stack_storage[MODELVIEW_STACK_SIZE];
-    gl_matrix_t projection_stack_storage[PROJECTION_STACK_SIZE];
-    gl_matrix_t texture_stack_storage[TEXTURE_STACK_SIZE];
-
-    gl_matrix_stack_t modelview_stack;
-    gl_matrix_stack_t projection_stack;
-    gl_matrix_stack_t texture_stack;
-    gl_matrix_stack_t *current_matrix_stack;
-
     gl_texture_object_t *default_textures;
-
-    gl_texture_object_t *texture_1d_object;
-    gl_texture_object_t *texture_2d_object;
-
-    gl_material_t material;
-    gl_light_t lights[LIGHT_COUNT];
-
-    GLfloat light_model_ambient[4];
-    bool light_model_local_viewer;
-
-    GLenum shade_model;
-
-    gl_tex_gen_t s_gen;
-    gl_tex_gen_t t_gen;
-    gl_tex_gen_t r_gen;
-    gl_tex_gen_t q_gen;
 
     obj_map_t list_objects;
     GLuint next_list_name;
@@ -364,8 +363,6 @@ typedef struct {
 
     gl_buffer_object_t *array_buffer;
     gl_buffer_object_t *element_array_buffer;
-
-    bool immediate_active;
 
     GLboolean unpack_swap_bytes;
     GLboolean unpack_lsb_first;

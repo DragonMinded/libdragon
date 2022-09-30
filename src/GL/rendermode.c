@@ -228,12 +228,11 @@ void glBlendFunc(GLenum src, GLenum dst)
 void glDepthFunc(GLenum func)
 {
     switch (func) {
-    case GL_NEVER:
     case GL_LESS:
     case GL_ALWAYS:
         gl_set_short(GL_UPDATE_DEPTH_TEST, offsetof(gl_server_state_t, depth_func), (uint16_t)func);
-        state.depth_func = func;
         break;
+    case GL_NEVER:
     case GL_EQUAL:
     case GL_LEQUAL:
     case GL_GREATER:
@@ -255,14 +254,13 @@ void glDepthMask(GLboolean mask)
 void glAlphaFunc(GLenum func, GLclampf ref)
 {
     switch (func) {
-    case GL_NEVER:
     case GL_GREATER:
     case GL_ALWAYS:
         gl_set_short(GL_UPDATE_ALPHA_TEST, offsetof(gl_server_state_t, alpha_func), (uint16_t)func);
         gl_set_byte(GL_UPDATE_NONE, offsetof(gl_server_state_t, alpha_ref), FLOAT_TO_U8(ref));
         rdpq_set_blend_color(RGBA32(0, 0, 0, FLOAT_TO_U8(ref)));
-        state.alpha_func = func;
         break;
+    case GL_NEVER:
     case GL_EQUAL:
     case GL_LEQUAL:
     case GL_LESS:

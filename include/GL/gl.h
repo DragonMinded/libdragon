@@ -457,8 +457,7 @@ void glBlendFunc(GLenum src, GLenum dst);
 
 /* Framebuffer selection */
 
-void glDrawBuffer(GLenum buf);
-
+#define glDrawBuffer(buf) _GL_UNSUPPORTED(glDrawBuffer)
 #define glReadBuffer(src) _GL_UNSUPPORTED(glReadBuffer)
 
 /* Masks */
@@ -509,7 +508,7 @@ void glClearDepth(GLclampd d);
 
 /* Render mode */
 
-void glRenderMode(GLenum mode);
+#define glRenderMode(mode) _GL_UNSUPPORTED(glRenderMode)
 
 /* Selection */
 

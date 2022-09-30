@@ -122,7 +122,6 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
     gl_pixel_init();
     gl_list_init();
 
-    glDrawBuffer(GL_FRONT);
     glDepthRange(0, 1);
     glClearDepth(1.0);
     glCullFace(GL_BACK);
@@ -272,7 +271,6 @@ void gl_set_flag2(GLenum target, bool value)
         break;
     case GL_ALPHA_TEST:
         gl_set_flag(GL_UPDATE_ALPHA_TEST, FLAG_ALPHA_TEST, value);
-        state.alpha_test = value;
         break;
     case GL_DITHER:
         gl_set_flag(GL_UPDATE_DITHER, FLAG_DITHER, value);
@@ -397,33 +395,6 @@ void glDisable(GLenum target)
     gl_set_flag2(target, false);
 }
 
-void glDrawBuffer(GLenum buf)
-{
-    switch (buf) {
-    case GL_NONE:
-    case GL_FRONT_LEFT:
-    case GL_FRONT:
-    case GL_LEFT:
-    case GL_FRONT_AND_BACK:
-        state.draw_buffer = buf;
-        break;
-    case GL_FRONT_RIGHT:
-    case GL_BACK_LEFT:
-    case GL_BACK_RIGHT:
-    case GL_BACK:
-    case GL_RIGHT:
-    case GL_AUX0:
-    case GL_AUX1:
-    case GL_AUX2:
-    case GL_AUX3:
-        gl_set_error(GL_INVALID_OPERATION);
-        return;
-    default:
-        gl_set_error(GL_INVALID_ENUM);
-        return;
-    }
-}
-
 void glClear(GLbitfield buf)
 {
     if (!buf) {
@@ -480,21 +451,6 @@ void glClearColor(GLclampf r, GLclampf g, GLclampf b, GLclampf a)
 void glClearDepth(GLclampd d)
 {
     state.clear_depth = d;
-}
-
-void glRenderMode(GLenum mode)
-{
-    switch (mode) {
-    case GL_RENDER:
-        break;
-    case GL_SELECT:
-    case GL_FEEDBACK:
-        assertf(0, "Select and feedback modes are not supported!");
-        break;
-    default:
-        gl_set_error(GL_INVALID_ENUM);
-        return;
-    }
 }
 
 void glFlush(void)
