@@ -14,28 +14,52 @@
         RSPQ_DefineCommand GLCmd_Update,        4
         RSPQ_DefineCommand GLCmd_BindTexture,   8
         RSPQ_DefineCommand GLCmd_GetValue,      8
+        RSPQ_DefineCommand GLCmd_CopyFillColor, 4
+        RSPQ_DefineCommand GLCmd_SetLightPos,   12
+        RSPQ_DefineCommand GLCmd_SetLightDir,   8
     RSPQ_EndOverlayHeader
 
     RSPQ_BeginSavedState
 GL_STATE:
     # These are required by the pipeline
     GL_BOUND_TEXTURES:      .ds.b TEXTURE_OBJECT_SIZE * 2
+    GL_LIGHTS:              .ds.b LIGHT_SIZE * LIGHT_COUNT
+    GL_VIEWPORT_SCALE:      .half   0,0,0,0
+    GL_VIEWPORT_OFFSET:     .half   0,0,0,0
+    GL_MAT_AMBIENT:         .word   0
+    GL_MAT_DIFFUSE:         .word   0
+    GL_MAT_SPECULAR:        .word   0
+    GL_MAT_EMISSIVE:        .word   0
+    GL_MAT_SHININESS:       .half   0
+    GL_MAT_COLOR_TARGET:    .half   0
     GL_STATE_FLAGS:         .word   0
-    GL_STATE_POLYGON_MODE:  .short  0
-    GL_STATE_PRIM_TYPE:     .short  0
+    GL_STATE_LIGHT_AMBIENT: .word   0
+    GL_STATE_FOG_START:     .word   0
+    GL_STATE_FOG_END:       .word   0
+    GL_STATE_POLYGON_MODE:  .half   0
+    GL_STATE_PRIM_TYPE:     .half   0
+    GL_STATE_CULL_MODE:     .half   0
+    GL_STATE_FRONT_FACE:    .half   0
+    GL_STATE_SHADE_MODEL:   .half   0
+    GL_STATE_POINT_SIZE:    .half   0
+    GL_STATE_LINE_WIDTH:    .half   0
+    # padding
+    .half 0, 0, 0
 
     # These are only required for RDP state changes
-    GL_STATE_SCISSOR_RECT:  .short  0, 0, 0, 0  # Needs to be aligned to 8 bytes
+    GL_STATE_SCISSOR_RECT:  .half   0, 0, 0, 0  # Needs to be aligned to 8 bytes
     GL_STATE_BLEND_CYCLE:   .word   0
     GL_STATE_FOG_COLOR:     .word   0
     GL_STATE_TEXTURE_IDS:   .word   0, 0
     GL_STATE_UPLOADED_TEX:  .word   0
-    GL_STATE_FB_SIZE:       .short  0, 0
-    GL_STATE_DEPTH_FUNC:    .short  0
-    GL_STATE_ALPHA_FUNC:    .short  0
-    GL_STATE_BLEND_SRC:     .short  0
-    GL_STATE_BLEND_DST:     .short  0
-    GL_STATE_TEX_ENV_MODE:  .short  0
+    GL_STATE_FILL_COLOR:    .word   0
+    GL_STATE_FILL_DEPTH:    .word   0
+    GL_STATE_FB_SIZE:       .half   0, 0
+    GL_STATE_DEPTH_FUNC:    .half   0
+    GL_STATE_ALPHA_FUNC:    .half   0
+    GL_STATE_BLEND_SRC:     .half   0
+    GL_STATE_BLEND_DST:     .half   0
+    GL_STATE_TEX_ENV_MODE:  .half   0
     GL_STATE_ALPHA_REF:     .byte   0
     RSPQ_EndSavedState
 
@@ -79,7 +103,7 @@ UPDATE_FUNCTIONS:
     .short GL_UpdateTextureCompleteness - _start
     .short GL_UpdateTextureUpload       - _start
 
-CONVERT_CONST:  .short 1, 2, 0x8000, 0x200, 0xFF, 134, 0x7F, 0x80
+CONVERT_CONST:  .half 1, 2, 0x8000, 0x200, 0xFF, 134, 0x7F, 0x80
 
     .text
 
@@ -169,6 +193,21 @@ GLCmd_BindTexture:
     sw s0, %lo(GL_STATE_TEXTURE_IDS)(t3)
 
     jal_and_j GL_UpdateCombiner, RSPQ_Loop
+
+GLCmd_CopyFillColor:
+    lw t0, %lo(GL_STATE)(a0)
+    jr ra
+    sw t0, %lo(RDPQ_FILL_COLOR)
+
+GLCmd_SetLightPos:
+    # TODO
+    jr ra
+    nop
+
+GLCmd_SetLightDir:
+    # TODO
+    jr ra
+    nop
 
 GL_UpdateDepthTest:
     lw t0, %lo(GL_STATE_FLAGS)

@@ -77,6 +77,18 @@ void gl_rendermode_init()
     glFogfv(GL_FOG_COLOR, fog_color);
 }
 
+void gl_set_fog_start(GLfloat param)
+{
+    state.fog_start = param;
+    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, fog_start), param * 65536.f);
+}
+
+void gl_set_fog_end(GLfloat param)
+{
+    state.fog_end = param;
+    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, fog_end), param * 65536.f);
+}
+
 void glFogi(GLenum pname, GLint param)
 {
     switch (pname) {
@@ -84,10 +96,10 @@ void glFogi(GLenum pname, GLint param)
         assertf(param == GL_LINEAR, "Only linear fog is supported!");
         break;
     case GL_FOG_START:
-        state.fog_start = param;
+        gl_set_fog_start(param);
         break;
     case GL_FOG_END:
-        state.fog_end = param;
+        gl_set_fog_end(param);
         break;
     case GL_FOG_DENSITY:
     case GL_FOG_INDEX:
@@ -105,10 +117,10 @@ void glFogf(GLenum pname, GLfloat param)
         assertf(param == GL_LINEAR, "Only linear fog is supported!");
         break;
     case GL_FOG_START:
-        state.fog_start = param;
+        gl_set_fog_start(param);
         break;
     case GL_FOG_END:
-        state.fog_end = param;
+        gl_set_fog_end(param);
         break;
     case GL_FOG_DENSITY:
     case GL_FOG_INDEX:

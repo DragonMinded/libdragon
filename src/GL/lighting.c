@@ -26,7 +26,7 @@ void gl_init_light(gl_light_t *light)
         .position = { 0.0f, 0.0f, 1.0f, 0.0f },
         .direction = { 0.0f, 0.0f, -1.0f },
         .spot_exponent = 0.0f,
-        .spot_cutoff = 180.0f,
+        .spot_cutoff_cos = -1.0f,
         .constant_attenuation = 1.0f,
         .linear_attenuation = 0.0f,
         .quadratic_attenuation = 0.0f,
@@ -150,7 +150,7 @@ void gl_perform_lighting(GLfloat *color, const GLfloat *input, const GLfloat *v,
 
         // Spotlight
         float spot = 1.0f;
-        if (light->spot_cutoff != 180.0f) {
+        if (light->spot_cutoff_cos >= 0.0f) {
             GLfloat plv[3];
             gl_homogeneous_unit_diff(plv, light->position, v);
 
@@ -245,45 +245,61 @@ bool gl_validate_material_face(GLenum face)
     }
 }
 
-void gl_set_material_paramf(gl_material_t *material, GLenum pname, const GLfloat *params)
+void gl_set_color(GLfloat *dst, uint32_t offset, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
+{
+    gl_set_word(GL_UPDATE_NONE, offset, PACKED_RGBA32_FROM_FLOAT(r, g, b, a));
+    dst[0] = r;
+    dst[1] = g;
+    dst[2] = b;
+    dst[3] = a;
+}
+
+void gl_set_material_ambient(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
+{
+    gl_set_color(state.material.ambient, offsetof(gl_server_state_t, mat_ambient), r, g, b, a);
+}
+
+void gl_set_material_diffuse(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
+{
+    gl_set_color(state.material.diffuse, offsetof(gl_server_state_t, mat_diffuse), r, g, b, a);
+}
+
+void gl_set_material_specular(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
+{
+    gl_set_color(state.material.specular, offsetof(gl_server_state_t, mat_specular), r, g, b, a);
+}
+
+void gl_set_material_emissive(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
+{
+    gl_set_color(state.material.emissive, offsetof(gl_server_state_t, mat_emissive), r, g, b, a);
+}
+
+void gl_set_material_shininess(GLfloat param)
+{    
+    gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, mat_shininess), param);
+}
+
+void gl_set_material_paramf(GLenum pname, const GLfloat *params)
 {
     switch (pname) {
     case GL_AMBIENT:
-        material->ambient[0] = params[0];
-        material->ambient[1] = params[1];
-        material->ambient[2] = params[2];
-        material->ambient[3] = params[3];
+        gl_set_material_ambient(params[0], params[1], params[2], params[3]);
         break;
     case GL_DIFFUSE:
-        material->diffuse[0] = params[0];
-        material->diffuse[1] = params[1];
-        material->diffuse[2] = params[2];
-        material->diffuse[3] = params[3];
+        gl_set_material_diffuse(params[0], params[1], params[2], params[3]);
         break;
     case GL_AMBIENT_AND_DIFFUSE:
-        material->ambient[0] = params[0];
-        material->ambient[1] = params[1];
-        material->ambient[2] = params[2];
-        material->ambient[3] = params[3];
-        material->diffuse[0] = params[0];
-        material->diffuse[1] = params[1];
-        material->diffuse[2] = params[2];
-        material->diffuse[3] = params[3];
+        gl_set_material_ambient(params[0], params[1], params[2], params[3]);
+        gl_set_material_diffuse(params[0], params[1], params[2], params[3]);
         break;
     case GL_SPECULAR:
-        material->specular[0] = params[0];
-        material->specular[1] = params[1];
-        material->specular[2] = params[2];
-        material->specular[3] = params[3];
+        gl_set_material_specular(params[0], params[1], params[2], params[3]);
         break;
     case GL_EMISSION:
-        material->emissive[0] = params[0];
-        material->emissive[1] = params[1];
-        material->emissive[2] = params[2];
-        material->emissive[3] = params[3];
+        gl_set_material_emissive(params[0], params[1], params[2], params[3]);
         break;
     case GL_SHININESS:
-        material->shininess = params[0];
+        gl_set_material_shininess(params[0]);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -291,45 +307,51 @@ void gl_set_material_paramf(gl_material_t *material, GLenum pname, const GLfloat
     }
 }
 
-void gl_set_material_parami(gl_material_t *material, GLenum pname, const GLint *params)
+void gl_set_material_parami(GLenum pname, const GLint *params)
 {
     switch (pname) {
     case GL_AMBIENT:
-        material->ambient[0] = I32_TO_FLOAT(params[0]);
-        material->ambient[1] = I32_TO_FLOAT(params[1]);
-        material->ambient[2] = I32_TO_FLOAT(params[2]);
-        material->ambient[3] = I32_TO_FLOAT(params[3]);
+        gl_set_material_ambient(
+            I32_TO_FLOAT(params[0]),
+            I32_TO_FLOAT(params[1]),
+            I32_TO_FLOAT(params[2]),
+            I32_TO_FLOAT(params[3]));
         break;
     case GL_DIFFUSE:
-        material->diffuse[0] = I32_TO_FLOAT(params[0]);
-        material->diffuse[1] = I32_TO_FLOAT(params[1]);
-        material->diffuse[2] = I32_TO_FLOAT(params[2]);
-        material->diffuse[3] = I32_TO_FLOAT(params[3]);
+        gl_set_material_diffuse(
+            I32_TO_FLOAT(params[0]),
+            I32_TO_FLOAT(params[1]),
+            I32_TO_FLOAT(params[2]),
+            I32_TO_FLOAT(params[3]));
         break;
     case GL_AMBIENT_AND_DIFFUSE:
-        material->ambient[0] = I32_TO_FLOAT(params[0]);
-        material->ambient[1] = I32_TO_FLOAT(params[1]);
-        material->ambient[2] = I32_TO_FLOAT(params[2]);
-        material->ambient[3] = I32_TO_FLOAT(params[3]);
-        material->diffuse[0] = I32_TO_FLOAT(params[0]);
-        material->diffuse[1] = I32_TO_FLOAT(params[1]);
-        material->diffuse[2] = I32_TO_FLOAT(params[2]);
-        material->diffuse[3] = I32_TO_FLOAT(params[3]);
+        gl_set_material_ambient(
+            I32_TO_FLOAT(params[0]),
+            I32_TO_FLOAT(params[1]),
+            I32_TO_FLOAT(params[2]),
+            I32_TO_FLOAT(params[3]));
+        gl_set_material_diffuse(
+            I32_TO_FLOAT(params[0]),
+            I32_TO_FLOAT(params[1]),
+            I32_TO_FLOAT(params[2]),
+            I32_TO_FLOAT(params[3]));
         break;
     case GL_SPECULAR:
-        material->specular[0] = I32_TO_FLOAT(params[0]);
-        material->specular[1] = I32_TO_FLOAT(params[1]);
-        material->specular[2] = I32_TO_FLOAT(params[2]);
-        material->specular[3] = I32_TO_FLOAT(params[3]);
+        gl_set_material_specular(
+            I32_TO_FLOAT(params[0]),
+            I32_TO_FLOAT(params[1]),
+            I32_TO_FLOAT(params[2]),
+            I32_TO_FLOAT(params[3]));
         break;
     case GL_EMISSION:
-        material->emissive[0] = I32_TO_FLOAT(params[0]);
-        material->emissive[1] = I32_TO_FLOAT(params[1]);
-        material->emissive[2] = I32_TO_FLOAT(params[2]);
-        material->emissive[3] = I32_TO_FLOAT(params[3]);
+        gl_set_material_emissive(
+            I32_TO_FLOAT(params[0]),
+            I32_TO_FLOAT(params[1]),
+            I32_TO_FLOAT(params[2]),
+            I32_TO_FLOAT(params[3]));
         break;
     case GL_SHININESS:
-        material->shininess = params[0];
+        gl_set_material_shininess(params[0]);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -351,7 +373,7 @@ void glMaterialf(GLenum face, GLenum pname, GLfloat param)
         return;
     }
 
-    gl_set_material_paramf(&state.material, pname, &param);
+    gl_set_material_paramf(pname, &param);
 }
 
 void glMateriali(GLenum face, GLenum pname, GLint param) { glMaterialf(face, pname, param); }
@@ -375,7 +397,7 @@ void glMaterialiv(GLenum face, GLenum pname, const GLint *params)
         return;
     }
 
-    gl_set_material_parami(&state.material, pname, params);
+    gl_set_material_parami(pname, params);
 }
 
 void glMaterialfv(GLenum face, GLenum pname, const GLfloat *params)
@@ -397,7 +419,13 @@ void glMaterialfv(GLenum face, GLenum pname, const GLfloat *params)
         return;
     }
 
-    gl_set_material_paramf(&state.material, pname, params);
+    gl_set_material_paramf(pname, params);
+}
+
+uint32_t gl_get_light_offset(GLenum light)
+{
+    uint32_t light_index = GL_LIGHT0 - light;
+    return offsetof(gl_server_state_t, lights) + light_index * sizeof(gl_light_srv_t);
 }
 
 gl_light_t * gl_get_light(GLenum light)
@@ -410,10 +438,77 @@ gl_light_t * gl_get_light(GLenum light)
     return &state.lights[light - GL_LIGHT0];
 }
 
-void gl_light_set_spot_cutoff(gl_light_t *light, float param)
+void gl_light_set_ambient(gl_light_t *light, uint32_t offset, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
-    light->spot_cutoff = param;
+    gl_set_color(light->ambient, offset + offsetof(gl_light_srv_t, ambient), r, g, b, a);
+}
+
+void gl_light_set_diffuse(gl_light_t *light, uint32_t offset, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
+{
+    gl_set_color(light->diffuse, offset + offsetof(gl_light_srv_t, diffuse), r, g, b, a);
+}
+
+void gl_light_set_specular(gl_light_t *light, uint32_t offset, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
+{
+    gl_set_color(light->specular, offset + offsetof(gl_light_srv_t, specular), r, g, b, a);
+}
+
+void gl_light_set_position(gl_light_t *light, uint32_t offset, const GLfloat *pos)
+{
+    gl_matrix_mult(light->position, gl_matrix_stack_get_matrix(&state.modelview_stack), pos);
+
+    int16_t x = pos[0] * 32.f;
+    int16_t y = pos[1] * 32.f;
+    int16_t z = pos[2] * 32.f;
+    int16_t w = pos[3] * 32.f;
+
+    uint32_t packed0 = ((uint64_t)x) << 16 | (uint64_t)y;
+    uint32_t packed1 = ((uint64_t)z) << 16 | (uint64_t)w;
+
+    gl_write(GL_CMD_SET_LIGHT_POS, offset, packed0, packed1);
+}
+
+void gl_light_set_direction(gl_light_t *light, uint32_t offset, const GLfloat *dir)
+{
+    gl_matrix_mult3x3(light->direction, gl_matrix_stack_get_matrix(&state.modelview_stack), dir);
+
+    int8_t x = dir[0] * 0x7F;
+    int8_t y = dir[1] * 0x7F;
+    int8_t z = dir[2] * 0x7F;
+
+    uint32_t packed = ((uint32_t)x) << 24 | ((uint32_t)y) << 16 | ((uint32_t)z) << 8;
+
+    gl_write(GL_CMD_SET_LIGHT_DIR, offset, packed);
+}
+
+void gl_light_set_spot_exponent(gl_light_t *light, uint32_t offset, float param)
+{
+    light->spot_exponent = param;
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, spot_exponent), param);
+}
+
+void gl_light_set_spot_cutoff(gl_light_t *light, uint32_t offset, float param)
+{
     light->spot_cutoff_cos = cosf(RADIANS(param));
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, spot_cutoff_cos), light->spot_cutoff_cos * 0x7FFF);
+}
+
+void gl_light_set_constant_attenuation(gl_light_t *light, uint32_t offset, float param)
+{
+    light->constant_attenuation = param;
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, constant_attenuation), param * 32);
+}
+
+void gl_light_set_linear_attenuation(gl_light_t *light, uint32_t offset, float param)
+{
+    light->linear_attenuation = param;
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, linear_attenuation), param * 32);
+}
+
+void gl_light_set_quadratic_attenuation(gl_light_t *light, uint32_t offset, float param)
+{
+    light->quadratic_attenuation = param;
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, quadratic_attenuation), param * 32);
 }
 
 void glLightf(GLenum light, GLenum pname, GLfloat param)
@@ -423,21 +518,23 @@ void glLightf(GLenum light, GLenum pname, GLfloat param)
         return;
     }
 
+    uint32_t offset = gl_get_light_offset(light);
+
     switch (pname) {
     case GL_SPOT_EXPONENT:
-        l->spot_exponent = param;
+        gl_light_set_spot_exponent(l, offset, param);
         break;
     case GL_SPOT_CUTOFF:
-        gl_light_set_spot_cutoff(l, param);
+        gl_light_set_spot_cutoff(l, offset, param);
         break;
     case GL_CONSTANT_ATTENUATION:
-        l->constant_attenuation = param;
+        gl_light_set_constant_attenuation(l, offset, param);
         break;
     case GL_LINEAR_ATTENUATION:
-        l->linear_attenuation = param;
+        gl_light_set_linear_attenuation(l, offset, param);
         break;
     case GL_QUADRATIC_ATTENUATION:
-        l->quadratic_attenuation = param;
+        gl_light_set_quadratic_attenuation(l, offset, param);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -454,52 +551,59 @@ void glLightiv(GLenum light, GLenum pname, const GLint *params)
         return;
     }
 
+    uint32_t offset = gl_get_light_offset(light);
+
+    GLfloat tmp[4];
+
     switch (pname) {
     case GL_AMBIENT:
-        l->ambient[0] = I32_TO_FLOAT(params[0]);
-        l->ambient[1] = I32_TO_FLOAT(params[1]);
-        l->ambient[2] = I32_TO_FLOAT(params[2]);
-        l->ambient[3] = I32_TO_FLOAT(params[3]);
+        gl_light_set_ambient(l, offset, 
+            I32_TO_FLOAT(params[0]), 
+            I32_TO_FLOAT(params[1]), 
+            I32_TO_FLOAT(params[2]), 
+            I32_TO_FLOAT(params[3]));
         break;
     case GL_DIFFUSE:
-        l->diffuse[0] = I32_TO_FLOAT(params[0]);
-        l->diffuse[1] = I32_TO_FLOAT(params[1]);
-        l->diffuse[2] = I32_TO_FLOAT(params[2]);
-        l->diffuse[3] = I32_TO_FLOAT(params[3]);
+        gl_light_set_diffuse(l, offset, 
+            I32_TO_FLOAT(params[0]), 
+            I32_TO_FLOAT(params[1]), 
+            I32_TO_FLOAT(params[2]), 
+            I32_TO_FLOAT(params[3]));
         break;
     case GL_SPECULAR:
-        l->specular[0] = I32_TO_FLOAT(params[0]);
-        l->specular[1] = I32_TO_FLOAT(params[1]);
-        l->specular[2] = I32_TO_FLOAT(params[2]);
-        l->specular[3] = I32_TO_FLOAT(params[3]);
+        gl_light_set_specular(l, offset, 
+            I32_TO_FLOAT(params[0]), 
+            I32_TO_FLOAT(params[1]), 
+            I32_TO_FLOAT(params[2]), 
+            I32_TO_FLOAT(params[3]));
         break;
     case GL_POSITION:
-        l->position[0] = params[0];
-        l->position[1] = params[1];
-        l->position[2] = params[2];
-        l->position[3] = params[3];
-        gl_matrix_mult(l->position, gl_matrix_stack_get_matrix(&state.modelview_stack), l->position);
+        tmp[0] = params[0];
+        tmp[1] = params[1];
+        tmp[2] = params[2];
+        tmp[3] = params[3];
+        gl_light_set_position(l, offset, tmp);
         break;
     case GL_SPOT_DIRECTION:
-        l->direction[0] = params[0];
-        l->direction[1] = params[1];
-        l->direction[2] = params[2];
-        gl_matrix_mult3x3(l->direction, gl_matrix_stack_get_matrix(&state.modelview_stack), l->direction);
+        tmp[0] = params[0];
+        tmp[1] = params[1];
+        tmp[2] = params[2];
+        gl_light_set_direction(l, offset, tmp);
         break;
     case GL_SPOT_EXPONENT:
-        l->spot_exponent = params[0];
+        gl_light_set_spot_exponent(l, offset, params[0]);
         break;
     case GL_SPOT_CUTOFF:
-        gl_light_set_spot_cutoff(l, params[0]);
+        gl_light_set_spot_cutoff(l, offset, params[0]);
         break;
     case GL_CONSTANT_ATTENUATION:
-        l->constant_attenuation = params[0];
+        gl_light_set_constant_attenuation(l, offset, params[0]);
         break;
     case GL_LINEAR_ATTENUATION:
-        l->linear_attenuation = params[0];
+        gl_light_set_linear_attenuation(l, offset, params[0]);
         break;
     case GL_QUADRATIC_ATTENUATION:
-        l->quadratic_attenuation = params[0];
+        gl_light_set_quadratic_attenuation(l, offset, params[0]);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -514,45 +618,38 @@ void glLightfv(GLenum light, GLenum pname, const GLfloat *params)
         return;
     }
 
+    uint32_t offset = gl_get_light_offset(light);
+
     switch (pname) {
     case GL_AMBIENT:
-        l->ambient[0] = params[0];
-        l->ambient[1] = params[1];
-        l->ambient[2] = params[2];
-        l->ambient[3] = params[3];
+        gl_light_set_ambient(l, offset, params[0], params[1], params[2], params[3]);
         break;
     case GL_DIFFUSE:
-        l->diffuse[0] = params[0];
-        l->diffuse[1] = params[1];
-        l->diffuse[2] = params[2];
-        l->diffuse[3] = params[3];
+        gl_light_set_diffuse(l, offset, params[0], params[1], params[2], params[3]);
         break;
     case GL_SPECULAR:
-        l->specular[0] = params[0];
-        l->specular[1] = params[1];
-        l->specular[2] = params[2];
-        l->specular[3] = params[3];
+        gl_light_set_specular(l, offset, params[0], params[1], params[2], params[3]);
         break;
     case GL_POSITION:
-        gl_matrix_mult(l->position, gl_matrix_stack_get_matrix(&state.modelview_stack), params);
+        gl_light_set_position(l, offset, params);
         break;
     case GL_SPOT_DIRECTION:
-        gl_matrix_mult3x3(l->direction, gl_matrix_stack_get_matrix(&state.modelview_stack), params);
+        gl_light_set_direction(l, offset, params);
         break;
     case GL_SPOT_EXPONENT:
-        l->spot_exponent = params[0];
+        gl_light_set_spot_exponent(l, offset, params[0]);
         break;
     case GL_SPOT_CUTOFF:
-        gl_light_set_spot_cutoff(l, params[0]);
+        gl_light_set_spot_cutoff(l, offset, params[0]);
         break;
     case GL_CONSTANT_ATTENUATION:
-        l->constant_attenuation = params[0];
+        gl_light_set_constant_attenuation(l, offset, params[0]);
         break;
     case GL_LINEAR_ATTENUATION:
-        l->linear_attenuation = params[0];
+        gl_light_set_linear_attenuation(l, offset, params[0]);
         break;
     case GL_QUADRATIC_ATTENUATION:
-        l->quadratic_attenuation = params[0];
+        gl_light_set_quadratic_attenuation(l, offset, params[0]);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -560,11 +657,22 @@ void glLightfv(GLenum light, GLenum pname, const GLfloat *params)
     }
 }
 
+void gl_set_light_model_local_viewer(bool param)
+{
+    gl_set_flag(GL_UPDATE_NONE, FLAG_LIGHT_LOCAL, param);
+    state.light_model_local_viewer = param;
+}
+
+void gl_set_light_model_ambient(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
+{
+    gl_set_color(state.light_model_ambient, offsetof(gl_server_state_t, light_ambient), r, g, b, a);
+}
+
 void glLightModeli(GLenum pname, GLint param) 
 {
     switch (pname) {
     case GL_LIGHT_MODEL_LOCAL_VIEWER:
-        state.light_model_local_viewer = param != 0;
+        gl_set_light_model_local_viewer(param != 0);
         break;
     case GL_LIGHT_MODEL_TWO_SIDE:
         assertf(0, "Two sided lighting is not supported!");
@@ -580,13 +688,14 @@ void glLightModeliv(GLenum pname, const GLint *params)
 {
     switch (pname) {
     case GL_LIGHT_MODEL_AMBIENT:
-        state.light_model_ambient[0] = I32_TO_FLOAT(params[0]);
-        state.light_model_ambient[1] = I32_TO_FLOAT(params[1]);
-        state.light_model_ambient[2] = I32_TO_FLOAT(params[2]);
-        state.light_model_ambient[3] = I32_TO_FLOAT(params[3]);
+        gl_set_light_model_ambient(
+            I32_TO_FLOAT(params[0]), 
+            I32_TO_FLOAT(params[1]), 
+            I32_TO_FLOAT(params[2]), 
+            I32_TO_FLOAT(params[3]));
         break;
     case GL_LIGHT_MODEL_LOCAL_VIEWER:
-        state.light_model_local_viewer = params[0] != 0;
+        gl_set_light_model_local_viewer(params[0] != 0);
         break;
     case GL_LIGHT_MODEL_TWO_SIDE:
         assertf(0, "Two sided lighting is not supported!");
@@ -596,17 +705,15 @@ void glLightModeliv(GLenum pname, const GLint *params)
         return;
     }
 }
+
 void glLightModelfv(GLenum pname, const GLfloat *params)
 {
     switch (pname) {
     case GL_LIGHT_MODEL_AMBIENT:
-        state.light_model_ambient[0] = params[0];
-        state.light_model_ambient[1] = params[1];
-        state.light_model_ambient[2] = params[2];
-        state.light_model_ambient[3] = params[3];
+        gl_set_light_model_ambient(params[0], params[1], params[2], params[3]);
         break;
     case GL_LIGHT_MODEL_LOCAL_VIEWER:
-        state.light_model_local_viewer = params[0] != 0;
+        gl_set_light_model_local_viewer(params[0] != 0);
         break;
     case GL_LIGHT_MODEL_TWO_SIDE:
         assertf(0, "Two sided lighting is not supported!");
@@ -623,6 +730,19 @@ void glColorMaterial(GLenum face, GLenum mode)
         return;
     }
 
+    switch (mode) {
+    case GL_AMBIENT:
+    case GL_DIFFUSE:
+    case GL_SPECULAR:
+    case GL_EMISSION:
+    case GL_AMBIENT_AND_DIFFUSE:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, mat_color_target), mode);
     state.material.color_target = mode;
 }
 
@@ -631,6 +751,7 @@ void glShadeModel(GLenum mode)
     switch (mode) {
     case GL_FLAT:
     case GL_SMOOTH:
+        gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, shade_model), mode);
         state.shade_model = mode;
         break;
     default:

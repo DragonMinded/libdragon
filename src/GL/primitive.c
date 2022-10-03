@@ -36,16 +36,16 @@ void gl_vertex_t_l(uint8_t cache_index);
 
 void gl_primitive_init()
 {
-    state.s_gen.mode = GL_EYE_LINEAR;
-    state.s_gen.object_plane[0] = 1;
-    state.s_gen.eye_plane[0] = 1;
+    state.tex_gen[0].mode = GL_EYE_LINEAR;
+    state.tex_gen[0].object_plane[0] = 1;
+    state.tex_gen[0].eye_plane[0] = 1;
 
-    state.t_gen.mode = GL_EYE_LINEAR;
-    state.t_gen.object_plane[1] = 1;
-    state.t_gen.eye_plane[1] = 1;
+    state.tex_gen[1].mode = GL_EYE_LINEAR;
+    state.tex_gen[1].object_plane[1] = 1;
+    state.tex_gen[1].eye_plane[1] = 1;
 
-    state.r_gen.mode = GL_EYE_LINEAR;
-    state.q_gen.mode = GL_EYE_LINEAR;
+    state.tex_gen[2].mode = GL_EYE_LINEAR;
+    state.tex_gen[3].mode = GL_EYE_LINEAR;
 
     state.point_size = 1;
     state.line_width = 1;
@@ -715,10 +715,10 @@ void gl_calc_texture_coords(GLfloat *dest, const GLfloat *input, const GLfloat *
 {
     GLfloat tmp[4];
 
-    gl_calc_texture_coord(tmp, input, 0, &state.s_gen, obj_pos, eye_pos, eye_normal);
-    gl_calc_texture_coord(tmp, input, 1, &state.t_gen, obj_pos, eye_pos, eye_normal);
-    gl_calc_texture_coord(tmp, input, 2, &state.r_gen, obj_pos, eye_pos, eye_normal);
-    gl_calc_texture_coord(tmp, input, 3, &state.q_gen, obj_pos, eye_pos, eye_normal);
+    for (uint32_t i = 0; i < 4; i++)
+    {
+        gl_calc_texture_coord(tmp, input, i, &state.tex_gen[i], obj_pos, eye_pos, eye_normal);
+    }
 
     // TODO: skip matrix multiplication if it is the identity
     gl_matrix_mult4x2(dest, gl_matrix_stack_get_matrix(&state.texture_stack), tmp);
@@ -1379,6 +1379,7 @@ void glPointSize(GLfloat size)
     }
 
     state.point_size = size;
+    gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, point_size), size*4);
 }
 
 void glLineWidth(GLfloat width)
@@ -1389,6 +1390,7 @@ void glLineWidth(GLfloat width)
     }
 
     state.line_width = width;
+    gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, line_width), width*4);
 }
 
 void glPolygonMode(GLenum face, GLenum mode)
@@ -1424,6 +1426,13 @@ void glDepthRange(GLclampd n, GLclampd f)
 {
     state.current_viewport.scale[2] = (f - n) * 0.5f;
     state.current_viewport.offset[2] = n + (f - n) * 0.5f;
+
+    gl_set_short(GL_UPDATE_NONE, 
+        offsetof(gl_server_state_t, viewport_scale) + sizeof(int16_t) * 2, 
+        state.current_viewport.scale[2] * 4);
+    gl_set_short(GL_UPDATE_NONE, 
+        offsetof(gl_server_state_t, viewport_offset) + sizeof(int16_t) * 2, 
+        state.current_viewport.offset[2] * 4);
 }
 
 void glViewport(GLint x, GLint y, GLsizei w, GLsizei h)
@@ -1434,19 +1443,31 @@ void glViewport(GLint x, GLint y, GLsizei w, GLsizei h)
     state.current_viewport.scale[1] = h * -0.5f;
     state.current_viewport.offset[0] = x + w * 0.5f;
     state.current_viewport.offset[1] = fbh - y - h * 0.5f;
+
+    int16_t scale_x = state.current_viewport.scale[0] * 4;
+    int16_t scale_y = state.current_viewport.scale[1] * 4;
+    int16_t offset_x = state.current_viewport.offset[0] * 4;
+    int16_t offset_y = state.current_viewport.offset[1] * 4;
+
+    gl_set_long(GL_UPDATE_NONE, 
+        offsetof(gl_server_state_t, viewport_scale), 
+        ((uint32_t)scale_x << 16) | (uint32_t)scale_y);
+    gl_set_long(GL_UPDATE_NONE, 
+        offsetof(gl_server_state_t, viewport_offset), 
+        ((uint32_t)offset_x << 16) | (uint32_t)offset_y);
 }
 
 gl_tex_gen_t *gl_get_tex_gen(GLenum coord)
 {
     switch (coord) {
     case GL_S:
-        return &state.s_gen;
+        return &state.tex_gen[0];
     case GL_T:
-        return &state.t_gen;
+        return &state.tex_gen[1];
     case GL_R:
-        return &state.r_gen;
+        return &state.tex_gen[2];
     case GL_Q:
-        return &state.q_gen;
+        return &state.tex_gen[3];
     default:
         gl_set_error(GL_INVALID_ENUM);
         return NULL;
@@ -1585,6 +1606,7 @@ void glCullFace(GLenum mode)
     case GL_FRONT:
     case GL_FRONT_AND_BACK:
         state.cull_face_mode = mode;
+        gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, cull_mode), mode);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -1598,6 +1620,7 @@ void glFrontFace(GLenum dir)
     case GL_CW:
     case GL_CCW:
         state.front_face = dir;
+        gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, front_face), dir);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);

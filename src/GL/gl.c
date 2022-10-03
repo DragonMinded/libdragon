@@ -52,7 +52,7 @@ void gl_set_framebuffer(gl_framebuffer_t *framebuffer)
     state.cur_framebuffer = framebuffer;
     // TODO: disable auto scissor?
     rdpq_set_color_image(state.cur_framebuffer->color_buffer);
-    rdpq_set_z_image_raw(0, PhysicalAddr(state.cur_framebuffer->depth_buffer));
+    rdpq_set_z_image(&state.cur_framebuffer->depth_buffer);
 }
 
 void gl_set_default_framebuffer()
@@ -67,19 +67,20 @@ void gl_set_default_framebuffer()
 
     gl_framebuffer_t *fb = &state.default_framebuffer;
 
-    if (fb->depth_buffer != NULL && (fb->color_buffer == NULL 
-                                    || fb->color_buffer->width != surf->width 
-                                    || fb->color_buffer->height != surf->height)) {
-        free_uncached(fb->depth_buffer);
-        fb->depth_buffer = NULL;
+    bool is_cb_different = fb->color_buffer == NULL 
+                        || fb->color_buffer->width != surf->width
+                        || fb->color_buffer->height != surf->height;
+
+    if (is_cb_different && fb->depth_buffer.buffer != NULL) {
+        surface_free(&fb->depth_buffer);
     }
 
     fb->color_buffer = surf;
 
     // TODO: only allocate depth buffer if depth test is enabled? Lazily allocate?
-    if (fb->depth_buffer == NULL) {
+    if (fb->depth_buffer.buffer == NULL) {
         // TODO: allocate in separate RDRAM bank?
-        fb->depth_buffer = malloc_uncached_aligned(64, surf->width * surf->height * 2);
+        fb->depth_buffer = surface_alloc(FMT_RGBA16, surf->width, surf->height);
     }
 
     gl_set_framebuffer(fb);
@@ -292,9 +293,11 @@ void gl_set_flag2(GLenum target, bool value)
         state.texture_2d = value;
         break;
     case GL_CULL_FACE:
+        gl_set_flag(GL_UPDATE_NONE, FLAG_CULL_FACE, value);
         state.cull_face = value;
         break;
     case GL_LIGHTING:
+        gl_set_flag(GL_UPDATE_NONE, FLAG_LIGHTING, value);
         state.lighting = value;
         break;
     case GL_LIGHT0:
@@ -305,24 +308,32 @@ void gl_set_flag2(GLenum target, bool value)
     case GL_LIGHT5:
     case GL_LIGHT6:
     case GL_LIGHT7:
-        state.lights[target - GL_LIGHT0].enabled = value;
+        uint32_t light_index = target - GL_LIGHT0;
+        gl_set_flag(GL_UPDATE_NONE, FLAG_LIGHT0 << light_index, value);
+        state.lights[light_index].enabled = value;
         break;
     case GL_COLOR_MATERIAL:
+        gl_set_flag(GL_UPDATE_NONE, FLAG_COLOR_MATERIAL, value);
         state.color_material = value;
         break;
     case GL_TEXTURE_GEN_S:
-        state.s_gen.enabled = value;
+        gl_set_flag(GL_UPDATE_NONE, FLAG_TEX_GEN_S, value);
+        state.tex_gen[0].enabled = value;
         break;
     case GL_TEXTURE_GEN_T:
-        state.t_gen.enabled = value;
+        gl_set_flag(GL_UPDATE_NONE, FLAG_TEX_GEN_T, value);
+        state.tex_gen[1].enabled = value;
         break;
     case GL_TEXTURE_GEN_R:
-        state.r_gen.enabled = value;
+        gl_set_flag(GL_UPDATE_NONE, FLAG_TEX_GEN_R, value);
+        state.tex_gen[2].enabled = value;
         break;
     case GL_TEXTURE_GEN_Q:
-        state.q_gen.enabled = value;
+        gl_set_flag(GL_UPDATE_NONE, FLAG_TEX_GEN_Q, value);
+        state.tex_gen[3].enabled = value;
         break;
     case GL_NORMALIZE:
+        gl_set_flag(GL_UPDATE_TEXTURE, FLAG_NORMALIZE, value);
         state.normalize = value;
         break;
     case GL_CLIP_PLANE0:
@@ -405,7 +416,10 @@ void glClear(GLbitfield buf)
 
     rdpq_mode_push();
 
-    rdpq_set_mode_fill(RGBA16(0,0,0,0));
+    // Set fill mode
+    extern void __rdpq_reset_render_mode(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3);
+    uint64_t som = (0xEFull << 56) | SOM_CYCLE_FILL;
+    __rdpq_reset_render_mode(0, 0, som >> 32, som & 0xFFFFFFFF);
 
     gl_framebuffer_t *fb = state.cur_framebuffer;
 
@@ -418,21 +432,19 @@ void glClear(GLbitfield buf)
     if (buf & GL_DEPTH_BUFFER_BIT) {
         uint32_t old_cfg = rdpq_config_disable(RDPQ_CFG_AUTOSCISSOR);
 
-        rdpq_set_color_image_raw(0, PhysicalAddr(fb->depth_buffer), FMT_RGBA16, fb->color_buffer->width, fb->color_buffer->height, fb->color_buffer->width * 2);
-        rdpq_set_fill_color(color_from_packed16(state.clear_depth * 0xFFFC));
+        // TODO: Avoid the overlay changes
+
+        gl_write(GL_CMD_COPY_FILL_COLOR, offsetof(gl_server_state_t, clear_depth));
+        rdpq_set_color_image(&fb->depth_buffer);
         rdpq_fill_rectangle(0, 0, fb->color_buffer->width, fb->color_buffer->height);
 
+        gl_write(GL_CMD_COPY_FILL_COLOR, offsetof(gl_server_state_t, clear_color));
         rdpq_set_color_image(fb->color_buffer);
 
         rdpq_config_set(old_cfg);
     }
 
     if (buf & GL_COLOR_BUFFER_BIT) {
-        rdpq_set_fill_color(RGBA32(
-            CLAMPF_TO_U8(state.clear_color[0]), 
-            CLAMPF_TO_U8(state.clear_color[1]), 
-            CLAMPF_TO_U8(state.clear_color[2]), 
-            CLAMPF_TO_U8(state.clear_color[3])));
         rdpq_fill_rectangle(0, 0, fb->color_buffer->width, fb->color_buffer->height);
     }
 
@@ -442,15 +454,15 @@ void glClear(GLbitfield buf)
 
 void glClearColor(GLclampf r, GLclampf g, GLclampf b, GLclampf a)
 {
-    state.clear_color[0] = r;
-    state.clear_color[1] = g;
-    state.clear_color[2] = b;
-    state.clear_color[3] = a;
+    color_t clear_color = RGBA32(CLAMPF_TO_U8(r), CLAMPF_TO_U8(g), CLAMPF_TO_U8(b), CLAMPF_TO_U8(a));
+    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, clear_color), color_to_packed32(clear_color));
+    rdpq_set_fill_color(clear_color);
 }
 
 void glClearDepth(GLclampd d)
 {
-    state.clear_depth = d;
+    color_t clear_depth = color_from_packed16(d * 0xFFFC);
+    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, clear_depth), color_to_packed32(clear_depth));
 }
 
 void glFlush(void)

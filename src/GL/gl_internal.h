@@ -34,6 +34,9 @@
 #define I16_TO_FLOAT(x) MAX((x)/(float)(0x7FFF),-1.f)
 #define I32_TO_FLOAT(x) MAX((x)/(float)(0x7FFFFFFF),-1.f)
 
+#define RGBA32_FROM_FLOAT(r, g, b, a) RGBA32(FLOAT_TO_U8(r), FLOAT_TO_U8(g), FLOAT_TO_U8(b), FLOAT_TO_U8(a))
+#define PACKED_RGBA32_FROM_FLOAT(r, g, b, a) color_to_packed32(RGBA32_FROM_FLOAT(r, g, b, a))
+
 #define GL_SET_STATE(var, value) ({ \
     typeof(value) _v = (value); \
     bool dirty_flag = _v != var; \
@@ -46,14 +49,17 @@ extern uint32_t gl_overlay_id;
 #define gl_write(cmd_id, ...) rspq_write(gl_overlay_id, cmd_id, ##__VA_ARGS__)
 
 enum {
-    GL_CMD_SET_FLAG     = 0x0,
-    GL_CMD_SET_BYTE     = 0x1,
-    GL_CMD_SET_SHORT    = 0x2,
-    GL_CMD_SET_WORD     = 0x3,
-    GL_CMD_SET_LONG     = 0x4,
-    GL_CMD_UPDATE       = 0x5,
-    GL_CMD_BIND_TEXTURE = 0x6,
-    GL_CMD_GET_VALUE    = 0x7,
+    GL_CMD_SET_FLAG         = 0x0,
+    GL_CMD_SET_BYTE         = 0x1,
+    GL_CMD_SET_SHORT        = 0x2,
+    GL_CMD_SET_WORD         = 0x3,
+    GL_CMD_SET_LONG         = 0x4,
+    GL_CMD_UPDATE           = 0x5,
+    GL_CMD_BIND_TEXTURE     = 0x6,
+    GL_CMD_GET_VALUE        = 0x7,
+    GL_CMD_COPY_FILL_COLOR  = 0x8,
+    GL_CMD_SET_LIGHT_POS    = 0x9,
+    GL_CMD_SET_LIGHT_DIR    = 0xA,
 };
 
 typedef enum {
@@ -83,7 +89,7 @@ enum {
 
 typedef struct {
     surface_t *color_buffer;
-    void *depth_buffer;
+    surface_t depth_buffer;
 } gl_framebuffer_t;
 
 typedef struct {
@@ -192,13 +198,26 @@ typedef struct {
     GLfloat position[4];
     GLfloat direction[3];
     GLfloat spot_exponent;
-    GLfloat spot_cutoff;
     GLfloat spot_cutoff_cos;
     GLfloat constant_attenuation;
     GLfloat linear_attenuation;
     GLfloat quadratic_attenuation;
     bool enabled;
 } gl_light_t;
+
+typedef struct {
+    int16_t position[4];
+    uint32_t ambient;
+    uint32_t diffuse;
+    uint32_t specular;
+    int8_t direction[3];
+    uint8_t spot_exponent;
+    int16_t spot_cutoff_cos;
+    uint16_t constant_attenuation;
+    uint16_t linear_attenuation;
+    uint16_t quadratic_attenuation;
+} gl_light_srv_t;
+_Static_assert(sizeof(gl_light_srv_t) == LIGHT_SIZE);
 
 typedef struct {
     GLvoid *data;
@@ -242,6 +261,12 @@ typedef struct {
 } gl_tex_gen_t;
 
 typedef struct {
+    uint16_t mode;
+    int16_t eye_plane[4];
+    int16_t object_plane[4];
+} gl_tex_gen_srv_t;
+
+typedef struct {
     GLsizei size;
     GLfloat entries[MAX_PIXEL_MAP_SIZE];
 } gl_pixel_map_t;
@@ -263,7 +288,7 @@ typedef struct {
     bool fog;
     bool color_material;
     bool normalize;
-    
+
     GLenum cull_face_mode;
     GLenum front_face;
     GLenum polygon_mode;
@@ -275,6 +300,16 @@ typedef struct {
 
     GLfloat fog_start;
     GLfloat fog_end;
+
+    gl_material_t material;
+    gl_light_t lights[LIGHT_COUNT];
+
+    GLfloat light_model_ambient[4];
+    bool light_model_local_viewer;
+
+    GLenum shade_model;
+
+    gl_tex_gen_t tex_gen[4];
 
     gl_viewport_t current_viewport;
 
@@ -291,19 +326,6 @@ typedef struct {
     gl_matrix_stack_t projection_stack;
     gl_matrix_stack_t texture_stack;
     gl_matrix_stack_t *current_matrix_stack;
-
-    gl_material_t material;
-    gl_light_t lights[LIGHT_COUNT];
-
-    GLfloat light_model_ambient[4];
-    bool light_model_local_viewer;
-
-    GLenum shade_model;
-
-    gl_tex_gen_t s_gen;
-    gl_tex_gen_t t_gen;
-    gl_tex_gen_t r_gen;
-    gl_tex_gen_t q_gen;
 
     bool immediate_active;
 
@@ -334,11 +356,6 @@ typedef struct {
     GLfloat current_attribs[ATTRIB_COUNT][4];
 
     GLfloat flat_color[4];
-
-    // RDP state
-
-    GLclampf clear_color[4];
-    GLclampd clear_depth;
 
     // Client state
 
@@ -388,14 +405,35 @@ typedef struct {
 
 typedef struct {
     gl_texture_object_t bound_textures[2];
+    gl_light_srv_t lights[LIGHT_COUNT];
+    int16_t viewport_scale[4];
+    int16_t viewport_offset[4];
+    uint32_t mat_ambient;
+    uint32_t mat_diffuse;
+    uint32_t mat_specular;
+    uint32_t mat_emissive;
+    uint16_t mat_shininess;
+    uint16_t mat_color_target;
     uint32_t flags;
+    uint32_t light_ambient;
+    int32_t fog_start;
+    int32_t fog_end;
     uint16_t polygon_mode;
     uint16_t prim_type;
+    uint16_t cull_mode;
+    uint16_t front_face;
+    uint16_t shade_model;
+    uint16_t point_size;
+    uint16_t line_width;
+    uint16_t padding[3];
+
     uint16_t scissor_rect[4];
     uint32_t blend_cycle;
     uint32_t fog_color;
     uint32_t texture_ids[2];
     uint32_t uploaded_tex;
+    uint32_t clear_color;
+    uint32_t clear_depth;
     uint16_t fb_size[2];
     uint16_t depth_func;
     uint16_t alpha_func;
@@ -404,6 +442,8 @@ typedef struct {
     uint16_t tex_env_mode;
     uint8_t alpha_ref;
 } __attribute__((aligned(8), packed)) gl_server_state_t;
+
+_Static_assert((offsetof(gl_server_state_t, scissor_rect) & 0x7) == 0, "Scissor rect must be aligned to 8 bytes in server state");
 
 void gl_matrix_init();
 void gl_texture_init();
