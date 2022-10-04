@@ -26,7 +26,7 @@
 GL_STATE:
     # These are required by the pipeline
     GL_BOUND_TEXTURES:      .ds.b   TEXTURE_OBJECT_SIZE * 2
-GL_MATRICES:
+    GL_MATRICES:
     GL_MATRIX_MODELVIEW:    .ds.b   MATRIX_SIZE
     GL_MATRIX_PROJECTION:   .ds.b   MATRIX_SIZE
     GL_MATRIX_TEXTURE:      .ds.b   MATRIX_SIZE
