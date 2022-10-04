@@ -31,8 +31,10 @@ GL_MATRICES:
     GL_MATRIX_PROJECTION:   .ds.b   MATRIX_SIZE
     GL_MATRIX_TEXTURE:      .ds.b   MATRIX_SIZE
     GL_LIGHTS:              .ds.b   LIGHT_SIZE * LIGHT_COUNT
+    GL_TEX_GEN:             .ds.b   TEX_GEN_SIZE * 4
     GL_VIEWPORT_SCALE:      .half   0,0,0,0
     GL_VIEWPORT_OFFSET:     .half   0,0,0,0
+    GL_TEX_GEN_MODE:        .half   0,0,0,0
     GL_MATRIX_POINTERS:     .word   0,0,0
     GL_MAT_AMBIENT:         .word   0
     GL_MAT_DIFFUSE:         .word   0

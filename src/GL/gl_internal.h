@@ -280,10 +280,15 @@ typedef struct {
 } gl_tex_gen_t;
 
 typedef struct {
-    uint16_t mode;
-    int16_t eye_plane[4];
-    int16_t object_plane[4];
+    int16_t integer[4];
+    uint16_t fraction[4];
+} gl_plane_t;
+
+typedef struct {
+    gl_plane_t eye_plane;
+    gl_plane_t object_plane;
 } gl_tex_gen_srv_t;
+_Static_assert(sizeof(gl_tex_gen_srv_t) == TEX_GEN_SIZE);
 
 typedef struct {
     GLsizei size;
@@ -428,8 +433,10 @@ typedef struct {
     gl_texture_object_t bound_textures[2];
     gl_matrix_srv_t matrices[3];
     gl_light_srv_t lights[LIGHT_COUNT];
+    gl_tex_gen_srv_t tex_gen[4];
     int16_t viewport_scale[4];
     int16_t viewport_offset[4];
+    uint16_t tex_gen_mode[4];
     uint32_t matrix_pointers[3];
     uint32_t mat_ambient;
     uint32_t mat_diffuse;

@@ -12,6 +12,8 @@
 
 #define MATRIX_SIZE           64
 
+#define TEX_GEN_SIZE          32
+
 #define LIGHT_COUNT           8
 #define LIGHT_SIZE            32
 

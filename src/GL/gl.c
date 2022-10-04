@@ -113,6 +113,17 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
     server_state->line_width = 1 << 2;
     server_state->polygon_mode = GL_FILL;
 
+    server_state->tex_gen_mode[0] = GL_EYE_LINEAR;
+    server_state->tex_gen_mode[1] = GL_EYE_LINEAR;
+    server_state->tex_gen_mode[2] = GL_EYE_LINEAR;
+    server_state->tex_gen_mode[3] = GL_EYE_LINEAR;
+
+    server_state->tex_gen[0].object_plane.integer[0] = 1;
+    server_state->tex_gen[0].eye_plane.integer[0] = 1;
+
+    server_state->tex_gen[1].object_plane.integer[1] = 1;
+    server_state->tex_gen[1].eye_plane.integer[1] = 1;
+
     state.matrix_stacks[0] = malloc_uncached(sizeof(gl_matrix_srv_t) * MODELVIEW_STACK_SIZE);
     state.matrix_stacks[1] = malloc_uncached(sizeof(gl_matrix_srv_t) * PROJECTION_STACK_SIZE);
     state.matrix_stacks[2] = malloc_uncached(sizeof(gl_matrix_srv_t) * TEXTURE_STACK_SIZE);

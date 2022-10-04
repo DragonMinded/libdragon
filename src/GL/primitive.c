@@ -1491,6 +1491,9 @@ void gl_tex_gen_set_mode(gl_tex_gen_t *gen, GLenum coord, GLint param)
         return;
     }
 
+    uint32_t coord_offset = (coord & 0x3) * sizeof(uint16_t);
+
+    gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, tex_gen_mode) + coord_offset, param);
     gen->mode = param;
 }
 
@@ -1512,6 +1515,37 @@ void glTexGeni(GLenum coord, GLenum pname, GLint param)
 void glTexGenf(GLenum coord, GLenum pname, GLfloat param) { glTexGeni(coord, pname, param); }
 void glTexGend(GLenum coord, GLenum pname, GLdouble param) { glTexGeni(coord, pname, param); }
 
+void gl_tex_gen_set_plane(GLenum coord, uint32_t offset, const GLfloat *plane)
+{
+    int32_t fixed[] = {
+        plane[0] * (1 << 16),
+        plane[1] * (1 << 16),
+        plane[2] * (1 << 16),
+        plane[3] * (1 << 16)
+    };
+
+    uint16_t integer[] = {
+        (fixed[0] & 0xFFFF0000) >> 16,
+        (fixed[1] & 0xFFFF0000) >> 16,
+        (fixed[2] & 0xFFFF0000) >> 16,
+        (fixed[3] & 0xFFFF0000) >> 16
+    };
+
+    uint16_t fraction[] = {
+        fixed[0] & 0x0000FFFF,
+        fixed[1] & 0x0000FFFF,
+        fixed[2] & 0x0000FFFF,
+        fixed[3] & 0x0000FFFF
+    };
+
+    uint64_t packed_integer = ((uint64_t)integer[0] << 48) | ((uint64_t)integer[1] << 32) | ((uint64_t)integer[2] << 16) | (uint64_t)integer[3];
+    uint64_t packed_fraction = ((uint64_t)fraction[0] << 48) | ((uint64_t)fraction[1] << 32) | ((uint64_t)fraction[2] << 16) | (uint64_t)fraction[3];
+
+    uint32_t coord_offset = (coord & 0x3) * sizeof(gl_tex_gen_srv_t);
+    gl_set_long(GL_UPDATE_NONE, offsetof(gl_server_state_t, tex_gen) + coord_offset + offset + 0, packed_integer);
+    gl_set_long(GL_UPDATE_NONE, offsetof(gl_server_state_t, tex_gen) + coord_offset + offset + 8, packed_fraction);
+}
+
 void glTexGenfv(GLenum coord, GLenum pname, const GLfloat *params)
 {
     gl_tex_gen_t *gen = gl_get_tex_gen(coord);
@@ -1528,12 +1562,14 @@ void glTexGenfv(GLenum coord, GLenum pname, const GLfloat *params)
         gen->object_plane[1] = params[1];
         gen->object_plane[2] = params[2];
         gen->object_plane[3] = params[3];
+        gl_tex_gen_set_plane(coord, offsetof(gl_tex_gen_srv_t, object_plane), gen->object_plane);
         break;
     case GL_EYE_PLANE:
         gen->eye_plane[0] = params[0];
         gen->eye_plane[1] = params[1];
         gen->eye_plane[2] = params[2];
         gen->eye_plane[3] = params[3];
+        gl_tex_gen_set_plane(coord, offsetof(gl_tex_gen_srv_t, eye_plane), gen->eye_plane);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -1557,12 +1593,14 @@ void glTexGeniv(GLenum coord, GLenum pname, const GLint *params)
         gen->object_plane[1] = params[1];
         gen->object_plane[2] = params[2];
         gen->object_plane[3] = params[3];
+        gl_tex_gen_set_plane(coord, offsetof(gl_tex_gen_srv_t, object_plane), gen->object_plane);
         break;
     case GL_EYE_PLANE:
         gen->eye_plane[0] = params[0];
         gen->eye_plane[1] = params[1];
         gen->eye_plane[2] = params[2];
         gen->eye_plane[3] = params[3];
+        gl_tex_gen_set_plane(coord, offsetof(gl_tex_gen_srv_t, eye_plane), gen->eye_plane);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -1586,12 +1624,14 @@ void glTexGendv(GLenum coord, GLenum pname, const GLdouble *params)
         gen->object_plane[1] = params[1];
         gen->object_plane[2] = params[2];
         gen->object_plane[3] = params[3];
+        gl_tex_gen_set_plane(coord, offsetof(gl_tex_gen_srv_t, object_plane), gen->object_plane);
         break;
     case GL_EYE_PLANE:
         gen->eye_plane[0] = params[0];
         gen->eye_plane[1] = params[1];
         gen->eye_plane[2] = params[2];
         gen->eye_plane[3] = params[3];
+        gl_tex_gen_set_plane(coord, offsetof(gl_tex_gen_srv_t, eye_plane), gen->eye_plane);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
