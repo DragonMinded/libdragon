@@ -94,15 +94,50 @@ void glMatrixMode(GLenum mode)
         return;
     }
 
+    gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, matrix_mode), mode);
     state.matrix_mode = mode;
 
     gl_update_current_matrix();
+}
+
+inline void write_shorts(rspq_write_t *w, const uint16_t *s, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i += 2)
+    {
+        uint32_t packed = ((uint32_t)s[i] << 16) | (uint32_t)s[i+1];
+        rspq_write_arg(w, packed);
+    }
+}
+
+inline void gl_matrix_write(rspq_write_t *w, const GLfloat *m)
+{
+    uint16_t integer[16];
+    uint16_t fraction[16];
+
+    for (uint32_t i = 0; i < 16; i++)
+    {
+        int32_t fixed = m[i] * (1<<16);
+        integer[i] = (uint16_t)((fixed & 0xFFFF0000) >> 16);
+        fraction[i] = (uint16_t)(fixed & 0x0000FFFF);
+    }
+
+    write_shorts(w, integer, 16);
+    write_shorts(w, fraction, 16);
+}
+
+inline void gl_matrix_load(const GLfloat *m, bool multiply)
+{
+    rspq_write_t w = rspq_write_begin(gl_overlay_id, GL_CMD_MATRIX_LOAD, 17);
+    rspq_write_arg(&w, multiply ? 1 : 0);
+    gl_matrix_write(&w, m);
+    rspq_write_end(&w);
 }
 
 void glLoadMatrixf(const GLfloat *m)
 {
     memcpy(state.current_matrix, m, sizeof(gl_matrix_t));
     state.final_matrix_dirty = true;
+    gl_matrix_load(m, false);
 }
 
 void glLoadMatrixd(const GLdouble *m)
@@ -112,6 +147,8 @@ void glLoadMatrixd(const GLdouble *m)
         state.current_matrix->m[i/4][i%4] = m[i];
     }
     state.final_matrix_dirty = true;
+
+    gl_matrix_load(state.current_matrix->m[0], false);
 }
 
 void glMultMatrixf(const GLfloat *m)
@@ -119,20 +156,22 @@ void glMultMatrixf(const GLfloat *m)
     gl_matrix_t tmp = *state.current_matrix;
     gl_matrix_mult_full(state.current_matrix, &tmp, (gl_matrix_t*)m);
     state.final_matrix_dirty = true;
+
+    gl_matrix_load(m, true);
 }
 
 void glMultMatrixd(const GLdouble *m);
 
 void glLoadIdentity(void)
 {
-    *state.current_matrix = (gl_matrix_t){ .m={
+    gl_matrix_t identity = (gl_matrix_t){ .m={
         {1,0,0,0},
         {0,1,0,0},
         {0,0,1,0},
         {0,0,0,1},
     }};
 
-    state.final_matrix_dirty = true;
+    glLoadMatrixf(identity.m[0]);
 }
 
 void glRotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z)
@@ -222,6 +261,8 @@ void glPushMatrix(void)
     memcpy(&stack->storage[new_depth], &stack->storage[new_depth-1], sizeof(gl_matrix_t));
 
     gl_update_current_matrix();
+
+    gl_write(GL_CMD_MATRIX_PUSH);
 }
 
 void glPopMatrix(void)
@@ -238,4 +279,6 @@ void glPopMatrix(void)
 
     gl_update_current_matrix();
     state.final_matrix_dirty = true;
+
+    gl_write(GL_CMD_MATRIX_POP);
 }

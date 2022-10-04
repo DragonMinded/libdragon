@@ -109,6 +109,36 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
     server_state->texture_ids[0] = PhysicalAddr(&state.default_textures[0]);
     server_state->texture_ids[1] = PhysicalAddr(&state.default_textures[1]);
 
+    server_state->point_size = 1 << 2;
+    server_state->line_width = 1 << 2;
+    server_state->polygon_mode = GL_FILL;
+
+    state.matrix_stacks[0] = malloc_uncached(sizeof(gl_matrix_srv_t) * MODELVIEW_STACK_SIZE);
+    state.matrix_stacks[1] = malloc_uncached(sizeof(gl_matrix_srv_t) * PROJECTION_STACK_SIZE);
+    state.matrix_stacks[2] = malloc_uncached(sizeof(gl_matrix_srv_t) * TEXTURE_STACK_SIZE);
+
+    server_state->matrix_pointers[0] = PhysicalAddr(state.matrix_stacks[0]);
+    server_state->matrix_pointers[1] = PhysicalAddr(state.matrix_stacks[1]);
+    server_state->matrix_pointers[2] = PhysicalAddr(state.matrix_stacks[2]);
+
+    server_state->mat_ambient = 0x333333FF;
+    server_state->mat_diffuse = 0xCCCCCCFF;
+    server_state->mat_specular = 0x000000FF;
+    server_state->mat_emissive = 0x000000FF;
+    server_state->mat_color_target = GL_AMBIENT_AND_DIFFUSE;
+
+    for (uint32_t i = 0; i < LIGHT_COUNT; i++)
+    {
+        server_state->lights[i].ambient = 0x000000FF;
+        server_state->lights[i].diffuse = 0x000000FF;
+        server_state->lights[i].specular = 0x000000FF;
+        server_state->lights[i].direction[2] = 0x80;
+        server_state->lights[i].spot_cutoff_cos = 0x8000;
+        server_state->lights[i].constant_attenuation = 1 << 5;
+    }
+    
+    server_state->light_ambient = 0x333333FF;
+
     gl_overlay_id = rspq_overlay_register(&rsp_gl);
     glp_overlay_id = rspq_overlay_register(&rsp_gl_pipeline);
 
@@ -146,6 +176,10 @@ void gl_close()
             free_uncached(list->slots);
         }
     }
+
+    free_uncached(state.matrix_stacks[0]);
+    free_uncached(state.matrix_stacks[1]);
+    free_uncached(state.matrix_stacks[2]);
     
     gl_list_close();
     gl_primitive_close();

@@ -17,15 +17,23 @@
         RSPQ_DefineCommand GLCmd_CopyFillColor, 4
         RSPQ_DefineCommand GLCmd_SetLightPos,   12
         RSPQ_DefineCommand GLCmd_SetLightDir,   8
+        RSPQ_DefineCommand GLCmd_MatrixPush,    4
+        RSPQ_DefineCommand GLCmd_MatrixPop,     4
+        RSPQ_DefineCommand GLCmd_MatrixLoad,    68
     RSPQ_EndOverlayHeader
 
     RSPQ_BeginSavedState
 GL_STATE:
     # These are required by the pipeline
-    GL_BOUND_TEXTURES:      .ds.b TEXTURE_OBJECT_SIZE * 2
-    GL_LIGHTS:              .ds.b LIGHT_SIZE * LIGHT_COUNT
+    GL_BOUND_TEXTURES:      .ds.b   TEXTURE_OBJECT_SIZE * 2
+GL_MATRICES:
+    GL_MATRIX_MODELVIEW:    .ds.b   MATRIX_SIZE
+    GL_MATRIX_PROJECTION:   .ds.b   MATRIX_SIZE
+    GL_MATRIX_TEXTURE:      .ds.b   MATRIX_SIZE
+    GL_LIGHTS:              .ds.b   LIGHT_SIZE * LIGHT_COUNT
     GL_VIEWPORT_SCALE:      .half   0,0,0,0
     GL_VIEWPORT_OFFSET:     .half   0,0,0,0
+    GL_MATRIX_POINTERS:     .word   0,0,0
     GL_MAT_AMBIENT:         .word   0
     GL_MAT_DIFFUSE:         .word   0
     GL_MAT_SPECULAR:        .word   0
@@ -43,8 +51,7 @@ GL_STATE:
     GL_STATE_SHADE_MODEL:   .half   0
     GL_STATE_POINT_SIZE:    .half   0
     GL_STATE_LINE_WIDTH:    .half   0
-    # padding
-    .half 0, 0, 0
+    GL_STATE_MATRIX_MODE:   .half   0
 
     # These are only required for RDP state changes
     GL_STATE_SCISSOR_RECT:  .half   0, 0, 0, 0  # Needs to be aligned to 8 bytes
@@ -200,14 +207,238 @@ GLCmd_CopyFillColor:
     sw t0, %lo(RDPQ_FILL_COLOR)
 
 GLCmd_SetLightPos:
-    # TODO
+    #define v___     $v01
+
+    #define vpos     $v02
+
+    #define vmtx0_i  $v03
+    #define vmtx0_f  $v04
+    #define vmtx1_i  $v05
+    #define vmtx1_f  $v06
+    #define vmtx2_i  $v07
+    #define vmtx2_f  $v08
+    #define vmtx3_i  $v09
+    #define vmtx3_f  $v10
+
+    addi s0, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER) - 8
+    li s1, %lo(GL_MATRIX_MODELVIEW)
+    ldv vpos,     0x00,s0
+    ldv vmtx0_i,  0x00,s1
+    ldv vmtx1_i,  0x08,s1
+    ldv vmtx2_i,  0x10,s1
+    ldv vmtx3_i,  0x18,s1
+    ldv vmtx0_f,  0x20,s1
+    ldv vmtx1_f,  0x28,s1
+    ldv vmtx2_f,  0x30,s1
+    ldv vmtx3_f,  0x38,s1
+
+    vmudn v___, vmtx0_f, vpos.e0
+    vmadh v___, vmtx0_i, vpos.e0
+    vmadn v___, vmtx1_f, vpos.e1
+    vmadh v___, vmtx1_i, vpos.e1
+    vmadn v___, vmtx2_f, vpos.e2
+    vmadh v___, vmtx2_i, vpos.e2
+    vmadn v___, vmtx3_f, vpos.e3
+    vmadh vpos, vmtx3_i, vpos.e3
+
+    addi s0, a0, %lo(GL_STATE) + LIGHT_POSITION_OFFSET
     jr ra
-    nop
+    sdv vpos,  0x00,s0
+
+    #undef v___
+
+    #undef vpos
+
+    #undef vmtx0_i
+    #undef vmtx0_f
+    #undef vmtx1_i
+    #undef vmtx1_f
+    #undef vmtx2_i
+    #undef vmtx2_f
+    #undef vmtx3_i
+    #undef vmtx3_f
 
 GLCmd_SetLightDir:
-    # TODO
+    #define v___     $v01
+
+    #define vpos     $v02
+
+    #define vmtx0_i  $v03
+    #define vmtx0_f  $v04
+    #define vmtx1_i  $v05
+    #define vmtx1_f  $v06
+    #define vmtx2_i  $v07
+    #define vmtx2_f  $v08
+
+    addi s0, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER) - 4
+    li s1, %lo(GL_MATRIX_MODELVIEW)
+    lpv vpos,     0x00,s0
+    ldv vmtx0_i,  0x00,s1
+    ldv vmtx1_i,  0x08,s1
+    ldv vmtx2_i,  0x10,s1
+    ldv vmtx0_f,  0x20,s1
+    ldv vmtx1_f,  0x28,s1
+    ldv vmtx2_f,  0x30,s1
+
+    # TODO: verify this
+
+    vmudn v___, vmtx0_f, vpos.e0
+    vmadh v___, vmtx0_i, vpos.e0
+    vmadn v___, vmtx1_f, vpos.e1
+    vmadh v___, vmtx1_i, vpos.e1
+    vmadn v___, vmtx2_f, vpos.e2
+    vmadh vpos, vmtx2_i, vpos.e2
+
+    addi s0, a0, %lo(GL_STATE) + LIGHT_DIRECTION_OFFSET
+    sbv vpos.e0,  0,s0
+    sbv vpos.e1,  1,s0
     jr ra
-    nop
+    sbv vpos.e2,  2,s0
+
+    #undef v___
+
+    #undef vpos
+
+    #undef vmtx0_i
+    #undef vmtx0_f
+    #undef vmtx1_i
+    #undef vmtx1_f
+    #undef vmtx2_i
+    #undef vmtx2_f
+    #undef vmtx3_i
+    #undef vmtx3_f
+
+GLCmd_MatrixPush:
+    li t0, MATRIX_SIZE
+    j GL_MatrixPushPop
+    li t2, DMA_OUT_ASYNC
+
+GLCmd_MatrixPop:
+    li t0, -MATRIX_SIZE
+    li t2, DMA_IN
+    # fallthrough!
+GL_MatrixPushPop:
+    # Get matrix pointer for the current matrix stack
+    lbu t1, %lo(GL_STATE_MATRIX_MODE) + 1
+    sll t1, 2
+    lw s0, %lo(GL_MATRIX_POINTERS)(t1)
+
+    # Get location in DMEM for the current matrix stack
+    sll s4, t1, 4
+    addi s4, %lo(GL_MATRICES)
+
+    # Move the stack pointer
+    add s1, s0, t0
+    sw s1, %lo(GL_MATRIX_POINTERS)(t1)
+
+    # Do DMA
+    j DMAExec
+    li t0, DMA_SIZE(MATRIX_SIZE, 1)
+
+GLCmd_MatrixLoad:
+    #define multiply    t0
+    #define dst         s1
+    #define src         s2
+
+    #define v___         $v01
+
+    #define vrhs01_i     $v02
+    #define vrhs01_f     $v03
+    #define vrhs23_i     $v04
+    #define vrhs23_f     $v05
+
+    #define vmtx0_i      $v06
+    #define vmtx0_f      $v07
+    #define vmtx1_i      $v08
+    #define vmtx1_f      $v09
+    #define vmtx2_i      $v10
+    #define vmtx2_f      $v11
+    #define vmtx3_i      $v12
+    #define vmtx3_f      $v13
+
+    andi multiply, a0, 1
+    lbu dst, %lo(GL_STATE_MATRIX_MODE) + 1
+    addi src, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER) - 64
+    sll dst, 6
+    addiu dst, %lo(GL_MATRICES)
+
+    # Load the right hand side matrix from command parameters (misaligned)
+    lqv vrhs01_i, 0x00,src
+    lrv vrhs01_i, 0x10,src
+    lqv vrhs23_i, 0x10,src
+    lrv vrhs23_i, 0x20,src
+    lqv vrhs01_f, 0x20,src
+    lrv vrhs01_f, 0x30,src
+    lqv vrhs23_f, 0x30,src
+    beqz multiply, gl_matrix_save # skip multiplication if only loading the matrix
+    lrv vrhs23_f, 0x40,src
+
+    # Load left hand side matrix columns, repeating each column twice in a register
+    ldv vmtx0_i.e0,  0x00,dst
+    ldv vmtx0_i.e4,  0x00,dst
+    ldv vmtx1_i.e0,  0x08,dst
+    ldv vmtx1_i.e4,  0x08,dst
+    ldv vmtx2_i.e0,  0x10,dst
+    ldv vmtx2_i.e4,  0x10,dst
+    ldv vmtx3_i.e0,  0x18,dst
+    ldv vmtx3_i.e4,  0x18,dst
+    ldv vmtx0_f.e0,  0x20,dst
+    ldv vmtx0_f.e4,  0x20,dst
+    ldv vmtx1_f.e0,  0x28,dst
+    ldv vmtx1_f.e4,  0x28,dst
+    ldv vmtx2_f.e0,  0x30,dst
+    ldv vmtx2_f.e4,  0x30,dst
+    ldv vmtx3_f.e0,  0x38,dst
+    ldv vmtx3_f.e4,  0x38,dst
+
+    # Perform matrix x matrix multiplication
+    vmudl v___,     vmtx0_f, vrhs01_f.h0
+    vmadm v___,     vmtx0_i, vrhs01_f.h0
+    vmadn v___,     vmtx0_f, vrhs01_i.h0
+    vmadh v___,     vmtx0_i, vrhs01_i.h0
+
+    vmadl v___,     vmtx1_f, vrhs01_f.h1
+    vmadm v___,     vmtx1_i, vrhs01_f.h1
+    vmadn v___,     vmtx1_f, vrhs01_i.h1
+    vmadh v___,     vmtx1_i, vrhs01_i.h1
+
+    vmadl v___,     vmtx2_f, vrhs01_f.h2
+    vmadm v___,     vmtx2_i, vrhs01_f.h2
+    vmadn v___,     vmtx2_f, vrhs01_i.h2
+    vmadh v___,     vmtx2_i, vrhs01_i.h2
+
+    vmadl v___,     vmtx3_f, vrhs01_f.h3
+    vmadm v___,     vmtx3_i, vrhs01_f.h3
+    vmadn vrhs01_f, vmtx3_f, vrhs01_i.h3
+    vmadh vrhs01_i, vmtx3_i, vrhs01_i.h3
+
+    vmudl v___,     vmtx0_f, vrhs23_f.h0
+    vmadm v___,     vmtx0_i, vrhs23_f.h0
+    vmadn v___,     vmtx0_f, vrhs23_i.h0
+    vmadh v___,     vmtx0_i, vrhs23_i.h0
+
+    vmadl v___,     vmtx1_f, vrhs23_f.h1
+    vmadm v___,     vmtx1_i, vrhs23_f.h1
+    vmadn v___,     vmtx1_f, vrhs23_i.h1
+    vmadh v___,     vmtx1_i, vrhs23_i.h1
+
+    vmadl v___,     vmtx2_f, vrhs23_f.h2
+    vmadm v___,     vmtx2_i, vrhs23_f.h2
+    vmadn v___,     vmtx2_f, vrhs23_i.h2
+    vmadh v___,     vmtx2_i, vrhs23_i.h2
+
+    vmadl v___,     vmtx3_f, vrhs23_f.h3
+    vmadm v___,     vmtx3_i, vrhs23_f.h3
+    vmadn vrhs23_f, vmtx3_f, vrhs23_i.h3
+    vmadh vrhs23_i, vmtx3_i, vrhs23_i.h3
+
+gl_matrix_save:
+    # Save the resulting matrix
+    sqv vrhs01_i, 0x00,dst
+    sqv vrhs23_i, 0x10,dst
+    sqv vrhs01_f, 0x20,dst
+    jr ra
+    sqv vrhs23_f, 0x30,dst
 
 GL_UpdateDepthTest:
     lw t0, %lo(GL_STATE_FLAGS)
@@ -729,10 +960,10 @@ GLCmd_Normal:
 gl_save_vector:
     sub s1, rspq_dmem_buf_ptr, rspq_cmd_size
     addi s1, %lo(RSPQ_DMEM_BUFFER) + 4
-    lqv $v00,0, 0x00,s1
-    lrv $v00,0, 0x10,s1
+    lqv $v01,0, 0x00,s1
+    lrv $v01,0, 0x10,s1
     jr ra
-    sqv $v00,0, 0x00,s2
+    sqv $v01,0, 0x00,s2
 
 
     #############################################################
@@ -745,8 +976,6 @@ gl_save_vector:
     #   t0: Length
     #############################################################
 Vec_Convert:
-    #define vzero  $v00
-
     #define mant_i $v01
     #define mant_f $v02
 

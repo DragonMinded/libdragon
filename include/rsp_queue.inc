@@ -75,7 +75,7 @@ _RSPQ_OVERLAY_COMMAND_TABLE:
 # its size must not be zero.
 ########################################################
 .macro RSPQ_BeginSavedState
-    .align 3
+    .align 4
 _RSPQ_SAVED_STATE_START:
 .endm
 

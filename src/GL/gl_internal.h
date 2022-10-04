@@ -60,6 +60,9 @@ enum {
     GL_CMD_COPY_FILL_COLOR  = 0x8,
     GL_CMD_SET_LIGHT_POS    = 0x9,
     GL_CMD_SET_LIGHT_DIR    = 0xA,
+    GL_CMD_MATRIX_PUSH      = 0xB,
+    GL_CMD_MATRIX_POP       = 0xC,
+    GL_CMD_MATRIX_LOAD      = 0xD,
 };
 
 typedef enum {
@@ -124,6 +127,12 @@ typedef struct {
     int32_t size;
     int32_t cur_depth;
 } gl_matrix_stack_t;
+
+typedef struct {
+    int16_t  i[4][4];
+    uint16_t f[4][4];
+} gl_matrix_srv_t;
+_Static_assert(sizeof(gl_matrix_srv_t) == MATRIX_SIZE, "Matrix size does not match");
 
 typedef struct {
     uint32_t tex_image;
@@ -218,6 +227,16 @@ typedef struct {
     uint16_t quadratic_attenuation;
 } gl_light_srv_t;
 _Static_assert(sizeof(gl_light_srv_t) == LIGHT_SIZE);
+_Static_assert(offsetof(gl_light_srv_t, position) == LIGHT_POSITION_OFFSET);
+_Static_assert(offsetof(gl_light_srv_t, ambient) == LIGHT_AMBIENT_OFFSET);
+_Static_assert(offsetof(gl_light_srv_t, diffuse) == LIGHT_DIFFUSE_OFFSET);
+_Static_assert(offsetof(gl_light_srv_t, specular) == LIGHT_SPECULAR_OFFSET);
+_Static_assert(offsetof(gl_light_srv_t, direction) == LIGHT_DIRECTION_OFFSET);
+_Static_assert(offsetof(gl_light_srv_t, spot_exponent) == LIGHT_SPOT_EXPONENT_OFFSET);
+_Static_assert(offsetof(gl_light_srv_t, spot_cutoff_cos) == LIGHT_SPOT_CUTOFF_COS_OFFSET);
+_Static_assert(offsetof(gl_light_srv_t, constant_attenuation) == LIGHT_CONSTANT_ATTENUATION_OFFSET);
+_Static_assert(offsetof(gl_light_srv_t, linear_attenuation) == LIGHT_LINEAR_ATTENUATION_OFFSET);
+_Static_assert(offsetof(gl_light_srv_t, quadratic_attenuation) == LIGHT_QUADRATIC_ATTENUATION_OFFSET);
 
 typedef struct {
     GLvoid *data;
@@ -381,6 +400,8 @@ typedef struct {
     gl_buffer_object_t *array_buffer;
     gl_buffer_object_t *element_array_buffer;
 
+    gl_matrix_srv_t *matrix_stacks[3];
+
     GLboolean unpack_swap_bytes;
     GLboolean unpack_lsb_first;
     GLint unpack_row_length;
@@ -405,9 +426,11 @@ typedef struct {
 
 typedef struct {
     gl_texture_object_t bound_textures[2];
+    gl_matrix_srv_t matrices[3];
     gl_light_srv_t lights[LIGHT_COUNT];
     int16_t viewport_scale[4];
     int16_t viewport_offset[4];
+    uint32_t matrix_pointers[3];
     uint32_t mat_ambient;
     uint32_t mat_diffuse;
     uint32_t mat_specular;
@@ -425,7 +448,7 @@ typedef struct {
     uint16_t shade_model;
     uint16_t point_size;
     uint16_t line_width;
-    uint16_t padding[3];
+    uint16_t matrix_mode;
 
     uint16_t scissor_rect[4];
     uint32_t blend_cycle;

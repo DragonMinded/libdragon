@@ -276,7 +276,7 @@ void gl_set_material_emissive(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 
 void gl_set_material_shininess(GLfloat param)
 {    
-    gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, mat_shininess), param);
+    gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, mat_shininess), param * 32.f);
 }
 
 void gl_set_material_paramf(GLenum pname, const GLfloat *params)
