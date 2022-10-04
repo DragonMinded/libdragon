@@ -314,12 +314,10 @@ GLCmd_SetLightDir:
     #undef vmtx3_f
 
 GLCmd_MatrixPush:
-    li t0, MATRIX_SIZE
     j GL_MatrixPushPop
     li t2, DMA_OUT_ASYNC
 
 GLCmd_MatrixPop:
-    li t0, -MATRIX_SIZE
     li t2, DMA_IN
     # fallthrough!
 GL_MatrixPushPop:
@@ -331,9 +329,19 @@ GL_MatrixPushPop:
     # Get location in DMEM for the current matrix stack
     sll s4, t1, 4
     addi s4, %lo(GL_MATRICES)
+    
+    bltz t2, gl_matrix_push
+    # If pushing the stack, post-increment the stack pointer after the DMA
+    li t0, MATRIX_SIZE
+
+    # If popping the stack, pre-decrement the stack pointer before the DMA
+    addi s0, -MATRIX_SIZE
+    move t0, zero
+
+gl_matrix_push:
+    add s1, s0, t0
 
     # Move the stack pointer
-    add s1, s0, t0
     sw s1, %lo(GL_MATRIX_POINTERS)(t1)
 
     # Do DMA
