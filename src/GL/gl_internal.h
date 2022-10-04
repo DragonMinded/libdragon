@@ -437,6 +437,9 @@ typedef struct {
     int16_t viewport_scale[4];
     int16_t viewport_offset[4];
     uint16_t tex_gen_mode[4];
+    int16_t tex_coords[4];
+    int8_t normal[4];
+    uint32_t color;
     uint32_t matrix_pointers[3];
     uint32_t mat_ambient;
     uint32_t mat_diffuse;

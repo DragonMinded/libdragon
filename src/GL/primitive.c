@@ -1224,8 +1224,6 @@ static gl_attrib_source_t dummy_sources[ATTRIB_COUNT] = {
 
 void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 {
-    // TODO: batch these (?)
-
     vertex_tmp[0] = x;
     vertex_tmp[1] = y;
     vertex_tmp[2] = z;
@@ -1269,6 +1267,8 @@ void glColor4f(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
     state.current_attribs[ATTRIB_COLOR][1] = g;
     state.current_attribs[ATTRIB_COLOR][2] = b;
     state.current_attribs[ATTRIB_COLOR][3] = a;
+
+    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, color), PACKED_RGBA32_FROM_FLOAT(r, g, b, a));
 }
 
 void glColor4d(GLdouble r, GLdouble g, GLdouble b, GLdouble a)  { glColor4f(r, g, b, a); }
@@ -1312,6 +1312,14 @@ void glTexCoord4f(GLfloat s, GLfloat t, GLfloat r, GLfloat q)
     state.current_attribs[ATTRIB_TEXCOORD][1] = t;
     state.current_attribs[ATTRIB_TEXCOORD][2] = r;
     state.current_attribs[ATTRIB_TEXCOORD][3] = q;
+
+    int16_t fixed_s = s * (1 << 5);
+    int16_t fixed_t = t * (1 << 5);
+    int16_t fixed_r = r * (1 << 5);
+    int16_t fixed_q = q * (1 << 5);
+
+    uint64_t packed = ((uint64_t)fixed_s << 48) | ((uint64_t)fixed_t << 32) | ((uint64_t)fixed_r << 16) | (uint64_t)fixed_q;
+    gl_set_long(GL_UPDATE_NONE, offsetof(gl_server_state_t, tex_coords), packed);
 }
 
 void glTexCoord4s(GLshort s, GLshort t, GLshort r, GLshort q)       { glTexCoord4f(s, t, r, q); }
@@ -1358,6 +1366,13 @@ void glNormal3f(GLfloat nx, GLfloat ny, GLfloat nz)
     state.current_attribs[ATTRIB_NORMAL][0] = nx;
     state.current_attribs[ATTRIB_NORMAL][1] = ny;
     state.current_attribs[ATTRIB_NORMAL][2] = nz;
+
+    int8_t fixed_nx = nx * 0x7F;
+    int8_t fixed_ny = ny * 0x7F;
+    int8_t fixed_nz = nz * 0x7F;
+
+    uint32_t packed = ((uint32_t)fixed_nx << 24) | ((uint32_t)fixed_ny << 16) | ((uint32_t)fixed_nz << 8);
+    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, normal), packed);
 }
 
 void glNormal3b(GLbyte nx, GLbyte ny, GLbyte nz)        { glNormal3f(I8_TO_FLOAT(nx), I8_TO_FLOAT(ny), I8_TO_FLOAT(nz)); }

@@ -109,6 +109,10 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
     server_state->texture_ids[0] = PhysicalAddr(&state.default_textures[0]);
     server_state->texture_ids[1] = PhysicalAddr(&state.default_textures[1]);
 
+    server_state->color = 0xFFFFFFFF;
+    server_state->tex_coords[3] = 1 << 5;
+    server_state->normal[2] = 0x7F;
+
     server_state->point_size = 1 << 2;
     server_state->line_width = 1 << 2;
     server_state->polygon_mode = GL_FILL;

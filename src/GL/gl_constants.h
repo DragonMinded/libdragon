@@ -94,6 +94,7 @@
 #define FLAG_TEX_GEN_R      (1 << 24)
 #define FLAG_TEX_GEN_Q      (1 << 25)
 #define FLAG_LIGHT_LOCAL    (1 << 26)
+#define FLAG_IMMEDIATE      (1 << 27)
 
 #define TEX_LEVELS_MASK         0x7
 #define TEX_FLAG_COMPLETE       (1 << 3)

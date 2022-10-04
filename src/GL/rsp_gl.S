@@ -35,6 +35,9 @@ GL_MATRICES:
     GL_VIEWPORT_SCALE:      .half   0,0,0,0
     GL_VIEWPORT_OFFSET:     .half   0,0,0,0
     GL_TEX_GEN_MODE:        .half   0,0,0,0
+    GL_CUR_TEX_COORDS:      .half   0,0,0,0
+    GL_CUR_NORMAL:          .byte   0,0,0,0
+    GL_CUR_COLOR:           .word   0
     GL_MATRIX_POINTERS:     .word   0,0,0
     GL_MAT_AMBIENT:         .word   0
     GL_MAT_DIFFUSE:         .word   0
@@ -939,35 +942,6 @@ gl_clamp_t:
     li s4, %lo(RDPQ_CMD_STAGING)
 
 /*
-GLCmd_Begin:
-    jr ra
-    sb a0, %lo(GL_PRIM_MODE)
-
-GLCmd_End:
-    jr ra
-    nop
-
-GLCmd_Vertex:
-    jr ra
-    nop
-
-GLCmd_Color:
-    j gl_save_vector
-    li s2, %lo(GL_CURRENT_COLOR)
-GLCmd_TexCoord:
-    j gl_save_vector
-    li s2, %lo(GL_CURRENT_TEXCOORD)
-GLCmd_Normal:
-    li s2, %lo(GL_CURRENT_NORMAL)
-gl_save_vector:
-    sub s1, rspq_dmem_buf_ptr, rspq_cmd_size
-    addi s1, %lo(RSPQ_DMEM_BUFFER) + 4
-    lqv $v01,0, 0x00,s1
-    lrv $v01,0, 0x10,s1
-    jr ra
-    sqv $v01,0, 0x00,s2
-
-
     #############################################################
     # Vec_Convert
     #
