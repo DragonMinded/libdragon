@@ -95,6 +95,9 @@
 #define FLAG_TEX_GEN_Q      (1 << 25)
 #define FLAG_LIGHT_LOCAL    (1 << 26)
 #define FLAG_IMMEDIATE      (1 << 27)
+#define FLAG_MTX_MV_DIRTY   (1 << 28)
+#define FLAG_MTX_PROJ_DIRTY (1 << 29)
+#define FLAG_MTX_TEX_DIRTY  (1 << 30)
 
 #define TEX_LEVELS_MASK         0x7
 #define TEX_FLAG_COMPLETE       (1 << 3)

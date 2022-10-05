@@ -313,6 +313,15 @@ GLCmd_SetLightDir:
     #undef vmtx3_i
     #undef vmtx3_f
 
+# ARGS: t1: matrix index
+GL_MatrixMarkDirty:
+    lw t9, %lo(GL_STATE_FLAGS)
+    li t8, FLAG_MTX_MV_DIRTY
+    sllv t8, t8, t1 # 2-arg syntax doesn't work with sllv for some reason...?
+    or t9, t8
+    jr ra
+    sw t9, %lo(GL_STATE_FLAGS)
+
 GLCmd_MatrixPush:
     j GL_MatrixPushPop
     li t2, DMA_OUT_ASYNC
@@ -321,35 +330,42 @@ GLCmd_MatrixPop:
     li t2, DMA_IN
     # fallthrough!
 GL_MatrixPushPop:
+    #define post_incr   t0
+    #define mtx_index   t1
+    #define stack_ptr   t3
+
     # Get matrix pointer for the current matrix stack
-    lbu t1, %lo(GL_STATE_MATRIX_MODE) + 1
-    sll t1, 2
-    lw s0, %lo(GL_MATRIX_POINTERS)(t1)
+    lbu mtx_index, %lo(GL_STATE_MATRIX_MODE) + 1
+    sll stack_ptr, mtx_index, 2
+    lw s0, %lo(GL_MATRIX_POINTERS)(stack_ptr)
 
     # Get location in DMEM for the current matrix stack
-    sll s4, t1, 4
+    sll s4, mtx_index, 6
     addi s4, %lo(GL_MATRICES)
     
     bltz t2, gl_matrix_push
     # If pushing the stack, post-increment the stack pointer after the DMA
-    li t0, MATRIX_SIZE
+    li post_incr, MATRIX_SIZE
 
     # If popping the stack, pre-decrement the stack pointer before the DMA
     addi s0, -MATRIX_SIZE
-    move t0, zero
+    # Also mark the matrix as dirty
+    jal GL_MatrixMarkDirty
+    move post_incr, zero
 
 gl_matrix_push:
-    add s1, s0, t0
+    add s1, s0, post_incr
 
-    # Move the stack pointer
-    sw s1, %lo(GL_MATRIX_POINTERS)(t1)
+    # Save new stack pointer
+    sw s1, %lo(GL_MATRIX_POINTERS)(stack_ptr)
 
     # Do DMA
-    j DMAExec
     li t0, DMA_SIZE(MATRIX_SIZE, 1)
+    jal_and_j DMAExec, RSPQ_Loop
 
 GLCmd_MatrixLoad:
     #define multiply    t0
+    #define mtx_index   t1
     #define dst         s1
     #define src         s2
 
@@ -370,9 +386,9 @@ GLCmd_MatrixLoad:
     #define vmtx3_f      $v13
 
     andi multiply, a0, 1
-    lbu dst, %lo(GL_STATE_MATRIX_MODE) + 1
+    lbu mtx_index, %lo(GL_STATE_MATRIX_MODE) + 1
     addi src, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER) - 64
-    sll dst, 6
+    sll dst, mtx_index, 6
     addiu dst, %lo(GL_MATRICES)
 
     # Load the right hand side matrix from command parameters (misaligned)
@@ -450,7 +466,7 @@ gl_matrix_save:
     sqv vrhs01_i, 0x00,dst
     sqv vrhs23_i, 0x10,dst
     sqv vrhs01_f, 0x20,dst
-    jr ra
+    j GL_MatrixMarkDirty
     sqv vrhs23_f, 0x30,dst
 
 GL_UpdateDepthTest:
