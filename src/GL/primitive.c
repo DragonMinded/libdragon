@@ -146,6 +146,7 @@ bool gl_begin(GLenum mode)
     state.primitive_mode = mode;
     state.prim_progress = 0;
     state.prim_counter = 0;
+    state.prim_id = 0;
 
     gl_set_short(GL_UPDATE_POINTS, offsetof(gl_server_state_t, prim_type), (uint16_t)mode);
     gl_update(GL_UPDATE_COMBINER);
@@ -209,6 +210,8 @@ void glEnd(void)
         gl_set_error(GL_INVALID_OPERATION);
         return;
     }
+
+    gl_end();
 
     state.immediate_active = false;
 }
@@ -504,9 +507,13 @@ void gl_draw(const gl_attrib_source_t *sources, uint32_t offset, uint32_t count,
         assertf(index < (1 << 16), "Index out of range");
         
         uint8_t cache_index = state.prim_next;
+        uint16_t id = index;
+        if (indices == NULL) {
+            id = ++state.prim_id;
+        }
 
         gl_load_attribs(sources, index);
-        gl_vertex_pre_clip(cache_index, index);
+        gl_vertex_pre_clip(cache_index, id);
 
         if (state.prim_lock_next) {
             state.prim_locked = cache_index;
