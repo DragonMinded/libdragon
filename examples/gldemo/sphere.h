@@ -6,7 +6,7 @@
 
 #include "vertex.h"
 
-#define SPHERE_RADIUS       5.0f
+#define SPHERE_RADIUS       15.0f
 #define SPHERE_MIN_RINGS    4
 #define SPHERE_MAX_RINGS    64
 #define SPHERE_MIN_SEGMENTS 4
@@ -21,8 +21,8 @@ static uint32_t sphere_index_count;
 void setup_sphere()
 {
     glGenBuffersARB(2, sphere_buffers);
-    sphere_rings = 16;
-    sphere_segments = 16;
+    sphere_rings = 8;
+    sphere_segments = 8;
 }
 
 void make_sphere_vertex(vertex_t *dst, uint32_t ring, uint32_t segment)
