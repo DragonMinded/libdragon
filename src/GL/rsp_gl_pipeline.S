@@ -7,15 +7,21 @@
     .data
 
     RSPQ_BeginOverlayHeader
+        RSPQ_DefineCommand GLCmd_InitMtx,             68
+        RSPQ_DefineCommand GLCmd_InitViewport,        20
         RSPQ_DefineCommand GLCmd_SetPrimVertex,       24
-        RSPQ_DefineCommand GLCmd_DrawTriangle,        4
+        RSPQ_DefineCommand GLCmd_DrawTriangle,        8
     RSPQ_EndOverlayHeader
+
+    .align 4
+BANNER0: .ascii " RSP OpenGL T&L "
+BANNER1: .ascii "Rasky & Snacchus"
 
     RSPQ_BeginSavedState
 
     .align 3
-FINAL_MATRIX:    .half 4*4    # integer part
-                 .half 4*4    # fractional part
+FINAL_MATRIX:    .dcb.w 4*4    # integer part
+                 .dcb.w 4*4    # fractional part
 
 VIEWPORT_SCALE:  .half 0,0,0,0
 VIEWPORT_OFFSET: .half 0,0,0,0
@@ -69,6 +75,34 @@ CACHE_OFFSETS:               .half 2,4,6,8,10,12,14,16
 
     .text
 
+    .func GLCmd_InitMtx
+GLCmd_InitMtx:
+    la s0, CMD_ADDR(4, 68)
+    li s4, %lo(FINAL_MATRIX)
+    li t0, 15
+1:
+    lw t1, 0(s0)
+    sw t1, 0(s4)
+    add s0, 4
+    add s4, 4
+    bnez t0, 1b
+    addi t0, -1
+    jr ra
+    nop
+    .endfunc
+
+    .func GLCmd_InitViewport
+GLCmd_InitViewport:
+    lw a0, CMD_ADDR(16, 20)
+    li s4, %lo(VIEWPORT_SCALE)
+    sw a1, 0(s4)
+    sw a2, 4(s4)
+    sw a3, 8(s4)
+    sw a0, 12(s4)
+    jr ra
+    nop
+    .endfunc
+
     ####################################################
     # Find the screen cache slot for a vertex given its ID.
     #
@@ -114,13 +148,13 @@ VertexCacheLookup:
     lqv vids3, 24*2,s1
 
     veq v___  vids0, vsearch.e0
-    vmrg voffs0, vzero, voffs0
+    vmrg voffs0, voffs0, vzero
     veq v___  vids1, vsearch.e0
-    vmrg voffs1, vzero, voffs1
+    vmrg voffs1, voffs1, vzero
     veq v___  vids2, vsearch.e0
-    vmrg voffs2, vzero, voffs2
+    vmrg voffs2, voffs2, vzero
     veq v___  vids3, vsearch.e0
-    vmrg voffs3, vzero, voffs3
+    vmrg voffs3, voffs3, vzero
 
     vaddc voffs0, voffs0.q1
     vaddc voffs0, voffs0.h2
@@ -133,6 +167,7 @@ cache_miss:
     # No match found in the cache, remove oldest entry
     li t1, (SCREEN_VERTEX_CACHE_COUNT*2)-2
     li t2, 0
+    sh t0, %lo(SCREEN_VERTEX_CACHE_IDS)(t1)
 cache_hit:
     add s0, s1, t1
 #ifndef NDEBUG
@@ -174,6 +209,7 @@ GLCmd_SetPrimVertex:
     #define in_xy      a1
     #define in_zw      a2
     #define in_rgba    a3
+    #define vtx_id     v0
 
     #define v___      $v01
 
@@ -190,6 +226,8 @@ GLCmd_SetPrimVertex:
     #define vcspos_i   $v25
     #define vcspos_f   $v26
 
+    srl vtx_id, prim_vtx, 8
+    andi prim_vtx, 0xFF
     addi prim_vtx, %lo(PRIM_VERTEX_CACHE)
 
     lw t0, CMD_ADDR(16, 24)  # S,T
@@ -200,6 +238,7 @@ GLCmd_SetPrimVertex:
     sw in_rgba,  PRIM_VTX_RGBA  (prim_vtx)
     sw t0,       PRIM_VTX_S     (prim_vtx)
     sw t1,       PRIM_VTX_NORMAL(prim_vtx)
+    sh vtx_id,   PRIM_VTX_ID    (prim_vtx)
 
     ldv vpos.e0, PRIM_VTX_X     ,prim_vtx
 
@@ -224,11 +263,13 @@ GLCmd_SetPrimVertex:
     vmadh v___,     vmtx1_i, vpos.y
     vmadn v___,     vmtx2_f, vpos.z
     vmadh v___,     vmtx2_i, vpos.z
-    vmadn vcspos_f, vmtx3_f, vpos.w
-    vmadh vcspos_i, vmtx3_i, vpos.w
+    vmadn v___,     vmtx3_f, vpos.w
+    vmadh v___,     vmtx3_i, vpos.w
+    vsar vcspos_f, COP2_ACC_MD
+    vsar vcspos_i, COP2_ACC_HI
 
-    sdv vcspos_f, PRIM_VTX_CS_POSi,prim_vtx
-    sdv vcspos_i, PRIM_VTX_CS_POSf,prim_vtx
+    sdv vcspos_i, PRIM_VTX_CS_POSi,prim_vtx
+    sdv vcspos_f, PRIM_VTX_CS_POSf,prim_vtx
 
     # Calculate and store clipping flags against CS.W. These
     # will be used for trivial rejections.
@@ -253,6 +294,7 @@ GLCmd_SetPrimVertex:
     #undef in_xy   
     #undef in_zw   
     #undef in_rgba 
+    #undef vtx_id
 
     #undef v___     
 
@@ -276,20 +318,22 @@ GLCmd_SetPrimVertex:
     # GL_TnL
     #
     # Args:
-    #   s2 = address of the prim vertex in DMEM (usually within PRIM_VERTEX_CACHE)
+    #   s3 = address of the prim vertex in DMEM (usually within PRIM_VERTEX_CACHE)
     #
     # Returns:
     #   s3 = address of the screen vertex in DMEM (within SCREEN_VERTEX_CACHE)
     ################################################################
     .func GL_TnL
 GL_TnL:
-    #define prim_vtx     s2
-    #define screen_vtx   s3
+    #define prim_vtx     s3
+    #define screen_vtx   s4
+    move ra2, ra
 
     # Read the ID of the vertex and lookup into the cache.
     jal VertexCacheLookup
     lhu t0, PRIM_VTX_ID(prim_vtx)
     # If the vertex was found in cache, we got nothing to do
+    move ra, ra2
     bnez t2, JrRa
     # We need to do TnL.
     # Compute the address in cache where to add the vertex.
@@ -332,14 +376,13 @@ GL_TnL:
 
     # Calculate 32-bit inverse W
     # TODO: NR?
-    vrcph vinvw_i.w, vcspos_i.w
-    vrcpl vinvw_f.w, vcspos_f.w
+    vrcp  vinvw_f.w, vcspos_i.w
     vrcph vinvw_i.w, vcspos_i.w
 
     # Calculate screenspace coords
-    li s4, %lo(VIEWPORT_SCALE)
-    ldv vviewscale, 0,s4
-    ldv vviewoff,   8,s4
+    li s0, %lo(VIEWPORT_SCALE)
+    ldv vviewscale, 0,s0
+    ldv vviewoff,   8,s0
 
     vmudl v___,         vcspos_f, vinvw_f.w
     vmadm v___,         vcspos_i, vinvw_f.w
@@ -347,9 +390,9 @@ GL_TnL:
     vmadh vscreenpos_i, vcspos_i, vinvw_i.w
 
     vmudn vscreenpos_f, vscreenpos_f, vviewscale
-    vmadn vscreenpos_f, vviewoff, K1
     vmadh vscreenpos_i, vscreenpos_i, vviewscale
-    vmadh vscreenpos_i, vviewoff, K1
+    vmadh vscreenpos_i, vviewoff, vshift8.e1
+    vsar vscreenpos_i, COP2_ACC_HI
 
     sdv vscreenpos_i, SCREEN_VTX_X        ,screen_vtx
     ssv vcspos_i.w,   SCREEN_VTX_W+0      ,screen_vtx 
@@ -360,7 +403,7 @@ GL_TnL:
     sdv vcspos_f,     SCREEN_VTX_CS_POSf  ,screen_vtx 
     sb t0,            SCREEN_VTX_CLIP_CODE(screen_vtx)
 
-    j RSPQ_Loop
+    jr ra
     nop
 
     #undef v___        
@@ -390,18 +433,18 @@ GL_TnL:
     .func GLCmd_DrawTriangle
 GLCmd_DrawTriangle:
     #define tri_cmd     a0
-    #define prim_verts  a1    # v1, v2, v3
+    #define prim_verts  a1
 
     #define prim_vtx1   s5
     #define prim_vtx2   s6
     #define prim_vtx3   s7
 
-    andi prim_vtx3, a0, 0xFF
+    andi prim_vtx3, prim_verts, 0xFF
     addi prim_vtx3, %lo(PRIM_VERTEX_CACHE)
-    srl  prim_vtx2, a0, 8
+    srl  prim_vtx2, prim_verts, 8
     and  prim_vtx2, 0xFF
     addi prim_vtx2, %lo(PRIM_VERTEX_CACHE)
-    srl  prim_vtx1, a0, 16
+    srl  prim_vtx1, prim_verts, 16
     and  prim_vtx1, 0xFF
     addi prim_vtx1, %lo(PRIM_VERTEX_CACHE)
 
@@ -416,16 +459,16 @@ GLCmd_DrawTriangle:
     nop
 
     jal GL_TnL
-    move s2, prim_vtx1
-    addi a1, s3, SCREEN_VTX_X
+    move s3, prim_vtx1
+    addi a1, s4, SCREEN_VTX_X
 
     jal GL_TnL
-    move s2, prim_vtx2
-    addi a2, s3, SCREEN_VTX_X
+    move s3, prim_vtx2
+    addi a2, s4, SCREEN_VTX_X
 
     jal GL_TnL
-    move s2, prim_vtx2
-    addi a3, s3, SCREEN_VTX_X
+    move s3, prim_vtx2
+    addi a3, s4, SCREEN_VTX_X
 
     li v0, 0
     jal RDPQ_Triangle
