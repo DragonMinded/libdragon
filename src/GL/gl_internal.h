@@ -96,22 +96,31 @@ typedef struct {
 } gl_framebuffer_t;
 
 typedef struct {
-    GLfloat position[4];
+    GLfloat obj_pos[4];
     GLfloat color[4];
     GLfloat texcoord[4];
     GLfloat normal[3];
-    GLfloat depth;
-    GLfloat cs_position[4];
-    GLfloat screen_pos[2];
+    GLfloat cs_pos[4];
     uint8_t tr_code;
-    uint8_t clip_code;
-    uint8_t flags;
-} gl_vertex_t;
+    uint8_t padding;
+    uint16_t id;
+} gl_prim_vtx_t;
 
-#define VTX_SCREEN_POS_OFFSET   (offsetof(gl_vertex_t, screen_pos)  / sizeof(float))
-#define VTX_COLOR_OFFSET        (offsetof(gl_vertex_t, color)       / sizeof(float))
-#define VTX_TEXCOORD_OFFSET     (offsetof(gl_vertex_t, texcoord)    / sizeof(float))
-#define VTX_DEPTH_OFFSET        (offsetof(gl_vertex_t, depth)       / sizeof(float))
+typedef struct {
+    GLfloat screen_pos[2];
+    GLfloat depth;
+    GLfloat shade[4];
+    GLfloat texcoord[2];
+    GLfloat inv_w;
+    GLfloat cs_pos[4];
+    uint8_t clip_code;
+    uint8_t padding[3];
+} gl_screen_vtx_t;
+
+#define VTX_SCREEN_POS_OFFSET   (offsetof(gl_screen_vtx_t, screen_pos)  / sizeof(float))
+#define VTX_SHADE_OFFSET        (offsetof(gl_screen_vtx_t, shade)       / sizeof(float))
+#define VTX_TEXCOORD_OFFSET     (offsetof(gl_screen_vtx_t, texcoord)    / sizeof(float))
+#define VTX_DEPTH_OFFSET        (offsetof(gl_screen_vtx_t, depth)       / sizeof(float))
 
 typedef struct {
     GLfloat m[4][4];
@@ -187,7 +196,7 @@ _Static_assert(offsetof(gl_texture_object_t, mag_filter)        == TEXTURE_MAG_F
 _Static_assert(offsetof(gl_texture_object_t, dimensionality)    == TEXTURE_DIMENSIONALITY_OFFSET, "Texture object has incorrect layout!");
 
 typedef struct {
-    gl_vertex_t *vertices[CLIPPING_PLANE_COUNT + 3];
+    gl_screen_vtx_t *vertices[CLIPPING_PLANE_COUNT + 3];
     uint32_t count;
 } gl_clipping_list_t;
 
@@ -356,20 +365,19 @@ typedef struct {
     gl_texture_object_t *texture_1d_object;
     gl_texture_object_t *texture_2d_object;
 
-    gl_vertex_t vertex_cache[VERTEX_CACHE_SIZE];
-    gl_material_t material_cache[VERTEX_CACHE_SIZE];
-    uint32_t vertex_cache_indices[VERTEX_CACHE_SIZE];
-    uint32_t lru_age_table[VERTEX_CACHE_SIZE];
-    uint32_t lru_next_age;
-    uint8_t next_cache_index;
-    bool lock_next_vertex;
-    uint8_t locked_vertex;
+    GLfloat current_attribs[ATTRIB_COUNT][4];
+
+    gl_prim_vtx_t prim_cache[4];
+    gl_material_t material_cache[4];
 
     uint8_t prim_size;
     uint8_t prim_indices[3];
     uint8_t prim_progress;
+    uint8_t prim_next;
     uint32_t prim_counter;
     uint8_t (*prim_func)(void);
+    bool prim_lock_next;
+    uint8_t prim_locked;
 
     uint16_t prim_tex_width;
     uint16_t prim_tex_height;
@@ -377,7 +385,12 @@ typedef struct {
     bool prim_bilinear;
     uint8_t prim_mipmaps;
 
-    GLfloat current_attribs[ATTRIB_COUNT][4];
+    gl_screen_vtx_t vertex_cache[VERTEX_CACHE_SIZE];
+    uint16_t vertex_cache_ids[VERTEX_CACHE_SIZE];
+    uint32_t lru_age_table[VERTEX_CACHE_SIZE];
+    uint32_t lru_next_age;
+
+    gl_screen_vtx_t *primitive_vertices[3];
 
     GLfloat flat_color[4];
 
