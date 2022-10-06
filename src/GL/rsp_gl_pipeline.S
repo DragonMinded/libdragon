@@ -87,6 +87,14 @@ GLCmd_InitMtx:
     add s4, 4
     bnez t0, 1b
     addi t0, -1
+
+    # Clear screen cache
+    li s0, %lo(SCREEN_VERTEX_CACHE_IDS)
+    sqv vzero, 0x00,s0
+    sqv vzero, 0x10,s0
+    sqv vzero, 0x20,s0
+    sqv vzero, 0x30,s0
+
     jr ra
     nop
     .endfunc
@@ -131,6 +139,7 @@ VertexCacheLookup:
     #define voffs2 $v18
     #define voffs3 $v19
 
+    assert_ne t0, 0, ASSERT_INVALID_VTX_ID
     mtc2 t0, $v02.e0
 
     li s2, %lo(CACHE_OFFSETS)
@@ -174,15 +183,16 @@ cache_hit:
     lhu t3, (SCREEN_VERTEX_CACHE_COUNT*2*0)(s0)   # Check that we found the correct ID
     assert_eq t0, t3, 0x1234
 #endif
+    beqz t1, JrRa
     lhu t1, (SCREEN_VERTEX_CACHE_COUNT*2*1)(s0)   # Read slot for ID
 
 move_loop:
-    lhu t3, (SCREEN_VERTEX_CACHE_COUNT*2*0) - 2(s0)
-    lhu t4, (SCREEN_VERTEX_CACHE_COUNT*2*1) - 2(s0)
-    sh  t3, (SCREEN_VERTEX_CACHE_COUNT*2*0) - 0(s0)
-    sh  t4, (SCREEN_VERTEX_CACHE_COUNT*2*1) - 0(s0)
-    bne s0, s1, move_loop
     addi s0, -2
+    lhu t3, (SCREEN_VERTEX_CACHE_COUNT*2*0) + 0(s0)
+    lhu t4, (SCREEN_VERTEX_CACHE_COUNT*2*1) + 0(s0)
+    sh  t3, (SCREEN_VERTEX_CACHE_COUNT*2*0) + 2(s0)
+    bne s0, s1, move_loop
+    sh  t4, (SCREEN_VERTEX_CACHE_COUNT*2*1) + 2(s0)
 
     # Store ID/Slot at the top of the cache
     sh t0, (SCREEN_VERTEX_CACHE_COUNT*2*0)(s0)
@@ -194,7 +204,7 @@ move_loop:
     # GLCmd_SetPrimVertex
     #
     # Arguments:
-    # * 0x00 (a0): offset within PRIM_VERTEX_CACHE
+    # * 0x00 (a0): offset within PRIM_VERTEX_CACHE + Vertex ID
     # * 0x04 (a1): object space X, Y (16-bit)
     # * 0x08 (a2): object space Z, W (16-bit)
     # * 0x0C (a3): RGBA (8-bit each one)
@@ -263,10 +273,9 @@ GLCmd_SetPrimVertex:
     vmadh v___,     vmtx1_i, vpos.y
     vmadn v___,     vmtx2_f, vpos.z
     vmadh v___,     vmtx2_i, vpos.z
-    vmadn v___,     vmtx3_f, vpos.w
-    vmadh v___,     vmtx3_i, vpos.w
-    vsar vcspos_f, COP2_ACC_MD
-    vsar vcspos_i, COP2_ACC_HI
+    vmadn vcspos_f, vmtx3_f, vpos.w
+    vmadh vcspos_i  vmtx3_i, vpos.w
+    vmadn vcspos_f, vzero, vzero
 
     sdv vcspos_i, PRIM_VTX_CS_POSi,prim_vtx
     sdv vcspos_f, PRIM_VTX_CS_POSf,prim_vtx
@@ -355,12 +364,12 @@ GL_TnL:
     #define w            e3
     #define KGUARD       __PPCAT(K, GUARD_BAND_FACTOR)
 
-    ldv vcspos_f, PRIM_VTX_CS_POSi,prim_vtx
-    ldv vcspos_i, PRIM_VTX_CS_POSf,prim_vtx
+    ldv vcspos_f, PRIM_VTX_CS_POSf,prim_vtx
+    ldv vcspos_i, PRIM_VTX_CS_POSi,prim_vtx
     luv vrgbast, PRIM_VTX_RGBA,prim_vtx       # RGBA + S + T
 
-    sdv vcspos_f, SCREEN_VTX_CS_POSi,screen_vtx
-    sdv vcspos_i, SCREEN_VTX_CS_POSf,screen_vtx
+    sdv vcspos_f, SCREEN_VTX_CS_POSf,screen_vtx
+    sdv vcspos_i, SCREEN_VTX_CS_POSi,screen_vtx
     suv vrgbast, SCREEN_VTX_RGBA,screen_vtx
 
     vmudn vguard_f, vcspos_f, KGUARD
@@ -391,8 +400,8 @@ GL_TnL:
 
     vmudn vscreenpos_f, vscreenpos_f, vviewscale
     vmadh vscreenpos_i, vscreenpos_i, vviewscale
-    vmadh vscreenpos_i, vviewoff, vshift8.e1
     vsar vscreenpos_i, COP2_ACC_HI
+    vadd vscreenpos_i, vviewoff
 
     sdv vscreenpos_i, SCREEN_VTX_X        ,screen_vtx
     ssv vcspos_i.w,   SCREEN_VTX_W+0      ,screen_vtx 
@@ -467,10 +476,10 @@ GLCmd_DrawTriangle:
     addi a2, s4, SCREEN_VTX_X
 
     jal GL_TnL
-    move s3, prim_vtx2
+    move s3, prim_vtx3
     addi a3, s4, SCREEN_VTX_X
 
-    li v0, 0
+    li v0, 1
     jal RDPQ_Triangle
     li s3, %lo(RDPQ_CMD_STAGING)
 

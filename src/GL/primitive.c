@@ -82,6 +82,43 @@ void gl_primitive_close()
     gl_storage_free(&state.tmp_index_storage);
 }
 
+void glpipe_init(gl_matrix_t *mtx, gl_viewport_t *view)
+{
+    uint16_t fmtx[32];
+    for (int j=0;j<4;j++) {
+        for (int i=0;i<4;i++) {
+            uint32_t v = (int32_t)(mtx->m[j][i] * 65536.0f);
+            fmtx[j*4+i + 0]  = v >> 16;
+            fmtx[j*4+i + 16] = v & 0xFFFF;
+        }
+    }
+
+    rspq_write_t w = rspq_write_begin(glp_overlay_id, GLP_CMD_INIT_MTX, 17);
+    rspq_write_arg(&w, 0);
+    for (int i=0;i<32;i+=2)
+        rspq_write_arg(&w, (fmtx[i] << 16) | fmtx[i+1]);
+    rspq_write_end(&w);
+
+    // Screen coordinates are s13.2
+    #define SCREEN_POS_SCALE   4.0f
+
+    // * 2.0f to compensate for RSP reciprocal missing 1 bit
+    uint16_t sx = view->scale[0] * 2.0f * SCREEN_POS_SCALE;
+    uint16_t sy = view->scale[1] * 2.0f * SCREEN_POS_SCALE;
+    uint16_t sz = view->scale[2] * 2.0f * SCREEN_POS_SCALE;
+
+    uint16_t tx = view->offset[0] * SCREEN_POS_SCALE;
+    uint16_t ty = view->offset[1] * SCREEN_POS_SCALE;
+    uint16_t tz = view->offset[2] * SCREEN_POS_SCALE;
+
+    // debugf("Viewport: (%.2f,%.2f,%.2f) - (%.2f,%.2f,%.2f)\n",
+    //     view->scale[0],view->scale[1],view->scale[2],
+    //     view->offset[0],view->offset[1],view->offset[2]);
+    glp_write(GLP_CMD_INIT_VIEWPORT, 0,
+        (sx << 16) | sy, sz << 16,
+        (tx << 16) | ty, tz << 16);
+}
+
 bool gl_begin(GLenum mode)
 {
     switch (mode) {
@@ -175,6 +212,9 @@ bool gl_begin(GLenum mode)
 
     __rdpq_autosync_change(AUTOSYNC_TILES);
     gl_update(GL_UPDATE_TEXTURE_UPLOAD);
+
+    glpipe_init(&state.final_matrix, &state.current_viewport);
+
     return true;
 }
 
@@ -254,11 +294,25 @@ uint8_t gl_get_clip_codes(GLfloat *pos, GLfloat *ref)
 
 void gl_vertex_pre_clip(uint8_t cache_index, uint16_t id)
 {
+#if RSP_PIPELINE
+    glpipe_set_prim_vertex(cache_index, state.current_attribs, id+1);
+    return;
+#endif
+
     gl_prim_vtx_t *v = &state.prim_cache[cache_index];
 
     memcpy(v, state.current_attribs, sizeof(float)*15);
 
     gl_matrix_mult(v->cs_pos, &state.final_matrix, v->obj_pos);
+
+#if 0
+    debugf("VTX ID: %d\n", id);
+    debugf("     OBJ: %8.2f %8.2f %8.2f %8.2f\n", v->obj_pos[0], v->obj_pos[1],v->obj_pos[2], v->obj_pos[3]);
+    debugf("          [%08lx %08lx %08lx %08lx]\n",
+        fx16(OBJ_SCALE*v->obj_pos[0]), fx16(OBJ_SCALE*v->obj_pos[1]), fx16(OBJ_SCALE*v->obj_pos[2]), fx16(OBJ_SCALE*v->obj_pos[3]));
+    debugf("   CSPOS: %8.2f %8.2f %8.2f %8.2f\n", v->cs_pos[0], v->cs_pos[1], v->cs_pos[2], v->cs_pos[3]);
+    debugf("          [%08lx %08lx %08lx %08lx]\n", fx16(OBJ_SCALE*v->cs_pos[0]), fx16(OBJ_SCALE*v->cs_pos[1]), fx16(OBJ_SCALE*v->cs_pos[2]), fx16(OBJ_SCALE*v->cs_pos[3]));
+#endif
 
     GLfloat tr_ref[] = {
         v->cs_pos[3],
@@ -445,6 +499,16 @@ gl_screen_vtx_t * gl_get_screen_vtx(uint8_t prim_index)
 
 void gl_draw_primitive()
 {
+#if RSP_PIPELINE
+    // rdpq_debug_log(true);
+    glpipe_draw_triangle(state.prim_texture, state.depth_test, 
+        state.prim_indices[0], state.prim_indices[1], state.prim_indices[2]);
+    // rspq_wait();
+    // assert(0);
+    // return;
+    return;
+#endif
+
     uint8_t tr_codes = 0xFF;
     for (uint8_t i = 0; i < state.prim_size; i++)
     {
@@ -459,6 +523,18 @@ void gl_draw_primitive()
     for (uint8_t i = 0; i < state.prim_size; i++)
     {
         state.primitive_vertices[i] = gl_get_screen_vtx(state.prim_indices[i]);
+        #if 0
+        gl_screen_vtx_t *v = state.primitive_vertices[i];
+        debugf("VTX %d:\n", i);
+        debugf("    cpos: (%.4f, %.4f, %.4f, %.4f) [%08lx, %08lx, %08lx, %08lx]\n", 
+            v->cs_pos[0],v->cs_pos[1],v->cs_pos[2],v->cs_pos[3],
+            fx16(v->cs_pos[0]*65536), fx16(v->cs_pos[1]*65536),
+            fx16(v->cs_pos[2]*65536), fx16(v->cs_pos[3]*65536));
+        debugf("    screen: (%.2f, %.2f) [%08lx, %08lx]\n", 
+            v->screen_pos[0], v->screen_pos[1],
+            (uint32_t)(int32_t)(v->screen_pos[0] * 4),
+            (uint32_t)(int32_t)(v->screen_pos[1] * 4));
+        #endif
     }
     
     switch (state.prim_size) {
