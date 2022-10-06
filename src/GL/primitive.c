@@ -100,16 +100,17 @@ void glpipe_init(gl_matrix_t *mtx, gl_viewport_t *view)
     rspq_write_end(&w);
 
     // Screen coordinates are s13.2
-    #define SCREEN_POS_SCALE   4.0f
+    #define SCREEN_XY_SCALE   4.0f
+    #define SCREEN_Z_SCALE    32768.0f
 
     // * 2.0f to compensate for RSP reciprocal missing 1 bit
-    uint16_t sx = view->scale[0] * 2.0f * SCREEN_POS_SCALE;
-    uint16_t sy = view->scale[1] * 2.0f * SCREEN_POS_SCALE;
-    uint16_t sz = view->scale[2] * 2.0f * SCREEN_POS_SCALE;
+    uint16_t sx = view->scale[0] * 2.0f * SCREEN_XY_SCALE;
+    uint16_t sy = view->scale[1] * 2.0f * SCREEN_XY_SCALE;
+    uint16_t sz = view->scale[2] * 2.0f * SCREEN_Z_SCALE - 1;
 
-    uint16_t tx = view->offset[0] * SCREEN_POS_SCALE;
-    uint16_t ty = view->offset[1] * SCREEN_POS_SCALE;
-    uint16_t tz = view->offset[2] * SCREEN_POS_SCALE;
+    uint16_t tx = view->offset[0] * SCREEN_XY_SCALE;
+    uint16_t ty = view->offset[1] * SCREEN_XY_SCALE;
+    uint16_t tz = view->offset[2] * SCREEN_Z_SCALE - 1;
 
     // debugf("Viewport: (%.2f,%.2f,%.2f) - (%.2f,%.2f,%.2f)\n",
     //     view->scale[0],view->scale[1],view->scale[2],
