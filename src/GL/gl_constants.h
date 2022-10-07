@@ -116,4 +116,8 @@
 
 #define GUARD_BAND_FACTOR 4
 
+#define ASSERT_INVALID_VTX_ID   0x2001
+
+#define RSP_PIPELINE   0
+
 #endif

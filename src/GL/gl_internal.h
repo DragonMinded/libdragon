@@ -45,8 +45,10 @@
 })
 
 extern uint32_t gl_overlay_id;
+extern uint32_t glp_overlay_id;
 
-#define gl_write(cmd_id, ...) rspq_write(gl_overlay_id, cmd_id, ##__VA_ARGS__)
+#define gl_write(cmd_id, ...)  rspq_write(gl_overlay_id, cmd_id, ##__VA_ARGS__)
+#define glp_write(cmd_id, ...) rspq_write(glp_overlay_id, cmd_id, ##__VA_ARGS__)
 
 enum {
     GL_CMD_SET_FLAG         = 0x0,
@@ -63,6 +65,13 @@ enum {
     GL_CMD_MATRIX_PUSH      = 0xB,
     GL_CMD_MATRIX_POP       = 0xC,
     GL_CMD_MATRIX_LOAD      = 0xD,
+};
+
+enum {
+    GLP_CMD_INIT_MTX       = 0x0,
+    GLP_CMD_INIT_VIEWPORT  = 0x1,
+    GLP_CMD_SET_PRIM_VTX   = 0x2,
+    GLP_CMD_DRAW_TRI       = 0x3,
 };
 
 typedef enum {
@@ -600,6 +609,45 @@ inline void gl_bind_texture(GLenum target, gl_texture_object_t *texture)
 inline void gl_update_texture_completeness(uint32_t offset)
 {
     gl_write(GL_CMD_UPDATE, _carg(GL_UPDATE_TEXTURE_COMPLETENESS, 0x7FF, 13) | offset);
+}
+
+#define PRIM_VTX_SIZE   38
+
+inline void glpipe_set_prim_vertex(int idx, GLfloat attribs[ATTRIB_COUNT][4], int id)
+{
+    #define TEX_SCALE   32.0f
+    #define OBJ_SCALE   32.0f
+    #define fx16(v)  ((uint32_t)((int32_t)((v))) & 0xFFFF)
+
+    uint32_t normal = (((uint32_t)(attribs[ATTRIB_NORMAL][0]*255.0f) & 0xFF) << 24) |
+                      (((uint32_t)(attribs[ATTRIB_NORMAL][1]*255.0f) & 0xFF) << 16) |
+                      (((uint32_t)(attribs[ATTRIB_NORMAL][2]*255.0f) & 0xFF) <<  8);
+    uint32_t rgba = (((uint32_t)(attribs[ATTRIB_COLOR][0]*255.0f) & 0xFF) << 24) | 
+                    (((uint32_t)(attribs[ATTRIB_COLOR][1]*255.0f) & 0xFF) << 16) | 
+                    (((uint32_t)(attribs[ATTRIB_COLOR][2]*255.0f) & 0xFF) <<  8) | 
+                    (((uint32_t)(attribs[ATTRIB_COLOR][3]*255.0f) & 0xFF) <<  0);
+
+    assertf(id != 0, "invalid vertex ID");
+    glp_write(
+        GLP_CMD_SET_PRIM_VTX, (idx*PRIM_VTX_SIZE) | (id<<8), 
+        (fx16(attribs[ATTRIB_VERTEX][0]*OBJ_SCALE) << 16) | fx16(attribs[ATTRIB_VERTEX][1]*OBJ_SCALE),
+        (fx16(attribs[ATTRIB_VERTEX][2]*OBJ_SCALE) << 16) | fx16(attribs[ATTRIB_VERTEX][3]*OBJ_SCALE),
+        rgba,
+        (fx16(attribs[ATTRIB_TEXCOORD][0]*TEX_SCALE) << 16) | fx16(attribs[ATTRIB_TEXCOORD][1]*TEX_SCALE),
+        normal
+    );
+}
+
+inline void glpipe_draw_triangle(bool has_tex, bool has_z, int i0, int i1, int i2)
+{
+    uint32_t cmd_id = RDPQ_CMD_TRI_SHADE;
+    if (has_tex) cmd_id |= 2;
+    if (has_z) cmd_id |= 1;
+
+    glp_write(GLP_CMD_DRAW_TRI,
+        0xC000 | (cmd_id << 8),
+        ((i0*PRIM_VTX_SIZE)<<16) | ((i1*PRIM_VTX_SIZE)<<8) | (i2*PRIM_VTX_SIZE)
+    );
 }
 
 #endif
