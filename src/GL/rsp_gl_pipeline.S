@@ -277,6 +277,10 @@ GLCmd_SetPrimVertex:
     vmadh vcspos_i  vmtx3_i, vpos.w
     vmadn vcspos_f, vzero, vzero
 
+    # 32-bit right shift by 5, to keep the clip space coordinates unscaled
+    vmudm vcspos_i, vcspos_i, vshift8.e4
+    vmadl vcspos_f, vcspos_f, vshift8.e4
+
     sdv vcspos_i, PRIM_VTX_CS_POSi,prim_vtx
     sdv vcspos_f, PRIM_VTX_CS_POSf,prim_vtx
 
@@ -385,8 +389,9 @@ GL_TnL:
 
     # Calculate 32-bit inverse W
     # TODO: NR?
-    vrcp  vinvw_f.w, vcspos_i.w
     vrcph vinvw_i.w, vcspos_i.w
+    vrcpl vinvw_f.w, vcspos_f.w
+    vrcph vinvw_i.w, vzero.e0
 
     # Calculate screenspace coords
     li s0, %lo(VIEWPORT_SCALE)
@@ -400,7 +405,6 @@ GL_TnL:
 
     vmudn vscreenpos_f, vscreenpos_f, vviewscale
     vmadh vscreenpos_i, vscreenpos_i, vviewscale
-    vsar vscreenpos_i, COP2_ACC_HI
     vadd vscreenpos_i, vviewoff
 
     sdv vscreenpos_i, SCREEN_VTX_X        ,screen_vtx
