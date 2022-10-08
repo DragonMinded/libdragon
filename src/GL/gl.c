@@ -16,6 +16,7 @@ DEFINE_RSP_UCODE(rsp_gl_pipeline);
 
 uint32_t gl_overlay_id;
 uint32_t glp_overlay_id;
+uint32_t gl_rsp_state;
 
 gl_state_t state;
 
@@ -158,6 +159,7 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
 
     gl_overlay_id = rspq_overlay_register(&rsp_gl);
     glp_overlay_id = rspq_overlay_register(&rsp_gl_pipeline);
+    gl_rsp_state = PhysicalAddr(rspq_overlay_get_state(&rsp_gl));
 
     rdpq_mode_begin();
     rdpq_set_mode_standard();

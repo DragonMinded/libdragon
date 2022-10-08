@@ -46,6 +46,7 @@
 
 extern uint32_t gl_overlay_id;
 extern uint32_t glp_overlay_id;
+extern uint32_t gl_rsp_state;
 
 #define gl_write(cmd_id, ...)  rspq_write(gl_overlay_id, cmd_id, ##__VA_ARGS__)
 #define glp_write(cmd_id, ...) rspq_write(glp_overlay_id, cmd_id, ##__VA_ARGS__)
@@ -69,7 +70,7 @@ enum {
 
 enum {
     GLP_CMD_INIT_MTX       = 0x0,
-    GLP_CMD_INIT_VIEWPORT  = 0x1,
+    GLP_CMD_INIT_PIPE      = 0x1,
     GLP_CMD_SET_PRIM_VTX   = 0x2,
     GLP_CMD_DRAW_TRI       = 0x3,
 };

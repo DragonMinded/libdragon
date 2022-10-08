@@ -8,7 +8,7 @@
 
     RSPQ_BeginOverlayHeader
         RSPQ_DefineCommand GLCmd_InitMtx,             68
-        RSPQ_DefineCommand GLCmd_InitViewport,        20
+        RSPQ_DefineCommand GLCmd_InitPipe,            4
         RSPQ_DefineCommand GLCmd_SetPrimVertex,       24
         RSPQ_DefineCommand GLCmd_DrawTriangle,        8
     RSPQ_EndOverlayHeader
@@ -18,13 +18,12 @@ BANNER0: .ascii " RSP OpenGL T&L "
 BANNER1: .ascii "Rasky & Snacchus"
 
     RSPQ_BeginSavedState
+GL_STATE:
+    #include "rsp_gl_state.inc"
 
     .align 3
 FINAL_MATRIX:    .dcb.w 4*4    # integer part
                  .dcb.w 4*4    # fractional part
-
-VIEWPORT_SCALE:  .half 0,0,0,0
-VIEWPORT_OFFSET: .half 0,0,0,0
 
 #define PRIM_VTX_X                 0     // Object space position (16-bit)
 #define PRIM_VTX_Y                 2     // Object space position (16-bit)
@@ -88,26 +87,25 @@ GLCmd_InitMtx:
     bnez t0, 1b
     addi t0, -1
 
-    # Clear screen cache
+    jr ra
+    nop
+    .endfunc
+
+    .func GLCmd_InitPipe
+GLCmd_InitPipe:
+    move s0, a0
+    li s4, %lo(GL_STATE)
+    jal DMAInAsync
+    li t0, DMA_SIZE(GL_STATE_SIZE, 1)
+
+    # Clear screen vertex cache
     li s0, %lo(SCREEN_VERTEX_CACHE_IDS)
     sqv vzero, 0x00,s0
     sqv vzero, 0x10,s0
     sqv vzero, 0x20,s0
     sqv vzero, 0x30,s0
 
-    jr ra
-    nop
-    .endfunc
-
-    .func GLCmd_InitViewport
-GLCmd_InitViewport:
-    lw a0, CMD_ADDR(16, 20)
-    li s4, %lo(VIEWPORT_SCALE)
-    sw a1, 0(s4)
-    sw a2, 4(s4)
-    sw a3, 8(s4)
-    sw a0, 12(s4)
-    jr ra
+    j RSPQ_Loop
     nop
     .endfunc
 
@@ -364,17 +362,20 @@ GL_TnL:
     #define vviewoff     $v10
     #define vscreenpos_i $v11
     #define vscreenpos_f $v12
+    #define vtexsize     $v13
+    #define s            e2
+    #define t            e3
     #define z            e2
     #define w            e3
     #define KGUARD       __PPCAT(K, GUARD_BAND_FACTOR)
 
     ldv vcspos_f, PRIM_VTX_CS_POSf,prim_vtx
     ldv vcspos_i, PRIM_VTX_CS_POSi,prim_vtx
-    luv vrgbast, PRIM_VTX_RGBA,prim_vtx       # RGBA + S + T
+    ldv vrgbast, PRIM_VTX_RGBA,prim_vtx       # RG + BA + S + T
 
     sdv vcspos_f, SCREEN_VTX_CS_POSf,screen_vtx
     sdv vcspos_i, SCREEN_VTX_CS_POSi,screen_vtx
-    suv vrgbast, SCREEN_VTX_RGBA,screen_vtx
+    slv vrgbast, SCREEN_VTX_RGBA,screen_vtx
 
     vmudn vguard_f, vcspos_f, KGUARD
     vmadh vguard_i, vcspos_i, KGUARD
@@ -394,7 +395,7 @@ GL_TnL:
     vrcph vinvw_i.w, vzero.e0
 
     # Calculate screenspace coords
-    li s0, %lo(VIEWPORT_SCALE)
+    li s0, %lo(GL_VIEWPORT_SCALE)
     ldv vviewscale, 0,s0
     ldv vviewoff,   8,s0
 
@@ -407,6 +408,11 @@ GL_TnL:
     vmadh vscreenpos_i, vscreenpos_i, vviewscale
     vadd vscreenpos_i, vviewoff
 
+    # Scale texcoord by texsize
+    li s0, %lo(GL_BOUND_TEXTURE_2D) + TEXTURE_IMAGE_SIZE*0 + IMAGE_WIDTH_OFFSET
+    llv vtexsize.s, 0,s0
+    vmudh vrgbast, vtexsize
+    
     sdv vscreenpos_i, SCREEN_VTX_X        ,screen_vtx
     ssv vcspos_i.w,   SCREEN_VTX_W+0      ,screen_vtx 
     ssv vcspos_f.w,   SCREEN_VTX_W+2      ,screen_vtx 
@@ -414,6 +420,7 @@ GL_TnL:
     ssv vinvw_f.w,    SCREEN_VTX_INVW+2   ,screen_vtx
     sdv vcspos_i,     SCREEN_VTX_CS_POSi  ,screen_vtx 
     sdv vcspos_f,     SCREEN_VTX_CS_POSf  ,screen_vtx 
+    slv vrgbast.s     SCREEN_VTX_S        ,screen_vtx
     sb t0,            SCREEN_VTX_CLIP_CODE(screen_vtx)
 
     jr ra
