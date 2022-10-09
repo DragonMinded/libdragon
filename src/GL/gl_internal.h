@@ -388,6 +388,7 @@ typedef struct {
     uint8_t (*prim_func)(void);
     bool prim_lock_next;
     uint8_t prim_locked;
+    uint16_t prim_id;
 
     uint16_t prim_tex_width;
     uint16_t prim_tex_height;

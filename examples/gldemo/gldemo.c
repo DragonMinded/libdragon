@@ -6,6 +6,7 @@
 
 #include "cube.h"
 #include "sphere.h"
+#include "prim_test.h"
 
 static uint32_t animation = 3283;
 static uint32_t texture_index = 0;
@@ -55,19 +56,17 @@ void setup()
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glFrustum(-1*aspect_ratio, 1*aspect_ratio, -1, 1, 1, 20);
+    glFrustum(-1*aspect_ratio, 1*aspect_ratio, -1, 1, 1, 30);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
     glEnable(GL_LIGHT0);
-    GLfloat light_pos[] = { 0, 0, -3, 1 };
-    glLightfv(GL_LIGHT0, GL_POSITION, light_pos);
 
-    GLfloat light_diffuse[] = { 0.8f, 0.8f, 0.8f, 1.f };
+    GLfloat light_diffuse[] = { 0.9f, 0.9f, 0.9f, 1.f };
     glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
     glLightf(GL_LIGHT0, GL_CONSTANT_ATTENUATION, 0.0f);
-    glLightf(GL_LIGHT0, GL_QUADRATIC_ATTENUATION, 1.0f/10.0f);
+    glLightf(GL_LIGHT0, GL_QUADRATIC_ATTENUATION, 1.0f/100.0f);
 
     GLfloat mat_diffuse[] = { 0.3f, 0.5f, 0.9f, 1.0f };
     glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
@@ -103,6 +102,10 @@ void render()
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
+    glTranslatef(0, 0, -10);
+
+    GLfloat light_pos[] = { 0, 0, -10, 1 };
+    glLightfv(GL_LIGHT0, GL_POSITION, light_pos);
 
     glPushMatrix();
 
@@ -113,6 +116,7 @@ void render()
     glEnable(GL_LIGHTING);
     glEnable(GL_TEXTURE_2D);
     glCullFace(GL_FRONT);
+    glEnable(GL_CULL_FACE);
 
     glBindTexture(GL_TEXTURE_2D, textures[texture_index]);
 
@@ -122,7 +126,7 @@ void render()
 
     glPushMatrix();
 
-    glTranslatef(0, sinf(rotation*0.02f), -3.5f + cosf(rotation*0.01f)*1);
+    glTranslatef(0, sinf(rotation*0.02f) * 0.5f, cosf(rotation*0.01f) * 0.5f);
     glRotatef(rotation*0.46f, 0, 1, 0);
     glRotatef(rotation*1.35f, 1, 0, 0);
     glRotatef(rotation*1.81f, 0, 0, 1);
@@ -130,8 +134,10 @@ void render()
     glDisable(GL_LIGHTING);
     glDisable(GL_TEXTURE_2D);
     glCullFace(GL_BACK);
+    glDisable(GL_CULL_FACE);
 
-    draw_cube();
+    //draw_cube();
+    prim_test();
 
     glPopMatrix();
 }
@@ -143,9 +149,12 @@ int main()
     
     dfs_init(DFS_DEFAULT_LOCATION);
 
-    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE_FETCH_ALWAYS);
+    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE_FETCH_ALWAYS);
 
     gl_init();
+
+    //rdpq_debug_start();
+    //rdpq_debug_log(true);
 
     setup();
 
