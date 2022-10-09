@@ -1310,7 +1310,13 @@ void glColor4f(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
     state.current_attribs[ATTRIB_COLOR][2] = b;
     state.current_attribs[ATTRIB_COLOR][3] = a;
 
-    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, color), PACKED_RGBA32_FROM_FLOAT(r, g, b, a));
+    int16_t r_fx = FLOAT_TO_I16(r);
+    int16_t g_fx = FLOAT_TO_I16(g);
+    int16_t b_fx = FLOAT_TO_I16(b);
+    int16_t a_fx = FLOAT_TO_I16(a);
+
+    uint64_t packed = ((uint64_t)r_fx << 48) | ((uint64_t)g_fx << 32) | ((uint64_t)b_fx << 16) | (uint64_t)a_fx;
+    gl_set_long(GL_UPDATE_NONE, offsetof(gl_server_state_t, color), packed);
 }
 
 void glColor4d(GLdouble r, GLdouble g, GLdouble b, GLdouble a)  { glColor4f(r, g, b, a); }
@@ -1409,12 +1415,12 @@ void glNormal3f(GLfloat nx, GLfloat ny, GLfloat nz)
     state.current_attribs[ATTRIB_NORMAL][1] = ny;
     state.current_attribs[ATTRIB_NORMAL][2] = nz;
 
-    int8_t fixed_nx = nx * 0x7F;
-    int8_t fixed_ny = ny * 0x7F;
-    int8_t fixed_nz = nz * 0x7F;
+    int16_t fixed_nx = nx * 0x7FFF;
+    int16_t fixed_ny = ny * 0x7FFF;
+    int16_t fixed_nz = nz * 0x7FFF;
 
-    uint32_t packed = ((uint32_t)fixed_nx << 24) | ((uint32_t)fixed_ny << 16) | ((uint32_t)fixed_nz << 8);
-    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, normal), packed);
+    uint64_t packed = ((uint64_t)fixed_nx << 48) | ((uint64_t)fixed_ny << 32) | ((uint64_t)fixed_nz << 16);
+    gl_set_long(GL_UPDATE_NONE, offsetof(gl_server_state_t, normal), packed);
 }
 
 void glNormal3b(GLbyte nx, GLbyte ny, GLbyte nz)        { glNormal3f(I8_TO_FLOAT(nx), I8_TO_FLOAT(ny), I8_TO_FLOAT(nz)); }

@@ -244,7 +244,7 @@ GLCmd_SetLightDir:
 
     addi s0, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER) - 4
     li s1, %lo(GL_MATRIX_MODELVIEW)
-    lpv vpos,     0x00,s0
+    ldv vpos,     0x00,s0
     ldv vmtx0_i,  0x00,s1
     ldv vmtx1_i,  0x08,s1
     ldv vmtx2_i,  0x10,s1
@@ -262,10 +262,9 @@ GLCmd_SetLightDir:
     vmadh vpos, vmtx2_i, vpos.e2
 
     addi s0, a0, %lo(GL_STATE) + LIGHT_DIRECTION_OFFSET
-    sbv vpos.e0,  0,s0
-    sbv vpos.e1,  1,s0
+    slv vpos.e0,  0,s0
     jr ra
-    sbv vpos.e2,  2,s0
+    ssv vpos.e2,  4,s0
 
     #undef v___
 

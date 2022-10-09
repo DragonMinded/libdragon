@@ -247,13 +247,13 @@ bool gl_validate_material_face(GLenum face)
 
 void gl_set_color(GLfloat *dst, uint32_t offset, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
-    int8_t r_fx = FLOAT_TO_I8(r);
-    int8_t g_fx = FLOAT_TO_I8(g);
-    int8_t b_fx = FLOAT_TO_I8(b);
-    int8_t a_fx = FLOAT_TO_I8(a);
+    int16_t r_fx = FLOAT_TO_I16(r);
+    int16_t g_fx = FLOAT_TO_I16(g);
+    int16_t b_fx = FLOAT_TO_I16(b);
+    int16_t a_fx = FLOAT_TO_I16(a);
 
-    uint32_t packed = ((uint32_t)r_fx << 24) | ((uint32_t)g_fx << 16) | ((uint32_t)b_fx << 8) | (uint32_t)r_fx;
-    gl_set_word(GL_UPDATE_NONE, offset, packed);
+    uint64_t packed = ((uint64_t)r_fx << 48) | ((uint64_t)g_fx << 32) | ((uint64_t)b_fx << 16) | (uint64_t)a_fx;
+    gl_set_long(GL_UPDATE_NONE, offset, packed);
 
     dst[0] = r;
     dst[1] = g;
@@ -479,13 +479,14 @@ void gl_light_set_direction(gl_light_t *light, uint32_t offset, const GLfloat *d
 {
     gl_matrix_mult3x3(light->direction, gl_matrix_stack_get_matrix(&state.modelview_stack), dir);
 
-    int8_t x = dir[0] * 0x7F;
-    int8_t y = dir[1] * 0x7F;
-    int8_t z = dir[2] * 0x7F;
+    int16_t x = dir[0] * 0x7FFF;
+    int16_t y = dir[1] * 0x7FFF;
+    int16_t z = dir[2] * 0x7FFF;
 
-    uint32_t packed = ((uint32_t)x) << 24 | ((uint32_t)y) << 16 | ((uint32_t)z) << 8;
+    uint32_t packed0 = ((uint64_t)x) << 16 | (uint64_t)y;
+    uint32_t packed1 = ((uint64_t)z) << 16;
 
-    gl_write(GL_CMD_SET_LIGHT_DIR, offset, packed);
+    gl_write(GL_CMD_SET_LIGHT_DIR, offset, packed0, packed1);
 }
 
 void gl_light_set_spot_exponent(gl_light_t *light, uint32_t offset, float param)

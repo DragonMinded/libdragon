@@ -9,7 +9,7 @@
     RSPQ_BeginOverlayHeader
         RSPQ_DefineCommand GLCmd_InitMtx,             68
         RSPQ_DefineCommand GLCmd_InitPipe,            4
-        RSPQ_DefineCommand GLCmd_SetPrimVertex,       24
+        RSPQ_DefineCommand GLCmd_SetPrimVertex,       28
         RSPQ_DefineCommand GLCmd_DrawTriangle,        8
     RSPQ_EndOverlayHeader
 
@@ -18,7 +18,6 @@ BANNER0: .ascii " RSP OpenGL T&L "
 BANNER1: .ascii "Rasky & Snacchus"
 
     RSPQ_BeginSavedState
-GL_STATE:
     #include "rsp_gl_state.inc"
 
     .align 3
@@ -31,13 +30,16 @@ FINAL_MATRIX:    .dcb.w 4*4    # integer part
 #define PRIM_VTX_W                 6     // Object space position (16-bit)
 #define PRIM_VTX_CS_POSi           8     // X, Y, Z, W (all 32-bit)
 #define PRIM_VTX_CS_POSf           16    // X, Y, Z, W (all 32-bit)
-#define PRIM_VTX_RGBA              24
-#define PRIM_VTX_S                 28
-#define PRIM_VTX_T                 30
-#define PRIM_VTX_NORMAL            32    // Normal X,Y,Z (8 bit)
-#define PRIM_VTX_TRCODE            35    // trivial-reject clipping flags (against -w/+w)
-#define PRIM_VTX_ID                36    // 16-bit unique ID for this vertex
-#define PRIM_VTX_SIZE              38
+#define PRIM_VTX_R                 24
+#define PRIM_VTX_G                 26
+#define PRIM_VTX_B                 28
+#define PRIM_VTX_A                 30
+#define PRIM_VTX_S                 32
+#define PRIM_VTX_T                 34
+#define PRIM_VTX_NORMAL            36    // Normal X,Y,Z (8 bit)
+#define PRIM_VTX_TRCODE            39    // trivial-reject clipping flags (against -w/+w)
+#define PRIM_VTX_ID                40    // 16-bit unique ID for this vertex
+#define PRIM_VTX_SIZE              42
 
     .align 3
 PRIM_VERTEX_CACHE:   .dcb.b      PRIM_VTX_SIZE * 4
@@ -216,7 +218,7 @@ GLCmd_SetPrimVertex:
     #define prim_vtx   a0
     #define in_xy      a1
     #define in_zw      a2
-    #define in_rgba    a3
+    #define in_rg      a3
     #define vtx_id     v0
 
     #define v___      $v01
@@ -238,14 +240,16 @@ GLCmd_SetPrimVertex:
     andi prim_vtx, 0xFF
     addi prim_vtx, %lo(PRIM_VERTEX_CACHE)
 
-    lw t0, CMD_ADDR(16, 24)  # S,T
-    lw t1, CMD_ADDR(20, 24)  # N
+    lw t0, CMD_ADDR(16, 28)  # B,A
+    lw t1, CMD_ADDR(20, 28)  # S,T
+    lw t2, CMD_ADDR(24, 28)  # N
 
     sw in_xy,    PRIM_VTX_X     (prim_vtx)
     sw in_zw,    PRIM_VTX_Z     (prim_vtx)
-    sw in_rgba,  PRIM_VTX_RGBA  (prim_vtx)
-    sw t0,       PRIM_VTX_S     (prim_vtx)
-    sw t1,       PRIM_VTX_NORMAL(prim_vtx)
+    sw in_rg,    PRIM_VTX_R     (prim_vtx)
+    sw t0,       PRIM_VTX_B     (prim_vtx)
+    sw t1,       PRIM_VTX_S     (prim_vtx)
+    sw t2,       PRIM_VTX_NORMAL(prim_vtx)
     sh vtx_id,   PRIM_VTX_ID    (prim_vtx)
 
     ldv vpos.e0, PRIM_VTX_X     ,prim_vtx
@@ -353,29 +357,31 @@ GL_TnL:
     #define v___         $v01
     #define vcspos_f     $v02
     #define vcspos_i     $v03
-    #define vrgbast      $v04
-    #define vguard_f     $v05
-    #define vguard_i     $v06
-    #define vinvw_f      $v07
-    #define vinvw_i      $v08
-    #define vviewscale   $v09
-    #define vviewoff     $v10
-    #define vscreenpos_i $v11
-    #define vscreenpos_f $v12
-    #define vtexsize     $v13
-    #define s            e2
-    #define t            e3
+    #define vrgba        $v04
+    #define vst          $v05
+    #define vguard_f     $v06
+    #define vguard_i     $v07
+    #define vinvw_f      $v08
+    #define vinvw_i      $v09
+    #define vviewscale   $v10
+    #define vviewoff     $v11
+    #define vscreenpos_i $v12
+    #define vscreenpos_f $v13
+    #define vtexsize     $v14
+    #define s            e0
+    #define t            e1
     #define z            e2
     #define w            e3
     #define KGUARD       __PPCAT(K, GUARD_BAND_FACTOR)
 
     ldv vcspos_f, PRIM_VTX_CS_POSf,prim_vtx
     ldv vcspos_i, PRIM_VTX_CS_POSi,prim_vtx
-    ldv vrgbast, PRIM_VTX_RGBA,prim_vtx       # RG + BA + S + T
+    ldv vrgba,    PRIM_VTX_R,prim_vtx         # R + G + B + A
+    llv vst,      PRIM_VTX_S,prim_vtx         # S + T
 
     sdv vcspos_f, SCREEN_VTX_CS_POSf,screen_vtx
     sdv vcspos_i, SCREEN_VTX_CS_POSi,screen_vtx
-    slv vrgbast, SCREEN_VTX_RGBA,screen_vtx
+    suv vrgba,    SCREEN_VTX_RGBA,screen_vtx
 
     vmudn vguard_f, vcspos_f, KGUARD
     vmadh vguard_i, vcspos_i, KGUARD
@@ -411,7 +417,7 @@ GL_TnL:
     # Scale texcoord by texsize
     li s0, %lo(GL_BOUND_TEXTURE_2D) + TEXTURE_IMAGE_SIZE*0 + IMAGE_WIDTH_OFFSET
     llv vtexsize.s, 0,s0
-    vmudh vrgbast, vtexsize
+    vmudh vst, vtexsize
     
     sdv vscreenpos_i, SCREEN_VTX_X        ,screen_vtx
     ssv vcspos_i.w,   SCREEN_VTX_W+0      ,screen_vtx 
@@ -420,7 +426,7 @@ GL_TnL:
     ssv vinvw_f.w,    SCREEN_VTX_INVW+2   ,screen_vtx
     sdv vcspos_i,     SCREEN_VTX_CS_POSi  ,screen_vtx 
     sdv vcspos_f,     SCREEN_VTX_CS_POSf  ,screen_vtx 
-    slv vrgbast.s     SCREEN_VTX_S        ,screen_vtx
+    slv vst.s         SCREEN_VTX_S        ,screen_vtx
     sb t0,            SCREEN_VTX_CLIP_CODE(screen_vtx)
 
     jr ra

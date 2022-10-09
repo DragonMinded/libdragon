@@ -15,18 +15,18 @@
 #define TEX_GEN_SIZE          32
 
 #define LIGHT_COUNT           8
-#define LIGHT_SIZE            32
+#define LIGHT_SIZE            48
 
 #define LIGHT_POSITION_OFFSET               0
 #define LIGHT_AMBIENT_OFFSET                8
-#define LIGHT_DIFFUSE_OFFSET                12
-#define LIGHT_SPECULAR_OFFSET               16
-#define LIGHT_DIRECTION_OFFSET              20
-#define LIGHT_SPOT_EXPONENT_OFFSET          23
-#define LIGHT_SPOT_CUTOFF_COS_OFFSET        24
-#define LIGHT_CONSTANT_ATTENUATION_OFFSET   26
-#define LIGHT_LINEAR_ATTENUATION_OFFSET     28
-#define LIGHT_QUADRATIC_ATTENUATION_OFFSET  30
+#define LIGHT_DIFFUSE_OFFSET                16
+#define LIGHT_SPECULAR_OFFSET               24
+#define LIGHT_DIRECTION_OFFSET              32
+#define LIGHT_SPOT_EXPONENT_OFFSET          38
+#define LIGHT_SPOT_CUTOFF_COS_OFFSET        40
+#define LIGHT_CONSTANT_ATTENUATION_OFFSET   42
+#define LIGHT_LINEAR_ATTENUATION_OFFSET     44
+#define LIGHT_QUADRATIC_ATTENUATION_OFFSET  46
 
 #define MAX_TEXTURE_SIZE      64
 #define MAX_TEXTURE_LEVELS    7

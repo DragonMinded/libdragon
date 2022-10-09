@@ -27,6 +27,7 @@
 
 #define FLOAT_TO_U8(x)  (CLAMP((x), 0.f, 1.f)*0xFF)
 #define FLOAT_TO_I8(x)  (CLAMP((x), -1.f, 1.f)*0x7F)
+#define FLOAT_TO_I16(x)  (CLAMP((x), -1.f, 1.f)*0x7FFF)
 
 #define U8_TO_FLOAT(x) ((x)/(float)(0xFF))
 #define U16_TO_FLOAT(x) ((x)/(float)(0xFFFF))
@@ -236,11 +237,11 @@ typedef struct {
 
 typedef struct {
     int16_t position[4];
-    uint32_t ambient;
-    uint32_t diffuse;
-    uint32_t specular;
-    int8_t direction[3];
-    uint8_t spot_exponent;
+    int16_t ambient[4];
+    int16_t diffuse[4];
+    int16_t specular[4];
+    int16_t direction[3];
+    uint16_t spot_exponent;
     int16_t spot_cutoff_cos;
     uint16_t constant_attenuation;
     uint16_t linear_attenuation;
@@ -457,23 +458,23 @@ typedef struct {
 typedef struct {
     gl_texture_object_t bound_textures[2];
     gl_matrix_srv_t matrices[3];
-    gl_light_srv_t lights[LIGHT_COUNT];
     gl_tex_gen_srv_t tex_gen[4];
     int16_t viewport_scale[4];
     int16_t viewport_offset[4];
+    gl_light_srv_t lights[LIGHT_COUNT];
     uint16_t tex_gen_mode[4];
     int16_t tex_coords[4];
-    int8_t normal[4];
-    uint32_t color;
-    uint32_t matrix_pointers[3];
-    uint32_t mat_ambient;
-    uint32_t mat_diffuse;
-    uint32_t mat_specular;
-    uint32_t mat_emissive;
+    int16_t normal[4];
+    int16_t color[4];
+    int16_t light_ambient[4];
+    int16_t mat_ambient[4];
+    int16_t mat_diffuse[4];
+    int16_t mat_specular[4];
+    int16_t mat_emissive[4];
     uint16_t mat_shininess;
     uint16_t mat_color_target;
+    uint32_t matrix_pointers[3];
     uint32_t flags;
-    uint32_t light_ambient;
     int32_t fog_start;
     int32_t fog_end;
     uint16_t polygon_mode;
@@ -484,6 +485,7 @@ typedef struct {
     uint16_t point_size;
     uint16_t line_width;
     uint16_t matrix_mode;
+    uint32_t padding;
 
     uint16_t scissor_rect[4];
     uint32_t blend_cycle;
@@ -613,7 +615,7 @@ inline void gl_update_texture_completeness(uint32_t offset)
     gl_write(GL_CMD_UPDATE, _carg(GL_UPDATE_TEXTURE_COMPLETENESS, 0x7FF, 13) | offset);
 }
 
-#define PRIM_VTX_SIZE   38
+#define PRIM_VTX_SIZE   42
 
 inline void glpipe_set_prim_vertex(int idx, GLfloat attribs[ATTRIB_COUNT][4], int id)
 {
@@ -624,17 +626,14 @@ inline void glpipe_set_prim_vertex(int idx, GLfloat attribs[ATTRIB_COUNT][4], in
     uint32_t normal = (((uint32_t)(attribs[ATTRIB_NORMAL][0]*255.0f) & 0xFF) << 24) |
                       (((uint32_t)(attribs[ATTRIB_NORMAL][1]*255.0f) & 0xFF) << 16) |
                       (((uint32_t)(attribs[ATTRIB_NORMAL][2]*255.0f) & 0xFF) <<  8);
-    uint32_t rgba = (((uint32_t)(attribs[ATTRIB_COLOR][0]*255.0f) & 0xFF) << 24) | 
-                    (((uint32_t)(attribs[ATTRIB_COLOR][1]*255.0f) & 0xFF) << 16) | 
-                    (((uint32_t)(attribs[ATTRIB_COLOR][2]*255.0f) & 0xFF) <<  8) | 
-                    (((uint32_t)(attribs[ATTRIB_COLOR][3]*255.0f) & 0xFF) <<  0);
 
     assertf(id != 0, "invalid vertex ID");
     glp_write(
         GLP_CMD_SET_PRIM_VTX, (idx*PRIM_VTX_SIZE) | (id<<8), 
         (fx16(attribs[ATTRIB_VERTEX][0]*OBJ_SCALE) << 16) | fx16(attribs[ATTRIB_VERTEX][1]*OBJ_SCALE),
         (fx16(attribs[ATTRIB_VERTEX][2]*OBJ_SCALE) << 16) | fx16(attribs[ATTRIB_VERTEX][3]*OBJ_SCALE),
-        rgba,
+        (fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][0])) << 16) | fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][1])),
+        (fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][2])) << 16) | fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][3])),
         (fx16(attribs[ATTRIB_TEXCOORD][0]*TEX_SCALE) << 16) | fx16(attribs[ATTRIB_TEXCOORD][1]*TEX_SCALE),
         normal
     );

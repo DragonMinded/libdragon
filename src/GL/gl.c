@@ -110,7 +110,10 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
     server_state->texture_ids[0] = PhysicalAddr(&state.default_textures[0]);
     server_state->texture_ids[1] = PhysicalAddr(&state.default_textures[1]);
 
-    server_state->color = 0xFFFFFFFF;
+    server_state->color[0] = 0xFFFF;
+    server_state->color[1] = 0xFFFF;
+    server_state->color[2] = 0xFFFF;
+    server_state->color[3] = 0xFFFF;
     server_state->tex_coords[3] = 1 << 5;
     server_state->normal[2] = 0x7F;
 
@@ -139,23 +142,33 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
 
     server_state->flags |= FLAG_MTX_MV_DIRTY | FLAG_MTX_PROJ_DIRTY | FLAG_MTX_TEX_DIRTY;
 
-    server_state->mat_ambient = 0x333333FF;
-    server_state->mat_diffuse = 0xCCCCCCFF;
-    server_state->mat_specular = 0x000000FF;
-    server_state->mat_emissive = 0x000000FF;
+    server_state->mat_ambient[0] = 0x3333;
+    server_state->mat_ambient[1] = 0x3333;
+    server_state->mat_ambient[2] = 0x3333;
+    server_state->mat_ambient[3] = 0xFFFF;
+    server_state->mat_diffuse[0] = 0xCCCC;
+    server_state->mat_diffuse[1] = 0xCCCC;
+    server_state->mat_diffuse[2] = 0xCCCC;
+    server_state->mat_diffuse[3] = 0xFFFF;
+    server_state->mat_specular[3] = 0xFFFF;
+    server_state->mat_emissive[3] = 0xFFFF;
     server_state->mat_color_target = GL_AMBIENT_AND_DIFFUSE;
 
     for (uint32_t i = 0; i < LIGHT_COUNT; i++)
     {
-        server_state->lights[i].ambient = 0x000000FF;
-        server_state->lights[i].diffuse = 0x000000FF;
-        server_state->lights[i].specular = 0x000000FF;
-        server_state->lights[i].direction[2] = 0x80;
+        server_state->lights[i].position[2] = -1 * 32;
+        server_state->lights[i].ambient[3] = 0xFFFF;
+        server_state->lights[i].diffuse[3] = 0xFFFF;
+        server_state->lights[i].specular[3] = 0xFFFF;
+        server_state->lights[i].direction[2] = 0x8000;
         server_state->lights[i].spot_cutoff_cos = 0x8000;
         server_state->lights[i].constant_attenuation = 1 << 5;
     }
     
-    server_state->light_ambient = 0x333333FF;
+    server_state->light_ambient[0] = 0x3333;
+    server_state->light_ambient[1] = 0x3333;
+    server_state->light_ambient[2] = 0x3333;
+    server_state->light_ambient[3] = 0xFFFF;
 
     gl_overlay_id = rspq_overlay_register(&rsp_gl);
     glp_overlay_id = rspq_overlay_register(&rsp_gl_pipeline);
