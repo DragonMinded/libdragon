@@ -2,6 +2,7 @@
 #include "debug.h"
 #include "surface.h"
 #include "sprite_internal.h"
+#include "n64sys.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -57,6 +58,8 @@ sprite_t *sprite_load(const char *fn)
     fseek(f, 0, SEEK_SET);
     fread(s, 1, sz, f);
     fclose(f);
+
+    data_cache_hit_writeback(s, sz);
 
     __sprite_upgrade(s);
 
