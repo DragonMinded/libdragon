@@ -247,7 +247,14 @@ bool gl_validate_material_face(GLenum face)
 
 void gl_set_color(GLfloat *dst, uint32_t offset, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
-    gl_set_word(GL_UPDATE_NONE, offset, PACKED_RGBA32_FROM_FLOAT(r, g, b, a));
+    int8_t r_fx = FLOAT_TO_I8(r);
+    int8_t g_fx = FLOAT_TO_I8(g);
+    int8_t b_fx = FLOAT_TO_I8(b);
+    int8_t a_fx = FLOAT_TO_I8(a);
+
+    uint32_t packed = ((uint32_t)r_fx << 24) | ((uint32_t)g_fx << 16) | ((uint32_t)b_fx << 8) | (uint32_t)r_fx;
+    gl_set_word(GL_UPDATE_NONE, offset, packed);
+
     dst[0] = r;
     dst[1] = g;
     dst[2] = b;

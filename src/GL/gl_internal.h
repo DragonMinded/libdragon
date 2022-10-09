@@ -26,6 +26,7 @@
 #define CLAMPF_TO_I32(x) ((x)*0x7FFFFFFF)
 
 #define FLOAT_TO_U8(x)  (CLAMP((x), 0.f, 1.f)*0xFF)
+#define FLOAT_TO_I8(x)  (CLAMP((x), -1.f, 1.f)*0x7F)
 
 #define U8_TO_FLOAT(x) ((x)/(float)(0xFF))
 #define U16_TO_FLOAT(x) ((x)/(float)(0xFFFF))
