@@ -99,25 +99,7 @@ void glpipe_init(gl_matrix_t *mtx, gl_viewport_t *view)
         rspq_write_arg(&w, (fmtx[i] << 16) | fmtx[i+1]);
     rspq_write_end(&w);
 
-    // Screen coordinates are s13.2
-    #define SCREEN_XY_SCALE   4.0f
-    #define SCREEN_Z_SCALE    32768.0f
-
-    // * 2.0f to compensate for RSP reciprocal missing 1 bit
-    uint16_t sx = view->scale[0] * 2.0f * SCREEN_XY_SCALE;
-    uint16_t sy = view->scale[1] * 2.0f * SCREEN_XY_SCALE;
-    uint16_t sz = view->scale[2] * 2.0f * SCREEN_Z_SCALE - 1;
-
-    uint16_t tx = view->offset[0] * SCREEN_XY_SCALE;
-    uint16_t ty = view->offset[1] * SCREEN_XY_SCALE;
-    uint16_t tz = view->offset[2] * SCREEN_Z_SCALE - 1;
-
-    // debugf("Viewport: (%.2f,%.2f,%.2f) - (%.2f,%.2f,%.2f)\n",
-    //     view->scale[0],view->scale[1],view->scale[2],
-    //     view->offset[0],view->offset[1],view->offset[2]);
-    glp_write(GLP_CMD_INIT_VIEWPORT, 0,
-        (sx << 16) | sy, sz << 16,
-        (tx << 16) | ty, tz << 16);
+    glp_write(GLP_CMD_INIT_PIPE, gl_rsp_state);
 }
 
 bool gl_begin(GLenum mode)
@@ -504,12 +486,8 @@ gl_screen_vtx_t * gl_get_screen_vtx(uint8_t prim_index)
 void gl_draw_primitive()
 {
 #if RSP_PIPELINE
-    // rdpq_debug_log(true);
     glpipe_draw_triangle(state.prim_texture, state.depth_test, 
         state.prim_indices[0], state.prim_indices[1], state.prim_indices[2]);
-    // rspq_wait();
-    // assert(0);
-    // return;
     return;
 #endif
 
@@ -538,6 +516,14 @@ void gl_draw_primitive()
             v->screen_pos[0], v->screen_pos[1],
             (uint32_t)(int32_t)(v->screen_pos[0] * 4),
             (uint32_t)(int32_t)(v->screen_pos[1] * 4));
+        if (state.prim_texture) {
+            debugf("      tex: (%.2f, %.2f) [%08lx, %08lx]\n", 
+                v->texcoord[0], v->texcoord[1],
+                (uint32_t)(int32_t)(v->texcoord[0] * 32),
+                (uint32_t)(int32_t)(v->texcoord[1] * 32));
+            rdpq_debug_log(true);
+            state.cull_face = 0;
+        }
         #endif
     }
     
@@ -575,6 +561,9 @@ void gl_draw(const gl_attrib_source_t *sources, uint32_t offset, uint32_t count,
     if (sources[ATTRIB_VERTEX].pointer == NULL) {
         return;
     }
+
+    // Inform the rdpq state engine that we are going to draw something so the pipe settings are in use
+    __rdpq_autosync_use(AUTOSYNC_PIPE);
 
     for (uint32_t i = 0; i < count; i++)
     {
@@ -1512,17 +1501,24 @@ void glViewport(GLint x, GLint y, GLsizei w, GLsizei h)
     state.current_viewport.offset[0] = x + w * 0.5f;
     state.current_viewport.offset[1] = fbh - y - h * 0.5f;
 
-    int16_t scale_x = state.current_viewport.scale[0] * 4;
-    int16_t scale_y = state.current_viewport.scale[1] * 4;
-    int16_t offset_x = state.current_viewport.offset[0] * 4;
-    int16_t offset_y = state.current_viewport.offset[1] * 4;
+    // Screen coordinates are s13.2
+    #define SCREEN_XY_SCALE   4.0f
+    #define SCREEN_Z_SCALE    32767.0f
+
+    // * 2.0f to compensate for RSP reciprocal missing 1 bit
+    uint16_t scale_x = state.current_viewport.scale[0] * SCREEN_XY_SCALE * 2.0f;
+    uint16_t scale_y = state.current_viewport.scale[1] * SCREEN_XY_SCALE * 2.0f;
+    uint16_t scale_z = state.current_viewport.scale[2] * SCREEN_Z_SCALE * 2.0f;
+    uint16_t offset_x = state.current_viewport.offset[0] * SCREEN_XY_SCALE;
+    uint16_t offset_y = state.current_viewport.offset[1] * SCREEN_XY_SCALE;
+    uint16_t offset_z = state.current_viewport.offset[2] * SCREEN_Z_SCALE;
 
     gl_set_long(GL_UPDATE_NONE, 
         offsetof(gl_server_state_t, viewport_scale), 
-        ((uint32_t)scale_x << 16) | (uint32_t)scale_y);
+        ((uint64_t)scale_x << 48) | ((uint64_t)scale_y << 32) | ((uint64_t)scale_z << 16));
     gl_set_long(GL_UPDATE_NONE, 
         offsetof(gl_server_state_t, viewport_offset), 
-        ((uint32_t)offset_x << 16) | (uint32_t)offset_y);
+        ((uint64_t)offset_x << 48) | ((uint64_t)offset_y << 32) | ((uint64_t)offset_z << 16));
 }
 
 gl_tex_gen_t *gl_get_tex_gen(GLenum coord)
