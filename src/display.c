@@ -28,7 +28,7 @@
  * subsystem are available.
  *
  * The display subsystem module is responsible for initializing the proper video
- * mode for displaying 2D, 3D and softward graphics.  To set up video on the N64,
+ * mode for displaying 2D, 3D and software graphics.  To set up video on the N64,
  * code should call #display_init with the appropriate options.  Once the display
  * has been set, a display context can be requested from the display subsystem using
  * #display_lock.  To draw to the acquired display context, code should use functions
@@ -227,7 +227,7 @@ static void __write_dram_register( void const * const dram_val )
 {
     volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
 
-    reg_base[1] = (uint32_t)dram_val;
+    reg_base[1] = PhysicalAddr(dram_val);
     MEMORY_BARRIER();
 }
 
@@ -243,6 +243,7 @@ static void __display_callback()
     /* Least significant bit of the current line register indicates
        if the currently displayed field is odd or even. */
     bool field = reg_base[4] & 1;
+    bool interlaced = reg_base[0] & (1<<6);
 
     /* Check if the next buffer is ready to be displayed, otherwise just
        leave up the current frame */
@@ -252,7 +253,7 @@ static void __display_callback()
         ready_mask &= ~(1 << next);
     }
 
-    __write_dram_register(__safe_buffer[now_showing] + (!field ? __width * __bitdepth : 0));
+    __write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0));
 }
 
 /**
@@ -449,7 +450,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     ready_mask = 0;
 
     /* Show our screen normally */
-    registers[1] = (uintptr_t) __safe_buffer[0];
+    registers[1] = PhysicalAddr(__safe_buffer[0]);
     registers[9] = reg_values[tv_type][9];
     __write_registers( registers );
 
