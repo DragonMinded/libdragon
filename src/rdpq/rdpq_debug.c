@@ -359,8 +359,8 @@ void rdpq_debug_log(bool log)
 
 void rdpq_debug_log_msg(const char *msg)
 {
-    assertf(rdpq_trace, "rdpq trace engine not started");
-    rdpq_write((RDPQ_CMD_DEBUG, RDPQ_CMD_DEBUG_MESSAGE, PhysicalAddr(msg)));
+    if (rdpq_trace)
+        rdpq_write((RDPQ_CMD_DEBUG, RDPQ_CMD_DEBUG_MESSAGE, PhysicalAddr(msg)));
 }
 
 void rdpq_debug_stop(void)
