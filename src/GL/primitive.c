@@ -241,8 +241,6 @@ void glEnd(void)
 
 void gl_load_attribs(const gl_attrib_source_t *sources, const uint32_t index)
 {
-    static const GLfloat default_values[] = {0, 0, 0, 1};
-
     for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
     {
         const gl_attrib_source_t *src = &sources[i];
@@ -254,12 +252,6 @@ void gl_load_attribs(const gl_attrib_source_t *sources, const uint32_t index)
 
         const void *p = src->pointer + (index - src->offset) * src->stride;
         src->read_func(dst, p, src->size);
-
-        // Fill in the rest with default values
-        for (uint32_t r = 3; r >= src->size; r--)
-        {
-            dst[r] = default_values[r];
-        }
     }
 }
 
@@ -558,12 +550,25 @@ void gl_prim_assembly(uint8_t prim_index)
 
 void gl_draw(const gl_attrib_source_t *sources, uint32_t offset, uint32_t count, const void *indices, read_index_func read_index)
 {
-    if (sources[ATTRIB_VERTEX].pointer == NULL) {
+    if (sources[ATTRIB_VERTEX].pointer == NULL || count == 0) {
         return;
     }
 
     // Inform the rdpq state engine that we are going to draw something so the pipe settings are in use
     __rdpq_autosync_use(AUTOSYNC_PIPE);
+
+    // Prepare default values
+    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
+    {
+        if (sources[i].pointer == NULL) {
+            continue;
+        }
+
+        state.current_attribs[i][0] = 0;
+        state.current_attribs[i][1] = 0;
+        state.current_attribs[i][2] = 0;
+        state.current_attribs[i][3] = 1;
+    }
 
     for (uint32_t i = 0; i < count; i++)
     {
@@ -962,62 +967,62 @@ void gl_clip_point()
 
 void read_u8(GLfloat *dst, const uint8_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = U8_TO_FLOAT(src[i]);
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
 void read_i8(GLfloat *dst, const int8_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = I8_TO_FLOAT(src[i]);
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
 void read_u16(GLfloat *dst, const uint16_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = U16_TO_FLOAT(src[i]);
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
 void read_i16(GLfloat *dst, const int16_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = I16_TO_FLOAT(src[i]);
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
 void read_u32(GLfloat *dst, const uint32_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = U32_TO_FLOAT(src[i]);
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
 void read_i32(GLfloat *dst, const int32_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = I32_TO_FLOAT(src[i]);
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
 void read_u8n(GLfloat *dst, const uint8_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+    for (uint32_t i = 0; i < count; i++) dst[i] = U8_TO_FLOAT(src[i]);
 }
 
 void read_i8n(GLfloat *dst, const int8_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+    for (uint32_t i = 0; i < count; i++) dst[i] = I8_TO_FLOAT(src[i]);
 }
 
 void read_u16n(GLfloat *dst, const uint16_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+    for (uint32_t i = 0; i < count; i++) dst[i] = U16_TO_FLOAT(src[i]);
 }
 
 void read_i16n(GLfloat *dst, const int16_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+    for (uint32_t i = 0; i < count; i++) dst[i] = I16_TO_FLOAT(src[i]);
 }
 
 void read_u32n(GLfloat *dst, const uint32_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+    for (uint32_t i = 0; i < count; i++) dst[i] = U32_TO_FLOAT(src[i]);
 }
 
 void read_i32n(GLfloat *dst, const int32_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+    for (uint32_t i = 0; i < count; i++) dst[i] = I32_TO_FLOAT(src[i]);
 }
 
 void read_f32(GLfloat *dst, const float *src, uint32_t count)
