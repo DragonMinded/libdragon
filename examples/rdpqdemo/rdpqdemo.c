@@ -69,11 +69,24 @@ void render()
     }
 
     rdp_attach(disp);
-    
-    rdpq_set_mode_copy(true);
 
+    // Clear the screen
+    rdpq_set_mode_fill(RGBA32(0,0,0,255));
+    rdpq_fill_rectangle(0, 0, disp->width, disp->height);
+
+    // Draw the tile background, by playing back the compiled block.
+    // This is using copy mode by default, but notice how it can switch
+    // to standard mode (aka "1 cycle" in RDP terminology) in a completely
+    // transparent way. Even if the block is compiled, the RSP commands within it
+    // will adapt its commands to the current render mode, Try uncommenting
+    // the line below to see.
+    rdpq_debug_log_msg("tiles");
+    rdpq_set_mode_copy(false);
+    // rdpq_set_mode_standard();
     rspq_block_run(tiles_block);
     
+    rdpq_debug_log_msg("sprites");
+    rdpq_set_mode_copy(true);
     for (uint32_t i = 0; i < num_objs; i++)
     {
         uint32_t obj_x = objects[i].x;
@@ -93,10 +106,10 @@ void render()
 
 int main()
 {
-    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE);
-
     debug_init_isviewer();
     debug_init_usblog();
+
+    display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE);
 
     controller_init();
     timer_init();
@@ -111,6 +124,7 @@ int main()
 
     rdp_init();
     rdpq_debug_start();
+    // rdpq_debug_log(true);
 
     brew_sprite = sprite_load("rom:/n64brew.sprite");
 
@@ -132,15 +146,24 @@ int main()
 
     surface_t tiles_surf = sprite_get_pixels(tiles_sprite);
 
+    // Create a block for the background, so that we can replay it later.
     rspq_block_begin();
 
-    // Enable palette mode and load palette into TMEM
+    // Check if the sprite was compiled with a paletted format. Normally
+    // we should know this beforehand, but for this demo we pretend we don't
+    // know. This also shows how rdpq can transparently work in both modes.
+    bool tlut = false;
     tex_format_t tiles_format = sprite_get_format(tiles_sprite);
     if (tiles_format == FMT_CI4 || tiles_format == FMT_CI8) {
+        // If the sprite is paletted, turn on palette mode and load the
+        // palette in TMEM. We use the mode stack for demonstration,
+        // so that we show how a block can temporarily change the current
+        // render mode, and then restore it at the end.
+        rdpq_mode_push();
         rdpq_mode_tlut(TLUT_RGBA16);
         rdpq_tex_load_tlut(sprite_get_palette(tiles_sprite), 0, 16);
+        tlut = true;
     }
-
     uint32_t tile_width = tiles_sprite->width / tiles_sprite->hslices;
     uint32_t tile_height = tiles_sprite->height / tiles_sprite->vslices;
 
@@ -148,15 +171,19 @@ int main()
     {
         for (uint32_t tx = 0; tx < display_width; tx += tile_width)
         {
+            // Load a random tile among the 4 available in the texture,
+            // and draw it as a rectangle.
+            // Notice that this code is agnostic to both the texture format
+            // and the render mode (standard vs copy), it will work either way.
             int s = RANDN(2)*32, t = RANDN(2)*32;
             rdpq_tex_load_sub(TILE0, &tiles_surf, 0, s, t, s+32, t+32);
             rdpq_texture_rectangle(TILE0, tx, ty, tx+32, ty+32, s, t, 1, 1);
         }
     }
-
-    rdpq_mode_tlut(TLUT_NONE);    
-    tiles_block = rspq_block_end();
     
+    // Pop the mode stack if we pushed it before
+    if (tlut) rdpq_mode_pop();
+    tiles_block = rspq_block_end();
     
     wav64_open(&sfx_cannon, "cannon.wav64");
 

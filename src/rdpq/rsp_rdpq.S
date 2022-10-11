@@ -79,16 +79,19 @@
     .ascii "Dragon RDP Queue"
     .ascii "Rasky & Snacchus"
 
+    # RDPQ Overlay state
+    # NOTE: keep this in sync with rdpq_state_t in rdpq.c
     .align 4
     RSPQ_BeginSavedState
 RDPQ_SYNCFULL:          .quad  0   # Last syncfull command (includes callback). NOTE: this must stay as first variable in the state
 
 RDPQ_ADDRESS_TABLE:     .ds.l  RDPQ_ADDRESS_TABLE_SIZE
 
+RDPQ_RDRAM_STATE_ADDR:  .word  0
+
+    .align 4
 # Stack slots for 3 saved RDP modes
 RDPQ_MODE_STACK:        .ds.b (RDPQ_MODE_END - RDPQ_MODE)*3    
-
-RDPQ_RDRAM_STATE_ADDR:  .word  0
 
     .align 4
 RDPQ_TRI_DATA0:          .dcb.l 7
@@ -96,6 +99,7 @@ RDPQ_TRI_DATA0:          .dcb.l 7
 RDPQ_TRI_DATA1:          .dcb.l 7
     .align 4
 RDPQ_TRI_DATA2:          .dcb.l 7
+
 
     RSPQ_EndSavedState
 
@@ -137,25 +141,12 @@ RDPQCmd_Passthrough16:
     #############################################################
     .func RDPQCmd_SetOtherModes
 RDPQCmd_SetOtherModes:
-    # Save the other modes to internal cache, then call RDPQ_WriteOtherModes
-    # RDPQ_WriteOtherModes will write both SetOtherModes and SetScissor to the staging area
-    li ra, RDPQ_WriteOtherModes
-    # fallthrough!
-    .endfunc
-
-    #############################################################
-    # RDPQ_SaveOtherModes
-    #
-    # Saves the other mode command in a0-a1 to an internal cache.
-    #
-    # ARGS:
-    #   a0: Command id and upper word of other modes
-    #   a1: Lower word of other modes
-    #############################################################
-    .func RDPQ_SaveOtherModes
-RDPQ_SaveOtherModes:
+    # Save the other modes to internal cache. The MSB of a0 containes
+    # the 0xEF command ID, but we use that byte for extended SOM flags
+    # (SOMX_*) in the mode API, so reset it to zero as initial state.
     sw a0, %lo(RDPQ_OTHER_MODES) + 0x0
-    jr ra
+    sb zero, %lo(RDPQ_OTHER_MODES) + 0x0
+    j RDPQ_WriteOtherModes
     sw a1, %lo(RDPQ_OTHER_MODES) + 0x4
     .endfunc
 
@@ -203,9 +194,12 @@ RDPQCmd_ModifyOtherModes:
     #############################################################
     .func RDPQ_WriteOtherModes
 RDPQ_WriteOtherModes:
-    # Write other modes command to staging area
+    # Write other modes command to staging area, then overwrite
+    # top byte with 0xEF which is not part of RDPQ_OTHER_MODES but must
+    # be present when sending to RDP.
     jal RDPQ_Write8
-    nop
+    li t1, 0xEF
+    sb t1, -8(s0)
     # fallthrough!
     .endfunc
 

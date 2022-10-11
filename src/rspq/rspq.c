@@ -588,6 +588,11 @@ void rspq_init(void)
     rspq_rdp_dynamic_buffers[0] = malloc_uncached(RDPQ_DYNAMIC_BUFFER_SIZE);
     rspq_rdp_dynamic_buffers[1] = malloc_uncached(RDPQ_DYNAMIC_BUFFER_SIZE);
 
+    // Verify consistency of state
+    int banner_offset = ROUND_UP(RSPQ_DATA_ADDRESS + sizeof(rsp_queue_t), 16);
+    assertf(!memcmp(rsp_queue.data + banner_offset, "Dragon RSP Queue", 16),
+        "rsp_queue_t does not seem to match DMEM; did you forget to update it?");
+
     // Load initial settings
     memset(&rspq_data, 0, sizeof(rsp_queue_t));
     rspq_data.rspq_dram_lowpri_addr = PhysicalAddr(lowpri.cur);

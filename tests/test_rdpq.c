@@ -350,6 +350,46 @@ void test_rdpq_block_contiguous(TestContext *ctx)
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, WIDTH*WIDTH*2, "Framebuffer contains wrong data!");
 }
 
+void test_rdpq_change_other_modes(TestContext *ctx)
+{
+    RDPQ_INIT();
+
+    const int WIDTH = 16;
+    surface_t fb = surface_alloc(FMT_RGBA32, WIDTH, WIDTH);
+    DEFER(surface_free(&fb));
+    rdpq_set_color_image(&fb);
+
+    // Set standard mode with a combiner that doesn't use a fixed color
+    surface_clear(&fb, 0);
+    rdpq_set_mode_standard();
+    rdpq_mode_combiner(RDPQ_COMBINER_TEX);
+
+    // Switch to fill mode via change other modes, and fill the framebuffer
+    rdpq_debug_log_msg("try SOM change (dynamic)");
+    rdpq_change_other_modes_raw(SOM_CYCLE_MASK, SOM_CYCLE_FILL);
+    rdpq_set_fill_color(RGBA32(255,0,0,255));
+    rdpq_fill_rectangle(0,0,WIDTH,WIDTH);
+    rspq_wait();
+    ASSERT_SURFACE(&fb, { return RGBA32(255,0,0,255); });
+
+    // Do it again in a block
+    surface_clear(&fb, 0);
+    rdpq_set_mode_standard();
+    rdpq_mode_combiner(RDPQ_COMBINER_TEX);
+
+    rspq_block_begin();
+        rdpq_debug_log_msg("try SOM change (block)");
+        rdpq_change_other_modes_raw(SOM_CYCLE_MASK, SOM_CYCLE_FILL);
+        rdpq_set_fill_color(RGBA32(255,0,0,255));
+        rdpq_fill_rectangle(0,0,WIDTH,WIDTH);
+    rspq_block_t *b = rspq_block_end();
+    DEFER(rspq_block_free(b));
+
+    rspq_block_run(b);
+    rspq_wait();
+    ASSERT_SURFACE(&fb, { return RGBA32(255,0,0,255); });
+}
+
 
 void test_rdpq_fixup_setfillcolor(TestContext *ctx)
 {
