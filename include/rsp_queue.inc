@@ -259,7 +259,10 @@ RDPQ_MODE:
     # Blender settings: up to two steps. Either of them
     # is already in a format valid for both 1cyc and 2cyc mode.
     RDPQ_MODE_BLENDER_STEPS:     .word  0,0
-    # Other modes
+    # Curent state of "Set Other Modes" RDP mode command, plus our own extension
+    # fields (see SOMX_* in rdpq_macros.h). Notice that the top byte also contains
+    # extensions fields, so when sending this command to RDP, the top byte must be
+    # changed with the SOM command ID (0xEF) in the RDP output buffer.
     RDPQ_OTHER_MODES:            .quad  0
 RDPQ_MODE_END:
 
