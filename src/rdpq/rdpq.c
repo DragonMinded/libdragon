@@ -359,8 +359,9 @@ DEFINE_RSP_UCODE(rsp_rdpq,
 typedef struct rdpq_state_s {
     uint64_t sync_full;                 ///< Last SYNC_FULL command
     uint32_t address_table[RDPQ_ADDRESS_TABLE_SIZE];    ///< Address lookup table
-    rspq_rdp_mode_t modes[3];           ///< Modes stack
     uint32_t rdram_state_address;       ///< Address of this state in RDRAM
+    __attribute__((aligned(16)))
+    rspq_rdp_mode_t modes[3];           ///< Modes stack
 } rdpq_state_t;
 
 /** @brief Mirror in RDRAM of the state of the rdpq ucode. */ 

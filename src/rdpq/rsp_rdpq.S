@@ -79,16 +79,19 @@
     .ascii "Dragon RDP Queue"
     .ascii "Rasky & Snacchus"
 
+    # RDPQ Overlay state
+    # NOTE: keep this in sync with rdpq_state_t in rdpq.c
     .align 4
     RSPQ_BeginSavedState
 RDPQ_SYNCFULL:          .quad  0   # Last syncfull command (includes callback). NOTE: this must stay as first variable in the state
 
 RDPQ_ADDRESS_TABLE:     .ds.l  RDPQ_ADDRESS_TABLE_SIZE
 
+RDPQ_RDRAM_STATE_ADDR:  .word  0
+
+    .align 4
 # Stack slots for 3 saved RDP modes
 RDPQ_MODE_STACK:        .ds.b (RDPQ_MODE_END - RDPQ_MODE)*3    
-
-RDPQ_RDRAM_STATE_ADDR:  .word  0
 
     .align 4
 RDPQ_TRI_DATA0:          .dcb.l 7
@@ -96,6 +99,7 @@ RDPQ_TRI_DATA0:          .dcb.l 7
 RDPQ_TRI_DATA1:          .dcb.l 7
     .align 4
 RDPQ_TRI_DATA2:          .dcb.l 7
+
 
     RSPQ_EndSavedState
 
