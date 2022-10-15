@@ -24,12 +24,12 @@
  *
  * Code wishing to use the hardware rasterizer should first acquire a display context
  * using #display_lock.  Once a display context has been acquired, the RDP can be
- * attached to the display context with #rdp_attach_display.  Once the display has been
+ * attached to the display context with #rdp_attach.  Once the display has been
  * attached, the RDP can be used to draw sprites, rectangles and textured/untextured
  * triangles to the display context.  Note that some functions require additional setup,
  * so read the descriptions for each function before use.  After code has finished
  * rendering hardware assisted graphics to the display context, the RDP can be detached
- * from the context using #rdp_detach_display.  After calling thie function, it is safe
+ * from the context using #rdp_detach.  After calling thie function, it is safe
  * to immediately display the rendered graphics to the screen using #display_show, or
  * additional software graphics manipulation can take place using functions from the
  * @ref graphics.
@@ -43,23 +43,13 @@
  * sync operations as it can stall the pipeline and cause triangles/rectangles to be
  * drawn on the next display context instead of the current.
  *
- * #rdp_detach_display will automatically perform a #SYNC_FULL to ensure that everything
+ * #rdp_detach will automatically perform a #SYNC_FULL to ensure that everything
  * has been completed in the RDP.  This call generates an interrupt when complete which
  * signals the main thread that it is safe to detach.  Consequently, interrupts must be
  * enabled for proper operation.  This also means that code should under normal circumstances
  * never use #SYNC_FULL.
  * @{
  */
-
-/**
- * @brief Grab the texture buffer given a display context
- *
- * @param[in] x
- *            The display context returned from #display_lock
- *
- * @return A pointer to the drawing surface for that display context.
- */
-#define __get_buffer( x ) __safe_buffer[(x)-1]
 
 /** @brief Size of the internal ringbuffer that holds pending RDP commands */
 #define RINGBUFFER_SIZE  4096
@@ -92,11 +82,6 @@ typedef struct
     /** @brief Height of the texture rounded up to next power of 2 */
     uint16_t real_height;
 } sprite_cache;
-
-extern uint32_t __bitdepth;
-extern uint32_t __width;
-extern uint32_t __height;
-extern void *__safe_buffer[];
 
 /** @brief Ringbuffer where partially assembled commands will be placed before sending to the RDP */
 static uint32_t rdp_ringbuffer[RINGBUFFER_SIZE / 4];
@@ -289,35 +274,42 @@ void rdp_close( void )
 }
 
 /**
- * @brief Attach the RDP to a display context
+ * @brief Attach the RDP to a surface
  *
- * This function allows the RDP to operate on display contexts fetched with #display_lock.
- * This should be performed before any other operations to ensure that the RDP has a valid
- * output buffer to operate on.
+ * This function allows the RDP to operate on surfaces, that is memory buffers
+ * that can be used as render targets. For instance, it can be used with
+ * framebuffers acquired by calling #display_lock, or to render to an offscreen
+ * buffer created with #surface_alloc or #surface_make.
+ * 
+ * This should be performed before any rendering operations to ensure that the RDP
+ * has a valid output buffer to operate on.
  *
- * @param[in] disp
- *            A display context as returned by #display_lock
+ * @param[in] surface
+ *            A surface pointer
+ *            
+ * @see surface_new
+ * @see display_lock
  */
-void rdp_attach_display( display_context_t disp )
+void rdp_attach( surface_t* surface )
 {
-    if( disp == 0 ) { return; }
+    if( surface == 0 ) { return; }
 
     /* Set the rasterization buffer */
-    __rdp_ringbuffer_queue( 0xFF000000 | ((__bitdepth == 2) ? 0x00100000 : 0x00180000) | (__width - 1) );
-    __rdp_ringbuffer_queue( (uint32_t)__get_buffer( disp ) );
+    __rdp_ringbuffer_queue( 0xFF000000 | ((TEX_FORMAT_BITDEPTH(surface_get_format(surface)) == 16) ? 0x00100000 : 0x00180000) | (surface->width - 1) );
+    __rdp_ringbuffer_queue( PhysicalAddr(surface->buffer) );
     __rdp_ringbuffer_send();
 }
 
 /**
- * @brief Detach the RDP from a display context
+ * @brief Detach the RDP from the current surface, after the RDP will have
+ *        finished writing to it.
  *
  * @note This function requires interrupts to be enabled to operate properly.
- *
- * This function will ensure that all hardware operations have completed on an output buffer
- * before detaching the display context.  This should be performed before displaying the finished
- * output using #display_show
+ * 
+ * This function will ensure that all RDP rendering operations have completed
+ * before detaching the surface. 
  */
-void rdp_detach_display( void )
+void rdp_detach( void )
 {
     /* Wait for SYNC_FULL to finish */
     wait_intr = 0;
@@ -395,7 +387,7 @@ void rdp_set_clipping( uint32_t tx, uint32_t ty, uint32_t bx, uint32_t by )
 void rdp_set_default_clipping( void )
 {
     /* Clip box is the whole screen */
-    rdp_set_clipping( 0, 0, __width, __height );
+    rdp_set_clipping( 0, 0, display_get_width(), display_get_height() );
 }
 
 /**
