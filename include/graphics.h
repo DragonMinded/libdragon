@@ -59,22 +59,22 @@ extern "C" {
 
 uint32_t graphics_make_color( int r, int g, int b, int a );
 uint32_t graphics_convert_color( color_t color );
-void graphics_draw_pixel( display_context_t disp, int x, int y, uint32_t c );
-void graphics_draw_pixel_trans( display_context_t disp, int x, int y, uint32_t c );
-void graphics_draw_line( display_context_t disp, int x0, int y0, int x1, int y1, uint32_t c );
-void graphics_draw_line_trans( display_context_t disp, int x0, int y0, int x1, int y1, uint32_t c );
-void graphics_draw_box( display_context_t disp, int x, int y, int width, int height, uint32_t color );
-void graphics_draw_box_trans( display_context_t disp, int x, int y, int width, int height, uint32_t color );
-void graphics_fill_screen( display_context_t disp, uint32_t c );
+void graphics_draw_pixel( surface_t* surf, int x, int y, uint32_t c );
+void graphics_draw_pixel_trans( surface_t* surf, int x, int y, uint32_t c );
+void graphics_draw_line( surface_t* surf, int x0, int y0, int x1, int y1, uint32_t c );
+void graphics_draw_line_trans( surface_t* surf, int x0, int y0, int x1, int y1, uint32_t c );
+void graphics_draw_box( surface_t* surf, int x, int y, int width, int height, uint32_t color );
+void graphics_draw_box_trans( surface_t* surf, int x, int y, int width, int height, uint32_t color );
+void graphics_fill_screen( surface_t* surf, uint32_t c );
 void graphics_set_color( uint32_t forecolor, uint32_t backcolor );
 void graphics_set_default_font( void );
 void graphics_set_font_sprite( sprite_t *font );
-void graphics_draw_character( display_context_t disp, int x, int y, char c );
-void graphics_draw_text( display_context_t disp, int x, int y, const char * const msg );
-void graphics_draw_sprite( display_context_t disp, int x, int y, sprite_t *sprite );
-void graphics_draw_sprite_stride( display_context_t disp, int x, int y, sprite_t *sprite, int offset );
-void graphics_draw_sprite_trans( display_context_t disp, int x, int y, sprite_t *sprite );
-void graphics_draw_sprite_trans_stride( display_context_t disp, int x, int y, sprite_t *sprite, int offset );
+void graphics_draw_character( surface_t* surf, int x, int y, char c );
+void graphics_draw_text( surface_t* surf, int x, int y, const char * const msg );
+void graphics_draw_sprite( surface_t* surf, int x, int y, sprite_t *sprite );
+void graphics_draw_sprite_stride( surface_t* surf, int x, int y, sprite_t *sprite, int offset );
+void graphics_draw_sprite_trans( surface_t* surf, int x, int y, sprite_t *sprite );
+void graphics_draw_sprite_trans_stride( surface_t* surf, int x, int y, sprite_t *sprite, int offset );
 
 #ifdef __cplusplus
 }

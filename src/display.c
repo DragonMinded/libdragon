@@ -6,9 +6,13 @@
 #include <stdint.h>
 #include <malloc.h>
 #include <string.h>
-#include "libdragon.h"
 #include "regsinternal.h"
 #include "n64sys.h"
+#include "display.h"
+#include "interrupt.h"
+#include "utils.h"
+#include "debug.h"
+#include "surface.h"
 
 /**
  * @defgroup display Display Subsystem
@@ -27,10 +31,10 @@
  * The display subsystem module is responsible for initializing the proper video
  * mode for displaying 2D, 3D and softward graphics.  To set up video on the N64,
  * code should call #display_init with the appropriate options.  Once the display
- * has been set, a display context can be requested from the display subsystem using
- * #display_lock.  To draw to the acquired display context, code should use functions
- * present in the @ref graphics and the @ref rdp modules.  Once drawing to a display
- * context is complete, the rendered graphic can be displayed to the screen using 
+ * has been set, a surface can be requested from the display subsystem using
+ * #display_lock.  To draw to the acquired surface, code should use functions
+ * present in the @ref graphics and the @ref rdp modules.  Once drawing to a surface
+ * is complete, the rendered graphic can be displayed to the screen using 
  * #display_show.  Once code has finished rendering all graphics, #display_close can 
  * be used to shut down the display subsystem.
  *
@@ -162,18 +166,17 @@ static const uint32_t * const reg_values[] = {
     pal_640p, ntsc_640p, mpal_640p,
 };
 
-/** @brief Video buffer pointers */
-static void *buffer[NUM_BUFFERS];
+static surface_t *surfaces;
 /** @brief Currently active bit depth */
-uint32_t __bitdepth;
+static uint32_t __bitdepth;
 /** @brief Currently active video width (calculated) */
-uint32_t __width;
+static uint32_t __width;
 /** @brief Currently active video height (calculated) */
-uint32_t __height;
+static uint32_t __height;
 /** @brief Number of active buffers */
-uint32_t __buffers = NUM_BUFFERS;
+static uint32_t __buffers = NUM_BUFFERS;
 /** @brief Pointer to uncached 16-bit aligned version of buffers */
-void *__safe_buffer[NUM_BUFFERS];
+static void *__safe_buffer[NUM_BUFFERS];
 
 /** @brief Currently displayed buffer */
 static int now_showing = -1;
@@ -425,13 +428,17 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
 	}
     __bitdepth = ( bit == DEPTH_16_BPP ) ? 2 : 4;
 
+    surfaces = malloc(sizeof(surface_t) * __buffers);
+
     /* Initialize buffers and set parameters */
     for( int i = 0; i < __buffers; i++ )
     {
         /* Set parameters necessary for drawing */
         /* Grab a location to render to */
-        buffer[i] = memalign( 64, __width * __height * __bitdepth );
-        __safe_buffer[i] = UNCACHED_ADDR( buffer[i] );
+        tex_format_t format = bit == DEPTH_16_BPP ? FMT_RGBA16 : FMT_RGBA32;
+        surfaces[i] = surface_alloc(format, __width, __height);
+        __safe_buffer[i] = surfaces[i].buffer;
+        assert(__safe_buffer[i] != NULL);
 
         /* Baseline is blank */
         memset( __safe_buffer[i], 0, __width * __height * __bitdepth );
@@ -479,30 +486,27 @@ void display_close()
     for( int i = 0; i < __buffers; i++ )
     {
         /* Free framebuffer memory */
-        if( buffer[i] )
-        {
-            free( buffer[i]);
-        }
-
-        buffer[i] = 0;
-        __safe_buffer[i] = 0;
+        surface_free(&surfaces[i]);
+        __safe_buffer[i] = NULL;
     }
 
+    free(surfaces);
+    surfaces = NULL;
     enable_interrupts();
 }
 
 /**
  * @brief Lock a display buffer for rendering
  *
- * Grab a display context that is safe for drawing.  If none is available
- * then this will return 0.  Do not check out more than one display
- * context at a time.
+ * Grab a surface that is safe for drawing.  If none is available
+ * then this will return 0.  Do not check out more than one surface
+ * at a time.
  *
- * @return A valid display context to render to or 0 if none is available.
+ * @return A valid surface to render to or NULL if none is available.
  */
-display_context_t display_lock()
+surface_t* display_lock(void)
 {
-    display_context_t retval = 0;
+    surface_t* retval = 0;
 
     /* Can't have the video interrupt happening here */
     disable_interrupts();
@@ -513,7 +517,7 @@ display_context_t display_lock()
         {
             /* This screen should be returned */
             now_drawing = i;
-            retval = i + 1;
+            retval = &surfaces[i];
 
             break;
         }
@@ -528,22 +532,25 @@ display_context_t display_lock()
 /**
  * @brief Display a previously locked buffer
  *
- * Display a valid display context to the screen on the next vblank.  Display
- * contexts should be locked via #display_lock.
- *
- * @param[in] disp
- *            A display context retrieved using #display_lock
+ * Display a previously-locked surface to the screen on the next vblank. The
+ * surface should be locked via #display_lock.
+ * 
+ * This function does not accept any arbitrary surface, but only those returned
+ * by #display_lock.
+ * 
+ * @param[in] surf
+ *            A surface to show (previously retrieved using #display_lock)
  */
-void display_show( display_context_t disp )
+void display_show( surface_t* surf )
 {
     /* They tried drawing on a bad context */
-    if( disp == 0 ) { return; }
+    if( surf == NULL ) { return; }
 
     /* Can't have the video interrupt screwing this up */
     disable_interrupts();
 
     /* Correct to ensure we are handling the right screen */
-    int i = disp - 1;
+    int i = surf - surfaces;
 
     /* This should match, or something went awry */
     assertf( i == now_drawing, "display_show invoked on non-locked display" );
@@ -574,6 +581,38 @@ void display_show_force( display_context_t disp )
     display_show(disp);
     __display_callback();
     enable_interrupts();
+}
+
+/**
+ * @brief Get the currently configured width of the display in pixels
+ */
+uint32_t display_get_width()
+{
+    return __width;
+}
+
+/**
+ * @brief Get the currently configured height of the display in pixels
+ */
+uint32_t display_get_height()
+{
+    return __height;
+}
+
+/**
+ * @brief Get the currently configured bitdepth of the display (in bytes per pixels)
+ */
+uint32_t display_get_bitdepth()
+{
+    return __bitdepth;
+}
+
+/**
+ * @brief Get the currently configured number of buffers
+ */
+uint32_t display_get_num_buffers()
+{
+    return __buffers;
 }
 
 /** @} */ /* display */

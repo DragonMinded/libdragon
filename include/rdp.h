@@ -62,8 +62,8 @@ extern "C" {
 #endif
 
 void rdp_init( void );
-void rdp_attach_display( display_context_t disp );
-void rdp_detach_display( void );
+void rdp_attach( surface_t* disp );
+void rdp_detach( void );
 void rdp_sync( sync_t sync );
 void rdp_set_clipping( uint32_t tx, uint32_t ty, uint32_t bx, uint32_t by );
 void rdp_set_default_clipping( void );
@@ -82,6 +82,18 @@ void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by );
 void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3, float y3 );
 void rdp_set_texture_flush( flush_t flush );
 void rdp_close( void );
+
+__attribute__((deprecated("use rdp_attach instead")))
+static inline void rdp_attach_display( display_context_t disp )
+{
+    rdp_attach(disp);
+}
+
+__attribute__((deprecated("use rdp_detach instead")))
+static inline void rdp_detach_display( void )
+{
+    rdp_detach();
+}
 
 #ifdef __cplusplus
 }
