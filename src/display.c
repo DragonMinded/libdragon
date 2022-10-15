@@ -30,10 +30,10 @@
  * The display subsystem module is responsible for initializing the proper video
  * mode for displaying 2D, 3D and software graphics.  To set up video on the N64,
  * code should call #display_init with the appropriate options.  Once the display
- * has been set, a display context can be requested from the display subsystem using
- * #display_lock.  To draw to the acquired display context, code should use functions
- * present in the @ref graphics and the @ref rdp modules.  Once drawing to a display
- * context is complete, the rendered graphic can be displayed to the screen using 
+ * has been set, a surface can be requested from the display subsystem using
+ * #display_lock.  To draw to the acquired surface, code should use functions
+ * present in the @ref graphics and the @ref rdp modules.  Once drawing to a surface
+ * is complete, the rendered graphic can be displayed to the screen using 
  * #display_show.  Once code has finished rendering all graphics, #display_close can 
  * be used to shut down the display subsystem.
  *
@@ -486,11 +486,7 @@ void display_close()
     for( int i = 0; i < __buffers; i++ )
     {
         /* Free framebuffer memory */
-        if( __safe_buffer[i] )
-        {
-            free_uncached( __safe_buffer[i]);
-        }
-
+        surface_free(&surfaces[i]);
         __safe_buffer[i] = NULL;
     }
 
@@ -503,7 +499,7 @@ void display_close()
 /**
  * @brief Lock a display buffer for rendering
  *
- * Grab a display context that is safe for drawing.  If none is available
+ * Grab a surface that is safe for drawing.  If none is available
  * then this will return 0, without blocking. 
  * 
  * When you are done drawing on the buffer, use #display_show to unlock
@@ -513,14 +509,14 @@ void display_close()
  * It is possible to lock more than a display buffer at the same time, for
  * instance to begin working on a new frame while the previous one is still
  * being rendered in parallel through RDP. It is important to notice that
- * display contexts will always be shown on the screen in locking order,
+ * surfaces will always be shown on the screen in locking order,
  * irrespective of the order #display_show is called.
  *
- * @return A valid display context to render to or 0 if none is available.
+ * @return A valid surface to render to or 0 if none is available.
  */
-display_context_t display_lock(void)
+surface_t* display_lock(void)
 {
-    display_context_t retval = NULL;
+    surface_t* retval = NULL;
     int next;
 
     /* Can't have the video interrupt happening here */
@@ -546,22 +542,25 @@ display_context_t display_lock(void)
 /**
  * @brief Display a previously locked buffer
  *
- * Display a valid display context to the screen on the next vblank.  Display
- * contexts should be locked via #display_lock.
+ * Display a previously-locked surface to the screen on the next vblank. The
+ * surface should be locked via #display_lock.
  * 
- * @param[in] disp
- *            A display context retrieved using #display_lock
+ * This function does not accept any arbitrary surface, but only those returned
+ * by #display_lock.
+ * 
+ * @param[in] surf
+ *            A surface to show (previously retrieved using #display_lock)
  */
-void display_show( surface_t* disp )
+void display_show( surface_t* surf )
 {
     /* They tried drawing on a bad context */
-    if( disp == NULL ) { return; }
+    if( surf == NULL ) { return; }
 
     /* Can't have the video interrupt screwing this up */
     disable_interrupts();
 
     /* Correct to ensure we are handling the right screen */
-    int i = disp - surfaces;
+    int i = surf - surfaces;
 
     assertf(i >= 0 && i < __buffers, "Display context is not valid!");
 
