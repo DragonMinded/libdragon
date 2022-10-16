@@ -521,7 +521,7 @@ TRICONST1: .half 0,0,0,0,0x200,0x200,0x200,0x200
     # * a0: high 32-bit word of the triangle command. This will be
     #       completed with the left/right flag and the mipmap level.
     # * a1,a2,a3: pointer to the triangle structures in DMEM
-    # * v0: 0=cull back, 1=cull front, any other value = culling disabled
+    # * v0: 0=cull front, 1=cull back, any other value = culling disabled
     # * s3: output buffer pointer
     #####################################################################
 

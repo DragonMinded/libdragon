@@ -8,9 +8,10 @@
 
     RSPQ_BeginOverlayHeader
         RSPQ_DefineCommand GLCmd_InitMtx,             68
-        RSPQ_DefineCommand GLCmd_InitPipe,            4
+        RSPQ_DefineCommand GLCmd_InitPipe,            8
         RSPQ_DefineCommand GLCmd_SetPrimVertex,       28
         RSPQ_DefineCommand GLCmd_DrawTriangle,        8
+        RSPQ_DefineCommand GLCmd_SendVertex,          28
     RSPQ_EndOverlayHeader
 
     .align 4
@@ -42,7 +43,7 @@ FINAL_MATRIX:    .dcb.w 4*4    # integer part
 #define PRIM_VTX_SIZE              42
 
     .align 3
-PRIM_VERTEX_CACHE:   .dcb.b      PRIM_VTX_SIZE * 4
+PRIM_VERTEX_CACHE:   .dcb.b      PRIM_VTX_SIZE * 5
 
 #define SCREEN_VTX_X                0
 #define SCREEN_VTX_Y                2
@@ -69,10 +70,31 @@ SCREEN_VERTEX_CACHE_IDS:     .half   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 SCREEN_VERTEX_CACHE_SLOTS:   .half   SLOTS4(0), SLOTS4(4), SLOTS4(8), SLOTS4(12)  
                              .half   SLOTS4(16), SLOTS4(20), SLOTS4(24), SLOTS4(28)
                              #undef SLOTS4
+
+PRIM_FUNC:      .half 0
+PRIM_NEXT:      .half 0
+PRIM_PROGRESS:  .half 0
+PRIM_COUNTER:   .half 0
+PRIM_INDICES:   .half 0,0,0
+PRIM_SIZE:      .half 0
+TRI_CMD:        .half 0
+TRI_CULL:       .byte 0
     RSPQ_EndSavedState
 
     .align 4
 CACHE_OFFSETS:               .half 2,4,6,8,10,12,14,16
+
+PRIM_FUNCS:
+    .half GL_PrimSimple         - _start    # GL_POINTS
+    .half GL_PrimSimple         - _start    # GL_LINES
+    .half GL_PrimLineStrip      - _start    # GL_LINE_LOOP
+    .half GL_PrimLineStrip      - _start    # GL_LINE_STRIP
+    .half GL_PrimSimple         - _start    # GL_TRIANGLES
+    .half GL_PrimTriangleStrip  - _start    # GL_TRIANGLE_STRIP
+    .half GL_PrimTriangleFan    - _start    # GL_TRIANGLE_FAN
+    .half GL_PrimQuads          - _start    # GL_QUADS
+    .half GL_PrimTriangleStrip  - _start    # GL_QUAD_STRIP
+    .half GL_PrimTriangleFan    - _start    # GL_POLYGON
 
     .text
 
@@ -97,7 +119,7 @@ GLCmd_InitMtx:
 GLCmd_InitPipe:
     move s0, a0
     li s4, %lo(GL_STATE)
-    jal DMAInAsync
+    jal DMAIn
     li t0, DMA_SIZE(GL_STATE_SIZE, 1)
 
     # Clear screen vertex cache
@@ -107,8 +129,80 @@ GLCmd_InitPipe:
     sqv vzero, 0x20,s0
     sqv vzero, 0x30,s0
 
+    lhu t0, %lo(GL_STATE_PRIM_TYPE)
+    sh zero, %lo(PRIM_PROGRESS)
+    sh zero, %lo(PRIM_COUNTER)
+
+    sll t0, 1
+    lhu t0, %lo(PRIM_FUNCS)(t0)
+    sh t0, %lo(PRIM_FUNC)
+
+    srl t0, a1, 16
+    andi t1, a1, 0xFFFF
+    sh t0, %lo(PRIM_SIZE)
+    sh t1, %lo(PRIM_NEXT)
+
+    #define active_tex  s0
+    #define state_flags t0
+    #define has_depth   t1
+    #define tex_flags   t2
+    #define has_tex     t3
+    #define tri_cmd     t4
+
+    jal GL_GetActiveTexture
+    move tex_flags, zero
+
+    beqz active_tex, glpipe_init_no_tex
+    andi has_depth, state_flags, FLAG_DEPTH_TEST
+
+    lw tex_flags, TEXTURE_FLAGS_OFFSET(s0)
+glpipe_init_no_tex:
+    andi has_tex, tex_flags, TEX_FLAG_COMPLETE
+
+    or tri_cmd, has_depth, has_tex
+    sll tri_cmd, TRICMD_ATTR_SHIFT
+    ori tri_cmd, 0xCC00
+    sh tri_cmd, %lo(TRI_CMD)
+
+    #undef active_tex
+    #undef has_depth
+    #undef tex_flags
+    #undef has_tex
+    #undef tri_cmd
+
+    #define cull_mode       t1
+    #define front_face      t2
+    #define cull_enabled    t3
+    #define tri_cull        t4
+
+    andi cull_enabled, state_flags, FLAG_CULL_FACE
+    beqz cull_enabled, glpipe_init_write_cull
+    # Any non-negative value other than 0 or 1 signifies that no faces should be culled
+    li tri_cull, 2
+
+    lhu cull_mode, %lo(GL_STATE_CULL_MODE)
+    lhu front_face, %lo(GL_STATE_FRONT_FACE)
+
+    # Set TRI_CULL to a negative number to cull all faces
+    beq cull_mode, GL_FRONT_AND_BACK, glpipe_init_write_cull
+    li tri_cull, -1
+
+    # tri_cull = (cull_mode == GL_BACK) ^ (front_face == GL_CW)
+    xori cull_mode, GL_FRONT
+    sltu tri_cull, zero, cull_mode
+    xori front_face, GL_CCW
+    sltu front_face, zero, front_face
+    xor tri_cull, front_face
+
+glpipe_init_write_cull:
     j RSPQ_Loop
-    nop
+    sb tri_cull, %lo(TRI_CULL)
+
+    #undef cull_mode
+    #undef front_face
+    #undef cull_enabled
+    #undef tri_cull
+    #undef state_flags
     .endfunc
 
     ####################################################
@@ -200,6 +294,90 @@ move_loop:
     sh t1, (SCREEN_VERTEX_CACHE_COUNT*2*1)(s0)
     .endfunc
 
+GLCmd_SendVertex:
+    #define prim_index      s1
+    #define prim_func       s2
+    #define prim_size       t6
+    #define prim_progress   t7
+
+    #define prim_vtx1       s5
+    #define prim_vtx2       s6
+    #define prim_vtx3       s7
+
+    lb v0, %lo(TRI_CULL)
+    lhu prim_index, %lo(PRIM_NEXT)
+
+    # If TRI_CULL is negative, we're culling all faces.
+    # So just quit immediately.
+    bltz v0, JrRa
+    move ra2, ra
+
+    jal GLCmd_SetPrimVertex
+    or a0, prim_index
+
+    lhu prim_size, %lo(PRIM_SIZE)
+    lhu prim_progress, %lo(PRIM_PROGRESS)
+
+    blt prim_index, PRIM_VTX_SIZE*3, gl_write_prim_next
+    addi t0, prim_index, PRIM_VTX_SIZE
+    move t0, zero
+gl_write_prim_next:
+    sh t0, %lo(PRIM_NEXT)
+
+    move ra, ra2
+    
+    sh prim_index, %lo(PRIM_INDICES)(prim_progress)
+    addi prim_progress, 2
+    blt prim_progress, prim_size, JrRa
+    sh prim_progress, %lo(PRIM_PROGRESS)
+
+    lhu prim_func, %lo(PRIM_FUNC)
+
+    lhu prim_vtx1, %lo(PRIM_INDICES) + 0x0
+    lhu prim_vtx2, %lo(PRIM_INDICES) + 0x2
+    jr prim_func
+    lhu prim_vtx3, %lo(PRIM_INDICES) + 0x4
+
+gl_prim_func_return:
+    sh prim_progress, %lo(PRIM_PROGRESS)
+    # TODO: points / lines
+    j GL_DrawTriangle
+    lhu a0, %lo(TRI_CMD)
+
+GL_PrimSimple:
+    j gl_prim_func_return
+    move prim_progress, zero
+
+GL_PrimLineStrip:
+    lhu t0, %lo(PRIM_INDICES) + 0x2
+    li prim_progress, 2
+    j gl_prim_func_return
+    sh t0, %lo(PRIM_INDICES) + 0x0
+
+GL_PrimTriangleStrip:
+    lhu t0, %lo(PRIM_INDICES) + 0x4
+    lhu t1, %lo(PRIM_COUNTER)
+    li prim_progress, 4
+    xori t2, t1, 2
+    sh t0, %lo(PRIM_INDICES)(t1)
+    j gl_prim_func_return
+    sh t2, %lo(PRIM_COUNTER)
+
+GL_PrimTriangleFan:
+    lhu t0, %lo(PRIM_INDICES) + 0x4
+    li prim_progress, 4
+    j gl_prim_func_return
+    sh t0, %lo(PRIM_INDICES) + 0x2
+
+GL_PrimQuads:
+    lhu t0, %lo(PRIM_INDICES) + 0x4
+    lhu t1, %lo(PRIM_COUNTER)
+    sh t0, %lo(PRIM_INDICES) + 0x2
+    xori t1, 2
+    sll prim_progress, t1, 1
+    j gl_prim_func_return
+    sh t1, %lo(PRIM_COUNTER)
+
     ########################################
     # GLCmd_SetPrimVertex
     #
@@ -219,7 +397,7 @@ GLCmd_SetPrimVertex:
     #define in_xy      a1
     #define in_zw      a2
     #define in_rg      a3
-    #define vtx_id     v0
+    #define vtx_id     v1
 
     #define v___      $v01
 
@@ -464,14 +642,17 @@ GLCmd_DrawTriangle:
     #define prim_vtx1   s5
     #define prim_vtx2   s6
     #define prim_vtx3   s7
+    #define ra3         s8
 
     andi prim_vtx3, prim_verts, 0xFF
-    addi prim_vtx3, %lo(PRIM_VERTEX_CACHE)
     srl  prim_vtx2, prim_verts, 8
     and  prim_vtx2, 0xFF
-    addi prim_vtx2, %lo(PRIM_VERTEX_CACHE)
     srl  prim_vtx1, prim_verts, 16
     and  prim_vtx1, 0xFF
+
+GL_DrawTriangle:
+    addi prim_vtx3, %lo(PRIM_VERTEX_CACHE)
+    addi prim_vtx2, %lo(PRIM_VERTEX_CACHE)
     addi prim_vtx1, %lo(PRIM_VERTEX_CACHE)
 
     # Trivial reject: if all the vertices are out of the same plane (at least one),
@@ -482,7 +663,7 @@ GLCmd_DrawTriangle:
     and t0, t1
     and t0, t2
     bnez t0, JrRa
-    nop
+    move ra3, ra
 
     jal GL_TnL
     move s3, prim_vtx1
@@ -496,12 +677,12 @@ GLCmd_DrawTriangle:
     move s3, prim_vtx3
     addi a3, s4, SCREEN_VTX_X
 
-    li v0, 1
     jal RDPQ_Triangle
     li s3, %lo(RDPQ_CMD_STAGING)
 
+    move ra, ra3
+    j RDPQ_Send
     li s4, %lo(RDPQ_CMD_STAGING)
-    jal_and_j RDPQ_Send, RSPQ_Loop
 
     #undef prim_vtx1
     #undef prim_vtx2
@@ -509,4 +690,15 @@ GLCmd_DrawTriangle:
 
     .endfunc
 
+GL_DrawLine:
+    # TODO
+    jr ra
+    nop
+
+GL_DrawPoint:
+    # TODO
+    jr ra
+    nop
+
+#include "rsp_gl_common.inc"
 #include <rsp_rdpq.inc>
