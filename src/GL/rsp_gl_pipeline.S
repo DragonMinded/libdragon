@@ -77,6 +77,7 @@ PRIM_PROGRESS:  .half 0
 PRIM_COUNTER:   .half 0
 PRIM_INDICES:   .half 0,0,0
 PRIM_SIZE:      .half 0
+PRIM_TEX_SIZE:  .half 0,0
 TRI_CMD:        .half 0
 TRI_CULL:       .byte 0
     RSPQ_EndSavedState
@@ -155,7 +156,9 @@ GLCmd_InitPipe:
     beqz active_tex, glpipe_init_no_tex
     andi has_depth, state_flags, FLAG_DEPTH_TEST
 
+    lw t5, IMAGE_WIDTH_OFFSET(s0)
     lw tex_flags, TEXTURE_FLAGS_OFFSET(s0)
+    sw t5, %lo(PRIM_TEX_SIZE)
 glpipe_init_no_tex:
     andi has_tex, tex_flags, TEX_FLAG_COMPLETE
 
@@ -593,7 +596,7 @@ GL_TnL:
     vadd vscreenpos_i, vviewoff
 
     # Scale texcoord by texsize
-    li s0, %lo(GL_BOUND_TEXTURE_2D) + TEXTURE_IMAGE_SIZE*0 + IMAGE_WIDTH_OFFSET
+    li s0, %lo(PRIM_TEX_SIZE)
     llv vtexsize.s, 0,s0
     vmudh vst, vtexsize
     
