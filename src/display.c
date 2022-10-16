@@ -176,15 +176,14 @@ static uint32_t __height;
 static uint32_t __buffers = NUM_BUFFERS;
 /** @brief Pointer to uncached 16-bit aligned version of buffers */
 static void *__safe_buffer[NUM_BUFFERS];
-
 /** @brief Currently displayed buffer */
 static int now_showing = -1;
-
-/** @brief True if the buffer indexed by now_drawing is currently locked */
+/** @brief Bitmask of surfaces that are currently being drawn */
 static uint32_t drawing_mask = 0;
-
+/** @brief Bitmask of surfaces that are ready to be shown */
 static volatile uint32_t ready_mask = 0;
 
+/** @brief Get the next buffer index (with wraparound) */
 static inline int buffer_next(int idx) {
     idx += 1;
     if (idx == __buffers)
