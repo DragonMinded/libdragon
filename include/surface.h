@@ -8,7 +8,7 @@
  * 
  * A surface is described by the following properties:
  * 
- *  * Size (width. height)
+ *  * Size (width, height)
  *  * Pixel format
  *  * Stride (distance in bytes between rows)
  * 
@@ -28,7 +28,7 @@
  * Sometimes, you might have an existing raw pointer to a buffer and need to pass it
  * to an API that accepts a #surface_t. For those cases, you can use
  * #surface_make to create a #surface_t instance, that you can throw away
- * after you called the function.
+ * after you called the function; #surface_free does nothing on these surfaces.
  * 
  * In some cases, you might want to interact with a rectangular portion of
  * an existing surface (for instance, you want to draw with RDP only in the
@@ -45,6 +45,9 @@
  *      rdp_attach(&fbtop);
  * @endcode
  * 
+ * Surfaces created by #surface_make_sub don't need to be freed as they
+ * are just references to the parent surface; #surface_free does nothing
+ * on them.
  */
 
 #ifndef __LIBDRAGON_SURFACE_H
@@ -68,9 +71,20 @@ extern "C" {
  * Note that there are texture format that are 4bpp, so don't divide this by 8 to get the number of bytes
  * per pixels, but rather use #TEX_FORMAT_BYTES2PIX and #TEX_FORMAT_PIX2BYTES. */
 #define TEX_FORMAT_BITDEPTH(fmt)             (4 << ((fmt) & 0x3))
-/** @brief Convert the specified number of pixels in bytes. */
-#define TEX_FORMAT_PIX2BYTES(fmt, pixels)    ((pixels) << (((fmt) & 3) + 2) >> 3)
-/** @brief Convert the specified number of bytes in pixels. */
+/** @brief Convert the specified number of pixels to bytes. 
+ * 
+ * @note This macro rounds up the value. For 4bpp surfaces, this means that it returns
+ *       the safe number of bytes that can hold the specified number of pixels.
+ *       For instance, `TEX_FORMAT_PIX2BYTES(FMT_CI4, 3)` returns 2, as you need 2 bytes
+ *       to store 3 pixels in 4bpp format (even though the last byte is only half used).
+ */
+#define TEX_FORMAT_PIX2BYTES(fmt, pixels)    ((((pixels) << (((fmt) & 3) + 2)) + 7) >> 3)
+/** @brief Convert the specified number of bytes to pixels.
+  * 
+  * @note This macro rounds down the value. For instance, for a 32-bpp surface,
+  *       calling `TEX_FORMAT_BYTES2PIX(FMT_RGBA32, 5)` returns 1, because you can safely
+  *       store at maximum 1 32bpp pixel in 5 bytes.
+  */
 #define TEX_FORMAT_BYTES2PIX(fmt, bytes)     (((bytes) << 1) >> ((fmt) & 3))
 
 /**
@@ -186,8 +200,9 @@ inline surface_t surface_make_linear(void *buffer, tex_format_t format, uint32_t
  * not needed anymore.
  * 
  * A surface allocated via #surface_alloc can be used as a RDP frame buffer
- * (passed to #rdp_attach) because it is guarateed to have the required
- * alignment of 64 bytes.
+ * (passed to #rdp_attach) because it is guaranteed to have the required
+ * alignment of 64 bytes, provided it is using one of the formats supported by
+ * RDP as a framebuffer target (`FMT_RGBA32`, `FMT_RGBA16` or `FMT_I8`).
  *
  * @param[in]  format   Pixel format of the surface
  * @param[in]  width    Width in pixels
@@ -201,11 +216,11 @@ surface_t surface_alloc(tex_format_t format, uint32_t width, uint32_t height);
  *        surface.
  * 
  * The surface returned by this function will point to a portion of the buffer of
- * the parent surface, and will have of course the smae pixel format.
+ * the parent surface, and will have of course the same pixel format.
  * 
  * @param[in]  parent   Parent surface that will be pointed to
- * @param[in]  x0       X coordinate of the top-left corner of the parent surface
- * @param[in]  y0       Y coordinate of the top-left corner of the parent surface
+ * @param[in]  x0       X coordinate of the top-left corner within the parent surface
+ * @param[in]  y0       Y coordinate of the top-left corner within the parent surface
  * @param[in]  width    Width of the surface that will be returned
  * @param[in]  height   Height of the surface that will be returned
  * @return              The initialized surface
@@ -219,9 +234,9 @@ surface_t surface_make_sub(surface_t *parent,
  * This function should be called after a surface allocated via #surface_alloc is not
  * needed anymore. 
  * 
- * Calling this function on surfaces allocated via #surface_make (that is, surfaces
- * initialized with an existing buffer pointer) has no effect but clearing the contents
- * of the surface structure.
+ * Calling this function on surfaces allocated via #surface_make or #surface_make_sub
+ * (that is, surfaces initialized with an existing buffer pointer) has no effect but
+ * clearing the contents of the surface structure.
  * 
  * @param[in]  surface   The surface to free
  */

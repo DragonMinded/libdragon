@@ -1256,7 +1256,7 @@ void test_rdpq_fog(TestContext *ctx) {
     rdpq_set_prim_color(RGBA32(255,0,0,255));
     rdpq_fill_rectangle(0, 0, FBWIDTH, FBWIDTH);
     rspq_wait();
-    ASSERT_SURFACE(&fb, { return RGBA32(254,0,0,FULL_CVG); });
+    ASSERT_SURFACE(&fb, { return RGBA32(255,0,0,FULL_CVG); });
 
     // Activate fog
     rdpq_debug_log_msg("Custom combiner - fog");
@@ -1280,7 +1280,7 @@ void test_rdpq_fog(TestContext *ctx) {
     rdpq_mode_fog(0);
     rdpq_fill_rectangle(0, 0, FBWIDTH, FBWIDTH);
     rspq_wait();
-    ASSERT_SURFACE(&fb, { return RGBA32(254,0,0,FULL_CVG); });
+    ASSERT_SURFACE(&fb, { return RGBA32(255,0,0,FULL_CVG); });
 }
 
 void test_rdpq_mode_freeze(TestContext *ctx) {
@@ -1378,7 +1378,7 @@ void test_rdpq_mode_freeze(TestContext *ctx) {
     num_nops = debug_rdp_stream_count_cmd(0xC0);
     ASSERT_EQUAL_SIGNED(num_ccs, 1, "too many SET_COMBINE_MODE");
     ASSERT_EQUAL_SIGNED(num_soms, 2, "too many SET_OTHER_MODES"); // 1 SOM for fill, 1 SOM for standard
-    ASSERT_EQUAL_SIGNED(num_nops, 7, "wrong number of NOPs");
+    ASSERT_EQUAL_SIGNED(num_nops, 9, "wrong number of NOPs");
 }
 
 void test_rdpq_mode_freeze_stack(TestContext *ctx) {

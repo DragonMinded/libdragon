@@ -79,7 +79,7 @@ extern "C" {
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, antialias_t aa );
 surface_t* display_lock(void);
-void display_show(surface_t* disp);
+void display_show(surface_t* surf);
 void display_close();
 
 uint32_t display_get_width(void);
