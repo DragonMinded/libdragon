@@ -75,6 +75,7 @@ enum {
     GLP_CMD_INIT_PIPE      = 0x1,
     GLP_CMD_SET_PRIM_VTX   = 0x2,
     GLP_CMD_DRAW_TRI       = 0x3,
+    GLP_CMD_SEND_VTX       = 0x4,
 };
 
 typedef enum {
@@ -379,8 +380,8 @@ typedef struct {
 
     GLfloat current_attribs[ATTRIB_COUNT][4];
 
-    gl_prim_vtx_t prim_cache[4];
-    gl_material_t material_cache[4];
+    gl_prim_vtx_t prim_cache[5];
+    gl_material_t material_cache[5];
 
     uint8_t prim_size;
     uint8_t prim_indices[3];
@@ -388,8 +389,6 @@ typedef struct {
     uint8_t prim_next;
     uint32_t prim_counter;
     uint8_t (*prim_func)(void);
-    bool prim_lock_next;
-    uint8_t prim_locked;
     uint16_t prim_id;
 
     uint16_t prim_tex_width;
@@ -463,9 +462,10 @@ typedef struct {
     int16_t viewport_offset[4];
     gl_light_srv_t lights[LIGHT_COUNT];
     uint16_t tex_gen_mode[4];
+    int16_t position[4];
+    int16_t color[4];
     int16_t tex_coords[4];
     int16_t normal[4];
-    int16_t color[4];
     int16_t light_ambient[4];
     int16_t mat_ambient[4];
     int16_t mat_diffuse[4];
@@ -630,6 +630,28 @@ inline void glpipe_set_prim_vertex(int idx, GLfloat attribs[ATTRIB_COUNT][4], in
     assertf(id != 0, "invalid vertex ID");
     glp_write(
         GLP_CMD_SET_PRIM_VTX, (idx*PRIM_VTX_SIZE) | (id<<8), 
+        (fx16(attribs[ATTRIB_VERTEX][0]*OBJ_SCALE) << 16) | fx16(attribs[ATTRIB_VERTEX][1]*OBJ_SCALE),
+        (fx16(attribs[ATTRIB_VERTEX][2]*OBJ_SCALE) << 16) | fx16(attribs[ATTRIB_VERTEX][3]*OBJ_SCALE),
+        (fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][0])) << 16) | fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][1])),
+        (fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][2])) << 16) | fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][3])),
+        (fx16(attribs[ATTRIB_TEXCOORD][0]*TEX_SCALE) << 16) | fx16(attribs[ATTRIB_TEXCOORD][1]*TEX_SCALE),
+        normal
+    );
+}
+
+inline void glpipe_send_vertex(GLfloat attribs[ATTRIB_COUNT][4], int id)
+{
+    #define TEX_SCALE   32.0f
+    #define OBJ_SCALE   32.0f
+    #define fx16(v)  ((uint32_t)((int32_t)((v))) & 0xFFFF)
+
+    uint32_t normal = (((uint32_t)(attribs[ATTRIB_NORMAL][0]*255.0f) & 0xFF) << 24) |
+                      (((uint32_t)(attribs[ATTRIB_NORMAL][1]*255.0f) & 0xFF) << 16) |
+                      (((uint32_t)(attribs[ATTRIB_NORMAL][2]*255.0f) & 0xFF) <<  8);
+
+    assertf(id != 0, "invalid vertex ID");
+    glp_write(
+        GLP_CMD_SEND_VTX, id<<8,
         (fx16(attribs[ATTRIB_VERTEX][0]*OBJ_SCALE) << 16) | fx16(attribs[ATTRIB_VERTEX][1]*OBJ_SCALE),
         (fx16(attribs[ATTRIB_VERTEX][2]*OBJ_SCALE) << 16) | fx16(attribs[ATTRIB_VERTEX][3]*OBJ_SCALE),
         (fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][0])) << 16) | fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][1])),

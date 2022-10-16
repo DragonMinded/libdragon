@@ -37,10 +37,12 @@ void gl_array_init()
     state.arrays[ATTRIB_VERTEX].type = GL_FLOAT;
     state.arrays[ATTRIB_COLOR].size = 4;
     state.arrays[ATTRIB_COLOR].type = GL_FLOAT;
+    state.arrays[ATTRIB_COLOR].normalize = true;
     state.arrays[ATTRIB_TEXCOORD].size = 4;
     state.arrays[ATTRIB_TEXCOORD].type = GL_FLOAT;
     state.arrays[ATTRIB_NORMAL].size = 3;
     state.arrays[ATTRIB_NORMAL].type = GL_FLOAT;
+    state.arrays[ATTRIB_NORMAL].normalize = true;
 }
 
 void gl_set_array(gl_array_t *array, GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)

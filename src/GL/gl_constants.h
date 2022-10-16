@@ -118,6 +118,8 @@
 
 #define ASSERT_INVALID_VTX_ID   0x2001
 
+#define TRICMD_ATTR_SHIFT   6
+
 #define RSP_PIPELINE   0
 
 #endif

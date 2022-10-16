@@ -12,9 +12,10 @@ GL_STATE:
     GL_VIEWPORT_OFFSET:     .half   0,0,0,0
     GL_LIGHTS:              .ds.b   LIGHT_SIZE * LIGHT_COUNT
     GL_TEX_GEN_MODE:        .half   0,0,0,0
+    GL_CUR_POS:             .half   0,0,0,0
+    GL_CUR_COLOR:           .half   0,0,0,0
     GL_CUR_TEX_COORDS:      .half   0,0,0,0
     GL_CUR_NORMAL:          .half   0,0,0,0
-    GL_CUR_COLOR:           .half   0,0,0,0
     GL_STATE_LIGHT_AMBIENT: .half   0,0,0,0
     GL_MAT_AMBIENT:         .half   0,0,0,0
     GL_MAT_DIFFUSE:         .half   0,0,0,0

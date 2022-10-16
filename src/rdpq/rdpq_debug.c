@@ -922,7 +922,7 @@ static void lazy_validate_rendermode(void) {
  */
 static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool use_w)
 {
-    if (rdp.som.z.prim) {
+    if (rdp.som.z.prim && (rdp.som.z.cmp || rdp.som.z.upd)) {
         VALIDATE_WARN_SOM(!use_z, "per-vertex Z value will be ignored because Z-source is set to primitive");
         VALIDATE_ERR_SOM(rdp.sent_zprim, "Z-source is set to primitive but SET_PRIM_DEPTH was never sent");
         use_z = true;

@@ -7,6 +7,9 @@
 #include <malloc.h>
 #include <string.h>
 
+_Static_assert(((RDPQ_CMD_TRI << 8) | (FLAG_DEPTH_TEST << TRICMD_ATTR_SHIFT)) == (RDPQ_CMD_TRI_ZBUF << 8));
+_Static_assert(((RDPQ_CMD_TRI << 8) | (TEX_FLAG_COMPLETE << TRICMD_ATTR_SHIFT)) == (RDPQ_CMD_TRI_TEX << 8));
+
 extern gl_state_t state;
 
 typedef uint32_t (*read_index_func)(const void*,uint32_t);
@@ -99,7 +102,9 @@ void glpipe_init(gl_matrix_t *mtx, gl_viewport_t *view)
         rspq_write_arg(&w, (fmtx[i] << 16) | fmtx[i+1]);
     rspq_write_end(&w);
 
-    glp_write(GLP_CMD_INIT_PIPE, gl_rsp_state);
+    uint32_t args = ((uint32_t)state.prim_size << 17) | ((uint32_t)state.prim_next * PRIM_VTX_SIZE);
+
+    glp_write(GLP_CMD_INIT_PIPE, gl_rsp_state, args);
 }
 
 bool gl_begin(GLenum mode)
@@ -107,55 +112,55 @@ bool gl_begin(GLenum mode)
     switch (mode) {
     case GL_POINTS:
         state.prim_func = gl_points;
-        state.prim_lock_next = false;
+        state.prim_next = 0;
         state.prim_size = 1;
         break;
     case GL_LINES:
         state.prim_func = gl_lines;
-        state.prim_lock_next = false;
+        state.prim_next = 0;
         state.prim_size = 2;
         break;
     case GL_LINE_LOOP:
         // Line loop is equivalent to line strip, except for special case handled in glEnd
         state.prim_func = gl_line_strip;
-        state.prim_lock_next = true;
+        state.prim_next = 4;
         state.prim_size = 2;
         break;
     case GL_LINE_STRIP:
         state.prim_func = gl_line_strip;
-        state.prim_lock_next = false;
+        state.prim_next = 0;
         state.prim_size = 2;
         break;
     case GL_TRIANGLES:
         state.prim_func = gl_triangles;
-        state.prim_lock_next = false;
+        state.prim_next = 0;
         state.prim_size = 3;
         break;
     case GL_TRIANGLE_STRIP:
         state.prim_func = gl_triangle_strip;
-        state.prim_lock_next = false;
+        state.prim_next = 0;
         state.prim_size = 3;
         break;
     case GL_TRIANGLE_FAN:
         state.prim_func = gl_triangle_fan;
-        state.prim_lock_next = true;
+        state.prim_next = 4;
         state.prim_size = 3;
         break;
     case GL_QUADS:
         state.prim_func = gl_quads;
-        state.prim_lock_next = false;
+        state.prim_next = 0;
         state.prim_size = 3;
         break;
     case GL_QUAD_STRIP:
         // Quad strip is equivalent to triangle strip
         state.prim_func = gl_triangle_strip;
-        state.prim_lock_next = false;
+        state.prim_next = 0;
         state.prim_size = 3;
         break;
     case GL_POLYGON:
         // Polygon is equivalent to triangle fan
         state.prim_func = gl_triangle_fan;
-        state.prim_lock_next = true;
+        state.prim_next = 4;
         state.prim_size = 3;
         break;
     default:
@@ -207,7 +212,7 @@ void gl_end()
     if (state.primitive_mode == GL_LINE_LOOP) {
         // Close line loop
         state.prim_indices[0] = state.prim_indices[1];
-        state.prim_indices[1] = state.prim_locked;
+        state.prim_indices[1] = 4;
 
         gl_draw_primitive();
     }
@@ -241,8 +246,6 @@ void glEnd(void)
 
 void gl_load_attribs(const gl_attrib_source_t *sources, const uint32_t index)
 {
-    static const GLfloat default_values[] = {0, 0, 0, 1};
-
     for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
     {
         const gl_attrib_source_t *src = &sources[i];
@@ -254,12 +257,6 @@ void gl_load_attribs(const gl_attrib_source_t *sources, const uint32_t index)
 
         const void *p = src->pointer + (index - src->offset) * src->stride;
         src->read_func(dst, p, src->size);
-
-        // Fill in the rest with default values
-        for (uint32_t r = 3; r >= src->size; r--)
-        {
-            dst[r] = default_values[r];
-        }
     }
 }
 
@@ -320,7 +317,6 @@ void gl_reset_vertex_cache()
     memset(state.vertex_cache_ids, 0, sizeof(state.vertex_cache_ids));
     memset(state.lru_age_table, 0, sizeof(state.lru_age_table));
     state.lru_next_age = 1;
-    state.prim_locked = -1;
 }
 
 bool gl_check_vertex_cache(uint16_t id, uint8_t *cache_index)
@@ -553,17 +549,29 @@ void gl_prim_assembly(uint8_t prim_index)
 
     assert(state.prim_func != NULL);
     state.prim_progress = state.prim_func();
-    state.prim_counter++;
 }
 
 void gl_draw(const gl_attrib_source_t *sources, uint32_t offset, uint32_t count, const void *indices, read_index_func read_index)
 {
-    if (sources[ATTRIB_VERTEX].pointer == NULL) {
+    if (sources[ATTRIB_VERTEX].pointer == NULL || count == 0) {
         return;
     }
 
     // Inform the rdpq state engine that we are going to draw something so the pipe settings are in use
     __rdpq_autosync_use(AUTOSYNC_PIPE);
+
+    // Prepare default values
+    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
+    {
+        if (sources[i].pointer == NULL) {
+            continue;
+        }
+
+        state.current_attribs[i][0] = 0;
+        state.current_attribs[i][1] = 0;
+        state.current_attribs[i][2] = 0;
+        state.current_attribs[i][3] = 1;
+    }
 
     for (uint32_t i = 0; i < count; i++)
     {
@@ -572,23 +580,21 @@ void gl_draw(const gl_attrib_source_t *sources, uint32_t offset, uint32_t count,
         // The pipeline is based on 16-bit IDs
         assertf(index < (1 << 16), "Index out of range");
         
-        uint8_t cache_index = state.prim_next;
         uint16_t id = index;
         if (indices == NULL) {
             id = ++state.prim_id;
         }
 
         gl_load_attribs(sources, index);
-        gl_vertex_pre_clip(cache_index, id);
 
-        if (state.prim_lock_next) {
-            state.prim_locked = cache_index;
-            state.prim_lock_next = false;
-        }
+#if RSP_PIPELINE
+        glpipe_send_vertex(state.current_attribs, id+1);
+        continue;
+#endif
+        uint8_t cache_index = state.prim_next;
+        gl_vertex_pre_clip(cache_index, id);
         
-        do {
-            state.prim_next = (state.prim_next + 1) % 4;
-        } while (state.prim_next == state.prim_locked);
+        state.prim_next = (state.prim_next + 1) & 3;
 
         gl_prim_assembly(cache_index);
     }
@@ -625,7 +631,8 @@ uint8_t gl_triangles()
 uint8_t gl_triangle_strip()
 {
     // Which vertices are shared depends on whether the primitive counter is odd or even
-    state.prim_indices[state.prim_counter & 1] = state.prim_indices[2];
+    state.prim_indices[state.prim_counter] = state.prim_indices[2];
+    state.prim_counter ^= 1;
 
     // The next triangle will share two vertices with the previous one, so reset progress to 2
     return 2;
@@ -645,8 +652,8 @@ uint8_t gl_quads()
 {
     state.prim_indices[1] = state.prim_indices[2];
 
-    // This is equivalent to state.prim_counter % 2 == 0 ? 2 : 0
-    return ((state.prim_counter & 1) ^ 1) << 1;
+    state.prim_counter ^= 1;
+    return state.prim_counter << 1;
 }
 
 void gl_draw_point(gl_screen_vtx_t *v0)
@@ -741,12 +748,12 @@ void gl_draw_triangle(gl_screen_vtx_t *v0, gl_screen_vtx_t *v1, gl_screen_vtx_t 
 
 void gl_cull_triangle(gl_screen_vtx_t *v0, gl_screen_vtx_t *v1, gl_screen_vtx_t *v2)
 {
-    if (state.cull_face_mode == GL_FRONT_AND_BACK) {
-        return;
-    }
-
     if (state.cull_face)
     {
+        if (state.cull_face_mode == GL_FRONT_AND_BACK) {
+            return;
+        }
+        
         float winding = v0->screen_pos[0] * (v1->screen_pos[1] - v2->screen_pos[1]) +
                         v1->screen_pos[0] * (v2->screen_pos[1] - v0->screen_pos[1]) +
                         v2->screen_pos[0] * (v0->screen_pos[1] - v1->screen_pos[1]);
@@ -962,62 +969,62 @@ void gl_clip_point()
 
 void read_u8(GLfloat *dst, const uint8_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = U8_TO_FLOAT(src[i]);
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
 void read_i8(GLfloat *dst, const int8_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = I8_TO_FLOAT(src[i]);
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
 void read_u16(GLfloat *dst, const uint16_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = U16_TO_FLOAT(src[i]);
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
 void read_i16(GLfloat *dst, const int16_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = I16_TO_FLOAT(src[i]);
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
 void read_u32(GLfloat *dst, const uint32_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = U32_TO_FLOAT(src[i]);
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
 void read_i32(GLfloat *dst, const int32_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = I32_TO_FLOAT(src[i]);
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
 void read_u8n(GLfloat *dst, const uint8_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+    for (uint32_t i = 0; i < count; i++) dst[i] = U8_TO_FLOAT(src[i]);
 }
 
 void read_i8n(GLfloat *dst, const int8_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+    for (uint32_t i = 0; i < count; i++) dst[i] = I8_TO_FLOAT(src[i]);
 }
 
 void read_u16n(GLfloat *dst, const uint16_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+    for (uint32_t i = 0; i < count; i++) dst[i] = U16_TO_FLOAT(src[i]);
 }
 
 void read_i16n(GLfloat *dst, const int16_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+    for (uint32_t i = 0; i < count; i++) dst[i] = I16_TO_FLOAT(src[i]);
 }
 
 void read_u32n(GLfloat *dst, const uint32_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+    for (uint32_t i = 0; i < count; i++) dst[i] = U32_TO_FLOAT(src[i]);
 }
 
 void read_i32n(GLfloat *dst, const int32_t *src, uint32_t count)
 {
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+    for (uint32_t i = 0; i < count; i++) dst[i] = I32_TO_FLOAT(src[i]);
 }
 
 void read_f32(GLfloat *dst, const float *src, uint32_t count)

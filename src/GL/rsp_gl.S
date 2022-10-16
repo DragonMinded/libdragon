@@ -602,18 +602,6 @@ scissor_disabled:
     jr ra
     sw t6, %lo(RDPQ_SCISSOR_RECT) + 0x4
 
-# OUTPUT: s0 (zero if none is active)
-GL_GetActiveTexture:
-    lw t0, %lo(GL_STATE_FLAGS)
-    andi t1, t0, FLAG_TEXTURE_2D
-    bnez t1, JrRa
-    li s0, %lo(GL_BOUND_TEXTURES) + TEXTURE_OBJECT_SIZE
-    andi t1, t0, FLAG_TEXTURE_1D
-    bnez t1, JrRa
-    li s0, %lo(GL_BOUND_TEXTURES)
-    jr ra
-    move s0, zero
-
 GL_UpdateCombiner:
     move ra2, ra
     jal GL_IsPoints
@@ -1034,4 +1022,5 @@ flt_2_fxd_loop:
     nop
 */
 
+#include "rsp_gl_common.inc"
 #include <rsp_rdpq.inc>
