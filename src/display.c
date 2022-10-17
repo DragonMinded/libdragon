@@ -12,6 +12,7 @@
 #include "interrupt.h"
 #include "utils.h"
 #include "debug.h"
+#include "surface.h"
 
 /**
  * @defgroup display Display Subsystem
@@ -502,7 +503,7 @@ void display_close()
  * then this will return 0, without blocking. 
  * 
  * When you are done drawing on the buffer, use #display_show to unlock
- * the context and schedule the buffer to be displayed on the screen during
+ * the surface and schedule the buffer to be displayed on the screen during
  * next vblank.
  * 
  * It is possible to lock more than a display buffer at the same time, for
@@ -511,7 +512,7 @@ void display_close()
  * surfaces will always be shown on the screen in locking order,
  * irrespective of the order #display_show is called.
  *
- * @return A valid surface to render to or 0 if none is available.
+ * @return A valid surface to render to or NULL if none is available.
  */
 surface_t* display_lock(void)
 {

@@ -11,6 +11,7 @@
 #include "graphics.h"
 #include "sprite.h"
 #include "font.h"
+#include "surface.h"
 #include "sprite_internal.h"
 
 /**

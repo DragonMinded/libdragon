@@ -89,7 +89,7 @@ int main(void)
                 rdp_enable_texture_copy();
 
                 /* Attach RDP to display */
-                rdp_attach_display( disp );
+                rdp_attach( disp );
                     
                 /* Ensure the RDP is ready to receive sprites */
                 rdp_sync( SYNC_PIPE );
@@ -133,7 +133,7 @@ int main(void)
                 rdp_draw_sprite( 0, 50, 100, MIRROR_DISABLED );
 
                 /* Inform the RDP we are finished drawing and that any pending operations should be flushed */
-                rdp_detach_display();
+                rdp_detach();
 
                 break;
             }

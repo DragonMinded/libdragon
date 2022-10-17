@@ -9,6 +9,11 @@
 #include <stdint.h>
 #include "surface.h"
 
+///@cond
+struct surface_s;
+typedef struct surface_s surface_t;
+///@endcond
+
 /**
  * @addtogroup display
  * @{

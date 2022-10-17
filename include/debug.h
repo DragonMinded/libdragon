@@ -27,7 +27,7 @@ extern "C" {
  *
  *   * 64drive (rev 1 or 2)
  *   * EverDrive64
- *   * SummerCart64
+ *   * SC64
  *
  * Compatible PC tools:
  *

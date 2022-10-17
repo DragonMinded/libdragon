@@ -110,7 +110,7 @@ via `fprintf(stderr)`, see the debug library for more information.
 
 All cartridges that are able to load custom ROMs should be able to successfully
 load libdragon ROMs via either USB/serial, or from a MMC/SD card. For instance,
-the followig are known to work: 64drive, EverDrive64 (all models), SummerCart 64.
+the followig are known to work: 64drive, EverDrive64 (all models), SC64.
 
 If your cartridge has USB support, use one of the loaders that implement the
 libdragon debugging protocol, so to be able to show logs in console. For instance,
