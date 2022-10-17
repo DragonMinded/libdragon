@@ -67,37 +67,35 @@
 #define DELETION_LIST_SIZE   64
 #define MAX_DELETION_LISTS   4
 
-#define FLAG_DITHER         (1 << 0)
-#define FLAG_BLEND          (1 << 1)
-#define FLAG_DEPTH_TEST     (1 << 2)
-#define FLAG_DEPTH_MASK     (1 << 3)
-#define FLAG_ALPHA_TEST     (1 << 4)
-#define FLAG_FOG            (1 << 5)
-#define FLAG_MULTISAMPLE    (1 << 6)
-#define FLAG_SCISSOR_TEST   (1 << 7)
-#define FLAG_TEXTURE_1D     (1 << 8)
-#define FLAG_TEXTURE_2D     (1 << 9)
-#define FLAG_CULL_FACE      (1 << 10)
-#define FLAG_LIGHTING       (1 << 11)
-#define FLAG_COLOR_MATERIAL (1 << 12)
-#define FLAG_NORMALIZE      (1 << 13)
-#define FLAG_LIGHT0         (1 << 14)
-#define FLAG_LIGHT1         (1 << 15)
-#define FLAG_LIGHT2         (1 << 16)
-#define FLAG_LIGHT3         (1 << 17)
-#define FLAG_LIGHT4         (1 << 18)
-#define FLAG_LIGHT5         (1 << 19)
-#define FLAG_LIGHT6         (1 << 20)
-#define FLAG_LIGHT7         (1 << 21)
-#define FLAG_TEX_GEN_S      (1 << 22)
-#define FLAG_TEX_GEN_T      (1 << 23)
-#define FLAG_TEX_GEN_R      (1 << 24)
-#define FLAG_TEX_GEN_Q      (1 << 25)
-#define FLAG_LIGHT_LOCAL    (1 << 26)
-#define FLAG_IMMEDIATE      (1 << 27)
-#define FLAG_MTX_MV_DIRTY   (1 << 28)
-#define FLAG_MTX_PROJ_DIRTY (1 << 29)
-#define FLAG_MTX_TEX_DIRTY  (1 << 30)
+#define FLAG_DITHER             (1 << 0)
+#define FLAG_BLEND              (1 << 1)
+#define FLAG_DEPTH_TEST         (1 << 2)
+#define FLAG_DEPTH_MASK         (1 << 3)
+#define FLAG_ALPHA_TEST         (1 << 4)
+#define FLAG_FOG                (1 << 5)
+#define FLAG_MULTISAMPLE        (1 << 6)
+#define FLAG_SCISSOR_TEST       (1 << 7)
+#define FLAG_TEXTURE_1D         (1 << 8)
+#define FLAG_TEXTURE_2D         (1 << 9)
+#define FLAG_CULL_FACE          (1 << 10)
+#define FLAG_LIGHTING           (1 << 11)
+#define FLAG_COLOR_MATERIAL     (1 << 12)
+#define FLAG_NORMALIZE          (1 << 13)
+#define FLAG_LIGHT0             (1 << 14)
+#define FLAG_LIGHT1             (1 << 15)
+#define FLAG_LIGHT2             (1 << 16)
+#define FLAG_LIGHT3             (1 << 17)
+#define FLAG_LIGHT4             (1 << 18)
+#define FLAG_LIGHT5             (1 << 19)
+#define FLAG_LIGHT6             (1 << 20)
+#define FLAG_LIGHT7             (1 << 21)
+#define FLAG_TEX_GEN_S          (1 << 22)
+#define FLAG_TEX_GEN_T          (1 << 23)
+#define FLAG_TEX_GEN_R          (1 << 24)
+#define FLAG_TEX_GEN_Q          (1 << 25)
+#define FLAG_LIGHT_LOCAL        (1 << 26)
+#define FLAG_IMMEDIATE          (1 << 27)
+#define FLAG_FINAL_MTX_DIRTY    (1 << 28)
 
 #define TEX_LEVELS_MASK         0x7
 #define TEX_FLAG_COMPLETE       (1 << 3)
@@ -120,6 +118,7 @@
 
 #define TRICMD_ATTR_SHIFT   6
 
-#define RSP_PIPELINE   0
+#define RSP_PIPELINE        0
+#define RSP_PRIM_ASSEMBLY   0
 
 #endif

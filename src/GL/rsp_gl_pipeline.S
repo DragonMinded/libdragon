@@ -173,6 +173,30 @@ glpipe_init_no_tex:
     #undef has_tex
     #undef tri_cmd
 
+#if RSP_PRIM_ASSEMBLY
+
+    #define mtx_dirty   t1
+    #define mtx_lhs     s0
+    #define mtx_rhs     s1
+    #define mtx_dst     s2
+
+    and mtx_dirty, state_flags, FLAG_FINAL_MTX_DIRTY
+    beqz mtx_dirty, glpipe_mtx_not_dirty
+    li mtx_lhs, %lo(GL_MATRIX_PROJECTION)
+    li mtx_rhs, %lo(GL_MATRIX_MODELVIEW)
+    jal GL_MtxMult
+    li mtx_dst, %lo(FINAL_MATRIX)
+    and state_flags, ~FLAG_FINAL_MTX_DIRTY
+    sw state_flags, %lo(GL_STATE_FLAGS)
+
+    #undef mtx_dirty
+    #undef mtx_lhs
+    #undef mtx_rhs
+    #undef mtx_dst
+
+glpipe_mtx_not_dirty:
+#endif
+
     #define cull_mode       t1
     #define front_face      t2
     #define cull_enabled    t3

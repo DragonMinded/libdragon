@@ -281,16 +281,25 @@ GLCmd_SetLightDir:
 
 # ARGS: t1: matrix index
 GL_MatrixMarkDirty:
-    lw t9, %lo(GL_STATE_FLAGS)
-    li t8, FLAG_MTX_MV_DIRTY
-    sllv t8, t8, t1 # 2-arg syntax doesn't work with sllv for some reason...?
-    or t9, t8
+    #define mtx_index   t1
+    #define flag        t8
+    #define cur_flags   t9
+    lw cur_flags, %lo(GL_STATE_FLAGS)
+    # mark final matrix as dirty if modelview or projection matrix was changed
+    blt mtx_index, (GL_TEXTURE & 0xF), gl_final_matrix_dirty
+    li flag, FLAG_FINAL_MTX_DIRTY
+    move flag, zero
+gl_final_matrix_dirty:
+    or cur_flags, flag
     jr ra
-    sw t9, %lo(GL_STATE_FLAGS)
+    sw cur_flags, %lo(GL_STATE_FLAGS)
+    #undef mtx_index
+    #undef flag
+    #undef cur_flags
 
 GLCmd_MatrixPush:
     j GL_MatrixPushPop
-    li t2, DMA_OUT_ASYNC
+    li t2, DMA_OUT
 
 GLCmd_MatrixPop:
     li t2, DMA_IN
@@ -332,108 +341,42 @@ gl_matrix_push:
 GLCmd_MatrixLoad:
     #define multiply    t0
     #define mtx_index   t1
-    #define dst         s1
-    #define src         s2
-
-    #define v___         $v01
+    #define lhs         s0
+    #define rhs         s1
+    #define dst         s2
 
     #define vrhs01_i     $v02
     #define vrhs01_f     $v03
     #define vrhs23_i     $v04
     #define vrhs23_f     $v05
 
-    #define vmtx0_i      $v06
-    #define vmtx0_f      $v07
-    #define vmtx1_i      $v08
-    #define vmtx1_f      $v09
-    #define vmtx2_i      $v10
-    #define vmtx2_f      $v11
-    #define vmtx3_i      $v12
-    #define vmtx3_f      $v13
-
     andi multiply, a0, 1
     lbu mtx_index, %lo(GL_STATE_MATRIX_MODE) + 1
-    addi src, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER) - 64
+    addi rhs, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER) - 64
     sll dst, mtx_index, 6
     addiu dst, %lo(GL_MATRICES)
 
     # Load the right hand side matrix from command parameters (misaligned)
-    lqv vrhs01_i, 0x00,src
-    lrv vrhs01_i, 0x10,src
-    lqv vrhs23_i, 0x10,src
-    lrv vrhs23_i, 0x20,src
-    lqv vrhs01_f, 0x20,src
-    lrv vrhs01_f, 0x30,src
-    lqv vrhs23_f, 0x30,src
-    beqz multiply, gl_matrix_save # skip multiplication if only loading the matrix
-    lrv vrhs23_f, 0x40,src
+    lqv vrhs01_i, 0x00,rhs
+    lrv vrhs01_i, 0x10,rhs
+    lqv vrhs23_i, 0x10,rhs
+    lrv vrhs23_i, 0x20,rhs
+    lqv vrhs01_f, 0x20,rhs
+    lrv vrhs01_f, 0x30,rhs
+    lqv vrhs23_f, 0x30,rhs
+    lrv vrhs23_f, 0x40,rhs
 
-    # Load left hand side matrix columns, repeating each column twice in a register
-    ldv vmtx0_i.e0,  0x00,dst
-    ldv vmtx0_i.e4,  0x00,dst
-    ldv vmtx1_i.e0,  0x08,dst
-    ldv vmtx1_i.e4,  0x08,dst
-    ldv vmtx2_i.e0,  0x10,dst
-    ldv vmtx2_i.e4,  0x10,dst
-    ldv vmtx3_i.e0,  0x18,dst
-    ldv vmtx3_i.e4,  0x18,dst
-    ldv vmtx0_f.e0,  0x20,dst
-    ldv vmtx0_f.e4,  0x20,dst
-    ldv vmtx1_f.e0,  0x28,dst
-    ldv vmtx1_f.e4,  0x28,dst
-    ldv vmtx2_f.e0,  0x30,dst
-    ldv vmtx2_f.e4,  0x30,dst
-    ldv vmtx3_f.e0,  0x38,dst
-    ldv vmtx3_f.e4,  0x38,dst
+    move ra2, ra
 
-    # Perform matrix x matrix multiplication
-    vmudl v___,     vmtx0_f, vrhs01_f.h0
-    vmadm v___,     vmtx0_i, vrhs01_f.h0
-    vmadn v___,     vmtx0_f, vrhs01_i.h0
-    vmadh v___,     vmtx0_i, vrhs01_i.h0
+    beqz multiply, GL_MtxMultSave # skip multiplication if only loading the matrix
+    li ra, GL_matrix_load_return
 
-    vmadl v___,     vmtx1_f, vrhs01_f.h1
-    vmadm v___,     vmtx1_i, vrhs01_f.h1
-    vmadn v___,     vmtx1_f, vrhs01_i.h1
-    vmadh v___,     vmtx1_i, vrhs01_i.h1
+    jal GL_MtxMultWithRhs
+    move lhs, dst
 
-    vmadl v___,     vmtx2_f, vrhs01_f.h2
-    vmadm v___,     vmtx2_i, vrhs01_f.h2
-    vmadn v___,     vmtx2_f, vrhs01_i.h2
-    vmadh v___,     vmtx2_i, vrhs01_i.h2
-
-    vmadl v___,     vmtx3_f, vrhs01_f.h3
-    vmadm v___,     vmtx3_i, vrhs01_f.h3
-    vmadn vrhs01_f, vmtx3_f, vrhs01_i.h3
-    vmadh vrhs01_i, vmtx3_i, vrhs01_i.h3
-
-    vmudl v___,     vmtx0_f, vrhs23_f.h0
-    vmadm v___,     vmtx0_i, vrhs23_f.h0
-    vmadn v___,     vmtx0_f, vrhs23_i.h0
-    vmadh v___,     vmtx0_i, vrhs23_i.h0
-
-    vmadl v___,     vmtx1_f, vrhs23_f.h1
-    vmadm v___,     vmtx1_i, vrhs23_f.h1
-    vmadn v___,     vmtx1_f, vrhs23_i.h1
-    vmadh v___,     vmtx1_i, vrhs23_i.h1
-
-    vmadl v___,     vmtx2_f, vrhs23_f.h2
-    vmadm v___,     vmtx2_i, vrhs23_f.h2
-    vmadn v___,     vmtx2_f, vrhs23_i.h2
-    vmadh v___,     vmtx2_i, vrhs23_i.h2
-
-    vmadl v___,     vmtx3_f, vrhs23_f.h3
-    vmadm v___,     vmtx3_i, vrhs23_f.h3
-    vmadn vrhs23_f, vmtx3_f, vrhs23_i.h3
-    vmadh vrhs23_i, vmtx3_i, vrhs23_i.h3
-
-gl_matrix_save:
-    # Save the resulting matrix
-    sqv vrhs01_i, 0x00,dst
-    sqv vrhs23_i, 0x10,dst
-    sqv vrhs01_f, 0x20,dst
+GL_matrix_load_return:
     j GL_MatrixMarkDirty
-    sqv vrhs23_f, 0x30,dst
+    move ra, ra2
 
 GL_UpdateDepthTest:
     lw t0, %lo(GL_STATE_FLAGS)

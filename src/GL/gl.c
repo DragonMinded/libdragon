@@ -140,7 +140,7 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
     server_state->matrix_pointers[1] = PhysicalAddr(state.matrix_stacks[1]);
     server_state->matrix_pointers[2] = PhysicalAddr(state.matrix_stacks[2]);
 
-    server_state->flags |= FLAG_MTX_MV_DIRTY | FLAG_MTX_PROJ_DIRTY | FLAG_MTX_TEX_DIRTY;
+    server_state->flags |= FLAG_FINAL_MTX_DIRTY;
 
     server_state->mat_ambient[0] = 0x3333;
     server_state->mat_ambient[1] = 0x3333;

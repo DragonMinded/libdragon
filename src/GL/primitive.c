@@ -87,6 +87,7 @@ void gl_primitive_close()
 
 void glpipe_init(gl_matrix_t *mtx, gl_viewport_t *view)
 {
+#if !RSP_PRIM_ASSEMBLY
     uint16_t fmtx[32];
     for (int j=0;j<4;j++) {
         for (int i=0;i<4;i++) {
@@ -101,6 +102,7 @@ void glpipe_init(gl_matrix_t *mtx, gl_viewport_t *view)
     for (int i=0;i<32;i+=2)
         rspq_write_arg(&w, (fmtx[i] << 16) | fmtx[i+1]);
     rspq_write_end(&w);
+#endif
 
     uint32_t args = ((uint32_t)state.prim_size << 17) | ((uint32_t)state.prim_next * PRIM_VTX_SIZE);
 
@@ -587,7 +589,7 @@ void gl_draw(const gl_attrib_source_t *sources, uint32_t offset, uint32_t count,
 
         gl_load_attribs(sources, index);
 
-#if RSP_PIPELINE
+#if RSP_PRIM_ASSEMBLY
         glpipe_send_vertex(state.current_attribs, id+1);
         continue;
 #endif
