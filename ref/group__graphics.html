@@ -66,8 +66,7 @@ $(function() {
 <a href="#files">Files</a> &#124;
 <a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
-<a href="#func-members">Functions</a> &#124;
-<a href="#var-members">Variables</a>  </div>
+<a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">2D Graphics<div class="ingroups"><a class="el" href="group__libdragon.html">libdragon</a> &raquo; <a class="el" href="group__display.html">Display Subsystem</a></div></div></div>
 </div><!--header-->
 <div class="contents">
@@ -80,11 +79,17 @@ Files</h2></td></tr>
 <tr class="memitem:graphics_8c"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="graphics_8c.html">graphics.c</a></td></tr>
 <tr class="memdesc:graphics_8c"><td class="mdescLeft">&#160;</td><td class="mdescRight">2D Graphics <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:surface_8c"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="surface_8c.html">surface.c</a></td></tr>
+<tr class="memdesc:surface_8c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Surface buffers used to draw images. <br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:font_8h"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="font_8h.html">font.h</a></td></tr>
 <tr class="memdesc:font_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">Font Data. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:graphics_8h"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="graphics_8h.html">graphics.h</a></td></tr>
 <tr class="memdesc:graphics_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">2D Graphics <br /></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:surface_8h"><td class="memItemLeft" align="right" valign="top">file &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="surface_8h.html">surface.h</a></td></tr>
+<tr class="memdesc:surface_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">Surface buffers used to draw images. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
@@ -98,20 +103,26 @@ Data Structures</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
-<tr class="memitem:ga0618e64d65eb97581303293fe6b26d96"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#ga0618e64d65eb97581303293fe6b26d96">__set_pixel</a>(buffer,  x,  y,  color)&#160;&#160;&#160;    (buffer)[(x) + ((y) * <a class="el" href="group__rdp.html#ga0c4e53651e92263e2c94bcb616dee5bb">__width</a>)] = color</td></tr>
+<tr class="memitem:ga0618e64d65eb97581303293fe6b26d96"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#ga0618e64d65eb97581303293fe6b26d96">__set_pixel</a>(buffer,  x,  y,  color)&#160;&#160;&#160;    (buffer)[(x) + ((y) * pix_stride)] = color</td></tr>
 <tr class="memdesc:ga0618e64d65eb97581303293fe6b26d96"><td class="mdescLeft">&#160;</td><td class="mdescRight">Macro to set a pixel to a certain color in a buffer.  <a href="group__graphics.html#ga0618e64d65eb97581303293fe6b26d96">More...</a><br /></td></tr>
 <tr class="separator:ga0618e64d65eb97581303293fe6b26d96"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga59ad026c57ccca2cfcd1b58937a42a2f"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#ga59ad026c57ccca2cfcd1b58937a42a2f">__get_pixel</a>(buffer,  x,  y)&#160;&#160;&#160;    (buffer)[(x) + ((y) * <a class="el" href="group__rdp.html#ga0c4e53651e92263e2c94bcb616dee5bb">__width</a>)]</td></tr>
+<tr class="memitem:ga59ad026c57ccca2cfcd1b58937a42a2f"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#ga59ad026c57ccca2cfcd1b58937a42a2f">__get_pixel</a>(buffer,  x,  y)&#160;&#160;&#160;    (buffer)[(x) + ((y) * pix_stride)]</td></tr>
 <tr class="memdesc:ga59ad026c57ccca2cfcd1b58937a42a2f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Macro to get a pixel color from a buffer.  <a href="group__graphics.html#ga59ad026c57ccca2cfcd1b58937a42a2f">More...</a><br /></td></tr>
 <tr class="separator:ga59ad026c57ccca2cfcd1b58937a42a2f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga104ce876163df1561deb28e82292b3c6"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#ga104ce876163df1561deb28e82292b3c6">__get_buffer</a>(x)&#160;&#160;&#160;<a class="el" href="group__rdp.html#ga2d9495ad3a35a245cd3a17785bc768ad">__safe_buffer</a>[(x)-1]</td></tr>
-<tr class="memdesc:ga104ce876163df1561deb28e82292b3c6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the correct video buffer given a display context.  <a href="group__graphics.html#ga104ce876163df1561deb28e82292b3c6">More...</a><br /></td></tr>
-<tr class="separator:ga104ce876163df1561deb28e82292b3c6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga2e1fdb4ef4905d44d91a156f896e8272"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#ga2e1fdb4ef4905d44d91a156f896e8272">__get_buffer</a>(disp)&#160;&#160;&#160;((disp)-&gt;buffer)</td></tr>
+<tr class="memdesc:ga2e1fdb4ef4905d44d91a156f896e8272"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the correct video buffer given a display context.  <a href="group__graphics.html#ga2e1fdb4ef4905d44d91a156f896e8272">More...</a><br /></td></tr>
+<tr class="separator:ga2e1fdb4ef4905d44d91a156f896e8272"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga9a2133dc22dbfbf01faaf9dd19ee7b67"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#ga9a2133dc22dbfbf01faaf9dd19ee7b67">RGBA16</a>(rx,  gx,  bx,  ax)</td></tr>
+<tr class="memdesc:ga9a2133dc22dbfbf01faaf9dd19ee7b67"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a <a class="el" href="group__graphics.html#structcolor__t" title="Generic color structure.">color_t</a> from the R,G,B,A components in the RGBA16 range (that is: RGB in 0-31, A in 0-1)  <a href="group__graphics.html#ga9a2133dc22dbfbf01faaf9dd19ee7b67">More...</a><br /></td></tr>
+<tr class="separator:ga9a2133dc22dbfbf01faaf9dd19ee7b67"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gae16bab5741f411ec4ef51b0295f6e705"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#gae16bab5741f411ec4ef51b0295f6e705">RGBA32</a>(rx,  gx,  bx,  ax)</td></tr>
+<tr class="memdesc:gae16bab5741f411ec4ef51b0295f6e705"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a <a class="el" href="group__graphics.html#structcolor__t" title="Generic color structure.">color_t</a> from the R,G,B,A components in the RGBA32 range (0-255).  <a href="group__graphics.html#gae16bab5741f411ec4ef51b0295f6e705">More...</a><br /></td></tr>
+<tr class="separator:gae16bab5741f411ec4ef51b0295f6e705"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
 <tr class="memitem:gab903f17f56c2cac7198ab9a7b0438b68"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68">graphics_make_color</a> (int r, int g, int b, int a)</td></tr>
-<tr class="memdesc:gab903f17f56c2cac7198ab9a7b0438b68"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return a 32-bit representation of an RGBA color.  <a href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68">More...</a><br /></td></tr>
+<tr class="memdesc:gab903f17f56c2cac7198ab9a7b0438b68"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return a packed 32-bit representation of an RGBA color.  <a href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68">More...</a><br /></td></tr>
 <tr class="separator:gab903f17f56c2cac7198ab9a7b0438b68"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gac04f4a740380f66e841d98c14f88d999"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999">graphics_convert_color</a> (<a class="el" href="group__graphics.html#structcolor__t">color_t</a> color)</td></tr>
 <tr class="memdesc:gac04f4a740380f66e841d98c14f88d999"><td class="mdescLeft">&#160;</td><td class="mdescRight">Convert a color structure to a 32-bit representation of an RGBA color.  <a href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999">More...</a><br /></td></tr>
@@ -119,27 +130,27 @@ Functions</h2></td></tr>
 <tr class="memitem:gab9d17666808af7dfc4562a528bed01af"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#gab9d17666808af7dfc4562a528bed01af">graphics_set_color</a> (uint32_t forecolor, uint32_t backcolor)</td></tr>
 <tr class="memdesc:gab9d17666808af7dfc4562a528bed01af"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the current forecolor and backcolor for text operations.  <a href="group__graphics.html#gab9d17666808af7dfc4562a528bed01af">More...</a><br /></td></tr>
 <tr class="separator:gab9d17666808af7dfc4562a528bed01af"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga5aebd2bb9f551066cac0d499a4562530"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#ga5aebd2bb9f551066cac0d499a4562530">graphics_draw_pixel</a> (<a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a> disp, int x, int y, uint32_t color)</td></tr>
-<tr class="memdesc:ga5aebd2bb9f551066cac0d499a4562530"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a pixel to a given display context.  <a href="group__graphics.html#ga5aebd2bb9f551066cac0d499a4562530">More...</a><br /></td></tr>
-<tr class="separator:ga5aebd2bb9f551066cac0d499a4562530"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga8a9fe69d12d9f864cb9d5c54e12d9789"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#ga8a9fe69d12d9f864cb9d5c54e12d9789">graphics_draw_pixel_trans</a> (<a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a> disp, int x, int y, uint32_t color)</td></tr>
-<tr class="memdesc:ga8a9fe69d12d9f864cb9d5c54e12d9789"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a pixel to a given display context with alpha support.  <a href="group__graphics.html#ga8a9fe69d12d9f864cb9d5c54e12d9789">More...</a><br /></td></tr>
-<tr class="separator:ga8a9fe69d12d9f864cb9d5c54e12d9789"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga9991dac5e442a8de66f7a8efce03096d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#ga9991dac5e442a8de66f7a8efce03096d">graphics_draw_line</a> (<a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a> disp, int x0, int y0, int x1, int y1, uint32_t color)</td></tr>
-<tr class="memdesc:ga9991dac5e442a8de66f7a8efce03096d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a line to a given display context.  <a href="group__graphics.html#ga9991dac5e442a8de66f7a8efce03096d">More...</a><br /></td></tr>
-<tr class="separator:ga9991dac5e442a8de66f7a8efce03096d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga676464729e043f11c7a0dc0fd20385d5"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#ga676464729e043f11c7a0dc0fd20385d5">graphics_draw_line_trans</a> (<a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a> disp, int x0, int y0, int x1, int y1, uint32_t color)</td></tr>
-<tr class="memdesc:ga676464729e043f11c7a0dc0fd20385d5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a line to a given display context with alpha support.  <a href="group__graphics.html#ga676464729e043f11c7a0dc0fd20385d5">More...</a><br /></td></tr>
-<tr class="separator:ga676464729e043f11c7a0dc0fd20385d5"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gaeb99b8f23999665d847452b57b1428ab"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#gaeb99b8f23999665d847452b57b1428ab">graphics_draw_box</a> (<a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a> disp, int x, int y, int width, int height, uint32_t color)</td></tr>
-<tr class="memdesc:gaeb99b8f23999665d847452b57b1428ab"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a filled rectangle to a display context.  <a href="group__graphics.html#gaeb99b8f23999665d847452b57b1428ab">More...</a><br /></td></tr>
-<tr class="separator:gaeb99b8f23999665d847452b57b1428ab"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gadc1a09a56de32b5e4bdb0a20c7e80850"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#gadc1a09a56de32b5e4bdb0a20c7e80850">graphics_draw_box_trans</a> (<a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a> disp, int x, int y, int width, int height, uint32_t color)</td></tr>
-<tr class="memdesc:gadc1a09a56de32b5e4bdb0a20c7e80850"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a filled rectangle to a display context.  <a href="group__graphics.html#gadc1a09a56de32b5e4bdb0a20c7e80850">More...</a><br /></td></tr>
-<tr class="separator:gadc1a09a56de32b5e4bdb0a20c7e80850"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gad5ef099708a73fd6aed71192d4bb31b6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#gad5ef099708a73fd6aed71192d4bb31b6">graphics_fill_screen</a> (<a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a> disp, uint32_t c)</td></tr>
-<tr class="memdesc:gad5ef099708a73fd6aed71192d4bb31b6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Fill the entire screen with a particular color.  <a href="group__graphics.html#gad5ef099708a73fd6aed71192d4bb31b6">More...</a><br /></td></tr>
-<tr class="separator:gad5ef099708a73fd6aed71192d4bb31b6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gafab1950eb02dbcf0b5d4f27381a9ee0e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#gafab1950eb02dbcf0b5d4f27381a9ee0e">graphics_draw_pixel</a> (<a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *disp, int x, int y, uint32_t color)</td></tr>
+<tr class="memdesc:gafab1950eb02dbcf0b5d4f27381a9ee0e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a pixel to a given display context.  <a href="group__graphics.html#gafab1950eb02dbcf0b5d4f27381a9ee0e">More...</a><br /></td></tr>
+<tr class="separator:gafab1950eb02dbcf0b5d4f27381a9ee0e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaced92b6e68367c07f760f50a29cbfdc4"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#gaced92b6e68367c07f760f50a29cbfdc4">graphics_draw_pixel_trans</a> (<a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *disp, int x, int y, uint32_t color)</td></tr>
+<tr class="memdesc:gaced92b6e68367c07f760f50a29cbfdc4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a pixel to a given display context with alpha support.  <a href="group__graphics.html#gaced92b6e68367c07f760f50a29cbfdc4">More...</a><br /></td></tr>
+<tr class="separator:gaced92b6e68367c07f760f50a29cbfdc4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga02765c49e9357d81af0122402b8ac5fa"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#ga02765c49e9357d81af0122402b8ac5fa">graphics_draw_line</a> (<a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *disp, int x0, int y0, int x1, int y1, uint32_t color)</td></tr>
+<tr class="memdesc:ga02765c49e9357d81af0122402b8ac5fa"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a line to a given display context.  <a href="group__graphics.html#ga02765c49e9357d81af0122402b8ac5fa">More...</a><br /></td></tr>
+<tr class="separator:ga02765c49e9357d81af0122402b8ac5fa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaf8feb23e6ae56a45007171f6c3076c04"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#gaf8feb23e6ae56a45007171f6c3076c04">graphics_draw_line_trans</a> (<a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *disp, int x0, int y0, int x1, int y1, uint32_t color)</td></tr>
+<tr class="memdesc:gaf8feb23e6ae56a45007171f6c3076c04"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a line to a given display context with alpha support.  <a href="group__graphics.html#gaf8feb23e6ae56a45007171f6c3076c04">More...</a><br /></td></tr>
+<tr class="separator:gaf8feb23e6ae56a45007171f6c3076c04"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga007410184312b87a2bc2e720e132bacb"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#ga007410184312b87a2bc2e720e132bacb">graphics_draw_box</a> (<a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *disp, int x, int y, int width, int height, uint32_t color)</td></tr>
+<tr class="memdesc:ga007410184312b87a2bc2e720e132bacb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a filled rectangle to a display context.  <a href="group__graphics.html#ga007410184312b87a2bc2e720e132bacb">More...</a><br /></td></tr>
+<tr class="separator:ga007410184312b87a2bc2e720e132bacb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga56c272643871a7cb918a2f4987226bc6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#ga56c272643871a7cb918a2f4987226bc6">graphics_draw_box_trans</a> (<a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *disp, int x, int y, int width, int height, uint32_t color)</td></tr>
+<tr class="memdesc:ga56c272643871a7cb918a2f4987226bc6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a filled rectangle to a display context.  <a href="group__graphics.html#ga56c272643871a7cb918a2f4987226bc6">More...</a><br /></td></tr>
+<tr class="separator:ga56c272643871a7cb918a2f4987226bc6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaffa019c442ee67ef7ae3e17f5627116b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#gaffa019c442ee67ef7ae3e17f5627116b">graphics_fill_screen</a> (<a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *disp, uint32_t c)</td></tr>
+<tr class="memdesc:gaffa019c442ee67ef7ae3e17f5627116b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Fill the entire screen with a particular color.  <a href="group__graphics.html#gaffa019c442ee67ef7ae3e17f5627116b">More...</a><br /></td></tr>
+<tr class="separator:gaffa019c442ee67ef7ae3e17f5627116b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga3cf382b85ed61c530f69ddf7f3e3adb9"><td class="memItemLeft" align="right" valign="top"><a id="ga3cf382b85ed61c530f69ddf7f3e3adb9" name="ga3cf382b85ed61c530f69ddf7f3e3adb9"></a>
 void&#160;</td><td class="memItemRight" valign="bottom"><b>graphics_set_default_font</b> (void)</td></tr>
 <tr class="memdesc:ga3cf382b85ed61c530f69ddf7f3e3adb9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the font to the default. <br /></td></tr>
@@ -147,49 +158,46 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>graphics_set_default_
 <tr class="memitem:ga2534faf89449dd8344e32a70ae7d4ac6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#ga2534faf89449dd8344e32a70ae7d4ac6">graphics_set_font_sprite</a> (<a class="el" href="group__graphics.html#structsprite__t">sprite_t</a> *font)</td></tr>
 <tr class="memdesc:ga2534faf89449dd8344e32a70ae7d4ac6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set the current font. Should be set before using any of the draw function.  <a href="group__graphics.html#ga2534faf89449dd8344e32a70ae7d4ac6">More...</a><br /></td></tr>
 <tr class="separator:ga2534faf89449dd8344e32a70ae7d4ac6"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga475bc6fbd649e4a707d3512f869b5d16"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#ga475bc6fbd649e4a707d3512f869b5d16">graphics_draw_character</a> (<a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a> disp, int x, int y, char ch)</td></tr>
-<tr class="memdesc:ga475bc6fbd649e4a707d3512f869b5d16"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a character to the screen using the built-in font.  <a href="group__graphics.html#ga475bc6fbd649e4a707d3512f869b5d16">More...</a><br /></td></tr>
-<tr class="separator:ga475bc6fbd649e4a707d3512f869b5d16"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga3b5c6b9cef6e50ce20aff548cca55948"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#ga3b5c6b9cef6e50ce20aff548cca55948">graphics_draw_text</a> (<a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a> disp, int x, int y, const char *const msg)</td></tr>
-<tr class="memdesc:ga3b5c6b9cef6e50ce20aff548cca55948"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a null terminated string to a display context.  <a href="group__graphics.html#ga3b5c6b9cef6e50ce20aff548cca55948">More...</a><br /></td></tr>
-<tr class="separator:ga3b5c6b9cef6e50ce20aff548cca55948"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga903308d948b28b2c1798c143e7f26aa0"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#ga903308d948b28b2c1798c143e7f26aa0">graphics_draw_sprite</a> (<a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a> disp, int x, int y, <a class="el" href="group__graphics.html#structsprite__t">sprite_t</a> *sprite)</td></tr>
-<tr class="memdesc:ga903308d948b28b2c1798c143e7f26aa0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a sprite to a display context.  <a href="group__graphics.html#ga903308d948b28b2c1798c143e7f26aa0">More...</a><br /></td></tr>
-<tr class="separator:ga903308d948b28b2c1798c143e7f26aa0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gae889dce017f27154e0f6f9aeeb153db1"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#gae889dce017f27154e0f6f9aeeb153db1">graphics_draw_sprite_stride</a> (<a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a> disp, int x, int y, <a class="el" href="group__graphics.html#structsprite__t">sprite_t</a> *sprite, int offset)</td></tr>
-<tr class="memdesc:gae889dce017f27154e0f6f9aeeb153db1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a sprite from a spritemap to a display context.  <a href="group__graphics.html#gae889dce017f27154e0f6f9aeeb153db1">More...</a><br /></td></tr>
-<tr class="separator:gae889dce017f27154e0f6f9aeeb153db1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gaaaec675cb4e30df823a17078e168d24d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#gaaaec675cb4e30df823a17078e168d24d">graphics_draw_sprite_trans</a> (<a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a> disp, int x, int y, <a class="el" href="group__graphics.html#structsprite__t">sprite_t</a> *sprite)</td></tr>
-<tr class="memdesc:gaaaec675cb4e30df823a17078e168d24d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a sprite to a display context with alpha transparency.  <a href="group__graphics.html#gaaaec675cb4e30df823a17078e168d24d">More...</a><br /></td></tr>
-<tr class="separator:gaaaec675cb4e30df823a17078e168d24d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gab8092cce86946b2f2c480a40a2a5d925"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#gab8092cce86946b2f2c480a40a2a5d925">graphics_draw_sprite_trans_stride</a> (<a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a> disp, int x, int y, <a class="el" href="group__graphics.html#structsprite__t">sprite_t</a> *sprite, int offset)</td></tr>
-<tr class="memdesc:gab8092cce86946b2f2c480a40a2a5d925"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a sprite from a spritemap to a display context.  <a href="group__graphics.html#gab8092cce86946b2f2c480a40a2a5d925">More...</a><br /></td></tr>
-<tr class="separator:gab8092cce86946b2f2c480a40a2a5d925"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
-Variables</h2></td></tr>
-<tr class="memitem:gaf2d878ed60a3e5d6b007ce15c77bad2a"><td class="memItemLeft" align="right" valign="top"><a id="gaf2d878ed60a3e5d6b007ce15c77bad2a" name="gaf2d878ed60a3e5d6b007ce15c77bad2a"></a>
-uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>__bitdepth</b></td></tr>
-<tr class="memdesc:gaf2d878ed60a3e5d6b007ce15c77bad2a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Currently active bit depth. <br /></td></tr>
-<tr class="separator:gaf2d878ed60a3e5d6b007ce15c77bad2a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga0c4e53651e92263e2c94bcb616dee5bb"><td class="memItemLeft" align="right" valign="top"><a id="ga0c4e53651e92263e2c94bcb616dee5bb" name="ga0c4e53651e92263e2c94bcb616dee5bb"></a>
-uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>__width</b></td></tr>
-<tr class="memdesc:ga0c4e53651e92263e2c94bcb616dee5bb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Currently active video width (calculated) <br /></td></tr>
-<tr class="separator:ga0c4e53651e92263e2c94bcb616dee5bb"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gabde5c123bb0cb10b6d47c07a5a0d4c28"><td class="memItemLeft" align="right" valign="top"><a id="gabde5c123bb0cb10b6d47c07a5a0d4c28" name="gabde5c123bb0cb10b6d47c07a5a0d4c28"></a>
-uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>__height</b></td></tr>
-<tr class="memdesc:gabde5c123bb0cb10b6d47c07a5a0d4c28"><td class="mdescLeft">&#160;</td><td class="mdescRight">Currently active video height (calculated) <br /></td></tr>
-<tr class="separator:gabde5c123bb0cb10b6d47c07a5a0d4c28"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga2d9495ad3a35a245cd3a17785bc768ad"><td class="memItemLeft" align="right" valign="top"><a id="ga2d9495ad3a35a245cd3a17785bc768ad" name="ga2d9495ad3a35a245cd3a17785bc768ad"></a>
-void *&#160;</td><td class="memItemRight" valign="bottom"><b>__safe_buffer</b> []</td></tr>
-<tr class="memdesc:ga2d9495ad3a35a245cd3a17785bc768ad"><td class="mdescLeft">&#160;</td><td class="mdescRight">Pointer to uncached 16-bit aligned version of buffers. <br /></td></tr>
-<tr class="separator:ga2d9495ad3a35a245cd3a17785bc768ad"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaa66a5434f0a1ec00d3c26b11dc059e64"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#gaa66a5434f0a1ec00d3c26b11dc059e64">graphics_draw_character</a> (<a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *disp, int x, int y, char ch)</td></tr>
+<tr class="memdesc:gaa66a5434f0a1ec00d3c26b11dc059e64"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a character to the screen using the built-in font.  <a href="group__graphics.html#gaa66a5434f0a1ec00d3c26b11dc059e64">More...</a><br /></td></tr>
+<tr class="separator:gaa66a5434f0a1ec00d3c26b11dc059e64"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gac981119af0043edb807b5879a41b94eb"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#gac981119af0043edb807b5879a41b94eb">graphics_draw_text</a> (<a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *disp, int x, int y, const char *const msg)</td></tr>
+<tr class="memdesc:gac981119af0043edb807b5879a41b94eb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a null terminated string to a display context.  <a href="group__graphics.html#gac981119af0043edb807b5879a41b94eb">More...</a><br /></td></tr>
+<tr class="separator:gac981119af0043edb807b5879a41b94eb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaaa9f5910dc7ffc21ee59849086415966"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#gaaa9f5910dc7ffc21ee59849086415966">graphics_draw_sprite</a> (<a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *disp, int x, int y, <a class="el" href="group__graphics.html#structsprite__t">sprite_t</a> *sprite)</td></tr>
+<tr class="memdesc:gaaa9f5910dc7ffc21ee59849086415966"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a sprite to a display context.  <a href="group__graphics.html#gaaa9f5910dc7ffc21ee59849086415966">More...</a><br /></td></tr>
+<tr class="separator:gaaa9f5910dc7ffc21ee59849086415966"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gad79a26271d0bba11cb0c6a8468cb13a2"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#gad79a26271d0bba11cb0c6a8468cb13a2">graphics_draw_sprite_stride</a> (<a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *disp, int x, int y, <a class="el" href="group__graphics.html#structsprite__t">sprite_t</a> *sprite, int offset)</td></tr>
+<tr class="memdesc:gad79a26271d0bba11cb0c6a8468cb13a2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a sprite from a spritemap to a display context.  <a href="group__graphics.html#gad79a26271d0bba11cb0c6a8468cb13a2">More...</a><br /></td></tr>
+<tr class="separator:gad79a26271d0bba11cb0c6a8468cb13a2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaddac73ba6ec7151ba326cf8c7c690cb6"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#gaddac73ba6ec7151ba326cf8c7c690cb6">graphics_draw_sprite_trans</a> (<a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *disp, int x, int y, <a class="el" href="group__graphics.html#structsprite__t">sprite_t</a> *sprite)</td></tr>
+<tr class="memdesc:gaddac73ba6ec7151ba326cf8c7c690cb6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a sprite to a display context with alpha transparency.  <a href="group__graphics.html#gaddac73ba6ec7151ba326cf8c7c690cb6">More...</a><br /></td></tr>
+<tr class="separator:gaddac73ba6ec7151ba326cf8c7c690cb6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gab68ecd8ca75c1fbf47b01a01934824fd"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__graphics.html#gab68ecd8ca75c1fbf47b01a01934824fd">graphics_draw_sprite_trans_stride</a> (<a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *disp, int x, int y, <a class="el" href="group__graphics.html#structsprite__t">sprite_t</a> *sprite, int offset)</td></tr>
+<tr class="memdesc:gab68ecd8ca75c1fbf47b01a01934824fd"><td class="mdescLeft">&#160;</td><td class="mdescRight">Draw a sprite from a spritemap to a display context.  <a href="group__graphics.html#gab68ecd8ca75c1fbf47b01a01934824fd">More...</a><br /></td></tr>
+<tr class="separator:gab68ecd8ca75c1fbf47b01a01934824fd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaa6a940868a1729b4e15525af86244f5a"><td class="memItemLeft" align="right" valign="top"><a id="gaa6a940868a1729b4e15525af86244f5a" name="gaa6a940868a1729b4e15525af86244f5a"></a>
+uint16_t&#160;</td><td class="memItemRight" valign="bottom"><b>color_to_packed16</b> (<a class="el" href="group__graphics.html#structcolor__t">color_t</a> c)</td></tr>
+<tr class="memdesc:gaa6a940868a1729b4e15525af86244f5a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Convert a <a class="el" href="group__graphics.html#structcolor__t" title="Generic color structure.">color_t</a> to the 16-bit packed format used by a <a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1ae781a51949044f96a872ca8e2715bed5" title="Format RGBA 5551 (16-bit)">FMT_RGBA16</a> surface (RGBA 5551) <br /></td></tr>
+<tr class="separator:gaa6a940868a1729b4e15525af86244f5a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga5b835d8128c69eb9cfcf2327e662271d"><td class="memItemLeft" align="right" valign="top"><a id="ga5b835d8128c69eb9cfcf2327e662271d" name="ga5b835d8128c69eb9cfcf2327e662271d"></a>
+uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>color_to_packed32</b> (<a class="el" href="group__graphics.html#structcolor__t">color_t</a> c)</td></tr>
+<tr class="memdesc:ga5b835d8128c69eb9cfcf2327e662271d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Convert a <a class="el" href="group__graphics.html#structcolor__t" title="Generic color structure.">color_t</a> to the 32-bit packed format used by a <a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1a0ae35df0b9a28b002380dc866dad303a" title="Format RGBA 8888 (32-bit)">FMT_RGBA32</a> surface (RGBA 8888) <br /></td></tr>
+<tr class="separator:ga5b835d8128c69eb9cfcf2327e662271d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga3a142c3b250eae98b898f95f40a9375d"><td class="memItemLeft" align="right" valign="top"><a id="ga3a142c3b250eae98b898f95f40a9375d" name="ga3a142c3b250eae98b898f95f40a9375d"></a>
+<a class="el" href="group__graphics.html#structcolor__t">color_t</a>&#160;</td><td class="memItemRight" valign="bottom"><b>color_from_packed16</b> (uint16_t c)</td></tr>
+<tr class="memdesc:ga3a142c3b250eae98b898f95f40a9375d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a <a class="el" href="group__graphics.html#structcolor__t" title="Generic color structure.">color_t</a> from the 16-bit packed format used by a <a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1ae781a51949044f96a872ca8e2715bed5" title="Format RGBA 5551 (16-bit)">FMT_RGBA16</a> surface (RGBA 5551) <br /></td></tr>
+<tr class="separator:ga3a142c3b250eae98b898f95f40a9375d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga0977a5620d59a7b833aa10fc3145009e"><td class="memItemLeft" align="right" valign="top"><a id="ga0977a5620d59a7b833aa10fc3145009e" name="ga0977a5620d59a7b833aa10fc3145009e"></a>
+<a class="el" href="group__graphics.html#structcolor__t">color_t</a>&#160;</td><td class="memItemRight" valign="bottom"><b>color_from_packed32</b> (uint32_t c)</td></tr>
+<tr class="memdesc:ga0977a5620d59a7b833aa10fc3145009e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Create a <a class="el" href="group__graphics.html#structcolor__t" title="Generic color structure.">color_t</a> from the 32-bit packed format used by a <a class="el" href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1a0ae35df0b9a28b002380dc866dad303a" title="Format RGBA 8888 (32-bit)">FMT_RGBA32</a> surface (RGBA 8888) <br /></td></tr>
+<tr class="separator:ga0977a5620d59a7b833aa10fc3145009e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <p >Software routines for manipulating graphics in a display context. </p>
 <p >The graphics subsystem is responsible for software manipulation of a display context as returned from the <a class="el" href="group__display.html">Display Subsystem</a>. All of the functions use a pure software drawing method and are thus much slower than hardware sprite support. However, they are slightly more flexible and offer no hardware limitations in terms of sprite size.</p>
-<p >Code wishing to draw to the screen should first acquire a display contect using <a class="el" href="group__display.html#gae3de2294941c0c5f1395d464c39f09f0" title="Lock a display buffer for rendering.">display_lock</a>. Once the display context is acquired, code may draw to the context using any of the graphics functions present. Wherever practical, two versions of graphics functions are available: a transparent variety and a non-transparent variety. Code that wishes to display sprites without transparency can get a slight performance boost by using the non-transparent viariety of calls since no software alpha blending needs to occur. Once code has finished drawing to the display context, it can be displayed to the screen using <a class="el" href="group__display.html#gadd7e0c14705a2d22c47878478792b6d1" title="Display a previously locked buffer.">display_show</a>.</p>
-<p >The graphics subsystem makes use of the same contexts as the <a class="el" href="group__rdp.html">Hardware Display Interface</a>. Thus, with careful coding, both hardware and software routines can be used to draw to the display context with no ill effects. The colors returned by <a class="el" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68" title="Return a 32-bit representation of an RGBA color.">graphics_make_color</a> and <a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999" title="Convert a color structure to a 32-bit representation of an RGBA color.">graphics_convert_color</a> are also compatible with both hardware and software graphics routines. </p>
+<p >Code wishing to draw to the screen should first acquire a display context using <a class="el" href="group__display.html#gae81c7c27f68f52224fec1f0fc15bc651" title="Lock a display buffer for rendering.">display_lock</a>. Once the display context is acquired, code may draw to the context using any of the graphics functions present. Wherever practical, two versions of graphics functions are available: a transparent variety and a non-transparent variety. Code that wishes to display sprites without transparency can get a slight performance boost by using the non-transparent variety of calls since no software alpha blending needs to occur. Once code has finished drawing to the display context, it can be displayed to the screen using <a class="el" href="group__display.html#ga4f4a773501687663d0bf76f5cced752f" title="Display a previously locked buffer.">display_show</a>.</p>
+<p >The graphics subsystem makes use of the same contexts as the <a class="el" href="group__rdp.html">Hardware Display Interface</a>. Thus, with careful coding, both hardware and software routines can be used to draw to the display context with no ill effects. The colors returned by <a class="el" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68" title="Return a packed 32-bit representation of an RGBA color.">graphics_make_color</a> and <a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999" title="Convert a color structure to a 32-bit representation of an RGBA color.">graphics_convert_color</a> are also compatible with both hardware and software graphics routines. </p>
 <hr/><h2 class="groupheader">Data Structure Documentation</h2>
 <a name="structcolor__t" id="structcolor__t"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#structcolor__t">&#9670;&nbsp;</a></span>color_t</h2>
@@ -329,7 +337,7 @@ Start of graphics data. </td></tr>
         <tr>
           <td></td>
           <td>)</td>
-          <td></td><td>&#160;&#160;&#160;    (buffer)[(x) + ((y) * <a class="el" href="group__rdp.html#ga0c4e53651e92263e2c94bcb616dee5bb">__width</a>)] = color</td>
+          <td></td><td>&#160;&#160;&#160;    (buffer)[(x) + ((y) * pix_stride)] = color</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -375,7 +383,7 @@ Start of graphics data. </td></tr>
         <tr>
           <td></td>
           <td>)</td>
-          <td></td><td>&#160;&#160;&#160;    (buffer)[(x) + ((y) * <a class="el" href="group__rdp.html#ga0c4e53651e92263e2c94bcb616dee5bb">__width</a>)]</td>
+          <td></td><td>&#160;&#160;&#160;    (buffer)[(x) + ((y) * pix_stride)]</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -393,8 +401,8 @@ Start of graphics data. </td></tr>
 
 </div>
 </div>
-<a id="ga104ce876163df1561deb28e82292b3c6" name="ga104ce876163df1561deb28e82292b3c6"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga104ce876163df1561deb28e82292b3c6">&#9670;&nbsp;</a></span>__get_buffer</h2>
+<a id="ga2e1fdb4ef4905d44d91a156f896e8272" name="ga2e1fdb4ef4905d44d91a156f896e8272"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga2e1fdb4ef4905d44d91a156f896e8272">&#9670;&nbsp;</a></span>__get_buffer</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -403,21 +411,112 @@ Start of graphics data. </td></tr>
           <td class="memname">#define __get_buffer</td>
           <td>(</td>
           <td class="paramtype">&#160;</td>
-          <td class="paramname">x</td><td>)</td>
-          <td>&#160;&#160;&#160;<a class="el" href="group__rdp.html#ga2d9495ad3a35a245cd3a17785bc768ad">__safe_buffer</a>[(x)-1]</td>
+          <td class="paramname">disp</td><td>)</td>
+          <td>&#160;&#160;&#160;((disp)-&gt;buffer)</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
 <p>Get the correct video buffer given a display context. </p>
-<dl class="section note"><dt>Note</dt><dd>This macro requires that display contexts be integers. If display contexts turn into structures or pointers to structures, this function will need updating.</dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">x</td><td>The current display context</td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">disp</td><td>The current display context</td></tr>
   </table>
   </dd>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>A pointer to the current drawing surface for the display context </dd></dl>
+
+</div>
+</div>
+<a id="ga9a2133dc22dbfbf01faaf9dd19ee7b67" name="ga9a2133dc22dbfbf01faaf9dd19ee7b67"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga9a2133dc22dbfbf01faaf9dd19ee7b67">&#9670;&nbsp;</a></span>RGBA16</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define RGBA16</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">rx, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">gx, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">bx, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">ax&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
+<div class="line">    int rx1 = rx, gx1 = gx, bx1 = bx; \</div>
+<div class="line">    (<a class="code hl_struct" href="group__graphics.html#structcolor__t">color_t</a>){.r=(rx1&lt;&lt;3)|(rx1&gt;&gt;3), .g=(gx1&lt;&lt;3)|(gx1&gt;&gt;3), .b=(bx1&lt;&lt;3)|(bx1&gt;&gt;3), .a=ax ? 0xFF : 0}; \</div>
+<div class="line">})</div>
+<div class="ttc" id="agroup__graphics_html_structcolor__t"><div class="ttname"><a href="group__graphics.html#structcolor__t">color_t</a></div><div class="ttdoc">Generic color structure.</div><div class="ttdef"><b>Definition:</b> graphics.h:18</div></div>
+</div><!-- fragment -->
+<p>Create a <a class="el" href="group__graphics.html#structcolor__t" title="Generic color structure.">color_t</a> from the R,G,B,A components in the RGBA16 range (that is: RGB in 0-31, A in 0-1) </p>
+
+</div>
+</div>
+<a id="gae16bab5741f411ec4ef51b0295f6e705" name="gae16bab5741f411ec4ef51b0295f6e705"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gae16bab5741f411ec4ef51b0295f6e705">&#9670;&nbsp;</a></span>RGBA32</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define RGBA32</td>
+          <td>(</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">rx, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">gx, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">bx, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname">ax&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<b>Value:</b><div class="fragment"><div class="line">    ({ \</div>
+<div class="line">    (<a class="code hl_struct" href="group__graphics.html#structcolor__t">color_t</a>){.r=rx, .g=gx, .b=bx, .a=ax}; \</div>
+<div class="line">})</div>
+</div><!-- fragment -->
+<p>Create a <a class="el" href="group__graphics.html#structcolor__t" title="Generic color structure.">color_t</a> from the R,G,B,A components in the RGBA32 range (0-255). </p>
 
 </div>
 </div>
@@ -460,8 +559,8 @@ Start of graphics data. </td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Return a 32-bit representation of an RGBA color. </p>
-<dl class="section note"><dt>Note</dt><dd>In 16 bpp mode, this function will return a packed 16-bit color in BOTH the lower 16 bits and the upper 16 bits. For software color assignment, this doesn't matter. However, for drawing solid shapes using the RDP, this is required.</dd></dl>
+<p>Return a packed 32-bit representation of an RGBA color. </p>
+<p >This is exactly the same as calling <code>graphics_convert_color(RGBA32(r,g,b,a))</code>. Refer to <a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999" title="Convert a color structure to a 32-bit representation of an RGBA color.">graphics_convert_color</a> for more information.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">r</td><td>8-bit red value </td></tr>
@@ -471,7 +570,8 @@ Start of graphics data. </td></tr>
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd>a 32-bit representation of the color suitable for blitting in software or hardware </dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>a 32-bit representation of the color suitable for blitting in software or hardware</dd></dl>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999" title="Convert a color structure to a 32-bit representation of an RGBA color.">graphics_convert_color</a> </dd></dl>
 
 </div>
 </div>
@@ -492,6 +592,8 @@ Start of graphics data. </td></tr>
 </div><div class="memdoc">
 
 <p>Convert a color structure to a 32-bit representation of an RGBA color. </p>
+<p >This function is similar to <a class="el" href="group__graphics.html#gaa6a940868a1729b4e15525af86244f5a" title="Convert a color_t to the 16-bit packed format used by a FMT_RGBA16 surface (RGBA 5551)">color_to_packed16</a> and <a class="el" href="group__graphics.html#ga5b835d8128c69eb9cfcf2327e662271d" title="Convert a color_t to the 32-bit packed format used by a FMT_RGBA32 surface (RGBA 8888)">color_to_packed32</a>, but automatically picks the version matching with the current display configuration. Notice that this might be wrong if you are drawing to an arbitrary surface rather than a framebuffer.</p>
+<dl class="section note"><dt>Note</dt><dd>In 16 bpp mode, this function will return a packed 16-bit color in BOTH the lower 16 bits and the upper 16 bits. In general, this is not necessary. However, for drawing with the old deprecated RDP API (in particular, rdp_set_primitive_color), this is still required.</dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">color</td><td>A color structure representing an RGBA color</td></tr>
@@ -531,16 +633,16 @@ Start of graphics data. </td></tr>
 <p>Set the current forecolor and backcolor for text operations. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">forecolor</td><td>32-bit RGBA color to use as the text color. Use <a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999" title="Convert a color structure to a 32-bit representation of an RGBA color.">graphics_convert_color</a> or <a class="el" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68" title="Return a 32-bit representation of an RGBA color.">graphics_make_color</a> to generate this value. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">backcolor</td><td>32-bit RGBA color to use as the background color for text. Use <a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999" title="Convert a color structure to a 32-bit representation of an RGBA color.">graphics_convert_color</a> or <a class="el" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68" title="Return a 32-bit representation of an RGBA color.">graphics_make_color</a> to generate this value. Note that if the color given is transparent, text can be written over other graphics without background colors showing. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">forecolor</td><td>32-bit RGBA color to use as the text color. Use <a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999" title="Convert a color structure to a 32-bit representation of an RGBA color.">graphics_convert_color</a> or <a class="el" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68" title="Return a packed 32-bit representation of an RGBA color.">graphics_make_color</a> to generate this value. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">backcolor</td><td>32-bit RGBA color to use as the background color for text. Use <a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999" title="Convert a color structure to a 32-bit representation of an RGBA color.">graphics_convert_color</a> or <a class="el" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68" title="Return a packed 32-bit representation of an RGBA color.">graphics_make_color</a> to generate this value. Note that if the color given is transparent, text can be written over other graphics without background colors showing. </td></tr>
   </table>
   </dd>
 </dl>
 
 </div>
 </div>
-<a id="ga5aebd2bb9f551066cac0d499a4562530" name="ga5aebd2bb9f551066cac0d499a4562530"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga5aebd2bb9f551066cac0d499a4562530">&#9670;&nbsp;</a></span>graphics_draw_pixel()</h2>
+<a id="gafab1950eb02dbcf0b5d4f27381a9ee0e" name="gafab1950eb02dbcf0b5d4f27381a9ee0e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gafab1950eb02dbcf0b5d4f27381a9ee0e">&#9670;&nbsp;</a></span>graphics_draw_pixel()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -548,7 +650,7 @@ Start of graphics data. </td></tr>
         <tr>
           <td class="memname">void graphics_draw_pixel </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a>&#160;</td>
+          <td class="paramtype"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td>
           <td class="paramname"><em>disp</em>, </td>
         </tr>
         <tr>
@@ -578,21 +680,21 @@ Start of graphics data. </td></tr>
 </div><div class="memdoc">
 
 <p>Draw a pixel to a given display context. </p>
-<dl class="section note"><dt>Note</dt><dd>This function does not support transparency for speed purposes. To draw a transparent or translucent pixel, use <a class="el" href="group__graphics.html#ga8a9fe69d12d9f864cb9d5c54e12d9789" title="Draw a pixel to a given display context with alpha support.">graphics_draw_pixel_trans</a>.</dd></dl>
+<dl class="section note"><dt>Note</dt><dd>This function does not support transparency for speed purposes. To draw a transparent or translucent pixel, use <a class="el" href="group__graphics.html#gaced92b6e68367c07f760f50a29cbfdc4" title="Draw a pixel to a given display context with alpha support.">graphics_draw_pixel_trans</a>.</dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">disp</td><td>The currently active display context. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">x</td><td>The x coordinate of the pixel. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">y</td><td>The y coordinate of the pixel. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">color</td><td>The 32-bit RGBA color to draw to the screen. Use <a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999" title="Convert a color structure to a 32-bit representation of an RGBA color.">graphics_convert_color</a> or <a class="el" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68" title="Return a 32-bit representation of an RGBA color.">graphics_make_color</a> to generate this value. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">color</td><td>The 32-bit RGBA color to draw to the screen. Use <a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999" title="Convert a color structure to a 32-bit representation of an RGBA color.">graphics_convert_color</a> or <a class="el" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68" title="Return a packed 32-bit representation of an RGBA color.">graphics_make_color</a> to generate this value. </td></tr>
   </table>
   </dd>
 </dl>
 
 </div>
 </div>
-<a id="ga8a9fe69d12d9f864cb9d5c54e12d9789" name="ga8a9fe69d12d9f864cb9d5c54e12d9789"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga8a9fe69d12d9f864cb9d5c54e12d9789">&#9670;&nbsp;</a></span>graphics_draw_pixel_trans()</h2>
+<a id="gaced92b6e68367c07f760f50a29cbfdc4" name="gaced92b6e68367c07f760f50a29cbfdc4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaced92b6e68367c07f760f50a29cbfdc4">&#9670;&nbsp;</a></span>graphics_draw_pixel_trans()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -600,7 +702,7 @@ Start of graphics data. </td></tr>
         <tr>
           <td class="memname">void graphics_draw_pixel_trans </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a>&#160;</td>
+          <td class="paramtype"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td>
           <td class="paramname"><em>disp</em>, </td>
         </tr>
         <tr>
@@ -630,21 +732,21 @@ Start of graphics data. </td></tr>
 </div><div class="memdoc">
 
 <p>Draw a pixel to a given display context with alpha support. </p>
-<dl class="section note"><dt>Note</dt><dd>This function is much slower than <a class="el" href="group__graphics.html#ga5aebd2bb9f551066cac0d499a4562530" title="Draw a pixel to a given display context.">graphics_draw_pixel</a> for 32-bit pixels due to the need to sample the current pixel to do software alpha-blending.</dd></dl>
+<dl class="section note"><dt>Note</dt><dd>This function is much slower than <a class="el" href="group__graphics.html#gafab1950eb02dbcf0b5d4f27381a9ee0e" title="Draw a pixel to a given display context.">graphics_draw_pixel</a> for 32-bit pixels due to the need to sample the current pixel to do software alpha-blending.</dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">disp</td><td>The currently active display context. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">x</td><td>The x coordinate of the pixel. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">y</td><td>The y coordinate of the pixel. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">color</td><td>The 32-bit RGBA color to draw to the screen. Use <a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999" title="Convert a color structure to a 32-bit representation of an RGBA color.">graphics_convert_color</a> or <a class="el" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68" title="Return a 32-bit representation of an RGBA color.">graphics_make_color</a> to generate this value. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">color</td><td>The 32-bit RGBA color to draw to the screen. Use <a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999" title="Convert a color structure to a 32-bit representation of an RGBA color.">graphics_convert_color</a> or <a class="el" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68" title="Return a packed 32-bit representation of an RGBA color.">graphics_make_color</a> to generate this value. </td></tr>
   </table>
   </dd>
 </dl>
 
 </div>
 </div>
-<a id="ga9991dac5e442a8de66f7a8efce03096d" name="ga9991dac5e442a8de66f7a8efce03096d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga9991dac5e442a8de66f7a8efce03096d">&#9670;&nbsp;</a></span>graphics_draw_line()</h2>
+<a id="ga02765c49e9357d81af0122402b8ac5fa" name="ga02765c49e9357d81af0122402b8ac5fa"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga02765c49e9357d81af0122402b8ac5fa">&#9670;&nbsp;</a></span>graphics_draw_line()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -652,7 +754,7 @@ Start of graphics data. </td></tr>
         <tr>
           <td class="memname">void graphics_draw_line </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a>&#160;</td>
+          <td class="paramtype"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td>
           <td class="paramname"><em>disp</em>, </td>
         </tr>
         <tr>
@@ -694,7 +796,7 @@ Start of graphics data. </td></tr>
 </div><div class="memdoc">
 
 <p>Draw a line to a given display context. </p>
-<dl class="section note"><dt>Note</dt><dd>This function does not support transparency for speed purposes. To draw a transparent or translucent line, use <a class="el" href="group__graphics.html#ga676464729e043f11c7a0dc0fd20385d5" title="Draw a line to a given display context with alpha support.">graphics_draw_line_trans</a>.</dd></dl>
+<dl class="section note"><dt>Note</dt><dd>This function does not support transparency for speed purposes. To draw a transparent or translucent line, use <a class="el" href="group__graphics.html#gaf8feb23e6ae56a45007171f6c3076c04" title="Draw a line to a given display context with alpha support.">graphics_draw_line_trans</a>.</dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">disp</td><td>The currently active display context. </td></tr>
@@ -702,15 +804,15 @@ Start of graphics data. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">y0</td><td>The y coordinate of the start of the line. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">x1</td><td>The x coordinate of the end of the line. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">y1</td><td>The y coordinate of the end of the line. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">color</td><td>The 32-bit RGBA color to draw to the screen. Use <a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999" title="Convert a color structure to a 32-bit representation of an RGBA color.">graphics_convert_color</a> or <a class="el" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68" title="Return a 32-bit representation of an RGBA color.">graphics_make_color</a> to generate this value. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">color</td><td>The 32-bit RGBA color to draw to the screen. Use <a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999" title="Convert a color structure to a 32-bit representation of an RGBA color.">graphics_convert_color</a> or <a class="el" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68" title="Return a packed 32-bit representation of an RGBA color.">graphics_make_color</a> to generate this value. </td></tr>
   </table>
   </dd>
 </dl>
 
 </div>
 </div>
-<a id="ga676464729e043f11c7a0dc0fd20385d5" name="ga676464729e043f11c7a0dc0fd20385d5"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga676464729e043f11c7a0dc0fd20385d5">&#9670;&nbsp;</a></span>graphics_draw_line_trans()</h2>
+<a id="gaf8feb23e6ae56a45007171f6c3076c04" name="gaf8feb23e6ae56a45007171f6c3076c04"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaf8feb23e6ae56a45007171f6c3076c04">&#9670;&nbsp;</a></span>graphics_draw_line_trans()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -718,7 +820,7 @@ Start of graphics data. </td></tr>
         <tr>
           <td class="memname">void graphics_draw_line_trans </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a>&#160;</td>
+          <td class="paramtype"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td>
           <td class="paramname"><em>disp</em>, </td>
         </tr>
         <tr>
@@ -760,7 +862,7 @@ Start of graphics data. </td></tr>
 </div><div class="memdoc">
 
 <p>Draw a line to a given display context with alpha support. </p>
-<dl class="section note"><dt>Note</dt><dd>This function is much slower than <a class="el" href="group__graphics.html#ga9991dac5e442a8de66f7a8efce03096d" title="Draw a line to a given display context.">graphics_draw_line</a> for 32-bit buffers due to the need to sample the current pixel to do software alpha-blending.</dd></dl>
+<dl class="section note"><dt>Note</dt><dd>This function is much slower than <a class="el" href="group__graphics.html#ga02765c49e9357d81af0122402b8ac5fa" title="Draw a line to a given display context.">graphics_draw_line</a> for 32-bit buffers due to the need to sample the current pixel to do software alpha-blending.</dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">disp</td><td>The currently active display context. </td></tr>
@@ -768,15 +870,15 @@ Start of graphics data. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">y0</td><td>The y coordinate of the start of the line. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">x1</td><td>The x coordinate of the end of the line. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">y1</td><td>The y coordinate of the end of the line. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">color</td><td>The 32-bit RGBA color to draw to the screen. Use <a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999" title="Convert a color structure to a 32-bit representation of an RGBA color.">graphics_convert_color</a> or <a class="el" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68" title="Return a 32-bit representation of an RGBA color.">graphics_make_color</a> to generate this value. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">color</td><td>The 32-bit RGBA color to draw to the screen. Use <a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999" title="Convert a color structure to a 32-bit representation of an RGBA color.">graphics_convert_color</a> or <a class="el" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68" title="Return a packed 32-bit representation of an RGBA color.">graphics_make_color</a> to generate this value. </td></tr>
   </table>
   </dd>
 </dl>
 
 </div>
 </div>
-<a id="gaeb99b8f23999665d847452b57b1428ab" name="gaeb99b8f23999665d847452b57b1428ab"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaeb99b8f23999665d847452b57b1428ab">&#9670;&nbsp;</a></span>graphics_draw_box()</h2>
+<a id="ga007410184312b87a2bc2e720e132bacb" name="ga007410184312b87a2bc2e720e132bacb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga007410184312b87a2bc2e720e132bacb">&#9670;&nbsp;</a></span>graphics_draw_box()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -784,7 +886,7 @@ Start of graphics data. </td></tr>
         <tr>
           <td class="memname">void graphics_draw_box </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a>&#160;</td>
+          <td class="paramtype"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td>
           <td class="paramname"><em>disp</em>, </td>
         </tr>
         <tr>
@@ -826,7 +928,7 @@ Start of graphics data. </td></tr>
 </div><div class="memdoc">
 
 <p>Draw a filled rectangle to a display context. </p>
-<dl class="section note"><dt>Note</dt><dd>This function does not support transparency for speed purposes. To draw a transparent or translucent box, use <a class="el" href="group__graphics.html#gadc1a09a56de32b5e4bdb0a20c7e80850" title="Draw a filled rectangle to a display context.">graphics_draw_box_trans</a>.</dd></dl>
+<dl class="section note"><dt>Note</dt><dd>This function does not support transparency for speed purposes. To draw a transparent or translucent box, use <a class="el" href="group__graphics.html#ga56c272643871a7cb918a2f4987226bc6" title="Draw a filled rectangle to a display context.">graphics_draw_box_trans</a>.</dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">disp</td><td>The currently active display context. </td></tr>
@@ -834,15 +936,15 @@ Start of graphics data. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">y</td><td>The y coordinate of the top left of the box. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">width</td><td>The width of the box in pixels. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">height</td><td>The height of the box in pixels. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">color</td><td>The 32-bit RGBA color to draw to the screen. Use <a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999" title="Convert a color structure to a 32-bit representation of an RGBA color.">graphics_convert_color</a> or <a class="el" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68" title="Return a 32-bit representation of an RGBA color.">graphics_make_color</a> to generate this value. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">color</td><td>The 32-bit RGBA color to draw to the screen. Use <a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999" title="Convert a color structure to a 32-bit representation of an RGBA color.">graphics_convert_color</a> or <a class="el" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68" title="Return a packed 32-bit representation of an RGBA color.">graphics_make_color</a> to generate this value. </td></tr>
   </table>
   </dd>
 </dl>
 
 </div>
 </div>
-<a id="gadc1a09a56de32b5e4bdb0a20c7e80850" name="gadc1a09a56de32b5e4bdb0a20c7e80850"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gadc1a09a56de32b5e4bdb0a20c7e80850">&#9670;&nbsp;</a></span>graphics_draw_box_trans()</h2>
+<a id="ga56c272643871a7cb918a2f4987226bc6" name="ga56c272643871a7cb918a2f4987226bc6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga56c272643871a7cb918a2f4987226bc6">&#9670;&nbsp;</a></span>graphics_draw_box_trans()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -850,7 +952,7 @@ Start of graphics data. </td></tr>
         <tr>
           <td class="memname">void graphics_draw_box_trans </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a>&#160;</td>
+          <td class="paramtype"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td>
           <td class="paramname"><em>disp</em>, </td>
         </tr>
         <tr>
@@ -892,7 +994,7 @@ Start of graphics data. </td></tr>
 </div><div class="memdoc">
 
 <p>Draw a filled rectangle to a display context. </p>
-<dl class="section note"><dt>Note</dt><dd>This function is much slower than <a class="el" href="group__graphics.html#gaeb99b8f23999665d847452b57b1428ab" title="Draw a filled rectangle to a display context.">graphics_draw_box</a> for 32-bit buffers due to the need to sample the current pixel to do software alpha-blending.</dd></dl>
+<dl class="section note"><dt>Note</dt><dd>This function is much slower than <a class="el" href="group__graphics.html#ga007410184312b87a2bc2e720e132bacb" title="Draw a filled rectangle to a display context.">graphics_draw_box</a> for 32-bit buffers due to the need to sample the current pixel to do software alpha-blending.</dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">disp</td><td>The currently active display context. </td></tr>
@@ -900,15 +1002,15 @@ Start of graphics data. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">y</td><td>The y coordinate of the top left of the box. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">width</td><td>The width of the box in pixels. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">height</td><td>The height of the box in pixels. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">color</td><td>The 32-bit RGBA color to draw to the screen. Use <a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999" title="Convert a color structure to a 32-bit representation of an RGBA color.">graphics_convert_color</a> or <a class="el" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68" title="Return a 32-bit representation of an RGBA color.">graphics_make_color</a> to generate this value. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">color</td><td>The 32-bit RGBA color to draw to the screen. Use <a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999" title="Convert a color structure to a 32-bit representation of an RGBA color.">graphics_convert_color</a> or <a class="el" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68" title="Return a packed 32-bit representation of an RGBA color.">graphics_make_color</a> to generate this value. </td></tr>
   </table>
   </dd>
 </dl>
 
 </div>
 </div>
-<a id="gad5ef099708a73fd6aed71192d4bb31b6" name="gad5ef099708a73fd6aed71192d4bb31b6"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gad5ef099708a73fd6aed71192d4bb31b6">&#9670;&nbsp;</a></span>graphics_fill_screen()</h2>
+<a id="gaffa019c442ee67ef7ae3e17f5627116b" name="gaffa019c442ee67ef7ae3e17f5627116b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaffa019c442ee67ef7ae3e17f5627116b">&#9670;&nbsp;</a></span>graphics_fill_screen()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -916,7 +1018,7 @@ Start of graphics data. </td></tr>
         <tr>
           <td class="memname">void graphics_fill_screen </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a>&#160;</td>
+          <td class="paramtype"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td>
           <td class="paramname"><em>disp</em>, </td>
         </tr>
         <tr>
@@ -938,7 +1040,7 @@ Start of graphics data. </td></tr>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">disp</td><td>The currently active display context. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">c</td><td>The 32-bit RGBA color to draw to the screen. Use <a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999" title="Convert a color structure to a 32-bit representation of an RGBA color.">graphics_convert_color</a> or <a class="el" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68" title="Return a 32-bit representation of an RGBA color.">graphics_make_color</a> to generate this value. </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">c</td><td>The 32-bit RGBA color to draw to the screen. Use <a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999" title="Convert a color structure to a 32-bit representation of an RGBA color.">graphics_convert_color</a> or <a class="el" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68" title="Return a packed 32-bit representation of an RGBA color.">graphics_make_color</a> to generate this value. </td></tr>
   </table>
   </dd>
 </dl>
@@ -974,8 +1076,8 @@ Start of graphics data. </td></tr>
 
 </div>
 </div>
-<a id="ga475bc6fbd649e4a707d3512f869b5d16" name="ga475bc6fbd649e4a707d3512f869b5d16"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga475bc6fbd649e4a707d3512f869b5d16">&#9670;&nbsp;</a></span>graphics_draw_character()</h2>
+<a id="gaa66a5434f0a1ec00d3c26b11dc059e64" name="gaa66a5434f0a1ec00d3c26b11dc059e64"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaa66a5434f0a1ec00d3c26b11dc059e64">&#9670;&nbsp;</a></span>graphics_draw_character()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -983,7 +1085,7 @@ Start of graphics data. </td></tr>
         <tr>
           <td class="memname">void graphics_draw_character </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a>&#160;</td>
+          <td class="paramtype"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td>
           <td class="paramname"><em>disp</em>, </td>
         </tr>
         <tr>
@@ -1026,8 +1128,8 @@ Start of graphics data. </td></tr>
 
 </div>
 </div>
-<a id="ga3b5c6b9cef6e50ce20aff548cca55948" name="ga3b5c6b9cef6e50ce20aff548cca55948"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga3b5c6b9cef6e50ce20aff548cca55948">&#9670;&nbsp;</a></span>graphics_draw_text()</h2>
+<a id="gac981119af0043edb807b5879a41b94eb" name="gac981119af0043edb807b5879a41b94eb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gac981119af0043edb807b5879a41b94eb">&#9670;&nbsp;</a></span>graphics_draw_text()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1035,7 +1137,7 @@ Start of graphics data. </td></tr>
         <tr>
           <td class="memname">void graphics_draw_text </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a>&#160;</td>
+          <td class="paramtype"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td>
           <td class="paramname"><em>disp</em>, </td>
         </tr>
         <tr>
@@ -1079,8 +1181,8 @@ Start of graphics data. </td></tr>
 
 </div>
 </div>
-<a id="ga903308d948b28b2c1798c143e7f26aa0" name="ga903308d948b28b2c1798c143e7f26aa0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga903308d948b28b2c1798c143e7f26aa0">&#9670;&nbsp;</a></span>graphics_draw_sprite()</h2>
+<a id="gaaa9f5910dc7ffc21ee59849086415966" name="gaaa9f5910dc7ffc21ee59849086415966"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaaa9f5910dc7ffc21ee59849086415966">&#9670;&nbsp;</a></span>graphics_draw_sprite()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1088,7 +1190,7 @@ Start of graphics data. </td></tr>
         <tr>
           <td class="memname">void graphics_draw_sprite </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a>&#160;</td>
+          <td class="paramtype"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td>
           <td class="paramname"><em>disp</em>, </td>
         </tr>
         <tr>
@@ -1119,7 +1221,7 @@ Start of graphics data. </td></tr>
 
 <p>Draw a sprite to a display context. </p>
 <p >Given a sprite structure, this function will draw a sprite to the display context with clipping support.</p>
-<dl class="section note"><dt>Note</dt><dd>This function does not support alpha blending for speed purposes. For alpha blending support, please see <a class="el" href="group__graphics.html#gaaaec675cb4e30df823a17078e168d24d" title="Draw a sprite to a display context with alpha transparency.">graphics_draw_sprite_trans</a></dd></dl>
+<dl class="section note"><dt>Note</dt><dd>This function does not support alpha blending for speed purposes. For alpha blending support, please see <a class="el" href="group__graphics.html#gaddac73ba6ec7151ba326cf8c7c690cb6" title="Draw a sprite to a display context with alpha transparency.">graphics_draw_sprite_trans</a></dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">disp</td><td>The currently active display context. </td></tr>
@@ -1132,8 +1234,8 @@ Start of graphics data. </td></tr>
 
 </div>
 </div>
-<a id="gae889dce017f27154e0f6f9aeeb153db1" name="gae889dce017f27154e0f6f9aeeb153db1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gae889dce017f27154e0f6f9aeeb153db1">&#9670;&nbsp;</a></span>graphics_draw_sprite_stride()</h2>
+<a id="gad79a26271d0bba11cb0c6a8468cb13a2" name="gad79a26271d0bba11cb0c6a8468cb13a2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gad79a26271d0bba11cb0c6a8468cb13a2">&#9670;&nbsp;</a></span>graphics_draw_sprite_stride()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1141,7 +1243,7 @@ Start of graphics data. </td></tr>
         <tr>
           <td class="memname">void graphics_draw_sprite_stride </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a>&#160;</td>
+          <td class="paramtype"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td>
           <td class="paramname"><em>disp</em>, </td>
         </tr>
         <tr>
@@ -1185,7 +1287,7 @@ Start of graphics data. </td></tr>
 *---*---*---*
 | 3 | 4 | 5 |
 *---*---*---*
-</pre><dl class="section note"><dt>Note</dt><dd>This function does not support alpha blending for speed purposes. For alpha blending support, please see <a class="el" href="group__graphics.html#gab8092cce86946b2f2c480a40a2a5d925" title="Draw a sprite from a spritemap to a display context.">graphics_draw_sprite_trans_stride</a></dd></dl>
+</pre><dl class="section note"><dt>Note</dt><dd>This function does not support alpha blending for speed purposes. For alpha blending support, please see <a class="el" href="group__graphics.html#gab68ecd8ca75c1fbf47b01a01934824fd" title="Draw a sprite from a spritemap to a display context.">graphics_draw_sprite_trans_stride</a></dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">disp</td><td>The currently active display context. </td></tr>
@@ -1199,8 +1301,8 @@ Start of graphics data. </td></tr>
 
 </div>
 </div>
-<a id="gaaaec675cb4e30df823a17078e168d24d" name="gaaaec675cb4e30df823a17078e168d24d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaaaec675cb4e30df823a17078e168d24d">&#9670;&nbsp;</a></span>graphics_draw_sprite_trans()</h2>
+<a id="gaddac73ba6ec7151ba326cf8c7c690cb6" name="gaddac73ba6ec7151ba326cf8c7c690cb6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gaddac73ba6ec7151ba326cf8c7c690cb6">&#9670;&nbsp;</a></span>graphics_draw_sprite_trans()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1208,7 +1310,7 @@ Start of graphics data. </td></tr>
         <tr>
           <td class="memname">void graphics_draw_sprite_trans </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a>&#160;</td>
+          <td class="paramtype"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td>
           <td class="paramname"><em>disp</em>, </td>
         </tr>
         <tr>
@@ -1239,7 +1341,7 @@ Start of graphics data. </td></tr>
 
 <p>Draw a sprite to a display context with alpha transparency. </p>
 <p >Given a sprite structure, this function will draw a sprite to the display context with clipping support.</p>
-<dl class="section note"><dt>Note</dt><dd>This function supports alpha blending and is much slower for 32-bit sprites. If you do not need alpha blending support, please see <a class="el" href="group__graphics.html#ga903308d948b28b2c1798c143e7f26aa0" title="Draw a sprite to a display context.">graphics_draw_sprite</a>.</dd></dl>
+<dl class="section note"><dt>Note</dt><dd>This function supports alpha blending and is much slower for 32-bit sprites. If you do not need alpha blending support, please see <a class="el" href="group__graphics.html#gaaa9f5910dc7ffc21ee59849086415966" title="Draw a sprite to a display context.">graphics_draw_sprite</a>.</dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">disp</td><td>The currently active display context. </td></tr>
@@ -1252,8 +1354,8 @@ Start of graphics data. </td></tr>
 
 </div>
 </div>
-<a id="gab8092cce86946b2f2c480a40a2a5d925" name="gab8092cce86946b2f2c480a40a2a5d925"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gab8092cce86946b2f2c480a40a2a5d925">&#9670;&nbsp;</a></span>graphics_draw_sprite_trans_stride()</h2>
+<a id="gab68ecd8ca75c1fbf47b01a01934824fd" name="gab68ecd8ca75c1fbf47b01a01934824fd"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gab68ecd8ca75c1fbf47b01a01934824fd">&#9670;&nbsp;</a></span>graphics_draw_sprite_trans_stride()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1261,7 +1363,7 @@ Start of graphics data. </td></tr>
         <tr>
           <td class="memname">void graphics_draw_sprite_trans_stride </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a>&#160;</td>
+          <td class="paramtype"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td>
           <td class="paramname"><em>disp</em>, </td>
         </tr>
         <tr>
@@ -1305,7 +1407,7 @@ Start of graphics data. </td></tr>
 *---*---*---*
 | 3 | 4 | 5 |
 *---*---*---*
-</pre><dl class="section note"><dt>Note</dt><dd>This function supports alpha blending and is much slower for 32-bit sprites. If you do not need alpha blending support, please see <a class="el" href="group__graphics.html#gae889dce017f27154e0f6f9aeeb153db1" title="Draw a sprite from a spritemap to a display context.">graphics_draw_sprite_stride</a>.</dd></dl>
+</pre><dl class="section note"><dt>Note</dt><dd>This function supports alpha blending and is much slower for 32-bit sprites. If you do not need alpha blending support, please see <a class="el" href="group__graphics.html#gad79a26271d0bba11cb0c6a8468cb13a2" title="Draw a sprite from a spritemap to a display context.">graphics_draw_sprite_stride</a>.</dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">disp</td><td>The currently active display context. </td></tr>
@@ -1365,7 +1467,7 @@ Start of graphics data. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sat Oct 15 2022 15:53:29 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Mon Oct 17 2022 07:59:41 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

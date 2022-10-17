@@ -26,5 +26,6 @@ var searchData=
   ['stderr_5fwrite_23',['stderr_write',['../structstdio__t.html#ae597caf3c9e293510cba3970e2505d8b',1,'stdio_t']]],
   ['stdin_5fread_24',['stdin_read',['../structstdio__t.html#a5eaf55e713e812d9b2c18bf29695602b',1,'stdio_t']]],
   ['stdout_5fwrite_25',['stdout_write',['../structstdio__t.html#a92472470dcadc21bcc44e0f9a14ae89a',1,'stdio_t']]],
-  ['step_26',['step',['../mixer_8c.html#acfaf33ab47c2f024c9aab06118ecceb0',1,'mixer_channel_t::step()'],['../mixer_8c.html#a5ec038931e32199a4d310d956d42a301',1,'rsp_mixer_channel_t::step()'],['../structAYEnvelope.html#aa25e2aaaf84c58939aac481a35b691ba',1,'AYEnvelope::step()']]]
+  ['step_26',['step',['../mixer_8c.html#acfaf33ab47c2f024c9aab06118ecceb0',1,'mixer_channel_t::step()'],['../mixer_8c.html#a5ec038931e32199a4d310d956d42a301',1,'rsp_mixer_channel_t::step()'],['../structAYEnvelope.html#aa25e2aaaf84c58939aac481a35b691ba',1,'AYEnvelope::step()']]],
+  ['stride_27',['stride',['../surface_8h.html#a072aa5060cd760944f530653f2f7f161',1,'surface_t']]]
 ];

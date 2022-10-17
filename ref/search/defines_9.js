@@ -1,7 +1,26 @@
 var searchData=
 [
-  ['wav_5friff_5fid_0',['WAV_RIFF_ID',['../wav64_8c.html#a2ebc55429ed20a91fac441986024ba61',1,'wav64.c']]],
-  ['wav_5frifx_5fid_1',['WAV_RIFX_ID',['../wav64_8c.html#ac353e6233bc992b82218f9bfdb804e62',1,'wav64.c']]],
-  ['waveform_5fmax_5flen_2',['WAVEFORM_MAX_LEN',['../mixer_8h.html#a91f923e9b125bdd3b240842849fdbf3d',1,'mixer.h']]],
-  ['waveform_5funknown_5flen_3',['WAVEFORM_UNKNOWN_LEN',['../mixer_8h.html#a803ce99544a6087176fe7454c245dc77',1,'mixer.h']]]
+  ['tex_5fformat_5fbitdepth_0',['TEX_FORMAT_BITDEPTH',['../surface_8h.html#ade664cca1cdac41a2e9380bdbb98cfd8',1,'surface.h']]],
+  ['tex_5fformat_5fbytes2pix_1',['TEX_FORMAT_BYTES2PIX',['../surface_8h.html#a3d266c460ce7974103858f37f8921c67',1,'surface.h']]],
+  ['tex_5fformat_5fpix2bytes_2',['TEX_FORMAT_PIX2BYTES',['../surface_8h.html#a82925c45165d62752b7520fe74ed7fa9',1,'surface.h']]],
+  ['tpak_5faddress_5fbank_3',['TPAK_ADDRESS_BANK',['../tpak_8c.html#af625ca0229f59a1d74b2a6b096164f96',1,'tpak.c']]],
+  ['tpak_5faddress_5fdata_4',['TPAK_ADDRESS_DATA',['../tpak_8c.html#a18ae694312911fbba535535a57398f4e',1,'tpak.c']]],
+  ['tpak_5faddress_5fpower_5',['TPAK_ADDRESS_POWER',['../tpak_8c.html#ae8c69750bc8d7c3d0ef139b40681fdb3',1,'tpak.c']]],
+  ['tpak_5faddress_5fstatus_6',['TPAK_ADDRESS_STATUS',['../tpak_8c.html#aad605bf162cbc7e90c45b39e3bbb3574',1,'tpak.c']]],
+  ['tpak_5fbank_5fsize_7',['TPAK_BANK_SIZE',['../tpak_8c.html#a48f2d4664a5fd24d83959ccd801947b8',1,'tpak.c']]],
+  ['tpak_5fblock_5fsize_8',['TPAK_BLOCK_SIZE',['../tpak_8c.html#a32db920b763347ed10c8f161250962cd',1,'tpak.c']]],
+  ['tpak_5ferror_5faddress_5foverflow_9',['TPAK_ERROR_ADDRESS_OVERFLOW',['../tpak_8h.html#a84914d2474f97e765d4d62167f308d5a',1,'tpak.h']]],
+  ['tpak_5ferror_5finvalid_5fargument_10',['TPAK_ERROR_INVALID_ARGUMENT',['../tpak_8h.html#a6132df165c25f377771fc1b8e4f7d8ce',1,'tpak.h']]],
+  ['tpak_5ferror_5fno_5fcartridge_11',['TPAK_ERROR_NO_CARTRIDGE',['../tpak_8h.html#a834c1af1f662a4219de439e8f2c86003',1,'tpak.h']]],
+  ['tpak_5ferror_5fno_5fcontroller_12',['TPAK_ERROR_NO_CONTROLLER',['../tpak_8h.html#acd6c88c96983f9eaaa6a65b638661bbf',1,'tpak.h']]],
+  ['tpak_5ferror_5fno_5ftpak_13',['TPAK_ERROR_NO_TPAK',['../tpak_8h.html#abaa51f1d9ce57614f4afff7bb8b6eec5',1,'tpak.h']]],
+  ['tpak_5ferror_5funknown_5fbehaviour_14',['TPAK_ERROR_UNKNOWN_BEHAVIOUR',['../tpak_8h.html#a9f3e1e591f29066f14ada9241395c3ce',1,'tpak.h']]],
+  ['tpak_5fpower_5foff_15',['TPAK_POWER_OFF',['../tpak_8c.html#ab62ad788345487decb64effb822c0e43',1,'tpak.c']]],
+  ['tpak_5fpower_5fon_16',['TPAK_POWER_ON',['../tpak_8c.html#a8c5ca9dc530de610b3544336f0a7226f',1,'tpak.c']]],
+  ['tpak_5fstatus_5fis_5fresetting_17',['TPAK_STATUS_IS_RESETTING',['../tpak_8h.html#a2179bb6ebadeb7c6bcf50c382f370f7b',1,'tpak.h']]],
+  ['tpak_5fstatus_5fpowered_18',['TPAK_STATUS_POWERED',['../tpak_8h.html#af1f9331836522eb5670e3abf54652eab',1,'tpak.h']]],
+  ['tpak_5fstatus_5fready_19',['TPAK_STATUS_READY',['../tpak_8h.html#a26d7ded15ec0669b1f3a6b21dc18bc0c',1,'tpak.h']]],
+  ['tpak_5fstatus_5fremoved_20',['TPAK_STATUS_REMOVED',['../tpak_8h.html#a1c0abf459a3b943c08efa42f026076e1',1,'tpak.h']]],
+  ['tpak_5fstatus_5fwas_5freset_21',['TPAK_STATUS_WAS_RESET',['../tpak_8h.html#a3a63279712f0cdf5a50c08cfc0fafee8',1,'tpak.h']]],
+  ['tracef_22',['tracef',['../mixer_8c.html#a1fb613ddfceb7573a840c84b146f273c',1,'tracef():&#160;mixer.c'],['../samplebuffer_8c.html#a1fb613ddfceb7573a840c84b146f273c',1,'tracef():&#160;samplebuffer.c']]]
 ];

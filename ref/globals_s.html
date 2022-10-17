@@ -83,7 +83,7 @@ $(function() {
 <li>set_AI_interrupt()&#160;:&#160;<a class="el" href="group__interrupt.html#ga87288d9e8d2c178572957295ff64ec40">interrupt.c</a>, <a class="el" href="group__interrupt.html#ga87288d9e8d2c178572957295ff64ec40">interrupt.h</a></li>
 <li>set_CART_interrupt()&#160;:&#160;<a class="el" href="group__interrupt.html#gac7ddaefc83763af0e97886beb7600d8b">interrupt.c</a>, <a class="el" href="group__interrupt.html#gac7ddaefc83763af0e97886beb7600d8b">interrupt.h</a></li>
 <li>set_DP_interrupt()&#160;:&#160;<a class="el" href="group__interrupt.html#gad0b3939ccf8c8eff2289c08a75cbc624">interrupt.c</a>, <a class="el" href="group__interrupt.html#gad0b3939ccf8c8eff2289c08a75cbc624">interrupt.h</a></li>
-<li>set_PI_interrupt()&#160;:&#160;<a class="el" href="group__interrupt.html#ga6a5ec9c8b19060b6d4c7126cc670cf37">interrupt.h</a>, <a class="el" href="group__interrupt.html#ga6a5ec9c8b19060b6d4c7126cc670cf37">interrupt.c</a></li>
+<li>set_PI_interrupt()&#160;:&#160;<a class="el" href="group__interrupt.html#ga6a5ec9c8b19060b6d4c7126cc670cf37">interrupt.c</a>, <a class="el" href="group__interrupt.html#ga6a5ec9c8b19060b6d4c7126cc670cf37">interrupt.h</a></li>
 <li>set_SI_interrupt()&#160;:&#160;<a class="el" href="group__interrupt.html#ga2852664ce3950d66868cf39d8d633d62">interrupt.c</a>, <a class="el" href="group__interrupt.html#ga2852664ce3950d66868cf39d8d633d62">interrupt.h</a></li>
 <li>set_SP_interrupt()&#160;:&#160;<a class="el" href="group__interrupt.html#ga24c9ae3233fc77e0f6a1a22843c88298">interrupt.c</a>, <a class="el" href="group__interrupt.html#ga24c9ae3233fc77e0f6a1a22843c88298">interrupt.h</a></li>
 <li>set_TI_interrupt()&#160;:&#160;<a class="el" href="group__interrupt.html#ga67483ed4435081b227aa799465cb7436">interrupt.c</a>, <a class="el" href="group__interrupt.html#ga67483ed4435081b227aa799465cb7436">interrupt.h</a></li>
@@ -152,6 +152,14 @@ $(function() {
 <li>STDIN_FILENO&#160;:&#160;<a class="el" href="group__system.html#gafcf80a6d91178952d107ad00b165752b">system.c</a></li>
 <li>STDOUT_FILENO&#160;:&#160;<a class="el" href="group__system.html#gabd165ee6474b5b75bf075842fff13a04">system.c</a></li>
 <li>stop_timer()&#160;:&#160;<a class="el" href="group__timer.html#ga8fbd392a5ec8e5d27f79cc4a660b1aed">timer.c</a>, <a class="el" href="group__timer.html#ga8fbd392a5ec8e5d27f79cc4a660b1aed">timer.h</a></li>
+<li>surface_alloc()&#160;:&#160;<a class="el" href="surface_8c.html#ac3ed4ec6825eeb8775ddf9763314b22f">surface.c</a>, <a class="el" href="surface_8h.html#ac3ed4ec6825eeb8775ddf9763314b22f">surface.h</a></li>
+<li>SURFACE_FLAGS_OWNEDBUFFER&#160;:&#160;<a class="el" href="surface_8h.html#a1c0fb0cf02521629354df1b07091be4f">surface.h</a></li>
+<li>SURFACE_FLAGS_TEXFORMAT&#160;:&#160;<a class="el" href="surface_8h.html#af987b5a73ec05cead979f8295555b666">surface.h</a></li>
+<li>surface_free()&#160;:&#160;<a class="el" href="surface_8c.html#abb7940ed434b55044bf078472f59173e">surface.c</a>, <a class="el" href="surface_8h.html#abb7940ed434b55044bf078472f59173e">surface.h</a></li>
+<li>surface_get_format()&#160;:&#160;<a class="el" href="surface_8c.html#af87295c49590f004305ce1d5e36e42f7">surface.c</a>, <a class="el" href="surface_8h.html#af87295c49590f004305ce1d5e36e42f7">surface.h</a></li>
+<li>surface_make()&#160;:&#160;<a class="el" href="surface_8c.html#a764269d5ee8de46b3c0ef0f318f86a15">surface.c</a>, <a class="el" href="surface_8h.html#a764269d5ee8de46b3c0ef0f318f86a15">surface.h</a></li>
+<li>surface_make_linear()&#160;:&#160;<a class="el" href="surface_8h.html#a7ecf7e2feeea4b0438b657096762cc52">surface.h</a></li>
+<li>surface_make_sub()&#160;:&#160;<a class="el" href="surface_8c.html#a75faf57d244b5a27a0af9e5a7cabef74">surface.c</a>, <a class="el" href="surface_8h.html#a75faf57d244b5a27a0af9e5a7cabef74">surface.h</a></li>
 <li>symlink()&#160;:&#160;<a class="el" href="group__system.html#ga583cc849da2f23c2a3f6153f196b8a25">system.c</a></li>
 <li>SYNC_FULL&#160;:&#160;<a class="el" href="group__rdp.html#ggaa2dbbcba64b87654ad46b6ceb1187c9da80215ce5b4bbb76fa553d94ae67500a0">rdp.h</a></li>
 <li>SYNC_LOAD&#160;:&#160;<a class="el" href="group__rdp.html#ggaa2dbbcba64b87654ad46b6ceb1187c9da6ca16c8ba3d00e4dbcc8a593c2982020">rdp.h</a></li>
@@ -165,7 +173,7 @@ $(function() {
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sat Oct 15 2022 15:53:30 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Mon Oct 17 2022 07:59:41 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

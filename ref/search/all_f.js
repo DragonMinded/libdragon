@@ -17,7 +17,7 @@ var searchData=
   ['nframes_14',['nframes',['../ym64_8h.html#a4d0bfabaf6acb99704f85516dad02575',1,'ym64player_t::nframes()'],['../ym64_8c.html#a47b6d20201d3fd1bf9d3eb53b0db3a71',1,'ym5header::nframes()']]],
   ['noise_5fen_15',['noise_en',['../structAYChannel.html#af44e162a5afb098632e7dbbead9391dc',1,'AYChannel']]],
   ['ns_16',['ns',['../structAY8910.html#a1461e7bf08c19a89e61aca7796afc30e',1,'AY8910']]],
-  ['num_5fbuffers_17',['NUM_BUFFERS',['../group__audio.html#gaac028f4c15ac7f78a44be5db76cfbec7',1,'NUM_BUFFERS():&#160;audio.c'],['../group__display.html#gaac028f4c15ac7f78a44be5db76cfbec7',1,'NUM_BUFFERS():&#160;display.c']]],
+  ['num_5fbuffers_17',['NUM_BUFFERS',['../group__audio.html#gaac028f4c15ac7f78a44be5db76cfbec7',1,'NUM_BUFFERS():&#160;audio.c'],['../display_8c.html#aac028f4c15ac7f78a44be5db76cfbec7',1,'NUM_BUFFERS():&#160;display.c']]],
   ['num_5fbytes_18',['num_bytes',['../eepromfs_8c.html#a3c35591920acb3d38e247335ac4a75a4',1,'eepfs_file_t']]],
   ['nwaves_19',['nwaves',['../xm64_8h.html#ad603cd4f10c0b5d28c2785c7405dfb7f',1,'xm64player_t']]]
 ];

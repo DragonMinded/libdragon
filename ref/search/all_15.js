@@ -1,6 +1,6 @@
 var searchData=
 [
-  ['uncached_5faddr_0',['UNCACHED_ADDR',['../group__display.html#ga1f0aa60f6fbc023029f8d0de267f26c9',1,'display.c']]],
+  ['uncached_5faddr_0',['UNCACHED_ADDR',['../display_8c.html#a1f0aa60f6fbc023029f8d0de267f26c9',1,'display.c']]],
   ['uncachedaddr_1',['UncachedAddr',['../group__n64sys.html#ga2a6fc83e86b9c1a343f50a219edd10c7',1,'n64sys.h']]],
   ['uncachedlongaddr_2',['UncachedLongAddr',['../group__n64sys.html#gaacd99170f53fc12c555e2501f24f7d09',1,'n64sys.h']]],
   ['uncachedshortaddr_3',['UncachedShortAddr',['../group__n64sys.html#gab1557f26ee61d78b2efa5751fa324274',1,'n64sys.h']]],

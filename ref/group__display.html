@@ -65,11 +65,9 @@ $(function() {
   <div class="summary">
 <a href="#groups">Modules</a> &#124;
 <a href="#files">Files</a> &#124;
-<a href="#define-members">Macros</a> &#124;
 <a href="#typedef-members">Typedefs</a> &#124;
 <a href="#enum-members">Enumerations</a> &#124;
-<a href="#func-members">Functions</a> &#124;
-<a href="#var-members">Variables</a>  </div>
+<a href="#func-members">Functions</a>  </div>
   <div class="headertitle"><div class="title">Display Subsystem<div class="ingroups"><a class="el" href="group__libdragon.html">libdragon</a></div></div></div>
 </div><!--header-->
 <div class="contents">
@@ -98,30 +96,11 @@ Files</h2></td></tr>
 <tr class="memdesc:display_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">Display Subsystem. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
-Macros</h2></td></tr>
-<tr class="memitem:gaac028f4c15ac7f78a44be5db76cfbec7"><td class="memItemLeft" align="right" valign="top"><a id="gaac028f4c15ac7f78a44be5db76cfbec7" name="gaac028f4c15ac7f78a44be5db76cfbec7"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>NUM_BUFFERS</b>&#160;&#160;&#160;3</td></tr>
-<tr class="memdesc:gaac028f4c15ac7f78a44be5db76cfbec7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Maximum number of video backbuffers. <br /></td></tr>
-<tr class="separator:gaac028f4c15ac7f78a44be5db76cfbec7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gaa586527409c4ddd6fb38e7f63bf8e71c"><td class="memItemLeft" align="right" valign="top"><a id="gaa586527409c4ddd6fb38e7f63bf8e71c" name="gaa586527409c4ddd6fb38e7f63bf8e71c"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>REGISTER_BASE</b>&#160;&#160;&#160;0xA4400000</td></tr>
-<tr class="memdesc:gaa586527409c4ddd6fb38e7f63bf8e71c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register location in memory of VI. <br /></td></tr>
-<tr class="separator:gaa586527409c4ddd6fb38e7f63bf8e71c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga872bdec8b3471262a8a0131d7dc0fc0d"><td class="memItemLeft" align="right" valign="top"><a id="ga872bdec8b3471262a8a0131d7dc0fc0d" name="ga872bdec8b3471262a8a0131d7dc0fc0d"></a>
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>REGISTER_COUNT</b>&#160;&#160;&#160;14</td></tr>
-<tr class="memdesc:ga872bdec8b3471262a8a0131d7dc0fc0d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Number of 32-bit registers at the register base. <br /></td></tr>
-<tr class="separator:ga872bdec8b3471262a8a0131d7dc0fc0d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga1f0aa60f6fbc023029f8d0de267f26c9"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga1f0aa60f6fbc023029f8d0de267f26c9">UNCACHED_ADDR</a>(x)&#160;&#160;&#160;((void *)(((uint32_t)(x)) | 0xA0000000))</td></tr>
-<tr class="memdesc:ga1f0aa60f6fbc023029f8d0de267f26c9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the uncached memory address of a cached address.  <a href="group__display.html#ga1f0aa60f6fbc023029f8d0de267f26c9">More...</a><br /></td></tr>
-<tr class="separator:ga1f0aa60f6fbc023029f8d0de267f26c9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="typedef-members" name="typedef-members"></a>
 Typedefs</h2></td></tr>
-<tr class="memitem:ga8408ec7b561469630254ce1ea7001f7a"><td class="memItemLeft" align="right" valign="top"><a id="ga8408ec7b561469630254ce1ea7001f7a" name="ga8408ec7b561469630254ce1ea7001f7a"></a>
-typedef int&#160;</td><td class="memItemRight" valign="bottom"><b>display_context_t</b></td></tr>
-<tr class="memdesc:ga8408ec7b561469630254ce1ea7001f7a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Display context. <br /></td></tr>
-<tr class="separator:ga8408ec7b561469630254ce1ea7001f7a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gadb422deee7b387b8c1c8025c8ac36628"><td class="memItemLeft" align="right" valign="top">typedef <a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gadb422deee7b387b8c1c8025c8ac36628">display_context_t</a></td></tr>
+<tr class="memdesc:gadb422deee7b387b8c1c8025c8ac36628"><td class="mdescLeft">&#160;</td><td class="mdescRight">Display context (DEPRECATED: Use <a class="el" href="surface_8h.html#structsurface__t" title="A surface buffer for graphics.">surface_t</a> instead)  <a href="group__display.html#gadb422deee7b387b8c1c8025c8ac36628">More...</a><br /></td></tr>
+<tr class="separator:gadb422deee7b387b8c1c8025c8ac36628"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
 Enumerations</h2></td></tr>
@@ -164,68 +143,48 @@ Functions</h2></td></tr>
 <tr class="memitem:ga21c0b315e346cb1d1e4566688aa03e36"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga21c0b315e346cb1d1e4566688aa03e36">display_close</a> ()</td></tr>
 <tr class="memdesc:ga21c0b315e346cb1d1e4566688aa03e36"><td class="mdescLeft">&#160;</td><td class="mdescRight">Close the display.  <a href="group__display.html#ga21c0b315e346cb1d1e4566688aa03e36">More...</a><br /></td></tr>
 <tr class="separator:ga21c0b315e346cb1d1e4566688aa03e36"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gae3de2294941c0c5f1395d464c39f09f0"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gae3de2294941c0c5f1395d464c39f09f0">display_lock</a> ()</td></tr>
-<tr class="memdesc:gae3de2294941c0c5f1395d464c39f09f0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Lock a display buffer for rendering.  <a href="group__display.html#gae3de2294941c0c5f1395d464c39f09f0">More...</a><br /></td></tr>
-<tr class="separator:gae3de2294941c0c5f1395d464c39f09f0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gadd7e0c14705a2d22c47878478792b6d1"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gadd7e0c14705a2d22c47878478792b6d1">display_show</a> (<a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a> disp)</td></tr>
-<tr class="memdesc:gadd7e0c14705a2d22c47878478792b6d1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Display a previously locked buffer.  <a href="group__display.html#gadd7e0c14705a2d22c47878478792b6d1">More...</a><br /></td></tr>
-<tr class="separator:gadd7e0c14705a2d22c47878478792b6d1"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gaf0674519d27968807fed42b8c5226e11"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gaf0674519d27968807fed42b8c5226e11">display_show_force</a> (<a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a> disp)</td></tr>
-<tr class="memdesc:gaf0674519d27968807fed42b8c5226e11"><td class="mdescLeft">&#160;</td><td class="mdescRight">Force-display a previously locked buffer.  <a href="group__display.html#gaf0674519d27968807fed42b8c5226e11">More...</a><br /></td></tr>
-<tr class="separator:gaf0674519d27968807fed42b8c5226e11"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
-Variables</h2></td></tr>
-<tr class="memitem:gaf2d878ed60a3e5d6b007ce15c77bad2a"><td class="memItemLeft" align="right" valign="top"><a id="gaf2d878ed60a3e5d6b007ce15c77bad2a" name="gaf2d878ed60a3e5d6b007ce15c77bad2a"></a>
-uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>__bitdepth</b></td></tr>
-<tr class="memdesc:gaf2d878ed60a3e5d6b007ce15c77bad2a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Currently active bit depth. <br /></td></tr>
-<tr class="separator:gaf2d878ed60a3e5d6b007ce15c77bad2a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga0c4e53651e92263e2c94bcb616dee5bb"><td class="memItemLeft" align="right" valign="top"><a id="ga0c4e53651e92263e2c94bcb616dee5bb" name="ga0c4e53651e92263e2c94bcb616dee5bb"></a>
-uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>__width</b></td></tr>
-<tr class="memdesc:ga0c4e53651e92263e2c94bcb616dee5bb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Currently active video width (calculated) <br /></td></tr>
-<tr class="separator:ga0c4e53651e92263e2c94bcb616dee5bb"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gabde5c123bb0cb10b6d47c07a5a0d4c28"><td class="memItemLeft" align="right" valign="top"><a id="gabde5c123bb0cb10b6d47c07a5a0d4c28" name="gabde5c123bb0cb10b6d47c07a5a0d4c28"></a>
-uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>__height</b></td></tr>
-<tr class="memdesc:gabde5c123bb0cb10b6d47c07a5a0d4c28"><td class="mdescLeft">&#160;</td><td class="mdescRight">Currently active video height (calculated) <br /></td></tr>
-<tr class="separator:gabde5c123bb0cb10b6d47c07a5a0d4c28"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gafc6e5120d9fca19c7638667adeb544fe"><td class="memItemLeft" align="right" valign="top"><a id="gafc6e5120d9fca19c7638667adeb544fe" name="gafc6e5120d9fca19c7638667adeb544fe"></a>
-uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>__buffers</b> = <a class="el" href="group__display.html#gaac028f4c15ac7f78a44be5db76cfbec7">NUM_BUFFERS</a></td></tr>
-<tr class="memdesc:gafc6e5120d9fca19c7638667adeb544fe"><td class="mdescLeft">&#160;</td><td class="mdescRight">Number of active buffers. <br /></td></tr>
-<tr class="separator:gafc6e5120d9fca19c7638667adeb544fe"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gad9ed2f29d5beb330f196848b51ea8b61"><td class="memItemLeft" align="right" valign="top"><a id="gad9ed2f29d5beb330f196848b51ea8b61" name="gad9ed2f29d5beb330f196848b51ea8b61"></a>
-void *&#160;</td><td class="memItemRight" valign="bottom"><b>__safe_buffer</b> [<a class="el" href="group__display.html#gaac028f4c15ac7f78a44be5db76cfbec7">NUM_BUFFERS</a>]</td></tr>
-<tr class="memdesc:gad9ed2f29d5beb330f196848b51ea8b61"><td class="mdescLeft">&#160;</td><td class="mdescRight">Pointer to uncached 16-bit aligned version of buffers. <br /></td></tr>
-<tr class="separator:gad9ed2f29d5beb330f196848b51ea8b61"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gae81c7c27f68f52224fec1f0fc15bc651"><td class="memItemLeft" align="right" valign="top"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gae81c7c27f68f52224fec1f0fc15bc651">display_lock</a> (void)</td></tr>
+<tr class="memdesc:gae81c7c27f68f52224fec1f0fc15bc651"><td class="mdescLeft">&#160;</td><td class="mdescRight">Lock a display buffer for rendering.  <a href="group__display.html#gae81c7c27f68f52224fec1f0fc15bc651">More...</a><br /></td></tr>
+<tr class="separator:gae81c7c27f68f52224fec1f0fc15bc651"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga4f4a773501687663d0bf76f5cced752f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga4f4a773501687663d0bf76f5cced752f">display_show</a> (<a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *surf)</td></tr>
+<tr class="memdesc:ga4f4a773501687663d0bf76f5cced752f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Display a previously locked buffer.  <a href="group__display.html#ga4f4a773501687663d0bf76f5cced752f">More...</a><br /></td></tr>
+<tr class="separator:ga4f4a773501687663d0bf76f5cced752f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga524ce5d0e4ffa9d78428934ca0dab1f2"><td class="memItemLeft" align="right" valign="top"><a id="ga524ce5d0e4ffa9d78428934ca0dab1f2" name="ga524ce5d0e4ffa9d78428934ca0dab1f2"></a>
+uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>display_get_width</b> (void)</td></tr>
+<tr class="memdesc:ga524ce5d0e4ffa9d78428934ca0dab1f2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the currently configured width of the display in pixels. <br /></td></tr>
+<tr class="separator:ga524ce5d0e4ffa9d78428934ca0dab1f2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gafb1f28d538f5ab4e03a6d0648018c820"><td class="memItemLeft" align="right" valign="top"><a id="gafb1f28d538f5ab4e03a6d0648018c820" name="gafb1f28d538f5ab4e03a6d0648018c820"></a>
+uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>display_get_height</b> (void)</td></tr>
+<tr class="memdesc:gafb1f28d538f5ab4e03a6d0648018c820"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the currently configured height of the display in pixels. <br /></td></tr>
+<tr class="separator:gafb1f28d538f5ab4e03a6d0648018c820"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaf3fa362c6e06eaf1c7956432ec32bfcd"><td class="memItemLeft" align="right" valign="top"><a id="gaf3fa362c6e06eaf1c7956432ec32bfcd" name="gaf3fa362c6e06eaf1c7956432ec32bfcd"></a>
+uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>display_get_bitdepth</b> (void)</td></tr>
+<tr class="memdesc:gaf3fa362c6e06eaf1c7956432ec32bfcd"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the currently configured bitdepth of the display (in bytes per pixels) <br /></td></tr>
+<tr class="separator:gaf3fa362c6e06eaf1c7956432ec32bfcd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga40b2efafdb24b9cc7894c64fb12c449a"><td class="memItemLeft" align="right" valign="top"><a id="ga40b2efafdb24b9cc7894c64fb12c449a" name="ga40b2efafdb24b9cc7894c64fb12c449a"></a>
+uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>display_get_num_buffers</b> (void)</td></tr>
+<tr class="memdesc:ga40b2efafdb24b9cc7894c64fb12c449a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the currently configured number of buffers. <br /></td></tr>
+<tr class="separator:ga40b2efafdb24b9cc7894c64fb12c449a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <p >Video interface system for configuring video output modes and displaying rendered graphics. </p>
 <p >The display subsystem handles interfacing with the video interface (VI) and the hardware rasterizer (RDP) to allow software and hardware graphics operations. It consists of the <a class="el" href="group__display.html">Display Subsystem</a>, the <a class="el" href="group__graphics.html">2D Graphics</a> and the <a class="el" href="group__rdp.html">Hardware Display Interface</a> modules. A separate module, the <a class="el" href="group__console.html">Console Support</a>, provides a rudimentary console for developers. Only the display subsystem or the console can be used at the same time. However, commands to draw console text to the display subsystem are available.</p>
-<p >The display subsystem module is responsible for initializing the proper video mode for displaying 2D, 3D and softward graphics. To set up video on the N64, code should call <a class="el" href="group__display.html#gac3446a497399d2c8d90e6a51a53b45c8" title="Initialize the display to a particular resolution and bit depth.">display_init</a> with the appropriate options. Once the display has been set, a display context can be requested from the display subsystem using <a class="el" href="group__display.html#gae3de2294941c0c5f1395d464c39f09f0" title="Lock a display buffer for rendering.">display_lock</a>. To draw to the acquired display context, code should use functions present in the <a class="el" href="group__graphics.html">2D Graphics</a> and the <a class="el" href="group__rdp.html">Hardware Display Interface</a> modules. Once drawing to a display context is complete, the rendered graphic can be displayed to the screen using <a class="el" href="group__display.html#gadd7e0c14705a2d22c47878478792b6d1" title="Display a previously locked buffer.">display_show</a>. Once code has finished rendering all graphics, <a class="el" href="group__display.html#ga21c0b315e346cb1d1e4566688aa03e36" title="Close the display.">display_close</a> can be used to shut down the display subsystem. </p>
-<h2 class="groupheader">Macro Definition Documentation</h2>
-<a id="ga1f0aa60f6fbc023029f8d0de267f26c9" name="ga1f0aa60f6fbc023029f8d0de267f26c9"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga1f0aa60f6fbc023029f8d0de267f26c9">&#9670;&nbsp;</a></span>UNCACHED_ADDR</h2>
+<p >The display subsystem module is responsible for initializing the proper video mode for displaying 2D, 3D and software graphics. To set up video on the N64, code should call <a class="el" href="group__display.html#gac3446a497399d2c8d90e6a51a53b45c8" title="Initialize the display to a particular resolution and bit depth.">display_init</a> with the appropriate options. Once the display has been set, a surface can be requested from the display subsystem using <a class="el" href="group__display.html#gae81c7c27f68f52224fec1f0fc15bc651" title="Lock a display buffer for rendering.">display_lock</a>. To draw to the acquired surface, code should use functions present in the <a class="el" href="group__graphics.html">2D Graphics</a> and the <a class="el" href="group__rdp.html">Hardware Display Interface</a> modules. Once drawing to a surface is complete, the rendered graphic can be displayed to the screen using <a class="el" href="group__display.html#ga4f4a773501687663d0bf76f5cced752f" title="Display a previously locked buffer.">display_show</a>. Once code has finished rendering all graphics, <a class="el" href="group__display.html#ga21c0b315e346cb1d1e4566688aa03e36" title="Close the display.">display_close</a> can be used to shut down the display subsystem. </p>
+<h2 class="groupheader">Typedef Documentation</h2>
+<a id="gadb422deee7b387b8c1c8025c8ac36628" name="gadb422deee7b387b8c1c8025c8ac36628"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gadb422deee7b387b8c1c8025c8ac36628">&#9670;&nbsp;</a></span>display_context_t</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define UNCACHED_ADDR</td>
-          <td>(</td>
-          <td class="paramtype">&#160;</td>
-          <td class="paramname">x</td><td>)</td>
-          <td>&#160;&#160;&#160;((void *)(((uint32_t)(x)) | 0xA0000000))</td>
+          <td class="memname">typedef <a class="el" href="surface_8h.html#structsurface__t">surface_t</a>* <a class="el" href="group__display.html#gadb422deee7b387b8c1c8025c8ac36628">display_context_t</a></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Return the uncached memory address of a cached address. </p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">x</td><td>The cached address</td></tr>
-  </table>
-  </dd>
-</dl>
-<dl class="section return"><dt>Returns</dt><dd>The uncached address </dd></dl>
+<p>Display context (DEPRECATED: Use <a class="el" href="surface_8h.html#structsurface__t" title="A surface buffer for graphics.">surface_t</a> instead) </p>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="surface_8h.html#structsurface__t" title="A surface buffer for graphics.">surface_t</a> </dd></dl>
 
 </div>
 </div>
@@ -378,12 +337,12 @@ void *&#160;</td><td class="memItemRight" valign="bottom"><b>__safe_buffer</b> [
 </div><div class="memdoc">
 
 <p>Initialize the display to a particular resolution and bit depth. </p>
-<p >Initialize video system. This sets up a double or triple buffered drawing surface which can be blitted or rendered to using software or hardware.</p>
+<p >Initialize video system. This sets up a double, triple, or multiple buffered drawing surface which can be blitted or rendered to using software or hardware.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">res</td><td>The requested resolution </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">bit</td><td>The requested bit depth </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">num_buffers</td><td>Number of buffers (2 or 3) </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">num_buffers</td><td>Number of buffers, usually 2 or 3, but can be more. </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">gamma</td><td>The requested gamma setting </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">aa</td><td>The requested anti-aliasing setting </td></tr>
   </table>
@@ -412,15 +371,16 @@ void *&#160;</td><td class="memItemRight" valign="bottom"><b>__safe_buffer</b> [
 
 </div>
 </div>
-<a id="gae3de2294941c0c5f1395d464c39f09f0" name="gae3de2294941c0c5f1395d464c39f09f0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gae3de2294941c0c5f1395d464c39f09f0">&#9670;&nbsp;</a></span>display_lock()</h2>
+<a id="gae81c7c27f68f52224fec1f0fc15bc651" name="gae81c7c27f68f52224fec1f0fc15bc651"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#gae81c7c27f68f52224fec1f0fc15bc651">&#9670;&nbsp;</a></span>display_lock()</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname"><a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a> display_lock </td>
+          <td class="memname"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> * display_lock </td>
           <td>(</td>
+          <td class="paramtype">void&#160;</td>
           <td class="paramname"></td><td>)</td>
           <td></td>
         </tr>
@@ -428,13 +388,15 @@ void *&#160;</td><td class="memItemRight" valign="bottom"><b>__safe_buffer</b> [
 </div><div class="memdoc">
 
 <p>Lock a display buffer for rendering. </p>
-<p >Grab a display context that is safe for drawing. If none is available then this will return 0. Do not check out more than one display context at a time.</p>
-<dl class="section return"><dt>Returns</dt><dd>A valid display context to render to or 0 if none is available. </dd></dl>
+<p >Grab a surface that is safe for drawing. If none is available then this will return 0, without blocking.</p>
+<p >When you are done drawing on the buffer, use <a class="el" href="group__display.html#ga4f4a773501687663d0bf76f5cced752f" title="Display a previously locked buffer.">display_show</a> to unlock the surface and schedule the buffer to be displayed on the screen during next vblank.</p>
+<p >It is possible to lock more than a display buffer at the same time, for instance to begin working on a new frame while the previous one is still being rendered in parallel through RDP. It is important to notice that surfaces will always be shown on the screen in locking order, irrespective of the order <a class="el" href="group__display.html#ga4f4a773501687663d0bf76f5cced752f" title="Display a previously locked buffer.">display_show</a> is called.</p>
+<dl class="section return"><dt>Returns</dt><dd>A valid surface to render to or NULL if none is available. </dd></dl>
 
 </div>
 </div>
-<a id="gadd7e0c14705a2d22c47878478792b6d1" name="gadd7e0c14705a2d22c47878478792b6d1"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gadd7e0c14705a2d22c47878478792b6d1">&#9670;&nbsp;</a></span>display_show()</h2>
+<a id="ga4f4a773501687663d0bf76f5cced752f" name="ga4f4a773501687663d0bf76f5cced752f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga4f4a773501687663d0bf76f5cced752f">&#9670;&nbsp;</a></span>display_show()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -442,46 +404,19 @@ void *&#160;</td><td class="memItemRight" valign="bottom"><b>__safe_buffer</b> [
         <tr>
           <td class="memname">void display_show </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a>&#160;</td>
-          <td class="paramname"><em>disp</em></td><td>)</td>
+          <td class="paramtype"><a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td>
+          <td class="paramname"><em>surf</em></td><td>)</td>
           <td></td>
         </tr>
       </table>
 </div><div class="memdoc">
 
 <p>Display a previously locked buffer. </p>
-<p >Display a valid display context to the screen on the next vblank. Display contexts should be locked via <a class="el" href="group__display.html#gae3de2294941c0c5f1395d464c39f09f0" title="Lock a display buffer for rendering.">display_lock</a>.</p>
+<p >Display a previously-locked surface to the screen on the next vblank. The surface should be locked via <a class="el" href="group__display.html#gae81c7c27f68f52224fec1f0fc15bc651" title="Lock a display buffer for rendering.">display_lock</a>.</p>
+<p >This function does not accept any arbitrary surface, but only those returned by <a class="el" href="group__display.html#gae81c7c27f68f52224fec1f0fc15bc651" title="Lock a display buffer for rendering.">display_lock</a>.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">disp</td><td>A display context retrieved using <a class="el" href="group__display.html#gae3de2294941c0c5f1395d464c39f09f0" title="Lock a display buffer for rendering.">display_lock</a> </td></tr>
-  </table>
-  </dd>
-</dl>
-
-</div>
-</div>
-<a id="gaf0674519d27968807fed42b8c5226e11" name="gaf0674519d27968807fed42b8c5226e11"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#gaf0674519d27968807fed42b8c5226e11">&#9670;&nbsp;</a></span>display_show_force()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void display_show_force </td>
-          <td>(</td>
-          <td class="paramtype"><a class="el" href="group__display.html#ga8408ec7b561469630254ce1ea7001f7a">display_context_t</a>&#160;</td>
-          <td class="paramname"><em>disp</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Force-display a previously locked buffer. </p>
-<p >Display a valid display context to the screen right away, without waiting for vblank interrupt. This function works also with interrupts disabled.</p>
-<p >NOTE: this is currently not part of the public API as we use it only internally.</p>
-<dl class="params"><dt>Parameters</dt><dd>
-  <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">disp</td><td>A display context retrieved using <a class="el" href="group__display.html#gae3de2294941c0c5f1395d464c39f09f0" title="Lock a display buffer for rendering.">display_lock</a> </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">surf</td><td>A surface to show (previously retrieved using <a class="el" href="group__display.html#gae81c7c27f68f52224fec1f0fc15bc651" title="Lock a display buffer for rendering.">display_lock</a>) </td></tr>
   </table>
   </dd>
 </dl>
@@ -491,7 +426,7 @@ void *&#160;</td><td class="memItemRight" valign="bottom"><b>__safe_buffer</b> [
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sat Oct 15 2022 15:53:29 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Mon Oct 17 2022 07:59:41 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
