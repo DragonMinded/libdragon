@@ -676,6 +676,7 @@ GLCmd_DrawTriangle:
     and  prim_vtx2, 0xFF
     srl  prim_vtx1, prim_verts, 16
     and  prim_vtx1, 0xFF
+    lb v0, %lo(TRI_CULL)
 
 GL_DrawTriangle:
     addi prim_vtx3, %lo(PRIM_VERTEX_CACHE)
