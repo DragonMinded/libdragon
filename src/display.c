@@ -14,33 +14,6 @@
 #include "debug.h"
 #include "surface.h"
 
-/**
- * @defgroup display Display Subsystem
- * @ingroup libdragon
- * @brief Video interface system for configuring video output modes and displaying rendered
- *        graphics.
- *
- * The display subsystem handles interfacing with the video interface (VI)
- * and the hardware rasterizer (RDP) to allow software and hardware graphics
- * operations.  It consists of the @ref display, the @ref graphics and the
- * @ref rdp modules.  A separate module, the @ref console, provides a rudimentary
- * console for developers.  Only the display subsystem or the console can be
- * used at the same time.  However, commands to draw console text to the display
- * subsystem are available.
- *
- * The display subsystem module is responsible for initializing the proper video
- * mode for displaying 2D, 3D and softward graphics.  To set up video on the N64,
- * code should call #display_init with the appropriate options.  Once the display
- * has been set, a surface can be requested from the display subsystem using
- * #display_lock.  To draw to the acquired surface, code should use functions
- * present in the @ref graphics and the @ref rdp modules.  Once drawing to a surface
- * is complete, the rendered graphic can be displayed to the screen using 
- * #display_show.  Once code has finished rendering all graphics, #display_close can 
- * be used to shut down the display subsystem.
- *
- * @{
- */
-
 /** @brief Maximum number of video backbuffers */
 #define NUM_BUFFERS         32
 
@@ -255,24 +228,6 @@ static void __display_callback()
     __write_dram_register(__safe_buffer[now_showing] + (!field ? __width * __bitdepth : 0));
 }
 
-/**
- * @brief Initialize the display to a particular resolution and bit depth
- *
- * Initialize video system.  This sets up a double, triple, or multiple
- * buffered drawing surface which can be blitted or rendered to using
- * software or hardware.
- *
- * @param[in] res
- *            The requested resolution
- * @param[in] bit
- *            The requested bit depth
- * @param[in] num_buffers
- *            Number of buffers, usually 2 or 3, but can be more.
- * @param[in] gamma
- *            The requested gamma setting
- * @param[in] aa
- *            The requested anti-aliasing setting
- */
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, antialias_t aa )
 {
     uint32_t registers[REGISTER_COUNT];
@@ -460,11 +415,6 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     set_VI_interrupt( 1, 0x2 );
 }
 
-/**
- * @brief Close the display
- *
- * Close a display and free buffer memory associated with it.
- */
 void display_close()
 {
     /* Can't have the video interrupt happening here */
@@ -495,24 +445,6 @@ void display_close()
     enable_interrupts();
 }
 
-/**
- * @brief Lock a display buffer for rendering
- *
- * Grab a surface that is safe for drawing.  If none is available
- * then this will return 0, without blocking. 
- * 
- * When you are done drawing on the buffer, use #display_show to unlock
- * the surface and schedule the buffer to be displayed on the screen during
- * next vblank.
- * 
- * It is possible to lock more than a display buffer at the same time, for
- * instance to begin working on a new frame while the previous one is still
- * being rendered in parallel through RDP. It is important to notice that
- * surfaces will always be shown on the screen in locking order,
- * irrespective of the order #display_show is called.
- *
- * @return A valid surface to render to or NULL if none is available.
- */
 surface_t* display_lock(void)
 {
     surface_t* retval = NULL;
@@ -538,18 +470,6 @@ surface_t* display_lock(void)
     return retval;
 }
 
-/**
- * @brief Display a previously locked buffer
- *
- * Display a previously-locked surface to the screen on the next vblank. The
- * surface should be locked via #display_lock.
- * 
- * This function does not accept any arbitrary surface, but only those returned
- * by #display_lock.
- * 
- * @param[in] surf
- *            A surface to show (previously retrieved using #display_lock)
- */
 void display_show( surface_t* surf )
 {
     /* They tried drawing on a bad context */
@@ -596,36 +516,22 @@ void display_show_force( display_context_t disp )
     enable_interrupts();
 }
 
-/**
- * @brief Get the currently configured width of the display in pixels
- */
 uint32_t display_get_width()
 {
     return __width;
 }
 
-/**
- * @brief Get the currently configured height of the display in pixels
- */
 uint32_t display_get_height()
 {
     return __height;
 }
 
-/**
- * @brief Get the currently configured bitdepth of the display (in bytes per pixels)
- */
 uint32_t display_get_bitdepth()
 {
     return __bitdepth;
 }
 
-/**
- * @brief Get the currently configured number of buffers
- */
 uint32_t display_get_num_buffers()
 {
     return __buffers;
 }
-
-/** @} */ /* display */
