@@ -1,3 +1,9 @@
+/**
+ * @file surface.c
+ * @brief Surface buffers used to draw images
+ * @ingroup graphics
+ */
+
 #include "surface.h"
 #include "n64sys.h"
 #include "debug.h"
