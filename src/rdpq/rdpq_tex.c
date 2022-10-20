@@ -16,12 +16,12 @@ void rdpq_tex_load_tlut(uint16_t *tlut, int color_idx, int num_colors)
 
 int rdpq_tex_load_sub_ci4(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int tlut, int s0, int t0, int s1, int t1)
 {
-    int tmem_pitch = ROUND_UP(tex->stride, 8);
+    int tmem_pitch = ROUND_UP(s1/2 - s0/2, 8);
 
     // LOAD_TILE does not support loading from a CI4 texture. We need to pretend
     // it's CI8 instead during loading, and then configure the tile with CI4. 
     rdpq_set_texture_image_raw(0, PhysicalAddr(tex->buffer), FMT_CI8, tex->width/2, tex->height);
-    if (tex->stride == (s1-s0)/2 && tex->stride%8 == 0) {
+    if (tex->stride == s1/2 - s0/2 && tex->stride%8 == 0) {
         // Use LOAD_BLOCK if we are uploading a full texture. SET_TILE must be configured
         // with tmem_pitch=0, as that is weirdly used as the number of texels to skip per line,
         // which we don't need.
