@@ -96,6 +96,7 @@
 #define FLAG_LIGHT_LOCAL        (1 << 26)
 #define FLAG_IMMEDIATE          (1 << 27)
 #define FLAG_FINAL_MTX_DIRTY    (1 << 28)
+#define FLAG_TEXTURE_ACTIVE     (1 << 29)
 
 #define TEX_LEVELS_MASK         0x7
 #define TEX_FLAG_COMPLETE       (1 << 3)
@@ -110,13 +111,24 @@
 
 #define LOAD_TILE 7
 
-#define VTX_FLAG_TLDONE 0x1
-
 #define GUARD_BAND_FACTOR 4
 
 #define ASSERT_INVALID_VTX_ID   0x2001
 
-#define TRICMD_ATTR_SHIFT   6
+#define TRICMD_ATTR_SHIFT_Z     6
+#define TRICMD_ATTR_SHIFT_TEX   20
+
+#define VTX_CMD_FLAG_NORMAL     (1 << 0)
+#define VTX_CMD_FLAG_TEXCOORD   (1 << 1)
+#define VTX_CMD_FLAG_COLOR      (1 << 2)
+#define VTX_CMD_FLAG_POSITION   (1 << 3)
+
+#define VTX_CMD_SIZE_POS    8
+#define VTX_CMD_SIZE_COL    8
+#define VTX_CMD_SIZE_TEX    8
+#define VTX_CMD_SIZE_NRM    4
+
+#define GL_PROFILING        0
 
 #define RSP_PIPELINE        0
 #define RSP_PRIM_ASSEMBLY   0

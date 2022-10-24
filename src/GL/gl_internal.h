@@ -71,11 +71,13 @@ enum {
 };
 
 enum {
-    GLP_CMD_INIT_MTX       = 0x0,
-    GLP_CMD_INIT_PIPE      = 0x1,
-    GLP_CMD_SET_PRIM_VTX   = 0x2,
-    GLP_CMD_DRAW_TRI       = 0x3,
-    GLP_CMD_SEND_VTX       = 0x4,
+    GLP_CMD_INIT_MTX       = 0x00,
+    GLP_CMD_INIT_PIPE      = 0x01,
+    GLP_CMD_SET_PRIM_VTX   = 0x02,
+    GLP_CMD_DRAW_TRI       = 0x03,
+    GLP_CMD_SEND_INDEX     = 0x04,
+
+    GLP_CMD_VTX_BASE       = 0x10,
 };
 
 typedef enum {
@@ -279,7 +281,6 @@ typedef struct {
     GLsizei stride;
     const GLvoid *pointer;
     gl_buffer_object_t *binding;
-    gl_storage_t tmp_storage;
     bool normalize;
     bool enabled;
 } gl_array_t;
@@ -289,7 +290,6 @@ typedef void (*read_attrib_func)(GLfloat*,const void*,uint32_t);
 typedef struct {
     const GLvoid *pointer;
     read_attrib_func read_func;
-    uint16_t offset;
     uint16_t stride;
     uint8_t size;
 } gl_attrib_source_t;
@@ -418,7 +418,10 @@ typedef struct {
     gl_array_t arrays[ATTRIB_COUNT];
 
     gl_attrib_source_t attrib_sources[ATTRIB_COUNT];
-    gl_storage_t tmp_index_storage;
+
+    uint8_t vtx_cmd;
+    uint32_t vtx_cmd_size;
+    bool is_full_vbo;
 
     gl_texture_object_t *default_textures;
 
@@ -455,17 +458,12 @@ typedef struct {
 } gl_state_t;
 
 typedef struct {
-    gl_texture_object_t bound_textures[2];
     gl_matrix_srv_t matrices[3];
     gl_tex_gen_srv_t tex_gen[4];
     int16_t viewport_scale[4];
     int16_t viewport_offset[4];
     gl_light_srv_t lights[LIGHT_COUNT];
     uint16_t tex_gen_mode[4];
-    int16_t position[4];
-    int16_t color[4];
-    int16_t tex_coords[4];
-    int16_t normal[4];
     int16_t light_ambient[4];
     int16_t mat_ambient[4];
     int16_t mat_diffuse[4];
@@ -473,10 +471,14 @@ typedef struct {
     int16_t mat_emissive[4];
     uint16_t mat_shininess;
     uint16_t mat_color_target;
+    int16_t color[4];
+    int16_t tex_coords[4];
+    int8_t normal[4];
     uint32_t matrix_pointers[3];
     uint32_t flags;
     int32_t fog_start;
     int32_t fog_end;
+    uint16_t tex_size[2];
     uint16_t polygon_mode;
     uint16_t prim_type;
     uint16_t cull_mode;
@@ -487,6 +489,7 @@ typedef struct {
     uint16_t matrix_mode;
     uint32_t padding;
 
+    gl_texture_object_t bound_textures[2];
     uint16_t scissor_rect[4];
     uint32_t blend_cycle;
     uint32_t fog_color;
@@ -503,7 +506,7 @@ typedef struct {
     uint8_t alpha_ref;
 } __attribute__((aligned(8), packed)) gl_server_state_t;
 
-_Static_assert((offsetof(gl_server_state_t, scissor_rect) & 0x7) == 0, "Scissor rect must be aligned to 8 bytes in server state");
+_Static_assert((offsetof(gl_server_state_t, bound_textures) & 0x7) == 0, "Bound textures must be aligned to 8 bytes in server state");
 
 void gl_matrix_init();
 void gl_texture_init();
@@ -612,7 +615,7 @@ inline void gl_bind_texture(GLenum target, gl_texture_object_t *texture)
 
 inline void gl_update_texture_completeness(uint32_t offset)
 {
-    gl_write(GL_CMD_UPDATE, _carg(GL_UPDATE_TEXTURE_COMPLETENESS, 0x7FF, 13) | offset);
+    gl_write(GL_CMD_UPDATE, _carg(GL_UPDATE_TEXTURE_COMPLETENESS, 0x7FF, 13) | (offset - offsetof(gl_server_state_t, bound_textures)));
 }
 
 #define PRIM_VTX_SIZE   42
@@ -639,26 +642,39 @@ inline void glpipe_set_prim_vertex(int idx, GLfloat attribs[ATTRIB_COUNT][4], in
     );
 }
 
-inline void glpipe_send_vertex(GLfloat attribs[ATTRIB_COUNT][4], int id)
+inline void glpipe_vtx(GLfloat attribs[ATTRIB_COUNT][4], int id, uint8_t cmd, uint32_t cmd_size)
 {
     #define TEX_SCALE   32.0f
     #define OBJ_SCALE   32.0f
     #define fx16(v)  ((uint32_t)((int32_t)((v))) & 0xFFFF)
 
-    uint32_t normal = (((uint32_t)(attribs[ATTRIB_NORMAL][0]*255.0f) & 0xFF) << 24) |
-                      (((uint32_t)(attribs[ATTRIB_NORMAL][1]*255.0f) & 0xFF) << 16) |
-                      (((uint32_t)(attribs[ATTRIB_NORMAL][2]*255.0f) & 0xFF) <<  8);
+    rspq_write_t w = rspq_write_begin(glp_overlay_id, cmd, cmd_size);
 
-    assertf(id != 0, "invalid vertex ID");
-    glp_write(
-        GLP_CMD_SEND_VTX, id<<8,
-        (fx16(attribs[ATTRIB_VERTEX][0]*OBJ_SCALE) << 16) | fx16(attribs[ATTRIB_VERTEX][1]*OBJ_SCALE),
-        (fx16(attribs[ATTRIB_VERTEX][2]*OBJ_SCALE) << 16) | fx16(attribs[ATTRIB_VERTEX][3]*OBJ_SCALE),
-        (fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][0])) << 16) | fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][1])),
-        (fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][2])) << 16) | fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][3])),
-        (fx16(attribs[ATTRIB_TEXCOORD][0]*TEX_SCALE) << 16) | fx16(attribs[ATTRIB_TEXCOORD][1]*TEX_SCALE),
-        normal
-    );
+    rspq_write_arg(&w, id);
+
+    if (cmd & VTX_CMD_FLAG_POSITION) {
+        rspq_write_arg(&w, (fx16(attribs[ATTRIB_VERTEX][0]*OBJ_SCALE) << 16) | fx16(attribs[ATTRIB_VERTEX][1]*OBJ_SCALE));
+        rspq_write_arg(&w, (fx16(attribs[ATTRIB_VERTEX][2]*OBJ_SCALE) << 16) | fx16(attribs[ATTRIB_VERTEX][3]*OBJ_SCALE));
+    }
+
+    if (cmd & VTX_CMD_FLAG_COLOR) {
+        rspq_write_arg(&w, (fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][0])) << 16) | fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][1])));
+        rspq_write_arg(&w, (fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][2])) << 16) | fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][3])));
+    }
+
+    if (cmd & VTX_CMD_FLAG_TEXCOORD) {
+        rspq_write_arg(&w, (fx16(attribs[ATTRIB_TEXCOORD][0]*TEX_SCALE) << 16) | fx16(attribs[ATTRIB_TEXCOORD][1]*TEX_SCALE));
+        rspq_write_arg(&w, (fx16(attribs[ATTRIB_TEXCOORD][2]*TEX_SCALE) << 16) | fx16(attribs[ATTRIB_TEXCOORD][3]*TEX_SCALE));
+    }
+
+    if (cmd & VTX_CMD_FLAG_NORMAL) {
+        uint32_t normal = (((uint32_t)(attribs[ATTRIB_NORMAL][0]*255.0f) & 0xFF) << 24) |
+                          (((uint32_t)(attribs[ATTRIB_NORMAL][1]*255.0f) & 0xFF) << 16) |
+                          (((uint32_t)(attribs[ATTRIB_NORMAL][2]*255.0f) & 0xFF) <<  8);
+        rspq_write_arg(&w, normal);
+    }
+
+    rspq_write_end(&w);
 }
 
 inline void glpipe_draw_triangle(bool has_tex, bool has_z, int i0, int i1, int i2)

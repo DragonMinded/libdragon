@@ -26,7 +26,10 @@
     #include "rsp_gl_state.inc"
 
     # These are only required for RDP state changes
-    GL_STATE_SCISSOR_RECT:  .half   0, 0, 0, 0  # Needs to be aligned to 8 bytes
+    GL_BOUND_TEXTURES:
+        GL_BOUND_TEXTURE_1D:    .ds.b   TEXTURE_OBJECT_SIZE
+        GL_BOUND_TEXTURE_2D:    .ds.b   TEXTURE_OBJECT_SIZE
+    GL_STATE_SCISSOR_RECT:  .half   0, 0, 0, 0
     GL_STATE_BLEND_CYCLE:   .word   0
     GL_STATE_FOG_COLOR:     .word   0
     GL_STATE_TEXTURE_IDS:   .word   0, 0
@@ -85,6 +88,25 @@ UPDATE_FUNCTIONS:
 CONVERT_CONST:  .half 1, 2, 0x8000, 0x200, 0xFF, 134, 0x7F, 0x80
 
     .text
+
+    ####################################################
+    # Returns:
+    #   s0: Pointer to the currently active texture,
+    #       or 0 if none is active
+    #   t0: State flags
+    ####################################################
+    .func GL_GetActiveTexture
+GL_GetActiveTexture:
+    lw t0, %lo(GL_STATE_FLAGS)
+    andi t1, t0, FLAG_TEXTURE_2D
+    bnez t1, JrRa
+    li s0, %lo(GL_BOUND_TEXTURE_2D)
+    andi t1, t0, FLAG_TEXTURE_1D
+    bnez t1, JrRa
+    li s0, %lo(GL_BOUND_TEXTURE_1D)
+    jr ra
+    move s0, zero
+    .endfunc
 
     #############################################################
     # GLCmd_SetFlag
@@ -732,26 +754,33 @@ GL_UpdateTextureUpload:
     #define full_width_log  t8
     #define full_height_log t9
     #define mirror          k0
+    #define state_flags     k1
 
+    lw state_flags, %lo(GL_STATE_FLAGS)
     move ra2, ra
     jal GL_GetActiveTexture
     lw uploaded_tex, %lo(GL_STATE_UPLOADED_TEX)
 
-    beqz active_tex, JrRa
+    beqz active_tex, gl_set_texture_not_active
     move ra, ra2
 
     lw tex_flags, TEXTURE_FLAGS_OFFSET(active_tex)
     andi t0, tex_flags, TEX_FLAG_COMPLETE
 
-    beqz t0, JrRa
+    beqz t0, gl_set_texture_not_active
     move tmem_addr, zero
+
+    lw t0, IMAGE_WIDTH_OFFSET(active_tex)
+    or state_flags, FLAG_TEXTURE_ACTIVE
+    sw state_flags, %lo(GL_STATE_FLAGS)
+    sw t0, %lo(GL_STATE_TEX_SIZE)
 
     # Load ID of active texture
     li t0, %lo(GL_BOUND_TEXTURES)
     sub t0, active_tex, t0
     srl t0, (TEXTURE_OBJECT_SIZE_LOG - 2)
     lw tex_id, %lo(GL_STATE_TEXTURE_IDS)(t0)
-
+    
     bne tex_id, uploaded_tex, gl_upload_tex
     andi t0, tex_flags, TEX_FLAG_UPLOAD_DIRTY
 
@@ -861,6 +890,12 @@ gl_clamp_t:
 
     j RDPQ_Send
     li s4, %lo(RDPQ_CMD_STAGING)
+
+gl_set_texture_not_active:
+    and state_flags, ~FLAG_TEXTURE_ACTIVE
+    jr ra
+    sw state_flags, %lo(GL_STATE_FLAGS)
+
 
 /*
     #############################################################

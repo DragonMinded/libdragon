@@ -7,8 +7,8 @@
 #include <malloc.h>
 #include <string.h>
 
-_Static_assert(((RDPQ_CMD_TRI << 8) | (FLAG_DEPTH_TEST << TRICMD_ATTR_SHIFT)) == (RDPQ_CMD_TRI_ZBUF << 8));
-_Static_assert(((RDPQ_CMD_TRI << 8) | (TEX_FLAG_COMPLETE << TRICMD_ATTR_SHIFT)) == (RDPQ_CMD_TRI_TEX << 8));
+_Static_assert(((RDPQ_CMD_TRI << 8) | (FLAG_DEPTH_TEST << TRICMD_ATTR_SHIFT_Z)) == (RDPQ_CMD_TRI_ZBUF << 8));
+_Static_assert(((RDPQ_CMD_TRI << 8) | (FLAG_TEXTURE_ACTIVE >> TRICMD_ATTR_SHIFT_TEX)) == (RDPQ_CMD_TRI_TEX << 8));
 
 extern gl_state_t state;
 
@@ -77,12 +77,6 @@ void gl_primitive_init()
 
 void gl_primitive_close()
 {
-    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
-    {
-        gl_storage_free(&state.arrays[i].tmp_storage);
-    }
-
-    gl_storage_free(&state.tmp_index_storage);
 }
 
 void glpipe_init(gl_matrix_t *mtx, gl_viewport_t *view)
@@ -246,8 +240,13 @@ void glEnd(void)
     state.immediate_active = false;
 }
 
+static const uint32_t gl_vtx_cmd_part_sizes[] = { VTX_CMD_SIZE_POS, VTX_CMD_SIZE_COL, VTX_CMD_SIZE_TEX, VTX_CMD_SIZE_NRM };
+
 void gl_load_attribs(const gl_attrib_source_t *sources, const uint32_t index)
 {
+    state.vtx_cmd = GLP_CMD_VTX_BASE;
+    state.vtx_cmd_size = 1;
+
     for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
     {
         const gl_attrib_source_t *src = &sources[i];
@@ -257,8 +256,11 @@ void gl_load_attribs(const gl_attrib_source_t *sources, const uint32_t index)
 
         GLfloat *dst = state.current_attribs[i];
 
-        const void *p = src->pointer + (index - src->offset) * src->stride;
+        const void *p = src->pointer + index * src->stride;
         src->read_func(dst, p, src->size);
+
+        state.vtx_cmd |= VTX_CMD_FLAG_POSITION >> i;
+        state.vtx_cmd_size += gl_vtx_cmd_part_sizes[i] >> 2;
     }
 }
 
@@ -562,6 +564,10 @@ void gl_draw(const gl_attrib_source_t *sources, uint32_t offset, uint32_t count,
     // Inform the rdpq state engine that we are going to draw something so the pipe settings are in use
     __rdpq_autosync_use(AUTOSYNC_PIPE);
 
+    if (state.is_full_vbo) {
+        
+    }
+
     // Prepare default values
     for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
     {
@@ -590,7 +596,7 @@ void gl_draw(const gl_attrib_source_t *sources, uint32_t offset, uint32_t count,
         gl_load_attribs(sources, index);
 
 #if RSP_PRIM_ASSEMBLY
-        glpipe_send_vertex(state.current_attribs, id+1);
+        glpipe_vtx(state.current_attribs, id, state.vtx_cmd, state.vtx_cmd_size);
         continue;
 #endif
         uint8_t cache_index = state.prim_next;
@@ -1054,25 +1060,6 @@ uint32_t read_index_32(const uint32_t *src, uint32_t i)
     return src[i];
 }
 
-bool gl_array_copy_data(gl_array_t *array, uint32_t offset, uint32_t count, uint32_t elem_size, uint32_t stride)
-{
-    uint32_t buffer_size = elem_size * count;
-
-    if (!gl_storage_resize(&array->tmp_storage, buffer_size)) {
-        gl_set_error(GL_OUT_OF_MEMORY);
-        return false;
-    }
-
-    for (uint32_t e = 0; e < count; e++)
-    {
-        void *dst_ptr = array->tmp_storage.data + e * elem_size;
-        const void *src_ptr = array->pointer + (e + offset) * stride;
-        memcpy(dst_ptr, src_ptr, elem_size);
-    }
-
-    return true;
-}
-
 bool gl_prepare_attrib_source(gl_attrib_source_t *attrib_src, gl_array_t *array, uint32_t offset, uint32_t count)
 {
     if (!array->enabled) {
@@ -1117,28 +1104,14 @@ bool gl_prepare_attrib_source(gl_attrib_source_t *attrib_src, gl_array_t *array,
         break;
     }
 
-    uint32_t elem_size = array->size << size_shift;
-
     attrib_src->size = array->size;
-
-    uint32_t stride = array->stride;
-    if (stride == 0) {
-        stride = elem_size;
-    }
+    attrib_src->stride = array->stride == 0 ? array->size << size_shift : array->stride;
 
     if (array->binding != NULL) {
         attrib_src->pointer = array->binding->storage.data + (uint32_t)array->pointer;
-        attrib_src->offset = 0;
-        attrib_src->stride = stride;
     } else {
-        if (!gl_array_copy_data(array, offset, count, elem_size, stride)) {
-            gl_set_error(GL_OUT_OF_MEMORY);
-            return false;
-        }
-
-        attrib_src->pointer = array->tmp_storage.data;
-        attrib_src->offset = offset;
-        attrib_src->stride = elem_size;
+        attrib_src->pointer = array->pointer;
+        state.is_full_vbo = false;
     }
 
     return true;
@@ -1146,6 +1119,8 @@ bool gl_prepare_attrib_source(gl_attrib_source_t *attrib_src, gl_array_t *array,
 
 bool gl_prepare_attrib_sources(uint32_t offset, uint32_t count)
 {
+    state.is_full_vbo = true;
+
     for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
     {
         if (!gl_prepare_attrib_source(&state.attrib_sources[i], &state.arrays[i], offset, count)) {
@@ -1204,20 +1179,16 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
     }
 
     read_index_func read_index;
-    uint32_t index_size_shift = 0;
 
     switch (type) {
     case GL_UNSIGNED_BYTE:
         read_index = (read_index_func)read_index_8;
-        index_size_shift = 0;
         break;
     case GL_UNSIGNED_SHORT:
         read_index = (read_index_func)read_index_16;
-        index_size_shift = 1;
         break;
     case GL_UNSIGNED_INT:
         read_index = (read_index_func)read_index_32;
-        index_size_shift = 2;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
@@ -1226,16 +1197,6 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
 
     if (state.element_array_buffer != NULL) {
         indices = state.element_array_buffer->storage.data + (uint32_t)indices;
-    } else {
-        uint32_t index_buffer_size = count << index_size_shift;
-
-        if (!gl_storage_resize(&state.tmp_index_storage, index_buffer_size)) {
-            gl_set_error(GL_OUT_OF_MEMORY);
-            return;
-        }
-
-        memcpy(state.tmp_index_storage.data, indices, index_buffer_size);
-        indices = state.tmp_index_storage.data;
     }
 
     uint32_t min_index = UINT32_MAX, max_index = 0;
@@ -1265,22 +1226,15 @@ void glArrayElement(GLint i)
     gl_draw(state.attrib_sources, i, 1, NULL, NULL);
 }
 
-static GLfloat vertex_tmp[4];
-static gl_attrib_source_t dummy_sources[ATTRIB_COUNT] = {
-    { .pointer = vertex_tmp, .size = 4, .stride = sizeof(GLfloat) * 4, .offset = 0, .read_func = (read_attrib_func)read_f32 },
-    { .pointer = NULL },
-    { .pointer = NULL },
-    { .pointer = NULL },
-};
-
 void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 {
-    vertex_tmp[0] = x;
-    vertex_tmp[1] = y;
-    vertex_tmp[2] = z;
-    vertex_tmp[3] = w;
+    #define OBJ_SCALE   32.0f
+    #define fx16(v)  ((uint32_t)((int32_t)((v))) & 0xFFFF)
 
-    gl_draw(dummy_sources, 0, 1, NULL, NULL);
+    glp_write(GLP_CMD_VTX_BASE + VTX_CMD_FLAG_POSITION, state.prim_id++, 
+        (fx16(x*OBJ_SCALE) << 16) | fx16(y*OBJ_SCALE),
+        (fx16(z*OBJ_SCALE) << 16) | fx16(w*OBJ_SCALE)
+    );
 }
 
 void glVertex4s(GLshort x, GLshort y, GLshort z, GLshort w)     { glVertex4f(x, y, z, w); }
