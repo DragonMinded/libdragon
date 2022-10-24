@@ -1,6 +1,11 @@
+/**
+ * @file surface.c
+ * @brief Surface buffers used to draw images
+ * @ingroup graphics
+ */
+
 #include "surface.h"
 #include "n64sys.h"
-#include "rdpq_macros.h"
 #include "debug.h"
 #include <assert.h>
 #include <string.h>
@@ -48,6 +53,8 @@ surface_t surface_make_sub(surface_t *parent, uint32_t x0, uint32_t y0, uint32_t
     assert(y0 + height <= parent->height);
 
     tex_format_t fmt = surface_get_format(parent);
+    assertf(TEX_FORMAT_BITDEPTH(fmt) != 4 || (x0 & 1) == 0,
+        "cannot create a subsurface with an odd X offset (%ld) in a 4bpp surface", x0);
 
     surface_t sub;
     sub.buffer = parent->buffer + y0 * parent->stride + TEX_FORMAT_PIX2BYTES(fmt, x0);
