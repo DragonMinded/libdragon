@@ -480,13 +480,19 @@ typedef uint32_t rdpq_blender_t;
 /**
  * @brief Draw with a texture modulated with a flat color.
  * Configure the color via #rdpq_set_prim_color.
-*/
+ * 
+ * Among other uses, this mode is the correct one to colorize a
+ * #FMT_IA8 and #FMT_IA4 texture with a fixed color.
+ */
 #define RDPQ_COMBINER_TEX_FLAT   RDPQ_COMBINER1((TEX0,0,PRIM,0),    (TEX0,0,PRIM,0))
 /**
  * @brief Draw with a texture modulated with an interpolated color.
  * This does texturing with gouraud shading, and can be used for textured triangles
  * with per-vertex lighting.
-*/
+ * 
+ * This mode makes sense only for triangles with per-vertex colors. It should
+ * not be used with rectangles.
+ */
 #define RDPQ_COMBINER_TEX_SHADE  RDPQ_COMBINER1((TEX0,0,SHADE,0),   (TEX0,0,SHADE,0))
 /** @} */
 
