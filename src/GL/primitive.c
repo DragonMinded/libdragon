@@ -1225,9 +1225,19 @@ void glArrayElement(GLint i)
 
     gl_draw(state.attrib_sources, i, 1, NULL, NULL);
 }
+#if !RSP_PRIM_ASSEMBLY
+static GLfloat vertex_tmp[4];
+static gl_attrib_source_t dummy_sources[ATTRIB_COUNT] = {
+    { .pointer = vertex_tmp, .size = 4, .stride = sizeof(GLfloat) * 4, .read_func = (read_attrib_func)read_f32 },
+    { .pointer = NULL },
+    { .pointer = NULL },
+    { .pointer = NULL },
+};
+#endif
 
 void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 {
+    #if RSP_PRIM_ASSEMBLY
     #define OBJ_SCALE   32.0f
     #define fx16(v)  ((uint32_t)((int32_t)((v))) & 0xFFFF)
 
@@ -1235,6 +1245,14 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
         (fx16(x*OBJ_SCALE) << 16) | fx16(y*OBJ_SCALE),
         (fx16(z*OBJ_SCALE) << 16) | fx16(w*OBJ_SCALE)
     );
+    #else
+    vertex_tmp[0] = x;
+    vertex_tmp[1] = y;
+    vertex_tmp[2] = z;
+    vertex_tmp[3] = w;
+
+    gl_draw(dummy_sources, 0, 1, NULL, NULL);
+    #endif
 }
 
 void glVertex4s(GLshort x, GLshort y, GLshort z, GLshort w)     { glVertex4f(x, y, z, w); }
