@@ -396,15 +396,8 @@ void gl_calc_texture_coords(GLfloat *dest, const GLfloat *input, const GLfloat *
     gl_matrix_mult4x2(dest, gl_matrix_stack_get_matrix(&state.texture_stack), tmp);
 }
 
-void gl_vertex_calc_screenspace(gl_screen_vtx_t *v)
+void gl_vertex_calc_clip_code(gl_screen_vtx_t *v)
 {
-    v->inv_w = 1.0f / v->cs_pos[3];
-
-    v->screen_pos[0] = v->cs_pos[0] * v->inv_w * state.current_viewport.scale[0] + state.current_viewport.offset[0];
-    v->screen_pos[1] = v->cs_pos[1] * v->inv_w * state.current_viewport.scale[1] + state.current_viewport.offset[1];
-
-    v->depth = v->cs_pos[2] * v->inv_w * state.current_viewport.scale[2] + state.current_viewport.offset[2];
-
     GLfloat clip_ref[] = { 
         v->cs_pos[3] * GUARD_BAND_FACTOR,
         v->cs_pos[3] * GUARD_BAND_FACTOR,
@@ -412,6 +405,16 @@ void gl_vertex_calc_screenspace(gl_screen_vtx_t *v)
     };
 
     v->clip_code = gl_get_clip_codes(v->cs_pos, clip_ref);
+}
+
+void gl_vertex_calc_screenspace(gl_screen_vtx_t *v)
+{
+    v->inv_w = v->cs_pos[3] != 0.0f ? 1.0f / v->cs_pos[3] : 0x7FFF;
+
+    v->screen_pos[0] = v->cs_pos[0] * v->inv_w * state.current_viewport.scale[0] + state.current_viewport.offset[0];
+    v->screen_pos[1] = v->cs_pos[1] * v->inv_w * state.current_viewport.scale[1] + state.current_viewport.offset[1];
+
+    v->depth = v->cs_pos[2] * v->inv_w * state.current_viewport.scale[2] + state.current_viewport.offset[2];
 }
 
 void gl_vertex_t_l(gl_screen_vtx_t *dst, uint8_t src_index)
@@ -467,6 +470,7 @@ void gl_vertex_t_l(gl_screen_vtx_t *dst, uint8_t src_index)
     memcpy(dst->cs_pos, src->cs_pos, sizeof(dst->cs_pos));
 
     gl_vertex_calc_screenspace(dst);
+    gl_vertex_calc_clip_code(dst);
 }
 
 gl_screen_vtx_t * gl_get_screen_vtx(uint8_t prim_index)
@@ -817,7 +821,7 @@ void gl_intersect_line_plane(gl_screen_vtx_t *intersection, const gl_screen_vtx_
     intersection->texcoord[0] = lerp(p0->texcoord[0], p1->texcoord[0], a);
     intersection->texcoord[1] = lerp(p0->texcoord[1], p1->texcoord[1], a);
 
-    gl_vertex_calc_screenspace(intersection);
+    gl_vertex_calc_clip_code(intersection);
 }
 
 void gl_clip_triangle()
@@ -925,9 +929,13 @@ void gl_clip_triangle()
         cache_used &= ~cache_unused;
     }
 
-    for (uint32_t i = 2; i < out_list->count; i++)
+    for (uint32_t i = 0; i < out_list->count; i++)
     {
-        gl_cull_triangle(out_list->vertices[0], out_list->vertices[i-1], out_list->vertices[i]);
+        gl_vertex_calc_screenspace(out_list->vertices[i]);
+        
+        if (i > 1) {
+            gl_cull_triangle(out_list->vertices[0], out_list->vertices[i-1], out_list->vertices[i]);
+        }
     }
 }
 
