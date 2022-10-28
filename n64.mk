@@ -110,7 +110,8 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.S
 		DATASECTION="$(basename $@).data"; \
 		BINARY="$(basename $@).elf"; \
 		echo "    [RSP] $<"; \
-		$(N64_CC) $(RSPASFLAGS) -nostartfiles -Wl,-Trsp.ld -Wl,--gc-sections -o $$BINARY $<; \
+		$(N64_CC) $(RSPASFLAGS) -nostartfiles -Wl,-Trsp.ld -Wl,--gc-sections -o $@ $<; \
+		mv "$@" $$BINARY; \
 		$(N64_OBJCOPY) -O binary -j .text $$BINARY $$TEXTSECTION.bin; \
 		$(N64_OBJCOPY) -O binary -j .data $$BINARY $$DATASECTION.bin; \
 		$(N64_OBJCOPY) -I binary -O elf32-bigmips -B mips4300 \

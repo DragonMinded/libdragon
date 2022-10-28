@@ -509,7 +509,7 @@ rdpq_update_fillcopy:
 
     .section .data.rdpq_triangle
     .align 4
-TRICONST1: .half 0,0,0,0,0x200,0x200,0x200,0x200
+TRICONST1: .half 0xFFFF,0,0,0,0x200,0x200,0x200,0x200
 
 
     .section .text.rdpq_triangle
@@ -591,6 +591,7 @@ RDPQ_Triangle:
     #define vfy_i            $v25
     #define vfy_f            $v26
 
+    #define vtmp             $v28
     #define v__              $v29
     #define invn_i           $v31.e4
     #define invn_f           $v31.e5
@@ -897,37 +898,42 @@ swap_end:
     lsv vinvw_f.e5, VTX_ATTR_INVWf,vtx2
     lsv vinvw_f.e6, VTX_ATTR_INVWf,vtx3
 
+    li s0, %lo(TRICONST1)+8
+    lsv vtmp.e0, -8,s0
+
     # invw:     minw -- -- --            invw1 invw2 invw3 --
     #
     # We need to multiply minw with the three invw. All numbers are unsigned 0.31,
     # the result is known to fit 0..1 and so will be 0.31 again. and we want to keep
     # only the higher part of it, so shift the result right by 16.
-    # Change the usual sequence to put vmudl last, to extract the correct
-    # portion of the accumulator. Don't do the vmudh part as it's guaranteed to be
-    # 0, and we don't need it.
-    vmudm v__,     vinvw_i, vinvw_f.e0
-    vmadn v__,     vinvw_f, vinvw_i.e0
-    vmadl vinvw_i, vinvw_f, vinvw_f.e0
+    vmudl v__,     vinvw_f, vinvw_f.e0
+    vmadm v__,     vinvw_i, vinvw_f.e0
+    vmadn vinvw_f, vinvw_f, vinvw_i.e0
+    vmadh vinvw_i, vinvw_i, vinvw_i.e0
+    
+    # If the integer portion is not zero, then the result is >= 1.
+    # Manually saturate in that case: invw_f = vinvw_i == 0 ? vinvw_f : 0xFFFF
+    veq  vinvw_i, vzero
+    vmrg vinvw_f, vtmp.e0
 
     # Load 0x200 in the first 4 lanes of the vector, using a misaliged lqv.
     # 0x200 is the constant that can be used to >>7, which will be used for
     # the RGBA components.
     #
     # invw:  0x200 0x200 0x200 0x200   invw1 invw2 invw3 --
-    li s0, %lo(TRICONST1)+8
-    lqv vinvw_i, 0,s0
+    lqv vinvw_f, 0,s0
 
-    vmudm vattr1, vinvw_i.h0
-    vmudm vattr2, vinvw_i.h1
-    vmudm vattr3, vinvw_i.h2
+    vmudm vattr1, vinvw_f.h0
+    vmudm vattr2, vinvw_f.h1
+    vmudm vattr3, vinvw_f.h2
 
     # Change inv_w from 0.16 to s0.15 by shifting by one
-    vsrl vinvw_i, vinvw_i, 1
+    vsrl vinvw_f, vinvw_f, 1
 
     # Copy inv_w components into ATTRn
-    vmov vattr1.e6, vinvw_i.e4
-    vmov vattr2.e6, vinvw_i.e5
-    vmov vattr3.e6, vinvw_i.e6
+    vmov vattr1.e6, vinvw_f.e4
+    vmov vattr2.e6, vinvw_f.e5
+    vmov vattr3.e6, vinvw_f.e6
 
     lsv attr1_z, VTX_ATTR_Z,vtx1  # Load Z
     lsv attr2_z, VTX_ATTR_Z,vtx2
@@ -1086,6 +1092,7 @@ no_texture:
     #undef vfy_i            
     #undef vfy_f            
 
+    #undef vtmp
     #undef v__         
     #undef invn_i      
     #undef invn_f      
