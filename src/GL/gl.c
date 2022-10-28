@@ -20,6 +20,15 @@ uint32_t gl_rsp_state;
 
 gl_state_t state;
 
+#if GL_PROFILING
+static uint32_t frame_start_ticks;
+static uint32_t rdp_done_ticks;
+static uint32_t rdp_clock_start;
+static uint32_t rdp_clock_end;
+static uint32_t rdp_busy_start;
+static uint32_t rdp_busy_end;
+#endif
+
 #define assert_framebuffer() ({ \
     assertf(state.cur_framebuffer != NULL, "GL: No target is set!"); \
 })
@@ -110,10 +119,10 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
     server_state->texture_ids[0] = PhysicalAddr(&state.default_textures[0]);
     server_state->texture_ids[1] = PhysicalAddr(&state.default_textures[1]);
 
-    server_state->color[0] = 0xFFFF;
-    server_state->color[1] = 0xFFFF;
-    server_state->color[2] = 0xFFFF;
-    server_state->color[3] = 0xFFFF;
+    server_state->color[0] = 0x7FFF;
+    server_state->color[1] = 0x7FFF;
+    server_state->color[2] = 0x7FFF;
+    server_state->color[3] = 0x7FFF;
     server_state->tex_coords[3] = 1 << 5;
     server_state->normal[2] = 0x7F;
 
@@ -140,7 +149,7 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
     server_state->matrix_pointers[1] = PhysicalAddr(state.matrix_stacks[1]);
     server_state->matrix_pointers[2] = PhysicalAddr(state.matrix_stacks[2]);
 
-    server_state->flags |= FLAG_MTX_MV_DIRTY | FLAG_MTX_PROJ_DIRTY | FLAG_MTX_TEX_DIRTY;
+    server_state->flags |= FLAG_FINAL_MTX_DIRTY;
 
     server_state->mat_ambient[0] = 0x3333;
     server_state->mat_ambient[1] = 0x3333;
@@ -302,8 +311,40 @@ void gl_swap_buffers()
 {
     rdpq_sync_full((void(*)(void*))gl_on_frame_complete, state.default_framebuffer.color_buffer);
     rspq_flush();
+
+#if GL_PROFILING
+    rspq_wait();
+
+    rdp_done_ticks = TICKS_READ();
+    rdp_clock_end = *DP_CLOCK;
+    rdp_busy_end = *DP_PIPE_BUSY;
+#endif
+
     gl_handle_deletion_lists();
     gl_set_default_framebuffer();
+
+#if GL_PROFILING
+
+    uint32_t frame_end_ticks = TICKS_READ();
+
+    int32_t rdp_ticks = TICKS_DISTANCE(frame_start_ticks, rdp_done_ticks);
+    int32_t frame_ticks = TICKS_DISTANCE(frame_start_ticks, frame_end_ticks);
+    int32_t rdp_clock_ticks = TICKS_DISTANCE(rdp_clock_start, rdp_clock_end);
+    int32_t rdp_busy_ticks = TICKS_DISTANCE(rdp_busy_start, rdp_busy_end);
+
+    float rdp_ms = rdp_ticks / (TICKS_PER_SECOND / 1000.f);
+    float frame_ms = frame_ticks / (TICKS_PER_SECOND / 1000.f);
+
+    int32_t percent = rdp_clock_ticks > 0 ? (rdp_busy_ticks * 100) / rdp_clock_ticks : 0;
+
+    if (state.frame_id % 16 == 0) {
+        debugf("FRAME: %4.2fms, RDP total: %4.2fms, RDP util: %ld%%\n", frame_ms, rdp_ms, percent);
+    }
+
+    frame_start_ticks = TICKS_READ();
+    rdp_clock_start = *DP_CLOCK;
+    rdp_busy_start = *DP_PIPE_BUSY;
+#endif
 
     state.frame_id++;
 }
@@ -596,4 +637,4 @@ extern inline void gl_bind_texture(GLenum target, gl_texture_object_t *texture);
 extern inline void gl_update_texture_completeness(uint32_t offset);
 extern inline void glpipe_set_prim_vertex(int idx, GLfloat attribs[ATTRIB_COUNT][4], int id);
 extern inline void glpipe_draw_triangle(bool has_tex, bool has_z, int i0, int i1, int i2);
-extern inline void glpipe_send_vertex(GLfloat attribs[ATTRIB_COUNT][4], int id);
+extern inline void glpipe_vtx(GLfloat attribs[ATTRIB_COUNT][4], int id, uint8_t cmd, uint32_t cmd_size);
