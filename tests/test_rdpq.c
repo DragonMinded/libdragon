@@ -1587,24 +1587,24 @@ void test_rdpq_triangle(TestContext *ctx) {
             uint16_t invw_i = tcpu[off+0]>>16;
             if (!SAT16(invw_i))
             {
-                TRI_CHECK_F1616(off+0,48, off+2,48, 2.0f, "invalid S");
-                TRI_CHECK_F1616(off+0,32, off+2,32, 2.0f, "invalid T");
-                TRI_CHECK_F1616(off+0,16, off+2,16, 2.5f, "invalid INVW");
+                TRI_CHECK_F1616(off+0,48, off+2,48, 1.7f, "invalid S");
+                TRI_CHECK_F1616(off+0,32, off+2,32, 1.7f, "invalid T");
+                TRI_CHECK_F1616(off+0,16, off+2,16, 2.1f, "invalid INVW");
 
-                TRI_CHECK_F1616(off+1,48, off+3,48, 7.0f, "invalid DsDx");
-                TRI_CHECK_F1616(off+1,32, off+3,32, 7.0f, "invalid DtDx");
-                TRI_CHECK_F1616(off+1,16, off+3,16, 7.0f, "invalid DwDx");
+                TRI_CHECK_F1616(off+1,48, off+3,48, 3.0f, "invalid DsDx");
+                TRI_CHECK_F1616(off+1,32, off+3,32, 3.0f, "invalid DtDx");
+                TRI_CHECK_F1616(off+1,16, off+3,16, 0.8f, "invalid DwDx");
 
-                TRI_CHECK_F1616(off+5,48, off+7,48, 7.0f, "invalid DsDy");
-                TRI_CHECK_F1616(off+5,32, off+7,32, 7.0f, "invalid DtDy");
-                TRI_CHECK_F1616(off+5,16, off+7,16, 7.0f, "invalid DwDy");
+                TRI_CHECK_F1616(off+5,48, off+7,48, 3.0f, "invalid DsDy");
+                TRI_CHECK_F1616(off+5,32, off+7,32, 3.0f, "invalid DtDy");
+                TRI_CHECK_F1616(off+5,16, off+7,16, 0.8f, "invalid DwDy");
 
                 // Skip checks for De components if Dx or Dy saturated.
                 uint16_t dwdx_i = tcpu[off+1]>>16, dwdy_i = tcpu[off+5]>>16;
                 if (!SAT16(dwdx_i) && !SAT16(dwdy_i)) {
-                    TRI_CHECK_F1616(off+4,48, off+6,48, 7.0f, "invalid DsDe");
-                    TRI_CHECK_F1616(off+4,32, off+6,32, 7.0f, "invalid DtDe");
-                    TRI_CHECK_F1616(off+4,16, off+6,16, 7.0f, "invalid DwDe");
+                    TRI_CHECK_F1616(off+4,48, off+6,48, 3.0f, "invalid DsDe");
+                    TRI_CHECK_F1616(off+4,32, off+6,32, 3.0f, "invalid DtDe");
+                    TRI_CHECK_F1616(off+4,16, off+6,16, 0.8f, "invalid DwDe");
                 }
             }
 
