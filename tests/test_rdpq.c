@@ -1628,3 +1628,39 @@ void test_rdpq_triangle(TestContext *ctx) {
         }
     }
 }
+
+void test_rdpq_triangle_w1(TestContext *ctx) {
+    RDPQ_INIT();
+    debug_rdp_stream_init();
+
+    const int FBWIDTH = 16;
+    const int TEXWIDTH = FBWIDTH - 8;
+    surface_t fb = surface_alloc(FMT_RGBA16, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    surface_clear(&fb, 0);
+
+    surface_t tex = surface_alloc(FMT_RGBA16, TEXWIDTH, TEXWIDTH);
+    DEFER(surface_free(&tex));
+    surface_clear(&tex, 0);
+
+    rdpq_set_color_image(&fb);
+    rdpq_tex_load(TILE0, &tex, 0);
+    rdpq_set_mode_standard();
+    rspq_wait();
+
+    // Draw a triangle with W=1. This is a typical triangle calculated
+    // with an orthogonal projection. It triggers a special case in the 
+    // RSP code because W = 1/W, so we want to make sure we have no bugs.
+    debug_rdp_stream_reset();
+    rdpq_triangle(TILE0, 0, false, 0, -1, 2, 0,
+        (float[]){ 4.0f,   4.0f, 0.0f, 0.0f, 1.0f },
+        (float[]){ 12.0f,  4.0f, 8.0f, 0.0f, 1.0f },
+        (float[]){ 12.0f, 12.0f, 8.0f, 8.0f, 1.0f }
+    );
+    rspq_wait();
+
+    // Check that we find a triangle command in the stream, and that the W
+    // coordinate is correct (saturated 0x7FFF value in the upper 16 bits).
+    ASSERT_EQUAL_HEX(BITS(rdp_stream[0],56,61), RDPQ_CMD_TRI_TEX_ZBUF, "invalid command");
+    ASSERT_EQUAL_HEX(BITS(rdp_stream[4],16,31), 0x7FFF, "invalid W coordinate");
+}
