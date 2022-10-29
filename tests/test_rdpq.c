@@ -1525,11 +1525,15 @@ void test_rdpq_triangle(TestContext *ctx) {
     })
 
     for (int tri=0;tri<1024;tri++) {
-        if (tri == 849) continue;  // this has a degenerate edge. The results are different but it doesn't matter
+        if (tri == 849) continue;  // this has a quasi-degenerate edge. The results are different but it doesn't matter
         SRAND(tri+1);
         float v1[] = { RFCOORD(), RFCOORD(), RFZ(), RFTEX(),RFTEX(),RFW(), RFRGB(), RFRGB(), RFRGB(), RFRGB() };
         float v2[] = { RFCOORD(), RFCOORD(), RFZ(), RFTEX(),RFTEX(),RFW(), RFRGB(), RFRGB(), RFRGB(), RFRGB() };
         float v3[] = { RFCOORD(), RFCOORD(), RFZ(), RFTEX(),RFTEX(),RFW(), RFRGB(), RFRGB(), RFRGB(), RFRGB() };
+
+        // skip degenerate triangles
+        if(v1[0] == v2[0] || v2[0] == v3[0] || v1[0] == v3[0]) continue;
+        if(v1[1] == v2[1] || v2[1] == v3[1] || v1[1] == v3[1]) continue;
 
         debug_rdp_stream_reset();
         rdpq_debug_log_msg("CPU");
@@ -1587,9 +1591,9 @@ void test_rdpq_triangle(TestContext *ctx) {
             uint16_t invw_i = tcpu[off+0]>>16;
             if (!SAT16(invw_i))
             {
-                TRI_CHECK_F1616(off+0,48, off+2,48, 1.7f, "invalid S");
-                TRI_CHECK_F1616(off+0,32, off+2,32, 1.7f, "invalid T");
-                TRI_CHECK_F1616(off+0,16, off+2,16, 2.1f, "invalid INVW");
+                TRI_CHECK_F1616(off+0,48, off+2,48, 5.0f, "invalid S");
+                TRI_CHECK_F1616(off+0,32, off+2,32, 5.0f, "invalid T");
+                TRI_CHECK_F1616(off+0,16, off+2,16, 8.0f, "invalid INVW");
 
                 TRI_CHECK_F1616(off+1,48, off+3,48, 3.0f, "invalid DsDx");
                 TRI_CHECK_F1616(off+1,32, off+3,32, 3.0f, "invalid DtDx");
