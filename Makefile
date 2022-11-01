@@ -122,7 +122,7 @@ clean:
 test:
 	$(MAKE) -C tests
 
-test-clean:
+test-clean: install-mk
 	$(MAKE) -C tests clean
 
 clobber: clean doxygen-clean examples-clean tools-clean test-clean
