@@ -87,6 +87,10 @@ UPDATE_FUNCTIONS:
 
 CONVERT_CONST:  .half 1, 2, 0x8000, 0x200, 0xFF, 134, 0x7F, 0x80
 
+    .bss
+
+TEX_UPLOAD_STAGING: .ds.b 0x150
+
     .text
 
     ####################################################
@@ -804,7 +808,7 @@ gl_upload_tex:
     xori wrap_s, GL_CLAMP
     xori wrap_t, GL_CLAMP
 
-    li out_ptr, %lo(RDPQ_CMD_STAGING)
+    li out_ptr, %lo(TEX_UPLOAD_STAGING)
     move image, active_tex
     move level, zero
     andi num_levels, tex_flags, 0x7
@@ -889,7 +893,7 @@ gl_clamp_t:
     sw tex_id, %lo(GL_STATE_UPLOADED_TEX)
 
     j RDPQ_Send
-    li s4, %lo(RDPQ_CMD_STAGING)
+    li s4, %lo(TEX_UPLOAD_STAGING)
 
 gl_set_texture_not_active:
     and state_flags, ~FLAG_TEXTURE_ACTIVE

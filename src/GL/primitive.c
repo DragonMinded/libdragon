@@ -871,8 +871,6 @@ void gl_clip_triangle()
         SWAP(in_list, out_list);
         out_list->count = 0;
 
-        uint32_t cache_unused = 0;
-
         for (uint32_t i = 0; i < in_list->count; i++)
         {
             uint32_t prev_index = (i + in_list->count - 1) % in_list->count;
@@ -897,7 +895,6 @@ void gl_clip_triangle()
 
                 assertf(intersection, "clipping cache full!");
                 assertf(intersection != cur_point, "invalid intersection");
-                assertf(intersection != prev_point, "invalid intersection");
 
                 gl_screen_vtx_t *p0 = cur_point;
                 gl_screen_vtx_t *p1 = prev_point;
@@ -920,13 +917,10 @@ void gl_clip_triangle()
                 // If the point is in the clipping cache, remember it as unused
                 uint32_t diff = cur_point - clipping_cache;
                 if (diff >= 0 && diff < CLIPPING_CACHE_SIZE) {
-                    cache_unused |= (1<<diff);
+                    cache_used &= ~(1<<diff);
                 }
             }
         }
-
-        // Mark all points that were discarded as unused
-        cache_used &= ~cache_unused;
     }
 
     for (uint32_t i = 0; i < out_list->count; i++)
