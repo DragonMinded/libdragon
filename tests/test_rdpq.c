@@ -1525,11 +1525,15 @@ void test_rdpq_triangle(TestContext *ctx) {
     })
 
     for (int tri=0;tri<1024;tri++) {
-        if (tri == 849) continue;  // this has a degenerate edge. The results are different but it doesn't matter
+        if (tri == 849) continue;  // this has a quasi-degenerate edge. The results are different but it doesn't matter
         SRAND(tri+1);
         float v1[] = { RFCOORD(), RFCOORD(), RFZ(), RFTEX(),RFTEX(),RFW(), RFRGB(), RFRGB(), RFRGB(), RFRGB() };
         float v2[] = { RFCOORD(), RFCOORD(), RFZ(), RFTEX(),RFTEX(),RFW(), RFRGB(), RFRGB(), RFRGB(), RFRGB() };
         float v3[] = { RFCOORD(), RFCOORD(), RFZ(), RFTEX(),RFTEX(),RFW(), RFRGB(), RFRGB(), RFRGB(), RFRGB() };
+
+        // skip degenerate triangles
+        if(v1[0] == v2[0] || v2[0] == v3[0] || v1[0] == v3[0]) continue;
+        if(v1[1] == v2[1] || v2[1] == v3[1] || v1[1] == v3[1]) continue;
 
         debug_rdp_stream_reset();
         rdpq_debug_log_msg("CPU");
@@ -1587,24 +1591,24 @@ void test_rdpq_triangle(TestContext *ctx) {
             uint16_t invw_i = tcpu[off+0]>>16;
             if (!SAT16(invw_i))
             {
-                TRI_CHECK_F1616(off+0,48, off+2,48, 2.0f, "invalid S");
-                TRI_CHECK_F1616(off+0,32, off+2,32, 2.0f, "invalid T");
-                TRI_CHECK_F1616(off+0,16, off+2,16, 2.5f, "invalid INVW");
+                TRI_CHECK_F1616(off+0,48, off+2,48, 5.0f, "invalid S");
+                TRI_CHECK_F1616(off+0,32, off+2,32, 5.0f, "invalid T");
+                TRI_CHECK_F1616(off+0,16, off+2,16, 8.0f, "invalid INVW");
 
-                TRI_CHECK_F1616(off+1,48, off+3,48, 7.0f, "invalid DsDx");
-                TRI_CHECK_F1616(off+1,32, off+3,32, 7.0f, "invalid DtDx");
-                TRI_CHECK_F1616(off+1,16, off+3,16, 7.0f, "invalid DwDx");
+                TRI_CHECK_F1616(off+1,48, off+3,48, 3.0f, "invalid DsDx");
+                TRI_CHECK_F1616(off+1,32, off+3,32, 3.0f, "invalid DtDx");
+                TRI_CHECK_F1616(off+1,16, off+3,16, 0.8f, "invalid DwDx");
 
-                TRI_CHECK_F1616(off+5,48, off+7,48, 7.0f, "invalid DsDy");
-                TRI_CHECK_F1616(off+5,32, off+7,32, 7.0f, "invalid DtDy");
-                TRI_CHECK_F1616(off+5,16, off+7,16, 7.0f, "invalid DwDy");
+                TRI_CHECK_F1616(off+5,48, off+7,48, 3.0f, "invalid DsDy");
+                TRI_CHECK_F1616(off+5,32, off+7,32, 3.0f, "invalid DtDy");
+                TRI_CHECK_F1616(off+5,16, off+7,16, 0.8f, "invalid DwDy");
 
                 // Skip checks for De components if Dx or Dy saturated.
                 uint16_t dwdx_i = tcpu[off+1]>>16, dwdy_i = tcpu[off+5]>>16;
                 if (!SAT16(dwdx_i) && !SAT16(dwdy_i)) {
-                    TRI_CHECK_F1616(off+4,48, off+6,48, 7.0f, "invalid DsDe");
-                    TRI_CHECK_F1616(off+4,32, off+6,32, 7.0f, "invalid DtDe");
-                    TRI_CHECK_F1616(off+4,16, off+6,16, 7.0f, "invalid DwDe");
+                    TRI_CHECK_F1616(off+4,48, off+6,48, 3.0f, "invalid DsDe");
+                    TRI_CHECK_F1616(off+4,32, off+6,32, 3.0f, "invalid DtDe");
+                    TRI_CHECK_F1616(off+4,16, off+6,16, 0.8f, "invalid DwDe");
                 }
             }
 
@@ -1623,4 +1627,40 @@ void test_rdpq_triangle(TestContext *ctx) {
             off += 2;
         }
     }
+}
+
+void test_rdpq_triangle_w1(TestContext *ctx) {
+    RDPQ_INIT();
+    debug_rdp_stream_init();
+
+    const int FBWIDTH = 16;
+    const int TEXWIDTH = FBWIDTH - 8;
+    surface_t fb = surface_alloc(FMT_RGBA16, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    surface_clear(&fb, 0);
+
+    surface_t tex = surface_alloc(FMT_RGBA16, TEXWIDTH, TEXWIDTH);
+    DEFER(surface_free(&tex));
+    surface_clear(&tex, 0);
+
+    rdpq_set_color_image(&fb);
+    rdpq_tex_load(TILE0, &tex, 0);
+    rdpq_set_mode_standard();
+    rspq_wait();
+
+    // Draw a triangle with W=1. This is a typical triangle calculated
+    // with an orthogonal projection. It triggers a special case in the 
+    // RSP code because W = 1/W, so we want to make sure we have no bugs.
+    debug_rdp_stream_reset();
+    rdpq_triangle(TILE0, 0, false, 0, -1, 2, 0,
+        (float[]){ 4.0f,   4.0f, 0.0f, 0.0f, 1.0f },
+        (float[]){ 12.0f,  4.0f, 8.0f, 0.0f, 1.0f },
+        (float[]){ 12.0f, 12.0f, 8.0f, 8.0f, 1.0f }
+    );
+    rspq_wait();
+
+    // Check that we find a triangle command in the stream, and that the W
+    // coordinate is correct (saturated 0x7FFF value in the upper 16 bits).
+    ASSERT_EQUAL_HEX(BITS(rdp_stream[0],56,61), RDPQ_CMD_TRI_TEX_ZBUF, "invalid command");
+    ASSERT_EQUAL_HEX(BITS(rdp_stream[4],16,31), 0x7FFF, "invalid W coordinate");
 }

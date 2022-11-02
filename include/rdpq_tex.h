@@ -47,11 +47,6 @@ int rdpq_tex_load_ci4(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int tlut)
  *   * Setting the source texture image (via #rdpq_set_texture_image)
  *   * Loading the texture (via #rdpq_load_tile or #rdpq_load_block)
  * 
- * This function works with all pixel formats, by dispatching the actual
- * implementations to several variants (eg: #rdpq_tex_load_ci4). If you
- * know the format of your texture, feel free to call directly the correct
- * variant to save a bit of overhead.
- * 
  * After calling this function, the specified tile descriptor will be ready
  * to be used in drawing primitives like #rdpq_triangle or #rdpq_texture_rectangle.
  * 

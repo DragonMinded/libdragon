@@ -433,15 +433,17 @@ void display_close()
 
     __write_dram_register( 0 );
 
-    for( int i = 0; i < __buffers; i++ )
+    if( surfaces )
     {
-        /* Free framebuffer memory */
-        surface_free(&surfaces[i]);
-        __safe_buffer[i] = NULL;
+        for( int i = 0; i < __buffers; i++ )
+        {
+            /* Free framebuffer memory */
+            surface_free(&surfaces[i]);
+            __safe_buffer[i] = NULL;
+        }
+        free(surfaces);
+        surfaces = NULL;
     }
-
-    free(surfaces);
-    surfaces = NULL;
 
     enable_interrupts();
 }

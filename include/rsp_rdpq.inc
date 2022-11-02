@@ -898,23 +898,31 @@ swap_end:
     lsv vinvw_f.e5, VTX_ATTR_INVWf,vtx2
     lsv vinvw_f.e6, VTX_ATTR_INVWf,vtx3
 
+    #define K_FFFF     vtmp.e0
+
     li s0, %lo(TRICONST1)+8
-    lsv vtmp.e0, -8,s0
+    lsv K_FFFF, -8,s0
 
     # invw:     minw -- -- --            invw1 invw2 invw3 --
     #
-    # We need to multiply minw with the three invw. All numbers are unsigned 0.31,
-    # the result is known to fit 0..1 and so will be 0.31 again. and we want to keep
-    # only the higher part of it, so shift the result right by 16.
+    # We need to multiply minw with the three invw. All numbers are positive s16.16,
+    # and the result is known to fit 0..1. By doing a standard 32-bit multiplication
+    # on RSP, we end up with a positive s16.16 number, where the integer word is zero.
+    # In fact, in theory W * 1/W = 1, but both numbers are likely missing enough bits
+    # of precision that the result will always be slightly lower than 1 (and thus the
+    # integer part will be 0).
     vmudl v__,     vinvw_f, vinvw_f.e0
     vmadm v__,     vinvw_i, vinvw_f.e0
     vmadn vinvw_f, vinvw_f, vinvw_i.e0
     vmadh vinvw_i, vinvw_i, vinvw_i.e0
     
-    # If the integer portion is not zero, then the result is >= 1.
-    # Manually saturate in that case: invw_f = vinvw_i == 0 ? vinvw_f : 0xFFFF
+    # So now vinvw_i should be 0 (in lanes 4..6). It turns out there is one exception:
+    # minw == invw == 1.0. In that case, the result will be exactly 1, and thus
+    # vinvw_i will be 1. Since we want to simplify further calculations and avoid
+    # taking vinvw_i into account, we want to replace 0x1_0000 with 0x0_FFFF.
+    # Do a manual saturation: vinvw_f = (vinvw_i == 0 ? vinvw_f : 0xFFFF)
     veq  vinvw_i, vzero
-    vmrg vinvw_f, vtmp.e0
+    vmrg vinvw_f, K_FFFF
 
     # Load 0x200 in the first 4 lanes of the vector, using a misaliged lqv.
     # 0x200 is the constant that can be used to >>7, which will be used for
