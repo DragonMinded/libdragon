@@ -9,6 +9,7 @@
 
 #define CLIPPING_PLANE_COUNT  6
 #define CLIPPING_CACHE_SIZE   9
+#define CLIPPING_PLANE_SIZE   8
 
 #define MATRIX_SIZE           64
 

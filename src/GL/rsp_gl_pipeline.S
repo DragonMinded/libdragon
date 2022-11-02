@@ -114,7 +114,17 @@ TRI_CULL:       .byte 0
     RSPQ_EndSavedState
 
     .align 4
-CACHE_OFFSETS:               .half 2,4,6,8,10,12,14,16
+CACHE_OFFSETS:               .half 2,4,6,8,10,12,14,16,18
+
+CLIP_CODE_FACTORS: .half 1, 1, GUARD_BAND_FACTOR, GUARD_BAND_FACTOR
+
+CLIP_PLANES:
+    .half 1, 0, 0, GUARD_BAND_FACTOR
+    .half 0, 1, 0, GUARD_BAND_FACTOR
+    .half 0, 0, 1, 1
+    .half 1, 0, 0, -GUARD_BAND_FACTOR
+    .half 0, 1, 0, -GUARD_BAND_FACTOR
+    .half 0, 0, 1, -1
 
 PRIM_FUNCS:
     .half GL_PrimSimple         - _start    # GL_POINTS
@@ -128,12 +138,14 @@ PRIM_FUNCS:
     .half GL_PrimTriangleStrip  - _start    # GL_QUAD_STRIP
     .half GL_PrimTriangleFan    - _start    # GL_POLYGON
 
-    .align 3
-ATTR_FETCH_CACHE:
-    ATTR_FETCH_POS:         .ds.l 4
-    ATTR_FETCH_COLOR:       .ds.l 4
-    ATTR_FETCH_TEXCOORD:    .ds.l 4
-    ATTR_FETCH_NORMAL:      .ds.l 4
+    .bss
+
+CLIP_CACHE: .dcb.b     SCREEN_VTX_SIZE * CLIPPING_CACHE_SIZE
+CLIP_CACHE_END:
+
+CLIP_LISTS:
+    CLIP_LIST0: .dcb.w  CLIPPING_CACHE_SIZE
+    CLIP_LIST1: .dcb.w  CLIPPING_CACHE_SIZE
 
     .text
 
@@ -588,6 +600,10 @@ GL_PreCull:
     vcl v___, vcspos_f, vcspos_f.w
     cfc2 t0, COP2_CTRL_VCC
     andi t0, 0x707   # Isolate X/Y/Z flags
+    # Compress flags to 8 bit
+    srl t1, t0, 5
+    andi t0, 0x7
+    or t0, t1
     sb t0, PRIM_VTX_TRCODE(prim_vtx)
 
     # FIXME: in immediate mode, we should also cache the per-vertex
@@ -624,6 +640,114 @@ GL_PreCull:
 
     .endfunc
 
+    ################################################################
+    # GL_CalcScreenSpace
+    #
+    # Args:
+    #   s4   = Destination vertex address
+    #   $v02 = Clip space position (fractional part)
+    #   $v03 = Clip space position (integer part)
+    #
+    ################################################################
+    .func GL_CalcScreenSpace
+GL_CalcScreenSpace:
+    #define dst          s4
+    #define vcspos_f     $v02
+    #define vcspos_i     $v03
+    #define vinvw_f      $v23
+    #define vinvw_i      $v24
+    #define vviewscale   $v25
+    #define vviewoff     $v26
+    #define vscreenpos_i $v27
+    #define vscreenpos_f $v28
+    #define v___         $v29
+    #define w            e3
+
+    # Calculate 32-bit inverse W
+    # TODO: NR?
+    vrcph vinvw_i.w, vcspos_i.w
+    vrcpl vinvw_f.w, vcspos_f.w
+    vrcph vinvw_i.w, vzero.e0
+
+    # Calculate screenspace coords
+    li t0, %lo(GL_VIEWPORT_SCALE)
+    ldv vviewscale, 0,t0
+    ldv vviewoff,   8,t0
+
+    vmudl v___,         vcspos_f, vinvw_f.w
+    vmadm v___,         vcspos_i, vinvw_f.w
+    vmadn vscreenpos_f, vcspos_f, vinvw_i.w
+    vmadh vscreenpos_i, vcspos_i, vinvw_i.w
+
+    vmudn vscreenpos_f, vscreenpos_f, vviewscale
+    vmadh vscreenpos_i, vscreenpos_i, vviewscale
+    vadd vscreenpos_i, vviewoff
+
+    sdv vscreenpos_i, SCREEN_VTX_X     ,dst
+    ssv vcspos_i.w,   SCREEN_VTX_W+0   ,dst 
+    ssv vcspos_f.w,   SCREEN_VTX_W+2   ,dst 
+    ssv vinvw_i.w,    SCREEN_VTX_INVW+0,dst
+    ssv vinvw_f.w,    SCREEN_VTX_INVW+2,dst
+    jr ra
+    sb zero,          SCREEN_VTX_PADDING(dst)
+
+    #undef dst
+    #undef vcspos_f
+    #undef vcspos_i
+    #undef vinvw_f
+    #undef vinvw_i
+    #undef vviewscale
+    #undef vviewoff
+    #undef vscreenpos_i
+    #undef vscreenpos_f
+    #undef v___
+    #undef w
+
+    .endfunc
+
+    ################################################################
+    # GL_CalcClipCodes
+    #
+    # Args:
+    #   s4   = Destination vertex address
+    #   $v02 = Clip space position (fractional part)
+    #   $v03 = Clip space position (integer part)
+    #
+    ################################################################
+    .func GL_CalcClipCodes
+GL_CalcClipCodes:
+    #define dst          s4
+    #define vcspos_f     $v02
+    #define vcspos_i     $v03
+    #define vguard_f     $v27
+    #define vguard_i     $v28
+    #define v___         $v29
+    #define w            e3
+
+    li t0, %lo(CLIP_CODE_FACTORS)
+    ldv vguard_i,  0,t0
+
+    vmudn vguard_f, vcspos_f, vguard_i
+    vmadh vguard_i, vcspos_i, vguard_i
+    
+    vch v___, vguard_i, vguard_i.w
+    vcl v___, vguard_f, vguard_f.w
+    cfc2 t0, COP2_CTRL_VCC
+    andi t0, 0x707
+    srl t1, t0, 5
+    andi t0, 0x7
+    or t0, t1
+    jr ra
+    sb t0,  SCREEN_VTX_CLIP_CODE(dst)
+
+    #undef dst
+    #undef vcspos_i
+    #undef vcspos_f
+    #undef vguard_i
+    #undef vguard_f
+    #undef v___
+
+    .endfunc
 
     ################################################################
     # GL_TnL
@@ -650,99 +774,41 @@ GL_TnL:
     # Compute the address in cache where to add the vertex.
     addi screen_vtx, t1, %lo(SCREEN_VERTEX_CACHE)
 
-    #define v___         $v01
     #define vcspos_f     $v02
     #define vcspos_i     $v03
     #define vrgba        $v04
     #define vst          $v05
-    #define vguard_f     $v06
-    #define vguard_i     $v07
-    #define vinvw_f      $v08
-    #define vinvw_i      $v09
-    #define vviewscale   $v10
-    #define vviewoff     $v11
-    #define vscreenpos_i $v12
-    #define vscreenpos_f $v13
-    #define vtexsize     $v14
+    #define vtexsize     $v06
     #define s            e0
-    #define t            e1
-    #define z            e2
-    #define w            e3
-    #define KGUARD       __PPCAT(K, GUARD_BAND_FACTOR)
+
+    li s0, %lo(GL_STATE_TEX_SIZE)
+    llv vtexsize.s, 0,s0
 
     ldv vcspos_f, PRIM_VTX_CS_POSf,prim_vtx
     ldv vcspos_i, PRIM_VTX_CS_POSi,prim_vtx
     ldv vrgba,    PRIM_VTX_R,prim_vtx         # R + G + B + A
     llv vst,      PRIM_VTX_S,prim_vtx         # S + T
 
+    # Scale texcoord by texsize
+    vmudh vst, vtexsize
+
     sdv vcspos_f, SCREEN_VTX_CS_POSf,screen_vtx
     sdv vcspos_i, SCREEN_VTX_CS_POSi,screen_vtx
     suv vrgba,    SCREEN_VTX_RGBA,screen_vtx
+    jal GL_CalcScreenSpace
+    slv vst.s,    SCREEN_VTX_S,screen_vtx
 
-    vmudn vguard_f, vcspos_f, KGUARD
-    vmadh vguard_i, vcspos_i, KGUARD
-    
-    vcl v___, vcspos_f, vguard_f.w
-    vch v___, vcspos_i, vguard_i.w
-    cfc2 t0, COP2_CTRL_VCC
-    lbu t1, PRIM_VTX_TRCODE(prim_vtx) 
-    andi t1, 0x404   # Z flag
-    andi t0, 0x303   # X/Y flags
-    or t0, t1
+    j GL_CalcClipCodes
+    move ra, ra2
 
-    # Calculate 32-bit inverse W
-    # TODO: NR?
-    vrcph vinvw_i.w, vcspos_i.w
-    vrcpl vinvw_f.w, vcspos_f.w
-    vrcph vinvw_i.w, vzero.e0
-
-    # Calculate screenspace coords
-    li s0, %lo(GL_VIEWPORT_SCALE)
-    ldv vviewscale, 0,s0
-    ldv vviewoff,   8,s0
-
-    vmudl v___,         vcspos_f, vinvw_f.w
-    vmadm v___,         vcspos_i, vinvw_f.w
-    vmadn vscreenpos_f, vcspos_f, vinvw_i.w
-    vmadh vscreenpos_i, vcspos_i, vinvw_i.w
-
-    vmudn vscreenpos_f, vscreenpos_f, vviewscale
-    vmadh vscreenpos_i, vscreenpos_i, vviewscale
-    vadd vscreenpos_i, vviewoff
-
-    # Scale texcoord by texsize
-    li s0, %lo(GL_STATE_TEX_SIZE)
-    llv vtexsize.s, 0,s0
-    vmudh vst, vtexsize
-    
-    sdv vscreenpos_i, SCREEN_VTX_X        ,screen_vtx
-    ssv vcspos_i.w,   SCREEN_VTX_W+0      ,screen_vtx 
-    ssv vcspos_f.w,   SCREEN_VTX_W+2      ,screen_vtx 
-    ssv vinvw_i.w,    SCREEN_VTX_INVW+0   ,screen_vtx
-    ssv vinvw_f.w,    SCREEN_VTX_INVW+2   ,screen_vtx
-    sdv vcspos_i,     SCREEN_VTX_CS_POSi  ,screen_vtx 
-    sdv vcspos_f,     SCREEN_VTX_CS_POSf  ,screen_vtx 
-    slv vst.s         SCREEN_VTX_S        ,screen_vtx
-    sb t0,            SCREEN_VTX_CLIP_CODE(screen_vtx)
-
-    jr ra
-    nop
-
-    #undef v___        
-    #undef vcspos_f    
-    #undef vcspos_i    
+    #undef prim_vtx
+    #undef screen_vtx
+    #undef vcspos_f
+    #undef vcspos_i
     #undef vrgbast     
-    #undef vguard_f    
-    #undef vguard_i    
-    #undef vinvw_f     
-    #undef vinvw_i     
-    #undef vviewscale  
-    #undef vviewoff    
-    #undef vscreenpos_i
-    #undef vscreenpos_f
-    #undef z         
-    #undef w         
-    #undef KGUARD
+    #undef vst
+    #undef vtexsize
+    #undef s
 
     .endfunc
 
@@ -767,7 +833,6 @@ GLCmd_DrawTriangle:
     and  prim_vtx2, 0xFF
     srl  prim_vtx1, prim_verts, 16
     and  prim_vtx1, 0xFF
-    lb v0, %lo(TRI_CULL)
 
 GL_DrawTriangle:
     addi prim_vtx3, %lo(PRIM_VERTEX_CACHE)
@@ -796,18 +861,392 @@ GL_DrawTriangle:
     move s3, prim_vtx3
     addi a3, s4, SCREEN_VTX_X
 
+    lbu t0, SCREEN_VTX_CLIP_CODE(a1)
+    lbu t1, SCREEN_VTX_CLIP_CODE(a2)
+    lbu t2, SCREEN_VTX_CLIP_CODE(a3)
+    or t5, t0, t1
+    or t5, t2
+
+    move s1, zero
+    beqz t5, gl_draw_single_triangle
+    move s2, zero
+
+    jal GL_ClipTriangle
+    nop
+
+    beqz v1, gl_draw_triangle_end
+    addi s2, -6
+    move v1, a0
+    lhu s5, 0(s1)
+gl_draw_clipped_triangles_loop:
+    lhu a2, 2(s1)
+    lhu a3, 4(s1)
+
+    # Restore a0,a1 because they are ovewritten by RDPQ_Send
+    move a0, v1
+    move a1, s5
+
+gl_draw_single_triangle:
+    lb v0, %lo(TRI_CULL)
     jal RDPQ_Triangle
     li s3, %lo(RDPQ_CMD_STAGING)
 
-    move ra, ra3
-    j RDPQ_Send
+    jal RDPQ_Send
     li s4, %lo(RDPQ_CMD_STAGING)
+
+    blt s1, s2, gl_draw_clipped_triangles_loop
+    addi s1, 2
+
+gl_draw_triangle_end:
+    jr ra3
+    nop
 
     #undef prim_vtx1
     #undef prim_vtx2
     #undef prim_vtx3
 
     .endfunc
+
+
+    ################################################################
+    # GL_ClipTriangle
+    #   Clip a triangle against the view-frustum by using the Sutherland-Hodgman algorithm
+    #   https://en.wikipedia.org/wiki/Sutherland%E2%80%93Hodgman_algorithm
+    # Args:
+    #   a1-a3 = Vertices
+    #   t5    = OR'd clip flags of the triangle's vertices
+    # Returns:
+    #   s1    = Pointer to list of output vertices
+    #   s2    = Pointer to end of list
+    ################################################################
+    .func GL_ClipTriangle
+GL_ClipTriangle:
+    #define out_count       v1
+    #define clip_flags      t5
+    #define plane_flag      t6
+    #define in_count        t7
+    #define in_end          t8
+    #define in_list         s0
+    #define out_list        s1
+    #define plane           s2
+    #define cur_ptr         s3
+    #define intersection    s4
+    #define prev_ptr        s5
+    #define cur_vtx         s6
+    #define prev_vtx        s7
+    #define p0              k0
+    #define p1              k1
+    #define vtx1            a1
+    #define vtx2            a2
+    #define vtx3            a3
+
+    #define vplane          $v01
+    #define vint_f          $v02
+    #define vint_i          $v03
+    #define vdot_i          $v04
+    #define vdot_f          $v05
+    #define vdiff_i         $v06
+    #define vdiff_f         $v07
+    #define va_i            $v08
+    #define va_f            $v09
+    #define vpos_i          $v10
+    #define vpos_f          $v11
+    #define vattr0          $v12
+    #define vattr1          $v13
+    #define voff0           $v14
+    #define voff1           $v15
+    #define vcache0         $v16
+    #define vcache1         $v17
+    #define v__             $v29
+
+    move ra2, ra
+
+    # Init in_list as empty
+    li in_list, %lo(CLIP_LIST0)
+    move in_count, zero
+
+    # Put three original vertices in the out_list
+    # (So after the initial swap they will be in the in_list)
+    li out_list, %lo(CLIP_LIST1)
+    sh vtx1, 0(out_list)
+    sh vtx2, 2(out_list)
+    sh vtx3, 4(out_list)
+    li out_count, 3*2
+
+    li plane, %lo(CLIP_PLANES)
+    li plane_flag, 1
+
+    # Load cache offsets    
+    li t0, %lo(CACHE_OFFSETS)
+    vxor voff1, voff1
+    lqv voff0,  0,t0
+    lsv voff1, 16,t0
+
+    # Temporarily use the RDP staging area as a map of which cache slots are used
+    # Init to zero
+    li t0, %lo(RDPQ_CMD_STAGING)
+    sqv vzero,  0,t0
+    sqv vzero, 16,t0
+
+    # Iterate over the 6 clipping planes
+gl_clip_plane_loop:
+    and t0, clip_flags, plane_flag
+    beqz t0, gl_clip_plane_loop_end
+    move t1, in_list
+
+    # Swap in and out lists
+    move in_list, out_list
+    move out_list, t1
+    move in_count, out_count
+    move out_count, zero
+
+    # Iterate over the egdes of the polygon in the input list
+    # The current edge is between cur_vtx and prev_vtx
+    move cur_ptr, in_list
+    add in_end, in_list, in_count
+    # Init the "previous" vertex to the last in the list for the wrap-around
+    addi prev_ptr, in_end, -2
+
+gl_clip_edge_loop:
+    #define cur_flag  t3
+    #define prev_flag t4
+
+    # Check which side of the plane the two vertices are on
+    lhu cur_vtx, 0(cur_ptr)
+    lhu prev_vtx, 0(prev_ptr)
+    lbu cur_flag, SCREEN_VTX_CLIP_CODE(cur_vtx)
+    lbu prev_flag, SCREEN_VTX_CLIP_CODE(prev_vtx)
+    and cur_flag, plane_flag
+    and prev_flag, plane_flag
+
+    # If they are on opposite sides, there is an intersection
+    xor t0, cur_flag, prev_flag
+    beqz t0, gl_clip_no_intersection
+    move p0, cur_vtx
+
+    # Swap the two points if necessary to make intersecion calculation consistent
+    # This will make sure p0 is always inside and p1 is always outside
+    bnez prev_flag, gl_clip_no_swap
+    move p1, prev_vtx
+    xor p0, p0, p1
+    xor p1, p0, p1
+    xor p0, p0, p1
+
+    #undef prev_flag
+
+gl_clip_no_swap:
+    # Calculate intersection of the line segment and the plane
+
+    li t0, %lo(RDPQ_CMD_STAGING)
+    lqv vcache0,    0,t0
+    lqv vcache1,   16,t0
+
+    # Repeat plane coefficients twice
+    ldv vplane.e0,  0,plane
+    ldv vplane.e4,  0,plane
+
+    # vpos: x0  y0  z0  w0  x1  y1  z1  w1
+    ldv vpos_i.e0,  SCREEN_VTX_CS_POSi,p0
+    ldv vpos_f.e0,  SCREEN_VTX_CS_POSf,p0
+    ldv vpos_i.e4,  SCREEN_VTX_CS_POSi,p1
+    ldv vpos_f.e4,  SCREEN_VTX_CS_POSf,p1
+
+    # vint: x1  y1  z1  w1
+    ldv vint_i.e0,  SCREEN_VTX_CS_POSi,p1
+    ldv vint_f.e0,  SCREEN_VTX_CS_POSf,p1
+
+    # vattr0: r0  g0  b0  a0  s0  t0
+    luv vattr0.e0,  SCREEN_VTX_RGBA   ,p0
+    llv vattr0.e4,  SCREEN_VTX_S      ,p0
+
+    # vattr0: r1  g1  b1  a1  s1  t1
+    luv vattr1.e0,  SCREEN_VTX_RGBA   ,p1
+    llv vattr1.e4,  SCREEN_VTX_S      ,p1
+
+    # Find first free slot in clip cache
+
+    # Add the values from the "used slots map" to the cache offsets
+    # After this, each lane will contain the offset of its corresponding cache slot,
+    # but only if the slot is not used. If it is used, it will contain some large value.
+    vadd vcache0, voff0
+    vadd vcache1, voff1
+
+    # Look for the smallest value, which will end up in vcache.e0
+    # Because used slots are marked as large values, they will never be found.
+    vlt vcache0, vcache0.q1
+    vlt vcache0, vcache0.h2
+    vlt vcache0, vcache0.e4
+    vlt vcache0, vcache1.e0
+
+    mfc2 t0, vcache0.e0
+
+    # Mark slot as used by storing some large value (careful of overflows!)
+    li t1, 0xFF
+    sh t1, %lo(RDPQ_CMD_STAGING)-2(t0)
+
+    # t2 is the index multiplied by 2
+    # intersection = t2 * 20 = t2 * 16 + t2 * 4
+    sll intersection, t0, 4
+    sll t1, t0, 2
+    add intersection, t1
+
+    # CAUTION: intersection might point to the same address as either p0 or p1,
+    # because one of them is the previous point, which could have been marked unused
+    # in the previous iteration. As long as we don't access p0 or p1 after writing to
+    # intersection, this is fine.
+    addi intersection, %lo(CLIP_CACHE)-40
+
+    # Store the cache offset in unused memory (used later when finding the cache slot to mark as unused)
+    sb t0, SCREEN_VTX_PADDING(intersection)
+
+    # Compute dot products of both positions with the clip plane
+    # vdot.e0: d0 = dot(p0, plane)
+    # vdot.e4: d1 = dot(p1, plane)
+    vmudn vdot_f, vpos_f, vplane
+    vmadh vdot_i, vpos_i, vplane
+    vaddc vdot_f, vdot_f.q1
+    vadd  vdot_i, vdot_i.q1
+    vaddc vdot_f, vdot_f.h2
+    vadd  vdot_i, vdot_i.h2
+
+    # d0 - d1
+    vsubc vdiff_f, vdot_f, vdot_f.e4
+    vsub  vdiff_i, vdot_i, vdot_i.e4
+
+    # 1 / (d0 - d1)
+    vrcph v__.e0,  vdiff_i.e0
+    vrcpl va_f.e0, vdiff_f.e0
+    vrcph va_i.e0, vzero.e0
+
+    # a = d0 / (d0 - d1)
+    vmudl v__,  va_f, vdot_f.e0
+    vmadm v__,  va_i, vdot_f.e0
+    vmadn va_f, va_f, vdot_i.e0
+    vmadh va_i, va_i, vdot_i.e0
+
+    # Account for right shift introduced by vrcp
+    vmudn va_f, va_f, K2
+    vmadh va_i, va_i, K2
+
+    # p1 - p0
+    vsubc vint_f, vpos_f
+    vsub  vint_i, vpos_i
+    # attr1 - attr0
+    vsub  vattr1, vattr0
+
+    # a * (p1 - p0)
+    vmudl v__,    vint_f, va_f.e0
+    vmadm v__,    vint_i, va_f.e0
+    vmadn vint_f, vint_f, va_i.e0
+    vmadh vint_i, vint_i, va_i.e0
+    # a * (attr1 - attr0)
+    vmudm v__,    vattr1, va_f.e0
+    vmadh vattr1, vattr1, va_i.e0
+
+    # Result of linear interpolation:
+    # p0 + a * (p1 - p0)
+    vaddc vint_f, vpos_f
+    vadd  vint_i, vpos_i
+    # attr0 + a * (attr1 - attr0)
+    vadd  vattr0, vattr1
+
+    # Store results
+    sdv vint_i.e0,  SCREEN_VTX_CS_POSi,intersection
+    sdv vint_f.e0,  SCREEN_VTX_CS_POSf,intersection
+    suv vattr0.e0,  SCREEN_VTX_RGBA   ,intersection
+    jal GL_CalcClipCodes
+    slv vattr0.e4,  SCREEN_VTX_S      ,intersection
+
+    # Add intersection to the output list
+    add t0, out_list, out_count
+    sh intersection, 0(t0)
+    addi out_count, 2
+
+gl_clip_no_intersection:
+    # If cur_vtx is inside, add it to the output list
+    bnez cur_flag, gl_clip_no_current
+    add t0, out_list, out_count
+    sh cur_vtx, 0(t0)
+    b gl_clip_edge_loop_end
+    addi out_count, 2
+
+    #undef cur_flag
+
+gl_clip_no_current:
+    # Check if the vertex is stored in the clip cache
+    lbu t0, SCREEN_VTX_PADDING(cur_vtx)
+    beqz t0, gl_clip_edge_loop_end
+    # Reset the padding field to zero, so the screen space values won't be recalculated below
+    sb zero, SCREEN_VTX_PADDING(cur_vtx)
+    # If so, mark it as unused
+    sh zero, %lo(RDPQ_CMD_STAGING)-2(t0)
+    
+gl_clip_edge_loop_end:
+    # Advance to the next edge
+    addi cur_ptr, 2
+    blt cur_ptr, in_end, gl_clip_edge_loop
+    addi prev_ptr, cur_ptr, -2
+
+gl_clip_plane_loop_end:
+    # Advance to the next clipping plane
+    sll plane_flag, 1
+    blt plane_flag, (1<<CLIPPING_PLANE_COUNT), gl_clip_plane_loop
+    addi plane, CLIPPING_PLANE_SIZE
+
+    # Calculate screen space values for new vertices (in the clip cache)
+    # TODO: maybe iterate over out_list instead
+    li s4, %lo(CLIP_CACHE)
+    li s5, %lo(CLIP_CACHE_END) - 40
+gl_clip_finalize_loop:
+    lbu t0, SCREEN_VTX_PADDING(s4)
+    neg t0
+
+    # Only calculate screen space values if the vertex is actually used
+    ldv vint_i,  SCREEN_VTX_CS_POSi,s4
+    bltzal t0, GL_CalcScreenSpace
+    ldv vint_f,  SCREEN_VTX_CS_POSf,s4
+
+    blt s4, s5, gl_clip_finalize_loop
+    addi s4, SCREEN_VTX_SIZE
+
+    # Done!
+    jr ra2
+    add s2, out_list, out_count
+    .endfunc
+
+    #undef clip_flags
+    #undef plane_flag
+    #undef in_count
+    #undef out_count
+    #undef in_end
+    #undef intersection
+    #undef in_list
+    #undef out_list
+    #undef plane
+    #undef cur_ptr
+    #undef prev_ptr
+    #undef cur_vtx
+    #undef prev_vtx
+    #undef p0
+    #undef p1
+    #undef vtx1
+    #undef vtx2
+    #undef vtx3
+    #undef vplane
+    #undef vpos_i
+    #undef vpos_f
+    #undef vdot_i
+    #undef vdot_f
+    #undef vdiff_i
+    #undef vdiff_f
+    #undef va_i
+    #undef va_f
+    #undef vint_i
+    #undef vint_f
+    #undef vattr0
+    #undef vattr1
+    #undef v__
+
 
 GL_DrawLine:
     # TODO
