@@ -503,22 +503,6 @@ WaveDmaFetch:
 	jal DMAIn
 	li t0, DMA_SIZE(SAMPLE_CACHE_SIZE, 1)
 
-#if 0 
-	# TEST WITHOUT OVERREAD
-
-	sub wv_addr_end, SAMPLE_CACHE_SIZE # do it once
-
-	sub t0, wv_addr_end, s0
-	bltz t0, start_dma
-	addi t0, SAMPLE_CACHE_SIZE
-	li t0, SAMPLE_CACHE_SIZE
-start_dma:
-	addi dma_cache_end, t0, %lo(DMEM_SAMPLE_CACHE)
-	sll dma_cache_end, WAVEFORM_POS_FRAC_BITS
-#endif
-
-
-
 	# Calculate an offset that converts wv_pos from a (fixed point) RDRAM
 	# pointer into a (fixed point) DMEM pointer. This will be used because
 	# the inner loop will use wv_pos adjusted to be a DMEM pointer
