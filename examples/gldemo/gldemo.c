@@ -8,6 +8,10 @@
 #include "sphere.h"
 #include "prim_test.h"
 
+// Set this to 1 to enable rdpq debug output.
+// The demo will only run for a single frame and stop.
+#define DEBUG_RDP 0
+
 static uint32_t animation = 3283;
 static uint32_t texture_index = 0;
 
@@ -31,9 +35,7 @@ void load_texture(GLenum target, sprite_t *sprite)
         surface_t surf = sprite_get_lod_pixels(sprite, i);
         if (!surf.buffer) break;
 
-        data_cache_hit_writeback(surf.buffer, surf.stride * surf.height);
-
-        glTexImageN64(GL_TEXTURE_2D, i, &surf);
+        glTexImageN64(target, i, &surf);
     }
 }
 
@@ -53,10 +55,12 @@ void setup()
     glEnable(GL_CULL_FACE);
 
     float aspect_ratio = (float)display_get_width() / (float)display_get_height();
+    float near_plane = 1.0f;
+    float far_plane = 50.0f;
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glFrustum(-1*aspect_ratio, 1*aspect_ratio, -1, 1, 1, 30);
+    glFrustum(-near_plane*aspect_ratio, near_plane*aspect_ratio, -near_plane, near_plane, near_plane, far_plane);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
@@ -153,14 +157,18 @@ int main()
 
     gl_init();
 
-    //rdpq_debug_start();
-    //rdpq_debug_log(true);
+#if DEBUG_RDP
+    rdpq_debug_start();
+    rdpq_debug_log(true);
+#endif
 
     setup();
 
     controller_init();
 
+#if !DEBUG_RDP
     while (1)
+#endif
     {
         controller_scan();
         struct controller_data pressed = get_keys_pressed();
