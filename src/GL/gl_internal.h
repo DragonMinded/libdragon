@@ -479,6 +479,7 @@ typedef struct {
     int32_t fog_start;
     int32_t fog_end;
     uint16_t tex_size[2];
+    uint16_t tex_offset[2];
     uint16_t polygon_mode;
     uint16_t prim_type;
     uint16_t cull_mode;
@@ -487,7 +488,6 @@ typedef struct {
     uint16_t point_size;
     uint16_t line_width;
     uint16_t matrix_mode;
-    uint32_t padding;
 
     gl_texture_object_t bound_textures[2];
     uint16_t scissor_rect[4];

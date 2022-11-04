@@ -24,6 +24,7 @@ GL_STATE:
     GL_STATE_FOG_START:     .word   0
     GL_STATE_FOG_END:       .word   0
     GL_STATE_TEX_SIZE:      .half   0,0
+    GL_STATE_TEX_OFFSET:    .half   0,0
     GL_STATE_POLYGON_MODE:  .half   0
     GL_STATE_PRIM_TYPE:     .half   0
     GL_STATE_CULL_MODE:     .half   0

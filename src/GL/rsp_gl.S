@@ -620,8 +620,15 @@ GL_UpdateTexture:
     andi t5, t3, TEXTURE_MIPMAP_MASK
     or t2, t3
     andi t2, TEXTURE_BILINEAR_MASK
+
+    # If bilinear sampling is active, texture coords need to be offset by half a texel,
+    # which is 0x10 in s10.5
+    sll t3, t2, TEX_BILINEAR_OFFSET_SHIFT
+    sh t3, %lo(GL_STATE_TEX_OFFSET) + 0
+    sh t3, %lo(GL_STATE_TEX_OFFSET) + 2
+
     beqz t5, texture_no_lod
-    sll t2, 13 # shift to SOM_SAMPLE_BILINEAR
+    sll t2, TEX_BILINEAR_SHIFT
     or t2, SOM_TEXTURE_LOD >> 32
 
 texture_no_lod:

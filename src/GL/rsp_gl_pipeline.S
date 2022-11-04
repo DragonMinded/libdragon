@@ -779,18 +779,21 @@ GL_TnL:
     #define vrgba        $v04
     #define vst          $v05
     #define vtexsize     $v06
+    #define vtexoffset   $v07
     #define s            e0
 
     li s0, %lo(GL_STATE_TEX_SIZE)
-    llv vtexsize.s, 0,s0
+    llv vtexsize.s,   0,s0
+    llv vtexoffset.s, 4,s0
 
     ldv vcspos_f, PRIM_VTX_CS_POSf,prim_vtx
     ldv vcspos_i, PRIM_VTX_CS_POSi,prim_vtx
     ldv vrgba,    PRIM_VTX_R,prim_vtx         # R + G + B + A
     llv vst,      PRIM_VTX_S,prim_vtx         # S + T
 
-    # Scale texcoord by texsize
+    # Scale texcoord by texsize and subtract offset (to correct for bilinear sampling if active)
     vmudh vst, vtexsize
+    vsub  vst, vtexoffset
 
     sdv vcspos_f, SCREEN_VTX_CS_POSf,screen_vtx
     sdv vcspos_i, SCREEN_VTX_CS_POSi,screen_vtx
