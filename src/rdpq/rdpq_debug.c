@@ -210,12 +210,12 @@ void __rdpq_trace_fetch(void)
     // race conditions.
     int prev = buf_widx ? buf_widx - 1 : MAX_BUFFERS-1;
     if (buffers[prev].start == start) {
-        // If the previous buffer was bigger, it is a logic error, as RDP buffers should only grow            
         if (buffers[prev].end == end) {
             enable_interrupts();
             intdebugf("   -> ignored because coalescing\n");
             return;
         }
+        // If the previous buffer was bigger, it is a logic error, as RDP buffers should only grow            
         assertf(buffers[prev].end <= end, "rdpq_debug: RDP buffer shrinking (%p-%p => %p-%p)\n", 
                 buffers[prev].start, buffers[prev].end, start, end);
         buffers[prev].end = end;
