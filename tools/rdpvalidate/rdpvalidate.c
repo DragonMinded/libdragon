@@ -102,8 +102,10 @@ int main(int argc, char *argv[])
                 break;
             if (line[0] == '#') continue;
             char *end;
-            cmd = strtoll(line, &end, 16);
-            if (*end != '\n' && *end != '\r') fprintf(stderr, "WARNING: ignored spurious characters on line %d\n", num_line);
+            cmd = strtoull(line, &end, 16);
+            while (*end == ' ' || *end == '\t') end++;
+            if (*end != '\n' && *end != '\r' && *end != '#')
+                fprintf(stderr, "WARNING: ignored spurious characters on line %d\n", num_line);
         } else {
             if (!fread(&cmd, 8, 1, f))
                 break;
@@ -119,7 +121,7 @@ int main(int argc, char *argv[])
     uint64_t *end = cmds + size;
     while (cur < end) {
         int sz = rdpq_debug_disasm_size(cur);
-        rdpq_debug_disasm(cur, stdout);
+        rdpq_debug_disasm(cur, stderr);
         rdpq_validate(cur, NULL, NULL);
         cur += sz;
     }
