@@ -30,6 +30,7 @@ LIBMIKMOD_COMMIT=738b1e8b11b470360b1b919680d1d88429d9d174
 LIBMIKMOD_DIR=/tmp/libmikmod
 
 # Clean, build, and install libdragon + tools
+sudoMakeWithParams install-mk
 makeWithParams clobber
 makeWithParams libdragon tools
 sudoMakeWithParams install tools-install
@@ -41,7 +42,7 @@ git clone $LIBMIKMOD_REPO $LIBMIKMOD_DIR
 pushd $LIBMIKMOD_DIR/n64
 git checkout $LIBMIKMOD_COMMIT
 makeWithParams
-makeWithParams install
+sudoMakeWithParams install
 popd
 rm -Rf $LIBMIKMOD_DIR
 
