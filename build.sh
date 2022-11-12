@@ -24,27 +24,11 @@ sudoMakeWithParams(){
 JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN)}"
 JOBS="${JOBS:-1}" # If getconf returned nothing, default to 1
 
-# Specify where to get libmikmod from and where to put it
-LIBMIKMOD_REPO=https://github.com/networkfusion/libmikmod.git
-LIBMIKMOD_COMMIT=738b1e8b11b470360b1b919680d1d88429d9d174
-LIBMIKMOD_DIR=/tmp/libmikmod
-
 # Clean, build, and install libdragon + tools
 sudoMakeWithParams install-mk
 makeWithParams clobber
 makeWithParams libdragon tools
 sudoMakeWithParams install tools-install
-
-# Remove the cloned libmikmod repo if it already exists
-[ -d "$LIBMIKMOD_DIR" ] && rm -Rf $LIBMIKMOD_DIR
-# Clone, compile, and install libmikmod
-git clone $LIBMIKMOD_REPO $LIBMIKMOD_DIR
-pushd $LIBMIKMOD_DIR/n64
-git checkout $LIBMIKMOD_COMMIT
-makeWithParams
-sudoMakeWithParams install
-popd
-rm -Rf $LIBMIKMOD_DIR
 
 # Build examples and tests - libdragon must be already installed at this point,
 # so first clobber the build to make sure that everything works against the
