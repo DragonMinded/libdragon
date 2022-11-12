@@ -90,6 +90,7 @@ CONVERT_CONST:  .half 1, 2, 0x8000, 0x200, 0xFF, 134, 0x7F, 0x80
 
     .bss
 
+    .align 3
 TEX_UPLOAD_STAGING: .ds.b 0x150
 
     .text
