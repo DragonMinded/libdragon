@@ -127,6 +127,8 @@ do_dma:
     #undef buf_idx 
     #undef next_func
 
+    .section .text.rdpq_send_helpers
+
     #############################################################
     # RDPQ_Finalize
     #

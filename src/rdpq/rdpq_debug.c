@@ -148,6 +148,7 @@ static struct {
         uint8_t fmt, size;                 ///< Format & size (RDP format/size bits)
     } col;                               ///< Current associated color image
     struct {
+        uint32_t physaddr;                 ///< Physical address of the texture
         uint8_t fmt, size;                 ///< Format & size (RDP format/size bits)
     } tex;                               ///< Current associated texture image
 } rdp;
@@ -1000,6 +1001,21 @@ static void validate_busy_tmem(int addr, int size) {
     VALIDATE_WARN(!is_busy_tmem(addr, size), "writing to TMEM[0x%x:0x%x] while busy, SYNC_LOAD missing", addr, addr+size);
 }
 
+static bool check_loading_crash(int hpixels) {
+    // Check for a very rare crash while loading from a misaligned address.
+    // The address must have a special type of misalignment within the lower half of each 16-byte line.
+    if ((rdp.tex.physaddr & 0xF) == 0) return false;
+    if ((rdp.tex.physaddr & 0xF) >= 8) return false;
+    // This crash doesn't apply to 4bpp textures. Notice that 4bpp always crash with LOAD_TILE (even aligned
+    // addresses) but that's handled elsewhere. So this check applies to LOAD_BLOCK.
+    if (rdp.tex.size == 0) return false;
+    // At least ~58 bytes must be loaded in each horizontal line. This can vary a little bit depending
+    // on bitdepth but the number is almost right.
+    if (hpixels * (4 << rdp.tex.size) / 8 < 58) return false;
+    // Crash triggered
+    return true;
+}
+
 /**
  * @brief Perform validation of a tile descriptor being used as part of a drawing command.
  * 
@@ -1089,6 +1105,7 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
     case 0x3D: // SET_TEX_IMAGE
         validate_busy_pipe();
         VALIDATE_ERR(BITS(buf[0], 0, 2) == 0, "texture image must be aligned to 8 bytes");
+        rdp.tex.physaddr = BITS(buf[0], 0, 24);
         rdp.tex.fmt = BITS(buf[0], 53, 55);
         rdp.tex.size = BITS(buf[0], 51, 52);
         rdp.last_tex = &buf[0];        
@@ -1123,10 +1140,16 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         t->has_extents = true;
         t->s0 = BITS(buf[0], 44, 55)*FX(2); t->t0 = BITS(buf[0], 32, 43)*FX(2);
         t->s1 = BITS(buf[0], 12, 23)*FX(2); t->t1 = BITS(buf[0],  0, 11)*FX(2);
-        if (load) validate_busy_tmem(t->tmem_addr, (t->t1-t->t0+1) * t->tmem_pitch);
+        if (load) {
+            int hpixels = (int)t->s1 - (int)t->s0 + 1;
+            VALIDATE_CRASH_TEX(!check_loading_crash(hpixels), "loading pixels from a misaligned texture image");
+            validate_busy_tmem(t->tmem_addr, (t->t1-t->t0+1) * t->tmem_pitch);
+        }
     }   break;
     case 0x33: { // LOAD_BLOCK
         int tidx = BITS(buf[0], 24, 26);
+        int hpixels = BITS(buf[0], 12, 23)+1;
+        VALIDATE_CRASH_TEX(!check_loading_crash(hpixels), "loading pixels from a misaligned texture image");
         rdp.busy.tile[tidx] = true;  // mask as in use
     }   break;
     case 0x30: { // LOAD_TLUT
