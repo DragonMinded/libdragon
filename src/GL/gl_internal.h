@@ -68,14 +68,13 @@ enum {
     GL_CMD_MATRIX_PUSH      = 0xB,
     GL_CMD_MATRIX_POP       = 0xC,
     GL_CMD_MATRIX_LOAD      = 0xD,
+    GL_CMD_PRE_INIT_PIPE    = 0xE,
 };
 
 enum {
-    GLP_CMD_INIT_MTX       = 0x00,
-    GLP_CMD_INIT_PIPE      = 0x01,
-    GLP_CMD_SET_PRIM_VTX   = 0x02,
-    GLP_CMD_DRAW_TRI       = 0x03,
-    GLP_CMD_SEND_INDEX     = 0x04,
+    GLP_CMD_INIT_PIPE      = 0x00,
+    GLP_CMD_SET_PRIM_VTX   = 0x01,
+    GLP_CMD_DRAW_TRI       = 0x02,
 
     GLP_CMD_VTX_BASE       = 0x10,
 };
@@ -458,7 +457,7 @@ typedef struct {
 } gl_state_t;
 
 typedef struct {
-    gl_matrix_srv_t matrices[3];
+    gl_matrix_srv_t matrices[4];
     gl_tex_gen_srv_t tex_gen[4];
     int16_t viewport_scale[4];
     int16_t viewport_offset[4];
@@ -479,6 +478,7 @@ typedef struct {
     int32_t fog_start;
     int32_t fog_end;
     uint16_t tex_size[2];
+    uint16_t tex_offset[2];
     uint16_t polygon_mode;
     uint16_t prim_type;
     uint16_t cull_mode;
@@ -487,6 +487,14 @@ typedef struct {
     uint16_t point_size;
     uint16_t line_width;
     uint16_t matrix_mode;
+    uint16_t prim_func;
+    uint16_t prim_next;
+    uint16_t prim_progress;
+    uint16_t prim_counter;
+    uint16_t prim_indices[3];
+    uint16_t prim_size;
+    uint16_t tri_cmd;
+    uint8_t tri_cull[2];
     uint32_t padding;
 
     gl_texture_object_t bound_textures[2];

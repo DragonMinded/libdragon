@@ -116,6 +116,9 @@
 
 #define ASSERT_INVALID_VTX_ID   0x2001
 
+#define TEX_BILINEAR_SHIFT          13
+#define TEX_BILINEAR_OFFSET_SHIFT   4
+
 #define TRICMD_ATTR_SHIFT_Z     6
 #define TRICMD_ATTR_SHIFT_TEX   20
 

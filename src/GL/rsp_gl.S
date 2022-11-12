@@ -20,6 +20,7 @@
         RSPQ_DefineCommand GLCmd_MatrixPush,    4
         RSPQ_DefineCommand GLCmd_MatrixPop,     4
         RSPQ_DefineCommand GLCmd_MatrixLoad,    68
+        RSPQ_DefineCommand GLCmd_PreInitPipe,   4
     RSPQ_EndOverlayHeader
 
     RSPQ_BeginSavedState
@@ -89,6 +90,7 @@ CONVERT_CONST:  .half 1, 2, 0x8000, 0x200, 0xFF, 134, 0x7F, 0x80
 
     .bss
 
+    .align 3
 TEX_UPLOAD_STAGING: .ds.b 0x150
 
     .text
@@ -620,8 +622,15 @@ GL_UpdateTexture:
     andi t5, t3, TEXTURE_MIPMAP_MASK
     or t2, t3
     andi t2, TEXTURE_BILINEAR_MASK
+
+    # If bilinear sampling is active, texture coords need to be offset by half a texel,
+    # which is 0x10 in s10.5
+    sll t3, t2, TEX_BILINEAR_OFFSET_SHIFT
+    sh t3, %lo(GL_STATE_TEX_OFFSET) + 0
+    sh t3, %lo(GL_STATE_TEX_OFFSET) + 2
+
     beqz t5, texture_no_lod
-    sll t2, 13 # shift to SOM_SAMPLE_BILINEAR
+    sll t2, TEX_BILINEAR_SHIFT
     or t2, SOM_TEXTURE_LOD >> 32
 
 texture_no_lod:
@@ -899,6 +908,111 @@ gl_set_texture_not_active:
     and state_flags, ~FLAG_TEXTURE_ACTIVE
     jr ra
     sw state_flags, %lo(GL_STATE_FLAGS)
+
+    #undef active_tex
+    #undef uploaded_tex
+    #undef tmem_addr
+    #undef out_ptr
+    #undef image
+    #undef level
+    #undef tex_id
+    #undef num_levels
+    #undef wrap_s
+    #undef wrap_t
+    #undef tex_flags
+    #undef full_width_log
+    #undef full_height_log
+    #undef mirror
+    #undef state_flags
+
+
+    .func GLCmd_PreInitPipe
+GLCmd_PreInitPipe:
+#if RSP_PRIM_ASSEMBLY
+    srl t0, a0, 16
+    andi t0, 0xFF
+    andi t1, a0, 0xFFFF
+    sh t0, %lo(GL_PRIM_SIZE)
+    sh t1, %lo(GL_PRIM_NEXT)
+    sh zero, %lo(GL_PRIM_PROGRESS)
+    sh zero, %lo(GL_PRIM_COUNTER)
+#endif
+
+    #define state_flags t0
+    #define has_depth   t1
+    #define has_tex     t3
+    #define tri_cmd     t4
+
+    # TODO: Optimize this by rearranging GL state flags
+    lw state_flags, %lo(GL_STATE_FLAGS)
+    and has_depth, state_flags, FLAG_DEPTH_TEST
+    and has_tex, state_flags, FLAG_TEXTURE_ACTIVE
+    sll has_depth, TRICMD_ATTR_SHIFT_Z
+    srl has_tex, TRICMD_ATTR_SHIFT_TEX
+
+    or tri_cmd, has_depth, has_tex
+    ori tri_cmd, 0xCC00
+    sh tri_cmd, %lo(GL_TRI_CMD)
+
+    #undef has_depth
+    #undef has_tex
+    #undef tri_cmd
+
+    #define mtx_dirty   t1
+    #define mtx_lhs     s0
+    #define mtx_rhs     s1
+    #define mtx_dst     s2
+
+    and mtx_dirty, state_flags, FLAG_FINAL_MTX_DIRTY
+    beqz mtx_dirty, glpipe_mtx_not_dirty
+    li mtx_lhs, %lo(GL_MATRIX_PROJECTION)
+    li mtx_rhs, %lo(GL_MATRIX_MODELVIEW)
+    jal GL_MtxMult
+    li mtx_dst, %lo(GL_MATRIX_FINAL)
+    and state_flags, ~FLAG_FINAL_MTX_DIRTY
+    sw state_flags, %lo(GL_STATE_FLAGS)
+
+    #undef mtx_dirty
+    #undef mtx_lhs
+    #undef mtx_rhs
+    #undef mtx_dst
+
+glpipe_mtx_not_dirty:
+
+    #define cull_mode       t1
+    #define front_face      t2
+    #define cull_enabled    t3
+    #define tri_cull        t4
+
+    andi cull_enabled, state_flags, FLAG_CULL_FACE
+    beqz cull_enabled, glpipe_init_write_cull
+    # Any non-negative value other than 0 or 1 signifies that no faces should be culled
+    li tri_cull, 2
+
+    lhu cull_mode, %lo(GL_STATE_CULL_MODE)
+    lhu front_face, %lo(GL_STATE_FRONT_FACE)
+
+    # Set TRI_CULL to a negative number to cull all faces
+    beq cull_mode, GL_FRONT_AND_BACK, glpipe_init_write_cull
+    li tri_cull, -1
+
+    # tri_cull = (cull_mode == GL_BACK) ^ (front_face == GL_CW)
+    xori cull_mode, GL_FRONT
+    sltu tri_cull, zero, cull_mode
+    xori front_face, GL_CCW
+    sltu front_face, zero, front_face
+    xor tri_cull, front_face
+
+glpipe_init_write_cull:
+    j RSPQ_Loop
+    sb tri_cull, %lo(GL_TRI_CULL)
+
+    #undef cull_mode
+    #undef front_face
+    #undef cull_enabled
+    #undef tri_cull
+    #undef state_flags
+    .endfunc
 
 
 /*

@@ -5,6 +5,9 @@
 #include <string.h>
 #include <malloc.h>
 
+_Static_assert(TEXTURE_BILINEAR_MASK << TEX_BILINEAR_SHIFT == SOM_SAMPLE_BILINEAR >> 32);
+_Static_assert(TEXTURE_BILINEAR_MASK << TEX_BILINEAR_OFFSET_SHIFT == 0x0010);
+
 extern gl_state_t state;
 
 void gl_init_texture_object(gl_texture_object_t *obj)
