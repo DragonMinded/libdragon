@@ -4,6 +4,7 @@ GL_STATE:
         GL_MATRIX_MODELVIEW:    .ds.b   MATRIX_SIZE
         GL_MATRIX_PROJECTION:   .ds.b   MATRIX_SIZE
         GL_MATRIX_TEXTURE:      .ds.b   MATRIX_SIZE
+        GL_MATRIX_FINAL:        .ds.b   MATRIX_SIZE
     GL_TEX_GEN:             .ds.b   TEX_GEN_SIZE * 4
     GL_VIEWPORT_SCALE:      .half   0,0,0,0
     GL_VIEWPORT_OFFSET:     .half   0,0,0,0
@@ -33,6 +34,14 @@ GL_STATE:
     GL_STATE_POINT_SIZE:    .half   0
     GL_STATE_LINE_WIDTH:    .half   0
     GL_STATE_MATRIX_MODE:   .half   0
+    GL_PRIM_FUNC:           .half   0
+    GL_PRIM_NEXT:           .half   0
+    GL_PRIM_PROGRESS:       .half   0
+    GL_PRIM_COUNTER:        .half   0
+    GL_PRIM_INDICES:        .half   0,0,0
+    GL_PRIM_SIZE:           .half   0
+    GL_TRI_CMD:             .half   0
+    GL_TRI_CULL:            .byte   0,0
     .align 3
 GL_STATE_END:
 

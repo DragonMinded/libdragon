@@ -11,12 +11,12 @@
     .data
 
     RSPQ_BeginOverlayHeader
-        RSPQ_DefineCommand GLCmd_InitMtx,       68
-        RSPQ_DefineCommand GLCmd_InitPipe,      8
+        RSPQ_DefineCommand GLCmd_InitPipe,      4
         RSPQ_DefineCommand GLCmd_SetPrimVertex, 28
         RSPQ_DefineCommand GLCmd_DrawTriangle,  8
-        RSPQ_DefineCommand GLCmd_SendIndex,     4
-        RSPQ_DefineCommand GLCmd_DrawBuffers,   4
+        RSPQ_DefineCommand RSPQCmd_Noop,        4
+        RSPQ_DefineCommand RSPQCmd_Noop,        4
+        RSPQ_DefineCommand RSPQCmd_Noop,        4
         RSPQ_DefineCommand RSPQCmd_Noop,        4
         RSPQ_DefineCommand RSPQCmd_Noop,        4
         RSPQ_DefineCommand RSPQCmd_Noop,        4
@@ -52,10 +52,6 @@ BANNER1: .ascii "Rasky & Snacchus"
 
     RSPQ_BeginSavedState
     #include "rsp_gl_state.inc"
-
-    .align 4
-FINAL_MATRIX:    .dcb.w 4*4    # integer part
-                 .dcb.w 4*4    # fractional part
 
 #define PRIM_VTX_X                 0     // Object space position (16-bit)
 #define PRIM_VTX_Y                 2     // Object space position (16-bit)
@@ -102,15 +98,6 @@ SCREEN_VERTEX_CACHE_IDS:     .half   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 SCREEN_VERTEX_CACHE_SLOTS:   .half   SLOTS4(0), SLOTS4(4), SLOTS4(8), SLOTS4(12)  
                              .half   SLOTS4(16), SLOTS4(20), SLOTS4(24), SLOTS4(28)
                              #undef SLOTS4
-
-PRIM_FUNC:      .half 0
-PRIM_NEXT:      .half 0
-PRIM_PROGRESS:  .half 0
-PRIM_COUNTER:   .half 0
-PRIM_INDICES:   .half 0,0,0
-PRIM_SIZE:      .half 0
-TRI_CMD:        .half 0
-TRI_CULL:       .byte 0
     RSPQ_EndSavedState
 
     .align 4
@@ -126,6 +113,7 @@ CLIP_PLANES:
     .half 0, 1, 0, -GUARD_BAND_FACTOR
     .half 0, 0, 1, -1
 
+#if RSP_PRIM_ASSEMBLY
 PRIM_FUNCS:
     .half GL_PrimSimple         - _start    # GL_POINTS
     .half GL_PrimSimple         - _start    # GL_LINES
@@ -137,7 +125,7 @@ PRIM_FUNCS:
     .half GL_PrimQuads          - _start    # GL_QUADS
     .half GL_PrimTriangleStrip  - _start    # GL_QUAD_STRIP
     .half GL_PrimTriangleFan    - _start    # GL_POLYGON
-
+#endif
     .bss
 
 CLIP_CACHE: .dcb.b     SCREEN_VTX_SIZE * CLIPPING_CACHE_SIZE
@@ -149,23 +137,6 @@ CLIP_LISTS:
 
     .text
 
-    .func GLCmd_InitMtx
-GLCmd_InitMtx:
-    la s0, CMD_ADDR(4, 68)
-    li s4, %lo(FINAL_MATRIX)
-    li t0, 15
-1:
-    lw t1, 0(s0)
-    sw t1, 0(s4)
-    add s0, 4
-    add s4, 4
-    bnez t0, 1b
-    addi t0, -1
-
-    jr ra
-    nop
-    .endfunc
-
     .func GLCmd_InitPipe
 GLCmd_InitPipe:
     move s0, a0
@@ -173,103 +144,21 @@ GLCmd_InitPipe:
     jal DMAIn
     li t0, DMA_SIZE(GL_STATE_SIZE, 1)
 
+#if RSP_PRIM_ASSEMBLY
+    lhu t0, %lo(GL_STATE_PRIM_TYPE)
+    sll t0, 1
+    lhu t0, %lo(PRIM_FUNCS)(t0)
+    sh t0, %lo(GL_PRIM_FUNC)
+#endif
+
     # Clear screen vertex cache
     li s0, %lo(SCREEN_VERTEX_CACHE_IDS)
     sqv vzero, 0x00,s0
     sqv vzero, 0x10,s0
     sqv vzero, 0x20,s0
+    j RSPQ_Loop
     sqv vzero, 0x30,s0
 
-    lhu t0, %lo(GL_STATE_PRIM_TYPE)
-    sh zero, %lo(PRIM_PROGRESS)
-    sh zero, %lo(PRIM_COUNTER)
-
-    sll t0, 1
-    lhu t0, %lo(PRIM_FUNCS)(t0)
-    sh t0, %lo(PRIM_FUNC)
-
-    srl t0, a1, 16
-    andi t1, a1, 0xFFFF
-    sh t0, %lo(PRIM_SIZE)
-    sh t1, %lo(PRIM_NEXT)
-
-    #define state_flags t0
-    #define has_depth   t1
-    #define has_tex     t3
-    #define tri_cmd     t4
-
-    # TODO: Optimize this by rearranging GL state flags
-    lw state_flags, %lo(GL_STATE_FLAGS)
-    and has_depth, state_flags, FLAG_DEPTH_TEST
-    and has_tex, state_flags, FLAG_TEXTURE_ACTIVE
-    sll has_depth, TRICMD_ATTR_SHIFT_Z
-    srl has_tex, TRICMD_ATTR_SHIFT_TEX
-
-    or tri_cmd, has_depth, has_tex
-    ori tri_cmd, 0xCC00
-    sh tri_cmd, %lo(TRI_CMD)
-
-    #undef has_depth
-    #undef has_tex
-    #undef tri_cmd
-
-#if RSP_PRIM_ASSEMBLY
-
-    #define mtx_dirty   t1
-    #define mtx_lhs     s0
-    #define mtx_rhs     s1
-    #define mtx_dst     s2
-
-    and mtx_dirty, state_flags, FLAG_FINAL_MTX_DIRTY
-    beqz mtx_dirty, glpipe_mtx_not_dirty
-    li mtx_lhs, %lo(GL_MATRIX_PROJECTION)
-    li mtx_rhs, %lo(GL_MATRIX_MODELVIEW)
-    jal GL_MtxMult
-    li mtx_dst, %lo(FINAL_MATRIX)
-    and state_flags, ~FLAG_FINAL_MTX_DIRTY
-    sw state_flags, %lo(GL_STATE_FLAGS)
-
-    #undef mtx_dirty
-    #undef mtx_lhs
-    #undef mtx_rhs
-    #undef mtx_dst
-
-glpipe_mtx_not_dirty:
-#endif
-
-    #define cull_mode       t1
-    #define front_face      t2
-    #define cull_enabled    t3
-    #define tri_cull        t4
-
-    andi cull_enabled, state_flags, FLAG_CULL_FACE
-    beqz cull_enabled, glpipe_init_write_cull
-    # Any non-negative value other than 0 or 1 signifies that no faces should be culled
-    li tri_cull, 2
-
-    lhu cull_mode, %lo(GL_STATE_CULL_MODE)
-    lhu front_face, %lo(GL_STATE_FRONT_FACE)
-
-    # Set TRI_CULL to a negative number to cull all faces
-    beq cull_mode, GL_FRONT_AND_BACK, glpipe_init_write_cull
-    li tri_cull, -1
-
-    # tri_cull = (cull_mode == GL_BACK) ^ (front_face == GL_CW)
-    xori cull_mode, GL_FRONT
-    sltu tri_cull, zero, cull_mode
-    xori front_face, GL_CCW
-    sltu front_face, zero, front_face
-    xor tri_cull, front_face
-
-glpipe_init_write_cull:
-    j RSPQ_Loop
-    sb tri_cull, %lo(TRI_CULL)
-
-    #undef cull_mode
-    #undef front_face
-    #undef cull_enabled
-    #undef tri_cull
-    #undef state_flags
     .endfunc
 
     ####################################################
@@ -362,6 +251,7 @@ move_loop:
     .endfunc
 
 GLCmd_Vtx:
+#if RSP_PRIM_ASSEMBLY
     #define prim_index      s1
     #define prim_func       s2
     #define index           s3
@@ -380,8 +270,8 @@ GLCmd_Vtx:
     #define prim_vtx2       s6
     #define prim_vtx3       s7
 
-    lb v0, %lo(TRI_CULL)
-    lhu prim_index, %lo(PRIM_NEXT)
+    lb v0, %lo(GL_TRI_CULL)
+    lhu prim_index, %lo(GL_PRIM_NEXT)
 
     # If TRI_CULL is negative, we're culling all faces.
     # So just quit immediately.
@@ -441,71 +331,72 @@ gl_vtx_no_normal:
     sdv vcolor,     PRIM_VTX_R     ,a0
     slv vtexcoord,  PRIM_VTX_S     ,a0  # TODO: add R and Q
     slv vnormal,    PRIM_VTX_NORMAL,a0
-    jal GL_PreCull
+    jal GL_PreTrivialReject
     sh index, PRIM_VTX_ID(a0)
 
-    lhu prim_size, %lo(PRIM_SIZE)
-    lhu prim_progress, %lo(PRIM_PROGRESS)
+    lhu prim_size, %lo(GL_PRIM_SIZE)
+    lhu prim_progress, %lo(GL_PRIM_PROGRESS)
 
     blt prim_index, PRIM_VTX_SIZE*3, gl_write_prim_next
     addi t0, prim_index, PRIM_VTX_SIZE
     move t0, zero
 gl_write_prim_next:
-    sh t0, %lo(PRIM_NEXT)
+    sh t0, %lo(GL_PRIM_NEXT)
 
     move ra, ra2
     
-    sh prim_index, %lo(PRIM_INDICES)(prim_progress)
+    sh prim_index, %lo(GL_PRIM_INDICES)(prim_progress)
     addi prim_progress, 2
     blt prim_progress, prim_size, JrRa
-    sh prim_progress, %lo(PRIM_PROGRESS)
+    sh prim_progress, %lo(GL_PRIM_PROGRESS)
 
-    lhu prim_func, %lo(PRIM_FUNC)
+    lhu prim_func, %lo(GL_PRIM_FUNC)
 
-    lhu prim_vtx1, %lo(PRIM_INDICES) + 0x0
-    lhu prim_vtx2, %lo(PRIM_INDICES) + 0x2
+    lhu prim_vtx1, %lo(GL_PRIM_INDICES) + 0x0
+    lhu prim_vtx2, %lo(GL_PRIM_INDICES) + 0x2
     jr prim_func
-    lhu prim_vtx3, %lo(PRIM_INDICES) + 0x4
+    lhu prim_vtx3, %lo(GL_PRIM_INDICES) + 0x4
 
 gl_prim_func_return:
-    sh prim_progress, %lo(PRIM_PROGRESS)
+    sh prim_progress, %lo(GL_PRIM_PROGRESS)
     # TODO: points / lines
     j GL_DrawTriangle
-    lhu a0, %lo(TRI_CMD)
+    lhu a0, %lo(GL_TRI_CMD)
 
 GL_PrimSimple:
     j gl_prim_func_return
     move prim_progress, zero
 
 GL_PrimLineStrip:
-    lhu t0, %lo(PRIM_INDICES) + 0x2
+    lhu t0, %lo(GL_PRIM_INDICES) + 0x2
     li prim_progress, 2
     j gl_prim_func_return
-    sh t0, %lo(PRIM_INDICES) + 0x0
+    sh t0, %lo(GL_PRIM_INDICES) + 0x0
 
 GL_PrimTriangleStrip:
-    lhu t0, %lo(PRIM_INDICES) + 0x4
-    lhu t1, %lo(PRIM_COUNTER)
+    lhu t0, %lo(GL_PRIM_INDICES) + 0x4
+    lhu t1, %lo(GL_PRIM_COUNTER)
     li prim_progress, 4
     xori t2, t1, 2
-    sh t0, %lo(PRIM_INDICES)(t1)
+    sh t0, %lo(GL_PRIM_INDICES)(t1)
     j gl_prim_func_return
-    sh t2, %lo(PRIM_COUNTER)
+    sh t2, %lo(GL_PRIM_COUNTER)
 
 GL_PrimTriangleFan:
-    lhu t0, %lo(PRIM_INDICES) + 0x4
+    lhu t0, %lo(GL_PRIM_INDICES) + 0x4
     li prim_progress, 4
     j gl_prim_func_return
-    sh t0, %lo(PRIM_INDICES) + 0x2
+    sh t0, %lo(GL_PRIM_INDICES) + 0x2
 
 GL_PrimQuads:
-    lhu t0, %lo(PRIM_INDICES) + 0x4
-    lhu t1, %lo(PRIM_COUNTER)
-    sh t0, %lo(PRIM_INDICES) + 0x2
+    lhu t0, %lo(GL_PRIM_INDICES) + 0x4
+    lhu t1, %lo(GL_PRIM_COUNTER)
+    sh t0, %lo(GL_PRIM_INDICES) + 0x2
     xori t1, 2
     sll prim_progress, t1, 1
     j gl_prim_func_return
-    sh t1, %lo(PRIM_COUNTER)
+    sh t1, %lo(GL_PRIM_COUNTER)
+#endif
 
     ########################################
     # GLCmd_SetPrimVertex
@@ -528,6 +419,7 @@ GLCmd_SetPrimVertex:
     #define in_rg      a3
     #define vtx_id     v1
 
+#if !RSP_PRIM_ASSEMBLY
     srl vtx_id, prim_vtx, 8
     andi prim_vtx, 0xFF
     addi prim_vtx, %lo(PRIM_VERTEX_CACHE)
@@ -543,8 +435,9 @@ GLCmd_SetPrimVertex:
     sw t1,       PRIM_VTX_S     (prim_vtx)
     sw t2,       PRIM_VTX_NORMAL(prim_vtx)
     sh vtx_id,   PRIM_VTX_ID    (prim_vtx)
+#endif
 
-GL_PreCull:
+GL_PreTrivialReject:
     #define v___      $v01
 
     #define vmtx0_i   $v16       //  m00 m01 m02 m03
@@ -567,7 +460,7 @@ GL_PreCull:
     #define z  e2
     #define w  e3
 
-    li s0, %lo(FINAL_MATRIX)
+    li s0, %lo(GL_MATRIX_FINAL)
     ldv vmtx0_i.e0,  0x00,s0
     ldv vmtx1_i.e0,  0x08,s0
     ldv vmtx2_i.e0,  0x10,s0
@@ -831,11 +724,13 @@ GLCmd_DrawTriangle:
     #define prim_vtx3   s7
     #define ra3         s8
 
+#if !RSP_PRIM_ASSEMBLY
     andi prim_vtx3, prim_verts, 0xFF
     srl  prim_vtx2, prim_verts, 8
     and  prim_vtx2, 0xFF
     srl  prim_vtx1, prim_verts, 16
     and  prim_vtx1, 0xFF
+#endif
 
 GL_DrawTriangle:
     addi prim_vtx3, %lo(PRIM_VERTEX_CACHE)
@@ -890,7 +785,7 @@ gl_draw_clipped_triangles_loop:
     move a1, s5
 
 gl_draw_single_triangle:
-    lb v0, %lo(TRI_CULL)
+    lb v0, %lo(GL_TRI_CULL)
     jal RDPQ_Triangle
     li s3, %lo(RDPQ_CMD_STAGING)
 
@@ -1215,7 +1110,6 @@ gl_clip_finalize_loop:
     # Done!
     jr ra2
     add s2, out_list, out_count
-    .endfunc
 
     #undef clip_flags
     #undef plane_flag
@@ -1249,25 +1143,7 @@ gl_clip_finalize_loop:
     #undef vattr0
     #undef vattr1
     #undef v__
-
-
-GL_DrawLine:
-    # TODO
-    jr ra
-    nop
-
-GL_DrawPoint:
-    # TODO
-    jr ra
-    nop
-
-GLCmd_SendIndex:
-    jr ra
-    nop
-
-GLCmd_DrawBuffers:
-    jr ra
-    nop
+    .endfunc
 
 #include "rsp_gl_common.inc"
 #include <rsp_rdpq.inc>

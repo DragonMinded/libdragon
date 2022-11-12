@@ -79,28 +79,15 @@ void gl_primitive_close()
 {
 }
 
-void glpipe_init(gl_matrix_t *mtx, gl_viewport_t *view)
+void gl_pre_init_pipe()
 {
-#if !RSP_PRIM_ASSEMBLY
-    uint16_t fmtx[32];
-    for (int j=0;j<4;j++) {
-        for (int i=0;i<4;i++) {
-            uint32_t v = (int32_t)(mtx->m[j][i] * 65536.0f);
-            fmtx[j*4+i + 0]  = v >> 16;
-            fmtx[j*4+i + 16] = v & 0xFFFF;
-        }
-    }
-
-    rspq_write_t w = rspq_write_begin(glp_overlay_id, GLP_CMD_INIT_MTX, 17);
-    rspq_write_arg(&w, 0);
-    for (int i=0;i<32;i+=2)
-        rspq_write_arg(&w, (fmtx[i] << 16) | fmtx[i+1]);
-    rspq_write_end(&w);
-#endif
-
     uint32_t args = ((uint32_t)state.prim_size << 17) | ((uint32_t)state.prim_next * PRIM_VTX_SIZE);
+    gl_write(GL_CMD_PRE_INIT_PIPE, args);
+}
 
-    glp_write(GLP_CMD_INIT_PIPE, gl_rsp_state, args);
+void glpipe_init()
+{
+    glp_write(GLP_CMD_INIT_PIPE, gl_rsp_state);
 }
 
 bool gl_begin(GLenum mode)
@@ -198,7 +185,8 @@ bool gl_begin(GLenum mode)
     __rdpq_autosync_change(AUTOSYNC_TILES);
     gl_update(GL_UPDATE_TEXTURE_UPLOAD);
 
-    glpipe_init(&state.final_matrix, &state.current_viewport);
+    gl_pre_init_pipe();
+    glpipe_init();
 
     return true;
 }
