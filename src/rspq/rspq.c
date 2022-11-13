@@ -369,7 +369,7 @@ static void rspq_get_current_ovl(rsp_queue_t *rspq, int *ovl_idx, const char **o
 /** @brief RSPQ crash handler. This shows RSPQ-specific info the in RSP crash screen. */
 static void rspq_crash_handler(rsp_snapshot_t *state)
 {
-    rsp_queue_t *rspq = (rsp_queue_t*)state->dmem;
+    rsp_queue_t *rspq = (rsp_queue_t*)(state->dmem + RSPQ_DATA_ADDRESS);
     uint32_t cur = rspq->rspq_dram_addr + state->gpr[28];
     uint32_t dmem_buffer = RSPQ_DEBUG ? 0x1A0 : 0x100;
 
@@ -419,7 +419,7 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
 /** @brief Special RSP assert handler for ASSERT_INVALID_COMMAND */
 static void rspq_assert_invalid_command(rsp_snapshot_t *state)
 {
-    rsp_queue_t *rspq = (rsp_queue_t*)state->dmem;
+    rsp_queue_t *rspq = (rsp_queue_t*)(state->dmem + RSPQ_DATA_ADDRESS);
     int ovl_idx; const char *ovl_name;
     rspq_get_current_ovl(rspq, &ovl_idx, &ovl_name);
 
@@ -445,7 +445,7 @@ static void rspq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
             rspq_assert_invalid_command(state);
             break;
         default: {
-            rsp_queue_t *rspq = (rsp_queue_t*)state->dmem;
+            rsp_queue_t *rspq = (rsp_queue_t*)(state->dmem + RSPQ_DATA_ADDRESS);
 
             // Check if there is an assert handler for the current overlay.
             // If it exists, forward request to it.
@@ -698,7 +698,8 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode)
         // state for. If so, read back the latest updated state from DMEM
         // manually via DMA, so that the caller finds the latest contents.
         int ovl_idx; const char *ovl_name;
-        rspq_get_current_ovl((rsp_queue_t*)SP_DMEM, &ovl_idx, &ovl_name);
+        rsp_queue_t *rspq = (rsp_queue_t*)((uint8_t*)SP_DMEM + RSPQ_DATA_ADDRESS);
+        rspq_get_current_ovl(rspq, &ovl_idx, &ovl_name);
 
         if (ovl_idx && rspq_overlay_ucodes[ovl_idx] == overlay_ucode) {
             rsp_read_data(state_ptr, state_size, state_ptr - overlay_ucode->data);
