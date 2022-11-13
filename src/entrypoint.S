@@ -47,41 +47,38 @@ set_sp:
 	mtc0 v0,C0_SR
 	mtc0 $0,C0_CAUSE
 
-	/* copy code and data */
+	/* copy code and data via DMA */
 	la a0, __text_start
 	la a1, __data_end
 	la t0, __libdragon_text_start
 	subu a2, a0, t0				/* skip over .boot section */
-	addu a2, 0xB0001000			/* address in rom */
-data_init:
-	lw t0,(a2)
-	addiu a2,4
-	sw t0,(a0)
-	addiu a0,4
-	bltu a0,a1, data_init
-	nop
+	addu a2, 0x10001000			/* address in rom */
 
-	/* make sure code and data are actually written */
-	la a0,__text_start
-	la a1,__data_end
-	sub a1,a0
-	jal data_cache_hit_writeback_invalidate
-	nop
+	/* Start PI DMA transfer */
+	lui t0, 0xA460
+	sw a0, 0x00(t0)
+	sw a2, 0x04(t0)
+	sub t1, a1, a0
+	addi t1, -1
+	sw t1, 0x0C(t0)
 
 	/* fill .bss with 0s */
 	la a0, __bss_start
+	or a0, 0x20000000
 	la a1, __bss_end
+	or a1, 0x20000000
 bss_init:
 	sd $0,(a0)
 	addiu a0,8
 	bltu a0,a1, bss_init
 	nop
 
-	/* make sure .bss is actually written */
-	la a0,__bss_start
-	la a1,__bss_end
-	sub a1,a0
-	jal data_cache_hit_writeback_invalidate
+	/* Wait for DMA transfer to be finished */
+	lui t0, 0xA460
+wait_dma_end:
+	lw t1, 0x10(t0)
+	andi t1, 3
+	bnez t1, wait_dma_end
 	nop
 
 	/* Store the bbplayer flag now that BSS has been cleared */
