@@ -67,6 +67,7 @@ $(function() {
 </div><!-- top -->
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#typedef-members">Typedefs</a> &#124;
 <a href="#enum-members">Enumerations</a> &#124;
 <a href="#func-members">Functions</a>  </div>
@@ -76,10 +77,17 @@ $(function() {
 
 <p>Display Subsystem.  
 <a href="#details">More...</a></p>
-<div class="textblock"><code>#include &lt;stdint.h&gt;</code><br />
+<div class="textblock"><code>#include &lt;stdbool.h&gt;</code><br />
+<code>#include &lt;stdint.h&gt;</code><br />
 </div>
 <p><a href="display_8h_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:structresolution__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#structresolution__t">resolution_t</a></td></tr>
+<tr class="memdesc:structresolution__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Video resolution structure.  <a href="group__display.html#structresolution__t">More...</a><br /></td></tr>
+<tr class="separator:structresolution__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="typedef-members" name="typedef-members"></a>
 Typedefs</h2></td></tr>
 <tr class="memitem:gadb422deee7b387b8c1c8025c8ac36628"><td class="memItemLeft" align="right" valign="top">typedef <a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gadb422deee7b387b8c1c8025c8ac36628">display_context_t</a></td></tr>
@@ -88,18 +96,6 @@ Typedefs</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
 Enumerations</h2></td></tr>
-<tr class="memitem:ga4ed5a6719f184e3d37b7a4dc4732b355"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga4ed5a6719f184e3d37b7a4dc4732b355">resolution_t</a> { <br />
-&#160;&#160;<a class="el" href="group__display.html#gga4ed5a6719f184e3d37b7a4dc4732b355a82ff415e1d83f8136d1c2b60c2e138ae">RESOLUTION_320x240</a>
-, <a class="el" href="group__display.html#gga4ed5a6719f184e3d37b7a4dc4732b355acb47aad3d2ca5bb48758e9a1e164773d">RESOLUTION_640x480</a>
-, <a class="el" href="group__display.html#gga4ed5a6719f184e3d37b7a4dc4732b355a6c5d883e3b9172720cdb36e9a5f88703">RESOLUTION_256x240</a>
-, <a class="el" href="group__display.html#gga4ed5a6719f184e3d37b7a4dc4732b355a997582f5661a80005ef5c1f315c23de8">RESOLUTION_512x480</a>
-, <br />
-&#160;&#160;<a class="el" href="group__display.html#gga4ed5a6719f184e3d37b7a4dc4732b355a4d4ccd6335c5a9384083f6446c856780">RESOLUTION_512x240</a>
-, <a class="el" href="group__display.html#gga4ed5a6719f184e3d37b7a4dc4732b355a4baef82bc115b3f32074542299482689">RESOLUTION_640x240</a>
-<br />
- }</td></tr>
-<tr class="memdesc:ga4ed5a6719f184e3d37b7a4dc4732b355"><td class="mdescLeft">&#160;</td><td class="mdescRight">Valid video resolutions.  <a href="group__display.html#ga4ed5a6719f184e3d37b7a4dc4732b355">More...</a><br /></td></tr>
-<tr class="separator:ga4ed5a6719f184e3d37b7a4dc4732b355"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gae2079fcb0e8b0f846f002f25d0c73ffb"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gae2079fcb0e8b0f846f002f25d0c73ffb">bitdepth_t</a> { <a class="el" href="group__display.html#ggae2079fcb0e8b0f846f002f25d0c73ffbabf331dc6d78bf9d2fb2b893a365f01d5">DEPTH_16_BPP</a>
 , <a class="el" href="group__display.html#ggae2079fcb0e8b0f846f002f25d0c73ffba4a6b7a72647d1f86f2215daf4d177e29">DEPTH_32_BPP</a>
  }</td></tr>
@@ -121,7 +117,7 @@ Enumerations</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:gac3446a497399d2c8d90e6a51a53b45c8"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gac3446a497399d2c8d90e6a51a53b45c8">display_init</a> (<a class="el" href="group__display.html#ga4ed5a6719f184e3d37b7a4dc4732b355">resolution_t</a> res, <a class="el" href="group__display.html#gae2079fcb0e8b0f846f002f25d0c73ffb">bitdepth_t</a> bit, uint32_t num_buffers, <a class="el" href="group__display.html#ga35f19c13bdc2076bd91416021036e439">gamma_t</a> gamma, <a class="el" href="group__display.html#gab854c9b99a752c70a3f2dc97b79d7d7b">antialias_t</a> aa)</td></tr>
+<tr class="memitem:gac3446a497399d2c8d90e6a51a53b45c8"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gac3446a497399d2c8d90e6a51a53b45c8">display_init</a> (<a class="el" href="group__display.html#structresolution__t">resolution_t</a> res, <a class="el" href="group__display.html#gae2079fcb0e8b0f846f002f25d0c73ffb">bitdepth_t</a> bit, uint32_t num_buffers, <a class="el" href="group__display.html#ga35f19c13bdc2076bd91416021036e439">gamma_t</a> gamma, <a class="el" href="group__display.html#gab854c9b99a752c70a3f2dc97b79d7d7b">antialias_t</a> aa)</td></tr>
 <tr class="memdesc:gac3446a497399d2c8d90e6a51a53b45c8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize the display to a particular resolution and bit depth.  <a href="group__display.html#gac3446a497399d2c8d90e6a51a53b45c8">More...</a><br /></td></tr>
 <tr class="separator:gac3446a497399d2c8d90e6a51a53b45c8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga21c0b315e346cb1d1e4566688aa03e36"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga21c0b315e346cb1d1e4566688aa03e36">display_close</a> ()</td></tr>
@@ -155,7 +151,7 @@ uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>display_get_num_b
 </div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Nov 9 2022 17:17:00 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Sun Nov 13 2022 14:41:01 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

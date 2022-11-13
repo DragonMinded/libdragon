@@ -65,6 +65,7 @@ $(function() {
   <div class="summary">
 <a href="#groups">Modules</a> &#124;
 <a href="#files">Files</a> &#124;
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#typedef-members">Typedefs</a> &#124;
 <a href="#enum-members">Enumerations</a> &#124;
 <a href="#func-members">Functions</a>  </div>
@@ -96,6 +97,12 @@ Files</h2></td></tr>
 <tr class="memdesc:display_8h"><td class="mdescLeft">&#160;</td><td class="mdescRight">Display Subsystem. <br /></td></tr>
 <tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:structresolution__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#structresolution__t">resolution_t</a></td></tr>
+<tr class="memdesc:structresolution__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Video resolution structure.  <a href="group__display.html#structresolution__t">More...</a><br /></td></tr>
+<tr class="separator:structresolution__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="typedef-members" name="typedef-members"></a>
 Typedefs</h2></td></tr>
 <tr class="memitem:gadb422deee7b387b8c1c8025c8ac36628"><td class="memItemLeft" align="right" valign="top">typedef <a class="el" href="surface_8h.html#structsurface__t">surface_t</a> *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gadb422deee7b387b8c1c8025c8ac36628">display_context_t</a></td></tr>
@@ -104,18 +111,6 @@ Typedefs</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="enum-members" name="enum-members"></a>
 Enumerations</h2></td></tr>
-<tr class="memitem:ga4ed5a6719f184e3d37b7a4dc4732b355"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga4ed5a6719f184e3d37b7a4dc4732b355">resolution_t</a> { <br />
-&#160;&#160;<a class="el" href="group__display.html#gga4ed5a6719f184e3d37b7a4dc4732b355a82ff415e1d83f8136d1c2b60c2e138ae">RESOLUTION_320x240</a>
-, <a class="el" href="group__display.html#gga4ed5a6719f184e3d37b7a4dc4732b355acb47aad3d2ca5bb48758e9a1e164773d">RESOLUTION_640x480</a>
-, <a class="el" href="group__display.html#gga4ed5a6719f184e3d37b7a4dc4732b355a6c5d883e3b9172720cdb36e9a5f88703">RESOLUTION_256x240</a>
-, <a class="el" href="group__display.html#gga4ed5a6719f184e3d37b7a4dc4732b355a997582f5661a80005ef5c1f315c23de8">RESOLUTION_512x480</a>
-, <br />
-&#160;&#160;<a class="el" href="group__display.html#gga4ed5a6719f184e3d37b7a4dc4732b355a4d4ccd6335c5a9384083f6446c856780">RESOLUTION_512x240</a>
-, <a class="el" href="group__display.html#gga4ed5a6719f184e3d37b7a4dc4732b355a4baef82bc115b3f32074542299482689">RESOLUTION_640x240</a>
-<br />
- }</td></tr>
-<tr class="memdesc:ga4ed5a6719f184e3d37b7a4dc4732b355"><td class="mdescLeft">&#160;</td><td class="mdescRight">Valid video resolutions.  <a href="group__display.html#ga4ed5a6719f184e3d37b7a4dc4732b355">More...</a><br /></td></tr>
-<tr class="separator:ga4ed5a6719f184e3d37b7a4dc4732b355"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gae2079fcb0e8b0f846f002f25d0c73ffb"><td class="memItemLeft" align="right" valign="top">enum &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gae2079fcb0e8b0f846f002f25d0c73ffb">bitdepth_t</a> { <a class="el" href="group__display.html#ggae2079fcb0e8b0f846f002f25d0c73ffbabf331dc6d78bf9d2fb2b893a365f01d5">DEPTH_16_BPP</a>
 , <a class="el" href="group__display.html#ggae2079fcb0e8b0f846f002f25d0c73ffba4a6b7a72647d1f86f2215daf4d177e29">DEPTH_32_BPP</a>
  }</td></tr>
@@ -137,7 +132,7 @@ Enumerations</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:gac3446a497399d2c8d90e6a51a53b45c8"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gac3446a497399d2c8d90e6a51a53b45c8">display_init</a> (<a class="el" href="group__display.html#ga4ed5a6719f184e3d37b7a4dc4732b355">resolution_t</a> res, <a class="el" href="group__display.html#gae2079fcb0e8b0f846f002f25d0c73ffb">bitdepth_t</a> bit, uint32_t num_buffers, <a class="el" href="group__display.html#ga35f19c13bdc2076bd91416021036e439">gamma_t</a> gamma, <a class="el" href="group__display.html#gab854c9b99a752c70a3f2dc97b79d7d7b">antialias_t</a> aa)</td></tr>
+<tr class="memitem:gac3446a497399d2c8d90e6a51a53b45c8"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#gac3446a497399d2c8d90e6a51a53b45c8">display_init</a> (<a class="el" href="group__display.html#structresolution__t">resolution_t</a> res, <a class="el" href="group__display.html#gae2079fcb0e8b0f846f002f25d0c73ffb">bitdepth_t</a> bit, uint32_t num_buffers, <a class="el" href="group__display.html#ga35f19c13bdc2076bd91416021036e439">gamma_t</a> gamma, <a class="el" href="group__display.html#gab854c9b99a752c70a3f2dc97b79d7d7b">antialias_t</a> aa)</td></tr>
 <tr class="memdesc:gac3446a497399d2c8d90e6a51a53b45c8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize the display to a particular resolution and bit depth.  <a href="group__display.html#gac3446a497399d2c8d90e6a51a53b45c8">More...</a><br /></td></tr>
 <tr class="separator:gac3446a497399d2c8d90e6a51a53b45c8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga21c0b315e346cb1d1e4566688aa03e36"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__display.html#ga21c0b315e346cb1d1e4566688aa03e36">display_close</a> ()</td></tr>
@@ -170,6 +165,44 @@ uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>display_get_num_b
 <p >Video interface system for configuring video output modes and displaying rendered graphics. </p>
 <p >The display subsystem handles interfacing with the video interface (VI) and the hardware rasterizer (RDP) to allow software and hardware graphics operations. It consists of the <a class="el" href="group__display.html">Display Subsystem</a>, the <a class="el" href="group__graphics.html">2D Graphics</a> and the <a class="el" href="group__rdp.html">Hardware Display Interface</a> modules. A separate module, the <a class="el" href="group__console.html">Console Support</a>, provides a rudimentary console for developers. Only the display subsystem or the console can be used at the same time. However, commands to draw console text to the display subsystem are available.</p>
 <p >The display subsystem module is responsible for initializing the proper video mode for displaying 2D, 3D and software graphics. To set up video on the N64, code should call <a class="el" href="group__display.html#gac3446a497399d2c8d90e6a51a53b45c8" title="Initialize the display to a particular resolution and bit depth.">display_init</a> with the appropriate options. Once the display has been set, a surface can be requested from the display subsystem using <a class="el" href="group__display.html#gae81c7c27f68f52224fec1f0fc15bc651" title="Lock a display buffer for rendering.">display_lock</a>. To draw to the acquired surface, code should use functions present in the <a class="el" href="group__graphics.html">2D Graphics</a> and the <a class="el" href="group__rdp.html">Hardware Display Interface</a> modules. Once drawing to a surface is complete, the rendered graphic can be displayed to the screen using <a class="el" href="group__display.html#ga4f4a773501687663d0bf76f5cced752f" title="Display a previously locked buffer.">display_show</a>. Once code has finished rendering all graphics, <a class="el" href="group__display.html#ga21c0b315e346cb1d1e4566688aa03e36" title="Close the display.">display_close</a> can be used to shut down the display subsystem. </p>
+<hr/><h2 class="groupheader">Data Structure Documentation</h2>
+<a name="structresolution__t" id="structresolution__t"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#structresolution__t">&#9670;&nbsp;</a></span>resolution_t</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">struct resolution_t</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<div class="textblock"><p >Video resolution structure. </p>
+<p >You can either use one of the pre-defined constants or define a custom resolution. </p>
+</div><table class="fieldtable">
+<tr><th colspan="3">Data Fields</th></tr>
+<tr><td class="fieldtype">
+<a id="a19f266d9fac3a424655d72ef8311da01" name="a19f266d9fac3a424655d72ef8311da01"></a>int32_t</td>
+<td class="fieldname">
+width</td>
+<td class="fielddoc">
+Screen width (must be between 1 and 800) </td></tr>
+<tr><td class="fieldtype">
+<a id="a9608bea4ba5520843bea748595fce009" name="a9608bea4ba5520843bea748595fce009"></a>int32_t</td>
+<td class="fieldname">
+height</td>
+<td class="fielddoc">
+Screen height (must be between 1 and 600) </td></tr>
+<tr><td class="fieldtype">
+<a id="a1d2e73cf02a21243b31cc6214b9739aa" name="a1d2e73cf02a21243b31cc6214b9739aa"></a>bool</td>
+<td class="fieldname">
+interlaced</td>
+<td class="fielddoc">
+True if interlaced mode enabled. </td></tr>
+</table>
+
+</div>
+</div>
 <h2 class="groupheader">Typedef Documentation</h2>
 <a id="gadb422deee7b387b8c1c8025c8ac36628" name="gadb422deee7b387b8c1c8025c8ac36628"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#gadb422deee7b387b8c1c8025c8ac36628">&#9670;&nbsp;</a></span>display_context_t</h2>
@@ -189,36 +222,6 @@ uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>display_get_num_b
 </div>
 </div>
 <h2 class="groupheader">Enumeration Type Documentation</h2>
-<a id="ga4ed5a6719f184e3d37b7a4dc4732b355" name="ga4ed5a6719f184e3d37b7a4dc4732b355"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga4ed5a6719f184e3d37b7a4dc4732b355">&#9670;&nbsp;</a></span>resolution_t</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">enum <a class="el" href="group__display.html#ga4ed5a6719f184e3d37b7a4dc4732b355">resolution_t</a></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Valid video resolutions. </p>
-<table class="fieldtable">
-<tr><th colspan="2">Enumerator</th></tr><tr><td class="fieldname"><a id="gga4ed5a6719f184e3d37b7a4dc4732b355a82ff415e1d83f8136d1c2b60c2e138ae" name="gga4ed5a6719f184e3d37b7a4dc4732b355a82ff415e1d83f8136d1c2b60c2e138ae"></a>RESOLUTION_320x240&#160;</td><td class="fielddoc"><p >320x240 mode </p>
-</td></tr>
-<tr><td class="fieldname"><a id="gga4ed5a6719f184e3d37b7a4dc4732b355acb47aad3d2ca5bb48758e9a1e164773d" name="gga4ed5a6719f184e3d37b7a4dc4732b355acb47aad3d2ca5bb48758e9a1e164773d"></a>RESOLUTION_640x480&#160;</td><td class="fielddoc"><p >640x480 mode </p>
-</td></tr>
-<tr><td class="fieldname"><a id="gga4ed5a6719f184e3d37b7a4dc4732b355a6c5d883e3b9172720cdb36e9a5f88703" name="gga4ed5a6719f184e3d37b7a4dc4732b355a6c5d883e3b9172720cdb36e9a5f88703"></a>RESOLUTION_256x240&#160;</td><td class="fielddoc"><p >256x240 mode </p>
-</td></tr>
-<tr><td class="fieldname"><a id="gga4ed5a6719f184e3d37b7a4dc4732b355a997582f5661a80005ef5c1f315c23de8" name="gga4ed5a6719f184e3d37b7a4dc4732b355a997582f5661a80005ef5c1f315c23de8"></a>RESOLUTION_512x480&#160;</td><td class="fielddoc"><p >512x480 mode </p>
-</td></tr>
-<tr><td class="fieldname"><a id="gga4ed5a6719f184e3d37b7a4dc4732b355a4d4ccd6335c5a9384083f6446c856780" name="gga4ed5a6719f184e3d37b7a4dc4732b355a4d4ccd6335c5a9384083f6446c856780"></a>RESOLUTION_512x240&#160;</td><td class="fielddoc"><p >512x240 mode, high-res progressive </p>
-</td></tr>
-<tr><td class="fieldname"><a id="gga4ed5a6719f184e3d37b7a4dc4732b355a4baef82bc115b3f32074542299482689" name="gga4ed5a6719f184e3d37b7a4dc4732b355a4baef82bc115b3f32074542299482689"></a>RESOLUTION_640x240&#160;</td><td class="fielddoc"><p >640x240 mode, high-res progressive </p>
-</td></tr>
-</table>
-
-</div>
-</div>
 <a id="gae2079fcb0e8b0f846f002f25d0c73ffb" name="gae2079fcb0e8b0f846f002f25d0c73ffb"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#gae2079fcb0e8b0f846f002f25d0c73ffb">&#9670;&nbsp;</a></span>bitdepth_t</h2>
 
@@ -301,7 +304,7 @@ uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>display_get_num_b
         <tr>
           <td class="memname">void display_init </td>
           <td>(</td>
-          <td class="paramtype"><a class="el" href="group__display.html#ga4ed5a6719f184e3d37b7a4dc4732b355">resolution_t</a>&#160;</td>
+          <td class="paramtype"><a class="el" href="group__display.html#structresolution__t">resolution_t</a>&#160;</td>
           <td class="paramname"><em>res</em>, </td>
         </tr>
         <tr>
@@ -426,7 +429,7 @@ uint32_t&#160;</td><td class="memItemRight" valign="bottom"><b>display_get_num_b
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Nov 9 2022 17:17:00 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Sun Nov 13 2022 14:41:02 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
