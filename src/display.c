@@ -149,12 +149,12 @@ static void __wait_for_vblank()
     while( reg_base[4] != 2 ) {  }
 }
 
-/** @brief Return true if VI is active (16 or 32-bit color set) */
+/** @brief Return true if VI is active (H_VIDEO != 0) */
 static inline bool __is_vi_active()
 {
     volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
 
-    return (reg_base[0] & 0x03) >= 2;
+    return (reg_base[9] != 0);
 }
 
 /**
@@ -323,9 +323,10 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     drawing_mask = 0;
     ready_mask = 0;
 
+    /* Show our screen normally. If display is already active, do that during vblank
+       to avoid confusing the VI chip with in-frame modifications. */
     if ( __is_vi_active() ) { __wait_for_vblank(); }
 
-    /* Show our screen normally */
     registers[1] = (uintptr_t) __safe_buffer[0];
     __write_registers( registers );
 
@@ -351,6 +352,7 @@ void display_close()
     __width = 0;
     __height = 0;
 
+    // If display is active, wait for vblank before touching the registers
     if( __is_vi_active() ) { __wait_for_vblank(); }
 
     volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
