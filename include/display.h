@@ -6,6 +6,7 @@
 #ifndef __LIBDRAGON_DISPLAY_H
 #define __LIBDRAGON_DISPLAY_H
 
+#include <stdbool.h>
 #include <stdint.h>
 #include "surface.h"
 
@@ -46,23 +47,36 @@ typedef struct surface_s surface_t;
  */
 
 /**
- * @brief Valid video resolutions
+ * @brief Video resolution structure
+ *
+ * You can either use one of the pre-defined constants
+ * (such as #RESOLUTION_320x240) or define a custom resolution.
  */
-typedef enum
-{
-    /** @brief 320x240 mode */
-    RESOLUTION_320x240,
-    /** @brief 640x480 mode */
-    RESOLUTION_640x480,
-    /** @brief 256x240 mode */
-    RESOLUTION_256x240,
-    /** @brief 512x480 mode */
-    RESOLUTION_512x480,
-    /** @brief 512x240 mode, high-res progressive */
-    RESOLUTION_512x240,
-    /** @brief 640x240 mode, high-res progressive */
-    RESOLUTION_640x240,
+typedef struct {
+    /** @brief Screen width (must be between 1 and 800) */
+    int32_t width;
+    /** @brief Screen height (must be between 1 and 600) */
+    int32_t height;
+    /** @brief True if interlaced mode enabled */
+    bool interlaced;
 } resolution_t;
+
+///@cond
+#define const static const /* fool doxygen to document these static members */
+///@endcond
+/** @brief 256x240 mode */
+const resolution_t RESOLUTION_256x240 = {256, 240, false};
+/** @brief 320x240 mode */
+const resolution_t RESOLUTION_320x240 = {320, 240, false};
+/** @brief 512x240 mode, high-res progressive */
+const resolution_t RESOLUTION_512x240 = {512, 240, false};
+/** @brief 640x240 mode, high-res progressive */
+const resolution_t RESOLUTION_640x240 = {640, 240, false};
+/** @brief 512x480 mode, interlaced */
+const resolution_t RESOLUTION_512x480 = {512, 480, true};
+/** @brief 640x480 mode, interlaced */
+const resolution_t RESOLUTION_640x480 = {640, 480, true};
+#undef const
 
 /** @brief Valid bit depths */
 typedef enum
@@ -116,11 +130,14 @@ extern "C" {
  * software or hardware.
  *
  * @param[in] res
- *            The requested resolution
+ *            The requested resolution. Use eiter one of the pre-defined
+ *            resolution (such as #RESOLUTION_320x240) or define a custom one.
  * @param[in] bit
- *            The requested bit depth
+ *            The requested bit depth (#DEPTH_16_BPP or #DEPTH_32_BPP)
  * @param[in] num_buffers
- *            Number of buffers, usually 2 or 3, but can be more.
+ *            Number of buffers, usually 2 or 3, but can be more. Triple buffering
+ *            is recommended in case the application cannot hold a steady full framerate,
+ *            so that slowdowns don't impact too much.
  * @param[in] gamma
  *            The requested gamma setting
  * @param[in] aa
