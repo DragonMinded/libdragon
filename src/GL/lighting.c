@@ -182,8 +182,8 @@ void gl_perform_lighting(GLfloat *color, const GLfloat *input, const GLfloat *v,
 
         // Light ambient color
         GLfloat col[3] = {
-            ambient[1] * light->ambient[1],
             ambient[0] * light->ambient[0],
+            ambient[1] * light->ambient[1],
             ambient[2] * light->ambient[2],
         };
 

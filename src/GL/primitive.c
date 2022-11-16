@@ -1386,12 +1386,12 @@ void glNormal3f(GLfloat nx, GLfloat ny, GLfloat nz)
     state.current_attribs[ATTRIB_NORMAL][1] = ny;
     state.current_attribs[ATTRIB_NORMAL][2] = nz;
 
-    int16_t fixed_nx = nx * 0x7FFF;
-    int16_t fixed_ny = ny * 0x7FFF;
-    int16_t fixed_nz = nz * 0x7FFF;
+    int8_t fixed_nx = nx * 0x7F;
+    int8_t fixed_ny = ny * 0x7F;
+    int8_t fixed_nz = nz * 0x7F;
 
-    uint64_t packed = ((uint64_t)fixed_nx << 48) | ((uint64_t)fixed_ny << 32) | ((uint64_t)fixed_nz << 16);
-    gl_set_long(GL_UPDATE_NONE, offsetof(gl_server_state_t, normal), packed);
+    uint32_t packed = ((uint32_t)fixed_nx << 24) | ((uint32_t)fixed_ny << 16) | ((uint32_t)fixed_nz << 8);
+    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, normal), packed);
 }
 
 void glNormal3b(GLbyte nx, GLbyte ny, GLbyte nz)        { glNormal3f(I8_TO_FLOAT(nx), I8_TO_FLOAT(ny), I8_TO_FLOAT(nz)); }
