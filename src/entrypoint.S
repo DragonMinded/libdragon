@@ -6,6 +6,11 @@
 
 	.set noreorder
 
+.section .bss
+.align 4
+ehframe_object:
+.skip 24
+
 	.section .boot
 	.global _start
 _start:
@@ -106,7 +111,12 @@ loadintvectorloop:
 	la t0, debug_assert_func    /* install assert function in system.c */
 	la t1, __assert_func_ptr
 	sw t0, 0(t1)	
-
+	
+	la a0, __EH_FRAME_BEGIN__
+	la a1, ehframe_object
+	jal __register_frame_info /* Register eh_frame section */
+	nop
+	
 	jal __do_global_ctors		/* call global constructors */
 	nop
 	li a0, 0
