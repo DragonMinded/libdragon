@@ -132,4 +132,11 @@ intvector:
 	jr k1
 	nop
 
+/* Dummy weak definition of __register_frame_info to fix examples not linking in libgcc */ 
+.section .text.__register_frame_info
+.weak __register_frame_info
+__register_frame_info:
+jr ra
+nop
+
 	.section .code
