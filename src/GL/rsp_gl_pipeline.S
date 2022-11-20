@@ -380,6 +380,22 @@ GL_PrimQuads:
     sll prim_progress, t1, 1
     j gl_prim_func_return
     sh t1, %lo(GL_PRIM_COUNTER)
+
+    #undef prim_index
+    #undef prim_func
+    #undef index
+    #undef cmd_ptr
+    #undef cur_attr
+    #undef vtx_cmd
+    #undef prim_size
+    #undef prim_progress
+    #undef vposition
+    #undef vcolor
+    #undef vtexcoord
+    #undef vnormal
+    #undef prim_vtx1
+    #undef prim_vtx2
+    #undef prim_vtx3
 #endif
 
     ########################################
@@ -645,6 +661,8 @@ GL_CalcClipCodes:
 GL_TnL:
     #define prim_vtx     s3
     #define screen_vtx   s4
+    #define state_flags  t1
+    #define s            e0
     move ra2, ra
 
     # Read the ID of the vertex and lookup into the cache.
@@ -657,44 +675,131 @@ GL_TnL:
     # Compute the address in cache where to add the vertex.
     addi screen_vtx, t1, %lo(SCREEN_VERTEX_CACHE)
 
+    lw state_flags, %lo(GL_STATE_FLAGS)
+
+    #define v___         $v01
+    #define vrgba        $v06    
+
+    ldv vrgba, PRIM_VTX_R, prim_vtx     # R + G + B + A
+
+    #define veyepos_f       $v02
+    #define veyepos_i       $v03
+    #define veyenormal_f    $v04
+    #define veyenormal_i    $v05
+
+    #define vmtx0_i      $v16       //  m00 m01 m02 m03
+    #define vmtx0_f      $v17
+    #define vmtx1_i      $v18       //  m00 m01 m02 m03
+    #define vmtx1_f      $v19
+    #define vmtx2_i      $v20       //  m00 m01 m02 m03
+    #define vmtx2_f      $v21
+    #define vmtx3_i      $v22       //  m00 m01 m02 m03
+    #define vmtx3_f      $v23
+
+    andi t0, state_flags, FLAG_LIGHTING
+    beqz t0, gl_no_lighting
+    li s0, %lo(GL_MATRIX_MODELVIEW)
+
+    # TODO: make loading normal more robust wrt to prim vertex data structure
+    lpv veyepos_i.e0,  PRIM_VTX_S,prim_vtx     # loads NX + NY + NZ into lanes 4-7
+    ldv veyepos_i.e0,  PRIM_VTX_X,prim_vtx     # loads X + Y + Z + W into lanes 0-3
+
+    # TODO: factor out this style of matrix loading?
+    # TODO: technically we need the inverse transpose matrix,
+    #       but for rigid matrices (translation, rotation, uniform scale) this is fine
+    ldv vmtx0_i.e0,  0x00,s0
+    ldv vmtx1_i.e0,  0x08,s0
+    ldv vmtx2_i.e0,  0x10,s0
+    ldv vmtx3_i.e0,  0x18,s0
+    ldv vmtx0_f.e0,  0x20,s0
+    ldv vmtx1_f.e0,  0x28,s0
+    ldv vmtx2_f.e0,  0x30,s0
+    ldv vmtx3_f.e0,  0x38,s0
+    ldv vmtx0_i.e4,  0x00,s0
+    ldv vmtx1_i.e4,  0x08,s0
+    ldv vmtx2_i.e4,  0x10,s0
+    ldv vmtx3_i.e4,  0x18,s0
+    ldv vmtx0_f.e4,  0x20,s0
+    ldv vmtx1_f.e4,  0x28,s0
+    ldv vmtx2_f.e4,  0x30,s0
+    ldv vmtx3_f.e4,  0x38,s0
+
+    vmov veyepos_i.e7, vzero.e0
+    # Transform vertex pos and normal into eye space
+    vmudn v___,      vmtx0_f, veyepos_i.h0
+    vmadh v___,      vmtx0_i, veyepos_i.h0
+    vmadn v___,      vmtx1_f, veyepos_i.h1
+    vmadh v___,      vmtx1_i, veyepos_i.h1
+    vmadn v___,      vmtx2_f, veyepos_i.h2
+    vmadh v___,      vmtx2_i, veyepos_i.h2
+    vmadn v___,      vmtx3_f, veyepos_i.h3
+    vmadh veyepos_i, vmtx3_i, veyepos_i.h3
+    vmadn veyepos_f, vzero, vzero
+
+    # TODO: normalize normal if GL_NORMALIZE is enabled
+
+    li s0, %lo(RDPQ_CMD_STAGING)
+    sdv veyepos_i.e4,  0,s0
+    sdv veyepos_f.e4,  8,s0
+    ldv veyenormal_i,  0,s0
+    jal GL_VtxLighting
+    ldv veyenormal_f,  8,s0
+
+gl_no_lighting:
+    suv vrgba,    SCREEN_VTX_RGBA,screen_vtx
+
     #define vcspos_f     $v02
     #define vcspos_i     $v03
-    #define vrgba        $v04
-    #define vst          $v05
-    #define vtexsize     $v06
-    #define vtexoffset   $v07
-    #define s            e0
+    #define vtexsize     $v04
+    #define vtexoffset   $v05
+    #define vst          $v06
 
     li s0, %lo(GL_STATE_TEX_SIZE)
     llv vtexsize.s,   0,s0
     llv vtexoffset.s, 4,s0
 
+    llv vst,      PRIM_VTX_S      ,prim_vtx     # S + T
     ldv vcspos_f, PRIM_VTX_CS_POSf,prim_vtx
     ldv vcspos_i, PRIM_VTX_CS_POSi,prim_vtx
-    ldv vrgba,    PRIM_VTX_R,prim_vtx         # R + G + B + A
-    llv vst,      PRIM_VTX_S,prim_vtx         # S + T
 
     # Scale texcoord by texsize and subtract offset (to correct for bilinear sampling if active)
     vmudh vst, vtexsize
     vsub  vst, vtexoffset
 
-    sdv vcspos_f, SCREEN_VTX_CS_POSf,screen_vtx
-    sdv vcspos_i, SCREEN_VTX_CS_POSi,screen_vtx
-    suv vrgba,    SCREEN_VTX_RGBA,screen_vtx
     jal GL_CalcScreenSpace
     slv vst.s,    SCREEN_VTX_S,screen_vtx
+
+    sdv vcspos_f, SCREEN_VTX_CS_POSf,screen_vtx
+    sdv vcspos_i, SCREEN_VTX_CS_POSi,screen_vtx
 
     j GL_CalcClipCodes
     move ra, ra2
 
-    #undef prim_vtx
-    #undef screen_vtx
     #undef vcspos_f
     #undef vcspos_i
-    #undef vrgbast     
-    #undef vst
     #undef vtexsize
+    #undef vtexoffset
+
+    #undef state_flags
+    #undef prim_vtx
+    #undef screen_vtx
+
+    #undef v___
+    #undef vrgba
+    #undef vst
     #undef s
+    #undef veyepos_f
+    #undef veyepos_i
+    #undef veyenormal_f
+    #undef veyenormal_i
+    #undef vmtx0_i
+    #undef vmtx0_f
+    #undef vmtx1_i
+    #undef vmtx1_f
+    #undef vmtx2_i
+    #undef vmtx2_f
+    #undef vmtx3_i
+    #undef vmtx3_f
 
     .endfunc
 
@@ -797,5 +902,6 @@ gl_draw_triangle_end:
 
 
 #include "rsp_gl_common.inc"
+#include "rsp_gl_lighting.inc"
 #include "rsp_gl_clipping.inc"
 #include <rsp_rdpq.inc>

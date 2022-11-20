@@ -676,9 +676,9 @@ inline void glpipe_vtx(GLfloat attribs[ATTRIB_COUNT][4], int id, uint8_t cmd, ui
     }
 
     if (cmd & VTX_CMD_FLAG_NORMAL) {
-        uint32_t normal = (((uint32_t)(attribs[ATTRIB_NORMAL][0]*255.0f) & 0xFF) << 24) |
-                          (((uint32_t)(attribs[ATTRIB_NORMAL][1]*255.0f) & 0xFF) << 16) |
-                          (((uint32_t)(attribs[ATTRIB_NORMAL][2]*255.0f) & 0xFF) <<  8);
+        uint32_t normal = (((uint32_t)(attribs[ATTRIB_NORMAL][0]*127.0f) & 0xFF) << 24) |
+                          (((uint32_t)(attribs[ATTRIB_NORMAL][1]*127.0f) & 0xFF) << 16) |
+                          (((uint32_t)(attribs[ATTRIB_NORMAL][2]*127.0f) & 0xFF) <<  8);
         rspq_write_arg(&w, normal);
     }
 
