@@ -16,7 +16,7 @@
         RSPQ_DefineCommand GLCmd_GetValue,      8
         RSPQ_DefineCommand GLCmd_CopyFillColor, 4
         RSPQ_DefineCommand GLCmd_SetLightPos,   12
-        RSPQ_DefineCommand GLCmd_SetLightDir,   8
+        RSPQ_DefineCommand GLCmd_SetLightDir,   12
         RSPQ_DefineCommand GLCmd_MatrixPush,    4
         RSPQ_DefineCommand GLCmd_MatrixPop,     4
         RSPQ_DefineCommand GLCmd_MatrixLoad,    68
@@ -289,10 +289,13 @@ GLCmd_SetLightDir:
     vmadn v___, vmtx2_f, vpos.e2
     vmadh vpos, vmtx2_i, vpos.e2
 
-    addi s0, a0, %lo(GL_STATE) + LIGHT_DIRECTION_OFFSET
-    slv vpos.e0,  0,s0
+    li s0, %lo(RDPQ_CMD_STAGING)
+    spv vpos,  0,s0
+    lbu t0, %lo(GL_STATE) + LIGHT_SPOT_EXPONENT_OFFSET(a0)
+    lw t1, %lo(RDPQ_CMD_STAGING)
+    sw t1, %lo(GL_STATE) + LIGHT_DIRECTION_OFFSET(a0)
     jr ra
-    ssv vpos.e2,  4,s0
+    sb t0, %lo(GL_STATE) + LIGHT_SPOT_EXPONENT_OFFSET(a0)
 
     #undef v___
 

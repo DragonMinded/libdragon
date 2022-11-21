@@ -283,6 +283,7 @@ void gl_set_material_emissive(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 
 void gl_set_material_shininess(GLfloat param)
 {    
+    state.material.shininess = param;
     gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, mat_shininess), param * 32.f);
 }
 
@@ -464,13 +465,27 @@ void gl_light_set_position(gl_light_t *light, uint32_t offset, const GLfloat *po
 {
     gl_matrix_mult(light->position, gl_matrix_stack_get_matrix(&state.modelview_stack), pos);
 
-    int16_t x = pos[0] * 32.f;
-    int16_t y = pos[1] * 32.f;
-    int16_t z = pos[2] * 32.f;
-    int16_t w = pos[3] * 32.f;
+    int16_t x, y, z, w;
 
-    uint32_t packed0 = ((uint64_t)x) << 16 | (uint64_t)y;
-    uint32_t packed1 = ((uint64_t)z) << 16 | (uint64_t)w;
+    if (pos[3] == 0.0f) {
+        // Light is directional
+        // -> Pre-normalize so the ucode doesn't need to
+        float mag = gl_mag(pos);
+        x = (pos[0] / mag) * 0x7FFF;
+        y = (pos[1] / mag) * 0x7FFF;
+        z = (pos[2] / mag) * 0x7FFF;
+        w = 0;
+    } else {
+        // Light is positional
+        // -> Convert to s10.5 to match with object space position
+        x = pos[0] * 32.f;
+        y = pos[1] * 32.f;
+        z = pos[2] * 32.f;
+        w = pos[3] * 32.f;
+    }
+
+    uint32_t packed0 = ((uint32_t)x) << 16 | (uint32_t)y;
+    uint32_t packed1 = ((uint32_t)z) << 16 | (uint32_t)w;
 
     gl_write(GL_CMD_SET_LIGHT_POS, offset, packed0, packed1);
 }
@@ -483,8 +498,8 @@ void gl_light_set_direction(gl_light_t *light, uint32_t offset, const GLfloat *d
     int16_t y = dir[1] * 0x7FFF;
     int16_t z = dir[2] * 0x7FFF;
 
-    uint32_t packed0 = ((uint64_t)x) << 16 | (uint64_t)y;
-    uint32_t packed1 = ((uint64_t)z) << 16;
+    uint32_t packed0 = ((uint32_t)x) << 16 | (uint32_t)y;
+    uint32_t packed1 = ((uint32_t)z) << 16;
 
     gl_write(GL_CMD_SET_LIGHT_DIR, offset, packed0, packed1);
 }
@@ -492,7 +507,7 @@ void gl_light_set_direction(gl_light_t *light, uint32_t offset, const GLfloat *d
 void gl_light_set_spot_exponent(gl_light_t *light, uint32_t offset, float param)
 {
     light->spot_exponent = param;
-    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, spot_exponent), param);
+    gl_set_byte(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, spot_exponent), param);
 }
 
 void gl_light_set_spot_cutoff(gl_light_t *light, uint32_t offset, float param)
@@ -504,19 +519,32 @@ void gl_light_set_spot_cutoff(gl_light_t *light, uint32_t offset, float param)
 void gl_light_set_constant_attenuation(gl_light_t *light, uint32_t offset, float param)
 {
     light->constant_attenuation = param;
-    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, constant_attenuation), param * 32);
+    // Shifted right by 1 to compensate for vrcp
+    uint32_t fx = param * (1<<15);
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, attenuation_integer) + 0, fx >> 16);
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, attenuation_fraction) + 0, fx & 0xFFFF);
 }
 
 void gl_light_set_linear_attenuation(gl_light_t *light, uint32_t offset, float param)
 {
     light->linear_attenuation = param;
-    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, linear_attenuation), param * 32);
+    // Shifted right by 4 to compensate for various precision shifts (see rsp_gl_lighting.inc)
+    // Shifted right by 1 to compensate for vrcp
+    // Result: Shifted right by 5
+    uint32_t fx = param * (1 << (16 - 5));
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, attenuation_integer) + 2, fx >> 16);
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, attenuation_fraction) + 2, fx & 0xFFFF);
 }
 
 void gl_light_set_quadratic_attenuation(gl_light_t *light, uint32_t offset, float param)
 {
     light->quadratic_attenuation = param;
-    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, quadratic_attenuation), param * 32);
+    // Shifted left by 6 to compensate for various precision shifts (see rsp_gl_lighting.inc)
+    // Shifted right by 1 to compensate for vrcp
+    // Result: Shifted left by 5
+    uint32_t fx = param * (1 << (16 + 5));
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, attenuation_integer) + 4, fx >> 16);
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, attenuation_fraction) + 4, fx & 0xFFFF);
 }
 
 void glLightf(GLenum light, GLenum pname, GLfloat param)

@@ -242,24 +242,22 @@ typedef struct {
     int16_t ambient[4];
     int16_t diffuse[4];
     int16_t specular[4];
-    int16_t direction[3];
-    uint16_t spot_exponent;
+    uint16_t attenuation_integer[3];
     int16_t spot_cutoff_cos;
-    uint16_t constant_attenuation;
-    uint16_t linear_attenuation;
-    uint16_t quadratic_attenuation;
-} gl_light_srv_t;
+    uint16_t attenuation_fraction[3];
+    int8_t direction[3];
+    uint8_t spot_exponent;
+} __attribute__((packed)) gl_light_srv_t;
 _Static_assert(sizeof(gl_light_srv_t) == LIGHT_SIZE);
 _Static_assert(offsetof(gl_light_srv_t, position) == LIGHT_POSITION_OFFSET);
 _Static_assert(offsetof(gl_light_srv_t, ambient) == LIGHT_AMBIENT_OFFSET);
 _Static_assert(offsetof(gl_light_srv_t, diffuse) == LIGHT_DIFFUSE_OFFSET);
 _Static_assert(offsetof(gl_light_srv_t, specular) == LIGHT_SPECULAR_OFFSET);
+_Static_assert(offsetof(gl_light_srv_t, attenuation_integer) == LIGHT_ATTENUATION_INTEGER_OFFSET);
+_Static_assert(offsetof(gl_light_srv_t, spot_cutoff_cos) == LIGHT_SPOT_CUTOFF_COS_OFFSET);
+_Static_assert(offsetof(gl_light_srv_t, attenuation_fraction) == LIGHT_ATTENUATION_FRACTION_OFFSET);
 _Static_assert(offsetof(gl_light_srv_t, direction) == LIGHT_DIRECTION_OFFSET);
 _Static_assert(offsetof(gl_light_srv_t, spot_exponent) == LIGHT_SPOT_EXPONENT_OFFSET);
-_Static_assert(offsetof(gl_light_srv_t, spot_cutoff_cos) == LIGHT_SPOT_CUTOFF_COS_OFFSET);
-_Static_assert(offsetof(gl_light_srv_t, constant_attenuation) == LIGHT_CONSTANT_ATTENUATION_OFFSET);
-_Static_assert(offsetof(gl_light_srv_t, linear_attenuation) == LIGHT_LINEAR_ATTENUATION_OFFSET);
-_Static_assert(offsetof(gl_light_srv_t, quadratic_attenuation) == LIGHT_QUADRATIC_ATTENUATION_OFFSET);
 
 typedef struct {
     GLvoid *data;

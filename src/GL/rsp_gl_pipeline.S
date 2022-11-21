@@ -678,14 +678,11 @@ GL_TnL:
     lw state_flags, %lo(GL_STATE_FLAGS)
 
     #define v___         $v01
-    #define vrgba        $v06    
+    #define veyepos      $v02
+    #define veyenormal   $v03
+    #define vrgba        $v04
 
     ldv vrgba, PRIM_VTX_R, prim_vtx     # R + G + B + A
-
-    #define veyepos_f       $v02
-    #define veyepos_i       $v03
-    #define veyenormal_f    $v04
-    #define veyenormal_i    $v05
 
     #define vmtx0_i      $v16       //  m00 m01 m02 m03
     #define vmtx0_f      $v17
@@ -701,8 +698,8 @@ GL_TnL:
     li s0, %lo(GL_MATRIX_MODELVIEW)
 
     # TODO: make loading normal more robust wrt to prim vertex data structure
-    lpv veyepos_i.e0,  PRIM_VTX_S,prim_vtx     # loads NX + NY + NZ into lanes 4-7
-    ldv veyepos_i.e0,  PRIM_VTX_X,prim_vtx     # loads X + Y + Z + W into lanes 0-3
+    lpv veyepos.e0,  PRIM_VTX_S,prim_vtx     # loads NX + NY + NZ into lanes 4-7
+    ldv veyepos.e0,  PRIM_VTX_X,prim_vtx     # loads X + Y + Z + W into lanes 0-3
 
     # TODO: factor out this style of matrix loading?
     # TODO: technically we need the inverse transpose matrix,
@@ -724,26 +721,23 @@ GL_TnL:
     ldv vmtx2_f.e4,  0x30,s0
     ldv vmtx3_f.e4,  0x38,s0
 
-    vmov veyepos_i.e7, vzero.e0
+    vmov veyepos.e7, vzero.e0
     # Transform vertex pos and normal into eye space
-    vmudn v___,      vmtx0_f, veyepos_i.h0
-    vmadh v___,      vmtx0_i, veyepos_i.h0
-    vmadn v___,      vmtx1_f, veyepos_i.h1
-    vmadh v___,      vmtx1_i, veyepos_i.h1
-    vmadn v___,      vmtx2_f, veyepos_i.h2
-    vmadh v___,      vmtx2_i, veyepos_i.h2
-    vmadn v___,      vmtx3_f, veyepos_i.h3
-    vmadh veyepos_i, vmtx3_i, veyepos_i.h3
-    vmadn veyepos_f, vzero, vzero
+    vmudn v___,    vmtx0_f, veyepos.h0
+    vmadh v___,    vmtx0_i, veyepos.h0
+    vmadn v___,    vmtx1_f, veyepos.h1
+    vmadh v___,    vmtx1_i, veyepos.h1
+    vmadn v___,    vmtx2_f, veyepos.h2
+    vmadh v___,    vmtx2_i, veyepos.h2
+    vmadn v___,    vmtx3_f, veyepos.h3
+    vmadh veyepos, vmtx3_i, veyepos.h3
 
     # TODO: normalize normal if GL_NORMALIZE is enabled
 
     li s0, %lo(RDPQ_CMD_STAGING)
-    sdv veyepos_i.e4,  0,s0
-    sdv veyepos_f.e4,  8,s0
-    ldv veyenormal_i,  0,s0
+    sdv veyepos.e4,  0,s0
     jal GL_VtxLighting
-    ldv veyenormal_f,  8,s0
+    ldv veyenormal,  0,s0
 
 gl_no_lighting:
     suv vrgba,    SCREEN_VTX_RGBA,screen_vtx
@@ -788,10 +782,8 @@ gl_no_lighting:
     #undef vrgba
     #undef vst
     #undef s
-    #undef veyepos_f
-    #undef veyepos_i
-    #undef veyenormal_f
-    #undef veyenormal_i
+    #undef veyepos
+    #undef veyenormal
     #undef vmtx0_i
     #undef vmtx0_f
     #undef vmtx1_i

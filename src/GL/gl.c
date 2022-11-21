@@ -151,33 +151,33 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
 
     server_state->flags |= FLAG_FINAL_MTX_DIRTY;
 
-    server_state->mat_ambient[0] = 0x3333;
-    server_state->mat_ambient[1] = 0x3333;
-    server_state->mat_ambient[2] = 0x3333;
-    server_state->mat_ambient[3] = 0xFFFF;
-    server_state->mat_diffuse[0] = 0xCCCC;
-    server_state->mat_diffuse[1] = 0xCCCC;
-    server_state->mat_diffuse[2] = 0xCCCC;
-    server_state->mat_diffuse[3] = 0xFFFF;
-    server_state->mat_specular[3] = 0xFFFF;
-    server_state->mat_emissive[3] = 0xFFFF;
+    server_state->mat_ambient[0] = 0x1999;  // 0.2
+    server_state->mat_ambient[1] = 0x1999;  // 0.2
+    server_state->mat_ambient[2] = 0x1999;  // 0.2
+    server_state->mat_ambient[3] = 0x7FFF;  // 1.0
+    server_state->mat_diffuse[0] = 0x6666;  // 0.8
+    server_state->mat_diffuse[1] = 0x6666;  // 0.8
+    server_state->mat_diffuse[2] = 0x6666;  // 0.8
+    server_state->mat_diffuse[3] = 0x7FFF;  // 1.0
+    server_state->mat_specular[3] = 0x7FFF; // 1.0
+    server_state->mat_emissive[3] = 0x7FFF; // 1.0
     server_state->mat_color_target = GL_AMBIENT_AND_DIFFUSE;
 
     for (uint32_t i = 0; i < LIGHT_COUNT; i++)
     {
-        server_state->lights[i].position[2] = -1 * 32;
-        server_state->lights[i].ambient[3] = 0xFFFF;
-        server_state->lights[i].diffuse[3] = 0xFFFF;
-        server_state->lights[i].specular[3] = 0xFFFF;
-        server_state->lights[i].direction[2] = 0x8000;
-        server_state->lights[i].spot_cutoff_cos = 0x8000;
-        server_state->lights[i].constant_attenuation = 1 << 5;
+        server_state->lights[i].position[2] = 0x7FFF; // 1.0
+        server_state->lights[i].ambient[3] = 0x7FFF;  // 1.0
+        server_state->lights[i].diffuse[3] = 0x7FFF;  // 1.0
+        server_state->lights[i].specular[3] = 0x7FFF; // 1.0
+        server_state->lights[i].direction[2] = 0x80;  // -1.0
+        server_state->lights[i].spot_cutoff_cos = 0x8000; // -1.0
+        server_state->lights[i].attenuation_fraction[0] = 1 << 15; // 1.0
     }
     
-    server_state->light_ambient[0] = 0x3333;
-    server_state->light_ambient[1] = 0x3333;
-    server_state->light_ambient[2] = 0x3333;
-    server_state->light_ambient[3] = 0xFFFF;
+    server_state->light_ambient[0] = 0x1999; // 0.2
+    server_state->light_ambient[1] = 0x1999; // 0.2
+    server_state->light_ambient[2] = 0x1999; // 0.2
+    server_state->light_ambient[3] = 0x7FFF; // 1.0
 
     gl_overlay_id = rspq_overlay_register(&rsp_gl);
     glp_overlay_id = rspq_overlay_register(&rsp_gl_pipeline);
