@@ -23,7 +23,7 @@ MEMORY
        Note that this is not actually required to run the ucode correctly (instruction addresses above 0x1000 are truncated anyway),
        but it makes debugging with gdb a lot easier (e.g. using this fork of cen64 https://github.com/lambertjamesd/cen64).
      */
-    ram_data : ORIGIN = 0x04000000, LENGTH = 0x2000
+    ram_data : ORIGIN = 0x04000000, LENGTH = 0x1000
     ram_text : ORIGIN = 0x00000000, LENGTH = 0x1000
 }
 
