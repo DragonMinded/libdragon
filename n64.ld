@@ -53,7 +53,10 @@ SECTIONS {
     } > mem
 
    .eh_frame_hdr : { *(.eh_frame_hdr) } > mem
-   .eh_frame : { KEEP (*(.eh_frame)) } > mem
+   .eh_frame : { 
+		__EH_FRAME_BEGIN__ = .; /* Define symbol for accessing eh_frame section */
+		KEEP (*(.eh_frame)) 
+	} > mem
    .gcc_except_table : { *(.gcc_except_table*) } > mem
    .jcr : { KEEP (*(.jcr)) } > mem
 
