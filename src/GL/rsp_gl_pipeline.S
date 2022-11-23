@@ -735,9 +735,11 @@ GL_TnL:
     # TODO: normalize normal if GL_NORMALIZE is enabled
 
     li s0, %lo(RDPQ_CMD_STAGING)
-    sdv veyepos.e4,  0,s0
+    sqv veyepos,        0,s0
+    ldv veyenormal.e0,  8,s0
+    ldv veyenormal.e4,  8,s0
     jal GL_VtxLighting
-    ldv veyenormal,  0,s0
+    ldv veyepos.e4,     0,s0
 
 gl_no_lighting:
     suv vrgba,    SCREEN_VTX_RGBA,screen_vtx

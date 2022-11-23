@@ -3,6 +3,8 @@
 #include "debug.h"
 #include <stddef.h>
 
+_Static_assert((1<<LIGHT0_SHIFT) == FLAG_LIGHT0);
+
 extern gl_state_t state;
 
 void gl_init_material(gl_material_t *material)
@@ -432,7 +434,7 @@ void glMaterialfv(GLenum face, GLenum pname, const GLfloat *params)
 
 uint32_t gl_get_light_offset(GLenum light)
 {
-    uint32_t light_index = GL_LIGHT0 - light;
+    uint32_t light_index = light - GL_LIGHT0;
     return offsetof(gl_server_state_t, lights) + light_index * sizeof(gl_light_srv_t);
 }
 

@@ -121,6 +121,8 @@
 #define TRICMD_ATTR_SHIFT_Z     6
 #define TRICMD_ATTR_SHIFT_TEX   20
 
+#define LIGHT0_SHIFT            14
+
 #define VTX_CMD_FLAG_NORMAL     (1 << 0)
 #define VTX_CMD_FLAG_TEXCOORD   (1 << 1)
 #define VTX_CMD_FLAG_COLOR      (1 << 2)
