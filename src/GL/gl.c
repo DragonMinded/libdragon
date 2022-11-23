@@ -165,13 +165,10 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
 
     for (uint32_t i = 0; i < LIGHT_COUNT; i++)
     {
-        server_state->lights[i].position[2] = 0x7FFF; // 1.0
-        server_state->lights[i].ambient[3] = 0x7FFF;  // 1.0
-        server_state->lights[i].diffuse[3] = 0x7FFF;  // 1.0
-        server_state->lights[i].specular[3] = 0x7FFF; // 1.0
-        server_state->lights[i].direction[2] = 0x80;  // -1.0
-        server_state->lights[i].spot_cutoff_cos = 0x8000; // -1.0
-        server_state->lights[i].attenuation_fraction[0] = 1 << 15; // 1.0
+        server_state->lights.position[i][2] = 0x7FFF; // 1.0
+        server_state->lights.ambient[i][3] = 0x7FFF;  // 1.0
+        server_state->lights.diffuse[i][3] = 0x7FFF;  // 1.0
+        server_state->lights.attenuation_frac[i][0] = 1 << 15; // 1.0
     }
     
     server_state->light_ambient[0] = 0x1999; // 0.2

@@ -36,9 +36,8 @@ GL_VtxLighting:
     #define venable         $v21
 
     #define light_flags     t9
-    #define light0          s0
-    #define light1          s1
-    #define light_end       s2
+    #define light           s0
+    #define light_end       s1
 
     #define r               e0
     #define g               e1
@@ -62,8 +61,8 @@ GL_VtxLighting:
     vmov vinvdist_i.e6, K1
 
     lw light_flags, %lo(GL_STATE_FLAGS)
-    li light0, %lo(GL_LIGHTS)
-    addi light_end, light0, LIGHT_SIZE * LIGHT_COUNT
+    li light, %lo(GL_LIGHTS)
+    addi light_end, light, LIGHT_ATTR_SIZE * LIGHT_COUNT
     srl light_flags, LIGHT0_SHIFT
 
     vmulf vcolor, vmambient
@@ -72,42 +71,32 @@ GL_VtxLighting:
 gl_light_loop:
     andi t0, light_flags, 3
     beqz t0, gl_light_loop_end
-    addi light1, light0, LIGHT_SIZE
-
     andi t1, t0, 1
     andi t2, t0, 2
 
     beqz t1, light0_disabled
     mtc2 t1, venable.e0
-    lh t1, LIGHT_POSITION_OFFSET+6(light0)
+    lh t1, LIGHT_POSITION_OFFSET+6(light)
 
 light0_disabled:
     beqz t2, light1_disabled
     mtc2 t2, venable.e4
-    lh t2, LIGHT_POSITION_OFFSET+6(light1)
+    lh t2, LIGHT_POSITION_OFFSET+LIGHT_ATTR_SIZE+6(light)
 
 light1_disabled:
-
-    # TODO: Adjust memory layout so that parameters from both lights can be loaded with a single lqv
-
     # If the light is directional, the light vector is simply a direction (pre-normalized on CPU)
-    ldv vlightdir.e0,  LIGHT_POSITION_OFFSET,light0
-    ldv vlightdir.e4,  LIGHT_POSITION_OFFSET,light1
-    ldv vlout.e0,      LIGHT_AMBIENT_OFFSET,light0
-    ldv vlout.e4,      LIGHT_AMBIENT_OFFSET,light1
-    ldv vldiffuse.e0,  LIGHT_DIFFUSE_OFFSET,light0
+    lqv vlightdir,  LIGHT_POSITION_OFFSET,light
+    lqv vlout,      LIGHT_AMBIENT_OFFSET,light
     add t1, t2
     beqz t1, gl_light_directional
-    ldv vldiffuse.e4,  LIGHT_DIFFUSE_OFFSET,light1
+    lqv vldiffuse,  LIGHT_DIFFUSE_OFFSET,light
 
     # Light is positional: We need to compute light vector, normalize it, and apply attenuation
 
     # Load attenuation coefficients k0, k1, k2 (constant, linear, quadratic)
     # vattenuation: k0  k1  k2  --  --  --  --  --
-    ldv vattenuation_i.e0,  LIGHT_ATTENUATION_INTEGER_OFFSET,light0
-    ldv vattenuation_i.e4,  LIGHT_ATTENUATION_INTEGER_OFFSET,light1
-    ldv vattenuation_f.e0,  LIGHT_ATTENUATION_FRACTION_OFFSET,light0
-    ldv vattenuation_f.e4,  LIGHT_ATTENUATION_FRACTION_OFFSET,light1
+    lqv vattenuation_i,  LIGHT_ATTENUATION_INT_OFFSET,light
+    lqv vattenuation_f,  LIGHT_ATTENUATION_FRAC_OFFSET,light
 
     # If light is positional, the light vector points from the vertex to the light position
     # This is shifted left by 5 because both values are in s10.5 format
@@ -212,8 +201,8 @@ gl_light_directional:
     vadd vcolor, vlout
 
 gl_light_loop_end:
-    addi light0, LIGHT_SIZE*2
-    blt light0, light_end, gl_light_loop
+    addi light, LIGHT_ATTR_SIZE*2
+    blt light, light_end, gl_light_loop
     srl light_flags, 2
 
     vmov v___.e0, vcolor.e4
@@ -246,8 +235,7 @@ gl_light_loop_end:
     #undef vattenuation_i
     #undef venable
     #undef light_flags
-    #undef light0
-    #undef light1
+    #undef light
     #undef light_end
     #undef r
     #undef g

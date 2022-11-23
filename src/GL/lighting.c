@@ -247,6 +247,14 @@ bool gl_validate_material_face(GLenum face)
     }
 }
 
+void gl_set_color_cpu(GLfloat *dst, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
+{
+    dst[0] = r;
+    dst[1] = g;
+    dst[2] = b;
+    dst[3] = a;
+}
+
 void gl_set_color(GLfloat *dst, uint32_t offset, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
     int16_t r_fx = FLOAT_TO_I16(r);
@@ -256,11 +264,7 @@ void gl_set_color(GLfloat *dst, uint32_t offset, GLfloat r, GLfloat g, GLfloat b
 
     uint64_t packed = ((uint64_t)r_fx << 48) | ((uint64_t)g_fx << 32) | ((uint64_t)b_fx << 16) | (uint64_t)a_fx;
     gl_set_long(GL_UPDATE_NONE, offset, packed);
-
-    dst[0] = r;
-    dst[1] = g;
-    dst[2] = b;
-    dst[3] = a;
+    gl_set_color_cpu(dst, r, g, b, a);
 }
 
 void gl_set_material_ambient(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
@@ -435,7 +439,7 @@ void glMaterialfv(GLenum face, GLenum pname, const GLfloat *params)
 uint32_t gl_get_light_offset(GLenum light)
 {
     uint32_t light_index = light - GL_LIGHT0;
-    return offsetof(gl_server_state_t, lights) + light_index * sizeof(gl_light_srv_t);
+    return offsetof(gl_server_state_t, lights) + light_index * sizeof(int16_t) * 4;
 }
 
 gl_light_t * gl_get_light(GLenum light)
@@ -450,17 +454,17 @@ gl_light_t * gl_get_light(GLenum light)
 
 void gl_light_set_ambient(gl_light_t *light, uint32_t offset, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
-    gl_set_color(light->ambient, offset + offsetof(gl_light_srv_t, ambient), r, g, b, a);
+    gl_set_color(light->ambient, offset + offsetof(gl_lights_soa_t, ambient), r, g, b, a);
 }
 
 void gl_light_set_diffuse(gl_light_t *light, uint32_t offset, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
-    gl_set_color(light->diffuse, offset + offsetof(gl_light_srv_t, diffuse), r, g, b, a);
+    gl_set_color(light->diffuse, offset + offsetof(gl_lights_soa_t, diffuse), r, g, b, a);
 }
 
 void gl_light_set_specular(gl_light_t *light, uint32_t offset, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
-    gl_set_color(light->specular, offset + offsetof(gl_light_srv_t, specular), r, g, b, a);
+    gl_set_color_cpu(light->specular, r, g, b, a);
 }
 
 void gl_light_set_position(gl_light_t *light, uint32_t offset, const GLfloat *pos)
@@ -483,7 +487,7 @@ void gl_light_set_position(gl_light_t *light, uint32_t offset, const GLfloat *po
         x = pos[0] * 32.f;
         y = pos[1] * 32.f;
         z = pos[2] * 32.f;
-        w = pos[3] * 32.f;
+        w = 32.f;
     }
 
     uint32_t packed0 = ((uint32_t)x) << 16 | (uint32_t)y;
@@ -496,6 +500,7 @@ void gl_light_set_direction(gl_light_t *light, uint32_t offset, const GLfloat *d
 {
     gl_matrix_mult3x3(light->direction, gl_matrix_stack_get_matrix(&state.modelview_stack), dir);
 
+/*
     int16_t x = dir[0] * 0x7FFF;
     int16_t y = dir[1] * 0x7FFF;
     int16_t z = dir[2] * 0x7FFF;
@@ -504,18 +509,19 @@ void gl_light_set_direction(gl_light_t *light, uint32_t offset, const GLfloat *d
     uint32_t packed1 = ((uint32_t)z) << 16;
 
     gl_write(GL_CMD_SET_LIGHT_DIR, offset, packed0, packed1);
+*/
 }
 
 void gl_light_set_spot_exponent(gl_light_t *light, uint32_t offset, float param)
 {
     light->spot_exponent = param;
-    gl_set_byte(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, spot_exponent), param);
+    //gl_set_byte(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, spot_exponent), param);
 }
 
 void gl_light_set_spot_cutoff(gl_light_t *light, uint32_t offset, float param)
 {
     light->spot_cutoff_cos = cosf(RADIANS(param));
-    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, spot_cutoff_cos), light->spot_cutoff_cos * 0x7FFF);
+    //gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, spot_cutoff_cos), light->spot_cutoff_cos * 0x7FFF);
 }
 
 void gl_light_set_constant_attenuation(gl_light_t *light, uint32_t offset, float param)
@@ -523,8 +529,8 @@ void gl_light_set_constant_attenuation(gl_light_t *light, uint32_t offset, float
     light->constant_attenuation = param;
     // Shifted right by 1 to compensate for vrcp
     uint32_t fx = param * (1<<15);
-    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, attenuation_integer) + 0, fx >> 16);
-    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, attenuation_fraction) + 0, fx & 0xFFFF);
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_lights_soa_t, attenuation_int) + 0, fx >> 16);
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_lights_soa_t, attenuation_frac) + 0, fx & 0xFFFF);
 }
 
 void gl_light_set_linear_attenuation(gl_light_t *light, uint32_t offset, float param)
@@ -534,8 +540,8 @@ void gl_light_set_linear_attenuation(gl_light_t *light, uint32_t offset, float p
     // Shifted right by 1 to compensate for vrcp
     // Result: Shifted right by 5
     uint32_t fx = param * (1 << (16 - 5));
-    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, attenuation_integer) + 2, fx >> 16);
-    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, attenuation_fraction) + 2, fx & 0xFFFF);
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_lights_soa_t, attenuation_int) + 2, fx >> 16);
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_lights_soa_t, attenuation_frac) + 2, fx & 0xFFFF);
 }
 
 void gl_light_set_quadratic_attenuation(gl_light_t *light, uint32_t offset, float param)
@@ -545,8 +551,8 @@ void gl_light_set_quadratic_attenuation(gl_light_t *light, uint32_t offset, floa
     // Shifted right by 1 to compensate for vrcp
     // Result: Shifted left by 5
     uint32_t fx = param * (1 << (16 + 5));
-    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, attenuation_integer) + 4, fx >> 16);
-    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, attenuation_fraction) + 4, fx & 0xFFFF);
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_lights_soa_t, attenuation_int) + 4, fx >> 16);
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_lights_soa_t, attenuation_frac) + 4, fx & 0xFFFF);
 }
 
 void glLightf(GLenum light, GLenum pname, GLfloat param)

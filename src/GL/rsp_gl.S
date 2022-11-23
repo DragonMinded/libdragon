@@ -16,7 +16,6 @@
         RSPQ_DefineCommand GLCmd_GetValue,      8
         RSPQ_DefineCommand GLCmd_CopyFillColor, 4
         RSPQ_DefineCommand GLCmd_SetLightPos,   12
-        RSPQ_DefineCommand GLCmd_SetLightDir,   12
         RSPQ_DefineCommand GLCmd_MatrixPush,    4
         RSPQ_DefineCommand GLCmd_MatrixPop,     4
         RSPQ_DefineCommand GLCmd_MatrixLoad,    68
@@ -257,7 +256,7 @@ GLCmd_SetLightPos:
     #undef vmtx2_f
     #undef vmtx3_i
     #undef vmtx3_f
-
+/*
 GLCmd_SetLightDir:
     #define v___     $v01
 
@@ -309,7 +308,7 @@ GLCmd_SetLightDir:
     #undef vmtx2_f
     #undef vmtx3_i
     #undef vmtx3_f
-
+*/
 # ARGS: t1: matrix index
 GL_MatrixMarkDirty:
     #define mtx_index   t1

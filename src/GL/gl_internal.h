@@ -64,11 +64,10 @@ enum {
     GL_CMD_GET_VALUE        = 0x7,
     GL_CMD_COPY_FILL_COLOR  = 0x8,
     GL_CMD_SET_LIGHT_POS    = 0x9,
-    GL_CMD_SET_LIGHT_DIR    = 0xA,
-    GL_CMD_MATRIX_PUSH      = 0xB,
-    GL_CMD_MATRIX_POP       = 0xC,
-    GL_CMD_MATRIX_LOAD      = 0xD,
-    GL_CMD_PRE_INIT_PIPE    = 0xE,
+    GL_CMD_MATRIX_PUSH      = 0xA,
+    GL_CMD_MATRIX_POP       = 0xB,
+    GL_CMD_MATRIX_LOAD      = 0xC,
+    GL_CMD_PRE_INIT_PIPE    = 0xD,
 };
 
 enum {
@@ -238,26 +237,18 @@ typedef struct {
 } gl_light_t;
 
 typedef struct {
-    int16_t position[4];
-    int16_t ambient[4];
-    int16_t diffuse[4];
-    int16_t specular[4];
-    uint16_t attenuation_integer[3];
-    int16_t spot_cutoff_cos;
-    uint16_t attenuation_fraction[3];
-    int8_t direction[3];
-    uint8_t spot_exponent;
-} __attribute__((packed)) gl_light_srv_t;
-_Static_assert(sizeof(gl_light_srv_t) == LIGHT_SIZE);
-_Static_assert(offsetof(gl_light_srv_t, position) == LIGHT_POSITION_OFFSET);
-_Static_assert(offsetof(gl_light_srv_t, ambient) == LIGHT_AMBIENT_OFFSET);
-_Static_assert(offsetof(gl_light_srv_t, diffuse) == LIGHT_DIFFUSE_OFFSET);
-_Static_assert(offsetof(gl_light_srv_t, specular) == LIGHT_SPECULAR_OFFSET);
-_Static_assert(offsetof(gl_light_srv_t, attenuation_integer) == LIGHT_ATTENUATION_INTEGER_OFFSET);
-_Static_assert(offsetof(gl_light_srv_t, spot_cutoff_cos) == LIGHT_SPOT_CUTOFF_COS_OFFSET);
-_Static_assert(offsetof(gl_light_srv_t, attenuation_fraction) == LIGHT_ATTENUATION_FRACTION_OFFSET);
-_Static_assert(offsetof(gl_light_srv_t, direction) == LIGHT_DIRECTION_OFFSET);
-_Static_assert(offsetof(gl_light_srv_t, spot_exponent) == LIGHT_SPOT_EXPONENT_OFFSET);
+    int16_t position[LIGHT_COUNT][4];
+    int16_t ambient[LIGHT_COUNT][4];
+    int16_t diffuse[LIGHT_COUNT][4];
+    uint16_t attenuation_int[LIGHT_COUNT][4];
+    int16_t attenuation_frac[LIGHT_COUNT][4];
+} __attribute__((packed)) gl_lights_soa_t;
+_Static_assert(sizeof(gl_lights_soa_t) == LIGHT_STRUCT_SIZE);
+_Static_assert(offsetof(gl_lights_soa_t, position) == LIGHT_POSITION_OFFSET);
+_Static_assert(offsetof(gl_lights_soa_t, ambient) == LIGHT_AMBIENT_OFFSET);
+_Static_assert(offsetof(gl_lights_soa_t, diffuse) == LIGHT_DIFFUSE_OFFSET);
+_Static_assert(offsetof(gl_lights_soa_t, attenuation_int) == LIGHT_ATTENUATION_INT_OFFSET);
+_Static_assert(offsetof(gl_lights_soa_t, attenuation_frac) == LIGHT_ATTENUATION_FRAC_OFFSET);
 
 typedef struct {
     GLvoid *data;
@@ -459,7 +450,7 @@ typedef struct {
     gl_tex_gen_srv_t tex_gen[4];
     int16_t viewport_scale[4];
     int16_t viewport_offset[4];
-    gl_light_srv_t lights[LIGHT_COUNT];
+    gl_lights_soa_t lights;
     uint16_t tex_gen_mode[4];
     int16_t light_ambient[4];
     int16_t mat_ambient[4];
