@@ -774,19 +774,29 @@ void glColorMaterial(GLenum face, GLenum mode)
         return;
     }
 
+    uint64_t color_target = 0;
+
     switch (mode) {
     case GL_AMBIENT:
+        color_target |= 1ULL << 48;
+        break;
     case GL_DIFFUSE:
+        color_target |= 1ULL << 32;
+        break;
     case GL_SPECULAR:
     case GL_EMISSION:
+        color_target |= 1ULL << 16;
+        break;
     case GL_AMBIENT_AND_DIFFUSE:
+        color_target |= 1ULL << 48;
+        color_target |= 1ULL << 32;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
         return;
     }
 
-    gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, mat_color_target), mode);
+    gl_set_long(GL_UPDATE_NONE, offsetof(gl_server_state_t, mat_color_target), color_target);
     state.material.color_target = mode;
 }
 

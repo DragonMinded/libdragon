@@ -682,7 +682,8 @@ GL_TnL:
     #define veyenormal   $v03
     #define vrgba        $v04
 
-    ldv vrgba, PRIM_VTX_R, prim_vtx     # R + G + B + A
+    ldv vrgba.e0, PRIM_VTX_R, prim_vtx     # R + G + B + A
+    ldv vrgba.e4, PRIM_VTX_R, prim_vtx     # R + G + B + A
 
     #define vmtx0_i      $v16       //  m00 m01 m02 m03
     #define vmtx0_f      $v17

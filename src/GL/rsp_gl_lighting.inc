@@ -34,6 +34,8 @@ GL_VtxLighting:
     #define vattenuation_f  $v19
     #define vattenuation_i  $v20
     #define venable         $v21
+    #define vlmambient      $v22
+    #define vcolortarget    $v23
 
     #define light_flags     t9
     #define light           s0
@@ -44,28 +46,47 @@ GL_VtxLighting:
     #define b               e2
     #define a               e3
 
-    vxor vcolor, vcolor
-    vxor vmemissive, vmemissive
-    li s0, %lo(GL_STATE_LIGHT_AMBIENT)
-    ldv vcolor,       0x00,s0
-    ldv vmemissive,   0x20,s0
 
+    li s0, %lo(GL_STATE_LIGHT_AMBIENT)
+
+    vxor vlmambient, vlmambient
+    ldv vlmambient,   0x00,s0
+
+    # TODO: Prepare in DMEM?
     ldv vmambient.e0, 0x08,s0
     ldv vmambient.e4, 0x08,s0
     ldv vmdiffuse.e0, 0x10,s0
     ldv vmdiffuse.e4, 0x10,s0
+
+    vxor vmemissive, vmemissive
+    ldv vmemissive,   0x20,s0
+
+    vxor vcolortarget, vcolortarget
+    ldv vcolortarget,  0x28,s0
+
+    lw light_flags, %lo(GL_STATE_FLAGS)
 
     # Initialize the third lane of vinvdist to 1.0
     vxor vinvdist_f, vinvdist_f
     vmov vinvdist_i.e2, K1
     vmov vinvdist_i.e6, K1
 
-    lw light_flags, %lo(GL_STATE_FLAGS)
+    andi t0, light_flags, FLAG_COLOR_MATERIAL
+    beqz t0, gl_light_color_target_disabled
+    veq  v___, vzero, vcolortarget.e0
+    vmrg vmambient, vcolor
+    veq  v___, vzero, vcolortarget.e1
+    vmrg vmdiffuse, vcolor
+    veq  v___, vzero, vcolortarget.h2
+    vmrg vmemissive, vcolor
+
+gl_light_color_target_disabled:
+
     li light, %lo(GL_LIGHTS)
     addi light_end, light, LIGHT_ATTR_SIZE * LIGHT_COUNT
     srl light_flags, LIGHT0_SHIFT
 
-    vmulf vcolor, vmambient
+    vmulf vcolor, vlmambient, vmambient
     vadd vcolor, vmemissive
 
 gl_light_loop:
@@ -234,6 +255,8 @@ gl_light_loop_end:
     #undef vattenuation_f
     #undef vattenuation_i
     #undef venable
+    #undef vlmambient
+    #undef vcolortarget
     #undef light_flags
     #undef light
     #undef light_end

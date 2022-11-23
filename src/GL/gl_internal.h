@@ -457,8 +457,8 @@ typedef struct {
     int16_t mat_diffuse[4];
     int16_t mat_specular[4];
     int16_t mat_emissive[4];
+    uint16_t mat_color_target[3];
     uint16_t mat_shininess;
-    uint16_t mat_color_target;
     int16_t color[4];
     int16_t tex_coords[4];
     int8_t normal[4];
@@ -484,7 +484,6 @@ typedef struct {
     uint16_t prim_size;
     uint16_t tri_cmd;
     uint8_t tri_cull[2];
-    uint32_t padding;
 
     gl_texture_object_t bound_textures[2];
     uint16_t scissor_rect[4];
