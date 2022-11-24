@@ -123,6 +123,7 @@ void polygon()
 
 void prim_test()
 {
+    /*
     glPushMatrix();
     glTranslatef(-6, 1.5f, 0);
     points();
@@ -142,6 +143,7 @@ void prim_test()
     glTranslatef(3, 1.5f, 0);
     line_loop();
     glPopMatrix();
+    */
 
     glPushMatrix();
     glTranslatef(6, 1.5f, 0);

@@ -6,7 +6,7 @@
 
 #include "vertex.h"
 
-#define SPHERE_RADIUS       15.0f
+#define SPHERE_RADIUS       20.0f
 #define SPHERE_MIN_RINGS    4
 #define SPHERE_MAX_RINGS    64
 #define SPHERE_MIN_SEGMENTS 4

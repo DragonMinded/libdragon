@@ -6,6 +6,7 @@
 
 #include "cube.h"
 #include "sphere.h"
+#include "plane.h"
 #include "prim_test.h"
 
 // Set this to 1 to enable rdpq debug output.
@@ -14,10 +15,36 @@
 
 static uint32_t animation = 3283;
 static uint32_t texture_index = 0;
+static float distance = -10.0f;
+static float cam_rotate = 0.0f;
 
 static GLuint textures[4];
 
 static GLenum shade_model = GL_SMOOTH;
+
+static const GLfloat environment_color[] = { 0.1f, 0.03f, 0.2f, 1.f };
+
+static const GLfloat light_pos[8][4] = {
+    { 1, 0, 0, 0 },
+    { -1, 0, 0, 0 },
+    { 0, 0, 1, 0 },
+    { 0, 0, -1, 0 },
+    { 8, 3, 0, 1 },
+    { -8, 3, 0, 1 },
+    { 0, 3, 8, 1 },
+    { 0, 3, -8, 1 },
+};
+
+static const GLfloat light_diffuse[8][4] = {
+    { 1.0f, 0.0f, 0.0f, 1.0f },
+    { 0.0f, 1.0f, 0.0f, 1.0f },
+    { 0.0f, 0.0f, 1.0f, 1.0f },
+    { 1.0f, 1.0f, 0.0f, 1.0f },
+    { 1.0f, 0.0f, 1.0f, 1.0f },
+    { 0.0f, 1.0f, 1.0f, 1.0f },
+    { 1.0f, 1.0f, 1.0f, 1.0f },
+    { 1.0f, 1.0f, 1.0f, 1.0f },
+};
 
 static const char *texture_path[4] = {
     "rom:/circle0.sprite",
@@ -51,8 +78,12 @@ void setup()
 
     setup_cube();
 
+    setup_plane();
+    make_plane_mesh();
+
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
+    glEnable(GL_NORMALIZE);
 
     float aspect_ratio = (float)display_get_width() / (float)display_get_height();
     float near_plane = 1.0f;
@@ -65,15 +96,21 @@ void setup()
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
-    glEnable(GL_LIGHT0);
+    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, environment_color);
+    glLightModeli(GL_LIGHT_MODEL_LOCAL_VIEWER, GL_TRUE);
 
-    GLfloat light_diffuse[] = { 0.9f, 0.9f, 0.9f, 1.f };
-    glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
-    glLightf(GL_LIGHT0, GL_CONSTANT_ATTENUATION, 0.0f);
-    glLightf(GL_LIGHT0, GL_QUADRATIC_ATTENUATION, 1.0f/100.0f);
+    float light_radius = 10.0f;
 
-    GLfloat mat_diffuse[] = { 0.3f, 0.5f, 0.9f, 1.0f };
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
+    for (uint32_t i = 0; i < 8; i++)
+    {
+        glEnable(GL_LIGHT0 + i);
+        glLightfv(GL_LIGHT0 + i, GL_DIFFUSE, light_diffuse[i]);
+        glLightf(GL_LIGHT0 + i, GL_LINEAR_ATTENUATION, 2.0f/light_radius);
+        glLightf(GL_LIGHT0 + i, GL_QUADRATIC_ATTENUATION, 1.0f/(light_radius*light_radius));
+    }
+
+    GLfloat mat_diffuse[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, mat_diffuse);
 
     glGenTextures(4, textures);
 
@@ -99,17 +136,41 @@ void setup()
 
 void render()
 {
-    glClearColor(0.3f, 0.1f, 0.6f, 1.f);
+    glClearColor(environment_color[0], environment_color[1], environment_color[2], environment_color[3]);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    float rotation = animation * 0.5f;
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    glTranslatef(0, 0, -10);
+    glRotatef(45, 1, 0, 0);
+    glTranslatef(0, distance, distance);
+    glRotatef(cam_rotate, 0, 1, 0);
 
-    GLfloat light_pos[] = { 0, 0, -10, 1 };
-    glLightfv(GL_LIGHT0, GL_POSITION, light_pos);
+    float rotation = animation * 0.5f;
+
+    glPushMatrix();
+
+    glRotatef(rotation*5.43f, 0, 1, 0);
+
+    for (uint32_t i = 0; i < 8; i++)
+    {
+        glLightfv(GL_LIGHT0 + i, GL_POSITION, light_pos[i]);
+    }
+
+    glPopMatrix();
+
+    glBindTexture(GL_TEXTURE_2D, textures[texture_index]);
+
+    glEnable(GL_LIGHTING);
+    glEnable(GL_TEXTURE_2D);
+
+    glPushMatrix();
+    glColor3f(1, 1, 1);
+    draw_plane();
+    glTranslatef(0,-1.f,0);
+    glEnable(GL_COLOR_MATERIAL);
+    draw_cube();
+    glDisable(GL_COLOR_MATERIAL);
+    glPopMatrix();
 
     glPushMatrix();
 
@@ -117,31 +178,23 @@ void render()
     glRotatef(rotation*0.98f, 0, 0, 1);
     glRotatef(rotation*1.71f, 0, 1, 0);
 
-    glEnable(GL_LIGHTING);
-    glEnable(GL_TEXTURE_2D);
     glCullFace(GL_FRONT);
-    glEnable(GL_CULL_FACE);
-
-    glBindTexture(GL_TEXTURE_2D, textures[texture_index]);
-
     draw_sphere();
+    glCullFace(GL_BACK);
 
     glPopMatrix();
 
     glPushMatrix();
 
-    glTranslatef(0, sinf(rotation*0.02f) * 0.5f, cosf(rotation*0.01f) * 0.5f);
-    glRotatef(rotation*0.46f, 0, 1, 0);
-    glRotatef(rotation*1.35f, 1, 0, 0);
-    glRotatef(rotation*1.81f, 0, 0, 1);
+    glTranslatef(0, 6, 0);
+    glRotatef(-rotation*2.46f, 0, 1, 0);
 
-    glDisable(GL_LIGHTING);
     glDisable(GL_TEXTURE_2D);
-    glCullFace(GL_BACK);
     glDisable(GL_CULL_FACE);
 
-    //draw_cube();
     prim_test();
+
+    glEnable(GL_CULL_FACE);
 
     glPopMatrix();
 }
@@ -217,6 +270,15 @@ int main()
 
         if (down.c[0].C_right) {
             texture_index = (texture_index + 1) % 4;
+        }
+
+        float y = pressed.c[0].y / 128.f;
+        float x = pressed.c[0].x / 128.f;
+        float mag = x*x + y*y;
+
+        if (fabsf(mag) > 0.01f) {
+            distance += y * 0.2f;
+            cam_rotate = cam_rotate - x * 1.2f;
         }
 
         render();
