@@ -622,9 +622,9 @@ inline void glpipe_set_prim_vertex(int idx, GLfloat attribs[ATTRIB_COUNT][4], in
     #define OBJ_SCALE   32.0f
     #define fx16(v)  ((uint32_t)((int32_t)((v))) & 0xFFFF)
 
-    uint32_t normal = (((uint32_t)(attribs[ATTRIB_NORMAL][0]*255.0f) & 0xFF) << 24) |
-                      (((uint32_t)(attribs[ATTRIB_NORMAL][1]*255.0f) & 0xFF) << 16) |
-                      (((uint32_t)(attribs[ATTRIB_NORMAL][2]*255.0f) & 0xFF) <<  8);
+    uint32_t normal = (((uint32_t)(attribs[ATTRIB_NORMAL][0]*127.0f) & 0xFF) << 24) |
+                      (((uint32_t)(attribs[ATTRIB_NORMAL][1]*127.0f) & 0xFF) << 16) |
+                      (((uint32_t)(attribs[ATTRIB_NORMAL][2]*127.0f) & 0xFF) <<  8);
 
     assertf(id != 0, "invalid vertex ID");
     glp_write(
