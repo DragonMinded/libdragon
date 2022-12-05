@@ -159,7 +159,7 @@ void rdpq_font_printf(rdpq_font_t *fnt, const char *fmt, ...)
 void rdpq_font_begin(color_t color)
 {
     rdpq_set_mode_standard();
-    rdpq_mode_combiner(RDPQ_COMBINER_TEX_FLAT);
+    rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,PRIM), (0,0,0,TEX0)));
     rdpq_mode_alphacompare(ALPHACOMPARE_THRESHOLD);
     rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
     rdpq_set_blend_color(RGBA32(0,0,0,1));
