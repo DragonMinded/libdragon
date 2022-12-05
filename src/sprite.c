@@ -46,21 +46,27 @@ bool __sprite_upgrade(sprite_t *sprite)
     return false;
 }
 
-sprite_t *sprite_load(const char *fn)
+void *__file_load_all(const char *fn, int *sz)
 {
     FILE *f = fopen(fn, "rb");
     assertf(f, "File not found: %s\n", fn);
     fseek(f, 0, SEEK_END);
 
-    int sz = ftell(f);
-    sprite_t *s = malloc(sz);
+    *sz = ftell(f);
+    void *s = malloc(*sz);
 
     fseek(f, 0, SEEK_SET);
-    fread(s, 1, sz, f);
+    fread(s, 1, *sz, f);
     fclose(f);
 
-    data_cache_hit_writeback(s, sz);
+    data_cache_hit_writeback(s, *sz);
+    return s;
+}
 
+sprite_t *sprite_load(const char *fn)
+{
+    int sz;
+    sprite_t *s = __file_load_all(fn, &sz);
     __sprite_upgrade(s);
 
     return s;
