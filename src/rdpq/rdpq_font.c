@@ -13,6 +13,7 @@ _Static_assert(sizeof(atlas_t) == 12, "atlas_t size is wrong");
 
 #define PTR_DECODE(font, ptr)    ((void*)(((uint8_t*)(font)) + (uint32_t)(ptr)))
 
+/** @brief Drawing context */
 static struct draw_ctx_s {
     atlas_t *last_atlas;
     rdpq_tile_t atlas_tile;
