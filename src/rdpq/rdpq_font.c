@@ -96,12 +96,16 @@ void rdpq_font_printn(rdpq_font_t *fnt, const char *text, int nch)
 {
     int16_t *glyphs = alloca(nch * sizeof(int16_t));
     int n = 0;
+    const char* text_end = text + nch;
 
     // Decode UTF-8 text into glyph indices. We do this in one pass
-    // and store the glyphs away to avoid redoing the decoding for
+    // and store the glyph indices to avoid redoing the decoding for
     // multiple atlases.
-    while (*text) {
+    while (text < text_end) {
+        // Decode one Unicode codepoint from UTF-8
         uint32_t codepoint = *text > 0 ? *text++ : utf8_decode(&text);
+
+        // Search for the range that contains this codepoint (if any)
         for (int i = 0; i < fnt->num_ranges; i++) {
             range_t *r = &fnt->ranges[i];
             if (codepoint >= r->first_codepoint && codepoint < r->first_codepoint + r->num_codepoints) {
@@ -111,11 +115,18 @@ void rdpq_font_printn(rdpq_font_t *fnt, const char *text, int nch)
         }
     }
 
+    // Allocate an array that will hold the X position of each glyph.
+    // We will fill this lazily in the first pass in the loop below.
+    float *xpos = alloca((n+1) * sizeof(float));
+    xpos[0] = 0;
     bool first_loop = true;
-    float *xpos = alloca((n+1) * sizeof(float)); xpos[0] = 0;
+
+    // Go through all the glyphs multiple times, one per atlas. Each time,
+    // start from the first undrawn glyph, activate its atlas, and then draw
+    // all the glyphs in the same atlas. Repeat until all the glyphs are drawn.
     int j = 0;
     while (j >= 0) {
-        // Activate atlas of the first undrawn glyph
+        // Activate the atlas of the first undrawn glyph
         int a = fnt->glyphs[glyphs[j]].natlas;
         atlas_t *atlas = &fnt->atlases[a];
         rdpq_tile_t tile = atlas_activate(atlas);
@@ -124,20 +135,31 @@ void rdpq_font_printn(rdpq_font_t *fnt, const char *text, int nch)
         // part of the current atlas
         int first_undrawn = -1;
         for (int i = j; i < n; i++) {
-            if (glyphs[i] < 0) continue;
+            // If this glyph was already drawn, skip it
+            if (glyphs[i] < 0)
+                continue;
             glyph_t *g = &fnt->glyphs[glyphs[i]];
+
+            // If this is the first loop, compute the X position of the glyph
             if (first_loop)
                 xpos[i+1] = xpos[i] + g->xadvance * draw_ctx.xscale * (1.0f / 64.0f);
+
+            // If this glyph is not part of the current atlas, skip it. If it's
+            // the first undrawn glyph, remember it.
             if (g->natlas != a) {
                 if (first_undrawn < 0) first_undrawn = i;
                 continue;
             }
+
+            // Draw the glyph
             rdpq_texture_rectangle(tile, 
                 draw_ctx.x + g->xoff * draw_ctx.xscale + xpos[i],
                 draw_ctx.y + g->yoff * draw_ctx.yscale,
                 draw_ctx.x + g->xoff2 * draw_ctx.xscale + xpos[i],
                 draw_ctx.y + g->yoff2 * draw_ctx.yscale,
                 g->s, g->t, draw_ctx.xscale, draw_ctx.yscale);
+
+            // Mark the glyph as drawn
             glyphs[i] = -1;
         }
 
@@ -156,6 +178,12 @@ void rdpq_font_printf(rdpq_font_t *fnt, const char *fmt, ...)
     rdpq_font_printn(fnt, buf, n);
 }
 
+void rdpq_font_position(float x, float y)
+{
+    draw_ctx.x = x;
+    draw_ctx.y = y;
+}
+
 void rdpq_font_begin(color_t color)
 {
     rdpq_set_mode_standard();
@@ -164,7 +192,7 @@ void rdpq_font_begin(color_t color)
     rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
     rdpq_set_blend_color(RGBA32(0,0,0,1));
     rdpq_set_prim_color(color);
-    draw_ctx = (struct draw_ctx_s){ .xscale = 1, .yscale = 1, .x = 50, .y = 50 };
+    draw_ctx = (struct draw_ctx_s){ .xscale = 1, .yscale = 1 };
 }
 
 void rdpq_font_end(void)

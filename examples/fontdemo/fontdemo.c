@@ -8,6 +8,7 @@ int main()
     dfs_init(DFS_DEFAULT_LOCATION);
     display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE);
     rdpq_init();
+    rdpq_debug_start();
 
     rdpq_font_t *fnt1 = rdpq_font_load("rom:/Pacifico.font64");
 
@@ -21,7 +22,8 @@ int main()
         rdpq_fill_rectangle(0, 0, screen->width, screen->height);
 
         rdpq_font_begin(RGBA32(0xED, 0xAE, 0x49, 0xFF));
-        rdpq_font_print(fnt1, "Hello, world!");
+        rdpq_font_position(20, 50);
+        rdpq_font_print(fnt1, "Jumping over the river");
         rdpq_font_end();
 
         rdp_detach_show(screen);
