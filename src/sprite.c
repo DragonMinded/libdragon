@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <malloc.h>
 
 static sprite_t *last_spritemap = NULL;
 
@@ -52,8 +53,12 @@ void *__file_load_all(const char *fn, int *sz)
     assertf(f, "File not found: %s\n", fn);
     fseek(f, 0, SEEK_END);
 
+    // Allocate a buffer big enough to hold the file.
+    // We force a 16-byte alignment for the buffer so that it's cacheline aligned.
+    // This might or might not be useful, but if a binary file is laid out so that it
+    // matters, at least we guarantee that. 
     *sz = ftell(f);
-    void *s = malloc(*sz);
+    void *s = memalign(16, *sz);
 
     fseek(f, 0, SEEK_SET);
     fread(s, 1, *sz, f);
