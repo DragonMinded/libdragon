@@ -17,17 +17,22 @@
 int flag_verbose = 0;
 bool flag_debug = false;
 int flag_point_size = 12;
+int *flag_ranges = NULL;
 
 void print_args( char * name )
 {
+    fprintf(stderr, "mkfont -- Convert TTF/OTF fonts into the font64 format for libdragon\n\n");
     fprintf(stderr, "Usage: %s [flags] <input files...>\n", name);
     fprintf(stderr, "\n");
     fprintf(stderr, "Command-line flags:\n");
-    fprintf(stderr, "   -s/--size <pt>        Point size of the font (default: 12)\n");
-    fprintf(stderr, "   -o/--output <dir>     Specify output directory (default: .)\n");
-    fprintf(stderr, "   -v/--verbose          Verbose output\n");
-    fprintf(stderr, "   -d/--debug            Dump also debug images\n");
+    fprintf(stderr, "   -s/--size <pt>            Point size of the font (default: 12)\n");
+    fprintf(stderr, "   -r/--range <start-stop>   Range of unicode codepoints to convert, as hex values (default: 20-7F)\n");
+    fprintf(stderr, "   -o/--output <dir>         Specify output directory (default: .)\n");
+    fprintf(stderr, "   -v/--verbose              Verbose output\n");
+    fprintf(stderr, "   -d/--debug                Dump also debug images\n");
     fprintf(stderr, "\n");
+    fprintf(stderr, "It is possible to convert multiple ranges of codepoints, by specifying\n");
+    fprintf(stderr, "--range more than one time.\n");
 }
 
 void codepoint_range_add(int **arr, int *n, int first, int last)
@@ -226,7 +231,7 @@ void image_compact(uint8_t *pixels, int *w, int *h, int stride)
     }
 }
 
-int convert(const char *infn, const char *outfn, int point_size)
+int convert(const char *infn, const char *outfn, int point_size, int *ranges)
 {
     unsigned char *indata = NULL;
     {
@@ -246,13 +251,11 @@ int convert(const char *infn, const char *outfn, int point_size)
     int w = 128, h = 64;  // maximum size for a I4 texture
     unsigned char *pixels = malloc(w * h);
 
-    int ranges[] = { 0x20, 0x7F, 0xA0, 0xFF, 0x100, 0x17F, 0x400, 0x4FF, 0x3040, 0x309F, 0,0 };
-
     rdpq_font_t *font = n64font_alloc();
 
     // Go through all the ranges
     int nimg = 0;
-    for (int r=0; ranges[r]; r+=2) {
+    for (int r=0; r<arrlen(ranges); r+=2) {
         if (flag_verbose)
             fprintf(stderr, "processing codepoint range: %04X - %04X\n", ranges[r], ranges[r+1]);
         n64font_addrange(font, ranges[r], ranges[r+1]);
@@ -381,6 +384,19 @@ int main(int argc, char *argv[])
                     fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
                     return 1;
                 }
+            } else if (!strcmp(argv[i], "-r") || !strcmp(argv[i], "--range")) {
+                if (++i == argc) {
+                    fprintf(stderr, "missing argument for %s\n", argv[i-1]);
+                    return 1;
+                }
+                int r0, r1;
+                char extra;
+                if (sscanf(argv[i], "%x-%x%c", &r0, &r1, &extra) != 2) {
+                    fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
+                    return 1;
+                }
+                arrpush(flag_ranges, r0);
+                arrpush(flag_ranges, r1);
             } else if (!strcmp(argv[i], "-o") || !strcmp(argv[i], "--output")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
@@ -401,11 +417,17 @@ int main(int argc, char *argv[])
         char* ext = strrchr(basename_noext, '.');
         if (ext) *ext = '\0';
 
+        if (!flag_ranges) {
+            // Default range (ASCII)
+            arrpush(flag_ranges, 0x20);
+            arrpush(flag_ranges, 0x7F);
+        }
+
         asprintf(&outfn, "%s/%s.font64", outdir, basename_noext);
         if (flag_verbose)
             printf("Converting: %s -> %s\n",
                 infn, outfn);
-        if (convert(infn, outfn, flag_point_size) != 0)
+        if (convert(infn, outfn, flag_point_size, flag_ranges) != 0)
             error = true;
         free(outfn);
     }
