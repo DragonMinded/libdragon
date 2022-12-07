@@ -937,10 +937,56 @@ inline void rdpq_load_block_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint1
 }
 
 /**
- * @brief Low level function to load a texture image into TMEM in a single memory transfer
+ * @brief Load a texture image into TMEM with a single contiguous memory transfer (RDP command: LOAD_BLOCK)
+ * 
+ * This is a command alternative to #rdpq_load_tile to load data from
+ * RDRAM into TMEM. It is faster than #rdpq_load_tile but only allows
+ * to transfer a consecutive block of data; the block can cover multiple
+ * lines, but not a sub-rectangle of the texture image.
+ * 
+ * @note Beginners are advised to use the rdpq texture API (rdpq_tex.h), 
+ * for instance #rdpq_tex_load that takes care of everything required,
+ * including using #rdpq_load_block for performance whenever possible.
+ * 
+ * Before calling #rdpq_load_block, the tile must have been configured
+ * using #rdpq_set_tile or #rdpq_set_tile_full to specify the TMEM
+ * address, and the texture in RDRAM must have been set via
+ * #rdpq_set_texture_image. 
+ * 
+ * @note It is important to notice that the RDP will interpret the tile pitch
+ *       configured in the tile descriptor with a different semantic: it is
+ *       used as a number of texels that must be skipped between lines
+ *       in RDRAM. Normally, for a compact texture, it should then be set to zero
+ *       in the call to #rdpq_set_tile. Instead, The *real* pitch of the texture
+ *       in TMEM must be provided to #rdpq_load_block itself.
+ * 
+ * After the call to #rdpq_load_block, it is not possible to reuse the tile
+ * descriptor for performing a draw. So a new tile descriptor should be configured
+ * from scratch using #rdpq_set_tile.
+ * 
+ * The maximum number of texels that can be transferred by a single call is
+ * 2048. This allows to fill the TMEM only if a 16-bit or 32-bit texture is used.
+ * If you need to load a 4-bit or 8-bit texture, consider configuring the tile
+ * descriptor as 16-bit and adjusting the number of texels accordingly. For instance,
+ * to transfer a 80x64 4-bit texture (5120 texels), do the transfer as if it was a
+ * 20x64 16-bit texture (1280 texels). It doesn't matter if you lie to the RDP
+ * during the texture load: what it matters is that the tile descriptor that you will
+ * later use for drawing is configured with the correct pixel format.
+ * 
+ * @param[in] tile          Tile descriptor (TILE0-TILE7)
+ * @param[in] s0            Top-left X texture coordinate to load
+ * @param[in] t0            Top-left Y texture coordinate to load
+ * @param[in] num_texels    Number of texels to load (max: 2048)
+ * @param[in] tmem_pitch    Pitch of the texture in TMEM (in bytes)
+ * 
+ * @see #rdpq_load_tile
+ * @see #rdpq_load_block_fx
+ * @see #rdpq_set_tile
+ * @see #rdpq_tex_load
  */
 inline void rdpq_load_block(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t tmem_pitch)
 {
+    assertf(num_texels <= 2048, "invalid num_texels %d: must be smaller than 2048", num_texels);
     assertf((tmem_pitch % 8) == 0, "invalid tmem_pitch %d: must be multiple of 8", tmem_pitch);
     // Dxt is the reciprocal of the number of 64 bit words in a line in 1.11 format, rounded up
     uint32_t words = tmem_pitch / 8;
