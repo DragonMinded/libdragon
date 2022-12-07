@@ -195,7 +195,7 @@
  * Let's check the workflow for a standard RDP command, that is one for which
  * rdpq provides no fixups:
  * 
- *  * CPU (application code): a calls to a rdpq function is made (eg: #rdpq_load_block).
+ *  * CPU (application code): a call to a rdpq function is made (eg: #rdpq_load_block).
  *  * CPU (rdpq code): the implementation of #rdpq_load_block enqueues a rspq command
  *    for the rdpq overlay. This command has the same binary encoding of a real RDP
  *    LOAD_BLOCK command, while still being a valid rspq command following the rspq
@@ -247,16 +247,20 @@
  * 
  * ### RDP commands in block mode
  * 
- * In block mode, rdpq completely changes the way of operating. 
+ * In block mode, rdpq completely changes its way of operating. 
  * 
  * A rspq block (as described in rspq.c) is a buffer containing a sequence
  * of rspq commands that can be played back by RSP itself, with the CPU just
- * triggering it via #rspq_block_run. When using rdpq, the rspq block is
+ * triggering it via #rspq_block_run. When using rdpq, the rspq block
  * contains one additional buffer: a "RDP static buffer", which contains
  * RDP commands.
  * 
  * At block creation time, in fact, RDP commands are not enqueued as
- * rspq commands, but are rather written into this separate buffer. Instead,
+ * rspq commands, but are rather written into this separate buffer. The
+ * goal is to avoid the passthrough overhead: since RDP commands don't change
+ * during the block execution, they can be sent directly to RDP by RSP, 
+ * referencing the RDP static buffer, without ever transferring them into
+ * RSP DMEM and back.
  * 
  *   TO BE FINISHED ***********************
  * 
@@ -603,9 +607,7 @@ void __rdpq_block_next_buffer(void)
         assert(RDPQ_BLOCK_MIN_SIZE >= RDPQ_MAX_COMMAND_SIZE);
     }
 
-    // Allocate next chunk (double the size of the current one).
-    // We use doubling here to reduce overheads for large blocks
-    // and at the same time start small.
+    // Allocate RDP static buffer.
     int memsz = sizeof(rdpq_block_t) + st->bufsize*sizeof(uint32_t);
     rdpq_block_t *b = malloc_uncached(memsz);
 
@@ -637,6 +639,8 @@ void __rdpq_block_next_buffer(void)
         PhysicalAddr(st->wptr), PhysicalAddr(st->wptr), PhysicalAddr(st->wend));
 
     // Grow size for next buffer
+    // We use doubling here to reduce overheads for large blocks
+    // and at the same time start small.
     if (st->bufsize < RDPQ_BLOCK_MAX_SIZE) st->bufsize *= 2;
 }
 
@@ -667,6 +671,14 @@ rdpq_block_t* __rdpq_block_end()
     // Recover tracking state before the block creation started
     rdpq_tracking = st->previous_tracking;
 
+    // NOTE: no rspq command is enqueued at the end of block. Specifically,
+    // there is no RSPQ_CMD_RDP_SET_BUFFER to switch back to the dynamic RDP buffers. 
+    // This means that after the block is run, further RDP passthrough commands
+    // will be written in the trailing space of the last RDP static buffer. 
+    // When that is filled and the sentinel is reached, the RSP will automatically
+    // switch to the next RDP dynamic buffer. By using the trailing space of the
+    // RDP static buffer, we save a buffer switch (which might even be useless
+    // if another block is run right after this one).
     return ret;
 }
 
