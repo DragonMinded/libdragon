@@ -10,6 +10,7 @@
 
 _Static_assert(sizeof(glyph_t) == 16, "glyph_t size is wrong");
 _Static_assert(sizeof(atlas_t) == 12, "atlas_t size is wrong");
+_Static_assert(sizeof(kerning_t) == 3, "kerning_t size is wrong");
 
 #define PTR_DECODE(font, ptr)    ((void*)(((uint8_t*)(font)) + (uint32_t)(ptr)))
 
@@ -44,6 +45,7 @@ rdpq_font_t* rdpq_font_load(const char *fn)
     fnt->ranges = PTR_DECODE(fnt, fnt->ranges);
     fnt->glyphs = PTR_DECODE(fnt, fnt->glyphs);
     fnt->atlases = PTR_DECODE(fnt, fnt->atlases);
+    fnt->kerning = PTR_DECODE(fnt, fnt->kerning);
     for (int i = 0; i < fnt->num_atlases; i++) {
         fnt->atlases[i].buf = PTR_DECODE(fnt, fnt->atlases[i].buf);
     }
@@ -119,8 +121,11 @@ void rdpq_font_printn(rdpq_font_t *fnt, const char *text, int nch)
     // Allocate an array that will hold the X position of each glyph.
     // We will fill this lazily in the first pass in the loop below.
     float *xpos = alloca((n+1) * sizeof(float));
-    xpos[0] = 0;
+    xpos[0] = 0.5f;  // start at center of pixel so that all rounds are to nearest
     bool first_loop = true;
+
+    float advance_scale = draw_ctx.xscale * (1.0f / 64.0f);
+    float kerning_scale = draw_ctx.xscale * (fnt->point_size / 127.0f);
 
     // Go through all the glyphs multiple times, one per atlas. Each time,
     // start from the first undrawn glyph, activate its atlas, and then draw
@@ -142,8 +147,28 @@ void rdpq_font_printn(rdpq_font_t *fnt, const char *text, int nch)
             glyph_t *g = &fnt->glyphs[glyphs[i]];
 
             // If this is the first loop, compute the X position of the glyph
-            if (first_loop)
-                xpos[i+1] = xpos[i] + g->xadvance * draw_ctx.xscale * (1.0f / 64.0f);
+            if (first_loop) {
+                xpos[i+1] = xpos[i] + g->xadvance * advance_scale;
+
+                // Check if there is kerning information for this glyph
+                if (g->kerning_lo && i < n-1) {
+                    // Do a binary search in the kerning table to look for the next glyph
+                    int l = g->kerning_lo, r = g->kerning_hi;
+                    int next = glyphs[i+1];
+                    while (l <= r) {
+                        int m = (l + r) / 2;
+                        if (fnt->kerning[m].glyph2 == next) {
+                            // Found the kerning value: add it to the X position
+                            xpos[i+1] += fnt->kerning[m].kerning * kerning_scale;
+                            break;
+                        }
+                        if (fnt->kerning[m].glyph2 < next)
+                            l = m + 1;
+                        else
+                            r = m - 1;
+                    }
+                }
+            }
 
             // If this glyph is not part of the current atlas, skip it. If it's
             // the first undrawn glyph, remember it.

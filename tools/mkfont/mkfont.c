@@ -16,6 +16,7 @@
 
 int flag_verbose = 0;
 bool flag_debug = false;
+bool flag_kerning = true;
 int flag_point_size = 12;
 int *flag_ranges = NULL;
 
@@ -29,6 +30,7 @@ void print_args( char * name )
     fprintf(stderr, "   -r/--range <start-stop>   Range of unicode codepoints to convert, as hex values (default: 20-7F)\n");
     fprintf(stderr, "   -o/--output <dir>         Specify output directory (default: .)\n");
     fprintf(stderr, "   -v/--verbose              Verbose output\n");
+    fprintf(stderr, "   --no-kerning              Do not export kerning information\n");
     fprintf(stderr, "   -d/--debug                Dump also debug images\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "It is possible to convert multiple ranges of codepoints, by specifying\n");
@@ -73,10 +75,13 @@ void n64font_write(rdpq_font_t *fnt, FILE *out)
 {
     // Write header
     w32(out, fnt->magic);
+    w32(out, fnt->point_size);
     w32(out, fnt->num_ranges);
     w32(out, fnt->num_glyphs);
     w32(out, fnt->num_atlases);
+    w32(out, fnt->num_kerning);
     int off_placeholders = ftell(out);
+    w32(out, (uint32_t)0); // placeholder
     w32(out, (uint32_t)0); // placeholder
     w32(out, (uint32_t)0); // placeholder
     w32(out, (uint32_t)0); // placeholder
@@ -105,7 +110,9 @@ void n64font_write(rdpq_font_t *fnt, FILE *out)
         w8(out, fnt->glyphs[i].s);
         w8(out, fnt->glyphs[i].t);
         w8(out, fnt->glyphs[i].natlas);
-        for (int j=0;j<7;j++) w8(out, (uint8_t)0);
+        for (int j=0;j<3;j++) w8(out, (uint8_t)0);
+        w16(out, fnt->glyphs[i].kerning_lo);
+        w16(out, fnt->glyphs[i].kerning_hi);
     }
 
     // Write atlases
@@ -120,6 +127,15 @@ void n64font_write(rdpq_font_t *fnt, FILE *out)
         w8(out, fnt->atlases[i].__padding[0]);
         w8(out, fnt->atlases[i].__padding[1]);
         w8(out, fnt->atlases[i].__padding[2]);
+    }
+
+    // Write kernings
+    falign(out, 16);
+    uint32_t offset_kernings = ftell(out);
+    for (int i=0; i<fnt->num_kerning; i++)
+    {
+        w16(out, fnt->kerning[i].glyph2);
+        w8(out, fnt->kerning[i].kerning);
     }
 
     // Write bytes
@@ -137,6 +153,7 @@ void n64font_write(rdpq_font_t *fnt, FILE *out)
     w32(out, offset_ranges);
     w32(out, offset_glypes);
     w32(out, offset_atlases);
+    w32(out, offset_kernings);
     for (int i=0;i<fnt->num_atlases;i++)
     {
         fseek(out, offset_atlases + i * 12, SEEK_SET);
@@ -158,14 +175,14 @@ void n64font_addrange(rdpq_font_t *fnt, int first, int last)
     fnt->num_glyphs += last - first + 1;
 }
 
-glyph_t* n64font_glyph(rdpq_font_t *fnt, uint32_t cp)
+int n64font_glyph(rdpq_font_t *fnt, uint32_t cp)
 {
     for (int i=0;i<fnt->num_ranges;i++)
     {
         if (cp >= fnt->ranges[i].first_codepoint && cp < fnt->ranges[i].first_codepoint + fnt->ranges[i].num_codepoints)
-            return &fnt->glyphs[fnt->ranges[i].first_glyph + cp - fnt->ranges[i].first_codepoint];
+            return fnt->ranges[i].first_glyph + cp - fnt->ranges[i].first_codepoint;
     }
-    assert(!"invalid codepoint"); // should never happen
+    return -1;
 }
 
 void n64font_addatlas(rdpq_font_t *fnt, uint8_t *buf, int width, int height, int stride)
@@ -187,10 +204,20 @@ void n64font_addatlas(rdpq_font_t *fnt, uint8_t *buf, int width, int height, int
     fnt->num_atlases++;
 }
 
-rdpq_font_t* n64font_alloc(void)
+void n64font_addkerning(rdpq_font_t *fnt, int g1, int g2, int kerning)
+{
+    fnt->kerning = realloc(fnt->kerning, (fnt->num_kerning + 1) * sizeof(kerning_t));
+    fnt->kerning[fnt->num_kerning].glyph2 = g2;
+    assert(kerning >= -128 && kerning <= 127);
+    fnt->kerning[fnt->num_kerning].kerning = kerning;
+    fnt->num_kerning++;
+}
+
+rdpq_font_t* n64font_alloc(int point_size)
 {
     rdpq_font_t *fnt = calloc(1, sizeof(rdpq_font_t));
     fnt->magic = FONT_MAGIC_V0;
+    fnt->point_size = point_size;
     return fnt;
 }
 
@@ -231,6 +258,18 @@ void image_compact(uint8_t *pixels, int *w, int *h, int stride)
     }
 }
 
+// qsort compare function to sort arrays of kerning_t by glyph2
+int kerning_cmp(const void *a, const void *b)
+{
+    const kerning_t *ka = a;
+    const kerning_t *kb = b;
+    if (ka->glyph2 < kb->glyph2)
+        return -1;
+    if (ka->glyph2 > kb->glyph2)
+        return 1;
+    return 0;
+}
+
 int convert(const char *infn, const char *outfn, int point_size, int *ranges)
 {
     unsigned char *indata = NULL;
@@ -248,10 +287,20 @@ int convert(const char *infn, const char *outfn, int point_size, int *ranges)
         fclose(infile);
     }
 
+    // Initialize the font
+    stbtt_fontinfo info;
+    stbtt_InitFont(&info, indata, 0);
+    float font_scale = stbtt_ScaleForMappingEmToPixels(&info, point_size);
+
     int w = 128, h = 64;  // maximum size for a I4 texture
     unsigned char *pixels = malloc(w * h);
 
-    rdpq_font_t *font = n64font_alloc();
+    rdpq_font_t *font = n64font_alloc(point_size);
+
+    // Map from N64 glyph index to TTF glyph index
+    typedef struct { int key; int value; } glyphmap_t;
+    glyphmap_t *glyph_indices = NULL;
+    hmdefault(glyph_indices, -1);
 
     // Go through all the ranges
     int nimg = 0;
@@ -303,12 +352,19 @@ int convert(const char *infn, const char *outfn, int point_size, int *ranges)
                         return 1;
                     }
                     at_least_one = true;
-                    glyph_t *g = n64font_glyph(font, range.array_of_unicode_codepoints[i]);
+                    int gidx = n64font_glyph(font, range.array_of_unicode_codepoints[i]);
+                    assert(gidx >= 0);
+                    glyph_t *g = &font->glyphs[gidx];
                     g->natlas = nimg;
                     g->s = ch->x0; g->t = ch->y0;
                     g->xoff = ch->xoff; g->yoff = ch->yoff;
                     g->xoff2 = ch->xoff2; g->yoff2 = ch->yoff2;
                     g->xadvance = ch->xadvance * 64;
+
+                    // Update the glyph index map
+                    int ttf_gidx = stbtt_FindGlyphIndex(&info, range.array_of_unicode_codepoints[i]);
+                    assert(ttf_gidx >= 0);
+                    hmput(glyph_indices, gidx, ttf_gidx);
                 } else {
                     // If the glyph wasn't packed, add it to an array of codepoints to process in the next image
                     arrpush(newrange, range.array_of_unicode_codepoints[i]);
@@ -343,6 +399,80 @@ int convert(const char *infn, const char *outfn, int point_size, int *ranges)
 
     free(pixels);
 
+    // Add kerning information, if enabled on command line and available in the font
+    if (flag_kerning && (info.kern || info.gpos)) {
+        const int ascii_range_start = 0x20;
+        const int ascii_range_len = 0x80 - 0x20;
+
+        // Add first empty entry for kerning. This allows to store "0" in glyphs to mean "no kerning"
+        n64font_addkerning(font, 0, 0, 0);
+
+        // Prepare the kerning table. Go through all ranges, and within each range, construct a N*N table
+        // for all the pairs [glyph1, glyph2] for all glyphs in that range. This means that we don't
+        // collect kerning for pairs of glyphs in different ranges, but that shouldn't really matter in real
+        // use cases (eg: kerning between a cyrillic and a greek letter is probably not very useful).
+        // In addition to this, always collect kerning against all ASCII characters, because those are common
+        // enough to be useful with all the ranges.
+        for (int r=0;r<font->num_ranges; r++) {
+            range_t *range = &font->ranges[r];
+
+            // Number of codepoints to iterate twice (N^2). These are the glyphs in the range
+            // plus the ASCII range (unless the range *is* ASCII itself).
+            int num_codepoints = range->num_codepoints;
+            if (range->first_codepoint != ascii_range_start)
+                num_codepoints += ascii_range_len;
+
+            for (int i=0;i<num_codepoints;i++) {
+                // First glyph index
+                int gidx1 = (i >= range->num_codepoints) ? ascii_range_start+i-range->num_codepoints : range->first_glyph + i;
+                int ttf_idx1 = hmget(glyph_indices, gidx1);
+                if (ttf_idx1 < 0) continue;
+                glyph_t *g = &font->glyphs[gidx1];
+
+                int kerning_start = font->num_kerning;
+
+                for (int j=0; j<num_codepoints; j++) {
+                    // Second glyph index
+                    int gidx2 = (j >= range->num_codepoints) ? ascii_range_start+j-range->num_codepoints : range->first_glyph + j;
+                    int ttf_idx2 = hmget(glyph_indices, gidx2);
+                    if (ttf_idx2 < 0) continue;
+
+                    // Extract kerning between the two glyphs from the TTF file
+                    int kerning = stbtt_GetGlyphKernAdvance(&info, ttf_idx1, ttf_idx2);
+                    if (kerning != 0) {
+                        // Calculate the kerning in pixels
+                        float advance = kerning * font_scale;
+
+                        // Skip very small kerning values. These are possibly useless with our
+                        // small resolutions and font sizes, so we save a bit of runtime space
+                        // in RAM and a bit of CPU (smaller tables => faster lookups).
+                        if (fabsf(advance) < 0.5f)
+                            continue;
+
+                        // Add the kerning entry. Scale the advance to fit 8 bit, assuming
+                        // the kerning will never be bigger than the point size (and usually much
+                        // smaller). This makes good use of the available precision.
+                        n64font_addkerning(font, gidx1, gidx2, advance * 127.0f / point_size);
+                    }
+                }
+
+                if (font->num_kerning != kerning_start) {
+                    // If at least one kerning entry was added for this glyph, sort the kerning table
+                    // by second glyph index (to speeed up runtime lookups) and then store the range
+                    // within the first glyph.
+                    g->kerning_lo = kerning_start;
+                    g->kerning_hi = font->num_kerning - 1;
+
+                    qsort(font->kerning + g->kerning_lo, g->kerning_hi - g->kerning_lo + 1, sizeof(kerning_t), kerning_cmp);
+                }
+            }
+        }
+
+        if (flag_verbose)
+            fprintf(stderr, "built kerning table (%d entries)\n", font->num_kerning);
+    }
+
+    // Write output file
     FILE *out = fopen(outfn, "wb");
     if (!out) {
         fprintf(stderr, "cannot open output file: %s\n", outfn);
@@ -352,6 +482,7 @@ int convert(const char *infn, const char *outfn, int point_size, int *ranges)
     fclose(out);
 
     n64font_free(font);
+    free(indata);
     return 0;
 }
 
@@ -374,6 +505,8 @@ int main(int argc, char *argv[])
                 flag_verbose++;
             } else if (!strcmp(argv[i], "-d") || !strcmp(argv[i], "--debug")) {
                 flag_debug = true;
+            } else if (!strcmp(argv[i], "--no-kerning")) {
+                flag_kerning = false;
             } else if (!strcmp(argv[i], "-s") || !strcmp(argv[i], "--size")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
