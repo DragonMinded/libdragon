@@ -35,6 +35,7 @@ typedef struct atlas_s {
     uint8_t __padding[3];               ///< Padding
 } atlas_t;
 
+/** @brief Kerning data for a pair of glyphs. */
 typedef struct kerning_s {
     int16_t glyph2;                     ///< Index of second glyph
     int8_t kerning;                     ///< Signed number of pixels to advance after drawing the glyph (scaled by 127 / point_size)
