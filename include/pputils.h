@@ -63,6 +63,42 @@
 #define __PPCAT2(n,x) n ## x
 #define __PPCAT(n,x) __PPCAT2(n,x)
 
+// __CALL_FOREACH_BIS. Like __CALL_FOREACH, but it allows to be called without the expansion
+// of a __CALL_FOREACH.
+#define __FEB_0(_call, ...)
+#define __FEB_1(_call, x)       _call(x)
+#define __FEB_2(_call, x, ...)  _call(x) __FEB_1(_call, __VA_ARGS__)
+#define __FEB_3(_call, x, ...)  _call(x) __FEB_2(_call, __VA_ARGS__)
+#define __FEB_4(_call, x, ...)  _call(x) __FEB_3(_call, __VA_ARGS__)
+#define __FEB_5(_call, x, ...)  _call(x) __FEB_4(_call, __VA_ARGS__)
+#define __FEB_6(_call, x, ...)  _call(x) __FEB_5(_call, __VA_ARGS__)
+#define __FEB_7(_call, x, ...)  _call(x) __FEB_6(_call, __VA_ARGS__)
+#define __FEB_8(_call, x, ...)  _call(x) __FEB_7(_call, __VA_ARGS__)
+#define __FEB_9(_call, x, ...)  _call(x) __FEB_8(_call, __VA_ARGS__)
+#define __FEB_10(_call, x, ...) _call(x) __FEB_9(_call, __VA_ARGS__)
+#define __FEB_11(_call, x, ...) _call(x) __FEB_10(_call, __VA_ARGS__)
+#define __FEB_12(_call, x, ...) _call(x) __FEB_11(_call, __VA_ARGS__)
+#define __FEB_13(_call, x, ...) _call(x) __FEB_12(_call, __VA_ARGS__)
+#define __FEB_14(_call, x, ...) _call(x) __FEB_13(_call, __VA_ARGS__)
+#define __FEB_15(_call, x, ...) _call(x) __FEB_14(_call, __VA_ARGS__)
+#define __FEB_16(_call, x, ...) _call(x) __FEB_15(_call, __VA_ARGS__)
+#define __FEB_17(_call, x, ...) _call(x) __FEB_16(_call, __VA_ARGS__)
+#define __FEB_18(_call, x, ...) _call(x) __FEB_17(_call, __VA_ARGS__)
+#define __FEB_19(_call, x, ...) _call(x) __FEB_18(_call, __VA_ARGS__)
+#define __FEB_20(_call, x, ...) _call(x) __FEB_19(_call, __VA_ARGS__)
+#define __FEB_21(_call, x, ...) _call(x) __FEB_20(_call, __VA_ARGS__)
+#define __FEB_22(_call, x, ...) _call(x) __FEB_21(_call, __VA_ARGS__)
+#define __FEB_23(_call, x, ...) _call(x) __FEB_22(_call, __VA_ARGS__)
+#define __FEB_24(_call, x, ...) _call(x) __FEB_23(_call, __VA_ARGS__)
+#define __FEB_25(_call, x, ...) _call(x) __FEB_24(_call, __VA_ARGS__)
+#define __FEB_26(_call, x, ...) _call(x) __FEB_25(_call, __VA_ARGS__)
+#define __FEB_27(_call, x, ...) _call(x) __FEB_26(_call, __VA_ARGS__)
+#define __FEB_28(_call, x, ...) _call(x) __FEB_27(_call, __VA_ARGS__)
+#define __FEB_29(_call, x, ...) _call(x) __FEB_28(_call, __VA_ARGS__)
+#define __FEB_30(_call, x, ...) _call(x) __FEB_29(_call, __VA_ARGS__)
+#define __FEB_31(_call, x, ...) _call(x) __FEB_30(_call, __VA_ARGS__)
+#define __CALL_FOREACH_BIS(fn, ...)  __GET_33RD_ARG("ignored", ##__VA_ARGS__, __FEB_31, __FEB_30, __FEB_29, __FEB_28, __FEB_27, __FEB_26, __FEB_25, __FEB_24, __FEB_23, __FEB_22, __FEB_21, __FEB_20, __FEB_19, __FEB_18, __FEB_17, __FEB_16, __FEB_15, __FEB_14, __FEB_13, __FEB_12, __FEB_11, __FEB_10, __FEB_9, __FEB_8, __FEB_7, __FEB_6, __FEB_5, __FEB_4, __FEB_3, __FEB_2, __FEB_1, __FEB_0)(fn, ##__VA_ARGS__)
+
 /// @endcond
 
 #endif
