@@ -1160,11 +1160,20 @@ makeMxc2Op mfc2, 0x0
         .align 4
     V_SHIFT:    .half 0x80, 0x40, 0x20, 0x10, 0x8, 0x4, 0x2, 0x1
 
-    .macro setup_vsll vshiftreg
-        .set noat
-        la $1,%lo(V_SHIFT)
-        lqv \vshiftreg,0,  0,$1
-        .set at
+    .macro setup_vsll vshiftreg, emitload
+        .ifnb \emitload
+            .ifgt \emitload
+                .set noat
+                la $1,%lo(V_SHIFT)
+                lqv \vshiftreg,0,  0,$1
+                .set at
+            .endif
+        .else
+            .set noat
+            la $1,%lo(V_SHIFT)
+            lqv \vshiftreg,0,  0,$1
+            .set at
+        .endif
 
         .macro vsll vdstreg, vsrcreg, qty
             .if (\qty == 7)
@@ -1241,11 +1250,21 @@ makeMxc2Op mfc2, 0x0
         .align 4
     V_SHIFT8:   .half 0x8000, 0x4000, 0x2000, 0x1000, 0x800, 0x400, 0x200, 0x100
 
-    .macro setup_vsll8 vshiftreg
-        .set noat
-        la $1,%lo(V_SHIFT8)
-        lqv \vshiftreg,0,  0,$1
-        .set at
+
+    .macro setup_vsll8 vshiftreg, emitload
+        .ifnb \emitload
+            .ifgt \emitload
+                .set noat
+                la $1,%lo(V_SHIFT8)
+                lqv \vshiftreg,0,  0,$1
+                .set at
+            .endif
+        .else
+            .set noat
+            la $1,%lo(V_SHIFT8)
+            lqv \vshiftreg,0,  0,$1
+            .set at
+        .endif
 
         .macro vsll8 vdstreg, vsrcreg, qty
             .if (\qty == 15)
