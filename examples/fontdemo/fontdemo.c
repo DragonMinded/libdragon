@@ -16,7 +16,7 @@ int main()
         surface_t *screen;
         while (!(screen = display_lock())) {}
 
-        rdp_attach(screen);
+        rdpq_attach(screen);
 
         rdpq_set_mode_fill(RGBA32(0x30,0x63,0x8E,0));
         rdpq_fill_rectangle(0, 0, screen->width, screen->height);
@@ -26,7 +26,7 @@ int main()
         rdpq_font_print(fnt1, "Jumping over the river");
         rdpq_font_end();
 
-        rdp_detach_show(screen);
+        rdpq_detach_show();
         break;
     }
 }

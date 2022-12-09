@@ -8,6 +8,7 @@
 
 #include "display.h"
 #include "rdpq.h"
+#include "rdpq_attach.h"
 #include <stdbool.h>
 
 ///@cond
@@ -108,79 +109,6 @@ typedef enum
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/**
- * @brief Initialize the RDP system
- */
-void rdp_init( void );
-
-/**
- * @brief Attach the RDP to a surface
- *
- * This function allows the RDP to operate on surfaces, that is memory buffers
- * that can be used as render targets. For instance, it can be used with
- * framebuffers acquired by calling #display_lock, or to render to an offscreen
- * buffer created with #surface_alloc or #surface_make.
- * 
- * This should be performed before any rendering operations to ensure that the RDP
- * has a valid output buffer to operate on.
- *
- * @param[in] surface
- *            A surface pointer
- *            
- * @see surface_new
- * @see display_lock
- */
-void rdp_attach( surface_t *surface );
-
-/**
- * @brief Detach the RDP from the current surface, after the RDP will have
- *        finished writing to it.
- *
- * This function will ensure that all RDP rendering operations have completed
- * before detaching the surface. As opposed to #rdp_detach, this function will
- * not block. An option callback will be called when the RDP has finished drawing
- * and is detached.
- * 
- * @param[in] cb
- *            Optional callback that will be called when the RDP is detached
- *            from the current surface
- * @param[in] arg
- *            Argument to the callback.
- *            
- * @see #rdp_detach
- */
-void rdp_detach_async( void (*cb)(void*), void *arg );
-
-/**
- * @brief Detach the RDP from the current surface, after the RDP will have
- *        finished writing to it.
- *
- * This function will ensure that all RDP rendering operations have completed
- * before detaching the surface. As opposed to #rdp_detach_async, this function
- * will block, doing a spinlock until the RDP has finished.
- * 
- * @note This function requires interrupts to be enabled to operate correctly.
- * 
- * @see #rdp_detach_async
- */
-void rdp_detach( void );
-
-/**
- * @brief Check if the RDP is currently attached to a surface
- */
-bool rdp_is_attached( void );
-
-/**
- * @brief Asynchronously detach the current display from the RDP and automatically call #display_show on it
- *
- * This macro is just a shortcut for `void rdp_detach_async(display_show, disp)`. Use this if you
- * are done rendering with the RDP and just want to submit the attached display context to be shown without
- * any further postprocessing.
- */
-#define rdp_detach_show(disp) ({ \
-    rdp_detach_async((void(*)(void*))display_show, (disp)); \
-})
 
 /**
  * @brief Enable display of 2D filled (untextured) triangles, with possible alpha blending.
@@ -383,14 +311,6 @@ void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3,
  */
 void rdp_set_texture_flush( flush_t flush );
 
-/**
- * @brief Close the RDP system
- *
- * This function closes out the RDP system and cleans up any internal memory
- * allocated by #rdp_init.
- */
-void rdp_close( void );
-
 
 /**************************************************************************************************
  * Deprecated functions
@@ -412,16 +332,49 @@ typedef enum
     SYNC_TILE
 } sync_t;
 
-__attribute__((deprecated("use rdp_attach instead")))
-static inline void rdp_attach_display( display_context_t disp )
+__attribute__((deprecated("use rdpq_init instead")))
+void rdp_init( void );
+
+__attribute__((deprecated("use rdpq_close instead")))
+void rdp_close( void );
+
+__attribute__((deprecated("use rdpq_attach instead")))
+static inline void rdp_attach( surface_t *surface )
 {
-    rdp_attach(disp);
+    rdpq_attach(surface);
 }
 
-__attribute__((deprecated("use rdp_detach instead")))
+__attribute__((deprecated("use rdpq_detach_cb instead")))
+static inline void rdp_detach_async( void (*cb)(void*), void *arg )
+{
+    rdpq_detach_cb(cb, arg);
+}
+
+__attribute__((deprecated("use rdpq_detach_wait instead")))
+void rdp_detach( void );
+
+__attribute__((deprecated("use rdpq_is_attached instead")))
+static inline bool rdp_is_attached( void )
+{
+    return rdpq_is_attached();
+}
+
+__attribute__((deprecated("use rdpq_detach_show instead")))
+static inline void rdp_detach_show( surface_t *disp )
+{
+    rdpq_detach_cb((void(*)(void*))display_show, (disp));
+}
+
+__attribute__((deprecated("use rdpq_attach instead")))
+static inline void rdp_attach_display( display_context_t disp )
+{
+    rdpq_attach(disp);
+}
+
+__attribute__((deprecated("use rdqp_detach instead")))
 static inline void rdp_detach_display( void )
 {
-    rdp_detach();
+    rdpq_detach();
 }
 
 __attribute__((deprecated("use rdpq_set_scissor instead")))
@@ -436,8 +389,8 @@ void rdp_sync( sync_t sync );
 __attribute__((deprecated("use rdpq_fill_rectangle instead")))
 void rdp_draw_filled_rectangle( int tx, int ty, int bx, int by );
 
-static inline __attribute__((deprecated("use rdpq_set_fill_color instead")))
-void rdp_set_primitive_color(uint32_t color) {
+__attribute__((deprecated("use rdpq_set_fill_color instead")))
+static inline void rdp_set_primitive_color(uint32_t color) {
     extern void __rdpq_write8_syncchange(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t autosync);
     __rdpq_write8_syncchange(RDPQ_CMD_SET_FILL_COLOR, 0, color, AUTOSYNC_PIPE);
 }

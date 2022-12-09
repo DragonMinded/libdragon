@@ -322,7 +322,6 @@ uint32_t rdpq_config_enable(uint32_t cfg_enable_bits);
  */
 uint32_t rdpq_config_disable(uint32_t cfg_disable_bits);
 
-
 /**
  * @brief Draw a triangle (RDP command: TRI_*)
  * 
@@ -672,8 +671,8 @@ inline void rdpq_set_yuv_parms(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k
  * The scissoring capability is also the only one that prevents the RDP from drawing
  * outside of the current framebuffer (color surface) extents. As such, rdpq actually
  * calls #rdpq_set_scissor automatically any time a new render target is configured
- * (eg: via #rdpq_set_color_image), because forgetting to do so might easily cause
- * crashes.
+ * (eg: via #rdpq_attach or #rdpq_set_color_image), because forgetting to do so might
+ * easily cause crashes.
  * 
  * Because #rdpq_set_color_image will configure a scissoring region automatically,
  * it is normally not required to call this function. Use this function if you want
@@ -688,6 +687,7 @@ inline void rdpq_set_yuv_parms(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k
  * @param[in]   x1      Bottom-right *exclusive* X coordinate of the rectangle
  * @param[in]   y1      Bottom-right *exclusive* Y coordinate of the rectangle
  * 
+ * @see #rdpq_attach
  * @see #rdpq_set_color_image
  */
 #define rdpq_set_scissor(x0, y0, x1, y1) ({ \
@@ -1212,7 +1212,7 @@ inline void rdpq_set_env_color(color_t color)
  * @brief Configure the framebuffer to render to (RDP command: SET_COLOR_IMAGE)
  * 
  * This command is used to specify the render target that the RDP will draw to.
- *
+ * 
  * Calling this function also automatically configures scissoring (via
  * #rdpq_set_scissor), so that all draw commands are clipped within the buffer,
  * to avoid overwriting memory around it. Use `rdpq_config_disable(RDPQ_CFG_AUTOSCISSOR)`
@@ -1471,7 +1471,7 @@ void rdpq_sync_load(void);
  * sent to it before it, and then generate an interrupt when it is done.
  * 
  * This is normally useful at the end of the frame. For instance, it is used
- * internally by #rdp_detach to make sure RDP is finished drawing on
+ * internally by #rdpq_detach to make sure RDP is finished drawing on
  * the target display before detaching it.
  * 
  * The function can be passed an optional callback that will be called
