@@ -65,6 +65,9 @@ static uint32_t rand(void) {
 	return rand_state = x;
 }
 
+// SRAND(n): set seed for random number generator
+#define SRAND(n) ({ rand_state = (n); if (!rand_state) rand_state = 1; })
+
 // RANDN(n): generate a random number from 0 to n-1
 #define RANDN(n) ({ \
 	__builtin_constant_p((n)) ? \
