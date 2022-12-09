@@ -1523,6 +1523,24 @@ makeMxc2Op mfc2, 0x0
         lui $1, \code
         .set at
     .endm
+    .macro assert_ge v0, v1, code
+        blt \v0, \v1, assertion_failed
+        .set noat
+        lui $1, \code
+        .set at
+    .endm
+    .macro assert_gt v0, v1, code
+        ble \v0, \v1, assertion_failed
+        .set noat
+        lui $1, \code
+        .set at
+    .endm
+    .macro assert_lt v0, v1, code
+        bge \v0, \v1, assertion_failed
+        .set noat
+        lui $1, \code
+        .set at
+    .endm
 
 #else
     .macro assert code
@@ -1530,6 +1548,12 @@ makeMxc2Op mfc2, 0x0
     .macro assert_eq v0, v1, code
     .endm
     .macro assert_ne v0, v1, code
+    .endm
+    .macro assert_ge v0, v1, code
+    .endm
+    .macro assert_gt v0, v1, code
+    .endm
+    .macro assert_lt v0, v1, code
     .endm
 #endif
 
