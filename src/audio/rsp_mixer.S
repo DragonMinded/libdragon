@@ -190,9 +190,6 @@ VCONST_1:
 	#define k_alpha     v_const1.e1
 	#define k_1malpha   v_const1.e2
 
-	vsll_data
-	vsll8_data
-
 	.align 4
 BANNER0:    .ascii "Dragon RSP Audio"
 BANNER1:    .ascii " Coded by Rasky "
@@ -270,9 +267,6 @@ OUTPUT_AREA:     .dcb.w MAX_SAMPLES_PER_LOOP*2
 
 
 command_exec:
-	setup_vsll  v_shift
-	setup_vsll8 v_shift8
-
 	#define samples_left    t4
 	#define outptr          s8
 
