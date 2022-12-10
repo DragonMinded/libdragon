@@ -137,7 +137,7 @@ static void __write_dram_register( void const * const dram_val )
 {
     volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
 
-    reg_base[1] = (uint32_t)dram_val;
+    reg_base[1] = PhysicalAddr(dram_val);
     MEMORY_BARRIER();
 }
 
@@ -169,6 +169,7 @@ static void __display_callback()
     /* Least significant bit of the current line register indicates
        if the currently displayed field is odd or even. */
     bool field = reg_base[4] & 1;
+    bool interlaced = reg_base[0] & (1<<6);
 
     /* Check if the next buffer is ready to be displayed, otherwise just
        leave up the current frame */
@@ -178,7 +179,7 @@ static void __display_callback()
         ready_mask &= ~(1 << next);
     }
 
-    __write_dram_register(__safe_buffer[now_showing] + (!field ? __width * __bitdepth : 0));
+    __write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0));
 }
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, antialias_t aa )
@@ -327,7 +328,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
        to avoid confusing the VI chip with in-frame modifications. */
     if ( __is_vi_active() ) { __wait_for_vblank(); }
 
-    registers[1] = (uintptr_t) __safe_buffer[0];
+    registers[1] = PhysicalAddr(__safe_buffer[0]);
     __write_registers( registers );
 
     enable_interrupts();
