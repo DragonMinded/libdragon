@@ -728,7 +728,7 @@ inline void rdpq_mode_filter(rdpq_filter_t filt) {
  * Also, multiple consecutive tile descriptors (one for each LOD) must have been configured.
  * 
  * If you call #rdpq_triangle when mipmap is active via #rdpq_mode_mipmap, pass 0
- * to the number of mipmaps of that function, as the number of levels set here
+ * to the number of mipmaps in #rdpq_trifmt_t, as the number of levels set here
  * will win over it.
  * 
  * @param mode          Mipmapping mode (use #MIPMAP_NONE to disable)

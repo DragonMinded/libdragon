@@ -55,6 +55,7 @@
 #include "ym64.h"
 #include "rspq.h"
 #include "rdpq.h"
+#include "rdpq_tri.h"
 #include "rdpq_attach.h"
 #include "rdpq_mode.h"
 #include "rdpq_tex.h"

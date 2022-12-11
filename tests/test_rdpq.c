@@ -1137,12 +1137,12 @@ void test_rdpq_blender_memory(TestContext *ctx) {
     rdpq_tex_load(TILE0, &tex, 0);
     rdpq_set_mode_standard();
     rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
-    rdpq_triangle(TILE0, 0, false, 0, -1, 2, -1,
+    rdpq_triangle(&TRIFMT_TEX,
         (float[]){ 4.0f,   4.0f, 0.0f, 0.0f, 1.0f },
         (float[]){ 12.0f,  4.0f, 8.0f, 0.0f, 1.0f },
         (float[]){ 12.0f, 12.0f, 8.0f, 8.0f, 1.0f }
     );
-    rdpq_triangle(TILE0, 0, false, 0, -1, 2, -1,
+    rdpq_triangle(&TRIFMT_TEX,
         (float[]){ 4.0f,   4.0f, 0.0f, 0.0f, 1.0f },
         (float[]){ 4.0f,  12.0f, 0.0f, 8.0f, 1.0f },
         (float[]){ 12.0f, 12.0f, 8.0f, 8.0f, 1.0f }
@@ -1211,13 +1211,13 @@ void test_rdpq_fog(TestContext *ctx) {
     rdpq_debug_log_msg("Standard combiner SHADE - no fog");
     rdpq_set_mode_standard();
     rdpq_mode_combiner(RDPQ_COMBINER_SHADE);
-    rdpq_triangle(TILE0, 0, false, 0, 2, -1, -1,
+    rdpq_triangle(&TRIFMT_SHADE,
         //         X              Y  R     G     B     A
         (float[]){ 0,             0, 1.0f, 0.0f, 1.0f, 0.5f, },
         (float[]){ FBWIDTH,       0, 1.0f, 0.0f, 1.0f, 0.5f, },
         (float[]){ FBWIDTH, FBWIDTH, 1.0f, 0.0f, 1.0f, 0.5f, }
     );
-    rdpq_triangle(TILE0, 0, false, 0, 2, -1, -1,
+    rdpq_triangle(&TRIFMT_SHADE,
         //         X              Y  R     G     B     A
         (float[]){ 0,             0, 1.0f, 0.0f, 1.0f, 0.5f, },
         (float[]){ 0,       FBWIDTH, 1.0f, 0.0f, 1.0f, 0.5f, },
@@ -1234,13 +1234,13 @@ void test_rdpq_fog(TestContext *ctx) {
     // 2cycle mode, and then also checks that IN_ALPHA is 1, which is what
     // we expect for COMBINER_SHADE when fog is in effect.
     rdpq_mode_blender(RDPQ_BLENDER((IN_RGB, IN_ALPHA, BLEND_RGB, INV_MUX_ALPHA)));
-    rdpq_triangle(TILE0, 0, false, 0, 2, -1, -1,
+    rdpq_triangle(&TRIFMT_SHADE,
         //         X              Y  R     G     B     A
         (float[]){ 0,             0, 1.0f, 0.0f, 1.0f, 0.5f, },
         (float[]){ FBWIDTH,       0, 1.0f, 0.0f, 1.0f, 0.5f, },
         (float[]){ FBWIDTH, FBWIDTH, 1.0f, 0.0f, 1.0f, 0.5f, }
     );
-    rdpq_triangle(TILE0, 0, false, 0, 2, -1, -1,
+    rdpq_triangle(&TRIFMT_SHADE,
         //         X              Y  R     G     B     A
         (float[]){ 0,             0, 1.0f, 0.0f, 1.0f, 0.5f, },
         (float[]){ 0,       FBWIDTH, 1.0f, 0.0f, 1.0f, 0.5f, },
@@ -1261,13 +1261,13 @@ void test_rdpq_fog(TestContext *ctx) {
     // Activate fog
     rdpq_debug_log_msg("Custom combiner - fog");
     rdpq_mode_fog(RDPQ_FOG_STANDARD);
-    rdpq_triangle(TILE0, 0, false, 0, 2, -1, -1,
+    rdpq_triangle(&TRIFMT_SHADE,
         //         X              Y  R     G     B     A
         (float[]){ 0,             0, 1.0f, 1.0f, 1.0f, 0.5f, },
         (float[]){ FBWIDTH,       0, 1.0f, 1.0f, 1.0f, 0.5f, },
         (float[]){ FBWIDTH, FBWIDTH, 1.0f, 1.0f, 1.0f, 0.5f, }
     );
-    rdpq_triangle(TILE0, 0, false, 0, 2, -1, -1,
+    rdpq_triangle(&TRIFMT_SHADE,
         //         X              Y  R     G     B     A
         (float[]){ 0,             0, 1.0f, 1.0f, 1.0f, 0.5f, },
         (float[]){ 0,       FBWIDTH, 1.0f, 1.0f, 1.0f, 0.5f, },
@@ -1458,7 +1458,7 @@ void test_rdpq_mipmap(TestContext *ctx) {
 
     rdpq_set_mode_standard();
     rdpq_mode_mipmap(MIPMAP_NEAREST, 4);
-    rdpq_triangle(TILE0, 0, false, 0, -1, 2, 0,
+    rdpq_triangle(&TRIFMT_TEX,
         (float[]){ 4.0f,   4.0f, 0.0f, 0.0f, 1.0f },
         (float[]){ 12.0f,  4.0f, 8.0f, 0.0f, 1.0f },
         (float[]){ 12.0f, 12.0f, 8.0f, 8.0f, 1.0f }
@@ -1524,6 +1524,10 @@ void test_rdpq_triangle(TestContext *ctx) {
         } \
     })
 
+    const rdpq_trifmt_t trifmt = (rdpq_trifmt_t){
+        .pos_offset = 0, .z_offset = 2, .tex_offset = 3, .shade_offset = 6
+    };
+
     for (int tri=0;tri<1024;tri++) {
         if (tri == 849) continue;  // this has a quasi-degenerate edge. The results are different but it doesn't matter
         SRAND(tri+1);
@@ -1537,9 +1541,9 @@ void test_rdpq_triangle(TestContext *ctx) {
 
         debug_rdp_stream_reset();
         rdpq_debug_log_msg("CPU");
-        rdpq_triangle_cpu(TILE4, 0, false, 0, 6, 3, 2, v1, v2, v3);
+        rdpq_triangle_cpu(&trifmt, v1, v2, v3);
         rdpq_debug_log_msg("RSP");
-        rdpq_triangle_rsp(TILE4, 0, false, 0, 6, 3, 2, v1, v2, v3);
+        rdpq_triangle_rsp(&trifmt, v1, v2, v3);
         rspq_wait();
         
         const int RDP_TRI_SIZE = 22;
@@ -1652,7 +1656,7 @@ void test_rdpq_triangle_w1(TestContext *ctx) {
     // with an orthogonal projection. It triggers a special case in the 
     // RSP code because W = 1/W, so we want to make sure we have no bugs.
     debug_rdp_stream_reset();
-    rdpq_triangle(TILE0, 0, false, 0, -1, 2, 0,
+    rdpq_triangle(&TRIFMT_TEX,
         (float[]){ 4.0f,   4.0f, 0.0f, 0.0f, 1.0f },
         (float[]){ 12.0f,  4.0f, 8.0f, 0.0f, 1.0f },
         (float[]){ 12.0f, 12.0f, 8.0f, 8.0f, 1.0f }
@@ -1661,6 +1665,6 @@ void test_rdpq_triangle_w1(TestContext *ctx) {
 
     // Check that we find a triangle command in the stream, and that the W
     // coordinate is correct (saturated 0x7FFF value in the upper 16 bits).
-    ASSERT_EQUAL_HEX(BITS(rdp_stream[0],56,61), RDPQ_CMD_TRI_TEX_ZBUF, "invalid command");
+    ASSERT_EQUAL_HEX(BITS(rdp_stream[0],56,61), RDPQ_CMD_TRI_TEX, "invalid command");
     ASSERT_EQUAL_HEX(BITS(rdp_stream[4],16,31), 0x7FFF, "invalid W coordinate");
 }

@@ -1,6 +1,7 @@
 #include "gl_internal.h"
 #include "utils.h"
 #include "rdpq.h"
+#include "rdpq_tri.h"
 #include "rdpq_mode.h"
 #include "rdpq_debug.h"
 #include "../rdpq/rdpq_internal.h"
@@ -176,6 +177,15 @@ bool gl_begin(GLenum mode)
         state.prim_tex_height = 0;
         state.prim_bilinear = false;
     }
+
+    state.trifmt = (rdpq_trifmt_t){
+        .pos_offset = VTX_SCREEN_POS_OFFSET,
+        .shade_offset = VTX_SHADE_OFFSET,
+        .shade_flat = state.shade_model == GL_FLAT,
+        .tex_offset = state.prim_texture ? VTX_TEXCOORD_OFFSET : -1,
+        .tex_mipmaps = state.prim_mipmaps,
+        .z_offset = state.depth_test ? VTX_DEPTH_OFFSET : -1,
+    };
 
     gl_reset_vertex_cache();
     gl_update_final_matrix();
@@ -682,9 +692,6 @@ void gl_draw_point(gl_screen_vtx_t *v0)
 
 void gl_draw_line(gl_screen_vtx_t *v0, gl_screen_vtx_t *v1)
 {
-    int32_t tex_offset = -1;
-    int32_t z_offset = -1;
-
     GLfloat perp[2] = { v0->screen_pos[1] - v1->screen_pos[1], v1->screen_pos[0] - v0->screen_pos[0] };
     GLfloat mag = sqrtf(perp[0]*perp[0] + perp[1]*perp[1]);
     if (mag == 0.0f) return;
@@ -717,8 +724,6 @@ void gl_draw_line(gl_screen_vtx_t *v0, gl_screen_vtx_t *v1)
     memcpy(line_vertices[3].shade, v1->shade, sizeof(float) * 4);
 
     if (state.prim_texture) {
-        tex_offset = VTX_TEXCOORD_OFFSET;
-
         memcpy(line_vertices[0].texcoord, v0->texcoord, sizeof(float) * 3);
         memcpy(line_vertices[1].texcoord, v0->texcoord, sizeof(float) * 3);
         memcpy(line_vertices[2].texcoord, v1->texcoord, sizeof(float) * 3);
@@ -726,24 +731,19 @@ void gl_draw_line(gl_screen_vtx_t *v0, gl_screen_vtx_t *v1)
     }
 
     if (state.depth_test) {
-        z_offset = VTX_DEPTH_OFFSET;
-
         line_vertices[0].depth = v0->depth;
         line_vertices[1].depth = v0->depth;
         line_vertices[2].depth = v1->depth;
         line_vertices[3].depth = v1->depth;
     }
 
-    rdpq_triangle(0, state.prim_mipmaps, false, VTX_SCREEN_POS_OFFSET, VTX_SHADE_OFFSET, tex_offset, z_offset, (float*)&line_vertices[0], (float*)&line_vertices[1], (float*)&line_vertices[2]);
-    rdpq_triangle(0, state.prim_mipmaps, false, VTX_SCREEN_POS_OFFSET, VTX_SHADE_OFFSET, tex_offset, z_offset, (float*)&line_vertices[1], (float*)&line_vertices[2], (float*)&line_vertices[3]);
+    rdpq_triangle(&state.trifmt, (const float*)&line_vertices[0], (const float*)&line_vertices[1], (const float*)&line_vertices[2]);
+    rdpq_triangle(&state.trifmt, (const float*)&line_vertices[1], (const float*)&line_vertices[2], (const float*)&line_vertices[3]);
 }
 
 void gl_draw_triangle(gl_screen_vtx_t *v0, gl_screen_vtx_t *v1, gl_screen_vtx_t *v2)
 {
-    int32_t tex_offset = state.prim_texture ? VTX_TEXCOORD_OFFSET : -1;
-    int32_t z_offset = state.depth_test ? VTX_DEPTH_OFFSET : -1;
-
-    rdpq_triangle(0, state.prim_mipmaps, state.shade_model == GL_FLAT, VTX_SCREEN_POS_OFFSET, VTX_SHADE_OFFSET, tex_offset, z_offset, (float*)v2, (float*)v0, (float*)v1);
+    rdpq_triangle(&state.trifmt, (const float*)v2, (const float*)v0, (const float*)v1);
 }
 
 void gl_cull_triangle(gl_screen_vtx_t *v0, gl_screen_vtx_t *v1, gl_screen_vtx_t *v2)
