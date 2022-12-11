@@ -1,6 +1,6 @@
 /**
  * @file rdp.c
- * @brief Hardware Display Interface
+ * @brief Deprecated RDP library
  * @ingroup rdp
  */
 #include "rspq.h"
@@ -18,41 +18,25 @@
 #include <string.h>
 
 /**
- * @defgroup rdp RDP: hardware rasterizer
+ * @defgroup rdp Deprecated RDP library
  * @ingroup display
  * @brief Interface to the hardware sprite/triangle rasterizer (RDP).
- *
- * The hardware display interface sets up and talks with the RDP in order to render
- * hardware sprites, triangles and rectangles.  The RDP is a very low level rasterizer
- * and needs data in a very specific format.  The hardware display interface handles
- * this by building commands to be sent to the RDP.
- *
- * Before attempting to draw anything using the RDP, the hardware display interface
- * should be initialized with #rdp_init.  After the RDP is no longer needed, be sure
- * to free all resources using #rdp_close.
- *
- * Code wishing to use the hardware rasterizer should first acquire a display context
- * using #display_lock.  Once a display context has been acquired, the RDP can be
- * attached to the display context with #rdp_attach.  Once the display has been
- * attached, the RDP can be used to draw sprites, rectangles and textured/untextured
- * triangles to the display context.  Note that some functions require additional setup,
- * so read the descriptions for each function before use.  After code has finished
- * rendering hardware assisted graphics to the display context, the RDP can be detached
- * from the context using #rdp_detach.  After calling this function, it is safe
- * to immediately display the rendered graphics to the screen using #display_show, or
- * additional software graphics manipulation can take place using functions from the
- * @ref graphics.
- *
- * #rdp_detach will automatically force a full RDP sync (via the `SYNC_FULL` RDP command)
- * and wait that everything has been completed in the RDP. This call generates an interrupt
- * when complete which signals the main thread that it is safe to detach. To avoid
- * waiting for rendering to complete, use #rdp_detach_async, or even #rdp_detach_show
- * that will not block and also automatically call #display_show when the rendering is done.
  * 
- * In addition to surfaces returned by #display_lock, it is possible to attach
- * to any other #surface_t instance, such as an offscreen buffer created by
- * #surface_alloc. This allows to use the RDP for offscreen rendering.
+ * @deprecated This module is now deprecated. Please use the new RDPQ API instead.
  * 
+ * This module contains an old API to draw using the RDP. The API was not extensible
+ * enough and in general did not provide a good enough foundation for RDP programming.
+ * So it has been deprecated in favor of the new RDPQ API, which is much more flexible.
+ * 
+ * All RDP functions are now implemented as wrappers of the RDPQ API. They continue
+ * to work just like before, but there will be no further work on them. Also, most of
+ * them are explicitly marked as deprecated, and will generate a warning at compile
+ * time. The warning suggests the alternative RDPQ API to use instead. In most cases,
+ * the change should be straightforward.
+ * 
+ * Functions not explicitly marked as deprecated do not have a direct equivalent in
+ * RDPQ API yet.
+ *
  * @{
  */
 
@@ -83,13 +67,6 @@ static volatile uint32_t wait_intr = 0;
 
 /** @brief Array of cached textures in RDP TMEM indexed by the RDP texture slot */
 static sprite_cache cache[8];
-
-static surface_t *attached_surface = NULL;
-
-bool rdp_is_attached()
-{
-    return attached_surface != NULL;
-}
 
 /**
  * @brief Given a number, rount to a power of two
@@ -140,46 +117,6 @@ static inline uint32_t __rdp_log2( uint32_t number )
             /* Don't support more than 256 */
             return 8;
     }
-}
-
-void rdp_init( void )
-{
-    /* Default to flushing automatically */
-    flush_strategy = FLUSH_STRATEGY_AUTOMATIC;
-
-    rdpq_init();
-}
-
-void rdp_close( void )
-{
-    rdpq_close();
-}
-
-void rdp_attach( surface_t *surface )
-{
-    assertf(!rdp_is_attached(), "A render target is already attached!");
-    attached_surface = surface;
-
-    /* Set the rasterization buffer */
-    rdpq_set_color_image(surface);
-}
-
-void rdp_detach_async( void (*cb)(void*), void *arg )
-{
-    assertf(rdp_is_attached(), "No render target is currently attached!");
-    rdpq_sync_full(cb, arg);
-    rspq_flush();
-    attached_surface = NULL;
-}
-
-void rdp_detach(void)
-{
-    rdp_detach_async(NULL, NULL);
-
-    // Historically, this function has behaved asynchronously when run with
-    // interrupts disabled, rather than asserting out. Keep the behavior.
-    if (get_interrupts_state() == INTERRUPTS_ENABLED)
-        rspq_wait();
 }
 
 /**
@@ -375,6 +312,29 @@ void rdp_set_texture_flush( flush_t flush )
  **************************************/
 
 ///@cond
+
+void rdp_init( void )
+{
+    /* Default to flushing automatically */
+    flush_strategy = FLUSH_STRATEGY_AUTOMATIC;
+
+    rdpq_init();
+}
+
+void rdp_close( void )
+{
+    rdpq_close();
+}
+
+void rdp_detach(void)
+{
+    // Historically, this function has behaved asynchronously when run with
+    // interrupts disabled, and synchronously otherwise. Keep the behavior.
+    rdpq_detach();
+    if (get_interrupts_state() == INTERRUPTS_ENABLED)
+        rspq_wait();
+}
+
 void rdp_sync( sync_t sync )
 {
     switch( sync )

@@ -307,6 +307,10 @@ void gl_on_frame_complete(surface_t *surface)
 
 void gl_swap_buffers()
 {
+    assertf(state.modelview_stack.cur_depth == 0, "Modelview stack not empty");
+    assertf(state.projection_stack.cur_depth == 0, "Projection stack not empty");
+    assertf(state.texture_stack.cur_depth == 0, "Texture stack not empty");
+
     rdpq_sync_full((void(*)(void*))gl_on_frame_complete, state.default_framebuffer.color_buffer);
     rspq_flush();
 
@@ -352,12 +356,6 @@ GLenum glGetError(void)
     GLenum error = state.current_error;
     state.current_error = GL_NO_ERROR;
     return error;
-}
-
-void gl_set_error(GLenum error)
-{
-    state.current_error = error;
-    assert(error);
 }
 
 void gl_set_flag2(GLenum target, bool value)

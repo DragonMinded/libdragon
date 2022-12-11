@@ -42,7 +42,7 @@
  *      
  *      // Attach the RDP to the top 40 rows of the framebuffer
  *      surface_t fbtop = surface_make_sub(fb, 0, 0, 320, 40);
- *      rdp_attach(&fbtop);
+ *      rdpq_attach(&fbtop);
  * @endcode
  * 
  * Surfaces created by #surface_make_sub don't need to be freed as they
@@ -150,7 +150,7 @@ typedef struct surface_s
  * to the caller to handle its lifetime.
  * 
  * If you plan to use this format as RDP framebuffer, make sure that the provided buffer
- * respects the required alignment of 64 bytes, otherwise #rdp_attach will fail.
+ * respects the required alignment of 64 bytes, otherwise #rdpq_attach will fail.
  * 
  * @param[in] buffer    Pointer to the memory buffer
  * @param[in] format    Pixel format
@@ -200,7 +200,7 @@ inline surface_t surface_make_linear(void *buffer, tex_format_t format, uint32_t
  * not needed anymore.
  * 
  * A surface allocated via #surface_alloc can be used as a RDP frame buffer
- * (passed to #rdp_attach) because it is guaranteed to have the required
+ * (passed to #rdpq_attach) because it is guaranteed to have the required
  * alignment of 64 bytes, provided it is using one of the formats supported by
  * RDP as a framebuffer target (`FMT_RGBA32`, `FMT_RGBA16` or `FMT_I8`).
  *

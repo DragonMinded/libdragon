@@ -1149,6 +1149,7 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
     case 0x33: { // LOAD_BLOCK
         int tidx = BITS(buf[0], 24, 26);
         int hpixels = BITS(buf[0], 12, 23)+1;
+        VALIDATE_ERR_TEX(hpixels <= 2048, "cannot load more than 2048 texels at once");
         VALIDATE_CRASH_TEX(!check_loading_crash(hpixels), "loading pixels from a misaligned texture image");
         rdp.busy.tile[tidx] = true;  // mask as in use
     }   break;

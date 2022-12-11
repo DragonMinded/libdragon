@@ -518,7 +518,10 @@ void gl_texture_close();
 void gl_primitive_close();
 void gl_list_close();
 
-void gl_set_error(GLenum error);
+#define gl_set_error(error)  ({ \
+    state.current_error = error; \
+    assertf(error == GL_NO_ERROR, "GL error: 0x%04x (%s)", error, #error); \
+})
 
 gl_matrix_t * gl_matrix_stack_get_matrix(gl_matrix_stack_t *stack);
 
