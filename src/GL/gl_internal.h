@@ -11,6 +11,7 @@
 #include "gl_constants.h"
 #include "rspq.h"
 #include "rdpq.h"
+#include "../rdpq/rdpq_internal.h"
 
 #define RADIANS(x) ((x) * M_PI / 180.0f)
 
@@ -643,6 +644,14 @@ inline void glpipe_vtx(GLfloat attribs[ATTRIB_COUNT][4], int id, uint8_t cmd, ui
     #define TEX_SCALE   32.0f
     #define OBJ_SCALE   32.0f
     #define fx16(v)  ((uint32_t)((int32_t)((v))) & 0xFFFF)
+
+    extern gl_state_t state;
+
+    uint32_t res = AUTOSYNC_PIPE;
+    // FIXME: This doesn't work with display lists!
+    if (state.prim_texture) res |= AUTOSYNC_TILES;
+
+    __rdpq_autosync_use(res);
 
     rspq_write_t w = rspq_write_begin(glp_overlay_id, cmd, cmd_size);
 
