@@ -86,6 +86,12 @@ int rdpq_tex_load_sub(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int s0, i
 
     int tmem_pitch = ROUND_UP(TEX_FORMAT_PIX2BYTES(fmt, s1 - s0), 8);
 
+    // In RGBA32 mode, data is split in two halves in TMEM (R,G in the first TMEM half,
+    // B,A in the second TMEM half). This means that the pitch can be halved, as it is
+    // calculated only over 2 channels instead of 4.
+    if (fmt == FMT_RGBA32)
+        tmem_pitch /= 2;
+
     rdpq_set_tile(tile, fmt, tmem_addr, tmem_pitch, 0);
     rdpq_set_texture_image(tex);
     rdpq_load_tile(tile, s0, t0, s1, t1);
