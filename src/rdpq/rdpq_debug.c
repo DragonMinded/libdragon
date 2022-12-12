@@ -1051,8 +1051,8 @@ static void validate_use_tile(int tidx, int cycle) {
             }
             break;
         case 2: // copy mode
-            VALIDATE_ERR_SOM(t->fmt != 3 && t->fmt != 4, 
-                "tile %d is %s%d, but COPY mode does not support I4/I8/IA4/IA8/IA16", tidx, tex_fmt_name[t->fmt], 4 << t->size);
+            VALIDATE_ERR_SOM(t->fmt != 3 && t->fmt != 4 && (t->fmt != 0 || t->size != 3), 
+                "tile %d is %s%d, but COPY mode does not support I4/I8/IA4/IA8/IA16/RGBA32", tidx, tex_fmt_name[t->fmt], 4 << t->size);
             break;
     }
 
