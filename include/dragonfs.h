@@ -16,7 +16,7 @@
  *
  * The default is 1MB into the ROM space, plus the header offset
  */
-#define DFS_DEFAULT_LOCATION    0xB0101000
+#define DFS_DEFAULT_LOCATION    0
 
 /**
  * @brief Maximum open files in DragonFS
