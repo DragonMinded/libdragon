@@ -106,13 +106,19 @@ extern int __bbplayer;
     (((unsigned long)(_addrp))&~0xE0000000); \
 })
 
+/** @brief Symbol at the start of code (start of ROM contents after header) */
+extern char __libdragon_text_start[];
+
 /** @brief Symbol at the end of code, data, and sdata (set by the linker) */
 extern char __rom_end[];
+
+/** @brief Symbol at the end of code, data, sdata, and bss (set by the linker) */
+extern char __bss_end[];
 
 /**
  * @brief Void pointer to the start of heap memory
  */
-#define HEAP_START_ADDR ((void*)__rom_end)
+#define HEAP_START_ADDR ((void*)__bss_end)
 
 /**
  * @brief Memory barrier to ensure in-order execution
