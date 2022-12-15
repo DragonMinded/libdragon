@@ -598,3 +598,21 @@ void debug_hexdump(const void *vbuf, int size)
         }
     }
 }
+
+void debug_backtrace(void)
+{
+	void *bt[16];
+	int n = backtrace(bt, 16);
+
+	char **syms = backtrace_symbols(bt, n);
+
+	debugf("Backtrace:\n");
+	for (int i = 0; i < n; i++)
+	{
+		debugf("  %p at %s\n", bt[i], syms[i] ? syms[i] : "NULL");
+	}
+
+	free(syms);
+}
+
+

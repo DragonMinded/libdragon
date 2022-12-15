@@ -223,6 +223,8 @@ extern "C" {
  */
 void debug_hexdump(const void *buffer, int size);
 
+void debug_backtrace(void);
+
 /** @brief Underlying implementation function for assert() and #assertf. */ 
 void debug_assert_func_f(const char *file, int line, const char *func, const char *failedexpr, const char *msg, ...)
    __attribute__((noreturn, format(printf, 5, 6)));
