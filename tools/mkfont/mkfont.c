@@ -5,12 +5,12 @@
 #include "../../src/rdpq/rdpq_font_internal.h"
 #include "../../include/surface.h"
 
+#define STB_DS_IMPLEMENTATION
+#include "../common/stb_ds.h"
 #define STB_RECT_PACK_IMPLEMENTATION
 #include "stb_rect_pack.h"
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
-#define STB_DS_IMPLEMENTATION
-#include "stb_ds.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
