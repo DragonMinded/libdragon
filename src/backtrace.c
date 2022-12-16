@@ -8,15 +8,17 @@
 #include "utils.h"
 #include "rompak_internal.h"
 
+/** @brief Symbol table file header */
 typedef struct alignas(8) {
-    char head[4];
-    uint32_t version;
-    uint32_t symtab_off;
-    uint32_t symtab_size;
-    uint32_t strtab_off;
-    uint32_t strtab_size;
+    char head[4];           ///< Magic ID "SYMT"
+    uint32_t version;       ///< Version of the symbol table
+    uint32_t symtab_off;    ///< Offset of the symbol table in the file
+    uint32_t symtab_size;   ///< Size of the symbol table in the file
+    uint32_t strtab_off;    ///< Offset of the string table in the file
+    uint32_t strtab_size;   ///< Size of the string table in the file
 } symtable_header_t;
 
+/** @brief Symbol table entry */
 typedef struct {
     uint32_t addr;          ///< Address of the symbol
     uint16_t func_sidx;     ///< Offset of the function name in the string table

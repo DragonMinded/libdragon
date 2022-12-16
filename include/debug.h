@@ -223,6 +223,20 @@ extern "C" {
  */
 void debug_hexdump(const void *buffer, int size);
 
+/**
+ * @brief Dump a backtrace (call stack) via #debugf
+ * 
+ * This function will dump the current call stack to the debugging channel. It is
+ * useful to understand where the program is currently executing, and to understand
+ * the context of an error.
+ * 
+ * The implementation of this function relies on the lower level #backtrace and
+ * #backtrace_symbols functions, which are implemented in libdragon itself via
+ * a symbol table embedded in the ROM. See #backtrace_symbols for more information.
+ * 
+ * @see #backtrace
+ * @see #backtrace_symbols
+ */
 void debug_backtrace(void);
 
 /** @brief Underlying implementation function for assert() and #assertf. */ 

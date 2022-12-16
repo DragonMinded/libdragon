@@ -615,5 +615,3 @@ void debug_backtrace(void)
 
 	free(syms);
 }
-
-

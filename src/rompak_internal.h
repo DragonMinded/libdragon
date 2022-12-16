@@ -1,9 +1,17 @@
+/**
+ * @file rompak_internal.h
+ * @brief ROM bundle support
+ * @ingroup rompak
+ */
+
 #ifndef __LIBDRAGON_ROM_INTERNAL_H
 #define __LIBDRAGON_ROM_INTERNAL_H
 
 #include <stdint.h>
 
 /**
+ * @defgroup rompak ROM bundle support
+ * @ingroup lowlevel
  * @brief Rompak functions (private API)
  * 
  * Libdragon ROMs created by n64tool allows to have several data files

@@ -1,3 +1,8 @@
+/**
+ * @file rompak.c
+ * @brief ROM bundle support
+ * @ingroup rompak
+ */
 #include "rompak_internal.h"
 #include "n64sys.h"
 #include "dma.h"
@@ -6,19 +11,23 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define TOC_MAGIC    0x544F4330   // "TOC0"
+#define TOC_MAGIC    0x544F4330         ///< Magic ID "TOC0"
+
+/** @brief Physical address of the ROMPAK TOC */
 #define TOC_ADDR     (0x10001000 + (__rom_end - __libdragon_text_start))
 
+/** @brief ROMPAK TOC header */
 typedef struct {
-    uint32_t magic;
-    uint32_t toc_size;
-    uint32_t entry_size;
-    uint32_t num_entries;
+    uint32_t magic;       ///< Magic (#TOC_MAGIC)
+    uint32_t toc_size;    ///< Size of the TOC in bytes
+    uint32_t entry_size;  ///< Size of an entry of the TOC (in bytes)
+    uint32_t num_entries; ///< Number of entries in the TOC
 } header_t;
 
+/** @brief ROMPAK TOC entry */
 typedef struct {
-    uint32_t offset;
-    char name[];
+    uint32_t offset;        ///< Offset of the file in the ROM
+    char name[];            ///< Name of the file
 } entry_t;
 
 static bool extension_match(const char *ext, const char *name)
