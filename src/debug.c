@@ -14,6 +14,7 @@
 #include "system.h"
 #include "usb.h"
 #include "utils.h"
+#include "backtrace.h"
 #include "fatfs/ff.h"
 #include "fatfs/ffconf.h"
 #include "fatfs/diskio.h"
