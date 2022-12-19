@@ -12,6 +12,7 @@
 #include "rspq.h"
 #include "rdpq.h"
 #include "../rdpq/rdpq_internal.h"
+#include "rdpq_tri.h"
 
 #define RADIANS(x) ((x) * M_PI / 180.0f)
 
@@ -385,6 +386,8 @@ typedef struct {
     bool prim_texture;
     bool prim_bilinear;
     uint8_t prim_mipmaps;
+
+    rdpq_trifmt_t trifmt;
 
     gl_screen_vtx_t vertex_cache[VERTEX_CACHE_SIZE];
     uint16_t vertex_cache_ids[VERTEX_CACHE_SIZE];

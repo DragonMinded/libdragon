@@ -6,6 +6,7 @@
 #include "rspq.h"
 #include "rdp.h"
 #include "rdpq.h"
+#include "rdpq_tri.h"
 #include "rdpq_macros.h"
 #include "interrupt.h"
 #include "display.h"
@@ -299,7 +300,7 @@ void rdp_draw_filled_triangle( float x1, float y1, float x2, float y2, float x3,
     float v1[] = {x1, y1};
     float v2[] = {x2, y2};
     float v3[] = {x3, y3};
-    rdpq_triangle(0, 0, 0, false, -1, -1, -1, v1, v2, v3);
+    rdpq_triangle(&TRIFMT_FILL, v1, v2, v3);
 }
 
 void rdp_set_texture_flush( flush_t flush )

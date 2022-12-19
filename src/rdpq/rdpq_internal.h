@@ -18,6 +18,7 @@ extern void rdpq_fence(void);
 
 ///@cond
 typedef struct rdpq_block_s rdpq_block_t;
+typedef struct rdpq_trifmt_s rdpq_trifmt_t;
 ///@endcond
 
 /**
@@ -113,8 +114,8 @@ void __rdpq_autosync_change(uint32_t res);
 void __rdpq_write8(uint32_t cmd_id, uint32_t arg0, uint32_t arg1);
 void __rdpq_write16(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3);
 
-void rdpq_triangle_cpu(rdpq_tile_t tile, uint8_t mipmaps, bool flat_shading, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3);
-void rdpq_triangle_rsp(rdpq_tile_t tile, uint8_t mipmaps, bool flat_shading, int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, const float *v1, const float *v2, const float *v3);
+void rdpq_triangle_cpu(const rdpq_trifmt_t *fmt, const float *v1, const float *v2, const float *v3);
+void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v2, const float *v3);
 
 ///@cond
 /* Helpers for rdpq_write / rdpq_fixup_write */

@@ -10,6 +10,7 @@
 #include "libdragon.h"
 #include "system.h"
 #include "dfsinternal.h"
+#include "rompak_internal.h"
 
 /**
  * @defgroup dfs DragonFS
@@ -1345,6 +1346,16 @@ int dfs_init(uint32_t base_fs_loc)
 {
     /* Detect if we are running on emulator accurate enough to emulate DragonFS. */
     __dfs_check_emulation();
+
+    if( base_fs_loc == DFS_DEFAULT_LOCATION )
+    {
+        base_fs_loc = rompak_search_ext( ".dfs" );
+        if( !base_fs_loc )
+        {
+            /* Failed, return so */
+            return DFS_EBADFS;
+        }
+    }
 
     /* Try normal (works on doctor v64) */
     int ret = __dfs_init( base_fs_loc );

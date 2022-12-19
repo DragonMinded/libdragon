@@ -11,8 +11,10 @@
  * sure to read them all to have a general overview:
  * 
  *    * rdpq.h: RDP low-level command generation
+ *    * rdpq_tri.h: RDP low-level screen space triangle drawing API
+ *    * rdpq_attach.h: Optional rdpq attachment API, to simplify rendering to surfaces
  *    * rdpq_mode.h: Optional rdpq mode API, to simplify configuring render modes
- *    * rdpq_tex.h: Option rdpq texture API, to simplify loading textures into TMEM
+ *    * rdpq_tex.h: Optional rdpq texture API, to simplify loading textures into TMEM
  *    * rdpq_debug.h: Optional rdpq debugging API, to help catching bugs.
  * 
  * ## Architecture and rationale
@@ -321,86 +323,6 @@ uint32_t rdpq_config_enable(uint32_t cfg_enable_bits);
  * @see #rdpq_config_enable
  */
 uint32_t rdpq_config_disable(uint32_t cfg_disable_bits);
-
-/**
- * @brief Draw a triangle (RDP command: TRI_*)
- * 
- * This function allows to draw a triangle into the framebuffer using RDP, in screen coordinates.
- * RDP does not handle transform and lightning, so it only reasons of screen level coordinates.
- *
- * Each vertex of a triangle is made of up to 4 components:
- * 
- *   * Position. 2 values: X, Y. The values must be in screen coordinates, that is they refer
- *     to the framebuffer pixels. Fractional values allow for subpixel precision. Supported
- *     range is [-4096..4095] (numbers outside that range will be clamped).
- *   * Depth. 1 value: Z. Supported range in [0..1].
- *   * Shade. 4 values: R, G, B, A. The values must be in the 0..1 range.
- *   * Texturing. 3 values: S, T, INV_W. The values S,T address the texture specified by the tile
- *     descriptor. INV_W is the inverse of the W vertex coordinate in clip space (after
- *     projection), a value commonly used to do the final perspective division. This value is
- *     required to do perspective-corrected texturing.
- * 
- * Only the position is mandatory, all other components are optionals, depending on the kind of
- * triangle that needs to be drawn. For instance, specifying only position and shade will allow
- * to draw a gouraud-shaded triangle with no texturing and no z-buffer usage.
- * 
- * The vertex components must be provided via arrays of floating point values. The order of
- * the components within the array is flexible, and can be specified at call time via the
- * pos_offset, shade_offset, tex_offset and z_offset arguments.
- * 
- * Notice that it is important to configure the correct render modes before calling this function.
- * Specifically:
- * 
- *    * To use the depth component, you must activate the z-buffer via #rdpq_mode_zbuf.
- *    * To use the shade component, you must configure a color combiner formula via #rdpq_mode_combiner.
- *      The formula must use the SHADE slot, to specify the exact pixel formula that will combine the
- *      per-pixel color value with other components, like the texture.
- *    * To use the texturing component, you must configure a color combiner formula via #rdpq_mode_combiner
- *      that uses the TEX0 (and/or TEX1) slot, such as #RDPQ_COMBINER_TEX or #RDPQ_COMBINER_SHADE,
- *      to specify the exact pixel formula that will combine the per-pixel color value with other
- *      components, like the shade. Moreover, you can activate perspective texturing via #rdpq_mode_persp.
- * 
- * If you fail to activate a specific render mode for a provided component, the component will be ignored
- * by RDP. For instance, if you provide S,T,W but do not configure a combiner formula that accesses
- * TEX0, the texture will not be rendered. On the contrary, if you activate a specific render mode
- * but then fail to provide the component (eg: activate z buffering but then fail to provide a depth
- * component), RDP will fall into undefined behavior that can vary from nothing being rendered, garbage
- * on the screen or even a freeze. The rdpq validator will do its best to help you catching these mistakes,
- * so remember to activate it via #rdpq_debug_start whenever you get a surprising result.
- * 
- * The three vertices (v1, v2, v3) can be provided in any order (clockwise or counter-clockwise). The
- * function will render the triangle in any case (so back-face culling must be handled before calling
- * it).
- * 
- * @param tile           RDP tile descriptor that describes the texture (0-7). This argument is unused
- *                       if the triangle is not textured. In case of multi-texturing, tile+1 will be
- *                       used for the second texture.
- * @param mipmaps        Number of mip-maps that will be used. This argument is unused if the triangle
- *                       is not textured or mipmapping is not enabled. If you are using the mode API
- *                       and set mipmap levels via #rdpq_mode_mipmap, pass 0 here.
- * @param flat_shading   True if you want to force flat shading for a triangle: the color will be the one
- *                       set on the first vertex (v1). False means that vertex colors will be interpolated
- *                       across the triangle ("gouraud shading").
- * @param pos_offset     Index of the position component within the vertex arrays. For instance, 
- *                       if pos_offset==4, v1[4] and v1[5] must be the X and Y coordinates of the first vertex.
- * @param shade_offset   Index of the shade component within the vertex arrays. For instance,
- *                       if shade_offset==4, v1[4], v1[5], v1[6], v1[7] must be the R, G, B, A values
- *                       associated to the first vertex. If shade_offset is less than 0, no shade
- *                       component will be used to draw the triangle.
- * @param tex_offset     Index of the texture component within the vertex arrays. For instance,
- *                       if tex_offset==4, v1[4], v1[5], v1[6] must be the S, T, W values associated
- *                       to the first vertex. If tex_offset is less than 0, no texture component
- *                       will be used to draw the triangle.
- * @param z_offset       Index of the depth component within the vertex array. For instance,
- *                       if z_offset==4, v1[4] must be the Z coordinate of the first vertex. If
- *                       z_offset is less than 0, no depth component will be used to draw the triangle.
- * @param v1             Array of components for vertex 1
- * @param v2             Array of components for vertex 2
- * @param v3             Array of components for vertex 3
- */
-void rdpq_triangle(rdpq_tile_t tile, uint8_t mipmaps, bool flat_shading,
-    int32_t pos_offset, int32_t shade_offset, int32_t tex_offset, int32_t z_offset, 
-    const float *v1, const float *v2, const float *v3);
 
 /**
  * @brief Draw a textured rectangle (RDP command: TEXTURE_RECTANGLE)

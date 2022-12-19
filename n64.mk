@@ -30,17 +30,18 @@ N64_CHKSUM = $(N64_BINDIR)/chksum64
 N64_ED64ROMCONFIG = $(N64_BINDIR)/ed64romconfig
 N64_MKDFS = $(N64_BINDIR)/mkdfs
 N64_TOOL = $(N64_BINDIR)/n64tool
+N64_SYM = $(N64_BINDIR)/n64sym
 N64_AUDIOCONV = $(N64_BINDIR)/audioconv64
 N64_MKSPRITE = $(N64_BINDIR)/mksprite
 N64_MKFONT = $(N64_BINDIR)/mkfont
 
 N64_CFLAGS =  -march=vr4300 -mtune=vr4300 -I$(N64_INCLUDEDIR)
-N64_CFLAGS += -falign-functions=32 -ffunction-sections -fdata-sections
+N64_CFLAGS += -falign-functions=32 -ffunction-sections -fdata-sections -g
 N64_CFLAGS += -ffast-math -ftrapping-math -fno-associative-math
 N64_CFLAGS += -DN64 -O2 -Wall -Werror -Wno-error=deprecated-declarations -fdiagnostics-color=always
 N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings
 N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings
-N64_LDFLAGS = -L$(N64_LIBDIR) -ldragon -lm -ldragonsys -Tn64.ld --gc-sections --wrap __do_global_ctors
+N64_LDFLAGS = -g -L$(N64_LIBDIR) -ldragon -lm -ldragonsys -Tn64.ld --gc-sections --wrap __do_global_ctors
 
 N64_TOOLFLAGS = --header $(N64_HEADERPATH) --title $(N64_ROM_TITLE)
 N64_ED64ROMCONFIGFLAGS =  $(if $(N64_ROM_SAVETYPE),--savetype $(N64_ROM_SAVETYPE))
@@ -76,13 +77,14 @@ N64_CFLAGS += -std=gnu99
 %.z64: LDFLAGS+=$(N64_LDFLAGS)
 %.z64: $(BUILD_DIR)/%.elf
 	@echo "    [Z64] $@"
+	$(N64_SYM) -v $< $<.sym
 	$(N64_OBJCOPY) -O binary $< $<.bin
 	@rm -f $@
 	DFS_FILE="$(filter %.dfs, $^)"; \
 	if [ -z "$$DFS_FILE" ]; then \
-		$(N64_TOOL) $(N64_TOOLFLAGS) --output $@ $<.bin; \
+		$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ $<.bin --align 8 $<.sym; \
 	else \
-		$(N64_TOOL) $(N64_TOOLFLAGS) --output $@ $<.bin --offset $(N64_DFS_OFFSET) "$$DFS_FILE"; \
+		$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ $<.bin --align 8 $<.sym --offset $(N64_DFS_OFFSET) "$$DFS_FILE"; \
 	fi
 	if [ ! -z "$(strip $(N64_ED64ROMCONFIGFLAGS))" ]; then \
 		$(N64_ED64ROMCONFIG) $(N64_ED64ROMCONFIGFLAGS) $@; \

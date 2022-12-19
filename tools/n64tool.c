@@ -55,22 +55,54 @@
 #define STATUS_ERROR    1
 #define STATUS_BADUSAGE 2
 
+#define TOC_SIZE         1024
+#define TOC_ALIGN        8            // This must match the ALIGN directive in the linker script before __rom_end
+#define TOC_ENTRY_SIZE   64
+#define TOC_MAX_ENTRIES  ((TOC_SIZE - 16) / 64)
+
+#if BYTE_ORDER == BIG_ENDIAN
+#define SWAPLONG(i) (i)
+#else
+#define SWAPLONG(i) (((uint32_t)((i) & 0xFF000000) >> 24) | ((uint32_t)((i) & 0x00FF0000) >>  8) | ((uint32_t)((i) & 0x0000FF00) <<  8) | ((uint32_t)((i) & 0x000000FF) << 24))
+#endif
+
 static const unsigned char zero[1024] = {0};
 static char * tmp_output = NULL;
 
+struct toc_s {
+	char magic[4];
+	uint32_t toc_size;
+	uint32_t entry_size;
+	uint32_t num_entries;
+	struct {
+		uint32_t offset;
+		char name[TOC_ENTRY_SIZE - 4];
+	} files[TOC_MAX_ENTRIES];
+} toc = {
+	.magic = "TOC0",
+	.toc_size = TOC_SIZE,
+	.entry_size = TOC_ENTRY_SIZE,
+	.num_entries = 0,
+};
+
+_Static_assert(sizeof(toc) <= TOC_SIZE, "invalid table size");
 
 int print_usage(const char * prog_name)
 {
-	fprintf(stderr, "Usage: %s [-t <title>] [-l <size>B/K/M] -h <file> -o <file> <file> [[-s <offset>B/K/M] <file>]*\n\n", prog_name);
+	fprintf(stderr, "Usage: %s [flags] <file> [[file-flags] <file> ...]\n\n", prog_name);
 	fprintf(stderr, "This program creates an N64 ROM from a header and a list of files,\n");
-	fprintf(stderr, "the first being an Nintendo64 binary and the rest arbitrary data.\n");
+	fprintf(stderr, "the first being an Nintendo 64 binary and the rest arbitrary data.\n");
 	fprintf(stderr, "\n");
-	fprintf(stderr, "Command-line flags:\n");
+	fprintf(stderr, "General flags (to be used before any file):\n");
 	fprintf(stderr, "\t-t, --title <title>    Title of ROM (max %d characters).\n", TITLE_SIZE);
 	fprintf(stderr, "\t-l, --size <size>      Force ROM output file size to <size> (min 1 mebibyte).\n");
 	fprintf(stderr, "\t-h, --header <file>    Use <file> as IPL3 header.\n");
 	fprintf(stderr, "\t-o, --output <file>    Save output ROM to <file>.\n");
-	fprintf(stderr, "\t-s, --offset <offset>  Next file starts at <offset> from top of memory. Offset must be 32-bit aligned.\n");
+	fprintf(stderr, "\t-T, --toc              Create a table of contents file after the first binary.\n");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "File flags (to be used between files):\n");
+	fprintf(stderr, "\t-a, --align <align>    Next file is aligned at <align> bytes from top of memory (minimum: 4).\n");
+	fprintf(stderr, "\t-s, --offset <offset>  Next file starts at <offset> from top of memory. Offset must be 4-byte aligned.\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Binary byte size/offset suffix notation:\n");
 	fprintf(stderr, "\tB for bytes.\n");
@@ -202,6 +234,9 @@ int main(int argc, char *argv[])
 	size_t declared_size = 0;
 	size_t total_bytes_written = 0;
 	char title[TITLE_SIZE + 1] = { 0, };
+	bool create_toc = false;
+	size_t toc_offset = 0;
+
 
 	if(argc <= 1)
 	{
@@ -300,6 +335,16 @@ int main(int argc, char *argv[])
 			declared_size = size;
 			continue;
 		}
+		if(check_flag(arg, "-T", "--toc"))
+		{
+			if(total_bytes_written)
+			{
+				fprintf(stderr, "ERROR: -T / --toc must be specified before any input file\n\n");
+				return print_usage(argv[0]);
+			}
+			create_toc = true;
+			continue;
+		}
 		if(check_flag(arg, "-s", "--offset"))
 		{
 			if(!header || !output)
@@ -346,6 +391,48 @@ int main(int argc, char *argv[])
 
 			/* Same as total_bytes_written = offset */
 			total_bytes_written += num_zeros;
+			continue;
+		}
+		if(check_flag(arg, "-a", "--align"))
+		{
+			if(!header || !output)
+			{
+				fprintf(stderr, "ERROR: Need header and output flags before alignment\n\n");
+				return print_usage(argv[0]);
+			}
+
+			if(!total_bytes_written)
+			{
+				fprintf(stderr, "ERROR: The first file cannot have an alignment\n\n");
+				return print_usage(argv[0]);
+			}
+
+			if(i >= argc)
+			{
+				/* Expected another argument */
+				fprintf(stderr, "ERROR: Expected an argument to align flag\n\n");
+				return print_usage(argv[0]);
+			}
+
+			int align = atoi(argv[i++]);
+			if (align < 4)
+			{
+				fprintf(stderr, "ERROR: Minimum alignment is 4 bytes\n\n");
+				return print_usage(argv[0]);
+			}
+
+			if (total_bytes_written % align)
+			{
+				ssize_t num_zeros = align - (total_bytes_written % align);
+
+				if(output_zeros(write_file, num_zeros))
+				{
+					fprintf(stderr, "ERROR: Invalid alignment %d to seek to in %s!\n", align, output);
+					return STATUS_ERROR;
+				}
+
+				total_bytes_written += num_zeros;
+			}
 			continue;
 		}
 		if(check_flag(arg, "-t", "--title"))
@@ -404,6 +491,8 @@ int main(int argc, char *argv[])
 			}
 		}
 
+		size_t offset = ftell(write_file);
+
 		/* Copy the input file into the output file */
 		ssize_t bytes_copied = copy_file(write_file, arg);
 
@@ -413,8 +502,45 @@ int main(int argc, char *argv[])
 			return STATUS_ERROR;
 		}
 
+		if (toc.num_entries < TOC_MAX_ENTRIES)
+		{
+			/* Add the file to the toc */
+			toc.files[toc.num_entries].offset = offset;
+
+			const char *basename = strrchr(arg, '/');
+			if (!basename) basename = strrchr(arg, '\\');
+			if (!basename) basename = arg;
+			if (basename[0] == '/' || basename[0] == '\\') basename++;
+			strlcpy(toc.files[toc.num_entries].name, basename, sizeof(toc.files[toc.num_entries].name));
+			toc.num_entries++;
+		}
+		else
+		{
+			if (create_toc)
+			{
+				fprintf(stderr, "ERROR: Too many files to add to table.\n");
+				return STATUS_ERROR;
+			}
+		}
+
+
 		/* Keep track to be sure we align properly when they request a memory alignment */
 		total_bytes_written += bytes_copied;
+
+		/* Leave space for the table, if asked to do so. */
+		if(create_toc && !toc_offset)
+		{	
+			if (total_bytes_written % TOC_ALIGN)
+			{
+				ssize_t num_zeros = TOC_ALIGN - (total_bytes_written % TOC_ALIGN);
+				output_zeros(write_file, num_zeros);
+				total_bytes_written += num_zeros;
+			}
+
+			toc_offset = ftell(write_file);
+			output_zeros(write_file, TOC_SIZE);
+			total_bytes_written += TOC_SIZE;
+		}
 	}
 
 	if(!total_bytes_written)
@@ -463,6 +589,19 @@ int main(int argc, char *argv[])
 	/* Set title in header */
 	fseek(write_file, TITLE_OFFSET, SEEK_SET);
 	fwrite(title, 1, TITLE_SIZE, write_file);
+
+	/* Write table of contents */
+	if(create_toc)
+	{
+		for (int i=0; i<toc.num_entries; i++)
+			toc.files[i].offset = SWAPLONG(toc.files[i].offset);
+		toc.num_entries = SWAPLONG(toc.num_entries);
+		toc.toc_size = SWAPLONG(toc.toc_size);
+		toc.entry_size = SWAPLONG(toc.entry_size);
+
+		fseek(write_file, toc_offset, SEEK_SET);
+		fwrite(&toc, 1, TOC_SIZE, write_file);
+	}
 
 	/* Sync and close the output file */
 	fclose(write_file);

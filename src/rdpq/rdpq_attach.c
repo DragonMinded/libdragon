@@ -32,8 +32,13 @@ void rdpq_detach_cb(void (*cb)(void*), void *arg)
 {
     assertf(rdpq_is_attached(), "No render target is currently attached");
 
-    attach_stack_ptr--;
     rdpq_sync_full(cb, arg);
+
+    // Reattach to the previous surface in the stack (if any)
+    attach_stack_ptr--;
+    if (attach_stack_ptr > 0)
+        rdpq_set_color_image(attach_stack[attach_stack_ptr-1]);
+
     rspq_flush();
 }
 

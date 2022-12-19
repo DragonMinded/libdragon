@@ -164,6 +164,7 @@ struct {
 
 /** @brief Triangle primitives names */
 static const char *tri_name[] = { "TRI", "TRI_Z", "TRI_TEX", "TRI_TEX_Z",  "TRI_SHADE", "TRI_SHADE_Z", "TRI_TEX_SHADE", "TRI_TEX_SHADE_Z"};
+static const char *tex_fmt_name[] = { "RGBA", "YUV", "CI", "IA", "I", "?", "?", "?" };
 
 #ifdef N64
 #define MAX_BUFFERS 12                                    ///< Maximum number of pending RDP buffers
@@ -822,13 +823,16 @@ static bool cc_use_tex1(void) {
 }
 
 /** 
- * @brief Perform lazy evaluation of SOM and CC changes.
+ * @brief Perform lazy evaluation of SOM and CC changes (on draw command).
  * 
  * Validation of color combiner requires to know the current cycle type (which is part of SOM).
  * Since it's possible to send SOM / CC in any order, what matters is if, at the point of a
  * drawing command, the configuration is correct.
  * 
  * Validation of CC is thus run lazily whenever a draw command is issued.
+ * 
+ * @note Do not perform validation of texture-related settings here. Use validate_use_tile instead,
+ *       as that is the only place where we know exactly which tile is being used for drawing.
  */
 static void lazy_validate_rendermode(void) {
     if (!rdp.mode_changed) return;
@@ -1022,27 +1026,34 @@ static bool check_loading_crash(int hpixels) {
  * @param tidx      tile ID
  * @param cycle     Number of the cycle in which the the tile is being used (0 or 1)
  */
-static void use_tile(int tidx, int cycle) {
+static void validate_use_tile(int tidx, int cycle) {
     struct tile_s *t = &rdp.tile[tidx];
     VALIDATE_ERR(t->has_extents, "tile %d has no extents set, missing LOAD_TILE or SET_TILE_SIZE", tidx);
     rdp.busy.tile[tidx] = true;
 
-    if (rdp.som.cycle_type < 2) {
-        // YUV render mode mistakes in 1-cyc/2-cyc, that is when YUV conversion can be done.
-        // In copy mode, YUV textures are copied as-is
-        if (t->fmt == 1) {
-            VALIDATE_ERR_SOM(!(rdp.som.tf_mode & (4>>cycle)),
-                "tile %d is YUV but texture filter in cycle %d does not activate YUV color conversion", tidx, cycle);
-            if (rdp.som.sample_type > 1) {
-                static const char* texinterp[] = { "point", "point", "bilinear", "median" };
-                VALIDATE_ERR_SOM(rdp.som.tf_mode == 6 && rdp.som.cycle_type == 1,
-                    "tile %d is YUV and %s filtering is active: TF1_YUVTEX0 mode must be configured in SOM", tidx, texinterp[rdp.som.sample_type]);
-                VALIDATE_ERR_SOM(rdp.som.cycle_type == 1,
-                    "tile %d is YUV and %s filtering is active: 2-cycle mode must be configured", tidx, texinterp[rdp.som.sample_type]);
+    switch (rdp.som.cycle_type) {
+        case 0: case 1: // 1-cycle / 2-cycle modes
+            // YUV render mode mistakes in 1-cyc/2-cyc, that is when YUV conversion can be done.
+            // In copy mode, YUV textures are copied as-is
+            if (t->fmt == 1) {
+                VALIDATE_ERR_SOM(!(rdp.som.tf_mode & (4>>cycle)),
+                    "tile %d is YUV but texture filter in cycle %d does not activate YUV color conversion", tidx, cycle);
+                if (rdp.som.sample_type > 1) {
+                    static const char* texinterp[] = { "point", "point", "bilinear", "median" };
+                    VALIDATE_ERR_SOM(rdp.som.tf_mode == 6 && rdp.som.cycle_type == 1,
+                        "tile %d is YUV and %s filtering is active: TF1_YUVTEX0 mode must be configured in SOM", tidx, texinterp[rdp.som.sample_type]);
+                    VALIDATE_ERR_SOM(rdp.som.cycle_type == 1,
+                        "tile %d is YUV and %s filtering is active: 2-cycle mode must be configured", tidx, texinterp[rdp.som.sample_type]);
+                }
+            } else {
+                VALIDATE_ERR_SOM((rdp.som.tf_mode & (4>>cycle)),
+                    "tile %d is RGB-based, but cycle %d is configured for YUV color conversion; try setting SOM_TF%d_RGB", tidx, cycle, cycle);
             }
-        } else
-            VALIDATE_ERR_SOM((rdp.som.tf_mode & (4>>cycle)),
-                "tile %d is RGB-based, but cycle %d is configured for YUV color conversion; try setting SOM_TF%d_RGB", tidx, cycle, cycle);
+            break;
+        case 2: // copy mode
+            VALIDATE_ERR_SOM(t->fmt != 3 && t->fmt != 4 && (t->fmt != 0 || t->size != 3), 
+                "tile %d is %s%d, but COPY mode does not support I4/I8/IA4/IA8/IA16/RGBA32", tidx, tex_fmt_name[t->fmt], 4 << t->size);
+            break;
     }
 
     // Check that TLUT mode in SOM is active if the tile requires it (and vice-versa)
@@ -1075,7 +1086,7 @@ static void use_tile(int tidx, int cycle) {
     // If this is the tile for cycle0 and the combiner uses TEX1,
     // then also tile+1 is used. Process that as well.
     if (cycle == 0 && cc_use_tex1())
-        use_tile((tidx+1) & 7, 1);
+        validate_use_tile((tidx+1) & 7, 1);
 }
 
 void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
@@ -1094,9 +1105,10 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         VALIDATE_ERR(BITS(buf[0], 0, 5) == 0, "color image must be aligned to 64 bytes");
         VALIDATE_ERR((rdp.col.fmt == 0 && (size == 32 || size == 16)) || (rdp.col.fmt == 2 && size == 8),
             "color image has invalid format %s%d: must be RGBA32, RGBA16 or CI8",
-                (char*[]){"RGBA","YUV","CI","IA","I","?","?","?"}[rdp.col.fmt], size);
+                tex_fmt_name[rdp.col.fmt], size);
         rdp.last_col = &buf[0];
-        rdp.last_col_data = buf[0];        
+        rdp.last_col_data = buf[0];
+        rdp.mode_changed = true; // revalidate render mode on different framebuffer format  
     }   break;
     case 0x3E: // SET_Z_IMAGE
         validate_busy_pipe();
@@ -1192,7 +1204,7 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         rdp.busy.pipe = true;
         lazy_validate_rendermode();
         validate_draw_cmd(false, true, false, false);
-        use_tile(BITS(buf[0], 24, 26), 0);
+        validate_use_tile(BITS(buf[0], 24, 26), 0);
         break;
     case 0x36: // FILL_RECTANGLE
         rdp.busy.pipe = true;
@@ -1204,7 +1216,7 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         VALIDATE_ERR_SOM(rdp.som.cycle_type < 2, "cannot draw triangles in copy/fill mode");
         lazy_validate_rendermode();
         validate_draw_cmd(cmd & 4, cmd & 2, cmd & 1, cmd & 2);
-        if (cmd & 2) use_tile(BITS(buf[0], 48, 50), 0);
+        if (cmd & 2) validate_use_tile(BITS(buf[0], 48, 50), 0);
         if (BITS(buf[0], 51, 53))
             VALIDATE_WARN_SOM(rdp.som.tex.lod, "triangle with %d mipmaps specified, but mipmapping is disabled",
                 BITS(buf[0], 51, 53)+1);

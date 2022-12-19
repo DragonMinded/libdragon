@@ -224,7 +224,7 @@ int convert(const char *infn, const char *outfn, parms_t *pm) {
         state.info_raw.colortype = LCT_GREY;
         state.info_raw.bitdepth = 8;
         break;
-    case FMT_IA8: case FMT_IA4:
+    case FMT_IA16: case FMT_IA8: case FMT_IA4:
         state.info_raw.colortype = LCT_GREY_ALPHA;
         state.info_raw.bitdepth = 8;
         break;
@@ -456,11 +456,16 @@ int convert(const char *infn, const char *outfn, parms_t *pm) {
             break;
         }
 
-        case FMT_IA8: case FMT_I4: {
-            // I4 is 4 bit intensity. IA8 is 4 bit intensity and 4 bit alpha.
-            // The packing code is the same: we need to read two consecutive
-            // bytes and compress them into 4 bit by keeping only the highest nibble.
+        case FMT_IA8: {
             for (int i=0; i<width*height; i++) {
+                uint8_t I = *img++; uint8_t A = *img++;
+                fputc((I & 0xF0) | (A >> 4), out);
+            }
+            break;
+        }
+
+        case FMT_I4: {
+            for (int i=0; i<width*height; i+=2) {
                 uint8_t I = *img++; uint8_t A = *img++;
                 fputc((I & 0xF0) | (A >> 4), out);
             }
@@ -478,7 +483,7 @@ int convert(const char *infn, const char *outfn, parms_t *pm) {
         }
 
         default:
-            // No further conversion needed
+            // No further conversion needed. Used for RGBA32 and IA16.
             fwrite(img, 1, width*height*bpp, out);
             break;
         }
@@ -578,6 +583,7 @@ int main(int argc, char *argv[])
                 }
                 if (!strcmp(argv[i], "RGBA32")) pm.outfmt = FMT_RGBA32;
                 else if (!strcmp(argv[i], "RGBA16")) pm.outfmt = FMT_RGBA16;
+                else if (!strcmp(argv[i], "IA16")) pm.outfmt = FMT_IA16;
                 else if (!strcmp(argv[i], "CI8")) pm.outfmt = FMT_CI8;
                 else if (!strcmp(argv[i], "I8")) pm.outfmt = FMT_I8;
                 else if (!strcmp(argv[i], "IA8")) pm.outfmt = FMT_IA8;
