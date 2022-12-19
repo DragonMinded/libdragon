@@ -655,15 +655,13 @@ void __debug_backtrace(FILE *out)
 	{
 		// backtrace_symbols can return multiple lines for a single symbol (for inlines)
 		// Split them so that we can print them indented.
-		#define INDENT "    "
 		const char *s = syms[i];
 		const char *s2;
 		while ((s2 = strchr(s, '\n'))) {
-			fprintf(out, INDENT "%.*s\n", s2-s, s);
+			fprintf(out, "    %.*s\n", s2-s, s);
 			s = s2+1;
 		}
-		fprintf(out, INDENT "%s\n", s);
-		#undef INDENT
+		fprintf(out, "    %s\n", s);
 	}
 
 	free(syms);
