@@ -6,28 +6,36 @@
 #include "n64sys.h"
 #include "dma.h"
 #include "utils.h"
+#include "exception.h"
 #include "rompak_internal.h"
 
 /** @brief Symbol table file header */
 typedef struct alignas(8) {
     char head[4];           ///< Magic ID "SYMT"
     uint32_t version;       ///< Version of the symbol table
+    uint32_t addrtab_off;   ///< Offset of the address table in the file
+    uint32_t addrtab_size;  ///< Size of the address table in the file (number of entries)
     uint32_t symtab_off;    ///< Offset of the symbol table in the file
-    uint32_t symtab_size;   ///< Size of the symbol table in the file
+    uint32_t symtab_size;   ///< Size of the symbol table in the file (number of entries)
     uint32_t strtab_off;    ///< Offset of the string table in the file
-    uint32_t strtab_size;   ///< Size of the string table in the file
+    uint32_t strtab_size;   ///< Size of the string table in the file (number of entries)
 } symtable_header_t;
 
 /** @brief Symbol table entry */
 typedef struct {
-    uint32_t addr;          ///< Address of the symbol
     uint16_t func_sidx;     ///< Offset of the function name in the string table
     uint16_t func_len;      ///< Length of the function name
     uint16_t file_sidx;     ///< Offset of the file name in the string table
     uint16_t file_len;      ///< Length of the file name
     uint16_t line;          ///< Line number (or 0 if this symbol generically refers to a whole function)
     uint16_t func_off;      ///< Offset of the symbol within its function
-} symtable_t;
+} symtable_entry_t;
+
+typedef uint32_t addrtable_entry_t;
+
+#define ADDRENTRY_ADDR(e)       ((e) & ~3)
+#define ADDRENTRY_IS_FUNC(e)    ((e) &  1)
+#define ADDRENTRY_IS_INLINE(e)  ((e) &  2)
 
 #define MIPS_OP_ADDIU_SP(op)  (((op) & 0xFFFF0000) == 0x27BD0000)
 #define MIPS_OP_JR_RA(op)     (((op) & 0xFFFF0000) == 0x03E00008)
@@ -55,6 +63,7 @@ int backtrace(void **buffer, int size)
     }
 
 	// debugf("Start backtrace\n");
+    extern uint32_t inthandler[], inthandler_end[];
 
     sp = (uint32_t*)((uint32_t)sp + stack_size);
     for (int i=0; i<size; ++i) {
@@ -65,17 +74,21 @@ int backtrace(void **buffer, int size)
         for (uint32_t *addr = ra; !ra_offset || !stack_size; --addr) {
             assertf((uint32_t)addr > 0x80000400, "backtrace: invalid address %p", addr);
             uint32_t op = *addr;
-            if (MIPS_OP_ADDIU_SP(op))
+            if (MIPS_OP_ADDIU_SP(op)) {
                 stack_size = ABS((int16_t)(op & 0xFFFF));
-            else if (MIPS_OP_SD_RA_SP(op))
-                ra_offset = (int16_t)(op & 0xFFFF);
+                if (addr >= inthandler && addr < inthandler_end) {
+                    ra_offset = offsetof(reg_block_t, epc) + 32;
+                    debugf("EXCEPTION HANDLER %d\n", ra_offset);
+                }
+            } else if (MIPS_OP_SD_RA_SP(op))
+                ra_offset = (int16_t)(op & 0xFFFF) + 4; // +4 = load low 32 bit of RA
             else if (MIPS_OP_LUI_GP(op)) { // _start function loads gp, so it's useless to go back more
 				// debugf("_start reached, aborting backtrace\n");
                 return i;
 			}
         }
 
-        ra = *(uint32_t**)((uint32_t)sp + ra_offset + 4);  // +4 = load low 32 bit of RA
+        ra = *(uint32_t**)((uint32_t)sp + ra_offset);
         sp = (uint32_t*)((uint32_t)sp + stack_size);
     }
 
@@ -86,28 +99,38 @@ int backtrace(void **buffer, int size)
 #define MAX_FUNC_LEN 60
 #define MAX_SYM_LEN  (MAX_FILE_LEN + MAX_FUNC_LEN + 24)
 
-void format_entry(char *out, uint32_t STRTAB_ROM, symtable_t *s)
+int format_entry(char *out, uint32_t SYMTAB_ROM, uint32_t STRTAB_ROM, int idx, uint32_t addr, uint32_t offset)
 {
+    symtable_entry_t s alignas(8);
+
+    data_cache_hit_writeback_invalidate(&s, sizeof(s));
+    dma_read(&s, SYMTAB_ROM + idx * sizeof(symtable_entry_t), sizeof(s));
+
     char file_buf[MAX_FILE_LEN+2] alignas(8);
     char func_buf[MAX_FUNC_LEN+2] alignas(8);
 
     char *func = func_buf;
     char *file = file_buf;
-    if (s->func_sidx & 1) func++;
-    if (s->file_sidx & 1) file++;
+    if (s.func_sidx & 1) func++;
+    if (s.file_sidx & 1) file++;
 
-    int func_len = MIN(s->func_len, MAX_FUNC_LEN);
-    int file_len = MIN(s->file_len, MAX_FILE_LEN);
+    int func_len = MIN(s.func_len, MAX_FUNC_LEN);
+    int file_len = MIN(s.file_len, MAX_FILE_LEN);
 
     data_cache_hit_writeback_invalidate(func_buf, sizeof(func_buf));
-    dma_read(func, STRTAB_ROM + s->func_sidx, func_len);
+    dma_read(func, STRTAB_ROM + s.func_sidx, func_len);
     func[func_len] = 0;
 
     data_cache_hit_writeback_invalidate(file_buf, sizeof(file_buf));
-    dma_read(file, STRTAB_ROM + s->file_sidx, MIN(s->file_len, file_len));
+    dma_read(file, STRTAB_ROM + s.file_sidx, MIN(s.file_len, file_len));
     file[file_len] = 0;
 
-    snprintf(out, MAX_SYM_LEN, "%s+0x%x (%s:%d)", func, s->func_off, file, s->line);
+    return snprintf(out, MAX_SYM_LEN, "%s+0x%lx (%s:%d) [0x%08lx]", func, offset ? offset : s.func_off, file, s.line, addr);
+}
+
+uint32_t addrtab_entry(uint32_t ADDRTAB_ROM, int idx)
+{
+    return io_read(ADDRTAB_ROM + idx * 4);
 }
 
 char** backtrace_symbols(void **buffer, int size)
@@ -133,27 +156,33 @@ char** backtrace_symbols(void **buffer, int size)
         return NULL;
     }
 
-    symtable_t *symt = alloca(symt_header.symtab_size * sizeof(symtable_t));
-    data_cache_hit_writeback_invalidate(symt, symt_header.symtab_size * sizeof(symtable_t));
-    dma_read_raw_async(symt, SYMT_ROM + symt_header.symtab_off, symt_header.symtab_size * sizeof(symtable_t));
-    dma_wait();
-
-    char **syms = malloc(size * (sizeof(char*) + MAX_SYM_LEN));    
+    char **syms = malloc(5 * size * (sizeof(char*) + MAX_SYM_LEN));    
+    uint32_t SYMTAB_ROM = SYMT_ROM + symt_header.symtab_off;
     uint32_t STRTAB_ROM = SYMT_ROM + symt_header.strtab_off;
+    uint32_t ADDRTAB_ROM = SYMT_ROM + symt_header.addrtab_off;
 
+    char *out = (char*)syms + size*sizeof(char*);
     for (int i=0; i<size; i++) {
-        syms[i] = (char*)syms + size*sizeof(char*) + i*MAX_SYM_LEN;
+        syms[i] = out;
+        *out = 0;
 
         int l=0, r=symt_header.symtab_size-1;
         uint32_t needle = (uint32_t)buffer[i] - 8;
         while (l <= r) {
             int m = (l+r)/2;
-            symtable_t *s = &symt[m];
+            addrtable_entry_t a = addrtab_entry(ADDRTAB_ROM, m);
 
-            if (s->addr == needle) {
-                format_entry(syms[i], STRTAB_ROM, s);
+            if (ADDRENTRY_ADDR(a) == needle) {
+                // We need to format all inlines for this address (if any)
+                while (ADDRENTRY_IS_INLINE(a))
+                    a = addrtab_entry(ADDRTAB_ROM, --m);
+                do {
+                    out += format_entry(out, SYMTAB_ROM, STRTAB_ROM, m, needle, 0) + 1;
+                    out[-1] = '\n';
+                } while (ADDRENTRY_IS_INLINE(addrtab_entry(ADDRTAB_ROM, ++m)));
+                out[-1] = 0;
                 break;
-            } else if (s->addr < needle) {
+            } else if (ADDRENTRY_ADDR(a) < needle) {
                 l = m+1;
             } else {
                 r = m-1;
@@ -162,13 +191,16 @@ char** backtrace_symbols(void **buffer, int size)
 
         if (l > r) {
             // We couldn'd find the proper symbol; try to find the function it belongs to
-            for (; l>=0; l--) 
-                if (symt[l].line == 0)
+            addrtable_entry_t a;
+            for (l--; l>=0; l--) {
+                a = addrtab_entry(ADDRTAB_ROM, l);
+                if (ADDRENTRY_IS_FUNC(a))
                     break;
-            if (l >= 0)
-                format_entry(syms[i], STRTAB_ROM, &symt[l]);
-            else
-                strcpy(syms[i], "???");
+            }
+            if (l >= 0) {
+                out += format_entry(out, SYMTAB_ROM, STRTAB_ROM, l, needle, needle - ADDRENTRY_ADDR(a)) + 1;
+            } else
+                out = stpcpy(out, "???") + 1;
         }
     }
 
