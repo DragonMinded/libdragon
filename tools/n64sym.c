@@ -8,7 +8,7 @@
 #include "common/stb_ds.h"
 
 bool flag_verbose = false;
-const char *n64_inst = NULL;
+char *n64_inst = NULL;
 
 // Printf if verbose
 void verbose(const char *fmt, ...) {
@@ -369,6 +369,13 @@ int main(int argc, char *argv[])
             fprintf(stderr, "Error: N64_INST environment variable not set.\n");
             return 1;
         }
+        // Remove the trailing backslash if any. On some system, running
+        // popen with a path containing double backslashes will fail, so
+        // we normalize it here.
+        n64_inst = strdup(n64_inst);
+        int n = strlen(n64_inst);
+        if (n64_inst[n-1] == '/' || n64_inst[n-1] == '\\')
+            n64_inst[n-1] = 0;
     }
 
     const char *infn = argv[i];
