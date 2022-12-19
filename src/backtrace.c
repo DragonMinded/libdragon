@@ -2,6 +2,7 @@
 #include <stdalign.h>
 #include <stdlib.h>
 #include <string.h>
+#include "backtrace.h"
 #include "debug.h"
 #include "n64sys.h"
 #include "dma.h"
@@ -62,12 +63,10 @@ int backtrace(void **buffer, int size)
             break;
     }
 
-	// debugf("Start backtrace\n");
     extern uint32_t inthandler[], inthandler_end[];
 
     sp = (uint32_t*)((uint32_t)sp + stack_size);
     for (int i=0; i<size; ++i) {
-        debugf("PC: %p (SP: %p)\n", ra, sp);
         buffer[i] = ra;
 
         int ra_offset = 0, stack_size = 0;
@@ -95,11 +94,12 @@ int backtrace(void **buffer, int size)
 	return size;
 }
 
-#define MAX_FILE_LEN 60
-#define MAX_FUNC_LEN 60
+#define MAX_FILE_LEN 120
+#define MAX_FUNC_LEN 120
 #define MAX_SYM_LEN  (MAX_FILE_LEN + MAX_FUNC_LEN + 24)
 
-int format_entry(char *out, uint32_t SYMTAB_ROM, uint32_t STRTAB_ROM, int idx, uint32_t addr, uint32_t offset)
+void format_entry(void (*cb)(void *, backtrace_frame_t *), void *cb_arg, 
+    uint32_t SYMTAB_ROM, uint32_t STRTAB_ROM, int idx, uint32_t addr, uint32_t offset, bool is_inline)
 {
     symtable_entry_t s alignas(8);
 
@@ -125,7 +125,14 @@ int format_entry(char *out, uint32_t SYMTAB_ROM, uint32_t STRTAB_ROM, int idx, u
     dma_read(file, STRTAB_ROM + s.file_sidx, MIN(s.file_len, file_len));
     file[file_len] = 0;
 
-    return snprintf(out, MAX_SYM_LEN, "%s+0x%lx (%s:%d) [0x%08lx]", func, offset ? offset : s.func_off, file, s.line, addr);
+    cb(cb_arg, &(backtrace_frame_t){
+        .addr = addr,
+        .func_offset = offset ? offset : s.func_off,
+        .func = func,
+        .source_file = file,
+        .source_line = s.line,
+        .is_inline = is_inline,
+    });
 }
 
 uint32_t addrtab_entry(uint32_t ADDRTAB_ROM, int idx)
@@ -133,7 +140,8 @@ uint32_t addrtab_entry(uint32_t ADDRTAB_ROM, int idx)
     return io_read(ADDRTAB_ROM + idx * 4);
 }
 
-char** backtrace_symbols(void **buffer, int size)
+void backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
+    void (*cb)(void *, backtrace_frame_t *), void *cb_arg)
 {
     static uint32_t SYMT_ROM = 0xFFFFFFFF;
     if (SYMT_ROM == 0xFFFFFFFF) {
@@ -143,7 +151,7 @@ char** backtrace_symbols(void **buffer, int size)
     }
 
     if (!SYMT_ROM) {
-        return NULL;
+        return;
     }
 
     symtable_header_t symt_header;
@@ -153,19 +161,14 @@ char** backtrace_symbols(void **buffer, int size)
 
     if (symt_header.head[0] != 'S' || symt_header.head[1] != 'Y' || symt_header.head[2] != 'M' || symt_header.head[3] != 'T') {
         debugf("backtrace_symbols: invalid symbol table found at 0x%08lx\n", SYMT_ROM);
-        return NULL;
+        return;
     }
 
-    char **syms = malloc(5 * size * (sizeof(char*) + MAX_SYM_LEN));    
     uint32_t SYMTAB_ROM = SYMT_ROM + symt_header.symtab_off;
     uint32_t STRTAB_ROM = SYMT_ROM + symt_header.strtab_off;
     uint32_t ADDRTAB_ROM = SYMT_ROM + symt_header.addrtab_off;
 
-    char *out = (char*)syms + size*sizeof(char*);
     for (int i=0; i<size; i++) {
-        syms[i] = out;
-        *out = 0;
-
         int l=0, r=symt_header.symtab_size-1;
         uint32_t needle = (uint32_t)buffer[i] - 8;
         while (l <= r) {
@@ -177,10 +180,9 @@ char** backtrace_symbols(void **buffer, int size)
                 while (ADDRENTRY_IS_INLINE(a))
                     a = addrtab_entry(ADDRTAB_ROM, --m);
                 do {
-                    out += format_entry(out, SYMTAB_ROM, STRTAB_ROM, m, needle, 0) + 1;
-                    out[-1] = '\n';
-                } while (ADDRENTRY_IS_INLINE(addrtab_entry(ADDRTAB_ROM, ++m)));
-                out[-1] = 0;
+                    format_entry(cb, cb_arg, SYMTAB_ROM, STRTAB_ROM, m, needle, 0, ADDRENTRY_IS_INLINE(a));
+                    a = addrtab_entry(ADDRTAB_ROM, ++m);
+                } while (ADDRENTRY_IS_INLINE(a));
                 break;
             } else if (ADDRENTRY_ADDR(a) < needle) {
                 l = m+1;
@@ -198,11 +200,37 @@ char** backtrace_symbols(void **buffer, int size)
                     break;
             }
             if (l >= 0) {
-                out += format_entry(out, SYMTAB_ROM, STRTAB_ROM, l, needle, needle - ADDRENTRY_ADDR(a)) + 1;
-            } else
-                out = stpcpy(out, "???") + 1;
+                format_entry(cb, cb_arg, SYMTAB_ROM, STRTAB_ROM, l, needle, needle - ADDRENTRY_ADDR(a), ADDRENTRY_IS_INLINE(a));
+            } else {
+                cb(cb_arg, &(backtrace_frame_t){
+                    .addr = needle,
+                    .func_offset = 0,
+                    .func = "???",
+                    .source_file = "???",
+                    .source_line = 0,
+                    .is_inline = 0,
+                });
+            }
         }
     }
+}
 
+char** backtrace_symbols(void **buffer, int size)
+{
+    char **syms = malloc(5 * size * (sizeof(char*) + MAX_SYM_LEN));
+    char *out = (char*)syms + size*sizeof(char*);
+    int level = 0;
+
+    void cb(void *arg, backtrace_frame_t *frame) {
+        int n = snprintf(out, MAX_SYM_LEN,
+            "%s+0x%lx (%s:%d) [0x%08lx]", frame->func, frame->func_offset, frame->source_file, frame->source_line, frame->addr);
+        if (frame->is_inline)
+            out[-1] = '\n';
+        else
+            syms[level++] = out;
+        out += n + 1;
+    }
+
+    backtrace_symbols_cb(buffer, size, 0, cb, NULL);
     return syms;
 }

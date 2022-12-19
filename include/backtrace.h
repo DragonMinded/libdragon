@@ -26,6 +26,27 @@
 #ifndef __LIBDRAGON_BACKTRACE_H
 #define __LIBDRAGON_BACKTRACE_H
 
+#include <stdbool.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/** 
+ * @brief A stack frame, part of a backtrace
+ */
+typedef struct {
+    uint32_t addr;              ///< Memory address of the return address
+
+    const char *func;           ///< Name of the function (if known)
+    uint32_t func_offset;       ///< Byte offset of the address within the function (if known)
+
+    const char *source_file;    ///< Name of the source file (if known)
+    int source_line;            ///< Line number in the source file (if known)
+
+    bool is_inline;             ///< True if this frame has been inlined
+} backtrace_frame_t;
+
 /**
  * @brief Walk the stack and return the current call stack
  * 
@@ -62,11 +83,51 @@ int backtrace(void **buffer, int size);
  * 
  * This function adheres to POSIX specification.
  * 
+ * This function also handles inlined functions. In general, inlined function
+ * do not have a real stack frame because they are expanded in place; so for
+ * instance a single stack frame (as returned by #backtrace) can correspond
+ * to multiple symbolized stack frames, one per each inlined function. Since
+ * the POSIX API requires this function to return an array of the same size
+ * of the input array, all inlined functions are collapsed into a single
+ * string, separated by newlines.
+ * 
  * @param buffer    Array of return addresses, populated by #backtrace
  * @param size      Size of the provided buffer, in number of pointers.
  * @return          Array of strings, one for each call frame. The array
  *                  must be freed by the caller with a single free() call.
+ * 
+ * @see #backtrace_symbols_cb
  */
 char** backtrace_symbols(void **buffer, int size);
+
+/**
+ * @brief Symbolize the buffer returned by #backtrace, calling a callback for each frame
+ * 
+ * This function is similar to #backtrace_symbols, but instead of formatting strings
+ * into a heap-allocated buffer, it invokes a callback for each symbolized stack
+ * frame.
+ * 
+ * This allows to skip the memory allocation if not required, and also allows
+ * for custom processing / formatting of the backtrace by the caller.
+ * 
+ * The callback will receive an opaque argument (cb_arg) and a pointer to a
+ * stack frame descriptor (#backtrace_frame_t). The descriptor and all its
+ * contents (including strings) is valid only for the duration of the call,
+ * so the callback must (deep-)copy any data it needs to keep.
+ * 
+ * @param buffer    Array of return addresses, populated by #backtrace
+ * @param size      Size of the provided buffer, in number of pointers.
+ * @param flags     Flags to control the symbolization process. Use 0.
+ * @param cb        Callback function to invoke for each symbolized frame
+ * @param cb_arg    Opaque argument to pass to the callback function
+ * 
+ * @see #backtrace_symbols
+ */
+void backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
+    void (*cb)(void *, backtrace_frame_t*), void *cb_arg);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
