@@ -7,6 +7,8 @@
 #define STB_DS_IMPLEMENTATION
 #include "common/stb_ds.h"
 
+#include "common/subprocess.h"
+
 bool flag_verbose = false;
 char *n64_inst = NULL;
 
@@ -68,6 +70,7 @@ void walign(FILE *f, int align) {
 }
 
 struct symtable_s {
+    uint32_t uuid;
     uint32_t addr;
     char *func;
     char *file;
@@ -83,44 +86,84 @@ void symbol_add(const char *elf, uint32_t addr, bool save_line)
 {
     // We keep one addr2line process open for the last ELF file we processed.
     // This allows to convert multiple symbols very fast, avoiding spawning a
-    // new process for each symbol, 
-    static FILE *addr2line = NULL;
+    // new process for each symbol.
+    // NOTE: we cannot use popen() here because on some platforms (eg. glibc)
+    // it only allows a single direction pipe, and we need both directions.
+    // So we rely on the subprocess library for this.
+    static char *addrbin = NULL;
+    static struct subprocess_s subp;
+    static FILE *addr2line_w = NULL, *addr2line_r = NULL;
     static const char *cur_elf = NULL;
     static char *line_buf = NULL;
     static size_t line_buf_size = 0;
 
     // Check if this is a new ELF file (or it's the first time we run this function)
     if (!cur_elf || strcmp(cur_elf, elf)) {
-        if (addr2line) pclose(addr2line);
-        char *cmd_addr = NULL;
-        asprintf(&cmd_addr, "%s/bin/mips64-elf-addr2line -fC -e %s", n64_inst, elf);
-        addr2line = popen(cmd_addr, "r+");
-        if (!addr2line) {
-            fprintf(stderr, "Error: cannot run: %s\n", cmd_addr);
+        if (cur_elf) {
+            subprocess_terminate(&subp);
+            cur_elf = NULL; addr2line_r = addr2line_w = NULL;
+        }
+        if (!addrbin)
+            asprintf(&addrbin, "%s/bin/mips64-elf-addr2line", n64_inst);
+
+        const char *cmd_addr[] = {
+            addrbin, 
+            "--addresses", "--inlines", "--functions", "--demangle",
+            "--exe", elf,
+            NULL
+        };
+        if (subprocess_create(cmd_addr, subprocess_option_no_window, &subp) != 0) {
+            fprintf(stderr, "Error: cannot run: %s\n", addrbin);
             exit(1);
         }
-        free(cmd_addr);
+        addr2line_w = subprocess_stdin(&subp);
+        addr2line_r = subprocess_stdout(&subp);
         cur_elf = elf;
     }
 
     // Send the address to addr2line and fetch back the symbol and the function name
-    fprintf(addr2line, "%08x\n", addr);
-    fflush(addr2line);
+    // Since we activated the "--inlines" option, addr2line produces an unknown number
+    // of output lines. This is a problem with pipes, as we don't know when to stop.
+    // Thus, we always add a dummy second address (0x0) so that we stop when we see the
+    // reply for it
+    fprintf(addr2line_w, "%08x\n0\n", addr);
+    fflush(addr2line_w);
 
-    int n = getline(&line_buf, &line_buf_size, addr2line);
-    char *func = strndup(line_buf, n-1);
-    getline(&line_buf, &line_buf_size, addr2line);
-    char *colon = strrchr(line_buf, ':');
-    char *file = strndup(line_buf, colon - line_buf);
-    int line = atoi(colon + 1);
+    // First line is the address. It's just an echo, so ignore it.
+    int n = getline(&line_buf, &line_buf_size, addr2line_r);
+    assert(n >= 2 && strncmp(line_buf, "0x", 2) == 0);
 
-    // Add the callsite to the list
-    stbds_arrput(symtable, ((struct symtable_s) {
-        .addr = addr,
-        .func = func,
-        .file = file,
-        .line = save_line ? line : 0,
-    }));
+    // Add one symbol for each inlined function
+    bool is_inline = false;
+    while (1) {
+        // First line is the function name. If instead it's the dummy 0x0 address,
+        // it means that we're done.
+        int n = getline(&line_buf, &line_buf_size, addr2line_r);
+        if (strncmp(line_buf, "0x00000000", 10) == 0) break;
+        char *func = strndup(line_buf, n-1);
+
+        // Second line is the file name and line number
+        getline(&line_buf, &line_buf_size, addr2line_r);
+        char *colon = strrchr(line_buf, ':');
+        char *file = strndup(line_buf, colon - line_buf);
+        int line = atoi(colon + 1);
+
+        // Add the callsite to the list
+        stbds_arrput(symtable, ((struct symtable_s) {
+            .uuid = stbds_arrlen(symtable),
+            .addr = addr | (is_inline ? 0x2 : 0),
+            .func = func,
+            .file = file,
+            .line = save_line ? line : 0,
+        }));
+
+        is_inline = true;
+    }
+
+    // Read and skip the two remaining lines (function and file position)
+    // that refers to the dummy 0x0 address
+    getline(&line_buf, &line_buf_size, addr2line_r);
+    getline(&line_buf, &line_buf_size, addr2line_r);
 }
 
 void elf_find_functions(const char *elf)
@@ -239,7 +282,12 @@ int symtable_sort_by_addr(const void *a, const void *b)
 {
     const struct symtable_s *sa = a;
     const struct symtable_s *sb = b;
-    return sa->addr - sb->addr;
+    // In case the address match, it means that there are multiple
+    // inlines at this address. Sort by insertion order (aka stable sort)
+    // so that we preserve the inline order.
+    if (sa->addr != sb->addr)
+        return sa->addr - sb->addr;
+    return sa->uuid - sb->uuid;
 }
 
 int symtable_sort_by_func(const void *a, const void *b)
@@ -301,16 +349,24 @@ void process(const char *infn, const char *outfn)
 
     fwrite("SYMT", 4, 1, out);
     w32(out, 1); // Version
+    int addrtable_off = w32_placeholder(out);
+    w32(out, stbds_arrlen(symtable));
     int symtable_off = w32_placeholder(out);
     w32(out, stbds_arrlen(symtable));
     int stringtable_off = w32_placeholder(out);
     w32(out, stbds_arrlen(stringtable));
 
     walign(out, 16);
+    w32_at(out, addrtable_off, ftell(out));
+    for (int i=0; i < stbds_arrlen(symtable); i++) {
+        struct symtable_s *sym = &symtable[i];
+        w32(out, sym->addr | (sym->line == 0 ? 1 : 0));
+    }
+
+    walign(out, 16);
     w32_at(out, symtable_off, ftell(out));
     for (int i=0; i < stbds_arrlen(symtable); i++) {
         struct symtable_s *sym = &symtable[i];
-        w32(out, sym->addr);
         w16(out, sym->func_sidx);
         w16(out, strlen(sym->func));
         w16(out, sym->file_sidx);
