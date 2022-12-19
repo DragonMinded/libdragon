@@ -610,7 +610,17 @@ void debug_backtrace(void)
 	debugf("Backtrace:\n");
 	for (int i = 0; i < n; i++)
 	{
-		debugf("  %p at %s\n", bt[i], syms[i] ? syms[i] : "NULL");
+		// backtrace_symbols can return multiple lines for a single symbol (for inlines)
+		// Split them so that we can print them indented.
+		#define INDENT "    "
+		const char *s = syms[i];
+		const char *s2;
+		while ((s2 = strchr(s, '\n'))) {
+			debugf(INDENT "%.*s\n", s2-s, s);
+			s = s2+1;
+		}
+		debugf(INDENT "%s\n", s);
+		#undef INDENT
 	}
 
 	free(syms);
