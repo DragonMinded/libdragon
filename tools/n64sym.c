@@ -96,7 +96,7 @@ void symbol_add(const char *elf, uint32_t addr, bool save_line)
         asprintf(&cmd_addr, "%s/bin/mips64-elf-addr2line -fC -e %s", n64_inst, elf);
         addr2line = popen(cmd_addr, "r+");
         if (!addr2line) {
-            fprintf(stderr, "Error: cannot run: %s", cmd_addr);
+            fprintf(stderr, "Error: cannot run: %s\n", cmd_addr);
             exit(1);
         }
         free(cmd_addr);
@@ -132,7 +132,7 @@ void elf_find_functions(const char *elf)
     verbose("Running: %s\n", cmd);
     FILE *nm = popen(cmd, "r");
     if (!nm) {
-        fprintf(stderr, "Error: cannot run: %s", cmd);
+        fprintf(stderr, "Error: cannot run: %s\n", cmd);
         exit(1);
     }
 
@@ -162,7 +162,7 @@ void elf_find_callsites(const char *elf)
     verbose("Running: %s\n", cmd);
     FILE *disasm = popen(cmd, "r");
     if (!disasm) {
-        fprintf(stderr, "Error: cannot run: %s", cmd);
+        fprintf(stderr, "Error: cannot run: %s\n", cmd);
         exit(1);
     }
 
