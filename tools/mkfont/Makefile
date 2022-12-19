@@ -1,9 +1,9 @@
 INSTALLDIR = $(N64_INST)
-CFLAGS += -std=gnu99 -O2 -Wall -Werror -Wno-unused-result -lm
+CFLAGS += -std=gnu99 -O2 -Wall -Werror -Wno-unused-result
 all: mkfont
 
 mkfont: mkfont.c
-	$(CC) $(CFLAGS) mkfont.c -o mkfont
+	$(CC) $(CFLAGS) mkfont.c -o mkfont -lm
 
 install: mkfont
 	install -m 0755 mkfont $(INSTALLDIR)/bin

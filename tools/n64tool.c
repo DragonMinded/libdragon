@@ -33,6 +33,17 @@
 	(((_n) + (_d) - 1) / (_d) * (_d)); \
 })
 
+// strlcpy() is not available on all platforms, so we provide a simple implementation
+#ifndef strlcpy
+size_t __strlcpy(char * restrict dst, const char * restrict src, size_t dstsize)
+{
+	strncpy(dst, src, dstsize - 1);
+	dst[dstsize - 1] = '\0';
+	return strlen(dst);
+}
+#define strlcpy __strlcpy
+#endif
+
 // Minimum ROM size alignment, used by default. We currently know of two constraints:
 //  * 64drive firmware has a bug and can only transfer chunks of 512 bytes. Some
 //    tools like UNFloader and g64drive work around this bug by padding ROMs,
