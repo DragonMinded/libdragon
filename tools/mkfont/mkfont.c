@@ -384,7 +384,7 @@ int convert(const char *infn, const char *outfn, int point_size, int *ranges)
                 image_compact(pixels, &rw, &rh, w);
                 n64font_addatlas(font, pixels, rw, rh, w);
                 if (flag_verbose)
-                    fprintf(stderr, "created atlas %d: %d x %d pixels (%ld glyphs left)\n", nimg, rw, rh, arrlen(newrange));
+                    fprintf(stderr, "created atlas %d: %d x %d pixels (%d glyphs left)\n", nimg, rw, rh, (int)arrlen(newrange));
                 nimg++;
             } else {
                 // No glyph were added even if the image is empty. It means
