@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -8,6 +9,7 @@
 #include "common/stb_ds.h"
 
 #include "common/subprocess.h"
+#include "common/polyfill.h"
 
 bool flag_verbose = false;
 char *n64_inst = NULL;
