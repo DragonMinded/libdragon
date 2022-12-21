@@ -313,7 +313,7 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
         uint16_t code = state.gpr[1] >> 16;
         printf("RSP ASSERTION FAILED (0x%x)", code);
 
-        if (uc->assert_handler) {
+        if (uc && uc->assert_handler) {
             printf(" - ");
             uc->assert_handler(&state, code);
         } else {
@@ -412,7 +412,7 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
 
     // Invoke ucode-specific crash handler, if defined. This will dump ucode-specific
     // information (possibly decoded from DMEM).
-    if (uc->crash_handler) {
+    if (uc && uc->crash_handler) {
         printf("-----------------------------------------------Ucode data------\n");
         uc->crash_handler(&state);
     }
