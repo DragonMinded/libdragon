@@ -187,7 +187,7 @@ _RSPQ_SAVED_STATE_END:
 #define vshift8  $v31
 
 # We also define direct access to small constants as they can be useful in some
-# calculatios.
+# calculations.
 #define K1       vshift,e(7)
 #define K2       vshift,e(6)
 #define K4       vshift,e(5)

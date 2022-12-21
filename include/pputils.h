@@ -63,7 +63,7 @@
 #define __PPCAT2(n,x) n ## x
 #define __PPCAT(n,x) __PPCAT2(n,x)
 
-// __CALL_FOREACH_BUS. Like __CALL_FOREACH, but it allows to be called wihtout the expansion
+// __CALL_FOREACH_BIS. Like __CALL_FOREACH, but it allows to be called without the expansion
 // of a __CALL_FOREACH.
 #define __FEB_0(_call, ...)
 #define __FEB_1(_call, x)       _call(x)
