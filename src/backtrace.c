@@ -73,11 +73,13 @@ typedef uint32_t addrtable_entry_t;
 #define ADDRENTRY_IS_FUNC(e)    ((e) &  1)     ///< True if the address is the start of a function
 #define ADDRENTRY_IS_INLINE(e)  ((e) &  2)     ///< True if the address is an inline duplicate
 
-#define MIPS_OP_ADDIU_SP(op)  (((op) & 0xFFFF0000) == 0x27BD0000)   // addiu $sp, $sp, imm
-#define MIPS_OP_JR_RA(op)     (((op) & 0xFFFF0000) == 0x03E00008)   // jr $ra
-#define MIPS_OP_SD_RA_SP(op)  (((op) & 0xFFFF0000) == 0xFFBF0000)   // sd $ra, imm($sp)
-#define MIPS_OP_LUI_GP(op)    (((op) & 0xFFFF0000) == 0x3C1C0000)   // lui $gp, imm
-#define MIPS_OP_NOP(op)       ((op) == 0x00000000)                  // nop
+#define MIPS_OP_ADDIU_SP(op)   (((op) & 0xFFFF0000) == 0x27BD0000)   // addiu $sp, $sp, imm
+#define MIPS_OP_JR_RA(op)      (((op) & 0xFFFF0000) == 0x03E00008)   // jr $ra
+#define MIPS_OP_SD_RA_SP(op)   (((op) & 0xFFFF0000) == 0xFFBF0000)   // sd $ra, imm($sp)
+#define MIPS_OP_SD_FP_SP(op)   (((op) & 0xFFFF0000) == 0xFFBE0000)   // sd $fp, imm($sp)
+#define MIPS_OP_LUI_GP(op)     (((op) & 0xFFFF0000) == 0x3C1C0000)   // lui $gp, imm
+#define MIPS_OP_NOP(op)        ((op) == 0x00000000)                  // nop
+#define MIPS_OP_MOVE_FP_SP(op) ((op) == 0x03A0F025)                  // move $fp, $sp
 
 #define ABS(x)   ((x) < 0 ? -(x) : (x))
 
@@ -88,11 +90,12 @@ extern uint32_t inthandler_end[];
 
 int backtrace(void **buffer, int size)
 {
-    uint32_t *sp, *ra;
+    uint32_t *sp, *ra, *fp;
     asm volatile (
         "move %0, $ra\n"
         "move %1, $sp\n"
-        : "=r"(ra), "=r"(sp)
+        "move %2, $fp\n"
+        : "=r"(ra), "=r"(sp), "=r"(fp)
     );
 
     int stack_size = 0;
@@ -105,7 +108,7 @@ int backtrace(void **buffer, int size)
     }
 
     uint32_t* interrupt_ra = NULL;
-    enum { BT_FUNCTION, BT_EXCEPTION, BT_LEAF } bt_type;
+    enum { BT_FUNCTION, BT_FUNCTION_FRAMEPOINTER, BT_EXCEPTION, BT_LEAF } bt_type;
 
     sp = (uint32_t*)((uint32_t)sp + stack_size);
     for (int i=0; i<size; ++i) {
@@ -113,10 +116,11 @@ int backtrace(void **buffer, int size)
         bt_type = (ra >= inthandler && ra < inthandler_end) ? BT_EXCEPTION : BT_FUNCTION;
 
         uint32_t addr = (uint32_t)ra;
-        int ra_offset = 0, stack_size = 0;
+        int ra_offset = 0, fp_offset = 0, stack_size = 0;
         while (1) {
             if (addr < 0x80000400 || addr >= 0x80800000) {
                 // This address is invalid, probably something is corrupted. Avoid looking further.
+                debugf("backtrace: interrupted because of invalid return address 0x%08lx\n", addr);
                 return i;
             }
             uint32_t op = *(uint32_t*)addr;
@@ -124,9 +128,17 @@ int backtrace(void **buffer, int size)
                 stack_size = ABS((int16_t)(op & 0xFFFF));
             } else if (MIPS_OP_SD_RA_SP(op)) {
                 ra_offset = (int16_t)(op & 0xFFFF) + 4; // +4 = load low 32 bit of RA
+            } else if (MIPS_OP_SD_FP_SP(op)) {
+                fp_offset = (int16_t)(op & 0xFFFF) + 4; // +4 = load low 32 bit of FP
             } else if (MIPS_OP_LUI_GP(op)) {
                 // Loading gp is commonly done in _start, so it's useless to go back more
                 return i+1;
+            } else if (MIPS_OP_MOVE_FP_SP(op)) {
+                // This function uses the frame pointer. Uses that as base of the stack.
+                // Even with -fomit-frame-pointer (default on our toolchain), the compiler
+                // still emits a framepointer for functions using a variable stack size
+                // (eg: using alloca() or VLAs).
+                bt_type = BT_FUNCTION_FRAMEPOINTER;
 			} else if (interrupt_ra && MIPS_OP_NOP(op) && (addr + 4) % FUNCTION_ALIGNMENT == 0) {
                 // The frame that was interrupted by an interrupt handler is a special case: the
                 // function could be a leaf function with no stack. Try to detect that we reached
@@ -146,24 +158,37 @@ int backtrace(void **buffer, int size)
             addr -= 4;
         }
         
-        debugf("backtrace: %s, ra=%p, sp=%p, ra_offset=%d, stack_size=%d\n", 
-            bt_type == BT_FUNCTION ? "BT_FUNCTION" : (bt_type == BT_EXCEPTION ? "BT_EXCEPTION" : "BT_LEAF"),
-            ra, sp, ra_offset, stack_size);
+        debugf("backtrace: %s, ra=%p, sp=%p, fp=%p ra_offset=%d, stack_size=%d\n", 
+            bt_type == BT_FUNCTION ? "BT_FUNCTION" : (bt_type == BT_EXCEPTION ? "BT_EXCEPTION" : (bt_type == BT_FUNCTION_FRAMEPOINTER ? "BT_FRAMEPOINTER" : "BT_LEAF")),
+            ra, sp, fp, ra_offset, stack_size);
 
         switch (bt_type) {
+            case BT_FUNCTION_FRAMEPOINTER:
+                if (!fp_offset) {
+                    debugf("backtrace: framepointer used but not saved onto stack at %p\n", buffer[i]);
+                } else {
+                    // Use the frame pointer to refer to the current frame.
+                    sp = fp;
+                }
+                // FALLTRHOUGH!
             case BT_FUNCTION:
+                if (fp_offset)
+                    fp = *(uint32_t**)((uint32_t)sp + fp_offset);
                 ra = *(uint32_t**)((uint32_t)sp + ra_offset);
                 sp = (uint32_t*)((uint32_t)sp + stack_size);
                 interrupt_ra = NULL;
                 break;
-            case BT_EXCEPTION:
+            case BT_EXCEPTION: {
                 // Exception frame. We must return back to EPC, but let's keep the
                 // RA value. If the interrupted function is a leaf function, we
                 // will need it to further walk back.
+                // Notice that FP is a callee-saved register so we don't need to
+                // recover it from the exception frame (also, it isn't saved there
+                // during interrupts).
                 interrupt_ra = *(uint32_t**)((uint32_t)sp + ra_offset);
                 ra = *(uint32_t**)((uint32_t)sp + offsetof(reg_block_t, epc) + 32);
                 sp = (uint32_t*)((uint32_t)sp + stack_size);
-                break;
+            }   break;
             case BT_LEAF:
                 ra = interrupt_ra;
                 interrupt_ra = NULL;
