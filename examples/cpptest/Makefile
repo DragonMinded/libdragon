@@ -6,7 +6,7 @@ N64_CXXFLAGS += -std=c++14
 
 all: cpptest.z64
 
-OBJS = $(BUILD_DIR)/*.o
+OBJS = $(BUILD_DIR)/cpptest.o
 
 $(BUILD_DIR)/cpptest.elf: $(OBJS)
 
