@@ -1,0 +1,258 @@
+# Copyright (c) libdragon and contributers 2023
+# See LICENSE file in the project root for full license information.
+
+# This workflow will build the libdragon N64 GCC toolchain to keep it up-to-date.
+name: Build N64 MIPS GCC toolchain for native environments
+
+on:
+  # This action will take about 40-70 minutes to run!
+  # It is designed to only fire if the GCC toolchain build file changes.
+  push:
+    paths:
+      - 'tools/build-toolchain.sh'
+  pull_request:
+    paths:
+      - 'tools/build-toolchain.sh'
+  
+jobs:
+  build-toolchain:
+    # targets the oldest ubuntu image available to create valid packages for as many versions possible.
+    # TODO: move to using a docker container to support older versions.
+    runs-on: ubuntu-20.04
+    outputs:
+      gcc-version: ${{ steps.gcc-version-generator.outputs.GCC_VERSION }}
+      newlib-version: ${{ steps.gcc-version-generator.outputs.NEWLIB_VERSION }}
+      binutils-version: ${{ steps.gcc-version-generator.outputs.BINUTILS_VERSION }}
+      gmp-version: ${{ steps.gcc-version-generator.outputs.GMP_VERSION }}
+      mpc-version: ${{ steps.gcc-version-generator.outputs.MPC_VERSION }}
+      mpfr-version: ${{ steps.gcc-version-generator.outputs.MPFR_VERSION }}
+      make-version: ${{ steps.gcc-version-generator.outputs.MAKE_VERSION }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: [
+          { target-platform: Windows-x86_64, host: x86_64-w64-mingw32, makefile-version: 4.4 },
+          { target-platform: Linux-x86_64, host: '', makefile-version: '' }
+        ]
+
+    env:
+      Build_Directory: gcc-toolchain-mips64-libdragon
+
+    steps:
+      - name: Install native system build dependencies
+        run: |
+          sudo apt-get install libmpfr-dev
+          sudo apt-get install texinfo
+          sudo apt-get install libmpc-dev
+          sudo apt-get install squashfs-tools
+          # If there are other dependencies, we should add them here and make sure the documentation is updated!
+        continue-on-error: true
+
+      - name: Install x-compile system build dependencies
+        if: ${{ matrix.target-platform == 'Windows-x86_64' }}
+        run: |
+          sudo apt-get install -y mingw-w64
+          # If there are other dependencies, we should add them here and make sure the documentation is updated!
+
+      # https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-ruby
+      - name: Set up Ruby
+        if: ${{ matrix.target-platform == 'Linux-x86_64' }}
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+          ruby-version: '3.1'
+        continue-on-error: true
+
+      - name: Install Package Creator
+        if: ${{ matrix.target-platform == 'Linux-x86_64' }}
+        run: |
+          echo installing jordansissel/fpm ruby package
+          gem install fpm
+          fpm --version
+        continue-on-error: true
+
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 1 # we only require the last check-in, unless we want to create a changelog.
+
+      # Cache and restore dependencies instead of downloading them to increase build speed.
+      # Expires after 7 days.
+      - uses: actions/cache@v3
+        id: cache
+        with:
+          path: |
+            ./tools/**/*.tar.gz
+            ./tools/**/*.tar.bz2
+          key: ${{ runner.os }}-dependency-downloads # TODO: concurrency errors may currently occur due to matrix, but they are the same files.
+
+      - name: Get versions from toolchain file
+        id: gcc-version-generator
+        run: |
+          echo "BINUTILS_VERSION=$(grep -Po 'BINUTILS_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
+          echo "GCC_VERSION=$(grep -Po 'GCC_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
+          echo "NEWLIB_VERSION=$(grep -Po 'NEWLIB_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
+
+          echo "GMP_VERSION=$(grep -Po 'GMP_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
+          echo "MPC_VERSION=$(grep -Po 'MPC_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
+          echo "MPFR_VERSION=$(grep -Po 'MPFR_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
+          # TODO: this version is set explicitly. We need to fix!
+          echo "MAKE_VERSION=4.4" >> $GITHUB_OUTPUT
+        continue-on-error: false
+
+      - name: Build N64 MIPS GCC toolchain for ${{ matrix.target-platform }}
+        run: |
+          # required for newlib (as not the default?!)
+          export PATH="$PATH:${{ runner.temp }}/${{ env.Build_Directory }}"
+          cd ./tools/
+          sudo N64_INST=${{ runner.temp }}/${{ env.Build_Directory }} HOST=${{ matrix.host }} MAKE_V=${{ matrix.makefile-version }} ./build-toolchain.sh
+
+          echo Remove un-necessary content
+          rm -rf ${N64_INST}/share/locale/*
+        continue-on-error: true
+
+      # https://fpm.readthedocs.io/en/v1.15.0/getting-started.html
+      # TODO: add --deb-changelog with versions (like we do in release)
+      - name: Generate toolchain packages for Linux based OS
+        if: ${{ matrix.target-platform == 'Linux-x86_64' }}
+        run: |
+          echo Generate environment var file
+          echo 'export N64_INST=${{ env.Package_Installation_Directory }}' > "$Package_Name-env.sh"
+          chmod 755 "$Package_Name-env.sh"
+
+          # TODO: there is currently a dependency on makefile. but it is not added.
+          # packages need something like `--depends bash \`
+          echo Generating debian package
+          # TODO: a warning is generated when adding files to `\etc`. The current workaround is: --deb-no-default-config-files
+          fpm \
+            -t deb \
+            -s dir \
+            -p $Package_Name-$Package_Architecture.deb \
+            --name $Package_Name \
+            --license $Package_License \
+            --version $Package_Version.$Package_Revision \
+            --architecture $Package_Architecture \
+            --description "$Package_Description" \
+            --url "$Package_Url" \
+            --maintainer "$Package_Maintainer" \
+            --deb-no-default-config-files \
+            $Package_Source_Directory=$Package_Installation_Directory/ \
+            $Package_Name-env.sh=/etc/profile.d/$Package_Name-env.sh
+
+          echo Generating rpm package
+          fpm \
+            -t rpm \
+            -s dir \
+            -p $Package_Name-$Package_Architecture.rpm \
+            --name $Package_Name \
+            --license $Package_License \
+            --version $Package_Version.$Package_Revision \
+            --architecture $Package_Architecture \
+            --description "$Package_Description" \
+            --url "$Package_Url" \
+            --maintainer "$Package_Maintainer" \
+            $Package_Source_Directory=$Package_Installation_Directory/ \
+            $Package_Name-env.sh=/etc/profile.d/$Package_Name-env.sh
+        continue-on-error: true
+        env:
+          Package_Source_Directory: ${{ runner.temp }}/${{ env.Build_Directory }}/
+          Package_Installation_Directory: /opt/${{ env.Build_Directory }}
+          Package_Name: ${{ env.Build_Directory }}
+          Package_Version: ${{ steps.gcc-version-generator.outputs.GCC_VERSION }}
+          Package_Revision: ${{ github.run_id }}
+          Package_Architecture: x86_64
+          Package_License: GPL
+          Package_Description: MIPS GCC toolchain for the N64
+          Package_Url: https://n64brew.com
+          Package_Maintainer: N64 Brew Community
+
+      - name: Publish Windows-x86_64 Build Artifact
+        if: ${{ matrix.target-platform == 'Windows-x86_64' }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: gcc-toolchain-mips64-${{ matrix.target-platform }}
+          path: |
+            ${{ runner.temp }}/${{ env.Build_Directory }}
+        continue-on-error: true
+
+      - name: Publish Linux-x86_64 Build Artifacts
+        if: ${{ matrix.target-platform == 'Linux-x86_64' }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: gcc-toolchain-mips64-${{ matrix.target-platform }}
+          path: |
+            ./**/*.deb
+            ./**/*.rpm
+        continue-on-error: true
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build-toolchain
+
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Download Windows artifact
+        id: download-windows-artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: gcc-toolchain-mips64-Windows-x86_64
+          path: ${{ runner.temp }}/gcc-toolchain-mips64-Windows-x86_64
+
+      - name: Download Linux artifact
+        id: download-linux-artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: gcc-toolchain-mips64-Linux-x86_64
+          path: ${{ runner.temp }}/gcc-toolchain-mips64-Linux-x86_64
+
+      - name: Convert files for release upload
+        run: |
+          mv ${{ github.workspace }}/LICENSE ${{ github.workspace }}/LICENSE.txt
+          # TODO: should also include GPLV3 licence (and any other dependency licences).
+          # TODO: include an installation readme.
+
+      - name: Generate Changelog
+        run: |
+          CHANGELOG_TEXT="Latest GCC toolchain for the N64</br>"
+          CHANGELOG_TEXT+="Generated from https://github.com/DragonMinded/libdragon/main on $(date).</br>"
+          CHANGELOG_TEXT+='</br>'
+          CHANGELOG_TEXT+='</br>'
+          CHANGELOG_TEXT+="Builds toolchain dependencies:</br>"
+          CHANGELOG_TEXT+="  * GCC:      V${{ needs.build-toolchain.outputs.gcc-version }}</br>"
+          CHANGELOG_TEXT+="  * Newlib:   V${{ needs.build-toolchain.outputs.newlib-version }}</br>"
+          CHANGELOG_TEXT+="  * BinUtils: V${{ needs.build-toolchain.outputs.binutils-version }}</br>"
+          CHANGELOG_TEXT+='</br>'
+          CHANGELOG_TEXT+="With dependencies:</br>"
+          CHANGELOG_TEXT+="  * GMP:      V${{ needs.build-toolchain.outputs.gmp-version }}</br>"
+          CHANGELOG_TEXT+="  * MPC:      V${{ needs.build-toolchain.outputs.mpc-version }}</br>"
+          CHANGELOG_TEXT+="  * MPFR:     V${{ needs.build-toolchain.outputs.mpfr-version }}</br>"
+          CHANGELOG_TEXT+='</br>'
+          CHANGELOG_TEXT+="Also generates Windows toolchain dependencies:</br>"
+          CHANGELOG_TEXT+="  * MAKEFILE: V${{ needs.build-toolchain.outputs.make-version }}</br>"
+          CHANGELOG_TEXT+='</br>'
+          CHANGELOG_TEXT+='The GCC toolchain is licensed under GPLv3</br>'
+          CHANGELOG_TEXT+='</br>'
+          echo "$CHANGELOG_TEXT" > ${{ github.workspace }}/CHANGELOG
+
+      # Compress and move the windows folder ready for upload.
+      - name: Compress and move windows artifacts
+        run: |
+          cd ${{ steps.download-windows-artifact.outputs.download-path }}
+          zip -r -q ${{ runner.temp }}/gcc-toolchain-mips64-win64.zip *
+
+      - name: Generate Pre-Release
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: false
+          prerelease: true
+          body_path: CHANGELOG
+          generate_release_notes: false
+          name: 'V${{ needs.build-toolchain.outputs.gcc-version }}-${{ github.run_id }}'
+          tag_name: "toolchain-continuous-prerelease"
+          files: |
+            ${{ runner.temp }}/**/*.deb
+            ${{ runner.temp }}/**/*.rpm
+            ${{ runner.temp }}/*.zip
+            LICENSE.txt

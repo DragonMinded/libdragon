@@ -31,4 +31,4 @@ runs:
         ${{ inputs.base }} \
         ${{ inputs.head }} \
         -- ${{ inputs.paths }}
-        echo "exitCode=$?" >> $GITHUB_OUTPUT
+        echo "exitCode=:$?" >> $GITHUB_OUTPUT
