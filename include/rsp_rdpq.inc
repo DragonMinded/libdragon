@@ -32,7 +32,7 @@
     .section .data.rdpq_send
 
 # TODO: get rid of the constant offset
-RDPQ_CMD_PTR:           .word RDPQ_CMD_STAGING - 0x04000000
+RDPQ_CMD_PTR:           .word RDPQ_CMD_STAGING - 0xA4000000
 
     .section .bss.rdpq_send
 
