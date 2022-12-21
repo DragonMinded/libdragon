@@ -70,6 +70,8 @@ static char sdfs_logic_drive[3] = { 0 };
 /** @brief debug writer functions (USB, SD, IS64) */
 static void (*debug_writer[3])(const uint8_t *buf, int size) = { 0 };
 
+/** @brief internal backtrace printing function */
+static void __debug_backtrace(FILE *out);
 
 /*********************************************************************
  * Log writers
@@ -507,8 +509,20 @@ void debug_close_sdfs(void)
 	}
 }
 
+static void exc_abort(exception_t *exc)
+{
+	debugf("UNHANDLED EXCEPTION: %s\n", exc->info);
+	debugf("    EPC: %08lx\n", exc->regs->epc);
+	debugf("    Cause: %08lx\n", exc->regs->cr);
+	debugf("    Status: %08lx\n", exc->regs->sr);
+	debugf("    BadVAddr: %08lx\n", C0_BADVADDR());
+	abort();
+}
+
 void debug_assert_func_f(const char *file, int line, const char *func, const char *failedexpr, const char *msg, ...)
 {
+	disable_interrupts();
+
 	// As first step, immediately print the assertion on stderr. This is
 	// very likely to succeed as it should not cause any further allocations
 	// and we would display the assertion immediately on logs.
@@ -558,6 +572,41 @@ void debug_assert_func_f(const char *file, int line, const char *func, const cha
 	}
 
 	console_render();
+
+	// Change exception handler to a simple handler that doesn't show the crash
+	// on the console. If we crash during the backtrace process, just leave the
+	// assertion on the screen, it is more important for the user.
+	register_exception_handler(exc_abort);
+
+	printf("Backtrace:\n");
+	debugf("Backtrace:\n");
+
+	void backtrace_cb(void *arg, backtrace_frame_t *frame)
+	{
+		debugf("  %s+0x%lx (%s:%d) [0x%08lx]%s\n", frame->func, frame->func_offset, frame->source_file, frame->source_line, frame->addr, frame->is_inline ? " (inline)" : "");
+
+		const char *source_file = frame->source_file;
+		int len = strlen(source_file);
+		bool ellipsed = false;
+		if (len > 20) {
+			source_file += len - 17;
+			ellipsed = true;
+		}
+		printf("  %s (%s%s:%d)\n", frame->func, ellipsed ? "..." : "", source_file, frame->source_line);
+	}
+
+	void *buffer[32];
+	int levels = backtrace(buffer, 32);
+	if (!backtrace_symbols_cb(buffer, levels, 0, backtrace_cb, NULL)) {
+		// Symbolization failed, just dump the raw addresses
+		for (int i = 0; i < levels; i++) {
+			printf("  0x%08lx\n", (uint32_t)buffer[i]);
+			debugf("  0x%08lx\n", (uint32_t)buffer[i]);
+		}
+	}
+
+	console_render();
+
 	abort();
 }
 
@@ -600,28 +649,31 @@ void debug_hexdump(const void *vbuf, int size)
     }
 }
 
-void debug_backtrace(void)
+void __debug_backtrace(FILE *out)
 {
 	void *bt[16];
 	int n = backtrace(bt, 16);
 
 	char **syms = backtrace_symbols(bt, n);
 
-	debugf("Backtrace:\n");
+	fprintf(out, "Backtrace:\n");
 	for (int i = 0; i < n; i++)
 	{
 		// backtrace_symbols can return multiple lines for a single symbol (for inlines)
 		// Split them so that we can print them indented.
-		#define INDENT "    "
 		const char *s = syms[i];
 		const char *s2;
 		while ((s2 = strchr(s, '\n'))) {
-			debugf(INDENT "%.*s\n", s2-s, s);
+			fprintf(out, "    %.*s\n", s2-s, s);
 			s = s2+1;
 		}
-		debugf(INDENT "%s\n", s);
-		#undef INDENT
+		fprintf(out, "    %s\n", s);
 	}
 
 	free(syms);
+}
+
+void debug_backtrace(void)
+{
+	__debug_backtrace(stderr);
 }

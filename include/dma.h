@@ -6,6 +6,8 @@
 #ifndef __LIBDRAGON_DMA_H
 #define __LIBDRAGON_DMA_H
 
+#include <stdbool.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif

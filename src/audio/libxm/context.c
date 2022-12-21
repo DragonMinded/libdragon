@@ -613,7 +613,7 @@ int xm_context_load(xm_context_t** ctxp, FILE* in, uint32_t rate) {
 				RA(s->data8, s->length+XM_WAVEFORM_OVERREAD);
 			else {
 				RA(s->data8, s->length*2+XM_WAVEFORM_OVERREAD);
-				#if BYTE_ORDER == LITTLE_ENDIAN
+				#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 				for (int k=0;k<s->length+XM_WAVEFORM_OVERREAD/2;k++)
 					s->data16[k] = __builtin_bswap16(s->data16[k]);
 				#endif

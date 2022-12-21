@@ -73,13 +73,11 @@ WSL1 users must [upgrade to WSL2 first](https://docs.microsoft.com/en-us/windows
 1. Export the environment variable N64_INST to the path where you want your
    toolchain to be installed. For instance: `export N64_INST=/opt/n64` or
    `export N64_INST=/usr/local`.
-2. Enter the `tools` directory. Read the comments at the top of `./build-toolchain.sh` 
-   script to see what additional packages are needed. 
-   If you are on macOS, make sure [homebrew](https://brew.sh) is installed.
+2. If you are on macOS, make sure [homebrew](https://brew.sh) is installed.
 3. Make sure you have at least 7 Gb of disk space available (notice that after
    build, only about 300 Mb will be used, but during build a lot of space is
    required).
-4. Run `./build-toolchain.sh` from the `tools` directory, let it build and
+4. Enter the `tools` directory and Run `./build-toolchain.sh`, let it build and
    install the toolchain. The process will take a while depending on your computer
    (1 hour is not unexpected).
 5. Make sure that you still have the `N64_INST` variable pointing to the correct

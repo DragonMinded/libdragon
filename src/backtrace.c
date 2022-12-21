@@ -2,26 +2,59 @@
 #include <stdalign.h>
 #include <stdlib.h>
 #include <string.h>
+#include "backtrace.h"
 #include "debug.h"
 #include "n64sys.h"
 #include "dma.h"
 #include "utils.h"
 #include "exception.h"
+#include "interrupt.h"
 #include "rompak_internal.h"
 
-/** @brief Symbol table file header */
+/** @brief Enable to debug why a backtrace is wrong */
+#define BACKTRACE_DEBUG 0
+
+/** @brief Function alignment enfored by the compiler (-falign-functions). 
+ * 
+ * @note This must be kept in sync with n64.mk.
+ */
+#define FUNCTION_ALIGNMENT      32
+
+/** 
+ * @brief Symbol table file header
+ * 
+ * The SYMT file is made of three main table:
+ * 
+ * * Address table: this is a sequence of 32-bit integers, each representing an address in the ROM.
+ *   The table is sorted in ascending order to allow for binary search. Morever, the lowest 2 bits
+ *   of each address can store additional information: If bit 0 is set to 1, the address is the start
+ *   of a function. If bit 1 is set to 1, the address is an inline duplicate. In fact, there might be
+ *   multiple symbols at the same address for inlined functions, so we need one entry in this table
+ *   for each entry; all of them will have the same address, and all but the first one will have bit
+ *   1 set to 1.
+ * * Symbol table: this is a sequence of symbol table entries, each representing a symbol. The size
+ *   of this table (in number of entries) is exactly the same as the address table. In fact, each
+ *   address of the address table can be thought of as an external member of this structure; it's
+ *   split externally to allow for efficiency reasons. Each entry stores the function name, 
+ *   the source file name and line number, and the binary offset of the symbol within the containing
+ *   function.
+ * * String table: This tables can be thought as a large buffer holding all the strings needed by all
+ *   symbol entries (function names and file names). Each symbol entry stores a string as an index
+ *   within the symbol table and a length. This allows to reuse the same string (or prefix thereof)
+ *   multiple times. Notice that strings are not null terminated in the string table.
+ */
 typedef struct alignas(8) {
     char head[4];           ///< Magic ID "SYMT"
     uint32_t version;       ///< Version of the symbol table
     uint32_t addrtab_off;   ///< Offset of the address table in the file
     uint32_t addrtab_size;  ///< Size of the address table in the file (number of entries)
     uint32_t symtab_off;    ///< Offset of the symbol table in the file
-    uint32_t symtab_size;   ///< Size of the symbol table in the file (number of entries)
+    uint32_t symtab_size;   ///< Size of the symbol table in the file (number of entries); always equal to addrtab_size.
     uint32_t strtab_off;    ///< Offset of the string table in the file
     uint32_t strtab_size;   ///< Size of the string table in the file (number of entries)
 } symtable_header_t;
 
-/** @brief Symbol table entry */
+/** @brief Symbol table entry **/
 typedef struct {
     uint16_t func_sidx;     ///< Offset of the function name in the string table
     uint16_t func_len;      ///< Length of the function name
@@ -31,26 +64,41 @@ typedef struct {
     uint16_t func_off;      ///< Offset of the symbol within its function
 } symtable_entry_t;
 
+/** 
+ * @brief Entry in the address table.
+ * 
+ * This is an address in RAM, with the lowest 2 bits used to store additional information.
+ * See the ADDRENTRY_* macros to access the various components.
+ */
 typedef uint32_t addrtable_entry_t;
 
-#define ADDRENTRY_ADDR(e)       ((e) & ~3)
-#define ADDRENTRY_IS_FUNC(e)    ((e) &  1)
-#define ADDRENTRY_IS_INLINE(e)  ((e) &  2)
+#define ADDRENTRY_ADDR(e)       ((e) & ~3)     ///< Address (without the flags9)
+#define ADDRENTRY_IS_FUNC(e)    ((e) &  1)     ///< True if the address is the start of a function
+#define ADDRENTRY_IS_INLINE(e)  ((e) &  2)     ///< True if the address is an inline duplicate
 
-#define MIPS_OP_ADDIU_SP(op)  (((op) & 0xFFFF0000) == 0x27BD0000)
-#define MIPS_OP_JR_RA(op)     (((op) & 0xFFFF0000) == 0x03E00008)
-#define MIPS_OP_SD_RA_SP(op)  (((op) & 0xFFFF0000) == 0xFFBF0000)
-#define MIPS_OP_LUI_GP(op)    (((op) & 0xFFFF0000) == 0x3C1C0000)
+#define MIPS_OP_ADDIU_SP(op)   (((op) & 0xFFFF0000) == 0x27BD0000)   // addiu $sp, $sp, imm
+#define MIPS_OP_JR_RA(op)      (((op) & 0xFFFF0000) == 0x03E00008)   // jr $ra
+#define MIPS_OP_SD_RA_SP(op)   (((op) & 0xFFFF0000) == 0xFFBF0000)   // sd $ra, imm($sp)
+#define MIPS_OP_SD_FP_SP(op)   (((op) & 0xFFFF0000) == 0xFFBE0000)   // sd $fp, imm($sp)
+#define MIPS_OP_LUI_GP(op)     (((op) & 0xFFFF0000) == 0x3C1C0000)   // lui $gp, imm
+#define MIPS_OP_NOP(op)        ((op) == 0x00000000)                  // nop
+#define MIPS_OP_MOVE_FP_SP(op) ((op) == 0x03A0F025)                  // move $fp, $sp
 
 #define ABS(x)   ((x) < 0 ? -(x) : (x))
 
+/** @brief Exception handler (see inthandler.S) */
+extern uint32_t inthandler[];
+/** @brief End of exception handler (see inthandler.S) */
+extern uint32_t inthandler_end[];
+
 int backtrace(void **buffer, int size)
 {
-    uint32_t *sp, *ra;
+    uint32_t *sp, *ra, *fp;
     asm volatile (
         "move %0, $ra\n"
         "move %1, $sp\n"
-        : "=r"(ra), "=r"(sp)
+        "move %2, $fp\n"
+        : "=r"(ra), "=r"(sp), "=r"(fp)
     );
 
     int stack_size = 0;
@@ -62,45 +110,107 @@ int backtrace(void **buffer, int size)
             break;
     }
 
-	// debugf("Start backtrace\n");
-    extern uint32_t inthandler[], inthandler_end[];
+    uint32_t* interrupt_ra = NULL;
+    enum { BT_FUNCTION, BT_FUNCTION_FRAMEPOINTER, BT_EXCEPTION, BT_LEAF } bt_type;
 
     sp = (uint32_t*)((uint32_t)sp + stack_size);
     for (int i=0; i<size; ++i) {
-        debugf("PC: %p (SP: %p)\n", ra, sp);
         buffer[i] = ra;
+        bt_type = (ra >= inthandler && ra < inthandler_end) ? BT_EXCEPTION : BT_FUNCTION;
 
-        int ra_offset = 0, stack_size = 0;
-        for (uint32_t *addr = ra; !ra_offset || !stack_size; --addr) {
-            assertf((uint32_t)addr > 0x80000400, "backtrace: invalid address %p", addr);
-            uint32_t op = *addr;
+        uint32_t addr = (uint32_t)ra;
+        int ra_offset = 0, fp_offset = 0, stack_size = 0;
+        while (1) {
+            if (addr < 0x80000400 || addr >= 0x80800000) {
+                // This address is invalid, probably something is corrupted. Avoid looking further.
+                debugf("backtrace: interrupted because of invalid return address 0x%08lx\n", addr);
+                return i;
+            }
+            uint32_t op = *(uint32_t*)addr;
             if (MIPS_OP_ADDIU_SP(op)) {
                 stack_size = ABS((int16_t)(op & 0xFFFF));
-                if (addr >= inthandler && addr < inthandler_end) {
-                    ra_offset = offsetof(reg_block_t, epc) + 32;
-                    debugf("EXCEPTION HANDLER %d\n", ra_offset);
-                }
-            } else if (MIPS_OP_SD_RA_SP(op))
+            } else if (MIPS_OP_SD_RA_SP(op)) {
                 ra_offset = (int16_t)(op & 0xFFFF) + 4; // +4 = load low 32 bit of RA
-            else if (MIPS_OP_LUI_GP(op)) { // _start function loads gp, so it's useless to go back more
-				// debugf("_start reached, aborting backtrace\n");
-                return i;
-			}
-        }
+            } else if (MIPS_OP_SD_FP_SP(op)) {
+                fp_offset = (int16_t)(op & 0xFFFF) + 4; // +4 = load low 32 bit of FP
+            } else if (MIPS_OP_LUI_GP(op)) {
+                // Loading gp is commonly done in _start, so it's useless to go back more
+                return i+1;
+            } else if (MIPS_OP_MOVE_FP_SP(op)) {
+                // This function uses the frame pointer. Uses that as base of the stack.
+                // Even with -fomit-frame-pointer (default on our toolchain), the compiler
+                // still emits a framepointer for functions using a variable stack size
+                // (eg: using alloca() or VLAs).
+                bt_type = BT_FUNCTION_FRAMEPOINTER;
+			} else if (interrupt_ra && MIPS_OP_NOP(op) && (addr + 4) % FUNCTION_ALIGNMENT == 0) {
+                // The frame that was interrupted by an interrupt handler is a special case: the
+                // function could be a leaf function with no stack. Try to detect that we reached
+                // the end of it by looking for a padding NOP instruction before the previous
+                // function's body begins.
+                // FIXME: obviously the padding might not always exist. An alternative here would be
+                // to rely on the .SYM file that provides the start address of each function.
+                bt_type = BT_LEAF;
+                break;
+            }
 
-        ra = *(uint32_t**)((uint32_t)sp + ra_offset);
-        sp = (uint32_t*)((uint32_t)sp + stack_size);
+            // We found the stack frame size and the offset of the return address in the stack frame
+            // We can stop looking and process the frame
+            if (stack_size != 0 && ra_offset != 0)
+                break;
+
+            addr -= 4;
+        }
+        
+        #if BACKTRACE_DEBUG
+        debugf("backtrace: %s, ra=%p, sp=%p, fp=%p ra_offset=%d, stack_size=%d\n", 
+            bt_type == BT_FUNCTION ? "BT_FUNCTION" : (bt_type == BT_EXCEPTION ? "BT_EXCEPTION" : (bt_type == BT_FUNCTION_FRAMEPOINTER ? "BT_FRAMEPOINTER" : "BT_LEAF")),
+            ra, sp, fp, ra_offset, stack_size);
+        #endif
+
+        switch (bt_type) {
+            case BT_FUNCTION_FRAMEPOINTER:
+                if (!fp_offset) {
+                    debugf("backtrace: framepointer used but not saved onto stack at %p\n", buffer[i]);
+                } else {
+                    // Use the frame pointer to refer to the current frame.
+                    sp = fp;
+                }
+                // FALLTRHOUGH!
+            case BT_FUNCTION:
+                if (fp_offset)
+                    fp = *(uint32_t**)((uint32_t)sp + fp_offset);
+                ra = *(uint32_t**)((uint32_t)sp + ra_offset);
+                sp = (uint32_t*)((uint32_t)sp + stack_size);
+                interrupt_ra = NULL;
+                break;
+            case BT_EXCEPTION: {
+                // Exception frame. We must return back to EPC, but let's keep the
+                // RA value. If the interrupted function is a leaf function, we
+                // will need it to further walk back.
+                // Notice that FP is a callee-saved register so we don't need to
+                // recover it from the exception frame (also, it isn't saved there
+                // during interrupts).
+                interrupt_ra = *(uint32_t**)((uint32_t)sp + ra_offset);
+                ra = *(uint32_t**)((uint32_t)sp + offsetof(reg_block_t, epc) + 32);
+                sp = (uint32_t*)((uint32_t)sp + stack_size);
+            }   break;
+            case BT_LEAF:
+                ra = interrupt_ra;
+                interrupt_ra = NULL;
+                break;
+        }
     }
 
 	return size;
 }
 
-#define MAX_FILE_LEN 60
-#define MAX_FUNC_LEN 60
+#define MAX_FILE_LEN 120
+#define MAX_FUNC_LEN 120
 #define MAX_SYM_LEN  (MAX_FILE_LEN + MAX_FUNC_LEN + 24)
 
-int format_entry(char *out, uint32_t SYMTAB_ROM, uint32_t STRTAB_ROM, int idx, uint32_t addr, uint32_t offset)
-{
+void format_entry(void (*cb)(void *, backtrace_frame_t *), void *cb_arg, 
+    uint32_t SYMTAB_ROM, uint32_t STRTAB_ROM, int idx, uint32_t addr, uint32_t offset, bool is_inline)
+{       
     symtable_entry_t s alignas(8);
 
     data_cache_hit_writeback_invalidate(&s, sizeof(s));
@@ -117,15 +227,28 @@ int format_entry(char *out, uint32_t SYMTAB_ROM, uint32_t STRTAB_ROM, int idx, u
     int func_len = MIN(s.func_len, MAX_FUNC_LEN);
     int file_len = MIN(s.file_len, MAX_FILE_LEN);
 
-    data_cache_hit_writeback_invalidate(func_buf, sizeof(func_buf));
-    dma_read(func, STRTAB_ROM + s.func_sidx, func_len);
-    func[func_len] = 0;
+    if (addr >= (uint32_t)inthandler && addr < (uint32_t)inthandler_end) {
+        // Special case exception handlers. This is just to show something slightly
+        // more readable instead of "notcart+0x0" or similar assembly symbols
+        snprintf(func, sizeof(func_buf), "<EXCEPTION HANDLER>");
+    } else {
+        data_cache_hit_writeback_invalidate(func_buf, sizeof(func_buf));
+        dma_read(func, STRTAB_ROM + s.func_sidx, func_len);
+        func[func_len] = 0;
+    }
 
     data_cache_hit_writeback_invalidate(file_buf, sizeof(file_buf));
     dma_read(file, STRTAB_ROM + s.file_sidx, MIN(s.file_len, file_len));
     file[file_len] = 0;
 
-    return snprintf(out, MAX_SYM_LEN, "%s+0x%lx (%s:%d) [0x%08lx]", func, offset ? offset : s.func_off, file, s.line, addr);
+    cb(cb_arg, &(backtrace_frame_t){
+        .addr = addr,
+        .func_offset = offset ? offset : s.func_off,
+        .func = func,
+        .source_file = file,
+        .source_line = s.line,
+        .is_inline = is_inline,
+    });
 }
 
 uint32_t addrtab_entry(uint32_t ADDRTAB_ROM, int idx)
@@ -133,7 +256,8 @@ uint32_t addrtab_entry(uint32_t ADDRTAB_ROM, int idx)
     return io_read(ADDRTAB_ROM + idx * 4);
 }
 
-char** backtrace_symbols(void **buffer, int size)
+bool backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
+    void (*cb)(void *, backtrace_frame_t *), void *cb_arg)
 {
     static uint32_t SYMT_ROM = 0xFFFFFFFF;
     if (SYMT_ROM == 0xFFFFFFFF) {
@@ -143,7 +267,7 @@ char** backtrace_symbols(void **buffer, int size)
     }
 
     if (!SYMT_ROM) {
-        return NULL;
+        return false;
     }
 
     symtable_header_t symt_header;
@@ -153,19 +277,14 @@ char** backtrace_symbols(void **buffer, int size)
 
     if (symt_header.head[0] != 'S' || symt_header.head[1] != 'Y' || symt_header.head[2] != 'M' || symt_header.head[3] != 'T') {
         debugf("backtrace_symbols: invalid symbol table found at 0x%08lx\n", SYMT_ROM);
-        return NULL;
+        return false;
     }
 
-    char **syms = malloc(5 * size * (sizeof(char*) + MAX_SYM_LEN));    
     uint32_t SYMTAB_ROM = SYMT_ROM + symt_header.symtab_off;
     uint32_t STRTAB_ROM = SYMT_ROM + symt_header.strtab_off;
     uint32_t ADDRTAB_ROM = SYMT_ROM + symt_header.addrtab_off;
 
-    char *out = (char*)syms + size*sizeof(char*);
     for (int i=0; i<size; i++) {
-        syms[i] = out;
-        *out = 0;
-
         int l=0, r=symt_header.symtab_size-1;
         uint32_t needle = (uint32_t)buffer[i] - 8;
         while (l <= r) {
@@ -177,10 +296,9 @@ char** backtrace_symbols(void **buffer, int size)
                 while (ADDRENTRY_IS_INLINE(a))
                     a = addrtab_entry(ADDRTAB_ROM, --m);
                 do {
-                    out += format_entry(out, SYMTAB_ROM, STRTAB_ROM, m, needle, 0) + 1;
-                    out[-1] = '\n';
-                } while (ADDRENTRY_IS_INLINE(addrtab_entry(ADDRTAB_ROM, ++m)));
-                out[-1] = 0;
+                    format_entry(cb, cb_arg, SYMTAB_ROM, STRTAB_ROM, m, needle, 0, ADDRENTRY_IS_INLINE(a));
+                    a = addrtab_entry(ADDRTAB_ROM, ++m);
+                } while (ADDRENTRY_IS_INLINE(a));
                 break;
             } else if (ADDRENTRY_ADDR(a) < needle) {
                 l = m+1;
@@ -198,11 +316,38 @@ char** backtrace_symbols(void **buffer, int size)
                     break;
             }
             if (l >= 0) {
-                out += format_entry(out, SYMTAB_ROM, STRTAB_ROM, l, needle, needle - ADDRENTRY_ADDR(a)) + 1;
-            } else
-                out = stpcpy(out, "???") + 1;
+                format_entry(cb, cb_arg, SYMTAB_ROM, STRTAB_ROM, l, needle, needle - ADDRENTRY_ADDR(a), ADDRENTRY_IS_INLINE(a));
+            } else {
+                cb(cb_arg, &(backtrace_frame_t){
+                    .addr = needle,
+                    .func_offset = 0,
+                    .func = "???",
+                    .source_file = "???",
+                    .source_line = 0,
+                    .is_inline = 0,
+                });
+            }
         }
     }
+    return true;
+}
 
+char** backtrace_symbols(void **buffer, int size)
+{
+    char **syms = malloc(5 * size * (sizeof(char*) + MAX_SYM_LEN));
+    char *out = (char*)syms + size*sizeof(char*);
+    int level = 0;
+
+    void cb(void *arg, backtrace_frame_t *frame) {
+        int n = snprintf(out, MAX_SYM_LEN,
+            "%s+0x%lx (%s:%d) [0x%08lx]", frame->func, frame->func_offset, frame->source_file, frame->source_line, frame->addr);
+        if (frame->is_inline)
+            out[-1] = '\n';
+        else
+            syms[level++] = out;
+        out += n + 1;
+    }
+
+    backtrace_symbols_cb(buffer, size, 0, cb, NULL);
     return syms;
 }

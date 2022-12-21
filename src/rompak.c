@@ -41,14 +41,25 @@ static bool extension_match(const char *ext, const char *name)
 }
 
 uint32_t rompak_search_ext(const char *ext)
-{    
-    if (io_read(TOC_ADDR) != TOC_MAGIC) {
+{
+    static bool rompak_corrupted = false;
+
+    if (rompak_corrupted || io_read(TOC_ADDR) != TOC_MAGIC) {
         return 0;
     }
 
     header_t header;
     data_cache_hit_writeback_invalidate(&header, sizeof(header_t));
     dma_read(&header, TOC_ADDR, sizeof(header_t));
+
+    // These asserts prevent a miscompiled TOC from causing a hard-to-diagnose
+    // stack overflow because of alloca. The number 1024 is arbitrary, we just
+    // want to protect against important corruptions (eg: little-endian / big-endian mistakes).
+    if (header.entry_size >= 1024 || header.num_entries >= 1024) {
+        rompak_corrupted = true;
+        assertf(header.entry_size < 1024, "Corrupted rompak TOC: entry size too big (0x%lx)", header.entry_size);
+        assertf(header.num_entries < 1024, "Corrupted rompak TOC: too many entries (0x%lx)", header.num_entries);
+    }
 
     entry_t *entry = alloca(header.entry_size);
     for (int i=0; i < header.num_entries; i++) {
