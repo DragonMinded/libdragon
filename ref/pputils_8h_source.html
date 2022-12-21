@@ -133,12 +133,48 @@ $(function() {
 <div class="line"><a id="l00063" name="l00063"></a><span class="lineno">   63</span><span class="preprocessor">#define __PPCAT2(n,x) n ## x</span></div>
 <div class="line"><a id="l00064" name="l00064"></a><span class="lineno">   64</span><span class="preprocessor">#define __PPCAT(n,x) __PPCAT2(n,x)</span></div>
 <div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span> </div>
-<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span> </div>
-<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span><span class="preprocessor">#endif</span></div>
+<div class="line"><a id="l00066" name="l00066"></a><span class="lineno">   66</span><span class="comment">// __CALL_FOREACH_BIS. Like __CALL_FOREACH, but it allows to be called without the expansion</span></div>
+<div class="line"><a id="l00067" name="l00067"></a><span class="lineno">   67</span><span class="comment">// of a __CALL_FOREACH.</span></div>
+<div class="line"><a id="l00068" name="l00068"></a><span class="lineno">   68</span><span class="preprocessor">#define __FEB_0(_call, ...)</span></div>
+<div class="line"><a id="l00069" name="l00069"></a><span class="lineno">   69</span><span class="preprocessor">#define __FEB_1(_call, x)       _call(x)</span></div>
+<div class="line"><a id="l00070" name="l00070"></a><span class="lineno">   70</span><span class="preprocessor">#define __FEB_2(_call, x, ...)  _call(x) __FEB_1(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00071" name="l00071"></a><span class="lineno">   71</span><span class="preprocessor">#define __FEB_3(_call, x, ...)  _call(x) __FEB_2(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno">   72</span><span class="preprocessor">#define __FEB_4(_call, x, ...)  _call(x) __FEB_3(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span><span class="preprocessor">#define __FEB_5(_call, x, ...)  _call(x) __FEB_4(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span><span class="preprocessor">#define __FEB_6(_call, x, ...)  _call(x) __FEB_5(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span><span class="preprocessor">#define __FEB_7(_call, x, ...)  _call(x) __FEB_6(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span><span class="preprocessor">#define __FEB_8(_call, x, ...)  _call(x) __FEB_7(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span><span class="preprocessor">#define __FEB_9(_call, x, ...)  _call(x) __FEB_8(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span><span class="preprocessor">#define __FEB_10(_call, x, ...) _call(x) __FEB_9(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span><span class="preprocessor">#define __FEB_11(_call, x, ...) _call(x) __FEB_10(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span><span class="preprocessor">#define __FEB_12(_call, x, ...) _call(x) __FEB_11(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span><span class="preprocessor">#define __FEB_13(_call, x, ...) _call(x) __FEB_12(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span><span class="preprocessor">#define __FEB_14(_call, x, ...) _call(x) __FEB_13(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span><span class="preprocessor">#define __FEB_15(_call, x, ...) _call(x) __FEB_14(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span><span class="preprocessor">#define __FEB_16(_call, x, ...) _call(x) __FEB_15(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span><span class="preprocessor">#define __FEB_17(_call, x, ...) _call(x) __FEB_16(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span><span class="preprocessor">#define __FEB_18(_call, x, ...) _call(x) __FEB_17(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span><span class="preprocessor">#define __FEB_19(_call, x, ...) _call(x) __FEB_18(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span><span class="preprocessor">#define __FEB_20(_call, x, ...) _call(x) __FEB_19(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span><span class="preprocessor">#define __FEB_21(_call, x, ...) _call(x) __FEB_20(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span><span class="preprocessor">#define __FEB_22(_call, x, ...) _call(x) __FEB_21(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span><span class="preprocessor">#define __FEB_23(_call, x, ...) _call(x) __FEB_22(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span><span class="preprocessor">#define __FEB_24(_call, x, ...) _call(x) __FEB_23(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span><span class="preprocessor">#define __FEB_25(_call, x, ...) _call(x) __FEB_24(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span><span class="preprocessor">#define __FEB_26(_call, x, ...) _call(x) __FEB_25(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span><span class="preprocessor">#define __FEB_27(_call, x, ...) _call(x) __FEB_26(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span><span class="preprocessor">#define __FEB_28(_call, x, ...) _call(x) __FEB_27(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span><span class="preprocessor">#define __FEB_29(_call, x, ...) _call(x) __FEB_28(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span><span class="preprocessor">#define __FEB_30(_call, x, ...) _call(x) __FEB_29(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span><span class="preprocessor">#define __FEB_31(_call, x, ...) _call(x) __FEB_30(_call, __VA_ARGS__)</span></div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span><span class="preprocessor">#define __CALL_FOREACH_BIS(fn, ...)  __GET_33RD_ARG(&quot;ignored&quot;</span>, ##__VA_ARGS__, __FEB_31, __FEB_30, __FEB_29, __FEB_28, __FEB_27, __FEB_26, __FEB_25, __FEB_24, __FEB_23, __FEB_22, __FEB_21, __FEB_20, __FEB_19, __FEB_18, __FEB_17, __FEB_16, __FEB_15, __FEB_14, __FEB_13, __FEB_12, __FEB_11, __FEB_10, __FEB_9, __FEB_8, __FEB_7, __FEB_6, __FEB_5, __FEB_4, __FEB_3, __FEB_2, __FEB_1, __FEB_0)(fn, ##__VA_ARGS__)</div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span> </div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span> </div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span><span class="preprocessor">#endif</span></div>
 </div><!-- fragment --></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Dec 21 2022 11:19:03 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Dec 21 2022 13:03:51 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
