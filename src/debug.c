@@ -597,7 +597,13 @@ void debug_assert_func_f(const char *file, int line, const char *func, const cha
 
 	void *buffer[32];
 	int levels = backtrace(buffer, 32);
-	backtrace_symbols_cb(buffer, levels, 0, backtrace_cb, NULL);
+	if (!backtrace_symbols_cb(buffer, levels, 0, backtrace_cb, NULL)) {
+		// Symbolization failed, just dump the raw addresses
+		for (int i = 0; i < levels; i++) {
+			printf("  0x%08lx\n", (uint32_t)buffer[i]);
+			debugf("  0x%08lx\n", (uint32_t)buffer[i]);
+		}
+	}
 
 	console_render();
 
