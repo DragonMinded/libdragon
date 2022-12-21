@@ -11,6 +11,9 @@
 #include "interrupt.h"
 #include "rompak_internal.h"
 
+/** @brief Enable to debug why a backtrace is wrong */
+#define BACKTRACE_DEBUG 0
+
 /** @brief Function alignment enfored by the compiler (-falign-functions). 
  * 
  * @note This must be kept in sync with n64.mk.
@@ -158,9 +161,11 @@ int backtrace(void **buffer, int size)
             addr -= 4;
         }
         
+        #if BACKTRACE_DEBUG
         debugf("backtrace: %s, ra=%p, sp=%p, fp=%p ra_offset=%d, stack_size=%d\n", 
             bt_type == BT_FUNCTION ? "BT_FUNCTION" : (bt_type == BT_EXCEPTION ? "BT_EXCEPTION" : (bt_type == BT_FUNCTION_FRAMEPOINTER ? "BT_FRAMEPOINTER" : "BT_LEAF")),
             ra, sp, fp, ra_offset, stack_size);
+        #endif
 
         switch (bt_type) {
             case BT_FUNCTION_FRAMEPOINTER:
