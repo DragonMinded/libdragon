@@ -120,10 +120,15 @@ char** backtrace_symbols(void **buffer, int size);
  * @param flags     Flags to control the symbolization process. Use 0.
  * @param cb        Callback function to invoke for each symbolized frame
  * @param cb_arg    Opaque argument to pass to the callback function
+ * @return True if the symbolization was successful, false otherwise.
+ *         Notice that the function returns true even if some frames
+ *         were not symbolized; false is only used when the function
+ *         had to abort before even calling the callback once (eg:
+ *         no symbol table was found).
  * 
  * @see #backtrace_symbols
  */
-void backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
+bool backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
     void (*cb)(void *, backtrace_frame_t*), void *cb_arg);
 
 #ifdef __cplusplus

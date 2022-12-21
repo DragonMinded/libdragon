@@ -8,21 +8,50 @@
 #include "dma.h"
 #include "utils.h"
 #include "exception.h"
+#include "interrupt.h"
 #include "rompak_internal.h"
 
-/** @brief Symbol table file header */
+/** @brief Function alignment enfored by the compiler (-falign-functions). 
+ * 
+ * @note This must be kept in sync with n64.mk.
+ */
+#define FUNCTION_ALIGNMENT      32
+
+/** 
+ * @brief Symbol table file header
+ * 
+ * The SYMT file is made of three main table:
+ * 
+ * * Address table: this is a sequence of 32-bit integers, each representing an address in the ROM.
+ *   The table is sorted in ascending order to allow for binary search. Morever, the lowest 2 bits
+ *   of each address can store additional information: If bit 0 is set to 1, the address is the start
+ *   of a function. If bit 1 is set to 1, the address is an inline duplicate. In fact, there might be
+ *   multiple symbols at the same address for inlined functions, so we need one entry in this table
+ *   for each entry; all of them will have the same address, and all but the first one will have bit
+ *   1 set to 1.
+ * * Symbol table: this is a sequence of symbol table entries, each representing a symbol. The size
+ *   of this table (in number of entries) is exactly the same as the address table. In fact, each
+ *   address of the address table can be thought of as an external member of this structure; it's
+ *   split externally to allow for efficiency reasons. Each entry stores the function name, 
+ *   the source file name and line number, and the binary offset of the symbol within the containing
+ *   function.
+ * * String table: This tables can be thought as a large buffer holding all the strings needed by all
+ *   symbol entries (function names and file names). Each symbol entry stores a string as an index
+ *   within the symbol table and a length. This allows to reuse the same string (or prefix thereof)
+ *   multiple times. Notice that strings are not null terminated in the string table.
+ */
 typedef struct alignas(8) {
     char head[4];           ///< Magic ID "SYMT"
     uint32_t version;       ///< Version of the symbol table
     uint32_t addrtab_off;   ///< Offset of the address table in the file
     uint32_t addrtab_size;  ///< Size of the address table in the file (number of entries)
     uint32_t symtab_off;    ///< Offset of the symbol table in the file
-    uint32_t symtab_size;   ///< Size of the symbol table in the file (number of entries)
+    uint32_t symtab_size;   ///< Size of the symbol table in the file (number of entries); always equal to addrtab_size.
     uint32_t strtab_off;    ///< Offset of the string table in the file
     uint32_t strtab_size;   ///< Size of the string table in the file (number of entries)
 } symtable_header_t;
 
-/** @brief Symbol table entry */
+/** @brief Symbol table entry **/
 typedef struct {
     uint16_t func_sidx;     ///< Offset of the function name in the string table
     uint16_t func_len;      ///< Length of the function name
@@ -32,18 +61,30 @@ typedef struct {
     uint16_t func_off;      ///< Offset of the symbol within its function
 } symtable_entry_t;
 
+/** 
+ * @brief Entry in the address table.
+ * 
+ * This is an address in RAM, with the lowest 2 bits used to store additional information.
+ * See the ADDRENTRY_* macros to access the various components.
+ */
 typedef uint32_t addrtable_entry_t;
 
-#define ADDRENTRY_ADDR(e)       ((e) & ~3)
-#define ADDRENTRY_IS_FUNC(e)    ((e) &  1)
-#define ADDRENTRY_IS_INLINE(e)  ((e) &  2)
+#define ADDRENTRY_ADDR(e)       ((e) & ~3)     ///< Address (without the flags9)
+#define ADDRENTRY_IS_FUNC(e)    ((e) &  1)     ///< True if the address is the start of a function
+#define ADDRENTRY_IS_INLINE(e)  ((e) &  2)     ///< True if the address is an inline duplicate
 
-#define MIPS_OP_ADDIU_SP(op)  (((op) & 0xFFFF0000) == 0x27BD0000)
-#define MIPS_OP_JR_RA(op)     (((op) & 0xFFFF0000) == 0x03E00008)
-#define MIPS_OP_SD_RA_SP(op)  (((op) & 0xFFFF0000) == 0xFFBF0000)
-#define MIPS_OP_LUI_GP(op)    (((op) & 0xFFFF0000) == 0x3C1C0000)
+#define MIPS_OP_ADDIU_SP(op)  (((op) & 0xFFFF0000) == 0x27BD0000)   // addiu $sp, $sp, imm
+#define MIPS_OP_JR_RA(op)     (((op) & 0xFFFF0000) == 0x03E00008)   // jr $ra
+#define MIPS_OP_SD_RA_SP(op)  (((op) & 0xFFFF0000) == 0xFFBF0000)   // sd $ra, imm($sp)
+#define MIPS_OP_LUI_GP(op)    (((op) & 0xFFFF0000) == 0x3C1C0000)   // lui $gp, imm
+#define MIPS_OP_NOP(op)       ((op) == 0x00000000)                  // nop
 
 #define ABS(x)   ((x) < 0 ? -(x) : (x))
+
+/** @brief Exception handler (see inthandler.S) */
+extern uint32_t inthandler[];
+/** @brief End of exception handler (see inthandler.S) */
+extern uint32_t inthandler_end[];
 
 int backtrace(void **buffer, int size)
 {
@@ -63,32 +104,71 @@ int backtrace(void **buffer, int size)
             break;
     }
 
-    extern uint32_t inthandler[], inthandler_end[];
+    uint32_t* interrupt_ra = NULL;
+    enum { BT_FUNCTION, BT_EXCEPTION, BT_LEAF } bt_type;
 
     sp = (uint32_t*)((uint32_t)sp + stack_size);
     for (int i=0; i<size; ++i) {
         buffer[i] = ra;
+        bt_type = (ra >= inthandler && ra < inthandler_end) ? BT_EXCEPTION : BT_FUNCTION;
 
+        uint32_t addr = (uint32_t)ra;
         int ra_offset = 0, stack_size = 0;
-        for (uint32_t *addr = ra; !ra_offset || !stack_size; --addr) {
-            assertf((uint32_t)addr > 0x80000400, "backtrace: invalid address %p", addr);
-            uint32_t op = *addr;
+        while (1) {
+            if (addr < 0x80000400 || addr >= 0x80800000) {
+                // This address is invalid, probably something is corrupted. Avoid looking further.
+                return i;
+            }
+            uint32_t op = *(uint32_t*)addr;
             if (MIPS_OP_ADDIU_SP(op)) {
                 stack_size = ABS((int16_t)(op & 0xFFFF));
-                if (addr >= inthandler && addr < inthandler_end) {
-                    ra_offset = offsetof(reg_block_t, epc) + 32;
-                    debugf("EXCEPTION HANDLER %d\n", ra_offset);
-                }
-            } else if (MIPS_OP_SD_RA_SP(op))
+            } else if (MIPS_OP_SD_RA_SP(op)) {
                 ra_offset = (int16_t)(op & 0xFFFF) + 4; // +4 = load low 32 bit of RA
-            else if (MIPS_OP_LUI_GP(op)) { // _start function loads gp, so it's useless to go back more
-				// debugf("_start reached, aborting backtrace\n");
-                return i;
-			}
-        }
+            } else if (MIPS_OP_LUI_GP(op)) {
+                // Loading gp is commonly done in _start, so it's useless to go back more
+                return i+1;
+			} else if (interrupt_ra && MIPS_OP_NOP(op) && (addr + 4) % FUNCTION_ALIGNMENT == 0) {
+                // The frame that was interrupted by an interrupt handler is a special case: the
+                // function could be a leaf function with no stack. Try to detect that we reached
+                // the end of it by looking for a padding NOP instruction before the previous
+                // function's body begins.
+                // FIXME: obviously the padding might not always exist. An alternative here would be
+                // to rely on the .SYM file that provides the start address of each function.
+                bt_type = BT_LEAF;
+                break;
+            }
 
-        ra = *(uint32_t**)((uint32_t)sp + ra_offset);
-        sp = (uint32_t*)((uint32_t)sp + stack_size);
+            // We found the stack frame size and the offset of the return address in the stack frame
+            // We can stop looking and process the frame
+            if (stack_size != 0 && ra_offset != 0)
+                break;
+
+            addr -= 4;
+        }
+        
+        debugf("backtrace: %s, ra=%p, sp=%p, ra_offset=%d, stack_size=%d\n", 
+            bt_type == BT_FUNCTION ? "BT_FUNCTION" : (bt_type == BT_EXCEPTION ? "BT_EXCEPTION" : "BT_LEAF"),
+            ra, sp, ra_offset, stack_size);
+
+        switch (bt_type) {
+            case BT_FUNCTION:
+                ra = *(uint32_t**)((uint32_t)sp + ra_offset);
+                sp = (uint32_t*)((uint32_t)sp + stack_size);
+                interrupt_ra = NULL;
+                break;
+            case BT_EXCEPTION:
+                // Exception frame. We must return back to EPC, but let's keep the
+                // RA value. If the interrupted function is a leaf function, we
+                // will need it to further walk back.
+                interrupt_ra = *(uint32_t**)((uint32_t)sp + ra_offset);
+                ra = *(uint32_t**)((uint32_t)sp + offsetof(reg_block_t, epc) + 32);
+                sp = (uint32_t*)((uint32_t)sp + stack_size);
+                break;
+            case BT_LEAF:
+                ra = interrupt_ra;
+                interrupt_ra = NULL;
+                break;
+        }
     }
 
 	return size;
@@ -100,7 +180,7 @@ int backtrace(void **buffer, int size)
 
 void format_entry(void (*cb)(void *, backtrace_frame_t *), void *cb_arg, 
     uint32_t SYMTAB_ROM, uint32_t STRTAB_ROM, int idx, uint32_t addr, uint32_t offset, bool is_inline)
-{
+{       
     symtable_entry_t s alignas(8);
 
     data_cache_hit_writeback_invalidate(&s, sizeof(s));
@@ -117,9 +197,15 @@ void format_entry(void (*cb)(void *, backtrace_frame_t *), void *cb_arg,
     int func_len = MIN(s.func_len, MAX_FUNC_LEN);
     int file_len = MIN(s.file_len, MAX_FILE_LEN);
 
-    data_cache_hit_writeback_invalidate(func_buf, sizeof(func_buf));
-    dma_read(func, STRTAB_ROM + s.func_sidx, func_len);
-    func[func_len] = 0;
+    if (addr >= (uint32_t)inthandler && addr < (uint32_t)inthandler_end) {
+        // Special case exception handlers. This is just to show something slightly
+        // more readable instead of "notcart+0x0" or similar assembly symbols
+        snprintf(func, sizeof(func_buf), "<EXCEPTION HANDLER>");
+    } else {
+        data_cache_hit_writeback_invalidate(func_buf, sizeof(func_buf));
+        dma_read(func, STRTAB_ROM + s.func_sidx, func_len);
+        func[func_len] = 0;
+    }
 
     data_cache_hit_writeback_invalidate(file_buf, sizeof(file_buf));
     dma_read(file, STRTAB_ROM + s.file_sidx, MIN(s.file_len, file_len));
@@ -140,7 +226,7 @@ uint32_t addrtab_entry(uint32_t ADDRTAB_ROM, int idx)
     return io_read(ADDRTAB_ROM + idx * 4);
 }
 
-void backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
+bool backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
     void (*cb)(void *, backtrace_frame_t *), void *cb_arg)
 {
     static uint32_t SYMT_ROM = 0xFFFFFFFF;
@@ -151,7 +237,7 @@ void backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
     }
 
     if (!SYMT_ROM) {
-        return;
+        return false;
     }
 
     symtable_header_t symt_header;
@@ -161,7 +247,7 @@ void backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
 
     if (symt_header.head[0] != 'S' || symt_header.head[1] != 'Y' || symt_header.head[2] != 'M' || symt_header.head[3] != 'T') {
         debugf("backtrace_symbols: invalid symbol table found at 0x%08lx\n", SYMT_ROM);
-        return;
+        return false;
     }
 
     uint32_t SYMTAB_ROM = SYMT_ROM + symt_header.symtab_off;
@@ -213,6 +299,7 @@ void backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
             }
         }
     }
+    return true;
 }
 
 char** backtrace_symbols(void **buffer, int size)
