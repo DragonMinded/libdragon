@@ -82,9 +82,11 @@ struct symtable_s {
     int file_sidx;
 
     int func_offset;
+
+    bool is_func, is_inline;
 } *symtable = NULL;
 
-void symbol_add(const char *elf, uint32_t addr, bool save_line)
+void symbol_add(const char *elf, uint32_t addr, bool is_func)
 {
     // We keep one addr2line process open for the last ELF file we processed.
     // This allows to convert multiple symbols very fast, avoiding spawning a
@@ -153,10 +155,12 @@ void symbol_add(const char *elf, uint32_t addr, bool save_line)
         // Add the callsite to the list
         stbds_arrput(symtable, ((struct symtable_s) {
             .uuid = stbds_arrlen(symtable),
-            .addr = addr | (is_inline ? 0x2 : 0),
+            .addr = addr,
             .func = func,
             .file = file,
-            .line = save_line ? line : 0,
+            .line = line,
+            .is_func = is_func,
+            .is_inline = is_inline,
         }));
 
         is_inline = true;
@@ -186,12 +190,12 @@ void elf_find_callsites(const char *elf)
         // Find the functions
         if (strstr(line, ">:")) {
             uint32_t addr = strtoul(line, NULL, 16);
-            symbol_add(elf, addr, false);
+            symbol_add(elf, addr, true);
         }
         // Find the callsites
         if (strstr(line, "\tjal\t") || strstr(line, "\tjalr\t")) {
             uint32_t addr = strtoul(line, NULL, 16);
-            symbol_add(elf, addr, true);
+            symbol_add(elf, addr, false);
         }
     }
     free(line);
@@ -244,8 +248,9 @@ void compute_function_offsets(void)
     uint32_t func_addr = 0;
     for (int i=0; i<stbds_arrlen(symtable); i++) {
         struct symtable_s *s = &symtable[i];
-        if (s->line == 0) {
+        if (s->is_func) {
             func_addr = s->addr;
+            s->func_offset = 0;
         } else {
             s->func_offset = s->addr - func_addr;
         }
@@ -331,7 +336,7 @@ void process(const char *infn, const char *outfn)
     w32_at(out, addrtable_off, ftell(out));
     for (int i=0; i < stbds_arrlen(symtable); i++) {
         struct symtable_s *sym = &symtable[i];
-        w32(out, sym->addr | (sym->line == 0 ? 1 : 0));
+        w32(out, sym->addr | (sym->is_func ? 0x1 : 0) | (sym->is_inline ? 0x2 : 0));
     }
 
     walign(out, 16);

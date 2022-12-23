@@ -130,15 +130,18 @@ static addrtable_entry_t symt_addrtab_entry(symtable_header_t *symt, int idx)
 }
 
 /**
- * @brief Search the SYMT address table for the given address (upper bound).
+ * @brief Search the SYMT address table for the given address.
  * 
- * This uses a binary search to find the entry, using the "upper bound"
- * strategy. If the address is not found, the entry just after it is returned.
- * 
+ * Run a binary search to find the entry in the table. If there is a single exact match,
+ * the entry is returned. If there are multiple entries with the same address, the first
+ * entry is returned (this is the case for inlined functions: so some entries following
+ * the current one will have the same address). If there is no exact match, the entry
+ * with the biggest address just before the given address is returned.
+ *
  * @param symt      SYMT file header
  * @param addr      Address to search for
- * @param idx       If not null, will be set to the index of the entry found (or the index just after)
- * @return addrtable_entry_t   The entry found, or 0 if the entry is not found
+ * @param idx       If not null, will be set to the index of the entry found (or the index just before)
+ * @return          The found entry (or the entry just before)
  */
 static addrtable_entry_t symt_addrtab_search(symtable_header_t *symt, uint32_t addr, int *idx)
 {
@@ -147,24 +150,31 @@ static addrtable_entry_t symt_addrtab_search(symtable_header_t *symt, uint32_t a
     while (min < max) {
         int mid = (min + max) / 2;
         addrtable_entry_t entry = symt_addrtab_entry(symt, mid);
-        if (addr >= ADDRENTRY_ADDR(entry))
-            min = mid + 1;
-        else
+        if (addr <= ADDRENTRY_ADDR(entry))
             max = mid;
+        else
+            min = mid + 1;
     }
-    addrtable_entry_t entry;
-    if (min < symt->addrtab_size) {
-        entry = symt_addrtab_entry(symt, min);
-        if (ADDRENTRY_ADDR(entry) <= addr)
-            entry = symt_addrtab_entry(symt, ++min);            
-    }
+    addrtable_entry_t entry = symt_addrtab_entry(symt, min);
+    if (min < symt->addrtab_size && ADDRENTRY_ADDR(entry) > addr)
+        entry = symt_addrtab_entry(symt, --min);
     if (idx) *idx = min;
-    return (ADDRENTRY_ADDR(entry) == addr) ? entry : 0;
+    return entry;
 }
-
 
 int backtrace(void **buffer, int size)
 {
+    /*
+     * This function is called in very risky contexts, for instance as part of an exception
+     * handler or during an assertion. We try to always provide as much information as
+     * possible in these cases, with graceful degradation if something more elaborate cannot
+     * be extracted. Thus, this function:
+     * 
+     *  * Must not use malloc(). The heap might be corrupted or empty.
+     *  * Must not use assert(), because that might trigger recursive assertions.
+     *  * Must avoid raising exceptions. Specifically, it must avoid risky memory accesses
+     *    to wrong addresses.
+     */
     uint32_t *sp, *ra, *fp;
     asm volatile (
         "move %0, $ra\n"
@@ -194,6 +204,8 @@ int backtrace(void **buffer, int size)
         uint32_t addr = (uint32_t)ra;
         int ra_offset = 0, fp_offset = 0, stack_size = 0;
         while (1) {
+            // Validate that we can dereference the virtual address without raising an exception
+            // TODO: enhance this check with more valid ranges.
             if (addr < 0x80000400 || addr >= 0x80800000) {
                 // This address is invalid, probably something is corrupted. Avoid looking further.
                 debugf("backtrace: interrupted because of invalid return address 0x%08lx\n", addr);
@@ -223,7 +235,7 @@ int backtrace(void **buffer, int size)
                 bt_type = BT_LEAF;
                 break;
             } else if (interrupt_ra && !interrupt_rafunc_addr && MIPS_OP_NOP(op) && (addr + 4) % FUNCTION_ALIGNMENT == 0) {
-                // If we are in the frame interrupted yb an interrupt handler, and we does not know
+                // If we are in the frame interrupted by an interrupt handler, and we does not know
                 // the start of the function (eg: no symbol table), then try to stop by looking for
                 // a NOP that pads between functions. Obviously the NOP we find can be either a false
                 // positive or a false negative, but we can't do any better without symbols.
@@ -284,11 +296,10 @@ int backtrace(void **buffer, int size)
                 // stop.
                 symtable_header_t symt = symt_open();
                 if (symt.head[0]) {
-                    int idx; addrtable_entry_t entry;
-                    symt_addrtab_search(&symt, (uint32_t)ra, &idx);
-                    do {
+                    int idx;
+                    addrtable_entry_t entry = symt_addrtab_search(&symt, (uint32_t)ra, &idx);
+                    while (!ADDRENTRY_IS_FUNC(entry))
                         entry = symt_addrtab_entry(&symt, --idx);
-                    } while (!ADDRENTRY_IS_FUNC(entry));
                     interrupt_rafunc_addr = ADDRENTRY_ADDR(entry);
                     #if BACKTRACE_DEBUG
                     debugf("Found interrupted function start address: %08lx\n", interrupt_rafunc_addr);
@@ -311,7 +322,7 @@ int backtrace(void **buffer, int size)
 #define MAX_SYM_LEN  (MAX_FILE_LEN + MAX_FUNC_LEN + 24)
 
 static void format_entry(void (*cb)(void *, backtrace_frame_t *), void *cb_arg, 
-    uint32_t SYMTAB_ROM, uint32_t STRTAB_ROM, int idx, uint32_t addr, uint32_t offset, bool is_inline)
+    uint32_t SYMTAB_ROM, uint32_t STRTAB_ROM, int idx, uint32_t addr, uint32_t offset, bool is_func, bool is_inline)
 {       
     symtable_entry_t s alignas(8);
 
@@ -348,7 +359,7 @@ static void format_entry(void (*cb)(void *, backtrace_frame_t *), void *cb_arg,
         .func_offset = offset ? offset : s.func_off,
         .func = func,
         .source_file = file,
-        .source_line = s.line,
+        .source_line = is_func ? 0 : s.line,
         .is_inline = is_inline,
     });
 }
@@ -364,48 +375,23 @@ bool backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
     uint32_t STRTAB_ROM = SYMT_ROM + symt_header.strtab_off;
 
     for (int i=0; i<size; i++) {
-        int l=0, r=symt_header.symtab_size-1;
         uint32_t needle = (uint32_t)buffer[i];
-        while (l <= r) {
-            int m = (l+r)/2;
-            addrtable_entry_t a = symt_addrtab_entry(&symt_header, m);
+        int idx; addrtable_entry_t a;
+        a = symt_addrtab_search(&symt_header, needle, &idx);
+        debugf("Search: %08lx => %lx (%s)\n", needle, symt_header.addrtab_off+idx*sizeof(addrtable_entry_t),
+            ADDRENTRY_ADDR(a) == needle ? "found" : "not found");
 
-            if (ADDRENTRY_ADDR(a) == needle) {
-                // We need to format all inlines for this address (if any)
-                while (ADDRENTRY_IS_INLINE(a))
-                    a = symt_addrtab_entry(&symt_header, --m);
-                do {
-                    format_entry(cb, cb_arg, SYMTAB_ROM, STRTAB_ROM, m, needle, 0, ADDRENTRY_IS_INLINE(a));
-                    a = symt_addrtab_entry(&symt_header, ++m);
-                } while (ADDRENTRY_IS_INLINE(a));
-                break;
-            } else if (ADDRENTRY_ADDR(a) < needle) {
-                l = m+1;
-            } else {
-                r = m-1;
-            }
-        }
-
-        if (l > r) {
-            // We couldn'd find the proper symbol; try to find the function it belongs to
-            addrtable_entry_t a;
-            for (l--; l>=0; l--) {
-                a = symt_addrtab_entry(&symt_header, l);
-                if (ADDRENTRY_IS_FUNC(a))
-                    break;
-            }
-            if (l >= 0) {
-                format_entry(cb, cb_arg, SYMTAB_ROM, STRTAB_ROM, l, needle, needle - ADDRENTRY_ADDR(a), ADDRENTRY_IS_INLINE(a));
-            } else {
-                cb(cb_arg, &(backtrace_frame_t){
-                    .addr = needle,
-                    .func_offset = 0,
-                    .func = "???",
-                    .source_file = "???",
-                    .source_line = 0,
-                    .is_inline = 0,
-                });
-            }
+        if (ADDRENTRY_ADDR(a) == needle) {
+            // Found an entry at this address. Go through all inlines for this address.
+            do {
+                format_entry(cb, cb_arg, SYMTAB_ROM, STRTAB_ROM, idx, needle, 0, false, ADDRENTRY_IS_INLINE(a));
+                a = symt_addrtab_entry(&symt_header, ++idx);
+            } while (ADDRENTRY_IS_INLINE(a));
+        } else {
+            // Search the containing function
+            while (!ADDRENTRY_IS_FUNC(a))
+                a = symt_addrtab_entry(&symt_header, --idx);
+            format_entry(cb, cb_arg, SYMTAB_ROM, STRTAB_ROM, idx, needle, needle - ADDRENTRY_ADDR(a), true, ADDRENTRY_IS_INLINE(a));
         }
     }
     return true;
@@ -413,7 +399,7 @@ bool backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
 
 char** backtrace_symbols(void **buffer, int size)
 {
-    char **syms = malloc(5 * size * (sizeof(char*) + MAX_SYM_LEN));
+    char **syms = malloc(2 * size * (sizeof(char*) + MAX_SYM_LEN));
     char *out = (char*)syms + size*sizeof(char*);
     int level = 0;
 
