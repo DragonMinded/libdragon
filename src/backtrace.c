@@ -91,6 +91,78 @@ extern uint32_t inthandler[];
 /** @brief End of exception handler (see inthandler.S) */
 extern uint32_t inthandler_end[];
 
+/** @brief Address of the SYMT symbol table in the rompak. */
+static uint32_t SYMT_ROM = 0xFFFFFFFF;
+
+/** 
+ * @brief Open the SYMT symbol table in the rompak.
+ * 
+ * If not found, return a null header.
+ */
+static symtable_header_t symt_open(void) {
+    if (SYMT_ROM == 0xFFFFFFFF) {
+        SYMT_ROM = rompak_search_ext(".sym");
+        if (!SYMT_ROM)
+            debugf("backtrace: no symbol table found in the rompak\n");
+    }
+
+    if (!SYMT_ROM) {
+        return (symtable_header_t){0};
+    }
+
+    symtable_header_t symt_header;
+    data_cache_hit_writeback_invalidate(&symt_header, sizeof(symt_header));
+    dma_read_raw_async(&symt_header, SYMT_ROM, sizeof(symtable_header_t));
+    dma_wait();
+
+    if (symt_header.head[0] != 'S' || symt_header.head[1] != 'Y' || symt_header.head[2] != 'M' || symt_header.head[3] != 'T') {
+        debugf("backtrace: invalid symbol table found at 0x%08lx\n", SYMT_ROM);
+        SYMT_ROM = 0;
+        return (symtable_header_t){0};
+    }
+
+    return symt_header;
+}
+
+static addrtable_entry_t symt_addrtab_entry(symtable_header_t *symt, int idx)
+{
+    return io_read(SYMT_ROM + symt->addrtab_off + idx * 4);
+}
+
+/**
+ * @brief Search the SYMT address table for the given address (upper bound).
+ * 
+ * This uses a binary search to find the entry, using the "upper bound"
+ * strategy. If the address is not found, the entry just after it is returned.
+ * 
+ * @param symt      SYMT file header
+ * @param addr      Address to search for
+ * @param idx       If not null, will be set to the index of the entry found (or the index just after)
+ * @return addrtable_entry_t   The entry found, or 0 if the entry is not found
+ */
+static addrtable_entry_t symt_addrtab_search(symtable_header_t *symt, uint32_t addr, int *idx)
+{
+    int min = 0;
+    int max = symt->addrtab_size - 1;
+    while (min < max) {
+        int mid = (min + max) / 2;
+        addrtable_entry_t entry = symt_addrtab_entry(symt, mid);
+        if (addr >= ADDRENTRY_ADDR(entry))
+            min = mid + 1;
+        else
+            max = mid;
+    }
+    addrtable_entry_t entry;
+    if (min < symt->addrtab_size) {
+        entry = symt_addrtab_entry(symt, min);
+        if (ADDRENTRY_ADDR(entry) <= addr)
+            entry = symt_addrtab_entry(symt, ++min);            
+    }
+    if (idx) *idx = min;
+    return (ADDRENTRY_ADDR(entry) == addr) ? entry : 0;
+}
+
+
 int backtrace(void **buffer, int size)
 {
     uint32_t *sp, *ra, *fp;
@@ -110,10 +182,11 @@ int backtrace(void **buffer, int size)
             break;
     }
 
-    uint32_t* interrupt_ra = NULL;
+    uint32_t* interrupt_ra = NULL; uint32_t interrupt_rafunc_addr = 0;
     enum { BT_FUNCTION, BT_FUNCTION_FRAMEPOINTER, BT_EXCEPTION, BT_LEAF } bt_type;
 
     sp = (uint32_t*)((uint32_t)sp + stack_size);
+    ra -= 2;
     for (int i=0; i<size; ++i) {
         buffer[i] = ra;
         bt_type = (ra >= inthandler && ra < inthandler_end) ? BT_EXCEPTION : BT_FUNCTION;
@@ -142,13 +215,18 @@ int backtrace(void **buffer, int size)
                 // still emits a framepointer for functions using a variable stack size
                 // (eg: using alloca() or VLAs).
                 bt_type = BT_FUNCTION_FRAMEPOINTER;
-			} else if (interrupt_ra && MIPS_OP_NOP(op) && (addr + 4) % FUNCTION_ALIGNMENT == 0) {
+			} else if (interrupt_ra && addr == interrupt_rafunc_addr) {
                 // The frame that was interrupted by an interrupt handler is a special case: the
-                // function could be a leaf function with no stack. Try to detect that we reached
-                // the end of it by looking for a padding NOP instruction before the previous
-                // function's body begins.
-                // FIXME: obviously the padding might not always exist. An alternative here would be
-                // to rely on the .SYM file that provides the start address of each function.
+                // function could be a leaf function with no stack. If we were able to identify
+                // the function start (via the symbol table) and we reach it, it means that
+                // we are in a real leaf function.
+                bt_type = BT_LEAF;
+                break;
+            } else if (interrupt_ra && !interrupt_rafunc_addr && MIPS_OP_NOP(op) && (addr + 4) % FUNCTION_ALIGNMENT == 0) {
+                // If we are in the frame interrupted yb an interrupt handler, and we does not know
+                // the start of the function (eg: no symbol table), then try to stop by looking for
+                // a NOP that pads between functions. Obviously the NOP we find can be either a false
+                // positive or a false negative, but we can't do any better without symbols.
                 bt_type = BT_LEAF;
                 break;
             }
@@ -179,9 +257,10 @@ int backtrace(void **buffer, int size)
             case BT_FUNCTION:
                 if (fp_offset)
                     fp = *(uint32_t**)((uint32_t)sp + fp_offset);
-                ra = *(uint32_t**)((uint32_t)sp + ra_offset);
+                ra = *(uint32_t**)((uint32_t)sp + ra_offset) - 2;
                 sp = (uint32_t*)((uint32_t)sp + stack_size);
                 interrupt_ra = NULL;
+                interrupt_rafunc_addr = 0;
                 break;
             case BT_EXCEPTION: {
                 // Exception frame. We must return back to EPC, but let's keep the
@@ -191,12 +270,35 @@ int backtrace(void **buffer, int size)
                 // recover it from the exception frame (also, it isn't saved there
                 // during interrupts).
                 interrupt_ra = *(uint32_t**)((uint32_t)sp + ra_offset);
+
+                // Read EPC from exception frame and adjust it with CAUSE BD bit
                 ra = *(uint32_t**)((uint32_t)sp + offsetof(reg_block_t, epc) + 32);
+                uint32_t cause = *(uint32_t*)((uint32_t)sp + offsetof(reg_block_t, cr) + 32);
+                if (cause & C0_CAUSE_BD) ra++;
+
                 sp = (uint32_t*)((uint32_t)sp + stack_size);
+
+                // The next frame might be a leaf function, for which we will not be able
+                // to find a stack frame. Try to open the symbol table: if we find it,
+                // we can search for the start address of the function so that we know where to
+                // stop.
+                symtable_header_t symt = symt_open();
+                if (symt.head[0]) {
+                    int idx; addrtable_entry_t entry;
+                    symt_addrtab_search(&symt, (uint32_t)ra, &idx);
+                    do {
+                        entry = symt_addrtab_entry(&symt, --idx);
+                    } while (!ADDRENTRY_IS_FUNC(entry));
+                    interrupt_rafunc_addr = ADDRENTRY_ADDR(entry);
+                    #if BACKTRACE_DEBUG
+                    debugf("Found interrupted function start address: %08lx\n", interrupt_rafunc_addr);
+                    #endif
+                }
             }   break;
             case BT_LEAF:
-                ra = interrupt_ra;
+                ra = interrupt_ra - 2;
                 interrupt_ra = NULL;
+                interrupt_rafunc_addr = 0;
                 break;
         }
     }
@@ -208,7 +310,7 @@ int backtrace(void **buffer, int size)
 #define MAX_FUNC_LEN 120
 #define MAX_SYM_LEN  (MAX_FILE_LEN + MAX_FUNC_LEN + 24)
 
-void format_entry(void (*cb)(void *, backtrace_frame_t *), void *cb_arg, 
+static void format_entry(void (*cb)(void *, backtrace_frame_t *), void *cb_arg, 
     uint32_t SYMTAB_ROM, uint32_t STRTAB_ROM, int idx, uint32_t addr, uint32_t offset, bool is_inline)
 {       
     symtable_entry_t s alignas(8);
@@ -251,53 +353,30 @@ void format_entry(void (*cb)(void *, backtrace_frame_t *), void *cb_arg,
     });
 }
 
-uint32_t addrtab_entry(uint32_t ADDRTAB_ROM, int idx)
-{
-    return io_read(ADDRTAB_ROM + idx * 4);
-}
-
 bool backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
     void (*cb)(void *, backtrace_frame_t *), void *cb_arg)
 {
-    static uint32_t SYMT_ROM = 0xFFFFFFFF;
-    if (SYMT_ROM == 0xFFFFFFFF) {
-        SYMT_ROM = rompak_search_ext(".sym");
-        if (!SYMT_ROM)
-            debugf("backtrace_symbols: no symbol table found in the rompak\n");
-    }
-
-    if (!SYMT_ROM) {
-        return false;
-    }
-
-    symtable_header_t symt_header;
-    data_cache_hit_writeback_invalidate(&symt_header, sizeof(symt_header));
-    dma_read_raw_async(&symt_header, SYMT_ROM, sizeof(symtable_header_t));
-    dma_wait();
-
-    if (symt_header.head[0] != 'S' || symt_header.head[1] != 'Y' || symt_header.head[2] != 'M' || symt_header.head[3] != 'T') {
-        debugf("backtrace_symbols: invalid symbol table found at 0x%08lx\n", SYMT_ROM);
-        return false;
-    }
+    // Open the symbol table. If not found, abort as we can't symbolize anything.
+    symtable_header_t symt_header = symt_open();
+    if (!symt_header.head[0]) return false;
 
     uint32_t SYMTAB_ROM = SYMT_ROM + symt_header.symtab_off;
     uint32_t STRTAB_ROM = SYMT_ROM + symt_header.strtab_off;
-    uint32_t ADDRTAB_ROM = SYMT_ROM + symt_header.addrtab_off;
 
     for (int i=0; i<size; i++) {
         int l=0, r=symt_header.symtab_size-1;
-        uint32_t needle = (uint32_t)buffer[i] - 8;
+        uint32_t needle = (uint32_t)buffer[i];
         while (l <= r) {
             int m = (l+r)/2;
-            addrtable_entry_t a = addrtab_entry(ADDRTAB_ROM, m);
+            addrtable_entry_t a = symt_addrtab_entry(&symt_header, m);
 
             if (ADDRENTRY_ADDR(a) == needle) {
                 // We need to format all inlines for this address (if any)
                 while (ADDRENTRY_IS_INLINE(a))
-                    a = addrtab_entry(ADDRTAB_ROM, --m);
+                    a = symt_addrtab_entry(&symt_header, --m);
                 do {
                     format_entry(cb, cb_arg, SYMTAB_ROM, STRTAB_ROM, m, needle, 0, ADDRENTRY_IS_INLINE(a));
-                    a = addrtab_entry(ADDRTAB_ROM, ++m);
+                    a = symt_addrtab_entry(&symt_header, ++m);
                 } while (ADDRENTRY_IS_INLINE(a));
                 break;
             } else if (ADDRENTRY_ADDR(a) < needle) {
@@ -311,7 +390,7 @@ bool backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
             // We couldn'd find the proper symbol; try to find the function it belongs to
             addrtable_entry_t a;
             for (l--; l>=0; l--) {
-                a = addrtab_entry(ADDRTAB_ROM, l);
+                a = symt_addrtab_entry(&symt_header, l);
                 if (ADDRENTRY_IS_FUNC(a))
                     break;
             }
