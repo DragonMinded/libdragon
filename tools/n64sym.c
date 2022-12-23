@@ -168,37 +168,6 @@ void symbol_add(const char *elf, uint32_t addr, bool save_line)
     getline(&line_buf, &line_buf_size, addr2line_r);
 }
 
-void elf_find_functions(const char *elf)
-{
-    // Run mips64-elf-nm to extract the symbol table
-    char *cmd;
-    asprintf(&cmd, "%s/bin/mips64-elf-nm -n %s", n64_inst, elf);
-
-    verbose("Running: %s\n", cmd);
-    FILE *nm = popen(cmd, "r");
-    if (!nm) {
-        fprintf(stderr, "Error: cannot run: %s\n", cmd);
-        exit(1);
-    }
-
-    // Parse the file line by line and select the lines whose second word is "T"
-    char *line = NULL; size_t line_size = 0;
-    while (getline(&line, &line_size, nm) != -1) {
-        char name[1024] = {0}; char type; uint64_t addr;
-        if (sscanf(line, "%llx %c %s", &addr, &type, name) == 3) {
-            if (type == 'T') {
-                // Don't save the line number associated to function symbols. These
-                // are the "generic" symbols which the backtracing code will fallback
-                // to if it cannot find a more specific symbol, so the line number
-                // has to be 0 to mean "no known line number"
-                symbol_add(elf, addr, false);
-            }
-        }
-    }
-    pclose(nm);
-    free(cmd); cmd = NULL;
-}
-
 void elf_find_callsites(const char *elf)
 {
     // Start objdump to parse the disassembly of the ELF file
@@ -211,11 +180,14 @@ void elf_find_callsites(const char *elf)
         exit(1);
     }
 
-    // Start addr2line, to convert callsites addresses as we find them
-
     // Parse the disassembly
     char *line = NULL; size_t line_size = 0;
     while (getline(&line, &line_size, disasm) != -1) {
+        // Find the functions
+        if (strstr(line, ">:")) {
+            uint32_t addr = strtoul(line, NULL, 16);
+            symbol_add(elf, addr, false);
+        }
         // Find the callsites
         if (strstr(line, "\tjal\t") || strstr(line, "\tjalr\t")) {
             uint32_t addr = strtoul(line, NULL, 16);
@@ -304,9 +276,6 @@ int symtable_sort_by_func(const void *a, const void *b)
 void process(const char *infn, const char *outfn)
 {
     verbose("Processing: %s -> %s\n", infn, outfn);
-
-    elf_find_functions(infn);
-    verbose("Found %d functions\n", stbds_arrlen(symtable));
 
     elf_find_callsites(infn);
     verbose("Found %d callsites\n", stbds_arrlen(symtable));
