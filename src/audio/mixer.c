@@ -13,7 +13,7 @@
 #include "samplebuffer.h"
 #include "audio.h"
 #include "n64sys.h"
-#include "exception.h"
+#include "interrupt.h"
 #include <memory.h>
 #include <stdlib.h>
 #include <math.h>

@@ -181,8 +181,8 @@ interrupt:
 	nop
 
 	/* handle reset */
-	jal __onResetException
-	addiu a0, sp, 32
+	jal __RESET_handler
+	nop
 
 	# There is no way to ack the pre-NMI interrupt, so it will
 	# stay pending in CR. Let's disable it in SR to avoid
