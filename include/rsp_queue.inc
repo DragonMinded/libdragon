@@ -268,13 +268,16 @@ RDPQ_MODE_END:
 
 # Two RDP output buffers (to alternate between)
 RDPQ_DYNAMIC_BUFFERS:        .long 0, 0
+# Current RDP write pointer
+RDPQ_CURRENT:                .long  0
 # Current scissor rectangle (in RDP commmand format)
 RDPQ_SCISSOR_RECT:           .quad  (0xED << 56) | (1 << 12)
 # Current fill color
 RDPQ_FILL_COLOR:             .word  0
 # Current target buffer color depth
 RDPQ_TARGET_BITDEPTH:        .byte  0
-                             .byte  0   # unused
+# True if there is a SYNC_FULL command in the current RDP output buffer
+RDPQ_SYNCFULL_ONGOING:       .byte  0
 
 ################################################################
 # End of RDPQ shared state
@@ -683,8 +686,16 @@ RSPQCmd_RdpSetBuffer:
 
     # Wait for RDP DMA FIFO to be not full. If there's another
     # pending buffer, we cannot do anything but wait.
+    lbu t3, %lo(RDPQ_SYNCFULL_ONGOING)
     jal RSPQ_RdpWait
-    li t3, DP_STATUS_START_VALID | DP_STATUS_END_VALID
+    ori t3, DP_STATUS_END_VALID
+
+    # In case there was a SYNC_FULL pending, before switching to next buffer, we need
+    # to actually write the current one to RDP. Notice that the following two instructions
+    # are actually nops in case there was no SYNC_FULL (as DP_END == RDPQ_CURRENT in that case).
+    sb zero, %lo(RDPQ_SYNCFULL_ONGOING)
+    lw t0, %lo(RDPQ_CURRENT)
+    mtc0 t0, COP0_DP_END
 
     #if RSPQ_DEBUG
     # For debugging, generate a RSP interrupt to tell the CPU to fetch the new DP_START / DP_END
@@ -716,6 +727,9 @@ RSPQCmd_RdpSetBuffer:
     #############################################################
     .func RSPQCmd_RdpAppendBuffer
 RSPQCmd_RdpAppendBuffer:
+    lbu t0, %lo(RDPQ_SYNCFULL_ONGOING)
+    bnez t0, JrRa
+    sw a0, %lo(RDPQ_CURRENT)
     jr ra
     mtc0 a0, COP0_DP_END
     .endfunc

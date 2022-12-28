@@ -600,6 +600,7 @@ void rspq_init(void)
     rspq_data.rspq_dram_addr = rspq_data.rspq_dram_lowpri_addr;
     rspq_data.rspq_rdp_buffers[0] = PhysicalAddr(rspq_rdp_dynamic_buffers[0]);
     rspq_data.rspq_rdp_buffers[1] = PhysicalAddr(rspq_rdp_dynamic_buffers[1]);
+    rspq_data.rspq_rdp_current = rspq_data.rspq_rdp_buffers[0];
     rspq_data.rspq_rdp_sentinel = rspq_data.rspq_rdp_buffers[0] + RDPQ_DYNAMIC_BUFFER_SIZE;
     rspq_data.tables.overlay_descriptors[0].state = PhysicalAddr(&dummy_overlay_state);
     rspq_data.tables.overlay_descriptors[0].data_size = sizeof(uint64_t);

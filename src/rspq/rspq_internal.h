@@ -217,13 +217,14 @@ typedef struct rsp_queue_s {
     uint32_t rspq_dram_lowpri_addr;      ///< Address of the lowpri queue (special slot in the pointer stack)
     uint32_t rspq_dram_highpri_addr;     ///< Address of the highpri queue  (special slot in the pointer stack)
     uint32_t rspq_dram_addr;             ///< Current RDRAM address being processed
-    uint32_t rspq_rdp_sentinel;          ///< Internal cache for last value of DP_END
+    uint32_t rspq_rdp_sentinel;          ///< Current RDP RDRAM end pointer (when rdp_current reaches this, the buffer is full)
     rspq_rdp_mode_t rdp_mode;            ///< RDP current render mode definition
     uint32_t rspq_rdp_buffers[2];        ///< RDRAM Address of dynamic RDP buffers
+    uint32_t rspq_rdp_current;           ///< Current RDP RDRAM write pointer (normally DP_END)
     uint64_t rdp_scissor_rect;           ///< Current RDP scissor rectangle
     uint32_t rdp_fill_color;             ///< Current RDP fill color
     uint8_t rdp_target_bitdepth;         ///< Current RDP target buffer bitdepth
-    uint8_t unused;                      ///< Unused
+    uint8_t rdp_syncfull_ongoing;        ///< True if a SYNC_FULL is currently ongoing
     int16_t current_ovl;                 ///< Current overlay index
 } __attribute__((aligned(16), packed)) rsp_queue_t;
 

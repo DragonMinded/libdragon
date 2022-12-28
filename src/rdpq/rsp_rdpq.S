@@ -462,14 +462,32 @@ RDPQCmd_SyncFull:
     li t0, SP_WSTATUS_SET_SIG_RDPSYNCFULL
     mtc0 t0, COP0_SP_STATUS
 
+    sb zero, %lo(RDPQ_SYNCFULL_ONGOING)
+
     # Store the current SYNC_FULL command in the state and DMA it to RDRAM.
     # This includes the interrupt callback that the CPU will have to run.
     sw a0, %lo(RDPQ_SYNCFULL) + 0
     sw a1, %lo(RDPQ_SYNCFULL) + 4
     li s4, %lo(RDPQ_SYNCFULL)
     lw s0, %lo(RDPQ_RDRAM_STATE_ADDR)
+    jal DMAOut
     li t0, DMA_SIZE(8, 1)
-    jal_and_j DMAOut, RDPQCmd_Passthrough8
+
+    # FIXME: optimize this
+    jal RDPQ_Write8
+    nop
+    li s4, %lo(RDPQ_CMD_STAGING)
+    lw s3, %lo(RDPQ_CMD_PTR)
+    sw s4, %lo(RDPQ_CMD_PTR)
+    jal RDPQ_Send
+    nop
+
+    li t0, DP_STATUS_BUSY
+    sb t0, %lo(RDPQ_SYNCFULL_ONGOING)
+
+    j RSPQ_Loop
+    nop
+
     .endfunc
 
     #############################################################

@@ -75,7 +75,9 @@ RDPQ_Send:
     move ra2, ra
 
     # Fetch current pointer in RDRAM where to write the RDP command
-    mfc0 rdram_cur, COP0_DP_END
+    # This is normally the same value that's in DP_END (unless we
+    # are holding writes because there is a SYNC_FULL pending).
+    lw rdram_cur, %lo(RDPQ_CURRENT)
 
     # Fetch the sentinel (end of buffer). Check whether there is
     # enough room to add the new command. If so, run the DMA transfer,
@@ -86,8 +88,21 @@ RDPQ_Send:
     bge sentinel, rdram_cur, do_dma
     li next_func, RSPQCmd_RdpAppendBuffer
 
-    # There is not enough space in the current buffer. Switch to the
-    # next RDRAM buffer. Since there are two of them, also switch between
+    # There is not enough space in the current buffer, so we will need to switch
+    # to the next. Since the RDP DMA can hold two buffers in total, and we have two
+    # buffers, we need to make sure that we are not overwriting the buffer that
+    # is currently playing. To do so, wait for the END_VALID to become 0, which means
+    # that only one buffer might be peInding.
+    # Also, in case there is a SYNC_FULL ongoing, we need to wait for it to finish before
+    # enqueuing a new buffer. RDPQ_SYNCFULL_ONGOING is set to DP_STATUS_BUSY in this case,
+    # so using that bit in the RSPQ_RdpWait wait mask will make sure we wait for the RDP
+    # to be idle.
+    lbu t3, %lo(RDPQ_SYNCFULL_ONGOING)
+    jal RSPQ_RdpWait
+    ori t3, DP_STATUS_END_VALID
+
+    # Switch to the next dynamic buffer.
+    # Since there are two of them, also switch between
     # them so next time we will pick the other one.
     lw rdram_cur, %lo(RDPQ_DYNAMIC_BUFFERS) + 4
     lw t1, %lo(RDPQ_DYNAMIC_BUFFERS) + 0
@@ -102,10 +117,6 @@ RDPQ_Send:
     # which will be written into DP_START.
     move a1, rdram_cur
     li next_func, RSPQCmd_RdpSetBuffer
-
-    # FIXME: This fixes a race condition. Is there a better solution?
-    jal RSPQ_RdpWait
-    li t3, DP_STATUS_START_VALID | DP_STATUS_END_VALID
 
 do_dma:
     # Start the transfer. Will tail-call to either RSPQCmd_RdpSetBuffer or
