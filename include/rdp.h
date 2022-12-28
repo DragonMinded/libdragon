@@ -371,7 +371,7 @@ static inline void rdp_attach_display( display_context_t disp )
     rdpq_attach(disp);
 }
 
-__attribute__((deprecated("use rdqp_detach instead")))
+__attribute__((deprecated("use rdqp_detach_wait instead")))
 static inline void rdp_detach_display( void )
 {
     rdpq_detach();
