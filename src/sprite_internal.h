@@ -15,8 +15,7 @@
 typedef struct sprite_ext_s {
     uint16_t size;              ///< Size of the structure itself (for forward compatibility)
     uint16_t version;           ///< Version of the structure (currently 1)
-    uint16_t pal_file_pos;      ///< Position of the palette in the file
-    uint16_t __padding0;        ///< padding
+    uint32_t pal_file_pos;      ///< Position of the palette in the file
     /// Information on LODs
     struct sprite_lod_s {
         uint16_t width;            ///< Width of this LOD

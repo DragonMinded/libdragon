@@ -407,11 +407,11 @@ int convert(const char *infn, const char *outfn, parms_t *pm) {
 
     // If the sprite has a palette, save it after the LODs
     if (pm->outfmt == FMT_CI4) {
-        sprite_ext.pal_file_pos = HOST_TO_BE16(ex_file_offset);
+        sprite_ext.pal_file_pos = HOST_TO_BE32(ex_file_offset);
         ex_file_offset += 16*2;
     }
     if (pm->outfmt == FMT_CI8) {
-        sprite_ext.pal_file_pos = HOST_TO_BE16(ex_file_offset);
+        sprite_ext.pal_file_pos = HOST_TO_BE32(ex_file_offset);
         ex_file_offset += 256*2;
     }
 
