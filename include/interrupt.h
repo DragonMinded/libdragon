@@ -90,8 +90,6 @@ void disable_interrupts();
 
 interrupt_state_t get_interrupts_state(); 
 
-void poll_interrupts( void );
-
 #ifdef __cplusplus
 }
 #endif
