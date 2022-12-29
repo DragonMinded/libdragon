@@ -249,7 +249,55 @@ static const char* __get_exception_name(exception_code_t code)
 		"Reserved",									// 31
 	};
 
-	return exceptionMap[code];
+
+	// When possible, by peeking into the exception state and COP0 registers
+	// we can provide a more detailed exception name.
+	uint32_t epc = ex->regs->epc + (ex->regs->cr & C0_CAUSE_BD ? 4 : 0);
+	uint32_t badvaddr = C0_BADVADDR();
+
+	switch (ex->code) {
+	case EXCEPTION_CODE_FLOATING_POINT:
+		if (ex->regs->fc31 & C1_CAUSE_DIV_BY_0) {
+			return "Floating point divide by zero";
+		} else if (ex->regs->fc31 & C1_CAUSE_INVALID_OP) {
+			return "Floating point invalid operation";
+		} else if (ex->regs->fc31 & C1_CAUSE_OVERFLOW) {
+			return "Floating point overflow";
+		} else if (ex->regs->fc31 & C1_CAUSE_UNDERFLOW) {
+			return "Floating point underflow";
+		} else if (ex->regs->fc31 & C1_CAUSE_INEXACT_OP) {
+			return "Floating point inexact operation";
+		} else {
+			return "Floating point exception";
+		}
+	case EXCEPTION_CODE_TLB_LOAD_I_MISS:
+		if (epc == badvaddr) {
+			return "Invalid program counter address";
+		} else if (badvaddr < 128) {
+			return "NULL pointer dereference (read)";
+		} else {
+			return "Read from invalid memory address";
+		}
+	case EXCEPTION_CODE_TLB_STORE_MISS:
+		if (badvaddr < 128) {
+			return "NULL pointer dereference (write)";
+		} else {
+			return "Write to invalid memory address";
+		}
+	case EXCEPTION_CODE_TLB_MODIFICATION:
+		return "Write to read-only memory";
+	case EXCEPTION_CODE_LOAD_I_ADDRESS_ERROR:
+		if (epc == badvaddr) {
+			return "Misaligned program counter address";
+		} else {
+			return "Misaligned read from memory";
+		}
+	case EXCEPTION_CODE_STORE_ADDRESS_ERROR:
+		return "Misaligned write to memory";
+
+	default:
+		return exceptionMap[ex->code];
+	}
 }
 
 /**
@@ -268,7 +316,7 @@ static void __fetch_regs(exception_t* e, int32_t type, volatile reg_block_t *reg
 	e->regs = regs;
 	e->type = type;
 	e->code = C0_GET_CAUSE_EXC_CODE(e->regs->cr);
-	e->info = __get_exception_name(e->code);
+	e->info = __get_exception_name(e);
 }
 
 /**
