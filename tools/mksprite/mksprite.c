@@ -277,7 +277,7 @@ int convert(const char *infn, const char *outfn, parms_t *pm) {
         }
         if (flag_verbose)
             printf("unique palette colors: %zu (original: %zu)\n", newmode.palettesize, state.info_png.color.palettesize);
-        state.info_raw = newmode;
+        state.info_png.color = newmode;
     }
 
     // If we're autodetecting the output format and the PNG had a palette, go
@@ -440,18 +440,13 @@ int convert(const char *infn, const char *outfn, parms_t *pm) {
             break;
         }
 
-        case FMT_CI8: case FMT_CI4: {
-            if (pm->outfmt == FMT_CI8) {
-                // For 8-bit palettized, the image is already in the right format.
-                fwrite(img, 1, width*height*bpp, out);
-            } else {
-                // Convert image to 4 bit.
-                for (int i=0; i<width*height; i+=2) {
-                    uint8_t ix0 = *img++;
-                    uint8_t ix1 = *img++;
-                    assert(ix0 < 16 && ix1 < 16);
-                    fputc((ix0 << 4) | ix1, out);
-                }
+        case FMT_CI4: {
+            // Convert image to 4 bit.
+            for (int i=0; i<width*height; i+=2) {
+                uint8_t ix0 = *img++;
+                uint8_t ix1 = *img++;
+                assert(ix0 < 16 && ix1 < 16);
+                fputc((ix0 << 4) | ix1, out);
             }
             break;
         }
@@ -483,7 +478,7 @@ int convert(const char *infn, const char *outfn, parms_t *pm) {
         }
 
         default:
-            // No further conversion needed. Used for RGBA32 and IA16.
+            // No further conversion needed. Used for: RGBA32, IA16, CI8, I8.
             fwrite(img, 1, width*height*bpp, out);
             break;
         }
