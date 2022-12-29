@@ -376,6 +376,35 @@ void __RESET_handler( void )
 }
 
 /**
+ * @brief Manually process pending interrupts
+ * 
+ * This function allows to manually process pending interrupts. It is
+ * useful in contexts where interrupts are disabled for long periods of
+ * time but we somehow need to process interrupt-related tasks. For
+ * instance, #controller_read calls #poll_interrupts so that it is
+ * possible to read controller status even when interrupts are disabled.
+ * 
+ * Most applications will never need to call this function.
+ * 
+ * @note This function can also be safely called if interrupts are enabled,
+ *       to simplify writing calling code that works in both situations.
+ */
+void poll_interrupts( void )
+{
+    disable_interrupts();
+    uint32_t cause = C0_CAUSE();
+    if (cause & C0_INTERRUPT_RCP)
+        __MI_handler();
+    if (cause & C0_INTERRUPT_TIMER)
+        __TI_handler();
+    if (cause & C0_INTERRUPT_CART)
+        __CART_handler();
+    if (cause & C0_INTERRUPT_PRENMI )
+        __RESET_handler();
+    enable_interrupts();
+}
+
+/**
  * @brief Register an AI callback
  *
  * @param[in] callback
