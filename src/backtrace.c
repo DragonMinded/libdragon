@@ -77,6 +77,7 @@ typedef uint32_t addrtable_entry_t;
 #define ADDRENTRY_IS_INLINE(e)  ((e) &  2)     ///< True if the address is an inline duplicate
 
 #define MIPS_OP_ADDIU_SP(op)   (((op) & 0xFFFF0000) == 0x27BD0000)   // addiu $sp, $sp, imm
+#define MIPS_OP_DADDIU_SP(op)  (((op) & 0xFFFF0000) == 0x67BD0000)   // daddiu $sp, $sp, imm
 #define MIPS_OP_JR_RA(op)      (((op) & 0xFFFF0000) == 0x03E00008)   // jr $ra
 #define MIPS_OP_SD_RA_SP(op)   (((op) & 0xFFFF0000) == 0xFFBF0000)   // sd $ra, imm($sp)
 #define MIPS_OP_SD_FP_SP(op)   (((op) & 0xFFFF0000) == 0xFFBE0000)   // sd $fp, imm($sp)
@@ -183,10 +184,14 @@ int backtrace(void **buffer, int size)
         : "=r"(ra), "=r"(sp), "=r"(fp)
     );
 
+    #if BACKTRACE_DEBUG
+    debugf("backtrace: start\n"); 
+    #endif
+
     int stack_size = 0;
     for (uint32_t *addr = (uint32_t*)backtrace; !stack_size; ++addr) {
         uint32_t op = *addr;
-        if (MIPS_OP_ADDIU_SP(op))
+        if (MIPS_OP_ADDIU_SP(op) || MIPS_OP_DADDIU_SP(op))
             stack_size = ABS((int16_t)(op & 0xFFFF));
         else if (MIPS_OP_JR_RA(op))
             break;
@@ -212,7 +217,7 @@ int backtrace(void **buffer, int size)
                 return i;
             }
             uint32_t op = *(uint32_t*)addr;
-            if (MIPS_OP_ADDIU_SP(op)) {
+            if (MIPS_OP_ADDIU_SP(op) || MIPS_OP_DADDIU_SP(op)) {
                 stack_size = ABS((int16_t)(op & 0xFFFF));
             } else if (MIPS_OP_SD_RA_SP(op)) {
                 ra_offset = (int16_t)(op & 0xFFFF) + 4; // +4 = load low 32 bit of RA
@@ -227,7 +232,12 @@ int backtrace(void **buffer, int size)
                 // still emits a framepointer for functions using a variable stack size
                 // (eg: using alloca() or VLAs).
                 bt_type = BT_FUNCTION_FRAMEPOINTER;
-			} else if (interrupt_ra && addr == interrupt_rafunc_addr) {
+			} 
+            // We found the stack frame size and the offset of the return address in the stack frame
+            // We can stop looking and process the frame
+            if (stack_size != 0 && ra_offset != 0)
+                break;
+            if (interrupt_ra && addr == interrupt_rafunc_addr) {
                 // The frame that was interrupted by an interrupt handler is a special case: the
                 // function could be a leaf function with no stack. If we were able to identify
                 // the function start (via the symbol table) and we reach it, it means that
@@ -243,10 +253,6 @@ int backtrace(void **buffer, int size)
                 break;
             }
 
-            // We found the stack frame size and the offset of the return address in the stack frame
-            // We can stop looking and process the frame
-            if (stack_size != 0 && ra_offset != 0)
-                break;
 
             addr -= 4;
         }
@@ -308,6 +314,10 @@ int backtrace(void **buffer, int size)
             }   break;
             case BT_LEAF:
                 ra = interrupt_ra - 2;
+                // A leaf function has no stack. On the other hand, an exception happening at the
+                // beginning of a standard function (before RA is saved), does have a stack but
+                // will be marked as a leaf function. In this case, we mus update the stack pointer.
+                sp = (uint32_t*)((uint32_t)sp + stack_size);
                 interrupt_ra = NULL;
                 interrupt_rafunc_addr = 0;
                 break;
