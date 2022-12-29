@@ -602,18 +602,18 @@ void unregister_CART_handler( void (*callback)() )
  * Handlers can use #exception_reset_time to read how much has passed
  * since the RESET button was pressed.
  * 
- * @param cb    Callback to invoke when the reset button is pressed.
+ * @param callback    Callback to invoke when the reset button is pressed.
  * 
  * @note  Reset handlers are called under interrupt.
  * 
  */
-void register_RESET_handler( void (*cb)(void) )
+void register_RESET_handler( void (*callback)() )
 {
 	for (int i=0;i<MAX_RESET_HANDLERS;i++)
 	{		
 		if (!__prenmi_handlers[i])
 		{
-			__prenmi_handlers[i] = cb;
+			__prenmi_handlers[i] = callback;
 			return;
 		}
 	}
@@ -626,11 +626,11 @@ void register_RESET_handler( void (*cb)(void) )
  * @param[in] callback
  *            Function that should no longer be called on RESET interrupts
  */
-void unregister_RESET_handler( void (*cb)(void) )
+void unregister_RESET_handler( void (*callback)() )
 {
     for (int i=0;i<MAX_RESET_HANDLERS;i++)
     {		
-        if (__prenmi_handlers[i] == cb)
+        if (__prenmi_handlers[i] == callback)
         {
             __prenmi_handlers[i] = NULL;
             return;
@@ -932,7 +932,7 @@ interrupt_state_t get_interrupts_state()
  * the RESET button, or 0 if the user has not pressed it.
  * 
  * It can be used by user code to perform actions during the RESET
- * process (see #register_reset_handler). It is also possible to simply
+ * process (see #register_RESET_handler). It is also possible to simply
  * poll this value to check at any time if the button has been pressed or not.
  * 
  * The reset process takes about 500ms between the user pressing the

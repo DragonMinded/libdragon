@@ -353,9 +353,7 @@ inline uint64_t mem_read64(uint64_t vaddr) {
     return value;    
 }
 
-/*
- * @}
- */
+/** @} */
 
 #ifdef __cplusplus
 }

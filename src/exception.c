@@ -29,6 +29,9 @@
  * @{
  */
 
+/**
+ * @brief Syscall exception handler entry
+ */
 typedef struct {
 	/** @brief Exception handler */
 	syscall_handler_t handler;
@@ -86,7 +89,12 @@ exception_handler_t register_exception_handler( exception_handler_t cb )
 }
 
 
-/** @brief Dump a brief recap of the exception. */
+/** 
+ * @brief Dump a brief recap of the exception.
+ * 
+ * @param[in] out File to write to
+ * @param[in] ex Exception to dump
+ */
 void __exception_dump_header(FILE *out, exception_t* ex) {
 	uint32_t cr = ex->regs->cr;
 	uint32_t fcr31 = ex->regs->fc31;
@@ -128,6 +136,13 @@ void __exception_dump_header(FILE *out, exception_t* ex) {
 	}
 }
 
+/**
+ * @brief Helper to dump the GPRs of an exception
+ * 
+ * @param ex 		Exception
+ * @param cb 		Callback that will be called for each register
+ * @param arg 		Argument to pass to the callback
+ */
 void __exception_dump_gpr(exception_t* ex, void (*cb)(void *arg, const char *regname, char* value), void *arg) {
 	char buf[24];
 	for (int i=0;i<34;i++) {
@@ -141,6 +156,13 @@ void __exception_dump_gpr(exception_t* ex, void (*cb)(void *arg, const char *reg
 	}
 }
 
+/**
+ * @brief Helper to dump the FPRs of an exception
+ * 
+ * @param ex 		Exception
+ * @param cb 		Callback that will be called for each register
+ * @param arg 		Argument to pass to the callback
+ */
 void __exception_dump_fpr(exception_t* ex, void (*cb)(void *arg, const char *regname, char* hexvalue, char *singlevalue, char *doublevalue), void *arg) {
 	char hex[32], single[32], doubl[32]; char *singlep, *doublep;
 	for (int i = 0; i<32; i++) {
