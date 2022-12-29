@@ -268,6 +268,95 @@ typedef enum {
 
 tv_type_t get_tv_type();
 
+
+/**
+ * @name 64-bit address space access
+ * @brief Functions to access the full 64-bit address space
+ *
+ * Libdragon uses the O64 ABI, in which pointers are 32-bit wide. This
+ * is the right choice for basically all standard use cases because
+ * doubling the size of the pointers would waste more memory in all data
+ * structures where pointers are stored.
+ * 
+ * The VR4300 CPU does support a full 64-bit virtual address space
+ * though, which might be used for some very niche use case
+ * (like e.g. emulator tests) Since it is not possible to create a
+ * 64-bit pointer in C because of the chosen ABI, these functions
+ * are provided in substitution.
+ * 
+ * The virtual address must be provided as a 64-bit integer.
+ * 
+ * @{
+ */
+
+/**
+ * @brief Read a 8-bit value from memory at the given 64-bit virtual address
+ * 
+ * @param vaddr   64-bit virtual address
+ * @return the read value
+ */
+inline uint8_t mem_read8(uint64_t vaddr) {
+    uint8_t value;
+    asm volatile (
+        "lbu %[value], 0(%[vaddr])  \n" :
+        [value] "=r" (value):
+        [vaddr] "r" (vaddr)
+    );
+    return value;    
+}
+
+/**
+ * @brief Read a 16-bit value from memory at the given 64-bit virtual address
+ * 
+ * @param vaddr   64-bit virtual address
+ * @return the read value
+ */
+inline uint16_t mem_read16(uint64_t vaddr) {
+    uint16_t value;
+    asm volatile (
+        "lhu %[value], 0(%[vaddr])  \n" :
+        [value] "=r" (value):
+        [vaddr] "r" (vaddr)
+    );
+    return value;    
+}
+
+/**
+ * @brief Read a 32-bit value from memory at the given 64-bit virtual address
+ * 
+ * @param vaddr   64-bit virtual address
+ * @return the read value
+ */
+inline uint32_t mem_read32(uint64_t vaddr) {
+    uint32_t value;
+    asm volatile (
+        "lwu %[value], 0(%[vaddr])  \n" :
+        [value] "=r" (value):
+        [vaddr] "r" (vaddr)
+    );
+    return value;    
+}
+
+/**
+ * @brief Read a 64-bit value from memory at the given 64-bit virtual address
+ * 
+ * @param vaddr   64-bit virtual address
+ * @return the read value
+ */
+inline uint64_t mem_read64(uint64_t vaddr) {
+    uint64_t value;
+    asm volatile (
+        "ld %[value], 0(%[vaddr])  \n" :
+        [value] "=r" (value):
+        [vaddr] "r" (vaddr)
+    );
+    return value;    
+}
+
+/*
+ * @}
+ */
+
 #ifdef __cplusplus
 }
 #endif
