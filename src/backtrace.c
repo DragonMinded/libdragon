@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "backtrace.h"
+#include "backtrace_internal.h"
 #include "debug.h"
 #include "n64sys.h"
 #include "dma.h"
@@ -161,6 +162,85 @@ static addrtable_entry_t symt_addrtab_search(symtable_header_t *symt, uint32_t a
         entry = symt_addrtab_entry(symt, --min);
     if (idx) *idx = min;
     return entry;
+}
+
+
+/**
+ * @brief Fetch a string from the string table
+ * 
+ * @param symt  SYMT file
+ * @param sidx  Index of the first character of the string in the string table
+ * @param slen  Length of the string
+ * @param buf   Destination buffer
+ * @param size  Size of the destination buffer
+ * @return char*  Fetched string within the destination buffer (might not be at offset 0 for alignment reasons)
+ */
+static char* symt_string(symtable_header_t *symt, int sidx, int slen, char *buf, int size)
+{
+    // Align 2-byte phase of the RAM buffer with the ROM address. This is required
+    // for dma_read.
+    int tweak = (sidx ^ (uint32_t)buf) & 1;
+    char *func = buf + tweak; size -= tweak;
+    int n = MIN(slen, size);
+
+    data_cache_hit_writeback_invalidate(buf, size);
+    dma_read(func, SYMT_ROM + symt->strtab_off + sidx, n);
+    func[n] = 0;
+    return func;
+}
+
+/**
+ * @brief Fetch a symbol table entry from the SYMT file.
+ * 
+ * @param symt    SYMT file
+ * @param entry   Output entry pointer
+ * @param idx     Index of the entry to fetch
+ */
+static void symt_entry_fetch(symtable_header_t *symt, symtable_entry_t *entry, int idx)
+{
+    data_cache_hit_writeback_invalidate(entry, sizeof(symtable_entry_t));
+    dma_read(entry, SYMT_ROM + symt->symtab_off + idx * sizeof(symtable_entry_t), sizeof(symtable_entry_t));
+}
+
+// Fetch the function name of an entry
+static char* symt_entry_func(symtable_header_t *symt, symtable_entry_t *entry, uint32_t addr, char *buf, int size)
+{
+    if (addr >= (uint32_t)inthandler && addr < (uint32_t)inthandler_end) {
+        // Special case exception handlers. This is just to show something slightly
+        // more readable instead of "notcart+0x0" or similar assembly symbols
+        snprintf(buf, size, "<EXCEPTION HANDLER>");
+        return buf;
+    } else {
+        return symt_string(symt, entry->func_sidx, entry->func_len, buf, size);
+    }
+}
+
+// Fetch the file name of an entry
+static char* symt_entry_file(symtable_header_t *symt, symtable_entry_t *entry, uint32_t addr, char *buf, int size)
+{
+    return symt_string(symt, entry->file_sidx, entry->file_len, buf, size);
+}
+
+char* __symbolize(void *vaddr, char *buf, int size)
+{
+    symtable_header_t symt = symt_open();
+    if (symt.head[0]) {
+        uint32_t addr = (uint32_t)vaddr;
+        int idx = 0;
+        addrtable_entry_t a = symt_addrtab_search(&symt, addr, &idx);
+        while (!ADDRENTRY_IS_FUNC(a))
+            a = symt_addrtab_entry(&symt, --idx);
+
+        // Read the symbol name
+        symtable_entry_t entry alignas(8);
+        symt_entry_fetch(&symt, &entry, idx);
+        char *func = symt_entry_func(&symt, &entry, addr, buf, size-12);
+        char lbuf[12];
+        snprintf(lbuf, sizeof(lbuf), "+0x%lx", addr - ADDRENTRY_ADDR(a));
+        return strcat(func, lbuf);
+    }
+    snprintf(buf, size, "???");
+    return buf;
 }
 
 int backtrace(void **buffer, int size)
@@ -332,44 +412,20 @@ int backtrace(void **buffer, int size)
 #define MAX_SYM_LEN  (MAX_FILE_LEN + MAX_FUNC_LEN + 24)
 
 static void format_entry(void (*cb)(void *, backtrace_frame_t *), void *cb_arg, 
-    uint32_t SYMTAB_ROM, uint32_t STRTAB_ROM, int idx, uint32_t addr, uint32_t offset, bool is_func, bool is_inline)
+    symtable_header_t *symt, int idx, uint32_t addr, uint32_t offset, bool is_func, bool is_inline)
 {       
-    symtable_entry_t s alignas(8);
-
-    data_cache_hit_writeback_invalidate(&s, sizeof(s));
-    dma_read(&s, SYMTAB_ROM + idx * sizeof(symtable_entry_t), sizeof(s));
+    symtable_entry_t entry alignas(8);
+    symt_entry_fetch(symt, &entry, idx);
 
     char file_buf[MAX_FILE_LEN+2] alignas(8);
     char func_buf[MAX_FUNC_LEN+2] alignas(8);
 
-    char *func = func_buf;
-    char *file = file_buf;
-    if (s.func_sidx & 1) func++;
-    if (s.file_sidx & 1) file++;
-
-    int func_len = MIN(s.func_len, MAX_FUNC_LEN);
-    int file_len = MIN(s.file_len, MAX_FILE_LEN);
-
-    if (addr >= (uint32_t)inthandler && addr < (uint32_t)inthandler_end) {
-        // Special case exception handlers. This is just to show something slightly
-        // more readable instead of "notcart+0x0" or similar assembly symbols
-        snprintf(func, sizeof(func_buf), "<EXCEPTION HANDLER>");
-    } else {
-        data_cache_hit_writeback_invalidate(func_buf, sizeof(func_buf));
-        dma_read(func, STRTAB_ROM + s.func_sidx, func_len);
-        func[func_len] = 0;
-    }
-
-    data_cache_hit_writeback_invalidate(file_buf, sizeof(file_buf));
-    dma_read(file, STRTAB_ROM + s.file_sidx, MIN(s.file_len, file_len));
-    file[file_len] = 0;
-
     cb(cb_arg, &(backtrace_frame_t){
         .addr = addr,
-        .func_offset = offset ? offset : s.func_off,
-        .func = func,
-        .source_file = file,
-        .source_line = is_func ? 0 : s.line,
+        .func_offset = offset ? offset : entry.func_off,
+        .func = symt_entry_func(symt, &entry, addr, func_buf, sizeof(func_buf)),
+        .source_file = symt_entry_file(symt, &entry, addr, file_buf, sizeof(file_buf)),
+        .source_line = is_func ? 0 : entry.line,
         .is_inline = is_inline,
     });
 }
@@ -381,27 +437,22 @@ bool backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
     symtable_header_t symt_header = symt_open();
     if (!symt_header.head[0]) return false;
 
-    uint32_t SYMTAB_ROM = SYMT_ROM + symt_header.symtab_off;
-    uint32_t STRTAB_ROM = SYMT_ROM + symt_header.strtab_off;
-
     for (int i=0; i<size; i++) {
         uint32_t needle = (uint32_t)buffer[i];
         int idx; addrtable_entry_t a;
         a = symt_addrtab_search(&symt_header, needle, &idx);
-        debugf("Search: %08lx => %lx (%s)\n", needle, symt_header.addrtab_off+idx*sizeof(addrtable_entry_t),
-            ADDRENTRY_ADDR(a) == needle ? "found" : "not found");
 
         if (ADDRENTRY_ADDR(a) == needle) {
             // Found an entry at this address. Go through all inlines for this address.
             do {
-                format_entry(cb, cb_arg, SYMTAB_ROM, STRTAB_ROM, idx, needle, 0, false, ADDRENTRY_IS_INLINE(a));
+                format_entry(cb, cb_arg, &symt_header, idx, needle, 0, false, ADDRENTRY_IS_INLINE(a));
                 a = symt_addrtab_entry(&symt_header, ++idx);
             } while (ADDRENTRY_IS_INLINE(a));
         } else {
             // Search the containing function
             while (!ADDRENTRY_IS_FUNC(a))
                 a = symt_addrtab_entry(&symt_header, --idx);
-            format_entry(cb, cb_arg, SYMTAB_ROM, STRTAB_ROM, idx, needle, needle - ADDRENTRY_ADDR(a), true, ADDRENTRY_IS_INLINE(a));
+            format_entry(cb, cb_arg, &symt_header, idx, needle, needle - ADDRENTRY_ADDR(a), true, ADDRENTRY_IS_INLINE(a));
         }
     }
     return true;
