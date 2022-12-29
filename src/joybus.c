@@ -214,7 +214,6 @@ static void si_interrupt(void) {
     }
 }
 
-
 /**
  * @brief Execute an asynchronous joybus message.
  * 
@@ -295,7 +294,9 @@ void joybus_exec( const void * input, void * output )
     }
 
     joybus_exec_async(input, callback, NULL);
-    while (!done) {}
+    while (!done) {
+        poll_interrupts();
+    }
 }
 
 /** @} */ /* joybus */
