@@ -100,7 +100,7 @@ void glMatrixMode(GLenum mode)
     gl_update_current_matrix();
 }
 
-inline void write_shorts(rspq_write_t *w, const uint16_t *s, uint32_t count)
+static inline void write_shorts(rspq_write_t *w, const uint16_t *s, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i += 2)
     {
@@ -109,7 +109,7 @@ inline void write_shorts(rspq_write_t *w, const uint16_t *s, uint32_t count)
     }
 }
 
-inline void gl_matrix_write(rspq_write_t *w, const GLfloat *m)
+static inline void gl_matrix_write(rspq_write_t *w, const GLfloat *m)
 {
     uint16_t integer[16];
     uint16_t fraction[16];
@@ -125,7 +125,7 @@ inline void gl_matrix_write(rspq_write_t *w, const GLfloat *m)
     write_shorts(w, fraction, 16);
 }
 
-inline void gl_matrix_load(const GLfloat *m, bool multiply)
+static inline void gl_matrix_load(const GLfloat *m, bool multiply)
 {
     rspq_write_t w = rspq_write_begin(gl_overlay_id, GL_CMD_MATRIX_LOAD, 17);
     rspq_write_arg(&w, multiply ? 1 : 0);
