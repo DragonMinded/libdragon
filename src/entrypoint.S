@@ -22,7 +22,7 @@ _start:
 	lw t0, 0x80000318			/* memory size */
 	lw t1, 0xA4300004
 	andi t1, 0xF0
-	bne t1, 0xB0, set_sp
+	bne t1, 0xB0, .Lset_sp
 	li fp, 0                    /* fp=0 -> vanilla N64 */
 
 	/* In iQue player, memory allocated to game can be configured and it appears
@@ -31,11 +31,11 @@ _start:
 	   See also get_memory_size. */
 	li fp, 1                    /* fp=1 -> iQue player */
 	li t1, 0x800000
-	blt t0, t1, set_sp
+	blt t0, t1, .Lset_sp
 	nop
 	li t0, 0x7C0000
 
-set_sp:
+.Lset_sp:
 	li t1, 0x7FFFFFF0
 	addu sp,t0,t1				/* init stack */
 	la gp, _gp					/* init data pointer */
@@ -67,18 +67,18 @@ set_sp:
 	or a0, 0x20000000
 	la a1, __bss_end
 	or a1, 0x20000000
-bss_init:
+.Lbss_init:
 	sd $0,(a0)
 	addiu a0,8
-	bltu a0,a1, bss_init
+	bltu a0,a1, .Lbss_init
 	nop
 
 	/* Wait for DMA transfer to be finished */
 	lui t0, 0xA460
-wait_dma_end:
+.Lwait_dma_end:
 	lw t1, 0x10(t0)
 	andi t1, 3
-	bnez t1, wait_dma_end
+	bnez t1, .Lwait_dma_end
 	nop
 
 	/* Store the bbplayer flag now that BSS has been cleared */
@@ -88,7 +88,7 @@ wait_dma_end:
 	la t0,intvector
 	la t1,0xa0000000
 	la t2,4
-loadintvectorloop:
+.Lloadintvectorloop:
 	lw t3,(t0)
 	sw t3,0(t1)
 	sw t3,0x80(t1)
@@ -102,7 +102,7 @@ loadintvectorloop:
 	addi t0,4
 	addi t1,4
 	addiu t2,-1
-	bnez t2,loadintvectorloop
+	bnez t2,.Lloadintvectorloop
 	nop
 
 	la t0, debug_assert_func    /* install assert function in system.c */
@@ -115,8 +115,8 @@ loadintvectorloop:
 	jal main					/* call main app */
 	li a1, 0
 
-deadloop:
-	j deadloop
+_abort:
+	j _abort
 	nop
 
 intvector:
