@@ -3,6 +3,7 @@
 #include "surface.h"
 #include "sprite_internal.h"
 #include "n64sys.h"
+#include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,7 +21,7 @@ sprite_ext_t *__sprite_ext(sprite_t *sprite)
 
     uint8_t *data = (uint8_t*)sprite->data;
     tex_format_t format = sprite_get_format(sprite);
-    data += TEX_FORMAT_PIX2BYTES(format, sprite->width * sprite->height);
+    data += ROUND_UP(TEX_FORMAT_PIX2BYTES(format, sprite->width * sprite->height), 8);
 
     // Access extended header
     sprite_ext_t *sx = (sprite_ext_t*)data;
