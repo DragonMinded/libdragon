@@ -480,7 +480,7 @@ RDPQCmd_SyncFull:
     lw s3, %lo(RDPQ_CMD_PTR)
     sw s4, %lo(RDPQ_CMD_PTR)
     jal RDPQ_Send
-    nop
+    sb zero, %lo(RDPQ_SYNCFULL_ONGOING)
 
     li t0, DP_STATUS_BUSY
     sb t0, %lo(RDPQ_SYNCFULL_ONGOING)

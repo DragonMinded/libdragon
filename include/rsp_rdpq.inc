@@ -78,6 +78,7 @@ RDPQ_Send:
     # This is normally the same value that's in DP_END (unless we
     # are holding writes because there is a SYNC_FULL pending).
     lw rdram_cur, %lo(RDPQ_CURRENT)
+    and rdram_cur, 0xFFFFFF
 
     # Fetch the sentinel (end of buffer). Check whether there is
     # enough room to add the new command. If so, run the DMA transfer,
