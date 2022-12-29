@@ -392,3 +392,8 @@ __attribute__((constructor)) void __init_cop1()
 }
 
 /** @} */
+
+extern inline uint8_t mem_read8(uint64_t vaddr);
+extern inline uint16_t mem_read16(uint64_t vaddr);
+extern inline uint32_t mem_read32(uint64_t vaddr);
+extern inline uint64_t mem_read64(uint64_t vaddr);
