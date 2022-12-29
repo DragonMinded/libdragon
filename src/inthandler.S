@@ -116,15 +116,35 @@ exception:
 
 	# Check the exception type
 	andi t0, cause, CAUSE_EXC_MASK
-	bne t0, CAUSE_EXC_COPROCESSOR, critical_exception
+	li t1, CAUSE_EXC_COPROCESSOR
+	beq t0, t1, exception_coprocessor
+	li t1, CAUSE_EXC_SYSCALL
+	beq t0, t1, exception_syscall
 	nop
+
+exception_critical:
+	# Exception not specially handled.
+	jal __onCriticalException
+	addiu a0, sp, 32
+
+	j end_interrupt
+	nop
+
+exception_syscall:
+	# Syscall exception
+	jal __onSyscallException
+	addiu a0, sp, 32
+
+	j end_interrupt
+	nop
+
 
 exception_coprocessor:
 	# Extract CE bits (28..29) from CR
 	srl t0, cause, 28
 	andi t0, 3
 	# If == 1 (COP1), it is an FPU exception
-	bne t0, 1, critical_exception
+	bne t0, 1, exception_critical
 	nop
 
 exception_coprocessor_fpu:
@@ -145,16 +165,6 @@ exception_coprocessor_fpu:
 	lw a0, interrupt_exception_frame
 
 	# OK we are done. We can now exit the exception
-	j end_interrupt
-	nop
-
-critical_exception:
-
-	/* Exception not specially handled. */
-	addiu a0, sp, 32
-	jal __onCriticalException
-	nop
-
 	j end_interrupt
 	nop
 

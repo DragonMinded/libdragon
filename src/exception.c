@@ -4,6 +4,7 @@
  * @ingroup exceptions
  */
 #include "exception.h"
+#include "exception_internal.h"
 #include "console.h"
 #include "n64sys.h"
 #include "debug.h"
@@ -12,6 +13,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <math.h>
 
 /**
  * @defgroup exceptions Exception Handler
@@ -27,13 +29,24 @@
  * @{
  */
 
-/** @brief Maximum number of reset handlers that can be registered. */
-#define MAX_RESET_HANDLERS 4
+typedef struct {
+	/** @brief Exception handler */
+	syscall_handler_t handler;
+	/** @brief Syscall code mask */
+	uint32_t mask;
+	/** @brief Syscall code value */
+	uint32_t code;
+} syscall_handler_entry_t;
+
+/** @brief Maximum number of syscall handlers that can be registered. */
+#define MAX_SYSCALL_HANDLERS 4
 
 /** @brief Unhandled exception handler currently registered with exception system */
 static void (*__exception_handler)(exception_t*) = exception_default_handler;
 /** @brief Base register offset as defined by the interrupt controller */
 extern volatile reg_block_t __baseRegAddr;
+/** @brief Syscall exception handlers */
+static syscall_handler_entry_t __syscall_handlers[MAX_SYSCALL_HANDLERS];
 
 /**
  * @brief Register an exception handler to handle exceptions
@@ -65,9 +78,127 @@ extern volatile reg_block_t __baseRegAddr;
  * @param[in] cb
  *            Callback function to call when exceptions happen
  */
-void register_exception_handler( void (*cb)(exception_t*))
+exception_handler_t register_exception_handler( exception_handler_t cb )
 {
+	exception_handler_t old = __exception_handler;
 	__exception_handler = cb;
+	return old;
+}
+
+
+/** @brief Dump a brief recap of the exception. */
+void __exception_dump_header(FILE *out, exception_t* ex) {
+	uint32_t cr = ex->regs->cr;
+	uint32_t fcr31 = ex->regs->fc31;
+
+	fprintf(out, "%s exception at PC:%08lX\n", ex->info, (uint32_t)(ex->regs->epc + ((cr & C0_CAUSE_BD) ? 4 : 0)));
+	switch (ex->code) {
+		case EXCEPTION_CODE_STORE_ADDRESS_ERROR:
+		case EXCEPTION_CODE_LOAD_I_ADDRESS_ERROR:
+		case EXCEPTION_CODE_TLB_STORE_MISS:
+		case EXCEPTION_CODE_TLB_LOAD_I_MISS:
+		case EXCEPTION_CODE_I_BUS_ERROR:
+		case EXCEPTION_CODE_D_BUS_ERROR:
+		case EXCEPTION_CODE_TLB_MODIFICATION:
+			fprintf(out, "Exception address: %08lX\n", C0_BADVADDR());
+			break;
+
+		case EXCEPTION_CODE_FLOATING_POINT: {
+			const char *space = "";
+			fprintf(out, "FPU status: %08lX [", C1_FCR31());
+			if (fcr31 & C1_CAUSE_INEXACT_OP) fprintf(out, "%sINEXACT", space), space=" ";
+			if (fcr31 & C1_CAUSE_OVERFLOW) fprintf(out, "%sOVERFLOW", space), space=" ";
+			if (fcr31 & C1_CAUSE_DIV_BY_0) fprintf(out, "%sDIV0", space), space=" ";
+			if (fcr31 & C1_CAUSE_INVALID_OP) fprintf(out, "%sINVALID", space), space=" ";
+			if (fcr31 & C1_CAUSE_NOT_IMPLEMENTED) fprintf(out, "%sNOTIMPL", space), space=" ";
+			fprintf(out, "]\n");
+			break;
+		}
+
+		case EXCEPTION_CODE_COPROCESSOR_UNUSABLE:
+			fprintf(out, "COP: %ld\n", C0_GET_CAUSE_CE(cr));
+			break;
+
+		case EXCEPTION_CODE_WATCH:
+			fprintf(out, "Watched address: %08lX\n", C0_WATCHLO() & ~3);
+			break;
+
+		default:
+			break;
+	}
+}
+
+void __exception_dump_gpr(exception_t* ex, void (*cb)(void *arg, const char *regname, char* value), void *arg) {
+	char buf[24];
+	for (int i=0;i<34;i++) {
+		uint64_t v = (i<32) ? ex->regs->gpr[i] : (i == 33) ? ex->regs->lo : ex->regs->hi;
+		if ((int32_t)v == v) {
+			snprintf(buf, sizeof(buf), "---- ---- %04llx %04llx", (v >> 16) & 0xFFFF, v & 0xFFFF);
+		} else {
+			snprintf(buf, sizeof(buf), "%04llx %04llx %04llx %04llx", v >> 48, (v >> 32) & 0xFFFF, (v >> 16) & 0xFFFF, v & 0xFFFF);
+		}
+		cb(arg, __mips_gpr[i], buf);
+	}
+}
+
+void __exception_dump_fpr(exception_t* ex, void (*cb)(void *arg, const char *regname, char* hexvalue, char *singlevalue, char *doublevalue), void *arg) {
+	char hex[32], single[32], doubl[32]; char *singlep, *doublep;
+	for (int i = 0; i<32; i++) {
+		uint64_t fpr64 = ex->regs->fpr[i];
+		uint32_t fpr32 = fpr64;
+
+		snprintf(hex, sizeof(hex), "%016llx", fpr64);
+
+		float f;  memcpy(&f, &fpr32, sizeof(float));
+		double g; memcpy(&g, &fpr64, sizeof(double));
+
+		// Check for denormal on the integer representation. Unfortunately, even
+		// fpclassify() generates an unmaskable exception on denormals, so it can't be used.
+		// Open GCC bug: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66462
+		if ((fpr32 & 0x7F800000) == 0 && (fpr32 & 0x007FFFFF) != 0)
+			singlep = "<Denormal>";
+		else if (__builtin_isnan(f))
+			singlep = "<NaN>";
+		else if (__builtin_isinf(f))
+			singlep = (f < 0) ? "<-Inf>" : "<+Inf>";
+		else
+			sprintf(single, "%.12g", f), singlep = single;
+
+		if ((fpr64 & 0x7FF0000000000000ull) == 0 && (fpr64 & 0x000FFFFFFFFFFFFFull) != 0)
+			doublep = "<Denormal>";
+		else if (__builtin_isnan(g))
+			doublep = "<NaN>";
+		else if (__builtin_isinf(g))
+			doublep = (g < 0) ? "<-Inf>" : "<+Inf>";
+		else
+			sprintf(doubl, "%.17g", g), doublep = doubl;
+
+		cb(arg, __mips_fpreg[i], hex, singlep, doublep);
+	}
+}
+
+static void debug_exception(exception_t* ex) {
+	debugf("\n\n******* CPU EXCEPTION *******\n");
+	__exception_dump_header(stderr, ex);
+
+	if (true) {
+		int idx = 0;
+		void cb(void *arg, const char *regname, char* value) {
+			debugf("%s: %s%s", regname, value, ++idx % 4 ? "   " : "\n");
+		}
+		debugf("GPR:\n"); 
+		__exception_dump_gpr(ex, cb, NULL);
+		debugf("\n\n");
+	}	
+	
+	if (ex->code == EXCEPTION_CODE_FLOATING_POINT) {
+		void cb(void *arg, const char *regname, char* hex, char *singlep, char *doublep) {
+			debugf("%4s: %s (%16s | %22s)\n", regname, hex, singlep, doublep);
+		}
+		debugf("FPR:\n"); 
+		__exception_dump_fpr(ex, cb, NULL);
+		debugf("\n");
+	}
 }
 
 /**
@@ -78,128 +209,17 @@ void register_exception_handler( void (*cb)(exception_t*))
  * of all GPR/FPR registers. It then calls abort() to abort execution.
  */
 void exception_default_handler(exception_t* ex) {
-	uint32_t cr = ex->regs->cr;
-	uint32_t sr = ex->regs->sr;
-	uint32_t fcr31 = ex->regs->fc31;
+	// Write immediately as much data as we can to the debug spew. This is the
+	// "safe" path, because it doesn't involve touching the console drawing code.
+	debug_exception(ex);
 
-	switch(ex->code) {
-		case EXCEPTION_CODE_STORE_ADDRESS_ERROR:
-		case EXCEPTION_CODE_LOAD_I_ADDRESS_ERROR:
-		case EXCEPTION_CODE_TLB_MODIFICATION:
-		case EXCEPTION_CODE_TLB_STORE_MISS:
-		case EXCEPTION_CODE_TLB_LOAD_I_MISS:
-		case EXCEPTION_CODE_COPROCESSOR_UNUSABLE:
-		case EXCEPTION_CODE_FLOATING_POINT:
-		case EXCEPTION_CODE_WATCH:
-		case EXCEPTION_CODE_ARITHMETIC_OVERFLOW:
-		case EXCEPTION_CODE_TRAP:
-		case EXCEPTION_CODE_I_BUS_ERROR:
-		case EXCEPTION_CODE_D_BUS_ERROR:
-		case EXCEPTION_CODE_SYS_CALL:
-		case EXCEPTION_CODE_BREAKPOINT:
-		case EXCEPTION_CODE_INTERRUPT:
-		default:
-		break;
-	}
+	// Show a backtrace (starting from just before the exception handler)
+	extern void __debug_backtrace(FILE *out, bool skip_exception);
+	__debug_backtrace(stderr, true);
 
-	console_init();
-	console_set_debug(true);
-	console_set_render_mode(RENDER_MANUAL);
+	// Run the inspector
+	__inspector_exception(ex);
 
-	fprintf(stdout, "%s exception at PC:%08lX\n", ex->info, (uint32_t)(ex->regs->epc + ((cr & C0_CAUSE_BD) ? 4 : 0)));
-
-	fprintf(stdout, "CR:%08lX (COP:%1lu BD:%u)\n", cr, C0_GET_CAUSE_CE(cr), (bool)(cr & C0_CAUSE_BD));
-	fprintf(stdout, "SR:%08lX FCR31:%08X BVAdr:%08lX \n", sr, (unsigned int)fcr31, C0_BADVADDR());
-	fprintf(stdout, "----------------------------------------------------------------");
-	fprintf(stdout, "FPU IOP UND OVE DV0 INV NI | INT sw0 sw1 ex0 ex1 ex2 ex3 ex4 tmr");
-	fprintf(stdout, "Cause%2u %3u %3u %3u %3u%3u | Cause%2u %3u %3u %3u %3u %3u %3u %3u",
-		(bool)(fcr31 & C1_CAUSE_INEXACT_OP),
-		(bool)(fcr31 & C1_CAUSE_UNDERFLOW),
-		(bool)(fcr31 & C1_CAUSE_OVERFLOW),
-		(bool)(fcr31 & C1_CAUSE_DIV_BY_0),
-		(bool)(fcr31 & C1_CAUSE_INVALID_OP),
-		(bool)(fcr31 & C1_CAUSE_NOT_IMPLEMENTED),
-
-		(bool)(cr & C0_INTERRUPT_0),
-		(bool)(cr & C0_INTERRUPT_1),
-		(bool)(cr & C0_INTERRUPT_RCP),
-		(bool)(cr & C0_INTERRUPT_3),
-		(bool)(cr & C0_INTERRUPT_4),
-		(bool)(cr & C0_INTERRUPT_5),
-		(bool)(cr & C0_INTERRUPT_6),
-		(bool)(cr & C0_INTERRUPT_TIMER)
-	);
-	fprintf(stdout, "En  %3u %3u %3u %3u %3u  - | MASK%3u %3u %3u %3u %3u %3u %3u %3u",
-		(bool)(fcr31 & C1_ENABLE_INEXACT_OP),
-		(bool)(fcr31 & C1_ENABLE_UNDERFLOW),
-		(bool)(fcr31 & C1_ENABLE_OVERFLOW),
-		(bool)(fcr31 & C1_ENABLE_DIV_BY_0),
-		(bool)(fcr31 & C1_ENABLE_INVALID_OP),
-
-		(bool)(sr & C0_INTERRUPT_0),
-		(bool)(sr & C0_INTERRUPT_1),
-		(bool)(sr & C0_INTERRUPT_RCP),
-		(bool)(sr & C0_INTERRUPT_3),
-		(bool)(sr & C0_INTERRUPT_4),
-		(bool)(sr & C0_INTERRUPT_5),
-		(bool)(sr & C0_INTERRUPT_6),
-		(bool)(sr & C0_INTERRUPT_TIMER)
-	);
-
-	fprintf(stdout, "Flags%2u %3u %3u %3u %3u  - |\n",
-		(bool)(fcr31 & C1_FLAG_INEXACT_OP),
-		(bool)(fcr31 & C1_FLAG_UNDERFLOW),
-		(bool)(fcr31 & C1_FLAG_OVERFLOW),
-		(bool)(fcr31 & C1_FLAG_DIV_BY_0),
-		(bool)(fcr31 & C1_FLAG_INVALID_OP)
-	);
-
-	fprintf(stdout, "-------------------------------------------------GP Registers---");
-
-	fprintf(stdout, "z0:%08lX ",		(uint32_t)ex->regs->gpr[0]);
-	fprintf(stdout, "at:%08lX ",		(uint32_t)ex->regs->gpr[1]);
-	fprintf(stdout, "v0:%08lX ",		(uint32_t)ex->regs->gpr[2]);
-	fprintf(stdout, "v1:%08lX ",		(uint32_t)ex->regs->gpr[3]);
-	fprintf(stdout, "a0:%08lX\n",		(uint32_t)ex->regs->gpr[4]);
-	fprintf(stdout, "a1:%08lX ",		(uint32_t)ex->regs->gpr[5]);
-	fprintf(stdout, "a2:%08lX ",		(uint32_t)ex->regs->gpr[6]);
-	fprintf(stdout, "a3:%08lX ",		(uint32_t)ex->regs->gpr[7]);
-	fprintf(stdout, "t0:%08lX ",		(uint32_t)ex->regs->gpr[8]);
-	fprintf(stdout, "t1:%08lX\n",		(uint32_t)ex->regs->gpr[9]);
-	fprintf(stdout, "t2:%08lX ",		(uint32_t)ex->regs->gpr[10]);
-	fprintf(stdout, "t3:%08lX ",		(uint32_t)ex->regs->gpr[11]);
-	fprintf(stdout, "t4:%08lX ",		(uint32_t)ex->regs->gpr[12]);
-	fprintf(stdout, "t5:%08lX ",		(uint32_t)ex->regs->gpr[13]);
-	fprintf(stdout, "t6:%08lX\n",		(uint32_t)ex->regs->gpr[14]);
-	fprintf(stdout, "t7:%08lX ",		(uint32_t)ex->regs->gpr[15]);
-	fprintf(stdout, "t8:%08lX ",		(uint32_t)ex->regs->gpr[24]);
-	fprintf(stdout, "t9:%08lX ",		(uint32_t)ex->regs->gpr[25]);
-
-	fprintf(stdout, "s0:%08lX ",		(uint32_t)ex->regs->gpr[16]);
-	fprintf(stdout, "s1:%08lX\n",		(uint32_t)ex->regs->gpr[17]);
-	fprintf(stdout, "s2:%08lX ",		(uint32_t)ex->regs->gpr[18]);
-	fprintf(stdout, "s3:%08lX ",		(uint32_t)ex->regs->gpr[19]);
-	fprintf(stdout, "s4:%08lX ",		(uint32_t)ex->regs->gpr[20]);
-	fprintf(stdout, "s5:%08lX ",		(uint32_t)ex->regs->gpr[21]);
-	fprintf(stdout, "s6:%08lX\n",		(uint32_t)ex->regs->gpr[22]);
-	fprintf(stdout, "s7:%08lX ",		(uint32_t)ex->regs->gpr[23]);
-
-	fprintf(stdout, "gp:%08lX ",		(uint32_t)ex->regs->gpr[28]);
-	fprintf(stdout, "sp:%08lX ",		(uint32_t)ex->regs->gpr[29]);
-	fprintf(stdout, "fp:%08lX ",		(uint32_t)ex->regs->gpr[30]);
-	fprintf(stdout, "ra:%08lX \n",		(uint32_t)ex->regs->gpr[31]);
-	fprintf(stdout, "lo:%016llX ",		ex->regs->lo);
-	fprintf(stdout, "hi:%016llX\n",		ex->regs->hi);
-
-	fprintf(stdout, "-------------------------------------------------FP Registers---");
-	for (int i = 0; i<32; i++) {
-		fprintf(stdout, "%02u:%016llX  ", i, ex->regs->fpr[i]);
-		if ((i % 3) == 2) {
-			fprintf(stdout, "\n");
-		}
-	}
-
-	console_render();
 	abort();
 }
 
@@ -211,7 +231,7 @@ void exception_default_handler(exception_t* ex) {
  *
  * @return String representation of the exception
  */
-static const char* __get_exception_name(exception_code_t code)
+static const char* __get_exception_name(exception_t *ex)
 {
 	static const char* exceptionMap[] =
 	{
@@ -311,7 +331,7 @@ static const char* __get_exception_name(exception_code_t code)
  * @param[in]  regs
  *             CPU register status at exception time
  */
-static void __fetch_regs(exception_t* e, int32_t type, volatile reg_block_t *regs)
+static void __fetch_regs(exception_t* e, int32_t type, reg_block_t *regs)
 {
 	e->regs = regs;
 	e->type = type;
@@ -322,7 +342,7 @@ static void __fetch_regs(exception_t* e, int32_t type, volatile reg_block_t *reg
 /**
  * @brief Respond to a critical exception
  */
-void __onCriticalException(volatile reg_block_t* regs)
+void __onCriticalException(reg_block_t* regs)
 {
 	exception_t e;
 
@@ -331,5 +351,70 @@ void __onCriticalException(volatile reg_block_t* regs)
 	__fetch_regs(&e, EXCEPTION_TYPE_CRITICAL, regs);
 	__exception_handler(&e);
 }
+
+/**
+ * @brief Register a handler that will be called when a syscall exception
+ * 
+ * This function allows to register a handler to be invoked in response to a
+ * syscall exception, generated by the SYSCALL opcode. The opcode allows to
+ * specify a 20-bit code which in a more traditional operating system architecture,
+ * corresponds to the "service" to be called.
+ * 
+ * To allow for different usages of the code field, this function accepts
+ * a mask to apply to the code, and a value to compare the masked code against.
+ * For instance, if a handler wants to handle all syscall codes in the range
+ * 0x12300-0x123FF, it can register a mask of 0xFFF00 and a code of 0x12300.
+ * 
+ * @note Syscall codes in the range 0x00000 - 0x0FFFF are reserved to libdragon
+ * itself. Use a code outside that range to avoid conflicts with future versions
+ * of libdragon.
+ * 
+ * @param handler  	Handler to invoke when a syscall exception is triggered
+ * @param mask 	    Mask to use to evaluate the syscall code
+ * @param code 		Value expected for the syscall code (after applying the mask)
+ */
+void register_syscall_handler( syscall_handler_t handler, uint32_t mask, uint32_t code )
+{
+	for (int i=0;i<MAX_SYSCALL_HANDLERS;i++)
+	{
+		if (!__syscall_handlers[i].handler)
+		{
+			__syscall_handlers[i].code = code;
+			__syscall_handlers[i].mask = mask;
+			__syscall_handlers[i].handler = handler;
+			return;
+		}
+	}
+	assertf(0, "Too many syscall handlers\n");
+}
+
+
+/**
+ * @brief Respond to a syscall exception.
+ * 
+ * Calls the handlers registered by #register_syscall_handler.
+ */
+void __onSyscallException( reg_block_t* regs )
+{
+	exception_t e;
+
+	if(!__exception_handler) { return; }
+
+	__fetch_regs(&e, EXCEPTION_TYPE_SYSCALL, regs);
+
+	// Fetch the syscall code from the opcode
+	uint32_t epc = e.regs->epc;
+	uint32_t opcode = *(uint32_t*)epc;
+	uint32_t code = (opcode >> 6) & 0xfffff;
+
+	for (int i=0; i<MAX_SYSCALL_HANDLERS; i++)
+	{
+		if (__syscall_handlers[i].code == (code & __syscall_handlers[i].mask))
+		{
+			__syscall_handlers[i].handler(&e, code);
+		}
+	}
+}
+
 
 /** @} */
