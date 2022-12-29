@@ -426,3 +426,23 @@ char** backtrace_symbols(void **buffer, int size)
     backtrace_symbols_cb(buffer, size, 0, cb, NULL);
     return syms;
 }
+
+void backtrace_frame_print(backtrace_frame_t *frame, FILE *out)
+{
+    fprintf(out, "%s+0x%lx (%s:%d) [0x%08lx]%s", 
+        frame->func, frame->func_offset, 
+        frame->source_file, frame->source_line,
+        frame->addr, frame->is_inline ? " (inline)" : "");
+}
+
+void backtrace_frame_print_compact(backtrace_frame_t *frame, FILE *out, int width)
+{
+    const char *source_file = frame->source_file;
+    int len = strlen(frame->func) + strlen(source_file);
+    bool ellipsed = false;
+    if (len > width) {
+        source_file += len - (width - 8);
+        ellipsed = true;
+    }
+    fprintf(out, "%s (%s%s:%d)\n", frame->func, ellipsed ? "..." : "", source_file, frame->source_line);
+}

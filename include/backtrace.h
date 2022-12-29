@@ -27,6 +27,7 @@
 #define __LIBDRAGON_BACKTRACE_H
 
 #include <stdbool.h>
+#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -46,6 +47,57 @@ typedef struct {
 
     bool is_inline;             ///< True if this frame has been inlined
 } backtrace_frame_t;
+
+
+/**
+ * @brief Print a single frame of a backtrace
+ * 
+ * Print all the information about a single frame of a backtrace, with
+ * the following format:
+ * 
+ * ```
+ *    <func>+<offset> (<source_file>:<source_line>) [<address>]
+ * ```
+ * 
+ * for instance:
+ * 
+ * ```
+ *    debug_assert_func_f+0x9c (/home/user/src/libdragon/src/debug.c:537) [0x80010c5c]
+ * ```
+ * 
+ * @param out       File to print to
+ * @param frame     Frame to print
+ */
+void backtrace_frame_print(backtrace_frame_t *frame, FILE *out);
+
+/**
+ * @brief Print a single frame of a backtrace, in a compact format
+ * 
+ * Print a frame of a backtrace in a compact format, with a limited width in number
+ * of characters. This is the format:
+ * 
+ * ```
+ *    <func> (<source_file>:<source_line>)
+ * ```
+ * 
+ * but the source file will be truncated to fit the width, showing only its final
+ * part. For instance, if the width is 40 characters, the following frame:
+ * 
+ * ```
+ *   debug_assert_func_f+0x9c (/home/user/src/libdragon/src/debug.c:537) [0x80010c5c]
+ * ```
+ * 
+ * will be printed as:
+ * 
+ * ```
+ *    debug_assert_func_f (.../src/debug.c:537)
+ * ```
+ * 
+ * @param out       File to print to
+ * @param frame     Frame to print
+ * @param width     Width in characters to fit the frame information to
+ */
+void backtrace_frame_print_compact(backtrace_frame_t *frame, FILE *out, int width);
 
 /**
  * @brief Walk the stack and return the current call stack
