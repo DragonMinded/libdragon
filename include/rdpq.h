@@ -1265,14 +1265,16 @@ inline void rdpq_set_z_image_raw(uint8_t index, uint32_t offset)
  *                     if index is 0, this can be a physical address to a buffer (use
  *                     #PhysicalAddr to convert a C pointer to a physical address).
  * @param format       Format of the texture (#tex_format_t)
- * @param width        Width of the texture in pixel
- * @param height       Height of the texture in pixel
+ * @param width        Width of the texture in pixel (max 1024)
+ * @param height       Height of the texture in pixel (max 1024)
  * 
  * @see #rdpq_set_texture_image
  * @see #rdpq_set_lookup_address
  */
 inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_format_t format, uint16_t width, uint16_t height)
 {
+    assertf(width <= 1024, "Texture width out of range [1,1024]: %d", width);
+    assertf(height <= 1024, "Texture height out of range [1,1024]: %d", height);
     assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
     extern void __rdpq_fixup_write8_pipe(uint32_t, uint32_t, uint32_t);
     // NOTE: we also encode the texture height in the command (split in two halves...)
