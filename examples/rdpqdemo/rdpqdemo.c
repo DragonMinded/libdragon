@@ -1,8 +1,6 @@
 #include "libdragon.h"
 #include <malloc.h>
 
-static wav64_t sfx_cannon;
-static xm64player_t xm;
 static sprite_t *brew_sprite;
 static sprite_t *tiles_sprite;
 
@@ -62,13 +60,14 @@ void update(int ovfl)
 
 void render()
 {
-    surface_t *disp = display_lock();
-    if (!disp)
-    {
-        return;
+    surface_t *disp;
+    RSP_WAIT_LOOP(200) {
+        if ((disp = display_lock())) {
+            break;
+        }
     }
 
-    rdp_attach(disp);
+    rdpq_attach(disp);
 
     // Clear the screen
     rdpq_set_mode_fill(RGBA32(0,0,0,255));
@@ -101,7 +100,7 @@ void render()
         }
     }
 
-    rdp_detach_show(disp);
+    rdpq_detach_show();
 }
 
 int main()
@@ -119,12 +118,8 @@ int main()
     
     dfs_init(DFS_DEFAULT_LOCATION);
 
-    audio_init(44100, 4);
-    mixer_init(32);
-
-    rdp_init();
+    rdpq_init();
     rdpq_debug_start();
-    // rdpq_debug_log(true);
 
     brew_sprite = sprite_load("rom:/n64brew.sprite");
 
@@ -184,11 +179,6 @@ int main()
     // Pop the mode stack if we pushed it before
     if (tlut) rdpq_mode_pop();
     tiles_block = rspq_block_end();
-    
-    wav64_open(&sfx_cannon, "cannon.wav64");
-
-    xm64player_open(&xm, "rom:/Caverns16bit.xm64");
-    xm64player_play(&xm, 2);
 
     new_timer(TIMER_TICKS(1000000 / 60), TF_CONTINUOUS, update);
 
@@ -199,22 +189,12 @@ int main()
         controller_scan();
         struct controller_data ckeys = get_keys_down();
 
-        if (ckeys.c[0].A) {
-            mixer_ch_play(0, &sfx_cannon.wave);
-        }
-
         if (ckeys.c[0].C_up && num_objs < NUM_OBJECTS) {
             ++num_objs;
         }
 
         if (ckeys.c[0].C_down && num_objs > 1) {
             --num_objs;
-        }
-
-        if (audio_can_write()) {    	
-            short *buf = audio_write_begin();
-            mixer_poll(buf, audio_get_buffer_length());
-            audio_write_end();
         }
     }
 }
