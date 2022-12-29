@@ -78,7 +78,7 @@ N64_CFLAGS += -std=gnu99
 %.z64: LDFLAGS+=$(N64_LDFLAGS)
 %.z64: $(BUILD_DIR)/%.elf
 	@echo "    [Z64] $@"
-	$(N64_SYM) -v $< $<.sym
+	$(N64_SYM) $< $<.sym
 	$(N64_OBJCOPY) -O binary $< $<.bin
 	@rm -f $@
 	DFS_FILE="$(filter %.dfs, $^)"; \
