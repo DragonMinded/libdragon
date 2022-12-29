@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "rsp.h"
+#include "rdp.h"
 #include "debug.h"
 #include "console.h"
 #include "regsinternal.h"
@@ -201,7 +202,7 @@ void __rsp_check_assert(const char *file, int line, const char *func)
 __attribute__((noreturn, format(printf, 4, 5)))
 void __rsp_crash(const char *file, int line, const char *func, const char *msg, ...)
 {
-    volatile uint32_t *DP_STATUS = (volatile uint32_t*)0xA410000C;
+    volatile uint32_t *DP_REGS = (volatile uint32_t*)0xA4100000;
     volatile uint32_t *SP_REGS = (volatile uint32_t*)0xA4040000;
 
     rsp_snapshot_t state __attribute__((aligned(8)));
@@ -220,10 +221,25 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
     // Now read all SP registers. Most of them are DMA-related so the earlier
     // we read them the better. We can't freeze the DMA transfer so they might
     // be slightly incoherent.
-    uint32_t sp_regs[8];
-    for (int i=0;i<8;i++)
+    uint32_t sp_regs[8], dp_regs[8];
+    for (int i=0;i<8;i++) {
         sp_regs[i] = i==4 ? sp_status : SP_REGS[i];
+        dp_regs[i] = i==3 ? dp_status : DP_REGS[i];
+    }
     MEMORY_BARRIER();
+
+    // We now need to check whether the RDP has crashed. We need to send a
+    // DMA transfer (unless one is already going)
+    uint64_t dummy_rdp_command = 0x2700000000000000ull; // sync pipe
+    if (!(dp_status & (DP_STATUS_DMA_BUSY | DP_STATUS_START_VALID | DP_STATUS_END_VALID))) {
+        data_cache_hit_writeback_invalidate(&dummy_rdp_command, sizeof(dummy_rdp_command));
+        *DP_START = PhysicalAddr(&dummy_rdp_command);
+        *DP_END = PhysicalAddr(&dummy_rdp_command + 1);
+    }
+    // Check if there are any progresses in DP_CURRENT
+    for (int i=0; i<20 && *DP_CURRENT == dp_regs[2]; i++)
+        wait_ms(5);
+    bool rdp_crashed = *DP_CURRENT == dp_regs[2];
 
     // Freeze the RDP
     *DP_STATUS = 1<<3;
@@ -254,10 +270,12 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
     rsp_read_data(&state, 764, 0);
  
     // Overwrite the status register information with the reads we did at
-    // the beginning of the handler
-    for (int i=0;i<8;i++)
-        state.cop0[i] = sp_regs[i];
-    state.cop0[11] = dp_status;
+    // the beginning of the handler.
+    // FIXME: maybe not read these anymore from the RSP?
+    for (int i=0;i<8;i++) {
+        state.cop0[i+0] = sp_regs[i];
+        state.cop0[i+8] = dp_regs[i];
+    }
 
     // Write the PC now so it doesn't get overwritten by the DMA
     state.pc = pc;
@@ -301,7 +319,7 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
     // (it is unknown why sometimes it doesn't). So this is just a best effort to
     // highlight the presence of the important FREEZE bit in DP STATUS that could
     // otherwise go unnoticed.
-    if (state.cop0[11] & 2) {
+    if (rdp_crashed) {
         printf("RDP CRASHED: the code triggered a RDP hardware bug.\n");
         printf("Use the rdpq validator (rdpq_debug_start()) to analyze.\n");
     }
@@ -313,7 +331,7 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
         uint16_t code = state.gpr[1] >> 16;
         printf("RSP ASSERTION FAILED (0x%x)", code);
 
-        if (uc->assert_handler) {
+        if (uc && uc->assert_handler) {
             printf(" - ");
             uc->assert_handler(&state, code);
         } else {
@@ -412,7 +430,7 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
 
     // Invoke ucode-specific crash handler, if defined. This will dump ucode-specific
     // information (possibly decoded from DMEM).
-    if (uc->crash_handler) {
+    if (uc && uc->crash_handler) {
         printf("-----------------------------------------------Ucode data------\n");
         uc->crash_handler(&state);
     }

@@ -157,9 +157,6 @@ bool gl_begin(GLenum mode)
     state.prim_counter = 0;
     state.prim_id = 0;
 
-    gl_set_short(GL_UPDATE_POINTS, offsetof(gl_server_state_t, prim_type), (uint16_t)mode);
-    gl_update(GL_UPDATE_COMBINER);
-
     gl_texture_object_t *tex_obj = gl_get_active_texture();
     if (tex_obj != NULL && gl_tex_is_complete(tex_obj)) {
         state.prim_texture = true;
@@ -177,6 +174,11 @@ bool gl_begin(GLenum mode)
         state.prim_tex_height = 0;
         state.prim_bilinear = false;
     }
+
+    __rdpq_autosync_change(AUTOSYNC_PIPE);
+
+    gl_set_short(GL_UPDATE_POINTS, offsetof(gl_server_state_t, prim_type), (uint16_t)mode);
+    gl_update(GL_UPDATE_COMBINER);
 
     state.trifmt = (rdpq_trifmt_t){
         .pos_offset = VTX_SCREEN_POS_OFFSET,
@@ -1230,6 +1232,12 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
     #if RSP_PRIM_ASSEMBLY
     #define OBJ_SCALE   32.0f
     #define fx16(v)  ((uint32_t)((int32_t)((v))) & 0xFFFF)
+
+    uint32_t res = AUTOSYNC_PIPE;
+    // FIXME: This doesn't work with display lists!
+    if (state.prim_texture) res |= AUTOSYNC_TILES;
+
+    __rdpq_autosync_use(res);
 
     glp_write(GLP_CMD_VTX_BASE + VTX_CMD_FLAG_POSITION, state.prim_id++, 
         (fx16(x*OBJ_SCALE) << 16) | fx16(y*OBJ_SCALE),
