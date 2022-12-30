@@ -21,6 +21,8 @@
  * You can call the functions to inspect the current call stack. For
  * a higher level function that just prints the current call stack
  * on the debug channels, see #debug_backtrace.
+ * 
+ * @{
  */
 
 #ifndef __LIBDRAGON_BACKTRACE_H
@@ -37,15 +39,15 @@ extern "C" {
  * @brief A stack frame, part of a backtrace
  */
 typedef struct {
-    uint32_t addr;              ///< Memory address of the return address
+    uint32_t addr;              ///< PC address of the frame (MIPS virtual address)
 
-    const char *func;           ///< Name of the function (if known)
-    uint32_t func_offset;       ///< Byte offset of the address within the function (if known)
+    const char *func;           ///< Name of the function (this should always be present)
+    uint32_t func_offset;       ///< Byte offset of the address within the function
 
-    const char *source_file;    ///< Name of the source file (if known)
-    int source_line;            ///< Line number in the source file (if known)
+    const char *source_file;    ///< Name of the source file (if known, or "???" otherwise)
+    int source_line;            ///< Line number in the source file (if known, or 0 otherwise)
 
-    bool is_inline;             ///< True if this frame has been inlined
+    bool is_inline;             ///< True if this frame refers to an inlined function
 } backtrace_frame_t;
 
 
@@ -157,15 +159,16 @@ char** backtrace_symbols(void **buffer, int size);
  * 
  * This function is similar to #backtrace_symbols, but instead of formatting strings
  * into a heap-allocated buffer, it invokes a callback for each symbolized stack
- * frame.
- * 
- * This allows to skip the memory allocation if not required, and also allows
+ * frame. This allows to skip the memory allocation if not required, and also allows
  * for custom processing / formatting of the backtrace by the caller.
  * 
  * The callback will receive an opaque argument (cb_arg) and a pointer to a
  * stack frame descriptor (#backtrace_frame_t). The descriptor and all its
  * contents (including strings) is valid only for the duration of the call,
  * so the callback must (deep-)copy any data it needs to keep.
+ * 
+ * The callback implementation might find useful to call #backtrace_frame_print
+ * or #backtrace_frame_print_compact to print the frame information.
  * 
  * @param buffer    Array of return addresses, populated by #backtrace
  * @param size      Size of the provided buffer, in number of pointers.
@@ -186,5 +189,7 @@ bool backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
 #ifdef __cplusplus
 }
 #endif
+
+/** @} */
 
 #endif

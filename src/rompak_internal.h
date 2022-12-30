@@ -17,13 +17,15 @@
  * Libdragon ROMs created by n64tool allows to have several data files
  * attached to them. We call this super minimal filesystem "rompak".
  * 
- * The rompak can optionally create a TOC (table of contents) which is
+ * The rompak can optionally contain a TOC (table of contents) which is
  * a directory that allows to list the files and know their offset. The
  * libdragon build system (n64.mk) creates this by default.
  * 
  * Rompak is used by libdragon itself to provide a few features. Users
  * should not typically use rompak directly, but rather use the
  * DragonFS (which is itself a single file in the rompak).
+ * 
+ * @{
  */
 
 /**
@@ -40,5 +42,7 @@
  *                doesn't exist or the TOC is not present.
  */
 uint32_t rompak_search_ext(const char *ext);
+
+/** @} */
 
 #endif

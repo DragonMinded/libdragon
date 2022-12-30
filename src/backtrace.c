@@ -1,3 +1,60 @@
+/**
+ * @file backtrace.c
+ * @brief Backtrace (call stack) support
+ * @ingroup backtrace
+ * 
+ * This file contains the implementation of the backtrace support. See
+ * backtrace.h for an overview of the API. Here follows some implementation
+ * details.
+ * 
+ * Backtrace 
+ * =========
+ * MIPS ABIs do not generally provide a way to walk the stack, as the frame
+ * pointer is not guaranteed to be present. It is possible to force its presence
+ * via "-fno-omit-frame-pointer", but we tried to provide a solution that works
+ * with standard compilation settings.
+ * 
+ * To perform backtracing, we scan the code backward starting from the return address
+ * of each frame. While scanning, we note some special instructions that we look
+ * for. The two main instructions that we look for are `sd ra, offset(sp)` which is
+ * used to save the previous return address to the stack, and `addiu sp, sp, offset`
+ * which creates the stack frame for the current function. When we find both, we know
+ * how to get back to the previous frame. 
+ * 
+ * Notice that this also works through exceptions, as the exception handler does create
+ * a stack frame exactly like a standard function (see inthandler.S). 
+ * 
+ * Only a few functions do use a frame pointer: those that allocate a runtime-calculated
+ * amount of stack (eg: using alloca). Because of this, we actually look for usages
+ * of the frame pointer register fp, and track those as well to be able to correctly
+ * walk the stack in those cases.
+ * 
+ * Symbolization
+ * =============
+ * To symbolize the backtrace, we use a symbol table file (SYMT) that is generated
+ * by the n64sym tool during the build process. The symbol table is put into the
+ * rompak (see rompak_internal.h) and is structured in a way that can be queried
+ * directly from ROM, without even allocating memory. This is especially useful
+ * to provide backtrace in catastrophic situations where the heap is not available.
+ * 
+ * The symbol table file contains the source code references (function name, file name,
+ * line number) for a number of addresses in the ROM. Since it would be impractical to
+ * save information for all the addresses in the text segment, only special addresses
+ * are saved: in particular, those where a function call is made (ie: the address of
+ * JAL / JALR instructions), which are the ones that are commonly found in backtraces
+ * and thus need to be symbolized. In addition to these, the symbol table contains
+ * also information associated to the addresses that mark the start of each function,
+ * so that it's always possible to infer the function a certain address belongs to.
+ * 
+ * Given that not all addresses are saved, it is important to provide accurate
+ * source code references for stack frames that are interrupted by interrupts or 
+ * exceptions; in those cases, the symbolization will simply return the function name
+ * the addresses belongs to, without any source code reference.
+ * 
+ * To see more details on how the symbol table is structured in the ROM, see
+ * #symtable_header_t and the source code of the n64sym tool.
+ * 
+ */
 #include <stdint.h>
 #include <stdalign.h>
 #include <stdlib.h>
@@ -20,6 +77,9 @@
  * @note This must be kept in sync with n64.mk.
  */
 #define FUNCTION_ALIGNMENT      32
+
+#define MAX_FILE_LEN 120        ///< Maximum length of a file name in a backtrace entry
+#define MAX_FUNC_LEN 120        ///< Maximum length of a function name in a backtrace entry
 
 /** 
  * @brief Symbol table file header
@@ -77,16 +137,14 @@ typedef uint32_t addrtable_entry_t;
 #define ADDRENTRY_IS_FUNC(e)    ((e) &  1)     ///< True if the address is the start of a function
 #define ADDRENTRY_IS_INLINE(e)  ((e) &  2)     ///< True if the address is an inline duplicate
 
-#define MIPS_OP_ADDIU_SP(op)   (((op) & 0xFFFF0000) == 0x27BD0000)   // addiu $sp, $sp, imm
-#define MIPS_OP_DADDIU_SP(op)  (((op) & 0xFFFF0000) == 0x67BD0000)   // daddiu $sp, $sp, imm
-#define MIPS_OP_JR_RA(op)      (((op) & 0xFFFF0000) == 0x03E00008)   // jr $ra
-#define MIPS_OP_SD_RA_SP(op)   (((op) & 0xFFFF0000) == 0xFFBF0000)   // sd $ra, imm($sp)
-#define MIPS_OP_SD_FP_SP(op)   (((op) & 0xFFFF0000) == 0xFFBE0000)   // sd $fp, imm($sp)
-#define MIPS_OP_LUI_GP(op)     (((op) & 0xFFFF0000) == 0x3C1C0000)   // lui $gp, imm
-#define MIPS_OP_NOP(op)        ((op) == 0x00000000)                  // nop
-#define MIPS_OP_MOVE_FP_SP(op) ((op) == 0x03A0F025)                  // move $fp, $sp
-
-#define ABS(x)   ((x) < 0 ? -(x) : (x))
+#define MIPS_OP_ADDIU_SP(op)   (((op) & 0xFFFF0000) == 0x27BD0000)   ///< Matches: addiu $sp, $sp, imm
+#define MIPS_OP_DADDIU_SP(op)  (((op) & 0xFFFF0000) == 0x67BD0000)   ///< Matches: daddiu $sp, $sp, imm
+#define MIPS_OP_JR_RA(op)      (((op) & 0xFFFF0000) == 0x03E00008)   ///< Matches: jr $ra
+#define MIPS_OP_SD_RA_SP(op)   (((op) & 0xFFFF0000) == 0xFFBF0000)   ///< Matches: sd $ra, imm($sp)
+#define MIPS_OP_SD_FP_SP(op)   (((op) & 0xFFFF0000) == 0xFFBE0000)   ///< Matches: sd $fp, imm($sp)
+#define MIPS_OP_LUI_GP(op)     (((op) & 0xFFFF0000) == 0x3C1C0000)   ///< Matches: lui $gp, imm
+#define MIPS_OP_NOP(op)        ((op) == 0x00000000)                  ///< Matches: nop
+#define MIPS_OP_MOVE_FP_SP(op) ((op) == 0x03A0F025)                  ///< Matches: move $fp, $sp
 
 /** @brief Exception handler (see inthandler.S) */
 extern uint32_t inthandler[];
@@ -126,6 +184,13 @@ static symtable_header_t symt_open(void) {
     return symt_header;
 }
 
+/**
+ * @brief Return an entry in the address table by index
+ * 
+ * @param symt      SYMT file header
+ * @param idx       Index of the entry to return
+ * @return addrtable_entry_t  Entry of the address table
+ */
 static addrtable_entry_t symt_addrtab_entry(symtable_header_t *symt, int idx)
 {
     return io_read(SYMT_ROM + symt->addrtab_off + idx * 4);
@@ -407,10 +472,6 @@ int backtrace(void **buffer, int size)
 	return size;
 }
 
-#define MAX_FILE_LEN 120
-#define MAX_FUNC_LEN 120
-#define MAX_SYM_LEN  (MAX_FILE_LEN + MAX_FUNC_LEN + 24)
-
 static void format_entry(void (*cb)(void *, backtrace_frame_t *), void *cb_arg, 
     symtable_header_t *symt, int idx, uint32_t addr, uint32_t offset, bool is_func, bool is_inline)
 {       
@@ -460,6 +521,7 @@ bool backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
 
 char** backtrace_symbols(void **buffer, int size)
 {
+    const int MAX_SYM_LEN = MAX_FILE_LEN + MAX_FUNC_LEN + 24;
     char **syms = malloc(2 * size * (sizeof(char*) + MAX_SYM_LEN));
     char *out = (char*)syms + size*sizeof(char*);
     int level = 0;

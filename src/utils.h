@@ -11,17 +11,19 @@
 #define MIN(a,b)  ({ typeof(a) _a = a; typeof(b) _b = b; _a < _b ? _a : _b; })
 #define CLAMP(x, min, max) (MIN(MAX((x), (min)), (max)))
 
-/** Round n up to the next multiple of d */
+/** @brief Round n up to the next multiple of d */
 #define ROUND_UP(n, d) ({ \
 	typeof(n) _n = n; typeof(d) _d = d; \
 	(((_n) + (_d) - 1) / (_d) * (_d)); \
 })
 
-/** Return the ceil of n/d */
+/** @brief Return the ceil of n/d */
 #define DIVIDE_CEIL(n, d) ({ \
 	typeof(n) _n = n; typeof(d) _d = d; \
 	((_n) + (_d) - 1) / (_d); \
 })
 
+/**	@brief Absolute number */
+#define ABS(x)   ((x) < 0 ? -(x) : (x))
 
 #endif

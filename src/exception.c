@@ -397,6 +397,8 @@ void __onCriticalException(reg_block_t* regs)
  */
 void register_syscall_handler( syscall_handler_t handler, uint32_t mask, uint32_t code )
 {
+	assertf((code & ~mask) == 0, "The syscall code (%05lx) contains bits outside of the mask (%05lx)\n", code, mask);
+
 	for (int i=0;i<MAX_SYSCALL_HANDLERS;i++)
 	{
 		if (!__syscall_handlers[i].handler)

@@ -1332,13 +1332,22 @@ static void __dfs_check_emulation(void)
  *
  * Given a base offset where the filesystem should be found, this function will
  * initialize the filesystem to read from cartridge space.  This function will
- * also register DragonFS with newlib so that standard POSIX file operations
- * work with DragonFS.
+ * also register DragonFS with newlib so that standard POSIX/C file operations
+ * work with DragonFS, using the "rom:/" prefix".
+ * 
+ * The function needs to know where the DFS image is located within the cartridge
+ * space. To simplify this, you can pass #DFS_DEFAULT_LOCATION which tells
+ * #dfs_init to search for the DFS image by itself, using the rompak TOC (see
+ * rompak_internal.h). Most users should use this option.
+ * 
+ * Otherwise, if the ROM cannot be built with a rompak TOC for some reason,
+ * a virtual address should be passed. This is normally 0xB0000000 + the offset
+ * used when building your ROM + the size of the header file used (typically 0x1000). 
  *
  * @param[in] base_fs_loc
- *            Memory mapped location at which to find the filesystem.  This is normally
- *            0xB0000000 + the offset used when building your ROM + the size of the header
- *            file used.
+ *            Virtual address in cartridge space at which to find the filesystem, or
+ *            DFS_DEFAULT_LOCATION to automatically search for the filesystem in the
+ *            cartridge (using the rompak).
  *
  * @return DFS_ESUCCESS on success or a negative error otherwise.
  */
