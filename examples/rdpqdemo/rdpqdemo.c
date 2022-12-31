@@ -1,5 +1,6 @@
 #include "libdragon.h"
 #include <malloc.h>
+#include <math.h>
 
 static sprite_t *brew_sprite;
 static sprite_t *tiles_sprite;
@@ -11,6 +12,7 @@ typedef struct {
     int32_t y;
     int32_t dx;
     int32_t dy;
+    float scale_factor;
 } object_t;
 
 #define NUM_OBJECTS 64
@@ -36,7 +38,7 @@ static uint32_t rand(void) {
 
 static int32_t obj_max_x;
 static int32_t obj_max_y;
-
+static int32_t cur_tick = 0;
 static uint32_t num_objs = 1;
 
 void update(int ovfl)
@@ -55,10 +57,12 @@ void update(int ovfl)
         
         obj->x = x;
         obj->y = y;
+        obj->scale_factor = sinf(cur_tick * 0.1f + i) * 0.5f + 1.5f;
     }
+    cur_tick++;
 }
 
-void render()
+void render(int cur_frame)
 {
     surface_t *disp;
     RSP_WAIT_LOOP(200) {
@@ -86,18 +90,14 @@ void render()
     
     rdpq_debug_log_msg("sprites");
     rdpq_set_mode_copy(true);
+
+    surface_t brew_surf = sprite_get_pixels(brew_sprite);
     for (uint32_t i = 0; i < num_objs; i++)
     {
-        uint32_t obj_x = objects[i].x;
-        uint32_t obj_y = objects[i].y;
-        for (uint32_t y = 0; y < brew_sprite->vslices; y++)
-        {
-            for (uint32_t x = 0; x < brew_sprite->hslices; x++)
-            {
-                rdp_load_texture_stride(0, 0, MIRROR_DISABLED, brew_sprite, y*brew_sprite->hslices + x);
-                rdp_draw_sprite(0, obj_x + x * (brew_sprite->width / brew_sprite->hslices), obj_y + y * (brew_sprite->height / brew_sprite->vslices), MIRROR_DISABLED);
-            }
-        }
+        rdpq_tex_blit(TILE0, &brew_surf,
+            objects[i].x, objects[i].y,
+            brew_sprite->width * objects[i].scale_factor,
+            brew_sprite->height * objects[i].scale_factor);
     }
 
     rdpq_detach_show();
@@ -180,11 +180,13 @@ int main()
     if (tlut) rdpq_mode_pop();
     tiles_block = rspq_block_end();
 
+    update(0);
     new_timer(TIMER_TICKS(1000000 / 60), TF_CONTINUOUS, update);
 
+    int cur_frame = 0;
     while (1)
     {
-        render();
+        render(cur_frame);
 
         controller_scan();
         struct controller_data ckeys = get_keys_down();
@@ -196,5 +198,7 @@ int main()
         if (ckeys.c[0].C_down && num_objs > 1) {
             --num_objs;
         }
+
+        cur_frame++;
     }
 }
