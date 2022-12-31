@@ -201,6 +201,7 @@ void rdpq_tex_load_tlut(uint16_t *tlut, int color_idx, int num_colors);
  * format conversion is required). If the surface uses a palette, you also
  * need to load the palette using #rdpq_tex_load_tlut.
  * 
+ * @param tile           Tile to use for the blit
  * @param surf           Surface to draw
  * @param x0             Top-left X coordinate on the framebuffer
  * @param y0             Top-left Y coordinate on the framebuffer

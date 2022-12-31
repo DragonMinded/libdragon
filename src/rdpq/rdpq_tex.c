@@ -8,6 +8,7 @@
 #include "rdpq_tex.h"
 #include "utils.h"
 
+/** @brief Address in TMEM where the palettes must be loaded */
 #define TMEM_PALETTE_ADDR   0x800
 
 void rdpq_tex_load_tlut(uint16_t *tlut, int color_idx, int num_colors)
