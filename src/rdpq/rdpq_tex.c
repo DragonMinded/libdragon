@@ -4,13 +4,16 @@
  * @ingroup rdp
  */
 
+#include "rdpq.h"
 #include "rdpq_tex.h"
 #include "utils.h"
+
+#define TMEM_PALETTE_ADDR   0x800
 
 void rdpq_tex_load_tlut(uint16_t *tlut, int color_idx, int num_colors)
 {
     rdpq_set_texture_image_raw(0, PhysicalAddr(tlut), FMT_RGBA16, num_colors, 1);
-    rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_I4, 0x800 + color_idx*16*2*4, num_colors, 0);
+    rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_I4, TMEM_PALETTE_ADDR + color_idx*16*2*4, num_colors, 0);
     rdpq_load_tlut(RDPQ_TILE_INTERNAL, color_idx, num_colors);
 }
 
@@ -102,4 +105,71 @@ int rdpq_tex_load_sub(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int s0, i
 int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, int tmem_addr)
 {
     return rdpq_tex_load_sub(tile, tex, tmem_addr, 0, 0, tex->width, tex->height);
+}
+
+/**
+ * @brief Helper function to draw a large surface that doesn't fit in TMEM.
+ * 
+ * This function analyzes the surface, finds the optimal splitting strategy to
+ * divided into rectangles that fit TMEM, and then go through them one of by one,
+ * loading them into TMEM and drawing them.
+ * 
+ * The actual drawing is done by the caller, through the draw_cb function. This
+ * function will just call it with the information on the current rectangle
+ * within the original surface.
+ * 
+ * @param tile          Hint of the tile to use. Note that this function is free to use
+ *                      other tiles to perform its job.
+ * @param tex           Surface to draw
+ * @param draw_cb       Callback function to draw rectangle by rectangle. It will be called
+ *                      with the tile to use for drawing, and the rectangle of the original
+ *                      surface that has been loaded into TMEM.
+ */
+static void tex_draw_split(rdpq_tile_t tile, surface_t *tex, 
+    void (*draw_cb)(rdpq_tile_t tile, int s0, int t0, int s1, int t1))
+{
+    // The most efficient way to split a large surface is to load it in horizontal strips,
+    // whose height maximizes TMEM usage. The last strip might be smaller than the others.
+
+    // Calculate the optimal height for a strip, based on the TMEM pitch.
+    tex_format_t fmt = surface_get_format(tex);
+    int tmem_pitch = ROUND_UP(TEX_FORMAT_PIX2BYTES(fmt, tex->width), 8);
+    int tile_h = 4096 / tmem_pitch;
+    
+    // Initial configuration of the tile
+    rdpq_set_texture_image(tex);
+    rdpq_set_tile(tile, fmt, 0, tmem_pitch, 0);
+
+    // Go through the surface
+    int s0 = 0, t0 = 0;
+    while (t0 < tex->height) 
+    {
+        // Load the current strip
+        int h = MIN(tile_h, tex->height - t0);
+        rdpq_load_tile(tile, s0, t0, tex->width, t0 + h);
+
+        // Call the draw callback for this strip
+        draw_cb(tile, s0, t0, tex->width, t0 + h);
+
+        t0 += h;
+    }
+}
+
+
+void rdpq_tex_blit(rdpq_tile_t tile, surface_t *tex, int x0, int y0, int screen_width, int screen_height)
+{
+    float scalex = (float)screen_width / (float)tex->width;
+    float scaley = (float)screen_height / (float)tex->height;
+    float dsdx = 1.0f / scalex;
+    float dsdy = 1.0f / scaley;
+
+    void draw_cb(rdpq_tile_t tile, int s0, int t0, int s1, int t1)
+    {
+        rdpq_texture_rectangle(tile, 
+            x0 + s0 * scalex, y0 + t0 * scaley,
+            x0 + s1 * scalex, y0 + t1 * scaley,
+            s0, t0, dsdx, dsdy);
+    }
+
+    tex_draw_split(tile, tex, draw_cb);
 }

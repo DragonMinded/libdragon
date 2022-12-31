@@ -180,6 +180,35 @@ int rdpq_tex_load_sub_ci4(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int t
  */
 void rdpq_tex_load_tlut(uint16_t *tlut, int color_idx, int num_colors);
 
+/**
+ * @brief Blit a surface to the active framebuffer
+ * 
+ * This is the highest level function for drawing an arbitrary-sized surface
+ * to the screen, possibly scaling it.
+ * 
+ * It handles all the required steps to blit the entire contents of a surface
+ * to the framebuffer, that is:
+ * 
+ *   * Logically split the surface in chunks that fit the TMEM
+ *   * Calculate an appropriate scaling factor for each chunk
+ *   * Load each chunk into TMEM (via #rdpq_tex_load)
+ *   * Draw each chunk to the framebuffer (via #rdpq_texture_rectangle)
+ * 
+ * Note that this function only performs the actual blits, it does not
+ * configure the rendering mode or handle palettes. Before calling this
+ * function, make sure to configure the render mode via
+ * #rdpq_set_mode_standard (or #rdpq_set_mode_copy if no scaling and pixel
+ * format conversion is required). If the surface uses a palette, you also
+ * need to load the palette using #rdpq_tex_load_tlut.
+ * 
+ * @param surf           Surface to draw
+ * @param x0             Top-left X coordinate on the framebuffer
+ * @param y0             Top-left Y coordinate on the framebuffer
+ * @param draw_width     Width of the surface on the framebuffer
+ * @param draw_height    Height of the surface on the framebuffer
+ */
+void rdpq_tex_blit(rdpq_tile_t tile, surface_t *surf, int x0, int y0, int draw_width, int draw_height);
+
 #ifdef __cplusplus
 }
 #endif
