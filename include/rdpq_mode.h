@@ -699,6 +699,8 @@ inline void rdpq_mode_zoverride(bool enable, float z, int16_t deltaz) {
  * @see #rdpq_tlut_t
  */
 inline void rdpq_mode_tlut(rdpq_tlut_t tlut) {
+    // This assert is useful to catch the common mistake of rdpq_mode_tlut(true)
+    assertf(tlut == TLUT_NONE || tlut == TLUT_RGBA16 || tlut == TLUT_IA16, "invalid TLUT type");
     rdpq_change_other_modes_raw(SOM_TLUT_MASK, (uint64_t)tlut << SOM_TLUT_SHIFT);
 }
 
