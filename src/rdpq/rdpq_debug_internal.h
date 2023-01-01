@@ -23,8 +23,12 @@ extern void (*rdpq_trace)(void);
  * Notice that this function does not create a copy of the memory contents, but just
  * saves the DP_START/DP_END pointers. It is up to the client to make sure to call
  * rdpq_trace() at least once before the same buffer gets overwritten in the future.
+ * 
+ * @param new_buffer    If true, we know for sure that the RDP is about to switch buffer.
+ *                      If false, this is an optimistic reading (eg: done in idle time),
+ *                      so the contents might match previous readings.
  */
-extern void (*rdpq_trace_fetch)(void);
+extern void (*rdpq_trace_fetch)(bool new_buffer);
 
 /**
  * @brief Validate the next RDP command, given the RDP current state 

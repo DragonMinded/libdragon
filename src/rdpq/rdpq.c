@@ -395,7 +395,7 @@ static void __rdpq_interrupt(void) {
     assert(*SP_STATUS & SP_STATUS_SIG_RDPSYNCFULL);
 
     // Fetch the current RDP buffer for tracing
-    if (rdpq_trace_fetch) rdpq_trace_fetch();
+    if (rdpq_trace_fetch) rdpq_trace_fetch(false);
 
     // The state has been updated to contain a copy of the last SYNC_FULL command
     // that was sent to RDP. The command might contain a callback to invoke.

@@ -345,7 +345,7 @@ static void rspq_sp_interrupt(void)
     }
     if (status & SP_STATUS_SIG0) {
         wstatus |= SP_WSTATUS_CLEAR_SIG0;
-        if (rdpq_trace_fetch) rdpq_trace_fetch();
+        if (rdpq_trace_fetch) rdpq_trace_fetch(true);
     }
 
     MEMORY_BARRIER();

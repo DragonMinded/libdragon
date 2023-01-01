@@ -171,6 +171,7 @@ static const char *tex_fmt_name[] = { "RGBA", "YUV", "CI", "IA", "I", "?", "?", 
 #define MAX_HOOKS 4                                       ///< Maximum number of custom hooks
 static rdp_buffer_t buffers[MAX_BUFFERS];                 ///< Pending RDP buffers (ring buffer)
 static volatile int buf_ridx, buf_widx;                   ///< Read/write index into the ring buffer of RDP buffers
+static bool buf_changed;                                  ///< True if the RDP has just switched buffer
 static rdp_buffer_t last_buffer;                          ///< Last RDP buffer that was processed
 static int show_log;                                      ///< != 0 if logging is enabled
 static void (*hooks[MAX_HOOKS])(void*, uint64_t*, int);   ///< Custom hooks
@@ -178,19 +179,35 @@ static void* hooks_ctx[MAX_HOOKS];                        ///< Context for the h
 
 // Documented in rdpq_debug_internal.h
 void (*rdpq_trace)(void);
-void (*rdpq_trace_fetch)(void);
+void (*rdpq_trace_fetch)(bool new_buffer);
 
 /** @brief Run the actual trace flushing the cached buffers */
 void __rdpq_trace_flush(void);
 
 /** @brief Implementation of #rdpq_trace_fetch */
-void __rdpq_trace_fetch(void)
+void __rdpq_trace_fetch(bool new_buffer)
 {
     disable_interrupts();
 
     // Extract current start/end pointers from RDP registers (in the uncached segment)
-    uint64_t *start = (void*)(*DP_START | 0xA0000000);
-    uint64_t *end = (void*)(*DP_END | 0xA0000000);
+    // Avoid race conditions versus RSP by reading the status register twice and retrying
+    // if it changed in between.
+    uint64_t *start, *end, status, status_prev;
+    do {
+        status_prev = *DP_STATUS;
+        start = (void*)(*DP_START | 0xA0000000);
+        end = (void*)(*DP_END | 0xA0000000);
+        status = *DP_STATUS;
+    } while (status != status_prev);
+
+    // If the registers contain a new start pointer without its associated end pointer,
+    // it means that we can't use this data: we don't know the full new buffer yet.
+    // In this case, we just return and wait for the next call.
+    if ((status & DP_STATUS_START_VALID) && !(status & DP_STATUS_END_VALID))
+    {
+        enable_interrupts();
+        return;
+    }
 
 #if RDPQ_DEBUG_DEBUG
     intdebugf("__rdpq_trace_fetch: %p-%p\n", start, end);
@@ -200,18 +217,15 @@ void __rdpq_trace_fetch(void)
             intdebugf("   -> dynamic buffer %d\n", i);
 #endif
 
-    if (start == end) {
-        enable_interrupts();
-        return;
-    }
     assertf(start <= end, "rdpq_debug: invalid RDP buffer: %p-%p\n", start, end);
 
     // Coalesce with last written buffer if possible. Notice that rdpq_trace put the start
     // pointer to NULL to avoid coalescing when it begins dumping it, so this should avoid
     // race conditions.
     int prev = buf_widx ? buf_widx - 1 : MAX_BUFFERS-1;
-    if (buffers[prev].start == start) {
+    if (!buf_changed && buffers[prev].start == start) {
         if (buffers[prev].end == end) {
+            buf_changed = new_buffer;
             enable_interrupts();
             intdebugf("   -> ignored because coalescing\n");
             return;
@@ -230,6 +244,7 @@ void __rdpq_trace_fetch(void)
         }
 
         intdebugf("   -> coalesced\n");
+        buf_changed = new_buffer;
         __rdpq_trace_flush();  // FIXME: remove this (see __rdpq_trace)
         enable_interrupts();
         return;
@@ -243,6 +258,11 @@ void __rdpq_trace_fetch(void)
     buffers[buf_widx] = (rdp_buffer_t){ .start = start, .end = end, .traced = start };
     intdebugf("   -> written to slot %d\n", buf_widx);
     buf_widx = (buf_widx + 1) % MAX_BUFFERS;
+
+    // If we know for sure that the RDP is about the change buffer, remember it so that
+    // next reads will surely be a new one. For instance, this allows to process twice
+    // a same buffer sent two times in a row.
+    buf_changed = new_buffer;
 
     __rdpq_trace_flush();  // FIXME: remove this (see __rdpq_trace)
     enable_interrupts();
@@ -264,16 +284,9 @@ void __rdpq_debug_cmd(uint64_t cmd)
 /** @brief Implementation of #rdpq_trace */
 void __rdpq_trace(void)
 {
-    // FIXME: we currently ignore the trace calls and just flush everything under interrupt
-    // from within __rdpq_trace_fetch() (see calls to __rdpq_trace_flush there). This is
-    // required because we can't really rely optimistically on __rdpq_trace() being called
-    // often enough to see the data before it gets overwritten.
-    // We need to devise a better system.
-    return;
-
     // Update buffers to current RDP status. This make sure the trace
     // is up to date.
-    __rdpq_trace_fetch();
+    __rdpq_trace_fetch(false);
     __rdpq_trace_flush();
 }
 
