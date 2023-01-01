@@ -429,7 +429,7 @@ inline void rdpq_texture_rectangle_fx(rdpq_tile_t tile, uint16_t x0, uint16_t y0
  * @param[in]   s       S coordinate of the texture at the top-left corner
  * @param[in]   t       T coordinate of the texture at the top-left corner
  * @param[in]   dsdy    Signed increment of S coordinate for each vertical pixel.
- * @param[in]   dtdx    Signed increment of T coordinate for each vertical pixel.
+ * @param[in]   dtdx    Signed increment of T coordinate for each horizontal pixel.
  * 
  * @hideinitializer
  */
@@ -1523,6 +1523,26 @@ inline void rdpq_set_combiner_raw(uint64_t comb) {
  * @see #rspq_wait
  */
 void rdpq_fence(void);
+
+/**
+ * @brief Send to the RDP a buffer of RDP commands from RDRAM
+ * 
+ * This command can be used to execute raw RDP commands from RDRAM. It is
+ * normally not necessary to call this function as normal rdpq functions will
+ * simply enqueue the commands in the RSP queue, but there can be cases
+ * where commands have been prepared in RAM somehow (especially, for compatibility
+ * with existing code that assembled RDP commands in RDRAM, or to playback
+ * RDP command lists prepared with offline tools). 
+ * 
+ * This function fully interoperates with the rest of RDPQ, so you can freely
+ * intermix it with standard rdpq calls.
+ * 
+ * @param buffer        Pointer to the buffer containing RDP commands
+ * @param size          Size of the buffer, in bytes (must be a multiple of 8)
+ * 
+ * @note This function cannot be called within a block.
+ */
+void rdpq_exec(uint64_t *buffer, int size);
 
 #ifdef __cplusplus
 }

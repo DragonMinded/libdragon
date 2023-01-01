@@ -491,6 +491,20 @@ void rdpq_fence(void)
     rspq_int_write(RSPQ_CMD_RDP_WAIT_IDLE);
 }
 
+void rdpq_exec(uint64_t *buffer, int size)
+{
+    assertf(PhysicalAddr(buffer) % 8 == 0, "RDP buffer must be aligned to 8 bytes: %p", buffer);
+    assertf(size % 8 == 0, "RDP buffer size not multiple of 8 bytes: %d", size);
+
+    // TODO: to implement support in blocks, we need a way to notify the block state machine that
+    // after this command, a new RSPQ_CMD_RDP_SET_BUFFER is required to be sent, to resume playing
+    // the static buffer.
+    assertf(!rspq_in_block(), "cannot call rdpq_exec() inside a block");
+
+    uint64_t *end = buffer + size/8;
+    rspq_int_write(RSPQ_CMD_RDP_SET_BUFFER, PhysicalAddr(end), PhysicalAddr(buffer), PhysicalAddr(end));
+}
+
 /** @brief Assert handler for RSP asserts (see "RSP asserts" documentation in rsp.h) */
 static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
 {
