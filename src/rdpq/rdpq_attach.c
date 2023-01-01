@@ -21,7 +21,6 @@ bool rdpq_is_attached(void)
 
 void rdpq_attach(surface_t *surface)
 {
-    assertf(!rdpq_is_attached(), "A render target is already attached");
     assertf(attach_stack_ptr < ATTACH_STACK_SIZE, "Too many nested attachments");
 
     attach_stack[attach_stack_ptr++] = surface;
