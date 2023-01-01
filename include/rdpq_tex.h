@@ -1,6 +1,6 @@
 /**
  * @file rdpq_tex.h
- * @brief RDP Command queue: texture loading
+ * @brief RDP Command queue: texture/palette loading
  * @ingroup rdp
  */
 
