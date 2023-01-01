@@ -1525,7 +1525,7 @@ void test_rdpq_triangle(TestContext *ctx) {
     })
 
     const rdpq_trifmt_t trifmt = (rdpq_trifmt_t){
-        .pos_offset = 0, .z_offset = 2, .tex_offset = 3, .shade_offset = 6
+        .pos_offset = 0, .z_offset = 2, .tex_offset = 3, .shade_offset = 6, .tex_tile = TILE4
     };
 
     for (int tri=0;tri<1024;tri++) {
