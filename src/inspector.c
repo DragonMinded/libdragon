@@ -229,10 +229,14 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode
         const char *failedexpr = (const char*)(uint32_t)ex->regs->gpr[4];
         const char *msg = (const char*)(uint32_t)ex->regs->gpr[5];
         va_list args = (va_list)(uint32_t)ex->regs->gpr[6];
-        printf("\b\aOASSERTION FAILED: %s\n\n", failedexpr);
         if (msg) {
-            printf("\aWMessage:\n");
-            printf("    "); vprintf(msg, args); printf("\n\n");
+            printf("\b\aOASSERTION FAILED: ");
+            vprintf(msg, args);
+            printf("\n\n");
+            printf("\aWFailed expression:\n");
+            printf("    "); printf("%s", failedexpr); printf("\n\n");
+        } else {
+            printf("\b\aOASSERTION FAILED: %s\n\n", failedexpr);
         }
         bt_skip = 2;
         break;
