@@ -1,5 +1,6 @@
 #include <malloc.h>
 #include <math.h>
+#include "../src/rspq/rspq_internal.h"
 #include "../src/rdpq/rdpq_internal.h"
 #include <rdpq_constants.h> 
 
@@ -741,7 +742,7 @@ void test_rdpq_lookup_address_offset(TestContext *ctx)
     #undef TEST_RDPQ_RECT_WIDTH
 }
 
-void test_rdpq_syncfull(TestContext *ctx)
+void test_rdpq_syncfull_cb(TestContext *ctx)
 {
     RDPQ_INIT();
 
@@ -774,6 +775,75 @@ void test_rdpq_syncfull(TestContext *ctx)
 
     ASSERT_EQUAL_SIGNED(cb_called, 6, "sync full callback not called");
     ASSERT_EQUAL_HEX(cb_value, 0x00005678, "sync full callback wrong argument");
+}
+
+void test_rdpq_syncfull_resume(TestContext *ctx)
+{
+    RDPQ_INIT();
+
+    // SYNC_FULL has a hardware bug in case other commands get scheduled via DMA while
+    // it is in progress. rdpq works around but we want to test that it works in several
+    // situations.
+    // This test has no checks because if it fails, the RDP will hang and the RSP crash
+    // screen will appear.
+
+    const int WIDTH = 128;
+    surface_t fb = surface_alloc(FMT_RGBA32, WIDTH, WIDTH);
+    DEFER(surface_free(&fb));
+
+    rdpq_set_mode_fill(RGBA32(255, 255, 255, 255));
+    rdpq_set_color_image(&fb);
+
+    // Dynamic mode
+    debugf("Dynamic mode\n");
+    for (int j=0;j<4;j++) {
+        for (int i=0;i<16;i++)
+            rdpq_fill_rectangle(0, 0, 128, 128);
+        rdpq_sync_full(NULL, NULL);
+    }
+    rspq_wait();
+
+    uint64_t buf[1] = { 0x2700000000000000ull };
+    data_cache_index_writeback_invalidate(buf, sizeof(buf));
+
+    // Dynamic mode, forcing buffer change.
+    debugf("Dynamic mode with buffer change\n");
+    for (int j=0;j<4;j++) {
+        for (int i=0;i<16;i++)
+            rdpq_fill_rectangle(0, 0, 128, 128);
+        rdpq_sync_full(NULL, NULL);
+        rdpq_exec(buf, sizeof(buf));
+    }
+    rspq_wait();
+
+    // Block mode, 
+    debugf("Block mode\n");
+    rspq_block_begin();
+    for (int i=0;i<4;i++)
+        rdpq_fill_rectangle(0, 0, 128, 128);
+    rspq_block_t *rect_block = rspq_block_end();
+    DEFER(rspq_block_free(rect_block));
+
+    for (int j=0;j<4;j++) {
+        for (int i=0;i<4;i++)
+            rspq_block_run(rect_block);
+        rdpq_sync_full(NULL, NULL);
+    }
+    rspq_wait();
+
+    // Block mode with sync, 
+    debugf("Block mode with sync inside\n");
+    rspq_block_begin();
+    for (int i=0;i<16;i++)
+        rdpq_fill_rectangle(0, 0, 128, 128);
+    rdpq_sync_full(NULL, NULL);
+    rspq_block_t *sync_block = rspq_block_end();
+    DEFER(rspq_block_free(sync_block));
+
+    for (int j=0;j<4;j++) {
+        rspq_block_run(sync_block);
+    }
+    rspq_wait();
 }
 
 static void __test_rdpq_autosyncs(TestContext *ctx, void (*func)(void), uint8_t exp[4], bool use_block) {
