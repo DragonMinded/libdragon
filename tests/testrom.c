@@ -192,6 +192,8 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 #include "test_constructors.c"
 #include "test_rspq.c"
 #include "test_rdpq.c"
+#include "test_rdpq_tri.c"
+#include "test_rdpq_tex.c"
 #include "test_mpeg1.c"
 #include "test_gl.c"
 
@@ -273,13 +275,13 @@ static const struct Testsuite
 	TEST_FUNC(test_rdpq_automode,              0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_blender,               0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_blender_memory,        0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_rdpq_tex_load,              0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_fog,                   0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_mode_freeze,           0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_mode_freeze_stack,     0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_mipmap,                0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_triangle,              0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_triangle_w1,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_tex_load,              0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mpeg1_idct,                 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mpeg1_block_decode,         0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mpeg1_block_dequant,        0, TEST_FLAGS_NO_BENCHMARK),
