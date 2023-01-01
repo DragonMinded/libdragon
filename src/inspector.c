@@ -180,6 +180,10 @@ static int inspector_stdout(char *buf, unsigned int len) {
             break;
         case '\t':
             cursor_x = ROUND_UP(cursor_x+1, cursor_columns);
+            if (cursor_wordwrap && cursor_x >= XEND) {
+                cursor_x = XSTART;
+                cursor_y += 8;
+            }
             break;
         case '\n':
             cursor_x = XSTART;
@@ -188,11 +192,13 @@ static int inspector_stdout(char *buf, unsigned int len) {
             graphics_set_color(COLOR_TEXT, COLOR_BACKGROUND);
             break;
         default:
-    		graphics_draw_character(disp, cursor_x, cursor_y, buf[i]);
-            cursor_x += 8;
-            if (cursor_wordwrap && cursor_x >= XEND) {
-                cursor_x = XSTART;
-                cursor_y += 8;
+            if (cursor_x < XEND) {
+                graphics_draw_character(disp, cursor_x, cursor_y, buf[i]);
+                cursor_x += 8;
+                if (cursor_wordwrap && cursor_x >= XEND) {
+                    cursor_x = XSTART;
+                    cursor_y += 8;
+                }
             }
             break;
         }
@@ -234,7 +240,7 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode
             vprintf(msg, args);
             printf("\n\n");
             printf("\aWFailed expression:\n");
-            printf("    "); printf("%s", failedexpr); printf("\n\n");
+            printf("    "); printf("\b%s", failedexpr); printf("\n\n");
         } else {
             printf("\b\aOASSERTION FAILED: %s\n\n", failedexpr);
         }
