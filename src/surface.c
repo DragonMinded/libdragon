@@ -14,6 +14,7 @@ const char* tex_format_name(tex_format_t fmt)
 {
     switch (fmt) {
     case FMT_NONE:   return "FMT_NONE";
+    case FMT_RGBA32: return "FMT_RGBA32";
     case FMT_RGBA16: return "FMT_RGBA16";
     case FMT_YUV16:  return "FMT_YUV16";
     case FMT_CI4:    return "FMT_CI4";
