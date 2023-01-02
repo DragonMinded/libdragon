@@ -375,11 +375,17 @@ int backtrace(void **buffer, int size)
             if (!is_valid_address(addr)) {
                 // This address is invalid, probably something is corrupted. Avoid looking further.
                 debugf("backtrace: interrupted because of invalid return address 0x%08lx\n", addr);
-                return i;
+                return i+1;
             }
             uint32_t op = *(uint32_t*)addr;
             if (MIPS_OP_ADDIU_SP(op) || MIPS_OP_DADDIU_SP(op)) {
-                stack_size = ABS((int16_t)(op & 0xFFFF));
+                // Extract the stack size only from the start of the function, where the
+                // stack is allocated (negative value). This is important because the RA
+                // could point to a leaf basis block at the end of the function (like in the
+                // assert case), and if we picked the positive ADDIU SP at the end of the
+                // proper function body, we might miss a fp_offset.
+                if (op & 0x8000)
+                    stack_size = -(int16_t)(op & 0xFFFF);
             } else if (MIPS_OP_SD_RA_SP(op)) {
                 ra_offset = (int16_t)(op & 0xFFFF) + 4; // +4 = load low 32 bit of RA
             } else if (MIPS_OP_SD_FP_SP(op)) {
