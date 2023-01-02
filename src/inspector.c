@@ -45,6 +45,7 @@ static int fpr_show_mode = 1;
 static int disasm_bt_idx = 0;
 static int disasm_max_frames = 0;
 static int disasm_offset = 0;
+static bool first_backtrace = true;
 
 const char *__mips_gpr[34] = {
 	"zr", "at", "v0", "v1", "a0", "a1", "a2", "a3",
@@ -218,7 +219,7 @@ static void title(const char *title) {
     graphics_set_color(COLOR_TEXT, COLOR_BACKGROUND);
 }
 
-static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode mode) {
+static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode mode, bool with_backtrace) {
     int bt_skip = 0;
 
     switch (mode) {
@@ -258,13 +259,17 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode
     }
     }
 
-	void *bt[32];
-	int n = backtrace(bt, 32);
+    if (!with_backtrace)
+        return;
+
+    void *bt[32];
+    int n = backtrace(bt, 32);
 
     printf("\aWBacktrace:\n");
     char func[128];
     bool skip = true;
     void cb(void *arg, backtrace_frame_t *frame) {
+        if (first_backtrace) { backtrace_frame_print(frame, stderr); debugf("\n"); }
         if (skip) {
             if (strstr(frame->func, "<EXCEPTION HANDLER>"))
                 skip = false;
@@ -280,6 +285,7 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode
         backtrace_frame_print_compact(frame, stdout, 60);
     }
     backtrace_symbols_cb(bt, n, 0, cb, NULL);
+    first_backtrace = false;
 }
 
 static void inspector_page_gpr(surface_t *disp, exception_t* ex) {
@@ -406,6 +412,7 @@ static void inspector(exception_t* ex, enum Mode mode) {
 
 	hook_stdio_calls(&(stdio_t){ NULL, inspector_stdout, NULL });
 
+    static bool backtrace = false;
     struct controller_data key_old = {0};
     struct controller_data key_pressed = {0};
 	enum Page page = PAGE_EXCEPTION;
@@ -427,7 +434,7 @@ static void inspector(exception_t* ex, enum Mode mode) {
 
 		switch (page) {
 		case PAGE_EXCEPTION:
-            inspector_page_exception(disp, ex, mode);
+            inspector_page_exception(disp, ex, mode, backtrace);
 			break;
         case PAGE_GPR:
             inspector_page_gpr(disp, ex);
@@ -464,6 +471,11 @@ static void inspector(exception_t* ex, enum Mode mode) {
                 key_old = key_new;
 	            break;
             };
+            // If we draw the first frame, turn on backtrace and redraw immediately
+            if (!backtrace) {
+                backtrace = true;
+                break;
+            }
         }
     }
 
