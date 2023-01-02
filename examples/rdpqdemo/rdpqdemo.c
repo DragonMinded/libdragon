@@ -88,8 +88,12 @@ void render(int cur_frame)
     // rdpq_set_mode_standard();
     rspq_block_run(tiles_block);
     
+    // Draw the brew sprites. Use standard mode because copy mode cannot handle
+    // scaled sprites.
     rdpq_debug_log_msg("sprites");
-    rdpq_set_mode_copy(true);
+    rdpq_set_mode_standard();
+    rdpq_mode_filter(FILTER_BILINEAR);
+    rdpq_mode_alphacompare(1);                // colorkey (draw pixel with alpha >= 1)
 
     surface_t brew_surf = sprite_get_pixels(brew_sprite);
     for (uint32_t i = 0; i < num_objs; i++)
