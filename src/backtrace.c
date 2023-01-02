@@ -154,6 +154,14 @@ extern uint32_t inthandler_end[];
 /** @brief Address of the SYMT symbol table in the rompak. */
 static uint32_t SYMT_ROM = 0xFFFFFFFF;
 
+/** @brief Check if addr is a valid PC address */
+static bool is_valid_address(uint32_t addr)
+{
+    // TODO: for now we only handle RAM (cached access). This should be extended to handle
+    // TLB-mapped addresses for instance.
+    return addr >= 0x80000400 && addr < 0x80800000 && (addr & 3) == 0;
+}
+
 /** 
  * @brief Open the SYMT symbol table in the rompak.
  * 
@@ -223,7 +231,7 @@ static addrtable_entry_t symt_addrtab_search(symtable_header_t *symt, uint32_t a
             min = mid + 1;
     }
     addrtable_entry_t entry = symt_addrtab_entry(symt, min);
-    if (min < symt->addrtab_size && ADDRENTRY_ADDR(entry) > addr)
+    if (min > 0 && ADDRENTRY_ADDR(entry) > addr)
         entry = symt_addrtab_entry(symt, --min);
     if (idx) *idx = min;
     return entry;
@@ -333,11 +341,17 @@ int backtrace(void **buffer, int size)
     debugf("backtrace: start\n"); 
     #endif
 
-    int stack_size = 0;
+    int stack_size = 0, fp_offset = 0;
     for (uint32_t *addr = (uint32_t*)backtrace; !stack_size; ++addr) {
         uint32_t op = *addr;
         if (MIPS_OP_ADDIU_SP(op) || MIPS_OP_DADDIU_SP(op))
             stack_size = ABS((int16_t)(op & 0xFFFF));
+        else if (MIPS_OP_SD_FP_SP(op))
+            fp_offset = (int16_t)(op & 0xFFFF) + 4;
+        else if (MIPS_OP_MOVE_FP_SP(op)) {
+            debugf("backtrace: unsupported: backtrace() uses frame pointer\n");
+            return 0;
+        }
         else if (MIPS_OP_JR_RA(op))
             break;
     }
@@ -345,6 +359,8 @@ int backtrace(void **buffer, int size)
     uint32_t* interrupt_ra = NULL; uint32_t interrupt_rafunc_addr = 0;
     enum { BT_FUNCTION, BT_FUNCTION_FRAMEPOINTER, BT_EXCEPTION, BT_LEAF } bt_type;
 
+    if (fp_offset)
+        fp = (uint32_t*)((uint32_t)sp + fp_offset);
     sp = (uint32_t*)((uint32_t)sp + stack_size);
     ra -= 2;
     for (int i=0; i<size; ++i) {
@@ -356,7 +372,7 @@ int backtrace(void **buffer, int size)
         while (1) {
             // Validate that we can dereference the virtual address without raising an exception
             // TODO: enhance this check with more valid ranges.
-            if (addr < 0x80000400 || addr >= 0x80800000) {
+            if (!is_valid_address(addr)) {
                 // This address is invalid, probably something is corrupted. Avoid looking further.
                 debugf("backtrace: interrupted because of invalid return address 0x%08lx\n", addr);
                 return i;
@@ -397,15 +413,13 @@ int backtrace(void **buffer, int size)
                 bt_type = BT_LEAF;
                 break;
             }
-
-
             addr -= 4;
         }
         
         #if BACKTRACE_DEBUG
-        debugf("backtrace: %s, ra=%p, sp=%p, fp=%p ra_offset=%d, stack_size=%d\n", 
+        debugf("backtrace: %s, ra=%p, sp=%p, fp=%p ra_offset=%d, fp_offset=%d, stack_size=%d\n", 
             bt_type == BT_FUNCTION ? "BT_FUNCTION" : (bt_type == BT_EXCEPTION ? "BT_EXCEPTION" : (bt_type == BT_FUNCTION_FRAMEPOINTER ? "BT_FRAMEPOINTER" : "BT_LEAF")),
-            ra, sp, fp, ra_offset, stack_size);
+            ra, sp, fp, ra_offset, fp_offset, stack_size);
         #endif
 
         switch (bt_type) {
@@ -416,7 +430,7 @@ int backtrace(void **buffer, int size)
                     // Use the frame pointer to refer to the current frame.
                     sp = fp;
                 }
-                // FALLTRHOUGH!
+                // FALLTHROUGH!
             case BT_FUNCTION:
                 if (fp_offset)
                     fp = *(uint32_t**)((uint32_t)sp + fp_offset);
@@ -440,6 +454,32 @@ int backtrace(void **buffer, int size)
                 if (cause & C0_CAUSE_BD) ra++;
 
                 sp = (uint32_t*)((uint32_t)sp + stack_size);
+
+                // Special case: if the exception is due to an invalid EPC
+                // (eg: a null function pointer call), we can rely on RA to get
+                // back to the caller. This assumes that we got there via a function call
+                // rather than a raw jump, but that's a reasonable assumption. It's anyway
+                // the best we can do.
+                if (C0_GET_CAUSE_EXC_CODE(cause) == EXCEPTION_CODE_TLB_LOAD_I_MISS &&
+                    !is_valid_address((uint32_t)ra)) {
+                    
+                    // Store the invalid address in the backtrace, so that it will appear in dumps.
+                    // This makes it easier for the user to understand the reason for the exception.
+                    if (i < size-1) {
+                        buffer[++i] = ra;
+                        #if BACKTRACE_DEBUG
+                        debugf("backtrace: %s, ra=%p, sp=%p, fp=%p ra_offset=%d, fp_offset=%d, stack_size=%d\n", 
+                            "BT_INVALID", ra, sp, fp, ra_offset, fp_offset, stack_size);
+                        #endif
+                    }
+                    ra = interrupt_ra - 2;
+
+                    // The function that jumped into an invalid PC was not interrupted by the exception: it
+                    // is a regular function
+                    // call now.
+                    interrupt_ra = NULL;
+                    break;
+                }
 
                 // The next frame might be a leaf function, for which we will not be able
                 // to find a stack frame. Try to open the symbol table: if we find it,
@@ -500,6 +540,18 @@ bool backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
 
     for (int i=0; i<size; i++) {
         uint32_t needle = (uint32_t)buffer[i];
+        if (!is_valid_address(needle)) {
+            // If the address is before the first symbol, we call it a NULL pointer, as that is the most likely case
+            cb(cb_arg, &(backtrace_frame_t){
+                .addr = needle,
+                .func_offset = needle,
+                .func = needle < 128 ? "<NULL POINTER>" : "<INVALID ADDRESS>",
+                .source_file = "???",
+                .source_line = 0,
+                .is_inline = false
+            });
+            continue;
+        }
         int idx; addrtable_entry_t a;
         a = symt_addrtab_search(&symt_header, needle, &idx);
 
