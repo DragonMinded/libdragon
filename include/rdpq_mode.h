@@ -234,16 +234,6 @@ typedef enum rdpq_mipmap_s {
     MIPMAP_NEAREST     = SOM_TEXTURE_LOD >> 32,                            ///< Choose the nearest mipmap level
     MIPMAP_INTERPOLATE = (SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE) >> 32,   ///< Interpolate between the two nearest mipmap levels (also known as "trilinear")
 } rdpq_mipmap_t;
- 
-/**
- * @brief Types of alpha compare functions available in RDP
- */
-typedef enum rdpq_alphacompare_s {
-    ALPHACOMPARE_NONE      = SOM_ALPHACOMPARE_NONE,       ///< Alpha compare: disabled
-    ALPHACOMPARE_THRESHOLD = SOM_ALPHACOMPARE_THRESHOLD,  ///< Alpha compare: mask pixel depending on a certain treshold
-    ALPHACOMPARE_NOISE     = SOM_ALPHACOMPARE_NOISE,      ///< Alpha compare: mask pixel using random noise
-} rdpq_alphacompare_t;
-
 
 /**
  * @name Render modes
@@ -618,20 +608,25 @@ inline void rdpq_mode_dithering(rdpq_dither_t dither) {
  * This function activates the alpha compare feature. It allows to do per-pixel
  * rejection (masking) depending on the value of the alpha component of the pixel.
  * The value output from the combiner is compared with a configured threshold
- * and if the value is lower or equal, the pixel is not written to the framebuffer.
+ * and if the value is lower, the pixel is not written to the framebuffer.
  * 
- * There are two types of alpha compares:
- *   * Based on a fixed threshold, using #ALPHACOMPARE_THRESHOLD. The threshold must
- *     be configured in the alpha channel of the BLEND register, via #rdpq_set_blend_color.
- *   * Based on a random noise, using #ALPHACOMPARE_NOISE. This can be useful for
- *     special graphical effects.
+ * Moreover, RDP also support a random noise alpha compare mode, where the threshold
+ * value is calculated as a random number for each pixel. This can be used for special
+ * graphic effects.
  * 
- * @param ac           Type of alpha compare function (or #ALPHACOMPARE_NONE to disable)
+ * @param threshold          Threshold value. All pixels whose alpha is less than this threshold
+ *                           will not be drawn. Use 0 to disable. Use a negative value for
+ *                           activating the noise-based alpha compare.
  */
-inline void rdpq_mode_alphacompare(rdpq_alphacompare_t ac) {
-    rdpq_change_other_modes_raw(
-        SOM_ALPHACOMPARE_MASK, ac
-    );
+inline void rdpq_mode_alphacompare(int threshold) {
+    if (threshold == 0) {
+        rdpq_change_other_modes_raw(SOM_ALPHACOMPARE_MASK, 0);
+    } else if (threshold > 0) {
+        rdpq_change_other_modes_raw(SOM_ALPHACOMPARE_MASK, SOM_ALPHACOMPARE_THRESHOLD);
+        rdpq_set_blend_color(RGBA32(0,0,0,threshold));
+    } else {
+        rdpq_change_other_modes_raw(SOM_ALPHACOMPARE_MASK, SOM_ALPHACOMPARE_NOISE);
+    }
 }
 
 /**
