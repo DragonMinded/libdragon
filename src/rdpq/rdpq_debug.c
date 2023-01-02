@@ -1218,6 +1218,11 @@ void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
         lazy_validate_rendermode();
         validate_draw_cmd(false, true, false, false);
         validate_use_tile(BITS(buf[0], 24, 26), 0);
+        if (rdp.som.cycle_type == 2) {
+            uint16_t dsdx = BITS(buf[1], 16, 31);
+            VALIDATE_ERR_SOM(dsdx == 4<<10, 
+                "cannot draw horizontally-scaled texture rectangle in COPY mode");
+        }
         break;
     case 0x36: // FILL_RECTANGLE
         rdp.busy.pipe = true;
