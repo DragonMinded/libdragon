@@ -87,11 +87,11 @@
  * The SYMT file is made of three main table:
  * 
  * * Address table: this is a sequence of 32-bit integers, each representing an address in the ROM.
- *   The table is sorted in ascending order to allow for binary search. Morever, the lowest 2 bits
+ *   The table is sorted in ascending order to allow for binary search. Moreover, the lowest 2 bits
  *   of each address can store additional information: If bit 0 is set to 1, the address is the start
  *   of a function. If bit 1 is set to 1, the address is an inline duplicate. In fact, there might be
  *   multiple symbols at the same address for inlined functions, so we need one entry in this table
- *   for each entry; all of them will have the same address, and all but the first one will have bit
+ *   for each entry; all of them will have the same address, and all but the last one will have bit
  *   1 set to 1.
  * * Symbol table: this is a sequence of symbol table entries, each representing a symbol. The size
  *   of this table (in number of entries) is exactly the same as the address table. In fact, each
@@ -557,15 +557,16 @@ bool backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
 
         if (ADDRENTRY_ADDR(a) == needle) {
             // Found an entry at this address. Go through all inlines for this address.
-            do {
+            while (1) {
                 format_entry(cb, cb_arg, &symt_header, idx, needle, 0, false, ADDRENTRY_IS_INLINE(a));
+                if (!ADDRENTRY_IS_INLINE(a)) break;
                 a = symt_addrtab_entry(&symt_header, ++idx);
-            } while (ADDRENTRY_IS_INLINE(a));
+            }
         } else {
             // Search the containing function
             while (!ADDRENTRY_IS_FUNC(a))
                 a = symt_addrtab_entry(&symt_header, --idx);
-            format_entry(cb, cb_arg, &symt_header, idx, needle, needle - ADDRENTRY_ADDR(a), true, ADDRENTRY_IS_INLINE(a));
+            format_entry(cb, cb_arg, &symt_header, idx, needle, needle - ADDRENTRY_ADDR(a), true, false);
         }
     }
     return true;
