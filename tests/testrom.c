@@ -135,6 +135,19 @@ static uint32_t rand(void) {
 	} \
 })
 
+// ASSERT_EQUAL_STR(a, b, msg): fail the test if a!=b (and log a & b as strings)
+#define ASSERT_EQUAL_STR(_a, _b, msg, ...) ({ \
+	const char* a = _a; const char* b = _b; \
+	if (strcmp(a, b)) { \
+		ERR("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
+		ERR("%s != %s (%s != %s)\n", #_a, #_b, a, b); \
+		ERR(msg "\n", ##__VA_ARGS__); \
+		ctx->result = TEST_FAILED; \
+		return; \
+	} \
+})
+
+
 void hexdump(char *out, const uint8_t *buf, int buflen, int start, int count) {
 	for (int i=start;i<start+count;i++) {
 		if (i >= 0 && i < buflen) {
@@ -190,6 +203,7 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 #include "test_dma.c"
 #include "test_cop1.c"
 #include "test_constructors.c"
+#include "test_backtrace.c"
 #include "test_rspq.c"
 #include "test_rdpq.c"
 #include "test_rdpq_tri.c"
@@ -235,6 +249,13 @@ static const struct Testsuite
 	TEST_FUNC(test_debug_sdfs,                 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dma_read_misalign,       7003, TEST_FLAGS_NONE),
 	TEST_FUNC(test_cop1_denormalized_float,    0, TEST_FLAGS_NO_EMULATOR),
+	TEST_FUNC(test_backtrace_basic,            0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_backtrace_fp,               0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_backtrace_exception,        0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_backtrace_exception_leaf,   0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_backtrace_exception_fp,     0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_backtrace_zerofunc,         0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_backtrace_invalidptr,       0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_queue_single,          0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_queue_multiple,        0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_queue_rapid,           0, TEST_FLAGS_NO_BENCHMARK),
