@@ -429,6 +429,10 @@ int backtrace(void **buffer, int size)
                 } else {
                     // Use the frame pointer to refer to the current frame.
                     sp = fp;
+                    if (!is_valid_address((uint32_t)sp)) {
+                        debugf("backtrace: interrupted because of invalid frame pointer 0x%08lx\n", (uint32_t)sp);
+                        return i+1;
+                    }
                 }
                 // FALLTHROUGH!
             case BT_FUNCTION:
