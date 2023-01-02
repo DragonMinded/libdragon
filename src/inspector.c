@@ -157,6 +157,11 @@ static void mips_disasm(uint32_t *ptr, char *out, int n) {
 	}
 }
 
+bool disasm_valid_pc(uint32_t pc) {
+    // TODO: handle TLB ranges?
+    return pc >= 0x80000000 && pc < 0x80800000 && (pc & 3) == 0;
+}
+
 static int inspector_stdout(char *buf, unsigned int len) {
     for (int i=0; i<len; i++) {
         if (cursor_x >= 640) break;
@@ -225,9 +230,13 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode
 
         printf("\aWInstruction:\n");
         uint32_t epc = (uint32_t)(ex->regs->epc + ((ex->regs->cr & C0_CAUSE_BD) ? 4 : 0));
-        char buf[128];
-        mips_disasm((void*)epc, buf, 128);
-        printf("    %s\n\n", buf);
+        if (disasm_valid_pc(epc)) {
+            char buf[128];
+            mips_disasm((void*)epc, buf, 128);
+            printf("    %s\n\n", buf);
+        } else {
+            printf("    <Invalid PC: %08lx>\n\n", epc);
+        }
         break;
 
     case MODE_ASSERTION: {
@@ -363,7 +372,7 @@ static void inspector_page_disasm(surface_t *disp, exception_t* ex, struct contr
     uint32_t pc = frame_pc + disasm_offset - 9*4;
     char buf[128];
     for (int i=0; i<18; i++) {
-        if (pc < 0x80000000 || pc >= 0x80800000) {
+        if (!disasm_valid_pc(pc)) {
             printf("\t<invalid address>\n");
         } else {
             mips_disasm((void*)pc, buf, 128);
