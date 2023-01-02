@@ -84,7 +84,6 @@ void rdpq_mode_pop(void)
 }
 
 void rdpq_set_mode_copy(bool transparency) {
-    if (transparency) rdpq_set_blend_color(RGBA32(0,0,0,1));
     uint64_t som = (0xEFull << 56) | SOM_CYCLE_COPY | (transparency ? SOM_ALPHACOMPARE_THRESHOLD : 0);
     __rdpq_reset_render_mode(0, 0, som >> 32, som & 0xFFFFFFFF);
 }
