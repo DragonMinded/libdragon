@@ -138,7 +138,7 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
     assert(n >= 2 && strncmp(line_buf, "0x", 2) == 0);
 
     // Add one symbol for each inlined function
-    bool is_inline = false;
+    bool at_least_one = false;
     while (1) {
         // First line is the function name. If instead it's the dummy 0x0 address,
         // it means that we're done.
@@ -160,11 +160,12 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
             .file = file,
             .line = line,
             .is_func = is_func,
-            .is_inline = is_inline,
+            .is_inline = true,
         }));
-
-        is_inline = true;
+        at_least_one = true;
     }
+    assert(at_least_one);
+    symtable[stbds_arrlen(symtable)-1].is_inline = false;
 
     // Read and skip the two remaining lines (function and file position)
     // that refers to the dummy 0x0 address
