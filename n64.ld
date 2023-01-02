@@ -161,6 +161,10 @@ SECTIONS {
          __bss_end = .;
     } > mem
 
+    . = ALIGN(8);
+    
+
+
     /* Deprecated */
     end = .;
 }
