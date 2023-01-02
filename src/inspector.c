@@ -478,6 +478,6 @@ void __inspector_init(void) {
     void handler(exception_t* ex, uint32_t code) {
         inspector(ex, MODE_ASSERTION);
     }
-    register_syscall_handler(handler, 0xFFFFF, 0x1);
+    register_syscall_handler(handler, 0x00001, 0x00001);
 }
 
