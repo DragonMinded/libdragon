@@ -231,13 +231,19 @@ static void debug_exception(exception_t* ex) {
  * of all GPR/FPR registers. It then calls abort() to abort execution.
  */
 void exception_default_handler(exception_t* ex) {
+	static bool backtrace_exception = false;
+
 	// Write immediately as much data as we can to the debug spew. This is the
 	// "safe" path, because it doesn't involve touching the console drawing code.
 	debug_exception(ex);
 
 	// Show a backtrace (starting from just before the exception handler)
+	// Avoid recursive exceptions during backtrace printing
+	if (backtrace_exception) abort();
+	backtrace_exception = true;
 	extern void __debug_backtrace(FILE *out, bool skip_exception);
 	__debug_backtrace(stderr, true);
+	backtrace_exception = false;
 
 	// Run the inspector
 	__inspector_exception(ex);
