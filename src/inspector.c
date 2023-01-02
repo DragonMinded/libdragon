@@ -398,21 +398,15 @@ static void inspector(exception_t* ex, enum Mode mode) {
 	hook_stdio_calls(&(stdio_t){ NULL, inspector_stdout, NULL });
 
     struct controller_data key_old = {0};
+    struct controller_data key_pressed = {0};
 	enum Page page = PAGE_EXCEPTION;
 	while (1) {
-        // Read controller using controller_read, that works also when the
-        // interrupts are disabled and when controller_init has not been called.
-        struct controller_data key_pressed;
-        struct controller_data key_new;
-        controller_read(&key_new);
-        key_pressed.c->data = key_new.c->data & ~key_old.c->data;
         if (key_pressed.c[0].Z || key_pressed.c[0].R) {
             page = (page+1) % PAGE_COUNT;
         }
         if (key_pressed.c[0].L) {
             page = (page-1) % PAGE_COUNT;
         }
-        key_old = key_new;
 
 		while (!(disp = display_lock())) {}
 
@@ -450,7 +444,19 @@ static void inspector(exception_t* ex, enum Mode mode) {
         extern void display_show_force(display_context_t disp);
 		display_show_force(disp);
 
-	}
+        // Loop until a keypress
+        while (1) {
+            // Read controller using controller_read, that works also when the
+            // interrupts are disabled and when controller_init has not been called.
+            struct controller_data key_new;
+            controller_read(&key_new);
+            if (key_new.c->data != key_old.c->data) {
+                key_pressed.c->data = key_new.c->data & ~key_old.c->data;
+                key_old = key_new;
+	            break;
+            };
+        }
+    }
 
 	abort();
 }
