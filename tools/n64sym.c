@@ -283,6 +283,8 @@ void process(const char *infn, const char *outfn)
 {
     verbose("Processing: %s -> %s\n", infn, outfn);
 
+    // First, find all functions and call sites. We do this by disassembling
+    // the ELF file and grepping it.
     elf_find_callsites(infn);
     verbose("Found %d callsites\n", stbds_arrlen(symtable));
 
@@ -313,7 +315,7 @@ void process(const char *infn, const char *outfn)
     // Sort the symbol table by address
     qsort(symtable, stbds_arrlen(symtable), sizeof(struct symtable_s), symtable_sort_by_addr);
 
-    // Compute the function start offsets
+    // Fill in the function offset field in the entries in the symbol table.
     compute_function_offsets();
 
     // Write the symbol table to file
