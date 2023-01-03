@@ -811,7 +811,7 @@ static void validate_emit_error(int flags, const char *msg, ...)
  * This should be triggered only whenever the commands rely on an undefined hardware 
  * behaviour or in general strongly misbehave with respect to the reasonable
  * expectation of the programmer. Typical expected outcome on real hardware should be
- * garbled graphcis or hardware freezes. */
+ * garbled graphcis. */
 #define VALIDATE_ERR(cond, msg, ...)      __VALIDATE(1, cond, msg, ##__VA_ARGS__)
 /** @brief Validate and trigger an error, with SOM context */
 #define VALIDATE_ERR_SOM(cond, msg, ...)  __VALIDATE(5, cond, msg, ##__VA_ARGS__)
@@ -1238,8 +1238,12 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         validate_use_tile(BITS(buf[0], 24, 26), 0);
         if (rdp.som.cycle_type == 2) {
             uint16_t dsdx = BITS(buf[1], 16, 31);
-            VALIDATE_ERR_SOM(dsdx == 4<<10, 
-                "cannot draw horizontally-scaled texture rectangle in COPY mode");
+            if (dsdx != 4<<10) {
+                if (dsdx > 4<<10 && dsdx <= 5<<10)
+                    VALIDATE_WARN_SOM(0, "drawing texture rectangles in COPY mode with small horizontal reduction (< 20%%) will render without subpixel accuracy; consider using 1-cycle mode instead");
+                else
+                    VALIDATE_ERR_SOM(0, "horizontally-scaled texture rectangles in COPY mode will not correctly render");
+            }
         }
         break;
     case 0x36: // FILL_RECTANGLE
