@@ -18,6 +18,8 @@ void usage(void) {
     printf("Options:\n");
     printf("   -H / --hex            File is ASCII in hex format. Default is autodetect.\n");
     printf("   -B / --binary         File is binary. Default is autodetect.\n");
+    printf("   -d / --disassemble    Disassemble the file (default is off, just validate).\n");
+    printf("   -t / --triangles      When disassembling, also show all triangles in the output.\n");
     printf("\n");
     printf("Hex format is an ASCII file: one line per RDP command, written in hexadecimal format.\n");
     printf("Lines starting with '#' are skipped.\n");
@@ -54,6 +56,8 @@ int main(int argc, char *argv[])
 
     enum { MODE_BINARY=0, MODE_HEX=1, MODE_AUTODETECT=-1 };
 
+    bool disasm = false;
+    bool show_tris = false;
     int mode = MODE_AUTODETECT;
     int i;
     for (i=1; i<argc; i++) {
@@ -62,6 +66,10 @@ int main(int argc, char *argv[])
                 mode = MODE_HEX;
             } else if (!strcmp(argv[i], "-B") || !strcmp(argv[i], "--binary")) {
                 mode = MODE_BINARY;
+            } else if (!strcmp(argv[i], "-d") || !strcmp(argv[i], "--disassemble")) {
+                disasm = true;
+            } else if (!strcmp(argv[i], "-t") || !strcmp(argv[i], "--triangles")) {
+                show_tris = true;
             } else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
                 usage();
                 return 0;
@@ -115,14 +123,21 @@ int main(int argc, char *argv[])
     }
 
     // Enable dump of all triangles
-    __rdpq_debug_log_flags = RDPQ_LOG_FLAG_SHOWTRIS;
+    if (show_tris)
+        __rdpq_debug_log_flags |= RDPQ_LOG_FLAG_SHOWTRIS;
 
     uint64_t *cur = cmds;
     uint64_t *end = cmds + size;
     while (cur < end) {
         int sz = rdpq_debug_disasm_size(cur);
-        rdpq_debug_disasm(cur, stderr);
-        rdpq_validate(cur, NULL, NULL);
+
+        bool shown = false;
+        if (disasm)
+            shown = rdpq_debug_disasm(cur, stderr);
+
+        uint32_t val_flags = shown ? RDPQ_VALIDATE_FLAG_NOECHO : 0;
+        rdpq_validate(cur, val_flags, NULL, NULL);
+        
         cur += sz;
     }
 }

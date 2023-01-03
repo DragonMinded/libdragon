@@ -158,6 +158,7 @@ static struct {
  */
 struct {
     uint64_t *buf;                         ///< Current instruction
+    uint32_t flags;                        ///< Flags (see RDPQ_VALIDATION_*)
     int warns, errs;                       ///< Validators warnings/errors (stats)
     bool crashed;                          ///< True if the RDP chip crashed
 } vctx;
@@ -165,6 +166,9 @@ struct {
 /** @brief Triangle primitives names */
 static const char *tri_name[] = { "TRI", "TRI_Z", "TRI_TEX", "TRI_TEX_Z",  "TRI_SHADE", "TRI_SHADE_Z", "TRI_TEX_SHADE", "TRI_TEX_SHADE_Z"};
 static const char *tex_fmt_name[] = { "RGBA", "YUV", "CI", "IA", "I", "?", "?", "?" };
+
+/** @brief Helper function to coalesce disassembled triangles */
+static bool log_coalesce_tris(uint8_t cmd, uint8_t *last_tri_cmd, int *num_tris);
 
 #ifdef N64
 #define MAX_BUFFERS 12                                    ///< Maximum number of pending RDP buffers
@@ -290,29 +294,8 @@ void __rdpq_trace(void)
     __rdpq_trace_flush();
 }
 
-bool log_coalesce_tris(uint8_t cmd, uint8_t *last_tri_cmd, int *num_tris) {
-    if (!CMD_IS_TRI(cmd)) {
-        if (*last_tri_cmd) {
-            debugf("[..........] ................    %-16s num_cmds=%d\n", tri_name[*last_tri_cmd - RDPQ_CMD_TRI], *num_tris);
-            *last_tri_cmd = 0;
-            *num_tris = 0;
-        }
-        return true;
-    } else {
-        if (*last_tri_cmd && *last_tri_cmd != cmd) {
-            debugf("[..........] ................    %-16s num_cmds=%d\n", tri_name[*last_tri_cmd - RDPQ_CMD_TRI], *num_tris);
-            *last_tri_cmd = 0;
-            *num_tris = 0;
-        }
-        *last_tri_cmd = cmd;
-        *num_tris = *num_tris+1;
-        return false;
-    }
-}
-
 void __rdpq_trace_flush(void)
 {
-    uint8_t last_tri_cmd = 0; int num_tris = 0;
     while (1) {
         uint64_t *cur = 0, *end = 0;
 
@@ -334,13 +317,21 @@ void __rdpq_trace_flush(void)
         while (cur < end) {
             uint8_t cmd = BITS(cur[0],56,61);
             int sz = rdpq_debug_disasm_size(cur);
-            if (show_log > 0) {
-                if((__rdpq_debug_log_flags & RDPQ_LOG_FLAG_SHOWTRIS) || log_coalesce_tris(cmd, &last_tri_cmd, &num_tris))
-                    rdpq_debug_disasm(cur, stderr);
-            }
-            rdpq_validate(cur, NULL, NULL);
+            
+            // Disassemble the command
+            bool shown = false;
+            if (show_log > 0)
+                shown = rdpq_debug_disasm(cur, stderr);
+
+            // Validate the command: if the command was already shown, we don't need
+            // to further echo it.
+            uint32_t val_flags = shown ? RDPQ_VALIDATE_FLAG_NOECHO : 0;
+            rdpq_validate(cur, val_flags, NULL, NULL);
+
+            // Run trace hooks
             for (int i=0;i<MAX_HOOKS && hooks[i];i++)
                 hooks[i](hooks_ctx[i], cur, sz);
+
             // If this is a RDPQ_DEBUG command, execute it
             if (cmd == RDPQ_CMD_DEBUG) __rdpq_debug_cmd(cur[0]);
             cur += sz;
@@ -348,7 +339,7 @@ void __rdpq_trace_flush(void)
     }
 
     // show the accumulated tris (if any)
-    log_coalesce_tris(0, &last_tri_cmd, &num_tris);
+    rdpq_debug_disasm(NULL, stderr);
 }
 
 void rdpq_debug_start(void)
@@ -707,25 +698,50 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
     }
 }
 
-void rdpq_debug_disasm(uint64_t *buf, FILE *out) {
-    __rdpq_debug_disasm(buf, buf, out);
+static bool log_coalesce_tris(uint8_t cmd, uint8_t *last_tri_cmd, int *num_tris) {
+    if (!CMD_IS_TRI(cmd)) {
+        if (*last_tri_cmd) {
+            debugf("[...........] ................    %-16s num_cmds=%d\n", tri_name[*last_tri_cmd - 0x08], *num_tris);
+            *last_tri_cmd = 0;
+            *num_tris = 0;
+        }
+        return true;
+    } else {
+        if (*last_tri_cmd && *last_tri_cmd != cmd) {
+            debugf("[...........] ................    %-16s num_cmds=%d\n", tri_name[*last_tri_cmd - 0x08], *num_tris);
+            *last_tri_cmd = 0;
+            *num_tris = 0;
+        }
+        *last_tri_cmd = cmd;
+        *num_tris = *num_tris+1;
+        return false;
+    }
+}
+
+
+bool rdpq_debug_disasm(uint64_t *buf, FILE *out) {
+    static uint8_t last_tri_cmd = 0; static int num_tris = 0;
+ 
+    if (buf) {
+        uint8_t cmd = BITS(buf[0],56,61);
+        if ((__rdpq_debug_log_flags & RDPQ_LOG_FLAG_SHOWTRIS) || log_coalesce_tris(cmd, &last_tri_cmd, &num_tris)) {
+            __rdpq_debug_disasm(buf, buf, out);
+            return true;
+        }
+    } else {
+        log_coalesce_tris(0, &last_tri_cmd, &num_tris);
+    }
+    return false;
 }
 
 static void validate_emit_error(int flags, const char *msg, ...)
 {
     va_list args;
-    #ifndef N64
-    // In the PC validation tool, we always show the log, so act like in show_log mode.
-    bool show_log = true;
-    #endif
 
-    if (!show_log) {
+    if (!(vctx.flags & RDPQ_VALIDATE_FLAG_NOECHO)) {
         if (flags & 4)  __rdpq_debug_disasm(rdp.last_som, &rdp.last_som_data, stderr);
         if (flags & 8)  __rdpq_debug_disasm(rdp.last_cc,  &rdp.last_cc_data,  stderr);
         if (flags & 16) __rdpq_debug_disasm(rdp.last_tex, &rdp.last_tex_data, stderr);
-        rdpq_debug_disasm(vctx.buf, stderr);
-    } else if ((__rdpq_debug_log_flags & RDPQ_LOG_FLAG_SHOWTRIS) == 0
-                && CMD_IS_TRI(CMD(vctx.buf[0]))) {
         rdpq_debug_disasm(vctx.buf, stderr);
     }
 
@@ -733,6 +749,7 @@ static void validate_emit_error(int flags, const char *msg, ...)
     case 0:
         fprintf(stderr, "[RDPQ_VALIDATION] CRASH: ");
         vctx.crashed = true;
+        vctx.errs += 1;
         break;
     case 1:
         fprintf(stderr, "[RDPQ_VALIDATION] ERROR: ");
@@ -1102,9 +1119,10 @@ static void validate_use_tile(int tidx, int cycle) {
         validate_use_tile((tidx+1) & 7, 1);
 }
 
-void rdpq_validate(uint64_t *buf, int *r_errs, int *r_warns)
+void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
 {
     vctx.buf = buf;
+    vctx.flags = flags;
     if (r_errs)  *r_errs  = vctx.errs;
     if (r_warns) *r_warns = vctx.warns;
 

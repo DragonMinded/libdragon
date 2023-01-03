@@ -166,10 +166,12 @@ void rdpq_debug_install_hook(void (*hook)(void *ctx, uint64_t* cmd, int cmd_size
  * 
  * @param   buf     Pointer to the RDP command 
  * @param   out     Ouput stream where to write the disassembled string   
+ * @return  true if the command was disassembled, false if the command is being
+ *          held in a buffer waiting for more commands to be appended.
  * 
  * @see #rdpq_debug_disasm_size
  */
-void rdpq_debug_disasm(uint64_t *buf, FILE *out);
+bool rdpq_debug_disasm(uint64_t *buf, FILE *out);
 
 /**
  * @brief Return the size of the next RDP commands

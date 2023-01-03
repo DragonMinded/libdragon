@@ -33,13 +33,17 @@ extern void (*rdpq_trace_fetch)(bool new_buffer);
 /**
  * @brief Validate the next RDP command, given the RDP current state 
  * 
- * @param       buf     Pointer to the RDP command 
+ * @param       buf     Pointer to the RDP command
+ * @param       flags   Flags that configure the validation 
  * @param[out]  errs    If provided, this variable will contain the number of
  *                      validation errors that were found.
  * @param[out]  warns   If provided, this variable will contain the number of
  *                      validation warnings that were found.
  */
-void rdpq_validate(uint64_t *buf, int *errs, int *warns);
+void rdpq_validate(uint64_t *buf, uint32_t flags, int *errs, int *warns);
+
+/** @brief Disable echo of commands triggering validation errors */
+#define RDPQ_VALIDATE_FLAG_NOECHO    0x00000001
 
 /** @brief Show all triangles in logging (default: off) */
 #define RDPQ_LOG_FLAG_SHOWTRIS       0x00000001
