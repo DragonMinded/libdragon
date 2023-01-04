@@ -462,8 +462,6 @@ RDPQCmd_SyncFull:
     li t0, SP_WSTATUS_SET_SIG_RDPSYNCFULL
     mtc0 t0, COP0_SP_STATUS
 
-    sb zero, %lo(RDPQ_SYNCFULL_ONGOING)
-
     # Store the current SYNC_FULL command in the state and DMA it to RDRAM.
     # This includes the interrupt callback that the CPU will have to run.
     sw a0, %lo(RDPQ_SYNCFULL) + 0
