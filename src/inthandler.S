@@ -314,6 +314,7 @@ end_interrupt_gpr:
 
 	.align 5
 finalize_exception_frame:
+	sd $0, (STACK_GPR+ 0*8)(sp)   # ZR (this is mostly for register dumps)
 	sd $16,(STACK_GPR+16*8)(sp)   # S0
 	sd $17,(STACK_GPR+17*8)(sp)   # S1
 	sd $18,(STACK_GPR+18*8)(sp)   # S2
