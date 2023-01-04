@@ -53,6 +53,9 @@ static int texload_set_rect(tex_loader_t *tload, int s0, int t0, int s1, int t1)
                 (tload->tex->stride & stride_mask) == 0;
             tload->load_mode = TEX_LOAD_UNKNOWN;
         }
+        int tmem_size = (fmt == FMT_RGBA32 || fmt == FMT_CI4 || fmt == FMT_CI8) ? 2048 : 4096;
+        assertf(height * tload->rect.tmem_pitch <= tmem_size,
+            "A rectangle of size %dx%d format %s is too big to fit in TMEM", width, height, tex_format_name(fmt));
         tload->rect.width = width;
         tload->rect.height = height;
         tload->rect.num_texels = width * height;
@@ -80,6 +83,15 @@ static void tex_loader_set_tlut(tex_loader_t *tload, int tlut)
 {
     tload->tlut = tlut;
     tload->load_mode = TEX_LOAD_UNKNOWN;
+}
+
+static int texload_calc_max_height(tex_loader_t *tload, int width)
+{
+    texload_set_rect(tload, 0, 0, width, 1);
+
+    tex_format_t fmt = surface_get_format(tload->tex);
+    int tmem_size = (fmt == FMT_RGBA32 || fmt == FMT_CI4 || fmt == FMT_CI8) ? 2048 : 4096;
+    return tmem_size / tload->rect.tmem_pitch;
 }
 
 static void texload_block_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int t1)
@@ -144,7 +156,7 @@ static void texload_tile(tex_loader_t *tload, int s0, int t0, int s1, int t1)
 }
 
 static tex_loader_t tex_loader_init(rdpq_tile_t tile, surface_t *tex) {
-    bool is_4bpp = (surface_get_format(tex) & 3)== 0;
+    bool is_4bpp = TEX_FORMAT_BITDEPTH(surface_get_format(tex)) == 4;
     return (tex_loader_t){
         .tex = tex,
         .tile = tile,
@@ -203,15 +215,13 @@ static void tex_draw_split(rdpq_tile_t tile, surface_t *tex,
     // The most efficient way to split a large surface is to load it in horizontal strips,
     // whose height maximizes TMEM usage. The last strip might be smaller than the others.
 
-    // Calculate the optimal height for a strip, based on the TMEM pitch.
-    tex_format_t fmt = surface_get_format(tex);
-    int tmem_pitch = ROUND_UP(TEX_FORMAT_PIX2BYTES(fmt, tex->width), 8);
-    int tile_h = (fmt == FMT_CI4 || fmt == FMT_CI8) ? 2048 / tmem_pitch : 4096 / tmem_pitch;
-    int s0 = 0, t0 = 0;
-    
     // Initial configuration of texloader
     tex_loader_t tload = tex_loader_init(tile, tex);
 
+    // Calculate the optimal height for a strip, based on strips of maximum length.
+    int tile_h = texload_calc_max_height(&tload, tex->width);
+    int s0 = 0, t0 = 0;
+    
     // Go through the surface
     while (t0 < tex->height) 
     {
