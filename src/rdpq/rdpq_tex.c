@@ -11,69 +11,155 @@
 /** @brief Address in TMEM where the palettes must be loaded */
 #define TMEM_PALETTE_ADDR   0x800
 
-void rdpq_tex_load_tlut(uint16_t *tlut, int color_idx, int num_colors)
+enum tex_load_mode {
+    TEX_LOAD_UNKNOWN,
+    TEX_LOAD_TILE,
+    TEX_LOAD_BLOCK,
+};
+
+typedef struct tex_loader_s {
+    surface_t *tex;
+    rdpq_tile_t tile;
+    struct {
+        int width, height;
+        int num_texels, tmem_pitch;
+        bool can_load_block;
+    } rect;
+    int tmem_addr;
+    int tlut;
+    enum tex_load_mode load_mode;
+    void (*load_block)(struct tex_loader_s *tload, int s0, int t0, int s1, int t1);
+    void (*load_tile)(struct tex_loader_s *tload, int s0, int t0, int s1, int t1);
+} tex_loader_t;
+
+static int texload_set_rect(tex_loader_t *tload, int s0, int t0, int s1, int t1)
 {
-    rdpq_set_texture_image_raw(0, PhysicalAddr(tlut), FMT_RGBA16, num_colors, 1);
-    rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_I4, TMEM_PALETTE_ADDR + color_idx*16*2*4, num_colors, 0);
-    rdpq_load_tlut(RDPQ_TILE_INTERNAL, color_idx, num_colors);
-}
-
-static bool tex_load_as_block_4bpp(surface_t *tex, int tmem_addr, int tmem_pitch, int s0, int t0, int s1, int t1)
-{
-    if (tex->stride != (s1+1)/2 - s0/2)
-        return false;
-    if (tex->stride%8 != 0)
-        return false;
-    if (t0 & 1)  // can't load starting from odd lines because of odd lines are dword-swapped in TMEM
-        return false;
-
-    // Calculate the number of texels to transfer using a 8bpp format.
-    // If it's more than 2048, try as a 16bpp format instead
-    tex_format_t load_fmt = FMT_CI8;
-    int num_texels = tex->stride * (t1 - t0);
-    if (num_texels > 2048) {
-        // If the stride in bytes is odd, we can't use 16bpp, so fallback to LOAD_TILE instead.
-        if (tex->stride%2 != 0)
-            return false;
-
-        load_fmt = FMT_RGBA16;
-        num_texels /= 2;
-        if (num_texels > 2048)
-            return false;
+    tex_format_t fmt = surface_get_format(tload->tex);
+    if (TEX_FORMAT_BITDEPTH(fmt) == 4) {
+        s0 &= ~1; s1 = (s1+1) & ~1;
     }
 
-    // Use LOAD_BLOCK if we are uploading a full texture. Notice the weirdness of LOAD_BLOCK:
-    // * SET_TILE must be configured with tmem_pitch=0, as that is weirdly used as the number of
-    //   texels to skip per line, which we don't need.
-    // * SET_TEXTURE_IMAGE width is ignored, so we just put 0 there to avoid confusion.
-    rdpq_set_texture_image_raw(0, PhysicalAddr(tex->buffer), load_fmt, 0, tex->height);
-    rdpq_set_tile(RDPQ_TILE_INTERNAL, load_fmt, tmem_addr, 0, 0);
-    rdpq_load_block(RDPQ_TILE_INTERNAL, s0/2, t0, num_texels, tmem_pitch);
-    return true;
+    int width = s1 - s0;
+    int height = t1 - t0;
+
+    if (width != tload->rect.width || height != tload->rect.height) {
+        if (width != tload->rect.width) {
+            int pitch_shift = fmt == FMT_RGBA32 ? 1 : 0;
+            int stride_mask = fmt == FMT_RGBA32 ? 15 : 7;
+            tload->rect.tmem_pitch = ROUND_UP(TEX_FORMAT_PIX2BYTES(fmt, width) >> pitch_shift, 8);
+            tload->rect.can_load_block = 
+                tload->tile != RDPQ_TILE_INTERNAL && 
+                TEX_FORMAT_PIX2BYTES(fmt, width) == tload->tex->stride &&
+                (tload->tex->stride & stride_mask) == 0;
+            tload->load_mode = TEX_LOAD_UNKNOWN;
+        }
+        tload->rect.width = width;
+        tload->rect.height = height;
+        tload->rect.num_texels = width * height;
+    }
+    return tload->rect.tmem_pitch * height;
 }
 
-static int rdpq_tex_load_sub_4bpp(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int tlut, int s0, int t0, int s1, int t1)
+static int tex_loader_load(tex_loader_t *tload, int s0, int t0, int s1, int t1)
 {
-    int tmem_pitch = ROUND_UP((s1+1)/2 - s0/2, 8);
+    int mem = texload_set_rect(tload, s0, t0, s1, t1);
+    if (tload->rect.can_load_block && (t0 & 1) == 0)
+        tload->load_block(tload, s0, t0, s1, t1);
+    else
+        tload->load_tile(tload, s0, t0, s1, t1);
+    return mem;
+}
 
-    // Try to load the texture as a block, if possible. If it is not, fall back to LOAD_TILE.
-    if (!tex_load_as_block_4bpp(tex, tmem_addr, tmem_pitch, s0, t0, s1, t1)) {
-        // LOAD_TILE does not support loading from a 4bpp texture. We need to pretend
-        // it's CI8 instead during loading, and then configure the tile with the correct 4bpp format.
-        rdpq_set_texture_image_raw(0, PhysicalAddr(tex->buffer), FMT_CI8, tex->stride, tex->height);
-        rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_CI8, tmem_addr, tmem_pitch, 0);
-        rdpq_load_tile(RDPQ_TILE_INTERNAL, s0/2, t0, (s1+1)/2, t1);
+static void tex_loader_set_tmem_addr(tex_loader_t *tload, int tmem_addr)
+{
+    tload->tmem_addr = tmem_addr;
+    tload->load_mode = TEX_LOAD_UNKNOWN;
+}
+
+static void tex_loader_set_tlut(tex_loader_t *tload, int tlut)
+{
+    tload->tlut = tlut;
+    tload->load_mode = TEX_LOAD_UNKNOWN;
+}
+
+static void texload_block_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int t1)
+{
+    if (tload->load_mode != TEX_LOAD_BLOCK) {
+        // Use LOAD_BLOCK if we are uploading a full texture. Notice the weirdness of LOAD_BLOCK:
+        // * SET_TILE must be configured with tmem_pitch=0, as that is weirdly used as the number of
+        //   texels to skip per line, which we don't need.
+        rdpq_set_texture_image_raw(0, PhysicalAddr(tload->tex->buffer), FMT_RGBA16, tload->tex->width, tload->tex->height);
+        rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_RGBA16, tload->tmem_addr, 0, 0);
+        rdpq_set_tile(tload->tile, surface_get_format(tload->tex), tload->tmem_addr, tload->rect.tmem_pitch, tload->tlut);
+        tload->load_mode = TEX_LOAD_BLOCK;
     }
 
-    rdpq_set_tile(tile, surface_get_format(tex), tmem_addr, tmem_pitch, tlut);
-    rdpq_set_tile_size(tile, s0/2*2, t0, (s1+1)/2*2, t1);
+    s0 &= ~1; s1 = (s1+1) & ~1;
+    rdpq_load_block(RDPQ_TILE_INTERNAL, s0/2, t0, tload->rect.num_texels/4, tload->rect.tmem_pitch);
+    rdpq_set_tile_size(tload->tile, s0, t0, s1, t1);
+}
 
-    return tmem_pitch * tex->height;
+static void texload_tile_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int t1)
+{
+    if (tload->load_mode != TEX_LOAD_TILE) {
+        rdpq_set_texture_image_raw(0, PhysicalAddr(tload->tex->buffer), FMT_CI8, tload->tex->stride, tload->tex->height);
+        rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_CI8, tload->tmem_addr, tload->rect.tmem_pitch, 0);
+        rdpq_set_tile(tload->tile, surface_get_format(tload->tex), tload->tmem_addr, tload->rect.tmem_pitch, tload->tlut);
+    }
+
+    s0 &= ~1; s1 = (s1+1) & ~1;
+    rdpq_load_tile(RDPQ_TILE_INTERNAL, s0/2, t0, s1/2, t1);
+    rdpq_set_tile_size(tload->tile, s0, t0, s1, t1);
+}
+
+static void texload_block(tex_loader_t *tload, int s0, int t0, int s1, int t1)
+{
+    tex_format_t fmt = surface_get_format(tload->tex);
+
+    if (tload->load_mode != TEX_LOAD_BLOCK) {
+        // Use LOAD_BLOCK if we are uploading a full texture. Notice the weirdness of LOAD_BLOCK:
+        // * SET_TILE must be configured with tmem_pitch=0, as that is weirdly used as the number of
+        //   texels to skip per line, which we don't need.
+        rdpq_set_texture_image_raw(0, PhysicalAddr(tload->tex->buffer), fmt, tload->tex->width, tload->tex->height);
+        rdpq_set_tile(RDPQ_TILE_INTERNAL, fmt, tload->tmem_addr, 0, 0);
+        rdpq_set_tile(tload->tile, fmt, tload->tmem_addr, tload->rect.tmem_pitch, tload->tlut);
+        tload->load_mode = TEX_LOAD_BLOCK;
+    }
+
+    rdpq_load_block(RDPQ_TILE_INTERNAL, s0, t0, tload->rect.num_texels, (fmt == FMT_RGBA32) ? tload->rect.tmem_pitch*2 : tload->rect.tmem_pitch);
+    rdpq_set_tile_size(tload->tile, s0, t0, s1, t1);
+}
+
+static void texload_tile(tex_loader_t *tload, int s0, int t0, int s1, int t1)
+{
+    tex_format_t fmt = surface_get_format(tload->tex);
+
+    if (tload->load_mode != TEX_LOAD_TILE) {
+        rdpq_set_texture_image(tload->tex);
+        rdpq_set_tile(tload->tile, fmt, tload->tmem_addr, tload->rect.tmem_pitch, tload->tlut);
+        tload->load_mode = TEX_LOAD_TILE;
+    }
+
+    rdpq_load_tile(tload->tile, s0, t0, s1, t1);
+}
+
+static tex_loader_t tex_loader_init(rdpq_tile_t tile, surface_t *tex) {
+    bool is_4bpp = (surface_get_format(tex) & 3)== 0;
+    return (tex_loader_t){
+        .tex = tex,
+        .tile = tile,
+        .load_block = is_4bpp ? texload_block_4bpp : texload_block,
+        .load_tile = is_4bpp ? texload_tile_4bpp : texload_tile,
+    };
 }
 
 int rdpq_tex_load_sub_ci4(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int tlut, int s0, int t0, int s1, int t1)
 {
-    return rdpq_tex_load_sub_4bpp(tile, tex, tmem_addr, tlut, s0, t0, s1, t1);
+    tex_loader_t tload = tex_loader_init(tile, tex);
+    tex_loader_set_tlut(&tload, tlut);
+    tex_loader_set_tmem_addr(&tload, tmem_addr);
+    return tex_loader_load(&tload, s0, t0, s1, t1);
+#   
 }
 
 int rdpq_tex_load_ci4(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int tlut)
@@ -83,27 +169,9 @@ int rdpq_tex_load_ci4(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int tlut)
 
 int rdpq_tex_load_sub(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int s0, int t0, int s1, int t1)
 {
-    // Call the CI4 version for both FMT_CI4 and FMT_IA4 (in the latter case,
-    // the tlut argument will be ignored).
-    tex_format_t fmt = surface_get_format(tex);
-    if (TEX_FORMAT_BITDEPTH(fmt) == 4)
-        return rdpq_tex_load_sub_4bpp(tile, tex, tmem_addr, 0, s0, t0, s1, t1);
-
-    int tmem_pitch = TEX_FORMAT_PIX2BYTES(fmt, s1 - s0);
-
-    // In RGBA32 mode, data is split in two halves in TMEM (R,G in the first TMEM half,
-    // B,A in the second TMEM half). This means that the pitch can be halved, as it is
-    // calculated only over 2 channels instead of 4.
-    if (fmt == FMT_RGBA32)
-        tmem_pitch /= 2;
-
-    tmem_pitch = ROUND_UP(tmem_pitch, 8);
-
-    rdpq_set_tile(tile, fmt, tmem_addr, tmem_pitch, 0);
-    rdpq_set_texture_image(tex);
-    rdpq_load_tile(tile, s0, t0, s1, t1);
-
-    return tmem_pitch * tex->height;
+    tex_loader_t tload = tex_loader_init(tile, tex);
+    tex_loader_set_tmem_addr(&tload, tmem_addr);
+    return tex_loader_load(&tload, s0, t0, s1, t1);
 }
 
 int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, int tmem_addr)
@@ -138,42 +206,51 @@ static void tex_draw_split(rdpq_tile_t tile, surface_t *tex,
     // Calculate the optimal height for a strip, based on the TMEM pitch.
     tex_format_t fmt = surface_get_format(tex);
     int tmem_pitch = ROUND_UP(TEX_FORMAT_PIX2BYTES(fmt, tex->width), 8);
-    int tile_h = 4096 / tmem_pitch;
+    int tile_h = (fmt == FMT_CI4 || fmt == FMT_CI8) ? 2048 / tmem_pitch : 4096 / tmem_pitch;
+    int s0 = 0, t0 = 0;
     
-    // Initial configuration of the tile
-    rdpq_set_texture_image(tex);
-    rdpq_set_tile(tile, fmt, 0, tmem_pitch, 0);
+    // Initial configuration of texloader
+    tex_loader_t tload = tex_loader_init(tile, tex);
 
     // Go through the surface
-    int s0 = 0, t0 = 0;
     while (t0 < tex->height) 
     {
+        // Calculate the height of the current strip
+        int s1 = tex->width;
+        int t1 = MIN(t0 + tile_h, tex->height);
+
         // Load the current strip
-        int h = MIN(tile_h, tex->height - t0);
-        rdpq_load_tile(tile, s0, t0, tex->width, t0 + h);
+        tex_loader_load(&tload, s0, t0, s1, t1);
 
         // Call the draw callback for this strip
-        draw_cb(tile, s0, t0, tex->width, t0 + h);
+        draw_cb(tile, s0, t0, s1, t1);
 
-        t0 += h;
+        // Move to the next strip
+        t0 = t1;
     }
 }
-
 
 void rdpq_tex_blit(rdpq_tile_t tile, surface_t *tex, int x0, int y0, int screen_width, int screen_height)
 {
     float scalex = (float)screen_width / (float)tex->width;
     float scaley = (float)screen_height / (float)tex->height;
     float dsdx = 1.0f / scalex;
-    float dsdy = 1.0f / scaley;
+    float dtdy = 1.0f / scaley;
 
     void draw_cb(rdpq_tile_t tile, int s0, int t0, int s1, int t1)
     {
         rdpq_texture_rectangle(tile, 
             x0 + s0 * scalex, y0 + t0 * scaley,
             x0 + s1 * scalex, y0 + t1 * scaley,
-            s0, t0, dsdx, dsdy);
+            s0, t0, dsdx, dtdy);
     }
 
     tex_draw_split(tile, tex, draw_cb);
+}
+
+void rdpq_tex_load_tlut(uint16_t *tlut, int color_idx, int num_colors)
+{
+    rdpq_set_texture_image_raw(0, PhysicalAddr(tlut), FMT_RGBA16, num_colors, 1);
+    rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_I4, TMEM_PALETTE_ADDR + color_idx*16*2*4, num_colors, 0);
+    rdpq_load_tlut(RDPQ_TILE_INTERNAL, color_idx, num_colors);
 }
