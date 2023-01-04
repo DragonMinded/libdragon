@@ -779,7 +779,11 @@ void test_rdpq_syncfull_cb(TestContext *ctx)
 
 void test_rdpq_syncfull_resume(TestContext *ctx)
 {
-    RDPQ_INIT();
+    // Avoid rdpq_debug_start since it can mess with timing
+    rspq_init();
+    DEFER(rspq_close());
+    rdpq_init();
+    DEFER(rdpq_close());
 
     // SYNC_FULL has a hardware bug in case other commands get scheduled via DMA while
     // it is in progress. rdpq works around but we want to test that it works in several
@@ -787,18 +791,33 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     // This test has no checks because if it fails, the RDP will hang and the RSP crash
     // screen will appear.
 
-    const int WIDTH = 128;
-    surface_t fb = surface_alloc(FMT_RGBA32, WIDTH, WIDTH);
+    const int WIDTH = 32;
+    surface_t fb = surface_alloc(FMT_RGBA16, WIDTH, WIDTH);
     DEFER(surface_free(&fb));
+    surface_t tex = surface_alloc(FMT_RGBA16, WIDTH, WIDTH);
+    DEFER(surface_free(&tex));
 
-    rdpq_set_mode_fill(RGBA32(255, 255, 255, 255));
+    rdpq_set_mode_copy(false);
     rdpq_set_color_image(&fb);
 
-    // Dynamic mode
+    // Dynamic mode 
     debugf("Dynamic mode\n");
     for (int j=0;j<4;j++) {
-        for (int i=0;i<16;i++)
-            rdpq_fill_rectangle(0, 0, 128, 128);
+        for (int i=0;i<80;i++) {
+            rdpq_tex_load_sub(TILE0, &tex, 0, 0, 0, WIDTH, WIDTH);
+            rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0, 1, 1);
+        }
+        rdpq_sync_full(NULL, NULL);
+    }
+    rspq_wait();
+
+    // Dynamic mode (multiple syncs per buffer)
+    debugf("Dynamic mode with multiple syncs per buffer\n");
+    for (int j=0;j<4;j++) {
+        for (int i=0;i<6;i++) {
+            rdpq_tex_load_sub(TILE0, &tex, 0, 0, 0, WIDTH, WIDTH);
+            rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0, 1, 1);
+        }
         rdpq_sync_full(NULL, NULL);
     }
     rspq_wait();
@@ -809,8 +828,10 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     // Dynamic mode, forcing buffer change.
     debugf("Dynamic mode with buffer change\n");
     for (int j=0;j<4;j++) {
-        for (int i=0;i<16;i++)
-            rdpq_fill_rectangle(0, 0, 128, 128);
+        for (int i=0;i<80;i++) {
+            rdpq_tex_load_sub(TILE0, &tex, 0, 0, 0, WIDTH, WIDTH);
+            rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0, 1, 1);
+        }
         rdpq_sync_full(NULL, NULL);
         rdpq_exec(buf, sizeof(buf));
     }
@@ -819,8 +840,10 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     // Block mode, 
     debugf("Block mode\n");
     rspq_block_begin();
-    for (int i=0;i<4;i++)
-        rdpq_fill_rectangle(0, 0, 128, 128);
+    for (int i=0;i<80;i++) {
+        rdpq_tex_load_sub(TILE0, &tex, 0, 0, 0, WIDTH, WIDTH);
+        rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0, 1, 1);
+    }
     rspq_block_t *rect_block = rspq_block_end();
     DEFER(rspq_block_free(rect_block));
 
@@ -834,8 +857,10 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     // Block mode with sync, 
     debugf("Block mode with sync inside\n");
     rspq_block_begin();
-    for (int i=0;i<16;i++)
-        rdpq_fill_rectangle(0, 0, 128, 128);
+    for (int i=0;i<80;i++) {
+        rdpq_tex_load_sub(TILE0, &tex, 0, 0, 0, WIDTH, WIDTH);
+        rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0, 1, 1);
+    }
     rdpq_sync_full(NULL, NULL);
     rspq_block_t *sync_block = rspq_block_end();
     DEFER(rspq_block_free(sync_block));
