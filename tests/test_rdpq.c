@@ -1356,6 +1356,8 @@ void test_rdpq_mode_freeze(TestContext *ctx) {
         rdpq_set_mode_standard();
         rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,0), (0,0,0,0)));
         rdpq_mode_blender(RDPQ_BLENDER((IN_RGB, 0, BLEND_RGB, 1)));
+        rdpq_mode_filter(FILTER_POINT);
+        rdpq_mode_alphacompare(false);
         rdpq_debug_log_msg("Freeze end");
     rdpq_mode_end();
 
@@ -1385,6 +1387,8 @@ void test_rdpq_mode_freeze(TestContext *ctx) {
             rdpq_set_mode_standard();
             rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,0), (0,0,0,0)));
             rdpq_mode_blender(RDPQ_BLENDER((IN_RGB, 0, BLEND_RGB, 1)));
+            rdpq_mode_filter(FILTER_POINT);
+            rdpq_mode_alphacompare(false);
         rdpq_mode_end();
         rdp_draw_filled_triangle(0, 0, FBWIDTH, 0, FBWIDTH, FBWIDTH);
         rdp_draw_filled_triangle(0, 0, 0, FBWIDTH, FBWIDTH, FBWIDTH);

@@ -26,6 +26,7 @@ enum {
 
 #define pack32(x16)        ((x16) | ((x16) << 16))
 
+// Colors are coming from the Solarized color scheme
 #define COLOR_BACKGROUND   pack32(color_to_packed16(RGBA32(0x00, 0x2b, 0x36, 255)))
 #define COLOR_HIGHLIGHT    pack32(color_to_packed16(RGBA32(0x07, 0x36, 0x42, 128)))
 #define COLOR_TEXT         pack32(color_to_packed16(RGBA32(0x83, 0x94, 0x96, 255)))
@@ -266,10 +267,11 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode
     int n = backtrace(bt, 32);
 
     printf("\aWBacktrace:\n");
+    if (first_backtrace) debugf("Backtrace:\n");
     char func[128];
     bool skip = true;
     void cb(void *arg, backtrace_frame_t *frame) {
-        if (first_backtrace) { backtrace_frame_print(frame, stderr); debugf("\n"); }
+        if (first_backtrace) { debugf("    "); backtrace_frame_print(frame, stderr); debugf("\n"); }
         if (skip) {
             if (strstr(frame->func, "<EXCEPTION HANDLER>"))
                 skip = false;

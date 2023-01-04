@@ -31,22 +31,24 @@ static inline uint32_t surface_get_pixel(surface_t *surf, int x, int y)
 {
     void *ptr = surf->buffer + y * surf->stride;
 
-    switch (surface_get_format(surf) & 3) {
-    case 0: // 4-bit
+    switch (TEX_FORMAT_BITDEPTH(surface_get_format(surf))) {
+    case 4:
         ptr += x/2;
         if (x & 1)
             return *(uint8_t*)ptr & 0xF;
         else
             return (*(uint8_t*)ptr >> 4) & 0xF;
-    case 1: // 8-bit
+    case 8:
         ptr += x;
         return *(uint8_t*)ptr;
-    case 2: // 16-bit
+    case 16:
         ptr += x*2;
         return *(uint16_t*)ptr;
-    case 3: // 32-bit
+    case 32:
         ptr += x*4;
         return *(uint32_t*)ptr;
+    default:
+        assert(false);
     }
     return 0;
 }
@@ -56,22 +58,7 @@ static surface_t surface_create_random(int width, int height, tex_format_t fmt)
     surface_t surf = surface_alloc(fmt, width, height);
     for (int j=0;j<height;j++) {
         for (int i=0;i<width;i++) {
-            switch (surface_get_format(&surf) & 3) {
-                case 0: // 4-bit
-                    surface_set_pixel(&surf, i, j, rand());
-                    break;
-                case 1: // 8-bit
-                    surface_set_pixel(&surf, i, j, rand());
-                    break;
-                case 2: // 16-bit
-                    surface_set_pixel(&surf, i, j, rand());
-                    break;
-                case 3: // 32-bit
-                    surface_set_pixel(&surf, i, j, rand());
-                    break;
-                default:
-                    assert(false);
-            }
+            surface_set_pixel(&surf, i, j, rand());
         }
     }
     return surf;

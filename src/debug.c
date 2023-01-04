@@ -534,6 +534,8 @@ void debug_assert_func_f(const char *file, int line, const char *func, const cha
 		fprintf(stderr, "\n");
 	}
 
+	fprintf(stderr, "\n");
+
 	va_list args;
 	va_start(args, msg);
 	__inspector_assertion(failedexpr, msg, args);

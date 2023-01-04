@@ -598,7 +598,7 @@ inline void rdpq_mode_fog(rdpq_blender_t fog) {
  * @see #rdpq_dither_t
  */
 inline void rdpq_mode_dithering(rdpq_dither_t dither) {
-    rdpq_change_other_modes_raw(
+    __rdpq_mode_change_som(
         SOM_RGBDITHER_MASK | SOM_ALPHADITHER_MASK, ((uint64_t)dither << SOM_ALPHADITHER_SHIFT));
 }
 
@@ -620,12 +620,12 @@ inline void rdpq_mode_dithering(rdpq_dither_t dither) {
  */
 inline void rdpq_mode_alphacompare(int threshold) {
     if (threshold == 0) {
-        rdpq_change_other_modes_raw(SOM_ALPHACOMPARE_MASK, 0);
+        __rdpq_mode_change_som(SOM_ALPHACOMPARE_MASK, 0);
     } else if (threshold > 0) {
-        rdpq_change_other_modes_raw(SOM_ALPHACOMPARE_MASK, SOM_ALPHACOMPARE_THRESHOLD);
+        __rdpq_mode_change_som(SOM_ALPHACOMPARE_MASK, SOM_ALPHACOMPARE_THRESHOLD);
         rdpq_set_blend_color(RGBA32(0,0,0,threshold));
     } else {
-        rdpq_change_other_modes_raw(SOM_ALPHACOMPARE_MASK, SOM_ALPHACOMPARE_NOISE);
+        __rdpq_mode_change_som(SOM_ALPHACOMPARE_MASK, SOM_ALPHACOMPARE_NOISE);
     }
 }
 
@@ -645,7 +645,7 @@ inline void rdpq_mode_alphacompare(int threshold) {
  * @see #rdpq_set_z_image
  */
 inline void rdpq_mode_zbuf(bool compare, bool update) {
-    rdpq_change_other_modes_raw(
+    __rdpq_mode_change_som(
         SOM_Z_COMPARE | SOM_Z_WRITE, 
         (compare ? SOM_Z_COMPARE : 0) |
         (update  ? SOM_Z_WRITE   : 0)
@@ -671,7 +671,7 @@ inline void rdpq_mode_zbuf(bool compare, bool update) {
  */
 inline void rdpq_mode_zoverride(bool enable, float z, int16_t deltaz) {
     if (enable) rdpq_set_prim_depth_raw(z * 0x7FFF, deltaz);
-    rdpq_change_other_modes_raw(
+    __rdpq_mode_change_som(
         SOM_ZSOURCE_PRIM, enable ? SOM_ZSOURCE_PRIM : 0
     );
 }
@@ -696,7 +696,7 @@ inline void rdpq_mode_zoverride(bool enable, float z, int16_t deltaz) {
 inline void rdpq_mode_tlut(rdpq_tlut_t tlut) {
     // This assert is useful to catch the common mistake of rdpq_mode_tlut(true)
     assertf(tlut == TLUT_NONE || tlut == TLUT_RGBA16 || tlut == TLUT_IA16, "invalid TLUT type");
-    rdpq_change_other_modes_raw(SOM_TLUT_MASK, (uint64_t)tlut << SOM_TLUT_SHIFT);
+    __rdpq_mode_change_som(SOM_TLUT_MASK, (uint64_t)tlut << SOM_TLUT_SHIFT);
 }
 
 /**
@@ -712,7 +712,7 @@ inline void rdpq_mode_tlut(rdpq_tlut_t tlut) {
  * @see #rdpq_filter_t
  */
 inline void rdpq_mode_filter(rdpq_filter_t filt) {
-    rdpq_change_other_modes_raw(SOM_SAMPLE_MASK, (uint64_t)filt << SOM_SAMPLE_SHIFT);
+    __rdpq_mode_change_som(SOM_SAMPLE_MASK, (uint64_t)filt << SOM_SAMPLE_SHIFT);
 }
 
 /**
@@ -754,7 +754,7 @@ inline void rdpq_mode_mipmap(rdpq_mipmap_t mode, int num_levels) {
  */
 inline void rdpq_mode_persp(bool perspective)
 {
-    rdpq_change_other_modes_raw(SOM_TEXTURE_PERSP, perspective ? SOM_TEXTURE_PERSP : 0);
+    __rdpq_mode_change_som(SOM_TEXTURE_PERSP, perspective ? SOM_TEXTURE_PERSP : 0);
 }
 
 /** @} */
