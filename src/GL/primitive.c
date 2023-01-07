@@ -1119,7 +1119,7 @@ bool gl_prepare_attrib_sources(uint32_t offset, uint32_t count)
 
     for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
     {
-        if (!gl_prepare_attrib_source(&state.attrib_sources[i], &state.arrays[i], offset, count)) {
+        if (!gl_prepare_attrib_source(&state.attrib_sources[i], &state.array_object->arrays[i], offset, count)) {
             return false;
         }
     }

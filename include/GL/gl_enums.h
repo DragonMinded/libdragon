@@ -109,6 +109,8 @@
 
 #define GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING_ARB       0x889F
 
+#define GL_VERTEX_ARRAY_BINDING                         0x85B5
+
 #define GL_STREAM_DRAW_ARB                              0x88E0
 #define GL_STREAM_READ_ARB                              0x88E1
 #define GL_STREAM_COPY_ARB                              0x88E2

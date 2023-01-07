@@ -327,7 +327,7 @@ GLubyte *glGetString(GLenum name)
     case GL_VERSION:
         return (GLubyte*)"1.1";
     case GL_EXTENSIONS:
-        return (GLubyte*)"GL_ARB_multisample GL_EXT_packed_pixels GL_ARB_vertex_buffer_object GL_ARB_texture_mirrored_repeat";
+        return (GLubyte*)"GL_ARB_multisample GL_EXT_packed_pixels GL_ARB_vertex_buffer_object GL_ARB_texture_mirrored_repeat GL_ARB_vertex_array_object";
     default:
         gl_set_error(GL_INVALID_ENUM);
         return NULL;

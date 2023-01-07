@@ -14,6 +14,7 @@
 #define GL_EXT_packed_pixels            1
 #define GL_ARB_vertex_buffer_object     1
 #define GL_ARB_texture_mirrored_repeat  1
+#define GL_ARB_vertex_array_object      1
 
 /* Data types */
 
@@ -209,6 +210,13 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count);
 void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices);
 
 void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer);
+
+void glGenVertexArrays(GLsizei n, GLuint *arrays);
+void glDeleteVertexArrays(GLsizei n, const GLuint *arrays);
+
+void glBindVertexArray(GLuint array);
+
+GLboolean glIsVertexArray(GLuint array);
 
 /* Buffer Objects */
 

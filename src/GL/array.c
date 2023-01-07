@@ -1,5 +1,6 @@
 #include "gl_internal.h"
 #include "debug.h"
+#include <malloc.h>
 
 extern gl_state_t state;
 
@@ -31,26 +32,46 @@ static const gl_interleaved_array_t interleaved_arrays[] = {
     /* GL_T4F_C4F_N3F_V4F */ { .et = true,  .ec = true,  .en = true,  .st = 4, .sc = 4, .sv = 4, .tc = GL_FLOAT,         .pc = 4*ILA_F, .pn = 8*ILA_F, .pv = 11*ILA_F,        .s = 15*ILA_F },
 };
 
-void gl_array_init()
+void gl_array_object_init(gl_array_object_t *obj)
 {
-    state.arrays[ATTRIB_VERTEX].size = 4;
-    state.arrays[ATTRIB_VERTEX].type = GL_FLOAT;
-    state.arrays[ATTRIB_COLOR].size = 4;
-    state.arrays[ATTRIB_COLOR].type = GL_FLOAT;
-    state.arrays[ATTRIB_COLOR].normalize = true;
-    state.arrays[ATTRIB_TEXCOORD].size = 4;
-    state.arrays[ATTRIB_TEXCOORD].type = GL_FLOAT;
-    state.arrays[ATTRIB_NORMAL].size = 3;
-    state.arrays[ATTRIB_NORMAL].type = GL_FLOAT;
-    state.arrays[ATTRIB_NORMAL].normalize = true;
+    obj->arrays[ATTRIB_VERTEX].size = 4;
+    obj->arrays[ATTRIB_VERTEX].type = GL_FLOAT;
+    obj->arrays[ATTRIB_COLOR].size = 4;
+    obj->arrays[ATTRIB_COLOR].type = GL_FLOAT;
+    obj->arrays[ATTRIB_COLOR].normalize = true;
+    obj->arrays[ATTRIB_TEXCOORD].size = 4;
+    obj->arrays[ATTRIB_TEXCOORD].type = GL_FLOAT;
+    obj->arrays[ATTRIB_NORMAL].size = 3;
+    obj->arrays[ATTRIB_NORMAL].type = GL_FLOAT;
+    obj->arrays[ATTRIB_NORMAL].normalize = true;
 }
 
-void gl_set_array(gl_array_t *array, GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
+void gl_array_init()
+{
+    gl_array_object_init(&state.default_array_object);
+    state.array_object = &state.default_array_object;
+}
+
+void gl_set_array(gl_array_type_t array_type, GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
 {
     if (stride < 0) {
         gl_set_error(GL_INVALID_VALUE);
         return;
     }
+
+    // From the spec (https://registry.khronos.org/OpenGL/extensions/ARB/ARB_vertex_array_object.txt):
+    // An INVALID_OPERATION error is generated if any of the *Pointer commands
+    // specifying the location and organization of vertex data are called while
+    // a non-zero vertex array object is bound, zero is bound to the
+    // ARRAY_BUFFER buffer object, and the pointer is not NULL[fn].
+    //     [fn: This error makes it impossible to create a vertex array
+    //           object containing client array pointers.]
+    if (state.array_object != &state.default_array_object && state.array_buffer == NULL && pointer != NULL) {
+        gl_set_error(GL_INVALID_OPERATION);
+        return;
+    }
+
+    gl_array_t *array = &state.array_object->arrays[array_type];
 
     array->size = size;
     array->type = type;
@@ -82,7 +103,7 @@ void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *poin
         return;
     }
 
-    gl_set_array(&state.arrays[ATTRIB_VERTEX], size, type, stride, pointer);
+    gl_set_array(ATTRIB_VERTEX, size, type, stride, pointer);
 }
 
 void glTexCoordPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
@@ -109,7 +130,7 @@ void glTexCoordPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *po
         return;
     }
 
-    gl_set_array(&state.arrays[ATTRIB_TEXCOORD], size, type, stride, pointer);
+    gl_set_array(ATTRIB_TEXCOORD, size, type, stride, pointer);
 }
 
 void glNormalPointer(GLenum type, GLsizei stride, const GLvoid *pointer)
@@ -126,7 +147,7 @@ void glNormalPointer(GLenum type, GLsizei stride, const GLvoid *pointer)
         return;
     }
 
-    gl_set_array(&state.arrays[ATTRIB_NORMAL], 3, type, stride, pointer);
+    gl_set_array(ATTRIB_NORMAL, 3, type, stride, pointer);
 }
 
 void glColorPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
@@ -155,23 +176,23 @@ void glColorPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *point
         return;
     }
 
-    gl_set_array(&state.arrays[ATTRIB_COLOR], size, type, stride, pointer);
+    gl_set_array(ATTRIB_COLOR, size, type, stride, pointer);
 }
 
 void glEnableClientState(GLenum array)
 {
     switch (array) {
     case GL_VERTEX_ARRAY:
-        state.arrays[ATTRIB_VERTEX].enabled = true;
+        state.array_object->arrays[ATTRIB_VERTEX].enabled = true;
         break;
     case GL_TEXTURE_COORD_ARRAY:
-        state.arrays[ATTRIB_TEXCOORD].enabled = true;
+        state.array_object->arrays[ATTRIB_TEXCOORD].enabled = true;
         break;
     case GL_NORMAL_ARRAY:
-        state.arrays[ATTRIB_NORMAL].enabled = true;
+        state.array_object->arrays[ATTRIB_NORMAL].enabled = true;
         break;
     case GL_COLOR_ARRAY:
-        state.arrays[ATTRIB_COLOR].enabled = true;
+        state.array_object->arrays[ATTRIB_COLOR].enabled = true;
         break;
     case GL_EDGE_FLAG_ARRAY:
     case GL_INDEX_ARRAY:
@@ -185,16 +206,16 @@ void glDisableClientState(GLenum array)
 {
     switch (array) {
     case GL_VERTEX_ARRAY:
-        state.arrays[ATTRIB_VERTEX].enabled = false;
+        state.array_object->arrays[ATTRIB_VERTEX].enabled = false;
         break;
     case GL_TEXTURE_COORD_ARRAY:
-        state.arrays[ATTRIB_TEXCOORD].enabled = false;
+        state.array_object->arrays[ATTRIB_TEXCOORD].enabled = false;
         break;
     case GL_NORMAL_ARRAY:
-        state.arrays[ATTRIB_NORMAL].enabled = false;
+        state.array_object->arrays[ATTRIB_NORMAL].enabled = false;
         break;
     case GL_COLOR_ARRAY:
-        state.arrays[ATTRIB_COLOR].enabled = false;
+        state.array_object->arrays[ATTRIB_COLOR].enabled = false;
         break;
     case GL_EDGE_FLAG_ARRAY:
     case GL_INDEX_ARRAY:
@@ -257,4 +278,54 @@ void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer)
 
     glEnableClientState(GL_VERTEX_ARRAY);
     glVertexPointer(a->sv, GL_FLOAT, stride, pointer + a->pv);
+}
+
+void glGenVertexArrays(GLsizei n, GLuint *arrays)
+{
+    for (GLsizei i = 0; i < n; i++)
+    {
+        gl_array_object_t *new_obj = calloc(sizeof(gl_array_object_t), 1);
+        gl_array_object_init(new_obj);
+        arrays[i] = (GLuint)new_obj;
+    }
+}
+
+void glDeleteVertexArrays(GLsizei n, const GLuint *arrays)
+{
+    for (GLsizei i = 0; i < n; i++)
+    {
+        assertf(arrays[i] == 0 || is_valid_object_id(arrays[i]), "Not a valid array object: %#lx", arrays[i]);
+
+        gl_array_object_t *obj = (gl_array_object_t*)arrays[i];
+        if (obj == NULL) {
+            continue;
+        }
+
+        if (obj == state.array_object) {
+            glBindVertexArray(0);
+        }
+
+        free(obj);
+    }
+}
+
+void glBindVertexArray(GLuint array)
+{
+    assertf(array == 0 || is_valid_object_id(array), "Not a valid array object: %#lx", array);
+
+    gl_array_object_t *obj = (gl_array_object_t*)array;
+
+    if (obj == NULL) {
+        obj = &state.default_array_object;
+    }
+
+    state.array_object = obj;
+}
+
+GLboolean glIsVertexArray(GLuint array)
+{
+    // FIXME: This doesn't actually guarantee that it's a valid array object, but just uses the heuristic of
+    //        "is it somewhere in the heap memory?". This way we can at least rule out arbitrarily chosen integer constants,
+    //        which used to be valid array IDs in legacy OpenGL.
+    return is_valid_object_id(array);
 }

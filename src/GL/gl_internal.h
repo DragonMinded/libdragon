@@ -97,13 +97,13 @@ typedef enum {
     GL_UPDATE_TEXTURE_UPLOAD        = 0xD,
 } gl_update_func_t;
 
-enum {
+typedef enum {
     ATTRIB_VERTEX,
     ATTRIB_COLOR,
     ATTRIB_TEXCOORD,
     ATTRIB_NORMAL,
     ATTRIB_COUNT
-};
+} gl_array_type_t;
 
 typedef struct {
     surface_t *color_buffer;
@@ -275,6 +275,10 @@ typedef struct {
     bool enabled;
 } gl_array_t;
 
+typedef struct {
+    gl_array_t arrays[ATTRIB_COUNT];
+} gl_array_object_t;
+
 typedef void (*read_attrib_func)(GLfloat*,const void*,uint32_t);
 
 typedef struct {
@@ -407,7 +411,8 @@ typedef struct {
 
     GLenum current_error;
 
-    gl_array_t arrays[ATTRIB_COUNT];
+    gl_array_object_t default_array_object;
+    gl_array_object_t *array_object;
 
     gl_attrib_source_t attrib_sources[ATTRIB_COUNT];
 

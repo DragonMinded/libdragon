@@ -13,6 +13,7 @@
 #define SPHERE_MAX_SEGMENTS 64
 
 static GLuint sphere_buffers[2];
+static GLuint sphere_array;
 static uint32_t sphere_rings;
 static uint32_t sphere_segments;
 static uint32_t sphere_vertex_count;
@@ -23,6 +24,23 @@ void setup_sphere()
     glGenBuffersARB(2, sphere_buffers);
     sphere_rings = 8;
     sphere_segments = 8;
+
+    glGenVertexArrays(1, &sphere_array);
+    glBindVertexArray(sphere_array);
+
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+    glEnableClientState(GL_NORMAL_ARRAY);
+    
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, sphere_buffers[0]);
+
+    glVertexPointer(3, GL_FLOAT, sizeof(vertex_t), (void*)(0*sizeof(float)));
+    glTexCoordPointer(2, GL_FLOAT, sizeof(vertex_t), (void*)(3*sizeof(float)));
+    glNormalPointer(GL_FLOAT, sizeof(vertex_t), (void*)(5*sizeof(float)));
+    
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+
+    glBindVertexArray(0);
 }
 
 void make_sphere_vertex(vertex_t *dst, uint32_t ring, uint32_t segment)
@@ -75,6 +93,7 @@ void make_sphere_mesh()
     make_sphere_vertex(&vertices[sphere_vertex_count - 1], sphere_rings + 1, 0);
     
     glUnmapBufferARB(GL_ARRAY_BUFFER_ARB);
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
 
     uint32_t fan_index_count = sphere_segments + 2;
     uint32_t ring_index_count = sphere_segments * 6;
@@ -117,26 +136,20 @@ void make_sphere_mesh()
     }
 
     glUnmapBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB);
+    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
 }
 
 void draw_sphere()
 {
-    glBindBufferARB(GL_ARRAY_BUFFER_ARB, sphere_buffers[0]);
     glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, sphere_buffers[1]);
-
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-    glEnableClientState(GL_NORMAL_ARRAY);
-    glDisableClientState(GL_COLOR_ARRAY);
-
-    glVertexPointer(3, GL_FLOAT, sizeof(vertex_t), (void*)(0*sizeof(float)));
-    glTexCoordPointer(2, GL_FLOAT, sizeof(vertex_t), (void*)(3*sizeof(float)));
-    glNormalPointer(GL_FLOAT, sizeof(vertex_t), (void*)(5*sizeof(float)));
-    //glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(vertex_t), (void*)(8*sizeof(float)));
+    glBindVertexArray(sphere_array);
 
     glDrawElements(GL_TRIANGLE_FAN, sphere_segments + 2, GL_UNSIGNED_SHORT, 0);
     glDrawElements(GL_TRIANGLE_FAN, sphere_segments + 2, GL_UNSIGNED_SHORT, (void*)((sphere_segments + 2) * sizeof(uint16_t)));
     glDrawElements(GL_TRIANGLES, (sphere_rings - 1) * (sphere_segments * 6), GL_UNSIGNED_SHORT, (void*)((sphere_segments + 2) * 2 * sizeof(uint16_t)));
+
+    glBindVertexArray(0);
+    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
 }
 
 #endif

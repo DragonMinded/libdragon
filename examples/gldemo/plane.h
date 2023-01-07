@@ -10,12 +10,30 @@
 #define PLANE_SEGMENTS   16
 
 static GLuint plane_buffers[2];
+static GLuint plane_array;
 static uint32_t plane_vertex_count;
 static uint32_t plane_index_count;
 
 void setup_plane()
 {
     glGenBuffersARB(2, plane_buffers);
+
+    glGenVertexArrays(1, &plane_array);
+    glBindVertexArray(plane_array);
+
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+    glEnableClientState(GL_NORMAL_ARRAY);
+    
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, plane_buffers[0]);
+
+    glVertexPointer(3, GL_FLOAT, sizeof(vertex_t), (void*)(0*sizeof(float)));
+    glTexCoordPointer(2, GL_FLOAT, sizeof(vertex_t), (void*)(3*sizeof(float)));
+    glNormalPointer(GL_FLOAT, sizeof(vertex_t), (void*)(5*sizeof(float)));
+    
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
+
+    glBindVertexArray(0);
 }
 
 void make_plane_mesh()
@@ -51,6 +69,7 @@ void make_plane_mesh()
     }
     
     glUnmapBufferARB(GL_ARRAY_BUFFER_ARB);
+    glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
 
     plane_index_count = PLANE_SEGMENTS * PLANE_SEGMENTS * 6;
 
@@ -78,24 +97,18 @@ void make_plane_mesh()
     }
 
     glUnmapBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB);
+    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
 }
 
 void draw_plane()
 {
-    glBindBufferARB(GL_ARRAY_BUFFER_ARB, plane_buffers[0]);
     glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, plane_buffers[1]);
-
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
-    glEnableClientState(GL_NORMAL_ARRAY);
-    glDisableClientState(GL_COLOR_ARRAY);
-
-    glVertexPointer(3, GL_FLOAT, sizeof(vertex_t), (void*)(0*sizeof(float)));
-    glTexCoordPointer(2, GL_FLOAT, sizeof(vertex_t), (void*)(3*sizeof(float)));
-    glNormalPointer(GL_FLOAT, sizeof(vertex_t), (void*)(5*sizeof(float)));
-    //glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(vertex_t), (void*)(8*sizeof(float)));
+    glBindVertexArray(plane_array);
 
     glDrawElements(GL_TRIANGLES, plane_index_count, GL_UNSIGNED_SHORT, 0);
+
+    glBindVertexArray(0);
+    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
 }
 
 #endif

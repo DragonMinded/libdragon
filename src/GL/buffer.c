@@ -56,7 +56,14 @@ void glDeleteBuffersARB(GLsizei n, const GLuint *buffers)
 
         for (uint32_t a = 0; a < ATTRIB_COUNT; a++)
         {
-            gl_unbind_buffer(obj, &state.arrays[a].binding);
+            // FIXME: From the spec:
+            // (2) What happens when a buffer object that is attached to a non-current
+            // VAO is deleted?
+            // RESOLUTION: Nothing (though a reference count may be decremented). 
+            // A buffer object that is deleted while attached to a non-current VAO
+            // is treated just like a buffer object bound to another context (or to
+            // a current VAO in another context).
+            gl_unbind_buffer(obj, &state.array_object->arrays[a].binding);
         }
 
         // TODO: keep alive until no longer in use
