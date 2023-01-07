@@ -228,6 +228,12 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
     }
     MEMORY_BARRIER();
 
+    // Forcibly halt the RSP, and wait also for the DMA engine to be idle
+    *SP_STATUS = SP_WSTATUS_SET_HALT;
+    while (!(*SP_STATUS & SP_STATUS_HALTED)) {}
+    while (*SP_STATUS & (SP_STATUS_DMA_BUSY | SP_STATUS_DMA_FULL)) {}
+    MEMORY_BARRIER();
+
     // We now need to check whether the RDP has crashed. We need to send a
     // DMA transfer (unless one is already going)
     uint64_t dummy_rdp_command = 0x2700000000000000ull; // sync pipe
@@ -243,17 +249,6 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
 
     // Freeze the RDP
     *DP_STATUS = 1<<3;
-
-    // Initialize the console
-    console_init();
-    console_set_debug(true);
-    console_set_render_mode(RENDER_MANUAL);
-
-    // Forcibly halt the RSP, and wait also for the DMA engine to be idle
-    *SP_STATUS = SP_WSTATUS_SET_HALT;
-    while (!(*SP_STATUS & SP_STATUS_HALTED)) {}
-    while (*SP_STATUS & (SP_STATUS_DMA_BUSY | SP_STATUS_DMA_FULL)) {}
-    MEMORY_BARRIER();
 
     // Read the current PC. This can only be read after the RSP is halted.
     uint32_t pc = *SP_PC;
@@ -279,6 +274,11 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
 
     // Write the PC now so it doesn't get overwritten by the DMA
     state.pc = pc;
+
+    // Initialize the console
+    console_init();
+    console_set_debug(true);
+    console_set_render_mode(RENDER_MANUAL);
 
     // If the validator is active, this is a good moment to flush its buffered
     // output. This could also trigger a RDP crash (which might be the
