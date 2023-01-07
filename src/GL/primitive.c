@@ -194,11 +194,15 @@ bool gl_begin(GLenum mode)
 
     rdpq_mode_end();
 
-    __rdpq_autosync_change(AUTOSYNC_TILES);
+    __rdpq_autosync_change(AUTOSYNC_TILES | AUTOSYNC_TMEM(0));
     gl_update(GL_UPDATE_TEXTURE_UPLOAD);
 
     gl_pre_init_pipe();
     glpipe_init();
+
+    // FIXME: This is pessimistically marking everything as used, even if textures are turned off
+    //        CAUTION: texture state is owned by the RSP currently, so how can we determine this?
+    __rdpq_autosync_use(AUTOSYNC_PIPE | AUTOSYNC_TILES | AUTOSYNC_TMEM(0));
 
     return true;
 }

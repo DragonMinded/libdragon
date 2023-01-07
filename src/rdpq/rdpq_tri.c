@@ -470,6 +470,7 @@ void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v
         // effects such as detail and sharpen. Figure it out a way to handle these in the
         // autosync engine.
         res |= AUTOSYNC_TILE(fmt->tex_tile);
+        res |= AUTOSYNC_TMEM(0);
     }
     __rdpq_autosync_use(res);
 
