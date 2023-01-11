@@ -13,7 +13,7 @@ programming and debugging. These are the main features:
 * The GCC toolchain is 64 bit capable to be able to use the full R4300 capabilities
   (commercial games and libultra are based on a 32-bit ABI and is not possible
   to use 64-bit registers and opcodes with it)
-* Can be developed with newer-generation emulators (cen64, Ares, Dillonb's n64,
+* Can be developed with newer-generation emulators (ares, cen64, Dillonb's n64,
   simple64) or development cartridges (64drive, EverDrive64).
 * Support both vanilla N64 and iQue Player (chinese variant). The support is
   experimental and done fully at runtime, so it is possible to run ROMs built
@@ -53,7 +53,7 @@ quickly get libdragon up and running. Basically:
 2. Install the [the libdragon CLI](https://github.com/anacierdem/libdragon-docker).
    You have two options:
 
-   1. Download the [pre-built binary](https://github.com/anacierdem/libdragon-docker/releases/tag/v10.8.0), 
+   1. Download the [pre-built binary](https://github.com/anacierdem/libdragon-docker/releases/latest), 
       and copy it into some directory which is part of your system PATH.
    2. If you have `npm` installed (at least verstion 14), run `npm install -g libdragon`.
 3. Run `libdragon init` to create a skeleton project
@@ -98,7 +98,7 @@ You will only need the installed binaries in the `N64_INST` from now on.
 
 libdragon requires a modern N64 emulator (the first generation of emulators
 are basically HLE-only and can only play the old commercial games). Suggested
-emulators for homebrew developemnt are: [Ares](https://ares-emulator.github.io),
+emulators for homebrew developemnt are: [ares](https://ares-emu.net),
 [cen64](https://github.com/n64dev/cen64), [dgb-n64](https://github.com/Dillonb/n64),
 [simple64](https://simple64.github.io).
 
