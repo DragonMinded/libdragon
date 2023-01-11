@@ -20,6 +20,7 @@
 // SD implementations
 #include "debug_sdfs_ed64.c"
 #include "debug_sdfs_64drive.c"
+#include "debug_sdfs_pc64.c"
 
 /**
  * @defgroup debug Debugging Support
@@ -188,7 +189,8 @@ DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void* buff)
 static DSTATUS fat_disk_status_default(void) { return 0; }
 
 static DRESULT fat_disk_ioctl_default(BYTE cmd, void* buff)
-{
+{	
+	fprintf(stdout, "ioctrl: %02x\n", cmd);
 	switch (cmd)
 	{
 		case CTRL_SYNC: return RES_OK;
@@ -211,6 +213,15 @@ static fat_disk_t fat_disk_64drive =
 	fat_disk_status_default,
 	fat_disk_read_64drive,
 	fat_disk_write_64drive,
+	fat_disk_ioctl_default
+};
+
+static fat_disk_t fat_disk_pc64 =
+{
+	fat_disk_initialize_pc64,
+	fat_disk_status_default,
+	fat_disk_read_pc64,
+	fat_disk_write_pc64,
 	fat_disk_ioctl_default
 };
 
@@ -277,7 +288,7 @@ static int __fat_fstat(void *file, struct stat *st)
 }
 
 static int __fat_read(void *file, uint8_t *ptr, int len)
-{
+{	
 	UINT read;
 	FRESULT res = f_read(file, ptr, len, &read);
 	if (res != FR_OK)
@@ -363,8 +374,6 @@ static filesystem_t fat_fs = {
 	__fat_findnext
 };
 
-
-
 /** Initialize the USB stack just once */
 static bool usb_initialize_once(void) {
 	static bool once = false;
@@ -447,6 +456,7 @@ bool debug_init_sdlog(const char *fn, const char *openfmt)
 
 bool debug_init_sdfs(const char *prefix, int npart)
 {
+	fprintf(stdout, "debug_init_sdfs init...\n");
 	if (!usb_initialize_once())
 		return false;
 
@@ -457,6 +467,9 @@ bool debug_init_sdfs(const char *prefix, int npart)
 		break;
 	case CART_EVERDRIVE:
 		fat_disks[FAT_VOLUME_SD] = fat_disk_everdrive;
+		break;
+	case CART_PC64:
+		fat_disks[FAT_VOLUME_SD] = fat_disk_pc64;
 		break;
 	default:
 		return false;
@@ -551,3 +564,4 @@ void debug_assert_func(const char *file, int line, const char *func, const char 
 {
 	debug_assert_func_f(file, line, func, failedexpr, NULL);
 }
+

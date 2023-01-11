@@ -52,5 +52,7 @@
 #include "xm64.h"
 #include "ym64.h"
 #include "rspq.h"
+#include "ff.h"
+#include "ffconf.h"
 
 #endif
