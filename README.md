@@ -53,7 +53,7 @@ quickly get libdragon up and running. Basically:
 2. Install the [the libdragon CLI](https://github.com/anacierdem/libdragon-docker).
    You have two options:
 
-   1. Download the [pre-built binary](https://github.com/anacierdem/libdragon-docker/releases/tag/v10.9.0), 
+   1. Download the [pre-built binary](https://github.com/anacierdem/libdragon-docker/releases/latest), 
       and copy it into some directory which is part of your system PATH.
    2. If you have `npm` installed (at least verstion 14), run `npm install -g libdragon`.
 3. Run `libdragon init` to create a skeleton project
