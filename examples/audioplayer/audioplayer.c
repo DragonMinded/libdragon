@@ -235,7 +235,7 @@ enum Page page_song(void) {
 		sprintf(sbuf, "Channels: %d", song_channels);
 		graphics_draw_text(disp, 20, 60, sbuf);
 
-		sprintf(sbuf, "ROM: %d Kb | RDRAM: %d Kb", (song_romsz+512)/1024, (song_ramsz+512)/1024);
+		sprintf(sbuf, "ROM: %d KiB | RDRAM: %d KiB", (song_romsz+512)/1024, (song_ramsz+512)/1024);
 		graphics_draw_text(disp, 20, 70, sbuf);
 
 		if (song_type == SONG_XM) {

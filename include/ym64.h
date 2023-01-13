@@ -42,7 +42,7 @@ typedef struct _LHANewDecoder LHANewDecoder;
  * already fully compatible).
  * 
  * The main conversion option to pay attention too is whether the output file
- * must be compressed or not. Compressed files are smaller but takes 18Kb
+ * must be compressed or not. Compressed files are smaller but takes 18 KiB
  * more of RDRAM to be played back and cannot be seeked.
  * 
  * This player is dedicated to the late Sir Clive Sinclair whose computer,

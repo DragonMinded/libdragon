@@ -121,18 +121,18 @@ static void __attribute__((noreturn, format(printf, 1, 2))) fatal_error(const ch
 /* Added N.Watazaki ..^ */
 
 #define LZHUFF0_DICBIT           0      /* no compress */
-#define LZHUFF1_DICBIT          12      /* 2^12 =  4KB sliding dictionary */
-#define LZHUFF2_DICBIT          13      /* 2^13 =  8KB sliding dictionary */
-#define LZHUFF3_DICBIT          13      /* 2^13 =  8KB sliding dictionary */
-#define LZHUFF4_DICBIT          12      /* 2^12 =  4KB sliding dictionary */
-#define LZHUFF5_DICBIT          13      /* 2^13 =  8KB sliding dictionary */
-#define LZHUFF6_DICBIT          15      /* 2^15 = 32KB sliding dictionary */
-#define LZHUFF7_DICBIT          16      /* 2^16 = 64KB sliding dictionary */
-#define LARC_DICBIT             11      /* 2^11 =  2KB sliding dictionary */
-#define LARC5_DICBIT            12      /* 2^12 =  4KB sliding dictionary */
+#define LZHUFF1_DICBIT          12      /* 2^12 =  4 KiB sliding dictionary */
+#define LZHUFF2_DICBIT          13      /* 2^13 =  8 KiB sliding dictionary */
+#define LZHUFF3_DICBIT          13      /* 2^13 =  8 KiB sliding dictionary */
+#define LZHUFF4_DICBIT          12      /* 2^12 =  4 KiB sliding dictionary */
+#define LZHUFF5_DICBIT          13      /* 2^13 =  8 KiB sliding dictionary */
+#define LZHUFF6_DICBIT          15      /* 2^15 = 32 KiB sliding dictionary */
+#define LZHUFF7_DICBIT          16      /* 2^16 = 64 KiB sliding dictionary */
+#define LARC_DICBIT             11      /* 2^11 =  2 KiB sliding dictionary */
+#define LARC5_DICBIT            12      /* 2^12 =  4 KiB sliding dictionary */
 #define LARC4_DICBIT             0      /* no compress */
 #define PMARC0_DICBIT            0      /* no compress */
-#define PMARC2_DICBIT           13      /* 2^13 =  8KB sliding dictionary */
+#define PMARC2_DICBIT           13      /* 2^13 =  8 KiB sliding dictionary */
 
 #ifdef SUPPORT_LH7
 #define MAX_DICBIT          LZHUFF7_DICBIT      /* lh7 use 16bits */

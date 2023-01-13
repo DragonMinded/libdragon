@@ -14,7 +14,7 @@
 /**
  * @brief Default filesystem location 
  *
- * The default is 1MB into the ROM space, plus the header offset
+ * The default is 1 MiB into the ROM space, plus the header offset
  */
 #define DFS_DEFAULT_LOCATION    0xB0101000
 
