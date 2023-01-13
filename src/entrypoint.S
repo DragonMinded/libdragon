@@ -21,7 +21,7 @@ _start:
 	li fp, 0                    /* fp=0 -> vanilla N64 */
 
 	/* In iQue player, memory allocated to game can be configured and it appears
-	   in 0x80000318. On the other hand, the top 8Mb of RDRAM is reserved to
+	   in 0x80000318. On the other hand, the top 8 MiB of RDRAM is reserved to
 	   savegames. So avoid putting the stack there, capping the size to 0x7C0000.
 	   See also get_memory_size. */
 	li fp, 1                    /* fp=1 -> iQue player */
