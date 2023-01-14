@@ -74,8 +74,8 @@ WSL1 users must [upgrade to WSL2 first](https://docs.microsoft.com/en-us/windows
    toolchain to be installed. For instance: `export N64_INST=/opt/n64` or
    `export N64_INST=/usr/local`.
 2. If you are on macOS, make sure [homebrew](https://brew.sh) is installed.
-3. Make sure you have at least 7 Gb of disk space available (notice that after
-   build, only about 300 Mb will be used, but during build a lot of space is
+3. Make sure you have at least 7 GB of disk space available (notice that after
+   build, only about 300 MB will be used, but during build a lot of space is
    required).
 4. Enter the `tools` directory and Run `./build-toolchain.sh`, let it build and
    install the toolchain. The process will take a while depending on your computer
@@ -89,7 +89,7 @@ WSL1 users must [upgrade to WSL2 first](https://docs.microsoft.com/en-us/windows
 You are now ready to run the examples on your N64 or emulator.
 
 Once you are sure everything is fine, you can delete the `tools/toolchain/`
-directory, where the toolchain was built. This will free around 6Gb of space.
+directory, where the toolchain was built. This will free around 6 GB of space.
 You will only need the installed binaries in the `N64_INST` from now on.
 
 ## Getting started: how to run a ROM

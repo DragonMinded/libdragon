@@ -126,7 +126,7 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>ym64player_close</b> 
 <p >The format is based around the very popular AY-3-8910 sound chip, that was powering a few successful 8-bit consoles such as Atari ST, ZX Spectrum and Amstrad CPC. It is a 3-channel PSG with envelope support. It can produce typical 8-bit "chiptune" music scores. Nowadays, it is possible to compose soundtracks using the Arkos Tracker 2 tool, that exports in the YM format.</p>
 <p >The YM format is a simple dump of the state of all registers of the AY chip at a fixed time step. To playback, it is necessary to emulate the AY PSG. The implementation has been carefully optimized for the N64 MIPS CPU for high-performance, so that playback typically takes less than 5% of CPU time, plus a few percents of RSP time for resampling and mixing (done by the mixer).</p>
 <p >The YM64 is actually a valid YM file that has been simply normalized against the different existing revisions, in a way to be efficient for reproduction on N64. audioconv64 can convert YM to YM64 (or leave them as-is if they already fully compatible).</p>
-<p >The main conversion option to pay attention too is whether the output file must be compressed or not. Compressed files are smaller but takes 18Kb more of RDRAM to be played back and cannot be seeked.</p>
+<p >The main conversion option to pay attention too is whether the output file must be compressed or not. Compressed files are smaller but takes 18 KiB more of RDRAM to be played back and cannot be seeked.</p>
 <p >This player is dedicated to the late Sir Clive Sinclair whose computer, powered by the AY-3-8910, helped popularize what we now call chiptune music. &ndash; Rasky </p>
 </div><hr/><h2 class="groupheader">Data Structure Documentation</h2>
 <a name="structym64player__t" id="structym64player__t"></a>
@@ -514,7 +514,7 @@ Comment of the song. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Jan 11 2023 06:58:15 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Sat Jan 14 2023 20:48:01 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

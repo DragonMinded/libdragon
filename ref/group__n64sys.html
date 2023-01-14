@@ -504,7 +504,7 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__rom_end</b> []</td>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <p >N64 bootup and cache interfaces. </p>
-<p >The N64 system interface provides a way for code to interact with the memory setup on the system. This includes cache operations to invalidate or flush regions and the ability to set the boot CIC. The <a class="el" href="group__system.html">newlib Interface Hooks</a> use the knowledge of the boot CIC to properly determine if the expansion pak is present, giving 4MB of additional memory. Aside from this, the MIPS r4300 uses a manual cache management strategy, where SW that requires passing buffers to and from hardware components using DMA controllers needs to ensure that cache and RDRAM are in sync. A set of operations to invalidate and/or write back cache is provided for both instruction cache and data cache. </p>
+<p >The N64 system interface provides a way for code to interact with the memory setup on the system. This includes cache operations to invalidate or flush regions and the ability to set the boot CIC. The <a class="el" href="group__system.html">newlib Interface Hooks</a> use the knowledge of the boot CIC to properly determine if the expansion pak is present, giving 4 MiB of additional memory. Aside from this, the MIPS r4300 uses a manual cache management strategy, where SW that requires passing buffers to and from hardware components using DMA controllers needs to ensure that cache and RDRAM are in sync. A set of operations to invalidate and/or write back cache is provided for both instruction cache and data cache. </p>
 <h2 class="groupheader">Macro Definition Documentation</h2>
 <a id="gac69e8a7b3752d227238ff76b56b3fa17" name="gac69e8a7b3752d227238ff76b56b3fa17"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#gac69e8a7b3752d227238ff76b56b3fa17">&#9670;&nbsp;</a></span>cache_op</h2>
@@ -2051,9 +2051,9 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__rom_end</b> []</td>
 </div><div class="memdoc">
 
 <p>Is expansion pak in use. </p>
-<p >Checks whether the maximum available memory has been expanded to 8MB</p>
+<p >Checks whether the maximum available memory has been expanded to 8 MiB</p>
 <dl class="section return"><dt>Returns</dt><dd>true if expansion pak detected, false otherwise.</dd></dl>
-<dl class="section note"><dt>Note</dt><dd>On iQue, this function returns true only if the game has been assigned exactly 8MB of RAM. </dd></dl>
+<dl class="section note"><dt>Note</dt><dd>On iQue, this function returns true only if the game has been assigned exactly 8 MiB of RAM. </dd></dl>
 
 </div>
 </div>
@@ -2151,7 +2151,7 @@ char&#160;</td><td class="memItemRight" valign="bottom"><b>__rom_end</b> []</td>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Jan 11 2023 06:58:16 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Sat Jan 14 2023 20:48:02 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
