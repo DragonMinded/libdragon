@@ -85,7 +85,7 @@ N64_CFLAGS += -std=gnu99
 	if [ -z "$$DFS_FILE" ]; then \
 		$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ $<.bin --align 8 $<.sym; \
 	else \
-		$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ $<.bin --align 8 $<.sym --offset $(N64_DFS_OFFSET) "$$DFS_FILE"; \
+		$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ $<.bin --align 8 $<.sym --align 16 "$$DFS_FILE"; \
 	fi
 	if [ ! -z "$(strip $(N64_ED64ROMCONFIGFLAGS))" ]; then \
 		$(N64_ED64ROMCONFIG) $(N64_ED64ROMCONFIGFLAGS) $@; \
