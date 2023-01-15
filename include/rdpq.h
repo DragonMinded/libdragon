@@ -661,7 +661,7 @@ inline void rdpq_load_block_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint1
 {
     extern void __rdpq_write8_syncchangeuse(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_write8_syncchangeuse(RDPQ_CMD_LOAD_BLOCK,
-        _carg(s0, 0xFFF, 12) | _carg(t0, 0xFFC, 0),
+        _carg(s0, 0xFFF, 12) | _carg(t0, 0xFFF, 0),
         _carg(tile, 0x7, 24) | _carg(num_texels-1, 0xFFF, 12) | _carg(dxt, 0xFFF, 0),
         AUTOSYNC_TMEM(0),
         AUTOSYNC_TILE(tile));
