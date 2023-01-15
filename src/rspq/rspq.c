@@ -1073,6 +1073,9 @@ void rspq_highpri_sync(void)
 {
     assertf(rspq_ctx != &highpri, "this function can only be called outside of highpri mode");
 
+    // Make sure the RSP is running, otherwise we might be blocking forever.
+    rspq_flush_internal();
+
     RSP_WAIT_LOOP(200) {
         if (!(*SP_STATUS & (SP_STATUS_SIG_HIGHPRI_REQUESTED | SP_STATUS_SIG_HIGHPRI_RUNNING)))
             break;
