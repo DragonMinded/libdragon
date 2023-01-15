@@ -33,7 +33,6 @@ inline void __rdpq_texture_rectangle_inline(rdpq_tile_t tile,
 {
     if (x1 == x0 || y1 == y0) return;
     int32_t dsdx = 1<<10, dtdy = 1<<10;
-    // debugf("texture_rectangle: %ld,%ld %ld,%ld %ld,%ld\n", x0>>2, y0>>2, x1>>2, y1>>2, s0>>5, t0>>5);
 
     if (x0 > x1) {
         int32_t tmp = x0; x0 = x1; x1 = tmp;
@@ -59,9 +58,7 @@ inline void __rdpq_texture_rectangle_inline(rdpq_tile_t tile,
     if (y1 > 1024*4-1) {
         y1 = 1024*4-1;
     }
-    // debugf("         %ld,%ld %ld,%ld %ld,%ld\n", x0>>2, y0>>2, x1>>2, y1>>2, s0>>5, t0>>5);
     if (x0 >= x1 || y0 >= y1) return;
-    // debugf("         draw\n");
 
     extern void __rdpq_texture_rectangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3);
     __rdpq_texture_rectangle(
@@ -114,19 +111,78 @@ inline void __rdpq_texture_rectangle_scaled_inline(rdpq_tile_t tile,
         _carg(s0, 0xFFFF, 16) | _carg(t0, 0xFFFF, 0),
         _carg(dsdx, 0xFFFF, 16) | _carg(dtdy, 0xFFFF, 0));
 }
+
+inline void __rdpq_fill_rectangle_fx(int32_t x0, int32_t y0, int32_t x1, int32_t y1)
+{
+    if (__builtin_constant_p(x0) && __builtin_constant_p(y0) && __builtin_constant_p(x1) && __builtin_constant_p(y1)) {
+        __rdpq_fill_rectangle_inline(x0, y0, x1, y1);
+    } else {
+        extern void __rdpq_fill_rectangle_offline(int32_t x0, int32_t y0, int32_t x1, int32_t y1);
+        __rdpq_fill_rectangle_offline(x0, y0, x1, y1);
+    }
+}
+
+inline void __rdpq_texture_rectangle_fx(rdpq_tile_t tile, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t s, int32_t t)
+{
+    if (__builtin_constant_p(x0) && __builtin_constant_p(y0) && __builtin_constant_p(x1) && __builtin_constant_p(y1)) {
+        __rdpq_texture_rectangle_inline(tile, x0, y0, x1, y1, s, t);
+    } else {
+        extern void __rdpq_texture_rectangle_offline(rdpq_tile_t tile, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t s0, int32_t t0);
+        __rdpq_texture_rectangle_offline(tile, x0, y0, x1, y1, s, t);
+    }
+}
+
+inline void __rdpq_texture_rectangle_scaled_fx(rdpq_tile_t tile, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t s0, int32_t t0, int32_t s1, int32_t t1)
+{
+    if (__builtin_constant_p(x0) && __builtin_constant_p(y0) && __builtin_constant_p(x1) && __builtin_constant_p(y1)) {
+        __rdpq_texture_rectangle_scaled_inline(tile, x0, y0, x1, y1, s0, t0, s1, t1);
+    } else {
+        extern void __rdpq_texture_rectangle_scaled_offline(rdpq_tile_t tile, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t s0, int32_t t0, int32_t s1, int32_t t1);
+        __rdpq_texture_rectangle_scaled_offline(tile, x0, y0, x1, y1, s0, t0, s1, t1);
+    }
+}
+
+inline void __rdpq_texture_rectangle_raw_fx(rdpq_tile_t tile, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t s0, uint16_t t0, int16_t dsdx, int16_t dtdy)
+{
+     extern void __rdpq_texture_rectangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3);
+    __rdpq_texture_rectangle(
+        _carg(x1, 0xFFF, 12) | _carg(y1, 0xFFF, 0),
+        _carg(tile, 0x7, 24) | _carg(x0, 0xFFF, 12) | _carg(y0, 0xFFF, 0),
+        _carg(s0, 0xFFFF, 16) | _carg(t0, 0xFFFF, 0),
+        _carg(dsdx, 0xFFFF, 16) | _carg(dtdy, 0xFFFF, 0));   
+}
+
+inline void __rdpq_texture_rectangle_flip_raw_fx(rdpq_tile_t tile, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, int16_t s, int16_t t, int16_t dsdy, int16_t dtdx)
+{
+    extern void __rdpq_write16_syncuse(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+
+    // Note that this command is broken in copy mode, so it doesn't
+    // require any fixup. The RSP will trigger an assert if this
+    // is called in such a mode.
+    __rdpq_write16_syncuse(RDPQ_CMD_TEXTURE_RECTANGLE_FLIP,
+        _carg(x1, 0xFFF, 12) | _carg(y1, 0xFFF, 0),
+        _carg(tile, 0x7, 24) | _carg(x0, 0xFFF, 12) | _carg(y0, 0xFFF, 0),
+        _carg(s, 0xFFFF, 16) | _carg(t, 0xFFFF, 0),
+        _carg(dsdy, 0xFFFF, 16) | _carg(dtdx, 0xFFFF, 0),
+        AUTOSYNC_PIPE | AUTOSYNC_TILE(tile) | AUTOSYNC_TMEM(0));
+}
+
 /// @endcond
 
 /**
- * @name Rectangle functions
+ * @name Standard rectangle functions
  * 
  * These functions can be used to directly draw filled and/or textured rectangles
  * on the screen. While a rectangle can always be drawn via two triangles,
  * directly invoking the rectangle functions when possible is more efficient on
  * both the CPU and the RDP.
  * 
+ * The functions are defined as macros so that they can efficiently accept either
+ * integers or floating point values. Usage of fractional values is required for
+ * subpixel precision.
+ * 
  * \{
  */
-
 
 /**
  * @brief Draw a filled rectangle (RDP command: FILL_RECTANGLE)
@@ -159,39 +215,14 @@ inline void __rdpq_texture_rectangle_scaled_inline(rdpq_tile_t tile,
  * @param[x1]   x1      Bottom-right *exclusive* X coordinate of the rectangle (integer or float)
  * @param[y1]   y1      Bottom-right *exclusive* Y coordinate of the rectangle (integer or float)
  * 
- * @see rdpq_fill_rectangle_fx
  * @see rdpq_set_fill_color
  * @see rdpq_set_fill_color_stripes
  * 
+ * @hideinitializer
  */
 #define rdpq_fill_rectangle(x0, y0, x1, y1) ({ \
-    rdpq_fill_rectangle_fx((x0)*4, (y0)*4, (x1)*4, (y1)*4); \
+    __rdpq_fill_rectangle_fx((x0)*4, (y0)*4, (x1)*4, (y1)*4); \
 })
-
-
-/**
- * @brief Draw a filled rectangle -- fixed point version (RDP command: FILL_RECTANGLE)
- * 
- * This function is similar to #rdpq_fill_rectangle, but coordinates must be
- * specified using fixed point numbers (0.10.2).
- *
- * @param[in]   x0      Top-left X coordinate of the rectangle
- * @param[in]   y0      Top-left Y coordinate of the rectangle
- * @param[in]   x1      Bottom-right *exclusive* X coordinate of the rectangle
- * @param[in]   y1      Bottom-right *exclusive* Y coordinate of the rectangle
- * 
- * @see #rdpq_fill_rectangle
- */
-inline void rdpq_fill_rectangle_fx(int32_t x0, int32_t y0, int32_t x1, int32_t y1)
-{
-    if (__builtin_constant_p(x0) && __builtin_constant_p(y0) && __builtin_constant_p(x1) && __builtin_constant_p(y1)) {
-        __rdpq_fill_rectangle_inline(x0, y0, x1, y1);
-    } else {
-        extern void __rdpq_fill_rectangle_offline(int32_t x0, int32_t y0, int32_t x1, int32_t y1);
-        __rdpq_fill_rectangle_offline(x0, y0, x1, y1);
-    }
-}
-
 
 /**
  * @brief Draw a textured rectangle (RDP command: TEXTURE_RECTANGLE)
@@ -222,24 +253,25 @@ inline void rdpq_fill_rectangle_fx(int32_t x0, int32_t y0, int32_t x1, int32_t y
  * (or manually call #rdpq_set_prim_depth_raw) to force a Z value that will be used
  * for the whole primitive (in all pixels).
  * 
- * Notice that coordinates are unsigned numbers, so negative numbers are not
- * supported. Coordinates bigger than the target buffer will be automatically
- * clipped (thanks to scissoring).
+ * Input X and Y coordinates are automatically clipped to the screen boundaries (and
+ * then scissoring also takes effect), so there is no specific range
+ * limit to them. On the contrary, S and T coordinates have a specific range
+ * (-1024..1024).
  * 
  * @param[in]   tile    Tile descriptor referring to the texture in TMEM to use for drawing
  * @param[in]   x0      Top-left X coordinate of the rectangle
  * @param[in]   y0      Top-left Y coordinate of the rectangle
  * @param[in]   x1      Bottom-right *exclusive* X coordinate of the rectangle
  * @param[in]   y1      Bottom-right *exclusive* Y coordinate of the rectangle
- * @param[in]   s       S coordinate of the texture at the top-left corner
- * @param[in]   t       T coordinate of the texture at the top-left corner
+ * @param[in]   s       S coordinate of the texture at the top-left corner (range: -1024..1024)
+ * @param[in]   t       T coordinate of the texture at the top-left corner (range: -1024..1024)
  * 
  * @hideinitializer
  */
 // NOTE: we use a macro here to support both integer and float inputs without ever forcing
 // a useless additional conversion.
 #define rdpq_texture_rectangle(tile, x0, y0, x1, y1, s, t) \
-    rdpq_texture_rectangle_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s)*32, (t)*32)
+    __rdpq_texture_rectangle_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s)*32, (t)*32)
 
 /**
  * @brief Draw a textured rectangle with scaling (RDP command: TEXTURE_RECTANGLE)
@@ -255,70 +287,60 @@ inline void rdpq_fill_rectangle_fx(int32_t x0, int32_t y0, int32_t x1, int32_t y
  * @param[in]   y0      Top-left Y coordinate of the rectangle
  * @param[in]   x1      Bottom-right *exclusive* X coordinate of the rectangle
  * @param[in]   y1      Bottom-right *exclusive* Y coordinate of the rectangle
- * @param[in]   s0      S coordinate of the texture at the top-left corner
- * @param[in]   t0      T coordinate of the texture at the top-left corner
- * @param[in]   s1      S coordinate of the texture at the bottom-right corner (exclusive)
- * @param[in]   t1      T coordinate of the texture at the bottom-right corner (exclusive)
+ * @param[in]   s0      S coordinate of the texture at the top-left corner (range: -1024..1024)
+ * @param[in]   t0      T coordinate of the texture at the top-left corner (range: -1024..1024)
+ * @param[in]   s1      S coordinate of the texture at the bottom-right corner (exclusive) (range: -1024..1024)
+ * @param[in]   t1      T coordinate of the texture at the bottom-right corner (exclusive) (range: -1024..1024)
  * 
  * @hideinitializer
  */
 #define rdpq_texture_rectangle_scaled(tile, x0, y0, x1, y1, s0, t0, s1, t1) \
-    rdpq_texture_rectangle_scaled_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s0)*32, (t0)*32, (s1)*32, (t1)*32)
+    __rdpq_texture_rectangle_scaled_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s0)*32, (t0)*32, (s1)*32, (t1)*32)
+
 
 /**
- * @brief Draw a textured rectangle -- fixed point version (RDP command: TEXTURE_RECTANGLE)
+ * \}
  * 
- * This function is similar to #rdpq_texture_rectangle, but uses fixed point
- * numbers for the arguments. Prefer using #rdpq_texture_rectangle when possible.
+ * @name Raw rectangle functions
+ * 
+ * These functions are similar to the above ones, but they closely match the hardware
+ * commands to be sent to RDP. They are exposed for completeness, but most users
+ * should use the standard ones, as they provide a easier and more consistent API.
+ * 
+ * The main differences are that these functions accept only positive integers (so clipping
+ * on negative numbers should be performed by the caller, if needed), and the textured
+ * functions need the per-pixel horizontal and vertical increments.
+ * 
+ * \{
+ */
+ 
+/**
+ * @brief Draw a textured rectangle with scaling -- raw version (RDP command: TEXTURE_RECTANGLE)
+ * 
+ * This function is similar to #rdpq_texture_rectangle but it does not perform any
+ * preprocessing on the input coordinates. Most users should use #rdpq_texture_rectangle
+ * or #rdpq_texture_rectangle_scaled instead.
  * 
  * Refer to #rdpq_texture_rectangle for more details on how this command works.
  * 
- * @param[in]   tile    Tile descriptor referring to the texture in TMEM to use for drawing
- * @param[in]   x0      Top-left X coordinate of the rectangle (fx 10.2)
- * @param[in]   y0      Top-left Y coordinate of the rectangle (fx 10.2)
- * @param[in]   x1      Bottom-right *exclusive* X coordinate of the rectangle (fx 10.2)
- * @param[in]   y1      Bottom-right *exclusive* Y coordinate of the rectangle (fx 10.2)
- * @param[in]   s       S coordinate of the texture at the top-left corner (fx 1.10.5)
- * @param[in]   t       T coordinate of the texture at the top-left corner (fx 1.10.5)
- * @param[in]   dsdx    Signed increment of S coordinate for each horizontal pixel. Eg: passing 2.0f
- *                      will horizontally stretch the texture to 50%. (fx 1.5.10)
- * @param[in]   dtdy    Signed increment of T coordinate for each vertical pixel. Eg: passing 2.0f
- *                      will vertically stretch the texture to 50%. (fx 1.5.10)
+ * @param tile      Tile descriptor referring to the texture in TMEM to use for drawing
+ * @param x0        Top-left X coordinate of the rectangle (range: 0..1024)
+ * @param y0        Top-left Y coordinate of the rectangle (range: 0..1024)
+ * @param x1        Bottom-right *exclusive* X coordinate of the rectangle (range: 0..1024)
+ * @param y1        Bottom-right *exclusive* Y coordinate of the rectangle (range: 0..1024)
+ * @param s0        S coordinate of the texture at the top-left corner (range: -1024..1024)
+ * @param t0        T coordinate of the texture at the top-left corner (range: -1024..1024)
+ * @param dsdx      Horizontal increment of S coordinate per pixel (range: -32..32)
+ * @param dtdy      Vertical increment of T coordinate per pixel (range: -32..32)
  * 
  * @see #rdpq_texture_rectangle
+ * @see #rdpq_texture_rectangle_scaled
+ * 
+ * @hideinitializer
  */
-inline void rdpq_texture_rectangle_fx(rdpq_tile_t tile, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t s, int32_t t)
-{
-    if (__builtin_constant_p(x0) && __builtin_constant_p(y0) && __builtin_constant_p(x1) && __builtin_constant_p(y1)) {
-        __rdpq_texture_rectangle_inline(tile, x0, y0, x1, y1, s, t);
-    } else {
-        extern void __rdpq_texture_rectangle_offline(rdpq_tile_t tile, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t s0, int32_t t0);
-        __rdpq_texture_rectangle_offline(tile, x0, y0, x1, y1, s, t);
-    }
-}
-
-inline void rdpq_texture_rectangle_scaled_fx(rdpq_tile_t tile, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t s0, int32_t t0, int32_t s1, int32_t t1)
-{
-    if (__builtin_constant_p(x0) && __builtin_constant_p(y0) && __builtin_constant_p(x1) && __builtin_constant_p(y1)) {
-        __rdpq_texture_rectangle_scaled_inline(tile, x0, y0, x1, y1, s0, t0, s1, t1);
-    } else {
-        extern void __rdpq_texture_rectangle_scaled_offline(rdpq_tile_t tile, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t s0, int32_t t0, int32_t s1, int32_t t1);
-        __rdpq_texture_rectangle_scaled_offline(tile, x0, y0, x1, y1, s0, t0, s1, t1);
-    }
-}
-
 #define rdpq_texture_rectangle_raw(tile, x0, y0, x1, y1, s0, t0, dsdx, dtdy) \
-    rdpq_texture_rectangle_raw_fx(tile, (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s0)*32, (t0)*32, (dsdx)*1024, (dtdy)*1024)
+    __rdpq_texture_rectangle_raw_fx(tile, (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s0)*32, (t0)*32, (dsdx)*1024, (dtdy)*1024)
 
-inline void rdpq_texture_rectangle_raw_fx(rdpq_tile_t tile, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t s0, uint16_t t0, int16_t dsdx, int16_t dtdy)
-{
-     extern void __rdpq_texture_rectangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3);
-    __rdpq_texture_rectangle(
-        _carg(x1, 0xFFF, 12) | _carg(y1, 0xFFF, 0),
-        _carg(tile, 0x7, 24) | _carg(x0, 0xFFF, 12) | _carg(y0, 0xFFF, 0),
-        _carg(s0, 0xFFFF, 16) | _carg(t0, 0xFFFF, 0),
-        _carg(dsdx, 0xFFFF, 16) | _carg(dtdy, 0xFFFF, 0));   
-}
 
 /**
  * @brief Draw a textured flipped rectangle (RDP command: TEXTURE_RECTANGLE_FLIP)
@@ -331,7 +353,7 @@ inline void rdpq_texture_rectangle_raw_fx(rdpq_tile_t tile, uint16_t x0, uint16_
  * Notice that this command cannot work in COPY mode, so the standard render mode
  * must be activated (via #rdpq_set_mode_standard).
  * 
- * Refer to #rdpq_texture_rectangle for further information.
+ * Refer to #rdpq_texture_rectangle_raw for further information.
  * 
  * @param[in]   tile    Tile descriptor referring to the texture in TMEM to use for drawing
  * @param[in]   x0      Top-left X coordinate of the rectangle
@@ -345,44 +367,10 @@ inline void rdpq_texture_rectangle_raw_fx(rdpq_tile_t tile, uint16_t x0, uint16_
  * 
  * @hideinitializer
  */
-#define rdpq_texture_rectangle_flip(tile, x0, y0, x1, y1, s, t, dsdy, dtdx) ({ \
+#define rdpq_texture_rectangle_flip_raw(tile, x0, y0, x1, y1, s, t, dsdy, dtdx) ({ \
     rdpq_texture_rectangle_flip_fx((tile), (x0)*4, (y0)*4, (x1)*4, (y1)*4, (s)*32, (t)*32, (dsdy)*1024, (dtdx)*1024); \
 })
 
-/**
- * @brief Draw a textured flipped rectangle -- fixed point version (RDP command: TEXTURE_RECTANGLE_FLIP)
- * 
- * This function is similar to #rdpq_texture_rectangle_flip, but uses fixed point
- * numbers for the arguments. Prefer using #rdpq_texture_rectangle_flip when possible.
- * 
- * Refer to #rdpq_texture_rectangle_flip for more details on how this command works.
- * 
- * @param[in]   tile    Tile descriptor referring to the texture in TMEM to use for drawing
- * @param[in]   x0      Top-left X coordinate of the rectangle (fx 10.2)
- * @param[in]   y0      Top-left Y coordinate of the rectangle (fx 10.2)
- * @param[in]   x1      Bottom-right *exclusive* X coordinate of the rectangle (fx 10.2)
- * @param[in]   y1      Bottom-right *exclusive* Y coordinate of the rectangle (fx 10.2)
- * @param[in]   s       S coordinate of the texture at the top-left corner (fx 1.10.5)
- * @param[in]   t       T coordinate of the texture at the top-left corner (fx 1.10.5)
- * @param[in]   dsdy    Signed increment of S coordinate for each horizontal pixel. (fx 1.5.10)
- * @param[in]   dtdx    Signed increment of T coordinate for each vertical pixel. (fx 1.5.10)
- * 
- * @see #rdpq_texture_rectangle_flip
- */
-inline void rdpq_texture_rectangle_flip_fx(rdpq_tile_t tile, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, int16_t s, int16_t t, int16_t dsdy, int16_t dtdx)
-{
-    extern void __rdpq_write16_syncuse(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
-
-    // Note that this command is broken in copy mode, so it doesn't
-    // require any fixup. The RSP will trigger an assert if this
-    // is called in such a mode.
-    __rdpq_write16_syncuse(RDPQ_CMD_TEXTURE_RECTANGLE_FLIP,
-        _carg(x1, 0xFFF, 12) | _carg(y1, 0xFFF, 0),
-        _carg(tile, 0x7, 24) | _carg(x0, 0xFFF, 12) | _carg(y0, 0xFFF, 0),
-        _carg(s, 0xFFFF, 16) | _carg(t, 0xFFFF, 0),
-        _carg(dsdy, 0xFFFF, 16) | _carg(dtdx, 0xFFFF, 0),
-        AUTOSYNC_PIPE | AUTOSYNC_TILE(tile) | AUTOSYNC_TMEM(0));
-}
 
 /**
  * \}
