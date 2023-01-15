@@ -922,8 +922,8 @@ inline void rdpq_load_block(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t
  */
 inline void rdpq_set_tile_full(rdpq_tile_t tile, tex_format_t format, 
     uint16_t tmem_addr, uint16_t tmem_pitch, uint8_t palette,
-    uint8_t ct, uint8_t mt, uint8_t mask_t, uint8_t shift_t,
-    uint8_t cs, uint8_t ms, uint8_t mask_s, uint8_t shift_s)
+    uint8_t cs, uint8_t ms, uint8_t mask_s, uint8_t shift_s,
+    uint8_t ct, uint8_t mt, uint8_t mask_t, uint8_t shift_t)
 {
     assertf((tmem_addr % 8) == 0, "invalid tmem_addr %d: must be multiple of 8", tmem_addr);
     assertf((tmem_pitch % 8) == 0, "invalid tmem_pitch %d: must be multiple of 8", tmem_pitch);
