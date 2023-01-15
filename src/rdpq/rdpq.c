@@ -1027,7 +1027,7 @@ extern inline void rdpq_set_blend_color(color_t color);
 extern inline void rdpq_set_prim_color(color_t color);
 extern inline void rdpq_set_env_color(color_t color);
 extern inline void rdpq_set_prim_depth_raw(uint16_t primitive_z, int16_t primitive_delta_z);
-extern inline void rdpq_load_tlut(rdpq_tile_t tile, uint8_t lowidx, uint8_t highidx);
+extern inline void rdpq_load_tlut_raw(rdpq_tile_t tile, uint8_t lowidx, uint8_t highidx);
 extern inline void rdpq_set_tile_size_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1);
 extern inline void rdpq_load_block(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t tmem_pitch);
 extern inline void rdpq_load_block_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t dxt);
