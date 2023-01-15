@@ -618,8 +618,8 @@ inline void rdpq_set_yuv_parms(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k
     int32_t y0fx = (y0)*4; \
     int32_t x1fx = (x1)*4; \
     int32_t y1fx = (y1)*4; \
-    assertf(x0fx < x1fx, "x1 must be greater than x0"); \
-    assertf(y0fx < y1fx, "y1 must be greater than y0"); \
+    assertf(x0fx <= x1fx, "x1 must be greater or equal to x0"); \
+    assertf(y0fx <= y1fx, "y1 must be greater or equal to y0"); \
     assertf(x0fx >= 0, "x0 must be positive"); \
     assertf(y0fx >= 0, "y0 must be positive"); \
     __rdpq_set_scissor( \
@@ -804,19 +804,20 @@ inline void rdpq_load_tlut(rdpq_tile_t tile, uint8_t color_idx, uint8_t num_colo
  * 
  * @param[in] tile          Tile descriptor (TILE0-TILE7)
  * @param[in] s0            Top-left X texture coordinate to store in the descriptor (integer or float).
- *                          Range: 0-1024
+ *                          Range: 0-1024 (inclusive)
  * @param[in] t0            Top-left Y texture coordinate to store in the descriptor (integer or float).
- *                          Range: 0-1024
- * @param[in] s1            Bottom-right X texture coordinate to store in the descriptor (integer or float).
- *                          Range: 0-1024
- * @param[in] t1            Bottom-right Y texture coordinate to store in the descriptor (integer or float).
+ *                          Range: 0-1024 (inclusive)
+ * @param[in] s1            Bottom-right *exclusive* X texture coordinate to store in the descriptor (integer or float).
+ *                          Range: 0-1024 (inclusive)
+ * @param[in] t1            Bottom-right *exclusive* Y texture coordinate to store in the descriptor (integer or float).
+ *                          Range: 0-1024 (inclusive)
  * 
  * @see #rdpq_tex_load
  * @see #rdpq_set_tile_size_fx
  */
 #define rdpq_set_tile_size(tile, s0, t0, s1, t1) ({ \
     assertf((s0) >= 0 && (t0) >= 0 && (s1) >= 0 && (t1) >= 0, "texture coordinates must be positive"); \
-    assertf((s0) < 1024 && (t0) < 1024 && (s1) < 1024 && (t1) < 1024, "texture coordinates must be smaller than 1024"); \
+    assertf((s0) <= 1024 && (t0) <= 1024 && (s1) <= 1024 && (t1) <= 1024, "texture coordinates must be smaller  1024"); \
     rdpq_set_tile_size_fx((tile), (s0)*4, (t0)*4, (s1)*4, (t1)*4); \
 })
 
@@ -829,8 +830,8 @@ inline void rdpq_load_tlut(rdpq_tile_t tile, uint8_t color_idx, uint8_t num_colo
  * @param tile              Tile descriptor (TILE0-TILE7)
  * @param[in] s0            Top-left X texture coordinate to store in the descriptor (fx 10.2)
  * @param[in] t0            Top-left Y texture coordinate to store in the descriptor (fx 10.2)
- * @param[in] s1            Bottom-right X texture coordinate to store in the descriptor (fx 10.2)
- * @param[in] t1            Bottom-right Y texture coordinate to store in the descriptor (fx 10.2)
+ * @param[in] s1            Bottom-right *exclusive* X texture coordinate to store in the descriptor (fx 10.2)
+ * @param[in] t1            Bottom-right *exclusive* Y texture coordinate to store in the descriptor (fx 10.2)
  *
  * @see #rdpq_tex_load
  * @see #rdpq_set_tile_size
