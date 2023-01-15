@@ -8,6 +8,7 @@
 #ifdef N64
 #include "rdpq.h"
 #include "rspq.h"
+#include "rdpq_quad.h"
 #include "rdpq_mode.h"
 #include "rdpq_internal.h"
 #include "rdp.h"
@@ -1311,7 +1312,7 @@ surface_t rdpq_debug_get_tmem(void) {
     rdpq_set_tile_size(RDPQ_TILE_INTERNAL, 0, 0, 32, 64);
     rdpq_texture_rectangle(RDPQ_TILE_INTERNAL,
         0, 0, 32, 64,          // x0,y0, x1,y1
-        0, 0, 1.0f, 1.0f       // s,t, ds,dt
+        0, 0                   // s, t
     );
     rdpq_mode_pop();
     rdpq_detach();

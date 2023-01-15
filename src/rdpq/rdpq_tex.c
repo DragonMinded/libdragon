@@ -5,6 +5,7 @@
  */
 
 #include "rdpq.h"
+#include "rdpq_quad.h"
 #include "rdpq_tex.h"
 #include "utils.h"
 
@@ -244,15 +245,13 @@ void rdpq_tex_blit(rdpq_tile_t tile, surface_t *tex, int x0, int y0, int screen_
 {
     float scalex = (float)screen_width / (float)tex->width;
     float scaley = (float)screen_height / (float)tex->height;
-    float dsdx = 1.0f / scalex;
-    float dtdy = 1.0f / scaley;
 
     void draw_cb(rdpq_tile_t tile, int s0, int t0, int s1, int t1)
     {
-        rdpq_texture_rectangle(tile, 
+        rdpq_texture_rectangle_scaled(tile, 
             x0 + s0 * scalex, y0 + t0 * scaley,
             x0 + s1 * scalex, y0 + t1 * scaley,
-            s0, t0, dsdx, dtdy);
+            s0, t0, s1, t1);
     }
 
     tex_draw_split(tile, tex, draw_cb);

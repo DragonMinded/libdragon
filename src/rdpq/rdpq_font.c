@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include "rdpq.h"
+#include "rdpq_quad.h"
 #include "surface.h"
 #include "rdpq_mode.h"
 #include "rdpq_tex.h"
@@ -178,12 +179,14 @@ void rdpq_font_printn(rdpq_font_t *fnt, const char *text, int nch)
             }
 
             // Draw the glyph
-            rdpq_texture_rectangle(tile, 
+            int width = g->xoff2 - g->xoff;
+            int height = g->yoff2 - g->yoff;
+            rdpq_texture_rectangle_scaled(tile, 
                 draw_ctx.x + g->xoff * draw_ctx.xscale + xpos[i],
                 draw_ctx.y + g->yoff * draw_ctx.yscale,
                 draw_ctx.x + g->xoff2 * draw_ctx.xscale + xpos[i],
                 draw_ctx.y + g->yoff2 * draw_ctx.yscale,
-                g->s, g->t, draw_ctx.xscale, draw_ctx.yscale);
+                g->s, g->t, g->s + width, g->t + height);
 
             // Mark the glyph as drawn
             glyphs[i] = -1;

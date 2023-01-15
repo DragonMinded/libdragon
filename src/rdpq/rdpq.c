@@ -262,8 +262,38 @@
  * referencing the RDP static buffer, without ever transferring them into
  * RSP DMEM and back.
  * 
- *   TO BE FINISHED ***********************
+ * Let's check the sequence at block compilation time:
  * 
+ *  * CPU (application code): a call to 
+ *  * CPU (application code): a call to a rdpq function is made (eg: #rdpq_load_block),
+ *    while compiling a block.
+ *  * CPU (rdpq code): the implementation of #rdpq_load_block detects that a block,
+ *    is being compiled and does two things
+ *    1) Append the RDP LOAD_BLOCK command to the RDP static buffer associated with the
+ *       block.
+ *    2) Write the #RSPQ_CMD_RDP_APPEND_BUFFER command to the rspq block, containing the
+ *       address of the just-written LOAD_BLOCK command.
+ * 
+ * And now at block run time:
+ * 
+ *  * RSP (rspq code): the RSP reads the #RSPQ_CMD_RDP_APPEND_BUFFER command and
+ * 
+ * enqueues a rspq command
+ *    for the rdpq overlay. This command does not need to have the same encoding of
+ *    a real RDP command, but it is usually similar (to simplify work on the RSP).
+ *    For instance, in our example the rdpq command is 0xD2, which is meaningless
+ *    if sent to RDP, but has otherwise the same encoding of a real SET_SCISSOR
+ *    (whose ID would be 0xED).
+ *  * RSP (rspq code): later at some point, in parallel, the rspq engine will read
+ *    the command `0xD2`, and dispatch it to the rdpq overlay.
+ *  * RSP (rdpq code): the implementation for command `0xD2` is a RSP function called
+ *    `RDPQCmd_SetScissorEx`. It inspects the RDP state to check the current cycle
+ *    type and adapts the scissoring bounds if required. Then, it assembles a real
+ *    SET_SCISSOR (with ID 0xD2) and calls `RSPQ_RdpSend` to send it to the RDP
+ *    dynamic buffer.
+ *  * RSP (rdpq code): after the DMA is finished, the RSP tells the RDP that
+ *    a new command has been added to the dynamic buffer and can be executed
+ *    whenever the RDP is ready.
  * 
  * ## Autosync engine
  * 
@@ -341,14 +371,6 @@
 #include <string.h>
 #include <math.h>
 #include <float.h>
-
-// The fixup for fill rectangle and texture rectangle uses the exact same code in IMEM.
-// It needs to also adjust the command ID with the same constant (via XOR), so make
-// sure that we defined the fixups in the right position to make that happen.
-_Static_assert(
-    (RDPQ_CMD_FILL_RECTANGLE ^ RDPQ_CMD_FILL_RECTANGLE_EX) == 
-    (RDPQ_CMD_TEXTURE_RECTANGLE ^ RDPQ_CMD_TEXTURE_RECTANGLE_EX),
-    "invalid command numbering");
 
 static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code);
 
@@ -866,32 +888,6 @@ void __rdpq_fixup_write8_pipe(uint32_t cmd_id, uint32_t w0, uint32_t w1)
  * @{
  */
 
-/** @brief Out-of-line implementation of #rdpq_texture_rectangle */
-__attribute__((noinline))
-void __rdpq_texture_rectangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3)
-{
-    int tile = (w1 >> 24) & 7;
-    // FIXME: this can also use tile+1 in case the combiner refers to TEX1
-    // FIXME: this can also use tile+2 and +3 in case SOM activates texture detail / sharpen
-    __rdpq_autosync_use(AUTOSYNC_PIPE | AUTOSYNC_TILE(tile) | AUTOSYNC_TMEM(0));
-    rdpq_fixup_write(
-        (RDPQ_CMD_TEXTURE_RECTANGLE_EX, w0, w1, w2, w3),  // RSP
-        (RDPQ_CMD_TEXTURE_RECTANGLE_EX, w0, w1, w2, w3)   // RDP
-    );
-}
-
-/** @brief Out-of-line implementation of #rdpq_texture_rectangle */
-__attribute__((noinline))
-void __rdpq_fill_rectangle(uint32_t w0, uint32_t w1)
-{
-    __rdpq_autosync_use(AUTOSYNC_PIPE);
-    rdpq_fixup_write(
-        (RDPQ_CMD_FILL_RECTANGLE_EX, w0, w1),  // RSP
-        (RDPQ_CMD_FILL_RECTANGLE_EX, w0, w1)   // RDP
-    );
-}
-
-
 /** @brief Out-of-line implementation of #rdpq_set_scissor */
 __attribute__((noinline))
 void __rdpq_set_scissor(uint32_t w0, uint32_t w1)
@@ -1035,10 +1031,8 @@ extern inline void rdpq_load_tile_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0,
 extern inline void rdpq_set_tile_full(rdpq_tile_t tile, tex_format_t format, uint16_t tmem_addr, uint16_t tmem_pitch, uint8_t palette, uint8_t ct, uint8_t mt, uint8_t mask_t, uint8_t shift_t, uint8_t cs, uint8_t ms, uint8_t mask_s, uint8_t shift_s);
 extern inline void rdpq_set_other_modes_raw(uint64_t mode);
 extern inline void rdpq_change_other_modes_raw(uint64_t mask, uint64_t val);
-extern inline void rdpq_fill_rectangle_fx(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1);
 extern inline void rdpq_set_color_image_raw(uint8_t index, uint32_t offset, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride);
 extern inline void rdpq_set_z_image_raw(uint8_t index, uint32_t offset);
 extern inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_format_t format, uint16_t width, uint16_t height);
 extern inline void rdpq_set_lookup_address(uint8_t index, void* rdram_addr);
 extern inline void rdpq_set_tile(rdpq_tile_t tile, tex_format_t format, uint16_t tmem_addr, uint16_t tmem_pitch, uint8_t palette);
-extern inline void rdpq_texture_rectangle_fx(rdpq_tile_t tile, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, int16_t s, int16_t t, int16_t dsdx, int16_t dtdy);

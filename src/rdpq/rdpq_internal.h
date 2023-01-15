@@ -8,6 +8,7 @@
 #define __LIBDRAGON_RDPQ_INTERNAL_H
 
 #include "pputils.h"
+#include "rspq.h"
 #include "../rspq/rspq_internal.h"
 
 /** @brief True if the rdpq module was inited */

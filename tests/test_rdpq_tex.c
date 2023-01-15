@@ -175,7 +175,7 @@ void test_rdpq_tex_load(TestContext *ctx) {
                         rdpq_tex_load_sub(TILE2, &surf, 0, off, off, surf.width, surf.width);
                     rdpq_texture_rectangle(TILE2, 
                         5, 5, 5+surf.width-off, 5+surf.width-off,
-                        off, off, 1.0f, 1.0f);
+                        off, off);
                     rspq_wait();
 
                     #if 0

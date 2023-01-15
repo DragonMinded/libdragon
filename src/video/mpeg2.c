@@ -1,6 +1,7 @@
 #include "mpeg2.h"
 #include "n64sys.h"
 #include "rdpq.h"
+#include "rdpq_quad.h"
 #include "rdpq_mode.h"
 #include "rdp_commands.h"
 #include "yuv.h"
@@ -160,9 +161,7 @@ static void yuv_draw_frame(int width, int height, enum ZoomMode mode) {
 	rdpq_set_tile(3, FMT_YUV16, 0, BLOCK_W, 0);
 	rdpq_set_texture_image_raw(0, PhysicalAddr(interleaved_buffer), FMT_YUV16, width, height);
 
-	float stepx = 1.0f / scalew;
-	float stepy = 1.0f / scaleh;
-	debugf("scalew:%.3f scaleh:%.3f stepx=%.3f stepy=%.3f\n", scalew, scaleh, stepx, stepy);
+	debugf("scalew:%.3f scaleh:%.3f\n", scalew, scaleh);
     for (int y=0;y<height;y+=BLOCK_H) {
         for (int x=0;x<width;x+=BLOCK_W) {
         	int sx0 = x * scalew;
@@ -171,10 +170,10 @@ static void yuv_draw_frame(int width, int height, enum ZoomMode mode) {
         	int sy1 = (y+BLOCK_H) * scaleh;
 
             rdpq_load_tile(0, x, y, x+BLOCK_W, y+BLOCK_H);
-            rdpq_texture_rectangle(0,
+            rdpq_texture_rectangle_scaled(0,
 				sx0+xstart, sy0+ystart,
 				sx1+xstart, sy1+ystart,
-				x, y, stepx, stepy);
+				x, y, x+BLOCK_W, y+BLOCK_H);
         }
 		rspq_flush();
     }

@@ -2,6 +2,7 @@
 #include "utils.h"
 #include "rdpq.h"
 #include "rdpq_tri.h"
+#include "rdpq_quad.h"
 #include "rdpq_mode.h"
 #include "rdpq_debug.h"
 #include "../rdpq/rdpq_internal.h"
@@ -690,7 +691,7 @@ void gl_draw_point(gl_screen_vtx_t *v0)
     }
 
     if (state.prim_texture) {
-        rdpq_texture_rectangle(0, p0[0], p0[1], p1[0], p1[1], v0->texcoord[0]/32.f, v0->texcoord[1]/32.f, 0, 0);
+        rdpq_texture_rectangle_scaled(0, p0[0], p0[1], p1[0], p1[1], v0->texcoord[0]/32.f, v0->texcoord[1]/32.f, v0->texcoord[0]/32.f+1, v0->texcoord[0]/32.f+1);
     } else {
         rdpq_fill_rectangle(p0[0], p0[1], p1[0], p1[1]);
     }
@@ -1239,7 +1240,7 @@ void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 
     uint32_t res = AUTOSYNC_PIPE;
     // FIXME: This doesn't work with display lists!
-    if (state.prim_texture) res |= AUTOSYNC_TILES;
+    if (state.prim_texture) res |= AUTOSYNC_TILES | AUTOSYNC_TMEMS;
 
     __rdpq_autosync_use(res);
 

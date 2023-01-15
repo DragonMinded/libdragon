@@ -660,7 +660,7 @@ inline void glpipe_vtx(GLfloat attribs[ATTRIB_COUNT][4], int id, uint8_t cmd, ui
 
     uint32_t res = AUTOSYNC_PIPE;
     // FIXME: This doesn't work with display lists!
-    if (state.prim_texture) res |= AUTOSYNC_TILES;
+    if (state.prim_texture) res |= AUTOSYNC_TILES | AUTOSYNC_TMEMS;
 
     __rdpq_autosync_use(res);
 

@@ -1,12 +1,13 @@
 /**
  * @file rdp.c
- * @brief Deprecated RDP library
+ * @brief (Deprecated) Old RDP library
  * @ingroup rdp
  */
 #include "rspq.h"
 #include "rdp.h"
 #include "rdpq.h"
 #include "rdpq_tri.h"
+#include "rdpq_quad.h"
 #include "rdpq_macros.h"
 #include "interrupt.h"
 #include "display.h"
@@ -19,7 +20,7 @@
 #include <string.h>
 
 /**
- * @defgroup rdp Deprecated RDP library
+ * @defgroup rdp (Deprecated) Old RDP library
  * @ingroup display
  * @brief Interface to the hardware sprite/triangle rasterizer (RDP).
  * 
@@ -259,13 +260,9 @@ void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int b
             t += ( (height+1) + ((cache[texslot & 0x7].real_height-(height+1))<<1) ) << 5;	
     }	
 
-    /* Calculate the scaling constants based on a 6.10 fixed point system */
-    int xs = (int)((1.0 / x_scale) * 1024.0);
-    int ys = (int)((1.0 / y_scale) * 1024.0);
-
     /* Set up rectangle position in screen space */
     /* Set up texture position and scaling to 1:1 copy */
-    rdpq_texture_rectangle_fx(texslot, tx << 2, ty << 2, (bx+1) << 2, (by+1) << 2, s, t, xs, ys);
+    rdpq_texture_rectangle_scaled(texslot, tx, ty, bx+1, by+1, s, t, s + width * x_scale, t + height * y_scale);
 }
 
 void rdp_draw_textured_rectangle( uint32_t texslot, int tx, int ty, int bx, int by, mirror_t mirror )

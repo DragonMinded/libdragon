@@ -547,7 +547,7 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
 
     surface_clear(&fb, 0xFF);
     rdpq_set_mode_copy(false);
-    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (copy mode, dynamic mode)");
@@ -555,7 +555,7 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
     surface_clear(&fb, 0xFF);
     rdpq_set_mode_standard();
     rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0)));
-    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (1cycle mode, dynamic mode)");
@@ -564,7 +564,7 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
         surface_clear(&fb, 0xFF);
         rspq_block_begin();
         rdpq_set_other_modes_raw(SOM_CYCLE_COPY);
-        rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
+        rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
         rspq_block_t *block = rspq_block_end();
         DEFER(rspq_block_free(block));
         rspq_block_run(block);
@@ -578,7 +578,7 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
         rspq_block_begin();
         rdpq_set_mode_standard();
         rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0)));
-        rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
+        rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
         rspq_block_t *block = rspq_block_end();
         DEFER(rspq_block_free(block));
         rspq_block_run(block);
@@ -805,7 +805,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     for (int j=0;j<4;j++) {
         for (int i=0;i<80;i++) {
             rdpq_tex_load_sub(TILE0, &tex, 0, 0, 0, WIDTH, WIDTH);
-            rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0, 1, 1);
+            rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0);
         }
         rdpq_sync_full(NULL, NULL);
     }
@@ -816,7 +816,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     for (int j=0;j<4;j++) {
         for (int i=0;i<6;i++) {
             rdpq_tex_load_sub(TILE0, &tex, 0, 0, 0, WIDTH, WIDTH);
-            rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0, 1, 1);
+            rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0);
         }
         rdpq_sync_full(NULL, NULL);
     }
@@ -830,7 +830,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     for (int j=0;j<4;j++) {
         for (int i=0;i<80;i++) {
             rdpq_tex_load_sub(TILE0, &tex, 0, 0, 0, WIDTH, WIDTH);
-            rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0, 1, 1);
+            rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0);
         }
         rdpq_sync_full(NULL, NULL);
         rdpq_exec(buf, sizeof(buf));
@@ -842,7 +842,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     rspq_block_begin();
     for (int i=0;i<80;i++) {
         rdpq_tex_load_sub(TILE0, &tex, 0, 0, 0, WIDTH, WIDTH);
-        rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0, 1, 1);
+        rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0);
     }
     rspq_block_t *rect_block = rspq_block_end();
     DEFER(rspq_block_free(rect_block));
@@ -859,7 +859,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     rspq_block_begin();
     for (int i=0;i<80;i++) {
         rdpq_tex_load_sub(TILE0, &tex, 0, 0, 0, WIDTH, WIDTH);
-        rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0, 1, 1);
+        rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0);
     }
     rdpq_sync_full(NULL, NULL);
     rspq_block_t *sync_block = rspq_block_end();
@@ -932,22 +932,22 @@ static uint8_t __autosync_pipe1_blockexp[4] = {0,0,4,1};
 static void __autosync_tile1(void) {
     rdpq_set_tile(0, FMT_RGBA16, 0, 128, 0);
     rdpq_set_tile_size(0, 0, 0, 16, 16);
-    rdpq_texture_rectangle(0, 0, 0, 4, 4, 0, 0, 1, 1);    
+    rdpq_texture_rectangle(0, 0, 0, 4, 4, 0, 0);    
     // NO TILESYNC HERE
     rdpq_set_tile(1, FMT_RGBA16, 0, 128, 0);
     rdpq_set_tile_size(1, 0, 0, 16, 16);
-    rdpq_texture_rectangle(1, 0, 0, 4, 4, 0, 0, 1, 1);    
+    rdpq_texture_rectangle(1, 0, 0, 4, 4, 0, 0);    
     rdpq_set_tile(2, FMT_RGBA16, 0, 128, 0);
     rdpq_set_tile_size(2, 0, 0, 16, 16);
     // NO TILESYNC HERE
     rdpq_set_tile(2, FMT_RGBA16, 0, 256, 0);
     // NO TILESYNC HERE
-    rdpq_texture_rectangle(1, 0, 0, 4, 4, 0, 0, 1, 1);    
-    rdpq_texture_rectangle(0, 0, 0, 4, 4, 0, 0, 1, 1);    
+    rdpq_texture_rectangle(1, 0, 0, 4, 4, 0, 0);    
+    rdpq_texture_rectangle(0, 0, 0, 4, 4, 0, 0);    
     // TILESYNC HERE
     rdpq_set_tile(1, FMT_RGBA16, 0, 256, 0);
     rdpq_set_tile_size(1, 0, 0, 16, 16);
-    rdpq_texture_rectangle(1, 0, 0, 4, 4, 0, 0, 1, 1);    
+    rdpq_texture_rectangle(1, 0, 0, 4, 4, 0, 0);    
     // TILESYNC HERE
     rdpq_set_tile_size(1, 0, 0, 32, 32);
 
@@ -967,7 +967,7 @@ static void __autosync_load1(void) {
     // NO LOADSYNC HERE
     rdpq_load_tile(1, 0, 0, 7, 7);
     // NO LOADSYNC HERE
-    rdpq_texture_rectangle(1, 0, 0, 4, 4, 0, 0, 1, 1);
+    rdpq_texture_rectangle(1, 0, 0, 4, 4, 0, 0);
     // LOADSYNC HERE
     rdpq_load_tile(0, 0, 0, 7, 7);
 }
@@ -1040,7 +1040,7 @@ void test_rdpq_automode(TestContext *ctx) {
     // Set simple 1-pass combiner => 1 cycle
     surface_clear(&fb, 0xFF);
     rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO)));
-    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
     rspq_wait();
     som = rdpq_get_other_modes_raw();
     ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_1, "invalid cycle type");
@@ -1050,7 +1050,7 @@ void test_rdpq_automode(TestContext *ctx) {
     // Activate blending (1-pass blender) => 1 cycle
     surface_clear(&fb, 0xFF);
     rdpq_mode_blender(RDPQ_BLENDER((IN_RGB, FOG_ALPHA, BLEND_RGB, INV_MUX_ALPHA)));
-    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
     rspq_wait();
     som = rdpq_get_other_modes_raw();
     ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_1, "invalid cycle type");
@@ -1060,7 +1060,7 @@ void test_rdpq_automode(TestContext *ctx) {
     // Activate fogging (2-pass blender) => 2 cycle
     surface_clear(&fb, 0xFF);
     rdpq_mode_fog(RDPQ_BLENDER((BLEND_RGB, ZERO, IN_RGB, INV_MUX_ALPHA)));
-    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
     rspq_wait();
     som = rdpq_get_other_modes_raw();
     ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_2, "invalid cycle type");
@@ -1072,7 +1072,7 @@ void test_rdpq_automode(TestContext *ctx) {
     rdpq_mode_combiner(RDPQ_COMBINER2(
         (ZERO, ZERO, ZERO, ENV), (ENV, ZERO, TEX0, PRIM),
         (TEX1, ZERO, COMBINED_ALPHA, ZERO), (ZERO, ZERO, ZERO, ZERO)));
-    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
     rspq_wait();    
     som = rdpq_get_other_modes_raw();
     ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_2, "invalid cycle type");
@@ -1082,7 +1082,7 @@ void test_rdpq_automode(TestContext *ctx) {
     // Disable fogging (1 pass blender) => 2 cycle
     surface_clear(&fb, 0xFF);
     rdpq_mode_fog(0);
-    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
     rspq_wait();
     som = rdpq_get_other_modes_raw();
     ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_2, "invalid cycle type");
@@ -1092,7 +1092,7 @@ void test_rdpq_automode(TestContext *ctx) {
     // Set simple combiner => 1 cycle
     surface_clear(&fb, 0xFF);
     rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO)));
-    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
     rspq_wait();
     som = rdpq_get_other_modes_raw();
     ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_1, "invalid cycle type");
@@ -1108,7 +1108,7 @@ void test_rdpq_automode(TestContext *ctx) {
     rdpq_mode_blender(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, ONE)));
     rdpq_mode_dithering(DITHER_NOISE_NOISE);
     rdpq_mode_pop();
-    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1, 1);
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
     rspq_wait();
     som = rdpq_get_other_modes_raw();
     ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_1, "invalid cycle type");
@@ -1158,28 +1158,28 @@ void test_rdpq_blender(TestContext *ctx) {
 
     // Enable blending
     rdpq_mode_blender(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, INV_MUX_ALPHA)));
-    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1.0f, 1.0f);
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_blend, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (blender=pass1)");
 
     // Disable blending
     rdpq_mode_blender(0);
-    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1.0f, 1.0f);
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_tex, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (blender=none)");
 
     // Enable fogging
     rdpq_mode_fog(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, INV_MUX_ALPHA)));
-    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1.0f, 1.0f);
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_blend, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (blender=pass0)");
 
     // Disable fogging
     rdpq_mode_fog(0);
-    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1.0f, 1.0f);
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_tex, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (blender=none)");
@@ -1189,14 +1189,14 @@ void test_rdpq_blender(TestContext *ctx) {
         (IN_RGB, 0, BLEND_RGB, INV_MUX_ALPHA),
         (CYCLE1_RGB, FOG_ALPHA, BLEND_RGB, 1)
     ));
-    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1.0f, 1.0f);
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_blend2, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (blender=pass0+1)");
 
     // Disable blend
     rdpq_mode_blender(0);
-    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0, 1.0f, 1.0f);
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
     rspq_wait();
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_blend, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (blender=pass0)");
