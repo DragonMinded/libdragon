@@ -1,7 +1,7 @@
 /**
  * @file rdpq_tex.h
- * @brief RDP Command queue: texture/palette loading
- * @ingroup rdp
+ * @brief RDP Command queue: high-level texture/sprite loading and blitting
+ * @ingroup rdpq
  */
 
 #ifndef LIBDRAGON_RDPQ_TEX_H
@@ -17,6 +17,34 @@ typedef struct surface_s surface_t;
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// Multi-pass optimized texture loader
+// Not part of the public API yet
+///@cond
+enum tex_load_mode {
+    TEX_LOAD_UNKNOWN,
+    TEX_LOAD_TILE,
+    TEX_LOAD_BLOCK,
+};
+
+typedef struct tex_loader_s {
+    const surface_t *tex;
+    rdpq_tile_t tile;
+    struct {
+        int width, height;
+        int num_texels, tmem_pitch;
+        int block_max_lines;
+        bool can_load_block;
+    } rect;
+    int tmem_addr;
+    int tlut;
+    enum tex_load_mode load_mode;
+    void (*load_block)(struct tex_loader_s *tload, int s0, int t0, int s1, int t1);
+    void (*load_tile)(struct tex_loader_s *tload, int s0, int t0, int s1, int t1);
+} tex_loader_t;
+tex_loader_t tex_loader_init(rdpq_tile_t tile, const surface_t *tex);
+int tex_loader_load(tex_loader_t *tload, int s0, int t0, int s1, int t1);
+///@endcond
 
 /**
  * @brief Load a CI4 texture into TMEM
