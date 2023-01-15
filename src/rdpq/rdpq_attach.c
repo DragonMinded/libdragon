@@ -37,6 +37,13 @@ void rdpq_detach_cb(void (*cb)(void*), void *arg)
     attach_stack_ptr--;
     if (attach_stack_ptr > 0)
         rdpq_set_color_image(attach_stack[attach_stack_ptr-1]);
+    else {
+        // There is no way to tell the RDP to "attach to nothing", it always
+        // keeps a reference the last color image. To avoid corruptions because of
+        // bugs in user code, force an empty scissor rect, so that the RDP will
+        // draw nothing until it gets attached again.
+        rdpq_set_scissor(0, 0, 0, 0);
+    }
 
     rspq_flush();
 }
