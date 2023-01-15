@@ -120,7 +120,7 @@ int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, int tmem_addr);
  *          pos_x, pos_y, pos_x+32, pos_y+32,   // screen coordinates of the sprite
  *          100, 100,                           // texture coordinates
  *          1.0, 1.0);                          // texture increments (= no scaling)
- * @endcode{.c}
+ * @endcode
  * 
  * An alternative to this function is to call #surface_make_sub on the texture
  * to create a sub-surface, and then call rdpq_tex_load on the sub-surface. 
@@ -143,7 +143,7 @@ int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, int tmem_addr);
  *          pos_x, pos_y, pos_x+32, pos_y+32,   // screen coordinates of the sprite
  *          0, 0,                               // texture coordinates
  *          1.0, 1.0);                          // texture increments (= no scaling)
- * @endcode{.c}
+ * @endcode
  * 
  * The only limit of this second solution is that the sub-surface pointer must
  * be 8-byte aligned (like all RDP textures), so it can only be used if the
@@ -209,10 +209,44 @@ int rdpq_tex_load_sub_ci4(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int t
 void rdpq_tex_load_tlut(uint16_t *tlut, int color_idx, int num_colors);
 
 /**
+ * @brief Blitting parameters for #rdpq_tex_blit.
+ * 
+ * This structure contains all possible parameters for #rdpq_tex_blit.
+ * The various fields have been designed so that the 0 value is always the most
+ * reasonable default. This means that you can simply initialize the structure
+ * to 0 and then change only the fields you need (for instance, through a 
+ * compound literal).
+ * 
+ * See #rdpq_tex_blit for several examples.
+ */
+typedef struct {
+    rdpq_tile_t tile;   ///< Tile descriptor to use (default: TILE_0)
+    int s0;             ///< Source sub-rect top-left X coordinate
+    int t0;             ///< Source sub-rect top-left Y coordinate
+    int width;          ///< Source sub-rect width. If 0, the width of the surface is used
+    int height;         ///< Source sub-rect height. If 0, the height of the surface is used
+    bool flip_x;        ///< Flip horizontally. If true, the source sub-rect is treated as horizontally flipped (so flipping is performed before all other transformations)
+    bool flip_y;        ///< Flip vertically. If true, the source sub-rect is treated as vertically flipped (so flipping is performed before all other transformations)
+
+    int cx;             ///< Transformation center (aka "hotspot") X coordinate, relative to (s0, t0). Used for all transformations
+    int cy;             ///< Transformation center (aka "hotspot") X coordinate, relative to (s0, t0). Used for all transformations
+    float scale_x;      ///< Horizontal scale factor to apply to the surface. If 0, no scaling is performed (the same as 1.0f)
+    float scale_y;      ///< Vertical scale factor to apply to the surface. If 0, no scaling is performed (the same as 1.0f)
+    float theta;        ///< Rotation angle in radians
+
+    // FIXME: replace this with CPU tracking of filtering mode?
+    bool filtering;     ///< True if texture filtering is enabled (activates workaround for filtering artifacts when splitting textures in chunks)
+
+    // FIXME: remove this?
+    int nx;             ///< Texture horizontal repeat count. If 0, no repetition is performed (the same as 1)
+    int ny;             ///< Texture vertical repeat count. If 0, no repetition is performed (the same as 1)
+} rdpq_blitparms_t;
+
+/**
  * @brief Blit a surface to the active framebuffer
  * 
  * This is the highest level function for drawing an arbitrary-sized surface
- * to the screen, possibly scaling it.
+ * to the screen, possibly scaling and rotating it.
  * 
  * It handles all the required steps to blit the entire contents of a surface
  * to the framebuffer, that is:
@@ -220,7 +254,7 @@ void rdpq_tex_load_tlut(uint16_t *tlut, int color_idx, int num_colors);
  *   * Logically split the surface in chunks that fit the TMEM
  *   * Calculate an appropriate scaling factor for each chunk
  *   * Load each chunk into TMEM (via #rdpq_tex_load)
- *   * Draw each chunk to the framebuffer (via #rdpq_texture_rectangle)
+ *   * Draw each chunk to the framebuffer (via #rdpq_texture_rectangle or #rdpq_triangle)
  * 
  * Note that this function only performs the actual blits, it does not
  * configure the rendering mode or handle palettes. Before calling this
@@ -229,14 +263,64 @@ void rdpq_tex_load_tlut(uint16_t *tlut, int color_idx, int num_colors);
  * format conversion is required). If the surface uses a palette, you also
  * need to load the palette using #rdpq_tex_load_tlut.
  * 
- * @param tile           Tile to use for the blit
+ * This function is able to perform many different complex transformations. The
+ * implementation has been tuned to try to be as fast as possible for simple
+ * blits, but it scales up nicely for more complex operations.
+ * 
+ * The parameters that describe the transformations to perform are passed in
+ * the @p parms structure. The structure contains a lot of fields, but it has
+ * been designed so that most of them can be simply initalized to zero to
+ * disable advanced behaviors (and thus simply left unmentioned in an inline
+ * initialization). 
+ * 
+ * For instance, this blits a large image to the screen, aligning it to the
+ * top-left corner (eg: a splashscreen).
+ * 
+ * @code{.c}
+ *     rdpq_tex_blit(splashscreen, 0, 0, NULL);
+ * @endcode
+ * 
+ * This is the same, but the image will be centered on the screen. To do this,
+ * we specify the center of the screen as position, and then we set the hotspost
+ * of the image ("cx" and "cy" fields) to its center:
+ * 
+ * @code{.c}
+ *      rdpq_tex_blit(splashscreen, 320/2, 160/2, &(rdpq_blitparms_t){
+ *          .cx = splashscreen->width / 2,
+ *          .cy = splashscreen->height / 2,
+ *      });
+ * @endcode
+ * 
+ * This examples scales a 64x64 image to 256x256, putting its center near the
+ * top-left of the screen (so part of resulting image will be offscreen):
+ * 
+ * @code{.c}
+ *      rdpq_tex_blit(splashscreen, 20, 20, &(rdpq_blitparms_t){
+ *          .cx = splashscreen->width / 2, .cy = splashscreen->height / 2,
+ *          .scale_x = 4.0f, .scale_y = 4.0f,
+ *      });
+ * @endcode
+ * 
+ * This example assumes that the surface is a spritemap with frames of size
+ * 32x32. It selects the sprite at row 4, column 2, and draws it centered
+ * at position 100,100 on the screen applying a rotation of 45 degrees around its center:
+ * 
+ * @code{.c}
+ *     rdpq_tex_blit(splashscreen, 100, 100, &(rdpq_blitparms_t){
+ *          .s0 = 32*2, .t0 = 32*4,
+ *          .width = 32, .height = 32,
+ *          .cx = 16, .cy = 16,
+ *          .theta = M_PI/4,
+ *     });
+ * @endcode
+ * 
  * @param surf           Surface to draw
- * @param x0             Top-left X coordinate on the framebuffer
- * @param y0             Top-left Y coordinate on the framebuffer
- * @param draw_width     Width of the surface on the framebuffer
- * @param draw_height    Height of the surface on the framebuffer
+ * @param x0             X coordinate on the framebuffer where to draw the surface
+ * @param y0             Y coordinate on the framebuffer where to draw the surface
+ * @param parms          Parameters for the blit operation (or NULL for default)
  */
-void rdpq_tex_blit(rdpq_tile_t tile, surface_t *surf, int x0, int y0, int draw_width, int draw_height);
+void rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms);
+
 
 #ifdef __cplusplus
 }

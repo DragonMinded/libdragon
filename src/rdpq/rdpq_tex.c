@@ -4,10 +4,13 @@
  * @ingroup rdp
  */
 
+#define _GNU_SOURCE
 #include "rdpq.h"
+#include "rdpq_tri.h"
 #include "rdpq_quad.h"
 #include "rdpq_tex.h"
 #include "utils.h"
+#include <math.h>
 
 /** @brief Address in TMEM where the palettes must be loaded */
 #define TMEM_PALETTE_ADDR   0x800
@@ -253,9 +256,10 @@ int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, int tmem_addr)
  * @param draw_cb       Callback function to draw rectangle by rectangle. It will be called
  *                      with the tile to use for drawing, and the rectangle of the original
  *                      surface that has been loaded into TMEM.
+ * @param filtering     Enable texture filtering workaround
  */
-static void tex_draw_split(rdpq_tile_t tile, surface_t *tex, 
-    void (*draw_cb)(rdpq_tile_t tile, int s0, int t0, int s1, int t1))
+static void tex_draw_split(rdpq_tile_t tile, const surface_t *tex, int s0, int t0, int s1, int t1, 
+    void (*draw_cb)(rdpq_tile_t tile, int s0, int t0, int s1, int t1), bool filtering)
 {
     // The most efficient way to split a large surface is to load it in horizontal strips,
     // whose height maximizes TMEM usage. The last strip might be smaller than the others.
@@ -265,40 +269,202 @@ static void tex_draw_split(rdpq_tile_t tile, surface_t *tex,
 
     // Calculate the optimal height for a strip, based on strips of maximum length.
     int tile_h = texload_calc_max_height(&tload, tex->width);
-    int s0 = 0, t0 = 0;
     
     // Go through the surface
-    while (t0 < tex->height) 
+    while (t0 < t1) 
     {
         // Calculate the height of the current strip
-        int s1 = tex->width;
-        int t1 = MIN(t0 + tile_h, tex->height);
+        int tm = filtering ? MAX(t0 - 1, 0) : t0;
+        int tn = MIN(tm + tile_h, t1);
 
         // Load the current strip
-        tex_loader_load(&tload, s0, t0, s1, t1);
+        tex_loader_load(&tload, s0, tm, s1, tn);
 
         // Call the draw callback for this strip
-        draw_cb(tile, s0, t0, s1, t1);
+        int tx = (!filtering || tn == t1) ? tn : tn - 1;
+        draw_cb(tile, s0, t0, s1, tx);
 
         // Move to the next strip
-        t0 = t1;
+        t0 = tx;
     }
 }
 
-void rdpq_tex_blit(rdpq_tile_t tile, surface_t *tex, int x0, int y0, int screen_width, int screen_height)
+__attribute__((noinline))
+static void tex_xblit_norotate_noscale(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms)
 {
-    float scalex = (float)screen_width / (float)tex->width;
-    float scaley = (float)screen_height / (float)tex->height;
+    rdpq_tile_t tile = parms->tile;
+    int src_width = parms->width ? parms->width : surf->width;
+    int src_height = parms->height ? parms->height : surf->height;
+    int s0 = parms->s0;
+    int t0 = parms->t0;
+    int cx = parms->cx + s0;
+    int cy = parms->cy + t0;
+    bool flip_x = parms->flip_x;
+    bool flip_y = parms->flip_y;
 
     void draw_cb(rdpq_tile_t tile, int s0, int t0, int s1, int t1)
     {
-        rdpq_texture_rectangle_scaled(tile, 
-            x0 + s0 * scalex, y0 + t0 * scaley,
-            x0 + s1 * scalex, y0 + t1 * scaley,
-            s0, t0, s1, t1);
+        int ks0 = s0, kt0 = t0, ks1 = s1, kt1 = t1;
+        if (flip_x) { ks0 = src_width - s1; ks1 = src_width - s0; s0 = s1-1; }
+        if (flip_y) { kt0 = src_height - t1; kt1 = src_height - t0; t0 = t1-1; }
+
+        rdpq_texture_rectangle(tile, x0 + ks0 - cx, y0 + kt0 - cy, x0 + ks1 - cx, y0 + kt1 - cy, s0, t0);
     }
 
-    tex_draw_split(tile, tex, draw_cb);
+    tex_draw_split(tile, surf, s0, t0, s0 + src_width, t0 + src_height, draw_cb, parms->filtering);
+}
+
+__attribute__((noinline))
+static void tex_xblit_norotate(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms)
+{
+    rdpq_tile_t tile = parms->tile;
+    int src_width = parms->width ? parms->width : surf->width;
+    int src_height = parms->height ? parms->height : surf->height;
+    int s0 = parms->s0;
+    int t0 = parms->t0;
+    int cx = parms->cx + s0;
+    int cy = parms->cy + t0;
+    float scalex = parms->scale_x == 0 ? 1.0f : parms->scale_x;
+    float scaley = parms->scale_y == 0 ? 1.0f : parms->scale_y;
+    bool flip_x = (scalex < 0) ^ parms->flip_x;
+    bool flip_y = (scaley < 0) ^ parms->flip_y;
+
+    float mtx[3][2] = {
+        { scalex, 0 },
+        { 0, scaley },
+        { x0 - cx * scalex,
+          y0 - cy * scaley }
+    };
+
+    void draw_cb(rdpq_tile_t tile, int s0, int t0, int s1, int t1)
+    {
+        int ks0 = s0, kt0 = t0, ks1 = s1, kt1 = t1;
+
+        if (flip_x) { ks0 = src_width - s1; ks1 = src_width - s0; s0 = s1-1; }
+        if (flip_y) { kt0 = src_height - t1; kt1 = src_height - t0; t0 = t1-1; }
+
+        float k0x = mtx[0][0] * ks0 + mtx[1][0] * kt0 + mtx[2][0];
+        float k0y = mtx[0][1] * ks0 + mtx[1][1] * kt0 + mtx[2][1];
+        float k2x = mtx[0][0] * ks1 + mtx[1][0] * kt1 + mtx[2][0];
+        float k2y = mtx[0][1] * ks1 + mtx[1][1] * kt1 + mtx[2][1];
+
+        rdpq_texture_rectangle_scaled(tile, k0x, k0y, k2x, k2y, s0, t0, s1, t1);
+    }
+
+    tex_draw_split(tile, surf, s0, t0, s0 + src_width, t0 + src_height, draw_cb, parms->filtering);
+}
+
+__attribute__((noinline))
+static void tex_xblit(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms)
+{
+    rdpq_tile_t tile = parms->tile;
+    int src_width = parms->width ? parms->width : surf->width;
+    int src_height = parms->height ? parms->height : surf->height;
+    int s0 = parms->s0;
+    int t0 = parms->t0;
+    int cx = parms->cx + s0;
+    int cy = parms->cy + t0;
+    int nx = parms->nx;
+    int ny = parms->ny;
+    float scalex = parms->scale_x == 0 ? 1.0f : parms->scale_x;
+    float scaley = parms->scale_y == 0 ? 1.0f : parms->scale_y;
+
+    float sin_theta, cos_theta; 
+    sincosf(parms->theta, &sin_theta, &cos_theta);
+
+    float mtx[3][2] = {
+        { cos_theta * scalex, -sin_theta * scaley },
+        { sin_theta * scalex, cos_theta * scaley },
+        { x0 - cx * cos_theta * scalex - cy * sin_theta * scaley,
+          y0 + cx * sin_theta * scalex - cy * cos_theta * scaley }
+    };
+
+    void draw_cb(rdpq_tile_t tile, int s0, int t0, int s1, int t1)
+    {
+        int ks0 = s0, kt0 = t0, ks1 = s1, kt1 = t1;
+
+        if (parms->flip_x) { ks0 = src_width - ks0; ks1 = src_width - ks1; }
+        if (parms->flip_y) { kt0 = src_height - kt0; kt1 = src_height - kt1; }
+
+        float k0x = mtx[0][0] * ks0 + mtx[1][0] * kt0 + mtx[2][0];
+        float k0y = mtx[0][1] * ks0 + mtx[1][1] * kt0 + mtx[2][1];
+        float k2x = mtx[0][0] * ks1 + mtx[1][0] * kt1 + mtx[2][0];
+        float k2y = mtx[0][1] * ks1 + mtx[1][1] * kt1 + mtx[2][1];
+        float k1x = mtx[0][0] * ks1 + mtx[1][0] * kt0 + mtx[2][0];
+        float k1y = mtx[0][1] * ks1 + mtx[1][1] * kt0 + mtx[2][1];
+        float k3x = mtx[0][0] * ks0 + mtx[1][0] * kt1 + mtx[2][0];
+        float k3y = mtx[0][1] * ks0 + mtx[1][1] * kt1 + mtx[2][1];
+
+        float v0[5] = { k0x, k0y, s0, t0, 1.0f };
+        float v1[5] = { k1x, k1y, s1, t0, 1.0f };
+        float v2[5] = { k2x, k2y, s1, t1, 1.0f };
+        float v3[5] = { k3x, k3y, s0, t1, 1.0f };
+        rdpq_triangle(&TRIFMT_TEX, v0, v1, v2);
+        rdpq_triangle(&TRIFMT_TEX, v0, v2, v3);
+    }
+
+    void draw_cb_multi_rot(rdpq_tile_t tile, int s0, int t0, int s1, int t1)
+    {
+        int ks0 = s0, kt0 = t0, ks1 = s1, kt1 = t1;
+        if (parms->flip_x) { ks0 = src_width - ks0; ks1 = src_width - ks1; }
+        if (parms->flip_y) { kt0 = src_height - kt0; kt1 = src_height - kt1; }
+
+        assert(s1-s0 == src_width);
+
+        for (int j=0; j<ny; j++) {
+            int kkt0 = kt0 + j * src_height;
+            int kkt1 = kt1 + j * src_height;
+
+            // rdpq_triangle_strip_begin(&TRIFMT_TEX);
+
+            float kks0 = ks0;
+            float kks1 = ks1;
+            for (int i=0; i<=nx; i++) {
+                float k0x = mtx[0][0] * kks0 + mtx[1][0] * kkt0 + mtx[2][0];
+                float k0y = mtx[0][1] * kks0 + mtx[1][1] * kkt0 + mtx[2][1];
+                float k2x = mtx[0][0] * kks1 + mtx[1][0] * kkt1 + mtx[2][0];
+                float k2y = mtx[0][1] * kks1 + mtx[1][1] * kkt1 + mtx[2][1];
+                float k1x = mtx[0][0] * kks1 + mtx[1][0] * kkt0 + mtx[2][0];
+                float k1y = mtx[0][1] * kks1 + mtx[1][1] * kkt0 + mtx[2][1];
+                float k3x = mtx[0][0] * kks0 + mtx[1][0] * kkt1 + mtx[2][0];
+                float k3y = mtx[0][1] * kks0 + mtx[1][1] * kkt1 + mtx[2][1];
+
+                float v0[5] = { k0x, k0y, s0, t0, 1.0f };
+                float v1[5] = { k1x, k1y, s1, t0, 1.0f };
+                float v2[5] = { k2x, k2y, s1, t1, 1.0f };
+                float v3[5] = { k3x, k3y, s0, t1, 1.0f };
+                rdpq_triangle(&TRIFMT_TEX, v0, v1, v2);
+                rdpq_triangle(&TRIFMT_TEX, v0, v2, v3);
+
+                // rdpq_triangle_strip(v0);
+                // rdpq_triangle_strip(v3);
+                kks0 += src_width;
+                kks1 += src_width;
+            }
+        }
+    }
+
+    if (nx || ny) {
+        tex_draw_split(tile, surf, s0, t0, s0 + src_width, t0 + src_height, draw_cb_multi_rot, parms->filtering);    
+    } else {
+        tex_draw_split(tile, surf, s0, t0, s0 + src_width, t0 + src_height, draw_cb, parms->filtering);
+    }
+}
+
+void rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms)
+{
+    static const rdpq_blitparms_t default_parms = {0};
+    if (!parms) parms = &default_parms;
+
+    // Check which implementation to use, depending on the requested features.
+    if (F2I(parms->theta) == 0) {
+        if (F2I(parms->scale_x) == 0 && F2I(parms->scale_y) == 0)
+            tex_xblit_norotate_noscale(surf, x0, y0, parms);
+            else
+            tex_xblit_norotate(surf, x0, y0, parms);
+    } else {
+        tex_xblit(surf, x0, y0, parms);
+    }
 }
 
 void rdpq_tex_load_tlut(uint16_t *tlut, int color_idx, int num_colors)
