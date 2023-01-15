@@ -26,4 +26,10 @@
 /**	@brief Absolute number */
 #define ABS(x)   ((x) < 0 ? -(x) : (x))
 
+/** @brief Type-safe bitcast from float to integer */
+#define F2I(f)   ({ uint32_t __i; memcpy(&__i, &(f), 4); __i; })
+
+/** @brief Type-safe bitcast from integer to float */
+#define I2F(i)   ({ float __f; memcpy(&__f, &(i), 4); __f; })
+
 #endif
