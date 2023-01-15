@@ -1151,7 +1151,7 @@ inline void rdpq_set_env_color(color_t color)
  * 
  * @see #rdpq_set_color_image_raw
  */
-void rdpq_set_color_image(surface_t *surface);
+void rdpq_set_color_image(const surface_t *surface);
 
 /**
  * @brief Configure the Z-buffer to use (RDP command: SET_Z_IMAGE)
@@ -1167,7 +1167,7 @@ void rdpq_set_color_image(surface_t *surface);
  * 
  * @see #rdpq_set_z_image_raw
  */
-void rdpq_set_z_image(surface_t* surface);
+void rdpq_set_z_image(const surface_t* surface);
 
 /**
  * @brief Configure the texture to use (RDP command: SET_TEX_IMAGE)
@@ -1183,7 +1183,7 @@ void rdpq_set_z_image(surface_t* surface);
  * 
  * @see #rdpq_set_texture_image_raw
  */
-void rdpq_set_texture_image(surface_t* surface);
+void rdpq_set_texture_image(const surface_t* surface);
 
 /**
  * @brief Low-level version of #rdpq_set_color_image, with address lookup capability.

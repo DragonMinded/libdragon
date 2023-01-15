@@ -930,7 +930,7 @@ void __rdpq_set_color_image(uint32_t w0, uint32_t w1, uint32_t sw0, uint32_t sw1
         __rdpq_set_scissor(sw0, sw1);
 }
 
-void rdpq_set_color_image(surface_t *surface)
+void rdpq_set_color_image(const surface_t *surface)
 {
     assertf((PhysicalAddr(surface->buffer) & 63) == 0,
         "buffer pointer is not aligned to 64 bytes, so it cannot be used as RDP color image");
@@ -938,7 +938,7 @@ void rdpq_set_color_image(surface_t *surface)
         surface_get_format(surface), surface->width, surface->height, surface->stride);
 }
 
-void rdpq_set_z_image(surface_t *surface)
+void rdpq_set_z_image(const surface_t *surface)
 {
     assertf(surface_get_format(surface) == FMT_RGBA16, "the format of the Z-buffer surface must be RGBA16");
     assertf((PhysicalAddr(surface->buffer) & 63) == 0,
@@ -946,7 +946,7 @@ void rdpq_set_z_image(surface_t *surface)
     rdpq_set_z_image_raw(0, PhysicalAddr(surface->buffer));
 }
 
-void rdpq_set_texture_image(surface_t *surface)
+void rdpq_set_texture_image(const surface_t *surface)
 {
     tex_format_t fmt = surface_get_format(surface);
     assertf((PhysicalAddr(surface->buffer) & 7) == 0,

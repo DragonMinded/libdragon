@@ -11,7 +11,7 @@
 /** @brief Size of the internal stack of attached surfaces */
 #define ATTACH_STACK_SIZE   4
 
-static surface_t* attach_stack[ATTACH_STACK_SIZE] = { NULL };
+static const surface_t* attach_stack[ATTACH_STACK_SIZE] = { NULL };
 static int attach_stack_ptr = 0;
 
 bool rdpq_is_attached(void)
@@ -19,7 +19,7 @@ bool rdpq_is_attached(void)
     return attach_stack_ptr > 0;
 }
 
-void rdpq_attach(surface_t *surface)
+void rdpq_attach(const surface_t *surface)
 {
     assertf(attach_stack_ptr < ATTACH_STACK_SIZE, "Too many nested attachments");
 
@@ -44,7 +44,7 @@ void rdpq_detach_cb(void (*cb)(void*), void *arg)
 void rdpq_detach_show(void)
 {
     assertf(rdpq_is_attached(), "No render target is currently attached");
-    rdpq_detach_cb((void (*)(void*))display_show, attach_stack[attach_stack_ptr-1]);
+    rdpq_detach_cb((void (*)(void*))display_show, (void*)attach_stack[attach_stack_ptr-1]);
 }
 
 extern inline void rdpq_detach(void);

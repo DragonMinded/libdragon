@@ -40,7 +40,7 @@
  * @see display_lock
  * @see surface_alloc
  */
-void rdpq_attach(surface_t *surface);
+void rdpq_attach(const surface_t *surface);
 
 /**
  * @brief Detach the RDP from the current surface, and restore the previous one
