@@ -1134,9 +1134,17 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         rdp.col.size = BITS(buf[0], 51, 52);
         int size = 4 << rdp.col.size;
         VALIDATE_ERR(BITS(buf[0], 0, 5) == 0, "color image must be aligned to 64 bytes");
-        VALIDATE_ERR((rdp.col.fmt == 0 && (size == 32 || size == 16)) || (rdp.col.fmt == 2 && size == 8),
-            "color image has invalid format %s%d: must be RGBA32, RGBA16 or CI8",
-                tex_fmt_name[rdp.col.fmt], size);
+        switch (size) {
+        case 4:
+            VALIDATE_ERR(false, "cannot render to 4bpp surface of type %s%d",
+                tex_fmt_name[rdp.col.fmt], size); break;
+        case 8: 
+            VALIDATE_WARN(rdp.col.fmt == 2 || rdp.col.fmt == 4, "color image is defined %s%d but it will render as I8",
+                tex_fmt_name[rdp.col.fmt], size); break;
+        case 16: case 32:
+            VALIDATE_WARN(rdp.col.fmt == 0, "color image is defined %s%d but it will render as RGBA%d",
+                tex_fmt_name[rdp.col.fmt], size, size); break;
+        }
         rdp.last_col = &buf[0];
         rdp.last_col_data = buf[0];
         rdp.mode_changed = true; // revalidate render mode on different framebuffer format  
