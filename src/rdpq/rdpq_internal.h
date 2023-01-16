@@ -109,7 +109,10 @@ void __rdpq_block_next_buffer(void);
 void __rdpq_block_update(volatile uint32_t *wptr);
 void __rdpq_block_update_norsp(volatile uint32_t *wptr);
 
-void __rdpq_autosync_use(uint32_t res);
+inline void __rdpq_autosync_use(uint32_t res)
+{
+    rdpq_tracking.autosync |= res;
+}
 void __rdpq_autosync_change(uint32_t res);
 
 void __rdpq_write8(uint32_t cmd_id, uint32_t arg0, uint32_t arg1);
@@ -193,7 +196,7 @@ void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v
  * @hideinitializer
  */
 #define rdpq_fixup_write(rsp_cmd, ...) ({ \
-    if (__COUNT_VARARGS(__VA_ARGS__) != 0 && rspq_in_block()) { \
+    if (__COUNT_VARARGS(__VA_ARGS__) != 0 && __builtin_expect(rspq_in_block(), 0)) { \
         extern rdpq_block_state_t rdpq_block_state; \
         int nwords = 0; __CALL_FOREACH(__rdpcmd_count_words, ##__VA_ARGS__) \
         if (__builtin_expect(rdpq_block_state.wptr + nwords > rdpq_block_state.wend, 0)) \

@@ -551,9 +551,7 @@ static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
 }
 
 /** @brief Autosync engine: mark certain resources as in use */
-void __rdpq_autosync_use(uint32_t res) { 
-    rdpq_tracking.autosync |= res;
-}
+extern inline void __rdpq_autosync_use(uint32_t res);
 
 /** 
  * @brief Autosync engine: mark certain resources as being changed.
