@@ -4,7 +4,9 @@
  * @ingroup rdp
  */
 
-#define _GNU_SOURCE
+///@cond
+#define _GNU_SOURCE    // Activate GNU extensions in math.h (sincosf)
+///@endcond
 #include "rdpq.h"
 #include "rdpq_tri.h"
 #include "rdpq_quad.h"
@@ -110,16 +112,6 @@ static int texload_set_rect(tex_loader_t *tload, int s0, int t0, int s1, int t1)
     return tload->rect.tmem_pitch * height;
 }
 
-int tex_loader_load(tex_loader_t *tload, int s0, int t0, int s1, int t1)
-{
-    int mem = texload_set_rect(tload, s0, t0, s1, t1);
-    if (tload->rect.can_load_block && (t0 & 1) == 0)
-        tload->load_block(tload, s0, t0, s1, t1);
-    else
-        tload->load_tile(tload, s0, t0, s1, t1);
-    return mem;
-}
-
 static void tex_loader_set_tmem_addr(tex_loader_t *tload, int tmem_addr)
 {
     tload->tmem_addr = tmem_addr;
@@ -203,6 +195,18 @@ static void texload_tile(tex_loader_t *tload, int s0, int t0, int s1, int t1)
     rdpq_load_tile(tload->tile, s0, t0, s1, t1);
 }
 
+///@cond
+// Tex loader API, not yet documented
+int tex_loader_load(tex_loader_t *tload, int s0, int t0, int s1, int t1)
+{
+    int mem = texload_set_rect(tload, s0, t0, s1, t1);
+    if (tload->rect.can_load_block && (t0 & 1) == 0)
+        tload->load_block(tload, s0, t0, s1, t1);
+    else
+        tload->load_tile(tload, s0, t0, s1, t1);
+    return mem;
+}
+
 tex_loader_t tex_loader_init(rdpq_tile_t tile, const surface_t *tex) {
     bool is_4bpp = TEX_FORMAT_BITDEPTH(surface_get_format(tex)) == 4;
     return (tex_loader_t){
@@ -212,6 +216,7 @@ tex_loader_t tex_loader_init(rdpq_tile_t tile, const surface_t *tex) {
         .load_tile = is_4bpp ? texload_tile_4bpp : texload_tile,
     };
 }
+///@endcond
 
 int rdpq_tex_load_sub_ci4(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int tlut, int s0, int t0, int s1, int t1)
 {
