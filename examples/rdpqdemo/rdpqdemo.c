@@ -98,10 +98,9 @@ void render(int cur_frame)
     surface_t brew_surf = sprite_get_pixels(brew_sprite);
     for (uint32_t i = 0; i < num_objs; i++)
     {
-        rdpq_tex_blit(TILE0, &brew_surf,
-            objects[i].x, objects[i].y,
-            brew_sprite->width * objects[i].scale_factor,
-            brew_sprite->height * objects[i].scale_factor);
+        rdpq_tex_blit(&brew_surf, objects[i].x, objects[i].y, &(rdpq_blitparms_t){
+            .scale_x = objects[i].scale_factor, .scale_y = objects[i].scale_factor,
+        });
     }
 
     rdpq_detach_show();
@@ -176,7 +175,7 @@ int main()
             // and the render mode (standard vs copy), it will work either way.
             int s = RANDN(2)*32, t = RANDN(2)*32;
             rdpq_tex_load_sub(TILE0, &tiles_surf, 0, s, t, s+32, t+32);
-            rdpq_texture_rectangle(TILE0, tx, ty, tx+32, ty+32, s, t, 1, 1);
+            rdpq_texture_rectangle(TILE0, tx, ty, tx+32, ty+32, s, t);
         }
     }
     
