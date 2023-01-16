@@ -12,13 +12,15 @@
 // Internal functions used for inline optimizations. Not part of the public API.
 // Do not call directly
 /// @cond
+#define UNLIKELY(x) __builtin_expect(!!(x), 0)
+
 __attribute__((always_inline))
 inline void __rdpq_fill_rectangle_inline(int32_t x0, int32_t y0, int32_t x1, int32_t y1) {
-    if (x0 < 0) x0 = 0;
-    if (y0 < 0) y0 = 0;
-    if (x1 > 0xFFF) x1 = 0xFFF;
-    if (y1 > 0xFFF) y1 = 0xFFF;
-    if (x0 >= x1 || y0 >= y1) return;
+    if (UNLIKELY(x0 < 0)) x0 = 0;
+    if (UNLIKELY(y0 < 0)) y0 = 0;
+    if (UNLIKELY(x1 > 0xFFF)) x1 = 0xFFF;
+    if (UNLIKELY(y1 > 0xFFF)) y1 = 0xFFF;
+    if (UNLIKELY(x0 >= x1 || y0 >= y1)) return;
 
     extern void __rdpq_fill_rectangle(uint32_t w0, uint32_t w1);
     __rdpq_fill_rectangle(
@@ -31,34 +33,37 @@ inline void __rdpq_texture_rectangle_inline(rdpq_tile_t tile,
     int32_t x0, int32_t y0, int32_t x1, int32_t y1,
     int32_t s0, int32_t t0)
 {
-    if (x1 == x0 || y1 == y0) return;
+    if (UNLIKELY(x1 == x0 || y1 == y0)) return;
     int32_t dsdx = 1<<10, dtdy = 1<<10;
 
-    if (x0 > x1) {
+    if (UNLIKELY(x0 > x1)) {
         int32_t tmp = x0; x0 = x1; x1 = tmp;
         s0 += (x1 - x0 - 4) << 3;
         dsdx = -dsdx;
     }
-    if (y0 > y1) {
+    if (UNLIKELY(y0 > y1)) {
         int32_t tmp = y0; y0 = y1; y1 = tmp;
         t0 += (y1 - y0 - 4) << 3;
         dtdy = -dtdy;
     }
-    if (x0 < 0) {
+    if (UNLIKELY(x0 < 0)) {
         s0 -= x0 << 3;
         x0 = 0;
+        if (UNLIKELY(x0 >= x1)) return;
     }
-    if (y0 < 0) {
+    if (UNLIKELY(y0 < 0)) {
         t0 -= y0 << 3;
         y0 = 0;
+        if (UNLIKELY(y0 >= y1)) return;
     }
-    if (x1 > 1024*4-1) {
+    if (UNLIKELY(x1 > 1024*4-1)) {
         x1 = 1024*4-1;
+        if (UNLIKELY(x0 >= x1)) return;
     }
-    if (y1 > 1024*4-1) {
+    if (UNLIKELY(y1 > 1024*4-1)) {
         y1 = 1024*4-1;
+        if (UNLIKELY(y0 >= y1)) return;
     }
-    if (x0 >= x1 || y0 >= y1) return;
 
     extern void __rdpq_texture_rectangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3);
     __rdpq_texture_rectangle(
@@ -73,36 +78,39 @@ inline void __rdpq_texture_rectangle_scaled_inline(rdpq_tile_t tile,
     int32_t x0, int32_t y0, int32_t x1, int32_t y1,
     int32_t s0, int32_t t0, int32_t s1, int32_t t1)
 {
-    if (x1 == x0 || y1 == y0) return;
+    if (UNLIKELY(x1 == x0 || y1 == y0)) return;
     int32_t dsdx = ((s1 - s0) << 7) / (x1 - x0), dtdy = ((t1 - t0) << 7) / (y1 - y0);
 
-    if (x0 > x1) {
+    if (UNLIKELY(x0 > x1)) {
         int32_t tmp = x0; x0 = x1; x1 = tmp;
         s0 += ((x1 - x0 - 4) * dsdx) >> 7;
         dsdx = -dsdx;
     }
-    if (y0 > y1) {
+    if (UNLIKELY(y0 > y1)) {
         int32_t tmp = y0; y0 = y1; y1 = tmp;
         t0 += ((y1 - y0 - 4) * dtdy) >> 7;
         dtdy = -dtdy;
     }
-    if (x0 < 0) {
+    if (UNLIKELY(x0 < 0)) {
         s0 -= (x0 * dsdx) >> 7;
         x0 = 0;
+        if (UNLIKELY(x0 >= x1)) return;
     }
-    if (y0 < 0) {
+    if (UNLIKELY(y0 < 0)) {
         t0 -= (y0 * dtdy) >> 7;
         y0 = 0;
+        if (UNLIKELY(y0 >= y1)) return;
     }
-    if (x1 > 1024*4-1) {
+    if (UNLIKELY(x1 > 1024*4-1)) {
         s1 -= ((x1 - 1024*4-1) * dsdx) >> 7;
         x1 = 1024*4-1;
+        if (UNLIKELY(x0 >= x1)) return;
     }
-    if (y1 > 1024*4-1) {
+    if (UNLIKELY(y1 > 1024*4-1)) {
         t1 -= ((y1 - 1024*4-1) * dtdy) >> 7;
         y1 = 1024*4-1;
+        if (UNLIKELY(y0 >= y1)) return;
     }
-    if (x0 >= x1 || y0 >= y1) return;
 
     extern void __rdpq_texture_rectangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3);
     __rdpq_texture_rectangle(
@@ -166,7 +174,7 @@ inline void __rdpq_texture_rectangle_flip_raw_fx(rdpq_tile_t tile, uint16_t x0, 
         _carg(dsdy, 0xFFFF, 16) | _carg(dtdx, 0xFFFF, 0),
         AUTOSYNC_PIPE | AUTOSYNC_TILE(tile) | AUTOSYNC_TMEM(0));
 }
-
+#undef UNLIKELY
 /// @endcond
 
 /**
