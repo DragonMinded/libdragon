@@ -112,27 +112,6 @@ static int texload_set_rect(tex_loader_t *tload, int s0, int t0, int s1, int t1)
     return tload->rect.tmem_pitch * height;
 }
 
-static void tex_loader_set_tmem_addr(tex_loader_t *tload, int tmem_addr)
-{
-    tload->tmem_addr = tmem_addr;
-    tload->load_mode = TEX_LOAD_UNKNOWN;
-}
-
-static void tex_loader_set_tlut(tex_loader_t *tload, int tlut)
-{
-    tload->tlut = tlut;
-    tload->load_mode = TEX_LOAD_UNKNOWN;
-}
-
-static int texload_calc_max_height(tex_loader_t *tload, int width)
-{
-    texload_set_rect(tload, 0, 0, width, 1);
-
-    tex_format_t fmt = surface_get_format(tload->tex);
-    int tmem_size = (fmt == FMT_RGBA32 || fmt == FMT_CI4 || fmt == FMT_CI8) ? 2048 : 4096;
-    return tmem_size / tload->rect.tmem_pitch;
-}
-
 static void texload_block_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int t1)
 {
     if (tload->load_mode != TEX_LOAD_BLOCK) {
@@ -199,6 +178,8 @@ static void texload_tile(tex_loader_t *tload, int s0, int t0, int s1, int t1)
 // Tex loader API, not yet documented
 int tex_loader_load(tex_loader_t *tload, int s0, int t0, int s1, int t1)
 {
+    assertf(s0 <= s1, "Invalid texture load: s0:%d s1:%d", s0, s1);
+    assertf(t0 <= t1, "Invalid texture load: t0:%d t1:%d", t0, t1);
     int mem = texload_set_rect(tload, s0, t0, s1, t1);
     if (tload->rect.can_load_block && (t0 & 1) == 0)
         tload->load_block(tload, s0, t0, s1, t1);
@@ -216,6 +197,29 @@ tex_loader_t tex_loader_init(rdpq_tile_t tile, const surface_t *tex) {
         .load_tile = is_4bpp ? texload_tile_4bpp : texload_tile,
     };
 }
+
+
+void tex_loader_set_tmem_addr(tex_loader_t *tload, int tmem_addr)
+{
+    tload->tmem_addr = tmem_addr;
+    tload->load_mode = TEX_LOAD_UNKNOWN;
+}
+
+void tex_loader_set_tlut(tex_loader_t *tload, int tlut)
+{
+    tload->tlut = tlut;
+    tload->load_mode = TEX_LOAD_UNKNOWN;
+}
+
+int tex_loader_calc_max_height(tex_loader_t *tload, int width)
+{
+    texload_set_rect(tload, 0, 0, width, 1);
+
+    tex_format_t fmt = surface_get_format(tload->tex);
+    int tmem_size = (fmt == FMT_RGBA32 || fmt == FMT_CI4 || fmt == FMT_CI8) ? 2048 : 4096;
+    return tmem_size / tload->rect.tmem_pitch;
+}
+
 ///@endcond
 
 int rdpq_tex_load_sub_ci4(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int tlut, int s0, int t0, int s1, int t1)
@@ -273,7 +277,7 @@ static void tex_draw_split(rdpq_tile_t tile, const surface_t *tex, int s0, int t
     tex_loader_t tload = tex_loader_init(tile, tex);
 
     // Calculate the optimal height for a strip, based on strips of maximum length.
-    int tile_h = texload_calc_max_height(&tload, tex->width);
+    int tile_h = tex_loader_calc_max_height(&tload, tex->width);
     
     // Go through the surface
     while (t0 < t1) 
@@ -464,9 +468,9 @@ void rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitpar
     // Check which implementation to use, depending on the requested features.
     if (F2I(parms->theta) == 0) {
         if (F2I(parms->scale_x) == 0 && F2I(parms->scale_y) == 0)
-            tex_xblit_norotate_noscale(surf, x0, y0, parms);
+                tex_xblit_norotate_noscale(surf, x0, y0, parms);
             else
-            tex_xblit_norotate(surf, x0, y0, parms);
+                tex_xblit_norotate(surf, x0, y0, parms);
     } else {
         tex_xblit(surf, x0, y0, parms);
     }
