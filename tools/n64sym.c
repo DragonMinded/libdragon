@@ -10,6 +10,7 @@
 
 #include "common/subprocess.h"
 #include "common/polyfill.h"
+#include "common/utils.h"
 
 bool flag_verbose = false;
 char *n64_inst = NULL;
@@ -37,20 +38,33 @@ void usage(const char *progname)
 }
 
 char *stringtable = NULL;
+struct { char *key; int value; } *string_hash = NULL;
 
 int stringtable_add(char *word)
 {
+    if (!string_hash) {
+        stbds_sh_new_arena(string_hash);
+        stbds_shdefault(string_hash, -1);
+    }
+
+    int word_len = strlen(word);
     if (stringtable) {
-        char *found = strstr(stringtable, word);
-        if (found) {
-            return found - stringtable;
-        }
+        int pos = stbds_shget(string_hash, word);
+        if (pos >= 0)
+            return pos;
     }
 
     // Append the word (without the trailing \0)
-    int word_len = strlen(word);
     int idx = stbds_arraddnindex(stringtable, word_len);
     memcpy(stringtable + idx, word, word_len);
+
+    // Add all prefixes to the hash
+    for (int i = word_len; i >= 2; --i) {
+        char ch = word[i];
+        word[i] = 0;
+        stbds_shput(string_hash, word, idx);
+        word[i] = ch;
+    }
     return idx;
 }
 
@@ -144,7 +158,12 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
         // it means that we're done.
         int n = getline(&line_buf, &line_buf_size, addr2line_r);
         if (strncmp(line_buf, "0x00000000", 10) == 0) break;
-        char *func = strndup(line_buf, n-1);
+
+        // If the function of name is longer than 64 bytes, truncate it. This also
+        // avoid paradoxically long function names like in C++ that can even be
+        // several thousands of characters long.
+        char *func = strndup(line_buf, MIN(n-1, 64));
+        if (n-1 > 64) func[63] = func[62] = func[61] = '.';
 
         // Second line is the file name and line number
         getline(&line_buf, &line_buf_size, addr2line_r);
@@ -297,10 +316,14 @@ void process(const char *infn, const char *outfn)
     // to go in first, so that shorter symbols can be found as substrings.
     // We sort by function name rather than file name, because we expect
     // substrings to match more in functions.
+    verbose("Sorting symbol table...\n");
     qsort(symtable, stbds_arrlen(symtable), sizeof(struct symtable_s), symtable_sort_by_func);
 
     // Go through the symbol table and build the string table
+    verbose("Creating string table...\n");
     for (int i=0; i < stbds_arrlen(symtable); i++) {
+        if (i % 5000 == 0)
+            verbose("  %d/%d\n", i, stbds_arrlen(symtable));
         struct symtable_s *sym = &symtable[i];
         if (sym->func)
             sym->func_sidx = stringtable_add(sym->func);
@@ -316,6 +339,7 @@ void process(const char *infn, const char *outfn)
     qsort(symtable, stbds_arrlen(symtable), sizeof(struct symtable_s), symtable_sort_by_addr);
 
     // Fill in the function offset field in the entries in the symbol table.
+    verbose("Computing function offsets...\n");
     compute_function_offsets();
 
     // Write the symbol table to file
