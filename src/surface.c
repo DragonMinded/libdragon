@@ -35,7 +35,7 @@ surface_t surface_alloc(tex_format_t format, uint32_t width, uint32_t height)
     // Do not limit ourselves to tex_format_t enum values, as people might want
     // to test weird RDP formats (e.g. RGBA8) to find out what happens.
     assertf((format & ~SURFACE_FLAGS_TEXFORMAT) == 0,
-        "invalid surface format: 0x%x", format);
+        "invalid surface format: 0x%x (%d)", format, format);
     return (surface_t){ 
         .flags = format | SURFACE_FLAGS_OWNEDBUFFER,
         .width = width,
