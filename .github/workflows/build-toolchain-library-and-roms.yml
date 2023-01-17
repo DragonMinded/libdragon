@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Using a full fetch so that the diff action can run.
 
       # Create a lower cased version of the repo name. This is required
       # because Docker supports only lowercase names in the registry, while
