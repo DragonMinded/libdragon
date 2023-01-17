@@ -13,6 +13,8 @@
 #include "common/utils.h"
 
 bool flag_verbose = false;
+int flag_max_sym_len = 64;
+bool flag_inlines = true;
 char *n64_inst = NULL;
 
 // Printf if verbose
@@ -33,6 +35,8 @@ void usage(const char *progname)
     fprintf(stderr, "\n");
     fprintf(stderr, "Command-line flags:\n");
     fprintf(stderr, "   -v/--verbose          Verbose output\n");
+    fprintf(stderr, "   -m/--max-len <N>      Maximum symbol length (default: 64)\n");
+    fprintf(stderr, "   --no-inlines          Do not export inlined symbols\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "This program requires a libdragon toolchain installed in $N64_INST.\n");
 }
@@ -124,12 +128,15 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
         if (!addrbin)
             asprintf(&addrbin, "%s/bin/mips64-elf-addr2line", n64_inst);
 
-        const char *cmd_addr[] = {
-            addrbin, 
-            "--addresses", "--inlines", "--functions", "--demangle",
-            "--exe", elf,
-            NULL
-        };
+        const char *cmd_addr[16] = {0}; int i = 0;
+        cmd_addr[i++] = addrbin;
+        cmd_addr[i++] = "--addresses";
+        cmd_addr[i++] = "--functions";
+        cmd_addr[i++] = "--demangle";
+        if (flag_inlines) cmd_addr[i++] = "--inlines";
+        cmd_addr[i++] = "--exe";
+        cmd_addr[i++] = elf;
+
         if (subprocess_create(cmd_addr, subprocess_option_no_window, &subp) != 0) {
             fprintf(stderr, "Error: cannot run: %s\n", addrbin);
             exit(1);
@@ -162,8 +169,8 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
         // If the function of name is longer than 64 bytes, truncate it. This also
         // avoid paradoxically long function names like in C++ that can even be
         // several thousands of characters long.
-        char *func = strndup(line_buf, MIN(n-1, 64));
-        if (n-1 > 64) func[63] = func[62] = func[61] = '.';
+        char *func = strndup(line_buf, MIN(n-1, flag_max_sym_len));
+        if (n-1 > flag_max_sym_len) strcpy(&func[flag_max_sym_len-3], "...");
 
         // Second line is the file name and line number
         getline(&line_buf, &line_buf_size, addr2line_r);
@@ -405,12 +412,20 @@ int main(int argc, char *argv[])
             return 0;
         } else if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--verbose")) {
             flag_verbose = true;
+        } else if (!strcmp(argv[i], "--no-inlines")) {
+            flag_inlines = false;
         } else if (!strcmp(argv[i], "-o") || !strcmp(argv[i], "--output")) {
             if (++i == argc) {
                 fprintf(stderr, "missing argument for %s\n", argv[i-1]);
                 return 1;
             }
             outfn = argv[i];
+        } else if (!strcmp(argv[i], "-m") || !strcmp(argv[i], "--max-len")) {
+            if (++i == argc) {
+                fprintf(stderr, "missing argument for %s\n", argv[i-1]);
+                return 1;
+            }
+            flag_max_sym_len = atoi(argv[i]);
         } else {
             fprintf(stderr, "invalid flag: %s\n", argv[i]);
             return 1;
