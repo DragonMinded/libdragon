@@ -316,7 +316,7 @@ static const char* __get_exception_name(exception_t *ex)
 		} else if (ex->regs->fc31 & C1_CAUSE_INEXACT_OP) {
 			return "Floating point inexact operation";
 		} else {
-			return "Floating point exception";
+			return "Generic floating point";
 		}
 	case EXCEPTION_CODE_TLB_LOAD_I_MISS:
 		if (epc == badvaddr) {
@@ -343,7 +343,7 @@ static const char* __get_exception_name(exception_t *ex)
 	case EXCEPTION_CODE_STORE_ADDRESS_ERROR:
 		return "Misaligned write to memory";
 	case EXCEPTION_CODE_SYS_CALL:
-		return "Unhandled syscall exception";
+		return "Unhandled syscall";
 
 	default:
 		return exceptionMap[ex->code];
