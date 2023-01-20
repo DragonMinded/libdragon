@@ -1183,11 +1183,10 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         bool load = cmd == 0x34;
         int tidx = BITS(buf[0], 24, 26);
         struct tile_s *t = &rdp.tile[tidx];
+        validate_busy_tile(tidx);
         if (load) {
             rdp.busy.tile[tidx] = true;  // mask as in use
             VALIDATE_CRASH_TEX(rdp.tex.size != 0, "LOAD_TILE does not support 4-bit textures");
-        } else {
-            validate_busy_tile(tidx);
         }
         t->has_extents = true;
         t->s0 = BITS(buf[0], 44, 55)*FX(2); t->t0 = BITS(buf[0], 32, 43)*FX(2);
