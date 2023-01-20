@@ -552,7 +552,7 @@ inline void rdpq_load_tile_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16
     __rdpq_write8_syncchangeuse(RDPQ_CMD_LOAD_TILE,
         _carg(s0, 0xFFF, 12) | _carg(t0, 0xFFF, 0),
         _carg(tile, 0x7, 24) | _carg(s1-4, 0xFFF, 12) | _carg(t1-4, 0xFFF, 0),
-        AUTOSYNC_TMEM(0),
+        AUTOSYNC_TMEM(0) | AUTOSYNC_TILE(tile),
         AUTOSYNC_TILE(tile));
 }
 
