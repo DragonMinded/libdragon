@@ -10,6 +10,7 @@
 #include "libdragon.h"
 #include "system.h"
 #include "dfsinternal.h"
+#include "rompak_internal.h"
 
 /**
  * @defgroup dfs DragonFS
@@ -1331,13 +1332,22 @@ static void __dfs_check_emulation(void)
  *
  * Given a base offset where the filesystem should be found, this function will
  * initialize the filesystem to read from cartridge space.  This function will
- * also register DragonFS with newlib so that standard POSIX file operations
- * work with DragonFS.
+ * also register DragonFS with newlib so that standard POSIX/C file operations
+ * work with DragonFS, using the "rom:/" prefix".
+ * 
+ * The function needs to know where the DFS image is located within the cartridge
+ * space. To simplify this, you can pass #DFS_DEFAULT_LOCATION which tells
+ * #dfs_init to search for the DFS image by itself, using the rompak TOC (see
+ * rompak_internal.h). Most users should use this option.
+ * 
+ * Otherwise, if the ROM cannot be built with a rompak TOC for some reason,
+ * a virtual address should be passed. This is normally 0xB0000000 + the offset
+ * used when building your ROM + the size of the header file used (typically 0x1000). 
  *
  * @param[in] base_fs_loc
- *            Memory mapped location at which to find the filesystem.  This is normally
- *            0xB0000000 + the offset used when building your ROM + the size of the header
- *            file used.
+ *            Virtual address in cartridge space at which to find the filesystem, or
+ *            DFS_DEFAULT_LOCATION to automatically search for the filesystem in the
+ *            cartridge (using the rompak).
  *
  * @return DFS_ESUCCESS on success or a negative error otherwise.
  */
@@ -1346,7 +1356,22 @@ int dfs_init(uint32_t base_fs_loc)
     /* Detect if we are running on emulator accurate enough to emulate DragonFS. */
     __dfs_check_emulation();
 
-    /* Try normal (works on doctor v64) */
+    if( base_fs_loc == DFS_DEFAULT_LOCATION )
+    {
+        /* Search for the DFS image location in the ROM */
+        base_fs_loc = rompak_search_ext( ".dfs" );
+        if( !base_fs_loc )
+        {
+            /* We could not find the DragonFS via rompak.
+             * For backward compatibility, fallback to the address we used
+             * to hardcode as default. */
+            base_fs_loc = 0x10101000;
+        }
+        /* Convert the address to virtual (as expected for base_fs_loc). */
+        base_fs_loc |= 0xA0000000;
+    }
+
+    /* Try opening the filesystem */
     int ret = __dfs_init( base_fs_loc );
 
     if( ret != DFS_ESUCCESS )
