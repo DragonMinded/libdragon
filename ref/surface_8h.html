@@ -77,8 +77,7 @@ $(function() {
 
 <p>Surface buffers used to draw images.  
 <a href="#details">More...</a></p>
-<div class="textblock"><code>#include &lt;stdint.h&gt;</code><br />
-</div>
+
 <p><a href="surface_8h_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
@@ -170,7 +169,7 @@ const char *&#160;</td><td class="memItemRight" valign="bottom"><b>tex_format_na
 <div class="line"><span class="comment">// Draw some text on it (with the CPU)</span></div>
 <div class="line"><a class="code hl_function" href="group__graphics.html#gac981119af0043edb807b5879a41b94eb">graphics_draw_text</a>(&amp;buf, 0, 0, <span class="stringliteral">&quot;ABC&quot;</span>);</div>
 <div class="ttc" id="agroup__graphics_html_gac981119af0043edb807b5879a41b94eb"><div class="ttname"><a href="group__graphics.html#gac981119af0043edb807b5879a41b94eb">graphics_draw_text</a></div><div class="ttdeci">void graphics_draw_text(surface_t *disp, int x, int y, const char *const msg)</div><div class="ttdoc">Draw a null terminated string to a display context.</div><div class="ttdef"><b>Definition:</b> graphics.c:776</div></div>
-<div class="ttc" id="asurface_8c_html_ac3ed4ec6825eeb8775ddf9763314b22f"><div class="ttname"><a href="surface_8c.html#ac3ed4ec6825eeb8775ddf9763314b22f">surface_alloc</a></div><div class="ttdeci">surface_t surface_alloc(tex_format_t format, uint32_t width, uint32_t height)</div><div class="ttdoc">Allocate a new surface in memory.</div><div class="ttdef"><b>Definition:</b> surface.c:30</div></div>
+<div class="ttc" id="asurface_8c_html_ac3ed4ec6825eeb8775ddf9763314b22f"><div class="ttname"><a href="surface_8c.html#ac3ed4ec6825eeb8775ddf9763314b22f">surface_alloc</a></div><div class="ttdeci">surface_t surface_alloc(tex_format_t format, uint32_t width, uint32_t height)</div><div class="ttdoc">Allocate a new surface in memory.</div><div class="ttdef"><b>Definition:</b> surface.c:31</div></div>
 <div class="ttc" id="asurface_8h_html_a01f43f3d6c80a7658bf729bfaf3136e1ae781a51949044f96a872ca8e2715bed5"><div class="ttname"><a href="surface_8h.html#a01f43f3d6c80a7658bf729bfaf3136e1ae781a51949044f96a872ca8e2715bed5">FMT_RGBA16</a></div><div class="ttdeci">@ FMT_RGBA16</div><div class="ttdoc">Format RGBA 5551 (16-bit)</div><div class="ttdef"><b>Definition:</b> surface.h:103</div></div>
 <div class="ttc" id="asurface_8h_html_structsurface__t"><div class="ttname"><a href="surface_8h.html#structsurface__t">surface_t</a></div><div class="ttdoc">A surface buffer for graphics.</div><div class="ttdef"><b>Definition:</b> surface.h:134</div></div>
 </div><!-- fragment --><p >Sometimes, you might have an existing raw pointer to a buffer and need to pass it to an API that accepts a <a class="el" href="surface_8h.html#structsurface__t" title="A surface buffer for graphics.">surface_t</a>. For those cases, you can use <a class="el" href="surface_8h.html#a764269d5ee8de46b3c0ef0f318f86a15" title="Initialize a surface_t structure with the provided buffer.">surface_make</a> to create a <a class="el" href="surface_8h.html#structsurface__t" title="A surface buffer for graphics.">surface_t</a> instance, that you can throw away after you called the function; <a class="el" href="surface_8h.html#abb7940ed434b55044bf078472f59173e" title="Free the buffer allocated in a surface.">surface_free</a> does nothing on these surfaces.</p>
@@ -183,7 +182,7 @@ const char *&#160;</td><td class="memItemRight" valign="bottom"><b>tex_format_na
 <div class="line"><a class="code hl_function" href="group__rdp.html#gae4ae57eaadd3e5f29b9affd1e4420248">rdp_attach</a>(&amp;fbtop);</div>
 <div class="ttc" id="agroup__display_html_gae81c7c27f68f52224fec1f0fc15bc651"><div class="ttname"><a href="group__display.html#gae81c7c27f68f52224fec1f0fc15bc651">display_lock</a></div><div class="ttdeci">surface_t * display_lock(void)</div><div class="ttdoc">Lock a display buffer for rendering.</div><div class="ttdef"><b>Definition:</b> display.c:378</div></div>
 <div class="ttc" id="agroup__rdp_html_gae4ae57eaadd3e5f29b9affd1e4420248"><div class="ttname"><a href="group__rdp.html#gae4ae57eaadd3e5f29b9affd1e4420248">rdp_attach</a></div><div class="ttdeci">void rdp_attach(surface_t *surface)</div><div class="ttdoc">Attach the RDP to a surface.</div><div class="ttdef"><b>Definition:</b> rdp.c:293</div></div>
-<div class="ttc" id="asurface_8c_html_a75faf57d244b5a27a0af9e5a7cabef74"><div class="ttname"><a href="surface_8c.html#a75faf57d244b5a27a0af9e5a7cabef74">surface_make_sub</a></div><div class="ttdeci">surface_t surface_make_sub(surface_t *parent, uint32_t x0, uint32_t y0, uint32_t width, uint32_t height)</div><div class="ttdoc">Initialize a surface_t structure, pointing to a rectangular portion of another surface.</div><div class="ttdef"><b>Definition:</b> surface.c:50</div></div>
+<div class="ttc" id="asurface_8c_html_a75faf57d244b5a27a0af9e5a7cabef74"><div class="ttname"><a href="surface_8c.html#a75faf57d244b5a27a0af9e5a7cabef74">surface_make_sub</a></div><div class="ttdeci">surface_t surface_make_sub(surface_t *parent, uint32_t x0, uint32_t y0, uint32_t width, uint32_t height)</div><div class="ttdoc">Initialize a surface_t structure, pointing to a rectangular portion of another surface.</div><div class="ttdef"><b>Definition:</b> surface.c:51</div></div>
 </div><!-- fragment --><p >Surfaces created by <a class="el" href="surface_8h.html#a75faf57d244b5a27a0af9e5a7cabef74" title="Initialize a surface_t structure, pointing to a rectangular portion of another surface.">surface_make_sub</a> don't need to be freed as they are just references to the parent surface; <a class="el" href="surface_8h.html#abb7940ed434b55044bf078472f59173e" title="Free the buffer allocated in a surface.">surface_free</a> does nothing on them. </p>
 </div><hr/><h2 class="groupheader">Data Structure Documentation</h2>
 <a name="structsurface__t" id="structsurface__t"></a>
@@ -671,7 +670,7 @@ Buffer pointer. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sat Jan 14 2023 20:48:01 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Mon Jan 23 2023 17:06:23 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
