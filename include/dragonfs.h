@@ -14,9 +14,10 @@
 /**
  * @brief Default filesystem location 
  *
- * The default is 1 MiB into the ROM space, plus the header offset
+ * The default value 0 instruct #dfs_init to search for the DFS image
+ * within the rompak.
  */
-#define DFS_DEFAULT_LOCATION    0xB0101000
+#define DFS_DEFAULT_LOCATION    0
 
 /**
  * @brief Maximum open files in DragonFS
