@@ -133,7 +133,12 @@ SECTIONS {
         . = ALIGN(8);
     } > mem
 
+    . = ALIGN(8);
     __data_end = .;
+
+    /* Here the ROM is finished. The rest is just in RAM */
+    . = ALIGN(8);
+    __rom_end = .;
 
     .sbss (NOLOAD) : {
          __bss_start = .;
@@ -157,7 +162,8 @@ SECTIONS {
     } > mem
 
     . = ALIGN(8);
-    __rom_end = .;
+    
+
 
     /* Deprecated */
     end = .;
