@@ -207,9 +207,9 @@ int xm_convert(const char *infn, const char *outfn) {
 
 	// Dump some statistics for the conversion
 	if (flag_verbose) {	
-		fprintf(stderr, "  * ROM size: %u Kb (samples:%zu)\n",
+		fprintf(stderr, "  * ROM size: %u KiB (samples:%zu)\n",
 			romsize / 1024, mem_sam / 1024);
-		fprintf(stderr, "  * RAM size: %zu Kb (ctx:%zu, patterns:%u, samples:%u)\n",
+		fprintf(stderr, "  * RAM size: %zu KiB (ctx:%zu, patterns:%u, samples:%u)\n",
 			(mem_ctx+sam_size+ctx->ctx_size_stream_pattern_buf)/1024,
 			mem_ctx / 1024,
 			ctx->ctx_size_stream_pattern_buf / 1024,

@@ -32,7 +32,7 @@
  * DragonFS does not support writing, renaming or symlinking of files.  It supports only
  * file and directory types.
  *
- * DFS files have a maximum size of 16,777,216 bytes.  Directories can have an unlimited
+ * DFS files have a maximum size of 256 MiB.  Directories can have an unlimited
  * number of files in them.  Each token (separated by a / in the path) can be 243 characters
  * maximum.  Directories can be 100 levels deep at maximum.  There can be 4 files open
  * simultaneously.

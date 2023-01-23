@@ -23,7 +23,7 @@ https://github.com/buu342/N64-UNFLoader
 #define BUFFER_SIZE 512
 
 // USB Memory location
-#define DEBUG_ADDRESS  0x04000000-DEBUG_ADDRESS_SIZE // Put the debug area at the 63MB area in ROM space
+#define DEBUG_ADDRESS  0x04000000-DEBUG_ADDRESS_SIZE // Put the debug area at the 63 MiB area in ROM space
 
 // Data header related
 #define USBHEADER_CREATE(type, left) (((type<<24) | (left & 0x00FFFFFF)))

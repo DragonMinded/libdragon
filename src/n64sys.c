@@ -19,7 +19,7 @@
  * the memory setup on the system.  This includes cache operations to
  * invalidate or flush regions and the ability to set the boot CIC.
  * The @ref system use the knowledge of the boot CIC to properly determine
- * if the expansion pak is present, giving 4MB of additional memory.  Aside
+ * if the expansion pak is present, giving 4 MiB of additional memory.  Aside
  * from this, the MIPS r4300 uses a manual cache management strategy, where
  * SW that requires passing buffers to and from hardware components using
  * DMA controllers needs to ensure that cache and RDRAM are in sync.  A
@@ -284,7 +284,7 @@ int get_memory_size()
 {
     if (sys_bbplayer()) {
         /* On iQue, memory allocated to the game can be decided by the OS.
-           Even if the memory is allocated as 8Mb, the top part handles
+           Even if the memory is allocated as 8 MiB, the top part handles
            save states (emulation of EEPROM/Flash/SRAM), so we should avoid
            writing there anyway. See also entrypoint.S which sets up the
            stack with the same logic. */
@@ -299,12 +299,12 @@ int get_memory_size()
 /**
  * @brief Is expansion pak in use.
  *
- * Checks whether the maximum available memory has been expanded to 8MB
+ * Checks whether the maximum available memory has been expanded to 8 MiB
  *
  * @return true if expansion pak detected, false otherwise.
  * 
  * @note On iQue, this function returns true only if the game has been assigned
- *       exactly 8MB of RAM.
+ *       exactly 8 MiB of RAM.
  */
 bool is_memory_expanded()
 {
