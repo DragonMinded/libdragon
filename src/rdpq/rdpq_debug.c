@@ -8,7 +8,7 @@
 #ifdef N64
 #include "rdpq.h"
 #include "rspq.h"
-#include "rdpq_quad.h"
+#include "rdpq_rect.h"
 #include "rdpq_mode.h"
 #include "rdpq_internal.h"
 #include "rdp.h"

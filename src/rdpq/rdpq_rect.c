@@ -5,7 +5,7 @@
  * 
  */
 
-#include "rdpq_quad.h"
+#include "rdpq_rect.h"
 #include "rdpq_internal.h"
 
 // The fixup for fill rectangle and texture rectangle uses the exact same code in IMEM.

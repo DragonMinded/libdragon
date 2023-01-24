@@ -9,7 +9,7 @@
 ///@endcond
 #include "rdpq.h"
 #include "rdpq_tri.h"
-#include "rdpq_quad.h"
+#include "rdpq_rect.h"
 #include "rdpq_tex.h"
 #include "utils.h"
 #include <math.h>

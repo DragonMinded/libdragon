@@ -1,11 +1,11 @@
 /**
- * @file rdpq_quad.h
+ * @file rdpq_rect.h
  * @brief RDP Command queue
  * @ingroup rdpq
  */
 
-#ifndef LIBDRAGON_RDPQ_QUAD_H
-#define LIBDRAGON_RDPQ_QUAD_H
+#ifndef LIBDRAGON_RDPQ_RECT_H
+#define LIBDRAGON_RDPQ_RECT_H
 
 #include "rdpq.h"
 

@@ -22,7 +22,7 @@
  * 
  *    * rdpq.h: General low-level RDP command generation.
  *    * rdpq_tri.h: Low-level screen-space triangle drawing API.
- *    * rdpq_quad.h: Low-level screen-space rectangle drawing API.
+ *    * rdpq_rect.h: Low-level screen-space rectangle drawing API.
  *    * rdpq_attach.h: Attachment API (optional), to simplify configuring the render target
  *    * rdpq_mode.h: Mode API (optional), to simplify configuring the render modes
  *    * rdpq_tex.h: Texture API (optional), to simplify loading textures into TMEM
