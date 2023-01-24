@@ -468,6 +468,10 @@ int main(int argc, char *argv[])
 	fclose(write_file);
 
 	/* Rename to the final name */
+	#ifdef _WIN32
+	/* Windows doesn't support atomic renames, so we have to delete the old file first */
+	remove(output);
+	#endif
 	if(rename(tmp_output, output) != 0) {
 		fprintf(stderr, "Couldn't rename temporary output file '%s' to '%s': %s", tmp_output, output, strerror(errno));
 		return STATUS_ERROR;
