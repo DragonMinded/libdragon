@@ -242,29 +242,34 @@ inline void __rdpq_texture_rectangle_flip_raw_fx(rdpq_tile_t tile, uint16_t x0, 
  * #rdpq_load_block, and a tile descriptor referring to it must be passed to this
  * function.
  * 
+ * Input X and Y coordinates are automatically clipped to the screen boundaries (and
+ * then scissoring also takes effect), so there is no specific range
+ * limit to them. On the contrary, S and T coordinates have a specific range
+ * (-1024..1024).
+ * 
  * Before calling this function, make sure to also configure an appropriate
- * render mode. It is possible to use the fast COPY mode (#rdpq_set_mode_copy) with
- * this function, assuming that no advanced blending or color combiner capabilities
- * are needed. The copy mode can in fact just blit the pixels from the texture
+ * render mode. It is possible to use the fast copy mode (#rdpq_set_mode_copy) with
+ * this function, assuming that advanced blending or color combiner capabilities
+ * are not needed. The copy mode can in fact just blit the pixels from the texture
  * unmodified, applying only a per-pixel rejection to mask out transparent pixels
  * (via alpha compare). See #rdpq_set_mode_copy for more information.
  * 
  * Alternatively, it is possible to use this command also in standard render mode
  * (#rdpq_set_mode_standard), with all the per-pixel blending / combining features.
- * Notice that it is not possible to specify a depth value for the rectangle, nor
- * a shade value for the four vertices, so no gouraud shading or z-buffering can be
- * performed. If you need to use these kind of advanced features, call
- * #rdpq_triangle to draw the rectangle as two triangles.
  * 
- * It is not possible to specify a per-vertex Z value in rectangles, but if you
- * want to draw using Z-buffer, you can use #rdpq_mode_zoverride in the mode API
- * (or manually call #rdpq_set_prim_depth_raw) to force a Z value that will be used
- * for the whole primitive (in all pixels).
+ * Normally, rectangles are drawn without any respect for the z-buffer (if any is
+ * configured). The only option here is to provide a single Z value valid for the
+ * whole rectangle by using #rdpq_mode_zoverride in the mode API
+ * (or manually calling #rdpq_set_prim_depth_raw). In fact, it is not possible
+ * to specify a per-vertex Z value.
  * 
- * Input X and Y coordinates are automatically clipped to the screen boundaries (and
- * then scissoring also takes effect), so there is no specific range
- * limit to them. On the contrary, S and T coordinates have a specific range
- * (-1024..1024).
+ * Similarly, it is not possible to specify a per-vertex color/shade value, but
+ * instead it is possible to setup a combiner that applies a fixed color to the
+ * pixels of the rectangle (eg: #RDPQ_COMBINER_TEX_FLAT).
+ * 
+ * If you need a full Z-buffering or shading support, an alternative is to
+ * call #rdpq_triangle instead, and thus draw the rectangles as two triangles.
+ * This will however incur in more overhead on the CPU to setup the primitives.
  * 
  * @param[in]   tile    Tile descriptor referring to the texture in TMEM to use for drawing
  * @param[in]   x0      Top-left X coordinate of the rectangle
