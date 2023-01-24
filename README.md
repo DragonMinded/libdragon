@@ -40,6 +40,19 @@ programming and debugging. These are the main features:
 * Simple and powerful Makefile-based build system for your ROMs and assets
   (n64.mk)
 
+The [unstable branch](https://github.com/DragonMinded/libdragon/wiki/Unstable-branch) features
+many more features:
+
+ * a new comprehensive RDP engine
+ * a full OpenGL 1.1 port for 3D graphics programming, with a custom, efficient RSP ucode
+   with full T&L support.
+ * a MPEG1 RSP-accelerated movie player
+ * support for showing source-level stack traces in case of crashes or assertions, including
+   source file name and line number.
+
+and much more. These features will eventually land to trunk, but you can start playing
+with them even today. Go the [unstable branch doc](https://github.com/DragonMinded/libdragon/wiki/Unstable-branch) for more information.
+
 ## Getting started: how to build a ROM
 
 ### Option 1: Use the libdragon CLI with Docker (Windows, macOS x86/arm, Linux)
@@ -117,7 +130,27 @@ libdragon debugging protocol, so to be able to show logs in console. For instanc
 [ed64](https://github.com/anacierdem/ed64). The official loaders provided by
 the vendors are usually less feature-rich.
 
+## Libdragon stable vs unstable
+
+Currently, there are two main libragon versions: 
+
+ * The **stable** version is the one in the `trunk`. Stable means that we strive never
+   to break backward compatibility, that is we will never do changes in a way
+   that will impede existing applications to successfully compile and work
+   against a newer libdragon version. We feel this is important because otherwise
+   we would fragment the homebrew ecosystem too much, and we would leave a trail
+   of libdragon-based applications that can't be compiled anymore. See also the 
+   wiki for [common hurdles in upgrading libdragon](https://github.com/DragonMinded/libdragon/wiki/Upgrade-troubleshooting).
+ * The **unstable** version is the one in the `unstable` branch. This is where most
+   development happens first. In fact, features are developed, evolved and
+   battle-tested here, before the APIs are stabilized and they are finally
+   merged on the trunk. Applications that use the unstable branch need to be aware
+   that the APIs can break at any time (though we try to avoid *gratuitous* breakage).
+
 ## Documentation
 
  * [API reference](https://dragonminded.github.io/libdragon/ref/modules.html)
  * [Examples](https://github.com/DragonMinded/libdragon/tree/trunk/examples)
+ * [Wiki](https://github.com/DragonMinded/libdragon/wiki) (contains tutorials
+   and troubleshooting guides)
+
