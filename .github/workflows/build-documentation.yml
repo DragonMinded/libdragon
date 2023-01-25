@@ -1,9 +1,6 @@
-on:
-  workflow_call:
-    secrets:
-      token:
-        description: 'A github token passed from the caller workflow'
-        required: true
+name: Build-Documentation
+
+on: [push, pull_request]
 
 # Make sure we don't have more than one active workflow to prevent race conditions
 # e.g a previous build may update docs later and overwrite if we don't have this.
@@ -35,6 +32,6 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         if: ${{ github.ref == steps.vars.outputs.default_ref }}
         with:
-          github_token: ${{ secrets.token }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./website
           enable_jekyll: true

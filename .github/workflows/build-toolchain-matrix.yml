@@ -1,9 +1,6 @@
-# Copyright (c) libdragon and contributers 2023
-# See LICENSE file in the project root for full license information.
+name: Build-Native
 
 # This workflow will build the libdragon N64 GCC toolchain to keep it up-to-date.
-name: Build N64 MIPS GCC toolchain for native environments
-
 on:
   # This action will take about 40-70 minutes to run!
   # It is designed to only fire if the GCC toolchain build file changes.
@@ -15,7 +12,7 @@ on:
       - 'tools/build-toolchain.sh'
   
 jobs:
-  build-toolchain:
+  Build-Toolchain:
     # targets the oldest ubuntu image available to create valid packages for as many versions possible.
     # TODO: move to using a docker container to support older versions.
     runs-on: ubuntu-20.04
@@ -185,9 +182,9 @@ jobs:
             ./**/*.rpm
         continue-on-error: true
 
-  release:
+  Publish-Toolchain:
     runs-on: ubuntu-latest
-    needs: build-toolchain
+    needs: Build-Toolchain
 
     steps:
       - uses: actions/checkout@v3
@@ -208,7 +205,7 @@ jobs:
 
       - name: Convert files for release upload
         run: |
-          mv ${{ github.workspace }}/LICENSE ${{ github.workspace }}/LICENSE.txt
+          mv ${{ github.workspace }}/LICENSE.md ${{ github.workspace }}/LICENSE.txt
           # TODO: should also include GPLV3 licence (and any other dependency licences).
           # TODO: include an installation readme.
 
@@ -242,7 +239,7 @@ jobs:
           zip -r -q ${{ runner.temp }}/gcc-toolchain-mips64-win64.zip *
 
       - name: Generate Pre-Release
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/trunk'
         uses: softprops/action-gh-release@v1
         with:
           draft: false

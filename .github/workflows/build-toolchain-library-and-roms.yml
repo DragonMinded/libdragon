@@ -1,9 +1,6 @@
-on:
-  workflow_call:
-    secrets:
-      token:
-        description: 'A github token passed from the caller workflow'
-        required: true
+name: Build-Docker
+
+on: [push, pull_request]
 
 # Make sure we don't have more than one active workflow to prevent race conditions
 # e.g a previous toolchain build may tag and push `latest` later if we don't have
@@ -13,7 +10,7 @@ concurrency:
   group: build-toolchain-library-and-roms-${{ github.ref }}-${{ github.event_name }}
 
 jobs:
-  Build-Toolchain-Library-And-Examples:
+  Toolchain-Library-And-Examples:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -72,7 +69,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.token }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push image
         if: ${{ steps.path_diff.outputs.changed == 1}}

@@ -1,4 +1,6 @@
-on: workflow_call
+name: Build-Tools
+
+on: [push, pull_request]
 
 jobs:
   Build-Tools-Windows:
