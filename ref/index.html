@@ -84,6 +84,14 @@ Welcome to libdragon</h1>
 <li>Support to read/write to SD cards in development kits (64drive, EverDrive64), simply with <code>fopen("sd://sdata.dat")</code></li>
 <li>Simple and powerful Makefile-based build system for your ROMs and assets (n64.mk)</li>
 </ul>
+<p >The <a href="https://github.com/DragonMinded/libdragon/wiki/Unstable-branch">unstable branch</a> features many more features:</p>
+<ul>
+<li>a new comprehensive RDP engine</li>
+<li>a full OpenGL 1.1 port for 3D graphics programming, with a custom, efficient RSP ucode with full T&amp;L support.</li>
+<li>a MPEG1 RSP-accelerated movie player</li>
+<li>support for showing source-level stack traces in case of crashes or assertions, including source file name and line number.</li>
+</ul>
+<p >and much more. These features will eventually land to trunk, but you can start playing with them even today. Go the <a href="https://github.com/DragonMinded/libdragon/wiki/Unstable-branch">unstable branch doc</a> for more information.</p>
 <h1><a class="anchor" id="autotoc_md2"></a>
 Getting started: how to build a ROM</h1>
 <h2><a class="anchor" id="autotoc_md3"></a>
@@ -126,16 +134,24 @@ Using a development cartridge on a real N64</h2>
 <p >All cartridges that are able to load custom ROMs should be able to successfully load libdragon ROMs via either USB/serial, or from a MMC/SD card. For instance, the followig are known to work: 64drive, EverDrive64 (all models), SC64.</p>
 <p >If your cartridge has USB support, use one of the loaders that implement the libdragon debugging protocol, so to be able to show logs in console. For instance, <a href="https://github.com/buu342/N64-UNFLoader">UNFLoader</a>, <a href="https://github.com/rasky/g64drive">g64drive</a>, <a href="https://github.com/anacierdem/ed64">ed64</a>. The official loaders provided by the vendors are usually less feature-rich.</p>
 <h1><a class="anchor" id="autotoc_md8"></a>
+Libdragon stable vs unstable</h1>
+<p >Currently, there are two main libragon versions:</p>
+<ul>
+<li>The <b>stable</b> version is the one in the <code>trunk</code>. Stable means that we strive never to break backward compatibility, that is we will never do changes in a way that will impede existing applications to successfully compile and work against a newer libdragon version. We feel this is important because otherwise we would fragment the homebrew ecosystem too much, and we would leave a trail of libdragon-based applications that can't be compiled anymore. See also the wiki for <a href="https://github.com/DragonMinded/libdragon/wiki/Upgrade-troubleshooting">common hurdles in upgrading libdragon</a>.</li>
+<li>The <b>unstable</b> version is the one in the <code>unstable</code> branch. This is where most development happens first. In fact, features are developed, evolved and battle-tested here, before the APIs are stabilized and they are finally merged on the trunk. Applications that use the unstable branch need to be aware that the APIs can break at any time (though we try to avoid <em>gratuitous</em> breakage).</li>
+</ul>
+<h1><a class="anchor" id="autotoc_md9"></a>
 Documentation</h1>
 <ul>
 <li><a href="https://dragonminded.github.io/libdragon/ref/modules.html">API reference</a></li>
-<li><a href="https://github.com/DragonMinded/libdragon/tree/trunk/examples">Examples</a> </li>
+<li><a href="https://github.com/DragonMinded/libdragon/tree/trunk/examples">Examples</a></li>
+<li><a href="https://github.com/DragonMinded/libdragon/wiki">Wiki</a> (contains tutorials and troubleshooting guides) </li>
 </ul>
 </div></div><!-- PageDoc -->
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Jan 25 2023 11:35:23 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Jan 25 2023 12:19:41 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
