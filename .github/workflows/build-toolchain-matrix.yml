@@ -33,7 +33,7 @@ jobs:
         ]
 
     env:
-      Build_Directory: gcc-toolchain-mips64-libdragon
+      Build_Directory: libdragon
 
     steps:
       - name: Install native system build dependencies
@@ -212,8 +212,8 @@ jobs:
       - name: Generate Changelog
         run: |
           CHANGELOG_TEXT="Latest GCC toolchain for the N64</br>"
-          CHANGELOG_TEXT+="Generated from https://github.com/DragonMinded/libdragon/main on $(date).</br>"
-          CHANGELOG_TEXT+='</br>'
+          CHANGELOG_TEXT+="Generated from https://github.com/DragonMinded/libdragon/trunk on $(date).</br>"
+          CHANGELOG_TEXT+='Installation instructions are [available in the wiki](https://github.com/DragonMinded/libdragon/wiki/Installing-libdragon)</br>'
           CHANGELOG_TEXT+='</br>'
           CHANGELOG_TEXT+="Builds toolchain dependencies:</br>"
           CHANGELOG_TEXT+="  * GCC:      V${{ needs.build-toolchain.outputs.gcc-version }}</br>"
@@ -238,12 +238,12 @@ jobs:
           cd ${{ steps.download-windows-artifact.outputs.download-path }}
           zip -r -q ${{ runner.temp }}/gcc-toolchain-mips64-win64.zip *
 
-      - name: Generate Pre-Release
+      - name: Generate Release
         if: github.ref == 'refs/heads/trunk'
         uses: softprops/action-gh-release@v1
         with:
           draft: false
-          prerelease: true
+          prerelease: false
           body_path: CHANGELOG
           generate_release_notes: false
           name: 'V${{ needs.build-toolchain.outputs.gcc-version }}-${{ github.run_id }}'
@@ -252,4 +252,3 @@ jobs:
             ${{ runner.temp }}/**/*.deb
             ${{ runner.temp }}/**/*.rpm
             ${{ runner.temp }}/*.zip
-            LICENSE.txt
