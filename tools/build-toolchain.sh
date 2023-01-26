@@ -35,7 +35,7 @@ JOBS="${JOBS:-1}" # If getconf returned nothing, default to 1
 GCC_CONFIGURE_ARGS=()
 
 # Dependency source libs (Versions)
-BINUTILS_V=2.39
+BINUTILS_V=2.40
 GCC_V=12.2.0
 NEWLIB_V=4.2.0.20211231
 GMP_V=6.2.0 
