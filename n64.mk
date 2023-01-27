@@ -6,7 +6,9 @@ N64_ROM_TITLE = "Made with libdragon" # Override this with the name of your game
 N64_ROM_SAVETYPE = # Supported savetypes: none eeprom4k eeprom16 sram256k sram768k sram1m flashram
 N64_ROM_RTC = # Set to true to enable the Joybus Real-Time Clock
 N64_ROM_REGIONFREE = # Set to true to allow booting on any console region
-N64_GCCPREFIX ?= $(N64_INST) # Override this to use a toolchain installed separately from libdragon
+
+# Override this to use a toolchain installed separately from libdragon
+N64_GCCPREFIX ?= $(N64_INST)
 
 N64_ROOTDIR = $(N64_INST)
 N64_BINDIR = $(N64_ROOTDIR)/bin
