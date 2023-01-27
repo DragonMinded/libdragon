@@ -65,7 +65,7 @@ $(function() {
   <div class="headertitle"><div class="title">Libdragon </div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p ><a class="anchor" id="md_README"></a> <a href="https://github.com/DragonMinded/libdragon/actions/workflows/ci.yml"><img src="https://github.com/DragonMinded/libdragon/actions/workflows/ci.yml/badge.svg?branch=trunk" alt="Build" style="pointer-events: none;" class="inline"/></a></p>
+<div class="textblock"><p ><a class="anchor" id="md_README"></a> <a href="https://github.com/DragonMinded/libdragon/actions/workflows/build-toolchain-library-and-roms.yml"><img src="https://github.com/DragonMinded/libdragon/actions/workflows/build-toolchain-library-and-roms.yml/badge.svg?branch=trunk" alt="Build" style="pointer-events: none;" class="inline"/></a></p>
 <h1><a class="anchor" id="autotoc_md1"></a>
 Welcome to libdragon</h1>
 <p >Libdragon is an open-source SDK for Nintendo 64. It aims for a complete N64 programming experience while providing programmers with modern approach to programming and debugging. These are the main features:</p>
@@ -94,53 +94,26 @@ Welcome to libdragon</h1>
 <p >and much more. These features will eventually land to trunk, but you can start playing with them even today. Go the <a href="https://github.com/DragonMinded/libdragon/wiki/Unstable-branch">unstable branch doc</a> for more information.</p>
 <h1><a class="anchor" id="autotoc_md2"></a>
 Getting started: how to build a ROM</h1>
-<h2><a class="anchor" id="autotoc_md3"></a>
-Option 1: Use the libdragon CLI with Docker (Windows, macOS x86/arm, Linux)</h2>
-<p >See <a href="https://github.com/anacierdem/libdragon-docker">the libdragon CLI</a> to quickly get libdragon up and running. Basically:</p>
-<ol type="1">
-<li>Make sure that you have Docker installed correctly (on Windows and Mac, use Docker Desktop). You can run <code>docker system info</code> to check that it is working correctly.</li>
-<li>Install the <a href="https://github.com/anacierdem/libdragon-docker">the libdragon CLI</a>. You have two options:<ol type="a">
-<li>Download the <a href="https://github.com/anacierdem/libdragon-docker/releases/latest">pre-built binary</a>, and copy it into some directory which is part of your system PATH.</li>
-<li>If you have <code>npm</code> installed (at least verstion 14), run <code>npm install -g libdragon</code>.</li>
-</ol>
-</li>
-<li>Run <code>libdragon init</code> to create a skeleton project</li>
-<li>Run <code>libdragon make</code> to compile a build a ROM</li>
-</ol>
-<p >If you want, you can also compile and run one of the examples that will be found in <code>libdragon/examples</code> in the skeleton project.</p>
-<p >Note for Apple Silicon users: we ship and update the docker container image for both x86-64 and arm64, so this option works on Apple Silicon machines too.</p>
-<h2><a class="anchor" id="autotoc_md4"></a>
-Option 2: Compile the toolchain (Windows WSL2, macOS x86/arm, Linux)</h2>
-<p >These instructions work for Linux, macOS (Intel / Apple Silicon) and Windows with WSL2. WSL1 users must <a href="https://docs.microsoft.com/en-us/windows/wsl/install#upgrade-version-from-wsl-1-to-wsl-2">upgrade to WSL2 first</a>.</p>
-<ol type="1">
-<li>Export the environment variable N64_INST to the path where you want your toolchain to be installed. For instance: <code>export N64_INST=/opt/n64</code> or <code>export N64_INST=/usr/local</code>.</li>
-<li>If you are on macOS, make sure <a href="https://brew.sh">homebrew</a> is installed.</li>
-<li>Make sure you have at least 7 GB of disk space available (notice that after build, only about 300 MB will be used, but during build a lot of space is required).</li>
-<li>Enter the <code>tools</code> directory and Run <code>./build-toolchain.sh</code>, let it build and install the toolchain. The process will take a while depending on your computer (1 hour is not unexpected).</li>
-<li>Install libpng-dev if not already installed.</li>
-<li>Make sure that you still have the <code>N64_INST</code> variable pointing to the correct directory where the toolchain was installed (<code>echo $N64_INST</code>).</li>
-<li>Run <code>./build.sh</code> at the top-level. This will install libdragon, its tools, and also build all examples.</li>
-</ol>
-<p >You are now ready to run the examples on your N64 or emulator.</p>
-<p >Once you are sure everything is fine, you can delete the <code>tools/toolchain/</code> directory, where the toolchain was built. This will free around 6 GB of space. You will only need the installed binaries in the <code>N64_INST</code> from now on.</p>
-<h1><a class="anchor" id="autotoc_md5"></a>
+<p >To get started with libdragon, you need to <a href="https://github.com/DragonMinded/libdragon/releases/tag/toolchain-continuous-prerelease">download and install the toolchain</a>.</p>
+<p >Make sure to read the <a href="https://github.com/DragonMinded/libdragon/wiki/Installing-libdragon">full installation instructions</a> which also explain the system requirements.</p>
+<h1><a class="anchor" id="autotoc_md3"></a>
 Getting started: how to run a ROM</h1>
-<h2><a class="anchor" id="autotoc_md6"></a>
+<h2><a class="anchor" id="autotoc_md4"></a>
 Using emulators</h2>
 <p >libdragon requires a modern N64 emulator (the first generation of emulators are basically HLE-only and can only play the old commercial games). Suggested emulators for homebrew developemnt are: <a href="https://ares-emu.net">ares</a>, <a href="https://github.com/n64dev/cen64">cen64</a>, <a href="https://github.com/Dillonb/n64">dgb-n64</a>, <a href="https://simple64.github.io">simple64</a>.</p>
 <p >On all the above emulators, you are also able to see in console anything printed via <code>fprintf(stderr)</code>, see the debug library for more information.</p>
-<h2><a class="anchor" id="autotoc_md7"></a>
+<h2><a class="anchor" id="autotoc_md5"></a>
 Using a development cartridge on a real N64</h2>
-<p >All cartridges that are able to load custom ROMs should be able to successfully load libdragon ROMs via either USB/serial, or from a MMC/SD card. For instance, the followig are known to work: 64drive, EverDrive64 (all models), SC64.</p>
+<p >All cartridges that are able to load custom ROMs should be able to successfully load libdragon ROMs via either USB/serial, or from a MMC/SD card. For instance, the following are known to work: 64drive, EverDrive64 (all models), SC64.</p>
 <p >If your cartridge has USB support, use one of the loaders that implement the libdragon debugging protocol, so to be able to show logs in console. For instance, <a href="https://github.com/buu342/N64-UNFLoader">UNFLoader</a>, <a href="https://github.com/rasky/g64drive">g64drive</a>, <a href="https://github.com/anacierdem/ed64">ed64</a>. The official loaders provided by the vendors are usually less feature-rich.</p>
-<h1><a class="anchor" id="autotoc_md8"></a>
+<h1><a class="anchor" id="autotoc_md6"></a>
 Libdragon stable vs unstable</h1>
 <p >Currently, there are two main libragon versions:</p>
 <ul>
 <li>The <b>stable</b> version is the one in the <code>trunk</code>. Stable means that we strive never to break backward compatibility, that is we will never do changes in a way that will impede existing applications to successfully compile and work against a newer libdragon version. We feel this is important because otherwise we would fragment the homebrew ecosystem too much, and we would leave a trail of libdragon-based applications that can't be compiled anymore. See also the wiki for <a href="https://github.com/DragonMinded/libdragon/wiki/Upgrade-troubleshooting">common hurdles in upgrading libdragon</a>.</li>
 <li>The <b>unstable</b> version is the one in the <code>unstable</code> branch. This is where most development happens first. In fact, features are developed, evolved and battle-tested here, before the APIs are stabilized and they are finally merged on the trunk. Applications that use the unstable branch need to be aware that the APIs can break at any time (though we try to avoid <em>gratuitous</em> breakage).</li>
 </ul>
-<h1><a class="anchor" id="autotoc_md9"></a>
+<h1><a class="anchor" id="autotoc_md7"></a>
 Documentation</h1>
 <ul>
 <li><a href="https://dragonminded.github.io/libdragon/ref/modules.html">API reference</a></li>
@@ -151,7 +124,7 @@ Documentation</h1>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Thu Jan 26 2023 22:41:46 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Fri Jan 27 2023 04:50:27 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
