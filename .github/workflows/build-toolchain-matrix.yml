@@ -154,7 +154,7 @@ jobs:
         env:
           Package_Source_Directory: ${{ runner.temp }}/${{ env.Build_Directory }}/
           Package_Installation_Directory: /opt/${{ env.Build_Directory }}
-          Package_Name: ${{ env.Build_Directory }}
+          Package_Name: gcc-toolchain-mips64
           Package_Version: ${{ steps.gcc-version-generator.outputs.GCC_VERSION }}
           Package_Revision: ${{ github.run_id }}
           Package_Architecture: x86_64
