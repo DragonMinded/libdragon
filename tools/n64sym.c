@@ -438,7 +438,9 @@ int main(int argc, char *argv[])
     }
 
     if (!n64_inst) {
-        n64_inst = getenv("N64_INST");
+        n64_inst = getenv("N64_GCCPREFIX");
+        if (!n64_inst)
+            n64_inst = getenv("N64_INST");
         if (!n64_inst) {
             fprintf(stderr, "Error: N64_INST environment variable not set.\n");
             return 1;
