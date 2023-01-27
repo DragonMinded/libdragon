@@ -438,10 +438,16 @@ int main(int argc, char *argv[])
     }
 
     if (!n64_inst) {
+        // n64.mk supports having a separate installation for the toolchain and
+        // libdragon. So first check if N64_GCCPREFIX is set; if so the toolchain
+        // is there. Otherwise, fallback to N64_INST which is where we expect
+        // the toolchain to reside.
         n64_inst = getenv("N64_GCCPREFIX");
         if (!n64_inst)
             n64_inst = getenv("N64_INST");
         if (!n64_inst) {
+            // Do not mention N64_GCCPREFIX in the error message, since it is
+            // a seldom used configuration.
             fprintf(stderr, "Error: N64_INST environment variable not set.\n");
             return 1;
         }
