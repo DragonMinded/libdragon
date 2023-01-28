@@ -180,6 +180,8 @@ GLCmd_GetValue:
     move s0, a1
 
 GLCmd_BindTexture:
+    # Always reset uploaded texture when binding
+    sw zero, %lo(GL_STATE_UPLOADED_TEX)
     sll t3, a0, 2
     lw s0, %lo(GL_STATE_TEXTURE_IDS)(t3)
     # Do nothing if texture is already bound
@@ -195,10 +197,8 @@ GLCmd_BindTexture:
     jal DMAIn
     move s0, a1
 
-    jal GL_UpdateTexture
+    j RSPQ_Loop
     sw s0, %lo(GL_STATE_TEXTURE_IDS)(t3)
-
-    jal_and_j GL_UpdateCombiner, RSPQ_Loop
 
 GLCmd_CopyFillColor:
     lw t0, %lo(GL_STATE)(a0)
@@ -547,33 +547,31 @@ fog_cycle_none:
     sw t1, %lo(RDPQ_OTHER_MODES) + 0x0
 
 GL_UpdateScissor:
-    lhu t6, %lo(GL_STATE_FB_SIZE) + 0x0
+    lhu a1, %lo(GL_STATE_FB_SIZE) + 0x0
     lhu t7, %lo(GL_STATE_FB_SIZE) + 0x2
-    lw t4, %lo(GL_STATE_FLAGS)
-    andi t4, FLAG_SCISSOR_TEST
-    beqz t4, scissor_disabled
+    lw a0, %lo(GL_STATE_FLAGS)
+    andi a0, FLAG_SCISSOR_TEST
+    beqz a0, scissor_disabled
     move t2, zero
 
     lhu t2, %lo(GL_STATE_SCISSOR_RECT) + 0x2
-    lhu t4, %lo(GL_STATE_SCISSOR_RECT) + 0x0
+    lhu a0, %lo(GL_STATE_SCISSOR_RECT) + 0x0
     subu t7, t2
-    lhu t6, %lo(GL_STATE_SCISSOR_RECT) + 0x4
+    lhu a1, %lo(GL_STATE_SCISSOR_RECT) + 0x4
     lhu t2, %lo(GL_STATE_SCISSOR_RECT) + 0x6
-    addu t6, t4
+    addu a1, a0
     subu t2, t7, t2
     
 scissor_disabled:
     sll t2, 2
-    sll t4, 14
-    or t4, t2
+    sll a0, 14
+    or a0, t2
     lui t2, 0xED00
-    or t4, t2
+    or a0, t2
     sll t7, 2
-    sll t6, 14
-    or t6, t7
-    sw t4, %lo(RDPQ_SCISSOR_RECT) + 0x0
-    jr ra
-    sw t6, %lo(RDPQ_SCISSOR_RECT) + 0x4
+    sll a1, 14
+    or a1, t7
+    jal_and_j RDPQ_WriteSetScissor, RDPQ_Finalize
 
 GL_UpdateCombiner:
     move ra2, ra
@@ -664,7 +662,6 @@ GL_UpdateTextureCompleteness:
     #define loop_var    t0
     #define image       s1
     #define format      s2
-    #define ra3         k0
     move result, zero   # levels = 0; complete = false
 
     # If either width or height is zero, the texture is incomplete
@@ -739,11 +736,8 @@ gl_tex_incomplete:
     lw t0, (%lo(GL_BOUND_TEXTURES) + TEXTURE_FLAGS_OFFSET)(a0)
     and t0, ~(TEX_FLAG_COMPLETE | TEX_LEVELS_MASK)
     or t0, result
-    move ra3, ra
-    jal GL_UpdateTexture
+    jr ra
     sw t0, (%lo(GL_BOUND_TEXTURES) + TEXTURE_FLAGS_OFFSET)(a0)
-    j GL_UpdateCombiner
-    move ra, ra3
     #undef result
     #undef width
     #undef height

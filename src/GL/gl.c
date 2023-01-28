@@ -182,7 +182,6 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
     glp_overlay_id = rspq_overlay_register(&rsp_gl_pipeline);
     gl_rsp_state = PhysicalAddr(rspq_overlay_get_state(&rsp_gl));
 
-    rdpq_mode_begin();
     rdpq_set_mode_standard();
 
     gl_matrix_init();
@@ -201,8 +200,9 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
     gl_set_default_framebuffer();
     glViewport(0, 0, state.default_framebuffer.color_buffer->width, state.default_framebuffer.color_buffer->height);
 
+    // TODO: write to server state instead?
     uint32_t packed_size = ((uint32_t)state.default_framebuffer.color_buffer->width) << 16 | (uint32_t)state.default_framebuffer.color_buffer->height;
-    gl_set_word(GL_UPDATE_SCISSOR, offsetof(gl_server_state_t, fb_size), packed_size);
+    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, fb_size), packed_size);
 
     glScissor(0, 0, state.default_framebuffer.color_buffer->width, state.default_framebuffer.color_buffer->height);
 }
@@ -366,22 +366,20 @@ void gl_set_flag2(GLenum target, bool value)
         gl_set_flag(GL_UPDATE_SCISSOR, FLAG_SCISSOR_TEST, value);
         break;
     case GL_DEPTH_TEST:
-        gl_set_flag(GL_UPDATE_DEPTH_TEST, FLAG_DEPTH_TEST, value);
-        gl_update(GL_UPDATE_DEPTH_MASK);
+        gl_set_flag(GL_UPDATE_NONE, FLAG_DEPTH_TEST, value);
         state.depth_test = value;
         break;
     case GL_BLEND:
-        gl_set_flag(GL_UPDATE_BLEND, FLAG_BLEND, value);
-        gl_update(GL_UPDATE_BLEND_CYCLE);
+        gl_set_flag(GL_UPDATE_NONE, FLAG_BLEND, value);
         break;
     case GL_ALPHA_TEST:
-        gl_set_flag(GL_UPDATE_ALPHA_TEST, FLAG_ALPHA_TEST, value);
+        gl_set_flag(GL_UPDATE_NONE, FLAG_ALPHA_TEST, value);
         break;
     case GL_DITHER:
-        gl_set_flag(GL_UPDATE_DITHER, FLAG_DITHER, value);
+        gl_set_flag(GL_UPDATE_NONE, FLAG_DITHER, value);
         break;
     case GL_FOG:
-        gl_set_flag(GL_UPDATE_FOG_CYCLE, FLAG_FOG, value);
+        gl_set_flag(GL_UPDATE_NONE, FLAG_FOG, value);
         state.fog = value;
         break;
     case GL_MULTISAMPLE_ARB:
@@ -389,11 +387,11 @@ void gl_set_flag2(GLenum target, bool value)
         rdpq_mode_antialias(value);
         break;
     case GL_TEXTURE_1D:
-        gl_set_flag(GL_UPDATE_TEXTURE, FLAG_TEXTURE_1D, value);
+        gl_set_flag(GL_UPDATE_NONE, FLAG_TEXTURE_1D, value);
         state.texture_1d = value;
         break;
     case GL_TEXTURE_2D:
-        gl_set_flag(GL_UPDATE_TEXTURE, FLAG_TEXTURE_2D, value);
+        gl_set_flag(GL_UPDATE_NONE, FLAG_TEXTURE_2D, value);
         state.texture_2d = value;
         break;
     case GL_CULL_FACE:
@@ -437,7 +435,7 @@ void gl_set_flag2(GLenum target, bool value)
         state.tex_gen[3].enabled = value;
         break;
     case GL_NORMALIZE:
-        gl_set_flag(GL_UPDATE_TEXTURE, FLAG_NORMALIZE, value);
+        gl_set_flag(GL_UPDATE_NONE, FLAG_NORMALIZE, value);
         state.normalize = value;
         break;
     case GL_CLIP_PLANE0:
@@ -531,8 +529,6 @@ void glClear(GLbitfield buf)
         assertf(0, "Only color and depth buffers are supported!");
     }
 
-    rdpq_mode_end();
-
     if (buf & GL_DEPTH_BUFFER_BIT) {
         uint32_t old_cfg = rdpq_config_disable(RDPQ_CFG_AUTOSCISSOR);
 
@@ -552,7 +548,6 @@ void glClear(GLbitfield buf)
         rdpq_fill_rectangle(0, 0, fb->color_buffer->width, fb->color_buffer->height);
     }
 
-    rdpq_mode_begin();
     rdpq_mode_pop();
 }
 

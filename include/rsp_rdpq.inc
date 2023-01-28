@@ -515,6 +515,31 @@ rdpq_update_fillcopy:
     #undef cycle_type
 
 
+    .section .text.rdpq_scissor
+
+    # Given a SET_SCISSOR command in a0/a1, write it into RDPQ_SCISSOR_RECT
+    # as-is (exclusive), and then send it to RDP after optionally adjusting
+    # the extents to match the current SOM cycle type.
+    # Returns to caller.
+    .func RDPQ_WriteSetScissor
+RDPQ_WriteSetScissor:
+    sw a0, %lo(RDPQ_SCISSOR_RECT) + 0x0
+    lb t6, %lo(RDPQ_OTHER_MODES) + 0x1
+    # Bit 21 of the first word is set if FILL or COPY mode is active
+    andi t6, 0x1 << 5
+    # Leave unchanged when not in FILL or COPY mode
+    beqz t6, scissor_done
+    sw a1, %lo(RDPQ_SCISSOR_RECT) + 0x4
+
+    # Subtract 1 subpixel from XL (bits 23:12, as 10.2 fixed point)
+    addiu a1, -(1 << 12)
+
+scissor_done:
+    j RDPQ_Write8
+    nop
+    .endfunc
+
+
 #########################################################################
 #
 #  RDPQ_Triangle: assemble a RDP triangle command

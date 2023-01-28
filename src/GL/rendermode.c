@@ -234,7 +234,7 @@ void glBlendFunc(GLenum src, GLenum dst)
 
     // TODO: coalesce these
     gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, blend_src), (((uint32_t)src) << 16) | (uint32_t)dst);
-    gl_set_word(GL_UPDATE_BLEND_CYCLE, offsetof(gl_server_state_t, blend_cycle), cycle);
+    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, blend_cycle), cycle);
 }
 
 void glDepthFunc(GLenum func)
@@ -242,7 +242,7 @@ void glDepthFunc(GLenum func)
     switch (func) {
     case GL_LESS:
     case GL_ALWAYS:
-        gl_set_short(GL_UPDATE_DEPTH_TEST, offsetof(gl_server_state_t, depth_func), (uint16_t)func);
+        gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, depth_func), (uint16_t)func);
         break;
     case GL_NEVER:
     case GL_EQUAL:
@@ -260,7 +260,7 @@ void glDepthFunc(GLenum func)
 
 void glDepthMask(GLboolean mask)
 {
-    gl_set_flag(GL_UPDATE_DEPTH_MASK, FLAG_DEPTH_MASK, mask);
+    gl_set_flag(GL_UPDATE_NONE, FLAG_DEPTH_MASK, mask);
 }
 
 void glAlphaFunc(GLenum func, GLclampf ref)
@@ -268,7 +268,7 @@ void glAlphaFunc(GLenum func, GLclampf ref)
     switch (func) {
     case GL_GREATER:
     case GL_ALWAYS:
-        gl_set_short(GL_UPDATE_ALPHA_TEST, offsetof(gl_server_state_t, alpha_func), (uint16_t)func);
+        gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, alpha_func), (uint16_t)func);
         gl_set_byte(GL_UPDATE_NONE, offsetof(gl_server_state_t, alpha_ref), FLOAT_TO_U8(ref));
         rdpq_set_blend_color(RGBA32(0, 0, 0, FLOAT_TO_U8(ref)));
         break;
@@ -296,7 +296,7 @@ void glTexEnvi(GLenum target, GLenum pname, GLint param)
     switch (param) {
     case GL_MODULATE:
     case GL_REPLACE:
-        gl_set_short(GL_UPDATE_COMBINER, offsetof(gl_server_state_t, tex_env_mode), (uint16_t)param);
+        gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, tex_env_mode), (uint16_t)param);
         break;
     case GL_DECAL:
     case GL_BLEND:

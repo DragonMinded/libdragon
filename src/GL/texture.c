@@ -220,7 +220,7 @@ void gl_texture_set_min_filter(uint32_t offset, GLenum param)
     case GL_LINEAR_MIPMAP_NEAREST:
     case GL_NEAREST_MIPMAP_LINEAR:
     case GL_LINEAR_MIPMAP_LINEAR:
-        gl_set_short(GL_UPDATE_TEXTURE, offset + offsetof(gl_texture_object_t, min_filter), (uint16_t)param);
+        gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_texture_object_t, min_filter), (uint16_t)param);
         gl_update_texture_completeness(offset);
         break;
     default:
@@ -234,7 +234,7 @@ void gl_texture_set_mag_filter(uint32_t offset, GLenum param)
     switch (param) {
     case GL_NEAREST:
     case GL_LINEAR:
-        gl_set_short(GL_UPDATE_TEXTURE, offset + offsetof(gl_texture_object_t, mag_filter), (uint16_t)param);
+        gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_texture_object_t, mag_filter), (uint16_t)param);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);

@@ -176,11 +176,6 @@ bool gl_begin(GLenum mode)
         state.prim_bilinear = false;
     }
 
-    __rdpq_autosync_change(AUTOSYNC_PIPE);
-
-    gl_set_short(GL_UPDATE_POINTS, offsetof(gl_server_state_t, prim_type), (uint16_t)mode);
-    gl_update(GL_UPDATE_COMBINER);
-
     state.trifmt = (rdpq_trifmt_t){
         .pos_offset = VTX_SCREEN_POS_OFFSET,
         .shade_offset = VTX_SHADE_OFFSET,
@@ -192,6 +187,24 @@ bool gl_begin(GLenum mode)
 
     gl_reset_vertex_cache();
     gl_update_final_matrix();
+
+    __rdpq_autosync_change(AUTOSYNC_PIPE);
+
+    rdpq_mode_begin();
+
+    rdpq_set_mode_standard();
+    // TODO: Put all these in a single command!
+    gl_set_short(GL_UPDATE_POINTS, offsetof(gl_server_state_t, prim_type), (uint16_t)mode);
+    gl_update(GL_UPDATE_DEPTH_TEST);
+    gl_update(GL_UPDATE_DEPTH_MASK);
+    gl_update(GL_UPDATE_BLEND);
+    gl_update(GL_UPDATE_DITHER);
+    gl_update(GL_UPDATE_POINTS);
+    gl_update(GL_UPDATE_ALPHA_TEST);
+    gl_update(GL_UPDATE_BLEND_CYCLE);
+    gl_update(GL_UPDATE_FOG_CYCLE);
+    gl_update(GL_UPDATE_TEXTURE);
+    gl_update(GL_UPDATE_COMBINER);
 
     rdpq_mode_end();
 
@@ -217,8 +230,6 @@ void gl_end()
 
         gl_draw_primitive();
     }
-
-    rdpq_mode_begin();
 }
 
 void glBegin(GLenum mode)
@@ -1464,8 +1475,7 @@ void glPolygonMode(GLenum face, GLenum mode)
         return;
     }
 
-    gl_set_short(GL_UPDATE_POINTS, offsetof(gl_server_state_t, polygon_mode), (uint16_t)mode);
-    gl_update(GL_UPDATE_COMBINER);
+    gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, polygon_mode), (uint16_t)mode);
     state.polygon_mode = mode;
 }
 
