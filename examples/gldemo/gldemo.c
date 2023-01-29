@@ -136,6 +136,17 @@ void setup()
 
 void render()
 {
+    surface_t *disp;
+    RSP_WAIT_LOOP(200) {
+        if ((disp = display_lock())) {
+            break;
+        }
+    }
+
+    rdpq_attach(disp);
+
+    gl_context_begin();
+
     glClearColor(environment_color[0], environment_color[1], environment_color[2], environment_color[3]);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -165,9 +176,11 @@ void render()
 
     glPushMatrix();
     glColor3f(1, 1, 1);
+    rdpq_debug_log_msg("Plane");
     draw_plane();
     glTranslatef(0,-1.f,0);
     glEnable(GL_COLOR_MATERIAL);
+    rdpq_debug_log_msg("Cube");
     draw_cube();
     glDisable(GL_COLOR_MATERIAL);
     glPopMatrix();
@@ -179,6 +192,7 @@ void render()
     glRotatef(rotation*1.71f, 0, 1, 0);
 
     glCullFace(GL_FRONT);
+    rdpq_debug_log_msg("Sphere");
     draw_sphere();
     glCullFace(GL_BACK);
 
@@ -192,11 +206,15 @@ void render()
     glDisable(GL_TEXTURE_2D);
     glDisable(GL_CULL_FACE);
 
+    rdpq_debug_log_msg("Primitives");
     prim_test();
 
     glEnable(GL_CULL_FACE);
 
     glPopMatrix();
+    gl_context_end();
+
+    rdpq_detach_show();
 }
 
 int main()
@@ -282,7 +300,5 @@ int main()
         }
 
         render();
-
-        gl_swap_buffers();
     }
 }
