@@ -106,11 +106,6 @@ typedef enum {
 } gl_array_type_t;
 
 typedef struct {
-    surface_t *color_buffer;
-    surface_t depth_buffer;
-} gl_framebuffer_t;
-
-typedef struct {
     GLfloat obj_pos[4];
     GLfloat color[4];
     GLfloat texcoord[4];
@@ -404,10 +399,8 @@ typedef struct {
 
     // Client state
 
-    gl_open_surf_func_t open_surface;
-    gl_close_surf_func_t close_surface;
-    gl_framebuffer_t default_framebuffer;
-    gl_framebuffer_t *cur_framebuffer;
+    const surface_t *color_buffer;
+    surface_t depth_buffer;
 
     GLenum current_error;
 

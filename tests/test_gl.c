@@ -3,23 +3,16 @@
 #include <GL/gl_integration.h>
 #include <rdpq_debug.h>
 
-static surface_t test_surf;
-
-surface_t *open_test_surf()
-{
-    return &test_surf;
-}
-
-void close_test_surf(surface_t *surf)
-{
-}
-
 #define GL_INIT_SIZE(w,h) \
     RDPQ_INIT(); \
-    test_surf = surface_alloc(FMT_RGBA16, w, h); \
+    surface_t test_surf = surface_alloc(FMT_RGBA16, w, h); \
     DEFER(surface_free(&test_surf)); \
-    gl_init_with_callbacks(open_test_surf, close_test_surf); \
-    DEFER(gl_close());
+    gl_init(); \
+    DEFER(gl_close()); \
+    rdpq_attach(&test_surf); \
+    DEFER(rdpq_detach_wait()); \
+    gl_context_begin(); \
+    DEFER(gl_context_end());
 
 #define GL_INIT() GL_INIT_SIZE(64, 64)
 

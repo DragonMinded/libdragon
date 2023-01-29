@@ -54,5 +54,14 @@ void rdpq_detach_show(void)
     rdpq_detach_cb((void (*)(void*))display_show, (void*)attach_stack[attach_stack_ptr-1]);
 }
 
+const surface_t* rdpq_get_attached(void)
+{
+    if (rdpq_is_attached()) {
+        return attach_stack[attach_stack_ptr-1];
+    } else {
+        return NULL;
+    }
+}
+
 extern inline void rdpq_detach(void);
 extern inline void rdpq_detach_wait(void);

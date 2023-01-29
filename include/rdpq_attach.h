@@ -122,4 +122,14 @@ inline void rdpq_detach_wait(void)
  */
 void rdpq_detach_cb(void (*cb)(void*), void *arg);
 
+/**
+ * @brief Get the surface that is currently attached to the RDP
+ * 
+ * @return A pointer to the surface that is currently attached to the RDP,
+ *         or NULL if none is attached.
+ * 
+ * @see #rdpq_attach
+ */
+const surface_t* rdpq_get_attached(void);
+
 #endif /* LIBDRAGON_RDPQ_ATTACH_H */

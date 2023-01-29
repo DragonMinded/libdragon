@@ -21,19 +21,6 @@ uint32_t gl_rsp_state;
 
 gl_state_t state;
 
-#if GL_PROFILING
-static uint32_t frame_start_ticks;
-static uint32_t rdp_done_ticks;
-static uint32_t rdp_clock_start;
-static uint32_t rdp_clock_end;
-static uint32_t rdp_busy_start;
-static uint32_t rdp_busy_end;
-#endif
-
-#define assert_framebuffer() ({ \
-    assertf(state.cur_framebuffer != NULL, "GL: No target is set!"); \
-})
-
 uint32_t gl_get_type_size(GLenum type)
 {
     switch (type) {
@@ -58,58 +45,11 @@ uint32_t gl_get_type_size(GLenum type)
     }
 }
 
-void gl_set_framebuffer(gl_framebuffer_t *framebuffer)
-{
-    state.cur_framebuffer = framebuffer;
-    // TODO: disable auto scissor?
-    rdpq_set_color_image(state.cur_framebuffer->color_buffer);
-    rdpq_set_z_image(&state.cur_framebuffer->depth_buffer);
-}
-
-void gl_set_default_framebuffer()
-{
-    surface_t *surf;
-
-    RSP_WAIT_LOOP(200) {
-        if ((surf = state.open_surface())) {
-            break;
-        }
-    }
-
-    gl_framebuffer_t *fb = &state.default_framebuffer;
-
-    bool is_cb_different = fb->color_buffer == NULL 
-                        || fb->color_buffer->width != surf->width
-                        || fb->color_buffer->height != surf->height;
-
-    if (is_cb_different && fb->depth_buffer.buffer != NULL) {
-        surface_free(&fb->depth_buffer);
-    }
-
-    fb->color_buffer = surf;
-
-    // TODO: only allocate depth buffer if depth test is enabled? Lazily allocate?
-    if (fb->depth_buffer.buffer == NULL) {
-        // TODO: allocate in separate RDRAM bank?
-        fb->depth_buffer = surface_alloc(FMT_RGBA16, surf->width, surf->height);
-    }
-
-    gl_set_framebuffer(fb);
-}
-
 void gl_init()
-{
-    gl_init_with_callbacks(display_lock, display_show);
-}
-
-void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func_t close_surface)
 {
     rdpq_init();
 
     memset(&state, 0, sizeof(state));
-
-    state.open_surface = open_surface;
-    state.close_surface = close_surface;
 
     gl_texture_init();
 
@@ -182,8 +122,6 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
     glp_overlay_id = rspq_overlay_register(&rsp_gl_pipeline);
     gl_rsp_state = PhysicalAddr(rspq_overlay_get_state(&rsp_gl));
 
-    rdpq_set_mode_standard();
-
     gl_matrix_init();
     gl_lighting_init();
     gl_rendermode_init();
@@ -196,15 +134,6 @@ void gl_init_with_callbacks(gl_open_surf_func_t open_surface, gl_close_surf_func
     glClearDepth(1.0);
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
-
-    gl_set_default_framebuffer();
-    glViewport(0, 0, state.default_framebuffer.color_buffer->width, state.default_framebuffer.color_buffer->height);
-
-    // TODO: write to server state instead?
-    uint32_t packed_size = ((uint32_t)state.default_framebuffer.color_buffer->width) << 16 | (uint32_t)state.default_framebuffer.color_buffer->height;
-    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, fb_size), packed_size);
-
-    glScissor(0, 0, state.default_framebuffer.color_buffer->width, state.default_framebuffer.color_buffer->height);
 }
 
 void gl_close()
@@ -227,6 +156,34 @@ void gl_close()
     rspq_overlay_unregister(gl_overlay_id);
     rspq_overlay_unregister(glp_overlay_id);
     rdpq_close();
+}
+
+void gl_context_begin()
+{
+    const surface_t *old_color_buffer = state.color_buffer;
+    
+    state.color_buffer = rdpq_get_attached();
+    assertf(state.color_buffer, "GL: Tried to begin rendering without framebuffer attached");
+
+    uint32_t width = state.color_buffer->width;
+    uint32_t height = state.color_buffer->height;
+
+    if (old_color_buffer == NULL || old_color_buffer->width != width || old_color_buffer->height != height) {
+        if (state.depth_buffer.buffer != NULL) {
+            surface_free(&state.depth_buffer);
+        }
+        // TODO: allocate in separate RDRAM bank?
+        state.depth_buffer = surface_alloc(FMT_RGBA16, width, height);
+
+        uint32_t packed_size = ((uint32_t)width) << 16 | (uint32_t)height;
+        gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, fb_size), packed_size);
+        glViewport(0, 0, width, height);
+        glScissor(0, 0, width, height);
+    }
+
+    rdpq_set_z_image(&state.depth_buffer);
+
+    state.frame_id++;
 }
 
 gl_deletion_list_t * gl_find_empty_deletion_list()
@@ -300,56 +257,22 @@ void gl_handle_deletion_lists()
     state.current_deletion_list = NULL;
 }
 
-void gl_on_frame_complete(surface_t *surface)
+void gl_on_frame_complete(void *ptr)
 {
-    state.frames_complete++;
-    state.close_surface(surface);
+    state.frames_complete = (uint32_t)ptr;
 }
 
-void gl_swap_buffers()
+void gl_context_end()
 {
     assertf(state.modelview_stack.cur_depth == 0, "Modelview stack not empty");
     assertf(state.projection_stack.cur_depth == 0, "Projection stack not empty");
     assertf(state.texture_stack.cur_depth == 0, "Texture stack not empty");
 
-    rdpq_sync_full((void(*)(void*))gl_on_frame_complete, state.default_framebuffer.color_buffer);
-    rspq_flush();
-
-#if GL_PROFILING
-    rspq_wait();
-
-    rdp_done_ticks = TICKS_READ();
-    rdp_clock_end = *DP_CLOCK;
-    rdp_busy_end = *DP_PIPE_BUSY;
-#endif
-
-    gl_handle_deletion_lists();
-    gl_set_default_framebuffer();
-
-#if GL_PROFILING
-
-    uint32_t frame_end_ticks = TICKS_READ();
-
-    int32_t rdp_ticks = TICKS_DISTANCE(frame_start_ticks, rdp_done_ticks);
-    int32_t frame_ticks = TICKS_DISTANCE(frame_start_ticks, frame_end_ticks);
-    int32_t rdp_clock_ticks = TICKS_DISTANCE(rdp_clock_start, rdp_clock_end);
-    int32_t rdp_busy_ticks = TICKS_DISTANCE(rdp_busy_start, rdp_busy_end);
-
-    float rdp_ms = rdp_ticks / (TICKS_PER_SECOND / 1000.f);
-    float frame_ms = frame_ticks / (TICKS_PER_SECOND / 1000.f);
-
-    int32_t percent = rdp_clock_ticks > 0 ? (rdp_busy_ticks * 100) / rdp_clock_ticks : 0;
-
-    if (state.frame_id % 16 == 0) {
-        debugf("FRAME: %4.2fms, RDP total: %4.2fms, RDP util: %ld%%\n", frame_ms, rdp_ms, percent);
+    if (state.current_deletion_list != NULL) {
+        rdpq_sync_full((void(*)(void*))gl_on_frame_complete, (void*)state.frame_id);
     }
 
-    frame_start_ticks = TICKS_READ();
-    rdp_clock_start = *DP_CLOCK;
-    rdp_busy_start = *DP_PIPE_BUSY;
-#endif
-
-    state.frame_id++;
+    gl_handle_deletion_lists();
 }
 
 GLenum glGetError(void)
@@ -514,8 +437,6 @@ void glClear(GLbitfield buf)
         return;
     }
 
-    assert_framebuffer();
-
     rdpq_mode_push();
 
     // Set fill mode
@@ -523,11 +444,12 @@ void glClear(GLbitfield buf)
     uint64_t som = (0xEFull << 56) | SOM_CYCLE_FILL;
     __rdpq_reset_render_mode(0, 0, som >> 32, som & 0xFFFFFFFF);
 
-    gl_framebuffer_t *fb = state.cur_framebuffer;
-
     if (buf & (GL_STENCIL_BUFFER_BIT | GL_ACCUM_BUFFER_BIT)) {
         assertf(0, "Only color and depth buffers are supported!");
     }
+
+    uint32_t width = state.color_buffer->width;
+    uint32_t height = state.color_buffer->height;
 
     if (buf & GL_DEPTH_BUFFER_BIT) {
         uint32_t old_cfg = rdpq_config_disable(RDPQ_CFG_AUTOSCISSOR);
@@ -535,17 +457,17 @@ void glClear(GLbitfield buf)
         // TODO: Avoid the overlay changes
 
         gl_write(GL_CMD_COPY_FILL_COLOR, offsetof(gl_server_state_t, clear_depth));
-        rdpq_set_color_image(&fb->depth_buffer);
-        rdpq_fill_rectangle(0, 0, fb->color_buffer->width, fb->color_buffer->height);
+        rdpq_set_color_image(&state.depth_buffer);
+        rdpq_fill_rectangle(0, 0, width, height);
 
         gl_write(GL_CMD_COPY_FILL_COLOR, offsetof(gl_server_state_t, clear_color));
-        rdpq_set_color_image(fb->color_buffer);
+        rdpq_set_color_image(state.color_buffer);
 
         rdpq_config_set(old_cfg);
     }
 
     if (buf & GL_COLOR_BUFFER_BIT) {
-        rdpq_fill_rectangle(0, 0, fb->color_buffer->width, fb->color_buffer->height);
+        rdpq_fill_rectangle(0, 0, width, height);
     }
 
     rdpq_mode_pop();
@@ -555,6 +477,7 @@ void glClearColor(GLclampf r, GLclampf g, GLclampf b, GLclampf a)
 {
     color_t clear_color = RGBA32(CLAMPF_TO_U8(r), CLAMPF_TO_U8(g), CLAMPF_TO_U8(b), CLAMPF_TO_U8(a));
     gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, clear_color), color_to_packed32(clear_color));
+    // TODO: This can break if not using the depth buffer
     rdpq_set_fill_color(clear_color);
 }
 

@@ -1494,7 +1494,7 @@ void glDepthRange(GLclampd n, GLclampd f)
 
 void glViewport(GLint x, GLint y, GLsizei w, GLsizei h)
 {
-    uint32_t fbh = state.cur_framebuffer->color_buffer->height;
+    uint32_t fbh = state.color_buffer->height;
 
     state.current_viewport.scale[0] = w * 0.5f;
     state.current_viewport.scale[1] = h * -0.5f;

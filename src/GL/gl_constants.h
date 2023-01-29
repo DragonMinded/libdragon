@@ -131,8 +131,6 @@
 #define VTX_CMD_SIZE_TEX    8
 #define VTX_CMD_SIZE_NRM    4
 
-#define GL_PROFILING        0
-
 #define RSP_PIPELINE        0
 #define RSP_PRIM_ASSEMBLY   0
 
