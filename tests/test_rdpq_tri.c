@@ -14,7 +14,7 @@ void test_rdpq_triangle(TestContext *ctx) {
     rdpq_set_mode_standard();
     rdpq_mode_mipmap(MIPMAP_NEAREST, 3);
     rdpq_set_prim_color(RGBA32(255,255,255,0));
-    rdpq_mode_combiner(RDPQ_COMBINER_FLAT);
+    rdpq_mode_combiner(RDPQ_COMBINER_TEX_SHADE);
     rspq_wait();
 
     // Generate floating point coordinates that maps perfectly to fixed point numbers of the expected

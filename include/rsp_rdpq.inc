@@ -698,7 +698,7 @@ swap_end:
     #  vxy21.0q = X1 X1 X2 X2    Y1 Y1 Y2 Y2
     #    = 
     #  vhml     = HX MX LX --    HY MY LY --
-    vsub vhml, vxy32, vxy21.q0
+    vsubc vhml, vxy32, vxy21.q0
     #define hx  vhml.e0
     #define mx  vhml.e1
     #define lx  vhml.e2
@@ -996,6 +996,9 @@ calc_attrs:
     # The subtraction is saturated so the error is minimized, but it is 
     # indeed there. To fix this, we would have to produce a 32-bit result here
     # and then change the DX/DY calculations to use 32-bit numbers as well.
+    # Note also that we need "vsubc zero,zero" to clear the VCC (carry) bit
+    # which vsub reads as input.
+    vsubc vzero, vzero
     vsub vma, vattr2, vattr1
     vsub vha, vattr3, vattr1
 

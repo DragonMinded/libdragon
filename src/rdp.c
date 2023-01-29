@@ -7,7 +7,7 @@
 #include "rdp.h"
 #include "rdpq.h"
 #include "rdpq_tri.h"
-#include "rdpq_quad.h"
+#include "rdpq_rect.h"
 #include "rdpq_macros.h"
 #include "interrupt.h"
 #include "display.h"

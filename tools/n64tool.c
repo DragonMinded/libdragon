@@ -49,9 +49,9 @@ size_t __strlcpy(char * restrict dst, const char * restrict src, size_t dstsize)
 //    tools like UNFloader and g64drive work around this bug by padding ROMs,
 //    but others (like the official one) don't. So it's better in general to
 //    pad to 512 bytes.
-//  * iQue player only allows loading ROMs which are multiple of 16 Kbyte in size.
+//  * iQue player only allows loading ROMs which are multiple of 16 KiB in size.
 //  
-// To allow the maximum compatibility, we pad to 16Kb by default. Users can still
+// To allow the maximum compatibility, we pad to 16 KiB by default. Users can still
 // force a specific length with --size, if they need to.
 #define PAD_ALIGN    16384
 

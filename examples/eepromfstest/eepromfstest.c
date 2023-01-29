@@ -314,7 +314,7 @@ static int validate_eeprom_4k(void)
         { "/player.sav",      sizeof(game_save_state_t) }
     };
 
-    printf( "EEPROM Detected: 4Kb (64 blocks)\n" );
+    printf( "EEPROM Detected: 4 Kibit (64 blocks)\n" );
     printf( "Initializing EEPROM Filesystem...\n" );
     result = eepfs_init(eeprom_4k_files, 3);
     switch ( result )
@@ -375,7 +375,7 @@ static int validate_eeprom_16k(void)
         { "saves/slot4.sav", sizeof(game_save_state_t) }
     };
 
-    printf( "EEPROM Detected: 16Kb (256 blocks)\n" );
+    printf( "EEPROM Detected: 16 Kibit (256 blocks)\n" );
     printf( "Initializing EEPROM Filesystem...\n" );
     result = eepfs_init(eeprom_16k_files, 6);
     switch ( result )

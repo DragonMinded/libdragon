@@ -2,7 +2,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include "rdpq.h"
-#include "rdpq_quad.h"
+#include "rdpq_rect.h"
 #include "surface.h"
 #include "rdpq_mode.h"
 #include "rdpq_tex.h"

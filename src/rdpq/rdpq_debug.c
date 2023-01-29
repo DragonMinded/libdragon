@@ -8,7 +8,7 @@
 #ifdef N64
 #include "rdpq.h"
 #include "rspq.h"
-#include "rdpq_quad.h"
+#include "rdpq_rect.h"
 #include "rdpq_mode.h"
 #include "rdpq_internal.h"
 #include "rdp.h"
@@ -965,7 +965,10 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
     }
 
     switch (rdp.som.cycle_type) {
-    case 0 ... 1: // 1cyc, 2cyc
+    case 0 ... 1: { // 1cyc, 2cyc
+        bool cc_use_tex0=false, cc_use_tex1=false, cc_use_tex0alpha=false, cc_use_tex1alpha=false;
+        bool cc_use_shade=false, cc_use_shadealpha=false, bl_use_shadealpha;
+        
         for (int i=0; i<=rdp.som.cycle_type; i++) {
             struct blender_s *bls = &rdp.som.blender[i];
             struct cc_cycle_s *ccs = &rdp.cc.cyc[i^1];
@@ -974,21 +977,38 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
                 ccs->alpha.suba, ccs->alpha.subb, ccs->alpha.mul, ccs->alpha.add, 
             };
 
-            if (!use_tex) {
-                VALIDATE_ERR_CC(!memchr(slots, 1, sizeof(slots)),
-                    "cannot draw a non-textured primitive with a color combiner using the TEX0 slot");
-                VALIDATE_ERR_CC(!memchr(slots, 2, sizeof(slots)),
-                    "cannot draw a non-textured primitive with a color combiner using the TEX1 slot");
-                VALIDATE_ERR_CC(ccs->rgb.mul != 8 && ccs->rgb.mul != 9,
-                    "cannot draw a non-shaded primitive with a color combiner using the TEX%d_ALPHA slot");
-            }
-            if (!use_colors) {
-                VALIDATE_ERR_CC(!memchr(slots, 4, sizeof(slots)),
-                    "cannot draw a non-shaded primitive with a color combiner using the SHADE slot");
-                VALIDATE_ERR_CC(ccs->rgb.mul != 11,
-                    "cannot draw a non-shaded primitive with a color combiner using the SHADE_ALPHA slot");
-                VALIDATE_ERR_SOM(bls->a != 2, "cannot draw a non-shaded primitive with a blender using the SHADE_ALPHA slot");
-            }
+            cc_use_tex0 |= (bool)memchr(slots, 1, sizeof(slots));
+            cc_use_tex1 |= (bool)memchr(slots, 2, sizeof(slots));
+            cc_use_tex0alpha |= (ccs->rgb.mul == 8);
+            cc_use_tex1alpha |= (ccs->rgb.mul == 9);
+
+            cc_use_shade |= (bool)memchr(slots, 4, sizeof(slots));
+            cc_use_shadealpha |= (ccs->rgb.mul == 11);
+            bl_use_shadealpha = (bls->a == 2);
+        }
+
+        if (use_tex) {
+            VALIDATE_WARN_CC(cc_use_tex0 || cc_use_tex1 || cc_use_tex0alpha || cc_use_tex1alpha,
+                "textured primitive drawn but the color combiner that does not use the TEX0/TEX1/TEX0_ALPHA/TEX1_ALPHA slots");
+        } else {
+            VALIDATE_ERR_CC(!cc_use_tex0,
+                "cannot draw a non-textured primitive with a color combiner using the TEX0 slot");
+            VALIDATE_ERR_CC(!cc_use_tex1,
+                "cannot draw a non-textured primitive with a color combiner using the TEX1 slot");
+            VALIDATE_ERR_CC(!cc_use_tex0alpha && !cc_use_tex1alpha,
+                "cannot draw a non-shaded primitive with a color combiner using the TEX%d_ALPHA slot");
+        }
+
+        if (use_colors) {
+            VALIDATE_WARN_CC(cc_use_shade || cc_use_shadealpha || bl_use_shadealpha,
+                "shaded primitive drawn but neither the color combiner nor the blender use the SHADE/SHADE_ALPHA slots");
+        } else {
+            VALIDATE_ERR_CC(!cc_use_shade,
+                "cannot draw a non-shaded primitive with a color combiner using the SHADE slot");
+            VALIDATE_ERR_CC(!cc_use_shadealpha,
+                "cannot draw a non-shaded primitive with a color combiner using the SHADE_ALPHA slot");
+            VALIDATE_ERR_SOM(!bl_use_shadealpha, 
+                "cannot draw a non-shaded primitive with a blender using the SHADE_ALPHA slot");
         }
 
         if (use_tex && !use_w)
@@ -1000,7 +1020,7 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
                 "cannot draw a primitive without Z coordinate if Z buffer access is activated");
         }
 
-        break;
+    }   break;
     }
 }
 
@@ -1183,11 +1203,10 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         bool load = cmd == 0x34;
         int tidx = BITS(buf[0], 24, 26);
         struct tile_s *t = &rdp.tile[tidx];
+        validate_busy_tile(tidx);
         if (load) {
             rdp.busy.tile[tidx] = true;  // mask as in use
             VALIDATE_CRASH_TEX(rdp.tex.size != 0, "LOAD_TILE does not support 4-bit textures");
-        } else {
-            validate_busy_tile(tidx);
         }
         t->has_extents = true;
         t->s0 = BITS(buf[0], 44, 55)*FX(2); t->t0 = BITS(buf[0], 32, 43)*FX(2);

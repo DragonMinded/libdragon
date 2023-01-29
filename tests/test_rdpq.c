@@ -971,8 +971,8 @@ static void __autosync_load1(void) {
     // LOADSYNC HERE
     rdpq_load_tile(0, 0, 0, 7, 7);
 }
-static uint8_t __autosync_load1_exp[4] = {1,0,0,1};
-static uint8_t __autosync_load1_blockexp[4] = {3,2,2,1};
+static uint8_t __autosync_load1_exp[4] = {1,1,0,1};
+static uint8_t __autosync_load1_blockexp[4] = {3,4,2,1};
 
 void test_rdpq_autosync(TestContext *ctx) {
     LOG("__autosync_pipe1\n");

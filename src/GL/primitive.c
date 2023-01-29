@@ -2,7 +2,7 @@
 #include "utils.h"
 #include "rdpq.h"
 #include "rdpq_tri.h"
-#include "rdpq_quad.h"
+#include "rdpq_rect.h"
 #include "rdpq_mode.h"
 #include "rdpq_debug.h"
 #include "../rdpq/rdpq_internal.h"

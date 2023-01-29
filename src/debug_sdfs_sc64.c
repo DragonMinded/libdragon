@@ -2,7 +2,7 @@
  * FAT backend: SC64
  *********************************************************************/
 
-// SC64 internal 8 kB general use buffer
+// SC64 internal 8 KiB general use buffer
 #define SC64_BUFFER_ADDRESS		0xBFFE0000
 #define SC64_BUFFER_SIZE		8192
 

@@ -7,24 +7,27 @@ N64_ROM_SAVETYPE = # Supported savetypes: none eeprom4k eeprom16 sram256k sram76
 N64_ROM_RTC = # Set to true to enable the Joybus Real-Time Clock
 N64_ROM_REGIONFREE = # Set to true to allow booting on any console region
 
+# Override this to use a toolchain installed separately from libdragon
+N64_GCCPREFIX ?= $(N64_INST)
+
 N64_ROOTDIR = $(N64_INST)
 N64_BINDIR = $(N64_ROOTDIR)/bin
 N64_INCLUDEDIR = $(N64_ROOTDIR)/mips64-elf/include
 N64_LIBDIR = $(N64_ROOTDIR)/mips64-elf/lib
-N64_GCCPREFIX = $(N64_BINDIR)/mips64-elf-
 N64_HEADERPATH = $(N64_LIBDIR)/header
+N64_GCCPREFIX_TRIPLET = $(N64_GCCPREFIX)/bin/mips64-elf-
 
 COMMA:=,
 
-N64_CC = $(N64_GCCPREFIX)gcc
-N64_CXX = $(N64_GCCPREFIX)g++
-N64_AS = $(N64_GCCPREFIX)as
-N64_AR = $(N64_GCCPREFIX)ar
-N64_LD = $(N64_GCCPREFIX)ld
-N64_OBJCOPY = $(N64_GCCPREFIX)objcopy
-N64_OBJDUMP = $(N64_GCCPREFIX)objdump
-N64_SIZE = $(N64_GCCPREFIX)size
-N64_NM = $(N64_GCCPREFIX)nm
+N64_CC = $(N64_GCCPREFIX_TRIPLET)gcc
+N64_CXX = $(N64_GCCPREFIX_TRIPLET)g++
+N64_AS = $(N64_GCCPREFIX_TRIPLET)as
+N64_AR = $(N64_GCCPREFIX_TRIPLET)ar
+N64_LD = $(N64_GCCPREFIX_TRIPLET)ld
+N64_OBJCOPY = $(N64_GCCPREFIX_TRIPLET)objcopy
+N64_OBJDUMP = $(N64_GCCPREFIX_TRIPLET)objdump
+N64_SIZE = $(N64_GCCPREFIX_TRIPLET)size
+N64_NM = $(N64_GCCPREFIX_TRIPLET)nm
 
 N64_CHKSUM = $(N64_BINDIR)/chksum64
 N64_ED64ROMCONFIG = $(N64_BINDIR)/ed64romconfig
@@ -40,8 +43,8 @@ N64_CFLAGS += -falign-functions=32   # NOTE: if you change this, also change bac
 N64_CFLAGS += -ffunction-sections -fdata-sections -g
 N64_CFLAGS += -ffast-math -ftrapping-math -fno-associative-math
 N64_CFLAGS += -DN64 -O2 -Wall -Werror -Wno-error=deprecated-declarations -fdiagnostics-color=always
-N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings
-N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings
+N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings  -I$(N64_INCLUDEDIR)
+N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings  -I$(N64_INCLUDEDIR)
 N64_LDFLAGS = -g -L$(N64_LIBDIR) -ldragon -lm -ldragonsys -Tn64.ld --gc-sections --wrap __do_global_ctors
 
 N64_TOOLFLAGS = --header $(N64_HEADERPATH) --title $(N64_ROM_TITLE)
@@ -114,7 +117,7 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.S
 		DATASECTION="$(basename $@).data"; \
 		BINARY="$(basename $@).elf"; \
 		echo "    [RSP] $<"; \
-		$(N64_CC) $(RSPASFLAGS) -nostartfiles -Wl,-Trsp.ld -Wl,--gc-sections -o $@ $<; \
+		$(N64_CC) $(RSPASFLAGS) -L$(N64_LIBDIR) -nostartfiles -Wl,-Trsp.ld -Wl,--gc-sections -o $@ $<; \
 		mv "$@" $$BINARY; \
 		$(N64_OBJCOPY) -O binary -j .text $$BINARY $$TEXTSECTION.bin; \
 		$(N64_OBJCOPY) -O binary -j .data $$BINARY $$DATASECTION.bin; \
