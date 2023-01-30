@@ -221,6 +221,7 @@ RDPQ_FinalizeOtherModes:
     # Append the fixed up SetScissor command to staging area and then finalize
     jal_and_j RDPQ_WriteSetScissor, RDPQ_Finalize
     .endfunc
+
     #############################################################
     # RDPQCmd_SetFillColor32
     #
@@ -239,27 +240,7 @@ RDPQ_FinalizeOtherModes:
     #############################################################
     .func RDPQCmd_SetFillColor32
 RDPQCmd_SetFillColor32:
-    sw a1, %lo(RDPQ_FILL_COLOR)
-    li ra, %lo(RDPQ_Finalize)
-
-RDPQ_WriteSetFillColor:
-    lbu t0, %lo(RDPQ_TARGET_BITDEPTH)
-    beq t0, 3, RDPQ_Write8
-    lui a0, 0xF700   # SET_FILL_COLOR
-    srl t0, a1, 24 + (8-5) - 11
-    srl t1, a1, 16 + (8-5) - 6
-    srl t2, a1, 8  + (8-5) - 1
-    srl t3, a1, 0  + (8-1) - 0
-    andi t0, 0x1F << 11
-    andi t1, 0x1F << 6
-    andi t2, 0x1F << 1
-    andi t3, 0x01 << 0
-    or t4, t0, t1
-    or t5, t2, t3
-    or a1, t4, t5
-    sll t0, a1, 16
-    j RDPQ_Write8
-    or a1, t0
+    jal_and_j RDPQ_WriteSetFillColor, RDPQ_Finalize
     .endfunc
 
     #############################################################

@@ -517,10 +517,13 @@ rdpq_update_fillcopy:
 
     .section .text.rdpq_scissor
 
-    # Given a SET_SCISSOR command in a0/a1, write it into RDPQ_SCISSOR_RECT
-    # as-is (exclusive), and then send it to RDP after optionally adjusting
+    #############################################################
+    # RDPQ_WriteSetScissor
+    #
+    # Given a SET_SCISSOR command in a0/a1, writes it into RDPQ_SCISSOR_RECT
+    # as-is (exclusive), and then sends it to RDP after optionally adjusting
     # the extents to match the current SOM cycle type.
-    # Returns to caller.
+    #############################################################
     .func RDPQ_WriteSetScissor
 RDPQ_WriteSetScissor:
     sw a0, %lo(RDPQ_SCISSOR_RECT) + 0x0
@@ -528,15 +531,47 @@ RDPQ_WriteSetScissor:
     # Bit 21 of the first word is set if FILL or COPY mode is active
     andi t6, 0x1 << 5
     # Leave unchanged when not in FILL or COPY mode
-    beqz t6, scissor_done
+    beqz t6, 1f
     sw a1, %lo(RDPQ_SCISSOR_RECT) + 0x4
 
     # Subtract 1 subpixel from XL (bits 23:12, as 10.2 fixed point)
     addiu a1, -(1 << 12)
 
-scissor_done:
+1:
     j RDPQ_Write8
     nop
+    .endfunc
+
+
+    .section .text.rdpq_fillcolor
+
+    #############################################################
+    # RDPQ_WriteSetFillColor
+    # 
+    # Given a 32-bit RGBA color in a1, writes it into RDPQ_FILL_COLOR
+    # as-is, and then sends it to RDP after optionally converting it
+    # into 16-bit, depending on the current target bitdepth.
+    #############################################################
+    .func RDPQ_WriteSetFillColor
+RDPQ_WriteSetFillColor:
+    sw a1, %lo(RDPQ_FILL_COLOR)
+    lbu t0, %lo(RDPQ_TARGET_BITDEPTH)
+    beq t0, 3, RDPQ_Write8
+    lui a0, 0xF700   # SET_FILL_COLOR
+    srl t0, a1, 24 + (8-5) - 11
+    srl t1, a1, 16 + (8-5) - 6
+    srl t2, a1, 8  + (8-5) - 1
+    srl t3, a1, 0  + (8-1) - 0
+    andi t0, 0x1F << 11
+    andi t1, 0x1F << 6
+    andi t2, 0x1F << 1
+    andi t3, 0x01 << 0
+    or t4, t0, t1
+    or t5, t2, t3
+    or a1, t4, t5
+    sll t0, a1, 16
+    j RDPQ_Write8
+    or a1, t0
     .endfunc
 
 

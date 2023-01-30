@@ -201,9 +201,8 @@ GLCmd_BindTexture:
     sw s0, %lo(GL_STATE_TEXTURE_IDS)(t3)
 
 GLCmd_CopyFillColor:
-    lw t0, %lo(GL_STATE)(a0)
-    jr ra
-    sw t0, %lo(RDPQ_FILL_COLOR)
+    lw a1, %lo(GL_STATE)(a0)
+    jal_and_j RDPQ_WriteSetFillColor, RDPQ_Finalize
 
 GLCmd_SetLightPos:
     #define v___     $v01

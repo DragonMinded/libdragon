@@ -431,6 +431,12 @@ void glDisable(GLenum target)
     gl_set_flag2(target, false);
 }
 
+void gl_copy_fill_color(uint32_t offset)
+{
+    __rdpq_autosync_change(AUTOSYNC_PIPE);
+    gl_write(GL_CMD_COPY_FILL_COLOR, offset);
+}
+
 void glClear(GLbitfield buf)
 {
     if (!buf) {
@@ -454,19 +460,19 @@ void glClear(GLbitfield buf)
     if (buf & GL_DEPTH_BUFFER_BIT) {
         uint32_t old_cfg = rdpq_config_disable(RDPQ_CFG_AUTOSCISSOR);
 
-        // TODO: Avoid the overlay changes
+        // TODO: Clearing will be implemented by rdpq at some point
 
-        gl_write(GL_CMD_COPY_FILL_COLOR, offsetof(gl_server_state_t, clear_depth));
+        gl_copy_fill_color(offsetof(gl_server_state_t, clear_depth));
         rdpq_set_color_image(&state.depth_buffer);
         rdpq_fill_rectangle(0, 0, width, height);
 
-        gl_write(GL_CMD_COPY_FILL_COLOR, offsetof(gl_server_state_t, clear_color));
         rdpq_set_color_image(state.color_buffer);
 
         rdpq_config_set(old_cfg);
     }
 
     if (buf & GL_COLOR_BUFFER_BIT) {
+        gl_copy_fill_color(offsetof(gl_server_state_t, clear_color));
         rdpq_fill_rectangle(0, 0, width, height);
     }
 
@@ -477,8 +483,6 @@ void glClearColor(GLclampf r, GLclampf g, GLclampf b, GLclampf a)
 {
     color_t clear_color = RGBA32(CLAMPF_TO_U8(r), CLAMPF_TO_U8(g), CLAMPF_TO_U8(b), CLAMPF_TO_U8(a));
     gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, clear_color), color_to_packed32(clear_color));
-    // TODO: This can break if not using the depth buffer
-    rdpq_set_fill_color(clear_color);
 }
 
 void glClearDepth(GLclampd d)
