@@ -163,6 +163,9 @@ void __exception_dump_gpr(exception_t* ex, void (*cb)(void *arg, const char *reg
  * @param cb 		Callback that will be called for each register
  * @param arg 		Argument to pass to the callback
  */
+// Make sure that -ffinite-math-only is disabled otherwise the compiler will assume that no NaN/Inf can exist
+// and thus __builtin_isnan/__builtin_isinf are folded to false at compile-time.
+__attribute__((optimize("no-finite-math-only"), noinline))
 void __exception_dump_fpr(exception_t* ex, void (*cb)(void *arg, const char *regname, char* hexvalue, char *singlevalue, char *doublevalue), void *arg) {
 	char hex[32], single[32], doubl[32]; char *singlep, *doublep;
 	for (int i = 0; i<32; i++) {
