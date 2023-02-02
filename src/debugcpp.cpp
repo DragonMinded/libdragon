@@ -36,5 +36,8 @@ static void terminate_handler(void)
 /** @brief Initialize debug support for C++ programs */
 void __debug_init_cpp(void)
 {
+    static bool init = false;
+    if (init) return;
     std::set_terminate(terminate_handler);
+    init = true;
 }
