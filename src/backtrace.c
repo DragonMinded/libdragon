@@ -119,9 +119,9 @@ typedef struct alignas(8) {
 
 /** @brief Symbol table entry **/
 typedef struct {
-    uint16_t func_sidx;     ///< Offset of the function name in the string table
+    uint32_t func_sidx;     ///< Offset of the function name in the string table
+    uint32_t file_sidx;     ///< Offset of the file name in the string table
     uint16_t func_len;      ///< Length of the function name
-    uint16_t file_sidx;     ///< Offset of the file name in the string table
     uint16_t file_len;      ///< Length of the file name
     uint16_t line;          ///< Line number (or 0 if this symbol generically refers to a whole function)
     uint16_t func_off;      ///< Offset of the symbol within its function
@@ -187,6 +187,11 @@ static symtable_header_t symt_open(void) {
 
     if (symt_header.head[0] != 'S' || symt_header.head[1] != 'Y' || symt_header.head[2] != 'M' || symt_header.head[3] != 'T') {
         debugf("backtrace: invalid symbol table found at 0x%08lx\n", SYMT_ROM);
+        SYMT_ROM = 0;
+        return (symtable_header_t){0};
+    }
+    if (symt_header.version != 2) {
+        debugf("backtrace: unsupported symbol table version %ld -- please update your n64sym tool\n", symt_header.version);
         SYMT_ROM = 0;
         return (symtable_header_t){0};
     }

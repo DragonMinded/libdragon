@@ -72,10 +72,17 @@ int stringtable_add(char *word)
     return idx;
 }
 
+#define conv(type, v) ({ \
+    typeof(v) _v = (v); assert((type)_v == _v); (type)_v; \
+})
 
-void w8(FILE *f, uint8_t v)  { fputc(v, f); }
-void w16(FILE *f, uint16_t v) { w8(f, v >> 8);   w8(f, v & 0xff); }
-void w32(FILE *f, uint32_t v) { w16(f, v >> 16); w16(f, v & 0xffff); }
+void _w8(FILE *f, uint8_t v)  { fputc(v, f); }
+void _w16(FILE *f, uint16_t v) { _w8(f, v >> 8); _w8(f, v & 0xff); }
+void _w32(FILE *f, uint32_t v) { _w16(f, v >> 16); _w16(f, v & 0xffff); }
+#define w8(f, v) _w8(f, conv(uint8_t, v))
+#define w16(f, v) _w16(f, conv(uint16_t, v))
+#define w32(f, v) _w32(f, conv(uint32_t, v))
+
 int w32_placeholder(FILE *f) { int pos = ftell(f); w32(f, 0); return pos; }
 void w32_at(FILE *f, int pos, uint32_t v)
 {
@@ -358,7 +365,7 @@ void process(const char *infn, const char *outfn)
     }
 
     fwrite("SYMT", 4, 1, out);
-    w32(out, 1); // Version
+    w32(out, 2); // Version
     int addrtable_off = w32_placeholder(out);
     w32(out, stbds_arrlen(symtable));
     int symtable_off = w32_placeholder(out);
@@ -377,9 +384,9 @@ void process(const char *infn, const char *outfn)
     w32_at(out, symtable_off, ftell(out));
     for (int i=0; i < stbds_arrlen(symtable); i++) {
         struct symtable_s *sym = &symtable[i];
-        w16(out, sym->func_sidx);
+        w32(out, sym->func_sidx);
+        w32(out, sym->file_sidx);
         w16(out, strlen(sym->func));
-        w16(out, sym->file_sidx);
         w16(out, strlen(sym->file));
         w16(out, sym->line);
         w16(out, sym->func_offset);
