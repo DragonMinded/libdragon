@@ -287,6 +287,12 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode
         backtrace_frame_print_compact(frame, stdout, 60);
     }
     backtrace_symbols_cb(bt, n, 0, cb, NULL);
+    if (skip) {
+        // we didn't find the exception handler for some reason (eg: missing symbols)
+        // so just print the whole thing
+        skip = false;
+        backtrace_symbols_cb(bt, n, 0, cb, NULL);
+    }
     first_backtrace = false;
 }
 

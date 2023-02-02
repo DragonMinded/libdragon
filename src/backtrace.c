@@ -156,6 +156,9 @@ extern uint32_t inthandler_end[];
 /** @brief Address of the SYMT symbol table in the rompak. */
 static uint32_t SYMT_ROM = 0xFFFFFFFF;
 
+/** @brief Placeholder used in frames where symbols are not available */
+static const char *UNKNOWN_SYMBOL = "???";
+
 /** @brief Check if addr is a valid PC address */
 static bool is_valid_address(uint32_t addr)
 {
@@ -319,7 +322,7 @@ char* __symbolize(void *vaddr, char *buf, int size)
         snprintf(lbuf, sizeof(lbuf), "+0x%lx", addr - ADDRENTRY_ADDR(a));
         return strcat(func, lbuf);
     }
-    snprintf(buf, size, "???");
+    snprintf(buf, size, "%s", UNKNOWN_SYMBOL);
     return buf;
 }
 
@@ -551,9 +554,10 @@ static void format_entry(void (*cb)(void *, backtrace_frame_t *), void *cb_arg,
 bool backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
     void (*cb)(void *, backtrace_frame_t *), void *cb_arg)
 {
-    // Open the symbol table. If not found, abort as we can't symbolize anything.
+    // Open the symbol table. If not found, we will still invoke the
+    // callback but using unsymbolized addresses.
     symtable_header_t symt_header = symt_open();
-    if (!symt_header.head[0]) return false;
+    bool has_symt = symt_header.head[0];
 
     for (int i=0; i<size; i++) {
         uint32_t needle = (uint32_t)buffer[i];
@@ -563,9 +567,17 @@ bool backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
                 .addr = needle,
                 .func_offset = needle,
                 .func = needle < 128 ? "<NULL POINTER>" : "<INVALID ADDRESS>",
-                .source_file = "???",
-                .source_line = 0,
-                .is_inline = false
+                .source_file = UNKNOWN_SYMBOL, .source_line = 0, .is_inline = false
+            });
+            continue;
+        }
+        if (!has_symt) {
+            // No symbol table. Call the callback with a dummy entry which just contains the address
+            bool exc = (needle >= (uint32_t)inthandler && needle < (uint32_t)inthandler_end);
+            cb(cb_arg, &(backtrace_frame_t){
+                .addr = needle,
+                .func = exc ? "<EXCEPTION HANDLER>" : UNKNOWN_SYMBOL, .func_offset = 0,
+                .source_file = UNKNOWN_SYMBOL, .source_line = 0, .is_inline = false
             });
             continue;
         }
@@ -623,9 +635,13 @@ void backtrace_frame_print_compact(backtrace_frame_t *frame, FILE *out, int widt
     const char *source_file = frame->source_file;
     int len = strlen(frame->func) + strlen(source_file);
     bool ellipsed = false;
-    if (len > width) {
+    if (len > width && source_file) {
         source_file += len - (width - 8);
         ellipsed = true;
     }
-    fprintf(out, "%s (%s%s:%d)\n", frame->func, ellipsed ? "..." : "", source_file, frame->source_line);
+    if (frame->func != UNKNOWN_SYMBOL) fprintf(out, "%s ", frame->func);
+    if (source_file != UNKNOWN_SYMBOL) fprintf(out, "(%s%s:%d)", ellipsed ? "..." : "", source_file, frame->source_line);
+    if (frame->func == UNKNOWN_SYMBOL || source_file == UNKNOWN_SYMBOL)
+        fprintf(out, "[0x%08lx]", frame->addr);
+    fprintf(out, "\n");
 }
