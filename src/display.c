@@ -79,7 +79,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     disable_interrupts();
 
     /* Minimum is two buffers. */
-    __buffers = MAX(2, MIN(NUM_BUFFERS, num_buffers));
+    __buffers = MAX(1, MIN(NUM_BUFFERS, num_buffers));
 
 
     if( res.interlaced )
@@ -286,14 +286,20 @@ surface_t* display_try_get(void)
 
     /* Calculate index of next display context to draw on. We need
        to find the first buffer which is not being drawn upon nor
-       being ready to be displayed. */
-    for (next = buffer_next(now_showing); next != now_showing; next = buffer_next(next)) {
+       being ready to be displayed.
+
+       Notice that the loop is always executed once, so it also works
+       in the case of a single display buffer, though it at least
+       wait for that buffer to be shown. */
+    next = buffer_next(now_showing);
+    do {
         if (((drawing_mask | ready_mask) & (1 << next)) == 0)  {
             retval = &surfaces[next];
             drawing_mask |= 1 << next;
             break;
         }
-    }
+        next = buffer_next(next);
+    } while (next != now_showing);
 
     enable_interrupts();
 
