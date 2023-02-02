@@ -14,7 +14,8 @@
 
 enum Mode {
     MODE_EXCEPTION,
-    MODE_ASSERTION
+    MODE_ASSERTION,
+    MODE_CPP_EXCEPTION
 };
 
 enum {
@@ -256,6 +257,18 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode
             printf("\b\aOASSERTION FAILED: %s\n\n", failedexpr);
         }
         bt_skip = 2;
+        break;
+    }
+    case MODE_CPP_EXCEPTION: {
+        title("Uncaught C++ Exception");
+        const char *exctype = (const char*)(uint32_t)ex->regs->gpr[4];
+        const char *what = (const char*)(uint32_t)ex->regs->gpr[5];
+        printf("\b\aOC++ Exception: %s\n\n", what);
+        if (exctype) {
+            printf("\aWException type:\n");
+            printf("    "); printf("\b%s", exctype); printf("\n\n");
+        }
+        bt_skip = 5;
         break;
     }
     }
@@ -507,12 +520,23 @@ void __inspector_assertion(const char *failedexpr, const char *msg, va_list args
     __builtin_unreachable();
 }
 
+__attribute__((noreturn))
+void __inspector_cppexception(const char *exctype, const char *what) {
+    asm volatile (
+        "move $a0, %0\n"
+        "move $a1, %1\n"
+        "syscall 0x2\n"
+        :: "p"(exctype), "p"(what)
+    );
+    __builtin_unreachable();    
+}
+
 __attribute__((constructor))
 void __inspector_init(void) {
     // Register SYSCALL 0x1 for assertion failures
     void handler(exception_t* ex, uint32_t code) {
-        inspector(ex, MODE_ASSERTION);
+        if (code == 1) inspector(ex, MODE_ASSERTION);
+        if (code == 2) inspector(ex, MODE_CPP_EXCEPTION);
     }
-    register_syscall_handler(handler, 0x00001, 0x00001);
+    register_syscall_handler(handler, 0x00001, 0x00002);
 }
-

@@ -6,6 +6,10 @@
 #include <stdarg.h>
 #include "exception.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern const char *__mips_gpr[34];
 extern const char *__mips_fpreg[32];
 
@@ -18,5 +22,12 @@ void __inspector_exception(exception_t* ex);
 
 __attribute__((noreturn))
 void __inspector_assertion(const char *failedexpr, const char *msg, va_list args);
+
+__attribute__((noreturn))
+void __inspector_cppexception(const char *exctype, const char *what);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
