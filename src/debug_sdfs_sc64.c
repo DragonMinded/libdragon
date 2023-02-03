@@ -67,6 +67,15 @@ static DRESULT fat_disk_read_sc64(BYTE* buff, LBA_t sector, UINT count)
 	return RES_OK;
 }
 
+static DRESULT fat_disk_read_sdram_sc64(BYTE* buff, LBA_t sector, UINT count)
+{
+	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
+	_Static_assert(FF_MAX_SS == 512, "this function assumes sector size == 512");
+	if (sc64_sd_read_sectors((uint32_t)buff, sector, count))
+		return FR_DISK_ERR;
+	return RES_OK;
+}
+
 static DRESULT fat_disk_write_sc64(const BYTE* buff, LBA_t sector, UINT count)
 {
 	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
