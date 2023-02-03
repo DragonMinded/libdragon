@@ -47,21 +47,28 @@ _start:
 	mtc0 v0,C0_SR
 	mtc0 $0,C0_CAUSE
 
-	/* copy code and data via DMA */
-	la a0, __text_start
+	/* Check if PI DMA transfer is required */
+	la a0, __libdragon_text_start
 	la a1, __data_end
-	la t0, __libdragon_text_start
-	subu a2, a0, t0				/* skip over .boot section */
-	addu a2, 0x10001000			/* address in rom */
+	li t0, 0x100000				/* stock IPL3 load size */
+	subu a2, a1, a0				/* calculate data size */
+	sub a2, a2, t0				/* calculate remaining data size */
+	blez a2, .Lskip_dma			/* skip PI DMA if data is already loaded */
+	nop
+
+	/* Copy code and data via DMA */
+	li a1, 0x10001000			/* address in rom */
+	addu a0, a0, t0				/* skip over loaded data */
+	addu a1, a1, t0				
 
 	/* Start PI DMA transfer */
 	lui t0, 0xA460
 	sw a0, 0x00(t0)
-	sw a2, 0x04(t0)
-	sub t1, a1, a0
-	addi t1, -1
-	sw t1, 0x0C(t0)
+	sw a1, 0x04(t0)
+	addi a2, -1
+	sw a2, 0x0C(t0)
 
+.Lskip_dma:
 	/* fill .bss with 0s */
 	la a0, __bss_start
 	or a0, 0x20000000
