@@ -21,6 +21,7 @@ clean:
 	$(MAKE) -C mkfont clean
 	$(MAKE) -C audioconv64 clean
 	$(MAKE) -C rdpvalidate clean
+	rm -rf n64sym
 
 chksum64: chksum64.c
 	gcc -o chksum64 chksum64.c
