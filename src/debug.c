@@ -144,6 +144,7 @@ typedef struct
 	DSTATUS (*disk_initialize)(void);
 	DSTATUS (*disk_status)(void);
 	DRESULT (*disk_read)(BYTE* buff, LBA_t sector, UINT count);
+	DRESULT (*disk_read_sdram)(BYTE* buff, LBA_t sector, UINT count);
 	DRESULT (*disk_write)(const BYTE* buff, LBA_t sector, UINT count);
 	DRESULT (*disk_ioctl)(BYTE cmd, void* buff);
 } fat_disk_t;
@@ -166,8 +167,10 @@ DSTATUS disk_status(BYTE pdrv)
 
 DRESULT disk_read(BYTE pdrv, BYTE* buff, LBA_t sector, UINT count)
 {
-	if (fat_disks[pdrv].disk_read)
+	if (fat_disks[pdrv].disk_read && PhysicalAddr(buff) < 0x00800000)
 		return fat_disks[pdrv].disk_read(buff, sector, count);
+	if (fat_disks[pdrv].disk_read_sdram && io_accessible(PhysicalAddr(buff)))
+		return fat_disks[pdrv].disk_read_sdram(buff, sector, count);
 	return RES_PARERR;
 }
 
@@ -207,6 +210,7 @@ static fat_disk_t fat_disk_everdrive =
 	fat_disk_initialize_everdrive,
 	fat_disk_status_default,
 	fat_disk_read_everdrive,
+	NULL,
 	fat_disk_write_everdrive,
 	fat_disk_ioctl_default
 };
@@ -216,6 +220,7 @@ static fat_disk_t fat_disk_64drive =
 	fat_disk_initialize_64drive,
 	fat_disk_status_default,
 	fat_disk_read_64drive,
+	fat_disk_read_sdram_64drive,
 	fat_disk_write_64drive,
 	fat_disk_ioctl_default
 };
@@ -225,6 +230,7 @@ static fat_disk_t fat_disk_sc64 =
 	fat_disk_initialize_sc64,
 	fat_disk_status_default,
 	fat_disk_read_sc64,
+	fat_disk_read_sdram_sc64,
 	fat_disk_write_sc64,
 	fat_disk_ioctl_default
 };
