@@ -18,9 +18,9 @@ fi
 BUILD_PATH="${BUILD_PATH:-toolchain}"
 
 # Defines the build system variables to allow cross compilation.
-BUILD=${BUILD:-""}
-HOST=${HOST:-""}
-TARGET=${TARGET:-mips64-elf}
+N64_BUILD=${N64_BUILD:-""}
+N64_HOST=${N64_HOST:-""}
+N64_TARGET=${N64_TARGET:-mips64-elf}
 
 # Set N64_INST before calling the script to change the default installation directory path
 INSTALL_PATH="${N64_INST}"
@@ -105,7 +105,7 @@ test -f "newlib-$NEWLIB_V.tar.gz"     || download "https://sourceware.org/pub/ne
 test -d "newlib-$NEWLIB_V"            || tar -xzf "newlib-$NEWLIB_V.tar.gz"
 
 if [ "$GMP_V" != "" ]; then
-    test -f "gmp-$GMP_V.tar.xz"           || download "https://ftp.gnu.org/gnu/gmp/gmp-$GMP_V.tar.bz2"
+    test -f "gmp-$GMP_V.tar.bz2"           || download "https://ftp.gnu.org/gnu/gmp/gmp-$GMP_V.tar.bz2"
     test -d "gmp-$GMP_V"                  || tar -xf "gmp-$GMP_V.tar.bz2" # note: no .gz download file currently available
     pushd "gcc-$GCC_V"
     ln -sf ../"gmp-$GMP_V" "gmp"
@@ -135,16 +135,16 @@ fi
 
 # Deduce build triplet using config.guess (if not specified)
 # This is by the definition the current system so it should be OK.
-if [ "$BUILD" == "" ]; then
-    BUILD=$("binutils-$BINUTILS_V"/config.guess)
+if [ "$N64_BUILD" == "" ]; then
+    N64_BUILD=$("binutils-$BINUTILS_V"/config.guess)
 fi
 
-if [ "$HOST" == "" ]; then
-    HOST="$BUILD"
+if [ "$N64_HOST" == "" ]; then
+    N64_HOST="$N64_BUILD"
 fi
 
 
-if [ "$BUILD" == "$HOST" ]; then
+if [ "$N64_BUILD" == "$N64_HOST" ]; then
     # Standard cross.
     CROSS_PREFIX=$INSTALL_PATH
 else
@@ -164,10 +164,10 @@ else
     # when building a Libdragon Windows toolchain from Linux, this would be x86_64-w64-ming32,
     # that is, a compiler that we run that generates Windows executables.
     # Check if a host compiler is available. If so, we can just skip this step.
-    if command_exists "$HOST"-gcc; then
-        echo Found host compiler: "$HOST"-gcc in PATH. Using it.
+    if command_exists "$N64_HOST"-gcc; then
+        echo Found host compiler: "$N64_HOST"-gcc in PATH. Using it.
     else
-        if [ "$HOST" == "x86_64-w64-mingw32" ]; then
+        if [ "$N64_HOST" == "x86_64-w64-mingw32" ]; then
             echo This script requires a working Windows cross-compiler.
             echo We could build it for you, but it would make the process even longer.
             echo Install it instead:
@@ -185,7 +185,7 @@ mkdir -p binutils_compile_target
 pushd binutils_compile_target
 ../"binutils-$BINUTILS_V"/configure \
     --prefix="$CROSS_PREFIX" \
-    --target="$TARGET" \
+    --target="$N64_TARGET" \
     --with-cpu=mips64vr4300 \
     --disable-werror
 make -j "$JOBS"
@@ -198,7 +198,7 @@ mkdir -p gcc_compile_target
 pushd gcc_compile_target
 ../"gcc-$GCC_V"/configure "${GCC_CONFIGURE_ARGS[@]}" \
     --prefix="$CROSS_PREFIX" \
-    --target="$TARGET" \
+    --target="$N64_TARGET" \
     --with-arch=vr4300 \
     --with-tune=vr4300 \
     --enable-languages=c,c++ \
@@ -224,7 +224,7 @@ mkdir -p newlib_compile_target
 pushd newlib_compile_target
 CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2" ../"newlib-$NEWLIB_V"/configure \
     --prefix="$CROSS_PREFIX" \
-    --target="$TARGET" \
+    --target="$N64_TARGET" \
     --with-cpu=mips64vr4300 \
     --disable-threads \
     --disable-libssp \
@@ -235,7 +235,7 @@ popd
 
 # For a standard cross-compiler, the only thing left is to finish compiling the target libraries
 # like libstd++. We can continue on the previous GCC build target.
-if [ "$BUILD" == "$HOST" ]; then
+if [ "$N64_BUILD" == "$N64_HOST" ]; then
     pushd gcc_compile_target
     make all -j "$JOBS"
     make install-strip || sudo make install-strip || su -c "make install-strip"
@@ -251,9 +251,9 @@ else
     pushd binutils_compile_host
     ../"binutils-$BINUTILS_V"/configure \
         --prefix="$INSTALL_PATH" \
-        --build="$BUILD" \
-        --host="$HOST" \
-        --target="$TARGET" \
+        --build="$N64_BUILD" \
+        --host="$N64_HOST" \
+        --target="$N64_TARGET" \
         --disable-werror \
         --without-msgpack
     make -j "$JOBS"
@@ -266,9 +266,9 @@ else
     CFLAGS_FOR_TARGET="-O2" CXXFLAGS_FOR_TARGET="-O2" \
         ../"gcc-$GCC_V"/configure \
         --prefix="$INSTALL_PATH" \
-        --target="$TARGET" \
-        --build="$BUILD" \
-        --host="$HOST" \
+        --target="$N64_TARGET" \
+        --build="$N64_BUILD" \
+        --host="$N64_HOST" \
         --disable-werror \
         --with-arch=vr4300 \
         --with-tune=vr4300 \
@@ -290,7 +290,7 @@ else
     pushd newlib_compile
     CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2" ../"newlib-$NEWLIB_V"/configure \
         --prefix="$INSTALL_PATH" \
-        --target="$TARGET" \
+        --target="$N64_TARGET" \
         --with-cpu=mips64vr4300 \
         --disable-threads \
         --disable-libssp \
@@ -314,8 +314,8 @@ if [ "$MAKE_V" != "" ]; then
         --disable-largefile \
         --disable-nls \
         --disable-rpath \
-        --build="$BUILD" \
-        --host="$HOST"
+        --build="$N64_BUILD" \
+        --host="$N64_HOST"
     make -j "$JOBS"
     make install-strip || sudo make install-strip || su -c "make install-strip"
     popd
