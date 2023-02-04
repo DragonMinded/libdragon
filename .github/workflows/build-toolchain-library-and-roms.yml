@@ -51,12 +51,12 @@ jobs:
       # use from registry o/w
       - name: Set up Docker Build
         if: ${{ steps.path_diff.outputs.changed == 1 }}
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v2
 
       - name: Docker meta
         if: ${{ steps.path_diff.outputs.changed == 1 }}
         id: meta
-        uses: docker/metadata-action@v3
+        uses: docker/metadata-action@v4
         with:
           images: ghcr.io/${{ steps.vars.outputs.repository_name }}
           # latest tag is handled separately
@@ -65,7 +65,7 @@ jobs:
 
       - name: Log in to the container registry
         if: ${{ steps.path_diff.outputs.changed == 1 }}
-        uses: docker/login-action@v1
+        uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -73,7 +73,7 @@ jobs:
 
       - name: Build and push image
         if: ${{ steps.path_diff.outputs.changed == 1}}
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v4
         with:
           # Only push image if this is a push event. Otherwise it will fail because
           # of permission issues on PRs. Also see https://github.com/DragonMinded/libdragon/issues/230
@@ -91,7 +91,7 @@ jobs:
       # cached, it should not take long to build.
       - name: Load image for libdragon build
         if: ${{ steps.path_diff.outputs.changed == 1}}
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v4
         with:
           # Do not push the image yet, we also want to make sure libdragon builds
           # with the fresh image.
@@ -125,7 +125,7 @@ jobs:
       # build with this freshly built image.
       - name: Push latest image
         if: ${{ steps.path_diff.outputs.changed == 1 && github.ref == steps.vars.outputs.default_ref }}
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v4
         with:
           push: true
           tags: ghcr.io/${{ steps.vars.outputs.repository_name }}:latest
