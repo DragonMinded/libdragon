@@ -511,6 +511,7 @@ bool debug_init_sdfs(const char *prefix, int npart)
 	strlcpy(sdfs_prefix, prefix, sizeof(sdfs_prefix));
 	attach_filesystem(sdfs_prefix, &fat_fs);
 	enabled_features |= DEBUG_FEATURE_FILE_SD;
+	timer_init();
 	rtc_init();
 	return true;
 }
