@@ -181,6 +181,23 @@ DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void* buff)
 	return RES_PARERR;
 }
 
+DWORD get_fattime(void)
+{
+	rtc_time_t time;
+	return rtc_get(&time) ? (DWORD)(
+		(time.year - 1980) << 25 |
+		(time.month + 1) << 21 |
+		time.day << 16 |
+		time.hour << 11 |
+		time.min << 5 |
+		(time.sec / 2)
+	) : (
+		(DWORD)(FF_NORTC_YEAR - 1980) << 25 |
+		(DWORD)FF_NORTC_MON << 21 |
+		(DWORD)FF_NORTC_MDAY << 16
+	);
+}
+
 /** @endcond */
 
 /*********************************************************************
@@ -494,6 +511,7 @@ bool debug_init_sdfs(const char *prefix, int npart)
 	strlcpy(sdfs_prefix, prefix, sizeof(sdfs_prefix));
 	attach_filesystem(sdfs_prefix, &fat_fs);
 	enabled_features |= DEBUG_FEATURE_FILE_SD;
+	rtc_init();
 	return true;
 }
 
