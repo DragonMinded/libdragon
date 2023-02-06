@@ -102,7 +102,7 @@ jobs:
           # required for newlib (as not the default?!)
           export PATH="$PATH:${{ runner.temp }}/${{ env.Build_Directory }}"
           cd ./tools/
-          sudo N64_INST=${{ runner.temp }}/${{ env.Build_Directory }} HOST=${{ matrix.host }} MAKE_V=${{ matrix.makefile-version }} ./build-toolchain.sh
+          sudo N64_INST=${{ runner.temp }}/${{ env.Build_Directory }} N64_HOST=${{ matrix.host }} MAKE_V=${{ matrix.makefile-version }} ./build-toolchain.sh
 
           echo Remove un-necessary content
           rm -rf ${N64_INST}/share/locale/*
