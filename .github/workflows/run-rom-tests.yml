@@ -1,0 +1,154 @@
+name: Run ROM Tests
+
+on:
+  workflow_call:
+    secrets:
+      token:
+        description: 'A github token passed from the caller workflow'
+        required: true
+
+jobs:
+
+  ROM-Smoke-Tests-Ares-Windows:
+    name: Ares Emulator Smoke tests
+    runs-on: windows-latest
+
+    # Run each ROM using on ares emulator.
+    strategy:
+      fail-fast: false
+      matrix:
+        include: [
+          { rom-name: testrom_emu,      ares-ci-compatible: true,  rom-path: tests },
+          { rom-name: testrom,          ares-ci-compatible: true,  rom-path: tests },
+          { rom-name: audioplayer,      ares-ci-compatible: false, rom-path: examples/audioplayer },
+          { rom-name: cpptest,          ares-ci-compatible: true,  rom-path: examples/cpptest },
+          { rom-name: ctest,            ares-ci-compatible: true,  rom-path: examples/ctest },
+          { rom-name: dfsdemo,          ares-ci-compatible: true,  rom-path: examples/dfsdemo },
+          { rom-name: eepromfstest_16k, ares-ci-compatible: true,  rom-path: examples/eepromfstest },
+          { rom-name: eepromfstest_4k,  ares-ci-compatible: true,  rom-path: examples/eepromfstest },
+          { rom-name: mixertest,        ares-ci-compatible: true,  rom-path: examples/mixertest },
+          { rom-name: mptest,           ares-ci-compatible: true,  rom-path: examples/mptest },
+          { rom-name: mputest,          ares-ci-compatible: true,  rom-path: examples/mputest },
+          { rom-name: rspqdemo,         ares-ci-compatible: true,  rom-path: examples/rspqdemo },
+          { rom-name: spritemap,        ares-ci-compatible: true,  rom-path: examples/spritemap },
+          { rom-name: test,             ares-ci-compatible: true,  rom-path: examples/test },
+          { rom-name: timers,           ares-ci-compatible: true,  rom-path: examples/timers },
+          { rom-name: ucodetest,        ares-ci-compatible: true,  rom-path: examples/ucodetest },
+          { rom-name: vrutest,          ares-ci-compatible: true,  rom-path: examples/vrutest },
+          { rom-name: vtest,            ares-ci-compatible: true,  rom-path: examples/vtest }
+        ]
+
+    env:
+      Delay_Time_Seconds: 15
+      Enable_Screenshot: 'no' # false by default
+
+    steps:
+
+      - name: Download ROM artifact
+        id: download-rom-artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: roms
+          path: ${{ runner.temp }}/roms
+        continue-on-error: true
+
+      # - name: Show ROM Paths # helps with creating new matrix paths
+      #   run: |
+      #     cd ${{ runner.temp }}/roms
+      #     ls -R
+      #   continue-on-error: true
+
+      - name: Install ares emulator
+        if: ${{ matrix.ares-ci-compatible }}
+        run: |
+          Write-Output "Installing ares emulator!"
+          curl -LO https://github.com/ares-emulator/ares/releases/download/nightly/ares-windows-msvc-x64.zip
+          unzip ares-windows-msvc-x64.zip
+          rd -r ./ares-windows-msvc-x64.zip
+        continue-on-error: true
+
+
+      - name: Setup Ares
+        if: ${{ matrix.ares-ci-compatible }}
+        run: |
+          # NOTE: we need to change some of the settings that cannot be setup through the CLI.
+          # to make it compatible with the CI host.
+          # FIXME: ares should have a parameter to tell it that it is running on a github host
+
+          Write-Output "Step 1 - Run a valid ROM so the settings are actually generated."
+          Write-Output "         ROM will fail to run due to missing graphics acceleration..."
+          . ares-nightly/ares ${{ runner.temp }}/roms/${{ matrix.rom-path }}/${{ matrix.rom-name }}.z64
+
+          Write-Output "Step 2 - Sleep a little to make sure settings.bml is generated."
+          # 5 seconds delay seems to run reliably.
+          Start-Sleep -Seconds 5
+
+          Write-Output "Step 3 - adjust the settings to disable graphics acceleration and audio"
+          Write-Verbose "Disable graphics acceleration"
+          ((Get-Content -path ares-nightly/settings.bml -Raw) -replace 'EnableVulkan: true','EnableVulkan: false') | Set-Content -Path ares-nightly/settings.bml
+          Write-Verbose "Disable video interface processing"
+          ((Get-Content -path ares-nightly/settings.bml -Raw) -replace 'DisableVideoInterfaceProcessing: false','DisableVideoInterfaceProcessing: true') | Set-Content -Path ares-nightly/settings.bml
+          Write-Verbose "Change to a compatible graphics option"
+          # https://github.com/ares-emulator/ares/blob/b1d216b8affbfb811a681dca1bd603d3369624fc/ruby/video/video.cpp#L154
+          ((Get-Content -path ares-nightly/settings.bml -Raw) -replace 'Driver: OpenGL 3.2','Driver: Direct3D 9.0') | Set-Content -Path ares-nightly/settings.bml
+          Write-Verbose "Disable audio"
+          # https://github.com/ares-emulator/ares/blob/3ca1f9ebb4ae3f472f7fba661746058f84126536/ruby/audio/audio.cpp#L268
+          ((Get-Content -path ares-nightly/settings.bml -Raw) -replace 'Driver: WASAPI','Driver: None') | Set-Content -Path ares-nightly/settings.bml
+
+      - name: Run ROM in Ares for logs
+        if: ${{ matrix.ares-ci-compatible }}
+        run: |
+          Start-Process -FilePath "ares-nightly/ares" -ArgumentList "${{ runner.temp }}/roms/${{ matrix.rom-path }}/${{ matrix.rom-name }}.z64" -RedirectStandardOutput ${{ matrix.rom-name }}-${{ env.Delay_Time_Seconds }}s-ares-output-log.txt
+          
+          Start-Sleep -Seconds ${{ env.Delay_Time_Seconds }}
+          
+          # the emulator is still running! we need to stop it.
+          Stop-Process -Name "ares"
+          # Add a delay to make sure that the process has been closed.
+          Start-Sleep -Seconds 1
+
+          if ((get-item "${{ matrix.rom-name }}-${{ env.Delay_Time_Seconds }}s-ares-output-log.txt").Length -gt 0)
+          {
+            Write-Warning "Log File is not empty!"
+            Write-Verbose "Or match it against a golden copy to see if it is expected."
+            Write-Output "Enable_Screenshot=yes" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
+
+            # appending to CI summary info!
+            Write-Output ":warning: You might want to check: ${{ matrix.rom-name }}.z64 for issues!" | Out-File -FilePath $Env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+          }
+          else
+          {
+            Write-Output "File is empty, trying to remove it."
+            remove-item -fo ${{ matrix.rom-name }}-${{ env.Delay_Time_Seconds }}s-ares-output-log.txt -ErrorAction Ignore
+          }
+        continue-on-error: true
+          
+      - name: Upload files
+        if: ${{ matrix.ares-ci-compatible }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.rom-name }}-${{ env.Delay_Time_Seconds }}s-ares-output-log.txt
+          if-no-files-found: ignore
+          path: |
+            ${{ matrix.rom-name }}-${{ env.Delay_Time_Seconds }}s-ares-output-log.txt
+        continue-on-error: true
+
+
+      - name: Run ROM in Ares for screenshot
+        if: ${{ env.Enable_Screenshot == 'yes' }} # FIXME: should also take into account ${{ matrix.ares-ci-compatible }}
+        run: |
+          Start-Process -FilePath "ares-nightly/ares" -ArgumentList "${{ runner.temp }}/roms/${{ matrix.rom-path }}/${{ matrix.rom-name }}.z64 --fullscreen"
+          Start-Sleep -Seconds ${{ env.Delay_Time_Seconds }}
+        continue-on-error: true
+
+      - name: Take screenshot
+        if: ${{ env.Enable_Screenshot == 'yes' }} # FIXME: should also take into account ${{ matrix.ares-ci-compatible }}
+        uses: networkfusion/desktop-screenshot-action@0.2
+        with:
+          file-name: '${{ matrix.rom-name }}-emu-screenshot_${{ env.Delay_Time_Seconds }}s.jpg'
+
+      - name: Cleanup ares process
+        if: ${{ env.Enable_Screenshot == 'yes' }} # FIXME: should also take into account ${{ matrix.ares-ci-compatible }}
+        run: |
+          Stop-Process -Name "ares"
+        continue-on-error: true

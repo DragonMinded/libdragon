@@ -131,3 +131,10 @@ jobs:
           tags: ghcr.io/${{ steps.vars.outputs.repository_name }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  Run-Rom-Tests:
+    name: "Run ROM tests"
+    needs: Toolchain-Library-And-Examples
+    uses: ./.github/workflows/run-rom-tests.yml
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
