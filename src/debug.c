@@ -10,6 +10,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include "regsinternal.h"
 #include "system.h"
 #include "usb.h"
@@ -183,18 +184,22 @@ DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void* buff)
 
 DWORD get_fattime(void)
 {
-	rtc_time_t time;
-	return rtc_get(&time) ? (DWORD)(
-		(time.year - 1980) << 25 |
-		(time.month + 1) << 21 |
-		time.day << 16 |
-		time.hour << 11 |
-		time.min << 5 |
-		(time.sec / 2)
-	) : (
-		(DWORD)(FF_NORTC_YEAR - 1980) << 25 |
-		(DWORD)FF_NORTC_MON << 21 |
-		(DWORD)FF_NORTC_MDAY << 16
+	time_t t = time(NULL);
+	if (t == -1) {
+		return (DWORD)(
+			(FF_NORTC_YEAR - 1980) << 25 |
+			FF_NORTC_MON << 21 |
+			FF_NORTC_MDAY << 16
+		);
+	}
+  	struct tm tm = *localtime(&t);
+	return (DWORD)(
+		(tm.tm_year - 80) << 25 |
+		(tm.tm_mon + 1) << 21 |
+		tm.tm_mday << 16 |
+		tm.tm_hour << 11 |
+		tm.tm_min << 5 |
+		(tm.tm_sec >> 1)
 	);
 }
 
@@ -511,8 +516,6 @@ bool debug_init_sdfs(const char *prefix, int npart)
 	strlcpy(sdfs_prefix, prefix, sizeof(sdfs_prefix));
 	attach_filesystem(sdfs_prefix, &fat_fs);
 	enabled_features |= DEBUG_FEATURE_FILE_SD;
-	timer_init();
-	rtc_init();
 	return true;
 }
 
