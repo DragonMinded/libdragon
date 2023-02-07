@@ -1,6 +1,6 @@
 # Libdragon
 
-[![Build](https://github.com/DragonMinded/libdragon/actions/workflows/ci.yml/badge.svg?branch=trunk)](https://github.com/DragonMinded/libdragon/actions/workflows/ci.yml)
+[![Build](https://github.com/DragonMinded/libdragon/actions/workflows/build-toolchain-library-and-roms.yml/badge.svg?branch=trunk)](https://github.com/DragonMinded/libdragon/actions/workflows/build-toolchain-library-and-roms.yml)
 
 ## Welcome to libdragon
 
@@ -40,56 +40,24 @@ programming and debugging. These are the main features:
 * Simple and powerful Makefile-based build system for your ROMs and assets
   (n64.mk)
 
+The [unstable branch](https://github.com/DragonMinded/libdragon/wiki/Unstable-branch) features
+many more features:
+
+ * a new comprehensive RDP engine
+ * a full OpenGL 1.1 port for 3D graphics programming, with a custom, efficient RSP ucode
+   with full T&L support.
+ * a MPEG1 RSP-accelerated movie player
+ * support for showing source-level stack traces in case of crashes or assertions, including
+   source file name and line number.
+
+and much more. These features will eventually land to trunk, but you can start playing
+with them even today. Go the [unstable branch doc](https://github.com/DragonMinded/libdragon/wiki/Unstable-branch) for more information.
+
 ## Getting started: how to build a ROM
 
-### Option 1: Use the libdragon CLI with Docker (Windows, macOS x86/arm, Linux)
+To get started with libdragon, you need to [download and install the toolchain](https://github.com/DragonMinded/libdragon/releases/tag/toolchain-continuous-prerelease).
 
-See [the libdragon CLI](https://github.com/anacierdem/libdragon-docker) to
-quickly get libdragon up and running. Basically:
-
-1. Make sure that you have Docker installed correctly (on Windows and Mac, use
-   Docker Desktop). You can run `docker system info` to check that it is working
-   correctly.
-2. Install the [the libdragon CLI](https://github.com/anacierdem/libdragon-docker).
-   You have two options:
-
-   1. Download the [pre-built binary](https://github.com/anacierdem/libdragon-docker/releases/latest), 
-      and copy it into some directory which is part of your system PATH.
-   2. If you have `npm` installed (at least verstion 14), run `npm install -g libdragon`.
-3. Run `libdragon init` to create a skeleton project
-4. Run `libdragon make` to compile a build a ROM
-
-If you want, you can also compile and run one of the examples that will
-be found in `libdragon/examples` in the skeleton project.
-
-Note for Apple Silicon users: we ship and update the docker container image for both
-x86-64 and arm64, so this option works on Apple Silicon machines too.
-
-### Option 2: Compile the toolchain (Windows WSL2, macOS x86/arm, Linux)
-
-These instructions work for Linux, macOS (Intel / Apple Silicon) and Windows with WSL2.
-WSL1 users must [upgrade to WSL2 first](https://docs.microsoft.com/en-us/windows/wsl/install#upgrade-version-from-wsl-1-to-wsl-2).
-
-1. Export the environment variable N64_INST to the path where you want your
-   toolchain to be installed. For instance: `export N64_INST=/opt/n64` or
-   `export N64_INST=/usr/local`.
-2. If you are on macOS, make sure [homebrew](https://brew.sh) is installed.
-3. Make sure you have at least 7 GB of disk space available (notice that after
-   build, only about 300 MB will be used, but during build a lot of space is
-   required).
-4. Enter the `tools` directory and Run `./build-toolchain.sh`, let it build and
-   install the toolchain. The process will take a while depending on your computer
-   (1 hour is not unexpected).
-5. Make sure that you still have the `N64_INST` variable pointing to the correct
-   directory where the toolchain was installed (`echo $N64_INST`).
-6. Run `./build.sh` at the top-level. This will install libdragon, its tools,
-   and also build all examples.
-
-You are now ready to run the examples on your N64 or emulator.
-
-Once you are sure everything is fine, you can delete the `tools/toolchain/`
-directory, where the toolchain was built. This will free around 6 GB of space.
-You will only need the installed binaries in the `N64_INST` from now on.
+Make sure to read the [full installation instructions](https://github.com/DragonMinded/libdragon/wiki/Installing-libdragon) which also explain the system requirements.
 
 ## Getting started: how to run a ROM
 
@@ -108,7 +76,7 @@ via `fprintf(stderr)`, see the debug library for more information.
 
 All cartridges that are able to load custom ROMs should be able to successfully
 load libdragon ROMs via either USB/serial, or from a MMC/SD card. For instance,
-the followig are known to work: 64drive, EverDrive64 (all models), SC64.
+the following are known to work: 64drive, EverDrive64 (all models), SC64.
 
 If your cartridge has USB support, use one of the loaders that implement the
 libdragon debugging protocol, so to be able to show logs in console. For instance,
@@ -116,7 +84,27 @@ libdragon debugging protocol, so to be able to show logs in console. For instanc
 [ed64](https://github.com/anacierdem/ed64). The official loaders provided by
 the vendors are usually less feature-rich.
 
+## Libdragon stable vs unstable
+
+Currently, there are two main libragon versions: 
+
+ * The **stable** version is the one in the `trunk`. Stable means that we strive never
+   to break backward compatibility, that is we will never do changes in a way
+   that will impede existing applications to successfully compile and work
+   against a newer libdragon version. We feel this is important because otherwise
+   we would fragment the homebrew ecosystem too much, and we would leave a trail
+   of libdragon-based applications that can't be compiled anymore. See also the 
+   wiki for [common hurdles in upgrading libdragon](https://github.com/DragonMinded/libdragon/wiki/Upgrade-troubleshooting).
+ * The **unstable** version is the one in the `unstable` branch. This is where most
+   development happens first. In fact, features are developed, evolved and
+   battle-tested here, before the APIs are stabilized and they are finally
+   merged on the trunk. Applications that use the unstable branch need to be aware
+   that the APIs can break at any time (though we try to avoid *gratuitous* breakage).
+
 ## Documentation
 
  * [API reference](https://dragonminded.github.io/libdragon/ref/modules.html)
  * [Examples](https://github.com/DragonMinded/libdragon/tree/trunk/examples)
+ * [Wiki](https://github.com/DragonMinded/libdragon/wiki) (contains tutorials
+   and troubleshooting guides)
+

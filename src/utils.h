@@ -1,6 +1,8 @@
 #ifndef __LIBDRAGON_UTILS_H
 #define __LIBDRAGON_UTILS_H
 
+#include <string.h>  // memcpy
+
 /**
  * Misc utilities functions and macros. Internal header.
  */
@@ -24,7 +26,10 @@
 })
 
 /**	@brief Absolute number */
-#define ABS(x)   ((x) < 0 ? -(x) : (x))
+#define ABS(x) ({ \
+	typedef(x) _x = x; \
+	(_x < 0 ? -_x : _x); \
+})
 
 /** @brief Type-safe bitcast from float to integer */
 #define F2I(f)   ({ uint32_t __i; memcpy(&__i, &(f), 4); __i; })
