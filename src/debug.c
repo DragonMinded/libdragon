@@ -10,6 +10,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include "regsinternal.h"
 #include "system.h"
 #include "usb.h"
@@ -179,6 +180,27 @@ DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void* buff)
 	if (fat_disks[pdrv].disk_ioctl)
 		return fat_disks[pdrv].disk_ioctl(cmd, buff);
 	return RES_PARERR;
+}
+
+DWORD get_fattime(void)
+{
+	time_t t = time(NULL);
+	if (t == -1) {
+		return (DWORD)(
+			(FF_NORTC_YEAR - 1980) << 25 |
+			FF_NORTC_MON << 21 |
+			FF_NORTC_MDAY << 16
+		);
+	}
+  	struct tm tm = *localtime(&t);
+	return (DWORD)(
+		(tm.tm_year - 80) << 25 |
+		(tm.tm_mon + 1) << 21 |
+		tm.tm_mday << 16 |
+		tm.tm_hour << 11 |
+		tm.tm_min << 5 |
+		(tm.tm_sec >> 1)
+	);
 }
 
 /** @endcond */
