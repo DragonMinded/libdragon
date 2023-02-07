@@ -242,9 +242,10 @@ RSPQ_DefineCommand RSPQCmd_SwapBuffers,     12    # 0x07
 RSPQ_DefineCommand RSPQCmd_TestWriteStatus, 8     # 0x08 -- must be even (bit 24 must be 0)
 
 #if RSPQ_DEBUG
+    .align 3
 RSPQ_LOG_IDX:                .long 0
 RSPQ_LOG:                    .ds.l 16
-RSPQ_LOG_END:                .long 0xFFFFFFFF
+RSPQ_LOG_END:                .long RSPQ_DEBUG_MARKER
 #endif
 
     .align 3
