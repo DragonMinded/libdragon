@@ -398,6 +398,9 @@ int backtrace(void **buffer, int size)
                     stack_size = -(int16_t)(op & 0xFFFF);
             } else if (MIPS_OP_SD_RA_SP(op)) {
                 ra_offset = (int16_t)(op & 0xFFFF) + 4; // +4 = load low 32 bit of RA
+                // If we found a stack size, it might be a red herring (an alloca); we need one
+                // happening "just before" sd ra,xx(sp)
+                stack_size = 0;
             } else if (MIPS_OP_SD_FP_SP(op)) {
                 fp_offset = (int16_t)(op & 0xFFFF) + 4; // +4 = load low 32 bit of FP
             } else if (MIPS_OP_LUI_GP(op)) {
