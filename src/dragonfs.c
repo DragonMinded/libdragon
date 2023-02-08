@@ -1358,15 +1358,20 @@ int dfs_init(uint32_t base_fs_loc)
 
     if( base_fs_loc == DFS_DEFAULT_LOCATION )
     {
+        /* Search for the DFS image location in the ROM */
         base_fs_loc = rompak_search_ext( ".dfs" );
         if( !base_fs_loc )
         {
-            /* Failed, return so */
-            return DFS_EBADFS;
+            /* We could not find the DragonFS via rompak.
+             * For backward compatibility, fallback to the address we used
+             * to hardcode as default. */
+            base_fs_loc = 0x10101000;
         }
+        /* Convert the address to virtual (as expected for base_fs_loc). */
+        base_fs_loc |= 0xA0000000;
     }
 
-    /* Try normal (works on doctor v64) */
+    /* Try opening the filesystem */
     int ret = __dfs_init( base_fs_loc );
 
     if( ret != DFS_ESUCCESS )
