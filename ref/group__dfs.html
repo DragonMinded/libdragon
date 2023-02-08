@@ -118,7 +118,7 @@ Macros</h2></td></tr>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>SECTOR_PAYLOAD</b>&#160;&#160;&#160;252</td></tr>
 <tr class="memdesc:gaa5b4142139985c33ebf12f4dacf6f61f"><td class="mdescLeft">&#160;</td><td class="mdescRight">The size of a sector payload. <br /></td></tr>
 <tr class="separator:gaa5b4142139985c33ebf12f4dacf6f61f"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga1d81e04e879a844f4d733a3982bf85ee"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__dfs.html#ga1d81e04e879a844f4d733a3982bf85ee">DFS_DEFAULT_LOCATION</a>&#160;&#160;&#160;0xB0101000</td></tr>
+<tr class="memitem:ga1d81e04e879a844f4d733a3982bf85ee"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__dfs.html#ga1d81e04e879a844f4d733a3982bf85ee">DFS_DEFAULT_LOCATION</a>&#160;&#160;&#160;0</td></tr>
 <tr class="memdesc:ga1d81e04e879a844f4d733a3982bf85ee"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default filesystem location.  <a href="group__dfs.html#ga1d81e04e879a844f4d733a3982bf85ee">More...</a><br /></td></tr>
 <tr class="separator:ga1d81e04e879a844f4d733a3982bf85ee"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gae4777ede3ed2173c78fab7798ad6eddb"><td class="memItemLeft" align="right" valign="top"><a id="gae4777ede3ed2173c78fab7798ad6eddb" name="gae4777ede3ed2173c78fab7798ad6eddb"></a>
@@ -344,13 +344,13 @@ The offset within the filesystem where the file is stored. </td></tr>
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define DFS_DEFAULT_LOCATION&#160;&#160;&#160;0xB0101000</td>
+          <td class="memname">#define DFS_DEFAULT_LOCATION&#160;&#160;&#160;0</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
 <p>Default filesystem location. </p>
-<p >The default is 1 MiB into the ROM space, plus the header offset </p>
+<p >The default value 0 instruct <a class="el" href="group__dfs.html#ga7ca0762367965bd8a6dbbe07b7ad3022" title="Initialize the filesystem.">dfs_init</a> to search for the DFS image within the rompak. </p>
 
 </div>
 </div>
@@ -821,10 +821,12 @@ The offset within the filesystem where the file is stored. </td></tr>
 </div><div class="memdoc">
 
 <p>Initialize the filesystem. </p>
-<p >Given a base offset where the filesystem should be found, this function will initialize the filesystem to read from cartridge space. This function will also register DragonFS with newlib so that standard POSIX file operations work with DragonFS.</p>
+<p >Given a base offset where the filesystem should be found, this function will initialize the filesystem to read from cartridge space. This function will also register DragonFS with newlib so that standard POSIX/C file operations work with DragonFS, using the "rom:/" prefix".</p>
+<p >The function needs to know where the DFS image is located within the cartridge space. To simplify this, you can pass <a class="el" href="group__dfs.html#ga1d81e04e879a844f4d733a3982bf85ee" title="Default filesystem location.">DFS_DEFAULT_LOCATION</a> which tells <a class="el" href="group__dfs.html#ga7ca0762367965bd8a6dbbe07b7ad3022" title="Initialize the filesystem.">dfs_init</a> to search for the DFS image by itself, using the rompak TOC (see <a class="el" href="rompak__internal_8h.html" title="ROM bundle support.">rompak_internal.h</a>). Most users should use this option.</p>
+<p >Otherwise, if the ROM cannot be built with a rompak TOC for some reason, a virtual address should be passed. This is normally 0xB0000000 + the offset used when building your ROM + the size of the header file used (typically 0x1000).</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in]</td><td class="paramname">base_fs_loc</td><td>Memory mapped location at which to find the filesystem. This is normally 0xB0000000 + the offset used when building your ROM + the size of the header file used.</td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">base_fs_loc</td><td>Virtual address in cartridge space at which to find the filesystem, or DFS_DEFAULT_LOCATION to automatically search for the filesystem in the cartridge (using the rompak).</td></tr>
   </table>
   </dd>
 </dl>
@@ -835,7 +837,7 @@ The offset within the filesystem where the file is stored. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue Feb 7 2023 09:42:43 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Feb 8 2023 21:36:07 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

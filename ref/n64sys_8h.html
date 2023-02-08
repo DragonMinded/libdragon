@@ -112,7 +112,7 @@ Macros</h2></td></tr>
 <tr class="memdesc:ga54fca3c0f8e1be138f320b3dcce4366f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the physical memory address for a given address.  <a href="group__n64sys.html#ga54fca3c0f8e1be138f320b3dcce4366f">More...</a><br /></td></tr>
 <tr class="separator:ga54fca3c0f8e1be138f320b3dcce4366f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gaa83770c8bb3d7811f16af764871ed75f"><td class="memItemLeft" align="right" valign="top">
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>HEAP_START_ADDR</b>&#160;&#160;&#160;((void*)<a class="el" href="group__n64sys.html#ga4e07cc711f6f6d1853ee441b43cb54cb">__rom_end</a>)</td></tr>
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>HEAP_START_ADDR</b>&#160;&#160;&#160;((void*)<a class="el" href="group__n64sys.html#gad07593be6cf1d4ebe605cbdb85f8956b">__bss_end</a>)</td></tr>
 <tr class="memdesc:gaa83770c8bb3d7811f16af764871ed75f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Void pointer to the start of heap memory. <br /></td></tr>
 <tr class="separator:gaa83770c8bb3d7811f16af764871ed75f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga56d4cbe1e093c683432a147eb1ccb293"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__n64sys.html#ga56d4cbe1e093c683432a147eb1ccb293">MEMORY_BARRIER</a>()&#160;&#160;&#160;asm volatile (&quot;&quot; : : : &quot;memory&quot;)</td></tr>
@@ -222,17 +222,25 @@ Variables</h2></td></tr>
 int&#160;</td><td class="memItemRight" valign="bottom"><b>__bbplayer</b></td></tr>
 <tr class="memdesc:gacd3b316e4428bf20c80fa403921feeb5"><td class="mdescLeft">&#160;</td><td class="mdescRight">Indicates whether we are running on a vanilla N64 or a iQue player. <br /></td></tr>
 <tr class="separator:gacd3b316e4428bf20c80fa403921feeb5"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaeee0500fc15a8edadab5e50494669416"><td class="memItemLeft" align="right" valign="top">
+char&#160;</td><td class="memItemRight" valign="bottom"><b>__libdragon_text_start</b> []</td></tr>
+<tr class="memdesc:gaeee0500fc15a8edadab5e50494669416"><td class="mdescLeft">&#160;</td><td class="mdescRight">Symbol at the start of code (start of ROM contents after header) <br /></td></tr>
+<tr class="separator:gaeee0500fc15a8edadab5e50494669416"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga4e07cc711f6f6d1853ee441b43cb54cb"><td class="memItemLeft" align="right" valign="top">
 char&#160;</td><td class="memItemRight" valign="bottom"><b>__rom_end</b> []</td></tr>
 <tr class="memdesc:ga4e07cc711f6f6d1853ee441b43cb54cb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Symbol at the end of code, data, and sdata (set by the linker) <br /></td></tr>
 <tr class="separator:ga4e07cc711f6f6d1853ee441b43cb54cb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gad07593be6cf1d4ebe605cbdb85f8956b"><td class="memItemLeft" align="right" valign="top">
+char&#160;</td><td class="memItemRight" valign="bottom"><b>__bss_end</b> []</td></tr>
+<tr class="memdesc:gad07593be6cf1d4ebe605cbdb85f8956b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Symbol at the end of code, data, sdata, and bss (set by the linker) <br /></td></tr>
+<tr class="separator:gad07593be6cf1d4ebe605cbdb85f8956b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p >N64 System Interface. </p>
 </div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue Feb 7 2023 09:42:43 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Feb 8 2023 21:36:07 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
