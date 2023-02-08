@@ -14,7 +14,7 @@ install: all
 
 .PHONY: clean
 clean:
-	rm -rf chksum64 ed64romconfig n64tool
+	rm -rf chksum64 ed64romconfig n64tool n64sym
 	$(MAKE) -C dumpdfs clean
 	$(MAKE) -C mkdfs clean
 	$(MAKE) -C mksprite clean
