@@ -1,6 +1,25 @@
 #ifndef __LIBDRAGON_BACKTRACE_INTERNAL_H
 #define __LIBDRAGON_BACKTRACE_INTERNAL_H
 
+/** @brief The "type" of funciton as categorized by the backtrace heuristic (__bt_analyze_func) */
+typedef enum {
+    BT_FUNCTION,                ///< Regular function with a stack frame
+    BT_FUNCTION_FRAMEPOINTER,   ///< The function uses the register fp as frame pointer (normally, this happens only when the function uses alloca)
+    BT_EXCEPTION,               ///< This is an exception handler (inthandler.S)
+    BT_LEAF                     ///< Leaf function (no calls), no stack frame allocated, sp/ra not modified
+} bt_func_type;
+
+/** @brief Description of a function for the purpose of backtracing (filled by __bt_analyze_func) */
+typedef struct {
+    bt_func_type type;       ///< Type of the function
+    int stack_size;          ///< Size of the stack frame
+    int ra_offset;           ///< Offset of the return address in the stack frame
+    int fp_offset;           ///< Offset of the saved fp in the stack frame; this is != 0 only if the function modifies fp (maybe as a frame pointer, but not necessarily)
+} bt_func_t;
+
+bool __bt_analyze_func(bt_func_t *func, uint32_t *ptr, uint32_t func_start, void *exception_ra);
+
+
 /**
  * @brief Return the symbol associated to a given address.
  * 

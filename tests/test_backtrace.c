@@ -12,6 +12,7 @@ int (*bt_invalid_func_ptr)(void) = (int(*)(void))0xEBEBEBEB;
 // Test functions defined in backtrace_test.S
 int btt_end(void)
 {
+    memset(bt_buf, 0, sizeof(bt_buf));
     bt_buf_len = backtrace(bt_buf, 32);
     return 0;
 }
@@ -150,7 +151,6 @@ void test_backtrace_invalidptr(TestContext *ctx)
     exception_handler_t prev = register_exception_handler(btt_crash_handler);
     DEFER(register_exception_handler(prev));
 
-    // bt_invalid_func_ptr = (int(*)(void))((uint32_t)btt_dummy + 1);
     btt_start(ctx, btt_h1, (const char*[]) {
         "btt_end", "btt_crash_handler", "__onCriticalException", "<EXCEPTION HANDLER>", "<INVALID ADDRESS>", "btt_h2", "btt_h1", "btt_start", NULL
     });

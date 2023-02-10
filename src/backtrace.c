@@ -84,7 +84,7 @@
 /** 
  * @brief Symbol table file header
  * 
- * The SYMT file is made of three main table:
+ * The SYMT file is made of three main tables:
  * 
  * * Address table: this is a sequence of 32-bit integers, each representing an address in the ROM.
  *   The table is sorted in ascending order to allow for binary search. Moreover, the lowest 2 bits
@@ -141,7 +141,7 @@ typedef uint32_t addrtable_entry_t;
 
 #define MIPS_OP_ADDIU_SP(op)   (((op) & 0xFFFF0000) == 0x27BD0000)   ///< Matches: addiu $sp, $sp, imm
 #define MIPS_OP_DADDIU_SP(op)  (((op) & 0xFFFF0000) == 0x67BD0000)   ///< Matches: daddiu $sp, $sp, imm
-#define MIPS_OP_JR_RA(op)      (((op) & 0xFFFF0000) == 0x03E00008)   ///< Matches: jr $ra
+#define MIPS_OP_JR_RA(op)      (((op) & 0xFFFFFFFF) == 0x03E00008)   ///< Matches: jr $ra
 #define MIPS_OP_SD_RA_SP(op)   (((op) & 0xFFFF0000) == 0xFFBF0000)   ///< Matches: sd $ra, imm($sp)
 #define MIPS_OP_SD_FP_SP(op)   (((op) & 0xFFFF0000) == 0xFFBE0000)   ///< Matches: sd $fp, imm($sp)
 #define MIPS_OP_LUI_GP(op)     (((op) & 0xFFFF0000) == 0x3C1C0000)   ///< Matches: lui $gp, imm
@@ -326,7 +326,95 @@ char* __symbolize(void *vaddr, char *buf, int size)
     return buf;
 }
 
-int backtrace(void **buffer, int size)
+/**
+ * @brief Analyze a function to find out its stack frame layout and properties (useful for backtracing).
+ * 
+ * This function implements the core heuristic used by the backtrace engine. It analyzes the actual
+ * code of a function in memory instruction by instruction, trying to find out whether the function
+ * uses a stack frame or not, whether it uses a frame pointer, and where the return address is stored.
+ * 
+ * Since we do not have DWARF informations or similar metadata, we can just do educated guesses. A
+ * mistake in the heuristic will result probably in a wrong backtrace from this point on. 
+ * 
+ * @param func                        Output function description structure
+ * @param ptr                         Pointer to the function code at the point where the backtrace starts.
+ *                                    This is normally the point where a JAL opcode is found, as we are walking
+ *                                    up the call stack.
+ * @param func_start                  Start of the function being analyzed. This is optional: the heuristic can work
+ *                                    without this hint, but it is useful in certain situations (eg: to better
+ *                                    walk up after an exception).
+ * @param exception_ra                If != NULL, this function was interrupted by an exception. This variable
+ *                                    stores the $ra register value as saved in the exception frame, that might be useful.
+ * 
+ * @return true if the backtrace can continue, false if must be aborted (eg: we are within invalid memory)
+ */
+bool __bt_analyze_func(bt_func_t *func, uint32_t *ptr, uint32_t func_start, void *exception_ra)
+{
+    *func = (bt_func_t){
+        .type = (ptr >= inthandler && ptr < inthandler_end) ? BT_EXCEPTION : BT_FUNCTION,
+        .stack_size = 0, .ra_offset = 0, .fp_offset = 0
+    };
+
+    uint32_t addr = (uint32_t)ptr;
+    while (1) {
+        // Validate that we can dereference the virtual address without raising an exception
+        // TODO: enhance this check with more valid ranges.
+        if (!is_valid_address(addr)) {
+            // This address is invalid, probably something is corrupted. Avoid looking further.
+            debugf("backtrace: interrupted because of invalid return address 0x%08lx\n", addr);
+            return false;
+        }
+        uint32_t op = *(uint32_t*)addr;
+        if (MIPS_OP_ADDIU_SP(op) || MIPS_OP_DADDIU_SP(op)) {
+            // Extract the stack size only from the start of the function, where the
+            // stack is allocated (negative value). This is important because the RA
+            // could point to a leaf basis block at the end of the function (like in the
+            // assert case), and if we picked the positive ADDIU SP at the end of the
+            // proper function body, we might miss a fp_offset.
+            if (op & 0x8000)
+                func->stack_size = -(int16_t)(op & 0xFFFF);
+        } else if (MIPS_OP_SD_RA_SP(op)) {
+            func->ra_offset = (int16_t)(op & 0xFFFF) + 4; // +4 = load low 32 bit of RA
+            // If we found a stack size, it might be a red herring (an alloca); we need one
+            // happening "just before" sd ra,xx(sp)
+            func->stack_size = 0;
+        } else if (MIPS_OP_SD_FP_SP(op)) {
+            func->fp_offset = (int16_t)(op & 0xFFFF) + 4; // +4 = load low 32 bit of FP
+        } else if (MIPS_OP_LUI_GP(op)) {
+            // Loading gp is commonly done in _start, so it's useless to go back more
+            return false;
+        } else if (MIPS_OP_MOVE_FP_SP(op)) {
+            // This function uses the frame pointer. Uses that as base of the stack.
+            // Even with -fomit-frame-pointer (default on our toolchain), the compiler
+            // still emits a framepointer for functions using a variable stack size
+            // (eg: using alloca() or VLAs).
+            func->type = BT_FUNCTION_FRAMEPOINTER;
+        } 
+        // We found the stack frame size and the offset of the return address in the stack frame
+        // We can stop looking and process the frame
+        if (func->stack_size != 0 && func->ra_offset != 0)
+            break;
+        if (exception_ra && addr == func_start) {
+            // The frame that was interrupted by an interrupt handler is a special case: the
+            // function could be a leaf function with no stack. If we were able to identify
+            // the function start (via the symbol table) and we reach it, it means that
+            // we are in a real leaf function.
+            func->type = BT_LEAF;
+            break;
+        } else if (exception_ra && !func_start && MIPS_OP_NOP(op) && (addr + 4) % FUNCTION_ALIGNMENT == 0) {
+            // If we are in the frame interrupted by an interrupt handler, and we does not know
+            // the start of the function (eg: no symbol table), then try to stop by looking for
+            // a NOP that pads between functions. Obviously the NOP we find can be either a false
+            // positive or a false negative, but we can't do any better without symbols.
+            func->type = BT_LEAF;
+            break;
+        }
+        addr -= 4;
+    }
+    return true;
+}
+
+static void backtrace_foreach(void (*cb)(void *arg, void *ptr), void *arg)
 {
     /*
      * This function is called in very risky contexts, for instance as part of an exception
@@ -339,6 +427,8 @@ int backtrace(void **buffer, int size)
      *  * Must avoid raising exceptions. Specifically, it must avoid risky memory accesses
      *    to wrong addresses.
      */
+
+    // Current value of SP/RA/FP registers.
     uint32_t *sp, *ra, *fp;
     asm volatile (
         "move %0, $ra\n"
@@ -351,116 +441,46 @@ int backtrace(void **buffer, int size)
     debugf("backtrace: start\n"); 
     #endif
 
-    int stack_size = 0, fp_offset = 0;
-    for (uint32_t *addr = (uint32_t*)backtrace; !stack_size; ++addr) {
-        uint32_t op = *addr;
-        if (MIPS_OP_ADDIU_SP(op) || MIPS_OP_DADDIU_SP(op))
-            stack_size = ABS((int16_t)(op & 0xFFFF));
-        else if (MIPS_OP_SD_FP_SP(op))
-            fp_offset = (int16_t)(op & 0xFFFF) + 4;
-        else if (MIPS_OP_MOVE_FP_SP(op)) {
-            debugf("backtrace: unsupported: backtrace() uses frame pointer\n");
-            return 0;
-        }
-        else if (MIPS_OP_JR_RA(op))
-            break;
-    }
+    uint32_t* exception_ra = NULL;      // If != NULL, 
+    uint32_t func_start = 0;            // Start of the current function (when known)
 
-    uint32_t* interrupt_ra = NULL; uint32_t interrupt_rafunc_addr = 0;
-    enum { BT_FUNCTION, BT_FUNCTION_FRAMEPOINTER, BT_EXCEPTION, BT_LEAF } bt_type;
+    // Start from the backtrace function itself. Put the start pointer somewhere after the initial
+    // prolog (eg: 64 instructions after start), so that we parse the prolog itself to find sp/fp/ra offsets.
+    ra = (uint32_t*)backtrace_foreach + 64;
 
-    if (fp_offset)
-        fp = (uint32_t*)((uint32_t)sp + fp_offset);
-    sp = (uint32_t*)((uint32_t)sp + stack_size);
-    ra -= 2;
-    for (int i=0; i<size; ++i) {
-        buffer[i] = ra;
-        bt_type = (ra >= inthandler && ra < inthandler_end) ? BT_EXCEPTION : BT_FUNCTION;
+    while (1) {
+        // Analyze the function pointed by ra, passing information about the previous exception frame if any.
+        // If the analysis fail (for invalid memory accesses), stop right away.
+        bt_func_t func; 
+        if (!__bt_analyze_func(&func, ra, func_start, exception_ra))
+            return;
 
-        uint32_t addr = (uint32_t)ra;
-        int ra_offset = 0, fp_offset = 0, stack_size = 0;
-        while (1) {
-            // Validate that we can dereference the virtual address without raising an exception
-            // TODO: enhance this check with more valid ranges.
-            if (!is_valid_address(addr)) {
-                // This address is invalid, probably something is corrupted. Avoid looking further.
-                debugf("backtrace: interrupted because of invalid return address 0x%08lx\n", addr);
-                return i+1;
-            }
-            uint32_t op = *(uint32_t*)addr;
-            if (MIPS_OP_ADDIU_SP(op) || MIPS_OP_DADDIU_SP(op)) {
-                // Extract the stack size only from the start of the function, where the
-                // stack is allocated (negative value). This is important because the RA
-                // could point to a leaf basis block at the end of the function (like in the
-                // assert case), and if we picked the positive ADDIU SP at the end of the
-                // proper function body, we might miss a fp_offset.
-                if (op & 0x8000)
-                    stack_size = -(int16_t)(op & 0xFFFF);
-            } else if (MIPS_OP_SD_RA_SP(op)) {
-                ra_offset = (int16_t)(op & 0xFFFF) + 4; // +4 = load low 32 bit of RA
-                // If we found a stack size, it might be a red herring (an alloca); we need one
-                // happening "just before" sd ra,xx(sp)
-                stack_size = 0;
-            } else if (MIPS_OP_SD_FP_SP(op)) {
-                fp_offset = (int16_t)(op & 0xFFFF) + 4; // +4 = load low 32 bit of FP
-            } else if (MIPS_OP_LUI_GP(op)) {
-                // Loading gp is commonly done in _start, so it's useless to go back more
-                return i+1;
-            } else if (MIPS_OP_MOVE_FP_SP(op)) {
-                // This function uses the frame pointer. Uses that as base of the stack.
-                // Even with -fomit-frame-pointer (default on our toolchain), the compiler
-                // still emits a framepointer for functions using a variable stack size
-                // (eg: using alloca() or VLAs).
-                bt_type = BT_FUNCTION_FRAMEPOINTER;
-			} 
-            // We found the stack frame size and the offset of the return address in the stack frame
-            // We can stop looking and process the frame
-            if (stack_size != 0 && ra_offset != 0)
-                break;
-            if (interrupt_ra && addr == interrupt_rafunc_addr) {
-                // The frame that was interrupted by an interrupt handler is a special case: the
-                // function could be a leaf function with no stack. If we were able to identify
-                // the function start (via the symbol table) and we reach it, it means that
-                // we are in a real leaf function.
-                bt_type = BT_LEAF;
-                break;
-            } else if (interrupt_ra && !interrupt_rafunc_addr && MIPS_OP_NOP(op) && (addr + 4) % FUNCTION_ALIGNMENT == 0) {
-                // If we are in the frame interrupted by an interrupt handler, and we does not know
-                // the start of the function (eg: no symbol table), then try to stop by looking for
-                // a NOP that pads between functions. Obviously the NOP we find can be either a false
-                // positive or a false negative, but we can't do any better without symbols.
-                bt_type = BT_LEAF;
-                break;
-            }
-            addr -= 4;
-        }
-        
         #if BACKTRACE_DEBUG
         debugf("backtrace: %s, ra=%p, sp=%p, fp=%p ra_offset=%d, fp_offset=%d, stack_size=%d\n", 
-            bt_type == BT_FUNCTION ? "BT_FUNCTION" : (bt_type == BT_EXCEPTION ? "BT_EXCEPTION" : (bt_type == BT_FUNCTION_FRAMEPOINTER ? "BT_FRAMEPOINTER" : "BT_LEAF")),
-            ra, sp, fp, ra_offset, fp_offset, stack_size);
+            func.type == BT_FUNCTION ? "BT_FUNCTION" : (func.type == BT_EXCEPTION ? "BT_EXCEPTION" : (func.type == BT_FUNCTION_FRAMEPOINTER ? "BT_FRAMEPOINTER" : "BT_LEAF")),
+            ra, sp, fp, func.ra_offset, func.fp_offset, func.stack_size);
         #endif
 
-        switch (bt_type) {
+        switch (func.type) {
             case BT_FUNCTION_FRAMEPOINTER:
-                if (!fp_offset) {
-                    debugf("backtrace: framepointer used but not saved onto stack at %p\n", buffer[i]);
+                if (!func.fp_offset) {
+                    debugf("backtrace: framepointer used but not saved onto stack at %p\n", ra);
                 } else {
                     // Use the frame pointer to refer to the current frame.
                     sp = fp;
                     if (!is_valid_address((uint32_t)sp)) {
                         debugf("backtrace: interrupted because of invalid frame pointer 0x%08lx\n", (uint32_t)sp);
-                        return i+1;
+                        return;
                     }
                 }
                 // FALLTHROUGH!
             case BT_FUNCTION:
-                if (fp_offset)
-                    fp = *(uint32_t**)((uint32_t)sp + fp_offset);
-                ra = *(uint32_t**)((uint32_t)sp + ra_offset) - 2;
-                sp = (uint32_t*)((uint32_t)sp + stack_size);
-                interrupt_ra = NULL;
-                interrupt_rafunc_addr = 0;
+                if (func.fp_offset)
+                    fp = *(uint32_t**)((uint32_t)sp + func.fp_offset);
+                ra = *(uint32_t**)((uint32_t)sp + func.ra_offset) - 2;
+                sp = (uint32_t*)((uint32_t)sp + func.stack_size);
+                exception_ra = NULL;
+                func_start = 0;
                 break;
             case BT_EXCEPTION: {
                 // Exception frame. We must return back to EPC, but let's keep the
@@ -469,14 +489,14 @@ int backtrace(void **buffer, int size)
                 // Notice that FP is a callee-saved register so we don't need to
                 // recover it from the exception frame (also, it isn't saved there
                 // during interrupts).
-                interrupt_ra = *(uint32_t**)((uint32_t)sp + ra_offset);
+                exception_ra = *(uint32_t**)((uint32_t)sp + func.ra_offset);
 
                 // Read EPC from exception frame and adjust it with CAUSE BD bit
                 ra = *(uint32_t**)((uint32_t)sp + offsetof(reg_block_t, epc) + 32);
                 uint32_t cause = *(uint32_t*)((uint32_t)sp + offsetof(reg_block_t, cr) + 32);
                 if (cause & C0_CAUSE_BD) ra++;
 
-                sp = (uint32_t*)((uint32_t)sp + stack_size);
+                sp = (uint32_t*)((uint32_t)sp + func.stack_size);
 
                 // Special case: if the exception is due to an invalid EPC
                 // (eg: a null function pointer call), we can rely on RA to get
@@ -488,51 +508,63 @@ int backtrace(void **buffer, int size)
                     
                     // Store the invalid address in the backtrace, so that it will appear in dumps.
                     // This makes it easier for the user to understand the reason for the exception.
-                    if (i < size-1) {
-                        buffer[++i] = ra;
-                        #if BACKTRACE_DEBUG
-                        debugf("backtrace: %s, ra=%p, sp=%p, fp=%p ra_offset=%d, fp_offset=%d, stack_size=%d\n", 
-                            "BT_INVALID", ra, sp, fp, ra_offset, fp_offset, stack_size);
-                        #endif
-                    }
-                    ra = interrupt_ra - 2;
+                    cb(arg, ra);
+                    #if BACKTRACE_DEBUG
+                    debugf("backtrace: %s, ra=%p, sp=%p, fp=%p ra_offset=%d, fp_offset=%d, stack_size=%d\n", 
+                        "BT_INVALID", ra, sp, fp, func.ra_offset, func.fp_offset, func.stack_size);
+                    #endif
+                    
+                    ra = exception_ra - 2;
 
                     // The function that jumped into an invalid PC was not interrupted by the exception: it
                     // is a regular function
                     // call now.
-                    interrupt_ra = NULL;
+                    exception_ra = NULL;
                     break;
                 }
 
                 // The next frame might be a leaf function, for which we will not be able
-                // to find a stack frame. Try to open the symbol table: if we find it,
-                // we can search for the start address of the function so that we know where to
-                // stop.
+                // to find a stack frame. It is useful to try finding the function start.
+                // Try to open the symbol table: if we find it, we can search for the start
+                // address of the function.
                 symtable_header_t symt = symt_open();
                 if (symt.head[0]) {
                     int idx;
                     addrtable_entry_t entry = symt_addrtab_search(&symt, (uint32_t)ra, &idx);
                     while (!ADDRENTRY_IS_FUNC(entry))
                         entry = symt_addrtab_entry(&symt, --idx);
-                    interrupt_rafunc_addr = ADDRENTRY_ADDR(entry);
+                    func_start = ADDRENTRY_ADDR(entry);
                     #if BACKTRACE_DEBUG
-                    debugf("Found interrupted function start address: %08lx\n", interrupt_rafunc_addr);
+                    debugf("Found interrupted function start address: %08lx\n", func_start);
                     #endif
                 }
             }   break;
             case BT_LEAF:
-                ra = interrupt_ra - 2;
+                ra = exception_ra - 2;
                 // A leaf function has no stack. On the other hand, an exception happening at the
                 // beginning of a standard function (before RA is saved), does have a stack but
                 // will be marked as a leaf function. In this case, we mus update the stack pointer.
-                sp = (uint32_t*)((uint32_t)sp + stack_size);
-                interrupt_ra = NULL;
-                interrupt_rafunc_addr = 0;
+                sp = (uint32_t*)((uint32_t)sp + func.stack_size);
+                exception_ra = NULL;
+                func_start = 0;
                 break;
         }
-    }
 
-	return size;
+        // Call the callback with this stack frame
+        cb(arg, ra);
+    }
+}
+
+int backtrace(void **buffer, int size)
+{
+    int i = -1; // skip backtrace itself
+    void cb(void *arg, void *ptr) {
+        if (i >= 0 && i < size)
+            buffer[i] = ptr;
+        i++;
+    }
+    backtrace_foreach(cb, NULL);
+    return i;
 }
 
 static void format_entry(void (*cb)(void *, backtrace_frame_t *), void *cb_arg, 
