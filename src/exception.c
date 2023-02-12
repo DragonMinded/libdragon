@@ -65,9 +65,11 @@ extern volatile reg_block_t __baseRegAddr;
  * @param[in] cb
  *            Callback function to call when exceptions happen
  */
-void register_exception_handler( void (*cb)(exception_t*))
+exception_handler_t register_exception_handler( exception_handler_t cb )
 {
+	exception_handler_t old = __exception_handler;
 	__exception_handler = cb;
+	return old;
 }
 
 /**

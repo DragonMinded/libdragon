@@ -111,7 +111,17 @@ typedef struct
 extern "C" {
 #endif
 
-void register_exception_handler( void (*cb)(exception_t *) );
+/** 
+ * @brief Generic exception handler
+ * 
+ * This is the type of a handler that can be registered using #register_exception_handler.
+ * It is associated to all unhandled exceptions that are not otherwise handled by libdragon.
+ * 
+ * @param exc Exception information
+ */
+typedef void (*exception_handler_t)(exception_t *exc);
+
+exception_handler_t register_exception_handler( exception_handler_t cb );
 void exception_default_handler( exception_t* ex );
 
 #ifdef __cplusplus
