@@ -9,9 +9,12 @@
 
 #include "regs.S"
 
-	.p2align 5
-inthandler:
 	.global inthandler
+	.global inthandler_end
+
+	.p2align 5
+	.func inthandler
+inthandler:
 
 	.set noat
 	.set noreorder
@@ -377,7 +380,8 @@ save_fpu_regs:
 	sdc1 $f19,(STACK_FPR+19*8)(a0)
 	jr ra
 	nop
-
+inthandler_end:
+	.endfunc
 
 	.section .bss
 	.p2align 2
