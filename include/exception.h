@@ -105,21 +105,6 @@ typedef struct
     volatile reg_block_t* regs;
 } exception_t;
 
-
-/** 
- * @brief Guaranteed length of the reset time.
- * 
- * This is the guaranteed length of the reset time, that is the time
- * that goes between the user pressing the reset button, and the CPU actually
- * resetting. See #exception_reset_time for more details.
- * 
- * @note The general knowledge about this is that the reset time should be
- *       500 ms. Testing on different consoles show that, while most seem to
- *       reset after 500 ms, a few EU models reset after 200ms. So we define
- *       the timer shorter for greater compatibility.
- */
-#define RESET_TIME_LENGTH      TICKS_FROM_MS(200)
-
 /** @} */
 
 #ifdef __cplusplus
@@ -128,9 +113,6 @@ extern "C" {
 
 void register_exception_handler( void (*cb)(exception_t *) );
 void exception_default_handler( exception_t* ex );
-
-void register_reset_handler( void (*cb)(void) );
-uint32_t exception_reset_time( void );
 
 #ifdef __cplusplus
 }
