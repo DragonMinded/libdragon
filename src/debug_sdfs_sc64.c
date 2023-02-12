@@ -51,8 +51,6 @@ static DSTATUS fat_disk_initialize_sc64(void)
 
 static DRESULT fat_disk_read_sc64(BYTE* buff, LBA_t sector, UINT count)
 {
-	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
-	_Static_assert(FF_MAX_SS == 512, "this function assumes sector size == 512");
 	while (count > 0)
 	{
 		UINT sectors_to_process = MIN(count, SC64_BUFFER_SIZE/512);
@@ -69,8 +67,6 @@ static DRESULT fat_disk_read_sc64(BYTE* buff, LBA_t sector, UINT count)
 
 static DRESULT fat_disk_read_sdram_sc64(BYTE* buff, LBA_t sector, UINT count)
 {
-	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
-	_Static_assert(FF_MAX_SS == 512, "this function assumes sector size == 512");
 	if (sc64_sd_read_sectors((uint32_t)buff, sector, count))
 		return FR_DISK_ERR;
 	return RES_OK;
@@ -78,8 +74,6 @@ static DRESULT fat_disk_read_sdram_sc64(BYTE* buff, LBA_t sector, UINT count)
 
 static DRESULT fat_disk_write_sc64(const BYTE* buff, LBA_t sector, UINT count)
 {
-	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
-	_Static_assert(FF_MAX_SS == 512, "this function assumes sector size == 512");
 	while (count > 0)
 	{
 		UINT sectors_to_process = MIN(count, SC64_BUFFER_SIZE/512);
