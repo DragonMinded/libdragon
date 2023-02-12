@@ -5,11 +5,16 @@ all: testrom.z64 testrom_emu.z64
 
 $(BUILD_DIR)/testrom.dfs: $(wildcard filesystem/*)
 
-$(BUILD_DIR)/testrom.elf: $(BUILD_DIR)/testrom.o $(BUILD_DIR)/test_constructors_cpp.o $(BUILD_DIR)/rsp_test.o $(BUILD_DIR)/rsp_test2.o
+OBJS = $(BUILD_DIR)/test_constructors_cpp.o \
+	   $(BUILD_DIR)/rsp_test.o \
+	   $(BUILD_DIR)/rsp_test2.o \
+	   $(BUILD_DIR)/backtrace.o \
+
+$(BUILD_DIR)/testrom.elf: $(BUILD_DIR)/testrom.o $(OBJS)
 testrom.z64: N64_ROM_TITLE="Libdragon Test ROM"
 testrom.z64: $(BUILD_DIR)/testrom.dfs
 
-$(BUILD_DIR)/testrom_emu.elf: $(BUILD_DIR)/testrom_emu.o $(BUILD_DIR)/test_constructors_cpp.o $(BUILD_DIR)/rsp_test.o $(BUILD_DIR)/rsp_test2.o
+$(BUILD_DIR)/testrom_emu.elf: $(BUILD_DIR)/testrom_emu.o $(OBJS)
 testrom_emu.z64: N64_ROM_TITLE="Libdragon Test ROM"
 testrom_emu.z64: $(BUILD_DIR)/testrom.dfs
 

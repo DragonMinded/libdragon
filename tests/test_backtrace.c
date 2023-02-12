@@ -1,4 +1,5 @@
 #include "backtrace.h"
+#include "../src/backtrace_internal.h"
 #include <alloca.h>
 
 #define NOINLINE static __attribute__((noinline,used))
@@ -154,4 +155,50 @@ void test_backtrace_invalidptr(TestContext *ctx)
     btt_start(ctx, btt_h1, (const char*[]) {
         "btt_end", "btt_crash_handler", "__onCriticalException", "<EXCEPTION HANDLER>", "<INVALID ADDRESS>", "btt_h2", "btt_h1", "btt_start", NULL
     });
+}
+
+void test_backtrace_analyze(TestContext *ctx)
+{
+    bt_func_t func; bool ret;
+    uint32_t* exception_ra = (uint32_t*)(0x8000CCCC);
+
+    extern uint32_t test_bt_1_start[];
+    ret = __bt_analyze_func(&func, test_bt_1_start, 0, NULL);
+    ASSERT(ret, "bt_analyze failed");
+    ASSERT_EQUAL_UNSIGNED(func.type, BT_FUNCTION, "invalid function type");
+    ASSERT_EQUAL_UNSIGNED(func.stack_size, 112, "invalid stack size");
+    ASSERT_EQUAL_UNSIGNED(func.ra_offset, 104+4, "invalid RA offset");
+    ASSERT_EQUAL_UNSIGNED(func.fp_offset, 96+4, "invalid FP offset");
+
+    extern uint32_t test_bt_2_start[];
+    ret = __bt_analyze_func(&func, test_bt_2_start, 0, NULL);
+    ASSERT(ret, "bt_analyze failed");
+    ASSERT_EQUAL_UNSIGNED(func.type, BT_FUNCTION_FRAMEPOINTER, "invalid function type");
+    ASSERT_EQUAL_UNSIGNED(func.stack_size, 128, "invalid stack size");
+    ASSERT_EQUAL_UNSIGNED(func.ra_offset, 120+4, "invalid RA offset");
+    ASSERT_EQUAL_UNSIGNED(func.fp_offset, 112+4, "invalid FP offset");
+
+    extern uint32_t test_bt_3_start[];
+    ret = __bt_analyze_func(&func, test_bt_3_start, 0, NULL);
+    ASSERT(ret, "bt_analyze failed");
+    ASSERT_EQUAL_UNSIGNED(func.type, BT_FUNCTION, "invalid function type");
+    ASSERT_EQUAL_UNSIGNED(func.stack_size, 80, "invalid stack size");
+    ASSERT_EQUAL_UNSIGNED(func.ra_offset, 20+4, "invalid RA offset");
+    ASSERT_EQUAL_UNSIGNED(func.fp_offset, 16+4, "invalid FP offset");
+
+    extern uint32_t test_bt_4_start[];
+    ret = __bt_analyze_func(&func, test_bt_4_start, 0, exception_ra);
+    ASSERT(ret, "bt_analyze failed");
+    ASSERT_EQUAL_UNSIGNED(func.type, BT_LEAF, "invalid function type");
+    ASSERT_EQUAL_UNSIGNED(func.stack_size, 0, "invalid stack size");
+    ASSERT_EQUAL_UNSIGNED(func.ra_offset, 0, "invalid RA offset");
+    ASSERT_EQUAL_UNSIGNED(func.fp_offset, 0, "invalid FP offset");
+
+    extern uint32_t test_bt_5_start[], test_bt_5[];
+    ret = __bt_analyze_func(&func, test_bt_5_start, (uint32_t)test_bt_5, exception_ra);
+    ASSERT(ret, "bt_analyze failed");
+    ASSERT_EQUAL_UNSIGNED(func.type, BT_LEAF, "invalid function type");
+    ASSERT_EQUAL_UNSIGNED(func.stack_size, 0, "invalid stack size");
+    ASSERT_EQUAL_UNSIGNED(func.ra_offset, 0, "invalid RA offset");
+    ASSERT_EQUAL_UNSIGNED(func.fp_offset, 0, "invalid FP offset");
 }
