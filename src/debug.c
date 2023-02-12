@@ -17,6 +17,7 @@
 #include "n64types.h"
 #include "n64sys.h"
 #include "dma.h"
+#include "backtrace.h"
 #include "usb.h"
 #include "utils.h"
 #include "fatfs/ff.h"
@@ -74,6 +75,8 @@ static char sdfs_logic_drive[3] = { 0 };
 /** @brief debug writer functions (USB, SD, IS64) */
 static void (*debug_writer[3])(const uint8_t *buf, int size) = { 0 };
 
+/** @brief internal backtrace printing function */
+void __debug_backtrace(FILE *out, bool skip_exception);
 
 /*********************************************************************
  * Log writers
@@ -633,4 +636,29 @@ void debug_hexdump(const void *vbuf, int size)
             debugf("|\n");
         }
     }
+}
+
+void __debug_backtrace(FILE *out, bool skip_exception)
+{
+	void *bt[32];
+	int n = backtrace(bt, 32);
+
+	fprintf(out, "Backtrace:\n");
+	void cb(void *data, backtrace_frame_t *frame)
+	{
+		if (skip_exception) {
+			skip_exception = strstr(frame->func, "<EXCEPTION HANDLER>") == NULL;
+			return;
+		}
+		FILE *out = (FILE *)data;
+		fprintf(out, "    ");
+		backtrace_frame_print(frame, out);
+		fprintf(out, "\n");
+	}
+	backtrace_symbols_cb(bt, n, 0, cb, out);
+}
+
+void debug_backtrace(void)
+{
+	__debug_backtrace(stderr, false);
 }
