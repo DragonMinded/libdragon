@@ -39,9 +39,6 @@ static void sd_abort_64drive(void)
 
 static DRESULT fat_disk_read_sdram_64drive(BYTE* buff, LBA_t sector, UINT count)
 {
-	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
-	_Static_assert(FF_MAX_SS == 512, "this function assumes sector size == 512");
-
 	usb_64drive_wait();
 	io_write(D64_CIBASE_ADDRESS + D64_REGISTER_LBA, sector);
 	usb_64drive_wait();
@@ -61,9 +58,6 @@ static DRESULT fat_disk_read_sdram_64drive(BYTE* buff, LBA_t sector, UINT count)
 
 static DRESULT fat_disk_read_64drive(BYTE* buff, LBA_t sector, UINT count)
 {
-	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
-	_Static_assert(FF_MAX_SS == 512, "this function assumes sector size == 512");
-
 	usb_64drive_wait();
 	io_write(D64_CIBASE_ADDRESS + D64_REGISTER_LENGTH, 1);
 	for (int i=0;i<count;i++)
@@ -88,9 +82,6 @@ static DRESULT fat_disk_read_64drive(BYTE* buff, LBA_t sector, UINT count)
 
 static DRESULT fat_disk_write_64drive(const BYTE* buff, LBA_t sector, UINT count)
 {
-	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
-	_Static_assert(FF_MAX_SS == 512, "this function assumes sector size == 512");
-
 	usb_64drive_wait();
 	io_write(D64_CIBASE_ADDRESS + D64_REGISTER_LENGTH, 1);
 	for (int i=0;i<count;i++)
