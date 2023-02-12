@@ -1,10 +1,10 @@
 INSTALLDIR ?= $(N64_INST)
 
-all: chksum64 dumpdfs ed64romconfig mkdfs mksprite n64tool audioconv64
+all: chksum64 dumpdfs ed64romconfig mkdfs mksprite n64tool n64sym audioconv64
 
 .PHONY: install
-install: chksum64 ed64romconfig n64tool audioconv64
-	install -m 0755 chksum64 ed64romconfig n64tool $(INSTALLDIR)/bin
+install: all
+	install -m 0755 chksum64 ed64romconfig n64tool n64sym $(INSTALLDIR)/bin
 	$(MAKE) -C dumpdfs install
 	$(MAKE) -C mkdfs install
 	$(MAKE) -C mksprite install
@@ -12,7 +12,7 @@ install: chksum64 ed64romconfig n64tool audioconv64
 
 .PHONY: clean
 clean:
-	rm -rf chksum64 ed64romconfig n64tool
+	rm -rf chksum64 ed64romconfig n64tool n64sym
 	$(MAKE) -C dumpdfs clean
 	$(MAKE) -C mkdfs clean
 	$(MAKE) -C mksprite clean
@@ -23,6 +23,9 @@ chksum64: chksum64.c
 
 n64tool: n64tool.c
 	gcc -o n64tool n64tool.c
+
+n64sym: n64sym.c
+	gcc -O2 -o n64sym n64sym.c
 
 ed64romconfig: ed64romconfig.c
 	gcc -o ed64romconfig ed64romconfig.c
