@@ -17,7 +17,8 @@ ctest-clean:
 	$(MAKE) -C ctest clean
 
 dfsdemo:
-	$(MAKE) -C dfsdemo
+#	Commented for now, because it requires mikmod
+#	$(MAKE) -C dfsdemo
 dfsdemo-clean:
 	$(MAKE) -C dfsdemo clean
 
