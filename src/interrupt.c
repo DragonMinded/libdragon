@@ -162,6 +162,14 @@ struct callback_link * TI_callback = 0;
 /** @brief Linked list of CART callbacks */
 struct callback_link * CART_callback = 0;
 
+/** @brief Maximum number of reset handlers that can be registered. */
+#define MAX_RESET_HANDLERS 4
+
+/** @brief Pre-NMI exception handlers */
+static void (*__prenmi_handlers[MAX_RESET_HANDLERS])(void);
+/** @brief Tick at which the pre-NMI was triggered */
+static uint32_t __prenmi_tick;
+
 static int last_cart_interrupt_count = 0;
 
 /** 
@@ -343,6 +351,30 @@ void __CART_handler(void)
     #endif
 }
 
+
+/**
+ * @brief Handle a RESET (pre-NMI) interrupt.
+ * 
+ * Calls the handlers registered by #register_RESET_handler.
+ */
+void __RESET_handler( void )
+{
+	/* This function will be called many times because there is no way
+	   to acknowledge the pre-NMI interrupt. So make sure it does nothing
+	   after the first call. */
+	if (__prenmi_tick) return;
+
+	/* Store the tick at which we saw the exception. Make sure
+	 * we never store 0 as we use that for "no reset happened". */
+	__prenmi_tick = TICKS_READ() | 1;
+
+	/* Call the registered handlers. */
+	for (int i=0;i<MAX_RESET_HANDLERS;i++)
+	{
+		if (__prenmi_handlers[i])
+			__prenmi_handlers[i]();
+	}
+}
 
 /**
  * @brief Register an AI callback
@@ -548,6 +580,65 @@ void unregister_CART_handler( void (*callback)() )
     __unregister_callback(&CART_callback,callback);
 }
 
+/**
+ * @brief Register a handler that will be called when the user
+ *        presses the RESET button. 
+ * 
+ * The N64 sends an interrupt when the RESET button is pressed,
+ * and then actually resets the console after about ~500ms (but less
+ * on some models, see #RESET_TIME_LENGTH).
+ * 
+ * Registering a handler can be used to perform a clean reset.
+ * Technically, at the hardware level, it is important that the RCP
+ * is completely idle when the reset happens, or it might freeze
+ * and require a power-cycle to unfreeze. This means that any
+ * I/O, audio, video activity must cease before #RESET_TIME_LENGTH
+ * has elapsed.
+ * 
+ * This entry point can be used by the game code to basically
+ * halts itself and stops issuing commands. Libdragon itself will
+ * register handlers to halt internal modules so to provide a basic
+ * good reset experience.
+ * 
+ * Handlers can use #exception_reset_time to read how much has passed
+ * since the RESET button was pressed.
+ * 
+ * @param callback    Callback to invoke when the reset button is pressed.
+ * 
+ * @note  Reset handlers are called under interrupt.
+ * 
+ */
+void register_RESET_handler( void (*callback)() )
+{
+	for (int i=0;i<MAX_RESET_HANDLERS;i++)
+	{		
+		if (!__prenmi_handlers[i])
+		{
+			__prenmi_handlers[i] = callback;
+			return;
+		}
+	}
+	assertf(0, "Too many pre-NMI handlers\n");
+}
+
+/**
+ * @brief Unregister a RESET interrupt callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on RESET interrupts
+ */
+void unregister_RESET_handler( void (*callback)() )
+{
+    for (int i=0;i<MAX_RESET_HANDLERS;i++)
+    {		
+        if (__prenmi_handlers[i] == callback)
+        {
+            __prenmi_handlers[i] = NULL;
+            return;
+        }
+    }
+    assertf(0, "Reset handler not found\n");
+}
 
 /**
  * @brief Enable or disable the AI interrupt
@@ -723,6 +814,28 @@ void set_CART_interrupt(int active)
     }
 }
 
+/**
+ * @brief Enable the RESET interrupt
+ * 
+ * @param[in] active
+ *            Flag to specify whether the RESET interrupt should be active
+ * 
+ * @note RESET interrupt is active by default.
+ * 
+ * @see #register_RESET_handler
+ */
+void set_RESET_interrupt(int active)
+{
+    if( active )
+    {
+        C0_WRITE_STATUS(C0_STATUS() | C0_INTERRUPT_PRENMI);
+    }
+    else
+    {
+        C0_WRITE_STATUS(C0_STATUS() & ~C0_INTERRUPT_PRENMI);
+    }
+}
+
 
 /**
  * @brief Initialize the interrupt controller
@@ -830,5 +943,42 @@ interrupt_state_t get_interrupts_state()
         return INTERRUPTS_DISABLED;
     }
 }
+
+
+/** 
+ * @brief Check whether the RESET button was pressed and how long we are into
+ *        the reset process.
+ * 
+ * This function returns how many ticks have elapsed since the user has pressed
+ * the RESET button, or 0 if the user has not pressed it.
+ * 
+ * It can be used by user code to perform actions during the RESET
+ * process (see #register_RESET_handler). It is also possible to simply
+ * poll this value to check at any time if the button has been pressed or not.
+ * 
+ * The reset process takes about 500ms between the user pressing the
+ * RESET button and the CPU being actually reset, though on some consoles
+ * it seems to be much less. See #RESET_TIME_LENGTH for more information.
+ * For the broadest compatibility, please use #RESET_TIME_LENGTH to implement
+ * the reset logic.
+ * 
+ * Notice also that the reset process is initiated when the user presses the
+ * button, but the reset will not happen until the user releases the button.
+ * So keeping the button pressed is a good way to check if the application
+ * actually winds down correctly.
+ * 
+ * @return Ticks elapsed since RESET button was pressed, or 0 if the RESET button
+ *         was not pressed.
+ * 
+ * @see register_RESET_handler
+ * @see #RESET_TIME_LENGTH
+ */
+uint32_t exception_reset_time( void )
+{
+	if (!__prenmi_tick) return 0;
+	return TICKS_SINCE(__prenmi_tick);
+}
+
+
 
 /** @} */
