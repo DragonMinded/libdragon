@@ -23,7 +23,9 @@ enum
     /** @brief Reset exception */
     EXCEPTION_TYPE_RESET,
     /** @brief Critical exception */
-    EXCEPTION_TYPE_CRITICAL
+    EXCEPTION_TYPE_CRITICAL,
+    /** @brief Syscall exception*/
+    EXCEPTION_TYPE_SYSCALL,
 };
 
 /**
@@ -121,8 +123,20 @@ extern "C" {
  */
 typedef void (*exception_handler_t)(exception_t *exc);
 
+/** 
+ * @brief Syscall handler
+ * 
+ * This is the type of a handler of a syscall exception.
+ * 
+ * @param exc Exception information
+ * @param code Syscall code
+ */
+typedef void (*syscall_handler_t)(exception_t *exc, uint32_t code);
+
 exception_handler_t register_exception_handler( exception_handler_t cb );
 void exception_default_handler( exception_t* ex );
+
+void register_syscall_handler( syscall_handler_t cb, uint32_t first_code, uint32_t last_code );
 
 #ifdef __cplusplus
 }
