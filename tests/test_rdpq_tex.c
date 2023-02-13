@@ -136,7 +136,7 @@ void test_rdpq_tex_load(TestContext *ctx) {
         tlut[i] = color_to_packed16(palette_debug_color(i));
     }
 
-    rdpq_attach(&fb);
+    rdpq_attach(&fb, NULL);
     DEFER(rdpq_detach());
     rdpq_set_mode_standard();
 

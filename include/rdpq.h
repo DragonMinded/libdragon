@@ -952,6 +952,10 @@ inline void rdpq_set_env_color(color_t color)
  * If you have a raw pointer instead of a #surface_t, you can use #surface_make to create
  * a temporary surface structure to pass the information to #rdpq_set_color_image.
  * 
+ * If the passed surface is NULL, rdpq will be detached from the render target. If
+ * a drawing command is issued without a render target, it will be silently
+ * ignored (but the validator will flag it as an error).
+ * 
  * The only valid formats for a surface to be used as a render target are: #FMT_RGBA16,
  * #FMT_RGBA32, and #FMT_I8.
  *
@@ -970,6 +974,10 @@ void rdpq_set_color_image(const surface_t *surface);
  * The surface must have the same width and height of the surface set as render target
  * (via #rdpq_set_color_image or #rdpq_set_color_image_raw). The color format should be
  * FMT_RGBA16, even though Z values will be written to it.
+ * 
+ * If the passed surface is NULL, rdpq will be detached from the Z buffer. If
+ * a drawing command using Z is issued without a Z buffer, the behaviour will be
+ * undefined (but the validator will flag it as an error).
  * 
  * @param surface      Surface to set as Z buffer
  * 
@@ -1026,8 +1034,8 @@ inline void rdpq_set_color_image_raw(uint8_t index, uint32_t offset, tex_format_
 
     extern void __rdpq_set_color_image(uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_set_color_image(
-        _carg(format, 0x1F, 19) | _carg(TEX_FORMAT_BYTES2PIX(format, stride)-1, 0x3FF, 0),
-        _carg(index, 0xF, 28) | (offset & 0xFFFFFF),
+        _carg(format, 0x1F, 19) | _carg(TEX_FORMAT_BYTES2PIX(format, stride)-1, 0x3FF, 0) | _carg(height-1, 0x1FF, 10),
+        _carg(index, 0xF, 28) | (offset & 0xFFFFFF) | _carg((height-1)>>9, 0x1, 31),
         _carg(0, 0xFFF, 12) | _carg(0, 0xFFF, 0),                 // for set_scissor
         _carg(width*4, 0xFFF, 12) | _carg(height*4, 0xFFF, 0));   // for set_scissor
 }

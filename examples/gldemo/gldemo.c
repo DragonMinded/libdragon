@@ -143,7 +143,7 @@ void render()
         }
     }
 
-    rdpq_attach(disp);
+    rdpq_attach(disp, NULL);
 
     gl_context_begin();
 

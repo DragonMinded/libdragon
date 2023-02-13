@@ -912,8 +912,8 @@ void __rdpq_set_fill_color(uint32_t w1)
 __attribute__((noinline))
 void __rdpq_set_color_image(uint32_t w0, uint32_t w1, uint32_t sw0, uint32_t sw1)
 {
-    // SET_COLOR_IMAGE on RSP always generates an additional SET_SCISSOR, so make sure there is
-    // space for it in case of a static buffer (in a block).
+    // SET_COLOR_IMAGE on RSP always generates an additional SET_FILL_COLOR,
+    // so make sure there is space for it in case of a static buffer (in a block).
     __rdpq_autosync_change(AUTOSYNC_PIPE);
     rdpq_fixup_write(
         (RDPQ_CMD_SET_COLOR_IMAGE, w0, w1), // RSP
@@ -926,6 +926,16 @@ void __rdpq_set_color_image(uint32_t w0, uint32_t w1, uint32_t sw0, uint32_t sw1
 
 void rdpq_set_color_image(const surface_t *surface)
 {
+    if (__builtin_expect(!surface, 0)) {
+        // If a NULL surface is provided, point RDP to invalid memory (>8Mb),
+        // so that nothing is drawn. Also force scissoring rect to zero as additional
+        // safeguard.
+        uint32_t cfg = rdpq_config_disable(RDPQ_CFG_AUTOSCISSOR);
+        rdpq_set_color_image_raw(0, RDPQ_VALIDATE_DETACH_ADDR, FMT_I8, 8, 8, 8);
+        rdpq_config_set(cfg);
+        rdpq_set_scissor(0, 0, 0, 0);
+        return;
+    }
     assertf((PhysicalAddr(surface->buffer) & 63) == 0,
         "buffer pointer is not aligned to 64 bytes, so it cannot be used as RDP color image");
     rdpq_set_color_image_raw(0, PhysicalAddr(surface->buffer), 
@@ -934,6 +944,11 @@ void rdpq_set_color_image(const surface_t *surface)
 
 void rdpq_set_z_image(const surface_t *surface)
 {
+    if (__builtin_expect(!surface, 0)) {
+        // If a NULL surface is provided, point RDP to invalid memory (>8Mb).
+        rdpq_set_z_image_raw(0, RDPQ_VALIDATE_DETACH_ADDR);
+        return;
+    }
     assertf(surface_get_format(surface) == FMT_RGBA16, "the format of the Z-buffer surface must be RGBA16");
     assertf((PhysicalAddr(surface->buffer) & 63) == 0,
         "buffer pointer is not aligned to 64 bytes, so it cannot be used as RDP Z image");

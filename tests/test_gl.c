@@ -9,7 +9,7 @@
     DEFER(surface_free(&test_surf)); \
     gl_init(); \
     DEFER(gl_close()); \
-    rdpq_attach(&test_surf); \
+    rdpq_attach(&test_surf, NULL); \
     DEFER(rdpq_detach_wait()); \
     gl_context_begin(); \
     DEFER(gl_context_end());

@@ -126,6 +126,7 @@ static struct {
         bool sent_scissor : 1;               ///< True if at least one SET_SCISSOR was sent since reset
         bool sent_zprim : 1;                 ///< True if SET_PRIM_DEPTH was sent
         bool mode_changed : 1;               ///< True if there is a pending mode change to validate (SET_OTHER_MODES / SET_COMBINE)
+        bool rendertarget_changed : 1;       ///< True if there is a pending render target change to validate (SET_COLOR_IMAGE / SET_SCISSOR)
     };
     uint64_t *last_som;                  ///< Pointer to last SOM command sent
     uint64_t last_som_data;              ///< Last SOM command (raw)
@@ -135,6 +136,8 @@ static struct {
     uint64_t last_col_data;              ///< Last COLOR command (raw)
     uint64_t *last_tex;                  ///< Pointer to last SET_TEX_IMAGE command sent
     uint64_t last_tex_data;              ///< Last TEX command (raw)
+    uint64_t *last_z;                    ///< Pointer to last SET_Z_IMAGE command sent
+    uint64_t last_z_data;                ///< Last Z command (raw)
     setothermodes_t som;                 ///< Current SOM state
     colorcombiner_t cc;                  ///< Current CC state
     struct tile_s { 
@@ -147,11 +150,15 @@ static struct {
     } tile[8];                           ///< Current tile descriptors
     struct {
         uint8_t fmt, size;                 ///< Format & size (RDP format/size bits)
+        uint16_t width, height;            ///< Dimensions of the color image
     } col;                               ///< Current associated color image
     struct {
         uint32_t physaddr;                 ///< Physical address of the texture
         uint8_t fmt, size;                 ///< Format & size (RDP format/size bits)
     } tex;                               ///< Current associated texture image
+    struct {
+        uint16_t x0,y0,x1,y1;              ///< Scissor extents
+    } clip;                              ///< Current scissor extents
 } rdp;
 
 /**
@@ -682,13 +689,26 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
         }
         return;
     }
-    case 0x3e: fprintf(out, "SET_Z_IMAGE      dram=%08x\n", BITS(buf[0], 0, 25)); return;
+    case 0x3e: {
+        fprintf(out, "SET_Z_IMAGE      ");
+        uint32_t addr = BITS(buf[0], 0, 25);
+        if (addr == RDPQ_VALIDATE_DETACH_ADDR) fprintf(out, "<detach>\n");
+        else fprintf(out, "dram=%08" PRIx32 "\n", addr);
+    }   return;
     case 0x3d: fprintf(out, "SET_TEX_IMAGE    dram=%08x w=%d %s%s\n", 
         BITS(buf[0], 0, 25), BITS(buf[0], 32, 41)+1, fmt[BITS(buf[0], 53, 55)], size[BITS(buf[0], 51, 52)]);
         return;
-    case 0x3f: fprintf(out, "SET_COLOR_IMAGE  dram=%08x w=%d %s%s\n", 
-        BITS(buf[0], 0, 25), BITS(buf[0], 32, 41)+1, fmt[BITS(buf[0], 53, 55)], size[BITS(buf[0], 51, 52)]);
-        return;
+    case 0x3f: {
+        fprintf(out, "SET_COLOR_IMAGE  ");
+        uint32_t addr = BITS(buf[0], 0, 25);
+        if (addr == RDPQ_VALIDATE_DETACH_ADDR) fprintf(out, "<detach>\n");
+        else {
+            fprintf(out, "dram=%08" PRIx32 " w=%d ", addr, BITS(buf[0], 32, 41)+1);        
+            int height = BITS(buf[0], 42, 50) | (BIT(buf[0], 31) << 9);
+            if (height) fprintf(out, "h=%d ", height+1); // libdragon extension
+            fprintf(out, "%s%s\n", fmt[BITS(buf[0], 53, 55)], size[BITS(buf[0], 51, 52)]);
+        }
+    }   return;
     case 0x31: switch(BITS(buf[0], 48, 55)) {
         case 0x01: fprintf(out, "RDPQ_SHOWLOG     show=%d\n", BIT(buf[0], 0)); return;
         #ifdef N64
@@ -839,6 +859,35 @@ static void validate_emit_error(int flags, const char *msg, ...)
 /** @brief Validate and trigger a warning, with SET_TEX_IMAGE context */
 #define VALIDATE_WARN_TEX(cond, msg, ...)  __VALIDATE(18, cond, msg, ##__VA_ARGS__)
 
+/** 
+ * @brief Perform lazy evaluation of render target changes (color buffer and scissoring).
+ */
+static void lazy_validate_rendertarget(void) {
+    if (!rdp.rendertarget_changed) return;
+    rdp.rendertarget_changed = false;
+
+    VALIDATE_ERR(rdp.last_col,
+        "undefined behavior: drawing command before a SET_COLOR_IMAGE was sent");
+    VALIDATE_ERR(rdp.sent_scissor,
+        "undefined behavior: drawing command before a SET_SCISSOR was sent");
+    if (!rdp.last_col || !rdp.sent_scissor) return;
+
+    // copy/fill mode use inclusive X coordinates for most things, including scissor
+    int x1 = rdp.clip.x1;
+    if (rdp.som.cycle_type >= 2) x1++;
+
+    VALIDATE_WARN(rdp.clip.x0 < x1,
+        "drawing command with null scissor rectangle (X:%d-%d)", rdp.clip.x0, rdp.clip.x1);
+    VALIDATE_WARN(rdp.clip.y0 < rdp.clip.y1,
+        "drawing command with null scissor rectangle (Y:%d-%d)", rdp.clip.y0, rdp.clip.y1);
+    VALIDATE_WARN(rdp.clip.x1 <= rdp.col.width,
+        "drawing command with scissor rectangle (X1=%d) outside of color buffer (W=%d)", rdp.clip.x1, rdp.col.width);
+    if (rdp.col.height > 1) { // libdragon extension
+        VALIDATE_WARN(rdp.clip.y1 <= rdp.col.height,
+            "drawing command with scissor rectangle (Y1=%d) outside of color buffer (H=%d)", rdp.clip.y1, rdp.col.height);
+    }
+}
+
 /** @brief True if the current CC uses the TEX1 slot aka the second texture */
 static bool cc_use_tex1(void) {
     struct cc_cycle_s *cc = rdp.cc.cyc;
@@ -868,11 +917,6 @@ static bool cc_use_tex1(void) {
 static void lazy_validate_rendermode(void) {
     if (!rdp.mode_changed) return;
     rdp.mode_changed = false;
-
-    VALIDATE_ERR(rdp.sent_scissor,
-        "undefined behavior: drawing command before a SET_SCISSOR was sent");
-    VALIDATE_ERR(rdp.last_col,
-        "undefined behavior: drawing command before a SET_COLOR_IMAGE was sent");
 
     // Fill mode validation
     if (rdp.som.cycle_type == 3) {
@@ -911,6 +955,10 @@ static void lazy_validate_rendermode(void) {
     if (!rdp.som.tex.lod) {
         VALIDATE_ERR_SOM(!rdp.som.tex.sharpen && !rdp.som.tex.detail,
             "sharpen/detail texture require texture LOD to be active");
+    }
+    if (rdp.som.z.cmp || rdp.som.z.upd) {
+        VALIDATE_ERR_SOM(rdp.last_z,
+            "Z buffer image not configured but Z buffer mode was requested in SOM");
     }
 
     if (!rdp.last_cc) {
@@ -1153,6 +1201,8 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         validate_busy_pipe();
         rdp.col.fmt = BITS(buf[0], 53, 55);
         rdp.col.size = BITS(buf[0], 51, 52);
+        rdp.col.width = BITS(buf[0], 32, 41)+1;
+        rdp.col.height = (BITS(buf[0], 42, 50) | (BIT(buf[0], 31) << 9))+1;  // libdragon extension
         int size = 4 << rdp.col.size;
         VALIDATE_ERR(BITS(buf[0], 0, 5) == 0, "color image must be aligned to 64 bytes");
         switch (size) {
@@ -1166,14 +1216,40 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
             VALIDATE_WARN(rdp.col.fmt == 0, "color image is defined %s%d but it will render as RGBA%d",
                 tex_fmt_name[rdp.col.fmt], size, size); break;
         }
-        rdp.last_col = &buf[0];
-        rdp.last_col_data = buf[0];
+        uint32_t addr = BITS(buf[0], 0, 24);
+        if (RDPQ_VALIDATE_DETACH_ADDR && addr == RDPQ_VALIDATE_DETACH_ADDR) {
+            // special case for libdragon: if the address is 0x800000, then it means
+            // that the developer requested to detach the framebuffer. Treat it as
+            // if SET_COLOR_IMAGE was never sent.
+            rdp.last_col = NULL;
+            rdp.last_col_data = 0;
+        } else {
+            VALIDATE_ERR(addr > 0x400, "color image address set to low RDRAM");
+            VALIDATE_WARN(addr < 0x800000, "color image address is out of RDRAM");
+            rdp.last_col = &buf[0];
+            rdp.last_col_data = buf[0];
+        }
         rdp.mode_changed = true; // revalidate render mode on different framebuffer format  
+        rdp.rendertarget_changed = true; // revalidate clipping extents on render target
     }   break;
-    case 0x3E: // SET_Z_IMAGE
+    case 0x3E: { // SET_Z_IMAGE
         validate_busy_pipe();
         VALIDATE_ERR(BITS(buf[0], 0, 5) == 0, "Z image must be aligned to 64 bytes");
-        break;
+        uint32_t addr = BITS(buf[0], 0, 24);
+        if (RDPQ_VALIDATE_DETACH_ADDR && addr == RDPQ_VALIDATE_DETACH_ADDR) {
+            // special case for libdragon: if the address is 0x800000, then it means
+            // that the developer requested to detach the Z buffer. Treat it as
+            // if SET_Z_IMAGE was never sent.
+            rdp.last_z = NULL;
+            rdp.last_z_data = 0;
+        } else {
+            VALIDATE_ERR(addr > 0x400, "Z image address set to low RDRAM");
+            VALIDATE_WARN(addr < 0x800000, "Z image address is out of RDRAM");
+            rdp.last_z = &buf[0];
+            rdp.last_z_data = buf[0];
+        }
+        rdp.mode_changed = true; // revalidate render mode on different Z buffer
+    }   break;
     case 0x3D: // SET_TEX_IMAGE
         validate_busy_pipe();
         VALIDATE_ERR(BITS(buf[0], 0, 2) == 0, "texture image must be aligned to 8 bytes");
@@ -1254,13 +1330,17 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         rdp.mode_changed = true;
         break;
     case 0x2D: // SET_SCISSOR
+        rdp.clip.x0 = BITS(buf[0],44,55)*FX(2); rdp.clip.y0 = BITS(buf[0],32,43)*FX(2);
+        rdp.clip.x1 = BITS(buf[0],12,23)*FX(2); rdp.clip.y1 = BITS(buf[0], 0,11)*FX(2);
         rdp.sent_scissor = true;
+        rdp.rendertarget_changed = true;
         break;
     case 0x25: // TEX_RECT_FLIP
         VALIDATE_ERR(rdp.som.cycle_type < 2, "cannot draw texture rectangle flip in copy/fill mode");
         // passthrough
     case 0x24: // TEX_RECT
         rdp.busy.pipe = true;
+        lazy_validate_rendertarget();
         lazy_validate_rendermode();
         validate_draw_cmd(false, true, false, false);
         validate_use_tile(BITS(buf[0], 24, 26), 0);
@@ -1276,12 +1356,14 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         break;
     case 0x36: // FILL_RECTANGLE
         rdp.busy.pipe = true;
+        lazy_validate_rendertarget();
         lazy_validate_rendermode();
         validate_draw_cmd(false, false, false, false);
         break;
     case 0x8 ... 0xF: // Triangles
         rdp.busy.pipe = true;
         VALIDATE_ERR_SOM(rdp.som.cycle_type < 2, "cannot draw triangles in copy/fill mode");
+        lazy_validate_rendertarget();
         lazy_validate_rendermode();
         validate_draw_cmd(cmd & 4, cmd & 2, cmd & 1, cmd & 2);
         if (cmd & 2) validate_use_tile(BITS(buf[0], 48, 50), 0);
@@ -1324,7 +1406,7 @@ surface_t rdpq_debug_get_tmem(void) {
     // Dump the TMEM as a 32x64 surface of 16bit pixels
     surface_t surf = surface_alloc(FMT_RGBA16, 32, 64);
     
-    rdpq_attach(&surf);
+    rdpq_attach(&surf, NULL);
     rdpq_mode_push();
     rdpq_set_mode_copy(false);
     rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_RGBA16, 0, 32*2, 0);   // pitch: 32 px * 16-bit

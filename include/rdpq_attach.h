@@ -19,28 +19,82 @@
 
 #include "rspq.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
- * @brief Attach the RDP to a surface
+ * @brief Attach the RDP to a color surface (and optionally a Z buffer)
  *
- * This function allows the RDP to operate on surfaces, that is memory buffers
- * that can be used as render targets. For instance, it can be used with
- * framebuffers acquired by calling #display_lock, or to render to an offscreen
- * buffer created with #surface_alloc or #surface_make.
+ * This function configures the new render targets the RDP will draw to. It accepts
+ * both a color buffer and optionally a Z buffer, both of which in terms of
+ * surface_t pointers.
  * 
- * This should be performed before any rendering operations to ensure that the RDP
- * has a valid output buffer to operate on. 
+ * For instance, it can be used with framebuffers acquired by calling #display_lock,
+ * or to render to an offscreen buffer created with #surface_alloc or #surface_make.
  * 
- * The current render target is stored away in a small stack, so that it can be
- * restored later with #rdpq_detach. This allows to temporarily switch rendering
- * to an offscreen surface, and then restore the main render target.
+ * This function should be called before any rendering operations to ensure that the RDP
+ * has a valid render target to operate on. 
  * 
- * @param[in] surface
- *            The surface to render to
+ * The previous render targets are stored away in a small stack, so that they can be
+ * restored later when #rdpq_detach is called. This allows to temporarily switch
+ * rendering to an offscreen surface, and then restore the main render target.
+ * 
+ * @param[in] surf_color
+ *            The surface to render to. Supported formats are: #FMT_RGBA32, #FMT_RGBA16,
+ *            #FMT_CI8, #FMT_I8.
+ * @param[in] surf_z
+ *            The Z-buffer to render to (can be NULL if no Z-buffer is required).
+ *            The only supported format is #FMT_RGBA16.
  *            
- * @see display_lock
- * @see surface_alloc
+ * @see #display_lock
+ * @see #surface_alloc
  */
-void rdpq_attach(const surface_t *surface);
+void rdpq_attach(const surface_t *surf_color, const surface_t *surf_z);
+
+/**
+ * @brief Attach the RDP to a surface and clear it
+ *
+ * This function is similar to #rdpq_attach, but it also clears the surface
+ * to full black (color 0) immediately after attaching. If a z-buffer is
+ * specified, it is also cleared (to 0xFFFC).
+ * 
+ * This function is just a shortcut for calling #rdpq_attach, #rdpq_clear and
+ * #rdpq_clear_z.
+ * 
+ * @param[in] surf_color
+ *            The surface to render to.
+ * @param[in] surf_z
+ *            The Z-buffer to render to (can be NULL if no Z-buffer is required).
+ *            
+ * @see #display_lock
+ * @see #surface_alloc
+ * @see #rdpq_clear
+ * @see #rdpq_clear_z
+ */
+void rdpq_attach_clear(const surface_t *surface, const surface_t *surf_z);
+
+/**
+ * @brief Clear the current render target with the specified color.
+ * 
+ * Note that this function will respect the current scissor rectangle, if
+ * configured.
+ * 
+ * @param[in] color
+ *            Color to use to clear the surface
+ */
+void rdpq_clear(color_t color);
+
+/**
+ * @brief Reset the current Z buffer to a given value.
+ * 
+ * Note that this function will respect the current scissor rectangle, if
+ * configured.
+ * 
+ * @param[in] z
+ *            Value to reset the Z buffer to
+ */
+void rdpq_clear_z(uint16_t z);
 
 /**
  * @brief Detach the RDP from the current surface, and restore the previous one
@@ -131,5 +185,9 @@ void rdpq_detach_cb(void (*cb)(void*), void *arg);
  * @see #rdpq_attach
  */
 const surface_t* rdpq_get_attached(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* LIBDRAGON_RDPQ_ATTACH_H */

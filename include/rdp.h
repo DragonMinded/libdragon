@@ -341,7 +341,7 @@ void rdp_close( void );
 __attribute__((deprecated("use rdpq_attach instead")))
 static inline void rdp_attach( surface_t *surface )
 {
-    rdpq_attach(surface);
+    rdpq_attach(surface, NULL);
 }
 
 __attribute__((deprecated("use rdpq_detach_cb instead")))
@@ -368,7 +368,7 @@ static inline void rdp_detach_show( surface_t *disp )
 __attribute__((deprecated("use rdpq_attach instead")))
 static inline void rdp_attach_display( display_context_t disp )
 {
-    rdpq_attach(disp);
+    rdpq_attach(disp, NULL);
 }
 
 __attribute__((deprecated("use rdqp_detach_wait instead")))

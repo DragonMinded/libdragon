@@ -71,11 +71,8 @@ void render(int cur_frame)
         }
     }
 
-    rdpq_attach(disp);
-
-    // Clear the screen
-    rdpq_set_mode_fill(RGBA32(0,0,0,255));
-    rdpq_fill_rectangle(0, 0, disp->width, disp->height);
+    // Attach and clear the screen
+    rdpq_attach_clear(disp, NULL);
 
     // Draw the tile background, by playing back the compiled block.
     // This is using copy mode by default, but notice how it can switch

@@ -16,7 +16,7 @@ int main()
         surface_t *screen;
         while (!(screen = display_lock())) {}
 
-        rdpq_attach(screen);
+        rdpq_attach(screen, NULL);
 
         rdpq_set_mode_fill(RGBA32(0x30,0x63,0x8E,0));
         rdpq_fill_rectangle(0, 0, screen->width, screen->height);
