@@ -72,7 +72,7 @@ void rdpq_attach(const surface_t *surf_color, const surface_t *surf_z);
  * @see #rdpq_clear
  * @see #rdpq_clear_z
  */
-void rdpq_attach_clear(const surface_t *surface, const surface_t *surf_z);
+void rdpq_attach_clear(const surface_t *surf_color, const surface_t *surf_z);
 
 /**
  * @brief Clear the current render target with the specified color.
