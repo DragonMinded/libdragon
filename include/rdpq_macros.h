@@ -341,8 +341,11 @@ typedef uint32_t rdpq_blender_t;
  *  * `SHADE_ALPHA`: alpha of the per-pixel interpolated color.
  *  * `PRIM_ALPHA`: alpha of the PRIM register (set via #rdpq_set_prim_color)
  *  * `ENV_ALPHA`: alpha of the ENV register (set via #rdpq_set_env_color)
- *  * `LOD_FRAC`
+ *  * `LOD_FRAC`: the LOD fraction, that is the fractional value that can be used
+ *                as interpolation value between different mipmaps. It basically
+ *                says how much the texture is being scaled down.
  *  * `PRIM_LOD_FRAC`
+ *  * `KEYCENTER`
  *  * `KEYSCALE`
  * 
  * These tables show, for each possible variable of the RGB and ALPHA formula,
@@ -352,7 +355,7 @@ typedef uint32_t rdpq_blender_t;
  * <tr><th rowspan="4" width="60em">RGB</th>
  *     <th>A</th><td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `NOISE`, `1`, `0`</td></tr>
  * <tr><th>B</th> <td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `KEYCENTER`, `K4`, `0`</td></tr>
- * <tr><th>C</th> <td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `TEX0_ALPHA`, `SHADE_ALPHA`, `PRIM_ALPHA`, `ENV_ALPHA`, `LOD_FRAC`, `PRIM_LOD_FRAC`, `K5`, `0`</td></tr>
+ * <tr><th>C</th> <td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `TEX0_ALPHA`, `SHADE_ALPHA`, `PRIM_ALPHA`, `ENV_ALPHA`, `LOD_FRAC`, `PRIM_LOD_FRAC`, `K5`, 'KEYSCALE', `0`</td></tr>
  * <tr><th>D</th></tr><td>`TEX0`, `SHADE`, `PRIM`, `ENV`, `1`, `0`</td></tr>
  * </table>
  * 
