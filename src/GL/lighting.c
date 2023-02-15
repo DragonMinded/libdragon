@@ -101,6 +101,13 @@ void gl_homogeneous_unit_diff(GLfloat *d, const GLfloat *p1, const GLfloat *p2)
     gl_normalize(d, d);
 }
 
+void gl_cross(GLfloat* p, const GLfloat* a, const GLfloat* b)
+{
+    p[0] = (a[1] * b[2] - a[2] * b[1]);
+    p[1] = (a[2] * b[0] - a[0] * b[2]);
+    p[2] = (a[0] * b[1] - a[1] * b[0]);
+};
+
 float dot_product3(const float *a, const float *b)
 {
     return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];

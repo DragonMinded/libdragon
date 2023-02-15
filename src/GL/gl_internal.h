@@ -536,6 +536,7 @@ void gl_perform_lighting(GLfloat *color, const GLfloat *input, const GLfloat *v,
 
 gl_texture_object_t * gl_get_active_texture();
 
+void gl_cross(GLfloat* p, const GLfloat* a, const GLfloat* b);
 float dot_product3(const float *a, const float *b);
 void gl_normalize(GLfloat *d, const GLfloat *v);
 
