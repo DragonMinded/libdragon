@@ -82,19 +82,8 @@ enum {
 
 typedef enum {
     GL_UPDATE_NONE                  = 0x0,
-    GL_UPDATE_DEPTH_TEST            = 0x1,
-    GL_UPDATE_DEPTH_MASK            = 0x2,
-    GL_UPDATE_BLEND                 = 0x3,
-    GL_UPDATE_DITHER                = 0x4,
-    GL_UPDATE_POINTS                = 0x5,
-    GL_UPDATE_ALPHA_TEST            = 0x6,
-    GL_UPDATE_BLEND_CYCLE           = 0x7,
-    GL_UPDATE_FOG_CYCLE             = 0x8,
-    GL_UPDATE_SCISSOR               = 0x9,
-    GL_UPDATE_COMBINER              = 0xA,
-    GL_UPDATE_TEXTURE               = 0xB,
-    GL_UPDATE_TEXTURE_COMPLETENESS  = 0xC,
-    GL_UPDATE_TEXTURE_UPLOAD        = 0xD,
+    GL_UPDATE_SCISSOR               = 0x1,
+    GL_UPDATE_TEXTURE_COMPLETENESS  = 0x2,
 } gl_update_func_t;
 
 typedef enum {

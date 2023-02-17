@@ -113,6 +113,8 @@
 
 #define ASSERT_INVALID_VTX_ID   0x2001
 
+#define MULTISAMPLE_FLAG_SHIFT      3
+
 #define TEX_BILINEAR_SHIFT          13
 #define TEX_BILINEAR_OFFSET_SHIFT   4
 

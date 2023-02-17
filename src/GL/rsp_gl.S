@@ -19,7 +19,7 @@
         RSPQ_DefineCommand GLCmd_MatrixPush,    4
         RSPQ_DefineCommand GLCmd_MatrixPop,     4
         RSPQ_DefineCommand GLCmd_MatrixLoad,    68
-        RSPQ_DefineCommand GLCmd_PreInitPipe,   4
+        RSPQ_DefineCommand GLCmd_PreInitPipe,   8
     RSPQ_EndOverlayHeader
 
     RSPQ_BeginSavedState
@@ -71,19 +71,8 @@ COMBINER_MIPMAPMASK_TABLE:
 
 UPDATE_FUNCTIONS:
     .short RSPQ_Loop                    - _start  # Do nothing
-    .short GL_UpdateDepthTest           - _start
-    .short GL_UpdateDepthMask           - _start
-    .short GL_UpdateBlend               - _start
-    .short GL_UpdateDither              - _start
-    .short GL_UpdatePoints              - _start
-    .short GL_UpdateAlphaTest           - _start
-    .short GL_UpdateBlendCycle          - _start
-    .short GL_UpdateFogCycle            - _start
     .short GL_UpdateScissor             - _start
-    .short GL_UpdateCombiner            - _start
-    .short GL_UpdateTexture             - _start
     .short GL_UpdateTextureCompleteness - _start
-    .short GL_UpdateTextureUpload       - _start
 
 CONVERT_CONST:  .half 1, 2, 0x8000, 0x200, 0xFF, 134, 0x7F, 0x80
 
@@ -93,25 +82,6 @@ CONVERT_CONST:  .half 1, 2, 0x8000, 0x200, 0xFF, 134, 0x7F, 0x80
 TEX_UPLOAD_STAGING: .ds.b 0x150
 
     .text
-
-    ####################################################
-    # Returns:
-    #   s0: Pointer to the currently active texture,
-    #       or 0 if none is active
-    #   t0: State flags
-    ####################################################
-    .func GL_GetActiveTexture
-GL_GetActiveTexture:
-    lw t0, %lo(GL_STATE_FLAGS)
-    andi t1, t0, FLAG_TEXTURE_2D
-    bnez t1, JrRa
-    li s0, %lo(GL_BOUND_TEXTURE_2D)
-    andi t1, t0, FLAG_TEXTURE_1D
-    bnez t1, JrRa
-    li s0, %lo(GL_BOUND_TEXTURE_1D)
-    jr ra
-    move s0, zero
-    .endfunc
 
     #############################################################
     # GLCmd_SetFlag
@@ -131,11 +101,11 @@ GLCmd_SetFlag:
     and t0, a0, t0
     andi t1, a0, 1
     lw t2, %lo(GL_STATE)(t0)
-    beqz t1, flag_clear
+    beqz t1, 1f
     and t3, t2, a1
     or t3, t2, a1
 
-flag_clear:
+1:
     j GLCmd_Update
     sw t3, %lo(GL_STATE)(t0)
     .endfunc
@@ -255,59 +225,7 @@ GLCmd_SetLightPos:
     #undef vmtx2_f
     #undef vmtx3_i
     #undef vmtx3_f
-/*
-GLCmd_SetLightDir:
-    #define v___     $v01
 
-    #define vpos     $v02
-
-    #define vmtx0_i  $v03
-    #define vmtx0_f  $v04
-    #define vmtx1_i  $v05
-    #define vmtx1_f  $v06
-    #define vmtx2_i  $v07
-    #define vmtx2_f  $v08
-
-    addi s0, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER) - 4
-    li s1, %lo(GL_MATRIX_MODELVIEW)
-    ldv vpos,     0x00,s0
-    ldv vmtx0_i,  0x00,s1
-    ldv vmtx1_i,  0x08,s1
-    ldv vmtx2_i,  0x10,s1
-    ldv vmtx0_f,  0x20,s1
-    ldv vmtx1_f,  0x28,s1
-    ldv vmtx2_f,  0x30,s1
-
-    # TODO: verify this
-
-    vmudn v___, vmtx0_f, vpos.e0
-    vmadh v___, vmtx0_i, vpos.e0
-    vmadn v___, vmtx1_f, vpos.e1
-    vmadh v___, vmtx1_i, vpos.e1
-    vmadn v___, vmtx2_f, vpos.e2
-    vmadh vpos, vmtx2_i, vpos.e2
-
-    li s0, %lo(RDPQ_CMD_STAGING)
-    spv vpos,  0,s0
-    lbu t0, %lo(GL_STATE) + LIGHT_SPOT_EXPONENT_OFFSET(a0)
-    lw t1, %lo(RDPQ_CMD_STAGING)
-    sw t1, %lo(GL_STATE) + LIGHT_DIRECTION_OFFSET(a0)
-    jr ra
-    sb t0, %lo(GL_STATE) + LIGHT_SPOT_EXPONENT_OFFSET(a0)
-
-    #undef v___
-
-    #undef vpos
-
-    #undef vmtx0_i
-    #undef vmtx0_f
-    #undef vmtx1_i
-    #undef vmtx1_f
-    #undef vmtx2_i
-    #undef vmtx2_f
-    #undef vmtx3_i
-    #undef vmtx3_f
-*/
 # ARGS: t1: matrix index
 GL_MatrixMarkDirty:
     #define mtx_index   t1
@@ -315,10 +233,10 @@ GL_MatrixMarkDirty:
     #define cur_flags   t9
     lw cur_flags, %lo(GL_STATE_FLAGS)
     # mark final matrix as dirty if modelview or projection matrix was changed
-    blt mtx_index, (GL_TEXTURE & 0xF), gl_final_matrix_dirty
+    blt mtx_index, (GL_TEXTURE & 0xF), 1f
     li flag, FLAG_FINAL_MTX_DIRTY
     move flag, zero
-gl_final_matrix_dirty:
+1:
     or cur_flags, flag
     jr ra
     sw cur_flags, %lo(GL_STATE_FLAGS)
@@ -347,7 +265,7 @@ GL_MatrixPushPop:
     sll s4, mtx_index, 6
     addi s4, %lo(GL_MATRICES)
     
-    bltz t2, gl_matrix_push
+    bltz t2, 1f
     # If pushing the stack, post-increment the stack pointer after the DMA
     li post_incr, MATRIX_SIZE
 
@@ -357,7 +275,7 @@ GL_MatrixPushPop:
     jal GL_MatrixMarkDirty
     move post_incr, zero
 
-gl_matrix_push:
+1:
     add s1, s0, post_incr
 
     # Save new stack pointer
@@ -398,159 +316,21 @@ GLCmd_MatrixLoad:
     move ra2, ra
 
     beqz multiply, GL_MtxMultSave # skip multiplication if only loading the matrix
-    li ra, GL_matrix_load_return
+    li ra, 1f
 
     jal GL_MtxMultWithRhs
     move lhs, dst
 
-GL_matrix_load_return:
+1:
     j GL_MatrixMarkDirty
     move ra, ra2
-
-GL_UpdateDepthTest:
-    lw t0, %lo(GL_STATE_FLAGS)
-    lhu t1, %lo(GL_STATE_DEPTH_FUNC)
-
-    andi t0, FLAG_DEPTH_TEST            # a2 = (GL_STATE_FLAGS & FLAG_DEPTH_TEST)
-    beqz t0, depth_test_disable         #
-    lw t2, %lo(RDPQ_OTHER_MODES) + 0x4  #
-    xori t1, GL_LESS                    #      && (GL_STATE_DEPTH_FUNC == GL_LESS)
-    sltu t1, 1                          #
-    sll t0, t1, SOM_Z_COMPARE_SHIFT     #      ? SOM_Z_COMPARE : 0;
-depth_test_disable:
-    li t3, ~DEPTH_TEST_MASK
-    and t2, t3
-    or t2, t0
-    jr ra
-    sw t2, %lo(RDPQ_OTHER_MODES) + 0x4
-
-GL_UpdateAlphaTest:
-    lw t0, %lo(GL_STATE_FLAGS)
-    lhu t1, %lo(GL_STATE_ALPHA_FUNC)
-
-    andi t0, FLAG_ALPHA_TEST            
-    beqz t0, alpha_test_disable         
-    lw t2, %lo(RDPQ_OTHER_MODES) + 0x4
-    xori t1, GL_GREATER                 
-    sltu t0, t1, 1
-alpha_test_disable:
-    li t3, ~ALPHA_TEST_MASK
-    and t2, t3
-    or t2, t0
-    jr ra
-    sw t2, %lo(RDPQ_OTHER_MODES) + 0x4
-
-GL_UpdateDepthMask:
-    lw t0, %lo(GL_STATE_FLAGS)
-    andi t0, FLAG_DEPTH_TEST | FLAG_DEPTH_MASK
-    lw t1, %lo(RDPQ_OTHER_MODES) + 0x4
-    xori t0, FLAG_DEPTH_TEST | FLAG_DEPTH_MASK
-    li t2, ~(DEPTH_MASK_MASK)
-    sltu t0, 1
-    and t1, t2
-    sll t0, SOM_Z_WRITE_SHIFT
-    or t0, t1
-    jr ra
-    sw t0, %lo(RDPQ_OTHER_MODES) + 0x4
-
-GL_UpdateBlend:
-    lw t0, %lo(GL_STATE_FLAGS)
-    andi t1, t0, FLAG_BLEND
-    lw t2, %lo(RDPQ_OTHER_MODES) + 0x4
-    beqz t1, blend_disable
-    li t0, SOM_ZMODE_OPAQUE
-    li t0, SOM_ZMODE_TRANSPARENT
-blend_disable:
-    li t1, ~(BLEND_MASK)
-    and t2, t1
-    or t2, t0
-    jr ra
-    sw t2, %lo(RDPQ_OTHER_MODES) + 0x4
-
-GL_UpdateDither:
-    lw t0, %lo(GL_STATE_FLAGS)
-    andi t1, t0, FLAG_DITHER
-    lw t2, %lo(RDPQ_OTHER_MODES) + 0x0
-    beqz t1, dither_disable
-    li t0, (SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE) >> 32
-    li t0, (SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_SAME) >> 32
-dither_disable:
-    li t1, ~(DITHER_MASK >> 32)
-    and t2, t1
-    or t2, t0
-    jr ra
-    sw t2, %lo(RDPQ_OTHER_MODES) + 0x0
-
-# output: v0
-GL_IsPoints:
-    lhu t0, %lo(GL_STATE_PRIM_TYPE)
-    beqz t0, JrRa                       # prim_type == GL_POINTS
-    li v0, 1
-
-    addi t0, -1
-    sltu t0, (GL_TRIANGLES - 1)
-    bne t0, zero, JrRa                  # prim_type == GL_LINES || prim_type == GL_LINE_LOOP || prim_type == GL_LINE_STRIP
-    move v0, zero
-
-    lhu t0, %lo(GL_STATE_POLYGON_MODE)
-    xori t0, GL_POINT
-    jr ra
-    sltu v0, t0, 1                      # polygon_mode == GL_POINT
-
-GL_UpdatePoints:
-    move ra2, ra
-    jal GL_IsPoints
-    move t2, zero
-
-    bnez v0, is_points
-    sll t3, v0, SOM_ZSOURCE_SHIFT
-
-    li t2, SOM_TEXTURE_PERSP >> 32
-
-is_points:
-    lw t4, %lo(RDPQ_OTHER_MODES) + 0x0
-    lw t5, %lo(RDPQ_OTHER_MODES) + 0x4
-    li t6, ~(SOM_TEXTURE_PERSP >> 32)
-    li t7, ~(SOM_ZSOURCE_MASK)
-    and t4, t6
-    and t5, t7
-    or t4, t2
-    or t5, t3
-    sw t4, %lo(RDPQ_OTHER_MODES) + 0x0
-    jr ra2
-    sw t5, %lo(RDPQ_OTHER_MODES) + 0x4
-
-GL_UpdateBlendCycle:
-    lw t0, %lo(GL_STATE_FLAGS)
-    andi t0, FLAG_BLEND
-    beqz t0, blend_cycle_none
-    move t1, zero
-    lw t1, %lo(GL_STATE_BLEND_CYCLE)
-blend_cycle_none:
-    jr ra
-    sw t1, %lo(RDPQ_MODE_BLENDER_STEPS) + 0x4
-
-GL_UpdateFogCycle:
-    lw t0, %lo(GL_STATE_FLAGS)
-    andi t0, FLAG_FOG
-    beqz t0, fog_cycle_none
-    sltu t2, zero, t0
-    li t0, RDPQ_BLENDER((IN_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA)) | SOM_BLENDING
-fog_cycle_none:
-    sw t0, %lo(RDPQ_MODE_BLENDER_STEPS) + 0x0
-    lw t1, %lo(RDPQ_OTHER_MODES) + 0x0
-    li t3, ~(SOMX_FOG >> 32)
-    and t1, t3
-    or t1, t2
-    jr ra
-    sw t1, %lo(RDPQ_OTHER_MODES) + 0x0
 
 GL_UpdateScissor:
     lhu a1, %lo(GL_STATE_FB_SIZE) + 0x0
     lhu t7, %lo(GL_STATE_FB_SIZE) + 0x2
     lw a0, %lo(GL_STATE_FLAGS)
     andi a0, FLAG_SCISSOR_TEST
-    beqz a0, scissor_disabled
+    beqz a0, 1f
     move t2, zero
 
     lhu t2, %lo(GL_STATE_SCISSOR_RECT) + 0x2
@@ -561,7 +341,7 @@ GL_UpdateScissor:
     addu a1, a0
     subu t2, t7, t2
     
-scissor_disabled:
+1:
     sll t2, 2
     sll a0, 14
     or a0, t2
@@ -571,86 +351,6 @@ scissor_disabled:
     sll a1, 14
     or a1, t7
     jal_and_j RDPQ_WriteSetScissor, RDPQ_Finalize
-
-GL_UpdateCombiner:
-    move ra2, ra
-    jal GL_IsPoints
-    lw t3, %lo(GL_STATE_TEX_ENV_MODE)
-
-    li t4, GL_REPLACE
-    bne t3, t4, gl_combiner_modulate
-    nop
-    ori v0, 0x2
-
-gl_combiner_modulate:
-    jal GL_GetActiveTexture
-    nop
-
-    beqz s0, gl_combiner_no_texture
-    lw t0, TEXTURE_FLAGS_OFFSET(s0)
-    andi t0, TEX_FLAG_COMPLETE
-    srl t0, 1
-    or v0, t0
-
-gl_combiner_no_texture:
-    sll v0, 3
-    lw t0, %lo(COMBINER_TABLE) + 0x0(v0)
-    lw t1, %lo(COMBINER_TABLE) + 0x4(v0)
-    lw t2, %lo(COMBINER_MIPMAPMASK_TABLE) + 0x0(v0)
-    lw t3, %lo(COMBINER_MIPMAPMASK_TABLE) + 0x4(v0)
-
-    sw t0, %lo(RDPQ_COMBINER) + 0x0
-    sw t1, %lo(RDPQ_COMBINER) + 0x4
-    sw t2, %lo(RDPQ_COMBINER_MIPMAPMASK) + 0x0
-    jr ra2
-    sw t3, %lo(RDPQ_COMBINER_MIPMAPMASK) + 0x4
-
-GL_UpdateTexture:
-    move ra2, ra
-    jal GL_GetActiveTexture
-    move t7, zero
-
-    beqz s0, texture_set_modes
-    lw t4, TEXTURE_FLAGS_OFFSET(s0)
-
-    andi t5, t4, TEX_FLAG_COMPLETE
-    beqz t5, texture_set_modes
-    lhu t3, TEXTURE_MIN_FILTER_OFFSET(s0)
-    lhu t2, TEXTURE_MAG_FILTER_OFFSET(s0)
-
-    andi t5, t3, TEXTURE_MIPMAP_MASK
-    or t2, t3
-    andi t2, TEXTURE_BILINEAR_MASK
-
-    # If bilinear sampling is active, texture coords need to be offset by half a texel,
-    # which is 0x10 in s10.5
-    sll t3, t2, TEX_BILINEAR_OFFSET_SHIFT
-    sh t3, %lo(GL_STATE_TEX_OFFSET) + 0
-    sh t3, %lo(GL_STATE_TEX_OFFSET) + 2
-
-    beqz t5, texture_no_lod
-    sll t2, TEX_BILINEAR_SHIFT
-    or t2, SOM_TEXTURE_LOD >> 32
-
-texture_no_lod:
-    andi t3, TEXTURE_INTERPOLATE_MASK
-    beqz t3, texture_no_interpolate
-    nop # :(
-    ori t2, SOMX_LOD_INTERPOLATE >> 32
-
-texture_no_interpolate:
-    andi t4, 0x7
-    addi t4, -1
-    sll t4, SOMX_NUMLODS_SHIFT - 32
-    or t7, t4, t2
-
-texture_set_modes:
-    lw t2, %lo(RDPQ_OTHER_MODES)
-    li t4, ~((SOM_SAMPLE_MASK | SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE | SOMX_NUMLODS_MASK) >> 32)
-    and t2, t4
-    or t2, t7
-    jr ra2
-    sw t2, %lo(RDPQ_OTHER_MODES)
 
 GL_UpdateTextureCompleteness:
     #define result      t7
@@ -697,7 +397,7 @@ gl_tex_completeness_loop:
     andi t4, width, 0x1
 
     # If width is already 1 skip this check
-    beq width, one, gl_check_height
+    beq width, one, 1f
     srl t5, width, 1
 
     # If width is odd and not equal to one it means the original width is not a power of two,
@@ -705,11 +405,11 @@ gl_tex_completeness_loop:
     bnez t4, gl_tex_incomplete
     move width, t5
 
-gl_check_height:
+1:
     andi t5, height, 0x1
 
     # If height is already 1 skip this check
-    beq height, one, gl_completeness_step
+    beq height, one, 1f
     srl t4, height, 1
     
     # If height is odd and not equal to one it means the original height is not a power of two,
@@ -717,7 +417,7 @@ gl_check_height:
     bnez t5, gl_tex_incomplete
     move height, t4
 
-gl_completeness_step:
+1:
     # Check if we have reached the maximum number of loops
     beq loop_var, loop_max, gl_tex_incomplete
     addiu image, TEXTURE_IMAGE_SIZE
@@ -747,14 +447,311 @@ gl_tex_incomplete:
     #undef format
     #undef ra3
 
+
+    .func GLCmd_PreInitPipe
+GLCmd_PreInitPipe:
+    sh a0, %lo(GL_STATE_PRIM_TYPE)
+    
+#if RSP_PRIM_ASSEMBLY
+    srl t0, a1, 16
+    andi t0, 0xFF
+    andi t1, a1, 0xFFFF
+    sh t0, %lo(GL_PRIM_SIZE)
+    sh t1, %lo(GL_PRIM_NEXT)
+    sh zero, %lo(GL_PRIM_PROGRESS)
+
+    sh zero, %lo(GL_PRIM_COUNTER)
+#endif
+
+    #define state_flags k1
+
+    lw state_flags, %lo(GL_STATE_FLAGS)
+
+    # Update matrix if required
+
+    #define mtx_dirty   t1
+    #define mtx_lhs     s0
+    #define mtx_rhs     s1
+    #define mtx_dst     s2
+
+    and mtx_dirty, state_flags, FLAG_FINAL_MTX_DIRTY
+    beqz mtx_dirty, 1f
+    li mtx_lhs, %lo(GL_MATRIX_PROJECTION)
+    li mtx_rhs, %lo(GL_MATRIX_MODELVIEW)
+    jal GL_MtxMult
+    li mtx_dst, %lo(GL_MATRIX_FINAL)
+    and state_flags, ~FLAG_FINAL_MTX_DIRTY
+
+    #undef mtx_dirty
+    #undef mtx_lhs
+    #undef mtx_rhs
+    #undef mtx_dst
+
+1:
+
+    # Determine Culling mode
+
+    #define cull_mode       t1
+    #define front_face      t2
+    #define cull_enabled    t3
+    #define tri_cull        t4
+
+    andi cull_enabled, state_flags, FLAG_CULL_FACE
+    beqz cull_enabled, 1f
+    # Any non-negative value other than 0 or 1 signifies that no faces should be culled
+    li tri_cull, 2
+
+    lhu cull_mode, %lo(GL_STATE_CULL_MODE)
+    lhu front_face, %lo(GL_STATE_FRONT_FACE)
+
+    # Set TRI_CULL to a negative number to cull all faces
+    beq cull_mode, GL_FRONT_AND_BACK, 1f
+    li tri_cull, -1
+
+    # tri_cull = (cull_mode == GL_BACK) ^ (front_face == GL_CW)
+    xori cull_mode, GL_FRONT
+    sltu tri_cull, zero, cull_mode
+    xori front_face, GL_CCW
+    sltu front_face, zero, front_face
+    xor tri_cull, front_face
+
+1:
+    sb tri_cull, %lo(GL_TRI_CULL)
+
+    #undef cull_mode
+    #undef front_face
+    #undef cull_enabled
+    #undef tri_cull
+
+    #define modes0          t8
+    #define modes1          t9
+    #define is_points       v0
+    #define active_tex      s7
+
+    # Get Active texture
+    
+    andi t1, state_flags, FLAG_TEXTURE_2D
+    bnez t1, 1f
+    li active_tex, %lo(GL_BOUND_TEXTURE_2D)
+    andi t1, state_flags, FLAG_TEXTURE_1D
+    bnez t1, 1f
+    li active_tex, %lo(GL_BOUND_TEXTURE_1D)
+    move active_tex, zero
+1:
+
+    jal GL_UpdateTextureUpload
+    nop
+
+    #define has_depth   t1
+    #define has_tex     t3
+    #define tri_cmd     t4
+    # TODO: Optimize this by rearranging GL state flags
+    and has_depth, state_flags, FLAG_DEPTH_TEST
+    and has_tex, state_flags, FLAG_TEXTURE_ACTIVE
+    sll has_depth, TRICMD_ATTR_SHIFT_Z
+    srl has_tex, TRICMD_ATTR_SHIFT_TEX
+
+    or tri_cmd, has_depth, has_tex
+    ori tri_cmd, 0xCC00
+    sh tri_cmd, %lo(GL_TRI_CMD)
+
+    #undef has_depth
+    #undef has_tex
+    #undef tri_cmd
+
+    li modes0, (SOM_TF0_RGB | SOM_TF1_RGB) >> 32
+
+    # Multisampling
+    andi t0, state_flags, FLAG_MULTISAMPLE
+    srl modes1, t0, MULTISAMPLE_FLAG_SHIFT
+
+    # Depth test
+    andi t0, state_flags, FLAG_DEPTH_TEST
+    beqz t0, 1f
+    lhu t1, %lo(GL_STATE_DEPTH_FUNC)
+    xori t1, GL_LESS
+    sltu t1, 1
+    sll t0, t1, SOM_Z_COMPARE_SHIFT
+    or modes1, t0
+1:
+
+    # Alpha test
+    andi t0, state_flags, FLAG_ALPHA_TEST
+    beqz t0, 1f         
+    lhu t1, %lo(GL_STATE_ALPHA_FUNC)
+    xori t1, GL_GREATER
+    sltu t0, t1, 1
+    or modes1, t0
+1:
+
+    # Depth mask
+    andi t0, state_flags, FLAG_DEPTH_TEST | FLAG_DEPTH_MASK
+    xori t0, FLAG_DEPTH_TEST | FLAG_DEPTH_MASK
+    sltu t0, 1
+    sll t0, SOM_Z_WRITE_SHIFT
+    or modes1, t0
+
+    # Blend
+    andi t1, state_flags, FLAG_BLEND
+    beqz t1, 1f
+    li t0, SOM_ZMODE_OPAQUE
+    li t0, SOM_ZMODE_TRANSPARENT
+1:
+    or modes1, t0
+
+    # Dither
+    andi t1, state_flags, FLAG_DITHER
+    beqz t1, 1f
+    li t0, (SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE) >> 32
+    li t0, (SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_SAME) >> 32
+1:
+    or modes0, t0
+
+    # Points
+    lhu t0, %lo(GL_STATE_PRIM_TYPE)
+    beqz t0, 1f                         # prim_type == GL_POINTS
+    li is_points, 1
+
+    addi t0, -1
+    sltu t0, (GL_TRIANGLES - 1)
+    bne t0, zero, 1f                    # prim_type == GL_LINES || prim_type == GL_LINE_LOOP || prim_type == GL_LINE_STRIP
+    move is_points, zero
+
+    lhu t0, %lo(GL_STATE_POLYGON_MODE)
+    xori t0, GL_POINT
+    sltu is_points, t0, 1               # polygon_mode == GL_POINT
+
+1:
+    bnez is_points, 1f
+    sll t3, is_points, SOM_ZSOURCE_SHIFT
+    or modes0, SOM_TEXTURE_PERSP >> 32
+1:
+    or modes1, t3
+
+    # Blend cycle
+    andi t0, state_flags, FLAG_BLEND
+    beqz t0, 1f
+    move t1, zero
+    lw t1, %lo(GL_STATE_BLEND_CYCLE)
+1:
+    sw t1, %lo(RDPQ_MODE_BLENDER_STEPS) + 0x4
+
+    # Fog cycle
+    andi t0, state_flags, FLAG_FOG
+    beqz t0, 1f
+    sltu t2, zero, t0
+    li t0, RDPQ_BLENDER((IN_RGB, SHADE_ALPHA, FOG_RGB, INV_MUX_ALPHA)) | SOM_BLENDING
+1:
+    sw t0, %lo(RDPQ_MODE_BLENDER_STEPS) + 0x0
+    or modes0, t2
+
+    # Texture
+    beqz active_tex, 2f
+    lw t4, TEXTURE_FLAGS_OFFSET(active_tex)
+
+    andi t5, t4, TEX_FLAG_COMPLETE
+    beqz t5, 2f
+    lhu t3, TEXTURE_MIN_FILTER_OFFSET(active_tex)
+    lhu t2, TEXTURE_MAG_FILTER_OFFSET(active_tex)
+
+    andi t5, t3, TEXTURE_MIPMAP_MASK
+    or t2, t3
+    andi t2, TEXTURE_BILINEAR_MASK
+
+    # If bilinear sampling is active, texture coords need to be offset by half a texel,
+    # which is 0x10 in s10.5
+    sll t3, t2, TEX_BILINEAR_OFFSET_SHIFT
+    sh t3, %lo(GL_STATE_TEX_OFFSET) + 0
+    sh t3, %lo(GL_STATE_TEX_OFFSET) + 2
+
+    beqz t5, 1f
+    sll t2, TEX_BILINEAR_SHIFT
+    or t2, SOM_TEXTURE_LOD >> 32
+
+1:
+    andi t3, TEXTURE_INTERPOLATE_MASK
+    beqz t3, 1f
+    nop # :(
+    ori t2, SOMX_LOD_INTERPOLATE >> 32
+
+1:
+    andi t4, 0x7
+    addi t4, -1
+    sll t4, SOMX_NUMLODS_SHIFT - 32
+    or t7, t4, t2
+    or modes0, t7
+2:
+
+    # Combiner
+    move t5, is_points
+    lw t3, %lo(GL_STATE_TEX_ENV_MODE)
+
+    li t4, GL_REPLACE
+    bne t3, t4, 1f
+    nop
+    ori t5, 0x2
+1:
+
+    beqz active_tex, 1f
+    lw t0, TEXTURE_FLAGS_OFFSET(active_tex)
+    andi t0, TEX_FLAG_COMPLETE
+    srl t0, 1
+    or t5, t0
+1:
+    sll t5, 3
+    lw t0, %lo(COMBINER_TABLE) + 0x0(t5)
+    lw t1, %lo(COMBINER_TABLE) + 0x4(t5)
+    lw t2, %lo(COMBINER_MIPMAPMASK_TABLE) + 0x0(t5)
+    lw t3, %lo(COMBINER_MIPMAPMASK_TABLE) + 0x4(t5)
+
+    # TODO: The following is sort of equivalent to RDPQCmd_ResetMode. Maybe make that callable from ucode?
+
+    sw t0, %lo(RDPQ_COMBINER) + 0x0
+    sw t1, %lo(RDPQ_COMBINER) + 0x4
+    sw t2, %lo(RDPQ_COMBINER_MIPMAPMASK) + 0x0
+    sw t3, %lo(RDPQ_COMBINER_MIPMAPMASK) + 0x4
+
+    lw t0, %lo(RDPQ_OTHER_MODES) + 0x0
+
+    sw modes0, %lo(RDPQ_OTHER_MODES) + 0x0
+    sw modes1, %lo(RDPQ_OTHER_MODES) + 0x4
+
+    # If cycle mode was copy or fill, update scissor rect
+    sll t0, ((64-2)-SOM_CYCLE_SHIFT)
+    bgez t0, 1f
+    lw a0, %lo(RDPQ_SCISSOR_RECT) + 0x0
+    jal RDPQ_WriteSetScissor
+    lw a1, %lo(RDPQ_SCISSOR_RECT) + 0x4
+
+1:
+
+    j RDPQ_UpdateRenderMode
+    sw state_flags, %lo(GL_STATE_FLAGS)
+
+    #undef modes0
+    #undef modes1
+    #undef is_points
+    #undef active_tex
+    #undef state_flags
+    .endfunc
+
+
+    #############################################################
+    # GL_UpdateTextureUpload
+    #
+    # ARGS:
+    #   s7: Pointer to active texture
+    #   k1: state flags
+    #############################################################
+    .func GL_UpdateTextureUpload
 GL_UpdateTextureUpload:
-    #define active_tex      s0
+    #define tex_id          s0
     #define uploaded_tex    s1
     #define tmem_addr       s2
     #define out_ptr         s3
     #define image           s5
     #define level           s6
-    #define tex_id          s7
+    #define active_tex      s7
     #define num_levels      t4
     #define wrap_s          t5
     #define wrap_t          t6
@@ -764,13 +761,8 @@ GL_UpdateTextureUpload:
     #define mirror          k0
     #define state_flags     k1
 
-    lw state_flags, %lo(GL_STATE_FLAGS)
-    move ra2, ra
-    jal GL_GetActiveTexture
-    lw uploaded_tex, %lo(GL_STATE_UPLOADED_TEX)
-
     beqz active_tex, gl_set_texture_not_active
-    move ra, ra2
+    lw uploaded_tex, %lo(GL_STATE_UPLOADED_TEX)
 
     lw tex_flags, TEXTURE_FLAGS_OFFSET(active_tex)
     andi t0, tex_flags, TEX_FLAG_COMPLETE
@@ -780,7 +772,6 @@ GL_UpdateTextureUpload:
 
     lw t0, IMAGE_WIDTH_OFFSET(active_tex)
     or state_flags, FLAG_TEXTURE_ACTIVE
-    sw state_flags, %lo(GL_STATE_FLAGS)
     sw t0, %lo(GL_STATE_TEX_SIZE)
 
     # Load ID of active texture
@@ -789,13 +780,13 @@ GL_UpdateTextureUpload:
     srl t0, (TEXTURE_OBJECT_SIZE_LOG - 2)
     lw tex_id, %lo(GL_STATE_TEXTURE_IDS)(t0)
     
-    bne tex_id, uploaded_tex, gl_upload_tex
+    bne tex_id, uploaded_tex, 1f
     andi t0, tex_flags, TEX_FLAG_UPLOAD_DIRTY
 
     beqz t0, JrRa
     nop
 
-gl_upload_tex:
+1:
     lhu wrap_s, TEXTURE_WRAP_S_OFFSET(active_tex)
     lhu wrap_t, TEXTURE_WRAP_T_OFFSET(active_tex)
     lbu full_width_log, IMAGE_WIDTH_LOG_OFFSET(active_tex)
@@ -850,16 +841,16 @@ gl_upload_loop:
 
     # mask_s
     move a1, mirror
-    beqz wrap_s, gl_clamp_s
+    beqz wrap_s, 1f
     sll t1, v0, 4
     or a1, t1
-gl_clamp_s:
+1:
 
     # mask_t
-    beqz wrap_t, gl_clamp_t
+    beqz wrap_t, 1f
     sll t1, v1, 14
     or a1, t1
-gl_clamp_t:
+1:
 
     # shift_s, shift_t
     subu t1, full_width_log, v0
@@ -902,7 +893,7 @@ gl_clamp_t:
 gl_set_texture_not_active:
     and state_flags, ~FLAG_TEXTURE_ACTIVE
     jr ra
-    sw state_flags, %lo(GL_STATE_FLAGS)
+    nop
 
     #undef active_tex
     #undef uploaded_tex
@@ -919,96 +910,7 @@ gl_set_texture_not_active:
     #undef full_height_log
     #undef mirror
     #undef state_flags
-
-
-    .func GLCmd_PreInitPipe
-GLCmd_PreInitPipe:
-#if RSP_PRIM_ASSEMBLY
-    srl t0, a0, 16
-    andi t0, 0xFF
-    andi t1, a0, 0xFFFF
-    sh t0, %lo(GL_PRIM_SIZE)
-    sh t1, %lo(GL_PRIM_NEXT)
-    sh zero, %lo(GL_PRIM_PROGRESS)
-    sh zero, %lo(GL_PRIM_COUNTER)
-#endif
-
-    #define state_flags t0
-    #define has_depth   t1
-    #define has_tex     t3
-    #define tri_cmd     t4
-
-    # TODO: Optimize this by rearranging GL state flags
-    lw state_flags, %lo(GL_STATE_FLAGS)
-    and has_depth, state_flags, FLAG_DEPTH_TEST
-    and has_tex, state_flags, FLAG_TEXTURE_ACTIVE
-    sll has_depth, TRICMD_ATTR_SHIFT_Z
-    srl has_tex, TRICMD_ATTR_SHIFT_TEX
-
-    or tri_cmd, has_depth, has_tex
-    ori tri_cmd, 0xCC00
-    sh tri_cmd, %lo(GL_TRI_CMD)
-
-    #undef has_depth
-    #undef has_tex
-    #undef tri_cmd
-
-    #define mtx_dirty   t1
-    #define mtx_lhs     s0
-    #define mtx_rhs     s1
-    #define mtx_dst     s2
-
-    and mtx_dirty, state_flags, FLAG_FINAL_MTX_DIRTY
-    beqz mtx_dirty, glpipe_mtx_not_dirty
-    li mtx_lhs, %lo(GL_MATRIX_PROJECTION)
-    li mtx_rhs, %lo(GL_MATRIX_MODELVIEW)
-    jal GL_MtxMult
-    li mtx_dst, %lo(GL_MATRIX_FINAL)
-    and state_flags, ~FLAG_FINAL_MTX_DIRTY
-    sw state_flags, %lo(GL_STATE_FLAGS)
-
-    #undef mtx_dirty
-    #undef mtx_lhs
-    #undef mtx_rhs
-    #undef mtx_dst
-
-glpipe_mtx_not_dirty:
-
-    #define cull_mode       t1
-    #define front_face      t2
-    #define cull_enabled    t3
-    #define tri_cull        t4
-
-    andi cull_enabled, state_flags, FLAG_CULL_FACE
-    beqz cull_enabled, glpipe_init_write_cull
-    # Any non-negative value other than 0 or 1 signifies that no faces should be culled
-    li tri_cull, 2
-
-    lhu cull_mode, %lo(GL_STATE_CULL_MODE)
-    lhu front_face, %lo(GL_STATE_FRONT_FACE)
-
-    # Set TRI_CULL to a negative number to cull all faces
-    beq cull_mode, GL_FRONT_AND_BACK, glpipe_init_write_cull
-    li tri_cull, -1
-
-    # tri_cull = (cull_mode == GL_BACK) ^ (front_face == GL_CW)
-    xori cull_mode, GL_FRONT
-    sltu tri_cull, zero, cull_mode
-    xori front_face, GL_CCW
-    sltu front_face, zero, front_face
-    xor tri_cull, front_face
-
-glpipe_init_write_cull:
-    j RSPQ_Loop
-    sb tri_cull, %lo(GL_TRI_CULL)
-
-    #undef cull_mode
-    #undef front_face
-    #undef cull_enabled
-    #undef tri_cull
-    #undef state_flags
     .endfunc
-
 
 /*
     #############################################################
@@ -1111,6 +1013,59 @@ flt_2_fxd_loop:
 
     jr ra
     nop
+*/
+/*
+GLCmd_SetLightDir:
+    #define v___     $v01
+
+    #define vpos     $v02
+
+    #define vmtx0_i  $v03
+    #define vmtx0_f  $v04
+    #define vmtx1_i  $v05
+    #define vmtx1_f  $v06
+    #define vmtx2_i  $v07
+    #define vmtx2_f  $v08
+
+    addi s0, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER) - 4
+    li s1, %lo(GL_MATRIX_MODELVIEW)
+    ldv vpos,     0x00,s0
+    ldv vmtx0_i,  0x00,s1
+    ldv vmtx1_i,  0x08,s1
+    ldv vmtx2_i,  0x10,s1
+    ldv vmtx0_f,  0x20,s1
+    ldv vmtx1_f,  0x28,s1
+    ldv vmtx2_f,  0x30,s1
+
+    # TODO: verify this
+
+    vmudn v___, vmtx0_f, vpos.e0
+    vmadh v___, vmtx0_i, vpos.e0
+    vmadn v___, vmtx1_f, vpos.e1
+    vmadh v___, vmtx1_i, vpos.e1
+    vmadn v___, vmtx2_f, vpos.e2
+    vmadh vpos, vmtx2_i, vpos.e2
+
+    li s0, %lo(RDPQ_CMD_STAGING)
+    spv vpos,  0,s0
+    lbu t0, %lo(GL_STATE) + LIGHT_SPOT_EXPONENT_OFFSET(a0)
+    lw t1, %lo(RDPQ_CMD_STAGING)
+    sw t1, %lo(GL_STATE) + LIGHT_DIRECTION_OFFSET(a0)
+    jr ra
+    sb t0, %lo(GL_STATE) + LIGHT_SPOT_EXPONENT_OFFSET(a0)
+
+    #undef v___
+
+    #undef vpos
+
+    #undef vmtx0_i
+    #undef vmtx0_f
+    #undef vmtx1_i
+    #undef vmtx1_f
+    #undef vmtx2_i
+    #undef vmtx2_f
+    #undef vmtx3_i
+    #undef vmtx3_f
 */
 
 #include "rsp_gl_common.inc"

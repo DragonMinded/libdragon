@@ -4,6 +4,8 @@
 #include "rdpq_macros.h"
 #include "rspq.h"
 
+_Static_assert(FLAG_MULTISAMPLE >> MULTISAMPLE_FLAG_SHIFT == SOM_AA_ENABLE);
+
 extern gl_state_t state;
 
 // All possible combinations of blend functions. Configs that cannot be supported by the RDP are set to 0.

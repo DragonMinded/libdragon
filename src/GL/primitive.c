@@ -81,10 +81,11 @@ void gl_primitive_close()
 {
 }
 
-void gl_pre_init_pipe()
+void gl_pre_init_pipe(GLenum primitive_mode)
 {
-    uint32_t args = ((uint32_t)state.prim_size << 17) | ((uint32_t)state.prim_next * PRIM_VTX_SIZE);
-    gl_write(GL_CMD_PRE_INIT_PIPE, args);
+    uint32_t arg0 = primitive_mode;
+    uint32_t arg1 = ((uint32_t)state.prim_size << 17) | ((uint32_t)state.prim_next * PRIM_VTX_SIZE);
+    gl_write(GL_CMD_PRE_INIT_PIPE, arg0, arg1);
 }
 
 void glpipe_init()
@@ -188,30 +189,10 @@ bool gl_begin(GLenum mode)
     gl_reset_vertex_cache();
     gl_update_final_matrix();
 
-    __rdpq_autosync_change(AUTOSYNC_PIPE);
+    __rdpq_autosync_change(AUTOSYNC_PIPE | AUTOSYNC_TILES | AUTOSYNC_TMEM(0));
 
-    rdpq_mode_begin();
+    gl_pre_init_pipe(mode);
 
-    rdpq_set_mode_standard();
-    // TODO: Put all these in a single command!
-    gl_set_short(GL_UPDATE_POINTS, offsetof(gl_server_state_t, prim_type), (uint16_t)mode);
-    gl_update(GL_UPDATE_DEPTH_TEST);
-    gl_update(GL_UPDATE_DEPTH_MASK);
-    gl_update(GL_UPDATE_BLEND);
-    gl_update(GL_UPDATE_DITHER);
-    gl_update(GL_UPDATE_POINTS);
-    gl_update(GL_UPDATE_ALPHA_TEST);
-    gl_update(GL_UPDATE_BLEND_CYCLE);
-    gl_update(GL_UPDATE_FOG_CYCLE);
-    gl_update(GL_UPDATE_TEXTURE);
-    gl_update(GL_UPDATE_COMBINER);
-
-    rdpq_mode_end();
-
-    __rdpq_autosync_change(AUTOSYNC_TILES | AUTOSYNC_TMEM(0));
-    gl_update(GL_UPDATE_TEXTURE_UPLOAD);
-
-    gl_pre_init_pipe();
     glpipe_init();
 
     // FIXME: This is pessimistically marking everything as used, even if textures are turned off
