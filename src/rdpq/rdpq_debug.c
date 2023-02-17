@@ -722,14 +722,14 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
 static bool log_coalesce_tris(uint8_t cmd, uint8_t *last_tri_cmd, int *num_tris) {
     if (!CMD_IS_TRI(cmd)) {
         if (*last_tri_cmd) {
-            debugf("[...........] ................    %-16s num_cmds=%d\n", tri_name[*last_tri_cmd - 0x08], *num_tris);
+            debugf("[..........] ................    %-16s num_cmds=%d\n", tri_name[*last_tri_cmd - 0x08], *num_tris);
             *last_tri_cmd = 0;
             *num_tris = 0;
         }
         return true;
     } else {
         if (*last_tri_cmd && *last_tri_cmd != cmd) {
-            debugf("[...........] ................    %-16s num_cmds=%d\n", tri_name[*last_tri_cmd - 0x08], *num_tris);
+            debugf("[..........] ................    %-16s num_cmds=%d\n", tri_name[*last_tri_cmd - 0x08], *num_tris);
             *last_tri_cmd = 0;
             *num_tris = 0;
         }
