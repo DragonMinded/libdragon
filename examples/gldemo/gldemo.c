@@ -194,6 +194,8 @@ void render()
     glRotatef(rotation*0.98f, 0, 0, 1);
     glRotatef(rotation*1.71f, 0, 1, 0);
 
+    glBindTexture(GL_TEXTURE_2D, textures[(texture_index + 1)%4]);
+
     glCullFace(GL_FRONT);
     rdpq_debug_log_msg("Sphere");
     draw_sphere();
@@ -208,11 +210,16 @@ void render()
 
     glDisable(GL_TEXTURE_2D);
     glDisable(GL_CULL_FACE);
+    glDisable(GL_LIGHTING);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     rdpq_debug_log_msg("Primitives");
+    glColor4f(1, 1, 1, 0.4f);
     prim_test();
 
     glEnable(GL_CULL_FACE);
+    glDisable(GL_BLEND);
 
     glPopMatrix();
     gl_context_end();
