@@ -1,5 +1,6 @@
 #include <libdragon.h>
 #include <GL/gl.h>
+#include <GL/glu.h>
 #include <GL/gl_integration.h>
 #include <malloc.h>
 #include <math.h>
@@ -152,8 +153,10 @@ void render()
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    glRotatef(45, 1, 0, 0);
-    glTranslatef(0, distance, distance);
+    gluLookAt(
+        0, -distance, -distance,
+        0, 0, 0,
+        0, 1, 0);
     glRotatef(cam_rotate, 0, 1, 0);
 
     float rotation = animation * 0.5f;
