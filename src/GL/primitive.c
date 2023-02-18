@@ -116,6 +116,11 @@ bool gl_can_use_rsp_pipeline()
     }
 
     if (state.lighting) {
+        // Flat shading is not implemented
+        if (state.shade_model == GL_FLAT) {
+            return false;
+        }
+
         // Spot lights are not implemented
         for (uint32_t i = 0; i < LIGHT_COUNT; i++)
         {

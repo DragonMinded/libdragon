@@ -824,6 +824,7 @@ void glShadeModel(GLenum mode)
     case GL_SMOOTH:
         gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, shade_model), mode);
         state.shade_model = mode;
+        set_can_use_rsp_dirty();
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
