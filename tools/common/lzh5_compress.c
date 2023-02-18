@@ -9,6 +9,7 @@
 #include <stdarg.h>
 #include <memory.h>
 #include <limits.h>
+#include <string.h>
 
 #undef DEBUG
 

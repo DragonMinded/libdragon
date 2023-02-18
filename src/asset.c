@@ -51,6 +51,7 @@ void *asset_load(const char *fn, int *sz)
         }   break;
         default:
             assertf(0, "DCA: unsupported compression algorithm: %d", header.algo);
+            return NULL;
         }        
     } else {
         // Allocate a buffer big enough to hold the file.
@@ -69,6 +70,8 @@ void *asset_load(const char *fn, int *sz)
     if (sz) *sz = size;
     return s;
 }
+
+#ifdef N64
 
 static int closefn_none(void *cookie)
 {
@@ -125,3 +128,5 @@ FILE *asset_open(const char *fn)
     // so that it matches the behavior of the compressed file.
     return funopen(f, readfn_none, NULL, NULL, closefn_none);
 }
+
+#endif /* N64 */
