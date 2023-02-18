@@ -3,8 +3,8 @@ CFLAGS += -std=gnu99 -O2 -Wall -Werror -Wno-unused-result -I../../include
 LDFLAGS += -lpng
 all: mksprite convtool
 
-mksprite: mksprite.c lodepng.c lodepng.h
-	$(CC) $(CFLAGS)  mksprite.c -o mksprite
+mksprite: mksprite.c lodepng.c lodepng.h ../common/assetcomp.c
+	$(CC) $(CFLAGS)  mksprite.c ../common/assetcomp.c -o mksprite
 convtool: convtool.c
 	$(CC) $(CFLAGS)  convtool.c -o convtool
 

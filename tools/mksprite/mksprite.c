@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <assert.h>
+#include "../common/assetcomp.h"
 
 #define LODEPNG_NO_COMPILE_ANCILLARY_CHUNKS    // No need to parse PNG extra fields
 #define LODEPNG_NO_COMPILE_CPP                 // No need to use C++ API
@@ -110,6 +111,7 @@ void print_args( char * name )
     fprintf(stderr, "   -f/--format <fmt>     Specify output format (default: AUTO)\n");
     fprintf(stderr, "   -t/--tiles  <w,h>     Specify single tile size (default: auto)\n");
     fprintf(stderr, "   -m/--mipmap <algo>    Calculate mipmap levels using the specified algorithm (default: NONE)\n");
+    fprintf(stderr, "   -c/--compress         Compress output files (using mksasset)\n");
     fprintf(stderr, "   -d/--debug            Dump computed images (eg: mipmaps) as PNG files in output directory\n");
     fprintf(stderr, "\n");
     print_supported_formats();
@@ -532,7 +534,7 @@ int convert(const char *infn, const char *outfn, parms_t *pm) {
 int main(int argc, char *argv[])
 {
     char *infn = NULL, *outdir = ".", *outfn = NULL;
-    parms_t pm = {0};
+    parms_t pm = {0}; bool compression = false;
 
     if (argc < 2) {
         print_args(argv[0]);
@@ -613,6 +615,8 @@ int main(int argc, char *argv[])
                     print_supported_mipmap();
                     return 1;
                 }
+            } else if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--compress")) {
+                compression = true;
             } else {
                 fprintf(stderr, "invalid flag: %s\n", argv[i]);
                 return 1;
@@ -628,11 +632,18 @@ int main(int argc, char *argv[])
         if (ext) *ext = '\0';
 
         asprintf(&outfn, "%s/%s.sprite", outdir, basename_noext);
+
         if (flag_verbose)
             printf("Converting: %s -> %s [fmt=%s tiles=%d,%d mipmap=%s]\n",
                 infn, outfn, tex_format_name(pm.outfmt), pm.tilew, pm.tileh, mipmap_algo_name(pm.mipmap_algo));
-        if (convert(infn, outfn, &pm) != 0)
+
+        if (convert(infn, outfn, &pm) != 0) {
             error = true;
+        } else {
+            if (compression)
+                asset_compress(outfn, outfn, DEFAULT_COMPRESSION);
+        }
+
         free(outfn);
     }
 
