@@ -31,7 +31,7 @@ n64tool: n64tool.c
 	gcc -o n64tool n64tool.c
 
 n64sym: n64sym.c
-	gcc -O2 -o n64sym n64sym.c
+	gcc -std=gnu99 -O2 -Wall -o n64sym n64sym.c
 
 ed64romconfig: ed64romconfig.c
 	gcc -o ed64romconfig ed64romconfig.c
