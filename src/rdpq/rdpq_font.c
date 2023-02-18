@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include "n64sys.h"
 #include "rdpq.h"
 #include "rdpq_rect.h"
 #include "surface.h"
@@ -8,6 +9,7 @@
 #include "rdpq_tex.h"
 #include "rdpq_font.h"
 #include "rdpq_font_internal.h"
+#include "asset.h"
 
 _Static_assert(sizeof(glyph_t) == 16, "glyph_t size is wrong");
 _Static_assert(sizeof(atlas_t) == 12, "atlas_t size is wrong");
@@ -24,8 +26,6 @@ static struct draw_ctx_s {
     float xscale, yscale;
 } draw_ctx;
 
-void *__file_load_all(const char *fn, int *sz);
-
 static rdpq_tile_t atlas_activate(atlas_t *atlas)
 {
     if (draw_ctx.last_atlas != atlas) {
@@ -40,7 +40,7 @@ static rdpq_tile_t atlas_activate(atlas_t *atlas)
 rdpq_font_t* rdpq_font_load(const char *fn)
 {
     int sz;
-    rdpq_font_t *fnt = __file_load_all(fn, &sz);
+    rdpq_font_t *fnt = asset_load(fn, &sz);
     assertf(fnt->magic == FONT_MAGIC_V0, "invalid font file (magic: %08lx)", fnt->magic);
 
     fnt->ranges = PTR_DECODE(fnt, fnt->ranges);
@@ -51,6 +51,7 @@ rdpq_font_t* rdpq_font_load(const char *fn)
         fnt->atlases[i].buf = PTR_DECODE(fnt, fnt->atlases[i].buf);
     }
 
+    data_cache_hit_writeback(fnt, sz);
     return fnt;
 }
 

@@ -1,14 +1,14 @@
 #include "sprite.h"
+#include "n64sys.h"
 #include "debug.h"
 #include "surface.h"
 #include "sprite_internal.h"
-#include "n64sys.h"
+#include "asset.h"
 #include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include <malloc.h>
 
 static sprite_t *last_spritemap = NULL;
 
@@ -48,33 +48,12 @@ bool __sprite_upgrade(sprite_t *sprite)
     return false;
 }
 
-void *__file_load_all(const char *fn, int *sz)
-{
-    FILE *f = fopen(fn, "rb");
-    assertf(f, "File not found: %s\n", fn);
-    fseek(f, 0, SEEK_END);
-
-    // Allocate a buffer big enough to hold the file.
-    // We force a 16-byte alignment for the buffer so that it's cacheline aligned.
-    // This might or might not be useful, but if a binary file is laid out so that it
-    // matters, at least we guarantee that. 
-    *sz = ftell(f);
-    void *s = memalign(16, *sz);
-
-    fseek(f, 0, SEEK_SET);
-    fread(s, 1, *sz, f);
-    fclose(f);
-
-    data_cache_hit_writeback(s, *sz);
-    return s;
-}
-
 sprite_t *sprite_load(const char *fn)
 {
     int sz;
-    sprite_t *s = __file_load_all(fn, &sz);
+    sprite_t *s = asset_load(fn, &sz);
     __sprite_upgrade(s);
-
+    data_cache_hit_writeback(s, sz);
     return s;
 }
 
