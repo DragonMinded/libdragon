@@ -20,7 +20,7 @@ clean:
 	$(MAKE) -C mkdfs clean
 	$(MAKE) -C mksprite clean
 	$(MAKE) -C mkfont clean
-	$(MAKE) -C mkasset cleat
+	$(MAKE) -C mkasset clean
 	$(MAKE) -C audioconv64 clean
 	$(MAKE) -C rdpvalidate clean
 
