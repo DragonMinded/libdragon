@@ -353,7 +353,6 @@ void gl_set_flag2(GLenum target, bool value)
     case GL_NORMALIZE:
         gl_set_flag(GL_UPDATE_NONE, FLAG_NORMALIZE, value);
         state.normalize = value;
-        set_can_use_rsp_dirty();
         break;
     case GL_CLIP_PLANE0:
     case GL_CLIP_PLANE1:

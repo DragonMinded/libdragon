@@ -102,11 +102,6 @@ bool gl_can_use_rsp_pipeline()
         return false;
     }
 
-    // Normalization is not implemented
-    if (state.normalize) {
-        return false;
-    }
-
     // Tex gen is not implemented
     for (uint32_t i = 0; i < TEX_GEN_COUNT; i++)
     {

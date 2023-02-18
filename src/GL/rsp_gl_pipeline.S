@@ -739,6 +739,41 @@ GL_TnL:
     sqv veyepos,        0,s0
     ldv veyenormal.e0,  8,s0
     ldv veyenormal.e4,  8,s0
+
+    #define vsqdist_f   $v10
+    #define vsqdist_i   $v11
+    #define vtmp_f      $v12
+    #define vtmp_i      $v13
+    #define vinvdist_f  $v14
+    #define vinvdist_i  $v15
+
+    # Re-normalize transformed normal
+
+    andi t0, state_flags, FLAG_NORMALIZE
+    beqz t0, 1f
+    vmudh v___, veyenormal, veyenormal
+    vsar  vsqdist_f, COP2_ACC_MD
+    vsar  vsqdist_i, COP2_ACC_HI
+    vaddc vtmp_f, vsqdist_f, vsqdist_f.h1
+    vadd  vtmp_i, vsqdist_i, vsqdist_i.h1
+    vaddc vsqdist_f, vtmp_f, vsqdist_f.h2
+    vadd  vsqdist_i, vtmp_i, vsqdist_i.h2
+
+    vrsqh v___.e0,       vsqdist_i.e0
+    vrsql vinvdist_f.e0, vsqdist_f.e0
+    vrsqh vinvdist_i.e0, vzero.e0
+
+    vmudm v___,       veyenormal, vinvdist_f.e0
+    vmadh veyenormal, veyenormal, vinvdist_i.e0
+
+    #undef vsqdist_f
+    #undef vsqdist_i
+    #undef vtmp_f
+    #undef vtmp_i
+    #undef vinvdist_f
+    #undef vinvdist_i
+
+1:
     jal GL_VtxLighting
     ldv veyepos.e4,     0,s0
 
