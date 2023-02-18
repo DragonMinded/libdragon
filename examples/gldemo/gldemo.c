@@ -1,5 +1,6 @@
 #include <libdragon.h>
 #include <GL/gl.h>
+#include <GL/glu.h>
 #include <GL/gl_integration.h>
 #include <malloc.h>
 #include <math.h>
@@ -134,6 +135,21 @@ void setup()
     }
 }
 
+void draw_quad()
+{
+    glBegin(GL_TRIANGLE_STRIP);
+        glNormal3f(0, 1, 0);
+        glTexCoord2f(0, 0);
+        glVertex3f(-0.5f, 0, -0.5f);
+        glTexCoord2f(0, 1);
+        glVertex3f(-0.5f, 0, 0.5f);
+        glTexCoord2f(1, 0);
+        glVertex3f(0.5f, 0, -0.5f);
+        glTexCoord2f(1, 1);
+        glVertex3f(0.5f, 0, 0.5f);
+    glEnd();
+}
+
 void render()
 {
     surface_t *disp;
@@ -152,8 +168,10 @@ void render()
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    glRotatef(45, 1, 0, 0);
-    glTranslatef(0, distance, distance);
+    gluLookAt(
+        0, -distance, -distance,
+        0, 0, 0,
+        0, 1, 0);
     glRotatef(cam_rotate, 0, 1, 0);
 
     float rotation = animation * 0.5f;
@@ -174,22 +192,38 @@ void render()
     glEnable(GL_LIGHTING);
     glEnable(GL_TEXTURE_2D);
 
+    glEnable(GL_COLOR_MATERIAL);
     glPushMatrix();
     glColor3f(1, 1, 1);
     rdpq_debug_log_msg("Plane");
     draw_plane();
     glTranslatef(0,-1.f,0);
-    glEnable(GL_COLOR_MATERIAL);
     rdpq_debug_log_msg("Cube");
     draw_cube();
-    glDisable(GL_COLOR_MATERIAL);
     glPopMatrix();
+
+    glPushMatrix();
+    glTranslatef(0, 0, 6);
+    glRotatef(35, 0, 1, 0);
+    glScalef(3, 3, 3);
+    glColor4f(1.0f, 0.4f, 0.2f, 0.5f);
+    glDepthFunc(GL_EQUAL);
+    glDepthMask(GL_FALSE);
+    rdpq_debug_log_msg("Decal");
+    draw_quad();
+    glDepthMask(GL_TRUE);
+    glDepthFunc(GL_LESS);
+    glPopMatrix();
+
+    glDisable(GL_COLOR_MATERIAL);
 
     glPushMatrix();
 
     glRotatef(rotation*0.23f, 1, 0, 0);
     glRotatef(rotation*0.98f, 0, 0, 1);
     glRotatef(rotation*1.71f, 0, 1, 0);
+
+    glBindTexture(GL_TEXTURE_2D, textures[(texture_index + 1)%4]);
 
     glCullFace(GL_FRONT);
     rdpq_debug_log_msg("Sphere");
@@ -205,11 +239,16 @@ void render()
 
     glDisable(GL_TEXTURE_2D);
     glDisable(GL_CULL_FACE);
+    glDisable(GL_LIGHTING);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     rdpq_debug_log_msg("Primitives");
+    glColor4f(1, 1, 1, 0.4f);
     prim_test();
 
     glEnable(GL_CULL_FACE);
+    glDisable(GL_BLEND);
 
     glPopMatrix();
     gl_context_end();

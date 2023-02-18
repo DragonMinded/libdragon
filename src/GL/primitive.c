@@ -75,16 +75,19 @@ void gl_primitive_init()
     state.current_attribs[ATTRIB_NORMAL][2] = 1;
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+    set_can_use_rsp_dirty();
 }
 
 void gl_primitive_close()
 {
 }
 
-void gl_pre_init_pipe()
+void gl_pre_init_pipe(GLenum primitive_mode)
 {
-    uint32_t args = ((uint32_t)state.prim_size << 17) | ((uint32_t)state.prim_next * PRIM_VTX_SIZE);
-    gl_write(GL_CMD_PRE_INIT_PIPE, args);
+    uint32_t arg0 = primitive_mode;
+    uint32_t arg1 = ((uint32_t)state.prim_size << 17) | ((uint32_t)state.prim_next * PRIM_VTX_SIZE);
+    gl_write(GL_CMD_PRE_INIT_PIPE, arg0, arg1);
 }
 
 void glpipe_init()
@@ -92,8 +95,62 @@ void glpipe_init()
     glp_write(GLP_CMD_INIT_PIPE, gl_rsp_state);
 }
 
+bool gl_can_use_rsp_pipeline()
+{
+    // Points and lines are not implemented
+    if (state.polygon_mode != GL_FILL) {
+        return false;
+    }
+
+    // Normalization is not implemented
+    if (state.normalize) {
+        return false;
+    }
+
+    // Tex gen is not implemented
+    for (uint32_t i = 0; i < TEX_GEN_COUNT; i++)
+    {
+        if (state.tex_gen[i].enabled) {
+            return false;
+        }
+    }
+
+    if (state.lighting) {
+        // Flat shading is not implemented
+        if (state.shade_model == GL_FLAT) {
+            return false;
+        }
+
+        // Spot lights are not implemented
+        for (uint32_t i = 0; i < LIGHT_COUNT; i++)
+        {
+            if (state.lights[i].spot_cutoff_cos >= 0.0f) {
+                return false;
+            }
+        }
+        
+        // Specular material is not implemented
+        if (state.material.specular[0] != 0.0f || 
+            state.material.specular[1] != 0.0f || 
+            state.material.specular[2] != 0.0f) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void set_can_use_rsp_dirty() {
+    state.can_use_rsp_dirty = true;
+}
+
 bool gl_begin(GLenum mode)
 {
+    if (state.can_use_rsp_dirty) {
+        state.can_use_rsp = gl_can_use_rsp_pipeline();
+        state.can_use_rsp_dirty = false;
+    }
+
     switch (mode) {
     case GL_POINTS:
         state.prim_func = gl_points;
@@ -158,6 +215,9 @@ bool gl_begin(GLenum mode)
     state.prim_counter = 0;
     state.prim_id = 0;
 
+    // Only triangles are implemented on RSP
+    state.rsp_pipeline_enabled = state.can_use_rsp && state.prim_size == 3;
+
     gl_texture_object_t *tex_obj = gl_get_active_texture();
     if (tex_obj != NULL && gl_tex_is_complete(tex_obj)) {
         state.prim_texture = true;
@@ -188,31 +248,13 @@ bool gl_begin(GLenum mode)
     gl_reset_vertex_cache();
     gl_update_final_matrix();
 
-    __rdpq_autosync_change(AUTOSYNC_PIPE);
+    __rdpq_autosync_change(AUTOSYNC_PIPE | AUTOSYNC_TILES | AUTOSYNC_TMEM(0));
 
-    rdpq_mode_begin();
+    gl_pre_init_pipe(mode);
 
-    rdpq_set_mode_standard();
-    // TODO: Put all these in a single command!
-    gl_set_short(GL_UPDATE_POINTS, offsetof(gl_server_state_t, prim_type), (uint16_t)mode);
-    gl_update(GL_UPDATE_DEPTH_TEST);
-    gl_update(GL_UPDATE_DEPTH_MASK);
-    gl_update(GL_UPDATE_BLEND);
-    gl_update(GL_UPDATE_DITHER);
-    gl_update(GL_UPDATE_POINTS);
-    gl_update(GL_UPDATE_ALPHA_TEST);
-    gl_update(GL_UPDATE_BLEND_CYCLE);
-    gl_update(GL_UPDATE_FOG_CYCLE);
-    gl_update(GL_UPDATE_TEXTURE);
-    gl_update(GL_UPDATE_COMBINER);
-
-    rdpq_mode_end();
-
-    __rdpq_autosync_change(AUTOSYNC_TILES | AUTOSYNC_TMEM(0));
-    gl_update(GL_UPDATE_TEXTURE_UPLOAD);
-
-    gl_pre_init_pipe();
-    glpipe_init();
+    if (state.rsp_pipeline_enabled) {
+        glpipe_init();
+    }
 
     // FIXME: This is pessimistically marking everything as used, even if textures are turned off
     //        CAUTION: texture state is owned by the RSP currently, so how can we determine this?
@@ -297,10 +339,10 @@ uint8_t gl_get_clip_codes(GLfloat *pos, GLfloat *ref)
 
 void gl_vertex_pre_clip(uint8_t cache_index, uint16_t id)
 {
-#if RSP_PIPELINE
-    glpipe_set_prim_vertex(cache_index, state.current_attribs, id+1);
-    return;
-#endif
+    if (state.rsp_pipeline_enabled) {
+        glpipe_set_prim_vertex(cache_index, state.current_attribs, id+1);
+        return;
+    }
 
     gl_prim_vtx_t *v = &state.prim_cache[cache_index];
 
@@ -403,7 +445,7 @@ void gl_calc_texture_coords(GLfloat *dest, const GLfloat *input, const GLfloat *
 {
     GLfloat tmp[4];
 
-    for (uint32_t i = 0; i < 4; i++)
+    for (uint32_t i = 0; i < TEX_GEN_COUNT; i++)
     {
         gl_calc_texture_coord(tmp, input, i, &state.tex_gen[i], obj_pos, eye_pos, eye_normal);
     }
@@ -505,11 +547,11 @@ gl_screen_vtx_t * gl_get_screen_vtx(uint8_t prim_index)
 
 void gl_draw_primitive()
 {
-#if RSP_PIPELINE
-    glpipe_draw_triangle(state.prim_texture, state.depth_test, 
-        state.prim_indices[0], state.prim_indices[1], state.prim_indices[2]);
-    return;
-#endif
+    if (state.rsp_pipeline_enabled) {
+        glpipe_draw_triangle(state.prim_texture, state.depth_test, 
+            state.prim_indices[0], state.prim_indices[1], state.prim_indices[2]);
+        return;
+    }
 
     uint8_t tr_codes = 0xFF;
     for (uint8_t i = 0; i < state.prim_size; i++)
@@ -1477,6 +1519,7 @@ void glPolygonMode(GLenum face, GLenum mode)
 
     gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, polygon_mode), (uint16_t)mode);
     state.polygon_mode = mode;
+    set_can_use_rsp_dirty();
 }
 
 void glDepthRange(GLclampd n, GLclampd f)

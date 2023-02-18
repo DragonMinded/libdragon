@@ -14,6 +14,7 @@
 #define MATRIX_SIZE           64
 
 #define TEX_GEN_SIZE          32
+#define TEX_GEN_COUNT         4
 
 #define LIGHT_COUNT           8
 #define LIGHT_ATTR_SIZE       8
@@ -113,6 +114,9 @@
 
 #define ASSERT_INVALID_VTX_ID   0x2001
 
+#define MULTISAMPLE_FLAG_SHIFT      3
+#define ZMODE_BLEND_FLAG_SHIFT      10
+
 #define TEX_BILINEAR_SHIFT          13
 #define TEX_BILINEAR_OFFSET_SHIFT   4
 
@@ -131,7 +135,6 @@
 #define VTX_CMD_SIZE_TEX    8
 #define VTX_CMD_SIZE_NRM    4
 
-#define RSP_PIPELINE        0
 #define RSP_PRIM_ASSEMBLY   0
 
 #endif
