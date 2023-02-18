@@ -6,7 +6,7 @@
 
 #include "ym64.h"
 #include "ay8910.h"
-#include "lzh5.h"
+#include "../compress/lzh5.h"
 #include "samplebuffer.h"
 #include "debug.h"
 #include "utils.h"

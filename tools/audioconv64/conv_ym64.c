@@ -12,9 +12,9 @@
  *
  */
 
-#include "../../src/audio/lzh5.h"   // LZH5 decompression
-#include "lzh5_compress.h"          // LZH5 compression
-#include "lzh5_compress.c"
+#include "../../src/compress/lzh5.h"   // LZH5 decompression
+#include "../common/lzh5_compress.h"   // LZH5 compression
+#include "../common/lzh5_compress.c"
 
 bool flag_ym_compress = false;
 
