@@ -1,0 +1,127 @@
+#include "asset.h"
+#include "asset_internal.h"
+#include "compress/lzh5.h"
+
+#ifdef N64
+#include <malloc.h>
+#include "debug.h"
+#include "n64sys.h"
+#else
+#include <stdlib.h>
+#include <assert.h>
+#define memalign(a, b) malloc(b)
+#define assertf(x, ...) assert(x)
+#endif
+
+static size_t lha_callback(void *buf, size_t buf_len, void *user_data)
+{
+    FILE *f = (FILE*)user_data;
+    return fread(buf, 1, buf_len, f);
+}
+
+void *asset_load(const char *fn, int *sz)
+{
+    uint8_t *s; int size;
+
+    FILE *f = fopen(fn, "rb");
+    assertf(f, "File not found: %s\n", fn);
+
+    // Check if file is compressed
+    char magic[4];
+    fread(&magic, 1, 4, f);
+    if(!memcmp(magic, ASSET_MAGIC, 4)) {
+        asset_header_t header;
+        fread(&header, 1, sizeof(asset_header_t), f);
+
+        #ifndef N64
+        header.algo = __builtin_bswap16(header.algo);
+        header.flags = __builtin_bswap16(header.flags);
+        header.cmp_size = __builtin_bswap32(header.cmp_size);
+        header.orig_size = __builtin_bswap32(header.orig_size);
+        #endif
+
+        switch (header.algo) {
+        case 1: {
+            size = header.orig_size;
+            s = memalign(16, size);
+            LHANewDecoder decoder;
+            lha_lh_new_init(&decoder, lha_callback, f);
+            int n = lha_lh_new_read(&decoder, s, size);
+            assertf(n == size, "DCA: decompression error on file %s: corrupted?", fn);
+        }   break;
+        default:
+            assertf(0, "DCA: unsupported compression algorithm: %d", header.algo);
+        }        
+    } else {
+        // Allocate a buffer big enough to hold the file.
+        // We force a 16-byte alignment for the buffer so that it's cacheline aligned.
+        // This might or might not be useful, but if a binary file is laid out so that it
+        // matters, at least we guarantee that. 
+        fseek(f, 0, SEEK_END);
+        size = ftell(f);
+        s = memalign(16, size);
+
+        fseek(f, 0, SEEK_SET);
+        fread(s, 1, size, f);
+    }
+
+    fclose(f);
+    if (sz) *sz = size;
+    return s;
+}
+
+static int closefn_none(void *cookie)
+{
+    FILE *f = (FILE*)cookie;
+    fclose(f);
+    return 0;
+}
+
+static int readfn_none(void *cookie, char *buf, int sz)
+{
+    FILE *f = (FILE*)cookie;
+    return fread(buf, 1, sz, f);
+}
+
+static int closefn_lha(void *cookie)
+{
+    LHANewDecoder *decoder = (LHANewDecoder*)cookie;
+    FILE *f = (FILE*)decoder->bit_stream_reader.callback_data;
+    fclose(f);
+    return 0;
+}
+
+static int readfn_lha(void *cookie, char *buf, int sz)
+{
+    LHANewDecoder *decoder = (LHANewDecoder*)cookie;
+    return lha_lh_new_read(decoder, (uint8_t*)buf, sz);
+}
+
+FILE *asset_open(const char *fn)
+{
+    FILE *f = fopen(fn, "rb");
+    assertf(f, "File not found: %s\n", fn);
+
+    // Check if file is compressed
+    char magic[4];
+    fread(&magic, 1, 4, f);
+    if(!memcmp(magic, ASSET_MAGIC, 4)) {
+        asset_header_t header;
+        fread(&header, 1, sizeof(asset_header_t), f);
+
+        #ifndef N64
+        header.algo = __builtin_bswap16(header.algo);
+        header.flags = __builtin_bswap16(header.flags);
+        header.cmp_size = __builtin_bswap32(header.cmp_size);
+        header.orig_size = __builtin_bswap32(header.orig_size);
+        #endif
+
+        LHANewDecoder *decoder = malloc(sizeof(LHANewDecoder));
+        lha_lh_new_init(decoder, lha_callback, f);
+        return funopen(decoder, readfn_lha, NULL, NULL, closefn_lha);
+    }
+
+    // Not compressed. Return a wrapped FILE* without the seeking capability,
+    // so that it matches the behavior of the compressed file.
+    return funopen(f, readfn_none, NULL, NULL, closefn_none);
+}
