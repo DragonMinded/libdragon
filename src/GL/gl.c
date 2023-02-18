@@ -323,6 +323,7 @@ void gl_set_flag2(GLenum target, bool value)
     case GL_LIGHTING:
         gl_set_flag(GL_UPDATE_NONE, FLAG_LIGHTING, value);
         state.lighting = value;
+        set_can_use_rsp_dirty();
         break;
     case GL_LIGHT0:
     case GL_LIGHT1:
@@ -341,24 +342,18 @@ void gl_set_flag2(GLenum target, bool value)
         state.color_material = value;
         break;
     case GL_TEXTURE_GEN_S:
-        gl_set_flag(GL_UPDATE_NONE, FLAG_TEX_GEN_S, value);
-        state.tex_gen[0].enabled = value;
-        break;
     case GL_TEXTURE_GEN_T:
-        gl_set_flag(GL_UPDATE_NONE, FLAG_TEX_GEN_T, value);
-        state.tex_gen[1].enabled = value;
-        break;
     case GL_TEXTURE_GEN_R:
-        gl_set_flag(GL_UPDATE_NONE, FLAG_TEX_GEN_R, value);
-        state.tex_gen[2].enabled = value;
-        break;
     case GL_TEXTURE_GEN_Q:
-        gl_set_flag(GL_UPDATE_NONE, FLAG_TEX_GEN_Q, value);
-        state.tex_gen[3].enabled = value;
+        uint32_t tex_gen_index = target - GL_TEXTURE_GEN_S;
+        gl_set_flag(GL_UPDATE_NONE, FLAG_TEX_GEN_S << tex_gen_index, value);
+        state.tex_gen[tex_gen_index].enabled = value;
+        set_can_use_rsp_dirty();
         break;
     case GL_NORMALIZE:
         gl_set_flag(GL_UPDATE_NONE, FLAG_NORMALIZE, value);
         state.normalize = value;
+        set_can_use_rsp_dirty();
         break;
     case GL_CLIP_PLANE0:
     case GL_CLIP_PLANE1:

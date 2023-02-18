@@ -333,7 +333,7 @@ typedef struct {
 
     GLenum shade_model;
 
-    gl_tex_gen_t tex_gen[4];
+    gl_tex_gen_t tex_gen[TEX_GEN_COUNT];
 
     gl_viewport_t current_viewport;
 
@@ -434,6 +434,10 @@ typedef struct {
 
     int frame_id;
     volatile int frames_complete;
+
+    bool rsp_pipeline_enabled;
+    bool can_use_rsp;
+    bool can_use_rsp_dirty;
 } gl_state_t;
 
 typedef struct {
@@ -536,6 +540,8 @@ void gl_storage_free(gl_storage_t *storage);
 bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size);
 
 uint64_t * gl_reserve_deletion_slot();
+
+void set_can_use_rsp_dirty();
 
 inline bool is_in_heap_memory(void *ptr)
 {

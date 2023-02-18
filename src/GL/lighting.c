@@ -206,8 +206,16 @@ void gl_perform_lighting(GLfloat *color, const GLfloat *input, const GLfloat *v,
         col[1] += diffuse[1] * light->diffuse[1] * ndvp;
         col[2] += diffuse[2] * light->diffuse[2] * ndvp;
 
+        GLfloat spec_mix[3] = {
+            specular[0] * light->specular[0],
+            specular[1] * light->specular[1],
+            specular[2] * light->specular[2]
+        };
+
+        bool spec_any = spec_mix[0] != 0.0f || spec_mix[1] != 0.0f || spec_mix[2] != 0.0f;
+
         // Specular
-        if (ndvp != 0.0f) {
+        if (ndvp != 0.0f && spec_any) {
             GLfloat h[3] = {
                 vpl[0],
                 vpl[1],
@@ -227,9 +235,9 @@ void gl_perform_lighting(GLfloat *color, const GLfloat *input, const GLfloat *v,
             float ndh = gl_clamped_dot(n, h);
             float spec_factor = powf(ndh, material->shininess);
 
-            col[0] += specular[0] * light->specular[0] * spec_factor;
-            col[1] += specular[1] * light->specular[1] * spec_factor;
-            col[2] += specular[2] * light->specular[2] * spec_factor;
+            col[0] += spec_mix[0] * spec_factor;
+            col[1] += spec_mix[1] * spec_factor;
+            col[2] += spec_mix[2] * spec_factor;
         }
 
         float light_factor = att * spot;
@@ -287,6 +295,7 @@ void gl_set_material_diffuse(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 void gl_set_material_specular(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
     gl_set_color(state.material.specular, offsetof(gl_server_state_t, mat_specular), r, g, b, a);
+    set_can_use_rsp_dirty();
 }
 
 void gl_set_material_emissive(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
@@ -529,6 +538,7 @@ void gl_light_set_spot_cutoff(gl_light_t *light, uint32_t offset, float param)
 {
     light->spot_cutoff_cos = cosf(RADIANS(param));
     //gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_light_srv_t, spot_cutoff_cos), light->spot_cutoff_cos * 0x7FFF);
+    set_can_use_rsp_dirty();
 }
 
 void gl_light_set_constant_attenuation(gl_light_t *light, uint32_t offset, float param)
