@@ -2,7 +2,6 @@
 #define __LIBDRAGON_ASSET_INTERNAL_H
 
 #include <stdint.h>
-#include <stdio.h>
 
 #define ASSET_MAGIC    "DCA1"
 
