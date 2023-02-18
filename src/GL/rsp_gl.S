@@ -565,16 +565,6 @@ GLCmd_PreInitPipe:
     andi t0, state_flags, FLAG_MULTISAMPLE
     srl modes1, t0, MULTISAMPLE_FLAG_SHIFT
 
-    # Depth test
-    andi t0, state_flags, FLAG_DEPTH_TEST
-    beqz t0, 1f
-    lhu t1, %lo(GL_STATE_DEPTH_FUNC)
-    xori t1, GL_LESS
-    sltu t1, 1
-    sll t0, t1, SOM_Z_COMPARE_SHIFT
-    or modes1, t0
-1:
-
     # Alpha test
     andi t0, state_flags, FLAG_ALPHA_TEST
     beqz t0, 1f         
@@ -591,13 +581,30 @@ GLCmd_PreInitPipe:
     sll t0, SOM_Z_WRITE_SHIFT
     or modes1, t0
 
-    # Blend
-    andi t1, state_flags, FLAG_BLEND
+    #define depth_func t3
+
+    # Depth test
+    andi t0, state_flags, FLAG_DEPTH_TEST
+    beqz t0, 1f
+    lhu depth_func, %lo(GL_STATE_DEPTH_FUNC)
+    xori t1, depth_func, GL_ALWAYS
+    sltu t1, zero, t1
+    sll t0, t1, SOM_Z_COMPARE_SHIFT
+    or modes1, t0
+1:
+
+    # Z mode
+    # TODO: SOM_ZMODE_INTERPENETRATING? Maybe as a custom extension?
+    xori t1, depth_func, GL_EQUAL
     beqz t1, 1f
-    li t0, SOM_ZMODE_OPAQUE
-    li t0, SOM_ZMODE_TRANSPARENT
+    li t0, SOM_ZMODE_DECAL
+    andi t0, state_flags, FLAG_BLEND
+    # t0 = (state_flags & FLAG_BLEND) ? SOM_ZMODE_TRANSPARENT : SOM_ZMODE_OPAQUE
+    sll t0, ZMODE_BLEND_FLAG_SHIFT
 1:
     or modes1, t0
+
+    #undef depth_func
 
     # Dither
     andi t1, state_flags, FLAG_DITHER

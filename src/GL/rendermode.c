@@ -5,6 +5,7 @@
 #include "rspq.h"
 
 _Static_assert(FLAG_MULTISAMPLE >> MULTISAMPLE_FLAG_SHIFT == SOM_AA_ENABLE);
+_Static_assert(FLAG_BLEND << ZMODE_BLEND_FLAG_SHIFT == SOM_ZMODE_TRANSPARENT);
 
 extern gl_state_t state;
 
@@ -244,10 +245,10 @@ void glDepthFunc(GLenum func)
     switch (func) {
     case GL_LESS:
     case GL_ALWAYS:
+    case GL_EQUAL:
         gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, depth_func), (uint16_t)func);
         break;
     case GL_NEVER:
-    case GL_EQUAL:
     case GL_LEQUAL:
     case GL_GREATER:
     case GL_NOTEQUAL:
