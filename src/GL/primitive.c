@@ -97,8 +97,17 @@ void glpipe_init()
 
 bool gl_can_use_rsp_pipeline()
 {
+    #define WARN_CPU_REQUIRED(msg) ({ \
+        static bool warn_state ## __LINE__; \
+        if (!warn_state ## __LINE__) { \
+            warn_state ## __LINE__ = true; \
+            debugf("GL WARNING: The CPU pipeline is being used because a feature is enabled that is not supported on RSP: " msg "\n"); \
+        } \
+    })
+
     // Points and lines are not implemented
     if (state.polygon_mode != GL_FILL) {
+        WARN_CPU_REQUIRED("polygon mode");
         return false;
     }
 
@@ -106,6 +115,7 @@ bool gl_can_use_rsp_pipeline()
     for (uint32_t i = 0; i < TEX_GEN_COUNT; i++)
     {
         if (state.tex_gen[i].enabled) {
+            WARN_CPU_REQUIRED("texture coordinate generation");
             return false;
         }
     }
@@ -113,6 +123,7 @@ bool gl_can_use_rsp_pipeline()
     if (state.lighting) {
         // Flat shading is not implemented
         if (state.shade_model == GL_FLAT) {
+            WARN_CPU_REQUIRED("flat shading");
             return false;
         }
 
@@ -120,6 +131,7 @@ bool gl_can_use_rsp_pipeline()
         for (uint32_t i = 0; i < LIGHT_COUNT; i++)
         {
             if (state.lights[i].spot_cutoff_cos >= 0.0f) {
+                WARN_CPU_REQUIRED("spotlights");
                 return false;
             }
         }
@@ -128,11 +140,14 @@ bool gl_can_use_rsp_pipeline()
         if (state.material.specular[0] != 0.0f || 
             state.material.specular[1] != 0.0f || 
             state.material.specular[2] != 0.0f) {
+            WARN_CPU_REQUIRED("specular lighting");
             return false;
         }
     }
 
     return true;
+
+    #undef WARN_CPU_REQUIRED
 }
 
 void set_can_use_rsp_dirty() {
