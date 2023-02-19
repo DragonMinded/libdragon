@@ -73,6 +73,27 @@ void *asset_load(const char *fn, int *sz)
 
 #ifdef N64
 
+static fpos_t seekfn_none(void *cookie, fpos_t pos, int whence)
+{
+    FILE *f = (FILE*)cookie;
+    switch (whence) {
+    case SEEK_SET:
+        assertf(pos >= ftell(f), 
+            "Cannot seek backward in file opened via asset_fopen (it might be compressed) %ld %ld", pos, ftell(f));
+        break;
+    case SEEK_CUR:
+        assertf(pos >= 0,
+            "Cannot seek backward in file opened via asset_fopen (it might be compressed) %ld", pos);
+        break;
+    case SEEK_END:
+        assertf(0, 
+            "Cannot seek from end in file opened via asset_fopen (it might be compressed)");
+        break;
+    }
+    fseek(f, pos, whence);
+    return ftell(f);
+}
+
 static int closefn_none(void *cookie)
 {
     FILE *f = (FILE*)cookie;
@@ -86,11 +107,18 @@ static int readfn_none(void *cookie, char *buf, int sz)
     return fread(buf, 1, sz, f);
 }
 
+static fpos_t seekfn_lha(void *cookie, fpos_t pos, int whence)
+{
+    assertf(0, "Cannot seek in file opened via asset_fopen (it might be compressed)");
+    return 0;
+}
+
 static int closefn_lha(void *cookie)
 {
     LHANewDecoder *decoder = (LHANewDecoder*)cookie;
     FILE *f = (FILE*)decoder->bit_stream_reader.callback_data;
     fclose(f);
+    free(decoder);
     return 0;
 }
 
@@ -100,7 +128,7 @@ static int readfn_lha(void *cookie, char *buf, int sz)
     return lha_lh_new_read(decoder, (uint8_t*)buf, sz);
 }
 
-FILE *asset_open(const char *fn)
+FILE *asset_fopen(const char *fn)
 {
     FILE *f = fopen(fn, "rb");
     assertf(f, "File not found: %s\n", fn);
@@ -121,12 +149,13 @@ FILE *asset_open(const char *fn)
 
         LHANewDecoder *decoder = malloc(sizeof(LHANewDecoder));
         lha_lh_new_init(decoder, lha_callback, f);
-        return funopen(decoder, readfn_lha, NULL, NULL, closefn_lha);
+        return funopen(decoder, readfn_lha, NULL, seekfn_lha, closefn_lha);
     }
 
     // Not compressed. Return a wrapped FILE* without the seeking capability,
     // so that it matches the behavior of the compressed file.
-    return funopen(f, readfn_none, NULL, NULL, closefn_none);
+    fseek(f, 0, SEEK_SET);
+    return funopen(f, readfn_none, NULL, seekfn_none, closefn_none);
 }
 
 #endif /* N64 */
