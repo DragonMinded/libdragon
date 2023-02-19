@@ -21,6 +21,7 @@ SECTIONS {
         __text_start = .;
         *(.text)
         *(.data)
+        *(.rodata)
         *(.rodata.*)
         __text_end  = .;
     } > dmem

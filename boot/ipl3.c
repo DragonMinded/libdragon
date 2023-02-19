@@ -20,7 +20,7 @@ void _start(void)
 {
     dragon_init();
 
-    //*(volatile uint32_t*)0xbfc007fc = 8;
+    si_write(0x7FC, 0x8);  // PIF boot terminator
 
     usb_init();
     debugf("Libdragon IPL3");
