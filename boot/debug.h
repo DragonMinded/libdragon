@@ -50,10 +50,7 @@ static void usb_64drive_wait(void)
 
 static void usb_64drive_waitidle()
 {
-    while (((io_read(D64_CIBASE_ADDRESS + D64_REGISTER_USBCOMSTAT) >> 4) & D64_USB_BUSY) != D64_USB_IDLE) {
-        uint32_t x = io_read(D64_CIBASE_ADDRESS + D64_REGISTER_USBCOMSTAT);
-        io_write(DEBUG_ADDRESS, x);
-    }
+    while (((io_read(D64_CIBASE_ADDRESS + D64_REGISTER_USBCOMSTAT) >> 4) & D64_USB_BUSY) != D64_USB_IDLE) {}
 }
 
 static void usb_64drive_setwritable(bool enable)
@@ -66,15 +63,16 @@ static void usb_64drive_setwritable(bool enable)
 
 static void usb_flush(int size)
 {
-    io_write(D64_CIBASE_ADDRESS + D64_REGISTER_USBCOMSTAT, D64_COMMAND_WRITE);
     io_write(D64_CIBASE_ADDRESS + D64_REGISTER_USBP0R0, (DEBUG_ADDRESS) >> 1);
     io_write(D64_CIBASE_ADDRESS + D64_REGISTER_USBP1R1, (size & 0xFFFFFF) | (DATATYPE_TEXT << 24));
+    io_write(D64_CIBASE_ADDRESS + D64_REGISTER_USBCOMSTAT, D64_COMMAND_WRITE);
+    usb_64drive_waitidle();
 }
 
 __attribute__((noinline))
 static void _usb_print(int ssize, const char *string, int nargs, ...)
 {
-    static uint32_t addr = DEBUG_ADDRESS;
+    uint32_t addr = DEBUG_ADDRESS;
     uint32_t *s = (uint32_t*)string;
     for (; ssize > 0; ssize -= 4, addr += 4)
         io_write(addr, *s++);
@@ -99,13 +97,8 @@ static void _usb_print(int ssize, const char *string, int nargs, ...)
         }
     }
 
-    io_write(addr, 0x0A000000), addr += 4;
-
-    #if 0
-    // FIXME: this does work only once, then the USB interface stays busy forever?
+    io_write(addr, 0x2020200A), addr += 4;
     usb_flush(addr - DEBUG_ADDRESS);
-    usb_64drive_waitidle();
-    #endif
 }
 
 #define debugf(s, ...)   _usb_print(__builtin_strlen(s), s "    ", __COUNT_VARARGS(__VA_ARGS__), ##__VA_ARGS__)
