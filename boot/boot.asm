@@ -1,4 +1,4 @@
-# t1, t2, t3 and ra are constant values from IPL2 that i use here
+# Register values at the end of IPL2:
 # t1 = 0, t2 = 0x40, t3 = 0xA4000040, ra = 0xA4001550
 
 .n64
@@ -26,10 +26,9 @@ IPL3:
     addiu   $t1, 4
     or      $t1, $0, $0
     addiu   $t2, $0, 0x40
-    lui     $t3, 0xA400
-    ori     $t3, 0x0040
+    addiu   $t3, $sp, 0xA4000040-0xA4001FF0
     jr      $t3
-    ori     $ra, $t3, 0x1550
+    addiu   $ra, $sp, 0xA4001550-0xA4001FF0
 @end:
 .fill 0xA4001000-.
 .close
