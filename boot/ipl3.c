@@ -19,9 +19,6 @@ __attribute__((noinline, noreturn, noclone, section(".boot")))
 void _start(void)
 {
     dragon_init();
-
-    si_write(0x7FC, 0x8);  // PIF boot terminator
-
     usb_init();
     debugf("Libdragon IPL3");
     debugf("C0_STATUS: ", C0_STATUS());
@@ -30,9 +27,9 @@ void _start(void)
     C0_WRITE_COUNT(0);
     C0_WRITE_COMPARE(0);
 
-    debugf("rdram_init()");
     rdram_init();
 
     debugf("END");
+    si_write(0x7FC, 0x8);  // PIF boot terminator
     while(1) {}
 }

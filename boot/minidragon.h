@@ -23,7 +23,7 @@ static inline uint32_t io_read(uint32_t vaddrx)
 }
 
 static void wait(int n) {
-    while (n--) asm volatile("nop");
+    while (n--) asm volatile("");
 }
 
 static inline void si_write(uint32_t offset, uint32_t value)
