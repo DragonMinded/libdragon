@@ -37,3 +37,15 @@ static inline void dragon_init(void)
 {
 }
 
+
+// Missing from libgcc
+static uint32_t __byteswap32(uint32_t x)  
+{
+    uint32_t y = (x >> 24) & 0xff;
+    y |= (x >> 8) & 0xff00;
+    y |= (x << 8) & 0xff0000;
+    y |= (x << 24) & 0xff000000;
+    return y;
+}
+
+#define byteswap32(x) (__builtin_constant_p(x) ? __builtin_bswap32(x) : __byteswap32(x))

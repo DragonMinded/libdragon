@@ -10,8 +10,8 @@ N64_OBJDUMP = $(N64_GCCPREFIX_TRIPLET)objdump
 N64_INCLUDEDIR = $(N64_ROOTDIR)/mips64-elf/include
 
 N64_CFLAGS =  -march=vr4300 -mtune=vr4300 -I$(N64_INCLUDEDIR) -MMD
-N64_CFLAGS += -DN64 -Os -Wall -Werror -Wno-error=deprecated-declarations -fdiagnostics-color=always
-N64_CFLAGS += -Wno-error=unused-function -ffreestanding -nostdlib 
+N64_CFLAGS += -DN64 -O2 -Wall -Werror -Wno-error=deprecated-declarations -fdiagnostics-color=always
+N64_CFLAGS += -Wno-error=unused-function -ffreestanding -nostdlib
 N64_CFLAGS += -G0 # gp is not initialized (don't use it)
 N64_CFLAGS += -mabi=32  # Can't compile for 64bit ABI because DMEM/IMEM don't support 64-bit access
 

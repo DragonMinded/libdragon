@@ -1,3 +1,11 @@
+#define MI_MODE                             ((volatile uint32_t*)0xA4300000)
+#define MI_WMODE_CLEAR_INIT_MODE            0x80
+#define MI_WMODE_SET_INIT_MODE              0x100
+#define MI_WMODE_LENGTH(n)                  ((n)-1)
+#define MI_WMODE_SET_RDRAM_REG_MODE         0x2000
+#define MI_WMODE_CLEAR_RDRAM_REG_MODE       0x1000
+#define MI_VERSION                          ((volatile uint32_t*)0xA4300004)
+
 #define RI_MODE								((volatile uint32_t*)0xA4700000)
 #define RI_CONFIG							((volatile uint32_t*)0xA4700004)
 #define RI_CURRENT_LOAD						((volatile uint32_t*)0xA4700008)
@@ -7,6 +15,11 @@
 #define RI_RERROR							((volatile uint32_t*)0xA4700018)
 #define RI_WERROR							((volatile uint32_t*)0xA470001C)
 
+// Memory map exposed by RI to the CPU
+#define RDRAM                               ((uint32_t*)0xA0000000)
+#define RDRAM_REGS                          ((volatile uint32_t*)0xA3F00000)
+#define RDRAM_REGS_BROADCAST                ((volatile uint32_t*)0xA3F80000)
+
 #define RI_CONFIG_AUTO_CALIBRATION			0x40
 #define RI_SELECT_RX_TX						0x14
 #define RI_MODE_CLOCK_RX                    0x8
@@ -14,13 +27,153 @@
 #define RI_MODE_RESET						0x0
 #define RI_MODE_STANDARD					(0x2 | RI_MODE_CLOCK_RX | RI_MODE_CLOCK_TX)
 
+#define RDRAM_BROADCAST                     -1
+typedef enum {
+    RDRAM_REG_DEVICE_TYPE = 0,              // Read-only register which describes RDRAM configuration
+    RDRAM_REG_DEVICE_ID = 1,                // Specifies base address of RDRAM
+    RDRAM_REG_DELAY = 2,                    // Specifies CAS timing parameters
+    RDRAM_REG_MODE = 3,                     // Control operating mode and IOL output current
+    RDRAM_REG_REF_INTERVAL = 4,             // Specifies refresh interval for devices that require refresh
+    RDRAM_REG_REF_ROW = 5,                  // Next row and bank to be refreshed
+    RDRAM_REG_RAS_INTERVAL = 6,             // Specifies AS access interval
+    RDRAM_REG_MIN_INTERVAL = 7,             // Provides minimum delay information and some special control
+    RDRAM_REG_ADDR_SELECT = 8,              // Specifies Adr field subfield swapping to maximize hit rate
+    RDRAM_REG_DEVICE_MANUFACTURER = 9,      // Read-only register providing manufacturer and device information
+
+    // This can only be accessed on RAC v2 (as registers are more spaced)
+    RDRAM_REG_ROW = 128,                    // Address of currently sensed row in each bank
+} rdram_reg_t;
+
+
 static void rdram_dump_regs(void)
 {
+    debugf("\tMI_MODE: ", *MI_MODE);
+    debugf("\tMI_VERSION: ", *MI_VERSION);
     debugf("\tRI_MODE: ", *RI_MODE);
     debugf("\tRI_CONFIG: ", *RI_CONFIG);
     debugf("\tRI_CURRENT_LOAD: ", *RI_CURRENT_LOAD);
     debugf("\tRI_SELECT: ", *RI_SELECT);
     debugf("\tRI_LATENCY: ", *RI_LATENCY);
+}
+
+static uint32_t mi_version_rsp(void) { return (*MI_VERSION >> 24) & 0xFF; }
+static uint32_t mi_version_rdp(void) { return (*MI_VERSION >> 16) & 0xFF; }
+static uint32_t mi_version_rac(void) { return (*MI_VERSION >>  8) & 0xFF; }
+static uint32_t mi_version_io(void)  { return (*MI_VERSION >>  0) & 0xFF; }
+
+register uint32_t rdram_reg_stride_shift asm("k0");
+
+static void rdram_reg_init(void) {
+    // On RAC v1, registers are 0x200 bytes apart, and register
+    uint32_t version = mi_version_rac();
+    debugf("rdram_reg_init: RAC version ", version);
+    switch (version) {
+    case 1:  rdram_reg_stride_shift =  9-2; break;
+    default: rdram_reg_stride_shift = 10-2; break;
+    }
+}
+
+static void rdram_reg_w(int chip_id, rdram_reg_t reg, uint32_t value)
+{
+    // RDRAM registers are physically little-endian. Swap them on write, so that
+    // the rest of the code follows the datasheets.
+    value = byteswap32(value);
+    if (chip_id < 0) {
+        RDRAM_REGS_BROADCAST[reg] = value;
+        debugf("rdram_reg_w: ", (uint32_t)(&RDRAM_REGS_BROADCAST[reg]), value);
+    } else {
+        RDRAM_REGS[(chip_id << rdram_reg_stride_shift) + reg] = value;
+        debugf("rdram_reg_w: ", (uint32_t)(&RDRAM_REGS[(chip_id << rdram_reg_stride_shift) + reg]), value);
+    }
+}
+
+__attribute__((noinline))
+static uint32_t rdram_reg_r(int chip_id, rdram_reg_t reg)
+{
+    *MI_MODE = MI_WMODE_SET_RDRAM_REG_MODE;
+    uint32_t value = RDRAM_REGS[(chip_id << rdram_reg_stride_shift) + reg];
+    *MI_MODE = MI_WMODE_CLEAR_RDRAM_REG_MODE;
+    return byteswap32(value);
+}
+
+static void rdram_reg_w_deviceid(int chip_id, uint16_t new_chip_id)
+{   
+    uint32_t value = 0;
+
+    value |= ((new_chip_id >>  0) & 0x03F) <<  3;   // Bits 0..5
+    value |= ((new_chip_id >>  6) & 0x1FF) << 15;   // Bits 6..14
+    value |= ((new_chip_id >> 15) & 0x001) << 31;   // Bit  15
+
+    rdram_reg_w(chip_id, RDRAM_REG_DEVICE_ID, value);
+}
+
+/** 
+ * Write the RDRAM mode register. This is mainly used to write the current (I) value
+ * in manual/auto mode, so this helper function just allows to do that, with some
+ * other fixed values.
+ * 
+ * @param nchip         Number of RDRAM chip to configure
+ * @param auto_current  If true, set auto current mode, otherwise set manual mode
+ * @param cci           Inverted current (I) value (0-63). "Inverted" means that the
+ *                      range 0-63 is reversed wrt the register value, as this is
+ *                      more intuitive (maps linearly to the current in mA).
+ */
+static void rdram_reg_w_mode(int nchip, bool auto_current, uint8_t cci)
+{
+    uint8_t cc = cci ^ 0x3F;   // invert bits to non inverted value
+
+    uint32_t value = 0x46; // TBD
+    if (auto_current) value |= 1 << 7;
+    value |= ((cc >> 0) & 1) << 30;
+    value |= ((cc >> 1) & 1) << 22;
+    value |= ((cc >> 2) & 1) << 14;
+    value |= ((cc >> 3) & 1) << 31;
+    value |= ((cc >> 4) & 1) << 23;
+    value |= ((cc >> 5) & 1) << 15;
+
+    rdram_reg_w(nchip, RDRAM_REG_MODE, value);
+}
+
+static float memory_test(uint32_t *vaddr) {
+    enum { NUM_TESTS = 10 };
+
+    float accuracy = 0.0f;
+    for (int t=0; t<NUM_TESTS; t++) {
+        // Write test words
+        vaddr[0] = 0xFFFFFFFF;
+        vaddr[1] = 0xFFFFFFFF;
+
+        // Read back one byte and count number of set bits
+        uint8_t b0 = ((uint8_t*)vaddr)[5];
+        while (b0) {
+            if (b0 & 1) accuracy += 1.0f;
+            b0 >>= 1;
+        }
+    }
+    return accuracy * (1.0f / (NUM_TESTS * 8));
+}
+
+void rdram_calibrate_current(int chip_id, uint32_t *vaddr)
+{
+    float weighted_sum = 0.0f;
+    float prev_accuracy = 0.0f;
+
+    for (int cc=0; cc<64; cc++) {
+        // Go through all possible current values, in ascending order, in "manual" mode.
+        rdram_reg_w_mode(chip_id, false, cc);
+
+        // Perform a memory test to check how stable the RDRAM is at this current level.
+        // Calculate a weighted sum between the different current levels.
+        float accuracy = memory_test(vaddr);
+        debugf("rdram_calibrate_current: accuracy ", cc, (uint32_t)(accuracy * 255));
+        weighted_sum += (accuracy - prev_accuracy) * cc;
+
+        // Stop once we reach full accuracy.
+        if (accuracy >= 1.0f) break;
+    }
+
+    int target_cc = weighted_sum * 2.2f + 0.5f;
+    debugf("rdram_calibrate_current: target_cc ", target_cc);
 }
 
 void rdram_init(void)
@@ -61,6 +214,36 @@ void rdram_init(void)
     debugf("rdram_init: reset chips");
     *RI_MODE = RI_MODE_RESET;    wait(0x100);
     *RI_MODE = RI_MODE_STANDARD; wait(0x100);
+
+    // Configure MI to init mode, so that we can talk to RDRAM chips
+    // TODO: confirm that legth=16 means we can talk up to 16 chips, by lowering this
+    // and checking what happens.
+    *MI_MODE = MI_WMODE_SET_INIT_MODE | MI_WMODE_LENGTH(0x10);
+    debugf("rdram_init: MI_MODE: ", *MI_MODE);
+
+    // Initialize chips
+    rdram_reg_init();
+    rdram_reg_w(RDRAM_BROADCAST, RDRAM_REG_DELAY,     byteswap32(0x18082838));
+    rdram_reg_w(RDRAM_BROADCAST, RDRAM_REG_REF_ROW,   byteswap32(0x00000000));
+    //rdram_reg_w(RDRAM_BROADCAST, RDRAM_REG_DEVICE_ID, byteswap32(0x80000000)); // (same as below)
+    rdram_reg_w_deviceid(RDRAM_BROADCAST, 16);  // FIXME: shouldn't this be 32?
+
+    // All chips are now configured with the same chip ID (32). We now change the ID of
+    // the first one to 0, so that we can begin addressing it separately. Notice that this
+    // works because when using non-broadcast mode, only the first chip that matches the ID
+    // receives the command, even if there are multiple chips with the same ID.
+    rdram_reg_w_deviceid(32, 0);
+
+    rdram_calibrate_current(0, RDRAM);
+
+    #if 0
+    rdram_reg_w_mode(RDRAM_BROADCAST, true, 0x20); // auto current mode, max current
+    uint32_t manu[8];
+    for (int i=0; i<8; i++) {
+        manu[i] = rdram_reg_r(i, RDRAM_REG_DEVICE_MANUFACTURER);
+    }
+    debugf("rdram_init: manufacturer: ", manu[0], manu[1], manu[2], manu[3], manu[4], manu[5], manu[6], manu[7]);
+    #endif
 
     debugf("rdram_init: done");
     rdram_dump_regs();
