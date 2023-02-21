@@ -1,3 +1,11 @@
+/** 
+ * Change to 1 to activate support for obsolete HW1 RCP.
+ * This version has a different layout for the RDRAM registers.
+ * No known commercial unit is using this, so it is disabled by
+ * default.
+ */
+#define SUPPORT_HW1   0
+
 #define MI_MODE                             ((volatile uint32_t*)0xA4300000)
 #define MI_WMODE_CLEAR_INIT_MODE            0x80
 #define MI_WMODE_SET_INIT_MODE              0x100
@@ -23,7 +31,7 @@
 #define RI_CONFIG_AUTO_CALIBRATION			0x40
 #define RI_SELECT_RX_TX						0x14
 #define RI_MODE_CLOCK_RX                    0x8
-#define RI_MODE_CLOCK_TX                    0x8
+#define RI_MODE_CLOCK_TX                    0x4
 #define RI_MODE_RESET						0x0
 #define RI_MODE_STANDARD					(0x2 | RI_MODE_CLOCK_RX | RI_MODE_CLOCK_TX)
 
@@ -64,9 +72,9 @@ static uint32_t mi_version_io(void)  { return (*MI_VERSION >>  0) & 0xFF; }
 register uint32_t rdram_reg_stride_shift asm("k0");
 
 static void rdram_reg_init(void) {
-    // On RAC v1, registers are 0x200 bytes apart, and register
-    uint32_t version = mi_version_rac();
-    debugf("rdram_reg_init: RAC version ", version);
+    // On RI v1, registers are 0x200 bytes apart
+    uint32_t version = SUPPORT_HW1 ? mi_version_io() : 2;
+    debugf("rdram_reg_init: IO version ", version);
     switch (version) {
     case 1:  rdram_reg_stride_shift =  9-2; break;
     default: rdram_reg_stride_shift = 10-2; break;
