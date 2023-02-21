@@ -7,17 +7,17 @@
 #define DEBUG 1
 #include "debug.h"
 
-register uint32_t s3_register asm ("s3");
-register uint32_t s4_register asm ("s4");
-register uint32_t s5_register asm ("s5");
-register uint32_t s6_register asm ("s6");
-register uint32_t s7_register asm ("s7");
-
 #include "rdram.c"
 
-__attribute__((noinline, noreturn, noclone, section(".boot")))
+__attribute__((noreturn, section(".boot")))
 void _start(void)
 {
+    register uint32_t ipl2_romType   asm ("s3"); (void)ipl2_romType;
+    register uint32_t ipl2_tvType    asm ("s4"); (void)ipl2_tvType;
+    register uint32_t ipl2_resetType asm ("s5"); (void)ipl2_resetType;
+    register uint32_t ipl2_romSeed   asm ("s6"); (void)ipl2_romSeed;
+    register uint32_t ipl2_version   asm ("s7"); (void)ipl2_version;
+
     dragon_init();
     usb_init();
     debugf("Libdragon IPL3");

@@ -30,8 +30,9 @@ build/ipl3.bin: build/ipl3.o ipl3.ld
 	$(N64_OBJCOPY) -O binary build/ipl3.elf build/ipl3.bin
 
 ipl3.z64: build/ipl3.bin boot_signed.z64
-	dd if=/dev/zero of=build/pad.bin bs=1 count=64 >/dev/null 2>&1
-	cat boot_signed.z64 build/pad.bin build/ipl3.bin >ipl3.z64
+	dd if=/dev/zero of=build/pad.bin bs=1 count=48 >/dev/null 2>&1
+	printf " Libdragon IPL3 " > build/banner.bin
+	cat boot_signed.z64 build/pad.bin build/banner.bin build/ipl3.bin >ipl3.z64
 
 run: ipl3.z64
 	g64drive upload --autocic=false ipl3.z64 && g64drive cic 6102 && g64drive debug

@@ -95,7 +95,6 @@ static void rdram_reg_w(int chip_id, rdram_reg_t reg, uint32_t value)
     }
 }
 
-__attribute__((noinline))
 static uint32_t rdram_reg_r(int chip_id, rdram_reg_t reg)
 {
     *MI_MODE = MI_WMODE_SET_RDRAM_REG_MODE;
@@ -129,9 +128,15 @@ static void rdram_reg_w_deviceid(int chip_id, uint16_t new_chip_id)
 static void rdram_reg_w_mode(int nchip, bool auto_current, uint8_t cci)
 {
     uint8_t cc = cci ^ 0x3F;   // invert bits to non inverted value
+    enum { 
+        CURRENT_CONTROL_AUTO = 1 << 7, // Set auto current mode
+        CURRENT_CONTROL_MULT = 1 << 6, // ?
+        AUTO_SKIP = 1 << 2, // ?
+        DEVICE_EN = 1 << 1, // Enable direct chip configuration (even without broadcast)
+    };
 
-    uint32_t value = 0x46; // TBD
-    if (auto_current) value |= 1 << 7;
+    uint32_t value = DEVICE_EN | AUTO_SKIP | CURRENT_CONTROL_MULT;
+    if (auto_current) value |= CURRENT_CONTROL_AUTO;
     value |= ((cc >> 0) & 1) << 30;
     value |= ((cc >> 1) & 1) << 22;
     value |= ((cc >> 2) & 1) << 14;
@@ -161,7 +166,7 @@ static float memory_test(uint32_t *vaddr) {
     return accuracy * (1.0f / (NUM_TESTS * 8));
 }
 
-void rdram_calibrate_current(int chip_id, uint32_t *vaddr)
+void rdram_calibrate_current(uint16_t chip_id, uint32_t *vaddr)
 {
     float weighted_sum = 0.0f;
     float prev_accuracy = 0.0f;
@@ -212,7 +217,7 @@ void rdram_init(void)
     *RI_CURRENT_LOAD = 0;   // (?) Load the value calibrated by RI into the RAMDAC (any value here will do)
     
     // Activate communication with RDRAM chips. We can't do this before current calibration
-    // as the chips might be able to communicate correctly if the current is wrong.
+    // as the chips might not be able to communicate correctly if the current is wrong.
     *RI_SELECT = RI_SELECT_RX_TX;
 
     // Now that we can read back from the chips, we can read the calibrated current
