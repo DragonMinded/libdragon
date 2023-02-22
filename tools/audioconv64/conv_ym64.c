@@ -48,10 +48,6 @@ static FILE *ym_f;
 static bool ym_compressed;
 static LHANewDecoder ym_decoder;
 
-static size_t lha_callback(void *buf, size_t buf_len, void *user_data) {
-    return fread(buf, 1, buf_len, ym_f);
-}
-
 static void ymread(void *buf, int sz) {
     if (ym_compressed) {
         lha_lh_new_read(&ym_decoder, buf, sz);
@@ -155,7 +151,7 @@ int ym_convert(const char *infn, const char *outfn) {
         // https://github.com/fragglet/lhasa, stored in lz5h.h.
         fseek(ym_f, head[0]+2, SEEK_SET);
         ym_compressed = true;
-        lha_lh_new_init(&ym_decoder, lha_callback, NULL);
+        lha_lh_new_init(&ym_decoder, ym_f);
         ymread(head, 12);
     }
 

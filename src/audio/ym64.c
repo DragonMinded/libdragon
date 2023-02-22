@@ -33,11 +33,6 @@ static int ymread(ym64player_t *player, void *buf, int sz) {
 	return fread(buf, 1, sz, player->f);
 }
 
-static unsigned int lha_callback(void *buf, size_t buf_len, void *user_data) {
-	FILE* f = (FILE*)user_data;
-	return fread(buf, 1, buf_len, f);
-}
-
 static void ym_wave_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
 	ym64player_t *player = (ym64player_t*)ctx;
 
@@ -130,7 +125,7 @@ void ym64player_open(ym64player_t *player, const char *fn, ym64player_songinfo_t
 		// be decompressed and we should find a valid YM header).
 		player->decoder = (LHANewDecoder*)malloc(sizeof(LHANewDecoder));
 		offset = 0;
-		lha_lh_new_init(player->decoder, lha_callback, (void*)player->f);
+		lha_lh_new_init(player->decoder, player->f);
 		_ymread(head, 12);
 	}
 
