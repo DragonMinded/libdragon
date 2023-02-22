@@ -3,7 +3,6 @@
 #include "rdpq.h"
 #include "rdpq_rect.h"
 #include "rdpq_mode.h"
-#include "rdp_commands.h"
 #include "yuv.h"
 #include "debug.h"
 #include "profile.h"
