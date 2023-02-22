@@ -9,6 +9,10 @@
 
 #include "rdpq.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Internal functions used for inline optimizations. Not part of the public API.
 // Do not call directly
 /// @cond
@@ -388,5 +392,9 @@ inline void __rdpq_texture_rectangle_flip_raw_fx(rdpq_tile_t tile, uint16_t x0, 
 /**
  * \}
  */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
