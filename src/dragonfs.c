@@ -14,6 +14,7 @@
 
 /**
  * @defgroup dfs DragonFS
+ * @ingroup asset
  * @brief DragonFS filesystem implementation and newlib hooks.
  *
  * DragonFS is a read only ROM filesystem for the N64.  It provides an interface
@@ -38,9 +39,15 @@
  * simultaneously.
  *
  * When DFS is initialized, it will register itself with newlib using 'rom:/' as a prefix.
- * Files can be accessed either with standard POSIX functions and the 'rom:/' prefix or
- * with DFS API calls and no prefix.  Files can be opened using both sets of API calls
- * simultaneously as long as no more than four files are open at any one time.
+ * Files can be accessed either with standard POSIX functions (open, fopen) using the 'rom:/'
+ * prefix or the lower-level DFS API calls without prefix. In most cases, it is not necessary
+ * to use the DFS API directly, given that the standard C functions are more comprehensive.
+ * Files can be opened using both sets of API calls simultaneously as long as no more than
+ * four files are open at any one time.
+ * 
+ * DragonFS does not support file compression; if you want to compress your assets,
+ * use the asset API (#asset_load / #asset_fopen).
+ * 
  * @{
  */
 
