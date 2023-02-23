@@ -80,6 +80,9 @@ void test_dfs_rom_addr(TestContext *ctx) {
 	uint32_t rom = dfs_rom_addr("counter.dat");
 	ASSERT(rom != 0, "counter.dat not found by dfs_rom_addr");
 
+	uint32_t rom2 = dfs_rom_addr_of_file(fh);
+	ASSERT_EQUAL_HEX(rom, rom2, "rom address retrieved from handle is different from retrieved from path");
+
 	ASSERT_EQUAL_HEX(io_read(rom), *(uint32_t*)buf1, "direct ROM address is different");
 	ASSERT_EQUAL_HEX(io_read(rom+8), *(uint32_t*)(buf1+8), "direct ROM address is different");
 

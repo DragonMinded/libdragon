@@ -1328,6 +1328,23 @@ static void __dfs_check_emulation(void)
 }
 
 /**
+ * @brief Get Address in ROM of file open with given handle.
+ *
+ * Given a handle of a file open by dfs_open, this function will return the
+ * address of that file in the ROM.
+ *
+ * @param[in] handle
+ *            File handle of an open file by dragonfs dfs_open.
+ *
+ * @return Address of file in ROM or 0 otherwise.
+ */
+uint32_t dfs_rom_addr_of_file(uint32_t handle)
+{
+    open_file_t *fptr = find_open_file(handle);
+    return fptr ? fptr->cart_start_loc : 0;
+}
+
+/**
  * @brief Initialize the filesystem.
  *
  * Given a base offset where the filesystem should be found, this function will
