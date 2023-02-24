@@ -207,10 +207,12 @@ bool spritemaker_load_png(spritemaker_t *spr, tex_format_t outfmt)
         // input image as much as possible.
         switch (state.info_png.color.colortype) {
         case LCT_GREY:
-            outfmt = (state.info_png.color.bitdepth >= 8) ? FMT_I8 : FMT_I4;
+            outfmt = (state.info_png.color.bitdepth > 4) ? FMT_I8 : FMT_I4;
             break;
         case LCT_GREY_ALPHA:
-            outfmt = (state.info_png.color.bitdepth >= 4) ? FMT_IA8 : FMT_IA4;
+            if (state.info_png.color.bitdepth < 4) outfmt = FMT_IA4;
+            else if (state.info_png.color.bitdepth < 8) outfmt = FMT_IA8;
+            else outfmt = FMT_IA16;
             break;
         case LCT_PALETTE:
             outfmt = FMT_CI8; // Will check if CI4 (<= 16 colors) later
@@ -628,9 +630,10 @@ void spritemaker_write_pngs(spritemaker_t *spr) {
         // to use the lower level API.
         LodePNGState state;
         lodepng_state_init(&state);
+        
+        state.info_raw = lodepng_color_mode_make(img->ct, 8);
+        state.info_png.color = lodepng_color_mode_make(img->ct, 8);
         if (img->ct == LCT_PALETTE) {
-            state.info_raw = lodepng_color_mode_make(LCT_PALETTE, 8);
-            state.info_png.color = lodepng_color_mode_make(LCT_PALETTE, 8);
             for (int i=0; i<spr->num_colors; i++) {
                 lodepng_palette_add(&state.info_raw,       spr->colors[i][0], spr->colors[i][1], spr->colors[i][2], spr->colors[i][3]);
                 lodepng_palette_add(&state.info_png.color, spr->colors[i][0], spr->colors[i][1], spr->colors[i][2], spr->colors[i][3]);
