@@ -307,7 +307,8 @@ bool spritemaker_load_png(spritemaker_t *spr, tex_format_t outfmt)
             if (image[i] > spr->used_colors)
                 spr->used_colors = image[i];
         }
-        printf("palette: %d colors (used: %d)\n", spr->num_colors, spr->used_colors);
+        if (flag_verbose)
+            printf("palette: %d colors (used: %d)\n", spr->num_colors, spr->used_colors);
     }
 
     // In case we'autodetecting the output format and the PNG had a palette, and only
