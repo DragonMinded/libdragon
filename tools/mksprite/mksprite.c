@@ -40,6 +40,7 @@ const char* tex_format_name(tex_format_t fmt) {
     case FMT_CI4: return "CI4";
     case FMT_I8: return "I8";
     case FMT_I4: return "I4";
+    case FMT_IA16: return "IA16";
     case FMT_IA8: return "IA8";
     case FMT_IA4: return "IA4";
     default: assert(0); return ""; // should not happen
@@ -95,7 +96,7 @@ bool flag_verbose = false;
 bool flag_debug = false;
 
 void print_supported_formats(void) {
-    fprintf(stderr, "Supported formats: AUTO, RGBA32, RGBA16, CI8, I8, IA8, CI4, I4, IA4\n");
+    fprintf(stderr, "Supported formats: AUTO, RGBA32, RGBA16, IA16, CI8, I8, IA8, CI4, I4, IA4\n");
 }
 
 void print_supported_mipmap(void) {
