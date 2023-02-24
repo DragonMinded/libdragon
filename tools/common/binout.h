@@ -33,4 +33,6 @@ void walign(FILE *f, int align) {
     while (pos++ % align) w8(f, 0);
 }
 
+void wpad(FILE *f, int size) { while (size--) w8(f, 0); }
+
 #endif
