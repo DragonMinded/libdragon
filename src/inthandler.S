@@ -81,9 +81,13 @@ inthandler:
 	mtc0 k1, C0_SR
 
 	# WARNING: it is now possible to trigger reentrant exceptions (and not only
-	# crashing one. Avoid using k0/k1 from now on, as they would get corrupted
+	# crashing ones). Avoid using k0/k1 from now on, as they would get corrupted
 	# by a reentrant exception.
-	#define cause t8
+	# TODO: would like more details, because a bunch of other stuff mentions no reentrant interrupts
+	#       (also, prenmi?)
+	#       -> this is probably about cp1 (fpu) unusable exception, if the fpu is first used in a interrupt handler
+
+#define cause t8
 
 	mfc0 cause, C0_CAUSE
 	sw cause, STACK_CR(sp)
@@ -137,6 +141,9 @@ exception_coprocessor_fpu:
 	# Save the FPU registers into the *underlying* interrupt context.
 	# That is, we want to make sure that they get restored when the
 	# underlying interrupt exits.
+	# Note: interrupt_exception_frame is always valid to use here,
+	#  indeed the fpu is only ever unusable in interrupt handlers:
+	#  entrypoint.S loads SR with SR_CU1
 	jal save_fpu_regs
 	lw a0, interrupt_exception_frame
 
@@ -190,10 +197,10 @@ interrupt:
 	and t1, t0
 	sw t1, STACK_SR(sp)
 
-	# Reload cause register (might be reused by C code) and test for other interrupts
+	# Reload cause register (might be reused by C code (TODO: what?)) and test for other interrupts
 	lw cause, STACK_CR(sp)
-notprenmi:
 
+notprenmi:
 	/* check for count=compare */
 	and t0, cause, 0x8000
 	beqz t0,notcount
@@ -358,6 +365,6 @@ save_fpu_regs:
 
 
 	.section .bss
- 	.align 8
+ 	.align 8 # TODO: align to 256 bytes, is that intended?
 	.lcomm interrupt_exception_frame, 4
 

@@ -364,6 +364,7 @@ uint32_t exception_reset_time( void )
 }
 
 
+// TODO: why "exception" ?
 /**
  * @brief Respond to a reset exception.
  * 
@@ -371,7 +372,7 @@ uint32_t exception_reset_time( void )
  */
 void __onResetException( volatile reg_block_t* regs )
 {
-	/* This function will be called many times becuase there is no way
+	/* This function will be called many times because there is no way
 	   to acknowledge the pre-NMI interrupt. So make sure it does nothing
 	   after the first call. */
 	if (__prenmi_tick) return;

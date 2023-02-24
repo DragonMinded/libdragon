@@ -9,7 +9,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/times.h>
+#include <sys/time.h> // TODO: for #include <sys/_timeval.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <malloc.h>
@@ -209,7 +209,7 @@ static void __memcpy( char * const a, const char * const b, int len )
  * @param[in] in
  *            String to duplicate
  *
- * @return Pointer to newly allocate memory containing a copy of the input string
+ * @return Pointer to newly allocated memory containing a copy of the input string
  */
 static char *__strdup( const char * const in )
 {
@@ -222,7 +222,7 @@ static char *__strdup( const char * const in )
 }
 
 /**
- * @brief Simple iplementation of strncmp
+ * @brief Simple implementation of strncmp
  *
  * @note We can't link against regular libraries, so this is reimplemented
  *
@@ -234,6 +234,8 @@ static char *__strdup( const char * const in )
  *            Number of relevant characters.  Specify -1 for infinite
  *
  * @return 0 if the two strings match or nonzero otherwise
+ * 
+ * @note different from the standard strncmp
  */
 static int __strncmp( const char * const a, const char * const b, int len )
 {
@@ -266,6 +268,8 @@ static int __strncmp( const char * const a, const char * const b, int len )
  *            Second string to compare against
  *
  * @return 0 if the two strings match or nonzero otherwise
+ * 
+ * @note different from the standard strcmp
  */
 static int __strcmp( const char * const a, const char * const b )
 {
@@ -641,7 +645,7 @@ int execve( char *name, char **argv, char **env )
 void _exit( int rc )
 {
     /* Default stub just causes a divide by 0 exception.  */
-    int x = rc / INT_MAX;
+    int x = rc / INT_MAX; // TODO: what if rc == INT_MAX
     x = 4 / x;
 
     /* Convince GCC that this function never returns.  */
@@ -848,7 +852,7 @@ int lseek( int file, int ptr, int dir )
  * @param[in] flags
  *            Flags specifying open flags, such as binary, append.
  * @param[in] mode
- *            Mode of the file.
+ *            Mode of the file. (TODO: currently ignored)
  *
  * @return File handle to refer to this file on success, or a negative value on error.
  */
@@ -993,7 +997,7 @@ int readlink( const char *path, char *buf, size_t bufsize )
  * @param[in] incr
  *            The amount of memory needed in bytes
  *
- * @return A pointer to the memory or null on error allocating.
+ * @return A pointer to the memory or ((void*)-1) on error allocating.
  */
 void *sbrk( int incr )
 {
@@ -1038,7 +1042,7 @@ void *sbrk( int incr )
 int stat( const char *file, struct stat *st )
 {
     /* Dirty hack, open read only */
-    int fd = open( (char *)file, 0, 777 );
+    int fd = open( (char *)file, 0, /* octal: */ 0777 ); // TODO: mode is ignored in libdragon and anyway isn't used in the standard for read only, so just pass 0?
 
     if( fd > 0 )
     {
