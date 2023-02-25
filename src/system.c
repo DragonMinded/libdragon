@@ -7,6 +7,7 @@
 #include <_syslist.h>
 #include <limits.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/time.h> // TODO: for #include <sys/_timeval.h>
@@ -1043,7 +1044,7 @@ void *sbrk( int incr )
 int stat( const char *file, struct stat *st )
 {
     /* Dirty hack, open read only */
-    int fd = open( (char *)file, 0, /* octal: */ 0777 ); // TODO: mode is ignored in libdragon and anyway isn't used in the standard for read only, so just pass 0?
+    int fd = open( (char *)file, O_RDONLY, 0 );
 
     if( fd > 0 )
     {
