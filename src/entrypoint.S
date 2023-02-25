@@ -45,10 +45,10 @@ set_sp:
 	/* Check if PI DMA transfer is required,
 	   knowing that IPL3 loads 1MB of ROM to RAM,
 	   and __libdragon_text_start is located
-	   right after the ROM header where this 1MB starts. */
+	   right after the ROM header where this 1 MiB starts. */
 	la a0, __libdragon_text_start
 	la a1, __data_end
-	li t0, 0x100000				/* stock IPL3 load size (1MB) */
+	li t0, 0x100000				/* stock IPL3 load size (1 MiB) */
 	subu a2, a1, a0				/* calculate data size */
 	sub a2, a2, t0				/* calculate remaining data size */
 	blez a2, .Lskip_dma			/* skip PI DMA if data is already loaded */
