@@ -8,7 +8,7 @@
 
 #include "regs.S"
 
-	.align 5
+	.p2align 5
 inthandler:
 	.global inthandler
 
@@ -305,7 +305,7 @@ end_interrupt_gpr:
 	addiu sp, EXC_STACK_SIZE
 	eret
 
-	.align 5
+	.p2align 5
 finalize_exception_frame:
 	sd $16,(STACK_GPR+16*8)(sp)   # S0
 	sd $17,(STACK_GPR+17*8)(sp)   # S1
@@ -336,7 +336,7 @@ finalize_exception_frame:
 	jr ra
 	nop
 
-	.align 5
+	.p2align 5
 save_fpu_regs:
 	cfc1 $1, $f31
 	sw $1, STACK_FC31(a0)
@@ -365,6 +365,6 @@ save_fpu_regs:
 
 
 	.section .bss
- 	.align 8 # TODO: align to 256 bytes, is that intended?
+	.p2align 2
 	.lcomm interrupt_exception_frame, 4
 
