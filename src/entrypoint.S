@@ -43,7 +43,7 @@ set_sp:
 	mtc0 $0,C0_CAUSE
 
 	/* Check if PI DMA transfer is required,
-	   knowing that IPL3 loads 1MB of ROM to RAM,
+	   knowing that IPL3 loads 1 MiB of ROM to RAM,
 	   and __libdragon_text_start is located
 	   right after the ROM header where this 1 MiB starts. */
 	la a0, __libdragon_text_start
@@ -69,7 +69,7 @@ set_sp:
 .Lskip_dma:
 	/* fill .bss with 0s */
 	la a0, __bss_start
-	or a0, 0x20000000           /* with __bss_start being KSEG0 this makes the address KSEG1 (uncached) ? */
+	or a0, 0x20000000           /* convert address to KSEG1 (uncached) */
 	la a1, __bss_end
 	or a1, 0x20000000
 bss_init:

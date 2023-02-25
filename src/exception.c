@@ -364,7 +364,6 @@ uint32_t exception_reset_time( void )
 }
 
 
-// TODO: why "exception" ?
 /**
  * @brief Respond to a reset exception.
  * 
