@@ -1,7 +1,18 @@
+/**
+ * @file rdpq.h
+ * @brief RDP Command queue
+ * @ingroup rdpq
+ * 
+ */
+
 #ifndef LIBDRAGON_RDPQ_TRI_H
 #define LIBDRAGON_RDPQ_TRI_H
 
 #include "rdpq.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** 
  * @brief Format descriptor of a triangle
@@ -228,5 +239,9 @@ extern const rdpq_trifmt_t TRIFMT_ZBUF_SHADE_TEX;
  * @param v3             Array of components for vertex 3
  */
 void rdpq_triangle(const rdpq_trifmt_t *fmt, const float *v1, const float *v2, const float *v3);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

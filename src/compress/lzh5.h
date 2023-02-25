@@ -11,308 +11,6 @@
 #ifndef LZH5_H
 #define LZH5_H
 
-//////////////////////// public/lha_decoder.h
-
-/*
-
-Copyright (c) 2011, 2012, Simon Howard
-
-Permission to use, copy, modify, and/or distribute this software
-for any purpose with or without fee is hereby granted, provided
-that the above copyright notice and this permission notice appear
-in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
-WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
-AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
-CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
-NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
-CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-
- */
-
-#ifndef LHASA_PUBLIC_LHA_DECODER_H
-#define LHASA_PUBLIC_LHA_DECODER_H
-
-#include <stdlib.h>
-#include <inttypes.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/**
- * @file lha_decoder.h
- *
- * @brief Raw LHA data decoder.
- *
- * This file defines the interface to the decompression code, which can
- * be used to decompress the raw compressed data from an LZH file.
- *
- * Implementations of the various compression algorithms used in LZH
- * archives are provided - these are represented by the
- * @ref LHADecoderType structure, and can be retrieved using the
- * @ref lha_decoder_for_name function. One of these can then be passed to
- * the @ref lha_decoder_new function to create a @ref LHADecoder structure
- * and decompress the data.
- */
-
-/**
- * Opaque type representing a type of decoder.
- *
- * This is an implementation of the decompression code for one of the
- * algorithms used in LZH archive files. Pointers to these structures are
- * retrieved by using the @ref lha_decoder_for_name function.
- */
-
-typedef struct _LHADecoderType LHADecoderType;
-
-/**
- * Opaque type representing an instance of a decoder.
- *
- * This is a decoder structure being used to decompress a stream of
- * compressed data. Instantiated using the @ref lha_decoder_new
- * function and freed using the @ref lha_decoder_free function.
- */
-
-typedef struct _LHADecoder LHADecoder;
-
-/**
- * Callback function invoked when a decoder wants to read more compressed
- * data.
- *
- * @param buf        Pointer to the buffer in which to store the data.
- * @param buf_len    Size of the buffer, in bytes.
- * @param user_data  Extra pointer to pass to the decoder.
- * @return           Number of bytes read.
- */
-
-typedef size_t (*LHADecoderCallback)(void *buf, size_t buf_len,
-                                     void *user_data);
-
-/**
- * Callback function used for monitoring decode progress.
- * The callback is invoked for every block processed (block size depends on
- * decode algorithm).
- *
- * @param num_blocks      Number of blocks processed so far.
- * @param total_blocks    Total number of blocks to process.
- * @param callback_data  Extra user-specified data passed to the callback.
- */
-
-typedef void (*LHADecoderProgressCallback)(unsigned int num_blocks,
-                                           unsigned int total_blocks,
-                                           void *callback_data);
-
-/**
- * Get the decoder type for the specified name.
- *
- * @param name           String identifying the decoder type, for
- *                       example, "-lh1-".
- * @return               Pointer to the decoder type, or NULL if there
- *                       is no decoder type for the specified name.
- */
-
-LHADecoderType *lha_decoder_for_name(char *name);
-
-/**
- * Allocate a new decoder for the specified type.
- *
- * @param dtype          The decoder type.
- * @param callback       Callback function for the decoder to call to read
- *                       more compressed data.
- * @param callback_data  Extra data to pass to the callback function.
- * @param stream_length  Length of the uncompressed data, in bytes. When
- *                       this point is reached, decompression will stop.
- * @return               Pointer to the new decoder, or NULL for failure.
- */
-
-LHADecoder *lha_decoder_new(LHADecoderType *dtype,
-                            LHADecoderCallback callback,
-                            void *callback_data,
-                            size_t stream_length);
-
-/**
- * Free a decoder.
- *
- * @param decoder        The decoder to free.
- */
-
-void lha_decoder_free(LHADecoder *decoder);
-
-/**
- * Set a callback function to monitor decode progress.
- *
- * @param decoder        The decoder.
- * @param callback       Callback function to monitor decode progress.
- * @param callback_data  Extra data to pass to the decoder.
- */
-
-void lha_decoder_monitor(LHADecoder *decoder,
-                         LHADecoderProgressCallback callback,
-                         void *callback_data);
-
-/**
- * Decode (decompress) more data.
- *
- * @param decoder        The decoder.
- * @param buf            Pointer to buffer to store decompressed data.
- * @param buf_len        Size of the buffer, in bytes.
- * @return               Number of bytes decompressed.
- */
-
-size_t lha_decoder_read(LHADecoder *decoder, uint8_t *buf, size_t buf_len);
-
-/**
- * Get the current 16-bit CRC of the decompressed data.
- *
- * This should be called at the end of decompression to check that the
- * data was extracted correctly, and the value compared against the CRC
- * from the file header.
- *
- * @param decoder        The decoder.
- * @return               16-bit CRC of the data decoded so far.
- */
-
-uint16_t lha_decoder_get_crc(LHADecoder *decoder);
-
-/**
- * Get the count of the number of bytes decoded.
- *
- * This should be called at the end of decompression, and the value
- * compared against the file length from the file header.
- *
- * @param decoder        The decoder.
- * @return               The number of decoded bytes.
- */
-
-size_t lha_decoder_get_length(LHADecoder *decoder);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /* #ifndef LHASA_LHA_DECODER_H */
-
-
-
-//////////////////////// lha_decoder.h
-
-/*
-
-Copyright (c) 2011, 2012, Simon Howard
-
-Permission to use, copy, modify, and/or distribute this software
-for any purpose with or without fee is hereby granted, provided
-that the above copyright notice and this permission notice appear
-in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
-WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
-AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR
-CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
-LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
-NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
-CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-
- */
-
-#ifndef LHASA_LHA_DECODER_H
-#define LHASA_LHA_DECODER_H
-
-struct _LHADecoderType {
-
-	/**
-	 * Callback function to initialize the decoder.
-	 *
-	 * @param extra_data     Pointer to the extra data area allocated for
-	 *                       the decoder.
-	 * @param callback       Callback function to invoke to read more
-	 *                       compressed data.
-	 * @param callback_data  Extra pointer to pass to the callback.
-	 * @return               Non-zero for success.
-	 */
-
-	int (*init)(void *extra_data,
-	            LHADecoderCallback callback,
-	            void *callback_data);
-
-	/**
-	 * Callback function to free the decoder.
-	 *
-	 * @param extra_data     Pointer to the extra data area allocated for
-	 *                       the decoder.
-	 */
-
-	void (*free)(void *extra_data);
-
-	/**
-	 * Callback function to read (ie. decompress) data from the
-	 * decoder.
-	 *
-	 * @param extra_data     Pointer to the decoder's custom data.
-	 * @param buf            Pointer to the buffer in which to store
-	 *                       the decompressed data.  The buffer is
-	 *                       at least 'max_read' bytes in size.
-	 * @return               Number of bytes decompressed.
-	 */
-
-	size_t (*read)(void *extra_data, uint8_t *buf);
-
-	/** Number of bytes of extra data to allocate for the decoder. */
-
-	size_t extra_size;
-
-	/** Maximum number of bytes that might be put into the buffer by
-	    a single call to read() */
-
-	size_t max_read;
-
-	/** Block size. Used for calculating number of blocks for
-	    progress bar. */
-
-	size_t block_size;
-};
-
-struct _LHADecoder {
-
-	/** Type of decoder (algorithm) */
-
-	LHADecoderType *dtype;
-
-	/** Callback function to monitor decoder progress. */
-
-	LHADecoderProgressCallback progress_callback;
-	void *progress_callback_data;
-
-	/** Last announced block position, for progress callback. */
-
-	unsigned int last_block, total_blocks;
-
-	/** Current position in the decode stream, and total length. */
-
-	size_t stream_pos, stream_length;
-
-	/** Output buffer, containing decoded data not yet returned. */
-
-	unsigned int outbuf_pos, outbuf_len;
-	uint8_t *outbuf;
-
-	/** If true, the decoder read() function returned zero. */
-
-	unsigned int decoder_failed;
-
-	/** Current CRC of the output stream. */
-
-	uint16_t crc;
-};
-
-#endif /* #ifndef LHASA_LHA_DECODER_H */
-
-
 //////////////////////// bit_stream_reader.c
 
 /*
@@ -346,100 +44,86 @@ CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 typedef struct {
 
-	// Callback function to invoke to read more data from the
-	// input stream.
+	// File pointer to read from.
 
-	LHADecoderCallback callback;
-	void *callback_data;
+	FILE *fp;
+
+	// Internal cache of bytes read from the input stream.
+
+	uint8_t buf[128] __attribute__((aligned(8)));
+	int buf_idx;
+	int buf_size;
 
 	// Bits from the input stream that are waiting to be read.
 
-	uint32_t bit_buffer;
-	unsigned int bits;
+	uint64_t bit_buffer;
+	int bits;
 
 } BitStreamReader;
 
 // Initialize bit stream reader structure.
 
-static void bit_stream_reader_init(BitStreamReader *reader,
-                                   LHADecoderCallback callback,
-                                   void *callback_data)
+static void bit_stream_reader_init(BitStreamReader *reader, FILE *fp)
 {
-	reader->callback = callback;
-	reader->callback_data = callback_data;
-
+	reader->fp = fp;
+	reader->buf_idx = 0;
+	reader->buf_size = 0;
 	reader->bits = 0;
 	reader->bit_buffer = 0;
 }
 
-// Return the next n bits waiting to be read from the input stream,
-// without removing any.  Returns -1 for failure.
+// Refill the bit buffer with other 64 bits from the input stream.
 
-static int peek_bits(BitStreamReader *reader,
-                     unsigned int n)
+static int refill_bits(BitStreamReader *reader)
 {
-	uint8_t buf[4];
-	unsigned int fill_bytes;
-	size_t bytes;
-
-	if (n == 0) {
-		return 0;
+	if (reader->buf_idx >= reader->buf_size) {
+		reader->buf_size = fread(reader->buf, 1, sizeof(reader->buf), reader->fp);
+		reader->buf_idx = 0;
 	}
 
-	// If there are not enough bits in the buffer to satisfy this
-	// request, we need to fill up the buffer with more bits.
-
-	while (reader->bits < n) {
-
-		// Maximum number of bytes we can fill?
-
-		fill_bytes = (32 - reader->bits) / 8;
-
-		// Read from input and fill bit_buffer.
-
-		memset(buf, 0, sizeof(buf));
-		bytes = reader->callback(buf, fill_bytes,
-		                         reader->callback_data);
-
-		// End of file?
-
-		if (bytes == 0) {
-			return -1;
-		}
-
-		reader->bit_buffer |= (uint32_t) buf[0] << (24 - reader->bits);
-		reader->bit_buffer |= (uint32_t) buf[1] << (16 - reader->bits);
-		reader->bit_buffer |= (uint32_t) buf[2] << (8 - reader->bits);
-		reader->bit_buffer |= (uint32_t) buf[3];
-
-		reader->bits += bytes * 8;
-	}
-
-	return (signed int) (reader->bit_buffer >> (32 - n));
+	// fprintf(stderr, "  refill %d\n", reader->buf_idx);
+	reader->bit_buffer = *(uint64_t*)(&reader->buf[reader->buf_idx]);
+	reader->bits = (reader->buf_size - reader->buf_idx) * 8;
+	if (reader->bits > 64)
+		reader->bits = 64;
+	reader->buf_idx += 8;
+	return reader->buf_size > 0;
 }
 
-// Read a bit from the input stream.
+// Internal continuation of read_bits
 // Returns -1 for failure.
 
-static int read_bits(BitStreamReader *reader,
-                     unsigned int n)
+__attribute__((noinline))
+static int __read_bits2(BitStreamReader *reader,
+                      unsigned int n, int result)
 {
-	int result;
-
-	result = peek_bits(reader, n);
-
-	if (result >= 0) {
-		reader->bit_buffer <<= n;
-		reader->bits -= n;
-	}
-
+	if (!refill_bits(reader))
+		return -1;
+	result |= reader->bit_buffer >> (64 - n);
+	reader->bit_buffer <<= n;
+	reader->bits -= n;
 	return result;
 }
 
+// Read multiple bits from the input stream.
+// Returns -1 for failure.
+
+__attribute__((noinline))
+static int read_bits(BitStreamReader *reader,
+                     unsigned int n)
+{
+	int result = reader->bit_buffer >> (64 - n);
+	reader->bit_buffer <<= n;
+	reader->bits -= n;
+	if (__builtin_expect(reader->bits >= 0, 1)) {
+		return result;
+	}
+	return __read_bits2(reader, -reader->bits, result);
+}
+
 
 // Read a bit from the input stream.
 // Returns -1 for failure.
-
 static int read_bit(BitStreamReader *reader)
 {
 	return read_bits(reader, 1);
@@ -842,13 +526,11 @@ static void init_ring_buffer(LHANewDecoder *decoder)
 	decoder->ringbuf_copy_count = 0;
 }
 
-static int __attribute__((unused)) lha_lh_new_init(LHANewDecoder *decoder, LHADecoderCallback callback,
-                           void *callback_data)
+static int __attribute__((unused)) lha_lh_new_init(LHANewDecoder *decoder, FILE *fp)
 {
 	// Initialize input stream reader.
 
-	bit_stream_reader_init(&decoder->bit_stream_reader,
-	                       callback, callback_data);
+	bit_stream_reader_init(&decoder->bit_stream_reader, fp);
 
 	// Initialize data structures.
 
@@ -1242,6 +924,11 @@ static void set_copy_from_history(LHANewDecoder *decoder, uint8_t *buf, size_t c
 	}
 
 	decoder->ringbuf_copy_pos = decoder->ringbuf_pos + RING_BUFFER_SIZE - (unsigned int) offset - 1;
+	while (decoder->ringbuf_copy_pos < 0)
+		decoder->ringbuf_copy_pos += RING_BUFFER_SIZE;
+	while (decoder->ringbuf_copy_pos >= RING_BUFFER_SIZE)
+		decoder->ringbuf_copy_pos -= RING_BUFFER_SIZE;
+
 	decoder->ringbuf_copy_count = count;
 }
 
@@ -1250,13 +937,48 @@ static size_t __attribute__((unused)) lha_lh_new_read(LHANewDecoder *decoder, ui
 	size_t result = 0;
 	int code;
 
-	while (sz > 0) {	
-
+	while (sz > 0) {
 		if (decoder->ringbuf_copy_count > 0) {
-			output_byte(decoder, buf, &result,
-			            decoder->ringbuf[decoder->ringbuf_copy_pos++ % RING_BUFFER_SIZE]);
-			decoder->ringbuf_copy_count--;
-			sz--;
+			// Calculate number of bytes that we can copy in sequence without reaching the end of a buffer
+			int wn = sz < decoder->ringbuf_copy_count ? sz : decoder->ringbuf_copy_count;
+			wn = wn < RING_BUFFER_SIZE - decoder->ringbuf_copy_pos ? wn : RING_BUFFER_SIZE - decoder->ringbuf_copy_pos;
+			wn = wn < RING_BUFFER_SIZE - decoder->ringbuf_pos      ? wn : RING_BUFFER_SIZE - decoder->ringbuf_pos;
+
+			// Check if there's an overlap in the ring buffer between read and write pos, in which
+			// case we need to copy byte by byte.
+			if (decoder->ringbuf_pos < decoder->ringbuf_copy_pos || 
+			    decoder->ringbuf_pos > decoder->ringbuf_copy_pos+7) {
+				while (wn >= 8) {
+					// Copy 8 bytes at at time, using a unaligned memory access (LDL/LDR/SDL/SDR)
+					typedef uint64_t u_uint64_t __attribute__((aligned(1)));
+					uint64_t value = *(u_uint64_t*)&decoder->ringbuf[decoder->ringbuf_copy_pos];
+					*(u_uint64_t*)&buf[result] = value;
+					*(u_uint64_t*)&decoder->ringbuf[decoder->ringbuf_pos] = value;
+
+					decoder->ringbuf_copy_pos += 8;
+					decoder->ringbuf_pos += 8;
+					decoder->ringbuf_copy_count -= 8;
+					result += 8;
+					sz -= 8;
+					wn -= 8;
+				}
+			}
+
+			// Finish copying the remaining bytes
+			while (wn > 0) {
+				uint8_t value = decoder->ringbuf[decoder->ringbuf_copy_pos];
+				buf[result] = value;
+				decoder->ringbuf[decoder->ringbuf_pos] = value;
+
+				decoder->ringbuf_copy_pos += 1;
+				decoder->ringbuf_pos += 1;
+				decoder->ringbuf_copy_count -= 1;
+				result += 1;
+				sz -= 1;
+				wn -= 1;
+			}
+			decoder->ringbuf_copy_pos %= RING_BUFFER_SIZE;
+			decoder->ringbuf_pos %= RING_BUFFER_SIZE;
 			continue;
 		}
 

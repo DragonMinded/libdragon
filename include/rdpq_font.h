@@ -1,5 +1,9 @@
-#ifndef RDPQ_FONT_H
-#define RDPQ_FONT_H
+#ifndef LIBDRAGON_RDPQ_FONT_H
+#define LIBDRAGON_RDPQ_FONT_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct rdpq_font_s;
 typedef struct rdpq_font_s rdpq_font_t;
@@ -57,5 +61,10 @@ inline void rdpq_font_print(rdpq_font_t *fnt, const char *text)
  * @see #rdpq_font_print
  */
 void rdpq_font_printf(rdpq_font_t *fnt, const char *fmt, ...);
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

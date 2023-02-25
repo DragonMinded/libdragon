@@ -13,19 +13,26 @@
 #define assertf(x, ...) assert(x)
 #endif
 
-static size_t lha_callback(void *buf, size_t buf_len, void *user_data)
+static FILE *must_fopen(const char *fn)
 {
-    FILE *f = (FILE*)user_data;
-    return fread(buf, 1, buf_len, f);
+    FILE *f = fopen(fn, "rb");
+    if (!f) {
+        // File not found. A common mistake it is to forget the filesystem
+        // prefix. Try to give a hint if that's the case.
+        if (!strstr(fn, ":/"))
+            assertf(f, "File not found: %s\n"
+                "Did you forget the filesystem prefix? (e.g. \"rom:/\")\n", fn);
+        else
+            assertf(f, "File not found: %s\n", fn);
+    }
+    return f;
 }
 
 void *asset_load(const char *fn, int *sz)
 {
     uint8_t *s; int size;
-
-    FILE *f = fopen(fn, "rb");
-    assertf(f, "File not found: %s\n", fn);
-
+    FILE *f = must_fopen(fn);
+   
     // Check if file is compressed
     char magic[4];
     fread(&magic, 1, 4, f);
@@ -45,9 +52,9 @@ void *asset_load(const char *fn, int *sz)
             size = header.orig_size;
             s = memalign(16, size);
             LHANewDecoder decoder;
-            lha_lh_new_init(&decoder, lha_callback, f);
+            lha_lh_new_init(&decoder, f);
             int n = lha_lh_new_read(&decoder, s, size);
-            assertf(n == size, "DCA: decompression error on file %s: corrupted?", fn);
+            assertf(n == size, "DCA: decompression error on file %s: corrupted? (%d/%d)", fn, n, size);
         }   break;
         default:
             assertf(0, "DCA: unsupported compression algorithm: %d", header.algo);
@@ -109,6 +116,11 @@ static int readfn_none(void *cookie, char *buf, int sz)
 
 static fpos_t seekfn_lha(void *cookie, fpos_t pos, int whence)
 {
+    // TODO: implement forward seeking. This is currently prevented by
+    // the buffering happening at the FILE* level, which causes backward
+    // seeks. Eg:
+    //    read 1 byte => newlib calls readfn with 1024 bytes (buffer)
+    //    seek 1 byte forward => newlib calls seekfn with -1022 bytes
     assertf(0, "Cannot seek in file opened via asset_fopen (it might be compressed)");
     return 0;
 }
@@ -116,7 +128,7 @@ static fpos_t seekfn_lha(void *cookie, fpos_t pos, int whence)
 static int closefn_lha(void *cookie)
 {
     LHANewDecoder *decoder = (LHANewDecoder*)cookie;
-    FILE *f = (FILE*)decoder->bit_stream_reader.callback_data;
+    FILE *f = decoder->bit_stream_reader.fp;
     fclose(f);
     free(decoder);
     return 0;
@@ -130,8 +142,7 @@ static int readfn_lha(void *cookie, char *buf, int sz)
 
 FILE *asset_fopen(const char *fn)
 {
-    FILE *f = fopen(fn, "rb");
-    assertf(f, "File not found: %s\n", fn);
+    FILE *f = must_fopen(fn);
 
     // Check if file is compressed
     char magic[4];
@@ -148,7 +159,7 @@ FILE *asset_fopen(const char *fn)
         #endif
 
         LHANewDecoder *decoder = malloc(sizeof(LHANewDecoder));
-        lha_lh_new_init(decoder, lha_callback, f);
+        lha_lh_new_init(decoder, f);
         return funopen(decoder, readfn_lha, NULL, seekfn_lha, closefn_lha);
     }
 
