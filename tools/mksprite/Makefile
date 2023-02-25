@@ -1,12 +1,12 @@
 INSTALLDIR = $(N64_INST)
 CFLAGS += -std=gnu99 -O2 -Wall -Werror -Wno-unused-result -I../../include
-LDFLAGS += -lpng
+LDFLAGS += -lm
 all: mksprite convtool
 
 mksprite: mksprite.c lodepng.c lodepng.h exoquant.c exoquant.h ../common/assetcomp.h ../common/assetcomp.c
-	$(CC) $(CFLAGS)  mksprite.c -o mksprite
+	$(CC) $(CFLAGS)  mksprite.c -o mksprite $(LDFLAGS)
 convtool: convtool.c
-	$(CC) $(CFLAGS)  convtool.c -o convtool
+	$(CC) $(CFLAGS)  convtool.c -o convtool $(LDFLAGS)
 
 install: mksprite convtool
 	install -m 0755 mksprite $(INSTALLDIR)/bin
