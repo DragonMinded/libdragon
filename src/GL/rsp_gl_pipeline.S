@@ -12,7 +12,7 @@
 
     RSPQ_BeginOverlayHeader
         RSPQ_DefineCommand GLCmd_InitPipe,      4
-        RSPQ_DefineCommand GLCmd_SetPrimVertex, 28
+        RSPQ_DefineCommand GLCmd_SetPrimVertex, 32
         RSPQ_DefineCommand GLCmd_DrawTriangle,  8
         RSPQ_DefineCommand RSPQCmd_Noop,        4
         RSPQ_DefineCommand RSPQCmd_Noop,        4
@@ -63,12 +63,14 @@ BANNER1: .ascii "Rasky & Snacchus"
 #define PRIM_VTX_G                 26
 #define PRIM_VTX_B                 28
 #define PRIM_VTX_A                 30
-#define PRIM_VTX_S                 32
-#define PRIM_VTX_T                 34
-#define PRIM_VTX_NORMAL            36    // Normal X,Y,Z (8 bit)
-#define PRIM_VTX_TRCODE            39    // trivial-reject clipping flags (against -w/+w)
-#define PRIM_VTX_ID                40    // 16-bit unique ID for this vertex
-#define PRIM_VTX_SIZE              42
+#define PRIM_VTX_TEX_S             32
+#define PRIM_VTX_TEX_T             34
+#define PRIM_VTX_TEX_R             36
+#define PRIM_VTX_TEX_Q             38
+#define PRIM_VTX_NORMAL            40    // Normal X,Y,Z (8 bit)
+#define PRIM_VTX_TRCODE            43    // trivial-reject clipping flags (against -w/+w)
+#define PRIM_VTX_ID                44    // 16-bit unique ID for this vertex
+#define PRIM_VTX_SIZE              46
 
     .align 3
 PRIM_VERTEX_CACHE:   .dcb.b      PRIM_VTX_SIZE * 5
@@ -313,7 +315,7 @@ gl_vtx_no_normal:
 
     sdv vposition,  PRIM_VTX_X     ,a0
     sdv vcolor,     PRIM_VTX_R     ,a0
-    slv vtexcoord,  PRIM_VTX_S     ,a0  # TODO: add R and Q
+    sdv vtexcoord,  PRIM_VTX_TEX_S ,a0
     slv vnormal,    PRIM_VTX_NORMAL,a0
     jal GL_PreTrivialReject
     sh index, PRIM_VTX_ID(a0)
@@ -424,16 +426,18 @@ GLCmd_SetPrimVertex:
     andi prim_vtx, 0xFF
     addi prim_vtx, %lo(PRIM_VERTEX_CACHE)
 
-    lw t0, CMD_ADDR(16, 28)  # B,A
-    lw t1, CMD_ADDR(20, 28)  # S,T
-    lw t2, CMD_ADDR(24, 28)  # N
+    lw t0, CMD_ADDR(16, 32)  # B,A
+    lw t1, CMD_ADDR(20, 32)  # S,T
+    lw t2, CMD_ADDR(24, 32)  # R,Q
+    lw t3, CMD_ADDR(28, 32)  # N
 
     sw in_xy,    PRIM_VTX_X     (prim_vtx)
     sw in_zw,    PRIM_VTX_Z     (prim_vtx)
     sw in_rg,    PRIM_VTX_R     (prim_vtx)
     sw t0,       PRIM_VTX_B     (prim_vtx)
-    sw t1,       PRIM_VTX_S     (prim_vtx)
-    sw t2,       PRIM_VTX_NORMAL(prim_vtx)
+    sw t1,       PRIM_VTX_TEX_S (prim_vtx)
+    sw t2,       PRIM_VTX_TEX_R (prim_vtx)
+    sw t3,       PRIM_VTX_NORMAL(prim_vtx)
     sh vtx_id,   PRIM_VTX_ID    (prim_vtx)
 #endif
 
@@ -659,9 +663,10 @@ GL_CalcClipCodes:
     ################################################################
     .func GL_TnL
 GL_TnL:
+    #define tmp_ptr      s2
     #define prim_vtx     s3
     #define screen_vtx   s4
-    #define state_flags  t1
+    #define state_flags  t5
     #define s            e0
     move ra2, ra
 
@@ -681,6 +686,7 @@ GL_TnL:
     #define veyepos      $v02
     #define veyenormal   $v03
     #define vrgba        $v04
+    #define vobjpos      $v29
 
     ldv vrgba.e0, PRIM_VTX_R, prim_vtx     # R + G + B + A
     ldv vrgba.e4, PRIM_VTX_R, prim_vtx     # R + G + B + A
@@ -694,51 +700,51 @@ GL_TnL:
     #define vmtx3_i      $v22       //  m00 m01 m02 m03
     #define vmtx3_f      $v23
 
-    andi t0, state_flags, FLAG_LIGHTING
-    beqz t0, gl_no_lighting
-    li s0, %lo(GL_MATRIX_MODELVIEW)
+    and t0, state_flags, FLAG_NEED_EYE_SPACE
+    beqz t0, 2f
+    li tmp_ptr, %lo(GL_MATRIX_MODELVIEW)
 
-    # TODO: make loading normal more robust wrt to prim vertex data structure
-    lpv veyepos.e0,  PRIM_VTX_S,prim_vtx     # loads NX + NY + NZ into lanes 4-7
-    ldv veyepos.e0,  PRIM_VTX_X,prim_vtx     # loads X + Y + Z + W into lanes 0-3
+    addi s5, prim_vtx, PRIM_VTX_NORMAL-4
+    lpv vobjpos.e0,  0,s5                   # loads NX + NY + NZ into lanes 4-7
+    ldv vobjpos.e0,  PRIM_VTX_X,prim_vtx    # loads X + Y + Z + W into lanes 0-3
 
     # TODO: factor out this style of matrix loading?
     # TODO: technically we need the inverse transpose matrix,
     #       but for rigid matrices (translation, rotation, uniform scale) this is fine
-    ldv vmtx0_i.e0,  0x00,s0
-    ldv vmtx1_i.e0,  0x08,s0
-    ldv vmtx2_i.e0,  0x10,s0
-    ldv vmtx3_i.e0,  0x18,s0
-    ldv vmtx0_f.e0,  0x20,s0
-    ldv vmtx1_f.e0,  0x28,s0
-    ldv vmtx2_f.e0,  0x30,s0
-    ldv vmtx3_f.e0,  0x38,s0
-    ldv vmtx0_i.e4,  0x00,s0
-    ldv vmtx1_i.e4,  0x08,s0
-    ldv vmtx2_i.e4,  0x10,s0
-    ldv vmtx3_i.e4,  0x18,s0
-    ldv vmtx0_f.e4,  0x20,s0
-    ldv vmtx1_f.e4,  0x28,s0
-    ldv vmtx2_f.e4,  0x30,s0
-    ldv vmtx3_f.e4,  0x38,s0
+    ldv vmtx0_i.e0,  0x00,tmp_ptr
+    ldv vmtx1_i.e0,  0x08,tmp_ptr
+    ldv vmtx2_i.e0,  0x10,tmp_ptr
+    ldv vmtx3_i.e0,  0x18,tmp_ptr
+    ldv vmtx0_f.e0,  0x20,tmp_ptr
+    ldv vmtx1_f.e0,  0x28,tmp_ptr
+    ldv vmtx2_f.e0,  0x30,tmp_ptr
+    ldv vmtx3_f.e0,  0x38,tmp_ptr
+    ldv vmtx0_i.e4,  0x00,tmp_ptr
+    ldv vmtx1_i.e4,  0x08,tmp_ptr
+    ldv vmtx2_i.e4,  0x10,tmp_ptr
+    ldv vmtx3_i.e4,  0x18,tmp_ptr
+    ldv vmtx0_f.e4,  0x20,tmp_ptr
+    ldv vmtx1_f.e4,  0x28,tmp_ptr
+    ldv vmtx2_f.e4,  0x30,tmp_ptr
+    ldv vmtx3_f.e4,  0x38,tmp_ptr
 
-    vmov veyepos.e7, vzero.e0
+    vmov vobjpos.e7, vzero.e0
     # Transform vertex pos and normal into eye space
-    vmudn v___,    vmtx0_f, veyepos.h0
-    vmadh v___,    vmtx0_i, veyepos.h0
-    vmadn v___,    vmtx1_f, veyepos.h1
-    vmadh v___,    vmtx1_i, veyepos.h1
-    vmadn v___,    vmtx2_f, veyepos.h2
-    vmadh v___,    vmtx2_i, veyepos.h2
-    vmadn v___,    vmtx3_f, veyepos.h3
-    vmadh veyepos, vmtx3_i, veyepos.h3
+    vmudn v___,    vmtx0_f, vobjpos.h0
+    vmadh v___,    vmtx0_i, vobjpos.h0
+    vmadn v___,    vmtx1_f, vobjpos.h1
+    vmadh v___,    vmtx1_i, vobjpos.h1
+    vmadn v___,    vmtx2_f, vobjpos.h2
+    vmadh v___,    vmtx2_i, vobjpos.h2
+    vmadn v___,    vmtx3_f, vobjpos.h3
+    vmadh veyepos, vmtx3_i, vobjpos.h3
 
     # TODO: normalize normal if GL_NORMALIZE is enabled
 
-    li s0, %lo(RDPQ_CMD_STAGING)
-    sqv veyepos,        0,s0
-    ldv veyenormal.e0,  8,s0
-    ldv veyenormal.e4,  8,s0
+    li tmp_ptr, %lo(RDPQ_CMD_STAGING)
+    sqv veyepos,        0,tmp_ptr
+    ldv veyenormal.e0,  8,tmp_ptr
+    ldv veyenormal.e4,  8,tmp_ptr
 
     #define vsqdist_f   $v10
     #define vsqdist_i   $v11
@@ -774,32 +780,106 @@ GL_TnL:
     #undef vinvdist_i
 
 1:
-    jal GL_VtxLighting
-    ldv veyepos.e4,     0,s0
+    ldv veyepos.e4,     0,tmp_ptr
 
-gl_no_lighting:
+2:
+
+    and t0, state_flags, FLAG_LIGHTING
+    bnez t0, GL_VtxLighting
+    li ra, %lo(1f)
+1:
+
     suv vrgba,    SCREEN_VTX_RGBA,screen_vtx
+
+    #define vtexsize     $v06
+    #define vtexoffset   $v07
+    #define vstrq        $v08
+
+    li s1, %lo(GL_STATE_TEX_SIZE)
+    llv vtexsize.s,   0,s1
+    llv vtexoffset.s, 4,s1
+
+    ldv vstrq,      PRIM_VTX_TEX_S,prim_vtx     # S + T + R + Q
+
+    #define vplanes_s_i $v09
+    #define vplanes_s_f $v10
+    #define vplanes_t_i $v11
+    #define vplanes_t_f $v12
+    #define vplanes_r_i $v13
+    #define vplanes_r_f $v14
+    #define vplanes_q_i $v15
+    #define vplanes_q_f $v16
+    #define vobjlin     $v17
+    #define veyelin     $v18
+    #define vmodes      $v19
+
+    srl t0, state_flags, TEX_GEN_S_SHIFT
+    andi t0, 0xF
+    beqz t0, 1f
+    ldv vobjpos.e4,  0,tmp_ptr
+
+    # Fill VCC with enable-flags
+    # We need to OR with 0xF0 so that the mode constants stay in the vmodes register
+    ori t0, 0x70
+    ctc2 t0, COP2_CTRL_VCC
+
+    li s1, %lo(GL_TEX_GEN)
+
+    lqv vmodes,       TEX_GEN_MODE_OFFSET,         s1
+    lqv vplanes_s_i,  TEX_GEN_INTEGER_OFFSET+0x00, s1
+    lqv vplanes_s_f,  TEX_GEN_FRACTION_OFFSET+0x00,s1
+    lqv vplanes_t_i,  TEX_GEN_INTEGER_OFFSET+0x10, s1
+    lqv vplanes_t_f,  TEX_GEN_FRACTION_OFFSET+0x10,s1
+    lqv vplanes_r_i,  TEX_GEN_INTEGER_OFFSET+0x20, s1
+    lqv vplanes_r_f,  TEX_GEN_FRACTION_OFFSET+0x20,s1
+    lqv vplanes_q_i,  TEX_GEN_INTEGER_OFFSET+0x30, s1
+    lqv vplanes_q_f,  TEX_GEN_FRACTION_OFFSET+0x30,s1
+
+    # Select which coords to enable based on the enable-flags that were loaded into VCC above
+    vmrg vmodes, vmodes, vzero
+
+    vmudn v___,    vplanes_s_f, vobjpos.h0
+    vmadh v___,    vplanes_s_i, vobjpos.h0
+    vmadn v___,    vplanes_t_f, vobjpos.h1
+    vmadh v___,    vplanes_t_i, vobjpos.h1
+    vmadn v___,    vplanes_r_f, vobjpos.h2
+    vmadh v___,    vplanes_r_i, vobjpos.h2
+    vmadn v___,    vplanes_q_f, vobjpos.h3
+    vmadh vobjlin, vplanes_q_i, vobjpos.h3
+
+    sdv vobjlin.e4, 0,tmp_ptr
+    ldv veyelin.e0, 0,tmp_ptr
+
+    veq  v___,    vmodes,  vmodes.e4
+    vmrg vstrq, vobjlin, vstrq
+    veq  v___,    vmodes,  vmodes.e5
+    vmrg vstrq, veyelin, vstrq
+
+    #undef vplanes_s_i
+    #undef vplanes_s_f
+    #undef vplanes_t_i
+    #undef vplanes_t_f
+    #undef vplanes_r_i
+    #undef vplanes_r_f
+    #undef vplanes_q_i
+    #undef vplanes_q_f
+    #undef vobjlin
+    #undef veyelin
+    #undef vmodes
+
+1:
+    # Scale texcoord by texsize and subtract offset (to correct for bilinear sampling if active)
+    vmudh vstrq, vtexsize
+    vsub  vstrq, vtexoffset
 
     #define vcspos_f     $v02
     #define vcspos_i     $v03
-    #define vtexsize     $v04
-    #define vtexoffset   $v05
-    #define vst          $v06
 
-    li s0, %lo(GL_STATE_TEX_SIZE)
-    llv vtexsize.s,   0,s0
-    llv vtexoffset.s, 4,s0
-
-    llv vst,      PRIM_VTX_S      ,prim_vtx     # S + T
     ldv vcspos_f, PRIM_VTX_CS_POSf,prim_vtx
     ldv vcspos_i, PRIM_VTX_CS_POSi,prim_vtx
 
-    # Scale texcoord by texsize and subtract offset (to correct for bilinear sampling if active)
-    vmudh vst, vtexsize
-    vsub  vst, vtexoffset
-
     jal GL_CalcScreenSpace
-    slv vst.s,    SCREEN_VTX_S,screen_vtx
+    slv vstrq.s,  SCREEN_VTX_S,screen_vtx
 
     sdv vcspos_f, SCREEN_VTX_CS_POSf,screen_vtx
     sdv vcspos_i, SCREEN_VTX_CS_POSi,screen_vtx
@@ -820,6 +900,7 @@ gl_no_lighting:
     #undef vrgba
     #undef vst
     #undef s
+    #undef vobjpos
     #undef veyepos
     #undef veyenormal
     #undef vmtx0_i

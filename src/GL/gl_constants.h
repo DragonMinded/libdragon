@@ -13,8 +13,16 @@
 
 #define MATRIX_SIZE           64
 
-#define TEX_GEN_SIZE          32
-#define TEX_GEN_COUNT         4
+#define TEX_COORD_COUNT         4
+#define TEX_GEN_COUNT           TEX_COORD_COUNT
+#define TEX_GEN_PLANE_COUNT     2
+#define TEX_GEN_SIZE            34
+
+#define TEX_GEN_STRUCT_SIZE     144
+#define TEX_GEN_INTEGER_OFFSET  0
+#define TEX_GEN_FRACTION_OFFSET 64
+#define TEX_GEN_MODE_OFFSET     128
+#define TEX_GEN_CONST_SIZE      (4*2)
 
 #define LIGHT_COUNT           8
 #define LIGHT_ATTR_SIZE       8
@@ -96,6 +104,7 @@
 #define FLAG_IMMEDIATE          (1 << 27)
 #define FLAG_FINAL_MTX_DIRTY    (1 << 28)
 #define FLAG_TEXTURE_ACTIVE     (1 << 29)
+#define FLAG_NEED_EYE_SPACE     (1 << 30)
 
 #define TEX_LEVELS_MASK         0x7
 #define TEX_FLAG_COMPLETE       (1 << 3)
@@ -124,6 +133,10 @@
 #define TRICMD_ATTR_SHIFT_TEX   20
 
 #define LIGHT0_SHIFT            14
+
+#define TEX_GEN_S_SHIFT         22
+
+#define NEED_EYE_SPACE_SHIFT    30
 
 #define VTX_CMD_FLAG_NORMAL     (1 << 0)
 #define VTX_CMD_FLAG_TEXCOORD   (1 << 1)

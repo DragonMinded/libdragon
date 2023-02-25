@@ -7,6 +7,8 @@
 
 _Static_assert(TEXTURE_BILINEAR_MASK << TEX_BILINEAR_SHIFT == SOM_SAMPLE_BILINEAR >> 32);
 _Static_assert(TEXTURE_BILINEAR_MASK << TEX_BILINEAR_OFFSET_SHIFT == 0x0010);
+_Static_assert((1<<TEX_GEN_S_SHIFT) == FLAG_TEX_GEN_S);
+_Static_assert((1<<NEED_EYE_SPACE_SHIFT) == FLAG_NEED_EYE_SPACE);
 
 extern gl_state_t state;
 
