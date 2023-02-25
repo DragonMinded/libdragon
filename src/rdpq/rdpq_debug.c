@@ -1416,8 +1416,7 @@ surface_t rdpq_debug_get_tmem(void) {
         0, 0                   // s, t
     );
     rdpq_mode_pop();
-    rdpq_detach();
-    rspq_wait();
+    rdpq_detach_wait();
 
     // We dumped TMEM contents using a rectangle. When RDP accesses TMEM
     // for drawing, odd lines are dword-swapped. So we need to swap back
