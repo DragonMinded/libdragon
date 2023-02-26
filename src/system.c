@@ -850,7 +850,7 @@ int lseek( int file, int ptr, int dir )
  * @param[in] flags
  *            Flags specifying open flags, such as binary, append.
  * @param[in] mode
- *            Mode of the file. (TODO: currently ignored)
+ *            Mode of the file (currently ignored).
  *
  * @return File handle to refer to this file on success, or a negative value on error.
  */
