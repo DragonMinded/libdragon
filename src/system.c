@@ -646,11 +646,7 @@ int execve( char *name, char **argv, char **env )
  */
 void _exit( int rc )
 {
-    /* Default stub just causes a divide by 0 exception.  */
-    int x = rc / INT_MAX; // TODO: what if rc == INT_MAX
-    x = 4 / x;
-
-    /* Convince GCC that this function never returns.  */
+    /* Loop infinitely. */
     for( ;; );
 }
 
