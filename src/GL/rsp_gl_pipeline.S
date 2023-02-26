@@ -7,8 +7,8 @@
 
     RSPQ_BeginOverlayHeader
         RSPQ_DefineCommand GLCmd_InitPipe,      4
+        RSPQ_DefineCommand GLCmd_DrawTriangle,  4
         RSPQ_DefineCommand GLCmd_SetPrimVertex, 32
-        RSPQ_DefineCommand GLCmd_DrawTriangle,  8
         RSPQ_DefineCommand RSPQCmd_Noop,        4
         RSPQ_DefineCommand RSPQCmd_Noop,        4
         RSPQ_DefineCommand RSPQCmd_Noop,        4
@@ -712,8 +712,7 @@ GL_TnL:
 
     .func GLCmd_DrawTriangle
 GLCmd_DrawTriangle:
-    #define tri_cmd     a0
-    #define prim_verts  a1
+    #define prim_verts  a0
 
     #define prim_vtx1   s5
     #define prim_vtx2   s6
@@ -767,17 +766,14 @@ GLCmd_DrawTriangle:
 
     beqz v1, gl_draw_triangle_end
     addi s2, -6
-    move v1, a0
     lhu s5, 0(s1)
 gl_draw_clipped_triangles_loop:
+    move a1, s5
     lhu a2, 2(s1)
     lhu a3, 4(s1)
 
-    # Restore a0,a1 because they are ovewritten by RDPQ_Send
-    move a0, v1
-    move a1, s5
-
 gl_draw_single_triangle:
+    lhu a0, %lo(GL_TRI_CMD)
     lb v0, %lo(GL_TRI_CULL)
     jal RDPQ_Triangle
     li s3, %lo(RDPQ_CMD_STAGING)

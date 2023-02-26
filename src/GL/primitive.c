@@ -550,8 +550,7 @@ gl_screen_vtx_t * gl_get_screen_vtx(uint8_t prim_index)
 void gl_draw_primitive()
 {
     if (state.rsp_pipeline_enabled) {
-        glpipe_draw_triangle(state.prim_texture, state.depth_test, 
-            state.prim_indices[0], state.prim_indices[1], state.prim_indices[2]);
+        glpipe_draw_triangle(state.prim_indices[0], state.prim_indices[1], state.prim_indices[2]);
         return;
     }
 

@@ -74,8 +74,8 @@ enum {
 
 enum {
     GLP_CMD_INIT_PIPE      = 0x00,
-    GLP_CMD_SET_PRIM_VTX   = 0x01,
-    GLP_CMD_DRAW_TRI       = 0x02,
+    GLP_CMD_DRAW_TRI       = 0x01,
+    GLP_CMD_SET_PRIM_VTX   = 0x02,
 };
 
 typedef enum {
@@ -627,14 +627,9 @@ inline void glpipe_set_prim_vertex(int idx, GLfloat attribs[ATTRIB_COUNT][4], in
     );
 }
 
-inline void glpipe_draw_triangle(bool has_tex, bool has_z, int i0, int i1, int i2)
+inline void glpipe_draw_triangle(int i0, int i1, int i2)
 {
-    uint32_t cmd_id = RDPQ_CMD_TRI_SHADE;
-    if (has_tex) cmd_id |= 2;
-    if (has_z) cmd_id |= 1;
-
     glp_write(GLP_CMD_DRAW_TRI,
-        0xC000 | (cmd_id << 8),
         ((i0*PRIM_VTX_SIZE)<<16) | ((i1*PRIM_VTX_SIZE)<<8) | (i2*PRIM_VTX_SIZE)
     );
 }
