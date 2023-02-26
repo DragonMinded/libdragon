@@ -771,7 +771,7 @@ void disable_interrupts()
  */
 void enable_interrupts()
 {
-    /* Don't do anything if we've hosed up (TODO: what does this mean?) or aren't initialized */
+    /* Don't do anything if we aren't initialized */
     if( __interrupt_depth < 0 ) { return; }
 
     /* Check that we're not calling enable_interrupts() more than expected */
