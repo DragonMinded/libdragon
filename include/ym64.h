@@ -11,10 +11,6 @@ extern "C" {
 #include "mixer.h"
 #include "ay8910.h"
 
-/// @cond
-typedef struct _LHANewDecoder LHANewDecoder;
-/// @endcond
-
 /**
  * @file ym64.h
  * @brief Player for the .YM64 module format (Arkos Tracker 2)
@@ -63,7 +59,7 @@ typedef struct {
 	waveform_t wave;          ///< waveform for playback with the mixer
 
 	FILE *f;                  ///< Open file handle
-	LHANewDecoder *decoder;   ///< Optional LHA decoder (compressed YM files)
+	void *decoder;            ///< Optional LHA decoder (compressed YM files)
 	int start_off;            ///< Starting offset of the first audio frame
 
 	AY8910 ay;                ///< AY8910 emulator

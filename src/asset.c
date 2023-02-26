@@ -1,6 +1,8 @@
 #include "asset.h"
 #include "asset_internal.h"
 #include "compress/lzh5_internal.h"
+#include <stdio.h>
+#include <string.h>
 #include <stdalign.h>
 
 #ifdef N64
@@ -128,19 +130,17 @@ static fpos_t seekfn_lha(void *cookie, fpos_t pos, int whence)
     return 0;
 }
 
-static int closefn_lha(void *cookie)
+static int closefn_lha(void *state)
 {
-    LHANewDecoder *decoder = (LHANewDecoder*)cookie;
-    FILE *f = decoder->bit_stream_reader.fp;
+    FILE *f = decompress_lz5h_fp(state);
     fclose(f);
-    free(decoder);
+    free(state);
     return 0;
 }
 
-static int readfn_lha(void *cookie, char *buf, int sz)
+static int readfn_lha(void *state, char *buf, int sz)
 {
-    LHANewDecoder *decoder = (LHANewDecoder*)cookie;
-    return lha_lh_new_read(decoder, (uint8_t*)buf, sz);
+    return decompress_lz5h_read(state, (uint8_t*)buf, sz);
 }
 
 FILE *asset_fopen(const char *fn)
@@ -161,9 +161,9 @@ FILE *asset_fopen(const char *fn)
         header.orig_size = __builtin_bswap32(header.orig_size);
         #endif
 
-        LHANewDecoder *decoder = malloc(sizeof(LHANewDecoder));
-        lha_lh_new_init(decoder, f);
-        return funopen(decoder, readfn_lha, NULL, seekfn_lha, closefn_lha);
+        void *state = malloc(DECOMPRESS_LZ5H_STATE_SIZE);
+        decompress_lz5h_init(state, f);
+        return funopen(state, readfn_lha, NULL, seekfn_lha, closefn_lha);
     }
 
     // Not compressed. Return a wrapped FILE* without the seeking capability,
