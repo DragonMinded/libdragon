@@ -80,8 +80,9 @@ static int refill_bits(BitStreamReader *reader)
 		reader->buf_idx = 0;
 	}
 
-	// fprintf(stderr, "  refill %d\n", reader->buf_idx);
 	reader->bit_buffer = *(uint64_t*)(&reader->buf[reader->buf_idx]);
+	if (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+		reader->bit_buffer = __builtin_bswap64(reader->bit_buffer);
 	reader->bits = (reader->buf_size - reader->buf_idx) * 8;
 	if (reader->bits > 64)
 		reader->bits = 64;
