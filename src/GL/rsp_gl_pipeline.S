@@ -2,11 +2,6 @@
 #include <rdpq_macros.h>
 #include "gl_constants.h"
 #include "GL/gl_enums.h"
-#include "pputils.h"
-
-#define __sum_cmd_size(arg) + VTX_CMD_SIZE_ ## arg
-
-#define VTX_CMD_SIZE(...) (4 __CALL_FOREACH_BIS(__sum_cmd_size, ##__VA_ARGS__))
 
     .data
 
@@ -27,23 +22,6 @@
         RSPQ_DefineCommand RSPQCmd_Noop,        4
         RSPQ_DefineCommand RSPQCmd_Noop,        4
         RSPQ_DefineCommand RSPQCmd_Noop,        4
-
-        RSPQ_DefineCommand RSPQCmd_Noop,        4                                   # 0x10  Invalid
-        RSPQ_DefineCommand GLCmd_Vtx,           VTX_CMD_SIZE(               NRM)    # 0x11  Normal
-        RSPQ_DefineCommand GLCmd_Vtx,           VTX_CMD_SIZE(          TEX     )    # 0x12  Texcoord
-        RSPQ_DefineCommand GLCmd_Vtx,           VTX_CMD_SIZE(          TEX, NRM)    # 0x13  Texcoord + Normal
-        RSPQ_DefineCommand GLCmd_Vtx,           VTX_CMD_SIZE(     COL          )    # 0x14  Color
-        RSPQ_DefineCommand GLCmd_Vtx,           VTX_CMD_SIZE(     COL,      NRM)    # 0x15  Color + Normal
-        RSPQ_DefineCommand GLCmd_Vtx,           VTX_CMD_SIZE(     COL, TEX     )    # 0x16  Color + Texcoord
-        RSPQ_DefineCommand GLCmd_Vtx,           VTX_CMD_SIZE(     COL, TEX, NRM)    # 0x17  Color + Texcoord + Normal
-        RSPQ_DefineCommand GLCmd_Vtx,           VTX_CMD_SIZE(POS               )    # 0x18  Position
-        RSPQ_DefineCommand GLCmd_Vtx,           VTX_CMD_SIZE(POS,           NRM)    # 0x19  Position + Normal
-        RSPQ_DefineCommand GLCmd_Vtx,           VTX_CMD_SIZE(POS,      TEX     )    # 0x1A  Position + Texcoord
-        RSPQ_DefineCommand GLCmd_Vtx,           VTX_CMD_SIZE(POS,      TEX, NRM)    # 0x1B  Position + Texcoord + Normal
-        RSPQ_DefineCommand GLCmd_Vtx,           VTX_CMD_SIZE(POS, COL          )    # 0x1C  Position + Color
-        RSPQ_DefineCommand GLCmd_Vtx,           VTX_CMD_SIZE(POS, COL,      NRM)    # 0x1D  Position + Color + Normal
-        RSPQ_DefineCommand GLCmd_Vtx,           VTX_CMD_SIZE(POS, COL, TEX     )    # 0x1E  Position + Color + Texcoord
-        RSPQ_DefineCommand GLCmd_Vtx,           VTX_CMD_SIZE(POS, COL, TEX, NRM)    # 0x1F  Position + Color + Texcoord + Normal
     RSPQ_EndOverlayHeader
 
     .align 4
@@ -107,20 +85,6 @@ CACHE_OFFSETS:               .half 2,4,6,8,10,12,14,16,18
 
 CLIP_CODE_FACTORS: .half 1, 1, GUARD_BAND_FACTOR, GUARD_BAND_FACTOR
 
-#if RSP_PRIM_ASSEMBLY
-PRIM_FUNCS:
-    .half GL_PrimSimple         - _start    # GL_POINTS
-    .half GL_PrimSimple         - _start    # GL_LINES
-    .half GL_PrimLineStrip      - _start    # GL_LINE_LOOP
-    .half GL_PrimLineStrip      - _start    # GL_LINE_STRIP
-    .half GL_PrimSimple         - _start    # GL_TRIANGLES
-    .half GL_PrimTriangleStrip  - _start    # GL_TRIANGLE_STRIP
-    .half GL_PrimTriangleFan    - _start    # GL_TRIANGLE_FAN
-    .half GL_PrimQuads          - _start    # GL_QUADS
-    .half GL_PrimTriangleStrip  - _start    # GL_QUAD_STRIP
-    .half GL_PrimTriangleFan    - _start    # GL_POLYGON
-#endif
-
     .text
 
     .func GLCmd_InitPipe
@@ -129,13 +93,6 @@ GLCmd_InitPipe:
     li s4, %lo(GL_STATE)
     jal DMAIn
     li t0, DMA_SIZE(GL_STATE_SIZE, 1)
-
-#if RSP_PRIM_ASSEMBLY
-    lhu t0, %lo(GL_STATE_PRIM_TYPE)
-    sll t0, 1
-    lhu t0, %lo(PRIM_FUNCS)(t0)
-    sh t0, %lo(GL_PRIM_FUNC)
-#endif
 
     # Clear screen vertex cache
     li s0, %lo(SCREEN_VERTEX_CACHE_IDS)
@@ -236,170 +193,6 @@ move_loop:
     sh t1, (SCREEN_VERTEX_CACHE_COUNT*2*1)(s0)
     .endfunc
 
-GLCmd_Vtx:
-#if RSP_PRIM_ASSEMBLY
-    #define prim_index      s1
-    #define prim_func       s2
-    #define index           s3
-    #define cmd_ptr         s4
-    #define cur_attr        s5
-    #define vtx_cmd         t5
-    #define prim_size       t6
-    #define prim_progress   t7
-
-    #define vposition       $v01
-    #define vcolor          $v02
-    #define vtexcoord       $v03
-    #define vnormal         $v04
-
-    #define prim_vtx1       s5
-    #define prim_vtx2       s6
-    #define prim_vtx3       s7
-
-    lb v0, %lo(GL_TRI_CULL)
-    lhu prim_index, %lo(GL_PRIM_NEXT)
-
-    # If TRI_CULL is negative, we're culling all faces.
-    # So just quit immediately.
-    bltz v0, JrRa
-    move ra2, ra
-
-    andi index, a0, 0xFFFF
-    srl vtx_cmd, a0, 24
-
-    addi index, 1
-    addi a0, prim_index, %lo(PRIM_VERTEX_CACHE)
-
-    addi cmd_ptr, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER) + 4
-    sub cmd_ptr, rspq_cmd_size
-
-    # TODO: Add fetching from VBOs
-    # TODO: Maybe split this into separate commands and inline the branches?
-
-    
-    andi t0, vtx_cmd, VTX_CMD_FLAG_POSITION
-    beqz t0, gl_vtx_no_position
-    li cur_attr, %lo(GL_CUR_COLOR)
-
-    ldv vposition,  0,cmd_ptr
-    addi cmd_ptr, VTX_CMD_SIZE_POS
-
-gl_vtx_no_position:
-    andi t0, vtx_cmd, VTX_CMD_FLAG_COLOR
-    beqz t0, gl_vtx_no_color
-    ldv vcolor,  0,cmd_ptr
-
-    addi cmd_ptr, VTX_CMD_SIZE_COL
-    sdv vcolor,  0,cur_attr
-
-gl_vtx_no_color:
-    andi t0, vtx_cmd, VTX_CMD_FLAG_TEXCOORD
-    beqz t0, gl_vtx_no_texcoord
-    ldv vtexcoord,  0,cmd_ptr
-
-    addi cmd_ptr, VTX_CMD_SIZE_TEX
-    sdv vtexcoord,  8,cur_attr
-
-gl_vtx_no_texcoord:
-    andi t0, vtx_cmd, VTX_CMD_FLAG_NORMAL
-    beqz t0, gl_vtx_no_normal
-    llv vnormal,  0,cmd_ptr
-
-    slv vnormal,  16,cur_attr
-
-gl_vtx_no_normal:
-
-    ldv vcolor,     0 ,cur_attr
-    ldv vtexcoord,  8 ,cur_attr
-    llv vnormal,    16,cur_attr
-
-    sdv vposition,  PRIM_VTX_X     ,a0
-    sdv vcolor,     PRIM_VTX_R     ,a0
-    sdv vtexcoord,  PRIM_VTX_TEX_S ,a0
-    slv vnormal,    PRIM_VTX_NORMAL,a0
-    jal GL_PreTrivialReject
-    sh index, PRIM_VTX_ID(a0)
-
-    lhu prim_size, %lo(GL_PRIM_SIZE)
-    lhu prim_progress, %lo(GL_PRIM_PROGRESS)
-
-    blt prim_index, PRIM_VTX_SIZE*3, gl_write_prim_next
-    addi t0, prim_index, PRIM_VTX_SIZE
-    move t0, zero
-gl_write_prim_next:
-    sh t0, %lo(GL_PRIM_NEXT)
-
-    move ra, ra2
-    
-    sh prim_index, %lo(GL_PRIM_INDICES)(prim_progress)
-    addi prim_progress, 2
-    blt prim_progress, prim_size, JrRa
-    sh prim_progress, %lo(GL_PRIM_PROGRESS)
-
-    lhu prim_func, %lo(GL_PRIM_FUNC)
-
-    lhu prim_vtx1, %lo(GL_PRIM_INDICES) + 0x0
-    lhu prim_vtx2, %lo(GL_PRIM_INDICES) + 0x2
-    jr prim_func
-    lhu prim_vtx3, %lo(GL_PRIM_INDICES) + 0x4
-
-gl_prim_func_return:
-    sh prim_progress, %lo(GL_PRIM_PROGRESS)
-    # TODO: points / lines
-    j GL_DrawTriangle
-    lhu a0, %lo(GL_TRI_CMD)
-
-GL_PrimSimple:
-    j gl_prim_func_return
-    move prim_progress, zero
-
-GL_PrimLineStrip:
-    lhu t0, %lo(GL_PRIM_INDICES) + 0x2
-    li prim_progress, 2
-    j gl_prim_func_return
-    sh t0, %lo(GL_PRIM_INDICES) + 0x0
-
-GL_PrimTriangleStrip:
-    lhu t0, %lo(GL_PRIM_INDICES) + 0x4
-    lhu t1, %lo(GL_PRIM_COUNTER)
-    li prim_progress, 4
-    xori t2, t1, 2
-    sh t0, %lo(GL_PRIM_INDICES)(t1)
-    j gl_prim_func_return
-    sh t2, %lo(GL_PRIM_COUNTER)
-
-GL_PrimTriangleFan:
-    lhu t0, %lo(GL_PRIM_INDICES) + 0x4
-    li prim_progress, 4
-    j gl_prim_func_return
-    sh t0, %lo(GL_PRIM_INDICES) + 0x2
-
-GL_PrimQuads:
-    lhu t0, %lo(GL_PRIM_INDICES) + 0x4
-    lhu t1, %lo(GL_PRIM_COUNTER)
-    sh t0, %lo(GL_PRIM_INDICES) + 0x2
-    xori t1, 2
-    sll prim_progress, t1, 1
-    j gl_prim_func_return
-    sh t1, %lo(GL_PRIM_COUNTER)
-
-    #undef prim_index
-    #undef prim_func
-    #undef index
-    #undef cmd_ptr
-    #undef cur_attr
-    #undef vtx_cmd
-    #undef prim_size
-    #undef prim_progress
-    #undef vposition
-    #undef vcolor
-    #undef vtexcoord
-    #undef vnormal
-    #undef prim_vtx1
-    #undef prim_vtx2
-    #undef prim_vtx3
-#endif
-
     ########################################
     # GLCmd_SetPrimVertex
     #
@@ -421,7 +214,6 @@ GLCmd_SetPrimVertex:
     #define in_rg      a3
     #define vtx_id     v1
 
-#if !RSP_PRIM_ASSEMBLY
     srl vtx_id, prim_vtx, 8
     andi prim_vtx, 0xFF
     addi prim_vtx, %lo(PRIM_VERTEX_CACHE)
@@ -439,9 +231,7 @@ GLCmd_SetPrimVertex:
     sw t2,       PRIM_VTX_TEX_R (prim_vtx)
     sw t3,       PRIM_VTX_NORMAL(prim_vtx)
     sh vtx_id,   PRIM_VTX_ID    (prim_vtx)
-#endif
 
-GL_PreTrivialReject:
     #define v___      $v01
 
     #define vmtx0_i   $v16       //  m00 m01 m02 m03
@@ -930,15 +720,12 @@ GLCmd_DrawTriangle:
     #define prim_vtx3   s7
     #define ra3         s8
 
-#if !RSP_PRIM_ASSEMBLY
     andi prim_vtx3, prim_verts, 0xFF
     srl  prim_vtx2, prim_verts, 8
     and  prim_vtx2, 0xFF
     srl  prim_vtx1, prim_verts, 16
     and  prim_vtx1, 0xFF
-#endif
 
-GL_DrawTriangle:
     addi prim_vtx3, %lo(PRIM_VERTEX_CACHE)
     addi prim_vtx2, %lo(PRIM_VERTEX_CACHE)
     addi prim_vtx1, %lo(PRIM_VERTEX_CACHE)

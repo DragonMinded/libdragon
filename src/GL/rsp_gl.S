@@ -451,17 +451,6 @@ gl_tex_incomplete:
     .func GLCmd_PreInitPipe
 GLCmd_PreInitPipe:
     sh a0, %lo(GL_STATE_PRIM_TYPE)
-    
-#if RSP_PRIM_ASSEMBLY
-    srl t0, a1, 16
-    andi t0, 0xFF
-    andi t1, a1, 0xFFFF
-    sh t0, %lo(GL_PRIM_SIZE)
-    sh t1, %lo(GL_PRIM_NEXT)
-    sh zero, %lo(GL_PRIM_PROGRESS)
-
-    sh zero, %lo(GL_PRIM_COUNTER)
-#endif
 
     #define state_flags k1
 

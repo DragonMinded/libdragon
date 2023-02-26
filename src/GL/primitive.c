@@ -308,13 +308,8 @@ void glEnd(void)
     state.immediate_active = false;
 }
 
-static const uint32_t gl_vtx_cmd_part_sizes[] = { VTX_CMD_SIZE_POS, VTX_CMD_SIZE_COL, VTX_CMD_SIZE_TEX, VTX_CMD_SIZE_NRM };
-
 void gl_load_attribs(const gl_attrib_source_t *sources, const uint32_t index)
 {
-    state.vtx_cmd = GLP_CMD_VTX_BASE;
-    state.vtx_cmd_size = 1;
-
     for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
     {
         const gl_attrib_source_t *src = &sources[i];
@@ -326,9 +321,6 @@ void gl_load_attribs(const gl_attrib_source_t *sources, const uint32_t index)
 
         const void *p = src->pointer + index * src->stride;
         src->read_func(dst, p, src->size);
-
-        state.vtx_cmd |= VTX_CMD_FLAG_POSITION >> i;
-        state.vtx_cmd_size += gl_vtx_cmd_part_sizes[i] >> 2;
     }
 }
 
@@ -636,10 +628,6 @@ void gl_draw(const gl_attrib_source_t *sources, uint32_t offset, uint32_t count,
     // Inform the rdpq state engine that we are going to draw something so the pipe settings are in use
     __rdpq_autosync_use(AUTOSYNC_PIPE);
 
-    if (state.is_full_vbo) {
-        
-    }
-
     // Prepare default values
     for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
     {
@@ -667,10 +655,6 @@ void gl_draw(const gl_attrib_source_t *sources, uint32_t offset, uint32_t count,
 
         gl_load_attribs(sources, index);
 
-#if RSP_PRIM_ASSEMBLY
-        glpipe_vtx(state.current_attribs, id, state.vtx_cmd, state.vtx_cmd_size);
-        continue;
-#endif
         uint8_t cache_index = state.prim_next;
         gl_vertex_pre_clip(cache_index, id);
         
@@ -1171,7 +1155,6 @@ bool gl_prepare_attrib_source(gl_attrib_source_t *attrib_src, gl_array_t *array,
         attrib_src->pointer = array->binding->storage.data + (uint32_t)array->pointer;
     } else {
         attrib_src->pointer = array->pointer;
-        state.is_full_vbo = false;
     }
 
     return true;
@@ -1179,8 +1162,6 @@ bool gl_prepare_attrib_source(gl_attrib_source_t *attrib_src, gl_array_t *array,
 
 bool gl_prepare_attrib_sources(uint32_t offset, uint32_t count)
 {
-    state.is_full_vbo = true;
-
     for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
     {
         if (!gl_prepare_attrib_source(&state.attrib_sources[i], &state.array_object->arrays[i], offset, count)) {
@@ -1285,7 +1266,7 @@ void glArrayElement(GLint i)
 
     gl_draw(state.attrib_sources, i, 1, NULL, NULL);
 }
-#if !RSP_PRIM_ASSEMBLY
+
 static GLfloat vertex_tmp[4];
 static gl_attrib_source_t dummy_sources[ATTRIB_COUNT] = {
     { .pointer = vertex_tmp, .size = 4, .stride = sizeof(GLfloat) * 4, .read_func = (read_attrib_func)read_f32 },
@@ -1293,32 +1274,15 @@ static gl_attrib_source_t dummy_sources[ATTRIB_COUNT] = {
     { .pointer = NULL },
     { .pointer = NULL },
 };
-#endif
 
 void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 {
-    #if RSP_PRIM_ASSEMBLY
-    #define OBJ_SCALE   32.0f
-    #define fx16(v)  ((uint32_t)((int32_t)((v))) & 0xFFFF)
-
-    uint32_t res = AUTOSYNC_PIPE;
-    // FIXME: This doesn't work with display lists!
-    if (state.prim_texture) res |= AUTOSYNC_TILES | AUTOSYNC_TMEMS;
-
-    __rdpq_autosync_use(res);
-
-    glp_write(GLP_CMD_VTX_BASE + VTX_CMD_FLAG_POSITION, state.prim_id++, 
-        (fx16(x*OBJ_SCALE) << 16) | fx16(y*OBJ_SCALE),
-        (fx16(z*OBJ_SCALE) << 16) | fx16(w*OBJ_SCALE)
-    );
-    #else
     vertex_tmp[0] = x;
     vertex_tmp[1] = y;
     vertex_tmp[2] = z;
     vertex_tmp[3] = w;
 
     gl_draw(dummy_sources, 0, 1, NULL, NULL);
-    #endif
 }
 
 void glVertex4s(GLshort x, GLshort y, GLshort z, GLshort w)     { glVertex4f(x, y, z, w); }

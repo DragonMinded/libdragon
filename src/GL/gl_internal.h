@@ -76,8 +76,6 @@ enum {
     GLP_CMD_INIT_PIPE      = 0x00,
     GLP_CMD_SET_PRIM_VTX   = 0x01,
     GLP_CMD_DRAW_TRI       = 0x02,
-
-    GLP_CMD_VTX_BASE       = 0x10,
 };
 
 typedef enum {
@@ -398,10 +396,6 @@ typedef struct {
 
     gl_attrib_source_t attrib_sources[ATTRIB_COUNT];
 
-    uint8_t vtx_cmd;
-    uint32_t vtx_cmd_size;
-    bool is_full_vbo;
-
     gl_texture_object_t *default_textures;
 
     obj_map_t list_objects;
@@ -470,12 +464,6 @@ typedef struct {
     uint16_t point_size;
     uint16_t line_width;
     uint16_t matrix_mode;
-    uint16_t prim_func;
-    uint16_t prim_next;
-    uint16_t prim_progress;
-    uint16_t prim_counter;
-    uint16_t prim_indices[3];
-    uint16_t prim_size;
     uint16_t tri_cmd;
     uint8_t tri_cull[2];
 
@@ -637,49 +625,6 @@ inline void glpipe_set_prim_vertex(int idx, GLfloat attribs[ATTRIB_COUNT][4], in
         (fx16(attribs[ATTRIB_TEXCOORD][2]*TEX_SCALE) << 16) | fx16(attribs[ATTRIB_TEXCOORD][3]*TEX_SCALE),
         normal
     );
-}
-
-inline void glpipe_vtx(GLfloat attribs[ATTRIB_COUNT][4], int id, uint8_t cmd, uint32_t cmd_size)
-{
-    #define TEX_SCALE   32.0f
-    #define OBJ_SCALE   32.0f
-    #define fx16(v)  ((uint32_t)((int32_t)((v))) & 0xFFFF)
-
-    extern gl_state_t state;
-
-    uint32_t res = AUTOSYNC_PIPE;
-    // FIXME: This doesn't work with display lists!
-    if (state.prim_texture) res |= AUTOSYNC_TILES | AUTOSYNC_TMEMS;
-
-    __rdpq_autosync_use(res);
-
-    rspq_write_t w = rspq_write_begin(glp_overlay_id, cmd, cmd_size);
-
-    rspq_write_arg(&w, id);
-
-    if (cmd & VTX_CMD_FLAG_POSITION) {
-        rspq_write_arg(&w, (fx16(attribs[ATTRIB_VERTEX][0]*OBJ_SCALE) << 16) | fx16(attribs[ATTRIB_VERTEX][1]*OBJ_SCALE));
-        rspq_write_arg(&w, (fx16(attribs[ATTRIB_VERTEX][2]*OBJ_SCALE) << 16) | fx16(attribs[ATTRIB_VERTEX][3]*OBJ_SCALE));
-    }
-
-    if (cmd & VTX_CMD_FLAG_COLOR) {
-        rspq_write_arg(&w, (fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][0])) << 16) | fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][1])));
-        rspq_write_arg(&w, (fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][2])) << 16) | fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][3])));
-    }
-
-    if (cmd & VTX_CMD_FLAG_TEXCOORD) {
-        rspq_write_arg(&w, (fx16(attribs[ATTRIB_TEXCOORD][0]*TEX_SCALE) << 16) | fx16(attribs[ATTRIB_TEXCOORD][1]*TEX_SCALE));
-        rspq_write_arg(&w, (fx16(attribs[ATTRIB_TEXCOORD][2]*TEX_SCALE) << 16) | fx16(attribs[ATTRIB_TEXCOORD][3]*TEX_SCALE));
-    }
-
-    if (cmd & VTX_CMD_FLAG_NORMAL) {
-        uint32_t normal = (((uint32_t)(attribs[ATTRIB_NORMAL][0]*127.0f) & 0xFF) << 24) |
-                          (((uint32_t)(attribs[ATTRIB_NORMAL][1]*127.0f) & 0xFF) << 16) |
-                          (((uint32_t)(attribs[ATTRIB_NORMAL][2]*127.0f) & 0xFF) <<  8);
-        rspq_write_arg(&w, normal);
-    }
-
-    rspq_write_end(&w);
 }
 
 inline void glpipe_draw_triangle(bool has_tex, bool has_z, int i0, int i1, int i2)

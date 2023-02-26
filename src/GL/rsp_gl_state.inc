@@ -33,12 +33,6 @@ GL_STATE:
     GL_STATE_POINT_SIZE:    .half   0
     GL_STATE_LINE_WIDTH:    .half   0
     GL_STATE_MATRIX_MODE:   .half   0
-    GL_PRIM_FUNC:           .half   0
-    GL_PRIM_NEXT:           .half   0
-    GL_PRIM_PROGRESS:       .half   0
-    GL_PRIM_COUNTER:        .half   0
-    GL_PRIM_INDICES:        .half   0,0,0
-    GL_PRIM_SIZE:           .half   0
     GL_TRI_CMD:             .half   0
     GL_TRI_CULL:            .byte   0,0
     .align 3

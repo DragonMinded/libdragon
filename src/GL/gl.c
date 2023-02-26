@@ -553,4 +553,3 @@ extern inline void gl_bind_texture(GLenum target, gl_texture_object_t *texture);
 extern inline void gl_update_texture_completeness(uint32_t offset);
 extern inline void glpipe_set_prim_vertex(int idx, GLfloat attribs[ATTRIB_COUNT][4], int id);
 extern inline void glpipe_draw_triangle(bool has_tex, bool has_z, int i0, int i1, int i2);
-extern inline void glpipe_vtx(GLfloat attribs[ATTRIB_COUNT][4], int id, uint8_t cmd, uint32_t cmd_size);
