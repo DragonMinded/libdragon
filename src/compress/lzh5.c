@@ -1004,7 +1004,6 @@ static size_t lha_lh_new_read_partial(LHANewDecoderPartial *decoder, uint8_t *bu
 			if (!start_new_block(&decoder->decoder)) {
 				return 0;
 			}
-			// memset(decoder->ringbuf, ' ', sizeof(decoder->ringbuf));
 		}
 
 		--decoder->decoder.block_remaining;
@@ -1029,26 +1028,51 @@ static size_t lha_lh_new_read_partial(LHANewDecoderPartial *decoder, uint8_t *bu
 
 	return result;
 }
-#if 0
-static size_t lha_lh_new_read_full(LHANewDecoderPartial *decoder, uint8_t *buf, int sz)
+
+static size_t lha_lh_new_read_full(LHANewDecoder *decoder, uint8_t *buf, int sz)
 {
-	size_t result = 0;
+	uint8_t *buf_orig = buf;
 	int code;
 
 	while (sz > 0) {
 		// Start of new block?
-		while (decoder->decoder.block_remaining == 0) {
-			if (!start_new_block(&decoder->decoder)) {
+		while (decoder->block_remaining == 0) {
+			if (!start_new_block(decoder)) {
 				return 0;
 			}
 		}
-		--decoder->decoder.block_remaining;
+		--decoder->block_remaining;
 
+		// Read next command from input stream.
+		code = read_code(decoder);
 
+		if (code < 0) {
+			return 0;
+		}
 
+		// The code may be either a literal byte value or a copy command.
+		if (code < 256) {
+			*buf++ = (uint8_t) code;
+			sz--;
+		} else {
+			int count = code - 256 + COPY_THRESHOLD;
+			int offset = read_offset_code(decoder);
+
+			if (offset < 0) {
+				return 0;
+			}
+			uint8_t *src = buf - offset - 1;
+
+			count = count < sz ? count : sz;
+			memmove(buf, src, count);
+			buf += count;
+			sz -= count;
+		}
 	}
+
+	return buf - buf_orig;
 }
-#endif
+
 
 /*************************************************
  * Libdragon API
@@ -1075,7 +1099,7 @@ FILE* decompress_lz5h_fp(void *state) {
 
 size_t decompress_lz5h_full(FILE *fp, void *buf, size_t len)
 {
-	LHANewDecoderPartial decoder;
-	lha_lh_new_init_partial(&decoder, fp);
-	return lha_lh_new_read_partial(&decoder, buf, len);
+	LHANewDecoder decoder;
+	lha_lh_new_init(&decoder, fp);
+	return lha_lh_new_read_full(&decoder, buf, len);
 }
