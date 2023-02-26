@@ -71,16 +71,20 @@ void gl_init()
     server_state->line_width = 1 << 2;
     server_state->polygon_mode = GL_FILL;
 
-    server_state->tex_gen_mode[0] = GL_EYE_LINEAR;
-    server_state->tex_gen_mode[1] = GL_EYE_LINEAR;
-    server_state->tex_gen_mode[2] = GL_EYE_LINEAR;
-    server_state->tex_gen_mode[3] = GL_EYE_LINEAR;
+    server_state->tex_gen.mode[0] = GL_EYE_LINEAR;
+    server_state->tex_gen.mode[1] = GL_EYE_LINEAR;
+    server_state->tex_gen.mode[2] = GL_EYE_LINEAR;
+    server_state->tex_gen.mode[3] = GL_EYE_LINEAR;
+    
+    server_state->tex_gen.mode_const[0] = GL_OBJECT_LINEAR;
+    server_state->tex_gen.mode_const[1] = GL_EYE_LINEAR;
+    server_state->tex_gen.mode_const[2] = GL_SPHERE_MAP;
 
-    server_state->tex_gen[0].object_plane.integer[0] = 1;
-    server_state->tex_gen[0].eye_plane.integer[0] = 1;
+    server_state->tex_gen.integer[0][0][0] = 1;
+    server_state->tex_gen.integer[0][1][0] = 1;
 
-    server_state->tex_gen[1].object_plane.integer[1] = 1;
-    server_state->tex_gen[1].eye_plane.integer[1] = 1;
+    server_state->tex_gen.integer[1][0][1] = 1;
+    server_state->tex_gen.integer[1][1][1] = 1;
 
     state.matrix_stacks[0] = malloc_uncached(sizeof(gl_matrix_srv_t) * MODELVIEW_STACK_SIZE);
     state.matrix_stacks[1] = malloc_uncached(sizeof(gl_matrix_srv_t) * PROJECTION_STACK_SIZE);
@@ -353,7 +357,6 @@ void gl_set_flag2(GLenum target, bool value)
     case GL_NORMALIZE:
         gl_set_flag(GL_UPDATE_NONE, FLAG_NORMALIZE, value);
         state.normalize = value;
-        set_can_use_rsp_dirty();
         break;
     case GL_CLIP_PLANE0:
     case GL_CLIP_PLANE1:

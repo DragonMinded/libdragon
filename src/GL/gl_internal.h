@@ -226,8 +226,8 @@ typedef struct {
     int16_t position[LIGHT_COUNT][4];
     int16_t ambient[LIGHT_COUNT][4];
     int16_t diffuse[LIGHT_COUNT][4];
-    uint16_t attenuation_int[LIGHT_COUNT][4];
-    int16_t attenuation_frac[LIGHT_COUNT][4];
+    int16_t attenuation_int[LIGHT_COUNT][4];
+    uint16_t attenuation_frac[LIGHT_COUNT][4];
 } __attribute__((packed)) gl_lights_soa_t;
 _Static_assert(sizeof(gl_lights_soa_t) == LIGHT_STRUCT_SIZE);
 _Static_assert(offsetof(gl_lights_soa_t, position) == LIGHT_POSITION_OFFSET);
@@ -274,21 +274,21 @@ typedef struct {
 
 typedef struct {
     GLenum mode;
-    GLfloat eye_plane[4];
-    GLfloat object_plane[4];
+    GLfloat eye_plane[TEX_COORD_COUNT];
+    GLfloat object_plane[TEX_COORD_COUNT];
     bool enabled;
 } gl_tex_gen_t;
 
 typedef struct {
-    int16_t integer[4];
-    uint16_t fraction[4];
-} gl_plane_t;
-
-typedef struct {
-    gl_plane_t eye_plane;
-    gl_plane_t object_plane;
-} gl_tex_gen_srv_t;
-_Static_assert(sizeof(gl_tex_gen_srv_t) == TEX_GEN_SIZE);
+    int16_t integer[TEX_COORD_COUNT][TEX_GEN_PLANE_COUNT][TEX_GEN_COUNT];
+    uint16_t fraction[TEX_COORD_COUNT][TEX_GEN_PLANE_COUNT][TEX_GEN_COUNT];
+    uint16_t mode[TEX_GEN_COUNT];
+    uint16_t mode_const[4];
+} gl_tex_gen_soa_t;
+_Static_assert(sizeof(gl_tex_gen_soa_t) == TEX_GEN_STRUCT_SIZE);
+_Static_assert(offsetof(gl_tex_gen_soa_t, integer) == TEX_GEN_INTEGER_OFFSET);
+_Static_assert(offsetof(gl_tex_gen_soa_t, fraction) == TEX_GEN_FRACTION_OFFSET);
+_Static_assert(offsetof(gl_tex_gen_soa_t, mode) == TEX_GEN_MODE_OFFSET);
 
 typedef struct {
     GLsizei size;
@@ -442,11 +442,10 @@ typedef struct {
 
 typedef struct {
     gl_matrix_srv_t matrices[4];
-    gl_tex_gen_srv_t tex_gen[4];
+    gl_lights_soa_t lights;
+    gl_tex_gen_soa_t tex_gen;
     int16_t viewport_scale[4];
     int16_t viewport_offset[4];
-    gl_lights_soa_t lights;
-    uint16_t tex_gen_mode[4];
     int16_t light_ambient[4];
     int16_t mat_ambient[4];
     int16_t mat_diffuse[4];
@@ -615,7 +614,7 @@ inline void gl_update_texture_completeness(uint32_t offset)
     gl_write(GL_CMD_UPDATE, _carg(GL_UPDATE_TEXTURE_COMPLETENESS, 0x7FF, 13) | (offset - offsetof(gl_server_state_t, bound_textures)));
 }
 
-#define PRIM_VTX_SIZE   42
+#define PRIM_VTX_SIZE   46
 
 inline void glpipe_set_prim_vertex(int idx, GLfloat attribs[ATTRIB_COUNT][4], int id)
 {
@@ -635,6 +634,7 @@ inline void glpipe_set_prim_vertex(int idx, GLfloat attribs[ATTRIB_COUNT][4], in
         (fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][0])) << 16) | fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][1])),
         (fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][2])) << 16) | fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][3])),
         (fx16(attribs[ATTRIB_TEXCOORD][0]*TEX_SCALE) << 16) | fx16(attribs[ATTRIB_TEXCOORD][1]*TEX_SCALE),
+        (fx16(attribs[ATTRIB_TEXCOORD][2]*TEX_SCALE) << 16) | fx16(attribs[ATTRIB_TEXCOORD][3]*TEX_SCALE),
         normal
     );
 }

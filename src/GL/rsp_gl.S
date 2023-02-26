@@ -559,6 +559,13 @@ GLCmd_PreInitPipe:
     #undef has_tex
     #undef tri_cmd
 
+    # Check if eye space transformation is needed in T&L
+    and t1, state_flags, FLAG_LIGHTING | FLAG_FOG | FLAG_TEXTURE_ACTIVE
+    sltu t1, zero, t1
+    sll t1, NEED_EYE_SPACE_SHIFT
+    and t2, state_flags, ~FLAG_NEED_EYE_SPACE
+    or state_flags, t2, t1
+
     li modes0, (SOM_TF0_RGB | SOM_TF1_RGB) >> 32
 
     # Multisampling

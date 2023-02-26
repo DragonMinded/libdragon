@@ -5,11 +5,10 @@ GL_STATE:
         GL_MATRIX_PROJECTION:   .ds.b   MATRIX_SIZE
         GL_MATRIX_TEXTURE:      .ds.b   MATRIX_SIZE
         GL_MATRIX_FINAL:        .ds.b   MATRIX_SIZE
-    GL_TEX_GEN:             .ds.b   TEX_GEN_SIZE * 4
+    GL_LIGHTS:              .ds.b   LIGHT_STRUCT_SIZE
+    GL_TEX_GEN:             .ds.b   TEX_GEN_STRUCT_SIZE
     GL_VIEWPORT_SCALE:      .half   0,0,0,0
     GL_VIEWPORT_OFFSET:     .half   0,0,0,0
-    GL_LIGHTS:              .ds.b   LIGHT_STRUCT_SIZE
-    GL_TEX_GEN_MODE:        .half   0,0,0,0
     GL_STATE_LIGHT_AMBIENT: .half   0,0,0,0
     GL_MAT_AMBIENT:         .half   0,0,0,0
     GL_MAT_DIFFUSE:         .half   0,0,0,0
