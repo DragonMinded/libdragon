@@ -32,10 +32,9 @@
  * #disable_interrupts is considered a violation of this assumption
  * and should be avoided.  Calling #disable_interrupts when interrupts
  * are already disabled will have no effect interrupts-wise
- * (but should be paired with a #enable_interrupts regardless).
- * Calling #enable_interrupts again to restore from a critical section
- * will not enable interrupts if interrupts were not enabled when
- * calling #disable_interrupts.
+ * (but should be paired with a #enable_interrupts regardless),
+ * and in that case the paired #enable_interrupts will not enable
+ * interrupts either.
  * In this manner, it is safe to nest calls to disable and enable
  * interrupts.
  *
