@@ -858,7 +858,7 @@ int lseek( int file, int ptr, int dir )
  *
  * @return File handle to refer to this file on success, or a negative value on error.
  */
-int open( char *file, int flags, int mode )
+int open( const char *file, int flags, int mode )
 {
     filesystem_t *fs = __get_fs_pointer_by_name( file );
 
