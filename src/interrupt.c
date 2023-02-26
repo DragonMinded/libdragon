@@ -570,12 +570,29 @@ void set_AI_interrupt(int active)
 /**
  * @brief Enable or disable the VI interrupt
  *
+ * The VI interrupt is generated when the VI begins displaying a specific line
+ * of the display output. The line number configured always refers to the
+ * final TV output, so it should be either in the range 0..479 (NTSC) or
+ * 0..575 (PAL).
+ * The vblank happens at the beginning of the display period, in range
+ * 0..33 (NTSC) or 0..43 (PAL). A common value used to trigger the interrupt
+ * at the beginning of the vblank is 2.
+ *
+ * In non-interlaced modes, the VI only draws on even lines, so configuring
+ * the interrupt on an odd line causes the interrupt to never trigger.
+ * In interlace modes, instead, the VI alternates between even lines and odd
+ * lines, so any specific line will trigger an interrupt only every other
+ * frame. If you need an interrupt every frame in interlaced mode, you will
+ * need to reconfigure the interrupt every frame, alternating between an odd
+ * and an even number.
+ *
  * @param[in] active
  *            Flag to specify whether the VI interrupt should be active
  * @param[in] line
  *            The vertical line that causes this interrupt to fire.  Ignored
- *            when setting the interrupt inactive
- *            (TODO: https://n64brew.dev/wiki/Video_Interface#0x0440_000C_-_VI_V_INTR says "When VI_V_CURRENT reaches this half-line number", so line or half-line?)
+ *            when setting the interrupt inactive.
+ *            This line number refers to the lines in the TV output,
+ *            and is unrelated to the current resolution.
  */
 void set_VI_interrupt(int active, unsigned long line)
 {
