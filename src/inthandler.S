@@ -197,7 +197,7 @@ interrupt:
 	and t1, t0
 	sw t1, STACK_SR(sp)
 
-	# Reload cause register (might be reused by C code (TODO: what?)) and test for other interrupts
+	# Reload cause register (might be clobbered by C code) and test for other interrupts
 	lw cause, STACK_CR(sp)
 
 notprenmi:
