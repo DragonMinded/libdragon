@@ -1,6 +1,7 @@
 #include "asset.h"
 #include "asset_internal.h"
-#include "compress/lzh5.h"
+#include "compress/lzh5_internal.h"
+#include <stdalign.h>
 
 #ifdef N64
 #include <malloc.h>
@@ -51,9 +52,11 @@ void *asset_load(const char *fn, int *sz)
         case 1: {
             size = header.orig_size;
             s = memalign(16, size);
-            LHANewDecoder decoder;
-            lha_lh_new_init(&decoder, f);
-            int n = lha_lh_new_read(&decoder, s, size);
+            // uint8_t state[DECOMPRESS_LZ5H_STATE_SIZE] alignas(8);
+            // LHANewDecoder decoder;
+            // lha_lh_new_init(&decoder, f);
+            // int n = lha_lh_new_read(&decoder, s, size);
+            int n = decompress_lz5h_full(f, s, size);
             assertf(n == size, "DCA: decompression error on file %s: corrupted? (%d/%d)", fn, n, size);
         }   break;
         default:

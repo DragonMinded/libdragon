@@ -8,8 +8,7 @@
 // bytes in the output buffer.
 // This file is ISC Licensed.
 
-#ifndef LZH5_H
-#define LZH5_H
+#include "lzh5_internal.h"
 
 //////////////////////// bit_stream_reader.c
 
@@ -494,13 +493,6 @@ typedef struct _LHANewDecoder {
 
 	BitStreamReader bit_stream_reader;
 
-	// Ring buffer of past data.  Used for position-based copies.
-
-	uint8_t ringbuf[RING_BUFFER_SIZE];
-	unsigned int ringbuf_pos;
-	int ringbuf_copy_pos;
-	int ringbuf_copy_count;
-
 	// Number of commands remaining before we start a new block.
 
 	unsigned int block_remaining;
@@ -516,9 +508,25 @@ typedef struct _LHANewDecoder {
 	TreeElement offset_tree[MAX_TEMP_CODES * 2];
 } LHANewDecoder;
 
+
+typedef struct _LHANewDecoderPartial {
+	// Decoder
+
+	LHANewDecoder decoder;
+
+	// Ring buffer of past data.  Used for position-based copies.
+
+	uint8_t ringbuf[RING_BUFFER_SIZE];
+	unsigned int ringbuf_pos;
+	int ringbuf_copy_pos;
+	int ringbuf_copy_count;
+
+} LHANewDecoderPartial;
+
+
 // Initialize the history ring buffer.
 
-static void init_ring_buffer(LHANewDecoder *decoder)
+static void init_ring_buffer(LHANewDecoderPartial *decoder)
 {
 	memset(decoder->ringbuf, ' ', RING_BUFFER_SIZE);
 	decoder->ringbuf_pos = 0;
@@ -526,15 +534,11 @@ static void init_ring_buffer(LHANewDecoder *decoder)
 	decoder->ringbuf_copy_count = 0;
 }
 
-static int __attribute__((unused)) lha_lh_new_init(LHANewDecoder *decoder, FILE *fp)
+static int lha_lh_new_init(LHANewDecoder *decoder, FILE *fp)
 {
 	// Initialize input stream reader.
 
 	bit_stream_reader_init(&decoder->bit_stream_reader, fp);
-
-	// Initialize data structures.
-
-	init_ring_buffer(decoder);
 
 	// First read starts the first block.
 
@@ -544,6 +548,17 @@ static int __attribute__((unused)) lha_lh_new_init(LHANewDecoder *decoder, FILE 
 
 	init_tree(decoder->code_tree, NUM_CODES * 2);
 	init_tree(decoder->offset_tree, MAX_TEMP_CODES * 2);
+
+	return 1;
+}
+
+static int lha_lh_new_init_partial(LHANewDecoderPartial *decoder, FILE *fp)
+{
+	lha_lh_new_init(&decoder->decoder, fp);
+
+	// Initialize data structures.
+
+	init_ring_buffer(decoder);
 
 	return 1;
 }
@@ -901,7 +916,7 @@ static int read_offset_code(LHANewDecoder *decoder)
 
 // Add a byte value to the output stream.
 
-static void output_byte(LHANewDecoder *decoder, uint8_t *buf,
+static void output_byte(LHANewDecoderPartial *decoder, uint8_t *buf,
                         size_t *buf_len, uint8_t b)
 {
 	buf[*buf_len] = b;
@@ -913,11 +928,11 @@ static void output_byte(LHANewDecoder *decoder, uint8_t *buf,
 
 // Copy a block from the history buffer.
 
-static void set_copy_from_history(LHANewDecoder *decoder, uint8_t *buf, size_t count)
+static void set_copy_from_history(LHANewDecoderPartial *decoder, uint8_t *buf, size_t count)
 {
 	int offset;
 
-	offset = read_offset_code(decoder);
+	offset = read_offset_code(&decoder->decoder);
 
 	if (offset < 0) {
 		return;
@@ -932,7 +947,7 @@ static void set_copy_from_history(LHANewDecoder *decoder, uint8_t *buf, size_t c
 	decoder->ringbuf_copy_count = count;
 }
 
-static size_t __attribute__((unused)) lha_lh_new_read(LHANewDecoder *decoder, uint8_t *buf, int sz)
+static size_t lha_lh_new_read_partial(LHANewDecoderPartial *decoder, uint8_t *buf, int sz)
 {
 	size_t result = 0;
 	int code;
@@ -984,17 +999,18 @@ static size_t __attribute__((unused)) lha_lh_new_read(LHANewDecoder *decoder, ui
 
 
 		// Start of new block?
-		while (decoder->block_remaining == 0) {
-			if (!start_new_block(decoder)) {
+		while (decoder->decoder.block_remaining == 0) {
+			if (!start_new_block(&decoder->decoder)) {
 				return 0;
 			}
+			// memset(decoder->ringbuf, ' ', sizeof(decoder->ringbuf));
 		}
 
-		--decoder->block_remaining;
+		--decoder->decoder.block_remaining;
 
 		// Read next command from input stream.
 
-		code = read_code(decoder);
+		code = read_code(&decoder->decoder);
 
 		if (code < 0) {
 			return 0;
@@ -1012,5 +1028,53 @@ static size_t __attribute__((unused)) lha_lh_new_read(LHANewDecoder *decoder, ui
 
 	return result;
 }
+#if 0
+static size_t lha_lh_new_read_full(LHANewDecoderPartial *decoder, uint8_t *buf, int sz)
+{
+	size_t result = 0;
+	int code;
 
-#endif /* LZH5_H */
+	while (sz > 0) {
+		// Start of new block?
+		while (decoder->decoder.block_remaining == 0) {
+			if (!start_new_block(&decoder->decoder)) {
+				return 0;
+			}
+		}
+		--decoder->decoder.block_remaining;
+
+
+
+	}
+}
+#endif
+
+/*************************************************
+ * Libdragon API
+ *************************************************/
+
+_Static_assert(sizeof(LHANewDecoderPartial) == DECOMPRESS_LZ5H_STATE_SIZE, "LZH5 state size is wrong");
+
+void decompress_lz5h_init(void *state, FILE *fp)
+{
+	LHANewDecoderPartial *decoder = (LHANewDecoderPartial *)state;
+	lha_lh_new_init_partial(decoder, fp);
+}
+
+size_t decompress_lz5h_read(void *state, void *buf, size_t len)
+{
+	LHANewDecoderPartial *decoder = (LHANewDecoderPartial *)state;
+	return lha_lh_new_read_partial(decoder, buf, len);
+}
+
+FILE* decompress_lz5h_fp(void *state) {
+	LHANewDecoderPartial *decoder = (LHANewDecoderPartial *)state;
+	return decoder->decoder.bit_stream_reader.fp;
+}
+
+size_t decompress_lz5h_full(FILE *fp, void *buf, size_t len)
+{
+	LHANewDecoderPartial decoder;
+	lha_lh_new_init_partial(&decoder, fp);
+	return lha_lh_new_read_partial(&decoder, buf, len);
+}
