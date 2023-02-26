@@ -10,7 +10,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/time.h> // TODO: for #include <sys/_timeval.h>
+#include <sys/time.h>
 #include <sys/times.h>
 #include <stdint.h>
 #include <stdlib.h>
