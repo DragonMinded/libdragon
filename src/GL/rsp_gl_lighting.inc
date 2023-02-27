@@ -139,7 +139,7 @@ light1_disabled:
     # Result is shifted left by 10:
     #   - Taking the square root halves the bit-shift, and the reciprocal then inverts it.
     #     So the original (right) shift of -6 becomes -(-6/2) = 3
-    #   - vrsq additionally shifts left by 7 (NOT by 8 as the manual claims!)
+    #   - vrsq additionally shifts left by 7
     # vinvdist: --  1/d0  1.0  --  --  1/d1  1.0  --
     vrsqh v___.e0,       vsqdist_i.e0
     vrsql vinvdist_f.e1, vsqdist_f.e0
