@@ -44,7 +44,7 @@ typedef struct
      * @return A pointer to an arbitrary file handle assigned by the filesystem code 
      *         or NULL on error.
      */
-    void *(*open)( char *name, int flags );
+    void *(*open)( const char *name, int flags );
     /** 
      * @brief Function to call when performing a fstat command
      *
