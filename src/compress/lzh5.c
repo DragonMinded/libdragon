@@ -1064,9 +1064,21 @@ static size_t lha_lh_new_read_full(LHANewDecoder *decoder, uint8_t *buf, int sz)
 			uint8_t *src = buf - offset - 1;
 
 			count = count < sz ? count : sz;
-			memmove(buf, src, count);
-			buf += count;
 			sz -= count;
+
+			if (offset > 7) {
+				while (count >= 8) {
+					typedef uint64_t u_uint64_t __attribute__((aligned(1)));
+					*(u_uint64_t*)buf = *(u_uint64_t*)src;
+					buf += 8;
+					src += 8;
+					count -= 8;
+				}
+			}
+			while (count > 0) {
+				*buf++ = *src++;
+				count--;
+			}
 		}
 	}
 
