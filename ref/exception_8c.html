@@ -67,6 +67,7 @@ $(function() {
 </div><!-- top -->
 <div class="header">
   <div class="summary">
+<a href="#nested-classes">Data Structures</a> &#124;
 <a href="#define-members">Macros</a> &#124;
 <a href="#func-members">Functions</a> &#124;
 <a href="#var-members">Variables</a>  </div>
@@ -77,34 +78,37 @@ $(function() {
 <p>Exception Handler.  
 <a href="#details">More...</a></p>
 <table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Data Structures</h2></td></tr>
+<tr class="memitem:structsyscall__handler__entry__t"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__exceptions.html#structsyscall__handler__entry__t">syscall_handler_entry_t</a></td></tr>
+<tr class="memdesc:structsyscall__handler__entry__t"><td class="mdescLeft">&#160;</td><td class="mdescRight">Syscall exception handler entry.  <a href="group__exceptions.html#structsyscall__handler__entry__t">More...</a><br /></td></tr>
+<tr class="separator:structsyscall__handler__entry__t"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="define-members" name="define-members"></a>
 Macros</h2></td></tr>
-<tr class="memitem:gaf76584f6b55e9cac50bf3f3a706f3428"><td class="memItemLeft" align="right" valign="top">
-#define&#160;</td><td class="memItemRight" valign="bottom"><b>MAX_RESET_HANDLERS</b>&#160;&#160;&#160;4</td></tr>
-<tr class="memdesc:gaf76584f6b55e9cac50bf3f3a706f3428"><td class="mdescLeft">&#160;</td><td class="mdescRight">Maximum number of reset handlers that can be registered. <br /></td></tr>
-<tr class="separator:gaf76584f6b55e9cac50bf3f3a706f3428"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gacc6936ec7217ab33cafead5d46266c8e"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>MAX_SYSCALL_HANDLERS</b>&#160;&#160;&#160;4</td></tr>
+<tr class="memdesc:gacc6936ec7217ab33cafead5d46266c8e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Maximum number of syscall handlers that can be registered. <br /></td></tr>
+<tr class="separator:gacc6936ec7217ab33cafead5d46266c8e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
-<tr class="memitem:ga75b3553e5039dff6c46c8700e1100ffa"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__exceptions.html#ga75b3553e5039dff6c46c8700e1100ffa">register_exception_handler</a> (void(*cb)(<a class="el" href="group__exceptions.html#structexception__t">exception_t</a> *))</td></tr>
-<tr class="memdesc:ga75b3553e5039dff6c46c8700e1100ffa"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register an exception handler to handle exceptions.  <a href="group__exceptions.html#ga75b3553e5039dff6c46c8700e1100ffa">More...</a><br /></td></tr>
-<tr class="separator:ga75b3553e5039dff6c46c8700e1100ffa"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga20f7ab774d736160a00431ccaf8636a6"><td class="memItemLeft" align="right" valign="top"><a class="el" href="exception_8h.html#a4296110877efb56862a467ee1ab633bd">exception_handler_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__exceptions.html#ga20f7ab774d736160a00431ccaf8636a6">register_exception_handler</a> (<a class="el" href="exception_8h.html#a4296110877efb56862a467ee1ab633bd">exception_handler_t</a> cb)</td></tr>
+<tr class="memdesc:ga20f7ab774d736160a00431ccaf8636a6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register an exception handler to handle exceptions.  <a href="group__exceptions.html#ga20f7ab774d736160a00431ccaf8636a6">More...</a><br /></td></tr>
+<tr class="separator:ga20f7ab774d736160a00431ccaf8636a6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga2ccc97f57a66f0091daa6529c4f52573"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__exceptions.html#ga2ccc97f57a66f0091daa6529c4f52573">exception_default_handler</a> (<a class="el" href="group__exceptions.html#structexception__t">exception_t</a> *ex)</td></tr>
 <tr class="memdesc:ga2ccc97f57a66f0091daa6529c4f52573"><td class="mdescLeft">&#160;</td><td class="mdescRight">Default exception handler.  <a href="group__exceptions.html#ga2ccc97f57a66f0091daa6529c4f52573">More...</a><br /></td></tr>
 <tr class="separator:ga2ccc97f57a66f0091daa6529c4f52573"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gac59c5f2646dd725b5c0f48274a919798"><td class="memItemLeft" align="right" valign="top">
-void&#160;</td><td class="memItemRight" valign="bottom"><b>__onCriticalException</b> (volatile <a class="el" href="group__exceptions.html#structreg__block__t">reg_block_t</a> *regs)</td></tr>
-<tr class="memdesc:gac59c5f2646dd725b5c0f48274a919798"><td class="mdescLeft">&#160;</td><td class="mdescRight">Respond to a critical exception. <br /></td></tr>
-<tr class="separator:gac59c5f2646dd725b5c0f48274a919798"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:gab4eaf121d8885fc09d13b89c2e219ab2"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__exceptions.html#gab4eaf121d8885fc09d13b89c2e219ab2">register_reset_handler</a> (void(*cb)(void))</td></tr>
-<tr class="memdesc:gab4eaf121d8885fc09d13b89c2e219ab2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a handler that will be called when the user presses the RESET button.  <a href="group__exceptions.html#gab4eaf121d8885fc09d13b89c2e219ab2">More...</a><br /></td></tr>
-<tr class="separator:gab4eaf121d8885fc09d13b89c2e219ab2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga288a573e9c25f474c0e71cfcde6f388a"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__exceptions.html#ga288a573e9c25f474c0e71cfcde6f388a">exception_reset_time</a> (void)</td></tr>
-<tr class="memdesc:ga288a573e9c25f474c0e71cfcde6f388a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Check whether the RESET button was pressed and how long we are into the reset process.  <a href="group__exceptions.html#ga288a573e9c25f474c0e71cfcde6f388a">More...</a><br /></td></tr>
-<tr class="separator:ga288a573e9c25f474c0e71cfcde6f388a"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga9c3cfbce70e7317d19e7f6cbaf1a018d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__exceptions.html#ga9c3cfbce70e7317d19e7f6cbaf1a018d">__onResetException</a> (volatile <a class="el" href="group__exceptions.html#structreg__block__t">reg_block_t</a> *regs)</td></tr>
-<tr class="memdesc:ga9c3cfbce70e7317d19e7f6cbaf1a018d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Respond to a reset exception.  <a href="group__exceptions.html#ga9c3cfbce70e7317d19e7f6cbaf1a018d">More...</a><br /></td></tr>
-<tr class="separator:ga9c3cfbce70e7317d19e7f6cbaf1a018d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga16798befa2f7beac6fc7c574de0810c1"><td class="memItemLeft" align="right" valign="top">
+void&#160;</td><td class="memItemRight" valign="bottom"><b>__onCriticalException</b> (<a class="el" href="group__exceptions.html#structreg__block__t">reg_block_t</a> *regs)</td></tr>
+<tr class="memdesc:ga16798befa2f7beac6fc7c574de0810c1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Respond to a critical exception. <br /></td></tr>
+<tr class="separator:ga16798befa2f7beac6fc7c574de0810c1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga84782b20b1cf9cec7ca102080962c965"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__exceptions.html#ga84782b20b1cf9cec7ca102080962c965">register_syscall_handler</a> (<a class="el" href="exception_8h.html#aceadbbfdaee48a1075dac31bddc20d1c">syscall_handler_t</a> handler, uint32_t first_code, uint32_t last_code)</td></tr>
+<tr class="memdesc:ga84782b20b1cf9cec7ca102080962c965"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a handler that will be called when a syscall exception.  <a href="group__exceptions.html#ga84782b20b1cf9cec7ca102080962c965">More...</a><br /></td></tr>
+<tr class="separator:ga84782b20b1cf9cec7ca102080962c965"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gae435d7992edb8cc7907a7f3e6d208c2f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__exceptions.html#gae435d7992edb8cc7907a7f3e6d208c2f">__onSyscallException</a> (<a class="el" href="group__exceptions.html#structreg__block__t">reg_block_t</a> *regs)</td></tr>
+<tr class="memdesc:gae435d7992edb8cc7907a7f3e6d208c2f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Respond to a syscall exception.  <a href="group__exceptions.html#gae435d7992edb8cc7907a7f3e6d208c2f">More...</a><br /></td></tr>
+<tr class="separator:gae435d7992edb8cc7907a7f3e6d208c2f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
 Variables</h2></td></tr>
@@ -118,7 +122,7 @@ volatile <a class="el" href="group__exceptions.html#structreg__block__t">reg_blo
 </div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue Feb 28 2023 17:06:58 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue Feb 28 2023 17:27:12 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

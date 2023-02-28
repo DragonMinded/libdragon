@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['func_5fptr_0',['func_ptr',['../group__system.html#ga3c06233410074f1dbb8b3eebef3a7847',1,'do_ctors.c']]]
+  ['exception_5fhandler_5ft_0',['exception_handler_t',['../exception_8h.html#a4296110877efb56862a467ee1ab633bd',1,'exception.h']]]
 ];

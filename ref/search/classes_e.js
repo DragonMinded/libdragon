@@ -9,5 +9,6 @@ var searchData=
   ['sprite_5fcache_6',['sprite_cache',['../group__rdp.html#structsprite__cache',1,'']]],
   ['sprite_5ft_7',['sprite_t',['../group__graphics.html#structsprite__t',1,'']]],
   ['stdio_5ft_8',['stdio_t',['../structstdio__t.html',1,'']]],
-  ['surface_5ft_9',['surface_t',['../surface_8h.html#structsurface__t',1,'']]]
+  ['surface_5ft_9',['surface_t',['../surface_8h.html#structsurface__t',1,'']]],
+  ['syscall_5fhandler_5fentry_5ft_10',['syscall_handler_entry_t',['../group__exceptions.html#structsyscall__handler__entry__t',1,'']]]
 ];

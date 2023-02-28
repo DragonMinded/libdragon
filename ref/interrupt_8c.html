@@ -202,6 +202,10 @@ Macros</h2></td></tr>
 #define&#160;</td><td class="memItemRight" valign="bottom"><b>AI_CLEAR_INTERRUPT</b>&#160;&#160;&#160;0</td></tr>
 <tr class="memdesc:ga873569a84cb252b7fba9007669c89517"><td class="mdescLeft">&#160;</td><td class="mdescRight">Bit to set to clear the AI interrupt. <br /></td></tr>
 <tr class="separator:ga873569a84cb252b7fba9007669c89517"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaf76584f6b55e9cac50bf3f3a706f3428"><td class="memItemLeft" align="right" valign="top">
+#define&#160;</td><td class="memItemRight" valign="bottom"><b>MAX_RESET_HANDLERS</b>&#160;&#160;&#160;4</td></tr>
+<tr class="memdesc:gaf76584f6b55e9cac50bf3f3a706f3428"><td class="mdescLeft">&#160;</td><td class="mdescRight">Maximum number of reset handlers that can be registered. <br /></td></tr>
+<tr class="separator:gaf76584f6b55e9cac50bf3f3a706f3428"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
 Functions</h2></td></tr>
@@ -216,6 +220,9 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__TI_handler</b> (voi
 void&#160;</td><td class="memItemRight" valign="bottom"><b>__CART_handler</b> (void)</td></tr>
 <tr class="memdesc:ga9cb68df23ed3587601ffac775b9a953c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Handle a CART interrupt. <br /></td></tr>
 <tr class="separator:ga9cb68df23ed3587601ffac775b9a953c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga2d2950dd0d587a88e65537694b721544"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#ga2d2950dd0d587a88e65537694b721544">__RESET_handler</a> (void)</td></tr>
+<tr class="memdesc:ga2d2950dd0d587a88e65537694b721544"><td class="mdescLeft">&#160;</td><td class="mdescRight">Handle a RESET (pre-NMI) interrupt.  <a href="group__interrupt.html#ga2d2950dd0d587a88e65537694b721544">More...</a><br /></td></tr>
+<tr class="separator:ga2d2950dd0d587a88e65537694b721544"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga2351876167328732c7ff03de3c4081db"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#ga2351876167328732c7ff03de3c4081db">register_AI_handler</a> (void(*callback)())</td></tr>
 <tr class="memdesc:ga2351876167328732c7ff03de3c4081db"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register an AI callback.  <a href="group__interrupt.html#ga2351876167328732c7ff03de3c4081db">More...</a><br /></td></tr>
 <tr class="separator:ga2351876167328732c7ff03de3c4081db"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -264,6 +271,12 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__CART_handler</b> (v
 <tr class="memitem:ga7f0506a6313156207431898c0fb400ec"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#ga7f0506a6313156207431898c0fb400ec">unregister_CART_handler</a> (void(*callback)())</td></tr>
 <tr class="memdesc:ga7f0506a6313156207431898c0fb400ec"><td class="mdescLeft">&#160;</td><td class="mdescRight">Unregister a CART interrupt callback.  <a href="group__interrupt.html#ga7f0506a6313156207431898c0fb400ec">More...</a><br /></td></tr>
 <tr class="separator:ga7f0506a6313156207431898c0fb400ec"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gaabbbbb20f064ac035492af4a8763ef44"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#gaabbbbb20f064ac035492af4a8763ef44">register_RESET_handler</a> (void(*callback)())</td></tr>
+<tr class="memdesc:gaabbbbb20f064ac035492af4a8763ef44"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a handler that will be called when the user presses the RESET button.  <a href="group__interrupt.html#gaabbbbb20f064ac035492af4a8763ef44">More...</a><br /></td></tr>
+<tr class="separator:gaabbbbb20f064ac035492af4a8763ef44"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga2b29ebe8db68cdbee591e8d15693cb5f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#ga2b29ebe8db68cdbee591e8d15693cb5f">unregister_RESET_handler</a> (void(*callback)())</td></tr>
+<tr class="memdesc:ga2b29ebe8db68cdbee591e8d15693cb5f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Unregister a RESET interrupt callback.  <a href="group__interrupt.html#ga2b29ebe8db68cdbee591e8d15693cb5f">More...</a><br /></td></tr>
+<tr class="separator:ga2b29ebe8db68cdbee591e8d15693cb5f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga87288d9e8d2c178572957295ff64ec40"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#ga87288d9e8d2c178572957295ff64ec40">set_AI_interrupt</a> (int active)</td></tr>
 <tr class="memdesc:ga87288d9e8d2c178572957295ff64ec40"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enable or disable the AI interrupt.  <a href="group__interrupt.html#ga87288d9e8d2c178572957295ff64ec40">More...</a><br /></td></tr>
 <tr class="separator:ga87288d9e8d2c178572957295ff64ec40"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -288,6 +301,9 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__CART_handler</b> (v
 <tr class="memitem:gac7ddaefc83763af0e97886beb7600d8b"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#gac7ddaefc83763af0e97886beb7600d8b">set_CART_interrupt</a> (int active)</td></tr>
 <tr class="memdesc:gac7ddaefc83763af0e97886beb7600d8b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enable or disable the CART interrupt.  <a href="group__interrupt.html#gac7ddaefc83763af0e97886beb7600d8b">More...</a><br /></td></tr>
 <tr class="separator:gac7ddaefc83763af0e97886beb7600d8b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:gadcf484e0e3594849dfcaea7e5c69ffe7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#gadcf484e0e3594849dfcaea7e5c69ffe7">set_RESET_interrupt</a> (int active)</td></tr>
+<tr class="memdesc:gadcf484e0e3594849dfcaea7e5c69ffe7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enable the RESET interrupt.  <a href="group__interrupt.html#gadcf484e0e3594849dfcaea7e5c69ffe7">More...</a><br /></td></tr>
+<tr class="separator:gadcf484e0e3594849dfcaea7e5c69ffe7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ga72e02641a29de5f343f8507140b46b8e"><td class="memItemLeft" align="right" valign="top">
 void&#160;</td><td class="memItemRight" valign="bottom"><b>__init_interrupts</b> ()</td></tr>
 <tr class="memdesc:ga72e02641a29de5f343f8507140b46b8e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize the interrupt controller. <br /></td></tr>
@@ -301,6 +317,9 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__init_interrupts</b>
 <tr class="memitem:gaf84369f06d965c3fdba355cad7e71e89"><td class="memItemLeft" align="right" valign="top"><a class="el" href="group__interrupt.html#ga366982e291c08c36c7352ea07a6e096c">interrupt_state_t</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#gaf84369f06d965c3fdba355cad7e71e89">get_interrupts_state</a> ()</td></tr>
 <tr class="memdesc:gaf84369f06d965c3fdba355cad7e71e89"><td class="mdescLeft">&#160;</td><td class="mdescRight">Return the current state of interrupts.  <a href="group__interrupt.html#gaf84369f06d965c3fdba355cad7e71e89">More...</a><br /></td></tr>
 <tr class="separator:gaf84369f06d965c3fdba355cad7e71e89"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga288a573e9c25f474c0e71cfcde6f388a"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__interrupt.html#ga288a573e9c25f474c0e71cfcde6f388a">exception_reset_time</a> (void)</td></tr>
+<tr class="memdesc:ga288a573e9c25f474c0e71cfcde6f388a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Check whether the RESET button was pressed and how long we are into the reset process.  <a href="group__interrupt.html#ga288a573e9c25f474c0e71cfcde6f388a">More...</a><br /></td></tr>
+<tr class="separator:ga288a573e9c25f474c0e71cfcde6f388a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="var-members" name="var-members"></a>
 Variables</h2></td></tr>
@@ -345,7 +364,7 @@ struct callback_link *&#160;</td><td class="memItemRight" valign="bottom"><b>CAR
 </div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue Feb 28 2023 17:06:58 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue Feb 28 2023 17:27:12 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
