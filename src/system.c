@@ -11,6 +11,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/times.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <malloc.h>
@@ -853,7 +854,7 @@ int lseek( int file, int ptr, int dir )
  *
  * @return File handle to refer to this file on success, or a negative value on error.
  */
-int open( const char *file, int flags, int mode )
+int open( const char *file, int flags, ... )
 {
     filesystem_t *fs = __get_fs_pointer_by_name( file );
 
@@ -868,6 +869,17 @@ int open( const char *file, int flags, int mode )
         /* Filesystem doesn't support open */
         errno = ENOSYS;
         return -1;
+    }
+
+    /* Use this to get the mode argument if needed. */
+    if(0)
+    {
+        __attribute__((unused)) int mode;
+        va_list ap;
+
+        va_start (ap, flags);
+        mode = va_arg (ap, int);
+        va_end (ap);
     }
 
     /* Do we have room for a new file? */
