@@ -194,9 +194,9 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>__wrap___do_global_ct
 <tr class="memitem:ga100b00771a8b06bfc443efb32da0f9d9"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#ga100b00771a8b06bfc443efb32da0f9d9">lseek</a> (int file, int ptr, int dir)</td></tr>
 <tr class="memdesc:ga100b00771a8b06bfc443efb32da0f9d9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Seek to a location in a file.  <a href="group__system.html#ga100b00771a8b06bfc443efb32da0f9d9">More...</a><br /></td></tr>
 <tr class="separator:ga100b00771a8b06bfc443efb32da0f9d9"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ga3638e3452e01bc2eb064538e22e006f0"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#ga3638e3452e01bc2eb064538e22e006f0">open</a> (char *file, int flags, int mode)</td></tr>
-<tr class="memdesc:ga3638e3452e01bc2eb064538e22e006f0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Open a file given a path.  <a href="group__system.html#ga3638e3452e01bc2eb064538e22e006f0">More...</a><br /></td></tr>
-<tr class="separator:ga3638e3452e01bc2eb064538e22e006f0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ga94873fa89201b877351b663b9f5b040d"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#ga94873fa89201b877351b663b9f5b040d">open</a> (const char *file, int flags,...)</td></tr>
+<tr class="memdesc:ga94873fa89201b877351b663b9f5b040d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Open a file given a path.  <a href="group__system.html#ga94873fa89201b877351b663b9f5b040d">More...</a><br /></td></tr>
+<tr class="separator:ga94873fa89201b877351b663b9f5b040d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:gaa0c5d610f8b61891a7cf5fca2671b6f9"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="group__system.html#gaa0c5d610f8b61891a7cf5fca2671b6f9">read</a> (int file, char *ptr, int len)</td></tr>
 <tr class="memdesc:gaa0c5d610f8b61891a7cf5fca2671b6f9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Read data from a file.  <a href="group__system.html#gaa0c5d610f8b61891a7cf5fca2671b6f9">More...</a><br /></td></tr>
 <tr class="separator:gaa0c5d610f8b61891a7cf5fca2671b6f9"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -497,7 +497,7 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
 </div><div class="memdoc">
 
 <p>Enable interrupts systemwide. </p>
-<dl class="section note"><dt>Note</dt><dd>If this is called inside a nested disable call, it will have no effect on the system. Therefore it is safe to nest disable/enable calls. After the last nested interrupt is enabled, systemwide interrupts will be reenabled. </dd></dl>
+<dl class="section note"><dt>Note</dt><dd>If this is called inside a nested disable call, it will have no effect on the system. Therefore it is safe to nest disable/enable calls. After the least nested enable call, systemwide interrupts will be reenabled. </dd></dl>
 
 </div>
 </div>
@@ -1020,8 +1020,8 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
 
 </div>
 </div>
-<a id="ga3638e3452e01bc2eb064538e22e006f0" name="ga3638e3452e01bc2eb064538e22e006f0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ga3638e3452e01bc2eb064538e22e006f0">&#9670;&nbsp;</a></span>open()</h2>
+<a id="ga94873fa89201b877351b663b9f5b040d" name="ga94873fa89201b877351b663b9f5b040d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ga94873fa89201b877351b663b9f5b040d">&#9670;&nbsp;</a></span>open()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -1029,7 +1029,7 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
         <tr>
           <td class="memname">int open </td>
           <td>(</td>
-          <td class="paramtype">char *&#160;</td>
+          <td class="paramtype">const char *&#160;</td>
           <td class="paramname"><em>file</em>, </td>
         </tr>
         <tr>
@@ -1041,8 +1041,8 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">int&#160;</td>
-          <td class="paramname"><em>mode</em>&#160;</td>
+          <td class="paramtype">&#160;</td>
+          <td class="paramname"><em>...</em>&#160;</td>
         </tr>
         <tr>
           <td></td>
@@ -1057,7 +1057,7 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">file</td><td>File name of the file to open </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">flags</td><td>Flags specifying open flags, such as binary, append. </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">mode</td><td>Mode of the file.</td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">...</td><td>mode Mode of the file (currently ignored).</td></tr>
   </table>
   </dd>
 </dl>
@@ -1179,7 +1179,7 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd>A pointer to the memory or null on error allocating. </dd></dl>
+<dl class="section return"><dt>Returns</dt><dd>A pointer to the memory or ((void*)-1) on error allocating. </dd></dl>
 
 </div>
 </div>
@@ -1677,7 +1677,7 @@ The type of the directory entry. See <a class="el" href="group__system.html#ga99
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Feb 15 2023 11:30:55 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Tue Feb 28 2023 17:06:59 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

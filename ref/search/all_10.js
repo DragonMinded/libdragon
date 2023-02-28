@@ -3,7 +3,7 @@ var searchData=
   ['offset_0',['offset',['../rompak_8c.html#a5a87eaf264688fa99714ef359764e8c4',1,'entry_t']]],
   ['old_5fgbc_5ftitle_1',['old_gbc_title',['../tpak_8h.html#structold__gbc__title',1,'']]],
   ['old_5flicensee_5fcode_2',['old_licensee_code',['../tpak_8h.html#abf1e36b71ecfa4bd6f034abda03c05fe',1,'gameboy_cartridge_header']]],
-  ['open_3',['open',['../structfilesystem__t.html#a65220025714418f98076e1334237408e',1,'filesystem_t::open()'],['../group__system.html#ga3638e3452e01bc2eb064538e22e006f0',1,'open(char *file, int flags, int mode):&#160;system.c']]],
+  ['open_3',['open',['../structfilesystem__t.html#a65220025714418f98076e1334237408e',1,'filesystem_t::open()'],['../group__system.html#ga94873fa89201b877351b663b9f5b040d',1,'open(const char *file, int flags,...):&#160;system.c']]],
   ['open_5ffile_5ft_4',['open_file_t',['../group__dfs.html#structopen__file__t',1,'']]],
   ['out_5',['out',['../structAYChannel.html#a861bb8e05d0b1527b28f529c9709c6be',1,'AYChannel::out()'],['../structAYNoise.html#a2baa817d83c424d8be19079e25ebbc19',1,'AYNoise::out()']]],
   ['overflow_6',['overflow',['../tpak_8h.html#ae603e8df3dabd3574512053a9bd26d83',1,'gameboy_cartridge_header']]],
