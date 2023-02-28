@@ -871,7 +871,7 @@ int open( const char *file, int flags, ... )
         return -1;
     }
 
-    /* Use this to get the mode argument if needed. */
+    /* Use this to get the mode argument if needed (for O_CREAT and O_TMPFILE). */
     if(0)
     {
         __attribute__((unused)) int mode;
@@ -900,7 +900,7 @@ int open( const char *file, int flags, ... )
                open used to mistakenly take a char* instead of a const char*,
                and we don't want to break existing code for filesystem_t.open,
                so filesystem_t.open still takes char* */
-            void *ptr = fs->open( (char*)( file + __strlen( filesystems[mapping].prefix ) ), flags );
+            void *ptr = fs->open( (char *)( file + __strlen( filesystems[mapping].prefix ) ), flags );
 
             if( ptr )
             {
@@ -1055,7 +1055,7 @@ void *sbrk( int incr )
 int stat( const char *file, struct stat *st )
 {
     /* Dirty hack, open read only */
-    int fd = open( (char *)file, O_RDONLY, 0 );
+    int fd = open( (char *)file, O_RDONLY );
 
     if( fd > 0 )
     {
