@@ -849,7 +849,7 @@ int lseek( int file, int ptr, int dir )
  *            File name of the file to open
  * @param[in] flags
  *            Flags specifying open flags, such as binary, append.
- * @param[in] mode
+ * @param[in] ... mode
  *            Mode of the file (currently ignored).
  *
  * @return File handle to refer to this file on success, or a negative value on error.
