@@ -883,8 +883,12 @@ int open( const char *file, int flags, int mode )
                 errno = ENOMEM;
                 return -1;
             }
- 
-            void *ptr = fs->open( file + __strlen( filesystems[mapping].prefix ), flags );
+
+            /* Cast away const from the file name.
+               open used to mistakenly take a char* instead of a const char*,
+               and we don't want to break existing code for filesystem_t.open,
+               so filesystem_t.open still takes char* */
+            void *ptr = fs->open( (char*)( file + __strlen( filesystems[mapping].prefix ) ), flags );
 
             if( ptr )
             {
