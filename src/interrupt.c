@@ -572,8 +572,8 @@ void set_AI_interrupt(int active)
  *
  * The VI interrupt is generated when the VI begins displaying a specific line
  * of the display output. The line number configured always refers to the
- * final TV output, so it should be either in the range 0..479 (NTSC) or
- * 0..575 (PAL).
+ * final TV output, so it should be either in the range 0..524 (NTSC) or
+ * 0..624 (PAL).
  * The vblank happens at the beginning of the display period, in range
  * 0..33 (NTSC) or 0..43 (PAL). A common value used to trigger the interrupt
  * at the beginning of the vblank is 2.
