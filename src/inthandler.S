@@ -4,11 +4,12 @@
 
    It is not reentrant, so interrupts are disabled for the duration.
    Safe for doing most things, including FPU operations, within handlers.
+   Reentrant exceptions are supported.
 */
 
 #include "regs.S"
 
-	.align 5
+	.p2align 5
 inthandler:
 	.global inthandler
 
@@ -80,10 +81,12 @@ inthandler:
 	and k1, ~(SR_IE | SR_EXL)
 	mtc0 k1, C0_SR
 
-	# WARNING: it is now possible to trigger reentrant exceptions (and not only
-	# crashing one. Avoid using k0/k1 from now on, as they would get corrupted
-	# by a reentrant exception.
-	#define cause t8
+	# WARNING: after clearing the EXL bit, it is now possible to trigger
+	# reentrant exceptions (and not only crashing ones).
+	# Avoid using k0/k1 from now on,
+	# as they would get corrupted by a reentrant exception.
+
+#define cause t8
 
 	mfc0 cause, C0_CAUSE
 	sw cause, STACK_CR(sp)
@@ -95,8 +98,9 @@ inthandler:
 exception:
 	# This is an exception, not an interrupt. We want to save the full processor
 	# state in the exception frame, so all registers including FPU regs.
-	# Make sure FPU is activated in this context. It could be deactivated if
-	# this exception happened within an interrupt (where FPU is disabled by default).
+	# Make sure FPU is activated in this context.
+	# It could be deactivated if this exception happened while handling
+	# an interrupt (where FPU is disabled by default).
 	mfc0 t0, C0_SR
 	or t0, SR_CU1
 	mtc0 t0, C0_SR
@@ -134,9 +138,16 @@ exception_coprocessor_fpu:
 	or t0, SR_CU1
 	sw t0, STACK_SR(sp)
 
-	# Save the FPU registers into the *underlying* interrupt context.
+	# The interrupt handler is about to use the FPU:
+	# in doing so, it will overwrite the FPU registers,
+	# but those are at this point still part of the context
+	# from when the interrupt was raised and have not been saved yet.
+	# Save the FPU registers now, into the *underlying* interrupt context.
 	# That is, we want to make sure that they get restored when the
 	# underlying interrupt exits.
+	# Note: interrupt_exception_frame is always valid to use here,
+	#  as the FPU is only ever unusable in interrupt handlers:
+	#  entrypoint.S loads SR with SR_CU1
 	jal save_fpu_regs
 	lw a0, interrupt_exception_frame
 
@@ -190,10 +201,10 @@ interrupt:
 	and t1, t0
 	sw t1, STACK_SR(sp)
 
-	# Reload cause register (might be reused by C code) and test for other interrupts
+	# Reload cause register (might be clobbered by C code) and test for other interrupts
 	lw cause, STACK_CR(sp)
-notprenmi:
 
+notprenmi:
 	/* check for count=compare */
 	and t0, cause, 0x8000
 	beqz t0,notcount
@@ -298,7 +309,7 @@ end_interrupt_gpr:
 	addiu sp, EXC_STACK_SIZE
 	eret
 
-	.align 5
+	.p2align 5
 finalize_exception_frame:
 	sd $16,(STACK_GPR+16*8)(sp)   # S0
 	sd $17,(STACK_GPR+17*8)(sp)   # S1
@@ -329,7 +340,7 @@ finalize_exception_frame:
 	jr ra
 	nop
 
-	.align 5
+	.p2align 5
 save_fpu_regs:
 	cfc1 $1, $f31
 	sw $1, STACK_FC31(a0)
@@ -358,6 +369,6 @@ save_fpu_regs:
 
 
 	.section .bss
- 	.align 8
+	.p2align 2
 	.lcomm interrupt_exception_frame, 4
 
