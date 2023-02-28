@@ -130,6 +130,25 @@ static int read_bit(BitStreamReader *reader)
 }
 
 
+static uint64_t peek_bits(BitStreamReader *reader, int *n)
+{
+	*n = reader->bits;
+	return reader->bit_buffer;
+}
+
+static int skip_bits(BitStreamReader *reader, int n)
+{
+	reader->bit_buffer <<= n;
+	reader->bits -= n;
+	if (__builtin_expect(reader->bits <= 0, 0)) {
+		refill_bits(reader);
+		if (reader->bits < 0)
+			return -1;
+	}
+	return 0;
+}
+
+
 //////////////////////// tree_decode.c
 typedef uint16_t TreeElement;
 
@@ -364,6 +383,7 @@ static int read_from_tree(BitStreamReader *reader, TreeElement *tree)
 {
 	TreeElement code;
 	int bit;
+	uint64_t bits=0; int n=0, used=0;
 
 	// Start from root.
 
@@ -371,14 +391,22 @@ static int read_from_tree(BitStreamReader *reader, TreeElement *tree)
 
 	while ((code & TREE_NODE_LEAF) == 0) {
 
-		bit = read_bit(reader);
-
-		if (bit < 0) {
-			return -1;
+		if (used == n) {
+			if (skip_bits(reader, used) < 0)
+				return -1;
+			bits = peek_bits(reader, &n);
+			used = 0;
 		}
+
+		bit = bits >> 63;
+		bits <<= 1;
+		used++;
 
 		code = tree[code + (unsigned int) bit];
 	}
+
+	if (skip_bits(reader, used) < 0)
+		return -1;
 
 	// Mask off leaf bit to get the plain code.
 
