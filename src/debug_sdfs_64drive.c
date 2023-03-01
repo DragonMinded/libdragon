@@ -93,8 +93,6 @@ static DRESULT fat_disk_write_64drive(const BYTE* buff, LBA_t sector, UINT count
 		}
 		else
 		{
-			typedef uint32_t u_uint32_t __attribute__((aligned(1)));
-
 			uint32_t* dst = (uint32_t*)(D64_CIBASE_ADDRESS + D64_BUFFER);
 			u_uint32_t* src = (u_uint32_t*)buff;
 			for (int i = 0; i < 512/16; i++)

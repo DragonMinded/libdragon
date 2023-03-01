@@ -530,8 +530,6 @@ static DRESULT fat_disk_write_everdrive(const BYTE* buff, LBA_t sector, UINT cou
 		}
 		else
 		{
-			typedef uint32_t u_uint32_t __attribute__((aligned(1)));
-
 			uint32_t* dst = (uint32_t*)(ED64_BASE_ADDRESS + ED64_SD_IO_BUFFER);
 			u_uint32_t* src = (u_uint32_t*)buff;
 			for (int i = 0; i < 512/16; i++)

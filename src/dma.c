@@ -3,7 +3,11 @@
  * @brief DMA Controller
  * @ingroup dma
  */
-#include "libdragon.h"
+#include <stdbool.h>
+#include "n64types.h"
+#include "n64sys.h"
+#include "interrupt.h"
+#include "debug.h"
 #include "regsinternal.h"
 
 /**
@@ -345,7 +349,6 @@ void dma_read_async(void *ram_pointer, unsigned long pi_address, unsigned long l
     // we need to write the last odd byte ourselves, and we do that with a 32-bit
     // unaligned transfer (LWL/LWR + SWL/SWR).
     if ((len & 1) != 0 && len >= 0x7F) {
-        typedef uint32_t u_uint32_t __attribute__((aligned(1)));
         *(u_uint32_t*)(ram+len-4) = __io_read32u(rom+len-4);
         len -= 3;
     }
