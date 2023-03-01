@@ -129,7 +129,7 @@ extern "C" {
  * software or hardware.
  *
  * @param[in] res
- *            The requested resolution. Use eiter one of the pre-defined
+ *            The requested resolution. Use either one of the pre-defined
  *            resolution (such as #RESOLUTION_320x240) or define a custom one.
  * @param[in] bit
  *            The requested bit depth (#DEPTH_16_BPP or #DEPTH_32_BPP)
