@@ -8,7 +8,8 @@
 void* bt_buf[32];
 int bt_buf_len;
 int (*bt_null_func_ptr)(void);
-int (*bt_invalid_func_ptr)(void) = (int(*)(void))0xEBEBEBEB;
+int (*bt_invalid_func_ptr)(void) = (int(*)(void))0xECECECEC;
+int (*bt_misaligned_func_ptr)(void) = (int(*)(void))0x80010002;
 
 // Test functions defined in backtrace_test.S
 int btt_end(void)
@@ -73,6 +74,9 @@ NOINLINE int btt_g1(void) { STACK_FRAME(1024); return btt_g2()+1;  }
 NOINLINE int btt_h2(void) { STACK_FRAME(1024); return bt_invalid_func_ptr() + 1; }
 NOINLINE int btt_h1(void) { STACK_FRAME(1024); return btt_h2()+1;  }
 
+NOINLINE int btt_i2(void) { STACK_FRAME(1024); return bt_misaligned_func_ptr() + 1; }
+NOINLINE int btt_i1(void) { STACK_FRAME(1024); return btt_i2()+1;  }
+
 void btt_start(TestContext *ctx, int (*func)(void), const char *expected[])
 {
     bt_buf_len = 0;
@@ -135,26 +139,26 @@ void test_backtrace_exception_fp(TestContext *ctx)
     });
 }
 
-void test_backtrace_zerofunc(TestContext *ctx)
+void test_backtrace_invalidptr(TestContext *ctx)
 {
-    // A call stack including an exception due to a call to a null pointer
+    // A call stack including an exception due to a call to invalid pointers
     exception_handler_t prev = register_exception_handler(btt_crash_handler);
     DEFER(register_exception_handler(prev));
     
     btt_start(ctx, btt_g1, (const char*[]) {
         "btt_end", "btt_crash_handler", "__onCriticalException", "<EXCEPTION HANDLER>", "<NULL POINTER>", "btt_g2", "btt_g1", "btt_start", NULL
     });
-}
-
-void test_backtrace_invalidptr(TestContext *ctx)
-{
-    // A call stack including an exception due to a call to a null pointer
-    exception_handler_t prev = register_exception_handler(btt_crash_handler);
-    DEFER(register_exception_handler(prev));
+    if (ctx->result == TEST_FAILED) return;
 
     btt_start(ctx, btt_h1, (const char*[]) {
         "btt_end", "btt_crash_handler", "__onCriticalException", "<EXCEPTION HANDLER>", "<INVALID ADDRESS>", "btt_h2", "btt_h1", "btt_start", NULL
     });
+    if (ctx->result == TEST_FAILED) return;
+
+    btt_start(ctx, btt_i1, (const char*[]) {
+        "btt_end", "btt_crash_handler", "__onCriticalException", "<EXCEPTION HANDLER>", "<INVALID ADDRESS>", "btt_i2", "btt_i1", "btt_start", NULL
+    });
+    if (ctx->result == TEST_FAILED) return;
 }
 
 void test_backtrace_analyze(TestContext *ctx)
