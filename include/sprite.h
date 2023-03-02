@@ -53,7 +53,14 @@ typedef struct sprite_s
 #define SPRITE_FLAGS_EXT           0x80  ///< Sprite contains extended information (new format)
 
 /**
- * @brief Load a sprite from disk
+ * @brief Load a sprite from a filesystem (eg: ROM)
+ * 
+ * This function loads a full sprite from a filesystem. Notice that there is no
+ * streaming support, so the file is fully loaded into RDRAM, in its final
+ * uncompressed format.
+ * 
+ * sprite_load internally uses the asset API (#asset_load), so the sprite file
+ * is transparently uncompressed if needed.
  * 
  * @param fn           Filename of the sprite, including filesystem specifier.
  *                     For instance: "rom:/hero.sprite" to load from DFS.
@@ -64,7 +71,12 @@ sprite_t *sprite_load(const char *fn);
 /** @brief Deallocate a sprite */
 void sprite_free(sprite_t *sprite);
 
-/** @brief Get the sprite tex format */
+/** 
+ * @brief Get the sprite texture format
+ * 
+ * @param sprite    The sprite
+ * @return          The texture format
+ */
 inline tex_format_t sprite_get_format(sprite_t *sprite) {
     return (tex_format_t)(sprite->flags & SPRITE_FLAGS_TEXFORMAT);
 }
