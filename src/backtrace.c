@@ -503,7 +503,8 @@ static void backtrace_foreach(void (*cb)(void *arg, void *ptr), void *arg)
                 // back to the caller. This assumes that we got there via a function call
                 // rather than a raw jump, but that's a reasonable assumption. It's anyway
                 // the best we can do.
-                if (C0_GET_CAUSE_EXC_CODE(cause) == EXCEPTION_CODE_TLB_LOAD_I_MISS &&
+                if ((C0_GET_CAUSE_EXC_CODE(cause) == EXCEPTION_CODE_TLB_LOAD_I_MISS ||
+                    C0_GET_CAUSE_EXC_CODE(cause) == EXCEPTION_CODE_LOAD_I_ADDRESS_ERROR) && 
                     !is_valid_address((uint32_t)ra)) {
                     
                     // Store the invalid address in the backtrace, so that it will appear in dumps.
