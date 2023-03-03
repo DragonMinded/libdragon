@@ -3,7 +3,6 @@
  * @brief Debugging Support
  */
 
-#include <libdragon.h>
 #include <string.h>
 #include <fcntl.h>
 #include <assert.h>
@@ -11,8 +10,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include "console.h"
+#include "debug.h"
 #include "regsinternal.h"
 #include "system.h"
+#include "n64types.h"
+#include "n64sys.h"
+#include "dma.h"
 #include "usb.h"
 #include "utils.h"
 #include "fatfs/ff.h"

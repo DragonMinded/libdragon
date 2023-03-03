@@ -84,8 +84,6 @@ static DRESULT fat_disk_write_sc64(const BYTE* buff, LBA_t sector, UINT count)
 		}
 		else
 		{
-			typedef uint32_t u_uint32_t __attribute__((aligned(1)));
-
 			uint32_t* dst = (uint32_t*)(SC64_BUFFER_ADDRESS);
 			u_uint32_t* src = (u_uint32_t*)buff;
 			for (int i = 0; i < (sectors_to_process*512)/16; i++)
