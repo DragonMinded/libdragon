@@ -62,6 +62,8 @@ void glEndList(void)
     if (block != NULL) {
         rspq_block_free(block);
     }
+
+    state.current_list = 0;
 }
 
 void glCallList(GLuint n)
