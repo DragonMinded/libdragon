@@ -198,8 +198,8 @@ gl_clip_no_swap:
     li t1, 0xFF
     sh t1, %lo(RDPQ_CMD_STAGING)-2(t0)
 
-    # t2 is the index multiplied by 2
-    # intersection = t2 * 20 = t2 * 16 + t2 * 4
+    # t0 is the index multiplied by 2
+    # intersection = t0 * 20 = t0 * 16 + t0 * 4
     sll intersection, t0, 4
     sll t1, t0, 2
     add intersection, t1
@@ -208,7 +208,7 @@ gl_clip_no_swap:
     # because one of them is the previous point, which could have been marked unused
     # in the previous iteration. As long as we don't access p0 or p1 after writing to
     # intersection, this is fine.
-    addi intersection, %lo(CLIP_CACHE)-40
+    addi intersection, %lo(CLIP_CACHE) - SCREEN_VTX_SIZE
 
     # Store the cache offset in unused memory (used later when finding the cache slot to mark as unused)
     sb t0, SCREEN_VTX_PADDING(intersection)
@@ -310,7 +310,7 @@ gl_clip_plane_loop_end:
     # Calculate screen space values for new vertices (in the clip cache)
     # TODO: maybe iterate over out_list instead
     li s4, %lo(CLIP_CACHE)
-    li s5, %lo(CLIP_CACHE_END) - 40
+    li s5, %lo(CLIP_CACHE_END) - SCREEN_VTX_SIZE
 gl_clip_finalize_loop:
     lbu t0, SCREEN_VTX_PADDING(s4)
     neg t0

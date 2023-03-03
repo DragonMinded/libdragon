@@ -19,7 +19,7 @@
         RSPQ_DefineCommand GLCmd_MatrixPush,    4
         RSPQ_DefineCommand GLCmd_MatrixPop,     4
         RSPQ_DefineCommand GLCmd_MatrixLoad,    68
-        RSPQ_DefineCommand GLCmd_PreInitPipe,   8
+        RSPQ_DefineCommand GLCmd_PreInitPipe,   4
     RSPQ_EndOverlayHeader
 
     RSPQ_BeginSavedState

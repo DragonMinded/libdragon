@@ -93,31 +93,26 @@ typedef enum {
 } gl_array_type_t;
 
 typedef struct {
-    GLfloat obj_pos[4];
-    GLfloat color[4];
-    GLfloat texcoord[4];
-    GLfloat normal[3];
-    GLfloat cs_pos[4];
-    uint8_t tr_code;
-    uint8_t padding;
-    uint16_t id;
-} gl_prim_vtx_t;
-
-typedef struct {
     GLfloat screen_pos[2];
     GLfloat depth;
     GLfloat shade[4];
     GLfloat texcoord[2];
     GLfloat inv_w;
     GLfloat cs_pos[4];
+    GLfloat obj_pos[4];
+    GLfloat color[4];
+    GLfloat obj_texcoord[4];
+    GLfloat normal[3];
     uint8_t clip_code;
-    uint8_t padding[3];
-} gl_screen_vtx_t;
+    uint8_t tr_code;
+    uint8_t t_l_applied;
+    uint8_t padding;
+} gl_vtx_t;
 
-#define VTX_SCREEN_POS_OFFSET   (offsetof(gl_screen_vtx_t, screen_pos)  / sizeof(float))
-#define VTX_SHADE_OFFSET        (offsetof(gl_screen_vtx_t, shade)       / sizeof(float))
-#define VTX_TEXCOORD_OFFSET     (offsetof(gl_screen_vtx_t, texcoord)    / sizeof(float))
-#define VTX_DEPTH_OFFSET        (offsetof(gl_screen_vtx_t, depth)       / sizeof(float))
+#define VTX_SCREEN_POS_OFFSET   (offsetof(gl_vtx_t, screen_pos)  / sizeof(float))
+#define VTX_SHADE_OFFSET        (offsetof(gl_vtx_t, shade)       / sizeof(float))
+#define VTX_TEXCOORD_OFFSET     (offsetof(gl_vtx_t, texcoord)    / sizeof(float))
+#define VTX_DEPTH_OFFSET        (offsetof(gl_vtx_t, depth)       / sizeof(float))
 
 typedef struct {
     GLfloat m[4][4];
@@ -193,7 +188,7 @@ _Static_assert(offsetof(gl_texture_object_t, mag_filter)        == TEXTURE_MAG_F
 _Static_assert(offsetof(gl_texture_object_t, dimensionality)    == TEXTURE_DIMENSIONALITY_OFFSET, "Texture object has incorrect layout!");
 
 typedef struct {
-    gl_screen_vtx_t *vertices[CLIPPING_PLANE_COUNT + 3];
+    gl_vtx_t *vertices[CLIPPING_PLANE_COUNT + 3];
     uint32_t count;
 } gl_clipping_list_t;
 
@@ -356,16 +351,14 @@ typedef struct {
 
     GLfloat current_attribs[ATTRIB_COUNT][4];
 
-    gl_prim_vtx_t prim_cache[5];
-    gl_material_t material_cache[5];
-
     uint8_t prim_size;
     uint8_t prim_indices[3];
     uint8_t prim_progress;
-    uint8_t prim_next;
     uint32_t prim_counter;
     uint8_t (*prim_func)(void);
     uint16_t prim_id;
+    bool lock_next_vertex;
+    uint8_t locked_vertex;
 
     uint16_t prim_tex_width;
     uint16_t prim_tex_height;
@@ -375,12 +368,12 @@ typedef struct {
 
     rdpq_trifmt_t trifmt;
 
-    gl_screen_vtx_t vertex_cache[VERTEX_CACHE_SIZE];
+    gl_vtx_t vertex_cache[VERTEX_CACHE_SIZE];
     uint16_t vertex_cache_ids[VERTEX_CACHE_SIZE];
     uint32_t lru_age_table[VERTEX_CACHE_SIZE];
     uint32_t lru_next_age;
 
-    gl_screen_vtx_t *primitive_vertices[3];
+    gl_vtx_t *primitive_vertices[3];
 
     GLfloat flat_color[4];
 
@@ -602,9 +595,19 @@ inline void gl_update_texture_completeness(uint32_t offset)
     gl_write(GL_CMD_UPDATE, _carg(GL_UPDATE_TEXTURE_COMPLETENESS, 0x7FF, 13) | (offset - offsetof(gl_server_state_t, bound_textures)));
 }
 
-#define PRIM_VTX_SIZE   46
+inline void gl_pre_init_pipe(GLenum primitive_mode)
+{
+    gl_write(GL_CMD_PRE_INIT_PIPE, primitive_mode);
+}
 
-inline void glpipe_set_prim_vertex(int idx, GLfloat attribs[ATTRIB_COUNT][4], int id)
+inline void glpipe_init()
+{
+    glp_write(GLP_CMD_INIT_PIPE, gl_rsp_state);
+}
+
+#define PRIM_VTX_SIZE   44
+
+inline void glpipe_set_prim_vertex(int idx, GLfloat attribs[ATTRIB_COUNT][4])
 {
     #define TEX_SCALE   32.0f
     #define OBJ_SCALE   32.0f
@@ -614,9 +617,8 @@ inline void glpipe_set_prim_vertex(int idx, GLfloat attribs[ATTRIB_COUNT][4], in
                       (((uint32_t)(attribs[ATTRIB_NORMAL][1]*127.0f) & 0xFF) << 16) |
                       (((uint32_t)(attribs[ATTRIB_NORMAL][2]*127.0f) & 0xFF) <<  8);
 
-    assertf(id != 0, "invalid vertex ID");
     glp_write(
-        GLP_CMD_SET_PRIM_VTX, (idx*PRIM_VTX_SIZE) | (id<<8), 
+        GLP_CMD_SET_PRIM_VTX, (idx*PRIM_VTX_SIZE), 
         (fx16(attribs[ATTRIB_VERTEX][0]*OBJ_SCALE) << 16) | fx16(attribs[ATTRIB_VERTEX][1]*OBJ_SCALE),
         (fx16(attribs[ATTRIB_VERTEX][2]*OBJ_SCALE) << 16) | fx16(attribs[ATTRIB_VERTEX][3]*OBJ_SCALE),
         (fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][0])) << 16) | fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][1])),
@@ -630,7 +632,8 @@ inline void glpipe_set_prim_vertex(int idx, GLfloat attribs[ATTRIB_COUNT][4], in
 inline void glpipe_draw_triangle(int i0, int i1, int i2)
 {
     glp_write(GLP_CMD_DRAW_TRI,
-        ((i0*PRIM_VTX_SIZE)<<16) | ((i1*PRIM_VTX_SIZE)<<8) | (i2*PRIM_VTX_SIZE)
+        (i0*PRIM_VTX_SIZE),
+        ((i1*PRIM_VTX_SIZE)<<16) | (i2*PRIM_VTX_SIZE)
     );
 }
 
