@@ -550,6 +550,8 @@ typedef struct _LHANewDecoderPartial {
 	int ringbuf_copy_pos;
 	int ringbuf_copy_count;
 
+	int decoded_bytes;
+
 } LHANewDecoderPartial;
 
 
@@ -588,6 +590,8 @@ static int lha_lh_new_init_partial(LHANewDecoderPartial *decoder, FILE *fp)
 	// Initialize data structures.
 
 	init_ring_buffer(decoder);
+
+	decoder->decoded_bytes = 0;
 
 	return 1;
 }
@@ -948,7 +952,7 @@ static int read_offset_code(LHANewDecoder *decoder)
 static void output_byte(LHANewDecoderPartial *decoder, uint8_t *buf,
                         size_t *buf_len, uint8_t b)
 {
-	buf[*buf_len] = b;
+	if (buf) buf[*buf_len] = b;
 	++*buf_len;
 
 	decoder->ringbuf[decoder->ringbuf_pos] = b;
@@ -957,7 +961,7 @@ static void output_byte(LHANewDecoderPartial *decoder, uint8_t *buf,
 
 // Copy a block from the history buffer.
 
-static void set_copy_from_history(LHANewDecoderPartial *decoder, uint8_t *buf, size_t count)
+static void set_copy_from_history(LHANewDecoderPartial *decoder, size_t count)
 {
 	int offset;
 
@@ -987,6 +991,18 @@ static size_t lha_lh_new_read_partial(LHANewDecoderPartial *decoder, uint8_t *bu
 			int wn = sz < decoder->ringbuf_copy_count ? sz : decoder->ringbuf_copy_count;
 			wn = wn < RING_BUFFER_SIZE - decoder->ringbuf_copy_pos ? wn : RING_BUFFER_SIZE - decoder->ringbuf_copy_pos;
 			wn = wn < RING_BUFFER_SIZE - decoder->ringbuf_pos      ? wn : RING_BUFFER_SIZE - decoder->ringbuf_pos;
+
+			if (!buf) {
+				// If buf is NULL, we're just skipping data
+				decoder->ringbuf_pos += wn;
+				decoder->ringbuf_copy_count -= wn;
+				decoder->ringbuf_copy_pos += wn;
+				sz -= wn;
+				result += wn;
+				decoder->ringbuf_copy_pos %= RING_BUFFER_SIZE;
+				decoder->ringbuf_pos %= RING_BUFFER_SIZE;
+				continue;
+			}
 
 			// Check if there's an overlap in the ring buffer between read and write pos, in which
 			// case we need to copy byte by byte.
@@ -1050,10 +1066,11 @@ static size_t lha_lh_new_read_partial(LHANewDecoderPartial *decoder, uint8_t *bu
 			output_byte(decoder, buf, &result, (uint8_t) code);
 			sz--;
 		} else {
-			set_copy_from_history(decoder, buf, code - 256 + COPY_THRESHOLD);
+			set_copy_from_history(decoder, code - 256 + COPY_THRESHOLD);
 		}
 	}
 
+	decoder->decoded_bytes += result;
 	return result;
 }
 
@@ -1132,9 +1149,9 @@ size_t decompress_lz5h_read(void *state, void *buf, size_t len)
 	return lha_lh_new_read_partial(decoder, buf, len);
 }
 
-FILE* decompress_lz5h_fp(void *state) {
+int decompress_lz5h_pos(void *state) {
 	LHANewDecoderPartial *decoder = (LHANewDecoderPartial *)state;
-	return decoder->decoder.bit_stream_reader.fp;
+	return decoder->decoded_bytes;
 }
 
 size_t decompress_lz5h_full(FILE *fp, void *buf, size_t len)

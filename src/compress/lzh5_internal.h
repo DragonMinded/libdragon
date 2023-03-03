@@ -18,7 +18,7 @@ extern "C" {
 
 void decompress_lz5h_init(void *state, FILE *fp);
 size_t decompress_lz5h_read(void *state, void *buf, size_t len);
-FILE* decompress_lz5h_fp(void *state);
+int decompress_lz5h_pos(void *state);
 
 /**
  * @brief Decompress a full LZ5H file into a buffer.
