@@ -389,7 +389,6 @@ typedef struct {
     // Client state
 
     const surface_t *color_buffer;
-    surface_t depth_buffer;
 
     GLenum current_error;
 

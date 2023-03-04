@@ -173,19 +173,11 @@ void gl_context_begin()
     uint32_t height = state.color_buffer->height;
 
     if (old_color_buffer == NULL || old_color_buffer->width != width || old_color_buffer->height != height) {
-        if (state.depth_buffer.buffer != NULL) {
-            surface_free(&state.depth_buffer);
-        }
-        // TODO: allocate in separate RDRAM bank?
-        state.depth_buffer = surface_alloc(FMT_RGBA16, width, height);
-
         uint32_t packed_size = ((uint32_t)width) << 16 | (uint32_t)height;
         gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, fb_size), packed_size);
         glViewport(0, 0, width, height);
         glScissor(0, 0, width, height);
     }
-
-    rdpq_set_z_image(&state.depth_buffer);
 
     state.frame_id++;
 }
@@ -436,41 +428,29 @@ void gl_copy_fill_color(uint32_t offset)
 
 void glClear(GLbitfield buf)
 {
+    extern void __rdpq_set_mode_fill(void);
+    extern void __rdpq_clear_z(const uint16_t *z);
+    extern void __rdpq_clear(const color_t* color);
+
     if (!buf) {
         return;
     }
 
     rdpq_mode_push();
-
-    // Set fill mode
-    extern void __rdpq_reset_render_mode(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3);
-    uint64_t som = (0xEFull << 56) | SOM_CYCLE_FILL;
-    __rdpq_reset_render_mode(0, 0, som >> 32, som & 0xFFFFFFFF);
+    __rdpq_set_mode_fill();
 
     if (buf & (GL_STENCIL_BUFFER_BIT | GL_ACCUM_BUFFER_BIT)) {
         assertf(0, "Only color and depth buffers are supported!");
     }
 
-    uint32_t width = state.color_buffer->width;
-    uint32_t height = state.color_buffer->height;
-
     if (buf & GL_DEPTH_BUFFER_BIT) {
-        uint32_t old_cfg = rdpq_config_disable(RDPQ_CFG_AUTOSCISSOR);
-
-        // TODO: Clearing will be implemented by rdpq at some point
-
         gl_copy_fill_color(offsetof(gl_server_state_t, clear_depth));
-        rdpq_set_color_image(&state.depth_buffer);
-        rdpq_fill_rectangle(0, 0, width, height);
-
-        rdpq_set_color_image(state.color_buffer);
-
-        rdpq_config_set(old_cfg);
+        __rdpq_clear_z(NULL);
     }
 
     if (buf & GL_COLOR_BUFFER_BIT) {
         gl_copy_fill_color(offsetof(gl_server_state_t, clear_color));
-        rdpq_fill_rectangle(0, 0, width, height);
+        __rdpq_clear(NULL);
     }
 
     rdpq_mode_pop();

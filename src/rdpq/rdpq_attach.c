@@ -81,18 +81,21 @@ void rdpq_attach_clear(const surface_t *surf_color, const surface_t *surf_z)
     attach(surf_color, surf_z, true, true);
 }
 
-void rdpq_clear(color_t clr)
+void __rdpq_clear(const color_t *clr)
 {
+    extern void __rdpq_set_mode_fill(void);
     assertf(rdpq_is_attached(), "No render target is currently attached");
 
     rdpq_mode_push();
-        rdpq_set_mode_fill(clr);
+        __rdpq_set_mode_fill();
+        if (clr) rdpq_set_fill_color(*clr);
         rdpq_fill_rectangle(0, 0, attach_stack[attach_stack_ptr-1][0]->width, attach_stack[attach_stack_ptr-1][0]->height);
     rdpq_mode_pop();
 }
 
-void rdpq_clear_z(uint16_t z)
+void __rdpq_clear_z(const uint16_t *z)
 {
+    extern void __rdpq_set_mode_fill(void);
     assertf(rdpq_is_attached(), "No render target is currently attached");
 
     const surface_t *surf_z = attach_stack[attach_stack_ptr-1][1];
@@ -104,7 +107,8 @@ void rdpq_clear_z(uint16_t z)
     uint32_t old_cfg = rdpq_config_disable(RDPQ_CFG_AUTOSCISSOR);
     rdpq_attach(surf_z, NULL);
         rdpq_mode_push();
-            rdpq_set_mode_fill(color_from_packed16(z));
+            __rdpq_set_mode_fill();
+            if (z) rdpq_set_fill_color(color_from_packed16(*z));
             rdpq_fill_rectangle(0, 0, surf_z->width, surf_z->height);
         rdpq_mode_pop();
     rdpq_detach();
@@ -134,5 +138,8 @@ const surface_t* rdpq_get_attached(void)
     }
 }
 
+/* Extern inline instantiations. */
+extern inline void rdpq_clear(color_t color);
+extern inline void rdpq_clear_z(uint16_t z);
 extern inline void rdpq_detach(void);
 extern inline void rdpq_detach_wait(void);

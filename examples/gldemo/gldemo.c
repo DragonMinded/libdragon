@@ -18,6 +18,7 @@ static uint32_t animation = 3283;
 static uint32_t texture_index = 0;
 static float distance = -10.0f;
 static float cam_rotate = 0.0f;
+static surface_t zbuffer;
 
 static GLuint textures[4];
 
@@ -69,6 +70,8 @@ void load_texture(GLenum target, sprite_t *sprite)
 
 void setup()
 {
+    zbuffer = surface_alloc(FMT_RGBA16, display_get_width(), display_get_height());
+
     for (uint32_t i = 0; i < 4; i++)
     {
         sprites[i] = sprite_load(texture_path[i]);
@@ -159,7 +162,7 @@ void render()
         }
     }
 
-    rdpq_attach(disp, NULL);
+    rdpq_attach(disp, &zbuffer);
 
     gl_context_begin();
 
