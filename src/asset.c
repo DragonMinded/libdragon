@@ -81,28 +81,35 @@ void *asset_load(const char *fn, int *sz)
 
 #ifdef N64
 
-static fpos_t seekfn_none(void *cookie, fpos_t pos, int whence)
+typedef struct  {
+    FILE *fp;
+    bool seeked;
+} cookie_none_t;
+
+static fpos_t seekfn_none(void *c, fpos_t pos, int whence)
 {
-    FILE *f = (FILE*)cookie;
+    cookie_none_t *cookie = c;
 
     // SEEK_CUR with pos=0 is used as ftell()
     if (whence == SEEK_CUR && pos == 0)
-        return ftell(f);
+        return ftell(cookie->fp);
 
-    assertf(0, "Cannot seek in file opened via asset_fopen (it might be compressed)");
+    cookie->seeked = true;
     return -1;
 }
 
-static int readfn_none(void *cookie, char *buf, int sz)
+static int readfn_none(void *c, char *buf, int sz)
 {
-    FILE *f = (FILE*)cookie;
-    return fread(buf, 1, sz, f);
+    cookie_none_t *cookie = c;
+    assertf(!cookie->seeked, "Cannot seek in file opened via asset_fopen (it might be compressed)");
+    return fread(buf, 1, sz, cookie->fp);
 }
 
-static int closefn_none(void *cookie)
+static int closefn_none(void *c)
 {
-    FILE *f = (FILE*)cookie;
-    fclose(f);
+    cookie_none_t *cookie = c;
+    fclose(cookie->fp); cookie->fp = NULL;
+    free(cookie);
     return 0;
 }
 
@@ -178,7 +185,10 @@ FILE *asset_fopen(const char *fn)
     // Not compressed. Return a wrapped FILE* without the seeking capability,
     // so that it matches the behavior of the compressed file.
     fseek(f, 0, SEEK_SET);
-    return funopen(f, readfn_none, NULL, seekfn_none, closefn_none);
+    cookie_none_t *cookie = malloc(sizeof(cookie_none_t));
+    cookie->fp = f;
+    cookie->seeked = false;
+    return funopen(cookie, readfn_none, NULL, seekfn_none, closefn_none);
 }
 
 #endif /* N64 */
