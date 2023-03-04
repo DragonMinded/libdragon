@@ -273,6 +273,7 @@ void rdpq_set_mode_standard(void);
  */
 inline void rdpq_set_mode_fill(color_t color) {
     extern void __rdpq_set_mode_fill(void);
+    __rdpq_set_mode_fill();
     rdpq_set_fill_color(color);
 }
 
