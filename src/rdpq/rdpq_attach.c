@@ -81,6 +81,7 @@ void rdpq_attach_clear(const surface_t *surf_color, const surface_t *surf_z)
     attach(surf_color, surf_z, true, true);
 }
 
+/** @brief Like #rdpq_clear, but with optional fill color configuration */
 void __rdpq_clear(const color_t *clr)
 {
     extern void __rdpq_set_mode_fill(void);
@@ -93,6 +94,7 @@ void __rdpq_clear(const color_t *clr)
     rdpq_mode_pop();
 }
 
+/** @brief Like #rdpq_clear_z, but with optional fill z value configuration */
 void __rdpq_clear_z(const uint16_t *z)
 {
     extern void __rdpq_set_mode_fill(void);

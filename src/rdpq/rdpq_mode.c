@@ -83,6 +83,7 @@ void rdpq_mode_pop(void)
     __rdpq_fixup_mode(RDPQ_CMD_POP_RENDER_MODE, 0, 0);
 }
 
+/** @brief Like #rdpq_set_mode_fill, but without fill color configuration */
 void __rdpq_set_mode_fill(void) {
     uint64_t som = (0xEFull << 56) | SOM_CYCLE_FILL;
     __rdpq_reset_render_mode(0, 0, som >> 32, som & 0xFFFFFFFF);
