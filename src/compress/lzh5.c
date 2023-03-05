@@ -1046,7 +1046,7 @@ static size_t lha_lh_new_read_partial(LHANewDecoderPartial *decoder, uint8_t *bu
 		// Start of new block?
 		while (decoder->decoder.block_remaining == 0) {
 			if (!start_new_block(&decoder->decoder)) {
-				return 0;
+				goto end;
 			}
 		}
 
@@ -1070,6 +1070,7 @@ static size_t lha_lh_new_read_partial(LHANewDecoderPartial *decoder, uint8_t *bu
 		}
 	}
 
+end:
 	decoder->decoded_bytes += result;
 	return result;
 }
@@ -1083,7 +1084,7 @@ static size_t lha_lh_new_read_full(LHANewDecoder *decoder, uint8_t *buf, int sz)
 		// Start of new block?
 		while (decoder->block_remaining == 0) {
 			if (!start_new_block(decoder)) {
-				return 0;
+				goto end;
 			}
 		}
 		--decoder->block_remaining;
@@ -1127,6 +1128,7 @@ static size_t lha_lh_new_read_full(LHANewDecoder *decoder, uint8_t *buf, int sz)
 		}
 	}
 
+end:
 	return buf - buf_orig;
 }
 
