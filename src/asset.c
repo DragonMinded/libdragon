@@ -37,12 +37,9 @@ void *asset_load(const char *fn, int *sz)
     FILE *f = must_fopen(fn);
    
     // Check if file is compressed
-    char magic[4];
-    fread(&magic, 1, 4, f);
-    if(!memcmp(magic, ASSET_MAGIC, 4)) {
-        asset_header_t header;
-        fread(&header, 1, sizeof(asset_header_t), f);
-
+    asset_header_t header;
+    fread(&header, 1, sizeof(asset_header_t), f);
+    if (!memcmp(header.magic, ASSET_MAGIC, 4)) {
         #ifndef N64
         header.algo = __builtin_bswap16(header.algo);
         header.flags = __builtin_bswap16(header.flags);
@@ -161,12 +158,9 @@ FILE *asset_fopen(const char *fn)
     setbuf(f, NULL);
 
     // Check if file is compressed
-    char magic[4];
-    fread(&magic, 1, 4, f);
-    if(!memcmp(magic, ASSET_MAGIC, 4)) {
-        asset_header_t header;
-        fread(&header, 1, sizeof(asset_header_t), f);
-
+    asset_header_t header;
+    fread(&header, 1, sizeof(asset_header_t), f);
+    if (!memcmp(header.magic, ASSET_MAGIC, 4)) {
         if (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__) {  // for mkasset running on PC
             header.algo = __builtin_bswap16(header.algo);
             header.flags = __builtin_bswap16(header.flags);
