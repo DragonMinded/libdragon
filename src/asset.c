@@ -169,7 +169,7 @@ FILE *asset_fopen(const char *fn)
         }
 
         cookie_lha_t *cookie = malloc(sizeof(cookie_lha_t));
-        cookie->fp = 0;
+        cookie->fp = f;
         cookie->pos = 0;
         cookie->seeked = false;
         decompress_lz5h_init(cookie->state, f);
