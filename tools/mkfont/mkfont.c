@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <sys/stat.h>
 #include "../common/binout.h"
 
 #include "../../src/rdpq/rdpq_font_internal.h"
@@ -15,6 +16,10 @@
 #include "stb_truetype.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
+
+// Compression library
+#include "../common/assetcomp.h"
+#include "../common/assetcomp.c"
 
 int flag_verbose = 0;
 bool flag_debug = false;
@@ -33,6 +38,7 @@ void print_args( char * name )
     fprintf(stderr, "   -o/--output <dir>         Specify output directory (default: .)\n");
     fprintf(stderr, "   -v/--verbose              Verbose output\n");
     fprintf(stderr, "   --no-kerning              Do not export kerning information\n");
+    fprintf(stderr, "   -c/--compress             Compress output files (using mksasset)\n");
     fprintf(stderr, "   -d/--debug                Dump also debug images\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "It is possible to convert multiple ranges of codepoints, by specifying\n");
@@ -467,6 +473,7 @@ int main(int argc, char *argv[])
 {
     char *infn = NULL, *outdir = ".", *outfn = NULL;
     bool error = false;
+    bool compression = false;
 
     if (argc < 2) {
         print_args(argv[0]);
@@ -507,6 +514,8 @@ int main(int argc, char *argv[])
                 }
                 arrpush(flag_ranges, r0);
                 arrpush(flag_ranges, r1);
+            } else if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--compress")) {
+                compression = true;
             } else if (!strcmp(argv[i], "-o") || !strcmp(argv[i], "--output")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
@@ -537,8 +546,19 @@ int main(int argc, char *argv[])
         if (flag_verbose)
             printf("Converting: %s -> %s\n",
                 infn, outfn);
-        if (convert(infn, outfn, flag_point_size, flag_ranges) != 0)
+        if (convert(infn, outfn, flag_point_size, flag_ranges) != 0) {
             error = true;
+        } else {
+            if (compression) {
+                struct stat st_decomp = {0}, st_comp = {0};
+                stat(outfn, &st_decomp);
+                asset_compress(outfn, outfn, DEFAULT_COMPRESSION);
+                stat(outfn, &st_comp);
+                if (flag_verbose)
+                    printf("compressed: %s (%d -> %d, ratio %.1f%%)\n", outfn,
+                    (int)st_decomp.st_size, (int)st_comp.st_size, 100.0 * (float)st_comp.st_size / (float)(st_decomp.st_size == 0 ? 1 :st_decomp.st_size));
+            }
+        }
         free(outfn);
     }
 

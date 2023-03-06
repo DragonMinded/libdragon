@@ -1,5 +1,5 @@
 INSTALLDIR = $(N64_INST)
-CFLAGS += -std=gnu99 -O2 -Wall -Werror -Wno-unused-result
+CFLAGS += -std=gnu99 -O2 -Wall -Werror -Wno-unused-result -I../../include
 all: mkfont
 
 mkfont: mkfont.c
