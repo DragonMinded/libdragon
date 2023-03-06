@@ -25,6 +25,7 @@
  */
 
 /* Easy include wrapper */
+#include "n64types.h"
 #include "audio.h"
 #include "console.h"
 #include "debug.h"

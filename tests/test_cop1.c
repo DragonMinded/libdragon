@@ -1,6 +1,12 @@
 #include <float.h>
 
 void test_cop1_denormalized_float(TestContext *ctx) {
+    uint32_t fcr31 = C1_FCR31();
+    DEFER(C1_WRITE_FCR31(fcr31));
+
+    /* Turn off undeflow exception (if enabled) */
+    C1_WRITE_FCR31(fcr31 & ~C1_ENABLE_UNDERFLOW);
+
     /* Create a volatile float, so gcc does not optimize it out */
     volatile float x = 1.0f;
 

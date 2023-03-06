@@ -325,6 +325,8 @@ static const char* __get_exception_name(exception_t *ex)
 		if (epc == badvaddr) {
 			return "Invalid program counter address";
 		} else if (badvaddr < 128) {
+			// This is probably a NULL pointer dereference, though it can go through a structure or an array,
+			// so leave some margin to the actual faulting address.
 			return "NULL pointer dereference (read)";
 		} else {
 			return "Read from invalid memory address";
@@ -422,6 +424,11 @@ void register_syscall_handler( syscall_handler_t handler, uint32_t first_code, u
 			__syscall_handlers[i].last_code = last_code;
 			__syscall_handlers[i].handler = handler;
 			return;
+		}
+		else if (__syscall_handlers[i].first_code <= last_code && __syscall_handlers[i].last_code >= first_code)
+		{
+			assertf(0, "Syscall handler %p already registered for code range %05lx - %05lx", 
+				__syscall_handlers[i].handler, __syscall_handlers[i].first_code, __syscall_handlers[i].last_code);
 		}
 	}
 	assertf(0, "Too many syscall handlers\n");

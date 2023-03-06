@@ -30,7 +30,7 @@ const char* tex_format_name(tex_format_t fmt)
 
 surface_t surface_alloc(tex_format_t format, uint32_t width, uint32_t height)
 {
-    // A common mistake is to call surface_format with the wrong argument order.
+    // A common mistake is to call surface_alloc with the wrong argument order.
     // Try to catch it by checking that the format is not valid.
     // Do not limit ourselves to tex_format_t enum values, as people might want
     // to test weird RDP formats (e.g. RGBA8) to find out what happens.

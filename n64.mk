@@ -9,7 +9,6 @@ N64_ROM_REGIONFREE = # Set to true to allow booting on any console region
 
 # Override this to use a toolchain installed separately from libdragon
 N64_GCCPREFIX ?= $(N64_INST)
-
 N64_ROOTDIR = $(N64_INST)
 N64_BINDIR = $(N64_ROOTDIR)/bin
 N64_INCLUDEDIR = $(N64_ROOTDIR)/mips64-elf/include

@@ -31,9 +31,10 @@
  * in pairs.  Calling #enable_interrupts without first calling
  * #disable_interrupts is considered a violation of this assumption
  * and should be avoided.  Calling #disable_interrupts when interrupts
- * are already disabled will have no effect.  Calling #enable_interrupts
- * again to restore from a critical section will not enable interrupts
- * if interrupts were not enabled when calling #disable_interrupts.
+ * are already disabled will have no effect interrupts-wise
+ * (but should be paired with a #enable_interrupts regardless),
+ * and in that case the paired #enable_interrupts will not enable
+ * interrupts either.
  * In this manner, it is safe to nest calls to disable and enable
  * interrupts.
  *
@@ -358,7 +359,7 @@ void __CART_handler(void)
  */
 void __RESET_handler( void )
 {
-	/* This function will be called many times becuase there is no way
+	/* This function will be called many times because there is no way
 	   to acknowledge the pre-NMI interrupt. So make sure it does nothing
 	   after the first call. */
 	if (__prenmi_tick) return;
@@ -660,11 +661,29 @@ void set_AI_interrupt(int active)
 /**
  * @brief Enable or disable the VI interrupt
  *
+ * The VI interrupt is generated when the VI begins displaying a specific line
+ * of the display output. The line number configured always refers to the
+ * final TV output, so it should be either in the range 0..524 (NTSC) or
+ * 0..624 (PAL).
+ * The vblank happens at the beginning of the display period, in range
+ * 0..33 (NTSC) or 0..43 (PAL). A common value used to trigger the interrupt
+ * at the beginning of the vblank is 2.
+ *
+ * In non-interlaced modes, the VI only draws on even lines, so configuring
+ * the interrupt on an odd line causes the interrupt to never trigger.
+ * In interlace modes, instead, the VI alternates between even lines and odd
+ * lines, so any specific line will trigger an interrupt only every other
+ * frame. If you need an interrupt every frame in interlaced mode, you will
+ * need to reconfigure the interrupt every frame, alternating between an odd
+ * and an even number.
+ *
  * @param[in] active
  *            Flag to specify whether the VI interrupt should be active
  * @param[in] line
  *            The vertical line that causes this interrupt to fire.  Ignored
- *            when setting the interrupt inactive
+ *            when setting the interrupt inactive.
+ *            This line number refers to the lines in the TV output,
+ *            and is unrelated to the current resolution.
  */
 void set_VI_interrupt(int active, unsigned long line)
 {
@@ -752,7 +771,7 @@ void set_SP_interrupt(int active)
 }
 
 /**
- * @brief Enable the timer interrupt
+ * @brief Enable or disable the timer interrupt
  * 
  * @note If you use the timer library (#timer_init and #new_timer), you do not
  * need to call this function, as timer interrupt is already handled by the timer
@@ -776,7 +795,7 @@ void set_TI_interrupt(int active)
 }
 
 /**
- * @brief Enable the CART interrupt
+ * @brief Enable or disable the CART interrupt
  * 
  * @param[in] active
  *            Flag to specify whether the CART interrupt should be active
@@ -803,7 +822,7 @@ void set_CART_interrupt(int active)
  * 
  * @note RESET interrupt is active by default.
  * 
- * @see #register_CART_handler
+ * @see #register_RESET_handler
  */
 void set_RESET_interrupt(int active)
 {
@@ -856,7 +875,7 @@ void disable_interrupts()
         uint32_t sr = C0_STATUS();
         C0_WRITE_STATUS(sr & ~C0_STATUS_IE);
 
-        /* Save the original SR value away, so that we now if
+        /* Save the original SR value away, so that we know if
            interrupts were enabled and whether to restore them.
            NOTE: this memory write must happen now that interrupts
            are disabled, otherwise it could cause a race condition
@@ -876,12 +895,12 @@ void disable_interrupts()
  * @brief Enable interrupts systemwide
  *
  * @note If this is called inside a nested disable call, it will have no effect on the
- *       system.  Therefore it is safe to nest disable/enable calls.  After the last
- *       nested interrupt is enabled, systemwide interrupts will be reenabled.
+ *       system.  Therefore it is safe to nest disable/enable calls.  After the least
+ *       nested enable call, systemwide interrupts will be reenabled.
  */
 void enable_interrupts()
 {
-    /* Don't do anything if we've hosed up or aren't initialized */
+    /* Don't do anything if we aren't initialized */
     if( __interrupt_depth < 0 ) { return; }
 
     /* Check that we're not calling enable_interrupts() more than expected */
@@ -893,9 +912,11 @@ void enable_interrupts()
     if( __interrupt_depth == 0 )
     {
         /* Restore the interrupt state that was active when interrupts got
-           disabled. This is important because, within an interrupt handler,
-           we don't want here to force-enable interrupts, or we would allow
-           reentrant interrupts which are not supported. */
+           disabled.
+           This is important to be done this way, as opposed to simply or-ing
+           in the IE bit (| C0_STATUS_IE), because, within an interrupt handler,
+           we don't want interrupts enabled, or we would allow reentrant
+           interrupts which are not supported. */
         C0_WRITE_STATUS(C0_STATUS() | (__interrupt_sr & C0_STATUS_IE));
     }
 }
@@ -904,7 +925,7 @@ void enable_interrupts()
  * @brief Return the current state of interrupts
  *
  * @retval INTERRUPTS_UNINITIALIZED if the interrupt system has not been initialized yet.
- * @retval INTERRUPTS_DISABLED if interrupts have been disabled for some reason.
+ * @retval INTERRUPTS_DISABLED if interrupts have been disabled.
  * @retval INTERRUPTS_ENABLED if interrupts are currently enabled.
  */
 interrupt_state_t get_interrupts_state()

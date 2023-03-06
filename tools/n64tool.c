@@ -329,7 +329,7 @@ int main(int argc, char *argv[])
 			if(size < MIN_SIZE)
 			{
 				/* Invalid size */
-				fprintf(stderr, "ERROR: Invalid size argument; must be at least %d bytes\n\n", MIN_SIZE);
+				fprintf(stderr, "ERROR: Invalid size argument: %s; must be at least %d bytes\nSmaller ROMs have compatibility problems with some flashcarts or emulators.\n", argv[i-1], MIN_SIZE);
 				return print_usage(argv[0]);
 			}
 			if (size % 4 != 0)

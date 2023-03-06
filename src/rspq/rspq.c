@@ -388,7 +388,7 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
     // from rsp_queue.inc.
     debugf("RSPQ: Command queue:\n");
     if (RSPQ_DEBUG)
-        assertf(((uint32_t*)state->dmem)[dmem_buffer/4-1] == 0xABCD0123, 
+        assertf(((uint32_t*)state->dmem)[dmem_buffer/4-1] == RSPQ_DEBUG_MARKER, 
             "invalid RSPQ_DMEM_BUFFER address; please update rspq_crash_handler()");
     for (int j=0;j<4;j++) {        
         for (int i=0;i<16;i++)
