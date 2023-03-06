@@ -7,6 +7,8 @@
 #include "../common/lzh5_compress.h"
 #include "../common/lzh5_compress.c"
 #include "../../src/asset.c"
+#include "../../src/compress/lzh5.c"
+
 
 bool asset_compress(const char *infn, const char *outfn, int compression)
 {

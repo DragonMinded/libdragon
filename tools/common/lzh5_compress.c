@@ -930,7 +930,6 @@ encode_end_st1( /* void */ )
         send_block();
         putbits(CHAR_BIT - 1, 0);   /* flush remaining bits */
     }
-    free(buf); buf=0;
 }
 
 

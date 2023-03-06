@@ -83,7 +83,10 @@ void rdpq_attach_clear(const surface_t *surf_color, const surface_t *surf_z);
  * @param[in] color
  *            Color to use to clear the surface
  */
-void rdpq_clear(color_t color);
+inline void rdpq_clear(color_t color) {
+    extern void __rdpq_clear(const color_t *color);
+    __rdpq_clear(&color);
+}
 
 /**
  * @brief Reset the current Z buffer to a given value.
@@ -94,7 +97,10 @@ void rdpq_clear(color_t color);
  * @param[in] z
  *            Value to reset the Z buffer to
  */
-void rdpq_clear_z(uint16_t z);
+inline void rdpq_clear_z(uint16_t z) {
+    extern void __rdpq_clear_z(const uint16_t *z);
+    __rdpq_clear_z(&z);
+}
 
 /**
  * @brief Detach the RDP from the current surface, and restore the previous one

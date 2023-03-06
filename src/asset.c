@@ -1,6 +1,9 @@
 #include "asset.h"
 #include "asset_internal.h"
-#include "compress/lzh5.h"
+#include "compress/lzh5_internal.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdalign.h>
 
 #ifdef N64
 #include <malloc.h>
@@ -34,12 +37,9 @@ void *asset_load(const char *fn, int *sz)
     FILE *f = must_fopen(fn);
    
     // Check if file is compressed
-    char magic[4];
-    fread(&magic, 1, 4, f);
-    if(!memcmp(magic, ASSET_MAGIC, 4)) {
-        asset_header_t header;
-        fread(&header, 1, sizeof(asset_header_t), f);
-
+    asset_header_t header;
+    fread(&header, 1, sizeof(asset_header_t), f);
+    if (!memcmp(header.magic, ASSET_MAGIC, 4)) {
         #ifndef N64
         header.algo = __builtin_bswap16(header.algo);
         header.flags = __builtin_bswap16(header.flags);
@@ -51,9 +51,7 @@ void *asset_load(const char *fn, int *sz)
         case 1: {
             size = header.orig_size;
             s = memalign(16, size);
-            LHANewDecoder decoder;
-            lha_lh_new_init(&decoder, f);
-            int n = lha_lh_new_read(&decoder, s, size);
+            int n = decompress_lz5h_full(f, s, size);
             assertf(n == size, "DCA: decompression error on file %s: corrupted? (%d/%d)", fn, n, size);
         }   break;
         default:
@@ -80,93 +78,111 @@ void *asset_load(const char *fn, int *sz)
 
 #ifdef N64
 
-static fpos_t seekfn_none(void *cookie, fpos_t pos, int whence)
+typedef struct  {
+    FILE *fp;
+    bool seeked;
+} cookie_none_t;
+
+static fpos_t seekfn_none(void *c, fpos_t pos, int whence)
 {
-    FILE *f = (FILE*)cookie;
-    switch (whence) {
-    case SEEK_SET:
-        assertf(pos >= ftell(f), 
-            "Cannot seek backward in file opened via asset_fopen (it might be compressed) %ld %ld", pos, ftell(f));
-        break;
-    case SEEK_CUR:
-        assertf(pos >= 0,
-            "Cannot seek backward in file opened via asset_fopen (it might be compressed) %ld", pos);
-        break;
-    case SEEK_END:
-        assertf(0, 
-            "Cannot seek from end in file opened via asset_fopen (it might be compressed)");
-        break;
-    }
-    fseek(f, pos, whence);
-    return ftell(f);
+    cookie_none_t *cookie = c;
+
+    // SEEK_CUR with pos=0 is used as ftell()
+    if (whence == SEEK_CUR && pos == 0)
+        return ftell(cookie->fp);
+
+    cookie->seeked = true;
+    return -1;
 }
 
-static int closefn_none(void *cookie)
+static int readfn_none(void *c, char *buf, int sz)
 {
-    FILE *f = (FILE*)cookie;
-    fclose(f);
+    cookie_none_t *cookie = c;
+    assertf(!cookie->seeked, "Cannot seek in file opened via asset_fopen (it might be compressed)");
+    return fread(buf, 1, sz, cookie->fp);
+}
+
+static int closefn_none(void *c)
+{
+    cookie_none_t *cookie = c;
+    fclose(cookie->fp); cookie->fp = NULL;
+    free(cookie);
     return 0;
 }
 
-static int readfn_none(void *cookie, char *buf, int sz)
+typedef struct  {
+    FILE *fp;
+    int pos;
+    bool seeked;
+    uint8_t state[DECOMPRESS_LZ5H_STATE_SIZE] alignas(8);
+} cookie_lha_t;
+
+static int readfn_lha(void *c, char *buf, int sz)
 {
-    FILE *f = (FILE*)cookie;
-    return fread(buf, 1, sz, f);
+    cookie_lha_t *cookie = (cookie_lha_t*)c;
+    assertf(!cookie->seeked, "Cannot seek in file opened via asset_fopen (it might be compressed)");
+    int n = decompress_lz5h_read(cookie->state, (uint8_t*)buf, sz);
+    cookie->pos += n;
+    return n;
 }
 
-static fpos_t seekfn_lha(void *cookie, fpos_t pos, int whence)
+static fpos_t seekfn_lha(void *c, fpos_t pos, int whence)
 {
-    // TODO: implement forward seeking. This is currently prevented by
-    // the buffering happening at the FILE* level, which causes backward
-    // seeks. Eg:
-    //    read 1 byte => newlib calls readfn with 1024 bytes (buffer)
-    //    seek 1 byte forward => newlib calls seekfn with -1022 bytes
-    assertf(0, "Cannot seek in file opened via asset_fopen (it might be compressed)");
+    cookie_lha_t *cookie = (cookie_lha_t*)c;
+
+    // SEEK_CUR with pos=0 is used as ftell()
+    if (whence == SEEK_CUR && pos == 0)
+        return cookie->pos;
+
+    // We should really have an assert here but unfortunately newlib's fclose
+    // also issue a fseek (backward...) as part of a fflush. So we delay the actual
+    // assert until the next read (if any), which is better than nothing.
+    cookie->seeked = true;
+    return -1;
+}
+
+static int closefn_lha(void *c)
+{
+    cookie_lha_t *cookie = (cookie_lha_t*)c;
+    fclose(cookie->fp); cookie->fp = NULL;
+    free(cookie);
     return 0;
-}
-
-static int closefn_lha(void *cookie)
-{
-    LHANewDecoder *decoder = (LHANewDecoder*)cookie;
-    FILE *f = decoder->bit_stream_reader.fp;
-    fclose(f);
-    free(decoder);
-    return 0;
-}
-
-static int readfn_lha(void *cookie, char *buf, int sz)
-{
-    LHANewDecoder *decoder = (LHANewDecoder*)cookie;
-    return lha_lh_new_read(decoder, (uint8_t*)buf, sz);
 }
 
 FILE *asset_fopen(const char *fn)
 {
     FILE *f = must_fopen(fn);
 
+    // We use buffering on the outer file created by funopen, so we don't
+    // actually need buffering on the underlying one.
+    setbuf(f, NULL);
+
     // Check if file is compressed
-    char magic[4];
-    fread(&magic, 1, 4, f);
-    if(!memcmp(magic, ASSET_MAGIC, 4)) {
-        asset_header_t header;
-        fread(&header, 1, sizeof(asset_header_t), f);
+    asset_header_t header;
+    fread(&header, 1, sizeof(asset_header_t), f);
+    if (!memcmp(header.magic, ASSET_MAGIC, 4)) {
+        if (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__) {  // for mkasset running on PC
+            header.algo = __builtin_bswap16(header.algo);
+            header.flags = __builtin_bswap16(header.flags);
+            header.cmp_size = __builtin_bswap32(header.cmp_size);
+            header.orig_size = __builtin_bswap32(header.orig_size);
+        }
 
-        #ifndef N64
-        header.algo = __builtin_bswap16(header.algo);
-        header.flags = __builtin_bswap16(header.flags);
-        header.cmp_size = __builtin_bswap32(header.cmp_size);
-        header.orig_size = __builtin_bswap32(header.orig_size);
-        #endif
-
-        LHANewDecoder *decoder = malloc(sizeof(LHANewDecoder));
-        lha_lh_new_init(decoder, f);
-        return funopen(decoder, readfn_lha, NULL, seekfn_lha, closefn_lha);
+        cookie_lha_t *cookie = malloc(sizeof(cookie_lha_t));
+        cookie->fp = f;
+        cookie->pos = 0;
+        cookie->seeked = false;
+        decompress_lz5h_init(cookie->state, f);
+        return funopen(cookie, readfn_lha, NULL, seekfn_lha, closefn_lha);
     }
 
     // Not compressed. Return a wrapped FILE* without the seeking capability,
     // so that it matches the behavior of the compressed file.
     fseek(f, 0, SEEK_SET);
-    return funopen(f, readfn_none, NULL, seekfn_none, closefn_none);
+    cookie_none_t *cookie = malloc(sizeof(cookie_none_t));
+    cookie->fp = f;
+    cookie->seeked = false;
+    return funopen(cookie, readfn_none, NULL, seekfn_none, closefn_none);
 }
 
 #endif /* N64 */

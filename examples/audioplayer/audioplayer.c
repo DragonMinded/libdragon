@@ -4,7 +4,6 @@
 // We need to show lots of internal details of the module which are not
 // exposed via public API, so include the internal header file.
 #include "../../src/audio/libxm/xm_internal.h"
-#include "../../src/compress/lzh5.h"
 
 #define CLAMP(x, min, max) ((x) < (min) ? (min) : ((x) > (max) ? (max) : (x)))
 

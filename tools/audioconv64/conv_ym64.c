@@ -12,9 +12,11 @@
  *
  */
 
-#include "../../src/compress/lzh5.h"   // LZH5 decompression
-#include "../common/lzh5_compress.h"   // LZH5 compression
+#include "../../src/compress/lzh5_internal.h"  // LZH5 decompression
+#include "../../src/compress/lzh5.c"
+#include "../common/lzh5_compress.h"           // LZH5 compression
 #include "../common/lzh5_compress.c"
+#include <stdalign.h>
 
 bool flag_ym_compress = false;
 
@@ -46,11 +48,11 @@ _Static_assert(sizeof(ym5header) == 22, "invalid ym5header size");
 
 static FILE *ym_f;
 static bool ym_compressed;
-static LHANewDecoder ym_decoder;
+static uint8_t alignas(8) ym_decoder[DECOMPRESS_LZ5H_STATE_SIZE];
 
 static void ymread(void *buf, int sz) {
     if (ym_compressed) {
-        lha_lh_new_read(&ym_decoder, buf, sz);
+        decompress_lz5h_read(ym_decoder, buf, sz);
         return;
     }
     fread(buf, 1, sz, ym_f);
@@ -151,7 +153,7 @@ int ym_convert(const char *infn, const char *outfn) {
         // https://github.com/fragglet/lhasa, stored in lz5h.h.
         fseek(ym_f, head[0]+2, SEEK_SET);
         ym_compressed = true;
-        lha_lh_new_init(&ym_decoder, ym_f);
+        decompress_lz5h_init(ym_decoder, ym_f);
         ymread(head, 12);
     }
 

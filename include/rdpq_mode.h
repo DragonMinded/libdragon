@@ -272,9 +272,8 @@ void rdpq_set_mode_standard(void);
  * @param[in]  color  The fill color to use
  */
 inline void rdpq_set_mode_fill(color_t color) {
-    extern void __rdpq_reset_render_mode(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3);
-    uint64_t som = (0xEFull << 56) | SOM_CYCLE_FILL;
-    __rdpq_reset_render_mode(0, 0, som >> 32, som & 0xFFFFFFFF);
+    extern void __rdpq_set_mode_fill(void);
+    __rdpq_set_mode_fill();
     rdpq_set_fill_color(color);
 }
 

@@ -632,7 +632,7 @@ void spritemaker_write_pngs(spritemaker_t *spr) {
         // to use the lower level API.
         LodePNGState state;
         lodepng_state_init(&state);
-        state.encoder.auto_convert = false;
+        state.encoder.auto_convert = false; // avoid automatic remapping of palette colors
         state.info_raw = lodepng_color_mode_make(img->ct, 8);
         state.info_png.color = lodepng_color_mode_make(img->ct, 8);
         if (img->ct == LCT_PALETTE) {

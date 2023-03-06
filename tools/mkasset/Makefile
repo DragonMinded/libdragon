@@ -14,4 +14,6 @@ install: mkasset
 -include $(wildcard *.d)
 
 clean:
-	rm -rf mkasset
+	rm -f mkasset
+	rm -f *.d
+

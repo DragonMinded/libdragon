@@ -256,7 +256,6 @@ static const struct Testsuite
 	TEST_FUNC(test_backtrace_exception,        0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_backtrace_exception_leaf,   0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_backtrace_exception_fp,     0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_backtrace_zerofunc,         0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_backtrace_invalidptr,       0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_queue_single,          0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_queue_multiple,        0, TEST_FLAGS_NO_BENCHMARK),

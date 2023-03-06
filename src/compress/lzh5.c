@@ -8,8 +8,7 @@
 // bytes in the output buffer.
 // This file is ISC Licensed.
 
-#ifndef LZH5_H
-#define LZH5_H
+#include "lzh5_internal.h"
 
 //////////////////////// bit_stream_reader.c
 
@@ -81,8 +80,9 @@ static int refill_bits(BitStreamReader *reader)
 		reader->buf_idx = 0;
 	}
 
-	// fprintf(stderr, "  refill %d\n", reader->buf_idx);
 	reader->bit_buffer = *(uint64_t*)(&reader->buf[reader->buf_idx]);
+	if (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+		reader->bit_buffer = __builtin_bswap64(reader->bit_buffer);
 	reader->bits = (reader->buf_size - reader->buf_idx) * 8;
 	if (reader->bits > 64)
 		reader->bits = 64;
@@ -127,6 +127,25 @@ static int read_bits(BitStreamReader *reader,
 static int read_bit(BitStreamReader *reader)
 {
 	return read_bits(reader, 1);
+}
+
+
+static uint64_t peek_bits(BitStreamReader *reader, int *n)
+{
+	*n = reader->bits;
+	return reader->bit_buffer;
+}
+
+static int skip_bits(BitStreamReader *reader, int n)
+{
+	reader->bit_buffer <<= n;
+	reader->bits -= n;
+	if (__builtin_expect(reader->bits <= 0, 0)) {
+		refill_bits(reader);
+		if (reader->bits < 0)
+			return -1;
+	}
+	return 0;
 }
 
 
@@ -364,6 +383,7 @@ static int read_from_tree(BitStreamReader *reader, TreeElement *tree)
 {
 	TreeElement code;
 	int bit;
+	uint64_t bits=0; int n=0, used=0;
 
 	// Start from root.
 
@@ -371,14 +391,22 @@ static int read_from_tree(BitStreamReader *reader, TreeElement *tree)
 
 	while ((code & TREE_NODE_LEAF) == 0) {
 
-		bit = read_bit(reader);
-
-		if (bit < 0) {
-			return -1;
+		if (used == n) {
+			if (skip_bits(reader, used) < 0)
+				return -1;
+			bits = peek_bits(reader, &n);
+			used = 0;
 		}
+
+		bit = bits >> 63;
+		bits <<= 1;
+		used++;
 
 		code = tree[code + (unsigned int) bit];
 	}
+
+	if (skip_bits(reader, used) < 0)
+		return -1;
 
 	// Mask off leaf bit to get the plain code.
 
@@ -494,13 +522,6 @@ typedef struct _LHANewDecoder {
 
 	BitStreamReader bit_stream_reader;
 
-	// Ring buffer of past data.  Used for position-based copies.
-
-	uint8_t ringbuf[RING_BUFFER_SIZE];
-	unsigned int ringbuf_pos;
-	int ringbuf_copy_pos;
-	int ringbuf_copy_count;
-
 	// Number of commands remaining before we start a new block.
 
 	unsigned int block_remaining;
@@ -516,9 +537,27 @@ typedef struct _LHANewDecoder {
 	TreeElement offset_tree[MAX_TEMP_CODES * 2];
 } LHANewDecoder;
 
+
+typedef struct _LHANewDecoderPartial {
+	// Decoder
+
+	LHANewDecoder decoder;
+
+	// Ring buffer of past data.  Used for position-based copies.
+
+	uint8_t ringbuf[RING_BUFFER_SIZE];
+	unsigned int ringbuf_pos;
+	int ringbuf_copy_pos;
+	int ringbuf_copy_count;
+
+	int decoded_bytes;
+
+} LHANewDecoderPartial;
+
+
 // Initialize the history ring buffer.
 
-static void init_ring_buffer(LHANewDecoder *decoder)
+static void init_ring_buffer(LHANewDecoderPartial *decoder)
 {
 	memset(decoder->ringbuf, ' ', RING_BUFFER_SIZE);
 	decoder->ringbuf_pos = 0;
@@ -526,15 +565,11 @@ static void init_ring_buffer(LHANewDecoder *decoder)
 	decoder->ringbuf_copy_count = 0;
 }
 
-static int __attribute__((unused)) lha_lh_new_init(LHANewDecoder *decoder, FILE *fp)
+static int lha_lh_new_init(LHANewDecoder *decoder, FILE *fp)
 {
 	// Initialize input stream reader.
 
 	bit_stream_reader_init(&decoder->bit_stream_reader, fp);
-
-	// Initialize data structures.
-
-	init_ring_buffer(decoder);
 
 	// First read starts the first block.
 
@@ -544,6 +579,19 @@ static int __attribute__((unused)) lha_lh_new_init(LHANewDecoder *decoder, FILE 
 
 	init_tree(decoder->code_tree, NUM_CODES * 2);
 	init_tree(decoder->offset_tree, MAX_TEMP_CODES * 2);
+
+	return 1;
+}
+
+static int lha_lh_new_init_partial(LHANewDecoderPartial *decoder, FILE *fp)
+{
+	lha_lh_new_init(&decoder->decoder, fp);
+
+	// Initialize data structures.
+
+	init_ring_buffer(decoder);
+
+	decoder->decoded_bytes = 0;
 
 	return 1;
 }
@@ -901,10 +949,10 @@ static int read_offset_code(LHANewDecoder *decoder)
 
 // Add a byte value to the output stream.
 
-static void output_byte(LHANewDecoder *decoder, uint8_t *buf,
+static void output_byte(LHANewDecoderPartial *decoder, uint8_t *buf,
                         size_t *buf_len, uint8_t b)
 {
-	buf[*buf_len] = b;
+	if (buf) buf[*buf_len] = b;
 	++*buf_len;
 
 	decoder->ringbuf[decoder->ringbuf_pos] = b;
@@ -913,11 +961,11 @@ static void output_byte(LHANewDecoder *decoder, uint8_t *buf,
 
 // Copy a block from the history buffer.
 
-static void set_copy_from_history(LHANewDecoder *decoder, uint8_t *buf, size_t count)
+static void set_copy_from_history(LHANewDecoderPartial *decoder, size_t count)
 {
 	int offset;
 
-	offset = read_offset_code(decoder);
+	offset = read_offset_code(&decoder->decoder);
 
 	if (offset < 0) {
 		return;
@@ -932,7 +980,7 @@ static void set_copy_from_history(LHANewDecoder *decoder, uint8_t *buf, size_t c
 	decoder->ringbuf_copy_count = count;
 }
 
-static size_t __attribute__((unused)) lha_lh_new_read(LHANewDecoder *decoder, uint8_t *buf, int sz)
+static size_t lha_lh_new_read_partial(LHANewDecoderPartial *decoder, uint8_t *buf, int sz)
 {
 	size_t result = 0;
 	int code;
@@ -943,6 +991,18 @@ static size_t __attribute__((unused)) lha_lh_new_read(LHANewDecoder *decoder, ui
 			int wn = sz < decoder->ringbuf_copy_count ? sz : decoder->ringbuf_copy_count;
 			wn = wn < RING_BUFFER_SIZE - decoder->ringbuf_copy_pos ? wn : RING_BUFFER_SIZE - decoder->ringbuf_copy_pos;
 			wn = wn < RING_BUFFER_SIZE - decoder->ringbuf_pos      ? wn : RING_BUFFER_SIZE - decoder->ringbuf_pos;
+
+			if (!buf) {
+				// If buf is NULL, we're just skipping data
+				decoder->ringbuf_pos += wn;
+				decoder->ringbuf_copy_count -= wn;
+				decoder->ringbuf_copy_pos += wn;
+				sz -= wn;
+				result += wn;
+				decoder->ringbuf_copy_pos %= RING_BUFFER_SIZE;
+				decoder->ringbuf_pos %= RING_BUFFER_SIZE;
+				continue;
+			}
 
 			// Check if there's an overlap in the ring buffer between read and write pos, in which
 			// case we need to copy byte by byte.
@@ -984,17 +1044,17 @@ static size_t __attribute__((unused)) lha_lh_new_read(LHANewDecoder *decoder, ui
 
 
 		// Start of new block?
-		while (decoder->block_remaining == 0) {
-			if (!start_new_block(decoder)) {
-				return 0;
+		while (decoder->decoder.block_remaining == 0) {
+			if (!start_new_block(&decoder->decoder)) {
+				goto end;
 			}
 		}
 
-		--decoder->block_remaining;
+		--decoder->decoder.block_remaining;
 
 		// Read next command from input stream.
 
-		code = read_code(decoder);
+		code = read_code(&decoder->decoder);
 
 		if (code < 0) {
 			return 0;
@@ -1006,11 +1066,99 @@ static size_t __attribute__((unused)) lha_lh_new_read(LHANewDecoder *decoder, ui
 			output_byte(decoder, buf, &result, (uint8_t) code);
 			sz--;
 		} else {
-			set_copy_from_history(decoder, buf, code - 256 + COPY_THRESHOLD);
+			set_copy_from_history(decoder, code - 256 + COPY_THRESHOLD);
 		}
 	}
 
+end:
+	decoder->decoded_bytes += result;
 	return result;
 }
 
-#endif /* LZH5_H */
+static size_t lha_lh_new_read_full(LHANewDecoder *decoder, uint8_t *buf, int sz)
+{
+	uint8_t *buf_orig = buf;
+	int code;
+
+	while (sz > 0) {
+		// Start of new block?
+		while (decoder->block_remaining == 0) {
+			if (!start_new_block(decoder)) {
+				goto end;
+			}
+		}
+		--decoder->block_remaining;
+
+		// Read next command from input stream.
+		code = read_code(decoder);
+
+		if (code < 0) {
+			return 0;
+		}
+
+		// The code may be either a literal byte value or a copy command.
+		if (code < 256) {
+			*buf++ = (uint8_t) code;
+			sz--;
+		} else {
+			int count = code - 256 + COPY_THRESHOLD;
+			int offset = read_offset_code(decoder);
+
+			if (offset < 0) {
+				return 0;
+			}
+			uint8_t *src = buf - offset - 1;
+
+			count = count < sz ? count : sz;
+			sz -= count;
+
+			if (offset > 7) {
+				while (count >= 8) {
+					typedef uint64_t u_uint64_t __attribute__((aligned(1)));
+					*(u_uint64_t*)buf = *(u_uint64_t*)src;
+					buf += 8;
+					src += 8;
+					count -= 8;
+				}
+			}
+			while (count > 0) {
+				*buf++ = *src++;
+				count--;
+			}
+		}
+	}
+
+end:
+	return buf - buf_orig;
+}
+
+
+/*************************************************
+ * Libdragon API
+ *************************************************/
+
+_Static_assert(sizeof(LHANewDecoderPartial) == DECOMPRESS_LZ5H_STATE_SIZE, "LZH5 state size is wrong");
+
+void decompress_lz5h_init(void *state, FILE *fp)
+{
+	LHANewDecoderPartial *decoder = (LHANewDecoderPartial *)state;
+	lha_lh_new_init_partial(decoder, fp);
+}
+
+size_t decompress_lz5h_read(void *state, void *buf, size_t len)
+{
+	LHANewDecoderPartial *decoder = (LHANewDecoderPartial *)state;
+	return lha_lh_new_read_partial(decoder, buf, len);
+}
+
+int decompress_lz5h_pos(void *state) {
+	LHANewDecoderPartial *decoder = (LHANewDecoderPartial *)state;
+	return decoder->decoded_bytes;
+}
+
+size_t decompress_lz5h_full(FILE *fp, void *buf, size_t len)
+{
+	LHANewDecoder decoder;
+	lha_lh_new_init(&decoder, fp);
+	return lha_lh_new_read_full(&decoder, buf, len);
+}

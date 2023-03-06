@@ -6,13 +6,14 @@
 
 #include "ym64.h"
 #include "ay8910.h"
-#include "../compress/lzh5.h"
+#include "../compress/lzh5_internal.h"
 #include "samplebuffer.h"
 #include "debug.h"
 #include "utils.h"
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
+#include <malloc.h>
 
 /** @brief Header of a YM5 file */
 typedef struct __attribute__((packed)) {
@@ -29,7 +30,7 @@ _Static_assert(sizeof(ym5header) == 22, "invalid header size");
 
 static int ymread(ym64player_t *player, void *buf, int sz) {
 	if (player->decoder)
-		return lha_lh_new_read(player->decoder, buf, sz);
+		return decompress_lz5h_read(player->decoder, buf, sz);
 	return fread(buf, 1, sz, player->f);
 }
 
@@ -123,9 +124,9 @@ void ym64player_open(ym64player_t *player, const char *fn, ym64player_songinfo_t
 
 		// Initialize decompressor and re-read the header (this time, it will
 		// be decompressed and we should find a valid YM header).
-		player->decoder = (LHANewDecoder*)malloc(sizeof(LHANewDecoder));
+		player->decoder = malloc(DECOMPRESS_LZ5H_STATE_SIZE);
 		offset = 0;
-		lha_lh_new_init(player->decoder, player->f);
+		decompress_lz5h_init(player->decoder, player->f);
 		_ymread(head, 12);
 	}
 
