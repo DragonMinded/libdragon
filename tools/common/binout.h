@@ -10,7 +10,12 @@
 #include <assert.h>
 
 #define conv(type, v) ({ \
-    typeof(v) _v = (v); assert((type)_v == _v); (type)_v; \
+    typeof(v) _v = (v); \
+    if (sizeof(type) < sizeof(_v)) { \
+        int ext = (int)_v >> (sizeof(type) * 8 - 1); \
+        assert(ext == 0 || ext == (unsigned)-1); \
+    } \
+    (type)_v; \
 })
 
 void _w8(FILE *f, uint8_t v)  { fputc(v, f); }
