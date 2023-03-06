@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include "../common/binout.h"
 
 #include "../../src/rdpq/rdpq_font_internal.h"
 #include "../../include/surface.h"
@@ -47,31 +48,6 @@ void codepoint_range_add(int **arr, int *n, int first, int last)
     }
 }
 
-#define w32(out, v) ({ \
-    _Static_assert(sizeof(v) == 4, "w32: v must be 4 bytes"); \
-    fputc((v) >> 24, out); fputc((v) >> 16, out); fputc((v) >> 8, out); fputc((v), out); \
-})
-
-#define w16(out, v) ({ \
-    _Static_assert(sizeof(v) == 2, "w16: v must be 2 bytes"); \
-    fputc(v >> 8, out); fputc(v, out); \
-})
-
-#define w8(out, v) ({ \
-    _Static_assert(sizeof(v) == 1, "w8: v must be 1 byte"); \
-    fputc(v, out); \
-})
-
-void falign(FILE *out, int align)
-{
-    int pos = ftell(out);
-    while (pos % align)
-    {
-        fputc(0, out);
-        pos++;
-    }
-}
-
 void n64font_write(rdpq_font_t *fnt, FILE *out)
 {
     // Write header
@@ -99,7 +75,7 @@ void n64font_write(rdpq_font_t *fnt, FILE *out)
     // Write glyphs, aligned to 16 bytes. This makes sure
     // they cover exactly one data cacheline in R4300, so that
     // they each drawn glyph dirties exactly one line.
-    falign(out, 16);
+    walign(out, 16);
     uint32_t offset_glypes = ftell(out);
     for (int i=0; i<fnt->num_glyphs; i++)
     {
@@ -117,7 +93,7 @@ void n64font_write(rdpq_font_t *fnt, FILE *out)
     }
 
     // Write atlases
-    falign(out, 16);
+    walign(out, 16);
     uint32_t offset_atlases = ftell(out);
     for (int i=0; i<fnt->num_atlases; i++)
     {
@@ -131,7 +107,7 @@ void n64font_write(rdpq_font_t *fnt, FILE *out)
     }
 
     // Write kernings
-    falign(out, 16);
+    walign(out, 16);
     uint32_t offset_kernings = ftell(out);
     for (int i=0; i<fnt->num_kerning; i++)
     {
@@ -143,7 +119,7 @@ void n64font_write(rdpq_font_t *fnt, FILE *out)
     uint32_t* offset_atlases_bytes = alloca(sizeof(uint32_t) * fnt->num_atlases);
     for (int i=0; i<fnt->num_atlases; i++)
     {
-        falign(out, 8); // align texture data to 8 bytes (for RDP)
+        walign(out, 8); // align texture data to 8 bytes (for RDP)
         offset_atlases_bytes[i] = ftell(out);
         fwrite(fnt->atlases[i].buf, fnt->atlases[i].width * fnt->atlases[i].height / 2, 1, out);
     }
