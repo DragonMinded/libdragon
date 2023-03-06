@@ -491,7 +491,7 @@ bool spritemaker_write(spritemaker_t *spr) {
     w16(out, spr->images[0].width);
     w16(out, spr->images[0].height);
     w8(out, 0); // deprecated field
-    w8(out, spr->outfmt | SPRITE_FLAGS_EXT);
+    w8(out, (uint8_t)(spr->outfmt | SPRITE_FLAGS_EXT));
     w8(out, spr->hslices);
     w8(out, spr->vslices);
 
