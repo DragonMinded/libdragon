@@ -13,6 +13,7 @@ void rdpq_font_free(rdpq_font_t *fnt);
 
 void rdpq_font_begin(color_t color);
 void rdpq_font_position(float x, float y);
+void rdpq_font_scale(float xscale, float yscale);
 void rdpq_font_end(void);
 
 
