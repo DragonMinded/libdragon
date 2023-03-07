@@ -19,6 +19,7 @@
 #include "dma.h"
 #include "usb.h"
 #include "utils.h"
+#include "interrupt.h"
 #include "backtrace.h"
 #include "exception_internal.h"
 #include "fatfs/ff.h"
