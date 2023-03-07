@@ -223,7 +223,7 @@ void rdpq_tex_load_tlut(uint16_t *tlut, int color_idx, int num_colors);
  * See #rdpq_tex_blit for several examples.
  */
 typedef struct {
-    rdpq_tile_t tile;   ///< Tile descriptor to use (default: TILE_0)
+    rdpq_tile_t tile;   ///< Base tile descriptor to use (default: TILE_0); notice that two tiles will often be used to do the upload (tile and tile+1).
     int s0;             ///< Source sub-rect top-left X coordinate
     int t0;             ///< Source sub-rect top-left Y coordinate
     int width;          ///< Source sub-rect width. If 0, the width of the surface is used
