@@ -71,8 +71,8 @@ static color_t palette_debug_color(int idx)
 
 static color_t surface_debug_expected_color(surface_t *surf, int x, int y)
 {
-    if (x > surf->width) x = surf->width-1;
-    if (y > surf->height) y = surf->height-1;
+    if (x >= surf->width) x = surf->width-1;
+    if (y >= surf->height) y = surf->height-1;
     uint32_t px = surface_get_pixel(surf, x, y);
     switch (surface_get_format(surf)) {
     case FMT_I4:
@@ -191,6 +191,71 @@ void test_rdpq_tex_load(TestContext *ctx) {
                             return color_from_packed32(0);
                     });
                 }
+            }
+        }
+    }
+}
+
+
+void test_rdpq_tex_blit_normal(TestContext *ctx)
+{
+    RDPQ_INIT();
+
+    static const tex_format_t fmts[] = { 
+        FMT_RGBA32,
+        FMT_RGBA16, FMT_IA16,
+        FMT_CI8, FMT_I8, FMT_IA8,
+        FMT_CI4, FMT_I4, FMT_IA4,
+    };
+
+    const int FBWIDTH = 32;
+    surface_t fb = surface_alloc(FMT_RGBA32, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    surface_clear(&fb, 0);
+
+    uint16_t* tlut = malloc_uncached(256*2);
+    for (int i=0;i<256;i++) {
+        tlut[i] = color_to_packed16(palette_debug_color(i));
+    }
+
+    rdpq_attach(&fb, NULL);
+    DEFER(rdpq_detach());
+    rdpq_set_mode_standard();
+
+    for (int i=0; i<sizeof(fmts) / sizeof(fmts[0]); i++) {
+        LOG("Testing format %s\n", tex_format_name(fmts[i]));
+        SRAND(i);
+        tex_format_t fmt = fmts[i];
+
+        // Create the random surface
+        for (int tex_width = 80; tex_width < 83; tex_width++)  {
+            LOG("  tex_width: %d\n", tex_width);
+            surface_t surf_full = surface_create_random(tex_width, tex_width, fmt);
+            DEFER(surface_free(&surf_full));
+        
+            // Activate the palette if needed for this format
+            if (fmt == FMT_CI4 || fmt == FMT_CI8) {
+                rdpq_tex_load_tlut(tlut, 0, 256);
+                rdpq_mode_tlut(TLUT_RGBA16);
+            } else {
+                rdpq_mode_tlut(TLUT_NONE);
+            }
+        
+            // Blit the surface to the framebuffer, and verify the result
+            // Constraint to get good coverage:
+            //  s0=[0..1]
+            //  t0=[0..2]  t0=2 is an interesting case: it can LOAD_BLOCK (t0=1 cannot) and requires offseting of initial pointer
+            //  width=[-0..-2]  we need width-2 to have an effect on 4bpp textures (width-1 uses the same bytes of width in 4bpp)
+            for (int s0=0; s0<3; s0++) for (int t0=0; t0<3; t0++) for (int width=tex_width-s0; width>tex_width-s0-3; width--) {
+                LOG("    s0/t0/w: %d %d %d\n", s0, t0, width);
+                rdpq_tex_blit(&surf_full, 0, 0, &(rdpq_blitparms_t){
+                    .s0 = s0, .width = width, .t0 = t0, .height = tex_width-t0,
+                });
+                rspq_wait();
+
+                ASSERT_SURFACE(&fb, {
+                    return surface_debug_expected_color(&surf_full, x+s0, y+t0);
+                });
             }
         }
     }
