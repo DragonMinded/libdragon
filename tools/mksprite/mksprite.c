@@ -528,7 +528,7 @@ bool spritemaker_write(spritemaker_t *spr) {
                 uint8_t ix0 = *img++;
                 uint8_t ix1 = *img++;
                 assert(ix0 < 16 && ix1 < 16);
-                w8(out, (ix0 << 4) | ix1);
+                w8(out, (uint8_t)((ix0 << 4) | ix1));
             }
             break;
         }
@@ -538,7 +538,7 @@ bool spritemaker_write(spritemaker_t *spr) {
             uint8_t *img = image->image;
             for (int i=0; i<image->width*image->height; i++) {
                 uint8_t I = *img++; uint8_t A = *img++;
-                w8(out, (I & 0xF0) | (A >> 4));
+                w8(out, (uint8_t)((I & 0xF0) | (A >> 4)));
             }
             break;
         }
@@ -548,7 +548,7 @@ bool spritemaker_write(spritemaker_t *spr) {
             uint8_t *img = image->image;
             for (int i=0; i<image->width*image->height; i+=2) {
                 uint8_t I0 = *img++; uint8_t I1 = *img++;
-                w8(out, (I0 & 0xF0) | (I1 >> 4));
+                w8(out, (uint8_t)((I0 & 0xF0) | (I1 >> 4)));
             }
             break;
         }
@@ -560,7 +560,7 @@ bool spritemaker_write(spritemaker_t *spr) {
             for (int i=0; i<image->width*image->height; i+=2) {
                 uint8_t I0 = *img++; uint8_t A0 = *img++ ? 1 : 0;
                 uint8_t I1 = *img++; uint8_t A1 = *img++ ? 1 : 0;
-                w8(out, (I0 & 0xE0) | (A0 << 4) | ((I1 & 0xE0) >> 4) | A1);
+                w8(out, (uint8_t)((I0 & 0xE0) | (A0 << 4) | ((I1 & 0xE0) >> 4) | A1));
             }
             break;
         }
