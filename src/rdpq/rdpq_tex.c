@@ -176,6 +176,7 @@ static void texload_tile_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int t
         rdpq_set_texture_image_raw(0, PhysicalAddr(tload->tex->buffer), FMT_CI8, tload->tex->stride, tload->tex->height);
         rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_CI8, tload->tmem_addr, tload->rect.tmem_pitch, 0);
         rdpq_set_tile(tload->tile, surface_get_format(tload->tex), tload->tmem_addr, tload->rect.tmem_pitch, tload->tlut);
+        tload->load_mode = TEX_LOAD_TILE;
     }
 
     s0 &= ~1; s1 = (s1+1) & ~1;
