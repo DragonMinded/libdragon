@@ -33,6 +33,10 @@
  */
 static int texload_set_rect(tex_loader_t *tload, int s0, int t0, int s1, int t1)
 {
+    // For now, we don't support clamping/mirroring, as that would require
+    // additional logic here to select the proper pixels
+    assertf(s1 <= tload->tex->width && t1 <= tload->tex->height, "rdpq tex loader does not support clamping/mirroring");
+
     tex_format_t fmt = surface_get_format(tload->tex);
     if (TEX_FORMAT_BITDEPTH(fmt) == 4) {
         s0 &= ~1; s1 = (s1+1) & ~1;
@@ -118,7 +122,7 @@ static void texload_block_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int 
         // Use LOAD_BLOCK if we are uploading a full texture. Notice the weirdness of LOAD_BLOCK:
         // * SET_TILE must be configured with tmem_pitch=0, as that is weirdly used as the number of
         //   texels to skip per line, which we don't need.
-        assertf(tload->tex->width % 4 == 0, "Internal Error: invalid width for LOAD_BLOCK (%d)", tload->tex->width);
+        assertf(ROUND_UP(tload->tex->width, 2) % 4 == 0, "Internal Error: invalid width for LOAD_BLOCK (%d)", tload->tex->width);
         rdpq_set_texture_image_raw(0, PhysicalAddr(tload->tex->buffer), FMT_RGBA16, tload->tex->width/4, tload->tex->height);
         rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_RGBA16, tload->tmem_addr, 0, 0);
         rdpq_set_tile(tload->tile, surface_get_format(tload->tex), tload->tmem_addr, tload->rect.tmem_pitch, tload->tlut);
@@ -130,16 +134,21 @@ static void texload_block_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int 
     rdpq_set_tile_size(tload->tile, s0, t0, s1, t1);
 }
 
-static void texload_tile_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int t1)
+static void texload_block_8bpp(tex_loader_t *tload, int s0, int t0, int s1, int t1)
 {
-    if (tload->load_mode != TEX_LOAD_TILE) {
-        rdpq_set_texture_image_raw(0, PhysicalAddr(tload->tex->buffer), FMT_CI8, tload->tex->stride, tload->tex->height);
-        rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_CI8, tload->tmem_addr, tload->rect.tmem_pitch, 0);
-        rdpq_set_tile(tload->tile, surface_get_format(tload->tex), tload->tmem_addr, tload->rect.tmem_pitch, tload->tlut);
+    tex_format_t fmt = surface_get_format(tload->tex);
+
+    if (tload->load_mode != TEX_LOAD_BLOCK) {
+        // Use LOAD_BLOCK if we are uploading a full texture. Notice the weirdness of LOAD_BLOCK:
+        // * SET_TILE must be configured with tmem_pitch=0, as that is weirdly used as the number of
+        //   texels to skip per line, which we don't need.
+        rdpq_set_texture_image_raw(0, PhysicalAddr(tload->tex->buffer), FMT_RGBA16, tload->tex->width/2, tload->tex->height);
+        rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_RGBA16, tload->tmem_addr, 0, 0);
+        rdpq_set_tile(tload->tile, fmt, tload->tmem_addr, tload->rect.tmem_pitch, tload->tlut);
+        tload->load_mode = TEX_LOAD_BLOCK;
     }
 
-    s0 &= ~1; s1 = (s1+1) & ~1;
-    rdpq_load_tile(RDPQ_TILE_INTERNAL, s0/2, t0, s1/2, t1);
+    rdpq_load_block(RDPQ_TILE_INTERNAL, s0/2, t0, tload->rect.num_texels/2, tload->rect.tmem_pitch);
     rdpq_set_tile_size(tload->tile, s0, t0, s1, t1);
 }
 
@@ -158,6 +167,19 @@ static void texload_block(tex_loader_t *tload, int s0, int t0, int s1, int t1)
     }
 
     rdpq_load_block(RDPQ_TILE_INTERNAL, s0, t0, tload->rect.num_texels, (fmt == FMT_RGBA32) ? tload->rect.tmem_pitch*2 : tload->rect.tmem_pitch);
+    rdpq_set_tile_size(tload->tile, s0, t0, s1, t1);
+}
+
+static void texload_tile_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int t1)
+{
+    if (tload->load_mode != TEX_LOAD_TILE) {
+        rdpq_set_texture_image_raw(0, PhysicalAddr(tload->tex->buffer), FMT_CI8, tload->tex->stride, tload->tex->height);
+        rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_CI8, tload->tmem_addr, tload->rect.tmem_pitch, 0);
+        rdpq_set_tile(tload->tile, surface_get_format(tload->tex), tload->tmem_addr, tload->rect.tmem_pitch, tload->tlut);
+    }
+
+    s0 &= ~1; s1 = (s1+1) & ~1;
+    rdpq_load_tile(RDPQ_TILE_INTERNAL, s0/2, t0, s1/2, t1);
     rdpq_set_tile_size(tload->tile, s0, t0, s1, t1);
 }
 
@@ -189,11 +211,13 @@ int tex_loader_load(tex_loader_t *tload, int s0, int t0, int s1, int t1)
 }
 
 tex_loader_t tex_loader_init(rdpq_tile_t tile, const surface_t *tex) {
-    bool is_4bpp = TEX_FORMAT_BITDEPTH(surface_get_format(tex)) == 4;
+    int bpp = TEX_FORMAT_BITDEPTH(surface_get_format(tex));
+    bool is_4bpp = bpp == 4;
+    bool is_8bpp = bpp == 8;
     return (tex_loader_t){
         .tex = tex,
         .tile = tile,
-        .load_block = is_4bpp ? texload_block_4bpp : texload_block,
+        .load_block = is_4bpp ? texload_block_4bpp : (is_8bpp ? texload_block_8bpp : texload_block),
         .load_tile = is_4bpp ? texload_tile_4bpp : texload_tile,
     };
 }
