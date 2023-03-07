@@ -7,9 +7,11 @@
     RDPQ_INIT(); \
     surface_t test_surf = surface_alloc(FMT_RGBA16, w, h); \
     DEFER(surface_free(&test_surf)); \
+    surface_t test_z = surface_alloc(FMT_RGBA16, w, h); \
+    DEFER(surface_free(&test_z)); \
     gl_init(); \
     DEFER(gl_close()); \
-    rdpq_attach(&test_surf, NULL); \
+    rdpq_attach(&test_surf, &test_z); \
     DEFER(rdpq_detach_wait()); \
     gl_context_begin(); \
     DEFER(gl_context_end());
