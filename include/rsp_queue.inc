@@ -266,12 +266,12 @@ RDPQ_MODE:
     RDPQ_OTHER_MODES:            .quad  0
 RDPQ_MODE_END:
 
+# Current scissor rectangle (in RDP commmand format)
+RDPQ_SCISSOR_RECT:           .quad  (0xED << 56) | (1 << 12)
 # Two RDP output buffers (to alternate between)
 RDPQ_DYNAMIC_BUFFERS:        .long 0, 0
 # Current RDP write pointer (8 MSB are garbage)
-RDPQ_CURRENT:                .long  0
-# Current scissor rectangle (in RDP commmand format)
-RDPQ_SCISSOR_RECT:           .quad  (0xED << 56) | (1 << 12)
+RDPQ_CURRENT:                .long 0
 # Current fill color
 RDPQ_FILL_COLOR:             .word  0
 # Current target buffer color depth
