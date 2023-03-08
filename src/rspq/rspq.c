@@ -355,14 +355,22 @@ static void rspq_sp_interrupt(void)
 }
 
 /** @brief Extract the current overlay index and name from the RSP queue state */
-static void rspq_get_current_ovl(rsp_queue_t *rspq, int *ovl_idx, const char **ovl_name)
+static void rspq_get_current_ovl(rsp_queue_t *rspq, int *ovl_idx, uint8_t *ovl_id, const char **ovl_name)
 {
+    *ovl_id = 0xFF;
     *ovl_idx = rspq->current_ovl / sizeof(rspq_overlay_t);
-    if (*ovl_idx == 0)
+    if (*ovl_idx == 0) {
         *ovl_name = "builtin";
-    else if (*ovl_idx < RSPQ_MAX_OVERLAY_COUNT && rspq_overlay_ucodes[*ovl_idx])
+        *ovl_id = 0;
+    } else if (*ovl_idx < RSPQ_MAX_OVERLAY_COUNT && rspq_overlay_ucodes[*ovl_idx]) {
         *ovl_name = rspq_overlay_ucodes[*ovl_idx]->name;
-    else
+        for (int i=0;i<RSPQ_OVERLAY_TABLE_SIZE;i++) {
+            if (rspq->tables.overlay_table[i] == *ovl_idx * sizeof(rspq_overlay_t)) {
+                *ovl_id = i;
+                break;
+            }
+        }
+    } else
         *ovl_name = "?";
 }
 
@@ -373,15 +381,15 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
     uint32_t cur = rspq->rspq_dram_addr + state->gpr[28];
     uint32_t dmem_buffer = RSPQ_DEBUG ? 0x1A0 : 0x100;
 
-    int ovl_idx; const char *ovl_name;
-    rspq_get_current_ovl(rspq, &ovl_idx, &ovl_name);
+    int ovl_idx; const char *ovl_name; uint8_t ovl_id;
+    rspq_get_current_ovl(rspq, &ovl_idx, &ovl_id, &ovl_name);
 
     printf("RSPQ: Normal  DRAM address: %08lx\n", rspq->rspq_dram_lowpri_addr);
     printf("RSPQ: Highpri DRAM address: %08lx\n", rspq->rspq_dram_highpri_addr);
     printf("RSPQ: Current DRAM address: %08lx + GP=%lx = %08lx\n", 
         rspq->rspq_dram_addr, state->gpr[28], cur);
     printf("RSPQ: RDP     DRAM address: %08lx\n", rspq->rspq_rdp_buffers[1]);
-    printf("RSPQ: Current Overlay: %s (%02x)\n", ovl_name, ovl_idx);
+    printf("RSPQ: Current Overlay: %s (%x)\n", ovl_name, ovl_id);
 
     // Dump the command queue in DMEM. In debug mode, there is a marker to check
     // if we know the correct address. TODO: find a way to expose the symbols
@@ -420,12 +428,12 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
 static void rspq_assert_invalid_command(rsp_snapshot_t *state)
 {
     rsp_queue_t *rspq = (rsp_queue_t*)(state->dmem + RSPQ_DATA_ADDRESS);
-    int ovl_idx; const char *ovl_name;
-    rspq_get_current_ovl(rspq, &ovl_idx, &ovl_name);
+    int ovl_idx; const char *ovl_name; uint8_t ovl_id;
+    rspq_get_current_ovl(rspq, &ovl_idx, &ovl_id, &ovl_name);
 
     uint32_t dmem_buffer = RSPQ_DEBUG ? 0x1A0 : 0x100;
     uint32_t cur = dmem_buffer + state->gpr[28];
-    printf("Invalid command\nCommand %02x not found in overlay %s (0x%01x)\n", state->dmem[cur], ovl_name, ovl_idx);
+    printf("Invalid command\nCommand %02x not found in overlay %s (0x%01x)\n", state->dmem[cur], ovl_name, ovl_id);
 }
 
 /** @brief Special RSP assert handler for ASSERT_INVALID_OVERLAY */
@@ -698,9 +706,9 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode)
         // Check if the current overlay is the one that we are requesting the
         // state for. If so, read back the latest updated state from DMEM
         // manually via DMA, so that the caller finds the latest contents.
-        int ovl_idx; const char *ovl_name;
+        int ovl_idx; const char *ovl_name; uint8_t ovl_id;
         rsp_queue_t *rspq = (rsp_queue_t*)((uint8_t*)SP_DMEM + RSPQ_DATA_ADDRESS);
-        rspq_get_current_ovl(rspq, &ovl_idx, &ovl_name);
+        rspq_get_current_ovl(rspq, &ovl_idx, &ovl_id, &ovl_name);
 
         if (ovl_idx && rspq_overlay_ucodes[ovl_idx] == overlay_ucode) {
             rsp_read_data(state_ptr, state_size, state_ptr - overlay_ucode->data);
