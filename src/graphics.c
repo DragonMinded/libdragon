@@ -26,7 +26,7 @@
  * in terms of sprite size.
  *
  * Code wishing to draw to the screen should first acquire a display context
- * using #display_lock.  Once the display context is acquired, code may draw to
+ * using #display_get.  Once the display context is acquired, code may draw to
  * the context using any of the graphics functions present.  Wherever practical,
  * two versions of graphics functions are available: a transparent variety and
  * a non-transparent variety.  Code that wishes to display sprites without

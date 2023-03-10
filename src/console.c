@@ -250,10 +250,8 @@ static void __console_render(void)
 {
     if(!render_buffer) { return; }
 
-    static display_context_t dc = 0;
-
     /* Wait until we get a valid context */
-    while(!(dc = display_lock()));
+    surface_t *dc = display_get();
 
     /* Background color! */
     graphics_fill_screen( dc, 0 );

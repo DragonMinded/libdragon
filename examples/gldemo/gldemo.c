@@ -155,12 +155,7 @@ void draw_quad()
 
 void render()
 {
-    surface_t *disp;
-    RSP_WAIT_LOOP(200) {
-        if ((disp = display_lock())) {
-            break;
-        }
-    }
+    surface_t *disp = display_get();
 
     rdpq_attach(disp, &zbuffer);
 

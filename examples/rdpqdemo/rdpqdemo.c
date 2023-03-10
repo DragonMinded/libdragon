@@ -64,14 +64,8 @@ void update(int ovfl)
 
 void render(int cur_frame)
 {
-    surface_t *disp;
-    RSP_WAIT_LOOP(200) {
-        if ((disp = display_lock())) {
-            break;
-        }
-    }
-
     // Attach and clear the screen
+    surface_t *disp = display_get();
     rdpq_attach_clear(disp, NULL);
 
     // Draw the tile background, by playing back the compiled block.
