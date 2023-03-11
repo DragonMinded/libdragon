@@ -78,9 +78,6 @@
  */
 #define FUNCTION_ALIGNMENT      32
 
-#define MAX_FILE_LEN 120        ///< Maximum length of a file name in a backtrace entry
-#define MAX_FUNC_LEN 120        ///< Maximum length of a function name in a backtrace entry
-
 /** 
  * @brief Symbol table file header
  * 
@@ -183,10 +180,9 @@ static symtable_header_t symt_open(void) {
         return (symtable_header_t){0};
     }
 
-    symtable_header_t symt_header;
+    symtable_header_t symt_header alignas(8);
     data_cache_hit_writeback_invalidate(&symt_header, sizeof(symt_header));
-    dma_read_raw_async(&symt_header, SYMT_ROM, sizeof(symtable_header_t));
-    dma_wait();
+    dma_read(&symt_header, SYMT_ROM, sizeof(symtable_header_t));
 
     if (symt_header.head[0] != 'S' || symt_header.head[1] != 'Y' || symt_header.head[2] != 'M' || symt_header.head[3] != 'T') {
         debugf("backtrace: invalid symbol table found at 0x%08lx\n", SYMT_ROM);
@@ -573,8 +569,8 @@ static void format_entry(void (*cb)(void *, backtrace_frame_t *), void *cb_arg,
     symtable_entry_t entry alignas(8);
     symt_entry_fetch(symt, &entry, idx);
 
-    char file_buf[MAX_FILE_LEN+2] alignas(8);
-    char func_buf[MAX_FUNC_LEN+2] alignas(8);
+    char file_buf[entry.file_len + 2] alignas(8);
+    char func_buf[MAX(entry.func_len + 2, 32)] alignas(8);
 
     cb(cb_arg, &(backtrace_frame_t){
         .addr = addr,
@@ -638,6 +634,8 @@ bool backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
 
 char** backtrace_symbols(void **buffer, int size)
 {
+    const int MAX_FILE_LEN = 120;
+    const int MAX_FUNC_LEN = 120;
     const int MAX_SYM_LEN = MAX_FILE_LEN + MAX_FUNC_LEN + 24;
     char **syms = malloc(2 * size * (sizeof(char*) + MAX_SYM_LEN));
     char *out = (char*)syms + size*sizeof(char*);
