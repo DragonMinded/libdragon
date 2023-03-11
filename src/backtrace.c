@@ -99,8 +99,8 @@
  *   split externally to allow for efficiency reasons. Each entry stores the function name, 
  *   the source file name and line number, and the binary offset of the symbol within the containing
  *   function.
- * * String table: This tables can be thought as a large buffer holding all the strings needed by all
- *   symbol entries (function names and file names). Each symbol entry stores a string as an index
+ * * String table: this table can be thought as a large buffer holding all the strings needed by all
+ *   symbol entries (function names and file names). Each symbol entry stores a string as an offset
  *   within the symbol table and a length. This allows to reuse the same string (or prefix thereof)
  *   multiple times. Notice that strings are not null terminated in the string table.
  * 
