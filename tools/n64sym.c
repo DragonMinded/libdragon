@@ -234,6 +234,7 @@ void elf_find_callsites(const char *elf)
     }
     free(line);
     pclose(disasm);
+    free(cmd);
 }
 
 void compact_filenames(void)
@@ -364,6 +365,7 @@ void process(const char *infn, const char *outfn)
         exit(1);
     }
 
+    // Write header. See symtable_header_t in backtrace.c for the layout.
     fwrite("SYMT", 4, 1, out);
     w32(out, 2); // Version
     int addrtable_off = w32_placeholder(out);
@@ -373,6 +375,7 @@ void process(const char *infn, const char *outfn)
     int stringtable_off = w32_placeholder(out);
     w32(out, stbds_arrlen(stringtable));
 
+    // Write address table. This is a sequence of 32-bit addresses.
     walign(out, 16);
     w32_at(out, addrtable_off, ftell(out));
     for (int i=0; i < stbds_arrlen(symtable); i++) {
@@ -380,6 +383,7 @@ void process(const char *infn, const char *outfn)
         w32(out, sym->addr | (sym->is_func ? 0x1 : 0) | (sym->is_inline ? 0x2 : 0));
     }
 
+    // Write symbol table. See symtable_entry_t in backtrace.c for the layout.
     walign(out, 16);
     w32_at(out, symtable_off, ftell(out));
     for (int i=0; i < stbds_arrlen(symtable); i++) {
@@ -444,28 +448,27 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    // Find the toolchain installation directory.
+    // n64.mk supports having a separate installation for the toolchain and
+    // libdragon. So first check if N64_GCCPREFIX is set; if so the toolchain
+    // is there. Otherwise, fallback to N64_INST which is where we expect
+    // the toolchain to reside.
+    n64_inst = getenv("N64_GCCPREFIX");
+    if (!n64_inst)
+        n64_inst = getenv("N64_INST");
     if (!n64_inst) {
-        // n64.mk supports having a separate installation for the toolchain and
-        // libdragon. So first check if N64_GCCPREFIX is set; if so the toolchain
-        // is there. Otherwise, fallback to N64_INST which is where we expect
-        // the toolchain to reside.
-        n64_inst = getenv("N64_GCCPREFIX");
-        if (!n64_inst)
-            n64_inst = getenv("N64_INST");
-        if (!n64_inst) {
-            // Do not mention N64_GCCPREFIX in the error message, since it is
-            // a seldom used configuration.
-            fprintf(stderr, "Error: N64_INST environment variable not set.\n");
-            return 1;
-        }
-        // Remove the trailing backslash if any. On some system, running
-        // popen with a path containing double backslashes will fail, so
-        // we normalize it here.
-        n64_inst = strdup(n64_inst);
-        int n = strlen(n64_inst);
-        if (n64_inst[n-1] == '/' || n64_inst[n-1] == '\\')
-            n64_inst[n-1] = 0;
+        // Do not mention N64_GCCPREFIX in the error message, since it is
+        // a seldom used configuration.
+        fprintf(stderr, "Error: N64_INST environment variable not set.\n");
+        return 1;
     }
+    // Remove the trailing backslash if any. On some system, running
+    // popen with a path containing double backslashes will fail, so
+    // we normalize it here.
+    n64_inst = strdup(n64_inst);
+    int n = strlen(n64_inst);
+    if (n64_inst[n-1] == '/' || n64_inst[n-1] == '\\')
+        n64_inst[n-1] = 0;
 
     const char *infn = argv[i];
     if (i < argc-1)
