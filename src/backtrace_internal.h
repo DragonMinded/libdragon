@@ -17,7 +17,7 @@ typedef struct {
     int fp_offset;           ///< Offset of the saved fp from the top of the stack frame; this is != 0 only if the function modifies fp (maybe as a frame pointer, but not necessarily)
 } bt_func_t;
 
-bool __bt_analyze_func(bt_func_t *func, uint32_t *ptr, uint32_t func_start, void *exception_ra);
+bool __bt_analyze_func(bt_func_t *func, uint32_t *ptr, uint32_t func_start, bool from_exception);
 
 
 /**
