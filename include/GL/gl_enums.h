@@ -425,6 +425,9 @@
 #define GL_EXP                                          0x0800
 #define GL_EXP2                                         0x0801
 
+#define GL_USE_RDPQ_MATERIAL                            0x3D10
+#define GL_USE_RDPQ_TEXTURING                           0x3D11
+
 #define GL_SCISSOR_BOX                                  0x0C10
 #define GL_SCISSOR_TEST                                 0x0C11
 
