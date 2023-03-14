@@ -263,6 +263,7 @@ int main()
 
     display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE_FETCH_ALWAYS);
 
+    rdpq_init();
     gl_init();
 
 #if DEBUG_RDP
