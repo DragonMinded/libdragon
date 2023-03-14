@@ -36,7 +36,8 @@ N64_SYM = $(N64_BINDIR)/n64sym
 N64_AUDIOCONV = $(N64_BINDIR)/audioconv64
 
 N64_CFLAGS =  -march=vr4300 -mtune=vr4300 -I$(N64_INCLUDEDIR)
-N64_CFLAGS += -falign-functions=32 -ffunction-sections -fdata-sections -g
+N64_CFLAGS += -falign-functions=32   # NOTE: if you change this, also change backtrace() in backtrace.c
+N64_CFLAGS += -ffunction-sections -fdata-sections -g -ffile-prefix-map=$(CURDIR)=
 N64_CFLAGS += -DN64 -O2 -Wall -Werror -Wno-error=deprecated-declarations -fdiagnostics-color=always
 N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings -I$(N64_INCLUDEDIR)
 N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings -I$(N64_INCLUDEDIR)
