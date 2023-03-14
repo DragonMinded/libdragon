@@ -106,6 +106,9 @@
 #define FLAG_TEXTURE_ACTIVE     (1 << 29)
 #define FLAG_NEED_EYE_SPACE     (1 << 30)
 
+#define FLAG2_USE_RDPQ_MATERIAL  (1 << 0)
+#define FLAG2_USE_RDPQ_TEXTURING (1 << 1)
+
 #define TEX_LEVELS_MASK         0x7
 #define TEX_FLAG_COMPLETE       (1 << 3)
 #define TEX_FLAG_UPLOAD_DIRTY   (1 << 4)

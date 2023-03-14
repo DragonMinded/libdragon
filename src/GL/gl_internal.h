@@ -474,6 +474,7 @@ typedef struct {
     uint16_t blend_dst;
     uint16_t tex_env_mode;
     uint8_t alpha_ref;
+    uint32_t flags2;
 } __attribute__((aligned(8), packed)) gl_server_state_t;
 
 _Static_assert((offsetof(gl_server_state_t, bound_textures) & 0x7) == 0, "Bound textures must be aligned to 8 bytes in server state");
@@ -551,6 +552,11 @@ inline void gl_set_flag_raw(gl_update_func_t update_func, uint32_t offset, uint3
 inline void gl_set_flag(gl_update_func_t update_func, uint32_t flag, bool value)
 {
     gl_set_flag_raw(update_func, offsetof(gl_server_state_t, flags), flag, value);
+}
+
+inline void gl_set_flag_word2(gl_update_func_t update_func, uint32_t flag, bool value)
+{
+    gl_set_flag_raw(update_func, offsetof(gl_server_state_t, flags2), flag, value);
 }
 
 inline void gl_set_byte(gl_update_func_t update_func, uint32_t offset, uint8_t value)
