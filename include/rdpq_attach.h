@@ -30,7 +30,7 @@ extern "C" {
  * both a color buffer and optionally a Z buffer, both of which in terms of
  * surface_t pointers.
  * 
- * For instance, it can be used with framebuffers acquired by calling #display_lock,
+ * For instance, it can be used with framebuffers acquired by calling #display_get,
  * or to render to an offscreen buffer created with #surface_alloc or #surface_make.
  * 
  * This function should be called before any rendering operations to ensure that the RDP
@@ -47,7 +47,7 @@ extern "C" {
  *            The Z-buffer to render to (can be NULL if no Z-buffer is required).
  *            The only supported format is #FMT_RGBA16.
  *            
- * @see #display_lock
+ * @see #display_get
  * @see #surface_alloc
  */
 void rdpq_attach(const surface_t *surf_color, const surface_t *surf_z);
@@ -67,7 +67,7 @@ void rdpq_attach(const surface_t *surf_color, const surface_t *surf_z);
  * @param[in] surf_z
  *            The Z-buffer to render to (can be NULL if no Z-buffer is required).
  *            
- * @see #display_lock
+ * @see #display_get
  * @see #surface_alloc
  * @see #rdpq_clear
  * @see #rdpq_clear_z
@@ -112,7 +112,7 @@ inline void rdpq_clear_z(uint16_t z) {
  * other rdpq function. If you need to ensure that the RDP has finished rendering,
  * either call #rspq_wait afterwards, or use the #rdpq_detach_wait function.
  * 
- * A common use case is detaching from the main framebuffer (obtained via #display_lock),
+ * A common use case is detaching from the main framebuffer (obtained via #display_get),
  * and then displaying it via #display_show. For this case, consider using
  * #rdpq_detach_show which basically schedules the #display_show to happen automatically
  * without blocking the CPU.

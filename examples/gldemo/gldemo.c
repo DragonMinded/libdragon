@@ -155,12 +155,7 @@ void draw_quad()
 
 void render()
 {
-    surface_t *disp;
-    RSP_WAIT_LOOP(200) {
-        if ((disp = display_lock())) {
-            break;
-        }
-    }
+    surface_t *disp = display_get();
 
     rdpq_attach(disp, &zbuffer);
 
@@ -268,6 +263,7 @@ int main()
 
     display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE_FETCH_ALWAYS);
 
+    rdpq_init();
     gl_init();
 
 #if DEBUG_RDP

@@ -445,7 +445,7 @@ static void inspector(exception_t* ex, enum Mode mode) {
             page = (page-1) % PAGE_COUNT;
         }
 
-		while (!(disp = display_lock())) {}
+		disp = display_get();
 
         cursor_x = XSTART;
         cursor_y = YSTART;

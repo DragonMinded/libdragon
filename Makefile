@@ -6,15 +6,17 @@ BUILD_DIR = build
 include n64.mk
 INSTALLDIR = $(N64_INST)
 
+LIBDRAGON_CFLAGS = -I$(CURDIR)/src -I$(CURDIR)/include -ffile-prefix-map=$(CURDIR)=libdragon
+
 # Activate N64 toolchain for libdragon build
 libdragon: CC=$(N64_CC)
 libdragon: CXX=$(N64_CXX)
 libdragon: AS=$(N64_AS)
 libdragon: LD=$(N64_LD)
-libdragon: CFLAGS+=$(N64_CFLAGS) -I$(CURDIR)/src -I$(CURDIR)/include 
-libdragon: CXXFLAGS+=$(N64_CXXFLAGS) -I$(CURDIR)/src -I$(CURDIR)/include 
-libdragon: ASFLAGS+=$(N64_ASFLAGS) -I$(CURDIR)/src -I$(CURDIR)/include
-libdragon: RSPASFLAGS+=$(N64_RSPASFLAGS) -I$(CURDIR)/src -I$(CURDIR)/include
+libdragon: CFLAGS+=$(N64_CFLAGS) $(LIBDRAGON_CFLAGS)
+libdragon: CXXFLAGS+=$(N64_CXXFLAGS) $(LIBDRAGON_CFLAGS)
+libdragon: ASFLAGS+=$(N64_ASFLAGS) $(LIBDRAGON_CFLAGS)
+libdragon: RSPASFLAGS+=$(N64_RSPASFLAGS) $(LIBDRAGON_CFLAGS)
 libdragon: LDFLAGS+=$(N64_LDFLAGS)
 libdragon: libdragon.a libdragonsys.a
 

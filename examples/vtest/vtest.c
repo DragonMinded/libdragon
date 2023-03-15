@@ -62,9 +62,9 @@ display_context_t lockVideo(int wait)
     display_context_t dc;
 
     if (wait)
-        while (!(dc = display_lock()));
+        dc = display_get();
     else
-        dc = display_lock();
+        dc = display_try_get();
     return dc;
 }
 

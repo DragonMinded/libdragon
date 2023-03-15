@@ -13,8 +13,7 @@ int main()
     rdpq_font_t *fnt1 = rdpq_font_load("rom:/Pacifico.font64");
 
     while (1) {
-        surface_t *screen;
-        while (!(screen = display_lock())) {}
+        surface_t *screen = display_get();
 
         rdpq_attach(screen, NULL);
 

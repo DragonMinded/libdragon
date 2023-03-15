@@ -37,8 +37,7 @@
  * a portion of the original surface:
  * 
  * @code{.c}
- *      surface_t *fb;
- *      while (fb = display_lock()) ;  // wait for a framebuffer to be ready
+ *      surface_t *fb = display_get();  // wait for a framebuffer to be ready
  *      
  *      // Attach the RDP to the top 40 rows of the framebuffer
  *      surface_t fbtop = surface_make_sub(fb, 0, 0, 320, 40);
