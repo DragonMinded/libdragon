@@ -536,5 +536,4 @@ extern inline void gl_set_current_texcoords(GLfloat *texcoords);
 extern inline void gl_set_current_normal(GLfloat *normal);
 extern inline void gl_pre_init_pipe(GLenum primitive_mode);
 extern inline void glpipe_init();
-extern inline void glpipe_set_prim_vertex(int idx, GLfloat attribs[ATTRIB_COUNT][4]);
 extern inline void glpipe_draw_triangle(int i0, int i1, int i2);

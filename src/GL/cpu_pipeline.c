@@ -12,72 +12,72 @@ static const float clip_planes[CLIPPING_PLANE_COUNT][4] = {
     { 0, 0, 1, -1 },
 };
 
-void read_u8(GLfloat *dst, const uint8_t *src, uint32_t count)
+static void read_u8(GLfloat *dst, const uint8_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
-void read_i8(GLfloat *dst, const int8_t *src, uint32_t count)
+static void read_i8(GLfloat *dst, const int8_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
-void read_u16(GLfloat *dst, const uint16_t *src, uint32_t count)
+static void read_u16(GLfloat *dst, const uint16_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
-void read_i16(GLfloat *dst, const int16_t *src, uint32_t count)
+static void read_i16(GLfloat *dst, const int16_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
-void read_u32(GLfloat *dst, const uint32_t *src, uint32_t count)
+static void read_u32(GLfloat *dst, const uint32_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
-void read_i32(GLfloat *dst, const int32_t *src, uint32_t count)
+static void read_i32(GLfloat *dst, const int32_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
-void read_u8n(GLfloat *dst, const uint8_t *src, uint32_t count)
+static void read_u8n(GLfloat *dst, const uint8_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = U8_TO_FLOAT(src[i]);
 }
 
-void read_i8n(GLfloat *dst, const int8_t *src, uint32_t count)
+static void read_i8n(GLfloat *dst, const int8_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = I8_TO_FLOAT(src[i]);
 }
 
-void read_u16n(GLfloat *dst, const uint16_t *src, uint32_t count)
+static void read_u16n(GLfloat *dst, const uint16_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = U16_TO_FLOAT(src[i]);
 }
 
-void read_i16n(GLfloat *dst, const int16_t *src, uint32_t count)
+static void read_i16n(GLfloat *dst, const int16_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = I16_TO_FLOAT(src[i]);
 }
 
-void read_u32n(GLfloat *dst, const uint32_t *src, uint32_t count)
+static void read_u32n(GLfloat *dst, const uint32_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = U32_TO_FLOAT(src[i]);
 }
 
-void read_i32n(GLfloat *dst, const int32_t *src, uint32_t count)
+static void read_i32n(GLfloat *dst, const int32_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = I32_TO_FLOAT(src[i]);
 }
 
-void read_f32(GLfloat *dst, const float *src, uint32_t count)
+static void read_f32(GLfloat *dst, const float *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
-void read_f64(GLfloat *dst, const double *src, uint32_t count)
+static void read_f64(GLfloat *dst, const double *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
@@ -125,11 +125,11 @@ const cpu_read_attrib_func cpu_read_funcs[ATTRIB_COUNT][8] = {
     },
 };
 
-void gl_clip_triangle();
-void gl_clip_line();
-void gl_clip_point();
+static void gl_clip_triangle();
+static void gl_clip_line();
+static void gl_clip_point();
 
-void gl_init_cpu_pipe()
+static void gl_init_cpu_pipe()
 {
     gl_texture_object_t *tex_obj = gl_get_active_texture();
     if (tex_obj != NULL && gl_tex_is_complete(tex_obj)) {
@@ -161,17 +161,17 @@ void gl_init_cpu_pipe()
     gl_update_final_matrix();
 }
 
-float dot_product4(const float *a, const float *b)
+static float dot_product4(const float *a, const float *b)
 {
     return a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
 }
 
-float lerp(float a, float b, float t)
+static float lerp(float a, float b, float t)
 {
     return a + (b - a) * t;
 }
 
-uint8_t gl_get_clip_codes(GLfloat *pos, GLfloat *ref)
+static uint8_t gl_get_clip_codes(GLfloat *pos, GLfloat *ref)
 {
     // This corresponds to vcl + vch on RSP
     uint8_t codes = 0;
@@ -186,7 +186,7 @@ uint8_t gl_get_clip_codes(GLfloat *pos, GLfloat *ref)
     return codes;
 }
 
-void gl_vertex_pre_tr(uint8_t cache_index, const GLfloat *attribs)
+static void gl_vertex_pre_tr(uint8_t cache_index, const GLfloat *attribs)
 {
     gl_vtx_t *v = &state.vertex_cache[cache_index];
 
@@ -213,7 +213,7 @@ void gl_vertex_pre_tr(uint8_t cache_index, const GLfloat *attribs)
     v->t_l_applied = false;
 }
 
-void gl_calc_texture_coord(GLfloat *dest, const GLfloat *input, uint32_t coord_index, const gl_tex_gen_t *gen, const GLfloat *obj_pos, const GLfloat *eye_pos, const GLfloat *eye_normal)
+static void gl_calc_texture_coord(GLfloat *dest, const GLfloat *input, uint32_t coord_index, const gl_tex_gen_t *gen, const GLfloat *obj_pos, const GLfloat *eye_pos, const GLfloat *eye_normal)
 {
     if (!gen->enabled) {
         dest[coord_index] = input[coord_index];
@@ -248,7 +248,7 @@ void gl_calc_texture_coord(GLfloat *dest, const GLfloat *input, uint32_t coord_i
     }
 }
 
-void gl_calc_texture_coords(GLfloat *dest, const GLfloat *input, const GLfloat *obj_pos, const GLfloat *eye_pos, const GLfloat *eye_normal)
+static void gl_calc_texture_coords(GLfloat *dest, const GLfloat *input, const GLfloat *obj_pos, const GLfloat *eye_pos, const GLfloat *eye_normal)
 {
     GLfloat tmp[TEX_COORD_COUNT];
 
@@ -261,7 +261,7 @@ void gl_calc_texture_coords(GLfloat *dest, const GLfloat *input, const GLfloat *
     gl_matrix_mult4x2(dest, gl_matrix_stack_get_matrix(&state.texture_stack), tmp);
 }
 
-void gl_vertex_calc_clip_code(gl_vtx_t *v)
+static void gl_vertex_calc_clip_code(gl_vtx_t *v)
 {
     GLfloat clip_ref[] = { 
         v->cs_pos[3] * GUARD_BAND_FACTOR,
@@ -272,7 +272,7 @@ void gl_vertex_calc_clip_code(gl_vtx_t *v)
     v->clip_code = gl_get_clip_codes(v->cs_pos, clip_ref);
 }
 
-void gl_vertex_calc_screenspace(gl_vtx_t *v)
+static void gl_vertex_calc_screenspace(gl_vtx_t *v)
 {
     v->inv_w = v->cs_pos[3] != 0.0f ? 1.0f / v->cs_pos[3] : 0x7FFF;
 
@@ -282,7 +282,7 @@ void gl_vertex_calc_screenspace(gl_vtx_t *v)
     v->depth = v->cs_pos[2] * v->inv_w * state.current_viewport.scale[2] + state.current_viewport.offset[2];
 }
 
-void gl_vertex_t_l(gl_vtx_t *vtx)
+static void gl_vertex_t_l(gl_vtx_t *vtx)
 {
     gl_matrix_t *mv = gl_matrix_stack_get_matrix(&state.modelview_stack);
 
@@ -333,7 +333,7 @@ void gl_vertex_t_l(gl_vtx_t *vtx)
     gl_vertex_calc_clip_code(vtx);
 }
 
-gl_vtx_t * gl_get_screen_vtx(uint8_t cache_index)
+static gl_vtx_t * gl_get_screen_vtx(uint8_t cache_index)
 {
     gl_vtx_t *vtx = &state.vertex_cache[cache_index];
 
@@ -346,7 +346,7 @@ gl_vtx_t * gl_get_screen_vtx(uint8_t cache_index)
     return vtx;
 }
 
-void gl_draw_primitive(const uint8_t *indices)
+static void gl_draw_primitive(const uint8_t *indices)
 {
     uint8_t tr_codes = 0xFF;
     for (uint8_t i = 0; i < state.prim_size; i++)
@@ -397,7 +397,7 @@ void gl_draw_primitive(const uint8_t *indices)
     }
 }
 
-void gl_draw_point(gl_vtx_t *v0)
+static void gl_draw_point(gl_vtx_t *v0)
 {
     GLfloat half_size = state.point_size * 0.5f;
     GLfloat p0[2] = { v0->screen_pos[0] - half_size, v0->screen_pos[1] - half_size };
@@ -421,7 +421,7 @@ void gl_draw_point(gl_vtx_t *v0)
     }
 }
 
-void gl_draw_line(gl_vtx_t *v0, gl_vtx_t *v1)
+static void gl_draw_line(gl_vtx_t *v0, gl_vtx_t *v1)
 {
     GLfloat perp[2] = { v0->screen_pos[1] - v1->screen_pos[1], v1->screen_pos[0] - v0->screen_pos[0] };
     GLfloat mag = sqrtf(perp[0]*perp[0] + perp[1]*perp[1]);
@@ -472,12 +472,12 @@ void gl_draw_line(gl_vtx_t *v0, gl_vtx_t *v1)
     rdpq_triangle(&state.trifmt, (const float*)&line_vertices[1], (const float*)&line_vertices[2], (const float*)&line_vertices[3]);
 }
 
-void gl_draw_triangle(gl_vtx_t *v0, gl_vtx_t *v1, gl_vtx_t *v2)
+static void gl_draw_triangle(gl_vtx_t *v0, gl_vtx_t *v1, gl_vtx_t *v2)
 {
     rdpq_triangle(&state.trifmt, (const float*)v2, (const float*)v0, (const float*)v1);
 }
 
-void gl_cull_triangle(gl_vtx_t *v0, gl_vtx_t *v1, gl_vtx_t *v2)
+static void gl_cull_triangle(gl_vtx_t *v0, gl_vtx_t *v1, gl_vtx_t *v2)
 {
     if (state.cull_face)
     {
@@ -518,7 +518,7 @@ void gl_cull_triangle(gl_vtx_t *v0, gl_vtx_t *v1, gl_vtx_t *v2)
     }
 }
 
-void gl_intersect_line_plane(gl_vtx_t *intersection, const gl_vtx_t *p0, const gl_vtx_t *p1, const float *clip_plane)
+static void gl_intersect_line_plane(gl_vtx_t *intersection, const gl_vtx_t *p0, const gl_vtx_t *p1, const float *clip_plane)
 {
     float d0 = dot_product4(p0->cs_pos, clip_plane);
     float d1 = dot_product4(p1->cs_pos, clip_plane);
@@ -543,7 +543,7 @@ void gl_intersect_line_plane(gl_vtx_t *intersection, const gl_vtx_t *p0, const g
     gl_vertex_calc_clip_code(intersection);
 }
 
-void gl_clip_triangle()
+static void gl_clip_triangle()
 {
     gl_vtx_t *v0 = state.primitive_vertices[0];
     gl_vtx_t *v1 = state.primitive_vertices[1];
@@ -652,7 +652,7 @@ void gl_clip_triangle()
     }
 }
 
-void gl_clip_line()
+static void gl_clip_line()
 {
     gl_vtx_t *v0 = state.primitive_vertices[0];
     gl_vtx_t *v1 = state.primitive_vertices[1];
@@ -690,13 +690,13 @@ void gl_clip_line()
     gl_draw_line(v0, v1);
 }
 
-void gl_clip_point()
+static void gl_clip_point()
 {
     gl_vtx_t *v0 = state.primitive_vertices[0];
     gl_draw_point(v0);
 }
 
-void submit_vertex(uint32_t cache_index)
+static void submit_vertex(uint32_t cache_index)
 {
     uint8_t indices[3];
     if (gl_prim_assembly(cache_index, indices))
@@ -717,12 +717,12 @@ static void draw_vertex_from_arrays(const gl_array_t *arrays, uint32_t id, uint3
     submit_vertex(cache_index);
 }
 
-void gl_cpu_begin()
+static void gl_cpu_begin()
 {
     gl_init_cpu_pipe();
 }
 
-void gl_cpu_end()
+static void gl_cpu_end()
 {
     if (state.primitive_mode == GL_LINE_LOOP) {
         // Close line loop
@@ -731,29 +731,54 @@ void gl_cpu_end()
 
         gl_draw_primitive(state.prim_indices);
     }
+
+    gl_set_current_color(state.current_attribs[ATTRIB_COLOR]);
+    gl_set_current_texcoords(state.current_attribs[ATTRIB_TEXCOORD]);
+    gl_set_current_normal(state.current_attribs[ATTRIB_NORMAL]);
 }
 
-void gl_cpu_vertex(const void *value, GLenum type, uint32_t size)
+void gl_read_attrib(gl_array_type_t array_type, const void *value, GLenum type, uint32_t size)
+{
+    cpu_read_attrib_func read_func = cpu_read_funcs[array_type][gl_type_to_index(type)];
+    read_func(state.current_attribs[array_type], value, size);
+    gl_fill_attrib_defaults(array_type, size);
+}
+
+static void gl_cpu_vertex(const void *value, GLenum type, uint32_t size)
 {
     uint8_t cache_index;
     if (gl_get_cache_index(next_prim_id(), &cache_index)) {
 
         gl_fill_attrib_defaults(ATTRIB_VERTEX, size);
-        cpu_read_attrib_func read_func = cpu_read_funcs[ATTRIB_VERTEX][gl_type_to_index(type)];
-        read_func(state.current_attribs[ATTRIB_VERTEX], value, size);
+        gl_read_attrib(ATTRIB_VERTEX, value, type, size);
         gl_vertex_pre_tr(cache_index, state.current_attribs[ATTRIB_VERTEX]);
     }
 
     submit_vertex(cache_index);
 }
 
-void gl_cpu_array_element(uint32_t index)
+static void gl_cpu_color(const void *value, GLenum type, uint32_t size)
+{
+    gl_read_attrib(ATTRIB_COLOR, value, type, size);
+}
+
+static void gl_cpu_tex_coord(const void *value, GLenum type, uint32_t size)
+{
+    gl_read_attrib(ATTRIB_TEXCOORD, value, type, size);
+}
+
+static void gl_cpu_normal(const void *value, GLenum type, uint32_t size)
+{
+    gl_read_attrib(ATTRIB_NORMAL, value, type, size);
+}
+
+static void gl_cpu_array_element(uint32_t index)
 {
     gl_fill_all_attrib_defaults(state.array_object->arrays);
     draw_vertex_from_arrays(state.array_object->arrays, index, index);
 }
 
-void gl_cpu_draw_arrays(uint32_t first, uint32_t count)
+static void gl_cpu_draw_arrays(uint32_t first, uint32_t count)
 {
     gl_fill_all_attrib_defaults(state.array_object->arrays);
 
@@ -769,7 +794,7 @@ void gl_cpu_draw_arrays(uint32_t first, uint32_t count)
     }
 }
 
-void gl_cpu_draw_elements(uint32_t count, const void* indices, read_index_func read_index)
+static void gl_cpu_draw_elements(uint32_t count, const void* indices, read_index_func read_index)
 {
     gl_fill_all_attrib_defaults(state.array_object->arrays);
 
@@ -790,6 +815,9 @@ const gl_pipeline_t gl_cpu_pipeline = (gl_pipeline_t) {
     .begin = gl_cpu_begin,
     .end = gl_cpu_end,
     .vertex = gl_cpu_vertex,
+    .color = gl_cpu_color,
+    .tex_coord = gl_cpu_tex_coord,
+    .normal = gl_cpu_normal,
     .array_element = gl_cpu_array_element,
     .draw_arrays = gl_cpu_draw_arrays,
     .draw_elements = gl_cpu_draw_elements,

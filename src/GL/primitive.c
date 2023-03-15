@@ -518,6 +518,41 @@ void __gl_vertex(GLenum type, const void *value, uint32_t size)
     state.current_pipeline->vertex(value, type, size);
 }
 
+void __gl_color(GLenum type, const void *value, uint32_t size)
+{
+    if (state.immediate_active) {
+        state.current_pipeline->color(value, type, size);
+    } else {
+        gl_read_attrib(ATTRIB_COLOR, value, type, size);
+        gl_set_current_color(state.current_attribs[ATTRIB_COLOR]);
+    }
+}
+
+void __gl_tex_coord(GLenum type, const void *value, uint32_t size)
+{
+    if (state.immediate_active) {
+        state.current_pipeline->tex_coord(value, type, size);
+    } else {
+        gl_read_attrib(ATTRIB_TEXCOORD, value, type, size);
+        gl_set_current_texcoords(state.current_attribs[ATTRIB_TEXCOORD]);
+    }
+}
+
+void __gl_normal(GLenum type, const void *value, uint32_t size)
+{
+    if (state.immediate_active) {
+        state.current_pipeline->normal(value, type, size);
+    } else {
+        gl_read_attrib(ATTRIB_NORMAL, value, type, size);
+        gl_set_current_normal(state.current_attribs[ATTRIB_NORMAL]);
+    }
+}
+
+#define __ATTR_IMPL(func, argtype, enumtype, ...) ({\
+    argtype tmp[] = { __VA_ARGS__ }; \
+    func(enumtype, tmp, __COUNT_VARARGS(__VA_ARGS__)); \
+})
+
 void glVertex2sv(const GLshort *v)  { __gl_vertex(GL_FLOAT,   v, 2); }
 void glVertex2iv(const GLint *v)    { __gl_vertex(GL_SHORT,   v, 2); }
 void glVertex2fv(const GLfloat *v)  { __gl_vertex(GL_INT,     v, 2); }
@@ -533,140 +568,108 @@ void glVertex4iv(const GLint *v)    { __gl_vertex(GL_SHORT,   v, 4); }
 void glVertex4fv(const GLfloat *v)  { __gl_vertex(GL_INT,     v, 4); }
 void glVertex4dv(const GLdouble *v) { __gl_vertex(GL_DOUBLE,  v, 4); }
 
-#define VERTEX_IMPL(argtype, enumtype, ...) ({\
-    extern void __gl_vertex(GLenum, const void*, uint32_t); \
-    argtype tmp[] = { __VA_ARGS__ }; \
-    __gl_vertex(enumtype, tmp, __COUNT_VARARGS(__VA_ARGS__)); \
-})
+void glVertex2s(GLshort x, GLshort y)                           { __ATTR_IMPL(__gl_vertex, GLshort,  GL_SHORT,   x, y); }
+void glVertex2i(GLint x, GLint y)                               { __ATTR_IMPL(__gl_vertex, GLint,    GL_INT,     x, y); }
+void glVertex2f(GLfloat x, GLfloat y)                           { __ATTR_IMPL(__gl_vertex, GLfloat,  GL_FLOAT,   x, y); }
+void glVertex2d(GLdouble x, GLdouble y)                         { __ATTR_IMPL(__gl_vertex, GLdouble, GL_DOUBLE,  x, y); }
 
-void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)     { VERTEX_IMPL(GLfloat,  GL_FLOAT,   x, y, z, w); }
-void glVertex4s(GLshort x, GLshort y, GLshort z, GLshort w)     { VERTEX_IMPL(GLshort,  GL_SHORT,   x, y, z, w); }
-void glVertex4i(GLint x, GLint y, GLint z, GLint w)             { VERTEX_IMPL(GLint,    GL_INT,     x, y, z, w); }
-void glVertex4d(GLdouble x, GLdouble y, GLdouble z, GLdouble w) { VERTEX_IMPL(GLdouble, GL_DOUBLE,  x, y, z, w); }
+void glVertex3s(GLshort x, GLshort y, GLshort z)                { __ATTR_IMPL(__gl_vertex, GLshort,  GL_SHORT,   x, y, z); }
+void glVertex3i(GLint x, GLint y, GLint z)                      { __ATTR_IMPL(__gl_vertex, GLint,    GL_INT,     x, y, z); }
+void glVertex3f(GLfloat x, GLfloat y, GLfloat z)                { __ATTR_IMPL(__gl_vertex, GLfloat,  GL_FLOAT,   x, y, z); }
+void glVertex3d(GLdouble x, GLdouble y, GLdouble z)             { __ATTR_IMPL(__gl_vertex, GLdouble, GL_DOUBLE,  x, y, z); }
 
-void glVertex3f(GLfloat x, GLfloat y, GLfloat z)                { VERTEX_IMPL(GLfloat,  GL_FLOAT,   x, y, z); }
-void glVertex3s(GLshort x, GLshort y, GLshort z)                { VERTEX_IMPL(GLshort,  GL_SHORT,   x, y, z); }
-void glVertex3i(GLint x, GLint y, GLint z)                      { VERTEX_IMPL(GLint,    GL_INT,     x, y, z); }
-void glVertex3d(GLdouble x, GLdouble y, GLdouble z)             { VERTEX_IMPL(GLdouble, GL_DOUBLE,  x, y, z); }
+void glVertex4s(GLshort x, GLshort y, GLshort z, GLshort w)     { __ATTR_IMPL(__gl_vertex, GLshort,  GL_SHORT,   x, y, z, w); }
+void glVertex4i(GLint x, GLint y, GLint z, GLint w)             { __ATTR_IMPL(__gl_vertex, GLint,    GL_INT,     x, y, z, w); }
+void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)     { __ATTR_IMPL(__gl_vertex, GLfloat,  GL_FLOAT,   x, y, z, w); }
+void glVertex4d(GLdouble x, GLdouble y, GLdouble z, GLdouble w) { __ATTR_IMPL(__gl_vertex, GLdouble, GL_DOUBLE,  x, y, z, w); }
 
-void glVertex2f(GLfloat x, GLfloat y)                           { VERTEX_IMPL(GLfloat,  GL_FLOAT,   x, y); }
-void glVertex2s(GLshort x, GLshort y)                           { VERTEX_IMPL(GLshort,  GL_SHORT,   x, y); }
-void glVertex2i(GLint x, GLint y)                               { VERTEX_IMPL(GLint,    GL_INT,     x, y); }
-void glVertex2d(GLdouble x, GLdouble y)                         { VERTEX_IMPL(GLdouble, GL_DOUBLE,  x, y); }
+void glColor3bv(const GLbyte *v)    { __gl_color(GL_BYTE,           v, 3); }
+void glColor3sv(const GLshort *v)   { __gl_color(GL_SHORT,          v, 3); }
+void glColor3iv(const GLint *v)     { __gl_color(GL_INT,            v, 3); }
+void glColor3fv(const GLfloat *v)   { __gl_color(GL_FLOAT,          v, 3); }
+void glColor3dv(const GLdouble *v)  { __gl_color(GL_DOUBLE,         v, 3); }
+void glColor3ubv(const GLubyte *v)  { __gl_color(GL_UNSIGNED_BYTE,  v, 3); }
+void glColor3usv(const GLushort *v) { __gl_color(GL_UNSIGNED_SHORT, v, 3); }
+void glColor3uiv(const GLuint *v)   { __gl_color(GL_UNSIGNED_INT,   v, 3); }
 
-void glColor4f(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
-{
-    state.current_attribs[ATTRIB_COLOR][0] = r;
-    state.current_attribs[ATTRIB_COLOR][1] = g;
-    state.current_attribs[ATTRIB_COLOR][2] = b;
-    state.current_attribs[ATTRIB_COLOR][3] = a;
+void glColor4bv(const GLbyte *v)    { __gl_color(GL_BYTE,           v, 4); }
+void glColor4sv(const GLshort *v)   { __gl_color(GL_SHORT,          v, 4); }
+void glColor4iv(const GLint *v)     { __gl_color(GL_INT,            v, 4); }
+void glColor4fv(const GLfloat *v)   { __gl_color(GL_FLOAT,          v, 4); }
+void glColor4dv(const GLdouble *v)  { __gl_color(GL_DOUBLE,         v, 4); }
+void glColor4ubv(const GLubyte *v)  { __gl_color(GL_UNSIGNED_BYTE,  v, 4); }
+void glColor4usv(const GLushort *v) { __gl_color(GL_UNSIGNED_SHORT, v, 4); }
+void glColor4uiv(const GLuint *v)   { __gl_color(GL_UNSIGNED_INT,   v, 4); }
 
-    gl_set_current_color(state.current_attribs[ATTRIB_COLOR]);
-}
+void glColor3b(GLbyte r, GLbyte g, GLbyte b)                    { __ATTR_IMPL(__gl_color, GLbyte,   GL_BYTE,            r, g, b); }
+void glColor3s(GLshort r, GLshort g, GLshort b)                 { __ATTR_IMPL(__gl_color, GLshort,  GL_SHORT,           r, g, b); }
+void glColor3i(GLint r, GLint g, GLint b)                       { __ATTR_IMPL(__gl_color, GLint,    GL_INT,             r, g, b); }
+void glColor3f(GLfloat r, GLfloat g, GLfloat b)                 { __ATTR_IMPL(__gl_color, GLfloat,  GL_FLOAT,           r, g, b); }
+void glColor3d(GLdouble r, GLdouble g, GLdouble b)              { __ATTR_IMPL(__gl_color, GLdouble, GL_DOUBLE,          r, g, b); }
+void glColor3ub(GLubyte r, GLubyte g, GLubyte b)                { __ATTR_IMPL(__gl_color, GLubyte,  GL_UNSIGNED_BYTE,   r, g, b); }
+void glColor3us(GLushort r, GLushort g, GLushort b)             { __ATTR_IMPL(__gl_color, GLushort, GL_UNSIGNED_SHORT,  r, g, b); }
+void glColor3ui(GLuint r, GLuint g, GLuint b)                   { __ATTR_IMPL(__gl_color, GLuint,   GL_UNSIGNED_INT,    r, g, b); }
 
-void glColor4d(GLdouble r, GLdouble g, GLdouble b, GLdouble a)  { glColor4f(r, g, b, a); }
-void glColor4b(GLbyte r, GLbyte g, GLbyte b, GLbyte a)          { glColor4f(I8_TO_FLOAT(r), I8_TO_FLOAT(g), I8_TO_FLOAT(b), I8_TO_FLOAT(a)); }
-void glColor4s(GLshort r, GLshort g, GLshort b, GLshort a)      { glColor4f(I16_TO_FLOAT(r), I16_TO_FLOAT(g), I16_TO_FLOAT(b), I16_TO_FLOAT(a)); }
-void glColor4i(GLint r, GLint g, GLint b, GLint a)              { glColor4f(I32_TO_FLOAT(r), I32_TO_FLOAT(g), I32_TO_FLOAT(b), I32_TO_FLOAT(a)); }
-void glColor4ub(GLubyte r, GLubyte g, GLubyte b, GLubyte a)     { glColor4f(U8_TO_FLOAT(r), U8_TO_FLOAT(g), U8_TO_FLOAT(b), U8_TO_FLOAT(a)); }
-void glColor4us(GLushort r, GLushort g, GLushort b, GLushort a) { glColor4f(U16_TO_FLOAT(r), U16_TO_FLOAT(g), U16_TO_FLOAT(b), U16_TO_FLOAT(a)); }
-void glColor4ui(GLuint r, GLuint g, GLuint b, GLuint a)         { glColor4f(U32_TO_FLOAT(r), U32_TO_FLOAT(g), U32_TO_FLOAT(b), U32_TO_FLOAT(a)); }
+void glColor4b(GLbyte r, GLbyte g, GLbyte b, GLbyte a)          { __ATTR_IMPL(__gl_color, GLbyte,   GL_BYTE,            r, g, b, a); }
+void glColor4s(GLshort r, GLshort g, GLshort b, GLshort a)      { __ATTR_IMPL(__gl_color, GLshort,  GL_SHORT,           r, g, b, a); }
+void glColor4i(GLint r, GLint g, GLint b, GLint a)              { __ATTR_IMPL(__gl_color, GLint,    GL_INT,             r, g, b, a); }
+void glColor4f(GLfloat r, GLfloat g, GLfloat b, GLfloat a)      { __ATTR_IMPL(__gl_color, GLfloat,  GL_FLOAT,           r, g, b, a); }
+void glColor4d(GLdouble r, GLdouble g, GLdouble b, GLdouble a)  { __ATTR_IMPL(__gl_color, GLdouble, GL_DOUBLE,          r, g, b, a); }
+void glColor4ub(GLubyte r, GLubyte g, GLubyte b, GLubyte a)     { __ATTR_IMPL(__gl_color, GLubyte,  GL_UNSIGNED_BYTE,   r, g, b, a); }
+void glColor4us(GLushort r, GLushort g, GLushort b, GLushort a) { __ATTR_IMPL(__gl_color, GLushort, GL_UNSIGNED_SHORT,  r, g, b, a); }
+void glColor4ui(GLuint r, GLuint g, GLuint b, GLuint a)         { __ATTR_IMPL(__gl_color, GLuint,   GL_UNSIGNED_INT,    r, g, b, a); }
 
-void glColor3f(GLfloat r, GLfloat g, GLfloat b)     { glColor4f(r, g, b, 1.f); }
-void glColor3d(GLdouble r, GLdouble g, GLdouble b)  { glColor3f(r, g, b); }
-void glColor3b(GLbyte r, GLbyte g, GLbyte b)        { glColor3f(I8_TO_FLOAT(r), I8_TO_FLOAT(g), I8_TO_FLOAT(b)); }
-void glColor3s(GLshort r, GLshort g, GLshort b)     { glColor3f(I16_TO_FLOAT(r), I16_TO_FLOAT(g), I16_TO_FLOAT(b)); }
-void glColor3i(GLint r, GLint g, GLint b)           { glColor3f(I32_TO_FLOAT(r), I32_TO_FLOAT(g), I32_TO_FLOAT(b)); }
-void glColor3ub(GLubyte r, GLubyte g, GLubyte b)    { glColor3f(U8_TO_FLOAT(r), U8_TO_FLOAT(g), U8_TO_FLOAT(b)); }
-void glColor3us(GLushort r, GLushort g, GLushort b) { glColor3f(U16_TO_FLOAT(r), U16_TO_FLOAT(g), U16_TO_FLOAT(b)); }
-void glColor3ui(GLuint r, GLuint g, GLuint b)       { glColor3f(U32_TO_FLOAT(r), U32_TO_FLOAT(g), U32_TO_FLOAT(b)); }
+void glTexCoord1sv(const GLshort *v)    { __gl_tex_coord(GL_SHORT,  v, 1); }
+void glTexCoord1iv(const GLint *v)      { __gl_tex_coord(GL_INT,    v, 1); }
+void glTexCoord1fv(const GLfloat *v)    { __gl_tex_coord(GL_FLOAT,  v, 1); }
+void glTexCoord1dv(const GLdouble *v)   { __gl_tex_coord(GL_DOUBLE, v, 1); }
 
-void glColor3bv(const GLbyte *v)    { glColor3b(v[0], v[1], v[2]); }
-void glColor3sv(const GLshort *v)   { glColor3s(v[0], v[1], v[2]); }
-void glColor3iv(const GLint *v)     { glColor3i(v[0], v[1], v[2]); }
-void glColor3fv(const GLfloat *v)   { glColor3f(v[0], v[1], v[2]); }
-void glColor3dv(const GLdouble *v)  { glColor3d(v[0], v[1], v[2]); }
-void glColor3ubv(const GLubyte *v)  { glColor3ub(v[0], v[1], v[2]); }
-void glColor3usv(const GLushort *v) { glColor3us(v[0], v[1], v[2]); }
-void glColor3uiv(const GLuint *v)   { glColor3ui(v[0], v[1], v[2]); }
+void glTexCoord2sv(const GLshort *v)    { __gl_tex_coord(GL_SHORT,  v, 2); }
+void glTexCoord2iv(const GLint *v)      { __gl_tex_coord(GL_INT,    v, 2); }
+void glTexCoord2fv(const GLfloat *v)    { __gl_tex_coord(GL_FLOAT,  v, 2); }
+void glTexCoord2dv(const GLdouble *v)   { __gl_tex_coord(GL_DOUBLE, v, 2); }
 
-void glColor4bv(const GLbyte *v)    { glColor4b(v[0], v[1], v[2], v[3]); }
-void glColor4sv(const GLshort *v)   { glColor4s(v[0], v[1], v[2], v[3]); }
-void glColor4iv(const GLint *v)     { glColor4i(v[0], v[1], v[2], v[3]); }
-void glColor4fv(const GLfloat *v)   { glColor4f(v[0], v[1], v[2], v[3]); }
-void glColor4dv(const GLdouble *v)  { glColor4d(v[0], v[1], v[2], v[3]); }
-void glColor4ubv(const GLubyte *v)  { glColor4ub(v[0], v[1], v[2], v[3]); }
-void glColor4usv(const GLushort *v) { glColor4us(v[0], v[1], v[2], v[3]); }
-void glColor4uiv(const GLuint *v)   { glColor4ui(v[0], v[1], v[2], v[3]); }
+void glTexCoord3sv(const GLshort *v)    { __gl_tex_coord(GL_SHORT,  v, 3); }
+void glTexCoord3iv(const GLint *v)      { __gl_tex_coord(GL_INT,    v, 3); }
+void glTexCoord3fv(const GLfloat *v)    { __gl_tex_coord(GL_FLOAT,  v, 3); }
+void glTexCoord3dv(const GLdouble *v)   { __gl_tex_coord(GL_DOUBLE, v, 3); }
 
-void glTexCoord4f(GLfloat s, GLfloat t, GLfloat r, GLfloat q)
-{
-    state.current_attribs[ATTRIB_TEXCOORD][0] = s;
-    state.current_attribs[ATTRIB_TEXCOORD][1] = t;
-    state.current_attribs[ATTRIB_TEXCOORD][2] = r;
-    state.current_attribs[ATTRIB_TEXCOORD][3] = q;
+void glTexCoord4sv(const GLshort *v)    { __gl_tex_coord(GL_SHORT,  v, 4); }
+void glTexCoord4iv(const GLint *v)      { __gl_tex_coord(GL_INT,    v, 4); }
+void glTexCoord4fv(const GLfloat *v)    { __gl_tex_coord(GL_FLOAT,  v, 4); }
+void glTexCoord4dv(const GLdouble *v)   { __gl_tex_coord(GL_DOUBLE, v, 4); }
 
-    gl_set_current_texcoords(state.current_attribs[ATTRIB_TEXCOORD]);
-}
+void glTexCoord1s(GLshort s)                                        { __ATTR_IMPL(__gl_tex_coord, GLshort,  GL_SHORT,   s); }
+void glTexCoord1i(GLint s)                                          { __ATTR_IMPL(__gl_tex_coord, GLint,    GL_INT,     s); }
+void glTexCoord1f(GLfloat s)                                        { __ATTR_IMPL(__gl_tex_coord, GLfloat,  GL_FLOAT,   s); }
+void glTexCoord1d(GLdouble s)                                       { __ATTR_IMPL(__gl_tex_coord, GLdouble, GL_DOUBLE,  s); }
 
-void glTexCoord4s(GLshort s, GLshort t, GLshort r, GLshort q)       { glTexCoord4f(s, t, r, q); }
-void glTexCoord4i(GLint s, GLint t, GLint r, GLint q)               { glTexCoord4f(s, t, r, q); }
-void glTexCoord4d(GLdouble s, GLdouble t, GLdouble r, GLdouble q)   { glTexCoord4f(s, t, r, q); }
+void glTexCoord2s(GLshort s, GLshort t)                             { __ATTR_IMPL(__gl_tex_coord, GLshort,  GL_SHORT,   s, t); }
+void glTexCoord2i(GLint s, GLint t)                                 { __ATTR_IMPL(__gl_tex_coord, GLint,    GL_INT,     s, t); }
+void glTexCoord2f(GLfloat s, GLfloat t)                             { __ATTR_IMPL(__gl_tex_coord, GLfloat,  GL_FLOAT,   s, t); }
+void glTexCoord2d(GLdouble s, GLdouble t)                           { __ATTR_IMPL(__gl_tex_coord, GLdouble, GL_DOUBLE,  s, t); }
 
-void glTexCoord3f(GLfloat s, GLfloat t, GLfloat r)      { glTexCoord4f(s, t, r, 1.0f); }
-void glTexCoord3s(GLshort s, GLshort t, GLshort r)      { glTexCoord3f(s, t, r); }
-void glTexCoord3i(GLint s, GLint t, GLint r)            { glTexCoord3f(s, t, r); }
-void glTexCoord3d(GLdouble s, GLdouble t, GLdouble r)   { glTexCoord3f(s, t, r); }
+void glTexCoord3s(GLshort s, GLshort t, GLshort r)                  { __ATTR_IMPL(__gl_tex_coord, GLshort,  GL_SHORT,   s, t, r); }
+void glTexCoord3i(GLint s, GLint t, GLint r)                        { __ATTR_IMPL(__gl_tex_coord, GLint,    GL_INT,     s, t, r); }
+void glTexCoord3f(GLfloat s, GLfloat t, GLfloat r)                  { __ATTR_IMPL(__gl_tex_coord, GLfloat,  GL_FLOAT,   s, t, r); }
+void glTexCoord3d(GLdouble s, GLdouble t, GLdouble r)               { __ATTR_IMPL(__gl_tex_coord, GLdouble, GL_DOUBLE,  s, t, r); }
 
-void glTexCoord2f(GLfloat s, GLfloat t)     { glTexCoord4f(s, t, 0.0f, 1.0f); }
-void glTexCoord2s(GLshort s, GLshort t)     { glTexCoord2f(s, t); }
-void glTexCoord2i(GLint s, GLint t)         { glTexCoord2f(s, t); }
-void glTexCoord2d(GLdouble s, GLdouble t)   { glTexCoord2f(s, t); }
+void glTexCoord4s(GLshort s, GLshort t, GLshort r, GLshort q)       { __ATTR_IMPL(__gl_tex_coord, GLshort,  GL_SHORT,   s, t, r, q); }
+void glTexCoord4i(GLint s, GLint t, GLint r, GLint q)               { __ATTR_IMPL(__gl_tex_coord, GLint,    GL_INT,     s, t, r, q); }
+void glTexCoord4f(GLfloat s, GLfloat t, GLfloat r, GLfloat q)       { __ATTR_IMPL(__gl_tex_coord, GLfloat,  GL_FLOAT,   s, t, r, q); }
+void glTexCoord4d(GLdouble s, GLdouble t, GLdouble r, GLdouble q)   { __ATTR_IMPL(__gl_tex_coord, GLdouble, GL_DOUBLE,  s, t, r, q); }
 
-void glTexCoord1f(GLfloat s)    { glTexCoord4f(s, 0.0f, 0.0f, 1.0f); }
-void glTexCoord1s(GLshort s)    { glTexCoord1f(s); }
-void glTexCoord1i(GLint s)      { glTexCoord1f(s); }
-void glTexCoord1d(GLdouble s)   { glTexCoord1f(s); }
+void glNormal3bv(const GLbyte *v)   { __gl_normal(GL_BYTE,      v, 3); }
+void glNormal3sv(const GLshort *v)  { __gl_normal(GL_SHORT,     v, 3); }
+void glNormal3iv(const GLint *v)    { __gl_normal(GL_INT,       v, 3); }
+void glNormal3fv(const GLfloat *v)  { __gl_normal(GL_FLOAT,     v, 3); }
+void glNormal3dv(const GLdouble *v) { __gl_normal(GL_DOUBLE,    v, 3); }
 
-void glTexCoord1sv(const GLshort *v)    { glTexCoord1s(v[0]); }
-void glTexCoord1iv(const GLint *v)      { glTexCoord1i(v[0]); }
-void glTexCoord1fv(const GLfloat *v)    { glTexCoord1f(v[0]); }
-void glTexCoord1dv(const GLdouble *v)   { glTexCoord1d(v[0]); }
-
-void glTexCoord2sv(const GLshort *v)    { glTexCoord2s(v[0], v[1]); }
-void glTexCoord2iv(const GLint *v)      { glTexCoord2i(v[0], v[1]); }
-void glTexCoord2fv(const GLfloat *v)    { glTexCoord2f(v[0], v[1]); }
-void glTexCoord2dv(const GLdouble *v)   { glTexCoord2d(v[0], v[1]); }
-
-void glTexCoord3sv(const GLshort *v)    { glTexCoord3s(v[0], v[1], v[2]); }
-void glTexCoord3iv(const GLint *v)      { glTexCoord3i(v[0], v[1], v[2]); }
-void glTexCoord3fv(const GLfloat *v)    { glTexCoord3f(v[0], v[1], v[2]); }
-void glTexCoord3dv(const GLdouble *v)   { glTexCoord3d(v[0], v[1], v[2]); }
-
-void glTexCoord4sv(const GLshort *v)    { glTexCoord4s(v[0], v[1], v[2], v[3]); }
-void glTexCoord4iv(const GLint *v)      { glTexCoord4i(v[0], v[1], v[2], v[3]); }
-void glTexCoord4fv(const GLfloat *v)    { glTexCoord4f(v[0], v[1], v[2], v[3]); }
-void glTexCoord4dv(const GLdouble *v)   { glTexCoord4d(v[0], v[1], v[2], v[3]); }
-
-void glNormal3f(GLfloat nx, GLfloat ny, GLfloat nz)
-{
-    state.current_attribs[ATTRIB_NORMAL][0] = nx;
-    state.current_attribs[ATTRIB_NORMAL][1] = ny;
-    state.current_attribs[ATTRIB_NORMAL][2] = nz;
-
-    gl_set_current_normal(state.current_attribs[ATTRIB_NORMAL]);
-}
-
-void glNormal3b(GLbyte nx, GLbyte ny, GLbyte nz)        { glNormal3f(I8_TO_FLOAT(nx), I8_TO_FLOAT(ny), I8_TO_FLOAT(nz)); }
-void glNormal3s(GLshort nx, GLshort ny, GLshort nz)     { glNormal3f(I16_TO_FLOAT(nx), I16_TO_FLOAT(ny), I16_TO_FLOAT(nz)); }
-void glNormal3i(GLint nx, GLint ny, GLint nz)           { glNormal3f(I32_TO_FLOAT(nx), I32_TO_FLOAT(ny), I32_TO_FLOAT(nz)); }
-void glNormal3d(GLdouble nx, GLdouble ny, GLdouble nz)  { glNormal3f(nx, ny, nz); }
-
-void glNormal3bv(const GLbyte *v)   { glNormal3b(v[0], v[1], v[2]); }
-void glNormal3sv(const GLshort *v)  { glNormal3s(v[0], v[1], v[2]); }
-void glNormal3iv(const GLint *v)    { glNormal3i(v[0], v[1], v[2]); }
-void glNormal3fv(const GLfloat *v)  { glNormal3f(v[0], v[1], v[2]); }
-void glNormal3dv(const GLdouble *v) { glNormal3d(v[0], v[1], v[2]); }
+void glNormal3b(GLbyte nx, GLbyte ny, GLbyte nz)        { __ATTR_IMPL(__gl_normal, GLbyte,      GL_BYTE,    nx, ny, nz); }
+void glNormal3s(GLshort nx, GLshort ny, GLshort nz)     { __ATTR_IMPL(__gl_normal, GLshort,     GL_SHORT,   nx, ny, nz); }
+void glNormal3i(GLint nx, GLint ny, GLint nz)           { __ATTR_IMPL(__gl_normal, GLint,       GL_INT,     nx, ny, nz); }
+void glNormal3f(GLfloat nx, GLfloat ny, GLfloat nz)     { __ATTR_IMPL(__gl_normal, GLfloat,     GL_FLOAT,   nx, ny, nz); }
+void glNormal3d(GLdouble nx, GLdouble ny, GLdouble nz)  { __ATTR_IMPL(__gl_normal, GLdouble,    GL_DOUBLE,  nx, ny, nz); }
 
 void glPointSize(GLfloat size)
 {

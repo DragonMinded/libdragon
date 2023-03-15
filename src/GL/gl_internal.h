@@ -60,7 +60,7 @@ extern uint32_t gl_rsp_state;
 #define gl_write(cmd_id, ...)  rspq_write(gl_overlay_id, cmd_id, ##__VA_ARGS__)
 #define glp_write(cmd_id, ...) rspq_write(glp_overlay_id, cmd_id, ##__VA_ARGS__)
 
-enum {
+typedef enum {
     GL_CMD_SET_FLAG         = 0x0,
     GL_CMD_SET_BYTE         = 0x1,
     GL_CMD_SET_SHORT        = 0x2,
@@ -75,13 +75,17 @@ enum {
     GL_CMD_MATRIX_POP       = 0xB,
     GL_CMD_MATRIX_LOAD      = 0xC,
     GL_CMD_PRE_INIT_PIPE    = 0xD,
-};
+} gl_command_t;
 
-enum {
-    GLP_CMD_INIT_PIPE      = 0x00,
-    GLP_CMD_DRAW_TRI       = 0x01,
-    GLP_CMD_SET_PRIM_VTX   = 0x02,
-};
+typedef enum {
+    GLP_CMD_INIT_PIPE           = 0x0,
+    GLP_CMD_SET_VTX_LOADER      = 0x1,
+    GLP_CMD_SET_VTX_CMD_SIZE    = 0x2,
+    GLP_CMD_DRAW_TRI            = 0x3,
+    GLP_CMD_SET_PRIM_VTX        = 0x4,
+    GLP_CMD_SET_WORD            = 0x5,
+    GLP_CMD_SET_LONG            = 0x6,
+} glp_command_t;
 
 typedef enum {
     GL_UPDATE_NONE                  = 0x0,
@@ -310,6 +314,9 @@ typedef struct {
     void (*begin)();
     void (*end)();
     void (*vertex)(const void*,GLenum,uint32_t);
+    void (*color)(const void*,GLenum,uint32_t);
+    void (*tex_coord)(const void*,GLenum,uint32_t);
+    void (*normal)(const void*,GLenum,uint32_t);
     void (*array_element)(uint32_t);
     void (*draw_arrays)(uint32_t,uint32_t);
     void (*draw_elements)(uint32_t,const void*,read_index_func);
@@ -546,6 +553,19 @@ void gl_fill_all_attrib_defaults(const gl_array_t *arrays);
 void gl_load_attribs(const gl_array_t *arrays, uint32_t index);
 bool gl_get_cache_index(uint32_t vertex_id, uint8_t *cache_index);
 bool gl_prim_assembly(uint8_t cache_index, uint8_t *indices);
+void gl_read_attrib(gl_array_type_t array_type, const void *value, GLenum type, uint32_t size);
+
+inline uint32_t next_pow2(uint32_t v)
+{
+    v--;
+    v |= v >> 1;
+    v |= v >> 2;
+    v |= v >> 4;
+    v |= v >> 8;
+    v |= v >> 16;
+    v++;
+    return v;
+}
 
 inline uint32_t gl_type_to_index(GLenum type)
 {
@@ -714,29 +734,14 @@ inline void glpipe_init()
     glp_write(GLP_CMD_INIT_PIPE, gl_rsp_state);
 }
 
+inline void glpipe_set_vtx_cmd_size(uint16_t patched_cmd_descriptor, uint16_t *cmd_descriptor)
+{
+    glp_write(GLP_CMD_SET_VTX_CMD_SIZE, patched_cmd_descriptor, PhysicalAddr(cmd_descriptor));
+}
+
 #define PRIM_VTX_SIZE   44
 #define TEX_SCALE   32.0f
 #define OBJ_SCALE   32.0f
-
-inline void glpipe_set_prim_vertex(int idx, GLfloat attribs[ATTRIB_COUNT][4])
-{
-    #define fx16(v)  ((uint32_t)((int32_t)((v))) & 0xFFFF)
-
-    uint32_t normal = (((uint32_t)(attribs[ATTRIB_NORMAL][0]*127.0f) & 0xFF) << 24) |
-                      (((uint32_t)(attribs[ATTRIB_NORMAL][1]*127.0f) & 0xFF) << 16) |
-                      (((uint32_t)(attribs[ATTRIB_NORMAL][2]*127.0f) & 0xFF) <<  8);
-
-    glp_write(
-        GLP_CMD_SET_PRIM_VTX, (idx*PRIM_VTX_SIZE), 
-        (fx16(attribs[ATTRIB_VERTEX][0]*OBJ_SCALE) << 16) | fx16(attribs[ATTRIB_VERTEX][1]*OBJ_SCALE),
-        (fx16(attribs[ATTRIB_VERTEX][2]*OBJ_SCALE) << 16) | fx16(attribs[ATTRIB_VERTEX][3]*OBJ_SCALE),
-        (fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][0])) << 16) | fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][1])),
-        (fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][2])) << 16) | fx16(FLOAT_TO_I16(attribs[ATTRIB_COLOR][3])),
-        (fx16(attribs[ATTRIB_TEXCOORD][0]*TEX_SCALE) << 16) | fx16(attribs[ATTRIB_TEXCOORD][1]*TEX_SCALE),
-        (fx16(attribs[ATTRIB_TEXCOORD][2]*TEX_SCALE) << 16) | fx16(attribs[ATTRIB_TEXCOORD][3]*TEX_SCALE),
-        normal
-    );
-}
 
 inline void glpipe_draw_triangle(int i0, int i1, int i2)
 {
