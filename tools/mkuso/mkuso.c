@@ -965,11 +965,16 @@ int main(int argc, char *argv[])
                     return 1;
 				}
 				if(externs_outfile) {
-					//Complain if externs output file is already open
+					//Complain if linker extern list file is already open
 					fprintf(stderr, "Multiple --externs arguments are disallowed\n");
 					return 1;
 				}
 				externs_outfile = fopen(argv[i], "w");
+				if(!externs_outfile) {
+					//Complain if linker extern list fails to open
+					fprintf(stderr, "cannot open file: %s\n", argv[i]);
+					return 1;
+				}
 			} else if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--compress")) {
 				//Set up for compression
 				compression = true;
