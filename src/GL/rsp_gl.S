@@ -454,7 +454,7 @@ GLCmd_PreInitPipe:
     sh a0, %lo(GL_STATE_PRIM_TYPE)
 
     #define state_flags k1
-    #define state_flags2 s7
+    #define state_flags2 k0
 
     lw state_flags, %lo(GL_STATE_FLAGS)
     lw state_flags2, %lo(GL_STATE_FLAGS2)
