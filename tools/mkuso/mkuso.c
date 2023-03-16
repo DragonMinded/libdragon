@@ -361,7 +361,8 @@ void elf_sym_collect_uso(elf_info_t *elf_info)
             arrpush(elf_info->uso_ext_syms, sym);
         } else {
             //Only add default visibility symbols to export
-            if(visibility == STV_DEFAULT) {
+            //But also export __dso_handle
+            if(!strcmp(sym->name, "__dso_handle") && visibility == STV_DEFAULT) {
                 arrpush(elf_info->uso_syms, sym);
             }
         }
@@ -874,6 +875,8 @@ void uso_write_module(uso_module_t *module, FILE *out)
     file_module.ext_syms.data_ofs = uso_write_syms(module->syms.data, module->syms.length, file_module.syms.data_ofs, out);
     file_module.ext_syms.data_ofs = ROUND_UP(file_module.ext_syms.data_ofs, 4);
     uso_write_syms(module->ext_syms.data, module->ext_syms.length, file_module.ext_syms.data_ofs, out);
+    file_module.syms.data_ofs -= offsetof(uso_file_module_t, syms);
+    file_module.ext_syms.data_ofs -= offsetof(uso_file_module_t, ext_syms);
     uso_write_file_module(&file_module, 0, out); //Update header
     //Write load info
     uso_init_module_load_info(module, &load_info);

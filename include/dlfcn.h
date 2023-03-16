@@ -37,20 +37,20 @@ extern "C" {
 /**
  * @brief Open dynamic library
  * 
- * @param path      Path to dynamic library
+ * @param filename  Path to dynamic library
  * @param flags     Flags for loading dynamic library
  * @return void *   Handle for loaded dynamic library
  */
-void *dlopen(const char *path, int flags);
+void *dlopen(const char *filename, int flags);
 
 /**
  * @brief Grab symbol from loaded dynamic library
  * 
  * @param handle    Dynamic library handle to search symbol from
- * @param name      Name of symbol to search for
+ * @param symbol    Name of symbol to search for
  * @return void*    Pointer to symbol
  */
-void *dlsym(void *handle, const char *name);
+void *dlsym(void *restrict handle, const char *restrict symbol);
 
 /**
  * @brief Close loaded dynamic library

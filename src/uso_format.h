@@ -6,6 +6,7 @@
 
 /** @brief USO header magic number */
 #define USO_HEADER_MAGIC 0x55534F30 //'USO0'
+#define USO_GLOBAL_SYM_DATA_MAGIC 0x4D53594D //'MSYM'
 #define USO_MAX_SECTIONS 255
 
 /** @brief USO symbol */
@@ -106,5 +107,10 @@ typedef struct uso_load_info_s {
     uint16_t align;         ///< Required USO alignment
     uint16_t noload_align;  ///< Required USO noload section alignment 
 } uso_load_info_t;
+
+typedef struct mainexe_sym_info_s {
+    uint32_t magic;
+    uint32_t size;
+} mainexe_sym_info_t;
 
 #endif
