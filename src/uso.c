@@ -6,6 +6,13 @@
 #include "uso.h"
 #include "uso_internal.h"
 
+_Static_assert(sizeof(uso_sym_t) == 12, "uso_sym_t size is wrong");
+_Static_assert(sizeof(uso_sym_table_t) == 8, "uso_sym_table_t size is wrong");
+_Static_assert(sizeof(uso_reloc_table_t) == 8, "uso_reloc_table_t size is wrong");
+_Static_assert(sizeof(uso_section_t) == 28, "uso_section_t size is wrong");
+_Static_assert(sizeof(uso_module_t) == 32, "uso_module_t size is wrong");
+_Static_assert(sizeof(uso_load_info_t) == 12, "uso_load_info_t size is wrong");
+
 /** @brief USO list head */
 struct loaded_uso_s *__uso_list_head;
 /** @brief USO list tail */
