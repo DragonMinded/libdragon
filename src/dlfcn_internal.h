@@ -22,9 +22,9 @@ extern struct dl_module_s *__dl_module_tail;
 /**
  * @brief Get Loaded module from address
  * 
- * @param addr                  Address to search for
+ * @param addr                  Address to search
  * @return struct dl_module_s*  Pointer to module address is found inside
  */
-struct dl_module_s *__dlget_loaded_module(void *addr);
+struct dl_module_s *__dl_get_loaded_module(void *addr);
 
 #endif
