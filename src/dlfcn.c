@@ -42,8 +42,6 @@ static dl_module_t *module_list_tail;
 static char error_string[256];
 /** @brief Whether an error is present */
 static bool error_present;
-/** @brief Main executable symbol table */
-static uso_sym_table_t *mainexe_sym_table;
 /** @brief USO dummy section for symbol lookups */
 static uso_section_t dummy_section = { NULL, 0, 0, { 0, NULL }, { 0, NULL }};
 
@@ -80,25 +78,24 @@ static __attribute__((unused)) void remove_module(dl_module_t *module)
     }
 }
 
-static void fixup_sym_table(uso_sym_table_t *sym_table, uso_section_t *sections, uint8_t num_sections)
+static void fixup_sym_table(uso_sym_table_t *sym_table, uso_section_t *sections)
 {
     //Fixup pointer to symbol table data
     sym_table->data = PTR_DECODE(sym_table, sym_table->data);
     //Fixup symbol fields
-    for(uint32_t i=0; i<sym_table->length; i++) {
+    for(uint32_t i=0; i<sym_table->size; i++) {
         uso_sym_t *sym = &sym_table->data[i];
         uint8_t section = sym->info >> 24;
         //Fixup symbol name pointer
         sym->name = PTR_DECODE(sym_table->data, sym->name);
         //Fixup symbol value if section is valid
-        if(section < num_sections) {
-            sym->value = (uintptr_t)PTR_DECODE(sections[section].data, sym->value);
-        }
+        sym->value = (uintptr_t)PTR_DECODE(sections[section].data, sym->value);
     }
 }
 
-static __attribute__((unused)) void load_mainexe_sym_table()
+static uso_sym_table_t *load_mainexe_sym_table()
 {
+    uso_sym_table_t *sym_table;
     mainexe_sym_info_t __attribute__((aligned(8))) mainexe_sym_info;
     //Search for main executable symbol table
     uint32_t rom_addr = rompak_search_ext(".msym");
@@ -110,12 +107,65 @@ static __attribute__((unused)) void load_mainexe_sym_table()
     //Verify main executable symbol table
     assertf(mainexe_sym_info.magic == USO_GLOBAL_SYM_DATA_MAGIC, "Invalid main executable symbol table");
     //Read main executable symbol table
-    mainexe_sym_table = malloc(mainexe_sym_info.size);
-    data_cache_hit_writeback_invalidate(mainexe_sym_table, mainexe_sym_info.size);
-    dma_read_raw_async(mainexe_sym_table, rom_addr+sizeof(mainexe_sym_info), mainexe_sym_info.size);
+    sym_table = malloc(mainexe_sym_info.size);
+    data_cache_hit_writeback_invalidate(sym_table, mainexe_sym_info.size);
+    dma_read_raw_async(sym_table, rom_addr+sizeof(mainexe_sym_info), mainexe_sym_info.size);
     dma_wait();
     //Fixup main executable symbol table
-    fixup_sym_table(mainexe_sym_table, &dummy_section, 1);
+    fixup_sym_table(sym_table, &dummy_section);
+    return sym_table;
+}
+
+static uso_sym_t *search_sym_table(uso_sym_table_t *sym_table, char *name)
+{
+    uint32_t min = 0;
+    uint32_t max = sym_table->size-1;
+    while(min < max) {
+        uint32_t mid = (min+max)/2;
+        int result = strcmp(name, sym_table->data[mid].name);
+        if(result == 0) {
+            return &sym_table->data[mid];
+        } else if(result > 0) {
+            min = mid+1;
+        } else {
+            max = mid-1;
+        }
+    }
+    return NULL;
+}
+
+static uso_sym_t *search_global_sym(char *name)
+{
+    static uso_sym_table_t *mainexe_sym_table = NULL;
+    dl_module_t *curr_module = module_list_head;
+    while(curr_module) {
+        if(curr_module->flags & RTLD_GLOBAL) {
+            uso_sym_t *symbol = search_sym_table(&curr_module->module->syms, name);
+            if(symbol) {
+                return symbol;
+            }
+        }
+        curr_module = curr_module->next;
+    }
+    //Load main executable symbol table if not loaded
+    if(!mainexe_sym_table) {
+        mainexe_sym_table = load_mainexe_sym_table();
+    }
+    //Search main executable symbol table
+    return search_sym_table(mainexe_sym_table, name);
+}
+
+static void resolve_external_syms(uso_sym_t *syms, uint32_t num_syms)
+{
+    for(uint32_t i=0; i<num_syms; i++) {
+        uso_sym_t *found_sym = search_global_sym(syms[i].name);
+        bool weak = false;
+        if(syms[i].info & 0x800000) {
+            weak = true;
+        }
+        assertf(weak || found_sym, "Failed to find symbol %s", syms[i].name);
+        syms[i].value = found_sym->value;
+    }
 }
 
 static __attribute__((unused)) void reset_error()
@@ -144,7 +194,7 @@ static dl_module_t *search_module_filename(const char *filename)
     return NULL;
 }
 
-static __attribute__((unused)) void flush_module(uso_module_t *module)
+static void flush_module(uso_module_t *module)
 {
     //Invalidate data cache for each section
     for(uint8_t i=0; i<module->num_sections; i++) {
@@ -159,9 +209,41 @@ static __attribute__((unused)) void flush_module(uso_module_t *module)
     }
 }
 
+static void fixup_module_sections(uso_module_t *module, void *noload_start)
+{
+    //Fixup section base pointer
+    module->sections = PTR_DECODE(module, module->sections);
+    for(uint8_t i=0; i<module->num_sections; i++) {
+        uso_section_t *section = &module->sections[i];
+        if(section->align != 0) {
+            if(section->data) {
+                //Fixup section data pointer
+                section->data = PTR_DECODE(module, section->data);
+            } else {
+                //Fixup noload section data pointer
+                noload_start = PTR_ROUND_UP(noload_start, section->align); //Align data pointer
+                section->data = noload_start;
+                //Find next noload section pointer
+                noload_start = PTR_DECODE(noload_start, section->size);
+            }
+        }
+        //Fixup relocation section pointers
+        if(section->relocs.data) {
+            section->relocs.data = PTR_DECODE(module, section->relocs.data);
+        }
+        if(section->ext_relocs.data) {
+            section->ext_relocs.data = PTR_DECODE(module, section->ext_relocs.data);
+        }
+    }
+}
+
 static void link_module(uso_module_t *module, void *noload_start)
 {
-    
+    fixup_module_sections(module, noload_start);
+    fixup_sym_table(&module->syms, module->sections);
+    fixup_sym_table(&module->ext_syms, &dummy_section);
+    resolve_external_syms(module->ext_syms.data, module->ext_syms.size);
+    flush_module(module);
 }
 
 static void start_module(dl_module_t *handle)

@@ -25,13 +25,13 @@ typedef struct uso_file_sym_s {
 
 /** @brief USO symbol table */
 typedef struct uso_sym_table_s {
-    uint32_t length;        ///< Size of symbol table
+    uint32_t size;          ///< Size of symbol table
     uso_sym_t *data;        ///< Start of symbol table
 } uso_sym_table_t;
 
 /** @brief USO file symbol table */
 typedef struct uso_file_sym_table_s {
-    uint32_t length;        ///< Size of symbol table
+    uint32_t size;          ///< Size of symbol table
     uint32_t data_ofs;      ///< Start of symbol table
 } uso_file_sym_table_t;
 
@@ -44,14 +44,14 @@ typedef struct uso_reloc_s {
 
 /** @brief USO relocation table */
 typedef struct uso_reloc_table_s {
-    uint32_t length;        ///< Size of relocation table
-    uso_reloc_t *data;      ///< Start of relocation table
+    uint32_t size;      ///< Size of relocation table
+    uso_reloc_t *data;  ///< Start of relocation table
 } uso_reloc_table_t;
 
 /** @brief USO file relocation table */
 typedef struct uso_file_reloc_table_s {
-    uint32_t length;        ///< Size of relocation table
-    uint32_t data_ofs;      ///< Start of relocation table
+    uint32_t size;      ///< Size of relocation table
+    uint32_t data_ofs;  ///< Start of relocation table
 } uso_file_reloc_table_t;
 
 /** @brief USO section data */

@@ -467,9 +467,9 @@ void uso_module_free(uso_module_t *module)
 void uso_reloc_table_insert(uso_reloc_table_t *reloc_table, uso_reloc_t *reloc)
 {
     //Add relocation onto end of extended relocation table
-    reloc_table->length++;
-    reloc_table->data = realloc(reloc_table->data, reloc_table->length*sizeof(uso_reloc_t));
-    reloc_table->data[reloc_table->length-1] = *reloc;
+    reloc_table->size++;
+    reloc_table->data = realloc(reloc_table->data, reloc_table->size*sizeof(uso_reloc_t));
+    reloc_table->data[reloc_table->size-1] = *reloc;
 }
 
 bool uso_section_build_relocs(uso_section_t *section, elf_info_t *elf_info, elf_section_t *reloc_section)
@@ -531,9 +531,9 @@ bool uso_section_build(uso_section_t *section, elf_info_t *elf_info, size_t uso_
         }
     }
     //Mark relocation tables as being empty
-    section->relocs.length = 0;
+    section->relocs.size = 0;
     section->relocs.data = NULL;
-    section->ext_relocs.length = 0;
+    section->ext_relocs.size = 0;
     section->ext_relocs.data = NULL;
     if(reloc_elf_section) {
         //Add relocations if relevant ELF section is found
@@ -573,19 +573,35 @@ bool uso_section_build(uso_section_t *section, elf_info_t *elf_info, size_t uso_
 void uso_sym_table_insert(uso_sym_table_t *sym_table, uso_sym_t *symbol)
 {
     //Push symbol to end of symbol table
-    sym_table->length++;
-    sym_table->data = realloc(sym_table->data, sym_table->length*sizeof(uso_sym_t));
-    sym_table->data[sym_table->length-1] = *symbol;
+    sym_table->size++;
+    sym_table->data = realloc(sym_table->data, sym_table->size*sizeof(uso_sym_t));
+    sym_table->data[sym_table->size-1] = *symbol;
 }
 
-void uso_sym_table_build(uso_sym_table_t *sym_table, elf_symbol_t **elf_symbols)
+void uso_sym_table_build(elf_info_t *elf_info, uso_sym_table_t *sym_table, bool external)
 {
+    elf_symbol_t **elf_symbols;
+    if(external) {
+        elf_symbols = elf_info->uso_ext_syms;
+    } else {
+        elf_symbols = elf_info->uso_syms;
+    }
     for(size_t i=0; i<arrlenu(elf_symbols); i++) {
         uso_sym_t symbol;
+        
         //Copy over symbol properies
         symbol.name = elf_symbols[i]->name;
-        symbol.value = elf_symbols[i]->value;
-        symbol.info = (elf_symbols[i]->section << 24);
+        if(external) {
+            //External symbols have 0 value and 0 section
+            symbol.value = 0;
+            symbol.info = 0;
+        } else {
+            size_t uso_section_idx = 0;
+            symbol.value = elf_symbols[i]->value; //Copy symbol value
+            //Convert ELF section to USO section
+            elf_section_map_uso(elf_info, elf_symbols[i]->section, &uso_section_idx);
+            symbol.info = ((uso_section_idx & 0xFF) << 24);
+        }
         //Mark symbol as weak
         if(ELF32_ST_BIND(elf_symbols[i]->info) == STB_WEAK) {
             symbol.info |= 0x800000;
@@ -629,8 +645,8 @@ bool uso_module_build(uso_module_t *module, elf_info_t *elf_info)
         uso_module_insert_section(module, &temp_section);
     }
     //Build symbol tables
-    uso_sym_table_build(&module->syms, elf_info->uso_syms);
-    uso_sym_table_build(&module->ext_syms, elf_info->uso_ext_syms);
+    uso_sym_table_build(elf_info, &module->syms, false);
+    uso_sym_table_build(elf_info, &module->ext_syms, true);
     //Set USO section IDs
     uso_module_set_section_id(elf_info, ".eh_frame", &module->eh_frame_section);
     uso_module_set_section_id(elf_info, ".ctors", &module->ctors_section);
@@ -660,7 +676,7 @@ uso_file_sym_t uso_generate_file_sym(uso_sym_t *sym)
 uso_file_sym_table_t uso_generate_file_sym_table(uso_sym_table_t *sym_table)
 {
     uso_file_sym_table_t temp;
-    temp.length = sym_table->length;
+    temp.size = sym_table->size;
     temp.data_ofs = 0; //Placeholder
     return temp;
 }
@@ -686,7 +702,7 @@ uso_file_module_t uso_generate_file_module(uso_module_t *module)
 uso_file_reloc_table_t uso_generate_file_reloc_table(uso_reloc_table_t *reloc_table)
 {
     uso_file_reloc_table_t temp;
-    temp.length = reloc_table->length;
+    temp.size = reloc_table->size;
     temp.data_ofs = 0; //Placeholder
     return temp;
 }
@@ -715,7 +731,7 @@ void uso_write_reloc_list(uso_reloc_t *relocs, uint32_t num_relocs, uint32_t off
 void uso_write_file_reloc_table(uso_file_reloc_table_t *reloc_table, uint32_t offset, FILE *out)
 {
     fseek(out, offset, SEEK_SET);
-    w32(out, reloc_table->length);
+    w32(out, reloc_table->size);
     w32(out, reloc_table->data_ofs);
 }
 
@@ -740,7 +756,7 @@ void uso_write_file_sym(uso_file_sym_t *file_sym, uint32_t offset, FILE *out)
 void uso_write_file_sym_table(uso_file_sym_table_t *file_sym_table, uint32_t offset, FILE *out)
 {
     fseek(out, offset, SEEK_SET);
-    w32(out, file_sym_table->length);
+    w32(out, file_sym_table->size);
     w32(out, file_sym_table->data_ofs);
 }
 
@@ -799,13 +815,13 @@ uint32_t uso_write_sections(uso_section_t *sections, uint16_t num_sections, uint
             file_section.data_ofs = data_ofs;
             data_ofs += file_section.size;
         }
-        if(file_section.relocs.length != 0) {
+        if(file_section.relocs.size != 0) {
             file_section.relocs.data_ofs = reloc_ofs;
-            reloc_ofs += file_section.relocs.length*sizeof(uso_reloc_t);
+            reloc_ofs += file_section.relocs.size*sizeof(uso_reloc_t);
         }
-        if(file_section.ext_relocs.length != 0) {
+        if(file_section.ext_relocs.size != 0) {
             file_section.ext_relocs.data_ofs = reloc_ofs;
-            reloc_ofs += file_section.ext_relocs.length*sizeof(uso_reloc_t);
+            reloc_ofs += file_section.ext_relocs.size*sizeof(uso_reloc_t);
         }
         uso_write_file_section(&file_section, section_ofs, out);
         if(file_section.data_ofs != 0 && file_section.size != 0) {
@@ -813,8 +829,8 @@ uint32_t uso_write_sections(uso_section_t *sections, uint16_t num_sections, uint
             fwrite(sections[i].data, file_section.size, 1, out);
         }
         //Write section relocation tables
-        uso_write_reloc_list(sections[i].relocs.data, file_section.relocs.length, file_section.relocs.data_ofs, out);
-        uso_write_reloc_list(sections[i].ext_relocs.data, file_section.ext_relocs.length, file_section.ext_relocs.data_ofs, out);
+        uso_write_reloc_list(sections[i].relocs.data, file_section.relocs.size, file_section.relocs.data_ofs, out);
+        uso_write_reloc_list(sections[i].ext_relocs.data, file_section.ext_relocs.size, file_section.ext_relocs.data_ofs, out);
     }
     return reloc_ofs;
 }
@@ -872,9 +888,9 @@ void uso_write_module(uso_module_t *module, FILE *out)
     //Write sections
     file_module.syms.data_ofs = uso_write_sections(module->sections, module->num_sections, file_module.sections_ofs, out);
     //Write symbols
-    file_module.ext_syms.data_ofs = uso_write_syms(module->syms.data, module->syms.length, file_module.syms.data_ofs, out);
+    file_module.ext_syms.data_ofs = uso_write_syms(module->syms.data, module->syms.size, file_module.syms.data_ofs, out);
     file_module.ext_syms.data_ofs = ROUND_UP(file_module.ext_syms.data_ofs, 4);
-    uso_write_syms(module->ext_syms.data, module->ext_syms.length, file_module.ext_syms.data_ofs, out);
+    uso_write_syms(module->ext_syms.data, module->ext_syms.size, file_module.ext_syms.data_ofs, out);
     file_module.syms.data_ofs -= offsetof(uso_file_module_t, syms);
     file_module.ext_syms.data_ofs -= offsetof(uso_file_module_t, ext_syms);
     uso_write_file_module(&file_module, 0, out); //Update header
