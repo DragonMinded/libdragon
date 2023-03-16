@@ -19,6 +19,7 @@
 /** @brief USO handle declaration */
 typedef struct loaded_uso_s *uso_handle_t;
 
+/** @brief USO symbol info for uso_addr */
 typedef struct uso_sym_info_s {
     const char *path;
     uso_handle_t handle;
