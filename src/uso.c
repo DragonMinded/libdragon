@@ -30,3 +30,8 @@ void uso_addr(void *addr, uso_sym_info_t *sym_info)
 {
 	
 }
+
+uso_handle_t __uso_get_addr_handle(void *addr)
+{
+    return NULL;
+}
