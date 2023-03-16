@@ -43,7 +43,7 @@ int dladdr(const void *addr, Dl_info *sym_info)
     return 1;
 }
 
-struct dl_module_s *__dlget_loaded_module(void *addr)
+struct dl_module_s *__dl_get_loaded_module(void *addr)
 {
     return NULL;
 }
