@@ -5,6 +5,7 @@
  */
 #include <malloc.h>
 #include <string.h>
+#include <stdarg.h>
 #include "debug.h"
 #include "asset.h"
 #include "rompak_internal.h"
@@ -22,8 +23,12 @@ _Static_assert(sizeof(uso_load_info_t) == 12, "uso_load_info_t size is wrong");
 static dl_module_t *module_list_head;
 /** @brief Module list tail */
 static dl_module_t *module_list_tail;
+/** @brief String of last error */
+static char error_string[256];
+/** @brief Whether an error is present */
+static bool error_present;
 
-static void insert_module(dl_module_t *module)
+static __attribute__((unused)) void insert_module(dl_module_t *module)
 {
     dl_module_t *prev = module_list_tail;
     //Insert module at end of list
@@ -38,7 +43,7 @@ static void insert_module(dl_module_t *module)
     module_list_tail = module; //Mark this module as end of list
 }
 
-static void remove_module(dl_module_t *module)
+static __attribute__((unused)) void remove_module(dl_module_t *module)
 {
     dl_module_t *next = module->next;
     dl_module_t *prev = module->prev;
@@ -54,6 +59,21 @@ static void remove_module(dl_module_t *module)
     } else {
         prev->next = next;
     }
+}
+
+static __attribute__((unused)) void reset_error()
+{
+    error_present = false;
+}
+
+static __attribute__((unused)) void output_error(const char *fmt, ...)
+{
+    va_list va;
+    va_start(va, fmt);
+    vsnprintf(error_string, sizeof(error_string), fmt, va);
+    debugf(error_string);
+    error_present = true;
+    va_end(va);
 }
 
 void *dlopen(const char *path, int flags)
@@ -78,7 +98,10 @@ int dladdr(const void *addr, Dl_info *sym_info)
 
 char *dlerror(void)
 {
-    return NULL;
+    if(!error_present) {
+        return NULL;
+    }
+    return error_string;
 }
 
 dl_module_t *__dl_get_module(void *addr)
