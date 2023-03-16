@@ -19,6 +19,12 @@ struct loaded_uso_s {
 extern struct loaded_uso_s *__uso_list_head;
 extern struct loaded_uso_s *__uso_list_tail;
 
+/**
+ * @brief Get Loaded USO from address
+ * 
+ * @param addr                      Address to search for
+ * @return struct loaded_uso_s*     Pointer to loaded USO
+ */
 struct loaded_uso_s *__uso_get_addr_loaded_uso(void *addr);
 
 #endif
