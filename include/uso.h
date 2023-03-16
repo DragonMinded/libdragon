@@ -8,6 +8,7 @@
 
 /** @brief One-bit flags for loading USOs */
 #define USOLDR_GLOBAL 0x1   ///< Export symbols to other USOs
+#define USOLDR_NONE 0x0     ///< No flags set
 #define USOLDR_NODELETE 0x2 ///< Never delete USO
 #define USOLDR_NOLOAD 0x4   ///< Do not load USO even if required
 
