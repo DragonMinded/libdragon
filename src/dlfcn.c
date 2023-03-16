@@ -219,11 +219,13 @@ void *dlopen(const char *filename, int flags)
         handle = memalign(load_info.align, alloc_size); //Allocate module, module noload, and BSS in one chunk
         //Initialize handle
         handle->prev = handle->next = NULL; //Initialize module links to NULL
+        //Initialize well known module parameters
         handle->flags = flags;
         handle->module_size = module_size;
-        handle->filename = PTR_DECODE(handle, sizeof(dl_module_t));
-        handle->module = PTR_DECODE(handle, alloc_size-module_size);
-        module_noload = PTR_DECODE(handle, alloc_size-load_info.noload_size);
+        //Initialize pointer fields
+        handle->filename = PTR_DECODE(handle, sizeof(dl_module_t)); //Filename is after handle data
+        handle->module = PTR_DECODE(handle, alloc_size-module_size); //Module is at end of allocation
+        module_noload = PTR_DECODE(handle, alloc_size-load_info.noload_size); //Module noload is after module
         //Read module
         fread(handle->module, load_info.size, 1, file);
         fclose(file);
