@@ -6,14 +6,14 @@
 
 /** @brief Loaded USO data */
 struct loaded_uso_s {
-	struct loaded_uso_s *prev;	///< Previous loaded USO
-	struct loaded_uso_s *next;	///< Next loaded USO
-	uso_module_t *module;		///< USO module
-	uint32_t debugsym_romaddr;	///< Debug symbol data rom address
-	char *path;					///< USO path
-	size_t ref_count;			///< USO reference count
-	uint32_t ehframe_obj[6];	///< Exception frame object
-	int flags;					///< Flag to export symbols
+    struct loaded_uso_s *prev;  ///< Previous loaded USO
+    struct loaded_uso_s *next;  ///< Next loaded USO
+    uso_module_t *module;       ///< USO module
+    uint32_t debugsym_romaddr;  ///< Debug symbol data rom address
+    char *path;                 ///< USO path
+    size_t ref_count;           ///< USO reference count
+    uint32_t ehframe_obj[6];    ///< Exception frame object
+    int flags;                  ///< Flag to export symbols
 };
 
 extern struct loaded_uso_s *__uso_list_head;
