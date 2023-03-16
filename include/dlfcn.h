@@ -63,8 +63,8 @@ int dlclose(void *handle);
 /**
  * @brief Convert address to symbol
  * 
- * @param addr  Address to find corresponding shared object for
- * @param info  Info structure to update
+ * @param addr  Address to search
+ * @param info  Info of symbol found
  * @return int  Return zero on success
  */
 int dladdr(const void *addr, Dl_info *info);
