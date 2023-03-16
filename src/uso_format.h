@@ -6,6 +6,7 @@
 
 /** @brief USO header magic number */
 #define USO_HEADER_MAGIC 0x55534F30 //'USO0'
+#define USO_MAX_SECTIONS 255
 
 /** @brief USO symbol */
 typedef struct uso_sym_s {

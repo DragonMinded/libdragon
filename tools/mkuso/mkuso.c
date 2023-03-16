@@ -908,8 +908,9 @@ bool convert(char *infn, char *outfn, FILE *externs_outfile)
     verbose("Collecting ELF sections to use in USO\n");
     elf_section_collect_uso(elf_info);
     //Check if more than 255 sections were collected
-    if(arrlenu(elf_info->uso_src_sections) > UINT8_MAX) {
-        fprintf(stderr, "Collected more than 255 sections to use in USO\n");
+    if(arrlenu(elf_info->uso_src_sections) > USO_MAX_SECTIONS) {
+        fprintf(stderr, "Collected %ld sections in USO\n", arrlenu(elf_info->uso_src_sections));
+        fprintf(stderr, "Expected no more than %d sections\n", USO_MAX_SECTIONS);
         goto end2;
     }
     verbose("Collecting ELF symbols to use in USO\n");
