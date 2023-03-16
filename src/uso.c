@@ -38,7 +38,7 @@ void uso_addr(void *addr, uso_sym_info_t *sym_info)
     
 }
 
-uso_handle_t __uso_get_addr_handle(void *addr)
+struct loaded_uso_s *__uso_get_addr_loaded_uso(void *addr)
 {
     return NULL;
 }

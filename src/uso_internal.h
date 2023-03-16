@@ -19,6 +19,6 @@ struct loaded_uso_s {
 extern struct loaded_uso_s *__uso_list_head;
 extern struct loaded_uso_s *__uso_list_tail;
 
-uso_handle_t __uso_get_addr_handle(void *addr);
+struct loaded_uso_s *__uso_get_addr_loaded_uso(void *addr);
 
 #endif
