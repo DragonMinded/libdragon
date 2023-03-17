@@ -15,8 +15,8 @@
 #define RTLD_NOLOAD 0x4     ///< Never unload USO from memory
 
 /** @brief Special dlsym handles */
-#define RTLD_DEFAULT ((void *)0x1)  ///< Find first occurrence of symbol
-#define RTLD_NEXT ((void *)0x2)     ///< Find next occurrence of symbol
+#define RTLD_DEFAULT ((void *)-1)   ///< Find first occurrence of symbol
+#define RTLD_NEXT ((void *)-2)      ///< Find next occurrence of symbol
 
 /** @brief dl_addr info structure */
 typedef struct {
@@ -38,10 +38,10 @@ extern "C" {
  * @brief Open dynamic library
  * 
  * @param filename  Path to dynamic library
- * @param flags     Flags for loading dynamic library
+ * @param mode      Flags for loading dynamic library
  * @return void *   Handle for loaded dynamic library
  */
-void *dlopen(const char *filename, int flags);
+void *dlopen(const char *filename, int mode);
 
 /**
  * @brief Grab symbol from loaded dynamic library

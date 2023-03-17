@@ -116,7 +116,7 @@ static uso_sym_table_t *load_mainexe_sym_table()
     return sym_table;
 }
 
-static uso_sym_t *search_sym_table(uso_sym_table_t *sym_table, char *name)
+static uso_sym_t *search_sym_table(uso_sym_table_t *sym_table, const char *name)
 {
     uint32_t min = 0;
     uint32_t max = sym_table->size-1;
@@ -134,7 +134,23 @@ static uso_sym_t *search_sym_table(uso_sym_table_t *sym_table, char *name)
     return NULL;
 }
 
-static uso_sym_t *search_global_sym(char *name)
+static uso_sym_t *search_module_next_sym(dl_module_t *start_module, const char *name)
+{
+    //Search other modules symbol tables
+    dl_module_t *curr_module = start_module;
+    while(curr_module) {
+        if(curr_module->mode & RTLD_GLOBAL) {
+            uso_sym_t *symbol = search_sym_table(&curr_module->module->syms, name);
+            if(symbol) {
+                return symbol;
+            }
+        }
+        curr_module = curr_module->next;
+    }
+    return NULL;
+}
+
+static uso_sym_t *search_global_sym(const char *name)
 {
     static uso_sym_table_t *mainexe_sym_table = NULL;
     //Load main executable symbol table if not loaded
@@ -147,18 +163,8 @@ static uso_sym_t *search_global_sym(char *name)
         //Found symbol in main executable
         return symbol;
     }
-    //Search other modules symbol tables
-    dl_module_t *curr_module = module_list_head;
-    while(curr_module) {
-        if(curr_module->flags & RTLD_GLOBAL) {
-            symbol = search_sym_table(&curr_module->module->syms, name);
-            if(symbol) {
-                return symbol;
-            }
-        }
-        curr_module = curr_module->next;
-    }
-    return NULL;
+    //Search whole list of modules
+    return search_module_next_sym(module_list_head, name);
 }
 
 static void resolve_external_syms(uso_sym_t *syms, uint32_t num_syms)
@@ -174,12 +180,7 @@ static void resolve_external_syms(uso_sym_t *syms, uint32_t num_syms)
     }
 }
 
-static __attribute__((unused)) void reset_error()
-{
-    error_present = false;
-}
-
-static __attribute__((unused)) void output_error(const char *fmt, ...)
+static void output_error(const char *fmt, ...)
 {
     va_list va;
     va_start(va, fmt);
@@ -361,18 +362,23 @@ static void start_module(dl_module_t *handle)
     }
 }
 
-void *dlopen(const char *filename, int flags)
+void *dlopen(const char *filename, int mode)
 {
     dl_module_t *handle;
     assertf(strncmp(filename, "rom:/", 5) == 0, "Cannot open %s: dlopen only supports files in ROM (rom:/)", filename);
     handle = search_module_filename(filename);
-    if(flags & RTLD_NOLOAD) {
+    if(mode & ~(RTLD_GLOBAL|RTLD_NODELETE|RTLD_NOLOAD)) {
+        output_error("invalid mode for dlopen()");
+        return NULL;
+    }
+    if(mode & RTLD_NOLOAD) {
         if(handle) {
-            handle->flags = flags & ~RTLD_NOLOAD;
+            handle->mode = mode & ~RTLD_NOLOAD;
         }
         return handle;
     }
     if(handle) {
+        //Increment use count
         handle->use_count++;
     } else {
         uso_load_info_t load_info;
@@ -398,7 +404,7 @@ void *dlopen(const char *filename, int flags)
         //Initialize handle
         handle->prev = handle->next = NULL; //Initialize module links to NULL
         //Initialize well known module parameters
-        handle->flags = flags;
+        handle->mode = mode;
         handle->module_size = module_size;
         //Initialize pointer fields
         handle->filename = PTR_DECODE(handle, sizeof(dl_module_t)); //Filename is after handle data
@@ -432,13 +438,125 @@ void *dlopen(const char *filename, int flags)
     return handle;
 }
 
+static bool is_valid_module(dl_module_t *module)
+{
+    //Iterate over loaded modules
+    dl_module_t *curr = module_list_head;
+    while(curr) {
+        if(curr == module) {
+            //Found module loaded
+            return true;
+        }
+        curr = curr->next;
+    }
+    //Module is not found
+    return false;
+}
+
 void *dlsym(void *restrict handle, const char *restrict symbol)
 {
-    return NULL;
+    uso_sym_t *symbol_info;
+    if(handle == RTLD_DEFAULT) {
+        //RTLD_DEFAULT searched through global symbols
+        symbol_info = search_global_sym(symbol);
+    } else if(handle == RTLD_NEXT) {
+        //RTLD_NEXT starts searching at module dlsym was called from
+        dl_module_t *module = __dl_get_module(__builtin_return_address(0));
+        if(!module) {
+            //Report error if called with RTLD_NEXT from code not in module
+            output_error("RTLD_NEXT used in code not dynamically loaded");
+            return NULL;
+        }
+        symbol_info = search_module_next_sym(module, symbol);
+    } else {
+        //Search module symbol table
+        dl_module_t *module = handle;
+        assertf(is_valid_module(module), "dlsym called on invalid handle");
+        symbol_info = search_sym_table(&module->module->syms, symbol);
+    }
+    //Output error if symbol is not found
+    if(!symbol_info) {
+        output_error("undefined symbol: %s", symbol);
+        return NULL;
+    }
+    //Return symbol address
+    return (void *)symbol_info->value;
+}
+
+static bool is_module_referenced(dl_module_t *module)
+{
+    //Address range for this module
+    uintptr_t min_addr = (uintptr_t)module->module;
+    uintptr_t max_addr = min_addr+module->module_size;
+    //Iterate over modules
+    dl_module_t *curr = module_list_head;
+    while(curr) {
+        //Skip this module
+        if(curr == module) {
+            continue;
+        }
+        //Search through external symbols referencing this module
+        for(uint32_t i=0; i<curr->module->ext_syms.size; i++) {
+            uintptr_t addr = curr->module->ext_syms.data[i].value;
+            if(addr >= min_addr && addr < max_addr) {
+                //Found external symbol referencing this module
+                return true;
+            }
+        }
+        curr = curr->next; //Iterate to next modules
+    }
+    //Did not find module being referenced by symbol
+    return false;
+}
+
+static void end_module(dl_module_t *module)
+{
+    uso_module_t *module_data = module->module;
+    //Grab section pointers
+    uso_section_t *eh_frame = &module_data->sections[module_data->eh_frame_section];
+    uso_section_t *dtors = &module_data->sections[module_data->dtors_section];
+    //Call atexit destructors for this module
+    uso_sym_t *dso_handle_symbol = search_sym_table(&module_data->syms, "__dso_handle");
+    if(!dso_handle_symbol) {
+        __cxa_finalize((void *)dso_handle_symbol->value);
+    }
+    //Run destructors for this module
+    if(dtors->data && dtors->size != 0) {
+        func_ptr *start = dtors->data;
+        func_ptr *end = PTR_DECODE(start, dtors->size);
+        func_ptr *curr = start;
+        while(curr < end) {
+            (*curr)();
+            curr++;
+        }
+    }
+    //Deregister exception frames for this module
+    if(eh_frame->data && eh_frame->size > 0) {
+        __deregister_frame_info(eh_frame->data);
+    }
 }
 
 int dlclose(void *handle)
 {
+    dl_module_t *module = handle;
+    //Output error if module handle is not valid
+    if(!is_valid_module(handle)) {
+        output_error("shared object not open");
+        return 1;
+    }
+    //Do nothing but report success if module mode is RTLD_NODELETE
+    if(module->mode & RTLD_NODELETE) {
+        return 0;
+    }
+    //Close module if 0 uses remain and module is not referenced
+    if(--module->use_count == 0 && !is_module_referenced(module)) {
+        //Deinitialize module
+        end_module(module);
+        //Remove module from memory
+        remove_module(module);
+        free(module);
+    }
+    //Report success
     return 0;
 }
 
@@ -450,8 +568,11 @@ int dladdr(const void *addr, Dl_info *sym_info)
 char *dlerror(void)
 {
     if(!error_present) {
+        //Return nothing if error status is cleared
         return NULL;
     }
+    //Return error and clear error status
+    error_present = false;
     return error_string;
 }
 

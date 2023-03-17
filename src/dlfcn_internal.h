@@ -25,7 +25,7 @@ typedef struct dl_module_s {
     char *filename;             ///< Dynamic library filename
     size_t use_count;           ///< Dynamic library reference count
     uint32_t ehframe_obj[6];    ///< Exception frame object
-    int flags;                  ///< Dynamic library flags
+    int mode;                   ///< Dynamic library flags
 } dl_module_t;
 
 /**
