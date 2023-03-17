@@ -21,11 +21,14 @@ static actor_t *actors[MAX_ACTORS];
 
 static int find_free_actor()
 {
+    //Search for free actor slot
     for(int i=0; i<MAX_ACTORS; i++) {
         if(!actors[i]) {
+            //Found free actor slot
             return i;
         }
     }
+    //Return sentinel value if no free actor slot exists
     return -1;
 }
 
@@ -37,6 +40,7 @@ static void create_actor(int type, float x, float y)
         //Try to allocate actor
         int slot = find_free_actor();
         if(slot == -1) {
+            //Return if impossible
             return;
         }
         ovl_handle = dlopen(actor_info[type].ovl_path, RTLD_LOCAL);
@@ -59,6 +63,7 @@ static void draw_actors()
 {
     for(int i=0; i<MAX_ACTORS; i++) {
         if(actors[i]) {
+            //Blit sprite surface to screen
             surface_t surf = sprite_get_pixels(actors[i]->sprite);
             rdpq_tex_blit(&surf, actors[i]->x, actors[i]->y, &(rdpq_blitparms_t){
                 .cx = surf.width/2, .cy = surf.height/2,
@@ -101,14 +106,19 @@ int main()
     create_actor(0, 160, 120);
     while(1) {
         surface_t *disp;
+        //Update controller
         struct controller_data keys;
         controller_scan();
         keys = get_keys_down();
+        //Update actors
         update_actors(keys);
+        //Clear display
         disp = display_get();
         rdpq_attach_clear(disp, NULL);
+        //Render actors
         rdpq_set_mode_standard();
         draw_actors();
+        //Finish frame
         rdpq_detach_show();
     }
 }
