@@ -99,13 +99,19 @@ static uso_sym_table_t *load_mainexe_sym_table()
     mainexe_sym_info_t __attribute__((aligned(8))) mainexe_sym_info;
     //Search for main executable symbol table
     uint32_t rom_addr = rompak_search_ext(".msym");
-    assertf(rom_addr != 0, "Main executable symbol table missing");
+    if(rom_addr == 0) {
+        debugf("Main executable symbol table missing\n");
+        return NULL;
+    }
     //Read header for main executable symbol table
     data_cache_hit_writeback_invalidate(&mainexe_sym_info, sizeof(mainexe_sym_info));
     dma_read_raw_async(&mainexe_sym_info, rom_addr, sizeof(mainexe_sym_info));
     dma_wait();
     //Verify main executable symbol table
-    assertf(mainexe_sym_info.magic == USO_GLOBAL_SYM_DATA_MAGIC, "Invalid main executable symbol table");
+    if(mainexe_sym_info.magic != USO_GLOBAL_SYM_DATA_MAGIC) {
+        debugf("Invalid main executable symbol table\n");
+        return NULL;
+    }
     //Read main executable symbol table
     sym_table = malloc(mainexe_sym_info.size);
     data_cache_hit_writeback_invalidate(sym_table, mainexe_sym_info.size);
@@ -160,11 +166,13 @@ static uso_sym_t *search_global_sym(const char *name)
     if(!mainexe_sym_table) {
         mainexe_sym_table = load_mainexe_sym_table();
     }
-    //Search main executable symbol table
-    uso_sym_t *symbol = search_sym_table(mainexe_sym_table, name);
-    if(symbol) {
-        //Found symbol in main executable
-        return symbol;
+    //Search main executable symbol table if present
+    if(mainexe_sym_table) {
+        uso_sym_t *symbol = search_sym_table(mainexe_sym_table, name);
+        if(symbol) {
+            //Found symbol in main executable
+            return symbol;
+        }
     }
     //Search whole list of modules
     return search_module_next_sym(module_list_head, name);
@@ -189,6 +197,7 @@ static void output_error(const char *fmt, ...)
     va_start(va, fmt);
     vsnprintf(error_string, sizeof(error_string), fmt, va);
     debugf(error_string);
+    debugf("\n");
     error_present = true;
     va_end(va);
 }
