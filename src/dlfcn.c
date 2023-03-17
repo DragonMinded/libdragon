@@ -137,22 +137,28 @@ static uso_sym_t *search_sym_table(uso_sym_table_t *sym_table, char *name)
 static uso_sym_t *search_global_sym(char *name)
 {
     static uso_sym_table_t *mainexe_sym_table = NULL;
+    //Load main executable symbol table if not loaded
+    if(!mainexe_sym_table) {
+        mainexe_sym_table = load_mainexe_sym_table();
+    }
+    //Search main executable symbol table
+    uso_sym_t *symbol = search_sym_table(mainexe_sym_table, name);
+    if(symbol) {
+        //Found symbol in main executable
+        return symbol;
+    }
+    //Search other modules symbol tables
     dl_module_t *curr_module = module_list_head;
     while(curr_module) {
         if(curr_module->flags & RTLD_GLOBAL) {
-            uso_sym_t *symbol = search_sym_table(&curr_module->module->syms, name);
+            symbol = search_sym_table(&curr_module->module->syms, name);
             if(symbol) {
                 return symbol;
             }
         }
         curr_module = curr_module->next;
     }
-    //Load main executable symbol table if not loaded
-    if(!mainexe_sym_table) {
-        mainexe_sym_table = load_mainexe_sym_table();
-    }
-    //Search main executable symbol table
-    return search_sym_table(mainexe_sym_table, name);
+    return NULL;
 }
 
 static void resolve_external_syms(uso_sym_t *syms, uint32_t num_syms)
@@ -237,12 +243,63 @@ static void fixup_module_sections(uso_module_t *module, void *noload_start)
     }
 }
 
+static void relocate_section(uso_module_t *module, uint8_t section_idx, bool external)
+{
+    uso_section_t *section = &module->sections[section_idx];
+    void *base = section->data;
+    //Get relocation table to use
+    uso_reloc_table_t *table;
+    if(external) {
+        table = &section->ext_relocs;
+    } else {
+        table = &section->relocs;
+    }
+    //Process relocations
+    for(uint32_t i=0; i<table->size; i++) {
+        uso_reloc_t *reloc = &table->data[i];
+        u_uint32_t *target = PTR_DECODE(base, reloc->offset);
+        uint8_t type = reloc->info >> 24;
+        //Calculate symbol address
+        uint32_t sym_addr;
+        if(external) {
+            sym_addr = module->ext_syms.data[reloc->info & 0xFFFFFF].value;
+        } else {
+            sym_addr = (uint32_t)PTR_DECODE(module->sections[reloc->info & 0xFFFFFF].data, reloc->sym_value);
+        }
+        switch(type) {
+            case R_MIPS_32:
+                *target += sym_addr;
+                break;
+                
+            case R_MIPS_26:
+            {
+                uint32_t target_addr = ((*target & 0x3FFFFFF) << 2)+sym_addr;
+                *target = (*target & 0xFC000000)|((target_addr & 0xFFFFFFC) >> 2);
+            }
+            break;
+            
+            default:
+                assertf(0, "Unknown relocation type %d", type);
+                break;
+        }
+    }
+}
+
+static void relocate_module(uso_module_t *module)
+{
+    for(uint8_t i=0; i<module->num_sections; i++) {
+        relocate_section(module, i, false);
+        relocate_section(module, i, true);
+    }
+}
+
 static void link_module(uso_module_t *module, void *noload_start)
 {
     fixup_module_sections(module, noload_start);
     fixup_sym_table(&module->syms, module->sections);
     fixup_sym_table(&module->ext_syms, &dummy_section);
     resolve_external_syms(module->ext_syms.data, module->ext_syms.size);
+    relocate_module(module);
     flush_module(module);
 }
 

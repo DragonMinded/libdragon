@@ -9,6 +9,12 @@ typedef void (*func_ptr)();
 /** @brief Unaligned uint32_t */
 typedef uint32_t u_uint32_t __attribute__((aligned(1)));
 
+/** @brief MIPS ELF Relocation types */
+#define R_MIPS_32 2     ///< 32-bit pointer relocation
+#define R_MIPS_26 4     ///< Jump relocation
+#define R_MIPS_HI16 5   ///< High half of HI/LO pair
+#define R_MIPS_LO16 6   ///< Low half of HI/LO pair
+
 /** @brief Loaded module data */
 typedef struct dl_module_s {
     struct dl_module_s *prev;   ///< Previous loaded dynamic library
