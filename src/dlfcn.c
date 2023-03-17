@@ -422,6 +422,7 @@ void *dlopen(const char *filename, int mode)
         //Read module
         fread(handle->module, load_info.size, 1, file);
         fclose(file);
+        assertf(handle->module->magic == USO_HEADER_MAGIC, "Invalid USO file");
         //Clear module noload portion
         memset(module_noload, 0, load_info.noload_size);
         //Copy filename to structure
@@ -429,7 +430,7 @@ void *dlopen(const char *filename, int mode)
         //Try finding symbol file in ROM
         strcpy(&handle->filename[filename_len], ".sym");
         //Calculate physical address of ROM file
-        handle->debugsym_romaddr = dfs_rom_addr(handle->filename) & 0x1FFFFFFF;
+        handle->debugsym_romaddr = dfs_rom_addr(handle->filename+5) & 0x1FFFFFFF;
         if(handle->debugsym_romaddr == 0) {
             //Warn if symbol file was not found in ROM
             debugf("Could not find module symbol file %s.\n", handle->filename);
