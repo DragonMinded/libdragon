@@ -278,6 +278,45 @@ static void relocate_section(uso_module_t *module, uint8_t section_idx, bool ext
             }
             break;
             
+            case R_MIPS_HI16:
+            {
+                uint16_t hi = *target & 0xFFFF; //Read hi from instruction
+                uint32_t addr = hi << 16; //Setup address from hi
+                bool lo_found = false;
+                //Search for next R_MIPS_LO16 relocation
+                for(uint32_t j=i+1; j<table->size; j++) {
+                    uso_reloc_t *new_reloc = &table->data[j];
+                    type = new_reloc->info >> 24;
+                    if(type == R_MIPS_LO16) {
+                        //Pair for R_MIPS_HI16 relocation found
+                        u_uint32_t *lo_target = PTR_DECODE(base, new_reloc->offset);
+                        int16_t lo = *lo_target & 0xFFFF; //Read lo from target of paired relocation
+                        //Update address
+                        addr += lo;
+                        addr += sym_addr;
+                        //Calculate hi
+                        hi = addr >> 16;
+                        if(addr & 0x8000) {
+                            //Do hi carry
+                            hi++;
+                        }
+                        lo_found = true;
+                        break;
+                    }
+                }
+                assertf(lo_found, "Unpaired R_MIPS_HI16 relocation");
+                *target = (*target & 0xFFFF0000)|hi; //Write hi to instruction
+            }
+            break;
+            
+            case R_MIPS_LO16:
+            {
+                uint16_t lo = *target & 0xFFFF; //Read lo from instruction
+                lo += sym_addr; //Calulate new lo
+                *target = (*target & 0xFFFF0000)|lo; //Write lo to instruction
+            }
+            break;
+            
             default:
                 assertf(0, "Unknown relocation type %d", type);
                 break;
