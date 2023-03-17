@@ -68,6 +68,7 @@
 #include "exception.h"
 #include "interrupt.h"
 #include "rompak_internal.h"
+#include "dlfcn_internal.h"
 
 /** @brief Enable to debug why a backtrace is wrong */
 #define BACKTRACE_DEBUG 0
@@ -159,6 +160,10 @@ static uint32_t SYMT_ROM = 0xFFFFFFFF;
 /** @brief Placeholder used in frames where symbols are not available */
 static const char *UNKNOWN_SYMBOL = "???";
 
+/** @brief Base address for addresses in address table */
+static uint32_t addrtable_base = 0;
+
+
 /** @brief Check if addr is a valid PC address */
 static bool is_valid_address(uint32_t addr)
 {
@@ -172,13 +177,24 @@ static bool is_valid_address(uint32_t addr)
  * 
  * If not found, return a null header.
  */
-static symtable_header_t symt_open(void) {
-    if (SYMT_ROM == 0xFFFFFFFF) {
-        SYMT_ROM = rompak_search_ext(".sym");
-        if (!SYMT_ROM)
-            debugf("backtrace: no symbol table found in the rompak\n");
+static symtable_header_t symt_open(void *addr) {
+    dl_module_t *module = __dl_get_module(addr);
+    if(module) {
+        //Read module SYMT
+        SYMT_ROM = module->debugsym_romaddr;
+        addrtable_base = (uint32_t)module->module->sections[module->module->text_section].data;
+    } else {
+        //Open SYMT from rompak
+        static uint32_t mainexe_symt = 0xFFFFFFFF;
+        if (mainexe_symt == 0xFFFFFFFF) {
+            mainexe_symt = rompak_search_ext(".sym");
+            if (!mainexe_symt)
+                debugf("backtrace: no symbol table found in the rompak\n");
+        }
+        addrtable_base = 0;
+        SYMT_ROM = mainexe_symt;
     }
-
+    
     if (!SYMT_ROM) {
         return (symtable_header_t){0};
     }
@@ -211,7 +227,7 @@ static symtable_header_t symt_open(void) {
  */
 static addrtable_entry_t symt_addrtab_entry(symtable_header_t *symt, int idx)
 {
-    return io_read(SYMT_ROM + symt->addrtab_off + idx * 4);
+    return addrtable_base+io_read(SYMT_ROM + symt->addrtab_off + idx * 4);
 }
 
 /**
@@ -306,7 +322,7 @@ static char* symt_entry_file(symtable_header_t *symt, symtable_entry_t *entry, u
 
 char* __symbolize(void *vaddr, char *buf, int size)
 {
-    symtable_header_t symt = symt_open();
+    symtable_header_t symt = symt_open(vaddr);
     if (symt.head[0]) {
         uint32_t addr = (uint32_t)vaddr;
         int idx = 0;
@@ -567,7 +583,7 @@ static void backtrace_foreach(void (*cb)(void *arg, void *ptr), void *arg)
                 // to find a stack frame. It is useful to try finding the function start.
                 // Try to open the symbol table: if we find it, we can search for the start
                 // address of the function.
-                symtable_header_t symt = symt_open();
+                symtable_header_t symt = symt_open(ra);
                 if (symt.head[0]) {
                     int idx;
                     addrtable_entry_t entry = symt_addrtab_search(&symt, (uint32_t)ra, &idx);
@@ -629,13 +645,12 @@ static void format_entry(void (*cb)(void *, backtrace_frame_t *), void *cb_arg,
 bool backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
     void (*cb)(void *, backtrace_frame_t *), void *cb_arg)
 {
-    // Open the symbol table. If not found, we will still invoke the
-    // callback but using unsymbolized addresses.
-    symtable_header_t symt_header = symt_open();
-    bool has_symt = symt_header.head[0];
-
     for (int i=0; i<size; i++) {
         uint32_t needle = (uint32_t)buffer[i];
+        // Open the symbol table. If not found, we will still invoke the
+        // callback but using unsymbolized addresses.
+        symtable_header_t symt_header = symt_open(buffer[i]);
+        bool has_symt = symt_header.head[0];
         if (!is_valid_address(needle)) {
             // If the address is before the first symbol, we call it a NULL pointer, as that is the most likely case
             cb(cb_arg, &(backtrace_frame_t){
