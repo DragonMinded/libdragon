@@ -548,8 +548,8 @@ bool uso_section_build(uso_section_t *section, elf_info_t *elf_info, size_t uso_
         if(section->align == 0) {
             section->align = 1;
         }
-        //Allocate and read data for progbits sections
-        if(elf_info->sections[elf_section_index].type == SHT_PROGBITS) {
+        //Allocate and read data for non-nobits sections
+        if(elf_info->sections[elf_section_index].type != SHT_NOBITS) {
             section->data = malloc(section->size);
             //Read section data if not 0-sized
             if(section->size != 0
@@ -558,7 +558,7 @@ bool uso_section_build(uso_section_t *section, elf_info_t *elf_info, size_t uso_
                 return false;
             }
         } else {
-            //Force data pointer to null if not SHT_PROGBITS
+            //Force data pointer to null if SHT_NOBITS
             section->data = NULL;
         }
     } else {
