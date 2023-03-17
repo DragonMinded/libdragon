@@ -34,7 +34,7 @@ typedef struct dl_module_s {
  * @param addr          Address to search
  * @return dl_module_t* Pointer to module address is found inside
  */
-dl_module_t *__dl_get_module(void *addr);
+dl_module_t *__dl_get_module(const void *addr);
 
 /**
  * @brief Get number of loaded modules

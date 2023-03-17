@@ -136,16 +136,19 @@ static uso_sym_t *search_sym_table(uso_sym_table_t *sym_table, const char *name)
 
 static uso_sym_t *search_module_next_sym(dl_module_t *start_module, const char *name)
 {
-    //Search other modules symbol tables
+    //Iterate through further modules symbol tables
     dl_module_t *curr_module = start_module;
     while(curr_module) {
+        //Search only symbol tables with symbols exposed
         if(curr_module->mode & RTLD_GLOBAL) {
+            //Search through module symbol table
             uso_sym_t *symbol = search_sym_table(&curr_module->module->syms, name);
             if(symbol) {
+                //Found symbol in module symbol table
                 return symbol;
             }
         }
-        curr_module = curr_module->next;
+        curr_module = curr_module->next; //Iterate to next module
     }
     return NULL;
 }
@@ -447,7 +450,7 @@ static bool is_valid_module(dl_module_t *module)
             //Found module loaded
             return true;
         }
-        curr = curr->next;
+        curr = curr->next; //Iterate to next module
     }
     //Module is not found
     return false;
@@ -486,8 +489,8 @@ void *dlsym(void *restrict handle, const char *restrict symbol)
 static bool is_module_referenced(dl_module_t *module)
 {
     //Address range for this module
-    uintptr_t min_addr = (uintptr_t)module->module;
-    uintptr_t max_addr = min_addr+module->module_size;
+    void *min_addr = module->module;
+    void *max_addr = PTR_DECODE(min_addr, module->module_size);
     //Iterate over modules
     dl_module_t *curr = module_list_head;
     while(curr) {
@@ -497,13 +500,13 @@ static bool is_module_referenced(dl_module_t *module)
         }
         //Search through external symbols referencing this module
         for(uint32_t i=0; i<curr->module->ext_syms.size; i++) {
-            uintptr_t addr = curr->module->ext_syms.data[i].value;
+            void *addr = (void *)curr->module->ext_syms.data[i].value;
             if(addr >= min_addr && addr < max_addr) {
                 //Found external symbol referencing this module
                 return true;
             }
         }
-        curr = curr->next; //Iterate to next modules
+        curr = curr->next; //Iterate to next module
     }
     //Did not find module being referenced by symbol
     return false;
@@ -560,8 +563,36 @@ int dlclose(void *handle)
     return 0;
 }
 
-int dladdr(const void *addr, Dl_info *sym_info)
+int dladdr(const void *addr, Dl_info *info)
 {
+    dl_module_t *module = __dl_get_module(addr);
+    if(!module) {
+        //Return NULL properties
+        info->dli_fname = NULL;
+        info->dli_fbase = NULL;
+        info->dli_sname = NULL;
+        info->dli_saddr = NULL;
+        return 0;
+    }
+    //Initialize shared object properties
+    info->dli_fname = module->filename;
+    info->dli_fbase = module->module;
+    //Initialize symbol properties to NULL
+    info->dli_sname = NULL;
+    info->dli_saddr = NULL;
+    for(uint32_t i=0; i<module->module->syms.size; i++) {
+        uso_sym_t *sym = &module->module->syms.data[i];
+        //Calculate symbol address range
+        void *sym_min = (void *)sym->value;
+        uint32_t sym_size = sym->info & 0x7FFFFF;
+        void *sym_max = PTR_DECODE(sym_min, sym_size);
+        if(addr >= sym_min && addr < sym_max) {
+            //Report symbol info if inside address range
+            info->dli_sname = sym->name;
+            info->dli_saddr = sym_min;
+            break;
+        }
+    }
     return 1;
 }
 
@@ -576,31 +607,49 @@ char *dlerror(void)
     return error_string;
 }
 
-dl_module_t *__dl_get_module(void *addr)
+dl_module_t *__dl_get_module(const void *addr)
 {
+    //Iterate over modules
+    dl_module_t *curr = module_list_head;
+    while(curr) {
+        //Get module address range
+        void *min_addr = curr->module;
+        void *max_addr = PTR_DECODE(min_addr, curr->module_size);
+        if(addr >= min_addr && addr < max_addr) {
+            //Address is inside module
+            return curr;
+        }
+        curr = curr->next; //Iterate to next module
+    }
+    //Address is
     return NULL;
 }
 
 size_t __dl_get_num_modules()
 {
-    dl_module_t *curr = module_list_head;
     size_t num_modules = 0;
+    //Iterate over modules
+    dl_module_t *curr = module_list_head;
     while(curr) {
-        curr = curr->next;
-        num_modules++;
+        curr = curr->next; //Iterate to next module
+        num_modules++; //Found another module in list
     }
+    //Return number of modules found in list
     return num_modules;
 }
 
 dl_module_t *__dl_get_first_module()
 {
+    //Return head of list
     return module_list_head;
 }
 
 dl_module_t *__dl_get_next_module(dl_module_t *module)
 {
+    //Return nothing if null pointer passed
     if(!module) {
         return NULL;
     }
+    //Return next field
     return module->next;
 }
