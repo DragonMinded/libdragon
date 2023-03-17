@@ -209,6 +209,7 @@ static dl_module_t *search_module_filename(const char *filename)
         if(!strcmp(filename, curr->filename)) {
             return curr;
         }
+        curr = curr->next;
     }
     return NULL;
 }

@@ -362,7 +362,7 @@ void elf_sym_collect_uso(elf_info_t *elf_info)
         } else {
             //Only add default visibility symbols to export
             //But also export __dso_handle
-            if(!strcmp(sym->name, "__dso_handle") && visibility == STV_DEFAULT) {
+            if(!strcmp(sym->name, "__dso_handle") || visibility == STV_DEFAULT) {
                 arrpush(elf_info->uso_syms, sym);
             }
         }
