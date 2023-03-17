@@ -5,6 +5,7 @@
  */
 #include <malloc.h>
 #include <string.h>
+#include <stdlib.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include "dlfcn.h"
@@ -122,22 +123,17 @@ static uso_sym_table_t *load_mainexe_sym_table()
     return sym_table;
 }
 
+static int sym_compare(const void *arg1, const void *arg2)
+{
+    const uso_sym_t *sym1 = arg1;
+    const uso_sym_t *sym2 = arg2;
+    return strcmp(sym1->name, sym2->name);
+}
+
 static uso_sym_t *search_sym_table(uso_sym_table_t *sym_table, const char *name)
 {
-    uint32_t min = 0;
-    uint32_t max = sym_table->size-1;
-    while(min < max) {
-        uint32_t mid = (min+max)/2;
-        int result = strcmp(name, sym_table->data[mid].name);
-        if(result == 0) {
-            return &sym_table->data[mid];
-        } else if(result > 0) {
-            min = mid+1;
-        } else {
-            max = mid-1;
-        }
-    }
-    return NULL;
+    uso_sym_t search_sym = { (char *)name, 0, 0 };
+    return bsearch(&search_sym, sym_table->data, sym_table->size, sizeof(uso_sym_t), sym_compare);
 }
 
 static uso_sym_t *search_module_next_sym(dl_module_t *start_module, const char *name)
