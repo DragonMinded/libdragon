@@ -466,7 +466,7 @@ static bool is_valid_module(dl_module_t *module)
     return false;
 }
 
-void *dlsym(void *restrict handle, const char *restrict symbol)
+void *dlsym(void *handle, const char *symbol)
 {
     uso_sym_t *symbol_info;
     if(handle == RTLD_DEFAULT) {

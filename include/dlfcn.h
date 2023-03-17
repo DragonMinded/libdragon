@@ -50,7 +50,7 @@ void *dlopen(const char *filename, int mode);
  * @param symbol    Name of symbol to search for
  * @return void*    Pointer to symbol
  */
-void *dlsym(void *restrict handle, const char *restrict symbol);
+void *dlsym(void *handle, const char *symbol);
 
 /**
  * @brief Close loaded dynamic library
