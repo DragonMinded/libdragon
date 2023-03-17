@@ -503,6 +503,7 @@ static bool is_module_referenced(dl_module_t *module)
     while(curr) {
         //Skip this module
         if(curr == module) {
+            curr = curr->next; //Iterate to next module
             continue;
         }
         //Search through external symbols referencing this module
@@ -527,7 +528,7 @@ static void end_module(dl_module_t *module)
     uso_section_t *dtors = &module_data->sections[module_data->dtors_section];
     //Call atexit destructors for this module
     uso_sym_t *dso_handle_symbol = search_sym_table(&module_data->syms, "__dso_handle");
-    if(!dso_handle_symbol) {
+    if(dso_handle_symbol) {
         __cxa_finalize((void *)dso_handle_symbol->value);
     }
     //Run destructors for this module
@@ -546,6 +547,29 @@ static void end_module(dl_module_t *module)
     }
 }
 
+static void close_module(dl_module_t *module)
+{
+    //Deinitialize module
+    end_module(module);
+    //Remove module from memory
+    remove_module(module);
+    free(module);
+}
+
+static void close_unused_modules()
+{
+    //Iterate through modules
+    dl_module_t *curr = module_list_head;
+    while(curr) {
+        dl_module_t *next = curr->next; //Find next module before being removed
+        //Close module if 0 uses remain and module is not referenced
+        if(curr->use_count == 0 && !is_module_referenced(curr)) {
+            close_module(curr);
+        }
+        curr = next; //Iterate to next module
+    }
+}
+
 int dlclose(void *handle)
 {
     dl_module_t *module = handle;
@@ -554,18 +578,21 @@ int dlclose(void *handle)
         output_error("shared object not open");
         return 1;
     }
+    debugf("dlclose(%p)\n", handle);
     //Do nothing but report success if module mode is RTLD_NODELETE
     if(module->mode & RTLD_NODELETE) {
         return 0;
     }
-    //Close module if 0 uses remain and module is not referenced
-    if(--module->use_count == 0 && !is_module_referenced(module)) {
-        //Deinitialize module
-        end_module(module);
-        //Remove module from memory
-        remove_module(module);
-        free(module);
+    //Decrease use count to minimum of 0
+    if(module->use_count > 0) {
+        --module->use_count;
     }
+    //Close this module if possible
+    if(module->use_count == 0 && !is_module_referenced(module)) {
+        close_module(module);
+    }
+    //Close any modules that are now unused
+    close_unused_modules();
     //Report success
     return 0;
 }
