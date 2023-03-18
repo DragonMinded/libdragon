@@ -105,7 +105,6 @@ void print_args(char *name)
     fprintf(stderr, "Command-line flags:\n");
     fprintf(stderr, "   -v/--verbose                Verbose output\n");
     fprintf(stderr, "   -o/--output <dir>           Specify output directory (default: .)\n");
-    fprintf(stderr, "   -e/--externs <output file>  Output list of symbols not resolved in each USO\n");
     fprintf(stderr, "   -c/--compress               Compress output\n");
     fprintf(stderr, "\n");
 }
@@ -429,14 +428,6 @@ bool elf_reloc_check_gp_relative(Elf32_Rel *reloc)
         || reloc_type == R_MIPS_GOT_LO16 //Global offset table entry offset low 16 bits
         || reloc_type == R_MIPS_CALL_HI16 //GP-Relative call high 16 bits
         || reloc_type == R_MIPS_CALL_LO16; //GP-Relative call low 16 bits
-}
-
-void elf_write_externs(elf_info_t *elf_info, FILE *file)
-{
-    //Print list of external symbols in ELF to output file
-    for(size_t i=0; i<arrlenu(elf_info->uso_ext_syms); i++) {
-        fprintf(file, "EXTERN(%s)\n", elf_info->uso_ext_syms[i]->name);
-    }
 }
 
 uso_module_t *uso_module_alloc()
@@ -899,7 +890,7 @@ void uso_write_module(uso_module_t *module, FILE *out)
     uso_write_load_info(&load_info, out);
 }
 
-bool convert(char *infn, char *outfn, FILE *externs_outfile)
+bool convert(char *infn, char *outfn)
 {
     bool ret = false;
     FILE *out_file;
@@ -937,10 +928,6 @@ bool convert(char *infn, char *outfn, FILE *externs_outfile)
     //Sort symbols in lexicographical gorder
     verbose("Sorting collected symbols\n");
     elf_uso_sym_sort(elf_info);
-    if(externs_outfile) {
-        verbose("Writing list of external symbols\n");
-        elf_write_externs(elf_info, externs_outfile);
-    }
     //Build USO module
     module = uso_module_alloc();
     verbose("Building USO module\n");
@@ -969,7 +956,6 @@ bool convert(char *infn, char *outfn, FILE *externs_outfile)
 int main(int argc, char *argv[])
 {
     bool compression = false;
-    FILE *externs_outfile = NULL;
     char *outdir = ".";
     if(argc < 2) {
         //Print usage if too few arguments are passed
@@ -995,23 +981,6 @@ int main(int argc, char *argv[])
                     return 1;
                 }
                 outdir = argv[i];
-            } else if (!strcmp(argv[i], "-e") || !strcmp(argv[i], "--externs")) {
-                //Open linker extern list file 
-                if(++i == argc) {
-                    fprintf(stderr, "missing argument for %s\n", argv[i-1]);
-                    return 1;
-                }
-                if(externs_outfile) {
-                    //Complain if linker extern list file is already open
-                    fprintf(stderr, "Multiple --externs arguments are disallowed\n");
-                    return 1;
-                }
-                externs_outfile = fopen(argv[i], "w");
-                if(!externs_outfile) {
-                    //Complain if linker extern list fails to open
-                    fprintf(stderr, "cannot open file: %s\n", argv[i]);
-                    return 1;
-                }
             } else if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--compress")) {
                 //Set up for compression
                 compression = true;
@@ -1032,7 +1001,7 @@ int main(int argc, char *argv[])
         asprintf(&outfn, "%s/%s.uso", outdir, basename_noext);
         //Convert input to output
         verbose("Converting: %s -> %s\n", infn, outfn);
-        if(!convert(infn, outfn, externs_outfile)) {
+        if(!convert(infn, outfn)) {
             return 1;
         }
         if(compression) {
@@ -1046,10 +1015,6 @@ int main(int argc, char *argv[])
                 (int)st_decomp.st_size, (int)st_comp.st_size, 100.0 * (float)st_comp.st_size / (float)(st_decomp.st_size == 0 ? 1 :st_decomp.st_size));
         }
         free(outfn);
-    }
-    //Close linker extern list file
-    if(externs_outfile) {
-        fclose(externs_outfile);
     }
     return 0;
 }
