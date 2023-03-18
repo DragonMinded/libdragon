@@ -6,6 +6,7 @@
 #include "utils.h"
 #include "backtrace.h"
 #include "backtrace_internal.h"
+#include "dlfcn_internal.h"
 #include "cop0.h"
 #include <stdio.h>
 #include <stdarg.h>
@@ -47,6 +48,7 @@ static int fpr_show_mode = 1;
 static int disasm_bt_idx = 0;
 static int disasm_max_frames = 0;
 static int disasm_offset = 0;
+static int module_offset = 0;
 static bool first_backtrace = true;
 
 const char *__mips_gpr[34] = {
@@ -414,6 +416,29 @@ static void inspector_page_disasm(surface_t *disp, exception_t* ex, struct contr
     }
 }
 
+static void inspector_page_modules(surface_t *disp, exception_t* ex, struct controller_data *key_pressed)
+{
+    dl_module_t *curr_module = __dl_get_first_module();
+    size_t module_idx = 0;
+    size_t num_modules = __dl_get_num_modules();
+    if(key_pressed->c[0].up && module_offset > 0) {
+        module_offset--;
+    }
+    if(key_pressed->c[0].down && module_offset+18 < num_modules) {
+        module_offset++;
+    }
+    title("Loaded modules");
+    while(curr_module) {
+        if(module_idx >= module_offset && module_idx < module_offset+18) {
+            void *module_min = curr_module->module;
+            void *module_max = ((uint8_t *)module_min)+curr_module->module_size;
+            printf("%s (%p-%p)\n", curr_module->filename, module_min, module_max);
+        }
+        curr_module = __dl_get_next_module(curr_module);
+        module_idx++;
+    }
+}
+
 __attribute__((noreturn))
 static void inspector(exception_t* ex, enum Mode mode) {
     static bool in_inspector = false;
@@ -428,8 +453,9 @@ static void inspector(exception_t* ex, enum Mode mode) {
 		PAGE_GPR,
 		PAGE_FPR,
 		PAGE_CODE,
+        PAGE_MODULES
 	};
-	enum { PAGE_COUNT = PAGE_CODE+1 };
+	enum { PAGE_COUNT = PAGE_MODULES+1 };
 
 	hook_stdio_calls(&(stdio_t){ NULL, inspector_stdout, NULL });
 
@@ -444,7 +470,6 @@ static void inspector(exception_t* ex, enum Mode mode) {
         if (key_pressed.c[0].L) {
             page = (page-1) % PAGE_COUNT;
         }
-
 		disp = display_get();
 
         cursor_x = XSTART;
@@ -465,6 +490,10 @@ static void inspector(exception_t* ex, enum Mode mode) {
             break;
         case PAGE_CODE:
             inspector_page_disasm(disp, ex, &key_pressed);
+            break;
+            
+        case PAGE_MODULES:
+            inspector_page_modules(disp, ex, &key_pressed);
             break;
 		}
 
