@@ -55,14 +55,16 @@ static void create_actor(int type, float x, float y)
         actors[slot]->x = x;
         actors[slot]->y = y;
         actors[slot]->x_scale = actors[slot]->y_scale = 1.0f;
+        actors[slot]->visible = true;
         class->init(actors[slot]);
     }
 }
 
 static void draw_actors()
 {
+    rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
     for(int i=0; i<MAX_ACTORS; i++) {
-        if(actors[i]) {
+        if(actors[i] && actors[i]->visible) {
             //Blit sprite surface to screen
             surface_t surf = sprite_get_pixels(actors[i]->sprite);
             rdpq_tex_blit(&surf, actors[i]->x, actors[i]->y, &(rdpq_blitparms_t){
@@ -92,6 +94,8 @@ static void update_actors(struct controller_data keys)
 
 int main()
 {
+    float scr_width;
+    float scr_height;
     //Init debug log
     debug_init_isviewer();
     debug_init_usblog();
@@ -99,17 +103,26 @@ int main()
     display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, ANTIALIAS_RESAMPLE);
     rdpq_init();
     rdpq_debug_start();
+    scr_width = display_get_width();
+    scr_height = display_get_height();
     //Init miscellaneous system
     dfs_init(DFS_DEFAULT_LOCATION);
     controller_init();
     //Setup scene
-    create_actor(0, 160, 120);
+    create_actor(2, scr_width/2, scr_height/2);
     while(1) {
         surface_t *disp;
         //Update controller
         struct controller_data keys;
         controller_scan();
         keys = get_keys_down();
+        //Do actor spawning
+        if(keys.c[0].A) {
+            //Spawn a random actor somewhere in the middle 80% of the screen
+            float pos_x = (((float)rand()/RAND_MAX)*(scr_width*0.8f))+(scr_width*0.1f);
+            float pos_y = (((float)rand()/RAND_MAX)*(scr_height*0.8f))+(scr_height*0.1f);
+            create_actor(rand()%MAX_ACTOR_TYPES, pos_x, pos_y);
+        }
         //Update actors
         update_actors(keys);
         //Clear display

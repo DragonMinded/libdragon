@@ -579,7 +579,6 @@ int dlclose(void *handle)
         output_error("shared object not open");
         return 1;
     }
-    debugf("dlclose(%p)\n", handle);
     //Do nothing but report success if module mode is RTLD_NODELETE
     if(module->mode & RTLD_NODELETE) {
         return 0;

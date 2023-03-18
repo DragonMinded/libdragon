@@ -18,6 +18,7 @@ typedef struct actor_s {
     float x_scale;
     float y_scale;
     float angle;
+    bool visible;
 } actor_t;
 
 typedef struct actor_class_s {
