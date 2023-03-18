@@ -345,6 +345,8 @@ typedef struct {
 
     GLfloat fog_start;
     GLfloat fog_end;
+    GLfloat fog_offset;
+    GLfloat fog_factor;
 
     gl_material_t material;
     gl_light_t lights[LIGHT_COUNT];
@@ -473,8 +475,10 @@ typedef struct {
     int8_t normal[4];
     uint32_t matrix_pointers[3];
     uint32_t flags;
-    int32_t fog_start;
-    int32_t fog_end;
+    int16_t fog_start;
+    int16_t fog_end;
+    int16_t fog_offset;
+    int16_t fog_factor;
     uint16_t tex_size[2];
     uint16_t tex_offset[2];
     uint16_t polygon_mode;

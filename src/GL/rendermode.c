@@ -80,16 +80,31 @@ void gl_rendermode_init()
     glFogfv(GL_FOG_COLOR, fog_color);
 }
 
+void gl_update_fog()
+{
+    state.fog_factor = 1.0f / (state.fog_end - state.fog_start);
+    state.fog_offset = state.fog_end * state.fog_factor;
+
+    int16_t offset_fx = state.fog_offset * (1<<10);
+    int16_t factor_fx = state.fog_factor * (1<<10);
+
+    uint32_t packed = (offset_fx << 16) | factor_fx;
+
+    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, fog_offset), packed);
+}
+
 void gl_set_fog_start(GLfloat param)
 {
     state.fog_start = param;
-    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, fog_start), param * 65536.f);
+    gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, fog_start), param * (1<<5));
+    gl_update_fog();
 }
 
 void gl_set_fog_end(GLfloat param)
 {
     state.fog_end = param;
-    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, fog_end), param * 65536.f);
+    gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, fog_end), param * (1<<5));
+    gl_update_fog();
 }
 
 void glFogi(GLenum pname, GLint param)
