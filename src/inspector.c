@@ -465,10 +465,20 @@ static void inspector(exception_t* ex, enum Mode mode) {
 	enum Page page = PAGE_EXCEPTION;
 	while (1) {
         if (key_pressed.c[0].Z || key_pressed.c[0].R) {
-            page = (page+1) % PAGE_COUNT;
+            //Do page wrapping logic from left
+            if(page == PAGE_COUNT-1) {
+                page = 0;
+            } else {
+                page++;
+            }
         }
         if (key_pressed.c[0].L) {
-            page = (page-1) % PAGE_COUNT;
+            //Do page wrapping logic from right
+            if(page == 0) {
+                page = PAGE_COUNT-1;
+            } else {
+                page--;
+            }
         }
 		disp = display_get();
 
