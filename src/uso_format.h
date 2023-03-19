@@ -6,7 +6,7 @@
 
 /** @brief USO header magic number */
 #define USO_HEADER_MAGIC 0x55534F30 //'USO0'
-#define USO_GLOBAL_SYM_DATA_MAGIC 0x4D53594D //'MSYM'
+#define USO_MAINEXE_SYM_DATA_MAGIC 0x4D53594D //'MSYM'
 #define USO_MAX_SECTIONS 255
 
 /** @brief USO symbol */

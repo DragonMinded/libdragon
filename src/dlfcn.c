@@ -109,7 +109,7 @@ static uso_sym_table_t *load_mainexe_sym_table()
     dma_read_raw_async(&mainexe_sym_info, rom_addr, sizeof(mainexe_sym_info));
     dma_wait();
     //Verify main executable symbol table
-    if(mainexe_sym_info.magic != USO_GLOBAL_SYM_DATA_MAGIC) {
+    if(mainexe_sym_info.magic != USO_MAINEXE_SYM_DATA_MAGIC) {
         debugf("Invalid main executable symbol table\n");
         return NULL;
     }

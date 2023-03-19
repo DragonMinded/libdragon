@@ -895,7 +895,7 @@ bool convert(char *infn, char *outfn)
     bool ret = false;
     FILE *out_file;
     elf_info_t *elf_info = elf_info_init(infn);
-    uso_module_t *module;
+    uso_module_t *module = NULL;
     //Try opening ELF file
     if(!elf_info->file) {
         fprintf(stderr, "Error: cannot open file: %s\n", infn);

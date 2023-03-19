@@ -63,11 +63,12 @@ void dump_elf_undef(const char *infn, FILE *out_file)
     verbose("Outputting undefined symbols from ELF\n");
     while(getline(&line_buf, &line_buf_size, readelf_stdout) != -1) {
         size_t line_len = strlen(line_buf);
+        char *und_section_title = strstr(line_buf, " UND ");
         //Output non-empty undefined symbols
-        if(line_len > 52 && !strncmp(&line_buf[46], " UND", 4)) {
+        if(und_section_title) {
             line_buf[line_len-1] = 0; //Remove extraneous newline
             //Output symbol
-            fprintf(out_file, "EXTERN(%s)\n", &line_buf[51]);
+            fprintf(out_file, "EXTERN(%s)\n", &und_section_title[5]);
         }
     }
     //Free resources
