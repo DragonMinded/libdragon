@@ -92,32 +92,6 @@ void parse_imports(const char *filename)
     fclose(file);
 }
 
-size_t parse_hex(char *buf, size_t length)
-{
-    char temp_buf[17];
-    if(length > 16) {
-        strncpy(temp_buf, buf, 16);
-        length = 16;
-    } else {
-        strncpy(temp_buf, buf, length);
-    }
-    temp_buf[length] = 0;
-    return strtoul(temp_buf, NULL, 16);
-}
-
-size_t parse_decimal(char *buf, size_t length)
-{
-    char temp_buf[21];
-    if(length > 20) {
-        strncpy(temp_buf, buf, 20);
-        length = 20;
-    } else {
-        strncpy(temp_buf, buf, length);
-    }
-    temp_buf[length] = 0;
-    return strtoul(temp_buf, NULL, 10);
-}
-
 void cleanup_imports()
 {
     if(!imports_hash) {
@@ -181,18 +155,9 @@ void get_export_syms(char *infn)
             size_t linebuf_len = strlen(line_buf);
             line_buf[linebuf_len-1] = 0;
             char *sym_name = &global_ptr[20]; //Get symbol name pointer
-            size_t sym_value = parse_hex(&line_buf[8], 8); //Read symbol value
+            size_t sym_value = strtoull(&line_buf[8], NULL, 16); //Read symbol value
             //Read symbol size
-            size_t sym_size;
-            if(!strncmp(&line_buf[17], "0x", 2)) {
-                verbose("Found symbol with size bigger than 99999\n");
-                //Symbol size in hex prefixed by 0x
-                char *space = strchr(&line_buf[17], ' ');
-                sym_size = parse_hex(&line_buf[19], space-line_buf-19);
-            } else {
-                //Symbol size specified by 5 decimal digits
-                sym_size = parse_decimal(&line_buf[17], 5);
-            }
+            size_t sym_size = strtoull(&line_buf[17], NULL, 0); //Read symbol size
             if(export_all || import_exists(sym_name)) {
                 add_export_sym(sym_name, sym_value, sym_size);
             }
