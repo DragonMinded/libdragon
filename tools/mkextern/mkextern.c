@@ -58,6 +58,15 @@ void dump_elf_undef(const char *infn, FILE *out_file)
     //Skip first 3 lines of stdout from readelf
     getline(&line_buf, &line_buf_size, readelf_stdout); //Blank line
     getline(&line_buf, &line_buf_size, readelf_stdout); //Symbol table description
+    //Check if program actually worked
+    if(!strcmp(line_buf, "")) {
+        fprintf(stderr, "Error running readelf\n");
+        //Cleanup and exit program
+        free(line_buf);
+        free(readelf_bin);
+        subprocess_terminate(&subp);
+        exit(1);
+    }
     getline(&line_buf, &line_buf_size, readelf_stdout); //Symbol table format
     //Read symbol table output from readelf
     verbose("Outputting undefined symbols from ELF\n");
@@ -73,6 +82,7 @@ void dump_elf_undef(const char *infn, FILE *out_file)
     }
     //Free resources
     free(line_buf);
+    free(readelf_bin);
     subprocess_terminate(&subp);
 }
 

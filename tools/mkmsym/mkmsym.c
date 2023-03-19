@@ -162,6 +162,15 @@ void get_export_syms(char *infn)
     //Skip first 3 lines of stdout from readelf
     getline(&line_buf, &line_buf_size, readelf_stdout); //Blank line unless if error
     getline(&line_buf, &line_buf_size, readelf_stdout); //Symbol table description
+    //Check if program actually worked
+    if(!strcmp(line_buf, "")) {
+        fprintf(stderr, "Error running readelf\n");
+        //Cleanup and exit program
+        free(line_buf);
+        free(readelf_bin);
+        subprocess_terminate(&subp);
+        exit(1);
+    }
     getline(&line_buf, &line_buf_size, readelf_stdout); //Symbol table format
     //Read symbol table output from readelf
     verbose("Grabbing exported symbols from ELF\n");
@@ -191,6 +200,7 @@ void get_export_syms(char *infn)
     }
     //Free resources
     free(line_buf);
+    free(readelf_bin);
     subprocess_terminate(&subp);
 }
 
