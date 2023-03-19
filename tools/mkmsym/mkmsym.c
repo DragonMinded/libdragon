@@ -182,7 +182,7 @@ void get_export_syms(char *infn)
                 sym_size = parse_hex(&line_buf[19], space-line_buf-19);
             } else {
                 //Symbol size specified by 5 decimal digits
-                sym_size = parse_hex(&line_buf[17], 5);
+                sym_size = parse_decimal(&line_buf[17], 5);
             }
             if(export_all || import_exists(sym_name)) {
                 add_export_sym(sym_name, sym_value, sym_size);
