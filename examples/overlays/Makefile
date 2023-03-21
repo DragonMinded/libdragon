@@ -1,7 +1,7 @@
 BUILD_DIR=build
 USO_ELF_BASE_DIR=$(BUILD_DIR)
 USO_BASE_DIR=filesystem
-include ovl_n64.mk
+include $(N64_INST)/include/n64.mk
 
 main_SRC = overlays.c
 
