@@ -207,6 +207,7 @@ static symtable_header_t symt_open(void) {
  */
 static addrtable_entry_t symt_addrtab_entry(symtable_header_t *symt, int idx)
 {
+    assert(idx >= 0 && idx < symt->addrtab_size);
     return io_read(SYMT_ROM + symt->addrtab_off + idx * 4);
 }
 
