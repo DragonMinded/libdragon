@@ -74,7 +74,7 @@ void dump_elf_undef(const char *infn, FILE *out_file)
         size_t line_len = strlen(line_buf);
         char *und_section_title = strstr(line_buf, " UND ");
         //Output non-empty undefined symbols
-        if(und_section_title) {
+        if(und_section_title && strlen(&und_section_title[5]) > 1) {
             line_buf[line_len-1] = 0; //Remove extraneous newline
             //Output symbol
             fprintf(out_file, "EXTERN(%s)\n", &und_section_title[5]);

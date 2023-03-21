@@ -18,7 +18,7 @@
 //USO Symbol Table Internals
 #include "../../src/uso_format.h"
 
-struct { char *key; size_t value; } *imports_hash = NULL;
+struct { char *key; int64_t value; } *imports_hash = NULL;
 
 uso_sym_t *export_syms = NULL;
 
@@ -96,9 +96,6 @@ void cleanup_imports()
 {
     if(!imports_hash) {
         return;
-    }
-    for(size_t i=0; i<stbds_shlenu(imports_hash); i++) {
-        free(imports_hash[i].key);
     }
     stbds_shfree(imports_hash);
 }
@@ -323,6 +320,6 @@ int main(int argc, char **argv)
         outfn = argv[i++];
     }
     process(infn, outfn);
-    cleanup_imports();
+	cleanup_imports();
     return 0;
 }
