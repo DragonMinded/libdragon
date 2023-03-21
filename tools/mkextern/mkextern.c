@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdarg.h>
-#include <malloc.h>
 #include "../common/subprocess.h"
 #include "../common/polyfill.h"
 

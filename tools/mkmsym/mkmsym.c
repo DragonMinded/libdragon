@@ -6,7 +6,6 @@
 #include <string.h>
 #include <stdarg.h>
 #include <ctype.h>
-#include <malloc.h>
 #include "../common/subprocess.h"
 #include "../common/polyfill.h"
 #include "../common/binout.h"
