@@ -237,47 +237,6 @@ void elf_find_callsites(const char *elf)
     free(cmd);
 }
 
-void compact_filenames(void)
-{
-    while (1) {
-        char *prefix = NULL; int prefix_len = 0;
-
-        for (int i=0; i<stbds_arrlen(symtable); i++) {
-            struct symtable_s *s = &symtable[i];
-            if (!s->file) continue;
-            if (s->file[0] != '/' && s->file[1] != ':') continue;
-
-            if (!prefix) {
-                prefix = s->file;
-                prefix_len = 0;
-                if (prefix[prefix_len] == '/' || prefix[prefix_len] == '\\')
-                    prefix_len++;
-                while (prefix[prefix_len] && prefix[prefix_len] != '/' && prefix[prefix_len] != '\\')
-                    prefix_len++;
-                verbose("Initial prefix: %.*s\n", prefix_len, prefix);
-                if (prefix[prefix_len] == 0)
-                    return;
-            } else {
-                if (strncmp(prefix, s->file, prefix_len) != 0) {
-                    verbose("Prefix mismatch: %.*s vs %s\n", prefix_len, prefix, s->file);
-                    return;
-                }
-            }
-        }
-
-        verbose("Removing common prefix: %.*s\n", prefix_len, prefix);
-
-        // The prefix is common to all files, remove it
-        for (int i=0; i<stbds_arrlen(symtable); i++) {
-            struct symtable_s *s = &symtable[i];
-            if (!s->file) continue;
-            if (s->file[0] != '/' && s->file[1] != ':') continue;
-            s->file += prefix_len;
-        }
-        break;
-    }
-}
-
 void compute_function_offsets(void)
 {
     uint32_t func_addr = 0;
@@ -321,11 +280,6 @@ void process(const char *infn, const char *outfn)
     // the ELF file and grepping it.
     elf_find_callsites(infn);
     verbose("Found %d callsites\n", stbds_arrlen(symtable));
-
-    // Compact the file names to avoid common prefixes
-    // FIXME: we need to improve this to handle multiple common prefixes
-    // eg: /home/foo vs /opt/n64/include
-    //compact_filenames();
 
     // Sort the symbole table by symbol length. We want longer symbols
     // to go in first, so that shorter symbols can be found as substrings.
