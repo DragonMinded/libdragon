@@ -15,7 +15,7 @@
 bool flag_verbose = false;
 int flag_max_sym_len = 64;
 bool flag_inlines = true;
-char *n64_inst = NULL;
+const char *n64_inst = NULL;
 
 // Printf if verbose
 void verbose(const char *fmt, ...) {
@@ -448,27 +448,14 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    // Find the toolchain installation directory.
-    // n64.mk supports having a separate installation for the toolchain and
-    // libdragon. So first check if N64_GCCPREFIX is set; if so the toolchain
-    // is there. Otherwise, fallback to N64_INST which is where we expect
-    // the toolchain to reside.
-    n64_inst = getenv("N64_GCCPREFIX");
-    if (!n64_inst)
-        n64_inst = getenv("N64_INST");
+    // Find n64 installation directory
+    n64_inst = n64_toolchain_dir();
     if (!n64_inst) {
         // Do not mention N64_GCCPREFIX in the error message, since it is
         // a seldom used configuration.
-        fprintf(stderr, "Error: N64_INST environment variable not set.\n");
+        fprintf(stderr, "Error: N64_INST environment variable not set\n");
         return 1;
     }
-    // Remove the trailing backslash if any. On some system, running
-    // popen with a path containing double backslashes will fail, so
-    // we normalize it here.
-    n64_inst = strdup(n64_inst);
-    int n = strlen(n64_inst);
-    if (n64_inst[n-1] == '/' || n64_inst[n-1] == '\\')
-        n64_inst[n-1] = 0;
 
     const char *infn = argv[i];
     if (i < argc-1)
