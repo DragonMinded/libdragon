@@ -392,3 +392,7 @@ __attribute__((constructor)) void __init_cop1()
 }
 
 /** @} */
+
+/* Inline instantiations */
+extern inline volatile unsigned long get_ticks(void);
+extern inline volatile unsigned long get_ticks_ms(void);

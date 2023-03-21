@@ -190,7 +190,7 @@ void sys_set_boot_cic(int bc);
  *
  * @return The number of ticks since system startup
  */
-static inline volatile unsigned long get_ticks(void)
+inline volatile unsigned long get_ticks(void)
 {
     return TICKS_READ();
 }
@@ -204,7 +204,7 @@ static inline volatile unsigned long get_ticks(void)
  *
  * @return The number of millisecounds since system startup
  */
-static inline volatile unsigned long get_ticks_ms(void)
+inline volatile unsigned long get_ticks_ms(void)
 {
     return TICKS_READ() / (TICKS_PER_SECOND / 1000);
 }
