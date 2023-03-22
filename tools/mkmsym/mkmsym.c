@@ -167,8 +167,6 @@ void get_export_syms(char *infn)
             }
         }
     }
-	//Sort export syms found
-	qsort(export_syms, stbds_arrlenu(export_syms), sizeof(uso_sym_t), uso_sym_compare);
     //Free resources
     free(line_buf);
     free(readelf_bin);
@@ -254,9 +252,12 @@ void write_msym(char *outfn)
     write_mainexe_sym_header(&sym_header, 0, out);
     fclose(out);
 }
+
 void process(char *infn, char *outfn)
 {
     get_export_syms(infn);
+    verbose("Sorting exported symbols from ELF");
+    qsort(export_syms, stbds_arrlenu(export_syms), sizeof(uso_sym_t), uso_sym_compare);
     verbose("Writing output file %s\n", outfn);
     write_msym(outfn);
 }
@@ -329,6 +330,6 @@ int main(int argc, char **argv)
         outfn = argv[i++];
     }
     process(infn, outfn);
-	cleanup_imports();
+    cleanup_imports();
     return 0;
 }
