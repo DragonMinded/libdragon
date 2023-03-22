@@ -127,7 +127,7 @@ static int sym_compare(const void *arg1, const void *arg2)
 {
     const uso_sym_t *sym1 = arg1;
     const uso_sym_t *sym2 = arg2;
-    return -strcmp(sym1->name, sym2->name);
+    return strcmp(sym1->name, sym2->name);
 }
 
 static uso_sym_t *search_sym_table(uso_sym_table_t *sym_table, const char *name)

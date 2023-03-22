@@ -108,6 +108,14 @@ void add_export_sym(const char *name, uint32_t value, uint32_t size)
     stbds_arrput(export_syms, sym);
 }
 
+int uso_sym_compare(const void *a, const void *b)
+{
+    //Sort in lexicographical order (standard strcmp uses)
+    uso_sym_t *symbol_1 = (uso_sym_t *)a;
+    uso_sym_t *symbol_2 = (uso_sym_t *)b;
+    return strcmp(symbol_1->name, symbol_2->name);
+}
+
 void get_export_syms(char *infn)
 {
     //Readelf parameters
@@ -159,6 +167,8 @@ void get_export_syms(char *infn)
             }
         }
     }
+	//Sort export syms found
+	qsort(export_syms, stbds_arrlenu(export_syms), sizeof(uso_sym_t), uso_sym_compare);
     //Free resources
     free(line_buf);
     free(readelf_bin);
