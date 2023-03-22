@@ -32,7 +32,7 @@ static void do_rotation(n64brew_actor_t *this)
 }
 static void do_crash()
 {
-    *(int *)NULL = 0;
+    debugf((char *)0x1);
 }
 
 static bool update(actor_t *actor, struct controller_data pressed_keys)
