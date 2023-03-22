@@ -1,7 +1,8 @@
 BUILD_DIR ?= .
 SOURCE_DIR ?= .
-USO_ELF_BASE_DIR ?= .
+USO_PLF_BASE_DIR ?= .
 USO_BASE_DIR ?= .
+USO_MODULES ?=
 N64_DFS_OFFSET ?= 1M # Override this to offset where the DFS file will be located inside the ROM
 
 N64_ROM_TITLE = "Made with libdragon" # Override this with the name of your game or project
@@ -81,7 +82,9 @@ RSPASFLAGS+=-MMD
 N64_CXXFLAGS := $(N64_CFLAGS)
 N64_CFLAGS += -std=gnu99
 
-USO_EXTERNS_LIST := $(BUILD_DIR)/uso_externs.lst
+USO_EXTERNS_LIST := $(BUILD_DIR)/uso_externs.externs
+USO_PLF_LIST := $(addprefix $(USO_PLF_BASE_DIR)/, $(addsuffix .plf, $(basename $(USO_MODULES))))
+USO_LIST := $(addprefix $(USO_BASE_DIR)/, $(addsuffix .uso, $(basename $(USO_MODULES))))
 
 # Change all the dependency chain of z64 ROMs to use the N64 toolchain.
 %.z64: CC=$(N64_CC)
@@ -166,36 +169,41 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 	@echo "    [CXX] $<"
 	$(CXX) -c $(CXXFLAGS) -o $@ $<
 
-%.elf: $(N64_LIBDIR)/libdragon.a $(N64_LIBDIR)/libdragonsys.a $(N64_LIBDIR)/n64.ld $(N64_LIBDIR)/uso.ld
+%.elf: $(N64_LIBDIR)/libdragon.a $(N64_LIBDIR)/libdragonsys.a $(N64_LIBDIR)/n64.ld $(USO_EXTERNS_LIST)
 	@mkdir -p $(dir $@)
 	@echo "    [LD] $@"
 # We always use g++ to link except for ucode and USO files (detected with -mno-gpopt in CFLAGS) because of the inconsistencies
 # between ld when it comes to global ctors dtors. Also see __do_global_ctors
-	if [ -z "$(filter -mno-gpopt, $(CFLAGS))" ]; then \
-		touch $(USO_EXTERNS_LIST); \
-		$(CXX) -o $@ $(filter %.o, $^) -lc $(patsubst %,-Wl$(COMMA)%,$(LDFLAGS)) -Wl,-Map=$(BUILD_DIR)/$(notdir $(basename $@)).map; \
-	else \
-		$(N64_LD) $(N64_USOLDFLAGS) -Map=$(basename $@).map -o $@ $(filter %.o, $^); \
-	fi
+	touch $(USO_EXTERNS_LIST)
+	$(CXX) -o $@ $(filter %.o, $^) -lc $(patsubst %,-Wl$(COMMA)%,$(LDFLAGS)) -Wl,-Map=$(BUILD_DIR)/$(notdir $(basename $@)).map
 	$(N64_SIZE) -G $@
 
-# Change all the dependency chain of USO files to use the N64 toolchain.
-%.uso: CC=$(N64_CC)
-%.uso: CXX=$(N64_CXX)
-%.uso: AS=$(N64_AS)
-%.uso: LD=$(N64_LD)
-%.uso: CFLAGS+=$(N64_CFLAGS) -mno-gpopt
-%.uso: CXXFLAGS+=$(N64_CXXFLAGS) -mno-gpopt
-%.uso: ASFLAGS+=$(N64_ASFLAGS)
-%.uso: RSPASFLAGS+=$(N64_RSPASFLAGS)
-%.uso: LDFLAGS+=$(N64_LDFLAGS)
+%.plf: $(N64_LIBDIR)/uso.ld
+	@mkdir -p $(dir $@)
+	@echo "    [LD] $@"
+	$(N64_LD) $(N64_USOLDFLAGS) -Map=$(basename $@).map -o $@ $(filter %.o, $^)
+	$(N64_SIZE) -G $@
+	
+# Change all the dependency chain of PLF files to use the N64 toolchain.
+%.plf: CC=$(N64_CC)
+%.plf: CXX=$(N64_CXX)
+%.plf: AS=$(N64_AS)
+%.plf: LD=$(N64_LD)
+%.plf: CFLAGS+=$(N64_CFLAGS) -mno-gpopt
+%.plf: CXXFLAGS+=$(N64_CXXFLAGS) -mno-gpopt
+%.plf: ASFLAGS+=$(N64_ASFLAGS)
+%.plf: RSPASFLAGS+=$(N64_RSPASFLAGS)
+%.plf: LDFLAGS+=$(N64_LDFLAGS)
 
-$(USO_BASE_DIR)/%.uso: $(USO_ELF_BASE_DIR)/%.elf
+$(USO_BASE_DIR)/%.uso: $(USO_PLF_BASE_DIR)/%.plf
 	@mkdir -p $(dir $@)
 	@echo "    [MKUSO] $@"
 	$(N64_MKUSO) -o $(dir $@) $<
 	$(N64_SYM) $< $@.sym
-	$(N64_MKEXTERN) -o $(USO_EXTERNS_LIST) $<
+	
+%.externs: $(USO_PLF_LIST)
+	@mkdir -p $(dir $@)
+	$(N64_MKEXTERN) -o $@ $^
 	
 ifneq ($(V),1)
 .SILENT:

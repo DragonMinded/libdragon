@@ -141,7 +141,7 @@ int main(int argc, char **argv)
                 out_file = fopen(argv[i], "a");
                 if(!out_file) {
                     //Output error if file cannot be opened
-                    fprintf(stderr, "Cannot create file: %s\n", argv[i-1]);
+                    fprintf(stderr, "Cannot create file: %s\n", argv[i]);
                     return 1;
                 }
             } else {

@@ -1,4 +1,5 @@
 #include "actor.h"
+#include <math.h>
 
 #define SPAWN_DURATION 1500
 #define FLICKER_DURATION 120
@@ -27,6 +28,7 @@ static void do_rotation(n64brew_actor_t *this)
         this->angle_vel = -this->angle_vel;
         this->actor.angle = -MAX_ROTATION;
     }
+	this->actor.x_scale = this->actor.y_scale = cos(this->actor.angle);
 }
 static void do_crash()
 {
