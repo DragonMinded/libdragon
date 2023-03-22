@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['interrupt_20controller_0',['Interrupt Controller',['../group__interrupt.html',1,'']]]
+  ['hardware_20display_20interface_0',['Hardware Display Interface',['../group__rdp.html',1,'']]]
 ];

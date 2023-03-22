@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['joybus_20subsystem_0',['Joybus Subsystem',['../group__joybus.html',1,'']]]
+  ['interrupt_20controller_0',['Interrupt Controller',['../group__interrupt.html',1,'']]]
 ];

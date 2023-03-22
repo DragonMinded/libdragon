@@ -12,5 +12,5 @@ var searchData=
   ['tone_5fen_9',['tone_en',['../structAYChannel.html#a9f1332ab6af6249bb82b0cfe50e860a9',1,'AYChannel']]],
   ['tone_5fperiod_10',['tone_period',['../structAYChannel.html#a8bf7b5917235f88d2dcff4e831479be0',1,'AYChannel']]],
   ['tone_5fvol_11',['tone_vol',['../structAYChannel.html#ab41364b8139e8f4861176642cf968c34',1,'AYChannel']]],
-  ['type_12',['type',['../group__exceptions.html#afbad107df38f2e4963547dbcbe5c88ae',1,'exception_t']]]
+  ['type_12',['type',['../structbt__func__t.html#acd92aefc7b9b27250b458fcd26d717cb',1,'bt_func_t::type()'],['../group__exceptions.html#afbad107df38f2e4963547dbcbe5c88ae',1,'exception_t::type()']]]
 ];

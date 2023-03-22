@@ -1,5 +1,4 @@
 var searchData=
 [
-  ['console_20support_0',['Console Support',['../group__console.html',1,'']]],
-  ['controller_20subsystem_1',['Controller Subsystem',['../group__controller.html',1,'']]]
+  ['backtrace_20_28call_20stack_29_20support_0',['Backtrace (call stack) support',['../group__backtrace.html',1,'']]]
 ];

@@ -127,6 +127,9 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>debug_close_sdfs</b> 
 <tr class="memitem:ad61db050c61f16ebea19f3610ef57219"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="debug_8h.html#ad61db050c61f16ebea19f3610ef57219">debug_hexdump</a> (const void *buffer, int size)</td></tr>
 <tr class="memdesc:ad61db050c61f16ebea19f3610ef57219"><td class="mdescLeft">&#160;</td><td class="mdescRight">Do a hexdump of the specified buffer via <a class="el" href="debug_8h.html#aa3e8be416ef1525cfd3230204b56d184" title="Write a message to the debugging channel.">debugf</a>.  <a href="debug_8h.html#ad61db050c61f16ebea19f3610ef57219">More...</a><br /></td></tr>
 <tr class="separator:ad61db050c61f16ebea19f3610ef57219"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a48a47644097877a8b22a70951445524d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="debug_8h.html#a48a47644097877a8b22a70951445524d">debug_backtrace</a> (void)</td></tr>
+<tr class="memdesc:a48a47644097877a8b22a70951445524d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Dump a backtrace (call stack) via <a class="el" href="debug_8h.html#aa3e8be416ef1525cfd3230204b56d184" title="Write a message to the debugging channel.">debugf</a>.  <a href="debug_8h.html#a48a47644097877a8b22a70951445524d">More...</a><br /></td></tr>
+<tr class="separator:a48a47644097877a8b22a70951445524d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8b30820e0172cfb41a7c3bedc0da987e"><td class="memItemLeft" align="right" valign="top"><a id="a8b30820e0172cfb41a7c3bedc0da987e" name="a8b30820e0172cfb41a7c3bedc0da987e"></a>
 void&#160;</td><td class="memItemRight" valign="bottom"><b>debug_assert_func_f</b> (const char *file, int line, const char *func, const char *failedexpr, const char *msg,...)</td></tr>
 <tr class="memdesc:a8b30820e0172cfb41a7c3bedc0da987e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Underlying implementation function for assert() and <a class="el" href="debug_8h.html#a66673aad3e392c6b58054aebe66fe28e" title="assertf() is like assert() with an attached printf().">assertf</a>. <br /></td></tr>
@@ -324,7 +327,7 @@ Because of a 64drive firmware bug, the 64drive USB stack will crash if a SD comm
 <b>Value:</b><div class="fragment"><div class="line">        ({ \</div>
 <div class="line">        if (!(expr)) <a class="code hl_function" href="debug_8h.html#a8b30820e0172cfb41a7c3bedc0da987e">debug_assert_func_f</a>(__FILE__, __LINE__, __func__, #expr, msg, ##__VA_ARGS__); \</div>
 <div class="line">    })</div>
-<div class="ttc" id="adebug_8h_html_a8b30820e0172cfb41a7c3bedc0da987e"><div class="ttname"><a href="debug_8h.html#a8b30820e0172cfb41a7c3bedc0da987e">debug_assert_func_f</a></div><div class="ttdeci">void debug_assert_func_f(const char *file, int line, const char *func, const char *failedexpr, const char *msg,...)</div><div class="ttdoc">Underlying implementation function for assert() and assertf.</div><div class="ttdef"><b>Definition:</b> debug.c:545</div></div>
+<div class="ttc" id="adebug_8h_html_a8b30820e0172cfb41a7c3bedc0da987e"><div class="ttname"><a href="debug_8h.html#a8b30820e0172cfb41a7c3bedc0da987e">debug_assert_func_f</a></div><div class="ttdeci">void debug_assert_func_f(const char *file, int line, const char *func, const char *failedexpr, const char *msg,...)</div><div class="ttdoc">Underlying implementation function for assert() and assertf.</div><div class="ttdef"><b>Definition:</b> debug.c:548</div></div>
 </div><!-- fragment -->
 <p><a class="el" href="debug_8h.html#a66673aad3e392c6b58054aebe66fe28e" title="assertf() is like assert() with an attached printf().">assertf()</a> is like assert() with an attached printf(). </p>
 <p ><a class="el" href="debug_8h.html#a66673aad3e392c6b58054aebe66fe28e" title="assertf() is like assert() with an attached printf().">assertf()</a> behaves exactly like assert(), but allows for a better debugging experience because it is possible to attach a formatted string that will be displayed in case the assert triggers.</p>
@@ -378,10 +381,35 @@ Because of a 64drive firmware bug, the 64drive USB stack will crash if a SD comm
 
 </div>
 </div>
+<a id="a48a47644097877a8b22a70951445524d" name="a48a47644097877a8b22a70951445524d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a48a47644097877a8b22a70951445524d">&#9670;&nbsp;</a></span>debug_backtrace()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void debug_backtrace </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Dump a backtrace (call stack) via <a class="el" href="debug_8h.html#aa3e8be416ef1525cfd3230204b56d184" title="Write a message to the debugging channel.">debugf</a>. </p>
+<p >This function will dump the current call stack to the debugging channel. It is useful to understand where the program is currently executing, and to understand the context of an error.</p>
+<p >The implementation of this function relies on the lower level <a class="el" href="group__backtrace.html#ga3747bea884034d32d4d558872223969e" title="Walk the stack and return the current call stack.">backtrace</a> and <a class="el" href="group__backtrace.html#gaca2b35f3378753df6b8d2a2d48b8b9d9" title="Translate the buffer returned by backtrace into a list of strings.">backtrace_symbols</a> functions, which are implemented in libdragon itself via a symbol table embedded in the ROM. See <a class="el" href="group__backtrace.html#gaca2b35f3378753df6b8d2a2d48b8b9d9" title="Translate the buffer returned by backtrace into a list of strings.">backtrace_symbols</a> for more information.</p>
+<dl class="section see"><dt>See also</dt><dd><a class="el" href="group__backtrace.html#ga3747bea884034d32d4d558872223969e" title="Walk the stack and return the current call stack.">backtrace</a> </dd>
+<dd>
+<a class="el" href="group__backtrace.html#gaca2b35f3378753df6b8d2a2d48b8b9d9" title="Translate the buffer returned by backtrace into a list of strings.">backtrace_symbols</a> </dd></dl>
+
+</div>
+</div>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Fri Mar 3 2023 13:36:23 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Mar 22 2023 00:03:59 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

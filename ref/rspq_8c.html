@@ -239,10 +239,10 @@ volatile uint32_t *&#160;</td><td class="memItemRight" valign="bottom"><b>rspq_c
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p >RSP Command queue. </p>
-<h1><a class="anchor" id="autotoc_md8"></a>
+<h1><a class="anchor" id="autotoc_md10"></a>
 RSP Queue: implementation</h1>
 <p >This documentation block describes the internal workings of the RSP Queue. This is useful to understand the implementation. For description of the API of the RSP queue, see <a class="el" href="rspq_8h.html" title="RSP Command queue.">rspq.h</a></p>
-<h2><a class="anchor" id="autotoc_md9"></a>
+<h2><a class="anchor" id="autotoc_md11"></a>
 Architecture</h2>
 <p >The RSP queue can be thought in abstract as a single contiguous memory buffer that contains RSP commands. The CPU is the writing part, which appends command to the buffer. The RSP is the reading part, which reads commands and execute them. Both work at the same time on the same buffer, so careful engineering is required to make sure that they do not interfere with each other.</p>
 <p >The complexity of this library is trying to achieve this design without any explicit synchronization primitive. The basic design constraint is that, in the standard code path, the CPU should be able to just append a new command in the buffer without talking to the RSP, and the RSP should be able to just read a new command from the buffer without talking to the CPU. Obviously there are side cases where the synchronization is required (eg: if the RSP catches up with the CPU, or if the CPU fins that the buffer is full), but these cases should in general be rare.</p>
@@ -268,20 +268,20 @@ Architecture</h2>
 <li>The CPU must take special care not to write the command ID before the full command is written. For instance let's say a command is made by two words: 0xAB000001 0xFFFF8000 (overlay 0xA, command index 0xB, length 2). If the CPU writes the two words in the standard order, there might be a race where the RSP reads the memory via DMA when only the first word has been written, and thus see 0xAB000001 0x00000000, executing the command with a wrong second word. So the CPU has to write the first word as last (or at least its first byte must be written last).</li>
 <li>It is important that the C compiler does not reorder writes. In general, compilers are allowed to change the order in which writes are performed in a buffer. For instance, if the code writes to buf[0], buf[1], buf[2], the compiler might decide to generate code that writes buf[2] first, for optimization reasons. It is possible to fix it using the <a class="el" href="group__n64sys.html#ga56d4cbe1e093c683432a147eb1ccb293" title="Memory barrier to ensure in-order execution.">MEMORY_BARRIER</a> macro, or the volatile qualifier (which guarantees a fixed order of accesses between volatile pointers, though non-volatile accesses can be reordered freely also across volatile ones).</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md10"></a>
+<h2><a class="anchor" id="autotoc_md12"></a>
 Internal commands</h2>
 <p >To manage the queue and implement all the various features, rspq reserves for itself the overlay ID 0x0 to implement internal commands. You can look at the list of commands and their description below. All command IDs are defined with <code>RSPQ_CMD_*</code> macros.</p>
-<h2><a class="anchor" id="autotoc_md11"></a>
+<h2><a class="anchor" id="autotoc_md13"></a>
 Buffer swapping</h2>
 <p >Internally, double buffering is used to implement the queue. The size of each of the buffers is RSPQ_DRAM_LOWPRI_BUFFER_SIZE. When a buffer is full, the queue engine writes a RSPQ_CMD_JUMP command with the address of the other buffer, to tell the RSP to jump there when it is done.</p>
 <p >Moreover, just before the jump, the engine also enqueue a RSPQ_CMD_WRITE_STATUS command that sets the SP_STATUS_SIG_BUFDONE_LOW signal. This is used to keep track when the RSP has finished processing a buffer, so that we know it becomes free again for more commands.</p>
 <p >This logic is implemented in <a class="el" href="rspq_8c.html#a6d24ce57cd1b2cdb69297c97dab0eb21" title="Switch to the next write buffer for the current RSP queue.">rspq_next_buffer</a>.</p>
-<h2><a class="anchor" id="autotoc_md12"></a>
+<h2><a class="anchor" id="autotoc_md14"></a>
 Blocks</h2>
 <p >Blocks are implemented by redirecting rspq_write to a different memory buffer, allocated for the block. The starting size for this buffer is RSPQ_BLOCK_MIN_SIZE. If the buffer becomes full, a new buffer is allocated with double the size (to achieve exponential growth), and it is linked to the previous buffer via a RSPQ_CMD_JUMP. So a block can end up being defined by multiple memory buffers linked via jumps.</p>
 <p >Calling a block requires some work because of the nesting calls we want to support. To make the RSP ucode as short as possible, the two internal command dedicated to block calls (RSPQ_CMD_CALL and RSPQ_CMD_RET) do not manage a call stack by themselves, but only allow to save/restore the current queue position from a "save slot", whose index must be provided by the CPU.</p>
 <p >Thus, the CPU has to make sure that each CALL opcode saves the position into a save slot which will not be overwritten by nested block calls. To do this, it calculates the "nesting level" of a block at block creation time: the nesting level of a block is defined by the smallest number greater than the nesting levels of all blocks that are called within the block itself. So for instance if a block calls another block whose nesting level is 5, it will get assigned a level of 6. The nesting level is then used as call slot in both all future calls to the block, and by the RSPQ_CMD_RET command placed at the end of the block itself.</p>
-<h2><a class="anchor" id="autotoc_md13"></a>
+<h2><a class="anchor" id="autotoc_md15"></a>
 Highpri queue</h2>
 <p >The high priority queue is implemented as an alternative couple of buffers, that replace the standard buffers when the high priority mode is activated.</p>
 <p >When <a class="el" href="rspq_8c.html#ae546104d15d469518ac5fba15521e965" title="Start building a high-priority queue.">rspq_highpri_begin</a> is called, the CPU notifies the RSP that it must switch to the highpri queues by setting signal SP_STATUS_SIG_HIGHPRI_REQUESTED. The RSP checks for that signal between each command, and when it sees it, it internally calls RSPQ_CMD_SWAP_BUFFERS. This command loads the highpri queue pointer from a special call slot, saves the current lowpri queue position in another special save slot, and finally clear SP_STATUS_SIG_HIGHPRI_REQUESTED and set SP_STATUS_SIG_HIGHPRI_RUNNING instead.</p>
@@ -1606,7 +1606,7 @@ It is not possible to create a syncpoint from the high-priority queue due to the
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Fri Mar 3 2023 13:36:23 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Wed Mar 22 2023 00:04:00 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>

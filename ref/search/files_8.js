@@ -1,4 +1,5 @@
 var searchData=
 [
-  ['libdragon_2eh_0',['libdragon.h',['../libdragon_8h.html',1,'']]]
+  ['joybus_2ec_0',['joybus.c',['../joybus_8c.html',1,'']]],
+  ['joybus_2eh_1',['joybus.h',['../joybus_8h.html',1,'']]]
 ];

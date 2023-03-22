@@ -1,4 +1,5 @@
 var searchData=
 [
-  ['hardware_20display_20interface_0',['Hardware Display Interface',['../group__rdp.html',1,'']]]
+  ['eeprom_20subsystem_0',['EEPROM subsystem',['../group__eeprom.html',1,'']]],
+  ['exception_20handler_1',['Exception Handler',['../group__exceptions.html',1,'']]]
 ];
