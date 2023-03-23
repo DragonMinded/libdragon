@@ -16,7 +16,7 @@
 bool flag_verbose = false;
 int flag_max_sym_len = 64;
 bool flag_inlines = true;
-char *n64_inst = NULL;
+const char *n64_inst = NULL;
 
 // Printf if verbose
 void verbose(const char *fmt, ...) {
@@ -211,47 +211,7 @@ void elf_find_callsites(const char *elf)
     }
     free(line);
     pclose(disasm);
-}
-
-void compact_filenames(void)
-{
-    while (1) {
-        char *prefix = NULL; int prefix_len = 0;
-
-        for (int i=0; i<stbds_arrlen(symtable); i++) {
-            struct symtable_s *s = &symtable[i];
-            if (!s->file) continue;
-            if (s->file[0] != '/' && s->file[1] != ':') continue;
-
-            if (!prefix) {
-                prefix = s->file;
-                prefix_len = 0;
-                if (prefix[prefix_len] == '/' || prefix[prefix_len] == '\\')
-                    prefix_len++;
-                while (prefix[prefix_len] && prefix[prefix_len] != '/' && prefix[prefix_len] != '\\')
-                    prefix_len++;
-                verbose("Initial prefix: %.*s\n", prefix_len, prefix);
-                if (prefix[prefix_len] == 0)
-                    return;
-            } else {
-                if (strncmp(prefix, s->file, prefix_len) != 0) {
-                    verbose("Prefix mismatch: %.*s vs %s\n", prefix_len, prefix, s->file);
-                    return;
-                }
-            }
-        }
-
-        verbose("Removing common prefix: %.*s\n", prefix_len, prefix);
-
-        // The prefix is common to all files, remove it
-        for (int i=0; i<stbds_arrlen(symtable); i++) {
-            struct symtable_s *s = &symtable[i];
-            if (!s->file) continue;
-            if (s->file[0] != '/' && s->file[1] != ':') continue;
-            s->file += prefix_len;
-        }
-        break;
-    }
+    free(cmd);
 }
 
 void compute_function_offsets(void)
@@ -298,11 +258,6 @@ void process(const char *infn, const char *outfn)
     elf_find_callsites(infn);
     verbose("Found %d callsites\n", stbds_arrlen(symtable));
 
-    // Compact the file names to avoid common prefixes
-    // FIXME: we need to improve this to handle multiple common prefixes
-    // eg: /home/foo vs /opt/n64/include
-    //compact_filenames();
-
     // Sort the symbole table by symbol length. We want longer symbols
     // to go in first, so that shorter symbols can be found as substrings.
     // We sort by function name rather than file name, because we expect
@@ -341,6 +296,7 @@ void process(const char *infn, const char *outfn)
         exit(1);
     }
 
+    // Write header. See symtable_header_t in backtrace.c for the layout.
     fwrite("SYMT", 4, 1, out);
     w32(out, 2); // Version
     int addrtable_off = w32_placeholder(out);
@@ -350,6 +306,7 @@ void process(const char *infn, const char *outfn)
     int stringtable_off = w32_placeholder(out);
     w32(out, stbds_arrlen(stringtable));
 
+    // Write address table. This is a sequence of 32-bit addresses.
     walign(out, 16);
     w32_at(out, addrtable_off, ftell(out));
     for (int i=0; i < stbds_arrlen(symtable); i++) {
@@ -357,6 +314,7 @@ void process(const char *infn, const char *outfn)
         w32(out, sym->addr | (sym->is_func ? 0x1 : 0) | (sym->is_inline ? 0x2 : 0));
     }
 
+    // Write symbol table. See symtable_entry_t in backtrace.c for the layout.
     walign(out, 16);
     w32_at(out, symtable_off, ftell(out));
     for (int i=0; i < stbds_arrlen(symtable); i++) {
@@ -421,27 +379,13 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    // Find n64 installation directory
+    n64_inst = n64_toolchain_dir();
     if (!n64_inst) {
-        // n64.mk supports having a separate installation for the toolchain and
-        // libdragon. So first check if N64_GCCPREFIX is set; if so the toolchain
-        // is there. Otherwise, fallback to N64_INST which is where we expect
-        // the toolchain to reside.
-        n64_inst = getenv("N64_GCCPREFIX");
-        if (!n64_inst)
-            n64_inst = getenv("N64_INST");
-        if (!n64_inst) {
-            // Do not mention N64_GCCPREFIX in the error message, since it is
-            // a seldom used configuration.
-            fprintf(stderr, "Error: N64_INST environment variable not set.\n");
-            return 1;
-        }
-        // Remove the trailing backslash if any. On some system, running
-        // popen with a path containing double backslashes will fail, so
-        // we normalize it here.
-        n64_inst = strdup(n64_inst);
-        int n = strlen(n64_inst);
-        if (n64_inst[n-1] == '/' || n64_inst[n-1] == '\\')
-            n64_inst[n-1] = 0;
+        // Do not mention N64_GCCPREFIX in the error message, since it is
+        // a seldom used configuration.
+        fprintf(stderr, "Error: N64_INST environment variable not set\n");
+        return 1;
     }
 
     const char *infn = argv[i];
