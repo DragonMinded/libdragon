@@ -198,7 +198,7 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 $(USO_BASE_DIR)/%.uso: $(USO_PLF_BASE_DIR)/%.plf
 	@mkdir -p $(dir $@)
 	@echo "    [MKUSO] $@"
-	$(N64_MKUSO) -o $(dir $@) $<
+	$(N64_MKUSO) -o $(dir $@) -c $<
 	$(N64_SYM) $< $@.sym
 	
 %.externs: $(USO_PLF_LIST)
