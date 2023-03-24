@@ -6,6 +6,8 @@
 
 /** @brief Generic function pointer */
 typedef void (*func_ptr)();
+/** @brief Generic function pointer */
+typedef char *(*demangle_func)(char *);
 /** @brief Unaligned uint32_t */
 typedef uint32_t u_uint32_t __attribute__((aligned(1)));
 
@@ -27,6 +29,9 @@ typedef struct dl_module_s {
     uint32_t ehframe_obj[6];    ///< Exception frame object
     int mode;                   ///< Dynamic library flags
 } dl_module_t;
+
+/** @brief Demangler function */
+extern demangle_func __dl_demangle_func;
 
 /**
  * @brief Get pointer to loaded module from address

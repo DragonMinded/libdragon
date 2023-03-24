@@ -31,8 +31,9 @@ extern void __register_frame_info(void *ptr, void *object);
 extern void __deregister_frame_info(void *ptr);
 /** @brief Function to run atexit destructors for a module */
 extern void __cxa_finalize(void *dso);
-/** @brief Function to demangle symbol names */
-extern char *__cxa_demangle(const char *mangled_name, char *output_buffer, size_t *length, int *status);
+
+/** @brief Demangler function */
+demangle_func __dl_demangle_func;
 
 /** @brief Module list head */
 static dl_module_t *module_list_head;
@@ -183,14 +184,14 @@ static void resolve_syms(uso_module_t *module)
             }
             if(!weak) {
                 if(!found_sym) {
-                    //Demangle symbol names
-                    char *demangle_buf = __cxa_demangle(module->syms[i].name, NULL, NULL, NULL);
-                    if(!demangle_buf) {
-                        //Use mangled name if it could not be demangled
-                        demangle_buf = module->syms[i].name;
+                    if(__dl_demangle_func) {
+                        //Output symbol find error with demangled name if one exists
+                        char *demangle_name = __dl_demangle_func(module->syms[i].name);
+                        if(demangle_name) {
+                            assertf(0, "Failed to find symbol %s(%s)", module->syms[i].name, demangle_name);
+                        }
                     }
-                    //Output symbol find error
-                    assertf(0, "Failed to find symbol %s (%s)", module->syms[i].name, demangle_buf);
+                    assertf(0, "Failed to find symbol %s", module->syms[i].name);
                 }
                 module->syms[i].value = found_sym->value;
             } else {
