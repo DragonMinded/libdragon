@@ -153,12 +153,17 @@ void get_export_syms(char *infn)
     //Read symbol table output from readelf
     verbose("Grabbing exported symbols from ELF\n");
     while(getline(&line_buf, &line_buf_size, readelf_stdout) != -1) {
-        char *global_ptr = strstr(line_buf, "GLOBAL ");
-        if(global_ptr) {
+        char *bind_ptr = strstr(line_buf, "GLOBAL ");
+        //Try searching for weak in output if symbol is not global
+        if(!bind_ptr) {
+            bind_ptr = strstr(line_buf, "WEAK   ");
+        }
+        //Include defined GLOBAL/WEAK symbols
+        if(bind_ptr && strncmp(&bind_ptr[15], " UND", 4) != 0) {
             //Remove line terminator
             size_t linebuf_len = strlen(line_buf);
             line_buf[linebuf_len-1] = 0;
-            char *sym_name = &global_ptr[20]; //Get symbol name pointer
+            char *sym_name = &bind_ptr[20]; //Get symbol name pointer
             size_t sym_value = strtoull(&line_buf[8], NULL, 16); //Read symbol value
             //Read symbol size
             size_t sym_size = strtoull(&line_buf[17], NULL, 0); //Read symbol size
