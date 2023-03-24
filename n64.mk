@@ -51,7 +51,7 @@ N64_CFLAGS += -DN64 -O2 -Wall -Werror -Wno-error=deprecated-declarations -fdiagn
 N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings  -I$(N64_INCLUDEDIR)
 N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings  -I$(N64_INCLUDEDIR)
 N64_LDFLAGS = -g -L$(N64_LIBDIR) -ldragon -lm -ldragonsys -Tn64.ld -T$(USO_EXTERNS_LIST) --gc-sections --wrap __do_global_ctors
-N64_USOLDFLAGS = -Ur -T$(N64_LIBDIR)/uso.ld
+N64_USOLDFLAGS = --emit-relocs --unresolved-symbols=ignore-all --nmagic -T$(N64_LIBDIR)/uso.ld
 
 # Enable exporting all global symbols from main exe
 ifeq ($(MSYM_EXPORT_ALL),1)

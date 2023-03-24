@@ -182,7 +182,7 @@ static symtable_header_t symt_open(void *addr) {
     if(module) {
         //Read module SYMT
         SYMT_ROM = module->debugsym_romaddr;
-        addrtable_base = (uint32_t)module->module->sections[module->module->text_section].data;
+        addrtable_base = (uint32_t)module->module->prog_base;
     } else {
         //Open SYMT from rompak
         static uint32_t mainexe_symt = 0xFFFFFFFF;

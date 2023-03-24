@@ -19,11 +19,8 @@
 #include "dlfcn_internal.h"
 
 _Static_assert(sizeof(uso_sym_t) == 12, "uso_sym_t size is wrong");
-_Static_assert(sizeof(uso_sym_table_t) == 8, "uso_sym_table_t size is wrong");
-_Static_assert(sizeof(uso_reloc_table_t) == 8, "uso_reloc_table_t size is wrong");
-_Static_assert(sizeof(uso_section_t) == 28, "uso_section_t size is wrong");
-_Static_assert(sizeof(uso_module_t) == 32, "uso_module_t size is wrong");
-_Static_assert(sizeof(uso_load_info_t) == 12, "uso_load_info_t size is wrong");
+_Static_assert(sizeof(uso_module_t) == 28, "uso_module_t size is wrong");
+_Static_assert(sizeof(uso_load_info_t) == 16, "uso_load_info_t size is wrong");
 
 #define PTR_ROUND_UP(ptr, d) ((void *)ROUND_UP((uintptr_t)(ptr), (d)))
 #define PTR_DECODE(base, ptr) ((void*)(((uint8_t*)(base)) + (uintptr_t)(ptr)))
@@ -43,8 +40,10 @@ static dl_module_t *module_list_tail;
 static char error_string[256];
 /** @brief Whether an error is present */
 static bool error_present;
-/** @brief USO dummy section for symbol lookups */
-static uso_section_t dummy_section = { NULL, 0, 0, { 0, NULL }, { 0, NULL }};
+/** @brief Main executable symbol table */
+static uso_sym_t *mainexe_sym_table;
+/** @brief Number of symbols in main executable symbol table */
+static uint32_t mainexe_sym_count;
 
 static void insert_module(dl_module_t *module)
 {
@@ -61,7 +60,7 @@ static void insert_module(dl_module_t *module)
     module_list_tail = module; //Mark this module as end of list
 }
 
-static __attribute__((unused)) void remove_module(dl_module_t *module)
+static void remove_module(dl_module_t *module)
 {
     dl_module_t *next = module->next;
     dl_module_t *prev = module->prev;
@@ -79,30 +78,22 @@ static __attribute__((unused)) void remove_module(dl_module_t *module)
     }
 }
 
-static void fixup_sym_table(uso_sym_table_t *sym_table, uso_section_t *sections)
+static void fixup_sym_names(uso_sym_t *syms, uint32_t num_syms)
 {
-    //Fixup pointer to symbol table data
-    sym_table->data = PTR_DECODE(sym_table, sym_table->data);
-    //Fixup symbol fields
-    for(uint32_t i=0; i<sym_table->size; i++) {
-        uso_sym_t *sym = &sym_table->data[i];
-        uint8_t section = sym->info >> 24;
-        //Fixup symbol name pointer
-        sym->name = PTR_DECODE(sym_table->data, sym->name);
-        //Fixup symbol value if section is valid
-        sym->value = (uintptr_t)PTR_DECODE(sections[section].data, sym->value);
+    //Fixup symbol name pointers
+    for(uint32_t i=0; i<num_syms; i++) {
+        syms[i].name = PTR_DECODE(syms, syms[i].name);
     }
 }
 
-static uso_sym_table_t *load_mainexe_sym_table()
+static void load_mainexe_sym_table()
 {
-    uso_sym_table_t *sym_table;
     mainexe_sym_info_t __attribute__((aligned(8))) mainexe_sym_info;
     //Search for main executable symbol table
     uint32_t rom_addr = rompak_search_ext(".msym");
     if(rom_addr == 0) {
         debugf("Main executable symbol table missing\n");
-        return NULL;
+        return;
     }
     //Read header for main executable symbol table
     data_cache_hit_writeback_invalidate(&mainexe_sym_info, sizeof(mainexe_sym_info));
@@ -111,16 +102,16 @@ static uso_sym_table_t *load_mainexe_sym_table()
     //Verify main executable symbol table
     if(mainexe_sym_info.magic != USO_MAINEXE_SYM_DATA_MAGIC) {
         debugf("Invalid main executable symbol table\n");
-        return NULL;
+        return;
     }
     //Read main executable symbol table
-    sym_table = malloc(mainexe_sym_info.size);
-    data_cache_hit_writeback_invalidate(sym_table, mainexe_sym_info.size);
-    dma_read_raw_async(sym_table, rom_addr+sizeof(mainexe_sym_info), mainexe_sym_info.size);
+    mainexe_sym_table = malloc(mainexe_sym_info.size);
+    data_cache_hit_writeback_invalidate(mainexe_sym_table, mainexe_sym_info.size);
+    dma_read_raw_async(mainexe_sym_table, rom_addr+sizeof(mainexe_sym_info), mainexe_sym_info.size);
     dma_wait();
     //Fixup main executable symbol table
-    fixup_sym_table(sym_table, &dummy_section);
-    return sym_table;
+    mainexe_sym_count = mainexe_sym_info.num_syms;
+    fixup_sym_names(mainexe_sym_table, mainexe_sym_count);
 }
 
 static int sym_compare(const void *arg1, const void *arg2)
@@ -130,41 +121,46 @@ static int sym_compare(const void *arg1, const void *arg2)
     return strcmp(sym1->name, sym2->name);
 }
 
-static uso_sym_t *search_sym_table(uso_sym_table_t *sym_table, const char *name)
+static uso_sym_t *search_sym_array(uso_sym_t *syms, uint32_t num_syms, const char *name)
 {
     uso_sym_t search_sym = { (char *)name, 0, 0 };
-    return bsearch(&search_sym, sym_table->data, sym_table->size, sizeof(uso_sym_t), sym_compare);
+    return bsearch(&search_sym, syms, num_syms, sizeof(uso_sym_t), sym_compare);
 }
 
-static uso_sym_t *search_module_next_sym(dl_module_t *start_module, const char *name)
+static uso_sym_t *search_module_exports(uso_module_t *module, const char *name)
+{
+    uint32_t first_export_sym = module->num_import_syms+1;
+    return search_sym_array(&module->syms[first_export_sym], module->num_syms-first_export_sym, name);
+}
+
+static uso_sym_t *search_module_next_sym(dl_module_t *from, const char *name)
 {
     //Iterate through further modules symbol tables
-    dl_module_t *curr_module = start_module;
-    while(curr_module) {
+    dl_module_t *curr = from;
+    while(curr) {
         //Search only symbol tables with symbols exposed
-        if(curr_module->mode & RTLD_GLOBAL) {
+        if(curr->mode & RTLD_GLOBAL) {
             //Search through module symbol table
-            uso_sym_t *symbol = search_sym_table(&curr_module->module->syms, name);
+            uso_sym_t *symbol = search_module_exports(curr->module, name);
             if(symbol) {
                 //Found symbol in module symbol table
                 return symbol;
             }
         }
-        curr_module = curr_module->next; //Iterate to next module
+        curr = curr->next; //Iterate to next module
     }
     return NULL;
 }
 
 static uso_sym_t *search_global_sym(const char *name)
 {
-    static uso_sym_table_t *mainexe_sym_table = NULL;
     //Load main executable symbol table if not loaded
     if(!mainexe_sym_table) {
-        mainexe_sym_table = load_mainexe_sym_table();
+        load_mainexe_sym_table();
     }
     //Search main executable symbol table if present
     if(mainexe_sym_table) {
-        uso_sym_t *symbol = search_sym_table(mainexe_sym_table, name);
+        uso_sym_t *symbol = search_sym_array(mainexe_sym_table, mainexe_sym_count, name);
         if(symbol) {
             //Found symbol in main executable
             return symbol;
@@ -174,16 +170,23 @@ static uso_sym_t *search_global_sym(const char *name)
     return search_module_next_sym(module_list_head, name);
 }
 
-static void resolve_external_syms(uso_sym_t *syms, uint32_t num_syms)
+static void resolve_syms(uso_module_t *module)
 {
-    for(uint32_t i=0; i<num_syms; i++) {
-        uso_sym_t *found_sym = search_global_sym(syms[i].name);
-        bool weak = false;
-        if(syms[i].info & 0x800000) {
-            weak = true;
+    for(uint32_t i=0; i<module->num_syms; i++) {
+        if(i >= 1 && i < module->num_import_syms+1) {
+            uso_sym_t *found_sym = search_global_sym(module->syms[i].name);
+            bool weak = false;
+            if(module->syms[i].info & 0x80000000) {
+                weak = true;
+            }
+            assertf(weak || found_sym, "Failed to find symbol %s", module->syms[i].name);
+            module->syms[i].value = found_sym->value;
+        } else {
+            //Add program base address to non-absolute symbol addresses
+            if(!(module->syms[i].info & 0x40000000)) {
+                module->syms[i].value = (uintptr_t)PTR_DECODE(module->prog_base, module->syms[i].value);
+            }
         }
-        assertf(weak || found_sym, "Failed to find symbol %s", syms[i].name);
-        syms[i].value = found_sym->value;
     }
 }
 
@@ -212,70 +215,20 @@ static dl_module_t *search_module_filename(const char *filename)
 
 static void flush_module(uso_module_t *module)
 {
-    //Invalidate data cache for each section
-    for(uint8_t i=0; i<module->num_sections; i++) {
-        uso_section_t *section = &module->sections[i];
-        if(section->data) {
-            data_cache_hit_writeback_invalidate(section->data, section->size);
-            //Also invalidate instruction cache for the text section
-            if(i == module->text_section) {
-                inst_cache_hit_invalidate(section->data, section->size);
-            }
-        }
-    }
+    //Invalidate data cache
+    data_cache_hit_writeback_invalidate(module->prog_base, module->prog_size);
+    inst_cache_hit_invalidate(module->prog_base, module->prog_size);
 }
 
-static void fixup_module_sections(uso_module_t *module, void *noload_start)
+static void relocate_module(uso_module_t *module)
 {
-    //Fixup section base pointer
-    module->sections = PTR_DECODE(module, module->sections);
-    for(uint8_t i=0; i<module->num_sections; i++) {
-        uso_section_t *section = &module->sections[i];
-        if(section->align != 0) {
-            if(section->data) {
-                //Fixup section data pointer
-                section->data = PTR_DECODE(module, section->data);
-            } else {
-                //Fixup noload section data pointer
-                noload_start = PTR_ROUND_UP(noload_start, section->align); //Align data pointer
-                section->data = noload_start;
-                //Find next noload section pointer
-                noload_start = PTR_DECODE(noload_start, section->size);
-            }
-        }
-        //Fixup relocation section pointers
-        if(section->relocs.data) {
-            section->relocs.data = PTR_DECODE(module, section->relocs.data);
-        }
-        if(section->ext_relocs.data) {
-            section->ext_relocs.data = PTR_DECODE(module, section->ext_relocs.data);
-        }
-    }
-}
-
-static void relocate_section(uso_module_t *module, uint8_t section_idx, bool external)
-{
-    uso_section_t *section = &module->sections[section_idx];
-    void *base = section->data;
-    //Get relocation table to use
-    uso_reloc_table_t *table;
-    if(external) {
-        table = &section->ext_relocs;
-    } else {
-        table = &section->relocs;
-    }
     //Process relocations
-    for(uint32_t i=0; i<table->size; i++) {
-        uso_reloc_t *reloc = &table->data[i];
-        u_uint32_t *target = PTR_DECODE(base, reloc->offset);
+    for(uint32_t i=0; i<module->num_relocs; i++) {
+        uso_reloc_t *reloc = &module->relocs[i];
+        u_uint32_t *target = PTR_DECODE(module->prog_base, reloc->offset);
         uint8_t type = reloc->info >> 24;
         //Calculate symbol address
-        uint32_t sym_addr;
-        if(external) {
-            sym_addr = module->ext_syms.data[reloc->info & 0xFFFFFF].value;
-        } else {
-            sym_addr = (uint32_t)PTR_DECODE(module->sections[reloc->info & 0xFFFFFF].data, reloc->sym_value);
-        }
+        uint32_t sym_addr = module->syms[reloc->info & 0xFFFFFF].value;
         switch(type) {
             case R_MIPS_32:
                 *target += sym_addr;
@@ -294,12 +247,12 @@ static void relocate_section(uso_module_t *module, uint8_t section_idx, bool ext
                 uint32_t addr = hi << 16; //Setup address from hi
                 bool lo_found = false;
                 //Search for next R_MIPS_LO16 relocation
-                for(uint32_t j=i+1; j<table->size; j++) {
-                    uso_reloc_t *new_reloc = &table->data[j];
+                for(uint32_t j=i+1; j<module->num_relocs; j++) {
+                    uso_reloc_t *new_reloc = &module->relocs[j];
                     type = new_reloc->info >> 24;
                     if(type == R_MIPS_LO16) {
                         //Pair for R_MIPS_HI16 relocation found
-                        u_uint32_t *lo_target = PTR_DECODE(base, new_reloc->offset);
+                        u_uint32_t *lo_target = PTR_DECODE(module->prog_base, new_reloc->offset);
                         int16_t lo = *lo_target & 0xFFFF; //Read lo from target of paired relocation
                         //Update address
                         addr += lo;
@@ -334,20 +287,14 @@ static void relocate_section(uso_module_t *module, uint8_t section_idx, bool ext
     }
 }
 
-static void relocate_module(uso_module_t *module)
+static void link_module(uso_module_t *module)
 {
-    for(uint8_t i=0; i<module->num_sections; i++) {
-        relocate_section(module, i, false);
-        relocate_section(module, i, true);
-    }
-}
-
-static void link_module(uso_module_t *module, void *noload_start)
-{
-    fixup_module_sections(module, noload_start);
-    fixup_sym_table(&module->syms, module->sections);
-    fixup_sym_table(&module->ext_syms, &dummy_section);
-    resolve_external_syms(module->ext_syms.data, module->ext_syms.size);
+    //Relocate module pointers
+    module->syms = PTR_DECODE(module, module->syms);
+    module->relocs = PTR_DECODE(module, module->relocs);
+    module->prog_base = PTR_DECODE(module, module->prog_base);
+    fixup_sym_names(module->syms, module->num_syms);
+    resolve_syms(module);
     relocate_module(module);
     flush_module(module);
 }
@@ -355,16 +302,14 @@ static void link_module(uso_module_t *module, void *noload_start)
 static void start_module(dl_module_t *handle)
 {
     uso_module_t *module = handle->module;
-    uso_section_t *eh_frame = &module->sections[module->eh_frame_section];
-    uso_section_t *ctors = &module->sections[module->ctors_section];
-    if(eh_frame->data && eh_frame->size > 0) {
-        __register_frame_info(eh_frame->data, handle->ehframe_obj);
+    uso_sym_t *eh_frame_begin = search_module_exports(module, "__EH_FRAME_BEGIN__");
+    if(eh_frame_begin) {
+        __register_frame_info((void *)eh_frame_begin->value, handle->ehframe_obj);
     }
-    if(ctors->data && ctors->size != 0) {
-        func_ptr *start = ctors->data;
-        func_ptr *end = PTR_DECODE(start, ctors->size);
-        func_ptr *curr = end-1;
-        while(curr >= start) {
+    uso_sym_t *ctor_list = search_module_exports(module, "__CTOR_LIST__");
+    if(ctor_list) {
+        func_ptr *curr = (func_ptr *)ctor_list->value;
+        while(*curr) {
             (*curr)();
             curr--;
         }
@@ -391,25 +336,23 @@ void *dlopen(const char *filename, int mode)
         handle->use_count++;
     } else {
         uso_load_info_t load_info;
-        void *module_noload;
         size_t module_size;
         //Open asset file
         FILE *file = asset_fopen(filename);
         fread(&load_info, sizeof(uso_load_info_t), 1, file); //Read load info
-        size_t filename_len = strlen(filename);
+        //Verify USO file
+        assertf(load_info.magic == USO_MAGIC, "Invalid USO file");
         //Calculate module size
-        module_size = load_info.size;
-        //Add room in module for USO noload data
-        module_size = ROUND_UP(module_size, load_info.noload_align);
-        module_size += load_info.noload_size;
+        module_size = load_info.size+load_info.extra_mem;
         //Calculate loaded file size
         size_t alloc_size = sizeof(dl_module_t);
         //Add room for filename including additional .sym extension and null terminator
+        size_t filename_len = strlen(filename);
         alloc_size += filename_len+5;
         //Add room for module
-        alloc_size = ROUND_UP(alloc_size, load_info.align);
+        alloc_size = ROUND_UP(alloc_size, load_info.mem_align);
         alloc_size += module_size;
-        handle = memalign(load_info.align, alloc_size); //Allocate module, module noload, and BSS in one chunk
+        handle = memalign(load_info.mem_align, alloc_size); //Allocate everything in 1 chunk
         //Initialize handle
         handle->prev = handle->next = NULL; //Initialize module links to NULL
         //Initialize well known module parameters
@@ -418,13 +361,10 @@ void *dlopen(const char *filename, int mode)
         //Initialize pointer fields
         handle->filename = PTR_DECODE(handle, sizeof(dl_module_t)); //Filename is after handle data
         handle->module = PTR_DECODE(handle, alloc_size-module_size); //Module is at end of allocation
-        module_noload = PTR_DECODE(handle, alloc_size-load_info.noload_size); //Module noload is after module
         //Read module
+        memset(handle->module, 0, module_size);
         fread(handle->module, load_info.size, 1, file);
         fclose(file);
-        assertf(handle->module->magic == USO_HEADER_MAGIC, "Invalid USO file");
-        //Clear module noload portion
-        memset(module_noload, 0, load_info.noload_size);
         //Copy filename to structure
         strcpy(handle->filename, filename);
         //Try finding symbol file in ROM
@@ -438,7 +378,7 @@ void *dlopen(const char *filename, int mode)
         }
         handle->filename[filename_len] = 0; //Re-add filename terminator in right spot
         //Link module
-        link_module(handle->module, module_noload);
+        link_module(handle->module);
         //Add module handle to list
         handle->use_count = 1;
         insert_module(handle);
@@ -483,7 +423,7 @@ void *dlsym(void *handle, const char *symbol)
         //Search module symbol table
         dl_module_t *module = handle;
         assertf(is_valid_module(module), "dlsym called on invalid handle");
-        symbol_info = search_sym_table(&module->module->syms, symbol);
+        symbol_info = search_module_exports(module->module, symbol);
     }
     //Output error if symbol is not found
     if(!symbol_info) {
@@ -497,8 +437,8 @@ void *dlsym(void *handle, const char *symbol)
 static bool is_module_referenced(dl_module_t *module)
 {
     //Address range for this module
-    void *min_addr = module->module;
-    void *max_addr = PTR_DECODE(min_addr, module->module_size);
+    void *min_addr = module->module->prog_base;
+    void *max_addr = PTR_DECODE(min_addr, module->module->prog_size);
     //Iterate over modules
     dl_module_t *curr = module_list_head;
     while(curr) {
@@ -507,9 +447,9 @@ static bool is_module_referenced(dl_module_t *module)
             curr = curr->next; //Iterate to next module
             continue;
         }
-        //Search through external symbols referencing this module
-        for(uint32_t i=0; i<curr->module->ext_syms.size; i++) {
-            void *addr = (void *)curr->module->ext_syms.data[i].value;
+        //Search through imports referencing this module
+        for(uint32_t i=0; i<curr->module->num_import_syms; i++) {
+            void *addr = (void *)curr->module->syms[i+1].value;
             if(addr >= min_addr && addr < max_addr) {
                 //Found external symbol referencing this module
                 return true;
@@ -524,27 +464,24 @@ static bool is_module_referenced(dl_module_t *module)
 static void end_module(dl_module_t *module)
 {
     uso_module_t *module_data = module->module;
-    //Grab section pointers
-    uso_section_t *eh_frame = &module_data->sections[module_data->eh_frame_section];
-    uso_section_t *dtors = &module_data->sections[module_data->dtors_section];
     //Call atexit destructors for this module
-    uso_sym_t *dso_handle_symbol = search_sym_table(&module_data->syms, "__dso_handle");
-    if(dso_handle_symbol) {
-        __cxa_finalize((void *)dso_handle_symbol->value);
+    uso_sym_t *dso_handle = search_module_exports(module_data, "__dso_handle");
+    if(dso_handle) {
+        __cxa_finalize((void *)dso_handle->value);
     }
     //Run destructors for this module
-    if(dtors->data && dtors->size != 0) {
-        func_ptr *start = dtors->data;
-        func_ptr *end = PTR_DECODE(start, dtors->size);
-        func_ptr *curr = start;
-        while(curr < end) {
+    uso_sym_t *dtor_list = search_module_exports(module_data, "__DTOR_LIST__");
+    if(dtor_list) {
+        func_ptr *curr = (func_ptr *)dtor_list->value;
+        while(*curr) {
             (*curr)();
             curr++;
         }
     }
     //Deregister exception frames for this module
-    if(eh_frame->data && eh_frame->size > 0) {
-        __deregister_frame_info(eh_frame->data);
+    uso_sym_t *eh_frame_begin = search_module_exports(module_data, "__EH_FRAME_BEGIN__");
+    if(eh_frame_begin) {
+        __register_frame_info((void *)eh_frame_begin->value, module->ehframe_obj);
     }
 }
 
@@ -614,11 +551,13 @@ int dladdr(const void *addr, Dl_info *info)
     //Initialize symbol properties to NULL
     info->dli_sname = NULL;
     info->dli_saddr = NULL;
-    for(uint32_t i=0; i<module->module->syms.size; i++) {
-        uso_sym_t *sym = &module->module->syms.data[i];
+    //Iterate over export symbols
+    uint32_t first_export_sym = module->module->num_import_syms+1;
+    for(uint32_t i=0; i<module->module->num_syms-first_export_sym; i++) {
+        uso_sym_t *sym = &module->module->syms[first_export_sym+i];
         //Calculate symbol address range
         void *sym_min = (void *)sym->value;
-        uint32_t sym_size = sym->info & 0x7FFFFF;
+        uint32_t sym_size = sym->info & 0x3FFFFFFF;
         void *sym_max = PTR_DECODE(sym_min, sym_size);
         if(addr >= sym_min && addr < sym_max) {
             //Report symbol info if inside address range
@@ -647,15 +586,15 @@ dl_module_t *__dl_get_module(const void *addr)
     dl_module_t *curr = module_list_head;
     while(curr) {
         //Get module address range
-        void *min_addr = curr->module;
-        void *max_addr = PTR_DECODE(min_addr, curr->module_size);
+        void *min_addr = curr->module->prog_base;
+        void *max_addr = PTR_DECODE(min_addr, curr->module->prog_size);
         if(addr >= min_addr && addr < max_addr) {
             //Address is inside module
             return curr;
         }
         curr = curr->next; //Iterate to next module
     }
-    //Address is
+    //Address is not inside any module
     return NULL;
 }
 

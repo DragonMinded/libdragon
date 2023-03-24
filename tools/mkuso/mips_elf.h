@@ -329,6 +329,43 @@ typedef struct {
 #define EV_CURRENT 1 /* Current version */
 #define EV_NUM 2
 
+/* Program Header */
+
+typedef struct elf32_phdr {
+  Elf32_Word	p_type;     /* Segment type */
+  Elf32_Off	p_offset;       /* Segment file offset */
+  Elf32_Addr	p_vaddr;    /* Segment virtual address */
+  Elf32_Addr	p_paddr;    /* Segment physical address */
+  Elf32_Word	p_filesz;   /* Segment size in file */
+  Elf32_Word	p_memsz;    /* Segment size in memory */
+  Elf32_Word	p_flags;    /* Segment flags */
+  Elf32_Word	p_align;    /* Segment alignment, file & memory */
+} Elf32_Phdr;
+
+/* These constants are for the segment types stored in the image headers */
+#define PT_NULL    0
+#define PT_LOAD    1
+#define PT_DYNAMIC 2
+#define PT_INTERP  3
+#define PT_NOTE    4
+#define PT_SHLIB   5
+#define PT_PHDR    6
+#define PT_TLS     7               /* Thread local storage segment */
+#define PT_LOOS    0x60000000      /* OS-specific */
+#define PT_HIOS    0x6fffffff      /* OS-specific */
+#define PT_LOPROC  0x70000000
+#define PT_HIPROC  0x7fffffff
+#define PT_GNU_EH_FRAME	(PT_LOOS + 0x474e550)
+#define PT_GNU_STACK	(PT_LOOS + 0x474e551)
+#define PT_GNU_RELRO	(PT_LOOS + 0x474e552)
+#define PT_GNU_PROPERTY	(PT_LOOS + 0x474e553)
+
+/* These constants define the permissions on sections in the program
+   header, p_flags. */
+#define PF_R		0x4
+#define PF_W		0x2
+#define PF_X		0x1
+
 /* Section header.  */
 
 typedef struct {

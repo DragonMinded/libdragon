@@ -104,7 +104,7 @@ void add_export_sym(const char *name, uint32_t value, uint32_t size)
     uso_sym_t sym;
     sym.name = strdup(name);
     sym.value = value;
-    sym.info = size & 0x7FFFFF;
+    sym.info = size & 0x3FFFFFFF;
     stbds_arrput(export_syms, sym);
 }
 
@@ -153,7 +153,7 @@ void get_export_syms(char *infn)
     //Read symbol table output from readelf
     verbose("Grabbing exported symbols from ELF\n");
     while(getline(&line_buf, &line_buf_size, readelf_stdout) != -1) {
-        char *global_ptr = strstr(line_buf, "GLOBAL");
+        char *global_ptr = strstr(line_buf, "GLOBAL ");
         if(global_ptr) {
             //Remove line terminator
             size_t linebuf_len = strlen(line_buf);
@@ -173,84 +173,60 @@ void get_export_syms(char *infn)
     subprocess_terminate(&subp);
 }
 
-uso_file_sym_t uso_generate_file_sym(uso_sym_t *sym)
-{
-    uso_file_sym_t temp;
-    temp.name_ofs = 0; //Placeholder
-    temp.value = sym->value;
-    temp.info = sym->info;
-    return temp;
-}
-
-void uso_write_file_sym(uso_file_sym_t *file_sym, uint32_t offset, FILE *out)
-{
-    fseek(out, offset, SEEK_SET);
-    w32(out, file_sym->name_ofs);
-    w32(out, file_sym->value);
-    w32(out, file_sym->info);
-}
-
-void uso_write_file_sym_table(uso_file_sym_table_t *file_sym_table, uint32_t offset, FILE *out)
-{
-    fseek(out, offset, SEEK_SET);
-    w32(out, file_sym_table->size);
-    w32(out, file_sym_table->data_ofs);
-}
-
-uint32_t uso_write_syms(uso_sym_t *sym_list, uint32_t num_syms, uint32_t offset, FILE *out)
+uint32_t uso_write_symbols(uso_sym_t *syms, uint32_t num_syms, uint32_t base_ofs, FILE *out_file)
 {
     uint32_t name_ofs = num_syms*sizeof(uso_file_sym_t);
     for(uint32_t i=0; i<num_syms; i++) {
-        uso_file_sym_t file_sym = uso_generate_file_sym(&sym_list[i]);
-        size_t name_len = strlen(sym_list[i].name);
+        uso_file_sym_t file_sym;
+        size_t name_data_len = strlen(syms[i].name)+1;
         file_sym.name_ofs = name_ofs;
-        uso_write_file_sym(&file_sym, offset+(i*sizeof(uso_file_sym_t)), out);
-        //Write name and null terminator
-        fseek(out, offset+name_ofs, SEEK_SET);
-        fwrite(sym_list[i].name, name_len, 1, out);
-        w8(out, 0);
-        //Allocate room for next string
-        name_ofs += name_len+1;
+        file_sym.value = syms[i].value;
+        file_sym.info = syms[i].info;
+        //Write symbol
+        fseek(out_file, base_ofs+(i*sizeof(uso_file_sym_t)), SEEK_SET);
+        w32(out_file, file_sym.name_ofs);
+        w32(out_file, file_sym.value);
+        w32(out_file, file_sym.info);
+        //Write symbol name
+        fseek(out_file, base_ofs+name_ofs, SEEK_SET);
+        fwrite(syms[i].name, name_data_len, 1, out_file);
+        name_ofs += name_data_len;
     }
-    //Pad to 2-byte boundary
-    if(name_ofs % 2 != 0) {
-        fseek(out, offset+name_ofs, SEEK_SET);
-        w8(out, 0);
+    //Pad file to next 2-byte boundary
+    if(name_ofs % 2) {
+        w8(out_file, 0);
         name_ofs++;
     }
-    return offset+name_ofs;
+    return base_ofs+name_ofs;
 }
 
-void write_mainexe_sym_header(mainexe_sym_info_t *header, uint32_t offset, FILE *out)
+void write_mainexe_sym_info(mainexe_sym_info_t *header, FILE *out_file)
 {
-    fseek(out, offset, SEEK_SET);
-    w32(out, header->magic);
-    w32(out, header->size);
+    fseek(out_file, 0, SEEK_SET);
+    w32(out_file, header->magic);
+    w32(out_file, header->size);
+    w32(out_file, header->num_syms);
 }
 
 void write_msym(char *outfn)
 {
-    FILE *out = fopen(outfn, "wb");
-    mainexe_sym_info_t sym_header;
-    uso_file_sym_table_t file_sym_table;
-    if(!out) {
+    FILE *out_file = fopen(outfn, "wb");
+    if(!out_file) {
         fprintf(stderr, "Cannot create file: %s\n", outfn);
         exit(1);
     }
-    //Initialize main symbol table header
-    sym_header.magic = USO_MAINEXE_SYM_DATA_MAGIC;
-    sym_header.size = 0;
-    write_mainexe_sym_header(&sym_header, 0, out);
-    //Initialize symbol table parameters
-    file_sym_table.size = stbds_arrlenu(export_syms);
-    file_sym_table.data_ofs = sizeof(uso_file_sym_table_t);
-    uso_write_file_sym_table(&file_sym_table, sizeof(mainexe_sym_info_t), out);
+    //Initialize main symbol table info
+    mainexe_sym_info_t sym_info;
+    sym_info.magic = USO_MAINEXE_SYM_DATA_MAGIC;
+    sym_info.size = 0;
+    sym_info.num_syms =  stbds_arrlenu(export_syms);
+    write_mainexe_sym_info(&sym_info, out_file);
     //Write symbol table
-    sym_header.size = uso_write_syms(export_syms, file_sym_table.size, sizeof(mainexe_sym_info_t)+file_sym_table.data_ofs, out);
+    sym_info.size = uso_write_symbols(export_syms, sym_info.num_syms, sizeof(mainexe_sym_info_t), out_file);
     //Correct output size
-    sym_header.size -= sizeof(mainexe_sym_info_t);
-    write_mainexe_sym_header(&sym_header, 0, out);
-    fclose(out);
+    sym_info.size -= sizeof(mainexe_sym_info_t);
+    write_mainexe_sym_info(&sym_info, out_file);
+    fclose(out_file);
 }
 
 void process(char *infn, char *outfn)

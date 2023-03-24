@@ -9,7 +9,8 @@ SECTIONS {
     }
    .eh_frame_hdr : { *(.eh_frame_hdr) }
    /* Write exception frames which must be 4-byte aligned to satisfy MIPS requirements */
-   .eh_frame ALIGN(4) : { 
+   .eh_frame ALIGN(4) : {
+        __EH_FRAME_BEGIN__ = .; /* Define symbol for accessing eh_frame section */
         KEEP (*(.eh_frame))
         /* Add terminator to section */
         LONG(0);
@@ -26,11 +27,17 @@ SECTIONS {
     
     /* Write constructors and destructors which each must be 4-byte aligned */
     .ctors ALIGN(4) : {
+        LONG(0); /* Add terminator to CTOR list */
+        KEEP(*(SORT(.ctors.*)))
         KEEP(*(.ctors))
+        __CTOR_LIST__ = .-4; /* Define symbol for CTOR list */
     }
     
     .dtors ALIGN(4) : {
+        __DTOR_LIST__ = .; /* Define symbol for DTOR list */
+        KEEP(*(SORT(.dtors.*)))
         KEEP(*(.dtors))
+        LONG(0); /* Add terminator to DTOR list */
     }
     
     /* Write data sections */
@@ -47,7 +54,7 @@ SECTIONS {
         *(.gnu.linkonce.s.*)
         /* Define 4 bytes of space for __dso_handle */
         . = ALIGN(4);
-        PROVIDE(__dso_handle = .);
+        __dso_handle = .;
         LONG(0);
     }
 
