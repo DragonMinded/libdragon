@@ -30,7 +30,7 @@ overlays_actor.z64: N64_ROM_TITLE="Actor Overlay Demo"
 overlays_actor.z64: $(BUILD_DIR)/overlays_actor.dfs 
 
 clean:
-	rm -rf $(BUILD_DIR) $(ALL_USOS) overlays_actor.z64
+	rm -rf $(BUILD_DIR) $(USO_LIST) overlays_actor.z64
 
 -include $(wildcard $(BUILD_DIR)/*.d)
 
