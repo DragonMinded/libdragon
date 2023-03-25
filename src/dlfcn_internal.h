@@ -38,21 +38,21 @@ extern demangle_func __dl_demangle_func;
  * @brief Get pointer to loaded module from address
  * 
  * @param addr          Address to search
- * @return dl_module_t* Pointer to module address is found inside
+ * @return Pointer to module address is found inside
  */
 dl_module_t *__dl_get_module(const void *addr);
 
 /**
  * @brief Get number of loaded modules
  * 
- * @return size_t   Number of loaded modules
+ * @return Number of loaded modules
  */
 size_t __dl_get_num_modules();
 
 /**
  * @brief Get first loaded module
  * 
- * @return dl_module_t*  Pointer to first module
+ * @return Pointer to first loaded module
  */
 dl_module_t *__dl_get_first_module();
 
@@ -60,8 +60,8 @@ dl_module_t *__dl_get_first_module();
 /**
  * @brief Get next loaded module
  * 
- * @param module                Pointer 
- * @return dl_module_t*  Pointer to next module
+ * @param module                Pointer to a loaded module
+ * @return Pointer to next loaded module
  */
 dl_module_t *__dl_get_next_module(dl_module_t *module);
 

@@ -26,14 +26,14 @@
 
 /** @brief dl_addr info structure */
 typedef struct {
-    const char *dli_fname;  /* Pathname of shared object that
-                                contains address */
-    void       *dli_fbase;  /* Base address at which shared
-                               object is loaded */
-    const char *dli_sname;  /* Name of symbol whose definition
-                               overlaps addr */
-    void       *dli_saddr;  /* Exact address of symbol named
-                               in dli_sname */
+    /** @brief Pathname of shared object that contains address */
+    const char *dli_fname;
+    /** @brief Base address at which shared object is loaded */
+    void       *dli_fbase;
+    /** @brief Name of symbol whose definition overlaps addr */
+    const char *dli_sname;
+    /** @brief Exact address of symbol named in dli_sname */
+    void       *dli_saddr;
 } Dl_info;
 
 #ifdef __cplusplus
@@ -71,7 +71,7 @@ int dlclose(void *handle);
  * 
  * @param addr  Address to search
  * @param info  Info of symbol found
- * @return int  Return zero on success
+ * @return Zero on success and non-zero on failure
  */
 int dladdr(const void *addr, Dl_info *info);
 

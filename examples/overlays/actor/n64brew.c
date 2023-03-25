@@ -30,6 +30,7 @@ static void do_rotation(n64brew_actor_t *this)
     }
 	this->actor.x_scale = this->actor.y_scale = cos(this->actor.angle);
 }
+
 static void do_crash()
 {
     debugf((char *)0x1);

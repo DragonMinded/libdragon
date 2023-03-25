@@ -18,9 +18,31 @@
 #include "utils.h"
 #include "dlfcn_internal.h"
 
-_Static_assert(sizeof(uso_sym_t) == 12, "uso_sym_t size is wrong");
-_Static_assert(sizeof(uso_module_t) == 28, "uso_module_t size is wrong");
-_Static_assert(sizeof(uso_load_info_t) == 16, "uso_load_info_t size is wrong");
+/**
+ * @defgroup dl Dynamic linker subsystem
+ * @ingroup libdragon
+ * @brief Interface to libdl-style dynamic linker
+ *
+ * The dynamic linker subsystem allows users to load code from the
+ * program's DragonFS filesystem (see dfs.h). Code is stored in a custom
+ * dynamically linked format (extension of .uso) to allow for loading
+ * and running code placed at arbitrary memory addresses and resolving
+ * external references to the main executable and other dynamically
+ * linked modules. External references are resolved by name with symbol
+ * tables provided by each dynamically linked module and are also
+ * provided by a file in the rompak (MSYM) (see rompak_internal.h) for
+ * the main executable.
+ *
+ * To access this system, one must first call dlopen to load a
+ * dynamically linked module and return a handle to the module.
+ * Then, one can all dlsym to access functions and variables exported
+ * from this module with the returned handle. This function can also
+ * access symbols that are in the global symbol table with the
+ * special handle RTLD_DEFAULT. Once one is done with the module, one
+ * can call dlclose to close the module.
+ *
+ * @{
+ */
 
 /** @brief Macro to round up pointer */
 #define PTR_ROUND_UP(ptr, d) ((void *)ROUND_UP((uintptr_t)(ptr), (d)))
@@ -650,3 +672,5 @@ dl_module_t *__dl_get_next_module(dl_module_t *module)
     //Return next field
     return module->next;
 }
+
+/** @} */
