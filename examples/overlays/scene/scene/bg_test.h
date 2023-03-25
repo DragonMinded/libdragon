@@ -2,6 +2,7 @@
 #define BG_TEST_H
 
 #include "../scene.h"
+#include "../background.h"
 
 class BGTest : public SceneBase {
 public:
@@ -11,6 +12,9 @@ public:
 public:
     void Update();
     void Draw();
+    
+private:
+    Background m_background;
 };
 
 #endif

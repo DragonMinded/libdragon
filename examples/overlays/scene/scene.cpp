@@ -2,6 +2,7 @@
 #include "scene.h"
 
 static void *scene_ovl;
+static void *scene_common_ovl;
 static SceneBase *curr_scene;
 static std::string curr_scene_name;
 static std::string next_scene_name;
@@ -14,6 +15,11 @@ SceneBase::SceneBase()
 SceneBase::~SceneBase()
 {
     
+}
+
+void SceneMgr::Init()
+{
+    scene_common_ovl = dlopen("rom:/scene_common.uso", RTLD_GLOBAL);
 }
 
 void SceneMgr::SetNextScene(std::string name)

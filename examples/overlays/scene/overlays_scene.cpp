@@ -13,6 +13,7 @@ int main()
     //Init miscellaneous system
     dfs_init(DFS_DEFAULT_LOCATION);
     controller_init();
+    SceneMgr::Init();
     SceneMgr::SetNextScene("bg_test");
     while(1) {
         SceneMgr::LoadNextScene();

@@ -202,9 +202,12 @@ $(USO_BASE_DIR)/%.uso: $(USO_PLF_BASE_DIR)/%.plf
 	$(N64_SYM) $< $@.sym
 	
 %.externs: $(USO_PLF_LIST)
+	rm -f $@
 	@mkdir -p $(dir $@)
 	$(N64_MKEXTERN) -o $@ $^
 	
 ifneq ($(V),1)
 .SILENT:
 endif
+
+.PRECIOUS: $(USO_EXTERNS_LIST)

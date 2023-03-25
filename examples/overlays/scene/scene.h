@@ -16,6 +16,7 @@ public:
 typedef SceneBase *(*SceneNewFunc)();
 
 namespace SceneMgr {
+    void Init();
     void SetNextScene(std::string);
     void Update();
     void Draw();
