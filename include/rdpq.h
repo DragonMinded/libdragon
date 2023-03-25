@@ -255,9 +255,9 @@ typedef enum {
 
 
 /**
- * @brief Tile parameters for #rdpq_set_tile_struct.
+ * @brief Tile parameters for #rdpq_set_tile.
  * 
- * This structure contains all possible parameters for #rdpq_set_tile_struct.
+ * This structure contains all possible parameters for #rdpq_set_tile.
  * All fields have been made so that the 0 value is always the most
  * reasonable default. This means that you can simply initialize the structure
  * to 0 and then change only the fields you need (for instance, through a 
