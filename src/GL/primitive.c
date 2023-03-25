@@ -14,6 +14,21 @@ _Static_assert(((RDPQ_CMD_TRI << 8) | (FLAG_TEXTURE_ACTIVE >> TRICMD_ATTR_SHIFT_
 
 extern gl_state_t state;
 
+typedef uint32_t (*read_index_func)(const void*,uint32_t);
+
+static const float clip_planes[CLIPPING_PLANE_COUNT][4] = {
+    { 1, 0, 0, GUARD_BAND_FACTOR },
+    { 0, 1, 0, GUARD_BAND_FACTOR },
+    { 0, 0, 1, 1 },
+    { 1, 0, 0, -GUARD_BAND_FACTOR },
+    { 0, 1, 0, -GUARD_BAND_FACTOR },
+    { 0, 0, 1, -1 },
+};
+
+void gl_clip_triangle();
+void gl_clip_line();
+void gl_clip_point();
+
 uint8_t gl_points();
 uint8_t gl_lines();
 uint8_t gl_line_strip();
@@ -24,9 +39,17 @@ uint8_t gl_quads();
 
 void gl_reset_vertex_cache();
 
-void gl_init_cpu_pipe();
-void gl_vertex_pre_tr(uint8_t cache_index);
-void gl_draw_primitive(const uint8_t *indices);
+void gl_draw_primitive();
+
+float dot_product4(const float *a, const float *b)
+{
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+}
+
+float lerp(float a, float b, float t)
+{
+    return a + (b - a) * t;
+}
 
 void gl_primitive_init()
 {
@@ -180,13 +203,42 @@ bool gl_init_prim_assembly(GLenum mode)
     state.primitive_mode = mode;
     state.prim_progress = 0;
     state.prim_counter = 0;
-    state.prim_id = 0x80000000;
+    state.prim_id = 0;
 
     return true;
 }
 
-extern const gl_pipeline_t gl_cpu_pipeline;
-extern const gl_pipeline_t gl_rsp_pipeline;
+void gl_init_cpu_pipe()
+{
+    gl_texture_object_t *tex_obj = gl_get_active_texture();
+    if (tex_obj != NULL && gl_tex_is_complete(tex_obj)) {
+        state.prim_texture = true;
+        state.prim_mipmaps = gl_tex_get_levels(tex_obj);
+        state.prim_tex_width = tex_obj->levels[0].width;
+        state.prim_tex_height = tex_obj->levels[0].height;
+        state.prim_bilinear = tex_obj->mag_filter == GL_LINEAR ||
+                            tex_obj->min_filter == GL_LINEAR ||
+                            tex_obj->min_filter == GL_LINEAR_MIPMAP_NEAREST ||
+                            tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR;
+    } else {
+        state.prim_texture = false;
+        state.prim_mipmaps = 0;
+        state.prim_tex_width = 0;
+        state.prim_tex_height = 0;
+        state.prim_bilinear = false;
+    }
+
+    state.trifmt = (rdpq_trifmt_t){
+        .pos_offset = VTX_SCREEN_POS_OFFSET,
+        .shade_offset = VTX_SHADE_OFFSET,
+        .shade_flat = state.shade_model == GL_FLAT,
+        .tex_offset = state.prim_texture ? VTX_TEXCOORD_OFFSET : -1,
+        .tex_mipmaps = state.prim_mipmaps,
+        .z_offset = state.depth_test ? VTX_DEPTH_OFFSET : -1,
+    };
+
+    gl_update_final_matrix();
+}
 
 bool gl_begin(GLenum mode)
 {
@@ -205,24 +257,32 @@ bool gl_begin(GLenum mode)
 
     gl_pre_init_pipe(mode);
 
+    // Only triangles are implemented on RSP
+    state.rsp_pipeline_enabled = state.can_use_rsp && state.prim_size == 3;
+
+    if (state.rsp_pipeline_enabled) {
+        glpipe_init();
+    } else {
+        gl_init_cpu_pipe();
+    }
+
+
     // FIXME: This is pessimistically marking everything as used, even if textures are turned off
     //        CAUTION: texture state is owned by the RSP currently, so how can we determine this?
     __rdpq_autosync_use(AUTOSYNC_PIPE | AUTOSYNC_TILES | AUTOSYNC_TMEM(0));
-
-    gl_update_array_pointers(state.array_object);
-
-    // Only triangles are implemented on RSP
-    bool rsp_pipeline_enabled = state.can_use_rsp && state.prim_size == 3;
-    state.current_pipeline = rsp_pipeline_enabled ? &gl_rsp_pipeline : &gl_cpu_pipeline;
-    
-    state.current_pipeline->begin();
 
     return true;
 }
 
 void gl_end()
 {
-    state.current_pipeline->end();
+    if (state.primitive_mode == GL_LINE_LOOP) {
+        // Close line loop
+        state.prim_indices[0] = state.prim_indices[1];
+        state.prim_indices[1] = state.locked_vertex;
+
+        gl_draw_primitive();
+    }
 }
 
 void glBegin(GLenum mode)
@@ -249,6 +309,69 @@ void glEnd(void)
     state.immediate_active = false;
 }
 
+void gl_load_attribs(const gl_attrib_source_t *sources, const uint32_t index)
+{
+    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
+    {
+        const gl_attrib_source_t *src = &sources[i];
+        if (src->pointer == NULL) {
+            continue;
+        }
+
+        GLfloat *dst = state.current_attribs[i];
+
+        const void *p = src->pointer + index * src->stride;
+        src->read_func(dst, p, src->size);
+    }
+}
+
+uint8_t gl_get_clip_codes(GLfloat *pos, GLfloat *ref)
+{
+    // This corresponds to vcl + vch on RSP
+    uint8_t codes = 0;
+    for (uint32_t i = 0; i < 3; i++)
+    {
+        if (pos[i] < - ref[i]) {
+            codes |= 1 << i;
+        } else if (pos[i] > ref[i]) {
+            codes |= 1 << (i + 3);
+        }
+    }
+    return codes;
+}
+
+void gl_vertex_pre_tr(uint8_t cache_index)
+{
+    if (state.rsp_pipeline_enabled) {
+        glpipe_set_prim_vertex(cache_index, state.current_attribs);
+        return;
+    }
+
+    gl_vtx_t *v = &state.vertex_cache[cache_index];
+
+    memcpy(&v->obj_pos[0], state.current_attribs, sizeof(float)*15);
+
+    gl_matrix_mult(v->cs_pos, &state.final_matrix, v->obj_pos);
+
+#if 0
+    debugf("VTX ID: %d\n", id);
+    debugf("     OBJ: %8.2f %8.2f %8.2f %8.2f\n", v->obj_pos[0], v->obj_pos[1],v->obj_pos[2], v->obj_pos[3]);
+    debugf("          [%08lx %08lx %08lx %08lx]\n",
+        fx16(OBJ_SCALE*v->obj_pos[0]), fx16(OBJ_SCALE*v->obj_pos[1]), fx16(OBJ_SCALE*v->obj_pos[2]), fx16(OBJ_SCALE*v->obj_pos[3]));
+    debugf("   CSPOS: %8.2f %8.2f %8.2f %8.2f\n", v->cs_pos[0], v->cs_pos[1], v->cs_pos[2], v->cs_pos[3]);
+    debugf("          [%08lx %08lx %08lx %08lx]\n", fx16(OBJ_SCALE*v->cs_pos[0]), fx16(OBJ_SCALE*v->cs_pos[1]), fx16(OBJ_SCALE*v->cs_pos[2]), fx16(OBJ_SCALE*v->cs_pos[3]));
+#endif
+
+    GLfloat tr_ref[] = {
+        v->cs_pos[3],
+        v->cs_pos[3],
+        v->cs_pos[3]
+    };
+    
+    v->tr_code = gl_get_clip_codes(v->cs_pos, tr_ref);
+    v->t_l_applied = false;
+}
+
 void gl_reset_vertex_cache()
 {
     memset(state.vertex_cache_ids, 0, sizeof(state.vertex_cache_ids));
@@ -256,7 +379,7 @@ void gl_reset_vertex_cache()
     state.lru_next_age = 1;
 }
 
-bool gl_check_vertex_cache(uint32_t id, uint8_t *cache_index, bool lock)
+bool gl_check_vertex_cache(uint16_t id, uint8_t *cache_index, bool lock)
 {
     const uint32_t INFINITE_AGE = 0xFFFFFFFF;
 
@@ -284,9 +407,226 @@ bool gl_check_vertex_cache(uint32_t id, uint8_t *cache_index, bool lock)
     return miss;
 }
 
-bool gl_get_cache_index(uint32_t vertex_id, uint8_t *cache_index)
+void gl_calc_texture_coord(GLfloat *dest, const GLfloat *input, uint32_t coord_index, const gl_tex_gen_t *gen, const GLfloat *obj_pos, const GLfloat *eye_pos, const GLfloat *eye_normal)
 {
-    bool result = gl_check_vertex_cache(vertex_id + 1, cache_index, state.lock_next_vertex);
+    if (!gen->enabled) {
+        dest[coord_index] = input[coord_index];
+        return;
+    }
+
+    switch (gen->mode) {
+    case GL_EYE_LINEAR:
+        dest[coord_index] = eye_pos[0] * gen->eye_plane[0] +
+                            eye_pos[1] * gen->eye_plane[1] +
+                            eye_pos[2] * gen->eye_plane[2] +
+                            eye_pos[3] * gen->eye_plane[3];
+        break;
+    case GL_OBJECT_LINEAR:
+        dest[coord_index] = obj_pos[0] * gen->object_plane[0] +
+                            obj_pos[1] * gen->object_plane[1] +
+                            obj_pos[2] * gen->object_plane[2] +
+                            obj_pos[3] * gen->object_plane[3];
+        break;
+    case GL_SPHERE_MAP:
+        GLfloat norm_eye_pos[3];
+        gl_normalize(norm_eye_pos, eye_pos);
+        GLfloat d2 = 2.0f * dot_product3(norm_eye_pos, eye_normal);
+        GLfloat r[3] = {
+            norm_eye_pos[0] - eye_normal[0] * d2,
+            norm_eye_pos[1] - eye_normal[1] * d2,
+            norm_eye_pos[2] - eye_normal[2] * d2 + 1.0f,
+        };
+        GLfloat m = 1.0f / (2.0f * sqrtf(dot_product3(r, r)));
+        dest[coord_index] = r[coord_index] * m + 0.5f;
+        break;
+    }
+}
+
+void gl_calc_texture_coords(GLfloat *dest, const GLfloat *input, const GLfloat *obj_pos, const GLfloat *eye_pos, const GLfloat *eye_normal)
+{
+    GLfloat tmp[TEX_COORD_COUNT];
+
+    for (uint32_t i = 0; i < TEX_GEN_COUNT; i++)
+    {
+        gl_calc_texture_coord(tmp, input, i, &state.tex_gen[i], obj_pos, eye_pos, eye_normal);
+    }
+
+    // TODO: skip matrix multiplication if it is the identity
+    gl_matrix_mult4x2(dest, gl_matrix_stack_get_matrix(&state.texture_stack), tmp);
+}
+
+void gl_vertex_calc_clip_code(gl_vtx_t *v)
+{
+    GLfloat clip_ref[] = { 
+        v->cs_pos[3] * GUARD_BAND_FACTOR,
+        v->cs_pos[3] * GUARD_BAND_FACTOR,
+        v->cs_pos[3]
+    };
+
+    v->clip_code = gl_get_clip_codes(v->cs_pos, clip_ref);
+}
+
+void gl_vertex_calc_screenspace(gl_vtx_t *v)
+{
+    v->inv_w = v->cs_pos[3] != 0.0f ? 1.0f / v->cs_pos[3] : 0x7FFF;
+
+    v->screen_pos[0] = v->cs_pos[0] * v->inv_w * state.current_viewport.scale[0] + state.current_viewport.offset[0];
+    v->screen_pos[1] = v->cs_pos[1] * v->inv_w * state.current_viewport.scale[1] + state.current_viewport.offset[1];
+
+    v->depth = v->cs_pos[2] * v->inv_w * state.current_viewport.scale[2] + state.current_viewport.offset[2];
+}
+
+void gl_vertex_t_l(gl_vtx_t *vtx)
+{
+    gl_matrix_t *mv = gl_matrix_stack_get_matrix(&state.modelview_stack);
+
+    GLfloat eye_pos[4];
+    GLfloat eye_normal[3];
+
+    if (state.lighting || state.fog || state.prim_texture) {
+        gl_matrix_mult(eye_pos, mv, vtx->obj_pos);
+    }
+
+    if (state.lighting || state.prim_texture) {
+        // TODO: use inverse transpose matrix
+        gl_matrix_mult3x3(eye_normal, mv, vtx->normal);
+
+        if (state.normalize) {
+            gl_normalize(eye_normal, eye_normal);
+        }
+    }
+
+    if (state.lighting) {
+        gl_perform_lighting(vtx->shade, vtx->color, eye_pos, eye_normal, &state.material);
+    } else {
+        memcpy(vtx->shade, vtx->color, sizeof(GLfloat) * 4);
+    }
+
+    if (state.fog) {
+        vtx->shade[3] = (state.fog_end - fabsf(eye_pos[2])) / (state.fog_end - state.fog_start);
+    }
+
+    vtx->shade[0] = CLAMP01(vtx->shade[0]);
+    vtx->shade[1] = CLAMP01(vtx->shade[1]);
+    vtx->shade[2] = CLAMP01(vtx->shade[2]);
+    vtx->shade[3] = CLAMP01(vtx->shade[3]);
+
+    if (state.prim_texture) {
+        gl_calc_texture_coords(vtx->texcoord, vtx->obj_texcoord, vtx->obj_pos, eye_pos, eye_normal);
+
+        vtx->texcoord[0] = vtx->texcoord[0] * state.prim_tex_width;
+        vtx->texcoord[1] = vtx->texcoord[1] * state.prim_tex_height;
+
+        if (state.prim_bilinear) {
+            vtx->texcoord[0] -= 0.5f;
+            vtx->texcoord[1] -= 0.5f;
+        }
+    }
+
+    gl_vertex_calc_screenspace(vtx);
+    gl_vertex_calc_clip_code(vtx);
+}
+
+gl_vtx_t * gl_get_screen_vtx(uint8_t cache_index)
+{
+    gl_vtx_t *vtx = &state.vertex_cache[cache_index];
+
+    if (!vtx->t_l_applied) {
+        // If there was a cache miss, perform T&L
+        gl_vertex_t_l(vtx);
+        vtx->t_l_applied = true;
+    }
+
+    return vtx;
+}
+
+void gl_draw_primitive()
+{
+    if (state.rsp_pipeline_enabled) {
+        glpipe_draw_triangle(state.prim_indices[0], state.prim_indices[1], state.prim_indices[2]);
+        return;
+    }
+
+    uint8_t tr_codes = 0xFF;
+    for (uint8_t i = 0; i < state.prim_size; i++)
+    {
+        tr_codes &= state.vertex_cache[state.prim_indices[i]].tr_code;
+    }
+    
+    // Trivial rejection
+    if (tr_codes) {
+        return;
+    }
+
+    for (uint8_t i = 0; i < state.prim_size; i++)
+    {
+        state.primitive_vertices[i] = gl_get_screen_vtx(state.prim_indices[i]);
+        #if 0
+        gl_vtx_t *v = state.primitive_vertices[i];
+        debugf("VTX %d:\n", i);
+        debugf("    cpos: (%.4f, %.4f, %.4f, %.4f) [%08lx, %08lx, %08lx, %08lx]\n", 
+            v->cs_pos[0],v->cs_pos[1],v->cs_pos[2],v->cs_pos[3],
+            fx16(v->cs_pos[0]*65536), fx16(v->cs_pos[1]*65536),
+            fx16(v->cs_pos[2]*65536), fx16(v->cs_pos[3]*65536));
+        debugf("    screen: (%.2f, %.2f) [%08lx, %08lx]\n", 
+            v->screen_pos[0], v->screen_pos[1],
+            (uint32_t)(int32_t)(v->screen_pos[0] * 4),
+            (uint32_t)(int32_t)(v->screen_pos[1] * 4));
+        if (state.prim_texture) {
+            debugf("      tex: (%.2f, %.2f) [%08lx, %08lx]\n", 
+                v->texcoord[0], v->texcoord[1],
+                (uint32_t)(int32_t)(v->texcoord[0] * 32),
+                (uint32_t)(int32_t)(v->texcoord[1] * 32));
+            rdpq_debug_log(true);
+            state.cull_face = 0;
+        }
+        #endif
+    }
+    
+    switch (state.prim_size) {
+    case 1:
+        gl_clip_point();
+        break;
+    case 2:
+        gl_clip_line();
+        break;
+    case 3:
+        gl_clip_triangle();
+        break;
+    }
+}
+
+void gl_prim_assembly(uint8_t prim_index)
+{
+    if (state.lock_next_vertex) {
+        state.lock_next_vertex = false;
+        state.locked_vertex = prim_index;
+    }
+
+    state.prim_indices[state.prim_progress] = prim_index;
+    state.prim_progress++;
+
+    if (state.prim_progress < state.prim_size) {
+        return;
+    }
+
+    gl_draw_primitive();
+
+    assert(state.prim_func != NULL);
+    state.prim_progress = state.prim_func();
+}
+
+bool gl_get_cache_index(int32_t vertex_index, uint8_t *cache_index)
+{
+    bool result;
+    if (vertex_index < 0) {
+        do {
+            *cache_index = (state.prim_id++) % VERTEX_CACHE_SIZE;
+        } while (*cache_index == state.locked_vertex);
+        result = true;
+    } else {
+        result = gl_check_vertex_cache(vertex_index + 1, cache_index, state.lock_next_vertex);
+    }
 
     if (state.lock_next_vertex) {
         state.lock_next_vertex = false;
@@ -296,41 +636,41 @@ bool gl_get_cache_index(uint32_t vertex_id, uint8_t *cache_index)
     return result;
 }
 
-void gl_load_attribs(const gl_array_t *arrays, uint32_t index)
+void gl_draw(const gl_attrib_source_t *sources, uint32_t offset, uint32_t count, const void *indices, read_index_func read_index)
 {
-    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
-    {
-        const gl_array_t *array = &arrays[i];
-        if (!array->enabled) {
-            continue;
-        }
-
-        GLfloat *dst = state.current_attribs[i];
-        const void *src = gl_get_attrib_element(array, index);
-
-        array->cpu_read_func(dst, src, array->size);
+    if (sources[ATTRIB_VERTEX].pointer == NULL || count == 0) {
+        return;
     }
-}
 
-void gl_fill_attrib_defaults(gl_array_type_t array_type, uint32_t size)
-{
-    static const GLfloat default_attribute_value[] = {0.0f, 0.0f, 0.0f, 1.0f};
-
-    const GLfloat *src = default_attribute_value + size;
-    GLfloat *dst = state.current_attribs[array_type] + size;
-    memcpy(dst, src, (4 - size) * sizeof(GLfloat));
-}
-
-void gl_fill_all_attrib_defaults(const gl_array_t *arrays)
-{
+    // Prepare default values
     for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
     {
-        const gl_array_t *array = &arrays[i];
-        if (!arrays[i].enabled) {
+        if (sources[i].pointer == NULL) {
             continue;
         }
 
-        gl_fill_attrib_defaults(i, array->size);
+        state.current_attribs[i][0] = 0;
+        state.current_attribs[i][1] = 0;
+        state.current_attribs[i][2] = 0;
+        state.current_attribs[i][3] = 1;
+    }
+
+    for (uint32_t i = 0; i < count; i++)
+    {
+        uint32_t index = indices != NULL ? read_index(indices, i) : offset + i;
+
+        // The pipeline is based on 16-bit IDs
+        assertf(index < (1 << 16), "Index out of range");
+
+        gl_load_attribs(sources, index);
+
+        uint8_t cache_index;
+        if (gl_get_cache_index(indices != NULL ? index : -1, &cache_index))
+        {
+            gl_vertex_pre_tr(cache_index);
+        }
+
+        gl_prim_assembly(cache_index);
     }
 }
 
@@ -390,24 +730,455 @@ uint8_t gl_quads()
     return state.prim_counter << 1;
 }
 
-bool gl_prim_assembly(uint8_t cache_index, uint8_t *indices)
+void gl_draw_point(gl_vtx_t *v0)
 {
-    if (state.lock_next_vertex) {
-        state.lock_next_vertex = false;
-        state.locked_vertex = cache_index;
+    GLfloat half_size = state.point_size * 0.5f;
+    GLfloat p0[2] = { v0->screen_pos[0] - half_size, v0->screen_pos[1] - half_size };
+    GLfloat p1[2] = { p0[0] + state.point_size, p0[1] + state.point_size };
+
+    rdpq_set_prim_color(RGBA32(
+        FLOAT_TO_U8(v0->shade[0]),
+        FLOAT_TO_U8(v0->shade[1]),
+        FLOAT_TO_U8(v0->shade[2]),
+        FLOAT_TO_U8(v0->shade[3])
+    ));
+
+    if (state.depth_test) {
+        rdpq_set_prim_depth_raw(v0->depth * 0x7FFF, 0);
     }
 
-    state.prim_indices[state.prim_progress] = cache_index;
-    state.prim_progress++;
+    if (state.prim_texture) {
+        rdpq_texture_rectangle_scaled(0, p0[0], p0[1], p1[0], p1[1], v0->texcoord[0]/32.f, v0->texcoord[1]/32.f, v0->texcoord[0]/32.f+1, v0->texcoord[0]/32.f+1);
+    } else {
+        rdpq_fill_rectangle(p0[0], p0[1], p1[0], p1[1]);
+    }
+}
 
-    if (state.prim_progress < state.prim_size) {
-        return false;
+void gl_draw_line(gl_vtx_t *v0, gl_vtx_t *v1)
+{
+    GLfloat perp[2] = { v0->screen_pos[1] - v1->screen_pos[1], v1->screen_pos[0] - v0->screen_pos[0] };
+    GLfloat mag = sqrtf(perp[0]*perp[0] + perp[1]*perp[1]);
+    if (mag == 0.0f) return;
+    
+    GLfloat width_factor = (state.line_width * 0.5f) / mag;
+    perp[0] *= width_factor;
+    perp[1] *= width_factor;
+
+    gl_vtx_t line_vertices[4];
+
+    line_vertices[0].screen_pos[0] = v0->screen_pos[0] + perp[0];
+    line_vertices[0].screen_pos[1] = v0->screen_pos[1] + perp[1];
+    line_vertices[1].screen_pos[0] = v0->screen_pos[0] - perp[0];
+    line_vertices[1].screen_pos[1] = v0->screen_pos[1] - perp[1];
+
+    line_vertices[2].screen_pos[0] = v1->screen_pos[0] + perp[0];
+    line_vertices[2].screen_pos[1] = v1->screen_pos[1] + perp[1];
+    line_vertices[3].screen_pos[0] = v1->screen_pos[0] - perp[0];
+    line_vertices[3].screen_pos[1] = v1->screen_pos[1] - perp[1];
+    
+    if (state.shade_model == GL_FLAT) {
+        memcpy(line_vertices[0].shade, v1->shade, sizeof(float) * 4);
+        memcpy(line_vertices[1].shade, v1->shade, sizeof(float) * 4);
+    } else {
+        memcpy(line_vertices[0].shade, v0->shade, sizeof(float) * 4);
+        memcpy(line_vertices[1].shade, v0->shade, sizeof(float) * 4);
+    }
+    
+    memcpy(line_vertices[2].shade, v1->shade, sizeof(float) * 4);
+    memcpy(line_vertices[3].shade, v1->shade, sizeof(float) * 4);
+
+    if (state.prim_texture) {
+        memcpy(line_vertices[0].texcoord, v0->texcoord, sizeof(float) * 3);
+        memcpy(line_vertices[1].texcoord, v0->texcoord, sizeof(float) * 3);
+        memcpy(line_vertices[2].texcoord, v1->texcoord, sizeof(float) * 3);
+        memcpy(line_vertices[3].texcoord, v1->texcoord, sizeof(float) * 3);
     }
 
-    memcpy(indices, state.prim_indices, state.prim_size * sizeof(uint8_t));
+    if (state.depth_test) {
+        line_vertices[0].depth = v0->depth;
+        line_vertices[1].depth = v0->depth;
+        line_vertices[2].depth = v1->depth;
+        line_vertices[3].depth = v1->depth;
+    }
 
-    assert(state.prim_func != NULL);
-    state.prim_progress = state.prim_func();
+    rdpq_triangle(&state.trifmt, (const float*)&line_vertices[0], (const float*)&line_vertices[1], (const float*)&line_vertices[2]);
+    rdpq_triangle(&state.trifmt, (const float*)&line_vertices[1], (const float*)&line_vertices[2], (const float*)&line_vertices[3]);
+}
+
+void gl_draw_triangle(gl_vtx_t *v0, gl_vtx_t *v1, gl_vtx_t *v2)
+{
+    rdpq_triangle(&state.trifmt, (const float*)v2, (const float*)v0, (const float*)v1);
+}
+
+void gl_cull_triangle(gl_vtx_t *v0, gl_vtx_t *v1, gl_vtx_t *v2)
+{
+    if (state.cull_face)
+    {
+        if (state.cull_face_mode == GL_FRONT_AND_BACK) {
+            return;
+        }
+        
+        float winding = v0->screen_pos[0] * (v1->screen_pos[1] - v2->screen_pos[1]) +
+                        v1->screen_pos[0] * (v2->screen_pos[1] - v0->screen_pos[1]) +
+                        v2->screen_pos[0] * (v0->screen_pos[1] - v1->screen_pos[1]);
+        
+        bool is_front = (state.front_face == GL_CCW) ^ (winding > 0.0f);
+        GLenum face = is_front ? GL_FRONT : GL_BACK;
+
+        if (state.cull_face_mode == face) {
+            return;
+        }
+    }
+
+    if (state.shade_model == GL_FLAT) {
+        memcpy(v2->shade, state.flat_color, sizeof(state.flat_color));
+    }
+    
+    switch (state.polygon_mode) {
+    case GL_POINT:
+        gl_draw_point(v0);
+        gl_draw_point(v1);
+        gl_draw_point(v2);
+        break;
+    case GL_LINE:
+        gl_draw_line(v0, v1);
+        gl_draw_line(v1, v2);
+        gl_draw_line(v2, v0);
+        break;
+    case GL_FILL:
+        gl_draw_triangle(v0, v1, v2);
+        break;
+    }
+}
+
+void gl_intersect_line_plane(gl_vtx_t *intersection, const gl_vtx_t *p0, const gl_vtx_t *p1, const float *clip_plane)
+{
+    float d0 = dot_product4(p0->cs_pos, clip_plane);
+    float d1 = dot_product4(p1->cs_pos, clip_plane);
+    
+    float a = d0 / (d0 - d1);
+
+    assertf(a >= 0.f && a <= 1.f, "invalid a: %f", a);
+
+    intersection->cs_pos[0] = lerp(p0->cs_pos[0], p1->cs_pos[0], a);
+    intersection->cs_pos[1] = lerp(p0->cs_pos[1], p1->cs_pos[1], a);
+    intersection->cs_pos[2] = lerp(p0->cs_pos[2], p1->cs_pos[2], a);
+    intersection->cs_pos[3] = lerp(p0->cs_pos[3], p1->cs_pos[3], a);
+
+    intersection->shade[0] = lerp(p0->shade[0], p1->shade[0], a);
+    intersection->shade[1] = lerp(p0->shade[1], p1->shade[1], a);
+    intersection->shade[2] = lerp(p0->shade[2], p1->shade[2], a);
+    intersection->shade[3] = lerp(p0->shade[3], p1->shade[3], a);
+
+    intersection->texcoord[0] = lerp(p0->texcoord[0], p1->texcoord[0], a);
+    intersection->texcoord[1] = lerp(p0->texcoord[1], p1->texcoord[1], a);
+
+    gl_vertex_calc_clip_code(intersection);
+}
+
+void gl_clip_triangle()
+{
+    gl_vtx_t *v0 = state.primitive_vertices[0];
+    gl_vtx_t *v1 = state.primitive_vertices[1];
+    gl_vtx_t *v2 = state.primitive_vertices[2];
+
+    // Flat shading
+    if (state.shade_model == GL_FLAT) {
+        memcpy(state.flat_color, v2->shade, sizeof(state.flat_color));
+    }
+
+    uint8_t any_clip = v0->clip_code | v1->clip_code | v2->clip_code;
+
+    if (!any_clip) {
+        gl_cull_triangle(v0, v1, v2);
+        return;
+    }
+
+    // Polygon clipping using the Sutherland-Hodgman algorithm
+    // See https://en.wikipedia.org/wiki/Sutherland%E2%80%93Hodgman_algorithm
+
+    // Intersection points are stored in the clipping cache
+    gl_vtx_t clipping_cache[CLIPPING_CACHE_SIZE];
+    uint32_t cache_used = 0;
+
+    gl_clipping_list_t lists[2];
+
+    gl_clipping_list_t *in_list = &lists[0];
+    gl_clipping_list_t *out_list = &lists[1];
+
+    out_list->vertices[0] = v0;
+    out_list->vertices[1] = v1;
+    out_list->vertices[2] = v2;
+    out_list->count = 3;
+    
+    for (uint32_t c = 0; c < CLIPPING_PLANE_COUNT; c++)
+    {
+        // If nothing clips this plane, skip it entirely
+        if ((any_clip & (1<<c)) == 0) {
+            continue;
+        }
+
+        const float *clip_plane = clip_planes[c];
+
+        SWAP(in_list, out_list);
+        out_list->count = 0;
+
+        for (uint32_t i = 0; i < in_list->count; i++)
+        {
+            uint32_t prev_index = (i + in_list->count - 1) % in_list->count;
+
+            gl_vtx_t *cur_point = in_list->vertices[i];
+            gl_vtx_t *prev_point = in_list->vertices[prev_index];
+
+            bool cur_inside = (cur_point->clip_code & (1<<c)) == 0;
+            bool prev_inside = (prev_point->clip_code & (1<<c)) == 0;
+
+            if (cur_inside ^ prev_inside) {
+                gl_vtx_t *intersection = NULL;
+
+                for (uint32_t n = 0; n < CLIPPING_CACHE_SIZE; n++)
+                {
+                    if ((cache_used & (1<<n)) == 0) {
+                        intersection = &clipping_cache[n];
+                        cache_used |= (1<<n);
+                        break;
+                    }
+                }
+
+                assertf(intersection, "clipping cache full!");
+                assertf(intersection != cur_point, "invalid intersection");
+
+                gl_vtx_t *p0 = cur_point;
+                gl_vtx_t *p1 = prev_point;
+
+                // For consistent calculation of the intersection point
+                if (prev_inside) {
+                    SWAP(p0, p1);
+                }
+
+                gl_intersect_line_plane(intersection, p0, p1, clip_plane);
+
+                out_list->vertices[out_list->count] = intersection;
+                out_list->count++;
+            }
+
+            if (cur_inside) {
+                out_list->vertices[out_list->count] = cur_point;
+                out_list->count++;
+            } else {
+                // If the point is in the clipping cache, remember it as unused
+                uint32_t diff = cur_point - clipping_cache;
+                if (diff >= 0 && diff < CLIPPING_CACHE_SIZE) {
+                    cache_used &= ~(1<<diff);
+                }
+            }
+        }
+    }
+
+    for (uint32_t i = 0; i < out_list->count; i++)
+    {
+        gl_vertex_calc_screenspace(out_list->vertices[i]);
+        
+        if (i > 1) {
+            gl_cull_triangle(out_list->vertices[0], out_list->vertices[i-1], out_list->vertices[i]);
+        }
+    }
+}
+
+void gl_clip_line()
+{
+    gl_vtx_t *v0 = state.primitive_vertices[0];
+    gl_vtx_t *v1 = state.primitive_vertices[1];
+
+    uint8_t any_clip = v0->clip_code | v1->clip_code;
+
+    if (any_clip) {
+        gl_vtx_t vertex_cache[2];
+
+        for (uint32_t c = 0; c < CLIPPING_PLANE_COUNT; c++)
+        {
+            // If nothing clips this plane, skip it entirely
+            if ((any_clip & (1<<c)) == 0) {
+                continue;
+            }
+
+            bool v0_inside = (v0->clip_code & (1<<c)) == 0;
+            bool v1_inside = (v1->clip_code & (1<<c)) == 0;
+
+            if ((v0_inside ^ v1_inside) == 0) {
+                continue;
+            }
+
+            gl_vtx_t *intersection = &vertex_cache[v0_inside ? 1 : 0];
+            gl_intersect_line_plane(intersection, v0, v1, clip_planes[c]);
+
+            if (v0_inside) {
+                v1 = intersection;
+            } else {
+                v0 = intersection;
+            }
+        }
+    }
+
+    gl_draw_line(v0, v1);
+}
+
+void gl_clip_point()
+{
+    gl_vtx_t *v0 = state.primitive_vertices[0];
+    gl_draw_point(v0);
+}
+
+void read_u8(GLfloat *dst, const uint8_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+}
+
+void read_i8(GLfloat *dst, const int8_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+}
+
+void read_u16(GLfloat *dst, const uint16_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+}
+
+void read_i16(GLfloat *dst, const int16_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+}
+
+void read_u32(GLfloat *dst, const uint32_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+}
+
+void read_i32(GLfloat *dst, const int32_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+}
+
+void read_u8n(GLfloat *dst, const uint8_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = U8_TO_FLOAT(src[i]);
+}
+
+void read_i8n(GLfloat *dst, const int8_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = I8_TO_FLOAT(src[i]);
+}
+
+void read_u16n(GLfloat *dst, const uint16_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = U16_TO_FLOAT(src[i]);
+}
+
+void read_i16n(GLfloat *dst, const int16_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = I16_TO_FLOAT(src[i]);
+}
+
+void read_u32n(GLfloat *dst, const uint32_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = U32_TO_FLOAT(src[i]);
+}
+
+void read_i32n(GLfloat *dst, const int32_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = I32_TO_FLOAT(src[i]);
+}
+
+void read_f32(GLfloat *dst, const float *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+}
+
+void read_f64(GLfloat *dst, const double *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+}
+
+uint32_t read_index_8(const uint8_t *src, uint32_t i)
+{
+    return src[i];
+}
+
+uint32_t read_index_16(const uint16_t *src, uint32_t i)
+{
+    return src[i];
+}
+
+uint32_t read_index_32(const uint32_t *src, uint32_t i)
+{
+    return src[i];
+}
+
+bool gl_prepare_attrib_source(gl_attrib_source_t *attrib_src, gl_array_t *array, uint32_t offset, uint32_t count)
+{
+    if (!array->enabled) {
+        attrib_src->pointer = NULL;
+        return true;
+    }
+
+    uint32_t size_shift = 0;
+    
+    switch (array->type) {
+    case GL_BYTE:
+        attrib_src->read_func = array->normalize ? (read_attrib_func)read_i8n : (read_attrib_func)read_i8;
+        size_shift = 0;
+        break;
+    case GL_UNSIGNED_BYTE:
+        attrib_src->read_func = array->normalize ? (read_attrib_func)read_u8n : (read_attrib_func)read_u8;
+        size_shift = 0;
+        break;
+    case GL_SHORT:
+        attrib_src->read_func = array->normalize ? (read_attrib_func)read_i16n : (read_attrib_func)read_i16;
+        size_shift = 1;
+        break;
+    case GL_UNSIGNED_SHORT:
+        attrib_src->read_func = array->normalize ? (read_attrib_func)read_u16n : (read_attrib_func)read_u16;
+        size_shift = 1;
+        break;
+    case GL_INT:
+        attrib_src->read_func = array->normalize ? (read_attrib_func)read_i32n : (read_attrib_func)read_i32;
+        size_shift = 2;
+        break;
+    case GL_UNSIGNED_INT:
+        attrib_src->read_func = array->normalize ? (read_attrib_func)read_u32n : (read_attrib_func)read_u32;
+        size_shift = 2;
+        break;
+    case GL_FLOAT:
+        attrib_src->read_func = (read_attrib_func)read_f32;
+        size_shift = 2;
+        break;
+    case GL_DOUBLE:
+        attrib_src->read_func = (read_attrib_func)read_f64;
+        size_shift = 3;
+        break;
+    }
+
+    attrib_src->size = array->size;
+    attrib_src->stride = array->stride == 0 ? array->size << size_shift : array->stride;
+
+    if (array->binding != NULL) {
+        attrib_src->pointer = array->binding->storage.data + (uint32_t)array->pointer;
+    } else {
+        attrib_src->pointer = array->pointer;
+    }
+
+    return true;
+}
+
+bool gl_prepare_attrib_sources(uint32_t offset, uint32_t count)
+{
+    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
+    {
+        if (!gl_prepare_attrib_source(&state.attrib_sources[i], &state.array_object->arrays[i], offset, count)) {
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -430,28 +1201,13 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
         return;
     }
 
-    if (count == 0) {
+    if (!gl_prepare_attrib_sources(first, count)) {
         return;
     }
 
     gl_begin(mode);
-    state.current_pipeline->draw_arrays(first, count);
+    gl_draw(state.attrib_sources, first, count, NULL, NULL);
     gl_end();
-}
-
-uint32_t read_index_8(const uint8_t *src, uint32_t i)
-{
-    return src[i];
-}
-
-uint32_t read_index_16(const uint16_t *src, uint32_t i)
-{
-    return src[i];
-}
-
-uint32_t read_index_32(const uint32_t *src, uint32_t i)
-{
-    return src[i];
 }
 
 void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices)
@@ -489,187 +1245,215 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
         gl_set_error(GL_INVALID_ENUM);
         return;
     }
-    
-    if (count == 0) {
-        return;
-    }
 
     if (state.element_array_buffer != NULL) {
         indices = state.element_array_buffer->storage.data + (uint32_t)indices;
     }
 
+    uint32_t min_index = UINT32_MAX, max_index = 0;
+
+    for (uint32_t i = 0; i < count; i++)
+    {
+        uint32_t index = read_index(indices, i);
+        min_index = MIN(min_index, index);
+        max_index = MAX(max_index, index);
+    }
+
+    if (!gl_prepare_attrib_sources(min_index, max_index - min_index + 1)) {
+        return;
+    }
+
     gl_begin(mode);
-    state.current_pipeline->draw_elements(count, indices, read_index);
+    gl_draw(state.attrib_sources, 0, count, indices, read_index);
     gl_end();
 }
 
 void glArrayElement(GLint i)
 {
-    if (i < 0) {
-        gl_set_error(GL_INVALID_VALUE);
+    if (!gl_prepare_attrib_sources(i, 1)) {
         return;
     }
 
-    state.current_pipeline->array_element(i);
+    gl_draw(state.attrib_sources, i, 1, NULL, NULL);
 }
 
-void __gl_vertex(GLenum type, const void *value, uint32_t size)
+static GLfloat vertex_tmp[4];
+static gl_attrib_source_t dummy_sources[ATTRIB_COUNT] = {
+    { .pointer = vertex_tmp, .size = 4, .stride = sizeof(GLfloat) * 4, .read_func = (read_attrib_func)read_f32 },
+    { .pointer = NULL },
+    { .pointer = NULL },
+    { .pointer = NULL },
+};
+
+void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)
 {
-    state.current_pipeline->vertex(value, type, size);
+    vertex_tmp[0] = x;
+    vertex_tmp[1] = y;
+    vertex_tmp[2] = z;
+    vertex_tmp[3] = w;
+
+    gl_draw(dummy_sources, 0, 1, NULL, NULL);
 }
 
-void __gl_color(GLenum type, const void *value, uint32_t size)
+void glVertex4s(GLshort x, GLshort y, GLshort z, GLshort w)     { glVertex4f(x, y, z, w); }
+void glVertex4i(GLint x, GLint y, GLint z, GLint w)             { glVertex4f(x, y, z, w); }
+void glVertex4d(GLdouble x, GLdouble y, GLdouble z, GLdouble w) { glVertex4f(x, y, z, w); }
+
+void glVertex3f(GLfloat x, GLfloat y, GLfloat z)    { glVertex4f(x, y, z, 1); }
+void glVertex3s(GLshort x, GLshort y, GLshort z)    { glVertex3f(x, y, z); }
+void glVertex3i(GLint x, GLint y, GLint z)          { glVertex3f(x, y, z); }
+void glVertex3d(GLdouble x, GLdouble y, GLdouble z) { glVertex3f(x, y, z); }
+
+void glVertex2f(GLfloat x, GLfloat y)   { glVertex4f(x, y, 0, 1); }
+void glVertex2s(GLshort x, GLshort y)   { glVertex2f(x, y); }
+void glVertex2i(GLint x, GLint y)       { glVertex2f(x, y); }
+void glVertex2d(GLdouble x, GLdouble y) { glVertex2f(x, y); }
+
+void glVertex2sv(const GLshort *v)  { glVertex2s(v[0], v[1]); }
+void glVertex2iv(const GLint *v)    { glVertex2i(v[0], v[1]); }
+void glVertex2fv(const GLfloat *v)  { glVertex2f(v[0], v[1]); }
+void glVertex2dv(const GLdouble *v) { glVertex2d(v[0], v[1]); }
+
+void glVertex3sv(const GLshort *v)  { glVertex3s(v[0], v[1], v[2]); }
+void glVertex3iv(const GLint *v)    { glVertex3i(v[0], v[1], v[2]); }
+void glVertex3fv(const GLfloat *v)  { glVertex3f(v[0], v[1], v[2]); }
+void glVertex3dv(const GLdouble *v) { glVertex3d(v[0], v[1], v[2]); }
+
+void glVertex4sv(const GLshort *v)  { glVertex4s(v[0], v[1], v[2], v[3]); }
+void glVertex4iv(const GLint *v)    { glVertex4i(v[0], v[1], v[2], v[3]); }
+void glVertex4fv(const GLfloat *v)  { glVertex4f(v[0], v[1], v[2], v[3]); }
+void glVertex4dv(const GLdouble *v) { glVertex4d(v[0], v[1], v[2], v[3]); }
+
+void glColor4f(GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
-    if (state.immediate_active) {
-        state.current_pipeline->color(value, type, size);
-    } else {
-        gl_read_attrib(ATTRIB_COLOR, value, type, size);
-        gl_set_current_color(state.current_attribs[ATTRIB_COLOR]);
-    }
+    state.current_attribs[ATTRIB_COLOR][0] = r;
+    state.current_attribs[ATTRIB_COLOR][1] = g;
+    state.current_attribs[ATTRIB_COLOR][2] = b;
+    state.current_attribs[ATTRIB_COLOR][3] = a;
+
+    int16_t r_fx = FLOAT_TO_I16(r);
+    int16_t g_fx = FLOAT_TO_I16(g);
+    int16_t b_fx = FLOAT_TO_I16(b);
+    int16_t a_fx = FLOAT_TO_I16(a);
+
+    uint64_t packed = ((uint64_t)r_fx << 48) | ((uint64_t)g_fx << 32) | ((uint64_t)b_fx << 16) | (uint64_t)a_fx;
+    gl_set_long(GL_UPDATE_NONE, offsetof(gl_server_state_t, color), packed);
 }
 
-void __gl_tex_coord(GLenum type, const void *value, uint32_t size)
+void glColor4d(GLdouble r, GLdouble g, GLdouble b, GLdouble a)  { glColor4f(r, g, b, a); }
+void glColor4b(GLbyte r, GLbyte g, GLbyte b, GLbyte a)          { glColor4f(I8_TO_FLOAT(r), I8_TO_FLOAT(g), I8_TO_FLOAT(b), I8_TO_FLOAT(a)); }
+void glColor4s(GLshort r, GLshort g, GLshort b, GLshort a)      { glColor4f(I16_TO_FLOAT(r), I16_TO_FLOAT(g), I16_TO_FLOAT(b), I16_TO_FLOAT(a)); }
+void glColor4i(GLint r, GLint g, GLint b, GLint a)              { glColor4f(I32_TO_FLOAT(r), I32_TO_FLOAT(g), I32_TO_FLOAT(b), I32_TO_FLOAT(a)); }
+void glColor4ub(GLubyte r, GLubyte g, GLubyte b, GLubyte a)     { glColor4f(U8_TO_FLOAT(r), U8_TO_FLOAT(g), U8_TO_FLOAT(b), U8_TO_FLOAT(a)); }
+void glColor4us(GLushort r, GLushort g, GLushort b, GLushort a) { glColor4f(U16_TO_FLOAT(r), U16_TO_FLOAT(g), U16_TO_FLOAT(b), U16_TO_FLOAT(a)); }
+void glColor4ui(GLuint r, GLuint g, GLuint b, GLuint a)         { glColor4f(U32_TO_FLOAT(r), U32_TO_FLOAT(g), U32_TO_FLOAT(b), U32_TO_FLOAT(a)); }
+
+void glColor3f(GLfloat r, GLfloat g, GLfloat b)     { glColor4f(r, g, b, 1.f); }
+void glColor3d(GLdouble r, GLdouble g, GLdouble b)  { glColor3f(r, g, b); }
+void glColor3b(GLbyte r, GLbyte g, GLbyte b)        { glColor3f(I8_TO_FLOAT(r), I8_TO_FLOAT(g), I8_TO_FLOAT(b)); }
+void glColor3s(GLshort r, GLshort g, GLshort b)     { glColor3f(I16_TO_FLOAT(r), I16_TO_FLOAT(g), I16_TO_FLOAT(b)); }
+void glColor3i(GLint r, GLint g, GLint b)           { glColor3f(I32_TO_FLOAT(r), I32_TO_FLOAT(g), I32_TO_FLOAT(b)); }
+void glColor3ub(GLubyte r, GLubyte g, GLubyte b)    { glColor3f(U8_TO_FLOAT(r), U8_TO_FLOAT(g), U8_TO_FLOAT(b)); }
+void glColor3us(GLushort r, GLushort g, GLushort b) { glColor3f(U16_TO_FLOAT(r), U16_TO_FLOAT(g), U16_TO_FLOAT(b)); }
+void glColor3ui(GLuint r, GLuint g, GLuint b)       { glColor3f(U32_TO_FLOAT(r), U32_TO_FLOAT(g), U32_TO_FLOAT(b)); }
+
+void glColor3bv(const GLbyte *v)    { glColor3b(v[0], v[1], v[2]); }
+void glColor3sv(const GLshort *v)   { glColor3s(v[0], v[1], v[2]); }
+void glColor3iv(const GLint *v)     { glColor3i(v[0], v[1], v[2]); }
+void glColor3fv(const GLfloat *v)   { glColor3f(v[0], v[1], v[2]); }
+void glColor3dv(const GLdouble *v)  { glColor3d(v[0], v[1], v[2]); }
+void glColor3ubv(const GLubyte *v)  { glColor3ub(v[0], v[1], v[2]); }
+void glColor3usv(const GLushort *v) { glColor3us(v[0], v[1], v[2]); }
+void glColor3uiv(const GLuint *v)   { glColor3ui(v[0], v[1], v[2]); }
+
+void glColor4bv(const GLbyte *v)    { glColor4b(v[0], v[1], v[2], v[3]); }
+void glColor4sv(const GLshort *v)   { glColor4s(v[0], v[1], v[2], v[3]); }
+void glColor4iv(const GLint *v)     { glColor4i(v[0], v[1], v[2], v[3]); }
+void glColor4fv(const GLfloat *v)   { glColor4f(v[0], v[1], v[2], v[3]); }
+void glColor4dv(const GLdouble *v)  { glColor4d(v[0], v[1], v[2], v[3]); }
+void glColor4ubv(const GLubyte *v)  { glColor4ub(v[0], v[1], v[2], v[3]); }
+void glColor4usv(const GLushort *v) { glColor4us(v[0], v[1], v[2], v[3]); }
+void glColor4uiv(const GLuint *v)   { glColor4ui(v[0], v[1], v[2], v[3]); }
+
+void glTexCoord4f(GLfloat s, GLfloat t, GLfloat r, GLfloat q)
 {
-    if (state.immediate_active) {
-        state.current_pipeline->tex_coord(value, type, size);
-    } else {
-        gl_read_attrib(ATTRIB_TEXCOORD, value, type, size);
-        gl_set_current_texcoords(state.current_attribs[ATTRIB_TEXCOORD]);
-    }
+    state.current_attribs[ATTRIB_TEXCOORD][0] = s;
+    state.current_attribs[ATTRIB_TEXCOORD][1] = t;
+    state.current_attribs[ATTRIB_TEXCOORD][2] = r;
+    state.current_attribs[ATTRIB_TEXCOORD][3] = q;
+
+    int16_t fixed_s = s * (1 << 5);
+    int16_t fixed_t = t * (1 << 5);
+    int16_t fixed_r = r * (1 << 5);
+    int16_t fixed_q = q * (1 << 5);
+
+    uint64_t packed = ((uint64_t)fixed_s << 48) | ((uint64_t)fixed_t << 32) | ((uint64_t)fixed_r << 16) | (uint64_t)fixed_q;
+    gl_set_long(GL_UPDATE_NONE, offsetof(gl_server_state_t, tex_coords), packed);
 }
 
-void __gl_normal(GLenum type, const void *value, uint32_t size)
+void glTexCoord4s(GLshort s, GLshort t, GLshort r, GLshort q)       { glTexCoord4f(s, t, r, q); }
+void glTexCoord4i(GLint s, GLint t, GLint r, GLint q)               { glTexCoord4f(s, t, r, q); }
+void glTexCoord4d(GLdouble s, GLdouble t, GLdouble r, GLdouble q)   { glTexCoord4f(s, t, r, q); }
+
+void glTexCoord3f(GLfloat s, GLfloat t, GLfloat r)      { glTexCoord4f(s, t, r, 1.0f); }
+void glTexCoord3s(GLshort s, GLshort t, GLshort r)      { glTexCoord3f(s, t, r); }
+void glTexCoord3i(GLint s, GLint t, GLint r)            { glTexCoord3f(s, t, r); }
+void glTexCoord3d(GLdouble s, GLdouble t, GLdouble r)   { glTexCoord3f(s, t, r); }
+
+void glTexCoord2f(GLfloat s, GLfloat t)     { glTexCoord4f(s, t, 0.0f, 1.0f); }
+void glTexCoord2s(GLshort s, GLshort t)     { glTexCoord2f(s, t); }
+void glTexCoord2i(GLint s, GLint t)         { glTexCoord2f(s, t); }
+void glTexCoord2d(GLdouble s, GLdouble t)   { glTexCoord2f(s, t); }
+
+void glTexCoord1f(GLfloat s)    { glTexCoord4f(s, 0.0f, 0.0f, 1.0f); }
+void glTexCoord1s(GLshort s)    { glTexCoord1f(s); }
+void glTexCoord1i(GLint s)      { glTexCoord1f(s); }
+void glTexCoord1d(GLdouble s)   { glTexCoord1f(s); }
+
+void glTexCoord1sv(const GLshort *v)    { glTexCoord1s(v[0]); }
+void glTexCoord1iv(const GLint *v)      { glTexCoord1i(v[0]); }
+void glTexCoord1fv(const GLfloat *v)    { glTexCoord1f(v[0]); }
+void glTexCoord1dv(const GLdouble *v)   { glTexCoord1d(v[0]); }
+
+void glTexCoord2sv(const GLshort *v)    { glTexCoord2s(v[0], v[1]); }
+void glTexCoord2iv(const GLint *v)      { glTexCoord2i(v[0], v[1]); }
+void glTexCoord2fv(const GLfloat *v)    { glTexCoord2f(v[0], v[1]); }
+void glTexCoord2dv(const GLdouble *v)   { glTexCoord2d(v[0], v[1]); }
+
+void glTexCoord3sv(const GLshort *v)    { glTexCoord3s(v[0], v[1], v[2]); }
+void glTexCoord3iv(const GLint *v)      { glTexCoord3i(v[0], v[1], v[2]); }
+void glTexCoord3fv(const GLfloat *v)    { glTexCoord3f(v[0], v[1], v[2]); }
+void glTexCoord3dv(const GLdouble *v)   { glTexCoord3d(v[0], v[1], v[2]); }
+
+void glTexCoord4sv(const GLshort *v)    { glTexCoord4s(v[0], v[1], v[2], v[3]); }
+void glTexCoord4iv(const GLint *v)      { glTexCoord4i(v[0], v[1], v[2], v[3]); }
+void glTexCoord4fv(const GLfloat *v)    { glTexCoord4f(v[0], v[1], v[2], v[3]); }
+void glTexCoord4dv(const GLdouble *v)   { glTexCoord4d(v[0], v[1], v[2], v[3]); }
+
+void glNormal3f(GLfloat nx, GLfloat ny, GLfloat nz)
 {
-    if (state.immediate_active) {
-        state.current_pipeline->normal(value, type, size);
-    } else {
-        gl_read_attrib(ATTRIB_NORMAL, value, type, size);
-        gl_set_current_normal(state.current_attribs[ATTRIB_NORMAL]);
-    }
+    state.current_attribs[ATTRIB_NORMAL][0] = nx;
+    state.current_attribs[ATTRIB_NORMAL][1] = ny;
+    state.current_attribs[ATTRIB_NORMAL][2] = nz;
+
+    int8_t fixed_nx = nx * 0x7F;
+    int8_t fixed_ny = ny * 0x7F;
+    int8_t fixed_nz = nz * 0x7F;
+
+    uint32_t packed = ((uint32_t)fixed_nx << 24) | ((uint32_t)fixed_ny << 16) | ((uint32_t)fixed_nz << 8);
+    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, normal), packed);
 }
 
-#define __ATTR_IMPL(func, argtype, enumtype, ...) ({\
-    argtype tmp[] = { __VA_ARGS__ }; \
-    func(enumtype, tmp, __COUNT_VARARGS(__VA_ARGS__)); \
-})
+void glNormal3b(GLbyte nx, GLbyte ny, GLbyte nz)        { glNormal3f(I8_TO_FLOAT(nx), I8_TO_FLOAT(ny), I8_TO_FLOAT(nz)); }
+void glNormal3s(GLshort nx, GLshort ny, GLshort nz)     { glNormal3f(I16_TO_FLOAT(nx), I16_TO_FLOAT(ny), I16_TO_FLOAT(nz)); }
+void glNormal3i(GLint nx, GLint ny, GLint nz)           { glNormal3f(I32_TO_FLOAT(nx), I32_TO_FLOAT(ny), I32_TO_FLOAT(nz)); }
+void glNormal3d(GLdouble nx, GLdouble ny, GLdouble nz)  { glNormal3f(nx, ny, nz); }
 
-void glVertex2sv(const GLshort *v)  { __gl_vertex(GL_FLOAT,   v, 2); }
-void glVertex2iv(const GLint *v)    { __gl_vertex(GL_SHORT,   v, 2); }
-void glVertex2fv(const GLfloat *v)  { __gl_vertex(GL_INT,     v, 2); }
-void glVertex2dv(const GLdouble *v) { __gl_vertex(GL_DOUBLE,  v, 2); }
-
-void glVertex3sv(const GLshort *v)  { __gl_vertex(GL_FLOAT,   v, 3); }
-void glVertex3iv(const GLint *v)    { __gl_vertex(GL_SHORT,   v, 3); }
-void glVertex3fv(const GLfloat *v)  { __gl_vertex(GL_INT,     v, 3); }
-void glVertex3dv(const GLdouble *v) { __gl_vertex(GL_DOUBLE,  v, 3); }
-
-void glVertex4sv(const GLshort *v)  { __gl_vertex(GL_FLOAT,   v, 4); }
-void glVertex4iv(const GLint *v)    { __gl_vertex(GL_SHORT,   v, 4); }
-void glVertex4fv(const GLfloat *v)  { __gl_vertex(GL_INT,     v, 4); }
-void glVertex4dv(const GLdouble *v) { __gl_vertex(GL_DOUBLE,  v, 4); }
-
-void glVertex2s(GLshort x, GLshort y)                           { __ATTR_IMPL(__gl_vertex, GLshort,  GL_SHORT,   x, y); }
-void glVertex2i(GLint x, GLint y)                               { __ATTR_IMPL(__gl_vertex, GLint,    GL_INT,     x, y); }
-void glVertex2f(GLfloat x, GLfloat y)                           { __ATTR_IMPL(__gl_vertex, GLfloat,  GL_FLOAT,   x, y); }
-void glVertex2d(GLdouble x, GLdouble y)                         { __ATTR_IMPL(__gl_vertex, GLdouble, GL_DOUBLE,  x, y); }
-
-void glVertex3s(GLshort x, GLshort y, GLshort z)                { __ATTR_IMPL(__gl_vertex, GLshort,  GL_SHORT,   x, y, z); }
-void glVertex3i(GLint x, GLint y, GLint z)                      { __ATTR_IMPL(__gl_vertex, GLint,    GL_INT,     x, y, z); }
-void glVertex3f(GLfloat x, GLfloat y, GLfloat z)                { __ATTR_IMPL(__gl_vertex, GLfloat,  GL_FLOAT,   x, y, z); }
-void glVertex3d(GLdouble x, GLdouble y, GLdouble z)             { __ATTR_IMPL(__gl_vertex, GLdouble, GL_DOUBLE,  x, y, z); }
-
-void glVertex4s(GLshort x, GLshort y, GLshort z, GLshort w)     { __ATTR_IMPL(__gl_vertex, GLshort,  GL_SHORT,   x, y, z, w); }
-void glVertex4i(GLint x, GLint y, GLint z, GLint w)             { __ATTR_IMPL(__gl_vertex, GLint,    GL_INT,     x, y, z, w); }
-void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)     { __ATTR_IMPL(__gl_vertex, GLfloat,  GL_FLOAT,   x, y, z, w); }
-void glVertex4d(GLdouble x, GLdouble y, GLdouble z, GLdouble w) { __ATTR_IMPL(__gl_vertex, GLdouble, GL_DOUBLE,  x, y, z, w); }
-
-void glColor3bv(const GLbyte *v)    { __gl_color(GL_BYTE,           v, 3); }
-void glColor3sv(const GLshort *v)   { __gl_color(GL_SHORT,          v, 3); }
-void glColor3iv(const GLint *v)     { __gl_color(GL_INT,            v, 3); }
-void glColor3fv(const GLfloat *v)   { __gl_color(GL_FLOAT,          v, 3); }
-void glColor3dv(const GLdouble *v)  { __gl_color(GL_DOUBLE,         v, 3); }
-void glColor3ubv(const GLubyte *v)  { __gl_color(GL_UNSIGNED_BYTE,  v, 3); }
-void glColor3usv(const GLushort *v) { __gl_color(GL_UNSIGNED_SHORT, v, 3); }
-void glColor3uiv(const GLuint *v)   { __gl_color(GL_UNSIGNED_INT,   v, 3); }
-
-void glColor4bv(const GLbyte *v)    { __gl_color(GL_BYTE,           v, 4); }
-void glColor4sv(const GLshort *v)   { __gl_color(GL_SHORT,          v, 4); }
-void glColor4iv(const GLint *v)     { __gl_color(GL_INT,            v, 4); }
-void glColor4fv(const GLfloat *v)   { __gl_color(GL_FLOAT,          v, 4); }
-void glColor4dv(const GLdouble *v)  { __gl_color(GL_DOUBLE,         v, 4); }
-void glColor4ubv(const GLubyte *v)  { __gl_color(GL_UNSIGNED_BYTE,  v, 4); }
-void glColor4usv(const GLushort *v) { __gl_color(GL_UNSIGNED_SHORT, v, 4); }
-void glColor4uiv(const GLuint *v)   { __gl_color(GL_UNSIGNED_INT,   v, 4); }
-
-void glColor3b(GLbyte r, GLbyte g, GLbyte b)                    { __ATTR_IMPL(__gl_color, GLbyte,   GL_BYTE,            r, g, b); }
-void glColor3s(GLshort r, GLshort g, GLshort b)                 { __ATTR_IMPL(__gl_color, GLshort,  GL_SHORT,           r, g, b); }
-void glColor3i(GLint r, GLint g, GLint b)                       { __ATTR_IMPL(__gl_color, GLint,    GL_INT,             r, g, b); }
-void glColor3f(GLfloat r, GLfloat g, GLfloat b)                 { __ATTR_IMPL(__gl_color, GLfloat,  GL_FLOAT,           r, g, b); }
-void glColor3d(GLdouble r, GLdouble g, GLdouble b)              { __ATTR_IMPL(__gl_color, GLdouble, GL_DOUBLE,          r, g, b); }
-void glColor3ub(GLubyte r, GLubyte g, GLubyte b)                { __ATTR_IMPL(__gl_color, GLubyte,  GL_UNSIGNED_BYTE,   r, g, b); }
-void glColor3us(GLushort r, GLushort g, GLushort b)             { __ATTR_IMPL(__gl_color, GLushort, GL_UNSIGNED_SHORT,  r, g, b); }
-void glColor3ui(GLuint r, GLuint g, GLuint b)                   { __ATTR_IMPL(__gl_color, GLuint,   GL_UNSIGNED_INT,    r, g, b); }
-
-void glColor4b(GLbyte r, GLbyte g, GLbyte b, GLbyte a)          { __ATTR_IMPL(__gl_color, GLbyte,   GL_BYTE,            r, g, b, a); }
-void glColor4s(GLshort r, GLshort g, GLshort b, GLshort a)      { __ATTR_IMPL(__gl_color, GLshort,  GL_SHORT,           r, g, b, a); }
-void glColor4i(GLint r, GLint g, GLint b, GLint a)              { __ATTR_IMPL(__gl_color, GLint,    GL_INT,             r, g, b, a); }
-void glColor4f(GLfloat r, GLfloat g, GLfloat b, GLfloat a)      { __ATTR_IMPL(__gl_color, GLfloat,  GL_FLOAT,           r, g, b, a); }
-void glColor4d(GLdouble r, GLdouble g, GLdouble b, GLdouble a)  { __ATTR_IMPL(__gl_color, GLdouble, GL_DOUBLE,          r, g, b, a); }
-void glColor4ub(GLubyte r, GLubyte g, GLubyte b, GLubyte a)     { __ATTR_IMPL(__gl_color, GLubyte,  GL_UNSIGNED_BYTE,   r, g, b, a); }
-void glColor4us(GLushort r, GLushort g, GLushort b, GLushort a) { __ATTR_IMPL(__gl_color, GLushort, GL_UNSIGNED_SHORT,  r, g, b, a); }
-void glColor4ui(GLuint r, GLuint g, GLuint b, GLuint a)         { __ATTR_IMPL(__gl_color, GLuint,   GL_UNSIGNED_INT,    r, g, b, a); }
-
-void glTexCoord1sv(const GLshort *v)    { __gl_tex_coord(GL_SHORT,  v, 1); }
-void glTexCoord1iv(const GLint *v)      { __gl_tex_coord(GL_INT,    v, 1); }
-void glTexCoord1fv(const GLfloat *v)    { __gl_tex_coord(GL_FLOAT,  v, 1); }
-void glTexCoord1dv(const GLdouble *v)   { __gl_tex_coord(GL_DOUBLE, v, 1); }
-
-void glTexCoord2sv(const GLshort *v)    { __gl_tex_coord(GL_SHORT,  v, 2); }
-void glTexCoord2iv(const GLint *v)      { __gl_tex_coord(GL_INT,    v, 2); }
-void glTexCoord2fv(const GLfloat *v)    { __gl_tex_coord(GL_FLOAT,  v, 2); }
-void glTexCoord2dv(const GLdouble *v)   { __gl_tex_coord(GL_DOUBLE, v, 2); }
-
-void glTexCoord3sv(const GLshort *v)    { __gl_tex_coord(GL_SHORT,  v, 3); }
-void glTexCoord3iv(const GLint *v)      { __gl_tex_coord(GL_INT,    v, 3); }
-void glTexCoord3fv(const GLfloat *v)    { __gl_tex_coord(GL_FLOAT,  v, 3); }
-void glTexCoord3dv(const GLdouble *v)   { __gl_tex_coord(GL_DOUBLE, v, 3); }
-
-void glTexCoord4sv(const GLshort *v)    { __gl_tex_coord(GL_SHORT,  v, 4); }
-void glTexCoord4iv(const GLint *v)      { __gl_tex_coord(GL_INT,    v, 4); }
-void glTexCoord4fv(const GLfloat *v)    { __gl_tex_coord(GL_FLOAT,  v, 4); }
-void glTexCoord4dv(const GLdouble *v)   { __gl_tex_coord(GL_DOUBLE, v, 4); }
-
-void glTexCoord1s(GLshort s)                                        { __ATTR_IMPL(__gl_tex_coord, GLshort,  GL_SHORT,   s); }
-void glTexCoord1i(GLint s)                                          { __ATTR_IMPL(__gl_tex_coord, GLint,    GL_INT,     s); }
-void glTexCoord1f(GLfloat s)                                        { __ATTR_IMPL(__gl_tex_coord, GLfloat,  GL_FLOAT,   s); }
-void glTexCoord1d(GLdouble s)                                       { __ATTR_IMPL(__gl_tex_coord, GLdouble, GL_DOUBLE,  s); }
-
-void glTexCoord2s(GLshort s, GLshort t)                             { __ATTR_IMPL(__gl_tex_coord, GLshort,  GL_SHORT,   s, t); }
-void glTexCoord2i(GLint s, GLint t)                                 { __ATTR_IMPL(__gl_tex_coord, GLint,    GL_INT,     s, t); }
-void glTexCoord2f(GLfloat s, GLfloat t)                             { __ATTR_IMPL(__gl_tex_coord, GLfloat,  GL_FLOAT,   s, t); }
-void glTexCoord2d(GLdouble s, GLdouble t)                           { __ATTR_IMPL(__gl_tex_coord, GLdouble, GL_DOUBLE,  s, t); }
-
-void glTexCoord3s(GLshort s, GLshort t, GLshort r)                  { __ATTR_IMPL(__gl_tex_coord, GLshort,  GL_SHORT,   s, t, r); }
-void glTexCoord3i(GLint s, GLint t, GLint r)                        { __ATTR_IMPL(__gl_tex_coord, GLint,    GL_INT,     s, t, r); }
-void glTexCoord3f(GLfloat s, GLfloat t, GLfloat r)                  { __ATTR_IMPL(__gl_tex_coord, GLfloat,  GL_FLOAT,   s, t, r); }
-void glTexCoord3d(GLdouble s, GLdouble t, GLdouble r)               { __ATTR_IMPL(__gl_tex_coord, GLdouble, GL_DOUBLE,  s, t, r); }
-
-void glTexCoord4s(GLshort s, GLshort t, GLshort r, GLshort q)       { __ATTR_IMPL(__gl_tex_coord, GLshort,  GL_SHORT,   s, t, r, q); }
-void glTexCoord4i(GLint s, GLint t, GLint r, GLint q)               { __ATTR_IMPL(__gl_tex_coord, GLint,    GL_INT,     s, t, r, q); }
-void glTexCoord4f(GLfloat s, GLfloat t, GLfloat r, GLfloat q)       { __ATTR_IMPL(__gl_tex_coord, GLfloat,  GL_FLOAT,   s, t, r, q); }
-void glTexCoord4d(GLdouble s, GLdouble t, GLdouble r, GLdouble q)   { __ATTR_IMPL(__gl_tex_coord, GLdouble, GL_DOUBLE,  s, t, r, q); }
-
-void glNormal3bv(const GLbyte *v)   { __gl_normal(GL_BYTE,      v, 3); }
-void glNormal3sv(const GLshort *v)  { __gl_normal(GL_SHORT,     v, 3); }
-void glNormal3iv(const GLint *v)    { __gl_normal(GL_INT,       v, 3); }
-void glNormal3fv(const GLfloat *v)  { __gl_normal(GL_FLOAT,     v, 3); }
-void glNormal3dv(const GLdouble *v) { __gl_normal(GL_DOUBLE,    v, 3); }
-
-void glNormal3b(GLbyte nx, GLbyte ny, GLbyte nz)        { __ATTR_IMPL(__gl_normal, GLbyte,      GL_BYTE,    nx, ny, nz); }
-void glNormal3s(GLshort nx, GLshort ny, GLshort nz)     { __ATTR_IMPL(__gl_normal, GLshort,     GL_SHORT,   nx, ny, nz); }
-void glNormal3i(GLint nx, GLint ny, GLint nz)           { __ATTR_IMPL(__gl_normal, GLint,       GL_INT,     nx, ny, nz); }
-void glNormal3f(GLfloat nx, GLfloat ny, GLfloat nz)     { __ATTR_IMPL(__gl_normal, GLfloat,     GL_FLOAT,   nx, ny, nz); }
-void glNormal3d(GLdouble nx, GLdouble ny, GLdouble nz)  { __ATTR_IMPL(__gl_normal, GLdouble,    GL_DOUBLE,  nx, ny, nz); }
+void glNormal3bv(const GLbyte *v)   { glNormal3b(v[0], v[1], v[2]); }
+void glNormal3sv(const GLshort *v)  { glNormal3s(v[0], v[1], v[2]); }
+void glNormal3iv(const GLint *v)    { glNormal3i(v[0], v[1], v[2]); }
+void glNormal3fv(const GLfloat *v)  { glNormal3f(v[0], v[1], v[2]); }
+void glNormal3dv(const GLdouble *v) { glNormal3d(v[0], v[1], v[2]); }
 
 void glPointSize(GLfloat size)
 {

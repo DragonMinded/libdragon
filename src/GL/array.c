@@ -32,72 +32,6 @@ static const gl_interleaved_array_t interleaved_arrays[] = {
     /* GL_T4F_C4F_N3F_V4F */ { .et = true,  .ec = true,  .en = true,  .st = 4, .sc = 4, .sv = 4, .tc = GL_FLOAT,         .pc = 4*ILA_F, .pn = 8*ILA_F, .pv = 11*ILA_F,        .s = 15*ILA_F },
 };
 
-extern const cpu_read_attrib_func cpu_read_funcs[ATTRIB_COUNT][8];
-extern const rsp_read_attrib_func rsp_read_funcs[ATTRIB_COUNT][8];
-
-gl_array_type_t gl_array_type_from_enum(GLenum array)
-{
-    switch (array) {
-    case GL_VERTEX_ARRAY:
-        return ATTRIB_VERTEX;
-    case GL_TEXTURE_COORD_ARRAY:
-        return ATTRIB_TEXCOORD;
-    case GL_NORMAL_ARRAY:
-        return ATTRIB_NORMAL;
-    case GL_COLOR_ARRAY:
-        return ATTRIB_COLOR;
-    default:
-        return -1;
-    }
-}
-
-void gl_update_array(gl_array_t *array, gl_array_type_t array_type)
-{
-    uint32_t size_shift = 0;
-    
-    switch (array->type) {
-    case GL_BYTE:
-    case GL_UNSIGNED_BYTE:
-        size_shift = 0;
-        break;
-    case GL_SHORT:
-    case GL_UNSIGNED_SHORT:
-        size_shift = 1;
-        break;
-    case GL_INT:
-    case GL_UNSIGNED_INT:
-    case GL_FLOAT:
-        size_shift = 2;
-        break;
-    case GL_DOUBLE:
-        size_shift = 3;
-        break;
-    }
-
-    array->final_stride = array->stride == 0 ? array->size << size_shift : array->stride;
-
-    uint32_t func_index = gl_type_to_index(array->type);
-    array->cpu_read_func = cpu_read_funcs[array_type][func_index];
-    array->rsp_read_func = rsp_read_funcs[array_type][func_index];
-}
-
-void gl_update_array_pointer(gl_array_t *array)
-{
-    if (array->binding != NULL) {
-        array->final_pointer = array->binding->storage.data + (uint32_t)array->pointer;
-    } else {
-        array->final_pointer = array->pointer;
-    }
-}
-
-void gl_update_array_pointers(gl_array_object_t *obj)
-{
-    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
-    {
-        gl_update_array_pointer(&obj->arrays[i]);
-    }
-}
-
 void gl_array_object_init(gl_array_object_t *obj)
 {
     obj->arrays[ATTRIB_VERTEX].size = 4;
@@ -110,11 +44,6 @@ void gl_array_object_init(gl_array_object_t *obj)
     obj->arrays[ATTRIB_NORMAL].size = 3;
     obj->arrays[ATTRIB_NORMAL].type = GL_FLOAT;
     obj->arrays[ATTRIB_NORMAL].normalize = true;
-
-    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
-    {
-        gl_update_array(&obj->arrays[i], i);
-    }
 }
 
 void gl_array_init()
@@ -149,8 +78,6 @@ void gl_set_array(gl_array_type_t array_type, GLint size, GLenum type, GLsizei s
     array->stride = stride;
     array->pointer = pointer;
     array->binding = state.array_buffer;
-
-    gl_update_array(array, array_type);
 }
 
 void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
@@ -252,20 +179,20 @@ void glColorPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *point
     gl_set_array(ATTRIB_COLOR, size, type, stride, pointer);
 }
 
-void gl_set_array_enabled(gl_array_type_t array_type, bool enabled)
-{
-    gl_array_t *array = &state.array_object->arrays[array_type];
-    array->enabled = enabled;
-}
-
 void glEnableClientState(GLenum array)
 {
     switch (array) {
     case GL_VERTEX_ARRAY:
+        state.array_object->arrays[ATTRIB_VERTEX].enabled = true;
+        break;
     case GL_TEXTURE_COORD_ARRAY:
+        state.array_object->arrays[ATTRIB_TEXCOORD].enabled = true;
+        break;
     case GL_NORMAL_ARRAY:
+        state.array_object->arrays[ATTRIB_NORMAL].enabled = true;
+        break;
     case GL_COLOR_ARRAY:
-        gl_set_array_enabled(gl_array_type_from_enum(array), true);
+        state.array_object->arrays[ATTRIB_COLOR].enabled = true;
         break;
     case GL_EDGE_FLAG_ARRAY:
     case GL_INDEX_ARRAY:
@@ -279,10 +206,16 @@ void glDisableClientState(GLenum array)
 {
     switch (array) {
     case GL_VERTEX_ARRAY:
+        state.array_object->arrays[ATTRIB_VERTEX].enabled = false;
+        break;
     case GL_TEXTURE_COORD_ARRAY:
+        state.array_object->arrays[ATTRIB_TEXCOORD].enabled = false;
+        break;
     case GL_NORMAL_ARRAY:
+        state.array_object->arrays[ATTRIB_NORMAL].enabled = false;
+        break;
     case GL_COLOR_ARRAY:
-        gl_set_array_enabled(gl_array_type_from_enum(array), false);
+        state.array_object->arrays[ATTRIB_COLOR].enabled = false;
         break;
     case GL_EDGE_FLAG_ARRAY:
     case GL_INDEX_ARRAY:

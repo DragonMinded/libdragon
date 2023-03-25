@@ -31,8 +31,8 @@ sprite_ext_t *__sprite_ext(sprite_t *sprite)
 
 bool __sprite_upgrade(sprite_t *sprite)
 {
-    // Previously, the "format" field of the sprite structure (now renamed "flags")
-    // was unused and always contained 0. Sprites could only be RGBA16 and RGBA32 anyway,
+    // Previously, the "format" field of the sprite structure was unused
+    // and always contained 0. Sprites could only be RGBA16 and RGBA32 anyway,
     // so only a bitdepth field could be used to understand the format.
     // To help backward compatibility, we want to try and still support this
     // old format.

@@ -14,7 +14,6 @@
 
 static GLuint sphere_buffers[2];
 static GLuint sphere_array;
-static GLuint sphere_list;
 static uint32_t sphere_rings;
 static uint32_t sphere_segments;
 static uint32_t sphere_vertex_count;
@@ -42,8 +41,6 @@ void setup_sphere()
     glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
 
     glBindVertexArray(0);
-
-    sphere_list = glGenLists(1);
 }
 
 void make_sphere_vertex(vertex_t *dst, uint32_t ring, uint32_t segment)
@@ -72,19 +69,6 @@ void make_sphere_vertex(vertex_t *dst, uint32_t ring, uint32_t segment)
 
     dst->texcoord[0] = segment & 1 ? 1.0f : 0.0f;
     dst->texcoord[1] = ring & 1 ? 1.0f : 0.0f;
-}
-
-void draw_sphere_internal()
-{
-    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, sphere_buffers[1]);
-    glBindVertexArray(sphere_array);
-
-    glDrawElements(GL_TRIANGLE_FAN, sphere_segments + 2, GL_UNSIGNED_SHORT, 0);
-    glDrawElements(GL_TRIANGLE_FAN, sphere_segments + 2, GL_UNSIGNED_SHORT, (void*)((sphere_segments + 2) * sizeof(uint16_t)));
-    glDrawElements(GL_TRIANGLES, (sphere_rings - 1) * (sphere_segments * 6), GL_UNSIGNED_SHORT, (void*)((sphere_segments + 2) * 2 * sizeof(uint16_t)));
-
-    glBindVertexArray(0);
-    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
 }
 
 void make_sphere_mesh()
@@ -153,15 +137,19 @@ void make_sphere_mesh()
 
     glUnmapBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB);
     glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-
-    glNewList(sphere_list, GL_COMPILE);
-    draw_sphere_internal();
-    glEndList();
 }
 
 void draw_sphere()
 {
-    glCallList(sphere_list);
+    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, sphere_buffers[1]);
+    glBindVertexArray(sphere_array);
+
+    glDrawElements(GL_TRIANGLE_FAN, sphere_segments + 2, GL_UNSIGNED_SHORT, 0);
+    glDrawElements(GL_TRIANGLE_FAN, sphere_segments + 2, GL_UNSIGNED_SHORT, (void*)((sphere_segments + 2) * sizeof(uint16_t)));
+    glDrawElements(GL_TRIANGLES, (sphere_rings - 1) * (sphere_segments * 6), GL_UNSIGNED_SHORT, (void*)((sphere_segments + 2) * 2 * sizeof(uint16_t)));
+
+    glBindVertexArray(0);
+    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
 }
 
 #endif

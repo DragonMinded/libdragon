@@ -16,10 +16,9 @@ GL_STATE:
     GL_MAT_EMISSIVE:        .half   0,0,0,0
     GL_MAT_COLOR_TARGET:    .half   0,0,0
     GL_MAT_SHININESS:       .half   0
-    GL_CURRENT_ATTRIBUTES:
-        GL_CUR_COLOR:       .half   0,0,0,0
-        GL_CUR_TEX_COORDS:  .half   0,0,0,0
-        GL_CUR_NORMAL:      .byte   0,0,0,0
+    GL_CUR_COLOR:           .half   0,0,0,0
+    GL_CUR_TEX_COORDS:      .half   0,0,0,0
+    GL_CUR_NORMAL:          .byte   0,0,0,0
     GL_MATRIX_POINTERS:     .word   0,0,0
     GL_STATE_FLAGS:         .word   0
     GL_STATE_FOG_START:     .word   0
