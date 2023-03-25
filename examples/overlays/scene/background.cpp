@@ -2,6 +2,15 @@
 #include <math.h>
 #include "background.h"
 
+static float fmod_positive(float x, float y)
+{
+    float modulo = fmodf(x, y);
+    if(modulo < 0) {
+        modulo += y;
+    }
+    return modulo;
+}
+
 Background::Background()
 {
     m_image = NULL;
@@ -28,8 +37,8 @@ void Background::Draw()
     float scr_height = display_get_height();
     float tile_w = img_surface.width*m_scale_x;
     float tile_h = img_surface.height*m_scale_y;
-    float ofs_x = -fmod(fabs(m_pos_x-((scr_width/2)/m_scale_x)), img_surface.width)*m_scale_x;
-    float ofs_y = -fmod(fabs(m_pos_y-((scr_height/2)/m_scale_y)), img_surface.height)*m_scale_y;
+    float ofs_x = -fmod_positive(m_pos_x, img_surface.width)*m_scale_x;
+    float ofs_y = -fmod_positive(m_pos_y, img_surface.height)*m_scale_y;
     int num_tiles_x = (scr_width/tile_w)+2;
     int num_tiles_y = (scr_height/tile_h)+2;
     rdpq_blitparms_t blit_params = {.scale_x = m_scale_x, .scale_y = m_scale_y };
