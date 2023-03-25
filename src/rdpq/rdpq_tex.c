@@ -122,8 +122,8 @@ static void texload_block_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int 
         //   texels to skip per line, which we don't need.
         assertf(ROUND_UP(tload->tex->width, 2) % 4 == 0, "Internal Error: invalid width for LOAD_BLOCK (%d)", tload->tex->width);
         rdpq_set_texture_image_raw(0, PhysicalAddr(tload->tex->buffer), FMT_RGBA16, tload->tex->width/4, tload->tex->height);
-        rdpq_set_tile(tile_internal, FMT_RGBA16, tload->tmem_addr, 0, 0);
-        rdpq_set_tile(tload->tile, surface_get_format(tload->tex), tload->tmem_addr, tload->rect.tmem_pitch, tload->tlut);
+        rdpq_set_tile(tile_internal, FMT_RGBA16, tload->tmem_addr, 0, &(rdpq_tileparms_t){.palette = 0});
+        rdpq_set_tile(tload->tile, surface_get_format(tload->tex), tload->tmem_addr, tload->rect.tmem_pitch, &(rdpq_tileparms_t){.palette = tload->tlut});
         tload->load_mode = TEX_LOAD_BLOCK;
     }
 
@@ -142,8 +142,8 @@ static void texload_block_8bpp(tex_loader_t *tload, int s0, int t0, int s1, int 
         // * SET_TILE must be configured with tmem_pitch=0, as that is weirdly used as the number of
         //   texels to skip per line, which we don't need.
         rdpq_set_texture_image_raw(0, PhysicalAddr(tload->tex->buffer), FMT_RGBA16, tload->tex->width/2, tload->tex->height);
-        rdpq_set_tile(tile_internal, FMT_RGBA16, tload->tmem_addr, 0, 0);
-        rdpq_set_tile(tload->tile, fmt, tload->tmem_addr, tload->rect.tmem_pitch, tload->tlut);
+        rdpq_set_tile(tile_internal, FMT_RGBA16, tload->tmem_addr, 0, &(rdpq_tileparms_t){.palette = 0});
+        rdpq_set_tile(tload->tile, fmt, tload->tmem_addr, tload->rect.tmem_pitch, &(rdpq_tileparms_t){.palette = tload->tlut});
         tload->load_mode = TEX_LOAD_BLOCK;
     }
 
@@ -161,8 +161,8 @@ static void texload_block(tex_loader_t *tload, int s0, int t0, int s1, int t1)
         // * SET_TILE must be configured with tmem_pitch=0, as that is weirdly used as the number of
         //   texels to skip per line, which we don't need.
         rdpq_set_texture_image_raw(0, PhysicalAddr(tload->tex->buffer), fmt, tload->tex->width, tload->tex->height);
-        rdpq_set_tile(tile_internal, fmt, tload->tmem_addr, 0, 0);
-        rdpq_set_tile(tload->tile, fmt, tload->tmem_addr, tload->rect.tmem_pitch, tload->tlut);
+        rdpq_set_tile(tile_internal, fmt, tload->tmem_addr, 0, &(rdpq_tileparms_t){.palette = 0});
+        rdpq_set_tile(tload->tile, fmt, tload->tmem_addr, tload->rect.tmem_pitch,  &(rdpq_tileparms_t){.palette = tload->tlut});
         tload->load_mode = TEX_LOAD_BLOCK;
     }
 
@@ -175,8 +175,8 @@ static void texload_tile_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int t
     rdpq_tile_t tile_internal = (tload->tile + 1) & 7;
     if (tload->load_mode != TEX_LOAD_TILE) {
         rdpq_set_texture_image_raw(0, PhysicalAddr(tload->tex->buffer), FMT_CI8, tload->tex->stride, tload->tex->height);
-        rdpq_set_tile(tile_internal, FMT_CI8, tload->tmem_addr, tload->rect.tmem_pitch, 0);
-        rdpq_set_tile(tload->tile, surface_get_format(tload->tex), tload->tmem_addr, tload->rect.tmem_pitch, tload->tlut);
+        rdpq_set_tile(tile_internal, FMT_CI8, tload->tmem_addr, tload->rect.tmem_pitch, &(rdpq_tileparms_t){.palette = 0});
+        rdpq_set_tile(tload->tile, surface_get_format(tload->tex), tload->tmem_addr, tload->rect.tmem_pitch, &(rdpq_tileparms_t){.palette = tload->tlut});
         tload->load_mode = TEX_LOAD_TILE;
     }
 
@@ -191,7 +191,7 @@ static void texload_tile(tex_loader_t *tload, int s0, int t0, int s1, int t1)
 
     if (tload->load_mode != TEX_LOAD_TILE) {
         rdpq_set_texture_image(tload->tex);
-        rdpq_set_tile(tload->tile, fmt, tload->tmem_addr, tload->rect.tmem_pitch, tload->tlut);
+        rdpq_set_tile(tload->tile, fmt, tload->tmem_addr, tload->rect.tmem_pitch, &(rdpq_tileparms_t){.palette = tload->tlut});
         tload->load_mode = TEX_LOAD_TILE;
     }
 
@@ -505,6 +505,6 @@ void rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitpar
 void rdpq_tex_load_tlut(uint16_t *tlut, int color_idx, int num_colors)
 {
     rdpq_set_texture_image_raw(0, PhysicalAddr(tlut), FMT_RGBA16, num_colors, 1);
-    rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_I4, TMEM_PALETTE_ADDR + color_idx*16*2*4, num_colors, 0);
+    rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_I4, TMEM_PALETTE_ADDR + color_idx*16*2*4, num_colors, &(rdpq_tileparms_t){.palette = 0});
     rdpq_load_tlut_raw(RDPQ_TILE_INTERNAL, color_idx, num_colors);
 }

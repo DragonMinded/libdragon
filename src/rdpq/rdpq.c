@@ -1041,11 +1041,10 @@ extern inline void rdpq_set_tile_size_fx(rdpq_tile_t tile, uint16_t s0, uint16_t
 extern inline void rdpq_load_block(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t tmem_pitch);
 extern inline void rdpq_load_block_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t dxt);
 extern inline void rdpq_load_tile_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1);
-extern inline void rdpq_set_tile_full(rdpq_tile_t tile, tex_format_t format, uint16_t tmem_addr, uint16_t tmem_pitch, uint8_t palette, uint8_t ct, uint8_t mt, uint8_t mask_t, uint8_t shift_t, uint8_t cs, uint8_t ms, uint8_t mask_s, uint8_t shift_s);
 extern inline void rdpq_set_other_modes_raw(uint64_t mode);
 extern inline void rdpq_change_other_modes_raw(uint64_t mask, uint64_t val);
 extern inline void rdpq_set_color_image_raw(uint8_t index, uint32_t offset, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride);
 extern inline void rdpq_set_z_image_raw(uint8_t index, uint32_t offset);
 extern inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_format_t format, uint16_t width, uint16_t height);
 extern inline void rdpq_set_lookup_address(uint8_t index, void* rdram_addr);
-extern inline void rdpq_set_tile(rdpq_tile_t tile, tex_format_t format, uint16_t tmem_addr, uint16_t tmem_pitch, uint8_t palette);
+extern inline void rdpq_set_tile(rdpq_tile_t tile, tex_format_t format, uint16_t tmem_addr,uint16_t tmem_pitch, const rdpq_tileparms_t *parms);
