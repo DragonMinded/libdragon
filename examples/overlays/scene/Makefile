@@ -33,5 +33,6 @@ clean:
 	rm -rf $(BUILD_DIR) $(USO_LIST) overlays_scene.z64
 
 -include $(wildcard $(BUILD_DIR)/*.d)
+-include $(wildcard $(BUILD_DIR)/scene/*.d)
 
 .PHONY: all clean
