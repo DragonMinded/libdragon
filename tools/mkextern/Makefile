@@ -1,5 +1,5 @@
 INSTALLDIR = $(N64_INST)
-CFLAGS += -std=gnu99 -O2 -Wall -Werror -Wno-unused-result -I../../include
+CFLAGS += -std=gnu99 -O2 -Wall -Werror -Wno-unused-result -Wno-unknown-pragmas -I../../include
 LDFLAGS += -lm
 all: mkextern
 
