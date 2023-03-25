@@ -6,7 +6,7 @@ include $(N64_INST)/include/n64.mk
 
 main_SRC = overlays_scene.cpp scene.cpp
 
-scene_common_SRC = background.cpp
+scene_common_SRC = sprite.cpp background.cpp
 bgtest_SRC = scene/bg_test.cpp
 
 assets_png = $(wildcard assets/*.png)

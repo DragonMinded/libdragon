@@ -23,13 +23,6 @@ Background::~Background()
     FreeImage();
 }
 
-void Background::FreeImage()
-{
-    if(m_image) {
-        sprite_free(m_image);
-    }
-}
-
 void Background::Draw()
 {
     surface_t img_surface = sprite_get_pixels(m_image);
@@ -65,4 +58,11 @@ void Background::SetImage(const char *filename)
 {
     FreeImage();
     m_image = sprite_load(filename);
+}
+
+void Background::FreeImage()
+{
+    if(m_image) {
+        sprite_free(m_image);
+    }
 }

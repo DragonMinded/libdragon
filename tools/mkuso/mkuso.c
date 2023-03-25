@@ -482,6 +482,10 @@ uint32_t uso_translate_reloc_symbol_idx(elf_info_t *elf_info, uint32_t sym_idx)
     search_sym_ptr->name = elf_info->syms[sym_idx].name; //Set symbol name for search key
     //Do symbol search
     elf_symbol_t **result = bsearch(&search_sym_ptr, elf_info->import_syms, arrlenu(elf_info->import_syms), sizeof(elf_symbol_t *), elf_sym_compare);
+    //Failed symbol searches assume symbol 0
+    if(!result) {
+        return 0;
+    }
     //Convert result into array index
     return (result-elf_info->import_syms)+1;
 }

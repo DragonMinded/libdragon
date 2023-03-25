@@ -249,6 +249,9 @@ static void relocate_module(uso_module_t *module)
         //Calculate symbol address
         uint32_t sym_addr = module->syms[reloc->info & 0xFFFFFF].value;
         switch(type) {
+            case R_MIPS_NONE:
+                break;
+                
             case R_MIPS_32:
                 *target += sym_addr;
                 break;

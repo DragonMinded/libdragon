@@ -12,6 +12,7 @@ typedef char *(*demangle_func)(char *);
 typedef uint32_t u_uint32_t __attribute__((aligned(1)));
 
 /** @brief MIPS ELF Relocation types */
+#define R_MIPS_NONE 0   ///< Empty relocation
 #define R_MIPS_32 2     ///< 32-bit pointer relocation
 #define R_MIPS_26 4     ///< Jump relocation
 #define R_MIPS_HI16 5   ///< High half of HI/LO pair
