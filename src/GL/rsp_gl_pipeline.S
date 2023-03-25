@@ -7,8 +7,13 @@
 
     RSPQ_BeginOverlayHeader
         RSPQ_DefineCommand GLCmd_InitPipe,      4
+        RSPQ_DefineCommand GLCmd_SetVtxLoader,  12 + VTX_LOADER_MAX_SIZE
+        RSPQ_DefineCommand GLCmd_SetVtxCmdSize, 8
         RSPQ_DefineCommand GLCmd_DrawTriangle,  8
         RSPQ_DefineCommand GLCmd_SetPrimVertex, 32
+        RSPQ_DefineCommand GLCmd_SetWord,       8
+        RSPQ_DefineCommand GLCmd_SetLong,       12
+        RSPQ_DefineCommand RSPQCmd_Noop,        4
     RSPQ_EndOverlayHeader
 
     .align 4
@@ -56,9 +61,13 @@ VERTEX_CACHE:   .dcb.b      PRIM_VTX_SIZE * VERTEX_CACHE_SIZE
     RSPQ_EndSavedState
 
     .align 4
-CACHE_OFFSETS:               .half 2,4,6,8,10,12,14,16,18
+DEFAULT_ATTRIBUTES:     .half 0, 0, 0, 1<<5, 0, 0, 0, 0x7FFF
 
-CLIP_CODE_FACTORS: .half 1, 1, GUARD_BAND_FACTOR, GUARD_BAND_FACTOR
+    .align 4
+CACHE_OFFSETS:          .half 2,4,6,8,10,12,14,16,18
+
+CLIP_CODE_FACTORS:      .half 1, 1, GUARD_BAND_FACTOR, GUARD_BAND_FACTOR
+
 
     .text
 
@@ -70,11 +79,44 @@ GLCmd_InitPipe:
     li t0, DMA_SIZE(GL_STATE_SIZE, 1)
     .endfunc
 
+    .func GLCmd_SetVtxLoader
+GLCmd_SetVtxLoader:
+    move s0, a1
+    li s4, %lo(gl_vtx_loader) + 0x1000
+    jal DMAInAsync
+    li t0, DMA_SIZE(VTX_LOADER_MAX_SIZE, 1)
+    add s0, a0, s4
+    jal_and_j DMAOutAsync, RSPQ_Loop
+    .endfunc
+
+    .func GLCmd_SetVtxCmdSize
+GLCmd_SetVtxCmdSize:
+    li s4, %lo(_RSPQ_OVERLAY_COMMAND_TABLE) + 8
+    sh a0, 0(s4)
+    move s0, a1
+    j DMAOutAsync
+    li t0, DMA_SIZE(8, 1)
+    .endfunc
+
+    .func GLCmd_SetWord
+GLCmd_SetWord:
+    jr ra
+    sw a1, %lo(GL_STATE)(a0)
+    .endfunc
+
+    .func GLCmd_SetLong
+GLCmd_SetLong:
+    sw a1, %lo(GL_STATE) + 0(a0)
+    jr ra
+    sw a2, %lo(GL_STATE) + 4(a0)
+    .endfunc
+
+
     ########################################
     # GLCmd_SetPrimVertex
     #
     # Arguments:
-    # * 0x00 (a0): offset within VERTEX_CACHE + Vertex ID
+    # * 0x00 (a0): offset within VERTEX_CACHE
     # * 0x04 (a1): object space X, Y (16-bit)
     # * 0x08 (a2): object space Z, W (16-bit)
     # * 0x0C (a3): RGBA (8-bit each one)
@@ -82,60 +124,64 @@ GLCmd_InitPipe:
     # * 0x14:      normal X, Y, Z (8-bit each one) (LSB must be 0)
     #
     ########################################
-
+    .align 3
     .func GLCmd_SetPrimVertex
 GLCmd_SetPrimVertex:
-    #define vtx     a0
-    #define in_xy   a1
-    #define in_zw   a2
-    #define in_rg   a3
+    #define vtx         a0
+    #define default     s0
+    #define current     s1
+    #define cmd_ptr     s4
+    #define norm        v0
 
-    addi vtx, %lo(VERTEX_CACHE)
+    #define v___        $v01
 
-    lw t0, CMD_ADDR(16, 32)  # B,A
-    lw t1, CMD_ADDR(20, 32)  # S,T
-    lw t2, CMD_ADDR(24, 32)  # R,Q
-    lw t3, CMD_ADDR(28, 32)  # N
+    #define vmtx0_i     $v16       //  m00 m01 m02 m03
+    #define vmtx0_f     $v17
+    #define vmtx1_i     $v18       //  m10 m11 m12 m13
+    #define vmtx1_f     $v19
+    #define vmtx2_i     $v20       //  m20 m21 m22 m23
+    #define vmtx2_f     $v21
+    #define vmtx3_i     $v22       //  m30 m31 m32 m03
+    #define vmtx3_f     $v23
 
-    sw in_xy,    PRIM_VTX_X     (vtx)
-    sw in_zw,    PRIM_VTX_Z     (vtx)
-    sw in_rg,    PRIM_VTX_R     (vtx)
-    sw t0,       PRIM_VTX_B     (vtx)
-    sw t1,       PRIM_VTX_TEX_S (vtx)
-    sw t2,       PRIM_VTX_TEX_R (vtx)
-    sw t3,       PRIM_VTX_NORMAL(vtx)
-
-    #define v___      $v01
-
-    #define vmtx0_i   $v16       //  m00 m01 m02 m03
-    #define vmtx0_f   $v17
-    #define vmtx1_i   $v18       //  m00 m01 m02 m03
-    #define vmtx1_f   $v19
-    #define vmtx2_i   $v20       //  m00 m01 m02 m03
-    #define vmtx2_f   $v21
-    #define vmtx3_i   $v22       //  m00 m01 m02 m03
-    #define vmtx3_f   $v23
-
-    #define vpos       $v24
-    #define vcspos_i   $v25
-    #define vcspos_f   $v26
-
-    ldv vpos.e0, PRIM_VTX_X,vtx
+    #define vpos        $v24
+    #define vcol        $v25
+    #define vtex        $v26
+    #define vdefault    $v27
+    #define vcspos_i    $v28
+    #define vcspos_f    $v29
 
     #define x  e0
     #define y  e1
     #define z  e2
     #define w  e3
 
+    addi cmd_ptr, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER) + 4
+    sub cmd_ptr, rspq_cmd_size
+
+    li default, %lo(DEFAULT_ATTRIBUTES)
+    li current, %lo(GL_CURRENT_ATTRIBUTES)
+
+    .align 3
+gl_vtx_loader:
+    .ds.l VTX_LOADER_MAX_COMMANDS
+    .align 3
+
+    addi vtx, %lo(VERTEX_CACHE)
+    sdv vpos, PRIM_VTX_X     ,vtx
+    sdv vcol, PRIM_VTX_R     ,vtx
+    sdv vtex, PRIM_VTX_TEX_S ,vtx
+    sw  norm, PRIM_VTX_NORMAL(vtx)
+
     li s0, %lo(GL_MATRIX_FINAL)
-    ldv vmtx0_i.e0,  0x00,s0
-    ldv vmtx1_i.e0,  0x08,s0
-    ldv vmtx2_i.e0,  0x10,s0
-    ldv vmtx3_i.e0,  0x18,s0
-    ldv vmtx0_f.e0,  0x20,s0
-    ldv vmtx1_f.e0,  0x28,s0
-    ldv vmtx2_f.e0,  0x30,s0
-    ldv vmtx3_f.e0,  0x38,s0
+    ldv vmtx0_i,  0x00,s0
+    ldv vmtx1_i,  0x08,s0
+    ldv vmtx2_i,  0x10,s0
+    ldv vmtx3_i,  0x18,s0
+    ldv vmtx0_f,  0x20,s0
+    ldv vmtx1_f,  0x28,s0
+    ldv vmtx2_f,  0x30,s0
+    ldv vmtx3_f,  0x38,s0
 
     vmudn v___,     vmtx0_f, vpos.x
     vmadh v___,     vmtx0_i, vpos.x
@@ -170,11 +216,7 @@ GLCmd_SetPrimVertex:
     # FIXME: in immediate mode, we should also cache the per-vertex
     # material, in case it is changed within a glBegin / glEnd pair.
 
-    #undef pos_x
-    #undef pos_y
-    #undef pos_z
-    #undef pos_w
-
+    #undef cmd_ptr
     #undef vtx
     #undef in_xy   
     #undef in_zw   
@@ -569,7 +611,6 @@ GL_TnL:
     # GLCmd_DrawTriangle
     #
     ################################################################
-
     .func GLCmd_DrawTriangle
 GLCmd_DrawTriangle:
     #define vtx1        a1
@@ -655,7 +696,6 @@ gl_draw_triangle_end:
     #undef vtx3
 
     .endfunc
-
 
 #include "rsp_gl_common.inc"
 #include "rsp_gl_lighting.inc"
