@@ -182,12 +182,13 @@ static int __proc_timers(timer_link_t * thead)
 }
 
 /**
- * @brief Timer interrupt callback function
+ * @brief Poll the timer list and run callbacks for expired timers
  *
- * This function is called by the interrupt controller whenever 
- * compare == count.
+ * This function is called by the interrupt handler whenever 
+ * compare == count, and also when inserting into or removing
+ * from the timers list to improve handling timers with tiny delays
  */
-static void timer_interrupt_callback(void)
+static void timer_poll(void)
 {
 	uint32_t loop_count = 0;
 	while (__proc_timers(TI_timers)) {
@@ -248,7 +249,7 @@ void timer_init(void)
 	C0_WRITE_COUNT(1);
 	C0_WRITE_COMPARE(0);
 	set_TI_interrupt(1);
-	register_TI_handler(timer_interrupt_callback);
+	register_TI_handler(timer_poll);
 	enable_interrupts();
 }
 
@@ -287,7 +288,7 @@ timer_link_t *new_timer(int ticks, int flags, timer_callback1_t callback)
 			timer->next = TI_timers;
 			TI_timers = timer;
 			timer_update_compare(TI_timers, now);
-			timer_interrupt_callback();
+			timer_poll();
 		}
 
 		enable_interrupts();
@@ -331,7 +332,7 @@ timer_link_t *new_timer_context(int ticks, int flags, timer_callback2_t callback
 			timer->next = TI_timers;
 			TI_timers = timer;
 			timer_update_compare(TI_timers, now);
-			timer_interrupt_callback();
+			timer_poll();
 		}
 
 		enable_interrupts();
@@ -373,7 +374,7 @@ void start_timer(timer_link_t *timer, int ticks, int flags, timer_callback1_t ca
 			timer->next = TI_timers;
 			TI_timers = timer;
 			timer_update_compare(TI_timers, now);
-			timer_interrupt_callback();
+			timer_poll();
 		}
 
 		enable_interrupts();
@@ -415,7 +416,7 @@ void start_timer_context(timer_link_t *timer, int ticks, int flags, timer_callba
 			timer->next = TI_timers;
 			TI_timers = timer;
 			timer_update_compare(TI_timers, now);
-			timer_interrupt_callback();
+			timer_poll();
 		}
 
 		enable_interrupts();
@@ -441,7 +442,7 @@ void restart_timer(timer_link_t *timer)
 		timer->next = TI_timers;
 		TI_timers = timer;
 		timer_update_compare(TI_timers, now);
-		timer_interrupt_callback();
+		timer_poll();
 
 		enable_interrupts();
 	}
@@ -523,7 +524,7 @@ void timer_close(void)
 	
 	/* Disable generation of timer interrupt. */
 	set_TI_interrupt(0);
-	unregister_TI_handler(timer_interrupt_callback);
+	unregister_TI_handler(timer_poll);
 
 	timer_link_t *head = TI_timers;
 	while (head)
