@@ -8,6 +8,7 @@ Sprite::Sprite()
     m_image_owned = false;
     m_pos_x = m_pos_y = 0;
     m_scale_x = m_scale_y = 1.0f;
+    m_vel_x = m_vel_y = 0.0f;
     m_angle = 0.0f;
 }
 
@@ -45,6 +46,12 @@ void Sprite::SetScale(float x, float y)
 {
     m_scale_x = x;
     m_scale_y = y;
+}
+
+void Sprite::SetVel(float x, float y)
+{
+    m_vel_x = x;
+    m_vel_y = y;
 }
 
 void Sprite::SetAngle(float theta)

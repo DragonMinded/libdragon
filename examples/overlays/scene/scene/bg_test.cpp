@@ -1,15 +1,5 @@
 #include <libdragon.h>
-#include <math.h>
 #include "bg_test.h"
-
-#define CENTER_MOVE_SPEED 1.3f
-#define CENTER_MARGIN_W 12
-#define CENTER_MARGIN_H 12
-#define ZOOM_SPEED 0.995f
-#define ZOOM_MIN 0.25f
-#define ZOOM_MAX 4.0f
-#define MOVE_SPEED 0.03f
-#define STICK_DEADZONE 6
 
 BGTest::BGTest()
 {
@@ -102,6 +92,10 @@ void BGTest::UpdateBackground()
 
 void BGTest::Update()
 {
+    struct controller_data cont_data = get_keys_down();
+    if(cont_data.c[0].start) {
+        SceneMgr::SetNextScene("sprite_test");
+    }
     UpdateZoom();
     UpdatePos();
     UpdateCenterPos();
