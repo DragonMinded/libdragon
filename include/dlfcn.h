@@ -6,17 +6,23 @@
 #ifndef __LIBDRAGON_DLFCN_H
 #define __LIBDRAGON_DLFCN_H
 
-/** @brief RTLD flags */
-#define RTLD_LAZY 0x0       ///< For compatibility
-#define RTLD_NOW 0x0        ///< For compatibility
-#define RTLD_GLOBAL 0x1     ///< Export symbols to other dynamic libraries
-#define RTLD_LOCAL 0x0      ///< Don't export symbols to other dynamic libraries
-#define RTLD_NODELETE 0x2   ///< Never unload dynamic library from memory
-#define RTLD_NOLOAD 0x4     ///< Never unload USO from memory
+/** @brief Flag for compatibility */
+#define RTLD_LAZY 0x0
+/** @brief Flag for compatibility */
+#define RTLD_NOW 0x0
+/** @brief Export symbols to other dynamic libraries */
+#define RTLD_GLOBAL 0x1
+/** @brief Don't export symbols to other dynamic libraries */
+#define RTLD_LOCAL 0x0
+/** @brief Never unload dynamic library from memory */
+#define RTLD_NODELETE 0x2
+/** @brief Don't load dynamic library to memory if not loaded */
+#define RTLD_NOLOAD 0x4
 
-/** @brief Special dlsym handles */
-#define RTLD_DEFAULT ((void *)-1)   ///< Find first occurrence of symbol
-#define RTLD_NEXT ((void *)-2)      ///< Find next occurrence of symbol
+/** @brief Handle for dlsym to find first occurrence of symbol */
+#define RTLD_DEFAULT ((void *)-1)
+/** @brief Handle for dlsym to find next occurrence of symbol */
+#define RTLD_NEXT ((void *)-2)
 
 /** @brief dl_addr info structure */
 typedef struct {
@@ -39,7 +45,7 @@ extern "C" {
  * 
  * @param filename  Path to dynamic library
  * @param mode      Flags for loading dynamic library
- * @return void *   Handle for loaded dynamic library
+ * @return Handle for loaded dynamic library
  */
 void *dlopen(const char *filename, int mode);
 
@@ -48,7 +54,7 @@ void *dlopen(const char *filename, int mode);
  * 
  * @param handle    Dynamic library handle to search symbol from
  * @param symbol    Name of symbol to search for
- * @return void*    Pointer to symbol
+ * @return Pointer to symbol
  */
 void *dlsym(void *handle, const char *symbol);
 
@@ -56,7 +62,7 @@ void *dlsym(void *handle, const char *symbol);
  * @brief Close loaded dynamic library
  * 
  * @param handle    Dynamic library handle to close
- * @return int      Return non-zero on error
+ * @return Whether an error occurred
  */
 int dlclose(void *handle);
 
@@ -72,7 +78,7 @@ int dladdr(const void *addr, Dl_info *info);
 /**
  * @brief Return last error that occurred in dynamic linker
  * 
- * @return char *   String describing last error occurring in dynamic linker
+ * @return String describing last error occurring in dynamic linker
  */
 char *dlerror(void);
 

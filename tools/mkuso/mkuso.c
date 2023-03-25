@@ -278,12 +278,12 @@ bool elf_sym_read(FILE *file, Elf32_Shdr *symtab_section, size_t sym_index, Elf3
     size_t sym_section_offset = sym_index*sizeof(Elf32_Sym);
     //Warn if invalid symbol is read
     if(sym_section_offset > symtab_section->sh_size) {
-        fprintf(stderr, "Trying to read invalid symbol %ld\n", sym_index);
+        fprintf(stderr, "Trying to read invalid symbol %zu\n", sym_index);
         return false;
     }
     //Read ELF symbol
     if(!read_checked(file, symtab_section->sh_offset+sym_section_offset, sym, sizeof(Elf32_Sym))) {
-        fprintf(stderr, "Failed to read symbol %ld\n", sym_index);
+        fprintf(stderr, "Failed to read symbol %zu\n", sym_index);
         return false;
     }
     //Byteswap ELF symbol

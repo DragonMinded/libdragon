@@ -59,6 +59,7 @@ typedef struct uso_load_info_s {
     uint32_t mem_align;     ///< Required memory alignment
 } uso_load_info_t;
 
+/** @brief Information to load main executable symbol table */
 typedef struct mainexe_sym_info_s {
     uint32_t magic;     ///< Magic number
     uint32_t size;      ///< Size of data to load

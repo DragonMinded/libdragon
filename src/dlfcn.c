@@ -22,7 +22,9 @@ _Static_assert(sizeof(uso_sym_t) == 12, "uso_sym_t size is wrong");
 _Static_assert(sizeof(uso_module_t) == 28, "uso_module_t size is wrong");
 _Static_assert(sizeof(uso_load_info_t) == 16, "uso_load_info_t size is wrong");
 
+/** @brief Macro to round up pointer */
 #define PTR_ROUND_UP(ptr, d) ((void *)ROUND_UP((uintptr_t)(ptr), (d)))
+/** @brief Macro to add base to pointer */
 #define PTR_DECODE(base, ptr) ((void*)(((uint8_t*)(base)) + (uintptr_t)(ptr)))
 
 /** @brief Function to register exception frames */
