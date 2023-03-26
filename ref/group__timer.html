@@ -668,7 +668,9 @@ callback_with_context</td>
 </div><div class="memdoc">
 
 <p>Stop a timer and remove it from the list. </p>
-<dl class="section note"><dt>Note</dt><dd>This function does not free a timer structure, use <a class="el" href="group__timer.html#ga9be3a07bf5bcebee5509b64c37121083" title="Remove a timer from the list and delete it.">delete_timer</a> to do this.</dd></dl>
+<dl class="section note"><dt>Note</dt><dd>This function does not free a timer structure, use <a class="el" href="group__timer.html#ga9be3a07bf5bcebee5509b64c37121083" title="Remove a timer from the list and delete it.">delete_timer</a> to do this.</dd>
+<dd>
+It is safe to call this function from a timer callback, including to stop a timer from its own callback.</dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">timer</td><td>Timer structure to stop and remove </td></tr>
@@ -695,6 +697,7 @@ callback_with_context</td>
 </div><div class="memdoc">
 
 <p>Remove a timer from the list and delete it. </p>
+<dl class="section note"><dt>Note</dt><dd>It is not safe to call this function from a timer callback.</dd></dl>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">timer</td><td>Timer structure to stop, remove and free </td></tr>
@@ -775,7 +778,7 @@ callback_with_context</td>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed Mar 22 2023 00:04:00 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Sun Mar 26 2023 16:39:53 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
