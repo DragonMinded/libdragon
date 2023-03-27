@@ -239,6 +239,7 @@ static const struct Testsuite
 	TEST_FUNC(test_timer_oneshot,            596, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_timer_slow_callback,     1468, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_timer_continuous,         688, TEST_FLAGS_RESET_COUNT),
+	TEST_FUNC(test_timer_continuous_short,   554, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_timer_mixed,             1467, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_timer_context,            186, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_timer_disabled_start,     733, TEST_FLAGS_RESET_COUNT),

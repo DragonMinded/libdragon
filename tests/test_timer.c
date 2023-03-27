@@ -335,3 +335,28 @@ void test_timer_disabled_start(TestContext *ctx) {
 		2+3+3+2+3+3,
 		"invalid timer_ticks");
 }
+
+void test_timer_continuous_short(TestContext *ctx) {
+	timer_init();
+	DEFER(timer_close());
+
+	timer_link_t t2;
+
+	volatile int cb_called = 0;
+	void cb2(int ovlf) {
+		cb_called++;
+		if (cb_called == 50) {
+			stop_timer(&t2);
+		}
+	}
+
+	// Create a timer that fires with very short intervals
+	int intervals[] = {0, 1, 2, 10, 50, 100 };
+
+	for (int tt=0; tt<sizeof(intervals) / sizeof(intervals[0]); tt++) {
+		cb_called = 0;
+		start_timer(&t2, intervals[tt], TF_CONTINUOUS, cb2);
+		wait_ms(2);
+		ASSERT_EQUAL_SIGNED(cb_called, 50, "invalid number of calls to timer callback");
+	}
+}
