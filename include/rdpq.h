@@ -269,12 +269,12 @@ typedef struct {
 	
 	// Additional mapping parameters; Leave them as 0 if not required;
 	
-    bool     clamp_s; 	///< True if texture needs to be clamped in the S direction (U/X in UV/XY space). Otherwise wrap the texture around;
+    	bool     clamp_s; 	///< True if texture needs to be clamped in the S direction (U/X in UV/XY space). Otherwise wrap the texture around;
 	bool     mirror_s;	///< True if texture needs to be mirrored in the S direction (U/X in UV/XY space). Otherwise wrap the texture without mirroring;
-	uint8_t  mask_s;	///< Power of 2 boundary of the texture in pixels to wrap on in the S direction (V/Y in UV/XY space);
-	uint8_t  shift_s;	///< Power of 2 scale of the texture to wrap on in the S direction (V/Y in UV/XY space). Range is 0-15 dec;
+	uint8_t  mask_s;	///< Power of 2 boundary of the texture in pixels to wrap on in the S direction (U/X in UV/XY space);
+	uint8_t  shift_s;	///< Power of 2 scale of the texture to wrap on in the S direction (U/X in UV/XY space). Range is 0-15 dec;
 	
-    bool     clamp_t; 	///< True if texture needs to be clamped in the T direction (V/Y in UV/XY space). Otherwise wrap the texture around;
+    	bool     clamp_t; 	///< True if texture needs to be clamped in the T direction (V/Y in UV/XY space). Otherwise wrap the texture around;
 	bool     mirror_t;	///< True if texture needs to be mirrored in the T direction (V/Y in UV/XY space). Otherwise wrap the texture without mirroring;
 	uint8_t  mask_t;	///< Power of 2 boundary of the texture in pixels to wrap on in the T direction (V/Y in UV/XY space);
 	uint8_t  shift_t;	///< Power of 2 scale of the texture to wrap on in the T direction (V/Y in UV/XY space). Range is 0-15 dec;
