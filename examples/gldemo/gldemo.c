@@ -23,6 +23,7 @@ static surface_t zbuffer;
 static GLuint textures[4];
 
 static GLenum shade_model = GL_SMOOTH;
+static bool fog_enabled = false;
 
 static const GLfloat environment_color[] = { 0.1f, 0.03f, 0.2f, 1.f };
 
@@ -115,6 +116,10 @@ void setup()
 
     GLfloat mat_diffuse[] = { 1.0f, 1.0f, 1.0f, 1.0f };
     glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, mat_diffuse);
+
+    glFogf(GL_FOG_START, 5);
+    glFogf(GL_FOG_END, 20);
+    glFogfv(GL_FOG_COLOR, environment_color);
 
     glGenTextures(4, textures);
 
@@ -298,6 +303,15 @@ int main()
         if (down.c[0].R) {
             shade_model = shade_model == GL_SMOOTH ? GL_FLAT : GL_SMOOTH;
             glShadeModel(shade_model);
+        }
+
+        if (down.c[0].L) {
+            fog_enabled = !fog_enabled;
+            if (fog_enabled) {
+                glEnable(GL_FOG);
+            } else {
+                glDisable(GL_FOG);
+            }
         }
 
         if (down.c[0].C_up) {

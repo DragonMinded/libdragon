@@ -238,8 +238,6 @@ void glGetBufferPointervARB(GLenum target, GLenum pname, GLvoid **params);
 
 /* Rectangles */
 
-// TODO ?
-
 void glRects(GLshort x1, GLshort y1, GLshort x2, GLshort y2);
 void glRecti(GLint x1, GLint y1, GLint x2, GLint y2);
 void glRectf(GLfloat x1, GLfloat y1, GLfloat x2, GLfloat y2);

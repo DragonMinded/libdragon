@@ -671,6 +671,25 @@ void glNormal3i(GLint nx, GLint ny, GLint nz)           { __ATTR_IMPL(__gl_norma
 void glNormal3f(GLfloat nx, GLfloat ny, GLfloat nz)     { __ATTR_IMPL(__gl_normal, GLfloat,     GL_FLOAT,   nx, ny, nz); }
 void glNormal3d(GLdouble nx, GLdouble ny, GLdouble nz)  { __ATTR_IMPL(__gl_normal, GLdouble,    GL_DOUBLE,  nx, ny, nz); }
 
+#define __RECT_IMPL(vertex, x1, y1, x2, y2) ({ \
+    glBegin(GL_POLYGON); \
+    vertex(x1, y1); \
+    vertex(x2, y1); \
+    vertex(x2, y2); \
+    vertex(x1, y2); \
+    glEnd(); \
+})
+
+void glRects(GLshort x1, GLshort y1, GLshort x2, GLshort y2)        { __RECT_IMPL(glVertex2s, x1, y1, x2, y2); }
+void glRecti(GLint x1, GLint y1, GLint x2, GLint y2)                { __RECT_IMPL(glVertex2i, x1, y1, x2, y2); }
+void glRectf(GLfloat x1, GLfloat y1, GLfloat x2, GLfloat y2)        { __RECT_IMPL(glVertex2f, x1, y1, x2, y2); }
+void glRectd(GLdouble x1, GLdouble y1, GLdouble x2, GLdouble y2)    { __RECT_IMPL(glVertex2d, x1, y1, x2, y2); }
+
+void glRectsv(const GLshort *v1, const GLshort *v2)     { __RECT_IMPL(glVertex2s, v1[0], v1[1], v2[0], v2[1]); }
+void glRectiv(const GLint *v1, const GLint *v2)         { __RECT_IMPL(glVertex2s, v1[0], v1[1], v2[0], v2[1]); }
+void glRectfv(const GLfloat *v1, const GLfloat *v2)     { __RECT_IMPL(glVertex2s, v1[0], v1[1], v2[0], v2[1]); }
+void glRectdv(const GLdouble *v1, const GLdouble *v2)   { __RECT_IMPL(glVertex2s, v1[0], v1[1], v2[0], v2[1]); }
+
 void glPointSize(GLfloat size)
 {
     if (size <= 0.0f) {
