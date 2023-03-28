@@ -18,6 +18,41 @@ typedef struct surface_s surface_t;
 extern "C" {
 #endif
 
+
+
+#define MIRROR_REPEAT true
+#define MIRROR_NONE   false
+#define REPEAT_INFINITE -1
+
+typedef int rdpq_texcache_t;
+
+/**
+ * @brief Texture sampling parameters for #rdpq_tex_load.
+ * 
+ * This structure contains all possible parameters for #rdpq_tex_load.
+ * All fields have been made so that the 0 value is always the most
+ * reasonable default. This means that you can simply initialize the structure
+ * to 0 and then change only the fields you need (for instance, through a 
+ * compound literal).
+ * 
+ */
+typedef struct {
+    rdpq_tile_t tile;        // Tile descriptor (default: TILE0)
+    int tmem_addr;           // TMEM address where to load the texture (default: 0)
+    int palette;             // Palette number where TLUT is stored (used only for CI4 textures)
+
+    rdpq_texcache_t *cache;  // If not NULL, OUT parameter cache will be used to speed up next calls to rdpq_tex_load on the same texture
+
+    struct {
+        float   translate;      // Translate the texture in pixels
+        int     scale_log;      // Power of 2 scale modifier of the texture (default: 0)
+
+        float   repeats;        // Number of repetitions (default: unlimited)
+        bool    mirror;         // Repetition mode (default: MIRROR_NONE)
+    } s, t;
+} rdpq_texparms_t;
+
+
 // Multi-pass optimized texture loader
 // Not part of the public API yet
 ///@cond
@@ -30,6 +65,8 @@ enum tex_load_mode {
 typedef struct tex_loader_s {
     const surface_t *tex;
     rdpq_tile_t tile;
+    rdpq_tileparms_t tileparms;
+    rdpq_tiledims_t  tiledims;
     struct {
         int width, height;
         int num_texels, tmem_pitch;
@@ -37,7 +74,6 @@ typedef struct tex_loader_s {
         bool can_load_block;
     } rect;
     int tmem_addr;
-    int tlut;
     enum tex_load_mode load_mode;
     void (*load_block)(struct tex_loader_s *tload, int s0, int t0, int s1, int t1);
     void (*load_tile)(struct tex_loader_s *tload, int s0, int t0, int s1, int t1);
@@ -45,29 +81,9 @@ typedef struct tex_loader_s {
 tex_loader_t tex_loader_init(rdpq_tile_t tile, const surface_t *tex);
 int tex_loader_load(tex_loader_t *tload, int s0, int t0, int s1, int t1);
 void tex_loader_set_tmem_addr(tex_loader_t *tload, int tmem_addr);
-void tex_loader_set_tlut(tex_loader_t *tload, int tlut);
 int tex_loader_calc_max_height(tex_loader_t *tload, int width);
 ///@endcond
 
-/**
- * @brief Load a CI4 texture into TMEM
- * 
- * This is the #FMT_CI4 variant of #rdpq_tex_load. Please refer to 
- * #rdpq_tex_load for more details.
- * 
- * In addition to the standard parameters, this variant also allows to
- * configure the palette number associated with the texture.
- * 
- * @note Remember to call #rdpq_mode_tlut before drawing a texture
- *       using a palette.
- * 
- * @param tile       Tile descriptor that will be initialized with this texture
- * @param tex        Surface containing the texture to load
- * @param tmem_addr  Address in TMEM where the texture will be loaded
- * @param tlut       Palette number to associate with this texture in the tile
- * @return           Number of bytes used in TMEM for this texture
- */
-int rdpq_tex_load_ci4(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int tlut);
 
 /**
  * @brief Load a texture into TMEM
@@ -82,9 +98,9 @@ int rdpq_tex_load_ci4(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int tlut)
  * to be used in drawing primitives like #rdpq_triangle or #rdpq_texture_rectangle.
  * 
  * If the texture uses a palette (#FMT_CI8 or #FMT_CI4), the tile descriptor
- * will be initialized pointing to palette 0. In the case of #FMT_CI4, this
+ * will be by default pointing to palette 0. In the case of #FMT_CI4, this
  * might not be the correct palette; to specify a different palette number,
- * call #rdpq_tex_load_ci4 directly. Before drawing a texture with palette,
+ * add .palette = X to the tex parms. Before drawing a texture with palette,
  * remember to call #rdpq_mode_tlut to activate palette mode.
  * 
  * If you want to load a portion of a texture rather than the full texture,
@@ -92,15 +108,14 @@ int rdpq_tex_load_ci4(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int tlut)
  * #surface_make_sub and pass it to #rdpq_tex_load. See #rdpq_tex_load_sub
  * for an example of both techniques.
  * 
- * @param tile       Tile descriptor that will be initialized with this texture
  * @param tex        Surface containing the texture to load
- * @param tmem_addr  Address in TMEM where the texture will be loaded
+ * @param parms      All optional parameters on where to load the texture and how to sample it. Refer to #rdpq_texparms_t for more information.
  * @return           Number of bytes used in TMEM for this texture
  * 
  * @see #rdpq_tex_load_sub
  * @see #surface_make_sub
  */
-int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, int tmem_addr);
+int rdpq_tex_load(surface_t *tex, const rdpq_texparms_t *parms);
 
 /**
  * @brief Load a portion of texture into TMEM
@@ -169,32 +184,7 @@ int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, int tmem_addr);
  * @see #rdpq_tex_load_sub_ci4
  * @see #surface_make_sub
  */
-int rdpq_tex_load_sub(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int s0, int t0, int s1, int t1);
-
-/**
- * @brief Load a portion of a CI4 texture into TMEM
- * 
- * This is similar to #rdpq_tex_load_sub, but is specialized for CI4 textures, and allows
- * to specify the palette number to use.
- * 
- * See #rdpq_tex_load_sub for a detailed description.
- * 
- * @param tile       Tile descriptor that will be initialized with this texture
- * @param tex        Surface containing the texture to load
- * @param tmem_addr  Address in TMEM where the texture will be loaded
- * @param tlut       Palette number
- * @param s0         Top-left X coordinate of the rectangle to load
- * @param t0         Top-left Y coordinate of the rectangle to load
- * @param s1         Bottom-right *exclusive* X coordinate of the rectangle
- * @param t1         Bottom-right *exclusive* Y coordinate of the rectangle
- * @return int       Number of bytes used in TMEM for this texture
- * 
- * @see #rdpq_tex_load_sub
- * @see #rdpq_tex_load_ci4
- * @see #surface_make_sub
- */
-
-int rdpq_tex_load_sub_ci4(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int tlut, int s0, int t0, int s1, int t1);
+int rdpq_tex_load_sub(surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1);
 
 /**
  * @brief Load one or more palettes into TMEM
