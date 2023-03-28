@@ -116,20 +116,21 @@ static int texload_set_rect(tex_loader_t *tload, int s0, int t0, int s1, int t1)
 static void texload_block_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int t1)
 {
     rdpq_tile_t tile_internal = (tload->tile + 1) & 7;
+    rdpq_tiledims_t size = tload->tiledims;
     if (tload->load_mode != TEX_LOAD_BLOCK) {
         // Use LOAD_BLOCK if we are uploading a full texture. Notice the weirdness of LOAD_BLOCK:
         // * SET_TILE must be configured with tmem_pitch=0, as that is weirdly used as the number of
         //   texels to skip per line, which we don't need.
         assertf(ROUND_UP(tload->tex->width, 2) % 4 == 0, "Internal Error: invalid width for LOAD_BLOCK (%d)", tload->tex->width);
         rdpq_set_texture_image_raw(0, PhysicalAddr(tload->tex->buffer), FMT_RGBA16, tload->tex->width/4, tload->tex->height);
-        rdpq_set_tile(tile_internal, FMT_RGBA16, tload->tmem_addr, 0, &(rdpq_tileparms_t){.palette = 0});
-        rdpq_set_tile(tload->tile, surface_get_format(tload->tex), tload->tmem_addr, tload->rect.tmem_pitch, &(rdpq_tileparms_t){.palette = tload->tlut});
+        rdpq_set_tile(tile_internal, FMT_RGBA16, tload->tmem_addr, 0, NULL);
+        rdpq_set_tile(tload->tile, surface_get_format(tload->tex), tload->tmem_addr, tload->rect.tmem_pitch, &(tload->tileparms));
         tload->load_mode = TEX_LOAD_BLOCK;
     }
 
     s0 &= ~1; s1 = (s1+1) & ~1;
     rdpq_load_block(tile_internal, s0/2, t0, tload->rect.num_texels/4, tload->rect.tmem_pitch);
-    rdpq_set_tile_size(tload->tile, s0, t0, s1, t1);
+    rdpq_set_tile_size(tload->tile, size.s.low, size.t.low, size.s.high, size.t.high);
 }
 
 static void texload_block_8bpp(tex_loader_t *tload, int s0, int t0, int s1, int t1)
@@ -142,8 +143,8 @@ static void texload_block_8bpp(tex_loader_t *tload, int s0, int t0, int s1, int 
         // * SET_TILE must be configured with tmem_pitch=0, as that is weirdly used as the number of
         //   texels to skip per line, which we don't need.
         rdpq_set_texture_image_raw(0, PhysicalAddr(tload->tex->buffer), FMT_RGBA16, tload->tex->width/2, tload->tex->height);
-        rdpq_set_tile(tile_internal, FMT_RGBA16, tload->tmem_addr, 0, &(rdpq_tileparms_t){.palette = 0});
-        rdpq_set_tile(tload->tile, fmt, tload->tmem_addr, tload->rect.tmem_pitch, &(rdpq_tileparms_t){.palette = tload->tlut});
+        rdpq_set_tile(tile_internal, FMT_RGBA16, tload->tmem_addr, 0, NULL);
+        rdpq_set_tile(tload->tile, fmt, tload->tmem_addr, tload->rect.tmem_pitch, &(tload->tileparms));
         tload->load_mode = TEX_LOAD_BLOCK;
     }
 
@@ -161,8 +162,8 @@ static void texload_block(tex_loader_t *tload, int s0, int t0, int s1, int t1)
         // * SET_TILE must be configured with tmem_pitch=0, as that is weirdly used as the number of
         //   texels to skip per line, which we don't need.
         rdpq_set_texture_image_raw(0, PhysicalAddr(tload->tex->buffer), fmt, tload->tex->width, tload->tex->height);
-        rdpq_set_tile(tile_internal, fmt, tload->tmem_addr, 0, &(rdpq_tileparms_t){.palette = 0});
-        rdpq_set_tile(tload->tile, fmt, tload->tmem_addr, tload->rect.tmem_pitch,  &(rdpq_tileparms_t){.palette = tload->tlut});
+        rdpq_set_tile(tile_internal, fmt, tload->tmem_addr, 0, NULL);
+        rdpq_set_tile(tload->tile, fmt, tload->tmem_addr, tload->rect.tmem_pitch,  &(tload->tileparms));
         tload->load_mode = TEX_LOAD_BLOCK;
     }
 
@@ -175,8 +176,8 @@ static void texload_tile_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int t
     rdpq_tile_t tile_internal = (tload->tile + 1) & 7;
     if (tload->load_mode != TEX_LOAD_TILE) {
         rdpq_set_texture_image_raw(0, PhysicalAddr(tload->tex->buffer), FMT_CI8, tload->tex->stride, tload->tex->height);
-        rdpq_set_tile(tile_internal, FMT_CI8, tload->tmem_addr, tload->rect.tmem_pitch, &(rdpq_tileparms_t){.palette = 0});
-        rdpq_set_tile(tload->tile, surface_get_format(tload->tex), tload->tmem_addr, tload->rect.tmem_pitch, &(rdpq_tileparms_t){.palette = tload->tlut});
+        rdpq_set_tile(tile_internal, FMT_CI8, tload->tmem_addr, tload->rect.tmem_pitch, NULL);
+        rdpq_set_tile(tload->tile, surface_get_format(tload->tex), tload->tmem_addr, tload->rect.tmem_pitch, &(tload->tileparms));
         tload->load_mode = TEX_LOAD_TILE;
     }
 
@@ -191,7 +192,7 @@ static void texload_tile(tex_loader_t *tload, int s0, int t0, int s1, int t1)
 
     if (tload->load_mode != TEX_LOAD_TILE) {
         rdpq_set_texture_image(tload->tex);
-        rdpq_set_tile(tload->tile, fmt, tload->tmem_addr, tload->rect.tmem_pitch, &(rdpq_tileparms_t){.palette = tload->tlut});
+        rdpq_set_tile(tload->tile, fmt, tload->tmem_addr, tload->rect.tmem_pitch, &(tload->tileparms));
         tload->load_mode = TEX_LOAD_TILE;
     }
 
@@ -231,12 +232,6 @@ void tex_loader_set_tmem_addr(tex_loader_t *tload, int tmem_addr)
     tload->load_mode = TEX_LOAD_UNKNOWN;
 }
 
-void tex_loader_set_tlut(tex_loader_t *tload, int tlut)
-{
-    tload->tlut = tlut;
-    tload->load_mode = TEX_LOAD_UNKNOWN;
-}
-
 int tex_loader_calc_max_height(tex_loader_t *tload, int width)
 {
     texload_set_rect(tload, 0, 0, width, 1);
@@ -248,30 +243,68 @@ int tex_loader_calc_max_height(tex_loader_t *tload, int width)
 
 ///@endcond
 
-int rdpq_tex_load_sub_ci4(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int tlut, int s0, int t0, int s1, int t1)
+/// @brief Calculates the first power of 2 that is equal or larger than size
+/// @param x input in units
+/// @return Power of 2 that is equal or larger than x
+int integer_to_pow2(int x){
+    int res = 0;
+    while(1<<res < x) res++;
+    return res;
+}
+
+/// @brief Internal function to convert texture sampling parameters to corresponding tile and tiledims parameters
+/// @param tex Source texture
+/// @param parms Source texture sampling parameters
+/// @param x_sub size of the portion of the texture loading X
+/// @param y_sub size of the portion of the texture loading Y
+/// @param outdims output to the tiledims parameters
+/// @return output of the tile parameters that match the texture sampling parameters
+rdpq_tileparms_t texparms_to_tileparms(surface_t *tex, const rdpq_texparms_t *parms, int x_sub, int y_sub, rdpq_tiledims_t* outdims){
+    assertf(x_sub > 0 && y_sub > 0, "The sub rectangle of a texture can't be of negative size");
+    assertf(parms != NULL && tex != NULL, "The parameters to convert tex->tile cannot be NULL");
+    rdpq_tileparms_t res;
+
+    int xmask = integer_to_pow2(x_sub);
+    int ymask = integer_to_pow2(y_sub);
+
+    assertf(1<<xmask == x_sub || (parms->s.mirror == MIRROR_NONE && (parms->s.repeats == 0 || parms->s.repeats == 1)), 
+    "Mirror and/or wrapping on S axis allowed only with X dimention (%i tx) = power of 2", x_sub);
+    assertf(1<<ymask == y_sub || (parms->t.mirror == MIRROR_NONE && (parms->t.repeats == 0 || parms->t.repeats == 1)), 
+    "Mirror and/or wrapping on T axis allowed only with Y dimention (%i tx) = power of 2", y_sub);
+
+    if(surface_get_format(tex) == FMT_CI4) res.palette = parms->palette;
+    res.s.mirror = parms->s.mirror;
+    res.t.mirror = parms->t.mirror;
+    res.s.shift  = parms->s.scale_log;
+    res.t.shift  = parms->t.scale_log;
+    if(parms->s.repeats >= 0 && parms->s.repeats < (1024 / x_sub)) res.s.clamp = true;
+    if(parms->t.repeats >= 0 && parms->t.repeats < (1024 / y_sub)) res.t.clamp = true;
+
+    res.s.mask = xmask;
+    res.t.mask = ymask;
+
+    outdims->s.low  = (int)(4 * parms->s.translate);
+    outdims->t.low  = (int)(4 * parms->t.translate);
+    outdims->s.high = (int)(x_sub * parms->s.repeats);
+    outdims->t.high = (int)(y_sub * parms->t.repeats);
+
+    return res;
+}
+
+int rdpq_tex_load_sub(surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1)
 {
-    tex_loader_t tload = tex_loader_init(tile, tex);
-    tex_loader_set_tlut(&tload, tlut);
-    tex_loader_set_tmem_addr(&tload, tmem_addr);
+    const rdpq_texparms_t defaultparms = {0};
+    if(parms == NULL) parms = &defaultparms;
+    tex_loader_t tload = tex_loader_init(parms->tile, tex);
+    
+    tload.tileparms = texparms_to_tileparms(tex, parms, s1 - s0, t1 - t0, &(tload.tiledims));
+    tex_loader_set_tmem_addr(&tload, parms->tmem_addr);
     return tex_loader_load(&tload, s0, t0, s1, t1);
-#   
 }
 
-int rdpq_tex_load_ci4(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int tlut)
+int rdpq_tex_load(surface_t *tex, const rdpq_texparms_t *parms)
 {
-    return rdpq_tex_load_sub_ci4(tile, tex, tmem_addr, tlut, 0, 0, tex->width, tex->height);
-}
-
-int rdpq_tex_load_sub(rdpq_tile_t tile, surface_t *tex, int tmem_addr, int s0, int t0, int s1, int t1)
-{
-    tex_loader_t tload = tex_loader_init(tile, tex);
-    tex_loader_set_tmem_addr(&tload, tmem_addr);
-    return tex_loader_load(&tload, s0, t0, s1, t1);
-}
-
-int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, int tmem_addr)
-{
-    return rdpq_tex_load_sub(tile, tex, tmem_addr, 0, 0, tex->width, tex->height);
+    return rdpq_tex_load_sub(tex, parms, 0, 0, tex->width, tex->height);
 }
 
 /**
