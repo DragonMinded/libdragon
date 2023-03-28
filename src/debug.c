@@ -20,7 +20,7 @@
 // SD implementations
 #include "debug_sdfs_ed64.c"
 #include "debug_sdfs_64drive.c"
-#include "debug_sdfs_pc64.c"
+#include "debug_sdfs_ddr64.c"
 
 /**
  * @defgroup debug Debugging Support
@@ -216,12 +216,12 @@ static fat_disk_t fat_disk_64drive =
 	fat_disk_ioctl_default
 };
 
-static fat_disk_t fat_disk_pc64 =
+static fat_disk_t fat_disk_ddr64 =
 {
-	fat_disk_initialize_pc64,
+	fat_disk_initialize_ddr64,
 	fat_disk_status_default,
-	fat_disk_read_pc64,
-	fat_disk_write_pc64,
+	fat_disk_read_ddr64,
+	fat_disk_write_ddr64,
 	fat_disk_ioctl_default
 };
 
@@ -468,8 +468,8 @@ bool debug_init_sdfs(const char *prefix, int npart)
 	case CART_EVERDRIVE:
 		fat_disks[FAT_VOLUME_SD] = fat_disk_everdrive;
 		break;
-	case CART_PC64:
-		fat_disks[FAT_VOLUME_SD] = fat_disk_pc64;
+	case CART_DDR64:
+		fat_disks[FAT_VOLUME_SD] = fat_disk_ddr64;
 		break;
 	default:
 		return false;

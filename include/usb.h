@@ -17,7 +17,7 @@
     #define CART_64DRIVE   1
     #define CART_EVERDRIVE 2
     #define CART_SC64      3
-    #define CART_PC64      4
+    #define CART_DDR64     4
     
     // Data types defintions
     #define DATATYPE_TEXT       0x01

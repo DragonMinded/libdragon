@@ -200,6 +200,15 @@ https://github.com/buu342/N64-UNFLoader
 #define SC64_USB_DMA_MAX_LEN        (2 * 1024 * 1024)
 #define SC64_USB_FIFO_ITEMS(s)      (((s) >> 3) & 0x7FF)
 
+/*********************************
+       Dreamdrive64 macros
+*********************************/
+#define DDR64_BASE_ADDRESS_START     (0x1FFE0000)
+#define DDR64_BASE_ADDRESS_LENGTH    (0x00001000)
+#define DDR64_BASE_ADDRESS_END       (DDR64_BASE_ADDRESS_START + DDR64_BASE_ADDRESS_LENGTH - 1)
+#define DDR64_CIBASE_ADDRESS_START   (DDR64_BASE_ADDRESS_END + 1)
+#define DDR64_REGISTER_MAGIC         (0x00000000)
+#define DDR64_MAGIC                  (0xD9D96400)
 
 /*********************************
   Libultra types (for libdragon)
@@ -259,7 +268,7 @@ u32  (*funcPointer_poll)();
 void (*funcPointer_read)();
 
 // USB globals
-static s8 usb_cart = CART_PC64;
+static s8 usb_cart = 0;
 static u8 __attribute__((aligned(16))) usb_buffer[BUFFER_SIZE];
 int usb_datatype = 0;
 int usb_datasize = 0;
@@ -330,8 +339,9 @@ char usb_initialize()
             funcPointer_poll  = usb_sc64_poll;
             funcPointer_read  = usb_sc64_read;
             break;
-        case CART_PC64:
-            break; // hope this doesn't crash it lol
+        case CART_DDR64:
+            // Not implemented
+            return 1;
         default:
             return 0;
     }
@@ -346,59 +356,72 @@ char usb_initialize()
 
 static void usb_findcart()
 {
-    usb_cart = CART_PC64;
-    return;
+    u32 buff __attribute__((aligned(8)));
+    
+    // Read the cartridge and check if we have a 64Drive.
+    #ifdef LIBDRAGON
+        buff = io_read(D64_CIBASE_ADDRESS + D64_REGISTER_MAGIC);
+    #else
+        #if USE_OSRAW
+            osPiRawReadIo(D64_CIBASE_ADDRESS + D64_REGISTER_MAGIC, &buff);
+        #else
+            osPiReadIo(D64_CIBASE_ADDRESS + D64_REGISTER_MAGIC, &buff);
+        #endif
+    #endif
+    if (buff == D64_MAGIC)
+    {
+        usb_cart = CART_64DRIVE;
+        return;
+    }
 
-    // u32 buff __attribute__((aligned(8)));
-    
-    // // Read the cartridge and check if we have a 64Drive.
-    // #ifdef LIBDRAGON
-    //     buff = io_read(D64_CIBASE_ADDRESS + D64_REGISTER_MAGIC);
-    // #else
-    //     #if USE_OSRAW
-    //         osPiRawReadIo(D64_CIBASE_ADDRESS + D64_REGISTER_MAGIC, &buff);
-    //     #else
-    //         osPiReadIo(D64_CIBASE_ADDRESS + D64_REGISTER_MAGIC, &buff);
-    //     #endif
-    // #endif
-    // if (buff == D64_MAGIC)
-    // {
-    //     usb_cart = CART_64DRIVE;
-    //     return;
-    // }
+    // Read the cartridge and check if we have a SummerCart64.
+    #ifdef LIBDRAGON
+        buff = io_read(SC64_REG_VERSION);
+    #else
+        #if USE_OSRAW
+            osPiRawReadIo(SC64_REG_VERSION, &buff);
+        #else
+            osPiReadIo(SC64_REG_VERSION, &buff);
+        #endif
+    #endif
+    if (buff == SC64_VERSION_A)
+    {
+        usb_cart = CART_SC64;
+        return;
+    }
 
-    // // Read the cartridge and check if we have a SummerCart64.
-    // #ifdef LIBDRAGON
-    //     buff = io_read(SC64_REG_VERSION);
-    // #else
-    //     #if USE_OSRAW
-    //         osPiRawReadIo(SC64_REG_VERSION, &buff);
-    //     #else
-    //         osPiReadIo(SC64_REG_VERSION, &buff);
-    //     #endif
-    // #endif
-    // if (buff == SC64_VERSION_A)
-    // {
-    //     usb_cart = CART_SC64;
-    //     return;
-    // }
+    // Read the cartridge and check if we have a Dreamdrive64.
+    #ifdef LIBDRAGON
+        buff = io_read(DDR64_CIBASE_ADDRESS_START + DDR64_REGISTER_MAGIC);
+    #else
+        #if USE_OSRAW
+            osPiRawReadIo(DDR64_CIBASE_ADDRESS_START + DDR64_REGISTER_MAGIC, &buff);
+        #else
+            osPiReadIo(DDR64_CIBASE_ADDRESS_START + DDR64_REGISTER_MAGIC, &buff);
+        #endif
+    #endif
+    if (buff == DDR64_MAGIC)
+    {
+        usb_cart = CART_DDR64;
+        return;
+    }
     
-    // // Since we didn't find a 64Drive or SummerCart64, let's assume we have an EverDrive
-    // // Write the key to unlock the registers, then read the version register
-    // usb_everdrive_writereg(ED_REG_KEY, ED_REGKEY);
-    // usb_everdrive_readreg(ED_REG_VERSION, &buff);
+    // Since we didn't find a 64Drive or SummerCart64, let's assume we have an EverDrive
+    // Write the key to unlock the registers, then read the version register
+    usb_everdrive_writereg(ED_REG_KEY, ED_REGKEY);
+    usb_everdrive_readreg(ED_REG_VERSION, &buff);
     
-    // // Check if we have an EverDrive
-    // if (buff == ED7_VERSION || buff == ED3_VERSION)
-    // {
-    //     // Set the USB mode
-    //     usb_everdrive_writereg(ED_REG_SYSCFG, 0);
-    //     usb_everdrive_writereg(ED_REG_USBCFG, ED_USBMODE_RDNOP);
+    // Check if we have an EverDrive
+    if (buff == ED7_VERSION || buff == ED3_VERSION)
+    {
+        // Set the USB mode
+        usb_everdrive_writereg(ED_REG_SYSCFG, 0);
+        usb_everdrive_writereg(ED_REG_USBCFG, ED_USBMODE_RDNOP);
         
-    //     // Set the cart to EverDrive
-    //     usb_cart = CART_EVERDRIVE;
-    //     return;
-    // }
+        // Set the cart to EverDrive
+        usb_cart = CART_EVERDRIVE;
+        return;
+    }
 }
 
 
