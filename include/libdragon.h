@@ -25,6 +25,7 @@
  */
 
 /* Easy include wrapper */
+#include "n64types.h"
 #include "audio.h"
 #include "console.h"
 #include "debug.h"
@@ -41,6 +42,7 @@
 #include "graphics.h"
 #include "interrupt.h"
 #include "n64sys.h"
+#include "backtrace.h"
 #include "rdp.h"
 #include "rsp.h"
 #include "timer.h"
@@ -52,7 +54,6 @@
 #include "xm64.h"
 #include "ym64.h"
 #include "rspq.h"
-#include "ff.h"
-#include "ffconf.h"
+#include "surface.h"
 
 #endif

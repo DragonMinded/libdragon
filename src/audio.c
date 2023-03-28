@@ -70,6 +70,8 @@
 
 /** @brief Number of buffers the audio subsytem allocates and manages */
 #define NUM_BUFFERS     4
+/** @brief How many different audio buffers we want to schedule in one second. */
+#define BUFFERS_PER_SECOND    25
 /**
  * @brief Macro that calculates the size of a buffer based on frequency
  *
@@ -78,7 +80,7 @@
  *
  * @return The size of the buffer in bytes rounded to an 8 byte boundary
  */
-#define CALC_BUFFER(x)  ( ( ( ( x ) / 25 ) >> 3 ) << 3 )
+#define CALC_BUFFER(x)  ( ( ( ( x ) / BUFFERS_PER_SECOND ) >> 3 ) << 3 )
 
 /** @brief The actual frequency the AI will run at */
 static int _frequency = 0;
@@ -140,6 +142,13 @@ static void audio_callback()
 {
     /* Do not copy more data if we've freed the audio system */
     if(!buffers)
+    {
+        return;
+    }
+
+    /* Check if there is enough time left in the reset process to schedule 
+       another buffer, otherwise just exit. */
+    if(exception_reset_time() > RESET_TIME_LENGTH - TICKS_FROM_MS(1000 / BUFFERS_PER_SECOND))
     {
         return;
     }

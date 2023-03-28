@@ -127,7 +127,7 @@ void xm_context_save(xm_context_t* ctx, FILE* out) {
 	#define WALIGN()  ({ while (ftell(out) % 8) _W8(0); })
 
 
-	const uint8_t version = 5;
+	const uint8_t version = 6;
 	WA("XM64", 4);
 	W8(version);
 	W32(ctx->ctx_size);
@@ -440,8 +440,13 @@ int xm_context_load(xm_context_t** ctxp, FILE* in, uint32_t rate) {
 		DEBUG("invalid header\n");
 		return 1;
 	}
+
+	// Version log:
+	//  5: first public version
+	//  6: added overread for non-looping samples. The size of optimal
+	//     stream sample buffer size must change, hance the version bump.
 	R8(version);
-	if (version != 5) {
+	if (version != 5 && version != 6) {
 		DEBUG("invalid XM64 version %d\n", version);
 		return 1;		
 	}
@@ -453,6 +458,14 @@ int xm_context_load(xm_context_t** ctxp, FILE* in, uint32_t rate) {
 	R32(ctx_size_all_samples);
 	R32(ctx_size_stream_pattern_buf);
 	for (int i=0;i<32;i++) R32(ctx_size_stream_sample_buf[i]);
+	if (version == 5) {
+		for (int i=0;i<32;i++) {
+			// Add the overread size to all (non-empty) channels. This is a small pessimization,
+			// but it's trivial and we allow loading v5 files (albeit consuming a little bit more RAM).
+			if (ctx_size_stream_sample_buf[i])
+				ctx_size_stream_sample_buf[i] += 64;
+		}
+	}
 
 	uint32_t alloc_bytes = ctx_size;
 	#if XM_STREAM_PATTERNS
@@ -600,7 +613,7 @@ int xm_context_load(xm_context_t** ctxp, FILE* in, uint32_t rate) {
 				RA(s->data8, s->length+XM_WAVEFORM_OVERREAD);
 			else {
 				RA(s->data8, s->length*2+XM_WAVEFORM_OVERREAD);
-				#if BYTE_ORDER == LITTLE_ENDIAN
+				#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 				for (int k=0;k<s->length+XM_WAVEFORM_OVERREAD/2;k++)
 					s->data16[k] = __builtin_bswap16(s->data16[k]);
 				#endif

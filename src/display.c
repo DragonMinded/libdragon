@@ -4,41 +4,19 @@
  * @ingroup display
  */
 #include <stdint.h>
+#include <stdbool.h>
 #include <malloc.h>
 #include <string.h>
-#include "libdragon.h"
 #include "regsinternal.h"
 #include "n64sys.h"
-
-/**
- * @defgroup display Display Subsystem
- * @ingroup libdragon
- * @brief Video interface system for configuring video output modes and displaying rendered
- *        graphics.
- *
- * The display subsystem handles interfacing with the video interface (VI)
- * and the hardware rasterizer (RDP) to allow software and hardware graphics
- * operations.  It consists of the @ref display, the @ref graphics and the
- * @ref rdp modules.  A separate module, the @ref console, provides a rudimentary
- * console for developers.  Only the display subsystem or the console can be
- * used at the same time.  However, commands to draw console text to the display
- * subsystem are available.
- *
- * The display subsystem module is responsible for initializing the proper video
- * mode for displaying 2D, 3D and softward graphics.  To set up video on the N64,
- * code should call #display_init with the appropriate options.  Once the display
- * has been set, a display context can be requested from the display subsystem using
- * #display_lock.  To draw to the acquired display context, code should use functions
- * present in the @ref graphics and the @ref rdp modules.  Once drawing to a display
- * context is complete, the rendered graphic can be displayed to the screen using 
- * #display_show.  Once code has finished rendering all graphics, #display_close can 
- * be used to shut down the display subsystem.
- *
- * @{
- */
+#include "display.h"
+#include "interrupt.h"
+#include "utils.h"
+#include "debug.h"
+#include "surface.h"
 
 /** @brief Maximum number of video backbuffers */
-#define NUM_BUFFERS         3
+#define NUM_BUFFERS         32
 
 /** @brief Register location in memory of VI */
 #define REGISTER_BASE       0xA4400000
@@ -60,129 +38,69 @@
  * @brief Presets to use when setting a particular video mode
  * @{
  */
-static const uint32_t ntsc_320[] = {
-    0x00000000, 0x00000000, 0x00000140, 0x00000200,
+static const uint32_t ntsc_p[] = {
+    0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x03e52239, 0x0000020d, 0x00000c15,
     0x0c150c15, 0x006c02ec, 0x002501ff, 0x000e0204,
-    0x00000200, 0x00000400 };
-static const uint32_t pal_320[] = {
-    0x00000000, 0x00000000, 0x00000140, 0x00000200,
+    0x00000000, 0x00000000 };
+static const uint32_t pal_p[] = {
+    0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x0404233a, 0x00000271, 0x00150c69,
     0x0c6f0c6e, 0x00800300, 0x005f0239, 0x0009026b,
-    0x00000200, 0x00000400 };
-static const uint32_t mpal_320[] = {
-    0x00000000, 0x00000000, 0x00000140, 0x00000200,
+    0x00000000, 0x00000000 };
+static const uint32_t mpal_p[] = {
+    0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x04651e39, 0x0000020d, 0x00040c11,
     0x0c190c1a, 0x006c02ec, 0x002501ff, 0x000e0204,
-    0x00000200, 0x00000400 };
-static const uint32_t ntsc_640[] = {
-    0x00000000, 0x00000000, 0x00000280, 0x00000200,
+    0x00000000, 0x00000000 };
+static const uint32_t ntsc_i[] = {
+    0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x03e52239, 0x0000020c, 0x00000c15,
     0x0c150c15, 0x006c02ec, 0x002301fd, 0x000e0204,
-    0x00000400, 0x02000800 };
-static const uint32_t pal_640[] = {
-    0x00000000, 0x00000000, 0x00000280, 0x00000200,
+    0x00000000, 0x00000000 };
+static const uint32_t pal_i[] = {
+    0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x0404233a, 0x00000270, 0x00150c69,
     0x0c6f0c6e, 0x00800300, 0x005d0237, 0x0009026b,
-    0x00000400, 0x02000800 };
-static const uint32_t mpal_640[] = {
-    0x00000000, 0x00000000, 0x00000280, 0x00000200,
+    0x00000000, 0x00000000 };
+static const uint32_t mpal_i[] = {
+    0x00000000, 0x00000000, 0x00000000, 0x00000002,
     0x00000000, 0x04651e39, 0x0000020c, 0x00000c10,
     0x0c1c0c1c, 0x006c02ec, 0x002301fd, 0x000b0202,
-    0x00000400, 0x02000800 };
-static const uint32_t ntsc_256[] = {
-    0x00000000, 0x00000000, 0x00000100, 0x00000200,
-    0x00000000, 0x03e52239, 0x0000020d, 0x00000c15,
-    0x0c150c15, 0x006c02ec, 0x002501ff, 0x000e0204,
-    0x0000019A, 0x00000400 };
-static const uint32_t pal_256[] = {
-    0x00000000, 0x00000000, 0x00000100, 0x00000200,
-    0x00000000, 0x0404233a, 0x00000271, 0x00150c69,
-    0x0c6f0c6e, 0x00800300, 0x005f0239, 0x0009026b,
-    0x0000019A, 0x00000400 };
-static const uint32_t mpal_256[] = {
-    0x00000000, 0x00000000, 0x00000100, 0x00000200,
-    0x00000000, 0x04651e39, 0x0000020d, 0x00040c11,
-    0x0c190c1a, 0x006c02ec, 0x002501ff, 0x000e0204,
-    0x0000019A, 0x00000400 };
-static const uint32_t ntsc_512[] = {
-    0x00000000, 0x00000000, 0x00000200, 0x00000200,
-    0x00000000, 0x03e52239, 0x0000020c, 0x00000c15,
-    0x0c150c15, 0x006c02ec, 0x002301fd, 0x000e0204,
-    0x00000334, 0x02000800 };
-static const uint32_t pal_512[] = {
-    0x00000000, 0x00000000, 0x00000200, 0x00000200,
-    0x00000000, 0x0404233a, 0x00000270, 0x00150c69,
-    0x0c6f0c6e, 0x00800300, 0x005d0237, 0x0009026b,
-    0x00000334, 0x02000800 };
-static const uint32_t mpal_512[] = {
-    0x00000000, 0x00000000, 0x00000200, 0x00000200,
-    0x00000000, 0x04651e39, 0x0000020c, 0x00000c10,
-    0x0c1c0c1c, 0x006c02ec, 0x002301fd, 0x000b0202,
-    0x00000334, 0x02000800 };
-static const uint32_t ntsc_512p[] = {
-    0x00000000, 0x00000000, 0x00000200, 0x00000200,
-    0x00000000, 0x03e52239, 0x0000020d, 0x00000c15,
-    0x0c150c15, 0x006c02ec, 0x002501ff, 0x000e0204,
-    0x00000333, 0x00000400 };
-static const uint32_t pal_512p[] = {
-    0x00000000, 0x00000000, 0x00000200, 0x00000200,
-    0x00000000, 0x0404233a, 0x00000271, 0x00150c69,
-    0x0c6f0c6e, 0x00800300, 0x005f0239, 0x0009026b,
-    0x00000333, 0x00000400 };
-static const uint32_t mpal_512p[] = {
-    0x00000000, 0x00000000, 0x00000200, 0x00000200,
-    0x00000000, 0x04651e39, 0x0000020d, 0x00040c11,
-    0x0c190c1a, 0x006c02ec, 0x002501ff, 0x000e0204,
-    0x00000333, 0x00000400 };
-static const uint32_t ntsc_640p[] = {
-    0x00000000, 0x00000000, 0x00000280, 0x00000200,
-    0x00000000, 0x03e52239, 0x0000020d, 0x00000c15,
-    0x0c150c15, 0x006c02ec, 0x002501ff, 0x000e0204,
-    0x00000400, 0x00000400 };
-static const uint32_t pal_640p[] = {
-    0x00000000, 0x00000000, 0x00000280, 0x00000200,
-    0x00000000, 0x0404233a, 0x00000271, 0x00150c69,
-    0x0c6f0c6e, 0x00800300, 0x005f0239, 0x0009026b,
-    0x00000400, 0x00000400 };
-static const uint32_t mpal_640p[] = {
-    0x00000000, 0x00000000, 0x00000280, 0x00000200,
-    0x00000000, 0x04651e39, 0x0000020d, 0x00040c11,
-    0x0c190c1a, 0x006c02ec, 0x002501ff, 0x000e0204,
-    0x00000400, 0x00000400 };
+    0x00000000, 0x00000000 };
 /** @} */
 
 /** @brief Register initial value array */
 static const uint32_t * const reg_values[] = {
-    pal_320, ntsc_320, mpal_320,
-    pal_640, ntsc_640, mpal_640,
-    pal_256, ntsc_256, mpal_256,
-    pal_512, ntsc_512, mpal_512,
-    pal_512p, ntsc_512p, mpal_512p,
-    pal_640p, ntsc_640p, mpal_640p,
+    pal_p, ntsc_p, mpal_p,
+    pal_i, ntsc_i, mpal_i,
 };
 
-/** @brief Video buffer pointers */
-static void *buffer[NUM_BUFFERS];
+static surface_t *surfaces;
 /** @brief Currently active bit depth */
-uint32_t __bitdepth;
+static uint32_t __bitdepth;
 /** @brief Currently active video width (calculated) */
-uint32_t __width;
+static uint32_t __width;
 /** @brief Currently active video height (calculated) */
-uint32_t __height;
+static uint32_t __height;
 /** @brief Number of active buffers */
-uint32_t __buffers = NUM_BUFFERS;
+static uint32_t __buffers = NUM_BUFFERS;
 /** @brief Pointer to uncached 16-bit aligned version of buffers */
-void *__safe_buffer[NUM_BUFFERS];
-
+static void *__safe_buffer[NUM_BUFFERS];
 /** @brief Currently displayed buffer */
 static int now_showing = -1;
+/** @brief Bitmask of surfaces that are currently being drawn */
+static uint32_t drawing_mask = 0;
+/** @brief Bitmask of surfaces that are ready to be shown */
+static volatile uint32_t ready_mask = 0;
 
-/** @brief Complete drawn buffer to display next */
-static int show_next = -1;
-
-/** @brief Buffer currently being drawn on */
-static int now_drawing = -1;
+/** @brief Get the next buffer index (with wraparound) */
+static inline int buffer_next(int idx) {
+    idx += 1;
+    if (idx == __buffers)
+        idx = 0;
+    return idx;
+}
 
 /**
  * @brief Write a set of video registers to the VI
@@ -219,8 +137,24 @@ static void __write_dram_register( void const * const dram_val )
 {
     volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
 
-    reg_base[1] = (uint32_t)dram_val;
+    reg_base[1] = PhysicalAddr(dram_val);
     MEMORY_BARRIER();
+}
+
+/** @brief Wait until entering the vblank period */
+static void __wait_for_vblank()
+{
+    volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
+
+    while( reg_base[4] != 2 ) {  }
+}
+
+/** @brief Return true if VI is active (H_VIDEO != 0) */
+static inline bool __is_vi_active()
+{
+    volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
+
+    return (reg_base[9] != 0);
 }
 
 /**
@@ -235,35 +169,19 @@ static void __display_callback()
     /* Least significant bit of the current line register indicates
        if the currently displayed field is odd or even. */
     bool field = reg_base[4] & 1;
+    bool interlaced = reg_base[0] & (1<<6);
 
-    /* Only swap frames if we have a new frame to swap, otherwise just
+    /* Check if the next buffer is ready to be displayed, otherwise just
        leave up the current frame */
-    if(show_next >= 0 && show_next != now_drawing)
-    {
-        now_showing = show_next;
-        show_next = -1;
+    int next = buffer_next(now_showing);
+    if (ready_mask & (1 << next)) {
+        now_showing = next;
+        ready_mask &= ~(1 << next);
     }
 
-    __write_dram_register(__safe_buffer[now_showing] + (!field ? __width * __bitdepth : 0));
+    __write_dram_register(__safe_buffer[now_showing] + (interlaced && !field ? __width * __bitdepth : 0));
 }
 
-/**
- * @brief Initialize the display to a particular resolution and bit depth
- *
- * Initialize video system.  This sets up a double or triple buffered drawing surface which can
- * be blitted or rendered to using software or hardware.
- *
- * @param[in] res
- *            The requested resolution
- * @param[in] bit
- *            The requested bit depth
- * @param[in] num_buffers
- *            Number of buffers (2 or 3)
- * @param[in] gamma
- *            The requested gamma setting
- * @param[in] aa
- *            The requested anti-aliasing setting
- */
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, antialias_t aa )
 {
     uint32_t registers[REGISTER_COUNT];
@@ -273,40 +191,15 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     /* Can't have the video interrupt happening here */
     disable_interrupts();
 
-    /* Ensure that buffering is either double or twiple */
-    if( num_buffers != 2 && num_buffers != 3 )
-    {
-        __buffers = NUM_BUFFERS;
-    }
-    else
-    {
-        __buffers = num_buffers;
-    }
+    /* Minimum is two buffers. */
+    __buffers = MAX(2, MIN(NUM_BUFFERS, num_buffers));
 
-	switch( res )
-	{
-		case RESOLUTION_640x480:
-			/* Serrate on to stop vertical jitter */
-			control |= 0x40;
-			tv_type += 3;
-			break;
-		case RESOLUTION_256x240:
-			tv_type += 6;
-			break;
-		case RESOLUTION_512x480:
-			/* Serrate on to stop vertical jitter */
-			control |= 0x40;
-			tv_type += 9;
-			break;
-		case RESOLUTION_512x240:
-			tv_type += 12;
-			break;
-		case RESOLUTION_640x240:
-			tv_type += 15;
-			break;
-		case RESOLUTION_320x240:
-		default:
-			break;
+
+    if( res.interlaced )
+    {
+        /* Serrate on to stop vertical jitter */
+        control |= 0x40;
+        tv_type += 3;
     }
 
     /* Copy over to temporary for extra initializations */
@@ -339,20 +232,20 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     switch( aa )
     {
         case ANTIALIAS_OFF:
-            /* Disabling antialias hits a hardware bug on NTSC consoles on
-               low resolutions (see issue #66). We do not know the exact
-               horizontal scale minimum, but among libdragon's supported
-               resolutions the bug appears on 256x240x16 and 320x240x16. It would
-               work on PAL consoles, but we think users are better served by
-               prohibiting it altogether. 
+            /* Disabling antialias hits a hardware bug on NTSC consoles when
+               the horizontal resolution is 320 or lower (see issue #66).
+               It would work on PAL consoles, but we think users are better
+               served by prohibiting it altogether.
 
                For people that absolutely need this on PAL consoles, it can
                be enabled with *(volatile uint32_t*)0xA4400000 |= 0x300 just
                after the display_init call. */
-            if (bit == DEPTH_16_BPP)
-                assertf(res != RESOLUTION_256x240 && res != RESOLUTION_320x240,
-                    "ANTIALIAS_OFF is not supported by the hardware on 256x240x16 and 320x240x16.\n"
+            if ( bit == DEPTH_16_BPP )
+            {
+                assertf(res.width > 320,
+                    "ANTIALIAS_OFF is not supported by the hardware for widths <= 320.\n"
                     "Please use ANTIALIAS_RESAMPLE instead.");
+            }
 
             /* Set AA off flag */
             control |= 0x300;
@@ -388,50 +281,37 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     /* Set the control register in our template */
     registers[0] = control;
 
-    /* Black screen please, the clearing takes a couple frames, and
-       garbage would be visible. */
-    registers[9] = 0;
-
-    /* Set up initial registers */
-    __write_registers( registers );
+    /* Calculate width and scale registers */
+    assertf(res.width > 0 && res.width <= 800, "invalid width");
+    assertf(res.height > 0 && res.height <= 600, "invalid height");
+    if( bit == DEPTH_16_BPP )
+    {
+        assertf(res.width % 4 == 0, "width must be divisible by 4 for 16-bit depth");
+    }
+    else if ( bit == DEPTH_32_BPP )
+    {
+        assertf(res.width % 2 == 0, "width must be divisible by 2 for 32-bit depth");
+    }
+    registers[2] = res.width;
+    registers[12] = ( 1024*res.width + 320 ) / 640;
+    registers[13] = ( 1024*res.height + 120 ) / 240;
 
     /* Set up the display */
-	switch( res )
-	{
-		case RESOLUTION_320x240:
-			__width = 320;
-			__height = 240;
-			break;
-		case RESOLUTION_640x480:
-			__width = 640;
-			__height = 480;
-			break;
-		case RESOLUTION_256x240:
-			__width = 256;
-			__height = 240;
-			break;
-		case RESOLUTION_512x480:
-			__width = 512;
-			__height = 480;
-			break;
-		case RESOLUTION_512x240:
-			__width = 512;
-			__height = 240;
-			break;
-		case RESOLUTION_640x240:
-			__width = 640;
-			__height = 240;
-			break;
-	}
+    __width = res.width;
+    __height = res.height;
     __bitdepth = ( bit == DEPTH_16_BPP ) ? 2 : 4;
+
+    surfaces = malloc(sizeof(surface_t) * __buffers);
 
     /* Initialize buffers and set parameters */
     for( int i = 0; i < __buffers; i++ )
     {
         /* Set parameters necessary for drawing */
         /* Grab a location to render to */
-        buffer[i] = memalign( 64, __width * __height * __bitdepth );
-        __safe_buffer[i] = UNCACHED_ADDR( buffer[i] );
+        tex_format_t format = bit == DEPTH_16_BPP ? FMT_RGBA16 : FMT_RGBA32;
+        surfaces[i] = surface_alloc(format, __width, __height);
+        __safe_buffer[i] = surfaces[i].buffer;
+        assert(__safe_buffer[i] != NULL);
 
         /* Baseline is blank */
         memset( __safe_buffer[i], 0, __width * __height * __bitdepth );
@@ -439,12 +319,14 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
 
     /* Set the first buffer as the displaying buffer */
     now_showing = 0;
-    now_drawing = -1;
-    show_next = -1;
+    drawing_mask = 0;
+    ready_mask = 0;
 
-    /* Show our screen normally */
-    registers[1] = (uintptr_t) __safe_buffer[0];
-    registers[9] = reg_values[tv_type][9];
+    /* Show our screen normally. If display is already active, do that during vblank
+       to avoid confusing the VI chip with in-frame modifications. */
+    if ( __is_vi_active() ) { __wait_for_vblank(); }
+
+    registers[1] = PhysicalAddr(__safe_buffer[0]);
     __write_registers( registers );
 
     enable_interrupts();
@@ -454,11 +336,6 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     set_VI_interrupt( 1, 0x2 );
 }
 
-/**
- * @brief Close the display
- *
- * Close a display and free buffer memory associated with it.
- */
 void display_close()
 {
     /* Can't have the video interrupt happening here */
@@ -468,53 +345,49 @@ void display_close()
     unregister_VI_handler( __display_callback );
 
     now_showing = -1;
-    now_drawing = -1;
-    show_next = -1;
+    drawing_mask = 0;
+    ready_mask = 0;
 
     __width = 0;
     __height = 0;
 
+    // If display is active, wait for vblank before touching the registers
+    if( __is_vi_active() ) { __wait_for_vblank(); }
+
+    volatile uint32_t *reg_base = (uint32_t *)REGISTER_BASE;
+    reg_base[9] = 0;
     __write_dram_register( 0 );
 
-    for( int i = 0; i < __buffers; i++ )
+    if( surfaces )
     {
-        /* Free framebuffer memory */
-        if( buffer[i] )
+        for( int i = 0; i < __buffers; i++ )
         {
-            free( buffer[i]);
+            /* Free framebuffer memory */
+            surface_free(&surfaces[i]);
+            __safe_buffer[i] = NULL;
         }
-
-        buffer[i] = 0;
-        __safe_buffer[i] = 0;
+        free(surfaces);
+        surfaces = NULL;
     }
 
     enable_interrupts();
 }
 
-/**
- * @brief Lock a display buffer for rendering
- *
- * Grab a display context that is safe for drawing.  If none is available
- * then this will return 0.  Do not check out more than one display
- * context at a time.
- *
- * @return A valid display context to render to or 0 if none is available.
- */
-display_context_t display_lock()
+surface_t* display_lock(void)
 {
-    display_context_t retval = 0;
+    surface_t* retval = NULL;
+    int next;
 
     /* Can't have the video interrupt happening here */
     disable_interrupts();
 
-    for( int i = 0; i < __buffers; i++ )
-    {
-        if( i != now_showing && i != now_drawing && i != show_next )
-        {
-            /* This screen should be returned */
-            now_drawing = i;
-            retval = i + 1;
-
+    /* Calculate index of next display context to draw on. We need
+       to find the first buffer which is not being drawn upon nor
+       being ready to be displayed. */
+    for (next = buffer_next(now_showing); next != now_showing; next = buffer_next(next)) {
+        if (((drawing_mask | ready_mask) & (1 << next)) == 0)  {
+            retval = &surfaces[next];
+            drawing_mask |= 1 << next;
             break;
         }
     }
@@ -525,32 +398,27 @@ display_context_t display_lock()
     return retval;
 }
 
-/**
- * @brief Display a previously locked buffer
- *
- * Display a valid display context to the screen on the next vblank.  Display
- * contexts should be locked via #display_lock.
- *
- * @param[in] disp
- *            A display context retrieved using #display_lock
- */
-void display_show( display_context_t disp )
+void display_show( surface_t* surf )
 {
     /* They tried drawing on a bad context */
-    if( disp == 0 ) { return; }
+    if( surf == NULL ) { return; }
 
     /* Can't have the video interrupt screwing this up */
     disable_interrupts();
 
     /* Correct to ensure we are handling the right screen */
-    int i = disp - 1;
+    int i = surf - surfaces;
+
+    assertf(i >= 0 && i < __buffers, "Display context is not valid!");
+
+    /* Check we have not unlocked this display already and is pending drawn. */
+    assertf(!(ready_mask & (1 << i)), "display_show called again on the same display %d (mask: %lx)", i, ready_mask);
 
     /* This should match, or something went awry */
-    assertf( i == now_drawing, "display_show invoked on non-locked display" );
+    assertf(drawing_mask & (1 << i), "display_show called on non-locked display %d (mask: %lx)", i, drawing_mask);
 
-    /* Ensure we display this next time */
-    now_drawing = -1;
-    show_next = i;
+    drawing_mask &= ~(1 << i);
+    ready_mask |= 1 << i;
 
     enable_interrupts();
 }
@@ -576,4 +444,22 @@ void display_show_force( display_context_t disp )
     enable_interrupts();
 }
 
-/** @} */ /* display */
+uint32_t display_get_width()
+{
+    return __width;
+}
+
+uint32_t display_get_height()
+{
+    return __height;
+}
+
+uint32_t display_get_bitdepth()
+{
+    return __bitdepth;
+}
+
+uint32_t display_get_num_buffers()
+{
+    return __buffers;
+}

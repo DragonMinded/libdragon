@@ -9,6 +9,10 @@
 
 #include "mixer.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /** 
  * @brief WAV64 structure
  * 
@@ -56,5 +60,9 @@ void wav64_set_loop(wav64_t *wav, bool loop);
  * @param   ch          Channel of the mixer to use for playback.
  */
 void wav64_play(wav64_t *wav, int ch);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

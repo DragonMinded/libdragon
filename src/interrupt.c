@@ -31,9 +31,10 @@
  * in pairs.  Calling #enable_interrupts without first calling
  * #disable_interrupts is considered a violation of this assumption
  * and should be avoided.  Calling #disable_interrupts when interrupts
- * are already disabled will have no effect.  Calling #enable_interrupts
- * again to restore from a critical section will not enable interrupts
- * if interrupts were not enabled when calling #disable_interrupts.
+ * are already disabled will have no effect interrupts-wise
+ * (but should be paired with a #enable_interrupts regardless),
+ * and in that case the paired #enable_interrupts will not enable
+ * interrupts either.
  * In this manner, it is safe to nest calls to disable and enable
  * interrupts.
  *
@@ -152,12 +153,24 @@ struct callback_link * VI_callback = 0;
 struct callback_link * PI_callback = 0;
 /** @brief Linked list of DP callbacks */
 struct callback_link * DP_callback = 0;
-/** @brief Linked list of TI callbacks */
-struct callback_link * TI_callback = 0;
 /** @brief Linked list of SI callbacks */
 struct callback_link * SI_callback = 0;
 /** @brief Linked list of SP callbacks */
 struct callback_link * SP_callback = 0;
+/** @brief Linked list of TI callbacks */
+struct callback_link * TI_callback = 0;
+/** @brief Linked list of CART callbacks */
+struct callback_link * CART_callback = 0;
+
+/** @brief Maximum number of reset handlers that can be registered. */
+#define MAX_RESET_HANDLERS 4
+
+/** @brief Pre-NMI exception handlers */
+static void (*__prenmi_handlers[MAX_RESET_HANDLERS])(void);
+/** @brief Tick at which the pre-NMI was triggered */
+static uint32_t __prenmi_tick;
+
+static int last_cart_interrupt_count = 0;
 
 /** 
  * @brief Call each callback in a linked list of callbacks
@@ -314,8 +327,53 @@ void __MI_handler(void)
  */
 void __TI_handler(void)
 {
-	/* timer int cleared in int handler */
+	/* NOTE: the timer interrupt is already acknowledged in inthandler.S */
     __call_callback(TI_callback);
+}
+
+/**
+ * @brief Handle a CART interrupt
+ */
+void __CART_handler(void)
+{
+    /* Call the registered callbacks */
+    __call_callback(CART_callback);
+
+    #ifndef NDEBUG
+     /* CART interrupts must be acknowledged by handlers. If the handler fails
+       to do so, the console freezes because the interrupt will retrigger
+       continuously. Since a freeze is always bad for debugging, try to 
+       detect it, and show a proper assertion screen. */
+    if (!(C0_CAUSE() & C0_INTERRUPT_CART))
+        last_cart_interrupt_count = 0;
+    else
+        assertf(++last_cart_interrupt_count < 128, "CART interrupt deadlock: a CART interrupt is continuously triggering, with no ack");
+    #endif
+}
+
+
+/**
+ * @brief Handle a RESET (pre-NMI) interrupt.
+ * 
+ * Calls the handlers registered by #register_RESET_handler.
+ */
+void __RESET_handler( void )
+{
+	/* This function will be called many times because there is no way
+	   to acknowledge the pre-NMI interrupt. So make sure it does nothing
+	   after the first call. */
+	if (__prenmi_tick) return;
+
+	/* Store the tick at which we saw the exception. Make sure
+	 * we never store 0 as we use that for "no reset happened". */
+	__prenmi_tick = TICKS_READ() | 1;
+
+	/* Call the registered handlers. */
+	for (int i=0;i<MAX_RESET_HANDLERS;i++)
+	{
+		if (__prenmi_handlers[i])
+			__prenmi_handlers[i]();
+	}
 }
 
 /**
@@ -407,28 +465,6 @@ void unregister_DP_handler( void (*callback)() )
 }
 
 /**
- * @brief Register a TI callback
- *
- * @param[in] callback
- *            Function to call when a TI interrupt occurs
- */
-void register_TI_handler( void (*callback)() )
-{
-    __register_callback(&TI_callback,callback);
-}
-
-/**
- * @brief Unegister a TI callback
- *
- * @param[in] callback
- *            Function that should no longer be called on TI interrupts
- */
-void unregister_TI_handler( void (*callback)() )
-{
-    __unregister_callback(&TI_callback,callback);
-}
-
-/**
  * @brief Register a SI callback
  *
  * @param[in] callback
@@ -472,11 +508,143 @@ void unregister_SP_handler( void (*callback)() )
     __unregister_callback(&SP_callback,callback);
 }
 
+
+/**
+ * @brief Register a timer callback
+ * 
+ * The callback will be used when the timer interrupt is triggered by the CPU.
+ * This happens when the COP0 COUNT register reaches the same value of the
+ * COP0 COMPARE register.
+ * 
+ * This function is useful only if you want to do your own low level programming
+ * of the internal CPU timer and handle the interrupt yourself. In this case,
+ * also remember to activate the timer interrupt using #set_TI_interrupt.
+ * 
+ * @note If you use the timer library (#timer_init and #new_timer), you do not
+ * need to call this function, as timer interrupt are already handled by the timer
+ * library.
+ *
+ * @param[in] callback
+ *            Function to call when a timer interrupt occurs
+ */
+void register_TI_handler( void (*callback)() )
+{
+    __register_callback(&TI_callback,callback);
+}
+
+/**
+ * @brief Unregister a timer callback
+ *
+ * @note If you use the timer library (#timer_init and #new_timer), you do not
+ * need to call this function, as timer interrupt are already handled by the timer
+ * library.
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on timer interrupts
+ */
+void unregister_TI_handler( void (*callback)() )
+{
+    __unregister_callback(&TI_callback,callback);
+}
+
+/**
+ * @brief Register a CART interrupt callback.
+ * 
+ * The callback will be called when a CART interrupt is triggered. CART interrupts
+ * are interrupts triggered by devices attached to the PI bus (aka CART bus),
+ * for instance the 64DD, or the modem cassette.
+ * 
+ * CART interrupts are disabled by default in libdragon. Use #set_CART_interrupt
+ * to enable/disable them.
+ * 
+ * Notice that there is no generic way to acknowledge those interrupts, so if
+ * you activate CART interrupts, make also sure to register an handler that
+ * acknowledge them, otherwise the interrupt will deadlock the console.
+ * 
+ * @param[in] callback
+ *            Function that should no longer be called on CART interrupts
+ */
+void register_CART_handler( void (*callback)() )
+{
+    __register_callback(&CART_callback,callback);
+}
+
+/**
+ * @brief Unregister a CART interrupt callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on CART interrupts
+ */
+void unregister_CART_handler( void (*callback)() )
+{
+    __unregister_callback(&CART_callback,callback);
+}
+
+/**
+ * @brief Register a handler that will be called when the user
+ *        presses the RESET button. 
+ * 
+ * The N64 sends an interrupt when the RESET button is pressed,
+ * and then actually resets the console after about ~500ms (but less
+ * on some models, see #RESET_TIME_LENGTH).
+ * 
+ * Registering a handler can be used to perform a clean reset.
+ * Technically, at the hardware level, it is important that the RCP
+ * is completely idle when the reset happens, or it might freeze
+ * and require a power-cycle to unfreeze. This means that any
+ * I/O, audio, video activity must cease before #RESET_TIME_LENGTH
+ * has elapsed.
+ * 
+ * This entry point can be used by the game code to basically
+ * halts itself and stops issuing commands. Libdragon itself will
+ * register handlers to halt internal modules so to provide a basic
+ * good reset experience.
+ * 
+ * Handlers can use #exception_reset_time to read how much has passed
+ * since the RESET button was pressed.
+ * 
+ * @param callback    Callback to invoke when the reset button is pressed.
+ * 
+ * @note  Reset handlers are called under interrupt.
+ * 
+ */
+void register_RESET_handler( void (*callback)() )
+{
+	for (int i=0;i<MAX_RESET_HANDLERS;i++)
+	{		
+		if (!__prenmi_handlers[i])
+		{
+			__prenmi_handlers[i] = callback;
+			return;
+		}
+	}
+	assertf(0, "Too many pre-NMI handlers\n");
+}
+
+/**
+ * @brief Unregister a RESET interrupt callback
+ *
+ * @param[in] callback
+ *            Function that should no longer be called on RESET interrupts
+ */
+void unregister_RESET_handler( void (*callback)() )
+{
+    for (int i=0;i<MAX_RESET_HANDLERS;i++)
+    {		
+        if (__prenmi_handlers[i] == callback)
+        {
+            __prenmi_handlers[i] = NULL;
+            return;
+        }
+    }
+    assertf(0, "Reset handler not found\n");
+}
+
 /**
  * @brief Enable or disable the AI interrupt
  *
  * @param[in] active
- *            Flag to specify whether the AI interupt should be active
+ *            Flag to specify whether the AI interrupt should be active
  */
 void set_AI_interrupt(int active)
 {
@@ -493,11 +661,29 @@ void set_AI_interrupt(int active)
 /**
  * @brief Enable or disable the VI interrupt
  *
+ * The VI interrupt is generated when the VI begins displaying a specific line
+ * of the display output. The line number configured always refers to the
+ * final TV output, so it should be either in the range 0..524 (NTSC) or
+ * 0..624 (PAL).
+ * The vblank happens at the beginning of the display period, in range
+ * 0..33 (NTSC) or 0..43 (PAL). A common value used to trigger the interrupt
+ * at the beginning of the vblank is 2.
+ *
+ * In non-interlaced modes, the VI only draws on even lines, so configuring
+ * the interrupt on an odd line causes the interrupt to never trigger.
+ * In interlace modes, instead, the VI alternates between even lines and odd
+ * lines, so any specific line will trigger an interrupt only every other
+ * frame. If you need an interrupt every frame in interlaced mode, you will
+ * need to reconfigure the interrupt every frame, alternating between an odd
+ * and an even number.
+ *
  * @param[in] active
- *            Flag to specify whether the VI interupt should be active
+ *            Flag to specify whether the VI interrupt should be active
  * @param[in] line
  *            The vertical line that causes this interrupt to fire.  Ignored
- *            when setting the interrupt inactive
+ *            when setting the interrupt inactive.
+ *            This line number refers to the lines in the TV output,
+ *            and is unrelated to the current resolution.
  */
 void set_VI_interrupt(int active, unsigned long line)
 {
@@ -516,7 +702,7 @@ void set_VI_interrupt(int active, unsigned long line)
  * @brief Enable or disable the PI interrupt
  *
  * @param[in] active
- *            Flag to specify whether the PI interupt should be active
+ *            Flag to specify whether the PI interrupt should be active
  */
 void set_PI_interrupt(int active)
 {
@@ -534,7 +720,7 @@ void set_PI_interrupt(int active)
  * @brief Enable or disable the DP interrupt
  *
  * @param[in] active
- *            Flag to specify whether the DP interupt should be active
+ *            Flag to specify whether the DP interrupt should be active
  */
 void set_DP_interrupt(int active)
 {
@@ -552,7 +738,7 @@ void set_DP_interrupt(int active)
  * @brief Enable or disable the SI interrupt
  *
  * @param[in] active
- *            Flag to specify whether the SI interupt should be active
+ *            Flag to specify whether the SI interrupt should be active
  */
 void set_SI_interrupt(int active)
 {
@@ -570,7 +756,7 @@ void set_SI_interrupt(int active)
  * @brief Enable or disable the SP interrupt
  *
  * @param[in] active
- *            Flag to specify whether the SP interupt should be active
+ *            Flag to specify whether the SP interrupt should be active
  */
 void set_SP_interrupt(int active)
 {
@@ -583,6 +769,73 @@ void set_SP_interrupt(int active)
         MI_regs->mask=MI_MASK_CLR_SP;
     }
 }
+
+/**
+ * @brief Enable or disable the timer interrupt
+ * 
+ * @note If you use the timer library (#timer_init and #new_timer), you do not
+ * need to call this function, as timer interrupt is already handled by the timer
+ * library.
+ *
+ * @param[in] active
+ *            Flag to specify whether the timer interrupt should be active
+ *
+ * @see #register_TI_handler
+ */
+void set_TI_interrupt(int active)
+{
+    if( active )
+    {
+        C0_WRITE_STATUS(C0_STATUS() | C0_INTERRUPT_TIMER);
+    }
+    else
+    {
+        C0_WRITE_STATUS(C0_STATUS() & ~C0_INTERRUPT_TIMER);
+    }
+}
+
+/**
+ * @brief Enable or disable the CART interrupt
+ * 
+ * @param[in] active
+ *            Flag to specify whether the CART interrupt should be active
+ * 
+ * @see #register_CART_handler
+ */
+void set_CART_interrupt(int active)
+{
+    if( active )
+    {
+        C0_WRITE_STATUS(C0_STATUS() | C0_INTERRUPT_CART);
+    }
+    else
+    {
+        C0_WRITE_STATUS(C0_STATUS() & ~C0_INTERRUPT_CART);
+    }
+}
+
+/**
+ * @brief Enable the RESET interrupt
+ * 
+ * @param[in] active
+ *            Flag to specify whether the RESET interrupt should be active
+ * 
+ * @note RESET interrupt is active by default.
+ * 
+ * @see #register_RESET_handler
+ */
+void set_RESET_interrupt(int active)
+{
+    if( active )
+    {
+        C0_WRITE_STATUS(C0_STATUS() | C0_INTERRUPT_PRENMI);
+    }
+    else
+    {
+        C0_WRITE_STATUS(C0_STATUS() & ~C0_INTERRUPT_PRENMI);
+    }
+}
+
 
 /**
  * @brief Initialize the interrupt controller
@@ -601,7 +854,7 @@ __attribute__((constructor)) void __init_interrupts()
         /* Enable interrupts systemwide. We set the global interrupt enable,
            and then specifically enable RCP interrupts. */
         uint32_t sr = C0_STATUS();
-        C0_WRITE_STATUS(sr | C0_STATUS_IE | C0_INTERRUPT_RCP);
+        C0_WRITE_STATUS(sr | C0_STATUS_IE | C0_INTERRUPT_RCP | C0_INTERRUPT_PRENMI);
     }
 }
 
@@ -622,7 +875,7 @@ void disable_interrupts()
         uint32_t sr = C0_STATUS();
         C0_WRITE_STATUS(sr & ~C0_STATUS_IE);
 
-        /* Save the original SR value away, so that we now if
+        /* Save the original SR value away, so that we know if
            interrupts were enabled and whether to restore them.
            NOTE: this memory write must happen now that interrupts
            are disabled, otherwise it could cause a race condition
@@ -642,12 +895,12 @@ void disable_interrupts()
  * @brief Enable interrupts systemwide
  *
  * @note If this is called inside a nested disable call, it will have no effect on the
- *       system.  Therefore it is safe to nest disable/enable calls.  After the last
- *       nested interrupt is enabled, systemwide interrupts will be reenabled.
+ *       system.  Therefore it is safe to nest disable/enable calls.  After the least
+ *       nested enable call, systemwide interrupts will be reenabled.
  */
 void enable_interrupts()
 {
-    /* Don't do anything if we've hosed up or aren't initialized */
+    /* Don't do anything if we aren't initialized */
     if( __interrupt_depth < 0 ) { return; }
 
     /* Check that we're not calling enable_interrupts() more than expected */
@@ -659,9 +912,11 @@ void enable_interrupts()
     if( __interrupt_depth == 0 )
     {
         /* Restore the interrupt state that was active when interrupts got
-           disabled. This is important because, within an interrupt handler,
-           we don't want here to force-enable interrupts, or we would allow
-           reentrant interrupts which are not supported. */
+           disabled.
+           This is important to be done this way, as opposed to simply or-ing
+           in the IE bit (| C0_STATUS_IE), because, within an interrupt handler,
+           we don't want interrupts enabled, or we would allow reentrant
+           interrupts which are not supported. */
         C0_WRITE_STATUS(C0_STATUS() | (__interrupt_sr & C0_STATUS_IE));
     }
 }
@@ -670,7 +925,7 @@ void enable_interrupts()
  * @brief Return the current state of interrupts
  *
  * @retval INTERRUPTS_UNINITIALIZED if the interrupt system has not been initialized yet.
- * @retval INTERRUPTS_DISABLED if interrupts have been disabled for some reason.
+ * @retval INTERRUPTS_DISABLED if interrupts have been disabled.
  * @retval INTERRUPTS_ENABLED if interrupts are currently enabled.
  */
 interrupt_state_t get_interrupts_state()
@@ -688,5 +943,42 @@ interrupt_state_t get_interrupts_state()
         return INTERRUPTS_DISABLED;
     }
 }
+
+
+/** 
+ * @brief Check whether the RESET button was pressed and how long we are into
+ *        the reset process.
+ * 
+ * This function returns how many ticks have elapsed since the user has pressed
+ * the RESET button, or 0 if the user has not pressed it.
+ * 
+ * It can be used by user code to perform actions during the RESET
+ * process (see #register_RESET_handler). It is also possible to simply
+ * poll this value to check at any time if the button has been pressed or not.
+ * 
+ * The reset process takes about 500ms between the user pressing the
+ * RESET button and the CPU being actually reset, though on some consoles
+ * it seems to be much less. See #RESET_TIME_LENGTH for more information.
+ * For the broadest compatibility, please use #RESET_TIME_LENGTH to implement
+ * the reset logic.
+ * 
+ * Notice also that the reset process is initiated when the user presses the
+ * button, but the reset will not happen until the user releases the button.
+ * So keeping the button pressed is a good way to check if the application
+ * actually winds down correctly.
+ * 
+ * @return Ticks elapsed since RESET button was pressed, or 0 if the RESET button
+ *         was not pressed.
+ * 
+ * @see register_RESET_handler
+ * @see #RESET_TIME_LENGTH
+ */
+uint32_t exception_reset_time( void )
+{
+	if (!__prenmi_tick) return 0;
+	return TICKS_SINCE(__prenmi_tick);
+}
+
+
 
 /** @} */

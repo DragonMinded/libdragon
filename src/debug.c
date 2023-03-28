@@ -3,16 +3,23 @@
  * @brief Debugging Support
  */
 
-#include <libdragon.h>
 #include <string.h>
 #include <fcntl.h>
 #include <assert.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+#include "console.h"
+#include "debug.h"
 #include "regsinternal.h"
 #include "system.h"
+#include "n64types.h"
+#include "n64sys.h"
+#include "dma.h"
+#include "backtrace.h"
 #include "usb.h"
+#include "utils.h"
 #include "fatfs/ff.h"
 #include "fatfs/ffconf.h"
 #include "fatfs/diskio.h"
@@ -20,6 +27,7 @@
 // SD implementations
 #include "debug_sdfs_ed64.c"
 #include "debug_sdfs_64drive.c"
+#include "debug_sdfs_sc64.c"
 #include "debug_sdfs_ddr64.c"
 
 /**
@@ -68,6 +76,8 @@ static char sdfs_logic_drive[3] = { 0 };
 /** @brief debug writer functions (USB, SD, IS64) */
 static void (*debug_writer[3])(const uint8_t *buf, int size) = { 0 };
 
+/** @brief internal backtrace printing function */
+void __debug_backtrace(FILE *out, bool skip_exception);
 
 /*********************************************************************
  * Log writers
@@ -139,6 +149,7 @@ typedef struct
 	DSTATUS (*disk_initialize)(void);
 	DSTATUS (*disk_status)(void);
 	DRESULT (*disk_read)(BYTE* buff, LBA_t sector, UINT count);
+	DRESULT (*disk_read_sdram)(BYTE* buff, LBA_t sector, UINT count);
 	DRESULT (*disk_write)(const BYTE* buff, LBA_t sector, UINT count);
 	DRESULT (*disk_ioctl)(BYTE cmd, void* buff);
 } fat_disk_t;
@@ -161,13 +172,19 @@ DSTATUS disk_status(BYTE pdrv)
 
 DRESULT disk_read(BYTE pdrv, BYTE* buff, LBA_t sector, UINT count)
 {
-	if (fat_disks[pdrv].disk_read)
+	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
+	_Static_assert(FF_MAX_SS == 512, "this function assumes sector size == 512");
+	if (fat_disks[pdrv].disk_read && PhysicalAddr(buff) < 0x00800000)
 		return fat_disks[pdrv].disk_read(buff, sector, count);
+	if (fat_disks[pdrv].disk_read_sdram && io_accessible(PhysicalAddr(buff)))
+		return fat_disks[pdrv].disk_read_sdram(buff, sector, count);
 	return RES_PARERR;
 }
 
 DRESULT disk_write(BYTE pdrv, const BYTE* buff, LBA_t sector, UINT count)
 {
+	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
+	_Static_assert(FF_MAX_SS == 512, "this function assumes sector size == 512");
 	if (fat_disks[pdrv].disk_write)
 		return fat_disks[pdrv].disk_write(buff, sector, count);
 	return RES_PARERR;
@@ -178,6 +195,27 @@ DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void* buff)
 	if (fat_disks[pdrv].disk_ioctl)
 		return fat_disks[pdrv].disk_ioctl(cmd, buff);
 	return RES_PARERR;
+}
+
+DWORD get_fattime(void)
+{
+	time_t t = time(NULL);
+	if (t == -1) {
+		return (DWORD)(
+			(FF_NORTC_YEAR - 1980) << 25 |
+			FF_NORTC_MON << 21 |
+			FF_NORTC_MDAY << 16
+		);
+	}
+  	struct tm tm = *localtime(&t);
+	return (DWORD)(
+		(tm.tm_year - 80) << 25 |
+		(tm.tm_mon + 1) << 21 |
+		tm.tm_mday << 16 |
+		tm.tm_hour << 11 |
+		tm.tm_min << 5 |
+		(tm.tm_sec >> 1)
+	);
 }
 
 /** @endcond */
@@ -203,6 +241,7 @@ static fat_disk_t fat_disk_everdrive =
 	fat_disk_initialize_everdrive,
 	fat_disk_status_default,
 	fat_disk_read_everdrive,
+	NULL,
 	fat_disk_write_everdrive,
 	fat_disk_ioctl_default
 };
@@ -212,17 +251,29 @@ static fat_disk_t fat_disk_64drive =
 	fat_disk_initialize_64drive,
 	fat_disk_status_default,
 	fat_disk_read_64drive,
+	fat_disk_read_sdram_64drive,
 	fat_disk_write_64drive,
+	fat_disk_ioctl_default
+};
+
+static fat_disk_t fat_disk_sc64 =
+{
+	fat_disk_initialize_sc64,
+	fat_disk_status_default,
+	fat_disk_read_sc64,
+	fat_disk_read_sdram_sc64,
+	fat_disk_write_sc64,
 	fat_disk_ioctl_default
 };
 
 static fat_disk_t fat_disk_ddr64 =
 {
-	fat_disk_initialize_ddr64,
-	fat_disk_status_default,
-	fat_disk_read_ddr64,
-	fat_disk_write_ddr64,
-	fat_disk_ioctl_default
+    fat_disk_initialize_ddr64,
+    fat_disk_status_default,
+    fat_disk_read_ddr64,
+	NULL,
+    fat_disk_write_ddr64,
+    fat_disk_ioctl_default
 };
 
 /*********************************************************************
@@ -468,9 +519,12 @@ bool debug_init_sdfs(const char *prefix, int npart)
 	case CART_EVERDRIVE:
 		fat_disks[FAT_VOLUME_SD] = fat_disk_everdrive;
 		break;
-	case CART_DDR64:
-		fat_disks[FAT_VOLUME_SD] = fat_disk_ddr64;
+	case CART_SC64:
+		fat_disks[FAT_VOLUME_SD] = fat_disk_sc64;
 		break;
+    case CART_DDR64:
+        fat_disks[FAT_VOLUME_SD] = fat_disk_ddr64;
+        break;
 	default:
 		return false;
 	}
@@ -565,3 +619,60 @@ void debug_assert_func(const char *file, int line, const char *func, const char 
 	debug_assert_func_f(file, line, func, failedexpr, NULL);
 }
 
+void debug_hexdump(const void *vbuf, int size)
+{
+	const uint8_t *buf = vbuf;
+    bool lineskip = false;
+    for (int i = 0; i < size; i+=16) {
+        const uint8_t *d = buf + i;
+        // If the current line of data is identical to the previous one,
+        // just dump one "*" and skip all other similar lines
+        if (i!=0 && memcmp(d, d-16, 16) == 0) {
+            if (!lineskip) debugf("*\n");
+            lineskip = true;
+        } else {
+            lineskip = false;
+            debugf("%04x  ", i);
+            for (int j=0;j<16;j++) {
+				if (i+j < size)
+					debugf("%02x ", d[j]);
+				else
+					debugf("   ");
+                if (j==7) debugf(" ");
+            }
+            debugf("  |");
+            for (int j=0;j<16;j++) {
+				if (i+j < size)
+					debugf("%c", d[j] >= 32 && d[j] < 127 ? d[j] : '.');
+				else
+					debugf(" ");
+			}
+            debugf("|\n");
+        }
+    }
+}
+
+void __debug_backtrace(FILE *out, bool skip_exception)
+{
+	void *bt[32];
+	int n = backtrace(bt, 32);
+
+	fprintf(out, "Backtrace:\n");
+	void cb(void *data, backtrace_frame_t *frame)
+	{
+		if (skip_exception) {
+			skip_exception = strstr(frame->func, "<EXCEPTION HANDLER>") == NULL;
+			return;
+		}
+		FILE *out = (FILE *)data;
+		fprintf(out, "    ");
+		backtrace_frame_print(frame, out);
+		fprintf(out, "\n");
+	}
+	backtrace_symbols_cb(bt, n, 0, cb, out);
+}
+
+void debug_backtrace(void)
+{
+	__debug_backtrace(stderr, false);
+}

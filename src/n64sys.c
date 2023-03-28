@@ -19,7 +19,7 @@
  * the memory setup on the system.  This includes cache operations to
  * invalidate or flush regions and the ability to set the boot CIC.
  * The @ref system use the knowledge of the boot CIC to properly determine
- * if the expansion pak is present, giving 4MB of additional memory.  Aside
+ * if the expansion pak is present, giving 4 MiB of additional memory.  Aside
  * from this, the MIPS r4300 uses a manual cache management strategy, where
  * SW that requires passing buffers to and from hardware components using
  * DMA controllers needs to ensure that cache and RDRAM are in sync.  A
@@ -222,12 +222,33 @@ void inst_cache_invalidate_all(void)
  */
 void *malloc_uncached(size_t size)
 {
+    return malloc_uncached_aligned(16, size);
+}
+
+/**
+ * @brief Allocate a buffer that will be accessed as uncached memory, specifying alignment
+ * 
+ * This function is similar to #malloc_uncached, but allows to force a higher
+ * alignment to the buffer (just like memalign does). See #malloc_uncached
+ * for reference.
+ * 
+ * @param[in]  align The alignment of the buffer in bytes (eg: 64)
+ * @param[in]  size  The size of the buffer to allocate
+ * 
+ * @return a pointer to the start of the buffer (in the uncached segment)
+ * 
+ * @see #malloc_uncached 
+ */
+void *malloc_uncached_aligned(int align, size_t size)
+{
     // Since we will be accessing the buffer as uncached memory, we absolutely
     // need to prevent part of it to ever enter the data cache, even as false
     // sharing with contiguous buffers. So we want the buffer to exclusively
-    // cover full cachelines (aligned to 16 bytes, multiple of 16 bytes).
+    // cover full cachelines (aligned to minimum 16 bytes, multiple of 16 bytes).
+    if (align < 16)
+        align = 16;
     size = ROUND_UP(size, 16);
-    void *mem = memalign(16, size);
+    void *mem = memalign(align, size);
     if (!mem) return NULL;
 
     // The memory returned by the system allocator could already be partly in
@@ -263,7 +284,7 @@ int get_memory_size()
 {
     if (sys_bbplayer()) {
         /* On iQue, memory allocated to the game can be decided by the OS.
-           Even if the memory is allocated as 8Mb, the top part handles
+           Even if the memory is allocated as 8 MiB, the top part handles
            save states (emulation of EEPROM/Flash/SRAM), so we should avoid
            writing there anyway. See also entrypoint.S which sets up the
            stack with the same logic. */
@@ -278,12 +299,12 @@ int get_memory_size()
 /**
  * @brief Is expansion pak in use.
  *
- * Checks whether the maximum available memory has been expanded to 8MB
+ * Checks whether the maximum available memory has been expanded to 8 MiB
  *
  * @return true if expansion pak detected, false otherwise.
  * 
  * @note On iQue, this function returns true only if the game has been assigned
- *       exactly 8MB of RAM.
+ *       exactly 8 MiB of RAM.
  */
 bool is_memory_expanded()
 {
@@ -340,6 +361,23 @@ __attribute__((constructor)) void __init_cop1()
     /* Read initialized value from cop1 control register */
     uint32_t fcr31 = C1_FCR31();
     
+    /* Disable all pending exceptions to avoid triggering one immediately.
+       These can be survived from a soft reset. */
+    fcr31 &= ~(C1_CAUSE_OVERFLOW | 
+               C1_CAUSE_UNDERFLOW | 
+               C1_CAUSE_NOT_IMPLEMENTED | 
+               C1_CAUSE_DIV_BY_0 | 
+               C1_CAUSE_INEXACT_OP | 
+               C1_CAUSE_INVALID_OP);
+
+#ifndef NDEBUG
+    /* Enable FPU exceptions that can help programmers avoid bugs in their code. */
+    fcr31 |= C1_ENABLE_OVERFLOW | 
+             C1_ENABLE_UNDERFLOW | 
+             C1_ENABLE_DIV_BY_0 | 
+             C1_ENABLE_INVALID_OP;
+#endif
+
     /* Set FS bit to allow flashing of denormalized floats
        The FPU inside the N64 CPU does not implement denormalized floats
        and will generate an unmaskable exception if a denormalized float

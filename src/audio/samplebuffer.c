@@ -7,6 +7,7 @@
 #include "mixer.h"
 #include "samplebuffer.h"
 #include "n64sys.h"
+#include "n64types.h"
 #include "utils.h"
 #include "debug.h"
 #include <string.h>
@@ -200,7 +201,6 @@ void samplebuffer_discard(samplebuffer_t *buf, int wpos) {
 		// to a multiple of 8 the amount of bytes, as it doesn't matter if we
 		// copy more, as long as we're fast.
 		// This has been benchmarked to be faster than memmove() + cache flush.
-		typedef uint64_t u_uint64_t __attribute__((aligned(1)));
 		kept_bytes = ROUND_UP(kept_bytes, 8);
 		u_uint64_t *src64 = (u_uint64_t*)src;
 		uint64_t *dst64 = (uint64_t*)dst;

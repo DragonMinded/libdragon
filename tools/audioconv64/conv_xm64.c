@@ -75,8 +75,6 @@ int xm_convert(const char *infn, const char *outfn) {
 			default:
 				fatal("invalid loop type: %d\n", s->loop_type);
 			case XM_NO_LOOP:
-				// FIXME: we probably don't need overread anymore in case of
-				// non-looping samples.
 				sout = malloc(length + MIXER_LOOP_OVERREAD);
 				memcpy(sout, s->data8, length);
 				memset(sout+length, 0, MIXER_LOOP_OVERREAD);
@@ -175,9 +173,8 @@ int xm_convert(const char *infn, const char *outfn) {
 				if (ch->sample->bits == 16)
 					n *= 2;
 
-				// Looping samples require the overread buffer
-				if (ch->sample->loop_type != XM_NO_LOOP)
-					n += MIXER_LOOP_OVERREAD;
+				// Take overread buffer into account
+				n += MIXER_LOOP_OVERREAD;
 
 				// Keep the maximum
 				if (ch_buf[i] < n)
@@ -210,9 +207,9 @@ int xm_convert(const char *infn, const char *outfn) {
 
 	// Dump some statistics for the conversion
 	if (flag_verbose) {	
-		fprintf(stderr, "  * ROM size: %u Kb (samples:%zu)\n",
+		fprintf(stderr, "  * ROM size: %u KiB (samples:%zu)\n",
 			romsize / 1024, mem_sam / 1024);
-		fprintf(stderr, "  * RAM size: %zu Kb (ctx:%zu, patterns:%u, samples:%u)\n",
+		fprintf(stderr, "  * RAM size: %zu KiB (ctx:%zu, patterns:%u, samples:%u)\n",
 			(mem_ctx+sam_size+ctx->ctx_size_stream_pattern_buf)/1024,
 			mem_ctx / 1024,
 			ctx->ctx_size_stream_pattern_buf / 1024,

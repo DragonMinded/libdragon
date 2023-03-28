@@ -6,6 +6,8 @@
 #ifndef __LIBDRAGON_CONTROLLER_H
 #define __LIBDRAGON_CONTROLLER_H
 
+#include <stdint.h>
+
 /**
  * @addtogroup controller
  * @{
@@ -109,9 +111,9 @@ typedef struct SI_condat
             unsigned C_left : 1;
             /** @brief State of the C right button */
             unsigned C_right : 1;
-            /** @brief State of the X button */
+            /** @brief State of the analog stick (X axis) */
             signed x : 8;
-            /** @brief State of the Y button */
+            /** @brief State of the analog stick (Y axis) */
             signed y : 8;
         };
     };

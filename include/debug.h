@@ -27,7 +27,7 @@ extern "C" {
  *
  *   * 64drive (rev 1 or 2)
  *   * EverDrive64
- *   * SummerCart64
+ *   * SC64
  *
  * Compatible PC tools:
  *
@@ -53,7 +53,7 @@ extern "C" {
  *
  *   * cen64 (https://github.com/n64dev/cen64) - run with -is-viewer command line flag
  *   * Ares (https://ares-emulator.github.io)
- *   * m64p (https://m64p.github.io)
+ *   * simple64 (https://simple64.github.io)
  *   * dgb-n64 (https://github.com/Dillonb/n64)
  *
  */
@@ -77,7 +77,7 @@ extern "C" {
  * Supported development cartridges:
  *
  *   * 64drive (rev 1 or 2)
- *   * EverDrive 64 (many models)
+ *   * Everdrive64 (models supporting 3.0.x OSes)
  *
  * @note This feature works only if DEBUG_FEATURE_FILE_SD is also
  * activated.
@@ -106,7 +106,7 @@ extern "C" {
  * Supported development cartridges:
  *
  *   * 64drive (rev 1 or 2)
- *   * EverDrive 64 (many models)
+ *   * Everdrive64 (models supporting 3.0.x OSes)
  *
  */
 #define DEBUG_FEATURE_FILE_SD       (1 << 3)
@@ -203,6 +203,43 @@ extern "C" {
 	#define debugf(msg, ...)           ({ })
 	#define assertf(expr, msg, ...)    ({ })
 #endif
+
+/**
+ * @brief Do a hexdump of the specified buffer via #debugf
+ * 
+ * This is useful to dump a binary buffer for debugging purposes. The hexdump shown
+ * contains both the hexadecimal and ASCII values, similar to what hex editors do.
+ * 
+ * Sample output:
+ * 
+ * <pre>
+ * 0000  80 80 80 80 80 80 80 80  80 80 80 80 80 80 80 80   |................|
+ * 0010  45 67 cd ef aa aa aa aa  aa aa aa aa aa aa aa aa   |Eg..............| 
+ * 0020  9a bc 12 34 80 80 80 80  80 80 80 80 80 80 80 80   |...4............|
+ * 0030  aa aa aa aa aa aa aa aa  ef 01 67 89 aa aa aa aa   |..........g.....|
+ * 0040  80 80 80 80 80 80 80 80  00 00 00 00 80 80 80 80   |................|
+ * </pre>
+ * 
+ * @param[in] buffer 	Buffer to dump
+ * @param[in] size 		Size of the buffer in bytes
+ */
+void debug_hexdump(const void *buffer, int size);
+
+/**
+ * @brief Dump a backtrace (call stack) via #debugf
+ * 
+ * This function will dump the current call stack to the debugging channel. It is
+ * useful to understand where the program is currently executing, and to understand
+ * the context of an error.
+ * 
+ * The implementation of this function relies on the lower level #backtrace and
+ * #backtrace_symbols functions, which are implemented in libdragon itself via
+ * a symbol table embedded in the ROM. See #backtrace_symbols for more information.
+ * 
+ * @see #backtrace
+ * @see #backtrace_symbols
+ */
+void debug_backtrace(void);
 
 /** @brief Underlying implementation function for assert() and #assertf. */ 
 void debug_assert_func_f(const char *file, int line, const char *func, const char *failedexpr, const char *msg, ...)

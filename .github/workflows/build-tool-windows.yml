@@ -1,4 +1,6 @@
-on: workflow_call
+name: Build-Tools
+
+on: [push, pull_request]
 
 jobs:
   Build-Tools-Windows:
@@ -6,36 +8,36 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-       include: [
-         { sys: mingw64, arch: x86_64, build: tools},
-         { sys: mingw32, arch: i686,   build: tools}
-       ]
+        include: [
+          { sys: mingw64, arch: x86_64, build: tools},
+          { sys: mingw32, arch: i686,   build: tools}
+        ]
     steps:
-     - uses: msys2/setup-msys2@v2
-       with:
-         msystem: ${{matrix.sys}}
-         install: >-
-           mingw-w64-${{ matrix.arch }}-libpng
-           base-devel
-           mingw-w64-${{ matrix.arch }}-toolchain
-         update: true
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{matrix.sys}}
+          install: >-
+            mingw-w64-${{ matrix.arch }}-libpng
+            base-devel
+            mingw-w64-${{ matrix.arch }}-toolchain
+          update: true
 
-     - uses: actions/checkout@v2
-       with:
-         fetch-depth: 0
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1 # Using a shallow checkout. Change to `0` if a full fetch is required.
 
-     - name: Correct MSYS2 pthread.h to allow static libraries (otherwise you would need to use a lib DLL, rather than it being built into the EXE.)
-       shell: msys2 {0}
-       run: |
-         sed -z 's/#else\n#define WINPTHREAD_API __declspec(dllimport)/#else\n#define WINPTHREAD_API/' /${{matrix.sys}}/include/pthread.h
+      - name: Correct MSYS2 pthread.h to allow static libraries (otherwise you would need to use a lib DLL, rather than it being built into the EXE.)
+        shell: msys2 {0}
+        run: |
+          sed -z 's/#else\n#define WINPTHREAD_API __declspec(dllimport)/#else\n#define WINPTHREAD_API/' /${{matrix.sys}}/include/pthread.h
 
-     - name: Build ${{ matrix.build }}
-       shell: msys2 {0}
-       run: |
-         make ${{ matrix.build }}
+      - name: Build ${{ matrix.build }}
+        shell: msys2 {0}
+        run: |
+          make ${{ matrix.build }}
 
-     - name: "Upload ${{ matrix.build }} executables"
-       uses: actions/upload-artifact@v2
-       with:
-         name: windows-${{ matrix.arch }}-${{ matrix.build }}
-         path: ${{ github.workspace }}/**/tools/**/*.exe
+      - name: "Upload ${{ matrix.build }} executables"
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows-${{ matrix.arch }}-${{ matrix.build }}
+          path: ${{ github.workspace }}/**/tools/**/*.exe

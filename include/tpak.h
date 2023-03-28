@@ -7,7 +7,12 @@
 #ifndef __LIBDRAGON_TPAK_H
 #define __LIBDRAGON_TPAK_H
 
-#include "libdragon.h"
+#include <stdint.h>
+#include <stdbool.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * @anchor TPAK_ERROR
@@ -73,21 +78,21 @@
  */
 typedef enum __attribute__ ((packed))
 {
-    /** @brief ROM only (32KB ROM) */
+    /** @brief ROM only (32 KiB ROM) */
     GB_ROM_ONLY = 0x00,
-    /** @brief MBC1 (max 2MB ROM) */
+    /** @brief MBC1 (max 2 MiB ROM) */
     GB_MBC1 = 0x01,
-    /** @brief MBC1 (max 2MB ROM) + RAM (32KB) */
+    /** @brief MBC1 (max 2 MiB ROM) + RAM (32 KiB) */
     GB_MBC1_RAM = 0x02,
-    /** @brief MBC1 (max 2MB ROM) + RAM (32KB) + Battery */
+    /** @brief MBC1 (max 2 MiB ROM) + RAM (32 KiB) + Battery */
     GB_MBC1_RAM_BATTERY = 0x03,
-    /** @brief MBC2 (max 256KB ROM; 512x4 bits RAM built-in) */
+    /** @brief MBC2 (max 256 KiB ROM; 512x4 bits RAM built-in) */
     GB_MBC2 = 0x05,
-    /** @brief MBC2 (max 256KB ROM; 512x4 bits RAM built-in) + Battery */
+    /** @brief MBC2 (max 256 KiB ROM; 512x4 bits RAM built-in) + Battery */
     GB_MBC2_BATTERY = 0x06,
-    /** @brief ROM (32KB) + RAM (max 8KB) */
+    /** @brief ROM (32 KiB) + RAM (max 8 KiB) */
     GB_ROM_RAM = 0x08,
-    /** @brief ROM (32KB) + RAM (max 8KB) + Battery */
+    /** @brief ROM (32 KiB) + RAM (max 8 KiB) + Battery */
     GB_ROM_RAM_BATTERY = 0x09,
     /** @brief MMM01 ("Meta-mapper") */
     GB_MMM01 = 0x0B,
@@ -95,27 +100,27 @@ typedef enum __attribute__ ((packed))
     GB_MMM01_RAM = 0x0C,
     /** @brief MMM01 ("Meta-mapper") + RAM + Battery */
     GB_MMM01_RAM_BATTERY = 0x0D,
-    /** @brief MBC3 (max 2MB ROM) */
+    /** @brief MBC3 (max 2 MiB ROM) */
     GB_MBC3 = 0x11,
-    /** @brief MBC3 (max 2MB ROM) + RAM (64KB) */
+    /** @brief MBC3 (max 2 MiB ROM) + RAM (64 KiB) */
     GB_MBC3_RAM = 0x12,
-    /** @brief MBC3 (max 2MB ROM) + RAM (64KB) + Battery */
+    /** @brief MBC3 (max 2 MiB ROM) + RAM (64 KiB) + Battery */
     GB_MBC3_RAM_BATTERY = 0x13,
-    /** @brief MBC3 (max 2MB ROM) + Real-Time Clock + Battery */
+    /** @brief MBC3 (max 2 MiB ROM) + Real-Time Clock + Battery */
     GB_MBC3_TIMER_BATTERY = 0x0F,
-    /** @brief MBC3 (max 2MB ROM) + Real-Time Clock + RAM (64KB) + Battery */
+    /** @brief MBC3 (max 2 MiB ROM) + Real-Time Clock + RAM (64 KiB) + Battery */
     GB_MBC3_TIMER_RAM_BATTERY = 0x10,
-    /** @brief MBC5 (max 8MB ROM) */
+    /** @brief MBC5 (max 8 MiB ROM) */
     GB_MBC5 = 0x19,
-    /** @brief MBC5 (max 8MB ROM) + RAM (128KB) */
+    /** @brief MBC5 (max 8 MiB ROM) + RAM (128 KiB) */
     GB_MBC5_RAM = 0x1A,
-    /** @brief MBC5 (max 8MB ROM) + RAM (128KB) + Battery */
+    /** @brief MBC5 (max 8 MiB ROM) + RAM (128 KiB) + Battery */
     GB_MBC5_RAM_BATTERY = 0x1B,
-    /** @brief MBC5 (max 8MB ROM) + Rumble */
+    /** @brief MBC5 (max 8 MiB ROM) + Rumble */
     GB_MBC5_RUMBLE = 0x1C,
-    /** @brief MBC5 (max 8MB ROM) + Rumble + RAM (128KB) */
+    /** @brief MBC5 (max 8 MiB ROM) + Rumble + RAM (128 KiB) */
     GB_MBC5_RUMBLE_RAM = 0x1D,
-    /** @brief MBC5 (max 8MB ROM) + Rumble + RAM (128KB) + Battery */
+    /** @brief MBC5 (max 8 MiB ROM) + Rumble + RAM (128 KiB) + Battery */
     GB_MBC5_RUMBLE_RAM_BATTERY = 0x1E,
     /** @brief MBC6 */
     GB_MBC6 = 0x20,
@@ -138,29 +143,29 @@ typedef enum __attribute__ ((packed))
  */
 typedef enum __attribute__ ((packed))
 {
-    /** @brief ROM size: 32KB (no banks) */
+    /** @brief ROM size: 32 KiB (no banks) */
     GB_ROM_32KB = 0x00,
-    /** @brief ROM size: 64KB (4 banks) */
+    /** @brief ROM size: 64 KiB (4 banks) */
     GB_ROM_64KB = 0x01,
-    /** @brief ROM size: 128KB (8 banks) */
+    /** @brief ROM size: 128 KiB (8 banks) */
     GB_ROM_128KB = 0x02,
-    /** @brief ROM size: 256KB (16 banks) */
+    /** @brief ROM size: 256 KiB (16 banks) */
     GB_ROM_256KB = 0x03,
-    /** @brief ROM size: 512KB (32 banks) */
+    /** @brief ROM size: 512 KiB (32 banks) */
     GB_ROM_512KB = 0x04,
-    /** @brief ROM size: 1MB (64 banks) */
+    /** @brief ROM size: 1 MiB (64 banks) */
     GB_ROM_1MB = 0x05,
-    /** @brief ROM size: 2MB (128 banks) */
+    /** @brief ROM size: 2 MiB (128 banks) */
     GB_ROM_2MB = 0x06,
-    /** @brief ROM size: 4MB (256 banks) */
+    /** @brief ROM size: 4 MiB (256 banks) */
     GB_ROM_4MB = 0x07,
-    /** @brief ROM size: 8MB (512 banks) */
+    /** @brief ROM size: 8 MiB (512 banks) */
     GB_ROM_8MB = 0x08,
-    /** @brief ROM size: 1.1MB (72 banks) */
+    /** @brief ROM size: 1.125 MiB (72 banks) */
     GB_ROM_1152KB = 0x52,
-    /** @brief ROM size: 1.2MB (80 banks) */
+    /** @brief ROM size: 1.25 MiB (80 banks) */
     GB_ROM_1280KB = 0x53,
-    /** @brief ROM size: 1.5MB (96 banks) */
+    /** @brief ROM size: 1.5 MiB (96 banks) */
     GB_ROM_1536KB = 0x54,
 } gb_cart_rom_size_t;
 
@@ -173,15 +178,15 @@ typedef enum __attribute__ ((packed))
 {
     /** @brief RAM not available */
     GB_RAM_NONE = 0x00,
-    /** @brief RAM size: 2KB (no banks) */
+    /** @brief RAM size: 2 KiB (no banks) */
     GB_RAM_2KB = 0x01,
-    /** @brief RAM size: 8KB (no banks) */
+    /** @brief RAM size: 8 KiB (no banks) */
     GB_RAM_8KB = 0x02,
-    /** @brief RAM size: 32KB (4 banks) */
+    /** @brief RAM size: 32 KiB (4 banks) */
     GB_RAM_32KB = 0x03,
-    /** @brief RAM size: 64KB (8 banks) */
+    /** @brief RAM size: 64 KiB (8 banks) */
     GB_RAM_64KB = 0x05,
-    /** @brief RAM size: 128KB (16 banks) */
+    /** @brief RAM size: 128 KiB (16 banks) */
     GB_RAM_128KB = 0x04,
 } gb_cart_ram_size_t;
 
@@ -319,5 +324,9 @@ int tpak_get_cartridge_header(int controller, struct gameboy_cartridge_header* h
 bool tpak_check_header(struct gameboy_cartridge_header* header);
 int tpak_write(int controller, uint16_t address, uint8_t* data, uint16_t size);
 int tpak_read(int controller, uint16_t address, uint8_t* buffer, uint16_t size);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

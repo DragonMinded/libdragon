@@ -13,6 +13,7 @@
 #include "samplebuffer.h"
 #include "audio.h"
 #include "n64sys.h"
+#include "interrupt.h"
 #include <memory.h>
 #include <stdlib.h>
 #include <math.h>
@@ -504,6 +505,9 @@ static void mixer_exec(int32_t *out, int num_samples) {
 				// actually present in the waveform.
 				if (wpos+wlen > len)
 					wlen = len-wpos;
+				// FIXME: due to a limit in the RSP ucode, we need to overread
+				// more data, possibly even past the end of the sample
+				wlen += MIXER_LOOP_OVERREAD >> bps;
 				assert(wlen >= 0);
 			} else if (loop_len < sbuf->size) {
 				// If the whole loop fits the sample buffer, we just need to
@@ -631,11 +635,23 @@ static void mixer_exec(int32_t *out, int num_samples) {
 		settings->rvol[ch] = rvol32[ch];
 	}
 
+	// Check if we the user pressed RESET. If so, we can apply
+	// a simple global volume ramp to fade out the volume.
+	// This is just a user-level feature. audio.c will truncate
+	// DMA transfers to AI anyway.
+	float gvol = Mixer.vol;
+	uint32_t reset_time = exception_reset_time();
+	if (reset_time) {
+		const float FADE_OUT_TIME = (float)RESET_TIME_LENGTH / TICKS_PER_SECOND;
+		float elapsed = (float)reset_time / TICKS_PER_SECOND;
+		gvol *= (FADE_OUT_TIME - MIN(elapsed, FADE_OUT_TIME)) / FADE_OUT_TIME;
+	}
+
 	uint32_t t0 = TICKS_READ();
 
 	rspq_highpri_begin();
 	rspq_write(__mixer_overlay_id, 0,
-		(((uint32_t)MIXER_FX16(Mixer.vol)) & 0xFFFF),
+		(((uint32_t)MIXER_FX16(gvol)) & 0xFFFF),
 		(num_samples << 16) | Mixer.num_channels,
 		PhysicalAddr(out),
 		PhysicalAddr(&Mixer.ucode_settings));

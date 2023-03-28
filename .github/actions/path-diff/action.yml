@@ -19,7 +19,7 @@ runs:
   using: "composite"
   steps:
     - name: Checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         fetch-depth: 0
 
@@ -31,4 +31,4 @@ runs:
         ${{ inputs.base }} \
         ${{ inputs.head }} \
         -- ${{ inputs.paths }}
-        echo "::set-output name=exitCode::$?"
+        echo "exitCode=$?" >> $GITHUB_OUTPUT

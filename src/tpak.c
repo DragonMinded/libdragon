@@ -4,7 +4,8 @@
  * @ingroup transferpak
  */
 
-#include "libdragon.h"
+#include "tpak.h"
+#include "controller.h"
 #include <string.h>
 
 /**
@@ -65,7 +66,7 @@
 
 /** @brief Transfer Pak command block size (32 bytes) */
 #define TPAK_BLOCK_SIZE  0x20
-/** @brief Transfer Pak cartridge bank size (16KB) */
+/** @brief Transfer Pak cartridge bank size (16 KiB) */
 #define TPAK_BANK_SIZE   0x4000
 
 /**

@@ -154,11 +154,9 @@ static bool everdrive_sd_read_response(uint8_t res_buff[5]) {
 
 	set_everdrive_sd_bitlen(8);
 
-	if (res_buff != NULL) {
-		res_buff[1] = everdrive_sd_read_command();
-		res_buff[2] = everdrive_sd_read_command();
-		res_buff[3] = everdrive_sd_read_command();
-		res_buff[4] = everdrive_sd_read_command();
+	for (int i=0;i<4;i++) {
+		uint8_t data = everdrive_sd_read_command();
+		if (res_buff) res_buff[i+1] = data;
 	}
 
 	// Make sure everything is consumed, we just don't use them
@@ -443,9 +441,6 @@ static DSTATUS fat_disk_initialize_everdrive(void) {
 
 static DRESULT fat_disk_read_everdrive(BYTE* buff, LBA_t sector, UINT count)
 {
-	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
-	_Static_assert(FF_MAX_SS == 512, "this function assumes sector size == 512");
-
 	uint8_t crc[8];
 	DRESULT ret_val = RES_OK;
 
@@ -507,9 +502,6 @@ cleanup:
 }
 
 static DRESULT fat_disk_write_everdrive(const BYTE* buff, LBA_t sector, UINT count) {
-	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
-	_Static_assert(FF_MAX_SS == 512, "this function assumes sector size == 512");
-
 	uint8_t result;
 	DRESULT ret_val = RES_OK;
 
@@ -538,8 +530,6 @@ static DRESULT fat_disk_write_everdrive(const BYTE* buff, LBA_t sector, UINT cou
 		}
 		else
 		{
-			typedef uint32_t u_uint32_t __attribute__((aligned(1)));
-
 			uint32_t* dst = (uint32_t*)(ED64_BASE_ADDRESS + ED64_SD_IO_BUFFER);
 			u_uint32_t* src = (u_uint32_t*)buff;
 			for (int i = 0; i < 512/16; i++)

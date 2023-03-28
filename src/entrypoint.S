@@ -21,7 +21,7 @@ _start:
 	li fp, 0                    /* fp=0 -> vanilla N64 */
 
 	/* In iQue player, memory allocated to game can be configured and it appears
-	   in 0x80000318. On the other hand, the top 8Mb of RDRAM is reserved to
+	   in 0x80000318. On the other hand, the top 8 MiB of RDRAM is reserved to
 	   savegames. So avoid putting the stack there, capping the size to 0x7C0000.
 	   See also get_memory_size. */
 	li fp, 1                    /* fp=1 -> iQue player */
@@ -42,41 +42,48 @@ set_sp:
 	mtc0 v0,C0_SR
 	mtc0 $0,C0_CAUSE
 
-	/* copy code and data */
-	la a0, __text_start
+	/* Check if PI DMA transfer is required,
+	   knowing that IPL3 loads 1 MiB of ROM to RAM,
+	   and __libdragon_text_start is located
+	   right after the ROM header where this 1 MiB starts. */
+	la a0, __libdragon_text_start
 	la a1, __data_end
-	la t0, __libdragon_text_start
-	subu a2, a0, t0				/* skip over .boot section */
-	addu a2, 0xB0001000			/* address in rom */
-data_init:
-	lw t0,(a2)
-	addiu a2,4
-	sw t0,(a0)
-	addiu a0,4
-	bltu a0,a1, data_init
+	li t0, 0x100000				/* stock IPL3 load size (1 MiB) */
+	subu a2, a1, a0				/* calculate data size */
+	sub a2, a2, t0				/* calculate remaining data size */
+	blez a2, .Lskip_dma			/* skip PI DMA if data is already loaded */
 	nop
 
-	/* make sure code and data are actually written */
-	la a0,__text_start
-	la a1,__data_end
-	sub a1,a0
-	jal data_cache_hit_writeback_invalidate
-	nop
+	/* Copy code and data via DMA */
+	li a1, 0x10001000			/* address in rom */
+	addu a0, a0, t0				/* skip over loaded data */
+	addu a1, a1, t0				
 
+	/* Start PI DMA transfer */
+	lui t0, 0xA460
+	sw a0, 0x00(t0)             /* PI_DRAM_ADDR */
+	sw a1, 0x04(t0)             /* PI_CART_ADDR */
+	addi a2, -1
+	sw a2, 0x0C(t0)             /* PI_WR_LEN */
+
+.Lskip_dma:
 	/* fill .bss with 0s */
 	la a0, __bss_start
+	or a0, 0x20000000           /* convert address to KSEG1 (uncached) */
 	la a1, __bss_end
+	or a1, 0x20000000
 bss_init:
 	sd $0,(a0)
 	addiu a0,8
 	bltu a0,a1, bss_init
 	nop
 
-	/* make sure .bss is actually written */
-	la a0,__bss_start
-	la a1,__bss_end
-	sub a1,a0
-	jal data_cache_hit_writeback_invalidate
+	/* Wait for DMA transfer to be finished */
+	lui t0, 0xA460
+wait_dma_end:
+	lw t1, 0x10(t0)             /* PI_STATUS */
+	andi t1, 3                  /* PI_STATUS_DMA_BUSY | PI_STATUS_IO_BUSY */
+	bnez t1, wait_dma_end
 	nop
 
 	/* Store the bbplayer flag now that BSS has been cleared */

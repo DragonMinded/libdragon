@@ -106,6 +106,20 @@ extern int __bbplayer;
     (((unsigned long)(_addrp))&~0xE0000000); \
 })
 
+/** @brief Symbol at the start of code (start of ROM contents after header) */
+extern char __libdragon_text_start[];
+
+/** @brief Symbol at the end of code, data, and sdata (set by the linker) */
+extern char __rom_end[];
+
+/** @brief Symbol at the end of code, data, sdata, and bss (set by the linker) */
+extern char __bss_end[];
+
+/**
+ * @brief Void pointer to the start of heap memory
+ */
+#define HEAP_START_ADDR ((void*)__bss_end)
+
 /**
  * @brief Memory barrier to ensure in-order execution
  *
@@ -142,6 +156,9 @@ extern int __bbplayer;
  * otherwise it is negative.
  */
 #define TICKS_DISTANCE(from, to) ((int32_t)((uint32_t)(to) - (uint32_t)(from)))
+
+/** @brief Return how much time has passed since the instant t0. */
+#define TICKS_SINCE(t0)          TICKS_DISTANCE(t0, TICKS_READ())
 
 /**
  * @brief Returns true if "t1" is before "t2".
@@ -239,6 +256,7 @@ void inst_cache_invalidate_all(void);
 int get_memory_size();
 bool is_memory_expanded();
 void *malloc_uncached(size_t size);
+void *malloc_uncached_aligned(int align, size_t size);
 void free_uncached(void *buf);
 
 /** @brief Type of TV video output */

@@ -4,13 +4,17 @@
 
    It is not reentrant, so interrupts are disabled for the duration.
    Safe for doing most things, including FPU operations, within handlers.
+   Reentrant exceptions are supported.
 */
 
 #include "regs.S"
 
-	.align 5
-inthandler:
 	.global inthandler
+	.global inthandler_end
+
+	.p2align 5
+	.func inthandler
+inthandler:
 
 	.set noat
 	.set noreorder
@@ -80,10 +84,12 @@ inthandler:
 	and k1, ~(SR_IE | SR_EXL)
 	mtc0 k1, C0_SR
 
-	# WARNING: it is now possible to trigger reentrant exceptions (and not only
-	# crashing one. Avoid using k0/k1 from now on, as they would get corrupted
-	# by a reentrant exception.
-	#define cause t8
+	# WARNING: after clearing the EXL bit, it is now possible to trigger
+	# reentrant exceptions (and not only crashing ones).
+	# Avoid using k0/k1 from now on,
+	# as they would get corrupted by a reentrant exception.
+
+#define cause t8
 
 	mfc0 cause, C0_CAUSE
 	sw cause, STACK_CR(sp)
@@ -95,8 +101,9 @@ inthandler:
 exception:
 	# This is an exception, not an interrupt. We want to save the full processor
 	# state in the exception frame, so all registers including FPU regs.
-	# Make sure FPU is activated in this context. It could be deactivated if
-	# this exception happened within an interrupt (where FPU is disabled by default).
+	# Make sure FPU is activated in this context.
+	# It could be deactivated if this exception happened while handling
+	# an interrupt (where FPU is disabled by default).
 	mfc0 t0, C0_SR
 	or t0, SR_CU1
 	mtc0 t0, C0_SR
@@ -112,15 +119,35 @@ exception:
 
 	# Check the exception type
 	andi t0, cause, CAUSE_EXC_MASK
-	bne t0, CAUSE_EXC_COPROCESSOR, critical_exception
+	li t1, CAUSE_EXC_COPROCESSOR
+	beq t0, t1, exception_coprocessor
+	li t1, CAUSE_EXC_SYSCALL
+	beq t0, t1, exception_syscall
 	nop
+
+exception_critical:
+	# Exception not specially handled.
+	jal __onCriticalException
+	addiu a0, sp, 32
+
+	j end_interrupt
+	nop
+
+exception_syscall:
+	# Syscall exception
+	jal __onSyscallException
+	addiu a0, sp, 32
+
+	j end_interrupt
+	nop
+
 
 exception_coprocessor:
 	# Extract CE bits (28..29) from CR
 	srl t0, cause, 28
 	andi t0, 3
 	# If == 1 (COP1), it is an FPU exception
-	bne t0, 1, critical_exception
+	bne t0, 1, exception_critical
 	nop
 
 exception_coprocessor_fpu:
@@ -134,23 +161,20 @@ exception_coprocessor_fpu:
 	or t0, SR_CU1
 	sw t0, STACK_SR(sp)
 
-	# Save the FPU registers into the *underlying* interrupt context.
+	# The interrupt handler is about to use the FPU:
+	# in doing so, it will overwrite the FPU registers,
+	# but those are at this point still part of the context
+	# from when the interrupt was raised and have not been saved yet.
+	# Save the FPU registers now, into the *underlying* interrupt context.
 	# That is, we want to make sure that they get restored when the
 	# underlying interrupt exits.
+	# Note: interrupt_exception_frame is always valid to use here,
+	#  as the FPU is only ever unusable in interrupt handlers:
+	#  entrypoint.S loads SR with SR_CU1
 	jal save_fpu_regs
 	lw a0, interrupt_exception_frame
 
 	# OK we are done. We can now exit the exception
-	j end_interrupt
-	nop
-
-critical_exception:
-
-	/* Exception not specially handled. */
-	addiu a0, sp, 32
-	jal __onCriticalException
-	nop
-
 	j end_interrupt
 	nop
 
@@ -177,15 +201,23 @@ interrupt:
 	nop
 
 	/* handle reset */
-	addiu a0, sp, 32
-	jal __onResetException
+	jal __RESET_handler
 	nop
 
-	j end_interrupt
-	nop
+	# There is no way to ack the pre-NMI interrupt, so it will
+	# stay pending in CR. Let's disable it in SR to avoid
+	# looping here. If another unrelated interrupt triggers, 
+	# CR will still have 0x1000 set, but __onResetException will
+	# do nothing after the first call.
+	li t0, ~0x1000
+	lw t1, STACK_SR(sp)
+	and t1, t0
+	sw t1, STACK_SR(sp)
+
+	# Reload cause register (might be clobbered by C code) and test for other interrupts
+	lw cause, STACK_CR(sp)
 
 notprenmi:
-
 	/* check for count=compare */
 	and t0, cause, 0x8000
 	beqz t0,notcount
@@ -196,19 +228,32 @@ notprenmi:
 	mfc0 t0,C0_COMPARE
 	mtc0 t0,C0_COMPARE
 
-	/* handle timer exception */
+	/* handle timer interrupt */
 	jal __TI_handler
 	nop
 
-	j end_interrupt
-	nop
-notcount:
+	# Reload cause register (might be reused by C code) and test for other interrupts
+	lw cause, STACK_CR(sp)
 
-	/* pass anything else along to handler */
+notcount:
+	and t0, cause, 0x800
+	beqz t0, notcart
+	nop
+
+	/* handle CART interrupt */
+	jal __CART_handler
+	nop
+
+	# Reload cause register (might be reused by C code) and test for other interrupts
+	lw cause, STACK_CR(sp)
+
+notcart:
+	/* pass anything else along to MI (RCP) handler */
 	jal __MI_handler
 	addiu a0, sp, 32
-	j end_interrupt
-	nop
+
+	# No more interrupts to process, we can exit
+	# (fallthrough)
 
 end_interrupt:
 	mfc0 t0, C0_SR
@@ -277,8 +322,9 @@ end_interrupt_gpr:
 	addiu sp, EXC_STACK_SIZE
 	eret
 
-	.align 5
+	.p2align 5
 finalize_exception_frame:
+	sd $0, (STACK_GPR+ 0*8)(sp)   # ZR (this is mostly for register dumps)
 	sd $16,(STACK_GPR+16*8)(sp)   # S0
 	sd $17,(STACK_GPR+17*8)(sp)   # S1
 	sd $18,(STACK_GPR+18*8)(sp)   # S2
@@ -308,7 +354,7 @@ finalize_exception_frame:
 	jr ra
 	nop
 
-	.align 5
+	.p2align 5
 save_fpu_regs:
 	cfc1 $1, $f31
 	sw $1, STACK_FC31(a0)
@@ -334,9 +380,10 @@ save_fpu_regs:
 	sdc1 $f19,(STACK_FPR+19*8)(a0)
 	jr ra
 	nop
-
+inthandler_end:
+	.endfunc
 
 	.section .bss
- 	.align 8
+	.p2align 2
 	.lcomm interrupt_exception_frame, 4
 

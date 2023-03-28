@@ -251,8 +251,8 @@
 #define C0_CAUSE_EXC_CODE   0x0000007C      ///< Cause: exception code
 
 /* COP0 interrupt bits definition. These are compatible bothwith mask and pending bits. */
-#define C0_INTERRUPT_0      0x00000100      ///< Status/Cause: HW interrupt 0
-#define C0_INTERRUPT_1      0x00000200      ///< Status/Cause: HW interrupt 1
+#define C0_INTERRUPT_0      0x00000100      ///< Status/Cause: SW interrupt 0
+#define C0_INTERRUPT_1      0x00000200      ///< Status/Cause: SW interrupt 1
 #define C0_INTERRUPT_2      0x00000400      ///< Status/Cause: HW interrupt 2 (RCP)
 #define C0_INTERRUPT_3      0x00000800      ///< Status/Cause: HW interrupt 3
 #define C0_INTERRUPT_4      0x00001000      ///< Status/Cause: HW interrupt 4 (PRENMI)
@@ -261,6 +261,7 @@
 #define C0_INTERRUPT_7      0x00008000      ///< Status/Cause: HW interrupt 7 (Timer)
 
 #define C0_INTERRUPT_RCP    C0_INTERRUPT_2  ///< Status/Cause: HW interrupt 2 (RCP)
+#define C0_INTERRUPT_CART   C0_INTERRUPT_3  ///< Status/Cause: HW interrupt 3 (CART)
 #define C0_INTERRUPT_PRENMI C0_INTERRUPT_4  ///< Status/Cause: HW interrupt 4 (PRENMI)
 #define C0_INTERRUPT_TIMER  C0_INTERRUPT_7  ///< Status/Cause: HW interrupt 7 (Timer)
 

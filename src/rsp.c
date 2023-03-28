@@ -142,12 +142,13 @@ void rsp_read_data(void* start, unsigned long size, unsigned int dmem_offset)
     enable_interrupts();
 }
 
-void rsp_run_async(void)
+/** @brief Internal implementation of #rsp_run_async */
+void __rsp_run_async(uint32_t status_flags)
 {
     // set RSP program counter
     *SP_PC = cur_ucode ? cur_ucode->start_pc : 0;
     MEMORY_BARRIER();
-    *SP_STATUS = SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE | SP_WSTATUS_SET_INTR_BREAK;
+    *SP_STATUS = SP_WSTATUS_CLEAR_HALT | SP_WSTATUS_CLEAR_BROKE | status_flags;
 }
 
 void rsp_wait(void)
@@ -391,30 +392,13 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
     }
 
     // Full dump of DMEM into the debug log.
-    bool lineskip = false;
     debugf("DMEM:\n");
-    for (int i = 0; i < 4096/16; i++) {
-        uint8_t *d = state.dmem + i*16;
-        // If the current line of data is identical to the previous one,
-        // just dump one "*" and skip all other similar lines
-        if (i!=0 && memcmp(d, d-16, 16) == 0) {
-            if (!lineskip) debugf("*\n");
-            lineskip = true;
-        } else {
-            lineskip = false;
-            debugf("%04x  ", i*16);
-            for (int j=0;j<16;j++) {
-                debugf("%02x ", d[j]);
-                if (j==7) debugf(" ");
-            }
-            debugf("  |");
-            for (int j=0;j<16;j++) debugf("%c", d[j] >= 32 && d[j] < 127 ? d[j] : '.');
-            debugf("|\n");
-        }
-    }
+    debug_hexdump(state.dmem, 4096);
 
     // OK we're done. Render on the screen and abort
     console_render();
     abort();
 }
 /// @endcond
+
+extern inline void rsp_run_async(void);

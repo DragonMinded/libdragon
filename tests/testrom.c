@@ -18,8 +18,8 @@
 
 typedef struct {
 	int result;
-	char *log;
-	int logleft;
+	char *log; char *err;
+	int logleft, errleft;
 } TestContext;
 
 typedef void (*TestFunc)(TestContext *ctx);
@@ -30,21 +30,27 @@ typedef void (*TestFunc)(TestContext *ctx);
 // LOG(msg, ...): log something that will be displayed if the test fails.
 #define LOG(msg, ...)  ({ \
 	int __n = snprintf(ctx->log, ctx->logleft, msg, ##__VA_ARGS__); \
-	fwrite(ctx->log, 1, __n, stderr); \
 	ctx->log += __n; ctx->logleft -= __n; \
+})
+
+// ERR(msg, ...): generate an error message (just before failing the test)
+#define ERR(msg, ...)  ({ \
+	int __n = snprintf(ctx->err, ctx->errleft, msg, ##__VA_ARGS__); \
+	ctx->err += __n; ctx->errleft -= __n; \
 })
 
 // DEFER(stmt): execute "stmt" statement when the current lexical block exits.
 // This is useful in tests to execute cleanup functions even if the test fails
 // through ASSERT macros.
-#define DEFER(stmt) \
-	void PPCAT(__cleanup, __LINE__) (int* u) { stmt; } \
-	int PPCAT(__var, __LINE__) __attribute__((unused, cleanup(PPCAT(__cleanup, __LINE__ ))));
+#define DEFER2(stmt, counter) \
+	void PPCAT(__cleanup, counter) (int* u) { stmt; } \
+	int PPCAT(__var, counter) __attribute__((unused, cleanup(PPCAT(__cleanup, counter ))));
+#define DEFER(stmt) DEFER2(stmt, __COUNTER__)
 
 // SKIP: skip execution of the test.
 #define SKIP(msg, ...) ({ \
-	LOG("TEST SKIPPED:\n"); \
-	LOG(msg "\n", ##__VA_ARGS__); \
+	ERR("TEST SKIPPED:\n"); \
+	ERR(msg "\n", ##__VA_ARGS__); \
 	ctx->result = TEST_SKIPPED; \
 	return; \
 })
@@ -59,6 +65,9 @@ static uint32_t rand(void) {
 	return rand_state = x;
 }
 
+// SRAND(n): set seed for random number generator
+#define SRAND(n) ({ rand_state = (n); if (!rand_state) rand_state = 1; })
+
 // RANDN(n): generate a random number from 0 to n-1
 #define RANDN(n) ({ \
 	__builtin_constant_p((n)) ? \
@@ -69,9 +78,9 @@ static uint32_t rand(void) {
 // ASSERT(cond, msg): fail the test if the condition is false (with log message)
 #define ASSERT(cond, msg, ...) ({ \
 	if (!(cond)) { \
-		LOG("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
-		LOG("%s\n", #cond); \
-		LOG(msg "\n", ##__VA_ARGS__); \
+		ERR("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
+		ERR("%s\n", #cond); \
+		ERR(msg "\n", ##__VA_ARGS__); \
 		ctx->result = TEST_FAILED; \
 		return; \
 	} \
@@ -81,9 +90,9 @@ static uint32_t rand(void) {
 #define ASSERT_EQUAL_HEX(_a, _b, msg, ...) ({ \
 	uint64_t a = _a; uint64_t b = _b; \
 	if (a != b) { \
-		LOG("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
-		LOG("%s != %s (0x%llx != 0x%llx)\n", #_a, #_b, a, b); \
-		LOG(msg "\n", ##__VA_ARGS__); \
+		ERR("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
+		ERR("%s != %s (0x%llx != 0x%llx)\n", #_a, #_b, a, b); \
+		ERR(msg "\n", ##__VA_ARGS__); \
 		ctx->result = TEST_FAILED; \
 		return; \
 	} \
@@ -94,9 +103,9 @@ static uint32_t rand(void) {
 #define ASSERT_EQUAL_UNSIGNED(_a, _b, msg, ...) ({ \
 	uint64_t a = _a; uint64_t b = _b; \
 	if (a != b) { \
-		LOG("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
-		LOG("%s != %s (%llu != %llu)\n", #_a, #_b, a, b); \
-		LOG(msg "\n", ##__VA_ARGS__); \
+		ERR("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
+		ERR("%s != %s (%llu != %llu)\n", #_a, #_b, a, b); \
+		ERR(msg "\n", ##__VA_ARGS__); \
 		ctx->result = TEST_FAILED; \
 		return; \
 	} \
@@ -106,13 +115,38 @@ static uint32_t rand(void) {
 #define ASSERT_EQUAL_SIGNED(_a, _b, msg, ...) ({ \
 	int64_t a = _a; int64_t b = _b; \
 	if (a != b) { \
-		LOG("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
-		LOG("%s != %s (%lld != %lld)\n", #_a, #_b, a, b); \
-		LOG(msg "\n", ##__VA_ARGS__); \
+		ERR("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
+		ERR("%s != %s (%lld != %lld)\n", #_a, #_b, a, b); \
+		ERR(msg "\n", ##__VA_ARGS__); \
 		ctx->result = TEST_FAILED; \
 		return; \
 	} \
 })
+
+// ASSERT_EQUAL_FLAOT(a, b, msg): fail the test if a!=b (and log a/b as float values)
+#define ASSERT_EQUAL_FLOAT(_a, _b, msg, ...) ({ \
+	float a = _a; float b = _b; \
+	if (a != b) { \
+		ERR("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
+		ERR("%s != %s (%f != %f)\n", #_a, #_b, a, b); \
+		ERR(msg "\n", ##__VA_ARGS__); \
+		ctx->result = TEST_FAILED; \
+		return; \
+	} \
+})
+
+// ASSERT_EQUAL_STR(a, b, msg): fail the test if a!=b (and log a & b as strings)
+#define ASSERT_EQUAL_STR(_a, _b, msg, ...) ({ \
+	const char* a = _a; const char* b = _b; \
+	if (strcmp(a, b)) { \
+		ERR("ASSERTION FAILED (%s:%d):\n", __FILE__, __LINE__); \
+		ERR("%s != %s (%s != %s)\n", #_a, #_b, a, b); \
+		ERR(msg "\n", ##__VA_ARGS__); \
+		ctx->result = TEST_FAILED; \
+		return; \
+	} \
+})
+
 
 void hexdump(char *out, const uint8_t *buf, int buflen, int start, int count) {
 	for (int i=start;i<start+count;i++) {
@@ -134,9 +168,9 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 			hexdump(dumpa, a, len, i-2, 5);
 			hexdump(dumpb, b, len, i-2, 5);
 
-			LOG("ASSERTION FAILED (%s:%d):\n", file, line); \
-			LOG("[%s] != [%s]\n", dumpa, dumpb);
-			LOG("     ^^              ^^  idx: %d\n", i);
+			ERR("ASSERTION FAILED (%s:%d):\n", file, line); \
+			ERR("[%s] != [%s]\n", dumpa, dumpb);
+			ERR("     ^^              ^^  idx: %d\n", i);
 			return 0;
 		}
 	}
@@ -148,7 +182,7 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 #define ASSERT_EQUAL_MEM(_a, _b, _len, msg, ...) ({ \
 	const uint8_t *a = (_a); const uint8_t *b = (_b); int len = (_len); \
 	if (!assert_equal_mem(ctx, __FILE__, __LINE__, a, b, len)) { \
-		LOG(msg "\n", ##__VA_ARGS__); \
+		ERR(msg "\n", ##__VA_ARGS__); \
 		ctx->result = TEST_FAILED; \
 		return; \
 	} \
@@ -169,6 +203,7 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 #include "test_dma.c"
 #include "test_cop1.c"
 #include "test_constructors.c"
+#include "test_backtrace.c"
 #include "test_rspq.c"
 
 /**********************************************************************
@@ -191,12 +226,14 @@ static const struct Testsuite
 	uint32_t flags;
 } tests[] = {
 	TEST_FUNC(test_exception,                  5, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_constructors,               0, TEST_FLAGS_NONE),
+	TEST_FUNC(test_exception_syscall,          0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_constructors,               0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_ticks,                      0, TEST_FLAGS_NO_BENCHMARK | TEST_FLAGS_NO_EMULATOR),
 	TEST_FUNC(test_timer_ticks,              292, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_timer_oneshot,            596, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_timer_slow_callback,     1468, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_timer_continuous,         688, TEST_FLAGS_RESET_COUNT),
+	TEST_FUNC(test_timer_continuous_short,   554, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_timer_mixed,             1467, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_timer_context,            186, TEST_FLAGS_RESET_COUNT),
 	TEST_FUNC(test_timer_disabled_start,     733, TEST_FLAGS_RESET_COUNT),
@@ -208,7 +245,14 @@ static const struct Testsuite
 	TEST_FUNC(test_cache_invalidate,        1763, TEST_FLAGS_NONE),
 	TEST_FUNC(test_debug_sdfs,                 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dma_read_misalign,       7003, TEST_FLAGS_NONE),
-	TEST_FUNC(test_cop1_denormalized_float,    0, TEST_FLAGS_NO_EMULATOR),
+	TEST_FUNC(test_cop1_denormalized_float,    0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_backtrace_analyze,          0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_backtrace_basic,            0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_backtrace_fp,               0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_backtrace_exception,        0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_backtrace_exception_leaf,   0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_backtrace_exception_fp,     0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_backtrace_invalidptr,       0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_queue_single,          0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_queue_multiple,        0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_queue_rapid,           0, TEST_FLAGS_NO_BENCHMARK),
@@ -249,7 +293,7 @@ int main() {
 	const int NUM_TESTS = sizeof(tests) / sizeof(tests[0]);
 	uint32_t start = TICKS_READ();
 	for (int i=0; i < NUM_TESTS; i++) {
-		static char logbuf[16384];
+		static char logbuf[16384], errbuf[4096];
 
 		printf("%-59s", tests[i].name);
 		fflush(stdout);
@@ -268,6 +312,8 @@ int main() {
 		TestContext ctx;
 		ctx.log = logbuf;
 		ctx.logleft = sizeof(logbuf);
+		ctx.err = errbuf;
+		ctx.errleft = sizeof(errbuf);
 		ctx.result = TEST_SUCCESS;
 		rand_state = 1; // reset to be fully reproducible
 
@@ -298,9 +344,12 @@ int main() {
 		if (ctx.result == TEST_FAILED) {
 			failures++;
 			printf("FAIL\n\n");
-
 			if (ctx.log != logbuf) {
-				printf("%s\n\n", logbuf);
+				debugf("%s\n", logbuf);
+			}
+			if (ctx.err != errbuf) {
+				printf("%s\n", errbuf);
+				debugf("%s\n", errbuf);
 			}
 		} else if (ctx.result == TEST_SKIPPED) {
 			skipped++;

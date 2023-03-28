@@ -53,7 +53,10 @@ SECTIONS {
     } > mem
 
    .eh_frame_hdr : { *(.eh_frame_hdr) } > mem
-   .eh_frame : { KEEP (*(.eh_frame)) } > mem
+   .eh_frame : { 
+		__EH_FRAME_BEGIN__ = .; /* Define symbol for accessing eh_frame section */
+		KEEP (*(.eh_frame)) 
+	} > mem
    .gcc_except_table : { *(.gcc_except_table*) } > mem
    .jcr : { KEEP (*(.jcr)) } > mem
 
@@ -130,7 +133,12 @@ SECTIONS {
         . = ALIGN(8);
     } > mem
 
+    . = ALIGN(8);
     __data_end = .;
+
+    /* Here the ROM is finished. The rest is just in RAM */
+    . = ALIGN(8);
+    __rom_end = .;
 
     .sbss (NOLOAD) : {
          __bss_start = .;
@@ -154,5 +162,9 @@ SECTIONS {
     } > mem
 
     . = ALIGN(8);
+    
+
+
+    /* Deprecated */
     end = .;
 }
