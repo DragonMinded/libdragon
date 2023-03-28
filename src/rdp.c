@@ -173,14 +173,14 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     /* Instruct the RDP to copy the sprite data out */
     rdpq_set_tile(texslot, sprite_get_format(sprite), texloc, tmem_pitch, &(rdpq_tileparms_t){
         .palette = 0, 
-        .clamp_s = 0, 
-        .mirror_s = mirror_enabled != MIRROR_DISABLED ? 1 : 0,
-        .mask_s = hbits,
-        .shift_s = 0,
-        .clamp_t = 0,
-        .mirror_t = mirror_enabled != MIRROR_DISABLED ? 1 : 0,
-        .mask_t = wbits,
-        .shift_t = 0
+        .s.clamp = 0, 
+        .s.mirror = mirror_enabled != MIRROR_DISABLED ? 1 : 0,
+        .s.mask = hbits,
+        .s.shift = 0,
+        .t.clamp = 0,
+        .t.mirror = mirror_enabled != MIRROR_DISABLED ? 1 : 0,
+        .t.mask = wbits,
+        .t.shift = 0
     });
 
     /* Copying out only a chunk this time */
