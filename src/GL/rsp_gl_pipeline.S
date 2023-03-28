@@ -189,8 +189,8 @@ gl_vtx_loader:
     vmadh v___,     vmtx1_i, vpos.y
     vmadn v___,     vmtx2_f, vpos.z
     vmadh v___,     vmtx2_i, vpos.z
-    vmadn vcspos_f, vmtx3_f, vpos.w
-    vmadh vcspos_i  vmtx3_i, vpos.w
+    vmadn v___,     vmtx3_f, vpos.w
+    vmadh vcspos_i, vmtx3_i, vpos.w
     vmadn vcspos_f, vzero, vzero
 
     # 32-bit right shift by 5, to keep the clip space coordinates unscaled
