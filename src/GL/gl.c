@@ -478,6 +478,27 @@ void glFinish(void)
     rspq_wait();
 }
 
+void glHint(GLenum target, GLenum hint)
+{
+    switch (target)
+    {
+    case GL_PERSPECTIVE_CORRECTION_HINT:
+        // TODO: enable/disable texture perspective correction?
+        break;
+    case GL_FOG_HINT:
+        // TODO: per-pixel fog
+        break;
+    case GL_POINT_SMOOTH_HINT:
+    case GL_LINE_SMOOTH_HINT:
+    case GL_POLYGON_SMOOTH_HINT:
+        // Ignored
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        break;
+    }
+}
+
 bool gl_storage_alloc(gl_storage_t *storage, uint32_t size)
 {
     GLvoid *mem = malloc_uncached(size);
