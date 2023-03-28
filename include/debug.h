@@ -138,8 +138,6 @@ extern "C" {
 	/** @brief Shutdown SD filesystem. */
 	void debug_close_sdfs(void);
 
-	void pc64_debug_print();
-
 	/**
 	 * @brief Initialize debugging features of libdragon.
 	 *
