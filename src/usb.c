@@ -267,7 +267,7 @@ u32  (*funcPointer_poll)();
 void (*funcPointer_read)();
 
 // USB globals
-static s8 usb_cart = 0;
+static s8 usb_cart = CART_NONE;
 static u8 __attribute__((aligned(16))) usb_buffer[BUFFER_SIZE];
 int usb_datatype = 0;
 int usb_datasize = 0;

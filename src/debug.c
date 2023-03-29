@@ -228,7 +228,6 @@ static DSTATUS fat_disk_status_default(void) { return 0; }
 
 static DRESULT fat_disk_ioctl_default(BYTE cmd, void* buff)
 {	
-	fprintf(stdout, "ioctrl: %02x\n", cmd);
 	switch (cmd)
 	{
 		case CTRL_SYNC: return RES_OK;
@@ -507,7 +506,6 @@ bool debug_init_sdlog(const char *fn, const char *openfmt)
 
 bool debug_init_sdfs(const char *prefix, int npart)
 {
-	fprintf(stdout, "debug_init_sdfs init...\n");
 	if (!usb_initialize_once())
 		return false;
 
