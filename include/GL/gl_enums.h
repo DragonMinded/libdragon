@@ -425,9 +425,6 @@
 #define GL_EXP                                          0x0800
 #define GL_EXP2                                         0x0801
 
-#define GL_USE_RDPQ_MATERIAL                            0x3D10
-#define GL_USE_RDPQ_TEXTURING                           0x3D11
-
 #define GL_SCISSOR_BOX                                  0x0C10
 #define GL_SCISSOR_TEST                                 0x0C11
 
@@ -651,6 +648,9 @@
 #define GL_RENDERER                                     0x1F01
 #define GL_VERSION                                      0x1F02
 #define GL_EXTENSIONS                                   0x1F03
+
+#define GL_RDPQ_MATERIAL_N64                            0x6D10
+#define GL_RDPQ_TEXTURING_N64                           0x6D11
 
 #define GL_CURRENT_BIT                                  0x00000001
 #define GL_POINT_BIT                                    0x00000002
