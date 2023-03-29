@@ -285,7 +285,7 @@ typedef struct{
     struct{
         int low, high;
     } s,t;
-} rdpq_tiledims_t;
+} rdpq_tilesize_t;
 
 #ifdef __cplusplus
 extern "C" {
