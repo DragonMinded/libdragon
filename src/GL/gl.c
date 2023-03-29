@@ -281,10 +281,10 @@ GLenum glGetError(void)
 void gl_set_flag2(GLenum target, bool value)
 {
     switch (target) {
-    case GL_USE_RDPQ_MATERIAL:
+    case GL_RDPQ_MATERIAL_N64:
         gl_set_flag_word2(GL_UPDATE_NONE, FLAG2_USE_RDPQ_MATERIAL, value);
         break;
-    case GL_USE_RDPQ_TEXTURING:
+    case GL_RDPQ_TEXTURING_N64:
         gl_set_flag_word2(GL_UPDATE_NONE, FLAG2_USE_RDPQ_TEXTURING, value);
         break;
     case GL_SCISSOR_TEST:
