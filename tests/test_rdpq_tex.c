@@ -170,9 +170,9 @@ void test_rdpq_tex_load(TestContext *ctx) {
                     surface_clear(&fb, 0);
             
                     if (off == 0)
-                        rdpq_tex_load(TILE2, &surf, 0);
+                        rdpq_tex_load(&surf, &(rdpq_texparms_t){.tile = TILE2});
                     else
-                        rdpq_tex_load_sub(TILE2, &surf, 0, off, off, surf.width, surf.width);
+                        rdpq_tex_load_sub(&surf, &(rdpq_texparms_t){.tile = TILE2}, off, off, surf.width, surf.width);
                     rdpq_texture_rectangle(TILE2, 
                         5, 5, 5+surf.width-off, 5+surf.width-off,
                         off, off);
