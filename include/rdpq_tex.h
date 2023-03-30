@@ -22,7 +22,7 @@ extern "C" {
 
 #define MIRROR_REPEAT true
 #define MIRROR_NONE   false
-#define REPEAT_INFINITE -1
+#define REPEAT_INFINITE 2048
 
 typedef int rdpq_texcache_t;
 
