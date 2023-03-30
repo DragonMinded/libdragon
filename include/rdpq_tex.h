@@ -52,7 +52,6 @@ typedef struct {
     } s, t;
 
 } rdpq_texparms_t;
-rdpq_tileparms_t texparms_to_tileparms(surface_t *tex, const rdpq_texparms_t *parms, int x_sub, int y_sub, rdpq_tilesize_t* outsize);
 
 // Multi-pass optimized texture loader
 // Not part of the public API yet
