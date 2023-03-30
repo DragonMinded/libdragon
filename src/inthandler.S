@@ -9,11 +9,10 @@
 
 #include "regs.S"
 
-	.p2align 5
-
 	.global inthandler
 	.global inthandler_end
 
+	.p2align 5
 	.func inthandler
 inthandler:
 

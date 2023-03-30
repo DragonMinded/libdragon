@@ -121,6 +121,9 @@ int main(void) {
             // Apply blending
             rsp_blend_process_line(screen, 30, 60, flrsurf.height);
 
+            // Wait for RSP to finish processing
+            rspq_wait();
+
             // Draw the flare using RSP additive blending (will not overflow)
             display_show(screen);
         }

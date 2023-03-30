@@ -17,6 +17,7 @@
 #include "n64types.h"
 #include "n64sys.h"
 #include "dma.h"
+#include "backtrace.h"
 #include "usb.h"
 #include "utils.h"
 #include "interrupt.h"

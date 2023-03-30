@@ -78,9 +78,6 @@
  */
 #define FUNCTION_ALIGNMENT      32
 
-#define MAX_FILE_LEN 120        ///< Maximum length of a file name in a backtrace entry
-#define MAX_FUNC_LEN 120        ///< Maximum length of a function name in a backtrace entry
-
 /** 
  * @brief Symbol table file header
  * 
@@ -99,8 +96,8 @@
  *   split externally to allow for efficiency reasons. Each entry stores the function name, 
  *   the source file name and line number, and the binary offset of the symbol within the containing
  *   function.
- * * String table: This tables can be thought as a large buffer holding all the strings needed by all
- *   symbol entries (function names and file names). Each symbol entry stores a string as an index
+ * * String table: this table can be thought as a large buffer holding all the strings needed by all
+ *   symbol entries (function names and file names). Each symbol entry stores a string as an offset
  *   within the symbol table and a length. This allows to reuse the same string (or prefix thereof)
  *   multiple times. Notice that strings are not null terminated in the string table.
  * 
@@ -183,10 +180,9 @@ static symtable_header_t symt_open(void) {
         return (symtable_header_t){0};
     }
 
-    symtable_header_t symt_header;
+    symtable_header_t symt_header alignas(8);
     data_cache_hit_writeback_invalidate(&symt_header, sizeof(symt_header));
-    dma_read_raw_async(&symt_header, SYMT_ROM, sizeof(symtable_header_t));
-    dma_wait();
+    dma_read(&symt_header, SYMT_ROM, sizeof(symtable_header_t));
 
     if (symt_header.head[0] != 'S' || symt_header.head[1] != 'Y' || symt_header.head[2] != 'M' || symt_header.head[3] != 'T') {
         debugf("backtrace: invalid symbol table found at 0x%08lx\n", SYMT_ROM);
@@ -211,6 +207,7 @@ static symtable_header_t symt_open(void) {
  */
 static addrtable_entry_t symt_addrtab_entry(symtable_header_t *symt, int idx)
 {
+    assert(idx >= 0 && idx < symt->addrtab_size);
     return io_read(SYMT_ROM + symt->addrtab_off + idx * 4);
 }
 
@@ -334,7 +331,38 @@ char* __symbolize(void *vaddr, char *buf, int size)
  * uses a stack frame or not, whether it uses a frame pointer, and where the return address is stored.
  * 
  * Since we do not have DWARF informations or similar metadata, we can just do educated guesses. A
- * mistake in the heuristic will result probably in a wrong backtrace from this point on. 
+ * mistake in the heuristic will result probably in a wrong backtrace from this point on.
+ * 
+ * The heuristic works as follows:
+ * 
+ *  * Most functions do have a stack frame. In fact, 99.99% of the functions you can find in a call stack
+ *    must have a stack frame, because the only functions without a stack frame are leaf functions (functions
+ *    that do not call other functions), which in turns can never be part of a stack trace.
+ *  * The heuristic walks the function code backwards, looking for the stack frame. Specifically, it looks
+ *    for an instruction saving the RA register to the stack (eg: `sd $ra, nn($sp)`), and an instruction
+ *    creating the stack frame (eg: `addiu $sp, $sp, -nn`). Once both are found, the heuristic knows how to
+ *    fill in `.stack_size` and `.ra_offset` fields of the function description structure, and it can stop.
+ *  * Some functions also modify $fp (the frame pointer register): sometimes, they just use it as one additional
+ *    free register, and other times they really use it as frame pointer. If the heuristic finds the
+ *    instruction `move $fp, $sp`, it knows that the function uses $fp as frame pointer, and will mark
+ *    the function as BT_FUNCTION_FRAMEPOINTER. In any case, the field `.fp_offset` will be filled in
+ *    with the offset in the stack where $fp is stored, so that the backtrace engine can track the
+ *    current value of the register in any case.
+ *  * The 0.01% of the functions that do not have a stack frame but appear in the call stack are leaf
+ *    functions interrupted by exceptions. Leaf functions pose two important problems: first, $ra is
+ *    not saved into the stack so there is no way to know where to go back. Second, there is no clear
+ *    indication where the function begins (as we normally stops analysis when we see the stack frame
+ *    creation). So in this case the heuristic would fail. We rely thus on two hints coming from the caller:
+ *    * First, we expect the caller to set from_exception=true, so that we know that we might potentially
+ *      deal with a leaf function. 
+ *    * Second, the caller should provide the function start address, so that we stop the analysis when
+ *      we reach it, and mark the function as BT_LEAF.
+ *    * If the function start address is not provided (because e.g. the symbol table was not found and
+ *      thus we have no information about function starts), the last ditch heuristic is to look for
+ *      the nops that are normally used to align the function start to the FUNCTION_ALIGNMENT boundary.
+ *      Obviously this is a very fragile heuristic (it will fail if the function required no nops to be
+ *      properly aligned), but it is the best we can do. Worst case, in this specific case of a leaf
+ *      function interrupted by the exception, the stack trace will be wrong from this point on.
  * 
  * @param func                        Output function description structure
  * @param ptr                         Pointer to the function code at the point where the backtrace starts.
@@ -343,12 +371,13 @@ char* __symbolize(void *vaddr, char *buf, int size)
  * @param func_start                  Start of the function being analyzed. This is optional: the heuristic can work
  *                                    without this hint, but it is useful in certain situations (eg: to better
  *                                    walk up after an exception).
- * @param exception_ra                If != NULL, this function was interrupted by an exception. This variable
- *                                    stores the $ra register value as saved in the exception frame, that might be useful.
+ * @param from_exception              If true, this function was interrupted by an exception. This is a hint that
+ *                                    the function *might* even be a leaf function without a stack frame, and that
+ *                                    we must use special heuristics for it.
  * 
  * @return true if the backtrace can continue, false if must be aborted (eg: we are within invalid memory)
  */
-bool __bt_analyze_func(bt_func_t *func, uint32_t *ptr, uint32_t func_start, void *exception_ra)
+bool __bt_analyze_func(bt_func_t *func, uint32_t *ptr, uint32_t func_start, bool from_exception)
 {
     *func = (bt_func_t){
         .type = (ptr >= inthandler && ptr < inthandler_end) ? BT_EXCEPTION : BT_FUNCTION,
@@ -394,20 +423,27 @@ bool __bt_analyze_func(bt_func_t *func, uint32_t *ptr, uint32_t func_start, void
         // We can stop looking and process the frame
         if (func->stack_size != 0 && func->ra_offset != 0)
             break;
-        if (exception_ra && addr == func_start) {
-            // The frame that was interrupted by an interrupt handler is a special case: the
-            // function could be a leaf function with no stack. If we were able to identify
-            // the function start (via the symbol table) and we reach it, it means that
-            // we are in a real leaf function.
-            func->type = BT_LEAF;
-            break;
-        } else if (exception_ra && !func_start && MIPS_OP_NOP(op) && (addr + 4) % FUNCTION_ALIGNMENT == 0) {
-            // If we are in the frame interrupted by an interrupt handler, and we does not know
-            // the start of the function (eg: no symbol table), then try to stop by looking for
-            // a NOP that pads between functions. Obviously the NOP we find can be either a false
-            // positive or a false negative, but we can't do any better without symbols.
-            func->type = BT_LEAF;
-            break;
+        if (from_exception) {
+            // The function we are analyzing was interrupted by an exception, so it might
+            // potentially be a leaf function (no stack frame). We need to make sure to stop
+            // at the beginning of the function and mark it as leaf function. Use
+            // func_start if specified, or try to guess using the nops used to align the function
+            // (crossing fingers that they're there).
+            if (addr == func_start) {
+                // The frame that was interrupted by an interrupt handler is a special case: the
+                // function could be a leaf function with no stack. If we were able to identify
+                // the function start (via the symbol table) and we reach it, it means that
+                // we are in a real leaf function.
+                func->type = BT_LEAF;
+                break;
+            } else if (!func_start && MIPS_OP_NOP(op) && (addr + 4) % FUNCTION_ALIGNMENT == 0) {
+                // If we are in the frame interrupted by an interrupt handler, and we does not know
+                // the start of the function (eg: no symbol table), then try to stop by looking for
+                // a NOP that pads between functions. Obviously the NOP we find can be either a false
+                // positive or a false negative, but we can't do any better without symbols.
+                func->type = BT_LEAF;
+                break;
+            }
         }
         addr -= 4;
     }
@@ -574,8 +610,8 @@ static void format_entry(void (*cb)(void *, backtrace_frame_t *), void *cb_arg,
     symtable_entry_t entry alignas(8);
     symt_entry_fetch(symt, &entry, idx);
 
-    char file_buf[MAX_FILE_LEN+2] alignas(8);
-    char func_buf[MAX_FUNC_LEN+2] alignas(8);
+    char file_buf[entry.file_len + 2] alignas(8);
+    char func_buf[MAX(entry.func_len + 2, 32)] alignas(8);
 
     cb(cb_arg, &(backtrace_frame_t){
         .addr = addr,
@@ -639,6 +675,8 @@ bool backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
 
 char** backtrace_symbols(void **buffer, int size)
 {
+    const int MAX_FILE_LEN = 120;
+    const int MAX_FUNC_LEN = 120;
     const int MAX_SYM_LEN = MAX_FILE_LEN + MAX_FUNC_LEN + 24;
     char **syms = malloc(2 * size * (sizeof(char*) + MAX_SYM_LEN));
     char *out = (char*)syms + size*sizeof(char*);

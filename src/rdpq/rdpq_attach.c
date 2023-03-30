@@ -8,6 +8,7 @@
 #include "rdpq_mode.h"
 #include "rdpq_rect.h"
 #include "rdpq_attach.h"
+#include "rdpq_internal.h"
 #include "rspq.h"
 #include "debug.h"
 
@@ -73,6 +74,7 @@ static void detach(void)
 
 void rdpq_attach(const surface_t *surf_color, const surface_t *surf_z)
 {
+    assertf(__rdpq_inited, "rdpq not initialized: please call rdpq_init()");
     attach(surf_color, surf_z, false, false);
 }
 
