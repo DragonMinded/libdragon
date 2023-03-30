@@ -299,9 +299,9 @@ rdpq_tileparms_t texparms_to_tileparms(surface_t *tex, const rdpq_texparms_t *pa
 
     res.s.shift  = parms->s.scale_log;
     res.t.shift  = parms->t.scale_log;
-    if(parms->s.repeats < (1024 / x_sub)) res.s.clamp = true;
+    if(parms->s.repeats * x_sub < 1024) res.s.clamp = true;
     else res.s.clamp = false;
-    if(parms->t.repeats < (1024 / y_sub)) res.t.clamp = true;
+    if(parms->t.repeats * y_sub < 1024) res.t.clamp = true;
     else res.t.clamp = false;
 
     assertf((!res.s.clamp || parms->s.translate >= 0), 
