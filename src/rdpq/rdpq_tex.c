@@ -14,6 +14,8 @@
 #include "utils.h"
 #include <math.h>
 
+#define UNLIKELY(x) __builtin_expect(!!(x), 0)
+
 /** @brief Address in TMEM where the palettes must be loaded */
 #define TMEM_PALETTE_ADDR   0x800
 
@@ -271,35 +273,43 @@ int integer_to_pow2(int x){
 /// @return output of the tile parameters that match the texture sampling parameters
 rdpq_tileparms_t texparms_to_tileparms(surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1, rdpq_tilesize_t* outsize){
     int x_sub = s1 - s0; int y_sub = t1 - t0; 
-    assertf(x_sub > 0 && y_sub > 0, "The sub rectangle of a texture can't be of negative size (%i,%i)", x_sub, y_sub);
-    assertf(parms != NULL && tex != NULL, "The parameters to convert tex->tile cannot be NULL");
+    assertf((x_sub > 0 && y_sub > 0), "The sub rectangle of a texture can't be of negative size (%i,%i)", x_sub, y_sub);
+    assertf((parms != NULL && tex != NULL), "The parameters to convert tex->tile cannot be NULL");
+    assertf(parms->s.repeats >= 0 && parms->t.repeats >= 0, "Repetition count (%f, %f) cannot be negative",parms->s.repeats, parms->t.repeats);
     rdpq_tileparms_t res;
 
-    int xmask = integer_to_pow2(x_sub);
-    int ymask = integer_to_pow2(y_sub);
+    int xmask = 0;
+    int ymask = 0;
 
-    assertf(1<<xmask == x_sub || (parms->s.mirror == MIRROR_NONE && (parms->s.repeats == 0 || parms->s.repeats == 1)), 
-    "Mirror and/or wrapping on S axis allowed only with X dimention (%i tx) = power of 2", x_sub);
-    assertf(1<<ymask == y_sub || (parms->t.mirror == MIRROR_NONE && (parms->t.repeats == 0 || parms->t.repeats == 1)), 
-    "Mirror and/or wrapping on T axis allowed only with Y dimention (%i tx) = power of 2", y_sub);
-
-    assertf((parms->s.repeats <= 0 || parms->s.repeats >= (1024 / x_sub) || parms->s.translate >= 0), 
-    "Translation S (%f) cannot be negative with active clamping", parms->s.translate);
-    assertf((parms->t.repeats <= 0 || parms->t.repeats >= (1024 / x_sub) || parms->t.translate >= 0), 
-    "Translation T (%f) cannot be negative with active clamping", parms->t.translate);
+    if(parms->s.repeats > 1){
+        xmask = integer_to_pow2(x_sub);
+        assertf(1<<xmask == x_sub, 
+        "Mirror and/or wrapping on S axis allowed only with X dimention (%i tx) = power of 2", x_sub);
+        res.s.mirror = parms->s.mirror;
+    }
+    if(parms->t.repeats > 1){
+        ymask = integer_to_pow2(y_sub);
+        assertf(1<<ymask == y_sub, 
+        "Mirror and/or wrapping on T axis allowed only with Y dimention (%i tx) = power of 2", y_sub);
+        res.t.mirror = parms->t.mirror;
+    }
 
     tex_format_t fmt = surface_get_format(tex);
-    if(fmt == FMT_CI4) res.palette = parms->palette;
-    res.s.mirror = parms->s.mirror;
-    res.t.mirror = parms->t.mirror;
+    if(UNLIKELY(fmt == FMT_CI4)) res.palette = parms->palette;
+
     res.s.shift  = parms->s.scale_log;
     res.t.shift  = parms->t.scale_log;
-    if((parms->s.repeats) >= 0 && parms->s.repeats < (1024 / x_sub)) res.s.clamp = true;
+    if(parms->s.repeats < (1024 / x_sub)) res.s.clamp = true;
     else res.s.clamp = false;
-    if((parms->t.repeats) >= 0 && parms->t.repeats < (1024 / y_sub)) res.t.clamp = true;
+    if(parms->t.repeats < (1024 / y_sub)) res.t.clamp = true;
     else res.t.clamp = false;
 
-    if (TEX_FORMAT_BITDEPTH(fmt) == 4) {
+    assertf((!res.s.clamp || parms->s.translate >= 0), 
+    "Translation S (%f) cannot be negative with active clamping", parms->s.translate);
+    assertf((!res.t.clamp || parms->t.translate >= 0), 
+    "Translation T (%f) cannot be negative with active clamping", parms->t.translate);
+
+    if (UNLIKELY(TEX_FORMAT_BITDEPTH(fmt) == 4)) {
         s0 &= ~1; s1 = (s1+1) & ~1;
     }
 
@@ -312,7 +322,7 @@ rdpq_tileparms_t texparms_to_tileparms(surface_t *tex, const rdpq_texparms_t *pa
         t1 = 0;
     }
 
-    if(outsize != NULL){
+    if(UNLIKELY(outsize != NULL)){
         outsize->s.low  = (parms->s.translate + s0)*4;
         outsize->t.low  = (parms->t.translate + t0)*4;
         outsize->s.high = (parms->s.translate + s1 + parms->s.repeats * x_sub * res.s.clamp)*4;
@@ -328,7 +338,7 @@ rdpq_tileparms_t texparms_to_tileparms(surface_t *tex, const rdpq_texparms_t *pa
 /// @param outsize output to the tilesize parameters
 /// @return output of the tile parameters that match the texture sampling parameters
 rdpq_tileparms_t zeroparms_to_tileparms(surface_t *tex, int palette, int s0, int t0, int s1, int t1, rdpq_tilesize_t* outsize){
-    if(outsize != NULL){
+    if(UNLIKELY(outsize != NULL)){
         outsize->s.low  = s0*4;
         outsize->t.low  = t0*4;
         outsize->s.high = s1*4;
