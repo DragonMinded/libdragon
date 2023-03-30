@@ -479,6 +479,27 @@ GL_TnL:
     li ra, %lo(1f)
 1:
 
+    #define vtmp    $v06
+    #define vfog    $v07
+    andi t0, state_flags, FLAG_FOG
+    beqz t0, 1f
+    li s1, %lo(GL_STATE_FOG_OFFSET)
+
+    llv vfog, 0,s1
+
+    # vtmp = -abs(veyepos.z)
+    vsubc vtmp, vzero, veyepos.e2
+    vlt vtmp, veyepos.e2
+
+    # vtmp.e0 = fog_offset - abs(veyepos.z) * fog_factor
+    vmudh v___, vtmp, vfog.e1
+    vmadh vtmp, vfog, K1
+
+    vmov vrgba.e3, vtmp.e0
+    #undef vtmp
+    #undef vfog
+1:
+
     #define vtexsize     $v06
     #define vtexoffset   $v07
     #define vstrq        $v08

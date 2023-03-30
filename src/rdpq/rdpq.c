@@ -958,8 +958,12 @@ void rdpq_set_z_image(const surface_t *surface)
 void rdpq_set_texture_image(const surface_t *surface)
 {
     tex_format_t fmt = surface_get_format(surface);
-    assertf((PhysicalAddr(surface->buffer) & 7) == 0,
-        "buffer pointer is not aligned to 8 bytes, so it cannot be used as RDP texture image");
+    // Check if the texture is misaligned and can cause RDP crashes. This must
+    // be kept in sync with new findings in the validator, see check_loading_crash
+    // in rdpq_validate.c.
+    int misalign = PhysicalAddr(surface->buffer) & 15; (void)misalign;
+    assertf(misalign == 0 || misalign >= 8 || TEX_FORMAT_BITDEPTH(fmt) == 4,
+        "texture buffer address %p is misaligned and can cause RDP crashes; please use 8-bytes alignment", surface->buffer);
     rdpq_set_texture_image_raw(0, PhysicalAddr(surface->buffer), fmt, 
         TEX_FORMAT_BYTES2PIX(fmt, surface->stride), surface->height);
 }

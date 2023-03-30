@@ -79,9 +79,6 @@
  */
 #define FUNCTION_ALIGNMENT      32
 
-#define MAX_FILE_LEN 120        ///< Maximum length of a file name in a backtrace entry
-#define MAX_FUNC_LEN 120        ///< Maximum length of a function name in a backtrace entry
-
 /** 
  * @brief Symbol table file header
  * 
@@ -100,8 +97,8 @@
  *   split externally to allow for efficiency reasons. Each entry stores the function name, 
  *   the source file name and line number, and the binary offset of the symbol within the containing
  *   function.
- * * String table: This tables can be thought as a large buffer holding all the strings needed by all
- *   symbol entries (function names and file names). Each symbol entry stores a string as an index
+ * * String table: this table can be thought as a large buffer holding all the strings needed by all
+ *   symbol entries (function names and file names). Each symbol entry stores a string as an offset
  *   within the symbol table and a length. This allows to reuse the same string (or prefix thereof)
  *   multiple times. Notice that strings are not null terminated in the string table.
  * 
@@ -199,10 +196,9 @@ static symtable_header_t symt_open(void *addr) {
         return (symtable_header_t){0};
     }
 
-    symtable_header_t symt_header;
+    symtable_header_t symt_header alignas(8);
     data_cache_hit_writeback_invalidate(&symt_header, sizeof(symt_header));
-    dma_read_raw_async(&symt_header, SYMT_ROM, sizeof(symtable_header_t));
-    dma_wait();
+    dma_read(&symt_header, SYMT_ROM, sizeof(symtable_header_t));
 
     if (symt_header.head[0] != 'S' || symt_header.head[1] != 'Y' || symt_header.head[2] != 'M' || symt_header.head[3] != 'T') {
         debugf("backtrace: invalid symbol table found at 0x%08lx\n", SYMT_ROM);
@@ -227,6 +223,7 @@ static symtable_header_t symt_open(void *addr) {
  */
 static addrtable_entry_t symt_addrtab_entry(symtable_header_t *symt, int idx)
 {
+    assert(idx >= 0 && idx < symt->addrtab_size);
     return addrtable_base+io_read(SYMT_ROM + symt->addrtab_off + idx * 4);
 }
 
@@ -370,7 +367,7 @@ char* __symbolize(void *vaddr, char *buf, int size)
  *  * The 0.01% of the functions that do not have a stack frame but appear in the call stack are leaf
  *    functions interrupted by exceptions. Leaf functions pose two important problems: first, $ra is
  *    not saved into the stack so there is no way to know where to go back. Second, there is no clear
- *    indication where the function begins (as we normally stops analysis when the see the stack frame
+ *    indication where the function begins (as we normally stops analysis when we see the stack frame
  *    creation). So in this case the heuristic would fail. We rely thus on two hints coming from the caller:
  *    * First, we expect the caller to set from_exception=true, so that we know that we might potentially
  *      deal with a leaf function. 
@@ -629,8 +626,8 @@ static void format_entry(void (*cb)(void *, backtrace_frame_t *), void *cb_arg,
     symtable_entry_t entry alignas(8);
     symt_entry_fetch(symt, &entry, idx);
 
-    char file_buf[MAX_FILE_LEN+2] alignas(8);
-    char func_buf[MAX_FUNC_LEN+2] alignas(8);
+    char file_buf[entry.file_len + 2] alignas(8);
+    char func_buf[MAX(entry.func_len + 2, 32)] alignas(8);
 
     cb(cb_arg, &(backtrace_frame_t){
         .addr = addr,
@@ -693,6 +690,8 @@ bool backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
 
 char** backtrace_symbols(void **buffer, int size)
 {
+    const int MAX_FILE_LEN = 120;
+    const int MAX_FUNC_LEN = 120;
     const int MAX_SYM_LEN = MAX_FILE_LEN + MAX_FUNC_LEN + 24;
     char **syms = malloc(2 * size * (sizeof(char*) + MAX_SYM_LEN));
     char *out = (char*)syms + size*sizeof(char*);

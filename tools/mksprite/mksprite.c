@@ -117,7 +117,7 @@ void print_args( char * name )
     fprintf(stderr, "   -f/--format <fmt>     Specify output format (default: AUTO)\n");
     fprintf(stderr, "   -t/--tiles  <w,h>     Specify single tile size (default: auto)\n");
     fprintf(stderr, "   -m/--mipmap <algo>    Calculate mipmap levels using the specified algorithm (default: NONE)\n");
-    fprintf(stderr, "   -d/--dither <dither>  Dithering algorithm (default: NONE)\n");
+    fprintf(stderr, "   -D/--dither <dither>  Dithering algorithm (default: NONE)\n");
     fprintf(stderr, "   -c/--compress         Compress output files (using mksasset)\n");
     fprintf(stderr, "   -d/--debug            Dump computed images (eg: mipmaps) as PNG files in output directory\n");
     fprintf(stderr, "\n");

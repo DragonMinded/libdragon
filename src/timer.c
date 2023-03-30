@@ -4,8 +4,11 @@
  * @ingroup timer
  */
 #include <malloc.h>
-#include "libdragon.h"
+#include "timer.h"
+#include "interrupt.h"
+#include "debug.h"
 #include "regsinternal.h"
+#include "utils.h"
 
 /**
  * @defgroup timer Timer Subsystem
@@ -55,8 +58,9 @@ extern volatile uint32_t interrupt_disabled_tick;
 #define TF_CALLED      0x80
 
 /** @brief Update the compare register to match the first expiring timer. */
-static void timer_update_compare(timer_link_t *head) {
-	uint32_t now = TICKS_READ();
+__attribute__((noinline))
+static void timer_update_compare(timer_link_t *head, uint32_t now)
+{
 	uint32_t smallest = 0xFFFFFFFF;
 
 	while (head)
@@ -119,6 +123,14 @@ static int __proc_timers(timer_link_t * thead)
 			else if (head->callback)
 				head->callback(head->ovfl);
 
+			if (head->flags & TF_DISABLED)
+			{
+				/* Timer was disabled during the callback. We need to
+				 * reprocess the list to see if there are other timers
+				 * that need to be called. */
+				return 1;
+			}
+
 			/* reset ticks if continuous */
 			if (head->flags & TF_CONTINUOUS)
 			{
@@ -170,18 +182,23 @@ static int __proc_timers(timer_link_t * thead)
 }
 
 /**
- * @brief Timer interrupt callback function
+ * @brief Poll the timer list and run callbacks for expired timers
  *
- * This function is called by the interrupt controller whenever 
- * compare == count.
+ * This function is called by the interrupt handler whenever 
+ * compare == count, and also when inserting into or removing
+ * from the timers list to improve handling timers with tiny delays
  */
-static void timer_interrupt_callback(void)
+static void timer_poll(void)
 {
-	while (__proc_timers(TI_timers))
-		{}
+	uint32_t loop_count = 0;
+	while (__proc_timers(TI_timers)) {
+		++loop_count; (void)loop_count; // avoid warning (loop_count is used in assertf)
+		assertf(loop_count < 1000, "timer interrupt is stuck in an infinite loop.\n"
+			"Check continuous timers with a very short period.\n");
+	}
 
 	// Update counter for next interrupt.
-	timer_update_compare(TI_timers);
+	timer_update_compare(TI_timers, TICKS_READ());
 }
 
 /**
@@ -232,7 +249,7 @@ void timer_init(void)
 	C0_WRITE_COUNT(1);
 	C0_WRITE_COMPARE(0);
 	set_TI_interrupt(1);
-	register_TI_handler(timer_interrupt_callback);
+	register_TI_handler(timer_poll);
 	enable_interrupts();
 }
 
@@ -257,20 +274,22 @@ timer_link_t *new_timer(int ticks, int flags, timer_callback1_t callback)
 	timer_link_t *timer = malloc(sizeof(timer_link_t));
 	if (timer)
 	{
-		timer->left = TICKS_READ() + (int32_t)ticks;
+		disable_interrupts();
+
+		uint32_t now = TICKS_READ();
+		timer->left = now + (int32_t)ticks;
 		timer->set = ticks;
 		timer->flags = flags;
 		timer->callback = callback;
 		timer->ctx = NULL;
 
-		if (flags & TF_DISABLED)
-			return timer;
-
-		disable_interrupts();
-
-		timer->next = TI_timers;
-		TI_timers = timer;
-		timer_update_compare(TI_timers);
+		if (!(flags & TF_DISABLED))
+		{
+			timer->next = TI_timers;
+			TI_timers = timer;
+			timer_update_compare(TI_timers, now);
+			timer_poll();
+		}
 
 		enable_interrupts();
 	}
@@ -299,20 +318,22 @@ timer_link_t *new_timer_context(int ticks, int flags, timer_callback2_t callback
 	timer_link_t *timer = malloc(sizeof(timer_link_t));
 	if (timer)
 	{
-		timer->left = TICKS_READ() + (int32_t)ticks;
+		disable_interrupts();
+
+		uint32_t now = TICKS_READ();
+		timer->left = now + (int32_t)ticks;
 		timer->set = ticks;
 		timer->flags = flags | TF_CONTEXT;
 		timer->callback_with_context = callback;
 		timer->ctx = ctx;
 
-		if (flags & TF_DISABLED)
-			return timer;
-
-		disable_interrupts();
-
-		timer->next = TI_timers;
-		TI_timers = timer;
-		timer_update_compare(TI_timers);
+		if (!(flags & TF_DISABLED))
+		{
+			timer->next = TI_timers;
+			TI_timers = timer;
+			timer_update_compare(TI_timers, now);
+			timer_poll();
+		}
 
 		enable_interrupts();
 	}
@@ -339,20 +360,22 @@ void start_timer(timer_link_t *timer, int ticks, int flags, timer_callback1_t ca
 	assertf(TI_timers, "timer module not initialized");
 	if (timer)
 	{
-		timer->left = TICKS_READ() + (int32_t)ticks;
+		disable_interrupts();
+
+		uint32_t now = TICKS_READ();
+		timer->left = now + (int32_t)ticks;
 		timer->set = ticks;
 		timer->flags = flags;
 		timer->callback = callback;
 		timer->ctx = NULL;
 
-		if (flags & TF_DISABLED)
-			return;
-
-		disable_interrupts();
-
-		timer->next = TI_timers;
-		TI_timers = timer;
-		timer_update_compare(TI_timers);
+		if (!(flags & TF_DISABLED))
+		{
+			timer->next = TI_timers;
+			TI_timers = timer;
+			timer_update_compare(TI_timers, now);
+			timer_poll();
+		}
 
 		enable_interrupts();
 	}
@@ -379,20 +402,22 @@ void start_timer_context(timer_link_t *timer, int ticks, int flags, timer_callba
 	assertf(TI_timers, "timer module not initialized");
 	if (timer)
 	{
-		timer->left = TICKS_READ() + (int32_t)ticks;
+		disable_interrupts();
+
+		uint32_t now = TICKS_READ();
+		timer->left = now + (int32_t)ticks;
 		timer->set = ticks;
 		timer->flags = flags | TF_CONTEXT;
 		timer->callback_with_context = callback;
 		timer->ctx = ctx;
 
 		if (flags & TF_DISABLED)
-			return;
-
-		disable_interrupts();
-
-		timer->next = TI_timers;
-		TI_timers = timer;
-		timer_update_compare(TI_timers);
+		{
+			timer->next = TI_timers;
+			TI_timers = timer;
+			timer_update_compare(TI_timers, now);
+			timer_poll();
+		}
 
 		enable_interrupts();
 	}
@@ -408,14 +433,16 @@ void restart_timer(timer_link_t *timer)
 {
 	if (timer)
 	{
-		timer->left = TICKS_READ() + (int32_t)timer->set;
-		timer->flags &= ~TF_DISABLED;
-
 		disable_interrupts();
+
+		uint32_t now = TICKS_READ();
+		timer->left = now + (int32_t)timer->set;
+		timer->flags &= ~TF_DISABLED;
 
 		timer->next = TI_timers;
 		TI_timers = timer;
-		timer_update_compare(TI_timers);
+		timer_update_compare(TI_timers, now);
+		timer_poll();
 
 		enable_interrupts();
 	}
@@ -426,6 +453,9 @@ void restart_timer(timer_link_t *timer)
  *
  * @note This function does not free a timer structure, use #delete_timer
  *       to do this.
+ * 
+ * @note It is safe to call this function from a timer callback, including
+ *       to stop a timer from its own callback.
  *
  * @param[in] timer
  *            Timer structure to stop and remove
@@ -456,7 +486,8 @@ void stop_timer(timer_link_t *timer)
 			last = head;
 			head = head->next;
 		}
-		timer_update_compare(TI_timers);
+		timer->flags |= TF_DISABLED;
+		timer_update_compare(TI_timers, TICKS_READ());
 		enable_interrupts();
 	}
 }
@@ -464,6 +495,8 @@ void stop_timer(timer_link_t *timer)
 /**
  * @brief Remove a timer from the list and delete it
  *
+ * @note It is not safe to call this function from a timer callback.
+
  * @param[in] timer
  *            Timer structure to stop, remove and free
  */
@@ -491,7 +524,7 @@ void timer_close(void)
 	
 	/* Disable generation of timer interrupt. */
 	set_TI_interrupt(0);
-	unregister_TI_handler(timer_interrupt_callback);
+	unregister_TI_handler(timer_poll);
 
 	timer_link_t *head = TI_timers;
 	while (head)
