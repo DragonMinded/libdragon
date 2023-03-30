@@ -130,8 +130,7 @@ static void texload_block_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int 
 
     s0 &= ~1; s1 = (s1+1) & ~1;
     rdpq_load_block(tile_internal, s0/2, t0, tload->rect.num_texels/4, tload->rect.tmem_pitch);
-    if(tload->_usetilesize) rdpq_set_tile_size_fx(tload->tile, size.s.low, size.t.low, size.s.high, size.t.high);
-    else rdpq_set_tile_size(tload->tile, s0, t0, s1, t1);
+    rdpq_set_tile_size_fx(tload->tile, size.s.low, size.t.low, size.s.high, size.t.high);
 }
 
 static void texload_block_8bpp(tex_loader_t *tload, int s0, int t0, int s1, int t1)
@@ -150,8 +149,7 @@ static void texload_block_8bpp(tex_loader_t *tload, int s0, int t0, int s1, int 
     }
 
     rdpq_load_block(tile_internal, s0/2, t0, tload->rect.num_texels/2, tload->rect.tmem_pitch);
-    if(tload->_usetilesize) rdpq_set_tile_size_fx(tload->tile, size.s.low, size.t.low, size.s.high, size.t.high);
-    else rdpq_set_tile_size(tload->tile, s0, t0, s1, t1);
+    rdpq_set_tile_size_fx(tload->tile, size.s.low, size.t.low, size.s.high, size.t.high);
 }
 
 static void texload_block(tex_loader_t *tload, int s0, int t0, int s1, int t1)
@@ -170,8 +168,7 @@ static void texload_block(tex_loader_t *tload, int s0, int t0, int s1, int t1)
     }
 
     rdpq_load_block(tile_internal, s0, t0, tload->rect.num_texels, (fmt == FMT_RGBA32) ? tload->rect.tmem_pitch*2 : tload->rect.tmem_pitch);
-    if(tload->_usetilesize) rdpq_set_tile_size_fx(tload->tile, size.s.low, size.t.low, size.s.high, size.t.high);
-    else rdpq_set_tile_size(tload->tile, s0, t0, s1, t1);
+    rdpq_set_tile_size_fx(tload->tile, size.s.low, size.t.low, size.s.high, size.t.high);
 }
 
 static void texload_tile_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int t1)
@@ -187,8 +184,7 @@ static void texload_tile_4bpp(tex_loader_t *tload, int s0, int t0, int s1, int t
 
     s0 &= ~1; s1 = (s1+1) & ~1;
     rdpq_load_tile(tile_internal, s0/2, t0, s1/2, t1);
-    if(tload->_usetilesize) rdpq_set_tile_size_fx(tload->tile, size.s.low, size.t.low, size.s.high, size.t.high);
-    else rdpq_set_tile_size(tload->tile, s0, t0, s1, t1);
+    rdpq_set_tile_size_fx(tload->tile, size.s.low, size.t.low, size.s.high, size.t.high);
 }
 
 static void texload_tile(tex_loader_t *tload, int s0, int t0, int s1, int t1)
@@ -202,8 +198,7 @@ static void texload_tile(tex_loader_t *tload, int s0, int t0, int s1, int t1)
     }
 
     rdpq_load_tile(tload->tile, s0, t0, s1, t1);
-    if(tload->_usetilesize) rdpq_set_tile_size_fx(tload->tile, size.s.low, size.t.low, size.s.high, size.t.high);
-    else rdpq_set_tile_size(tload->tile, s0, t0, s1, t1);
+    rdpq_set_tile_size_fx(tload->tile, size.s.low, size.t.low, size.s.high, size.t.high);
 }
 
 ///@cond
@@ -267,7 +262,15 @@ int integer_to_pow2(int x){
 /// @param y_sub size of the portion of the texture loading Y
 /// @param outsize output to the tilesize parameters
 /// @return output of the tile parameters that match the texture sampling parameters
-rdpq_tileparms_t texparms_to_tileparms(surface_t *tex, const rdpq_texparms_t *parms, int x_sub, int y_sub, rdpq_tilesize_t* outsize){
+/// @brief Internal function to convert texture sampling parameters to corresponding tile and tilesize parameters
+/// @param tex Source texture
+/// @param parms Source texture sampling parameters
+/// @param x_sub size of the portion of the texture loading X
+/// @param y_sub size of the portion of the texture loading Y
+/// @param outsize output to the tilesize parameters
+/// @return output of the tile parameters that match the texture sampling parameters
+rdpq_tileparms_t texparms_to_tileparms(surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1, rdpq_tilesize_t* outsize){
+    int x_sub = s1 - s0; int y_sub = t1 - t0; 
     assertf(x_sub > 0 && y_sub > 0, "The sub rectangle of a texture can't be of negative size (%i,%i)", x_sub, y_sub);
     assertf(parms != NULL && tex != NULL, "The parameters to convert tex->tile cannot be NULL");
     rdpq_tileparms_t res;
@@ -285,37 +288,66 @@ rdpq_tileparms_t texparms_to_tileparms(surface_t *tex, const rdpq_texparms_t *pa
     assertf((parms->t.repeats <= 0 || parms->t.repeats >= (1024 / x_sub) || parms->t.translate >= 0), 
     "Translation T (%f) cannot be negative with active clamping", parms->t.translate);
 
-    if(surface_get_format(tex) == FMT_CI4) res.palette = parms->palette;
+    tex_format_t fmt = surface_get_format(tex);
+    if(fmt == FMT_CI4) res.palette = parms->palette;
     res.s.mirror = parms->s.mirror;
     res.t.mirror = parms->t.mirror;
     res.s.shift  = parms->s.scale_log;
     res.t.shift  = parms->t.scale_log;
-    if(parms->s.repeats >= 0 && parms->s.repeats < (1024 / x_sub)) res.s.clamp = true;
+    if((parms->s.repeats) >= 0 && parms->s.repeats < (1024 / x_sub)) res.s.clamp = true;
     else res.s.clamp = false;
-    if(parms->t.repeats >= 0 && parms->t.repeats < (1024 / y_sub)) res.t.clamp = true;
+    if((parms->t.repeats) >= 0 && parms->t.repeats < (1024 / y_sub)) res.t.clamp = true;
     else res.t.clamp = false;
 
-    res.s.mask = xmask;
-    res.t.mask = ymask;
+    if (TEX_FORMAT_BITDEPTH(fmt) == 4) {
+        s0 &= ~1; s1 = (s1+1) & ~1;
+    }
+
+    if(F2I(parms->s.repeats) > 0) {
+        res.s.mask = xmask;
+        s1 = 0;
+    }
+    if(F2I(parms->t.repeats) > 0) {
+        res.t.mask = ymask;
+        t1 = 0;
+    }
 
     if(outsize != NULL){
-        outsize->s.low  = parms->s.translate*4;
-        outsize->t.low  = parms->t.translate*4;
-        outsize->s.high = (x_sub * parms->s.repeats + parms->s.translate)*4;
-        outsize->t.high = (y_sub * parms->t.repeats + parms->t.translate)*4;
+        outsize->s.low  = (parms->s.translate + s0)*4;
+        outsize->t.low  = (parms->t.translate + t0)*4;
+        outsize->s.high = (parms->s.translate + s1 + parms->s.repeats * x_sub * res.s.clamp)*4;
+        outsize->t.high = (parms->t.translate + t1 + parms->t.repeats * y_sub * res.s.clamp)*4;
     }
 
     return res;
 }
 
+/// @brief Internal function to convert zero texture sampling parameters to corresponding tile and tilesize parameters
+/// @param tex Source texture
+/// @param palette Palette slot
+/// @param outsize output to the tilesize parameters
+/// @return output of the tile parameters that match the texture sampling parameters
+rdpq_tileparms_t zeroparms_to_tileparms(surface_t *tex, int palette, int s0, int t0, int s1, int t1, rdpq_tilesize_t* outsize){
+    if(outsize != NULL){
+        outsize->s.low  = s0*4;
+        outsize->t.low  = t0*4;
+        outsize->s.high = s1*4;
+        outsize->t.high = t1*4;
+    }
+
+    return (rdpq_tileparms_t){0};
+}
+
 int rdpq_tex_load_sub(surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1)
 {
+    bool nullparm = parms == NULL;
     const rdpq_texparms_t defaultparms = {0};
-    if(parms == NULL) parms = &defaultparms;
+    if(nullparm) parms = &defaultparms;
     tex_loader_t tload = tex_loader_init(parms->tile, tex);
-    tload._usetilesize = true;
     
-    tload.tileparms = texparms_to_tileparms(tex, parms, s1 - s0, t1 - t0, &(tload.tilesize));
+    if(!nullparm) tload.tileparms = texparms_to_tileparms(tex, parms,  s0, t0, s1, t1, &(tload.tilesize));
+    else tload.tileparms = zeroparms_to_tileparms(tex, 0, s0, t0, s1, t1, &(tload.tilesize));
+
     tex_loader_set_tmem_addr(&tload, parms->tmem_addr);
     return tex_loader_load(&tload, s0, t0, s1, t1);
 }
