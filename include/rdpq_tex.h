@@ -19,11 +19,11 @@ extern "C" {
 #endif
 
 
-// Enable mirroring when wrapping the texture, used in #rdpq_texparms_t
+/// Enable mirroring when wrapping the texture, used in #rdpq_texparms_t
 #define MIRROR_REPEAT true
-// Disable mirroring when wrapping the texture, used in #rdpq_texparms_t
+/// Disable mirroring when wrapping the texture, used in #rdpq_texparms_t
 #define MIRROR_NONE   false
-// Enable infinite repeat for the texture, used in #rdpq_texparms_t
+/// Enable infinite repeat for the texture, used in #rdpq_texparms_t
 #define REPEAT_INFINITE 2048
 
 /**
