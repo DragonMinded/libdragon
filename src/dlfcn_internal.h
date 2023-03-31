@@ -43,6 +43,14 @@ extern demangle_func __dl_demangle_func;
 dl_module_t *__dl_get_module(const void *addr);
 
 /**
+ * @brief Get pointer to module from its handle
+ * 
+ * @param handle	Handle for module
+ * @return Pointer to module
+ */
+dl_module_t *__dl_get_handle_module(const void *handle);
+
+/**
  * @brief Get number of loaded modules
  * 
  * @return Number of loaded modules

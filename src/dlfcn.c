@@ -398,7 +398,12 @@ void *dlopen(const char *filename, int mode)
         //Add room for module
         alloc_size = ROUND_UP(alloc_size, load_info.mem_align);
         alloc_size += module_size;
-        handle = memalign(load_info.mem_align, alloc_size); //Allocate everything in 1 chunk
+		//Allocate everything in 1 chunk (using memalign is requiring more than 8-byte alignment)
+		if(load_info.mem_align > 8) {
+			handle = memalign(load_info.mem_align, alloc_size); 
+		} else {
+			handle = malloc(alloc_size);
+		}
         //Initialize handle
         handle->prev = handle->next = NULL; //Initialize module links to NULL
         //Initialize well known module parameters
@@ -467,7 +472,7 @@ void *dlsym(void *handle, const char *symbol)
         symbol_info = search_module_next_sym(module, symbol);
     } else {
         //Search module symbol table
-        dl_module_t *module = handle;
+        dl_module_t *module = __dl_get_handle_module(handle);
         assertf(is_valid_module(module), "dlsym called on invalid handle");
         symbol_info = search_module_exports(module->module, symbol);
     }
@@ -556,9 +561,9 @@ static void close_unused_modules()
 
 int dlclose(void *handle)
 {
-    dl_module_t *module = handle;
+    dl_module_t *module = __dl_get_handle_module(handle);
     //Output error if module handle is not valid
-    if(!is_valid_module(handle)) {
+    if(!is_valid_module(module)) {
         output_error("shared object not open");
         return 1;
     }
@@ -605,7 +610,7 @@ int dladdr(const void *addr, Dl_info *info)
         void *sym_min = (void *)sym->value;
         uint32_t sym_size = sym->info & 0x3FFFFFFF;
         void *sym_max = PTR_DECODE(sym_min, sym_size);
-        if(addr >= sym_min && addr < sym_max) {
+        if(addr >= sym_min && addr <= sym_max) {
             //Report symbol info if inside address range
             info->dli_sname = sym->name;
             info->dli_saddr = sym_min;
@@ -642,6 +647,11 @@ dl_module_t *__dl_get_module(const void *addr)
     }
     //Address is not inside any module
     return NULL;
+}
+
+dl_module_t *__dl_get_handle_module(const void *handle)
+{
+    return (dl_module_t *)handle;
 }
 
 size_t __dl_get_num_modules()

@@ -604,6 +604,10 @@ void uso_write_load_info(elf_info_t *elf_info, FILE *out_file)
     //Calculate USO extra memory size
     load_info.extra_mem = elf_info->load_seg.mem_size-elf_info->load_seg.file_size;
     load_info.mem_align = elf_info->load_seg.align; //Get USO alignment
+	//Require minimum of 4-byte alignment for USO
+	if(load_info.mem_align < 4) {
+		load_info.mem_align = 4;
+	}
     //Read USO file buffer
     void *buf = malloc(load_info.size);
     fseek(out_file, 0, SEEK_SET);
