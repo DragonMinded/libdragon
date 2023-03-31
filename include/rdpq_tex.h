@@ -19,12 +19,12 @@ extern "C" {
 #endif
 
 
-
+// Enable mirroring when wrapping the texture, used in #rdpq_texparms_t
 #define MIRROR_REPEAT true
+// Disable mirroring when wrapping the texture, used in #rdpq_texparms_t
 #define MIRROR_NONE   false
+// Enable infinite repeat for the texture, used in #rdpq_texparms_t
 #define REPEAT_INFINITE 2048
-
-typedef int rdpq_texcache_t;
 
 /**
  * @brief Texture sampling parameters for #rdpq_tex_load.
@@ -39,8 +39,6 @@ typedef int rdpq_texcache_t;
 typedef struct {
     int tmem_addr;           // TMEM address where to load the texture (default: 0)
     int palette;             // Palette number where TLUT is stored (used only for CI4 textures)
-
-    rdpq_texcache_t *cache;  // If not NULL, OUT parameter cache will be used to speed up next calls to rdpq_tex_load on the same texture
 
     struct {
         float   translate;      // Translate the texture in pixels

@@ -14,7 +14,6 @@
 #include "utils.h"
 #include <math.h>
 
-#define UNLIKELY(x) __builtin_expect(!!(x), 0)
 
 /** @brief Address in TMEM where the palettes must be loaded */
 #define TMEM_PALETTE_ADDR   0x800

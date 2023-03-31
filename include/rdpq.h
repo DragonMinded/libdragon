@@ -505,9 +505,8 @@ inline void rdpq_set_yuv_parms(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k
  * for instance #rdpq_tex_load that takes care of everything required.
  * 
  * Before calling #rdpq_load_tile, the tile must have been configured
- * using #rdpq_set_tile or #rdpq_set_tile_full to specify the TMEM
- * address and pitch, and the texture in RDRAM must have been
- * set via #rdpq_set_texture_image.
+ * using #rdpq_set_tile to specify the TMEM address and pitch, and the 
+ * texture in RDRAM must have been set via #rdpq_set_texture_image.
  * 
  * In addition to loading TMEM, this command also records into the
  * tile descriptor the extents of the loaded texture (that is, the
@@ -538,7 +537,6 @@ inline void rdpq_set_yuv_parms(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k
  * @see #rdpq_set_texture_image
  * @see #rdpq_load_block
  * @see #rdpq_set_tile
- * @see #rdpq_set_tile_full
  * @see #rdpq_load_tile_fx
  */
 #define rdpq_load_tile(tile, s0, t0, s1, t1) ({ \
@@ -704,9 +702,8 @@ inline void rdpq_load_block_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint1
  * including using #rdpq_load_block for performance whenever possible.
  * 
  * Before calling #rdpq_load_block, the tile must have been configured
- * using #rdpq_set_tile or #rdpq_set_tile_full to specify the TMEM
- * address, and the texture in RDRAM must have been set via
- * #rdpq_set_texture_image. 
+ * using #rdpq_set_tile to specify the TMEM address, and the texture 
+ * in RDRAM must have been set via #rdpq_set_texture_image. 
  * 
  * @note It is important to notice that the RDP will interpret the tile pitch
  *       configured in the tile descriptor with a different semantic: it is
@@ -753,7 +750,7 @@ inline void rdpq_load_block(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t
 /// @param[in] format Texture format for the tile. Cannot be 0. Should correspond to X_get_format in #surface_t or #sprite_t;
 /// @param[in] tmem_addr Address in tmem where the texture is (or will be loaded). Must be multiple of 8;
 /// @param[in] tmem_pitch Pitch of the texture in tmem in bytes. Must be multiple of 8. Should correspond to srtide in #surface_t;	
-/// @param[in] parms Additional optional parameters for the tile. Can be left NULL or all 0. More information about the struct is in rdpq_tileparms_t
+/// @param[in] parms Additional optional parameters for the tile. Can be left NULL or all 0. More information about the struct is in #rdpq_tileparms_t
 inline void rdpq_set_tile(rdpq_tile_t tile, 
 	tex_format_t format,
     uint16_t tmem_addr,
