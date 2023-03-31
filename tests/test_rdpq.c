@@ -804,7 +804,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     debugf("Dynamic mode\n");
     for (int j=0;j<4;j++) {
         for (int i=0;i<80;i++) {
-            rdpq_tex_load_sub(TILE0, &tex, 0, 0, 0, WIDTH, WIDTH);
+            rdpq_tex_load_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
             rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0);
         }
         rdpq_sync_full(NULL, NULL);
@@ -815,7 +815,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     debugf("Dynamic mode with multiple syncs per buffer\n");
     for (int j=0;j<4;j++) {
         for (int i=0;i<6;i++) {
-            rdpq_tex_load_sub(TILE0, &tex, 0, 0, 0, WIDTH, WIDTH);
+            rdpq_tex_load_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
             rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0);
         }
         rdpq_sync_full(NULL, NULL);
@@ -829,7 +829,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     debugf("Dynamic mode with buffer change\n");
     for (int j=0;j<4;j++) {
         for (int i=0;i<80;i++) {
-            rdpq_tex_load_sub(TILE0, &tex, 0, 0, 0, WIDTH, WIDTH);
+            rdpq_tex_load_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
             rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0);
         }
         rdpq_sync_full(NULL, NULL);
@@ -841,7 +841,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     debugf("Block mode\n");
     rspq_block_begin();
     for (int i=0;i<80;i++) {
-        rdpq_tex_load_sub(TILE0, &tex, 0, 0, 0, WIDTH, WIDTH);
+        rdpq_tex_load_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
         rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0);
     }
     rspq_block_t *rect_block = rspq_block_end();
@@ -858,7 +858,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     debugf("Block mode with sync inside\n");
     rspq_block_begin();
     for (int i=0;i<80;i++) {
-        rdpq_tex_load_sub(TILE0, &tex, 0, 0, 0, WIDTH, WIDTH);
+        rdpq_tex_load_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
         rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0);
     }
     rdpq_sync_full(NULL, NULL);
@@ -1229,7 +1229,7 @@ void test_rdpq_blender_memory(TestContext *ctx) {
 
     rdpq_set_fog_color(RGBA32(0,0,0,0x80));
     rdpq_set_color_image(&fb);
-    rdpq_tex_load(TILE0, &tex, 0);
+    rdpq_tex_load(TILE0, &tex, NULL);
     rdpq_set_mode_standard();
     rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
     rdpq_triangle(&TRIFMT_TEX,
