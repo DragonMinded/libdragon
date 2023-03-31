@@ -108,6 +108,7 @@ int tex_loader_calc_max_height(tex_loader_t *tload, int width);
  * #surface_make_sub and pass it to #rdpq_tex_load. See #rdpq_tex_load_sub
  * for an example of both techniques.
  * 
+ * @param tile       Tile descriptor that will be initialized with this texture
  * @param tex        Surface containing the texture to load
  * @param parms      All optional parameters on where to load the texture and how to sample it. Refer to #rdpq_texparms_t for more information.
  * @return           Number of bytes used in TMEM for this texture
@@ -167,13 +168,10 @@ int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms
  * be 8-byte aligned (like all RDP textures), so it can only be used if the
  * rectangle that needs to be loaded respects such constraint as well.
  * 
- * There is also a variation for CI4 surfaces that lets you specify the palette number:
- * #rdpq_tex_load_sub_ci4. You can still use #rdpq_tex_load_sub for CI4 surfaces, but
- * the output tile descriptor will always be bound to palette 0.
  * 
  * @param tile       Tile descriptor that will be initialized with this texture
  * @param tex        Surface containing the texture to load
- * @param tmem_addr  Address in TMEM where the texture will be loaded
+ * @param parms      All optional parameters on where to load the texture and how to sample it. Refer to #rdpq_texparms_t for more information.
  * @param s0         Top-left X coordinate of the rectangle to load
  * @param t0         Top-left Y coordinate of the rectangle to load
  * @param s1         Bottom-right *exclusive* X coordinate of the rectangle
@@ -181,7 +179,6 @@ int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms
  * @return int       Number of bytes used in TMEM for this texture
  * 
  * @see #rdpq_tex_load
- * @see #rdpq_tex_load_sub_ci4
  * @see #surface_make_sub
  */
 int rdpq_tex_load_sub(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1);

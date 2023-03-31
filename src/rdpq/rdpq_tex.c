@@ -339,12 +339,10 @@ int tex_loader_calc_max_height(tex_loader_t *tload, int width)
 
 int rdpq_tex_load_sub(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1)
 {
-    const rdpq_texparms_t defaultparms = (rdpq_texparms_t){0};
-    if(parms == NULL) parms = &defaultparms;
     tex_loader_t tload = tex_loader_init(tile, tex);
-    tex_loader_set_texparms(&tload, parms);
+    if(parms) tex_loader_set_texparms(&tload, parms);
     
-    tex_loader_set_tmem_addr(&tload, parms->tmem_addr);
+    tex_loader_set_tmem_addr(&tload, parms? parms->tmem_addr : 0);
     return tex_loader_load(&tload, s0, t0, s1, t1);
 }
 

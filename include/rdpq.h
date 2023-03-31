@@ -281,12 +281,6 @@ typedef struct {
 /** @brief Tile descriptor internally used by some RDPQ functions. Avoid using if possible */
 #define RDPQ_TILE_INTERNAL           TILE7
 
-typedef struct{
-    struct{
-        int low, high;
-    } s,t;
-} rdpq_tilesize_t;
-
 #ifdef __cplusplus
 extern "C" {
 #endif
