@@ -37,7 +37,6 @@ typedef int rdpq_texcache_t;
  * 
  */
 typedef struct {
-    rdpq_tile_t tile;        // Tile descriptor (default: TILE0)
     int tmem_addr;           // TMEM address where to load the texture (default: 0)
     int palette;             // Palette number where TLUT is stored (used only for CI4 textures)
 
@@ -65,13 +64,14 @@ enum tex_load_mode {
 typedef struct tex_loader_s {
     const surface_t *tex;
     rdpq_tile_t tile;
+    const rdpq_texparms_t *texparms;
     rdpq_tileparms_t tileparms;
-    rdpq_tilesize_t  tilesize;
     struct {
         int width, height;
         int num_texels, tmem_pitch;
         int block_max_lines;
         bool can_load_block;
+        int s0fx, t0fx, s1fx, t1fx;
     } rect;
     int tmem_addr;
     enum tex_load_mode load_mode;
@@ -115,7 +115,7 @@ int tex_loader_calc_max_height(tex_loader_t *tload, int width);
  * @see #rdpq_tex_load_sub
  * @see #surface_make_sub
  */
-int rdpq_tex_load(surface_t *tex, const rdpq_texparms_t *parms);
+int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms);
 
 /**
  * @brief Load a portion of texture into TMEM
@@ -184,7 +184,7 @@ int rdpq_tex_load(surface_t *tex, const rdpq_texparms_t *parms);
  * @see #rdpq_tex_load_sub_ci4
  * @see #surface_make_sub
  */
-int rdpq_tex_load_sub(surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1);
+int rdpq_tex_load_sub(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1);
 
 /**
  * @brief Load one or more palettes into TMEM

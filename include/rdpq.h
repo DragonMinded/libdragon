@@ -779,8 +779,6 @@ inline void rdpq_set_tile(rdpq_tile_t tile,
         AUTOSYNC_TILE(tile));
 }
 
-
-
 /**
  * @brief Enqueue a SET_FILL_COLOR RDP command.
  * 
