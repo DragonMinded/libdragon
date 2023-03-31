@@ -1,9 +1,6 @@
-/**
- * SPDX-License-Identifier: BSD-2-Clause
- *
- * Copyright (c) 2022 Kaili Hill
- * 
- */
+/*********************************************************************
+ * FAT backend: Dreamdrive64
+ *********************************************************************/
 
 #include <libdragon.h>
 // Dreamdrive64 Address space
