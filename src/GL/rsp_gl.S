@@ -32,7 +32,6 @@
     GL_STATE_SCISSOR_RECT:  .half   0, 0, 0, 0
     GL_STATE_BLEND_CYCLE:   .word   0
     GL_STATE_FOG_COLOR:     .word   0
-    GL_STATE_FLAGS2:        .word   0
     GL_STATE_TEXTURE_IDS:   .word   0, 0
     GL_STATE_UPLOADED_TEX:  .word   0
     GL_STATE_FILL_COLOR:    .word   0
@@ -454,11 +453,8 @@ GLCmd_PreInitPipe:
     sh a0, %lo(GL_STATE_PRIM_TYPE)
 
     #define state_flags k1
-    #define state_flags2 k0
 
     lw state_flags, %lo(GL_STATE_FLAGS)
-    lw state_flags2, %lo(GL_STATE_FLAGS2)
-    li t2, %lo(GL_STATE_FLAGS2)
 
     # Update matrix if required
 
@@ -522,11 +518,6 @@ GLCmd_PreInitPipe:
     #define active_tex      s7
 
     # Get Active texture
-    # * Skip if FLAG2_USE_RDPQ_TEXTURING is active
-
-    andi t1, state_flags2, FLAG2_USE_RDPQ_TEXTURING
-    bgtz t1, rdpq_skiptexturing
-    nop
     
     andi t1, state_flags, FLAG_TEXTURE_2D
     bnez t1, 1f
@@ -539,8 +530,6 @@ GLCmd_PreInitPipe:
 
     jal GL_UpdateTextureUpload
     nop
-
-rdpq_skiptexturing:
 
     #define has_depth   t1
     #define has_tex     t3
@@ -642,11 +631,6 @@ rdpq_skiptexturing:
 1:
     or modes1, t3
 
-    # * Skip if FLAG2_USE_RDPQ_MATERIAL is active
-    andi t1, state_flags2, FLAG2_USE_RDPQ_MATERIAL
-    bgtz t1, rdpq_skipblend
-    nop
-
     # Blend cycle
     andi t0, state_flags, FLAG_BLEND
     beqz t0, 1f
@@ -663,13 +647,6 @@ rdpq_skiptexturing:
 1:
     sw t0, %lo(RDPQ_MODE_BLENDER_STEPS) + 0x0
     or modes0, t2
-
-rdpq_skipblend:
-
-    # * Skip if FLAG2_USE_RDPQ_TEXTURING is active
-    andi t1, state_flags2, FLAG2_USE_RDPQ_TEXTURING
-    bgtz t1, rdpq_skiptexture
-    nop
 
     # Texture
     beqz active_tex, 2f
@@ -707,12 +684,6 @@ rdpq_skipblend:
     or t7, t4, t2
     or modes0, t7
 2:
-rdpq_skiptexture:
-
-    # * Skip if FLAG2_USE_RDPQ_MATERIAL is active
-    andi t1, state_flags2, FLAG2_USE_RDPQ_MATERIAL
-    bgtz t1, rdpq_skipcombiner
-    nop
 
     # Combiner
     move t5, is_points
@@ -756,7 +727,6 @@ rdpq_skiptexture:
     lw a1, %lo(RDPQ_SCISSOR_RECT) + 0x4
 
 1:
-rdpq_skipcombiner:
 
     j RDPQ_UpdateRenderMode
     sw state_flags, %lo(GL_STATE_FLAGS)
