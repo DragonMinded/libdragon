@@ -39,9 +39,9 @@ N64_SYM = $(N64_BINDIR)/n64sym
 N64_AUDIOCONV = $(N64_BINDIR)/audioconv64
 N64_MKSPRITE = $(N64_BINDIR)/mksprite
 N64_MKFONT = $(N64_BINDIR)/mkfont
-N64_MKUSO = $(N64_BINDIR)/mkuso
-N64_MKEXTERN = $(N64_BINDIR)/mkextern
-N64_MKMSYM = $(N64_BINDIR)/mkmsym
+N64_USO = $(N64_BINDIR)/n64uso
+N64_USOEXTERN = $(N64_BINDIR)/n64uso-extern
+N64_USOMSYM = $(N64_BINDIR)/n64uso-msym
 
 N64_CFLAGS =  -march=vr4300 -mtune=vr4300 -I$(N64_INCLUDEDIR)
 N64_CFLAGS += -falign-functions=32   # NOTE: if you change this, also change backtrace() in backtrace.c
@@ -55,9 +55,9 @@ N64_USOLDFLAGS = --emit-relocs --unresolved-symbols=ignore-all --nmagic -T$(N64_
 
 # Enable exporting all global symbols from main exe
 ifeq ($(MSYM_EXPORT_ALL),1)
-N64_MKMSYMFLAGS = -a
+N64_USOMSYMFLAGS = -a
 else
-N64_MKMSYMFLAGS = -i $(USO_EXTERNS_LIST)
+N64_USOMSYMFLAGS = -i $(USO_EXTERNS_LIST)
 endif
 
 N64_TOOLFLAGS = --header $(N64_HEADERPATH) --title $(N64_ROM_TITLE)
@@ -99,7 +99,7 @@ USO_LIST := $(addprefix $(USO_BASE_DIR)/, $(addsuffix .uso, $(basename $(USO_MOD
 %.z64: $(BUILD_DIR)/%.elf
 	@echo "    [Z64] $@"
 	$(N64_SYM) $< $<.sym
-	$(N64_MKMSYM) $(N64_MKMSYMFLAGS) $< $<.msym
+	$(N64_USOMSYM) $(N64_USOMSYMFLAGS) $< $<.msym
 	$(N64_OBJCOPY) -O binary $< $<.bin
 	@rm -f $@
 	DFS_FILE="$(filter %.dfs, $^)"; \
@@ -198,13 +198,13 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 $(USO_BASE_DIR)/%.uso: $(USO_PLF_BASE_DIR)/%.plf
 	@mkdir -p $(dir $@)
 	@echo "    [MKUSO] $@"
-	$(N64_MKUSO) -o $(dir $@) -c $<
+	$(N64_USO) -o $(dir $@) -c $<
 	$(N64_SYM) $< $@.sym
 	
 %.externs: $(USO_PLF_LIST)
 	rm -f $@
 	@mkdir -p $(dir $@)
-	$(N64_MKEXTERN) -o $@ $^
+	$(N64_USOEXTERN) -o $@ $^
 	
 ifneq ($(V),1)
 .SILENT:
