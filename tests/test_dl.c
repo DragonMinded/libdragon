@@ -51,10 +51,10 @@ void test_dlclose(TestContext *ctx) {
 	DEFER(dlclose(handle2)); //Will cause warning on command line upon exit when successful
 	//Try closing the dl_test_syms module which the dl_test_imports module depends on
 	dlclose(handle1);
-	ASSERT(__dl_get_num_modules() == 2, "dlclose closed used module");
+	ASSERT(__dl_num_loaded_modules == 2, "dlclose closed used module");
 	//Finally close the dl_test_imports module which implicitly also closes the dl_test_syms module
 	dlclose(handle2);
-	ASSERT(__dl_get_num_modules() == 0, "dlclose failed to close all unused modules");
+	ASSERT(__dl_num_loaded_modules == 0, "dlclose failed to close all unused modules");
 }
 
 void test_dlsym_rtld_default(TestContext *ctx) {

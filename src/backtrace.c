@@ -151,6 +151,11 @@ extern uint32_t inthandler[];
 /** @brief End of exception handler (see inthandler.S) */
 extern uint32_t inthandler_end[];
 
+/** @brief Start of main executable text section */
+extern uint32_t __text_start[];
+/** @brief End of main executable text section */
+extern uint32_t __text_end[];
+
 /** @brief Address of the SYMT symbol table in the rompak. */
 static uint32_t SYMT_ROM = 0xFFFFFFFF;
 
@@ -169,19 +174,22 @@ static bool is_valid_address(uint32_t addr)
     return addr >= 0x80000400 && addr < 0x80800000 && (addr & 3) == 0;
 }
 
+/** @brief Check if addr is inside main executable text section */
+static bool is_main_exe_text_address(uint32_t addr)
+{
+    // TODO: for now we only handle RAM (cached access). This should be extended to handle
+    // TLB-mapped addresses for instance.
+    return addr >= (uint32_t)__text_start && addr < (uint32_t)__text_end;
+}
+
 /** 
  * @brief Open the SYMT symbol table in the rompak.
  * 
  * If not found, return a null header.
  */
 static symtable_header_t symt_open(void *addr) {
-    dl_module_t *module = __dl_get_module(addr);
-    if(module) {
-        //Read module SYMT
-        SYMT_ROM = module->debugsym_romaddr;
-        addrtable_base = (uint32_t)module->module->prog_base;
-    } else {
-        //Open SYMT from rompak
+	if(is_main_exe_text_address((uint32_t)addr)) {
+		//Open SYMT from rompak
         static uint32_t mainexe_symt = 0xFFFFFFFF;
         if (mainexe_symt == 0xFFFFFFFF) {
             mainexe_symt = rompak_search_ext(".sym");
@@ -190,7 +198,20 @@ static symtable_header_t symt_open(void *addr) {
         }
         addrtable_base = 0;
         SYMT_ROM = mainexe_symt;
-    }
+	} else {
+		dl_module_t *module = NULL;
+		if(__dl_lookup_module) {
+			module = __dl_lookup_module(addr);
+		}
+		if(module) {
+			//Read module SYMT
+			SYMT_ROM = module->debugsym_romaddr;
+			addrtable_base = (uint32_t)module->module->prog_base;
+		} else {
+			SYMT_ROM = 0;
+			addrtable_base = 0;
+		}
+	}
     
     if (!SYMT_ROM) {
         return (symtable_header_t){0};

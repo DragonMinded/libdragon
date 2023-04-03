@@ -59,10 +59,14 @@ extern void __cxa_finalize(void *dso);
 /** @brief Demangler function */
 demangle_func __dl_demangle_func;
 
+/** @brief Module resolver */
+module_lookup_func __dl_lookup_module;
 /** @brief Module list head */
-static dl_module_t *module_list_head;
+dl_module_t *__dl_list_head;
 /** @brief Module list tail */
-static dl_module_t *module_list_tail;
+dl_module_t *__dl_list_tail;
+/** @brief Number of loaded modules */
+size_t __dl_num_loaded_modules;
 /** @brief String of last error */
 static char error_string[256];
 /** @brief Whether an error is present */
@@ -74,17 +78,18 @@ static uint32_t mainexe_sym_count;
 
 static void insert_module(dl_module_t *module)
 {
-    dl_module_t *prev = module_list_tail;
+    dl_module_t *prev = __dl_list_tail;
     //Insert module at end of list
     if(!prev) {
-        module_list_head = module;
+        __dl_list_head = module;
     } else {
         prev->next = module;
     }
     //Set up module links
     module->prev = prev;
     module->next = NULL;
-    module_list_tail = module; //Mark this module as end of list
+    __dl_list_tail = module; //Mark this module as end of list
+	__dl_num_loaded_modules++; //Mark one more loaded module
 }
 
 static void remove_module(dl_module_t *module)
@@ -93,16 +98,17 @@ static void remove_module(dl_module_t *module)
     dl_module_t *prev = module->prev;
     //Remove back links to this module
     if(!next) {
-        module_list_tail = prev;
+        __dl_list_tail = prev;
     } else {
         next->prev = prev;
     }
     //Remove forward links to this module
     if(!prev) {
-        module_list_head = next;
+        __dl_list_head = next;
     } else {
         prev->next = next;
     }
+	__dl_num_loaded_modules--; //Remove one loaded module
 }
 
 static void fixup_sym_names(uso_sym_t *syms, uint32_t num_syms)
@@ -194,7 +200,7 @@ static uso_sym_t *search_global_sym(const char *name)
         }
     }
     //Search whole list of modules
-    return search_module_next_sym(module_list_head, name);
+    return search_module_next_sym(__dl_list_head, name);
 }
 
 static void resolve_syms(uso_module_t *module)
@@ -246,7 +252,7 @@ static void output_error(const char *fmt, ...)
 
 static dl_module_t *search_module_filename(const char *filename)
 {
-    dl_module_t *curr = module_list_head;
+    dl_module_t *curr = __dl_list_head;
     while(curr) {
         if(!strcmp(filename, curr->filename)) {
             return curr;
@@ -362,6 +368,24 @@ static void start_module(dl_module_t *handle)
     }
 }
 
+static dl_module_t *lookup_module(const void *addr)
+{
+    //Iterate over modules
+    dl_module_t *curr = __dl_list_head;
+    while(curr) {
+        //Get module address range
+        void *min_addr = curr->module->prog_base;
+        void *max_addr = PTR_DECODE(min_addr, curr->module->prog_size);
+        if(addr >= min_addr && addr < max_addr) {
+            //Address is inside module
+            return curr;
+        }
+        curr = curr->next; //Iterate to next module
+    }
+    //Address is not inside any module
+    return NULL;
+}
+
 void *dlopen(const char *filename, int mode)
 {
     dl_module_t *handle;
@@ -432,6 +456,7 @@ void *dlopen(const char *filename, int mode)
         link_module(handle->module);
         //Add module handle to list
         handle->use_count = 1;
+		__dl_lookup_module = lookup_module;
         insert_module(handle);
         //Start running module
         start_module(handle);
@@ -443,7 +468,7 @@ void *dlopen(const char *filename, int mode)
 static bool is_valid_module(dl_module_t *module)
 {
     //Iterate over loaded modules
-    dl_module_t *curr = module_list_head;
+    dl_module_t *curr = __dl_list_head;
     while(curr) {
         if(curr == module) {
             //Found module loaded
@@ -463,7 +488,7 @@ void *dlsym(void *handle, const char *symbol)
         symbol_info = search_global_sym(symbol);
     } else if(handle == RTLD_NEXT) {
         //RTLD_NEXT starts searching at module dlsym was called from
-        dl_module_t *module = __dl_get_module(__builtin_return_address(0));
+        dl_module_t *module = lookup_module(__builtin_return_address(0));
         if(!module) {
             //Report error if called with RTLD_NEXT from code not in module
             output_error("RTLD_NEXT used in code not dynamically loaded");
@@ -472,7 +497,7 @@ void *dlsym(void *handle, const char *symbol)
         symbol_info = search_module_next_sym(module, symbol);
     } else {
         //Search module symbol table
-        dl_module_t *module = __dl_get_handle_module(handle);
+        dl_module_t *module = handle;
         assertf(is_valid_module(module), "dlsym called on invalid handle");
         symbol_info = search_module_exports(module->module, symbol);
     }
@@ -491,7 +516,7 @@ static bool is_module_referenced(dl_module_t *module)
     void *min_addr = module->module->prog_base;
     void *max_addr = PTR_DECODE(min_addr, module->module->prog_size);
     //Iterate over modules
-    dl_module_t *curr = module_list_head;
+    dl_module_t *curr = __dl_list_head;
     while(curr) {
         //Skip this module
         if(curr == module) {
@@ -548,7 +573,7 @@ static void close_module(dl_module_t *module)
 static void close_unused_modules()
 {
     //Iterate through modules
-    dl_module_t *curr = module_list_head;
+    dl_module_t *curr = __dl_list_head;
     while(curr) {
         dl_module_t *next = curr->next; //Find next module before being removed
         //Close module if 0 uses remain and module is not referenced
@@ -561,7 +586,7 @@ static void close_unused_modules()
 
 int dlclose(void *handle)
 {
-    dl_module_t *module = __dl_get_handle_module(handle);
+    dl_module_t *module = handle;
     //Output error if module handle is not valid
     if(!is_valid_module(module)) {
         output_error("shared object not open");
@@ -587,7 +612,7 @@ int dlclose(void *handle)
 
 int dladdr(const void *addr, Dl_info *info)
 {
-    dl_module_t *module = __dl_get_module(addr);
+    dl_module_t *module = lookup_module(addr);
     if(!module) {
         //Return NULL properties
         info->dli_fname = NULL;
@@ -629,58 +654,6 @@ char *dlerror(void)
     //Return error and clear error status
     error_present = false;
     return error_string;
-}
-
-dl_module_t *__dl_get_module(const void *addr)
-{
-    //Iterate over modules
-    dl_module_t *curr = module_list_head;
-    while(curr) {
-        //Get module address range
-        void *min_addr = curr->module->prog_base;
-        void *max_addr = PTR_DECODE(min_addr, curr->module->prog_size);
-        if(addr >= min_addr && addr < max_addr) {
-            //Address is inside module
-            return curr;
-        }
-        curr = curr->next; //Iterate to next module
-    }
-    //Address is not inside any module
-    return NULL;
-}
-
-dl_module_t *__dl_get_handle_module(const void *handle)
-{
-    return (dl_module_t *)handle;
-}
-
-size_t __dl_get_num_modules()
-{
-    size_t num_modules = 0;
-    //Iterate over modules
-    dl_module_t *curr = module_list_head;
-    while(curr) {
-        curr = curr->next; //Iterate to next module
-        num_modules++; //Found another module in list
-    }
-    //Return number of modules found in list
-    return num_modules;
-}
-
-dl_module_t *__dl_get_first_module()
-{
-    //Return head of list
-    return module_list_head;
-}
-
-dl_module_t *__dl_get_next_module(dl_module_t *module)
-{
-    //Return nothing if null pointer passed
-    if(!module) {
-        return NULL;
-    }
-    //Return next field
-    return module->next;
 }
 
 /** @} */

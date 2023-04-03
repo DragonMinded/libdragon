@@ -4,20 +4,6 @@
 #include <stdbool.h>
 #include "uso_format.h"
 
-/** @brief Generic function pointer */
-typedef void (*func_ptr)();
-/** @brief Generic function pointer */
-typedef char *(*demangle_func)(char *);
-/** @brief Unaligned uint32_t */
-typedef uint32_t u_uint32_t __attribute__((aligned(1)));
-
-/** @brief MIPS ELF Relocation types */
-#define R_MIPS_NONE 0   ///< Empty relocation
-#define R_MIPS_32 2     ///< 32-bit pointer relocation
-#define R_MIPS_26 4     ///< Jump relocation
-#define R_MIPS_HI16 5   ///< High half of HI/LO pair
-#define R_MIPS_LO16 6   ///< Low half of HI/LO pair
-
 /** @brief Loaded module data */
 typedef struct dl_module_s {
     struct dl_module_s *prev;   ///< Previous loaded dynamic library
@@ -31,46 +17,31 @@ typedef struct dl_module_s {
     int mode;                   ///< Dynamic library flags
 } dl_module_t;
 
+/** @brief Generic function pointer */
+typedef void (*func_ptr)();
+/** @brief Demangler function pointer */
+typedef char *(*demangle_func)(char *);
+/** @brief Module lookup function pointer */
+typedef dl_module_t *(*module_lookup_func)(const void *);
+/** @brief Unaligned uint32_t */
+typedef uint32_t u_uint32_t __attribute__((aligned(1)));
+
+/** @brief MIPS ELF Relocation types */
+#define R_MIPS_NONE 0   ///< Empty relocation
+#define R_MIPS_32 2     ///< 32-bit pointer relocation
+#define R_MIPS_26 4     ///< Jump relocation
+#define R_MIPS_HI16 5   ///< High half of HI/LO pair
+#define R_MIPS_LO16 6   ///< Low half of HI/LO pair
+
 /** @brief Demangler function */
 extern demangle_func __dl_demangle_func;
-
-/**
- * @brief Get pointer to loaded module from address
- * 
- * @param addr          Address to search
- * @return Pointer to module address is found inside
- */
-dl_module_t *__dl_get_module(const void *addr);
-
-/**
- * @brief Get pointer to module from its handle
- * 
- * @param handle	Handle for module
- * @return Pointer to module
- */
-dl_module_t *__dl_get_handle_module(const void *handle);
-
-/**
- * @brief Get number of loaded modules
- * 
- * @return Number of loaded modules
- */
-size_t __dl_get_num_modules();
-
-/**
- * @brief Get first loaded module
- * 
- * @return Pointer to first loaded module
- */
-dl_module_t *__dl_get_first_module();
-
-
-/**
- * @brief Get next loaded module
- * 
- * @param module                Pointer to a loaded module
- * @return Pointer to next loaded module
- */
-dl_module_t *__dl_get_next_module(dl_module_t *module);
+/** @brief Module lookup function */
+extern module_lookup_func __dl_lookup_module;
+/** @brief Module list head */
+extern dl_module_t *__dl_list_head;
+/** @brief Module list tail */
+extern dl_module_t *__dl_list_tail;
+/** @brief Number of loaded modules */
+extern size_t __dl_num_loaded_modules;
 
 #endif

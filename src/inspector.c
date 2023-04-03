@@ -418,13 +418,12 @@ static void inspector_page_disasm(surface_t *disp, exception_t* ex, struct contr
 
 static void inspector_page_modules(surface_t *disp, exception_t* ex, struct controller_data *key_pressed)
 {
-    dl_module_t *curr_module = __dl_get_first_module();
+    dl_module_t *curr_module = __dl_list_head;
     size_t module_idx = 0;
-    size_t num_modules = __dl_get_num_modules();
     if(key_pressed->c[0].up && module_offset > 0) {
         module_offset--;
     }
-    if(key_pressed->c[0].down && module_offset+18 < num_modules) {
+    if(key_pressed->c[0].down && module_offset+18 < __dl_num_loaded_modules) {
         module_offset++;
     }
     title("Loaded modules");
@@ -434,7 +433,7 @@ static void inspector_page_modules(surface_t *disp, exception_t* ex, struct cont
             void *module_max = ((uint8_t *)module_min)+curr_module->module->prog_size;
             printf("%s (%p-%p)\n", curr_module->filename, module_min, module_max);
         }
-        curr_module = __dl_get_next_module(curr_module);
+        curr_module = curr_module->next;
         module_idx++;
     }
 }
