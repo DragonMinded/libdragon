@@ -706,7 +706,7 @@ rdpq_skipcombinerblender:
     # * Skip if FLAG2_USE_RDPQ_TEXTURING is active
 
     andi t1, state_flags2, FLAG2_USE_RDPQ_TEXTURING
-    bgtz t1, rdpq_skiptextue
+    bgtz t1, rdpq_mergemask
     nop
 
     # Texture
@@ -745,7 +745,18 @@ rdpq_skipcombinerblender:
     or t7, t4, t2
     or modes0, t7
 2:
-rdpq_skiptextue:
+
+    j rdpq_skiptexture
+    nop
+rdpq_mergemask:
+    # If we have GL_RDPQ_TEXTURING_N64 active, we need to use some of the RDPQ params instead of GL's
+
+    lw t1, %lo(RDPQ_OTHER_MODES) + 0x0
+    and t1, RDPQ_TEXTURING_MASK
+    and t2, modes0, ~(RDPQ_TEXTURING_MASK)
+    or  modes0, t1, t2
+
+rdpq_skiptexture:
 
     lw t0, %lo(RDPQ_OTHER_MODES) + 0x0
 
