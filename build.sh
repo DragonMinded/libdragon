@@ -36,3 +36,6 @@ sudoMakeWithParams install tools-install
 makeWithParams clobber
 makeWithParams examples
 makeWithParams test
+
+echo
+echo Libdragon built successfully!
