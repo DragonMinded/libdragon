@@ -38,7 +38,7 @@ void arr_append(uint64_t **buf, int *size, int *cap, uint64_t val)
 }
 
 bool detect_ascii(FILE *f) {
-    char buf[16];
+    unsigned char buf[16];
     int n = fread(buf, 1, 16, f);
     for (int i=0;i<n;i++) {
         if (!isprint(buf[i]) && buf[i] != '\r' && buf[i] != '\n')
