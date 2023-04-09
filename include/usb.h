@@ -6,12 +6,13 @@
     *********************************/
     
     // UNCOMMENT THE #DEFINE IF USING LIBDRAGON
-    #define LIBDRAGON                    
-
+    #define LIBDRAGON
+    
     // Settings
     #define USE_OSRAW          0           // Use if you're doing USB operations without the PI Manager (libultra only)
     #define DEBUG_ADDRESS_SIZE 8*1024*1024 // Max size of USB I/O. The bigger this value, the more ROM you lose!
-   
+    #define CHECK_EMULATOR     0           // Stops the USB library from working if it detects an emulator to prevent problems
+    
     // Cart definitions
     #define CART_NONE      0
     #define CART_64DRIVE   1
@@ -28,7 +29,7 @@
     extern int usb_datasize;
     extern int usb_dataleft;
     extern int usb_readblock;
-
+    
     
     /*********************************
             Convenience macros
@@ -38,11 +39,11 @@
     #define USBHEADER_GETTYPE(header) ((header & 0xFF000000) >> 24)
     #define USBHEADER_GETSIZE(header) ((header & 0x00FFFFFF))
     
-
+    
     /*********************************
               USB Functions
     *********************************/
-
+    
     /*==============================
         usb_initialize
         Initializes the USB buffers and pointers
