@@ -24,6 +24,7 @@
     #define DATATYPE_RAWBINARY  0x02
     #define DATATYPE_HEADER     0x03
     #define DATATYPE_SCREENSHOT 0x04
+    #define DATATYPE_HEARTBEAT  0x05
     
     extern int usb_datatype;
     extern int usb_datasize;
@@ -118,5 +119,17 @@
     ==============================*/
     
     extern void usb_purge();
+
+
+    /*==============================
+        usb_sendheartbeat
+        Sends a heartbeat packet to the PC
+        This is done once automatically at initialization,
+        but can be called manually to ensure that the
+        host side tool is aware of the current USB protocol
+        version.
+    ==============================*/
+
+    extern void usb_sendheartbeat();
 
 #endif
