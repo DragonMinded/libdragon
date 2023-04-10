@@ -213,7 +213,6 @@ https://github.com/buu342/N64-UNFLoader
 *********************************/
 
 static void usb_findcart(void);
-static void usb_sendheartbeat();
 
 static void usb_64drive_write(int datatype, const void* data, int size);
 static u32  usb_64drive_poll(void);
