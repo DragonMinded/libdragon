@@ -240,10 +240,11 @@ void (*funcPointer_read)();
 static s8 usb_cart = CART_NONE;
 static u8 usb_buffer_align[BUFFER_SIZE+16]; // IDO doesn't support GCC's __attribute__((aligned(x))), so this is a workaround
 static u8* usb_buffer;
-int usb_datatype = 0;
-int usb_datasize = 0;
-int usb_dataleft = 0;
-int usb_readblock = -1;
+static char usb_didtimeout = FALSE;
+static int usb_datatype = 0;
+static int usb_datasize = 0;
+static int usb_dataleft = 0;
+static int usb_readblock = -1;
 
 #ifndef LIBDRAGON
     // Message globals
@@ -555,32 +556,6 @@ char usb_getcart(void)
 
 
 /*==============================
-    usb_sendheartbeat
-    Sends a heartbeat packet to the PC
-    This is done once automatically at initialization,
-    but can be called manually to ensure that the
-    host side tool is aware of the current USB protocol
-    version.
-==============================*/
-
-void usb_sendheartbeat()
-{
-    u8 buffer[4];
-
-    // First two bytes describe the USB library protocol version
-    buffer[0] = (u8)(((USBPROTOCOL_VERSION)>>8)&0xFF);
-    buffer[1] = (u8)(((USBPROTOCOL_VERSION))&0xFF);
-
-    // Next two bytes describe the heartbeat packet version
-    buffer[2] = (u8)(((HEARTBEAT_VERSION)>>8)&0xFF);
-    buffer[3] = (u8)(((HEARTBEAT_VERSION))&0xFF);
-
-    // Send through USB
-    usb_write(DATATYPE_HEARTBEAT, buffer, sizeof(buffer)/sizeof(buffer[0]));
-}
-
-
-/*==============================
     usb_write
     Writes data to the USB.
     Will not write if there is data to read from USB
@@ -733,6 +708,44 @@ void usb_purge(void)
 }
 
 
+/*==============================
+    usb_timedout
+    Checks if the USB timed out recently
+    @return 1 if the USB timed out, 0 if not
+==============================*/
+
+char usb_timedout()
+{
+    return usb_didtimeout;
+}
+
+
+/*==============================
+    usb_sendheartbeat
+    Sends a heartbeat packet to the PC
+    This is done once automatically at initialization,
+    but can be called manually to ensure that the
+    host side tool is aware of the current USB protocol
+    version.
+==============================*/
+
+void usb_sendheartbeat()
+{
+    u8 buffer[4];
+
+    // First two bytes describe the USB library protocol version
+    buffer[0] = (u8)(((USBPROTOCOL_VERSION)>>8)&0xFF);
+    buffer[1] = (u8)(((USBPROTOCOL_VERSION))&0xFF);
+
+    // Next two bytes describe the heartbeat packet version
+    buffer[2] = (u8)(((HEARTBEAT_VERSION)>>8)&0xFF);
+    buffer[3] = (u8)(((HEARTBEAT_VERSION))&0xFF);
+
+    // Send through USB
+    usb_write(DATATYPE_HEARTBEAT, buffer, sizeof(buffer)/sizeof(buffer[0]));
+}
+
+
 /*********************************
         64Drive functions
 *********************************/
@@ -757,11 +770,15 @@ char usb_64drive_wait(void)
     {
         // Took too long, abort
         if (usb_timeout_check(timeout, D64_COMMAND_TIMEOUT))
+        {
+            usb_didtimeout = TRUE;
             return TRUE;
+        }
     }
     while(usb_io_read(D64_REG_STATUS) & D64_CI_BUSY);
 
     // Success
+    usb_didtimeout = FALSE;
     return FALSE;
 }
 
@@ -808,7 +825,10 @@ static void usb_64drive_cui_write(u8 datatype, u32 offset, u32 size)
     {
         // Took too long, abort
         if (usb_timeout_check(timeout, D64_WRITE_TIMEOUT))
+        {
+            usb_didtimeout = TRUE;
             return;
+        }
     }
     while((usb_io_read(D64_REG_USBCOMSTAT) & D64_CUI_WRITE_MASK) != D64_CUI_WRITE_IDLE);
 }
@@ -906,7 +926,10 @@ static void usb_64drive_write(int datatype, const void* data, int size)
 
     // Return if previous transfer timed out
     if ((usb_io_read(D64_REG_USBCOMSTAT) & D64_CUI_WRITE_MASK) == D64_CUI_WRITE_BUSY)
+    {
+        usb_didtimeout = TRUE;
         return;
+    }
 
     // Set the cartridge to write mode
     usb_64drive_set_writable(TRUE);
@@ -934,6 +957,7 @@ static void usb_64drive_write(int datatype, const void* data, int size)
 
     // Send the data through USB
     usb_64drive_cui_write(datatype, DEBUG_ADDRESS, size);
+    usb_didtimeout = FALSE;
 }
 
 
@@ -1124,13 +1148,17 @@ static void usb_everdrive_write(int datatype, const void* data, int size)
         // Set USB to write mode with the new address and wait for USB to end (or stop if it times out)
         usb_io_write(ED_REG_USBCFG, ED_USBMODE_WR | baddr);
         if (usb_everdrive_usbbusy())
+        {
+            usb_didtimeout = TRUE;
             return;
+        }
         
         // Keep track of what we've read so far
         left -= block;
         read += block;
         offset = 0;
     }
+    usb_didtimeout = FALSE;
 }
 
 
@@ -1310,7 +1338,10 @@ static void usb_sc64_write(int datatype, const void* data, int size)
     // Return if previous transfer timed out
     usb_sc64_execute_cmd(SC64_CMD_USB_WRITE_STATUS, NULL, result);
     if (result[0] & SC64_USB_WRITE_STATUS_BUSY)
+    {
+        usb_didtimeout = TRUE;
         return;
+    }
 
     // Enable SDRAM writes and get previous setting
     writable_restore = usb_sc64_set_writable(TRUE);
@@ -1339,7 +1370,10 @@ static void usb_sc64_write(int datatype, const void* data, int size)
     args[0] = SC64_BASE + DEBUG_ADDRESS;
     args[1] = USBHEADER_CREATE(datatype, size);
     if (usb_sc64_execute_cmd(SC64_CMD_USB_WRITE, args, NULL))
+    {
+        usb_didtimeout = TRUE;
         return; // Return if USB write was unsuccessful
+    }
 
     // Wait for transfer to end
     timeout = usb_timeout_start();
@@ -1347,10 +1381,14 @@ static void usb_sc64_write(int datatype, const void* data, int size)
     {
         // Took too long, abort
         if (usb_timeout_check(timeout, SC64_WRITE_TIMEOUT))
+        {
+            usb_didtimeout = TRUE;
             return;
+        }
         usb_sc64_execute_cmd(SC64_CMD_USB_WRITE_STATUS, NULL, result);
     }
     while (result[0] & SC64_USB_WRITE_STATUS_BUSY);
+    usb_didtimeout = FALSE;
 }
 
 
