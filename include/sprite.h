@@ -38,8 +38,12 @@ typedef struct sprite_s
     uint16_t height;
     /** @brief DEPRECATED: do not use this field. Use TEX_FORMAT_BITDEPTH(sprite->format) instead.  */
     uint8_t bitdepth __attribute__((deprecated("use TEX_FORMAT_BITDEPTH(sprite->format) instead")));
+    union {
+    /** @brief DEPRECATED: do not use this field. Use sprite_get_format(sprite) instead.  */
+    uint8_t format __attribute__((deprecated("use sprite_get_format() instead")));
     /** @brief Various flags, including texture format */
     uint8_t flags;
+    };
     /** @brief Number of horizontal sub-tiles  */
     uint8_t hslices;
     /** @brief Number of vertical sub-tiles */

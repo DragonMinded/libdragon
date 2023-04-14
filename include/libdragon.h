@@ -43,6 +43,7 @@
 #include "graphics.h"
 #include "interrupt.h"
 #include "n64sys.h"
+#include "backtrace.h"
 #include "rdp.h"
 #include "rsp.h"
 #include "timer.h"
