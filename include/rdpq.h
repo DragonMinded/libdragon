@@ -253,9 +253,33 @@ typedef enum {
     TILE7 = 7,  ///< Tile #7 (for code readability)
 } rdpq_tile_t;
 
+
+/**
+ * @brief Tile parameters for #rdpq_set_tile.
+ * 
+ * This structure contains all possible parameters for #rdpq_set_tile.
+ * All fields have been made so that the 0 value is always the most
+ * reasonable default. This means that you can simply initialize the structure
+ * to 0 and then change only the fields you need (for instance, through a 
+ * compound literal).
+ * 
+ */
+typedef struct {
+	uint8_t  palette;	 ///< Optional palette associated to the texture. For textures in #FMT_CI4 format, specify the palette index (0-15), otherwise use 0.
+	
+	// Additional mapping parameters; Leave them as 0 if not required;
+	
+    struct{
+        bool     clamp; 	///< True if texture needs to be clamped in the S direction (U/X in UV/XY space). Otherwise wrap the texture around;
+        bool     mirror;	///< True if texture needs to be mirrored in the S direction (U/X in UV/XY space). Otherwise wrap the texture without mirroring;
+        uint8_t  mask;	    ///< Power of 2 boundary of the texture in pixels to wrap on in the S direction (V/Y in UV/XY space);
+        uint8_t  shift;	    ///< Power of 2 scale of the texture to wrap on in the S direction (V/Y in UV/XY space). Range is 0-15 dec;
+    } s,t; // S/T directions of the tiled
+	
+} rdpq_tileparms_t;
+
 /** @brief Tile descriptor internally used by some RDPQ functions. Avoid using if possible */
 #define RDPQ_TILE_INTERNAL           TILE7
-
 
 #ifdef __cplusplus
 extern "C" {
@@ -481,9 +505,8 @@ inline void rdpq_set_yuv_parms(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k
  * for instance #rdpq_tex_load that takes care of everything required.
  * 
  * Before calling #rdpq_load_tile, the tile must have been configured
- * using #rdpq_set_tile or #rdpq_set_tile_full to specify the TMEM
- * address and pitch, and the texture in RDRAM must have been
- * set via #rdpq_set_texture_image.
+ * using #rdpq_set_tile to specify the TMEM address and pitch, and the 
+ * texture in RDRAM must have been set via #rdpq_set_texture_image.
  * 
  * In addition to loading TMEM, this command also records into the
  * tile descriptor the extents of the loaded texture (that is, the
@@ -514,7 +537,6 @@ inline void rdpq_set_yuv_parms(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k
  * @see #rdpq_set_texture_image
  * @see #rdpq_load_block
  * @see #rdpq_set_tile
- * @see #rdpq_set_tile_full
  * @see #rdpq_load_tile_fx
  */
 #define rdpq_load_tile(tile, s0, t0, s1, t1) ({ \
@@ -680,9 +702,8 @@ inline void rdpq_load_block_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint1
  * including using #rdpq_load_block for performance whenever possible.
  * 
  * Before calling #rdpq_load_block, the tile must have been configured
- * using #rdpq_set_tile or #rdpq_set_tile_full to specify the TMEM
- * address, and the texture in RDRAM must have been set via
- * #rdpq_set_texture_image. 
+ * using #rdpq_set_tile to specify the TMEM address, and the texture 
+ * in RDRAM must have been set via #rdpq_set_texture_image. 
  * 
  * @note It is important to notice that the RDP will interpret the tile pitch
  *       configured in the tile descriptor with a different semantic: it is
@@ -724,50 +745,28 @@ inline void rdpq_load_block(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t
     rdpq_load_block_fx(tile, s0, t0, num_texels, (2048 + words - 1) / words);
 }
 
-
-/**
- * @brief Enqueue a RDP SET_TILE command (full version)
- */
-inline void rdpq_set_tile_full(rdpq_tile_t tile, tex_format_t format, 
-    uint16_t tmem_addr, uint16_t tmem_pitch, uint8_t palette,
-    uint8_t cs, uint8_t ms, uint8_t mask_s, uint8_t shift_s,
-    uint8_t ct, uint8_t mt, uint8_t mask_t, uint8_t shift_t)
+/// @brief Enqueue a RDP SET_TILE command (full version)
+/// @param[in] tile Tile descriptor index (0-7)
+/// @param[in] format Texture format for the tile. Cannot be 0. Should correspond to X_get_format in #surface_t or #sprite_t;
+/// @param[in] tmem_addr Address in tmem where the texture is (or will be loaded). Must be multiple of 8;
+/// @param[in] tmem_pitch Pitch of the texture in tmem in bytes. Must be multiple of 8. Should correspond to srtide in #surface_t;	
+/// @param[in] parms Additional optional parameters for the tile. Can be left NULL or all 0. More information about the struct is in #rdpq_tileparms_t
+inline void rdpq_set_tile(rdpq_tile_t tile, 
+	tex_format_t format,
+    uint16_t tmem_addr,
+	uint16_t tmem_pitch,
+    const rdpq_tileparms_t *parms)
 {
+    static const rdpq_tileparms_t default_parms = {0};
+    if (!parms) parms = &default_parms;
     assertf((tmem_addr % 8) == 0, "invalid tmem_addr %d: must be multiple of 8", tmem_addr);
     assertf((tmem_pitch % 8) == 0, "invalid tmem_pitch %d: must be multiple of 8", tmem_pitch);
     extern void __rdpq_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_write8_syncchange(RDPQ_CMD_SET_TILE,
         _carg(format, 0x1F, 19) | _carg(tmem_pitch/8, 0x1FF, 9) | _carg(tmem_addr/8, 0x1FF, 0),
-        _carg(tile, 0x7, 24) | _carg(palette, 0xF, 20) | 
-        _carg(ct, 0x1, 19) | _carg(mt, 0x1, 18) | _carg(mask_t, 0xF, 14) | _carg(shift_t, 0xF, 10) | 
-        _carg(cs, 0x1, 9) | _carg(ms, 0x1, 8) | _carg(mask_s, 0xF, 4) | _carg(shift_s, 0xF, 0),
-        AUTOSYNC_TILE(tile));
-}
-
-/**
- * @brief Enqueue a RDP SET_TILE command (basic version)
- * 
- * This RDP command allows to configure one of the internal tile descriptors
- * of the RDP. A tile descriptor is used to describe property of a texture
- * either being loaded into TMEM, or drawn from TMEM into the target buffer.
- * 
- * @param[in]  tile        Tile descriptor index (0-7)
- * @param[in]  format      Texture format
- * @param[in]  tmem_addr   Address in tmem where the texture is (or will be loaded)
- * @param[in]  tmem_pitch  Pitch of the texture in tmem in bytes (must be multiple of 8)
- * @param[in]  palette     Optional palette associated to the texture. For textures in
- *                         #FMT_CI4 format, specify the palette index (0-15),
- *                         otherwise use 0.
- */
-inline void rdpq_set_tile(rdpq_tile_t tile, tex_format_t format, 
-    uint16_t tmem_addr, uint16_t tmem_pitch, uint8_t palette)
-{
-    assertf((tmem_addr % 8) == 0, "invalid tmem_addr %d: must be multiple of 8", tmem_addr);
-    assertf((tmem_pitch % 8) == 0, "invalid tmem_pitch %d: must be multiple of 8", tmem_pitch);
-    extern void __rdpq_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
-    __rdpq_write8_syncchange(RDPQ_CMD_SET_TILE,
-        _carg(format, 0x1F, 19) | _carg(tmem_pitch/8, 0x1FF, 9) | _carg(tmem_addr/8, 0x1FF, 0),
-        _carg(tile, 0x7, 24) | _carg(palette, 0xF, 20),
+        _carg(tile, 0x7, 24) | _carg(parms->palette, 0xF, 20) | 
+        _carg(parms->t.clamp, 0x1, 19) | _carg(parms->t.mirror, 0x1, 18) | _carg(parms->t.mask, 0xF, 14) | _carg(parms->t.shift, 0xF, 10) | 
+        _carg(parms->s.clamp, 0x1, 9) | _carg(parms->s.mirror, 0x1, 8) | _carg(parms->s.mask, 0xF, 4) | _carg(parms->s.shift, 0xF, 0),
         AUTOSYNC_TILE(tile));
 }
 
