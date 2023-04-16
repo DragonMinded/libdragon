@@ -531,7 +531,7 @@ GLCmd_PreInitPipe:
     move active_tex, zero
 1:
 
-    # * Skip if FLAG2_USE_RDPQ_TEXTURING is active
+    # * Skip uploading an active texture from GL if FLAG2_USE_RDPQ_TEXTURING is active
 
     andi t1, state_flags2, FLAG2_USE_RDPQ_TEXTURING
     beqz t1, GL_UpdateTextureUpload
@@ -638,7 +638,7 @@ GLCmd_PreInitPipe:
 1:
     or modes1, t3
 
-    # * Skip if FLAG2_USE_RDPQ_MATERIAL is active
+    # * Skip construction of CC/CB if FLAG2_USE_RDPQ_MATERIAL is active
     andi t1, state_flags2, FLAG2_USE_RDPQ_MATERIAL
     bnez t1, gl_skipcombinerblender
 
@@ -690,7 +690,7 @@ GLCmd_PreInitPipe:
 
 gl_skipcombinerblender:
 
-    # * Skip if FLAG2_USE_RDPQ_TEXTURING is active
+    # * Skip specific GL texture flags if FLAG2_USE_RDPQ_TEXTURING is active and instead apply RDPQ ones
 
     andi t1, state_flags2, FLAG2_USE_RDPQ_TEXTURING
     bnez t1, gl_mergemask
@@ -733,17 +733,17 @@ gl_skipcombinerblender:
     or modes0, t7
 2:
 
-    j gl_save_modes
-    nop
+    j 1f
+    nop # :(
 gl_mergemask:
-    # If we have GL_RDPQ_TEXTURING_N64 active, we need to use some of the RDPQ params instead of GL's
+    # If we have FLAG2_USE_RDPQ_TEXTURING active, we need to use some of the RDPQ params instead of GL's
 
     lw t1, %lo(RDPQ_OTHER_MODES) + 0x0
     and t1, RDPQ_TEXTURING_MASK
     and t2, modes0, ~(RDPQ_TEXTURING_MASK)
     or  modes0, t1, t2
 
-gl_save_modes:
+1:
 
     lw t0, %lo(RDPQ_OTHER_MODES) + 0x0
 
