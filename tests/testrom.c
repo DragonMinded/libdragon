@@ -211,6 +211,7 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 #include "test_rdpq_attach.c"
 #include "test_mpeg1.c"
 #include "test_gl.c"
+#include "test_dl.c"
 
 /**********************************************************************
  * MAIN
@@ -316,6 +317,13 @@ static const struct Testsuite
 	TEST_FUNC(test_gl_clear,                   0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_gl_draw_arrays,             0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_gl_draw_elements,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dl_syms,                   0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dladdr,             0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dl_relocs,             0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dl_imports,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dlsym_rtld_default,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dlclose,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dl_ctors,           0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {
