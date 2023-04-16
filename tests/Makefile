@@ -1,5 +1,4 @@
 BUILD_DIR=build
-USO_ELF_DIR=$(BUILD_DIR)
 include $(N64_INST)/include/n64.mk
 
 all: testrom.z64 testrom_emu.z64
