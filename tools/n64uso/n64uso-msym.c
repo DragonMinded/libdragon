@@ -49,56 +49,6 @@ void print_args(const char *name)
     fprintf(stderr, "This program requires a libdragon toolchain installed in $N64_INST.\n");
 }
 
-bool import_exists(const char *name)
-{
-    if(!imports_hash) {
-        return false;
-    }
-    return stbds_shget(imports_hash, name) >= 0;
-}
-
-void add_import(const char *name)
-{
-    if(!imports_hash) {
-        stbds_sh_new_arena(imports_hash);
-        stbds_shdefault(imports_hash, -1);
-    }
-    if(!import_exists(name)) {
-        stbds_shput(imports_hash, name, stbds_shlenu(imports_hash));
-    }
-}
-
-void parse_imports(const char *filename)
-{
-    char *line_buf = NULL;
-    size_t line_buf_size = 0;
-    //Try opening file
-    FILE *file = fopen(filename, "r");
-    if(!file) {
-        fprintf(stderr, "Cannot open file: %s\n", filename);
-        return;
-    }
-    while(getline(&line_buf, &line_buf_size, file) != -1) {
-        //Find start and end of relevant parts of line
-        char *extern_start = strstr(line_buf, "EXTERN(");
-        char *close_brace = strrchr(line_buf, ')');
-        if(extern_start && close_brace) {
-            *close_brace = 0; //Terminate symbol name before closing brace
-            add_import(&extern_start[7]); //Symbol name starts after EXTERN(
-        }
-    }
-    //Close imports file
-    fclose(file);
-}
-
-void cleanup_imports()
-{
-    if(!imports_hash) {
-        return;
-    }
-    stbds_shfree(imports_hash);
-}
-
 void add_export_sym(const char *name, uint32_t value, uint32_t size)
 {
     uso_sym_t sym;
@@ -167,9 +117,7 @@ void get_export_syms(char *infn)
             size_t sym_value = strtoull(&line_buf[8], NULL, 16); //Read symbol value
             //Read symbol size
             size_t sym_size = strtoull(&line_buf[17], NULL, 0); //Read symbol size
-            if(export_all || import_exists(sym_name)) {
-                add_export_sym(sym_name, sym_value, sym_size);
-            }
+            add_export_sym(sym_name, sym_value, sym_size);
         }
     }
     //Free resources
@@ -284,15 +232,6 @@ int main(int argc, char **argv)
         } else if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--verbose")) {
             //Specify verbose flag
             verbose_flag = true;
-        } else if (!strcmp(argv[i], "-a") || !strcmp(argv[i], "--all")) {
-            export_all = true;
-        } else if (!strcmp(argv[i], "-i") || !strcmp(argv[i], "--imports")) {
-            //Specify output file
-            if(++i == argc) {
-                fprintf(stderr, "missing argument for %s\n", argv[i-1]);
-                return 1;
-            }
-            parse_imports(argv[i]);
         } else {
             //Output invalid flag warning
             fprintf(stderr, "invalid flag: %s\n", argv[i]);
@@ -311,6 +250,5 @@ int main(int argc, char **argv)
         outfn = argv[i++];
     }
     process(infn, outfn);
-    cleanup_imports();
     return 0;
 }

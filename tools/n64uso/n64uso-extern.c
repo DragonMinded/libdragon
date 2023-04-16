@@ -4,11 +4,15 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdarg.h>
-#include "../common/subprocess.h"
-#include "../common/polyfill.h"
+
+//Asset decompression
+#include "../../src/asset.c"
+#include "../../src/compress/lzh5.c"
+
+//USO Format Internals
+#include "../../src/uso_format.h"
 
 bool verbose_flag = false;
-char *n64_inst = NULL;
 
 // Printf to stderr if verbose
 void verbose(const char *fmt, ...) {
@@ -22,73 +26,56 @@ void verbose(const char *fmt, ...) {
 
 void print_args(const char *name)
 {
-    fprintf(stderr, "%s - Output list of undefined symbols in all ELFs\n", name);
+    fprintf(stderr, "%s - Output list of undefined symbols in all USOs\n", name);
     fprintf(stderr, "\n");
-    fprintf(stderr, "Usage: %s [flags] [<input_elfs>]\n", name);
+    fprintf(stderr, "Usage: %s [flags] [<input_usos>]\n", name);
     fprintf(stderr, "\n");
     fprintf(stderr, "Command-line flags:\n");
     fprintf(stderr, "   -v/--verbose            Verbose output\n");
     fprintf(stderr, "   -o/--output <file>      Specify output file (default stdout)\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "This program requires a libdragon toolchain installed in $N64_INST.\n");
 }
 
-void dump_elf_undef(const char *infn, FILE *out_file)
+uint32_t read_buf_u32(void *buf)
 {
-    //Readelf parameters
-    struct subprocess_s subp;
-    char *readelf_bin = NULL;
-    const char *args[5] = {0};
-    //Readelf output
-    FILE *readelf_stdout = NULL;
-    char *line_buf = NULL;
-    size_t line_buf_size = 0;
-    asprintf(&readelf_bin, "%s/bin/mips64-elf-readelf", n64_inst);
-    args[0] = readelf_bin;
-    args[1] = "-s"; //Output symbol table
-    args[2] = "-W"; //Wide output
-    args[3] = infn; //Input filename
-    if (subprocess_create(args, subprocess_option_no_window, &subp) != 0) {
-        fprintf(stderr, "Error: cannot run: %s\n", readelf_bin);
-        free(readelf_bin);
-        exit(1);
-    }
-    readelf_stdout = subprocess_stdout(&subp);
-    //Skip first 3 lines of stdout from readelf
-    getline(&line_buf, &line_buf_size, readelf_stdout); //Blank line
-    getline(&line_buf, &line_buf_size, readelf_stdout); //Symbol table description
-    //Check if program actually worked
-    if(!strcmp(line_buf, "")) {
-        fprintf(stderr, "Error running readelf\n");
-        //Cleanup and exit program
-        free(line_buf);
-        free(readelf_bin);
-        subprocess_terminate(&subp);
-        exit(1);
-    }
-    getline(&line_buf, &line_buf_size, readelf_stdout); //Symbol table format
-    //Read symbol table output from readelf
-    verbose("Outputting undefined symbols from ELF\n");
-    while(getline(&line_buf, &line_buf_size, readelf_stdout) != -1) {
-        size_t line_len = strlen(line_buf);
-        char *und_section_title = strstr(line_buf, " UND ");
-        //Output non-empty undefined symbols
-        if(und_section_title && strlen(&und_section_title[5]) > 1) {
-            line_buf[line_len-1] = 0; //Remove extraneous newline
-            //Output symbol
-            fprintf(out_file, "EXTERN(%s)\n", &und_section_title[5]);
-        }
-    }
-    //Free resources
-    free(line_buf);
-    free(readelf_bin);
-    subprocess_terminate(&subp);
+	uint8_t *temp = buf;
+	//Read 4 bytes from buffer as big-endian 32-bit integer
+	return (temp[0] << 24)|(temp[1] << 16)|(temp[2] << 8)|temp[3];
+}
+
+void write_externs(uso_file_sym_t *uso_sym_table, uint32_t num_externs, FILE *out_file)
+{
+	uint8_t *name_base = (uint8_t *)uso_sym_table;
+	//Iterate through each external symbol and output their name to out_file
+	for(uint32_t i=1; i<num_externs+1; i++) {
+		fprintf(out_file, "EXTERN(%s)\n", name_base+read_buf_u32(&uso_sym_table[i].name_ofs));
+	}
 }
 
 void process(const char *infn, FILE *out_file)
 {
-    verbose("Processing ELF %s\n", infn);
-    dump_elf_undef(infn, out_file);
+	int sz;
+    verbose("Processing USO %s\n", infn);
+	//Load USO file
+	uint8_t *data = asset_load(infn, &sz);
+	uint8_t *orig_data = data;
+	//Do basic sanity checks on USO file
+	uso_load_info_t *load_info = (uso_load_info_t *)data;
+	if(sz < 4 || read_buf_u32(&load_info->magic) != USO_MAGIC) {
+		fprintf(stderr, "File is not a valid USO file");
+		exit(1);
+	}
+	if(sz < sizeof(uso_load_info_t) || read_buf_u32(&load_info->size) != sz-16) {
+		fprintf(stderr, "File is not a valid USO file");
+		exit(1);
+	}
+	//Write data externs
+	data += sizeof(uso_load_info_t);
+	uso_file_module_t *file_module = (uso_file_module_t *)data;
+	verbose("Writing external symbols in USO to output file");
+	write_externs((uso_file_sym_t *)(data+read_buf_u32(&file_module->syms_ofs)), read_buf_u32(&file_module->num_import_syms), out_file);
+	//Free USO file data
+	free(orig_data);
 }
 
 int main(int argc, char **argv)
@@ -98,29 +85,6 @@ int main(int argc, char **argv)
         //Print usage if too few arguments are passed
         print_args(argv[0]);
         return 1;
-    }
-    //Get libdragon install directory
-    if (!n64_inst) {
-        // n64.mk supports having a separate installation for the toolchain and
-        // libdragon. So first check if N64_GCCPREFIX is set; if so the toolchain
-        // is there. Otherwise, fallback to N64_INST which is where we expect
-        // the toolchain to reside.
-        n64_inst = getenv("N64_GCCPREFIX");
-        if (!n64_inst)
-            n64_inst = getenv("N64_INST");
-        if (!n64_inst) {
-            // Do not mention N64_GCCPREFIX in the error message, since it is
-            // a seldom used configuration.
-            fprintf(stderr, "Error: N64_INST environment variable not set.\n");
-            return 1;
-        }
-        // Remove the trailing backslash if any. On some system, running
-        // popen with a path containing double backslashes will fail, so
-        // we normalize it here.
-        n64_inst = strdup(n64_inst);
-        int n = strlen(n64_inst);
-        if (n64_inst[n-1] == '/' || n64_inst[n-1] == '\\')
-            n64_inst[n-1] = 0;
     }
     for(int i=1; i<argc; i++) {
         if(argv[i][0] == '-') {
