@@ -453,20 +453,11 @@ gl_tex_incomplete:
 GLCmd_PreInitPipe:
     sh a0, %lo(GL_STATE_PRIM_TYPE)
 
-    #define state_flags k1
+    #define state_flags  k1
     #define state_flags2 k0
 
     lw state_flags, %lo(GL_STATE_FLAGS)
     lw state_flags2, %lo(GL_STATE_FLAGS2)
-    # li t2, %lo(GL_STATE_FLAGS2)
-
-    #define modes0          t8
-    #define modes1          t9
-
-    # Load the current OTHERMODE state from RDPQ
-
-    lw modes0, %lo(RDPQ_OTHER_MODES) + 0x0
-    lw modes1, %lo(RDPQ_OTHER_MODES) + 0x4
 
     # Update matrix if required
 
@@ -530,11 +521,6 @@ GLCmd_PreInitPipe:
     #define active_tex      s7
 
     # Get Active texture
-    # * Skip if FLAG2_USE_RDPQ_TEXTURING is active
-
-    andi t1, state_flags2, FLAG2_USE_RDPQ_TEXTURING
-    bgtz t1, rdpq_skiptexturing
-    nop
     
     andi t1, state_flags, FLAG_TEXTURE_2D
     bnez t1, 1f
@@ -545,10 +531,12 @@ GLCmd_PreInitPipe:
     move active_tex, zero
 1:
 
-    jal GL_UpdateTextureUpload
-    nop
+    # * Skip if FLAG2_USE_RDPQ_TEXTURING is active
 
-rdpq_skiptexturing:
+    andi t1, state_flags2, FLAG2_USE_RDPQ_TEXTURING
+    beqz t1, GL_UpdateTextureUpload
+    li ra, %lo(1f)
+1:
 
     #define has_depth   t1
     #define has_tex     t3
@@ -652,8 +640,7 @@ rdpq_skiptexturing:
 
     # * Skip if FLAG2_USE_RDPQ_MATERIAL is active
     andi t1, state_flags2, FLAG2_USE_RDPQ_MATERIAL
-    bgtz t1, rdpq_skipcombinerblender
-    nop
+    bnez t1, gl_skipcombinerblender
 
     # Blend cycle
     andi t0, state_flags, FLAG_BLEND
@@ -701,12 +688,12 @@ rdpq_skiptexturing:
     sw t2, %lo(RDPQ_COMBINER_MIPMAPMASK) + 0x0
     sw t3, %lo(RDPQ_COMBINER_MIPMAPMASK) + 0x4
 
-rdpq_skipcombinerblender:
+gl_skipcombinerblender:
 
     # * Skip if FLAG2_USE_RDPQ_TEXTURING is active
 
     andi t1, state_flags2, FLAG2_USE_RDPQ_TEXTURING
-    bgtz t1, rdpq_mergemask
+    bnez t1, gl_mergemask
     nop
 
     # Texture
@@ -746,9 +733,9 @@ rdpq_skipcombinerblender:
     or modes0, t7
 2:
 
-    j rdpq_skiptexture
+    j gl_save_modes
     nop
-rdpq_mergemask:
+gl_mergemask:
     # If we have GL_RDPQ_TEXTURING_N64 active, we need to use some of the RDPQ params instead of GL's
 
     lw t1, %lo(RDPQ_OTHER_MODES) + 0x0
@@ -756,7 +743,7 @@ rdpq_mergemask:
     and t2, modes0, ~(RDPQ_TEXTURING_MASK)
     or  modes0, t1, t2
 
-rdpq_skiptexture:
+gl_save_modes:
 
     lw t0, %lo(RDPQ_OTHER_MODES) + 0x0
 
