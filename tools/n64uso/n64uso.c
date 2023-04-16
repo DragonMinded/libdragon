@@ -52,7 +52,7 @@ typedef struct elf_info_s {
     char *strtab;
 } elf_info_t;
 
-//USO Internals
+//USO Format Internals
 #include "../../src/uso_format.h"
 
 #include "mips_elf.h"
