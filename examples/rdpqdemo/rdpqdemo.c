@@ -155,7 +155,7 @@ int main()
     }
     uint32_t tile_width = tiles_sprite->width / tiles_sprite->hslices;
     uint32_t tile_height = tiles_sprite->height / tiles_sprite->vslices;
-
+ 
     for (uint32_t ty = 0; ty < display_height; ty += tile_height)
     {
         for (uint32_t tx = 0; tx < display_width; tx += tile_width)
@@ -165,7 +165,7 @@ int main()
             // Notice that this code is agnostic to both the texture format
             // and the render mode (standard vs copy), it will work either way.
             int s = RANDN(2)*32, t = RANDN(2)*32;
-            rdpq_tex_load_sub(TILE0, &tiles_surf, 0, s, t, s+32, t+32);
+            rdpq_tex_load_sub(TILE0, &tiles_surf, NULL, s, t, s+32, t+32);
             rdpq_texture_rectangle(TILE0, tx, ty, tx+32, ty+32, s, t);
         }
     }

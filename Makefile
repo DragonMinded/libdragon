@@ -60,7 +60,8 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o $(BUILD_DIR)/backtra
 			 $(BUILD_DIR)/GL/obj_map.o $(BUILD_DIR)/GL/list.o \
 			 $(BUILD_DIR)/GL/buffer.o $(BUILD_DIR)/GL/rsp_gl.o \
 			 $(BUILD_DIR)/GL/rsp_gl_pipeline.o $(BUILD_DIR)/GL/glu.o \
-			 $(BUILD_DIR)/GL/cpu_pipeline.o $(BUILD_DIR)/GL/rsp_pipeline.o
+			 $(BUILD_DIR)/GL/cpu_pipeline.o $(BUILD_DIR)/GL/rsp_pipeline.o \
+			 $(BUILD_DIR)/dlfcn.o
 	@echo "    [AR] $@"
 	$(N64_AR) -rcs -o $@ $^
 
@@ -98,6 +99,7 @@ install: install-mk libdragon
 	mkdir -p $(INSTALLDIR)/mips64-elf/include/GL
 	install -Cv -m 0644 libdragon.a $(INSTALLDIR)/mips64-elf/lib/libdragon.a
 	install -Cv -m 0644 n64.ld $(INSTALLDIR)/mips64-elf/lib/n64.ld
+	install -Cv -m 0644 uso.ld $(INSTALLDIR)/mips64-elf/lib/uso.ld
 	install -Cv -m 0644 rsp.ld $(INSTALLDIR)/mips64-elf/lib/rsp.ld
 	install -Cv -m 0644 header $(INSTALLDIR)/mips64-elf/lib/header
 	install -Cv -m 0644 libdragonsys.a $(INSTALLDIR)/mips64-elf/lib/libdragonsys.a
@@ -165,11 +167,12 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/GL/gl_enums.h $(INSTALLDIR)/mips64-elf/include/GL/gl_enums.h
 	install -Cv -m 0644 include/GL/gl_integration.h $(INSTALLDIR)/mips64-elf/include/GL/gl_integration.h
 	install -Cv -m 0644 include/GL/glu.h $(INSTALLDIR)/mips64-elf/include/GL/glu.h
+	install -Cv -m 0644 include/dlfcn.h $(INSTALLDIR)/mips64-elf/include/dlfcn.h
 	mkdir -p $(INSTALLDIR)/mips64-elf/include/fatfs
 	install -Cv -m 0644 src/fatfs/diskio.h $(INSTALLDIR)/mips64-elf/include/fatfs/diskio.h
 	install -Cv -m 0644 src/fatfs/ff.h $(INSTALLDIR)/mips64-elf/include/fatfs/ff.h
 	install -Cv -m 0644 src/fatfs/ffconf.h $(INSTALLDIR)/mips64-elf/include/fatfs/ffconf.h
-
+	
 
 clean:
 	rm -f *.o *.a

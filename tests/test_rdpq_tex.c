@@ -168,11 +168,11 @@ void test_rdpq_tex_load(TestContext *ctx) {
                 for (int off = 0; off < 3; off++) {
                     LOG("      off: %d\n", off);
                     surface_clear(&fb, 0);
-            
+
                     if (off == 0)
-                        rdpq_tex_load(TILE2, &surf, 0);
+                        rdpq_tex_load(TILE2,&surf, NULL);
                     else
-                        rdpq_tex_load_sub(TILE2, &surf, 0, off, off, surf.width, surf.width);
+                        rdpq_tex_load_sub(TILE2,&surf, NULL, off, off, surf.width, surf.width);
                     rdpq_texture_rectangle(TILE2, 
                         5, 5, 5+surf.width-off, 5+surf.width-off,
                         off, off);
