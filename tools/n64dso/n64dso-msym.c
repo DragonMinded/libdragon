@@ -14,12 +14,12 @@
 #define STB_DS_IMPLEMENTATION
 #include "../common/stb_ds.h"
 
-//USO Symbol Table Internals
-#include "../../src/uso_format.h"
+//DSO Symbol Table Internals
+#include "../../src/dso_format.h"
 
 struct { char *key; int64_t value; } *imports_hash = NULL;
 
-uso_sym_t *export_syms = NULL;
+dso_sym_t *export_syms = NULL;
 
 bool export_all = false;
 bool verbose_flag = false;
@@ -51,18 +51,18 @@ void print_args(const char *name)
 
 void add_export_sym(const char *name, uint32_t value, uint32_t size)
 {
-    uso_sym_t sym;
+    dso_sym_t sym;
     sym.name = strdup(name);
     sym.value = value;
     sym.info = size & 0x3FFFFFFF;
     stbds_arrput(export_syms, sym);
 }
 
-int uso_sym_compare(const void *a, const void *b)
+int dso_sym_compare(const void *a, const void *b)
 {
     //Sort in lexicographical order (standard strcmp uses)
-    uso_sym_t *symbol_1 = (uso_sym_t *)a;
-    uso_sym_t *symbol_2 = (uso_sym_t *)b;
+    dso_sym_t *symbol_1 = (dso_sym_t *)a;
+    dso_sym_t *symbol_2 = (dso_sym_t *)b;
     return strcmp(symbol_1->name, symbol_2->name);
 }
 
@@ -126,17 +126,17 @@ void get_export_syms(char *infn)
     subprocess_terminate(&subp);
 }
 
-uint32_t uso_write_symbols(uso_sym_t *syms, uint32_t num_syms, uint32_t base_ofs, FILE *out_file)
+uint32_t dso_write_symbols(dso_sym_t *syms, uint32_t num_syms, uint32_t base_ofs, FILE *out_file)
 {
-    uint32_t name_ofs = num_syms*sizeof(uso_file_sym_t);
+    uint32_t name_ofs = num_syms*sizeof(dso_file_sym_t);
     for(uint32_t i=0; i<num_syms; i++) {
-        uso_file_sym_t file_sym;
+        dso_file_sym_t file_sym;
         size_t name_data_len = strlen(syms[i].name)+1;
         file_sym.name_ofs = name_ofs;
         file_sym.value = syms[i].value;
         file_sym.info = syms[i].info;
         //Write symbol
-        fseek(out_file, base_ofs+(i*sizeof(uso_file_sym_t)), SEEK_SET);
+        fseek(out_file, base_ofs+(i*sizeof(dso_file_sym_t)), SEEK_SET);
         w32(out_file, file_sym.name_ofs);
         w32(out_file, file_sym.value);
         w32(out_file, file_sym.info);
@@ -170,12 +170,12 @@ void write_msym(char *outfn)
     }
     //Initialize main symbol table info
     mainexe_sym_info_t sym_info;
-    sym_info.magic = USO_MAINEXE_SYM_DATA_MAGIC;
+    sym_info.magic = DSO_MAINEXE_SYM_DATA_MAGIC;
     sym_info.size = 0;
     sym_info.num_syms =  stbds_arrlenu(export_syms);
     write_mainexe_sym_info(&sym_info, out_file);
     //Write symbol table
-    sym_info.size = uso_write_symbols(export_syms, sym_info.num_syms, sizeof(mainexe_sym_info_t), out_file);
+    sym_info.size = dso_write_symbols(export_syms, sym_info.num_syms, sizeof(mainexe_sym_info_t), out_file);
     //Correct output size
     sym_info.size -= sizeof(mainexe_sym_info_t);
     write_mainexe_sym_info(&sym_info, out_file);
@@ -186,7 +186,7 @@ void process(char *infn, char *outfn)
 {
     get_export_syms(infn);
     verbose("Sorting exported symbols from ELF");
-    qsort(export_syms, stbds_arrlenu(export_syms), sizeof(uso_sym_t), uso_sym_compare);
+    qsort(export_syms, stbds_arrlenu(export_syms), sizeof(dso_sym_t), dso_sym_compare);
     verbose("Writing output file %s\n", outfn);
     write_msym(outfn);
 }

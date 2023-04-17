@@ -2,14 +2,14 @@
 #define __DLFCN_INTERNAL_H
 
 #include <stdbool.h>
-#include "uso_format.h"
+#include "dso_format.h"
 
 /** @brief Loaded module data */
 typedef struct dl_module_s {
     struct dl_module_s *prev;   ///< Previous loaded dynamic library
     struct dl_module_s *next;   ///< Next loaded dynamic library
-    uso_module_t *module;       ///< USO file
-    size_t module_size;         ///< USO size
+    dso_module_t *module;       ///< DSO file
+    size_t module_size;         ///< DSO size
     uint32_t debugsym_romaddr;  ///< Debug symbol data rom address
     char *filename;             ///< Dynamic library filename
     size_t use_count;           ///< Dynamic library reference count
