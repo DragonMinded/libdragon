@@ -25,7 +25,7 @@
  *
  * The dynamic linker subsystem allows users to load code from the
  * program's DragonFS filesystem (see dfs.h). Code is stored in a custom
- * dynamically linked format (extension of .uso) to allow for loading
+ * dynamically linked format (extension of .dso) to allow for loading
  * and running code placed at arbitrary memory addresses and resolving
  * external references to the main executable and other dynamically
  * linked modules. External references are resolved by name with symbol
@@ -72,7 +72,7 @@ static char error_string[256];
 /** @brief Whether an error is present */
 static bool error_present;
 /** @brief Main executable symbol table */
-static uso_sym_t *mainexe_sym_table;
+static dso_sym_t *mainexe_sym_table;
 /** @brief Number of symbols in main executable symbol table */
 static uint32_t mainexe_sym_count;
 
@@ -111,7 +111,7 @@ static void remove_module(dl_module_t *module)
 	__dl_num_loaded_modules--; //Remove one loaded module
 }
 
-static void fixup_sym_names(uso_sym_t *syms, uint32_t num_syms)
+static void fixup_sym_names(dso_sym_t *syms, uint32_t num_syms)
 {
     //Fixup symbol name pointers
     for(uint32_t i=0; i<num_syms; i++) {
@@ -133,7 +133,7 @@ static void load_mainexe_sym_table()
     dma_read_raw_async(&mainexe_sym_info, rom_addr, sizeof(mainexe_sym_info));
     dma_wait();
     //Verify main executable symbol table
-    if(mainexe_sym_info.magic != USO_MAINEXE_SYM_DATA_MAGIC || mainexe_sym_info.size == 0) {
+    if(mainexe_sym_info.magic != DSO_MAINEXE_SYM_DATA_MAGIC || mainexe_sym_info.size == 0) {
         debugf("Invalid main executable symbol table\n");
         return;
     }
@@ -149,24 +149,24 @@ static void load_mainexe_sym_table()
 
 static int sym_compare(const void *arg1, const void *arg2)
 {
-    const uso_sym_t *sym1 = arg1;
-    const uso_sym_t *sym2 = arg2;
+    const dso_sym_t *sym1 = arg1;
+    const dso_sym_t *sym2 = arg2;
     return strcmp(sym1->name, sym2->name);
 }
 
-static uso_sym_t *search_sym_array(uso_sym_t *syms, uint32_t num_syms, const char *name)
+static dso_sym_t *search_sym_array(dso_sym_t *syms, uint32_t num_syms, const char *name)
 {
-    uso_sym_t search_sym = { (char *)name, 0, 0 };
-    return bsearch(&search_sym, syms, num_syms, sizeof(uso_sym_t), sym_compare);
+    dso_sym_t search_sym = { (char *)name, 0, 0 };
+    return bsearch(&search_sym, syms, num_syms, sizeof(dso_sym_t), sym_compare);
 }
 
-static uso_sym_t *search_module_exports(uso_module_t *module, const char *name)
+static dso_sym_t *search_module_exports(dso_module_t *module, const char *name)
 {
     uint32_t first_export_sym = module->num_import_syms+1;
     return search_sym_array(&module->syms[first_export_sym], module->num_syms-first_export_sym, name);
 }
 
-static uso_sym_t *search_module_next_sym(dl_module_t *from, const char *name)
+static dso_sym_t *search_module_next_sym(dl_module_t *from, const char *name)
 {
     //Iterate through further modules symbol tables
     dl_module_t *curr = from;
@@ -174,7 +174,7 @@ static uso_sym_t *search_module_next_sym(dl_module_t *from, const char *name)
         //Search only symbol tables with symbols exposed
         if(curr->mode & RTLD_GLOBAL) {
             //Search through module symbol table
-            uso_sym_t *symbol = search_module_exports(curr->module, name);
+            dso_sym_t *symbol = search_module_exports(curr->module, name);
             if(symbol) {
                 //Found symbol in module symbol table
                 return symbol;
@@ -185,7 +185,7 @@ static uso_sym_t *search_module_next_sym(dl_module_t *from, const char *name)
     return NULL;
 }
 
-static uso_sym_t *search_global_sym(const char *name)
+static dso_sym_t *search_global_sym(const char *name)
 {
     //Load main executable symbol table if not loaded
     if(!mainexe_sym_table) {
@@ -193,7 +193,7 @@ static uso_sym_t *search_global_sym(const char *name)
     }
     //Search main executable symbol table if present
     if(mainexe_sym_table) {
-        uso_sym_t *symbol = search_sym_array(mainexe_sym_table, mainexe_sym_count, name);
+        dso_sym_t *symbol = search_sym_array(mainexe_sym_table, mainexe_sym_count, name);
         if(symbol) {
             //Found symbol in main executable
             return symbol;
@@ -203,11 +203,11 @@ static uso_sym_t *search_global_sym(const char *name)
     return search_module_next_sym(__dl_list_head, name);
 }
 
-static void resolve_syms(uso_module_t *module)
+static void resolve_syms(dso_module_t *module)
 {
     for(uint32_t i=0; i<module->num_syms; i++) {
         if(i >= 1 && i < module->num_import_syms+1) {
-            uso_sym_t *found_sym = search_global_sym(module->syms[i].name);
+            dso_sym_t *found_sym = search_global_sym(module->syms[i].name);
             bool weak = false;
             if(module->syms[i].info & 0x80000000) {
                 weak = true;
@@ -262,18 +262,18 @@ static dl_module_t *search_module_filename(const char *filename)
     return NULL;
 }
 
-static void flush_module(uso_module_t *module)
+static void flush_module(dso_module_t *module)
 {
     //Invalidate data cache
     data_cache_hit_writeback_invalidate(module->prog_base, module->prog_size);
     inst_cache_hit_invalidate(module->prog_base, module->prog_size);
 }
 
-static void relocate_module(uso_module_t *module)
+static void relocate_module(dso_module_t *module)
 {
     //Process relocations
     for(uint32_t i=0; i<module->num_relocs; i++) {
-        uso_reloc_t *reloc = &module->relocs[i];
+        dso_reloc_t *reloc = &module->relocs[i];
         u_uint32_t *target = PTR_DECODE(module->prog_base, reloc->offset);
         uint8_t type = reloc->info >> 24;
         //Calculate symbol address
@@ -300,7 +300,7 @@ static void relocate_module(uso_module_t *module)
                 bool lo_found = false;
                 //Search for next R_MIPS_LO16 relocation
                 for(uint32_t j=i+1; j<module->num_relocs; j++) {
-                    uso_reloc_t *new_reloc = &module->relocs[j];
+                    dso_reloc_t *new_reloc = &module->relocs[j];
                     type = new_reloc->info >> 24;
                     if(type == R_MIPS_LO16) {
                         //Pair for R_MIPS_HI16 relocation found
@@ -339,7 +339,7 @@ static void relocate_module(uso_module_t *module)
     }
 }
 
-static void link_module(uso_module_t *module)
+static void link_module(dso_module_t *module)
 {
     //Relocate module pointers
     module->syms = PTR_DECODE(module, module->syms);
@@ -353,12 +353,12 @@ static void link_module(uso_module_t *module)
 
 static void start_module(dl_module_t *handle)
 {
-    uso_module_t *module = handle->module;
-    uso_sym_t *eh_frame_begin = search_module_exports(module, "__EH_FRAME_BEGIN__");
+    dso_module_t *module = handle->module;
+    dso_sym_t *eh_frame_begin = search_module_exports(module, "__EH_FRAME_BEGIN__");
     if(eh_frame_begin) {
         __register_frame_info((void *)eh_frame_begin->value, handle->ehframe_obj);
     }
-    uso_sym_t *ctor_list = search_module_exports(module, "__CTOR_LIST__");
+    dso_sym_t *ctor_list = search_module_exports(module, "__CTOR_LIST__");
     if(ctor_list) {
         func_ptr *curr = (func_ptr *)ctor_list->value;
         while(*curr) {
@@ -405,13 +405,13 @@ void *dlopen(const char *filename, int mode)
         //Increment use count
         handle->use_count++;
     } else {
-        uso_load_info_t load_info;
+        dso_load_info_t load_info;
         size_t module_size;
         //Open asset file
         FILE *file = asset_fopen(filename);
-        fread(&load_info, sizeof(uso_load_info_t), 1, file); //Read load info
-        //Verify USO file
-        assertf(load_info.magic == USO_MAGIC, "Invalid USO file");
+        fread(&load_info, sizeof(dso_load_info_t), 1, file); //Read load info
+        //Verify DSO file
+        assertf(load_info.magic == DSO_MAGIC, "Invalid DSO file");
         //Calculate module size
         module_size = load_info.size+load_info.extra_mem;
         //Calculate loaded file size
@@ -482,7 +482,7 @@ static bool is_valid_module(dl_module_t *module)
 
 void *dlsym(void *handle, const char *symbol)
 {
-    uso_sym_t *symbol_info;
+    dso_sym_t *symbol_info;
     if(handle == RTLD_DEFAULT) {
         //RTLD_DEFAULT searched through global symbols
         symbol_info = search_global_sym(symbol);
@@ -539,14 +539,14 @@ static bool is_module_referenced(dl_module_t *module)
 
 static void end_module(dl_module_t *module)
 {
-    uso_module_t *module_data = module->module;
+    dso_module_t *module_data = module->module;
     //Call atexit destructors for this module
-    uso_sym_t *dso_handle = search_module_exports(module_data, "__dso_handle");
+    dso_sym_t *dso_handle = search_module_exports(module_data, "__dso_handle");
     if(dso_handle) {
         __cxa_finalize((void *)dso_handle->value);
     }
     //Run destructors for this module
-    uso_sym_t *dtor_list = search_module_exports(module_data, "__DTOR_LIST__");
+    dso_sym_t *dtor_list = search_module_exports(module_data, "__DTOR_LIST__");
     if(dtor_list) {
         func_ptr *curr = (func_ptr *)dtor_list->value;
         while(*curr) {
@@ -555,7 +555,7 @@ static void end_module(dl_module_t *module)
         }
     }
     //Deregister exception frames for this module
-    uso_sym_t *eh_frame_begin = search_module_exports(module_data, "__EH_FRAME_BEGIN__");
+    dso_sym_t *eh_frame_begin = search_module_exports(module_data, "__EH_FRAME_BEGIN__");
     if(eh_frame_begin) {
         __register_frame_info((void *)eh_frame_begin->value, module->ehframe_obj);
     }
@@ -630,7 +630,7 @@ int dladdr(const void *addr, Dl_info *info)
     //Iterate over export symbols
     uint32_t first_export_sym = module->module->num_import_syms+1;
     for(uint32_t i=0; i<module->module->num_syms-first_export_sym; i++) {
-        uso_sym_t *sym = &module->module->syms[first_export_sym+i];
+        dso_sym_t *sym = &module->module->syms[first_export_sym+i];
         //Calculate symbol address range
         void *sym_min = (void *)sym->value;
         uint32_t sym_size = sym->info & 0x3FFFFFFF;

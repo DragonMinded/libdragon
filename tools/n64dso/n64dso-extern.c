@@ -9,8 +9,8 @@
 #include "../../src/asset.c"
 #include "../../src/compress/lzh5.c"
 
-//USO Format Internals
-#include "../../src/uso_format.h"
+//DSO Format Internals
+#include "../../src/dso_format.h"
 
 bool verbose_flag = false;
 
@@ -26,9 +26,9 @@ void verbose(const char *fmt, ...) {
 
 void print_args(const char *name)
 {
-    fprintf(stderr, "%s - Output list of undefined symbols in all USOs\n", name);
+    fprintf(stderr, "%s - Output list of undefined symbols in all DSOs\n", name);
     fprintf(stderr, "\n");
-    fprintf(stderr, "Usage: %s [flags] [<input_usos>]\n", name);
+    fprintf(stderr, "Usage: %s [flags] [<input_dsos>]\n", name);
     fprintf(stderr, "\n");
     fprintf(stderr, "Command-line flags:\n");
     fprintf(stderr, "   -v/--verbose            Verbose output\n");
@@ -43,38 +43,38 @@ uint32_t read_buf_u32(void *buf)
 	return (temp[0] << 24)|(temp[1] << 16)|(temp[2] << 8)|temp[3];
 }
 
-void write_externs(uso_file_sym_t *uso_sym_table, uint32_t num_externs, FILE *out_file)
+void write_externs(dso_file_sym_t *dso_sym_table, uint32_t num_externs, FILE *out_file)
 {
-	uint8_t *name_base = (uint8_t *)uso_sym_table;
+	uint8_t *name_base = (uint8_t *)dso_sym_table;
 	//Iterate through each external symbol and output their name to out_file
 	for(uint32_t i=1; i<num_externs+1; i++) {
-		fprintf(out_file, "EXTERN(%s)\n", name_base+read_buf_u32(&uso_sym_table[i].name_ofs));
+		fprintf(out_file, "EXTERN(%s)\n", name_base+read_buf_u32(&dso_sym_table[i].name_ofs));
 	}
 }
 
 void process(const char *infn, FILE *out_file)
 {
 	int sz;
-    verbose("Processing USO %s\n", infn);
-	//Load USO file
+    verbose("Processing DSO %s\n", infn);
+	//Load DSO file
 	uint8_t *data = asset_load(infn, &sz);
 	uint8_t *orig_data = data;
-	//Do basic sanity checks on USO file
-	uso_load_info_t *load_info = (uso_load_info_t *)data;
-	if(sz < 4 || read_buf_u32(&load_info->magic) != USO_MAGIC) {
-		fprintf(stderr, "File is not a valid USO file");
+	//Do basic sanity checks on DSO file
+	dso_load_info_t *load_info = (dso_load_info_t *)data;
+	if(sz < 4 || read_buf_u32(&load_info->magic) != DSO_MAGIC) {
+		fprintf(stderr, "File is not a valid DSO file");
 		exit(1);
 	}
-	if(sz < sizeof(uso_load_info_t) || read_buf_u32(&load_info->size) != sz-16) {
-		fprintf(stderr, "File is not a valid USO file");
+	if(sz < sizeof(dso_load_info_t) || read_buf_u32(&load_info->size) != sz-16) {
+		fprintf(stderr, "File is not a valid DSO file");
 		exit(1);
 	}
 	//Write data externs
-	data += sizeof(uso_load_info_t);
-	uso_file_module_t *file_module = (uso_file_module_t *)data;
-	verbose("Writing external symbols in USO to output file");
-	write_externs((uso_file_sym_t *)(data+read_buf_u32(&file_module->syms_ofs)), read_buf_u32(&file_module->num_import_syms), out_file);
-	//Free USO file data
+	data += sizeof(dso_load_info_t);
+	dso_file_module_t *file_module = (dso_file_module_t *)data;
+	verbose("Writing external symbols in DSO to output file");
+	write_externs((dso_file_sym_t *)(data+read_buf_u32(&file_module->syms_ofs)), read_buf_u32(&file_module->num_import_syms), out_file);
+	//Free DSO file data
 	free(orig_data);
 }
 

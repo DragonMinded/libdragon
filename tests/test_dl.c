@@ -13,7 +13,7 @@ static uint32_t jump_get_target(uint32_t *inst)
 
 void test_dl_ctors(TestContext *ctx) {
 	//Open dl_test_ctors module
-	void *handle = dlopen("rom:/dl_test_ctors.uso", RTLD_LOCAL);
+	void *handle = dlopen("rom:/dl_test_ctors.dso", RTLD_LOCAL);
 	DEFER(dlclose(handle));
 	//Find required symbol used to verify that constructors have run
 	unsigned int *test_value = dlsym(handle, "dl_ctor_test_value");
@@ -25,7 +25,7 @@ void test_dl_ctors(TestContext *ctx) {
 
 void test_dladdr(TestContext *ctx) {
 	//Open module for testing dladdr
-	void *handle = dlopen("rom:/dl_test_syms.uso", RTLD_LOCAL);
+	void *handle = dlopen("rom:/dl_test_syms.dso", RTLD_LOCAL);
 	DEFER(dlclose(handle));
 	//Find required symbol used to test dladdr with
 	char *test_sym = dlsym(handle, "dl_test_sym");
@@ -35,7 +35,7 @@ void test_dladdr(TestContext *ctx) {
 	Dl_info info;
 	dladdr(test_sym, &info);
 	//Verify that module symbol is correct
-	ASSERT(info.dli_fname && strcmp(info.dli_fname, "rom:/dl_test_syms.uso") == 0, "dladdr failed to find correct module");
+	ASSERT(info.dli_fname && strcmp(info.dli_fname, "rom:/dl_test_syms.dso") == 0, "dladdr failed to find correct module");
 	ASSERT(info.dli_saddr && info.dli_saddr == test_sym, "dladdr failed to find correct symbol");
 	//Try dladdr on main executable symbol
 	dladdr((void *)dlopen, &info);
@@ -46,8 +46,8 @@ void test_dladdr(TestContext *ctx) {
 
 void test_dlclose(TestContext *ctx) {
 	//Open modules dl_test_syms (symbols exported) and dl_test_imports (symbols not exported)
-	void *handle1 = dlopen("rom:/dl_test_syms.uso", RTLD_GLOBAL);
-	void *handle2 = dlopen("rom:/dl_test_imports.uso", RTLD_LOCAL);
+	void *handle1 = dlopen("rom:/dl_test_syms.dso", RTLD_GLOBAL);
+	void *handle2 = dlopen("rom:/dl_test_imports.dso", RTLD_LOCAL);
 	DEFER(dlclose(handle2)); //Will cause warning on command line upon exit when successful
 	//Try closing the dl_test_syms module which the dl_test_imports module depends on
 	dlclose(handle1);
@@ -59,8 +59,8 @@ void test_dlclose(TestContext *ctx) {
 
 void test_dlsym_rtld_default(TestContext *ctx) {
 	//Open both modules with their symbols exported
-	void *handle1 = dlopen("rom:/dl_test_syms.uso", RTLD_GLOBAL);
-	void *handle2 = dlopen("rom:/dl_test_imports.uso", RTLD_GLOBAL);
+	void *handle1 = dlopen("rom:/dl_test_syms.dso", RTLD_GLOBAL);
+	void *handle2 = dlopen("rom:/dl_test_imports.dso", RTLD_GLOBAL);
 	DEFER(dlclose(handle2));
 	DEFER(dlclose(handle1));
 	//Do RTLD_DEFAULT symbol search of known duplicate symbol
@@ -72,8 +72,8 @@ void test_dlsym_rtld_default(TestContext *ctx) {
 
 void test_dl_imports(TestContext *ctx) {
 	//Open modules dl_test_syms (symbols exported) and dl_test_imports (symbols not exported)
-	void *handle1 = dlopen("rom:/dl_test_syms.uso", RTLD_GLOBAL);
-	void *handle2 = dlopen("rom:/dl_test_imports.uso", RTLD_LOCAL);
+	void *handle1 = dlopen("rom:/dl_test_syms.dso", RTLD_GLOBAL);
+	void *handle2 = dlopen("rom:/dl_test_imports.dso", RTLD_LOCAL);
 	DEFER(dlclose(handle1));
 	DEFER(dlclose(handle2));
 	//Find required symbols in both modules for testing imports
@@ -92,7 +92,7 @@ void test_dl_imports(TestContext *ctx) {
 
 void test_dl_relocs(TestContext *ctx) {
 	//Open module to test relocations
-	void *handle = dlopen("rom:/dl_test_relocs.uso", RTLD_LOCAL);
+	void *handle = dlopen("rom:/dl_test_relocs.dso", RTLD_LOCAL);
 	DEFER(dlclose(handle));
 	//Find required symbols to test relocations
 	uint32_t *hilo = dlsym(handle, "dl_test_hilo_reloc");
@@ -111,7 +111,7 @@ void test_dl_relocs(TestContext *ctx) {
 
 void test_dl_syms(TestContext *ctx) {
 	//Open module
-	void *handle = dlopen("rom:/dl_test_syms.uso", RTLD_LOCAL);
+	void *handle = dlopen("rom:/dl_test_syms.dso", RTLD_LOCAL);
 	DEFER(dlclose(handle));
 	//Find required symbols to test symbol lookup
 	char *test_sym = dlsym(handle, "dl_test_sym");

@@ -36,9 +36,9 @@ N64_SYM = $(N64_BINDIR)/n64sym
 N64_AUDIOCONV = $(N64_BINDIR)/audioconv64
 N64_MKSPRITE = $(N64_BINDIR)/mksprite
 N64_MKFONT = $(N64_BINDIR)/mkfont
-N64_USO = $(N64_BINDIR)/n64uso
-N64_USOEXTERN = $(N64_BINDIR)/n64uso-extern
-N64_USOMSYM = $(N64_BINDIR)/n64uso-msym
+N64_DSO = $(N64_BINDIR)/n64dso
+N64_DSOEXTERN = $(N64_BINDIR)/n64dso-extern
+N64_DSOMSYM = $(N64_BINDIR)/n64dso-msym
 
 N64_CFLAGS =  -march=vr4300 -mtune=vr4300 -I$(N64_INCLUDEDIR)
 N64_CFLAGS += -falign-functions=32   # NOTE: if you change this, also change backtrace() in backtrace.c
@@ -48,7 +48,7 @@ N64_CFLAGS += -DN64 -O2 -Wall -Werror -Wno-error=deprecated-declarations -fdiagn
 N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings  -I$(N64_INCLUDEDIR)
 N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings  -I$(N64_INCLUDEDIR)
 N64_LDFLAGS = -g -L$(N64_LIBDIR) -ldragon -lm -ldragonsys -Tn64.ld --gc-sections --wrap __do_global_ctors
-N64_USOLDFLAGS = --emit-relocs --unresolved-symbols=ignore-all --nmagic -T$(N64_LIBDIR)/uso.ld
+N64_DSOLDFLAGS = --emit-relocs --unresolved-symbols=ignore-all --nmagic -T$(N64_LIBDIR)/dso.ld
 
 N64_TOOLFLAGS = --header $(N64_HEADERPATH) --title $(N64_ROM_TITLE)
 N64_ED64ROMCONFIGFLAGS =  $(if $(N64_ROM_SAVETYPE),--savetype $(N64_ROM_SAVETYPE))
@@ -85,7 +85,7 @@ N64_CFLAGS += -std=gnu99
 %.z64: $(BUILD_DIR)/%.elf
 	@echo "    [Z64] $@"
 	$(N64_SYM) $< $<.sym
-	$(N64_USOMSYM) $< $<.msym
+	$(N64_DSOMSYM) $< $<.msym
 	$(N64_OBJCOPY) -O binary $< $<.bin
 	@rm -f $@
 	DFS_FILE="$(filter %.dfs, $^)"; \
@@ -158,7 +158,7 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 %.elf: $(N64_LIBDIR)/libdragon.a $(N64_LIBDIR)/libdragonsys.a $(N64_LIBDIR)/n64.ld
 	@mkdir -p $(dir $@)
 	@echo "    [LD] $@"
-# We always use g++ to link except for ucode and USO files because of the inconsistencies
+# We always use g++ to link except for ucode and DSO files because of the inconsistencies
 # between ld when it comes to global ctors dtors. Also see __do_global_ctors
 	EXTERNS_FILE="$(filter %.externs, $^)"; \
 	if [ -z "$$EXTERNS_FILE" ]; then \
@@ -169,29 +169,29 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 	$(N64_SIZE) -G $@
 
 	
-# Change all the dependency chain of USO files to use the N64 toolchain.
-%.uso: CC=$(N64_CC)
-%.uso: CXX=$(N64_CXX)
-%.uso: AS=$(N64_AS)
-%.uso: LD=$(N64_LD)
-%.uso: CFLAGS+=$(N64_CFLAGS) -mno-gpopt
-%.uso: CXXFLAGS+=$(N64_CXXFLAGS) -mno-gpopt
-%.uso: ASFLAGS+=$(N64_ASFLAGS)
-%.uso: RSPASFLAGS+=$(N64_RSPASFLAGS)
+# Change all the dependency chain of DSO files to use the N64 toolchain.
+%.dso: CC=$(N64_CC)
+%.dso: CXX=$(N64_CXX)
+%.dso: AS=$(N64_AS)
+%.dso: LD=$(N64_LD)
+%.dso: CFLAGS+=$(N64_CFLAGS) -mno-gpopt
+%.dso: CXXFLAGS+=$(N64_CXXFLAGS) -mno-gpopt
+%.dso: ASFLAGS+=$(N64_ASFLAGS)
+%.dso: RSPASFLAGS+=$(N64_RSPASFLAGS)
 
-%.uso: $(N64_LIBDIR)/uso.ld
-	$(eval USO_ELF=$(basename $(BUILD_DIR)/uso_elf/$@).elf)
+%.dso: $(N64_LIBDIR)/dso.ld
+	$(eval DSO_ELF=$(basename $(BUILD_DIR)/dso_elf/$@).elf)
 	@mkdir -p $(dir $@)
-	@mkdir -p $(dir $(USO_ELF))
-	@echo "    [USO] $@"
-	$(N64_LD) $(N64_USOLDFLAGS) -Map=$(basename $(USO_ELF)).map -o $(USO_ELF) $(filter %.o, $^)
-	$(N64_SIZE) -G $(USO_ELF)
-	$(N64_USO) -o $(dir $@) -c $(USO_ELF)
-	$(N64_SYM) $(USO_ELF) $@.sym
+	@mkdir -p $(dir $(DSO_ELF))
+	@echo "    [DSO] $@"
+	$(N64_LD) $(N64_DSOLDFLAGS) -Map=$(basename $(DSO_ELF)).map -o $(DSO_ELF) $(filter %.o, $^)
+	$(N64_SIZE) -G $(DSO_ELF)
+	$(N64_DSO) -o $(dir $@) -c $(DSO_ELF)
+	$(N64_SYM) $(DSO_ELF) $@.sym
 	
 %.externs:
-	@echo "    [USOEXTERN] $@"
-	$(N64_USOEXTERN) -o $@ $^ 
+	@echo "    [DSOEXTERN] $@"
+	$(N64_DSOEXTERN) -o $@ $^ 
 	
 ifneq ($(V),1)
 .SILENT:

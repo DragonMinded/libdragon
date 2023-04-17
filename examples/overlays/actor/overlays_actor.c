@@ -12,9 +12,9 @@ typedef struct actor_info_s {
 } actor_info_t;
 
 static actor_info_t actor_info[MAX_ACTOR_TYPES] = {
-    { "circle", "rom:/circle.sprite", "rom:/circle.uso" },
-    { "triangle", "rom:/triangle.sprite", "rom:/triangle.uso" },
-    { "n64brew", "rom:/n64brew.sprite", "rom:/n64brew.uso" },
+    { "circle", "rom:/circle.sprite", "rom:/circle.dso" },
+    { "triangle", "rom:/triangle.sprite", "rom:/triangle.dso" },
+    { "n64brew", "rom:/n64brew.sprite", "rom:/n64brew.dso" },
 };
 
 static actor_t *actors[MAX_ACTORS];
