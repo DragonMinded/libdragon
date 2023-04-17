@@ -5,7 +5,7 @@ all: testrom.z64 testrom_emu.z64
 
 MAIN_ELF_EXTERNS := $(BUILD_DIR)/testrom.externs
 DSO_MODULES = dl_test_syms.dso dl_test_relocs.dso dl_test_imports.dso dl_test_ctors.dso
-DSO_LIST = $(addprefix filesystem/, $(USO_MODULES))
+DSO_LIST = $(addprefix filesystem/, $(DSO_MODULES))
 
 $(BUILD_DIR)/testrom.dfs: $(wildcard filesystem/*) $(DSO_LIST)
 
