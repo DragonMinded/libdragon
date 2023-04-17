@@ -649,6 +649,25 @@
 #define GL_VERSION                                      0x1F02
 #define GL_EXTENSIONS                                   0x1F03
 
+/** @brief Enum to enable usage of custom RDPQ materials with GL
+ * 
+ * The GL_RDPQ_MATERIAL_N64 enum allows to setup a custom Color Combiner and/or Color Blender 
+ * via rdpq_mode_combiner/rdpq_mode_blender and also allows to setup the RDP's internal color registers 
+ * such as PRIM/ENV/BLEND etc. Disable it manually once usage has been fulfilled.
+ * Notice that even when this enum is enabled, GL calls and states are still processed as usual
+ * and will be used once the enum is disabled. */
+#define GL_RDPQ_MATERIAL_N64                            0x6D10
+
+/** @brief Enum to enable loading and managing textures with RDPQ
+ * 
+ * This enum allows to load custom textures and surfaces (for example with rdpq_tex_load/sub), 
+ * allows to configure the tile and tilesize parameters of each tile, 
+ * allows to setup custom mipmapping and to override rdpq_mode_filter filtering.
+ * Disable it manually once usage has been fulfilled.
+ * Notice that even when this enum is enabled, GL calls and states are still processed as usual
+ * and will be used once the enum is disabled. */
+#define GL_RDPQ_TEXTURING_N64                           0x6D11
+
 #define GL_CURRENT_BIT                                  0x00000001
 #define GL_POINT_BIT                                    0x00000002
 #define GL_LINE_BIT                                     0x00000004

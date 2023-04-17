@@ -52,8 +52,8 @@ typedef struct elf_info_s {
     char *strtab;
 } elf_info_t;
 
-//USO Internals
-#include "../../src/uso_format.h"
+//DSO Format Internals
+#include "../../src/dso_format.h"
 
 #include "mips_elf.h"
 
@@ -407,12 +407,12 @@ bool elf_reloc_check_gp_relative(Elf32_Rel *reloc)
         || reloc_type == R_MIPS_CALL_LO16; //GP-Relative call low 16 bits
 }
 
-uso_module_t *uso_module_alloc()
+dso_module_t *dso_module_alloc()
 {
-    return calloc(1, sizeof(uso_module_t));
+    return calloc(1, sizeof(dso_module_t));
 }
 
-void uso_module_free(uso_module_t *module)
+void dso_module_free(dso_module_t *module)
 {
     //Free buffers
     free(module->syms);
@@ -422,16 +422,16 @@ void uso_module_free(uso_module_t *module)
     free(module);
 }
 
-void uso_build_symbols(uso_module_t *module, elf_info_t *elf_info)
+void dso_build_symbols(dso_module_t *module, elf_info_t *elf_info)
 {
     //Calculate symbol counts
     module->num_import_syms = arrlenu(elf_info->import_syms);
     module->num_syms = 1+module->num_import_syms+arrlenu(elf_info->export_syms);
-    module->syms = malloc(module->num_syms*sizeof(uso_sym_t)); //Allocate symbols
-    module->syms[0] = (uso_sym_t){ "", 0, 0 }; //Build dummy symbols
+    module->syms = malloc(module->num_syms*sizeof(dso_sym_t)); //Allocate symbols
+    module->syms[0] = (dso_sym_t){ "", 0, 0 }; //Build dummy symbols
     //Build import symbols
     for(uint32_t i=0; i<module->num_import_syms; i++) {
-        uso_sym_t sym;
+        dso_sym_t sym;
         //Copy symbol properties
         sym.name = elf_info->import_syms[i]->name;
         sym.value = elf_info->import_syms[i]->value;
@@ -444,7 +444,7 @@ void uso_build_symbols(uso_module_t *module, elf_info_t *elf_info)
     }
     //Build export symbols
     for(uint32_t i=0; i<arrlenu(elf_info->export_syms); i++) {
-        uso_sym_t sym;
+        dso_sym_t sym;
         //Copy symbol properties
         sym.name = elf_info->export_syms[i]->name;
         sym.value = elf_info->export_syms[i]->value;
@@ -461,16 +461,16 @@ void uso_build_symbols(uso_module_t *module, elf_info_t *elf_info)
     }
 }
 
-void uso_push_relocation(uso_module_t *module, uso_reloc_t *reloc)
+void dso_push_relocation(dso_module_t *module, dso_reloc_t *reloc)
 {
     //Allocate new relocation
     module->num_relocs++;
-    module->relocs = realloc(module->relocs, sizeof(uso_reloc_t)*module->num_relocs);
+    module->relocs = realloc(module->relocs, sizeof(dso_reloc_t)*module->num_relocs);
     //Push relocation to end of list
     module->relocs[module->num_relocs-1] = *reloc;
 }
 
-uint32_t uso_translate_reloc_symbol_idx(elf_info_t *elf_info, uint32_t sym_idx)
+uint32_t dso_translate_reloc_symbol_idx(elf_info_t *elf_info, uint32_t sym_idx)
 {
     //Defined symbols always have index of 0
     if(elf_info->syms[sym_idx].section != SHN_UNDEF) {
@@ -490,7 +490,7 @@ uint32_t uso_translate_reloc_symbol_idx(elf_info_t *elf_info, uint32_t sym_idx)
     return (result-elf_info->import_syms)+1;
 }
 
-bool uso_build_relocations(uso_module_t *module, elf_info_t *elf_info)
+bool dso_build_relocations(dso_module_t *module, elf_info_t *elf_info)
 {
     for(Elf32_Half i=0; i<elf_info->header.e_shnum; i++) {
         Elf32_Shdr shdr;
@@ -518,13 +518,13 @@ bool uso_build_relocations(uso_module_t *module, elf_info_t *elf_info)
                             "-fPIC, -fpic, -mshared, or -mabicalls to fix\n");
                         return false;
                     }
-                    //Convert into USO symbol index
-                    uint32_t sym_index = uso_translate_reloc_symbol_idx(elf_info, ELF32_R_SYM(elf_reloc.r_info));
-                    //Write USO relocation
-                    uso_reloc_t reloc;
+                    //Convert into DSO symbol index
+                    uint32_t sym_index = dso_translate_reloc_symbol_idx(elf_info, ELF32_R_SYM(elf_reloc.r_info));
+                    //Write DSO relocation
+                    dso_reloc_t reloc;
                     reloc.offset = elf_reloc.r_offset; //Offset can be copied directly
                     reloc.info = (ELF32_R_TYPE(elf_reloc.r_info) << 24)|sym_index; //Merge in type with symbol index
-                    uso_push_relocation(module, &reloc);
+                    dso_push_relocation(module, &reloc);
                 }
             }
         }
@@ -532,14 +532,14 @@ bool uso_build_relocations(uso_module_t *module, elf_info_t *elf_info)
     return true;
 }
 
-bool uso_module_build(uso_module_t *module, elf_info_t *elf_info)
+bool dso_module_build(dso_module_t *module, elf_info_t *elf_info)
 {
     module->prog_size = elf_info->load_seg.mem_size;
-    uso_build_symbols(module, elf_info);
-    return uso_build_relocations(module, elf_info);
+    dso_build_symbols(module, elf_info);
+    return dso_build_relocations(module, elf_info);
 }
 
-void uso_write_file_module(uso_file_module_t *file_module, FILE *out_file)
+void dso_write_file_module(dso_file_module_t *file_module, FILE *out_file)
 {
     //Seek to beginning of file
     fseek(out_file, 0, SEEK_SET);
@@ -553,7 +553,7 @@ void uso_write_file_module(uso_file_module_t *file_module, FILE *out_file)
     w32(out_file, file_module->prog_size);
 }
 
-uint32_t uso_write_relocs(uso_reloc_t *relocs, uint32_t num_relocs, uint32_t base_ofs, FILE *out_file)
+uint32_t dso_write_relocs(dso_reloc_t *relocs, uint32_t num_relocs, uint32_t base_ofs, FILE *out_file)
 {
     //Seek to relocations
     fseek(out_file, base_ofs, SEEK_SET);
@@ -562,20 +562,20 @@ uint32_t uso_write_relocs(uso_reloc_t *relocs, uint32_t num_relocs, uint32_t bas
         w32(out_file, relocs[i].offset);
         w32(out_file, relocs[i].info);
     }
-    return base_ofs+(num_relocs*sizeof(uso_reloc_t));
+    return base_ofs+(num_relocs*sizeof(dso_reloc_t));
 }
 
-uint32_t uso_write_symbols(uso_sym_t *syms, uint32_t num_syms, uint32_t base_ofs, FILE *out_file)
+uint32_t dso_write_symbols(dso_sym_t *syms, uint32_t num_syms, uint32_t base_ofs, FILE *out_file)
 {
-    uint32_t name_ofs = num_syms*sizeof(uso_file_sym_t);
+    uint32_t name_ofs = num_syms*sizeof(dso_file_sym_t);
     for(uint32_t i=0; i<num_syms; i++) {
-        uso_file_sym_t file_sym;
+        dso_file_sym_t file_sym;
         size_t name_data_len = strlen(syms[i].name)+1;
         file_sym.name_ofs = name_ofs;
         file_sym.value = syms[i].value;
         file_sym.info = syms[i].info;
         //Write symbol
-        fseek(out_file, base_ofs+(i*sizeof(uso_file_sym_t)), SEEK_SET);
+        fseek(out_file, base_ofs+(i*sizeof(dso_file_sym_t)), SEEK_SET);
         w32(out_file, file_sym.name_ofs);
         w32(out_file, file_sym.value);
         w32(out_file, file_sym.info);
@@ -587,28 +587,28 @@ uint32_t uso_write_symbols(uso_sym_t *syms, uint32_t num_syms, uint32_t base_ofs
     return base_ofs+name_ofs;
 }
 
-void uso_write_program(elf_info_t *elf_info, uint32_t ofs, FILE *out_file)
+void dso_write_program(elf_info_t *elf_info, uint32_t ofs, FILE *out_file)
 {
     fseek(out_file, ofs, SEEK_SET);
     fwrite(elf_info->load_seg.data, elf_info->load_seg.file_size, 1, out_file);
 }
 
-void uso_write_load_info(elf_info_t *elf_info, FILE *out_file)
+void dso_write_load_info(elf_info_t *elf_info, FILE *out_file)
 {
-    uso_load_info_t load_info;
-    //Set USO magic
-    load_info.magic = USO_MAGIC;
-    //Get USO file size
+    dso_load_info_t load_info;
+    //Set DSO magic
+    load_info.magic = DSO_MAGIC;
+    //Get DSO file size
     fseek(out_file, 0, SEEK_END);
     load_info.size = ftell(out_file);
-    //Calculate USO extra memory size
+    //Calculate DSO extra memory size
     load_info.extra_mem = elf_info->load_seg.mem_size-elf_info->load_seg.file_size;
-    load_info.mem_align = elf_info->load_seg.align; //Get USO alignment
-	//Require minimum of 4-byte alignment for USO
+    load_info.mem_align = elf_info->load_seg.align; //Get DSO alignment
+	//Require minimum of 4-byte alignment for DSO
 	if(load_info.mem_align < 4) {
 		load_info.mem_align = 4;
 	}
-    //Read USO file buffer
+    //Read DSO file buffer
     void *buf = malloc(load_info.size);
     fseek(out_file, 0, SEEK_SET);
     fread(buf, load_info.size, 1, out_file);
@@ -618,30 +618,30 @@ void uso_write_load_info(elf_info_t *elf_info, FILE *out_file)
     w32(out_file, load_info.size);
     w32(out_file, load_info.extra_mem);
     w32(out_file, load_info.mem_align);
-    //Write USO file buffer
+    //Write DSO file buffer
     fwrite(buf, load_info.size, 1, out_file);
     //Free output buffer
     free(buf);
 }
 
-void uso_write_module(uso_module_t *module, elf_info_t *elf_info, FILE *out_file)
+void dso_write_module(dso_module_t *module, elf_info_t *elf_info, FILE *out_file)
 {
-    uso_file_module_t file_module;
+    dso_file_module_t file_module;
     //Write relocations
-    file_module.relocs_ofs = sizeof(uso_file_module_t);
+    file_module.relocs_ofs = sizeof(dso_file_module_t);
     file_module.num_relocs = module->num_relocs;
-    file_module.syms_ofs = uso_write_relocs(module->relocs, module->num_relocs, file_module.relocs_ofs, out_file);
+    file_module.syms_ofs = dso_write_relocs(module->relocs, module->num_relocs, file_module.relocs_ofs, out_file);
     //Write symbols 
     file_module.num_syms = module->num_syms;
     file_module.num_import_syms = module->num_import_syms;
-    file_module.prog_ofs = uso_write_symbols(module->syms, module->num_syms, file_module.syms_ofs, out_file);
+    file_module.prog_ofs = dso_write_symbols(module->syms, module->num_syms, file_module.syms_ofs, out_file);
     //Write program
     file_module.prog_ofs = ROUND_UP(file_module.prog_ofs, elf_info->load_seg.align);
     file_module.prog_size = module->prog_size;
-    uso_write_program(elf_info, file_module.prog_ofs, out_file);
+    dso_write_program(elf_info, file_module.prog_ofs, out_file);
     //Write module header
-    uso_write_file_module(&file_module, out_file);
-    uso_write_load_info(elf_info, out_file);
+    dso_write_file_module(&file_module, out_file);
+    dso_write_load_info(elf_info, out_file);
 }
 
 bool convert(char *infn, char *outfn)
@@ -649,7 +649,7 @@ bool convert(char *infn, char *outfn)
     bool ret = false;
     FILE *out_file;
     elf_info_t *elf_info = elf_info_init(infn);
-    uso_module_t *module = NULL;
+    dso_module_t *module = NULL;
     //Check if elf file is open
     if(!elf_info->file) {
         fprintf(stderr, "Error: cannot open file: %s\n", infn);
@@ -673,26 +673,26 @@ bool convert(char *infn, char *outfn)
     //Read ELF symbols
     verbose("Collecting ELF symbols\n");
     elf_sym_collect(elf_info);
-    //Build USO module
-    module = uso_module_alloc();
-    verbose("Building USO module\n");
-    if(!uso_module_build(module, elf_info)) {
+    //Build DSO module
+    module = dso_module_alloc();
+    verbose("Building DSO module\n");
+    if(!dso_module_build(module, elf_info)) {
         goto end2;
     }
-    //Write USO module
-    verbose("Writing USO module\n");
+    //Write DSO module
+    verbose("Writing DSO module\n");
     out_file = fopen(outfn, "w+b");
     if(!out_file) {
         fprintf(stderr, "cannot open output file: %s\n", outfn);
         goto end2;
     }
-    uso_write_module(module, elf_info, out_file);
-    verbose("Successfully converted input to USO\n");
+    dso_write_module(module, elf_info, out_file);
+    verbose("Successfully converted input to DSO\n");
     ret = true; //Mark as having succeeded
     //Cleanup code
     fclose(out_file);
     end2:
-    uso_module_free(module);
+    dso_module_free(module);
     end1:
     elf_info_free(elf_info);
     return ret;
@@ -743,7 +743,7 @@ int main(int argc, char *argv[])
         char* basename_noext = strdup(basename);
         char* ext = strrchr(basename_noext, '.');
         if (ext) *ext = '\0';
-        asprintf(&outfn, "%s/%s.uso", outdir, basename_noext);
+        asprintf(&outfn, "%s/%s.dso", outdir, basename_noext);
         //Convert input to output
         verbose("Converting: %s -> %s\n", infn, outfn);
         if(!convert(infn, outfn)) {

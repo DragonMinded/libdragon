@@ -22,7 +22,7 @@ SceneBase::~SceneBase()
 void SceneMgr::Init()
 {
     //Load as global to expose its symbols to other overlays
-    scene_common_ovl = dlopen("rom:/scene_common.uso", RTLD_GLOBAL);
+    scene_common_ovl = dlopen("rom:/scene_common.dso", RTLD_GLOBAL);
 }
 
 void SceneMgr::SetNextScene(std::string name)
@@ -53,8 +53,8 @@ void SceneMgr::LoadNextScene()
         dlclose(scene_ovl);
     }
     curr_scene_name = next_scene_name; //Mark as having transferred scenes
-    //Load scene USO
-    std::string ovl_name = "rom:/scene/"+curr_scene_name+".uso";
+    //Load scene DSO
+    std::string ovl_name = "rom:/scene/"+curr_scene_name+".dso";
     scene_ovl = dlopen(ovl_name.c_str(), RTLD_LOCAL);
     //Try finding scene new instance function
     SceneNewFunc *new_func = (SceneNewFunc *)dlsym(scene_ovl, "new_func");

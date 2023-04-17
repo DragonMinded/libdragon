@@ -1,7 +1,4 @@
 BUILD_DIR=build
-USO_PLF_BASE_DIR=$(BUILD_DIR)
-USO_BASE_DIR=filesystem
-USO_MODULES = scene_common.plf scene/bg_test.plf scene/sprite_test.plf
 include $(N64_INST)/include/n64.mk
 
 main_SRC = overlays_scene.cpp scene.cpp
@@ -15,22 +12,27 @@ assets_conv = $(addprefix filesystem/,$(notdir $(assets_png:%.png=%.sprite)))
 
 all: overlays_scene.z64
 
+MAIN_ELF_EXTERNS := $(BUILD_DIR)/overlays_scene.externs
+DSO_MODULES = scene_common.dso scene/bg_test.dso scene/sprite_test.dso
+DSO_LIST = $(addprefix filesystem/, $(DSO_MODULES))
+
 filesystem/%.sprite: assets/%.png
 	@mkdir -p $(dir $@)
 	@echo "    [SPRITE] $@"
 	@$(N64_MKSPRITE) -f RGBA16 --compress -o "$(dir $@)" "$<"
     
-$(BUILD_DIR)/overlays_scene.dfs: $(assets_conv) $(USO_LIST)
-$(BUILD_DIR)/overlays_scene.elf: $(main_SRC:%.cpp=$(BUILD_DIR)/%.o)
-$(USO_PLF_BASE_DIR)/scene_common.plf: $(scene_common_SRC:%.cpp=$(BUILD_DIR)/%.o)
-$(USO_PLF_BASE_DIR)/scene/bg_test.plf: $(bgtest_SRC:%.cpp=$(BUILD_DIR)/%.o)
-$(USO_PLF_BASE_DIR)/scene/sprite_test.plf: $(spritetest_SRC:%.cpp=$(BUILD_DIR)/%.o)
+$(BUILD_DIR)/overlays_scene.dfs: $(assets_conv) $(DSO_LIST)
+$(BUILD_DIR)/overlays_scene.elf: $(main_SRC:%.cpp=$(BUILD_DIR)/%.o) $(MAIN_ELF_EXTERNS)
+$(MAIN_ELF_EXTERNS): $(DSO_LIST)
+filesystem/scene_common.dso: $(scene_common_SRC:%.cpp=$(BUILD_DIR)/%.o)
+filesystem/scene/bg_test.dso: $(bgtest_SRC:%.cpp=$(BUILD_DIR)/%.o)
+filesystem/scene/sprite_test.dso: $(spritetest_SRC:%.cpp=$(BUILD_DIR)/%.o)
 
 overlays_scene.z64: N64_ROM_TITLE="Actor Overlay Demo"
 overlays_scene.z64: $(BUILD_DIR)/overlays_scene.dfs 
 
 clean:
-	rm -rf $(BUILD_DIR) $(USO_LIST) overlays_scene.z64
+	rm -rf $(BUILD_DIR) $(DSO_LIST) overlays_scene.z64
 
 -include $(wildcard $(BUILD_DIR)/*.d)
 -include $(wildcard $(BUILD_DIR)/scene/*.d)

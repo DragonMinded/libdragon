@@ -14,12 +14,12 @@
 #define STB_DS_IMPLEMENTATION
 #include "../common/stb_ds.h"
 
-//USO Symbol Table Internals
-#include "../../src/uso_format.h"
+//DSO Symbol Table Internals
+#include "../../src/dso_format.h"
 
 struct { char *key; int64_t value; } *imports_hash = NULL;
 
-uso_sym_t *export_syms = NULL;
+dso_sym_t *export_syms = NULL;
 
 bool export_all = false;
 bool verbose_flag = false;
@@ -49,70 +49,20 @@ void print_args(const char *name)
     fprintf(stderr, "This program requires a libdragon toolchain installed in $N64_INST.\n");
 }
 
-bool import_exists(const char *name)
-{
-    if(!imports_hash) {
-        return false;
-    }
-    return stbds_shget(imports_hash, name) >= 0;
-}
-
-void add_import(const char *name)
-{
-    if(!imports_hash) {
-        stbds_sh_new_arena(imports_hash);
-        stbds_shdefault(imports_hash, -1);
-    }
-    if(!import_exists(name)) {
-        stbds_shput(imports_hash, name, stbds_shlenu(imports_hash));
-    }
-}
-
-void parse_imports(const char *filename)
-{
-    char *line_buf = NULL;
-    size_t line_buf_size = 0;
-    //Try opening file
-    FILE *file = fopen(filename, "r");
-    if(!file) {
-        fprintf(stderr, "Cannot open file: %s\n", filename);
-        return;
-    }
-    while(getline(&line_buf, &line_buf_size, file) != -1) {
-        //Find start and end of relevant parts of line
-        char *extern_start = strstr(line_buf, "EXTERN(");
-        char *close_brace = strrchr(line_buf, ')');
-        if(extern_start && close_brace) {
-            *close_brace = 0; //Terminate symbol name before closing brace
-            add_import(&extern_start[7]); //Symbol name starts after EXTERN(
-        }
-    }
-    //Close imports file
-    fclose(file);
-}
-
-void cleanup_imports()
-{
-    if(!imports_hash) {
-        return;
-    }
-    stbds_shfree(imports_hash);
-}
-
 void add_export_sym(const char *name, uint32_t value, uint32_t size)
 {
-    uso_sym_t sym;
+    dso_sym_t sym;
     sym.name = strdup(name);
     sym.value = value;
     sym.info = size & 0x3FFFFFFF;
     stbds_arrput(export_syms, sym);
 }
 
-int uso_sym_compare(const void *a, const void *b)
+int dso_sym_compare(const void *a, const void *b)
 {
     //Sort in lexicographical order (standard strcmp uses)
-    uso_sym_t *symbol_1 = (uso_sym_t *)a;
-    uso_sym_t *symbol_2 = (uso_sym_t *)b;
+    dso_sym_t *symbol_1 = (dso_sym_t *)a;
+    dso_sym_t *symbol_2 = (dso_sym_t *)b;
     return strcmp(symbol_1->name, symbol_2->name);
 }
 
@@ -167,9 +117,7 @@ void get_export_syms(char *infn)
             size_t sym_value = strtoull(&line_buf[8], NULL, 16); //Read symbol value
             //Read symbol size
             size_t sym_size = strtoull(&line_buf[17], NULL, 0); //Read symbol size
-            if(export_all || import_exists(sym_name)) {
-                add_export_sym(sym_name, sym_value, sym_size);
-            }
+            add_export_sym(sym_name, sym_value, sym_size);
         }
     }
     //Free resources
@@ -178,17 +126,17 @@ void get_export_syms(char *infn)
     subprocess_terminate(&subp);
 }
 
-uint32_t uso_write_symbols(uso_sym_t *syms, uint32_t num_syms, uint32_t base_ofs, FILE *out_file)
+uint32_t dso_write_symbols(dso_sym_t *syms, uint32_t num_syms, uint32_t base_ofs, FILE *out_file)
 {
-    uint32_t name_ofs = num_syms*sizeof(uso_file_sym_t);
+    uint32_t name_ofs = num_syms*sizeof(dso_file_sym_t);
     for(uint32_t i=0; i<num_syms; i++) {
-        uso_file_sym_t file_sym;
+        dso_file_sym_t file_sym;
         size_t name_data_len = strlen(syms[i].name)+1;
         file_sym.name_ofs = name_ofs;
         file_sym.value = syms[i].value;
         file_sym.info = syms[i].info;
         //Write symbol
-        fseek(out_file, base_ofs+(i*sizeof(uso_file_sym_t)), SEEK_SET);
+        fseek(out_file, base_ofs+(i*sizeof(dso_file_sym_t)), SEEK_SET);
         w32(out_file, file_sym.name_ofs);
         w32(out_file, file_sym.value);
         w32(out_file, file_sym.info);
@@ -222,12 +170,12 @@ void write_msym(char *outfn)
     }
     //Initialize main symbol table info
     mainexe_sym_info_t sym_info;
-    sym_info.magic = USO_MAINEXE_SYM_DATA_MAGIC;
+    sym_info.magic = DSO_MAINEXE_SYM_DATA_MAGIC;
     sym_info.size = 0;
     sym_info.num_syms =  stbds_arrlenu(export_syms);
     write_mainexe_sym_info(&sym_info, out_file);
     //Write symbol table
-    sym_info.size = uso_write_symbols(export_syms, sym_info.num_syms, sizeof(mainexe_sym_info_t), out_file);
+    sym_info.size = dso_write_symbols(export_syms, sym_info.num_syms, sizeof(mainexe_sym_info_t), out_file);
     //Correct output size
     sym_info.size -= sizeof(mainexe_sym_info_t);
     write_mainexe_sym_info(&sym_info, out_file);
@@ -238,7 +186,7 @@ void process(char *infn, char *outfn)
 {
     get_export_syms(infn);
     verbose("Sorting exported symbols from ELF");
-    qsort(export_syms, stbds_arrlenu(export_syms), sizeof(uso_sym_t), uso_sym_compare);
+    qsort(export_syms, stbds_arrlenu(export_syms), sizeof(dso_sym_t), dso_sym_compare);
     verbose("Writing output file %s\n", outfn);
     write_msym(outfn);
 }
@@ -284,15 +232,6 @@ int main(int argc, char **argv)
         } else if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--verbose")) {
             //Specify verbose flag
             verbose_flag = true;
-        } else if (!strcmp(argv[i], "-a") || !strcmp(argv[i], "--all")) {
-            export_all = true;
-        } else if (!strcmp(argv[i], "-i") || !strcmp(argv[i], "--imports")) {
-            //Specify output file
-            if(++i == argc) {
-                fprintf(stderr, "missing argument for %s\n", argv[i-1]);
-                return 1;
-            }
-            parse_imports(argv[i]);
         } else {
             //Output invalid flag warning
             fprintf(stderr, "invalid flag: %s\n", argv[i]);
@@ -311,6 +250,5 @@ int main(int argc, char **argv)
         outfn = argv[i++];
     }
     process(infn, outfn);
-    cleanup_imports();
     return 0;
 }

@@ -1,2 +1,2 @@
-filesystem/*.uso
-filesystem/*.uso.sym
+filesystem/*.dso
+filesystem/*.dso.sym
