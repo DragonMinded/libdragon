@@ -14,7 +14,7 @@ all: overlays_actor.z64
 
 MAIN_ELF_EXTERNS := $(BUILD_DIR)/overlays_actor.externs
 DSO_MODULES = circle.dso triangle.dso n64brew.dso
-DSO_LIST = $(addprefix filesystem/, $(USO_MODULES))
+DSO_LIST = $(addprefix filesystem/, $(DSO_MODULES))
 
 filesystem/%.sprite: assets/%.png
 	@mkdir -p $(dir $@)
