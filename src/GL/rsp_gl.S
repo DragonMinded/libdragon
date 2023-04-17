@@ -32,6 +32,7 @@
     GL_STATE_SCISSOR_RECT:  .half   0, 0, 0, 0
     GL_STATE_BLEND_CYCLE:   .word   0
     GL_STATE_FOG_COLOR:     .word   0
+    GL_STATE_FLAGS2:        .word   0
     GL_STATE_TEXTURE_IDS:   .word   0, 0
     GL_STATE_UPLOADED_TEX:  .word   0
     GL_STATE_FILL_COLOR:    .word   0
@@ -452,9 +453,11 @@ gl_tex_incomplete:
 GLCmd_PreInitPipe:
     sh a0, %lo(GL_STATE_PRIM_TYPE)
 
-    #define state_flags k1
+    #define state_flags  k1
+    #define state_flags2 k0
 
     lw state_flags, %lo(GL_STATE_FLAGS)
+    lw state_flags2, %lo(GL_STATE_FLAGS2)
 
     # Update matrix if required
 
@@ -528,8 +531,12 @@ GLCmd_PreInitPipe:
     move active_tex, zero
 1:
 
-    jal GL_UpdateTextureUpload
-    nop
+    # * Skip uploading an active texture from GL if FLAG2_USE_RDPQ_TEXTURING is active
+
+    andi t1, state_flags2, FLAG2_USE_RDPQ_TEXTURING
+    beqz t1, GL_UpdateTextureUpload
+    li ra, %lo(1f)
+1:
 
     #define has_depth   t1
     #define has_tex     t3
@@ -631,6 +638,10 @@ GLCmd_PreInitPipe:
 1:
     or modes1, t3
 
+    # * Skip construction of CC/CB if FLAG2_USE_RDPQ_MATERIAL is active
+    andi t1, state_flags2, FLAG2_USE_RDPQ_MATERIAL
+    bnez t1, gl_skipcombinerblender
+
     # Blend cycle
     andi t0, state_flags, FLAG_BLEND
     beqz t0, 1f
@@ -647,6 +658,43 @@ GLCmd_PreInitPipe:
 1:
     sw t0, %lo(RDPQ_MODE_BLENDER_STEPS) + 0x0
     or modes0, t2
+
+    # Combiner
+    move t5, is_points
+    lw t3, %lo(GL_STATE_TEX_ENV_MODE)
+
+    li t4, GL_REPLACE
+    bne t3, t4, 1f
+    nop
+    ori t5, 0x2
+1:
+
+    beqz active_tex, 1f
+    lw t0, TEXTURE_FLAGS_OFFSET(active_tex)
+    andi t0, TEX_FLAG_COMPLETE
+    srl t0, 1
+    or t5, t0
+1:
+    sll t5, 3
+    lw t0, %lo(COMBINER_TABLE) + 0x0(t5)
+    lw t1, %lo(COMBINER_TABLE) + 0x4(t5)
+    lw t2, %lo(COMBINER_MIPMAPMASK_TABLE) + 0x0(t5)
+    lw t3, %lo(COMBINER_MIPMAPMASK_TABLE) + 0x4(t5)
+
+    # TODO: The following is sort of equivalent to RDPQCmd_ResetMode. Maybe make that callable from ucode?
+
+    sw t0, %lo(RDPQ_COMBINER) + 0x0
+    sw t1, %lo(RDPQ_COMBINER) + 0x4
+    sw t2, %lo(RDPQ_COMBINER_MIPMAPMASK) + 0x0
+    sw t3, %lo(RDPQ_COMBINER_MIPMAPMASK) + 0x4
+
+gl_skipcombinerblender:
+
+    # * Skip specific GL texture flags if FLAG2_USE_RDPQ_TEXTURING is active and instead apply RDPQ ones
+
+    andi t1, state_flags2, FLAG2_USE_RDPQ_TEXTURING
+    bnez t1, gl_mergemask
+    nop
 
     # Texture
     beqz active_tex, 2f
@@ -685,34 +733,17 @@ GLCmd_PreInitPipe:
     or modes0, t7
 2:
 
-    # Combiner
-    move t5, is_points
-    lw t3, %lo(GL_STATE_TEX_ENV_MODE)
+    j 1f
+    nop # :(
+gl_mergemask:
+    # If we have FLAG2_USE_RDPQ_TEXTURING active, we need to use some of the RDPQ params instead of GL's
 
-    li t4, GL_REPLACE
-    bne t3, t4, 1f
-    nop
-    ori t5, 0x2
+    lw t1, %lo(RDPQ_OTHER_MODES) + 0x0
+    and t1, RDPQ_TEXTURING_MASK
+    and t2, modes0, ~(RDPQ_TEXTURING_MASK)
+    or  modes0, t1, t2
+
 1:
-
-    beqz active_tex, 1f
-    lw t0, TEXTURE_FLAGS_OFFSET(active_tex)
-    andi t0, TEX_FLAG_COMPLETE
-    srl t0, 1
-    or t5, t0
-1:
-    sll t5, 3
-    lw t0, %lo(COMBINER_TABLE) + 0x0(t5)
-    lw t1, %lo(COMBINER_TABLE) + 0x4(t5)
-    lw t2, %lo(COMBINER_MIPMAPMASK_TABLE) + 0x0(t5)
-    lw t3, %lo(COMBINER_MIPMAPMASK_TABLE) + 0x4(t5)
-
-    # TODO: The following is sort of equivalent to RDPQCmd_ResetMode. Maybe make that callable from ucode?
-
-    sw t0, %lo(RDPQ_COMBINER) + 0x0
-    sw t1, %lo(RDPQ_COMBINER) + 0x4
-    sw t2, %lo(RDPQ_COMBINER_MIPMAPMASK) + 0x0
-    sw t3, %lo(RDPQ_COMBINER_MIPMAPMASK) + 0x4
 
     lw t0, %lo(RDPQ_OTHER_MODES) + 0x0
 
@@ -761,7 +792,7 @@ GL_UpdateTextureUpload:
     #define tex_flags       t7
     #define full_width_log  t8
     #define full_height_log t9
-    #define mirror          k0
+    #define mirror          t3
     #define state_flags     k1
 
     beqz active_tex, gl_set_texture_not_active
