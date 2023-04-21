@@ -13,6 +13,7 @@
 ########################################################
 #
 # HOW TO WRITE AN OVERLAY:
+#
 # 1. Put `#include <rsp_queue.inc>` before any text or data
 #    segments in your file.
 # 2. Define the overlay header using RSPQ_BeginOverlayHeader
@@ -22,16 +23,51 @@
 #    in the header, one for each command. The functions that
 #    your commands jump to can be located anywhere in your text segment.
 #    At the end of each command function, you need to hand control
-#    back over to the queue engine. The return register will always
-#    point to the main loop entry point when calling your commands,
-#    so you can simply do this: `jr ra`. Instead, you can also 
-#    explicitly jump there: `j RSPQ_Loop`.
-# 4. Somewhere in your data segment, define the saved overlay
-#    state using RSPQ_BeginSavedState and RSPQ_EndSavedState.
-#    Make sure to put at least one data directive that emits
-#    a non-zero amount of bytes between them. If your overlay
-#    doesn't need any data to be persisted, then use
-#    RSPQ_EmptySavedState instead.
+#    back over to the queue engine.
+# 4. In the body of the function, respect the following rules with 
+#    repsects to register usage:
+#    * The first 4 arguments of the function will be passed in
+#      registers a0-a3. If your command needs more, you can use
+#      the CMD_ADDR macro to fetch them (they are in DMEM but
+#      needs to be read). You can reuse a0-a3 as you wish in the
+#      function body.
+#    * "ra" regiser will point to RSPQ_Loop, which is the return point.
+#      You can use "jr ra" to go back to the main loop, or simply
+#      "j RSPQ_Loop" to jump there.
+#    * "gp" register is the only reserved scalar register. If you
+#      need to use it, you must save and restore its value
+#      before jumping back to RSPQ_Loop.
+#    * "$v00" register (alias: vzero) is initialized with 0. It is
+#      used by the vcopy macro and is in general useful to have it
+#      around, but you can reuse it if you wish and there is no
+#      need to restore it: the main loop will always zero it before
+#      calling each command.
+#    * "$v30" and "$v31" registers (alias: vshift and vshift8) contains
+#      all powers of two (from 2 to 32768). The single elements are
+#      also aliased using "KNN" macros (eg: K16 is vshift.e3). In addition
+#      to being often useful in many calculations, they are also used
+#      by the vector shifts macros defined in rsp.inc (vsll, vsra, vsrl).
+#      If you want, you can clobber these registers (obviously the macros
+#      will not work anymore), and there is no need to restore them:
+#      the main loop will always zero it before calling each command.
+# 5. This is how to use DMEM:
+#    * The bss segment is useful to define empty space to use as buffers
+#      (eg: to store data read via DMA). NOTE: contrary to C, the bss
+#      segment is not initialized to zero, and is not preserved between
+#      commands. Assume it contains random data when each command is called.
+#    * The data segment is useful to define constant data that you might need
+#      in the implementation of command. While the whole DMEM is also
+#      writable, please do not do so, and assume that the data segment
+#      might be restored to its original state at any time.
+#    * Somewhere in your data segment, define the saved overlay
+#      state using RSPQ_BeginSavedState and RSPQ_EndSavedState.
+#      The save state is preserved across all calls to the overlay,
+#      that is across different commands. This is the only part of
+#      the data segement that you should considered writable.
+#      NOTE: make sure to put at least one data directive that emits
+#      a non-zero amount of bytes between them. If your overlay
+#      doesn't need any data to be persisted, then use
+#      RSPQ_EmptySavedState instead.
 # 
 # Read below for more details on how to use the macros mentioned above.
 #
@@ -186,6 +222,12 @@ _RSPQ_SAVED_STATE_END:
 #define vshift   $v30
 #define vshift8  $v31
 
+# vcopy macro: copy one vector register to another. This requires
+# vzero to be initialized to zero, which is true within rspq.
+.macro vcopy dest, source
+    vor \dest, vzero, \source
+.endm
+
 # We also define direct access to small constants as they can be useful in some
 # calculations.
 #define K1       vshift,e(7)
@@ -196,6 +238,14 @@ _RSPQ_SAVED_STATE_END:
 #define K32      vshift,e(2)
 #define K64      vshift,e(1)
 #define K128     vshift,e(0)
+#define K256     vshift8,e(7)
+#define K512     vshift8,e(6)
+#define K1024    vshift8,e(5)
+#define K2048    vshift8,e(4)
+#define K4096    vshift8,e(3)
+#define K8192    vshift8,e(2)
+#define K16384   vshift8,e(1)
+#define KM32768  vshift8,e(0)    // note: this is actually -32768 for most arithmetic operations
 
 
 ########################################################
