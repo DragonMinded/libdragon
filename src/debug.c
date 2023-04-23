@@ -227,7 +227,7 @@ DWORD get_fattime(void)
 static DSTATUS fat_disk_status_default(void) { return 0; }
 
 static DRESULT fat_disk_ioctl_default(BYTE cmd, void* buff)
-{	
+{
 	switch (cmd)
 	{
 		case CTRL_SYNC: return RES_OK;
@@ -271,8 +271,8 @@ static fat_disk_t fat_disk_ddr64 =
     fat_disk_status_default,
     fat_disk_read_ddr64,
 	NULL,
-    fat_disk_write_ddr64,
-    fat_disk_ioctl_default
+	fat_disk_write_ddr64,
+	fat_disk_ioctl_default
 };
 
 /*********************************************************************
@@ -338,7 +338,7 @@ static int __fat_fstat(void *file, struct stat *st)
 }
 
 static int __fat_read(void *file, uint8_t *ptr, int len)
-{	
+{
 	UINT read;
 	FRESULT res = f_read(file, ptr, len, &read);
 	if (res != FR_OK)
@@ -447,7 +447,7 @@ static int __stderr_write(char *buf, unsigned int len)
 		if (debug_writer[i])
 			debug_writer[i]((uint8_t*)buf, len);
 
-	// Pretend stderr is written correctly even if it isn't. 
+	// Pretend stderr is written correctly even if it isn't.
 	// There's really no benefit in bubbling up I/O errors
 	// for the log spew. Also there could be multiple channels
 	// and we wouldn't know how to report errors only on
@@ -520,7 +520,7 @@ bool debug_init_sdfs(const char *prefix, int npart)
 	case CART_SC64:
 		fat_disks[FAT_VOLUME_SD] = fat_disk_sc64;
 		break;
-    case CART_DDR64:
+	case CART_DDR64:
         fat_disks[FAT_VOLUME_SD] = fat_disk_ddr64;
         break;
 	default:
