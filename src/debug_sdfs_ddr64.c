@@ -51,19 +51,19 @@ static uint8_t ddr64_sd_wait()
     uint32_t timeout = 0;
     uint32_t isBusy;
 
-    // Wait until the cartridge interface is ready
-    do {
+	// Wait until the cartridge interface is ready
+	do {
 		// returns 1 while sd card is busy
 		isBusy = io_read(DDR64_CIBASE_ADDRESS_START + DDR64_REGISTER_SD_BUSY);
 		// Took too long, abort
 		if((timeout++) > 10000000) {
 			return -1;
 		}
-    } while(isBusy != 0);
+	} while(isBusy != 0);
 	(void) timeout; // Needed to stop unused variable warning
 
-    // Success
-    return 0;
+	// Success
+	return 0;
 }
 
 static DRESULT fat_disk_read_ddr64(BYTE* buff, LBA_t sector, UINT count)
@@ -93,8 +93,8 @@ static DRESULT fat_disk_read_ddr64(BYTE* buff, LBA_t sector, UINT count)
 		// start the load
 		io_write(DDR64_CIBASE_ADDRESS_START + DDR64_COMMAND_SD_READ, 1);
 
-        // wait for the sd card to finish
-        if(ddr64_sd_wait() == 0) {
+		// wait for the sd card to finish
+		if(ddr64_sd_wait() == 0) {
 			data_cache_hit_writeback_invalidate(buff, 512);
 			dma_read(buff, DDR64_BASE_ADDRESS_START, 512);
 			buff += 512;
