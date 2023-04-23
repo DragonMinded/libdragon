@@ -521,8 +521,8 @@ bool debug_init_sdfs(const char *prefix, int npart)
 		fat_disks[FAT_VOLUME_SD] = fat_disk_sc64;
 		break;
 	case CART_DDR64:
-        fat_disks[FAT_VOLUME_SD] = fat_disk_ddr64;
-        break;
+		fat_disks[FAT_VOLUME_SD] = fat_disk_ddr64;
+		break;
 	default:
 		return false;
 	}
