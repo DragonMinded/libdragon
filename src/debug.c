@@ -267,9 +267,9 @@ static fat_disk_t fat_disk_sc64 =
 
 static fat_disk_t fat_disk_ddr64 =
 {
-    fat_disk_initialize_ddr64,
-    fat_disk_status_default,
-    fat_disk_read_ddr64,
+	fat_disk_initialize_ddr64,
+	fat_disk_status_default,
+	fat_disk_read_ddr64,
 	NULL,
 	fat_disk_write_ddr64,
 	fat_disk_ioctl_default

@@ -53,17 +53,14 @@ static uint8_t ddr64_sd_wait()
 
     // Wait until the cartridge interface is ready
     do {
-
-        // returns 1 while sd card is busy
+		// returns 1 while sd card is busy
 		isBusy = io_read(DDR64_CIBASE_ADDRESS_START + DDR64_REGISTER_SD_BUSY);
-
-        // Took too long, abort
-        if((timeout++) > 10000000) {
+		// Took too long, abort
+		if((timeout++) > 10000000) {
 			return -1;
 		}
-    }
-    while(isBusy != 0);
-    (void) timeout; // Needed to stop unused variable warning
+    } while(isBusy != 0);
+	(void) timeout; // Needed to stop unused variable warning
 
     // Success
     return 0;
