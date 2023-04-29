@@ -151,10 +151,18 @@ exception_coprocessor:
 	nop
 
 exception_coprocessor_fpu:
-	# FPU exception. This happened because of the use of FPU in an interrupt handler,
-	# where it is disabled by default. We must save the full FPU context,
-	# reactivate the FPU, and then return from exception, so that the FPU instruction
-	# is executed again and this time it will work.
+	# COP1 unusable exception. This happened because a FPU operation was attempted
+	# while the COP1 was disabled.
+	# The interrupt handler below disables the COP1 during interrupt handler
+	# execution, so that we don't need to save interrupt registers on the stack.
+	# In this situation, we want to save the FPU registers, reenable the COP1
+	# and retrigger the same operation.
+	# There might be other code (user code) that disables the COP1, and in that
+	# case instead we want to just trigger a standard critical exception.
+	# To distinguish between the two cases, we use the interrupt_exception_frame
+	# pointer, which is set to non-NULL only when we are handling an interrupt.
+	lw a0, interrupt_exception_frame
+	beqz a0, exception_critical
 
 	# Make sure that FPU will also be enabled when we exit this exception
 	lw t0, STACK_SR(sp)
@@ -165,14 +173,12 @@ exception_coprocessor_fpu:
 	# in doing so, it will overwrite the FPU registers,
 	# but those are at this point still part of the context
 	# from when the interrupt was raised and have not been saved yet.
-	# Save the FPU registers now, into the *underlying* interrupt context.
+	# Save the FPU registers now, into the *underlying* interrupt context
+	# (read from interrupt_exception_frame into a0).
 	# That is, we want to make sure that they get restored when the
 	# underlying interrupt exits.
-	# Note: interrupt_exception_frame is always valid to use here,
-	#  as the FPU is only ever unusable in interrupt handlers:
-	#  entrypoint.S loads SR with SR_CU1
 	jal save_fpu_regs
-	lw a0, interrupt_exception_frame
+	nop
 
 	# OK we are done. We can now exit the exception
 	j end_interrupt
@@ -254,6 +260,7 @@ notcart:
 
 	# No more interrupts to process, we can exit
 	# (fallthrough)
+	sw zero, interrupt_exception_frame
 
 end_interrupt:
 	mfc0 t0, C0_SR

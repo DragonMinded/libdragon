@@ -69,5 +69,6 @@
 #include "surface.h"
 #include "sprite.h"
 #include "debugcpp.h"
+#include "dlfcn.h"
 
 #endif

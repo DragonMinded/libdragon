@@ -1,6 +1,6 @@
 INSTALLDIR ?= $(N64_INST)
 
-all: chksum64 dumpdfs ed64romconfig mkdfs mksprite mkfont mkasset n64tool n64sym audioconv64 rdpvalidate
+all: chksum64 dumpdfs ed64romconfig mkdfs mksprite mkfont mkasset n64dso n64tool n64sym audioconv64 rdpvalidate
 
 .PHONY: install
 install: all
@@ -10,6 +10,7 @@ install: all
 	$(MAKE) -C mksprite install
 	$(MAKE) -C mkfont install
 	$(MAKE) -C mkasset install
+	$(MAKE) -C n64dso install
 	$(MAKE) -C audioconv64 install
 	$(MAKE) -C rdpvalidate install
 
@@ -21,6 +22,7 @@ clean:
 	$(MAKE) -C mksprite clean
 	$(MAKE) -C mkfont clean
 	$(MAKE) -C mkasset clean
+	$(MAKE) -C n64dso clean
 	$(MAKE) -C audioconv64 clean
 	$(MAKE) -C rdpvalidate clean
 
@@ -56,6 +58,10 @@ mkfont:
 mkasset:
 	$(MAKE) -C mkasset
 
+.PHONY: n64dso
+n64dso:
+	$(MAKE) -C n64dso
+	
 .PHONY: audioconv64
 audioconv64:
 	$(MAKE) -C audioconv64
