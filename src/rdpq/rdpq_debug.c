@@ -141,12 +141,21 @@ static struct {
     setothermodes_t som;                 ///< Current SOM state
     colorcombiner_t cc;                  ///< Current CC state
     struct tile_s { 
+        uint64_t *last_settile;            ///< Pointer to last SET_TILE command sent
+        uint64_t *last_setsize;            ///< Pointer to last LOAD_TILE/SET_TILE_SIZE command sent
+        uint64_t last_settile_data;        ///< Last SET_TILE command (raw)
+        uint64_t last_setsize_data;        ///< Last LOAD_TILE/SET_TILE_SIZE command (raw)
         uint8_t fmt, size;                 ///< Format & size (RDP format/size bits)
         uint8_t pal;                       ///< Palette number
         bool has_extents;                  ///< True if extents were set (via LOAD_TILE / SET_TILE_SIZE)
         float s0, t0, s1, t1;              ///< Extents of tile in TMEM
         int16_t tmem_addr;                 ///< Address in TMEM
         int16_t tmem_pitch;                ///< Pitch in TMEM
+        struct {
+            uint8_t mask;                   ///< Mask (RDP mask bits)
+            bool clamp;                     ///< Clamping enabled
+            bool mirror;                    ///< Mirroring enabled
+        } s, t;                            ///< Settings for S&T coordinates
     } tile[8];                           ///< Current tile descriptors
     struct {
         uint8_t fmt, size;                 ///< Format & size (RDP format/size bits)
@@ -755,28 +764,51 @@ bool rdpq_debug_disasm(uint64_t *buf, FILE *out) {
     return false;
 }
 
+#define EMIT_TYPE         0x3
+#define EMIT_CRASH        0x0
+#define EMIT_ERROR        0x1
+#define EMIT_WARN         0x2
+
+#define EMIT_CTX_SOM      0x4
+#define EMIT_CTX_CC       0x8
+#define EMIT_CTX_TEX      0x10
+#define EMIT_CTX_TILES    (0xFF << 5)
+#define EMIT_CTX_TILE(n)  (0x20 << (n))
+#define EMIT_CTX_TILESIZE 0x2000
+
+__attribute__((format(printf, 2, 3)))
 static void validate_emit_error(int flags, const char *msg, ...)
 {
     va_list args;
 
     if (!(vctx.flags & RDPQ_VALIDATE_FLAG_NOECHO)) {
-        if (flags & 4)  __rdpq_debug_disasm(rdp.last_som, &rdp.last_som_data, stderr);
-        if (flags & 8)  __rdpq_debug_disasm(rdp.last_cc,  &rdp.last_cc_data,  stderr);
-        if (flags & 16) __rdpq_debug_disasm(rdp.last_tex, &rdp.last_tex_data, stderr);
+        if (flags & EMIT_CTX_SOM) __rdpq_debug_disasm(rdp.last_som, &rdp.last_som_data, stderr);
+        if (flags & EMIT_CTX_CC)  __rdpq_debug_disasm(rdp.last_cc,  &rdp.last_cc_data,  stderr);
+        if (flags & EMIT_CTX_TEX) __rdpq_debug_disasm(rdp.last_tex, &rdp.last_tex_data, stderr);
+        if (flags & EMIT_CTX_TILES) {
+            for (int i = 0; i < 8; i++) {
+                if (flags & EMIT_CTX_TILE(i)) {
+                    __rdpq_debug_disasm(rdp.tile[i].last_settile, &rdp.tile[i].last_settile_data, stderr);
+                    if (rdp.tile[i].has_extents)
+                        __rdpq_debug_disasm(rdp.tile[i].last_setsize, &rdp.tile[i].last_setsize_data, stderr);
+                    break;
+                }
+            }
+        }
         rdpq_debug_disasm(vctx.buf, stderr);
     }
 
-    switch (flags & 3) {
-    case 0:
+    switch (flags & EMIT_TYPE) {
+    case EMIT_CRASH:
         fprintf(stderr, "[RDPQ_VALIDATION] CRASH: ");
         vctx.crashed = true;
         vctx.errs += 1;
         break;
-    case 1:
+    case EMIT_ERROR:
         fprintf(stderr, "[RDPQ_VALIDATION] ERROR: ");
         vctx.errs += 1;
         break;
-    case 2:
+    case EMIT_WARN:
         fprintf(stderr, "[RDPQ_VALIDATION] WARN:  ");
         vctx.warns += 1;
         break;
@@ -786,18 +818,31 @@ static void validate_emit_error(int flags, const char *msg, ...)
     vfprintf(stderr, msg, args);
     va_end(args);
 
-    if ((flags & 3) == 0)
+    if ((flags & EMIT_TYPE) == EMIT_CRASH)
         fprintf(stderr, "[RDPQ_VALIDATION]        This is a fatal error: a real RDP chip would stop working until reboot\n");
 
-    if (flags & 4)  fprintf(stderr, "[RDPQ_VALIDATION]        SET_OTHER_MODES last sent at %p\n", rdp.last_som);
-    if (flags & 8)  fprintf(stderr, "[RDPQ_VALIDATION]        SET_COMBINE_MODE last sent at %p\n", rdp.last_cc);
-    if (flags & 16) fprintf(stderr, "[RDPQ_VALIDATION]        SET_TEX_IMAGE last sent at %p\n", rdp.last_tex);
+    if (flags & EMIT_CTX_SOM) fprintf(stderr, "[RDPQ_VALIDATION]        SET_OTHER_MODES last sent at %p\n", rdp.last_som);
+    if (flags & EMIT_CTX_CC)  fprintf(stderr, "[RDPQ_VALIDATION]        SET_COMBINE_MODE last sent at %p\n", rdp.last_cc);
+    if (flags & EMIT_CTX_TEX) fprintf(stderr, "[RDPQ_VALIDATION]        SET_TEX_IMAGE last sent at %p\n", rdp.last_tex);
+    if (flags & EMIT_CTX_TILES) {
+        for (int i = 0; i < 8; i++) {
+            if (flags & EMIT_CTX_TILE(i)) {
+                if (flags & EMIT_CTX_TILESIZE)
+                    fprintf(stderr, "[RDPQ_VALIDATION]        %s last sent at %p\n",
+                        CMD(rdp.tile[i].last_setsize_data) == 0x32 ? "SET_TILE_SIZE" : "LOAD_TILE",
+                        rdp.tile[i].last_setsize);
+                else
+                    fprintf(stderr, "[RDPQ_VALIDATION]        SET_TILE last sent at %p\n", rdp.tile[i].last_settile);
+                break;
+            }
+        }
+    }
 
     #ifdef N64
     // On a real N64, let's assert on RDP crashes. This makes them very visible to everybody,
     // including people that don't have the debugging log on.
     // We just dump the message here, more information are in the log.
-    if ((flags & 3) == 0) {
+    if ((flags & EMIT_TYPE) == EMIT_CRASH) {
         char buf[1024];
         va_start(args, msg);
         vsprintf(buf, msg, args);
@@ -821,10 +866,14 @@ static void validate_emit_error(int flags, const char *msg, ...)
 #define VALIDATE_CRASH(cond, msg, ...)      __VALIDATE(0, cond, msg, ##__VA_ARGS__)
 /** @brief Validate and trigger a crash, with SOM context */
 #define VALIDATE_CRASH_SOM(cond, msg, ...)  __VALIDATE(4, cond, msg, ##__VA_ARGS__)
-/** @brief Validate and trigger an error, with CC context */
+/** @brief Validate and trigger a crash, with CC context */
 #define VALIDATE_CRASH_CC(cond, msg, ...)   __VALIDATE(8, cond, msg, ##__VA_ARGS__)
-/** @brief Validate and trigger an error, with SET_TEX_IMAGE context */
+/** @brief Validate and trigger a crash, with SET_TEX_IMAGE context */
 #define VALIDATE_CRASH_TEX(cond, msg, ...)  __VALIDATE(16, cond, msg, ##__VA_ARGS__)
+/** @brief Validate and trigger a crash, with tile context */
+#define VALIDATE_CRASH_TILE(cond, tidx, msg, ...)  __VALIDATE(EMIT_CRASH | EMIT_CTX_TILE(tidx), cond, msg, ##__VA_ARGS__)
+/** @brief Validate and trigger a crash, with tile extents context */
+#define VALIDATE_CRASH_TILESIZE(cond, tidx, msg, ...)  __VALIDATE(EMIT_CRASH | EMIT_CTX_TILE(tidx) | EMIT_CTX_TILESIZE, cond, msg, ##__VA_ARGS__)
 
 /** 
  * @brief Check and trigger a RDP validation error. 
@@ -840,6 +889,10 @@ static void validate_emit_error(int flags, const char *msg, ...)
 #define VALIDATE_ERR_CC(cond, msg, ...)   __VALIDATE(9, cond, msg, ##__VA_ARGS__)
 /** @brief Validate and trigger an error, with SET_TEX_IMAGE context */
 #define VALIDATE_ERR_TEX(cond, msg, ...)  __VALIDATE(17, cond, msg, ##__VA_ARGS__)
+/** @brief Validate and trigger an error, with tile context */
+#define VALIDATE_ERR_TILE(cond, tidx, msg, ...)  __VALIDATE(EMIT_ERROR | EMIT_CTX_TILE(tidx), cond, msg, ##__VA_ARGS__)
+/** @brief Validate and trigger an error, with tile extents context */
+#define VALIDATE_ERR_TILESIZE(cond, tidx, msg, ...)  __VALIDATE(EMIT_ERROR | EMIT_CTX_TILE(tidx) | EMIT_CTX_TILESIZE, cond, msg, ##__VA_ARGS__)
 
 /** 
  * @brief Check and trigger a RDP validation warning.
@@ -858,6 +911,10 @@ static void validate_emit_error(int flags, const char *msg, ...)
 #define VALIDATE_WARN_CC(cond, msg, ...)   __VALIDATE(10, cond, msg, ##__VA_ARGS__)
 /** @brief Validate and trigger a warning, with SET_TEX_IMAGE context */
 #define VALIDATE_WARN_TEX(cond, msg, ...)  __VALIDATE(18, cond, msg, ##__VA_ARGS__)
+/** @brief Validate and trigger an error, with tile context */
+#define VALIDATE_WARN_TILE(cond, tidx, msg, ...)  __VALIDATE(EMIT_WARN | EMIT_CTX_TILE(tidx), cond, msg, ##__VA_ARGS__)
+/** @brief Validate and trigger a warning, with tile extents context */
+#define VALIDATE_WARN_TILESIZE(cond, tidx, msg, ...)  __VALIDATE(EMIT_WARN | EMIT_CTX_TILE(tidx) | EMIT_CTX_TILESIZE, cond, msg, ##__VA_ARGS__)
 
 /** 
  * @brief Perform lazy evaluation of render target changes (color buffer and scissoring).
@@ -1044,7 +1101,7 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
             VALIDATE_ERR_CC(!cc_use_tex1,
                 "cannot draw a non-textured primitive with a color combiner using the TEX1 slot");
             VALIDATE_ERR_CC(!cc_use_tex0alpha && !cc_use_tex1alpha,
-                "cannot draw a non-shaded primitive with a color combiner using the TEX%d_ALPHA slot");
+                "cannot draw a non-shaded primitive with a color combiner using the TEX%d_ALPHA slot", cc_use_tex0alpha ? 0 : 1);
         }
 
         if (use_colors) {
@@ -1124,17 +1181,30 @@ static bool check_loading_crash(int hpixels) {
  * 
  * @param tidx      tile ID
  * @param cycle     Number of the cycle in which the the tile is being used (0 or 1)
+ * @param texcoords Array of texture coordinates (S,T) used by the drawing command.
+ * @param ncoords   Number of vertices in the array (the actual array element count will be double this number)
  */
-static void validate_use_tile(int tidx, int cycle) {
-    struct tile_s *t = &rdp.tile[tidx];
-    VALIDATE_ERR(t->has_extents, "tile %d has no extents set, missing LOAD_TILE or SET_TILE_SIZE", tidx);
+static void validate_use_tile(int tidx, int cycle, float *texcoords, int ncoords) {
+    struct tile_s *tile = &rdp.tile[tidx];
     rdp.busy.tile[tidx] = true;
+    bool use_outside = false;
+    float out_s, out_t;
+
+    if (!tile->has_extents)
+        VALIDATE_ERR_TILE(tile->has_extents, tidx, "tile %d has no extents set, missing LOAD_TILE or SET_TILE_SIZE", tidx);
+    else {
+        // Check whether there are texels outside the tile extents
+        for (int i=0; i<ncoords && !use_outside; i++) {
+            out_s = texcoords[i*2+0]; out_t = texcoords[i*2+1];
+            use_outside = (out_s < tile->s0 || out_s > tile->s1 || out_t < tile->t0 || out_t > tile->t1);
+        }
+    }
 
     switch (rdp.som.cycle_type) {
         case 0: case 1: // 1-cycle / 2-cycle modes
             // YUV render mode mistakes in 1-cyc/2-cyc, that is when YUV conversion can be done.
             // In copy mode, YUV textures are copied as-is
-            if (t->fmt == 1) {
+            if (tile->fmt == 1) {
                 VALIDATE_ERR_SOM(!(rdp.som.tf_mode & (4>>cycle)),
                     "tile %d is YUV but texture filter in cycle %d does not activate YUV color conversion", tidx, cycle);
                 if (rdp.som.sample_type > 1) {
@@ -1150,42 +1220,43 @@ static void validate_use_tile(int tidx, int cycle) {
             }
             break;
         case 2: // copy mode
-            VALIDATE_ERR_SOM(t->fmt != 3 && t->fmt != 4 && (t->fmt != 0 || t->size != 3), 
-                "tile %d is %s%d, but COPY mode does not support I4/I8/IA4/IA8/IA16/RGBA32", tidx, tex_fmt_name[t->fmt], 4 << t->size);
+            VALIDATE_ERR_SOM(tile->fmt != 3 && tile->fmt != 4 && (tile->fmt != 0 || tile->size != 3), 
+                "tile %d is %s%d, but COPY mode does not support I4/I8/IA4/IA8/IA16/RGBA32", tidx, tex_fmt_name[tile->fmt], 4 << tile->size);
+            VALIDATE_ERR_TILESIZE(!use_outside, tidx, "draw primitive accesses texel at (%.2f,%.2f) outside of the tile in COPY mode", out_s, out_t);
             break;
     }
 
     // Check that TLUT mode in SOM is active if the tile requires it (and vice-versa)
-    if (t->fmt == 2) // Color index
+    if (tile->fmt == 2) // Color index
         VALIDATE_ERR_SOM(rdp.som.tlut.enable, "tile %d is CI (color index), but TLUT mode was not activated", tidx);
     else
         VALIDATE_ERR_SOM(!rdp.som.tlut.enable, "tile %d is not CI (color index), but TLUT mode is active", tidx);
 
     // Mark used areas of tmem
-    switch (t->fmt) {
+    switch (tile->fmt) {
     case 0: case 3: case 4: // RGBA, IA, I
-        if (t->size == 3) { // 32-bit: split between lo and hi TMEM
-            mark_busy_tmem(t->tmem_addr,         (t->t1-t->t0+1)*t->tmem_pitch / 2);
-            mark_busy_tmem(t->tmem_addr + 0x800, (t->t1-t->t0+1)*t->tmem_pitch / 2);
+        if (tile->size == 3) { // 32-bit: split between lo and hi TMEM
+            mark_busy_tmem(tile->tmem_addr,         (tile->t1-tile->t0+1)*tile->tmem_pitch / 2);
+            mark_busy_tmem(tile->tmem_addr + 0x800, (tile->t1-tile->t0+1)*tile->tmem_pitch / 2);
         } else {
-            mark_busy_tmem(t->tmem_addr,         (t->t1-t->t0+1)*t->tmem_pitch);
+            mark_busy_tmem(tile->tmem_addr,         (tile->t1-tile->t0+1)*tile->tmem_pitch);
         }
         break;
     case 1: // YUV: split between low and hi TMEM
-        mark_busy_tmem(t->tmem_addr,         (t->t1-t->t0+1)*t->tmem_pitch / 2);
-        mark_busy_tmem(t->tmem_addr+0x800,   (t->t1-t->t0+1)*t->tmem_pitch / 2);
+        mark_busy_tmem(tile->tmem_addr,         (tile->t1-tile->t0+1)*tile->tmem_pitch / 2);
+        mark_busy_tmem(tile->tmem_addr+0x800,   (tile->t1-tile->t0+1)*tile->tmem_pitch / 2);
         break;
     case 2: // color-index: mark also palette area of TMEM as used
-        mark_busy_tmem(t->tmem_addr,         (t->t1-t->t0+1)*t->tmem_pitch);
-        if (t->size == 0) mark_busy_tmem(0x800 + t->pal*64, 64);  // CI4
-        if (t->size == 1) mark_busy_tmem(0x800, 0x800);           // CI8
+        mark_busy_tmem(tile->tmem_addr,         (tile->t1-tile->t0+1)*tile->tmem_pitch);
+        if (tile->size == 0) mark_busy_tmem(0x800 + tile->pal*64, 64);  // CI4
+        if (tile->size == 1) mark_busy_tmem(0x800, 0x800);           // CI8
         break;
     }
 
     // If this is the tile for cycle0 and the combiner uses TEX1,
     // then also tile+1 is used. Process that as well.
     if (cycle == 0 && cc_use_tex1())
-        validate_use_tile((tidx+1) & 7, 1);
+        validate_use_tile((tidx+1) & 7, 1, texcoords, ncoords);
 }
 
 void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
@@ -1264,6 +1335,8 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         validate_busy_tile(tidx);
         struct tile_s *t = &rdp.tile[tidx];
         *t = (struct tile_s){
+            .last_settile = &buf[0],
+            .last_settile_data = buf[0],
             .fmt = BITS(buf[0], 53, 55), .size = BITS(buf[0], 51, 52),
             .pal = BITS(buf[0], 20, 23),
             .has_extents = false,
@@ -1285,6 +1358,8 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
             VALIDATE_CRASH_TEX(rdp.tex.size != 0, "LOAD_TILE does not support 4-bit textures");
         }
         t->has_extents = true;
+        t->last_setsize = &buf[0];
+        t->last_setsize_data = buf[0];
         t->s0 = BITS(buf[0], 44, 55)*FX(2); t->t0 = BITS(buf[0], 32, 43)*FX(2);
         t->s1 = BITS(buf[0], 12, 23)*FX(2); t->t1 = BITS(buf[0],  0, 11)*FX(2);
         if (load) {
@@ -1338,12 +1413,18 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
     case 0x25: // TEX_RECT_FLIP
         VALIDATE_ERR(rdp.som.cycle_type < 2, "cannot draw texture rectangle flip in copy/fill mode");
         // passthrough
-    case 0x24: // TEX_RECT
+    case 0x24: { // TEX_RECT
         rdp.busy.pipe = true;
         lazy_validate_rendertarget();
         lazy_validate_rendermode();
         validate_draw_cmd(false, true, false, false);
-        validate_use_tile(BITS(buf[0], 24, 26), 0);
+        // Compute texture coordinates to validate tile usage
+        int w = (BITS(buf[0], 44, 55) - BITS(buf[0], 12, 23))*FX(2) + 1;
+        int h = (BITS(buf[0], 32, 43) - BITS(buf[0],  0, 11))*FX(2) + 1;
+        float s0 = BITS(buf[1], 48, 63)*FX(5), t0 = BITS(buf[1], 32, 47)*FX(5);
+        float sw = BITS(buf[1], 16, 31)*FX(10)*w, tw = BITS(buf[1],  0, 15)*FX(10)*h;
+        if (rdp.som.cycle_type == 2) sw /= 4;
+        validate_use_tile(BITS(buf[0], 24, 26), 0, (float[]){s0, t0, s0+sw-1, t0+tw-1}, 2);
         if (rdp.som.cycle_type == 2) {
             uint16_t dsdx = BITS(buf[1], 16, 31);
             if (dsdx != 4<<10) {
@@ -1353,7 +1434,7 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
                     VALIDATE_ERR_SOM(0, "horizontally-scaled texture rectangles in COPY mode will not correctly render");
             }
         }
-        break;
+    }   break;
     case 0x36: // FILL_RECTANGLE
         rdp.busy.pipe = true;
         lazy_validate_rendertarget();
@@ -1366,7 +1447,7 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         lazy_validate_rendertarget();
         lazy_validate_rendermode();
         validate_draw_cmd(cmd & 4, cmd & 2, cmd & 1, cmd & 2);
-        if (cmd & 2) validate_use_tile(BITS(buf[0], 48, 50), 0);
+        if (cmd & 2) validate_use_tile(BITS(buf[0], 48, 50), 0, NULL, 0);  // TODO: pass texture coordinates here
         if (BITS(buf[0], 51, 53))
             VALIDATE_WARN_SOM(rdp.som.tex.lod, "triangle with %d mipmaps specified, but mipmapping is disabled",
                 BITS(buf[0], 51, 53)+1);
