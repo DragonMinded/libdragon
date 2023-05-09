@@ -259,9 +259,9 @@ typedef enum {
  * 
  * This structure contains all possible parameters for #rdpq_set_tile.
  * All fields have been made so that the 0 value is always the most
- * reasonable default. This means that you can simply initialize the structure
- * to 0 and then change only the fields you need (for instance, through a 
- * compound literal).
+ * reasonable default (clamped with default scale, no mirroring). 
+ * This means that you can simply initialize the structure to 0 and then
+ * change only the fields you need (for instance, through a compound literal).
  * 
  */
 typedef struct {
@@ -270,11 +270,11 @@ typedef struct {
 	// Additional mapping parameters; Leave them as 0 if not required;
 	
     struct{
-        bool     clamp; 	///< True if texture needs to be clamped in the S direction (U/X in UV/XY space). Otherwise wrap the texture around;
-        bool     mirror;	///< True if texture needs to be mirrored in the S direction (U/X in UV/XY space). Otherwise wrap the texture without mirroring;
-        uint8_t  mask;	    ///< Power of 2 boundary of the texture in pixels to wrap on in the S direction (V/Y in UV/XY space);
-        uint8_t  shift;	    ///< Power of 2 scale of the texture to wrap on in the S direction (V/Y in UV/XY space). Range is 0-15 dec;
-    } s,t; // S/T directions of the tiled
+        bool     clamp; 	///< True if texture needs to be clamped. Otherwise wrap the texture around;
+        bool     mirror;	///< True if texture needs to be mirrored. Otherwise wrap the texture without mirroring;
+        uint8_t  mask;	    	///< Power of 2 boundary of the texture in pixels to wrap. (Important note: Mask value of 0 will force clamping to be ON regardless of clamp value);
+        uint8_t  shift;	    	///< Power of 2 scale of the texture to wrap on. Range is 0-15 dec;
+    } s,t; // S/T directions of the tile descriptor
 	
 } rdpq_tileparms_t;
 
@@ -765,8 +765,8 @@ inline void rdpq_set_tile(rdpq_tile_t tile,
     __rdpq_write8_syncchange(RDPQ_CMD_SET_TILE,
         _carg(format, 0x1F, 19) | _carg(tmem_pitch/8, 0x1FF, 9) | _carg(tmem_addr/8, 0x1FF, 0),
         _carg(tile, 0x7, 24) | _carg(parms->palette, 0xF, 20) | 
-        _carg(parms->t.clamp, 0x1, 19) | _carg(parms->t.mirror, 0x1, 18) | _carg(parms->t.mask, 0xF, 14) | _carg(parms->t.shift, 0xF, 10) | 
-        _carg(parms->s.clamp, 0x1, 9) | _carg(parms->s.mirror, 0x1, 8) | _carg(parms->s.mask, 0xF, 4) | _carg(parms->s.shift, 0xF, 0),
+        _carg(parms->t.clamp | (parms->t.mask == 0), 0x1, 19) | _carg(parms->t.mirror, 0x1, 18) | _carg(parms->t.mask, 0xF, 14) | _carg(parms->t.shift, 0xF, 10) | 
+        _carg(parms->s.clamp | (parms->s.mask == 0), 0x1, 9) | _carg(parms->s.mirror, 0x1, 8) | _carg(parms->s.mask, 0xF, 4) | _carg(parms->s.shift, 0xF, 0),
         AUTOSYNC_TILE(tile));
 }
 
