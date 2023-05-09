@@ -44,9 +44,9 @@ typedef struct {
         float   translate;      // Translate the texture in pixels
         int     scale_log;      // Power of 2 scale modifier of the texture (default: 0)
 
-        float   repeats;        // Number of repetitions (default: unlimited)
+        float   repeats;        // Number of repetitions (default: 1)
         bool    mirror;         // Repetition mode (default: MIRROR_NONE)
-    } s, t;
+    } s, t; // S/T directions of texture parameters
 
 } rdpq_texparms_t;
 
