@@ -764,17 +764,17 @@ bool rdpq_debug_disasm(uint64_t *buf, FILE *out) {
     return false;
 }
 
-#define EMIT_TYPE         0x3
-#define EMIT_CRASH        0x0
-#define EMIT_ERROR        0x1
-#define EMIT_WARN         0x2
+#define EMIT_TYPE         0x3                 ///< Type of message (mask)
+#define EMIT_CRASH        0x0                 ///< Message is a RDP crash
+#define EMIT_ERROR        0x1                 ///< Message is an error
+#define EMIT_WARN         0x2                 ///< Message is a warning
 
-#define EMIT_CTX_SOM      0x4
-#define EMIT_CTX_CC       0x8
-#define EMIT_CTX_TEX      0x10
-#define EMIT_CTX_TILES    (0xFF << 5)
-#define EMIT_CTX_TILE(n)  (0x20 << (n))
-#define EMIT_CTX_TILESIZE 0x2000
+#define EMIT_CTX_SOM      0x4                 ///< Message context must show last SOM
+#define EMIT_CTX_CC       0x8                 ///< Message context must show last CC
+#define EMIT_CTX_TEX      0x10                ///< Message context must show last SET_TEX_IMAGE
+#define EMIT_CTX_TILES    (0xFF << 5)         ///< Message context must show SET_TILE (mask)
+#define EMIT_CTX_TILE(n)  (0x20 << (n))       ///< Message context must show tile n
+#define EMIT_CTX_TILESIZE 0x2000              ///< Message context must show LOAD_TILE/SET_TILE_SIZE instead of SET_TILE
 
 __attribute__((format(printf, 2, 3)))
 static void validate_emit_error(int flags, const char *msg, ...)
