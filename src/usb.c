@@ -921,7 +921,7 @@ static u32 usb_64drive_cui_read(u32 offset)
 
 static void usb_64drive_write(int datatype, const void* data, int size)
 {
-    u32 left = size;
+    int left = size;
     u32 pi_address = D64_BASE + DEBUG_ADDRESS;
 
     // Return if previous transfer timed out
@@ -942,6 +942,10 @@ static void usb_64drive_write(int datatype, const void* data, int size)
 
         // Copy data to PI DMA aligned buffer
         memcpy(usb_buffer, data, block);
+
+        // If the data was not 32-bit aligned, pad the buffer
+        while (block % 4)
+            usb_buffer[block++] = 0;
 
         // Copy block of data from RDRAM to SDRAM
         usb_dma_write(usb_buffer, pi_address, ALIGN(block, 2));
