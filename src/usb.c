@@ -74,8 +74,8 @@ https://github.com/buu342/N64-UNFLoader
           64Drive macros
 *********************************/
 
-#define D64_COMMAND_TIMEOUT       1000
-#define D64_WRITE_TIMEOUT         1000
+#define D64_COMMAND_TIMEOUT       500
+#define D64_WRITE_TIMEOUT         500
 
 #define D64_BASE                  0x10000000
 #define D64_REGS_BASE             0x18000000
