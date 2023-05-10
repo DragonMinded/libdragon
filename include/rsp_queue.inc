@@ -355,13 +355,6 @@ RSPQ_DefineCommand RSPQCmd_RdpWaitIdle,     4     # 0x09
 RSPQ_DefineCommand RSPQCmd_RdpSetBuffer,    12    # 0x0A
 RSPQ_DefineCommand RSPQCmd_RdpAppendBuffer, 4     # 0x0B
 
-#if RSPQ_DEBUG
-    .align 3
-RSPQ_LOG_IDX:                .long 0
-RSPQ_LOG:                    .ds.l 16
-RSPQ_LOG_END:                .long RSPQ_DEBUG_MARKER
-#endif
-
     .align 3
 RSPQ_DMEM_BUFFER:            .ds.b RSPQ_DMEM_BUFFER_SIZE
 
@@ -438,14 +431,6 @@ RSPQ_Loop:
 
     # Read first word
     lw a0, %lo(RSPQ_DMEM_BUFFER) + 0x0 (rspq_dmem_buf_ptr)
-
-#if RSPQ_DEBUG
-    lw t0, %lo(RSPQ_LOG_IDX)
-    sw a0, %lo(RSPQ_LOG)(t0)
-    addi t0, 4
-    andi t0, 16*4-1
-    sw t0, %lo(RSPQ_LOG_IDX)
-#endif
 
     # Index into overlay table
     srl t0, a0, 28
