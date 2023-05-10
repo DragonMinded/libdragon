@@ -176,6 +176,7 @@ enum {
     RDPQ_CMD_TRI_SHADE_TEX_ZBUF         = 0x0F,
 
     RDPQ_CMD_TEXTURE_RECTANGLE_EX       = 0x10,
+    RDPQ_CMD_SET_DEBUG_MODE             = 0x11,
     RDPQ_CMD_SET_SCISSOR_EX             = 0x12,
     RDPQ_CMD_MODIFY_OTHER_MODES         = 0x14,
     RDPQ_CMD_SET_FILL_COLOR_32          = 0x16,
@@ -184,8 +185,6 @@ enum {
     RDPQ_CMD_TRIANGLE                   = 0x1E,
     RDPQ_CMD_TRIANGLE_DATA              = 0x1F,
 
-    RDPQ_CMD_SET_OTHER_MODES_NOWRITE    = 0x20,
-    RDPQ_CMD_SYNC_FULL_NOWRITE          = 0x21,
     RDPQ_CMD_TEXTURE_RECTANGLE          = 0x24,
     RDPQ_CMD_TEXTURE_RECTANGLE_FLIP     = 0x25,
     RDPQ_CMD_SYNC_LOAD                  = 0x26,

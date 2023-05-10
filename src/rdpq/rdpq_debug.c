@@ -372,6 +372,9 @@ void rdpq_debug_start(void)
 
     rdpq_trace = __rdpq_trace;
     rdpq_trace_fetch = __rdpq_trace_fetch;
+
+    assertf(__rdpq_inited, "rdpq_init() must be called before rdpq_debug_start()");
+    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_SET_DEBUG_MODE, 1);
 }
 
 void rdpq_debug_log(bool log)
@@ -390,6 +393,7 @@ void rdpq_debug_stop(void)
 {
     rdpq_trace = NULL;
     rdpq_trace_fetch = NULL;
+    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_SET_DEBUG_MODE, 0);
 }
 
 void rdpq_debug_install_hook(void (*hook)(void*, uint64_t*, int), void* ctx)
