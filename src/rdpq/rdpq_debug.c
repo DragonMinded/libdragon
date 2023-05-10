@@ -1218,11 +1218,19 @@ static void validate_use_tile(int tidx, int cycle, float *texcoords, int ncoords
                 VALIDATE_ERR_SOM((rdp.som.tf_mode & (4>>cycle)),
                     "tile %d is RGB-based, but cycle %d is configured for YUV color conversion; try setting SOM_TF%d_RGB", tidx, cycle, cycle);
             }
+            // Validate clamp/mirror/wrap modes
+            if (use_outside) {
+                VALIDATE_WARN_TILE(tile->s.clamp || tile->s.mask, tidx,
+                    "tile %d will clamp horizontally because mask is 0, but clamp for S is not set", tidx);
+                VALIDATE_WARN_TILE(tile->t.clamp || tile->t.mask, tidx,
+                    "tile %d will clamp vertically because mask is 0, but clamp for T is not set", tidx);
+            }
             break;
         case 2: // copy mode
             VALIDATE_ERR_SOM(tile->fmt != 3 && tile->fmt != 4 && (tile->fmt != 0 || tile->size != 3), 
                 "tile %d is %s%d, but COPY mode does not support I4/I8/IA4/IA8/IA16/RGBA32", tidx, tex_fmt_name[tile->fmt], 4 << tile->size);
-            VALIDATE_ERR_TILESIZE(!use_outside, tidx, "draw primitive accesses texel at (%.2f,%.2f) outside of the tile in COPY mode", out_s, out_t);
+            VALIDATE_ERR_TILESIZE(!use_outside, tidx,
+                "draw primitive accesses texel at (%.2f,%.2f) outside of the tile in COPY mode", out_s, out_t);
             break;
     }
 
@@ -1342,6 +1350,9 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
             .has_extents = false,
             .tmem_addr = BITS(buf[0], 32, 40)*8,
             .tmem_pitch = BITS(buf[0], 41, 49)*8,
+            .s.clamp = BIT(buf[0], 9), .t.clamp = BIT(buf[0], 19),
+            .s.mirror = BIT(buf[0], 8), .t.mirror = BIT(buf[0], 18),
+            .s.mask = BITS(buf[0], 4, 7), .t.mask = BITS(buf[0], 14, 17),
         };
         if (t->fmt == 2 && t->size == 1)
             VALIDATE_WARN(t->pal == 0, "invalid non-zero palette for CI8 tile");
