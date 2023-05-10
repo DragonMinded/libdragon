@@ -1435,6 +1435,7 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         float s0 = BITS(buf[1], 48, 63)*FX(5), t0 = BITS(buf[1], 32, 47)*FX(5);
         float sw = BITS(buf[1], 16, 31)*FX(10)*w, tw = BITS(buf[1],  0, 15)*FX(10)*h;
         if (rdp.som.cycle_type == 2) sw /= 4;
+        else if (rdp.som.cycle_type < 2) sw -= 1, tw -= 1;
         validate_use_tile(BITS(buf[0], 24, 26), 0, (float[]){s0, t0, s0+sw-1, t0+tw-1}, 2);
         if (rdp.som.cycle_type == 2) {
             uint16_t dsdx = BITS(buf[1], 16, 31);
