@@ -70,10 +70,10 @@ $(function() {
 Welcome to libdragon</h1>
 <p >Libdragon is an open-source SDK for Nintendo 64. It aims for a complete N64 programming experience while providing programmers with modern approach to programming and debugging. These are the main features:</p>
 <ul>
-<li>Based on modern GCC (12.2) and Newlib, for a full C11 programming experience. A Docker container is available to quickly set up the programming environment.</li>
+<li>Based on modern GCC (13) and Newlib, for a full C11 programming experience. A Docker container is available to quickly set up the programming environment.</li>
 <li>The GCC toolchain is 64 bit capable to be able to use the full R4300 capabilities (commercial games and libultra are based on a 32-bit ABI and is not possible to use 64-bit registers and opcodes with it)</li>
-<li>Can be developed with newer-generation emulators (ares, cen64, Dillonb's n64, simple64) or development cartridges (64drive, EverDrive64).</li>
-<li>Support both vanilla N64 and iQue Player (chinese variant). The support is experimental and done fully at runtime, so it is possible to run ROMs built with libdragon on iQue without modifying the source code.</li>
+<li>Can be developed with newer-generation emulators (ares, cen64, Dillonb's n64, simple64) or development cartridges (64drive, EverDrive64, SummerCart64).</li>
+<li>Support both vanilla N64 and iQue Player (Chinese variant). The support is experimental and done fully at runtime, so it is possible to run ROMs built with libdragon on iQue without modifying the source code.</li>
 <li>In-ROM filesystem implementation for assets. Assets can be loaded with <code>fopen("rom://asset.dat")</code> without having to do complex things to link them in.</li>
 <li>Efficient interrupt-based timer library (also features a monotone 64-bit timer to avoid dealing with 32-bit overflows)</li>
 <li>Graphics: easy-to-use API for 2D games, accelerated with RDP</li>
@@ -81,7 +81,7 @@ Welcome to libdragon</h1>
 <li>Support for saving to flashes and EEPROMs (including a mini EEPROM filesystem to simplify serialization of structures).</li>
 <li>Audio: advanced RSP-accelerated library, supporting up to 32 channels and streaming samples from ROM during playback for very low memory usage. Supports WAV files for sound effects and the XM (FastTracker, MilkyTracker, OpenMPT), and YM (Arkos Tracker 2) module formats for background music. Can playback a 10-channel XM with &lt; 3% CPU and &lt; 10% RSP.</li>
 <li>Debugging aids: console (printf goes to screen) exception screen, many asserts (so that you get a nice error screen instead of a console lockup), <code>fprintf(stderr)</code> calls are redirected to your PC console in emulators and to USB via compatible tools (UNFLoader, g64drive).</li>
-<li>Support to read/write to SD cards in development kits (64drive, EverDrive64), simply with <code>fopen("sd://sdata.dat")</code></li>
+<li>Support to read/write to SD cards in development kits (64drive, EverDrive64, SummerCart64), simply with <code>fopen("sd://sdata.dat")</code></li>
 <li>Simple and powerful Makefile-based build system for your ROMs and assets (n64.mk)</li>
 </ul>
 <p >The <a href="https://github.com/DragonMinded/libdragon/wiki/Unstable-branch">unstable branch</a> features many more features:</p>
@@ -124,7 +124,7 @@ Documentation</h1>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Wed May 10 2023 10:11:38 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Fri May 12 2023 22:38:47 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
