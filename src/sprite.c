@@ -21,7 +21,7 @@ sprite_ext_t *__sprite_ext(sprite_t *sprite)
 
     uint8_t *data = (uint8_t*)sprite->data;
     tex_format_t format = sprite_get_format(sprite);
-    data += ROUND_UP(TEX_FORMAT_PIX2BYTES(format, sprite->width * sprite->height), 8);
+    data += ROUND_UP(TEX_FORMAT_PIX2BYTES(format, sprite->width) * sprite->height, 8);
 
     // Access extended header
     sprite_ext_t *sx = (sprite_ext_t*)data;

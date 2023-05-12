@@ -524,11 +524,13 @@ bool spritemaker_write(spritemaker_t *spr) {
             assert(spr->used_colors <= 16);
             // Convert image to 4 bit.
             uint8_t *img = image->image;
-            for (int i=0; i<image->width*image->height; i+=2) {
-                uint8_t ix0 = *img++;
-                uint8_t ix1 = *img++;
-                assert(ix0 < 16 && ix1 < 16);
-                w8(out, (uint8_t)((ix0 << 4) | ix1));
+            for (int j=0; j<image->height; j++) {
+                for (int i=0; i<image->width; i+=2) {
+                    uint8_t ix0 = *img++;
+                    uint8_t ix1 = (i+1 == image->width) ? 0 : *img++;
+                    assert(ix0 < 16 && ix1 < 16);
+                    w8(out, (uint8_t)((ix0 << 4) | ix1));
+                }
             }
             break;
         }
