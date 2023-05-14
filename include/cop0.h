@@ -12,6 +12,8 @@
 #ifndef __LIBDRAGON_COP0_H
 #define __LIBDRAGON_COP0_H
 
+#include <stdint.h>
+
 /** @brief Read the COP0 Count register (see also TICKS_READ). */
 #define C0_COUNT() ({ \
     uint32_t x; \
@@ -221,6 +223,18 @@
 #define C0_WIRED() ({ \
     uint32_t x; \
     asm volatile("mfc0 %0,$6":"=r"(x)); \
+    x; \
+})
+
+/**
+ * @brief Read the COP0 WATCHLO register
+ * 
+ * This register is used during watchpoint programming. It allows to trigger
+ * an exception when a memory access occurs on a specific memory location.
+ */
+#define C0_WATCHLO() ({ \
+    uint32_t x; \
+    asm volatile("mfc0 %0,$18":"=r"(x)); \
     x; \
 })
 
