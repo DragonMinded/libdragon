@@ -10,9 +10,11 @@ LIBDRAGON_CFLAGS = -I$(CURDIR)/src -I$(CURDIR)/include -ffile-prefix-map=$(CURDI
 
 # Activate N64 toolchain for libdragon build
 libdragon: CC=$(N64_CC)
+libdragon: CXX=$(N64_CXX)
 libdragon: AS=$(N64_AS)
 libdragon: LD=$(N64_LD)
 libdragon: CFLAGS+=$(N64_CFLAGS) $(LIBDRAGON_CFLAGS)
+libdragon: CXXFLAGS+=$(N64_CXXFLAGS) $(LIBDRAGON_CFLAGS)
 libdragon: ASFLAGS+=$(N64_ASFLAGS) $(LIBDRAGON_CFLAGS)
 libdragon: RSPASFLAGS+=$(N64_RSPASFLAGS) $(LIBDRAGON_CFLAGS)
 libdragon: LDFLAGS+=$(N64_LDFLAGS)
@@ -24,7 +26,7 @@ libdragonsys.a: $(BUILD_DIR)/system.o
 
 libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o $(BUILD_DIR)/backtrace.o \
 			 $(BUILD_DIR)/inthandler.o $(BUILD_DIR)/entrypoint.o \
-			 $(BUILD_DIR)/debug.o $(BUILD_DIR)/usb.o $(BUILD_DIR)/libcart/cart.o $(BUILD_DIR)/fatfs/ff.o \
+			 $(BUILD_DIR)/debug.o $(BUILD_DIR)/debugcpp.o $(BUILD_DIR)/usb.o $(BUILD_DIR)/libcart/cart.o $(BUILD_DIR)/fatfs/ff.o \
 			 $(BUILD_DIR)/fatfs/ffunicode.o $(BUILD_DIR)/rompak.o $(BUILD_DIR)/dragonfs.o \
 			 $(BUILD_DIR)/audio.o $(BUILD_DIR)/display.o $(BUILD_DIR)/surface.o \
 			 $(BUILD_DIR)/console.o $(BUILD_DIR)/joybus.o \
@@ -93,6 +95,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/surface.h $(INSTALLDIR)/mips64-elf/include/surface.h
 	install -Cv -m 0644 include/display.h $(INSTALLDIR)/mips64-elf/include/display.h
 	install -Cv -m 0644 include/debug.h $(INSTALLDIR)/mips64-elf/include/debug.h
+	install -Cv -m 0644 include/debugcpp.h $(INSTALLDIR)/mips64-elf/include/debugcpp.h
 	install -Cv -m 0644 include/usb.h $(INSTALLDIR)/mips64-elf/include/usb.h
 	install -Cv -m 0644 include/console.h $(INSTALLDIR)/mips64-elf/include/console.h
 	install -Cv -m 0644 include/joybus.h $(INSTALLDIR)/mips64-elf/include/joybus.h

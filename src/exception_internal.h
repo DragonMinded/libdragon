@@ -23,6 +23,9 @@ void __inspector_exception(exception_t* ex);
 __attribute__((noreturn))
 void __inspector_assertion(const char *failedexpr, const char *msg, va_list args);
 
+__attribute__((noreturn))
+void __inspector_cppexception(const char *exctype, const char *what);
+
 #ifdef __cplusplus
 }
 #endif
