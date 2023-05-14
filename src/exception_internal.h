@@ -20,6 +20,9 @@ void __exception_dump_fpr(exception_t* ex, void (*cb)(void *arg, const char *reg
 __attribute__((noreturn))
 void __inspector_exception(exception_t* ex);
 
+__attribute__((noreturn))
+void __inspector_assertion(const char *failedexpr, const char *msg, va_list args);
+
 #ifdef __cplusplus
 }
 #endif
