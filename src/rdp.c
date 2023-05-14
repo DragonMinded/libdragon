@@ -6,6 +6,7 @@
 #include "rspq.h"
 #include "rdp.h"
 #include "rdpq.h"
+#include "rdpq_tex.h"
 #include "rdpq_tri.h"
 #include "rdpq_rect.h"
 #include "rdpq_macros.h"
@@ -124,8 +125,8 @@ static inline uint32_t __rdp_log2( uint32_t number )
 /**
  * @brief Load a texture from RDRAM into RDP TMEM
  *
- * This function will take a texture from a sprite and place it into RDP TMEM at the offset and 
- * texture slot specified.  It is capable of pulling out a smaller texture from a larger sprite
+ * This function will take a texture from a surface and place it into RDP TMEM at the offset and 
+ * texture slot specified.  It is capable of pulling out a smaller texture from a larger surface
  * map.
  *
  * @param[in] texslot
@@ -134,57 +135,40 @@ static inline uint32_t __rdp_log2( uint32_t number )
  *            The offset in RDP TMEM to place this texture
  * @param[in] mirror_enabled
  *            Whether to mirror this texture when displaying
- * @param[in] sprite
- *            Pointer to the sprite structure to load the texture out of
+ * @param[in] surface
+ *            Pointer to the surface structure to load the texture out of
  * @param[in] sl
- *            The pixel offset S of the top left of the texture relative to sprite space
+ *            The pixel offset S of the top left of the texture relative to surface space
  * @param[in] tl
- *            The pixel offset T of the top left of the texture relative to sprite space
+ *            The pixel offset T of the top left of the texture relative to surface space
  * @param[in] sh
- *            The pixel offset S of the bottom right of the texture relative to sprite space
+ *            The pixel offset S of the bottom right of the texture relative to surface space
  * @param[in] th
- *            The pixel offset T of the bottom right of the texture relative to sprite space
+ *            The pixel offset T of the bottom right of the texture relative to surface space
  *
  * @return The amount of texture memory in bytes that was consumed by this texture.
  */
-static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror_enabled, sprite_t *sprite, int sl, int tl, int sh, int th )
+static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror_enabled, surface_t *surface, int sl, int tl, int sh, int th )
 {
-    /* Invalidate data associated with sprite in cache */
+    /* Invalidate data associated with surface in cache */
     if( flush_strategy == FLUSH_STRATEGY_AUTOMATIC )
     {
-        data_cache_hit_writeback_invalidate( sprite->data, sprite->width * sprite->height * TEX_FORMAT_BITDEPTH(sprite_get_format(sprite)) / 8 );
+        data_cache_hit_writeback_invalidate( surface->buffer, surface->width * surface->height * TEX_FORMAT_BITDEPTH(surface_get_format(surface)) / 8 );
     }
 
-    /* Point the RDP at the actual sprite data */
-    rdpq_set_texture_image_raw(0, PhysicalAddr(sprite->data), sprite_get_format(sprite), sprite->width, sprite->height);
+    /* Figure out the s,t coordinates of the surface we are copying out of */
+    int twidth = sh - sl;
+    int theight = th - tl;
 
-    /* Figure out the s,t coordinates of the sprite we are copying out of */
-    int twidth = sh - sl + 1;
-    int theight = th - tl + 1;
-
-    /* Figure out the power of two this sprite fits into */
+    /* Figure out the power of two this surface fits into */
     uint32_t real_width  = __rdp_round_to_power( twidth );
     uint32_t real_height = __rdp_round_to_power( theight );
     uint32_t wbits = __rdp_log2( real_width );
     uint32_t hbits = __rdp_log2( real_height );
+    tex_format_t fmt = surface_get_format(surface);
 
-    uint32_t tmem_pitch = ROUND_UP(real_width * TEX_FORMAT_BITDEPTH(sprite_get_format(sprite)) / 8, 8);
-
-    /* Instruct the RDP to copy the sprite data out */
-    rdpq_set_tile(texslot, sprite_get_format(sprite), texloc, tmem_pitch, &(rdpq_tileparms_t){
-        .palette = 0, 
-        .s.clamp = 0, 
-        .s.mirror = mirror_enabled != MIRROR_DISABLED ? 1 : 0,
-        .s.mask = hbits,
-        .s.shift = 0,
-        .t.clamp = 0,
-        .t.mirror = mirror_enabled != MIRROR_DISABLED ? 1 : 0,
-        .t.mask = wbits,
-        .t.shift = 0
-    });
-
-    /* Copying out only a chunk this time */
-    rdpq_load_tile(0, sl, tl, sh+1, th+1);
+    int pitch_shift = fmt == FMT_RGBA32 ? 1 : 0;
+    int tmem_pitch = ROUND_UP(TEX_FORMAT_PIX2BYTES(fmt, twidth) >> pitch_shift, 8);
 
     /* Save sprite width and height for managed sprite commands */
     cache[texslot & 0x7].width = twidth - 1;
@@ -193,9 +177,21 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     cache[texslot & 0x7].t = tl;
     cache[texslot & 0x7].real_width = real_width;
     cache[texslot & 0x7].real_height = real_height;
-    
+
     /* Return the amount of texture memory consumed by this texture */
-    return tmem_pitch * real_height;
+    uint32_t bytes = rdpq_tex_load_sub(texslot, surface, 
+    NULL, 
+    sl, tl, sh, th);
+
+    /* Instruct the RDP to copy the sprite data out */
+    rdpq_set_tile(texslot, surface_get_format(surface), texloc, tmem_pitch, &(rdpq_tileparms_t){
+        .s.mirror = true,
+        .s.mask = hbits,
+        .t.mirror = true,
+        .t.mask = wbits,
+    });
+
+    return bytes;
 }
 
 uint32_t rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror, sprite_t *sprite )
@@ -204,7 +200,8 @@ uint32_t rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror, s
     assertf(sprite_get_format(sprite) == FMT_RGBA16 || sprite_get_format(sprite) == FMT_RGBA32,
         "only sprites in FMT_RGBA16 or FMT_RGBA32 are supported");
 
-    return __rdp_load_texture( texslot, texloc, mirror, sprite, 0, 0, sprite->width - 1, sprite->height - 1 );
+    surface_t surface = sprite_get_pixels(sprite);
+    return __rdp_load_texture( texslot, texloc, mirror, &surface, 0, 0, surface.width, surface.height);
 }
 
 uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mirror, sprite_t *sprite, int offset )
@@ -213,16 +210,8 @@ uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mi
     assertf(sprite_get_format(sprite) == FMT_RGBA16 || sprite_get_format(sprite) == FMT_RGBA32,
         "only sprites in FMT_RGBA16 or FMT_RGBA32 are supported");
 
-    /* Figure out the s,t coordinates of the sprite we are copying out of */
-    int twidth = sprite->width / sprite->hslices;
-    int theight = sprite->height / sprite->vslices;
-
-    int sl = (offset % sprite->hslices) * twidth;
-    int tl = (offset / sprite->hslices) * theight;
-    int sh = sl + twidth - 1;
-    int th = tl + theight - 1;
-
-    return __rdp_load_texture( texslot, texloc, mirror, sprite, sl, tl, sh, th );
+    surface_t surface = sprite_get_tile(sprite, (offset % sprite->hslices) , (offset / sprite->hslices));                  
+    return __rdp_load_texture( texslot, texloc, mirror, &surface, 0, 0, surface.width, surface.height);
 }
 
 void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int bx, int by, double x_scale, double y_scale,  mirror_t mirror)
@@ -251,15 +240,15 @@ void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int b
     if (mirror != MIRROR_DISABLED)
     {	
         if (mirror == MIRROR_X || mirror == MIRROR_XY)
-            s += ( (width+1) + ((cache[texslot & 0x7].real_width-(width+1))<<1) ) << 5;
+            s += ( (width+1) + ((cache[texslot & 0x7].real_width-(width+1))<<1));
 	
         if (mirror == MIRROR_Y || mirror == MIRROR_XY)
-            t += ( (height+1) + ((cache[texslot & 0x7].real_height-(height+1))<<1) ) << 5;	
+            t += ( (height+1) + ((cache[texslot & 0x7].real_height-(height+1))<<1));	
     }	
 
     /* Set up rectangle position in screen space */
     /* Set up texture position and scaling to 1:1 copy */
-    rdpq_texture_rectangle_scaled(texslot, tx, ty, bx+1, by+1, s, t, s + width * x_scale, t + height * y_scale);
+    rdpq_texture_rectangle_scaled(texslot, tx, ty, bx+1, by+1, s, t, s + width * x_scale +1, t + height * y_scale +1);
 }
 
 void rdp_draw_textured_rectangle( uint32_t texslot, int tx, int ty, int bx, int by, mirror_t mirror )
