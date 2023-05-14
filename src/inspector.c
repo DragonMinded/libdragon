@@ -14,6 +14,7 @@
 
 enum Mode {
     MODE_EXCEPTION,
+    MODE_ASSERTION,
 };
 
 enum {
@@ -240,6 +241,23 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode
         }
         break;
 
+    case MODE_ASSERTION: {
+        title("CPU Assertion");
+        const char *failedexpr = (const char*)(uint32_t)ex->regs->gpr[4];
+        const char *msg = (const char*)(uint32_t)ex->regs->gpr[5];
+        va_list args = (va_list)(uint32_t)ex->regs->gpr[6];
+        if (msg) {
+            printf("\b\aOASSERTION FAILED: ");
+            vprintf(msg, args);
+            printf("\n\n");
+            printf("\aWFailed expression:\n");
+            printf("    "); printf("\b%s", failedexpr); printf("\n\n");
+        } else {
+            printf("\b\aOASSERTION FAILED: %s\n\n", failedexpr);
+        }
+        bt_skip = 2;
+        break;
+    }
     }
 
     if (!with_backtrace)
@@ -484,4 +502,25 @@ static void inspector(exception_t* ex, enum Mode mode) {
 __attribute__((noreturn))
 void __inspector_exception(exception_t* ex) {
     inspector(ex, MODE_EXCEPTION);
+}
+
+__attribute__((noreturn))
+void __inspector_assertion(const char *failedexpr, const char *msg, va_list args) {
+    asm volatile (
+        "move $a0, %0\n"
+        "move $a1, %1\n"
+        "move $a2, %2\n"
+        "syscall 0x1\n"
+        :: "p"(failedexpr), "p"(msg), "p"(args)
+    );
+    __builtin_unreachable();
+}
+
+__attribute__((constructor))
+void __inspector_init(void) {
+    // Register SYSCALL 0x1 for assertion failures
+    void handler(exception_t* ex, uint32_t code) {
+        if (code == 1) inspector(ex, MODE_ASSERTION);
+    }
+    register_syscall_handler(handler, 0x00001, 0x00002);
 }
