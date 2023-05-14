@@ -110,21 +110,26 @@ Using a development cartridge on a real N64</h2>
 Libdragon stable vs unstable</h1>
 <p >Currently, there are two main libragon versions:</p>
 <ul>
-<li>The <b>stable</b> version is the one in the <code>trunk</code>. Stable means that we strive never to break backward compatibility, that is we will never do changes in a way that will impede existing applications to successfully compile and work against a newer libdragon version. We feel this is important because otherwise we would fragment the homebrew ecosystem too much, and we would leave a trail of libdragon-based applications that can't be compiled anymore. See also the wiki for <a href="https://github.com/DragonMinded/libdragon/wiki/Upgrade-troubleshooting">common hurdles in upgrading libdragon</a>.</li>
+<li>The <b>stable</b> version is the one in the <code>trunk</code>. Stable means that we strive never to break backward compatibility, that is we will never do changes in a way that will impede existing applications to successfully compile and work against a newer libdragon version. We feel this is important because otherwise we would fragment the homebrew ecosystem too much, and we would leave a trail of libdragon-based applications that can't be compiled anymore.</li>
 <li>The <b>unstable</b> version is the one in the <code>unstable</code> branch. This is where most development happens first. In fact, features are developed, evolved and battle-tested here, before the APIs are stabilized and they are finally merged on the trunk. Applications that use the unstable branch need to be aware that the APIs can break at any time (though we try to avoid <em>gratuitous</em> breakage).</li>
 </ul>
 <h1><a class="anchor" id="autotoc_md7"></a>
-Documentation</h1>
+Upgrading libdragon</h1>
+<p >If you are upgrade the stable version, check the <a href="https://github.com/DragonMinded/libdragon/wiki/Stable-branch--Changelog">ChangeLog</a> in the wiki to see latest changes that were merged into the stable version of libdragon. Also check the wiki page for <a href="https://github.com/DragonMinded/libdragon/wiki/Upgrade-troubleshooting">common hurdles in upgrading libdragon</a>.</p>
+<p >If you are upgrading the unstable version, instead, remember that some breaking changes are expected. We do not keep track of those though, so you will have to check the relevant header files yourself to check what is changed.</p>
+<h1><a class="anchor" id="autotoc_md8"></a>
+Resources</h1>
 <ul>
 <li><a href="https://dragonminded.github.io/libdragon/ref/modules.html">API reference</a></li>
 <li><a href="https://github.com/DragonMinded/libdragon/tree/trunk/examples">Examples</a></li>
-<li><a href="https://github.com/DragonMinded/libdragon/wiki">Wiki</a> (contains tutorials and troubleshooting guides) </li>
+<li><a href="https://github.com/DragonMinded/libdragon/wiki">Wiki</a> (contains tutorials and troubleshooting guides)</li>
+<li><a href="https://discord.gg/WqFgNWf">Discord n64brew</a> </li>
 </ul>
 </div></div><!-- PageDoc -->
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Fri May 12 2023 22:38:47 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Sun May 14 2023 10:32:58 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
