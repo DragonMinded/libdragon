@@ -47,7 +47,7 @@ examples:
 	$(MAKE) -C examples
 # We are unable to clean examples built with n64.mk unless we
 # install it first
-examples-clean: install-mk
+examples-clean: $(INSTALLDIR)/include/n64.mk
 	$(MAKE) -C examples clean
 
 doxygen: doxygen.conf
@@ -66,8 +66,12 @@ tools-install:
 tools-clean:
 	$(MAKE) -C tools clean
 
-install-mk: n64.mk
-	install -Cv -m 0644 n64.mk $(INSTALLDIR)/include/n64.mk
+install-mk: $(INSTALLDIR)/include/n64.mk
+
+$(INSTALLDIR)/include/n64.mk: n64.mk
+# Always update timestamp of n64.mk. This make sure that further targets
+# depending on install-mk won't always try to re-install it.
+	install -cv -m 0644 n64.mk $(INSTALLDIR)/include/n64.mk
 
 install: install-mk libdragon
 	install -Cv -m 0644 libdragon.a $(INSTALLDIR)/mips64-elf/lib/libdragon.a
@@ -138,7 +142,7 @@ test-clean: install-mk
 
 clobber: clean doxygen-clean examples-clean tools-clean test-clean
 
-.PHONY : clobber clean doxygen-clean doxygen doxygen-api examples examples-clean tools tools-clean tools-install test test-clean
+.PHONY : clobber clean doxygen-clean doxygen doxygen-api examples examples-clean tools tools-clean tools-install test test-clean install-mk
 
 # Automatic dependency tracking
 -include $(wildcard $(BUILD_DIR)/*.d) $(wildcard $(BUILD_DIR)/*/*.d)
