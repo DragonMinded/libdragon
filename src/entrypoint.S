@@ -9,12 +9,17 @@
 	.section .boot
 	.global _start
 _start:
-	lw t0, 0x80000318			/* memory size */
+	/* Watchpoints have been proven to persist across resets and even
+	 * with the console being off. Zero it as early as possible, to
+	 * avoid it triggering during boot. This should really be done
+	 * at the start IPL3. */
+	mtc0 $0, C0_WATCHLO
 
 	/* Check whether we are running on iQue or N64. Use the MI version register
 	   which has LSB set to 0xB0 on iQue. We assume 0xBn was meant for BBPlayer.
 	   Notice that we want this test to be hard for emulators to pass by mistake,
 	   so checking for a specific value while reading seems solid enough. */
+	lw t0, 0x80000318			/* memory size */
 	lw t1, 0xA4300004
 	andi t1, 0xF0
 	bne t1, 0xB0, .Lset_sp
