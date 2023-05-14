@@ -391,6 +391,9 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
         uc->crash_handler(&state);
     }
 
+    // Backtrace
+    debug_backtrace();
+
     // Full dump of DMEM into the debug log.
     debugf("DMEM:\n");
     debug_hexdump(state.dmem, 4096);
