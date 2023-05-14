@@ -548,9 +548,12 @@ bool spritemaker_write(spritemaker_t *spr) {
         case FMT_I4: {
             assert(image->ct == LCT_GREY);
             uint8_t *img = image->image;
-            for (int i=0; i<image->width*image->height; i+=2) {
-                uint8_t I0 = *img++; uint8_t I1 = *img++;
-                w8(out, (uint8_t)((I0 & 0xF0) | (I1 >> 4)));
+            for (int j=0; j<image->height; j++) {
+                for (int i=0; i<image->width; i+=2) {
+                    uint8_t I0 = *img++;
+                    uint8_t I1 = (i+1 == image->width) ? 0 : *img++;
+                    w8(out, (uint8_t)((I0 & 0xF0) | (I1 >> 4)));
+                }
             }
             break;
         }
@@ -559,10 +562,16 @@ bool spritemaker_write(spritemaker_t *spr) {
             assert(image->ct == LCT_GREY_ALPHA);
             // IA4 is 3 bit intensity and 1 bit alpha. Pack it
             uint8_t *img = image->image;
-            for (int i=0; i<image->width*image->height; i+=2) {
-                uint8_t I0 = *img++; uint8_t A0 = *img++ ? 1 : 0;
-                uint8_t I1 = *img++; uint8_t A1 = *img++ ? 1 : 0;
-                w8(out, (uint8_t)((I0 & 0xE0) | (A0 << 4) | ((I1 & 0xE0) >> 4) | A1));
+            for (int j=0; j<image->height; j++) {
+                for (int i=0; i<image->width; i+=2) {
+                    uint8_t I0 = *img++;
+                    uint8_t A0 = *img++;
+                    uint8_t I1 = (i+1 == image->width) ? 0 : *img++;
+                    uint8_t A1 = (i+1 == image->width) ? 0 : *img++;
+                    A0 = A0 ? 1 : 0;
+                    A1 = A1 ? 1 : 0;
+                    w8(out, (uint8_t)((I0 & 0xE0) | (A0 << 4) | ((I1 & 0xE0) >> 4) | A1));
+                }
             }
             break;
         }
