@@ -55,5 +55,6 @@
 #include "ym64.h"
 #include "rspq.h"
 #include "surface.h"
+#include "debugcpp.h"
 
 #endif
