@@ -222,21 +222,22 @@ void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int b
     uint32_t height = cache[texslot & 0x7].height;
    
     /* Cant display < 0, so must clip size and move S,T coord accordingly */
-    if( tx < 0 )
-    {
+    /// UPDATE: rdpq can display <0 rectangles, so this code isn't strictly nececcary as it doesn't work properly
+    //if( tx < 0 )
+    //{
         if ( tx < -(width * x_scale) ) { return; }
-        s += (int)(((double)((-tx) << 5)) * (1.0 / x_scale));
-        tx = 0;
-    }
+        //s -= (int)(((double)((-tx) << 5)) * (1.0 / x_scale));
+        //tx = 0;
+    //}
 
-    if( ty < 0 )
-    {
+    //if( ty < 0 )
+    //{
         if ( ty < -(height * y_scale) ) { return; }
-        t += (int)(((double)((-ty) << 5)) * (1.0 / y_scale));
-        ty = 0;
-    }
+        //t -= (int)(((double)((-ty) << 5)) * (1.0 / y_scale));
+        //ty = 0;
+    //}
 
-     // mirror horizontally or vertically
+    // mirror horizontally or vertically
     if (mirror != MIRROR_DISABLED)
     {	
         if (mirror == MIRROR_X || mirror == MIRROR_XY)
@@ -244,11 +245,11 @@ void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int b
 	
         if (mirror == MIRROR_Y || mirror == MIRROR_XY)
             t += ( (height+1) + ((cache[texslot & 0x7].real_height-(height+1))<<1));	
-    }	
+    }
 
     /* Set up rectangle position in screen space */
     /* Set up texture position and scaling to 1:1 copy */
-    rdpq_texture_rectangle_scaled(texslot, tx, ty, bx+1, by+1, s, t, s + width * x_scale +1, t + height * y_scale +1);
+    rdpq_texture_rectangle_scaled(texslot, tx, ty, bx+1, by+1, s, t, s + width +1, t + height +1);
 }
 
 void rdp_draw_textured_rectangle( uint32_t texslot, int tx, int ty, int bx, int by, mirror_t mirror )
