@@ -6,7 +6,6 @@
 #include "rspq.h"
 #include "rdp.h"
 #include "rdpq.h"
-#include "rdpq_tex.h"
 #include "rdpq_tri.h"
 #include "rdpq_rect.h"
 #include "rdpq_macros.h"
@@ -178,12 +177,7 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
     cache[texslot & 0x7].real_width = real_width;
     cache[texslot & 0x7].real_height = real_height;
 
-    /* Return the amount of texture memory consumed by this texture */
-    uint32_t bytes = rdpq_tex_load_sub(texslot, surface, 
-    NULL, 
-    sl, tl, sh, th);
-
-    /* Instruct the RDP to copy the sprite data out */
+    /* Configure the tile */
     rdpq_set_tile(texslot, surface_get_format(surface), texloc, tmem_pitch, &(rdpq_tileparms_t){
         .s.mirror = mirror_enabled != MIRROR_DISABLED ? true : false,
         .s.mask = hbits,
@@ -191,7 +185,12 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
         .t.mask = wbits,
     });
 
-    return bytes;
+    /* Instruct the RDP to copy the sprite data out */
+    rdpq_set_texture_image(surface);
+    rdpq_load_tile(texslot, sl, tl, sh, th);
+
+    /* Return the amount of texture memory consumed by this texture */
+    return theight * tmem_pitch;
 }
 
 uint32_t rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t mirror, sprite_t *sprite )
@@ -210,32 +209,28 @@ uint32_t rdp_load_texture_stride( uint32_t texslot, uint32_t texloc, mirror_t mi
     assertf(sprite_get_format(sprite) == FMT_RGBA16 || sprite_get_format(sprite) == FMT_RGBA32,
         "only sprites in FMT_RGBA16 or FMT_RGBA32 are supported");
 
-    surface_t surface = sprite_get_tile(sprite, (offset % sprite->hslices) , (offset / sprite->hslices));                  
-    return __rdp_load_texture( texslot, texloc, mirror, &surface, 0, 0, surface.width, surface.height);
+    int ox = offset % sprite->hslices;
+    int oy = offset / sprite->hslices;
+    int tile_width = sprite->width / sprite->hslices;
+    int tile_height = sprite->height / sprite->vslices;
+    int s0 = ox * tile_width;
+    int t0 = oy * tile_height;
+    int s1 = s0 + tile_width;
+    int t1 = t0 + tile_height;
+
+    surface_t surface = sprite_get_pixels(sprite);
+    return __rdp_load_texture( texslot, texloc, mirror, &surface, s0, t0, s1, t1);
 }
 
 void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int bx, int by, double x_scale, double y_scale,  mirror_t mirror)
 {
-    uint16_t s = cache[texslot & 0x7].s << 5;
-    uint16_t t = cache[texslot & 0x7].t << 5;
+    uint16_t s = cache[texslot & 0x7].s;
+    uint16_t t = cache[texslot & 0x7].t;
     uint32_t width = cache[texslot & 0x7].width;
     uint32_t height = cache[texslot & 0x7].height;
    
-    /* Cant display < 0, so must clip size and move S,T coord accordingly */
-    /// UPDATE: rdpq can display <0 rectangles, so this code isn't strictly nececcary as it doesn't work properly
-    //if( tx < 0 )
-    //{
-        if ( tx < -(width * x_scale) ) { return; }
-        //s += (int)(((double)((-tx) << 5)) * (1.0 / x_scale));
-        //tx = 0;
-    //}
-
-    //if( ty < 0 )
-    //{
-        if ( ty < -(height * y_scale) ) { return; }
-        //t += (int)(((double)((-ty) << 5)) * (1.0 / y_scale));
-        //ty = 0;
-    //}
+    if ( tx < -(width * x_scale) ) { return; }
+    if ( ty < -(height * y_scale) ) { return; }
 
     // mirror horizontally or vertically
     if (mirror != MIRROR_DISABLED)
