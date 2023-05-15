@@ -185,9 +185,9 @@ static uint32_t __rdp_load_texture( uint32_t texslot, uint32_t texloc, mirror_t 
 
     /* Instruct the RDP to copy the sprite data out */
     rdpq_set_tile(texslot, surface_get_format(surface), texloc, tmem_pitch, &(rdpq_tileparms_t){
-        .s.mirror = true,
+        .s.mirror = mirror_enabled != MIRROR_DISABLED ? true : false,
         .s.mask = hbits,
-        .t.mirror = true,
+        .t.mirror = mirror_enabled != MIRROR_DISABLED ? true : false,
         .t.mask = wbits,
     });
 
