@@ -226,14 +226,14 @@ void rdp_draw_textured_rectangle_scaled( uint32_t texslot, int tx, int ty, int b
     //if( tx < 0 )
     //{
         if ( tx < -(width * x_scale) ) { return; }
-        //s -= (int)(((double)((-tx) << 5)) * (1.0 / x_scale));
+        //s += (int)(((double)((-tx) << 5)) * (1.0 / x_scale));
         //tx = 0;
     //}
 
     //if( ty < 0 )
     //{
         if ( ty < -(height * y_scale) ) { return; }
-        //t -= (int)(((double)((-ty) << 5)) * (1.0 / y_scale));
+        //t += (int)(((double)((-ty) << 5)) * (1.0 / y_scale));
         //ty = 0;
     //}
 
