@@ -2,6 +2,7 @@
 #define __LIBDRAGON_ASSET_INTERNAL_H
 
 #include <stdint.h>
+#include <stdio.h>
 
 #define ASSET_MAGIC    "DCA1"   ///< Magic compressed asset header
 
@@ -15,5 +16,7 @@ typedef struct {
 } asset_header_t;
 
 _Static_assert(sizeof(asset_header_t) == 16, "invalid sizeof(asset_header_t)");
+
+FILE *must_fopen(const char *fn);
 
 #endif

@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <sys/stat.h>
+#include <errno.h>
 #include "libdragon.h"
 #include "system.h"
 #include "dfsinternal.h"
@@ -773,7 +774,7 @@ int dfs_open(const char * const path)
 
     if(!file)
     {
-        return DFS_ENOMEM;        
+        return DFS_ENFILE;        
     }
 
     /* Try to find file */
@@ -1137,8 +1138,17 @@ static void *__open( char *name, int flags )
 
     /* We disregard flags here */
     int handle = dfs_open( name );
-    if (handle <= 0)
+    if (handle <= 0) {
+        switch (handle) {
+        case DFS_EBADINPUT:  errno = EINVAL; break;
+        case DFS_ENOFILE:    errno = ENOENT; break;
+        case DFS_EBADFS:     errno = ENODEV; break;
+        case DFS_ENFILE:     errno = ENFILE; break;
+        case DFS_EBADHANDLE: errno = EBADF;  break;
+        default:             errno = EPERM;  break;
+        }
         return NULL;
+    }
     return (void *)handle;
 }
 
