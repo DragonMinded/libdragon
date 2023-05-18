@@ -589,7 +589,7 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
             BITS(buf[0], 24, 26), fmt[f], size[BITS(buf[0], 51, 52)],
             BITS(buf[0], 32, 40)*8, BITS(buf[0], 41, 49)*8);
         if (f==2) fprintf(out, " pal=%d", BITS(buf[0], 20, 23));
-        fprintf(out, " mask=[%d, %d]", BITS(buf[0], 4, 7), BITS(buf[0], 14, 17));
+        fprintf(out, " mask=[%d, %d]", 1<<BITS(buf[0], 4, 7), 1<<BITS(buf[0], 14, 17));
         bool clamp = BIT(buf[0], 19) || BIT(buf[0], 9);
         bool mirror = BIT(buf[0], 18) || BIT(buf[0], 8);
         if (clamp) {
