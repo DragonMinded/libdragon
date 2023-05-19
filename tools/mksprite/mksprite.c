@@ -685,7 +685,7 @@ void spritemaker_free(spritemaker_t *spr) {
     memset(spr, 0, sizeof(*spr));
 }
 
-int convert(const char *infn, const char *outfn, parms_t *pm) {
+int convert(const char *infn, const char *outfn, const parms_t *pm) {
     spritemaker_t spr = {0};
 
     spr.infn = infn;
@@ -723,20 +723,18 @@ int convert(const char *infn, const char *outfn, parms_t *pm) {
     // Autodetection of optimal slice size. TODO: this could be improved
     // by calculating actual memory occupation of each slice, to minimize the
     // number of TMEM loads.
-    if (pm->tilew) pm->hslices = spr.images[0].width / pm->tilew;
-    if (pm->tileh) pm->vslices = spr.images[0].height / pm->tileh;
-    if (!pm->hslices) {
-        pm->hslices = spr.images[0].width / 16;
+    if (pm->tilew) spr.hslices = spr.images[0].width / pm->tilew;
+    if (pm->tileh) spr.vslices = spr.images[0].height / pm->tileh;
+    if (!spr.hslices) {
+        spr.hslices = spr.images[0].width / 16;
         if (flag_verbose)
-            printf("auto detected hslices: %d (w=%d/%d)\n", pm->hslices, spr.images[0].width, spr.images[0].width/pm->hslices);
+            printf("auto detected hslices: %d (w=%d/%d)\n", spr.hslices, spr.images[0].width, spr.images[0].width/spr.hslices);
     }
-    if (!pm->vslices) {
-        pm->vslices = spr.images[0].height / 16;
+    if (!spr.vslices) {
+        spr.vslices = spr.images[0].height / 16;
         if (flag_verbose)
-            printf("auto detected vslices: %d (w=%d/%d)\n", pm->vslices, spr.images[0].height, spr.images[0].height/pm->vslices);
+            printf("auto detected vslices: %d (w=%d/%d)\n", spr.vslices, spr.images[0].height, spr.images[0].height/spr.vslices);
     }
-    spr.hslices = pm->hslices;
-    spr.vslices = pm->vslices;
 
     // Write the sprite
     if (!spritemaker_write(&spr))
