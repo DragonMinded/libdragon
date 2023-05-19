@@ -47,6 +47,19 @@ const char* tex_format_name(tex_format_t fmt) {
     }
 }
 
+tex_format_t tex_format_from_name(const char *name) {
+    if (!strcasecmp(name, "RGBA32")) return FMT_RGBA32;
+    if (!strcasecmp(name, "RGBA16")) return FMT_RGBA16;
+    if (!strcasecmp(name, "IA16"))   return FMT_IA16;
+    if (!strcasecmp(name, "CI8"))    return FMT_CI8;
+    if (!strcasecmp(name, "I8"))     return FMT_I8;
+    if (!strcasecmp(name, "IA8"))    return FMT_IA8;
+    if (!strcasecmp(name, "CI4"))    return FMT_CI4;
+    if (!strcasecmp(name, "I4"))     return FMT_I4;
+    if (!strcasecmp(name, "IA4"))    return FMT_IA4;
+    return FMT_NONE;
+}
+
 int tex_format_bytes_per_pixel(tex_format_t fmt) {
     switch (fmt) {
     case FMT_NONE: assert(0); return -1; // should not happen
@@ -800,18 +813,9 @@ int main(int argc, char *argv[])
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
                     return 1;
                 }
-                if (!strcmp(argv[i], "RGBA32")) pm.outfmt = FMT_RGBA32;
-                else if (!strcmp(argv[i], "RGBA16")) pm.outfmt = FMT_RGBA16;
-                else if (!strcmp(argv[i], "IA16")) pm.outfmt = FMT_IA16;
-                else if (!strcmp(argv[i], "CI8")) pm.outfmt = FMT_CI8;
-                else if (!strcmp(argv[i], "I8")) pm.outfmt = FMT_I8;
-                else if (!strcmp(argv[i], "IA8")) pm.outfmt = FMT_IA8;
-                else if (!strcmp(argv[i], "CI4")) pm.outfmt = FMT_CI4;
-                else if (!strcmp(argv[i], "I4")) pm.outfmt = FMT_I4;
-                else if (!strcmp(argv[i], "IA4")) pm.outfmt = FMT_IA4;
-                else if (!strcmp(argv[i], "AUTO")) pm.outfmt = FMT_NONE;
-                else {
-                    fprintf(stderr, "invalid argument for --format: %s\n", argv[i]);
+                pm.outfmt = tex_format_from_name(argv[i]);
+                if (pm.outfmt == FMT_NONE && strcasecmp(argv[i], "AUTO") != 0) {
+                    fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
                     print_supported_formats();
                     return 1;
                 }
@@ -868,6 +872,25 @@ int main(int argc, char *argv[])
 
         asprintf(&outfn, "%s/%s.sprite", outdir, basename_noext);
 
+        bool fmt_from_extension = false;
+        if (pm.outfmt == FMT_NONE) {
+            tex_format_t fmt = FMT_NONE;
+            char *fntok = strdup(infn);
+            char *sect = strtok(fntok, ".");
+            while (sect) {
+                fmt = tex_format_from_name(sect);
+                if (fmt != FMT_NONE) break;
+                sect = strtok(NULL, ".");
+            }
+            if (fmt != FMT_NONE) {
+                pm.outfmt = fmt;
+                fmt_from_extension = true;
+                if (flag_verbose)
+                    printf("detected format from filename: %s\n", tex_format_name(fmt));
+            }
+            free(fntok);
+        }
+
         if (flag_verbose)
             printf("Converting: %s -> %s [fmt=%s tiles=%d,%d mipmap=%s dither=%s]\n",
                 infn, outfn, tex_format_name(pm.outfmt), pm.tilew, pm.tileh, mipmap_algo_name(pm.mipmap_algo), dither_algo_name(pm.dither_algo));
@@ -885,6 +908,10 @@ int main(int argc, char *argv[])
                     (int)st_decomp.st_size, (int)st_comp.st_size, 100.0 * (float)st_comp.st_size / (float)(st_decomp.st_size == 0 ? 1 :st_decomp.st_size));
             }
         }
+
+        // If the format was selected from the extension, reset it for the next file
+        if (fmt_from_extension) 
+            pm.outfmt = FMT_NONE;
 
         free(outfn);
     }
