@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <ctype.h>
 #include <assert.h>
 #include <sys/stat.h>
 #include "../common/binout.h"
@@ -47,6 +48,19 @@ const char* tex_format_name(tex_format_t fmt) {
     }
 }
 
+const tex_format_t tex_format_from_name(char* str) {
+    if(strcmp(str, "RGBA32") == 0) return FMT_RGBA32;
+    if(strcmp(str, "RGBA16") == 0) return FMT_RGBA16;
+    if(strcmp(str, "CI8") == 0) return FMT_CI8;
+    if(strcmp(str, "CI4") == 0) return FMT_CI4;
+    if(strcmp(str, "I8") == 0) return FMT_I8;
+    if(strcmp(str, "I4") == 0) return FMT_I4;
+    if(strcmp(str, "IA16") == 0) return FMT_IA16;
+    if(strcmp(str, "IA8") == 0) return FMT_IA8;
+    if(strcmp(str, "IA4") == 0) return FMT_IA4;
+    return FMT_NONE;
+}
+
 int tex_format_bytes_per_pixel(tex_format_t fmt) {
     switch (fmt) {
     case FMT_NONE: assert(0); return -1; // should not happen
@@ -54,6 +68,13 @@ int tex_format_bytes_per_pixel(tex_format_t fmt) {
     case FMT_RGBA16: return 2;
     default: return 1;
     }
+}
+
+char* strtoupper(char* str){
+    for(int i = 0; str[i]; i++){
+        str[i] = toupper(str[i]);
+    }
+    return str;
 }
 
 #define MIPMAP_ALGO_NONE  0
@@ -183,6 +204,7 @@ bool spritemaker_load_png(spritemaker_t *spr, tex_format_t outfmt)
     unsigned char* image = 0;
     unsigned width, height;
     bool inspected = false;
+    bool fmtinname = false;
 
     // Initialize lodepng and load the input file into memory (without decoding).
     lodepng_state_init(&state);
@@ -202,32 +224,53 @@ bool spritemaker_load_png(spritemaker_t *spr, tex_format_t outfmt)
             goto error;
         }
         inspected = true;
-
-        // Autodetect the best output format depending on the input format
-        // The rule of thumb is that we want to preserve the information on the
-        // input image as much as possible.
-        switch (state.info_png.color.colortype) {
-        case LCT_GREY:
-            outfmt = (state.info_png.color.bitdepth > 4) ? FMT_I8 : FMT_I4;
-            break;
-        case LCT_GREY_ALPHA:
-            if (state.info_png.color.bitdepth < 4) outfmt = FMT_IA4;
-            else if (state.info_png.color.bitdepth < 8) outfmt = FMT_IA8;
-            else outfmt = FMT_IA16;
-            break;
-        case LCT_PALETTE:
-            outfmt = FMT_CI8; // Will check if CI4 (<= 16 colors) later
-            break;
-        case LCT_RGB: case LCT_RGBA:
-            // Usage of 32-bit sprites/textures is extremely rare because of the
-            // limited TMEM size. Default to 16-bit here, even though this might
-            // cause some banding to appear.
-            outfmt = FMT_RGBA16;
-            break;
-        default:
-            fprintf(stderr, "%s: unknown PNG color type: %d\n", spr->infn, state.info_png.color.colortype);
-            goto error;
+	    
+	 // Autodetect the desired output format depending on the file name
+        // It will override the default autodetect if we have found a format to use
+        char * pch;
+        char infncp[256] = "\0";
+        strcpy(infncp, spr->infn);
+        pch = strtok(infncp, " ,._-");
+        while (pch != NULL && !fmtinname)
+        {
+            pch = strtoupper(pch);
+            if (flag_verbose) printf ("check token: %s\n",pch);
+            tex_format_t fmt = tex_format_from_name(pch);
+            if(fmt != FMT_NONE) {
+                fmtinname = true;
+                outfmt = fmt;
+                if (flag_verbose) printf("selected format from name: %s\n", tex_format_name(outfmt));
+            }
+            pch = strtok(NULL, " ,._-");
         }
+        
+        if(!fmtinname){
+            // Autodetect the best output format depending on the input format
+            // The rule of thumb is that we want to preserve the information on the
+            // input image as much as possible.
+            switch (state.info_png.color.colortype) {
+            case LCT_GREY:
+                outfmt = (state.info_png.color.bitdepth > 4) ? FMT_I8 : FMT_I4;
+                break;
+            case LCT_GREY_ALPHA:
+                if (state.info_png.color.bitdepth < 4) outfmt = FMT_IA4;
+                else if (state.info_png.color.bitdepth < 8) outfmt = FMT_IA8;
+                else outfmt = FMT_IA16;
+                break;
+            case LCT_PALETTE:
+                outfmt = FMT_CI8; // Will check if CI4 (<= 16 colors) later
+                break;
+            case LCT_RGB: case LCT_RGBA:
+                // Usage of 32-bit sprites/textures is extremely rare because of the
+                // limited TMEM size. Default to 16-bit here, even though this might
+                // cause some banding to appear.
+                outfmt = FMT_RGBA16;
+                break;
+            default:
+                fprintf(stderr, "%s: unknown PNG color type: %d\n", spr->infn, state.info_png.color.colortype);
+                goto error;
+            }
+	}
     }
 
     // Setup the info_raw structure with the desired pixel conversion,
