@@ -310,11 +310,26 @@ bool spritemaker_load_png(spritemaker_t *spr, tex_format_t outfmt)
         if (flag_verbose)
             printf("palette: %d colors (used: %d)\n", spr->num_colors, spr->used_colors);
     }
+    if (state.info_raw.colortype == LCT_GREY) {
+        bool used[256] = {0};
+        spr->used_colors = 0;
+        for (int i=0; i < width*height; i++) {
+            if (!used[image[i]]) {
+                used[image[i]] = true;
+                spr->used_colors++;
+            }
+        }
+    }
 
-    // In case we'autodetecting the output format and the PNG had a palette, and only
+    // In case we're autodetecting the output format and the PNG had a palette, and only
     // indices 0-15 are used, we can use a FMT_CI4.
     if (autofmt && state.info_raw.colortype == LCT_PALETTE && spr->used_colors <= 16)
         outfmt = FMT_CI4;
+
+    // In case we're autodetecting the output format and the PNG is a greyscale, and only
+    // indices 0-15 are used, we can use a FMT_I4.
+    if (autofmt && state.info_raw.colortype == LCT_GREY && spr->used_colors <= 16)
+        outfmt = FMT_I4;
 
     // Autodetection complete, log it.
     if (flag_verbose && autofmt)
