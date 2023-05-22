@@ -18,7 +18,7 @@ float fm_sinf(float x) {
     float p, s;
 
     // This function has been designed to operate in the [-π, +π] range, so
-    // bring the argument there. This reduction using dragon_fmodf is not
+    // bring the argument there. This reduction using fm_fmodf is not
     // very accurate for large numbers, so it will introduce more error compared
     // to the 5 ULP figure.
     x = fm_fmodf(x+pi_hi, 2*pi_hi) - pi_hi;
