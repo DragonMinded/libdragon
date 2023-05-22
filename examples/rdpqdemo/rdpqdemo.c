@@ -86,10 +86,9 @@ void render(int cur_frame)
     rdpq_mode_filter(FILTER_BILINEAR);
     rdpq_mode_alphacompare(1);                // colorkey (draw pixel with alpha >= 1)
 
-    surface_t brew_surf = sprite_get_pixels(brew_sprite);
     for (uint32_t i = 0; i < num_objs; i++)
     {
-        rdpq_tex_blit(&brew_surf, objects[i].x, objects[i].y, &(rdpq_blitparms_t){
+        rdpq_sprite_blit(brew_sprite, objects[i].x, objects[i].y, &(rdpq_blitparms_t){
             .scale_x = objects[i].scale_factor, .scale_y = objects[i].scale_factor,
         });
     }

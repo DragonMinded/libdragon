@@ -758,6 +758,10 @@ inline void rdpq_set_tile(rdpq_tile_t tile,
 {
     static const rdpq_tileparms_t default_parms = {0};
     if (!parms) parms = &default_parms;
+    else {
+        assertf(parms->s.shift >= -5 && parms->s.shift <= 10, "invalid s shift %d: must be in [-5..10]", parms->s.shift);
+        assertf(parms->t.shift >= -5 && parms->t.shift <= 10, "invalid t shift %d: must be in [-5..10]", parms->t.shift);
+    }
     assertf((tmem_addr % 8) == 0, "invalid tmem_addr %d: must be multiple of 8", tmem_addr);
     assertf((tmem_pitch % 8) == 0, "invalid tmem_pitch %d: must be multiple of 8", tmem_pitch);
     extern void __rdpq_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);

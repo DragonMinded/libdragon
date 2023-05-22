@@ -603,7 +603,7 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
             fprintf(out, "]");
         }
         if (BITS(buf[0], 0, 3) || BITS(buf[0], 10, 13))
-            fprintf(out, " shift=[%d, %d]", BITS(buf[0], 0, 3), BITS(buf[0], 10, 13));
+            fprintf(out, " shift=[%d, %d]", ((BITS(buf[0],0,3)+5)&15)-5, ((BITS(buf[0], 10, 13)+5)&15)-5);
         fprintf(out, "\n");
     } return;
     case 0x24 ... 0x25:

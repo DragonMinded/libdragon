@@ -49,8 +49,8 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o $(BUILD_DIR)/backtra
 			 $(BUILD_DIR)/rspq/rspq.o $(BUILD_DIR)/rspq/rsp_queue.o \
 			 $(BUILD_DIR)/rdpq/rdpq.o $(BUILD_DIR)/rdpq/rsp_rdpq.o \
 			 $(BUILD_DIR)/rdpq/rdpq_debug.o $(BUILD_DIR)/rdpq/rdpq_tri.o \
-			 $(BUILD_DIR)/rdpq/rdpq_rect.o \
-			 $(BUILD_DIR)/rdpq/rdpq_mode.o $(BUILD_DIR)/rdpq/rdpq_tex.o \
+			 $(BUILD_DIR)/rdpq/rdpq_rect.o $(BUILD_DIR)/rdpq/rdpq_mode.o \
+			 $(BUILD_DIR)/rdpq/rdpq_sprite.o $(BUILD_DIR)/rdpq/rdpq_tex.o \
 			 $(BUILD_DIR)/rdpq/rdpq_attach.o $(BUILD_DIR)/rdpq/rdpq_font.o \
 			 $(BUILD_DIR)/surface.o $(BUILD_DIR)/GL/gl.o \
 			 $(BUILD_DIR)/GL/lighting.o $(BUILD_DIR)/GL/matrix.o \
@@ -158,6 +158,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/rdpq_attach.h $(INSTALLDIR)/mips64-elf/include/rdpq_attach.h
 	install -Cv -m 0644 include/rdpq_mode.h $(INSTALLDIR)/mips64-elf/include/rdpq_mode.h
 	install -Cv -m 0644 include/rdpq_tex.h $(INSTALLDIR)/mips64-elf/include/rdpq_tex.h
+	install -Cv -m 0644 include/rdpq_sprite.h $(INSTALLDIR)/mips64-elf/include/rdpq_sprite.h
 	install -Cv -m 0644 include/rdpq_font.h $(INSTALLDIR)/mips64-elf/include/rdpq_font.h
 	install -Cv -m 0644 include/rdpq_debug.h $(INSTALLDIR)/mips64-elf/include/rdpq_debug.h
 	install -Cv -m 0644 include/rdpq_macros.h $(INSTALLDIR)/mips64-elf/include/rdpq_macros.h
