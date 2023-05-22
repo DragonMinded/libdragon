@@ -145,6 +145,29 @@ static inline float fm_fmodf(float x, float y) {
 float fm_sinf(float x);
 
 /**
+ * @brief Faster version of sinf, with tunable approximation level
+ * 
+ * This function is similar to #fm_sinf, but allows to further speedup
+ * the approximation by reducing the number of calculated terms. #fm_sinf
+ * in fact is pretty accurate (~ 5 ULP) but some times much less precision
+ * is required. 
+ * 
+ * The approximation level is a number between 0 and 5, where 0 is the
+ * most accurate version (identical to #fm_sinf) and 5 is the fastest one.
+ * We do not give mathematical guarantees on the accuracy of the approximation,
+ * and we suggest on holistic approach (try and see if it works for you).
+ * 
+ * This function is suggested in all cases in which you need to visually
+ * reproduce a "sinewave" effect, but you do not care about the exact numbers
+ * behind it. For trigonemetric formulas that includes a sine (eg: matrix
+ * rotations), it is suggested to use #fm_sinf instead.
+ * 
+ * @param x       The angle in radians
+ * @param approx  The approximation level, between 0 and 5
+ */
+float fm_sinf_approx(float x, int approx);
+
+/**
  * @brief Faster version of cosf.
  * 
  * @see dragon_sinf for considerations on why and how to use this functions
