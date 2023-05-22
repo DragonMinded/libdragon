@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdint.h>
 
+/// Mark a branch as likely to be taken
 #define LIKELY(x)       __builtin_expect((x),1)
 
 static const float pi_hi            = 3.14159274e+00f; // 0x1.921fb6p+01
