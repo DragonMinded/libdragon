@@ -272,7 +272,7 @@ typedef struct {
         bool     clamp; 	///< True if texture needs to be clamped. Otherwise wrap the texture around;
         bool     mirror;	///< True if texture needs to be mirrored. Otherwise wrap the texture without mirroring;
         uint8_t  mask;	    	///< Power of 2 boundary of the texture in pixels to wrap. (Important note: Mask value of 0 will force clamping to be ON regardless of clamp value);
-        uint8_t  shift;	    	///< Power of 2 scale of the texture to wrap on. Range is 0-15 dec;
+        int8_t   shift;	    	///< Power of 2 scale of the texture to wrap on. Range is [-5..10];
     } s,t; // S/T directions of the tile descriptor
 	
 } rdpq_tileparms_t;
