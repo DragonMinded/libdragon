@@ -25,7 +25,7 @@
         RSPQ_DefineCommand RDPQCmd_PassthroughTriangle,     176 # 0xCF Shaded Textured ZBuffered
 
         RSPQ_DefineCommand RDPQCmd_RectEx,                  16  # 0xD0 Texture Rectangle (esclusive bounds)
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD1
+        RSPQ_DefineCommand RDPQCmd_SetDebugMode,            4   # 0xD1 Set Debug mode
         RSPQ_DefineCommand RDPQCmd_SetScissorEx,            8   # 0xD2 Set Scissor (exclusive bounds)
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD3
         RSPQ_DefineCommand RDPQCmd_ModifyOtherModes,        12  # 0xD4 Modify SOM
@@ -608,6 +608,13 @@ RDPQCmd_Triangle:
     jal_and_j RDPQ_Send, RSPQ_Loop
 
 #endif /* RDPQ_TRIANGLE_REFERENCE */
+    .endfunc
+
+
+    .func RDPQCmd_SetDebugMode
+RDPQCmd_SetDebugMode:
+    jr ra
+    sb a0, %lo(RDPQ_DEBUG)
     .endfunc
 
 # Include RDPQ library

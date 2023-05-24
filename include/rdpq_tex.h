@@ -1,6 +1,6 @@
 /**
  * @file rdpq_tex.h
- * @brief RDP Command queue: high-level texture/sprite loading and blitting
+ * @brief RDP Command queue: high-level texture/surface loading and blitting
  * @ingroup rdpq
  */
 
@@ -36,7 +36,7 @@ extern "C" {
  * compound literal).
  * 
  */
-typedef struct {
+typedef struct rdpq_texparms_s {
     int tmem_addr;           // TMEM address where to load the texture (default: 0)
     int palette;             // Palette number where TLUT is stored (used only for CI4 textures)
 
@@ -44,9 +44,9 @@ typedef struct {
         float   translate;      // Translate the texture in pixels
         int     scale_log;      // Power of 2 scale modifier of the texture (default: 0)
 
-        float   repeats;        // Number of repetitions (default: unlimited)
+        float   repeats;        // Number of repetitions (default: 1)
         bool    mirror;         // Repetition mode (default: MIRROR_NONE)
-    } s, t;
+    } s, t; // S/T directions of texture parameters
 
 } rdpq_texparms_t;
 
@@ -207,7 +207,7 @@ void rdpq_tex_load_tlut(uint16_t *tlut, int color_idx, int num_colors);
  * 
  * See #rdpq_tex_blit for several examples.
  */
-typedef struct {
+typedef struct rdpq_blitparms_s {
     rdpq_tile_t tile;   ///< Base tile descriptor to use (default: TILE_0); notice that two tiles will often be used to do the upload (tile and tile+1).
     int s0;             ///< Source sub-rect top-left X coordinate
     int t0;             ///< Source sub-rect top-left Y coordinate

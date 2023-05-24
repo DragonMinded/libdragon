@@ -26,6 +26,7 @@
 
 /* Easy include wrapper */
 #include "n64types.h"
+#include "fmath.h"
 #include "audio.h"
 #include "console.h"
 #include "debug.h"
@@ -63,6 +64,7 @@
 #include "rdpq_attach.h"
 #include "rdpq_mode.h"
 #include "rdpq_tex.h"
+#include "rdpq_sprite.h"
 #include "rdpq_font.h"
 #include "rdpq_debug.h"
 #include "rdpq_macros.h"

@@ -3,6 +3,7 @@
 #include "compress/lzh5_internal.h"
 #include <stdio.h>
 #include <string.h>
+#include <errno.h>
 #include <stdalign.h>
 
 #ifdef N64
@@ -16,17 +17,18 @@
 #define assertf(x, ...) assert(x)
 #endif
 
-static FILE *must_fopen(const char *fn)
+FILE *must_fopen(const char *fn)
 {
     FILE *f = fopen(fn, "rb");
     if (!f) {
         // File not found. A common mistake it is to forget the filesystem
         // prefix. Try to give a hint if that's the case.
-        if (!strstr(fn, ":/"))
+        int errnum = errno;
+        if (errnum == EINVAL && !strstr(fn, ":/"))
             assertf(f, "File not found: %s\n"
                 "Did you forget the filesystem prefix? (e.g. \"rom:/\")\n", fn);
         else
-            assertf(f, "File not found: %s\n", fn);
+        	assertf(f, "error opening file %s: m%s\n", fn, strerror(errnum));
     }
     return f;
 }

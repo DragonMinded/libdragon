@@ -328,6 +328,8 @@ RDPQ_FILL_COLOR:             .word  0
 RDPQ_TARGET_BITDEPTH:        .byte  0
 # True if there is a SYNC_FULL command in the current RDP output buffer
 RDPQ_SYNCFULL_ONGOING:       .byte  0
+# True if the rdpq debug mode is active (validator). TODO: hide this bit elsewhere to save one byte
+RDPQ_DEBUG:                  .byte 0
 
 ################################################################
 # End of RDPQ shared state
@@ -354,13 +356,6 @@ RSPQ_DefineCommand RSPQCmd_TestWriteStatus, 8     # 0x08 -- must be even (bit 24
 RSPQ_DefineCommand RSPQCmd_RdpWaitIdle,     4     # 0x09
 RSPQ_DefineCommand RSPQCmd_RdpSetBuffer,    12    # 0x0A
 RSPQ_DefineCommand RSPQCmd_RdpAppendBuffer, 4     # 0x0B
-
-#if RSPQ_DEBUG
-    .align 3
-RSPQ_LOG_IDX:                .long 0
-RSPQ_LOG:                    .ds.l 16
-RSPQ_LOG_END:                .long RSPQ_DEBUG_MARKER
-#endif
 
     .align 3
 RSPQ_DMEM_BUFFER:            .ds.b RSPQ_DMEM_BUFFER_SIZE
@@ -438,14 +433,6 @@ RSPQ_Loop:
 
     # Read first word
     lw a0, %lo(RSPQ_DMEM_BUFFER) + 0x0 (rspq_dmem_buf_ptr)
-
-#if RSPQ_DEBUG
-    lw t0, %lo(RSPQ_LOG_IDX)
-    sw a0, %lo(RSPQ_LOG)(t0)
-    addi t0, 4
-    andi t0, 16*4-1
-    sw t0, %lo(RSPQ_LOG_IDX)
-#endif
 
     # Index into overlay table
     srl t0, a0, 28
@@ -745,19 +732,25 @@ RSPQCmd_RdpSetBuffer:
     # are actually nops in case there was no SYNC_FULL (as DP_END == RDPQ_CURRENT in that case).
     sb zero, %lo(RDPQ_SYNCFULL_ONGOING)
     lw t0, %lo(RDPQ_CURRENT)
+#ifdef NDEBUG
+    mtc0 t0, COP0_DP_END
+#else
+    # Check if the RDPQ debug mode is active (validator)
+    lbu t2, %lo(RDPQ_DEBUG)
+    beqz t2, 1f
     mtc0 t0, COP0_DP_END
 
-    #if RSPQ_DEBUG
-    # For debugging, generate a RSP interrupt to tell the CPU to fetch the new DP_START / DP_END
+    # Generate a RSP interrupt to tell the CPU to fetch the new DP_START / DP_END.
+    # Then also wait until the CPU has acknowledged fetching the buffer (via SIG0)
+    # so that we absolutely don't lose the buffer.
     jal SpStatusWait
     li t2, SP_STATUS_SIG0
     li t0, SP_WSTATUS_SET_SIG0 | SP_WSTATUS_SET_INTR
     mtc0 t0, COP0_SP_STATUS
     jal SpStatusWait
     li t2, SP_STATUS_SIG0
-    #endif
-
-    move ra, ra2
+#endif
+1:  move ra, ra2
 
     # Write new start buffer pointer, and fallthrough to 
     # RSPQCmd_RdpAppendBuffer to write the new end pointer

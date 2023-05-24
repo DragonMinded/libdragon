@@ -19,8 +19,6 @@
 #include "system.h"
 #include "n64sys.h"
 
-#undef errno
-
 /** 
  * @defgroup system newlib Interface Hooks
  * @brief System hooks to provide low level threading and filesystem functionality to newlib.
@@ -94,11 +92,6 @@
  * @brief Environment variables
  */
 char *__env[1] = { 0 };
-
-/**
- * @brief Definition of errno, as it's defined as extern across stdlib
- */
-int errno __attribute__((weak));
 
 /**
  * @brief Assert function pointer (initialized at startup)
@@ -892,9 +885,14 @@ int open( const char *file, int flags, ... )
 
             if( mapping < 0 )
             {
-                errno = ENOMEM;
+                errno = EINVAL;
                 return -1;
             }
+
+            /* Clear errno so we can check whether the fs->open() call sets it. 
+               This is for backward compatibility, because we used not to require
+               errno to be set. */
+            errno = 0;
 
             /* Cast away const from the file name.
                open used to mistakenly take a char* instead of a const char*,
@@ -915,14 +913,15 @@ int open( const char *file, int flags, ... )
             else
             {
                 /* Couldn't open for some reason */
-                errno = EPERM;
+                if( errno == 0 )
+                    errno = ENOENT;
                 return -1;
             }
         }
     }
 
     /* No file handles available */
-    errno = ENOMEM;
+    errno = ENFILE;
     return -1;
 }
 

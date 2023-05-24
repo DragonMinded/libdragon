@@ -6,6 +6,7 @@
 
 #include <libdragon.h>
 #include "wav64internal.h"
+#include "asset_internal.h"
 #include "libxm/xm.h"
 #include "libxm/xm_internal.h"
 #include <stdbool.h>
@@ -95,8 +96,7 @@ void xm64player_open(xm64player_t *player, const char *fn) {
 	// No pending seek at the moment, we start from beginning anyway.
 	player->seek.patidx = -1;
 
-	player->fh = fopen(fn, "rb");
-	assertf(player->fh, "Cannot open file: %s", fn);
+	player->fh = must_fopen(fn);
 
 	// Load the XM context
 	int sample_rate = audio_get_frequency();

@@ -190,7 +190,7 @@ void sys_set_boot_cic(int bc);
  *
  * @return The number of ticks since system startup
  */
-static inline volatile unsigned long get_ticks(void)
+inline volatile unsigned long get_ticks(void)
 {
     return TICKS_READ();
 }
@@ -204,7 +204,7 @@ static inline volatile unsigned long get_ticks(void)
  *
  * @return The number of millisecounds since system startup
  */
-static inline volatile unsigned long get_ticks_ms(void)
+inline volatile unsigned long get_ticks_ms(void)
 {
     return TICKS_READ() / (TICKS_PER_SECOND / 1000);
 }
@@ -267,7 +267,6 @@ typedef enum {
 } tv_type_t;
 
 tv_type_t get_tv_type();
-
 
 /**
  * @name 64-bit address space access
@@ -354,6 +353,14 @@ inline uint64_t mem_read64(uint64_t vaddr) {
 }
 
 /** @} */
+
+/** @cond */
+/* Deprecated version of get_ticks */
+__attribute__((deprecated("use get_ticks instead")))
+static inline volatile unsigned long read_count(void) {
+    return get_ticks();
+}
+/** @endcond */
 
 #ifdef __cplusplus
 }

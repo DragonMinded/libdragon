@@ -8,6 +8,7 @@
 #include "profile.h"
 #include "utils.h"
 #include <assert.h>
+#include <errno.h>
 #include "mpeg1_internal.h"
 
 #define YUV_MODE   1   // 0=CPU, 1=RSP+RDP
@@ -184,7 +185,7 @@ void mpeg2_open(mpeg2_t *mp2, const char *fn) {
 	rsp_mpeg1_init();
 
 	mp2->buf = plm_buffer_create_with_filename(fn);
-	assertf(mp2->buf, "File not found: %s", fn);
+	assertf(mp2->buf, "error opening file %s: %s\n", fn, strerror(errno));
 
 	// In the common case of accessing a movie stream
 	// from the ROM, disable buffering. This will allow

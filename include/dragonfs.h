@@ -48,11 +48,17 @@
 #define DFS_ENOFILE         -2
 /** @brief Bad filesystem */
 #define DFS_EBADFS          -3
-/** @brief No memory for operation */
-#define DFS_ENOMEM          -4
+/** @brief Too many open files */
+#define DFS_ENFILE          -4
 /** @brief Invalid file handle */
 #define DFS_EBADHANDLE      -5
 /** @} */
+
+/** @cond */
+// Deprecated naming
+#define DFS_ENOMEM          -4
+/** @endcond */
+
 
 /**
  * @brief Macro to extract the file type from a DragonFS file flag

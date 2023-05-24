@@ -325,10 +325,10 @@ make_crctable( /* void */ )
 
 /* ------------------------------------------------------------------------ */
 static unsigned int
-calccrc(crc, p, n)
-    unsigned int crc;
-    char  *p;
-    unsigned int    n;
+calccrc(
+    unsigned int crc,
+    char  *p,
+    unsigned int    n)
 {
     while (n-- > 0)
         crc = UPDATE_CRC(crc, *p++);
@@ -337,11 +337,11 @@ calccrc(crc, p, n)
 
 /* ------------------------------------------------------------------------ */
 static int
-fread_crc(crcp, p, n, fp)
-    unsigned int *crcp;
-    void *p;
-    int  n;
-    FILE *fp;
+fread_crc(
+    unsigned int *crcp,
+    void *p,
+    int  n,
+    FILE *fp)
 {
     // if (text_mode)
     //     n = fread_txt(p, n, fp);
@@ -368,8 +368,8 @@ fread_crc(crcp, p, n, fp)
 static unsigned char subbitbuf, bitcount;
 
 void
-fillbuf(n)          /* Shift bitbuf n bits left, read n bits */
-    unsigned char   n;
+fillbuf(          /* Shift bitbuf n bits left, read n bits */
+    unsigned char   n)
 {
     while (n > bitcount) {
         n -= bitcount;
@@ -392,8 +392,8 @@ fillbuf(n)          /* Shift bitbuf n bits left, read n bits */
 }
 
 unsigned short
-getbits(n)
-    unsigned char   n;
+getbits(
+    unsigned char   n)
 {
     unsigned short  x;
 
@@ -403,9 +403,9 @@ getbits(n)
 }
 
 void
-putcode(n, x)           /* Write leftmost n bits of x */
-    unsigned char   n;
-    unsigned short  x;
+putcode(           /* Write leftmost n bits of x */
+    unsigned char   n,
+    unsigned short  x)
 {
     while (n >= bitcount) {
         n -= bitcount;
@@ -427,9 +427,9 @@ putcode(n, x)           /* Write leftmost n bits of x */
 }
 
 static void
-putbits(n, x)           /* Write rightmost n bits of x */
-    unsigned char   n;
-    unsigned short  x;
+putbits(           /* Write rightmost n bits of x */
+    unsigned char   n,
+    unsigned short  x)
 {
     x <<= USHRT_BIT - n;
     putcode(n, x);
@@ -452,11 +452,11 @@ init_putbits( /* void */ )
 /* ------------------------------------------------------------------------ */
 
 static void
-make_code(nchar, bitlen, code, leaf_num)
-    int            nchar;
-    unsigned char  *bitlen;
-    unsigned short *code;       /* table */
-    unsigned short *leaf_num;
+make_code(
+    int            nchar,
+    unsigned char  *bitlen,
+    unsigned short *code,       /* table */
+    unsigned short *leaf_num)
 {
     unsigned short  weight[17]; /* 0x10000ul >> bitlen */
     unsigned short  start[17];  /* start code */
@@ -478,11 +478,11 @@ make_code(nchar, bitlen, code, leaf_num)
 }
 
 static void
-count_leaf(node, nchar, leaf_num, depth) /* call with node = root */
-    int node;
-    int nchar;
-    unsigned short leaf_num[];
-    int depth;
+count_leaf( /* call with node = root */
+    int node,
+    int nchar,
+    unsigned short leaf_num[],
+    int depth)
 {
     if (node < nchar)
         leaf_num[depth < 16 ? depth : 16]++;
@@ -493,11 +493,11 @@ count_leaf(node, nchar, leaf_num, depth) /* call with node = root */
 }
 
 static void
-make_len(nchar, bitlen, sort, leaf_num)
-    int nchar;
-    unsigned char *bitlen;
-    unsigned short *sort;       /* sorted characters */
-    unsigned short *leaf_num;
+make_len(
+    int nchar,
+    unsigned char *bitlen,
+    unsigned short *sort,       /* sorted characters */
+    unsigned short *leaf_num)
 {
     int i, k;
     unsigned int cum;
@@ -534,11 +534,11 @@ make_len(nchar, bitlen, sort, leaf_num)
 
 /* priority queue; send i-th entry down heap */
 static void
-downheap(i, heap, heapsize, freq)
-    int i;
-    short *heap;
-    size_t heapsize;
-    unsigned short *freq;
+downheap(
+    int i,
+    short *heap,
+    size_t heapsize,
+    unsigned short *freq)
 {
     short j, k;
 
@@ -556,11 +556,11 @@ downheap(i, heap, heapsize, freq)
 
 /* make tree, calculate bitlen[], return root */
 static short
-make_tree(nchar, freq, bitlen, code)
-    int             nchar;
-    unsigned short  *freq;
-    unsigned char   *bitlen;
-    unsigned short  *code;
+make_tree(
+    int             nchar,
+    unsigned short  *freq,
+    unsigned char   *bitlen,
+    unsigned short  *code)
 {
     short i, j, avail, root;
     unsigned short *sort;
@@ -696,10 +696,10 @@ count_t_freq(/*void*/)
 
 /* ------------------------------------------------------------------------ */
 static void
-write_pt_len(n, nbit, i_special)
-    short           n;
-    short           nbit;
-    short           i_special;
+write_pt_len(
+    short           n,
+    short           nbit,
+    short           i_special)
 {
     short           i, k;
 
@@ -713,7 +713,7 @@ write_pt_len(n, nbit, i_special)
             putbits(3, k);
         else
             /* k=7 -> 1110  k=8 -> 11110  k=9 -> 111110 ... */
-            putbits(k - 3, USHRT_MAX << 1);
+            putbits(k - 3, USHRT_MAX-1);
         if (i == i_special) {
             while (i < 6 && pt_len[i] == 0)
                 i++;
@@ -766,16 +766,16 @@ write_c_len(/*void*/)
 
 /* ------------------------------------------------------------------------ */
 static void
-encode_c(c)
-    short           c;
+encode_c(
+    short           c)
 {
     putcode(c_len[c], c_code[c]);
 }
 
 /* ------------------------------------------------------------------------ */
 static void
-encode_p(p)
-    unsigned short  p;
+encode_p(
+    unsigned short  p)
 {
     unsigned short  c, q;
 
@@ -849,9 +849,9 @@ send_block( /* void */ )
 /* ------------------------------------------------------------------------ */
 /* lh4, 5, 6, 7 */
 static void
-output_st1(c, p)
-    unsigned short  c;
-    unsigned short  p;
+output_st1(
+    unsigned short  c,
+    unsigned short  p)
 {
     static unsigned short cpos;
 
@@ -884,7 +884,7 @@ output_st1(c, p)
 
 /* ------------------------------------------------------------------------ */
 static unsigned char  *
-alloc_buf( /* void */ )
+alloc_buf( void )
 {
     bufsiz = 16 * 1024 *2;  /* 65408U; */ /* t.okamoto */
     while ((buf = (unsigned char *) malloc(bufsiz)) == NULL) {
@@ -924,7 +924,7 @@ encode_start_st1( void )
 /* ------------------------------------------------------------------------ */
 /* lh4, 5, 6, 7 */
 void
-encode_end_st1( /* void */ )
+encode_end_st1( void )
 {
     if (!unpackable) {
         send_block();
@@ -983,8 +983,8 @@ struct matchdata {
 };
 
 static int
-encode_alloc(method)
-    int method;
+encode_alloc(
+    int method)
 {
     switch (method) {
     // case LZHUFF1_METHOD_NUM:
@@ -1026,7 +1026,7 @@ encode_alloc(method)
 }
 
 static void
-init_slide()
+init_slide( void )
 {
     unsigned int i;
 
@@ -1038,9 +1038,9 @@ init_slide()
 
 /* update dictionary */
 static void
-update_dict(pos, crc)
-    unsigned int *pos;
-    unsigned int *crc;
+update_dict(
+    unsigned int *pos,
+    unsigned int *crc)
 {
     unsigned int i, j;
     long n;
@@ -1065,21 +1065,21 @@ update_dict(pos, crc)
 
 /* associate position with token */
 static void
-insert_hash(token, pos)
-    unsigned int token;
-    unsigned int pos;
+insert_hash(
+    unsigned int token,
+    unsigned int pos)
 {
     prev[pos & (dicsiz - 1)] = hash[token].pos; /* chain the previous pos. */
     hash[token].pos = pos;
 }
 
 static void
-search_dict_1(token, pos, off, max, m)
-    unsigned int token;
-    unsigned int pos;
-    unsigned int off;
-    unsigned int max;           /* max. length of matching string */
-    struct matchdata *m;
+search_dict_1(
+    unsigned int token,
+    unsigned int pos,
+    unsigned int off,
+    unsigned int max,           /* max. length of matching string */
+    struct matchdata *m)
 {
     unsigned int chain = 0;
     unsigned int scan_pos = hash[token].pos;
@@ -1125,11 +1125,11 @@ search_dict_1(token, pos, off, max, m)
 
 /* search the longest token matching to current token */
 static void
-search_dict(token, pos, min, m)
-    unsigned int token;         /* search token */
-    unsigned int pos;           /* position of token */
-    int min;                    /* min. length of matching string */
-    struct matchdata *m;
+search_dict(
+    unsigned int token,         /* search token */
+    unsigned int pos,           /* position of token */
+    int min,                    /* min. length of matching string */
+    struct matchdata *m)
 {
     unsigned int off, tok, max;
 
@@ -1162,10 +1162,10 @@ search_dict(token, pos, min, m)
 
 /* slide dictionary */
 static void
-next_token(token, pos, crc)
-    unsigned int *token;
-    unsigned int *pos;
-    unsigned int *crc;
+next_token(
+    unsigned int *token,
+    unsigned int *pos,
+    unsigned int *crc)
 {
     remain--;
     if (++*pos >= txtsiz - maxmatch) {

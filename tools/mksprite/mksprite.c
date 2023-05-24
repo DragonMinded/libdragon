@@ -47,6 +47,19 @@ const char* tex_format_name(tex_format_t fmt) {
     }
 }
 
+tex_format_t tex_format_from_name(const char *name) {
+    if (!strcasecmp(name, "RGBA32")) return FMT_RGBA32;
+    if (!strcasecmp(name, "RGBA16")) return FMT_RGBA16;
+    if (!strcasecmp(name, "IA16"))   return FMT_IA16;
+    if (!strcasecmp(name, "CI8"))    return FMT_CI8;
+    if (!strcasecmp(name, "I8"))     return FMT_I8;
+    if (!strcasecmp(name, "IA8"))    return FMT_IA8;
+    if (!strcasecmp(name, "CI4"))    return FMT_CI4;
+    if (!strcasecmp(name, "I4"))     return FMT_I4;
+    if (!strcasecmp(name, "IA4"))    return FMT_IA4;
+    return FMT_NONE;
+}
+
 int tex_format_bytes_per_pixel(tex_format_t fmt) {
     switch (fmt) {
     case FMT_NONE: assert(0); return -1; // should not happen
@@ -310,11 +323,26 @@ bool spritemaker_load_png(spritemaker_t *spr, tex_format_t outfmt)
         if (flag_verbose)
             printf("palette: %d colors (used: %d)\n", spr->num_colors, spr->used_colors);
     }
+    if (state.info_raw.colortype == LCT_GREY) {
+        bool used[256] = {0};
+        spr->used_colors = 0;
+        for (int i=0; i < width*height; i++) {
+            if (!used[image[i]]) {
+                used[image[i]] = true;
+                spr->used_colors++;
+            }
+        }
+    }
 
-    // In case we'autodetecting the output format and the PNG had a palette, and only
+    // In case we're autodetecting the output format and the PNG had a palette, and only
     // indices 0-15 are used, we can use a FMT_CI4.
     if (autofmt && state.info_raw.colortype == LCT_PALETTE && spr->used_colors <= 16)
         outfmt = FMT_CI4;
+
+    // In case we're autodetecting the output format and the PNG is a greyscale, and only
+    // indices 0-15 are used, we can use a FMT_I4.
+    if (autofmt && state.info_raw.colortype == LCT_GREY && spr->used_colors <= 16)
+        outfmt = FMT_I4;
 
     // Autodetection complete, log it.
     if (flag_verbose && autofmt)
@@ -524,11 +552,13 @@ bool spritemaker_write(spritemaker_t *spr) {
             assert(spr->used_colors <= 16);
             // Convert image to 4 bit.
             uint8_t *img = image->image;
-            for (int i=0; i<image->width*image->height; i+=2) {
-                uint8_t ix0 = *img++;
-                uint8_t ix1 = *img++;
-                assert(ix0 < 16 && ix1 < 16);
-                w8(out, (uint8_t)((ix0 << 4) | ix1));
+            for (int j=0; j<image->height; j++) {
+                for (int i=0; i<image->width; i+=2) {
+                    uint8_t ix0 = *img++;
+                    uint8_t ix1 = (i+1 == image->width) ? 0 : *img++;
+                    assert(ix0 < 16 && ix1 < 16);
+                    w8(out, (uint8_t)((ix0 << 4) | ix1));
+                }
             }
             break;
         }
@@ -546,9 +576,12 @@ bool spritemaker_write(spritemaker_t *spr) {
         case FMT_I4: {
             assert(image->ct == LCT_GREY);
             uint8_t *img = image->image;
-            for (int i=0; i<image->width*image->height; i+=2) {
-                uint8_t I0 = *img++; uint8_t I1 = *img++;
-                w8(out, (uint8_t)((I0 & 0xF0) | (I1 >> 4)));
+            for (int j=0; j<image->height; j++) {
+                for (int i=0; i<image->width; i+=2) {
+                    uint8_t I0 = *img++;
+                    uint8_t I1 = (i+1 == image->width) ? 0 : *img++;
+                    w8(out, (uint8_t)((I0 & 0xF0) | (I1 >> 4)));
+                }
             }
             break;
         }
@@ -557,10 +590,16 @@ bool spritemaker_write(spritemaker_t *spr) {
             assert(image->ct == LCT_GREY_ALPHA);
             // IA4 is 3 bit intensity and 1 bit alpha. Pack it
             uint8_t *img = image->image;
-            for (int i=0; i<image->width*image->height; i+=2) {
-                uint8_t I0 = *img++; uint8_t A0 = *img++ ? 1 : 0;
-                uint8_t I1 = *img++; uint8_t A1 = *img++ ? 1 : 0;
-                w8(out, (uint8_t)((I0 & 0xE0) | (A0 << 4) | ((I1 & 0xE0) >> 4) | A1));
+            for (int j=0; j<image->height; j++) {
+                for (int i=0; i<image->width; i+=2) {
+                    uint8_t I0 = *img++;
+                    uint8_t A0 = *img++;
+                    uint8_t I1 = (i+1 == image->width) ? 0 : *img++;
+                    uint8_t A1 = (i+1 == image->width) ? 0 : *img++;
+                    A0 = A0 ? 1 : 0;
+                    A1 = A1 ? 1 : 0;
+                    w8(out, (uint8_t)((I0 & 0xE0) | (A0 << 4) | ((I1 & 0xE0) >> 4) | A1));
+                }
             }
             break;
         }
@@ -659,7 +698,7 @@ void spritemaker_free(spritemaker_t *spr) {
     memset(spr, 0, sizeof(*spr));
 }
 
-int convert(const char *infn, const char *outfn, parms_t *pm) {
+int convert(const char *infn, const char *outfn, const parms_t *pm) {
     spritemaker_t spr = {0};
 
     spr.infn = infn;
@@ -697,20 +736,18 @@ int convert(const char *infn, const char *outfn, parms_t *pm) {
     // Autodetection of optimal slice size. TODO: this could be improved
     // by calculating actual memory occupation of each slice, to minimize the
     // number of TMEM loads.
-    if (pm->tilew) pm->hslices = spr.images[0].width / pm->tilew;
-    if (pm->tileh) pm->vslices = spr.images[0].height / pm->tileh;
-    if (!pm->hslices) {
-        pm->hslices = spr.images[0].width / 16;
+    if (pm->tilew) spr.hslices = spr.images[0].width / pm->tilew;
+    if (pm->tileh) spr.vslices = spr.images[0].height / pm->tileh;
+    if (!spr.hslices) {
+        spr.hslices = spr.images[0].width / 16;
         if (flag_verbose)
-            printf("auto detected hslices: %d (w=%d/%d)\n", pm->hslices, spr.images[0].width, spr.images[0].width/pm->hslices);
+            printf("auto detected hslices: %d (w=%d/%d)\n", spr.hslices, spr.images[0].width, spr.images[0].width/spr.hslices);
     }
-    if (!pm->vslices) {
-        pm->vslices = spr.images[0].height / 16;
+    if (!spr.vslices) {
+        spr.vslices = spr.images[0].height / 16;
         if (flag_verbose)
-            printf("auto detected vslices: %d (w=%d/%d)\n", pm->vslices, spr.images[0].height, spr.images[0].height/pm->vslices);
+            printf("auto detected vslices: %d (w=%d/%d)\n", spr.vslices, spr.images[0].height, spr.images[0].height/spr.vslices);
     }
-    spr.hslices = pm->hslices;
-    spr.vslices = pm->vslices;
 
     // Write the sprite
     if (!spritemaker_write(&spr))
@@ -776,18 +813,9 @@ int main(int argc, char *argv[])
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
                     return 1;
                 }
-                if (!strcmp(argv[i], "RGBA32")) pm.outfmt = FMT_RGBA32;
-                else if (!strcmp(argv[i], "RGBA16")) pm.outfmt = FMT_RGBA16;
-                else if (!strcmp(argv[i], "IA16")) pm.outfmt = FMT_IA16;
-                else if (!strcmp(argv[i], "CI8")) pm.outfmt = FMT_CI8;
-                else if (!strcmp(argv[i], "I8")) pm.outfmt = FMT_I8;
-                else if (!strcmp(argv[i], "IA8")) pm.outfmt = FMT_IA8;
-                else if (!strcmp(argv[i], "CI4")) pm.outfmt = FMT_CI4;
-                else if (!strcmp(argv[i], "I4")) pm.outfmt = FMT_I4;
-                else if (!strcmp(argv[i], "IA4")) pm.outfmt = FMT_IA4;
-                else if (!strcmp(argv[i], "AUTO")) pm.outfmt = FMT_NONE;
-                else {
-                    fprintf(stderr, "invalid argument for --format: %s\n", argv[i]);
+                pm.outfmt = tex_format_from_name(argv[i]);
+                if (pm.outfmt == FMT_NONE && strcasecmp(argv[i], "AUTO") != 0) {
+                    fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
                     print_supported_formats();
                     return 1;
                 }
@@ -844,6 +872,25 @@ int main(int argc, char *argv[])
 
         asprintf(&outfn, "%s/%s.sprite", outdir, basename_noext);
 
+        bool fmt_from_extension = false;
+        if (pm.outfmt == FMT_NONE) {
+            tex_format_t fmt = FMT_NONE;
+            char *fntok = strdup(infn);
+            char *sect = strtok(fntok, ".");
+            while (sect) {
+                fmt = tex_format_from_name(sect);
+                if (fmt != FMT_NONE) break;
+                sect = strtok(NULL, ".");
+            }
+            if (fmt != FMT_NONE) {
+                pm.outfmt = fmt;
+                fmt_from_extension = true;
+                if (flag_verbose)
+                    printf("detected format from filename: %s\n", tex_format_name(fmt));
+            }
+            free(fntok);
+        }
+
         if (flag_verbose)
             printf("Converting: %s -> %s [fmt=%s tiles=%d,%d mipmap=%s dither=%s]\n",
                 infn, outfn, tex_format_name(pm.outfmt), pm.tilew, pm.tileh, mipmap_algo_name(pm.mipmap_algo), dither_algo_name(pm.dither_algo));
@@ -861,6 +908,10 @@ int main(int argc, char *argv[])
                     (int)st_decomp.st_size, (int)st_comp.st_size, 100.0 * (float)st_comp.st_size / (float)(st_decomp.st_size == 0 ? 1 :st_decomp.st_size));
             }
         }
+
+        // If the format was selected from the extension, reset it for the next file
+        if (fmt_from_extension) 
+            pm.outfmt = FMT_NONE;
 
         free(outfn);
     }
