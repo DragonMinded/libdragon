@@ -20,14 +20,10 @@
 #include "backtrace.h"
 #include "usb.h"
 #include "utils.h"
+#include "libcart/cart.h"
 #include "fatfs/ff.h"
 #include "fatfs/ffconf.h"
 #include "fatfs/diskio.h"
-
-// SD implementations
-#include "debug_sdfs_ed64.c"
-#include "debug_sdfs_64drive.c"
-#include "debug_sdfs_sc64.c"
 
 /**
  * @defgroup debug Debugging Support
@@ -234,33 +230,33 @@ static DRESULT fat_disk_ioctl_default(BYTE cmd, void* buff)
 	}
 }
 
-static fat_disk_t fat_disk_everdrive =
+static DSTATUS fat_disk_initialize_sd(void)
 {
-	fat_disk_initialize_everdrive,
-	fat_disk_status_default,
-	fat_disk_read_everdrive,
-	NULL,
-	fat_disk_write_everdrive,
-	fat_disk_ioctl_default
-};
+	return cart_card_init() ? STA_NOINIT : 0;
+}
 
-static fat_disk_t fat_disk_64drive =
+static DRESULT fat_disk_read_sd(BYTE* buff, LBA_t sector, UINT count)
 {
-	fat_disk_initialize_64drive,
-	fat_disk_status_default,
-	fat_disk_read_64drive,
-	fat_disk_read_sdram_64drive,
-	fat_disk_write_64drive,
-	fat_disk_ioctl_default
-};
+	return cart_card_rd_dram(buff, sector, count) ? RES_ERROR : RES_OK;
+}
 
-static fat_disk_t fat_disk_sc64 =
+static DRESULT fat_disk_read_sdram_sd(BYTE* buff, LBA_t sector, UINT count)
 {
-	fat_disk_initialize_sc64,
+	return cart_card_rd_cart(PhysicalAddr(buff), sector, count) ? RES_ERROR : RES_OK;
+}
+
+static DRESULT fat_disk_write_sd(const BYTE* buff, LBA_t sector, UINT count)
+{
+	return cart_card_wr_dram(buff, sector, count) ? RES_ERROR : RES_OK;
+}
+
+static fat_disk_t fat_disk_sd =
+{
+	fat_disk_initialize_sd,
 	fat_disk_status_default,
-	fat_disk_read_sc64,
-	fat_disk_read_sdram_sc64,
-	fat_disk_write_sc64,
+	fat_disk_read_sd,
+	fat_disk_read_sdram_sd,
+	fat_disk_write_sd,
 	fat_disk_ioctl_default
 };
 
@@ -415,6 +411,23 @@ static filesystem_t fat_fs = {
 
 
 
+/** Initialize the SD stack just once */
+static bool sd_initialize_once(void) {
+	static bool once = false;
+	static bool ok = false;
+	if (!once)
+	{
+		once = true;
+		if (!sys_bbplayer())
+			ok = cart_init() >= 0;
+		else
+			/* 64drive autodetection makes iQue player crash; disable SD
+			   support altogether for now. */
+			ok = false;
+	}
+	return ok;
+}
+
 /** Initialize the USB stack just once */
 static bool usb_initialize_once(void) {
 	static bool once = false;
@@ -497,23 +510,10 @@ bool debug_init_sdlog(const char *fn, const char *openfmt)
 
 bool debug_init_sdfs(const char *prefix, int npart)
 {
-	if (!usb_initialize_once())
+	if (!sd_initialize_once())
 		return false;
 
-	switch (usb_getcart())
-	{
-	case CART_64DRIVE:
-		fat_disks[FAT_VOLUME_SD] = fat_disk_64drive;
-		break;
-	case CART_EVERDRIVE:
-		fat_disks[FAT_VOLUME_SD] = fat_disk_everdrive;
-		break;
-	case CART_SC64:
-		fat_disks[FAT_VOLUME_SD] = fat_disk_sc64;
-		break;
-	default:
-		return false;
-	}
+	fat_disks[FAT_VOLUME_SD] = fat_disk_sd;
 
 	if (npart >= 0) {
 		sdfs_logic_drive[0] = '0' + npart;

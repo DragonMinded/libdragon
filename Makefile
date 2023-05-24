@@ -24,7 +24,7 @@ libdragonsys.a: $(BUILD_DIR)/system.o
 
 libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o $(BUILD_DIR)/backtrace.o \
 			 $(BUILD_DIR)/inthandler.o $(BUILD_DIR)/entrypoint.o \
-			 $(BUILD_DIR)/debug.o $(BUILD_DIR)/usb.o $(BUILD_DIR)/fatfs/ff.o \
+			 $(BUILD_DIR)/debug.o $(BUILD_DIR)/usb.o $(BUILD_DIR)/libcart/cart.o $(BUILD_DIR)/fatfs/ff.o \
 			 $(BUILD_DIR)/fatfs/ffunicode.o $(BUILD_DIR)/rompak.o $(BUILD_DIR)/dragonfs.o \
 			 $(BUILD_DIR)/audio.o $(BUILD_DIR)/display.o $(BUILD_DIR)/surface.o \
 			 $(BUILD_DIR)/console.o $(BUILD_DIR)/joybus.o \
@@ -118,6 +118,8 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/rspq.h $(INSTALLDIR)/mips64-elf/include/rspq.h
 	install -Cv -m 0644 include/rspq_constants.h $(INSTALLDIR)/mips64-elf/include/rspq_constants.h
 	install -Cv -m 0644 include/rsp_queue.inc $(INSTALLDIR)/mips64-elf/include/rsp_queue.inc
+	mkdir -p $(INSTALLDIR)/mips64-elf/include/libcart
+	install -Cv -m 0644 src/libcart/cart.h $(INSTALLDIR)/mips64-elf/include/libcart/cart.h
 	mkdir -p $(INSTALLDIR)/mips64-elf/include/fatfs
 	install -Cv -m 0644 src/fatfs/diskio.h $(INSTALLDIR)/mips64-elf/include/fatfs/diskio.h
 	install -Cv -m 0644 src/fatfs/ff.h $(INSTALLDIR)/mips64-elf/include/fatfs/ff.h
