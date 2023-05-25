@@ -1247,8 +1247,19 @@ void rspq_syncpoint_wait(rspq_syncpoint_t sync_id)
 
 void rspq_wait(void) {
     // Check if the RDPQ module was initialized.
-    // If so, a full sync requires also waiting for RDP to finish.
-    if (__rdpq_inited) rdpq_fence();
+    if (__rdpq_inited) {
+        // If so, a full sync requires also waiting for RDP to finish.
+        rdpq_fence();
+
+        // Also force a buffer switch to go back to dynamic buffer. This is useful
+        // in the case the RDP is still pointing to a static buffer (after a block
+        // is just finished). This allows the user to safely free the static buffer
+        // after rspq_wait(), as intuition would suggest.
+        void *rdp_buf = rspq_rdp_dynamic_buffers[0];
+        void *rdp_buf_end = rdp_buf + RDPQ_DYNAMIC_BUFFER_SIZE;
+        rspq_int_write(RSPQ_CMD_RDP_SET_BUFFER, 
+            PhysicalAddr(rdp_buf), PhysicalAddr(rdp_buf), PhysicalAddr(rdp_buf_end));
+    }
 
     rspq_syncpoint_wait(rspq_syncpoint_new());
 
