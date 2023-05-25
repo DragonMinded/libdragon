@@ -82,7 +82,7 @@ GLCmd_InitPipe:
     .func GLCmd_SetVtxLoader
 GLCmd_SetVtxLoader:
     move s0, a1
-    li s4, %lo(gl_vtx_loader) + 0x1000
+    li s4, %lo(gl_vtx_loader)
     jal DMAInAsync
     li t0, DMA_SIZE(VTX_LOADER_MAX_SIZE, 1)
     add s0, a0, s4
