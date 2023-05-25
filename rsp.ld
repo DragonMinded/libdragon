@@ -24,7 +24,7 @@ MEMORY
        but it makes debugging with gdb a lot easier (e.g. using this fork of cen64 https://github.com/lambertjamesd/cen64).
      */
     ram_data : ORIGIN = 0xA4000000, LENGTH = 0x1000
-    ram_text : ORIGIN = 0x00000000, LENGTH = 0x1000
+    ram_text : ORIGIN = 0x00001000, LENGTH = 0x1000
 }
 
 SECTIONS
