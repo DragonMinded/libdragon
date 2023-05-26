@@ -76,8 +76,10 @@ extern "C" {
  *
  * Supported development cartridges:
  *
- *   * 64drive (rev 1 or 2)
- *   * Everdrive64 (models supporting 3.0.x OSes)
+ *   * 64Drive HW1 and HW2
+ *   * EverDrive-64 V1, V2, V2.5, V3, X7 and X5
+ *   * ED64Plus / Super 64
+ *   * SC64
  *
  * @note This feature works only if DEBUG_FEATURE_FILE_SD is also
  * activated.
@@ -105,8 +107,10 @@ extern "C" {
  *
  * Supported development cartridges:
  *
- *   * 64drive (rev 1 or 2)
- *   * Everdrive64 (models supporting 3.0.x OSes)
+ *   * 64Drive HW1 and HW2
+ *   * EverDrive-64 V1, V2, V2.5, V3, X7 and X5
+ *   * ED64Plus / Super 64
+ *   * SC64
  *
  */
 #define DEBUG_FEATURE_FILE_SD       (1 << 3)
