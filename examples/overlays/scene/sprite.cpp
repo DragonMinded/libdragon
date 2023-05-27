@@ -31,15 +31,16 @@ void Sprite::Draw()
 {
     //Get sprite surface
     surface_t surf = sprite_get_pixels(m_image);
-    //Initialize blit parameters to rotate/scale around center
+    //Initialize blit parameters and transform to rotate/scale around center
     rdpq_blitparms_t blit_params = {};
+	rdpq_blit_transform_t blit_transform = {};
     blit_params.cx = surf.width/2;
     blit_params.cy = surf.height/2;
-    blit_params.scale_x = m_scale_x;
-    blit_params.scale_y = m_scale_y;
-    blit_params.theta = m_angle;
+    blit_transform.scale_x = m_scale_x;
+    blit_transform.scale_y = m_scale_y;
+    blit_transform.theta = m_angle;
     //Setup blitting
-    rdpq_tex_blit(&surf, m_pos_x, m_pos_y, &blit_params);
+    rdpq_tex_blit(&surf, m_pos_x, m_pos_y, &blit_params, &blit_transform);
 }
 
 void Sprite::SetPos(float x, float y)

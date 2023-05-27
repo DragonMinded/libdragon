@@ -98,13 +98,13 @@ int main(void) {
         
         // Draw the background
         rdpq_set_mode_copy(true);
-        rdpq_tex_blit(&bkgsurf, 0, 30, NULL);
+        rdpq_tex_blit(&bkgsurf, 0, 30, NULL, NULL);
 
         if (use_rdp) {
             // Draw the flare using RDP additive blending (will overflow)
             rdpq_set_mode_standard();
             rdpq_mode_blender(RDPQ_BLENDER_ADDITIVE);
-            rdpq_tex_blit(&flrsurf, 30, 60, NULL);
+            rdpq_tex_blit(&flrsurf, 30, 60, NULL, NULL);
             rdpq_detach_show();
         } else {
             // Detach the RDP.

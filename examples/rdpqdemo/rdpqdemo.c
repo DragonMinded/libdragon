@@ -88,7 +88,7 @@ void render(int cur_frame)
 
     for (uint32_t i = 0; i < num_objs; i++)
     {
-        rdpq_sprite_blit(brew_sprite, objects[i].x, objects[i].y, &(rdpq_blitparms_t){
+        rdpq_sprite_blit(brew_sprite, objects[i].x, objects[i].y, NULL, &(rdpq_blit_transform_t){
             .scale_x = objects[i].scale_factor, .scale_y = objects[i].scale_factor,
         });
     }

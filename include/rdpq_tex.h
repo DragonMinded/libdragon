@@ -218,17 +218,16 @@ typedef struct rdpq_blitparms_s {
 
     int cx;             ///< Transformation center (aka "hotspot") X coordinate, relative to (s0, t0). Used for all transformations
     int cy;             ///< Transformation center (aka "hotspot") X coordinate, relative to (s0, t0). Used for all transformations
-    float scale_x;      ///< Horizontal scale factor to apply to the surface. If 0, no scaling is performed (the same as 1.0f)
-    float scale_y;      ///< Vertical scale factor to apply to the surface. If 0, no scaling is performed (the same as 1.0f)
-    float theta;        ///< Rotation angle in radians
-
+    
     // FIXME: replace this with CPU tracking of filtering mode?
     bool filtering;     ///< True if texture filtering is enabled (activates workaround for filtering artifacts when splitting textures in chunks)
-
-    // FIXME: remove this?
-    int nx;             ///< Texture horizontal repeat count. If 0, no repetition is performed (the same as 1)
-    int ny;             ///< Texture vertical repeat count. If 0, no repetition is performed (the same as 1)
 } rdpq_blitparms_t;
+
+typedef struct rdpq_blit_transform_s {
+    float scale_x;      ///< Horizontal scale factor to apply to the surface.
+    float scale_y;      ///< Vertical scale factor to apply to the surface.
+    float theta;        ///< Rotation angle in radians
+} rdpq_blit_transform_t;
 
 /**
  * @brief Blit a surface to the active framebuffer
@@ -265,7 +264,7 @@ typedef struct rdpq_blitparms_s {
  * top-left corner (eg: a splashscreen).
  * 
  * @code{.c}
- *     rdpq_tex_blit(splashscreen, 0, 0, NULL);
+ *     rdpq_tex_blit(splashscreen, 0, 0, NULL, NULL);
  * @endcode
  * 
  * This is the same, but the image will be centered on the screen. To do this,
@@ -276,7 +275,7 @@ typedef struct rdpq_blitparms_s {
  *      rdpq_tex_blit(splashscreen, 320/2, 160/2, &(rdpq_blitparms_t){
  *          .cx = splashscreen->width / 2,
  *          .cy = splashscreen->height / 2,
- *      });
+ *      }, NULL);
  * @endcode
  * 
  * This examples scales a 64x64 image to 256x256, putting its center near the
@@ -285,6 +284,7 @@ typedef struct rdpq_blitparms_s {
  * @code{.c}
  *      rdpq_tex_blit(splashscreen, 20, 20, &(rdpq_blitparms_t){
  *          .cx = splashscreen->width / 2, .cy = splashscreen->height / 2,
+ *      }, &(rdpq_blit_transform_t) {
  *          .scale_x = 4.0f, .scale_y = 4.0f,
  *      });
  * @endcode
@@ -298,16 +298,19 @@ typedef struct rdpq_blitparms_s {
  *          .s0 = 32*2, .t0 = 32*4,
  *          .width = 32, .height = 32,
  *          .cx = 16, .cy = 16,
+ *     }, &(rdpq_blit_transform_t) {
+ *          .scale_x = 1.0f, .scale_y = 1.0f,
  *          .theta = M_PI/4,
- *     });
+ *      });
  * @endcode
  * 
- * @param surf           Surface to draw
- * @param x0             X coordinate on the framebuffer where to draw the surface
- * @param y0             Y coordinate on the framebuffer where to draw the surface
- * @param parms          Parameters for the blit operation (or NULL for default)
+ * @param surf			Surface to draw
+ * @param x0			X coordinate on the framebuffer where to draw the surface
+ * @param y0			Y coordinate on the framebuffer where to draw the surface
+ * @param parms			Parameters for the blit operation (or NULL for default)
+ * @param transform		Transformation for the blit operation (or NULL for default)
  */
-void rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms);
+void rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms, const rdpq_blit_transform_t *transform);
 
 
 #ifdef __cplusplus

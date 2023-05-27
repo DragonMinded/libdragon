@@ -426,7 +426,7 @@ static void tex_xblit_norotate_noscale(const surface_t *surf, float x0, float y0
 }
 
 __attribute__((noinline))
-static void tex_xblit_norotate(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms)
+static void tex_xblit_norotate(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms, const rdpq_blit_transform_t *transform)
 {
     rdpq_tile_t tile = parms->tile;
     int src_width = parms->width ? parms->width : surf->width;
@@ -435,8 +435,8 @@ static void tex_xblit_norotate(const surface_t *surf, float x0, float y0, const 
     int t0 = parms->t0;
     int cx = parms->cx + s0;
     int cy = parms->cy + t0;
-    float scalex = parms->scale_x == 0 ? 1.0f : parms->scale_x;
-    float scaley = parms->scale_y == 0 ? 1.0f : parms->scale_y;
+    float scalex = transform->scale_x;
+    float scaley = transform->scale_y;
     bool flip_x = (scalex < 0) ^ parms->flip_x;
     bool flip_y = (scaley < 0) ^ parms->flip_y;
 
@@ -466,7 +466,7 @@ static void tex_xblit_norotate(const surface_t *surf, float x0, float y0, const 
 }
 
 __attribute__((noinline))
-static void tex_xblit(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms)
+static void tex_xblit(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms, const rdpq_blit_transform_t *transform)
 {
     rdpq_tile_t tile = parms->tile;
     int src_width = parms->width ? parms->width : surf->width;
@@ -475,13 +475,11 @@ static void tex_xblit(const surface_t *surf, float x0, float y0, const rdpq_blit
     int t0 = parms->t0;
     int cx = parms->cx + s0;
     int cy = parms->cy + t0;
-    int nx = parms->nx;
-    int ny = parms->ny;
-    float scalex = parms->scale_x == 0 ? 1.0f : parms->scale_x;
-    float scaley = parms->scale_y == 0 ? 1.0f : parms->scale_y;
+    float scalex = transform->scale_x;
+    float scaley = transform->scale_y;
 
     float sin_theta, cos_theta; 
-    sincosf(parms->theta, &sin_theta, &cos_theta);
+    sincosf(transform->theta, &sin_theta, &cos_theta);
 
     float mtx[3][2] = {
         { cos_theta * scalex, -sin_theta * scaley },
@@ -513,68 +511,24 @@ static void tex_xblit(const surface_t *surf, float x0, float y0, const rdpq_blit
         rdpq_triangle(&TRIFMT_TEX, v0, v1, v2);
         rdpq_triangle(&TRIFMT_TEX, v0, v2, v3);
     }
-
-    void draw_cb_multi_rot(rdpq_tile_t tile, int s0, int t0, int s1, int t1)
-    {
-        int ks0 = s0, kt0 = t0, ks1 = s1, kt1 = t1;
-        if (parms->flip_x) { ks0 = src_width - ks0; ks1 = src_width - ks1; }
-        if (parms->flip_y) { kt0 = src_height - kt0; kt1 = src_height - kt1; }
-
-        assert(s1-s0 == src_width);
-
-        for (int j=0; j<ny; j++) {
-            int kkt0 = kt0 + j * src_height;
-            int kkt1 = kt1 + j * src_height;
-
-            // rdpq_triangle_strip_begin(&TRIFMT_TEX);
-
-            float kks0 = ks0;
-            float kks1 = ks1;
-            for (int i=0; i<=nx; i++) {
-                float k0x = mtx[0][0] * kks0 + mtx[1][0] * kkt0 + mtx[2][0];
-                float k0y = mtx[0][1] * kks0 + mtx[1][1] * kkt0 + mtx[2][1];
-                float k2x = mtx[0][0] * kks1 + mtx[1][0] * kkt1 + mtx[2][0];
-                float k2y = mtx[0][1] * kks1 + mtx[1][1] * kkt1 + mtx[2][1];
-                float k1x = mtx[0][0] * kks1 + mtx[1][0] * kkt0 + mtx[2][0];
-                float k1y = mtx[0][1] * kks1 + mtx[1][1] * kkt0 + mtx[2][1];
-                float k3x = mtx[0][0] * kks0 + mtx[1][0] * kkt1 + mtx[2][0];
-                float k3y = mtx[0][1] * kks0 + mtx[1][1] * kkt1 + mtx[2][1];
-
-                float v0[5] = { k0x, k0y, s0, t0, 1.0f };
-                float v1[5] = { k1x, k1y, s1, t0, 1.0f };
-                float v2[5] = { k2x, k2y, s1, t1, 1.0f };
-                float v3[5] = { k3x, k3y, s0, t1, 1.0f };
-                rdpq_triangle(&TRIFMT_TEX, v0, v1, v2);
-                rdpq_triangle(&TRIFMT_TEX, v0, v2, v3);
-
-                // rdpq_triangle_strip(v0);
-                // rdpq_triangle_strip(v3);
-                kks0 += src_width;
-                kks1 += src_width;
-            }
-        }
-    }
-
-    if (nx || ny) {
-        tex_draw_split(tile, surf, s0, t0, s0 + src_width, t0 + src_height, draw_cb_multi_rot, parms->filtering);    
-    } else {
-        tex_draw_split(tile, surf, s0, t0, s0 + src_width, t0 + src_height, draw_cb, parms->filtering);
-    }
+    tex_draw_split(tile, surf, s0, t0, s0 + src_width, t0 + src_height, draw_cb, parms->filtering);
 }
 
-void rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms)
+void rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms, const rdpq_blit_transform_t *transform)
 {
     static const rdpq_blitparms_t default_parms = {0};
+    static const rdpq_blit_transform_t default_transform = { 1.0f, 1.0f, 0.0f };
     if (!parms) parms = &default_parms;
-
+    if (!transform) transform = &default_transform;
+    
     // Check which implementation to use, depending on the requested features.
-    if (F2I(parms->theta) == 0) {
-        if (F2I(parms->scale_x) == 0 && F2I(parms->scale_y) == 0)
+    if (transform->theta == 0.0f) {
+        if (transform->scale_x == 1.0f && transform->scale_y == 1.0f)
                 tex_xblit_norotate_noscale(surf, x0, y0, parms);
             else
-                tex_xblit_norotate(surf, x0, y0, parms);
+                tex_xblit_norotate(surf, x0, y0, parms, transform);
     } else {
-        tex_xblit(surf, x0, y0, parms);
+        tex_xblit(surf, x0, y0, parms, transform);
     }
 }
 

@@ -27,9 +27,9 @@ Background::~Background()
 
 void Background::Draw()
 {
-    //Initialize surface and blit parameters
+    //Initialize surface and blit transform
     surface_t img_surface = sprite_get_pixels(m_image);
-    rdpq_blitparms_t blit_params = {.scale_x = m_scale_x, .scale_y = m_scale_y };
+    rdpq_blit_transform_t blit_transform = {.scale_x = m_scale_x, .scale_y = m_scale_y };
     //Get screen size
     float scr_width = display_get_width();
     float scr_height = display_get_height();
@@ -45,7 +45,7 @@ void Background::Draw()
     //Iterate over visible tiles
     for(int i=0; i<num_tiles_y; i++) {
         for(int j=0; j<num_tiles_x; j++) {
-            rdpq_tex_blit(&img_surface, ofs_x+(j*tile_w), ofs_y+(i*tile_h), &blit_params);
+            rdpq_tex_blit(&img_surface, ofs_x+(j*tile_w), ofs_y+(i*tile_h), NULL, &blit_transform);
         }
     }
 }

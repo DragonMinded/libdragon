@@ -67,11 +67,10 @@ static void draw_actors()
         if(actors[i] && actors[i]->visible) {
             //Blit sprite surface to screen
             surface_t surf = sprite_get_pixels(actors[i]->sprite);
+			rdpq_blit_transform_t transform = { actors[i]->x_scale, actors[i]->y_scale, actors[i]->angle };
             rdpq_tex_blit(&surf, actors[i]->x, actors[i]->y, &(rdpq_blitparms_t){
                 .cx = surf.width/2, .cy = surf.height/2,
-                .scale_x = actors[i]->x_scale, .scale_y = actors[i]->y_scale,
-                .theta = actors[i]->angle
-            });
+            }, &transform);
         }
     }
 }

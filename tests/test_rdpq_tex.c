@@ -250,7 +250,7 @@ void test_rdpq_tex_blit_normal(TestContext *ctx)
                 LOG("    s0/t0/w: %d %d %d\n", s0, t0, width);
                 rdpq_tex_blit(&surf_full, 0, 0, &(rdpq_blitparms_t){
                     .s0 = s0, .width = width, .t0 = t0, .height = tex_width-t0,
-                });
+                }, NULL);
                 rspq_wait();
 
                 ASSERT_SURFACE(&fb, {

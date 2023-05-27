@@ -18,6 +18,7 @@
 typedef struct sprite_s sprite_t;
 typedef struct rdpq_texparms_s rdpq_texparms_t;
 typedef struct rdpq_blitparms_s rdpq_blitparms_t;
+typedef struct rdpq_blit_transform_s rdpq_blit_transform_t;
 ///@endcond
 
 /**
@@ -75,11 +76,12 @@ int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t
  * 
  * Please refer to #rdpq_tex_blit for a full overview of the features.
  * 
- * @param sprite    Sprite to blit
- * @param x0        X coordinate on the framebuffer where to draw the surface
- * @param y0        Y coordinate on the framebuffer where to draw the surface
- * @param parms     Parameters for the blit operation (or NULL for default)
+ * @param sprite        Sprite to blit
+ * @param x0            X coordinate on the framebuffer where to draw the surface
+ * @param y0            Y coordinate on the framebuffer where to draw the surface
+ * @param parms         Parameters for the blit operation (or NULL for default)
+ * @param transform     Transformation for the blit operation (or NULL for default)
  */
-void rdpq_sprite_blit(sprite_t *sprite, float x0, float y0, const rdpq_blitparms_t *parms);
+void rdpq_sprite_blit(sprite_t *sprite, float x0, float y0, const rdpq_blitparms_t *parms, const rdpq_blit_transform_t *transform);
 
 #endif
