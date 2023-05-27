@@ -199,7 +199,7 @@ void rdpq_tex_load_tlut(uint16_t *tlut, int color_idx, int num_colors);
 /**
  * @brief Blitting parameters for #rdpq_tex_blit.
  * 
- * This structure contains all possible parameters for #rdpq_tex_blit.
+ * This structure contains most of the possible parameters for #rdpq_tex_blit.
  * The various fields have been designed so that the 0 value is always the most
  * reasonable default. This means that you can simply initialize the structure
  * to 0 and then change only the fields you need (for instance, through a 
@@ -223,6 +223,17 @@ typedef struct rdpq_blitparms_s {
     bool filtering;     ///< True if texture filtering is enabled (activates workaround for filtering artifacts when splitting textures in chunks)
 } rdpq_blitparms_t;
 
+/**
+ * @brief Blitting transform parameters for #rdpq_tex_blit.
+ * 
+ * This structure contains the scaling and rotation parameters for #rdpq_tex_blit.
+ * These parameters allow controlling the size and angle of a blit onscreen. If the
+ * scale_x and scale_y fields are both 1.0f and the theta field is 0.0f this is
+ * equivalent to no transform at all.
+ * 
+ * See #rdpq_tex_blit for several examples.
+ */
+ 
 typedef struct rdpq_blit_transform_s {
     float scale_x;      ///< Horizontal scale factor to apply to the surface.
     float scale_y;      ///< Vertical scale factor to apply to the surface.
