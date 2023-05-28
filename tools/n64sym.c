@@ -324,7 +324,7 @@ void process(const char *infn, const char *outfn)
         w16(out, strlen(sym->func));
         w16(out, strlen(sym->file));
         w16(out, (uint16_t)(sym->line < 65536 ? sym->line : 0));
-        w16(out, sym->func_offset < 0x10000 ? sym->func_offset : 0);
+        w16(out, (uint16_t)(sym->func_offset < 0x10000 ? sym->func_offset : 0));
     }
 
     walign(out, 16);

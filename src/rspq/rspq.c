@@ -379,7 +379,7 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
 {
     rsp_queue_t *rspq = (rsp_queue_t*)(state->dmem + RSPQ_DATA_ADDRESS);
     uint32_t cur = rspq->rspq_dram_addr + state->gpr[28];
-    uint32_t dmem_buffer = RSPQ_DEBUG ? 0x1A0 : 0x100;
+    uint32_t dmem_buffer = RSPQ_DEBUG ? 0x158 : 0x100;
 
     int ovl_idx; const char *ovl_name; uint8_t ovl_id;
     rspq_get_current_ovl(rspq, &ovl_idx, &ovl_id, &ovl_name);
@@ -431,7 +431,7 @@ static void rspq_assert_invalid_command(rsp_snapshot_t *state)
     int ovl_idx; const char *ovl_name; uint8_t ovl_id;
     rspq_get_current_ovl(rspq, &ovl_idx, &ovl_id, &ovl_name);
 
-    uint32_t dmem_buffer = RSPQ_DEBUG ? 0x1A0 : 0x100;
+    uint32_t dmem_buffer = RSPQ_DEBUG ? 0x158 : 0x100;
     uint32_t cur = dmem_buffer + state->gpr[28];
     printf("Invalid command\nCommand %02x not found in overlay %s (0x%01x)\n", state->dmem[cur], ovl_name, ovl_id);
 }
@@ -1247,8 +1247,19 @@ void rspq_syncpoint_wait(rspq_syncpoint_t sync_id)
 
 void rspq_wait(void) {
     // Check if the RDPQ module was initialized.
-    // If so, a full sync requires also waiting for RDP to finish.
-    if (__rdpq_inited) rdpq_fence();
+    if (__rdpq_inited) {
+        // If so, a full sync requires also waiting for RDP to finish.
+        rdpq_fence();
+
+        // Also force a buffer switch to go back to dynamic buffer. This is useful
+        // in the case the RDP is still pointing to a static buffer (after a block
+        // is just finished). This allows the user to safely free the static buffer
+        // after rspq_wait(), as intuition would suggest.
+        void *rdp_buf = rspq_rdp_dynamic_buffers[0];
+        void *rdp_buf_end = rdp_buf + RDPQ_DYNAMIC_BUFFER_SIZE;
+        rspq_int_write(RSPQ_CMD_RDP_SET_BUFFER, 
+            PhysicalAddr(rdp_buf), PhysicalAddr(rdp_buf), PhysicalAddr(rdp_buf_end));
+    }
 
     rspq_syncpoint_wait(rspq_syncpoint_new());
 

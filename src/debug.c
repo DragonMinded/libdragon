@@ -135,7 +135,15 @@ static void usblog_write(const uint8_t *data, int len)
 
 static void sdlog_write(const uint8_t *data, int len)
 {
+	// Avoid reentrant calls. If the SD card code for any reason generates
+	// an exception, the exception handler will try to log more, which would
+	// cause reentrant calls, that might corrupt the filesystem.
+	static bool in_write = false;
+	if (in_write) return;
+
+	in_write = true;
 	fwrite(data, 1, len, sdlog_file);
+	in_write = false;
 }
 
 /*********************************************************************
