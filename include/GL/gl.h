@@ -15,6 +15,7 @@
 #define GL_ARB_vertex_buffer_object     1
 #define GL_ARB_texture_mirrored_repeat  1
 #define GL_ARB_vertex_array_object      1
+#define GL_ARB_matrix_palette           1
 
 /* Data types */
 
@@ -190,12 +191,17 @@ void glColor4uiv(const GLuint *v);
 #define glIndexdv(v) _GL_UNSUPPORTED(glIndexdv)
 #define glIndexubv(v) _GL_UNSUPPORTED(glIndexubv)
 
+void glMatrixIndexubvARB(GLint size, const GLubyte *v);
+void glMatrixIndexusvARB(GLint size, const GLushort *v);
+void glMatrixIndexuivARB(GLint size, const GLuint *v);
+
 /* Vertex arrays */
 
 void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
 void glTexCoordPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
 void glNormalPointer(GLenum type, GLsizei stride, const GLvoid *pointer);
 void glColorPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
+void glMatrixIndexPointerARB(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
 
 #define glEdgeFlagPointer(stride, pointer) _GL_UNSUPPORTED(glEdgeFlagPointer)
 #define glIndexPointer(type, stride, pointer) _GL_UNSUPPORTED(glIndexPointer)
@@ -281,6 +287,8 @@ void glOrtho(GLdouble l, GLdouble r, GLdouble b, GLdouble t, GLdouble n, GLdoubl
 
 void glPushMatrix(void);
 void glPopMatrix(void);
+
+void glCurrentPaletteMatrixARB(GLint index);
 
 /* Texture coordinate generation */
 

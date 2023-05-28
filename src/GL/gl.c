@@ -356,6 +356,10 @@ void gl_set_flag2(GLenum target, bool value)
         gl_set_flag(GL_UPDATE_NONE, FLAG_NORMALIZE, value);
         state.normalize = value;
         break;
+    case GL_MATRIX_PALETTE_ARB:
+        state.matrix_palette = value;
+        set_can_use_rsp_dirty();
+        break;
     case GL_CLIP_PLANE0:
     case GL_CLIP_PLANE1:
     case GL_CLIP_PLANE2:
@@ -523,7 +527,7 @@ void gl_storage_free(gl_storage_t *storage)
     // TODO: need to wait until buffer is no longer used!
 
     if (storage->data != NULL) {
-        free_uncached(storage->data);
+        free(storage->data);
         storage->data = NULL;
     }
 }
@@ -534,7 +538,7 @@ bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size)
         return true;
     }
 
-    GLvoid *mem = malloc_uncached(new_size);
+    GLvoid *mem = malloc(new_size);
     if (mem == NULL) {
         return false;
     }

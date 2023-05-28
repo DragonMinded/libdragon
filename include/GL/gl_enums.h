@@ -111,6 +111,17 @@
 
 #define GL_VERTEX_ARRAY_BINDING                         0x85B5
 
+#define GL_MATRIX_PALETTE_ARB                           0x8840
+#define GL_MAX_MATRIX_PALETTE_STACK_DEPTH_ARB           0x8841
+#define GL_MAX_PALETTE_MATRICES_ARB                     0x8842
+#define GL_CURRENT_PALETTE_MATRIX_ARB                   0x8843
+#define GL_MATRIX_INDEX_ARRAY_ARB                       0x8844
+#define GL_CURRENT_MATRIX_INDEX_ARB                     0x8845
+#define GL_MATRIX_INDEX_ARRAY_SIZE_ARB                  0x8846
+#define GL_MATRIX_INDEX_ARRAY_TYPE_ARB                  0x8847
+#define GL_MATRIX_INDEX_ARRAY_STRIDE_ARB                0x8848
+#define GL_MATRIX_INDEX_ARRAY_POINTER_ARB               0x8849
+
 #define GL_STREAM_DRAW_ARB                              0x88E0
 #define GL_STREAM_READ_ARB                              0x88E1
 #define GL_STREAM_COPY_ARB                              0x88E2

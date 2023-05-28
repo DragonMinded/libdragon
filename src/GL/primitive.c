@@ -44,12 +44,12 @@ void gl_primitive_init()
     state.point_size = 1;
     state.line_width = 1;
 
-    state.current_attribs[ATTRIB_COLOR][0] = 1;
-    state.current_attribs[ATTRIB_COLOR][1] = 1;
-    state.current_attribs[ATTRIB_COLOR][2] = 1;
-    state.current_attribs[ATTRIB_COLOR][3] = 1;
-    state.current_attribs[ATTRIB_TEXCOORD][3] = 1;
-    state.current_attribs[ATTRIB_NORMAL][2] = 1;
+    state.current_attributes.color[0] = 1;
+    state.current_attributes.color[1] = 1;
+    state.current_attributes.color[2] = 1;
+    state.current_attributes.color[3] = 1;
+    state.current_attributes.texcoord[3] = 1;
+    state.current_attributes.normal[2] = 1;
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
@@ -108,6 +108,11 @@ bool gl_can_use_rsp_pipeline()
             WARN_CPU_REQUIRED("specular lighting");
             return false;
         }
+    }
+
+    if (state.matrix_palette) {
+        WARN_CPU_REQUIRED("matrix palette");
+        return false;
     }
 
     return true;
@@ -305,7 +310,7 @@ void gl_load_attribs(const gl_array_t *arrays, uint32_t index)
             continue;
         }
 
-        GLfloat *dst = state.current_attribs[i];
+        void *dst = gl_get_attrib_pointer(&state.current_attributes, i);
         const void *src = gl_get_attrib_element(array, index);
 
         array->cpu_read_func(dst, src, array->size);
@@ -315,14 +320,25 @@ void gl_load_attribs(const gl_array_t *arrays, uint32_t index)
 void gl_fill_attrib_defaults(gl_array_type_t array_type, uint32_t size)
 {
     static const GLfloat default_attribute_value[] = {0.0f, 0.0f, 0.0f, 1.0f};
+    uint32_t element_size = sizeof(GLfloat);
+
+    switch (array_type) {
+    case ATTRIB_VERTEX:
+    case ATTRIB_COLOR:
+    case ATTRIB_TEXCOORD:
+        break;
+    default:
+        return;
+    }
 
     const GLfloat *src = default_attribute_value + size;
-    GLfloat *dst = state.current_attribs[array_type] + size;
-    memcpy(dst, src, (4 - size) * sizeof(GLfloat));
+    void *dst = gl_get_attrib_pointer(&state.current_attributes, array_type) + size * element_size;
+    memcpy(dst, src, (4 - size) * element_size);
 }
 
 void gl_fill_all_attrib_defaults(const gl_array_t *arrays)
 {
+    // There are no default values for the matrix index because it is always specified fully.
     for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
     {
         const gl_array_t *array = &arrays[i];
@@ -524,7 +540,7 @@ void __gl_color(GLenum type, const void *value, uint32_t size)
         state.current_pipeline->color(value, type, size);
     } else {
         gl_read_attrib(ATTRIB_COLOR, value, type, size);
-        gl_set_current_color(state.current_attribs[ATTRIB_COLOR]);
+        gl_set_current_color(state.current_attributes.color);
     }
 }
 
@@ -534,7 +550,7 @@ void __gl_tex_coord(GLenum type, const void *value, uint32_t size)
         state.current_pipeline->tex_coord(value, type, size);
     } else {
         gl_read_attrib(ATTRIB_TEXCOORD, value, type, size);
-        gl_set_current_texcoords(state.current_attribs[ATTRIB_TEXCOORD]);
+        gl_set_current_texcoords(state.current_attributes.texcoord);
     }
 }
 
@@ -544,7 +560,22 @@ void __gl_normal(GLenum type, const void *value, uint32_t size)
         state.current_pipeline->normal(value, type, size);
     } else {
         gl_read_attrib(ATTRIB_NORMAL, value, type, size);
-        gl_set_current_normal(state.current_attribs[ATTRIB_NORMAL]);
+        gl_set_current_normal(state.current_attributes.normal);
+    }
+}
+
+void __gl_mtx_index(GLenum type, const void *value, uint32_t size)
+{
+    if (size > VERTEX_UNIT_COUNT) {
+        gl_set_error(GL_INVALID_VALUE);
+        return;
+    }
+
+    if (state.immediate_active) {
+        state.current_pipeline->mtx_index(value, type, size);
+    } else {
+        gl_read_attrib(ATTRIB_MTX_INDEX, value, type, size);
+        gl_set_current_mtx_index(state.current_attributes.mtx_index);
     }
 }
 
@@ -670,6 +701,10 @@ void glNormal3s(GLshort nx, GLshort ny, GLshort nz)     { __ATTR_IMPL(__gl_norma
 void glNormal3i(GLint nx, GLint ny, GLint nz)           { __ATTR_IMPL(__gl_normal, GLint,       GL_INT,     nx, ny, nz); }
 void glNormal3f(GLfloat nx, GLfloat ny, GLfloat nz)     { __ATTR_IMPL(__gl_normal, GLfloat,     GL_FLOAT,   nx, ny, nz); }
 void glNormal3d(GLdouble nx, GLdouble ny, GLdouble nz)  { __ATTR_IMPL(__gl_normal, GLdouble,    GL_DOUBLE,  nx, ny, nz); }
+
+void glMatrixIndexubvARB(GLint size, const GLubyte *v)  { __gl_mtx_index(GL_UNSIGNED_BYTE,  v, size); }
+void glMatrixIndexusvARB(GLint size, const GLushort *v) { __gl_mtx_index(GL_UNSIGNED_SHORT, v, size); }
+void glMatrixIndexuivARB(GLint size, const GLuint *v)   { __gl_mtx_index(GL_UNSIGNED_INT,   v, size); }
 
 #define __RECT_IMPL(vertex, x1, y1, x2, y2) ({ \
     glBegin(GL_POLYGON); \
