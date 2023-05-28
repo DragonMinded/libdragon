@@ -182,7 +182,7 @@ void __exception_dump_fpr(exception_t* ex, void (*cb)(void *arg, const char *reg
 		// Open GCC bug: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66462
 		if ((fpr32 & 0x7F800000) == 0 && (fpr32 & 0x007FFFFF) != 0)
 			singlep = "<Denormal>";
-		else if (__builtin_isnan(f))
+		else if ((fpr32 & 0x7F800000) == 0x7F800000 && (fpr32 & 0x007FFFFF) != 0)
 			singlep = "<NaN>";
 		else if (__builtin_isinf(f))
 			singlep = (f < 0) ? "<-Inf>" : "<+Inf>";
@@ -191,7 +191,7 @@ void __exception_dump_fpr(exception_t* ex, void (*cb)(void *arg, const char *reg
 
 		if ((fpr64 & 0x7FF0000000000000ull) == 0 && (fpr64 & 0x000FFFFFFFFFFFFFull) != 0)
 			doublep = "<Denormal>";
-		else if (__builtin_isnan(g))
+		else if ((fpr64 & 0x7FF0000000000000ull) == 0x7FF0000000000000ull && (fpr64 & 0x000FFFFFFFFFFFFFull) != 0)
 			doublep = "<NaN>";
 		else if (__builtin_isinf(g))
 			doublep = (g < 0) ? "<-Inf>" : "<+Inf>";
