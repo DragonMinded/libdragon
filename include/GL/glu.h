@@ -9,6 +9,8 @@ void gluLookAt(float eyex, float eyey, float eyez,
                float centerx, float centery, float centerz,
                float upx, float upy, float upz);
 
+void gluPerspective(float fovy, float aspect, float zNear, float zFar);
+
 #ifdef __cplusplus
 }
 #endif
