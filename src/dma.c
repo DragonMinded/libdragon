@@ -284,7 +284,7 @@ void dma_read_async(void *ram_pointer, unsigned long pi_address, unsigned long l
     uint32_t ram_address = (uint32_t)ram;
 
     assert(len > 0);
-    assert(((ram_address ^ pi_address) & 1) == 0); 
+    assert(((ram_address ^ pi_address) & 1) == 0); (void)ram_address;
 
     disable_interrupts();
 
