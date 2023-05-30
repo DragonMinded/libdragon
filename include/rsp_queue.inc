@@ -358,6 +358,9 @@ RSPQ_DefineCommand RSPQCmd_RdpSetBuffer,    12    # 0x0A
 RSPQ_DefineCommand RSPQCmd_RdpAppendBuffer, 4     # 0x0B
 
     .align 3
+#if RSPQ_DEBUG
+                             .long 0, RSPQ_DEBUG_MARKER
+#endif
 RSPQ_DMEM_BUFFER:            .ds.b RSPQ_DMEM_BUFFER_SIZE
 
 
