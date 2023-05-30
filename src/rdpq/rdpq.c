@@ -540,8 +540,16 @@ static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
         printf("Interpolated mipmap cannot work with a custom 2-pass combiner\n");
         break;
 
+    case RDPQ_ASSERT_INVALID_CMD_TRI:
+        printf("RSP triangle command called but C reference implementation was enabled\n");
+        break;
+
     case RDPQ_ASSERT_SEND_INVALID_SIZE:
         printf("RDPSend buffer: %lx %lx\n", state->gpr[19], state->gpr[20]); // s3, s4
+        break;
+
+    case RDPQ_ASSERT_AUTOTMEM_FULL:
+        printf("TMEM is full, cannot load more data\n");
         break;
 
     default:
@@ -996,6 +1004,12 @@ uint64_t rdpq_get_other_modes_raw(void)
     return state->rdp_mode.other_modes;
 }
 
+void rdpq_set_tile_autotmem(int16_t tmem_bytes)
+{
+    assertf((tmem_bytes % 8) == 0, "tmem_bytes must be a multiple of 8");
+    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_AUTOTMEM_SET_ADDR, tmem_bytes/8);
+}
+
 void rdpq_sync_full(void (*callback)(void*), void* arg)
 {
     uint32_t w0 = PhysicalAddr(callback);
@@ -1051,4 +1065,4 @@ extern inline void rdpq_set_color_image_raw(uint8_t index, uint32_t offset, tex_
 extern inline void rdpq_set_z_image_raw(uint8_t index, uint32_t offset);
 extern inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_format_t format, uint16_t width, uint16_t height);
 extern inline void rdpq_set_lookup_address(uint8_t index, void* rdram_addr);
-extern inline void rdpq_set_tile(rdpq_tile_t tile, tex_format_t format, uint16_t tmem_addr,uint16_t tmem_pitch, const rdpq_tileparms_t *parms);
+extern inline void rdpq_set_tile(rdpq_tile_t tile, tex_format_t format, int16_t tmem_addr,uint16_t tmem_pitch, const rdpq_tileparms_t *parms);

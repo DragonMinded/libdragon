@@ -14,8 +14,11 @@
 // Asserted if RDPQCmd_Triangle is called with RDPQ_TRIANGLE_REFERENCE == 0
 #define RDPQ_ASSERT_INVALID_CMD_TRI  0xC005
 
-// Asserted if RDPQCmd_Triangle is called with RDPQ_TRIANGLE_REFERENCE == 0
+// Asserted if RDPQ_Send is called with invalid parameters (begin > end)
 #define RDPQ_ASSERT_SEND_INVALID_SIZE  0xC006
+
+// Asserted if the TMEM is full during an auto-TMEM operation
+#define RDPQ_ASSERT_AUTOTMEM_FULL  0xC007
 
 #define RDPQ_MAX_COMMAND_SIZE 44
 #define RDPQ_BLOCK_MIN_SIZE   64    ///< RDPQ block minimum size (in 32-bit words)

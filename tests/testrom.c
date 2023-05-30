@@ -305,6 +305,7 @@ static const struct Testsuite
 	TEST_FUNC(test_rdpq_mode_freeze,           0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_mode_freeze_stack,     0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_mipmap,                0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_autotmem,              0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_triangle,              0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_triangle_w1,           0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_attach_clear,             0, TEST_FLAGS_NO_BENCHMARK),

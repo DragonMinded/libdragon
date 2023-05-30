@@ -36,8 +36,8 @@
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD9
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDA
         RSPQ_DefineCommand RDPQCmd_SetCombineMode_1Pass,    16  # 0xDB SET_COMBINE_MODE (one pass)
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDC
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDD
+        RSPQ_DefineCommand RDPQCmd_AutoTmem_SetAddr,        4   # 0xDC AutoTmem_SetAddr
+        RSPQ_DefineCommand RDPQCmd_AutoTmem_SetTile,        8   # 0xDD AutoTmem_SetTile
         RSPQ_DefineCommand RDPQCmd_Triangle,                4   # 0xDE Triangle (assembled by RSP)
         RSPQ_DefineCommand RDPQCmd_TriangleData,            28  # 0xDF Set Triangle Data
 
@@ -88,6 +88,8 @@ RDPQ_SYNCFULL:          .quad  0   # Last syncfull command (includes callback). 
 RDPQ_ADDRESS_TABLE:     .ds.l  RDPQ_ADDRESS_TABLE_SIZE
 
 RDPQ_RDRAM_STATE_ADDR:  .word  0
+RDPQ_AUTOTMEM_ADDR:     .half  0
+RDPQ_AUTOTMEM_LIMIT:    .half  0
 
     .align 4
 # Stack slots for 3 saved RDP modes
@@ -610,11 +612,77 @@ RDPQCmd_Triangle:
 #endif /* RDPQ_TRIANGLE_REFERENCE */
     .endfunc
 
-
     .func RDPQCmd_SetDebugMode
 RDPQCmd_SetDebugMode:
     jr ra
     sb a0, %lo(RDPQ_DEBUG)
+    .endfunc
+
+
+    #########################################
+    # RDPQCmd_AutoTmem_SetAddr
+    #
+    # Set the current auto-TMEM address. This is used by the auto-TMEM
+    # feature of rdpq_tex, that will autoallocate TMEM without requiring
+    # explicit addresses.
+    #
+    # ARGS:
+    #   a0: zero: reset auto-TMEM address to 0
+    #       non-zero: increment auto-TMEM address by a0 multiplied by 8
+    #########################################
+
+    .func RDPQCmd_AutoTmem_SetAddr
+RDPQCmd_AutoTmem_SetAddr:
+    lhu t0, %lo(RDPQ_AUTOTMEM_ADDR) 
+    lhu t1, %lo(RDPQ_AUTOTMEM_LIMIT)
+    andi a0, 0xFFFF
+    beqz a0, autotmem_reset
+    add t0, a0
+    assert_le t0, t1, RDPQ_ASSERT_AUTOTMEM_FULL
+    jr ra
+    sh t0, %lo(RDPQ_AUTOTMEM_ADDR)
+autotmem_reset:
+    sh zero, %lo(RDPQ_AUTOTMEM_ADDR) 
+    li t0, 4096/8
+    jr ra
+    sh t0, %lo(RDPQ_AUTOTMEM_LIMIT)
+    .endfunc
+
+    #######################################################################
+    # RDPQCmd_AutoTmem_SetTile
+    #
+    # Identical to SetTile, but will automatically use the current
+    # auto-TMEM address.
+    #
+    # Moreover, it will update the auto-TMEM limit depending on texture format.
+    # In fact, 32-bit, YUV and CI textures will reduce the available
+    # allocation size to 2048.
+    ########################################################################
+
+    .func RDPQCmd_AutoTmem_SetTile
+RDPQCmd_AutoTmem_SetTile:
+    lh t0, %lo(RDPQ_AUTOTMEM_ADDR)
+    lui t1, 0xDD00 ^ 0xF500 # AutoTmem_SetTile => SET_TILE
+    xor a0, t1
+    or a0, t0
+
+    # Check format and see if we need to lower the auto-TMEM limit
+    # The following formats use the upper half of TMEM in a special way,
+    # so only the lower half is available for auto-TMEM.
+    srl t1, a0, 19
+    andi t1, 0x1F
+    li t0, (0<<2)|3   # RGBA32
+    beq t1, t0, autotmem_lowerlimit
+    li t0, (1<<2)|2   # YUV16
+    beq t1, t0, autotmem_lowerlimit
+    li t0, (2<<2)|0   # CI4
+    beq t1, t0, autotmem_lowerlimit
+    li t0, (2<<2)|1   # CI8
+    bne t1, t0, RDPQCmd_Passthrough8
+autotmem_lowerlimit:
+    li t0, 2048/8
+    j RDPQCmd_Passthrough8
+    sh t0, %lo(RDPQ_AUTOTMEM_LIMIT)
     .endfunc
 
 # Include RDPQ library
