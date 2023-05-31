@@ -532,10 +532,29 @@ GLCmd_PreInitPipe:
 1:
 
     # * Skip uploading an active texture from GL if FLAG2_USE_RDPQ_TEXTURING is active
-
+    
     andi t1, state_flags2, FLAG2_USE_RDPQ_TEXTURING
     beqz t1, GL_UpdateTextureUpload
     li ra, %lo(1f)
+
+    lw t2, %lo(RDPQ_OTHER_MODES) + 0x0
+
+    # Set FLAG_TEXTURE_ACTIVE if FLAG_TEXTURE_1D or FLAG_TEXTURE_2D is set
+    # This is the case if active_tex is non-zero
+    sltu t1, zero, active_tex
+    sll t1, TEXTURE_ACTIVE_SHIFT
+    and state_flags, ~FLAG_TEXTURE_ACTIVE
+    or state_flags, t1
+
+    # Set a dummy texture size, and derive texcoord offset from the current rendermode.
+    # If SOM_SAMPLE_BILINEAR is set, add a half-texel offset
+    li t1, 1
+    andi t2, SOM_SAMPLE_BILINEAR >> 32
+    srl t2, BILINEAR_TEX_OFFSET_SHIFT
+    sh t1, %lo(GL_STATE_TEX_SIZE) + 0
+    sh t1, %lo(GL_STATE_TEX_SIZE) + 2
+    sh t2, %lo(GL_STATE_TEX_OFFSET) + 0
+    sh t2, %lo(GL_STATE_TEX_OFFSET) + 2
 1:
 
     #define has_depth   t1
@@ -668,13 +687,10 @@ GLCmd_PreInitPipe:
     nop
     ori t5, 0x2
 1:
-
-    beqz active_tex, 1f
-    lw t0, TEXTURE_FLAGS_OFFSET(active_tex)
-    andi t0, TEX_FLAG_COMPLETE
-    srl t0, 1
+    and t0, state_flags, FLAG_TEXTURE_ACTIVE
+    srl t0, TEX_ACTIVE_COMBINER_SHIFT
     or t5, t0
-1:
+
     sll t5, 3
     lw t0, %lo(COMBINER_TABLE) + 0x0(t5)
     lw t1, %lo(COMBINER_TABLE) + 0x4(t5)
