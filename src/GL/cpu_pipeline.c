@@ -286,6 +286,7 @@ static void gl_calc_texture_coord(GLfloat *dest, const GLfloat *input, uint32_t 
 static void gl_calc_texture_coords(GLfloat *dest, const GLfloat *input, const GLfloat *obj_pos, const GLfloat *eye_pos, const GLfloat *eye_normal)
 {
     GLfloat tmp[TEX_COORD_COUNT];
+    GLfloat result[TEX_COORD_COUNT];
 
     for (uint32_t i = 0; i < TEX_GEN_COUNT; i++)
     {
@@ -293,7 +294,10 @@ static void gl_calc_texture_coords(GLfloat *dest, const GLfloat *input, const GL
     }
 
     // TODO: skip matrix multiplication if it is the identity
-    gl_matrix_mult4x2(dest, gl_matrix_stack_get_matrix(&state.texture_stack), tmp);
+    gl_matrix_mult(result, gl_matrix_stack_get_matrix(&state.texture_stack), tmp);
+    
+    dest[0] = result[0] / result[3];
+    dest[1] = result[1] / result[3];
 }
 
 static void gl_vertex_calc_clip_code(gl_vtx_t *v)
