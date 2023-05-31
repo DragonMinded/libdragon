@@ -4,6 +4,7 @@
 #include <math.h>
 #include <string.h>
 #include <malloc.h>
+#include <stdlib.h>
 
 _Static_assert(TEXTURE_BILINEAR_MASK << TEX_BILINEAR_SHIFT == SOM_SAMPLE_BILINEAR >> 32);
 _Static_assert(TEXTURE_BILINEAR_MASK << TEX_BILINEAR_OFFSET_SHIFT == HALF_TEXEL);
@@ -496,7 +497,7 @@ GLint gl_choose_internalformat(GLint requested)
     case GL_LUMINANCE12:
     case GL_LUMINANCE16:
         assertf(0, "Luminance-only textures are not supported!");
-        break;
+        return -1;
 
     case GL_ALPHA:
     case GL_ALPHA4:
@@ -504,7 +505,7 @@ GLint gl_choose_internalformat(GLint requested)
     case GL_ALPHA12:
     case GL_ALPHA16:
         assertf(0, "Alpha-only textures are not supported!");
-        break;
+        return -1;
 
     case GL_INTENSITY4:
         return GL_INTENSITY4;
@@ -550,7 +551,7 @@ GLint gl_choose_internalformat(GLint requested)
         return GL_RGBA8;
 
     default:
-        return -1;
+        abort();
     }
 }
 
@@ -789,6 +790,7 @@ void gl_transfer_pixels(GLvoid *dest, GLenum dest_format, GLsizei dest_stride, G
         break;
     default:
         assertf(0, "Invalid type");
+        abort();
     }
 
     switch (dest_format) {
@@ -812,6 +814,7 @@ void gl_transfer_pixels(GLvoid *dest, GLenum dest_format, GLsizei dest_stride, G
         break;
     default:
         assertf(0, "Unsupported destination format!");
+        abort();
     }
 
     tex_format_t dest_tex_fmt = gl_tex_format_to_rdp(dest_format);

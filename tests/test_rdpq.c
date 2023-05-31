@@ -1531,3 +1531,37 @@ void test_rdpq_mipmap(TestContext *ctx) {
         }
     }
 }
+
+void test_rdpq_autotmem(TestContext *ctx) {
+    RDPQ_INIT();
+    debug_rdp_stream_init();
+   
+    rdpq_set_tile_autotmem(0);
+    rdpq_set_tile(TILE0, FMT_RGBA16, 128, 32, NULL);
+    rdpq_set_tile_autotmem(128);
+    rdpq_set_tile(TILE1, FMT_RGBA16, RDPQ_AUTOTMEM, 32, NULL);
+    rdpq_set_tile_autotmem(64);
+    rdpq_set_tile(TILE2, FMT_RGBA16, RDPQ_AUTOTMEM, 32, NULL);
+    rdpq_set_tile_autotmem(0);
+    rdpq_set_tile(TILE3, FMT_RGBA16, RDPQ_AUTOTMEM, 32, NULL);
+    rdpq_set_tile_autotmem(128);
+    rdpq_set_tile(TILE4, FMT_RGBA16, 0, 32, NULL);
+    rspq_wait();
+
+    int expected[] = { 128, 128, 128+64, 0, 0 };
+
+    int tidx = 0;
+    for (int i=0;i<rdp_stream_ctx.idx;i++) {
+        if ((rdp_stream[i] >> 56) == 0xF5) {  // Find all SET_TILE
+            // Check tile number
+            int tile = (rdp_stream[i] >> 24) & 7;
+            ASSERT_EQUAL_SIGNED(tile, tidx, "invalid tile number");
+            tidx++;
+
+            int addr = ((rdp_stream[i] >> 32) & 0x1FF) * 8;
+            ASSERT_EQUAL_SIGNED(addr, expected[tile], "invalid tile %d address", tile);
+        }
+    }
+
+    ASSERT_EQUAL_SIGNED(tidx, 5, "invalid number of tiles");
+}

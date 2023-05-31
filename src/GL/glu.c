@@ -41,3 +41,31 @@ void gluLookAt(float eyex, float eyey, float eyez,
 
     glMultMatrixf(&m[0][0]);
 };
+
+void gluPerspective(float fovy, float aspect, float zNear, float zFar)
+{
+	float sine, cotangent, deltaZ;
+	float radians = fovy / 2 * (float)M_PI / 180;
+	deltaZ = zFar - zNear;
+	sine = sinf(radians);
+	if ((deltaZ == 0) || (sine == 0) || (aspect == 0))
+	{
+		return;
+	}
+	cotangent = cosf(radians) / sine;
+
+	float m[4][4] = {
+        {1,0,0,0},
+        {0,1,0,0},
+        {0,0,1,0},
+        {0,0,0,1},
+    };
+	m[0][0] = cotangent / aspect;
+	m[1][1] = cotangent;
+	m[2][2] = -(zFar + zNear) / deltaZ;
+	m[2][3] = -1;
+	m[3][2] = -2 * zNear * zFar / deltaZ;
+	m[3][3] = 0;
+
+	glMultMatrixf(&m[0][0]);
+}

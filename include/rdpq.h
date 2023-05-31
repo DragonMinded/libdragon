@@ -182,6 +182,8 @@ enum {
     RDPQ_CMD_SET_FILL_COLOR_32          = 0x16,
     RDPQ_CMD_SET_BLENDING_MODE          = 0x18,
     RDPQ_CMD_SET_COMBINE_MODE_1PASS     = 0x1B,
+    RDPQ_CMD_AUTOTMEM_SET_ADDR          = 0x1C,
+    RDPQ_CMD_AUTOTMEM_SET_TILE          = 0x1D,
     RDPQ_CMD_TRIANGLE                   = 0x1E,
     RDPQ_CMD_TRIANGLE_DATA              = 0x1F,
 
@@ -745,6 +747,11 @@ inline void rdpq_load_block(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t
     rdpq_load_block_fx(tile, s0, t0, num_texels, (2048 + words - 1) / words);
 }
 
+
+/** @brief Special TMEM address to pass to #rdpq_set_tile to use automatic TMEM allocation */
+#define RDPQ_AUTOTMEM   (-1)
+
+
 /// @brief Enqueue a RDP SET_TILE command (full version)
 /// @param[in] tile Tile descriptor index (0-7)
 /// @param[in] format Texture format for the tile. Cannot be 0. Should correspond to X_get_format in #surface_t or #sprite_t;
@@ -753,7 +760,7 @@ inline void rdpq_load_block(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t
 /// @param[in] parms Additional optional parameters for the tile. Can be left NULL or all 0. More information about the struct is in #rdpq_tileparms_t
 inline void rdpq_set_tile(rdpq_tile_t tile, 
 	tex_format_t format,
-    uint16_t tmem_addr,
+    int16_t tmem_addr,
 	uint16_t tmem_pitch,
     const rdpq_tileparms_t *parms)
 {
@@ -763,16 +770,56 @@ inline void rdpq_set_tile(rdpq_tile_t tile,
         assertf(parms->s.shift >= -5 && parms->s.shift <= 10, "invalid s shift %d: must be in [-5..10]", parms->s.shift);
         assertf(parms->t.shift >= -5 && parms->t.shift <= 10, "invalid t shift %d: must be in [-5..10]", parms->t.shift);
     }
+    uint32_t cmd_id = RDPQ_CMD_SET_TILE;
+    if (tmem_addr < 0) {
+        cmd_id = RDPQ_CMD_AUTOTMEM_SET_TILE;
+        tmem_addr = 0;
+    }
     assertf((tmem_addr % 8) == 0, "invalid tmem_addr %d: must be multiple of 8", tmem_addr);
     assertf((tmem_pitch % 8) == 0, "invalid tmem_pitch %d: must be multiple of 8", tmem_pitch);
     extern void __rdpq_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
-    __rdpq_write8_syncchange(RDPQ_CMD_SET_TILE,
+    __rdpq_write8_syncchange(cmd_id,
         _carg(format, 0x1F, 19) | _carg(tmem_pitch/8, 0x1FF, 9) | _carg(tmem_addr/8, 0x1FF, 0),
         _carg(tile, 0x7, 24) | _carg(parms->palette, 0xF, 20) | 
         _carg(parms->t.clamp | (parms->t.mask == 0), 0x1, 19) | _carg(parms->t.mirror, 0x1, 18) | _carg(parms->t.mask, 0xF, 14) | _carg(parms->t.shift, 0xF, 10) | 
         _carg(parms->s.clamp | (parms->s.mask == 0), 0x1, 9) | _carg(parms->s.mirror, 0x1, 8) | _carg(parms->s.mask, 0xF, 4) | _carg(parms->s.shift, 0xF, 0),
         AUTOSYNC_TILE(tile));
 }
+
+/**
+ * @brief Configure the auto-TMEM feature of #rdpq_set_tile
+ * 
+ * This function is used to manage the auto-TMEM allocation feature for
+ * #rdpq_set_tile. It allows to keep track of the allocated space in TMEM,
+ * which can be a simplification. It is used by the rdpq_tex module
+ * (eg: #rdpq_tex_load).
+ * 
+ * The feature works like this:
+ *   - First, reset auto-TMEM via rdpq_set_tile_autotmem(0)
+ *   - Load a texture and configure a tile for it. When configuring the tile,
+ *     pass #RDPQ_AUTOTMEM as tmem_addr. This will allocate the texture in the
+ *     first available space.
+ *   - Call #rdpq_set_tile_autotmem again passing the number of used bytes in
+ *     TMEM. Notice that rdpq can't know this by itself.
+ *   - Continue loading the other textures/mipmaps just like before, with
+ *     #RDPQ_AUTOTMEM.
+ *   - If the TMEM is full, a RSP assertion will be triggered.
+ * 
+ * While this API might seem as a small simplification over manually tracking
+ * TMEM allocation, it might help modularizing the code, and also allows to
+ * record rspq blocks that handle texture loading without hardcoding the
+ * TMEM position.
+ * 
+ * @note This function is part of the raw API. For a higher-level API on texture
+ * loading, see #rdpq_tex_load.
+ * 
+ * @param tmem_bytes     Number of additional bytes that were used in TMEM
+ *                       or 0 to reset auto-TMEM. Must be a multiple of 8.
+ * 
+ * @see #rdpq_set_tile
+ * @see #rdpq_tex_load
+ */
+void rdpq_set_tile_autotmem(int16_t tmem_bytes);
 
 /**
  * @brief Enqueue a SET_FILL_COLOR RDP command.

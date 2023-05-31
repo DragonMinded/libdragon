@@ -225,6 +225,8 @@ typedef struct rsp_queue_s {
     uint32_t rdp_fill_color;             ///< Current RDP fill color
     uint8_t rdp_target_bitdepth;         ///< Current RDP target buffer bitdepth
     uint8_t rdp_syncfull_ongoing;        ///< True if a SYNC_FULL is currently ongoing
+    uint8_t rdpq_debug;                  ///< Debug mode flag
+    uint8_t __padding0;
     int16_t current_ovl;                 ///< Current overlay index
 } __attribute__((aligned(16), packed)) rsp_queue_t;
 

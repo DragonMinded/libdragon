@@ -6,20 +6,20 @@
     .data
 
     RSPQ_BeginOverlayHeader
-        RSPQ_DefineCommand GLCmd_SetFlag,       8
-        RSPQ_DefineCommand GLCmd_SetByte,       8
-        RSPQ_DefineCommand GLCmd_SetShort,      8
-        RSPQ_DefineCommand GLCmd_SetWord,       8
-        RSPQ_DefineCommand GLCmd_SetLong,       12
-        RSPQ_DefineCommand GLCmd_Update,        4
-        RSPQ_DefineCommand GLCmd_BindTexture,   8
-        RSPQ_DefineCommand GLCmd_GetValue,      8
-        RSPQ_DefineCommand GLCmd_CopyFillColor, 4
-        RSPQ_DefineCommand GLCmd_SetLightPos,   12
-        RSPQ_DefineCommand GLCmd_MatrixPush,    4
-        RSPQ_DefineCommand GLCmd_MatrixPop,     4
-        RSPQ_DefineCommand GLCmd_MatrixLoad,    68
-        RSPQ_DefineCommand GLCmd_PreInitPipe,   4
+        RSPQ_DefineCommand GLCmd_SetFlag,       8   # 0x0
+        RSPQ_DefineCommand GLCmd_SetByte,       8   # 0x1
+        RSPQ_DefineCommand GLCmd_SetShort,      8   # 0x2
+        RSPQ_DefineCommand GLCmd_SetWord,       8   # 0x3
+        RSPQ_DefineCommand GLCmd_SetLong,       12  # 0x4
+        RSPQ_DefineCommand GLCmd_Update,        4   # 0x5
+        RSPQ_DefineCommand GLCmd_BindTexture,   8   # 0x6 
+        RSPQ_DefineCommand GLCmd_GetValue,      8   # 0x7
+        RSPQ_DefineCommand GLCmd_CopyFillColor, 4   # 0x8
+        RSPQ_DefineCommand GLCmd_SetLightPos,   12  # 0x9
+        RSPQ_DefineCommand GLCmd_MatrixPush,    4   # 0xA
+        RSPQ_DefineCommand GLCmd_MatrixPop,     4   # 0xB
+        RSPQ_DefineCommand GLCmd_MatrixLoad,    68  # 0xC
+        RSPQ_DefineCommand GLCmd_PreInitPipe,   4   # 0xD
     RSPQ_EndOverlayHeader
 
     RSPQ_BeginSavedState

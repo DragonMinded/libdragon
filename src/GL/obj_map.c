@@ -7,6 +7,7 @@
 
 #include <malloc.h>
 #include <debug.h>
+#include <stdlib.h>
 
 #define OBJ_MAP_MIN_CAPACITY     32
 #define OBJ_MAP_DELETED_KEY      0xFFFFFFFF
@@ -75,6 +76,7 @@ void * obj_map_set_without_expanding(obj_map_t *map, uint32_t key, void *value)
     }
 
     assertf(0, "Map is full!");
+    abort();
 }
 
 void obj_map_expand(obj_map_t *map)
