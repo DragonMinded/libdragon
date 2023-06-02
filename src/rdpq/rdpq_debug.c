@@ -1491,6 +1491,11 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
     case 0x3B: // SET_ENV_COLOR
         validate_busy_pipe();
         break;
+    case 0x31: // RDPQ extensions
+        break;
+    default: // Invalid command
+        VALIDATE_WARN(0, "invalid RDP command 0x%02X", cmd);
+        break;
     }
 
     if (r_errs)  *r_errs  = vctx.errs - *r_errs;

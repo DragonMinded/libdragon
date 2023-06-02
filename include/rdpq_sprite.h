@@ -42,6 +42,39 @@ typedef struct rdpq_blitparms_s rdpq_blitparms_t;
  * use #rdpq_sprite_blit to directly draw then (handling partial uploads transparently),
  * or use #rdpq_tex_load_sub to manually upload a smaller portion of the sprite.
  * 
+ * To load multiple sprites in TMEM at once (for instance, for multitexturing),
+ * you can manually specify the @p parms->tmem_addr for the second sprite, or
+ * call #rdpq_tex_multi_begin / #rdpq_tex_multi_end around multiple calls to
+ * #rdpq_sprite_upload. For instance:
+ * 
+ * @code{.c}
+ *      // Load multiple sprites in TMEM, with auto-TMEM allocation.
+ *      rdpq_tex_multi_begin();
+ *      rdpq_sprite_upload(TILE0, sprite0, NULL);
+ *      rdpq_sprite_upload(TILE1, sprite1, NULL);
+ *      rdpq_tex_multi_end();
+ * @endcode
+ * 
+ * To speed up loading of a sprite, you can record the loading sequence in
+ * a rspq block and replay it any time later. For instance:
+ * 
+ * @code{.c}
+ *      sprite_t *hero = sprite_load("rom:/hero.sprite");
+ * 
+ *      // Record the loading sequence in a rspq block
+ *      rspq_block_begin();
+ *          rdpq_sprite_upload(TILE0, hero, NULL);
+ *      rspq_block_t *hero_load = rspq_block_end();
+ * 
+ *      // Later, load the sprite
+ *      rspq_block_run(hero_load);
+ * 
+ *      // Remember to free the block when you don't need it anymore
+ *      rspq_wait();     // wait until RSP is idle
+ *      rspq_block_free(hero_load);
+ *      sprite_free(hero);
+ * @endcode 
+ *      
  * @param tile      Tile descriptor that will be initialized with this sprite
  * @param sprite    Sprite to upload
  * @param parms     Texture upload parameters to use

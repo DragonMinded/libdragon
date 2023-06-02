@@ -20,6 +20,9 @@
 // Asserted if the TMEM is full during an auto-TMEM operation
 #define RDPQ_ASSERT_AUTOTMEM_FULL  0xC007
 
+// Asserted if the TMEM is full during an auto-TMEM operation
+#define RDPQ_ASSERT_AUTOTMEM_UNPAIRED  0xC008
+
 #define RDPQ_MAX_COMMAND_SIZE 44
 #define RDPQ_BLOCK_MIN_SIZE   64    ///< RDPQ block minimum size (in 32-bit words)
 #define RDPQ_BLOCK_MAX_SIZE   4192  ///< RDPQ block minimum size (in 32-bit words)

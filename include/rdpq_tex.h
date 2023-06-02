@@ -27,9 +27,9 @@ extern "C" {
 #define REPEAT_INFINITE 2048
 
 /**
- * @brief Texture sampling parameters for #rdpq_tex_load.
+ * @brief Texture sampling parameters for #rdpq_tex_upload.
  * 
- * This structure contains all possible parameters for #rdpq_tex_load.
+ * This structure contains all possible parameters for #rdpq_tex_upload.
  * All fields have been made so that the 0 value is always the most
  * reasonable default. This means that you can simply initialize the structure
  * to 0 and then change only the fields you need (for instance, through a 
@@ -102,8 +102,8 @@ int tex_loader_calc_max_height(tex_loader_t *tload, int width);
  * remember to call #rdpq_mode_tlut to activate palette mode.
  * 
  * If you want to load a portion of a texture rather than the full texture,
- * use #rdpq_tex_load_sub, or alternatively create a sub-surface using
- * #surface_make_sub and pass it to #rdpq_tex_load. See #rdpq_tex_load_sub
+ * use #rdpq_tex_upload_sub, or alternatively create a sub-surface using
+ * #surface_make_sub and pass it to #rdpq_tex_upload. See #rdpq_tex_upload_sub
  * for an example of both techniques.
  * 
  * @param tile       Tile descriptor that will be initialized with this texture
@@ -111,15 +111,15 @@ int tex_loader_calc_max_height(tex_loader_t *tload, int width);
  * @param parms      All optional parameters on where to load the texture and how to sample it. Refer to #rdpq_texparms_t for more information.
  * @return           Number of bytes used in TMEM for this texture
  * 
- * @see #rdpq_tex_load_sub
+ * @see #rdpq_tex_upload_sub
  * @see #surface_make_sub
  */
-int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms);
+int rdpq_tex_upload(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms);
 
 /**
  * @brief Load a portion of texture into TMEM
  * 
- * This function is similar to #rdpq_tex_load, but only loads a portion of a texture
+ * This function is similar to #rdpq_tex_upload, but only loads a portion of a texture
  * in TMEM. The portion is specified as a rectangle (with exclusive bounds) that must
  * be contained within the original texture.
  * 
@@ -129,7 +129,7 @@ int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms
  * @code{.c}
  *      // Load a 32x32 sprite starting at position (100,100) in the
  *      // "spritemap" surface.
- *      rdpq_tex_load_sub(TILE2, spritemap, 0, 100, 100, 132, 132);
+ *      rdpq_tex_upload_sub(TILE2, spritemap, 0, 100, 100, 132, 132);
  * 
  *      // Draw the sprite. Notice that we must refer to it using the
  *      // original texture coordinates, even if just that portion is in TMEM.
@@ -140,7 +140,7 @@ int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms
  * @endcode
  * 
  * An alternative to this function is to call #surface_make_sub on the texture
- * to create a sub-surface, and then call rdpq_tex_load on the sub-surface. 
+ * to create a sub-surface, and then call rdpq_tex_upload on the sub-surface. 
  * The same data will be loaded into TMEM but this time the RDP ignores that
  * you are loading a portion of a larger texture:
  * 
@@ -152,7 +152,7 @@ int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms
  * 
  *      // Load the sub-surface. Notice that the RDP is unaware that it is
  *      // a sub-surface; it will think that it is a whole texture.
- *      rdpq_tex_load(TILE2, &hero, 0);
+ *      rdpq_tex_upload(TILE2, &hero, 0);
  * 
  *      // Draw the sprite. Notice that we must refer to it using
  *      // texture coordinates (0,0).
@@ -176,10 +176,10 @@ int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms
  * @param t1         Bottom-right *exclusive* Y coordinate of the rectangle
  * @return int       Number of bytes used in TMEM for this texture
  * 
- * @see #rdpq_tex_load
+ * @see #rdpq_tex_upload
  * @see #surface_make_sub
  */
-int rdpq_tex_load_sub(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1);
+int rdpq_tex_upload_sub(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1);
 
 /**
  * @brief Load one or more palettes into TMEM
@@ -194,7 +194,46 @@ int rdpq_tex_load_sub(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *p
  * @param color_idx     First color entry in TMEM that will be written to (0-255)
  * @param num_colors    Number of color entries to load (1-256)
  */
-void rdpq_tex_load_tlut(uint16_t *tlut, int color_idx, int num_colors);
+void rdpq_tex_upload_tlut(uint16_t *tlut, int color_idx, int num_colors);
+
+
+/**
+ * @brief Begin a multi-texture upload
+ * 
+ * This function begins a multi-texture upload, with automatic TMEM layout.
+ * There are two main cases where you may want to squeeze multiple textures
+ * within TMEM: when loading mipmaps, and when using multi-texturing.
+ * 
+ * After calling #rdpq_tex_multi_begin, you can call #rdpq_tex_upload multiple
+ * times in sequence, without manually specifying a TMEM address. The functions
+ * will start filling TMEM from the beginning, in sequence.
+ * 
+ * If the TMEM becomes full and is unable to fullfil a load, an assertion
+ * will be issued.
+ * 
+ * @note When calling #rdpq_tex_upload or #rdpq_tex_upload_sub in this mode,
+ *       do not specify a TMEM address in the parms structure, as the actual
+ *       address is automatically calculated.
+ * 
+ * @see #rdpq_tex_upload
+ * @see #rdpq_tex_upload_sub
+ * @see #rdpq_tex_multi_end
+ */
+void rdpq_tex_multi_begin(void);
+
+
+/**
+ * @brief Finish a multi-texture upload
+ * 
+ * This function finishes a multi-texture upload. See #rdpq_tex_multi_begin
+ * for more information.
+ * 
+ * @returns The number of bytes used in TMEM for this multi-texture upload
+ * 
+ * @see #rdpq_tex_multi_begin.
+ */
+int rdpq_tex_multi_end(void);
+
 
 /**
  * @brief Blitting parameters for #rdpq_tex_blit.
@@ -241,7 +280,7 @@ typedef struct rdpq_blitparms_s {
  * 
  *   * Logically split the surface in chunks that fit the TMEM
  *   * Calculate an appropriate scaling factor for each chunk
- *   * Load each chunk into TMEM (via #rdpq_tex_load)
+ *   * Load each chunk into TMEM (via #rdpq_tex_upload)
  *   * Draw each chunk to the framebuffer (via #rdpq_texture_rectangle or #rdpq_triangle)
  * 
  * Note that this function only performs the actual blits, it does not
@@ -249,7 +288,7 @@ typedef struct rdpq_blitparms_s {
  * function, make sure to configure the render mode via
  * #rdpq_set_mode_standard (or #rdpq_set_mode_copy if no scaling and pixel
  * format conversion is required). If the surface uses a palette, you also
- * need to load the palette using #rdpq_tex_load_tlut.
+ * need to load the palette using #rdpq_tex_upload_tlut.
  * 
  * This function is able to perform many different complex transformations. The
  * implementation has been tuned to try to be as fast as possible for simple
@@ -309,6 +348,20 @@ typedef struct rdpq_blitparms_s {
  */
 void rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms);
 
+///@cond
+__attribute__((deprecated("use rdpq_tex_upload instead")))
+static inline int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms) {
+    return rdpq_tex_upload(tile, tex, parms);
+}
+__attribute__((deprecated("use rdpq_tex_upload_sub instead")))
+static inline int rdpq_tex_load_sub(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1) {
+    return rdpq_tex_upload_sub(tile, tex, parms, s0, t0, s1, t1);
+}
+__attribute__((deprecated("use rdpq_tex_upload_tlut instead")))
+static inline void rdpq_tex_load_tlut(uint16_t *tlut, int color_idx, int num_colors) {
+    return rdpq_tex_upload_tlut(tlut, color_idx, num_colors);
+}
+///@endcond
 
 #ifdef __cplusplus
 }

@@ -552,6 +552,10 @@ static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
         printf("TMEM is full, cannot load more data\n");
         break;
 
+    case RDPQ_ASSERT_AUTOTMEM_UNPAIRED:
+        printf("incorrect usage of auto-TMEM: unpaired begin/end\n");
+        break;
+
     default:
         printf("Unknown assert\n");
         break;
@@ -873,9 +877,9 @@ void __rdpq_write16_syncuse(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint3
 
 /** @brief Write a 8-byte RDP command fixup. */
 __attribute__((noinline))
-void __rdpq_fixup_write8_pipe(uint32_t cmd_id, uint32_t w0, uint32_t w1)
+void __rdpq_fixup_write8_syncchange(uint32_t cmd_id, uint32_t w0, uint32_t w1, uint32_t autosync)
 {
-    __rdpq_autosync_change(AUTOSYNC_PIPE);
+    __rdpq_autosync_change(autosync);
     rdpq_fixup_write(
         (cmd_id, w0, w1),
         (cmd_id, w0, w1)
@@ -1006,8 +1010,11 @@ uint64_t rdpq_get_other_modes_raw(void)
 
 void rdpq_set_tile_autotmem(int16_t tmem_bytes)
 {
-    assertf((tmem_bytes % 8) == 0, "tmem_bytes must be a multiple of 8");
-    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_AUTOTMEM_SET_ADDR, tmem_bytes/8);
+    if (tmem_bytes >= 0) {
+        assertf((tmem_bytes % 8) == 0   , "tmem_bytes must be a multiple of 8");
+        tmem_bytes /= 8;
+    }
+    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_AUTOTMEM_SET_ADDR, (uint16_t)tmem_bytes);
 }
 
 void rdpq_sync_full(void (*callback)(void*), void* arg)
