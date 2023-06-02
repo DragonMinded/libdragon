@@ -145,35 +145,19 @@ typedef struct {
 _Static_assert(sizeof(gl_matrix_srv_t) == MATRIX_SIZE, "Matrix size does not match");
 
 typedef struct {
-    uint32_t tex_image;
-    void *data;
-    uint32_t set_load_tile;
-    uint32_t load_block;
-    uint32_t set_tile;
     uint16_t width;
     uint16_t height;
-    uint16_t stride;
     uint16_t internal_format;
-    uint16_t tmem_size;
-    uint8_t width_log;
-    uint8_t height_log;
-} __attribute__((aligned(16), packed)) gl_texture_image_t;
+} __attribute__((packed)) gl_texture_image_t;
 _Static_assert(sizeof(gl_texture_image_t) == TEXTURE_IMAGE_SIZE, "Texture image has incorrect size!");
-_Static_assert(offsetof(gl_texture_image_t, tex_image) == IMAGE_TEX_IMAGE_OFFSET, "Texture image has incorrect layout!");
-_Static_assert(offsetof(gl_texture_image_t, data) == IMAGE_DATA_OFFSET, "Texture image has incorrect layout!");
-_Static_assert(offsetof(gl_texture_image_t, set_load_tile) == IMAGE_SET_LOAD_TILE_OFFSET, "Texture image has incorrect layout!");
-_Static_assert(offsetof(gl_texture_image_t, load_block) == IMAGE_LOAD_BLOCK_OFFSET, "Texture image has incorrect layout!");
-_Static_assert(offsetof(gl_texture_image_t, set_tile) == IMAGE_SET_TILE_OFFSET, "Texture image has incorrect layout!");
 _Static_assert(offsetof(gl_texture_image_t, width) == IMAGE_WIDTH_OFFSET, "Texture image has incorrect layout!");
 _Static_assert(offsetof(gl_texture_image_t, height) == IMAGE_HEIGHT_OFFSET, "Texture image has incorrect layout!");
-_Static_assert(offsetof(gl_texture_image_t, stride) == IMAGE_STRIDE_OFFSET, "Texture image has incorrect layout!");
 _Static_assert(offsetof(gl_texture_image_t, internal_format) == IMAGE_INTERNAL_FORMAT_OFFSET, "Texture image has incorrect layout!");
-_Static_assert(offsetof(gl_texture_image_t, tmem_size) == IMAGE_TMEM_SIZE_OFFSET, "Texture image has incorrect layout!");
-_Static_assert(offsetof(gl_texture_image_t, width_log) == IMAGE_WIDTH_LOG_OFFSET, "Texture image has incorrect layout!");
-_Static_assert(offsetof(gl_texture_image_t, height_log) == IMAGE_HEIGHT_LOG_OFFSET, "Texture image has incorrect layout!");
 
 typedef struct {
     gl_texture_image_t levels[MAX_TEXTURE_LEVELS];
+    uint16_t padding0;
+    uint32_t levels_block[MAX_TEXTURE_LEVELS*2+1];
 
     uint32_t flags;
     int32_t priority;
@@ -184,10 +168,12 @@ typedef struct {
 
     // These properties are not DMA'd
     uint16_t dimensionality;
-    uint16_t padding[7];
+    uint16_t padding1[3];
 } __attribute__((aligned(16), packed)) gl_texture_object_t;
 _Static_assert(sizeof(gl_texture_object_t) == TEXTURE_OBJECT_SIZE, "Texture object has incorrect size!");
 _Static_assert((1 << TEXTURE_OBJECT_SIZE_LOG) == TEXTURE_OBJECT_SIZE, "Texture object has incorrect size!");
+_Static_assert(offsetof(gl_texture_object_t, levels_block)      == TEXTURE_LEVELS_BLOCK_OFFSET, "Texture object has incorrect layout!");
+_Static_assert((TEXTURE_LEVELS_BLOCK_OFFSET % 4) == 0, "Texture object has incorrect layout!");
 _Static_assert(offsetof(gl_texture_object_t, flags)             == TEXTURE_FLAGS_OFFSET, "Texture object has incorrect layout!");
 _Static_assert(offsetof(gl_texture_object_t, priority)          == TEXTURE_PRIORITY_OFFSET, "Texture object has incorrect layout!");
 _Static_assert(offsetof(gl_texture_object_t, wrap_s)            == TEXTURE_WRAP_S_OFFSET, "Texture object has incorrect layout!");
@@ -736,6 +722,8 @@ inline void gl_set_current_normal(GLfloat *normal)
 
 inline void gl_pre_init_pipe(GLenum primitive_mode)
 {
+    // PreInitPipe will run a block with nesting level 1 for texture upload
+    rspq_block_run_rsp(1);
     gl_write(GL_CMD_PRE_INIT_PIPE, primitive_mode);
 }
 

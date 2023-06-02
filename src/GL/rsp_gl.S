@@ -3,6 +3,8 @@
 #include "gl_constants.h"
 #include "GL/gl_enums.h"
 
+#define PREINITPIPE_SIZE    4
+
     .data
 
     RSPQ_BeginOverlayHeader
@@ -19,7 +21,7 @@
         RSPQ_DefineCommand GLCmd_MatrixPush,    4   # 0xA
         RSPQ_DefineCommand GLCmd_MatrixPop,     4   # 0xB
         RSPQ_DefineCommand GLCmd_MatrixLoad,    68  # 0xC
-        RSPQ_DefineCommand GLCmd_PreInitPipe,   4   # 0xD
+        RSPQ_DefineCommand GLCmd_PreInitPipe,   PREINITPIPE_SIZE   # 0xD
     RSPQ_EndOverlayHeader
 
     RSPQ_BeginSavedState
@@ -821,108 +823,16 @@ GL_UpdateTextureUpload:
     nop
 
 1:
-    lhu wrap_s, TEXTURE_WRAP_S_OFFSET(active_tex)
-    lhu wrap_t, TEXTURE_WRAP_T_OFFSET(active_tex)
-    lbu full_width_log, IMAGE_WIDTH_LOG_OFFSET(active_tex)
-    lbu full_height_log, IMAGE_HEIGHT_LOG_OFFSET(active_tex)
-
-    xori t0, wrap_s, GL_MIRRORED_REPEAT_ARB
-    xori t1, wrap_t, GL_MIRRORED_REPEAT_ARB
-    sltu t0, 1
-    sltu t1, 1
-    sll mirror, t0, 8
-    sll t1, 18
-    or mirror, t1
-
-    xori wrap_s, GL_CLAMP
-    xori wrap_t, GL_CLAMP
-
-    li out_ptr, %lo(TEX_UPLOAD_STAGING)
-    move image, active_tex
-    move level, zero
-    andi num_levels, tex_flags, 0x7
-
-gl_upload_loop:
-    lw a0, IMAGE_TEX_IMAGE_OFFSET(image)
-    lw a1, IMAGE_DATA_OFFSET(image)
-    lw a2, IMAGE_SET_LOAD_TILE_OFFSET(image)
-    lw a3, IMAGE_LOAD_BLOCK_OFFSET(image)
-
-    add a2, tmem_addr
-    lui t0, LOAD_TILE << 8
-    lui t1, 0xF300
-
-    # SET_TEX_IMAGE
-    sw a0, 0x00(out_ptr)
-    sw a1, 0x04(out_ptr)
-    # SYNC_TILE
-    lui a0, 0xE800
-    sw a0, 0x08(out_ptr)
-    sw zero, 0x0C(out_ptr)
-    # SET_TILE
-    sw a2, 0x10(out_ptr)
-    sw t0, 0x14(out_ptr)
-    # LOAD_BLOCK
-    sw t1, 0x18(out_ptr)
-    sw a3, 0x1C(out_ptr)
-
-    lw a0, IMAGE_SET_TILE_OFFSET(image)
-    lbu v0, IMAGE_WIDTH_LOG_OFFSET(image)
-    lbu v1, IMAGE_HEIGHT_LOG_OFFSET(image)
-
-    sll t0, level, 24
-    add a0, tmem_addr
-
-    # mask_s
-    move a1, mirror
-    beqz wrap_s, 1f
-    sll t1, v0, 4
-    or a1, t1
-1:
-
-    # mask_t
-    beqz wrap_t, 1f
-    sll t1, v1, 14
-    or a1, t1
-1:
-
-    # shift_s, shift_t
-    subu t1, full_width_log, v0
-    subu t2, full_height_log, v1
-    sll t2, 10
-    or a1, t0
-    or a1, t1
-    or a1, t2
-
-    lhu t1, IMAGE_WIDTH_OFFSET(image)
-    lhu a3, IMAGE_HEIGHT_OFFSET(image)
-    lui a2, 0xF200
-    sll a3, 2
-    sll t1, 14
-    or a3, t1
-    or a3, t0
-
-    # SET_TILE
-    sw a0, 0x20(out_ptr)
-    sw a1, 0x24(out_ptr)
-    # SET_TILE_SIZE
-    sw a2, 0x28(out_ptr)
-    sw a3, 0x2C(out_ptr)
-
-    lhu t0, IMAGE_TMEM_SIZE_OFFSET(image)
-    addiu level, 1
-    addiu image, TEXTURE_IMAGE_SIZE
-    add tmem_addr, t0
-    blt level, num_levels, gl_upload_loop
-    addiu out_ptr, 6 * 8
-
     li t0, ~TEX_FLAG_UPLOAD_DIRTY
     and tex_flags, t0
     sw tex_flags, TEXTURE_FLAGS_OFFSET(active_tex)
     sw tex_id, %lo(GL_STATE_UPLOADED_TEX)
 
-    j RDPQ_Send
-    li s4, %lo(TEX_UPLOAD_STAGING)
+    # Run the levels block
+    addi a0, tex_id, TEXTURE_LEVELS_BLOCK_OFFSET
+    li a1, 1<<2   # nesting level 1
+    j RSPQCmd_Call
+    sub rspq_dmem_buf_ptr, PREINITPIPE_SIZE
 
 gl_set_texture_not_active:
     and state_flags, ~FLAG_TEXTURE_ACTIVE

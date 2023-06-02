@@ -342,7 +342,7 @@ int tex_loader_calc_max_height(tex_loader_t *tload, int width)
 
 ///@endcond
 
-int rdpq_tex_upload_sub(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1)
+int rdpq_tex_upload_sub(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1)
 {
     tex_loader_t tload = tex_loader_init(tile, tex);
     if (parms) tex_loader_set_texparms(&tload, parms);
@@ -375,7 +375,7 @@ int rdpq_tex_upload_sub(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t 
     return nbytes;
 }
 
-int rdpq_tex_upload(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms)
+int rdpq_tex_upload(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_t *parms)
 {
     return rdpq_tex_upload_sub(tile, tex, parms, 0, 0, tex->width, tex->height);
 }

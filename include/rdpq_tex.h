@@ -114,7 +114,7 @@ int tex_loader_calc_max_height(tex_loader_t *tload, int width);
  * @see #rdpq_tex_upload_sub
  * @see #surface_make_sub
  */
-int rdpq_tex_upload(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms);
+int rdpq_tex_upload(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_t *parms);
 
 /**
  * @brief Load a portion of texture into TMEM
@@ -179,7 +179,7 @@ int rdpq_tex_upload(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *par
  * @see #rdpq_tex_upload
  * @see #surface_make_sub
  */
-int rdpq_tex_upload_sub(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1);
+int rdpq_tex_upload_sub(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1);
 
 /**
  * @brief Load one or more palettes into TMEM
