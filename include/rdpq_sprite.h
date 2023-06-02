@@ -24,7 +24,7 @@ typedef struct rdpq_blitparms_s rdpq_blitparms_t;
  * @brief Upload a sprite to TMEM, making it ready for drawing
  * 
  * This function will upload a sprite to TMEM, making it ready for drawing.
- * It is similar to #rdpq_tex_load which can be used for any surface, but
+ * It is similar to #rdpq_tex_upload which can be used for any surface, but
  * it builds upon it with sprite-specific features:
  * 
  *  * If the sprite contains mipmaps, the whole mipmap chain is uploaded to TMEM
@@ -40,7 +40,7 @@ typedef struct rdpq_blitparms_s rdpq_blitparms_t;
  * This function is meant for sprites that can be loaded in full into TMEM; it
  * will assert if the sprite does not fit TMEM. For larger sprites, either
  * use #rdpq_sprite_blit to directly draw then (handling partial uploads transparently),
- * or use #rdpq_tex_load_sub to manually upload a smaller portion of the sprite.
+ * or use #rdpq_tex_upload_sub to manually upload a smaller portion of the sprite.
  * 
  * To load multiple sprites in TMEM at once (for instance, for multitexturing),
  * you can manually specify the @p parms->tmem_addr for the second sprite, or
@@ -80,8 +80,8 @@ typedef struct rdpq_blitparms_s rdpq_blitparms_t;
  * @param parms     Texture upload parameters to use
  * @return          Number of bytes used in TMEM for this sprite (excluding palette)
  * 
- * @see #rdpq_tex_load
- * @see #rdpq_tex_load_sub
+ * @see #rdpq_tex_upload
+ * @see #rdpq_tex_upload_sub
  * @see #rdpq_sprite_blit
  */
 int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t *parms);
