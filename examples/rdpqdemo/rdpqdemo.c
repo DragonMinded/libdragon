@@ -149,7 +149,7 @@ int main()
         // render mode, and then restore it at the end.
         rdpq_mode_push();
         rdpq_mode_tlut(TLUT_RGBA16);
-        rdpq_tex_load_tlut(sprite_get_palette(tiles_sprite), 0, 16);
+        rdpq_tex_upload_tlut(sprite_get_palette(tiles_sprite), 0, 16);
         tlut = true;
     }
     uint32_t tile_width = tiles_sprite->width / tiles_sprite->hslices;
@@ -164,7 +164,7 @@ int main()
             // Notice that this code is agnostic to both the texture format
             // and the render mode (standard vs copy), it will work either way.
             int s = RANDN(2)*32, t = RANDN(2)*32;
-            rdpq_tex_load_sub(TILE0, &tiles_surf, NULL, s, t, s+32, t+32);
+            rdpq_tex_upload_sub(TILE0, &tiles_surf, NULL, s, t, s+32, t+32);
             rdpq_texture_rectangle(TILE0, tx, ty, tx+32, ty+32, s, t);
         }
     }

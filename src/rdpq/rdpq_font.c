@@ -31,7 +31,7 @@ static rdpq_tile_t atlas_activate(atlas_t *atlas)
     if (draw_ctx.last_atlas != atlas) {
         draw_ctx.atlas_tile = (draw_ctx.atlas_tile + 2) & 7;
         surface_t s = surface_make_linear(atlas->buf, atlas->fmt, atlas->width, atlas->height);
-        rdpq_tex_load(draw_ctx.atlas_tile, &s, NULL);
+        rdpq_tex_upload(draw_ctx.atlas_tile, &s, NULL);
         draw_ctx.last_atlas = atlas;
     }
     return draw_ctx.atlas_tile;

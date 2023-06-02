@@ -116,7 +116,7 @@ static color_t surface_debug_expected_color(surface_t *surf, int x, int y)
     }
 }
 
-void test_rdpq_tex_load(TestContext *ctx) {
+void test_rdpq_tex_upload(TestContext *ctx) {
     RDPQ_INIT();
 
     static const tex_format_t fmts[] = { 
@@ -153,7 +153,7 @@ void test_rdpq_tex_load(TestContext *ctx) {
 
             // Activate the palette if needed for this format
             if (fmt == FMT_CI4 || fmt == FMT_CI8) {
-                rdpq_tex_load_tlut(tlut, 0, 256);
+                rdpq_tex_upload_tlut(tlut, 0, 256);
                 rdpq_mode_tlut(TLUT_RGBA16);
             } else {
                 rdpq_mode_tlut(TLUT_NONE);
@@ -170,9 +170,9 @@ void test_rdpq_tex_load(TestContext *ctx) {
                     surface_clear(&fb, 0);
 
                     if (off == 0)
-                        rdpq_tex_load(TILE2,&surf, NULL);
+                        rdpq_tex_upload(TILE2,&surf, NULL);
                     else
-                        rdpq_tex_load_sub(TILE2,&surf, NULL, off, off, surf.width, surf.width);
+                        rdpq_tex_upload_sub(TILE2,&surf, NULL, off, off, surf.width, surf.width);
                     rdpq_texture_rectangle(TILE2, 
                         5, 5, 5+surf.width-off, 5+surf.width-off,
                         off, off);
@@ -196,7 +196,7 @@ void test_rdpq_tex_load(TestContext *ctx) {
     }
 }
 
-void test_rdpq_tex_load_multi(TestContext *ctx) {
+void test_rdpq_tex_upload_multi(TestContext *ctx) {
     RDPQ_INIT();
 
     surface_t tex1 = surface_alloc(FMT_RGBA32, 8, 8);
@@ -347,7 +347,7 @@ void test_rdpq_tex_blit_normal(TestContext *ctx)
         
             // Activate the palette if needed for this format
             if (fmt == FMT_CI4 || fmt == FMT_CI8) {
-                rdpq_tex_load_tlut(tlut, 0, 256);
+                rdpq_tex_upload_tlut(tlut, 0, 256);
                 rdpq_mode_tlut(TLUT_RGBA16);
             } else {
                 rdpq_mode_tlut(TLUT_NONE);
