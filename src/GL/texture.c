@@ -1,5 +1,7 @@
 #include "gl_internal.h"
+#include "../rspq/rspq_internal.h"
 #include "rdpq.h"
+#include "rdpq_tex.h"
 #include "debug.h"
 #include <math.h>
 #include <string.h>
@@ -24,14 +26,21 @@ void gl_init_texture_object(gl_texture_object_t *obj)
         .min_filter = GL_NEAREST_MIPMAP_LINEAR,
         .mag_filter = GL_LINEAR,
     };
+
+    // Fill the levels block with NOOPs, and terminate it with a RET.
+    for (int i=0; i<MAX_TEXTURE_LEVELS*2; i++) {
+        obj->levels_block[i] = RSPQ_CMD_NOOP << 24;
+    }
+    obj->levels_block[MAX_TEXTURE_LEVELS*2] = (RSPQ_CMD_RET << 24) | (1<<2);
 }
 
 void gl_cleanup_texture_object(gl_texture_object_t *obj)
 {
     for (uint32_t i = 0; i < MAX_TEXTURE_LEVELS; i++)
     {
-        if (obj->levels[i].data != NULL) {
-            free_uncached(obj->levels[i].data);
+        if ((obj->levels_block[i*2] >> 24) == RSPQ_CMD_CALL) {
+            rspq_block_t *mem = (rspq_block_t*)((obj->levels_block[i*2] & 0xFFFFFF) | 0xA0000000);
+            rspq_block_free(mem);
         }
     }
 }
@@ -135,7 +144,28 @@ void glTexImageN64(GLenum target, GLint level, const surface_t *surface)
 {
     uint32_t offset = gl_texture_get_offset(target);
     if (offset == 0) return;
+#if 1
+    rspq_block_begin();
+        rdpq_tex_multi_begin();
+            rdpq_tex_upload(TILE0+level, surface, &(rdpq_texparms_t){
+                .s.scale_log = level, .t.scale_log = level,
+                .s.repeats = REPEAT_INFINITE, .t.repeats = REPEAT_INFINITE,
+            });
+        rdpq_tex_multi_end();
+    rspq_block_t *texup_block = rspq_block_end();
+    assertf(texup_block->nesting_level == 0, "texture loader: nesting level is %ld", texup_block->nesting_level);
 
+    uint32_t img_offset = offset + level * sizeof(gl_texture_image_t);
+    gl_set_word (GL_UPDATE_NONE, img_offset + IMAGE_WIDTH_OFFSET,           (surface->width << 16) | surface->height);
+    gl_set_short(GL_UPDATE_NONE, img_offset + IMAGE_INTERNAL_FORMAT_OFFSET, surface_get_format(surface));
+
+    uint32_t cmd0 = (RSPQ_CMD_CALL << 24) | PhysicalAddr(texup_block->cmds);
+    uint32_t cmd1 = texup_block->nesting_level << 2;
+    gl_set_long(GL_UPDATE_NONE, offset + TEXTURE_LEVELS_BLOCK_OFFSET + level*8, ((uint64_t)cmd0 << 32) | cmd1);
+
+    gl_set_flag_raw(GL_UPDATE_NONE, offset + TEXTURE_FLAGS_OFFSET, TEX_FLAG_UPLOAD_DIRTY, true);
+    gl_update_texture_completeness(offset);
+#else
     tex_format_t rdp_format = surface_get_format(surface);
 
     GLenum internal_format = rdp_tex_format_to_gl(rdp_format);
@@ -183,6 +213,7 @@ void glTexImageN64(GLenum target, GLint level, const surface_t *surface)
     gl_set_flag_raw(GL_UPDATE_NONE, offset + TEXTURE_FLAGS_OFFSET, TEX_FLAG_UPLOAD_DIRTY, true);
 
     gl_update_texture_completeness(offset);
+#endif
 }
 
 void gl_texture_set_wrap_s(uint32_t offset, GLenum param)
@@ -969,9 +1000,9 @@ bool gl_validate_upload_image(GLenum format, GLenum type, uint32_t *num_elements
     return true;
 }
 
-
 void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
+#if 0
     assertf(border == 0, "Texture border is not supported!");
 
     GLsizei width_without_border = width - 2 * border;
@@ -1056,8 +1087,8 @@ void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei widt
     gl_set_flag_raw(GL_UPDATE_NONE, offset + TEXTURE_FLAGS_OFFSET, TEX_FLAG_UPLOAD_DIRTY, true);
 
     gl_update_texture_completeness(offset);
+#endif
 }
-
 void glTexImage1D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
     switch (target) {

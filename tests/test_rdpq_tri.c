@@ -172,7 +172,7 @@ void test_rdpq_triangle_w1(TestContext *ctx) {
     surface_clear(&tex, 0);
 
     rdpq_set_color_image(&fb);
-    rdpq_tex_load(TILE0, &tex, NULL); 
+    rdpq_tex_upload(TILE0, &tex, NULL); 
     rdpq_set_mode_standard();
     rspq_wait();
 

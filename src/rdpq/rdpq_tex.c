@@ -14,6 +14,10 @@
 #include "utils.h"
 #include <math.h>
 
+/** @brief True if we are doing a multi-texture upload */
+static bool multi_upload = false;
+static int multi_upload_bytes = 0;
+static int multi_upload_limit = 0;
 
 /** @brief Address in TMEM where the palettes must be loaded */
 #define TMEM_PALETTE_ADDR   0x800
@@ -33,8 +37,10 @@ static void texload_recalc_tileparms(tex_loader_t *tload)
     int width = tload->rect.width;
     int height = tload->rect.height;
 
-    assertf((width > 0 && height > 0), "The sub rectangle of a texture can't be of negative size (%i,%i)", width, height);
-    assertf(parms->s.repeats >= 0 && parms->t.repeats >= 0, "Repetition count (%f, %f) cannot be negative",parms->s.repeats, parms->t.repeats);
+    assertf((width > 0 && height > 0), 
+        "The sub rectangle of a texture can't be of negative size (%i,%i)", width, height);
+    assertf(parms->s.repeats >= 0 && parms->t.repeats >= 0,
+        "Repetition count (%f, %f) cannot be negative", parms->s.repeats, parms->t.repeats);
     
     int xmask = 0;
     int ymask = 0;
@@ -44,13 +50,13 @@ static void texload_recalc_tileparms(tex_loader_t *tload)
     if(parms->s.repeats > 1){
         xmask = integer_to_pow2(width);
         assertf(1<<xmask == width, 
-        "Mirror and/or wrapping on S axis allowed only with X dimention (%i tx) = power of 2", width);
+            "Mirror and/or wrapping on S axis allowed only with X dimension (%i tx) = power of 2", width);
         res->s.mirror = parms->s.mirror;
     }
     if(parms->t.repeats > 1){
         ymask = integer_to_pow2(height);
         assertf(1<<ymask == height, 
-        "Mirror and/or wrapping on T axis allowed only with Y dimention (%i tx) = power of 2", height);
+            "Mirror and/or wrapping on T axis allowed only with Y dimension (%i tx) = power of 2", height);
         res->t.mirror = parms->t.mirror;
     }
 
@@ -62,9 +68,9 @@ static void texload_recalc_tileparms(tex_loader_t *tload)
     else res->t.clamp = false;
 
     assertf((!res->s.clamp || parms->s.translate >= 0), 
-    "Translation S (%f) cannot be negative with active clamping", parms->s.translate);
+        "Translation S (%f) cannot be negative with active clamping", parms->s.translate);
     assertf((!res->t.clamp || parms->t.translate >= 0), 
-    "Translation T (%f) cannot be negative with active clamping", parms->t.translate);
+        "Translation T (%f) cannot be negative with active clamping", parms->t.translate);
 
     float srepeats = parms->s.repeats;
     float trepeats = parms->t.repeats;
@@ -336,18 +342,42 @@ int tex_loader_calc_max_height(tex_loader_t *tload, int width)
 
 ///@endcond
 
-int rdpq_tex_load_sub(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1)
+int rdpq_tex_upload_sub(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1)
 {
     tex_loader_t tload = tex_loader_init(tile, tex);
-    if(parms) tex_loader_set_texparms(&tload, parms);
+    if (parms) tex_loader_set_texparms(&tload, parms);
     
-    tex_loader_set_tmem_addr(&tload, parms? parms->tmem_addr : 0);
-    return tex_loader_load(&tload, s0, t0, s1, t1);
+    if (multi_upload) {
+        assertf(parms == NULL || parms->tmem_addr == 0, "Do not specify a TMEM address while doing a multi-texture upload");
+        tex_loader_set_tmem_addr(&tload, RDPQ_AUTOTMEM);
+    } else {
+        tex_loader_set_tmem_addr(&tload, parms ? parms->tmem_addr : 0);
+    }
+
+    int nbytes = tex_loader_load(&tload, s0, t0, s1, t1);
+
+    if (multi_upload) {
+        rdpq_set_tile_autotmem(nbytes);
+        multi_upload_bytes += nbytes;
+
+        #ifndef NDEBUG
+        // Do a best-effort check to make sure we don't exceed TMEM size. This is not 100%
+        // guaranteed to catch all cases: if a texture is uploaded via block playback, we will
+        // not know about its size. Anyway, the RSP will also do check and trigger a RSP assert,
+        // with the only gotcha that there will be no traceback for it.
+        tex_format_t fmt = surface_get_format(tex);
+        if (fmt == FMT_CI4 || fmt == FMT_CI8 || fmt == FMT_RGBA32 || fmt == FMT_YUV16)
+            multi_upload_limit = 2048;
+        assertf(multi_upload_bytes <= multi_upload_limit, "Multi-texture upload exceeded TMEM size");
+        #endif
+    }
+
+    return nbytes;
 }
 
-int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms)
+int rdpq_tex_upload(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_t *parms)
 {
-    return rdpq_tex_load_sub(tile, tex, parms, 0, 0, tex->width, tex->height);
+    return rdpq_tex_upload_sub(tile, tex, parms, 0, 0, tex->width, tex->height);
 }
 
 /**
@@ -578,9 +608,28 @@ void rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitpar
     }
 }
 
-void rdpq_tex_load_tlut(uint16_t *tlut, int color_idx, int num_colors)
+void rdpq_tex_upload_tlut(uint16_t *tlut, int color_idx, int num_colors)
 {
     rdpq_set_texture_image_raw(0, PhysicalAddr(tlut), FMT_RGBA16, num_colors, 1);
     rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_I4, TMEM_PALETTE_ADDR + color_idx*2*4, num_colors, NULL);
     rdpq_load_tlut_raw(RDPQ_TILE_INTERNAL, 0, num_colors);
+}
+
+void rdpq_tex_multi_begin(void)
+{
+    assertf(!multi_upload, "rdpq_tex_multi_begin called twice without rdpq_tex_multi_end");
+
+    // Initialize autotmem engine
+    rdpq_set_tile_autotmem(0);
+    multi_upload = true;
+    multi_upload_bytes = 0;
+    multi_upload_limit = 4096;
+}
+
+int rdpq_tex_multi_end(void)
+{
+    assertf(multi_upload, "rdpq_tex_multi_end called without rdpq_tex_multi_begin");
+    rdpq_set_tile_autotmem(-1);
+    multi_upload = false;
+    return multi_upload_bytes;
 }

@@ -116,7 +116,7 @@ static color_t surface_debug_expected_color(surface_t *surf, int x, int y)
     }
 }
 
-void test_rdpq_tex_load(TestContext *ctx) {
+void test_rdpq_tex_upload(TestContext *ctx) {
     RDPQ_INIT();
 
     static const tex_format_t fmts[] = { 
@@ -153,7 +153,7 @@ void test_rdpq_tex_load(TestContext *ctx) {
 
             // Activate the palette if needed for this format
             if (fmt == FMT_CI4 || fmt == FMT_CI8) {
-                rdpq_tex_load_tlut(tlut, 0, 256);
+                rdpq_tex_upload_tlut(tlut, 0, 256);
                 rdpq_mode_tlut(TLUT_RGBA16);
             } else {
                 rdpq_mode_tlut(TLUT_NONE);
@@ -170,9 +170,9 @@ void test_rdpq_tex_load(TestContext *ctx) {
                     surface_clear(&fb, 0);
 
                     if (off == 0)
-                        rdpq_tex_load(TILE2,&surf, NULL);
+                        rdpq_tex_upload(TILE2,&surf, NULL);
                     else
-                        rdpq_tex_load_sub(TILE2,&surf, NULL, off, off, surf.width, surf.width);
+                        rdpq_tex_upload_sub(TILE2,&surf, NULL, off, off, surf.width, surf.width);
                     rdpq_texture_rectangle(TILE2, 
                         5, 5, 5+surf.width-off, 5+surf.width-off,
                         off, off);
@@ -194,6 +194,118 @@ void test_rdpq_tex_load(TestContext *ctx) {
             }
         }
     }
+}
+
+void test_rdpq_tex_upload_multi(TestContext *ctx) {
+    RDPQ_INIT();
+
+    surface_t tex1 = surface_alloc(FMT_RGBA32, 8, 8);
+    DEFER(surface_free(&tex1));
+    surface_t tex2 = surface_alloc(FMT_RGBA32, 8, 8);
+    DEFER(surface_free(&tex2));
+    surface_t empty = surface_alloc(FMT_RGBA32, 32, 32);
+    DEFER(surface_free(&empty));
+
+    const int FBWIDTH = 32;
+    surface_t fb = surface_alloc(FMT_RGBA32, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    surface_clear(&fb, 0);
+
+    surface_clear(&empty, 0x0);
+    surface_clear(&tex1, 0x24);
+    surface_clear(&tex2, 0x10);
+
+    void do_test(void) {
+        // Combine them via addition
+        rdpq_attach(&fb, NULL);
+        rdpq_set_mode_standard();
+        rdpq_mode_combiner(RDPQ_COMBINER2(
+            (1, 0, TEX0, TEX1),  (0, 0, 0, 0),
+            (0,0,0,COMBINED),    (0,0,0,COMBINED)));
+        rdpq_texture_rectangle(TILE1, 0, 0, 8, 8, 0, 0);
+        rdpq_detach();
+        rspq_wait();
+
+        // Check result
+        ASSERT_SURFACE(&fb, {
+            if (x < 8 && y < 8)
+                return color_from_packed32(0x343434e0);
+            else
+                return color_from_packed32(0x0);
+        });
+    }
+
+    // Clear tmem
+    rdpq_tex_upload(TILE0, &empty, NULL);
+
+    // Load the two textures to TMEM
+    rdpq_tex_multi_begin();
+        rdpq_tex_upload(TILE1, &tex1, NULL);
+        rdpq_tex_upload(TILE2, &tex2, NULL);
+    rdpq_tex_multi_end();
+    do_test();
+    if (ctx->result == TEST_FAILED)
+        return;
+
+    // Create loader blocks
+    rspq_block_begin();
+    rdpq_tex_multi_begin();
+        rdpq_tex_upload(TILE1, &tex1, NULL);
+    rdpq_tex_multi_end();
+    rspq_block_t *tex1_loader = rspq_block_end();
+    DEFER(rspq_block_free(tex1_loader));
+
+    rspq_block_begin();
+    rdpq_tex_multi_begin();
+        rdpq_tex_upload(TILE2, &tex2, NULL);
+    rdpq_tex_multi_end();
+    rspq_block_t *tex2_loader = rspq_block_end();
+    DEFER(rspq_block_free(tex2_loader));
+
+    // Load the two textures to TMEM via block loading
+    rdpq_tex_upload(TILE0, &empty, NULL);
+    rdpq_tex_multi_begin();
+        rspq_block_run(tex1_loader);
+        rspq_block_run(tex2_loader);
+    rdpq_tex_multi_end();
+    do_test();
+    if (ctx->result == TEST_FAILED)
+        return;
+
+    // Load one texture via block loading and the other normally
+    rdpq_tex_upload(TILE0, &empty, NULL);
+    rdpq_tex_multi_begin();
+        rdpq_tex_upload(TILE1, &tex1, NULL);
+        rspq_block_run(tex2_loader);
+    rdpq_tex_multi_end();
+    do_test();
+    if (ctx->result == TEST_FAILED)
+        return;
+
+    // Create a block that contains both tiles
+    rspq_block_begin();
+        rdpq_tex_multi_begin();
+            rdpq_tex_upload(TILE1, &tex1, NULL);
+            rdpq_tex_upload(TILE2, &tex2, NULL);
+        rdpq_tex_multi_end();
+    rspq_block_t *tex1_tex2_loader = rspq_block_end();
+
+    // Load them both via block loading
+    rdpq_tex_upload(TILE0, &empty, NULL);
+    rspq_block_run(tex1_tex2_loader);
+    do_test();
+    if (ctx->result == TEST_FAILED)
+        return;
+
+    // Load them both via block loading, with explicit multi
+    rdpq_tex_upload(TILE0, &empty, NULL);
+    rdpq_tex_multi_begin();
+        rspq_block_run(tex1_tex2_loader);
+    rdpq_tex_multi_end();
+    do_test();
+    if (ctx->result == TEST_FAILED)
+        return;
+
 }
 
 
@@ -235,7 +347,7 @@ void test_rdpq_tex_blit_normal(TestContext *ctx)
         
             // Activate the palette if needed for this format
             if (fmt == FMT_CI4 || fmt == FMT_CI8) {
-                rdpq_tex_load_tlut(tlut, 0, 256);
+                rdpq_tex_upload_tlut(tlut, 0, 256);
                 rdpq_mode_tlut(TLUT_RGBA16);
             } else {
                 rdpq_mode_tlut(TLUT_NONE);

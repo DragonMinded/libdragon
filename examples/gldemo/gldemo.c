@@ -352,5 +352,8 @@ int main()
         }
 
         render();
+        if (DEBUG_RDP)
+            rspq_wait();
     }
+
 }

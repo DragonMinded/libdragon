@@ -390,8 +390,8 @@ inline void rdpq_mode_antialias(bool enable)
  *      // Configure the flat color that will modulate the texture
  *      rdpq_set_prim_color(RGBA32(192, 168, 74, 255));
  *
- *      // Load a texture into TMEM (tile descriptor #4)
- *      rdpq_tex_load(TILE4, &texture, 0);
+ *      // Upload a texture into TMEM (tile descriptor #4)
+ *      rdpq_tex_upload(TILE4, &texture, 0);
  * 
  *      // Draw the rectangle
  *      rdpq_texture_rectangle(TILE4,
@@ -507,7 +507,7 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
  *      rdpq_set_fog_color(RGBA32(0,0,0, 128));
  * 
  *      // Load a texture into TMEM
- *      rdpq_tex_load(TILE0, texture, 0);
+ *      rdpq_tex_upload(TILE0, texture, 0);
  * 
  *      // Draw it
  *      rdpq_texture_rectangle(TILE0,
@@ -681,14 +681,14 @@ inline void rdpq_mode_zoverride(bool enable, float z, int16_t deltaz) {
  * 
  * This function allows to enable / disable palette lookup during
  * drawing. To draw using a texture with palette, it is necessary
- * to first load the texture into TMEM (eg: via #rdpq_tex_load), 
- * then load the palette (eg: via #rdpq_tex_load_tlut),
+ * to first load the texture into TMEM (eg: via #rdpq_tex_upload), 
+ * then load the palette (eg: via #rdpq_tex_upload_tlut),
  * and finally activate the palette drawing mode via #rdpq_mode_tlut.
  * 
  * @param tlut     Palette type, or 0 to disable.
  * 
- * @see #rdpq_tex_load
- * @see #rdpq_tex_load_tlut
+ * @see #rdpq_tex_upload
+ * @see #rdpq_tex_upload_tlut
  * @see #rdpq_tlut_t
  */
 inline void rdpq_mode_tlut(rdpq_tlut_t tlut) {

@@ -90,6 +90,7 @@ RDPQ_ADDRESS_TABLE:     .ds.l  RDPQ_ADDRESS_TABLE_SIZE
 RDPQ_RDRAM_STATE_ADDR:  .word  0
 RDPQ_AUTOTMEM_ADDR:     .half  0
 RDPQ_AUTOTMEM_LIMIT:    .half  0
+RDPQ_AUTOTMEM_ENABLED:  .byte  0
 
     .align 4
 # Stack slots for 3 saved RDP modes
@@ -627,25 +628,50 @@ RDPQCmd_SetDebugMode:
     # explicit addresses.
     #
     # ARGS:
-    #   a0: zero: reset auto-TMEM address to 0
+    #   a0: zero: begin auto-TMEM, set address to 0
+    #       -1:   end auto-TMEM
     #       non-zero: increment auto-TMEM address by a0 multiplied by 8
     #########################################
 
     .func RDPQCmd_AutoTmem_SetAddr
 RDPQCmd_AutoTmem_SetAddr:
+    sll a0, 16
+    sra a0, 16
+    bltz a0, autotmem_end  # -1 => end
     lhu t0, %lo(RDPQ_AUTOTMEM_ADDR) 
+    beqz a0, autotmem_begin # 0 => start
+
+    # Positive value: increment address
     lhu t1, %lo(RDPQ_AUTOTMEM_LIMIT)
-    andi a0, 0xFFFF
-    beqz a0, autotmem_reset
+    #ifdef NDEBUG
+    lbu t2, %lo(RDPQ_AUTOTMEM_ENABLED)
+    assert_gt t2, 0, RDPQ_ASSERT_AUTOTMEM_UNPAIRED
+    #endif
     add t0, a0
     assert_le t0, t1, RDPQ_ASSERT_AUTOTMEM_FULL
     jr ra
     sh t0, %lo(RDPQ_AUTOTMEM_ADDR)
-autotmem_reset:
-    sh zero, %lo(RDPQ_AUTOTMEM_ADDR) 
+
+autotmem_begin:
+    # Increment enabled flag. Do nothing if it was already enabled
+    lbu t0, %lo(RDPQ_AUTOTMEM_ENABLED)
+    addiu t1, t0, 1
+    bnez t0, JrRa
+    sb t1, %lo(RDPQ_AUTOTMEM_ENABLED)
+
+    # Set address to zero, and limit to 4096
     li t0, 4096/8
-    jr ra
     sh t0, %lo(RDPQ_AUTOTMEM_LIMIT)
+    jr ra
+    sh zero, %lo(RDPQ_AUTOTMEM_ADDR) 
+
+autotmem_end:
+    lbu t0, %lo(RDPQ_AUTOTMEM_ENABLED)
+    addiu t0, -1
+    assert_ge t0, 0, RDPQ_ASSERT_AUTOTMEM_UNPAIRED
+    jr ra
+    sb t0, %lo(RDPQ_AUTOTMEM_ENABLED)
+
     .endfunc
 
     #######################################################################

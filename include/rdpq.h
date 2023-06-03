@@ -503,7 +503,7 @@ inline void rdpq_set_yuv_parms(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k
  * it for drawing.
  * 
  * @note Beginners are advised to use the rdpq texture API (rdpq_tex.h), 
- * for instance #rdpq_tex_load that takes care of everything required.
+ * for instance #rdpq_tex_upload that takes care of everything required.
  * 
  * Before calling #rdpq_load_tile, the tile must have been configured
  * using #rdpq_set_tile to specify the TMEM address and pitch, and the 
@@ -534,7 +534,7 @@ inline void rdpq_set_yuv_parms(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k
  * @param[in]   t1          Bottom-right Y coordinate of the portion of the texture to load (integer or float),
  *                          Range: 0-1024
  * 
- * @see #rdpq_tex_load
+ * @see #rdpq_tex_upload
  * @see #rdpq_set_texture_image
  * @see #rdpq_load_block
  * @see #rdpq_set_tile
@@ -553,7 +553,7 @@ inline void rdpq_set_yuv_parms(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k
  * in fixed point format (0.10.2). Refer to #rdpq_load_tile for increased performance
  * 
  * @note Beginners are advised to use the rdpq texture API (rdpq_tex.h), 
- * for instance #rdpq_tex_load that takes care of everything required.
+ * for instance #rdpq_tex_upload that takes care of everything required.
  * 
  * 
  * @param[in]   tile        Tile descriptor to use (TILE0-TILE7).
@@ -567,7 +567,7 @@ inline void rdpq_set_yuv_parms(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k
  *                          Range: 0-4096
  * 
  * @see #rdpq_load_tile
- * @see #rdpq_tex_load
+ * @see #rdpq_tex_upload
  */
 inline void rdpq_load_tile_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1)
 {
@@ -598,7 +598,7 @@ inline void rdpq_load_tile_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16
  * the palette in RDRAM via #rdpq_set_texture_image, and also configure a 
  * tile descriptor with the TMEM destination address (via #rdpq_set_tile).
  * Instead, prefer using the simpler rdpq texture API (rdpq_tex.h), via
- * #rdpq_tex_load_tlut.
+ * #rdpq_tex_upload_tlut.
  * 
  * @param[in] tile         Tile descriptor to use (TILE0-TILE7). This is used
  *                         to extract the destination TMEM address (all other fields
@@ -608,7 +608,7 @@ inline void rdpq_load_tile_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16
  *                         set via #rdpq_set_texture_image.
  * @param[in] num_colors   Number of colors to load (1-256).
  * 
- * @see #rdpq_tex_load_tlut
+ * @see #rdpq_tex_upload_tlut
  */
 inline void rdpq_load_tlut_raw(rdpq_tile_t tile, uint8_t color_idx, uint8_t num_colors)
 {
@@ -631,7 +631,7 @@ inline void rdpq_load_tlut_raw(rdpq_tile_t tile, uint8_t color_idx, uint8_t num_
  * 
  * For beginners, it is suggest to use the rdpq texture API (rdpq_tex.h)
  * which automatically configures tile descriptors correctly: for instance,
- * #rdpq_tex_load.
+ * #rdpq_tex_upload.
  * 
  * @param[in] tile          Tile descriptor (TILE0-TILE7)
  * @param[in] s0            Top-left X texture coordinate to store in the descriptor (integer or float).
@@ -643,7 +643,7 @@ inline void rdpq_load_tlut_raw(rdpq_tile_t tile, uint8_t color_idx, uint8_t num_
  * @param[in] t1            Bottom-right *exclusive* Y texture coordinate to store in the descriptor (integer or float).
  *                          Range: 0-1024 (inclusive)
  * 
- * @see #rdpq_tex_load
+ * @see #rdpq_tex_upload
  * @see #rdpq_set_tile_size_fx
  */
 #define rdpq_set_tile_size(tile, s0, t0, s1, t1) ({ \
@@ -662,7 +662,7 @@ inline void rdpq_load_tlut_raw(rdpq_tile_t tile, uint8_t color_idx, uint8_t num_
  * @param[in] s1            Bottom-right *exclusive* X texture coordinate to store in the descriptor (fx 10.2)
  * @param[in] t1            Bottom-right *exclusive* Y texture coordinate to store in the descriptor (fx 10.2)
  *
- * @see #rdpq_tex_load
+ * @see #rdpq_tex_upload
  * @see #rdpq_set_tile_size
  */
 inline void rdpq_set_tile_size_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1)
@@ -700,7 +700,7 @@ inline void rdpq_load_block_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint1
  * lines, but not a sub-rectangle of the texture image.
  * 
  * @note Beginners are advised to use the rdpq texture API (rdpq_tex.h), 
- * for instance #rdpq_tex_load that takes care of everything required,
+ * for instance #rdpq_tex_upload that takes care of everything required,
  * including using #rdpq_load_block for performance whenever possible.
  * 
  * Before calling #rdpq_load_block, the tile must have been configured
@@ -736,7 +736,7 @@ inline void rdpq_load_block_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint1
  * @see #rdpq_load_tile
  * @see #rdpq_load_block_fx
  * @see #rdpq_set_tile
- * @see #rdpq_tex_load
+ * @see #rdpq_tex_upload
  */
 inline void rdpq_load_block(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t tmem_pitch)
 {
@@ -770,15 +770,18 @@ inline void rdpq_set_tile(rdpq_tile_t tile,
         assertf(parms->s.shift >= -5 && parms->s.shift <= 10, "invalid s shift %d: must be in [-5..10]", parms->s.shift);
         assertf(parms->t.shift >= -5 && parms->t.shift <= 10, "invalid t shift %d: must be in [-5..10]", parms->t.shift);
     }
+    bool fixup = false;
     uint32_t cmd_id = RDPQ_CMD_SET_TILE;
     if (tmem_addr < 0) {
         cmd_id = RDPQ_CMD_AUTOTMEM_SET_TILE;
         tmem_addr = 0;
+        fixup = true;
     }
     assertf((tmem_addr % 8) == 0, "invalid tmem_addr %d: must be multiple of 8", tmem_addr);
     assertf((tmem_pitch % 8) == 0, "invalid tmem_pitch %d: must be multiple of 8", tmem_pitch);
     extern void __rdpq_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
-    __rdpq_write8_syncchange(cmd_id,
+    extern void __rdpq_fixup_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
+    (fixup ? __rdpq_fixup_write8_syncchange : __rdpq_write8_syncchange)(cmd_id,
         _carg(format, 0x1F, 19) | _carg(tmem_pitch/8, 0x1FF, 9) | _carg(tmem_addr/8, 0x1FF, 0),
         _carg(tile, 0x7, 24) | _carg(parms->palette, 0xF, 20) | 
         _carg(parms->t.clamp | (parms->t.mask == 0), 0x1, 19) | _carg(parms->t.mirror, 0x1, 18) | _carg(parms->t.mask, 0xF, 14) | _carg(parms->t.shift, 0xF, 10) | 
@@ -792,10 +795,10 @@ inline void rdpq_set_tile(rdpq_tile_t tile,
  * This function is used to manage the auto-TMEM allocation feature for
  * #rdpq_set_tile. It allows to keep track of the allocated space in TMEM,
  * which can be a simplification. It is used by the rdpq_tex module
- * (eg: #rdpq_tex_load).
+ * (eg: #rdpq_tex_upload).
  * 
  * The feature works like this:
- *   - First, reset auto-TMEM via rdpq_set_tile_autotmem(0)
+ *   - First, start auto-TMEM via rdpq_set_tile_autotmem(0)
  *   - Load a texture and configure a tile for it. When configuring the tile,
  *     pass #RDPQ_AUTOTMEM as tmem_addr. This will allocate the texture in the
  *     first available space.
@@ -804,6 +807,9 @@ inline void rdpq_set_tile(rdpq_tile_t tile,
  *   - Continue loading the other textures/mipmaps just like before, with
  *     #RDPQ_AUTOTMEM.
  *   - If the TMEM is full, a RSP assertion will be triggered.
+ *   - When you are done, call #rdpq_set_tile_autotmem passing -1 to finish.
+ *     This allows reentrant calls to work, and also helps generating errors
+ *     in case of misuses.
  * 
  * While this API might seem as a small simplification over manually tracking
  * TMEM allocation, it might help modularizing the code, and also allows to
@@ -811,13 +817,13 @@ inline void rdpq_set_tile(rdpq_tile_t tile,
  * TMEM position.
  * 
  * @note This function is part of the raw API. For a higher-level API on texture
- * loading, see #rdpq_tex_load.
+ * loading, see #rdpq_tex_upload.
  * 
- * @param tmem_bytes     Number of additional bytes that were used in TMEM
- *                       or 0 to reset auto-TMEM. Must be a multiple of 8.
+ * @param tmem_bytes     0: begin, -1: end, >0: number of additional bytes
+ *                       that were used in TMEM.
  * 
  * @see #rdpq_set_tile
- * @see #rdpq_tex_load
+ * @see #rdpq_tex_upload
  */
 void rdpq_set_tile_autotmem(int16_t tmem_bytes);
 
@@ -1112,10 +1118,11 @@ inline void rdpq_set_color_image_raw(uint8_t index, uint32_t offset, tex_format_
 inline void rdpq_set_z_image_raw(uint8_t index, uint32_t offset)
 {
     assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
-    extern void __rdpq_fixup_write8_pipe(uint32_t, uint32_t, uint32_t);
-    __rdpq_fixup_write8_pipe(RDPQ_CMD_SET_Z_IMAGE,
+    extern void __rdpq_fixup_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
+    __rdpq_fixup_write8_syncchange(RDPQ_CMD_SET_Z_IMAGE,
         0, 
-        _carg(index, 0xF, 28) | (offset & 0xFFFFFF));
+        _carg(index, 0xF, 28) | (offset & 0xFFFFFF),
+        AUTOSYNC_PIPE);
 }
 
 /**
@@ -1145,12 +1152,13 @@ inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_forma
     assertf(width <= 1024, "Texture width out of range [1,1024]: %d", width);
     assertf(height <= 1024, "Texture height out of range [1,1024]: %d", height);
     assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
-    extern void __rdpq_fixup_write8_pipe(uint32_t, uint32_t, uint32_t);
+    extern void __rdpq_fixup_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
     // NOTE: we also encode the texture height in the command (split in two halves...)
     // to help the validator to a better job. The RDP hardware ignores those bits.
-    __rdpq_fixup_write8_pipe(RDPQ_CMD_SET_TEXTURE_IMAGE,
+    __rdpq_fixup_write8_syncchange(RDPQ_CMD_SET_TEXTURE_IMAGE,
         _carg(format, 0x1F, 19) | _carg(width-1, 0x3FF, 0) | _carg(height-1, 0x1FF, 10),
-        _carg(index, 0xF, 28) | (offset & 0xFFFFFF) | _carg((height-1)>>9, 0x1, 31));
+        _carg(index, 0xF, 28) | (offset & 0xFFFFFF) | _carg((height-1)>>9, 0x1, 31),
+        AUTOSYNC_PIPE);
 }
 
 /**

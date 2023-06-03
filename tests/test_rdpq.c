@@ -804,7 +804,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     debugf("Dynamic mode\n");
     for (int j=0;j<4;j++) {
         for (int i=0;i<80;i++) {
-            rdpq_tex_load_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
+            rdpq_tex_upload_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
             rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0);
         }
         rdpq_sync_full(NULL, NULL);
@@ -815,7 +815,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     debugf("Dynamic mode with multiple syncs per buffer\n");
     for (int j=0;j<4;j++) {
         for (int i=0;i<6;i++) {
-            rdpq_tex_load_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
+            rdpq_tex_upload_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
             rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0);
         }
         rdpq_sync_full(NULL, NULL);
@@ -829,7 +829,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     debugf("Dynamic mode with buffer change\n");
     for (int j=0;j<4;j++) {
         for (int i=0;i<80;i++) {
-            rdpq_tex_load_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
+            rdpq_tex_upload_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
             rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0);
         }
         rdpq_sync_full(NULL, NULL);
@@ -841,7 +841,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     debugf("Block mode\n");
     rspq_block_begin();
     for (int i=0;i<80;i++) {
-        rdpq_tex_load_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
+        rdpq_tex_upload_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
         rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0);
     }
     rspq_block_t *rect_block = rspq_block_end();
@@ -858,7 +858,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     debugf("Block mode with sync inside\n");
     rspq_block_begin();
     for (int i=0;i<80;i++) {
-        rdpq_tex_load_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
+        rdpq_tex_upload_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
         rdpq_texture_rectangle(TILE0, 0, 0, WIDTH, WIDTH, 0, 0);
     }
     rdpq_sync_full(NULL, NULL);
@@ -1229,7 +1229,7 @@ void test_rdpq_blender_memory(TestContext *ctx) {
 
     rdpq_set_fog_color(RGBA32(0,0,0,0x80));
     rdpq_set_color_image(&fb);
-    rdpq_tex_load(TILE0, &tex, NULL);
+    rdpq_tex_upload(TILE0, &tex, NULL);
     rdpq_set_mode_standard();
     rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
     rdpq_triangle(&TRIFMT_TEX,
@@ -1537,18 +1537,32 @@ void test_rdpq_autotmem(TestContext *ctx) {
     debug_rdp_stream_init();
    
     rdpq_set_tile_autotmem(0);
-    rdpq_set_tile(TILE0, FMT_RGBA16, 128, 32, NULL);
+    rdpq_set_tile(TILE0, FMT_RGBA16, RDPQ_AUTOTMEM, 32, NULL);
     rdpq_set_tile_autotmem(128);
     rdpq_set_tile(TILE1, FMT_RGBA16, RDPQ_AUTOTMEM, 32, NULL);
     rdpq_set_tile_autotmem(64);
     rdpq_set_tile(TILE2, FMT_RGBA16, RDPQ_AUTOTMEM, 32, NULL);
+    rdpq_set_tile_autotmem(-1);
+
     rdpq_set_tile_autotmem(0);
     rdpq_set_tile(TILE3, FMT_RGBA16, RDPQ_AUTOTMEM, 32, NULL);
     rdpq_set_tile_autotmem(128);
     rdpq_set_tile(TILE4, FMT_RGBA16, 0, 32, NULL);
+    rdpq_set_tile_autotmem(-1);
+
+    rdpq_set_tile_autotmem(0);
+    rdpq_set_tile(TILE5, FMT_RGBA16, RDPQ_AUTOTMEM, 32, NULL);
+    rdpq_set_tile_autotmem(128);
+    rdpq_set_tile_autotmem(0);
+    rdpq_set_tile(TILE6, FMT_RGBA16, RDPQ_AUTOTMEM, 32, NULL);
+    rdpq_set_tile_autotmem(64);
+    rdpq_set_tile(TILE7, FMT_RGBA16, RDPQ_AUTOTMEM, 32, NULL);
+    rdpq_set_tile_autotmem(-1);
+    rdpq_set_tile_autotmem(-1);
+
     rspq_wait();
 
-    int expected[] = { 128, 128, 128+64, 0, 0 };
+    int expected[] = { 0, 128, 128+64, 0, 0, 0, 128, 128+64 };
 
     int tidx = 0;
     for (int i=0;i<rdp_stream_ctx.idx;i++) {
@@ -1563,5 +1577,5 @@ void test_rdpq_autotmem(TestContext *ctx) {
         }
     }
 
-    ASSERT_EQUAL_SIGNED(tidx, 5, "invalid number of tiles");
+    ASSERT_EQUAL_SIGNED(tidx, 8, "invalid number of tiles");
 }

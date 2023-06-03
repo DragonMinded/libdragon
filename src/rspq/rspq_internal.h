@@ -247,4 +247,9 @@ static inline bool rspq_in_block(void) {
  */
 rsp_queue_t *__rspq_get_state(void);
 
+/**
+ * @brief Notify that a RSP command is going to run a block
+ */
+void rspq_block_run_rsp(int nesting_level);
+
 #endif

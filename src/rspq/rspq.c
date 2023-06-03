@@ -1192,6 +1192,16 @@ void rspq_block_run(rspq_block_t *block)
     }
 }
 
+void rspq_block_run_rsp(int nesting_level)
+{
+    __rdpq_block_run(NULL);
+    if (rspq_block && rspq_block->nesting_level <= nesting_level) {
+        rspq_block->nesting_level = nesting_level + 1;
+        assertf(rspq_block->nesting_level < RSPQ_MAX_BLOCK_NESTING_LEVEL,
+            "reached maximum number of nested block runs");
+    }    
+}
+
 void rspq_noop()
 {
     rspq_int_write(RSPQ_CMD_NOOP);

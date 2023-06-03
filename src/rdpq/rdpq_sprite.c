@@ -25,7 +25,7 @@ static void sprite_upload_palette(sprite_t *sprite, int palidx)
         // this today, but it could in the future (eg: sharing a palette across
         // multiple sprites).
         uint16_t *pal = sprite_get_palette(sprite);
-        if (pal) rdpq_tex_load_tlut(pal, palidx*16, fmt == FMT_CI4 ? 16 : 256);
+        if (pal) rdpq_tex_upload_tlut(pal, palidx*16, fmt == FMT_CI4 ? 16 : 256);
     } else {
         // Disable the TLUT render mode
         rdpq_mode_tlut(TLUT_NONE);
@@ -36,7 +36,9 @@ int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t
 {
     // Load main sprite surface
     surface_t surf = sprite_get_pixels(sprite);
-    int nbytes = rdpq_tex_load(tile, &surf, parms);
+
+    rdpq_tex_multi_begin();
+    rdpq_tex_upload(tile, &surf, parms);
 
     // Upload mipmaps if any
     rdpq_texparms_t lod_parms;
@@ -51,7 +53,6 @@ int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t
             } else {
                 lod_parms = *parms;
             }
-            lod_parms.tmem_addr += nbytes;
         }
 
         // Update parameters for next lod. If the scale maxes out, stop here
@@ -60,15 +61,13 @@ int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t
         if (++lod_parms.t.scale_log >= 11) break;
 
         // Load the mipmap
-        int nlodbytes = rdpq_tex_load(tile, &surf, &lod_parms);
-        nbytes += nlodbytes;
-        lod_parms.tmem_addr += nlodbytes;
+        rdpq_tex_upload(tile, &surf, &lod_parms);
     }
 
     // Upload the palette and configure the render mode
     sprite_upload_palette(sprite, parms ? parms->palette : 0);
 
-    return nbytes;
+    return rdpq_tex_multi_end();
 }
 
 void rdpq_sprite_blit(sprite_t *sprite, float x0, float y0, const rdpq_blitparms_t *parms)
