@@ -3,8 +3,6 @@
 #include "gl_constants.h"
 #include "GL/gl_enums.h"
 
-#define PREINITPIPE_SIZE    4
-
     .data
 
     RSPQ_BeginOverlayHeader
@@ -21,7 +19,8 @@
         RSPQ_DefineCommand GLCmd_MatrixPush,    4   # 0xA
         RSPQ_DefineCommand GLCmd_MatrixPop,     4   # 0xB
         RSPQ_DefineCommand GLCmd_MatrixLoad,    68  # 0xC
-        RSPQ_DefineCommand GLCmd_PreInitPipe,   PREINITPIPE_SIZE   # 0xD
+        RSPQ_DefineCommand GLCmd_PreInitPipe,   4   # 0xD
+        RSPQ_DefineCommand GLCmd_PreInitPipeTex,4   # 0xE
     RSPQ_EndOverlayHeader
 
     RSPQ_BeginSavedState
@@ -532,14 +531,6 @@ GLCmd_PreInitPipe:
     li active_tex, %lo(GL_BOUND_TEXTURE_1D)
     move active_tex, zero
 1:
-
-    # * Skip uploading an active texture from GL if FLAG2_USE_RDPQ_TEXTURING is active
-
-    andi t1, state_flags2, FLAG2_USE_RDPQ_TEXTURING
-    beqz t1, GL_UpdateTextureUpload
-    li ra, %lo(1f)
-1:
-
     #define has_depth   t1
     #define has_tex     t3
     #define tri_cmd     t4
@@ -771,89 +762,88 @@ gl_mergemask:
     #undef state_flags
     .endfunc
 
-
-    #############################################################
-    # GL_UpdateTextureUpload
-    #
-    # ARGS:
-    #   s7: Pointer to active texture
-    #   k1: state flags
-    #############################################################
-    .func GL_UpdateTextureUpload
-GL_UpdateTextureUpload:
+    .func GLCmd_PreInitPipeTex
+GLCmd_PreInitPipeTex:
     #define tex_id          s0
     #define uploaded_tex    s1
-    #define tmem_addr       s2
-    #define out_ptr         s3
-    #define image           s5
-    #define level           s6
     #define active_tex      s7
-    #define num_levels      t4
-    #define wrap_s          t5
-    #define wrap_t          t6
     #define tex_flags       t7
-    #define full_width_log  t8
-    #define full_height_log t9
-    #define mirror          t3
     #define state_flags     k1
+    #define state_flags2    k0
 
-    beqz active_tex, gl_set_texture_not_active
+    # Skip processing textutre state if we are using rdpq API for texturing
+    # (FLAG2_USE_RDPQ_TEXTURING)
+    lw state_flags2, %lo(GL_STATE_FLAGS2)
+    andi t1, state_flags2, FLAG2_USE_RDPQ_TEXTURING
+    bnez t1, RSPQ_Loop
+
+    # Get pointer to active texture state in DMEM
+    lw state_flags, %lo(GL_STATE_FLAGS)
+    andi t1, state_flags, FLAG_TEXTURE_2D
+    bnez t1, 1f
+    li active_tex, %lo(GL_BOUND_TEXTURE_2D)
+    andi t1, state_flags, FLAG_TEXTURE_1D
+    bnez t1, 1f
+    li active_tex, %lo(GL_BOUND_TEXTURE_1D)
+    j gl_set_texture_not_active
+1:
     lw uploaded_tex, %lo(GL_STATE_UPLOADED_TEX)
 
+    # CHeck if the texture is complete (that is, all mipmaps have been loaded)
+    # otherwise, we consider it not complete and avoid displaying it
     lw tex_flags, TEXTURE_FLAGS_OFFSET(active_tex)
     andi t0, tex_flags, TEX_FLAG_COMPLETE
-
     beqz t0, gl_set_texture_not_active
-    move tmem_addr, zero
 
+    # Copy width/height of the active texture into the state
     lw t0, IMAGE_WIDTH_OFFSET(active_tex)
-    or state_flags, FLAG_TEXTURE_ACTIVE
     sw t0, %lo(GL_STATE_TEX_SIZE)
 
-    # Load ID of active texture
+    # Make sure FLAG_TEXTURE_ACTIVE is set
+    or state_flags, FLAG_TEXTURE_ACTIVE
+    sw state_flags, %lo(GL_STATE_FLAGS)
+
+    # Load ID of active texture (that is, RDRAM pointer)
     li t0, %lo(GL_BOUND_TEXTURES)
     sub t0, active_tex, t0
     srl t0, (TEXTURE_OBJECT_SIZE_LOG - 2)
     lw tex_id, %lo(GL_STATE_TEXTURE_IDS)(t0)
     
+    # Proceed with the upload if:
+    #  * the requested texture ID is different from the one currently uploaded to TMEM
+    #  * the dirty flag is set
     bne tex_id, uploaded_tex, 1f
     andi t0, tex_flags, TEX_FLAG_UPLOAD_DIRTY
-
-    beqz t0, JrRa
+    beqz t0, RSPQ_Loop
     nop
 
 1:
+    # OK we are going to do the upload. Update the state: clear dirty flag and
+    # set the current texture ID.
     li t0, ~TEX_FLAG_UPLOAD_DIRTY
     and tex_flags, t0
     sw tex_flags, TEXTURE_FLAGS_OFFSET(active_tex)
     sw tex_id, %lo(GL_STATE_UPLOADED_TEX)
 
-    # Run the levels block
+    # Do the upload: we tail call to the RSPQ block that is within 
+    # the texture state (at offset TEXTURE_LEVELS_BLOCK_OFFSET). This
+    # block was recorded by glTexImageN64 and contains the commands
+    # necessary to upload the texture(s) to TMEM.
     addi a0, tex_id, TEXTURE_LEVELS_BLOCK_OFFSET
-    li a1, 1<<2   # nesting level 1
     j RSPQCmd_Call
-    sub rspq_dmem_buf_ptr, PREINITPIPE_SIZE
+    li a1, 1<<2   # nesting level 1
 
 gl_set_texture_not_active:
     and state_flags, ~FLAG_TEXTURE_ACTIVE
-    jr ra
-    nop
+    j RSPQ_Loop
+    sw state_flags, %lo(GL_STATE_FLAGS)
 
     #undef active_tex
     #undef uploaded_tex
-    #undef tmem_addr
-    #undef out_ptr
-    #undef image
-    #undef level
     #undef tex_id
-    #undef num_levels
-    #undef wrap_s
-    #undef wrap_t
     #undef tex_flags
-    #undef full_width_log
-    #undef full_height_log
-    #undef mirror
     #undef state_flags
+    #undef state_flags2
     .endfunc
 
 /*
