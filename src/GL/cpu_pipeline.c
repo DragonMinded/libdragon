@@ -656,11 +656,12 @@ static void gl_clip_line()
 {
     gl_vtx_t *v0 = state.primitive_vertices[0];
     gl_vtx_t *v1 = state.primitive_vertices[1];
+    gl_vtx_t vertex_cache[2];
 
     uint8_t any_clip = v0->clip_code | v1->clip_code;
 
+    uint8_t clipped = 0;
     if (any_clip) {
-        gl_vtx_t vertex_cache[2];
 
         for (uint32_t c = 0; c < CLIPPING_PLANE_COUNT; c++)
         {
@@ -681,12 +682,16 @@ static void gl_clip_line()
 
             if (v0_inside) {
                 v1 = intersection;
+                clipped |= 1<<1;
             } else {
                 v0 = intersection;
+                clipped |= 1<<0;
             }
         }
     }
 
+    if (clipped & (1<<0)) gl_vertex_calc_screenspace(v0);
+    if (clipped & (1<<1)) gl_vertex_calc_screenspace(v1);
     gl_draw_line(v0, v1);
 }
 
