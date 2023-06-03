@@ -41,6 +41,7 @@ int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t
     rdpq_tex_upload(tile, &surf, parms);
 
     // Upload mipmaps if any
+    int num_mipmaps = 0;
     rdpq_texparms_t lod_parms;
     for (int i=1; i<8; i++) {
         surf = sprite_get_lod_pixels(sprite, i);
@@ -56,6 +57,7 @@ int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t
         }
 
         // Update parameters for next lod. If the scale maxes out, stop here
+        num_mipmaps++;
         tile = (tile+1) & 7;
         if (++lod_parms.s.scale_log >= 11) break;
         if (++lod_parms.t.scale_log >= 11) break;
@@ -63,6 +65,12 @@ int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t
         // Load the mipmap
         rdpq_tex_upload(tile, &surf, &lod_parms);
     }
+
+    // Enable/disable mipmapping
+    if (num_mipmaps)
+        rdpq_mode_mipmap(MIPMAP_INTERPOLATE, num_mipmaps);
+    else
+        rdpq_mode_mipmap(MIPMAP_NONE, 0);
 
     // Upload the palette and configure the render mode
     sprite_upload_palette(sprite, parms ? parms->palette : 0);
