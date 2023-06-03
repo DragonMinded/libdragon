@@ -5,7 +5,7 @@
     # GL_VtxLighting
     #   Perform lighting for a single vertex
     # Args:
-    #   $v02 = Eye space position
+    #   $v28 = Eye space position
     #   $v03 = Eye space normal
     #   $v04 = Vertex color RGBA
     # Returns:
@@ -14,7 +14,7 @@
     .func GL_VtxLighting
 GL_VtxLighting:
     #define v___            $v01
-    #define veyepos         $v02
+    #define veyepos         $v28
     #define veyenormal      $v03
     #define vcolor          $v04
     #define vmemissive      $v05

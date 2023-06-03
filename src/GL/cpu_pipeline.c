@@ -295,9 +295,11 @@ static void gl_calc_texture_coords(GLfloat *dest, const GLfloat *input, const GL
 
     // TODO: skip matrix multiplication if it is the identity
     gl_matrix_mult(result, gl_matrix_stack_get_matrix(&state.texture_stack), tmp);
-    
-    dest[0] = result[0] / result[3];
-    dest[1] = result[1] / result[3];
+
+    GLfloat inv_q = 1.0f / result[3];
+
+    dest[0] = result[0] * inv_q;
+    dest[1] = result[1] * inv_q;
 }
 
 static void gl_vertex_calc_clip_code(gl_vtx_t *v)

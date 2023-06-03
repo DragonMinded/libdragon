@@ -95,4 +95,52 @@ GL_MtxMultSave:
 
     .endfunc
 
+    .func GL_MtxTransformDouble
+GL_MtxTransformDouble:
+    #define mtx_ptr      s0
+
+    #define vmtx0_i      $v19       //  m00 m01 m02 m03
+    #define vmtx0_f      $v20
+    #define vmtx1_i      $v21       //  m00 m01 m02 m03
+    #define vmtx1_f      $v22
+    #define vmtx2_i      $v23       //  m00 m01 m02 m03
+    #define vmtx2_f      $v24
+    #define vmtx3_i      $v25       //  m00 m01 m02 m03
+    #define vmtx3_f      $v26
+
+    #define vvec         $v27
+    #define vresult_i    $v28
+    #define vresult_f    $v29
+
+    ldv vmtx0_i.e4,  0x00,mtx_ptr
+    ldv vmtx1_i.e4,  0x08,mtx_ptr
+    ldv vmtx2_i.e4,  0x10,mtx_ptr
+    ldv vmtx3_i.e4,  0x18,mtx_ptr
+    ldv vmtx0_f.e4,  0x20,mtx_ptr
+    ldv vmtx1_f.e4,  0x28,mtx_ptr
+    ldv vmtx2_f.e4,  0x30,mtx_ptr
+    ldv vmtx3_f.e4,  0x38,mtx_ptr
+
+GL_MtxTransformSingle:
+    ldv vmtx0_i.e0,  0x00,mtx_ptr
+    ldv vmtx1_i.e0,  0x08,mtx_ptr
+    ldv vmtx2_i.e0,  0x10,mtx_ptr
+    ldv vmtx3_i.e0,  0x18,mtx_ptr
+    ldv vmtx0_f.e0,  0x20,mtx_ptr
+    ldv vmtx1_f.e0,  0x28,mtx_ptr
+    ldv vmtx2_f.e0,  0x30,mtx_ptr
+    ldv vmtx3_f.e0,  0x38,mtx_ptr
+
+    vmudn v___,      vmtx0_f, vvec.h0
+    vmadh v___,      vmtx0_i, vvec.h0
+    vmadn v___,      vmtx1_f, vvec.h1
+    vmadh v___,      vmtx1_i, vvec.h1
+    vmadn v___,      vmtx2_f, vvec.h2
+    vmadh v___,      vmtx2_i, vvec.h2
+    vmadn v___,      vmtx3_f, vvec.h3
+    vmadh vresult_i, vmtx3_i, vvec.h3
+    jr ra
+    vmadn vresult_f, vzero,   vzero
+    .endfunc
+
 #endif
