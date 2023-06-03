@@ -99,8 +99,17 @@ typedef enum {
     ATTRIB_COLOR,
     ATTRIB_TEXCOORD,
     ATTRIB_NORMAL,
+    ATTRIB_MTX_INDEX,
     ATTRIB_COUNT
 } gl_array_type_t;
+
+typedef struct {
+    GLfloat position[4];
+    GLfloat color[4];
+    GLfloat texcoord[4];
+    GLfloat normal[3];
+    GLubyte mtx_index[VERTEX_UNIT_COUNT];
+} gl_obj_attributes_t;
 
 typedef struct {
     GLfloat screen_pos[2];
@@ -109,14 +118,10 @@ typedef struct {
     GLfloat texcoord[2];
     GLfloat inv_w;
     GLfloat cs_pos[4];
-    GLfloat obj_pos[4];
-    GLfloat color[4];
-    GLfloat obj_texcoord[4];
-    GLfloat normal[3];
+    gl_obj_attributes_t obj_attributes;
     uint8_t clip_code;
     uint8_t tr_code;
     uint8_t t_l_applied;
-    uint8_t padding;
 } gl_vtx_t;
 
 #define VTX_SCREEN_POS_OFFSET   (offsetof(gl_vtx_t, screen_pos)  / sizeof(float))
@@ -138,6 +143,12 @@ typedef struct {
     int32_t size;
     int32_t cur_depth;
 } gl_matrix_stack_t;
+
+typedef struct {
+    gl_matrix_stack_t *mv_stack;
+    gl_matrix_t mvp;
+    bool is_mvp_dirty;
+} gl_matrix_target_t;
 
 typedef struct {
     int16_t  i[4][4];
@@ -244,7 +255,7 @@ typedef struct {
     uint32_t buffer_head;
 } gl_cmd_stream_t;
 
-typedef void (*cpu_read_attrib_func)(GLfloat*,const void*,uint32_t);
+typedef void (*cpu_read_attrib_func)(void*,const void*,uint32_t);
 typedef void (*rsp_read_attrib_func)(gl_cmd_stream_t*,const void*,uint32_t);
 
 typedef struct {
@@ -304,6 +315,7 @@ typedef struct {
     void (*color)(const void*,GLenum,uint32_t);
     void (*tex_coord)(const void*,GLenum,uint32_t);
     void (*normal)(const void*,GLenum,uint32_t);
+    void (*mtx_index)(const void*,GLenum,uint32_t);
     void (*array_element)(uint32_t);
     void (*draw_arrays)(uint32_t,uint32_t);
     void (*draw_elements)(uint32_t,const void*,read_index_func);
@@ -320,6 +332,7 @@ typedef struct {
     bool fog;
     bool color_material;
     bool normalize;
+    bool matrix_palette;
 
     GLenum cull_face_mode;
     GLenum front_face;
@@ -348,25 +361,31 @@ typedef struct {
     gl_viewport_t current_viewport;
 
     GLenum matrix_mode;
-    gl_matrix_t final_matrix;
+    GLint current_palette_matrix;
+
     gl_matrix_t *current_matrix;
-    bool final_matrix_dirty;
 
     gl_matrix_t modelview_stack_storage[MODELVIEW_STACK_SIZE];
     gl_matrix_t projection_stack_storage[PROJECTION_STACK_SIZE];
     gl_matrix_t texture_stack_storage[TEXTURE_STACK_SIZE];
+    gl_matrix_t palette_stack_storage[MATRIX_PALETTE_SIZE][PALETTE_STACK_SIZE];
 
     gl_matrix_stack_t modelview_stack;
     gl_matrix_stack_t projection_stack;
     gl_matrix_stack_t texture_stack;
+    gl_matrix_stack_t palette_stacks[MATRIX_PALETTE_SIZE];
     gl_matrix_stack_t *current_matrix_stack;
+
+    gl_matrix_target_t default_matrix_target;
+    gl_matrix_target_t palette_matrix_targets[MATRIX_PALETTE_SIZE];
+    gl_matrix_target_t *current_matrix_target;
 
     bool immediate_active;
 
     gl_texture_object_t *texture_1d_object;
     gl_texture_object_t *texture_2d_object;
 
-    GLfloat current_attribs[ATTRIB_COUNT][4];
+    gl_obj_attributes_t current_attributes;
 
     uint8_t prim_size;
     uint8_t prim_indices[3];
@@ -514,7 +533,7 @@ void gl_list_close();
 
 gl_matrix_t * gl_matrix_stack_get_matrix(gl_matrix_stack_t *stack);
 
-void gl_update_final_matrix();
+void gl_update_matrix_targets();
 
 void gl_matrix_mult(GLfloat *d, const gl_matrix_t *m, const GLfloat *v);
 void gl_matrix_mult3x3(GLfloat *d, const gl_matrix_t *m, const GLfloat *v);
@@ -689,6 +708,24 @@ inline void gl_update_texture_completeness(uint32_t offset)
     gl_write(GL_CMD_UPDATE, _carg(GL_UPDATE_TEXTURE_COMPLETENESS, 0x7FF, 13) | (offset - offsetof(gl_server_state_t, bound_textures)));
 }
 
+inline void* gl_get_attrib_pointer(gl_obj_attributes_t *attribs, gl_array_type_t array_type)
+{
+    switch (array_type) {
+    case ATTRIB_VERTEX:
+        return attribs->position;
+    case ATTRIB_COLOR:
+        return attribs->color;
+    case ATTRIB_TEXCOORD:
+        return attribs->texcoord;
+    case ATTRIB_NORMAL:
+        return attribs->normal;
+    case ATTRIB_MTX_INDEX:
+        return attribs->mtx_index;
+    default:
+        assert(0);
+    }
+}
+
 inline void gl_set_current_color(GLfloat *color)
 {
     int16_t r_fx = FLOAT_TO_I16(color[0]);
@@ -719,6 +756,11 @@ inline void gl_set_current_normal(GLfloat *normal)
 
     uint32_t packed = ((uint32_t)fixed_nx << 24) | ((uint32_t)fixed_ny << 16) | ((uint32_t)fixed_nz << 8);
     gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, normal), packed);
+}
+
+inline void gl_set_current_mtx_index(GLubyte *index)
+{
+    // TODO
 }
 
 inline void gl_pre_init_pipe(GLenum primitive_mode)

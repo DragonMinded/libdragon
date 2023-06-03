@@ -661,13 +661,10 @@ GLCmd_PreInitPipe:
     nop
     ori t5, 0x2
 1:
-
-    beqz active_tex, 1f
-    lw t0, TEXTURE_FLAGS_OFFSET(active_tex)
-    andi t0, TEX_FLAG_COMPLETE
-    srl t0, 1
+    and t0, state_flags, FLAG_TEXTURE_ACTIVE
+    srl t0, TEX_ACTIVE_COMBINER_SHIFT
     or t5, t0
-1:
+
     sll t5, 3
     lw t0, %lo(COMBINER_TABLE) + 0x0(t5)
     lw t1, %lo(COMBINER_TABLE) + 0x4(t5)
@@ -796,8 +793,12 @@ GLCmd_PreInitPipeTex:
     beqz t0, gl_set_texture_not_active
 
     # Copy width/height of the active texture into the state
-    lw t0, IMAGE_WIDTH_OFFSET(active_tex)
-    sw t0, %lo(GL_STATE_TEX_SIZE)
+    lh t0, IMAGE_WIDTH_OFFSET(active_tex)
+    lh t1, IMAGE_HEIGHT_OFFSET(active_tex)
+    sll t0, TEX_COORD_SHIFT
+    sll t1, TEX_COORD_SHIFT
+    sh t0, %lo(GL_STATE_TEX_SIZE) + 0
+    sh t1, %lo(GL_STATE_TEX_SIZE) + 2
 
     # Make sure FLAG_TEXTURE_ACTIVE is set
     or state_flags, FLAG_TEXTURE_ACTIVE

@@ -82,6 +82,21 @@ static void read_f64(GLfloat *dst, const double *src, uint32_t count)
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
+static void read_u8_i(GLubyte *dst, const uint8_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+}
+
+static void read_u16_i(GLubyte *dst, const uint16_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+}
+
+static void read_u32_i(GLubyte *dst, const uint32_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
+}
+
 const cpu_read_attrib_func cpu_read_funcs[ATTRIB_COUNT][8] = {
     {
         (cpu_read_attrib_func)read_i8,
@@ -123,6 +138,16 @@ const cpu_read_attrib_func cpu_read_funcs[ATTRIB_COUNT][8] = {
         (cpu_read_attrib_func)read_f32,
         (cpu_read_attrib_func)read_f64,
     },
+    {
+        NULL,
+        (cpu_read_attrib_func)read_u8_i,
+        NULL,
+        (cpu_read_attrib_func)read_u16_i,
+        NULL,
+        (cpu_read_attrib_func)read_u32_i,
+        NULL,
+        NULL,
+    },
 };
 
 static void gl_clip_triangle();
@@ -158,7 +183,7 @@ static void gl_init_cpu_pipe()
         .z_offset = state.depth_test ? VTX_DEPTH_OFFSET : -1,
     };
 
-    gl_update_final_matrix();
+    gl_update_matrix_targets();
 }
 
 static float dot_product4(const float *a, const float *b)
@@ -186,13 +211,23 @@ static uint8_t gl_get_clip_codes(GLfloat *pos, GLfloat *ref)
     return codes;
 }
 
-static void gl_vertex_pre_tr(uint8_t cache_index, const GLfloat *attribs)
+static gl_matrix_target_t* gl_get_matrix_target(uint8_t mtx_index)
+{
+    if (state.matrix_palette) {
+        return &state.palette_matrix_targets[mtx_index];
+    }
+
+    return &state.default_matrix_target;
+}
+
+static void gl_vertex_pre_tr(uint8_t cache_index)
 {
     gl_vtx_t *v = &state.vertex_cache[cache_index];
 
-    memcpy(&v->obj_pos[0], attribs, sizeof(float)*15);
+    memcpy(&v->obj_attributes, &state.current_attributes, sizeof(gl_obj_attributes_t));
 
-    gl_matrix_mult(v->cs_pos, &state.final_matrix, v->obj_pos);
+    gl_matrix_target_t* mtx_target = gl_get_matrix_target(v->obj_attributes.mtx_index[0]);
+    gl_matrix_mult(v->cs_pos, &mtx_target->mvp, v->obj_attributes.position);
 
 #if 0
     debugf("VTX ID: %d\n", id);
@@ -251,6 +286,7 @@ static void gl_calc_texture_coord(GLfloat *dest, const GLfloat *input, uint32_t 
 static void gl_calc_texture_coords(GLfloat *dest, const GLfloat *input, const GLfloat *obj_pos, const GLfloat *eye_pos, const GLfloat *eye_normal)
 {
     GLfloat tmp[TEX_COORD_COUNT];
+    GLfloat result[TEX_COORD_COUNT];
 
     for (uint32_t i = 0; i < TEX_GEN_COUNT; i++)
     {
@@ -258,7 +294,12 @@ static void gl_calc_texture_coords(GLfloat *dest, const GLfloat *input, const GL
     }
 
     // TODO: skip matrix multiplication if it is the identity
-    gl_matrix_mult4x2(dest, gl_matrix_stack_get_matrix(&state.texture_stack), tmp);
+    gl_matrix_mult(result, gl_matrix_stack_get_matrix(&state.texture_stack), tmp);
+
+    GLfloat inv_q = 1.0f / result[3];
+
+    dest[0] = result[0] * inv_q;
+    dest[1] = result[1] * inv_q;
 }
 
 static void gl_vertex_calc_clip_code(gl_vtx_t *v)
@@ -284,18 +325,19 @@ static void gl_vertex_calc_screenspace(gl_vtx_t *v)
 
 static void gl_vertex_t_l(gl_vtx_t *vtx)
 {
-    gl_matrix_t *mv = gl_matrix_stack_get_matrix(&state.modelview_stack);
+    gl_matrix_target_t* mtx_target = gl_get_matrix_target(vtx->obj_attributes.mtx_index[0]);
+    gl_matrix_t *mv = gl_matrix_stack_get_matrix(mtx_target->mv_stack);
 
     GLfloat eye_pos[4];
     GLfloat eye_normal[3];
 
     if (state.lighting || state.fog || state.prim_texture) {
-        gl_matrix_mult(eye_pos, mv, vtx->obj_pos);
+        gl_matrix_mult(eye_pos, mv, vtx->obj_attributes.position);
     }
 
     if (state.lighting || state.prim_texture) {
         // TODO: use inverse transpose matrix
-        gl_matrix_mult3x3(eye_normal, mv, vtx->normal);
+        gl_matrix_mult3x3(eye_normal, mv, vtx->obj_attributes.normal);
 
         if (state.normalize) {
             gl_normalize(eye_normal, eye_normal);
@@ -303,9 +345,9 @@ static void gl_vertex_t_l(gl_vtx_t *vtx)
     }
 
     if (state.lighting) {
-        gl_perform_lighting(vtx->shade, vtx->color, eye_pos, eye_normal, &state.material);
+        gl_perform_lighting(vtx->shade, vtx->obj_attributes.color, eye_pos, eye_normal, &state.material);
     } else {
-        memcpy(vtx->shade, vtx->color, sizeof(GLfloat) * 4);
+        memcpy(vtx->shade, vtx->obj_attributes.color, sizeof(GLfloat) * 4);
     }
 
     if (state.fog) {
@@ -318,7 +360,7 @@ static void gl_vertex_t_l(gl_vtx_t *vtx)
     vtx->shade[3] = CLAMP01(vtx->shade[3]);
 
     if (state.prim_texture) {
-        gl_calc_texture_coords(vtx->texcoord, vtx->obj_texcoord, vtx->obj_pos, eye_pos, eye_normal);
+        gl_calc_texture_coords(vtx->texcoord, vtx->obj_attributes.texcoord, vtx->obj_attributes.position, eye_pos, eye_normal);
 
         vtx->texcoord[0] = vtx->texcoord[0] * state.prim_tex_width;
         vtx->texcoord[1] = vtx->texcoord[1] * state.prim_tex_height;
@@ -716,7 +758,7 @@ static void draw_vertex_from_arrays(const gl_array_t *arrays, uint32_t id, uint3
     if (gl_get_cache_index(id, &cache_index))
     {
         gl_load_attribs(arrays, index);
-        gl_vertex_pre_tr(cache_index, state.current_attribs[ATTRIB_VERTEX]);
+        gl_vertex_pre_tr(cache_index);
     }
 
     submit_vertex(cache_index);
@@ -737,16 +779,20 @@ static void gl_cpu_end()
         gl_draw_primitive(state.prim_indices);
     }
 
-    gl_set_current_color(state.current_attribs[ATTRIB_COLOR]);
-    gl_set_current_texcoords(state.current_attribs[ATTRIB_TEXCOORD]);
-    gl_set_current_normal(state.current_attribs[ATTRIB_NORMAL]);
+    gl_set_current_color(state.current_attributes.color);
+    gl_set_current_texcoords(state.current_attributes.texcoord);
+    gl_set_current_normal(state.current_attributes.normal);
+    gl_set_current_mtx_index(state.current_attributes.mtx_index);
 }
 
 void gl_read_attrib(gl_array_type_t array_type, const void *value, GLenum type, uint32_t size)
 {
     cpu_read_attrib_func read_func = cpu_read_funcs[array_type][gl_type_to_index(type)];
-    read_func(state.current_attribs[array_type], value, size);
-    gl_fill_attrib_defaults(array_type, size);
+    void *dst = gl_get_attrib_pointer(&state.current_attributes, array_type);
+    read_func(dst, value, size);
+    if (array_type != ATTRIB_MTX_INDEX) {
+        gl_fill_attrib_defaults(array_type, size);
+    }
 }
 
 static void gl_cpu_vertex(const void *value, GLenum type, uint32_t size)
@@ -756,7 +802,7 @@ static void gl_cpu_vertex(const void *value, GLenum type, uint32_t size)
 
         gl_fill_attrib_defaults(ATTRIB_VERTEX, size);
         gl_read_attrib(ATTRIB_VERTEX, value, type, size);
-        gl_vertex_pre_tr(cache_index, state.current_attribs[ATTRIB_VERTEX]);
+        gl_vertex_pre_tr(cache_index);
     }
 
     submit_vertex(cache_index);
@@ -775,6 +821,11 @@ static void gl_cpu_tex_coord(const void *value, GLenum type, uint32_t size)
 static void gl_cpu_normal(const void *value, GLenum type, uint32_t size)
 {
     gl_read_attrib(ATTRIB_NORMAL, value, type, size);
+}
+
+static void gl_cpu_mtx_index(const void *value, GLenum type, uint32_t size)
+{
+    gl_read_attrib(ATTRIB_MTX_INDEX, value, type, size);
 }
 
 static void gl_cpu_array_element(uint32_t index)
@@ -823,6 +874,7 @@ const gl_pipeline_t gl_cpu_pipeline = (gl_pipeline_t) {
     .color = gl_cpu_color,
     .tex_coord = gl_cpu_tex_coord,
     .normal = gl_cpu_normal,
+    .mtx_index = gl_cpu_mtx_index,
     .array_element = gl_cpu_array_element,
     .draw_arrays = gl_cpu_draw_arrays,
     .draw_elements = gl_cpu_draw_elements,

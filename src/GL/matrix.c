@@ -10,6 +10,8 @@ void gl_matrix_init()
         .size = MODELVIEW_STACK_SIZE,
     };
 
+    state.default_matrix_target.mv_stack = &state.modelview_stack;
+
     state.projection_stack = (gl_matrix_stack_t) {
         .storage = state.projection_stack_storage,
         .size = PROJECTION_STACK_SIZE,
@@ -19,6 +21,21 @@ void gl_matrix_init()
         .storage = state.texture_stack_storage,
         .size = TEXTURE_STACK_SIZE,
     };
+
+    for (uint32_t i = 0; i < MATRIX_PALETTE_SIZE; i++) {
+        state.palette_stacks[i] = (gl_matrix_stack_t) {
+            .storage = state.palette_stack_storage[i],
+            .size = PALETTE_STACK_SIZE,
+        };
+
+        state.palette_matrix_targets[i].mv_stack = &state.palette_stacks[i];
+    }
+
+    glMatrixMode(GL_MATRIX_PALETTE_ARB);
+    for (uint32_t i = 0; i < MATRIX_PALETTE_SIZE; i++) {
+        glCurrentPaletteMatrixARB(i);
+        glLoadIdentity();
+    }
 
     glMatrixMode(GL_TEXTURE);
     glLoadIdentity();
@@ -69,35 +86,79 @@ void gl_matrix_mult_full(gl_matrix_t *d, const gl_matrix_t *l, const gl_matrix_t
     gl_matrix_mult(d->m[3], l, r->m[3]);
 }
 
-void gl_update_final_matrix()
+void gl_update_matrix_target(gl_matrix_target_t *target)
 {
-    if (state.final_matrix_dirty) {
-        gl_matrix_mult_full(&state.final_matrix, gl_matrix_stack_get_matrix(&state.projection_stack), gl_matrix_stack_get_matrix(&state.modelview_stack));
-        state.final_matrix_dirty = false;
+    if (target->is_mvp_dirty) {
+        gl_matrix_mult_full(&target->mvp, gl_matrix_stack_get_matrix(&state.projection_stack), gl_matrix_stack_get_matrix(target->mv_stack));
+        target->is_mvp_dirty = false;
     }
+}
+
+void gl_update_matrix_targets()
+{
+    if (state.matrix_palette) {
+        for (uint32_t i = 0; i < MATRIX_PALETTE_SIZE; i++)
+        {
+            gl_update_matrix_target(&state.palette_matrix_targets[i]);
+        }
+    } else {
+        gl_update_matrix_target(&state.default_matrix_target);
+    }
+}
+
+void gl_update_current_matrix_stack()
+{
+    switch (state.matrix_mode) {
+    case GL_MODELVIEW:
+        state.current_matrix_stack = &state.modelview_stack;
+        state.current_matrix_target = &state.default_matrix_target;
+        break;
+    case GL_PROJECTION:
+        state.current_matrix_stack = &state.projection_stack;
+        state.current_matrix_target = NULL;
+        break;
+    case GL_TEXTURE:
+        state.current_matrix_stack = &state.texture_stack;
+        state.current_matrix_target = NULL;
+        break;
+    case GL_MATRIX_PALETTE_ARB:
+        state.current_matrix_stack = &state.palette_stacks[state.current_palette_matrix];
+        state.current_matrix_target = &state.palette_matrix_targets[state.current_palette_matrix];
+        break;
+    }
+
+    gl_update_current_matrix();
 }
 
 void glMatrixMode(GLenum mode)
 {
     switch (mode) {
     case GL_MODELVIEW:
-        state.current_matrix_stack = &state.modelview_stack;
-        break;
     case GL_PROJECTION:
-        state.current_matrix_stack = &state.projection_stack;
-        break;
     case GL_TEXTURE:
-        state.current_matrix_stack = &state.texture_stack;
+    case GL_MATRIX_PALETTE_ARB:
+        state.matrix_mode = mode;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM);
         return;
     }
 
-    gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, matrix_mode), mode);
-    state.matrix_mode = mode;
+    gl_update_current_matrix_stack();
 
-    gl_update_current_matrix();
+    gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, matrix_mode), mode);
+}
+
+void glCurrentPaletteMatrixARB(GLint index)
+{
+    if (index < 0 || index >= MATRIX_PALETTE_SIZE) {
+        gl_set_error(GL_INVALID_VALUE);
+        return;
+    }
+
+    state.current_palette_matrix = index;
+    gl_update_current_matrix_stack();
+    // TODO: RSP state
 }
 
 static inline void write_shorts(rspq_write_t *w, const uint16_t *s, uint32_t count)
@@ -133,10 +194,23 @@ static inline void gl_matrix_load(const GLfloat *m, bool multiply)
     rspq_write_end(&w);
 }
 
+static void gl_mark_matrix_target_dirty()
+{
+    if (state.current_matrix_target != NULL) {
+        state.current_matrix_target->is_mvp_dirty = true;
+    } else if (state.current_matrix_stack == &state.projection_stack) {
+        state.default_matrix_target.is_mvp_dirty = true;
+        for (uint32_t i = 0; i < MATRIX_PALETTE_SIZE; i++)
+        {
+            state.palette_matrix_targets[i].is_mvp_dirty = true;
+        }
+    }
+}
+
 void glLoadMatrixf(const GLfloat *m)
 {
     memcpy(state.current_matrix, m, sizeof(gl_matrix_t));
-    state.final_matrix_dirty = true;
+    gl_mark_matrix_target_dirty();
     gl_matrix_load(m, false);
 }
 
@@ -146,7 +220,7 @@ void glLoadMatrixd(const GLdouble *m)
     {
         state.current_matrix->m[i/4][i%4] = m[i];
     }
-    state.final_matrix_dirty = true;
+    gl_mark_matrix_target_dirty();
 
     gl_matrix_load(state.current_matrix->m[0], false);
 }
@@ -155,7 +229,7 @@ void glMultMatrixf(const GLfloat *m)
 {
     gl_matrix_t tmp = *state.current_matrix;
     gl_matrix_mult_full(state.current_matrix, &tmp, (gl_matrix_t*)m);
-    state.final_matrix_dirty = true;
+    gl_mark_matrix_target_dirty();
 
     gl_matrix_load(m, true);
 }
@@ -278,7 +352,7 @@ void glPopMatrix(void)
     stack->cur_depth = new_depth;
 
     gl_update_current_matrix();
-    state.final_matrix_dirty = true;
+    gl_mark_matrix_target_dirty();
 
     gl_write(GL_CMD_MATRIX_POP);
 }

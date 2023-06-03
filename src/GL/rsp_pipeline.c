@@ -4,7 +4,7 @@
 extern gl_state_t state;
 
 #define VTX_SHIFT 5
-#define TEX_SHIFT 5
+#define TEX_SHIFT 8
 
 #define DEFINE_SIMPLE_READ_FUNC(name, src_type, convert) \
     static void name(gl_cmd_stream_t *s, const src_type *src, uint32_t count) \
@@ -79,6 +79,11 @@ DEFINE_NORMAL_READ_FUNC(nrm_read_i32, int32_t,  NRM_CONVERT_I32)
 DEFINE_NORMAL_READ_FUNC(nrm_read_f32, float,    NRM_CONVERT_F32)
 DEFINE_NORMAL_READ_FUNC(nrm_read_f64, double,   NRM_CONVERT_F64)
 
+static void mtx_index_read(gl_cmd_stream_t *s, const void *src, uint32_t count)
+{
+    // TODO
+}
+
 const rsp_read_attrib_func rsp_read_funcs[ATTRIB_COUNT][8] = {
     {
         (rsp_read_attrib_func)vtx_read_i8,
@@ -120,6 +125,16 @@ const rsp_read_attrib_func rsp_read_funcs[ATTRIB_COUNT][8] = {
         (rsp_read_attrib_func)nrm_read_f32,
         (rsp_read_attrib_func)nrm_read_f64,
     },
+    {
+        (rsp_read_attrib_func)mtx_index_read,
+        (rsp_read_attrib_func)mtx_index_read,
+        (rsp_read_attrib_func)mtx_index_read,
+        (rsp_read_attrib_func)mtx_index_read,
+        (rsp_read_attrib_func)mtx_index_read,
+        (rsp_read_attrib_func)mtx_index_read,
+        (rsp_read_attrib_func)mtx_index_read,
+        (rsp_read_attrib_func)mtx_index_read,
+    },
 };
 
 static const gl_array_t dummy_arrays[ATTRIB_COUNT] = {
@@ -138,15 +153,19 @@ static uint32_t vtx_cmd_size;
 static void upload_current_attributes(const gl_array_t *arrays)
 {
     if (arrays[ATTRIB_COLOR].enabled) {
-        gl_set_current_color(state.current_attribs[ATTRIB_COLOR]);
+        gl_set_current_color(state.current_attributes.color);
     }
 
     if (arrays[ATTRIB_TEXCOORD].enabled) {
-        gl_set_current_texcoords(state.current_attribs[ATTRIB_TEXCOORD]);
+        gl_set_current_texcoords(state.current_attributes.texcoord);
     }
 
     if (arrays[ATTRIB_NORMAL].enabled) {
-        gl_set_current_normal(state.current_attribs[ATTRIB_NORMAL]);
+        gl_set_current_normal(state.current_attributes.normal);
+    }
+
+    if (arrays[ATTRIB_MTX_INDEX].enabled) {
+        gl_set_current_mtx_index(state.current_attributes.mtx_index);
     }
 }
 
@@ -168,8 +187,7 @@ static void glp_set_attrib(gl_array_type_t array_type, const void *value, GLenum
     static const uint32_t cmd_size_table[] = { 3, 3, 2 };
     static const int16_t default_value_table[][4] = {
         { 0, 0, 0, 0x7FFF },
-        { 0, 0, 0, 1 },
-        { 0, 0, 0, 0x7FFF }
+        { 0, 0, 0, 1 }
     };
 
     uint32_t table_index = array_type - 1;
@@ -177,7 +195,9 @@ static void glp_set_attrib(gl_array_type_t array_type, const void *value, GLenum
     gl_cmd_stream_t s = gl_cmd_stream_begin(glp_overlay_id, cmd_table[table_index], cmd_size_table[table_index]);
     gl_cmd_stream_put_half(&s, offsetof(gl_server_state_t, color) + 8 * table_index);
     rsp_read_funcs[array_type][gl_type_to_index(type)](&s, value, size);
-    rsp_read_funcs[array_type][gl_type_to_index(GL_SHORT)](&s, default_value_table[table_index], size);
+    if (array_type != ATTRIB_NORMAL) {
+        rsp_read_funcs[array_type][gl_type_to_index(GL_SHORT)](&s, default_value_table[table_index] + size, 4 - size);
+    }
     gl_cmd_stream_end(&s);
 }
 
@@ -264,7 +284,6 @@ static void draw_vertex_from_arrays(const gl_array_t *arrays, uint32_t id, uint3
 static void gl_asm_vtx_loader(const gl_array_t *arrays)
 {
     extern uint8_t rsp_gl_pipeline_text_start[];
-    const uint32_t offsets_for_default[] = { 0, 8, 0 };
 
     rspq_write_t w = rspq_write_begin(glp_overlay_id, GLP_CMD_SET_VTX_LOADER, 3 + VTX_LOADER_MAX_COMMANDS);
     rspq_write_arg(&w, PhysicalAddr(rsp_gl_pipeline_text_start) - 0x1000);
@@ -304,16 +323,16 @@ static void gl_asm_vtx_loader(const gl_array_t *arrays)
             switch (array->size)
             {
             case 1:
-                rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_DOUBLE, dst_vreg, 0, offsets_for_default[i]>>3, default_reg));
+                rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_DOUBLE, dst_vreg, 0, (i*8)>>3, default_reg));
                 rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_HALF, dst_vreg, 0, cmd_offset>>1, cmd_ptr_reg));
                 break;
             case 2:
                 rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_LONG, dst_vreg, 0, cmd_offset>>2, cmd_ptr_reg));
-                rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_LONG, dst_vreg, 4, (offsets_for_default[i]>>2) + 1, default_reg));
+                rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_LONG, dst_vreg, 4, ((i*8)>>2) + 1, default_reg));
                 break;
             case 3:
                 rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_DOUBLE, dst_vreg, 0, cmd_offset>>3, cmd_ptr_reg));
-                rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_HALF, dst_vreg, 6, (offsets_for_default[i]>>1) + 3, default_reg));
+                rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_HALF, dst_vreg, 6, ((i*8)>>1) + 3, default_reg));
                 break;
             case 4:
                 rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_DOUBLE, dst_vreg, 0, cmd_offset>>3, cmd_ptr_reg));
@@ -396,9 +415,10 @@ static void gl_rsp_end()
 
     if (state.immediate_active) {
         // TODO: Load from arrays
-        gl_set_current_color(state.current_attribs[ATTRIB_COLOR]);
-        gl_set_current_texcoords(state.current_attribs[ATTRIB_TEXCOORD]);
-        gl_set_current_normal(state.current_attribs[ATTRIB_NORMAL]);
+        gl_set_current_color(state.current_attributes.color);
+        gl_set_current_texcoords(state.current_attributes.texcoord);
+        gl_set_current_normal(state.current_attributes.normal);
+        gl_set_current_mtx_index(state.current_attributes.mtx_index);
     }
 }
 
@@ -440,6 +460,11 @@ static void gl_rsp_tex_coord(const void *value, GLenum type, uint32_t size)
 static void gl_rsp_normal(const void *value, GLenum type, uint32_t size)
 {
     set_attrib(ATTRIB_NORMAL, value, type, size);
+}
+
+static void gl_rsp_mtx_index(const void *value, GLenum type, uint32_t size)
+{
+    //set_attrib(ATTRIB_MTX_INDEX, value, type, size);
 }
 
 static void gl_rsp_array_element(uint32_t index)
@@ -489,6 +514,7 @@ const gl_pipeline_t gl_rsp_pipeline = (gl_pipeline_t) {
     .color = gl_rsp_color,
     .tex_coord = gl_rsp_tex_coord,
     .normal = gl_rsp_normal,
+    .mtx_index = gl_rsp_mtx_index,
     .array_element = gl_rsp_array_element,
     .draw_arrays = gl_rsp_draw_arrays,
     .draw_elements = gl_rsp_draw_elements,

@@ -46,6 +46,8 @@ gl_array_type_t gl_array_type_from_enum(GLenum array)
         return ATTRIB_NORMAL;
     case GL_COLOR_ARRAY:
         return ATTRIB_COLOR;
+    case GL_MATRIX_INDEX_ARRAY_ARB:
+        return ATTRIB_MTX_INDEX;
     default:
         return -1;
     }
@@ -110,6 +112,8 @@ void gl_array_object_init(gl_array_object_t *obj)
     obj->arrays[ATTRIB_NORMAL].size = 3;
     obj->arrays[ATTRIB_NORMAL].type = GL_FLOAT;
     obj->arrays[ATTRIB_NORMAL].normalize = true;
+    obj->arrays[ATTRIB_MTX_INDEX].size = 0;
+    obj->arrays[ATTRIB_MTX_INDEX].type = GL_UNSIGNED_BYTE;
 
     for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
     {
@@ -252,6 +256,26 @@ void glColorPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *point
     gl_set_array(ATTRIB_COLOR, size, type, stride, pointer);
 }
 
+void glMatrixIndexPointerARB(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
+{
+    if (size < 0 || size > VERTEX_UNIT_COUNT) {
+        gl_set_error(GL_INVALID_VALUE);
+        return;
+    }
+
+    switch (type) {
+    case GL_UNSIGNED_BYTE:
+    case GL_UNSIGNED_SHORT:
+    case GL_UNSIGNED_INT:
+        break;
+    default:
+        gl_set_error(GL_INVALID_ENUM);
+        return;
+    }
+
+    gl_set_array(ATTRIB_MTX_INDEX, size, type, stride, pointer);
+}
+
 void gl_set_array_enabled(gl_array_type_t array_type, bool enabled)
 {
     gl_array_t *array = &state.array_object->arrays[array_type];
@@ -265,6 +289,7 @@ void glEnableClientState(GLenum array)
     case GL_TEXTURE_COORD_ARRAY:
     case GL_NORMAL_ARRAY:
     case GL_COLOR_ARRAY:
+    case GL_MATRIX_INDEX_ARRAY_ARB:
         gl_set_array_enabled(gl_array_type_from_enum(array), true);
         break;
     case GL_EDGE_FLAG_ARRAY:
@@ -282,6 +307,7 @@ void glDisableClientState(GLenum array)
     case GL_TEXTURE_COORD_ARRAY:
     case GL_NORMAL_ARRAY:
     case GL_COLOR_ARRAY:
+    case GL_MATRIX_INDEX_ARRAY_ARB:
         gl_set_array_enabled(gl_array_type_from_enum(array), false);
         break;
     case GL_EDGE_FLAG_ARRAY:

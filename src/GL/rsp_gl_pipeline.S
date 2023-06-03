@@ -61,7 +61,7 @@ VERTEX_CACHE:   .dcb.b      PRIM_VTX_SIZE * VERTEX_CACHE_SIZE
     RSPQ_EndSavedState
 
     .align 4
-DEFAULT_ATTRIBUTES:     .half 0, 0, 0, 1<<5, 0, 0, 0, 0x7FFF
+DEFAULT_ATTRIBUTES:     .half 0, 0, 0, 1<<5, 0, 0, 0, 0x7FFF, 0, 0, 0, 1<<8
 
     .align 4
 CACHE_OFFSETS:          .half 2,4,6,8,10,12,14,16,18
@@ -173,25 +173,10 @@ gl_vtx_loader:
     sdv vtex, PRIM_VTX_TEX_S ,vtx
     sw  norm, PRIM_VTX_NORMAL(vtx)
 
+    move ra2, ra
+    vcopy $v27, vpos # TODO: <- Get rid of this op
+    jal GL_MtxTransformSingle
     li s0, %lo(GL_MATRIX_FINAL)
-    ldv vmtx0_i,  0x00,s0
-    ldv vmtx1_i,  0x08,s0
-    ldv vmtx2_i,  0x10,s0
-    ldv vmtx3_i,  0x18,s0
-    ldv vmtx0_f,  0x20,s0
-    ldv vmtx1_f,  0x28,s0
-    ldv vmtx2_f,  0x30,s0
-    ldv vmtx3_f,  0x38,s0
-
-    vmudn v___,     vmtx0_f, vpos.x
-    vmadh v___,     vmtx0_i, vpos.x
-    vmadn v___,     vmtx1_f, vpos.y
-    vmadh v___,     vmtx1_i, vpos.y
-    vmadn v___,     vmtx2_f, vpos.z
-    vmadh v___,     vmtx2_i, vpos.z
-    vmadn vcspos_f, vmtx3_f, vpos.w
-    vmadh vcspos_i  vmtx3_i, vpos.w
-    vmadn vcspos_f, vzero, vzero
 
     # 32-bit right shift by 5, to keep the clip space coordinates unscaled
     vmudm vcspos_i, vcspos_i, vshift8.e4
@@ -210,7 +195,7 @@ gl_vtx_loader:
     srl t1, t0, 5
     andi t0, 0x7
     or t0, t1
-    jr ra
+    jr ra2
     sb t0, PRIM_VTX_TRCODE(vtx)
 
     # FIXME: in immediate mode, we should also cache the per-vertex
@@ -375,10 +360,10 @@ GL_TnL:
     lw state_flags, %lo(GL_STATE_FLAGS)
 
     #define v___         $v01
-    #define veyepos      $v02
     #define veyenormal   $v03
     #define vrgba        $v04
-    #define vobjpos      $v29
+    #define vobjpos      $v27
+    #define veyepos      $v28
 
     ldv vrgba.e0, PRIM_VTX_R, vtx     # R + G + B + A
     ldv vrgba.e4, PRIM_VTX_R, vtx     # R + G + B + A
@@ -394,42 +379,18 @@ GL_TnL:
 
     and t0, state_flags, FLAG_NEED_EYE_SPACE
     beqz t0, 2f
-    li tmp_ptr, %lo(GL_MATRIX_MODELVIEW)
+    li s0, %lo(GL_MATRIX_MODELVIEW)
 
     addi s5, vtx, PRIM_VTX_NORMAL-4
     lpv vobjpos.e0,  0,s5                   # loads NX + NY + NZ into lanes 4-7
     ldv vobjpos.e0,  PRIM_VTX_X,vtx    # loads X + Y + Z + W into lanes 0-3
 
-    # TODO: factor out this style of matrix loading?
     # TODO: technically we need the inverse transpose matrix,
     #       but for rigid matrices (translation, rotation, uniform scale) this is fine
-    ldv vmtx0_i.e0,  0x00,tmp_ptr
-    ldv vmtx1_i.e0,  0x08,tmp_ptr
-    ldv vmtx2_i.e0,  0x10,tmp_ptr
-    ldv vmtx3_i.e0,  0x18,tmp_ptr
-    ldv vmtx0_f.e0,  0x20,tmp_ptr
-    ldv vmtx1_f.e0,  0x28,tmp_ptr
-    ldv vmtx2_f.e0,  0x30,tmp_ptr
-    ldv vmtx3_f.e0,  0x38,tmp_ptr
-    ldv vmtx0_i.e4,  0x00,tmp_ptr
-    ldv vmtx1_i.e4,  0x08,tmp_ptr
-    ldv vmtx2_i.e4,  0x10,tmp_ptr
-    ldv vmtx3_i.e4,  0x18,tmp_ptr
-    ldv vmtx0_f.e4,  0x20,tmp_ptr
-    ldv vmtx1_f.e4,  0x28,tmp_ptr
-    ldv vmtx2_f.e4,  0x30,tmp_ptr
-    ldv vmtx3_f.e4,  0x38,tmp_ptr
 
-    vmov vobjpos.e7, vzero.e0
     # Transform vertex pos and normal into eye space
-    vmudn v___,    vmtx0_f, vobjpos.h0
-    vmadh v___,    vmtx0_i, vobjpos.h0
-    vmadn v___,    vmtx1_f, vobjpos.h1
-    vmadh v___,    vmtx1_i, vobjpos.h1
-    vmadn v___,    vmtx2_f, vobjpos.h2
-    vmadh v___,    vmtx2_i, vobjpos.h2
-    vmadn v___,    vmtx3_f, vobjpos.h3
-    vmadh veyepos, vmtx3_i, vobjpos.h3
+    jal GL_MtxTransformDouble
+    vmov vobjpos.e7, vzero.e0
 
     li tmp_ptr, %lo(RDPQ_CMD_STAGING)
     sqv veyepos,        0,tmp_ptr
@@ -578,9 +539,37 @@ GL_TnL:
     #undef vmodes
 
 1:
+    #define vinvq_i $v26
+    #define vinvq_f $v27
+    #define vstrq_i $v28
+    #define vstrq_f $v29
+    #define q       e3
+
+    # Apply texture matrix
+    vcopy $v27, vstrq
+    jal GL_MtxTransformSingle
+    li s0, %lo(GL_MATRIX_TEXTURE)
+
+    # Perform perspective division
+    vrcph vinvq_i.q, vstrq_i.q
+    vrcpl vinvq_f.q, vstrq_f.q
+    vrcph vinvq_i.q, vzero.e0
+
+    vmudl v___,    vstrq_i, vinvq_f.q
+    vmadm v___,    vstrq_i, vinvq_f.q
+    vmadn vstrq_f, vstrq_f, vinvq_i.q
+    vmadh vstrq_i, vstrq_i, vinvq_i.q
+
     # Scale texcoord by texsize and subtract offset (to correct for bilinear sampling if active)
-    vmudh vstrq, vtexsize
+    vmudn v___,  vstrq_f, vtexsize
+    vmadh vstrq, vstrq_i, vtexsize
     vsub  vstrq, vtexoffset
+
+    #undef vinvq_i
+    #undef vinvq_f
+    #undef vstrq_i
+    #undef vstrq_f
+    #undef q
 
     lbu t0, PRIM_VTX_TRCODE(vtx)
 
