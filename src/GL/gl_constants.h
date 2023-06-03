@@ -128,6 +128,7 @@
 #define TEXTURE_ACTIVE_SHIFT        29
 #define TEX_ACTIVE_COMBINER_SHIFT   (TEXTURE_ACTIVE_SHIFT - 2)
 
+#define TEX_COORD_SHIFT             6
 #define HALF_TEXEL                  0x0010
 
 #define TEX_BILINEAR_SHIFT          13

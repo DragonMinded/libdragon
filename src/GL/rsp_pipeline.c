@@ -4,7 +4,7 @@
 extern gl_state_t state;
 
 #define VTX_SHIFT 5
-#define TEX_SHIFT 5
+#define TEX_SHIFT 8
 
 #define DEFINE_SIMPLE_READ_FUNC(name, src_type, convert) \
     static void name(gl_cmd_stream_t *s, const src_type *src, uint32_t count) \
@@ -187,8 +187,7 @@ static void glp_set_attrib(gl_array_type_t array_type, const void *value, GLenum
     static const uint32_t cmd_size_table[] = { 3, 3, 2 };
     static const int16_t default_value_table[][4] = {
         { 0, 0, 0, 0x7FFF },
-        { 0, 0, 0, 1 },
-        { 0, 0, 0, 0x7FFF }
+        { 0, 0, 0, 1 }
     };
 
     uint32_t table_index = array_type - 1;
@@ -196,7 +195,9 @@ static void glp_set_attrib(gl_array_type_t array_type, const void *value, GLenum
     gl_cmd_stream_t s = gl_cmd_stream_begin(glp_overlay_id, cmd_table[table_index], cmd_size_table[table_index]);
     gl_cmd_stream_put_half(&s, offsetof(gl_server_state_t, color) + 8 * table_index);
     rsp_read_funcs[array_type][gl_type_to_index(type)](&s, value, size);
-    rsp_read_funcs[array_type][gl_type_to_index(GL_SHORT)](&s, default_value_table[table_index], size);
+    if (array_type != ATTRIB_NORMAL) {
+        rsp_read_funcs[array_type][gl_type_to_index(GL_SHORT)](&s, default_value_table[table_index] + size, 4 - size);
+    }
     gl_cmd_stream_end(&s);
 }
 
@@ -283,7 +284,6 @@ static void draw_vertex_from_arrays(const gl_array_t *arrays, uint32_t id, uint3
 static void gl_asm_vtx_loader(const gl_array_t *arrays)
 {
     extern uint8_t rsp_gl_pipeline_text_start[];
-    const uint32_t offsets_for_default[] = { 0, 8, 0 };
 
     rspq_write_t w = rspq_write_begin(glp_overlay_id, GLP_CMD_SET_VTX_LOADER, 3 + VTX_LOADER_MAX_COMMANDS);
     rspq_write_arg(&w, PhysicalAddr(rsp_gl_pipeline_text_start) - 0x1000);
@@ -323,16 +323,16 @@ static void gl_asm_vtx_loader(const gl_array_t *arrays)
             switch (array->size)
             {
             case 1:
-                rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_DOUBLE, dst_vreg, 0, offsets_for_default[i]>>3, default_reg));
+                rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_DOUBLE, dst_vreg, 0, (i*8)>>3, default_reg));
                 rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_HALF, dst_vreg, 0, cmd_offset>>1, cmd_ptr_reg));
                 break;
             case 2:
                 rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_LONG, dst_vreg, 0, cmd_offset>>2, cmd_ptr_reg));
-                rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_LONG, dst_vreg, 4, (offsets_for_default[i]>>2) + 1, default_reg));
+                rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_LONG, dst_vreg, 4, ((i*8)>>2) + 1, default_reg));
                 break;
             case 3:
                 rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_DOUBLE, dst_vreg, 0, cmd_offset>>3, cmd_ptr_reg));
-                rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_HALF, dst_vreg, 6, (offsets_for_default[i]>>1) + 3, default_reg));
+                rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_HALF, dst_vreg, 6, ((i*8)>>1) + 3, default_reg));
                 break;
             case 4:
                 rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_DOUBLE, dst_vreg, 0, cmd_offset>>3, cmd_ptr_reg));

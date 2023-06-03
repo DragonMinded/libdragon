@@ -61,7 +61,7 @@ VERTEX_CACHE:   .dcb.b      PRIM_VTX_SIZE * VERTEX_CACHE_SIZE
     RSPQ_EndSavedState
 
     .align 4
-DEFAULT_ATTRIBUTES:     .half 0, 0, 0, 1<<5, 0, 0, 0, 0x7FFF
+DEFAULT_ATTRIBUTES:     .half 0, 0, 0, 1<<5, 0, 0, 0, 0x7FFF, 0, 0, 0, 1<<8
 
     .align 4
 CACHE_OFFSETS:          .half 2,4,6,8,10,12,14,16,18
@@ -555,22 +555,21 @@ GL_TnL:
     vrcpl vinvq_f.q, vstrq_f.q
     vrcph vinvq_i.q, vzero.e0
 
-    vmudn vinvq_f, vinvq_f, K64
-    vmadh vinvq_i, vinvq_i, K64
+    vmudl v___,    vstrq_i, vinvq_f.q
+    vmadm v___,    vstrq_i, vinvq_f.q
+    vmadn vstrq_f, vstrq_f, vinvq_i.q
+    vmadh vstrq_i, vstrq_i, vinvq_i.q
 
-    vmudm v___,  vstrq_i, vinvq_f.q
-    vmadn v___,  vstrq_f, vinvq_i.q
-    vmadh vstrq, vstrq_i, vinvq_i.q
+    # Scale texcoord by texsize and subtract offset (to correct for bilinear sampling if active)
+    vmudn v___,  vstrq_f, vtexsize
+    vmadh vstrq, vstrq_i, vtexsize
+    vsub  vstrq, vtexoffset
 
     #undef vinvq_i
     #undef vinvq_f
     #undef vstrq_i
     #undef vstrq_f
     #undef q
-
-    # Scale texcoord by texsize and subtract offset (to correct for bilinear sampling if active)
-    vmudh vstrq, vtexsize
-    vsub  vstrq, vtexoffset
 
     lbu t0, PRIM_VTX_TRCODE(vtx)
 

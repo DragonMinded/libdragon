@@ -550,7 +550,7 @@ GLCmd_PreInitPipe:
 
     # Set a dummy texture size, and derive texcoord offset from the current rendermode.
     # If SOM_SAMPLE_BILINEAR is set, add a half-texel offset
-    li t1, 1
+    li t1, 1 << TEX_COORD_SHIFT
     andi t2, SOM_SAMPLE_BILINEAR >> 32
     srl t2, BILINEAR_TEX_OFFSET_SHIFT
     sh t1, %lo(GL_STATE_TEX_SIZE) + 0
@@ -822,9 +822,13 @@ GL_UpdateTextureUpload:
     beqz t0, gl_set_texture_not_active
     move tmem_addr, zero
 
-    lw t0, IMAGE_WIDTH_OFFSET(active_tex)
+    lh t0, IMAGE_WIDTH_OFFSET(active_tex)
+    lh t1, IMAGE_HEIGHT_OFFSET(active_tex)
     or state_flags, FLAG_TEXTURE_ACTIVE
-    sw t0, %lo(GL_STATE_TEX_SIZE)
+    sll t0, TEX_COORD_SHIFT
+    sll t1, TEX_COORD_SHIFT
+    sh t0, %lo(GL_STATE_TEX_SIZE) + 0
+    sh t1, %lo(GL_STATE_TEX_SIZE) + 2
 
     # Load ID of active texture
     li t0, %lo(GL_BOUND_TEXTURES)
