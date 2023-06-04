@@ -302,6 +302,7 @@ static void gl_asm_vtx_loader(const gl_array_t *arrays)
     const uint8_t cmd_ptr_reg = 20;
     const uint8_t norm_reg = 2;
     const uint8_t dst_vreg_base = 24;
+    const uint32_t current_normal_offset = offsetof(gl_server_state_t, normal) - offsetof(gl_server_state_t, color);
 
     uint32_t cmd_offset = 0;
 
@@ -344,7 +345,7 @@ static void gl_asm_vtx_loader(const gl_array_t *arrays)
     }
 
     if (!arrays[ATTRIB_NORMAL].enabled) {
-        rspq_write_arg(&w, rsp_asm_lw(norm_reg, 0x18, current_reg));
+        rspq_write_arg(&w, rsp_asm_lw(norm_reg, current_normal_offset, current_reg));
     } else {
         rspq_write_arg(&w, rsp_asm_lw(norm_reg, cmd_offset, cmd_ptr_reg));
     }
