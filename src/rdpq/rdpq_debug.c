@@ -541,7 +541,7 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
             fprintf(out, "%s*%s + %s*%s]",
                 blend2_a[som.blender[1].p],  blend2_b1[som.blender[1].a], blend2_a[som.blender[1].q], som.blender[1].b ? blend2_b2[som.blender[1].b] : blend2_b1inv[som.blender[1].a]);
         }
-        if(som.z.upd || som.z.cmp) {
+        if(som.z.upd || som.z.cmp || som.z.prim) {
             fprintf(out, " z=["); FLAG_RESET();
             FLAG(som.z.cmp, "cmp"); FLAG(som.z.upd, "upd"); FLAG(som.z.prim, "prim"); FLAG(true, zmode[som.z.mode]);
             fprintf(out, "]");
@@ -1448,6 +1448,15 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
                     VALIDATE_WARN_SOM(0, "drawing texture rectangles in COPY mode with small horizontal reduction (< 20%%) will render without subpixel accuracy; consider using 1-cycle mode instead");
                 else
                     VALIDATE_ERR_SOM(0, "horizontally-scaled texture rectangles in COPY mode will not correctly render");
+            }
+        }
+        // Check mipmapping related quirks with rectangles
+        VALIDATE_WARN_SOM(!rdp.som.tex.lod, "mipmapping does not work with texture rectangles, it will be ignored");
+        if (!rdp.som.tex.lod) { // avoid specific LOD_FRAC warnings if we already issued the previous one
+            for (int i=0; i<=rdp.som.cycle_type; i++) {
+                struct cc_cycle_s *ccs = &rdp.cc.cyc[i^1];
+                VALIDATE_WARN_CC(ccs->rgb.mul != 13 && ccs->alpha.mul != 0,
+                    "LOD_FRAC is not calculated correctly in rectangles (it's always 0x00 or 0xFF)");
             }
         }
     }   break;
