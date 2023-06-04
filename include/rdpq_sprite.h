@@ -28,7 +28,8 @@ typedef struct rdpq_blitparms_s rdpq_blitparms_t;
  * it builds upon it with sprite-specific features:
  * 
  *  * If the sprite contains mipmaps, the whole mipmap chain is uploaded to TMEM
- *    as well.
+ *    as well. Moreover, mipmaps are automatically enabled in the render mode
+ *    (via #rdpq_mode_mipmap).
  *  * If the sprite contains a palette, it is uploaded to TMEM as well, and the
  *    palette is also activated in the render mode (via #rdpq_mode_tlut).
  *  * If the sprite is optimized (via mksprite --optimize), the upload function

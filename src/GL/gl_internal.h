@@ -75,6 +75,7 @@ typedef enum {
     GL_CMD_MATRIX_POP       = 0xB,
     GL_CMD_MATRIX_LOAD      = 0xC,
     GL_CMD_PRE_INIT_PIPE    = 0xD,
+    GL_CMD_PRE_INIT_PIPE_TEX= 0xE,
 } gl_command_t;
 
 typedef enum {
@@ -764,8 +765,9 @@ inline void gl_set_current_mtx_index(GLubyte *index)
 
 inline void gl_pre_init_pipe(GLenum primitive_mode)
 {
-    // PreInitPipe will run a block with nesting level 1 for texture upload
+    // PreInitPipeTex will run a block with nesting level 1 for texture upload
     rspq_block_run_rsp(1);
+    gl_write(GL_CMD_PRE_INIT_PIPE_TEX);
     gl_write(GL_CMD_PRE_INIT_PIPE, primitive_mode);
 }
 
