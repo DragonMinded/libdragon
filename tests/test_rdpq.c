@@ -1540,6 +1540,16 @@ void test_rdpq_mipmap(TestContext *ctx) {
     );
     rspq_wait();
 
+    // Check that MIPMAP_NEAREST forced 2-cycle mode, as mipmapping doesn't
+    // work in 1-cycle mode.
+    uint64_t som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_2, "invalid cycle type");
+
+    // Check that disabling mipmap switch back to 1-cycle mode
+    rdpq_mode_mipmap(MIPMAP_NONE, 0);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_1, "invalid cycle type");
+
     // Go through the generated RDP primitives and check if the triangle
     // was patched the correct number of mipmap levels
     for (int i=0;i<rdp_stream_ctx.idx;i++) {
