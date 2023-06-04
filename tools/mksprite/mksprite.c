@@ -532,7 +532,8 @@ bool spritemaker_write(spritemaker_t *spr) {
 
         if (m > 0) {
             assert(w_lodpos[m-1] != 0); // we should have left a placeholder for this LOD
-            w32_at(out, w_lodpos[m-1], ftell(out));
+            uint32_t xpos = ftell(out) | (spr->outfmt << 24);
+            w32_at(out, w_lodpos[m-1], xpos);
         }
 
         switch (spr->outfmt) {
