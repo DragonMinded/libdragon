@@ -471,6 +471,13 @@ void rdpq_init()
 
     // Remember that initialization is complete
     __rdpq_inited = true;
+
+    // Force an initial consistent state to avoid memory corruptions and
+    // undefined behaviours.
+    rdpq_set_color_image(NULL);
+    rdpq_set_z_image(NULL);
+    rdpq_set_combiner_raw(0);
+    rdpq_set_other_modes_raw(0);
 }
 
 void rdpq_close()
@@ -941,11 +948,11 @@ void rdpq_set_color_image(const surface_t *surface)
     if (__builtin_expect(!surface, 0)) {
         // If a NULL surface is provided, point RDP to invalid memory (>8Mb),
         // so that nothing is drawn. Also force scissoring rect to zero as additional
-        // safeguard.
+        // safeguard (with X=1 so that auto-scissor doesn't go into negative numbers ever).
         uint32_t cfg = rdpq_config_disable(RDPQ_CFG_AUTOSCISSOR);
         rdpq_set_color_image_raw(0, RDPQ_VALIDATE_DETACH_ADDR, FMT_I8, 8, 8, 8);
         rdpq_config_set(cfg);
-        rdpq_set_scissor(0, 0, 0, 0);
+        rdpq_set_scissor(0, 0, 1, 0);
         return;
     }
     assertf((PhysicalAddr(surface->buffer) & 63) == 0,

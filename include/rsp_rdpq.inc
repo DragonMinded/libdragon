@@ -279,12 +279,12 @@ RDPQ_SetCombineMode_2Pass:
     #
     #   * If fog is enabled, tweak standard combiners to avoid
     #     passing SHADE_ALPHA to the blender as IN_ALPHA.
-    #   * If mipmap is enabled, modify the color combiner adding
-    #     the mipmap formula.
+    #   * If interpolated mipmap is enabled, modify the color
+    #     combiner adding the mipmap formula.
     #   * Merge the two blender steps (fogging / blending), taking
     #     care of adjustments if either is active or not.
     #   * Decide whether to use 1cycle or 2cycle mode, depending
-    #     on color combiner and blender.
+    #     on color combiner, blender and mipmapping.
     #   * Adjust coverage modes depending on antialias and
     #     blending settings.
     #
