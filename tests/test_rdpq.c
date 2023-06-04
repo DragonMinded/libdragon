@@ -95,26 +95,44 @@ static void debug_surface32(const char *name, uint32_t *buf, int w, int h) {
     debugf("\n");
 }
 
-static void assert_surface(TestContext *ctx, surface_t *surf, color_t (*check)(int, int))
+static void assert_surface(TestContext *ctx, surface_t *surf, color_t (*check)(int, int), int diff)
 {
+    assertf(surface_get_format(surf) == FMT_RGBA32, "ASSERT_SURFACE only works with RGBA32");
     for (int y=0;y<surf->height;y++) {
         uint32_t *line = (uint32_t*)(surf->buffer + y*surf->stride);
         for (int x=0;x<surf->width;x++) {
             color_t exp = check(x, y);
             uint32_t exp32 = color_to_packed32(exp);
-            if (line[x] != exp32) {
+            uint32_t found32 = line[x];
+            if (found32 != exp32) {
+                if (diff) {
+                    bool match = true;
+                    for (int i=0;i<4;i++) {
+                        uint8_t found = (found32 >> (i*8)) & 0xFF;
+                        uint8_t exp = (exp32 >> (i*8)) & 0xFF;
+                        if (ABS(found - exp) > diff) {
+                            match = false;
+                            break;
+                        }
+                    }
+                    if (match)
+                        continue;
+                }
+
                 debug_surface32("Found:", surf->buffer, surf->width, surf->height);
-                ASSERT_EQUAL_HEX(line[x], exp32, "invalid pixel at (%d,%d)", x, y);
+                ASSERT_EQUAL_HEX(found32, exp32, "invalid pixel at (%d,%d)", x, y);
             }
         }
     }
 }
 
-#define ASSERT_SURFACE(surf, func_body) ({ \
+#define ASSERT_SURFACE_THRESHOLD(surf, thresh, func_body) ({ \
     color_t __check_surface(int x, int y) func_body; \
-    assert_surface(ctx, surf, __check_surface); \
+    assert_surface(ctx, surf, __check_surface, thresh); \
     if (ctx->result == TEST_FAILED) return; \
 })
+
+#define ASSERT_SURFACE(surf, func_body)  ASSERT_SURFACE_THRESHOLD(surf, 0, func_body)
 
 
 void test_rdpq_rspqwait(TestContext *ctx)

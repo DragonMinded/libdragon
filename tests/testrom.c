@@ -24,6 +24,7 @@ typedef struct {
 
 typedef void (*TestFunc)(TestContext *ctx);
 
+#define ABS(n) ((n) < 0 ? -(n) : (n))
 #define PPCAT2(n,x) n ## x
 #define PPCAT(n,x) PPCAT2(n,x)
 
@@ -209,6 +210,7 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 #include "test_rdpq_tri.c"
 #include "test_rdpq_tex.c"
 #include "test_rdpq_attach.c"
+#include "test_rdpq_sprite.c"
 #include "test_mpeg1.c"
 #include "test_gl.c"
 #include "test_dl.c"
@@ -313,6 +315,8 @@ static const struct Testsuite
 	TEST_FUNC(test_rdpq_tex_upload,            0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_tex_upload_multi,      0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_tex_blit_normal,       0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_sprite_upload,         0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_sprite_lod,            0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mpeg1_idct,                 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mpeg1_block_decode,         0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mpeg1_block_dequant,        0, TEST_FLAGS_NO_BENCHMARK),

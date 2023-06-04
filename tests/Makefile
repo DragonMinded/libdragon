@@ -9,16 +9,25 @@ DSO_LIST = $(addprefix filesystem/, $(DSO_MODULES))
 
 $(BUILD_DIR)/testrom.dfs: $(wildcard filesystem/*) $(DSO_LIST)
 
+ASSETS = filesystem/grass1.rgba32.sprite
+
 OBJS = $(BUILD_DIR)/test_constructors_cpp.o \
 	   $(BUILD_DIR)/rsp_test.o \
 	   $(BUILD_DIR)/rsp_test2.o \
 	   $(BUILD_DIR)/backtrace.o \
 
-$(BUILD_DIR)/testrom.elf: $(BUILD_DIR)/testrom.o $(OBJS) $(MAIN_ELF_EXTERNS)
+filesystem/%.sprite: assets/%.png
+	@mkdir -p $(dir $@)
+	@echo "    [SPRITE] $@"
+	@$(N64_MKSPRITE) $(MKSPRITE_FLAGS) -o filesystem "$<"
+
+filesystem/grass1.rgba32.sprite: MKSPRITE_FLAGS=--mipmap BOX -v
+
+$(BUILD_DIR)/testrom.elf: $(BUILD_DIR)/testrom.o $(OBJS) $(MAIN_ELF_EXTERNS) $(ASSETS)
 testrom.z64: N64_ROM_TITLE="Libdragon Test ROM"
 testrom.z64: $(BUILD_DIR)/testrom.dfs
 
-$(BUILD_DIR)/testrom_emu.elf: $(BUILD_DIR)/testrom_emu.o $(OBJS) $(MAIN_ELF_EXTERNS)
+$(BUILD_DIR)/testrom_emu.elf: $(BUILD_DIR)/testrom_emu.o $(OBJS) $(MAIN_ELF_EXTERNS) $(ASSETS)
 testrom_emu.z64: N64_ROM_TITLE="Libdragon Test ROM"
 testrom_emu.z64: $(BUILD_DIR)/testrom.dfs
 
