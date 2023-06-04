@@ -162,6 +162,11 @@ void gl_close()
     rdpq_close();
 }
 
+void gl_reset_uploaded_texture()
+{
+    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, uploaded_tex), 0);
+}
+
 void gl_context_begin()
 {
     const surface_t *old_color_buffer = state.color_buffer;
@@ -178,6 +183,8 @@ void gl_context_begin()
         glViewport(0, 0, width, height);
         glScissor(0, 0, width, height);
     }
+
+    gl_reset_uploaded_texture();
 
     state.frame_id++;
 }
@@ -286,6 +293,7 @@ void gl_set_flag2(GLenum target, bool value)
         break;
     case GL_RDPQ_TEXTURING_N64:
         gl_set_flag_word2(GL_UPDATE_NONE, FLAG2_USE_RDPQ_TEXTURING, value);
+        gl_reset_uploaded_texture();
         break;
     case GL_SCISSOR_TEST:
         gl_set_flag(GL_UPDATE_SCISSOR, FLAG_SCISSOR_TEST, value);
