@@ -625,18 +625,8 @@ void __rdpq_block_begin()
     // Save the tracking state (to be recovered when the block is done)
     rdpq_block_state.previous_tracking = rdpq_tracking;
 
-    // Initialize tracking state for a new block
-    rdpq_tracking = (rdpq_tracking_t){
-        // current autosync status is unknown because blocks can be
-        // played in any context. So assume the worst: all resources
-        // are being used. This will cause all SYNCs to be generated,
-        // which is the safest option.
-        .autosync = ~0,
-        // we don't know whether mode changes will be frozen or not
-        // when the block will play. Assume the worst (and thus
-        // do not optimize out mode changes).
-        .mode_freeze = false,
-    };
+    // Set for unknown state (like if we just run another unknown block: we lost track of the RDP state)
+    __rdpq_block_run(NULL);    
 }
 
 /** 
@@ -745,6 +735,23 @@ void __rdpq_block_run(rdpq_block_t *block)
     // state of the engine must match the state at the end of the block.
     if (block)
         rdpq_tracking = block->tracking;
+    else {
+        // Initialize tracking state for unknown state
+        rdpq_tracking = (rdpq_tracking_t){
+            // current autosync status is unknown because blocks can be
+            // played in any context. So assume the worst: all resources
+            // are being used. This will cause all SYNCs to be generated,
+            // which is the safest option.
+            .autosync = ~0,
+            // we don't know whether mode changes will be frozen or not
+            // when the block will play. Assume the worst (and thus
+            // do not optimize out mode changes).
+            .mode_freeze = false,
+            // we don't know the cycle type after we run the block
+            .cycle_type_known = 0,
+            .cycle_type_frozen = 0,
+        };
+    }
 }
 
 /** 
@@ -910,6 +917,9 @@ __attribute__((noinline))
 void __rdpq_set_scissor(uint32_t w0, uint32_t w1)
 {
     // NOTE: SET_SCISSOR does not require SYNC_PIPE
+    // NOTE: We can't optimize this away into a standard SET_SCISSOR, even if
+    // we track the cycle type, because the RSP must always know the current
+    // scissoring rectangle. So we must always go through the fixup.
     rdpq_fixup_write(
         (RDPQ_CMD_SET_SCISSOR_EX, w0, w1),  // RSP
         (RDPQ_CMD_SET_SCISSOR_EX, w0, w1)   // RDP
@@ -996,6 +1006,10 @@ void __rdpq_set_other_modes(uint32_t w0, uint32_t w1)
         (RDPQ_CMD_SET_OTHER_MODES, w0, w1),  // RSP
         (RDPQ_CMD_SET_OTHER_MODES, w0, w1), (RDPQ_CMD_SET_SCISSOR, 0, 0)   // RDP
     );
+    if (w0 & (1 << (SOM_CYCLE_SHIFT-32+1)))
+        rdpq_tracking.cycle_type_known = 2;
+    else
+        rdpq_tracking.cycle_type_known = 1;
 }
 
 /** @brief Out-of-line implementation of #rdpq_change_other_modes_raw */
@@ -1007,6 +1021,12 @@ void __rdpq_change_other_modes(uint32_t w0, uint32_t w1, uint32_t w2)
         (RDPQ_CMD_MODIFY_OTHER_MODES, w0, w1, w2),
         (RDPQ_CMD_SET_OTHER_MODES, 0, 0), (RDPQ_CMD_SET_SCISSOR, 0, 0)   // RDP
     );
+    if ((w0 == 0) && (w1 & (1 << (SOM_CYCLE_SHIFT-32+1))))  {
+        if (w2 & (1 << (SOM_CYCLE_SHIFT-32+1)))
+            rdpq_tracking.cycle_type_known = 2;
+        else
+            rdpq_tracking.cycle_type_known = 1;
+    }
 }
 
 uint64_t rdpq_get_other_modes_raw(void)

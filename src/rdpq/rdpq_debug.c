@@ -1506,9 +1506,11 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         validate_busy_pipe();
         break;
     case 0x31: // RDPQ extensions
+    case 0x00: // NOP
+        break;
         break;
     default: // Invalid command
-        // VALIDATE_WARN(0, "invalid RDP command 0x%02X", cmd);
+        VALIDATE_WARN(0, "invalid RDP command 0x%02X", cmd);
         break;
     }
 

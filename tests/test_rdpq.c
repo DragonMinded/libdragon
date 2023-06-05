@@ -258,7 +258,7 @@ void test_rdpq_block(TestContext *ctx)
     const int WIDTH = 64;
     surface_t fb = surface_alloc(FMT_RGBA16, WIDTH, WIDTH);
     DEFER(surface_free(&fb));
-    surface_clear(&fb, 0);
+    surface_clear(&fb, 0xAA);
 
     uint16_t expected_fb[WIDTH*WIDTH];
     memset(expected_fb, 0, sizeof(expected_fb));
@@ -287,9 +287,6 @@ void test_rdpq_block(TestContext *ctx)
     rspq_block_run(block);
     rspq_wait();
     
-    //dump_mem(framebuffer, TEST_RDPQ_FBSIZE);
-    //dump_mem(expected_fb, TEST_RDPQ_FBSIZE);
-
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, WIDTH*WIDTH*2, "Framebuffer contains wrong data!");
 }
 
@@ -1430,7 +1427,7 @@ void test_rdpq_mode_freeze(TestContext *ctx) {
     int num_nops = debug_rdp_stream_count_cmd(0xC0);
     ASSERT_EQUAL_SIGNED(num_ccs, 1, "too many SET_COMBINE_MODE");
     ASSERT_EQUAL_SIGNED(num_soms, 2, "too many SET_OTHER_MODES"); // 1 SOM for fill, 1 SOM for standard
-    ASSERT_EQUAL_SIGNED(num_nops, 0, "too many NOPs"); 
+    ASSERT_EQUAL_SIGNED(num_nops, 1, "too many NOPs");  // 1 NOP from rrdpq_set_mode_fill (skips generating SET_CC)
 
     // Try again within a block, but doing the freeze outside of it
     debug_rdp_stream_reset();
@@ -1474,6 +1471,7 @@ void test_rdpq_mode_freeze_stack(TestContext *ctx) {
     rdpq_set_color_image(&fb);
     surface_clear(&fb, 0);
 
+    rdpq_debug_log_msg("begin / push / end");
     rdpq_set_mode_standard();
     rdpq_mode_begin();
         rdpq_mode_push();
@@ -1489,6 +1487,7 @@ void test_rdpq_mode_freeze_stack(TestContext *ctx) {
             RGBA32(0,0,0,0); 
     });
 
+    rdpq_debug_log_msg("begin / pop / end");
     surface_clear(&fb, 0);
     rdpq_mode_begin();
         rdpq_mode_pop();

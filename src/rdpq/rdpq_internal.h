@@ -53,6 +53,9 @@ typedef struct {
     uint32_t autosync : 17;
     /** @brief True if the mode changes are currently frozen. */
     bool mode_freeze : 1;
+    /** @brief 0=unknown, 1=standard, 2=copy/fill  */
+    uint8_t cycle_type_known : 2;
+    uint8_t cycle_type_frozen : 2;
 } rdpq_tracking_t;
 
 extern rdpq_tracking_t rdpq_tracking;
@@ -202,7 +205,10 @@ void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v
         if (__builtin_expect(rdpq_block_state.wptr + nwords > rdpq_block_state.wend, 0)) \
             __rdpq_block_next_buffer(); \
         volatile uint32_t *ptr = rdpq_block_state.wptr; \
-        __CALL_FOREACH(__rdpcmd_write, ##__VA_ARGS__); \
+        for (int i=0; i<nwords/2; i++) { \
+            *ptr++ = 0xC0000000; \
+            *ptr++ = 0; \
+        } \
         __rdpq_block_update_norsp(ptr); \
     } \
     __rspcmd_write rsp_cmd; \
