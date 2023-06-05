@@ -8,14 +8,14 @@ Libdragon is an open-source SDK for Nintendo 64. It aims for a complete N64
 programming experience while providing programmers with modern approach to
 programming and debugging. These are the main features:
 
-* Based on modern GCC (12.2) and Newlib, for a full C11 programming experience.
+* Based on modern GCC (13) and Newlib, for a full C11 programming experience.
   A Docker container is available to quickly set up the programming environment.
 * The GCC toolchain is 64 bit capable to be able to use the full R4300 capabilities
   (commercial games and libultra are based on a 32-bit ABI and is not possible
   to use 64-bit registers and opcodes with it)
 * Can be developed with newer-generation emulators (ares, cen64, Dillonb's n64,
-  simple64) or development cartridges (64drive, EverDrive64).
-* Support both vanilla N64 and iQue Player (chinese variant). The support is
+  simple64) or development cartridges (64drive, EverDrive64, SummerCart64).
+* Support both vanilla N64 and iQue Player (Chinese variant). The support is
   experimental and done fully at runtime, so it is possible to run ROMs built
   with libdragon on iQue without modifying the source code.
 * In-ROM filesystem implementation for assets. Assets can be loaded with
@@ -35,7 +35,7 @@ programming and debugging. These are the main features:
   asserts (so that you get a nice error screen instead of a console lockup),
   `fprintf(stderr)` calls are redirected to your PC console in emulators
   and to USB via compatible tools (UNFLoader, g64drive).
-* Support to read/write to SD cards in development kits (64drive, EverDrive64),
+* Support to read/write to SD cards in development kits (64drive, EverDrive64, SummerCart64),
   simply with `fopen("sd://sdata.dat")`
 * Simple and powerful Makefile-based build system for your ROMs and assets
   (n64.mk)
@@ -93,18 +93,27 @@ Currently, there are two main libragon versions:
    that will impede existing applications to successfully compile and work
    against a newer libdragon version. We feel this is important because otherwise
    we would fragment the homebrew ecosystem too much, and we would leave a trail
-   of libdragon-based applications that can't be compiled anymore. See also the 
-   wiki for [common hurdles in upgrading libdragon](https://github.com/DragonMinded/libdragon/wiki/Upgrade-troubleshooting).
+   of libdragon-based applications that can't be compiled anymore.
  * The **unstable** version is the one in the `unstable` branch. This is where most
    development happens first. In fact, features are developed, evolved and
    battle-tested here, before the APIs are stabilized and they are finally
    merged on the trunk. Applications that use the unstable branch need to be aware
    that the APIs can break at any time (though we try to avoid *gratuitous* breakage).
 
-## Documentation
+## Upgrading libdragon
+
+If you are upgrade the stable version, check the [ChangeLog](https://github.com/DragonMinded/libdragon/wiki/Stable-branch--Changelog)
+in the wiki to see latest changes that were merged into the stable version of libdragon.
+Also check the wiki page for [common hurdles in upgrading libdragon](https://github.com/DragonMinded/libdragon/wiki/Upgrade-troubleshooting).
+
+If you are upgrading the unstable version, instead, remember that some breaking
+changes are expected. We do not keep track of those though, so you will have
+to check the relevant header files yourself to check what is changed.
+
+## Resources
 
  * [API reference](https://dragonminded.github.io/libdragon/ref/modules.html)
  * [Examples](https://github.com/DragonMinded/libdragon/tree/trunk/examples)
  * [Wiki](https://github.com/DragonMinded/libdragon/wiki) (contains tutorials
    and troubleshooting guides)
-
+ * [Discord n64brew](https://discord.gg/WqFgNWf)

@@ -26,7 +26,7 @@ libdragonsys.a: $(BUILD_DIR)/system.o
 
 libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o $(BUILD_DIR)/backtrace.o \
 			 $(BUILD_DIR)/fmath.o $(BUILD_DIR)/inthandler.o $(BUILD_DIR)/entrypoint.o \
-			 $(BUILD_DIR)/debug.o $(BUILD_DIR)/debugcpp.o $(BUILD_DIR)/usb.o $(BUILD_DIR)/fatfs/ff.o \
+			 $(BUILD_DIR)/debug.o $(BUILD_DIR)/debugcpp.o $(BUILD_DIR)/usb.o $(BUILD_DIR)/libcart/cart.o $(BUILD_DIR)/fatfs/ff.o \
 			 $(BUILD_DIR)/fatfs/ffunicode.o $(BUILD_DIR)/rompak.o $(BUILD_DIR)/dragonfs.o \
 			 $(BUILD_DIR)/audio.o $(BUILD_DIR)/display.o $(BUILD_DIR)/surface.o \
 			 $(BUILD_DIR)/console.o $(BUILD_DIR)/joybus.o $(BUILD_DIR)/asset.o \
@@ -170,6 +170,8 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/GL/gl_integration.h $(INSTALLDIR)/mips64-elf/include/GL/gl_integration.h
 	install -Cv -m 0644 include/GL/glu.h $(INSTALLDIR)/mips64-elf/include/GL/glu.h
 	install -Cv -m 0644 include/dlfcn.h $(INSTALLDIR)/mips64-elf/include/dlfcn.h
+	mkdir -p $(INSTALLDIR)/mips64-elf/include/libcart
+	install -Cv -m 0644 src/libcart/cart.h $(INSTALLDIR)/mips64-elf/include/libcart/cart.h
 	mkdir -p $(INSTALLDIR)/mips64-elf/include/fatfs
 	install -Cv -m 0644 src/fatfs/diskio.h $(INSTALLDIR)/mips64-elf/include/fatfs/diskio.h
 	install -Cv -m 0644 src/fatfs/ff.h $(INSTALLDIR)/mips64-elf/include/fatfs/ff.h
