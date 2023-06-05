@@ -350,9 +350,10 @@ void test_rdpq_block_contiguous(TestContext *ctx)
     /* 4: implicit set scissor */
     /* 5: */ rdpq_set_mode_fill(RGBA32(0xFF, 0xFF, 0xFF, 0xFF));
     /* 6: implicit set scissor */
-    /* 7: set fill color */
-    /* 8: */ rdpq_fill_rectangle(0, 0, WIDTH, WIDTH);
-    /* 9: */ rdpq_fence(); // Put the fence inside the block so RDP never executes anything outside the block
+    /* 7: empty slot for potential SET_COMBINE_MODE (not used by rdpq_set_mode_fill) */
+    /* 8: set fill color */
+    /* 9: */ rdpq_fill_rectangle(0, 0, WIDTH, WIDTH);
+    /*10: */ rdpq_fence(); // Put the fence inside the block so RDP never executes anything outside the block
     rspq_block_t *block = rspq_block_end();
     DEFER(rspq_block_free(block));
 
@@ -362,7 +363,7 @@ void test_rdpq_block_contiguous(TestContext *ctx)
     uint64_t *rdp_cmds = (uint64_t*)block->rdp_block->cmds;
 
     ASSERT_EQUAL_HEX(*DP_START, PhysicalAddr(rdp_cmds), "DP_START does not point to the beginning of the block!");
-    ASSERT_EQUAL_HEX(*DP_END, PhysicalAddr(rdp_cmds + 9), "DP_END points to the wrong address!");
+    ASSERT_EQUAL_HEX(*DP_END, PhysicalAddr(rdp_cmds + 10), "DP_END points to the wrong address!");
 
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, WIDTH*WIDTH*2, "Framebuffer contains wrong data!");
 }
