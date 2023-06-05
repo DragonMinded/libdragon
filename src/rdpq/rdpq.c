@@ -632,12 +632,12 @@ void __rdpq_block_begin()
 /** 
  * @brief Allocate a new RDP block buffer, chaining it to the current one (if any) 
  * 
- * This function is called by #rdpq_write and #rdpq_fixup_write when we are about
+ * This function is called by #rdpq_passthrough_write and #rdpq_fixup_write when we are about
  * to write a rdpq command in a block, and the current RDP buffer is full
  * (`wptr + cmdsize >= wend`). By extension, it is also called when the current
  * RDP buffer has not been allocated yet (`wptr == wend == NULL`).
  * 
- * @see #rdpq_write
+ * @see #rdpq_passthrough_write
  * @see #rdpq_fixup_write
  */
 void __rdpq_block_next_buffer(void)
@@ -775,7 +775,7 @@ void __rdpq_block_free(rdpq_block_t *block)
 /**
  * @brief Set a new RDP write pointer, and enqueue a RSP command to run the buffer until there
  * 
- * This function is called by #rdpq_write after some RDP commands have been written
+ * This function is called by #rdpq_passthrough_write after some RDP commands have been written
  * into the block's RDP buffer. A rspq command #RSPQ_CMD_RDP_APPEND_BUFFER will be issued
  * so that the RSP will tell the RDP to fetch and run the new commands, appended at
  * the end of the current buffer.
@@ -834,7 +834,7 @@ void __rdpq_block_update_norsp(volatile uint32_t *wptr)
 /**
  * @name Helpers to write generic RDP commands
  * 
- * All the functions in this group are wrappers around #rdpq_write to help
+ * All the functions in this group are wrappers around #rdpq_passthrough_write to help
  * generating RDP commands. They are called by inlined functions in rdpq.h.
  * See the top-level documentation about inline functions to understand the
  * reason of this split.
