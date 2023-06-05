@@ -380,13 +380,13 @@ void rdpq_debug_start(void)
 void rdpq_debug_log(bool log)
 {
     assertf(rdpq_trace, "rdpq trace engine not started");
-    rdpq_write((RDPQ_CMD_DEBUG, RDPQ_CMD_DEBUG_SHOWLOG, log ? 1 : 0));
+    rdpq_passthrough_write((RDPQ_CMD_DEBUG, RDPQ_CMD_DEBUG_SHOWLOG, log ? 1 : 0));
 }
 
 void rdpq_debug_log_msg(const char *msg)
 {
     if (rdpq_trace)
-        rdpq_write((RDPQ_CMD_DEBUG, RDPQ_CMD_DEBUG_MESSAGE, PhysicalAddr(msg)));
+        rdpq_passthrough_write((RDPQ_CMD_DEBUG, RDPQ_CMD_DEBUG_MESSAGE, PhysicalAddr(msg)));
 }
 
 void rdpq_debug_stop(void)

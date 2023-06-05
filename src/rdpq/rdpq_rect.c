@@ -26,7 +26,7 @@ void __rdpq_fill_rectangle(uint32_t w0, uint32_t w1)
         if (rdpq_tracking.cycle_type_known == 2) {
             w0 -= (4<<12) | 4;
         }
-        rdpq_write((RDPQ_CMD_FILL_RECTANGLE, w0, w1));
+        rdpq_passthrough_write((RDPQ_CMD_FILL_RECTANGLE, w0, w1));
         return;
     }
     rdpq_fixup_write(
@@ -52,7 +52,7 @@ void __rdpq_texture_rectangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3
             w0 -= (4<<12) | 4;
             w3 = ((w3 & 0xFFFF0000) << 2) | (w3 & 0x0000FFFF);
         }
-        rdpq_write((RDPQ_CMD_TEXTURE_RECTANGLE, w0, w1, w2, w3));
+        rdpq_passthrough_write((RDPQ_CMD_TEXTURE_RECTANGLE, w0, w1, w2, w3));
         return;
     }
 

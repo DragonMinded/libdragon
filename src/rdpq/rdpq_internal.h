@@ -151,11 +151,11 @@ void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v
  * Example syntax (notice the double parenthesis, required for uniformity 
  * with #rdpq_fixup_write):
  * 
- *     rdpq_write((RDPQ_CMD_SYNC_PIPE, 0, 0));
+ *     rdpq_passthrough_write((RDPQ_CMD_SYNC_PIPE, 0, 0));
  * 
  * @hideinitializer
  */
-#define rdpq_write(rdp_cmd) ({ \
+#define rdpq_passthrough_write(rdp_cmd) ({ \
     if (rspq_in_block()) { \
         extern rdpq_block_state_t rdpq_block_state; \
         int nwords = 0; __rdpcmd_count_words(rdp_cmd); \

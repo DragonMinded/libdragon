@@ -846,7 +846,7 @@ void __rdpq_block_update_norsp(volatile uint32_t *wptr)
 __attribute__((noinline))
 void __rdpq_write8(uint32_t cmd_id, uint32_t arg0, uint32_t arg1)
 {
-    rdpq_write((cmd_id, arg0, arg1));
+    rdpq_passthrough_write((cmd_id, arg0, arg1));
 }
 
 /** @brief Write a standard 8-byte RDP command, which changes some autosync resources  */
@@ -878,7 +878,7 @@ void __rdpq_write8_syncchangeuse(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, 
 __attribute__((noinline))
 void __rdpq_write16(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3)
 {
-    rdpq_write((cmd_id, arg0, arg1, arg2, arg3));
+    rdpq_passthrough_write((cmd_id, arg0, arg1, arg2, arg3));
 }
 
 /** @brief Write a standard 16-byte RDP command, which uses some autosync resources  */
