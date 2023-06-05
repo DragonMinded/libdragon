@@ -232,10 +232,7 @@ void gl_end()
 
 void glBegin(GLenum mode)
 {
-    if (state.immediate_active) {
-        gl_set_error(GL_INVALID_OPERATION);
-        return;
-    }
+    if (!gl_ensure_no_immediate()) return;
 
     if (gl_begin(mode)) {
         state.immediate_active = true;
@@ -244,10 +241,7 @@ void glBegin(GLenum mode)
 
 void glEnd(void)
 {
-    if (!state.immediate_active) {
-        gl_set_error(GL_INVALID_OPERATION);
-        return;
-    }
+    if (!gl_ensure_immediate()) return;
 
     gl_end();
 
@@ -429,6 +423,8 @@ bool gl_prim_assembly(uint8_t cache_index, uint8_t *indices)
 
 void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     switch (mode) {
     case GL_POINTS:
     case GL_LINES:
@@ -472,6 +468,8 @@ uint32_t read_index_32(const uint32_t *src, uint32_t i)
 
 void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     switch (mode) {
     case GL_POINTS:
     case GL_LINES:
@@ -521,6 +519,11 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
 
 void glArrayElement(GLint i)
 {
+    // Calling glArrayElement while the vertex array is enabled has, among other things,
+    // the same effect as glVertex. See __gl_vertex for that function's behavior.
+    assertf(!state.array_object->arrays[ATTRIB_VERTEX].enabled || state.immediate_active, 
+        "glArrayElement was called outside of glBegin/glEnd while vertex array was enabled");
+
     if (i < 0) {
         gl_set_error(GL_INVALID_VALUE);
         return;
@@ -531,6 +534,9 @@ void glArrayElement(GLint i)
 
 void __gl_vertex(GLenum type, const void *value, uint32_t size)
 {
+    // According to the spec, calling glVertex outside of glBegin/glEnd 
+    // specifically results in UB instead of generating an error, so just assert.
+    assertf(state.immediate_active, "glVertex was called outside of glBegin/glEnd");
     state.current_pipeline->vertex(value, type, size);
 }
 
@@ -707,6 +713,7 @@ void glMatrixIndexusvARB(GLint size, const GLushort *v) { __gl_mtx_index(GL_UNSI
 void glMatrixIndexuivARB(GLint size, const GLuint *v)   { __gl_mtx_index(GL_UNSIGNED_INT,   v, size); }
 
 #define __RECT_IMPL(vertex, x1, y1, x2, y2) ({ \
+    if (!gl_ensure_no_immediate()) return; \
     glBegin(GL_POLYGON); \
     vertex(x1, y1); \
     vertex(x2, y1); \
@@ -727,6 +734,8 @@ void glRectdv(const GLdouble *v1, const GLdouble *v2)   { __RECT_IMPL(glVertex2s
 
 void glPointSize(GLfloat size)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     if (size <= 0.0f) {
         gl_set_error(GL_INVALID_VALUE);
         return;
@@ -738,6 +747,8 @@ void glPointSize(GLfloat size)
 
 void glLineWidth(GLfloat width)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     if (width <= 0.0f) {
         gl_set_error(GL_INVALID_VALUE);
         return;
@@ -749,6 +760,8 @@ void glLineWidth(GLfloat width)
 
 void glPolygonMode(GLenum face, GLenum mode)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     switch (face) {
     case GL_FRONT:
     case GL_BACK:
@@ -778,6 +791,8 @@ void glPolygonMode(GLenum face, GLenum mode)
 
 void glDepthRange(GLclampd n, GLclampd f)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     state.current_viewport.scale[2] = (f - n) * 0.5f;
     state.current_viewport.offset[2] = n + (f - n) * 0.5f;
 
@@ -791,6 +806,8 @@ void glDepthRange(GLclampd n, GLclampd f)
 
 void glViewport(GLint x, GLint y, GLsizei w, GLsizei h)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     uint32_t fbh = state.color_buffer->height;
 
     state.current_viewport.scale[0] = w * 0.5f;
@@ -860,7 +877,7 @@ void gl_tex_gen_set_mode(gl_tex_gen_t *gen, GLenum coord, GLint param)
     set_can_use_rsp_dirty();
 }
 
-void glTexGeni(GLenum coord, GLenum pname, GLint param)
+void gl_tex_gen_i(GLenum coord, GLenum pname, GLint param)
 {
     gl_tex_gen_t *gen = gl_get_tex_gen(coord);
     if (gen == NULL) {
@@ -875,8 +892,23 @@ void glTexGeni(GLenum coord, GLenum pname, GLint param)
     gl_tex_gen_set_mode(gen, coord, param);
 }
 
-void glTexGenf(GLenum coord, GLenum pname, GLfloat param) { glTexGeni(coord, pname, param); }
-void glTexGend(GLenum coord, GLenum pname, GLdouble param) { glTexGeni(coord, pname, param); }
+void glTexGeni(GLenum coord, GLenum pname, GLint param)
+{
+    if (!gl_ensure_no_immediate()) return;
+    gl_tex_gen_i(coord, pname, param);
+}
+
+void glTexGenf(GLenum coord, GLenum pname, GLfloat param)
+{
+    if (!gl_ensure_no_immediate()) return;
+    gl_tex_gen_i(coord, pname, param);
+}
+
+void glTexGend(GLenum coord, GLenum pname, GLdouble param)
+{
+    if (!gl_ensure_no_immediate()) return;
+    gl_tex_gen_i(coord, pname, param);
+}
 
 void gl_tex_gen_set_plane(GLenum coord, GLenum pname, const GLfloat *plane)
 {
@@ -901,6 +933,8 @@ void gl_tex_gen_set_plane(GLenum coord, GLenum pname, const GLfloat *plane)
 
 void glTexGenfv(GLenum coord, GLenum pname, const GLfloat *params)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     gl_tex_gen_t *gen = gl_get_tex_gen(coord);
     if (gen == NULL) {
         return;
@@ -932,6 +966,8 @@ void glTexGenfv(GLenum coord, GLenum pname, const GLfloat *params)
 
 void glTexGeniv(GLenum coord, GLenum pname, const GLint *params)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     gl_tex_gen_t *gen = gl_get_tex_gen(coord);
     if (gen == NULL) {
         return;
@@ -963,6 +999,8 @@ void glTexGeniv(GLenum coord, GLenum pname, const GLint *params)
 
 void glTexGendv(GLenum coord, GLenum pname, const GLdouble *params)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     gl_tex_gen_t *gen = gl_get_tex_gen(coord);
     if (gen == NULL) {
         return;
@@ -994,6 +1032,8 @@ void glTexGendv(GLenum coord, GLenum pname, const GLdouble *params)
 
 void glCullFace(GLenum mode)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     switch (mode) {
     case GL_BACK:
     case GL_FRONT:
@@ -1009,6 +1049,8 @@ void glCullFace(GLenum mode)
 
 void glFrontFace(GLenum dir)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     switch (dir) {
     case GL_CW:
     case GL_CCW:

@@ -159,6 +159,8 @@ void gl_set_array(gl_array_type_t array_type, GLint size, GLenum type, GLsizei s
 
 void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     switch (size) {
     case 2:
     case 3:
@@ -185,6 +187,8 @@ void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *poin
 
 void glTexCoordPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     switch (size) {
     case 1:
     case 2:
@@ -212,6 +216,8 @@ void glTexCoordPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *po
 
 void glNormalPointer(GLenum type, GLsizei stride, const GLvoid *pointer)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     switch (type) {
     case GL_BYTE:
     case GL_SHORT:
@@ -229,6 +235,8 @@ void glNormalPointer(GLenum type, GLsizei stride, const GLvoid *pointer)
 
 void glColorPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     switch (size) {
     case 3:
     case 4:
@@ -258,6 +266,8 @@ void glColorPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *point
 
 void glMatrixIndexPointerARB(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     if (size < 0 || size > VERTEX_UNIT_COUNT) {
         gl_set_error(GL_INVALID_VALUE);
         return;
@@ -284,6 +294,8 @@ void gl_set_array_enabled(gl_array_type_t array_type, bool enabled)
 
 void glEnableClientState(GLenum array)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     switch (array) {
     case GL_VERTEX_ARRAY:
     case GL_TEXTURE_COORD_ARRAY:
@@ -302,6 +314,8 @@ void glEnableClientState(GLenum array)
 }
 void glDisableClientState(GLenum array)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     switch (array) {
     case GL_VERTEX_ARRAY:
     case GL_TEXTURE_COORD_ARRAY:
@@ -321,6 +335,8 @@ void glDisableClientState(GLenum array)
 
 void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     switch (format) {
     case GL_V2F:
     case GL_V3F:
@@ -375,6 +391,8 @@ void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer)
 
 void glGenVertexArrays(GLsizei n, GLuint *arrays)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     for (GLsizei i = 0; i < n; i++)
     {
         gl_array_object_t *new_obj = calloc(sizeof(gl_array_object_t), 1);
@@ -385,6 +403,8 @@ void glGenVertexArrays(GLsizei n, GLuint *arrays)
 
 void glDeleteVertexArrays(GLsizei n, const GLuint *arrays)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     for (GLsizei i = 0; i < n; i++)
     {
         assertf(arrays[i] == 0 || is_valid_object_id(arrays[i]), "Not a valid array object: %#lx", arrays[i]);
@@ -404,6 +424,7 @@ void glDeleteVertexArrays(GLsizei n, const GLuint *arrays)
 
 void glBindVertexArray(GLuint array)
 {
+    if (!gl_ensure_no_immediate()) return;
     assertf(array == 0 || is_valid_object_id(array), "Not a valid array object: %#lx", array);
 
     gl_array_object_t *obj = (gl_array_object_t*)array;
@@ -417,6 +438,8 @@ void glBindVertexArray(GLuint array)
 
 GLboolean glIsVertexArray(GLuint array)
 {
+    if (!gl_ensure_no_immediate()) return 0;
+    
     // FIXME: This doesn't actually guarantee that it's a valid array object, but just uses the heuristic of
     //        "is it somewhere in the heap memory?". This way we can at least rule out arbitrarily chosen integer constants,
     //        which used to be valid array IDs in legacy OpenGL.

@@ -132,6 +132,8 @@ void gl_update_current_matrix_stack()
 
 void glMatrixMode(GLenum mode)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     switch (mode) {
     case GL_MODELVIEW:
     case GL_PROJECTION:
@@ -151,6 +153,8 @@ void glMatrixMode(GLenum mode)
 
 void glCurrentPaletteMatrixARB(GLint index)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     if (index < 0 || index >= MATRIX_PALETTE_SIZE) {
         gl_set_error(GL_INVALID_VALUE);
         return;
@@ -209,6 +213,8 @@ static void gl_mark_matrix_target_dirty()
 
 void glLoadMatrixf(const GLfloat *m)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     memcpy(state.current_matrix, m, sizeof(gl_matrix_t));
     gl_mark_matrix_target_dirty();
     gl_matrix_load(m, false);
@@ -216,6 +222,8 @@ void glLoadMatrixf(const GLfloat *m)
 
 void glLoadMatrixd(const GLdouble *m)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     for (size_t i = 0; i < 16; i++)
     {
         state.current_matrix->m[i/4][i%4] = m[i];
@@ -227,6 +235,8 @@ void glLoadMatrixd(const GLdouble *m)
 
 void glMultMatrixf(const GLfloat *m)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     gl_matrix_t tmp = *state.current_matrix;
     gl_matrix_mult_full(state.current_matrix, &tmp, (gl_matrix_t*)m);
     gl_mark_matrix_target_dirty();
@@ -238,6 +248,8 @@ void glMultMatrixd(const GLdouble *m);
 
 void glLoadIdentity(void)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     gl_matrix_t identity = (gl_matrix_t){ .m={
         {1,0,0,0},
         {0,1,0,0},
@@ -250,6 +262,8 @@ void glLoadIdentity(void)
 
 void glRotatef(GLfloat angle, GLfloat x, GLfloat y, GLfloat z)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     float a = angle * (M_PI / 180.0f);
     float c = cosf(a);
     float s = sinf(a);
@@ -273,6 +287,8 @@ void glRotated(GLdouble angle, GLdouble x, GLdouble y, GLdouble z);
 
 void glTranslatef(GLfloat x, GLfloat y, GLfloat z)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     gl_matrix_t translation = (gl_matrix_t){ .m={
         {1.f, 0.f, 0.f, 0.f},
         {0.f, 1.f, 0.f, 0.f},
@@ -286,6 +302,8 @@ void glTranslated(GLdouble x, GLdouble y, GLdouble z);
 
 void glScalef(GLfloat x, GLfloat y, GLfloat z)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     gl_matrix_t scale = (gl_matrix_t){ .m={
         {x,   0.f, 0.f, 0.f},
         {0.f, y,   0.f, 0.f},
@@ -299,6 +317,8 @@ void glScaled(GLdouble x, GLdouble y, GLdouble z);
 
 void glFrustum(GLdouble l, GLdouble r, GLdouble b, GLdouble t, GLdouble n, GLdouble f)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     gl_matrix_t frustum = (gl_matrix_t){ .m={
         {(2*n)/(r-l), 0.f,           0.f,            0.f},
         {0.f,         (2.f*n)/(t-b), 0.f,            0.f},
@@ -311,6 +331,8 @@ void glFrustum(GLdouble l, GLdouble r, GLdouble b, GLdouble t, GLdouble n, GLdou
 
 void glOrtho(GLdouble l, GLdouble r, GLdouble b, GLdouble t, GLdouble n, GLdouble f)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     gl_matrix_t ortho = (gl_matrix_t){ .m={
         {2.0f/(r-l),   0.f,          0.f,          0.f},
         {0.f,          2.0f/(t-b),   0.f,          0.f},
@@ -323,6 +345,8 @@ void glOrtho(GLdouble l, GLdouble r, GLdouble b, GLdouble t, GLdouble n, GLdoubl
 
 void glPushMatrix(void)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     gl_matrix_stack_t *stack = state.current_matrix_stack;
 
     int32_t new_depth = stack->cur_depth + 1;
@@ -341,6 +365,8 @@ void glPushMatrix(void)
 
 void glPopMatrix(void)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     gl_matrix_stack_t *stack = state.current_matrix_stack;
 
     int32_t new_depth = stack->cur_depth - 1;

@@ -22,6 +22,8 @@ void gl_list_close()
 
 void glNewList(GLuint n, GLenum mode)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     if (n == 0) {
         gl_set_error(GL_INVALID_VALUE);
         return;
@@ -50,6 +52,8 @@ void glNewList(GLuint n, GLenum mode)
 
 void glEndList(void)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     if (state.current_list == 0) {
         gl_set_error(GL_INVALID_OPERATION);
         return;
@@ -68,6 +72,10 @@ void glEndList(void)
 
 void glCallList(GLuint n)
 {
+    // The spec allows glCallList in immediate mode, but our current architecture doesn't allow for this.
+    // During display list recording, we cannot anticipate whether it will be called during immediate mode or not.
+    assertf(!state.immediate_active, "glCallList between glBegin/glEnd is not supported!");
+
     rspq_block_t *block = obj_map_get(&state.list_objects, n);
     if (block != NULL) {
         rspq_block_run(block);
@@ -135,6 +143,8 @@ GLuint gl_get_list_name_4bytes(const GLvoid *lists, GLsizei n)
 
 void glCallLists(GLsizei n, GLenum type, const GLvoid *lists)
 {
+    // See glCallList for an explanation
+    assertf(!state.immediate_active, "glCallLists between glBegin/glEnd is not supported!");
     GLuint (*func)(const GLvoid*, GLsizei);
 
     switch (type) {
@@ -182,11 +192,15 @@ void glCallLists(GLsizei n, GLenum type, const GLvoid *lists)
 
 void glListBase(GLuint base)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     state.list_base = base;
 }
 
 GLuint glGenLists(GLsizei s)
 {
+    if (!gl_ensure_no_immediate()) return 0;
+    
     GLuint result = state.next_list_name;
     state.next_list_name += s;
     return result;
@@ -194,11 +208,15 @@ GLuint glGenLists(GLsizei s)
 
 GLboolean glIsList(GLuint list)
 {
+    if (!gl_ensure_no_immediate()) return 0;
+    
     return obj_map_get(&state.list_objects, list) != NULL;
 }
 
 void glDeleteLists(GLuint list, GLsizei range)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     for (GLuint i = 0; i < range; i++)
     {
         rspq_block_t *block = obj_map_remove(&state.list_objects, list + i);

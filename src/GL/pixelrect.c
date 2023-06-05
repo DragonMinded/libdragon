@@ -42,6 +42,8 @@ void gl_pixel_init()
 
 void glPixelStorei(GLenum pname, GLint param)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     switch (pname) {
     case GL_UNPACK_SWAP_BYTES:
         state.unpack_swap_bytes = param != 0;
@@ -93,6 +95,8 @@ void glPixelStorei(GLenum pname, GLint param)
 
 void glPixelStoref(GLenum pname, GLfloat param)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     switch (pname) {
     case GL_UNPACK_SWAP_BYTES:
         state.unpack_swap_bytes = param != 0.0f;
@@ -109,6 +113,8 @@ void glPixelStoref(GLenum pname, GLfloat param)
 
 void glPixelTransferi(GLenum pname, GLint value)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     switch (pname) {
     case GL_MAP_COLOR:
         state.map_color = value != 0;
@@ -122,6 +128,8 @@ void glPixelTransferi(GLenum pname, GLint value)
 
 void glPixelTransferf(GLenum pname, GLfloat value)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     switch (pname) {
     case GL_MAP_COLOR:
         state.map_color = value != 0.0f;
@@ -190,6 +198,8 @@ gl_pixel_map_t * gl_get_pixel_map(GLenum map)
 
 void glPixelMapusv(GLenum map, GLsizei size, const GLushort *values)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     gl_pixel_map_t *pixel_map = gl_get_pixel_map(map);
     if (pixel_map == NULL) {
         return;
@@ -208,6 +218,8 @@ void glPixelMapusv(GLenum map, GLsizei size, const GLushort *values)
 
 void glPixelMapuiv(GLenum map, GLsizei size, const GLuint *values)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     gl_pixel_map_t *pixel_map = gl_get_pixel_map(map);
     if (pixel_map == NULL) {
         return;
@@ -226,6 +238,8 @@ void glPixelMapuiv(GLenum map, GLsizei size, const GLuint *values)
 
 void glPixelMapfv(GLenum map, GLsizei size, const GLfloat *values)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     gl_pixel_map_t *pixel_map = gl_get_pixel_map(map);
     if (pixel_map == NULL) {
         return;

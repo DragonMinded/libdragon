@@ -142,6 +142,8 @@ uint32_t gl_texture_get_offset(GLenum target)
 
 void glTexImageN64(GLenum target, GLint level, const surface_t *surface)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     uint32_t offset = gl_texture_get_offset(target);
     if (offset == 0) return;
 #if 1
@@ -284,6 +286,8 @@ void gl_texture_set_priority(uint32_t offset, GLint param)
 
 void glTexParameteri(GLenum target, GLenum pname, GLint param)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     uint32_t offset = gl_texture_get_offset(target);
     if (offset == 0) {
         return;
@@ -313,6 +317,8 @@ void glTexParameteri(GLenum target, GLenum pname, GLint param)
 
 void glTexParameterf(GLenum target, GLenum pname, GLfloat param)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     uint32_t offset = gl_texture_get_offset(target);
     if (offset == 0) {
         return;
@@ -342,6 +348,8 @@ void glTexParameterf(GLenum target, GLenum pname, GLfloat param)
 
 void glTexParameteriv(GLenum target, GLenum pname, const GLint *params)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     uint32_t offset = gl_texture_get_offset(target);
     if (offset == 0) {
         return;
@@ -374,6 +382,8 @@ void glTexParameteriv(GLenum target, GLenum pname, const GLint *params)
 
 void glTexParameterfv(GLenum target, GLenum pname, const GLfloat *params)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     uint32_t offset = gl_texture_get_offset(target);
     if (offset == 0) {
         return;
@@ -406,6 +416,8 @@ void glTexParameterfv(GLenum target, GLenum pname, const GLfloat *params)
 
 GLboolean glIsTexture(GLuint texture)
 {
+    if (!gl_ensure_no_immediate()) return 0;
+    
     // FIXME: This doesn't actually guarantee that it's a valid texture object, but just uses the heuristic of
     //        "is it somewhere in the heap memory?". This way we can at least rule out arbitrarily chosen integer constants,
     //        which used to be valid texture IDs in legacy OpenGL.
@@ -414,6 +426,7 @@ GLboolean glIsTexture(GLuint texture)
 
 void glBindTexture(GLenum target, GLuint texture)
 {
+    if (!gl_ensure_no_immediate()) return;
     assertf(texture == 0 || is_valid_object_id(texture), "Not a valid texture object: %#lx", texture);
 
     gl_texture_object_t **target_obj = NULL;
@@ -461,6 +474,8 @@ void glBindTexture(GLenum target, GLuint texture)
 
 void glGenTextures(GLsizei n, GLuint *textures)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     for (uint32_t i = 0; i < n; i++)
     {
         gl_texture_object_t *new_object = malloc_uncached(sizeof(gl_texture_object_t));
@@ -471,6 +486,8 @@ void glGenTextures(GLsizei n, GLuint *textures)
 
 void glDeleteTextures(GLsizei n, const GLuint *textures)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     for (uint32_t i = 0; i < n; i++)
     {
         assertf(textures[i] == 0 || is_valid_object_id(textures[i]), "Not a valid texture object: %#lx", textures[i]);
@@ -1091,6 +1108,8 @@ void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei widt
 }
 void glTexImage1D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     switch (target) {
     case GL_TEXTURE_1D:
         break;
@@ -1107,6 +1126,8 @@ void glTexImage1D(GLenum target, GLint level, GLint internalformat, GLsizei widt
 
 void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
+    if (!gl_ensure_no_immediate()) return;
+    
     switch (target) {
     case GL_TEXTURE_2D:
         break;

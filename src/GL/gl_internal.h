@@ -53,6 +53,22 @@
     assertf(error == GL_NO_ERROR, "GL error: 0x%04x (%s)", error, #error); \
 })
 
+#define gl_ensure_immediate() ({ \
+    if (!state.immediate_active) { \
+        gl_set_error(GL_INVALID_OPERATION); \
+        false; \
+    } \
+    true; \
+})
+
+#define gl_ensure_no_immediate() ({ \
+    if (state.immediate_active) { \
+        gl_set_error(GL_INVALID_OPERATION); \
+        false; \
+    } \
+    true; \
+})
+
 extern uint32_t gl_overlay_id;
 extern uint32_t glp_overlay_id;
 extern uint32_t gl_rsp_state;

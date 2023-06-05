@@ -16,6 +16,7 @@ GLboolean glIsBufferARB(GLuint buffer)
 
 void glBindBufferARB(GLenum target, GLuint buffer)
 {
+    if (!gl_ensure_no_immediate()) return;
     assertf(buffer == 0 || is_valid_object_id(buffer), "Not a valid buffer object: %#lx", buffer);
 
     gl_buffer_object_t *obj = (gl_buffer_object_t*)buffer;
@@ -42,6 +43,8 @@ void gl_unbind_buffer(gl_buffer_object_t *obj, gl_buffer_object_t **binding)
 
 void glDeleteBuffersARB(GLsizei n, const GLuint *buffers)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     for (GLsizei i = 0; i < n; i++)
     {
         assertf(buffers[i] == 0 || is_valid_object_id(buffers[i]), "Not a valid buffer object: %#lx", buffers[i]);
@@ -79,6 +82,8 @@ void glDeleteBuffersARB(GLsizei n, const GLuint *buffers)
 
 void glGenBuffersARB(GLsizei n, GLuint *buffers)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     for (GLsizei i = 0; i < n; i++)
     {
         gl_buffer_object_t *new_obj = calloc(sizeof(gl_buffer_object_t), 1);
@@ -112,6 +117,8 @@ bool gl_get_buffer_object(GLenum target, gl_buffer_object_t **obj)
 
 void glBufferDataARB(GLenum target, GLsizeiptrARB size, const GLvoid *data, GLenum usage)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     gl_buffer_object_t *obj = NULL;
     if (!gl_get_buffer_object(target, &obj)) {
         return;
@@ -150,6 +157,8 @@ void glBufferDataARB(GLenum target, GLsizeiptrARB size, const GLvoid *data, GLen
 
 void glBufferSubDataARB(GLenum target, GLintptrARB offset, GLsizeiptrARB size, const GLvoid *data)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     gl_buffer_object_t *obj = NULL;
     if (!gl_get_buffer_object(target, &obj)) {
         return;
@@ -170,6 +179,8 @@ void glBufferSubDataARB(GLenum target, GLintptrARB offset, GLsizeiptrARB size, c
 
 void glGetBufferSubDataARB(GLenum target, GLintptrARB offset, GLsizeiptrARB size, GLvoid *data)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     gl_buffer_object_t *obj = NULL;
     if (!gl_get_buffer_object(target, &obj)) {
         return;
@@ -190,6 +201,8 @@ void glGetBufferSubDataARB(GLenum target, GLintptrARB offset, GLsizeiptrARB size
 
 GLvoid * glMapBufferARB(GLenum target, GLenum access)
 {
+    if (!gl_ensure_no_immediate()) return 0;
+
     gl_buffer_object_t *obj = NULL;
     if (!gl_get_buffer_object(target, &obj)) {
         return NULL;
@@ -219,6 +232,8 @@ GLvoid * glMapBufferARB(GLenum target, GLenum access)
 
 GLboolean glUnmapBufferARB(GLenum target)
 {
+    if (!gl_ensure_no_immediate()) return 0;
+
     gl_buffer_object_t *obj = NULL;
     if (!gl_get_buffer_object(target, &obj)) {
         return GL_FALSE;
@@ -237,6 +252,8 @@ GLboolean glUnmapBufferARB(GLenum target)
 
 void glGetBufferParameterivARB(GLenum target, GLenum pname, GLint *params)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     gl_buffer_object_t *obj = NULL;
     if (!gl_get_buffer_object(target, &obj)) {
         return;
@@ -263,6 +280,8 @@ void glGetBufferParameterivARB(GLenum target, GLenum pname, GLint *params)
 
 void glGetBufferPointervARB(GLenum target, GLenum pname, GLvoid **params)
 {
+    if (!gl_ensure_no_immediate()) return;
+
     gl_buffer_object_t *obj = NULL;
     if (!gl_get_buffer_object(target, &obj)) {
         return;
