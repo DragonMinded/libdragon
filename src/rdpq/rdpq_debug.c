@@ -1452,10 +1452,15 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         }
         // Check mipmapping related quirks with rectangles
         VALIDATE_WARN_SOM(!rdp.som.tex.lod, "mipmapping does not work with texture rectangles, it will be ignored");
-        if (!rdp.som.tex.lod) { // avoid specific LOD_FRAC warnings if we already issued the previous one
+        if (!rdp.som.tex.lod && rdp.som.cycle_type < 2) {
+            // avoid specific LOD_FRAC warnings if we already issued the previous one
             for (int i=0; i<=rdp.som.cycle_type; i++) {
                 struct cc_cycle_s *ccs = &rdp.cc.cyc[i^1];
-                VALIDATE_WARN_CC(ccs->rgb.mul != 13 && ccs->alpha.mul != 0,
+                bool lod_frac_rgb = ccs->rgb.mul == 13;
+                bool lod_frac_alpha = ccs->alpha.mul == 0;
+                if (lod_frac_alpha && ccs->alpha.suba == 0 && ccs->alpha.subb == 0)
+                    lod_frac_alpha = false;  // (0-0)*lod_frac is allowed without warnings (it's used as passthrough)
+                VALIDATE_WARN_CC(!lod_frac_rgb && !lod_frac_alpha,
                     "LOD_FRAC is not calculated correctly in rectangles (it's always 0x00 or 0xFF)");
             }
         }

@@ -37,6 +37,7 @@ static void debug_rdp_stream_reset(void) {
 }
 
 static void debug_rdp_stream_init(void) {
+    rspq_wait(); // avoid race conditions with pending commands
     debug_rdp_stream_reset();
     rdpq_debug_install_hook(debug_rdp_stream, NULL);
 }
@@ -819,7 +820,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     rdpq_set_color_image(&fb);
 
     // Dynamic mode 
-    debugf("Dynamic mode\n");
+    LOG("Dynamic mode\n");
     for (int j=0;j<4;j++) {
         for (int i=0;i<80;i++) {
             rdpq_tex_upload_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
@@ -830,7 +831,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     rspq_wait();
 
     // Dynamic mode (multiple syncs per buffer)
-    debugf("Dynamic mode with multiple syncs per buffer\n");
+    LOG("Dynamic mode with multiple syncs per buffer\n");
     for (int j=0;j<4;j++) {
         for (int i=0;i<6;i++) {
             rdpq_tex_upload_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
@@ -844,7 +845,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     data_cache_index_writeback_invalidate(buf, sizeof(buf));
 
     // Dynamic mode, forcing buffer change.
-    debugf("Dynamic mode with buffer change\n");
+    LOG("Dynamic mode with buffer change\n");
     for (int j=0;j<4;j++) {
         for (int i=0;i<80;i++) {
             rdpq_tex_upload_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
@@ -856,7 +857,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     rspq_wait();
 
     // Block mode, 
-    debugf("Block mode\n");
+    LOG("Block mode\n");
     rspq_block_begin();
     for (int i=0;i<80;i++) {
         rdpq_tex_upload_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
@@ -873,7 +874,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     rspq_wait();
 
     // Block mode with sync, 
-    debugf("Block mode with sync inside\n");
+    LOG("Block mode with sync inside\n");
     rspq_block_begin();
     for (int i=0;i<80;i++) {
         rdpq_tex_upload_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
@@ -1056,6 +1057,7 @@ void test_rdpq_automode(TestContext *ctx) {
     rdpq_set_prim_color(RGBA32(0x0,0x0,0x0,0x7F));
 
     // Set simple 1-pass combiner => 1 cycle
+    rdpq_debug_log_msg("1pass combiner => 1 cycle");
     surface_clear(&fb, 0xFF);
     rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
@@ -1066,6 +1068,7 @@ void test_rdpq_automode(TestContext *ctx) {
         "Wrong data in framebuffer (comb=1pass, blender=off)");
 
     // Activate blending (1-pass blender) => 1 cycle
+    rdpq_debug_log_msg("1pass blender => 1 cycle");
     surface_clear(&fb, 0xFF);
     rdpq_mode_blender(RDPQ_BLENDER((IN_RGB, FOG_ALPHA, BLEND_RGB, INV_MUX_ALPHA)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
@@ -1076,6 +1079,7 @@ void test_rdpq_automode(TestContext *ctx) {
         "Wrong data in framebuffer (comb=1pass, blender=1pass)");
 
     // Activate fogging (2-pass blender) => 2 cycle
+    rdpq_debug_log_msg("2pass blender => 2 cycle");
     surface_clear(&fb, 0xFF);
     rdpq_mode_fog(RDPQ_BLENDER((BLEND_RGB, ZERO, IN_RGB, INV_MUX_ALPHA)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
@@ -1086,6 +1090,7 @@ void test_rdpq_automode(TestContext *ctx) {
         "Wrong data in framebuffer (comb=1pass, blender=2pass)");
 
     // Set two-pass combiner => 2 cycle
+    rdpq_debug_log_msg("2pass combiner => 2 cycle");
     surface_clear(&fb, 0xFF);
     rdpq_mode_combiner(RDPQ_COMBINER2(
         (ZERO, ZERO, ZERO, ENV), (ENV, ZERO, TEX0, PRIM),
@@ -1098,6 +1103,7 @@ void test_rdpq_automode(TestContext *ctx) {
         "Wrong data in framebuffer (comb=2pass, blender=2pass)");
 
     // Disable fogging (1 pass blender) => 2 cycle
+    rdpq_debug_log_msg("1pass blender => 2 cycle");
     surface_clear(&fb, 0xFF);
     rdpq_mode_fog(0);
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
@@ -1108,6 +1114,7 @@ void test_rdpq_automode(TestContext *ctx) {
         "Wrong data in framebuffer (comb=2pass, blender=1pass)");
 
     // Set simple combiner => 1 cycle
+    rdpq_debug_log_msg("1pass combiner => 1 cycle");
     surface_clear(&fb, 0xFF);
     rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
@@ -1118,6 +1125,7 @@ void test_rdpq_automode(TestContext *ctx) {
         "Wrong data in framebuffer (comb=1pass, blender=1pass)");
 
     // Push the current mode, then modify several states, then pop.
+    rdpq_debug_log_msg("push/pop");
     rdpq_mode_push();
     rdpq_mode_combiner(RDPQ_COMBINER2(
         (ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO),

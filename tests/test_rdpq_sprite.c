@@ -4,6 +4,7 @@ void test_rdpq_sprite_upload(TestContext *ctx)
 {
     RDPQ_INIT();
 
+    // Load a sprite without mipmaps
     sprite_t *s1 = sprite_load("rom:/grass1.rgba32.sprite");
     surface_t s1surf = sprite_get_pixels(s1);
     DEFER(sprite_free(s1));
@@ -31,10 +32,11 @@ void test_rdpq_sprite_lod(TestContext *ctx)
 
     // Load a sprite that contains mipmaps. We want to check that they are
     // loaded correctly and mipmap mode is configured.
-    sprite_t *s1 = sprite_load("rom:/grass1.rgba32.sprite");
+    sprite_t *s1 = sprite_load("rom:/grass2.rgba32.sprite");
+    DEFER(sprite_free(s1));
     surface_t s1surf = sprite_get_pixels(s1);
     surface_t s1lod1 = sprite_get_lod_pixels(s1, 1);
-    DEFER(sprite_free(s1));
+    ASSERT_EQUAL_SIGNED(s1surf.width / 2, s1lod1.width, "invalid width of LOD 1");
 
     surface_t fb = surface_alloc(FMT_RGBA32, s1surf.width, s1surf.height);
     DEFER(surface_free(&fb));
