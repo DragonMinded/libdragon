@@ -697,6 +697,38 @@ void test_rdpq_fixup_fillrect(TestContext *ctx)
                 RGBA32(255,128,255,FULL_CVG) : RGBA32(0,0,0,0);
         });
     }
+
+    {
+        surface_clear(&fb, 0);
+        rdpq_set_mode_fill(RGBA32(255,0,255,0));
+        rspq_block_begin();
+            rdpq_fill_rectangle(4, 4, FBWIDTH-4, FBWIDTH-4);
+        rspq_block_t *block = rspq_block_end();
+        DEFER(rspq_block_free(block));
+        rspq_block_run(block);
+        rspq_wait();
+        ASSERT_SURFACE(&fb, {
+            return (x >= 4 && y >= 4 && x < FBWIDTH-4 && y < FBWIDTH-4) ?
+                RGBA32(255,0,255,0) : RGBA32(0,0,0,0);
+        });
+    }
+
+    {
+        surface_clear(&fb, 0);
+        rdpq_set_mode_standard();
+        rdpq_mode_combiner(RDPQ_COMBINER_FLAT);
+        rdpq_set_prim_color(RGBA32(255,128,255,0));
+        rspq_block_begin();
+            rdpq_fill_rectangle(4, 4, FBWIDTH-4, FBWIDTH-4);
+        rspq_block_t *block = rspq_block_end();
+        DEFER(rspq_block_free(block));
+        rspq_block_run(block);
+        rspq_wait();
+        ASSERT_SURFACE(&fb, {
+            return (x >= 4 && y >= 4 && x < FBWIDTH-4 && y < FBWIDTH-4) ?
+                RGBA32(255,128,255,FULL_CVG) : RGBA32(0,0,0,0);
+        });
+    }
 }
 
 void test_rdpq_lookup_address(TestContext *ctx)
