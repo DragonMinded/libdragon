@@ -1615,3 +1615,59 @@ void test_rdpq_autotmem(TestContext *ctx) {
 
     ASSERT_EQUAL_SIGNED(tidx, 8, "invalid number of tiles");
 }
+
+void test_rdpq_texrect_passthrough(TestContext *ctx) {
+    RDPQ_INIT();
+
+    rspq_block_t *block;
+    uint32_t texrect;
+
+    uint32_t find_block_texrect(uint32_t *cmds) {
+        for (int i=0; i<16; i++) {
+            if (cmds[i] >> 24 == 0xE4) {
+                return cmds[i];
+            }
+        }
+        return 0;
+    }
+   
+    // Block with no mode setting. Must be a fixup.
+    rspq_block_begin();
+        rdpq_texture_rectangle(TILE0, 0, 0, 16, 16, 0, 0);
+    block = rspq_block_end();
+    ASSERT_EQUAL_HEX(block->rdp_block->cmds[0] >> 24, 0xC0, "expected NOP in block");
+    rspq_block_free(block);
+
+    // Block with standard mode. Should contain a rectangle with exclusive bounds
+    rspq_block_begin();
+        rdpq_set_mode_standard();
+        rdpq_texture_rectangle(TILE0, 0, 0, 16, 16, 0, 0);
+    block = rspq_block_end();
+    texrect = find_block_texrect(block->rdp_block->cmds);
+    ASSERT_EQUAL_HEX(texrect, 0xe4040040, "expected exclusive bounds");
+    rspq_block_free(block);
+
+    // Block with copy mode. Should contain a rectangle with exclusive bounds
+    rspq_block_begin();
+        rdpq_set_mode_copy(true);
+        rdpq_texture_rectangle(TILE0, 0, 0, 16, 16, 0, 0);
+    block = rspq_block_end();
+    texrect = find_block_texrect(block->rdp_block->cmds);
+    ASSERT_EQUAL_HEX(texrect, 0xe403c03c, "expected inclusive bounds");
+    rspq_block_free(block);
+
+    // Block with standard mode coming from a sub-block.
+    // Register a block that sets the standard mode
+    rspq_block_begin();
+        rdpq_set_mode_standard();
+    rspq_block_t *block_mode = rspq_block_end();
+
+    rspq_block_begin();
+        rspq_block_run(block_mode);
+        rdpq_texture_rectangle(TILE0, 0, 0, 16, 16, 0, 0);
+    block = rspq_block_end();
+    texrect = find_block_texrect(block->rdp_block->cmds);
+    ASSERT_EQUAL_HEX(texrect, 0xe4040040, "expected exclusive bounds");
+    rspq_block_free(block);
+    rspq_block_free(block_mode);
+}
