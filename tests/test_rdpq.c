@@ -604,6 +604,33 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
             "Wrong data in framebuffer (1cycle mode, static mode)");
     }
 
+    {
+        surface_clear(&fb, 0xFF);
+        rdpq_set_other_modes_raw(SOM_CYCLE_COPY);
+        rspq_block_begin();
+        rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
+        rspq_block_t *block = rspq_block_end();
+        DEFER(rspq_block_free(block));
+        rspq_block_run(block);
+        rspq_wait();
+        ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
+            "Wrong data in framebuffer (copy mode, static mode, no tracking)");
+    }
+
+    {
+        surface_clear(&fb, 0xFF);
+        rdpq_set_mode_standard();
+        rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0)));
+        rspq_block_begin();
+        rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
+        rspq_block_t *block = rspq_block_end();
+        DEFER(rspq_block_free(block));
+        rspq_block_run(block);
+        rspq_wait();
+        ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
+            "Wrong data in framebuffer (1cycle mode, static mode, no tracking)");
+    }
+
     #undef TEST_RDPQ_TEXWIDTH
     #undef TEST_RDPQ_TEXAREA
     #undef TEST_RDPQ_TEXSIZE
