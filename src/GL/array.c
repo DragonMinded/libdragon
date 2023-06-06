@@ -130,7 +130,7 @@ void gl_array_init()
 void gl_set_array(gl_array_type_t array_type, GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
 {
     if (stride < 0) {
-        gl_set_error(GL_INVALID_VALUE);
+        gl_set_error(GL_INVALID_VALUE, "Stride must not be negative");
         return;
     }
 
@@ -142,7 +142,7 @@ void gl_set_array(gl_array_type_t array_type, GLint size, GLenum type, GLsizei s
     //     [fn: This error makes it impossible to create a vertex array
     //           object containing client array pointers.]
     if (state.array_object != &state.default_array_object && state.array_buffer == NULL && pointer != NULL) {
-        gl_set_error(GL_INVALID_OPERATION);
+        gl_set_error(GL_INVALID_OPERATION, "Vertex array objects can only be used in conjunction with vertex buffer objects");
         return;
     }
 
@@ -167,7 +167,7 @@ void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *poin
     case 4:
         break;
     default:
-        gl_set_error(GL_INVALID_VALUE);
+        gl_set_error(GL_INVALID_VALUE, "Size must be 2, 3 or 4");
         return;
     }
 
@@ -178,7 +178,7 @@ void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *poin
     case GL_DOUBLE:
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid vertex data type", type);
         return;
     }
 
@@ -196,7 +196,7 @@ void glTexCoordPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *po
     case 4:
         break;
     default:
-        gl_set_error(GL_INVALID_VALUE);
+        gl_set_error(GL_INVALID_VALUE, "Size must be 1, 2, 3 or 4");
         return;
     }
 
@@ -207,7 +207,7 @@ void glTexCoordPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *po
     case GL_DOUBLE:
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid texture coordinate data type", type);
         return;
     }
 
@@ -226,7 +226,7 @@ void glNormalPointer(GLenum type, GLsizei stride, const GLvoid *pointer)
     case GL_DOUBLE:
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid normal data type", type);
         return;
     }
 
@@ -242,7 +242,7 @@ void glColorPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *point
     case 4:
         break;
     default:
-        gl_set_error(GL_INVALID_VALUE);
+        gl_set_error(GL_INVALID_VALUE, "Size must be 3 or 4");
         return;
     }
 
@@ -257,7 +257,7 @@ void glColorPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *point
     case GL_DOUBLE:
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid color data type", type);
         return;
     }
 
@@ -268,8 +268,8 @@ void glMatrixIndexPointerARB(GLint size, GLenum type, GLsizei stride, const GLvo
 {
     if (!gl_ensure_no_immediate()) return;
 
-    if (size < 0 || size > VERTEX_UNIT_COUNT) {
-        gl_set_error(GL_INVALID_VALUE);
+    if (size < 1 || size > VERTEX_UNIT_COUNT) {
+        gl_set_error(GL_INVALID_VALUE, "Size must be 1");
         return;
     }
 
@@ -279,7 +279,7 @@ void glMatrixIndexPointerARB(GLint size, GLenum type, GLsizei stride, const GLvo
     case GL_UNSIGNED_INT:
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid matrix index data type", type);
         return;
     }
 
@@ -308,7 +308,7 @@ void glEnableClientState(GLenum array)
     case GL_INDEX_ARRAY:
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid client state", array);
         break;
     }
 }
@@ -328,7 +328,7 @@ void glDisableClientState(GLenum array)
     case GL_INDEX_ARRAY:
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid client state", array);
         break;
     }
 }
@@ -354,7 +354,7 @@ void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer)
     case GL_T4F_C4F_N3F_V4F:
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid interleaved array format", format);
         return;
     }
 

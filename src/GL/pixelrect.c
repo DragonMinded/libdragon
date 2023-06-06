@@ -54,28 +54,28 @@ void glPixelStorei(GLenum pname, GLint param)
         break;
     case GL_UNPACK_ROW_LENGTH:
         if (param < 0) {
-            gl_set_error(GL_INVALID_VALUE);
+            gl_set_error(GL_INVALID_VALUE, "GL_UNPACK_ROW_LENGTH must not be negative");
             return;
         }
         state.unpack_row_length = param;
         break;
     case GL_UNPACK_SKIP_ROWS:
         if (param < 0) {
-            gl_set_error(GL_INVALID_VALUE);
+            gl_set_error(GL_INVALID_VALUE, "GL_UNPACK_SKIP_ROWS must not be negative");
             return;
         }
         state.unpack_skip_rows = param;
         break;
     case GL_UNPACK_SKIP_PIXELS:
         if (param < 0) {
-            gl_set_error(GL_INVALID_VALUE);
+            gl_set_error(GL_INVALID_VALUE, "GL_UNPACK_SKIP_PIXELS must not be negative");
             return;
         }
         state.unpack_skip_pixels = param;
         break;
     case GL_UNPACK_ALIGNMENT:
         if (param != 1 && param != 2 && param != 4 && param != 8) {
-            gl_set_error(GL_INVALID_VALUE);
+            gl_set_error(GL_INVALID_VALUE, "GL_UNPACK_ALIGNMENT must be 1, 2, 4 or 8");
             return;
         }
         state.unpack_alignment = param;
@@ -88,7 +88,7 @@ void glPixelStorei(GLenum pname, GLint param)
     case GL_PACK_ALIGNMENT:
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 }
@@ -165,7 +165,7 @@ void glPixelTransferf(GLenum pname, GLfloat value)
     case GL_INDEX_OFFSET:
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 
@@ -191,7 +191,7 @@ gl_pixel_map_t * gl_get_pixel_map(GLenum map)
     case GL_PIXEL_MAP_I_TO_A:
         return NULL;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid pixel map", map);
         return NULL;
     }
 }
@@ -205,8 +205,8 @@ void glPixelMapusv(GLenum map, GLsizei size, const GLushort *values)
         return;
     }
 
-    if (size > MAX_PIXEL_MAP_SIZE) {
-        gl_set_error(GL_INVALID_VALUE);
+    if (size < 1 || size > MAX_PIXEL_MAP_SIZE) {
+        gl_set_error(GL_INVALID_VALUE, "Size must be in [1,%d]", MAX_PIXEL_MAP_SIZE);
         return;
     }
 
@@ -225,8 +225,8 @@ void glPixelMapuiv(GLenum map, GLsizei size, const GLuint *values)
         return;
     }
 
-    if (size > MAX_PIXEL_MAP_SIZE) {
-        gl_set_error(GL_INVALID_VALUE);
+    if (size < 1 || size > MAX_PIXEL_MAP_SIZE) {
+        gl_set_error(GL_INVALID_VALUE, "Size must be in [1,%d]", MAX_PIXEL_MAP_SIZE);
         return;
     }
 
@@ -245,8 +245,8 @@ void glPixelMapfv(GLenum map, GLsizei size, const GLfloat *values)
         return;
     }
 
-    if (size > MAX_PIXEL_MAP_SIZE) {
-        gl_set_error(GL_INVALID_VALUE);
+    if (size < 1 || size > MAX_PIXEL_MAP_SIZE) {
+        gl_set_error(GL_INVALID_VALUE, "Size must be in [1,%d]", MAX_PIXEL_MAP_SIZE);
         return;
     }
 

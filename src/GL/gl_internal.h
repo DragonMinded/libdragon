@@ -48,22 +48,14 @@
     dirty_flag; \
 })
 
-#define gl_set_error(error)  ({ \
+#define gl_set_error(error, message, ...)  ({ \
     state.current_error = error; \
-    assertf(error == GL_NO_ERROR, "GL error: 0x%04x (%s)", error, #error); \
-})
-
-#define gl_ensure_immediate() ({ \
-    if (!state.immediate_active) { \
-        gl_set_error(GL_INVALID_OPERATION); \
-        false; \
-    } \
-    true; \
+    assertf(error == GL_NO_ERROR, "%s: " message, #error, ##__VA_ARGS__); \
 })
 
 #define gl_ensure_no_immediate() ({ \
     if (state.immediate_active) { \
-        gl_set_error(GL_INVALID_OPERATION); \
+        gl_set_error(GL_INVALID_OPERATION, "%s is not allowed between glBegin/glEnd", __func__); \
         false; \
     } \
     true; \

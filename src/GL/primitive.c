@@ -178,7 +178,7 @@ bool gl_init_prim_assembly(GLenum mode)
         state.lock_next_vertex = true;
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid primitive mode", mode);
         return false;
     }
 
@@ -241,7 +241,9 @@ void glBegin(GLenum mode)
 
 void glEnd(void)
 {
-    if (!gl_ensure_immediate()) return;
+    if (!state.immediate_active) {
+        gl_set_error(GL_INVALID_OPERATION, "glEnd must be called after glBegin");
+    }
 
     gl_end();
 
@@ -438,7 +440,7 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
     case GL_POLYGON:
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid primitive mode", mode);
         return;
     }
 
@@ -483,7 +485,7 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
     case GL_POLYGON:
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid primitive mode", mode);
         return;
     }
 
@@ -500,7 +502,7 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
         read_index = (read_index_func)read_index_32;
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid index type", type);
         return;
     }
     
@@ -525,7 +527,7 @@ void glArrayElement(GLint i)
         "glArrayElement was called outside of glBegin/glEnd while vertex array was enabled");
 
     if (i < 0) {
-        gl_set_error(GL_INVALID_VALUE);
+        gl_set_error(GL_INVALID_VALUE, "Index must not be negative");
         return;
     }
 
@@ -573,7 +575,7 @@ void __gl_normal(GLenum type, const void *value, uint32_t size)
 void __gl_mtx_index(GLenum type, const void *value, uint32_t size)
 {
     if (size > VERTEX_UNIT_COUNT) {
-        gl_set_error(GL_INVALID_VALUE);
+        gl_set_error(GL_INVALID_VALUE, "Size must not be greater than %d", VERTEX_UNIT_COUNT);
         return;
     }
 
@@ -737,7 +739,7 @@ void glPointSize(GLfloat size)
     if (!gl_ensure_no_immediate()) return;
     
     if (size <= 0.0f) {
-        gl_set_error(GL_INVALID_VALUE);
+        gl_set_error(GL_INVALID_VALUE, "Point size must not be negative");
         return;
     }
 
@@ -750,7 +752,7 @@ void glLineWidth(GLfloat width)
     if (!gl_ensure_no_immediate()) return;
     
     if (width <= 0.0f) {
-        gl_set_error(GL_INVALID_VALUE);
+        gl_set_error(GL_INVALID_VALUE, "Line width must not be negative");
         return;
     }
 
@@ -770,7 +772,7 @@ void glPolygonMode(GLenum face, GLenum mode)
     case GL_FRONT_AND_BACK:
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid face target", face);
         return;
     }
 
@@ -780,7 +782,7 @@ void glPolygonMode(GLenum face, GLenum mode)
     case GL_FILL:
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid polygon mode", mode);
         return;
     }
 
@@ -847,7 +849,7 @@ gl_tex_gen_t *gl_get_tex_gen(GLenum coord)
     case GL_Q:
         return &state.tex_gen[3];
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid tex gen coordinate", coord);
         return NULL;
     }
 }
@@ -860,12 +862,12 @@ void gl_tex_gen_set_mode(gl_tex_gen_t *gen, GLenum coord, GLint param)
         break;
     case GL_SPHERE_MAP:
         if (coord == GL_R || coord == GL_Q) {
-            gl_set_error(GL_INVALID_ENUM);
+            gl_set_error(GL_INVALID_ENUM, "Sphere mapping can only be applied to S or T coordinates");
             return;
         }
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid tex gen mode", param);
         return;
     }
 
@@ -885,7 +887,7 @@ void gl_tex_gen_i(GLenum coord, GLenum pname, GLint param)
     }
 
     if (pname != GL_TEXTURE_GEN_MODE) {
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 
@@ -959,7 +961,7 @@ void glTexGenfv(GLenum coord, GLenum pname, const GLfloat *params)
         gl_tex_gen_set_plane(coord, pname, gen->eye_plane);
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 }
@@ -992,7 +994,7 @@ void glTexGeniv(GLenum coord, GLenum pname, const GLint *params)
         gl_tex_gen_set_plane(coord, pname, gen->eye_plane);
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 }
@@ -1025,7 +1027,7 @@ void glTexGendv(GLenum coord, GLenum pname, const GLdouble *params)
         gl_tex_gen_set_plane(coord, pname, gen->eye_plane);
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 }
@@ -1042,7 +1044,7 @@ void glCullFace(GLenum mode)
         gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, cull_mode), mode);
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid face culling mode", mode);
         return;
     }
 }
@@ -1058,7 +1060,7 @@ void glFrontFace(GLenum dir)
         gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, front_face), dir);
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid front face winding direction", dir);
         return;
     }
 }

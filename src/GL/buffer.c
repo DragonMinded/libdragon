@@ -29,7 +29,7 @@ void glBindBufferARB(GLenum target, GLuint buffer)
         state.element_array_buffer = obj;
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid buffer target", target);
         return;
     }
 }
@@ -103,12 +103,12 @@ bool gl_get_buffer_object(GLenum target, gl_buffer_object_t **obj)
         *obj = state.element_array_buffer;
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid buffer target", target);
         return false;
     }
 
     if (*obj == NULL) {
-        gl_set_error(GL_INVALID_OPERATION);
+        gl_set_error(GL_INVALID_OPERATION, "No buffer object is currently bound");
         return false;
     }
 
@@ -136,12 +136,17 @@ void glBufferDataARB(GLenum target, GLsizeiptrARB size, const GLvoid *data, GLen
     case GL_DYNAMIC_COPY_ARB:
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid buffer usage", usage);
+        return;
+    }
+
+    if (size < 0) {
+        gl_set_error(GL_INVALID_VALUE, "Size must not be negative");
         return;
     }
 
     if (!gl_storage_resize(&obj->storage, size)) {
-        gl_set_error(GL_OUT_OF_MEMORY);
+        gl_set_error(GL_OUT_OF_MEMORY, "Failed to allocate buffer storage");
         return;
     }
 
@@ -165,12 +170,17 @@ void glBufferSubDataARB(GLenum target, GLintptrARB offset, GLsizeiptrARB size, c
     }
 
     if (obj->mapped) {
-        gl_set_error(GL_INVALID_OPERATION);
+        gl_set_error(GL_INVALID_OPERATION, "The buffer object is currently mapped");
         return;
     }
 
-    if ((offset < 0) || (offset >= obj->storage.size) || (offset + size > obj->storage.size)) {
-        gl_set_error(GL_INVALID_VALUE);
+    if (offset < 0) {
+        gl_set_error(GL_INVALID_VALUE, "Offset must not be negative");
+        return;
+    }
+
+    if ((offset >= obj->storage.size) || (offset + size > obj->storage.size)) {
+        gl_set_error(GL_INVALID_VALUE, "Offset and size define a memory region that is beyond the buffer storage");
         return;
     }
 
@@ -187,12 +197,17 @@ void glGetBufferSubDataARB(GLenum target, GLintptrARB offset, GLsizeiptrARB size
     }
 
     if (obj->mapped) {
-        gl_set_error(GL_INVALID_OPERATION);
+        gl_set_error(GL_INVALID_OPERATION, "The buffer object is currently mapped");
         return;
     }
 
-    if ((offset < 0) || (offset >= obj->storage.size) || (offset + size > obj->storage.size)) {
-        gl_set_error(GL_INVALID_VALUE);
+    if (offset < 0) {
+        gl_set_error(GL_INVALID_VALUE, "Offset must not be negative");
+        return;
+    }
+
+    if ((offset >= obj->storage.size) || (offset + size > obj->storage.size)) {
+        gl_set_error(GL_INVALID_VALUE, "Offset and size define a memory region that is beyond the buffer storage");
         return;
     }
 
@@ -214,12 +229,12 @@ GLvoid * glMapBufferARB(GLenum target, GLenum access)
     case GL_READ_WRITE_ARB:
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid buffer access", access);
         return NULL;
     }
 
     if (obj->mapped) {
-        gl_set_error(GL_INVALID_OPERATION);
+        gl_set_error(GL_INVALID_OPERATION, "The buffer object is already mapped");
         return NULL;
     }
 
@@ -240,7 +255,7 @@ GLboolean glUnmapBufferARB(GLenum target)
     }
 
     if (!obj->mapped) {
-        gl_set_error(GL_INVALID_OPERATION);
+        gl_set_error(GL_INVALID_OPERATION, "The buffer object has not been mapped");
         return GL_FALSE;
     }
 
@@ -273,7 +288,7 @@ void glGetBufferParameterivARB(GLenum target, GLenum pname, GLint *params)
         *params = obj->mapped;
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid buffer parameter", pname);
         return;
     }
 }
@@ -288,7 +303,7 @@ void glGetBufferPointervARB(GLenum target, GLenum pname, GLvoid **params)
     }
 
     if (pname != GL_BUFFER_MAP_POINTER_ARB) {
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid buffer pointer", pname);
         return;
     }
 

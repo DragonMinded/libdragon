@@ -135,7 +135,7 @@ uint32_t gl_texture_get_offset(GLenum target)
     case GL_TEXTURE_2D:
         return offsetof(gl_server_state_t, bound_textures) + sizeof(gl_texture_object_t) * 1;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid texture target", target);
         return 0;
     }
 }
@@ -228,7 +228,7 @@ void gl_texture_set_wrap_s(uint32_t offset, GLenum param)
         gl_set_flag_raw(GL_UPDATE_NONE, offset + TEXTURE_FLAGS_OFFSET, TEX_FLAG_UPLOAD_DIRTY, true);
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid wrapping mode", param);
         return;
     }
 }
@@ -243,7 +243,7 @@ void gl_texture_set_wrap_t(uint32_t offset, GLenum param)
         gl_set_flag_raw(GL_UPDATE_NONE, offset + TEXTURE_FLAGS_OFFSET, TEX_FLAG_UPLOAD_DIRTY, true);
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid wrapping mode", param);
         return;
     }
 }
@@ -261,7 +261,7 @@ void gl_texture_set_min_filter(uint32_t offset, GLenum param)
         gl_update_texture_completeness(offset);
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid minification filter", param);
         return;
     }
 }
@@ -274,7 +274,7 @@ void gl_texture_set_mag_filter(uint32_t offset, GLenum param)
         gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_texture_object_t, mag_filter), (uint16_t)param);
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid magnification filter", param);
         return;
     }
 }
@@ -310,7 +310,7 @@ void glTexParameteri(GLenum target, GLenum pname, GLint param)
         gl_texture_set_priority(offset, param);
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 }
@@ -341,7 +341,7 @@ void glTexParameterf(GLenum target, GLenum pname, GLfloat param)
         gl_texture_set_priority(offset, CLAMPF_TO_I32(param));
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 }
@@ -375,7 +375,7 @@ void glTexParameteriv(GLenum target, GLenum pname, const GLint *params)
         gl_texture_set_priority(offset, I32_TO_FLOAT(params[0]));
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 }
@@ -409,7 +409,7 @@ void glTexParameterfv(GLenum target, GLenum pname, const GLfloat *params)
         gl_texture_set_priority(offset, params[0]);
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 }
@@ -439,7 +439,7 @@ void glBindTexture(GLenum target, GLuint texture)
         target_obj = &state.texture_2d_object;
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid texture target", target);
         return;
     }
 
@@ -462,7 +462,7 @@ void glBindTexture(GLenum target, GLuint texture)
         }
 
         if (obj->dimensionality != target) {
-            gl_set_error(GL_INVALID_OPERATION);
+            gl_set_error(GL_INVALID_OPERATION, "Texture object has already been bound to another texture target");
             return;
         }
 
@@ -531,6 +531,7 @@ uint32_t gl_get_format_element_count(GLenum format)
         assertf(0, "Color index format is not supported!");
         return 0;
     default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid pixel data format", format);
         return 0;
     }
 }
@@ -938,7 +939,7 @@ gl_texture_object_t * gl_get_texture_object(GLenum target)
     case GL_TEXTURE_2D:
         return state.texture_2d_object;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid texture target", target);
         return NULL;
     }
 }
@@ -946,7 +947,7 @@ gl_texture_object_t * gl_get_texture_object(GLenum target)
 gl_texture_image_t * gl_get_texture_image(gl_texture_object_t *obj, GLint level)
 {
     if (level < 0 || level > MAX_TEXTURE_LEVELS) {
-        gl_set_error(GL_INVALID_VALUE);
+        gl_set_error(GL_INVALID_VALUE, "%ld is not a valid texture image level (Must be in [0, %d])", level, MAX_TEXTURE_LEVELS);
         return NULL;
     }
 
@@ -980,7 +981,6 @@ bool gl_validate_upload_image(GLenum format, GLenum type, uint32_t *num_elements
 {
     *num_elements = gl_get_format_element_count(format);
     if (*num_elements == 0) {
-        gl_set_error(GL_INVALID_ENUM);
         return false;
     }
 
@@ -995,22 +995,34 @@ bool gl_validate_upload_image(GLenum format, GLenum type, uint32_t *num_elements
         break;
     case GL_UNSIGNED_BYTE_3_3_2_EXT:
         if (*num_elements != 3) {
-            gl_set_error(GL_INVALID_OPERATION);
+            gl_set_error(GL_INVALID_OPERATION, "GL_UNSIGNED_BYTE_3_3_2_EXT must be used with GL_RGB");
             return false;
         }
         break;
     case GL_UNSIGNED_SHORT_4_4_4_4_EXT:
+        if (*num_elements != 4) {
+            gl_set_error(GL_INVALID_OPERATION, "GL_UNSIGNED_SHORT_4_4_4_4_EXT must be used with GL_RGBA");
+            return false;
+        }
     case GL_UNSIGNED_SHORT_5_5_5_1_EXT:
+        if (*num_elements != 4) {
+            gl_set_error(GL_INVALID_OPERATION, "GL_UNSIGNED_SHORT_5_5_5_1_EXT must be used with GL_RGBA");
+            return false;
+        }
     case GL_UNSIGNED_INT_8_8_8_8_EXT:
+        if (*num_elements != 4) {
+            gl_set_error(GL_INVALID_OPERATION, "GL_UNSIGNED_INT_8_8_8_8_EXT must be used with GL_RGBA");
+            return false;
+        }
     case GL_UNSIGNED_INT_10_10_10_2_EXT:
         if (*num_elements != 4) {
-            gl_set_error(GL_INVALID_OPERATION);
+            gl_set_error(GL_INVALID_OPERATION, "GL_UNSIGNED_INT_10_10_10_2_EXT must be used with GL_RGBA");
             return false;
         }
         break;
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid pixel data type", type);
         return false;
     }
 
@@ -1117,7 +1129,7 @@ void glTexImage1D(GLenum target, GLint level, GLint internalformat, GLsizei widt
         assertf(0, "Proxy texture targets are not supported!");
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid target for glTexImage1D", target);
         return;
     }
 
@@ -1135,7 +1147,7 @@ void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei widt
         assertf(0, "Proxy texture targets are not supported!");
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid target for glTexImage2D", target);
         return;
     }
 

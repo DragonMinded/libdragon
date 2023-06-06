@@ -142,7 +142,7 @@ void glMatrixMode(GLenum mode)
         state.matrix_mode = mode;
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid matrix mode", mode);
         return;
     }
 
@@ -156,7 +156,7 @@ void glCurrentPaletteMatrixARB(GLint index)
     if (!gl_ensure_no_immediate()) return;
     
     if (index < 0 || index >= MATRIX_PALETTE_SIZE) {
-        gl_set_error(GL_INVALID_VALUE);
+        gl_set_error(GL_INVALID_VALUE, "%#04lx is not a valid palette matrix index (Must be in [0, %d])", index, MATRIX_PALETTE_SIZE);
         return;
     }
 
@@ -351,7 +351,7 @@ void glPushMatrix(void)
 
     int32_t new_depth = stack->cur_depth + 1;
     if (new_depth >= stack->size) {
-        gl_set_error(GL_STACK_OVERFLOW);
+        gl_set_error(GL_STACK_OVERFLOW, "The current matrix stack has already reached the maximum depth of %ld", stack->size);
         return;
     }
 
@@ -371,7 +371,7 @@ void glPopMatrix(void)
 
     int32_t new_depth = stack->cur_depth - 1;
     if (new_depth < 0) {
-        gl_set_error(GL_STACK_UNDERFLOW);
+        gl_set_error(GL_STACK_UNDERFLOW, "The current matrix stack is already at depth 0");
         return;
     }
 

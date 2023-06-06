@@ -257,7 +257,7 @@ bool gl_validate_material_face(GLenum face)
     case GL_BACK:
         assertf(0, "Separate materials for front and back faces are not supported!");
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid material face", face);
         return false;
     }
 }
@@ -332,7 +332,7 @@ void gl_set_material_paramf(GLenum pname, const GLfloat *params)
         gl_set_material_shininess(params[0]);
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 }
@@ -384,7 +384,7 @@ void gl_set_material_parami(GLenum pname, const GLint *params)
         gl_set_material_shininess(params[0]);
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 }
@@ -395,7 +395,7 @@ void glMaterialf(GLenum face, GLenum pname, GLfloat param)
     case GL_SHININESS:
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 
@@ -419,7 +419,7 @@ void glMaterialiv(GLenum face, GLenum pname, const GLint *params)
     case GL_SHININESS:
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 
@@ -441,7 +441,7 @@ void glMaterialfv(GLenum face, GLenum pname, const GLfloat *params)
     case GL_SHININESS:
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 
@@ -461,7 +461,7 @@ uint32_t gl_get_light_offset(GLenum light)
 gl_light_t * gl_get_light(GLenum light)
 {
     if (light < GL_LIGHT0 || light > GL_LIGHT7) {
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid light (Must be in [GL_LIGHT0, GL_LIGHT7])", light);
         return NULL;
     }
 
@@ -600,7 +600,7 @@ void glLightf(GLenum light, GLenum pname, GLfloat param)
         gl_light_set_quadratic_attenuation(l, offset, param);
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 }
@@ -676,7 +676,7 @@ void glLightiv(GLenum light, GLenum pname, const GLint *params)
         gl_light_set_quadratic_attenuation(l, offset, params[0]);
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 }
@@ -724,7 +724,7 @@ void glLightfv(GLenum light, GLenum pname, const GLfloat *params)
         gl_light_set_quadratic_attenuation(l, offset, params[0]);
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 }
@@ -752,7 +752,7 @@ void glLightModeli(GLenum pname, GLint param)
         assertf(0, "Two sided lighting is not supported!");
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 }
@@ -782,7 +782,7 @@ void glLightModeliv(GLenum pname, const GLint *params)
         assertf(0, "Two sided lighting is not supported!");
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 }
@@ -802,7 +802,7 @@ void glLightModelfv(GLenum pname, const GLfloat *params)
         assertf(0, "Two sided lighting is not supported!");
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 }
@@ -833,7 +833,7 @@ void glColorMaterial(GLenum face, GLenum mode)
         color_target |= 1ULL << 32;
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid color material mode", mode);
         return;
     }
 
@@ -853,7 +853,7 @@ void glShadeModel(GLenum mode)
         set_can_use_rsp_dirty();
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid shade model", mode);
         return;
     }
 }

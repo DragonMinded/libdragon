@@ -425,7 +425,7 @@ void gl_set_flag2(GLenum target, bool value)
         assertf(!value, "Evaluators are not supported!");
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid enable target", target);
         return;
     }
 }
@@ -528,7 +528,7 @@ void glHint(GLenum target, GLenum hint)
         // Ignored
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid hint target", target);
         break;
     }
 }

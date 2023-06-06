@@ -267,7 +267,7 @@ void glGetBooleanv(GLenum value, GLboolean *data)
 {
     switch (value) {
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx cannot be queried with this function", value);
         break;
     }
 }
@@ -282,7 +282,7 @@ void glGetIntegerv(GLenum value, GLint *data)
         data[3] = CLAMPF_TO_I32(state.current_attributes.color[3]);
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx cannot be queried with this function", value);
         break;
     }
 }
@@ -297,7 +297,7 @@ void glGetFloatv(GLenum value, GLfloat *data)
         data[3] = state.current_attributes.color[3];
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx cannot be queried with this function", value);
         break;
     }
 }
@@ -312,7 +312,7 @@ void glGetDoublev(GLenum value, GLdouble *data)
         data[3] = state.current_attributes.color[3];
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx cannot be queried with this function", value);
         break;
     }
 }
@@ -329,7 +329,7 @@ GLubyte *glGetString(GLenum name)
     case GL_EXTENSIONS:
         return (GLubyte*)"GL_ARB_multisample GL_EXT_packed_pixels GL_ARB_vertex_buffer_object GL_ARB_texture_mirrored_repeat GL_ARB_vertex_array_object";
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid string name", name);
         return NULL;
     }
 }

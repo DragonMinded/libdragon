@@ -127,7 +127,7 @@ void glFogi(GLenum pname, GLint param)
     case GL_FOG_INDEX:
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 }
@@ -150,7 +150,7 @@ void glFogf(GLenum pname, GLfloat param)
     case GL_FOG_INDEX:
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 }
@@ -176,7 +176,7 @@ void glFogiv(GLenum pname, const GLint *params)
         glFogi(pname, params[0]);
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 }
@@ -202,7 +202,7 @@ void glFogfv(GLenum pname, const GLfloat *params)
         glFogf(pname, params[0]);
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 }
@@ -211,8 +211,13 @@ void glScissor(GLint left, GLint bottom, GLsizei width, GLsizei height)
 {
     if (!gl_ensure_no_immediate()) return;
     
-    if (left < 0 || bottom < 0) {
-        gl_set_error(GL_INVALID_VALUE);
+    if (left < 0) {
+        gl_set_error(GL_INVALID_VALUE, "Left must not be negative");
+        return;
+    }
+    
+    if (bottom < 0) {
+        gl_set_error(GL_INVALID_VALUE, "Bottom must not be negative");
         return;
     }
 
@@ -238,7 +243,7 @@ void glBlendFunc(GLenum src, GLenum dst)
         assertf(0, "Unsupported blend source factor");
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid blend source factor", src);
         return;
     }
 
@@ -255,7 +260,7 @@ void glBlendFunc(GLenum src, GLenum dst)
         assertf(0, "Unsupported blend destination factor");
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid blend destination factor", dst);
         return;
     }
 
@@ -284,10 +289,10 @@ void glDepthFunc(GLenum func)
     case GL_GREATER:
     case GL_NOTEQUAL:
     case GL_GEQUAL:
-        assertf(0, "Depth func not supported: %lx", func);
+        assertf(0, "Depth func not supported: %#04lx", func);
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid depth function", func);
         return;
     }
 }
@@ -316,10 +321,10 @@ void glAlphaFunc(GLenum func, GLclampf ref)
     case GL_LESS:
     case GL_NOTEQUAL:
     case GL_GEQUAL:
-        assertf(0, "Alpha func not supported: %lx", func);
+        assertf(0, "Alpha func not supported: %#04lx", func);
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid alpha function", func);
         return;
     }
 }
@@ -328,8 +333,13 @@ void glTexEnvi(GLenum target, GLenum pname, GLint param)
 {
     if (!gl_ensure_no_immediate()) return;
     
-    if (target != GL_TEXTURE_ENV || pname != GL_TEXTURE_ENV_MODE) {
-        gl_set_error(GL_INVALID_ENUM);
+    if (target != GL_TEXTURE_ENV) {
+        gl_set_error(GL_INVALID_ENUM, "Target must be GL_TEXTURE_ENV");
+        return;
+    }
+    
+    if (pname != GL_TEXTURE_ENV_MODE) {
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid parameter name for this function", pname);
         return;
     }
 
@@ -343,7 +353,7 @@ void glTexEnvi(GLenum target, GLenum pname, GLint param)
         assertf(0, "Unsupported Tex Env mode!");
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid tex env mode", param);
         return;
     }
 }
@@ -359,7 +369,7 @@ void glTexEnviv(GLenum target, GLenum pname, const GLint *params)
     if (!gl_ensure_no_immediate()) return;
     
     if (target != GL_TEXTURE_ENV) {
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "Target must be GL_TEXTURE_ENV");
         return;
     }
 
@@ -378,7 +388,7 @@ void glTexEnvfv(GLenum target, GLenum pname, const GLfloat *params)
     if (!gl_ensure_no_immediate()) return;
     
     if (target != GL_TEXTURE_ENV) {
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "Target must be GL_TEXTURE_ENV");
         return;
     }
 

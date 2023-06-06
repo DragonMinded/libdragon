@@ -25,7 +25,7 @@ void glNewList(GLuint n, GLenum mode)
     if (!gl_ensure_no_immediate()) return;
     
     if (n == 0) {
-        gl_set_error(GL_INVALID_VALUE);
+        gl_set_error(GL_INVALID_VALUE, "Display list ID must not be 0");
         return;
     }
 
@@ -36,12 +36,12 @@ void glNewList(GLuint n, GLenum mode)
         assertf(0, "Compile and execute is not supported!");
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid display list compilation mode", mode);
         return;
     }
 
     if (state.current_list != 0) {
-        gl_set_error(GL_INVALID_OPERATION);
+        gl_set_error(GL_INVALID_OPERATION, "A display list is already being recorded");
         return;
     }
 
@@ -55,7 +55,7 @@ void glEndList(void)
     if (!gl_ensure_no_immediate()) return;
     
     if (state.current_list == 0) {
-        gl_set_error(GL_INVALID_OPERATION);
+        gl_set_error(GL_INVALID_OPERATION, "No display list is currently being recorded");
         return;
     }
 
@@ -179,7 +179,7 @@ void glCallLists(GLsizei n, GLenum type, const GLvoid *lists)
         func = gl_get_list_name_4bytes;
         break;
     default:
-        gl_set_error(GL_INVALID_ENUM);
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid display list ID type", type);
         return;
     }
 
