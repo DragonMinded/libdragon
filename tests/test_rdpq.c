@@ -37,6 +37,7 @@ static void debug_rdp_stream_reset(void) {
 }
 
 static void debug_rdp_stream_init(void) {
+    rspq_wait(); // avoid race conditions with pending commands
     debug_rdp_stream_reset();
     rdpq_debug_install_hook(debug_rdp_stream, NULL);
 }
@@ -95,26 +96,44 @@ static void debug_surface32(const char *name, uint32_t *buf, int w, int h) {
     debugf("\n");
 }
 
-static void assert_surface(TestContext *ctx, surface_t *surf, color_t (*check)(int, int))
+static void assert_surface(TestContext *ctx, surface_t *surf, color_t (*check)(int, int), int diff)
 {
+    assertf(surface_get_format(surf) == FMT_RGBA32, "ASSERT_SURFACE only works with RGBA32");
     for (int y=0;y<surf->height;y++) {
         uint32_t *line = (uint32_t*)(surf->buffer + y*surf->stride);
         for (int x=0;x<surf->width;x++) {
             color_t exp = check(x, y);
             uint32_t exp32 = color_to_packed32(exp);
-            if (line[x] != exp32) {
+            uint32_t found32 = line[x];
+            if (found32 != exp32) {
+                if (diff) {
+                    bool match = true;
+                    for (int i=0;i<4;i++) {
+                        uint8_t found = (found32 >> (i*8)) & 0xFF;
+                        uint8_t exp = (exp32 >> (i*8)) & 0xFF;
+                        if (ABS(found - exp) > diff) {
+                            match = false;
+                            break;
+                        }
+                    }
+                    if (match)
+                        continue;
+                }
+
                 debug_surface32("Found:", surf->buffer, surf->width, surf->height);
-                ASSERT_EQUAL_HEX(line[x], exp32, "invalid pixel at (%d,%d)", x, y);
+                ASSERT_EQUAL_HEX(found32, exp32, "invalid pixel at (%d,%d)", x, y);
             }
         }
     }
 }
 
-#define ASSERT_SURFACE(surf, func_body) ({ \
+#define ASSERT_SURFACE_THRESHOLD(surf, thresh, func_body) ({ \
     color_t __check_surface(int x, int y) func_body; \
-    assert_surface(ctx, surf, __check_surface); \
+    assert_surface(ctx, surf, __check_surface, thresh); \
     if (ctx->result == TEST_FAILED) return; \
 })
+
+#define ASSERT_SURFACE(surf, func_body)  ASSERT_SURFACE_THRESHOLD(surf, 0, func_body)
 
 
 void test_rdpq_rspqwait(TestContext *ctx)
@@ -239,7 +258,7 @@ void test_rdpq_block(TestContext *ctx)
     const int WIDTH = 64;
     surface_t fb = surface_alloc(FMT_RGBA16, WIDTH, WIDTH);
     DEFER(surface_free(&fb));
-    surface_clear(&fb, 0);
+    surface_clear(&fb, 0xAA);
 
     uint16_t expected_fb[WIDTH*WIDTH];
     memset(expected_fb, 0, sizeof(expected_fb));
@@ -268,9 +287,6 @@ void test_rdpq_block(TestContext *ctx)
     rspq_block_run(block);
     rspq_wait();
     
-    //dump_mem(framebuffer, TEST_RDPQ_FBSIZE);
-    //dump_mem(expected_fb, TEST_RDPQ_FBSIZE);
-
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, WIDTH*WIDTH*2, "Framebuffer contains wrong data!");
 }
 
@@ -334,9 +350,10 @@ void test_rdpq_block_contiguous(TestContext *ctx)
     /* 4: implicit set scissor */
     /* 5: */ rdpq_set_mode_fill(RGBA32(0xFF, 0xFF, 0xFF, 0xFF));
     /* 6: implicit set scissor */
-    /* 7: set fill color */
-    /* 8: */ rdpq_fill_rectangle(0, 0, WIDTH, WIDTH);
-    /* 9: */ rdpq_fence(); // Put the fence inside the block so RDP never executes anything outside the block
+    /* 7: empty slot for potential SET_COMBINE_MODE (not used by rdpq_set_mode_fill) */
+    /* 8: set fill color */
+    /* 9: */ rdpq_fill_rectangle(0, 0, WIDTH, WIDTH);
+    /*10: */ rdpq_fence(); // Put the fence inside the block so RDP never executes anything outside the block
     rspq_block_t *block = rspq_block_end();
     DEFER(rspq_block_free(block));
 
@@ -346,7 +363,7 @@ void test_rdpq_block_contiguous(TestContext *ctx)
     uint64_t *rdp_cmds = (uint64_t*)block->rdp_block->cmds;
 
     ASSERT_EQUAL_HEX(*DP_START, PhysicalAddr(rdp_cmds), "DP_START does not point to the beginning of the block!");
-    ASSERT_EQUAL_HEX(*DP_END, PhysicalAddr(rdp_cmds + 9), "DP_END points to the wrong address!");
+    ASSERT_EQUAL_HEX(*DP_END, PhysicalAddr(rdp_cmds + 10), "DP_END points to the wrong address!");
 
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, WIDTH*WIDTH*2, "Framebuffer contains wrong data!");
 }
@@ -587,6 +604,33 @@ void test_rdpq_fixup_texturerect(TestContext *ctx)
             "Wrong data in framebuffer (1cycle mode, static mode)");
     }
 
+    {
+        surface_clear(&fb, 0xFF);
+        rdpq_set_other_modes_raw(SOM_CYCLE_COPY);
+        rspq_block_begin();
+        rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
+        rspq_block_t *block = rspq_block_end();
+        DEFER(rspq_block_free(block));
+        rspq_block_run(block);
+        rspq_wait();
+        ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
+            "Wrong data in framebuffer (copy mode, static mode, no tracking)");
+    }
+
+    {
+        surface_clear(&fb, 0xFF);
+        rdpq_set_mode_standard();
+        rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, TEX0)));
+        rspq_block_begin();
+        rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
+        rspq_block_t *block = rspq_block_end();
+        DEFER(rspq_block_free(block));
+        rspq_block_run(block);
+        rspq_wait();
+        ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
+            "Wrong data in framebuffer (1cycle mode, static mode, no tracking)");
+    }
+
     #undef TEST_RDPQ_TEXWIDTH
     #undef TEST_RDPQ_TEXAREA
     #undef TEST_RDPQ_TEXSIZE
@@ -643,6 +687,38 @@ void test_rdpq_fixup_fillrect(TestContext *ctx)
             rdpq_set_mode_standard();
             rdpq_mode_combiner(RDPQ_COMBINER_FLAT);
             rdpq_set_prim_color(RGBA32(255,128,255,0));
+            rdpq_fill_rectangle(4, 4, FBWIDTH-4, FBWIDTH-4);
+        rspq_block_t *block = rspq_block_end();
+        DEFER(rspq_block_free(block));
+        rspq_block_run(block);
+        rspq_wait();
+        ASSERT_SURFACE(&fb, {
+            return (x >= 4 && y >= 4 && x < FBWIDTH-4 && y < FBWIDTH-4) ?
+                RGBA32(255,128,255,FULL_CVG) : RGBA32(0,0,0,0);
+        });
+    }
+
+    {
+        surface_clear(&fb, 0);
+        rdpq_set_mode_fill(RGBA32(255,0,255,0));
+        rspq_block_begin();
+            rdpq_fill_rectangle(4, 4, FBWIDTH-4, FBWIDTH-4);
+        rspq_block_t *block = rspq_block_end();
+        DEFER(rspq_block_free(block));
+        rspq_block_run(block);
+        rspq_wait();
+        ASSERT_SURFACE(&fb, {
+            return (x >= 4 && y >= 4 && x < FBWIDTH-4 && y < FBWIDTH-4) ?
+                RGBA32(255,0,255,0) : RGBA32(0,0,0,0);
+        });
+    }
+
+    {
+        surface_clear(&fb, 0);
+        rdpq_set_mode_standard();
+        rdpq_mode_combiner(RDPQ_COMBINER_FLAT);
+        rdpq_set_prim_color(RGBA32(255,128,255,0));
+        rspq_block_begin();
             rdpq_fill_rectangle(4, 4, FBWIDTH-4, FBWIDTH-4);
         rspq_block_t *block = rspq_block_end();
         DEFER(rspq_block_free(block));
@@ -801,7 +877,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     rdpq_set_color_image(&fb);
 
     // Dynamic mode 
-    debugf("Dynamic mode\n");
+    LOG("Dynamic mode\n");
     for (int j=0;j<4;j++) {
         for (int i=0;i<80;i++) {
             rdpq_tex_upload_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
@@ -812,7 +888,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     rspq_wait();
 
     // Dynamic mode (multiple syncs per buffer)
-    debugf("Dynamic mode with multiple syncs per buffer\n");
+    LOG("Dynamic mode with multiple syncs per buffer\n");
     for (int j=0;j<4;j++) {
         for (int i=0;i<6;i++) {
             rdpq_tex_upload_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
@@ -826,7 +902,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     data_cache_index_writeback_invalidate(buf, sizeof(buf));
 
     // Dynamic mode, forcing buffer change.
-    debugf("Dynamic mode with buffer change\n");
+    LOG("Dynamic mode with buffer change\n");
     for (int j=0;j<4;j++) {
         for (int i=0;i<80;i++) {
             rdpq_tex_upload_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
@@ -838,7 +914,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     rspq_wait();
 
     // Block mode, 
-    debugf("Block mode\n");
+    LOG("Block mode\n");
     rspq_block_begin();
     for (int i=0;i<80;i++) {
         rdpq_tex_upload_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
@@ -855,7 +931,7 @@ void test_rdpq_syncfull_resume(TestContext *ctx)
     rspq_wait();
 
     // Block mode with sync, 
-    debugf("Block mode with sync inside\n");
+    LOG("Block mode with sync inside\n");
     rspq_block_begin();
     for (int i=0;i<80;i++) {
         rdpq_tex_upload_sub(TILE0, &tex, NULL, 0, 0, WIDTH, WIDTH);
@@ -1038,6 +1114,7 @@ void test_rdpq_automode(TestContext *ctx) {
     rdpq_set_prim_color(RGBA32(0x0,0x0,0x0,0x7F));
 
     // Set simple 1-pass combiner => 1 cycle
+    rdpq_debug_log_msg("1pass combiner => 1 cycle");
     surface_clear(&fb, 0xFF);
     rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
@@ -1048,6 +1125,7 @@ void test_rdpq_automode(TestContext *ctx) {
         "Wrong data in framebuffer (comb=1pass, blender=off)");
 
     // Activate blending (1-pass blender) => 1 cycle
+    rdpq_debug_log_msg("1pass blender => 1 cycle");
     surface_clear(&fb, 0xFF);
     rdpq_mode_blender(RDPQ_BLENDER((IN_RGB, FOG_ALPHA, BLEND_RGB, INV_MUX_ALPHA)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
@@ -1058,6 +1136,7 @@ void test_rdpq_automode(TestContext *ctx) {
         "Wrong data in framebuffer (comb=1pass, blender=1pass)");
 
     // Activate fogging (2-pass blender) => 2 cycle
+    rdpq_debug_log_msg("2pass blender => 2 cycle");
     surface_clear(&fb, 0xFF);
     rdpq_mode_fog(RDPQ_BLENDER((BLEND_RGB, ZERO, IN_RGB, INV_MUX_ALPHA)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
@@ -1068,6 +1147,7 @@ void test_rdpq_automode(TestContext *ctx) {
         "Wrong data in framebuffer (comb=1pass, blender=2pass)");
 
     // Set two-pass combiner => 2 cycle
+    rdpq_debug_log_msg("2pass combiner => 2 cycle");
     surface_clear(&fb, 0xFF);
     rdpq_mode_combiner(RDPQ_COMBINER2(
         (ZERO, ZERO, ZERO, ENV), (ENV, ZERO, TEX0, PRIM),
@@ -1080,6 +1160,7 @@ void test_rdpq_automode(TestContext *ctx) {
         "Wrong data in framebuffer (comb=2pass, blender=2pass)");
 
     // Disable fogging (1 pass blender) => 2 cycle
+    rdpq_debug_log_msg("1pass blender => 2 cycle");
     surface_clear(&fb, 0xFF);
     rdpq_mode_fog(0);
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
@@ -1090,6 +1171,7 @@ void test_rdpq_automode(TestContext *ctx) {
         "Wrong data in framebuffer (comb=2pass, blender=1pass)");
 
     // Set simple combiner => 1 cycle
+    rdpq_debug_log_msg("1pass combiner => 1 cycle");
     surface_clear(&fb, 0xFF);
     rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO)));
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
@@ -1100,6 +1182,7 @@ void test_rdpq_automode(TestContext *ctx) {
         "Wrong data in framebuffer (comb=1pass, blender=1pass)");
 
     // Push the current mode, then modify several states, then pop.
+    rdpq_debug_log_msg("push/pop");
     rdpq_mode_push();
     rdpq_mode_combiner(RDPQ_COMBINER2(
         (ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ZERO),
@@ -1404,7 +1487,7 @@ void test_rdpq_mode_freeze(TestContext *ctx) {
     int num_nops = debug_rdp_stream_count_cmd(0xC0);
     ASSERT_EQUAL_SIGNED(num_ccs, 1, "too many SET_COMBINE_MODE");
     ASSERT_EQUAL_SIGNED(num_soms, 2, "too many SET_OTHER_MODES"); // 1 SOM for fill, 1 SOM for standard
-    ASSERT_EQUAL_SIGNED(num_nops, 0, "too many NOPs"); 
+    ASSERT_EQUAL_SIGNED(num_nops, 1, "too many NOPs");  // 1 NOP from rrdpq_set_mode_fill (skips generating SET_CC)
 
     // Try again within a block, but doing the freeze outside of it
     debug_rdp_stream_reset();
@@ -1448,6 +1531,7 @@ void test_rdpq_mode_freeze_stack(TestContext *ctx) {
     rdpq_set_color_image(&fb);
     surface_clear(&fb, 0);
 
+    rdpq_debug_log_msg("begin / push / end");
     rdpq_set_mode_standard();
     rdpq_mode_begin();
         rdpq_mode_push();
@@ -1463,6 +1547,7 @@ void test_rdpq_mode_freeze_stack(TestContext *ctx) {
             RGBA32(0,0,0,0); 
     });
 
+    rdpq_debug_log_msg("begin / pop / end");
     surface_clear(&fb, 0);
     rdpq_mode_begin();
         rdpq_mode_pop();
@@ -1522,6 +1607,16 @@ void test_rdpq_mipmap(TestContext *ctx) {
     );
     rspq_wait();
 
+    // Check that MIPMAP_NEAREST forced 2-cycle mode, as mipmapping doesn't
+    // work in 1-cycle mode.
+    uint64_t som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_2, "invalid cycle type");
+
+    // Check that disabling mipmap switch back to 1-cycle mode
+    rdpq_mode_mipmap(MIPMAP_NONE, 0);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_1, "invalid cycle type");
+
     // Go through the generated RDP primitives and check if the triangle
     // was patched the correct number of mipmap levels
     for (int i=0;i<rdp_stream_ctx.idx;i++) {
@@ -1578,4 +1673,60 @@ void test_rdpq_autotmem(TestContext *ctx) {
     }
 
     ASSERT_EQUAL_SIGNED(tidx, 8, "invalid number of tiles");
+}
+
+void test_rdpq_texrect_passthrough(TestContext *ctx) {
+    RDPQ_INIT();
+
+    rspq_block_t *block;
+    uint32_t texrect;
+
+    uint32_t find_block_texrect(uint32_t *cmds) {
+        for (int i=0; i<16; i++) {
+            if (cmds[i] >> 24 == 0xE4) {
+                return cmds[i];
+            }
+        }
+        return 0;
+    }
+   
+    // Block with no mode setting. Must be a fixup.
+    rspq_block_begin();
+        rdpq_texture_rectangle(TILE0, 0, 0, 16, 16, 0, 0);
+    block = rspq_block_end();
+    ASSERT_EQUAL_HEX(block->rdp_block->cmds[0] >> 24, 0xC0, "expected NOP in block");
+    rspq_block_free(block);
+
+    // Block with standard mode. Should contain a rectangle with exclusive bounds
+    rspq_block_begin();
+        rdpq_set_mode_standard();
+        rdpq_texture_rectangle(TILE0, 0, 0, 16, 16, 0, 0);
+    block = rspq_block_end();
+    texrect = find_block_texrect(block->rdp_block->cmds);
+    ASSERT_EQUAL_HEX(texrect, 0xe4040040, "expected exclusive bounds");
+    rspq_block_free(block);
+
+    // Block with copy mode. Should contain a rectangle with exclusive bounds
+    rspq_block_begin();
+        rdpq_set_mode_copy(true);
+        rdpq_texture_rectangle(TILE0, 0, 0, 16, 16, 0, 0);
+    block = rspq_block_end();
+    texrect = find_block_texrect(block->rdp_block->cmds);
+    ASSERT_EQUAL_HEX(texrect, 0xe403c03c, "expected inclusive bounds");
+    rspq_block_free(block);
+
+    // Block with standard mode coming from a sub-block.
+    // Register a block that sets the standard mode
+    rspq_block_begin();
+        rdpq_set_mode_standard();
+    rspq_block_t *block_mode = rspq_block_end();
+
+    rspq_block_begin();
+        rspq_block_run(block_mode);
+        rdpq_texture_rectangle(TILE0, 0, 0, 16, 16, 0, 0);
+    block = rspq_block_end();
+    texrect = find_block_texrect(block->rdp_block->cmds);
+    ASSERT_EQUAL_HEX(texrect, 0xe4040040, "expected exclusive bounds");
+    rspq_block_free(block);
+    rspq_block_free(block_mode);
 }

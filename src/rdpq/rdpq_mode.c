@@ -87,11 +87,19 @@ void rdpq_mode_pop(void)
 void __rdpq_set_mode_fill(void) {
     uint64_t som = (0xEFull << 56) | SOM_CYCLE_FILL;
     __rdpq_reset_render_mode(0, 0, som >> 32, som & 0xFFFFFFFF);
+    if (!rdpq_tracking.mode_freeze)
+        rdpq_tracking.cycle_type_known = 2;
+    else
+        rdpq_tracking.cycle_type_frozen = 2;
 }
 
 void rdpq_set_mode_copy(bool transparency) {
     uint64_t som = (0xEFull << 56) | SOM_CYCLE_COPY | (transparency ? SOM_ALPHACOMPARE_THRESHOLD : 0);
     __rdpq_reset_render_mode(0, 0, som >> 32, som & 0xFFFFFFFF);
+    if (!rdpq_tracking.mode_freeze)
+        rdpq_tracking.cycle_type_known = 2;
+    else
+        rdpq_tracking.cycle_type_frozen = 2;
 }
 
 void rdpq_set_mode_standard(void) {
@@ -107,6 +115,10 @@ void rdpq_set_mode_standard(void) {
         cc >> 32,   cc & 0xFFFFFFFF,
         som >> 32, som & 0xFFFFFFFF);
     rdpq_mode_combiner(cc); // FIXME: this should not be required, but we need it for the mipmap mask
+    if (!rdpq_tracking.mode_freeze)
+        rdpq_tracking.cycle_type_known = 1;
+    else
+        rdpq_tracking.cycle_type_frozen = 1;
 }
 
 void rdpq_set_mode_yuv(bool bilinear) {
@@ -123,6 +135,10 @@ void rdpq_set_mode_yuv(bool bilinear) {
     __rdpq_reset_render_mode(
         cc >> 32,   cc & 0xFFFFFFFF,
         som >> 32, som & 0xFFFFFFFF);
+    if (!rdpq_tracking.mode_freeze)
+        rdpq_tracking.cycle_type_known = 1;
+    else
+        rdpq_tracking.cycle_type_frozen = 1;
 
     rdpq_set_yuv_parms(179,-44,-91,227,19,255);  // BT.601 coefficients (Kr=0.299, Kb=0.114, TV range)
 }
@@ -133,6 +149,7 @@ void rdpq_mode_begin(void)
     // (instead of __rdpq_mode_change_som) because there will be no RDP
     // commands emitted from this call.
     rdpq_tracking.mode_freeze = true;
+    rdpq_tracking.cycle_type_frozen = 0;
     __rdpq_mode_change_som(SOMX_UPDATE_FREEZE, SOMX_UPDATE_FREEZE);
 }
 
@@ -140,6 +157,7 @@ void rdpq_mode_end(void)
 {
     // Unfreeze render mode updates and recalculate new render mode.
     rdpq_tracking.mode_freeze = false;
+    rdpq_tracking.cycle_type_known = rdpq_tracking.cycle_type_frozen;
     __rdpq_mode_change_som(SOMX_UPDATE_FREEZE, 0);
 }
 

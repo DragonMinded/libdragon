@@ -279,12 +279,12 @@ RDPQ_SetCombineMode_2Pass:
     #
     #   * If fog is enabled, tweak standard combiners to avoid
     #     passing SHADE_ALPHA to the blender as IN_ALPHA.
-    #   * If mipmap is enabled, modify the color combiner adding
-    #     the mipmap formula.
+    #   * If interpolated mipmap is enabled, modify the color
+    #     combiner adding the mipmap formula.
     #   * Merge the two blender steps (fogging / blending), taking
     #     care of adjustments if either is active or not.
     #   * Decide whether to use 1cycle or 2cycle mode, depending
-    #     on color combiner and blender.
+    #     on color combiner, blender and mipmapping.
     #   * Adjust coverage modes depending on antialias and
     #     blending settings.
     #
@@ -326,7 +326,7 @@ RDPQ_UpdateRenderMode:
 calc_comb_1cyc:    
     # Check if fogging is active
     andi t0, som_hi, SOMX_FOG >> 32
-    beqz t0, check_mipmap
+    beqz t0, check_mipmap_interp
 
     # Create a copy of comb_hi without the cmd ID in the top MSB.
     # The ID is kept sort of "random" for the whole computation,
@@ -347,20 +347,20 @@ check_fog_tex_shade:
 
 check_fog_shade:
     lw t0, %lo(COMBINER_SHADE) + 0
-    bne t0, comb_hi_noid, check_mipmap
+    bne t0, comb_hi_noid, check_mipmap_interp
     lw t0, %lo(COMBINER_SHADE) + 4
-    bne t0, comb_lo, check_mipmap
+    bne t0, comb_lo, check_mipmap_interp
     li s0, %lo(COMBINER_SHADE_FOG)
 
 fog_change:
     lw comb_hi, 0(s0)
     lw comb_lo, 4(s0)
 
-check_mipmap:
+check_mipmap_interp:
     and t0, som_hi, SOMX_LOD_INTERPOLATE >> 32
     beqz t0, store_comb_1cyc
 
-    # Mipmapping is active. We want to add RDPQ_COMB_MIPMAP as step0
+    # Interpolated mipmapping is active. We want to add RDPQ_COMB_MIPMAP as step0
     # and use only step 1 of the incoming formula. Unfortunately, this
     # also means that all TEX0 slots must be converted into COMBINED slots.
     # We do this by using the mask already loaded in a2/a3
@@ -386,15 +386,18 @@ store_comb_1cyc:
     # to be a pure passthrough. We can do this by simply setting to 0
     # all fields of the second pass, as that corresponds to:
     #   (COMBINED - COMBINED) * COMBINED + COMBINED  =  COMBINED
-    # The 2PASS flag will not be set, as this combiner does not require 2cycle.
     lw t0, %lo(COMB0_MASK) + 0
     lw t1, %lo(COMB0_MASK) + 4
     and comb_hi, t0
     and comb_lo, t1
 
-    # This combiner setting will force 2cycle mode. Store it
-    # in the 2cyc slot, and ignore the 1cyc slot (it's not going
-    # to be used).
+    # Normallly at this point we don't need to set the 2PASS flag, as this
+    # combiner does not require 2cycles. The only exception is nearest mipmapping:
+    # in this case, we must force 2-cycle mode otherwise the RDP will not switch LOD.
+    srl t0, som_hi, SOM_TEXTURE_LOD_SHIFT - 32
+    sll t0, 31
+    or comb_hi, t0
+
 store_comb_2cyc:
     sw comb_hi, %lo(RDPQ_MODE_COMBINER_2CYC) + 0
     sw comb_lo, %lo(RDPQ_MODE_COMBINER_2CYC) + 4

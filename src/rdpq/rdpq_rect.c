@@ -22,6 +22,13 @@ __attribute__((noinline))
 void __rdpq_fill_rectangle(uint32_t w0, uint32_t w1)
 {
     __rdpq_autosync_use(AUTOSYNC_PIPE);
+    if (rdpq_tracking.cycle_type_known) {
+        if (rdpq_tracking.cycle_type_known == 2) {
+            w0 -= (4<<12) | 4;
+        }
+        rdpq_passthrough_write((RDPQ_CMD_FILL_RECTANGLE, w0, w1));
+        return;
+    }
     rdpq_fixup_write(
         (RDPQ_CMD_FILL_RECTANGLE_EX, w0, w1),  // RSP
         (RDPQ_CMD_FILL_RECTANGLE_EX, w0, w1)   // RDP
@@ -40,6 +47,15 @@ void __rdpq_texture_rectangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3
     // FIXME: this can also use tile+1 in case the combiner refers to TEX1
     // FIXME: this can also use tile+2 and +3 in case SOM activates texture detail / sharpen
     __rdpq_autosync_use(AUTOSYNC_PIPE | AUTOSYNC_TILE(tile) | AUTOSYNC_TMEM(0));
+    if (rdpq_tracking.cycle_type_known) {
+        if (rdpq_tracking.cycle_type_known == 2) {
+            w0 -= (4<<12) | 4;
+            w3 = ((w3 & 0xFFFF0000) << 2) | (w3 & 0x0000FFFF);
+        }
+        rdpq_passthrough_write((RDPQ_CMD_TEXTURE_RECTANGLE, w0, w1, w2, w3));
+        return;
+    }
+
     rdpq_fixup_write(
         (RDPQ_CMD_TEXTURE_RECTANGLE_EX, w0, w1, w2, w3),  // RSP
         (RDPQ_CMD_TEXTURE_RECTANGLE_EX, w0, w1, w2, w3)   // RDP

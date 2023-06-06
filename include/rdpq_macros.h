@@ -527,6 +527,7 @@ typedef uint32_t rdpq_blender_t;
 #define SOM_TEXTURE_DETAIL     (cast64(1)<<50)              ///< Texture: enable "detail"
 #define SOM_TEXTURE_SHARPEN    (cast64(1)<<49)              ///< Texture: enable "sharpen"
 #define SOM_TEXTURE_LOD        (cast64(1)<<48)              ///< Texture: enable LODs.
+#define SOM_TEXTURE_LOD_SHIFT  48                           ///< Texture: LODs shift
 
 #define SOM_TLUT_NONE          (cast64(0)<<46)              ///< TLUT: no palettes
 #define SOM_TLUT_RGBA16        (cast64(2)<<46)              ///< TLUT: draw with palettes in format RGB16

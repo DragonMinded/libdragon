@@ -471,6 +471,13 @@ void rdpq_init()
 
     // Remember that initialization is complete
     __rdpq_inited = true;
+
+    // Force an initial consistent state to avoid memory corruptions and
+    // undefined behaviours.
+    rdpq_set_color_image(NULL);
+    rdpq_set_z_image(NULL);
+    rdpq_set_combiner_raw(0);
+    rdpq_set_other_modes_raw(0);
 }
 
 void rdpq_close()
@@ -618,29 +625,19 @@ void __rdpq_block_begin()
     // Save the tracking state (to be recovered when the block is done)
     rdpq_block_state.previous_tracking = rdpq_tracking;
 
-    // Initialize tracking state for a new block
-    rdpq_tracking = (rdpq_tracking_t){
-        // current autosync status is unknown because blocks can be
-        // played in any context. So assume the worst: all resources
-        // are being used. This will cause all SYNCs to be generated,
-        // which is the safest option.
-        .autosync = ~0,
-        // we don't know whether mode changes will be frozen or not
-        // when the block will play. Assume the worst (and thus
-        // do not optimize out mode changes).
-        .mode_freeze = false,
-    };
+    // Set for unknown state (like if we just run another unknown block: we lost track of the RDP state)
+    __rdpq_block_run(NULL);    
 }
 
 /** 
  * @brief Allocate a new RDP block buffer, chaining it to the current one (if any) 
  * 
- * This function is called by #rdpq_write and #rdpq_fixup_write when we are about
+ * This function is called by #rdpq_passthrough_write and #rdpq_fixup_write when we are about
  * to write a rdpq command in a block, and the current RDP buffer is full
  * (`wptr + cmdsize >= wend`). By extension, it is also called when the current
  * RDP buffer has not been allocated yet (`wptr == wend == NULL`).
  * 
- * @see #rdpq_write
+ * @see #rdpq_passthrough_write
  * @see #rdpq_fixup_write
  */
 void __rdpq_block_next_buffer(void)
@@ -738,6 +735,23 @@ void __rdpq_block_run(rdpq_block_t *block)
     // state of the engine must match the state at the end of the block.
     if (block)
         rdpq_tracking = block->tracking;
+    else {
+        // Initialize tracking state for unknown state
+        rdpq_tracking = (rdpq_tracking_t){
+            // current autosync status is unknown because blocks can be
+            // played in any context. So assume the worst: all resources
+            // are being used. This will cause all SYNCs to be generated,
+            // which is the safest option.
+            .autosync = ~0,
+            // we don't know whether mode changes will be frozen or not
+            // when the block will play. Assume the worst (and thus
+            // do not optimize out mode changes).
+            .mode_freeze = false,
+            // we don't know the cycle type after we run the block
+            .cycle_type_known = 0,
+            .cycle_type_frozen = 0,
+        };
+    }
 }
 
 /** 
@@ -761,7 +775,7 @@ void __rdpq_block_free(rdpq_block_t *block)
 /**
  * @brief Set a new RDP write pointer, and enqueue a RSP command to run the buffer until there
  * 
- * This function is called by #rdpq_write after some RDP commands have been written
+ * This function is called by #rdpq_passthrough_write after some RDP commands have been written
  * into the block's RDP buffer. A rspq command #RSPQ_CMD_RDP_APPEND_BUFFER will be issued
  * so that the RSP will tell the RDP to fetch and run the new commands, appended at
  * the end of the current buffer.
@@ -820,7 +834,7 @@ void __rdpq_block_update_norsp(volatile uint32_t *wptr)
 /**
  * @name Helpers to write generic RDP commands
  * 
- * All the functions in this group are wrappers around #rdpq_write to help
+ * All the functions in this group are wrappers around #rdpq_passthrough_write to help
  * generating RDP commands. They are called by inlined functions in rdpq.h.
  * See the top-level documentation about inline functions to understand the
  * reason of this split.
@@ -832,7 +846,7 @@ void __rdpq_block_update_norsp(volatile uint32_t *wptr)
 __attribute__((noinline))
 void __rdpq_write8(uint32_t cmd_id, uint32_t arg0, uint32_t arg1)
 {
-    rdpq_write((cmd_id, arg0, arg1));
+    rdpq_passthrough_write((cmd_id, arg0, arg1));
 }
 
 /** @brief Write a standard 8-byte RDP command, which changes some autosync resources  */
@@ -864,7 +878,7 @@ void __rdpq_write8_syncchangeuse(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, 
 __attribute__((noinline))
 void __rdpq_write16(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3)
 {
-    rdpq_write((cmd_id, arg0, arg1, arg2, arg3));
+    rdpq_passthrough_write((cmd_id, arg0, arg1, arg2, arg3));
 }
 
 /** @brief Write a standard 16-byte RDP command, which uses some autosync resources  */
@@ -903,6 +917,9 @@ __attribute__((noinline))
 void __rdpq_set_scissor(uint32_t w0, uint32_t w1)
 {
     // NOTE: SET_SCISSOR does not require SYNC_PIPE
+    // NOTE: We can't optimize this away into a standard SET_SCISSOR, even if
+    // we track the cycle type, because the RSP must always know the current
+    // scissoring rectangle. So we must always go through the fixup.
     rdpq_fixup_write(
         (RDPQ_CMD_SET_SCISSOR_EX, w0, w1),  // RSP
         (RDPQ_CMD_SET_SCISSOR_EX, w0, w1)   // RDP
@@ -941,11 +958,11 @@ void rdpq_set_color_image(const surface_t *surface)
     if (__builtin_expect(!surface, 0)) {
         // If a NULL surface is provided, point RDP to invalid memory (>8Mb),
         // so that nothing is drawn. Also force scissoring rect to zero as additional
-        // safeguard.
+        // safeguard (with X=1 so that auto-scissor doesn't go into negative numbers ever).
         uint32_t cfg = rdpq_config_disable(RDPQ_CFG_AUTOSCISSOR);
         rdpq_set_color_image_raw(0, RDPQ_VALIDATE_DETACH_ADDR, FMT_I8, 8, 8, 8);
         rdpq_config_set(cfg);
-        rdpq_set_scissor(0, 0, 0, 0);
+        rdpq_set_scissor(0, 0, 1, 0);
         return;
     }
     assertf((PhysicalAddr(surface->buffer) & 63) == 0,
@@ -989,6 +1006,10 @@ void __rdpq_set_other_modes(uint32_t w0, uint32_t w1)
         (RDPQ_CMD_SET_OTHER_MODES, w0, w1),  // RSP
         (RDPQ_CMD_SET_OTHER_MODES, w0, w1), (RDPQ_CMD_SET_SCISSOR, 0, 0)   // RDP
     );
+    if (w0 & (1 << (SOM_CYCLE_SHIFT-32+1)))
+        rdpq_tracking.cycle_type_known = 2;
+    else
+        rdpq_tracking.cycle_type_known = 1;
 }
 
 /** @brief Out-of-line implementation of #rdpq_change_other_modes_raw */
@@ -1000,6 +1021,12 @@ void __rdpq_change_other_modes(uint32_t w0, uint32_t w1, uint32_t w2)
         (RDPQ_CMD_MODIFY_OTHER_MODES, w0, w1, w2),
         (RDPQ_CMD_SET_OTHER_MODES, 0, 0), (RDPQ_CMD_SET_SCISSOR, 0, 0)   // RDP
     );
+    if ((w0 == 0) && (w1 & (1 << (SOM_CYCLE_SHIFT-32+1))))  {
+        if (w2 & (1 << (SOM_CYCLE_SHIFT-32+1)))
+            rdpq_tracking.cycle_type_known = 2;
+        else
+            rdpq_tracking.cycle_type_known = 1;
+    }
 }
 
 uint64_t rdpq_get_other_modes_raw(void)
