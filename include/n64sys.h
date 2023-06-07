@@ -23,6 +23,11 @@
 extern int __bbplayer;
 
 /**
+ * @brief Frequency of the RCP
+ */
+#define RCP_FREQUENCY    (__bbplayer ? 96000000 : 62500000)
+
+/**
  * @brief Frequency of the MIPS R4300 CPU
  */
 #define CPU_FREQUENCY    (__bbplayer ? 144000000 : 93750000)
