@@ -25,8 +25,7 @@ extern int __bbplayer;
 /**
  * @brief Frequency of the MIPS R4300 CPU
  */
-#define CPU_FREQUENCY    (__bbplayer ? 140625000 : 93750000)
-
+#define CPU_FREQUENCY    (__bbplayer ? 144000000 : 93750000)
 
 /**
  * @brief void pointer to cached and non-mapped memory start address
