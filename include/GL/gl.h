@@ -3,7 +3,9 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <surface.h>
+
+typedef struct surface_s surface_t;
+typedef struct sprite_s sprite_t;
 
 #include <GL/gl_enums.h>
 
@@ -412,6 +414,7 @@ void glCopyTexSubImage1D(GLenum target, GLint level, GLint xoffset, GLint x, GLi
 void glCopyTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height);
 
 void glTexImageN64(GLenum target, GLint level, const surface_t *surface);
+void glTexSpriteN64(GLenum target, sprite_t *sprite);
 
 void glTexParameteri(GLenum target, GLenum pname, GLint param);
 void glTexParameterf(GLenum target, GLenum pname, GLfloat param);
