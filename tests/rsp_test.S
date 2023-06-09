@@ -19,6 +19,7 @@
         RSPQ_DefineCommand command_big,       132    # 0x08
         RSPQ_DefineCommand command_big_out,   8      # 0x09
         RSPQ_DefineCommand command_send_rdp,  8      # 0x0A
+        RSPQ_DefineCommand command_send_rdp_many,  4 # 0x0B
 	RSPQ_EndOverlayHeader
 
     RSPQ_BeginSavedState

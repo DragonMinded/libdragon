@@ -368,6 +368,44 @@ void test_rdpq_block_contiguous(TestContext *ctx)
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, WIDTH*WIDTH*2, "Framebuffer contains wrong data!");
 }
 
+void test_rdpq_block_dynamic(TestContext *ctx)
+{
+    RDPQ_INIT();
+    debug_rdp_stream_init();
+    rdpq_debug_log(true);
+
+    test_ovl_init();
+    DEFER(test_ovl_close());
+
+    const int WIDTH = 16;
+    surface_t fb = surface_alloc(FMT_RGBA32, WIDTH, WIDTH);
+    DEFER(surface_free(&fb));
+    rdpq_set_color_image(&fb);
+
+    surface_clear(&fb, 0);
+    rdpq_set_mode_standard();
+
+    rspq_block_begin();
+        // First, issue a passthrough command
+        rdpq_set_fog_color(RGBA32(0x11,0x11,0x11,0x11));
+        // Then, issue a command that creates large dynamic commands
+        // We use a test command that creates 8 RDP NOPs.
+        rspq_test_send_rdp_nops(8);
+        // Issue another passhtrough
+        rdpq_set_blend_color(RGBA32(0x22,0x22,0x22,0x22));
+    rspq_block_t *block = rspq_block_end();
+    DEFER(rspq_block_free(block));
+
+    rspq_block_run(block);
+    rspq_wait();
+
+    int num_fc = debug_rdp_stream_count_cmd(0xF8); // SET_FOG_COLOR
+    int num_bc = debug_rdp_stream_count_cmd(0xF9); // SET_BLEND_COLOR
+
+    ASSERT_EQUAL_SIGNED(num_fc, 1, "invalid number of SET_FOG_COLOR");
+    ASSERT_EQUAL_SIGNED(num_bc, 1, "invalid number of SET_BLEND_COLOR");
+}
+
 void test_rdpq_change_other_modes(TestContext *ctx)
 {
     RDPQ_INIT();

@@ -93,6 +93,11 @@ void rspq_test_send_rdp(uint32_t value)
     rspq_write(test_ovl_id, 0xA, 0, value);
 }
 
+void rspq_test_send_rdp_nops(int num_nops)
+{
+    rspq_write(test_ovl_id, 0xB, num_nops);
+}
+
 void rspq_test_big_out(void *dest)
 {
     rspq_write(test_ovl_id, 0x9, 0, PhysicalAddr(dest));
