@@ -4,22 +4,24 @@ void test_rdpq_sprite_upload(TestContext *ctx)
 {
     RDPQ_INIT();
 
-    // Load a sprite without mipmaps
-    sprite_t *s1 = sprite_load("rom:/grass1.rgba32.sprite");
+    // Load a sprite without mipmaps, and with texparms set to wrap
+    sprite_t *s1 = sprite_load("rom:/grass1sq.rgba32.sprite");
     surface_t s1surf = sprite_get_pixels(s1);
     DEFER(sprite_free(s1));
 
-    surface_t fb = surface_alloc(FMT_RGBA32, s1surf.width, s1surf.height);
+    surface_t fb = surface_alloc(FMT_RGBA32, s1surf.width+4, s1surf.height+4);
     DEFER(surface_free(&fb));
     surface_clear(&fb, 0);
 
     rdpq_attach(&fb, NULL);
     rdpq_set_mode_standard();
     rdpq_sprite_upload(TILE0, s1, NULL);
-    rdpq_texture_rectangle(TILE0, 0, 0, s1surf.width, s1surf.height, 0, 0);
+    rdpq_texture_rectangle(TILE0, 0, 0, s1surf.width+4, s1surf.height+4, 0, 0);
     rdpq_detach_wait();
 
     ASSERT_SURFACE(&fb, {
+        if (x >= s1surf.width) x -= s1surf.width;
+        if (y >= s1surf.height) y -= s1surf.height;
         color_t c = color_from_packed32(((uint32_t*)s1surf.buffer)[y*s1surf.width + x]);
         c.a = 0xE0;
         return c;

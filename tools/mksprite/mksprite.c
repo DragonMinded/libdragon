@@ -670,13 +670,13 @@ bool spritemaker_write(spritemaker_t *spr) {
             if (spr->texparms.defined) flags |= 0x08;
             w16(out, flags);
             w16(out, 0);     // padding
-            w32(out, spr->texparms.s.translate);
-            w32(out, spr->texparms.s.repeats);
+            wf32(out, spr->texparms.s.translate);
+            wf32(out, spr->texparms.s.repeats);
             w16(out, spr->texparms.s.scale);
             w8(out, spr->texparms.s.mirror);
             w8(out, 0); // padding
-            w32(out, spr->texparms.t.translate);
-            w32(out, spr->texparms.t.repeats);
+            wf32(out, spr->texparms.t.translate);
+            wf32(out, spr->texparms.t.repeats);
             w16(out, spr->texparms.t.scale);
             w8(out, spr->texparms.t.mirror);
             w8(out, 0); // padding

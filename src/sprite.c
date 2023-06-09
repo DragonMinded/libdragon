@@ -26,7 +26,7 @@ sprite_ext_t *__sprite_ext(sprite_t *sprite)
 
     // Access extended header
     sprite_ext_t *sx = (sprite_ext_t*)data;
-    assert(sx->version == 1);
+    assert(sx->version == 2);
     return sx;
 }
 
@@ -131,6 +131,7 @@ bool sprite_get_texparms(sprite_t *sprite, rdpq_texparms_t *parms) {
     if (!(sx->flags & SPRITE_FLAG_HAS_TEXPARMS))
         return false;
     if (parms) {
+        memset(parms, 0, sizeof(*parms));
         parms->s.translate = sx->texparms.s.translate;
         parms->t.translate = sx->texparms.t.translate;
         parms->s.scale_log = sx->texparms.s.scale_log;
