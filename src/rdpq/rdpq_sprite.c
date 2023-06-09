@@ -37,6 +37,11 @@ int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t
     // Load main sprite surface
     surface_t surf = sprite_get_pixels(sprite);
 
+    // If no texparms were provided but the sprite contains some, use them
+    rdpq_texparms_t parms_builtin;
+    if (!parms && sprite_get_texparms(sprite, &parms_builtin))
+        parms = &parms_builtin;
+
     rdpq_tex_multi_begin();
     rdpq_tex_upload(tile, &surf, parms);
 
@@ -61,6 +66,8 @@ int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t
         tile = (tile+1) & 7;
         if (++lod_parms.s.scale_log >= 11) break;
         if (++lod_parms.t.scale_log >= 11) break;
+        lod_parms.s.translate *= 0.5f;
+        lod_parms.t.translate *= 0.5f;
 
         // Load the mipmap
         rdpq_tex_upload(tile, &surf, &lod_parms);

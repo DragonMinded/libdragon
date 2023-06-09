@@ -120,6 +120,21 @@ command_send_rdp:
     j RDPQ_Send
     sw a1, 4(s4)
 
+command_send_rdp_many:
+    andi t0, a0, 0x7F
+    lui t1, 0xC000
+    li s3, %lo(BIG_LOG)
+1:
+    sw t1,   0(s3)
+    sw zero, 4(s3)
+    addi s3, 8
+    addiu t0, -1
+    bnez t0, 1b
+    nop
+    j RDPQ_Send
+    li s4, %lo(BIG_LOG)
+
+
 command_big:
     addi s1, rspq_dmem_buf_ptr, -128
     move s2, zero

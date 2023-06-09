@@ -5,6 +5,7 @@
 #include "sprite_internal.h"
 #include "asset.h"
 #include "utils.h"
+#include "rdpq_tex.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -121,4 +122,23 @@ surface_t sprite_get_tile(sprite_t *sprite, int h, int v) {
     return surface_make_sub(&surf, 
         h*tile_width, v*tile_height,
         tile_width, tile_height);
+}
+
+bool sprite_get_texparms(sprite_t *sprite, rdpq_texparms_t *parms) {
+    sprite_ext_t *sx = __sprite_ext(sprite);
+    if (!sx)
+        return false;
+    if (!(sx->flags & SPRITE_FLAG_HAS_TEXPARMS))
+        return false;
+    if (parms) {
+        parms->s.translate = sx->texparms.s.translate;
+        parms->t.translate = sx->texparms.t.translate;
+        parms->s.scale_log = sx->texparms.s.scale_log;
+        parms->t.scale_log = sx->texparms.t.scale_log;
+        parms->s.repeats = sx->texparms.s.repeats;
+        parms->t.repeats = sx->texparms.t.repeats;
+        parms->s.mirror = sx->texparms.s.mirror;
+        parms->t.mirror = sx->texparms.t.mirror;
+    }
+    return true;
 }
