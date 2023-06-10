@@ -6,30 +6,29 @@ extern gl_state_t state;
 #define VTX_SHIFT 5
 #define TEX_SHIFT 8
 
-#define DEFINE_SIMPLE_READ_FUNC(name, src_type, convert) \
+#define DEFINE_BYTE_READ_FUNC(name, src_type, convert) \
+    static void name(gl_cmd_stream_t *s, const src_type *src, uint32_t count) \
+    { \
+        for (uint32_t i = 0; i < count; i++) gl_cmd_stream_put_byte(s, convert(src[i])); \
+    }
+
+#define DEFINE_HALF_READ_FUNC(name, src_type, convert) \
     static void name(gl_cmd_stream_t *s, const src_type *src, uint32_t count) \
     { \
         for (uint32_t i = 0; i < count; i++) gl_cmd_stream_put_half(s, convert(src[i])); \
     }
 
-#define DEFINE_NORMAL_READ_FUNC(name, src_type, convert) \
-    static void name(gl_cmd_stream_t *s, const src_type *src, uint32_t count) \
-    { \
-        gl_cmd_stream_put_half(s, ((uint8_t)(convert(src[0])) << 8) | (uint8_t)(convert(src[1]))); \
-        gl_cmd_stream_put_half(s, (uint8_t)(convert(src[2])) << 8); \
-    }
-
 #define VTX_CONVERT_INT(v) ((v) << VTX_SHIFT)
 #define VTX_CONVERT_FLT(v) ((v) * (1<<VTX_SHIFT))
 
-DEFINE_SIMPLE_READ_FUNC(vtx_read_u8,  uint8_t,  VTX_CONVERT_INT)
-DEFINE_SIMPLE_READ_FUNC(vtx_read_i8,  int8_t,   VTX_CONVERT_INT)
-DEFINE_SIMPLE_READ_FUNC(vtx_read_u16, uint16_t, VTX_CONVERT_INT)
-DEFINE_SIMPLE_READ_FUNC(vtx_read_i16, int16_t,  VTX_CONVERT_INT)
-DEFINE_SIMPLE_READ_FUNC(vtx_read_u32, uint32_t, VTX_CONVERT_INT)
-DEFINE_SIMPLE_READ_FUNC(vtx_read_i32, int32_t,  VTX_CONVERT_INT)
-DEFINE_SIMPLE_READ_FUNC(vtx_read_f32, float,    VTX_CONVERT_FLT)
-DEFINE_SIMPLE_READ_FUNC(vtx_read_f64, double,   VTX_CONVERT_FLT)
+DEFINE_HALF_READ_FUNC(vtx_read_u8,  uint8_t,  VTX_CONVERT_INT)
+DEFINE_HALF_READ_FUNC(vtx_read_i8,  int8_t,   VTX_CONVERT_INT)
+DEFINE_HALF_READ_FUNC(vtx_read_u16, uint16_t, VTX_CONVERT_INT)
+DEFINE_HALF_READ_FUNC(vtx_read_i16, int16_t,  VTX_CONVERT_INT)
+DEFINE_HALF_READ_FUNC(vtx_read_u32, uint32_t, VTX_CONVERT_INT)
+DEFINE_HALF_READ_FUNC(vtx_read_i32, int32_t,  VTX_CONVERT_INT)
+DEFINE_HALF_READ_FUNC(vtx_read_f32, float,    VTX_CONVERT_FLT)
+DEFINE_HALF_READ_FUNC(vtx_read_f64, double,   VTX_CONVERT_FLT)
 
 #define COL_CONVERT_U8(v) ((v) << 7)
 #define COL_CONVERT_I8(v) ((v) << 8)
@@ -40,26 +39,26 @@ DEFINE_SIMPLE_READ_FUNC(vtx_read_f64, double,   VTX_CONVERT_FLT)
 #define COL_CONVERT_F32(v) (FLOAT_TO_I16(v))
 #define COL_CONVERT_F64(v) (FLOAT_TO_I16(v))
 
-DEFINE_SIMPLE_READ_FUNC(col_read_u8,  uint8_t,  COL_CONVERT_U8)
-DEFINE_SIMPLE_READ_FUNC(col_read_i8,  int8_t,   COL_CONVERT_I8)
-DEFINE_SIMPLE_READ_FUNC(col_read_u16, uint16_t, COL_CONVERT_U16)
-DEFINE_SIMPLE_READ_FUNC(col_read_i16, int16_t,  COL_CONVERT_I16)
-DEFINE_SIMPLE_READ_FUNC(col_read_u32, uint32_t, COL_CONVERT_U32)
-DEFINE_SIMPLE_READ_FUNC(col_read_i32, int32_t,  COL_CONVERT_I32)
-DEFINE_SIMPLE_READ_FUNC(col_read_f32, float,    COL_CONVERT_F32)
-DEFINE_SIMPLE_READ_FUNC(col_read_f64, double,   COL_CONVERT_F64)
+DEFINE_HALF_READ_FUNC(col_read_u8,  uint8_t,  COL_CONVERT_U8)
+DEFINE_HALF_READ_FUNC(col_read_i8,  int8_t,   COL_CONVERT_I8)
+DEFINE_HALF_READ_FUNC(col_read_u16, uint16_t, COL_CONVERT_U16)
+DEFINE_HALF_READ_FUNC(col_read_i16, int16_t,  COL_CONVERT_I16)
+DEFINE_HALF_READ_FUNC(col_read_u32, uint32_t, COL_CONVERT_U32)
+DEFINE_HALF_READ_FUNC(col_read_i32, int32_t,  COL_CONVERT_I32)
+DEFINE_HALF_READ_FUNC(col_read_f32, float,    COL_CONVERT_F32)
+DEFINE_HALF_READ_FUNC(col_read_f64, double,   COL_CONVERT_F64)
 
 #define TEX_CONVERT_INT(v) ((v) << TEX_SHIFT)
 #define TEX_CONVERT_FLT(v) ((v) * (1<<TEX_SHIFT))
 
-DEFINE_SIMPLE_READ_FUNC(tex_read_u8,  uint8_t,  TEX_CONVERT_INT)
-DEFINE_SIMPLE_READ_FUNC(tex_read_i8,  int8_t,   TEX_CONVERT_INT)
-DEFINE_SIMPLE_READ_FUNC(tex_read_u16, uint16_t, TEX_CONVERT_INT)
-DEFINE_SIMPLE_READ_FUNC(tex_read_i16, int16_t,  TEX_CONVERT_INT)
-DEFINE_SIMPLE_READ_FUNC(tex_read_u32, uint32_t, TEX_CONVERT_INT)
-DEFINE_SIMPLE_READ_FUNC(tex_read_i32, int32_t,  TEX_CONVERT_INT)
-DEFINE_SIMPLE_READ_FUNC(tex_read_f32, float,    TEX_CONVERT_FLT)
-DEFINE_SIMPLE_READ_FUNC(tex_read_f64, double,   TEX_CONVERT_FLT)
+DEFINE_HALF_READ_FUNC(tex_read_u8,  uint8_t,  TEX_CONVERT_INT)
+DEFINE_HALF_READ_FUNC(tex_read_i8,  int8_t,   TEX_CONVERT_INT)
+DEFINE_HALF_READ_FUNC(tex_read_u16, uint16_t, TEX_CONVERT_INT)
+DEFINE_HALF_READ_FUNC(tex_read_i16, int16_t,  TEX_CONVERT_INT)
+DEFINE_HALF_READ_FUNC(tex_read_u32, uint32_t, TEX_CONVERT_INT)
+DEFINE_HALF_READ_FUNC(tex_read_i32, int32_t,  TEX_CONVERT_INT)
+DEFINE_HALF_READ_FUNC(tex_read_f32, float,    TEX_CONVERT_FLT)
+DEFINE_HALF_READ_FUNC(tex_read_f64, double,   TEX_CONVERT_FLT)
 
 #define NRM_CONVERT_U8(v) ((v) >> 1)
 #define NRM_CONVERT_I8(v) ((v))
@@ -70,19 +69,25 @@ DEFINE_SIMPLE_READ_FUNC(tex_read_f64, double,   TEX_CONVERT_FLT)
 #define NRM_CONVERT_F32(v) ((v) * 0x7F)
 #define NRM_CONVERT_F64(v) ((v) * 0x7F)
 
-DEFINE_NORMAL_READ_FUNC(nrm_read_u8,  uint8_t,  NRM_CONVERT_U8)
-DEFINE_NORMAL_READ_FUNC(nrm_read_i8,  int8_t,   NRM_CONVERT_I8)
-DEFINE_NORMAL_READ_FUNC(nrm_read_u16, uint16_t, NRM_CONVERT_U16)
-DEFINE_NORMAL_READ_FUNC(nrm_read_i16, int16_t,  NRM_CONVERT_I16)
-DEFINE_NORMAL_READ_FUNC(nrm_read_u32, uint32_t, NRM_CONVERT_U32)
-DEFINE_NORMAL_READ_FUNC(nrm_read_i32, int32_t,  NRM_CONVERT_I32)
-DEFINE_NORMAL_READ_FUNC(nrm_read_f32, float,    NRM_CONVERT_F32)
-DEFINE_NORMAL_READ_FUNC(nrm_read_f64, double,   NRM_CONVERT_F64)
+DEFINE_BYTE_READ_FUNC(nrm_read_u8,  uint8_t,  NRM_CONVERT_U8)
+DEFINE_BYTE_READ_FUNC(nrm_read_i8,  int8_t,   NRM_CONVERT_I8)
+DEFINE_BYTE_READ_FUNC(nrm_read_u16, uint16_t, NRM_CONVERT_U16)
+DEFINE_BYTE_READ_FUNC(nrm_read_i16, int16_t,  NRM_CONVERT_I16)
+DEFINE_BYTE_READ_FUNC(nrm_read_u32, uint32_t, NRM_CONVERT_U32)
+DEFINE_BYTE_READ_FUNC(nrm_read_i32, int32_t,  NRM_CONVERT_I32)
+DEFINE_BYTE_READ_FUNC(nrm_read_f32, float,    NRM_CONVERT_F32)
+DEFINE_BYTE_READ_FUNC(nrm_read_f64, double,   NRM_CONVERT_F64)
 
-static void mtx_index_read(gl_cmd_stream_t *s, const void *src, uint32_t count)
-{
-    // TODO
-}
+#define MTX_INDEX_CONVERT(v) (v)
+
+DEFINE_BYTE_READ_FUNC(mtx_index_read_u8,  uint8_t,  MTX_INDEX_CONVERT)
+DEFINE_BYTE_READ_FUNC(mtx_index_read_i8,  int8_t,   MTX_INDEX_CONVERT)
+DEFINE_BYTE_READ_FUNC(mtx_index_read_u16, uint16_t, MTX_INDEX_CONVERT)
+DEFINE_BYTE_READ_FUNC(mtx_index_read_i16, int16_t,  MTX_INDEX_CONVERT)
+DEFINE_BYTE_READ_FUNC(mtx_index_read_u32, uint32_t, MTX_INDEX_CONVERT)
+DEFINE_BYTE_READ_FUNC(mtx_index_read_i32, int32_t,  MTX_INDEX_CONVERT)
+DEFINE_BYTE_READ_FUNC(mtx_index_read_f32, float,    MTX_INDEX_CONVERT)
+DEFINE_BYTE_READ_FUNC(mtx_index_read_f64, double,   MTX_INDEX_CONVERT)
 
 const rsp_read_attrib_func rsp_read_funcs[ATTRIB_COUNT][8] = {
     {
@@ -126,14 +131,14 @@ const rsp_read_attrib_func rsp_read_funcs[ATTRIB_COUNT][8] = {
         (rsp_read_attrib_func)nrm_read_f64,
     },
     {
-        (rsp_read_attrib_func)mtx_index_read,
-        (rsp_read_attrib_func)mtx_index_read,
-        (rsp_read_attrib_func)mtx_index_read,
-        (rsp_read_attrib_func)mtx_index_read,
-        (rsp_read_attrib_func)mtx_index_read,
-        (rsp_read_attrib_func)mtx_index_read,
-        (rsp_read_attrib_func)mtx_index_read,
-        (rsp_read_attrib_func)mtx_index_read,
+        (rsp_read_attrib_func)mtx_index_read_i8,
+        (rsp_read_attrib_func)mtx_index_read_u8,
+        (rsp_read_attrib_func)mtx_index_read_i16,
+        (rsp_read_attrib_func)mtx_index_read_u16,
+        (rsp_read_attrib_func)mtx_index_read_i32,
+        (rsp_read_attrib_func)mtx_index_read_u32,
+        (rsp_read_attrib_func)mtx_index_read_f32,
+        (rsp_read_attrib_func)mtx_index_read_f64,
     },
 };
 
@@ -183,8 +188,14 @@ static void load_last_attributes(const gl_array_t *arrays, uint32_t last_index)
 
 static void glp_set_attrib(gl_array_type_t array_type, const void *value, GLenum type, uint32_t size)
 {
-    static const glp_command_t cmd_table[] = { GLP_CMD_SET_LONG, GLP_CMD_SET_LONG, GLP_CMD_SET_WORD };
-    static const uint32_t cmd_size_table[] = { 3, 3, 2 };
+    static const glp_command_t cmd_table[] = { GLP_CMD_SET_LONG, GLP_CMD_SET_LONG, GLP_CMD_SET_WORD, GLP_CMD_SET_BYTE };
+    static const uint32_t cmd_size_table[] = { 3, 3, 2, 2 };
+    static const uint32_t offset_table[] = {
+        offsetof(gl_server_state_t, color),
+        offsetof(gl_server_state_t, tex_coords),
+        offsetof(gl_server_state_t, normal),
+        offsetof(gl_server_state_t, mtx_index)
+    };
     static const int16_t default_value_table[][4] = {
         { 0, 0, 0, 0x7FFF },
         { 0, 0, 0, 1 }
@@ -192,12 +203,32 @@ static void glp_set_attrib(gl_array_type_t array_type, const void *value, GLenum
 
     uint32_t table_index = array_type - 1;
 
+    const uint32_t offset = offset_table[table_index];
+
+    const rsp_read_attrib_func *read_funcs = rsp_read_funcs[array_type];
+    const rsp_read_attrib_func read_func = read_funcs[gl_type_to_index(type)];
+
     gl_cmd_stream_t s = gl_cmd_stream_begin(glp_overlay_id, cmd_table[table_index], cmd_size_table[table_index]);
-    gl_cmd_stream_put_half(&s, offsetof(gl_server_state_t, color) + 8 * table_index);
-    rsp_read_funcs[array_type][gl_type_to_index(type)](&s, value, size);
-    if (array_type != ATTRIB_NORMAL) {
-        rsp_read_funcs[array_type][gl_type_to_index(GL_SHORT)](&s, default_value_table[table_index] + size, 4 - size);
+    gl_cmd_stream_put_half(&s, offset);
+
+    switch (array_type) {
+    case ATTRIB_COLOR:
+    case ATTRIB_TEXCOORD:
+        read_func(&s, value, size);
+        read_funcs[gl_type_to_index(GL_SHORT)](&s, default_value_table[table_index] + size, 4 - size);
+        break;
+    case ATTRIB_NORMAL:
+        read_func(&s, value, size);
+        break;
+    case ATTRIB_MTX_INDEX:
+        for (uint32_t i = 0; i < 3; i++) gl_cmd_stream_put_byte(&s, 0);
+        read_func(&s, value, size);
+        break;
+    default:
+        assert(!"Unexpected array type");
+        break;
     }
+
     gl_cmd_stream_end(&s);
 }
 
@@ -261,7 +292,7 @@ static void write_vertex_from_arrays(const gl_array_t *arrays, uint32_t index, u
     write_vertex_end(&s);
 }
 
-static inline void submit_vertex(uint32_t cache_index)
+static void submit_vertex(uint32_t cache_index)
 {
     uint8_t indices[3];
     if (gl_prim_assembly(cache_index, indices))
@@ -301,8 +332,10 @@ static void gl_asm_vtx_loader(const gl_array_t *arrays)
     const uint8_t current_reg = 17;
     const uint8_t cmd_ptr_reg = 20;
     const uint8_t norm_reg = 2;
+    const uint8_t mtx_index_reg = 3;
     const uint8_t dst_vreg_base = 24;
     const uint32_t current_normal_offset = offsetof(gl_server_state_t, normal) - offsetof(gl_server_state_t, color);
+    const uint32_t current_mtx_index_offset = offsetof(gl_server_state_t, mtx_index) - offsetof(gl_server_state_t, color);
 
     uint32_t cmd_offset = 0;
 
@@ -344,10 +377,19 @@ static void gl_asm_vtx_loader(const gl_array_t *arrays)
         }
     }
 
+    // TODO: optimize for when both normal and matrix index com from the same source (They fit into a single word)
+
     if (!arrays[ATTRIB_NORMAL].enabled) {
         rspq_write_arg(&w, rsp_asm_lw(norm_reg, current_normal_offset, current_reg));
     } else {
         rspq_write_arg(&w, rsp_asm_lw(norm_reg, cmd_offset, cmd_ptr_reg));
+        cmd_offset += 3;
+    }
+
+    if (!arrays[ATTRIB_MTX_INDEX].enabled) {
+        rspq_write_arg(&w, rsp_asm_lbu(mtx_index_reg, current_mtx_index_offset, current_reg));
+    } else {
+        rspq_write_arg(&w, rsp_asm_lbu(mtx_index_reg, cmd_offset, cmd_ptr_reg));
     }
 
     rspq_write_end(&w);
@@ -364,7 +406,10 @@ static uint32_t get_vertex_cmd_size(const gl_array_t *arrays)
         }
     }
     if (arrays[ATTRIB_NORMAL].enabled) {
-        cmd_size += 4;
+        cmd_size += 3;
+    }
+    if (arrays[ATTRIB_MTX_INDEX].enabled) {
+        cmd_size += 1;
     }
 
     return ROUND_UP(cmd_size, 4);
@@ -465,7 +510,7 @@ static void gl_rsp_normal(const void *value, GLenum type, uint32_t size)
 
 static void gl_rsp_mtx_index(const void *value, GLenum type, uint32_t size)
 {
-    //set_attrib(ATTRIB_MTX_INDEX, value, type, size);
+    set_attrib(ATTRIB_MTX_INDEX, value, type, size);
 }
 
 static void gl_rsp_array_element(uint32_t index)

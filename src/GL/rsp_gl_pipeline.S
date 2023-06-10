@@ -11,9 +11,9 @@
         RSPQ_DefineCommand GLCmd_SetVtxCmdSize, 8
         RSPQ_DefineCommand GLCmd_DrawTriangle,  8
         RSPQ_DefineCommand GLCmd_SetPrimVertex, 32
+        RSPQ_DefineCommand GLCmd_SetByte,       8
         RSPQ_DefineCommand GLCmd_SetWord,       8
         RSPQ_DefineCommand GLCmd_SetLong,       12
-        RSPQ_DefineCommand RSPQCmd_Noop,        4
     RSPQ_EndOverlayHeader
 
     .align 4
@@ -22,24 +22,6 @@ BANNER1: .ascii "Rasky & Snacchus"
 
     RSPQ_BeginSavedState
     #include "rsp_gl_state.inc"
-
-#define PRIM_VTX_CS_POSi           0     // X, Y, Z, W (all 32-bit)
-#define PRIM_VTX_CS_POSf           8     // X, Y, Z, W (all 32-bit)
-#define PRIM_VTX_X                 16    // Object space position (16-bit)
-#define PRIM_VTX_Y                 18    // Object space position (16-bit)
-#define PRIM_VTX_Z                 20    // Object space position (16-bit)
-#define PRIM_VTX_W                 22    // Object space position (16-bit)
-#define PRIM_VTX_R                 24
-#define PRIM_VTX_G                 26
-#define PRIM_VTX_B                 28
-#define PRIM_VTX_A                 30
-#define PRIM_VTX_TEX_S             32
-#define PRIM_VTX_TEX_T             34
-#define PRIM_VTX_TEX_R             36
-#define PRIM_VTX_TEX_Q             38
-#define PRIM_VTX_NORMAL            40    // Normal X,Y,Z (8 bit)
-#define PRIM_VTX_TRCODE            43    // trivial-reject clipping flags (against -w/+w)
-#define PRIM_VTX_SIZE              44
 
 #define SCREEN_VTX_CS_POSi          0     // X, Y, Z, W (all 32-bit)
 #define SCREEN_VTX_CS_POSf          8     // X, Y, Z, W (all 32-bit)
@@ -98,6 +80,12 @@ GLCmd_SetVtxCmdSize:
     li t0, DMA_SIZE(8, 1)
     .endfunc
 
+    .func GLCmd_SetByte
+GLCmd_SetByte:
+    jr ra
+    sb a1, %lo(GL_STATE)(a0)
+    .endfunc
+
     .func GLCmd_SetWord
 GLCmd_SetWord:
     jr ra
@@ -111,6 +99,38 @@ GLCmd_SetLong:
     sw a2, %lo(GL_STATE) + 4(a0)
     .endfunc
 
+    ########################################
+    # GLCmd_SetPrimVertex
+    #
+    # Args:
+    #   v1 = Matrix index
+    #   t5 = State flags
+    #   s0 = Matrix pointer offset
+    #
+    ########################################
+    .func GL_HandleMatrixPalette
+GL_HandleMatrixPalette:
+    #define mtx_index   v1
+    #define state_flags t5
+    #define mtx_pointer s0
+    and t0, state_flags, FLAG_MATRIX_PALETTE
+    beqz t0, JrRa
+    lw t0, %lo(GL_LOADED_MTX_INDEX) - 0xC(mtx_pointer)
+
+    lw mtx_pointer, %lo(GL_MATRIX_POINTERS)(mtx_pointer)
+
+    # Check if this matrix is already loaded
+    beq t0, mtx_index, JrRa
+    sw mtx_index, %lo(GL_LOADED_MTX_INDEX) - 0xC(mtx_pointer)
+
+    sll t0, mtx_index, 6
+    add mtx_pointer, t0
+    j DMAIn
+    li t0, DMA_SIZE(MATRIX_SIZE, 1)
+    #undef mtx_index
+    #undef state_flags
+    #undef mtx_pointer
+    .endfunc
 
     ########################################
     # GLCmd_SetPrimVertex
@@ -132,6 +152,8 @@ GLCmd_SetPrimVertex:
     #define current     s1
     #define cmd_ptr     s4
     #define norm        v0
+    #define mtxi        v1
+    #define state_flags t5
 
     #define v___        $v01
 
@@ -174,9 +196,15 @@ gl_vtx_loader:
     sw  norm, PRIM_VTX_NORMAL(vtx)
 
     move ra2, ra
-    vcopy $v27, vpos # TODO: <- Get rid of this op
+    lw state_flags, %lo(GL_STATE_FLAGS)
+    
+    li s4, %lo(GL_MATRIX_MVP)
+    sb mtxi, PRIM_VTX_MTX_INDEX(vtx)
+    jal GL_HandleMatrixPalette
+    li s0, 0x10
+
     jal GL_MtxTransformSingle
-    li s0, %lo(GL_MATRIX_FINAL)
+    vcopy $v27, vpos
 
     # 32-bit right shift by 5, to keep the clip space coordinates unscaled
     vmudm vcspos_i, vcspos_i, vshift8.e4
@@ -234,14 +262,14 @@ gl_vtx_loader:
     # GL_CalcScreenSpace
     #
     # Args:
-    #   s4   = Destination vertex address
+    #   s3   = Destination vertex address
     #   $v02 = Clip space position (fractional part)
     #   $v03 = Clip space position (integer part)
     #
     ################################################################
     .func GL_CalcScreenSpace
 GL_CalcScreenSpace:
-    #define dst          s4
+    #define dst          s3
     #define vcspos_f     $v02
     #define vcspos_i     $v03
     #define vinvw_f      $v23
@@ -299,14 +327,14 @@ GL_CalcScreenSpace:
     # GL_CalcClipCodes
     #
     # Args:
-    #   s4   = Destination vertex address
+    #   s3   = Destination vertex address
     #   $v02 = Clip space position (fractional part)
     #   $v03 = Clip space position (integer part)
     #
     ################################################################
     .func GL_CalcClipCodes
 GL_CalcClipCodes:
-    #define dst          s4
+    #define dst          s3
     #define vcspos_f     $v02
     #define vcspos_i     $v03
     #define vguard_f     $v27
@@ -344,15 +372,13 @@ GL_CalcClipCodes:
     # GL_TnL
     #
     # Args:
-    #   s3 = address of the prim vertex in DMEM (usually within VERTEX_CACHE)
+    #   s3 = address of the vertex in DMEM (usually within VERTEX_CACHE)
     #
-    # Returns:
-    #   s3 = address of the screen vertex in DMEM (within SCREEN_VERTEX_CACHE)
     ################################################################
     .func GL_TnL
 GL_TnL:
     #define tmp_ptr      s2
-    #define vtx          s4
+    #define vtx          s3
     #define state_flags  t5
     #define s            e0
     move ra2, ra
@@ -368,21 +394,16 @@ GL_TnL:
     ldv vrgba.e0, PRIM_VTX_R, vtx     # R + G + B + A
     ldv vrgba.e4, PRIM_VTX_R, vtx     # R + G + B + A
 
-    #define vmtx0_i      $v16       //  m00 m01 m02 m03
-    #define vmtx0_f      $v17
-    #define vmtx1_i      $v18       //  m00 m01 m02 m03
-    #define vmtx1_f      $v19
-    #define vmtx2_i      $v20       //  m00 m01 m02 m03
-    #define vmtx2_f      $v21
-    #define vmtx3_i      $v22       //  m00 m01 m02 m03
-    #define vmtx3_f      $v23
-
     and t0, state_flags, FLAG_NEED_EYE_SPACE
     beqz t0, 2f
-    li s0, %lo(GL_MATRIX_MODELVIEW)
+    li s4, %lo(GL_MATRIX_MODELVIEW)
+
+    lbu v1, PRIM_VTX_MTX_INDEX(vtx)
+    jal GL_HandleMatrixPalette
+    li s0, 0xC
 
     addi s5, vtx, PRIM_VTX_NORMAL-4
-    lpv vobjpos.e0,  0,s5                   # loads NX + NY + NZ into lanes 4-7
+    lpv vobjpos.e0,  0,s5              # loads NX + NY + NZ into lanes 4-7
     ldv vobjpos.e0,  PRIM_VTX_X,vtx    # loads X + Y + Z + W into lanes 0-3
 
     # TODO: technically we need the inverse transpose matrix,
@@ -548,7 +569,7 @@ GL_TnL:
     # Apply texture matrix
     vcopy $v27, vstrq
     jal GL_MtxTransformSingle
-    li s0, %lo(GL_MATRIX_TEXTURE)
+    li s4, %lo(GL_MATRIX_TEXTURE)
 
     # Perform perspective division
     vrcph vinvq_i.q, vstrq_i.q
@@ -605,20 +626,18 @@ GL_TnL:
     #undef vobjpos
     #undef veyepos
     #undef veyenormal
-    #undef vmtx0_i
-    #undef vmtx0_f
-    #undef vmtx1_i
-    #undef vmtx1_f
-    #undef vmtx2_i
-    #undef vmtx2_f
-    #undef vmtx3_i
-    #undef vmtx3_f
 
     .endfunc
 
 
     ################################################################
     # GLCmd_DrawTriangle
+    #
+    # Arguments:
+    #   a0: Bit 31..24: Command id
+    #       Bit 11..0:  Offset into vertex cache of vtx1
+    #   a1: Bit 27..16: Offset into vertex cache of vtx2
+    #       Bit 11..0:  Offset into vertex cache of vtx3
     #
     ################################################################
     .func GLCmd_DrawTriangle
@@ -652,13 +671,13 @@ GLCmd_DrawTriangle:
 
     # Perform T&L for each vertex if we haven't already
     bgezal trcode1, GL_TnL
-    move s4, vtx1
+    move s3, vtx1
 
     bgezal trcode2, GL_TnL
-    move s4, vtx2
+    move s3, vtx2
 
     bgezal trcode3, GL_TnL
-    move s4, vtx3
+    move s3, vtx3
 
     lbu t0, SCREEN_VTX_CLIP_CODE(vtx1)
     lbu t1, SCREEN_VTX_CLIP_CODE(vtx2)

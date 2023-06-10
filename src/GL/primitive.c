@@ -110,11 +110,6 @@ bool gl_can_use_rsp_pipeline()
         }
     }
 
-    if (state.matrix_palette) {
-        WARN_CPU_REQUIRED("matrix palette");
-        return false;
-    }
-
     return true;
 
     #undef WARN_CPU_REQUIRED

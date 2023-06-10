@@ -89,10 +89,16 @@ void gl_init()
     state.matrix_stacks[0] = malloc_uncached(sizeof(gl_matrix_srv_t) * MODELVIEW_STACK_SIZE);
     state.matrix_stacks[1] = malloc_uncached(sizeof(gl_matrix_srv_t) * PROJECTION_STACK_SIZE);
     state.matrix_stacks[2] = malloc_uncached(sizeof(gl_matrix_srv_t) * TEXTURE_STACK_SIZE);
+    state.matrix_palette = malloc_uncached(sizeof(gl_matrix_srv_t) * MATRIX_PALETTE_SIZE * 2); // Double size for mvp-matrices
 
     server_state->matrix_pointers[0] = PhysicalAddr(state.matrix_stacks[0]);
     server_state->matrix_pointers[1] = PhysicalAddr(state.matrix_stacks[1]);
     server_state->matrix_pointers[2] = PhysicalAddr(state.matrix_stacks[2]);
+    server_state->matrix_pointers[3] = PhysicalAddr(state.matrix_palette);
+    server_state->matrix_pointers[4] = PhysicalAddr(state.matrix_palette + MATRIX_PALETTE_SIZE);
+    server_state->palette_ptr = PhysicalAddr(state.matrix_palette);
+    server_state->loaded_mtx_index[0] = -1;
+    server_state->loaded_mtx_index[1] = -1;
 
     server_state->flags |= FLAG_FINAL_MTX_DIRTY;
 
@@ -153,6 +159,7 @@ void gl_close()
     free_uncached(state.matrix_stacks[0]);
     free_uncached(state.matrix_stacks[1]);
     free_uncached(state.matrix_stacks[2]);
+    free_uncached(state.matrix_palette);
     
     gl_list_close();
     gl_primitive_close();
@@ -367,8 +374,8 @@ void gl_set_flag2(GLenum target, bool value)
         state.normalize = value;
         break;
     case GL_MATRIX_PALETTE_ARB:
-        state.matrix_palette = value;
-        set_can_use_rsp_dirty();
+        gl_set_flag(GL_UPDATE_NONE, FLAG_MATRIX_PALETTE, value);
+        state.matrix_palette_enabled = value;
         break;
     case GL_CLIP_PLANE0:
     case GL_CLIP_PLANE1:

@@ -4,7 +4,8 @@ GL_STATE:
         GL_MATRIX_MODELVIEW:    .ds.b   MATRIX_SIZE
         GL_MATRIX_PROJECTION:   .ds.b   MATRIX_SIZE
         GL_MATRIX_TEXTURE:      .ds.b   MATRIX_SIZE
-        GL_MATRIX_FINAL:        .ds.b   MATRIX_SIZE
+        GL_MATRIX_PALETTE:      .ds.b   MATRIX_SIZE
+        GL_MATRIX_MVP:          .ds.b   MATRIX_SIZE
     GL_LIGHTS:              .ds.b   LIGHT_STRUCT_SIZE
     GL_TEX_GEN:             .ds.b   TEX_GEN_STRUCT_SIZE
     GL_VIEWPORT_SCALE:      .half   0,0,0,0
@@ -19,8 +20,10 @@ GL_STATE:
     GL_CURRENT_ATTRIBUTES:
         GL_CUR_COLOR:       .half   0,0,0,0
         GL_CUR_TEX_COORDS:  .half   0,0,0,0
-        GL_CUR_NORMAL:      .byte   0,0,0,0
-    GL_MATRIX_POINTERS:     .word   0,0,0
+        GL_CUR_NORMAL:      .byte   0,0,0
+        GL_CUR_MTX_INDEX:   .byte   0
+    GL_MATRIX_POINTERS:     .word   0,0,0,0,0
+    GL_LOADED_MTX_INDEX:    .word   0,0
     GL_STATE_FLAGS:         .word   0
     GL_STATE_FOG_START:     .half   0
     GL_STATE_FOG_END:       .half   0

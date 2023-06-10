@@ -84,6 +84,7 @@ typedef enum {
     GL_CMD_MATRIX_LOAD      = 0xC,
     GL_CMD_PRE_INIT_PIPE    = 0xD,
     GL_CMD_PRE_INIT_PIPE_TEX= 0xE,
+    GL_CMD_SET_PALETTE_IDX  = 0xF,
 } gl_command_t;
 
 typedef enum {
@@ -92,8 +93,9 @@ typedef enum {
     GLP_CMD_SET_VTX_CMD_SIZE    = 0x2,
     GLP_CMD_DRAW_TRI            = 0x3,
     GLP_CMD_SET_PRIM_VTX        = 0x4,
-    GLP_CMD_SET_WORD            = 0x5,
-    GLP_CMD_SET_LONG            = 0x6,
+    GLP_CMD_SET_BYTE            = 0x5,
+    GLP_CMD_SET_WORD            = 0x6,
+    GLP_CMD_SET_LONG            = 0x7,
 } glp_command_t;
 
 typedef enum {
@@ -259,7 +261,10 @@ typedef struct {
 
 typedef struct {
     rspq_write_t w;
-    uint16_t buffer[2];
+    union {
+        uint8_t  bytes[4];
+        uint32_t word;
+    };
     uint32_t buffer_head;
 } gl_cmd_stream_t;
 
@@ -340,7 +345,7 @@ typedef struct {
     bool fog;
     bool color_material;
     bool normalize;
-    bool matrix_palette;
+    bool matrix_palette_enabled;
 
     GLenum cull_face_mode;
     GLenum front_face;
@@ -443,6 +448,7 @@ typedef struct {
     gl_buffer_object_t *element_array_buffer;
 
     gl_matrix_srv_t *matrix_stacks[3];
+    gl_matrix_srv_t *matrix_palette;
 
     GLboolean unpack_swap_bytes;
     GLboolean unpack_lsb_first;
@@ -472,7 +478,7 @@ typedef struct {
 } gl_state_t;
 
 typedef struct {
-    gl_matrix_srv_t matrices[4];
+    gl_matrix_srv_t matrices[5];
     gl_lights_soa_t lights;
     gl_tex_gen_soa_t tex_gen;
     int16_t viewport_scale[4];
@@ -486,8 +492,10 @@ typedef struct {
     uint16_t mat_shininess;
     int16_t color[4];
     int16_t tex_coords[4];
-    int8_t normal[4];
-    uint32_t matrix_pointers[3];
+    int8_t normal[3];
+    uint8_t mtx_index;
+    uint32_t matrix_pointers[5];
+    uint32_t loaded_mtx_index[2];
     uint32_t flags;
     int16_t fog_start;
     int16_t fog_end;
@@ -515,6 +523,7 @@ typedef struct {
     uint32_t uploaded_tex;
     uint32_t clear_color;
     uint32_t clear_depth;
+    uint32_t palette_ptr;
     uint16_t fb_size[2];
     uint16_t depth_func;
     uint16_t alpha_func;
@@ -615,25 +624,40 @@ inline gl_cmd_stream_t gl_cmd_stream_begin(uint32_t ovl_id, uint32_t cmd_id, int
 {
     return (gl_cmd_stream_t) {
         .w = rspq_write_begin(ovl_id, cmd_id, size),
-        .buffer_head = 1,
+        .buffer_head = 2,
     };
+}
+
+inline void gl_cmd_stream_commit(gl_cmd_stream_t *s)
+{
+    rspq_write_arg(&s->w, s->word);
+    s->buffer_head = 0;
+    s->word = 0;
+}
+
+inline void gl_cmd_stream_put_byte(gl_cmd_stream_t *s, uint8_t v)
+{
+    s->bytes[s->buffer_head++] = v;
+    
+    if (s->buffer_head == sizeof(uint32_t)) {
+        gl_cmd_stream_commit(s);
+    }
 }
 
 inline void gl_cmd_stream_put_half(gl_cmd_stream_t *s, uint16_t v)
 {
-    s->buffer[s->buffer_head++] = v;
+    s->bytes[s->buffer_head++] = v >> 8;
+    s->bytes[s->buffer_head++] = v & 0xFF;
     
-    if (s->buffer_head == 2) {
-        uint32_t arg = ((uint32_t)s->buffer[0] << 16) | s->buffer[1];
-        rspq_write_arg(&s->w, arg);
-        s->buffer_head = 0;
+    if (s->buffer_head == sizeof(uint32_t)) {
+        gl_cmd_stream_commit(s);
     }
 }
 
 inline void gl_cmd_stream_end(gl_cmd_stream_t *s)
 {
     if (s->buffer_head > 0) {
-        gl_cmd_stream_put_half(s, 0);
+        gl_cmd_stream_commit(s);
     }
 
     rspq_write_end(&s->w);
@@ -768,7 +792,15 @@ inline void gl_set_current_normal(GLfloat *normal)
 
 inline void gl_set_current_mtx_index(GLubyte *index)
 {
-    // TODO
+    for (uint32_t i = 0; i < VERTEX_UNIT_COUNT; i++)
+    {
+        gl_set_byte(GL_UPDATE_NONE, offsetof(gl_server_state_t, mtx_index) + i, index[i]);
+    }
+}
+
+inline void gl_set_palette_ptr(const gl_matrix_srv_t *palette_ptr)
+{
+    gl_write(GL_CMD_SET_PALETTE_IDX, PhysicalAddr(palette_ptr));
 }
 
 inline void gl_pre_init_pipe(GLenum primitive_mode)
@@ -789,7 +821,6 @@ inline void glpipe_set_vtx_cmd_size(uint16_t patched_cmd_descriptor, uint16_t *c
     glp_write(GLP_CMD_SET_VTX_CMD_SIZE, patched_cmd_descriptor, PhysicalAddr(cmd_descriptor));
 }
 
-#define PRIM_VTX_SIZE   44
 #define TEX_SCALE   32.0f
 #define OBJ_SCALE   32.0f
 

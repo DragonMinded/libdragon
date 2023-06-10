@@ -101,6 +101,7 @@
 #define FLAG_FINAL_MTX_DIRTY    (1 << 28)
 #define FLAG_TEXTURE_ACTIVE     (1 << 29)
 #define FLAG_NEED_EYE_SPACE     (1 << 30)
+#define FLAG_MATRIX_PALETTE     (1 << 31)
 
 #define FLAG2_USE_RDPQ_MATERIAL  (1 << 0)
 #define FLAG2_USE_RDPQ_TEXTURING (1 << 1)
@@ -145,9 +146,29 @@
 
 #define NEED_EYE_SPACE_SHIFT    30
 
-#define VTX_LOADER_MAX_COMMANDS 10
+#define VTX_LOADER_MAX_COMMANDS 11
 #define VTX_LOADER_MAX_SIZE     (VTX_LOADER_MAX_COMMANDS * 4)
 
 #define RDPQ_TEXTURING_MASK ((SOM_SAMPLE_MASK | SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE | SOMX_NUMLODS_MASK)>>32)
+
+
+#define PRIM_VTX_CS_POSi           0     // X, Y, Z, W (all 32-bit)
+#define PRIM_VTX_CS_POSf           8     // X, Y, Z, W (all 32-bit)
+#define PRIM_VTX_X                 16    // Object space position (16-bit)
+#define PRIM_VTX_Y                 18    // Object space position (16-bit)
+#define PRIM_VTX_Z                 20    // Object space position (16-bit)
+#define PRIM_VTX_W                 22    // Object space position (16-bit)
+#define PRIM_VTX_R                 24
+#define PRIM_VTX_G                 26
+#define PRIM_VTX_B                 28
+#define PRIM_VTX_A                 30
+#define PRIM_VTX_TEX_S             32
+#define PRIM_VTX_TEX_T             34
+#define PRIM_VTX_TEX_R             36
+#define PRIM_VTX_TEX_Q             38
+#define PRIM_VTX_NORMAL            40    // Normal X,Y,Z (8 bit)
+#define PRIM_VTX_MTX_INDEX         43
+#define PRIM_VTX_TRCODE            44    // trivial-reject clipping flags (against -w/+w)
+#define PRIM_VTX_SIZE              45
 
 #endif
