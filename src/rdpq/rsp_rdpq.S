@@ -27,7 +27,7 @@
         RSPQ_DefineCommand RDPQCmd_RectEx,                  16  # 0xD0 Texture Rectangle (esclusive bounds)
         RSPQ_DefineCommand RDPQCmd_SetDebugMode,            4   # 0xD1 Set Debug mode
         RSPQ_DefineCommand RDPQCmd_SetScissorEx,            8   # 0xD2 Set Scissor (exclusive bounds)
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD3
+        RSPQ_DefineCommand RDPQCmd_SetPrimColorComponent,   8   # 0xD3 Set Primimive Color Component (minlod or primlod or rgba)
         RSPQ_DefineCommand RDPQCmd_ModifyOtherModes,        12  # 0xD4 Modify SOM
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD5
         RSPQ_DefineCommand RDPQCmd_SetFillColor32,          8   # 0xD6
@@ -67,7 +67,7 @@
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xF7 SET_FILL_COLOR
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xF8 SET_FOG_COLOR
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xF9 SET_BLEND_COLOR
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xFA SET_PRIM_COLOR
+        RSPQ_DefineCommand RDPQCmd_SetPrimColor,            8   # 0xFA SET_PRIM_COLOR
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xFB SET_ENV_COLOR
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xFC SET_COMBINE_MODE
         RSPQ_DefineCommand RDPQCmd_SetFixupImage,           8   # 0xFD SET_TEXTURE_IMAGE
@@ -91,6 +91,12 @@ RDPQ_RDRAM_STATE_ADDR:  .word  0
 RDPQ_AUTOTMEM_ADDR:     .half  0
 RDPQ_AUTOTMEM_LIMIT:    .half  0
 RDPQ_AUTOTMEM_ENABLED:  .byte  0
+
+# Store individual components of the complex Prim Color structure for sync between commands
+# Used in SetPrimColorComponent and SetPrimColor
+    .align 4
+RDPQ_PRIM_COLOR_EX:     .word  0
+RDPQ_PRIM_COLOR_RGBA:   .word  0
 
     .align 4
 # Stack slots for 3 saved RDP modes
@@ -129,6 +135,62 @@ RDPQCmd_Passthrough8:
 RDPQCmd_Passthrough16:
     jal_and_j RDPQ_Write16, RDPQ_Finalize
     .endfunc
+
+
+    #############################################################
+    # RDPQCmd_SetPrimColor
+    #
+    # Forwards the RDP command contained in a0 and a1 to the RDP stream.
+    # and saves the PRIM color data into DMEM for sync
+    #############################################################
+    .func RDPQCmd_SetPrimColor
+RDPQCmd_SetPrimColor:
+    sw a0, %lo(RDPQ_PRIM_COLOR_EX)
+    j RDPQCmd_Passthrough8
+    sw a1, %lo(RDPQ_PRIM_COLOR_RGBA)
+    .endfunc
+
+    #############################################################
+    # RDPQCmd_SetPrimColorComponent
+    #
+    # Allows for partial setup of data through the 2 bits in a0
+    # Forwards the RDP command contained in a0 and a1 to the RDP stream.
+    # and saves the PRIM color data into DMEM for sync
+    #############################################################
+    .func RDPQCmd_SetPrimColorComponent
+RDPQCmd_SetPrimColorComponent:
+    lui  t0, 0xD300 ^ 0xFA00
+    xor  a0, t0
+
+    srl  t3, a0, 16 # the selection is stored in the upper half of a0, in the lowest 2 bits
+    andi t3, 3
+    beqz t3, set_rgba
+    addi t3, -1
+    beqz t3, set_primlod
+set_minlod:
+    lw   t1, %lo(RDPQ_PRIM_COLOR_EX) # restore current prim color data
+    and  t1, 0x000000FF
+    or   a0, t1
+    j    setprimcolor_finalize
+set_primlod:
+    lw   t1, %lo(RDPQ_PRIM_COLOR_EX) # restore current prim color data
+    and  t1, 0x0000FF00
+    or   a0, t1
+    j    setprimcolor_finalize
+set_rgba:
+    lw   t1, %lo(RDPQ_PRIM_COLOR_EX) # restore current prim color data
+    and  t1, 0x0000FFFF
+    or   a0, t1
+    sw   a1, %lo(RDPQ_PRIM_COLOR_RGBA)
+setprimcolor_finalize:
+    sw   a0, %lo(RDPQ_PRIM_COLOR_EX)
+    li   s4, %lo(RDPQ_PRIM_COLOR_EX)
+    j    RDPQ_Send
+    li   s3, %lo(RDPQ_PRIM_COLOR_EX)+8
+    .endfunc
+
+
+
 
     #############################################################
     # RDPQCmd_SetOtherModes
