@@ -1,6 +1,8 @@
 #ifndef RSP_GL_COMMON_INC
 #define RSP_GL_COMMON_INC
 
+    .section .text.mtxmult
+
 .func GL_MtxMult
 GL_MtxMult:
     #define lhs s5
@@ -94,6 +96,8 @@ GL_MtxMultSave:
     sqv vrhs23_f, 0x30,dst
 
     .endfunc
+
+    .section .text.mtxtransform
 
     .func GL_MtxTransformDouble
 GL_MtxTransformDouble:
