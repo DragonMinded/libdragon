@@ -940,35 +940,6 @@ inline void rdpq_set_blend_color(color_t color)
         AUTOSYNC_PIPE);
 }
 
-
-/**
- * @brief Set the RDP BLEND blender register
- * 
- * This function sets the internal RDP BLEND register, part of the blender unit.
- * As the name implies, this register is normally used as part of fog calculation,
- * but it is actually a generic color register that can be used in custom
- * blender formulas. 
- * 
- * Another similar blender register is the FOG register, configured via
- * #rdpq_set_fog_color.
- * 
- * See #RDPQ_BLENDER and #RDPQ_BLENDER2 on how to configure
- * the blender (typically, via #rdpq_mode_blender).
- * 
- * @param[in] color             Color to set the BLEND register to
- * 
- * @see #RDPQ_BLENDER
- * @see #RDPQ_BLENDER2
- * @see #rdpq_set_fog_color
- * @see #rdpq_mode_blender
- */
-inline void rdpq_set_blend_color(color_t color)
-{
-    extern void __rdpq_write8_syncchange(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t autosync);
-    __rdpq_write8_syncchange(RDPQ_CMD_SET_BLEND_COLOR, 0, color_to_packed32(color),
-        AUTOSYNC_PIPE);
-}
-
 /**
  * @brief Set the RDP PRIM combiner register (color only) (RDP command: SET_PRIM_COLOR)
  * 
