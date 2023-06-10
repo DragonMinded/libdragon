@@ -980,7 +980,7 @@ inline void rdpq_set_prim_color(color_t color)
  * This function sets the internal RDP PRIM MIN LOD register, that is used for 
  * determining the interpolation blend factor of a detail texture.
  * 
- * @param[in] value             Value to set the MIN LOD register to in range [0..32]
+ * @param[in] value             Value to set the MIN LOD register to in range [0..31]
  * 
  * @see #RDPQ_COMBINER1
  * @see #RDPQ_COMBINER2
