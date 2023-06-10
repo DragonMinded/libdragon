@@ -112,19 +112,19 @@ GLCmd_SetLong:
 GL_HandleMatrixPalette:
     #define mtx_index   v1
     #define state_flags t5
-    #define mtx_pointer s0
+    #define mtx_pointer s1
     and t0, state_flags, FLAG_MATRIX_PALETTE
     beqz t0, JrRa
     lw t0, %lo(GL_LOADED_MTX_INDEX) - 0xC(mtx_pointer)
 
-    lw mtx_pointer, %lo(GL_MATRIX_POINTERS)(mtx_pointer)
+    lw s0, %lo(GL_MATRIX_POINTERS)(mtx_pointer)
 
     # Check if this matrix is already loaded
     beq t0, mtx_index, JrRa
     sw mtx_index, %lo(GL_LOADED_MTX_INDEX) - 0xC(mtx_pointer)
 
     sll t0, mtx_index, 6
-    add mtx_pointer, t0
+    add s0, t0
     j DMAIn
     li t0, DMA_SIZE(MATRIX_SIZE, 1)
     #undef mtx_index
@@ -201,7 +201,7 @@ gl_vtx_loader:
     li s4, %lo(GL_MATRIX_MVP)
     sb mtxi, PRIM_VTX_MTX_INDEX(vtx)
     jal GL_HandleMatrixPalette
-    li s0, 0x10
+    li s1, 0x10
 
     jal GL_MtxTransformSingle
     vcopy $v27, vpos
@@ -400,7 +400,7 @@ GL_TnL:
 
     lbu v1, PRIM_VTX_MTX_INDEX(vtx)
     jal GL_HandleMatrixPalette
-    li s0, 0xC
+    li s1, 0xC
 
     addi s5, vtx, PRIM_VTX_NORMAL-4
     lpv vobjpos.e0,  0,s5              # loads NX + NY + NZ into lanes 4-7
