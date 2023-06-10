@@ -93,6 +93,16 @@ const char *dither_algo_name(int algo) {
     }
 }
 
+typedef struct {
+    struct {
+        float translate;
+        int scale;
+        float repeats;
+        int mirror;
+    } s, t;
+    bool defined;
+} texparms_t;
+
 
 typedef struct {
     tex_format_t outfmt;
@@ -102,6 +112,7 @@ typedef struct {
     int tileh;
     int mipmap_algo;
     int dither_algo;
+    texparms_t texparms;
 } parms_t;
 
 
@@ -128,11 +139,20 @@ void print_args( char * name )
     fprintf(stderr, "   -v/--verbose          Verbose output\n");
     fprintf(stderr, "   -o/--output <dir>     Specify output directory (default: .)\n");
     fprintf(stderr, "   -f/--format <fmt>     Specify output format (default: AUTO)\n");
-    fprintf(stderr, "   -t/--tiles  <w,h>     Specify single tile size (default: auto)\n");
-    fprintf(stderr, "   -m/--mipmap <algo>    Calculate mipmap levels using the specified algorithm (default: NONE)\n");
     fprintf(stderr, "   -D/--dither <dither>  Dithering algorithm (default: NONE)\n");
     fprintf(stderr, "   -c/--compress         Compress output files (using mksasset)\n");
     fprintf(stderr, "   -d/--debug            Dump computed images (eg: mipmaps) as PNG files in output directory\n");
+    fprintf(stderr, "\nSampling flags:\n");
+    fprintf(stderr, "   --texparms <x,s,r,m>          Sampling parameters:\n");
+    fprintf(stderr, "                                 x=translation, s=scale, r=repetitions, m=mirror\n");
+    fprintf(stderr, "   --texparms <x,x,s,s,r,r,m,m>  Sampling parameters (different for S/T)\n");
+    fprintf(stderr, "\nMipmapping flags:\n");
+    fprintf(stderr, "   -m/--mipmap <algo>                    Calculate mipmap levels using the specified algorithm (default: NONE)\n");
+    // fprintf(stderr, "   --detail [<image>][,<fmt>][,<factor>] Activate detail texture:\n");
+    // fprintf(stderr, "                                         <image> is the file to use as detail (default: reuse input image)\n");
+    // fprintf(stderr, "                                         <fmt> is the output format (default: AUTO)\n");
+    // fprintf(stderr, "                                         <factor> is the blend factor in range 0..1 (default: 0.5)\n");
+    // fprintf(stderr, "   --detail-texparms <x,s,r,m>           Sampling parameters for the detail texture\n");
     fprintf(stderr, "\n");
     print_supported_formats();
     print_supported_mipmap();
@@ -184,6 +204,7 @@ typedef struct {
     tex_format_t outfmt;    // Output format of the sprite
     int vslices;            // Number of vertical slices (deprecated API for old rdp.c)
     int hslices;            // Number of horizontal slices (deprecated API for old rdp.c)
+    texparms_t texparms;    // Texture parameters
 } spritemaker_t;
 
 
@@ -629,10 +650,10 @@ bool spritemaker_write(spritemaker_t *spr) {
         // Write extended sprite header after first image
         // See sprite_ext_t (sprite_internal.h)
         if (m == 0) { 
-            w16(out, 64);  // sizeof(sprite_ext_t)
-            w16(out, 1);   // version
+            w16(out, 104);  // sizeof(sprite_ext_t)
+            w16(out, 2);    // version
             w_palpos = w32_placeholder(out); // placeholder for position of palette
-            for (int i=0; i<7; i++) {
+            for (int i=0; i<8; i++) {
                 if (i+1 < spr->num_images) {
                     w16(out, spr->images[i+1].width);
                     w16(out, spr->images[i+1].height);
@@ -643,6 +664,23 @@ bool spritemaker_write(spritemaker_t *spr) {
                     w32(out, 0);
                 }
             }
+            uint16_t flags = 0;
+            assert(spr->num_images-1 <= 7); // 3 bits
+            flags |= spr->num_images-1;
+            if (spr->texparms.defined) flags |= 0x08;
+            w16(out, flags);
+            w16(out, 0);     // padding
+            wf32(out, spr->texparms.s.translate);
+            wf32(out, spr->texparms.s.repeats);
+            w16(out, spr->texparms.s.scale);
+            w8(out, spr->texparms.s.mirror);
+            w8(out, 0); // padding
+            wf32(out, spr->texparms.t.translate);
+            wf32(out, spr->texparms.t.repeats);
+            w16(out, spr->texparms.t.scale);
+            w8(out, spr->texparms.t.mirror);
+            w8(out, 0); // padding
+            w32(out, 0); // detail factor
             walign(out, 8);
         }
     }
@@ -716,6 +754,7 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
 
     spr.infn = infn;
     spr.outfn = outfn;
+    spr.texparms = pm->texparms;
 
     // Load the PNG, passing the desired output format (or FMT_NONE if autodetect).
     if (!spritemaker_load_png(&spr, pm->outfmt))
@@ -869,11 +908,58 @@ int main(int argc, char *argv[])
                 }
             } else if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--compress")) {
                 compression = true;
+            } else if (!strcmp(argv[1], "--texparms")) {
+                if (++i == argc) {
+                    fprintf(stderr, "missing argument for %s\n", argv[i-1]);
+                    return 1;
+                }
+                char extra;
+                if (sscanf(argv[i], "%f,%f,%d,%d,%f,%f,%d,%d%c", 
+                        &pm.texparms.s.translate, &pm.texparms.t.translate,
+                        &pm.texparms.s.scale, &pm.texparms.t.scale,
+                        &pm.texparms.s.repeats, &pm.texparms.t.repeats,
+                        &pm.texparms.s.mirror, &pm.texparms.t.mirror,
+                        &extra) == 8) {
+                    // ok, nothing to do
+                } else if (sscanf(argv[i], "%f,%d,%f,%d%c", 
+                        &pm.texparms.s.translate, &pm.texparms.s.scale, &pm.texparms.s.repeats, &pm.texparms.s.mirror, &extra) == 4) {
+                    pm.texparms.t = pm.texparms.s;
+                } else {
+                    fprintf(stderr, "invalid texparms: %s\n", argv[i]);
+                    return 1;
+                }
+                if (pm.texparms.s.mirror != 0 && pm.texparms.s.mirror != 1) {
+                    fprintf(stderr, "invalid texparms: mirror must be 0 or 1 (found: %d)\n", pm.texparms.s.mirror);
+                    return 1;
+                }
+                if (pm.texparms.t.mirror != 0 && pm.texparms.t.mirror != 1) {
+                    fprintf(stderr, "invalid texparms: mirror must be 0 or 1 (found: %d)\n", pm.texparms.t.mirror);
+                    return 1;
+                }
+                if (pm.texparms.s.repeats < 0) {
+                    fprintf(stderr, "invalid texparms: repeats must be >= 0 (found: %f)\n", pm.texparms.s.repeats);
+                    return 1;
+                }
+                if (pm.texparms.t.repeats < 0) {
+                    fprintf(stderr, "invalid texparms: repeats must be >= 0 (found: %f)\n", pm.texparms.t.repeats);
+                    return 1;
+                }
+                if (pm.texparms.s.repeats > 2048) pm.texparms.s.repeats = 2048;
+                if (pm.texparms.t.repeats > 2048) pm.texparms.t.repeats = 2048;
+                pm.texparms.defined = true;
             } else {
                 fprintf(stderr, "invalid flag: %s\n", argv[i]);
                 return 1;
             }
             continue;
+        }
+
+        if (!pm.texparms.defined) {
+            pm.texparms.s.translate = 0.0f;
+            pm.texparms.s.scale = 0;
+            pm.texparms.s.repeats = 1;
+            pm.texparms.s.mirror = 0;
+            pm.texparms.t = pm.texparms.s;
         }
 
         infn = argv[i];

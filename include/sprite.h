@@ -7,11 +7,17 @@
 #define __LIBDRAGON_SPRITE_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <surface.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+///@cond
+typedef struct rdpq_texparms_s rdpq_texparms_t;
+///@endcond
+
 
 /** 
  * @brief Sprite structure.
@@ -138,7 +144,7 @@ surface_t sprite_get_lod_pixels(sprite_t *sprite, int num_level);
 surface_t sprite_get_tile(sprite_t *sprite, int h, int v);
 
 /**
- * @brief Access the sprite palette
+ * @brief Access the sprite palette (if any)
  * 
  * A sprite can also contain a palette, in case the sprite data is color-indexed
  * (that is, the format is either #FMT_CI4 or #FMT_CI8).
@@ -149,6 +155,20 @@ surface_t sprite_get_tile(sprite_t *sprite, int h, int v);
  * @return              A pointer to the palette data, or NULL if the sprite does not have a palette
  */
 uint16_t* sprite_get_palette(sprite_t *sprite);
+
+/**
+ * @brief Get a copy of the RDP texparms, optionally stored within the sprite.
+ * 
+ * This function allows to obtain the RDP texparms structure stored within the
+ * sprite, if any. This structure is used by the RDP to set texture properties
+ * such as wrapping, mirroring, etc. It can be added to the sprite via
+ * the mksprite tool, using the `--texparms` option.
+ * 
+ * @param sprite        The sprite to access
+ * @param parms         The texparms structure to fill
+ * @return              true if the sprite contain RDP texparms, false otherwise
+ */
+bool sprite_get_texparms(sprite_t *sprite, rdpq_texparms_t *parms);
 
 #ifdef __cplusplus
 }

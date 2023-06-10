@@ -3,6 +3,10 @@
 
 #include <stdbool.h>
 
+#define SPRITE_FLAG_NUMLODS           0x0007   ///< Number of LODs (0 = no LODs)
+#define SPRITE_FLAG_HAS_TEXPARMS      0x0008   ///< Sprite contains texture parameters
+#define SPRITE_FLAG_HAS_DETAIL        0x0010   ///< Sprite contains detail texture
+
 /** 
  * @brief Internal structure used as additional sprite header
  * 
@@ -21,10 +25,28 @@ typedef struct sprite_ext_s {
         uint16_t width;            ///< Width of this LOD
         uint16_t height;           ///< Height of this LOD
         uint32_t fmt_file_pos;     ///< Top 8 bits: format; lowest 24 bits: absolute offset in the file
-    } lods[7];                  ///< Information on the available LODs
+    } lods[8];                  ///< Information on the available LODs (0-6 LODs, 7 = detail texture)
+    struct {
+        uint16_t flags;             ///< Generic Flags for the sprite
+        uint16_t padding;           ///< Padding
+    };
+    /// @brief RDP texture parameters
+    struct texparms_s {
+        struct {
+            float   translate;      ///< Translate the texture in pixels
+            float   repeats;        ///< Number of repetitions (default: 1)
+            int16_t scale_log;      ///< Power of 2 scale modifier of the texture (default: 0)
+            bool    mirror;         ///< Repetition mode (default: MIRROR_NONE)
+            int8_t  padding;
+        } s, t; // S/T directions of texture parameters
+    } texparms;                ///< RDP texture parameters
+    /// @brief Detail texture parameters
+    struct detail_s {
+        float blend_factor;         ///< Blending factor for the detail texture at maximum zoom (0=hidden, 1=opaque)
+    } detail;                    ///< Detail texture parameters
 } sprite_ext_t;
 
-_Static_assert(sizeof(sprite_ext_t) == 64, "invalid sizeof(sprite_ext_t)");
+_Static_assert(sizeof(sprite_ext_t) == 104, "invalid sizeof(sprite_ext_t)");
 
 /** @brief Convert a sprite from the old format with implicit texture format */ 
 bool __sprite_upgrade(sprite_t *sprite);

@@ -11,6 +11,7 @@ $(BUILD_DIR)/testrom.dfs: $(wildcard filesystem/*) $(DSO_LIST)
 
 ASSETS = filesystem/grass1.ci8.sprite \
 		 filesystem/grass1.rgba32.sprite \
+		 filesystem/grass1sq.rgba32.sprite \
 		 filesystem/grass2.rgba32.sprite
 
 OBJS = $(BUILD_DIR)/test_constructors_cpp.o \
@@ -18,6 +19,7 @@ OBJS = $(BUILD_DIR)/test_constructors_cpp.o \
 	   $(BUILD_DIR)/rsp_test2.o \
 	   $(BUILD_DIR)/backtrace.o \
 
+filesystem/grass1sq.rgba32.sprite: MKSPRITE_FLAGS=--texparms 0,0,2,0
 filesystem/grass2.rgba32.sprite: MKSPRITE_FLAGS=--mipmap BOX
 
 filesystem/%.sprite: assets/%.png

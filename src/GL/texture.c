@@ -2,6 +2,8 @@
 #include "../rspq/rspq_internal.h"
 #include "rdpq.h"
 #include "rdpq_tex.h"
+#include "rdpq_sprite.h"
+#include "sprite.h"
 #include "debug.h"
 #include <math.h>
 #include <string.h>
@@ -140,13 +142,41 @@ uint32_t gl_texture_get_offset(GLenum target)
     }
 }
 
+void gl_texture_set_upload_block(uint32_t offset, int level, int width, int height, tex_format_t fmt, rspq_block_t *texup_block)
+{
+    assertf(texup_block->nesting_level == 0, "texture loader: nesting level is %ld", texup_block->nesting_level);
+
+    uint32_t img_offset = offset + level * sizeof(gl_texture_image_t);
+    gl_set_word (GL_UPDATE_NONE, img_offset + IMAGE_WIDTH_OFFSET,           (width << 16) | height);
+    gl_set_short(GL_UPDATE_NONE, img_offset + IMAGE_INTERNAL_FORMAT_OFFSET, fmt);
+
+    uint32_t cmd0 = (RSPQ_CMD_CALL << 24) | PhysicalAddr(texup_block->cmds);
+    uint32_t cmd1 = texup_block->nesting_level << 2;
+    gl_set_long(GL_UPDATE_NONE, offset + TEXTURE_LEVELS_BLOCK_OFFSET + level*8, ((uint64_t)cmd0 << 32) | cmd1);
+
+    gl_set_flag_raw(GL_UPDATE_NONE, offset + TEXTURE_FLAGS_OFFSET, TEX_FLAG_UPLOAD_DIRTY, true);
+    gl_update_texture_completeness(offset);
+}
+
+void glTexSpriteN64(GLenum target, sprite_t *sprite)
+{
+    uint32_t offset = gl_texture_get_offset(target);
+    if (offset == 0) return;
+    rspq_block_begin();
+        rdpq_tex_multi_begin();
+            rdpq_sprite_upload(TILE0, sprite, NULL);
+        rdpq_tex_multi_end();
+    rspq_block_t *texup_block = rspq_block_end();
+
+    gl_texture_set_upload_block(offset, 0, sprite->width, sprite->height, sprite_get_format(sprite), texup_block);
+}
+
 void glTexImageN64(GLenum target, GLint level, const surface_t *surface)
 {
     if (!gl_ensure_no_immediate()) return;
     
     uint32_t offset = gl_texture_get_offset(target);
     if (offset == 0) return;
-#if 1
     rspq_block_begin();
         rdpq_tex_multi_begin();
             rdpq_tex_upload(TILE0+level, surface, &(rdpq_texparms_t){
@@ -155,67 +185,8 @@ void glTexImageN64(GLenum target, GLint level, const surface_t *surface)
             });
         rdpq_tex_multi_end();
     rspq_block_t *texup_block = rspq_block_end();
-    assertf(texup_block->nesting_level == 0, "texture loader: nesting level is %ld", texup_block->nesting_level);
 
-    uint32_t img_offset = offset + level * sizeof(gl_texture_image_t);
-    gl_set_word (GL_UPDATE_NONE, img_offset + IMAGE_WIDTH_OFFSET,           (surface->width << 16) | surface->height);
-    gl_set_short(GL_UPDATE_NONE, img_offset + IMAGE_INTERNAL_FORMAT_OFFSET, surface_get_format(surface));
-
-    uint32_t cmd0 = (RSPQ_CMD_CALL << 24) | PhysicalAddr(texup_block->cmds);
-    uint32_t cmd1 = texup_block->nesting_level << 2;
-    gl_set_long(GL_UPDATE_NONE, offset + TEXTURE_LEVELS_BLOCK_OFFSET + level*8, ((uint64_t)cmd0 << 32) | cmd1);
-
-    gl_set_flag_raw(GL_UPDATE_NONE, offset + TEXTURE_FLAGS_OFFSET, TEX_FLAG_UPLOAD_DIRTY, true);
-    gl_update_texture_completeness(offset);
-#else
-    tex_format_t rdp_format = surface_get_format(surface);
-
-    GLenum internal_format = rdp_tex_format_to_gl(rdp_format);
-    if (internal_format == 0) {
-        gl_set_error(GL_INVALID_VALUE);
-        return;
-    }
-
-    uint32_t img_offset = offset + level * sizeof(gl_texture_image_t);
-
-    uint8_t width_log = gl_log2(surface->width);
-    uint8_t height_log = gl_log2(surface->height);
-
-    tex_format_t load_fmt = rdp_format;
-
-    // TODO: do this for 8-bit formats as well?
-    switch (rdp_format) {
-    case FMT_CI4:
-    case FMT_I4:
-        load_fmt = FMT_RGBA16;
-        break;
-    default:
-        break;
-    }
-
-    // TODO: this doesn't work with sub-surfaces yet!
-
-    uint16_t load_width = TEX_FORMAT_BYTES2PIX(load_fmt, surface->stride);
-    uint16_t num_texels = load_width * surface->height;
-    uint16_t words = surface->stride / 8;
-    uint16_t dxt = (2048 + words - 1) / words;
-    uint16_t tmem_size = (surface->stride * surface->height) / 8;
-
-    uint32_t tex_image = ((0xC0 + RDPQ_CMD_SET_TEXTURE_IMAGE) << 24) | (load_fmt << 19);
-    uint32_t set_load_tile = ((0xC0 + RDPQ_CMD_SET_TILE) << 24) | (load_fmt << 19);
-    uint32_t load_block = (LOAD_TILE << 24) | ((num_texels-1) << 12) | dxt;
-    uint32_t set_tile = ((0xC0 + RDPQ_CMD_SET_TILE) << 24) | (rdp_format << 19) | ((surface->stride/8) << 9);
-
-    // TODO: do this in one command?
-    gl_set_long(GL_UPDATE_NONE, img_offset + offsetof(gl_texture_image_t, tex_image), ((uint64_t)tex_image << 32) | PhysicalAddr(surface->buffer));
-    gl_set_long(GL_UPDATE_NONE, img_offset + offsetof(gl_texture_image_t, set_load_tile), ((uint64_t)set_load_tile << 32) | load_block);
-    gl_set_long(GL_UPDATE_NONE, img_offset + offsetof(gl_texture_image_t, set_tile), ((uint64_t)set_tile << 32) | ((uint64_t)surface->width << 16) | surface->height);
-    gl_set_long(GL_UPDATE_NONE, img_offset + offsetof(gl_texture_image_t, stride), ((uint64_t)surface->stride << 48) | ((uint64_t)internal_format << 32) | ((uint64_t)tmem_size << 16) | ((uint64_t)width_log << 8) | height_log);
-
-    gl_set_flag_raw(GL_UPDATE_NONE, offset + TEXTURE_FLAGS_OFFSET, TEX_FLAG_UPLOAD_DIRTY, true);
-
-    gl_update_texture_completeness(offset);
-#endif
+    gl_texture_set_upload_block(offset, level, surface->width, surface->height, surface_get_format(surface), texup_block);
 }
 
 void gl_texture_set_wrap_s(uint32_t offset, GLenum param)

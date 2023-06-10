@@ -14,8 +14,8 @@
 #include "utils.h"
 #include <math.h>
 
-/** @brief True if we are doing a multi-texture upload */
-static bool multi_upload = false;
+/** @brief Non-zero if we are doing a multi-texture upload */
+static int multi_upload = 0;
 static int multi_upload_bytes = 0;
 static int multi_upload_limit = 0;
 
@@ -617,19 +617,19 @@ void rdpq_tex_upload_tlut(uint16_t *tlut, int color_idx, int num_colors)
 
 void rdpq_tex_multi_begin(void)
 {
-    assertf(!multi_upload, "rdpq_tex_multi_begin called twice without rdpq_tex_multi_end");
-
     // Initialize autotmem engine
     rdpq_set_tile_autotmem(0);
-    multi_upload = true;
-    multi_upload_bytes = 0;
-    multi_upload_limit = 4096;
+    if (multi_upload++ == 0) {
+        multi_upload = true;
+        multi_upload_bytes = 0;
+        multi_upload_limit = 4096;
+    }
 }
 
 int rdpq_tex_multi_end(void)
 {
-    assertf(multi_upload, "rdpq_tex_multi_end called without rdpq_tex_multi_begin");
     rdpq_set_tile_autotmem(-1);
-    multi_upload = false;
-    return multi_upload_bytes;
+    --multi_upload;
+    assert(multi_upload >= 0);
+    return 0;
 }
