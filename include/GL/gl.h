@@ -18,6 +18,7 @@ typedef struct sprite_s sprite_t;
 #define GL_ARB_texture_mirrored_repeat  1
 #define GL_ARB_vertex_array_object      1
 #define GL_ARB_matrix_palette           1
+#define GL_N64_RDPQ_interop             1
 
 /* Data types */
 
