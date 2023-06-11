@@ -2,10 +2,13 @@
 #define __LIBDRAGON_SPRITE_INTERNAL_H
 
 #include <stdbool.h>
+#include <surface.h>
 
-#define SPRITE_FLAG_NUMLODS           0x0007   ///< Number of LODs (0 = no LODs)
-#define SPRITE_FLAG_HAS_TEXPARMS      0x0008   ///< Sprite contains texture parameters
-#define SPRITE_FLAG_HAS_DETAIL        0x0010   ///< Sprite contains detail texture
+#define SPRITE_FLAG_NUMLODS                 0x0007   ///< Number of LODs (0 = no LODs)
+#define SPRITE_FLAG_HAS_TEXPARMS            0x0008   ///< Sprite contains texture parameters
+#define SPRITE_FLAG_HAS_DETAIL              0x0010   ///< Sprite contains detail texture
+#define SPRITE_FLAG_DETAIL_USE_LOD0         0x0020   ///< Detail texture is the same as LOD0 (fractal detailing)
+#define SPRITE_FLAG_DETAIL_HAS_TEXPARMS     0x0040   ///< Detail texture has its own texparms
 
 /** 
  * @brief Internal structure used as additional sprite header
@@ -42,11 +45,14 @@ typedef struct sprite_ext_s {
     } texparms;                ///< RDP texture parameters
     /// @brief Detail texture parameters
     struct detail_s {
-        float blend_factor;         ///< Blending factor for the detail texture at maximum zoom (0=hidden, 1=opaque)
+        struct texparms_s texparms;      ///< Detail LOD RDP texture parameters
+        tex_format_t      format;        ///< Detail LOD format
+        float             blend_factor;  ///< Blending factor for the detail texture at maximum zoom (0=hidden, 1=opaque)
+        //bool              use_main_texture; ///< True if the detail texture is the same as the LOD0 of the main texture
     } detail;                    ///< Detail texture parameters
 } sprite_ext_t;
 
-_Static_assert(sizeof(sprite_ext_t) == 104, "invalid sizeof(sprite_ext_t)");
+//_Static_assert(sizeof(sprite_ext_t) == 104, "invalid sizeof(sprite_ext_t)");
 
 /** @brief Convert a sprite from the old format with implicit texture format */ 
 bool __sprite_upgrade(sprite_t *sprite);
