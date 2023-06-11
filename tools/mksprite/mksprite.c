@@ -113,6 +113,15 @@ typedef struct {
     int mipmap_algo;
     int dither_algo;
     texparms_t texparms;
+    struct{
+        const char   *infn;       // Input file for detail texture
+        texparms_t   texparms;
+        tex_format_t outfmt;
+        float        blend_factor;
+        bool         use_main_tex;
+        bool         enabled;
+    } detail;
+
 } parms_t;
 
 
@@ -148,11 +157,11 @@ void print_args( char * name )
     fprintf(stderr, "   --texparms <x,x,s,s,r,r,m,m>  Sampling parameters (different for S/T)\n");
     fprintf(stderr, "\nMipmapping flags:\n");
     fprintf(stderr, "   -m/--mipmap <algo>                    Calculate mipmap levels using the specified algorithm (default: NONE)\n");
-    // fprintf(stderr, "   --detail [<image>][,<fmt>][,<factor>] Activate detail texture:\n");
-    // fprintf(stderr, "                                         <image> is the file to use as detail (default: reuse input image)\n");
-    // fprintf(stderr, "                                         <fmt> is the output format (default: AUTO)\n");
-    // fprintf(stderr, "                                         <factor> is the blend factor in range 0..1 (default: 0.5)\n");
-    // fprintf(stderr, "   --detail-texparms <x,s,r,m>           Sampling parameters for the detail texture\n");
+    fprintf(stderr, "   --detail [<fmt>][,<factor>][,<image>] Activate detail texture:\n");
+    fprintf(stderr, "                                         <fmt> is the output format (default: AUTO)\n");
+    fprintf(stderr, "                                         <factor> is the blend factor in range 0..1 (default: 0.5)\n");
+    fprintf(stderr, "                                         <image> is the file to use as detail (default: reuse input image)\n");
+    fprintf(stderr, "   --detail-texparms <x,x,s,s,r,r,m,m>   Sampling parameters for the detail texture\n");
     fprintf(stderr, "\n");
     print_supported_formats();
     print_supported_mipmap();
@@ -205,6 +214,16 @@ typedef struct {
     int vslices;            // Number of vertical slices (deprecated API for old rdp.c)
     int hslices;            // Number of horizontal slices (deprecated API for old rdp.c)
     texparms_t texparms;    // Texture parameters
+    struct{
+        const char   *infn;       // Input file for detail texture
+        texparms_t   texparms;
+        tex_format_t outfmt;
+        int          num_colors;         // Number of colors in palette
+        int          used_colors;        // Number of colors actually used in palette
+        float        blend_factor;
+        bool         use_main_tex;
+        bool         enabled;
+    } detail;
 } spritemaker_t;
 
 
@@ -378,18 +397,185 @@ error:
     return false;
 }
 
+
+bool spritemaker_load_detail_png(spritemaker_t *spr, tex_format_t outfmt)
+{
+    LodePNGState state;
+    bool autofmt = (outfmt == FMT_NONE);
+    unsigned char* png = 0;
+    size_t pngsize;
+    unsigned char* image = 0;
+    unsigned width, height;
+    bool inspected = false;
+
+    if(spr->detail.use_main_tex){
+        spr->images[7] = spr->images[0];
+        spr->detail.outfmt = spr->outfmt;
+        return true;
+    }
+
+    // Initialize lodepng and load the input file into memory (without decoding).
+    lodepng_state_init(&state);
+
+    int error = lodepng_load_file(&png, &pngsize, spr->detail.infn);
+    if(error) {
+        fprintf(stderr, "%s: PNG reading error: %u: %s\n", spr->detail.infn, error, lodepng_error_text(error));
+        goto error;
+    }
+    
+    // Check if we're asked to autodetect the best possible texformat for output
+    if (autofmt) {
+        // Parse the PNG header to get some metadata
+        error = lodepng_inspect(&width, &height, &state, png, pngsize);
+        if(error) {
+            fprintf(stderr, "%s: PNG reading error: %u: %s\n", spr->detail.infn, error, lodepng_error_text(error));
+            goto error;
+        }
+        inspected = true;
+
+        // Autodetect the best output format depending on the input format
+        // The rule of thumb is that we want to preserve the information on the
+        // input image as much as possible.
+        switch (state.info_png.color.colortype) {
+        case LCT_GREY:
+            spr->detail.outfmt = (state.info_png.color.bitdepth > 4) ? FMT_I8 : FMT_I4;
+            break;
+        case LCT_GREY_ALPHA:
+            if (state.info_png.color.bitdepth < 4) spr->detail.outfmt = FMT_IA4;
+            else if (state.info_png.color.bitdepth < 8) spr->detail.outfmt = FMT_IA8;
+            else spr->detail.outfmt = FMT_IA16;
+            break;
+        case LCT_PALETTE:
+            spr->detail.outfmt = FMT_CI8; // Will check if CI4 (<= 16 colors) later
+            break;
+        case LCT_RGB: case LCT_RGBA:
+            // Usage of 32-bit sprites/textures is extremely rare because of the
+            // limited TMEM size. Default to 16-bit here, even though this might
+            // cause some banding to appear.
+            spr->detail.outfmt = FMT_RGBA16;
+            break;
+        default:
+            fprintf(stderr, "%s: unknown PNG color type: %d\n", spr->detail.infn, state.info_png.color.colortype);
+            goto error;
+        }
+    }
+
+    // Setup the info_raw structure with the desired pixel conversion,
+    // depending on the output format.
+    switch (spr->detail.outfmt) {
+    case FMT_RGBA32: case FMT_RGBA16:
+        // PNG does not support RGBA555 (aka RGBA16), so just convert
+        // to 32-bit version we will downscale later.
+        state.info_raw.colortype = LCT_RGBA;
+        state.info_raw.bitdepth = 8;
+        break;
+    case FMT_CI8: case FMT_CI4: {
+        // Inspect the PNG if we haven't already
+        if (!inspected) {
+            error = lodepng_inspect(&width, &height, &state, png, pngsize);
+            if(error) {
+                fprintf(stderr, "%s: PNG reading error: %u: %s\n", spr->detail.infn, error, lodepng_error_text(error));
+                goto error;
+            }
+            inspected = true;
+        }
+        if (state.info_png.color.colortype != LCT_PALETTE) {
+            // If the original is not a palettized format, we need to run our quantization engine.
+            // Expand to RGBA for now.
+            state.info_raw.colortype = LCT_RGBA;
+            state.info_raw.bitdepth = 8;
+        } else {
+            // Keep the current palette so that we respect the existing colormap.
+            // Notice lodepng does not encode to 4bit palettized, so for now just force 8bit,
+            // and will later change it back to CI4 if needed/possible.
+            state.info_raw.colortype = LCT_PALETTE;
+            state.info_raw.bitdepth = 8;
+        }
+    }   break;
+    case FMT_I8: case FMT_I4:
+        state.info_raw.colortype = LCT_GREY;
+        state.info_raw.bitdepth = 8;
+        break;
+    case FMT_IA16: case FMT_IA8: case FMT_IA4:
+        state.info_raw.colortype = LCT_GREY_ALPHA;
+        state.info_raw.bitdepth = 8;
+        break;
+    default:
+        assert(0); // should not happen
+    }
+
+    // Decode the PNG and do the color conversion as requested.
+    // This will error out if the conversion requires downsampling / quantization,
+    // as this is not supported by lodepng.
+    // TODO: maybe provide quantization algorithms here?
+    error = lodepng_decode(&image, &width, &height, &state, png, pngsize);
+    if(error) {
+        fprintf(stderr, "PNG decoding error: %u: %s\n", error, lodepng_error_text(error));
+        goto error;
+    }
+
+    // Copy the image into the output
+    spr->images[7] = (image_t){
+        .image = image,
+        .width = width,
+        .height = height,
+        .ct = state.info_raw.colortype,
+    };
+
+    if(flag_verbose)
+        printf("loaded %s (%dx%d, %s)\n", spr->detail.infn, width, height, colortype_to_string(state.info_png.color.colortype));
+
+    // Palletized detail images are not supported atm
+    if (state.info_raw.colortype == LCT_PALETTE) {
+        fprintf(stderr, "%s: DETAIL images with palletized formats isn't supported. \n", spr->detail.infn);
+        goto error;
+    }
+    if (state.info_raw.colortype == LCT_GREY) {
+        bool used[256] = {0};
+        spr->detail.used_colors = 0;
+        for (int i=0; i < width*height; i++) {
+            if (!used[image[i]]) {
+                used[image[i]] = true;
+                spr->detail.used_colors++;
+            }
+        }
+    }
+
+    // In case we're autodetecting the output format and the PNG is a greyscale, and only
+    // indices 0-15 are used, we can use a FMT_I4.
+    if (autofmt && state.info_raw.colortype == LCT_GREY && spr->detail.used_colors <= 16)
+        spr->detail.outfmt = FMT_I4;
+
+    // Autodetection complete, log it.
+    if (flag_verbose)
+        printf("selected format for detail texture: %s\n", tex_format_name(spr->detail.outfmt));
+    
+    return true;
+
+error:
+    lodepng_state_cleanup(&state);
+    if (png) lodepng_free(png);
+    return false;
+}
+
 void spritemaker_calc_lods(spritemaker_t *spr, int algo) {
     // Calculate mipmap levels
     assert(algo == MIPMAP_ALGO_BOX);
 
     // Calculate TMEM size for the image
     int tmem_usage = calc_tmem_usage(spr->outfmt, spr->images[0].width, spr->images[0].height);
+    if(spr->detail.enabled && !spr->detail.use_main_tex){
+        tmem_usage += calc_tmem_usage(spr->detail.outfmt, spr->images[7].width, spr->images[7].height);
+    }
     if (tmem_usage > 4096) {
         fprintf(stderr, "WARNING: image does not fit in TMEM; are you sure you want to have mipmaps for this?");
     }
+
+    int maxlevels = 8;
+    if(spr->detail.enabled) maxlevels = 7;
     bool done = false;
     image_t *prev = &spr->images[0];
-    for (int i=1;i<8 && !done;i++) {
+    for (int i=1;i<maxlevels && !done;i++) {
         int mw = prev->width / 2, mh = prev->height / 2;
         if (mw < 4) break;
         tmem_usage += calc_tmem_usage(spr->outfmt, mw, mh);
@@ -558,10 +744,18 @@ bool spritemaker_write(spritemaker_t *spr) {
 
     uint32_t w_palpos = 0;
     uint32_t w_lodpos[7] = {0};
+    //uint32_t w_detailpos = 0;
 
+    if(spr->detail.enabled && !spr->detail.use_main_tex) spr->num_images++;
     // Process the images (the first always exists)
     for (int m=0; m<spr->num_images; m++) {
         image_t *image = &spr->images[m];
+        
+        if(m == spr->num_images - 1) 
+            if(spr->detail.enabled)
+                if(!spr->detail.use_main_tex) 
+                    image = &spr->images[7]; // Try to write detail texture last
+            
 
         if (m > 0) {
             assert(w_lodpos[m-1] != 0); // we should have left a placeholder for this LOD
@@ -569,7 +763,10 @@ bool spritemaker_write(spritemaker_t *spr) {
             w32_at(out, w_lodpos[m-1], xpos);
         }
 
-        switch (spr->outfmt) {
+        tex_format_t usedformat = spr->outfmt;
+        if(spr->detail.enabled && m == spr->num_images - 1) usedformat = spr->detail.outfmt;
+
+        switch (usedformat) {
         case FMT_RGBA16: {
             assert(image->ct == LCT_RGBA);
             // Convert to 16-bit RGB5551 format.
@@ -650,15 +847,26 @@ bool spritemaker_write(spritemaker_t *spr) {
         // Write extended sprite header after first image
         // See sprite_ext_t (sprite_internal.h)
         if (m == 0) { 
-            w16(out, 104);  // sizeof(sprite_ext_t)
-            w16(out, 2);    // version
+            w16(out, 104);  // sizeof(sprite_ext_t) //TODO: Recalc the size of the struct
+            w16(out, 3);    // version
             w_palpos = w32_placeholder(out); // placeholder for position of palette
             for (int i=0; i<8; i++) {
                 if (i+1 < spr->num_images) {
                     w16(out, spr->images[i+1].width);
                     w16(out, spr->images[i+1].height);
                     w_lodpos[i] = w32_placeholder(out); // placeholder for position of LOD
+                    if(flag_verbose){
+                        printf("writing mm: %ix%i at %i\n", spr->images[i+1].width,  spr->images[i+1].height, w_lodpos[i]);
+                    }
                 } else {
+                    if(i == 7 && spr->detail.enabled && !spr->detail.use_main_tex){
+                        w16(out, spr->images[7].width);
+                        w16(out, spr->images[7].height);
+                        w_lodpos[i] = w32_placeholder(out); // placeholder for position of LOD detail
+                        if(flag_verbose){
+                            printf("writing detail: %ix%i at %i\n", spr->images[7].width,  spr->images[7].height, w_lodpos[i]);
+                        }
+                    }
                     w16(out, 0);
                     w16(out, 0);
                     w32(out, 0);
@@ -668,8 +876,11 @@ bool spritemaker_write(spritemaker_t *spr) {
             assert(spr->num_images-1 <= 7); // 3 bits
             flags |= spr->num_images-1;
             if (spr->texparms.defined) flags |= 0x08;
+            if (spr->detail.enabled) flags |= 0x10;
+            if (spr->detail.use_main_tex) flags |= 0x20;
+            if (spr->detail.texparms.defined) flags |= 0x40;
             w16(out, flags);
-            w16(out, 0);     // padding
+            w16(out, 0); // padding
             wf32(out, spr->texparms.s.translate);
             wf32(out, spr->texparms.s.repeats);
             w16(out, spr->texparms.s.scale);
@@ -680,7 +891,23 @@ bool spritemaker_write(spritemaker_t *spr) {
             w16(out, spr->texparms.t.scale);
             w8(out, spr->texparms.t.mirror);
             w8(out, 0); // padding
-            w32(out, 0); // detail factor
+
+            // detail texture
+
+            wf32(out, spr->detail.texparms.s.translate);
+            wf32(out, spr->detail.texparms.s.repeats);
+            w16(out, spr->detail.texparms.s.scale);
+            w8(out, spr->detail.texparms.s.mirror);
+            w8(out, 0); // padding
+            wf32(out, spr->detail.texparms.t.translate);
+            wf32(out, spr->detail.texparms.t.repeats);
+            w16(out, spr->detail.texparms.t.scale);
+            w8(out, spr->detail.texparms.t.mirror);
+            w8(out, 0); // padding
+            // TODO: check if written format is correct
+            w8(out, spr->detail.outfmt); // format
+            w32(out, spr->detail.blend_factor); // detail blend factor
+            //w8(out, spr->detail.use_main_tex); // detail use main texture bool
             walign(out, 8);
         }
     }
@@ -708,6 +935,7 @@ bool spritemaker_write(spritemaker_t *spr) {
 
 void spritemaker_write_pngs(spritemaker_t *spr) {
     for (int i=0; i<spr->num_images; i++) {
+        if(i == spr->num_images - 1 && spr->detail.enabled && !spr->detail.use_main_tex) i = 7;
         char lodext[16]; sprintf(lodext, ".%d.png", i);
         char debugfn[2048];
         strcpy(debugfn, spr->outfn);
@@ -756,8 +984,19 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
     spr.outfn = outfn;
     spr.texparms = pm->texparms;
 
+    spr.detail.enabled = pm->detail.enabled;
+    spr.detail.use_main_tex = pm->detail.use_main_tex;
+    spr.detail.outfmt = pm->detail.outfmt;
+    spr.detail.infn = pm->detail.infn;
+    spr.detail.blend_factor = pm->detail.blend_factor;
+    spr.detail.texparms = pm->detail.texparms;
+
     // Load the PNG, passing the desired output format (or FMT_NONE if autodetect).
     if (!spritemaker_load_png(&spr, pm->outfmt))
+        goto error;
+
+    // Load the detail PNG, passing the desired output format (or FMT_NONE if autodetect).
+    if (!spritemaker_load_detail_png(&spr, pm->detail.outfmt))
         goto error;
 
     // Calculate mipmap levels, if requested
@@ -844,23 +1083,41 @@ int main(int argc, char *argv[])
     }
 
     bool error = false;
-     
+    /* console arguments */
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '-') {
+            /* ---------------- HELP  console argument ------------------- */
+            /* --help */
             if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
                 print_args(argv[0]);
                 return 0;
-            } else if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--verbose")) {
+            } 
+
+            /* ---------------- VERBOSE console argument ------------------- */
+            /* -v/--verbose   Verbose output             */
+            else if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--verbose")) {
                 flag_verbose = true;
-            } else if (!strcmp(argv[i], "-d") || !strcmp(argv[i], "--debug")) {
+            } 
+
+            /* ---------------- DEBUG  console argument ------------------- */
+            /* -d/--debug     Dump computed images (eg: mipmaps) as PNG files in output directory             */
+            else if (!strcmp(argv[i], "-d") || !strcmp(argv[i], "--debug")) {
                 flag_debug = true;
-            } else if (!strcmp(argv[i], "-o") || !strcmp(argv[i], "--output")) {
+            } 
+
+            /* ---------------- OUTPUT FILE console argument ------------------- */
+            /* -o/--output <dir>     Specify output directory (default: .)             */
+            else if (!strcmp(argv[i], "-o") || !strcmp(argv[i], "--output")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
                     return 1;
                 }
                 outdir = argv[i];
-            } else if (!strcmp(argv[i], "-f") || !strcmp(argv[i], "--format")) {
+            } 
+
+            /* ---------------- FORMAT console argument ------------------- */
+            /* -f/--format <fmt>     Specify output format (default: AUTO)             */
+            else if (!strcmp(argv[i], "-f") || !strcmp(argv[i], "--format")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
                     return 1;
@@ -871,7 +1128,10 @@ int main(int argc, char *argv[])
                     print_supported_formats();
                     return 1;
                 }
-            } else if (!strcmp(argv[i], "-t") || !strcmp(argv[i], "--tiles")) {
+            } 
+
+            /* ---------------- HV TILES console argument ------------------- */
+            else if (!strcmp(argv[i], "-t") || !strcmp(argv[i], "--tiles")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
                     return 1;
@@ -881,7 +1141,11 @@ int main(int argc, char *argv[])
                     fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
                     return 1;
                 }
-            } else if (!strcmp(argv[i], "-m") || !strcmp(argv[i], "--mipmap")) {
+            }
+            
+            /* ---------------- MIPMAP console argument ------------------- */
+            /* -m/--mipmap <algo>                    Calculate mipmap levels using the specified algorithm (default: NONE)             */
+             else if (!strcmp(argv[i], "-m") || !strcmp(argv[i], "--mipmap")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
                     return 1;
@@ -893,7 +1157,11 @@ int main(int argc, char *argv[])
                     print_supported_mipmap();
                     return 1;
                 }
-            } else if (!strcmp(argv[i], "-D") || !strcmp(argv[i], "--dither")) {
+            } 
+
+            /* ---------------- DITHER console argument ------------------- */
+            /* -D/--dither <dither>  Dithering algorithm (default: NONE)             */
+            else if (!strcmp(argv[i], "-D") || !strcmp(argv[i], "--dither")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
                     return 1;
@@ -906,9 +1174,18 @@ int main(int argc, char *argv[])
                     print_supported_dithers();
                     return 1;
                 }
-            } else if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--compress")) {
+            } 
+            
+            /* ---------------- COMPRESS console argument ------------------- */
+            /* -c/--compress         Compress output files (using mksasset)             */
+            else if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--compress")) {
                 compression = true;
-            } else if (!strcmp(argv[1], "--texparms")) {
+            } 
+
+            /* ---------------- TEXTURE PARAMETERS console argument ------------------- */
+            /* --texparms <x,s,r,m>          Sampling parameters             */
+            /* --texparms <x,x,s,s,r,r,m,m>  Sampling parameters (different for S/T)             */
+            else if (!strcmp(argv[1], "--texparms")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
                     return 1;
@@ -947,7 +1224,85 @@ int main(int argc, char *argv[])
                 if (pm.texparms.s.repeats > 2048) pm.texparms.s.repeats = 2048;
                 if (pm.texparms.t.repeats > 2048) pm.texparms.t.repeats = 2048;
                 pm.texparms.defined = true;
-            } else {
+            } 
+            
+            /* ---------------- DETAIL console argument ------------------- */
+            /* --detail [<image>][,<fmt>][,<factor>] Activate detail texture             */
+            else if (!strcmp(argv[i], "--detail")) {
+                pm.detail.blend_factor = 0.5;
+                pm.detail.use_main_tex = true;
+                pm.detail.outfmt = FMT_NONE;
+                pm.detail.infn = NULL;
+                pm.detail.enabled = true;
+
+                if (++i != argc) {
+                    char *fntok = strdup(argv[i]);
+                    char *sect = strtok(fntok, ",");
+                    int count = 0;
+                    while (sect && count < 3) {
+                        if(!sscanf(sect, "%f", &pm.detail.blend_factor)){
+                            // not a blend factor
+                            tex_format_t fmt = tex_format_from_name(sect);
+                            if(fmt != FMT_NONE) pm.detail.outfmt = fmt; 
+                            else {
+                                pm.detail.infn = sect; // not a texture format - set detail input image
+                                pm.detail.use_main_tex = false;
+                            }
+                        }
+                        sect = strtok(NULL, ",");
+                        count++;
+                    }
+                }
+                if(flag_debug){
+                    printf("adding detail with arguments: file %s, format %s, factor %f, use main tex: %i \n", pm.detail.infn, tex_format_name(pm.detail.outfmt), pm.detail.blend_factor, pm.detail.use_main_tex);
+                }
+            }
+
+            /* ---------------- DETAIL TEXTURE PARAMETERS console argument ------------------- */
+            /* --detail-texparms <x,s,r,m>          Sampling parameters             */
+            /* --detail-texparms <x,x,s,s,r,r,m,m>  Sampling parameters (different for S/T)             */
+            else if (!strcmp(argv[1], "--detail-texparms")) {
+                if (++i == argc) {
+                    fprintf(stderr, "missing argument for %s\n", argv[i-1]);
+                    return 1;
+                }
+                char extra;
+                if (sscanf(argv[i], "%f,%f,%d,%d,%f,%f,%d,%d%c", 
+                        &pm.detail.texparms.s.translate, &pm.detail.texparms.t.translate,
+                        &pm.detail.texparms.s.scale, &pm.detail.texparms.t.scale,
+                        &pm.detail.texparms.s.repeats, &pm.detail.texparms.t.repeats,
+                        &pm.detail.texparms.s.mirror, &pm.detail.texparms.t.mirror,
+                        &extra) == 8) {
+                    // ok, nothing to do
+                } else if (sscanf(argv[i], "%f,%d,%f,%d%c", 
+                        &pm.detail.texparms.s.translate, &pm.detail.texparms.s.scale, &pm.detail.texparms.s.repeats, &pm.detail.texparms.s.mirror, &extra) == 4) {
+                    pm.detail.texparms.t = pm.detail.texparms.s;
+                } else {
+                    fprintf(stderr, "invalid detail texparms: %s\n", argv[i]);
+                    return 1;
+                }
+                if (pm.detail.texparms.s.mirror != 0 && pm.detail.texparms.s.mirror != 1) {
+                    fprintf(stderr, "invalid detail texparms: mirror must be 0 or 1 (found: %d)\n", pm.detail.texparms.s.mirror);
+                    return 1;
+                }
+                if (pm.detail.texparms.t.mirror != 0 && pm.detail.texparms.t.mirror != 1) {
+                    fprintf(stderr, "invalid detail texparms: mirror must be 0 or 1 (found: %d)\n", pm.detail.texparms.t.mirror);
+                    return 1;
+                }
+                if (pm.detail.texparms.s.repeats < 0) {
+                    fprintf(stderr, "invalid detail texparms: repeats must be >= 0 (found: %f)\n", pm.detail.texparms.s.repeats);
+                    return 1;
+                }
+                if (pm.detail.texparms.t.repeats < 0) {
+                    fprintf(stderr, "invalid detail texparms: repeats must be >= 0 (found: %f)\n", pm.detail.texparms.t.repeats);
+                    return 1;
+                }
+                if (pm.detail.texparms.s.repeats > 2048) pm.detail.texparms.s.repeats = 2048;
+                if (pm.detail.texparms.t.repeats > 2048) pm.detail.texparms.t.repeats = 2048;
+                pm.detail.texparms.defined = true;
+            }
+
+             else {
                 fprintf(stderr, "invalid flag: %s\n", argv[i]);
                 return 1;
             }
@@ -960,6 +1315,14 @@ int main(int argc, char *argv[])
             pm.texparms.s.repeats = 1;
             pm.texparms.s.mirror = 0;
             pm.texparms.t = pm.texparms.s;
+        }
+
+        if (!pm.detail.texparms.defined) {
+            pm.detail.texparms.s.translate = 0.0f;
+            pm.detail.texparms.s.scale = -1;
+            pm.detail.texparms.s.repeats = 2048;
+            pm.detail.texparms.s.mirror = 0;
+            pm.detail.texparms.t = pm.detail.texparms.s;
         }
 
         infn = argv[i];
