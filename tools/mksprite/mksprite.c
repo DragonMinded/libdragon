@@ -157,10 +157,10 @@ void print_args( char * name )
     fprintf(stderr, "   --texparms <x,x,s,s,r,r,m,m>  Sampling parameters (different for S/T)\n");
     fprintf(stderr, "\nMipmapping flags:\n");
     fprintf(stderr, "   -m/--mipmap <algo>                    Calculate mipmap levels using the specified algorithm (default: NONE)\n");
-    fprintf(stderr, "   --detail [<fmt>][,<factor>][,<image>] Activate detail texture:\n");
+    fprintf(stderr, "   --detail [<image>[,<fmt>]][,<factor>] Activate detail texture:\n");
+    fprintf(stderr, "                                         <image> is the file to use as detail (default: reuse input image)\n");
     fprintf(stderr, "                                         <fmt> is the output format (default: AUTO)\n");
     fprintf(stderr, "                                         <factor> is the blend factor in range 0..1 (default: 0.5)\n");
-    fprintf(stderr, "                                         <image> is the file to use as detail (default: reuse input image)\n");
     fprintf(stderr, "   --detail-texparms <x,x,s,s,r,r,m,m>   Sampling parameters for the detail texture\n");
     fprintf(stderr, "\n");
     print_supported_formats();
@@ -176,13 +176,7 @@ uint16_t conv_rgb5551(uint8_t r8, uint8_t g8, uint8_t b8, uint8_t a8) {
 int calc_tmem_usage(tex_format_t fmt, int width, int height)
 {
     int pitch = ROUND_UP(TEX_FORMAT_PIX2BYTES(fmt, width), 8);
-    int usage = pitch*height;
-
-    // Palettized images can use only half of the TMEM, so double the TMEM usage
-    if (fmt == FMT_CI4 || fmt == FMT_CI8)
-        usage *= 2;
-
-    return usage;
+    return pitch*height;
 }
 
 const char *colortype_to_string(LodePNGColorType ct) {
@@ -197,52 +191,61 @@ const char *colortype_to_string(LodePNGColorType ct) {
 }
 
 typedef struct {
-    uint8_t *image;
-    int width, height;
-    LodePNGColorType ct;
+    uint8_t *image;         // Pointer to image data (pixels)
+    int width, height;      // Image dimensions
+    tex_format_t fmt;       // Texture format
+    LodePNGColorType ct;    // PNG color type
+    int num_colors;         // Number of colors in palette
+    int used_colors;        // Number of colors actually used in palette
+    uint8_t colors[256][4]; // Color palette (if num_colors != 0)
 } image_t;
+
+#define MAX_IMAGES 8
 
 typedef struct {
     const char *infn;       // Input file
     const char *outfn;      // Output file
-    image_t images[8];      // Pixel images (one per lod level)
-    int num_images;         // Number of images
-    uint8_t colors[256][4]; // Color palette
-    int num_colors;         // Number of colors in palette
-    int used_colors;        // Number of colors actually used in palette
-    tex_format_t outfmt;    // Output format of the sprite
+    image_t images[MAX_IMAGES]; // Pixel images (one per lod level). NOTE: palette is only used in first
     int vslices;            // Number of vertical slices (deprecated API for old rdp.c)
     int hslices;            // Number of horizontal slices (deprecated API for old rdp.c)
     texparms_t texparms;    // Texture parameters
     struct{
-        const char   *infn;       // Input file for detail texture
-        texparms_t   texparms;
-        tex_format_t outfmt;
-        int          num_colors;         // Number of colors in palette
-        int          used_colors;        // Number of colors actually used in palette
-        float        blend_factor;
-        bool         use_main_tex;
-        bool         enabled;
+        const char   *infn;         // Input file for detail texture
+        texparms_t   texparms;      // Texture parameters for the detail
+        float        blend_factor;  // Blend factor of the detail vs main lod
+        bool         use_main_tex;  // If true, use the main texture as detail (fractal detail)
+        bool         enabled;       // If true, detail texture is enabled
     } detail;
 } spritemaker_t;
 
 
-bool spritemaker_load_png(spritemaker_t *spr, tex_format_t outfmt)
-{
+/**
+ * @brief Load a PNG image from a file, performing all the required color conversions
+ * 
+ * @param infn      Input filename
+ * @param fmt       Output format requested by the user (of FMT_NONE for autodetection)
+ * @param imgout    Pointer to the image_t structure to fill
+ * @return true     If the image was loaded successfully
+ * @return false    If there was an error
+ */
+bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout) {
     LodePNGState state;
-    bool autofmt = (outfmt == FMT_NONE);
+    bool autofmt = (fmt == FMT_NONE);
     unsigned char* png = 0;
     size_t pngsize;
     unsigned char* image = 0;
     unsigned width, height;
     bool inspected = false;
 
+    if (flag_verbose)
+        printf("loading image: %s\n", infn);
+
     // Initialize lodepng and load the input file into memory (without decoding).
     lodepng_state_init(&state);
 
-    int error = lodepng_load_file(&png, &pngsize, spr->infn);
+    int error = lodepng_load_file(&png, &pngsize, infn);
     if(error) {
-        fprintf(stderr, "%s: PNG reading error: %u: %s\n", spr->infn, error, lodepng_error_text(error));
+        fprintf(stderr, "%s: PNG reading error: %u: %s\n", infn, error, lodepng_error_text(error));
         goto error;
     }
 
@@ -251,7 +254,7 @@ bool spritemaker_load_png(spritemaker_t *spr, tex_format_t outfmt)
         // Parse the PNG header to get some metadata
         error = lodepng_inspect(&width, &height, &state, png, pngsize);
         if(error) {
-            fprintf(stderr, "%s: PNG reading error: %u: %s\n", spr->infn, error, lodepng_error_text(error));
+            fprintf(stderr, "%s: PNG reading error: %u: %s\n", infn, error, lodepng_error_text(error));
             goto error;
         }
         inspected = true;
@@ -261,31 +264,31 @@ bool spritemaker_load_png(spritemaker_t *spr, tex_format_t outfmt)
         // input image as much as possible.
         switch (state.info_png.color.colortype) {
         case LCT_GREY:
-            outfmt = (state.info_png.color.bitdepth > 4) ? FMT_I8 : FMT_I4;
+            fmt = (state.info_png.color.bitdepth > 4) ? FMT_I8 : FMT_I4;
             break;
         case LCT_GREY_ALPHA:
-            if (state.info_png.color.bitdepth < 4) outfmt = FMT_IA4;
-            else if (state.info_png.color.bitdepth < 8) outfmt = FMT_IA8;
-            else outfmt = FMT_IA16;
+            if (state.info_png.color.bitdepth < 4) fmt = FMT_IA4;
+            else if (state.info_png.color.bitdepth < 8) fmt = FMT_IA8;
+            else fmt = FMT_IA16;
             break;
         case LCT_PALETTE:
-            outfmt = FMT_CI8; // Will check if CI4 (<= 16 colors) later
+            fmt = FMT_CI8; // Will check if CI4 (<= 16 colors) later
             break;
         case LCT_RGB: case LCT_RGBA:
             // Usage of 32-bit sprites/textures is extremely rare because of the
             // limited TMEM size. Default to 16-bit here, even though this might
             // cause some banding to appear.
-            outfmt = FMT_RGBA16;
+            fmt = FMT_RGBA16;
             break;
         default:
-            fprintf(stderr, "%s: unknown PNG color type: %d\n", spr->infn, state.info_png.color.colortype);
+            fprintf(stderr, "%s: unknown PNG color type: %d\n", infn, state.info_png.color.colortype);
             goto error;
         }
     }
 
     // Setup the info_raw structure with the desired pixel conversion,
     // depending on the output format.
-    switch (outfmt) {
+    switch (fmt) {
     case FMT_RGBA32: case FMT_RGBA16:
         // PNG does not support RGBA555 (aka RGBA16), so just convert
         // to 32-bit version we will downscale later.
@@ -297,7 +300,7 @@ bool spritemaker_load_png(spritemaker_t *spr, tex_format_t outfmt)
         if (!inspected) {
             error = lodepng_inspect(&width, &height, &state, png, pngsize);
             if(error) {
-                fprintf(stderr, "%s: PNG reading error: %u: %s\n", spr->infn, error, lodepng_error_text(error));
+                fprintf(stderr, "%s: PNG reading error: %u: %s\n", infn, error, lodepng_error_text(error));
                 goto error;
             }
             inspected = true;
@@ -338,56 +341,55 @@ bool spritemaker_load_png(spritemaker_t *spr, tex_format_t outfmt)
     }
 
     // Copy the image into the output
-    spr->images[0] = (image_t){
+    *imgout = (image_t){
         .image = image,
         .width = width,
         .height = height,
         .ct = state.info_raw.colortype,
     };
-    spr->num_images++;
 
     if(flag_verbose)
-        printf("loaded %s (%dx%d, %s)\n", spr->infn, width, height, colortype_to_string(state.info_png.color.colortype));
+        printf("loaded %s (%dx%d, %s)\n", infn, width, height, colortype_to_string(state.info_png.color.colortype));
 
     // For a palettized image, copy the palette and also count the number of actually
     // used colors (aka, the highest index used in the image). This is useful later for
     // some heuristics.
     if (state.info_raw.colortype == LCT_PALETTE) {
-        memcpy(spr->colors, state.info_png.color.palette, state.info_png.color.palettesize * 4);
-        spr->num_colors = state.info_png.color.palettesize;
-        spr->used_colors = 0;
+        memcpy(imgout->colors, state.info_png.color.palette, state.info_png.color.palettesize * 4);
+        imgout->num_colors = state.info_png.color.palettesize;
+        imgout->used_colors = 0;
         for (int i=0; i < width*height; i++) {
-            if (image[i] > spr->used_colors)
-                spr->used_colors = image[i];
+            if (image[i] > imgout->used_colors)
+                imgout->used_colors = image[i];
         }
         if (flag_verbose)
-            printf("palette: %d colors (used: %d)\n", spr->num_colors, spr->used_colors);
+            printf("palette: %d colors (used: %d)\n", imgout->num_colors, imgout->used_colors);
     }
     if (state.info_raw.colortype == LCT_GREY) {
         bool used[256] = {0};
-        spr->used_colors = 0;
+        imgout->used_colors = 0;
         for (int i=0; i < width*height; i++) {
             if (!used[image[i]]) {
                 used[image[i]] = true;
-                spr->used_colors++;
+                imgout->used_colors++;
             }
         }
     }
 
     // In case we're autodetecting the output format and the PNG had a palette, and only
     // indices 0-15 are used, we can use a FMT_CI4.
-    if (autofmt && state.info_raw.colortype == LCT_PALETTE && spr->used_colors <= 16)
-        outfmt = FMT_CI4;
+    if (autofmt && state.info_raw.colortype == LCT_PALETTE && imgout->used_colors <= 16)
+        fmt = FMT_CI4;
 
     // In case we're autodetecting the output format and the PNG is a greyscale, and only
     // indices 0-15 are used, we can use a FMT_I4.
-    if (autofmt && state.info_raw.colortype == LCT_GREY && spr->used_colors <= 16)
-        outfmt = FMT_I4;
+    if (autofmt && state.info_raw.colortype == LCT_GREY && imgout->used_colors <= 16)
+        fmt = FMT_I4;
 
     // Autodetection complete, log it.
     if (flag_verbose && autofmt)
-        printf("auto selected format: %s\n", tex_format_name(outfmt));
-    spr->outfmt = outfmt;
+        printf("auto selected format: %s\n", tex_format_name(fmt));
+    imgout->fmt = fmt;
     
     return true;
 
@@ -397,165 +399,23 @@ error:
     return false;
 }
 
+bool spritemaker_load_png(spritemaker_t *spr, tex_format_t outfmt)
+{
+    return load_png_image(spr->infn, outfmt, &spr->images[0]);
+}
 
 bool spritemaker_load_detail_png(spritemaker_t *spr, tex_format_t outfmt)
 {
-    LodePNGState state;
-    bool autofmt = (outfmt == FMT_NONE);
-    unsigned char* png = 0;
-    size_t pngsize;
-    unsigned char* image = 0;
-    unsigned width, height;
-    bool inspected = false;
+    // Load the detail texture into images[7], as last lod.
+    bool ok = load_png_image(spr->detail.infn, outfmt, &spr->images[7]);
 
-    if(spr->detail.use_main_tex){
-        spr->images[7] = spr->images[0];
-        spr->detail.outfmt = spr->outfmt;
-        return true;
-    }
-
-    // Initialize lodepng and load the input file into memory (without decoding).
-    lodepng_state_init(&state);
-
-    int error = lodepng_load_file(&png, &pngsize, spr->detail.infn);
-    if(error) {
-        fprintf(stderr, "%s: PNG reading error: %u: %s\n", spr->detail.infn, error, lodepng_error_text(error));
-        goto error;
+    // For now, abort if the detail texture is palettized
+    if (ok && (spr->images[7].fmt == FMT_CI4 || spr->images[7].fmt == FMT_CI8)) {
+        fprintf(stderr, "ERROR: detail textures with palettes are not yet supported.\n");
+        return false;
     }
     
-    // Check if we're asked to autodetect the best possible texformat for output
-    if (autofmt) {
-        // Parse the PNG header to get some metadata
-        error = lodepng_inspect(&width, &height, &state, png, pngsize);
-        if(error) {
-            fprintf(stderr, "%s: PNG reading error: %u: %s\n", spr->detail.infn, error, lodepng_error_text(error));
-            goto error;
-        }
-        inspected = true;
-
-        // Autodetect the best output format depending on the input format
-        // The rule of thumb is that we want to preserve the information on the
-        // input image as much as possible.
-        switch (state.info_png.color.colortype) {
-        case LCT_GREY:
-            spr->detail.outfmt = (state.info_png.color.bitdepth > 4) ? FMT_I8 : FMT_I4;
-            break;
-        case LCT_GREY_ALPHA:
-            if (state.info_png.color.bitdepth < 4) spr->detail.outfmt = FMT_IA4;
-            else if (state.info_png.color.bitdepth < 8) spr->detail.outfmt = FMT_IA8;
-            else spr->detail.outfmt = FMT_IA16;
-            break;
-        case LCT_PALETTE:
-            spr->detail.outfmt = FMT_CI8; // Will check if CI4 (<= 16 colors) later
-            break;
-        case LCT_RGB: case LCT_RGBA:
-            // Usage of 32-bit sprites/textures is extremely rare because of the
-            // limited TMEM size. Default to 16-bit here, even though this might
-            // cause some banding to appear.
-            spr->detail.outfmt = FMT_RGBA16;
-            break;
-        default:
-            fprintf(stderr, "%s: unknown PNG color type: %d\n", spr->detail.infn, state.info_png.color.colortype);
-            goto error;
-        }
-    }
-
-    // Setup the info_raw structure with the desired pixel conversion,
-    // depending on the output format.
-    switch (spr->detail.outfmt) {
-    case FMT_RGBA32: case FMT_RGBA16:
-        // PNG does not support RGBA555 (aka RGBA16), so just convert
-        // to 32-bit version we will downscale later.
-        state.info_raw.colortype = LCT_RGBA;
-        state.info_raw.bitdepth = 8;
-        break;
-    case FMT_CI8: case FMT_CI4: {
-        // Inspect the PNG if we haven't already
-        if (!inspected) {
-            error = lodepng_inspect(&width, &height, &state, png, pngsize);
-            if(error) {
-                fprintf(stderr, "%s: PNG reading error: %u: %s\n", spr->detail.infn, error, lodepng_error_text(error));
-                goto error;
-            }
-            inspected = true;
-        }
-        if (state.info_png.color.colortype != LCT_PALETTE) {
-            // If the original is not a palettized format, we need to run our quantization engine.
-            // Expand to RGBA for now.
-            state.info_raw.colortype = LCT_RGBA;
-            state.info_raw.bitdepth = 8;
-        } else {
-            // Keep the current palette so that we respect the existing colormap.
-            // Notice lodepng does not encode to 4bit palettized, so for now just force 8bit,
-            // and will later change it back to CI4 if needed/possible.
-            state.info_raw.colortype = LCT_PALETTE;
-            state.info_raw.bitdepth = 8;
-        }
-    }   break;
-    case FMT_I8: case FMT_I4:
-        state.info_raw.colortype = LCT_GREY;
-        state.info_raw.bitdepth = 8;
-        break;
-    case FMT_IA16: case FMT_IA8: case FMT_IA4:
-        state.info_raw.colortype = LCT_GREY_ALPHA;
-        state.info_raw.bitdepth = 8;
-        break;
-    default:
-        assert(0); // should not happen
-    }
-
-    // Decode the PNG and do the color conversion as requested.
-    // This will error out if the conversion requires downsampling / quantization,
-    // as this is not supported by lodepng.
-    // TODO: maybe provide quantization algorithms here?
-    error = lodepng_decode(&image, &width, &height, &state, png, pngsize);
-    if(error) {
-        fprintf(stderr, "PNG decoding error: %u: %s\n", error, lodepng_error_text(error));
-        goto error;
-    }
-
-    // Copy the image into the output
-    spr->images[7] = (image_t){
-        .image = image,
-        .width = width,
-        .height = height,
-        .ct = state.info_raw.colortype,
-    };
-
-    if(flag_verbose)
-        printf("loaded %s (%dx%d, %s)\n", spr->detail.infn, width, height, colortype_to_string(state.info_png.color.colortype));
-
-    // Palletized detail images are not supported atm
-    if (state.info_raw.colortype == LCT_PALETTE) {
-        fprintf(stderr, "%s: DETAIL images with palletized formats isn't supported. \n", spr->detail.infn);
-        goto error;
-    }
-    if (state.info_raw.colortype == LCT_GREY) {
-        bool used[256] = {0};
-        spr->detail.used_colors = 0;
-        for (int i=0; i < width*height; i++) {
-            if (!used[image[i]]) {
-                used[image[i]] = true;
-                spr->detail.used_colors++;
-            }
-        }
-    }
-
-    // In case we're autodetecting the output format and the PNG is a greyscale, and only
-    // indices 0-15 are used, we can use a FMT_I4.
-    if (autofmt && state.info_raw.colortype == LCT_GREY && spr->detail.used_colors <= 16)
-        spr->detail.outfmt = FMT_I4;
-
-    // Autodetection complete, log it.
-    if (flag_verbose)
-        printf("selected format for detail texture: %s\n", tex_format_name(spr->detail.outfmt));
-    
-    return true;
-
-error:
-    lodepng_state_cleanup(&state);
-    if (png) lodepng_free(png);
-    return false;
+    return ok;
 }
 
 void spritemaker_calc_lods(spritemaker_t *spr, int algo) {
@@ -563,23 +423,28 @@ void spritemaker_calc_lods(spritemaker_t *spr, int algo) {
     assert(algo == MIPMAP_ALGO_BOX);
 
     // Calculate TMEM size for the image
-    int tmem_usage = calc_tmem_usage(spr->outfmt, spr->images[0].width, spr->images[0].height);
-    if(spr->detail.enabled && !spr->detail.use_main_tex){
-        tmem_usage += calc_tmem_usage(spr->detail.outfmt, spr->images[7].width, spr->images[7].height);
+    int tmem_limit = 4096;
+    if (spr->images[0].fmt == FMT_CI8) tmem_limit = 2048;
+    if (spr->images[0].fmt == FMT_CI4) tmem_limit = 2048;
+    int tmem_usage = calc_tmem_usage(spr->images[0].fmt, spr->images[0].width, spr->images[0].height);
+    if (spr->detail.enabled && !spr->detail.use_main_tex) {
+        if (spr->images[7].fmt == FMT_CI8) tmem_limit = 2048;
+        if (spr->images[7].fmt == FMT_CI4) tmem_limit = 2048;
+        tmem_usage += calc_tmem_usage(spr->images[0].fmt, spr->images[7].width, spr->images[7].height);
     }
-    if (tmem_usage > 4096) {
+    if (tmem_usage > tmem_limit) {
         fprintf(stderr, "WARNING: image does not fit in TMEM; are you sure you want to have mipmaps for this?");
     }
 
-    int maxlevels = 8;
-    if(spr->detail.enabled) maxlevels = 7;
+    int maxlevels = MAX_IMAGES;
+    if (spr->detail.enabled) maxlevels--;
     bool done = false;
-    image_t *prev = &spr->images[0];
-    for (int i=1;i<maxlevels && !done;i++) {
+    for (int i=1; i<maxlevels && !done; i++) {
+        image_t *prev = &spr->images[i-1];
         int mw = prev->width / 2, mh = prev->height / 2;
         if (mw < 4) break;
-        tmem_usage += calc_tmem_usage(spr->outfmt, mw, mh);
-        if (tmem_usage > 4096) {
+        tmem_usage += calc_tmem_usage(spr->images[0].fmt, mw, mh);
+        if (tmem_usage > tmem_limit) {
             if (flag_verbose)
                 printf("mipmap: stopping because TMEM full (%d)", tmem_usage);
             break;
@@ -614,28 +479,27 @@ void spritemaker_calc_lods(spritemaker_t *spr, int algo) {
             }
             break;
         default:
-            fprintf(stderr, "WARNING: mipmap calculation for format %s not implemented yet", tex_format_name(spr->outfmt));
+            fprintf(stderr, "WARNING: mipmap calculation for format %s not implemented yet", tex_format_name(spr->images[0].fmt));
             done = true;
             break;
         }
         if(!done) {
             if (flag_verbose)
                 printf("mipmap: generated %dx%d\n", mw, mh);
-            spr->images[spr->num_images++] = (image_t){
+            spr->images[i] = (image_t){
                 .image = mipmap,
                 .width = mw,
                 .height = mh,
                 .ct = prev->ct,
             };
-            prev = &spr->images[spr->num_images-1];
         }
     }
 }
 
 bool spritemaker_expand_rgba(spritemaker_t *spr) {
-    for (int i=0; i<spr->num_images; i++) {
+    for (int i=0; i<MAX_IMAGES; i++) {
         image_t *img = &spr->images[i];
-        if (img->ct == LCT_RGBA)
+        if (!img->image || img->ct == LCT_RGBA)
             continue;
         if (flag_verbose)
             printf("expanding image %d to RGBA\n", i);
@@ -646,7 +510,7 @@ bool spritemaker_expand_rgba(spritemaker_t *spr) {
                 for (int x=0; x<img->width; x++) {
                     uint8_t *src = img->image + y*img->width + x;
                     uint8_t *dst = rgba + (y*img->width + x) * 4;
-                    uint8_t *pal = spr->colors[*src];
+                    uint8_t *pal = img->colors[*src];
                     dst[0] = pal[0];
                     dst[1] = pal[1];
                     dst[2] = pal[2];
@@ -661,11 +525,11 @@ bool spritemaker_expand_rgba(spritemaker_t *spr) {
         free(img->image);
         img->image = rgba;
         img->ct = LCT_RGBA;
+        // Clear the palette data as it's not used anymore
+        memset(img->colors, 0, sizeof(img->colors));
+        img->num_colors = 0;
+        img->used_colors = 0;
     }
-    // Clear the palette data as it's not used anymore
-    memset(spr->colors, 0, sizeof(spr->colors));
-    spr->num_colors = 0;
-    spr->used_colors = 0;
     return true;
 }
 
@@ -679,7 +543,9 @@ bool spritemaker_quantize(spritemaker_t *spr, int num_colors, int dither) {
 
     // Feed the input images, so that all of them will be quantized at once
     // using the same palette.
-    for (int i=0; i<spr->num_images; i++) {
+    for (int i=0; i<MAX_IMAGES; i++) {
+        if (spr->images[i].image == NULL)
+            continue;
         if (spr->images[i].ct != LCT_RGBA) {
             fprintf(stderr, "ERROR: image %d is not RGBA\n", i);
             goto error;
@@ -691,13 +557,15 @@ bool spritemaker_quantize(spritemaker_t *spr, int num_colors, int dither) {
     exq_quantize_hq(exq, num_colors);
 
     // Extract the palette
-    exq_get_palette(exq, spr->colors[0], num_colors);
-    spr->num_colors = num_colors;
-    spr->used_colors = num_colors;
+    exq_get_palette(exq, spr->images[0].colors[0], num_colors);
+    spr->images[0].num_colors = num_colors;
+    spr->images[0].used_colors = num_colors;
 
     // Remap the images to the new palette
-    for (int i=0; i<spr->num_images; i++) {
+    for (int i=0; i<MAX_IMAGES; i++) {
         image_t *img = &spr->images[i];
+        if (spr->images[i].image == NULL)
+            continue;
         uint8_t* ci_image = malloc(img->width * img->height);
         switch (dither) {
         case DITHER_ALGO_NONE:
@@ -734,39 +602,30 @@ bool spritemaker_write(spritemaker_t *spr) {
     }
 
     // Write the sprite header
-    int bpp = tex_format_bytes_per_pixel(spr->outfmt);
+    int bpp = tex_format_bytes_per_pixel(spr->images[0].fmt);
     w16(out, spr->images[0].width);
     w16(out, spr->images[0].height);
     w8(out, 0); // deprecated field
-    w8(out, (uint8_t)(spr->outfmt | SPRITE_FLAGS_EXT));
+    w8(out, (uint8_t)(spr->images[0].fmt | SPRITE_FLAGS_EXT));
     w8(out, spr->hslices);
     w8(out, spr->vslices);
 
     uint32_t w_palpos = 0;
     uint32_t w_lodpos[7] = {0};
-    //uint32_t w_detailpos = 0;
 
-    if(spr->detail.enabled && !spr->detail.use_main_tex) spr->num_images++;
     // Process the images (the first always exists)
-    for (int m=0; m<spr->num_images; m++) {
+    for (int m=0; m<MAX_IMAGES; m++) {
         image_t *image = &spr->images[m];
-        
-        if(m == spr->num_images - 1) 
-            if(spr->detail.enabled)
-                if(!spr->detail.use_main_tex) 
-                    image = &spr->images[7]; // Try to write detail texture last
-            
+        if (image->image == NULL)
+            continue;
 
         if (m > 0) {
             assert(w_lodpos[m-1] != 0); // we should have left a placeholder for this LOD
-            uint32_t xpos = ftell(out) | (spr->outfmt << 24);
+            uint32_t xpos = ftell(out) | (image->fmt << 24);
             w32_at(out, w_lodpos[m-1], xpos);
         }
 
-        tex_format_t usedformat = spr->outfmt;
-        if(spr->detail.enabled && m == spr->num_images - 1) usedformat = spr->detail.outfmt;
-
-        switch (usedformat) {
+        switch (image->fmt) {
         case FMT_RGBA16: {
             assert(image->ct == LCT_RGBA);
             // Convert to 16-bit RGB5551 format.
@@ -780,7 +639,7 @@ bool spritemaker_write(spritemaker_t *spr) {
 
         case FMT_CI4: {
             assert(image->ct == LCT_PALETTE);
-            assert(spr->used_colors <= 16);
+            assert(image->used_colors <= 16);
             // Convert image to 4 bit.
             uint8_t *img = image->image;
             for (int j=0; j<image->height; j++) {
@@ -847,34 +706,19 @@ bool spritemaker_write(spritemaker_t *spr) {
         // Write extended sprite header after first image
         // See sprite_ext_t (sprite_internal.h)
         if (m == 0) { 
-            w16(out, 104);  // sizeof(sprite_ext_t) //TODO: Recalc the size of the struct
+            w16(out, 124);  // sizeof(sprite_ext_t)
             w16(out, 3);    // version
             w_palpos = w32_placeholder(out); // placeholder for position of palette
-            for (int i=0; i<8; i++) {
-                if (i+1 < spr->num_images) {
-                    w16(out, spr->images[i+1].width);
-                    w16(out, spr->images[i+1].height);
-                    w_lodpos[i] = w32_placeholder(out); // placeholder for position of LOD
-                    if(flag_verbose){
-                        printf("writing mm: %ix%i at %i\n", spr->images[i+1].width,  spr->images[i+1].height, w_lodpos[i]);
-                    }
-                } else {
-                    if(i == 7 && spr->detail.enabled && !spr->detail.use_main_tex){
-                        w16(out, spr->images[7].width);
-                        w16(out, spr->images[7].height);
-                        w_lodpos[i] = w32_placeholder(out); // placeholder for position of LOD detail
-                        if(flag_verbose){
-                            printf("writing detail: %ix%i at %i\n", spr->images[7].width,  spr->images[7].height, w_lodpos[i]);
-                        }
-                    }
-                    w16(out, 0);
-                    w16(out, 0);
-                    w32(out, 0);
-                }
+            int numlods = 0;
+            for (int i=1; i<8; i++) {
+                numlods += (spr->images[i].image != NULL);
+                w16(out, spr->images[i].width);
+                w16(out, spr->images[i].height);
+                w_lodpos[i-1] = w32_placeholder(out); // placeholder for position of LOD
             }
             uint16_t flags = 0;
-            assert(spr->num_images-1 <= 7); // 3 bits
-            flags |= spr->num_images-1;
+            assert(numlods <= 7); // 3 bits
+            flags |= numlods;
             if (spr->texparms.defined) flags |= 0x08;
             if (spr->detail.enabled) flags |= 0x10;
             if (spr->detail.use_main_tex) flags |= 0x20;
@@ -893,7 +737,6 @@ bool spritemaker_write(spritemaker_t *spr) {
             w8(out, 0); // padding
 
             // detail texture
-
             wf32(out, spr->detail.texparms.s.translate);
             wf32(out, spr->detail.texparms.s.repeats);
             w16(out, spr->detail.texparms.s.scale);
@@ -904,17 +747,19 @@ bool spritemaker_write(spritemaker_t *spr) {
             w16(out, spr->detail.texparms.t.scale);
             w8(out, spr->detail.texparms.t.mirror);
             w8(out, 0); // padding
-            // TODO: check if written format is correct
-            w8(out, spr->detail.outfmt); // format
-            w32(out, spr->detail.blend_factor); // detail blend factor
-            //w8(out, spr->detail.use_main_tex); // detail use main texture bool
+            wf32(out, spr->detail.blend_factor);
+            w8(out, spr->detail.use_main_tex);
+            w8(out, 0); // padding
+            w8(out, 0); // padding
+            w8(out, 0); // padding
+
             walign(out, 8);
         }
     }
 
-    // Finally, write the palette if needed
-    if (spr->num_colors > 0) {
-        assert(spr->outfmt == FMT_CI8 || spr->outfmt == FMT_CI4);
+    // Finally, write the palette if needed, stored in the first image
+    if (spr->images[0].num_colors > 0) {
+        assert(spr->images[0].fmt == FMT_CI8 || spr->images[0].fmt == FMT_CI4);
         w32_at(out, w_palpos, ftell(out));
 
         // Convert the palette into RGB5551 format. The number of colors can differ
@@ -922,8 +767,8 @@ bool spritemaker_write(spritemaker_t *spr) {
         // actually using the first 16. We handle this without quantization, but still
         // saves the full 64 color palette as it might contain useful colors for effects.
         // FIXME: add the palette size to the sprite_ext_format and sprite API.
-        for (int i=0; i<spr->num_colors; i++) {
-            uint8_t *pal = spr->colors[i];
+        for (int i=0; i<spr->images[0].num_colors; i++) {
+            uint8_t *pal = spr->images[0].colors[i];
             w16(out, conv_rgb5551(pal[0], pal[1], pal[2], pal[3]));
         }
         walign(out, 8);
@@ -934,8 +779,9 @@ bool spritemaker_write(spritemaker_t *spr) {
 }
 
 void spritemaker_write_pngs(spritemaker_t *spr) {
-    for (int i=0; i<spr->num_images; i++) {
-        if(i == spr->num_images - 1 && spr->detail.enabled && !spr->detail.use_main_tex) i = 7;
+    for (int i=0; i<MAX_IMAGES; i++) {
+        if (spr->images[i].image == NULL)
+            continue;
         char lodext[16]; sprintf(lodext, ".%d.png", i);
         char debugfn[2048];
         strcpy(debugfn, spr->outfn);
@@ -954,9 +800,9 @@ void spritemaker_write_pngs(spritemaker_t *spr) {
         state.info_raw = lodepng_color_mode_make(img->ct, 8);
         state.info_png.color = lodepng_color_mode_make(img->ct, 8);
         if (img->ct == LCT_PALETTE) {
-            for (int i=0; i<spr->num_colors; i++) {
-                lodepng_palette_add(&state.info_raw,       spr->colors[i][0], spr->colors[i][1], spr->colors[i][2], spr->colors[i][3]);
-                lodepng_palette_add(&state.info_png.color, spr->colors[i][0], spr->colors[i][1], spr->colors[i][2], spr->colors[i][3]);
+            for (int i=0; i<spr->images[0].num_colors; i++) {
+                lodepng_palette_add(&state.info_raw,       spr->images[0].colors[i][0], spr->images[0].colors[i][1], spr->images[0].colors[i][2], spr->images[0].colors[i][3]);
+                lodepng_palette_add(&state.info_png.color, spr->images[0].colors[i][0], spr->images[0].colors[i][1], spr->images[0].colors[i][2], spr->images[0].colors[i][3]);
             }
         }
         uint8_t *out = NULL; size_t outsize;
@@ -971,7 +817,7 @@ void spritemaker_write_pngs(spritemaker_t *spr) {
 }
 
 void spritemaker_free(spritemaker_t *spr) {
-    for (int i=0; i<spr->num_images; i++)
+    for (int i=0; i<MAX_IMAGES; i++)
         if (spr->images[i].image)
             free(spr->images[i].image);
     memset(spr, 0, sizeof(*spr));
@@ -986,7 +832,6 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
 
     spr.detail.enabled = pm->detail.enabled;
     spr.detail.use_main_tex = pm->detail.use_main_tex;
-    spr.detail.outfmt = pm->detail.outfmt;
     spr.detail.infn = pm->detail.infn;
     spr.detail.blend_factor = pm->detail.blend_factor;
     spr.detail.texparms = pm->detail.texparms;
@@ -995,17 +840,19 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
     if (!spritemaker_load_png(&spr, pm->outfmt))
         goto error;
 
-    // Load the detail PNG, passing the desired output format (or FMT_NONE if autodetect).
-    if (!spritemaker_load_detail_png(&spr, pm->detail.outfmt))
-        goto error;
+    if (spr.detail.enabled && !spr.detail.use_main_tex) {
+        // Load the detail PNG, passing the desired output format (or FMT_NONE if autodetect).
+        if (!spritemaker_load_detail_png(&spr, pm->detail.outfmt))
+            goto error;
+    }
 
     // Calculate mipmap levels, if requested
     if (pm->mipmap_algo != MIPMAP_ALGO_NONE)
         spritemaker_calc_lods(&spr, pm->mipmap_algo);
 
     // Run quantization if needed
-    if (spr.outfmt == FMT_CI8 || spr.outfmt == FMT_CI4) {
-        int expected_colors = spr.outfmt == FMT_CI8 ? 256 : 16;
+    if (spr.images[0].fmt == FMT_CI8 || spr.images[0].fmt == FMT_CI4) {
+        int expected_colors = spr.images[0].fmt == FMT_CI8 ? 256 : 16;
 
         switch (spr.images[0].ct) {
         case LCT_RGBA:
@@ -1013,7 +860,7 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
                 goto error;
             break;
         case LCT_PALETTE:
-            if (expected_colors < spr.used_colors) {
+            if (expected_colors < spr.images[0].used_colors) {
                 if (!spritemaker_expand_rgba(&spr) || 
                     !spritemaker_quantize(&spr, expected_colors, pm->dither_algo))
                     goto error;
@@ -1054,6 +901,45 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
 error:
     spritemaker_free(&spr);
     return 1;
+}
+
+bool cli_parse_texparms(const char *opt, texparms_t *parms)
+{
+    char extra;
+    if (sscanf(opt, "%f,%f,%d,%d,%f,%f,%d,%d%c", 
+            &parms->s.translate, &parms->t.translate,
+            &parms->s.scale, &parms->t.scale,
+            &parms->s.repeats, &parms->t.repeats,
+            &parms->s.mirror, &parms->t.mirror,
+            &extra) == 8) {
+        // ok, nothing to do
+    } else if (sscanf(opt, "%f,%d,%f,%d%c", 
+            &parms->s.translate, &parms->s.scale, &parms->s.repeats, &parms->s.mirror, &extra) == 4) {
+        parms->t = parms->s;
+    } else {
+        fprintf(stderr, "invalid texparms: %s\n", opt);
+        return false;
+    }
+    if (parms->s.mirror != 0 && parms->s.mirror != 1) {
+        fprintf(stderr, "invalid texparms: mirror must be 0 or 1 (found: %d)\n", parms->s.mirror);
+        return false;
+    }
+    if (parms->t.mirror != 0 && parms->t.mirror != 1) {
+        fprintf(stderr, "invalid texparms: mirror must be 0 or 1 (found: %d)\n", parms->t.mirror);
+        return false;
+    }
+    if (parms->s.repeats < 0) {
+        fprintf(stderr, "invalid texparms: repeats must be >= 0 (found: %f)\n", parms->s.repeats);
+        return false;
+    }
+    if (parms->t.repeats < 0) {
+        fprintf(stderr, "invalid texparms: repeats must be >= 0 (found: %f)\n", parms->t.repeats);
+        return false;
+    }
+    if (parms->s.repeats > 2048) parms->s.repeats = 2048;
+    if (parms->t.repeats > 2048) parms->t.repeats = 2048;
+    parms->defined = true;
+    return true;
 }
 
 
@@ -1190,40 +1076,8 @@ int main(int argc, char *argv[])
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
                     return 1;
                 }
-                char extra;
-                if (sscanf(argv[i], "%f,%f,%d,%d,%f,%f,%d,%d%c", 
-                        &pm.texparms.s.translate, &pm.texparms.t.translate,
-                        &pm.texparms.s.scale, &pm.texparms.t.scale,
-                        &pm.texparms.s.repeats, &pm.texparms.t.repeats,
-                        &pm.texparms.s.mirror, &pm.texparms.t.mirror,
-                        &extra) == 8) {
-                    // ok, nothing to do
-                } else if (sscanf(argv[i], "%f,%d,%f,%d%c", 
-                        &pm.texparms.s.translate, &pm.texparms.s.scale, &pm.texparms.s.repeats, &pm.texparms.s.mirror, &extra) == 4) {
-                    pm.texparms.t = pm.texparms.s;
-                } else {
-                    fprintf(stderr, "invalid texparms: %s\n", argv[i]);
+                if (!cli_parse_texparms(argv[i], &pm.texparms))
                     return 1;
-                }
-                if (pm.texparms.s.mirror != 0 && pm.texparms.s.mirror != 1) {
-                    fprintf(stderr, "invalid texparms: mirror must be 0 or 1 (found: %d)\n", pm.texparms.s.mirror);
-                    return 1;
-                }
-                if (pm.texparms.t.mirror != 0 && pm.texparms.t.mirror != 1) {
-                    fprintf(stderr, "invalid texparms: mirror must be 0 or 1 (found: %d)\n", pm.texparms.t.mirror);
-                    return 1;
-                }
-                if (pm.texparms.s.repeats < 0) {
-                    fprintf(stderr, "invalid texparms: repeats must be >= 0 (found: %f)\n", pm.texparms.s.repeats);
-                    return 1;
-                }
-                if (pm.texparms.t.repeats < 0) {
-                    fprintf(stderr, "invalid texparms: repeats must be >= 0 (found: %f)\n", pm.texparms.t.repeats);
-                    return 1;
-                }
-                if (pm.texparms.s.repeats > 2048) pm.texparms.s.repeats = 2048;
-                if (pm.texparms.t.repeats > 2048) pm.texparms.t.repeats = 2048;
-                pm.texparms.defined = true;
             } 
             
             /* ---------------- DETAIL console argument ------------------- */
@@ -1238,71 +1092,58 @@ int main(int argc, char *argv[])
                 if (++i != argc) {
                     char *fntok = strdup(argv[i]);
                     char *sect = strtok(fntok, ",");
-                    int count = 0;
-                    while (sect && count < 3) {
-                        if(!sscanf(sect, "%f", &pm.detail.blend_factor)){
-                            // not a blend factor
+
+                    // First argument is either the filename or the factor. If
+                    // it's the factor, we should be done
+                    if (!sscanf(sect, "%f", &pm.detail.blend_factor)) {
+                        // Not a floating point number, should be a filename,
+                        // but error out if it's a format instead
+                        if (tex_format_from_name(sect) != FMT_NONE) {
+                            fprintf(stderr, "cannot specify a format without a filename for %s: %s\n", argv[i-1], argv[i]);
+                            return 1;
+                        }
+                        pm.detail.infn = sect;
+                        pm.detail.use_main_tex = false;
+
+                        // Next argument is either the format or the factor
+                        sect = strtok(NULL, ",");
+                        if (sect) {
                             tex_format_t fmt = tex_format_from_name(sect);
-                            if(fmt != FMT_NONE) pm.detail.outfmt = fmt; 
-                            else {
-                                pm.detail.infn = sect; // not a texture format - set detail input image
-                                pm.detail.use_main_tex = false;
+                            if (fmt != FMT_NONE) {
+                                pm.detail.outfmt = fmt;
+                                sect = strtok(NULL, ",");
                             }
                         }
-                        sect = strtok(NULL, ",");
-                        count++;
+                        // Third argument (or second) must be the blend factor
+                        if (sect) {
+                            if (!sscanf(sect, "%f", &pm.detail.blend_factor)) {
+                                fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
+                                return 1;
+                            }
+                        }
                     }
-                }
-                if(flag_debug){
-                    printf("adding detail with arguments: file %s, format %s, factor %f, use main tex: %i \n", pm.detail.infn, tex_format_name(pm.detail.outfmt), pm.detail.blend_factor, pm.detail.use_main_tex);
+                    // There should be no other arguments
+                    sect = strtok(NULL, ",");
+                    if (sect) {
+                        fprintf(stderr, "too many values for argument %s: %s\n", argv[i-1], argv[i]);
+                        return 1;
+                    }
                 }
             }
 
             /* ---------------- DETAIL TEXTURE PARAMETERS console argument ------------------- */
             /* --detail-texparms <x,s,r,m>          Sampling parameters             */
             /* --detail-texparms <x,x,s,s,r,r,m,m>  Sampling parameters (different for S/T)             */
-            else if (!strcmp(argv[1], "--detail-texparms")) {
+            else if (!strcmp(argv[i], "--detail-texparms")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
                     return 1;
                 }
-                char extra;
-                if (sscanf(argv[i], "%f,%f,%d,%d,%f,%f,%d,%d%c", 
-                        &pm.detail.texparms.s.translate, &pm.detail.texparms.t.translate,
-                        &pm.detail.texparms.s.scale, &pm.detail.texparms.t.scale,
-                        &pm.detail.texparms.s.repeats, &pm.detail.texparms.t.repeats,
-                        &pm.detail.texparms.s.mirror, &pm.detail.texparms.t.mirror,
-                        &extra) == 8) {
-                    // ok, nothing to do
-                } else if (sscanf(argv[i], "%f,%d,%f,%d%c", 
-                        &pm.detail.texparms.s.translate, &pm.detail.texparms.s.scale, &pm.detail.texparms.s.repeats, &pm.detail.texparms.s.mirror, &extra) == 4) {
-                    pm.detail.texparms.t = pm.detail.texparms.s;
-                } else {
-                    fprintf(stderr, "invalid detail texparms: %s\n", argv[i]);
+                if (!cli_parse_texparms(argv[i], &pm.detail.texparms))
                     return 1;
-                }
-                if (pm.detail.texparms.s.mirror != 0 && pm.detail.texparms.s.mirror != 1) {
-                    fprintf(stderr, "invalid detail texparms: mirror must be 0 or 1 (found: %d)\n", pm.detail.texparms.s.mirror);
-                    return 1;
-                }
-                if (pm.detail.texparms.t.mirror != 0 && pm.detail.texparms.t.mirror != 1) {
-                    fprintf(stderr, "invalid detail texparms: mirror must be 0 or 1 (found: %d)\n", pm.detail.texparms.t.mirror);
-                    return 1;
-                }
-                if (pm.detail.texparms.s.repeats < 0) {
-                    fprintf(stderr, "invalid detail texparms: repeats must be >= 0 (found: %f)\n", pm.detail.texparms.s.repeats);
-                    return 1;
-                }
-                if (pm.detail.texparms.t.repeats < 0) {
-                    fprintf(stderr, "invalid detail texparms: repeats must be >= 0 (found: %f)\n", pm.detail.texparms.t.repeats);
-                    return 1;
-                }
-                if (pm.detail.texparms.s.repeats > 2048) pm.detail.texparms.s.repeats = 2048;
-                if (pm.detail.texparms.t.repeats > 2048) pm.detail.texparms.t.repeats = 2048;
-                pm.detail.texparms.defined = true;
             }
-
-             else {
+            
+            else {
                 fprintf(stderr, "invalid flag: %s\n", argv[i]);
                 return 1;
             }

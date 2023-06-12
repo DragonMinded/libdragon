@@ -26,7 +26,7 @@ sprite_ext_t *__sprite_ext(sprite_t *sprite)
 
     // Access extended header
     sprite_ext_t *sx = (sprite_ext_t*)data;
-    assert(sx->version == 2);
+    assert(sx->version == 3);
     return sx;
 }
 
