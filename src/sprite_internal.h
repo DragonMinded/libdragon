@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <surface.h>
 
-#define SPRITE_FLAG_NUMLODS                 0x0007   ///< Number of LODs (0 = no LODs)
+#define SPRITE_FLAG_NUMLODS                 0x0007   ///< Number of LODs, including detail texture if any (0 = no LODs)
 #define SPRITE_FLAG_HAS_TEXPARMS            0x0008   ///< Sprite contains texture parameters
 #define SPRITE_FLAG_HAS_DETAIL              0x0010   ///< Sprite contains detail texture
 #define SPRITE_FLAG_DETAIL_USE_LOD0         0x0020   ///< Detail texture is the same as LOD0 (fractal detailing)
@@ -28,7 +28,7 @@ typedef struct sprite_ext_s {
         uint16_t width;            ///< Width of this LOD
         uint16_t height;           ///< Height of this LOD
         uint32_t fmt_file_pos;     ///< Top 8 bits: format; lowest 24 bits: absolute offset in the file
-    } lods[7];                  ///< Information on the available LODs (0-6 LODs, 7 = detail texture)
+    } lods[7];                  ///< Information on the available LODs (if detail is present, it's always at position 6)
     struct {
         uint16_t flags;             ///< Generic Flags for the sprite
         uint16_t padding;           ///< Padding
