@@ -195,17 +195,21 @@ typedef struct {
     int width, height;      // Image dimensions
     tex_format_t fmt;       // Texture format
     LodePNGColorType ct;    // PNG color type
+} image_t;
+
+typedef struct {
     int num_colors;         // Number of colors in palette
     int used_colors;        // Number of colors actually used in palette
     uint8_t colors[256][4]; // Color palette (if num_colors != 0)
-} image_t;
+} palette_t;
 
 #define MAX_IMAGES 8
 
 typedef struct {
     const char *infn;       // Input file
     const char *outfn;      // Output file
-    image_t images[MAX_IMAGES]; // Pixel images (one per lod level). NOTE: palette is only used in first
+    image_t images[MAX_IMAGES]; // Pixel images (one per lod level).
+    palette_t palette;      // Palette (if any)
     int vslices;            // Number of vertical slices (deprecated API for old rdp.c)
     int hslices;            // Number of horizontal slices (deprecated API for old rdp.c)
     texparms_t texparms;    // Texture parameters
@@ -228,7 +232,7 @@ typedef struct {
  * @return true     If the image was loaded successfully
  * @return false    If there was an error
  */
-bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout) {
+bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette_t *palout) {
     LodePNGState state;
     bool autofmt = (fmt == FMT_NONE);
     unsigned char* png = 0;
@@ -355,35 +359,35 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout) {
     // used colors (aka, the highest index used in the image). This is useful later for
     // some heuristics.
     if (state.info_raw.colortype == LCT_PALETTE) {
-        memcpy(imgout->colors, state.info_png.color.palette, state.info_png.color.palettesize * 4);
-        imgout->num_colors = state.info_png.color.palettesize;
-        imgout->used_colors = 0;
+        memcpy(palout->colors, state.info_png.color.palette, state.info_png.color.palettesize * 4);
+        palout->num_colors = state.info_png.color.palettesize;
+        palout->used_colors = 0;
         for (int i=0; i < width*height; i++) {
-            if (image[i] > imgout->used_colors)
-                imgout->used_colors = image[i];
+            if (image[i] > palout->used_colors)
+                palout->used_colors = image[i];
         }
         if (flag_verbose)
-            printf("palette: %d colors (used: %d)\n", imgout->num_colors, imgout->used_colors);
+            printf("palette: %d colors (used: %d)\n", palout->num_colors, palout->used_colors);
     }
     if (state.info_raw.colortype == LCT_GREY) {
         bool used[256] = {0};
-        imgout->used_colors = 0;
+        palout->used_colors = 0;
         for (int i=0; i < width*height; i++) {
             if (!used[image[i]]) {
                 used[image[i]] = true;
-                imgout->used_colors++;
+                palout->used_colors++;
             }
         }
     }
 
     // In case we're autodetecting the output format and the PNG had a palette, and only
     // indices 0-15 are used, we can use a FMT_CI4.
-    if (autofmt && state.info_raw.colortype == LCT_PALETTE && imgout->used_colors <= 16)
+    if (autofmt && state.info_raw.colortype == LCT_PALETTE && palout->used_colors <= 16)
         fmt = FMT_CI4;
 
     // In case we're autodetecting the output format and the PNG is a greyscale, and only
     // indices 0-15 are used, we can use a FMT_I4.
-    if (autofmt && state.info_raw.colortype == LCT_GREY && imgout->used_colors <= 16)
+    if (autofmt && state.info_raw.colortype == LCT_GREY && palout->used_colors <= 16)
         fmt = FMT_I4;
 
     // Autodetection complete, log it.
@@ -401,13 +405,14 @@ error:
 
 bool spritemaker_load_png(spritemaker_t *spr, tex_format_t outfmt)
 {
-    return load_png_image(spr->infn, outfmt, &spr->images[0]);
+    return load_png_image(spr->infn, outfmt, &spr->images[0], &spr->palette);
 }
 
 bool spritemaker_load_detail_png(spritemaker_t *spr, tex_format_t outfmt)
 {
     // Load the detail texture into images[7], as last lod.
-    bool ok = load_png_image(spr->detail.infn, outfmt, &spr->images[7]);
+    palette_t pal;
+    bool ok = load_png_image(spr->detail.infn, outfmt, &spr->images[7], &pal);
 
     // For now, abort if the detail texture is palettized
     if (ok && (spr->images[7].fmt == FMT_CI4 || spr->images[7].fmt == FMT_CI8)) {
@@ -510,7 +515,7 @@ bool spritemaker_expand_rgba(spritemaker_t *spr) {
                 for (int x=0; x<img->width; x++) {
                     uint8_t *src = img->image + y*img->width + x;
                     uint8_t *dst = rgba + (y*img->width + x) * 4;
-                    uint8_t *pal = img->colors[*src];
+                    uint8_t *pal = spr->palette.colors[*src];
                     dst[0] = pal[0];
                     dst[1] = pal[1];
                     dst[2] = pal[2];
@@ -525,11 +530,9 @@ bool spritemaker_expand_rgba(spritemaker_t *spr) {
         free(img->image);
         img->image = rgba;
         img->ct = LCT_RGBA;
-        // Clear the palette data as it's not used anymore
-        memset(img->colors, 0, sizeof(img->colors));
-        img->num_colors = 0;
-        img->used_colors = 0;
     }
+    // Clear the palette data as it's not used anymore
+    memset(&spr->palette, 0, sizeof(spr->palette));
     return true;
 }
 
@@ -557,9 +560,9 @@ bool spritemaker_quantize(spritemaker_t *spr, int num_colors, int dither) {
     exq_quantize_hq(exq, num_colors);
 
     // Extract the palette
-    exq_get_palette(exq, spr->images[0].colors[0], num_colors);
-    spr->images[0].num_colors = num_colors;
-    spr->images[0].used_colors = num_colors;
+    exq_get_palette(exq, spr->palette.colors[0], num_colors);
+    spr->palette.num_colors = num_colors;
+    spr->palette.used_colors = num_colors;
 
     // Remap the images to the new palette
     for (int i=0; i<MAX_IMAGES; i++) {
@@ -639,7 +642,7 @@ bool spritemaker_write(spritemaker_t *spr) {
 
         case FMT_CI4: {
             assert(image->ct == LCT_PALETTE);
-            assert(image->used_colors <= 16);
+            assert(spr->palette.used_colors <= 16);
             // Convert image to 4 bit.
             uint8_t *img = image->image;
             for (int j=0; j<image->height; j++) {
@@ -758,7 +761,7 @@ bool spritemaker_write(spritemaker_t *spr) {
     }
 
     // Finally, write the palette if needed, stored in the first image
-    if (spr->images[0].num_colors > 0) {
+    if (spr->palette.num_colors > 0) {
         assert(spr->images[0].fmt == FMT_CI8 || spr->images[0].fmt == FMT_CI4);
         w32_at(out, w_palpos, ftell(out));
 
@@ -767,8 +770,8 @@ bool spritemaker_write(spritemaker_t *spr) {
         // actually using the first 16. We handle this without quantization, but still
         // saves the full 64 color palette as it might contain useful colors for effects.
         // FIXME: add the palette size to the sprite_ext_format and sprite API.
-        for (int i=0; i<spr->images[0].num_colors; i++) {
-            uint8_t *pal = spr->images[0].colors[i];
+        for (int i=0; i<spr->palette.num_colors; i++) {
+            uint8_t *pal = spr->palette.colors[i];
             w16(out, conv_rgb5551(pal[0], pal[1], pal[2], pal[3]));
         }
         walign(out, 8);
@@ -800,9 +803,9 @@ void spritemaker_write_pngs(spritemaker_t *spr) {
         state.info_raw = lodepng_color_mode_make(img->ct, 8);
         state.info_png.color = lodepng_color_mode_make(img->ct, 8);
         if (img->ct == LCT_PALETTE) {
-            for (int i=0; i<spr->images[0].num_colors; i++) {
-                lodepng_palette_add(&state.info_raw,       spr->images[0].colors[i][0], spr->images[0].colors[i][1], spr->images[0].colors[i][2], spr->images[0].colors[i][3]);
-                lodepng_palette_add(&state.info_png.color, spr->images[0].colors[i][0], spr->images[0].colors[i][1], spr->images[0].colors[i][2], spr->images[0].colors[i][3]);
+            for (int i=0; i<spr->palette.num_colors; i++) {
+                lodepng_palette_add(&state.info_raw,       spr->palette.colors[i][0], spr->palette.colors[i][1], spr->palette.colors[i][2], spr->palette.colors[i][3]);
+                lodepng_palette_add(&state.info_png.color, spr->palette.colors[i][0], spr->palette.colors[i][1], spr->palette.colors[i][2], spr->palette.colors[i][3]);
             }
         }
         uint8_t *out = NULL; size_t outsize;
@@ -860,7 +863,7 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
                 goto error;
             break;
         case LCT_PALETTE:
-            if (expected_colors < spr.images[0].used_colors) {
+            if (expected_colors < spr.palette.used_colors) {
                 if (!spritemaker_expand_rgba(&spr) || 
                     !spritemaker_quantize(&spr, expected_colors, pm->dither_algo))
                     goto error;
