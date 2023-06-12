@@ -24,8 +24,10 @@
 /   2: f_opendir(), f_readdir() and f_closedir() are removed in addition to 1.
 /   3: f_lseek() function is removed in addition to 2. */
 
-
+// FIXME: remove this, do not merge to stable without further discussion
+#ifndef FF_USE_STRFUNC
 #define FF_USE_STRFUNC	0
+#endif
 /* This option switches string functions, f_gets(), f_putc(), f_puts() and f_printf().
 /
 /  0: Disable string functions.
