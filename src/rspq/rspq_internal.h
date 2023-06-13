@@ -233,6 +233,26 @@ typedef struct rsp_queue_s {
 /** @brief Address of the RSPQ data header in DMEM (see #rsp_queue_t) */
 #define RSPQ_DATA_ADDRESS                32
 
+#define RSPQ_DCF_WAITRDP  (1<<0)
+
+typedef struct rspq_deferred_call_s {
+    union {
+        void (*func)(void *arg);
+        uint32_t flags;
+    };
+    void *arg;
+    rspq_syncpoint_t sync;
+    void *next;
+} rspq_deferred_call_t;
+
+extern rspq_deferred_call_t *__rspq_defcalls_head;
+extern rspq_deferred_call_t *__rspq_defcalls_tail;
+
+/** @brief Enqueue a new deferred call. */
+void __rspq_call_deferred(void (*func)(void *), void *arg, bool waitrdp);
+/** @brief Notify the deferred list that we have serviced a SYNC_FULL. */
+void __rspq_deferred_rdpsyncfull(void);
+
 /** @brief True if we are currently building a block. */
 static inline bool rspq_in_block(void) {
     extern rspq_block_t *rspq_block;

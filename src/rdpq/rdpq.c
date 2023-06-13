@@ -437,6 +437,9 @@ static void __rdpq_interrupt(void) {
 
         callback(arg);
     }
+
+    // Notify the RSP deferred list that we've serviced this SYNC_FULL interrupt.
+    __rspq_deferred_rdpsyncfull();
 }
 
 void rdpq_init()

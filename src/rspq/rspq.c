@@ -1256,6 +1256,90 @@ void rspq_syncpoint_wait(rspq_syncpoint_t sync_id)
     }
 }
 
+// Called on a SYNC_FULL
+void __rspq_deferred_rdpsyncfull(void)
+{
+    // Go through the list of deferred calls, which is chronologically sorted.
+    for (rspq_deferred_call_t *cur = __rspq_defcalls_head; cur != NULL; cur = cur->next) {
+        // Once we reach a call which is still waiting for the RSP to catch up
+        // its syncpoint, abort the search. Surely we don't need to check the newer ones.
+        if (!rspq_syncpoint_check(cur->sync))
+            break;
+
+        // If this call was waiting for a RDP to be done (SYNC_FULL), we can
+        // mark it as such now.
+        if (cur->flags & RSPQ_DCF_WAITRDP)
+            cur->flags &= ~RSPQ_DCF_WAITRDP;
+    }
+}
+
+// Poll the deferred list: call all functions that are ready to be called.
+void __rspq_deferred_poll(void)
+{
+    rspq_deferred_call_t *prev = NULL, *cur =  __rspq_defcalls_head;
+    while (cur != NULL) {
+        rspq_deferred_call_t *next = cur->next;
+
+        // Since the list is chronologically sorted, once we reach the first
+        // call that is still waiting for its RSP checkpoint, we can stop.
+        if (!rspq_syncpoint_check(cur->sync))
+            break;
+
+        // If this call is not waiting on SYNC_FULL, we can proceed with it.
+        if (!(cur->flags & RSPQ_DCF_WAITRDP)) {
+            // Call the deferred calllback
+            cur->func(cur->arg);
+
+            // Remove it from the list (possibly updating the head/tail pointer)
+            if (prev)
+                prev->next = next;
+            else
+                __rspq_defcalls_head = next;
+            if (!next)
+                __rspq_defcalls_tail = prev;
+            free(cur);
+            break;
+        }
+
+        prev = cur;
+        cur = next;
+    }
+}
+
+void __rspq_call_deferred(void (*func)(void *), void *arg, bool waitrdp)
+{
+    assertf(rspq_ctx != &highpri, "cannot defer in highpri mode");
+    assertf(!rspq_block, "cannot defer in a block");
+
+    // Allocate a new deferred call
+    rspq_deferred_call_t *call = malloc(sizeof(rspq_deferred_call_t));
+    call->func = func;
+    call->arg = arg;
+    call->next = NULL;
+    call->sync = rspq_syncpoint_new();
+    if (waitrdp)
+        call->flags |= RSPQ_DCF_WAITRDP;
+
+    // Add it to the list of deferred calls
+    if (__rspq_defcalls_tail) {
+        __rspq_defcalls_tail->next = call;
+    } else {
+        __rspq_defcalls_head = call;
+    }
+    __rspq_defcalls_tail = call;
+}
+
+void rspq_call_deferred(void (*func)(void *), void *arg)
+{
+    __rspq_call_deferred(func, arg, false);
+}
+
+void rdpq_call_deferred(void (*func)(void *), void *arg)
+{
+    __rspq_call_deferred(func, arg, true);
+}
+
+
 void rspq_wait(void) {
     // Check if the RDPQ module was initialized.
     if (__rdpq_inited) {
