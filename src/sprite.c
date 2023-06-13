@@ -26,7 +26,7 @@ sprite_ext_t *__sprite_ext(sprite_t *sprite)
 
     // Access extended header
     sprite_ext_t *sx = (sprite_ext_t*)data;
-    assert(sx->version == 3);
+    assertf(sx->version == 3, "Invalid sprite version (%d); please regenerate your asset files", sx->version);
     return sx;
 }
 
