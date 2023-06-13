@@ -435,7 +435,7 @@ void spritemaker_calc_lods(spritemaker_t *spr, int algo) {
     if (spr->detail.enabled && !spr->detail.use_main_tex) {
         if (spr->images[7].fmt == FMT_CI8) tmem_limit = 2048;
         if (spr->images[7].fmt == FMT_CI4) tmem_limit = 2048;
-        tmem_usage += calc_tmem_usage(spr->images[0].fmt, spr->images[7].width, spr->images[7].height);
+        tmem_usage += calc_tmem_usage(spr->images[7].fmt, spr->images[7].width, spr->images[7].height);
     }
     if (tmem_usage > tmem_limit) {
         fprintf(stderr, "WARNING: image does not fit in TMEM; are you sure you want to have mipmaps for this?");
@@ -496,6 +496,7 @@ void spritemaker_calc_lods(spritemaker_t *spr, int algo) {
                 .width = mw,
                 .height = mh,
                 .ct = prev->ct,
+                .fmt = prev->fmt,
             };
         }
     }
