@@ -321,7 +321,7 @@ static int rspq_block_size;
 /** @brief ID that will be used for the next syncpoint that will be created. */
 static int rspq_syncpoints_genid;
 /** @brief ID of the last syncpoint reached by RSP. */
-static volatile int rspq_syncpoints_done;
+volatile int rspq_syncpoints_done  __attribute__((aligned(8)));
 
 /** @brief True if the RSP queue engine is running in the RSP. */
 static bool rspq_is_running;
@@ -617,7 +617,7 @@ void rspq_init(void)
     
     // Init syncpoints
     rspq_syncpoints_genid = 0;
-    rspq_syncpoints_done = 0;
+    __rspq_syncpoints_done = 0;
 
     // Init blocks
     rspq_block = NULL;
@@ -1256,14 +1256,19 @@ void rspq_syncpoint_wait(rspq_syncpoint_t sync_id)
     }
 }
 
-// Called on a SYNC_FULL
-void __rspq_deferred_rdpsyncfull(void)
+// Called on a SYNC_FULL. syncpoint_done is the value of "rspq_syncpoints_done"
+// at the time the SYNC_FULL was run in the RSP queue.
+void __rspq_deferred_rdpsyncfull(int syncpoint_done)
 {
     // Go through the list of deferred calls, which is chronologically sorted.
     for (rspq_deferred_call_t *cur = __rspq_defcalls_head; cur != NULL; cur = cur->next) {
-        // Once we reach a call which is still waiting for the RSP to catch up
-        // its syncpoint, abort the search. Surely we don't need to check the newer ones.
-        if (!rspq_syncpoint_check(cur->sync))
+        // We need to process all deferred calls associated with a syncpoint
+        // that was enqueued before the SYNC_FULL we are processing now. That is,
+        // whose syncpoint is lower than the syncpoint at the moment of SYNC_FULL.
+        // Once we reach a syncpoint that was enqueued after SYNC_FULL, we can
+        // stop processing.
+        int difference = (int)((uint32_t)(cur->sync) - (uint32_t)(syncpoint_done));
+        if (difference > 0)
             break;
 
         // If this call was waiting for a RDP to be done (SYNC_FULL), we can
