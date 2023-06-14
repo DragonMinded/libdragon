@@ -321,7 +321,7 @@ static int rspq_block_size;
 /** @brief ID that will be used for the next syncpoint that will be created. */
 static int rspq_syncpoints_genid;
 /** @brief ID of the last syncpoint reached by RSP. */
-volatile int rspq_syncpoints_done  __attribute__((aligned(8)));
+volatile int __rspq_syncpoints_done  __attribute__((aligned(8)));
 
 /** @brief True if the RSP queue engine is running in the RSP. */
 static bool rspq_is_running;
@@ -341,7 +341,7 @@ static void rspq_sp_interrupt(void)
     // syncpoint done ID and clear the signal.
     if (status & SP_STATUS_SIG_SYNCPOINT) {
         wstatus |= SP_WSTATUS_CLEAR_SIG_SYNCPOINT;
-        ++rspq_syncpoints_done;
+        ++__rspq_syncpoints_done;
     }
     if (status & SP_STATUS_SIG0) {
         wstatus |= SP_WSTATUS_CLEAR_SIG0;
@@ -962,6 +962,7 @@ void rspq_next_buffer(void) {
     if (!(*SP_STATUS & rspq_ctx->sp_status_bufdone)) {
         rspq_flush_internal();
         RSP_WAIT_LOOP(200) {
+            __rspq_deferred_poll();
             if (*SP_STATUS & rspq_ctx->sp_status_bufdone)
                 break;
         }
@@ -1086,6 +1087,7 @@ void rspq_highpri_sync(void)
     rspq_flush_internal();
 
     RSP_WAIT_LOOP(200) {
+        __rspq_deferred_poll();
         if (!(*SP_STATUS & (SP_STATUS_SIG_HIGHPRI_REQUESTED | SP_STATUS_SIG_HIGHPRI_RUNNING)))
             break;
     }
@@ -1130,7 +1132,7 @@ rspq_block_t* rspq_block_end(void)
     return b;
 }
 
-void rspq_block_free(rspq_block_t *block)
+void __rspq_block_free(rspq_block_t *block)
 {
     // Free RDP blocks first
     __rdpq_block_free(block->rdp_block);
@@ -1164,6 +1166,13 @@ void rspq_block_free(rspq_block_t *block)
         // this is an invalid chunk of a block, better assert.
         assertf(0, "invalid terminator command in block: %08lx\n", cmd);
     }
+}
+
+void rspq_block_free(rspq_block_t *block)
+{
+    // Schedule block free after the RSP has catch up with the queue (in case
+    // the block is still scheduled there).
+    rspq_call_deferred((void(*)(void*))__rspq_block_free, block);
 }
 
 void rspq_block_run(rspq_block_t *block)
@@ -1232,7 +1241,7 @@ rspq_syncpoint_t rspq_syncpoint_new(void)
 
 bool rspq_syncpoint_check(rspq_syncpoint_t sync_id) 
 {
-    int difference = (int)((uint32_t)(sync_id) - (uint32_t)(rspq_syncpoints_done));
+    int difference = (int)((uint32_t)(sync_id) - (uint32_t)(__rspq_syncpoints_done));
     return difference <= 0;
 }
 
@@ -1251,12 +1260,13 @@ void rspq_syncpoint_wait(rspq_syncpoint_t sync_id)
     // TODO: with the kernel, it will be possible to wait for the RSP interrupt
     // to happen, without spinwaiting.
     RSP_WAIT_LOOP(200) {
+        __rspq_deferred_poll();
         if (rspq_syncpoint_check(sync_id))
             break;
     }
 }
 
-// Called on a SYNC_FULL. syncpoint_done is the value of "rspq_syncpoints_done"
+// Called on a SYNC_FULL. syncpoint_done is the value of "__rspq_syncpoints_done"
 // at the time the SYNC_FULL was run in the RSP queue.
 void __rspq_deferred_rdpsyncfull(int syncpoint_done)
 {
@@ -1278,8 +1288,19 @@ void __rspq_deferred_rdpsyncfull(int syncpoint_done)
     }
 }
 
-// Poll the deferred list: call all functions that are ready to be called.
-void __rspq_deferred_poll(void)
+/**
+ * @brief Polls the deferred calls list, calling callbacks ready to be called.
+ * 
+ * This function will check the deferred call list and if there is one callback
+ * ready to be called, it will call it and remove it from the list.
+ * 
+ * The function will process maximum one callback per call, so that it does
+ * not steal too much CPU time.
+ * 
+ * @return true   if there are still callbacks to be processed
+ * @return false  if there are no more callbacks to be processed
+ */ 
+bool __rspq_deferred_poll(void)
 {
     rspq_deferred_call_t *prev = NULL, *cur =  __rspq_defcalls_head;
     while (cur != NULL) {
@@ -1290,7 +1311,16 @@ void __rspq_deferred_poll(void)
         if (!rspq_syncpoint_check(cur->sync))
             break;
 
-        // If this call is not waiting on SYNC_FULL, we can proceed with it.
+        // If this call requires waiting for SYNC_FULL, check if we reached it.
+        // Otherwise, jsut skio it and go through the list: maybe a later callback
+        // does not require RDP and can be called.
+        if (cur->flags & RSPQ_DCF_WAITRDP) {
+            int difference = (int)((uint32_t)(cur->sync) - (uint32_t)(__rdpq_syncpoint_at_syncfull));
+            if (difference <= 0)
+                cur->flags &= ~RSPQ_DCF_WAITRDP;
+        }
+
+        // If this call does not require waiting for next SYNC_FULL, call it.
         if (!(cur->flags & RSPQ_DCF_WAITRDP)) {
             // Call the deferred calllback
             cur->func(cur->arg);
@@ -1309,9 +1339,11 @@ void __rspq_deferred_poll(void)
         prev = cur;
         cur = next;
     }
+
+    return __rspq_defcalls_head != NULL;
 }
 
-void __rspq_call_deferred(void (*func)(void *), void *arg, bool waitrdp)
+rspq_syncpoint_t __rspq_call_deferred(void (*func)(void *), void *arg, bool waitrdp)
 {
     assertf(rspq_ctx != &highpri, "cannot defer in highpri mode");
     assertf(!rspq_block, "cannot defer in a block");
@@ -1332,20 +1364,17 @@ void __rspq_call_deferred(void (*func)(void *), void *arg, bool waitrdp)
         __rspq_defcalls_head = call;
     }
     __rspq_defcalls_tail = call;
+
+    return call->sync;
 }
 
-void rspq_call_deferred(void (*func)(void *), void *arg)
+rspq_syncpoint_t rspq_syncpoint_new_cb(void (*func)(void *), void *arg)
 {
-    __rspq_call_deferred(func, arg, false);
+    return __rspq_call_deferred(func, arg, false);
 }
 
-void rdpq_call_deferred(void (*func)(void *), void *arg)
+void rspq_wait(void)
 {
-    __rspq_call_deferred(func, arg, true);
-}
-
-
-void rspq_wait(void) {
     // Check if the RDPQ module was initialized.
     if (__rdpq_inited) {
         // If so, a full sync requires also waiting for RDP to finish.
@@ -1360,11 +1389,19 @@ void rspq_wait(void) {
         rspq_int_write(RSPQ_CMD_RDP_SET_BUFFER, 
             PhysicalAddr(rdp_buf), PhysicalAddr(rdp_buf), PhysicalAddr(rdp_buf_end));
     }
-
+    
+    // Wait until RSP has finished processing the queue
     rspq_syncpoint_wait(rspq_syncpoint_new());
 
     // Update the tracing engine (if enabled)
     if (rdpq_trace) rdpq_trace();
+
+    // Make sure to process all deferred calls. Since this is a full sync point,
+    // it makes sense to give this guarantee to the user.
+    RSP_WAIT_LOOP(500) {
+        if (!__rspq_deferred_poll())
+            break;
+    }
 }
 
 void rspq_signal(uint32_t signal)
@@ -1395,3 +1432,5 @@ void rspq_dma_to_dmem(uint32_t dmem_addr, void *rdram_addr, uint32_t len, bool i
 extern inline rspq_write_t rspq_write_begin(uint32_t ovl_id, uint32_t cmd_id, int size);
 extern inline void rspq_write_arg(rspq_write_t *w, uint32_t value);
 extern inline void rspq_write_end(rspq_write_t *w);
+extern inline void rspq_call_deferred(void (*func)(void *), void *arg);
+

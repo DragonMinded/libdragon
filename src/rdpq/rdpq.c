@@ -407,6 +407,9 @@ rdpq_block_state_t rdpq_block_state;
 /** @brief Tracking state of RDP */
 rdpq_tracking_t rdpq_tracking;
 
+/** @brief Syncpoint ID at the moment of last SYNC_FULL. Used to implement #rdpq_call_deferred. */
+volatile int __rdpq_syncpoint_at_syncfull;
+
 /** 
  * @brief RDP interrupt handler 
  *
@@ -421,6 +424,9 @@ static void __rdpq_interrupt(void) {
 
     // Fetch the current RDP buffer for tracing
     if (rdpq_trace_fetch) rdpq_trace_fetch(false);
+
+    // Store the current syncpoint ID. This is used to implement #rdpq_call_deferred.
+    __rdpq_syncpoint_at_syncfull = rdpq_state->rspq_syncpoint_id;
 
     // The state has been updated to contain a copy of the last SYNC_FULL command
     // that was sent to RDP. The command might contain a callback to invoke.
@@ -440,9 +446,6 @@ static void __rdpq_interrupt(void) {
 
         callback(arg);
     }
-
-    // Notify the RSP deferred list that we've serviced this SYNC_FULL interrupt.
-    __rspq_deferred_rdpsyncfull(rdpq_state->rspq_syncpoint_id);
 }
 
 void rdpq_init()
@@ -1085,6 +1088,12 @@ void rdpq_sync_load(void)
     rdpq_tracking.autosync &= ~AUTOSYNC_TMEMS;
 }
 
+void rdpq_call_deferred(void (*func)(void *), void *arg)
+{
+    __rspq_call_deferred(func, arg, true);
+    rspq_flush();
+}
+
 /** @} */
 
 /* Extern inline instantiations. */
@@ -1107,3 +1116,4 @@ extern inline void rdpq_set_z_image_raw(uint8_t index, uint32_t offset);
 extern inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_format_t format, uint16_t width, uint16_t height);
 extern inline void rdpq_set_lookup_address(uint8_t index, void* rdram_addr);
 extern inline void rdpq_set_tile(rdpq_tile_t tile, tex_format_t format, int16_t tmem_addr,uint16_t tmem_pitch, const rdpq_tileparms_t *parms);
+extern inline void rdpq_call_deferred(void (*func)(void *), void *arg);

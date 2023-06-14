@@ -253,9 +253,10 @@ extern rspq_deferred_call_t *__rspq_defcalls_head;
 extern rspq_deferred_call_t *__rspq_defcalls_tail;
 
 /** @brief Enqueue a new deferred call. */
-void __rspq_call_deferred(void (*func)(void *), void *arg, bool waitrdp);
-/** @brief Notify the deferred list that we have serviced a SYNC_FULL. */
-void __rspq_deferred_rdpsyncfull(int syncpoint_done);
+rspq_syncpoint_t __rspq_call_deferred(void (*func)(void *), void *arg, bool waitrdp);
+
+/** @brief Polls the deferred calls list, calling callbacks ready to be called. */
+bool __rspq_deferred_poll(void);
 
 /** @brief True if we are currently building a block. */
 static inline bool rspq_in_block(void) {

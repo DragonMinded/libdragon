@@ -1421,6 +1421,38 @@ void rdpq_fence(void);
  */
 void rdpq_exec(uint64_t *buffer, int size);
 
+/**
+ * @brief Enqueue a callback that will be called after the RSP and the RDP have
+ *        finished processing all commands enqueued until now.
+ * 
+ * This function is similar to #rspq_call_deferred, but it also guarantees
+ * that the callback is called after the RDP has finished processing all
+ * commands enqueued until now.
+ * 
+ * For example:
+ * 
+ * @code{.c}
+ *      // Draw a green rectangle
+ *      rdpq_mode_set_fill(RGBA(0,255,0,0));
+ *      rdpq_fill_rectangle(10, 10, 100, 100);
+ * 
+ *      // Enqueue a callback. The callback is guaranteed to be called
+ *      // after the RSP has finished prepared the RDP command list for the
+ *      // filled rectangle. It is possible that the RDP would still
+ *      // be processing the rectangle when the callback is called.
+ *      rspq_call_deferred(my_callback1, NULL);
+ * 
+ *      // Enqueue a callback. The callback is guaranteed to be called
+ *      // after the rectangle has been fully drawn to the target buffer, so
+ *      // that for instance the callback could readback the green pixels.
+ *      rdpq_call_deferred(my_callback2, NULL);
+ * @endcode
+ * 
+ * @param func          Callback function to call 
+ * @param arg           Argument to pass to the callback function
+ */
+void rdpq_call_deferred(void (*func)(void *), void *arg);
+
 #ifdef __cplusplus
 }
 #endif
