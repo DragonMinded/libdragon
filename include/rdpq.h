@@ -1040,6 +1040,8 @@ inline void rdpq_set_prim_lod(uint8_t value)
  * see #rdpq_set_prim_lod, #rdpq_set_min_lod or #rdpq_set_prim_color.
  * 
  * @param[in] color             Color to set the PRIM register to
+ * @param[in] minlod            Minimum LOD to set the PRIM register to
+ * @param[in] primlod           Primitive LOD to set the PRIM register to
  * 
  * @see #RDPQ_COMBINER1
  * @see #RDPQ_COMBINER2
