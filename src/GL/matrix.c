@@ -96,7 +96,7 @@ void gl_update_matrix_target(gl_matrix_target_t *target)
 
 void gl_update_matrix_targets()
 {
-    if (state.matrix_palette) {
+    if (state.matrix_palette_enabled) {
         for (uint32_t i = 0; i < MATRIX_PALETTE_SIZE; i++)
         {
             gl_update_matrix_target(&state.palette_matrix_targets[i]);
@@ -162,7 +162,7 @@ void glCurrentPaletteMatrixARB(GLint index)
 
     state.current_palette_matrix = index;
     gl_update_current_matrix_stack();
-    // TODO: RSP state
+    gl_set_palette_ptr(state.matrix_palette + index);
 }
 
 static inline void write_shorts(rspq_write_t *w, const uint16_t *s, uint32_t count)

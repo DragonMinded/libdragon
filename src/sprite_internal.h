@@ -2,10 +2,13 @@
 #define __LIBDRAGON_SPRITE_INTERNAL_H
 
 #include <stdbool.h>
+#include <surface.h>
 
-#define SPRITE_FLAG_NUMLODS           0x0007   ///< Number of LODs (0 = no LODs)
-#define SPRITE_FLAG_HAS_TEXPARMS      0x0008   ///< Sprite contains texture parameters
-#define SPRITE_FLAG_HAS_DETAIL        0x0010   ///< Sprite contains detail texture
+#define SPRITE_FLAG_NUMLODS                 0x0007   ///< Number of LODs, including detail texture if any (0 = no LODs)
+#define SPRITE_FLAG_HAS_TEXPARMS            0x0008   ///< Sprite contains texture parameters
+#define SPRITE_FLAG_HAS_DETAIL              0x0010   ///< Sprite contains detail texture
+#define SPRITE_FLAG_DETAIL_USE_LOD0         0x0020   ///< Detail texture is the same as LOD0 (fractal detailing)
+#define SPRITE_FLAG_DETAIL_HAS_TEXPARMS     0x0040   ///< Detail texture has its own texparms
 
 /** 
  * @brief Internal structure used as additional sprite header
@@ -25,7 +28,7 @@ typedef struct sprite_ext_s {
         uint16_t width;            ///< Width of this LOD
         uint16_t height;           ///< Height of this LOD
         uint32_t fmt_file_pos;     ///< Top 8 bits: format; lowest 24 bits: absolute offset in the file
-    } lods[8];                  ///< Information on the available LODs (0-6 LODs, 7 = detail texture)
+    } lods[7];                  ///< Information on the available LODs (if detail is present, it's always at position 6)
     struct {
         uint16_t flags;             ///< Generic Flags for the sprite
         uint16_t padding;           ///< Padding
@@ -42,11 +45,14 @@ typedef struct sprite_ext_s {
     } texparms;                ///< RDP texture parameters
     /// @brief Detail texture parameters
     struct detail_s {
-        float blend_factor;         ///< Blending factor for the detail texture at maximum zoom (0=hidden, 1=opaque)
+        struct texparms_s texparms;      ///< Detail LOD RDP texture parameters
+        float             blend_factor;  ///< Blending factor for the detail texture at maximum zoom (0=hidden, 1=opaque)
+        bool              use_main_texture; ///< True if the detail texture is the same as the LOD0 of the main texture
+        uint8_t           padding[3];    ///< Padding
     } detail;                    ///< Detail texture parameters
 } sprite_ext_t;
 
-_Static_assert(sizeof(sprite_ext_t) == 104, "invalid sizeof(sprite_ext_t)");
+_Static_assert(sizeof(sprite_ext_t) == 124, "invalid sizeof(sprite_ext_t)");
 
 /** @brief Convert a sprite from the old format with implicit texture format */ 
 bool __sprite_upgrade(sprite_t *sprite);

@@ -1,11 +1,13 @@
 #ifndef RSP_GL_COMMON_INC
 #define RSP_GL_COMMON_INC
 
+    .section .text.mtxmult
+
 .func GL_MtxMult
 GL_MtxMult:
-    #define lhs s0
-    #define rhs s1
-    #define dst s2
+    #define lhs s5
+    #define rhs s6
+    #define dst s7
 
     #define v___         $v01
 
@@ -95,9 +97,11 @@ GL_MtxMultSave:
 
     .endfunc
 
+    .section .text.mtxtransform
+
     .func GL_MtxTransformDouble
 GL_MtxTransformDouble:
-    #define mtx_ptr      s0
+    #define mtx_ptr      s4
 
     #define vmtx0_i      $v19       //  m00 m01 m02 m03
     #define vmtx0_f      $v20

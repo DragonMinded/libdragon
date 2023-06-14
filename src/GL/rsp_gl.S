@@ -21,6 +21,7 @@
         RSPQ_DefineCommand GLCmd_MatrixLoad,    68  # 0xC
         RSPQ_DefineCommand GLCmd_PreInitPipe,   4   # 0xD
         RSPQ_DefineCommand GLCmd_PreInitPipeTex,4   # 0xE
+        RSPQ_DefineCommand GLCmd_SetPalettePtr, 4   # 0xF
     RSPQ_EndOverlayHeader
 
     RSPQ_BeginSavedState
@@ -38,6 +39,7 @@
     GL_STATE_UPLOADED_TEX:  .word   0
     GL_STATE_FILL_COLOR:    .word   0
     GL_STATE_FILL_DEPTH:    .word   0
+    GL_STATE_PALETTE_PTR:   .word   0
     GL_STATE_FB_SIZE:       .half   0, 0
     GL_STATE_DEPTH_FUNC:    .half   0
     GL_STATE_ALPHA_FUNC:    .half   0
@@ -246,6 +248,14 @@ GL_MatrixMarkDirty:
     #undef flag
     #undef cur_flags
 
+GL_GetMatrixIndex:
+    lbu t0, %lo(GL_STATE_MATRIX_MODE) + 1
+    andi t1, t0, GL_MATRIX_PALETTE_ARB
+    bnez t1, JrRa
+    li t1, 3
+    jr ra
+    move t1, t0
+
 GLCmd_MatrixPush:
     j GL_MatrixPushPop
     li t2, DMA_OUT
@@ -259,7 +269,8 @@ GL_MatrixPushPop:
     #define stack_ptr   t3
 
     # Get matrix pointer for the current matrix stack
-    lbu mtx_index, %lo(GL_STATE_MATRIX_MODE) + 1
+    # lbu mtx_index, %lo(GL_STATE_MATRIX_MODE) + 1
+    jal GL_GetMatrixIndex
     sll stack_ptr, mtx_index, 2
     lw s0, %lo(GL_MATRIX_POINTERS)(stack_ptr)
 
@@ -290,18 +301,19 @@ GL_MatrixPushPop:
 GLCmd_MatrixLoad:
     #define multiply    t0
     #define mtx_index   t1
-    #define lhs         s0
-    #define rhs         s1
-    #define dst         s2
+    #define lhs         s5
+    #define rhs         s6
+    #define dst         s7
 
     #define vrhs01_i     $v02
     #define vrhs01_f     $v03
     #define vrhs23_i     $v04
     #define vrhs23_f     $v05
 
-    andi multiply, a0, 1
-    lbu mtx_index, %lo(GL_STATE_MATRIX_MODE) + 1
+    move ra2, ra
+    jal GL_GetMatrixIndex
     addi rhs, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER) - 64
+    andi multiply, a0, 1
     sll dst, mtx_index, 6
     addiu dst, %lo(GL_MATRICES)
 
@@ -314,8 +326,6 @@ GLCmd_MatrixLoad:
     lrv vrhs01_f, 0x30,rhs
     lqv vrhs23_f, 0x30,rhs
     lrv vrhs23_f, 0x40,rhs
-
-    move ra2, ra
 
     beqz multiply, GL_MtxMultSave # skip multiplication if only loading the matrix
     li ra, 1f
@@ -449,6 +459,20 @@ gl_tex_incomplete:
     #undef format
     #undef ra3
 
+    .func GLCmd_SetPalettePtr
+GLCmd_SetPalettePtr:
+    lw s0, %lo(GL_STATE_PALETTE_PTR)
+    and a0, 0xFFFFFF
+    beq a0, s0, JrRa
+    sw a0, %lo(GL_STATE_PALETTE_PTR)
+
+    li s4, %lo(GL_MATRIX_PALETTE)
+    jal DMAOutAsync
+    li t0, DMA_SIZE(MATRIX_SIZE, 1)
+
+    move s0, a0
+    jal_and_j DMAIn, RSPQ_Loop
+    .endfunc
 
     .func GLCmd_PreInitPipe
 GLCmd_PreInitPipe:
@@ -463,16 +487,49 @@ GLCmd_PreInitPipe:
     # Update matrix if required
 
     #define mtx_dirty   t1
-    #define mtx_lhs     s0
-    #define mtx_rhs     s1
-    #define mtx_dst     s2
+    #define mtx_lhs     s5
+    #define mtx_rhs     s6
+    #define mtx_dst     s7
 
+    and t0, state_flags, FLAG_MATRIX_PALETTE
+    beqz t0, 1f
+    lw s0, %lo(GL_STATE_PALETTE_PTR)
+
+    # Write back current palette matrix to the palette storage
+    li s4, %lo(GL_MATRIX_PALETTE)
+    jal DMAOutAsync
+    li t0, DMA_SIZE(MATRIX_SIZE, 1)
+
+    lw s1, %lo(GL_MATRIX_POINTERS) + 0x0C
+    lw s2, %lo(GL_MATRIX_POINTERS) + 0x10
+    li mtx_lhs, %lo(GL_MATRIX_PROJECTION)
+    li mtx_rhs, %lo(GL_MATRIX_PALETTE)
+    li mtx_dst, %lo(GL_MATRIX_MVP)
+    li t3, 0
+    li t4, MATRIX_SIZE * MATRIX_PALETTE_SIZE
+
+    # TODO: Keep dirty flags for the palette matrices
+    # TODO: Load projection matrix into vector regs only once
+gl_matrix_palette_loop:
+    beq t3, t4, 2f
+    move s4, mtx_rhs
+    jal DMAIn
+    add s0, s1, t3
+
+    jal GL_MtxMult
+    move s4, mtx_dst
+
+    add s0, s2, t3
+    addi t3, MATRIX_SIZE
+    jal_and_j DMAOutAsync, gl_matrix_palette_loop
+    
+1:
     and mtx_dirty, state_flags, FLAG_FINAL_MTX_DIRTY
-    beqz mtx_dirty, 1f
+    beqz mtx_dirty, 2f
     li mtx_lhs, %lo(GL_MATRIX_PROJECTION)
     li mtx_rhs, %lo(GL_MATRIX_MODELVIEW)
     jal GL_MtxMult
-    li mtx_dst, %lo(GL_MATRIX_FINAL)
+    li mtx_dst, %lo(GL_MATRIX_MVP)
     and state_flags, ~FLAG_FINAL_MTX_DIRTY
 
     #undef mtx_dirty
@@ -480,7 +537,7 @@ GLCmd_PreInitPipe:
     #undef mtx_rhs
     #undef mtx_dst
 
-1:
+2:
 
     # Determine Culling mode
 

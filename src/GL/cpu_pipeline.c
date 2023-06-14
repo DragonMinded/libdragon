@@ -213,7 +213,7 @@ static uint8_t gl_get_clip_codes(GLfloat *pos, GLfloat *ref)
 
 static gl_matrix_target_t* gl_get_matrix_target(uint8_t mtx_index)
 {
-    if (state.matrix_palette) {
+    if (state.matrix_palette_enabled) {
         return &state.palette_matrix_targets[mtx_index];
     }
 
