@@ -39,11 +39,34 @@ int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t
 
     // If no texparms were provided but the sprite contains some, use them
     rdpq_texparms_t parms_builtin;
+    rdpq_texparms_t detailtexparms;
     if (!parms && sprite_get_texparms(sprite, &parms_builtin))
         parms = &parms_builtin;
 
+    // Check for detail texture
+    surface_t detailsurf = sprite_get_detail_pixels(sprite);
+    bool use_detail = detailsurf.buffer != NULL;
+
     rdpq_tex_multi_begin();
+
+    if(use_detail){
+        float factor = sprite_detail_get_factor(sprite);
+        rdpq_set_min_lod(32 - (factor*32));
+        sprite_get_detail_texparms(sprite, &detailtexparms);
+        if(!sprite_detail_use_main_tex(sprite)){
+           rdpq_tex_upload(tile, &detailsurf, &detailtexparms);
+        }
+
+        tile = (tile+1) & 7;  // If there is a detail texture, we upload the main texture to TILE+1 and detail texture to TILE+0, then any mipmaps if there are any
+    }
+
     rdpq_tex_upload(tile, &surf, parms);
+
+    if(sprite_detail_use_main_tex(sprite)){
+        tile = (tile-1) & 7;
+        rdpq_tex_reuse(tile, &detailtexparms);
+        tile = (tile+1) & 7;
+    }
 
     // Upload mipmaps if any
     int num_mipmaps = 0;
@@ -74,10 +97,18 @@ int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t
     }
 
     // Enable/disable mipmapping
-    if (num_mipmaps)
-        rdpq_mode_mipmap(MIPMAP_INTERPOLATE, num_mipmaps);
+    if (num_mipmaps){
+        if(use_detail){
+            rdpq_mode_mipmap(MIPMAP_INTERPOLATE_DETAIL, num_mipmaps);
+        }
+        else 
+            rdpq_mode_mipmap(MIPMAP_INTERPOLATE, num_mipmaps);
+    }
     else
-        rdpq_mode_mipmap(MIPMAP_NONE, 0);
+        if(use_detail){
+            rdpq_mode_mipmap(MIPMAP_INTERPOLATE_DETAIL, 1);
+        }
+        else rdpq_mode_mipmap(MIPMAP_NONE, 0);
 
     // Upload the palette and configure the render mode
     sprite_upload_palette(sprite, parms ? parms->palette : 0);
