@@ -442,8 +442,8 @@ int rdpq_tex_reuse_sub(rdpq_tile_t tile, const rdpq_texparms_t *parms, int s0, i
     
     int subwidth = s1 - s0, subheight = t1 - t0;
     tmem_offset += tload.rect.tmem_pitch*t0;
+    tload.tile = tile;
     if (parms) {
-        tload.tile = tile;
         tload.texparms = parms;
         tload.rect.width = subwidth;
         tload.rect.height = subheight;
