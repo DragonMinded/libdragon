@@ -53,6 +53,8 @@ int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t
         float factor = sprite_detail_get_factor(sprite);
         rdpq_set_min_lod(32 - (factor*32));
         sprite_get_detail_texparms(sprite, &detailtexparms);
+        detailtexparms.s.translate += parms->s.translate * (1 << (parms->s.scale_log - detailtexparms.s.scale_log));
+        detailtexparms.t.translate += parms->t.translate * (1 << (parms->t.scale_log - detailtexparms.t.scale_log));
         if(!sprite_detail_use_main_tex(sprite)){
            rdpq_tex_upload(tile, &detailsurf, &detailtexparms);
         }
