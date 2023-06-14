@@ -125,6 +125,22 @@ surface_t sprite_get_pixels(sprite_t *sprite);
  */
 surface_t sprite_get_lod_pixels(sprite_t *sprite, int num_level);
 
+/**
+ * @brief Create a surface_t pointing to the contents of a detail texture.
+ * 
+ * This function can be used to access detail texture within a sprite file.
+ * It is useful for sprites created by mksprite containing one.
+ * 
+ * If there isn't a detail texture, the returned surface is 0.
+ * 
+ * Notice that no memory allocations or copies are performed:
+ * the returned surface will point to the sprite contents.
+ * 
+ * @param sprite        The sprite to access
+ * @return surface_t    The surface containing the data.
+ */
+surface_t sprite_get_detail_pixels(sprite_t *sprite);
+
 /** 
  * @brief Return a surface_t pointing to a specific tile of the spritemap.
  * 
@@ -169,6 +185,42 @@ uint16_t* sprite_get_palette(sprite_t *sprite);
  * @return              true if the sprite contain RDP texparms, false otherwise
  */
 bool sprite_get_texparms(sprite_t *sprite, rdpq_texparms_t *parms);
+
+/**
+ * @brief Get a copy of the RDP detail texparms, optionally stored within the sprite.
+ * 
+ * This function allows to obtain the RDP detail texparms structure stored within the
+ * sprite, if any. This structure is used by the RDP to set texture properties
+ * such as wrapping, mirroring, etc. It can be added to the sprite via
+ * the mksprite tool, using the `--texparms` option.
+ * 
+ * @param sprite        The sprite to access
+ * @param parms         The texparms structure to fill
+ * @return              true if the sprite contain RDP texparms, false otherwise
+ */
+bool sprite_get_detail_texparms(sprite_t *sprite, rdpq_texparms_t *parms);
+
+/**
+ * @brief Check if sprite that has a detail texture uses its main texture as one.
+ * 
+ * This function returns whether the detail texture is the same as the main one
+ * for fractal detailing.
+ * 
+ * @param sprite        The sprite to access
+ * @return              true if the sprite's detail texture is the same as the main one, false otherwise
+ */
+bool  sprite_detail_use_main_tex(sprite_t *sprite);
+
+/**
+ * @brief Get the factor of a detail texture in sprite. Range 0..1
+ * 
+ * This function returns the blend factor used in detail texture min lod. 0 means fully
+ * invisible, while 1 means fully visible.
+ * 
+ * @param sprite        The sprite to access
+ * @return              Blend factor if sprite has detail texture, 0 otherwise
+ */
+float sprite_detail_get_factor(sprite_t *sprite);
 
 #ifdef __cplusplus
 }
