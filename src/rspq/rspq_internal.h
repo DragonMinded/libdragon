@@ -249,9 +249,6 @@ typedef struct rspq_deferred_call_s {
     void *next;
 } rspq_deferred_call_t;
 
-extern rspq_deferred_call_t *__rspq_defcalls_head;
-extern rspq_deferred_call_t *__rspq_defcalls_tail;
-
 /** @brief Enqueue a new deferred call. */
 rspq_syncpoint_t __rspq_call_deferred(void (*func)(void *), void *arg, bool waitrdp);
 

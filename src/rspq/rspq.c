@@ -329,6 +329,11 @@ static bool rspq_is_running;
 /** @brief Dummy state used for overlay 0 */
 static uint64_t dummy_overlay_state;
 
+/** @brief Deferred calls: head of list */
+rspq_deferred_call_t *__rspq_defcalls_head;
+/** @brief Deferred calls: tail of list */
+rspq_deferred_call_t *__rspq_defcalls_tail;
+
 static void rspq_flush_internal(void);
 
 /** @brief RSP interrupt handler, used for syncpoints. */
@@ -1132,7 +1137,7 @@ rspq_block_t* rspq_block_end(void)
     return b;
 }
 
-void __rspq_block_free(rspq_block_t *block)
+void rspq_block_free(rspq_block_t *block)
 {
     // Free RDP blocks first
     __rdpq_block_free(block->rdp_block);
@@ -1166,13 +1171,6 @@ void __rspq_block_free(rspq_block_t *block)
         // this is an invalid chunk of a block, better assert.
         assertf(0, "invalid terminator command in block: %08lx\n", cmd);
     }
-}
-
-void rspq_block_free(rspq_block_t *block)
-{
-    // Schedule block free after the RSP has catch up with the queue (in case
-    // the block is still scheduled there).
-    rspq_call_deferred((void(*)(void*))__rspq_block_free, block);
 }
 
 void rspq_block_run(rspq_block_t *block)
