@@ -988,7 +988,7 @@ void rdpq_set_z_image(const surface_t *surface)
         rdpq_set_z_image_raw(0, RDPQ_VALIDATE_DETACH_ADDR);
         return;
     }
-    assertf(surface_get_format(surface) == FMT_RGBA16, "the format of the Z-buffer surface must be RGBA16");
+    assertf(TEX_FORMAT_BITDEPTH(surface_get_format(surface)) == 16, "the format of the Z-buffer surface must be 16-bit (RGBA16, IA16)");
     assertf((PhysicalAddr(surface->buffer) & 63) == 0,
         "buffer pointer is not aligned to 64 bytes, so it cannot be used as RDP Z image");
     rdpq_set_z_image_raw(0, PhysicalAddr(surface->buffer));

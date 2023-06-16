@@ -630,7 +630,7 @@ bool spritemaker_write(spritemaker_t *spr) {
     // Write the sprite header
     // For Z-buffer image, we currently encode them as RGBA16 though that's not really correct.
     tex_format_t img0fmt = spr->images[0].fmt;
-    if (img0fmt == FMT_ZBUF) img0fmt = FMT_RGBA16;
+    if (img0fmt == FMT_ZBUF) img0fmt = FMT_IA16;
     w16(out, spr->images[0].width);
     w16(out, spr->images[0].height);
     w8(out, 0); // deprecated field
