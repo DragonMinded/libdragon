@@ -239,14 +239,15 @@ extern volatile int __rspq_syncpoints_done;
 /** @brief Flag to mark deferred calls that needs to wait for RDP SYNC_FULL */
 #define RSPQ_DCF_WAITRDP                 (1<<0)
 
+/** @brief A call deferred for execution after RSP reaches a certain syncpoint */
 typedef struct rspq_deferred_call_s {
     union {
-        void (*func)(void *arg);
-        uint32_t flags;
+        void (*func)(void *arg);        ///< Function to call
+        uint32_t flags;                 ///< Flags (see RSPQ_DCF_*) -- used last 2 bits
     };
-    void *arg;
-    rspq_syncpoint_t sync;
-    void *next;
+    void *arg;                          ///< Argument to pass to the function
+    rspq_syncpoint_t sync;              ///< Syncpoint to wait for
+    void *next;                         ///< Next deferred call (linked list)
 } rspq_deferred_call_t;
 
 /** @brief Enqueue a new deferred call. */

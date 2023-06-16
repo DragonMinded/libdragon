@@ -1264,28 +1264,6 @@ void rspq_syncpoint_wait(rspq_syncpoint_t sync_id)
     }
 }
 
-// Called on a SYNC_FULL. syncpoint_done is the value of "__rspq_syncpoints_done"
-// at the time the SYNC_FULL was run in the RSP queue.
-void __rspq_deferred_rdpsyncfull(int syncpoint_done)
-{
-    // Go through the list of deferred calls, which is chronologically sorted.
-    for (rspq_deferred_call_t *cur = __rspq_defcalls_head; cur != NULL; cur = cur->next) {
-        // We need to process all deferred calls associated with a syncpoint
-        // that was enqueued before the SYNC_FULL we are processing now. That is,
-        // whose syncpoint is lower than the syncpoint at the moment of SYNC_FULL.
-        // Once we reach a syncpoint that was enqueued after SYNC_FULL, we can
-        // stop processing.
-        int difference = (int)((uint32_t)(cur->sync) - (uint32_t)(syncpoint_done));
-        if (difference > 0)
-            break;
-
-        // If this call was waiting for a RDP to be done (SYNC_FULL), we can
-        // mark it as such now.
-        if (cur->flags & RSPQ_DCF_WAITRDP)
-            cur->flags &= ~RSPQ_DCF_WAITRDP;
-    }
-}
-
 /**
  * @brief Polls the deferred calls list, calling callbacks ready to be called.
  * 
