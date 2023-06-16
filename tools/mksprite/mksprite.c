@@ -26,13 +26,15 @@
 #include "surface.h"
 #include "sprite.h"
 
+#define FMT_ZBUF   64
+
 #define ROUND_UP(n, d) ({ \
 	typeof(n) _n = n; typeof(d) _d = d; \
 	(((_n) + (_d) - 1) / (_d) * (_d)); \
 })
 
 const char* tex_format_name(tex_format_t fmt) {
-    switch (fmt) {
+    switch ((int)fmt) {
     case FMT_NONE: return "AUTO";
     case FMT_RGBA32: return "RGBA32";
     case FMT_RGBA16: return "RGBA16";
@@ -43,6 +45,7 @@ const char* tex_format_name(tex_format_t fmt) {
     case FMT_IA16: return "IA16";
     case FMT_IA8: return "IA8";
     case FMT_IA4: return "IA4";
+    case FMT_ZBUF: return "ZBUF";
     default: assert(0); return ""; // should not happen
     }
 }
@@ -57,6 +60,7 @@ tex_format_t tex_format_from_name(const char *name) {
     if (!strcasecmp(name, "CI4"))    return FMT_CI4;
     if (!strcasecmp(name, "I4"))     return FMT_I4;
     if (!strcasecmp(name, "IA4"))    return FMT_IA4;
+    if (!strcasecmp(name, "ZBUF"))   return FMT_ZBUF;
     return FMT_NONE;
 }
 
@@ -129,7 +133,7 @@ bool flag_verbose = false;
 bool flag_debug = false;
 
 void print_supported_formats(void) {
-    fprintf(stderr, "Supported formats: AUTO, RGBA32, RGBA16, IA16, CI8, I8, IA8, CI4, I4, IA4\n");
+    fprintf(stderr, "Supported formats: AUTO, RGBA32, RGBA16, IA16, CI8, I8, IA8, CI4, I4, IA4, ZBUF\n");
 }
 
 void print_supported_mipmap(void) {
@@ -171,6 +175,18 @@ void print_args( char * name )
 uint16_t conv_rgb5551(uint8_t r8, uint8_t g8, uint8_t b8, uint8_t a8) {
     uint16_t r=r8>>3, g=g8>>3, b=b8>>3, a=a8?1:0;
     return (r<<11) | (g<<6) | (b<<1) | a;
+}
+
+// Convert a 18-bit fixed point 0.15.3 into floating point 14-bit.
+uint16_t conv_float14(uint32_t fx) {
+    if (!(fx & 0x20000)) return (0<<11) | ((fx >> 6) & 0x7FF);
+    if (!(fx & 0x10000)) return (1<<11) | ((fx >> 5) & 0x7FF);
+    if (!(fx & 0x08000)) return (2<<11) | ((fx >> 4) & 0x7FF);
+    if (!(fx & 0x04000)) return (3<<11) | ((fx >> 3) & 0x7FF);
+    if (!(fx & 0x02000)) return (4<<11) | ((fx >> 2) & 0x7FF);
+    if (!(fx & 0x01000)) return (5<<11) | ((fx >> 1) & 0x7FF);
+    if (!(fx & 0x00800)) return (6<<11) | ((fx >> 0) & 0x7FF);
+                         return (7<<11) | ((fx >> 0) & 0x7FF);
 }
 
 int calc_tmem_usage(tex_format_t fmt, int width, int height)
@@ -292,7 +308,7 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
 
     // Setup the info_raw structure with the desired pixel conversion,
     // depending on the output format.
-    switch (fmt) {
+    switch ((int)fmt) {
     case FMT_RGBA32: case FMT_RGBA16:
         // PNG does not support RGBA555 (aka RGBA16), so just convert
         // to 32-bit version we will downscale later.
@@ -325,6 +341,10 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
     case FMT_I8: case FMT_I4:
         state.info_raw.colortype = LCT_GREY;
         state.info_raw.bitdepth = 8;
+        break;
+    case FMT_ZBUF:
+        state.info_raw.colortype = LCT_GREY;
+        state.info_raw.bitdepth = 16;
         break;
     case FMT_IA16: case FMT_IA8: case FMT_IA4:
         state.info_raw.colortype = LCT_GREY_ALPHA;
@@ -369,7 +389,7 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
         if (flag_verbose)
             printf("palette: %d colors (used: %d)\n", palout->num_colors, palout->used_colors);
     }
-    if (state.info_raw.colortype == LCT_GREY) {
+    if (state.info_raw.colortype == LCT_GREY && state.info_raw.bitdepth <= 8) {
         bool used[256] = {0};
         palout->used_colors = 0;
         for (int i=0; i < width*height; i++) {
@@ -438,7 +458,8 @@ void spritemaker_calc_lods(spritemaker_t *spr, int algo) {
         tmem_usage += calc_tmem_usage(spr->images[7].fmt, spr->images[7].width, spr->images[7].height);
     }
     if (tmem_usage > tmem_limit) {
-        fprintf(stderr, "WARNING: image does not fit in TMEM; are you sure you want to have mipmaps for this?");
+        fprintf(stderr, "ERROR: image does not fit in TMEM, no mipmaps will be calculated\n");
+        return;
     }
 
     int maxlevels = MAX_IMAGES;
@@ -451,7 +472,7 @@ void spritemaker_calc_lods(spritemaker_t *spr, int algo) {
         tmem_usage += calc_tmem_usage(spr->images[0].fmt, mw, mh);
         if (tmem_usage > tmem_limit) {
             if (flag_verbose)
-                printf("mipmap: stopping because TMEM full (%d)", tmem_usage);
+                printf("mipmap: stopping because TMEM full (%d)\n", tmem_usage);
             break;
         }
         uint8_t *mipmap = NULL;
@@ -472,6 +493,7 @@ void spritemaker_calc_lods(spritemaker_t *spr, int algo) {
             }
             break;
         case LCT_GREY:
+            assert(prev->fmt == FMT_I8);  // only I8 supported for now
             mipmap = malloc(mw * mh);
             for (int y=0;y<mh;y++) {
                 uint8_t *src1 = prev->image + y*prev->width*2;
@@ -606,11 +628,13 @@ bool spritemaker_write(spritemaker_t *spr) {
     }
 
     // Write the sprite header
-    int bpp = tex_format_bytes_per_pixel(spr->images[0].fmt);
+    // For Z-buffer image, we currently encode them as RGBA16 though that's not really correct.
+    tex_format_t img0fmt = spr->images[0].fmt;
+    if (img0fmt == FMT_ZBUF) img0fmt = FMT_RGBA16;
     w16(out, spr->images[0].width);
     w16(out, spr->images[0].height);
     w8(out, 0); // deprecated field
-    w8(out, (uint8_t)(spr->images[0].fmt | SPRITE_FLAGS_EXT));
+    w8(out, (uint8_t)(img0fmt | SPRITE_FLAGS_EXT));
     w8(out, spr->hslices);
     w8(out, spr->vslices);
 
@@ -629,7 +653,7 @@ bool spritemaker_write(spritemaker_t *spr) {
             w32_at(out, w_lodpos[m-1], xpos);
         }
 
-        switch (image->fmt) {
+        switch ((int)image->fmt) {
         case FMT_RGBA16: {
             assert(image->ct == LCT_RGBA);
             // Convert to 16-bit RGB5551 format.
@@ -698,10 +722,26 @@ bool spritemaker_write(spritemaker_t *spr) {
             break;
         }
 
-        default:
+        case FMT_ZBUF: {
+            assert(image->ct == LCT_GREY);
+            uint8_t *img = image->image;
+            for (int j=0; j<image->height; j++) {
+                for (int i=0; i<image->width; i++) {
+                    uint32_t Z0 = (img[0] << 8) | img[1]; img += 2;
+                    Z0 <<= 2; // Convert into 0.15.3
+                    uint16_t FZ0 = conv_float14(Z0) << 2;
+                    w16(out, FZ0);
+                }
+            }
+            break;
+        }
+
+        default: {
             // No further conversion needed. Used for: RGBA32, IA16, CI8, I8.
+            int bpp = tex_format_bytes_per_pixel(spr->images[0].fmt);
             fwrite(image->image, 1, image->width*image->height*bpp, out);
             break;
+        }
         }
 
         // Padding to force alignment of every image
