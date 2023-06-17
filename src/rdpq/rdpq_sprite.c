@@ -44,18 +44,19 @@ int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t
         parms = &parms_builtin;
 
     // Check for detail texture
-    surface_t detailsurf = sprite_get_detail_pixels(sprite);
+    sprite_detail_t detailinfo;
+    sprite_get_detail_texparms(sprite, &detailtexparms);
+    surface_t detailsurf = sprite_get_detail_pixels(sprite, &detailinfo);
     bool use_detail = detailsurf.buffer != NULL;
 
     rdpq_tex_multi_begin();
 
     if(use_detail){
-        float factor = sprite_detail_get_factor(sprite);
-        rdpq_set_min_lod(32 - (factor*32));
-        sprite_get_detail_texparms(sprite, &detailtexparms);
+        float factor = detailinfo.blend_factor;
+        rdpq_set_min_lod_frac(255*factor);
         detailtexparms.s.translate += parms->s.translate * (1 << (parms->s.scale_log - detailtexparms.s.scale_log));
         detailtexparms.t.translate += parms->t.translate * (1 << (parms->t.scale_log - detailtexparms.t.scale_log));
-        if(!sprite_detail_use_main_tex(sprite)){
+        if(!detailinfo.use_main_tex){
            rdpq_tex_upload(tile, &detailsurf, &detailtexparms);
         }
 
@@ -64,7 +65,7 @@ int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t
 
     rdpq_tex_upload(tile, &surf, parms);
 
-    if(sprite_detail_use_main_tex(sprite)){
+    if(detailinfo.use_main_tex){
         tile = (tile-1) & 7;
         rdpq_tex_reuse(tile, &detailtexparms);
         tile = (tile+1) & 7;
