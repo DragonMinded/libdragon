@@ -128,7 +128,7 @@ surface_t sprite_get_detail_pixels(sprite_t *sprite, sprite_detail_t *info) {
     if(info){
         info->use_main_tex = sx->flags & SPRITE_FLAG_DETAIL_USE_LOD0;
         info->blend_factor = sx->detail.blend_factor;
-    }
+    } 
 
     if((sx->flags & SPRITE_FLAG_DETAIL_USE_LOD0))
         return sprite_get_lod_pixels(sprite, 0);
