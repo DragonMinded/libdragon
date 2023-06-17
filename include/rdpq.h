@@ -954,7 +954,7 @@ inline void rdpq_set_blend_color(color_t color)
  * the color combiner (typicall, via #rdpq_mode_combiner).
  * 
  * If you wish to set PRIM LOD or PRIM MIN LOD values of the PRIM register,
- * see #rdpq_set_prim_lod, #rdpq_set_min_lod or #rdpq_set_prim_register_raw.
+ * see #rdpq_set_prim_lod_frac, #rdpq_set_min_lod_frac or #rdpq_set_prim_register_raw.
  * 
  * @param[in] color             Color to set the PRIM register to
  * 
@@ -962,8 +962,8 @@ inline void rdpq_set_blend_color(color_t color)
  * @see #RDPQ_COMBINER2
  * @see #rdpq_set_env_color
  * @see #rdpq_mode_combiner
- * @see #rdpq_set_prim_lod
- * @see #rdpq_set_min_lod
+ * @see #rdpq_set_prim_lod_frac
+ * @see #rdpq_set_min_lod_frac
  * @see #rdpq_set_prim_register_raw
  * 
  */
@@ -1008,14 +1008,14 @@ inline void rdpq_set_min_lod_frac(uint8_t value)
  * See #RDPQ_COMBINER1 and #RDPQ_COMBINER2 on how to configure
  * the color combiner (typicall, via #rdpq_mode_combiner).
  * 
- * If you wish to set PRIM MIN LOD value, see #rdpq_set_min_lod.
+ * If you wish to set PRIM MIN LOD value, see #rdpq_set_min_lod_frac.
  * 
  * @param[in] value             Value to set the PRIM LOD register to in range [0..255]
  * 
  * @see #RDPQ_COMBINER1
  * @see #RDPQ_COMBINER2
  * @see #rdpq_mode_combiner
- * @see #rdpq_set_min_lod
+ * @see #rdpq_set_min_lod_frac
  * 
  */
 inline void rdpq_set_prim_lod_frac(uint8_t value)
@@ -1033,7 +1033,7 @@ inline void rdpq_set_prim_lod_frac(uint8_t value)
  * can be used in custom color combiner formulas. 
  * 
  * It also sets the PRIM LOD FRAC and PRIM MIN LOD FRAC values for the PRIM register
- * For more information, see #rdpq_set_prim_lod, #rdpq_set_min_lod.
+ * For more information, see #rdpq_set_prim_lod_frac, #rdpq_set_min_lod_frac.
  * 
  * Another similar blender register is the ENV register, configured via
  * #rdpq_set_env_color.
@@ -1042,7 +1042,7 @@ inline void rdpq_set_prim_lod_frac(uint8_t value)
  * the color combiner (typicall, via #rdpq_mode_combiner).
  * 
  * If you wish to set PRIM COLOR or PRIM LOD or PRIM MIN LOD values individually,
- * see #rdpq_set_prim_lod, #rdpq_set_min_lod or #rdpq_set_prim_color.
+ * see #rdpq_set_prim_lod_frac, #rdpq_set_min_lod_frac or #rdpq_set_prim_color.
  * 
  * @param[in] color             Color to set the PRIM register to
  * @param[in] minlod            Minimum LOD fraction to set the PRIM register to
@@ -1052,8 +1052,8 @@ inline void rdpq_set_prim_lod_frac(uint8_t value)
  * @see #RDPQ_COMBINER2
  * @see #rdpq_set_env_color
  * @see #rdpq_set_prim_color
- * @see #rdpq_set_prim_lod
- * @see #rdpq_set_min_lod
+ * @see #rdpq_set_prim_lod_frac
+ * @see #rdpq_set_min_lod_frac
  * 
  */
 inline void rdpq_set_prim_register_raw(color_t color, uint8_t minlod, uint8_t primlod)
