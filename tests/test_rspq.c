@@ -832,15 +832,11 @@ void test_rspq_deferred_call(TestContext *ctx)
     data_cache_hit_writeback_invalidate(actual_sum, 16);
     int value = 0;
 
-    int dumpers[1024]; int didx = 0;
-
     void cb1(void* expectedp) {
         ++num_call_found;
         int exp = (int)expectedp;
         volatile uint64_t cur_counter = actual_sum[0];
         data_cache_hit_writeback_invalidate(actual_sum, 16);
-        dumpers[didx++] = cur_counter;
-        dumpers[didx++] = exp;
         ASSERT(cur_counter >= exp, "invalid sequence for deferred call (expected %d, got %d)", exp, (int)cur_counter);
     }
 
@@ -873,10 +869,6 @@ void test_rspq_deferred_call(TestContext *ctx)
     rspq_wait();
     if (ctx->result == TEST_FAILED)
         return;
-
-    for (int i=0;i<didx;i+=2) {
-        debugf("%d %d\n", dumpers[i], dumpers[i+1]);
-    }
 
     ASSERT_EQUAL_UNSIGNED(num_call_found, num_call_expected, "invalid number of deferred calls");
 }
