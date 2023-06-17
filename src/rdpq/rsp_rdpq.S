@@ -84,10 +84,14 @@
     .align 4
     RSPQ_BeginSavedState
 RDPQ_SYNCFULL:          .quad  0   # Last syncfull command (includes callback). NOTE: this must stay as first variable in the state
+RDPQ_SYNCPOINT_ID:      .long  0   # Syncpoint ID for the last syncfull command
+_PADDING:               .long  0
+
+RDPQ_RDRAM_STATE_ADDR:      .word  0
+RDPQ_RDRAM_SYNCPOINT_ADDR:  .word  0
 
 RDPQ_ADDRESS_TABLE:     .ds.l  RDPQ_ADDRESS_TABLE_SIZE
 
-RDPQ_RDRAM_STATE_ADDR:  .word  0
 RDPQ_AUTOTMEM_ADDR:     .half  0
 RDPQ_AUTOTMEM_LIMIT:    .half  0
 RDPQ_AUTOTMEM_ENABLED:  .byte  0
@@ -418,24 +422,36 @@ RDPQ_FixupAddress:
     #############################################################
     .func RDPQCmd_SyncFull
 RDPQCmd_SyncFull:
-    # Wait until the previous SYNC_FULL interrupt has been processed.
+    # Wait until:
+    #  * the previous SYNC_FULL interrupt has been processed by the CPU.
+    #  * any pending RSP interrupt for checkpoint has been processed by the CPU.
+    # We need to wait for checkpoints so that we can fetch the correct checkpoint ID,
+    # which in turn is necessary for implementing rdpq_call_deferred.
     jal SpStatusWait
-    li t2, SP_STATUS_SIG_RDPSYNCFULL
+    li t2, SP_STATUS_SIG_RDPSYNCFULL | SP_STATUS_SIG_SYNCPOINT
+
+    # Fetch the current syncpoint ID and put it into the state
+    lw s0, %lo(RDPQ_RDRAM_SYNCPOINT_ADDR)
+    li s4, %lo(RDPQ_SYNCPOINT_ID)
+    jal DMAIn
+    li t0, DMA_SIZE(8, 1)
 
     # Set the signal because we're about to schedule a new SYNC_FULL
     li t0, SP_WSTATUS_SET_SIG_RDPSYNCFULL
     mtc0 t0, COP0_SP_STATUS
 
-    # Store the current SYNC_FULL command in the state and DMA it to RDRAM.
-    # This includes the interrupt callback that the CPU will have to run.
+    # Store the current SYNC_FULL command in the state. This includes the
+    # interrupt callback that the CPU will have to run.
     sw a0, %lo(RDPQ_SYNCFULL) + 0
     sw a1, %lo(RDPQ_SYNCFULL) + 4
+    
+    # DMA the command plus the syncpoint ID it to RDRAM.
     li s4, %lo(RDPQ_SYNCFULL)
     lw s0, %lo(RDPQ_RDRAM_STATE_ADDR)
     jal DMAOut
-    li t0, DMA_SIZE(8, 1)
+    li t0, DMA_SIZE(16, 1)
 
-    # FIXME: optimize this
+    # Actually send the SYNC_FULL command to the RDP
     jal RDPQ_Write8
     nop
     li s4, %lo(RDPQ_CMD_STAGING)
@@ -444,6 +460,10 @@ RDPQCmd_SyncFull:
     jal RDPQ_Send
     sb zero, %lo(RDPQ_SYNCFULL_ONGOING)
 
+    # Put futher command writing on hold. By setting RDPQ_SYNCFULL_ONGOING, 
+    # we prevent further calls to RDPQ_Send / RSPQCmd_RdpSetBuffer / RSPQCmd_RdpAppendBuffer
+    # to actually start a new RDP DMA transfer, until the SYNC_FULL is done.
+    # This is done to avoid a hardware bug.
     li t0, DP_STATUS_BUSY
     sb t0, %lo(RDPQ_SYNCFULL_ONGOING)
 

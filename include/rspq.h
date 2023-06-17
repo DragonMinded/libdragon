@@ -631,8 +631,34 @@ void rspq_wait(void);
  *       in the same order they have been created.
  * 
  * @see #rspq_syncpoint_t
+ * @see #rspq_syncpoint_new_cb
  */
 rspq_syncpoint_t rspq_syncpoint_new(void);
+
+/**
+ * @brief Create a syncpoint in the queue that triggers a callback on the CPU.
+ * 
+ * This function is similar to #rspq_syncpoint_new: it creates a new "syncpoint"
+ * that references the current position in the queue. When the RSP reaches
+ * the syncpoint, it notifies the CPU, that will invoke the provided callback
+ * function.
+ * 
+ * The callback function will be called *outside* of the interrupt context, so
+ * that it is safe for instance to call into most the standard library.
+ * 
+ * The callback function is guaranteed to be called after the RSP has reached
+ * the syncpoint, but there is no guarantee on "how much" after. In general
+ * the callbacks will be treated as "lower priority" by rspq, so they will
+ * be called in best effort.
+ * 
+ * @param func          Callback function to call when the syncpoint is reached
+ * @param arg           Argument to pass to the callback function
+ * @return rspq_syncpoint_t     ID of the just-created syncpoint.
+ * 
+ * @see #rspq_syncpoint_t
+ * @see #rspq_syncpoint_new
+ */
+rspq_syncpoint_t rspq_syncpoint_new_cb(void (*func)(void *), void *arg);
 
 /**
  * @brief Check whether a syncpoint was reached by RSP or not.
@@ -662,6 +688,32 @@ bool rspq_syncpoint_check(rspq_syncpoint_t sync_id);
  */
 void rspq_syncpoint_wait(rspq_syncpoint_t sync_id);
 
+/**
+ * @brief Enqueue a callback to be called by the CPU
+ * 
+ * This function enqueues a callback that will be called by the CPU when
+ * the RSP has finished all commands put in the queue until now.
+ * 
+ * An example of a use case for this function is to free resources such as
+ * rspq blocks that are no longer needed, but that you want to make sure that
+ * are not referenced anymore by the RSP.
+ * 
+ * See also #rdpq_call_deferred that, in addition to waiting for RSP, it also
+ * waits for RDP to process all pending commands before calling the callback.
+ * 
+ * @note DO NOT CALL RSPQ FUNCTIONS INSIDE THE CALLBACK (including enqueueing
+ *       new rspq commands). This might cause a deadlock or corruption, and it
+ *       is not supported.
+ * 
+ * @param func      Callback function
+ * @param arg       Argument to pass to the callback
+ * 
+ * @see #rdpq_call_deferred
+ */
+inline void rspq_call_deferred(void (*func)(void *), void *arg) {
+    rspq_syncpoint_new_cb(func, arg);
+    rspq_flush();
+}
 
 /**
  * @brief Begin creating a new block.
@@ -722,7 +774,13 @@ void rspq_block_run(rspq_block_t *block);
  * @brief Free a block that is not needed any more.
  * 
  * After calling this function, the block is invalid and must not be called
- * anymore.
+ * anymore. Notice that a block that was recently run via #rspq_block_run
+ * might still be referenced in the RSP queue, and in that case it is invalid
+ * to free it before the RSP has processed it. 
+ * 
+ * In this case, you must free it once you are absolutely sure that the RSP
+ * has processed it (eg: at the end of a frame), or use #rspq_call_deferred 
+ * or #rdpq_call_deferred, that handle the synchronization for you. 
  * 
  * @param  block  The block
  * 

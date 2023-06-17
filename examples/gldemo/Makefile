@@ -22,7 +22,7 @@ gldemo.z64: N64_ROM_TITLE="GL Demo"
 gldemo.z64: $(BUILD_DIR)/gldemo.dfs
 
 clean:
-	rm -rf $(BUILD_DIR) gldemo.z64
+	rm -rf $(BUILD_DIR) filesystem/ gldemo.z64
 
 -include $(wildcard $(BUILD_DIR)/*.d)
 

@@ -587,19 +587,19 @@ void __gl_mtx_index(GLenum type, const void *value, uint32_t size)
     func(enumtype, tmp, __COUNT_VARARGS(__VA_ARGS__)); \
 })
 
-void glVertex2sv(const GLshort *v)  { __gl_vertex(GL_FLOAT,   v, 2); }
-void glVertex2iv(const GLint *v)    { __gl_vertex(GL_SHORT,   v, 2); }
-void glVertex2fv(const GLfloat *v)  { __gl_vertex(GL_INT,     v, 2); }
+void glVertex2sv(const GLshort *v)  { __gl_vertex(GL_SHORT,   v, 2); }
+void glVertex2iv(const GLint *v)    { __gl_vertex(GL_INT,     v, 2); }
+void glVertex2fv(const GLfloat *v)  { __gl_vertex(GL_FLOAT,   v, 2); }
 void glVertex2dv(const GLdouble *v) { __gl_vertex(GL_DOUBLE,  v, 2); }
 
-void glVertex3sv(const GLshort *v)  { __gl_vertex(GL_FLOAT,   v, 3); }
-void glVertex3iv(const GLint *v)    { __gl_vertex(GL_SHORT,   v, 3); }
-void glVertex3fv(const GLfloat *v)  { __gl_vertex(GL_INT,     v, 3); }
+void glVertex3sv(const GLshort *v)  { __gl_vertex(GL_SHORT,   v, 3); }
+void glVertex3iv(const GLint *v)    { __gl_vertex(GL_INT,     v, 3); }
+void glVertex3fv(const GLfloat *v)  { __gl_vertex(GL_FLOAT,   v, 3); }
 void glVertex3dv(const GLdouble *v) { __gl_vertex(GL_DOUBLE,  v, 3); }
 
-void glVertex4sv(const GLshort *v)  { __gl_vertex(GL_FLOAT,   v, 4); }
-void glVertex4iv(const GLint *v)    { __gl_vertex(GL_SHORT,   v, 4); }
-void glVertex4fv(const GLfloat *v)  { __gl_vertex(GL_INT,     v, 4); }
+void glVertex4sv(const GLshort *v)  { __gl_vertex(GL_SHORT,   v, 4); }
+void glVertex4iv(const GLint *v)    { __gl_vertex(GL_INT,     v, 4); }
+void glVertex4fv(const GLfloat *v)  { __gl_vertex(GL_FLOAT,   v, 4); }
 void glVertex4dv(const GLdouble *v) { __gl_vertex(GL_DOUBLE,  v, 4); }
 
 void glVertex2s(GLshort x, GLshort y)                           { __ATTR_IMPL(__gl_vertex, GLshort,  GL_SHORT,   x, y); }
