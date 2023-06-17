@@ -818,3 +818,65 @@ void test_rspq_rdp_dynamic_switch(TestContext *ctx)
         ASSERT_EQUAL_HEX(rdp_buf1[i], i + full_count, "Wrong command at idx: %llx", i);
     }
 }
+
+
+void test_rspq_deferred_call(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+    test_ovl_init();
+
+    int num_call_expected = 0;
+    int num_call_found = 0;
+
+    uint64_t actual_sum[2] __attribute__((aligned(16))) = {0};
+    data_cache_hit_writeback_invalidate(actual_sum, 16);
+    int value = 0;
+
+    int dumpers[1024]; int didx = 0;
+
+    void cb1(void* expectedp) {
+        ++num_call_found;
+        int exp = (int)expectedp;
+        volatile uint64_t cur_counter = actual_sum[0];
+        data_cache_hit_writeback_invalidate(actual_sum, 16);
+        dumpers[didx++] = cur_counter;
+        dumpers[didx++] = exp;
+        ASSERT(cur_counter >= exp, "invalid sequence for deferred call (expected %d, got %d)", exp, (int)cur_counter);
+    }
+
+    rspq_test_reset();
+
+    SRAND(123);
+    for (int i=0;i<1000;i++) {
+        switch (RANDN(8)) {
+        case 0: case 1: case 2: {
+            rspq_test_4(1); value+=1;
+        }   break;
+        case 3: {
+            rspq_test_output(actual_sum);
+            rspq_syncpoint_new_cb(cb1, (void*)value);
+            num_call_expected++;
+        }   break;
+        case 4: case 5: {
+            int count = RANDN(RSPQ_DRAM_LOWPRI_BUFFER_SIZE / 16);
+            for (int j=0;j<count;j++)
+                rspq_noop();
+        }   break;
+        case 6: case 7: {
+            rspq_flush();
+        }
+        }
+        if (ctx->result == TEST_FAILED)
+            return;
+    }
+
+    rspq_wait();
+    if (ctx->result == TEST_FAILED)
+        return;
+
+    for (int i=0;i<didx;i+=2) {
+        debugf("%d %d\n", dumpers[i], dumpers[i+1]);
+    }
+
+    ASSERT_EQUAL_UNSIGNED(num_call_found, num_call_expected, "invalid number of deferred calls");
+}
