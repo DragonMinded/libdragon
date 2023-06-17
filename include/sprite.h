@@ -59,6 +59,30 @@ typedef struct sprite_s
     uint32_t data[0];
 } sprite_t;
 
+/** 
+ * @brief Sprite detail texture information structure.
+ * 
+ * A "detail texture" is a 2D image with metadata attached to it 
+ * to increase the perceived resolution of the main sprite when rendering
+ * with little to no additional TMEM usage.
+ * 
+ * If the sprite uses a detail texture, its information can be retreived
+ * using the #sprite_get_detail_pixels function.
+ * 
+ * To include a detail texture to libdragon's sprite format, use
+ * the mksprite tool with --detail argument. 
+ * 
+ * #rdpq_sprite_upload automatically uploads detail textures accosiated with
+ * the sprite.
+ */
+typedef struct sprite_detail_s
+{
+    /** @brief Is the detail texture the same as the main surface of the sprite, used for fractal detailing */
+    bool            use_main_tex;
+    /** @brief Blend factor of the detail texture in range of 0 to 1 */
+    float           blend_factor;
+} sprite_detail_t;
+
 #define SPRITE_FLAGS_TEXFORMAT     0x1F  ///< Pixel format of the sprite
 #define SPRITE_FLAGS_EXT           0x80  ///< Sprite contains extended information (new format)
 
@@ -133,13 +157,18 @@ surface_t sprite_get_lod_pixels(sprite_t *sprite, int num_level);
  * 
  * If there isn't a detail texture, the returned surface is 0.
  * 
+ * Additional detail information such as factor or texparms are accessible 
+ * through the filled sprite_detail_t structure.
+ * If you don't wish to use this information, pass NULL to the info argument.
+ * 
  * Notice that no memory allocations or copies are performed:
  * the returned surface will point to the sprite contents.
  * 
  * @param sprite        The sprite to access
+ * @param info          The detail information struct to fill if needed
  * @return surface_t    The surface containing the data.
  */
-surface_t sprite_get_detail_pixels(sprite_t *sprite);
+surface_t sprite_get_detail_pixels(sprite_t *sprite, sprite_detail_t *info);
 
 /** 
  * @brief Return a surface_t pointing to a specific tile of the spritemap.
@@ -187,9 +216,9 @@ uint16_t* sprite_get_palette(sprite_t *sprite);
 bool sprite_get_texparms(sprite_t *sprite, rdpq_texparms_t *parms);
 
 /**
- * @brief Get a copy of the RDP detail texparms, optionally stored within the sprite.
+ * @brief Get a copy of the RDP detail texture's texparms, optionally stored within the sprite.
  * 
- * This function allows to obtain the RDP detail texparms structure stored within the
+ * This function allows to obtain the RDP detail texture's texparms structure stored within the
  * sprite, if any. This structure is used by the RDP to set texture properties
  * such as wrapping, mirroring, etc. It can be added to the sprite via
  * the mksprite tool, using the `--texparms` option.
@@ -199,28 +228,6 @@ bool sprite_get_texparms(sprite_t *sprite, rdpq_texparms_t *parms);
  * @return              true if the sprite contain RDP texparms, false otherwise
  */
 bool sprite_get_detail_texparms(sprite_t *sprite, rdpq_texparms_t *parms);
-
-/**
- * @brief Check if sprite that has a detail texture uses its main texture as one.
- * 
- * This function returns whether the detail texture is the same as the main one
- * for fractal detailing.
- * 
- * @param sprite        The sprite to access
- * @return              true if the sprite's detail texture is the same as the main one, false otherwise
- */
-bool  sprite_detail_use_main_tex(sprite_t *sprite);
-
-/**
- * @brief Get the factor of a detail texture in sprite. Range 0..1
- * 
- * This function returns the blend factor used in detail texture min lod. 0 means fully
- * invisible, while 1 means fully visible.
- * 
- * @param sprite        The sprite to access
- * @return              Blend factor if sprite has detail texture, 0 otherwise
- */
-float sprite_detail_get_factor(sprite_t *sprite);
 
 #ifdef __cplusplus
 }
