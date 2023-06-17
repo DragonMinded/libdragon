@@ -186,7 +186,7 @@ uint16_t conv_float14(uint32_t fx) {
     if (!(fx & 0x02000)) return (4<<11) | ((fx >> 2) & 0x7FF);
     if (!(fx & 0x01000)) return (5<<11) | ((fx >> 1) & 0x7FF);
     if (!(fx & 0x00800)) return (6<<11) | ((fx >> 0) & 0x7FF);
-                         return (7<<11) | ((fx >> 0) & 0x7FF);
+    if (true)            return (7<<11) | ((fx >> 0) & 0x7FF);
 }
 
 int calc_tmem_usage(tex_format_t fmt, int width, int height)
