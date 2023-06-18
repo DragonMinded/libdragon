@@ -6,6 +6,7 @@
 
 typedef struct surface_s surface_t;
 typedef struct sprite_s sprite_t;
+typedef struct rdpq_texparms_s rdpq_texparms_t;
 
 #include <GL/gl_enums.h>
 
@@ -19,6 +20,7 @@ typedef struct sprite_s sprite_t;
 #define GL_ARB_vertex_array_object      1
 #define GL_ARB_matrix_palette           1
 #define GL_N64_RDPQ_interop             1
+#define GL_N64_surface_image            1
 
 /* Data types */
 
@@ -414,8 +416,8 @@ void glTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, G
 void glCopyTexSubImage1D(GLenum target, GLint level, GLint xoffset, GLint x, GLint y, GLint width);
 void glCopyTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height);
 
-void glTexImageN64(GLenum target, GLint level, const surface_t *surface);
-void glTexSpriteN64(GLenum target, sprite_t *sprite);
+void glSurfaceTexImageN64(GLenum target, GLint level, surface_t *surface, rdpq_texparms_t *texparms);
+void glSpriteTextureN64(GLenum target, sprite_t *sprite, rdpq_texparms_t *texparms);
 
 void glTexParameteri(GLenum target, GLenum pname, GLint param);
 void glTexParameterf(GLenum target, GLenum pname, GLfloat param);
@@ -427,8 +429,6 @@ void glBindTexture(GLenum target, GLuint texture);
 
 void glDeleteTextures(GLsizei n, const GLuint *textures);
 void glGenTextures(GLsizei n, GLuint *textures);
-
-// TODO
 
 GLboolean glAreTexturesResident(GLsizei n, const GLuint *textures, const GLboolean *residences);
 
@@ -626,6 +626,20 @@ GLubyte *glGetString(GLenum name);
 
 #define glPopAttrib() _GL_UNSUPPORTED(glPopAttrib)
 #define glPopClientAttrib() _GL_UNSUPPORTED(glPopClientAttrib)
+
+/* Deprecated functions (will be removed on trunk) */
+
+__attribute__((deprecated("use glSurfaceTexImageN64 instead")))
+inline void glTexImageN64(GLenum target, GLint level, surface_t *surface)
+{
+    glSurfaceTexImageN64(target, level, surface, NULL);
+}
+
+__attribute__((deprecated("use glSpriteTextureN64 instead")))
+inline void glTexSpriteN64(GLenum target, sprite_t *sprite)
+{
+    glSpriteTextureN64(target, sprite, NULL);
+}
 
 #ifdef __cplusplus
 }

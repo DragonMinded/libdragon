@@ -60,17 +60,6 @@ static const char *texture_path[4] = {
 
 static sprite_t *sprites[4];
 
-void load_texture(GLenum target, sprite_t *sprite)
-{
-    for (uint32_t i = 0; i < 7; i++)
-    {
-        surface_t surf = sprite_get_lod_pixels(sprite, i);
-        if (!surf.buffer) break;
-
-        glTexImageN64(target, i, &surf);
-    }
-}
-
 void setup()
 {
     camera.distance = -10.0f;
@@ -135,12 +124,10 @@ void setup()
     {
         glBindTexture(GL_TEXTURE_2D, textures[i]);
 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, min_filter);
 
-        load_texture(GL_TEXTURE_2D, sprites[i]);
+        glSpriteTextureN64(GL_TEXTURE_2D, sprites[i], &(rdpq_texparms_t){.s.repeats = REPEAT_INFINITE, .t.repeats = REPEAT_INFINITE});
     }
 }
 

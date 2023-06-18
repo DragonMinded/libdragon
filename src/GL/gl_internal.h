@@ -61,6 +61,8 @@
     true; \
 })
 
+#define gl_assert_no_display_list() assertf(state.current_list == 0, "%s cannot be recorded into a display list", __func__)
+
 extern uint32_t gl_overlay_id;
 extern uint32_t glp_overlay_id;
 extern uint32_t gl_rsp_state;
@@ -178,31 +180,40 @@ _Static_assert(offsetof(gl_texture_image_t, internal_format) == IMAGE_INTERNAL_F
 
 typedef struct {
     gl_texture_image_t levels[MAX_TEXTURE_LEVELS];
-    uint16_t padding0;
+    uint8_t levels_count; // number of mipmaps minus one
+    uint8_t tlut_mode;
     uint32_t levels_block[MAX_TEXTURE_LEVELS*2+1];
-
     uint32_t flags;
-    int32_t priority;
-    uint16_t wrap_s;
-    uint16_t wrap_t;
     uint16_t min_filter;
     uint16_t mag_filter;
-
-    // These properties are not DMA'd
-    uint16_t dimensionality;
-    uint16_t padding1[3];
-} __attribute__((aligned(16), packed)) gl_texture_object_t;
-_Static_assert(sizeof(gl_texture_object_t) == TEXTURE_OBJECT_SIZE, "Texture object has incorrect size!");
-_Static_assert((1 << TEXTURE_OBJECT_SIZE_LOG) == TEXTURE_OBJECT_SIZE, "Texture object has incorrect size!");
-_Static_assert(offsetof(gl_texture_object_t, levels_block)      == TEXTURE_LEVELS_BLOCK_OFFSET, "Texture object has incorrect layout!");
+} __attribute__((aligned(16), packed)) gl_srv_texture_object_t;
+_Static_assert(sizeof(gl_srv_texture_object_t) == TEXTURE_OBJECT_SIZE, "Texture object has incorrect size!");
+_Static_assert((TEXTURE_OBJECT_SIZE % 8) == 0, "Texture object has incorrect size!");
+_Static_assert(offsetof(gl_srv_texture_object_t, levels_count)      == TEXTURE_LEVELS_COUNT_OFFSET, "Texture object has incorrect layout!");
+_Static_assert(offsetof(gl_srv_texture_object_t, tlut_mode)         == TEXTURE_TLUT_MODE_OFFSET, "Texture object has incorrect layout!");
+_Static_assert(offsetof(gl_srv_texture_object_t, levels_block)      == TEXTURE_LEVELS_BLOCK_OFFSET, "Texture object has incorrect layout!");
 _Static_assert((TEXTURE_LEVELS_BLOCK_OFFSET % 4) == 0, "Texture object has incorrect layout!");
-_Static_assert(offsetof(gl_texture_object_t, flags)             == TEXTURE_FLAGS_OFFSET, "Texture object has incorrect layout!");
-_Static_assert(offsetof(gl_texture_object_t, priority)          == TEXTURE_PRIORITY_OFFSET, "Texture object has incorrect layout!");
-_Static_assert(offsetof(gl_texture_object_t, wrap_s)            == TEXTURE_WRAP_S_OFFSET, "Texture object has incorrect layout!");
-_Static_assert(offsetof(gl_texture_object_t, wrap_t)            == TEXTURE_WRAP_T_OFFSET, "Texture object has incorrect layout!");
-_Static_assert(offsetof(gl_texture_object_t, min_filter)        == TEXTURE_MIN_FILTER_OFFSET, "Texture object has incorrect layout!");
-_Static_assert(offsetof(gl_texture_object_t, mag_filter)        == TEXTURE_MAG_FILTER_OFFSET, "Texture object has incorrect layout!");
-_Static_assert(offsetof(gl_texture_object_t, dimensionality)    == TEXTURE_DIMENSIONALITY_OFFSET, "Texture object has incorrect layout!");
+_Static_assert(offsetof(gl_srv_texture_object_t, flags)             == TEXTURE_FLAGS_OFFSET, "Texture object has incorrect layout!");
+_Static_assert(offsetof(gl_srv_texture_object_t, min_filter)        == TEXTURE_MIN_FILTER_OFFSET, "Texture object has incorrect layout!");
+_Static_assert(offsetof(gl_srv_texture_object_t, mag_filter)        == TEXTURE_MAG_FILTER_OFFSET, "Texture object has incorrect layout!");
+
+typedef enum {
+    TEX_IS_DEFAULT  = 0x1,
+    TEX_HAS_IMAGE   = 0x2,
+} gl_texture_flag_t;
+
+typedef struct {
+    GLenum dimensionality;
+    uint16_t flags;
+    uint16_t wrap_s;
+    uint16_t wrap_t;
+
+    sprite_t *sprite;
+    surface_t surfaces[MAX_TEXTURE_LEVELS];
+    rspq_block_t *blocks[MAX_TEXTURE_LEVELS];
+
+    gl_srv_texture_object_t *srv_object;
+} gl_texture_object_t;
 
 typedef struct {
     gl_vtx_t *vertices[CLIPPING_PLANE_COUNT + 3];
@@ -314,12 +325,6 @@ typedef struct {
     GLsizei size;
     GLfloat entries[MAX_PIXEL_MAP_SIZE];
 } gl_pixel_map_t;
-
-typedef struct {
-    int frame_id;
-    uint32_t count;
-    uint64_t *slots;
-} gl_deletion_list_t;
 
 typedef struct {
     void (*begin)();
@@ -465,12 +470,6 @@ typedef struct {
 
     bool transfer_is_noop;
 
-    gl_deletion_list_t deletion_lists[MAX_DELETION_LISTS];
-    gl_deletion_list_t *current_deletion_list;
-
-    int frame_id;
-    volatile int frames_complete;
-
     bool can_use_rsp;
     bool can_use_rsp_dirty;
 
@@ -514,7 +513,7 @@ typedef struct {
     uint16_t tri_cmd;
     uint8_t tri_cull[2];
 
-    gl_texture_object_t bound_textures[2];
+    gl_srv_texture_object_t bound_textures[2];
     uint16_t scissor_rect[4];
     uint32_t blend_cycle;
     uint32_t fog_color;
@@ -569,8 +568,6 @@ uint32_t gl_get_type_size(GLenum type);
 bool gl_storage_alloc(gl_storage_t *storage, uint32_t size);
 void gl_storage_free(gl_storage_t *storage);
 bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size);
-
-uint64_t * gl_reserve_deletion_slot();
 
 void set_can_use_rsp_dirty();
 
@@ -676,12 +673,12 @@ inline bool is_valid_object_id(GLuint id)
 
 inline bool gl_tex_is_complete(const gl_texture_object_t *obj)
 {
-    return obj->flags & TEX_FLAG_COMPLETE;
+    return obj->srv_object->flags & TEX_FLAG_COMPLETE;
 }
 
 inline uint8_t gl_tex_get_levels(const gl_texture_object_t *obj)
 {
-    return obj->flags & 0x7;
+    return obj->srv_object->levels_count + 1;
 }
 
 inline void gl_set_flag_raw(gl_update_func_t update_func, uint32_t offset, uint32_t flag, bool value)
@@ -731,8 +728,10 @@ inline void gl_get_value(void *dst, uint32_t offset, uint32_t size)
 
 inline void gl_bind_texture(GLenum target, gl_texture_object_t *texture)
 {
-    uint32_t is_2d = target == GL_TEXTURE_2D ? 1 : 0;
-    gl_write(GL_CMD_BIND_TEXTURE, is_2d, PhysicalAddr(texture));
+    uint32_t index = target == GL_TEXTURE_2D ? 1 : 0;
+    uint32_t id_offset = index * sizeof(uint32_t);
+    uint32_t tex_offset = index * sizeof(gl_srv_texture_object_t);
+    gl_write(GL_CMD_BIND_TEXTURE, (id_offset << 16) | tex_offset, PhysicalAddr(texture->srv_object));
 }
 
 inline void gl_update_texture_completeness(uint32_t offset)
