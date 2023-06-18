@@ -72,7 +72,7 @@ typedef struct sprite_s
  * To include a detail texture to libdragon's sprite format, use
  * the mksprite tool with --detail argument. 
  * 
- * #rdpq_sprite_upload automatically uploads detail textures accosiated with
+ * #rdpq_sprite_upload automatically uploads detail textures associated with
  * the sprite.
  */
 typedef struct sprite_detail_s
