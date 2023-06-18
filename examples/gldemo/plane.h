@@ -1,6 +1,7 @@
 #ifndef PLANE_H
 #define PLANE_H
 
+#include <libdragon.h>
 #include <GL/gl.h>
 #include <math.h>
 
@@ -109,6 +110,13 @@ void draw_plane()
 
     glBindVertexArray(0);
     glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
+}
+
+void render_plane()
+{
+    rdpq_debug_log_msg("Plane");
+
+    draw_plane();
 }
 
 #endif

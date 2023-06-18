@@ -170,6 +170,14 @@ uint16_t* sprite_get_palette(sprite_t *sprite);
  */
 bool sprite_get_texparms(sprite_t *sprite, rdpq_texparms_t *parms);
 
+/**
+ * @brief Return the number of LOD levels stored within the sprite (including the main image).
+ * 
+ * @param sprite        The sprite to access
+ * @return              The number of LOD levels
+ */
+int sprite_get_lod_count(sprite_t *sprite);
+
 #ifdef __cplusplus
 }
 #endif

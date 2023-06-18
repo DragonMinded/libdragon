@@ -1,6 +1,7 @@
 #ifndef PRIM_TEST_H
 #define PRIM_TEST_H
 
+#include <libdragon.h>
 #include <GL/gl.h>
 
 void points()
@@ -171,6 +172,36 @@ void prim_test()
     glPushMatrix();
     glTranslatef(6, -1.5f, 0);
     polygon();
+    glPopMatrix();
+}
+
+void render_primitives(float rotation)
+{
+    rdpq_debug_log_msg("Primitives");
+    glPushMatrix();
+
+    glTranslatef(0, 6, 0);
+    glRotatef(-rotation*2.46f, 0, 1, 0);
+
+    // Configure alpha blending (transparency)
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    // Set a constant alpha for all vertices
+    glColor4f(1, 1, 1, 0.4f);
+    
+    // We want to see back faces as well
+    glDisable(GL_CULL_FACE);
+
+    // Transparent polygons should not write to the depth buffer
+    glDepthMask(GL_FALSE);
+
+    prim_test();
+    
+    glDepthMask(GL_TRUE);
+    glEnable(GL_CULL_FACE);
+    glDisable(GL_BLEND);
+
     glPopMatrix();
 }
 

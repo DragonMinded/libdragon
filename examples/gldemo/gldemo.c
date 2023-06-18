@@ -5,10 +5,13 @@
 #include <malloc.h>
 #include <math.h>
 
+#include "camera.h"
 #include "cube.h"
+#include "decal.h"
 #include "sphere.h"
 #include "plane.h"
 #include "prim_test.h"
+#include "skinned.h"
 
 // Set this to 1 to enable rdpq debug output.
 // The demo will only run for a single frame and stop.
@@ -16,8 +19,7 @@
 
 static uint32_t animation = 3283;
 static uint32_t texture_index = 0;
-static float distance = -10.0f;
-static float cam_rotate = 0.0f;
+static camera_t camera;
 static surface_t zbuffer;
 
 static GLuint textures[4];
@@ -58,19 +60,11 @@ static const char *texture_path[4] = {
 
 static sprite_t *sprites[4];
 
-void load_texture(GLenum target, sprite_t *sprite)
-{
-    for (uint32_t i = 0; i < 7; i++)
-    {
-        surface_t surf = sprite_get_lod_pixels(sprite, i);
-        if (!surf.buffer) break;
-
-        glTexImageN64(target, i, &surf);
-    }
-}
-
 void setup()
 {
+    camera.distance = -10.0f;
+    camera.rotation = 0.0f;
+
     zbuffer = surface_alloc(FMT_RGBA16, display_get_width(), display_get_height());
 
     for (uint32_t i = 0; i < 4; i++)
@@ -85,10 +79,6 @@ void setup()
 
     setup_plane();
     make_plane_mesh();
-
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
-    glEnable(GL_NORMALIZE);
 
     float aspect_ratio = (float)display_get_width() / (float)display_get_height();
     float near_plane = 1.0f;
@@ -134,28 +124,23 @@ void setup()
     {
         glBindTexture(GL_TEXTURE_2D, textures[i]);
 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, min_filter);
 
-        load_texture(GL_TEXTURE_2D, sprites[i]);
+        glSpriteTextureN64(GL_TEXTURE_2D, sprites[i], &(rdpq_texparms_t){.s.repeats = REPEAT_INFINITE, .t.repeats = REPEAT_INFINITE});
     }
 }
 
-void draw_quad()
+void set_light_positions(float rotation)
 {
-    glBegin(GL_TRIANGLE_STRIP);
-        glNormal3f(0, 1, 0);
-        glTexCoord2f(0, 0);
-        glVertex3f(-0.5f, 0, -0.5f);
-        glTexCoord2f(0, 1);
-        glVertex3f(-0.5f, 0, 0.5f);
-        glTexCoord2f(1, 0);
-        glVertex3f(0.5f, 0, -0.5f);
-        glTexCoord2f(1, 1);
-        glVertex3f(0.5f, 0, 0.5f);
-    glEnd();
+    glPushMatrix();
+    glRotatef(rotation*5.43f, 0, 1, 0);
+
+    for (uint32_t i = 0; i < 8; i++)
+    {
+        glLightfv(GL_LIGHT0 + i, GL_POSITION, light_pos[i]);
+    }
+    glPopMatrix();
 }
 
 void render()
@@ -170,90 +155,33 @@ void render()
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    gluLookAt(
-        0, -distance, -distance,
-        0, 0, 0,
-        0, 1, 0);
-    glRotatef(cam_rotate, 0, 1, 0);
+    camera_transform(&camera);
 
     float rotation = animation * 0.5f;
 
-    glPushMatrix();
+    set_light_positions(rotation);
 
-    glRotatef(rotation*5.43f, 0, 1, 0);
-
-    for (uint32_t i = 0; i < 8; i++)
-    {
-        glLightfv(GL_LIGHT0 + i, GL_POSITION, light_pos[i]);
-    }
-
-    glPopMatrix();
-
-    glBindTexture(GL_TEXTURE_2D, textures[texture_index]);
-
+    // Set some global render modes that we want to apply to all models
     glEnable(GL_LIGHTING);
+    glEnable(GL_NORMALIZE);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+
     glEnable(GL_TEXTURE_2D);
-
-    glEnable(GL_COLOR_MATERIAL);
-    glPushMatrix();
-    glColor3f(1, 1, 1);
-    rdpq_debug_log_msg("Plane");
-    draw_plane();
-    glTranslatef(0,-1.f,0);
-    rdpq_debug_log_msg("Cube");
-    draw_cube();
-    glPopMatrix();
-
-    glPushMatrix();
-    glTranslatef(0, 0, 6);
-    glRotatef(35, 0, 1, 0);
-    glScalef(3, 3, 3);
-    glColor4f(1.0f, 0.4f, 0.2f, 0.5f);
-    glDepthFunc(GL_EQUAL);
-    glDepthMask(GL_FALSE);
-    rdpq_debug_log_msg("Decal");
-    draw_quad();
-    glDepthMask(GL_TRUE);
-    glDepthFunc(GL_LESS);
-    glPopMatrix();
-
-    glDisable(GL_COLOR_MATERIAL);
-
-    glPushMatrix();
-
-    glRotatef(rotation*0.23f, 1, 0, 0);
-    glRotatef(rotation*0.98f, 0, 0, 1);
-    glRotatef(rotation*1.71f, 0, 1, 0);
+    glBindTexture(GL_TEXTURE_2D, textures[texture_index]);
+    
+    render_plane();
+    render_decal();
+    render_cube();
+    render_skinned(&camera, animation);
 
     glBindTexture(GL_TEXTURE_2D, textures[(texture_index + 1)%4]);
-
-    glCullFace(GL_FRONT);
-    rdpq_debug_log_msg("Sphere");
-    draw_sphere();
-    glCullFace(GL_BACK);
-
-    glPopMatrix();
-
-    glPushMatrix();
-
-    glTranslatef(0, 6, 0);
-    glRotatef(-rotation*2.46f, 0, 1, 0);
+    render_sphere(rotation);
 
     glDisable(GL_TEXTURE_2D);
-    glDisable(GL_CULL_FACE);
     glDisable(GL_LIGHTING);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    render_primitives(rotation);
 
-    rdpq_debug_log_msg("Primitives");
-    glColor4f(1, 1, 1, 0.4f);
-    prim_test();
-
-    glEnable(GL_CULL_FACE);
-    glDisable(GL_BLEND);
-
-    glPopMatrix();
     gl_context_end();
 
     rdpq_detach_show();
@@ -347,8 +275,8 @@ int main()
         float mag = x*x + y*y;
 
         if (fabsf(mag) > 0.01f) {
-            distance += y * 0.2f;
-            cam_rotate = cam_rotate - x * 1.2f;
+            camera.distance += y * 0.2f;
+            camera.rotation = camera.rotation - x * 1.2f;
         }
 
         render();

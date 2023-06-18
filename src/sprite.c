@@ -143,3 +143,15 @@ bool sprite_get_texparms(sprite_t *sprite, rdpq_texparms_t *parms) {
     }
     return true;
 }
+
+int sprite_get_lod_count(sprite_t *sprite) {
+    sprite_ext_t *sx = __sprite_ext(sprite);
+    if (!sx)
+        return 1;
+    int count = 0;
+    for (;count < 8; count++) {
+        if (sx->lods[count].width == 0)
+            break;
+    }
+    return count+1;
+}

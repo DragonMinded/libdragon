@@ -1,6 +1,7 @@
 #ifndef CUBE_H
 #define CUBE_H
 
+#include <libdragon.h>
 #include <GL/gl.h>
 #include "vertex.h"
 
@@ -59,9 +60,6 @@ void setup_cube()
 
 void draw_cube()
 {
-    glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
-
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_TEXTURE_COORD_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
@@ -73,6 +71,31 @@ void draw_cube()
     glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(vertex_t), (void*)(8*sizeof(float) + (void*)cube_vertices));
 
     glDrawElements(GL_TRIANGLES, sizeof(cube_indices) / sizeof(uint16_t), GL_UNSIGNED_SHORT, cube_indices);
+
+    glDisableClientState(GL_VERTEX_ARRAY);
+    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+    glDisableClientState(GL_NORMAL_ARRAY);
+    glDisableClientState(GL_COLOR_ARRAY);
+}
+
+void render_cube()
+{
+    rdpq_debug_log_msg("Cube");
+    glPushMatrix();
+    glTranslatef(0,-1.f,0);
+
+    // Apply vertex color as material color.
+    // Because the cube has colors set per vertex, we can color each face seperately
+    glEnable(GL_COLOR_MATERIAL);
+
+    // Apply to ambient and diffuse material properties
+    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
+
+    draw_cube();
+    
+    glDisable(GL_COLOR_MATERIAL);
+
+    glPopMatrix();
 }
 
 #endif

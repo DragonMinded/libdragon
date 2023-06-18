@@ -160,12 +160,12 @@ static void gl_init_cpu_pipe()
     if (tex_obj != NULL && gl_tex_is_complete(tex_obj)) {
         state.prim_texture = true;
         state.prim_mipmaps = gl_tex_get_levels(tex_obj);
-        state.prim_tex_width = tex_obj->levels[0].width;
-        state.prim_tex_height = tex_obj->levels[0].height;
-        state.prim_bilinear = tex_obj->mag_filter == GL_LINEAR ||
-                            tex_obj->min_filter == GL_LINEAR ||
-                            tex_obj->min_filter == GL_LINEAR_MIPMAP_NEAREST ||
-                            tex_obj->min_filter == GL_LINEAR_MIPMAP_LINEAR;
+        state.prim_tex_width = tex_obj->srv_object->levels[0].width;
+        state.prim_tex_height = tex_obj->srv_object->levels[0].height;
+        state.prim_bilinear = tex_obj->srv_object->mag_filter == GL_LINEAR ||
+                            tex_obj->srv_object->min_filter == GL_LINEAR ||
+                            tex_obj->srv_object->min_filter == GL_LINEAR_MIPMAP_NEAREST ||
+                            tex_obj->srv_object->min_filter == GL_LINEAR_MIPMAP_LINEAR;
     } else {
         state.prim_texture = false;
         state.prim_mipmaps = 0;

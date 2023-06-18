@@ -153,19 +153,28 @@ GLCmd_GetValue:
     j DMAOut
     move s0, a1
 
+    ########################################
+    # GLCmd_BindTexture
+    #
+    # Args:
+    #   a0: Bit 31..24: Command id
+    #       Bit 23..16: Offset into GL_STATE_TEXTURE_IDS
+    #       Bit 15..0:  Offset into GL_BOUND_TEXTURES
+    #   a1: The texture's RDRAM address
+    ########################################
 GLCmd_BindTexture:
     # Always reset uploaded texture when binding
     sw zero, %lo(GL_STATE_UPLOADED_TEX)
-    sll t3, a0, 2
+    srl t3, a0, 16
+    andi t3, 0xFC
     lw s0, %lo(GL_STATE_TEXTURE_IDS)(t3)
     # Do nothing if texture is already bound
     beq s0, a1, RSPQ_Loop
-    sll s4, a0, TEXTURE_OBJECT_SIZE_LOG
-    addiu s4, %lo(GL_BOUND_TEXTURES)
+    addiu s4, a0, %lo(GL_BOUND_TEXTURES)
 
     # DMA currently bound texture out
     jal DMAOutAsync
-    li t0, DMA_SIZE(TEXTURE_OBJECT_DMA_SIZE, 1)
+    li t0, DMA_SIZE(TEXTURE_OBJECT_SIZE, 1)
 
     # DMA new texture in
     jal DMAIn
@@ -366,6 +375,7 @@ GL_UpdateScissor:
 
 GL_UpdateTextureCompleteness:
     #define result      t7
+    #define levels      t8
     #define width       t1
     #define height      t2
     #define loop_max    t3
@@ -373,7 +383,8 @@ GL_UpdateTextureCompleteness:
     #define loop_var    t0
     #define image       s1
     #define format      s2
-    move result, zero   # levels = 0; complete = false
+    move result, zero   # complete = false
+    move levels, zero
 
     # If either width or height is zero, the texture is incomplete
     lhu width, (%lo(GL_BOUND_TEXTURES) + IMAGE_WIDTH_OFFSET)(a0)
@@ -439,13 +450,14 @@ gl_tex_completeness_loop:
     addiu loop_var, 1
 
 gl_tex_complete:
-    move result, loop_var               # levels = i
+    move levels, loop_var        # levels = i (Number of mipmaps minus one)
 gl_tex_mipmaps_disabled:
-    addiu result, TEX_FLAG_COMPLETE | 1 # levels += 1; complete = true
+    li result, TEX_FLAG_COMPLETE # complete = true
 gl_tex_incomplete:
     # Save the result
     lw t0, (%lo(GL_BOUND_TEXTURES) + TEXTURE_FLAGS_OFFSET)(a0)
-    and t0, ~(TEX_FLAG_COMPLETE | TEX_LEVELS_MASK)
+    sh levels, (%lo(GL_BOUND_TEXTURES) + TEXTURE_LEVELS_COUNT_OFFSET)(a0)
+    and t0, ~(TEX_FLAG_COMPLETE)
     or t0, result
     jr ra
     sw t0, (%lo(GL_BOUND_TEXTURES) + TEXTURE_FLAGS_OFFSET)(a0)
@@ -773,10 +785,15 @@ gl_skipcombinerblender:
     ori t2, SOMX_LOD_INTERPOLATE >> 32
 
 1:
-    andi t4, 0x7
-    addi t4, -1
-    sll t4, SOMX_NUMLODS_SHIFT - 32
-    or t7, t4, t2
+    # TODO: Combine into a single field?
+    lbu t0, TEXTURE_LEVELS_COUNT_OFFSET(active_tex)
+    lbu t1, TEXTURE_TLUT_MODE_OFFSET(active_tex)
+
+    sll t0, SOMX_NUMLODS_SHIFT - 32
+    sll t1, SOM_TLUT_SHIFT - 32
+
+    or t0, t1
+    or t7, t0, t2
     or modes0, t7
 2:
 
@@ -821,6 +838,7 @@ GLCmd_PreInitPipeTex:
     #define tex_id          s0
     #define uploaded_tex    s1
     #define active_tex      s7
+    #define active_tex_id   s6
     #define tex_flags       t7
     #define state_flags     k1
     #define state_flags2    k0
@@ -833,10 +851,12 @@ GLCmd_PreInitPipeTex:
 
     # Get pointer to active texture state in DMEM
     lw state_flags, %lo(GL_STATE_FLAGS)
+    li active_tex_id, %lo(GL_STATE_TEXTURE_IDS) + 0x4
     andi t1, state_flags, FLAG_TEXTURE_2D
     bnez t1, 1f
     li active_tex, %lo(GL_BOUND_TEXTURE_2D)
     andi t1, state_flags, FLAG_TEXTURE_1D
+    li active_tex_id, %lo(GL_STATE_TEXTURE_IDS) + 0x0
     bnez t1, 1f
     li active_tex, %lo(GL_BOUND_TEXTURE_1D)
     j gl_set_texture_not_active
@@ -862,10 +882,7 @@ GLCmd_PreInitPipeTex:
     sw state_flags, %lo(GL_STATE_FLAGS)
 
     # Load ID of active texture (that is, RDRAM pointer)
-    li t0, %lo(GL_BOUND_TEXTURES)
-    sub t0, active_tex, t0
-    srl t0, (TEXTURE_OBJECT_SIZE_LOG - 2)
-    lw tex_id, %lo(GL_STATE_TEXTURE_IDS)(t0)
+    lw tex_id, (active_tex_id)
     
     # Proceed with the upload if:
     #  * the requested texture ID is different from the one currently uploaded to TMEM
