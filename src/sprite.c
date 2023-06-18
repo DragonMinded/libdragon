@@ -52,10 +52,9 @@ bool __sprite_upgrade(sprite_t *sprite)
 sprite_t *sprite_load_buf(void *buf, int sz)
 {
     sprite_t *s = buf;
+    assertf(sz >= sizeof(sprite_t), "Sprite buffer too small (sz=%d)", sz);
     __sprite_upgrade(s);
-    if(sz != 0) {
-        data_cache_hit_writeback(s, sz);
-    }
+    data_cache_hit_writeback(s, sz);
     return s;
 }
 
