@@ -38,15 +38,6 @@ static rdpq_tile_t atlas_activate(atlas_t *atlas)
     return draw_ctx.atlas_tile;
 }
 
-static void atlas_flush_all(rdpq_font_t *fnt)
-{
-    for(uint32_t i=0; i<fnt->num_atlases; i++) {
-        atlas_t *atlas = &fnt->atlases[i];
-        int buf_size = atlas->height*TEX_FORMAT_PIX2BYTES(atlas->fmt, atlas->width);
-        data_cache_hit_writeback(atlas->buf, buf_size);
-    }
-}
-
 rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
 {
     rdpq_font_t *fnt = buf;
@@ -62,12 +53,7 @@ rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
         fnt->atlases[i].buf = PTR_DECODE(fnt, fnt->atlases[i].buf);
     }
     fnt->magic = FONT_MAGIC_LOADED;
-    if(sz == 0) {
-        atlas_flush_all(fnt);
-    } else {
-        data_cache_hit_writeback(fnt, sz);
-    }
-    
+    data_cache_hit_writeback(fnt, sz);
     return fnt;
 }
 

@@ -92,7 +92,7 @@ sprite_t *sprite_load(const char *fn);
  * sprite_free is called.
  *
  * @param buf           Pointer to the sprite file data
- * @param sz            Size of the sprite file buffer (0=unknown)
+ * @param sz            Size of the sprite file buffer
  * @return sprite_t*    The loaded sprite
  */
 sprite_t *sprite_load_buf(void *buf, int sz);
