@@ -124,6 +124,9 @@ void __rdpq_write16(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2
 void rdpq_triangle_cpu(const rdpq_trifmt_t *fmt, const float *v1, const float *v2, const float *v3);
 void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v2, const float *v3);
 
+extern volatile int __rdpq_syncpoint_at_syncfull;
+
+
 ///@cond
 /* Helpers for rdpq_write / rdpq_fixup_write */
 #define __rdpcmd_count_words2(rdp_cmd_id, arg0, ...)  nwords += __COUNT_VARARGS(__VA_ARGS__) + 1;

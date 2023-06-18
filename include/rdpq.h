@@ -750,7 +750,9 @@ inline void rdpq_load_block(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t
 
 
 /** @brief Special TMEM address to pass to #rdpq_set_tile to use automatic TMEM allocation */
-#define RDPQ_AUTOTMEM   (-1)
+#define RDPQ_AUTOTMEM                 (0x8000)
+/** @brief Special TMEM address to pass to #rdpq_set_tile to configure a tile with the same address of previous tile */
+#define RDPQ_AUTOTMEM_REUSE(offset)   (0x4000 | ((offset)/8))
 
 
 /// @brief Enqueue a RDP SET_TILE command (full version)
@@ -761,7 +763,7 @@ inline void rdpq_load_block(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t
 /// @param[in] parms Additional optional parameters for the tile. Can be left NULL or all 0. More information about the struct is in #rdpq_tileparms_t
 inline void rdpq_set_tile(rdpq_tile_t tile, 
 	tex_format_t format,
-    int16_t tmem_addr,
+    int32_t tmem_addr,
 	uint16_t tmem_pitch,
     const rdpq_tileparms_t *parms)
 {
@@ -772,18 +774,22 @@ inline void rdpq_set_tile(rdpq_tile_t tile,
         assertf(parms->t.shift >= -5 && parms->t.shift <= 10, "invalid t shift %d: must be in [-5..10]", parms->t.shift);
     }
     bool fixup = false;
+    bool reuse = false;
     uint32_t cmd_id = RDPQ_CMD_SET_TILE;
-    if (tmem_addr < 0) {
+    if (tmem_addr & (RDPQ_AUTOTMEM | RDPQ_AUTOTMEM_REUSE(0))) {
         cmd_id = RDPQ_CMD_AUTOTMEM_SET_TILE;
-        tmem_addr = 0;
+        reuse = (tmem_addr & RDPQ_AUTOTMEM_REUSE(0)) != 0;
         fixup = true;
+        tmem_addr &= ~(RDPQ_AUTOTMEM | RDPQ_AUTOTMEM_REUSE(0));
+    } else {
+        assertf((tmem_addr % 8) == 0, "invalid tmem_addr %ld: must be multiple of 8", tmem_addr);
+        tmem_addr /= 8;
     }
-    assertf((tmem_addr % 8) == 0, "invalid tmem_addr %d: must be multiple of 8", tmem_addr);
     assertf((tmem_pitch % 8) == 0, "invalid tmem_pitch %d: must be multiple of 8", tmem_pitch);
     extern void __rdpq_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
     extern void __rdpq_fixup_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
     (fixup ? __rdpq_fixup_write8_syncchange : __rdpq_write8_syncchange)(cmd_id,
-        _carg(format, 0x1F, 19) | _carg(tmem_pitch/8, 0x1FF, 9) | _carg(tmem_addr/8, 0x1FF, 0),
+        _carg(format, 0x1F, 19) | _carg(reuse, 0x1, 18) | _carg(tmem_pitch/8, 0x1FF, 9) | _carg(tmem_addr, 0x1FF, 0),
         _carg(tile, 0x7, 24) | _carg(parms->palette, 0xF, 20) | 
         _carg(parms->t.clamp | (parms->t.mask == 0), 0x1, 19) | _carg(parms->t.mirror, 0x1, 18) | _carg(parms->t.mask, 0xF, 14) | _carg(parms->t.shift, 0xF, 10) | 
         _carg(parms->s.clamp | (parms->s.mask == 0), 0x1, 9) | _carg(parms->s.mirror, 0x1, 8) | _carg(parms->s.mask, 0xF, 4) | _carg(parms->s.shift, 0xF, 0),
@@ -1515,6 +1521,38 @@ void rdpq_fence(void);
  * @note This function cannot be called within a block.
  */
 void rdpq_exec(uint64_t *buffer, int size);
+
+/**
+ * @brief Enqueue a callback that will be called after the RSP and the RDP have
+ *        finished processing all commands enqueued until now.
+ * 
+ * This function is similar to #rspq_call_deferred, but it also guarantees
+ * that the callback is called after the RDP has finished processing all
+ * commands enqueued until now.
+ * 
+ * For example:
+ * 
+ * @code{.c}
+ *      // Draw a green rectangle
+ *      rdpq_mode_set_fill(RGBA(0,255,0,0));
+ *      rdpq_fill_rectangle(10, 10, 100, 100);
+ * 
+ *      // Enqueue a callback. The callback is guaranteed to be called
+ *      // after the RSP has finished prepared the RDP command list for the
+ *      // filled rectangle. It is possible that the RDP would still
+ *      // be processing the rectangle when the callback is called.
+ *      rspq_call_deferred(my_callback1, NULL);
+ * 
+ *      // Enqueue a callback. The callback is guaranteed to be called
+ *      // after the rectangle has been fully drawn to the target buffer, so
+ *      // that for instance the callback could readback the green pixels.
+ *      rdpq_call_deferred(my_callback2, NULL);
+ * @endcode
+ * 
+ * @param func          Callback function to call 
+ * @param arg           Argument to pass to the callback function
+ */
+void rdpq_call_deferred(void (*func)(void *), void *arg);
 
 #ifdef __cplusplus
 }

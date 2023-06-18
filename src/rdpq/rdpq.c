@@ -378,16 +378,19 @@ static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code);
 DEFINE_RSP_UCODE(rsp_rdpq, 
     .assert_handler=rdpq_assert_handler);
 
-/** @brief State of the rdpq ucode overlay.
+/** @brief State of the rdpq ucode overlay (partial).
  * 
  * This must be kept in sync with rsp_rdpq.S.
+ * 
+ * We don't map the whole state here as we don't need to access it from C in whole.
+ * We just map the initial part of the state, which is what we need.
  */
 typedef struct rdpq_state_s {
     uint64_t sync_full;                 ///< Last SYNC_FULL command
-    uint32_t address_table[RDPQ_ADDRESS_TABLE_SIZE];    ///< Address lookup table
-    uint32_t rdram_state_address;       ///< Address of this state in RDRAM
-    __attribute__((aligned(16)))
-    rspq_rdp_mode_t modes[3];           ///< Modes stack
+    uint32_t rspq_syncpoint_id;         ///< Syncpoint ID at the time of the last SYNC_FULL command
+    uint32_t padding;                   ///< Padding
+    uint32_t rdram_state_address;       ///< Address of this state structure in RDRAM
+    uint32_t rdram_syncpoint_id;        ///< Address of the syncpoint ID in RDRAM
 } rdpq_state_t;
 
 /** @brief Mirror in RDRAM of the state of the rdpq ucode. */ 
@@ -404,6 +407,9 @@ rdpq_block_state_t rdpq_block_state;
 /** @brief Tracking state of RDP */
 rdpq_tracking_t rdpq_tracking;
 
+/** @brief Syncpoint ID at the moment of last SYNC_FULL. Used to implement #rdpq_call_deferred. */
+volatile int __rdpq_syncpoint_at_syncfull;
+
 /** 
  * @brief RDP interrupt handler 
  *
@@ -418,6 +424,9 @@ static void __rdpq_interrupt(void) {
 
     // Fetch the current RDP buffer for tracing
     if (rdpq_trace_fetch) rdpq_trace_fetch(false);
+
+    // Store the current syncpoint ID. This is used to implement #rdpq_call_deferred.
+    __rdpq_syncpoint_at_syncfull = rdpq_state->rspq_syncpoint_id;
 
     // The state has been updated to contain a copy of the last SYNC_FULL command
     // that was sent to RDP. The command might contain a callback to invoke.
@@ -453,8 +462,9 @@ void rdpq_init()
     // Initialize the ucode state.
     memset(rdpq_state, 0, sizeof(rdpq_state_t));
     rdpq_state->rdram_state_address = PhysicalAddr(rdpq_state);
-    for (int i=0;i<3;i++)
-        rdpq_state->modes[i].other_modes = ((uint64_t)RDPQ_OVL_ID << 32) + ((uint64_t)RDPQ_CMD_SET_OTHER_MODES << 56);
+    rdpq_state->rdram_syncpoint_id = PhysicalAddr(&__rspq_syncpoints_done);
+    assert((rdpq_state->rdram_state_address & 7) == 0);  // check alignment for DMA
+    assert((rdpq_state->rdram_syncpoint_id & 7) == 0);  // check alignment for DMA
     
     // Register the rdpq overlay at a fixed position (0xC)
     rspq_overlay_register_static(&rsp_rdpq, RDPQ_OVL_ID);
@@ -978,7 +988,7 @@ void rdpq_set_z_image(const surface_t *surface)
         rdpq_set_z_image_raw(0, RDPQ_VALIDATE_DETACH_ADDR);
         return;
     }
-    assertf(surface_get_format(surface) == FMT_RGBA16, "the format of the Z-buffer surface must be RGBA16");
+    assertf(TEX_FORMAT_BITDEPTH(surface_get_format(surface)) == 16, "the format of the Z-buffer surface must be 16-bit (RGBA16, IA16)");
     assertf((PhysicalAddr(surface->buffer) & 63) == 0,
         "buffer pointer is not aligned to 64 bytes, so it cannot be used as RDP Z image");
     rdpq_set_z_image_raw(0, PhysicalAddr(surface->buffer));
@@ -1078,6 +1088,12 @@ void rdpq_sync_load(void)
     rdpq_tracking.autosync &= ~AUTOSYNC_TMEMS;
 }
 
+void rdpq_call_deferred(void (*func)(void *), void *arg)
+{
+    __rspq_call_deferred(func, arg, true);
+    rspq_flush();
+}
+
 /** @} */
 
 /* Extern inline instantiations. */
@@ -1102,4 +1118,5 @@ extern inline void rdpq_set_color_image_raw(uint8_t index, uint32_t offset, tex_
 extern inline void rdpq_set_z_image_raw(uint8_t index, uint32_t offset);
 extern inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_format_t format, uint16_t width, uint16_t height);
 extern inline void rdpq_set_lookup_address(uint8_t index, void* rdram_addr);
-extern inline void rdpq_set_tile(rdpq_tile_t tile, tex_format_t format, int16_t tmem_addr,uint16_t tmem_pitch, const rdpq_tileparms_t *parms);
+extern inline void rdpq_set_tile(rdpq_tile_t tile, tex_format_t format, int32_t tmem_addr, uint16_t tmem_pitch, const rdpq_tileparms_t *parms);
+extern inline void rdpq_call_deferred(void (*func)(void *), void *arg);
