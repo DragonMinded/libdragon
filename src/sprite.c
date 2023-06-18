@@ -159,10 +159,10 @@ int sprite_get_lod_count(sprite_t *sprite) {
     sprite_ext_t *sx = __sprite_ext(sprite);
     if (!sx)
         return 1;
-    int count = 0;
-    for (;count < 8; count++) {
-        if (sx->lods[count].width == 0)
-            break;
-    }
-    return count+1;
+
+    int count = 1; // start from main texture
+    for (int i=0; i<7; i++)
+        if (sx->lods[i].width)
+            count++;
+    return count;
 }
