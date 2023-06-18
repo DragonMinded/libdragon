@@ -749,7 +749,9 @@ inline void rdpq_load_block(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t
 
 
 /** @brief Special TMEM address to pass to #rdpq_set_tile to use automatic TMEM allocation */
-#define RDPQ_AUTOTMEM   (-1)
+#define RDPQ_AUTOTMEM       (-1)
+/** @brief Special TMEM address to pass to #rdpq_set_tile to configure a tile with the same address of previous tile */
+#define RDPQ_AUTOTMEM_REUSE (-2)
 
 
 /// @brief Enqueue a RDP SET_TILE command (full version)
@@ -774,7 +776,7 @@ inline void rdpq_set_tile(rdpq_tile_t tile,
     uint32_t cmd_id = RDPQ_CMD_SET_TILE;
     if (tmem_addr < 0) {
         cmd_id = RDPQ_CMD_AUTOTMEM_SET_TILE;
-        tmem_addr = 0;
+        tmem_addr = (tmem_addr == RDPQ_AUTOTMEM_REUSE) ? 2*8 : 0;
         fixup = true;
     }
     assertf((tmem_addr % 8) == 0, "invalid tmem_addr %d: must be multiple of 8", tmem_addr);
