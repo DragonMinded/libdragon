@@ -75,6 +75,7 @@ static void font_unload(rdpq_font_t *fnt)
     fnt->glyphs = PTR_ENCODE(fnt, fnt->glyphs);
     fnt->atlases = PTR_ENCODE(fnt, fnt->atlases);
     fnt->kerning = PTR_ENCODE(fnt, fnt->kerning);
+    fnt->magic = FONT_MAGIC_V0;
 }
 
 void rdpq_font_free(rdpq_font_t *fnt)
