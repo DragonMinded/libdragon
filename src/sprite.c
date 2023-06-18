@@ -49,23 +49,67 @@ bool __sprite_upgrade(sprite_t *sprite)
     return false;
 }
 
+static void flush_sprite_palette(sprite_t *s)
+{
+    uint16_t *palette = sprite_get_palette(s);
+    if(palette) {
+        tex_format_t format = sprite_get_format(s);
+        int num_entries = 256;
+        if(format == FMT_CI4) {
+            num_entries = 16;
+        }
+        data_cache_hit_writeback(palette, num_entries*sizeof(uint16_t));
+    }
+}
+
+static void flush_sprite_pixels(sprite_t *s)
+{
+    for(int i=0; i<8; i++) {
+        surface_t surface = sprite_get_lod_pixels(s, i);
+        if(surface.buffer) {
+            int buf_size = surface.height*TEX_FORMAT_PIX2BYTES(surface.format, surface.width);
+            data_cache_hit_writeback(surface.buffer, buf_size);
+        }
+    }
+}
+
+static void flush_sprite(sprite_t *s)
+{
+    flush_sprite_palette(s);
+    flush_sprite_pixels(s);
+}
+
+sprite_t *sprite_load_buf(void *buf, int sz)
+{
+    sprite_t *s = buf;
+    __sprite_upgrade(s);
+    if(sz == 0) {
+        flush_sprite(s);
+    } else {
+        data_cache_hit_writeback(s, sz);
+    }
+    return s;
+}
+
 sprite_t *sprite_load(const char *fn)
 {
     int sz;
-    sprite_t *s = asset_load(fn, &sz);
-    __sprite_upgrade(s);
-    data_cache_hit_writeback(s, sz);
+    void *buf = asset_load(fn, &sz);
+    sprite_t *s = sprite_load_buf(buf, sz)
+    s->flags |= SPRITE_FLAGS_OWNEDBUFFER;
     return s;
 }
 
 void sprite_free(sprite_t *s)
 {
-    #ifndef NDEBUG
-    // To help debugging, zero the sprite structure as well
-    memset(s, 0, sizeof(sprite_t));
-    #endif
-
-    free(s);
+    if(sprite->flags & SPRITE_FLAGS_OWNEDBUFFER) {
+        #ifndef NDEBUG
+        //To help debugging, zero the sprite structure as well
+        memset(s, 0, sizeof(sprite_t));
+        #endif
+        free(s);
+    }
+    
     if (last_spritemap == s)
         last_spritemap = NULL;
 }
