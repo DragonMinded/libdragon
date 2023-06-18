@@ -28,6 +28,7 @@ static const skinned_vertex_t skinned_vertices[] = {
 void draw_skinned()
 {
     glEnable(GL_MATRIX_PALETTE_ARB);
+
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_TEXTURE_COORD_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
@@ -37,7 +38,14 @@ void draw_skinned()
     glTexCoordPointer(      2,  GL_FLOAT,           sizeof(skinned_vertex_t),   skinned_vertices[0].texcoord);
     glNormalPointer(            GL_FLOAT,           sizeof(skinned_vertex_t),   skinned_vertices[0].normal);
     glMatrixIndexPointerARB(1,  GL_UNSIGNED_BYTE,   sizeof(skinned_vertex_t),   &skinned_vertices[0].mtx_index);
+
     glDrawArrays(GL_TRIANGLE_STRIP, 0, sizeof(skinned_vertices)/sizeof(skinned_vertex_t));
+
+    glDisableClientState(GL_VERTEX_ARRAY);
+    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+    glDisableClientState(GL_NORMAL_ARRAY);
+    glDisableClientState(GL_MATRIX_INDEX_ARRAY_ARB);
+
     glDisable(GL_MATRIX_PALETTE_ARB);
 }
 
