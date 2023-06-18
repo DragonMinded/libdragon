@@ -67,7 +67,8 @@ static void flush_sprite_pixels(sprite_t *s)
     for(int i=0; i<8; i++) {
         surface_t surface = sprite_get_lod_pixels(s, i);
         if(surface.buffer) {
-            int buf_size = surface.height*TEX_FORMAT_PIX2BYTES(surface.format, surface.width);
+            tex_format_t format = surface_get_format(&surface);
+            int buf_size = surface.height*TEX_FORMAT_PIX2BYTES(format, surface.width);
             data_cache_hit_writeback(surface.buffer, buf_size);
         }
     }
@@ -95,14 +96,14 @@ sprite_t *sprite_load(const char *fn)
 {
     int sz;
     void *buf = asset_load(fn, &sz);
-    sprite_t *s = sprite_load_buf(buf, sz)
+    sprite_t *s = sprite_load_buf(buf, sz);
     s->flags |= SPRITE_FLAGS_OWNEDBUFFER;
     return s;
 }
 
 void sprite_free(sprite_t *s)
 {
-    if(sprite->flags & SPRITE_FLAGS_OWNEDBUFFER) {
+    if(s->flags & SPRITE_FLAGS_OWNEDBUFFER) {
         #ifndef NDEBUG
         //To help debugging, zero the sprite structure as well
         memset(s, 0, sizeof(sprite_t));

@@ -16,6 +16,7 @@ _Static_assert(sizeof(atlas_t) == 12, "atlas_t size is wrong");
 _Static_assert(sizeof(kerning_t) == 3, "kerning_t size is wrong");
 
 #define PTR_DECODE(font, ptr)    ((void*)(((uint8_t*)(font)) + (uint32_t)(ptr)))
+#define PTR_ENCODE(font, ptr)    ((void*)(((uint8_t*)(ptr)) - (uint32_t)(font)))
 
 /** @brief Drawing context */
 static struct draw_ctx_s {
@@ -37,12 +38,22 @@ static rdpq_tile_t atlas_activate(atlas_t *atlas)
     return draw_ctx.atlas_tile;
 }
 
-rdpq_font_t* rdpq_font_load(const char *fn)
+static void atlas_flush_all(rdpq_font_t *fnt)
 {
-    int sz;
-    rdpq_font_t *fnt = asset_load(fn, &sz);
-    assertf(fnt->magic == FONT_MAGIC_V0, "invalid font file (magic: %08lx)", fnt->magic);
+    for(uint32_t i=0; i<fnt->num_atlases; i++) {
+        atlas_t *atlas = &fnt->atlases[i];
+        int buf_size = atlas->height*TEX_FORMAT_PIX2BYTES(atlas->fmt, atlas->width);
+        data_cache_hit_writeback(atlas->buf, buf_size);
+    }
+}
 
+rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
+{
+    rdpq_font_t *fnt = buf;
+    if(fnt->magic == FONT_MAGIC_LOADED) {
+        assertf(0, "Trying to load already loaded font data (buf=%p, sz=%08x)", buf, sz);
+    }
+    assertf(fnt->magic == FONT_MAGIC_V0, "invalid font data (magic: %08lx)", fnt->magic);
     fnt->ranges = PTR_DECODE(fnt, fnt->ranges);
     fnt->glyphs = PTR_DECODE(fnt, fnt->glyphs);
     fnt->atlases = PTR_DECODE(fnt, fnt->atlases);
@@ -50,19 +61,47 @@ rdpq_font_t* rdpq_font_load(const char *fn)
     for (int i = 0; i < fnt->num_atlases; i++) {
         fnt->atlases[i].buf = PTR_DECODE(fnt, fnt->atlases[i].buf);
     }
-
-    data_cache_hit_writeback(fnt, sz);
+    fnt->magic = FONT_MAGIC_LOADED;
+    if(sz == 0) {
+        atlas_flush_all(fnt);
+    } else {
+        data_cache_hit_writeback(fnt, sz);
+    }
+    
     return fnt;
+}
+
+rdpq_font_t* rdpq_font_load(const char *fn)
+{
+    int sz;
+    void *buf = asset_load(fn, &sz);
+    rdpq_font_t *fnt = rdpq_font_load_buf(buf, sz);
+    fnt->magic = FONT_MAGIC_OWNED;
+    return fnt;
+}
+
+static void font_unload(rdpq_font_t *fnt)
+{
+    for (int i = 0; i < fnt->num_atlases; i++) {
+        fnt->atlases[i].buf = PTR_ENCODE(fnt, fnt->atlases[i].buf);
+    }
+    fnt->ranges = PTR_ENCODE(fnt, fnt->ranges);
+    fnt->glyphs = PTR_ENCODE(fnt, fnt->glyphs);
+    fnt->atlases = PTR_ENCODE(fnt, fnt->atlases);
+    fnt->kerning = PTR_ENCODE(fnt, fnt->kerning);
 }
 
 void rdpq_font_free(rdpq_font_t *fnt)
 {
-    #ifndef NDEBUG
-    // To help debugging, zero the font structure
-    memset(fnt, 0, sizeof(rdpq_font_t));
-    #endif
+    font_unload(fnt);
+    if(fnt->magic == FONT_MAGIC_OWNED) {
+        #ifndef NDEBUG
+        // To help debugging, zero the font structure
+        memset(fnt, 0, sizeof(rdpq_font_t));
+        #endif
 
-    free(fnt);
+        free(fnt);
+    }
 }
 
 
