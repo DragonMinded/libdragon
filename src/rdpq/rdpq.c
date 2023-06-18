@@ -1115,5 +1115,5 @@ extern inline void rdpq_set_color_image_raw(uint8_t index, uint32_t offset, tex_
 extern inline void rdpq_set_z_image_raw(uint8_t index, uint32_t offset);
 extern inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_format_t format, uint16_t width, uint16_t height);
 extern inline void rdpq_set_lookup_address(uint8_t index, void* rdram_addr);
-extern inline void rdpq_set_tile(rdpq_tile_t tile, tex_format_t format, int16_t tmem_addr,uint16_t tmem_pitch, const rdpq_tileparms_t *parms);
+extern inline void rdpq_set_tile(rdpq_tile_t tile, tex_format_t format, int32_t tmem_addr, uint16_t tmem_pitch, const rdpq_tileparms_t *parms);
 extern inline void rdpq_call_deferred(void (*func)(void *), void *arg);

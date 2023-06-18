@@ -710,12 +710,14 @@ autotmem_end:
 
     .func RDPQCmd_AutoTmem_SetTile
 RDPQCmd_AutoTmem_SetTile:
-    andi t0, a0, 0xFF                       # Isolate tmem_addr. Will be either 0 or 2
-    xor a0, t0                              # Clear tmem_addr
-    lh t0, %lo(RDPQ_AUTOTMEM_ADDR)(t0)      # Use 0/2 to select between addr and addr_prev 
+    and t1, a0, 1<<18
+    beqz t1, 1f
+    lh t0, %lo(RDPQ_AUTOTMEM_ADDR)
+    lh t0, %lo(RDPQ_AUTOTMEM_ADDR_PREV)
+1:
     lui t1, 0xDD00 ^ 0xF500                 # AutoTmem_SetTile => SET_TILE
     xor a0, t1
-    or a0, t0                               # Put auto-TMEM address inside the command
+    add a0, t0                               # Put auto-TMEM address inside the command
 
     # Check format and see if we need to lower the auto-TMEM limit
     # The following formats use the upper half of TMEM in a special way,
