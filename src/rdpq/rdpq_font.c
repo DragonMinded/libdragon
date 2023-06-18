@@ -53,7 +53,9 @@ rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
         fnt->atlases[i].buf = PTR_DECODE(fnt, fnt->atlases[i].buf);
     }
     fnt->magic = FONT_MAGIC_LOADED;
-    data_cache_hit_writeback(fnt, sz);
+    if(sz != 0) {
+        data_cache_hit_writeback(fnt, sz);
+    }
     return fnt;
 }
 
