@@ -49,23 +49,34 @@ bool __sprite_upgrade(sprite_t *sprite)
     return false;
 }
 
-sprite_t *sprite_load(const char *fn)
+sprite_t *sprite_load_buf(void *buf, int sz)
 {
-    int sz;
-    sprite_t *s = asset_load(fn, &sz);
+    sprite_t *s = buf;
+    assertf(sz >= sizeof(sprite_t), "Sprite buffer too small (sz=%d)", sz);
     __sprite_upgrade(s);
     data_cache_hit_writeback(s, sz);
     return s;
 }
 
+sprite_t *sprite_load(const char *fn)
+{
+    int sz;
+    void *buf = asset_load(fn, &sz);
+    sprite_t *s = sprite_load_buf(buf, sz);
+    s->flags |= SPRITE_FLAGS_OWNEDBUFFER;
+    return s;
+}
+
 void sprite_free(sprite_t *s)
 {
-    #ifndef NDEBUG
-    // To help debugging, zero the sprite structure as well
-    memset(s, 0, sizeof(sprite_t));
-    #endif
-
-    free(s);
+    if(s->flags & SPRITE_FLAGS_OWNEDBUFFER) {
+        #ifndef NDEBUG
+        //To help debugging, zero the sprite structure as well
+        memset(s, 0, sizeof(sprite_t));
+        #endif
+        free(s);
+    }
+    
     if (last_spritemap == s)
         last_spritemap = NULL;
 }
