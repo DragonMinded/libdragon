@@ -295,6 +295,9 @@ void gl_surface_image(gl_texture_object_t *obj, uint32_t offset, GLint level, su
 
 void glSurfaceTexImageN64(GLenum target, GLint level, surface_t *surface, rdpq_texparms_t *texparms)
 {
+    tex_format_t fmt = surface_get_format(surface);
+    assertf(fmt != FMT_CI4 && fmt != FMT_CI8, "CI textures are not supported by glSurfaceTexImageN64 yet");
+
     gl_assert_no_display_list();
     if (!gl_ensure_no_immediate()) return;
     
