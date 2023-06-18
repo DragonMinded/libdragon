@@ -1689,13 +1689,13 @@ void test_rdpq_autotmem(TestContext *ctx) {
     rdpq_set_tile_autotmem(0);
     rdpq_set_tile(TILE6, FMT_RGBA16, RDPQ_AUTOTMEM, 32, NULL);
     rdpq_set_tile_autotmem(64);
-    rdpq_set_tile(TILE7, FMT_RGBA16, RDPQ_AUTOTMEM, 32, NULL);
+    rdpq_set_tile(TILE7, FMT_RGBA16, RDPQ_AUTOTMEM_REUSE, 32, NULL);
     rdpq_set_tile_autotmem(-1);
     rdpq_set_tile_autotmem(-1);
 
     rspq_wait();
 
-    int expected[] = { 0, 128, 128+64, 0, 0, 0, 128, 128+64 };
+    int expected[] = { 0, 128, 128+64, 0, 0, 0, 128, 128 };
 
     int tidx = 0;
     for (int i=0;i<rdp_stream_ctx.idx;i++) {

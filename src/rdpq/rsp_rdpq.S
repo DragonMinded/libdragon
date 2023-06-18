@@ -93,6 +93,7 @@ RDPQ_RDRAM_SYNCPOINT_ADDR:  .word  0
 RDPQ_ADDRESS_TABLE:     .ds.l  RDPQ_ADDRESS_TABLE_SIZE
 
 RDPQ_AUTOTMEM_ADDR:     .half  0
+RDPQ_AUTOTMEM_ADDR_PREV:.half  0
 RDPQ_AUTOTMEM_LIMIT:    .half  0
 RDPQ_AUTOTMEM_ENABLED:  .byte  0
 
@@ -667,6 +668,7 @@ RDPQCmd_AutoTmem_SetAddr:
     lbu t2, %lo(RDPQ_AUTOTMEM_ENABLED)
     assert_gt t2, 0, RDPQ_ASSERT_AUTOTMEM_UNPAIRED
     #endif
+    sh t0, %lo(RDPQ_AUTOTMEM_ADDR_PREV)
     add t0, a0
     assert_le t0, t1, RDPQ_ASSERT_AUTOTMEM_FULL
     jr ra
@@ -682,8 +684,9 @@ autotmem_begin:
     # Set address to zero, and limit to 4096
     li t0, 4096/8
     sh t0, %lo(RDPQ_AUTOTMEM_LIMIT)
+    sh zero, %lo(RDPQ_AUTOTMEM_ADDR_PREV)
     jr ra
-    sh zero, %lo(RDPQ_AUTOTMEM_ADDR) 
+    sh zero, %lo(RDPQ_AUTOTMEM_ADDR)
 
 autotmem_end:
     lbu t0, %lo(RDPQ_AUTOTMEM_ENABLED)
@@ -707,10 +710,12 @@ autotmem_end:
 
     .func RDPQCmd_AutoTmem_SetTile
 RDPQCmd_AutoTmem_SetTile:
-    lh t0, %lo(RDPQ_AUTOTMEM_ADDR)
-    lui t1, 0xDD00 ^ 0xF500 # AutoTmem_SetTile => SET_TILE
+    andi t0, a0, 0xFF                       # Isolate tmem_addr. Will be either 0 or 2
+    xor a0, t0                              # Clear tmem_addr
+    lh t0, %lo(RDPQ_AUTOTMEM_ADDR)(t0)      # Use 0/2 to select between addr and addr_prev 
+    lui t1, 0xDD00 ^ 0xF500                 # AutoTmem_SetTile => SET_TILE
     xor a0, t1
-    or a0, t0
+    or a0, t0                               # Put auto-TMEM address inside the command
 
     # Check format and see if we need to lower the auto-TMEM limit
     # The following formats use the upper half of TMEM in a special way,

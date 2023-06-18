@@ -958,6 +958,10 @@ void rspq_next_buffer(void) {
     // commands.
     if (rdpq_trace) rdpq_trace();
 
+    // Poll the deferred list at least once per buffer switch. We will poll
+    // more if we need to wait
+    __rspq_deferred_poll();
+
     // Wait until the previous buffer is executed by the RSP.
     // We cannot write to it if it's still being executed.
     // FIXME: this should probably transition to a sync-point,
