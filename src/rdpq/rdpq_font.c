@@ -41,6 +41,7 @@ static rdpq_tile_t atlas_activate(atlas_t *atlas)
 rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
 {
     rdpq_font_t *fnt = buf;
+    assertf(sz >= sizeof(rdpq_font_t), "Font buffer too small (sz=%d)", sz);
     if(fnt->magic == FONT_MAGIC_LOADED) {
         assertf(0, "Trying to load already loaded font data (buf=%p, sz=%08x)", buf, sz);
     }
@@ -53,9 +54,7 @@ rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
         fnt->atlases[i].buf = PTR_DECODE(fnt, fnt->atlases[i].buf);
     }
     fnt->magic = FONT_MAGIC_LOADED;
-    if(sz != 0) {
-        data_cache_hit_writeback(fnt, sz);
-    }
+    data_cache_hit_writeback(fnt, sz);
     return fnt;
 }
 
