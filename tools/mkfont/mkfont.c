@@ -260,7 +260,7 @@ int convert(const char *infn, const char *outfn, int point_size, int *ranges)
         FILE *infile = fopen(infn, "rb");
         if (!infile) {
             fprintf(stderr, "Error: could not open input file: %s\n", infn);
-            return false;
+            return 1;
         }
         fseek(infile, 0, SEEK_END);
         int insize = ftell(infile);
