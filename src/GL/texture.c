@@ -18,6 +18,7 @@ _Static_assert((1<<NEED_EYE_SPACE_SHIFT) == FLAG_NEED_EYE_SPACE);
 _Static_assert((SOM_SAMPLE_BILINEAR >> 32) >> BILINEAR_TEX_OFFSET_SHIFT == HALF_TEXEL);
 
 extern gl_state_t state;
+inline void texture_get_texparms(gl_texture_object_t *obj, GLint level, rdpq_texparms_t *parms);
 
 void gl_init_texture_object(gl_texture_object_t *obj)
 {
@@ -317,11 +318,12 @@ void glSurfaceTexImageN64(GLenum target, GLint level, surface_t *surface, rdpq_t
 
     rdpq_texparms_t parms;
     if (texparms != NULL) {
-        memcpy(&parms, texparms, sizeof(parms));
+        parms = *texparms;
+        parms.s.scale_log = level;
+        parms.t.scale_log = level;
+    } else {
+        texture_get_texparms(obj, level, &parms);
     }
-
-    parms.s.scale_log = level;
-    parms.t.scale_log = level;
 
     texture_image_free_safe(obj, level);
 
