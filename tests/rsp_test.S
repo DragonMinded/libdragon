@@ -1,6 +1,7 @@
 #include <rsp_queue.inc>
 
 #define ASSERT_GP_BACKWARD           0xF001   // Also defined in test_rspq.c
+#define ASSERT_TOO_MANY_NOPS         0xF002
 
     .set noreorder
     .set at
@@ -33,9 +34,10 @@ TEST_VARIABLE2: .long 0
 TEST_RDP_STAGING: .quad 0
 
 BIG_LOG_PTR: .long 0
+#define BIG_LOG_SIZE 2048
 
     .align 10
-BIG_LOG:  .ds.b 2048
+BIG_LOG:  .ds.b BIG_LOG_SIZE
 
     .align 2
 TEST_BIG: .ds.b 128
@@ -50,6 +52,7 @@ command_test:
     sw t0, %lo(TEST_VARIABLE)
 
 command_test_high:
+
     # Compare the last entry in the big log with the current command (RDRAM+GP).
     # If RDRAM pointer is the same, but GP is less than before, it means that
     # GP has moved backward in the same buffer, and this is surely an error.
@@ -122,15 +125,16 @@ command_send_rdp:
     sw a1, 4(s4)
 
 command_send_rdp_many:
-    andi t0, a0, 0x7F
+    and a0, 0x00FFFFFF
+    assert_lt a0, BIG_LOG_SIZE/8, ASSERT_TOO_MANY_NOPS
     lui t1, 0xC000
     li s3, %lo(BIG_LOG)
 1:
     sw t1,   0(s3)
     sw zero, 4(s3)
     addi s3, 8
-    addiu t0, -1
-    bnez t0, 1b
+    addiu a0, -1
+    bnez a0, 1b
     nop
     j RDPQ_Send
     li s4, %lo(BIG_LOG)

@@ -642,39 +642,46 @@ void __rdpq_block_begin()
 /** 
  * @brief Allocate a new RDP block buffer, chaining it to the current one (if any) 
  * 
- * This function is called by #rdpq_passthrough_write and #rdpq_fixup_write when we are about
+ * This function is called by #rdpq_passthrough_write and #rdpq_write when we are about
  * to write a rdpq command in a block, and the current RDP buffer is full
  * (`wptr + cmdsize >= wend`). By extension, it is also called when the current
  * RDP buffer has not been allocated yet (`wptr == wend == NULL`).
  * 
+ * @see #rdpq_write
  * @see #rdpq_passthrough_write
- * @see #rdpq_fixup_write
  */
 void __rdpq_block_next_buffer(void)
 {
     struct rdpq_block_state_s *st = &rdpq_block_state;
 
-    // Configure block minimum size
-    if (st->bufsize == 0) {
-        st->bufsize = RDPQ_BLOCK_MIN_SIZE;
-        assert(RDPQ_BLOCK_MIN_SIZE >= RDPQ_MAX_COMMAND_SIZE);
+    if (st->pending_wptr) {
+        st->wptr = st->pending_wptr;
+        st->wend = st->pending_wend;
+        st->pending_wptr = NULL;
+        st->pending_wend = NULL;
+    } else {
+        // Configure block minimum size
+        if (st->bufsize == 0) {
+            st->bufsize = RDPQ_BLOCK_MIN_SIZE;
+            assert(RDPQ_BLOCK_MIN_SIZE >= RDPQ_MAX_COMMAND_SIZE);
+        }
+
+        // Allocate RDP static buffer.
+        int memsz = sizeof(rdpq_block_t) + st->bufsize*sizeof(uint32_t);
+        rdpq_block_t *b = malloc_uncached(memsz);
+
+        // Chain the block to the current one (if any)
+        b->next = NULL;
+        if (st->last_node) {
+            st->last_node->next = b;
+        }
+        st->last_node = b;
+        if (!st->first_node) st->first_node = b;
+
+        // Set write pointer and sentinel for the new buffer
+        st->wptr = b->cmds;
+        st->wend = b->cmds + st->bufsize;
     }
-
-    // Allocate RDP static buffer.
-    int memsz = sizeof(rdpq_block_t) + st->bufsize*sizeof(uint32_t);
-    rdpq_block_t *b = malloc_uncached(memsz);
-
-    // Chain the block to the current one (if any)
-    b->next = NULL;
-    if (st->last_node) {
-        st->last_node->next = b;
-    }
-    st->last_node = b;
-    if (!st->first_node) st->first_node = b;
-
-    // Set write pointer and sentinel for the new buffer
-    st->wptr = b->cmds;
-    st->wend = b->cmds + st->bufsize;
 
     assertf((PhysicalAddr(st->wptr) & 0x7) == 0,
         "start not aligned to 8 bytes: %lx", PhysicalAddr(st->wptr));
@@ -783,6 +790,51 @@ void __rdpq_block_free(rdpq_block_t *block)
 }
 
 /**
+ * @brief Reserve space in the RDP static buffer for a number of RDP commands
+ * 
+ * This is called by #rdpq_write when run within a block. It makes sure that
+ * the static buffer has enough space for the specified number of RDP commands,
+ * and also switch back to the dynamic buffer if the command is going to generate
+ * a large or unbounded number of commands.
+ */
+void __rdpq_block_reserve(int num_rdp_commands)
+{   
+    struct rdpq_block_state_s *st = &rdpq_block_state;
+
+    if (num_rdp_commands < 0 || num_rdp_commands >= RDPQ_BLOCK_MIN_SIZE/2/2) {
+        // Check if there is a RDP static buffer currently active
+        if (st->wptr) {
+            // We are about to force RDP switch to dynamic buffer. Save the
+            // current buffer pointers as pending, so that we can switch back
+            // to it later.
+            st->pending_wptr = st->wptr;
+            st->pending_wend = st->wend;
+            // Disable internal RDP static buffer
+            st->wptr = NULL;
+            st->wend = NULL;
+
+            // Force a switch to dynamic buffer 0
+            extern void *rspq_rdp_dynamic_buffers[2];
+            void *bptr = rspq_rdp_dynamic_buffers[0];
+            rspq_int_write(RSPQ_CMD_RDP_SET_BUFFER,
+                PhysicalAddr(bptr), PhysicalAddr(bptr), PhysicalAddr(bptr+RDPQ_DYNAMIC_BUFFER_SIZE));
+        }
+    } else if (num_rdp_commands > 0) {
+        if (__builtin_expect(st->wptr + num_rdp_commands*2 > st->wend, 0))
+            __rdpq_block_next_buffer();
+
+        for (int i=0; i<num_rdp_commands; i++) {
+            *st->wptr++ = 0xC0000000;
+            *st->wptr++ = 0;
+        }
+
+        // Make sure we don't coalesce with the last append command anymore,
+        // as there will be other RDP commands inbetween.
+        st->last_rdp_append_buffer = NULL;
+    }
+}
+
+/**
  * @brief Set a new RDP write pointer, and enqueue a RSP command to run the buffer until there
  * 
  * This function is called by #rdpq_passthrough_write after some RDP commands have been written
@@ -813,29 +865,14 @@ void __rdpq_block_update(volatile uint32_t *wptr)
         // but we still need to update it to the new END pointer.
         *st->last_rdp_append_buffer = (*st->last_rdp_append_buffer & 0xFF000000) | phys_new;
     } else {
-        // A fixup has emitted some commands, so we need to emit a new
-        // RSPQ_CMD_RDP_APPEND_BUFFER in the RSP queue of the block
+        // A RSP command has emitted some commands since last time we emit
+        // RSPQ_CMD_RDP_APPEND_BUFFER. Thus we can't coalesce with the last one
+        // anymore: we need to emit a new RSPQ_CMD_RDP_APPEND_BUFFER in the RSP
+        // queue of the block
         extern volatile uint32_t *rspq_cur_pointer;
         st->last_rdp_append_buffer = rspq_cur_pointer;
         rspq_int_write(RSPQ_CMD_RDP_APPEND_BUFFER, phys_new);
     }
-}
-
-/** 
- * @brief Set a new RDP write pointer, but don't enqueue RSP commands
- * 
- * This is semantically like #__rdpq_block_update, but it doesn't enqueue any RSP
- * command. It is called by #rdpq_fixup_write: in fact, the fixup is already
- * a RSP command which will then be in charge of sending the commands to RDP,
- * so no action is required here.
- * 
- * @param wptr    New block's RDP write pointer
- */
-void __rdpq_block_update_norsp(volatile uint32_t *wptr)
-{
-    struct rdpq_block_state_s *st = &rdpq_block_state;
-    st->wptr = wptr;
-    st->last_rdp_append_buffer = NULL;
 }
 
 /** @} */
@@ -904,10 +941,7 @@ __attribute__((noinline))
 void __rdpq_fixup_write8_syncchange(uint32_t cmd_id, uint32_t w0, uint32_t w1, uint32_t autosync)
 {
     __rdpq_autosync_change(autosync);
-    rdpq_fixup_write(
-        (cmd_id, w0, w1),
-        (cmd_id, w0, w1)
-    );
+    rdpq_write(1, RDPQ_OVL_ID, cmd_id, w0, w1);
 }
 
 /** @} */
@@ -930,10 +964,7 @@ void __rdpq_set_scissor(uint32_t w0, uint32_t w1)
     // NOTE: We can't optimize this away into a standard SET_SCISSOR, even if
     // we track the cycle type, because the RSP must always know the current
     // scissoring rectangle. So we must always go through the fixup.
-    rdpq_fixup_write(
-        (RDPQ_CMD_SET_SCISSOR_EX, w0, w1),  // RSP
-        (RDPQ_CMD_SET_SCISSOR_EX, w0, w1)   // RDP
-    );
+    rdpq_write(1, RDPQ_OVL_ID, RDPQ_CMD_SET_SCISSOR_EX, w0, w1);
 }
 
 /** @brief Out-of-line implementation of #rdpq_set_fill_color */
@@ -941,10 +972,7 @@ __attribute__((noinline))
 void __rdpq_set_fill_color(uint32_t w1)
 {
     __rdpq_autosync_change(AUTOSYNC_PIPE);
-    rdpq_fixup_write(
-        (RDPQ_CMD_SET_FILL_COLOR_32, 0, w1), // RSP
-        (RDPQ_CMD_SET_FILL_COLOR_32, 0, w1)  // RDP
-    );
+    rdpq_write(1, RDPQ_OVL_ID, RDPQ_CMD_SET_FILL_COLOR_32, 0, w1);
 }
 
 /** @brief Out-of-line implementation of #rdpq_set_color_image */
@@ -954,10 +982,7 @@ void __rdpq_set_color_image(uint32_t w0, uint32_t w1, uint32_t sw0, uint32_t sw1
     // SET_COLOR_IMAGE on RSP always generates an additional SET_FILL_COLOR,
     // so make sure there is space for it in case of a static buffer (in a block).
     __rdpq_autosync_change(AUTOSYNC_PIPE);
-    rdpq_fixup_write(
-        (RDPQ_CMD_SET_COLOR_IMAGE, w0, w1), // RSP
-        (RDPQ_CMD_SET_COLOR_IMAGE, w0, w1), (RDPQ_CMD_SET_FILL_COLOR, 0, 0) // RDP
-    );
+    rdpq_write(2, RDPQ_OVL_ID, RDPQ_CMD_SET_COLOR_IMAGE, w0, w1);
 
     if (rdpq_config & RDPQ_CFG_AUTOSCISSOR)
         __rdpq_set_scissor(sw0, sw1);
@@ -1012,10 +1037,10 @@ __attribute__((noinline))
 void __rdpq_set_other_modes(uint32_t w0, uint32_t w1)
 {
     __rdpq_autosync_change(AUTOSYNC_PIPE);
-    rdpq_fixup_write(
-        (RDPQ_CMD_SET_OTHER_MODES, w0, w1),  // RSP
-        (RDPQ_CMD_SET_OTHER_MODES, w0, w1), (RDPQ_CMD_SET_SCISSOR, 0, 0)   // RDP
-    );
+
+    // SOM might also generate a SET_SCISSOR. Make sure to reserve space for it.
+    rdpq_write(2, RDPQ_OVL_ID, RDPQ_CMD_SET_OTHER_MODES, w0, w1);
+
     if (w0 & (1 << (SOM_CYCLE_SHIFT-32+1)))
         rdpq_tracking.cycle_type_known = 2;
     else
@@ -1027,10 +1052,10 @@ __attribute__((noinline))
 void __rdpq_change_other_modes(uint32_t w0, uint32_t w1, uint32_t w2)
 {
     __rdpq_autosync_change(AUTOSYNC_PIPE);
-    rdpq_fixup_write(
-        (RDPQ_CMD_MODIFY_OTHER_MODES, w0, w1, w2),
-        (RDPQ_CMD_SET_OTHER_MODES, 0, 0), (RDPQ_CMD_SET_SCISSOR, 0, 0)   // RDP
-    );
+
+    // SOM might also generate a SET_SCISSOR. Make sure to reserve space for it.
+    rdpq_write(2, RDPQ_OVL_ID, RDPQ_CMD_MODIFY_OTHER_MODES, w0, w1, w2);
+
     if ((w0 == 0) && (w1 & (1 << (SOM_CYCLE_SHIFT-32+1))))  {
         if (w2 & (1 << (SOM_CYCLE_SHIFT-32+1)))
             rdpq_tracking.cycle_type_known = 2;
@@ -1061,10 +1086,7 @@ void rdpq_sync_full(void (*callback)(void*), void* arg)
 
     // We encode in the command (w0/w1) the callback for the RDP interrupt,
     // and we need that to be forwarded to RSP dynamic command.
-    rdpq_fixup_write(
-        (RDPQ_CMD_SYNC_FULL, w0, w1), // RSP
-        (RDPQ_CMD_SYNC_FULL, w0, w1)  // RDP
-    );
+    rdpq_write(1, RDPQ_OVL_ID, RDPQ_CMD_SYNC_FULL, w0, w1);
 
     // The RDP is fully idle after this command, so no sync is necessary.
     rdpq_tracking.autosync = 0;

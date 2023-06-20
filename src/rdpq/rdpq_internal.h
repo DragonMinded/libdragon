@@ -86,6 +86,10 @@ typedef struct rdpq_block_state_s {
     volatile uint32_t *wptr;
     /** @brief During block creation, pointer to the end of the RDP buffer. */
     volatile uint32_t *wend;
+    /** @brief Previous wptr, swapped out to go back to dynamic buffer. */
+    volatile uint32_t *pending_wptr;
+    /** @brief Previous wend, swapped out to go back to dynamic buffer. */
+    volatile uint32_t *pending_wend;
     /** @brief Point to the RDP block being created */
     rdpq_block_t *last_node;
     /** @brief Point to the first link of the RDP block being created */
@@ -110,7 +114,7 @@ void __rdpq_block_free(rdpq_block_t *block);
 void __rdpq_block_run(rdpq_block_t *block);
 void __rdpq_block_next_buffer(void);
 void __rdpq_block_update(volatile uint32_t *wptr);
-void __rdpq_block_update_norsp(volatile uint32_t *wptr);
+void __rdpq_block_reserve(int num_rdp_commands);
 
 inline void __rdpq_autosync_use(uint32_t res)
 {
@@ -128,7 +132,7 @@ extern volatile int __rdpq_syncpoint_at_syncfull;
 
 
 ///@cond
-/* Helpers for rdpq_write / rdpq_fixup_write */
+/* Helpers for rdpq_passthrough_write / rdpq_fixup_write */
 #define __rdpcmd_count_words2(rdp_cmd_id, arg0, ...)  nwords += __COUNT_VARARGS(__VA_ARGS__) + 1;
 #define __rdpcmd_count_words(arg)                    __rdpcmd_count_words2 arg
 
@@ -151,15 +155,14 @@ extern volatile int __rdpq_syncpoint_at_syncfull;
  * In block mode, the RDP command will be written to the static RDP buffer instead,
  * so that it will be sent directly to RDP without going through RSP at all.
  * 
- * Example syntax (notice the double parenthesis, required for uniformity 
- * with #rdpq_fixup_write):
+ * Example syntax (notice the double parenthesis):
  * 
  *     rdpq_passthrough_write((RDPQ_CMD_SYNC_PIPE, 0, 0));
  * 
  * @hideinitializer
  */
 #define rdpq_passthrough_write(rdp_cmd) ({ \
-    if (rspq_in_block()) { \
+    if (__builtin_expect(rspq_in_block(), 0)) { \
         extern rdpq_block_state_t rdpq_block_state; \
         int nwords = 0; __rdpcmd_count_words(rdp_cmd); \
         if (__builtin_expect(rdpq_block_state.wptr + nwords > rdpq_block_state.wend, 0)) \
@@ -170,51 +173,6 @@ extern volatile int __rdpq_syncpoint_at_syncfull;
     } else { \
         __rspcmd_write rdp_cmd; \
     } \
-})
-
-/**
- * @brief Write a fixup RDP command into the rspq queue.
- * 
- * Fixup commands are similar to standard RDP commands, but they are intercepted
- * by RSP which (optionally) manipulates them before sending them to the RDP buffer.
- * In blocks, the final modified RDP command is written to the RDP static buffer,
- * intermixed with other commands, so there needs to be an empty slot for it.
- * 
- * This macro accepts the RSP command as first mandatory argument, and a list
- * of RDP commands that will be used as placeholder in the static RDP buffer.
- * For instance:
- * 
- *      rdpq_fixup_write(
- *          (RDPQ_CMD_MODIFY_OTHER_MODES, 0, 0),                               // RSP buffer
- *          (RDPQ_CMD_SET_OTHER_MODES, 0, 0), (RDPQ_CMD_SET_SCISSOR, 0, 0),    // RDP buffer
- *      );
- * 
- * This will generate a rdpq command "modify other modes" which is a RSP-only fixup;
- * when this fixup will run, it will generate two RDP commands: a SET_OTHER_MODES,
- * and a SET_SCISSOR. When the function above runs in block mode, the macro reserves
- * two slots in the RDP static buffer for the two RDP commands, and even initializes
- * the slots with the provided commands (in case this reduces the work the
- * fixup will have to do), and then writes the RSP command as usual. When running
- * outside block mode, instead, only the RSP command is emitted as usual, and the
- * RDP commands are ignored: in fact, the passthrough will simply push them into the
- * standard RDP dynamic buffers, so no reservation is required.
- * 
- * @hideinitializer
- */
-#define rdpq_fixup_write(rsp_cmd, ...) ({ \
-    if (__COUNT_VARARGS(__VA_ARGS__) != 0 && __builtin_expect(rspq_in_block(), 0)) { \
-        extern rdpq_block_state_t rdpq_block_state; \
-        int nwords = 0; __CALL_FOREACH(__rdpcmd_count_words, ##__VA_ARGS__) \
-        if (__builtin_expect(rdpq_block_state.wptr + nwords > rdpq_block_state.wend, 0)) \
-            __rdpq_block_next_buffer(); \
-        volatile uint32_t *ptr = rdpq_block_state.wptr; \
-        for (int i=0; i<nwords/2; i++) { \
-            *ptr++ = 0xC0000000; \
-            *ptr++ = 0; \
-        } \
-        __rdpq_block_update_norsp(ptr); \
-    } \
-    __rspcmd_write rsp_cmd; \
 })
 
 #endif

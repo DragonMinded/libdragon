@@ -29,10 +29,7 @@ void __rdpq_fill_rectangle(uint32_t w0, uint32_t w1)
         rdpq_passthrough_write((RDPQ_CMD_FILL_RECTANGLE, w0, w1));
         return;
     }
-    rdpq_fixup_write(
-        (RDPQ_CMD_FILL_RECTANGLE_EX, w0, w1),  // RSP
-        (RDPQ_CMD_FILL_RECTANGLE_EX, w0, w1)   // RDP
-    );
+    rdpq_write(1, RDPQ_OVL_ID, RDPQ_CMD_FILL_RECTANGLE_EX, w0, w1);
 }
 
 void __rdpq_fill_rectangle_offline(int32_t x0, int32_t y0, int32_t x1, int32_t y1) {
@@ -56,10 +53,7 @@ void __rdpq_texture_rectangle(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3
         return;
     }
 
-    rdpq_fixup_write(
-        (RDPQ_CMD_TEXTURE_RECTANGLE_EX, w0, w1, w2, w3),  // RSP
-        (RDPQ_CMD_TEXTURE_RECTANGLE_EX, w0, w1, w2, w3)   // RDP
-    );
+    rdpq_write(2, RDPQ_OVL_ID, RDPQ_CMD_TEXTURE_RECTANGLE_EX, w0, w1, w2, w3);
 }
 
 void __rdpq_texture_rectangle_offline(rdpq_tile_t tile, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t s0, int32_t t0) {
