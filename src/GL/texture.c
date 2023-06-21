@@ -558,7 +558,8 @@ GLboolean glIsTexture(GLuint texture)
 void glBindTexture(GLenum target, GLuint texture)
 {
     if (!gl_ensure_no_immediate()) return;
-    assertf(texture == 0 || is_valid_object_id(texture), "Not a valid texture object: %#lx", texture);
+    assertf(texture == 0 || is_valid_object_id(texture),
+        "Not a valid texture object: %#lx. Make sure to allocate IDs via glGenTextures", texture);
 
     gl_texture_object_t **target_obj = NULL;
 
@@ -625,7 +626,8 @@ void glDeleteTextures(GLsizei n, const GLuint *textures)
     
     for (uint32_t i = 0; i < n; i++)
     {
-        assertf(textures[i] == 0 || is_valid_object_id(textures[i]), "Not a valid texture object: %#lx", textures[i]);
+        assertf(textures[i] == 0 || is_valid_object_id(textures[i]),
+            "Not a valid texture object: %#lx. Make sure to allocate IDs via glGenTextures", textures[i]);
 
         gl_texture_object_t *obj = (gl_texture_object_t*)textures[i];
         if (obj == NULL) {

@@ -17,7 +17,8 @@ GLboolean glIsBufferARB(GLuint buffer)
 void glBindBufferARB(GLenum target, GLuint buffer)
 {
     if (!gl_ensure_no_immediate()) return;
-    assertf(buffer == 0 || is_valid_object_id(buffer), "Not a valid buffer object: %#lx", buffer);
+    assertf(buffer == 0 || is_valid_object_id(buffer), 
+        "Not a valid buffer object: %#lx. Make sure to allocate IDs via glGenBuffersARB", buffer);
 
     gl_buffer_object_t *obj = (gl_buffer_object_t*)buffer;
 
@@ -47,7 +48,8 @@ void glDeleteBuffersARB(GLsizei n, const GLuint *buffers)
 
     for (GLsizei i = 0; i < n; i++)
     {
-        assertf(buffers[i] == 0 || is_valid_object_id(buffers[i]), "Not a valid buffer object: %#lx", buffers[i]);
+        assertf(buffers[i] == 0 || is_valid_object_id(buffers[i]), 
+            "Not a valid buffer object: %#lx. Make sure to allocate IDs via glGenBuffersARB", buffers[i]);
 
         gl_buffer_object_t *obj = (gl_buffer_object_t*)buffers[i];
         if (obj == NULL) {
