@@ -5,7 +5,7 @@
 #include "GL/gl_integration.h"
 #include "obj_map.h"
 #include "surface.h"
-#include "utils.h"
+#include "../utils.h"
 #include <stdbool.h>
 #include <math.h>
 #include "gl_constants.h"
