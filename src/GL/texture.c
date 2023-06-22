@@ -302,6 +302,11 @@ void glSurfaceTexImageN64(GLenum target, GLint level, surface_t *surface, rdpq_t
     gl_assert_no_display_list();
     if (!gl_ensure_no_immediate()) return;
     
+    if (level >= MAX_TEXTURE_LEVELS || level < 0) {
+        gl_set_error(GL_INVALID_VALUE, "Invalid level number (must be in [0, %d])", MAX_TEXTURE_LEVELS-1);
+        return;
+    }
+
     uint32_t offset = gl_texture_get_offset(target);
     if (offset == 0) return;
 
@@ -312,7 +317,7 @@ void glSurfaceTexImageN64(GLenum target, GLint level, surface_t *surface, rdpq_t
     }
 
     if (target == GL_TEXTURE_1D && surface->height != 1) {
-        gl_set_error(GL_INVALID_VALUE, "Sprite must have height 1 when using target GL_TEXTURE_1D");
+        gl_set_error(GL_INVALID_VALUE, "Surface must have height 1 when using target GL_TEXTURE_1D");
         return;
     }
 
@@ -1175,6 +1180,10 @@ inline void texture_get_texparms(gl_texture_object_t *obj, GLint level, rdpq_tex
 void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
     assertf(border == 0, "Texture border is not supported!");
+    if (level >= MAX_TEXTURE_LEVELS || level < 0) {
+        gl_set_error(GL_INVALID_VALUE, "Invalid level number (must be in [0, %d])", MAX_TEXTURE_LEVELS-1);
+        return;
+    }
 
     uint32_t offset = gl_texture_get_offset(target);
     if (offset == 0) return;
