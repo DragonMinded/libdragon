@@ -58,8 +58,8 @@ void gl_init()
 
     memcpy(&server_state->bound_textures[0], state.default_textures[0].srv_object, sizeof(gl_srv_texture_object_t));
     memcpy(&server_state->bound_textures[1], state.default_textures[1].srv_object, sizeof(gl_srv_texture_object_t));
-    server_state->texture_ids[0] = PhysicalAddr(&state.default_textures[0]);
-    server_state->texture_ids[1] = PhysicalAddr(&state.default_textures[1]);
+    server_state->texture_ids[0] = PhysicalAddr(state.default_textures[0].srv_object);
+    server_state->texture_ids[1] = PhysicalAddr(state.default_textures[1].srv_object);
 
     server_state->color[0] = 0x7FFF;
     server_state->color[1] = 0x7FFF;
