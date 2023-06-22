@@ -1,6 +1,7 @@
 #ifndef SPHERE_H
 #define SPHERE_H
 
+#include <libdragon.h>
 #include <GL/gl.h>
 #include <math.h>
 
@@ -161,7 +162,25 @@ void make_sphere_mesh()
 
 void draw_sphere()
 {
+    // This is an example of using display lists
     glCallList(sphere_list);
+}
+
+void render_sphere(float rotation)
+{
+    rdpq_debug_log_msg("Sphere");
+    glPushMatrix();
+
+    glRotatef(rotation*0.23f, 1, 0, 0);
+    glRotatef(rotation*0.98f, 0, 0, 1);
+    glRotatef(rotation*1.71f, 0, 1, 0);
+
+    // We want to see back faces instead of front faces, because the camera will be inside the sphere
+    glCullFace(GL_FRONT);
+    draw_sphere();
+    glCullFace(GL_BACK);
+
+    glPopMatrix();
 }
 
 #endif

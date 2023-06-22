@@ -83,8 +83,10 @@ typedef struct sprite_detail_s
     float           blend_factor;
 } sprite_detail_t;
 
-#define SPRITE_FLAGS_TEXFORMAT     0x1F  ///< Pixel format of the sprite
-#define SPRITE_FLAGS_EXT           0x80  ///< Sprite contains extended information (new format)
+#define SPRITE_FLAGS_TEXFORMAT      0x1F    ///< Pixel format of the sprite
+#define SPRITE_FLAGS_OWNEDBUFFER    0x20    ///< Flag specifying that the sprite buffer must be freed by sprite_free
+#define SPRITE_FLAGS_EXT            0x80    ///< Sprite contains extended information (new format)
+
 
 /**
  * @brief Load a sprite from a filesystem (eg: ROM)
@@ -101,6 +103,24 @@ typedef struct sprite_detail_s
  * @return sprite_t*   The loaded sprite
  */
 sprite_t *sprite_load(const char *fn);
+
+/**
+ * @brief Load a sprite from a buffer
+ * 
+ * This function loads a sprite from a buffer corresponding to sprite
+ * file data in memory. The function also performs any necessary processing
+ * to load the sprite file data.
+ * 
+ * sprite_load_buf functions in-place which means it does not allocate another
+ * buffer for the loaded sprite. So, sprite_free will not remove the sprite data
+ * from memory. This means that the input buffer must be freed manually after
+ * sprite_free is called.
+ *
+ * @param buf           Pointer to the sprite file data
+ * @param sz            Size of the sprite file buffer
+ * @return sprite_t*    The loaded sprite
+ */
+sprite_t *sprite_load_buf(void *buf, int sz);
 
 /** @brief Deallocate a sprite */
 void sprite_free(sprite_t *sprite);
@@ -228,6 +248,15 @@ bool sprite_get_texparms(sprite_t *sprite, rdpq_texparms_t *parms);
  * @return              true if the sprite contain RDP texparms, false otherwise
  */
 bool sprite_get_detail_texparms(sprite_t *sprite, rdpq_texparms_t *parms);
+
+/**
+ * @brief Return the number of LOD levels stored within the sprite (including the main image).
+ * 
+ * @param sprite        The sprite to access
+ * @return              The number of LOD levels
+ */
+int sprite_get_lod_count(sprite_t *sprite);
+
 
 #ifdef __cplusplus
 }

@@ -37,15 +37,15 @@ extern "C" {
  * 
  */
 typedef struct rdpq_texparms_s {
-    int tmem_addr;           // TMEM address where to load the texture (default: 0)
-    int palette;             // Palette number where TLUT is stored (used only for CI4 textures)
+    int tmem_addr;           ///< TMEM address where to load the texture (default: 0)
+    int palette;             ///< Palette number where TLUT is stored (used only for CI4 textures)
 
     struct {
-        float   translate;      // Translate the texture in pixels
-        int     scale_log;      // Power of 2 scale modifier of the texture (default: 0)
+        float   translate;    ///< Translation of the texture (in pixels)
+        int     scale_log;    ///< Power of 2 scale modifier of the texture (default: 0). Eg: -2 = make the texture 4 times smaller
 
-        float   repeats;        // Number of repetitions (default: 1)
-        bool    mirror;         // Repetition mode (default: MIRROR_NONE)
+        float   repeats;      ///< Number of repetitions before the texture clamps (default: 1). Use #REPEAT_INFINITE for infinite repetitions (wrapping)
+        bool    mirror;       ///< Repetition mode (default: MIRROR_NONE). If true (MIRROR_REPEAT), the texture mirrors at each repetition 
     } s, t; // S/T directions of texture parameters
 
 } rdpq_texparms_t;

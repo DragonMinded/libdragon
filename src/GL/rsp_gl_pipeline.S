@@ -100,7 +100,7 @@ GLCmd_SetLong:
     .endfunc
 
     ########################################
-    # GLCmd_SetPrimVertex
+    # GL_HandleMatrixPalette
     #
     # Args:
     #   v1 = Matrix index

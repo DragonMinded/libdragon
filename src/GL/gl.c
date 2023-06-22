@@ -56,9 +56,10 @@ void gl_init()
     gl_server_state_t *server_state = UncachedAddr(rspq_overlay_get_state(&rsp_gl));
     memset(server_state, 0, sizeof(gl_server_state_t));
 
-    memcpy(&server_state->bound_textures, state.default_textures, sizeof(gl_texture_object_t) * 2);
-    server_state->texture_ids[0] = PhysicalAddr(&state.default_textures[0]);
-    server_state->texture_ids[1] = PhysicalAddr(&state.default_textures[1]);
+    memcpy(&server_state->bound_textures[0], state.default_textures[0].srv_object, sizeof(gl_srv_texture_object_t));
+    memcpy(&server_state->bound_textures[1], state.default_textures[1].srv_object, sizeof(gl_srv_texture_object_t));
+    server_state->texture_ids[0] = PhysicalAddr(state.default_textures[0].srv_object);
+    server_state->texture_ids[1] = PhysicalAddr(state.default_textures[1].srv_object);
 
     server_state->color[0] = 0x7FFF;
     server_state->color[1] = 0x7FFF;
@@ -148,14 +149,6 @@ void gl_init()
 
 void gl_close()
 {
-    for (uint32_t i = 0; i < MAX_DELETION_LISTS; i++)
-    {
-        gl_deletion_list_t *list = &state.deletion_lists[i];
-        if (list->slots != NULL) {
-            free_uncached(list->slots);
-        }
-    }
-
     free_uncached(state.matrix_stacks[0]);
     free_uncached(state.matrix_stacks[1]);
     free_uncached(state.matrix_stacks[2]);
@@ -192,84 +185,6 @@ void gl_context_begin()
     }
 
     gl_reset_uploaded_texture();
-
-    state.frame_id++;
-}
-
-gl_deletion_list_t * gl_find_empty_deletion_list()
-{
-    gl_deletion_list_t *list = NULL;
-    // Look for unused deletion list
-    for (uint32_t i = 0; i < MAX_DELETION_LISTS; i++)
-    {
-        if (state.deletion_lists[i].count == 0) {
-            list = &state.deletion_lists[i];
-            break;
-        }
-    }
-
-    assertf(list != NULL, "Ran out of deletion lists!");
-
-    if (list->slots == NULL) {
-        // TODO: maybe cached memory is more efficient in this case?
-        list->slots = malloc_uncached(sizeof(uint64_t) * DELETION_LIST_SIZE);
-    }
-
-    list->frame_id = state.frame_id;
-    return list;
-}
-
-uint64_t * gl_reserve_deletion_slot()
-{
-    if (state.current_deletion_list == NULL) {
-        state.current_deletion_list = gl_find_empty_deletion_list();
-    }
-
-    gl_deletion_list_t *list = state.current_deletion_list;
-
-    // TODO: how to deal with list being full?
-    assertf(list->count < DELETION_LIST_SIZE, "Deletion list is full!");
-
-    uint64_t *slot = &list->slots[list->count];
-    list->count++;
-    return slot;
-}
-
-void gl_handle_deletion_lists()
-{
-    int frames_complete = state.frames_complete;
-    MEMORY_BARRIER();
-
-    for (uint32_t i = 0; i < MAX_DELETION_LISTS; i++)
-    {
-        gl_deletion_list_t *list = &state.deletion_lists[i];
-        if (list->count == 0) continue;
-        
-        // Skip if the frame is not complete yet
-        int difference = (int)((uint32_t)(list->frame_id) - (uint32_t)(frames_complete));
-        if (difference >= 0) {
-            continue;
-        }
-        
-        for (uint32_t j = 0; j < list->count; j++)
-        {
-            volatile uint32_t *slots = (volatile uint32_t*)list->slots;
-            uint32_t phys_ptr = slots[j*2 + 1];
-            if (phys_ptr == 0) continue;
-
-            void *ptr = UncachedAddr(KSEG0_START_ADDR + (phys_ptr & 0xFFFFFFFF));
-            free_uncached(ptr);
-        }
-
-        list->count = 0;
-    }
-
-    state.current_deletion_list = NULL;
-}
-
-void gl_on_frame_complete(void *ptr)
-{
-    state.frames_complete = (uint32_t)ptr;
 }
 
 void gl_context_end()
@@ -277,12 +192,6 @@ void gl_context_end()
     assertf(state.modelview_stack.cur_depth == 0, "Modelview stack not empty");
     assertf(state.projection_stack.cur_depth == 0, "Projection stack not empty");
     assertf(state.texture_stack.cur_depth == 0, "Texture stack not empty");
-
-    if (state.current_deletion_list != NULL) {
-        rdpq_sync_full((void(*)(void*))gl_on_frame_complete, (void*)state.frame_id);
-    }
-
-    gl_handle_deletion_lists();
 }
 
 GLenum glGetError(void)

@@ -227,6 +227,19 @@ typedef enum rdpq_tlut_s {
 } rdpq_tlut_t;
 
 /**
+ * @brief Converts the specified texture format to the TLUT mode that is needed to draw a texture of this format
+ */
+inline rdpq_tlut_t rdpq_tlut_from_format(tex_format_t format) {
+    switch (format) {
+    case FMT_CI4:
+    case FMT_CI8:
+        return TLUT_RGBA16;
+    default:
+        return TLUT_NONE;
+    }
+}
+
+/**
  * @brief Types of mipmap supported by RDP
  */
 typedef enum rdpq_mipmap_s {

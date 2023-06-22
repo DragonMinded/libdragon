@@ -47,9 +47,8 @@ surface_t surface_alloc(tex_format_t format, uint32_t width, uint32_t height)
 
 void surface_free(surface_t *surface)
 {
-    if (surface->buffer && surface->flags & SURFACE_FLAGS_OWNEDBUFFER) {
+    if (surface_has_owned_buffer(surface)) {
         free_uncached(surface->buffer);
-        surface->buffer = NULL;
     }
     memset(surface, 0, sizeof(surface_t));
 }

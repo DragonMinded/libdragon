@@ -3,6 +3,8 @@
 
 extern gl_state_t state;
 
+typedef GLuint (*read_list_id_func)(const GLvoid*, GLsizei);
+
 void gl_list_init()
 {
     // TODO: Get rid of the hash map. This will be difficult due to the semantics of glGenLists (it's guaranteed to generate consecutive IDs)
@@ -18,6 +20,11 @@ void gl_list_close()
     }
 
     obj_map_free(&state.list_objects);
+}
+
+void block_free_safe(rspq_block_t *block)
+{
+    rdpq_call_deferred((void (*)(void*))rspq_block_free, block);
 }
 
 void glNewList(GLuint n, GLenum mode)
@@ -64,7 +71,7 @@ void glEndList(void)
     block = obj_map_set(&state.list_objects, state.current_list, block);
 
     if (block != NULL) {
-        rspq_block_free(block);
+        block_free_safe(block);
     }
 
     state.current_list = 0;
@@ -141,47 +148,42 @@ GLuint gl_get_list_name_4bytes(const GLvoid *lists, GLsizei n)
     return ((GLuint)l0) * 16777216 + ((GLuint)l1) * 65536 + ((GLuint)l2) * 255 + ((GLuint)l3);
 }
 
+read_list_id_func get_read_list_id_func(GLenum type)
+{
+    switch (type) {
+    case GL_BYTE:
+        return gl_get_list_name_byte;
+    case GL_UNSIGNED_BYTE:
+        return gl_get_list_name_ubyte;
+    case GL_SHORT:
+        return gl_get_list_name_short;
+    case GL_UNSIGNED_SHORT:
+        return gl_get_list_name_ushort;
+    case GL_INT:
+        return gl_get_list_name_int;
+    case GL_UNSIGNED_INT:
+        return gl_get_list_name_uint;
+    case GL_FLOAT:
+        return gl_get_list_name_float;
+    case GL_2_BYTES:
+        return gl_get_list_name_2bytes;
+    case GL_3_BYTES:
+        return gl_get_list_name_3bytes;
+    case GL_4_BYTES:
+        return gl_get_list_name_4bytes;
+    default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid display list ID type", type);
+        return NULL;
+    }
+}
+
 void glCallLists(GLsizei n, GLenum type, const GLvoid *lists)
 {
     // See glCallList for an explanation
     assertf(!state.immediate_active, "glCallLists between glBegin/glEnd is not supported!");
-    GLuint (*func)(const GLvoid*, GLsizei);
 
-    switch (type) {
-    case GL_BYTE:
-        func = gl_get_list_name_byte;
-        break;
-    case GL_UNSIGNED_BYTE:
-        func = gl_get_list_name_ubyte;
-        break;
-    case GL_SHORT:
-        func = gl_get_list_name_short;
-        break;
-    case GL_UNSIGNED_SHORT:
-        func = gl_get_list_name_ushort;
-        break;
-    case GL_INT:
-        func = gl_get_list_name_int;
-        break;
-    case GL_UNSIGNED_INT:
-        func = gl_get_list_name_uint;
-        break;
-    case GL_FLOAT:
-        func = gl_get_list_name_float;
-        break;
-    case GL_2_BYTES:
-        func = gl_get_list_name_2bytes;
-        break;
-    case GL_3_BYTES:
-        func = gl_get_list_name_3bytes;
-        break;
-    case GL_4_BYTES:
-        func = gl_get_list_name_4bytes;
-        break;
-    default:
-        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid display list ID type", type);
-        return;
-    }
+    read_list_id_func func = get_read_list_id_func(type);
+    if (func == NULL) return;
 
     for (GLsizei i = 0; i < n; i++)
     {
@@ -221,7 +223,7 @@ void glDeleteLists(GLuint list, GLsizei range)
     {
         rspq_block_t *block = obj_map_remove(&state.list_objects, list + i);
         if (block != NULL) {
-            rspq_block_free(block);
+            block_free_safe(block);
         }
     }
 }

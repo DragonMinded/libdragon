@@ -407,7 +407,8 @@ void glDeleteVertexArrays(GLsizei n, const GLuint *arrays)
 
     for (GLsizei i = 0; i < n; i++)
     {
-        assertf(arrays[i] == 0 || is_valid_object_id(arrays[i]), "Not a valid array object: %#lx", arrays[i]);
+        assertf(arrays[i] == 0 || is_valid_object_id(arrays[i]), 
+            "Not a valid array object: %#lx. Make sure to allocate IDs via glGenVertexArray", arrays[i]);
 
         gl_array_object_t *obj = (gl_array_object_t*)arrays[i];
         if (obj == NULL) {
@@ -425,7 +426,8 @@ void glDeleteVertexArrays(GLsizei n, const GLuint *arrays)
 void glBindVertexArray(GLuint array)
 {
     if (!gl_ensure_no_immediate()) return;
-    assertf(array == 0 || is_valid_object_id(array), "Not a valid array object: %#lx", array);
+    assertf(array == 0 || is_valid_object_id(array), 
+        "Not a valid array object: %#lx. Make sure to allocate IDs via glGenVertexArray", array);
 
     gl_array_object_t *obj = (gl_array_object_t*)array;
 
