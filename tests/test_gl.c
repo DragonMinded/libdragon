@@ -101,8 +101,7 @@ void test_gl_texture_completeness(TestContext *ctx)
         glEnable(GL_TEXTURE_2D);
         GLuint handle;
         glGenTextures(1, &handle);
-        // FIXME: this causes a RSP crash... why?
-        // DEFER(glDeleteTextures(1, &handle));
+        DEFER(glDeleteTextures(1, &handle));
 
         glBindTexture(GL_TEXTURE_2D, handle);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
