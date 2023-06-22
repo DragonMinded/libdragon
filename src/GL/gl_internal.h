@@ -67,8 +67,11 @@ extern uint32_t gl_overlay_id;
 extern uint32_t glp_overlay_id;
 extern uint32_t gl_rsp_state;
 
-#define gl_write(cmd_id, ...)  rspq_write(gl_overlay_id, cmd_id, ##__VA_ARGS__)
-#define glp_write(cmd_id, ...) rspq_write(glp_overlay_id, cmd_id, ##__VA_ARGS__)
+#define gl_write(cmd_id, ...)               rspq_write(gl_overlay_id, cmd_id, ##__VA_ARGS__)
+#define glp_write(cmd_id, ...)              rspq_write(glp_overlay_id, cmd_id, ##__VA_ARGS__)
+#define gl_write_rdp(rdpcmds, cmd_id, ...)  rdpq_write(rdpcmds, gl_overlay_id, cmd_id, ##__VA_ARGS__)
+#define glp_write_rdp(rdpcmds, cmd_id, ...) rdpq_write(rdpcmds, glp_overlay_id, cmd_id, ##__VA_ARGS__)
+
 
 typedef enum {
     GL_CMD_SET_FLAG         = 0x0,
@@ -681,9 +684,20 @@ inline uint8_t gl_tex_get_levels(const gl_texture_object_t *obj)
     return obj->srv_object->levels_count + 1;
 }
 
+inline int gl_get_rdpcmds_for_update_func(gl_update_func_t update_func)
+{
+    switch (update_func) {
+    case GL_UPDATE_NONE:                 return 0;
+    case GL_UPDATE_SCISSOR:              return 1;
+    case GL_UPDATE_TEXTURE_COMPLETENESS: return 0;
+    }
+    __builtin_unreachable();
+}
+
 inline void gl_set_flag_raw(gl_update_func_t update_func, uint32_t offset, uint32_t flag, bool value)
 {
-    gl_write(GL_CMD_SET_FLAG, _carg(update_func, 0x7FF, 13) | _carg(offset, 0xFFC, 0) | _carg(value, 0x1, 0), value ? flag : ~flag);
+    gl_write_rdp(gl_get_rdpcmds_for_update_func(update_func),
+        GL_CMD_SET_FLAG, _carg(update_func, 0x7FF, 13) | _carg(offset, 0xFFC, 0) | _carg(value, 0x1, 0), value ? flag : ~flag);
 }
 
 inline void gl_set_flag(gl_update_func_t update_func, uint32_t flag, bool value)
@@ -698,27 +712,32 @@ inline void gl_set_flag_word2(gl_update_func_t update_func, uint32_t flag, bool 
 
 inline void gl_set_byte(gl_update_func_t update_func, uint32_t offset, uint8_t value)
 {
-    gl_write(GL_CMD_SET_BYTE, _carg(update_func, 0x7FF, 13) | _carg(offset, 0xFFF, 0), value);
+    gl_write_rdp(gl_get_rdpcmds_for_update_func(update_func),
+        GL_CMD_SET_BYTE, _carg(update_func, 0x7FF, 13) | _carg(offset, 0xFFF, 0), value);
 }
 
 inline void gl_set_short(gl_update_func_t update_func, uint32_t offset, uint16_t value)
 {
-    gl_write(GL_CMD_SET_SHORT, _carg(update_func, 0x7FF, 13) | _carg(offset, 0xFFF, 0), value);
+    gl_write_rdp(gl_get_rdpcmds_for_update_func(update_func),
+        GL_CMD_SET_SHORT, _carg(update_func, 0x7FF, 13) | _carg(offset, 0xFFF, 0), value);
 }
 
 inline void gl_set_word(gl_update_func_t update_func, uint32_t offset, uint32_t value)
 {
-    gl_write(GL_CMD_SET_WORD, _carg(update_func, 0x7FF, 13) | _carg(offset, 0xFFF, 0), value);
+    gl_write_rdp(gl_get_rdpcmds_for_update_func(update_func),
+        GL_CMD_SET_WORD, _carg(update_func, 0x7FF, 13) | _carg(offset, 0xFFF, 0), value);
 }
 
 inline void gl_set_long(gl_update_func_t update_func, uint32_t offset, uint64_t value)
 {
-    gl_write(GL_CMD_SET_LONG, _carg(update_func, 0x7FF, 13) | _carg(offset, 0xFFF, 0), value >> 32, value & 0xFFFFFFFF);
+    gl_write_rdp(gl_get_rdpcmds_for_update_func(update_func),
+        _carg(update_func, 0x7FF, 13) | _carg(offset, 0xFFF, 0), value >> 32, value & 0xFFFFFFFF);
 }
 
 inline void gl_update(gl_update_func_t update_func)
 {
-    gl_write(GL_CMD_UPDATE, _carg(update_func, 0x7FF, 13));
+    gl_write_rdp(gl_get_rdpcmds_for_update_func(update_func),
+        GL_CMD_UPDATE, _carg(update_func, 0x7FF, 13));
 }
 
 inline void gl_get_value(void *dst, uint32_t offset, uint32_t size)
@@ -804,10 +823,15 @@ inline void gl_set_palette_ptr(const gl_matrix_srv_t *palette_ptr)
 
 inline void gl_pre_init_pipe(GLenum primitive_mode)
 {
-    // PreInitPipeTex will run a block with nesting level 1 for texture upload
+    // PreInitPipeTex will run a block with nesting level 1 for texture upload.
+    // Since we don't know how many RDP commands will the block issue, we pass -1
+    // to gl_write_rdp.
     rspq_block_run_rsp(1);
-    gl_write(GL_CMD_PRE_INIT_PIPE_TEX);
-    gl_write(GL_CMD_PRE_INIT_PIPE, primitive_mode);
+    gl_write_rdp(-1, GL_CMD_PRE_INIT_PIPE_TEX);
+
+    // PreInitPipe is similar to rdpq_set_mode_standard wrt RDP commands.
+    // It issues SET_SCISSOR + CC + SOM.
+    gl_write_rdp(3, GL_CMD_PRE_INIT_PIPE, primitive_mode);
 }
 
 inline void glpipe_init()
@@ -825,7 +849,9 @@ inline void glpipe_set_vtx_cmd_size(uint16_t patched_cmd_descriptor, uint16_t *c
 
 inline void glpipe_draw_triangle(int i0, int i1, int i2)
 {
-    glp_write(GLP_CMD_DRAW_TRI,
+    // We pass -1 because the triangle can be clipped and split into multiple
+    // triangles.
+    glp_write_rdp(-1, GLP_CMD_DRAW_TRI,
         (i0*PRIM_VTX_SIZE),
         ((i1*PRIM_VTX_SIZE)<<16) | (i2*PRIM_VTX_SIZE)
     );

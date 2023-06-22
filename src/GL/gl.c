@@ -361,7 +361,7 @@ void glDisable(GLenum target)
 void gl_copy_fill_color(uint32_t offset)
 {
     __rdpq_autosync_change(AUTOSYNC_PIPE);
-    gl_write(GL_CMD_COPY_FILL_COLOR, offset);
+    gl_write_rdp(1, GL_CMD_COPY_FILL_COLOR, offset);
 }
 
 void glClear(GLbitfield buf)
