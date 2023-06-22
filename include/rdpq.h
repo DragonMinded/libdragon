@@ -1496,10 +1496,13 @@ void rdpq_call_deferred(void (*func)(void *), void *arg);
  *       a single RDP TEXTURE_RECTANGLE command, pass 2 as @p num_rdp_commands.
  */
 #define rdpq_write(num_rdp_commands, ovl_id, cmd_id, ...) ({ \
-    extern rspq_block_t *rspq_block; \
-    if (__builtin_expect(rspq_block != NULL, 0)) { \
-        extern void __rdpq_block_reserve(int); \
-        __rdpq_block_reserve(num_rdp_commands); \
+    int __num_rdp_commands = (num_rdp_commands); \
+    if (!__builtin_constant_p(__num_rdp_commands) || __num_rdp_commands != 0) { \
+        extern rspq_block_t *rspq_block; \
+        if (__builtin_expect(rspq_block != NULL, 0)) { \
+            extern void __rdpq_block_reserve(int); \
+            __rdpq_block_reserve(__num_rdp_commands); \
+        } \
     } \
     rspq_write(ovl_id, cmd_id, ##__VA_ARGS__); \
 })
