@@ -1131,6 +1131,7 @@ extern inline void rdpq_set_tile_size_fx(rdpq_tile_t tile, uint16_t s0, uint16_t
 extern inline void rdpq_load_block(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t tmem_pitch);
 extern inline void rdpq_load_block_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t num_texels, uint16_t dxt);
 extern inline void rdpq_load_tile_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1);
+extern inline void rdpq_set_combiner_raw(uint64_t cc);
 extern inline void rdpq_set_other_modes_raw(uint64_t mode);
 extern inline void rdpq_change_other_modes_raw(uint64_t mask, uint64_t val);
 extern inline void rdpq_set_color_image_raw(uint8_t index, uint32_t offset, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride);

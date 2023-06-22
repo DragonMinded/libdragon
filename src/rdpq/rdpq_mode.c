@@ -162,6 +162,7 @@ extern inline void rdpq_mode_zbuf(bool compare, bool write);
 extern inline void rdpq_mode_zoverride(bool enable, float z, int16_t deltaz);
 extern inline void rdpq_mode_tlut(rdpq_tlut_t tlut);
 extern inline void rdpq_mode_filter(rdpq_filter_t s);
+extern inline void rdpq_mode_mipmap(rdpq_mipmap_t mode, int num_levels);
 ///@cond
 extern inline void __rdpq_mode_change_som(uint64_t mask, uint64_t val);
 ///@endcond
