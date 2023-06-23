@@ -2,7 +2,13 @@
 #define __RDPQ_FONT_INTERNAL_H
 
 /** @brief font64 file magic header */
-#define FONT_MAGIC_V0            0x464E5448 // "FNT0"
+#define FONT_MAGIC_V0           0x464E5448 // "FNTH"
+
+/** @brief font64 loaded font buffer magic */
+#define FONT_MAGIC_LOADED       0x464E544C // "FNTL"
+
+/** @brief font64 owned font buffer magic */
+#define FONT_MAGIC_OWNED        0x464E544F // "FNTO"
 
 /** @brief A range of codepoint (part of #rdpq_font_t) */
 typedef struct {

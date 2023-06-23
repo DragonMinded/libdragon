@@ -372,7 +372,6 @@ void test_rdpq_block_dynamic(TestContext *ctx)
 {
     RDPQ_INIT();
     debug_rdp_stream_init();
-    rdpq_debug_log(true);
 
     test_ovl_init();
     DEFER(test_ovl_close());
@@ -385,25 +384,62 @@ void test_rdpq_block_dynamic(TestContext *ctx)
     surface_clear(&fb, 0);
     rdpq_set_mode_standard();
 
-    rspq_block_begin();
-        // First, issue a passthrough command
-        rdpq_set_fog_color(RGBA32(0x11,0x11,0x11,0x11));
-        // Then, issue a command that creates large dynamic commands
-        // We use a test command that creates 8 RDP NOPs.
-        rspq_test_send_rdp_nops(8);
-        // Issue another passhtrough
-        rdpq_set_blend_color(RGBA32(0x22,0x22,0x22,0x22));
-    rspq_block_t *block = rspq_block_end();
-    DEFER(rspq_block_free(block));
+    void test_with_nops(int nops_to_generate) {
+        debug_rdp_stream_reset();
 
-    rspq_block_run(block);
-    rspq_wait();
+        rspq_block_begin();
+            // First, issue a passthrough command
+            rdpq_set_fog_color(RGBA32(0x11,0x11,0x11,0x11));
+            // Then, issue a command that creates large dynamic commands
+            // We use a test command that creates 8 RDP NOPs.
+            rspq_test_send_rdp_nops(nops_to_generate);
+            // Issue another passhtrough
+            rdpq_set_blend_color(RGBA32(0x22,0x22,0x22,0x22));
+        rspq_block_t *block = rspq_block_end();
+        DEFER(rspq_block_free(block));
 
-    int num_fc = debug_rdp_stream_count_cmd(0xF8); // SET_FOG_COLOR
-    int num_bc = debug_rdp_stream_count_cmd(0xF9); // SET_BLEND_COLOR
+        rspq_block_run(block);
+        rdpq_set_blend_color(RGBA32(0x33,0x33,0x33,0x33));
+        rspq_wait();
 
-    ASSERT_EQUAL_SIGNED(num_fc, 1, "invalid number of SET_FOG_COLOR");
-    ASSERT_EQUAL_SIGNED(num_bc, 1, "invalid number of SET_BLEND_COLOR");
+        int num_fc = debug_rdp_stream_count_cmd(0xF8); // SET_FOG_COLOR
+        int num_bc = debug_rdp_stream_count_cmd(0xF9); // SET_BLEND_COLOR
+        int num_nops = debug_rdp_stream_count_cmd(0xC0); // NOOP
+        ASSERT_EQUAL_SIGNED(num_fc, 1, "invalid number of SET_FOG_COLOR");
+        ASSERT_EQUAL_SIGNED(num_bc, 2, "invalid number of SET_BLEND_COLOR");
+        ASSERT_EQUAL_SIGNED(num_nops, nops_to_generate, "invalid number of NOP");
+
+        // Check that all the nops come after fog and before blend
+        bool found_fog = false;
+        bool found_blend = false;
+        for (int i=0;i<rdp_stream_ctx.idx;i++) {
+            if ((rdp_stream[i] >> 56) == 0xF8) { found_fog = true; continue; }
+            if ((rdp_stream[i] >> 56) == 0xF9) { found_blend = true; continue; }
+            if ((rdp_stream[i] >> 56) == 0xC0) {
+                ASSERT(found_fog && !found_blend, "Invalid position of NOP within the stream");
+            }
+        }
+
+        // Also test that there is just one static RDP block in the block. This
+        // verifies that, in case we switched to the dynamic buffer for the blocks,
+        // we correctly reused the block later.
+        int num_rdp_blocks = 0;
+        rdpq_block_t *rdp_block = block->rdp_block;
+        while (rdp_block) {
+            ++num_rdp_blocks;
+            rdp_block = rdp_block->next;
+        }
+        ASSERT_EQUAL_SIGNED(num_rdp_blocks, 1, "invalid number of RDP static blocks");
+    }
+
+    // Test with a small number of nops: 
+    rdpq_debug_log_msg("test 8");
+    test_with_nops(8);
+    if (ctx->result == TEST_FAILED) return;
+
+    rdpq_debug_log_msg("test 128");
+    test_with_nops(128);
+    if (ctx->result == TEST_FAILED) return;
 }
 
 void test_rdpq_change_other_modes(TestContext *ctx)

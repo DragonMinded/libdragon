@@ -7,12 +7,16 @@
 #include <rdpq_constants.h>
 
 #define ASSERT_GP_BACKWARD           0xF001   // Also defined in rsp_test.S
+#define ASSERT_TOO_MANY_NOPS         0xF002
 
 static void test_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
 {
     switch (assert_code) {
         case ASSERT_GP_BACKWARD:
             printf("GP moved backward\n");
+            break;
+        case ASSERT_TOO_MANY_NOPS:
+            printf("Trying to send too many NOPs (%ld)\n", state->gpr[4]);
             break;
         default:
             printf("Unknown assert\n");
@@ -90,12 +94,12 @@ void rspq_test_reset_log(void)
 
 void rspq_test_send_rdp(uint32_t value)
 {
-    rspq_write(test_ovl_id, 0xA, 0, value);
+    rdpq_write(1, test_ovl_id, 0xA, 0, value);
 }
 
 void rspq_test_send_rdp_nops(int num_nops)
 {
-    rspq_write(test_ovl_id, 0xB, num_nops);
+    rdpq_write(num_nops, test_ovl_id, 0xB, num_nops);
 }
 
 void rspq_test_big_out(void *dest)

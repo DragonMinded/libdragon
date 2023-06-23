@@ -9,6 +9,7 @@ struct rdpq_font_s;
 typedef struct rdpq_font_s rdpq_font_t;
 
 rdpq_font_t* rdpq_font_load(const char *fn);
+rdpq_font_t* rdpq_font_load_buf(void *buf, int sz);
 void rdpq_font_free(rdpq_font_t *fnt);
 
 void rdpq_font_begin(color_t color);

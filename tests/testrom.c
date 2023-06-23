@@ -328,6 +328,7 @@ static const struct Testsuite
 	TEST_FUNC(test_gl_clear,                   0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_gl_draw_arrays,             0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_gl_draw_elements,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_gl_texture_completeness,    0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dl_syms,                   0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dladdr,             0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dl_relocs,             0, TEST_FLAGS_NO_BENCHMARK),

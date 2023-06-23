@@ -347,6 +347,8 @@ static void rspq_sp_interrupt(void)
     if (status & SP_STATUS_SIG_SYNCPOINT) {
         wstatus |= SP_WSTATUS_CLEAR_SIG_SYNCPOINT;
         ++__rspq_syncpoints_done;
+        // writeback to memory; this is required for RDPQCmd_SyncFull to fetch the correct value 
+        data_cache_hit_writeback(&__rspq_syncpoints_done, sizeof(__rspq_syncpoints_done));
     }
     if (status & SP_STATUS_SIG0) {
         wstatus |= SP_WSTATUS_CLEAR_SIG0;

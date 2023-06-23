@@ -58,8 +58,8 @@ void gl_init()
 
     memcpy(&server_state->bound_textures[0], state.default_textures[0].srv_object, sizeof(gl_srv_texture_object_t));
     memcpy(&server_state->bound_textures[1], state.default_textures[1].srv_object, sizeof(gl_srv_texture_object_t));
-    server_state->texture_ids[0] = PhysicalAddr(&state.default_textures[0]);
-    server_state->texture_ids[1] = PhysicalAddr(&state.default_textures[1]);
+    server_state->texture_ids[0] = PhysicalAddr(state.default_textures[0].srv_object);
+    server_state->texture_ids[1] = PhysicalAddr(state.default_textures[1].srv_object);
 
     server_state->color[0] = 0x7FFF;
     server_state->color[1] = 0x7FFF;
@@ -361,7 +361,7 @@ void glDisable(GLenum target)
 void gl_copy_fill_color(uint32_t offset)
 {
     __rdpq_autosync_change(AUTOSYNC_PIPE);
-    gl_write(GL_CMD_COPY_FILL_COLOR, offset);
+    gl_write_rdp(1, GL_CMD_COPY_FILL_COLOR, offset);
 }
 
 void glClear(GLbitfield buf)
@@ -491,9 +491,11 @@ bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size)
     return true;
 }
 
+extern inline uint32_t next_pow2(uint32_t v);
 extern inline bool is_in_heap_memory(void *ptr);
 extern inline void gl_set_flag_raw(gl_update_func_t update_func, uint32_t offset, uint32_t flag, bool value);
 extern inline void gl_set_flag(gl_update_func_t update_func, uint32_t flag, bool value);
+extern inline void gl_set_flag_word2(gl_update_func_t update_func, uint32_t flag, bool value);
 extern inline void gl_set_byte(gl_update_func_t update_func, uint32_t offset, uint8_t value);
 extern inline void gl_set_short(gl_update_func_t update_func, uint32_t offset, uint16_t value);
 extern inline void gl_set_word(gl_update_func_t update_func, uint32_t offset, uint32_t value);
@@ -502,9 +504,20 @@ extern inline void gl_update(gl_update_func_t update_func);
 extern inline void gl_get_value(void *dst, uint32_t offset, uint32_t size);
 extern inline void gl_bind_texture(GLenum target, gl_texture_object_t *texture);
 extern inline void gl_update_texture_completeness(uint32_t offset);
+extern inline void gl_set_palette_ptr(const gl_matrix_srv_t *palette_ptr);
 extern inline void gl_set_current_color(GLfloat *color);
 extern inline void gl_set_current_texcoords(GLfloat *texcoords);
 extern inline void gl_set_current_normal(GLfloat *normal);
 extern inline void gl_pre_init_pipe(GLenum primitive_mode);
 extern inline void glpipe_init();
 extern inline void glpipe_draw_triangle(int i0, int i1, int i2);
+extern inline int gl_get_rdpcmds_for_update_func(gl_update_func_t update_func);
+extern inline void* gl_get_attrib_pointer(gl_obj_attributes_t *attribs, gl_array_type_t array_type);
+extern inline uint32_t gl_type_to_index(GLenum type);
+extern inline void gl_set_current_mtx_index(GLubyte *index);
+extern inline gl_cmd_stream_t gl_cmd_stream_begin(uint32_t ovl_id, uint32_t cmd_id, int size);
+extern inline void gl_cmd_stream_commit(gl_cmd_stream_t *s);
+extern inline void gl_cmd_stream_put_byte(gl_cmd_stream_t *s, uint8_t v);
+extern inline void gl_cmd_stream_put_half(gl_cmd_stream_t *s, uint16_t v);
+extern inline void gl_cmd_stream_end(gl_cmd_stream_t *s);
+extern inline void glpipe_set_vtx_cmd_size(uint16_t patched_cmd_descriptor, uint16_t *cmd_descriptor);

@@ -18,6 +18,7 @@ _Static_assert((1<<NEED_EYE_SPACE_SHIFT) == FLAG_NEED_EYE_SPACE);
 _Static_assert((SOM_SAMPLE_BILINEAR >> 32) >> BILINEAR_TEX_OFFSET_SHIFT == HALF_TEXEL);
 
 extern gl_state_t state;
+inline void texture_get_texparms(gl_texture_object_t *obj, GLint level, rdpq_texparms_t *parms);
 
 void gl_init_texture_object(gl_texture_object_t *obj)
 {
@@ -301,6 +302,11 @@ void glSurfaceTexImageN64(GLenum target, GLint level, surface_t *surface, rdpq_t
     gl_assert_no_display_list();
     if (!gl_ensure_no_immediate()) return;
     
+    if (level >= MAX_TEXTURE_LEVELS || level < 0) {
+        gl_set_error(GL_INVALID_VALUE, "Invalid level number (must be in [0, %d])", MAX_TEXTURE_LEVELS-1);
+        return;
+    }
+
     uint32_t offset = gl_texture_get_offset(target);
     if (offset == 0) return;
 
@@ -311,17 +317,18 @@ void glSurfaceTexImageN64(GLenum target, GLint level, surface_t *surface, rdpq_t
     }
 
     if (target == GL_TEXTURE_1D && surface->height != 1) {
-        gl_set_error(GL_INVALID_VALUE, "Sprite must have height 1 when using target GL_TEXTURE_1D");
+        gl_set_error(GL_INVALID_VALUE, "Surface must have height 1 when using target GL_TEXTURE_1D");
         return;
     }
 
     rdpq_texparms_t parms;
     if (texparms != NULL) {
-        memcpy(&parms, texparms, sizeof(parms));
+        parms = *texparms;
+        parms.s.scale_log = level;
+        parms.t.scale_log = level;
+    } else {
+        texture_get_texparms(obj, level, &parms);
     }
-
-    parms.s.scale_log = level;
-    parms.t.scale_log = level;
 
     texture_image_free_safe(obj, level);
 
@@ -556,7 +563,8 @@ GLboolean glIsTexture(GLuint texture)
 void glBindTexture(GLenum target, GLuint texture)
 {
     if (!gl_ensure_no_immediate()) return;
-    assertf(texture == 0 || is_valid_object_id(texture), "Not a valid texture object: %#lx", texture);
+    assertf(texture == 0 || is_valid_object_id(texture),
+        "Not a valid texture object: %#lx. Make sure to allocate IDs via glGenTextures", texture);
 
     gl_texture_object_t **target_obj = NULL;
 
@@ -623,7 +631,8 @@ void glDeleteTextures(GLsizei n, const GLuint *textures)
     
     for (uint32_t i = 0; i < n; i++)
     {
-        assertf(textures[i] == 0 || is_valid_object_id(textures[i]), "Not a valid texture object: %#lx", textures[i]);
+        assertf(textures[i] == 0 || is_valid_object_id(textures[i]),
+            "Not a valid texture object: %#lx. Make sure to allocate IDs via glGenTextures", textures[i]);
 
         gl_texture_object_t *obj = (gl_texture_object_t*)textures[i];
         if (obj == NULL) {
@@ -1171,6 +1180,10 @@ inline void texture_get_texparms(gl_texture_object_t *obj, GLint level, rdpq_tex
 void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *data)
 {
     assertf(border == 0, "Texture border is not supported!");
+    if (level >= MAX_TEXTURE_LEVELS || level < 0) {
+        gl_set_error(GL_INVALID_VALUE, "Invalid level number (must be in [0, %d])", MAX_TEXTURE_LEVELS-1);
+        return;
+    }
 
     uint32_t offset = gl_texture_get_offset(target);
     if (offset == 0) return;

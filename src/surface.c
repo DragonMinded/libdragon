@@ -74,3 +74,4 @@ surface_t surface_make_sub(surface_t *parent, uint32_t x0, uint32_t y0, uint32_t
 extern inline surface_t surface_make(void *buffer, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride);
 extern inline tex_format_t surface_get_format(const surface_t *surface);
 extern inline surface_t surface_make_linear(void *buffer, tex_format_t format, uint32_t width, uint32_t height);
+extern inline bool surface_has_owned_buffer(const surface_t *surface);

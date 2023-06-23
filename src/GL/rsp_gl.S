@@ -414,32 +414,19 @@ gl_tex_completeness_loop:
     bne t4, format, gl_tex_incomplete
     or t5, width, height
 
-    # TODO: is this true: (w | h) == 1 <=> (w == 1) && (h == 1)
     # If width and height are both 1 we have reached the end of the mipmap chain
     beq t5, one, gl_tex_complete
-    andi t4, width, 0x1
+    nop
 
-    # If width is already 1 skip this check
+    # Unless width is one, divide it by two
     beq width, one, 1f
-    srl t5, width, 1
-
-    # If width is odd and not equal to one it means the original width is not a power of two,
-    # which is not allowed
-    bnez t4, gl_tex_incomplete
-    move width, t5
-
+    nop
+    srl width, 1
 1:
-    andi t5, height, 0x1
-
-    # If height is already 1 skip this check
+    # Unless height is one, divide it by two
     beq height, one, 1f
-    srl t4, height, 1
-    
-    # If height is odd and not equal to one it means the original height is not a power of two,
-    # which is not allowed
-    bnez t5, gl_tex_incomplete
-    move height, t4
-
+    nop
+    srl height, 1
 1:
     # Check if we have reached the maximum number of loops
     beq loop_var, loop_max, gl_tex_incomplete
