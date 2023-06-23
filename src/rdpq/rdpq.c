@@ -1124,7 +1124,7 @@ extern inline void rdpq_set_fill_color_stripes(color_t color1, color_t color2);
 extern inline void rdpq_set_fog_color(color_t color);
 extern inline void rdpq_set_blend_color(color_t color);
 extern inline void rdpq_set_prim_color(color_t color);
-extern inline void rdpq_set_min_lod_frac(uint8_t value);
+extern inline void rdpq_set_detail_factor(float value);
 extern inline void rdpq_set_prim_lod_frac(uint8_t value);
 extern inline void rdpq_set_prim_register_raw(color_t color, uint8_t minlod, uint8_t primlod);
 extern inline void rdpq_set_env_color(color_t color);
