@@ -203,17 +203,20 @@ void rdpq_tex_upload_tlut(uint16_t *tlut, int color_idx, int num_colors);
  * without increasing TMEM usage. This function provides a way to achieve this while also
  * configuring your own texture parameters for the reused texture. 
  * 
- * This sub-variant also allows to specify what part of a uploaded texture must be reused.
+ * This sub-variant also allows to specify what part of the uploaded texture must be reused.
  * For example, after uploading a 64x64 texture (or a 64x64 sub texture of a larger surface), 
  * you can reuse an existing portion of it, like (16,16)-(48,48) or (0,0)-(8,32). 
  * Restrictions of rdpq_texparms_t apply just when reusing just as well as for uploading a texture. 
  * 
+ * Sub-rectangle must be within the bounds of the texture reused and be 8-byte aligned, 
+ * not all starting positions are valid for different formats.
+ * 
+ * Starting horizontal position s0 must be 8-byte aligned, meaning for different image formats 
+ * you can use TEX_FORMAT_BYTES2PIX(fmt, bytes) with bytes being in multiples of 8.
+ * Starting vertical position t0 must be in multiples of 2 pixels due to TMEM arrangement.
+ * 
  * Leaving parms to NULL will copy the previous' texture texparms.
- * 
- * Sub-rectangle must be 8-byte aligned, not all starting positions are valid for 
- * different formats.
- * 
- * Must be executed in a multi-upload block right after the reused texture has been
+ * Note: This function must be executed in a multi-upload block right after the reused texture has been
  * uploaded.
  * 
  * @param tile       Tile descriptor that will be initialized with reused texture
@@ -236,7 +239,7 @@ int rdpq_tex_reuse_sub(rdpq_tile_t tile, const rdpq_texparms_t *parms, int s0, i
  * This full-variant will use the whole texture that was previously uploaded.
  * Leaving parms to NULL will copy the previous' texture texparms.
  * 
- * Must be executed in a multi-upload block right after the reused texture has been
+ * Note: This function must be executed in a multi-upload block right after the reused texture has been
  * uploaded.
  * 
  * @param tile       Tile descriptor that will be initialized with reused texture
