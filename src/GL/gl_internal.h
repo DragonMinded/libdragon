@@ -739,7 +739,7 @@ __attribute__((always_inline))
 inline void gl_set_long(gl_update_func_t update_func, uint32_t offset, uint64_t value)
 {
     gl_write_rdp(gl_get_rdpcmds_for_update_func(update_func),
-        _carg(update_func, 0x7FF, 13) | _carg(offset, 0xFFF, 0), value >> 32, value & 0xFFFFFFFF);
+        GL_CMD_SET_LONG, _carg(update_func, 0x7FF, 13) | _carg(offset, 0xFFF, 0), value >> 32, value & 0xFFFFFFFF);
 }
 
 __attribute__((always_inline))
