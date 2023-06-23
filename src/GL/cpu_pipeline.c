@@ -22,22 +22,22 @@ static void read_i8(GLfloat *dst, const int8_t *src, uint32_t count)
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
-static void read_u16(GLfloat *dst, const uint16_t *src, uint32_t count)
+static void read_u16(GLfloat *dst, const uint16u_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
-static void read_i16(GLfloat *dst, const int16_t *src, uint32_t count)
+static void read_i16(GLfloat *dst, const int16u_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
-static void read_u32(GLfloat *dst, const uint32_t *src, uint32_t count)
+static void read_u32(GLfloat *dst, const uint32u_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
-static void read_i32(GLfloat *dst, const int32_t *src, uint32_t count)
+static void read_i32(GLfloat *dst, const int32u_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
@@ -52,32 +52,32 @@ static void read_i8n(GLfloat *dst, const int8_t *src, uint32_t count)
     for (uint32_t i = 0; i < count; i++) dst[i] = I8_TO_FLOAT(src[i]);
 }
 
-static void read_u16n(GLfloat *dst, const uint16_t *src, uint32_t count)
+static void read_u16n(GLfloat *dst, const uint16u_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = U16_TO_FLOAT(src[i]);
 }
 
-static void read_i16n(GLfloat *dst, const int16_t *src, uint32_t count)
+static void read_i16n(GLfloat *dst, const int16u_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = I16_TO_FLOAT(src[i]);
 }
 
-static void read_u32n(GLfloat *dst, const uint32_t *src, uint32_t count)
+static void read_u32n(GLfloat *dst, const uint32u_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = U32_TO_FLOAT(src[i]);
 }
 
-static void read_i32n(GLfloat *dst, const int32_t *src, uint32_t count)
+static void read_i32n(GLfloat *dst, const int32u_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = I32_TO_FLOAT(src[i]);
 }
 
-static void read_f32(GLfloat *dst, const float *src, uint32_t count)
+static void read_f32(GLfloat *dst, const floatu *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
-static void read_f64(GLfloat *dst, const double *src, uint32_t count)
+static void read_f64(GLfloat *dst, const doubleu *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
@@ -87,12 +87,12 @@ static void read_u8_i(GLubyte *dst, const uint8_t *src, uint32_t count)
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
-static void read_u16_i(GLubyte *dst, const uint16_t *src, uint32_t count)
+static void read_u16_i(GLubyte *dst, const uint16u_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
-static void read_u32_i(GLubyte *dst, const uint32_t *src, uint32_t count)
+static void read_u32_i(GLubyte *dst, const uint32u_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
