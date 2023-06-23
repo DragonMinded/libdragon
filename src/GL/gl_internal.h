@@ -833,10 +833,10 @@ inline void gl_set_palette_ptr(const gl_matrix_srv_t *palette_ptr)
 inline void gl_pre_init_pipe(GLenum primitive_mode)
 {
     // PreInitPipeTex will run a block with nesting level 1 for texture upload.
-    // Since we don't know how many RDP commands will the block issue, we pass -1
-    // to gl_write_rdp.
+    // The command itself does not emit RDP commands (the block does that, so
+    // we use a plain gl_write() for it.
     rspq_block_run_rsp(1);
-    gl_write_rdp(-1, GL_CMD_PRE_INIT_PIPE_TEX);
+    gl_write(GL_CMD_PRE_INIT_PIPE_TEX);
 
     // PreInitPipe is similar to rdpq_set_mode_standard wrt RDP commands.
     // It issues SET_SCISSOR + CC + SOM.
