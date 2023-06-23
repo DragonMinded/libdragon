@@ -178,17 +178,18 @@ surface_t sprite_get_lod_pixels(sprite_t *sprite, int num_level);
  * If there isn't a detail texture, the returned surface is 0.
  * 
  * Additional detail information such as factor or texparms are accessible 
- * through the filled sprite_detail_t structure.
- * If you don't wish to use this information, pass NULL to the info argument.
+ * through the filled sprite_detail_t and rdpq_texparms_t structure.
+ * If you don't wish to use this information, pass NULL to the info argument(s).
  * 
  * Notice that no memory allocations or copies are performed:
  * the returned surface will point to the sprite contents.
  * 
  * @param sprite        The sprite to access
  * @param info          The detail information struct to fill if needed
+ * @param infoparms     The detail texture sampling struct to fill if needed
  * @return surface_t    The surface containing the data.
  */
-surface_t sprite_get_detail_pixels(sprite_t *sprite, sprite_detail_t *info);
+surface_t sprite_get_detail_pixels(sprite_t *sprite, sprite_detail_t *info, rdpq_texparms_t *infoparms);
 
 /** 
  * @brief Return a surface_t pointing to a specific tile of the spritemap.
@@ -234,20 +235,6 @@ uint16_t* sprite_get_palette(sprite_t *sprite);
  * @return              true if the sprite contain RDP texparms, false otherwise
  */
 bool sprite_get_texparms(sprite_t *sprite, rdpq_texparms_t *parms);
-
-/**
- * @brief Get a copy of the RDP detail texture's texparms, optionally stored within the sprite.
- * 
- * This function allows to obtain the RDP detail texture's texparms structure stored within the
- * sprite, if any. This structure is used by the RDP to set texture properties
- * such as wrapping, mirroring, etc. It can be added to the sprite via
- * the mksprite tool, using the `--texparms` option.
- * 
- * @param sprite        The sprite to access
- * @param parms         The texparms structure to fill
- * @return              true if the sprite contain RDP texparms, false otherwise
- */
-bool sprite_get_detail_texparms(sprite_t *sprite, rdpq_texparms_t *parms);
 
 /**
  * @brief Return the number of LOD levels stored within the sprite (including the main image).
