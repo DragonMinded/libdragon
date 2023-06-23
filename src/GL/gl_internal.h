@@ -63,6 +63,13 @@
 
 #define gl_assert_no_display_list() assertf(state.current_list == 0, "%s cannot be recorded into a display list", __func__)
 
+typedef int16_t int16u_t __attribute__((aligned(1)));
+typedef uint16_t uint16u_t __attribute__((aligned(1)));
+typedef int32_t int32u_t __attribute__((aligned(1)));
+typedef uint32_t uint32u_t __attribute__((aligned(1)));
+typedef float floatu __attribute__((aligned(1)));
+typedef double doubleu __attribute__((aligned(1)));
+
 extern uint32_t gl_overlay_id;
 extern uint32_t glp_overlay_id;
 extern uint32_t gl_rsp_state;
