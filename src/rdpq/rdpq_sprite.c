@@ -55,7 +55,7 @@ int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t
 
         // Setup the blend factor for the detail texture
         float factor = detail.blend_factor;
-        rdpq_set_min_lod_frac(255*factor);
+        rdpq_set_detail_factor(factor);
 
         // Setup the texparms for the detail texture
         detailtexparms.s.translate += parms->s.translate * (1 << (parms->s.scale_log - detailtexparms.s.scale_log));
