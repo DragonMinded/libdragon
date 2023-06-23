@@ -109,6 +109,45 @@ surface_t sprite_get_lod_pixels(sprite_t *sprite, int num_level) {
     return surface_make_linear(pixels, fmt, lod->width, lod->height);
 }
 
+void sprite_get_detail_texparms(sprite_t *sprite, rdpq_texparms_t *parms) {
+    sprite_ext_t *sx = __sprite_ext(sprite);
+    if (!sx)
+        return;
+    if (parms) {
+        memset(parms, 0, sizeof(*parms));
+        parms->s.translate = sx->detail.texparms.s.translate;
+        parms->t.translate = sx->detail.texparms.t.translate;
+        parms->s.scale_log = sx->detail.texparms.s.scale_log;
+        parms->t.scale_log = sx->detail.texparms.t.scale_log;
+        parms->s.repeats = sx->detail.texparms.s.repeats;
+        parms->t.repeats = sx->detail.texparms.t.repeats;
+        parms->s.mirror = sx->detail.texparms.s.mirror;
+        parms->t.mirror = sx->detail.texparms.t.mirror;
+    }
+}
+
+surface_t sprite_get_detail_pixels(sprite_t *sprite, sprite_detail_t *info, rdpq_texparms_t *infoparms) {
+    // Get access to the extended sprite structure
+    sprite_ext_t *sx = __sprite_ext(sprite);
+    if (!sx)
+        return (surface_t){0};
+
+    if(!(sx->flags & SPRITE_FLAG_HAS_DETAIL))
+        return (surface_t){0};
+
+    if(info){
+        info->use_main_tex = sx->detail.use_main_texture;
+        info->blend_factor = sx->detail.blend_factor;
+    } 
+    if(infoparms) 
+        sprite_get_detail_texparms(sprite, infoparms);
+
+    if(sx->detail.use_main_texture)
+        return sprite_get_lod_pixels(sprite, 0);
+    // Return the detail texture (LOD7)
+    return sprite_get_lod_pixels(sprite, 7);
+}
+
 uint16_t* sprite_get_palette(sprite_t *sprite) {
     sprite_ext_t *sx = __sprite_ext(sprite);
     if(!sx || !sx->pal_file_pos)

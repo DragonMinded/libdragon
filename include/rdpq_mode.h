@@ -246,6 +246,8 @@ typedef enum rdpq_mipmap_s {
     MIPMAP_NONE        = 0,                                                ///< Mipmap disabled
     MIPMAP_NEAREST     = SOM_TEXTURE_LOD >> 32,                            ///< Choose the nearest mipmap level
     MIPMAP_INTERPOLATE = (SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE) >> 32,   ///< Interpolate between the two nearest mipmap levels (also known as "trilinear")
+    MIPMAP_INTERPOLATE_SHARPEN = (SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE | SOM_TEXTURE_SHARPEN) >> 32,   ///< Interpolate between the two nearest mipmap levels (also known as "trilinear") with sharpening enabled
+    MIPMAP_INTERPOLATE_DETAIL = (SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE | SOM_TEXTURE_DETAIL) >> 32,   ///< Interpolate between the two nearest mipmap levels (also known as "trilinear") with detail texture enabled
 } rdpq_mipmap_t;
 
 /**
@@ -747,7 +749,7 @@ inline void rdpq_mode_mipmap(rdpq_mipmap_t mode, int num_levels) {
         num_levels = 0;
     if (num_levels)
         num_levels -= 1;
-    __rdpq_mode_change_som(SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE | SOMX_NUMLODS_MASK, 
+    __rdpq_mode_change_som(SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE | SOMX_NUMLODS_MASK | SOM_TEXTURE_SHARPEN | SOM_TEXTURE_DETAIL, 
         ((uint64_t)mode << 32) | ((uint64_t)num_levels << SOMX_NUMLODS_SHIFT));
 };
 

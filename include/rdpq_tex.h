@@ -196,6 +196,57 @@ int rdpq_tex_upload_sub(rdpq_tile_t tile, const surface_t *tex, const rdpq_texpa
  */
 void rdpq_tex_upload_tlut(uint16_t *tlut, int color_idx, int num_colors);
 
+/**
+ * @brief Reuse a portion of the previously uploaded texture to TMEM
+ * 
+ * When a texture has been uploaded, its possible to reuse it for multiple tiles 
+ * without increasing TMEM usage. This function provides a way to achieve this while also
+ * configuring your own texture parameters for the reused texture. 
+ * 
+ * This sub-variant also allows to specify what part of the uploaded texture must be reused.
+ * For example, after uploading a 64x64 texture (or a 64x64 sub texture of a larger surface), 
+ * you can reuse an existing portion of it, like (16,16)-(48,48) or (0,0)-(8,32). 
+ * Restrictions of rdpq_texparms_t apply just when reusing just as well as for uploading a texture. 
+ * 
+ * Sub-rectangle must be within the bounds of the texture reused and be 8-byte aligned, 
+ * not all starting positions are valid for different formats.
+ * 
+ * Starting horizontal position s0 must be 8-byte aligned, meaning for different image formats 
+ * you can use TEX_FORMAT_BYTES2PIX(fmt, bytes) with bytes being in multiples of 8.
+ * Starting vertical position t0 must be in multiples of 2 pixels due to TMEM arrangement.
+ * 
+ * Leaving parms to NULL will copy the previous' texture texparms.
+ * Note: This function must be executed in a multi-upload block right after the reused texture has been
+ * uploaded.
+ * 
+ * @param tile       Tile descriptor that will be initialized with reused texture
+ * @param parms      All optional parameters on how to sample reused texture. Refer to #rdpq_texparms_t for more information.
+ * @param s0         Top-left X coordinate of the rectangle to reuse
+ * @param t0         Top-left Y coordinate of the rectangle to reuse
+ * @param s1         Bottom-right *exclusive* X coordinate of the rectangle
+ * @param t1         Bottom-right *exclusive* Y coordinate of the rectangle
+ * @return int       Number of bytes used in TMEM for this texture (always 0)
+ */
+int rdpq_tex_reuse_sub(rdpq_tile_t tile, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1);
+
+/**
+ * @brief Reuse the previously uploaded texture to TMEM
+ * 
+ * When a texture has been uploaded, its possible to reuse it for multiple tiles 
+ * without increasing TMEM usage. This function provides a way to achieve this while also
+ * configuring your own texture parameters for the reused texture. 
+ * 
+ * This full-variant will use the whole texture that was previously uploaded.
+ * Leaving parms to NULL will copy the previous' texture texparms.
+ * 
+ * Note: This function must be executed in a multi-upload block right after the reused texture has been
+ * uploaded.
+ * 
+ * @param tile       Tile descriptor that will be initialized with reused texture
+ * @param parms      All optional parameters on how to sample reused texture. Refer to #rdpq_texparms_t for more information.
+ * @return int       Number of bytes used in TMEM for this texture (always 0)
+ */
+int rdpq_tex_reuse(rdpq_tile_t tile, const rdpq_texparms_t *parms);
 
 /**
  * @brief Begin a multi-texture upload
