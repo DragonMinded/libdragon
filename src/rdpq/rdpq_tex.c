@@ -21,6 +21,7 @@ typedef struct rdpq_multi_upload_s {
     int  limit;
 } rdpq_multi_upload_t;
 static rdpq_multi_upload_t multi_upload;
+/** @brief Information on last image uploaded we are doing a multi-texture upload */
 tex_loader_t last_tload;
 
 /** @brief Address in TMEM where the palettes must be loaded */
