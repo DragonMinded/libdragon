@@ -59,9 +59,34 @@ typedef struct sprite_s
     uint32_t data[0];
 } sprite_t;
 
+/** 
+ * @brief Sprite detail texture information structure.
+ * 
+ * A "detail texture" is a 2D image with metadata attached to it 
+ * to increase the perceived resolution of the main sprite when rendering
+ * with little to no additional TMEM usage.
+ * 
+ * If the sprite uses a detail texture, its information can be retreived
+ * using the #sprite_get_detail_pixels function.
+ * 
+ * To include a detail texture to libdragon's sprite format, use
+ * the mksprite tool with --detail argument. 
+ * 
+ * #rdpq_sprite_upload automatically uploads detail textures associated with
+ * the sprite.
+ */
+typedef struct sprite_detail_s
+{
+    /** @brief Is the detail texture the same as the main surface of the sprite, used for fractal detailing */
+    bool            use_main_tex;
+    /** @brief Blend factor of the detail texture in range of 0 to 1 */
+    float           blend_factor;
+} sprite_detail_t;
+
 #define SPRITE_FLAGS_TEXFORMAT      0x1F    ///< Pixel format of the sprite
 #define SPRITE_FLAGS_OWNEDBUFFER    0x20    ///< Flag specifying that the sprite buffer must be freed by sprite_free
 #define SPRITE_FLAGS_EXT            0x80    ///< Sprite contains extended information (new format)
+
 
 /**
  * @brief Load a sprite from a filesystem (eg: ROM)
@@ -144,6 +169,28 @@ surface_t sprite_get_pixels(sprite_t *sprite);
  */
 surface_t sprite_get_lod_pixels(sprite_t *sprite, int num_level);
 
+/**
+ * @brief Create a surface_t pointing to the contents of a detail texture.
+ * 
+ * This function can be used to access detail texture within a sprite file.
+ * It is useful for sprites created by mksprite containing one.
+ * 
+ * If there isn't a detail texture, the returned surface is 0.
+ * 
+ * Additional detail information such as factor or texparms are accessible 
+ * through the filled sprite_detail_t and rdpq_texparms_t structure.
+ * If you don't wish to use this information, pass NULL to the info argument(s).
+ * 
+ * Notice that no memory allocations or copies are performed:
+ * the returned surface will point to the sprite contents.
+ * 
+ * @param sprite        The sprite to access
+ * @param info          The detail information struct to fill if needed
+ * @param infoparms     The detail texture sampling struct to fill if needed
+ * @return surface_t    The surface containing the data.
+ */
+surface_t sprite_get_detail_pixels(sprite_t *sprite, sprite_detail_t *info, rdpq_texparms_t *infoparms);
+
 /** 
  * @brief Return a surface_t pointing to a specific tile of the spritemap.
  * 
@@ -196,6 +243,7 @@ bool sprite_get_texparms(sprite_t *sprite, rdpq_texparms_t *parms);
  * @return              The number of LOD levels
  */
 int sprite_get_lod_count(sprite_t *sprite);
+
 
 #ifdef __cplusplus
 }

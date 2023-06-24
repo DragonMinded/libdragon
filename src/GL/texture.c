@@ -332,6 +332,10 @@ void glSurfaceTexImageN64(GLenum target, GLint level, surface_t *surface, rdpq_t
 
     texture_image_free_safe(obj, level);
 
+    // Store the surface. We duplicate the surface structure (not the pixels)
+    // using surface_make_sub so that we get a variant in which the owned bit
+    // is not set; this in turns will make sure texture deletion would not free
+    // the original surface (whose lifetime is left to the caller).
     obj->surfaces[level] = surface_make_sub(surface, 0, 0, surface->width, surface->height);
 
     gl_surface_image(obj, offset, level, &obj->surfaces[level], &parms);
@@ -1191,16 +1195,6 @@ void gl_tex_image(GLenum target, GLint level, GLint internalformat, GLsizei widt
     gl_texture_object_t *obj = gl_get_texture_object(target);
     if (texture_is_sprite(obj)) {
         gl_set_error(GL_INVALID_OPERATION, "Cannot apply image to a sprite texture");
-        return;
-    }
-
-    GLsizei width_without_border = width - 2 * border;
-    GLsizei height_without_border = height - 2 * border;
-
-    // Check for power of two
-    if ((width_without_border & (width_without_border - 1)) || 
-        (height_without_border & (height_without_border - 1))) {
-        gl_set_error(GL_INVALID_VALUE, "Width and height must be a power of two");
         return;
     }
 

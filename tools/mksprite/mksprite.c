@@ -765,8 +765,6 @@ bool spritemaker_write(spritemaker_t *spr) {
             flags |= numlods;
             if (spr->texparms.defined) flags |= 0x08;
             if (spr->detail.enabled) flags |= 0x10;
-            if (spr->detail.use_main_tex) flags |= 0x20;
-            if (spr->detail.texparms.defined) flags |= 0x40;
             w16(out, flags);
             w16(out, 0); // padding
             wf32(out, spr->texparms.s.translate);

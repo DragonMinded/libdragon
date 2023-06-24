@@ -15,9 +15,14 @@
 #include <math.h>
 
 /** @brief Non-zero if we are doing a multi-texture upload */
-static int multi_upload = 0;
-static int multi_upload_bytes = 0;
-static int multi_upload_limit = 0;
+typedef struct rdpq_multi_upload_s {
+    int  used;
+    int  bytes;
+    int  limit;
+} rdpq_multi_upload_t;
+static rdpq_multi_upload_t multi_upload;
+/** @brief Information on last image uploaded we are doing a multi-texture upload */
+tex_loader_t last_tload;
 
 /** @brief Address in TMEM where the palettes must be loaded */
 #define TMEM_PALETTE_ADDR   0x800
@@ -293,6 +298,20 @@ static void texload_tile(tex_loader_t *tload, int s0, int t0, int s1, int t1)
     rdpq_set_tile_size_fx(tload->tile, s0, t0, s1, t1);
 }
 
+
+static void texload_settile(tex_loader_t *tload, int s0, int t0, int s1, int t1)
+{
+    tex_format_t fmt = surface_get_format(tload->tex);
+
+    rdpq_set_tile(tload->tile, fmt, tload->tmem_addr, tload->rect.tmem_pitch, &(tload->tileparms));
+
+    s0 = s0*4 + tload->rect.s0fx;
+    t0 = t0*4 + tload->rect.t0fx;
+    s1 = s1*4 + tload->rect.s1fx;
+    t1 = t1*4 + tload->rect.t1fx;
+    rdpq_set_tile_size_fx(tload->tile, s0, t0, s1, t1);
+}
+
 ///@cond
 // Tex loader API, not yet documented
 int tex_loader_load(tex_loader_t *tload, int s0, int t0, int s1, int t1)
@@ -344,21 +363,21 @@ int tex_loader_calc_max_height(tex_loader_t *tload, int width)
 
 int rdpq_tex_upload_sub(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1)
 {
-    tex_loader_t tload = tex_loader_init(tile, tex);
-    if (parms) tex_loader_set_texparms(&tload, parms);
+    last_tload = tex_loader_init(tile, tex);
+    if (parms) tex_loader_set_texparms(&last_tload, parms);
     
-    if (multi_upload) {
+    if (multi_upload.used) {
         assertf(parms == NULL || parms->tmem_addr == 0, "Do not specify a TMEM address while doing a multi-texture upload");
-        tex_loader_set_tmem_addr(&tload, RDPQ_AUTOTMEM);
+        tex_loader_set_tmem_addr(&last_tload, RDPQ_AUTOTMEM);
     } else {
-        tex_loader_set_tmem_addr(&tload, parms ? parms->tmem_addr : 0);
+        tex_loader_set_tmem_addr(&last_tload, parms ? parms->tmem_addr : 0);
     }
 
-    int nbytes = tex_loader_load(&tload, s0, t0, s1, t1);
+    int nbytes = tex_loader_load(&last_tload, s0, t0, s1, t1);
 
-    if (multi_upload) {
+    if (multi_upload.used) {
         rdpq_set_tile_autotmem(nbytes);
-        multi_upload_bytes += nbytes;
+        multi_upload.bytes += nbytes;
 
         #ifndef NDEBUG
         // Do a best-effort check to make sure we don't exceed TMEM size. This is not 100%
@@ -367,8 +386,8 @@ int rdpq_tex_upload_sub(rdpq_tile_t tile, const surface_t *tex, const rdpq_texpa
         // with the only gotcha that there will be no traceback for it.
         tex_format_t fmt = surface_get_format(tex);
         if (fmt == FMT_CI4 || fmt == FMT_CI8 || fmt == FMT_RGBA32 || fmt == FMT_YUV16)
-            multi_upload_limit = 2048;
-        assertf(multi_upload_bytes <= multi_upload_limit, "Multi-texture upload exceeded TMEM size");
+            multi_upload.limit = 2048;
+        assertf(multi_upload.bytes <= multi_upload.limit, "Multi-texture upload exceeded TMEM size");
         #endif
     }
 
@@ -378,6 +397,53 @@ int rdpq_tex_upload_sub(rdpq_tile_t tile, const surface_t *tex, const rdpq_texpa
 int rdpq_tex_upload(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_t *parms)
 {
     return rdpq_tex_upload_sub(tile, tex, parms, 0, 0, tex->width, tex->height);
+}
+
+int rdpq_tex_reuse_sub(rdpq_tile_t tile, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1)
+{
+    assertf(multi_upload.used, "Reusing existing texture needs to be done through multi-texture upload");
+    assertf(last_tload.tex, "Reusing existing texture is not possible without uploading at least one texture first");  
+    assertf(parms == NULL || parms->tmem_addr == 0, "Do not specify a TMEM address while reusing an existing texture");
+
+    // Check if just copying a tile descriptor is enough
+    if(!s0 && !t0 && s1 == last_tload.rect.width && t1 == last_tload.rect.height){
+        if(!parms){
+            last_tload.tile = tile;
+            last_tload.tmem_addr = RDPQ_AUTOTMEM_REUSE(0);
+            texload_settile(&last_tload, s0, t0, s1, t1);
+            return 0;
+        }
+    }
+
+    // Make a new texloader to a new sub-rect
+    tex_loader_t tload = last_tload;
+    
+    assertf(s0 >= 0 && t0 >= 0 && s1 <= tload.rect.width && t1 <= tload.rect.height, "Sub coordinates (%i,%i)-(%i,%i) must be within bounds of the texture reused (%ix%i)", s0, t0, s1, t1,  tload.rect.width, tload.rect.height);
+    assertf(t0 % 2 == 0, "t0=%i must be in multiples of 2 pixels", t0);
+
+    tex_format_t fmt = surface_get_format(tload.tex);
+    int tmem_offset = TEX_FORMAT_PIX2BYTES(fmt, s0);
+
+    assertf(tmem_offset % 8 == 0, "Due to 8-byte texture alignment, for %s format, s0=%i must be in multiples of %i pixels", tex_format_name(fmt), s0, TEX_FORMAT_BYTES2PIX(fmt, 8));
+    
+    tmem_offset += tload.rect.tmem_pitch*t0;
+    tload.tmem_addr = RDPQ_AUTOTMEM_REUSE(tmem_offset);
+
+    if(parms) tload.texparms = parms;
+    int subwidth = s1 - s0, subheight = t1 - t0;
+    tload.rect.width = subwidth;
+    tload.rect.height = subheight;
+    texload_recalc_tileparms(&tload);
+    
+    tload.tile = tile;
+    texload_settile(&tload, 0, 0, subwidth, subheight);
+
+    return 0;
+}
+
+int rdpq_tex_reuse(rdpq_tile_t tile, const rdpq_texparms_t *parms)
+{
+    return rdpq_tex_reuse_sub(tile, parms, 0, 0, last_tload.rect.width, last_tload.rect.height);
 }
 
 /**
@@ -619,17 +685,17 @@ void rdpq_tex_multi_begin(void)
 {
     // Initialize autotmem engine
     rdpq_set_tile_autotmem(0);
-    if (multi_upload++ == 0) {
-        multi_upload = true;
-        multi_upload_bytes = 0;
-        multi_upload_limit = 4096;
+    if (multi_upload.used++ == 0) {
+        multi_upload.bytes = 0;
+        multi_upload.limit = 4096;
+        last_tload.tex = 0;
     }
 }
 
 int rdpq_tex_multi_end(void)
 {
     rdpq_set_tile_autotmem(-1);
-    --multi_upload;
-    assert(multi_upload >= 0);
+    --multi_upload.used;
+    assert(multi_upload.used >= 0);
     return 0;
 }

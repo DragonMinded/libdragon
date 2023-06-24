@@ -7,8 +7,6 @@
 #define SPRITE_FLAG_NUMLODS                 0x0007   ///< Number of LODs, including detail texture if any (0 = no LODs)
 #define SPRITE_FLAG_HAS_TEXPARMS            0x0008   ///< Sprite contains texture parameters
 #define SPRITE_FLAG_HAS_DETAIL              0x0010   ///< Sprite contains detail texture
-#define SPRITE_FLAG_DETAIL_USE_LOD0         0x0020   ///< Detail texture is the same as LOD0 (fractal detailing)
-#define SPRITE_FLAG_DETAIL_HAS_TEXPARMS     0x0040   ///< Detail texture has its own texparms
 
 /** 
  * @brief Internal structure used as additional sprite header

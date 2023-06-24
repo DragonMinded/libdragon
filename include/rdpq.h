@@ -178,6 +178,7 @@ enum {
     RDPQ_CMD_TEXTURE_RECTANGLE_EX       = 0x10,
     RDPQ_CMD_SET_DEBUG_MODE             = 0x11,
     RDPQ_CMD_SET_SCISSOR_EX             = 0x12,
+    RDPQ_CMD_SET_PRIM_COLOR_COMPONENT   = 0x13,
     RDPQ_CMD_MODIFY_OTHER_MODES         = 0x14,
     RDPQ_CMD_SET_FILL_COLOR_32          = 0x16,
     RDPQ_CMD_SET_BLENDING_MODE          = 0x18,
@@ -946,7 +947,7 @@ inline void rdpq_set_blend_color(color_t color)
 }
 
 /**
- * @brief Set the RDP PRIM combiner register (RDP command: SET_PRIM_COLOR)
+ * @brief Set the RDP PRIM combiner register (color only) (RDP command: SET_PRIM_COLOR)
  * 
  * This function sets the internal RDP PRIM register, part of the
  * color combiner unit. Naming aside, it is a generic color register that
@@ -958,19 +959,113 @@ inline void rdpq_set_blend_color(color_t color)
  * See #RDPQ_COMBINER1 and #RDPQ_COMBINER2 on how to configure
  * the color combiner (typicall, via #rdpq_mode_combiner).
  * 
+ * If you wish to set PRIM LOD or PRIM MIN LOD values of the PRIM register,
+ * see #rdpq_set_prim_lod_frac, #rdpq_set_detail_factor or #rdpq_set_prim_register_raw.
+ * 
  * @param[in] color             Color to set the PRIM register to
  * 
  * @see #RDPQ_COMBINER1
  * @see #RDPQ_COMBINER2
  * @see #rdpq_set_env_color
  * @see #rdpq_mode_combiner
+ * @see #rdpq_set_prim_lod_frac
+ * @see #rdpq_set_detail_factor
+ * @see #rdpq_set_prim_register_raw
  * 
  */
 inline void rdpq_set_prim_color(color_t color)
 {
     // NOTE: this does not require a pipe sync
     extern void __rdpq_write8(uint32_t cmd_id, uint32_t arg0, uint32_t arg1);
-    __rdpq_write8(RDPQ_CMD_SET_PRIM_COLOR, 0, color_to_packed32(color));
+    __rdpq_write8(RDPQ_CMD_SET_PRIM_COLOR_COMPONENT, (0<<16), color_to_packed32(color));
+}
+
+/**
+ * @brief Set the detail/sharpen blending factor (RDP command: SET_PRIM_COLOR (partial))
+ * 
+ * This function sets the internal minimum clamp for LOD fraction, that is used for 
+ * determining the interpolation blend factor of a detail or sharpen texture at high 
+ * magnification.
+ * 
+ * Range is [0..1] where 0 means no influence, and 1 means full influence.
+ * The range is internally inverted and converted to [0..31] for the RDP hardware
+ * 
+ * @param[in] value             Value to set the register to in range [0..1]
+ * 
+ * @see #RDPQ_COMBINER1
+ * @see #RDPQ_COMBINER2
+ * @see #rdpq_mode_combiner
+ * 
+ */
+inline void rdpq_set_detail_factor(float value)
+{
+    // NOTE: this does not require a pipe sync
+    int8_t conv = (1.0 - value) * 31;
+    extern void __rdpq_write8(uint32_t cmd_id, uint32_t arg0, uint32_t arg1);
+    __rdpq_write8(RDPQ_CMD_SET_PRIM_COLOR_COMPONENT, ((conv & 0x1F) << 8) | (2<<16), 0);
+}
+
+/**
+ * @brief Set the RDP PRIM LOD FRAC combiner register (RDP command: SET_PRIM_COLOR (partial))
+ * 
+ * This function sets the internal Level of Detail fraction for primitive register, 
+ * that is used for custom linear interpolation between any two colors in a Color Combiner.
+ * 
+ * See #RDPQ_COMBINER1 and #RDPQ_COMBINER2 on how to configure
+ * the color combiner (typicall, via #rdpq_mode_combiner).
+ * 
+ * If you wish to set PRIM MIN LOD value, see #rdpq_set_detail_factor.
+ * 
+ * @param[in] value             Value to set the PRIM LOD register to in range [0..255]
+ * 
+ * @see #RDPQ_COMBINER1
+ * @see #RDPQ_COMBINER2
+ * @see #rdpq_mode_combiner
+ * @see #rdpq_set_detail_factor
+ * 
+ */
+inline void rdpq_set_prim_lod_frac(uint8_t value)
+{
+    // NOTE: this does not require a pipe sync
+    extern void __rdpq_write8(uint32_t cmd_id, uint32_t arg0, uint32_t arg1);
+    __rdpq_write8(RDPQ_CMD_SET_PRIM_COLOR_COMPONENT, value | (1<<16), 0);
+}
+
+/**
+ * @brief Set the RDP PRIM combiner register (raw version) (RDP command: SET_PRIM_COLOR)
+ * 
+ * This function sets the internal RDP PRIM register, part of the
+ * color combiner unit. Naming aside, it is a generic color register that
+ * can be used in custom color combiner formulas. 
+ * 
+ * It also sets the PRIM LOD FRAC and PRIM MIN LOD FRAC values for the PRIM register
+ * For more information, see #rdpq_set_prim_lod_frac, #rdpq_set_detail_factor.
+ * 
+ * Another similar blender register is the ENV register, configured via
+ * #rdpq_set_env_color.
+ * 
+ * See #RDPQ_COMBINER1 and #RDPQ_COMBINER2 on how to configure
+ * the color combiner (typicall, via #rdpq_mode_combiner).
+ * 
+ * If you wish to set PRIM COLOR or PRIM LOD or PRIM MIN LOD values individually,
+ * see #rdpq_set_prim_lod_frac, #rdpq_set_detail_factor or #rdpq_set_prim_color.
+ * 
+ * @param[in] color             Color to set the PRIM register to
+ * @param[in] minlod            Minimum LOD fraction to set the PRIM register to
+ * @param[in] primlod           Primitive LOD fraction to set the PRIM register to
+ * 
+ * @see #RDPQ_COMBINER1
+ * @see #RDPQ_COMBINER2
+ * @see #rdpq_set_env_color
+ * @see #rdpq_set_prim_color
+ * @see #rdpq_set_prim_lod_frac
+ * @see #rdpq_set_detail_factor
+ * 
+ */
+inline void rdpq_set_prim_register_raw(color_t color, uint8_t minlod, uint8_t primlod)
+{
+    extern void __rdpq_write8(uint32_t cmd_id, uint32_t arg0, uint32_t arg1);
+    __rdpq_write8(RDPQ_CMD_SET_PRIM_COLOR, ((minlod & 0x1F) << 8) | primlod, color_to_packed32(color));
 }
 
 /**
