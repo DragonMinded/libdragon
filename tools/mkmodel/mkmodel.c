@@ -449,11 +449,11 @@ int convert_mesh(cgltf_mesh *in_mesh, mesh_t *out_mesh)
     for (size_t i = 0; i < in_mesh->primitives_count; i++)
     {
         if (flag_verbose) {
-            printf("Converting primitive %ld\n", i);
+            printf("Converting primitive %zd\n", i);
         }
 
         if (convert_primitive(&in_mesh->primitives[i], &out_mesh->primitives[i]) != 0) {
-            fprintf(stderr, "Error: failed converting primitive %ld\n", i);
+            fprintf(stderr, "Error: failed converting primitive %zd\n", i);
             return 1;
         }
     }
@@ -495,7 +495,7 @@ int convert(const char *infn, const char *outfn)
             if (data->meshes[i].name != NULL) {
                 printf("Converting mesh %s\n", data->meshes[i].name);
             } else {
-                printf("Converting mesh %ld\n", i);
+                printf("Converting mesh %zd\n", i);
             }
         }
 
@@ -503,7 +503,7 @@ int convert(const char *infn, const char *outfn)
             if (data->meshes[i].name != NULL) {
                 fprintf(stderr, "Error: failed converting mesh %s\n", data->meshes[i].name);
             } else {
-                fprintf(stderr, "Error: failed converting mesh %ld\n", i);
+                fprintf(stderr, "Error: failed converting mesh %zd\n", i);
             }
             goto error;
         }
