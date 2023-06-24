@@ -15,9 +15,9 @@ model64_t *model64_load_buf(void *buf, int sz)
     model64_t *model = buf;
     assertf(sz >= sizeof(model64_t), "Model buffer too small (sz=%d)", sz);
     if(model->magic == MODEL64_MAGIC_LOADED) {
-        assertf(0, "Trying to load already loaded font data (buf=%p, sz=%08x)", buf, sz);
+        assertf(0, "Trying to load already loaded model data (buf=%p, sz=%08x)", buf, sz);
     }
-    assertf(model->magic == MODEL64_MAGIC, "invalid font data (magic: %08lx)", model->magic);
+    assertf(model->magic == MODEL64_MAGIC, "invalid model data (magic: %08lx)", model->magic);
     model->meshes = PTR_DECODE(model, model->meshes);
     for (int i = 0; i < model->num_meshes; i++)
     {
