@@ -72,5 +72,6 @@
 #include "sprite.h"
 #include "debugcpp.h"
 #include "dlfcn.h"
+#include "model64.h"
 
 #endif
