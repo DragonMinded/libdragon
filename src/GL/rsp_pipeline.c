@@ -1,10 +1,9 @@
+#include <limits.h>
+
 #include "gl_internal.h"
 #include "gl_rsp_asm.h"
 
 extern gl_state_t state;
-
-#define VTX_SHIFT 5
-#define TEX_SHIFT 8
 
 #define DEFINE_BYTE_READ_FUNC(name, src_type, convert) \
     static void name(gl_cmd_stream_t *s, const src_type *src, uint32_t count) \
@@ -18,17 +17,36 @@ extern gl_state_t state;
         for (uint32_t i = 0; i < count; i++) gl_cmd_stream_put_half(s, convert(src[i])); \
     }
 
+static void read_fixed_point(gl_cmd_stream_t *s, const int16u_t *src, uint32_t count, uint32_t shift)
+{
+    if (shift > 0) {
+        for (uint32_t i = 0; i < count; i++) {
+            int16_t value = src[i];
+            assertf(value <= SHRT_MAX>>shift && value >= SHRT_MIN>>shift, "Fixed point overflow: %d << %ld", value, shift);
+            gl_cmd_stream_put_half(s, value << shift);
+        }
+    } else {
+        for (uint32_t i = 0; i < count; i++) {
+            gl_cmd_stream_put_half(s, src[i] >> -shift);
+        }
+    }
+}
+
+#define DEFINE_HALF_FIXED_READ_FUNC(name, precision) \
+    static void name(gl_cmd_stream_t *s, const int16u_t *src, uint32_t count) \
+    { \
+        read_fixed_point(s, src, count, precision.shift_amount); \
+    }
+
 #define VTX_CONVERT_INT(v) ((v) << VTX_SHIFT)
 #define VTX_CONVERT_FLT(v) ((v) * (1<<VTX_SHIFT))
 
-DEFINE_HALF_READ_FUNC(vtx_read_u8,  uint8_t,   VTX_CONVERT_INT)
-DEFINE_HALF_READ_FUNC(vtx_read_i8,  int8_t,    VTX_CONVERT_INT)
-DEFINE_HALF_READ_FUNC(vtx_read_u16, uint16u_t, VTX_CONVERT_INT)
-DEFINE_HALF_READ_FUNC(vtx_read_i16, int16u_t,  VTX_CONVERT_INT)
-DEFINE_HALF_READ_FUNC(vtx_read_u32, uint32u_t, VTX_CONVERT_INT)
-DEFINE_HALF_READ_FUNC(vtx_read_i32, int32u_t,  VTX_CONVERT_INT)
-DEFINE_HALF_READ_FUNC(vtx_read_f32, floatu,    VTX_CONVERT_FLT)
-DEFINE_HALF_READ_FUNC(vtx_read_f64, doubleu,   VTX_CONVERT_FLT)
+DEFINE_HALF_READ_FUNC(vtx_read_i8,    int8_t,    VTX_CONVERT_INT)
+DEFINE_HALF_READ_FUNC(vtx_read_i16,   int16u_t,  VTX_CONVERT_INT)
+DEFINE_HALF_READ_FUNC(vtx_read_i32,   int32u_t,  VTX_CONVERT_INT)
+DEFINE_HALF_READ_FUNC(vtx_read_f32,   floatu,    VTX_CONVERT_FLT)
+DEFINE_HALF_READ_FUNC(vtx_read_f64,   doubleu,   VTX_CONVERT_FLT)
+DEFINE_HALF_FIXED_READ_FUNC(vtx_read_x16, state.vertex_halfx_precision)
 
 #define COL_CONVERT_U8(v) ((v) << 7)
 #define COL_CONVERT_I8(v) ((v) << 8)
@@ -51,14 +69,12 @@ DEFINE_HALF_READ_FUNC(col_read_f64, doubleu,   COL_CONVERT_F64)
 #define TEX_CONVERT_INT(v) ((v) << TEX_SHIFT)
 #define TEX_CONVERT_FLT(v) ((v) * (1<<TEX_SHIFT))
 
-DEFINE_HALF_READ_FUNC(tex_read_u8,  uint8_t,   TEX_CONVERT_INT)
-DEFINE_HALF_READ_FUNC(tex_read_i8,  int8_t,    TEX_CONVERT_INT)
-DEFINE_HALF_READ_FUNC(tex_read_u16, uint16u_t, TEX_CONVERT_INT)
-DEFINE_HALF_READ_FUNC(tex_read_i16, int16u_t,  TEX_CONVERT_INT)
-DEFINE_HALF_READ_FUNC(tex_read_u32, uint32u_t, TEX_CONVERT_INT)
-DEFINE_HALF_READ_FUNC(tex_read_i32, int32u_t,  TEX_CONVERT_INT)
-DEFINE_HALF_READ_FUNC(tex_read_f32, floatu,    TEX_CONVERT_FLT)
-DEFINE_HALF_READ_FUNC(tex_read_f64, doubleu,   TEX_CONVERT_FLT)
+DEFINE_HALF_READ_FUNC(tex_read_i8,   int8_t,    TEX_CONVERT_INT)
+DEFINE_HALF_READ_FUNC(tex_read_i16,  int16u_t,  TEX_CONVERT_INT)
+DEFINE_HALF_READ_FUNC(tex_read_i32,  int32u_t,  TEX_CONVERT_INT)
+DEFINE_HALF_READ_FUNC(tex_read_f32,  floatu,    TEX_CONVERT_FLT)
+DEFINE_HALF_READ_FUNC(tex_read_f64,  doubleu,   TEX_CONVERT_FLT)
+DEFINE_HALF_FIXED_READ_FUNC(tex_read_x16, state.texcoord_halfx_precision)
 
 #define NRM_CONVERT_U8(v) ((v) >> 1)
 #define NRM_CONVERT_I8(v) ((v))
@@ -69,11 +85,8 @@ DEFINE_HALF_READ_FUNC(tex_read_f64, doubleu,   TEX_CONVERT_FLT)
 #define NRM_CONVERT_F32(v) ((v) * 0x7F)
 #define NRM_CONVERT_F64(v) ((v) * 0x7F)
 
-DEFINE_BYTE_READ_FUNC(nrm_read_u8,  uint8_t,   NRM_CONVERT_U8)
 DEFINE_BYTE_READ_FUNC(nrm_read_i8,  int8_t,    NRM_CONVERT_I8)
-DEFINE_BYTE_READ_FUNC(nrm_read_u16, uint16u_t, NRM_CONVERT_U16)
 DEFINE_BYTE_READ_FUNC(nrm_read_i16, int16u_t,  NRM_CONVERT_I16)
-DEFINE_BYTE_READ_FUNC(nrm_read_u32, uint32u_t, NRM_CONVERT_U32)
 DEFINE_BYTE_READ_FUNC(nrm_read_i32, int32u_t,  NRM_CONVERT_I32)
 DEFINE_BYTE_READ_FUNC(nrm_read_f32, floatu,    NRM_CONVERT_F32)
 DEFINE_BYTE_READ_FUNC(nrm_read_f64, doubleu,   NRM_CONVERT_F64)
@@ -81,24 +94,20 @@ DEFINE_BYTE_READ_FUNC(nrm_read_f64, doubleu,   NRM_CONVERT_F64)
 #define MTX_INDEX_CONVERT(v) (v)
 
 DEFINE_BYTE_READ_FUNC(mtx_index_read_u8,  uint8_t,   MTX_INDEX_CONVERT)
-DEFINE_BYTE_READ_FUNC(mtx_index_read_i8,  int8_t,    MTX_INDEX_CONVERT)
 DEFINE_BYTE_READ_FUNC(mtx_index_read_u16, uint16u_t, MTX_INDEX_CONVERT)
-DEFINE_BYTE_READ_FUNC(mtx_index_read_i16, int16u_t,  MTX_INDEX_CONVERT)
 DEFINE_BYTE_READ_FUNC(mtx_index_read_u32, uint32u_t, MTX_INDEX_CONVERT)
-DEFINE_BYTE_READ_FUNC(mtx_index_read_i32, int32u_t,  MTX_INDEX_CONVERT)
-DEFINE_BYTE_READ_FUNC(mtx_index_read_f32, floatu,    MTX_INDEX_CONVERT)
-DEFINE_BYTE_READ_FUNC(mtx_index_read_f64, doubleu,   MTX_INDEX_CONVERT)
 
-const rsp_read_attrib_func rsp_read_funcs[ATTRIB_COUNT][8] = {
+const rsp_read_attrib_func rsp_read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
     {
         (rsp_read_attrib_func)vtx_read_i8,
-        (rsp_read_attrib_func)vtx_read_u8,
+        NULL,
         (rsp_read_attrib_func)vtx_read_i16,
-        (rsp_read_attrib_func)vtx_read_u16,
+        NULL,
         (rsp_read_attrib_func)vtx_read_i32,
-        (rsp_read_attrib_func)vtx_read_u32,
+        NULL,
         (rsp_read_attrib_func)vtx_read_f32,
         (rsp_read_attrib_func)vtx_read_f64,
+        (rsp_read_attrib_func)vtx_read_x16,
     },
     {
         (rsp_read_attrib_func)col_read_i8,
@@ -109,36 +118,40 @@ const rsp_read_attrib_func rsp_read_funcs[ATTRIB_COUNT][8] = {
         (rsp_read_attrib_func)col_read_u32,
         (rsp_read_attrib_func)col_read_f32,
         (rsp_read_attrib_func)col_read_f64,
+        NULL,
     },
     {
         (rsp_read_attrib_func)tex_read_i8,
-        (rsp_read_attrib_func)tex_read_u8,
+        NULL,
         (rsp_read_attrib_func)tex_read_i16,
-        (rsp_read_attrib_func)tex_read_u16,
+        NULL,
         (rsp_read_attrib_func)tex_read_i32,
-        (rsp_read_attrib_func)tex_read_u32,
+        NULL,
         (rsp_read_attrib_func)tex_read_f32,
         (rsp_read_attrib_func)tex_read_f64,
+        (rsp_read_attrib_func)tex_read_x16,
     },
     {
         (rsp_read_attrib_func)nrm_read_i8,
-        (rsp_read_attrib_func)nrm_read_u8,
+        NULL,
         (rsp_read_attrib_func)nrm_read_i16,
-        (rsp_read_attrib_func)nrm_read_u16,
+        NULL,
         (rsp_read_attrib_func)nrm_read_i32,
-        (rsp_read_attrib_func)nrm_read_u32,
+        NULL,
         (rsp_read_attrib_func)nrm_read_f32,
         (rsp_read_attrib_func)nrm_read_f64,
+        NULL,
     },
     {
-        (rsp_read_attrib_func)mtx_index_read_i8,
+        NULL,
         (rsp_read_attrib_func)mtx_index_read_u8,
-        (rsp_read_attrib_func)mtx_index_read_i16,
+        NULL,
         (rsp_read_attrib_func)mtx_index_read_u16,
-        (rsp_read_attrib_func)mtx_index_read_i32,
+        NULL,
         (rsp_read_attrib_func)mtx_index_read_u32,
-        (rsp_read_attrib_func)mtx_index_read_f32,
-        (rsp_read_attrib_func)mtx_index_read_f64,
+        NULL,
+        NULL,
+        NULL,
     },
 };
 

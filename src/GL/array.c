@@ -32,8 +32,8 @@ static const gl_interleaved_array_t interleaved_arrays[] = {
     /* GL_T4F_C4F_N3F_V4F */ { .et = true,  .ec = true,  .en = true,  .st = 4, .sc = 4, .sv = 4, .tc = GL_FLOAT,         .pc = 4*ILA_F, .pn = 8*ILA_F, .pv = 11*ILA_F,        .s = 15*ILA_F },
 };
 
-extern const cpu_read_attrib_func cpu_read_funcs[ATTRIB_COUNT][8];
-extern const rsp_read_attrib_func rsp_read_funcs[ATTRIB_COUNT][8];
+extern const cpu_read_attrib_func cpu_read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT];
+extern const rsp_read_attrib_func rsp_read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT];
 
 gl_array_type_t gl_array_type_from_enum(GLenum array)
 {
@@ -64,6 +64,7 @@ void gl_update_array(gl_array_t *array, gl_array_type_t array_type)
         break;
     case GL_SHORT:
     case GL_UNSIGNED_SHORT:
+    case GL_HALF_FIXED_N64:
         size_shift = 1;
         break;
     case GL_INT:
@@ -81,6 +82,9 @@ void gl_update_array(gl_array_t *array, gl_array_type_t array_type)
     uint32_t func_index = gl_type_to_index(array->type);
     array->cpu_read_func = cpu_read_funcs[array_type][func_index];
     array->rsp_read_func = rsp_read_funcs[array_type][func_index];
+
+    assertf(array->cpu_read_func != NULL, "CPU read function is missing");
+    assertf(array->rsp_read_func != NULL, "RSP read function is missing");
 }
 
 void gl_update_array_pointer(gl_array_t *array)
@@ -176,6 +180,7 @@ void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *poin
     case GL_INT:
     case GL_FLOAT:
     case GL_DOUBLE:
+    case GL_HALF_FIXED_N64:
         break;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid vertex data type", type);
@@ -205,6 +210,7 @@ void glTexCoordPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *po
     case GL_INT:
     case GL_FLOAT:
     case GL_DOUBLE:
+    case GL_HALF_FIXED_N64:
         break;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid texture coordinate data type", type);
