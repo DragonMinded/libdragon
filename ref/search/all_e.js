@@ -26,7 +26,7 @@ var searchData=
   ['mi_5fintr_5fai_23',['MI_INTR_AI',['../group__interrupt.html#ga7d52d5c9f6c5c45685c10e40dd6df88b',1,'interrupt.c']]],
   ['mi_5fintr_5fdp_24',['MI_INTR_DP',['../group__interrupt.html#gaa69a5f85f0b68ee2184b9cff279b833c',1,'interrupt.c']]],
   ['mi_5fintr_5fpi_25',['MI_INTR_PI',['../group__interrupt.html#ga29720422b6385bbb049db3b5b73255a9',1,'interrupt.c']]],
-  ['mi_5fintr_5fsi_26',['MI_INTR_SI',['../group__interrupt.html#gac34a484454f7cf060f985814d0af2c81',1,'interrupt.c']]],
+  ['mi_5fintr_5fsi_26',['MI_INTR_SI',['../group__joybus.html#gac34a484454f7cf060f985814d0af2c81',1,'MI_INTR_SI():&#160;joybus.c'],['../group__interrupt.html#gac34a484454f7cf060f985814d0af2c81',1,'MI_INTR_SI():&#160;interrupt.c']]],
   ['mi_5fintr_5fsp_27',['MI_INTR_SP',['../group__interrupt.html#ga92b21e494029fc8c3b282794e96e7285',1,'interrupt.c']]],
   ['mi_5fintr_5fvi_28',['MI_INTR_VI',['../group__interrupt.html#ga9598982e34e5e13fed6dbb16890d1596',1,'interrupt.c']]],
   ['mi_5fmask_5fai_29',['MI_MASK_AI',['../group__interrupt.html#ga857abfc07b66c2a65c2ed9f2ae2c4a8a',1,'interrupt.c']]],

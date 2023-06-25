@@ -3,7 +3,7 @@ var searchData=
   ['s_0',['s',['../group__rdp.html#a833a86af3d3e39d4cff0e0ef6187e82b',1,'sprite_cache']]],
   ['samplesize_1',['samplesize',['../group__lowlevel.html#a91961c052de8eb2f0dea0adcdb98ad52',1,'AI_regs_t']]],
   ['sec_2',['sec',['../group__rtc.html#a9e6b7c9a15685fe8c90a969550b80e76',1,'rtc_time_t']]],
-  ['seek_3',['seek',['../xm64_8h.html#a6b9dea83f4491a2894eeb90098f1673c',1,'xm64player_t']]],
+  ['seek_3',['seek',['../xm64_8h.html#a30fe178d27207916930f1dceee47e4bd',1,'xm64player_t']]],
   ['sentinel_4',['sentinel',['../rspq_8c.html#aaa5f5b1d72225363c4b5c62ccce87c78',1,'rspq_ctx_t']]],
   ['set_5',['set',['../group__timer.html#a5e2a607418a0f509228cb0eceac24d3e',1,'timer_link_t']]],
   ['shape_6',['shape',['../structAYEnvelope.html#a48161ed0bf2b45cbc554185739b67a50',1,'AYEnvelope']]],

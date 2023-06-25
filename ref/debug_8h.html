@@ -137,6 +137,7 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>debug_assert_func_f</
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p >Debugging Support. </p>
+<p >Debugging Support (C++)</p>
 </div><h2 class="groupheader">Macro Definition Documentation</h2>
 <a id="a2e2e6b7b3028cbcf2a582ae2fe37ba6b" name="a2e2e6b7b3028cbcf2a582ae2fe37ba6b"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a2e2e6b7b3028cbcf2a582ae2fe37ba6b">&#9670;&nbsp;</a></span>DEBUG_FEATURE_LOG_USB</h2>
@@ -331,7 +332,7 @@ Because of a 64drive firmware bug, the 64drive USB stack will crash if a SD comm
 <b>Value:</b><div class="fragment"><div class="line">        ({ \</div>
 <div class="line">        if (!(expr)) <a class="code hl_function" href="debug_8h.html#a8b30820e0172cfb41a7c3bedc0da987e">debug_assert_func_f</a>(__FILE__, __LINE__, __func__, #expr, msg, ##__VA_ARGS__); \</div>
 <div class="line">    })</div>
-<div class="ttc" id="adebug_8h_html_a8b30820e0172cfb41a7c3bedc0da987e"><div class="ttname"><a href="debug_8h.html#a8b30820e0172cfb41a7c3bedc0da987e">debug_assert_func_f</a></div><div class="ttdeci">void debug_assert_func_f(const char *file, int line, const char *func, const char *failedexpr, const char *msg,...)</div><div class="ttdoc">Underlying implementation function for assert() and assertf.</div><div class="ttdef"><b>Definition:</b> debug.c:548</div></div>
+<div class="ttc" id="adebug_8h_html_a8b30820e0172cfb41a7c3bedc0da987e"><div class="ttname"><a href="debug_8h.html#a8b30820e0172cfb41a7c3bedc0da987e">debug_assert_func_f</a></div><div class="ttdeci">void debug_assert_func_f(const char *file, int line, const char *func, const char *failedexpr, const char *msg,...)</div><div class="ttdoc">Underlying implementation function for assert() and assertf.</div><div class="ttdef"><b>Definition:</b> debug.c:551</div></div>
 </div><!-- fragment -->
 <p><a class="el" href="debug_8h.html#a66673aad3e392c6b58054aebe66fe28e" title="assertf() is like assert() with an attached printf().">assertf()</a> is like assert() with an attached printf(). </p>
 <p ><a class="el" href="debug_8h.html#a66673aad3e392c6b58054aebe66fe28e" title="assertf() is like assert() with an attached printf().">assertf()</a> behaves exactly like assert(), but allows for a better debugging experience because it is possible to attach a formatted string that will be displayed in case the assert triggers.</p>
@@ -413,7 +414,7 @@ Because of a 64drive firmware bug, the 64drive USB stack will crash if a SD comm
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Jun 12 2023 08:14:14 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
+Generated on Sun Jun 25 2023 15:31:58 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.4
 </small></address>
 </body>
 </html>
