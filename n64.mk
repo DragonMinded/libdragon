@@ -62,7 +62,7 @@ CXXFLAGS+=-MMD
 ASFLAGS+=-MMD
 RSPASFLAGS+=-MMD
 
-N64_CXXFLAGS := $(N64_CFLAGS)
+N64_CXXFLAGS = $(N64_CFLAGS)
 N64_CFLAGS += -std=gnu99
 
 # Change all the dependency chain of z64 ROMs to use the N64 toolchain.
