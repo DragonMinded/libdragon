@@ -6,7 +6,11 @@ BUILD_DIR = build
 include n64.mk
 INSTALLDIR = $(N64_INST)
 
-LIBDRAGON_CFLAGS = -I$(CURDIR)/src -I$(CURDIR)/include -ffile-prefix-map=$(CURDIR)=libdragon
+# Don't use the installed include files (e.g. /opt/libdragon/mips64-elf/include) for building libdragon,
+# use the source ones instead (./include)
+N64_INCLUDEDIR = $(CURDIR)/include
+
+LIBDRAGON_CFLAGS = -I$(CURDIR)/src -ffile-prefix-map=$(CURDIR)=libdragon
 
 # Activate N64 toolchain for libdragon build
 libdragon: CC=$(N64_CC)
