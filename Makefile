@@ -53,14 +53,8 @@ examples:
 examples-clean: $(INSTALLDIR)/include/n64.mk
 	$(MAKE) -C examples clean
 
-doxygen: doxygen.conf
-	mkdir -p doxygen/
-	doxygen doxygen.conf
 doxygen-api: doxygen-public.conf
-	mkdir -p doxygen/
 	doxygen doxygen-public.conf
-doxygen-clean:
-	rm -rf $(CURDIR)/doxygen
 
 tools:
 	$(MAKE) -C tools
@@ -144,9 +138,9 @@ test:
 test-clean: install-mk
 	$(MAKE) -C tests clean
 
-clobber: clean doxygen-clean examples-clean tools-clean test-clean
+clobber: clean examples-clean tools-clean test-clean
 
-.PHONY : clobber clean doxygen-clean doxygen doxygen-api examples examples-clean tools tools-clean tools-install test test-clean install-mk
+.PHONY : clobber clean doxygen-api examples examples-clean tools tools-clean tools-install test test-clean install-mk
 
 # Automatic dependency tracking
 -include $(wildcard $(BUILD_DIR)/*.d) $(wildcard $(BUILD_DIR)/*/*.d)
