@@ -4,6 +4,7 @@ all: chksum64 dumpdfs ed64romconfig mkdfs mksprite n64tool n64sym audioconv64
 
 .PHONY: install
 install: all
+	mkdir -p $(INSTALLDIR)/bin
 	install -m 0755 chksum64 ed64romconfig n64tool n64sym $(INSTALLDIR)/bin
 	$(MAKE) -C dumpdfs install
 	$(MAKE) -C mkdfs install
