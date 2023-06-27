@@ -6,8 +6,9 @@ BUILD_DIR = build
 include n64.mk
 INSTALLDIR = $(N64_INST)
 
-# Don't use the installed include files (e.g. /opt/libdragon/mips64-elf/include) for building libdragon,
-# use the source ones instead (./include)
+# N64_INCLUDEDIR is normally (when building roms) a path to the installed include files
+# (e.g. /opt/libdragon/mips64-elf/include), set in n64.mk
+# When building libdragon, override it to use the source include files instead (./include)
 N64_INCLUDEDIR = $(CURDIR)/include
 
 LIBDRAGON_CFLAGS = -I$(CURDIR)/src -ffile-prefix-map=$(CURDIR)=libdragon
