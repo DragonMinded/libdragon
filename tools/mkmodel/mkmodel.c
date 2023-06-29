@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <math.h>
 #include "../common/binout.h"
 
 #include "../../include/GL/gl_enums.h"
@@ -320,7 +321,11 @@ void convert_position(int16_t *dst, float *value, size_t size)
 
 void convert_color(uint8_t *dst, float *value, size_t size)
 {
-    for (size_t i = 0; i < size; i++) dst[i] = value[i] * 0xFF;
+    for (size_t i = 0; i < size; i++) {
+        // Pre-gamma-correct vertex colors (excluding alpha)
+        float v = i < 3 ? powf(value[i], 1.0f/2.2f) : value[i];
+        dst[i] = v * 0xFF;
+    }
 }
 
 void convert_texcoord(int16_t *dst, float *value, size_t size)
