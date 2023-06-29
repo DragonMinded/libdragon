@@ -4,17 +4,17 @@
 #define MODEL64_MAGIC           0x4D444C48 // "MDLH"
 #define MODEL64_MAGIC_LOADED    0x4D444C4C // "MDLL"
 #define MODEL64_MAGIC_OWNED     0x4D444C4F // "MDLO"
-#define MODEL64_VERSION     1
+#define MODEL64_VERSION         1
 
 typedef struct attribute_s {
     uint32_t size;
     uint32_t type;
-    uint32_t offset;
+    uint32_t stride;
+    void *pointer;
 } attribute_t;
 
 typedef struct primitive_s {
     uint32_t mode;
-    uint32_t stride;
     attribute_t position;
     attribute_t color;
     attribute_t texcoord;
@@ -25,7 +25,6 @@ typedef struct primitive_s {
     uint32_t index_type;
     uint32_t num_vertices;
     uint32_t num_indices;
-    void *vertices;
     void *indices;
 } primitive_t;
 

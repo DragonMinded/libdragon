@@ -24,8 +24,13 @@ model64_t *model64_load_buf(void *buf, int sz)
         model->meshes[i].primitives = PTR_DECODE(model, model->meshes[i].primitives);
         for (int j = 0; j < model->meshes[i].num_primitives; j++)
         {
-            model->meshes[i].primitives[j].vertices = PTR_DECODE(model, model->meshes[i].primitives[j].vertices);
-            model->meshes[i].primitives[j].indices = PTR_DECODE(model, model->meshes[i].primitives[j].indices);
+            primitive_t *primitive = &model->meshes[i].primitives[j];
+            primitive->position.pointer = PTR_DECODE(model, primitive->position.pointer);
+            primitive->color.pointer = PTR_DECODE(model, primitive->color.pointer);
+            primitive->texcoord.pointer = PTR_DECODE(model, primitive->texcoord.pointer);
+            primitive->normal.pointer = PTR_DECODE(model, primitive->normal.pointer);
+            primitive->mtx_index.pointer = PTR_DECODE(model, primitive->mtx_index.pointer);
+            primitive->indices = PTR_DECODE(model, primitive->indices);
         }
     }
     
@@ -48,8 +53,13 @@ static void model64_unload(model64_t *model)
     {
         for (int j = 0; j < model->meshes[i].num_primitives; j++)
         {
-            model->meshes[i].primitives[j].vertices = PTR_ENCODE(model, model->meshes[i].primitives[j].vertices);
-            model->meshes[i].primitives[j].indices = PTR_ENCODE(model, model->meshes[i].primitives[j].indices);
+            primitive_t *primitive = &model->meshes[i].primitives[j];
+            primitive->position.pointer = PTR_ENCODE(model, primitive->position.pointer);
+            primitive->color.pointer = PTR_ENCODE(model, primitive->color.pointer);
+            primitive->texcoord.pointer = PTR_ENCODE(model, primitive->texcoord.pointer);
+            primitive->normal.pointer = PTR_ENCODE(model, primitive->normal.pointer);
+            primitive->mtx_index.pointer = PTR_ENCODE(model, primitive->mtx_index.pointer);
+            primitive->indices = PTR_ENCODE(model, primitive->indices);
         }
         model->meshes[i].primitives = PTR_ENCODE(model, model->meshes[i].primitives);
     }
@@ -94,14 +104,14 @@ void model64_draw_primitive(primitive_t *primitive)
         if (primitive->position.type == GL_HALF_FIXED_N64) {
             glVertexHalfFixedPrecisionN64(primitive->vertex_precision);
         }
-        glVertexPointer(primitive->position.size, primitive->position.type, primitive->stride, primitive->vertices + primitive->position.offset);
+        glVertexPointer(primitive->position.size, primitive->position.type, primitive->position.stride, primitive->position.pointer);
     } else {
         glDisableClientState(GL_VERTEX_ARRAY);
     }
     
     if (primitive->color.size > 0) {
         glEnableClientState(GL_COLOR_ARRAY);
-        glColorPointer(primitive->color.size, primitive->color.type, primitive->stride, primitive->vertices + primitive->color.offset);
+        glColorPointer(primitive->color.size, primitive->color.type, primitive->color.stride, primitive->color.pointer);
     } else {
         glDisableClientState(GL_COLOR_ARRAY);
     }
@@ -111,21 +121,21 @@ void model64_draw_primitive(primitive_t *primitive)
         if (primitive->texcoord.type == GL_HALF_FIXED_N64) {
             glTexCoordHalfFixedPrecisionN64(primitive->texcoord_precision);
         }
-        glTexCoordPointer(primitive->texcoord.size, primitive->texcoord.type, primitive->stride, primitive->vertices + primitive->texcoord.offset);
+        glTexCoordPointer(primitive->texcoord.size, primitive->texcoord.type, primitive->texcoord.stride, primitive->texcoord.pointer);
     } else {
         glDisableClientState(GL_TEXTURE_COORD_ARRAY);
     }
     
     if (primitive->normal.size > 0) {
         glEnableClientState(GL_NORMAL_ARRAY);
-        glNormalPointer(primitive->normal.type, primitive->stride, primitive->vertices + primitive->normal.offset);
+        glNormalPointer(primitive->normal.type, primitive->normal.stride, primitive->normal.pointer);
     } else {
         glDisableClientState(GL_NORMAL_ARRAY);
     }
     
     if (primitive->mtx_index.size > 0) {
         glEnableClientState(GL_MATRIX_INDEX_ARRAY_ARB);
-        glMatrixIndexPointerARB(primitive->mtx_index.size, primitive->mtx_index.type, primitive->stride, primitive->vertices + primitive->mtx_index.offset);
+        glMatrixIndexPointerARB(primitive->mtx_index.size, primitive->mtx_index.type, primitive->mtx_index.stride, primitive->mtx_index.pointer);
     } else {
         glDisableClientState(GL_MATRIX_INDEX_ARRAY_ARB);
     }

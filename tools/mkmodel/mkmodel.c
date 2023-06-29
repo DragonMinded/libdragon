@@ -10,6 +10,8 @@
 #define CGLTF_IMPLEMENTATION
 #include "cgltf.h"
 
+#define ATTRIBUTE_COUNT     5
+
 #define VERTEX_PRECISION    5
 #define TEXCOORD_PRECISION  8
 
@@ -17,6 +19,32 @@ typedef void (*component_convert_func_t)(void*,float*,size_t);
 typedef void (*index_convert_func_t)(void*,cgltf_uint*,size_t);
 
 int flag_verbose = 0;
+
+uint32_t get_type_size(uint32_t type)
+{
+    switch (type) {
+    case GL_BYTE:
+        return sizeof(int8_t);
+    case GL_UNSIGNED_BYTE:
+        return sizeof(uint8_t);
+    case GL_SHORT:
+        return sizeof(int16_t);
+    case GL_UNSIGNED_SHORT:
+        return sizeof(uint16_t);
+    case GL_INT:
+        return sizeof(int32_t);
+    case GL_UNSIGNED_INT:
+        return sizeof(uint32_t);
+    case GL_FLOAT:
+        return sizeof(float);
+    case GL_DOUBLE:
+        return sizeof(double);
+    case GL_HALF_FIXED_N64:
+        return sizeof(int16_t);
+    default:
+        return 0;
+    }
+}
 
 void print_args( char * name )
 {
@@ -42,7 +70,11 @@ model64_t* model64_alloc()
 
 void primitive_free(primitive_t *primitive)
 {
-    if (primitive->vertices) free(primitive->vertices);
+    if (primitive->position.pointer) free(primitive->position.pointer);
+    if (primitive->color.pointer) free(primitive->color.pointer);
+    if (primitive->texcoord.pointer) free(primitive->texcoord.pointer);
+    if (primitive->normal.pointer) free(primitive->normal.pointer);
+    if (primitive->mtx_index.pointer) free(primitive->mtx_index.pointer);
     if (primitive->indices) free(primitive->indices);
 }
 
@@ -63,32 +95,33 @@ void model64_free(model64_t *model)
     free(model);
 }
 
-void attribute_write(FILE *out, attribute_t *attr)
+void attribute_write(FILE *out, attribute_t *attr, uint32_t *placeholder)
 {
     w32(out, attr->size);
     w32(out, attr->type);
-    w32(out, attr->offset);
+    w32(out, attr->stride);
+    *placeholder = ftell(out);
+    w32(out, 0); // placeholder
 }
 
-void vertex_write(FILE *out, attribute_t *attr, void *data)
+void vertex_write(FILE *out, attribute_t *attr, uint32_t index)
 {
     if (attr->size == 0) return;
     
-    void *attr_data = data + attr->offset;
     switch (attr->type) {
     case GL_BYTE:
     case GL_UNSIGNED_BYTE:
-        for (size_t i = 0; i < attr->size; i++) w8(out, ((uint8_t*)attr_data)[i]);
+        for (size_t i = 0; i < attr->size; i++) w8(out, ((uint8_t*)attr->pointer)[index * attr->size + i]);
         break;
     case GL_SHORT:
     case GL_UNSIGNED_SHORT:
     case GL_HALF_FIXED_N64:
-        for (size_t i = 0; i < attr->size; i++) w16(out, ((uint16_t*)attr_data)[i]);
+        for (size_t i = 0; i < attr->size; i++) w16(out, ((uint16_t*)attr->pointer)[index * attr->size + i]);
         break;
     case GL_INT:
     case GL_UNSIGNED_INT:
     case GL_FLOAT:
-        for (size_t i = 0; i < attr->size; i++) w32(out, ((uint32_t*)attr_data)[i]);
+        for (size_t i = 0; i < attr->size; i++) w32(out, ((uint32_t*)attr->pointer)[index * attr->size + i]);
         break;
     default:
         break;
@@ -137,7 +170,9 @@ void model64_write(model64_t *model, FILE *out)
     }
 
     uint32_t *offset_primitives = alloca(sizeof(uint32_t) * model->num_meshes);
-    uint32_t *vertices_placeholders = alloca(sizeof(uint32_t) * total_num_primitives);
+    uint32_t *indices_placeholders = alloca(sizeof(uint32_t) * total_num_primitives);
+    uint32_t *vertices_placeholders = alloca(sizeof(uint32_t) * total_num_primitives * ATTRIBUTE_COUNT);
+    primitive_t **all_primitives = alloca(sizeof(primitive_t*) * total_num_primitives);
 
     size_t cur_primitive = 0;
 
@@ -149,20 +184,19 @@ void model64_write(model64_t *model, FILE *out)
         for (size_t j = 0; j < mesh->num_primitives; j++)
         {
             primitive_t *primitive = &mesh->primitives[j];
+            all_primitives[cur_primitive] = primitive;
             w32(out, primitive->mode);
-            w32(out, primitive->stride);
-            attribute_write(out, &primitive->position);
-            attribute_write(out, &primitive->color);
-            attribute_write(out, &primitive->texcoord);
-            attribute_write(out, &primitive->normal);
-            attribute_write(out, &primitive->mtx_index);
+            attribute_write(out, &primitive->position,  &vertices_placeholders[cur_primitive*ATTRIBUTE_COUNT + 0]);
+            attribute_write(out, &primitive->color,     &vertices_placeholders[cur_primitive*ATTRIBUTE_COUNT + 1]);
+            attribute_write(out, &primitive->texcoord,  &vertices_placeholders[cur_primitive*ATTRIBUTE_COUNT + 2]);
+            attribute_write(out, &primitive->normal,    &vertices_placeholders[cur_primitive*ATTRIBUTE_COUNT + 3]);
+            attribute_write(out, &primitive->mtx_index, &vertices_placeholders[cur_primitive*ATTRIBUTE_COUNT + 4]);
             w32(out, primitive->vertex_precision);
             w32(out, primitive->texcoord_precision);
             w32(out, primitive->index_type);
             w32(out, primitive->num_vertices);
             w32(out, primitive->num_indices);
-            vertices_placeholders[cur_primitive++] = ftell(out);
-            w32(out, (uint32_t)0); // placeholder
+            indices_placeholders[cur_primitive++] = ftell(out);
             w32(out, (uint32_t)0); // placeholder
         }
     }
@@ -180,14 +214,15 @@ void model64_write(model64_t *model, FILE *out)
             walign(out, 8);
             offset_vertices[cur_primitive] = ftell(out);
             primitive_t *primitive = &mesh->primitives[j];
+            // Interleave vertex attributes while writing
+            // TODO: Make this configurable?
             for (size_t k = 0; k < primitive->num_vertices; k++)
             {
-                void *vertex = primitive->vertices + k * primitive->stride;
-                vertex_write(out, &primitive->position, vertex);
-                vertex_write(out, &primitive->color, vertex);
-                vertex_write(out, &primitive->texcoord, vertex);
-                vertex_write(out, &primitive->normal, vertex);
-                vertex_write(out, &primitive->mtx_index, vertex);
+                vertex_write(out, &primitive->position, k);
+                vertex_write(out, &primitive->color, k);
+                vertex_write(out, &primitive->texcoord, k);
+                vertex_write(out, &primitive->normal, k);
+                vertex_write(out, &primitive->mtx_index, k);
             }
             walign(out, 8);
             offset_indices[cur_primitive++] = ftell(out);
@@ -209,35 +244,70 @@ void model64_write(model64_t *model, FILE *out)
 
     for (size_t i = 0; i < total_num_primitives; i++)
     {
-        fseek(out, vertices_placeholders[i], SEEK_SET);
-        w32(out, offset_vertices[i]);
+        primitive_t *primitive = all_primitives[i];
+
+        uint32_t attr_offset = 0;
+        
+        // FIXME: Refactor this
+        if (primitive->position.size > 0) {
+            fseek(out, vertices_placeholders[i*ATTRIBUTE_COUNT + 0], SEEK_SET);
+            w32(out, offset_vertices[i] + attr_offset);
+            attr_offset += get_type_size(primitive->position.type) * primitive->position.size;
+        }
+        
+        if (primitive->color.size > 0) {
+            fseek(out, vertices_placeholders[i*ATTRIBUTE_COUNT + 1], SEEK_SET);
+            w32(out, offset_vertices[i] + attr_offset);
+            attr_offset += get_type_size(primitive->color.type) * primitive->color.size;
+        }
+        
+        if (primitive->texcoord.size > 0) {
+            fseek(out, vertices_placeholders[i*ATTRIBUTE_COUNT + 2], SEEK_SET);
+            w32(out, offset_vertices[i] + attr_offset);
+            attr_offset += get_type_size(primitive->texcoord.type) * primitive->texcoord.size;
+        }
+        
+        if (primitive->normal.size > 0) {
+            fseek(out, vertices_placeholders[i*ATTRIBUTE_COUNT + 3], SEEK_SET);
+            w32(out, offset_vertices[i] + attr_offset);
+            attr_offset += get_type_size(primitive->normal.type) * primitive->normal.size;
+        }
+        
+        if (primitive->mtx_index.size > 0) {
+            fseek(out, vertices_placeholders[i*ATTRIBUTE_COUNT + 4], SEEK_SET);
+            w32(out, offset_vertices[i] + attr_offset);
+            attr_offset += get_type_size(primitive->mtx_index.type) * primitive->mtx_index.size;
+        }
+        
+        fseek(out, indices_placeholders[i], SEEK_SET);
         w32(out, offset_indices[i]);
     }
 
     fseek(out, offset_end, SEEK_SET);
 }
 
-int convert_attribute_data(cgltf_accessor *accessor, void *out_data, attribute_t *attr, uint32_t stride, component_convert_func_t convert_func)
+int convert_attribute_data(cgltf_accessor *accessor, attribute_t *attr, component_convert_func_t convert_func)
 {
     size_t num_components = cgltf_num_components(accessor->type);
-    size_t num_floats = num_components * accessor->count;
-    float *temp_buffer = malloc(sizeof(float) * num_floats);
+    size_t num_values = num_components * accessor->count;
+    float *temp_buffer = malloc(sizeof(float) * num_values);
 
-    // First, convert all data to floats (because cgltf provides this very convenient function)
+    // Convert all data to floats (because cgltf provides this very convenient function)
     // TODO: More sophisticated conversion that doesn't always use floats as intermediate values
     //       Might not be worth it since the majority of tools will probably only export floats anyway?
-    if (cgltf_accessor_unpack_floats(accessor, temp_buffer, num_floats) == 0) {
+    if (cgltf_accessor_unpack_floats(accessor, temp_buffer, num_values) == 0) {
         fprintf(stderr, "Error: failed reading attribute data\n");
         free(temp_buffer);
         return 1;
     }
 
-    // Second, convert them to the target format and place in the interleaved vertex data
-    for (size_t i = 0; i < accessor->count; i++)
-    {
-        void *dst = out_data + attr->offset + stride * i;
-        convert_func(dst, &temp_buffer[i*num_components], num_components);
-    }
+    // Allocate storage for converted values
+    uint32_t component_size = get_type_size(attr->type);
+    attr->pointer = calloc(num_values, component_size);
+    attr->stride = num_components * component_size;
+
+    // Convert floats to the target format
+    convert_func(attr->pointer, temp_buffer, num_values);
 
     free(temp_buffer);
     return 0;
@@ -300,14 +370,6 @@ int convert_primitive(cgltf_primitive *in_primitive, primitive_t *out_primitive)
         GL_UNSIGNED_BYTE,
     };
 
-    static const uint32_t attr_type_sizes[] = {
-        sizeof(int16_t),
-        sizeof(uint8_t),
-        sizeof(int16_t),
-        sizeof(int8_t),
-        sizeof(uint8_t),
-    };
-
     static const component_convert_func_t attr_convert_funcs[] = {
         (component_convert_func_t)convert_position,
         (component_convert_func_t)convert_color,
@@ -324,7 +386,7 @@ int convert_primitive(cgltf_primitive *in_primitive, primitive_t *out_primitive)
         &out_primitive->mtx_index,
     };
 
-    cgltf_attribute *attr_map[5] = {NULL};
+    cgltf_attribute *attr_map[ATTRIBUTE_COUNT] = {NULL};
 
     // Search for attributes that we need
     for (size_t i = 0; i < in_primitive->attributes_count; i++)
@@ -359,36 +421,29 @@ int convert_primitive(cgltf_primitive *in_primitive, primitive_t *out_primitive)
 
     out_primitive->num_vertices = attr_map[0]->data->count;
 
-    // Compute stride and attribute offsets
     uint32_t stride = 0;
 
-    for (size_t i = 0; i < 5; i++)
+    // Convert vertex data
+    for (size_t i = 0; i < ATTRIBUTE_COUNT; i++)
     {
         if (attr_map[i] == NULL) continue;
-
         attrs[i]->size = cgltf_num_components(attr_map[i]->data->type);
-
-        if (attrs[i]->size > 0) {
-            attrs[i]->type = attr_types[i];
-            attrs[i]->offset = stride;
-            stride += attr_type_sizes[i] * attrs[i]->size;
-        }
-    }
-
-    out_primitive->stride = stride;
-
-    // Allocate memory for vertex data
-    out_primitive->vertices = calloc(stride, out_primitive->num_vertices);
-
-    // Convert vertex data
-    for (size_t i = 0; i < 5; i++)
-    {
+        
         if (attrs[i]->size == 0) continue;
+        attrs[i]->type = attr_types[i];
 
-        if (convert_attribute_data(attr_map[i]->data, out_primitive->vertices, attrs[i], stride, attr_convert_funcs[i]) != 0) {
+        if (convert_attribute_data(attr_map[i]->data, attrs[i], attr_convert_funcs[i]) != 0) {
             fprintf(stderr, "Error: failed converting data of attribute %d\n", attr_map[i]->index);
             return 1;
         }
+
+        stride += attrs[i]->stride;
+    }
+
+    for (size_t i = 0; i < ATTRIBUTE_COUNT; i++)
+    {
+        if (attrs[i]->size == 0) continue;
+        attrs[i]->stride = stride;
     }
 
     // Convert index data if present
