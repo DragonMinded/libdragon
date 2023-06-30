@@ -477,10 +477,42 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
 }
 
 /** @brief Blending mode: multiplicative alpha.
- * You can pass this macro to #rdpq_mode_blender. */
+ * 
+ * This is standard multiplicative blending between the color being
+ * drawn and the framebuffer color.
+ * 
+ * You can pass this macro to #rdpq_mode_blender.
+ */
 #define RDPQ_BLENDER_MULTIPLY       RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, INV_MUX_ALPHA))
+
+/** @brief Blending mode: multiplicative alpha with a constant value.
+ * 
+ * This is similar to #RDPQ_BLENDER_MULTIPLY, but instead of using the alpha
+ * value from the texture (or rather, the one coming out of the color combiner),
+ * it uses a constant value that must be programmed via #rdpq_set_fog_color:
+ * 
+ * You can pass this macro to #rdpq_mode_blender:
+ * 
+ * @code{.c}
+ *    float alpha = 0.5f;
+ *    rdpq_set_fog_color(RGBA32(0, 0, 0, alpha * 255));
+ *    rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY_CONST);
+ * @endcode
+ * 
+ * Notice that the alpha value coming out of the combiner is ignored. This
+ * means that you can use this blender formula even for blending textures without
+ * alpha channel.
+ */
+#define RDPQ_BLENDER_MULTIPLY_CONST     RDPQ_BLENDER((IN_RGB, FOG_ALPHA, MEMORY_RGB, INV_MUX_ALPHA))
+
 /** @brief Blending mode: additive alpha.
- * You can pass this macro to #rdpq_mode_blender. */
+ * You can pass this macro to #rdpq_mode_blender.
+ * 
+ * NOTE: additive blending is broken on RDP because it can overflow. Basically,
+ *       if the result of the sum is larger than 1.5 (in scale 0..1), instead
+ *       of being clamped to 1, it overflows back to 0, which makes the
+ *       mode almost useless. It is defined it for completeness.
+ */
 #define RDPQ_BLENDER_ADDITIVE       RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, ONE))      
 
 /**
