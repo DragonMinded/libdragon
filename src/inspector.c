@@ -7,6 +7,7 @@
 #include "backtrace.h"
 #include "backtrace_internal.h"
 #include "cop0.h"
+#include "n64sys.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -506,6 +507,9 @@ static void inspector(exception_t* ex, enum Mode mode) {
                 backtrace = true;
                 break;
             }
+            // Avoid constantly banging the PIF with controller reads, that
+            // would prevent the RESET button from working.
+            wait_ms(1);
         }
     }
 
