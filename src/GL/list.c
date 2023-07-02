@@ -202,6 +202,8 @@ void glListBase(GLuint base)
 GLuint glGenLists(GLsizei s)
 {
     if (!gl_ensure_no_immediate()) return 0;
+
+    if (s == 0) return 0;
     
     GLuint result = state.next_list_name;
     state.next_list_name += s;
