@@ -160,7 +160,7 @@ void test_gl_list(TestContext *ctx)
     ASSERT(!glIsList(1), "List index should not be used before glGenLists");
     GLuint tri_dlist = glGenLists(1);
 
-    ASSERT_EQUAL_UNSIGNED(tri_dlist, 1, "First display lists index should be 1");
+    ASSERT_EQUAL_UNSIGNED(tri_dlist, 1, "First display list index is expected to be 1 in this test");
     ASSERT(glIsList(tri_dlist), "List index should be used after glGenLists");
 
     glCallList(tri_dlist); // no-op according to spec, must not crash
