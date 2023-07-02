@@ -64,15 +64,6 @@ tex_format_t tex_format_from_name(const char *name) {
     return FMT_NONE;
 }
 
-int tex_format_bytes_per_pixel(tex_format_t fmt) {
-    switch (fmt) {
-    case FMT_NONE: assert(0); return -1; // should not happen
-    case FMT_RGBA32: return 4;
-    case FMT_RGBA16: return 2;
-    default: return 1;
-    }
-}
-
 #define MIPMAP_ALGO_NONE  0
 #define MIPMAP_ALGO_BOX   1
 
@@ -738,8 +729,8 @@ bool spritemaker_write(spritemaker_t *spr) {
 
         default: {
             // No further conversion needed. Used for: RGBA32, IA16, CI8, I8.
-            int bpp = tex_format_bytes_per_pixel(spr->images[0].fmt);
-            fwrite(image->image, 1, image->width*image->height*bpp, out);
+            int numbytes = TEX_FORMAT_PIX2BYTES(image->fmt, image->width*image->height);
+            fwrite(image->image, 1, numbytes, out);
             break;
         }
         }

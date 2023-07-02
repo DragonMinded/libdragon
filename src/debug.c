@@ -598,7 +598,6 @@ void debug_hexdump(const void *vbuf, int size)
 {
 	const uint8_t *buf = vbuf;
     bool lineskip = false;
-	size += 16;
     for (int i = 0; i < size; i+=16) {
         const uint8_t *d = buf + i;
         // If the current line of data is identical to the previous one,
