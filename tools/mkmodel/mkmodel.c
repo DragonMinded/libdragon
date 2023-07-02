@@ -11,6 +11,13 @@
 #define CGLTF_IMPLEMENTATION
 #include "cgltf.h"
 
+// Update these when changing code that writes to the output file
+// IMPORTANT: Do not attempt to move these values to a header that is shared by mkmodel and runtime code!
+//            These values must reflect what the tool actually outputs.
+#define HEADER_SIZE         28
+#define MESH_SIZE           8
+#define PRIMITIVE_SIZE      108
+
 #define ATTRIBUTE_COUNT     5
 
 #define VERTEX_PRECISION    5
@@ -63,9 +70,9 @@ model64_t* model64_alloc()
     model64_t *model = calloc(1, sizeof(model64_t));
     model->magic = MODEL64_MAGIC;
     model->version = MODEL64_VERSION;
-    model->header_size = sizeof(model64_t);
-    model->mesh_size = sizeof(mesh_t);
-    model->primitive_size = sizeof(primitive_t);
+    model->header_size = HEADER_SIZE;
+    model->mesh_size = MESH_SIZE;
+    model->primitive_size = PRIMITIVE_SIZE;
     return model;
 }
 
@@ -96,13 +103,12 @@ void model64_free(model64_t *model)
     free(model);
 }
 
-void attribute_write(FILE *out, attribute_t *attr, uint32_t *placeholder)
+void attribute_write(FILE *out, attribute_t *attr, int *placeholder)
 {
     w32(out, attr->size);
     w32(out, attr->type);
     w32(out, attr->stride);
-    *placeholder = ftell(out);
-    w32(out, 0); // placeholder
+    *placeholder = w32_placeholder(out);
 }
 
 void vertex_write(FILE *out, attribute_t *attr, uint32_t index)
@@ -147,17 +153,19 @@ void indices_write(FILE *out, uint32_t type, void *data, uint32_t count)
 void model64_write(model64_t *model, FILE *out)
 {
     // Write header
+    int header_start = ftell(out);
     w32(out, model->magic);
     w32(out, model->version);
     w32(out, model->header_size);
     w32(out, model->mesh_size);
     w32(out, model->primitive_size);
     w32(out, model->num_meshes);
-    uint32_t meshes_placeholder = ftell(out);
-    w32(out, (uint32_t)0); // placeholder
+    int meshes_placeholder = w32_placeholder(out);
+    int header_end = ftell(out);
+    assert(header_end - header_start == HEADER_SIZE);
 
     uint32_t total_num_primitives = 0;
-    uint32_t *primitives_placeholders = alloca(sizeof(uint32_t) * model->num_meshes);
+    int *primitives_placeholders = alloca(sizeof(int) * model->num_meshes);
 
     // Write meshes
     uint32_t offset_meshes = ftell(out);
@@ -165,14 +173,16 @@ void model64_write(model64_t *model, FILE *out)
     {
         mesh_t *mesh = &model->meshes[i];
         total_num_primitives += mesh->num_primitives;
+        int mesh_start = ftell(out);
         w32(out, mesh->num_primitives);
-        primitives_placeholders[i] = ftell(out);
-        w32(out, (uint32_t)0); // placeholder
+        primitives_placeholders[i] = w32_placeholder(out);
+        int mesh_end = ftell(out);
+        assert(mesh_end - mesh_start == MESH_SIZE);
     }
 
     uint32_t *offset_primitives = alloca(sizeof(uint32_t) * model->num_meshes);
-    uint32_t *indices_placeholders = alloca(sizeof(uint32_t) * total_num_primitives);
-    uint32_t *vertices_placeholders = alloca(sizeof(uint32_t) * total_num_primitives * ATTRIBUTE_COUNT);
+    int *indices_placeholders = alloca(sizeof(int) * total_num_primitives);
+    int *vertices_placeholders = alloca(sizeof(int) * total_num_primitives * ATTRIBUTE_COUNT);
     primitive_t **all_primitives = alloca(sizeof(primitive_t*) * total_num_primitives);
 
     size_t cur_primitive = 0;
@@ -186,6 +196,7 @@ void model64_write(model64_t *model, FILE *out)
         {
             primitive_t *primitive = &mesh->primitives[j];
             all_primitives[cur_primitive] = primitive;
+            int primitive_start = ftell(out);
             w32(out, primitive->mode);
             attribute_write(out, &primitive->position,  &vertices_placeholders[cur_primitive*ATTRIBUTE_COUNT + 0]);
             attribute_write(out, &primitive->color,     &vertices_placeholders[cur_primitive*ATTRIBUTE_COUNT + 1]);
@@ -197,8 +208,9 @@ void model64_write(model64_t *model, FILE *out)
             w32(out, primitive->index_type);
             w32(out, primitive->num_vertices);
             w32(out, primitive->num_indices);
-            indices_placeholders[cur_primitive++] = ftell(out);
-            w32(out, (uint32_t)0); // placeholder
+            indices_placeholders[cur_primitive++] = w32_placeholder(out);
+            int primitive_end = ftell(out);
+            assert(primitive_end - primitive_start == PRIMITIVE_SIZE);
         }
     }
 
@@ -234,13 +246,11 @@ void model64_write(model64_t *model, FILE *out)
     uint32_t offset_end = ftell(out);
 
     // Fill in placeholders
-    fseek(out, meshes_placeholder, SEEK_SET);
-    w32(out, offset_meshes);
+    w32_at(out, meshes_placeholder, offset_meshes);
 
     for (size_t i = 0; i < model->num_meshes; i++)
     {
-        fseek(out, primitives_placeholders[i], SEEK_SET);
-        w32(out, offset_primitives[i]);
+        w32_at(out, primitives_placeholders[i], offset_primitives[i]);
     }
 
     for (size_t i = 0; i < total_num_primitives; i++)
@@ -251,37 +261,31 @@ void model64_write(model64_t *model, FILE *out)
         
         // FIXME: Refactor this
         if (primitive->position.size > 0) {
-            fseek(out, vertices_placeholders[i*ATTRIBUTE_COUNT + 0], SEEK_SET);
-            w32(out, offset_vertices[i] + attr_offset);
+            w32_at(out, vertices_placeholders[i*ATTRIBUTE_COUNT + 0], offset_vertices[i] + attr_offset);
             attr_offset += get_type_size(primitive->position.type) * primitive->position.size;
         }
         
         if (primitive->color.size > 0) {
-            fseek(out, vertices_placeholders[i*ATTRIBUTE_COUNT + 1], SEEK_SET);
-            w32(out, offset_vertices[i] + attr_offset);
+            w32_at(out, vertices_placeholders[i*ATTRIBUTE_COUNT + 1], offset_vertices[i] + attr_offset);
             attr_offset += get_type_size(primitive->color.type) * primitive->color.size;
         }
         
         if (primitive->texcoord.size > 0) {
-            fseek(out, vertices_placeholders[i*ATTRIBUTE_COUNT + 2], SEEK_SET);
-            w32(out, offset_vertices[i] + attr_offset);
+            w32_at(out, vertices_placeholders[i*ATTRIBUTE_COUNT + 2], offset_vertices[i] + attr_offset);
             attr_offset += get_type_size(primitive->texcoord.type) * primitive->texcoord.size;
         }
         
         if (primitive->normal.size > 0) {
-            fseek(out, vertices_placeholders[i*ATTRIBUTE_COUNT + 3], SEEK_SET);
-            w32(out, offset_vertices[i] + attr_offset);
+            w32_at(out, vertices_placeholders[i*ATTRIBUTE_COUNT + 3], offset_vertices[i] + attr_offset);
             attr_offset += get_type_size(primitive->normal.type) * primitive->normal.size;
         }
         
         if (primitive->mtx_index.size > 0) {
-            fseek(out, vertices_placeholders[i*ATTRIBUTE_COUNT + 4], SEEK_SET);
-            w32(out, offset_vertices[i] + attr_offset);
+            w32_at(out, vertices_placeholders[i*ATTRIBUTE_COUNT + 4], offset_vertices[i] + attr_offset);
             attr_offset += get_type_size(primitive->mtx_index.type) * primitive->mtx_index.size;
         }
         
-        fseek(out, indices_placeholders[i], SEEK_SET);
-        w32(out, offset_indices[i]);
+        w32_at(out, indices_placeholders[i], offset_indices[i]);
     }
 
     fseek(out, offset_end, SEEK_SET);
