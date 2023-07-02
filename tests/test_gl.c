@@ -152,3 +152,53 @@ void test_gl_texture_completeness(TestContext *ctx)
     run_test(57, 17);
     if (ctx->result == TEST_FAILED) return;
 }
+
+void test_gl_list(TestContext *ctx)
+{
+    GL_INIT();
+
+    ASSERT(!glIsList(1), "List index should not be used before glGenLists");
+    GLuint tri_dlist = glGenLists(1);
+
+    ASSERT_EQUAL_UNSIGNED(tri_dlist, 1, "First display lists index should be 1");
+    ASSERT(glIsList(tri_dlist), "List index should be used after glGenLists");
+
+    glCallList(tri_dlist); // no-op according to spec, must not crash
+    ASSERT(glIsList(tri_dlist), "List index should still be used after glCallList");
+
+    glNewList(tri_dlist, GL_COMPILE);
+    ASSERT(glIsList(tri_dlist), "List index should still be used after glNewList");
+
+    glBegin(GL_TRIANGLES);
+    glNormal3f(1, 1, 0);
+    glVertex3f(5, 5, 0);
+
+    glColor3f(0, 1, 0);
+    glNormal3f(-1, 1, 0);
+    glVertex3f(-5, 5, 0);
+
+    glColor3f(0, 0, 1);
+    glNormal3f(1, -1, 0);
+    glVertex3f(5, -5, 0);
+    glEnd();
+
+    glEndList();
+
+    ASSERT(glIsList(tri_dlist), "List index should still be used after glEndList");
+
+    glCallList(100); // no-op according to spec, must not crash
+
+    glNewList(100, GL_COMPILE);
+    ASSERT(!glIsList(100), "List index should not be used after glNewList without allocating it first with glGenLists");
+
+    glCallList(100); // no-op according to spec, must not crash
+
+    glBegin(GL_TRIANGLES);
+    glVertex3f(0, 0, 0);
+    glVertex3f(1, 0, 0);
+    glVertex3f(0, 1, 0);
+    glEnd();
+
+    glEndList();
+    ASSERT(glIsList(100), "List index should be used after glEndList without allocating it first with glGenLists");
+}
