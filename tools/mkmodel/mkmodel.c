@@ -312,7 +312,12 @@ int convert_attribute_data(cgltf_accessor *accessor, attribute_t *attr, componen
     attr->stride = num_components * component_size;
 
     // Convert floats to the target format
-    convert_func(attr->pointer, temp_buffer, num_values);
+    for (size_t i = 0; i < accessor->count; i++)
+    {
+        uint8_t *dst = (uint8_t*)attr->pointer + num_components * component_size * i;
+        float *src = &temp_buffer[i * num_components];
+        convert_func(dst, src, num_components);
+    }
 
     free(temp_buffer);
     return 0;
