@@ -1194,7 +1194,9 @@ static void validate_use_tile(int tidx, int cycle, float *texcoords, int ncoords
     bool use_outside = false;
     float out_s, out_t;
 
-    if (!tile->has_extents)
+    if (!tile->last_settile)
+        VALIDATE_ERR(tile->last_settile, "tile %d was not configured", tidx);
+    else if (!tile->has_extents)
         VALIDATE_ERR_TILE(tile->has_extents, tidx, "tile %d has no extents set, missing LOAD_TILE or SET_TILE_SIZE", tidx);
     else {
         // Check whether there are texels outside the tile extents
