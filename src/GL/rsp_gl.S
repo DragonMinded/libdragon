@@ -77,6 +77,7 @@ UPDATE_FUNCTIONS:
     .short RSPQ_Loop                    - _start  # Do nothing
     .short GL_UpdateScissor             - _start
     .short GL_UpdateTextureCompleteness - _start
+    .short GL_UpdateTextureObjects      - _start
 
 CONVERT_CONST:  .half 1, 2, 0x8000, 0x200, 0xFF, 134, 0x7F, 0x80
 
@@ -457,6 +458,19 @@ gl_tex_incomplete:
     #undef image
     #undef format
     #undef ra3
+
+GL_UpdateTextureObjects:
+    lw s0, %lo(GL_STATE_TEXTURE_IDS+0)
+    beqz s0, 1f
+    li s4, %lo(GL_BOUND_TEXTURE_1D)
+    jal DMAOut
+    li t0, DMA_SIZE(TEXTURE_OBJECT_SIZE, 1)
+1:
+    lw s0, %lo(GL_STATE_TEXTURE_IDS+4)
+    beqz s0, JrRa
+    li s4, %lo(GL_BOUND_TEXTURE_2D)
+    li t0, DMA_SIZE(TEXTURE_OBJECT_SIZE, 1)
+    jal_and_j DMAOut, RSPQ_Loop
 
     .func GLCmd_SetPalettePtr
 GLCmd_SetPalettePtr:
