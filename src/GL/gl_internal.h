@@ -351,6 +351,13 @@ typedef struct {
 } gl_pipeline_t;
 
 typedef struct {
+    GLuint target_precision;
+    GLuint precision;
+    GLint shift_amount;
+    GLfloat to_float_factor;
+} gl_fixed_precision_t;
+
+typedef struct {
     // Pipeline state
 
     bool cull_face;
@@ -480,6 +487,9 @@ typedef struct {
     gl_pixel_map_t pixel_maps[4];
 
     bool transfer_is_noop;
+
+    gl_fixed_precision_t vertex_halfx_precision;
+    gl_fixed_precision_t texcoord_halfx_precision;
 
     bool can_use_rsp;
     bool can_use_rsp_dirty;
@@ -616,6 +626,8 @@ inline uint32_t gl_type_to_index(GLenum type)
         return type - GL_BYTE;
     case GL_DOUBLE:
         return 7;
+    case GL_HALF_FIXED_N64:
+        return 8;
     default:
         return -1;
     }

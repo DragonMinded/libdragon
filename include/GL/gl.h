@@ -21,6 +21,7 @@ typedef struct rdpq_texparms_s rdpq_texparms_t;
 #define GL_ARB_matrix_palette           1
 #define GL_N64_RDPQ_interop             1
 #define GL_N64_surface_image            1
+#define GL_N64_half_fixed_point         1
 
 /* Data types */
 
@@ -42,6 +43,8 @@ typedef void	    GLvoid;
 
 typedef intptr_t    GLintptrARB;
 typedef size_t      GLsizeiptrARB;
+
+typedef int16_t     GLhalfxN64;
 
 #define GL_FALSE 0
 #define GL_TRUE  1
@@ -71,71 +74,85 @@ void glVertex2s(GLshort x, GLshort y);
 void glVertex2i(GLint x, GLint y);
 void glVertex2f(GLfloat x, GLfloat y);
 void glVertex2d(GLdouble x, GLdouble y);
+void glVertex2hxN64(GLhalfxN64 x, GLhalfxN64 y);
 
 void glVertex3s(GLshort x, GLshort y, GLshort z);
 void glVertex3i(GLint x, GLint y, GLint z);
 void glVertex3f(GLfloat x, GLfloat y, GLfloat z);
 void glVertex3d(GLdouble x, GLdouble y, GLdouble z);
+void glVertex3hxN64(GLhalfxN64 x, GLhalfxN64 y, GLhalfxN64 z);
 
 void glVertex4s(GLshort x, GLshort y, GLshort z, GLshort w);
 void glVertex4i(GLint x, GLint y, GLint z, GLint w);
 void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w);
 void glVertex4d(GLdouble x, GLdouble y, GLdouble z, GLdouble w);
+void glVertex4hxN64(GLhalfxN64 x, GLhalfxN64 y, GLhalfxN64 z, GLhalfxN64 w);
 
 void glVertex2sv(const GLshort *v);
 void glVertex2iv(const GLint *v);
 void glVertex2fv(const GLfloat *v);
 void glVertex2dv(const GLdouble *v);
+void glVertex2hxvN64(const GLhalfxN64 *v);
 
 void glVertex3sv(const GLshort *v);
 void glVertex3iv(const GLint *v);
 void glVertex3fv(const GLfloat *v);
 void glVertex3dv(const GLdouble *v);
+void glVertex3hxvN64(const GLhalfxN64 *v);
 
 void glVertex4sv(const GLshort *v);
 void glVertex4iv(const GLint *v);
 void glVertex4fv(const GLfloat *v);
 void glVertex4dv(const GLdouble *v);
+void glVertex4hxvN64(const GLhalfxN64 *v);
 
 void glTexCoord1s(GLshort s);
 void glTexCoord1i(GLint s);
 void glTexCoord1f(GLfloat s);
 void glTexCoord1d(GLdouble s);
+void glTexCoord1hxN64(GLhalfxN64 s);
 
 void glTexCoord2s(GLshort s, GLshort t);
 void glTexCoord2i(GLint s, GLint t);
 void glTexCoord2f(GLfloat s, GLfloat t);
 void glTexCoord2d(GLdouble s, GLdouble t);
+void glTexCoord2hxN64(GLhalfxN64 s, GLhalfxN64 t);
 
 void glTexCoord3s(GLshort s, GLshort t, GLshort r);
 void glTexCoord3i(GLint s, GLint t, GLint r);
 void glTexCoord3f(GLfloat s, GLfloat t, GLfloat r);
 void glTexCoord3d(GLdouble s, GLdouble t, GLdouble r);
+void glTexCoord3hxN64(GLhalfxN64 s, GLhalfxN64 t, GLhalfxN64 r);
 
 void glTexCoord4s(GLshort s, GLshort t, GLshort r, GLshort q);
 void glTexCoord4i(GLint s, GLint t, GLint r, GLint q);
 void glTexCoord4f(GLfloat s, GLfloat t, GLfloat r, GLfloat q);
 void glTexCoord4d(GLdouble s, GLdouble t, GLdouble r, GLdouble q);
+void glTexCoord4hxN64(GLhalfxN64 s, GLhalfxN64 t, GLhalfxN64 r, GLhalfxN64 q);
 
 void glTexCoord1sv(const GLshort *v);
 void glTexCoord1iv(const GLint *v);
 void glTexCoord1fv(const GLfloat *v);
 void glTexCoord1dv(const GLdouble *v);
+void glTexCoord1hxvN64(const GLhalfxN64 *v);
 
 void glTexCoord2sv(const GLshort *v);
 void glTexCoord2iv(const GLint *v);
 void glTexCoord2fv(const GLfloat *v);
 void glTexCoord2dv(const GLdouble *v);
+void glTexCoord2hxvN64(const GLhalfxN64 *v);
 
 void glTexCoord3sv(const GLshort *v);
 void glTexCoord3iv(const GLint *v);
 void glTexCoord3fv(const GLfloat *v);
 void glTexCoord3dv(const GLdouble *v);
+void glTexCoord3hxvN64(const GLhalfxN64 *v);
 
 void glTexCoord4sv(const GLshort *v);
 void glTexCoord4iv(const GLint *v);
 void glTexCoord4fv(const GLfloat *v);
 void glTexCoord4dv(const GLdouble *v);
+void glTexCoord4hxvN64(const GLhalfxN64 *v);
 
 void glNormal3b(GLbyte nx, GLbyte ny, GLbyte nz);
 void glNormal3s(GLshort nx, GLshort ny, GLshort nz);
@@ -199,6 +216,11 @@ void glColor4uiv(const GLuint *v);
 void glMatrixIndexubvARB(GLint size, const GLubyte *v);
 void glMatrixIndexusvARB(GLint size, const GLushort *v);
 void glMatrixIndexuivARB(GLint size, const GLuint *v);
+
+/* Fixed point */
+
+void glVertexHalfFixedPrecisionN64(GLuint bits);
+void glTexCoordHalfFixedPrecisionN64(GLuint bits);
 
 /* Vertex arrays */
 

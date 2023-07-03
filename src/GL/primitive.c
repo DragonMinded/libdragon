@@ -51,6 +51,12 @@ void gl_primitive_init()
     state.current_attributes.texcoord[3] = 1;
     state.current_attributes.normal[2] = 1;
 
+    state.vertex_halfx_precision.target_precision = VTX_SHIFT;
+    state.texcoord_halfx_precision.target_precision = TEX_SHIFT;
+
+    glVertexHalfFixedPrecisionN64(VTX_SHIFT);
+    glTexCoordHalfFixedPrecisionN64(TEX_SHIFT);
+
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
     set_can_use_rsp_dirty();
@@ -587,35 +593,41 @@ void __gl_mtx_index(GLenum type, const void *value, uint32_t size)
     func(enumtype, tmp, __COUNT_VARARGS(__VA_ARGS__)); \
 })
 
-void glVertex2sv(const GLshort *v)  { __gl_vertex(GL_SHORT,   v, 2); }
-void glVertex2iv(const GLint *v)    { __gl_vertex(GL_INT,     v, 2); }
-void glVertex2fv(const GLfloat *v)  { __gl_vertex(GL_FLOAT,   v, 2); }
-void glVertex2dv(const GLdouble *v) { __gl_vertex(GL_DOUBLE,  v, 2); }
+void glVertex2sv(const GLshort *v)          { __gl_vertex(GL_SHORT,             v, 2); }
+void glVertex2iv(const GLint *v)            { __gl_vertex(GL_INT,               v, 2); }
+void glVertex2fv(const GLfloat *v)          { __gl_vertex(GL_FLOAT,             v, 2); }
+void glVertex2dv(const GLdouble *v)         { __gl_vertex(GL_DOUBLE,            v, 2); }
+void glVertex2hxvN64(const GLhalfxN64 *v)   { __gl_vertex(GL_HALF_FIXED_N64,    v, 2); }
 
-void glVertex3sv(const GLshort *v)  { __gl_vertex(GL_SHORT,   v, 3); }
-void glVertex3iv(const GLint *v)    { __gl_vertex(GL_INT,     v, 3); }
-void glVertex3fv(const GLfloat *v)  { __gl_vertex(GL_FLOAT,   v, 3); }
-void glVertex3dv(const GLdouble *v) { __gl_vertex(GL_DOUBLE,  v, 3); }
+void glVertex3sv(const GLshort *v)          { __gl_vertex(GL_SHORT,             v, 3); }
+void glVertex3iv(const GLint *v)            { __gl_vertex(GL_INT,               v, 3); }
+void glVertex3fv(const GLfloat *v)          { __gl_vertex(GL_FLOAT,             v, 3); }
+void glVertex3dv(const GLdouble *v)         { __gl_vertex(GL_DOUBLE,            v, 3); }
+void glVertex3hxvN64(const GLhalfxN64 *v)   { __gl_vertex(GL_HALF_FIXED_N64,    v, 3); }
 
-void glVertex4sv(const GLshort *v)  { __gl_vertex(GL_SHORT,   v, 4); }
-void glVertex4iv(const GLint *v)    { __gl_vertex(GL_INT,     v, 4); }
-void glVertex4fv(const GLfloat *v)  { __gl_vertex(GL_FLOAT,   v, 4); }
-void glVertex4dv(const GLdouble *v) { __gl_vertex(GL_DOUBLE,  v, 4); }
+void glVertex4sv(const GLshort *v)          { __gl_vertex(GL_SHORT,             v, 4); }
+void glVertex4iv(const GLint *v)            { __gl_vertex(GL_INT,               v, 4); }
+void glVertex4fv(const GLfloat *v)          { __gl_vertex(GL_FLOAT,             v, 4); }
+void glVertex4dv(const GLdouble *v)         { __gl_vertex(GL_DOUBLE,            v, 4); }
+void glVertex4hxvN64(const GLhalfxN64 *v)   { __gl_vertex(GL_HALF_FIXED_N64,    v, 4); }
 
-void glVertex2s(GLshort x, GLshort y)                           { __ATTR_IMPL(__gl_vertex, GLshort,  GL_SHORT,   x, y); }
-void glVertex2i(GLint x, GLint y)                               { __ATTR_IMPL(__gl_vertex, GLint,    GL_INT,     x, y); }
-void glVertex2f(GLfloat x, GLfloat y)                           { __ATTR_IMPL(__gl_vertex, GLfloat,  GL_FLOAT,   x, y); }
-void glVertex2d(GLdouble x, GLdouble y)                         { __ATTR_IMPL(__gl_vertex, GLdouble, GL_DOUBLE,  x, y); }
+void glVertex2s(GLshort x, GLshort y)                                       { __ATTR_IMPL(__gl_vertex, GLshort,     GL_SHORT,           x, y); }
+void glVertex2i(GLint x, GLint y)                                           { __ATTR_IMPL(__gl_vertex, GLint,       GL_INT,             x, y); }
+void glVertex2f(GLfloat x, GLfloat y)                                       { __ATTR_IMPL(__gl_vertex, GLfloat,     GL_FLOAT,           x, y); }
+void glVertex2d(GLdouble x, GLdouble y)                                     { __ATTR_IMPL(__gl_vertex, GLdouble,    GL_DOUBLE,          x, y); }
+void glVertex2hxN64(GLhalfxN64 x, GLhalfxN64 y)                             { __ATTR_IMPL(__gl_vertex, GLhalfxN64,  GL_HALF_FIXED_N64,  x, y); }
 
-void glVertex3s(GLshort x, GLshort y, GLshort z)                { __ATTR_IMPL(__gl_vertex, GLshort,  GL_SHORT,   x, y, z); }
-void glVertex3i(GLint x, GLint y, GLint z)                      { __ATTR_IMPL(__gl_vertex, GLint,    GL_INT,     x, y, z); }
-void glVertex3f(GLfloat x, GLfloat y, GLfloat z)                { __ATTR_IMPL(__gl_vertex, GLfloat,  GL_FLOAT,   x, y, z); }
-void glVertex3d(GLdouble x, GLdouble y, GLdouble z)             { __ATTR_IMPL(__gl_vertex, GLdouble, GL_DOUBLE,  x, y, z); }
+void glVertex3s(GLshort x, GLshort y, GLshort z)                            { __ATTR_IMPL(__gl_vertex, GLshort,     GL_SHORT,           x, y, z); }
+void glVertex3i(GLint x, GLint y, GLint z)                                  { __ATTR_IMPL(__gl_vertex, GLint,       GL_INT,             x, y, z); }
+void glVertex3f(GLfloat x, GLfloat y, GLfloat z)                            { __ATTR_IMPL(__gl_vertex, GLfloat,     GL_FLOAT,           x, y, z); }
+void glVertex3d(GLdouble x, GLdouble y, GLdouble z)                         { __ATTR_IMPL(__gl_vertex, GLdouble,    GL_DOUBLE,          x, y, z); }
+void glVertex3hxN64(GLhalfxN64 x, GLhalfxN64 y, GLhalfxN64 z)               { __ATTR_IMPL(__gl_vertex, GLhalfxN64,  GL_HALF_FIXED_N64,  x, y, z); }
 
-void glVertex4s(GLshort x, GLshort y, GLshort z, GLshort w)     { __ATTR_IMPL(__gl_vertex, GLshort,  GL_SHORT,   x, y, z, w); }
-void glVertex4i(GLint x, GLint y, GLint z, GLint w)             { __ATTR_IMPL(__gl_vertex, GLint,    GL_INT,     x, y, z, w); }
-void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)     { __ATTR_IMPL(__gl_vertex, GLfloat,  GL_FLOAT,   x, y, z, w); }
-void glVertex4d(GLdouble x, GLdouble y, GLdouble z, GLdouble w) { __ATTR_IMPL(__gl_vertex, GLdouble, GL_DOUBLE,  x, y, z, w); }
+void glVertex4s(GLshort x, GLshort y, GLshort z, GLshort w)                 { __ATTR_IMPL(__gl_vertex, GLshort,     GL_SHORT,           x, y, z, w); }
+void glVertex4i(GLint x, GLint y, GLint z, GLint w)                         { __ATTR_IMPL(__gl_vertex, GLint,       GL_INT,             x, y, z, w); }
+void glVertex4f(GLfloat x, GLfloat y, GLfloat z, GLfloat w)                 { __ATTR_IMPL(__gl_vertex, GLfloat,     GL_FLOAT,           x, y, z, w); }
+void glVertex4d(GLdouble x, GLdouble y, GLdouble z, GLdouble w)             { __ATTR_IMPL(__gl_vertex, GLdouble,    GL_DOUBLE,          x, y, z, w); }
+void glVertex4hxN64(GLhalfxN64 x, GLhalfxN64 y, GLhalfxN64 z, GLhalfxN64 w) { __ATTR_IMPL(__gl_vertex, GLhalfxN64,  GL_HALF_FIXED_N64,  x, y, z, w); }
 
 void glColor3bv(const GLbyte *v)    { __gl_color(GL_BYTE,           v, 3); }
 void glColor3sv(const GLshort *v)   { __gl_color(GL_SHORT,          v, 3); }
@@ -653,45 +665,53 @@ void glColor4ub(GLubyte r, GLubyte g, GLubyte b, GLubyte a)     { __ATTR_IMPL(__
 void glColor4us(GLushort r, GLushort g, GLushort b, GLushort a) { __ATTR_IMPL(__gl_color, GLushort, GL_UNSIGNED_SHORT,  r, g, b, a); }
 void glColor4ui(GLuint r, GLuint g, GLuint b, GLuint a)         { __ATTR_IMPL(__gl_color, GLuint,   GL_UNSIGNED_INT,    r, g, b, a); }
 
-void glTexCoord1sv(const GLshort *v)    { __gl_tex_coord(GL_SHORT,  v, 1); }
-void glTexCoord1iv(const GLint *v)      { __gl_tex_coord(GL_INT,    v, 1); }
-void glTexCoord1fv(const GLfloat *v)    { __gl_tex_coord(GL_FLOAT,  v, 1); }
-void glTexCoord1dv(const GLdouble *v)   { __gl_tex_coord(GL_DOUBLE, v, 1); }
+void glTexCoord1sv(const GLshort *v)        { __gl_tex_coord(GL_SHORT,          v, 1); }
+void glTexCoord1iv(const GLint *v)          { __gl_tex_coord(GL_INT,            v, 1); }
+void glTexCoord1fv(const GLfloat *v)        { __gl_tex_coord(GL_FLOAT,          v, 1); }
+void glTexCoord1dv(const GLdouble *v)       { __gl_tex_coord(GL_DOUBLE,         v, 1); }
+void glTexCoord1hxvN64(const GLhalfxN64 *v) { __gl_tex_coord(GL_HALF_FIXED_N64, v, 1); }
 
-void glTexCoord2sv(const GLshort *v)    { __gl_tex_coord(GL_SHORT,  v, 2); }
-void glTexCoord2iv(const GLint *v)      { __gl_tex_coord(GL_INT,    v, 2); }
-void glTexCoord2fv(const GLfloat *v)    { __gl_tex_coord(GL_FLOAT,  v, 2); }
-void glTexCoord2dv(const GLdouble *v)   { __gl_tex_coord(GL_DOUBLE, v, 2); }
+void glTexCoord2sv(const GLshort *v)        { __gl_tex_coord(GL_SHORT,          v, 2); }
+void glTexCoord2iv(const GLint *v)          { __gl_tex_coord(GL_INT,            v, 2); }
+void glTexCoord2fv(const GLfloat *v)        { __gl_tex_coord(GL_FLOAT,          v, 2); }
+void glTexCoord2dv(const GLdouble *v)       { __gl_tex_coord(GL_DOUBLE,         v, 2); }
+void glTexCoord2hxvN64(const GLhalfxN64 *v) { __gl_tex_coord(GL_HALF_FIXED_N64, v, 2); }
 
-void glTexCoord3sv(const GLshort *v)    { __gl_tex_coord(GL_SHORT,  v, 3); }
-void glTexCoord3iv(const GLint *v)      { __gl_tex_coord(GL_INT,    v, 3); }
-void glTexCoord3fv(const GLfloat *v)    { __gl_tex_coord(GL_FLOAT,  v, 3); }
-void glTexCoord3dv(const GLdouble *v)   { __gl_tex_coord(GL_DOUBLE, v, 3); }
+void glTexCoord3sv(const GLshort *v)        { __gl_tex_coord(GL_SHORT,          v, 3); }
+void glTexCoord3iv(const GLint *v)          { __gl_tex_coord(GL_INT,            v, 3); }
+void glTexCoord3fv(const GLfloat *v)        { __gl_tex_coord(GL_FLOAT,          v, 3); }
+void glTexCoord3dv(const GLdouble *v)       { __gl_tex_coord(GL_DOUBLE,         v, 3); }
+void glTexCoord3hxvN64(const GLhalfxN64 *v) { __gl_tex_coord(GL_HALF_FIXED_N64, v, 3); }
 
-void glTexCoord4sv(const GLshort *v)    { __gl_tex_coord(GL_SHORT,  v, 4); }
-void glTexCoord4iv(const GLint *v)      { __gl_tex_coord(GL_INT,    v, 4); }
-void glTexCoord4fv(const GLfloat *v)    { __gl_tex_coord(GL_FLOAT,  v, 4); }
-void glTexCoord4dv(const GLdouble *v)   { __gl_tex_coord(GL_DOUBLE, v, 4); }
+void glTexCoord4sv(const GLshort *v)        { __gl_tex_coord(GL_SHORT,          v, 4); }
+void glTexCoord4iv(const GLint *v)          { __gl_tex_coord(GL_INT,            v, 4); }
+void glTexCoord4fv(const GLfloat *v)        { __gl_tex_coord(GL_FLOAT,          v, 4); }
+void glTexCoord4dv(const GLdouble *v)       { __gl_tex_coord(GL_DOUBLE,         v, 4); }
+void glTexCoord4hxvN64(const GLhalfxN64 *v) { __gl_tex_coord(GL_HALF_FIXED_N64, v, 4); }
 
-void glTexCoord1s(GLshort s)                                        { __ATTR_IMPL(__gl_tex_coord, GLshort,  GL_SHORT,   s); }
-void glTexCoord1i(GLint s)                                          { __ATTR_IMPL(__gl_tex_coord, GLint,    GL_INT,     s); }
-void glTexCoord1f(GLfloat s)                                        { __ATTR_IMPL(__gl_tex_coord, GLfloat,  GL_FLOAT,   s); }
-void glTexCoord1d(GLdouble s)                                       { __ATTR_IMPL(__gl_tex_coord, GLdouble, GL_DOUBLE,  s); }
+void glTexCoord1s(GLshort s)                                                    { __ATTR_IMPL(__gl_tex_coord, GLshort,      GL_SHORT,           s); }
+void glTexCoord1i(GLint s)                                                      { __ATTR_IMPL(__gl_tex_coord, GLint,        GL_INT,             s); }
+void glTexCoord1f(GLfloat s)                                                    { __ATTR_IMPL(__gl_tex_coord, GLfloat,      GL_FLOAT,           s); }
+void glTexCoord1d(GLdouble s)                                                   { __ATTR_IMPL(__gl_tex_coord, GLdouble,     GL_DOUBLE,          s); }
+void glTexCoord1hxN64(GLhalfxN64 s)                                             { __ATTR_IMPL(__gl_tex_coord, GLhalfxN64,   GL_HALF_FIXED_N64,  s); }
 
-void glTexCoord2s(GLshort s, GLshort t)                             { __ATTR_IMPL(__gl_tex_coord, GLshort,  GL_SHORT,   s, t); }
-void glTexCoord2i(GLint s, GLint t)                                 { __ATTR_IMPL(__gl_tex_coord, GLint,    GL_INT,     s, t); }
-void glTexCoord2f(GLfloat s, GLfloat t)                             { __ATTR_IMPL(__gl_tex_coord, GLfloat,  GL_FLOAT,   s, t); }
-void glTexCoord2d(GLdouble s, GLdouble t)                           { __ATTR_IMPL(__gl_tex_coord, GLdouble, GL_DOUBLE,  s, t); }
+void glTexCoord2s(GLshort s, GLshort t)                                         { __ATTR_IMPL(__gl_tex_coord, GLshort,      GL_SHORT,           s, t); }
+void glTexCoord2i(GLint s, GLint t)                                             { __ATTR_IMPL(__gl_tex_coord, GLint,        GL_INT,             s, t); }
+void glTexCoord2f(GLfloat s, GLfloat t)                                         { __ATTR_IMPL(__gl_tex_coord, GLfloat,      GL_FLOAT,           s, t); }
+void glTexCoord2d(GLdouble s, GLdouble t)                                       { __ATTR_IMPL(__gl_tex_coord, GLdouble,     GL_DOUBLE,          s, t); }
+void glTexCoord2hxN64(GLhalfxN64 s, GLhalfxN64 t)                               { __ATTR_IMPL(__gl_tex_coord, GLhalfxN64,   GL_HALF_FIXED_N64,  s, t); }
 
-void glTexCoord3s(GLshort s, GLshort t, GLshort r)                  { __ATTR_IMPL(__gl_tex_coord, GLshort,  GL_SHORT,   s, t, r); }
-void glTexCoord3i(GLint s, GLint t, GLint r)                        { __ATTR_IMPL(__gl_tex_coord, GLint,    GL_INT,     s, t, r); }
-void glTexCoord3f(GLfloat s, GLfloat t, GLfloat r)                  { __ATTR_IMPL(__gl_tex_coord, GLfloat,  GL_FLOAT,   s, t, r); }
-void glTexCoord3d(GLdouble s, GLdouble t, GLdouble r)               { __ATTR_IMPL(__gl_tex_coord, GLdouble, GL_DOUBLE,  s, t, r); }
+void glTexCoord3s(GLshort s, GLshort t, GLshort r)                              { __ATTR_IMPL(__gl_tex_coord, GLshort,      GL_SHORT,           s, t, r); }
+void glTexCoord3i(GLint s, GLint t, GLint r)                                    { __ATTR_IMPL(__gl_tex_coord, GLint,        GL_INT,             s, t, r); }
+void glTexCoord3f(GLfloat s, GLfloat t, GLfloat r)                              { __ATTR_IMPL(__gl_tex_coord, GLfloat,      GL_FLOAT,           s, t, r); }
+void glTexCoord3d(GLdouble s, GLdouble t, GLdouble r)                           { __ATTR_IMPL(__gl_tex_coord, GLdouble,     GL_DOUBLE,          s, t, r); }
+void glTexCoord3hxN64(GLhalfxN64 s, GLhalfxN64 t, GLhalfxN64 r)                 { __ATTR_IMPL(__gl_tex_coord, GLhalfxN64,   GL_HALF_FIXED_N64,  s, t, r); }
 
-void glTexCoord4s(GLshort s, GLshort t, GLshort r, GLshort q)       { __ATTR_IMPL(__gl_tex_coord, GLshort,  GL_SHORT,   s, t, r, q); }
-void glTexCoord4i(GLint s, GLint t, GLint r, GLint q)               { __ATTR_IMPL(__gl_tex_coord, GLint,    GL_INT,     s, t, r, q); }
-void glTexCoord4f(GLfloat s, GLfloat t, GLfloat r, GLfloat q)       { __ATTR_IMPL(__gl_tex_coord, GLfloat,  GL_FLOAT,   s, t, r, q); }
-void glTexCoord4d(GLdouble s, GLdouble t, GLdouble r, GLdouble q)   { __ATTR_IMPL(__gl_tex_coord, GLdouble, GL_DOUBLE,  s, t, r, q); }
+void glTexCoord4s(GLshort s, GLshort t, GLshort r, GLshort q)                   { __ATTR_IMPL(__gl_tex_coord, GLshort,      GL_SHORT,           s, t, r, q); }
+void glTexCoord4i(GLint s, GLint t, GLint r, GLint q)                           { __ATTR_IMPL(__gl_tex_coord, GLint,        GL_INT,             s, t, r, q); }
+void glTexCoord4f(GLfloat s, GLfloat t, GLfloat r, GLfloat q)                   { __ATTR_IMPL(__gl_tex_coord, GLfloat,      GL_FLOAT,           s, t, r, q); }
+void glTexCoord4d(GLdouble s, GLdouble t, GLdouble r, GLdouble q)               { __ATTR_IMPL(__gl_tex_coord, GLdouble,     GL_DOUBLE,          s, t, r, q); }
+void glTexCoord4hxN64(GLhalfxN64 s, GLhalfxN64 t, GLhalfxN64 r, GLhalfxN64 q)   { __ATTR_IMPL(__gl_tex_coord, GLhalfxN64,   GL_HALF_FIXED_N64,  s, t, r, q); }
 
 void glNormal3bv(const GLbyte *v)   { __gl_normal(GL_BYTE,      v, 3); }
 void glNormal3sv(const GLshort *v)  { __gl_normal(GL_SHORT,     v, 3); }
@@ -708,6 +728,24 @@ void glNormal3d(GLdouble nx, GLdouble ny, GLdouble nz)  { __ATTR_IMPL(__gl_norma
 void glMatrixIndexubvARB(GLint size, const GLubyte *v)  { __gl_mtx_index(GL_UNSIGNED_BYTE,  v, size); }
 void glMatrixIndexusvARB(GLint size, const GLushort *v) { __gl_mtx_index(GL_UNSIGNED_SHORT, v, size); }
 void glMatrixIndexuivARB(GLint size, const GLuint *v)   { __gl_mtx_index(GL_UNSIGNED_INT,   v, size); }
+
+static void set_precision_bits(gl_fixed_precision_t *dst, GLuint bits)
+{
+    // One bit is reserved for the sign
+    static const GLuint max_bits = sizeof(GLhalfxN64) * 8 - 1;
+
+    if (bits > max_bits) {
+        gl_set_error(GL_INVALID_VALUE, "Bits must not be greater than %ld", max_bits);
+        return;
+    }
+
+    dst->precision = bits;
+    dst->shift_amount = dst->target_precision - bits;
+    dst->to_float_factor = 1.0f / (1<<bits);
+}
+
+void glVertexHalfFixedPrecisionN64(GLuint bits) { set_precision_bits(&state.vertex_halfx_precision, bits); }
+void glTexCoordHalfFixedPrecisionN64(GLuint bits) { set_precision_bits(&state.texcoord_halfx_precision, bits); }
 
 #define __RECT_IMPL(vertex, x1, y1, x2, y2) ({ \
     if (!gl_ensure_no_immediate()) return; \

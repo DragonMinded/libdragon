@@ -61,7 +61,7 @@ libdragon.a: $(BUILD_DIR)/n64sys.o $(BUILD_DIR)/interrupt.o $(BUILD_DIR)/backtra
 			 $(BUILD_DIR)/GL/buffer.o $(BUILD_DIR)/GL/rsp_gl.o \
 			 $(BUILD_DIR)/GL/rsp_gl_pipeline.o $(BUILD_DIR)/GL/glu.o \
 			 $(BUILD_DIR)/GL/cpu_pipeline.o $(BUILD_DIR)/GL/rsp_pipeline.o \
-			 $(BUILD_DIR)/dlfcn.o
+			 $(BUILD_DIR)/dlfcn.o $(BUILD_DIR)/model64.o
 	@echo "    [AR] $@"
 	$(N64_AR) -rcs -o $@ $^
 
@@ -170,6 +170,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/GL/gl_integration.h $(INSTALLDIR)/mips64-elf/include/GL/gl_integration.h
 	install -Cv -m 0644 include/GL/glu.h $(INSTALLDIR)/mips64-elf/include/GL/glu.h
 	install -Cv -m 0644 include/dlfcn.h $(INSTALLDIR)/mips64-elf/include/dlfcn.h
+	install -Cv -m 0644 include/model64.h $(INSTALLDIR)/mips64-elf/include/model64.h
 	mkdir -p $(INSTALLDIR)/mips64-elf/include/libcart
 	install -Cv -m 0644 src/libcart/cart.h $(INSTALLDIR)/mips64-elf/include/libcart/cart.h
 	mkdir -p $(INSTALLDIR)/mips64-elf/include/fatfs

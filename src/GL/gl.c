@@ -40,6 +40,8 @@ uint32_t gl_get_type_size(GLenum type)
         return sizeof(GLfloat);
     case GL_DOUBLE:
         return sizeof(GLdouble);
+    case GL_HALF_FIXED_N64:
+        return sizeof(GLhalfxN64);
     default:
         return 0;
     }

@@ -12,27 +12,12 @@ static const float clip_planes[CLIPPING_PLANE_COUNT][4] = {
     { 0, 0, 1, -1 },
 };
 
-static void read_u8(GLfloat *dst, const uint8_t *src, uint32_t count)
-{
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
-}
-
 static void read_i8(GLfloat *dst, const int8_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
-static void read_u16(GLfloat *dst, const uint16u_t *src, uint32_t count)
-{
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
-}
-
 static void read_i16(GLfloat *dst, const int16u_t *src, uint32_t count)
-{
-    for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
-}
-
-static void read_u32(GLfloat *dst, const uint32u_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
@@ -82,6 +67,16 @@ static void read_f64(GLfloat *dst, const doubleu *src, uint32_t count)
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
+static void read_x16_vtx(GLfloat *dst, const int16u_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i] * state.vertex_halfx_precision.to_float_factor;
+}
+
+static void read_x16_tex(GLfloat *dst, const int16u_t *src, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++) dst[i] = src[i] * state.texcoord_halfx_precision.to_float_factor;
+}
+
 static void read_u8_i(GLubyte *dst, const uint8_t *src, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
@@ -97,16 +92,17 @@ static void read_u32_i(GLubyte *dst, const uint32u_t *src, uint32_t count)
     for (uint32_t i = 0; i < count; i++) dst[i] = src[i];
 }
 
-const cpu_read_attrib_func cpu_read_funcs[ATTRIB_COUNT][8] = {
+const cpu_read_attrib_func cpu_read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
     {
         (cpu_read_attrib_func)read_i8,
-        (cpu_read_attrib_func)read_u8,
+        NULL,
         (cpu_read_attrib_func)read_i16,
-        (cpu_read_attrib_func)read_u16,
+        NULL,
         (cpu_read_attrib_func)read_i32,
-        (cpu_read_attrib_func)read_u32,
+        NULL,
         (cpu_read_attrib_func)read_f32,
         (cpu_read_attrib_func)read_f64,
+        (cpu_read_attrib_func)read_x16_vtx,
     },
     {
         (cpu_read_attrib_func)read_i8n,
@@ -117,26 +113,29 @@ const cpu_read_attrib_func cpu_read_funcs[ATTRIB_COUNT][8] = {
         (cpu_read_attrib_func)read_u32n,
         (cpu_read_attrib_func)read_f32,
         (cpu_read_attrib_func)read_f64,
+        NULL,
     },
     {
         (cpu_read_attrib_func)read_i8,
-        (cpu_read_attrib_func)read_u8,
+        NULL,
         (cpu_read_attrib_func)read_i16,
-        (cpu_read_attrib_func)read_u16,
+        NULL,
         (cpu_read_attrib_func)read_i32,
-        (cpu_read_attrib_func)read_u32,
+        NULL,
         (cpu_read_attrib_func)read_f32,
         (cpu_read_attrib_func)read_f64,
+        (cpu_read_attrib_func)read_x16_tex,
     },
     {
         (cpu_read_attrib_func)read_i8n,
-        (cpu_read_attrib_func)read_u8n,
+        NULL,
         (cpu_read_attrib_func)read_i16n,
-        (cpu_read_attrib_func)read_u16n,
+        NULL,
         (cpu_read_attrib_func)read_i32n,
-        (cpu_read_attrib_func)read_u32n,
+        NULL,
         (cpu_read_attrib_func)read_f32,
         (cpu_read_attrib_func)read_f64,
+        NULL,
     },
     {
         NULL,
@@ -145,6 +144,7 @@ const cpu_read_attrib_func cpu_read_funcs[ATTRIB_COUNT][8] = {
         (cpu_read_attrib_func)read_u16_i,
         NULL,
         (cpu_read_attrib_func)read_u32_i,
+        NULL,
         NULL,
         NULL,
     },

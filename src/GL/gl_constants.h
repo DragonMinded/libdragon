@@ -64,6 +64,11 @@
 
 #define MAX_PIXEL_MAP_SIZE    32
 
+#define ATTRIB_TYPE_COUNT     9
+
+#define VTX_SHIFT 5
+#define TEX_SHIFT 8
+
 #define FLAG_DITHER             (1 << 0)
 #define FLAG_BLEND              (1 << 1)
 #define FLAG_DEPTH_TEST         (1 << 2)

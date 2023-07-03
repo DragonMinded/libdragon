@@ -9,6 +9,7 @@
 #define GL_UNSIGNED_INT                                 0x1405
 #define GL_FLOAT                                        0x1406
 #define GL_DOUBLE                                       0x140A
+#define GL_HALF_FIXED_N64                               0x6F00
 
 #define GL_NO_ERROR                                     0
 #define GL_INVALID_ENUM                                 0x0500
@@ -45,6 +46,9 @@
 #define GL_CURRENT_RASTER_DISTANCE                      0x0B09
 
 #define GL_EDGE_FLAG                                    0x0B43
+
+#define GL_VERTEX_HALF_FIXED_PRECISION_N64              0x6F20
+#define GL_TEXTURE_COORD_HALF_FIXED_PRECISION_N64       0x6F21
 
 #define GL_VERTEX_ARRAY                                 0x8074
 #define GL_NORMAL_ARRAY                                 0x8075

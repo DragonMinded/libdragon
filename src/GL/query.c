@@ -275,11 +275,11 @@ void glGetBooleanv(GLenum value, GLboolean *data)
 void glGetIntegerv(GLenum value, GLint *data)
 {
     switch (value) {
-    case GL_CURRENT_COLOR:
-        data[0] = CLAMPF_TO_I32(state.current_attributes.color[0]);
-        data[1] = CLAMPF_TO_I32(state.current_attributes.color[1]);
-        data[2] = CLAMPF_TO_I32(state.current_attributes.color[2]);
-        data[3] = CLAMPF_TO_I32(state.current_attributes.color[3]);
+    case GL_VERTEX_HALF_FIXED_PRECISION_N64:
+        data[0] = state.vertex_halfx_precision.precision;
+        break;
+    case GL_TEXTURE_COORD_HALF_FIXED_PRECISION_N64:
+        data[0] = state.texcoord_halfx_precision.precision;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx cannot be queried with this function", value);
@@ -290,11 +290,11 @@ void glGetIntegerv(GLenum value, GLint *data)
 void glGetFloatv(GLenum value, GLfloat *data)
 {
     switch (value) {
-    case GL_CURRENT_COLOR:
-        data[0] = state.current_attributes.color[0];
-        data[1] = state.current_attributes.color[1];
-        data[2] = state.current_attributes.color[2];
-        data[3] = state.current_attributes.color[3];
+    case GL_VERTEX_HALF_FIXED_PRECISION_N64:
+        data[0] = state.vertex_halfx_precision.precision;
+        break;
+    case GL_TEXTURE_COORD_HALF_FIXED_PRECISION_N64:
+        data[0] = state.texcoord_halfx_precision.precision;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx cannot be queried with this function", value);
@@ -305,11 +305,11 @@ void glGetFloatv(GLenum value, GLfloat *data)
 void glGetDoublev(GLenum value, GLdouble *data)
 {
     switch (value) {
-    case GL_CURRENT_COLOR:
-        data[0] = state.current_attributes.color[0];
-        data[1] = state.current_attributes.color[1];
-        data[2] = state.current_attributes.color[2];
-        data[3] = state.current_attributes.color[3];
+    case GL_VERTEX_HALF_FIXED_PRECISION_N64:
+        data[0] = state.vertex_halfx_precision.precision;
+        break;
+    case GL_TEXTURE_COORD_HALF_FIXED_PRECISION_N64:
+        data[0] = state.texcoord_halfx_precision.precision;
         break;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx cannot be queried with this function", value);
@@ -327,7 +327,7 @@ GLubyte *glGetString(GLenum name)
     case GL_VERSION:
         return (GLubyte*)"1.1";
     case GL_EXTENSIONS:
-        return (GLubyte*)"GL_ARB_multisample GL_EXT_packed_pixels GL_ARB_vertex_buffer_object GL_ARB_texture_mirrored_repeat GL_ARB_texture_non_power_of_two GL_ARB_vertex_array_object GL_ARB_matrix_palette GL_N64_RDPQ_interop GL_N64_surface_image";
+        return (GLubyte*)"GL_ARB_multisample GL_EXT_packed_pixels GL_ARB_vertex_buffer_object GL_ARB_texture_mirrored_repeat GL_ARB_texture_non_power_of_two GL_ARB_vertex_array_object GL_ARB_matrix_palette GL_N64_RDPQ_interop GL_N64_surface_image GL_N64_half_fixed_point";
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid string name", name);
         return NULL;
