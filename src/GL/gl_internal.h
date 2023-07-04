@@ -114,6 +114,7 @@ typedef enum {
     GL_UPDATE_NONE                  = 0x0,
     GL_UPDATE_SCISSOR               = 0x1,
     GL_UPDATE_TEXTURE_COMPLETENESS  = 0x2,
+    GL_UPDATE_TEXTURE_OBJECTS       = 0x3,
 } gl_update_func_t;
 
 typedef enum {
@@ -710,6 +711,7 @@ inline int gl_get_rdpcmds_for_update_func(gl_update_func_t update_func)
     case GL_UPDATE_NONE:                 return 0;
     case GL_UPDATE_SCISSOR:              return 1;
     case GL_UPDATE_TEXTURE_COMPLETENESS: return 0;
+    case GL_UPDATE_TEXTURE_OBJECTS:      return 0;
     }
     __builtin_unreachable();
 }

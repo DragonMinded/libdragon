@@ -224,7 +224,7 @@ void gl_texture_set_upload_block(uint32_t offset, int level, int width, int heig
 
     uint32_t cmd0 = (RSPQ_CMD_CALL << 24) | PhysicalAddr(texup_block->cmds);
     uint32_t cmd1 = texup_block->nesting_level << 2;
-    gl_set_long(GL_UPDATE_NONE, offset + TEXTURE_LEVELS_BLOCK_OFFSET + level*8, ((uint64_t)cmd0 << 32) | cmd1);
+    gl_set_long(GL_UPDATE_TEXTURE_OBJECTS, offset + TEXTURE_LEVELS_BLOCK_OFFSET + level*8, ((uint64_t)cmd0 << 32) | cmd1);
 
     gl_set_flag_raw(GL_UPDATE_NONE, offset + TEXTURE_FLAGS_OFFSET, TEX_FLAG_UPLOAD_DIRTY, true);
 }
