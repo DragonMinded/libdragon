@@ -25,7 +25,7 @@ FILE *must_fopen(const char *fn)
         int errnum = errno;
         if (errnum == EINVAL) {
             if (!strstr(fn, ":/")) {
-                // A common mistake it is to forget the filesystem prefix.
+                // A common mistake is to forget the filesystem prefix.
                 // Try to give a hint if that's the case.
                 assertf(f, "File not found: %s\n"
                     "Did you forget the filesystem prefix? (e.g. \"rom:/\")\n", fn);
