@@ -21,14 +21,24 @@ FILE *must_fopen(const char *fn)
 {
     FILE *f = fopen(fn, "rb");
     if (!f) {
-        // File not found. A common mistake it is to forget the filesystem
-        // prefix. Try to give a hint if that's the case.
+        // File not found.
         int errnum = errno;
-        if (errnum == EINVAL && !strstr(fn, ":/"))
-            assertf(f, "File not found: %s\n"
-                "Did you forget the filesystem prefix? (e.g. \"rom:/\")\n", fn);
-        else
-        	assertf(f, "error opening file %s: m%s\n", fn, strerror(errnum));
+        if (errnum == EINVAL) {
+            if (!strstr(fn, ":/")) {
+                // A common mistake is to forget the filesystem prefix.
+                // Try to give a hint if that's the case.
+                assertf(f, "File not found: %s\n"
+                    "Did you forget the filesystem prefix? (e.g. \"rom:/\")\n", fn);
+                return NULL;
+            } else if (strstr(fn, "rom:/")) {
+                // Another common mistake is to forget to initialize the rom filesystem.
+                // Suggest that if the filesystem prefix is "rom:/".
+                assertf(f, "File not found: %s\n"
+                    "Did you forget to call dfs_init(), or did it return an error?\n", fn);
+                return NULL;
+            }
+        }
+        assertf(f, "error opening file %s: %s\n", fn, strerror(errnum));
     }
     return f;
 }

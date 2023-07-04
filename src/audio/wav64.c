@@ -57,7 +57,7 @@ void wav64_open(wav64_t *wav, const char *fn) {
 	}
 
 	int fh = dfs_open(fn);
-	assertf(fh >= 0, "error opening file %s: m%s\n", fn, strerror(errno));
+	assertf(fh >= 0, "error opening file %s: %s\n", fn, strerror(errno));
 
 	wav64_header_t head;
 	dfs_read(&head, 1, sizeof(head), fh);
