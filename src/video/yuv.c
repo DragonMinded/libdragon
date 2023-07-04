@@ -1,3 +1,9 @@
+/**
+ * @file yuv.c
+ * @brief Hardware accelerated YUV conversion
+ * @ingroup video
+ */
+
 #include "yuv.h"
 #include "yuv_internal.h"
 #include "rsp.h"
@@ -352,7 +358,7 @@ void yuv_tex_blit(surface_t *yp, surface_t *up, surface_t *vp,
 	yuv_tex_blit_run(yp->width, yp->height, x0, y0, parms, cs);
 }
 
-yuv_blitter_t yuv_new_blitter(int video_width, int video_height, float x0, float y0, const rdpq_blitparms_t *parms,
+yuv_blitter_t yuv_blitter_new(int video_width, int video_height, float x0, float y0, const rdpq_blitparms_t *parms,
 	const yuv_colorspace_t *cs)
 {
 	// Compile the yuv_tex_blit_run into a block with the given parameters.
@@ -364,7 +370,7 @@ yuv_blitter_t yuv_new_blitter(int video_width, int video_height, float x0, float
 	};
 }
 
-yuv_blitter_t yuv_new_blitter_fmv(int video_width, int video_height,
+yuv_blitter_t yuv_blitter_new_fmv(int video_width, int video_height,
     int screen_width, int screen_height, const yuv_fmv_parms_t *parms)
 {
 	static const yuv_fmv_parms_t default_parms = {0};

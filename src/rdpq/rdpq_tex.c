@@ -646,6 +646,7 @@ static void tex_xblit(const surface_t *surf, float x0, float y0, const rdpq_blit
     }
 }
 
+/** @brief Internal implementation of #rdpq_tex_blit, using a custom large tex loader callback function */
 void __rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms, large_tex_draw ltd)
 {
     static const rdpq_blitparms_t default_parms = {0};

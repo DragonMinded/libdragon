@@ -1,3 +1,9 @@
+/**
+ * @file yuv.h
+ * @brief Hardware accelerated YUV conversion
+ * @ingroup video
+ */
+
 #ifndef __LIBDRAGON_YUV_H
 #define __LIBDRAGON_YUV_H
 
@@ -8,28 +14,40 @@
  * into a RGB image. The task is mainly performed using RDP, but the RSP can
  * also be used to handle parts of it.
  * 
- * To be able to use it efficiently with different video codecs, the library
- * supports the input planes in different format. Specifically:
+ * It is possible to specify the exact colorspace to use for the conversions.
+ * Colorspaces are represented using the #yuv_colorspace_t. A few standard
+ * colorspaces are pre-defined as constants and can be used as-is:
  * 
- *  * #yuv_draw_frame_3p converts a frame made with Y, U, V in separate buffers,
- *    with chroma subsampling 4:2:0 (U,V are half the size of Y, both horizontally
- *    and vertically).
- *  * #yuv_draw_frame_2p converts a frame made with Y in a first buffer, and UV
- *    interleaved in a second buffer. Again, this assumes chroma subsampling
- *    4:2:0.
- *  * #yuv_drame_frame_1p converts a frame made with all planes pre-interleaved
- *    in a single buffer, using the pattern YUYV. This uses chroma subsampling
- *    4:2:2 (UV has half the resolution of Y horizontally, but the same
- *    resolution vertically).
+ * - #YUV_BT601_TV: BT.601 colorspace, limited range (16-235) for CRT TVs.
+ * - #YUV_BT601_FULL: BT.601 colorspace, full range (0-255)
+ * - #YUV_BT709_TV: BT.709 colorspace, limited range (16-235) for CRT TVs.
+ * - #YUV_BT709_FULL: BT.709 colorspace, full range (0-255)
  * 
- * The most efficient is #yuv_draw_frame_2p, which requires no additional
- * memory, and has the smallest impact on memory bandwidth. If possible,
- * arrange for the input data to be organized in this format. For instance,
- * a video codec might decompress the chroma channels via RSP in DMEM, and
- * pre-interleave them before sending them back to RDRAM. If the codec
- * creates the U and V planes separately, then calling #yuv_draw_frame_3p
- * is a good alternative: it will interleave the channels using RSP with
- * very efficient code, but requires an intermediate buffer to do so.
+ * Normally, most encoders default to #YUV_BT601_TV for videos at Nintendo 64
+ * resolutions, while #YUV_BT709_FULL is typically the defaults for modern
+ * HD or 4K videos.
+ * 
+ * If you have some very specific use case, you can define your own colorspace
+ * using #yuv_new_colorspace. For testing purposes, #yuv_to_rgb can be used
+ * to convert a single YUV pixel to RGB using a specified colorspace.
+ * 
+ * To blit a full frame, you can use #yuv_tex_blit, which is similar to 
+ * #rdpq_tex_blit as it allows to copy an arbitrary sized frame and apply
+ * transformations to it (typically, scaling or flipping).
+ * 
+ * To playback a video at maximum performance, it is recommended to use
+ * #yuv_blitter_t instead. A blitter is an object that can be used to 
+ * perform multiple frame conversions with the same parameters (same input
+ * size, same output size, same scaling and alignment). It is similar to
+ * #rdpq_tex_blit in concept, but it precalculates most of the computations
+ * using a rspq block (see #rspq_block_t for more information), so that
+ * any time a conversion is needed, it is completely offloaded to the RSP+RDP
+ * with almost zero CPU overhead.
+ * 
+ * You can create a #yuv_blitter_t using #yuv_blitter_new (which accepts
+ * parameters identical to #yuv_tex_blit), or the most handy #yuv_blitter_new_fmv
+ * which accepts more high-level parameters more optimized for the use case
+ * of a full-screen full motion video player.
  * 
  */
 
@@ -41,8 +59,10 @@
 extern "C" {
 #endif
 
+///@cond
 struct rspq_block_s;
 typedef struct rspq_block_s rspq_block_t;
+///@endcond
 
 /**
  * @brief Initialize the YUV conversion library.
@@ -94,7 +114,6 @@ typedef struct {
  *    
  *  * Kr=0.299, Kb=0.114
  *  * Y0=16, yrange=219, crange=224
- * 
  */ 
 extern const yuv_colorspace_t YUV_BT601_TV;
 
@@ -209,6 +228,10 @@ typedef enum {
 
 /** 
  * @brief YUV full motion video blitter configuration.
+ * 
+ * These are the parameters that can be used to configure a YUV blitter via
+ * #yuv_blitter_new_fmv. They are designed for the use case of a full-screen
+ * full motion video player, where the video is optionally scaled to fit the screen.
  */
 typedef struct yuv_fmv_parms_s {
     const yuv_colorspace_t *cs;		///< Color space to use during conversion (default: #YUV_BT601_TV)
@@ -224,7 +247,7 @@ typedef struct yuv_fmv_parms_s {
  * This structure represents a YUV blitter, which is an engine capable of
  * drawing multiple YUV frames onto a RGB target surface.
  * 
- * The blitter is created by #yuv_new_blitter or #yuv_new_blitter_fmv,
+ * The blitter is created by #yuv_blitter_new or #yuv_blitter_new_fmv,
  * providing all parameters that describe how to perform the blitting. At
  * creation time, the blitting operation is recorded into a rspq block, so
  * that the blitting itself (performed by #yuv_blitter_run) uses almost zero
@@ -234,7 +257,7 @@ typedef struct yuv_fmv_parms_s {
  * release the memory.
  */
 typedef struct yuv_blitter_s {
-    rspq_block_t *block;
+    rspq_block_t *block;            ///< RSPQ block containing the blitting operation
 } yuv_blitter_t;
 
 
@@ -242,11 +265,11 @@ typedef struct yuv_blitter_s {
  * @brief Create a YUV blitter optimized for rendering multiple frames with 
  *        some possible transformation.
  * 
- * This function is similar to #yuv_new_blitter_fmv but initializes the
+ * This function is similar to #yuv_blitter_new_fmv but initializes the
  * blitter using the same interface of #yuv_tex_blit or #rdpq_tex_blit. The
  * interface allows to handle on-the-fly arbitrary transformations of the
  * blitter (including scaling and rotations) and also cropping. It is indeed
- * a superset of what is possible through #yuv_new_blitter_fmv, but its API
+ * a superset of what is possible through #yuv_blitter_new_fmv, but its API
  * might be a bit harder to use for people that just want to do a full-motion
  * video player.
  * 
@@ -264,10 +287,10 @@ typedef struct yuv_blitter_s {
  * @param cs                    Colorspace to use for the conversion (or NULL for #YUV_BT601_TV)
  * @return An initialized blitter instance.
  *
- * @see #yuv_new_blitter_fmv
+ * @see #yuv_blitter_new_fmv
  * @see #yuv_blitter_run
  */
-yuv_blitter_t yuv_new_blitter(int video_width, int video_height,
+yuv_blitter_t yuv_blitter_new(int video_width, int video_height,
     float x0, float y0, const rdpq_blitparms_t *parms, const yuv_colorspace_t *cs);
 
 /**
@@ -293,10 +316,10 @@ yuv_blitter_t yuv_new_blitter(int video_width, int video_height,
  * @param parms                 Optional parameters (can be NULL)
  * @return                      An initialized blitter instance.
  * 
- * @see #yuv_new_blitter
+ * @see #yuv_blitter_new
  * @see #yuv_blitter_run
  */
-yuv_blitter_t yuv_new_blitter_fmv(int video_width, int video_height,
+yuv_blitter_t yuv_blitter_new_fmv(int video_width, int video_height,
     int screen_width, int screen_height, const yuv_fmv_parms_t *parms);
 
 
@@ -311,7 +334,7 @@ yuv_blitter_t yuv_new_blitter_fmv(int video_width, int video_height,
  * The blitter is configured at creation time with parameters that describe
  * where to draw ito the buffer, whether to perform a zoom, etc.
  * 
- * @param blitter 		Blitter created by #yuv_new_blitter_fmv or #yuv_new_blitter
+ * @param blitter 		Blitter created by #yuv_blitter_new_fmv or #yuv_blitter_new
  * @param yp 			Y plane
  * @param up 			U plane
  * @param vp 			V plane
@@ -334,7 +357,7 @@ void yuv_blitter_free(yuv_blitter_t *blitter);
  * 
  * This function is similar to #rdpq_tex_blit, but it allows to blit
  * a YUV frame split into 3 planes. This is faster than first merging the
- * 3 planes into a single buffer (as required by #FMT_YUV) and then blit it.
+ * 3 planes into a single buffer (as required by #FMT_YUV16) and then blit it.
  * 
  * This is an all-in-one function that avoids creating a #yuv_blitter_t instance,
  * using it and then freeing it. On the other hand, it performs a lot of work
@@ -361,97 +384,6 @@ void yuv_blitter_free(yuv_blitter_t *blitter);
 void yuv_tex_blit(surface_t *yp, surface_t *up, surface_t *vp,
     float x0, float y0, const rdpq_blitparms_t *parms, const yuv_colorspace_t *cs);
 
-
-#if 0
-/**
- * @brief Blit a 3-planes YUV frame into the current RDP framebuffer.
- * 
- * This function performs a YUV->RGB conversion for a full frame. The input
- * is expected as 3 separates 8-bpp planes for the 3 components (YUV), with the
- * U/V planes being exactly half the width and the height of the Y plane
- * (as per standard 4:2:0 chroma subsampling). The output is drawn into the
- * currently-attached RDP display buffer.
- * 
- * Internally, the function uses the RSP to interleave the U and V plane
- * together into an intermediate buffer, and then uses the RDP to perform
- * the actual conversion and blitting. The intermediate buffer is allocated on the heap
- * and has size width * height / 2.
- * 
- * Assuming a 32-bit framebuffer, the impact on memory bandwidth (number of
- * RDRAM bytes touched during the execution) is width * height * 6.5.
- * 
- * The input surfaces format must be a 8-bit one, though the exact format doesn't
- * matter. #FMT_I8 is probably the best choice.
- * 
- * @note The internal buffer is allocated when needed and kept around for subsequent
- *       calls. Use #yuv_close to reclaim the memory.
- * 
- * @param      y       Surface containing the Y plane
- * @param      u       Surface containing the U plane. Width/height must be exactly
- *                     half of that of y frame.
- * @param      v       Surface containing the V plane. Width/height must be exactly
- *                     half of that of y frame.
- * @param      parms   Optional blitting parameters
- *
- */
-void yuv_blit3(surface_t *y, surface_t *u, surface_t *v, yuv_blitparms_t *parms);
-
-
-/**
- * @brief Draw a 2-planes YUV frame into the current RDP framebuffer.
- * 
- * This function performs a YUV->RGB conversion for a full frame. The input
- * is expected as 2 separates 8-bpp planes for the 3 components: one plane
- * with the Y component, and 1 plane that contains interleaved UV components.
- * Since U/V planes (separately) are half the width and the height of the Y plane
- * (as per standard 4:2:0 chroma subsampling), the interleaved UV plane must
- * have the same width of Y plane, and half the height. The output is drawn
- * into the currently-attached RDP display buffer.
- * 
- * Internally, the function uses the RDP to perform the actual
- * conversion and blitting. No usage of RSP is needed, and no additional memory
- * is allocated.
- * 
- * Assuming a 32-bit framebuffer, the impact on memory bandwidth (number of
- * RDRAM bytes touched during the execution) is width * height * 5.5.
- *
- * @param      cfg     YUV blitter configuration
- * @param      y       Pointer to the y plane
- * @param      uv      Pointer to the u plane. Width must be the same of y plane,
- *                     while height must be half of y plane.
- *
- */
-void yuv_draw_frame_2p(uint8_t *y, uint8_t *uv);
-
-/**
- * @brief Draw a 1-plane YUYV frame into the current RDP framebuffer.
- * 
- * This function performs a YUV->RGB conversion for a full frame. The input
- * is expected as one interleaved plane for the 3 components: it must contain
- * the components in the order YUYV. This corresponds to a 4:2:2 chroma
- * subsampling: each U/V component has half the horizontal resolution
- * compared to Y, but the same vertical resolution. The output is drawn into the
- * currently-attached RDP display buffer.
- * 
- * Internally, the function uses the RDP to perform the actual
- * conversion and blitting. No usage of RSP is needed, and no additional memory
- * is allocated.
- * 
- * Assuming a 32-bit framebuffer, the impact on memory bandwidth (number of
- * RDRAM bytes touched during the execution) is width * height * 5.5.
- *
- * @param      cfg     YUV blitter configuration
- * @param      yuyv    Pointer to the yuyv plane
- *
- */
-void yuv_draw_frame_1p(uint8_t *yuyv);
-
-void yuv_set_input_buffer(uint8_t *y, uint8_t *cb, uint8_t *cr, int y_pitch);
-void yuv_set_output_buffer(uint8_t *out, int out_pitch);
-void yuv_interleave4_block_32x16(int x0, int y0);
-void yuv_interleave2_block_32x16(int x0, int y0);
-
-#endif
 
 #ifdef __cplusplus
 }
