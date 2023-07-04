@@ -121,7 +121,7 @@ void mpeg2_open(mpeg2_t *mp2, const char *fn) {
 		yuv_init();
 
 		// Create a YUV blitter for this resolution
-		mp2->yuv_blitter = yuv_new_blitter_fmv(
+		mp2->yuv_blitter = yuv_blitter_new_fmv(
 			width, height,
 			display_get_width(), display_get_height(),
 			NULL);
