@@ -11,6 +11,7 @@
 #include "rdpq_tri.h"
 #include "rdpq_rect.h"
 #include "rdpq_tex.h"
+#include "rdpq_tex_internal.h"
 #include "utils.h"
 #include <math.h>
 
@@ -446,26 +447,13 @@ int rdpq_tex_reuse(rdpq_tile_t tile, const rdpq_texparms_t *parms)
     return rdpq_tex_reuse_sub(tile, parms, 0, 0, last_tload.rect.width, last_tload.rect.height);
 }
 
-/**
- * @brief Helper function to draw a large surface that doesn't fit in TMEM.
+/** 
+ * @brief Implement large_tex_draw protocol via the texloader
  * 
- * This function analyzes the surface, finds the optimal splitting strategy to
- * divided into rectangles that fit TMEM, and then go through them one of by one,
- * loading them into TMEM and drawing them.
- * 
- * The actual drawing is done by the caller, through the draw_cb function. This
- * function will just call it with the information on the current rectangle
- * within the original surface.
- * 
- * @param tile          Hint of the tile to use. Note that this function is free to use
- *                      other tiles to perform its job.
- * @param tex           Surface to draw
- * @param draw_cb       Callback function to draw rectangle by rectangle. It will be called
- *                      with the tile to use for drawing, and the rectangle of the original
- *                      surface that has been loaded into TMEM.
- * @param filtering     Enable texture filtering workaround
+ * This is the most generic implementation, as using the texloader allows to
+ * support any texture of any size and any format.
  */
-static void tex_draw_split(rdpq_tile_t tile, const surface_t *tex, int s0, int t0, int s1, int t1, 
+static void ltd_texloader(rdpq_tile_t tile, const surface_t *tex, int s0, int t0, int s1, int t1, 
     void (*draw_cb)(rdpq_tile_t tile, int s0, int t0, int s1, int t1), bool filtering)
 {
     // The most efficient way to split a large surface is to load it in horizontal strips,
@@ -497,7 +485,7 @@ static void tex_draw_split(rdpq_tile_t tile, const surface_t *tex, int s0, int t
 }
 
 __attribute__((noinline))
-static void tex_xblit_norotate_noscale(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms)
+static void tex_xblit_norotate_noscale(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms, large_tex_draw ltd)
 {
     rdpq_tile_t tile = parms->tile;
     int src_width = parms->width ? parms->width : surf->width;
@@ -518,11 +506,11 @@ static void tex_xblit_norotate_noscale(const surface_t *surf, float x0, float y0
         rdpq_texture_rectangle(tile, x0 + ks0 - cx, y0 + kt0 - cy, x0 + ks1 - cx, y0 + kt1 - cy, s0, t0);
     }
 
-    tex_draw_split(tile, surf, s0, t0, s0 + src_width, t0 + src_height, draw_cb, parms->filtering);
+    (*ltd)(tile, surf, s0, t0, s0 + src_width, t0 + src_height, draw_cb, parms->filtering);
 }
 
 __attribute__((noinline))
-static void tex_xblit_norotate(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms)
+static void tex_xblit_norotate(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms, large_tex_draw ltd)
 {
     rdpq_tile_t tile = parms->tile;
     int src_width = parms->width ? parms->width : surf->width;
@@ -558,11 +546,11 @@ static void tex_xblit_norotate(const surface_t *surf, float x0, float y0, const 
         rdpq_texture_rectangle_scaled(tile, k0x, k0y, k2x, k2y, s0, t0, s1, t1);
     }
 
-    tex_draw_split(tile, surf, s0, t0, s0 + src_width, t0 + src_height, draw_cb, parms->filtering);
+    (*ltd)(tile, surf, s0, t0, s0 + src_width, t0 + src_height, draw_cb, parms->filtering);
 }
 
 __attribute__((noinline))
-static void tex_xblit(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms)
+static void tex_xblit(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms, large_tex_draw ltd)
 {
     rdpq_tile_t tile = parms->tile;
     int src_width = parms->width ? parms->width : surf->width;
@@ -652,13 +640,13 @@ static void tex_xblit(const surface_t *surf, float x0, float y0, const rdpq_blit
     }
 
     if (nx || ny) {
-        tex_draw_split(tile, surf, s0, t0, s0 + src_width, t0 + src_height, draw_cb_multi_rot, parms->filtering);    
+        (*ltd)(tile, surf, s0, t0, s0 + src_width, t0 + src_height, draw_cb_multi_rot, parms->filtering);    
     } else {
-        tex_draw_split(tile, surf, s0, t0, s0 + src_width, t0 + src_height, draw_cb, parms->filtering);
+        (*ltd)(tile, surf, s0, t0, s0 + src_width, t0 + src_height, draw_cb, parms->filtering);
     }
 }
 
-void rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms)
+void __rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms, large_tex_draw ltd)
 {
     static const rdpq_blitparms_t default_parms = {0};
     if (!parms) parms = &default_parms;
@@ -666,12 +654,17 @@ void rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitpar
     // Check which implementation to use, depending on the requested features.
     if (F2I(parms->theta) == 0) {
         if (F2I(parms->scale_x) == 0 && F2I(parms->scale_y) == 0)
-                tex_xblit_norotate_noscale(surf, x0, y0, parms);
+                tex_xblit_norotate_noscale(surf, x0, y0, parms, ltd);
             else
-                tex_xblit_norotate(surf, x0, y0, parms);
+                tex_xblit_norotate(surf, x0, y0, parms, ltd);
     } else {
-        tex_xblit(surf, x0, y0, parms);
+        tex_xblit(surf, x0, y0, parms, ltd);
     }
+}
+
+void rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms)
+{
+    __rdpq_tex_blit(surf, x0, y0, parms, ltd_texloader);
 }
 
 void rdpq_tex_upload_tlut(uint16_t *tlut, int color_idx, int num_colors)

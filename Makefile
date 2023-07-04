@@ -142,6 +142,7 @@ install: install-mk libdragon
 	install -Cv -m 0644 include/rsp_dma.inc $(INSTALLDIR)/mips64-elf/include/rsp_dma.inc
 	install -Cv -m 0644 include/rsp_assert.inc $(INSTALLDIR)/mips64-elf/include/rsp_assert.inc
 	install -Cv -m 0644 include/mpeg2.h $(INSTALLDIR)/mips64-elf/include/mpeg2.h
+	install -Cv -m 0644 include/yuv.h $(INSTALLDIR)/mips64-elf/include/yuv.h
 	install -Cv -m 0644 include/throttle.h $(INSTALLDIR)/mips64-elf/include/throttle.h
 	install -Cv -m 0644 include/mixer.h $(INSTALLDIR)/mips64-elf/include/mixer.h
 	install -Cv -m 0644 include/samplebuffer.h $(INSTALLDIR)/mips64-elf/include/samplebuffer.h

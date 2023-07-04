@@ -113,10 +113,10 @@ void rdpq_set_mode_yuv(bool bilinear) {
 
     if (!bilinear) {
         som = SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_TF0_YUV;
-        cc = RDPQ_COMBINER1((TEX0, K4, K5, ZERO), (ZERO, ZERO, ZERO, ONE));
+        cc = RDPQ_COMBINER1((TEX0, K4, K5, TEX0), (ZERO, ZERO, ZERO, ONE));
     } else {
         som = SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_SAMPLE_BILINEAR | SOM_TF0_RGB | SOM_TF1_YUVTEX0;
-        cc = RDPQ_COMBINER2((TEX1, K4, K5, ZERO), (ZERO, ZERO, ZERO, ONE),
+        cc = RDPQ_COMBINER2((TEX1, K4, K5, TEX1), (ZERO, ZERO, ZERO, ONE),
                             (ZERO, ZERO, ZERO, COMBINED), (ZERO, ZERO, ZERO, COMBINED));
     }
     __rdpq_reset_render_mode(
@@ -127,7 +127,7 @@ void rdpq_set_mode_yuv(bool bilinear) {
     else
         rdpq_tracking.cycle_type_frozen = 1;
 
-    rdpq_set_yuv_parms(179,-44,-91,227,19,255);  // BT.601 coefficients (Kr=0.299, Kb=0.114, TV range)
+    rdpq_set_yuv_parms(179,-44,-91,227,111,43);  // BT.601 coefficients (Kr=0.299, Kb=0.114, TV range)
 }
 
 void rdpq_mode_begin(void)

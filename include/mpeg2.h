@@ -3,6 +3,7 @@
 
 #include "display.h"
 #include "rspq.h"
+#include "yuv.h"
 #include <stdbool.h>
 
 #ifdef __cplusplus
@@ -17,7 +18,7 @@ typedef struct {
 	plm_buffer_t *buf;
 	plm_video_t *v;
 	void *f;
-	rspq_block_t* yuv_convert;
+	yuv_blitter_t yuv_blitter;
 } mpeg2_t;
 
 void mpeg2_open(mpeg2_t *mp2, const char *fn);

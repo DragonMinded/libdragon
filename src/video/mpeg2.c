@@ -13,9 +13,6 @@
 
 #define YUV_MODE   1   // 0=CPU, 1=RSP+RDP
 
-#define BLOCK_W 32
-#define BLOCK_H 16
-
 DEFINE_RSP_UCODE(rsp_mpeg1);
 
 static uint32_t ovl_id;
@@ -93,92 +90,6 @@ void rsp_mpeg1_set_quant_matrix(bool intra, const uint8_t quant_mtx[64]) {
 #define PL_MPEG_IMPLEMENTATION
 #include "pl_mpeg/pl_mpeg.h"
 
-#define VIDEO_WIDTH 480
-#define VIDEO_HEIGHT 272
-
-enum ZoomMode {
-	ZOOM_NONE,
-	ZOOM_KEEP_ASPECT,
-	ZOOM_FULL
-};
-
-static void yuv_draw_frame(int width, int height, enum ZoomMode mode) {
-	static uint8_t *interleaved_buffer = NULL;
-
-	if (!interleaved_buffer) {
-		interleaved_buffer = malloc_uncached(width*height*2);
-		assert(interleaved_buffer);
-	}
-
-	// Calculate initial Y to center the frame on the screen (letterboxing)
-	int screen_width = display_get_width();
-	int screen_height = display_get_height();
-	int video_width = width;
-	int video_height = height;
-	float scalew = 1.0f, scaleh = 1.0f;
-
-	if (mode != ZOOM_NONE && width < screen_width && height < screen_height) {
-		scalew = (float)screen_width / (float)width;
-		scaleh = (float)screen_height / (float)height;
-		if (mode == ZOOM_KEEP_ASPECT)
-			scalew = scaleh = MIN(scalew, scaleh);
-
-		video_width = width * scalew;
-		video_height = height *scaleh;
-	}
-
-	int xstart = (screen_width - video_width) / 2;
-	int ystart = (screen_height - video_height) / 2;
-
-	// Start clearing the screen
-	if (screen_height > video_height || screen_width > video_width) {
-		rdpq_set_mode_fill(RGBA32(0,0,0,0));
-		if (screen_height > video_height) {		
-			rdpq_fill_rectangle(0, 0, screen_width, ystart);
-			rdpq_fill_rectangle(0, ystart+video_height, screen_width, screen_height);
-		}
-		if (screen_width > video_width) {
-			rdpq_fill_rectangle(0, ystart, xstart, ystart+video_height);
-			rdpq_fill_rectangle(xstart+video_width, ystart, screen_width, ystart+video_height);
-		}
-	}
-
-	// RSP YUV converts in blocks of 32x16
-	yuv_set_output_buffer(interleaved_buffer, width*2);
-	for (int y=0; y < height; y += 16) {
-		for (int x=0; x < width; x += 32) {
-			yuv_interleave_block_32x16(x, y);
-		}
-		rspq_flush();
-	}
-
-	// Configure YUV blitting mode
-	rdpq_set_mode_yuv(false);
-
-	rdpq_set_tile(0, FMT_YUV16, 0, BLOCK_W, 0);
-	rdpq_set_tile(1, FMT_YUV16, 0, BLOCK_W, 0);
-	rdpq_set_tile(2, FMT_YUV16, 0, BLOCK_W, 0);
-	rdpq_set_tile(3, FMT_YUV16, 0, BLOCK_W, 0);
-	rdpq_set_texture_image_raw(0, PhysicalAddr(interleaved_buffer), FMT_YUV16, width, height);
-
-	debugf("scalew:%.3f scaleh:%.3f\n", scalew, scaleh);
-    for (int y=0;y<height;y+=BLOCK_H) {
-        for (int x=0;x<width;x+=BLOCK_W) {
-        	int sx0 = x * scalew;
-        	int sy0 = y * scaleh;
-        	int sx1 = (x+BLOCK_W) * scalew;
-        	int sy1 = (y+BLOCK_H) * scaleh;
-
-            rdpq_load_tile(0, x, y, x+BLOCK_W, y+BLOCK_H);
-            rdpq_texture_rectangle_scaled(0,
-				sx0+xstart, sy0+ystart,
-				sx1+xstart, sy1+ystart,
-				x, y, x+BLOCK_W, y+BLOCK_H);
-        }
-		rspq_flush();
-    }
-}
-
 void mpeg2_open(mpeg2_t *mp2, const char *fn) {
 	memset(mp2, 0, sizeof(mpeg2_t));
 
@@ -208,15 +119,12 @@ void mpeg2_open(mpeg2_t *mp2, const char *fn) {
 
 	if (YUV_MODE == 1) {
 		yuv_init();
-		// assert(width % BLOCK_W == 0);
-		assert(height % BLOCK_H == 0);
 
-		if (mp2->yuv_convert) {
-			rspq_block_free(mp2->yuv_convert);
-		}
-		rspq_block_begin();
-		yuv_draw_frame(width, height, ZOOM_KEEP_ASPECT);
-		mp2->yuv_convert = rspq_block_end();
+		// Create a YUV blitter for this resolution
+		mp2->yuv_blitter = yuv_new_blitter_fmv(
+			width, height,
+			display_get_width(), display_get_height(),
+			NULL);
 	}
 
 	profile_init();
@@ -235,9 +143,10 @@ void mpeg2_draw_frame(mpeg2_t *mp2, display_context_t disp) {
 	    plm_frame_to_rgba(mp2->f, disp->buffer, disp->stride);
 	} else {
 		plm_frame_t *frame = mp2->f;
-		yuv_set_input_buffer(frame->y.data, frame->cb.data, frame->cr.data, frame->width);
-		rspq_block_run(mp2->yuv_convert);
-		// yuv_draw_frame(frame->width, frame->height);
+		surface_t yp = surface_make_linear(frame->y.data, FMT_I8, frame->width, frame->height);
+		surface_t cbp = surface_make_linear(frame->cb.data, FMT_I8, frame->width/2, frame->height/2);
+		surface_t crp = surface_make_linear(frame->cr.data, FMT_I8, frame->width/2, frame->height/2);
+		yuv_blitter_run(&mp2->yuv_blitter, &yp, &cbp, &crp);
     }
 	PROFILE_STOP(PS_YUV, 0);
 
