@@ -910,9 +910,9 @@ void rspq_overlay_unregister(uint32_t overlay_id)
     memset(overlay, 0, sizeof(rspq_overlay_t));
 
     // Remove all registered ids
-    for (uint32_t i = unshifted_id; i < slot_count; i++)
+    for (uint32_t i = 0; i < slot_count; i++)
     {
-        rspq_data.tables.overlay_table[i] = 0;
+        rspq_data.tables.overlay_table[unshifted_id + i] = 0;
     }
 
     // Reset the command base in the overlay header
