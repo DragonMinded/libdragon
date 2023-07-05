@@ -1493,6 +1493,99 @@ void test_rdpq_fog(TestContext *ctx) {
     ASSERT_SURFACE(&fb, { return RGBA32(255,0,0,FULL_CVG); });
 }
 
+void test_rdpq_mode_antialias(TestContext *ctx) {
+    RDPQ_INIT();
+
+    const int FBWIDTH = 16;
+    surface_t fb = surface_alloc(FMT_RGBA32, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    rdpq_set_color_image(&fb);
+    surface_clear(&fb, 0);
+
+    void draw_tri(void) {
+        rdpq_triangle(&TRIFMT_SHADE,
+            //         X              Y  R     G     B     A
+            (float[]){ 0,             0, 1.0f, 1.0f, 1.0f, 0.5f, },
+            (float[]){ FBWIDTH,       0, 1.0f, 1.0f, 1.0f, 0.5f, },
+            (float[]){ FBWIDTH, FBWIDTH, 1.0f, 1.0f, 1.0f, 0.5f, }
+        );
+    }
+
+    rdpq_set_mode_standard();
+    rdpq_mode_combiner(RDPQ_COMBINER_SHADE);
+    draw_tri();
+    rspq_wait();
+    uint64_t som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_SIGNED(som & 
+        (SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_MASK | SOM_COVERAGE_DEST_MASK), 
+                                                                     SOM_CYCLE_1    | SOM_COVERAGE_DEST_ZAP,
+        "invalid SOM configuration: %08llx", som);
+
+    rdpq_debug_log_msg("aa");
+    rdpq_mode_antialias(true);
+    draw_tri();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_SIGNED(som & 
+        (SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_MASK | SOM_COVERAGE_DEST_MASK), 
+         SOM_AA_ENABLE |                SOM_READ_ENABLE |            SOM_CYCLE_1    | SOM_COVERAGE_DEST_CLAMP, 
+        "invalid SOM configuration: %08llx", som);
+
+    rdpq_debug_log_msg("blender+aa");
+    rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
+    draw_tri();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_SIGNED(som & 
+        (SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_MASK | SOM_COVERAGE_DEST_MASK), 
+         SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE |            SOM_CYCLE_1    | SOM_COVERAGE_DEST_WRAP, 
+        "invalid SOM configuration: %08llx", som);
+
+    rdpq_debug_log_msg("blender");
+    rdpq_mode_antialias(false);
+    draw_tri();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_SIGNED(som & 
+        (SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_MASK | SOM_COVERAGE_DEST_MASK), 
+                         SOM_BLENDING | SOM_READ_ENABLE |            SOM_CYCLE_1    | SOM_COVERAGE_DEST_ZAP, 
+        "invalid SOM configuration: %08llx", som);
+
+    rdpq_debug_log_msg("blender+aa+fog");
+    rdpq_mode_fog(RDPQ_FOG_STANDARD);
+    rdpq_mode_antialias(true);
+    draw_tri();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_SIGNED(som & 
+        (SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_MASK | SOM_COVERAGE_DEST_MASK), 
+         SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_2    | SOM_COVERAGE_DEST_WRAP, 
+        "invalid SOM configuration: %08llx", som);
+
+    rdpq_debug_log_msg("aa+fog");
+    rdpq_mode_blender(false);
+    draw_tri();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_SIGNED(som & 
+        (SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_MASK | SOM_COVERAGE_DEST_MASK), 
+         SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_2    | SOM_COVERAGE_DEST_CLAMP, 
+        "invalid SOM configuration: %08llx", som);
+
+    rdpq_debug_log_msg("fog");
+    rdpq_mode_antialias(false);
+    draw_tri();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_SIGNED(som & 
+        (SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_MASK | SOM_COVERAGE_DEST_MASK), 
+                         SOM_BLENDING |                   SOMX_FOG | SOM_CYCLE_1    | SOM_COVERAGE_DEST_ZAP, 
+        "invalid SOM configuration: %08llx", som);
+
+    rdpq_debug_log_msg("nothing");
+    rdpq_mode_fog(0);
+    draw_tri();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_SIGNED(som & 
+        (SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_MASK | SOM_COVERAGE_DEST_MASK), 
+                                                                     SOM_CYCLE_1    | SOM_COVERAGE_DEST_ZAP,
+        "invalid SOM configuration: %08llx", som);
+}
+
 void test_rdpq_mode_freeze(TestContext *ctx) {
     RDPQ_INIT();
     debug_rdp_stream_init();

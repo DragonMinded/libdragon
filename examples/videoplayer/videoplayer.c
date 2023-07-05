@@ -25,7 +25,7 @@ int main(void) {
 
 	display_init(RESOLUTION_320x240, DEPTH_32_BPP, NUM_DISPLAY, GAMMA_NONE, ANTIALIAS_OFF);
 	dfs_init(DFS_DEFAULT_LOCATION);
-	rdp_init();
+	rdpq_init();
 
 	audio_init(44100, 4);
 	mixer_init(8);
@@ -51,21 +51,14 @@ int main(void) {
 		if (!mpeg2_next_frame(&mp2))
 			break;
 
-		RSP_WAIT_LOOP(500) {
-			disp = display_lock();
-			if (disp) break;
-		}
+		disp = display_get();
 
-		rdp_attach(disp);
+		// rdpq_attach(disp, NULL);
+		rdpq_attach_clear(disp, NULL);
 
 		mpeg2_draw_frame(&mp2, disp);
 
-		#if 0
-		rdp_detach_display();
-		display_show(disp);
-		#else
-		rdp_detach_show(disp);
-		#endif
+		rdpq_detach_show();
 
 		audio_poll();
 

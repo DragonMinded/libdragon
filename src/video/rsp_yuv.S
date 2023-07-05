@@ -6,7 +6,8 @@
     RSPQ_BeginOverlayHeader
 	RSPQ_DefineCommand cmd_yuv_set_input                 16
 	RSPQ_DefineCommand cmd_yuv_set_output                 8
-	RSPQ_DefineCommand cmd_yuv_interleave_block_32x16,    4
+	RSPQ_DefineCommand cmd_yuv_interleave4_block_32x16,   4
+	RSPQ_DefineCommand cmd_yuv_interleave2_block_32x16,   4
 	RSPQ_EndOverlayHeader
 
 	.align 4
@@ -60,8 +61,8 @@ cmd_yuv_set_output:
 
 
 
-	.func cmd_yuv_interleave_block_32x16
-cmd_yuv_interleave_block_32x16:
+	.func cmd_yuv_interleave4_block_32x16
+cmd_yuv_interleave4_block_32x16:
 	#define x0y0       a0
 	#define ybuf_off   t5
 	#define cbuf_off   t6
@@ -222,4 +223,149 @@ cmd_yuv_interleave_block_32x16:
 	li t0, DMA_SIZE(BLOCK_W*2, BLOCK_H)
 	jal_and_j DMAOut, RSPQ_Loop
 
+	#undef x0y0      
+	#undef ybuf_off  
+	#undef cbuf_off  
+	#undef outbuf_off
+    #undef y         
+
+    #undef ybuf      
+    #undef cbbuf     
+    #undef crbuf     
+    #undef outbuf    
+    #undef outbuf2   
 	.endfunc
+
+	.func cmd_yuv_interleave2_block_32x16
+cmd_yuv_interleave2_block_32x16:
+	#define x0y0       a0
+	#define ybuf_off   t5
+	#define cbuf_off   t6
+	#define outbuf_off t7
+    #define y          t8
+
+    #define ybuf       s0
+    #define cbbuf      s1
+    #define crbuf      s2
+    #define outbuf     s3
+    #define outbuf2    s4
+	# Calculate y0*stride+x0 for both input and output buffers
+	li s0, %lo(RDRAM_YBUF_STRIDE)
+	lqv $v01,0, 0,s0
+
+	andi t0, x0y0, 0xFFF
+	mtc2 t0, $v00,0*2  # ybuf => y
+	srl t0, 1
+	mtc2 t0, $v00,2*2  # outbuf => y/2
+	mtc2 t0, $v00,1*2  # cbuf => y/2
+
+	vmudn $v00, $v01, $v00
+	srl t3, x0y0, 12
+	andi t3, 0xFFF
+
+	mfc2 ybuf_off, $v00,0*2
+	mfc2 cbuf_off, $v00,1*2
+	mfc2 outbuf_off, $v00,2*2    
+
+    vsar $v01, $v01, $v01,9
+	mfc2 t0, $v01,0*2
+	mfc2 t1, $v01,1*2
+	mfc2 t2, $v01,2*2
+
+	andi ybuf_off, 0xFFFF
+	andi cbuf_off, 0xFFFF
+	andi outbuf_off, 0xFFFF
+
+	sll t0, 16
+	sll t1, 16
+	sll t2, 16
+
+	add ybuf_off, t0
+	add cbuf_off, t1
+	add outbuf_off, t2
+
+	add ybuf_off, t3
+	add outbuf_off, t3
+	srl t3, 1
+	add cbuf_off, t3
+
+
+	# Fetch CB plane
+	lh t1, %lo(RDRAM_CBUF_STRIDE)
+	lw s0, %lo(RDRAM_CBBUF)
+	assert_ne s0, 0, ASSERT_INVALID_INPUT_CB
+	add s0, cbuf_off
+	li s4, %lo(CBBUF)
+	jal DMAInAsync
+	li t0, DMA_SIZE(BLOCK_W/2, BLOCK_H/2)
+
+	# Fetch CR plane
+	lw s0, %lo(RDRAM_CRBUF)
+	assert_ne s0, 0, ASSERT_INVALID_INPUT_CR
+	add s0, cbuf_off
+	li s4, %lo(CRBUF)
+	jal DMAIn
+	li t0, DMA_SIZE(BLOCK_W/2, BLOCK_H/2)
+
+    li y, BLOCK_H/2-1
+    li t1, %lo(V1TEMP)
+    li t2, %lo(V2TEMP)
+    li cbbuf, %lo(CBBUF)
+    li crbuf, %lo(CRBUF)
+    li outbuf, %lo(OUTBUF)
+    addi outbuf2, outbuf, 1
+
+#if BLOCK_W != 32
+    break
+#endif
+
+1:
+	luv $v00,0, 0*8,cbbuf
+	luv $v02,0, 1*8,cbbuf
+	luv $v04,0, 2*8,cbbuf
+	luv $v06,0, 3*8,cbbuf
+
+	luv $v01,0, 0*8,crbuf
+	luv $v03,0, 1*8,crbuf
+	luv $v05,0, 2*8,crbuf
+	luv $v07,0, 3*8,crbuf
+
+	shv $v00,0, 0*16,outbuf
+	shv $v01,0, 0*16,outbuf2
+	shv $v02,0, 1*16,outbuf
+	shv $v03,0, 1*16,outbuf2
+	shv $v04,0, 2*16,outbuf
+	shv $v05,0, 2*16,outbuf2
+	shv $v06,0, 3*16,outbuf
+	shv $v07,0, 3*16,outbuf2
+
+	addi cbbuf, 32
+	addi crbuf, 32
+	addi outbuf, 64
+	addi outbuf2, 64
+
+	bgtz y, 1b
+	addi y, -2
+
+    # DMA output buffer
+	lh t1, %lo(RDRAM_OUTBUF_STRIDE)
+	lw s0, %lo(RDRAM_OUTBUF)
+	assert_ne s0, 0, ASSERT_INVALID_OUTPUT
+	add s0, outbuf_off
+	li s4, %lo(OUTBUF)
+	li t0, DMA_SIZE(BLOCK_W, BLOCK_H/2)
+	jal_and_j DMAOut, RSPQ_Loop
+
+	#undef x0y0      
+	#undef ybuf_off  
+	#undef cbuf_off  
+	#undef outbuf_off
+    #undef y         
+
+    #undef ybuf      
+    #undef cbbuf     
+    #undef crbuf     
+    #undef outbuf    
+    #undef outbuf2   
+	.endfunc
+

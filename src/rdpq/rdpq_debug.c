@@ -1076,7 +1076,7 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
     switch (rdp.som.cycle_type) {
     case 0 ... 1: { // 1cyc, 2cyc
         bool cc_use_tex0=false, cc_use_tex1=false, cc_use_tex0alpha=false, cc_use_tex1alpha=false;
-        bool cc_use_shade=false, cc_use_shadealpha=false, bl_use_shadealpha;
+        bool cc_use_shade=false, cc_use_shadealpha=false, bl_use_shadealpha=false;
         
         for (int i=0; i<=rdp.som.cycle_type; i++) {
             struct blender_s *bls = &rdp.som.blender[i];
@@ -1093,7 +1093,7 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
 
             cc_use_shade |= (bool)memchr(slots, 4, sizeof(slots));
             cc_use_shadealpha |= (ccs->rgb.mul == 11);
-            bl_use_shadealpha = (bls->a == 2);
+            bl_use_shadealpha |= (bls->a == 2);
         }
 
         if (use_tex) {
@@ -1505,11 +1505,11 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
     case 0x38: // SET_FOG_COLOR
     case 0x39: // SET_BLEND_COLOR
     case 0x3B: // SET_ENV_COLOR
+    case 0x2C: // SET_CONVERT
         validate_busy_pipe();
         break;
     case 0x31: // RDPQ extensions
     case 0x00: // NOP
-        break;
         break;
     default: // Invalid command
         VALIDATE_WARN(0, "invalid RDP command 0x%02X", cmd);
