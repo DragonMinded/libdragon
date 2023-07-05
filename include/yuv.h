@@ -161,12 +161,12 @@ extern const yuv_colorspace_t YUV_BT709_FULL;
  * 
  * Because of technical issues with old analog TVs, it was not possible to 
  * display the full 8-bit range of the Y,U,V components, so during the conversion
- * the range was often restricted a bit. The range for the Y component is defined
- * via the minimum allowed value (y0) and the number of possible values
- * (yrange -- so the last allowed value is y0+yrange-1). The range for the
- * U,V components is specified in "crange" (no minimum value can be specified
- * because the U,V components are actually interpreted as signed numbers, 
- * centered on 0).
+ * the range was often restricted a bit. The range for the Y component (as an
+ * 8-bit unsigned integer) is defined via the minimum allowed value @p y0 and the
+ * number of possible values @p yrange -- so the last allowed value is y0+yrange-1.
+ * The range for the U,V components (as 8-bit signed integers) is specified in
+ * @p crange and is always assumed to be centered around 0 (so the allowed values
+ * are -crange/2 to crange/2-1).
  * 
  * For old TVs, colorspaces should use the "TV Range" which is defined as
  * y0=19, yrange=219, crange=224.
