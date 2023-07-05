@@ -211,10 +211,12 @@ AA_BLEND_TABLE:
     #  AA=0 / BLEND=1
     .word SOM_COVERAGE_DEST_ZAP
     #  AA=1 / BLEND=0
-    .word SOM_BLALPHA_CVG | SOM_COVERAGE_DEST_CLAMP | \
-          RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_CVG))  # Includes SOM_READ_ENABLE
+    .word SOM_BLALPHA_CVG | SOM_COVERAGE_DEST_CLAMP
     #  AA=1 / BLEND=1
     .word SOM_COLOR_ON_CVG_OVERFLOW | SOM_COVERAGE_DEST_WRAP
+
+AA_BLEND_DEFAULT_FORMULA:
+    .word RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_CVG))  # Includes SOM_READ_ENABLE
 
 #define RDPQ_COMB_MIPMAP2       RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (0,0,0,0), (0,0,0,0))
 #define RDPQ_COMB_SHADE_FOG     RDPQ_COMBINER1((0,0,0,SHADE),      (0,0,0,1))
@@ -302,6 +304,7 @@ RDPQ_UpdateRenderMode:
     #define blend_final  v1
     #define passthrough  t7
     #define cycle_type   t6
+    #define bkg_blending t8
 
     # If updates are frozen, do nothing
     lw som_hi, %lo(RDPQ_OTHER_MODES) + 0
@@ -402,6 +405,26 @@ store_comb_2cyc:
     sw comb_hi, %lo(RDPQ_MODE_COMBINER_2CYC) + 0
     sw comb_lo, %lo(RDPQ_MODE_COMBINER_2CYC) + 4
 
+    ######################################
+    #
+    # BLENDER STEPS
+    #
+    ######################################
+
+    lw t0, %lo(RDPQ_MODE_BLENDER_STEPS) + 0   # Load step0
+    lw t1, %lo(RDPQ_MODE_BLENDER_STEPS) + 4   # Load step1
+
+    # Check if step 1 contains a blending formula (before antialias).
+    sne bkg_blending, t1, zero
+
+    # If step 1 is empty, check if antialias is active. If so, we need
+    # to merge in a default formula.
+    bnez t1, blender_check_merge
+    andi t2, som_lo, SOM_AA_ENABLE
+    beqz t2, blender_check_merge
+    nop
+    lw t1, %lo(AA_BLEND_DEFAULT_FORMULA)
+
     # Merge the two blender steps (fogging + blending). If either
     # is not set (0), we just configure the other one as follows:
     #
@@ -413,9 +436,13 @@ store_comb_2cyc:
     # If both steps are configured, we need to merge them: we keep fogging
     # in the first step, and blending in the second. We also set SOMX_BLEND_2PASS
     # to remember that we must force 2cycle mode.
+    #
+    # We also set the bkg_blending flag to 1 if the step1 formula is configured.
+    # This is an assumption documented in rdpq_mode.h: we assume that any step1
+    # formula is a background blending formula. This assumption will be used
+    # later to configure the antialias, if requested.
+blender_check_merge:
     li passthrough, 0
-    lw t0, %lo(RDPQ_MODE_BLENDER_STEPS) + 0   # Load step0
-    lw t1, %lo(RDPQ_MODE_BLENDER_STEPS) + 4   # Load step1
     
     beqz t0, blender_merge
     move blend_1cyc, t1
@@ -428,6 +455,12 @@ store_comb_2cyc:
 blender_merge:
     and blend_1cyc, SOM_BLEND0_MASK
     or blend_2cyc, blend_1cyc, passthrough
+
+    ######################################
+    #
+    # 1 CYCLE / 2 CYCLE MODE SELECTION
+    #
+    ######################################
 
     # Automatic configuration of 1cycle / 2cycle.
     #
@@ -459,14 +492,15 @@ set_2cyc:
     xor comb_hi, 0xFF000000 ^ 0xFC000000
 
     # Coverage calculation. We need to configure the coverage bits depending
-    # on the AA (SOM_AA_ENABLE) and blender settings (SOM_BLENDING). The bits
-    # to set are written in the AA_BLEND_TABLE.
+    # on the AA (SOM_AA_ENABLE) and blender-to-background settings (bkg_blending).
+    # The bits to set are written in the AA_BLEND_TABLE.
     #
-    # Notice that if either fogging or blending are set, SOM_BLENDING will be
-    # set in blend_final (which is the blender configuration to apply).
+    # bkg_blending is set to 1 iff the blender step1 formula is configured. This
+    # is an assumption documented in rdpq_mode: in fact, we need bkg_blending=0
+    # when just fogging is enabled (as that doesn't count as background blending),
+    # and in that case we need to force a second blender step to do the antialiasing.
     and t0, som_lo, SOM_AA_ENABLE      # Bit 3
-    and t1, blend_final, SOM_BLENDING  # Bit 14 -> 2
-    srl t1, 14-2
+    sll t1, bkg_blending, 2            # Bit 2
     or t0, t1
     lw t0, %lo(AA_BLEND_TABLE)(t0)    # Load values to set
     lw t1, %lo(AA_BLEND_MASK)         # Load mask

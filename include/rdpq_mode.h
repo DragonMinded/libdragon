@@ -368,7 +368,9 @@ void rdpq_set_mode_yuv(bool bilinear);
  *
  * @note Antialiasing internally uses the blender unit. If you already
  *       configured a formula via #rdpq_mode_blender, antialias will just
- *       rely on that one to correctly blend pixels with the framebuffer.
+ *       rely on that one to correctly blend pixels with the framebuffer. It is
+ *       thus important that a custom formula configured via #rdpq_mode_blender
+ *       does blend with the background somehow.
  * 
  * @param enable        Enable/disable antialiasing
  */
@@ -531,7 +533,11 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
  * blending formula, or #RDPQ_BLENDER2 to create a two-pass formula.
  * 
  * Please notice that two-pass formulas are not compatible with fogging
- * (#rdpq_mode_fog).
+ * (#rdpq_mode_fog). Also notice that rdpq_mode assumes that any formula
+ * that you set here (either one-pass or two-passes) does blend with the
+ * background. If you want to use a formula that does not blend with the
+ * background, set it via #rdpq_mode_fog, otherwise you might get incorrect
+ * results when using anti-alias (see #rdpq_mode_antialias).
  * 
  * The following example shows how to draw a texture rectangle using
  * a fixed blending value of 0.5 (ignoring the alpha channel of the
@@ -604,7 +610,9 @@ inline void rdpq_mode_blender(rdpq_blender_t blend) {
  * the standard fogging formula. 
  * 
  * If you want, you can instead build a custom fogging formula
- * using #RDPQ_BLENDER.
+ * using #RDPQ_BLENDER. Notice that rdpq_mode assumes that the formula
+ * that you set with rdpq_mode_fog does not blend with the background; for
+ * that, use #rdpq_mode_blender.
  * 
  * To disable fog, call #rdpq_mode_fog passing 0.
  * 
