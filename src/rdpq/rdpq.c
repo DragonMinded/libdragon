@@ -530,7 +530,7 @@ void rdpq_fence(void)
     rspq_int_write(RSPQ_CMD_RDP_WAIT_IDLE);
 }
 
-void rdpq_exec(uint64_t *buffer, int size)
+void rdpq_exec(void *buffer, int size)
 {
     assertf(PhysicalAddr(buffer) % 8 == 0, "RDP buffer must be aligned to 8 bytes: %p", buffer);
     assertf(size % 8 == 0, "RDP buffer size not multiple of 8 bytes: %d", size);
@@ -540,7 +540,7 @@ void rdpq_exec(uint64_t *buffer, int size)
     // the static buffer.
     assertf(!rspq_in_block(), "cannot call rdpq_exec() inside a block");
 
-    uint64_t *end = buffer + size/8;
+    void *end = buffer + size;
     rspq_int_write(RSPQ_CMD_RDP_SET_BUFFER, PhysicalAddr(end), PhysicalAddr(buffer), PhysicalAddr(end));
 }
 
