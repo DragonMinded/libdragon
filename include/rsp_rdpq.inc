@@ -410,6 +410,35 @@ store_comb_2cyc:
     # BLENDER STEPS
     #
     ######################################
+    #
+    # Let's recap the meaning of SOM blending-related flags:
+    #
+    #   SOM_BLENDING: process al pixels of the triangle through the blending unit
+    #   SOM_AA_ENABLE: process edge pixels of the triangl through the blending unit
+    #
+    # So in general SOM_BLENDING is a superset of SOM_AA_ENABLE.
+    # Also notice that in 2cyc mode, SOM_BLENDING/SOM_AA only gate the
+    # *second cycle*, as the first cycle is always run for all pixels(!).
+    #
+    # This is the expected configuration for each combination of blending,
+    # fog and AA. Notice that in any case where SOM_BLENDING is set, setting
+    # SOM_AA_ENABLE is redundant, but it doesn't hurt.
+    #
+    # Blending     |   1cyc    | SOM_BLENDING
+    # Fog          |   1cyc    | SOM_BLENDING
+    # AA           |   1cyc    | SOM_AA_ENABLE
+    # Fog+Blending |   2cyc    | SOM_BLENDING
+    # Fog+AA       |   2cyc    | SOM_AA_ENABLE
+    # Blending+AA  |   1cyc    | SOM_BLENDING (same BL config of "Blending")
+    # Fog+Blend+AA |   2cyc    | SOM_BLENDING (same BL config of "Fog+Blending")
+    #
+    # Our input data:
+    #  * RDPQ_MODE_BLENDER_STEPS+0: fog configuration if any, or 0.
+    #  * RDPQ_MODE_BLENDER_STEPS+4: blender configuration if any, or 0.
+    #  * SOM_AA_ENABLE: turned on if the user requested AA.
+    #
+    # Notice that the blender steps always include the SOM_BLENDING flag, if
+    # they are not zero.
 
     lw t0, %lo(RDPQ_MODE_BLENDER_STEPS) + 0   # Load step0
     lw t1, %lo(RDPQ_MODE_BLENDER_STEPS) + 4   # Load step1
@@ -418,12 +447,14 @@ store_comb_2cyc:
     sne bkg_blending, t1, zero
 
     # If step 1 is empty, check if antialias is active. If so, we need
-    # to merge in a default formula.
+    # to merge in a default formula. Moreover, in this case, we don't want
+    # or need the SOM_BLENDING anymore (see the table above).
     bnez t1, blender_check_merge
     andi t2, som_lo, SOM_AA_ENABLE
     beqz t2, blender_check_merge
     nop
     lw t1, %lo(AA_BLEND_DEFAULT_FORMULA)
+    and t0, ~SOM_BLENDING
 
     # Merge the two blender steps (fogging + blending). If either
     # is not set (0), we just configure the other one as follows:
