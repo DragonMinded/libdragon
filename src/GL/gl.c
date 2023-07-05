@@ -151,6 +151,8 @@ void gl_init()
 
 void gl_close()
 {
+    rspq_wait();
+
     free_uncached(state.matrix_stacks[0]);
     free_uncached(state.matrix_stacks[1]);
     free_uncached(state.matrix_stacks[2]);
@@ -161,7 +163,6 @@ void gl_close()
     gl_texture_close();
     rspq_overlay_unregister(gl_overlay_id);
     rspq_overlay_unregister(glp_overlay_id);
-    rdpq_close();
 }
 
 void gl_reset_uploaded_texture()
