@@ -1520,7 +1520,7 @@ void rdpq_fence(void);
  * 
  * @note This function cannot be called within a block.
  */
-void rdpq_exec(uint64_t *buffer, int size);
+void rdpq_exec(void *buffer, int size);
 
 /**
  * @brief Enqueue a callback that will be called after the RSP and the RDP have
