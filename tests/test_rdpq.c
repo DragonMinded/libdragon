@@ -721,6 +721,7 @@ void test_rdpq_fixup_fillrect(TestContext *ctx)
     surface_clear(&fb, 0);
     rdpq_set_color_image(&fb);
 
+    rdpq_debug_log_msg("rect mode fill");
     rdpq_set_mode_fill(RGBA32(255,0,255,0));
     rdpq_fill_rectangle(4, 4, FBWIDTH-4, FBWIDTH-4);
     rspq_wait();
@@ -729,6 +730,7 @@ void test_rdpq_fixup_fillrect(TestContext *ctx)
             RGBA32(255,0,255,0) : RGBA32(0,0,0,0);
     });
 
+    rdpq_debug_log_msg("rect mode standard");
     surface_clear(&fb, 0);
     rdpq_set_mode_standard();
     rdpq_mode_combiner(RDPQ_COMBINER_FLAT);
@@ -741,6 +743,7 @@ void test_rdpq_fixup_fillrect(TestContext *ctx)
     });
 
     {
+        rdpq_debug_log_msg("rect mode fill (block)");
         surface_clear(&fb, 0);
         rspq_block_begin();
             rdpq_set_mode_fill(RGBA32(255,0,255,0));
@@ -756,6 +759,7 @@ void test_rdpq_fixup_fillrect(TestContext *ctx)
     }
 
     {
+        rdpq_debug_log_msg("rect mode standard (block)");
         surface_clear(&fb, 0);
         rspq_block_begin();
             rdpq_set_mode_standard();
@@ -773,6 +777,7 @@ void test_rdpq_fixup_fillrect(TestContext *ctx)
     }
 
     {
+        rdpq_debug_log_msg("only rect in block, mode fill");
         surface_clear(&fb, 0);
         rdpq_set_mode_fill(RGBA32(255,0,255,0));
         rspq_block_begin();
@@ -788,6 +793,7 @@ void test_rdpq_fixup_fillrect(TestContext *ctx)
     }
 
     {
+        rdpq_debug_log_msg("only rect in block, mode standard");
         surface_clear(&fb, 0);
         rdpq_set_mode_standard();
         rdpq_mode_combiner(RDPQ_COMBINER_FLAT);
