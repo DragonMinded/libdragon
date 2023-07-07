@@ -628,6 +628,8 @@ gl_matrix_palette_loop:
     li modes0, (SOM_TF0_RGB | SOM_TF1_RGB) >> 32
 
     # Multisampling
+    andi t0, state_flags2, FLAG2_REDUCED_ALIASING
+    or modes0, t0
     andi t0, state_flags, FLAG_MULTISAMPLE
     srl modes1, t0, MULTISAMPLE_FLAG_SHIFT
 
