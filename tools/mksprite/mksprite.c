@@ -262,38 +262,59 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
 
     // Check if we're asked to autodetect the best possible texformat for output
     if (autofmt) {
+	// Check the filename string if it contains a texformat for output
+	bool fmt_from_extension = false;
+        if (fmt == FMT_NONE) {
+            tex_format_t fmtext = FMT_NONE;
+            char *fntok = strdup(infn);
+            char *sect = strtok(fntok, ".");
+            while (sect) {
+                fmtext = tex_format_from_name(sect);
+                if (fmtext != FMT_NONE) break;
+                sect = strtok(NULL, ".");
+            }
+            if (fmtext != FMT_NONE) {
+                fmt = fmtext;
+                fmt_from_extension = true;
+                if (flag_verbose)
+                    printf("detected format from filename: %s\n", tex_format_name(fmt));
+            }
+            free(fntok);
+        }
+
         // Parse the PNG header to get some metadata
         error = lodepng_inspect(&width, &height, &state, png, pngsize);
         if(error) {
-            fprintf(stderr, "%s: PNG reading error: %u: %s\n", infn, error, lodepng_error_text(error));
-            goto error;
+        	fprintf(stderr, "%s: PNG reading error: %u: %s\n", infn, error, lodepng_error_text(error));
+        	goto error;
         }
         inspected = true;
-
-        // Autodetect the best output format depending on the input format
-        // The rule of thumb is that we want to preserve the information on the
-        // input image as much as possible.
-        switch (state.info_png.color.colortype) {
-        case LCT_GREY:
-            fmt = (state.info_png.color.bitdepth > 4) ? FMT_I8 : FMT_I4;
-            break;
-        case LCT_GREY_ALPHA:
-            if (state.info_png.color.bitdepth < 4) fmt = FMT_IA4;
-            else if (state.info_png.color.bitdepth < 8) fmt = FMT_IA8;
-            else fmt = FMT_IA16;
-            break;
-        case LCT_PALETTE:
-            fmt = FMT_CI8; // Will check if CI4 (<= 16 colors) later
-            break;
-        case LCT_RGB: case LCT_RGBA:
-            // Usage of 32-bit sprites/textures is extremely rare because of the
-            // limited TMEM size. Default to 16-bit here, even though this might
-            // cause some banding to appear.
-            fmt = FMT_RGBA16;
-            break;
-        default:
-            fprintf(stderr, "%s: unknown PNG color type: %d\n", infn, state.info_png.color.colortype);
-            goto error;
+	if(!fmt_from_extension){
+        	// Autodetect the best output format depending on the input format
+        	// The rule of thumb is that we want to preserve the information on the
+        	// input image as much as possible.
+        	switch (state.info_png.color.colortype) {
+        	case LCT_GREY:
+        	    fmt = (state.info_png.color.bitdepth > 4) ? FMT_I8 : FMT_I4;
+        	    break;
+        	case LCT_GREY_ALPHA:
+        	    if (state.info_png.color.bitdepth < 4) fmt = FMT_IA4;
+        	    else if (state.info_png.color.bitdepth < 8) fmt = FMT_IA8;
+        	    else fmt = FMT_IA16;
+        	    break;
+        	case LCT_PALETTE:
+        	    fmt = FMT_CI8; // Will check if CI4 (<= 16 colors) later
+        	    break;
+        	case LCT_RGB: case LCT_RGBA:
+        	    // Usage of 32-bit sprites/textures is extremely rare because of the
+        	    // limited TMEM size. Default to 16-bit here, even though this might
+        	    // cause some banding to appear.
+        	    fmt = FMT_RGBA16;
+        	    break;
+        	default:
+        	    fprintf(stderr, "%s: unknown PNG color type: %d\n", infn, state.info_png.color.colortype);
+        	    goto error;
+	    }
         }
     }
 
@@ -459,7 +480,7 @@ void spritemaker_calc_lods(spritemaker_t *spr, int algo) {
     for (int i=1; i<maxlevels && !done; i++) {
         image_t *prev = &spr->images[i-1];
         int mw = prev->width / 2, mh = prev->height / 2;
-        if (mw < 4) break;
+        if (mw < 4 || mh < 4) break;
         tmem_usage += calc_tmem_usage(spr->images[0].fmt, mw, mh);
         if (tmem_usage > tmem_limit) {
             if (flag_verbose)
@@ -1208,25 +1229,6 @@ int main(int argc, char *argv[])
 
         asprintf(&outfn, "%s/%s.sprite", outdir, basename_noext);
 
-        bool fmt_from_extension = false;
-        if (pm.outfmt == FMT_NONE) {
-            tex_format_t fmt = FMT_NONE;
-            char *fntok = strdup(infn);
-            char *sect = strtok(fntok, ".");
-            while (sect) {
-                fmt = tex_format_from_name(sect);
-                if (fmt != FMT_NONE) break;
-                sect = strtok(NULL, ".");
-            }
-            if (fmt != FMT_NONE) {
-                pm.outfmt = fmt;
-                fmt_from_extension = true;
-                if (flag_verbose)
-                    printf("detected format from filename: %s\n", tex_format_name(fmt));
-            }
-            free(fntok);
-        }
-
         if (flag_verbose)
             printf("Converting: %s -> %s [fmt=%s tiles=%d,%d mipmap=%s dither=%s]\n",
                 infn, outfn, tex_format_name(pm.outfmt), pm.tilew, pm.tileh, mipmap_algo_name(pm.mipmap_algo), dither_algo_name(pm.dither_algo));
@@ -1244,10 +1246,6 @@ int main(int argc, char *argv[])
                     (int)st_decomp.st_size, (int)st_comp.st_size, 100.0 * (float)st_comp.st_size / (float)(st_decomp.st_size == 0 ? 1 :st_decomp.st_size));
             }
         }
-
-        // If the format was selected from the extension, reset it for the next file
-        if (fmt_from_extension) 
-            pm.outfmt = FMT_NONE;
 
         free(outfn);
     }
