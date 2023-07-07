@@ -1104,7 +1104,7 @@ int main(int argc, char *argv[])
             /* ---------------- TEXTURE PARAMETERS console argument ------------------- */
             /* --texparms <x,s,r,m>          Sampling parameters             */
             /* --texparms <x,x,s,s,r,r,m,m>  Sampling parameters (different for S/T)             */
-            else if (!strcmp(argv[1], "--texparms")) {
+            else if (!strcmp(argv[i], "--texparms")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
                     return 1;
