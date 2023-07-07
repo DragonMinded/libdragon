@@ -279,8 +279,8 @@ GL_MatrixPushPop:
     #define stack_ptr   t3
 
     # Get matrix pointer for the current matrix stack
-    # lbu mtx_index, %lo(GL_STATE_MATRIX_MODE) + 1
     jal GL_GetMatrixIndex
+    nop
     sll stack_ptr, mtx_index, 2
     lw s0, %lo(GL_MATRIX_POINTERS)(stack_ptr)
 
