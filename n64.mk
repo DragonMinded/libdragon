@@ -41,13 +41,15 @@ N64_DSO = $(N64_BINDIR)/n64dso
 N64_DSOEXTERN = $(N64_BINDIR)/n64dso-extern
 N64_DSOMSYM = $(N64_BINDIR)/n64dso-msym
 
-N64_CFLAGS =  -march=vr4300 -mtune=vr4300 -I$(N64_INCLUDEDIR)
-N64_CFLAGS += -falign-functions=32   # NOTE: if you change this, also change backtrace() in backtrace.c
-N64_CFLAGS += -ffunction-sections -fdata-sections -g -ffile-prefix-map=$(CURDIR)=
-N64_CFLAGS += -ffast-math -ftrapping-math -fno-associative-math
-N64_CFLAGS += -DN64 -O2 -Wall -Werror -Wno-error=deprecated-declarations -fdiagnostics-color=always
-N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings  -I$(N64_INCLUDEDIR)
-N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings  -I$(N64_INCLUDEDIR)
+N64_C_AND_CXX_FLAGS =  -march=vr4300 -mtune=vr4300 -I$(N64_INCLUDEDIR)
+N64_C_AND_CXX_FLAGS += -falign-functions=32   # NOTE: if you change this, also change backtrace() in backtrace.c
+N64_C_AND_CXX_FLAGS += -ffunction-sections -fdata-sections -g -ffile-prefix-map=$(CURDIR)=
+N64_C_AND_CXX_FLAGS += -ffast-math -ftrapping-math -fno-associative-math
+N64_C_AND_CXX_FLAGS += -DN64 -O2 -Wall -Werror -Wno-error=deprecated-declarations -fdiagnostics-color=always
+N64_CFLAGS = $(N64_C_AND_CXX_FLAGS) -std=gnu99
+N64_CXXFLAGS = $(N64_C_AND_CXX_FLAGS)
+N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -Wa,--fatal-warnings -I$(N64_INCLUDEDIR)
+N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings -I$(N64_INCLUDEDIR)
 N64_LDFLAGS = -g -L$(N64_LIBDIR) -ldragon -lm -ldragonsys -Tn64.ld --gc-sections --wrap __do_global_ctors
 N64_DSOLDFLAGS = --emit-relocs --unresolved-symbols=ignore-all --nmagic -T$(N64_LIBDIR)/dso.ld
 
@@ -69,9 +71,6 @@ CFLAGS+=-MMD
 CXXFLAGS+=-MMD
 ASFLAGS+=-MMD
 RSPASFLAGS+=-MMD
-
-N64_CXXFLAGS := $(N64_CFLAGS)
-N64_CFLAGS += -std=gnu99
 
 # Change all the dependency chain of z64 ROMs to use the N64 toolchain.
 %.z64: CC=$(N64_CC)

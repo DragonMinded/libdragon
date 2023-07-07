@@ -6,7 +6,12 @@ BUILD_DIR = build
 include n64.mk
 INSTALLDIR = $(N64_INST)
 
-LIBDRAGON_CFLAGS = -I$(CURDIR)/src -I$(CURDIR)/include -ffile-prefix-map=$(CURDIR)=libdragon
+# N64_INCLUDEDIR is normally (when building roms) a path to the installed include files
+# (e.g. /opt/libdragon/mips64-elf/include), set in n64.mk
+# When building libdragon, override it to use the source include files instead (./include)
+N64_INCLUDEDIR = $(CURDIR)/include
+
+LIBDRAGON_CFLAGS = -I$(CURDIR)/src -ffile-prefix-map=$(CURDIR)=libdragon
 
 # Activate N64 toolchain for libdragon build
 libdragon: CC=$(N64_CC)
@@ -72,14 +77,8 @@ examples:
 examples-clean: $(INSTALLDIR)/include/n64.mk
 	$(MAKE) -C examples clean
 
-doxygen: doxygen.conf
-	mkdir -p doxygen/
-	doxygen doxygen.conf
 doxygen-api: doxygen-public.conf
-	mkdir -p doxygen/
 	doxygen doxygen-public.conf
-doxygen-clean:
-	rm -rf $(CURDIR)/doxygen
 
 tools:
 	$(MAKE) -C tools
@@ -93,9 +92,11 @@ install-mk: $(INSTALLDIR)/include/n64.mk
 $(INSTALLDIR)/include/n64.mk: n64.mk
 # Always update timestamp of n64.mk. This make sure that further targets
 # depending on install-mk won't always try to re-install it.
+	mkdir -p $(INSTALLDIR)/include
 	install -cv -m 0644 n64.mk $(INSTALLDIR)/include/n64.mk
 
 install: install-mk libdragon
+	mkdir -p $(INSTALLDIR)/mips64-elf/lib
 	mkdir -p $(INSTALLDIR)/mips64-elf/include/GL
 	install -Cv -m 0644 libdragon.a $(INSTALLDIR)/mips64-elf/lib/libdragon.a
 	install -Cv -m 0644 n64.ld $(INSTALLDIR)/mips64-elf/lib/n64.ld
@@ -190,9 +191,9 @@ test:
 test-clean: install-mk
 	$(MAKE) -C tests clean
 
-clobber: clean doxygen-clean examples-clean tools-clean test-clean
+clobber: clean examples-clean tools-clean test-clean
 
-.PHONY : clobber clean doxygen-clean doxygen doxygen-api examples examples-clean tools tools-clean tools-install test test-clean install-mk
+.PHONY : clobber clean doxygen-api examples examples-clean tools tools-clean tools-install test test-clean install-mk
 
 # Automatic dependency tracking
 -include $(wildcard $(BUILD_DIR)/*.d) $(wildcard $(BUILD_DIR)/*/*.d)
