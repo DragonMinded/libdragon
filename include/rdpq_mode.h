@@ -251,6 +251,16 @@ typedef enum rdpq_mipmap_s {
 } rdpq_mipmap_t;
 
 /**
+ * @brief Types of antialiasing supported by RDP
+ */
+typedef enum rdpq_antialias_s {
+    AA_NONE = 0,            ///< No antialiasing
+    AA_STANDARD = 1,        ///< Standard antialiasing
+    AA_REDUCED = 2,         ///< Reduced antialiasing
+} rdpq_antialias_t;
+
+
+/**
  * @name Render modes
  * 
  * These functions set a new render mode from scratch. Every render state is 
@@ -374,11 +384,12 @@ void rdpq_set_mode_yuv(bool bilinear);
  * 
  * @param enable        Enable/disable antialiasing
  */
-inline void rdpq_mode_antialias(bool enable) 
+inline void rdpq_mode_antialias(rdpq_antialias_t mode) 
 {
     // Just enable/disable SOM_AA_ENABLE. The RSP will then update the render mode
     // which would trigger different other bits in SOM depending on the current mode.
-    __rdpq_mode_change_som(SOM_AA_ENABLE, enable ? SOM_AA_ENABLE : 0);
+    __rdpq_mode_change_som(SOM_AA_ENABLE | SOMX_AA_REDUCED, 
+        (mode ? SOM_AA_ENABLE : 0) | (mode == AA_REDUCED ? SOMX_AA_REDUCED : 0));
 }
 
 /**

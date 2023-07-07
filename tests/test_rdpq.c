@@ -1528,7 +1528,7 @@ void test_rdpq_mode_antialias(TestContext *ctx) {
         "invalid SOM configuration: %08llx", som);
 
     rdpq_debug_log_msg("aa");
-    rdpq_mode_antialias(true);
+    rdpq_mode_antialias(AA_STANDARD);
     draw_tri();
     som = rdpq_get_other_modes_raw();
     ASSERT_EQUAL_HEX(som & 
@@ -1536,8 +1536,26 @@ void test_rdpq_mode_antialias(TestContext *ctx) {
          SOM_AA_ENABLE |                SOM_READ_ENABLE |            SOM_CYCLE_1    | SOM_COVERAGE_DEST_CLAMP, 
         "invalid SOM configuration: %08llx", som);
 
-    rdpq_debug_log_msg("blender+aa");
+    rdpq_debug_log_msg("ra");
+    rdpq_mode_antialias(AA_REDUCED);
+    draw_tri();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & 
+        (SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_MASK | SOM_COVERAGE_DEST_MASK), 
+         SOM_AA_ENABLE |                                             SOM_CYCLE_1    | SOM_COVERAGE_DEST_CLAMP, 
+        "invalid SOM configuration: %08llx", som);
+
+    rdpq_debug_log_msg("blender+ra");
     rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
+    draw_tri();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & 
+        (SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_MASK | SOM_COVERAGE_DEST_MASK), 
+         SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE |                             SOM_CYCLE_1    | SOM_COVERAGE_DEST_WRAP, 
+        "invalid SOM configuration: %08llx", som);
+
+    rdpq_debug_log_msg("blender+aa");
+    rdpq_mode_antialias(AA_STANDARD);
     draw_tri();
     som = rdpq_get_other_modes_raw();
     ASSERT_EQUAL_HEX(som & 
@@ -1546,7 +1564,7 @@ void test_rdpq_mode_antialias(TestContext *ctx) {
         "invalid SOM configuration: %08llx", som);
 
     rdpq_debug_log_msg("blender");
-    rdpq_mode_antialias(false);
+    rdpq_mode_antialias(AA_NONE);
     draw_tri();
     som = rdpq_get_other_modes_raw();
     ASSERT_EQUAL_HEX(som & 
@@ -1556,7 +1574,7 @@ void test_rdpq_mode_antialias(TestContext *ctx) {
 
     rdpq_debug_log_msg("blender+aa+fog");
     rdpq_mode_fog(RDPQ_FOG_STANDARD);
-    rdpq_mode_antialias(true);
+    rdpq_mode_antialias(AA_STANDARD);
     draw_tri();
     som = rdpq_get_other_modes_raw();
     ASSERT_EQUAL_HEX(som & 
@@ -1564,8 +1582,27 @@ void test_rdpq_mode_antialias(TestContext *ctx) {
          SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_2    | SOM_COVERAGE_DEST_WRAP, 
         "invalid SOM configuration: %08llx", som);
 
-    rdpq_debug_log_msg("aa+fog");
+    rdpq_debug_log_msg("blender+ra+fog");
+    rdpq_mode_fog(RDPQ_FOG_STANDARD);
+    rdpq_mode_antialias(AA_REDUCED);
+    draw_tri();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & 
+        (SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_MASK | SOM_COVERAGE_DEST_MASK), 
+         SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_2    | SOM_COVERAGE_DEST_WRAP, 
+        "invalid SOM configuration: %08llx", som);
+
+    rdpq_debug_log_msg("ra+fog");
     rdpq_mode_blender(false);
+    draw_tri();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & 
+        (SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_MASK | SOM_COVERAGE_DEST_MASK), 
+         SOM_AA_ENABLE |                                  SOMX_FOG | SOM_CYCLE_2    | SOM_COVERAGE_DEST_CLAMP, 
+        "invalid SOM configuration: %08llx", som);
+
+    rdpq_debug_log_msg("aa+fog");
+    rdpq_mode_antialias(AA_STANDARD);
     draw_tri();
     som = rdpq_get_other_modes_raw();
     ASSERT_EQUAL_HEX(som & 
@@ -1574,7 +1611,7 @@ void test_rdpq_mode_antialias(TestContext *ctx) {
         "invalid SOM configuration: %08llx", som);
 
     rdpq_debug_log_msg("fog");
-    rdpq_mode_antialias(false);
+    rdpq_mode_antialias(AA_NONE);
     draw_tri();
     som = rdpq_get_other_modes_raw();
     ASSERT_EQUAL_HEX(som & 

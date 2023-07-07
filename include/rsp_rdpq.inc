@@ -216,7 +216,8 @@ AA_BLEND_TABLE:
     .word SOM_COLOR_ON_CVG_OVERFLOW | SOM_COVERAGE_DEST_WRAP
 
 AA_BLEND_DEFAULT_FORMULA:
-    .word RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_CVG))  # Includes SOM_READ_ENABLE
+    .word RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_CVG))                      # Standard AA
+    .word RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_CVG)) & ~SOM_READ_ENABLE   # Reduced AA
 
 #define RDPQ_COMB_MIPMAP2       RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (0,0,0,0), (0,0,0,0))
 #define RDPQ_COMB_SHADE_FOG     RDPQ_COMBINER1((0,0,0,SHADE),      (0,0,0,1))
@@ -453,7 +454,11 @@ store_comb_2cyc:
     andi t2, som_lo, SOM_AA_ENABLE
     beqz t2, blender_check_merge
     nop
-    lw t1, %lo(AA_BLEND_DEFAULT_FORMULA)
+    #if (SOMX_AA_REDUCED >> 32) != 4
+    #error Adjust this if SOMX_AA_REDUCED changes
+    #endif
+    andi t1, som_hi, SOMX_AA_REDUCED >> 32
+    lw t1, %lo(AA_BLEND_DEFAULT_FORMULA)(t1)
     and t0, ~SOM_BLENDING
 
     # Merge the two blender steps (fogging + blending). If either
