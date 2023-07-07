@@ -382,7 +382,7 @@ void rdpq_set_mode_yuv(bool bilinear);
  *       thus important that a custom formula configured via #rdpq_mode_blender
  *       does blend with the background somehow.
  * 
- * @param enable        Enable/disable antialiasing
+ * @param mode        Antialiasing mode to use (or AA_NONE to disable)
  */
 inline void rdpq_mode_antialias(rdpq_antialias_t mode) 
 {
