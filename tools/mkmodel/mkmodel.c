@@ -535,6 +535,10 @@ int convert(const char *infn, const char *outfn)
     cgltf_options options = {0};
     cgltf_data* data = NULL;
     cgltf_result result = cgltf_parse_file(&options, infn, &data);
+    if (result == cgltf_result_file_not_found) {
+        fprintf(stderr, "Error: could not find input file: %s\n", infn);
+        return 1;
+    }
     if (result != cgltf_result_success) {
         fprintf(stderr, "Error: could not parse input file: %s\n", infn);
         return 1;
@@ -581,7 +585,7 @@ int convert(const char *infn, const char *outfn)
     // Write output file
     FILE *out = fopen(outfn, "wb");
     if (!out) {
-        fprintf(stderr, "cannot open output file: %s\n", outfn);
+        fprintf(stderr, "could not open output file: %s\n", outfn);
         goto error;
     }
     model64_write(model, out);
