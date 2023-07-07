@@ -813,11 +813,8 @@ void __rdpq_block_reserve(int num_rdp_commands)
             st->wptr = NULL;
             st->wend = NULL;
 
-            // Force a switch to dynamic buffer 0
-            extern void *rspq_rdp_dynamic_buffers[2];
-            void *bptr = rspq_rdp_dynamic_buffers[0];
-            rspq_int_write(RSPQ_CMD_RDP_SET_BUFFER,
-                PhysicalAddr(bptr), PhysicalAddr(bptr), PhysicalAddr(bptr+RDPQ_DYNAMIC_BUFFER_SIZE));
+            // Force a switch to next dynamic buffer.
+            rspq_int_write(RSPQ_CMD_RDP_SET_BUFFER, 0, 0, 0);
         }
     } else if (num_rdp_commands > 0) {
         if (__builtin_expect(st->wptr + num_rdp_commands*2 > st->wend, 0))
