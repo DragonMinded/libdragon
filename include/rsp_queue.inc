@@ -718,10 +718,17 @@ RSPQCmd_Dma:
     #   a0: New end pointer (to write to DP_END)
     #   a1: New start buffer (to write to DP_START)
     #   a2: New sentinel (end of total capacity of the buffer)
+    #
+    # NOTE: if the sentinel is 0, the command will force a switch
+    #       to the RDPQ dynamic buffer (the next one). This will happen
+    #       as soon as next RDPQ_Send is run.
     #############################################################
     .func RSPQCmd_RdpSetBuffer
 RSPQCmd_RdpSetBuffer:
+    # Update the sentinel. If zero, there's nothing more to do: next
+    # RDPQ_Send will switch to the next dynamic buffer.
     sw a2, %lo(RDPQ_SENTINEL)
+    beqz a2, JrRa
     move ra2, ra
 
     # Wait for RDP DMA FIFO to be not full. If there's another
