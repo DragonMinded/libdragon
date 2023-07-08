@@ -497,7 +497,7 @@ void spritemaker_calc_lods(spritemaker_t *spr, int algo) {
             }
             break;
         default:
-            fprintf(stderr, "WARNING: mipmap calculation for format %s not implemented yet", tex_format_name(spr->images[0].fmt));
+            fprintf(stderr, "WARNING: mipmap calculation for format %s not implemented yet\n", tex_format_name(spr->images[0].fmt));
             done = true;
             break;
         }
