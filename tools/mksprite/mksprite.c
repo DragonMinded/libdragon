@@ -880,8 +880,15 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
     }
 
     // Calculate mipmap levels, if requested
-    if (pm->mipmap_algo != MIPMAP_ALGO_NONE)
+    if (pm->mipmap_algo != MIPMAP_ALGO_NONE) {
+        if (spr.images[0].ct == LCT_PALETTE) {
+            if (flag_verbose)
+                printf("expanding palette to RGBA for mipmap generation\n");
+            if (!spritemaker_expand_rgba(&spr))
+                goto error;
+        }
         spritemaker_calc_lods(&spr, pm->mipmap_algo);
+    }
 
     // Run quantization if needed
     if (spr.images[0].fmt == FMT_CI8 || spr.images[0].fmt == FMT_CI4) {
