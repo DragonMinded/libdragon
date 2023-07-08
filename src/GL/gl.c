@@ -441,14 +441,14 @@ void glHint(GLenum target, GLenum hint)
     case GL_FOG_HINT:
         // TODO: per-pixel fog
         break;
+    case GL_MULTISAMPLE_HINT_N64:
+        // Use full AA by default, unless RA has been requested
+        gl_set_flag_word2(GL_UPDATE_NONE, FLAG2_REDUCED_ALIASING, hint == GL_FASTEST);
+        break;
     case GL_POINT_SMOOTH_HINT:
     case GL_LINE_SMOOTH_HINT:
     case GL_POLYGON_SMOOTH_HINT:
         // Ignored
-        break;
-    case GL_MULTISAMPLE_HINT_N64:
-        // Always use RA unless full AA has explicitly been requested
-        gl_set_flag_word2(GL_UPDATE_NONE, FLAG2_REDUCED_ALIASING, hint != GL_NICEST);
         break;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid hint target", target);
