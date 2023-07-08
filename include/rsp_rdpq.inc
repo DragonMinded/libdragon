@@ -512,22 +512,28 @@ blender_merge:
     # Point to either the 2cyc or 1cyc configuration, depending on what we need
     # to load.
     li s0, %lo(RDPQ_MODE_COMBINER_2CYC)
-    bltz t1, set_2cyc
+    bltz t1, set_cycle_type
     li cycle_type, ((SOM_CYCLE_MASK ^ SOM_CYCLE_2) >> 32) | 0x10000000
 set_1cyc:
     li s0, %lo(RDPQ_MODE_COMBINER_1CYC)
     move blend_final, blend_1cyc
     li cycle_type, ((SOM_CYCLE_MASK ^ SOM_CYCLE_1) >> 32)  | 0x10000000
-set_2cyc:
-    lw comb_hi, 0(s0)
-    lw comb_lo, 4(s0)
+set_cycle_type:
+    # Set cycle type bits in other modes high word. Also put the correct
+    # command (0xEF) in the top byte: we achieve this by first setting the
+    # top byte to 0xFF, and then xoring with 0x10 (which is included in
+    # cycle_type).
+    or som_hi, (SOM_CYCLE_MASK >> 32) | 0xFF000000
+    xor som_hi, cycle_type
 
-    # Set correct SET_COMBINE opcode (0xFC). The opcode can be anything of
-    # the other 4 (1pass/2pass dynamic/static).
-    or comb_hi, 0xFF000000
-    xor comb_hi, 0xFF000000 ^ 0xFC000000
 
-    # Coverage calculation. We need to configure the coverage bits depending
+    ######################################
+    #
+    # ANTI_ALIASING & COVERAGE CONFIGURATION
+    #
+    ######################################
+
+    # We need to configure the various mode bits depending
     # on the AA (SOM_AA_ENABLE) and blender-to-background settings (bkg_blending).
     # The bits to set are written in the AA_BLEND_TABLE.
     #
@@ -549,12 +555,38 @@ set_2cyc:
     and som_lo, t1
     or som_lo, t0
 
-    # Set cycle type bits in other modes high word. Also put the correct
-    # command (0xEF) in the top byte: we achieve this by first setting the
-    # top byte to 0xFF, and then xoring with 0x10 (which is included in
-    # cycle_type).
-    or som_hi, (SOM_CYCLE_MASK >> 32) | 0xFF000000
-    xor som_hi, cycle_type
+    ######################################
+    #
+    # AA + ALPHA COMPARE TWEAKING
+    #
+    ######################################
+
+    # If we use both AA and alpha compare, AA is ineffective because it uses
+    # the pixel coverage as blend factor (SOM_BLALPHA_CVG), but that works only
+    # on polygon edges (where coverage is not 1.0).
+    # With alpha compare, we would like to smooth on the alpha compare edges,
+    # not the polygon edges. So we should instead switch to SOM_BLALPHA_CVG_TIMES_CC,
+    # so that we modulate the coverage with the actual pixel alpha.
+    li t0, SOM_ALPHACOMPARE_THRESHOLD | SOM_BLALPHA_CVG
+    and t1, som_lo, t0
+    bne t0, t1, rdpq_update_finish
+    nop
+    or som_lo, SOM_BLALPHA_CVG_TIMES_CC
+    
+    ######################################
+    #
+    # SAVE SETTINGS & APPLY TO RDP
+    #
+    ######################################
+
+rdpq_update_finish:
+    lw comb_hi, 0(s0)
+    lw comb_lo, 4(s0)
+
+    # Set correct SET_COMBINE opcode (0xFC). The opcode can be anything of
+    # the other 4 (1pass/2pass dynamic/static).
+    or comb_hi, 0xFF000000
+    xor comb_hi, 0xFF000000 ^ 0xFC000000
 
     # Store calculated SOM into RDPQ_OTHER_MODES for debugging purposes
     # (to implemented rdpq_get_other_modes_raw). Notice that we don't
