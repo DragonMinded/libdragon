@@ -52,9 +52,9 @@ typedef struct surface_s surface_t;
  * (such as #RESOLUTION_320x240) or define a custom resolution.
  */
 typedef struct {
-    /** @brief Screen width (must be between 1 and 800) */
+    /** @brief Screen width (must be between 2 and 800) */
     int32_t width;
-    /** @brief Screen height (must be between 1 and 600) */
+    /** @brief Screen height (must be between 1 and 720) */
     int32_t height;
     /** @brief True if interlaced mode enabled */
     bool interlaced;
