@@ -317,6 +317,18 @@ void glGetDoublev(GLenum value, GLdouble *data)
     }
 }
 
+static const char *extensions = "GL_ARB_multisample "
+                                "GL_EXT_packed_pixels "
+                                "GL_ARB_vertex_buffer_object "
+                                "GL_ARB_texture_mirrored_repeat "
+                                "GL_ARB_texture_non_power_of_two "
+                                "GL_ARB_vertex_array_object "
+                                "GL_ARB_matrix_palette "
+                                "GL_N64_RDPQ_interop "
+                                "GL_N64_surface_image "
+                                "GL_N64_half_fixed_point "
+                                "GL_N64_reduced_aliasing";
+
 GLubyte *glGetString(GLenum name)
 {
     switch (name) {
@@ -327,7 +339,7 @@ GLubyte *glGetString(GLenum name)
     case GL_VERSION:
         return (GLubyte*)"1.1";
     case GL_EXTENSIONS:
-        return (GLubyte*)"GL_ARB_multisample GL_EXT_packed_pixels GL_ARB_vertex_buffer_object GL_ARB_texture_mirrored_repeat GL_ARB_texture_non_power_of_two GL_ARB_vertex_array_object GL_ARB_matrix_palette GL_N64_RDPQ_interop GL_N64_surface_image GL_N64_half_fixed_point";
+        return (GLubyte*)extensions;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid string name", name);
         return NULL;

@@ -104,6 +104,7 @@
 
 #define FLAG2_USE_RDPQ_MATERIAL  (1 << 0)
 #define FLAG2_USE_RDPQ_TEXTURING (1 << 1)
+#define FLAG2_REDUCED_ALIASING   (1 << 2)
 
 #define TEX_FLAG_COMPLETE       (1 << 0)
 #define TEX_FLAG_UPLOAD_DIRTY   (1 << 1)

@@ -627,6 +627,7 @@
 #define GL_LINE_SMOOTH_HINT                             0x0C52
 #define GL_POLYGON_SMOOTH_HINT                          0x0C53
 #define GL_FOG_HINT                                     0x0C54
+#define GL_MULTISAMPLE_HINT_N64                         0x6000
 
 #define GL_DONT_CARE                                    0x1100
 #define GL_FASTEST                                      0x1101
