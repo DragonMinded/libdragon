@@ -23,6 +23,7 @@ typedef struct rdpq_texparms_s rdpq_texparms_t;
 #define GL_N64_surface_image            1
 #define GL_N64_half_fixed_point         1
 #define GL_N64_reduced_aliasing         1
+#define GL_N64_interpenetrating         1
 
 /* Data types */
 

@@ -327,7 +327,8 @@ static const char *extensions = "GL_ARB_multisample "
                                 "GL_N64_RDPQ_interop "
                                 "GL_N64_surface_image "
                                 "GL_N64_half_fixed_point "
-                                "GL_N64_reduced_aliasing";
+                                "GL_N64_reduced_aliasing "
+                                "GL_N64_interpenetrating";
 
 GLubyte *glGetString(GLenum name)
 {

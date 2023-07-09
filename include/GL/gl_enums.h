@@ -455,6 +455,7 @@
 #define GL_NOTEQUAL                                     0x0205
 #define GL_GEQUAL                                       0x0206
 #define GL_ALWAYS                                       0x0207
+#define GL_LESS_INTERPENETRATING_N64                    0x6010
 
 #define GL_STENCIL_TEST                                 0x0B90
 #define GL_STENCIL_FUNC                                 0x0B92

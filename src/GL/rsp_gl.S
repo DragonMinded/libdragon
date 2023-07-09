@@ -662,10 +662,12 @@ gl_matrix_palette_loop:
 1:
 
     # Z mode
-    # TODO: SOM_ZMODE_INTERPENETRATING? Maybe as a custom extension?
     xori t1, depth_func, GL_EQUAL
     beqz t1, 1f
     li t0, SOM_ZMODE_DECAL
+    xori t1, depth_func, GL_LESS_INTERPENETRATING_N64
+    beqz t1, 1f
+    li t0, SOM_ZMODE_INTERPENETRATING
     andi t0, state_flags, FLAG_BLEND
     # t0 = (state_flags & FLAG_BLEND) ? SOM_ZMODE_TRANSPARENT : SOM_ZMODE_OPAQUE
     sll t0, ZMODE_BLEND_FLAG_SHIFT

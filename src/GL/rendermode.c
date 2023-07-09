@@ -283,6 +283,7 @@ void glDepthFunc(GLenum func)
     case GL_LESS:
     case GL_ALWAYS:
     case GL_EQUAL:
+    case GL_LESS_INTERPENETRATING_N64:
         gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, depth_func), (uint16_t)func);
         break;
     case GL_NEVER:
