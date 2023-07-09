@@ -918,11 +918,13 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
     if (pm->tileh) spr.vslices = spr.images[0].height / pm->tileh;
     if (!spr.hslices) {
         spr.hslices = spr.images[0].width / 16;
+        if (!spr.hslices) spr.hslices = 1;
         if (flag_verbose)
             printf("auto detected hslices: %d (w=%d/%d)\n", spr.hslices, spr.images[0].width, spr.images[0].width/spr.hslices);
     }
     if (!spr.vslices) {
         spr.vslices = spr.images[0].height / 16;
+        if (!spr.vslices) spr.vslices = 1;
         if (flag_verbose)
             printf("auto detected vslices: %d (w=%d/%d)\n", spr.vslices, spr.images[0].height, spr.images[0].height/spr.vslices);
     }
