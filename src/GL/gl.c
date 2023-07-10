@@ -153,16 +153,20 @@ void gl_close()
 {
     rspq_wait();
 
-    free_uncached(state.matrix_stacks[0]);
-    free_uncached(state.matrix_stacks[1]);
-    free_uncached(state.matrix_stacks[2]);
-    free_uncached(state.matrix_palette);
-    
     gl_list_close();
     gl_primitive_close();
     gl_texture_close();
     rspq_overlay_unregister(gl_overlay_id);
     rspq_overlay_unregister(glp_overlay_id);
+
+    // FIXME: some of the above to deferred deletions, others don't.
+    // So we need another rspq_wait.
+    rspq_wait();
+
+    free_uncached(state.matrix_stacks[0]);
+    free_uncached(state.matrix_stacks[1]);
+    free_uncached(state.matrix_stacks[2]);
+    free_uncached(state.matrix_palette);    
 }
 
 void gl_reset_uploaded_texture()
