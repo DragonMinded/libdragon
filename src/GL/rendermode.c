@@ -86,10 +86,10 @@ void gl_rendermode_init()
 void gl_update_fog()
 {
     state.fog_factor = 1.0f / (state.fog_end - state.fog_start);
-    state.fog_offset = state.fog_end * state.fog_factor;
+    state.fog_offset = state.fog_end;
 
-    int16_t offset_fx = state.fog_offset * (1<<10);
-    int16_t factor_fx = state.fog_factor * (1<<10);
+    int16_t offset_fx = state.fog_offset * (1<<VTX_SHIFT);
+    int16_t factor_fx = state.fog_factor * 0x7FFF; // 0.15 value for vmulu
 
     uint32_t packed = (offset_fx << 16) | factor_fx;
 

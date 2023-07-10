@@ -351,7 +351,7 @@ static void gl_vertex_t_l(gl_vtx_t *vtx)
     }
 
     if (state.fog) {
-        vtx->shade[3] = state.fog_offset - fabsf(eye_pos[2]) * state.fog_factor;
+        vtx->shade[3] = (state.fog_offset - fabsf(eye_pos[2])) * state.fog_factor;
     }
 
     vtx->shade[0] = CLAMP01(vtx->shade[0]);

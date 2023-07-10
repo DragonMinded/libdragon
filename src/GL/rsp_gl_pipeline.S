@@ -466,17 +466,33 @@ GL_TnL:
     andi t0, state_flags, FLAG_FOG
     beqz t0, 1f
     li s1, %lo(GL_STATE_FOG_OFFSET)
-
     llv vfog, 0,s1
 
-    # vtmp = -abs(veyepos.z)
+    # Compute -abs(veyepos.z). This is required by GL spec
     vsubc vtmp, vzero, veyepos.e2
     vlt vtmp, veyepos.e2
 
-    # vtmp.e0 = fog_offset - abs(veyepos.z) * fog_factor
-    vmudh v___, vtmp, vfog.e1
-    vmadh vtmp, vfog, K1
+    # vtmp.e0 = fog_end - veyepos.z
+    # Notice that we use vadd here veyepos.z is negative (in front of the camera),
+    # while fog_end is always positive
+    vadd vtmp, vfog.e0
 
+    # Positon precision is VTX_SHIFT so we need to shift to obtain a value in
+    # the range 0..255 (alpha color). 
+    vsll vtmp, vtmp, (8 - VTX_SHIFT)
+
+    # vtmp.e0 = (fog_end - veyepos.z) * (fog_end - fog_start) * 256
+    # Notice that vmulu also clamps the result to 0, so now the range is
+    # 0..256, but there are overflows when the vertex is outside of the fog
+    # (towards the camera).
+    vmulu vtmp, vfog.e1
+
+    # Multiply (saturating) by 128. This both adjusts the alpha value for the
+    # suv opcode later (that requires the value to be <<7), *and* saturates
+    # to 0xFF alpha values bigger than 0xFF.
+    vmudh vtmp, vtmp, K128
+
+    # Save the alpha factor in the vertex color, overwriting the alpha component.
     vmov vrgba.e3, vtmp.e0
     #undef vtmp
     #undef vfog
