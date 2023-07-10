@@ -1341,6 +1341,29 @@ makeMxc2Op mfc2, 0x0
 .endm
 
 ##################################################
+# emux
+##################################################
+
+.macro emux reg, code
+    .word (0<<26) | (0x36 << 0) | (\reg << 21) | (\reg << 16) | (\code << 6)
+.endm
+
+.macro emux_trace_start
+    emux 0, 0x20
+.endm
+
+.macro emux_trace_stop
+    emux 0, 0x20
+.endm
+
+.macro emux_trace_count num_insn
+    .set noat
+    li $1, \num_insn
+    emux 1, 0x21
+    .set at
+.endm
+
+##################################################
 # Other psuedo-ops
 ##################################################
 
