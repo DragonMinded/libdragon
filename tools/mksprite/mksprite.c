@@ -454,7 +454,7 @@ bool spritemaker_load_detail_png(spritemaker_t *spr, tex_format_t outfmt)
     return ok;
 }
 
-void spritemaker_calc_lods(spritemaker_t *spr, int algo) {
+bool spritemaker_calc_lods(spritemaker_t *spr, int algo) {
     // Calculate mipmap levels
     assert(algo == MIPMAP_ALGO_BOX);
 
@@ -469,8 +469,10 @@ void spritemaker_calc_lods(spritemaker_t *spr, int algo) {
         tmem_usage += calc_tmem_usage(spr->images[7].fmt, spr->images[7].width, spr->images[7].height);
     }
     if (tmem_usage > tmem_limit) {
-        fprintf(stderr, "ERROR: image does not fit in TMEM, no mipmaps will be calculated\n");
-        return;
+        fprintf(stderr, "WARNING: image does not fit in TMEM, no mipmaps will be calculated\n");
+        // Continue execution anyway
+        // TODO: maybe abort?
+        return true;
     }
 
     int maxlevels = MAX_IMAGES;
@@ -517,9 +519,8 @@ void spritemaker_calc_lods(spritemaker_t *spr, int algo) {
             }
             break;
         default:
-            fprintf(stderr, "WARNING: mipmap calculation for format %s not implemented yet\n", tex_format_name(spr->images[0].fmt));
-            done = true;
-            break;
+            fprintf(stderr, "ERROR: mipmap calculation for format %s/%s not implemented yet\n", tex_format_name(prev->fmt), colortype_to_string(prev->ct));
+            return false;
         }
         if(!done) {
             if (flag_verbose)
@@ -533,6 +534,8 @@ void spritemaker_calc_lods(spritemaker_t *spr, int algo) {
             };
         }
     }
+
+    return true;
 }
 
 bool spritemaker_expand_rgba(spritemaker_t *spr) {
@@ -570,9 +573,9 @@ bool spritemaker_expand_rgba(spritemaker_t *spr) {
     return true;
 }
 
-bool spritemaker_quantize(spritemaker_t *spr, int num_colors, int dither) {
+bool spritemaker_quantize(spritemaker_t *spr, uint8_t *colors, int num_colors, int dither) {
     if (flag_verbose)
-        printf("quantizing image(s) to %d colors\n", num_colors);
+        printf("quantizing image(s) to %d colors%s\n", num_colors, colors ? " (using existing palette)" : "");
 
     // Initialize the quantizer engine
     exq_data *exq = exq_init();
@@ -590,13 +593,21 @@ bool spritemaker_quantize(spritemaker_t *spr, int num_colors, int dither) {
         exq_feed(exq, spr->images[i].image, spr->images[i].width * spr->images[i].height);
     }
 
-    // Run quantization (high quality mode)
-    exq_quantize_hq(exq, num_colors);
+    if (!colors) {
+        // Run quantization (high quality mode)
+        exq_quantize_hq(exq, num_colors);
 
-    // Extract the palette
-    exq_get_palette(exq, spr->palette.colors[0], num_colors);
-    spr->palette.num_colors = num_colors;
-    spr->palette.used_colors = num_colors;
+        // Extract the generate palette
+        exq_get_palette(exq, spr->palette.colors[0], num_colors);
+        spr->palette.num_colors = num_colors;
+        spr->palette.used_colors = num_colors;
+    } else {
+        // Force the input palette
+        exq_set_palette(exq, colors, num_colors);
+        memcpy(spr->palette.colors[0], colors, num_colors * 4);
+        spr->palette.num_colors = num_colors;
+        spr->palette.used_colors = num_colors;
+    }
 
     // Remap the images to the new palette
     for (int i=0; i<MAX_IMAGES; i++) {
@@ -901,13 +912,34 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
 
     // Calculate mipmap levels, if requested
     if (pm->mipmap_algo != MIPMAP_ALGO_NONE) {
-        if (spr.images[0].ct == LCT_PALETTE) {
-            if (flag_verbose)
-                printf("expanding palette to RGBA for mipmap generation\n");
-            if (!spritemaker_expand_rgba(&spr))
+        switch (spr.images[0].ct) {
+        case LCT_PALETTE: {
+            // Mipmap generation of indexed image. In this case, we want to
+            // preserve the original palette for all the mipmaps. To reuse
+            // existing code, we expand first to RGBA and then quantize again
+            // the original palette.
+            palette_t orig_palette = spr.palette;
+            int fmt_colors = spr.images[0].fmt == FMT_CI8 ? 256 : 16;
+
+            // Expand to RGBA, calc lods, and quantize with the original palette
+            if (!spritemaker_expand_rgba(&spr)
+                || !spritemaker_calc_lods(&spr, pm->mipmap_algo)
+                || !spritemaker_quantize(&spr, orig_palette.colors[0], fmt_colors, pm->dither_algo))
                 goto error;
+
+            // Restore palette. Notice that spritemake_quantize has already done that
+            // but the palette might contain additional colors (eg: a CI4 sprite
+            // might be shipped with a 64 color palette that the user will use
+            // at runtime). So we quantized all lods with the first 16 colors
+            // (like the first image), but then we restore the other colors.
+            spr.palette = orig_palette;
+        }   break;
+
+        default:
+            if (!spritemaker_calc_lods(&spr, pm->mipmap_algo))
+                goto error;
+            break;
         }
-        spritemaker_calc_lods(&spr, pm->mipmap_algo);
     }
 
     // Run quantization if needed
@@ -916,13 +948,15 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
 
         switch (spr.images[0].ct) {
         case LCT_RGBA:
-            if (!spritemaker_quantize(&spr, expected_colors, pm->dither_algo))
+            if (!spritemaker_quantize(&spr, NULL, expected_colors, pm->dither_algo))
                 goto error;
             break;
         case LCT_PALETTE:
+            // When the source image is already palettized, we quantize only if
+            // the requested number of colors is less than the actually used colors.
             if (expected_colors < spr.palette.used_colors) {
                 if (!spritemaker_expand_rgba(&spr) || 
-                    !spritemaker_quantize(&spr, expected_colors, pm->dither_algo))
+                    !spritemaker_quantize(&spr, NULL, expected_colors, pm->dither_algo))
                     goto error;
             }
             break;
