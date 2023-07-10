@@ -650,6 +650,10 @@ GLCmd_DrawTriangle:
     #define trcode3     t8
     #define ra3         s8
 
+    # If GL_FONT_AND_BACK is set (GL_TRI_CULL==-1), there's nothing to do
+    lb v0, %lo(GL_TRI_CULL)
+    bltz v0, JrRa
+
     addi vtx3, a1, %lo(VERTEX_CACHE)
     srl  vtx2, a1, 16
     addi vtx2, %lo(VERTEX_CACHE)
