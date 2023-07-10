@@ -260,28 +260,26 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
         goto error;
     }
 
-    // Check if we're asked to autodetect the best possible texformat for output
-    if (autofmt) {
-	// Check the filename string if it contains a texformat for output
-	bool fmt_from_extension = false;
-        if (fmt == FMT_NONE) {
-            tex_format_t fmtext = FMT_NONE;
-            char *fntok = strdup(infn);
-            char *sect = strtok(fntok, ".");
-            while (sect) {
-                fmtext = tex_format_from_name(sect);
-                if (fmtext != FMT_NONE) break;
-                sect = strtok(NULL, ".");
-            }
-            if (fmtext != FMT_NONE) {
-                fmt = fmtext;
-                fmt_from_extension = true;
-                if (flag_verbose)
-                    printf("detected format from filename: %s\n", tex_format_name(fmt));
-            }
-            free(fntok);
+    // Check if we're asked to autodetect the best possible texformat for output.
+    // Try first inspecting the extension
+    if (fmt == FMT_NONE) {
+        // Check the filename string if it contains a texformat for output
+        char *fntok = strdup(infn);
+        char *sect = strtok(fntok, ".");
+        while (sect) {
+            fmt = tex_format_from_name(sect);
+            if (fmt != FMT_NONE) break;
+            sect = strtok(NULL, ".");
         }
+        if (fmt != FMT_NONE) {
+            if (flag_verbose)
+                printf("detected format from filename: %s\n", tex_format_name(fmt));
+        }
+        free(fntok);
+    }
 
+    // If we still don't have a format, try to autodetect it from the PNG header
+    if (fmt == FMT_NONE) {
         // Parse the PNG header to get some metadata
         error = lodepng_inspect(&width, &height, &state, png, pngsize);
         if(error) {
@@ -289,34 +287,35 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
         	goto error;
         }
         inspected = true;
-	if(!fmt_from_extension){
-        	// Autodetect the best output format depending on the input format
-        	// The rule of thumb is that we want to preserve the information on the
-        	// input image as much as possible.
-        	switch (state.info_png.color.colortype) {
-        	case LCT_GREY:
-        	    fmt = (state.info_png.color.bitdepth > 4) ? FMT_I8 : FMT_I4;
-        	    break;
-        	case LCT_GREY_ALPHA:
-        	    if (state.info_png.color.bitdepth < 4) fmt = FMT_IA4;
-        	    else if (state.info_png.color.bitdepth < 8) fmt = FMT_IA8;
-        	    else fmt = FMT_IA16;
-        	    break;
-        	case LCT_PALETTE:
-        	    fmt = FMT_CI8; // Will check if CI4 (<= 16 colors) later
-        	    break;
-        	case LCT_RGB: case LCT_RGBA:
-        	    // Usage of 32-bit sprites/textures is extremely rare because of the
-        	    // limited TMEM size. Default to 16-bit here, even though this might
-        	    // cause some banding to appear.
-        	    fmt = FMT_RGBA16;
-        	    break;
-        	default:
-        	    fprintf(stderr, "%s: unknown PNG color type: %d\n", infn, state.info_png.color.colortype);
-        	    goto error;
-	    }
+        // Autodetect the best output format depending on the input format
+        // The rule of thumb is that we want to preserve the information on the
+        // input image as much as possible.
+        switch (state.info_png.color.colortype) {
+        case LCT_GREY:
+            fmt = (state.info_png.color.bitdepth > 4) ? FMT_I8 : FMT_I4;
+            break;
+        case LCT_GREY_ALPHA:
+            if (state.info_png.color.bitdepth < 4) fmt = FMT_IA4;
+            else if (state.info_png.color.bitdepth < 8) fmt = FMT_IA8;
+            else fmt = FMT_IA16;
+            break;
+        case LCT_PALETTE:
+            fmt = FMT_CI8; // Will check if CI4 (<= 16 colors) later
+            break;
+        case LCT_RGB: case LCT_RGBA:
+            // Usage of 32-bit sprites/textures is extremely rare because of the
+            // limited TMEM size. Default to 16-bit here, even though this might
+            // cause some banding to appear.
+            fmt = FMT_RGBA16;
+            break;
+        default:
+            fprintf(stderr, "%s: unknown PNG color type: %d\n", infn, state.info_png.color.colortype);
+            goto error;
         }
     }
+
+    // We should have a format now
+    assert(fmt != FMT_NONE);
 
     // Setup the info_raw structure with the desired pixel conversion,
     // depending on the output format.
