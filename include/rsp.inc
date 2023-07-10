@@ -1101,7 +1101,7 @@ makeLsInstructionQuad store, laneAsByte, stv, 0b01011
 /** @brief Store Unsigned Packed from Vector Register */
 makeLsInstructionDouble store, lane, suv, 0b00111
 /** @brief Store Wrapped vector from Vector Register */
-makeLsInstructionQuad store, byte, swv, 0b00111
+makeLsInstructionQuad store, byte, swv, 0b01010
 
 .macro mxc2 opcode, reg, vreg, element
     .ifgt (\element >> 4)
