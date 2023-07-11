@@ -1,3 +1,5 @@
+#include <float.h>
+
 #include "gl_internal.h"
 #include "rdpq_mode.h"
 #include "rdpq_debug.h"
@@ -85,7 +87,9 @@ void gl_rendermode_init()
 
 void gl_update_fog()
 {
-    state.fog_factor = 1.0f / (state.fog_end - state.fog_start);
+    float fog_diff = state.fog_end - state.fog_start;
+    // start == end is undefined, so disable fog by setting the factor to 0
+    state.fog_factor = fabsf(fog_diff) < FLT_MIN ? 0.0f : 1.0f / fog_diff;
     state.fog_offset = state.fog_end;
 
     int16_t offset_fx = state.fog_offset * (1<<VTX_SHIFT);
