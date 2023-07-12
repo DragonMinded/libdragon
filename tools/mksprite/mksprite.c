@@ -394,8 +394,8 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
         palout->num_colors = state.info_png.color.palettesize;
         palout->used_colors = 0;
         for (int i=0; i < width*height; i++) {
-            if (image[i] > palout->used_colors)
-                palout->used_colors = image[i];
+            if (image[i] >= palout->used_colors)
+                palout->used_colors = image[i]+1;
         }
         if (flag_verbose)
             printf("palette: %d colors (used: %d)\n", palout->num_colors, palout->used_colors);

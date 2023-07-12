@@ -500,8 +500,9 @@ static void tex_xblit_norotate_noscale(const surface_t *surf, float x0, float y0
     void draw_cb(rdpq_tile_t tile, int s0, int t0, int s1, int t1)
     {
         int ks0 = s0, kt0 = t0, ks1 = s1, kt1 = t1;
-        if (flip_x) { ks0 = src_width - s1; ks1 = src_width - s0; s0 = s1-1; }
-        if (flip_y) { kt0 = src_height - t1; kt1 = src_height - t0; t0 = t1-1; }
+
+        if (flip_x) { ks0 = src_width - s0 - 1;  ks1 = src_width - s1 - 1; }
+        if (flip_y) { kt0 = src_height - t0 - 1; kt1 = src_height - t1 - 1; }
 
         rdpq_texture_rectangle(tile, x0 + ks0 - cx, y0 + kt0 - cy, x0 + ks1 - cx, y0 + kt1 - cy, s0, t0);
     }
@@ -535,8 +536,8 @@ static void tex_xblit_norotate(const surface_t *surf, float x0, float y0, const 
     {
         int ks0 = s0, kt0 = t0, ks1 = s1, kt1 = t1;
 
-        if (flip_x) { ks0 = src_width - s1; ks1 = src_width - s0; s0 = s1-1; }
-        if (flip_y) { kt0 = src_height - t1; kt1 = src_height - t0; t0 = t1-1; }
+        if (flip_x) { ks0 = src_width - s0 - 1;  ks1 = src_width - s1 - 1;  }
+        if (flip_y) { kt0 = src_height - t0 - 1; kt1 = src_height - t1 - 1; }
 
         float k0x = mtx[0][0] * ks0 + mtx[1][0] * kt0 + mtx[2][0];
         float k0y = mtx[0][1] * ks0 + mtx[1][1] * kt0 + mtx[2][1];

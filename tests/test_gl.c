@@ -202,3 +202,51 @@ void test_gl_list(TestContext *ctx)
     glEndList();
     ASSERT(glIsList(100), "List index should be used after glEndList without allocating it first with glGenLists");
 }
+
+void test_gl_cull(TestContext *ctx)
+{
+    GL_INIT();
+    debug_rdp_stream_init();
+    rdpq_debug_log(true);
+
+    void draw_tri(void) {
+        glBegin(GL_TRIANGLES);
+        glVertex3f(0, 0, 0);
+        glVertex3f(1, 0, 0);
+        glVertex3f(0, 1, 0);
+        glEnd();
+        rspq_wait();
+    }
+
+    debug_rdp_stream_reset();
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
+    draw_tri();
+    uint32_t tri_count = debug_rdp_stream_count_cmd(RDPQ_CMD_TRI_SHADE + 0xC0);
+    ASSERT_EQUAL_UNSIGNED(tri_count, 0, "Triangle should not be drawn when culling front faces");
+
+    debug_rdp_stream_reset();
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    draw_tri();
+    tri_count = debug_rdp_stream_count_cmd(RDPQ_CMD_TRI_SHADE + 0xC0);
+    ASSERT_EQUAL_UNSIGNED(tri_count, 1, "Triangle should be drawn when culling back faces");
+
+    debug_rdp_stream_reset();
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT_AND_BACK);
+    draw_tri();
+    tri_count = debug_rdp_stream_count_cmd(RDPQ_CMD_TRI_SHADE + 0xC0);
+    ASSERT_EQUAL_UNSIGNED(tri_count, 0, "Triangle should not be drawn when culling front and back faces");
+
+    debug_rdp_stream_reset();
+    glDisable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    draw_tri();
+    glCullFace(GL_FRONT);
+    draw_tri();
+    glCullFace(GL_FRONT_AND_BACK);
+    draw_tri();
+    tri_count = debug_rdp_stream_count_cmd(RDPQ_CMD_TRI_SHADE + 0xC0);
+    ASSERT_EQUAL_UNSIGNED(tri_count, 3, "Triangles should be drawn when culling disabled");
+}
