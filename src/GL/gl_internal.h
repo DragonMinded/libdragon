@@ -333,6 +333,13 @@ _Static_assert(offsetof(gl_tex_gen_soa_t, fraction) == TEX_GEN_FRACTION_OFFSET);
 _Static_assert(offsetof(gl_tex_gen_soa_t, mode) == TEX_GEN_MODE_OFFSET);
 
 typedef struct {
+    int16_t factor_int;
+    int16_t offset_int;
+    uint16_t factor_frac;
+    uint16_t offset_frac;
+} gl_fog_params_t;
+
+typedef struct {
     GLsizei size;
     GLfloat entries[MAX_PIXEL_MAP_SIZE];
 } gl_pixel_map_t;
@@ -517,10 +524,7 @@ typedef struct {
     uint32_t matrix_pointers[5];
     uint32_t loaded_mtx_index[2];
     uint32_t flags;
-    int16_t fog_start;
-    int16_t fog_end;
-    int16_t fog_offset;
-    int16_t fog_factor;
+    gl_fog_params_t fog_params;
     uint16_t tex_size[2];
     uint16_t tex_offset[2];
     uint16_t polygon_mode;

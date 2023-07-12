@@ -25,10 +25,7 @@ GL_STATE:
     GL_MATRIX_POINTERS:     .word   0,0,0,0,0
     GL_LOADED_MTX_INDEX:    .word   0,0
     GL_STATE_FLAGS:         .word   0
-    GL_STATE_FOG_START:     .half   0
-    GL_STATE_FOG_END:       .half   0
-    GL_STATE_FOG_OFFSET:    .half   0
-    GL_STATE_FOG_FACTOR:    .half   0
+    GL_STATE_FOG_PARAMS:    .half   0,0,0,0
     GL_STATE_TEX_SIZE:      .half   0,0
     GL_STATE_TEX_OFFSET:    .half   0,0
     GL_STATE_POLYGON_MODE:  .half   0

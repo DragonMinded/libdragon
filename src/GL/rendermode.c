@@ -92,25 +92,27 @@ void gl_update_fog()
     state.fog_factor = fabsf(fog_diff) < FLT_MIN ? 0.0f : 1.0f / fog_diff;
     state.fog_offset = state.fog_end;
 
+    // Convert to s15.16 and premultiply with 1.15 conversion factor
+    int32_t factor_fx = state.fog_factor * (1<<(16 + 7 + (8 - VTX_SHIFT)));
     int16_t offset_fx = state.fog_offset * (1<<VTX_SHIFT);
-    int16_t factor_fx = state.fog_factor * 0x7FFF; // 0.15 value for vmulu
 
-    uint32_t packed = (offset_fx << 16) | factor_fx;
+    int16_t factor_i = factor_fx >> 16;
+    uint16_t factor_f = factor_fx & 0xFFFF;
 
-    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, fog_offset), packed);
+    uint64_t packed = (((uint64_t)factor_i) << 48) | (((uint64_t)offset_fx) << 32) | (((uint64_t)factor_f) << 16);
+
+    gl_set_long(GL_UPDATE_NONE, offsetof(gl_server_state_t, fog_params), packed);
 }
 
 void gl_set_fog_start(GLfloat param)
 {
     state.fog_start = param;
-    gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, fog_start), param * (1<<5));
     gl_update_fog();
 }
 
 void gl_set_fog_end(GLfloat param)
 {
     state.fog_end = param;
-    gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, fog_end), param * (1<<5));
     gl_update_fog();
 }
 
