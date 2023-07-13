@@ -4,10 +4,20 @@
 #include <stdint.h>
 
 #include "../common/binout.h"
-#include "../common/lzh5_compress.h"
 #include "../common/lzh5_compress.c"
+#undef MIN
+#undef MAX
 #include "../../src/asset.c"
 #include "../../src/compress/lzh5.c"
+#include "../../src/compress/lz4_dec.c"
+
+#ifndef LZ4_SRC_INCLUDED
+#define LZ4_DISTANCE_MAX 16384
+#include "../common/lz4.c"
+#endif
+#include "../common/lz4hc.c"
+#undef MIN
+#undef MAX
 
 
 bool asset_compress(const char *infn, const char *outfn, int compression)
@@ -34,7 +44,7 @@ bool asset_compress(const char *infn, const char *outfn, int compression)
         fwrite(data, 1, sz, out);
         fclose(out);
     }   break;
-    case 1: { // lzh5
+    case 2: { // lzh5
         char *tmpfn = NULL;
         asprintf(&tmpfn, "%s.tmp", outfn);
         FILE *out = fopen(tmpfn, "wb");
@@ -48,7 +58,7 @@ bool asset_compress(const char *infn, const char *outfn, int compression)
         in = fopen(tmpfn, "rb");
         out = fopen(outfn, "wb");
         fwrite("DCA1", 1, 4, out);
-        w16(out, 1); // algo
+        w16(out, 2); // algo
         w16(out, 0); // flags
         int w_cmp_size = w32_placeholder(out); // cmp_size
         int w_dec_size = w32_placeholder(out); // dec_size
@@ -65,6 +75,24 @@ bool asset_compress(const char *infn, const char *outfn, int compression)
         remove(tmpfn);
         free(tmpfn);
     }   break;
+    case 1: { // lz4hc
+        int cmp_max_size = LZ4_COMPRESSBOUND(sz);
+        void *output = malloc(cmp_max_size);
+        int cmp_size = LZ4_compress_HC((char*)data, output, sz, cmp_max_size, LZ4HC_CLEVEL_MAX);
+        assert(cmp_size <= cmp_max_size);
+
+        FILE *out = fopen(outfn, "wb");
+        fwrite("DCA1", 1, 4, out);
+        w16(out, 1); // algo
+        w16(out, 0); // flags
+        w32(out, cmp_size); // cmp_size
+        w32(out, sz); // dec_size
+        fwrite(output, 1, cmp_size, out);
+        fclose(out);
+        free(output);
+    }   break;
+    default:
+        assert(0);
     }
 
     return true;

@@ -408,7 +408,7 @@ void *dlopen(const char *filename, int mode)
         dso_load_info_t load_info;
         size_t module_size;
         //Open asset file
-        FILE *file = asset_fopen(filename);
+        FILE *file = asset_fopen(filename, NULL);
         fread(&load_info, sizeof(dso_load_info_t), 1, file); //Read load info
         //Verify DSO file
         assertf(load_info.magic == DSO_MAGIC, "Invalid DSO file");

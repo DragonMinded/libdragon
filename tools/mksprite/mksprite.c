@@ -144,7 +144,7 @@ void print_args( char * name )
     fprintf(stderr, "   -o/--output <dir>     Specify output directory (default: .)\n");
     fprintf(stderr, "   -f/--format <fmt>     Specify output format (default: AUTO)\n");
     fprintf(stderr, "   -D/--dither <dither>  Dithering algorithm (default: NONE)\n");
-    fprintf(stderr, "   -c/--compress         Compress output files (using mksasset)\n");
+    fprintf(stderr, "   -c/--compress <level> Compress output files (default: %d)\n", DEFAULT_COMPRESSION);
     fprintf(stderr, "   -d/--debug            Dump computed images (eg: mipmaps) as PNG files in output directory\n");
     fprintf(stderr, "\nSampling flags:\n");
     fprintf(stderr, "   --texparms <x,s,r,m>          Sampling parameters:\n");
@@ -1042,7 +1042,7 @@ bool cli_parse_texparms(const char *opt, texparms_t *parms)
 int main(int argc, char *argv[])
 {
     char *infn = NULL, *outdir = ".", *outfn = NULL;
-    parms_t pm = {0}; bool compression = false;
+    parms_t pm = {0}; int compression = DEFAULT_COMPRESSION;
 
     if (argc < 2) {
         print_args(argv[0]);
@@ -1161,8 +1161,19 @@ int main(int argc, char *argv[])
             /* ---------------- COMPRESS console argument ------------------- */
             /* -c/--compress         Compress output files (using mksasset)             */
             else if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--compress")) {
-                compression = true;
-            } 
+                // Optional compression level
+                if (i+1 < argc && argv[i+1][1] == 0) {
+                    int level = argv[i+1][0] - '0';
+                    if (level >= 0 && level <= 3) {
+                        compression = level;
+                        i++;
+                    }
+                    else {
+                        fprintf(stderr, "invalid compression level: %s\n", argv[i+1]);
+                        return 1;
+                    }
+                }
+            }
 
             /* ---------------- TEXTURE PARAMETERS console argument ------------------- */
             /* --texparms <x,s,r,m>          Sampling parameters             */
@@ -1281,7 +1292,7 @@ int main(int argc, char *argv[])
             if (compression) {
                 struct stat st_decomp = {0}, st_comp = {0};
                 stat(outfn, &st_decomp);
-                asset_compress(outfn, outfn, DEFAULT_COMPRESSION);
+                asset_compress(outfn, outfn, compression);
                 stat(outfn, &st_comp);
                 if (flag_verbose)
                     printf("compressed: %s (%d -> %d, ratio %.1f%%)\n", outfn,

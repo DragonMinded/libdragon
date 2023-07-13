@@ -1,6 +1,7 @@
 #include "asset.h"
 #include "asset_internal.h"
 #include "compress/lzh5_internal.h"
+#include "compress/lz4_dec_internal.h"
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -10,12 +11,16 @@
 #include <malloc.h>
 #include "debug.h"
 #include "n64sys.h"
+#include "dma.h"
+#include "dragonfs.h"
 #else
 #include <stdlib.h>
 #include <assert.h>
 #define memalign(a, b) malloc(b)
 #define assertf(x, ...) assert(x)
 #endif
+
+#define LZ4_DECOMPRESS_INPLACE_MARGIN(compressedSize)          (((compressedSize) >> 8) + 32)
 
 FILE *must_fopen(const char *fn)
 {
@@ -60,14 +65,50 @@ void *asset_load(const char *fn, int *sz)
         #endif
 
         switch (header.algo) {
-        case 1: {
+        case 2: {
             size = header.orig_size;
             s = memalign(16, size);
             int n = decompress_lz5h_full(f, s, size); (void)n;
-            assertf(n == size, "DCA: decompression error on file %s: corrupted? (%d/%d)", fn, n, size);
+            assertf(n == size, "asset: decompression error on file %s: corrupted? (%d/%d)", fn, n, size);
+        }   break;
+        case 1: {
+            size = header.orig_size;
+            int bufsize = size + LZ4_DECOMPRESS_INPLACE_MARGIN(header.cmp_size);
+            int cmp_offset = bufsize - header.cmp_size;
+            if (cmp_offset & 1) {
+                cmp_offset++;
+                bufsize++;
+            }
+
+            s = memalign(16, bufsize);
+            int n;
+
+            #ifdef N64
+            if (strncmp(fn, "rom:/", 5) == 0) {
+                // Loading from ROM. This is a common enough situation that we want to optimize it.
+                // Start an asynchronous DMA transfer, so that we can start decompressing as the
+                // data flows in.
+                uint32_t addr = dfs_rom_addr(fn+5) & 0x1FFFFFFF;
+                dma_read_async(s+cmp_offset, addr+16, header.cmp_size);
+
+                // Run the decompression racing with the DMA.
+                n = lz4ultra_decompressor_expand_block(s+cmp_offset, header.cmp_size, s, 0, size, true); (void)n;
+            #else
+            if (false) {
+            #endif
+            } else {
+                // Standard loading via stdio. We have to wait for the whole file to be read.
+                fread(s+cmp_offset, 1, header.cmp_size, f);
+
+                // Run the decompression.
+                n = lz4ultra_decompressor_expand_block(s+cmp_offset, header.cmp_size, s, 0, size, false); (void)n;
+            }
+            assertf(n == size, "asset: decompression error on file %s: corrupted? (%d/%d)", fn, n, size);
+            void *ptr = realloc(s, size); (void)ptr;
+            assertf(s == ptr, "asset: realloc moved the buffer"); // guaranteed by newlib
         }   break;
         default:
-            assertf(0, "DCA: unsupported compression algorithm: %d", header.algo);
+            assertf(0, "asset: unsupported compression algorithm: %d", header.algo);
             return NULL;
         }        
     } else {
@@ -161,7 +202,7 @@ static int closefn_lha(void *c)
     return 0;
 }
 
-FILE *asset_fopen(const char *fn)
+FILE *asset_fopen(const char *fn, int *sz)
 {
     FILE *f = must_fopen(fn);
 
@@ -185,11 +226,16 @@ FILE *asset_fopen(const char *fn)
         cookie->pos = 0;
         cookie->seeked = false;
         decompress_lz5h_init(cookie->state, f);
+        if (sz) *sz = header.orig_size;
         return funopen(cookie, readfn_lha, NULL, seekfn_lha, closefn_lha);
     }
 
     // Not compressed. Return a wrapped FILE* without the seeking capability,
     // so that it matches the behavior of the compressed file.
+    if (sz) {
+        fseek(f, 0, SEEK_END);
+        *sz = ftell(f);
+    }
     fseek(f, 0, SEEK_SET);
     cookie_none_t *cookie = malloc(sizeof(cookie_none_t));
     cookie->fp = f;

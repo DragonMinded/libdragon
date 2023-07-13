@@ -75,10 +75,11 @@ void *asset_load(const char *fn, int *sz);
  * FILE* cannot be rewinded. It must be read sequentially, or seeked forward.
  * Seeking backward is not supported.
  * 
- * @param fn 
- * @return FILE* 
+ * @param fn        Filename to open (including filesystem prefix)
+ * @param sz        If not NULL, pointer to an integer where the size of the file will be stored
+ * @return FILE*    FILE pointer to use with standard C functions (fread, fclose)
  */
-FILE *asset_fopen(const char *fn);
+FILE *asset_fopen(const char *fn, int *sz);
 
 #ifdef __cplusplus
 }

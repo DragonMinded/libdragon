@@ -38,7 +38,7 @@ void print_args( char * name )
     fprintf(stderr, "   -o/--output <dir>         Specify output directory (default: .)\n");
     fprintf(stderr, "   -v/--verbose              Verbose output\n");
     fprintf(stderr, "   --no-kerning              Do not export kerning information\n");
-    fprintf(stderr, "   -c/--compress             Compress output files (using mksasset)\n");
+    fprintf(stderr, "   -c/--compress <level>     Compress output files (default: %d)\n", DEFAULT_COMPRESSION);
     fprintf(stderr, "   -d/--debug                Dump also debug images\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "It is possible to convert multiple ranges of codepoints, by specifying\n");
@@ -473,7 +473,7 @@ int main(int argc, char *argv[])
 {
     char *infn = NULL, *outdir = ".", *outfn = NULL;
     bool error = false;
-    bool compression = false;
+    int compression = DEFAULT_COMPRESSION;
 
     if (argc < 2) {
         print_args(argv[0]);
@@ -515,7 +515,18 @@ int main(int argc, char *argv[])
                 arrpush(flag_ranges, r0);
                 arrpush(flag_ranges, r1);
             } else if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--compress")) {
-                compression = true;
+                // Optional compression level
+                if (i+1 < argc && argv[i+1][1] == 0) {
+                    int level = argv[i+1][0] - '0';
+                    if (level >= 0 && level <= 3) {
+                        compression = level;
+                        i++;
+                    }
+                    else {
+                        fprintf(stderr, "invalid compression level: %s\n", argv[i+1]);
+                        return 1;
+                    }
+                }
             } else if (!strcmp(argv[i], "-o") || !strcmp(argv[i], "--output")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
@@ -552,7 +563,7 @@ int main(int argc, char *argv[])
             if (compression) {
                 struct stat st_decomp = {0}, st_comp = {0};
                 stat(outfn, &st_decomp);
-                asset_compress(outfn, outfn, DEFAULT_COMPRESSION);
+                asset_compress(outfn, outfn, compression);
                 stat(outfn, &st_comp);
                 if (flag_verbose)
                     printf("compressed: %s (%d -> %d, ratio %.1f%%)\n", outfn,

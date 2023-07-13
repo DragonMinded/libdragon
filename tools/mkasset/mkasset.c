@@ -19,7 +19,7 @@ void print_args(char * name)
     fprintf(stderr, "Command-line flags:\n");
     fprintf(stderr, "   -v/--verbose          Verbose output\n");
     fprintf(stderr, "   -o/--output <dir>     Specify output directory (default: .)\n");
-    fprintf(stderr, "   -c/--compress <algo>  Compression: 0=none, 1=lzh5 (default: %d)\n", DEFAULT_COMPRESSION);
+    fprintf(stderr, "   -c/--compress <algo>  Compression: 0=none, 1=lha, 2=lzh5 (default: %d)\n", DEFAULT_COMPRESSION);
     fprintf(stderr, "\n");
 }
 
@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
                     fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
                     return 1;
                 }
-                if (compression < 0 || compression > 1) {
+                if (compression < 0 || compression > 2) {
                     fprintf(stderr, "invalid compression algorithm: %d\n", compression);
                     return 1;
                 }
