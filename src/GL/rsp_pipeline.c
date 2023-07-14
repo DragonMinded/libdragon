@@ -17,12 +17,12 @@ extern gl_state_t state;
         for (uint32_t i = 0; i < count; i++) gl_cmd_stream_put_half(s, convert(src[i])); \
     }
 
-static void read_fixed_point(gl_cmd_stream_t *s, const int16u_t *src, uint32_t count, uint32_t shift)
+static void read_fixed_point(gl_cmd_stream_t *s, const int16u_t *src, uint32_t count, int shift)
 {
     if (shift > 0) {
         for (uint32_t i = 0; i < count; i++) {
             int16_t value = src[i];
-            assertf(value <= SHRT_MAX>>shift && value >= SHRT_MIN>>shift, "Fixed point overflow: %d << %ld", value, shift);
+            assertf(value <= SHRT_MAX>>shift && value >= SHRT_MIN>>shift, "Fixed point overflow: %d << %d", value, shift);
             gl_cmd_stream_put_half(s, value << shift);
         }
     } else {
