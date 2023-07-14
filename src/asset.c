@@ -79,12 +79,22 @@ void *asset_load(const char *fn, int *sz)
                 cmp_offset++;
                 bufsize++;
             }
+            if (bufsize & 15) {
+                // In case we need to call invalidate (see below), we need an aligned buffer
+                bufsize += 16 - (bufsize & 15);
+            }
 
             s = memalign(16, bufsize);
             int n;
 
             #ifdef N64
             if (strncmp(fn, "rom:/", 5) == 0) {
+                // Invalid the portion of the buffer where we are going to load
+                // the compressed data. This is needed in case the buffer returned
+                // by memalign happens to be in cached already.
+                int align_cmp_offset = cmp_offset & ~15;
+                data_cache_hit_invalidate(s+align_cmp_offset, bufsize-align_cmp_offset);
+
                 // Loading from ROM. This is a common enough situation that we want to optimize it.
                 // Start an asynchronous DMA transfer, so that we can start decompressing as the
                 // data flows in.
