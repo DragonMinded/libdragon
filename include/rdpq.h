@@ -25,7 +25,8 @@
  *    * rdpq_rect.h: Low-level screen-space rectangle drawing API.
  *    * rdpq_attach.h: Attachment API (optional), to simplify configuring the render target
  *    * rdpq_mode.h: Mode API (optional), to simplify configuring the render modes
- *    * rdpq_tex.h: Texture API (optional), to simplify loading textures into TMEM
+ *    * rdpq_tex.h: Texture API (optional), to simplify uploading to TMEM and blitting 2D surfaces 
+ *    * rdpq_sprite.h: Sprite API (optional), to simplify uploading to TMEM and blitting sprites
  *    * rdpq_debug.h: Debugging API (optional), to help catching bugs.
  * 
  * ## Goals of this library
@@ -182,6 +183,7 @@ enum {
     RDPQ_CMD_MODIFY_OTHER_MODES         = 0x14,
     RDPQ_CMD_SET_FILL_COLOR_32          = 0x16,
     RDPQ_CMD_SET_BLENDING_MODE          = 0x18,
+    RDPQ_CMD_SET_FOG_MODE               = 0x19,
     RDPQ_CMD_SET_COMBINE_MODE_1PASS     = 0x1B,
     RDPQ_CMD_AUTOTMEM_SET_ADDR          = 0x1C,
     RDPQ_CMD_AUTOTMEM_SET_TILE          = 0x1D,

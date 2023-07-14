@@ -591,9 +591,7 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
 inline void rdpq_mode_blender(rdpq_blender_t blend) {
     extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
     if (blend) blend |= SOM_BLENDING;
-    if (blend & SOMX_BLEND_2PASS)
-        __rdpq_fixup_mode(RDPQ_CMD_SET_BLENDING_MODE, 0, blend);
-    __rdpq_fixup_mode(RDPQ_CMD_SET_BLENDING_MODE, 4, blend);
+    __rdpq_fixup_mode(RDPQ_CMD_SET_BLENDING_MODE, 0, blend);
 }
 
 /** @brief Fogging mode: standard.
@@ -644,8 +642,9 @@ inline void rdpq_mode_blender(rdpq_blender_t blend) {
 inline void rdpq_mode_fog(rdpq_blender_t fog) {
     extern void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1);
     if (fog) fog |= SOM_BLENDING;
+    if (fog) assertf((fog & SOMX_BLEND_2PASS) == 0, "Fogging cannot be used with two-pass blending formulas");
     __rdpq_mode_change_som(SOMX_FOG, fog ? SOMX_FOG : 0);
-    __rdpq_fixup_mode(RDPQ_CMD_SET_BLENDING_MODE, 0, fog);
+    __rdpq_fixup_mode(RDPQ_CMD_SET_FOG_MODE, 0, fog);
 }
 
 /**

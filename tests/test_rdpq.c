@@ -1212,6 +1212,7 @@ void test_rdpq_automode(TestContext *ctx) {
     rspq_wait();
     som = rdpq_get_other_modes_raw();
     ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_1, "invalid cycle type");
+    ASSERT_EQUAL_HEX(som & 0x33330000, 0, "invalid blender formula in second cycle");
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (comb=1pass, blender=1pass)");
 
@@ -1247,6 +1248,7 @@ void test_rdpq_automode(TestContext *ctx) {
     rspq_wait();
     som = rdpq_get_other_modes_raw();
     ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_2, "invalid cycle type");
+    ASSERT_EQUAL_HEX(som & 0xCCCC0000, 0, "invalid blender formula in first cycle");
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (comb=2pass, blender=1pass)");
 
@@ -1275,6 +1277,7 @@ void test_rdpq_automode(TestContext *ctx) {
     rspq_wait();
     som = rdpq_get_other_modes_raw();
     ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_1, "invalid cycle type");
+    ASSERT_EQUAL_HEX(som & 0x33330000, 0, "invalid blender formula in second cycle");
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (comb=1pass, blender=1pass (after pop))");
 }
@@ -1361,7 +1364,7 @@ void test_rdpq_blender(TestContext *ctx) {
     rdpq_mode_blender(0);
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
     rspq_wait();
-    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_blend, FBWIDTH*FBWIDTH*2, 
+    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_tex, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (blender=pass0)");
 }
 
@@ -1535,6 +1538,7 @@ void test_rdpq_mode_antialias(TestContext *ctx) {
         (SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_MASK | SOM_COVERAGE_DEST_MASK), 
          SOM_AA_ENABLE |                SOM_READ_ENABLE |            SOM_CYCLE_1    | SOM_COVERAGE_DEST_CLAMP, 
         "invalid SOM configuration: %08llx", som);
+    ASSERT_EQUAL_HEX(som & 0x33330000, 0, "invalid blender formula in second cycle");
 
     rdpq_debug_log_msg("ra");
     rdpq_mode_antialias(AA_REDUCED);
@@ -1544,6 +1548,7 @@ void test_rdpq_mode_antialias(TestContext *ctx) {
         (SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_MASK | SOM_COVERAGE_DEST_MASK), 
          SOM_AA_ENABLE |                                             SOM_CYCLE_1    | SOM_COVERAGE_DEST_CLAMP, 
         "invalid SOM configuration: %08llx", som);
+    ASSERT_EQUAL_HEX(som & 0x33330000, 0, "invalid blender formula in second cycle");
 
     rdpq_debug_log_msg("blender+ra");
     rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
@@ -1553,6 +1558,7 @@ void test_rdpq_mode_antialias(TestContext *ctx) {
         (SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_MASK | SOM_COVERAGE_DEST_MASK), 
          SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE |                             SOM_CYCLE_1    | SOM_COVERAGE_DEST_WRAP, 
         "invalid SOM configuration: %08llx", som);
+    ASSERT_EQUAL_HEX(som & 0x33330000, 0, "invalid blender formula in second cycle");
 
     rdpq_debug_log_msg("blender+aa");
     rdpq_mode_antialias(AA_STANDARD);
@@ -1562,6 +1568,7 @@ void test_rdpq_mode_antialias(TestContext *ctx) {
         (SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_MASK | SOM_COVERAGE_DEST_MASK), 
          SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE |            SOM_CYCLE_1    | SOM_COVERAGE_DEST_WRAP, 
         "invalid SOM configuration: %08llx", som);
+    ASSERT_EQUAL_HEX(som & 0x33330000, 0, "invalid blender formula in second cycle");
 
     rdpq_debug_log_msg("blender");
     rdpq_mode_antialias(AA_NONE);
@@ -1571,6 +1578,7 @@ void test_rdpq_mode_antialias(TestContext *ctx) {
         (SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_MASK | SOM_COVERAGE_DEST_MASK), 
                          SOM_BLENDING | SOM_READ_ENABLE |            SOM_CYCLE_1    | SOM_COVERAGE_DEST_ZAP, 
         "invalid SOM configuration: %08llx", som);
+    ASSERT_EQUAL_HEX(som & 0x33330000, 0, "invalid blender formula in second cycle");
 
     rdpq_debug_log_msg("blender+aa+fog");
     rdpq_mode_fog(RDPQ_FOG_STANDARD);
@@ -1618,6 +1626,7 @@ void test_rdpq_mode_antialias(TestContext *ctx) {
         (SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_MASK | SOM_COVERAGE_DEST_MASK), 
                          SOM_BLENDING |                   SOMX_FOG | SOM_CYCLE_1    | SOM_COVERAGE_DEST_ZAP, 
         "invalid SOM configuration: %08llx", som);
+    ASSERT_EQUAL_HEX(som & 0x33330000, 0, "invalid blender formula in second cycle");
 
     rdpq_debug_log_msg("nothing");
     rdpq_mode_fog(0);
@@ -1627,6 +1636,20 @@ void test_rdpq_mode_antialias(TestContext *ctx) {
         (SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_MASK | SOM_COVERAGE_DEST_MASK), 
                                                                      SOM_CYCLE_1    | SOM_COVERAGE_DEST_ZAP,
         "invalid SOM configuration: %08llx", som);
+    ASSERT_EQUAL_HEX(som & 0xCCCC0000, 0, "invalid blender formula in first cycle");
+    ASSERT_EQUAL_HEX(som & 0x33330000, 0, "invalid blender formula in second cycle");
+
+    rdpq_debug_log_msg("aa+lod");
+    rdpq_mode_antialias(AA_STANDARD);
+    rdpq_mode_mipmap(MIPMAP_NEAREST, 1);
+    draw_tri();
+    rspq_wait();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & 
+        (SOM_AA_ENABLE | SOM_BLENDING | SOM_READ_ENABLE | SOMX_FOG | SOM_CYCLE_MASK | SOM_COVERAGE_DEST_MASK), 
+         SOM_AA_ENABLE |                SOM_READ_ENABLE |            SOM_CYCLE_2    | SOM_COVERAGE_DEST_CLAMP,
+        "invalid SOM configuration: %08llx", som);
+    ASSERT_EQUAL_HEX(som & 0xCCCC0000, 0, "invalid blender formula in first cycle");
 }
 
 void test_rdpq_mode_freeze(TestContext *ctx) {

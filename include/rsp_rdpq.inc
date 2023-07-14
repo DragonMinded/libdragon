@@ -242,9 +242,29 @@ RDPQ_MODE_COMBINER_2CYC:     .quad  0
 
     .func RDPQ_SetBlendingMode
 RDPQ_SetBlendingMode:
+    # Set the blending mode formula in the second step. Then:
+    #  * If the formula is empty, clear also the first step if it was
+    #    part of a previous two-step blending (SOMX_BLEND_2PASS).
+    #  * If the formula is not empty and it is two-steps (SOMX_BLEND_2PASS),
+    #    put it also in the first step.
+    #  We cover both conditision in one single codeflow by putting into t0
+    #  the value to check against SOMX_BLEND_2PASS.
+    lw t0, %lo(RDPQ_MODE_BLENDER_STEPS) + 0
+    beqz a1, setblending_check
+    sw a1, %lo(RDPQ_MODE_BLENDER_STEPS) + 4
+    move t0, a1
+setblending_check:
+    andi t0, SOMX_BLEND_2PASS
+    beqz t0, RDPQ_UpdateRenderMode
+    nop
+    # fallthrough!
+    .endfunc
+
+    .func RDPQCmd_SetFogMode
+RDPQ_SetFogMode:
+    # Set the fog mode formula in the first step
     j RDPQ_UpdateRenderMode
-    sw a1, %lo(RDPQ_MODE_BLENDER_STEPS)(a0)
-    # fallthrough
+    sw a1, %lo(RDPQ_MODE_BLENDER_STEPS) + 0
     .endfunc
 
     .func RDPQ_SetCombineMode_1Pass
@@ -415,7 +435,7 @@ store_comb_2cyc:
     # Let's recap the meaning of SOM blending-related flags:
     #
     #   SOM_BLENDING: process al pixels of the triangle through the blending unit
-    #   SOM_AA_ENABLE: process edge pixels of the triangl through the blending unit
+    #   SOM_AA_ENABLE: process edge pixels of the triangle through the blending unit
     #
     # So in general SOM_BLENDING is a superset of SOM_AA_ENABLE.
     # Also notice that in 2cyc mode, SOM_BLENDING/SOM_AA only gate the
@@ -477,20 +497,32 @@ store_comb_2cyc:
     # This is an assumption documented in rdpq_mode.h: we assume that any step1
     # formula is a background blending formula. This assumption will be used
     # later to configure the antialias, if requested.
+
+    #define blend0_mask t2
+    #define blend1_mask t3
 blender_check_merge:
-    li passthrough, 0
+    li blend0_mask, SOM_BLEND0_MASK
+    li blend1_mask, SOM_BLEND1_MASK
     
-    beqz t0, blender_merge
+    emux_trace_count 10
+    beqz t0, blender_1pass
     move blend_1cyc, t1
-    
-    beqz t1, blender_merge
+
+    beqz t1, blender_1pass
     move blend_1cyc, t0
 
-    and passthrough, t1, SOM_BLEND1_MASK
-    or passthrough, SOMX_BLEND_2PASS
-blender_merge:
-    and blend_1cyc, SOM_BLEND0_MASK
-    or blend_2cyc, blend_1cyc, passthrough
+blender_2pass:
+    and t0, blend0_mask
+    and t1, blend1_mask
+    or blend_2cyc, t0, t1
+    j 1f
+    or blend_2cyc, SOMX_BLEND_2PASS
+blender_1pass:
+    and blend_2cyc, blend_1cyc, blend1_mask
+    and blend_1cyc, blend0_mask
+1:
+    #undef blend0_mask
+    #undef blend1_mask
 
     ######################################
     #

@@ -33,7 +33,7 @@
         RSPQ_DefineCommand RDPQCmd_SetFillColor32,          8   # 0xD6
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD7
         RSPQ_DefineCommand RDPQCmd_SetBlendingMode,         8   # 0xD8 Set Blending Mode
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD9
+        RSPQ_DefineCommand RDPQCmd_SetFogMode,              8   # 0xD9 Set Fog Mode
         RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDA
         RSPQ_DefineCommand RDPQCmd_SetCombineMode_1Pass,    16  # 0xDB SET_COMBINE_MODE (one pass)
         RSPQ_DefineCommand RDPQCmd_AutoTmem_SetAddr,        4   # 0xDC AutoTmem_SetAddr
@@ -600,6 +600,12 @@ RDPQCmd_PopMode:
     .func RDPQCmd_SetBlendingMode
 RDPQCmd_SetBlendingMode:
     j RDPQ_SetBlendingMode
+    nop
+    .endfunc
+
+    .func RDPQCmd_SetFogMode
+RDPQCmd_SetFogMode:
+    j RDPQ_SetFogMode
     nop
     .endfunc
 
