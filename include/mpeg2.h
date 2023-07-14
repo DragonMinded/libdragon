@@ -25,6 +25,7 @@ void mpeg2_open(mpeg2_t *mp2, const char *fn);
 float mpeg2_get_framerate(mpeg2_t *mp2);
 bool mpeg2_next_frame(mpeg2_t *mp2);
 void mpeg2_draw_frame(mpeg2_t *mp2, display_context_t disp);
+void mpeg2_rewind(mpeg2_t *mp2);
 void mpeg2_close(mpeg2_t *mp2);
 
 #ifdef __cplusplus

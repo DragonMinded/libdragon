@@ -137,6 +137,10 @@ bool mpeg2_next_frame(mpeg2_t *mp2) {
 	return (mp2->f != NULL);
 }
 
+void mpeg2_rewind(mpeg2_t *mp2) {
+	plm_video_rewind(mp2->v);
+}
+
 void mpeg2_draw_frame(mpeg2_t *mp2, display_context_t disp) {
 	PROFILE_START(PS_YUV, 0);
 	if (YUV_MODE == 0) {	
