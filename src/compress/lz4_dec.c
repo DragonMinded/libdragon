@@ -43,6 +43,10 @@
    } while (unlikely(byte == 255)); \
 }
 
+#ifdef N64
+#include "dma.h"
+#endif
+
 static void wait_dma(const void *pIn) {
    #ifdef N64
    static void *ptr; static bool finished = false;
@@ -52,14 +56,15 @@ static void wait_dma(const void *pIn) {
       return;
    }
    if (finished) return;
-   pIn += 4;
    while (ptr < pIn) {
-      if (!(*(volatile uint32_t*)(0xa4600010) & 1)) {
+      // Check if DMA is finished
+      if (!(*PI_STATUS & 1)) {
          finished = true;
          return;
       }
-      uint32_t addr = *(volatile uint32_t*)(0xa4600000); 
-      ptr = (void*)(addr | 0x80000000);
+      // Read current DMA position. Ignore partial cachelines as they
+      // would create coherency problems if accessed by the CPU.
+      ptr = (void*)((*PI_DRAM_ADDR & ~0xF) | 0x80000000);
    }
    #endif
 }
