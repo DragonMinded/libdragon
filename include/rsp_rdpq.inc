@@ -504,7 +504,6 @@ blender_check_merge:
     li blend0_mask, SOM_BLEND0_MASK
     li blend1_mask, SOM_BLEND1_MASK
     
-    emux_trace_count 10
     beqz t0, blender_1pass
     move blend_1cyc, t1
 
