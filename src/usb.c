@@ -1029,6 +1029,7 @@ static char usb_everdrive_usbbusy(void)
         if (usb_timeout_check(timeout, ED_TIMEOUT))
         {
             usb_io_write(ED_REG_USBCFG, ED_USBMODE_RDNOP);
+            usb_didtimeout = TRUE;
             return TRUE;
         }
     }
@@ -1152,10 +1153,7 @@ static void usb_everdrive_write(int datatype, const void* data, int size)
         // Set USB to write mode with the new address and wait for USB to end (or stop if it times out)
         usb_io_write(ED_REG_USBCFG, ED_USBMODE_WR | baddr);
         if (usb_everdrive_usbbusy())
-        {
-            usb_didtimeout = TRUE;
             return;
-        }
         
         // Keep track of what we've read so far
         left -= block;
