@@ -17,7 +17,7 @@ extern "C" {
 #define DECOMPRESS_LZ5H_STATE_SIZE    18688
 
 void decompress_lz5h_init(void *state, FILE *fp);
-size_t decompress_lz5h_read(void *state, void *buf, size_t len);
+ssize_t decompress_lz5h_read(void *state, void *buf, size_t len);
 int decompress_lz5h_pos(void *state);
 
 /**

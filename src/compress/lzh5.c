@@ -1145,7 +1145,7 @@ void decompress_lz5h_init(void *state, FILE *fp)
 	lha_lh_new_init_partial(decoder, fp);
 }
 
-size_t decompress_lz5h_read(void *state, void *buf, size_t len)
+ssize_t decompress_lz5h_read(void *state, void *buf, size_t len)
 {
 	LHANewDecoderPartial *decoder = (LHANewDecoderPartial *)state;
 	return lha_lh_new_read_partial(decoder, buf, len);

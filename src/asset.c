@@ -177,14 +177,15 @@ typedef struct  {
     FILE *fp;
     int pos;
     bool seeked;
-    uint8_t state[DECOMPRESS_LZ5H_STATE_SIZE] alignas(8);
+    ssize_t (*read)(void *state, void *buf, size_t len);
+    uint8_t state[] alignas(8);
 } cookie_lha_t;
 
 static int readfn_lha(void *c, char *buf, int sz)
 {
     cookie_lha_t *cookie = (cookie_lha_t*)c;
     assertf(!cookie->seeked, "Cannot seek in file opened via asset_fopen (it might be compressed)");
-    int n = decompress_lz5h_read(cookie->state, (uint8_t*)buf, sz);
+    int n = cookie->read(cookie->state, (uint8_t*)buf, sz);
     cookie->pos += n;
     return n;
 }
@@ -231,11 +232,26 @@ FILE *asset_fopen(const char *fn, int *sz)
             header.orig_size = __builtin_bswap32(header.orig_size);
         }
 
-        cookie_lha_t *cookie = malloc(sizeof(cookie_lha_t));
+        cookie_lha_t *cookie;
+        switch (header.algo) {
+        case 1:
+            cookie = malloc(sizeof(cookie_lha_t) + DECOMPRESS_LZ4_STATE_SIZE);
+            decompress_lz4_init(cookie->state, f);
+            cookie->read = decompress_lz4_read;
+            break;
+        case 2:
+            cookie = malloc(sizeof(cookie_lha_t) + DECOMPRESS_LZ5H_STATE_SIZE);
+            decompress_lz5h_init(cookie->state, f);
+            cookie->read = decompress_lz5h_read;
+            break;
+        default:
+            assertf(0, "unsupported compression algorithm: %d", header.algo);
+            return NULL;
+        }
+
         cookie->fp = f;
         cookie->pos = 0;
         cookie->seeked = false;
-        decompress_lz5h_init(cookie->state, f);
         if (sz) *sz = header.orig_size;
         return funopen(cookie, readfn_lha, NULL, seekfn_lha, closefn_lha);
     }

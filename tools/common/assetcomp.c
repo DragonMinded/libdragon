@@ -10,6 +10,9 @@
 #include "../../src/asset.c"
 #include "../../src/compress/lzh5.c"
 #include "../../src/compress/lz4_dec.c"
+#include "../../src/compress/ringbuf.c"
+#undef MIN
+#undef MAX
 
 #ifndef LZ4_SRC_INCLUDED
 #define LZ4_DISTANCE_MAX 16384

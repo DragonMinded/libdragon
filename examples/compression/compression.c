@@ -118,5 +118,9 @@ int main(void) {
 
 		printf("%-28s: %4d | %6.1f%% | %5.1f | %5.1f\n", fn+5, b.size/1024, ratio, b.full_us / 1000.0f, b.partial_us / 1000.0f);
 		// debugf("CRC %08lx %08lx\n", b.full_crc, b.partial_crc);
+		if (b.full_crc != b.partial_crc) {
+			debugf("CRC mismatch\n");
+			return 1;
+		}
     }
 }
