@@ -48,7 +48,7 @@ static void attach(const surface_t *surf_color, const surface_t *surf_z, bool cl
 
     if (clear_clr) {
         rdpq_set_color_image(surf_color);
-        rdpq_set_mode_fill(color_from_packed16(0x0000));
+        rdpq_set_mode_fill(color_from_packed32(0x000000FF));
         rdpq_fill_rectangle(0, 0, surf_color->width, surf_color->height);
     }
     rdpq_set_color_image(surf_color);
