@@ -9,6 +9,7 @@
 #include "../../src/asset.c"
 #include "../../src/compress/lzh5.c"
 #include "../../src/compress/lz4_dec.c"
+#include "../../src/compress/ringbuf.c"
 
 //DSO Format Internals
 #include "../../src/dso_format.h"
