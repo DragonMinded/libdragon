@@ -775,13 +775,17 @@ gl_skipcombinerblender:
 
     # If bilinear sampling is active, texture coords need to be offset by half a texel,
     # which is 0x10 in s10.5
-    sll t3, t2, TEX_BILINEAR_OFFSET_SHIFT
-    sh t3, %lo(GL_STATE_TEX_OFFSET) + 0
-    sh t3, %lo(GL_STATE_TEX_OFFSET) + 2
+    sll t1, t2, TEX_BILINEAR_OFFSET_SHIFT
+    sh t1, %lo(GL_STATE_TEX_OFFSET) + 0
+    sh t1, %lo(GL_STATE_TEX_OFFSET) + 2
 
     beqz t5, 1f
     sll t2, TEX_BILINEAR_SHIFT
     or t2, SOM_TEXTURE_LOD >> 32
+
+    andi t5, t4, TEX_FLAG_DETAIL
+    sll t5, TEX_DETAIL_SHIFT
+    or t2, t5
 
 1:
     andi t3, TEXTURE_INTERPOLATE_MASK

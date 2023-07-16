@@ -12,14 +12,16 @@
 #include "sprite.h"
 #include "sprite_internal.h"
 
-static void sprite_upload_palette(sprite_t *sprite, int palidx)
+static void sprite_upload_palette(sprite_t *sprite, int palidx, bool set_mode)
 {
     // Check if the sprite has a palette
     tex_format_t fmt = sprite_get_format(sprite);
     rdpq_tlut_t tlut_mode = rdpq_tlut_from_format(fmt);
 
-    // Configure the TLUT render mode
-    rdpq_mode_tlut(tlut_mode);
+    if (__builtin_expect(set_mode, 1)) {
+        // Configure the TLUT render mode
+        rdpq_mode_tlut(tlut_mode);
+    }
 
     if (tlut_mode != TLUT_NONE) {
         // Load the palette (if any). We account for sprites being CI4
@@ -31,7 +33,7 @@ static void sprite_upload_palette(sprite_t *sprite, int palidx)
     }
 }
 
-int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t *parms)
+int rdpq_sprite_upload_internal(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t *parms, bool set_mode)
 {
     // Load main sprite surface
     surface_t surf = sprite_get_pixels(sprite);
@@ -102,21 +104,28 @@ int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t
         rdpq_tex_upload(tile, &surf, &lod_parms);
     }
 
-    // Enable/disable mipmapping
-    if(use_detail)          rdpq_mode_mipmap(MIPMAP_INTERPOLATE_DETAIL, num_mipmaps+1);
-    else if (num_mipmaps)   rdpq_mode_mipmap(MIPMAP_INTERPOLATE, num_mipmaps);
-    else                    rdpq_mode_mipmap(MIPMAP_NONE, 0);
+    if (__builtin_expect(set_mode, 1)) {
+        // Enable/disable mipmapping
+        if(use_detail)          rdpq_mode_mipmap(MIPMAP_INTERPOLATE_DETAIL, num_mipmaps+1);
+        else if (num_mipmaps)   rdpq_mode_mipmap(MIPMAP_INTERPOLATE, num_mipmaps);
+        else                    rdpq_mode_mipmap(MIPMAP_NONE, 0);
+    }
 
     // Upload the palette and configure the render mode
-    sprite_upload_palette(sprite, parms ? parms->palette : 0);
+    sprite_upload_palette(sprite, parms ? parms->palette : 0, set_mode);
 
     return rdpq_tex_multi_end();
+}
+
+int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t *parms)
+{
+    return rdpq_sprite_upload_internal(tile, sprite, parms, true);
 }
 
 void rdpq_sprite_blit(sprite_t *sprite, float x0, float y0, const rdpq_blitparms_t *parms)
 {
     // Upload the palette and configure the render mode
-    sprite_upload_palette(sprite, 0);
+    sprite_upload_palette(sprite, 0, true);
 
     // Get the sprite surface
     surface_t surf = sprite_get_pixels(sprite);
