@@ -1,5 +1,6 @@
 #include "gl_internal.h"
 #include "../rspq/rspq_internal.h"
+#include "../rdpq/rdpq_sprite_internal.h"
 #include "rdpq.h"
 #include "rdpq_mode.h"
 #include "rdpq_tex.h"
@@ -20,8 +21,6 @@ _Static_assert(TEX_FLAG_DETAIL << TEX_DETAIL_SHIFT == SOM_TEXTURE_DETAIL >> 32);
 
 extern gl_state_t state;
 inline void texture_get_texparms(gl_texture_object_t *obj, GLint level, rdpq_texparms_t *parms);
-
-int rdpq_sprite_upload_internal(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t *parms, bool set_mode);
 
 void gl_texture_set_min_filter(gl_texture_object_t *obj, uint32_t offset, GLenum param);
 
@@ -260,7 +259,7 @@ void glSpriteTextureN64(GLenum target, sprite_t *sprite, rdpq_texparms_t *texpar
 
     rspq_block_begin();
         rdpq_tex_multi_begin();
-            rdpq_sprite_upload_internal(TILE0, sprite, texparms, false);
+            __rdpq_sprite_upload(TILE0, sprite, texparms, false);
         rdpq_tex_multi_end();
     rspq_block_t *texup_block = rspq_block_end();
 

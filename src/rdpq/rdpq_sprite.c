@@ -7,6 +7,7 @@
 #include "rspq.h"
 #include "rdpq.h"
 #include "rdpq_sprite.h"
+#include "rdpq_sprite_internal.h"
 #include "rdpq_mode.h"
 #include "rdpq_tex.h"
 #include "sprite.h"
@@ -33,7 +34,8 @@ static void sprite_upload_palette(sprite_t *sprite, int palidx, bool set_mode)
     }
 }
 
-int rdpq_sprite_upload_internal(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t *parms, bool set_mode)
+/** @brief Internal implementation of #rdpq_sprite_upload that will optionally skip setting render modes */
+int __rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t *parms, bool set_mode)
 {
     // Load main sprite surface
     surface_t surf = sprite_get_pixels(sprite);
@@ -119,7 +121,7 @@ int rdpq_sprite_upload_internal(rdpq_tile_t tile, sprite_t *sprite, const rdpq_t
 
 int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t *parms)
 {
-    return rdpq_sprite_upload_internal(tile, sprite, parms, true);
+    return __rdpq_sprite_upload(tile, sprite, parms, true);
 }
 
 void rdpq_sprite_blit(sprite_t *sprite, float x0, float y0, const rdpq_blitparms_t *parms)
