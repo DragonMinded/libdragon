@@ -34,6 +34,7 @@ static void sprite_upload_palette(sprite_t *sprite, int palidx, bool set_mode)
     }
 }
 
+/** @brief Internal implementation of #rdpq_sprite_upload that will optionally skip setting render modes */
 int __rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t *parms, bool set_mode)
 {
     // Load main sprite surface
