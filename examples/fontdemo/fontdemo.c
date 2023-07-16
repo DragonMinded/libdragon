@@ -16,9 +16,7 @@ int main()
         surface_t *screen = display_get();
 
         rdpq_attach(screen, NULL);
-
-        rdpq_set_mode_fill(RGBA32(0x30,0x63,0x8E,0));
-        rdpq_fill_rectangle(0, 0, screen->width, screen->height);
+        rdpq_clear(RGBA32(0x30,0x63,0x8E,0xFF));
 
         rdpq_font_begin(RGBA32(0xED, 0xAE, 0x49, 0xFF));
         rdpq_font_position(20, 50);
