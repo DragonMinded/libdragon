@@ -85,9 +85,9 @@ static void wait_dma(const void *pIn) {
  *
  * @return size of decompressed data in bytes, or -1 for error
  */
-int lz4ultra_decompressor_expand_block(const unsigned char *pInBlock, int nBlockSize, unsigned char *pOutData, int nOutDataOffset, int nBlockMaxSize, bool dma_race) {
+int decompress_lz4_full_mem(const unsigned char *pInBlock, int nBlockSize, unsigned char *pOutData, int nBlockMaxSize, bool dma_race) {
    const unsigned char *pInBlockEnd = pInBlock + nBlockSize;
-   unsigned char *pCurOutData = pOutData + nOutDataOffset;
+   unsigned char *pCurOutData = pOutData;
    const unsigned char *pOutDataEnd = pCurOutData + nBlockMaxSize;
    const unsigned char *pOutDataFastEnd = pOutDataEnd - 18;
 
@@ -167,7 +167,7 @@ int lz4ultra_decompressor_expand_block(const unsigned char *pInBlock, int nBlock
       }
    }
 
-   return (int)(pCurOutData - (pOutData + nOutDataOffset));
+   return (int)(pCurOutData - pOutData);
 }
 
 /**

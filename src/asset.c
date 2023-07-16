@@ -20,8 +20,6 @@
 #define assertf(x, ...) assert(x)
 #endif
 
-#define LZ4_DECOMPRESS_INPLACE_MARGIN(compressedSize)          (((compressedSize) >> 8) + 32)
-
 FILE *must_fopen(const char *fn)
 {
     FILE *f = fopen(fn, "rb");
@@ -102,7 +100,7 @@ void *asset_load(const char *fn, int *sz)
                 dma_read_async(s+cmp_offset, addr+16, header.cmp_size);
 
                 // Run the decompression racing with the DMA.
-                n = lz4ultra_decompressor_expand_block(s+cmp_offset, header.cmp_size, s, 0, size, true); (void)n;
+                n = decompress_lz4_full_mem(s+cmp_offset, header.cmp_size, s, size, true); (void)n;
             #else
             if (false) {
             #endif
@@ -111,7 +109,7 @@ void *asset_load(const char *fn, int *sz)
                 fread(s+cmp_offset, 1, header.cmp_size, f);
 
                 // Run the decompression.
-                n = lz4ultra_decompressor_expand_block(s+cmp_offset, header.cmp_size, s, 0, size, false); (void)n;
+                n = decompress_lz4_full_mem(s+cmp_offset, header.cmp_size, s, size, false); (void)n;
             }
             assertf(n == size, "asset: decompression error on file %s: corrupted? (%d/%d)", fn, n, size);
             void *ptr = realloc(s, size); (void)ptr;
