@@ -5,6 +5,7 @@ LDFLAGS += -lm
 all: audioconv64
 
 audioconv64: audioconv64.c
+	@echo "    [TOOL] audioconv64"
 	$(CC) $(CFLAGS) $< $(LDFLAGS) -o $@ 
 
 install: audioconv64

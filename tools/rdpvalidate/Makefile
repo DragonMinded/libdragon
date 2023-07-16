@@ -5,6 +5,7 @@ LDFLAGS += -lm
 all: rdpvalidate
 
 rdpvalidate: rdpvalidate.c ../../src/rdpq/rdpq_debug.c
+	@echo "    [TOOL] rdpvalidate"
 	$(CC) $(CFLAGS) rdpvalidate.c ../../src/rdpq/rdpq_debug.c $(LDFLAGS) -o $@ 
 
 install: rdpvalidate

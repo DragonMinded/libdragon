@@ -3,6 +3,7 @@ CFLAGS += -std=gnu99 -O2 -Wall -Werror -Wno-unused-result -I../../include
 all: mkfont
 
 mkfont: mkfont.c
+	@echo "    [TOOL] mkfont"
 	$(CC) $(CFLAGS) mkfont.c -o mkfont -lm
 
 install: mkfont
