@@ -3,6 +3,7 @@ CFLAGS += -std=gnu99 -O2 -Wall -Werror -Wno-unused-result -I../../include
 all: mkmodel
 
 mkmodel: mkmodel.c
+	@echo "    [TOOL] mkmodel"
 	$(CC) $(CFLAGS) mkmodel.c -o mkmodel -lm
 
 install: mkmodel

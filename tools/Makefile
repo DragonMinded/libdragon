@@ -30,15 +30,19 @@ clean:
 	$(MAKE) -C rdpvalidate clean
 
 chksum64: chksum64.c
+	@echo "    [TOOL] chksum64"
 	gcc -o chksum64 chksum64.c
 
 n64tool: n64tool.c
+	@echo "    [TOOL] n64tool"
 	gcc -o n64tool n64tool.c
 
 n64sym: n64sym.c
+	@echo "    [TOOL] n64sym"
 	gcc -std=gnu99 -O2 -Wall -o n64sym n64sym.c
 
 ed64romconfig: ed64romconfig.c
+	@echo "    [TOOL] ed64romconfig"
 	gcc -o ed64romconfig ed64romconfig.c
 
 .PHONY: dumpdfs

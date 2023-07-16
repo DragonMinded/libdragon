@@ -4,8 +4,10 @@ LDFLAGS += -lm
 all: mksprite convtool
 
 mksprite: mksprite.c lodepng.c lodepng.h exoquant.c exoquant.h ../common/assetcomp.h ../common/assetcomp.c
+	@echo "    [TOOL] mksprite"
 	$(CC) $(CFLAGS)  mksprite.c -o mksprite $(LDFLAGS)
 convtool: convtool.c
+	@echo "    [TOOL] convtool"
 	$(CC) $(CFLAGS)  convtool.c -o convtool $(LDFLAGS)
 
 install: mksprite convtool
