@@ -31,9 +31,7 @@
  *          false);
  * @endcode
  */
-#ifndef LZ4_DECOMPRESS_INPLACE_MARGIN
 #define LZ4_DECOMPRESS_INPLACE_MARGIN(compressed_size)    (((compressed_size) >> 8) + 32)
-#endif
 
 /**
  * @brief Decompress a block of LZ4 data (mem to mem).
