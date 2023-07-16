@@ -74,8 +74,8 @@ https://github.com/buu342/N64-UNFLoader
           64Drive macros
 *********************************/
 
-#define D64_COMMAND_TIMEOUT       500
-#define D64_WRITE_TIMEOUT         500
+#define D64_COMMAND_TIMEOUT       100
+#define D64_WRITE_TIMEOUT         100
 
 #define D64_BASE                  0x10000000
 #define D64_REGS_BASE             0x18000000
@@ -113,7 +113,7 @@ https://github.com/buu342/N64-UNFLoader
          EverDrive macros
 *********************************/
 
-#define ED_TIMEOUT        1000
+#define ED_TIMEOUT        100
 
 #define ED_BASE           0x10000000
 #define ED_BASE_ADDRESS   0x1F800000
@@ -146,7 +146,7 @@ https://github.com/buu342/N64-UNFLoader
             SC64 macros
 *********************************/
 
-#define SC64_WRITE_TIMEOUT          1000
+#define SC64_WRITE_TIMEOUT          100
 
 #define SC64_BASE                   0x10000000
 #define SC64_REGS_BASE              0x1FFF0000
@@ -1029,6 +1029,7 @@ static char usb_everdrive_usbbusy(void)
         if (usb_timeout_check(timeout, ED_TIMEOUT))
         {
             usb_io_write(ED_REG_USBCFG, ED_USBMODE_RDNOP);
+            usb_didtimeout = TRUE;
             return TRUE;
         }
     }
@@ -1152,10 +1153,7 @@ static void usb_everdrive_write(int datatype, const void* data, int size)
         // Set USB to write mode with the new address and wait for USB to end (or stop if it times out)
         usb_io_write(ED_REG_USBCFG, ED_USBMODE_WR | baddr);
         if (usb_everdrive_usbbusy())
-        {
-            usb_didtimeout = TRUE;
             return;
-        }
         
         // Keep track of what we've read so far
         left -= block;
