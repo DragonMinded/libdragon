@@ -136,6 +136,8 @@
 #define TEX_BILINEAR_SHIFT          13
 #define TEX_BILINEAR_OFFSET_SHIFT   4
 
+#define TEX_DETAIL_SHIFT            15
+
 #define BILINEAR_TEX_OFFSET_SHIFT   9
 
 #define TRICMD_ATTR_SHIFT_Z     6

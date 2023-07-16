@@ -16,9 +16,14 @@ _Static_assert(TEXTURE_BILINEAR_MASK << TEX_BILINEAR_OFFSET_SHIFT == HALF_TEXEL)
 _Static_assert((1<<TEX_GEN_S_SHIFT) == FLAG_TEX_GEN_S);
 _Static_assert((1<<NEED_EYE_SPACE_SHIFT) == FLAG_NEED_EYE_SPACE);
 _Static_assert((SOM_SAMPLE_BILINEAR >> 32) >> BILINEAR_TEX_OFFSET_SHIFT == HALF_TEXEL);
+_Static_assert(TEX_FLAG_DETAIL << TEX_DETAIL_SHIFT == SOM_TEXTURE_DETAIL >> 32);
 
 extern gl_state_t state;
 inline void texture_get_texparms(gl_texture_object_t *obj, GLint level, rdpq_texparms_t *parms);
+
+int rdpq_sprite_upload_internal(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t *parms, bool set_mode);
+
+void gl_texture_set_min_filter(gl_texture_object_t *obj, uint32_t offset, GLenum param);
 
 void gl_init_texture_object(gl_texture_object_t *obj)
 {
@@ -255,7 +260,7 @@ void glSpriteTextureN64(GLenum target, sprite_t *sprite, rdpq_texparms_t *texpar
 
     rspq_block_begin();
         rdpq_tex_multi_begin();
-            rdpq_sprite_upload(TILE0, sprite, texparms);
+            rdpq_sprite_upload_internal(TILE0, sprite, texparms, false);
         rdpq_tex_multi_end();
     rspq_block_t *texup_block = rspq_block_end();
 
@@ -267,6 +272,15 @@ void glSpriteTextureN64(GLenum target, sprite_t *sprite, rdpq_texparms_t *texpar
     rdpq_tlut_t tlut_mode = rdpq_tlut_from_format(sprite_get_format(sprite));
     int lod_count = sprite_get_lod_count(sprite) - 1;
     gl_set_short(GL_UPDATE_NONE, offset + TEXTURE_LEVELS_COUNT_OFFSET, (lod_count << 8) | tlut_mode);
+
+    // Set min filter
+    GLenum min_filter = lod_count > 0 ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR;
+    gl_texture_set_min_filter(obj, offset, min_filter);
+
+    // Set detail mode
+    surface_t detailsurf = sprite_get_detail_pixels(sprite, NULL, NULL);
+    bool use_detail = detailsurf.buffer != NULL;
+    gl_set_flag_raw(GL_UPDATE_NONE, offset + TEXTURE_FLAGS_OFFSET, TEX_FLAG_DETAIL, use_detail);
 
     // Mark texture as complete because sprites are complete by definition
     gl_set_flag_raw(GL_UPDATE_NONE, offset + TEXTURE_FLAGS_OFFSET, TEX_FLAG_COMPLETE, true);
