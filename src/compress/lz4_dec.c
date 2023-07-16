@@ -200,21 +200,21 @@ typedef struct lz4dec_state_s {
 _Static_assert(sizeof(lz4dec_state_t) == DECOMPRESS_LZ4_STATE_SIZE, "decompress_lz4_state_t size mismatch");
 #endif
 
-static void refill(lz4dec_state_t *lz4)
+static void lz4_refill(lz4dec_state_t *lz4)
 {
    lz4->buf_size = fread(lz4->buf, 1, sizeof(lz4->buf), lz4->fp);
    lz4->buf_idx = 0;
    lz4->eof = (lz4->buf_size == 0);
 }
 
-static uint8_t readbyte(lz4dec_state_t *lz4)
+static uint8_t lz4_readbyte(lz4dec_state_t *lz4)
 {
    if (lz4->buf_idx >= lz4->buf_size)
-      refill(lz4);
+      lz4_refill(lz4);
    return lz4->buf[lz4->buf_idx++];
 }
 
-static void read(lz4dec_state_t *lz4, void *buf, size_t len)
+static void lz4_read(lz4dec_state_t *lz4, void *buf, size_t len)
 {
    while (len > 0) {
       int n = MIN(len, lz4->buf_size - lz4->buf_idx);
@@ -223,7 +223,7 @@ static void read(lz4dec_state_t *lz4, void *buf, size_t len)
       len -= n;
       lz4->buf_idx += n;
       if (lz4->buf_idx >= lz4->buf_size)
-         refill(lz4);
+         lz4_refill(lz4);
    }
 }
 
@@ -248,32 +248,32 @@ ssize_t decompress_lz4_read(void *state, void *buf, size_t len)
    while (!lz4->eof && len > 0) {
       switch (st.fsm_state) {
       case 0: // read token
-         st.token = readbyte(lz4);
+         st.token = lz4_readbyte(lz4);
          st.lit_len = ((st.token & 0xf0) >> 4);
          if (unlikely(st.lit_len == LITERALS_RUN_LEN)) {
             uint8_t byte;
             do {
-               byte = readbyte(lz4);
+               byte = lz4_readbyte(lz4);
                st.lit_len += byte;
             } while (unlikely(byte == 255));
          }
          st.fsm_state = 1;
       case 1: // literals
          n = MIN(st.lit_len, len);
-         read(lz4, buf, n);
+         lz4_read(lz4, buf, n);
          __ringbuf_write(&lz4->ringbuf, buf, n);
          buf += n;
          len -= n;
          st.lit_len -= n;
          if (st.lit_len)
             break;
-         st.match_off = readbyte(lz4);
-         st.match_off |= ((uint16_t)readbyte(lz4)) << 8;
+         st.match_off = lz4_readbyte(lz4);
+         st.match_off |= ((uint16_t)lz4_readbyte(lz4)) << 8;
          st.match_len = (st.token & 0x0f);
          if (unlikely(st.match_len == MATCH_RUN_LEN)) {
             uint8_t byte;
             do {
-               byte = readbyte(lz4);
+               byte = lz4_readbyte(lz4);
                st.match_len += byte;
             } while (unlikely(byte == 255));
          }
