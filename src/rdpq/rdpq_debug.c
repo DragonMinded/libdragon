@@ -1436,13 +1436,13 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         lazy_validate_rendermode();
         validate_draw_cmd(false, true, false, false);
         // Compute texture coordinates to validate tile usage
-        int w = (BITS(buf[0], 44, 55) - BITS(buf[0], 12, 23))*FX(2) + 1;
-        int h = (BITS(buf[0], 32, 43) - BITS(buf[0],  0, 11))*FX(2) + 1;
+        int w = (BITS(buf[0], 44, 55) - BITS(buf[0], 12, 23))*FX(2);
+        int h = (BITS(buf[0], 32, 43) - BITS(buf[0],  0, 11))*FX(2);
         float s0 = BITS(buf[1], 48, 63)*FX(5), t0 = BITS(buf[1], 32, 47)*FX(5);
-        float sw = BITS(buf[1], 16, 31)*FX(10)*w, tw = BITS(buf[1],  0, 15)*FX(10)*h;
-        if (rdp.som.cycle_type == 2) sw /= 4;
-        else if (rdp.som.cycle_type < 2) sw -= 1, tw -= 1;
-        validate_use_tile(BITS(buf[0], 24, 26), 0, (float[]){s0, t0, s0+sw-1, t0+tw-1}, 2);
+        float sw = SBITS(buf[1], 16, 31)*FX(10), tw = SBITS(buf[1],  0, 15)*FX(10);
+        if (rdp.som.cycle_type == 2) w += 1;    // copy mode has inclusive horizontal bounds
+        if (rdp.som.cycle_type == 2) sw /= 4;   // copy mode has 4x horizontal scale
+        validate_use_tile(BITS(buf[0], 24, 26), 0, (float[]){s0, t0, s0+sw*(w-1), t0+tw*(h-1)}, 2);
         if (rdp.som.cycle_type == 2) {
             uint16_t dsdx = BITS(buf[1], 16, 31);
             if (dsdx != 4<<10) {
