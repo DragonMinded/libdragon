@@ -4,11 +4,12 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#define ASSET_MAGIC    "DCA1"   ///< Magic compressed asset header
+#define ASSET_MAGIC    "DCA"   ///< Magic compressed asset header
 
 /** @brief Header of a compressed asset */
 typedef struct {
-    char magic[4];          ///< Magic header
+    char magic[3];          ///< Magic header
+    uint8_t version;        ///< Version of the asset header
     uint16_t algo;          ///< Compression algorithm
     uint16_t flags;         ///< Flags (unused for now)
     uint32_t cmp_size;      ///< Compressed size in bytes

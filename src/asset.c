@@ -54,7 +54,12 @@ void *asset_load(const char *fn, int *sz)
     // Check if file is compressed
     asset_header_t header;
     fread(&header, 1, sizeof(asset_header_t), f);
-    if (!memcmp(header.magic, ASSET_MAGIC, 4)) {
+    if (!memcmp(header.magic, ASSET_MAGIC, 3)) {
+        if (header.version != '2') {
+            assertf(0, "unsupported asset version: %c\nMake sure to rebuild libdragon tools and your assets", header.version);
+            return NULL;
+        }
+
         #ifndef N64
         header.algo = __builtin_bswap16(header.algo);
         header.flags = __builtin_bswap16(header.flags);
@@ -222,7 +227,12 @@ FILE *asset_fopen(const char *fn, int *sz)
     // Check if file is compressed
     asset_header_t header;
     fread(&header, 1, sizeof(asset_header_t), f);
-    if (!memcmp(header.magic, ASSET_MAGIC, 4)) {
+    if (!memcmp(header.magic, ASSET_MAGIC, 3)) {
+        if (header.version != '2') {
+            assertf(0, "unsupported asset version: %c\nMake sure to rebuild libdragon tools and your assets", header.version);
+            return NULL;
+        }
+
         if (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__) {  // for mkasset running on PC
             header.algo = __builtin_bswap16(header.algo);
             header.flags = __builtin_bswap16(header.flags);

@@ -61,7 +61,7 @@ bool asset_compress(const char *infn, const char *outfn, int compression)
 
         in = fopen(tmpfn, "rb");
         out = fopen(outfn, "wb");
-        fwrite("DCA1", 1, 4, out);
+        fwrite("DCA2", 1, 4, out);
         w16(out, 2); // algo
         w16(out, 0); // flags
         int w_cmp_size = w32_placeholder(out); // cmp_size
@@ -86,7 +86,7 @@ bool asset_compress(const char *infn, const char *outfn, int compression)
         assert(cmp_size <= cmp_max_size);
 
         FILE *out = fopen(outfn, "wb");
-        fwrite("DCA1", 1, 4, out);
+        fwrite("DCA2", 1, 4, out);
         w16(out, 1); // algo
         w16(out, 0); // flags
         w32(out, cmp_size); // cmp_size
