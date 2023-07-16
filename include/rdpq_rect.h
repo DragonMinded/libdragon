@@ -40,16 +40,6 @@ inline void __rdpq_texture_rectangle_inline(rdpq_tile_t tile,
     if (UNLIKELY(x1 == x0 || y1 == y0)) return;
     int32_t dsdx = 1<<10, dtdy = 1<<10;
 
-    if (UNLIKELY(x0 > x1)) {
-        int32_t tmp = x0; x0 = x1; x1 = tmp;
-        s0 += (x1 - x0 - 4) << 3;
-        dsdx = -dsdx;
-    }
-    if (UNLIKELY(y0 > y1)) {
-        int32_t tmp = y0; y0 = y1; y1 = tmp;
-        t0 += (y1 - y0 - 4) << 3;
-        dtdy = -dtdy;
-    }
     if (UNLIKELY(x0 < 0)) {
         s0 -= x0 << 3;
         x0 = 0;
@@ -59,6 +49,16 @@ inline void __rdpq_texture_rectangle_inline(rdpq_tile_t tile,
         t0 -= y0 << 3;
         y0 = 0;
         if (UNLIKELY(y0 >= y1)) return;
+    }
+    if (UNLIKELY(x0 > x1)) {
+        int32_t tmp = x0; x0 = x1; x1 = tmp;
+        s0 += (x1 - x0 - 4) << 3;
+        dsdx = -dsdx;
+    }
+    if (UNLIKELY(y0 > y1)) {
+        int32_t tmp = y0; y0 = y1; y1 = tmp;
+        t0 += (y1 - y0 - 4) << 3;
+        dtdy = -dtdy;
     }
     if (UNLIKELY(x1 > 1024*4-1)) {
         x1 = 1024*4-1;
@@ -85,14 +85,6 @@ inline void __rdpq_texture_rectangle_scaled_inline(rdpq_tile_t tile,
     if (UNLIKELY(x1 == x0 || y1 == y0)) return;
     int32_t dsdx = ((s1 - s0) << 7) / (x1 - x0), dtdy = ((t1 - t0) << 7) / (y1 - y0);
 
-    if (UNLIKELY(x0 > x1)) {
-        int32_t tmp = x0; x0 = x1; x1 = tmp;
-        s0 += ((x0 - x1 - 4) * dsdx) >> 7;
-    }
-    if (UNLIKELY(y0 > y1)) {
-        int32_t tmp = y0; y0 = y1; y1 = tmp;
-        t0 += ((y0 - y1 - 4) * dtdy) >> 7;
-    }
     if (UNLIKELY(x0 < 0)) {
         s0 -= (x0 * dsdx) >> 7;
         x0 = 0;
@@ -102,6 +94,14 @@ inline void __rdpq_texture_rectangle_scaled_inline(rdpq_tile_t tile,
         t0 -= (y0 * dtdy) >> 7;
         y0 = 0;
         if (UNLIKELY(y0 >= y1)) return;
+    }
+    if (UNLIKELY(x0 > x1)) {
+        int32_t tmp = x0; x0 = x1; x1 = tmp;
+        s0 += ((x0 - x1 - 4) * dsdx) >> 7;
+    }
+    if (UNLIKELY(y0 > y1)) {
+        int32_t tmp = y0; y0 = y1; y1 = tmp;
+        t0 += ((y0 - y1 - 4) * dtdy) >> 7;
     }
     if (UNLIKELY(x1 > 1024*4-1)) {
         s1 -= ((x1 - 1024*4-1) * dsdx) >> 7;
