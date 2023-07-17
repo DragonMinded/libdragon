@@ -676,19 +676,23 @@ error:
 
 bool spritemaker_write(spritemaker_t *spr) {
     bool is_stdout = false;
+    FILE *out;
     if (strcmp(spr->outfn, "(stdout)") == 0) {
         // We can't directly write to stdout because we need to seek.
         // So use a temporary file, and then copy it to stdout.
         // NOTE: we can't just use tmpfile() on Windows because that doesn't
         // allow to seek as well (!)
         is_stdout = true;
-        spr->outfn = tempnam(".", "mksprite-");
-    }
-
-    FILE *out = fopen(spr->outfn, "wb");
-    if (!out) {
-        fprintf(stderr, "ERROR: cannot open output file %s\n", spr->outfn);
-        return false;
+        char *fn = strdup("mksprite-XXXXXX");
+        int fd = mkstemp(fn);
+        spr->outfn = fn;
+        out = fdopen(fd, "w+b");
+    } else {
+        out = fopen(spr->outfn, "wb");
+        if (!out) {
+            fprintf(stderr, "ERROR: cannot open output file %s\n", spr->outfn);
+            return false;
+        }
     }
 
     // Write the sprite header
