@@ -675,17 +675,20 @@ error:
 }
 
 bool spritemaker_write(spritemaker_t *spr) {
-    FILE *out;
+    bool is_stdout = false;
     if (strcmp(spr->outfn, "(stdout)") == 0) {
         // We can't directly write to stdout because we need to seek.
         // So use a temporary file, and then copy it to stdout.
-        out = tmpfile();
-    } else {
-        out = fopen(spr->outfn, "wb");
-        if (!out) {
-            fprintf(stderr, "ERROR: cannot open output file %s\n", spr->outfn);
-            return false;
-        }
+        // NOTE: we can't just use tmpfile() on Windows because that doesn't
+        // allow to seek as well (!)
+        is_stdout = true;
+        spr->outfn = tempnam(".", "mksprite-");
+    }
+
+    FILE *out = fopen(spr->outfn, "wb");
+    if (!out) {
+        fprintf(stderr, "ERROR: cannot open output file %s\n", spr->outfn);
+        return false;
     }
 
     // Write the sprite header
@@ -878,12 +881,15 @@ bool spritemaker_write(spritemaker_t *spr) {
         walign(out, 8);
     }
 
-    if (strcmp(spr->outfn, "(stdout)") == 0) {
+    if (is_stdout) {
         // Copy the temporary file to stdout
         char buf[4096]; size_t n;
         rewind(out);
         while ((n = fread(buf, 1, sizeof(buf), out)) > 0)
             fwrite(buf, 1, n, stdout);
+        fclose(out);
+        remove(spr->outfn);
+        return true;
     }
 
     fclose(out);
@@ -1360,6 +1366,12 @@ int main(int argc, char *argv[])
             fprintf(stderr, "cannot use compression when processing stdin/stdout\n");
             return 1;
         }
+        #ifdef _WIN32
+        // Switch stdin/stdout to binary mode
+        #define _O_BINARY 0x8000
+        setmode(0, _O_BINARY);
+        setmode(1, _O_BINARY);
+        #endif
         if (convert(infn, outfn, &pm) != 0) {
             error = true;
         }
