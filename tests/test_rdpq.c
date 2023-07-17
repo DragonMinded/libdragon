@@ -1652,6 +1652,84 @@ void test_rdpq_mode_antialias(TestContext *ctx) {
     ASSERT_EQUAL_HEX(som & 0xCCCC0000, 0, "invalid blender formula in first cycle");
 }
 
+void test_rdpq_mode_alphacompare(TestContext *ctx) {
+    RDPQ_INIT();
+
+    const int FBWIDTH = 16;
+    surface_t fb = surface_alloc(FMT_RGBA32, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    rdpq_set_color_image(&fb);
+    surface_clear(&fb, 0);
+
+    void draw_tri(void) {
+        rdpq_triangle(&TRIFMT_SHADE,
+            //         X              Y  R     G     B     A
+            (float[]){ 0,             0, 1.0f, 1.0f, 1.0f, 0.5f, },
+            (float[]){ FBWIDTH,       0, 1.0f, 1.0f, 1.0f, 0.5f, },
+            (float[]){ FBWIDTH, FBWIDTH, 1.0f, 1.0f, 1.0f, 0.5f, }
+        );
+    }
+
+    rdpq_set_mode_standard();
+    rdpq_mode_combiner(RDPQ_COMBINER_SHADE);
+    rdpq_mode_antialias(AA_NONE);
+
+    rdpq_debug_log_msg("threshold=0");
+    rdpq_mode_alphacompare(0);
+    draw_tri();
+    uint64_t som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & 
+        (SOM_ALPHACOMPARE_MASK      | SOM_BLALPHA_MASK), 
+         SOM_ALPHACOMPARE_NONE      | SOM_BLALPHA_CC,
+        "invalid SOM configuration: %08llx", som);
+
+    rdpq_debug_log_msg("threshold>0");
+    rdpq_mode_alphacompare(127);
+    draw_tri();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & 
+        (SOM_ALPHACOMPARE_MASK      | SOM_BLALPHA_MASK), 
+         SOM_ALPHACOMPARE_THRESHOLD | SOM_BLALPHA_CC,
+        "invalid SOM configuration: %08llx", som);
+
+    rdpq_debug_log_msg("threshold<0");
+    rdpq_mode_alphacompare(-1);
+    draw_tri();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & 
+        (SOM_ALPHACOMPARE_MASK      | SOM_BLALPHA_MASK), 
+         SOM_ALPHACOMPARE_NOISE     | SOM_BLALPHA_CC,
+        "invalid SOM configuration: %08llx", som);
+
+    rdpq_debug_log_msg("aa+threshold=0");
+    rdpq_mode_antialias(AA_STANDARD);
+    rdpq_mode_alphacompare(0);
+    draw_tri();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & 
+        (SOM_ALPHACOMPARE_MASK      | SOM_BLALPHA_MASK), 
+         SOM_ALPHACOMPARE_NONE      | SOM_BLALPHA_CVG,
+        "invalid SOM configuration: %08llx", som);
+
+    rdpq_debug_log_msg("aa+threshold>0");
+    rdpq_mode_alphacompare(127);
+    draw_tri();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & 
+        (SOM_ALPHACOMPARE_MASK      | SOM_BLALPHA_MASK), 
+         SOM_ALPHACOMPARE_NONE      | SOM_BLALPHA_CVG_TIMES_CC,
+        "invalid SOM configuration: %08llx", som);
+
+    rdpq_debug_log_msg("aa+threshold<0");
+    rdpq_mode_alphacompare(-1);
+    draw_tri();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & 
+        (SOM_ALPHACOMPARE_MASK      | SOM_BLALPHA_MASK), 
+         SOM_ALPHACOMPARE_NONE      | SOM_BLALPHA_CVG_TIMES_CC,
+        "invalid SOM configuration: %08llx", som);
+}
+
 void test_rdpq_mode_freeze(TestContext *ctx) {
     RDPQ_INIT();
     debug_rdp_stream_init();

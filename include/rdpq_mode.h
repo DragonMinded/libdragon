@@ -678,6 +678,11 @@ inline void rdpq_mode_dithering(rdpq_dither_t dither) {
  * value is calculated as a random number for each pixel. This can be used for special
  * graphic effects.
  * 
+ * @note Alpha compare becomes more limited if antialiasing is enabled (both full and reduced,
+ *       see #rdpq_mode_antialias). In that case, any threshold value not equal to 0 will
+ *       internally be treated as if 255 was specified. This implies that noise-based
+ *       alpha compare is not supported under this condition.
+ * 
  * @param threshold          Threshold value. All pixels whose alpha is less than this threshold
  *                           will not be drawn. Use 0 to disable. Use a negative value for
  *                           activating the noise-based alpha compare.

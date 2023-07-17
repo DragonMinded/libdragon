@@ -598,11 +598,15 @@ set_cycle_type:
     # With alpha compare, we would like to smooth on the alpha compare edges,
     # not the polygon edges. So we should instead switch to SOM_BLALPHA_CVG_TIMES_CC,
     # so that we modulate the coverage with the actual pixel alpha.
+    # Additionally we need to disable the actual alpha compare feature since it would
+    # compare the threshold with the alpha multiplied by coverage in this case, which would
+    # lead to visible seams at polygon edges.
     li t0, SOM_ALPHACOMPARE_THRESHOLD | SOM_BLALPHA_CVG
     and t1, som_lo, t0
     bne t0, t1, rdpq_update_finish
     nop
     or som_lo, SOM_BLALPHA_CVG_TIMES_CC
+    and som_lo, ~SOM_ALPHACOMPARE_MASK
     
     ######################################
     #
