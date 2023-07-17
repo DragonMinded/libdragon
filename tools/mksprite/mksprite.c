@@ -11,8 +11,8 @@
 
 #define LODEPNG_NO_COMPILE_ANCILLARY_CHUNKS    // No need to parse PNG extra fields
 #define LODEPNG_NO_COMPILE_CPP                 // No need to use C++ API
-#include "lodepng.h"
-#include "lodepng.c"
+#include "../common/lodepng.h"
+#include "../common/lodepng.c"
 
 // Quantization library
 #include "exoquant.h"
