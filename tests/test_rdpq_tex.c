@@ -308,6 +308,38 @@ void test_rdpq_tex_upload_multi(TestContext *ctx) {
 
 }
 
+void test_rdpq_tex_multi_i4(TestContext *ctx) {
+    RDPQ_INIT();
+    debug_rdp_stream_init();
+
+    const int FBWIDTH = 128;
+    surface_t fb = surface_alloc(FMT_RGBA32, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    surface_clear(&fb, 0);
+
+    surface_t surf = surface_alloc(FMT_I4, 124, 63);
+    DEFER(surface_free(&surf));
+    surface_clear(&surf, 0xAA);
+
+    // Make sure we can correctly load a large I4 surface. We had a bug where
+    // the autotmem engine was confuse by a CI8 internal tile used to perform
+    // the upload.
+    rdpq_tex_multi_begin();
+    rdpq_tex_upload(TILE0, &surf, NULL);
+    rdpq_tex_multi_end();
+
+    rdpq_set_color_image(&fb);
+    rdpq_set_mode_standard();
+    rdpq_texture_rectangle(TILE0, 0, 0, 124, 63, 0, 0);
+    rspq_wait();
+
+    ASSERT_SURFACE(&fb, {
+        if (x < 124 && y < 63)
+            return color_from_packed32(0xAAAAAAE0);
+        else
+            return color_from_packed32(0x00);
+    });
+}
 
 void test_rdpq_tex_blit_normal(TestContext *ctx)
 {
