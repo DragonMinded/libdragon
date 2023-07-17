@@ -32,12 +32,14 @@ int w32_placeholder(FILE *f) { int pos = ftell(f); w32(f, 0); return pos; }
 void w32_at(FILE *f, int pos, uint32_t v)
 {
     int cur = ftell(f);
+    assert(cur >= 0);  // fail on pipes
     fseek(f, pos, SEEK_SET);
     w32(f, v);
     fseek(f, cur, SEEK_SET);
 }
 void walign(FILE *f, int align) { 
     int pos = ftell(f);
+    assert(pos >= 0);  // fail on pipes
     while (pos++ % align) w8(f, 0);
 }
 
