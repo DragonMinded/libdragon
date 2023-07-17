@@ -192,7 +192,7 @@ void n64font_addatlas(rdpq_font_t *fnt, uint8_t *buf, int width, int height, int
     // Write PNG to standard input of mksprite
     FILE *mksprite_in = subprocess_stdin(&subp);
     stbi_write_png_to_func(png_write_func, mksprite_in, width, height, 1, buf, stride);
-    fclose(mksprite_in);
+    fclose(mksprite_in); subp.stdin_file = SUBPROCESS_NULL;
 
     // Read sprite from stdout into memory
     FILE *mksprite_out = subprocess_stdout(&subp);
@@ -206,7 +206,6 @@ void n64font_addatlas(rdpq_font_t *fnt, uint8_t *buf, int width, int height, int
         memcpy(sprite + sprite_size, buf, n);
         sprite_size += n;
     }
-    fclose(mksprite_out);
 
     // Dump mksprite's stderr. Whatever is printed there (if anything) is useful to see
     FILE *mksprite_err = subprocess_stderr(&subp);
@@ -224,6 +223,7 @@ void n64font_addatlas(rdpq_font_t *fnt, uint8_t *buf, int width, int height, int
         fprintf(stderr, "Error: mksprite failed with return code %d\n", retcode);
         exit(1);
     }
+    subprocess_destroy(&subp);
 
     fnt->atlases = realloc(fnt->atlases, (fnt->num_atlases + 1) * sizeof(atlas_t));
     fnt->atlases[fnt->num_atlases].sprite = (void*)sprite;
