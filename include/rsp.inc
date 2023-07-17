@@ -1363,6 +1363,10 @@ makeMxc2Op mfc2, 0x0
     .set at
 .endm
 
+.macro emux_breakpoint
+    emux 0, 0x10
+.endm
+
 ##################################################
 # Other psuedo-ops
 ##################################################
