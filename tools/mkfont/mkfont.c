@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <sys/stat.h>
-#include "../common/binout.h"
 
 #include "../../src/rdpq/rdpq_font_internal.h"
 #include "../../include/surface.h"
@@ -21,11 +20,16 @@
 #include "../common/assetcomp.h"
 #include "../common/assetcomp.c"
 
+#include "../common/binout.h"
+#include "../common/subprocess.h"
+#include "../common/utils.h"
+
 int flag_verbose = 0;
 bool flag_debug = false;
 bool flag_kerning = true;
 int flag_point_size = 12;
 int *flag_ranges = NULL;
+const char *n64_inst = NULL;
 
 void print_args( char * name )
 {
@@ -101,15 +105,12 @@ void n64font_write(rdpq_font_t *fnt, FILE *out)
     // Write atlases
     walign(out, 16);
     uint32_t offset_atlases = ftell(out);
+    int* offset_atlases_sprites = alloca(sizeof(int) * fnt->num_atlases);
     for (int i=0; i<fnt->num_atlases; i++)
     {
-        w32(out, (uint32_t)0);
-        w16(out, fnt->atlases[i].width);
-        w16(out, fnt->atlases[i].height);
-        w8(out, fnt->atlases[i].fmt);
-        w8(out, fnt->atlases[i].__padding[0]);
-        w8(out, fnt->atlases[i].__padding[1]);
-        w8(out, fnt->atlases[i].__padding[2]);
+        offset_atlases_sprites[i] = w32_placeholder(out);
+        w32(out, fnt->atlases[i].size);
+        w32(out, 0);
     }
 
     // Write kernings
@@ -122,12 +123,11 @@ void n64font_write(rdpq_font_t *fnt, FILE *out)
     }
 
     // Write bytes
-    uint32_t* offset_atlases_bytes = alloca(sizeof(uint32_t) * fnt->num_atlases);
     for (int i=0; i<fnt->num_atlases; i++)
     {
-        walign(out, 8); // align texture data to 8 bytes (for RDP)
-        offset_atlases_bytes[i] = ftell(out);
-        fwrite(fnt->atlases[i].buf, fnt->atlases[i].width * fnt->atlases[i].height / 2, 1, out);
+        walign(out, 16); // align sprites to 16 bytes
+        w32_at(out, offset_atlases_sprites[i], ftell(out));
+        fwrite(fnt->atlases[i].sprite, fnt->atlases[i].size, 1, out);
     }
     uint32_t offset_end = ftell(out);
 
@@ -137,11 +137,6 @@ void n64font_write(rdpq_font_t *fnt, FILE *out)
     w32(out, offset_glypes);
     w32(out, offset_atlases);
     w32(out, offset_kernings);
-    for (int i=0;i<fnt->num_atlases;i++)
-    {
-        fseek(out, offset_atlases + i * 12, SEEK_SET);
-        w32(out, offset_atlases_bytes[i]);
-    }
 
     fseek(out, offset_end, SEEK_SET);
 }
@@ -168,22 +163,72 @@ int n64font_glyph(rdpq_font_t *fnt, uint32_t cp)
     return -1;
 }
 
+static void png_write_func(void *context, void *data, int size)
+{
+    FILE *f = context;
+    fwrite(data, 1, size, f);
+}
+
 void n64font_addatlas(rdpq_font_t *fnt, uint8_t *buf, int width, int height, int stride)
 {
-    int rwidth = (width + 15) / 16 * 16; // round up to 8 bytes (16 pixels)
+    static char *mksprite = NULL;
+    if (!mksprite) asprintf(&mksprite, "%s/bin/mksprite", n64_inst);
+
+    // Prepare mksprite command line
+    struct subprocess_s subp;
+    const char *cmd_addr[16] = {0}; int i = 0;
+    cmd_addr[i++] = mksprite;
+    cmd_addr[i++] = "--format";
+    cmd_addr[i++] = "I4";
+    cmd_addr[i++] = "--compress";  // don't compress the individual sprite (the font itself will be compressed)
+    cmd_addr[i++] = "0";
+    
+    // Start mksprite
+    if (subprocess_create(cmd_addr, subprocess_option_no_window, &subp) != 0) {
+        fprintf(stderr, "Error: cannot run: %s\n", mksprite);
+        exit(1);
+    }
+
+    // Write PNG to standard input of mksprite
+    FILE *mksprite_in = subprocess_stdin(&subp);
+    stbi_write_png_to_func(png_write_func, mksprite_in, width, height, 1, buf, stride);
+    fclose(mksprite_in);
+
+    // Read sprite from stdout into memory
+    FILE *mksprite_out = subprocess_stdout(&subp);
+    uint8_t *sprite = NULL;
+    int sprite_size = 0;
+    while (1) {
+        uint8_t buf[4096];
+        int n = fread(buf, 1, sizeof(buf), mksprite_out);
+        if (n == 0) break;
+        sprite = realloc(sprite, sprite_size + n);
+        memcpy(sprite + sprite_size, buf, n);
+        sprite_size += n;
+    }
+    fclose(mksprite_out);
+
+    // Dump mksprite's stderr. Whatever is printed there (if anything) is useful to see
+    FILE *mksprite_err = subprocess_stderr(&subp);
+    while (1) {
+        char buf[4096];
+        int n = fread(buf, 1, sizeof(buf), mksprite_err);
+        if (n == 0) break;
+        fwrite(buf, 1, n, stderr);
+    }
+
+    // mksprite should be finished. Extract the return code and abort if failed
+    int retcode;
+    subprocess_join(&subp, &retcode);
+    if (retcode != 0) {
+        fprintf(stderr, "Error: mksprite failed with return code %d\n", retcode);
+        exit(1);
+    }
 
     fnt->atlases = realloc(fnt->atlases, (fnt->num_atlases + 1) * sizeof(atlas_t));
-    fnt->atlases[fnt->num_atlases].width = rwidth;
-    fnt->atlases[fnt->num_atlases].height = height;
-    fnt->atlases[fnt->num_atlases].fmt = FMT_I4;
-    fnt->atlases[fnt->num_atlases].buf = calloc(1, rwidth * height / 2);
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x += 2) {
-            uint8_t px0 = buf[y * stride + x + 0] >> 4;
-            uint8_t px1 = buf[y * stride + x + 1] >> 4;
-            fnt->atlases[fnt->num_atlases].buf[y * rwidth / 2 + x / 2] = (px0 << 4) | px1;
-        }
-    }
+    fnt->atlases[fnt->num_atlases].sprite = (void*)sprite;
+    fnt->atlases[fnt->num_atlases].size = sprite_size;
+    fnt->atlases[fnt->num_atlases].up = NULL;
     fnt->num_atlases++;
 }
 
@@ -207,7 +252,7 @@ rdpq_font_t* n64font_alloc(int point_size)
 void n64font_free(rdpq_font_t *fnt)
 {
     for (int i=0;i<fnt->num_atlases;i++)
-        free(fnt->atlases[i].buf);
+        free(fnt->atlases[i].sprite);
     free(fnt->atlases);
     free(fnt->glyphs);
     free(fnt->ranges);
@@ -551,6 +596,15 @@ int main(int argc, char *argv[])
             // Default range (ASCII)
             arrpush(flag_ranges, 0x20);
             arrpush(flag_ranges, 0x7F);
+        }
+
+        // Find n64 tool directory
+        if (!n64_inst) {
+            n64_inst = n64_tools_dir();
+            if (!n64_inst) {
+                fprintf(stderr, "Error: N64_INST environment variable not set\n");
+                return 1;
+            }
         }
 
         asprintf(&outfn, "%s/%s.font64", outdir, basename_noext);

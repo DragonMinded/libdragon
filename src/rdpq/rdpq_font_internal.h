@@ -1,6 +1,12 @@
 #ifndef __RDPQ_FONT_INTERNAL_H
 #define __RDPQ_FONT_INTERNAL_H
 
+struct rspq_block_s;
+typedef struct rspq_block_s rspq_block_t;
+
+struct sprite_s;
+typedef struct sprite_s sprite_t;
+
 /** @brief font64 file magic header */
 #define FONT_MAGIC_V0           0x464E5448 // "FNTH"
 
@@ -34,11 +40,9 @@ typedef struct glyph_s {
 
 /** @brief A texture atlas (part of #rdpq_font_t) */
 typedef struct atlas_s {
-    uint8_t *buf;                       ///< Texture buffer
-    uint16_t width;                     ///< Texture width
-    uint16_t height;                    ///< Texture height
-    uint8_t fmt;                        ///< Texture format (see #tex_format_t)
-    uint8_t __padding[3];               ///< Padding
+    sprite_t *sprite;                   ///< Texture sprite
+    uint32_t size;                      ///< Size of the sprite in bytes
+    rspq_block_t *up;                   ///< RSPQ block that uploads the sprite
 } atlas_t;
 
 /** @brief Kerning data for a pair of glyphs. */

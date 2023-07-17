@@ -2,11 +2,14 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include "n64sys.h"
+#include "rspq.h"
 #include "rdpq.h"
 #include "rdpq_rect.h"
 #include "surface.h"
+#include "sprite.h"
 #include "rdpq_mode.h"
 #include "rdpq_tex.h"
+#include "rdpq_sprite.h"
 #include "rdpq_font.h"
 #include "rdpq_font_internal.h"
 #include "asset.h"
@@ -21,21 +24,17 @@ _Static_assert(sizeof(kerning_t) == 3, "kerning_t size is wrong");
 /** @brief Drawing context */
 static struct draw_ctx_s {
     atlas_t *last_atlas;
-    rdpq_tile_t atlas_tile;
     float x;
     float y;
     float xscale, yscale;
 } draw_ctx;
 
-static rdpq_tile_t atlas_activate(atlas_t *atlas)
+static void atlas_activate(atlas_t *atlas)
 {
     if (draw_ctx.last_atlas != atlas) {
-        draw_ctx.atlas_tile = (draw_ctx.atlas_tile + 2) & 7;
-        surface_t s = surface_make_linear(atlas->buf, atlas->fmt, atlas->width, atlas->height);
-        rdpq_tex_upload(draw_ctx.atlas_tile, &s, NULL);
+        rspq_block_run(atlas->up);
         draw_ctx.last_atlas = atlas;
     }
-    return draw_ctx.atlas_tile;
 }
 
 rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
@@ -51,7 +50,12 @@ rdpq_font_t* rdpq_font_load_buf(void *buf, int sz)
     fnt->atlases = PTR_DECODE(fnt, fnt->atlases);
     fnt->kerning = PTR_DECODE(fnt, fnt->kerning);
     for (int i = 0; i < fnt->num_atlases; i++) {
-        fnt->atlases[i].buf = PTR_DECODE(fnt, fnt->atlases[i].buf);
+        void *buf = PTR_DECODE(fnt, fnt->atlases[i].sprite);
+        fnt->atlases[i].sprite = sprite_load_buf(buf, fnt->atlases[i].size);
+        rspq_block_begin();
+            rdpq_sprite_upload(TILE0, fnt->atlases[i].sprite, NULL);
+        fnt->atlases[i].up = rspq_block_end();
+        debugf("Loaded atlas %d: %dx%d %s\n", i, fnt->atlases[i].sprite->width, fnt->atlases[i].sprite->height, tex_format_name(sprite_get_format(fnt->atlases[i].sprite)));
     }
     fnt->magic = FONT_MAGIC_LOADED;
     data_cache_hit_writeback(fnt, sz);
@@ -70,7 +74,9 @@ rdpq_font_t* rdpq_font_load(const char *fn)
 static void font_unload(rdpq_font_t *fnt)
 {
     for (int i = 0; i < fnt->num_atlases; i++) {
-        fnt->atlases[i].buf = PTR_ENCODE(fnt, fnt->atlases[i].buf);
+        sprite_free(fnt->atlases[i].sprite);
+        rspq_block_free(fnt->atlases[i].up); fnt->atlases[i].up = NULL;
+        fnt->atlases[i].sprite = PTR_ENCODE(fnt, fnt->atlases[i].sprite);
     }
     fnt->ranges = PTR_ENCODE(fnt, fnt->ranges);
     fnt->glyphs = PTR_ENCODE(fnt, fnt->glyphs);
@@ -81,8 +87,9 @@ static void font_unload(rdpq_font_t *fnt)
 
 void rdpq_font_free(rdpq_font_t *fnt)
 {
+    uint32_t magic = fnt->magic;
     font_unload(fnt);
-    if(fnt->magic == FONT_MAGIC_OWNED) {
+    if(magic == FONT_MAGIC_OWNED) {
         #ifndef NDEBUG
         // To help debugging, zero the font structure
         memset(fnt, 0, sizeof(rdpq_font_t));
@@ -164,7 +171,7 @@ void rdpq_font_printn(rdpq_font_t *fnt, const char *text, int nch)
         // Activate the atlas of the first undrawn glyph
         int a = fnt->glyphs[glyphs[j]].natlas;
         atlas_t *atlas = &fnt->atlases[a];
-        rdpq_tile_t tile = atlas_activate(atlas);
+        atlas_activate(atlas);
 
         // Go through all the glyphs till the end, and draw the ones that are
         // part of the current atlas
@@ -209,7 +216,7 @@ void rdpq_font_printn(rdpq_font_t *fnt, const char *text, int nch)
             // Draw the glyph
             int width = g->xoff2 - g->xoff;
             int height = g->yoff2 - g->yoff;
-            rdpq_texture_rectangle_scaled(tile, 
+            rdpq_texture_rectangle_scaled(TILE0, 
                 draw_ctx.x + g->xoff * draw_ctx.xscale + xpos[i],
                 draw_ctx.y + g->yoff * draw_ctx.yscale,
                 draw_ctx.x + g->xoff2 * draw_ctx.xscale + xpos[i],
