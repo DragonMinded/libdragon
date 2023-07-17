@@ -249,7 +249,7 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
     bool inspected = false;
 
     if (flag_verbose)
-        printf("loading image: %s\n", infn);
+        fprintf(stderr, "loading image: %s\n", infn);
 
     // Initialize lodepng and load the input file into memory (without decoding).
     lodepng_state_init(&state);
@@ -273,7 +273,7 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
         }
         if (fmt != FMT_NONE) {
             if (flag_verbose)
-                printf("detected format from filename: %s\n", tex_format_name(fmt));
+                fprintf(stderr, "detected format from filename: %s\n", tex_format_name(fmt));
         }
         free(fntok);
     }
@@ -384,7 +384,7 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
     };
 
     if(flag_verbose)
-        printf("loaded %s (%dx%d, %s)\n", infn, width, height, colortype_to_string(state.info_png.color.colortype));
+        fprintf(stderr, "loaded %s (%dx%d, %s)\n", infn, width, height, colortype_to_string(state.info_png.color.colortype));
 
     // For a palettized image, copy the palette and also count the number of actually
     // used colors (aka, the highest index used in the image). This is useful later for
@@ -398,7 +398,7 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
                 palout->used_colors = image[i]+1;
         }
         if (flag_verbose)
-            printf("palette: %d colors (used: %d)\n", palout->num_colors, palout->used_colors);
+            fprintf(stderr, "palette: %d colors (used: %d)\n", palout->num_colors, palout->used_colors);
     }
     if (state.info_raw.colortype == LCT_GREY && state.info_raw.bitdepth <= 8) {
         bool used[256] = {0};
@@ -423,7 +423,7 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
 
     // Autodetection complete, log it.
     if (flag_verbose && autofmt)
-        printf("auto selected format: %s\n", tex_format_name(fmt));
+        fprintf(stderr, "auto selected format: %s\n", tex_format_name(fmt));
     imgout->fmt = fmt;
     
     return true;
@@ -485,7 +485,7 @@ bool spritemaker_calc_lods(spritemaker_t *spr, int algo) {
         tmem_usage += calc_tmem_usage(spr->images[0].fmt, mw, mh);
         if (tmem_usage > tmem_limit) {
             if (flag_verbose)
-                printf("mipmap: stopping because TMEM full (%d)\n", tmem_usage);
+                fprintf(stderr, "mipmap: stopping because TMEM full (%d)\n", tmem_usage);
             break;
         }
         uint8_t *mipmap = NULL;
@@ -524,7 +524,7 @@ bool spritemaker_calc_lods(spritemaker_t *spr, int algo) {
         }
         if(!done) {
             if (flag_verbose)
-                printf("mipmap: generated %dx%d\n", mw, mh);
+                fprintf(stderr, "mipmap: generated %dx%d\n", mw, mh);
             spr->images[i] = (image_t){
                 .image = mipmap,
                 .width = mw,
@@ -544,7 +544,7 @@ bool spritemaker_expand_rgba(spritemaker_t *spr) {
         if (!img->image || img->ct == LCT_RGBA)
             continue;
         if (flag_verbose)
-            printf("expanding image %d to RGBA\n", i);
+            fprintf(stderr, "expanding image %d to RGBA\n", i);
         uint8_t *rgba = malloc(img->width * img->height * 4);
         switch (img->ct) {
         case LCT_PALETTE:
@@ -575,7 +575,7 @@ bool spritemaker_expand_rgba(spritemaker_t *spr) {
 
 bool spritemaker_quantize(spritemaker_t *spr, uint8_t *colors, int num_colors, int dither) {
     if (flag_verbose)
-        printf("quantizing image(s) to %d colors%s\n", num_colors, colors ? " (using existing palette)" : "");
+        fprintf(stderr, "quantizing image(s) to %d colors%s\n", num_colors, colors ? " (using existing palette)" : "");
 
     // Initialize the quantizer engine
     exq_data *exq = exq_init();
@@ -643,10 +643,17 @@ error:
 }
 
 bool spritemaker_write(spritemaker_t *spr) {
-    FILE *out = fopen(spr->outfn, "wb");
-    if (!out) {
-        fprintf(stderr, "ERROR: cannot open output file %s\n", spr->outfn);
-        return false;
+    FILE *out;
+    if (strcmp(spr->outfn, "(stdout)") == 0) {
+        // We can't directly write to stdout because we need to seek.
+        // So use a temporary file, and then copy it to stdout.
+        out = tmpfile();
+    } else {
+        out = fopen(spr->outfn, "wb");
+        if (!out) {
+            fprintf(stderr, "ERROR: cannot open output file %s\n", spr->outfn);
+            return false;
+        }
     }
 
     // Write the sprite header
@@ -838,6 +845,14 @@ bool spritemaker_write(spritemaker_t *spr) {
         walign(out, 8);
     }
 
+    if (strcmp(spr->outfn, "(stdout)") == 0) {
+        // Copy the temporary file to stdout
+        char buf[4096]; size_t n;
+        rewind(out);
+        while ((n = fread(buf, 1, sizeof(buf), out)) > 0)
+            fwrite(buf, 1, n, stdout);
+    }
+
     fclose(out);
     return true;
 }
@@ -853,7 +868,7 @@ void spritemaker_write_pngs(spritemaker_t *spr) {
 
         image_t *img = &spr->images[i];
         if (flag_verbose)
-            printf("writing debug file: %s\n", debugfn);
+            fprintf(stderr, "writing debug file: %s\n", debugfn);
 
         // Write the PNG file respecting the colortype. Notice that we can't use
         // the simple lodepng_encode_file as it doesn't support a palette, so we need
@@ -888,17 +903,35 @@ void spritemaker_free(spritemaker_t *spr) {
 }
 
 int convert(const char *infn, const char *outfn, const parms_t *pm) {
+    if (flag_verbose)
+        fprintf(stderr, "Converting: %s -> %s [fmt=%s tiles=%d,%d mipmap=%s dither=%s]\n",
+            infn, outfn, tex_format_name(pm->outfmt), pm->tilew, pm->tileh, mipmap_algo_name(pm->mipmap_algo), dither_algo_name(pm->dither_algo));
+
     spritemaker_t spr = {0};
 
     spr.infn = infn;
     spr.outfn = outfn;
     spr.texparms = pm->texparms;
+    if (!spr.texparms.defined) {
+        spr.texparms.s.translate = 0.0f;
+        spr.texparms.s.scale = 0;
+        spr.texparms.s.repeats = 1;
+        spr.texparms.s.mirror = 0;
+        spr.texparms.t = spr.texparms.s;
+    }
 
     spr.detail.enabled = pm->detail.enabled;
     spr.detail.use_main_tex = pm->detail.use_main_tex;
     spr.detail.infn = pm->detail.infn;
     spr.detail.blend_factor = pm->detail.blend_factor;
     spr.detail.texparms = pm->detail.texparms;
+    if (!spr.detail.texparms.defined) {
+        spr.detail.texparms.s.translate = 0.0f;
+        spr.detail.texparms.s.scale = -1;
+        spr.detail.texparms.s.repeats = 2048;
+        spr.detail.texparms.s.mirror = 0;
+        spr.detail.texparms.t = spr.detail.texparms.s;
+    }
 
     // Load the PNG, passing the desired output format (or FMT_NONE if autodetect).
     if (!spritemaker_load_png(&spr, pm->outfmt))
@@ -974,13 +1007,13 @@ int convert(const char *infn, const char *outfn, const parms_t *pm) {
         spr.hslices = spr.images[0].width / 16;
         if (!spr.hslices) spr.hslices = 1;
         if (flag_verbose)
-            printf("auto detected hslices: %d (w=%d/%d)\n", spr.hslices, spr.images[0].width, spr.images[0].width/spr.hslices);
+            fprintf(stderr, "auto detected hslices: %d (w=%d/%d)\n", spr.hslices, spr.images[0].width, spr.images[0].width/spr.hslices);
     }
     if (!spr.vslices) {
         spr.vslices = spr.images[0].height / 16;
         if (!spr.vslices) spr.vslices = 1;
         if (flag_verbose)
-            printf("auto detected vslices: %d (w=%d/%d)\n", spr.vslices, spr.images[0].height, spr.images[0].height/spr.vslices);
+            fprintf(stderr, "auto detected vslices: %d (w=%d/%d)\n", spr.vslices, spr.images[0].height, spr.images[0].height/spr.vslices);
     }
 
     // Write the sprite
@@ -1042,7 +1075,8 @@ bool cli_parse_texparms(const char *opt, texparms_t *parms)
 int main(int argc, char *argv[])
 {
     char *infn = NULL, *outdir = ".", *outfn = NULL;
-    parms_t pm = {0}; int compression = DEFAULT_COMPRESSION;
+    parms_t pm = {0}; int compression = -1;
+    bool at_least_one_file = false;
 
     if (argc < 2) {
         print_args(argv[0]);
@@ -1257,22 +1291,7 @@ int main(int argc, char *argv[])
             continue;
         }
 
-        if (!pm.texparms.defined) {
-            pm.texparms.s.translate = 0.0f;
-            pm.texparms.s.scale = 0;
-            pm.texparms.s.repeats = 1;
-            pm.texparms.s.mirror = 0;
-            pm.texparms.t = pm.texparms.s;
-        }
-
-        if (!pm.detail.texparms.defined) {
-            pm.detail.texparms.s.translate = 0.0f;
-            pm.detail.texparms.s.scale = -1;
-            pm.detail.texparms.s.repeats = 2048;
-            pm.detail.texparms.s.mirror = 0;
-            pm.detail.texparms.t = pm.detail.texparms.s;
-        }
-
+        at_least_one_file = true;
         infn = argv[i];
         char *basename = strrchr(infn, '/');
         if (!basename) basename = infn; else basename += 1;
@@ -1282,25 +1301,35 @@ int main(int argc, char *argv[])
 
         asprintf(&outfn, "%s/%s.sprite", outdir, basename_noext);
 
-        if (flag_verbose)
-            printf("Converting: %s -> %s [fmt=%s tiles=%d,%d mipmap=%s dither=%s]\n",
-                infn, outfn, tex_format_name(pm.outfmt), pm.tilew, pm.tileh, mipmap_algo_name(pm.mipmap_algo), dither_algo_name(pm.dither_algo));
-
         if (convert(infn, outfn, &pm) != 0) {
             error = true;
         } else {
+            if (compression == -1)
+                compression = DEFAULT_COMPRESSION;
             if (compression) {
                 struct stat st_decomp = {0}, st_comp = {0};
                 stat(outfn, &st_decomp);
                 asset_compress(outfn, outfn, compression);
                 stat(outfn, &st_comp);
                 if (flag_verbose)
-                    printf("compressed: %s (%d -> %d, ratio %.1f%%)\n", outfn,
+                    fprintf(stderr, "compressed: %s (%d -> %d, ratio %.1f%%)\n", outfn,
                     (int)st_decomp.st_size, (int)st_comp.st_size, 100.0 * (float)st_comp.st_size / (float)(st_decomp.st_size == 0 ? 1 :st_decomp.st_size));
             }
         }
 
         free(outfn);
+    }
+
+    if (!at_least_one_file) {
+        infn = "(stdin)";
+        outfn = "(stdout)";
+        if (compression > 0) {
+            fprintf(stderr, "cannot use compression when processing stdin/stdout\n");
+            return 1;
+        }
+        if (convert(infn, outfn, &pm) != 0) {
+            error = true;
+        }
     }
 
     return error ? 1 : 0;
