@@ -37,6 +37,8 @@ static void sprite_upload_palette(sprite_t *sprite, int palidx, bool set_mode)
 /** @brief Internal implementation of #rdpq_sprite_upload that will optionally skip setting render modes */
 int __rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t *parms, bool set_mode)
 {
+    assertf(sprite_fits_tmem(sprite), "sprite doesn't fit in TMEM");
+
     // Load main sprite surface
     surface_t surf = sprite_get_pixels(sprite);
 

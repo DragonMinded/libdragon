@@ -182,7 +182,9 @@ uint16_t conv_float14(uint32_t fx) {
 
 int calc_tmem_usage(tex_format_t fmt, int width, int height)
 {
-    int pitch = ROUND_UP(TEX_FORMAT_PIX2BYTES(fmt, width), 8);
+    int pitch_align = 8;
+    if (fmt == FMT_RGBA32 || fmt == FMT_YUV16) pitch_align = 4;
+    int pitch = ROUND_UP(TEX_FORMAT_PIX2BYTES(fmt, width), pitch_align);
     return pitch*height;
 }
 
@@ -247,6 +249,7 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
     unsigned char* image = 0;
     unsigned width, height;
     bool inspected = false;
+    int error;
 
     if (flag_verbose)
         fprintf(stderr, "loading image: %s\n", infn);
@@ -254,10 +257,27 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
     // Initialize lodepng and load the input file into memory (without decoding).
     lodepng_state_init(&state);
 
-    int error = lodepng_load_file(&png, &pngsize, infn);
-    if(error) {
-        fprintf(stderr, "%s: PNG reading error: %u: %s\n", infn, error, lodepng_error_text(error));
-        goto error;
+    if (strcmp(infn, "(stdin)") != 0) {
+        error = lodepng_load_file(&png, &pngsize, infn);
+        if(error) {
+            fprintf(stderr, "%s: PNG reading error: %u: %s\n", infn, error, lodepng_error_text(error));
+            goto error;
+        }
+    } else {
+        // Read from stdin the whole file
+        size_t bufsize = 64*1024;
+        png = malloc(bufsize);
+        pngsize = 0;
+        while (true) {
+            size_t n = fread(png+pngsize, 1, bufsize-pngsize, stdin);
+            if (n == 0) break;
+            pngsize += n;
+            if (pngsize == bufsize) {
+                bufsize *= 2;
+                png = realloc(png, bufsize);
+            }
+        }
+        fclose(stdin);
     }
 
     // Check if we're asked to autodetect the best possible texformat for output.
@@ -454,21 +474,33 @@ bool spritemaker_load_detail_png(spritemaker_t *spr, tex_format_t outfmt)
     return ok;
 }
 
+bool spritemaker_fit_tmem(spritemaker_t *spr, int *out_tmem_usage)
+{
+    bool has_palette = false;
+    int tmem_usage = 0;
+
+    // Calculate TMEM size for the image
+    for (int i=0; i<MAX_IMAGES; i++) {
+        if (!spr->images[i].image) continue;
+        if (spr->images[i].fmt == FMT_CI8) has_palette = true;
+        if (spr->images[i].fmt == FMT_CI4) has_palette = true;
+        tmem_usage += calc_tmem_usage(spr->images[i].fmt, spr->images[i].width, spr->images[i].height);
+    }
+
+    if (has_palette)
+        tmem_usage += 2048;
+
+    if (out_tmem_usage)
+        *out_tmem_usage = tmem_usage;
+    return tmem_usage <= 4096;
+}
+
 bool spritemaker_calc_lods(spritemaker_t *spr, int algo) {
     // Calculate mipmap levels
     assert(algo == MIPMAP_ALGO_BOX);
 
-    // Calculate TMEM size for the image
-    int tmem_limit = 4096;
-    if (spr->images[0].fmt == FMT_CI8) tmem_limit = 2048;
-    if (spr->images[0].fmt == FMT_CI4) tmem_limit = 2048;
-    int tmem_usage = calc_tmem_usage(spr->images[0].fmt, spr->images[0].width, spr->images[0].height);
-    if (spr->detail.enabled && !spr->detail.use_main_tex) {
-        if (spr->images[7].fmt == FMT_CI8) tmem_limit = 2048;
-        if (spr->images[7].fmt == FMT_CI4) tmem_limit = 2048;
-        tmem_usage += calc_tmem_usage(spr->images[7].fmt, spr->images[7].width, spr->images[7].height);
-    }
-    if (tmem_usage > tmem_limit) {
+    int tmem_usage;
+    if (!spritemaker_fit_tmem(spr, &tmem_usage)) {
         fprintf(stderr, "WARNING: image does not fit in TMEM, no mipmaps will be calculated\n");
         // Continue execution anyway
         // TODO: maybe abort?
@@ -483,7 +515,7 @@ bool spritemaker_calc_lods(spritemaker_t *spr, int algo) {
         int mw = prev->width / 2, mh = prev->height / 2;
         if (mw < 4 || mh < 4) break;
         tmem_usage += calc_tmem_usage(spr->images[0].fmt, mw, mh);
-        if (tmem_usage > tmem_limit) {
+        if (tmem_usage > 4096) {
             if (flag_verbose)
                 fprintf(stderr, "mipmap: stopping because TMEM full (%d)\n", tmem_usage);
             break;
@@ -780,7 +812,7 @@ bool spritemaker_write(spritemaker_t *spr) {
         // See sprite_ext_t (sprite_internal.h)
         if (m == 0) { 
             w16(out, 124);  // sizeof(sprite_ext_t)
-            w16(out, 3);    // version
+            w16(out, 4);    // version
             w_palpos = w32_placeholder(out); // placeholder for position of palette
             int numlods = 0;
             for (int i=1; i<8; i++) {
@@ -792,8 +824,9 @@ bool spritemaker_write(spritemaker_t *spr) {
             uint16_t flags = 0;
             assert(numlods <= 7); // 3 bits
             flags |= numlods;
-            if (spr->texparms.defined) flags |= 0x08;
+            if (spr->texparms.defined) flags |= 0x8;
             if (spr->detail.enabled) flags |= 0x10;
+            if (spritemaker_fit_tmem(spr, NULL)) flags |= 0x20;
             w16(out, flags);
             w16(out, 0); // padding
             wf32(out, spr->texparms.s.translate);

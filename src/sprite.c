@@ -26,7 +26,7 @@ sprite_ext_t *__sprite_ext(sprite_t *sprite)
 
     // Access extended header
     sprite_ext_t *sx = (sprite_ext_t*)data;
-    assertf(sx->version == 3, "Invalid sprite version (%d); please regenerate your asset files", sx->version);
+    assertf(sx->version == 4, "Invalid sprite version (%d); please regenerate your asset files", sx->version);
     return sx;
 }
 
@@ -54,6 +54,7 @@ sprite_t *sprite_load_buf(void *buf, int sz)
     sprite_t *s = buf;
     assertf(sz >= sizeof(sprite_t), "Sprite buffer too small (sz=%d)", sz);
     __sprite_upgrade(s);
+    (void)__sprite_ext(s); // just check if the sprite is valid (the version is checked in __sprite_ext)
     data_cache_hit_writeback(s, sz);
     return s;
 }
@@ -204,4 +205,14 @@ int sprite_get_lod_count(sprite_t *sprite) {
         if (sx->lods[i].width)
             count++;
     return count;
+}
+
+bool sprite_fits_tmem(sprite_t *sprite)
+{
+    sprite_ext_t *sx = __sprite_ext(sprite);
+    if (!sx)
+        // FIXME: we don't have the information readily available for old sprites
+        return false;
+    
+    return (sx->flags & SPRITE_FLAG_FITS_TMEM) != 0;
 }

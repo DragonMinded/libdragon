@@ -7,6 +7,7 @@
 #define SPRITE_FLAG_NUMLODS                 0x0007   ///< Number of LODs, including detail texture if any (0 = no LODs)
 #define SPRITE_FLAG_HAS_TEXPARMS            0x0008   ///< Sprite contains texture parameters
 #define SPRITE_FLAG_HAS_DETAIL              0x0010   ///< Sprite contains detail texture
+#define SPRITE_FLAG_FITS_TMEM               0x0020   ///< Set if the sprite does fit TMEM without splitting
 
 /** 
  * @brief Internal structure used as additional sprite header

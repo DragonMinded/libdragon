@@ -244,6 +244,30 @@ bool sprite_get_texparms(sprite_t *sprite, rdpq_texparms_t *parms);
  */
 int sprite_get_lod_count(sprite_t *sprite);
 
+/**
+ * @brief Return true if the sprite fits in TMEM without splitting
+ * 
+ * This function returns true if the sprite can be fully uploaded in TMEM
+ * (including all its LODs, detail texture and palettes).
+ * 
+ * When working on 3D graphics, each texture must fit into RDP TMEM (4 KiB),
+ * otherwise it cannot be used. All sprites that are meant to be used as
+ * textures should fit in TMEM. 
+ * 
+ * In case of 2D graphics, it is more common to have images of arbitrary size.
+ * They can be drawn with #rdpq_sprite_blit (accelerated) or #graphics_draw_sprite
+ * (CPU) without specific limits (the RDP accelerated
+ * version does internally need to split the sprite in multiple parts, but
+ * that is indeed possible).
+ * 
+ * This function is mostly for debugging purposes, as it can help validating
+ * whether a sprite can be used as a texture or not.
+ * 
+ * @param sprite        The sprite to access
+ * @return              True if the sprite fits TMEM, false otherwise
+ */
+bool sprite_fits_tmem(sprite_t *sprite);
+
 
 #ifdef __cplusplus
 }
