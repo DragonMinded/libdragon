@@ -2,9 +2,9 @@ INSTALLDIR = $(N64_INST)
 CFLAGS += -std=gnu99 -O2 -Wall -Werror -Wno-error=unknown-pragmas -Wno-unused-result -I../../include
 all: mkfont
 
-mkfont: mkfont.c
+mkfont:
 	@echo "    [TOOL] mkfont"
-	$(CC) $(CFLAGS) mkfont.c -o mkfont -lm
+	$(CC) $(CFLAGS) -MMD mkfont.c -o mkfont -lm
 
 install: mkfont
 	install -m 0755 mkfont $(INSTALLDIR)/bin
@@ -13,3 +13,5 @@ install: mkfont
 
 clean:
 	rm -rf mkfont
+
+include $(wildcard *.d)
