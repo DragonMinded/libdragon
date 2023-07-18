@@ -184,7 +184,7 @@ void n64font_addatlas(rdpq_font_t *fnt, uint8_t *buf, int width, int height, int
     cmd_addr[i++] = "0";
     
     // Start mksprite
-    if (subprocess_create(cmd_addr, subprocess_option_no_window, &subp) != 0) {
+    if (subprocess_create(cmd_addr, subprocess_option_no_window|subprocess_option_inherit_environment, &subp) != 0) {
         fprintf(stderr, "Error: cannot run: %s\n", mksprite);
         exit(1);
     }

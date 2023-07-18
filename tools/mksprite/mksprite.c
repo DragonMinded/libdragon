@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <sys/stat.h>
 #include "../common/binout.h"
+#include "../common/polyfill.h"
 #include "exoquant.h"
 
 #define LODEPNG_NO_COMPILE_ANCILLARY_CHUNKS    // No need to parse PNG extra fields
@@ -675,18 +676,15 @@ error:
 }
 
 bool spritemaker_write(spritemaker_t *spr) {
-    bool is_stdout = false;
     FILE *out;
     if (strcmp(spr->outfn, "(stdout)") == 0) {
         // We can't directly write to stdout because we need to seek.
         // So use a temporary file, and then copy it to stdout.
-        // NOTE: we can't just use tmpfile() on Windows because that doesn't
-        // allow to seek as well (!)
-        is_stdout = true;
-        char *fn = strdup("mksprite-XXXXXX");
-        int fd = mkstemp(fn);
-        spr->outfn = fn;
-        out = fdopen(fd, "w+b");
+        out = tmpfile();
+        if (!out) {
+            perror("ERROR: cannot create temporary file");
+            return false;
+        }
     } else {
         out = fopen(spr->outfn, "wb");
         if (!out) {
@@ -885,14 +883,13 @@ bool spritemaker_write(spritemaker_t *spr) {
         walign(out, 8);
     }
 
-    if (is_stdout) {
+    if (strcmp(spr->outfn, "(stdout)") == 0) {
         // Copy the temporary file to stdout
         char buf[4096]; size_t n;
         rewind(out);
         while ((n = fread(buf, 1, sizeof(buf), out)) > 0)
             fwrite(buf, 1, n, stdout);
         fclose(out);
-        remove(spr->outfn);
         return true;
     }
 
