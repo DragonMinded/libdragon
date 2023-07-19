@@ -420,7 +420,7 @@ volatile int __rdpq_syncpoint_at_syncfull;
  * callback.
  */
 static void __rdpq_interrupt(void) {
-    assert(*SP_STATUS & SP_STATUS_SIG_RDPSYNCFULL);
+    assertf(*SP_STATUS & SP_STATUS_SIG_RDPSYNCFULL, "Unexpected RDP interrupt");
 
     // Fetch the current RDP buffer for tracing
     if (rdpq_trace_fetch) rdpq_trace_fetch(false);
