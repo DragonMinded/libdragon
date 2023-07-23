@@ -184,7 +184,7 @@ typedef struct {
     /// The array is guaranteed to be sorted by font_id+style_id+glyph
     /// Return the number of processed chars (that is, the index of the first
     /// char in another font, if any).
-    int (*render)(const text_char_t *chars, int nchars, float x0, float y0);
+    int (*render)(void *ctx, const text_char_t *chars, int nchars, float x0, float y0);
 } text_font_t;
 
 /**
