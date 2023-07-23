@@ -1,7 +1,94 @@
+/**
+ * @file text.h
+ * @brief Text layout engine
+ * @ingroup display
+ * 
+ * Example 1: draw a single text on the screen
+ * 
+ * @code{.c}
+ *      #include <libdragon.h>
+ * 
+ *      enum {
+ *          FONT_ARIAL = 1
+ *      } FONTS;
+ *      
+ *      int main(void) {
+ *          dfs_init(DFS_DEFAULT_LOCATION);
+ *          display_init(RESOLUTION_320x240, DEPTH_16_BPP, 2, GAMMA_NONE, ANTIALIAS_RESAMPLE);
+ *          rdpq_init();
+ *          text_init();
+ * 
+ *          // Load the font and register it into the text layout engine with ID 1.
+ *          rdpq_font_t *font = rdpq_font_load("Arial.font64");  
+ *          rdpq_font_register(font, FONT_ARIAL)
+ * 
+ *          while (1) {
+ *              surface_t *fb = display_get();
+ *              rdpq_attach_clear();
+ *              text_print(NULL, FONT_ARIAL, 20, 20, "Hello, world");
+ *              rdpq_detach_show();
+ *          }
+ *      }
+ * @endcode{.c}
+ * 
+ * Example 2: how to draw a longer text in a paragraph, split in multiple lines
+ *            with word-wrapping
+ * 
+ * @code{.c}
+ *          char *text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
+ * 
+ *          text_print(&(text_parms_t) {
+ *              .width = 200,       // maximum width of the paragraph
+ *              .height = 150,      // maximum height of the paragraph
+ *              .wrap = WRAP_WORD   // wrap at word boundaries
+ *          }, FONT_ARIAL, 20, 20, text);
+ * @endcode{.c}
+ * 
+ * 
+ * Example 3: draw the text with a transparent box behind it
+ * 
+ * @code{.c}
+ *          // First, calculate the layout of the text
+ *          text_layout_t *layout = text_layout(&(text_parms_t) {
+ *             .width = 200,       // maximum width of the paragraph
+ *             .height = 150,      // maximum height of the paragraph
+ *             .wrap = WRAP_WORD   // wrap at word boundaries
+ *          }, FONT_ARIAL, text);
+ * 
+ *          // Draw the box
+ *          const int margin = 10;
+ *          const float x0 = 20;
+ *          const float y0 = 20;
+ * 
+ *          rdpq_set_mode_standard();
+ *          rdpq_set_fill_color(RGBA32(120, 63, 32, 255));
+ *          rdpq_set_fot_color(RGBA32(255, 255, 255, 128));
+ *          rdpq_set_blend_mode(RDPQ_BLEND_MULTIPLY_CONST);
+ *          rdpq_fill_rectangle(
+ *              x0 - margin - layout->bbox[0],
+ *              y0 - margin - layout->bbox[1],
+ *              x0 + margin + layout->bbox[2],
+ *              y0 + margin + layout->bbox[3]
+ *          );
+ * 
+ *          // Render the text
+ *          text_layout_render(layout, x0, y0);
+ * 
+ *          // Free the layout
+ *          text_layout_free(layout);
+ * @endcode{.c}
+ * 
+ */
+
+
 #ifndef LIBDRAGON_TEXT_H
 #define LIBDRAGON_TEXT_H
 
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** 
  * @brief Print formatting parameters: wrapping modes 
@@ -297,5 +384,8 @@ void text_layout_add_span(uint8_t font_id, uint8_t style_id, char *utf8_text, in
  */
 text_char_t* text_layout_end(int *nchars);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif
