@@ -138,6 +138,10 @@ typedef struct {
 
     /// Get glyph index from an Unicode codepoint. Return -1 if the codepoint is
     /// not supported by the font.
+    /// 
+    /// If this function is NULL, the codepoint to glyph index mapping is
+    /// assumed to be the identity function for codepoints 0-127, and -1 for
+    /// all other codepoints.
     ///
     /// @note This text engine does not support graphemes made of multiple
     ///       codepoints. For instance, you can use U+00E9 has a single
@@ -163,6 +167,9 @@ typedef struct {
      * the glyph. Depending on the font style, this is usually larger than
      * rwidth, but in some cases could even be smaller.
      * 
+     * If this function is NULL, the rwidth and advance of each glyph is
+     * assumed to be the same as #text_font_t::space_width.
+     * 
      * @param ctx     Opaque pointer for callback functions
      * @param glyph   Glyph index
      * @param rwidth  Pointer to the variable that will receive the rwidth of the glyph
@@ -177,7 +184,7 @@ typedef struct {
     /// The array is guaranteed to be sorted by font_id+style_id+glyph
     /// Return the number of processed chars (that is, the index of the first
     /// char in another font, if any).
-    int (*render)(const text_char_t *chars, int nchars, int16_t x0, int16_t y0);
+    int (*render)(const text_char_t *chars, int nchars, float x0, float y0);
 } text_font_t;
 
 /**
