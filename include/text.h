@@ -62,8 +62,8 @@
  * 
  *          rdpq_set_mode_standard();
  *          rdpq_set_fill_color(RGBA32(120, 63, 32, 255));
- *          rdpq_set_fot_color(RGBA32(255, 255, 255, 128));
- *          rdpq_set_blend_mode(RDPQ_BLEND_MULTIPLY_CONST);
+ *          rdpq_set_fog_color(RGBA32(255, 255, 255, 128));
+ *          rdpq_mode_blender(RDPQ_BLEND_MULTIPLY_CONST);
  *          rdpq_fill_rectangle(
  *              x0 - margin - layout->bbox[0],
  *              y0 - margin - layout->bbox[1],
