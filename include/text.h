@@ -88,7 +88,7 @@
  *      rdpq_font_style_color(font, 3, RGBA32(0, 0, 255, 255));
  *      rdpq_font_style_color(font, 4, RGBA32(255, 0, 255, 255));
  * 
- *      text_print(NULL, FONT_ARIAL, 20, 20, "Hello, ^1world^0! ^2This^0 is ^3a^0 ^4test^0.");
+ *      text_print(NULL, FONT_ARIAL, 20, 20, "Hello, ^01world^00! ^02This^00 is ^03a^00 ^04test^00.");
  * @endcode{.c}
  * 
  */
