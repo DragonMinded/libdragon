@@ -226,8 +226,8 @@ const text_font_t* text_get_font(uint8_t font_id);
  * 
  * Escape codes are sequences of the form:
  * 
- *    §xx        Select font "xx", where "xx" is the hexadecimal ID of the font
- *               For instance, §04 will switch to font 4. The current style
+ *    $xx        Select font "xx", where "xx" is the hexadecimal ID of the font
+ *               For instance, $04 will switch to font 4. The current style
  *               is reset to 0.
  *    ^xx        Switch to style "xx" of the current font, where "xx" is the
  *               hexadecimal ID of the style. For instance, ^02 will switch to
@@ -235,8 +235,8 @@ const text_font_t* text_get_font(uint8_t font_id);
  *               can be anything (a color, a faux-italic variant, etc.). It is
  *               up the the font to define what styles are available.
  * 
- * To use a stray "§" or "^" character in the text, you can escape it by
- * repeating them twice: "§§" or "^^".
+ * To use a stray "$" or "^" character in the text, you can escape it by
+ * repeating them twice: "$$" or "^^".
  * 
  * @param parms         Layout parameters
  * @param font_id       Font ID to use to render the text (at least initially;
