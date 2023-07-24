@@ -1026,10 +1026,20 @@ static void lazy_validate_rendermode(void) {
         VALIDATE_ERR(rdp.last_cc, "SET_COMBINE not called before drawing primitive");
         return;
     }
-    struct cc_cycle_s *ccs = &rdp.cc.cyc[0];
+
+    // Sanitize color combiner. We are going to check a few slots for specific values
+    // but we want to avoid emitting errors for combinations that are "benign". For example,
+    // COMBINED in 1cycle mode is an error, but if you do (COMB-COMB), then it doesn't
+    // really matter.
+    struct cc_cycle_s ccs[2] = { rdp.cc.cyc[0], rdp.cc.cyc[1] };
+    for (int i=0; i<2; i++) {
+        if (ccs[i].rgb.suba == ccs[i].rgb.subb || ccs[i].rgb.mul == 16)
+            ccs[i].rgb.suba = ccs[i].rgb.subb = 8;  // change with 0, so that it doesn't matter
+        if (ccs[i].alpha.suba == ccs[i].alpha.subb || ccs[i].alpha.mul == 7)
+            ccs[i].alpha.suba = ccs[i].alpha.subb = 7;  // change with 0, so that it doesn't matter
+    }
+
     if (rdp.som.cycle_type == 0) { // 1cyc
-        VALIDATE_WARN_CC(memcmp(&ccs[0], &ccs[1], sizeof(struct cc_cycle_s)) == 0,
-            "in 1cycle mode, the color combiner should be programmed identically in both cycles. Cycle 0 will be ignored.");
         VALIDATE_ERR_CC(ccs[1].rgb.suba != 0 && ccs[1].rgb.subb != 0 && ccs[1].rgb.mul != 0 && ccs[1].rgb.add != 0 &&
                         ccs[1].alpha.suba != 0 && ccs[1].alpha.subb != 0 && ccs[1].alpha.add != 0,
             "in 1cycle mode, the color combiner cannot access the COMBINED slot");
@@ -1041,7 +1051,6 @@ static void lazy_validate_rendermode(void) {
         VALIDATE_ERR_CC(ccs[1].rgb.mul != 9,
             "in 1cycle mode, the color combiner cannot access the TEX1_ALPHA slot");
     } else { // 2 cyc
-        struct cc_cycle_s *ccs = &rdp.cc.cyc[0];
         VALIDATE_ERR_CC(ccs[0].rgb.suba != 0 && ccs[0].rgb.subb != 0 && ccs[0].rgb.mul != 0 && ccs[0].rgb.add != 0 &&
                         ccs[0].alpha.suba != 0 && ccs[0].alpha.subb != 0 && ccs[0].alpha.add != 0,
             "in 2cycle mode, the color combiner cannot access the COMBINED slot in the first cycle");
