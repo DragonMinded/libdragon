@@ -10,6 +10,7 @@
 #include "rdpq_attach.h"
 #include "rdpq_internal.h"
 #include "rspq.h"
+#include "display.h"
 #include "debug.h"
 
 /** @brief Size of the internal stack of attached surfaces */
