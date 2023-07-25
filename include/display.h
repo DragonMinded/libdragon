@@ -46,6 +46,16 @@ typedef struct surface_s surface_t;
  * @{
  */
 
+/** @brief Valid interlace modes */
+typedef enum {
+    /** @brief Video output is not interlaced */
+    INTERLACE_OFF,
+    /** @brief Video output is interlaced and buffer is swapped on odd and even fields */
+    INTERLACE_HALF,
+    /** @brief Video output is interlaced and buffer is swapped only on even fields */
+    INTERLACE_FULL,
+} interlace_mode_t;
+
 /**
  * @brief Video resolution structure
  *
@@ -57,25 +67,25 @@ typedef struct {
     int32_t width;
     /** @brief Screen height (must be between 1 and 600) */
     int32_t height;
-    /** @brief True if interlaced mode enabled */
-    bool interlaced;
+    /** @brief Interlace mode */
+    interlace_mode_t interlaced;
 } resolution_t;
 
 ///@cond
 #define const static const /* fool doxygen to document these static members */
 ///@endcond
 /** @brief 256x240 mode */
-const resolution_t RESOLUTION_256x240 = {256, 240, false};
+const resolution_t RESOLUTION_256x240 = {256, 240, INTERLACE_OFF};
 /** @brief 320x240 mode */
-const resolution_t RESOLUTION_320x240 = {320, 240, false};
+const resolution_t RESOLUTION_320x240 = {320, 240, INTERLACE_OFF};
 /** @brief 512x240 mode, high-res progressive */
-const resolution_t RESOLUTION_512x240 = {512, 240, false};
+const resolution_t RESOLUTION_512x240 = {512, 240, INTERLACE_OFF};
 /** @brief 640x240 mode, high-res progressive */
-const resolution_t RESOLUTION_640x240 = {640, 240, false};
+const resolution_t RESOLUTION_640x240 = {640, 240, INTERLACE_OFF};
 /** @brief 512x480 mode, interlaced */
-const resolution_t RESOLUTION_512x480 = {512, 480, true};
+const resolution_t RESOLUTION_512x480 = {512, 480, INTERLACE_HALF};
 /** @brief 640x480 mode, interlaced */
-const resolution_t RESOLUTION_640x480 = {640, 480, true};
+const resolution_t RESOLUTION_640x480 = {640, 480, INTERLACE_HALF};
 #undef const
 
 /** @brief Valid bit depths */
