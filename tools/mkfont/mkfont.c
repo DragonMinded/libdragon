@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include <sys/stat.h>
 
-#include "../../src/rdpq/rdpq_font_internal.h"
 #include "../../include/surface.h"
+#include "../../src/rdpq/rdpq_font_internal.h"
 
 #define STB_DS_IMPLEMENTATION
 #include "../common/stb_ds.h"
@@ -15,6 +15,10 @@
 #include "stb_truetype.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
+#define LODEPNG_NO_COMPILE_ANCILLARY_CHUNKS    // No need to parse PNG extra fields
+#define LODEPNG_NO_COMPILE_CPP                 // No need to use C++ API
+#include "../common/lodepng.h"
+#include "../common/lodepng.c"
 
 // Compression library
 #include "../common/assetcomp.h"
@@ -33,17 +37,21 @@ const char *n64_inst = NULL;
 
 void print_args( char * name )
 {
-    fprintf(stderr, "mkfont -- Convert TTF/OTF fonts into the font64 format for libdragon\n\n");
+    fprintf(stderr, "mkfont -- Convert TTF/OTF/BMFont fonts into the font64 format for libdragon\n\n");
     fprintf(stderr, "Usage: %s [flags] <input files...>\n", name);
     fprintf(stderr, "\n");
     fprintf(stderr, "Command-line flags:\n");
-    fprintf(stderr, "   -s/--size <pt>            Point size of the font (default: 12)\n");
-    fprintf(stderr, "   -r/--range <start-stop>   Range of unicode codepoints to convert, as hex values (default: 20-7F)\n");
     fprintf(stderr, "   -o/--output <dir>         Specify output directory (default: .)\n");
     fprintf(stderr, "   -v/--verbose              Verbose output\n");
     fprintf(stderr, "   --no-kerning              Do not export kerning information\n");
     fprintf(stderr, "   -c/--compress <level>     Compress output files (default: %d)\n", DEFAULT_COMPRESSION);
     fprintf(stderr, "   -d/--debug                Dump also debug images\n");
+    fprintf(stderr, "\n");
+    // fprintf(stderr, "BMFont specific flags:\n");
+    // fprintf(stderr, "\n");
+    fprintf(stderr, "TTF/OTF specific flags:\n");
+    fprintf(stderr, "   -s/--size <pt>            Point size of the font (default: 12)\n");
+    fprintf(stderr, "   -r/--range <start-stop>   Range of unicode codepoints to convert, as hex values (default: 20-7F)\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "It is possible to convert multiple ranges of codepoints, by specifying\n");
     fprintf(stderr, "--range more than one time.\n");
@@ -61,13 +69,22 @@ void codepoint_range_add(int **arr, int *n, int first, int last)
 void n64font_write(rdpq_font_t *fnt, FILE *out)
 {
     // Write header
-    w32(out, fnt->magic);
+    w8(out, fnt->magic[0]);
+    w8(out, fnt->magic[1]);
+    w8(out, fnt->magic[2]);
+    w8(out, fnt->version);
     w32(out, fnt->point_size);
+    w32(out, fnt->ascent);
+    w32(out, fnt->descent);
+    w32(out, fnt->line_gap);
+    w32(out, fnt->space_width);
     w32(out, fnt->num_ranges);
     w32(out, fnt->num_glyphs);
     w32(out, fnt->num_atlases);
     w32(out, fnt->num_kerning);
+    w32(out, 1);   // num styles (not supported by mkfont yet)
     int off_placeholders = ftell(out);
+    w32(out, (uint32_t)0); // placeholder
     w32(out, (uint32_t)0); // placeholder
     w32(out, (uint32_t)0); // placeholder
     w32(out, (uint32_t)0); // placeholder
@@ -131,12 +148,24 @@ void n64font_write(rdpq_font_t *fnt, FILE *out)
     }
     uint32_t offset_end = ftell(out);
 
+    // Write styles
+    walign(out, 16);
+    uint32_t offset_styles = ftell(out);
+    w32(out, 0xFFFFFFFF); // color
+    w32(out, 0); // runtime pointer
+    for (int i=0; i<255; i++)
+    {
+        w32(out, 0); // color
+        w32(out, 0); // runtime pointer
+    }
+
     // Write offsets
     fseek(out, off_placeholders, SEEK_SET);
     w32(out, offset_ranges);
     w32(out, offset_glypes);
     w32(out, offset_atlases);
     w32(out, offset_kernings);
+    w32(out, offset_styles);
 
     fseek(out, offset_end, SEEK_SET);
 }
@@ -241,11 +270,16 @@ void n64font_addkerning(rdpq_font_t *fnt, int g1, int g2, int kerning)
     fnt->num_kerning++;
 }
 
-rdpq_font_t* n64font_alloc(int point_size)
+rdpq_font_t* n64font_alloc(int point_size, int ascent, int descent, int line_gap, int space_width)
 {
     rdpq_font_t *fnt = calloc(1, sizeof(rdpq_font_t));
-    fnt->magic = FONT_MAGIC_V0;
+    memcpy(fnt->magic, FONT_MAGIC, 3);
+    fnt->version = 3;
     fnt->point_size = point_size;
+    fnt->ascent = ascent;
+    fnt->descent = descent;
+    fnt->line_gap = line_gap;
+    fnt->space_width = space_width;
     return fnt;
 }
 
@@ -298,7 +332,7 @@ int kerning_cmp(const void *a, const void *b)
     return 0;
 }
 
-int convert(const char *infn, const char *outfn, int point_size, int *ranges)
+int convert_ttf(const char *infn, const char *outfn, int point_size, int *ranges)
 {
     unsigned char *indata = NULL;
     {
@@ -319,11 +353,15 @@ int convert(const char *infn, const char *outfn, int point_size, int *ranges)
     stbtt_fontinfo info;
     stbtt_InitFont(&info, indata, 0);
     float font_scale = stbtt_ScaleForMappingEmToPixels(&info, point_size);
+    int ascent, descent, line_gap; int space_width;
+    stbtt_GetFontVMetrics(&info, &ascent, &descent, &line_gap);
+    stbtt_GetCodepointHMetrics(&info, ' ', &space_width, NULL);
+    printf("Font metrics: ascent=%.1f descent=%.1f line_gap=%.1f space_width=%.1f\n", ascent*font_scale, descent*font_scale, line_gap*font_scale, space_width*font_scale);
 
     int w = 128, h = 64;  // maximum size for a I4 texture
     unsigned char *pixels = malloc(w * h);
 
-    rdpq_font_t *font = n64font_alloc(point_size);
+    rdpq_font_t *font = n64font_alloc(point_size, ascent * font_scale + .5, descent * font_scale + .5, line_gap * font_scale + .5, space_width * font_scale + .5);
 
     // Map from N64 glyph index to TTF glyph index
     typedef struct { int key; int value; } glyphmap_t;
@@ -365,6 +403,8 @@ int convert(const char *infn, const char *outfn, int point_size, int *ranges)
             bool at_least_one = false;
             int *newrange = NULL;
             for (int i=0;i<range.num_chars;i++) {
+                // if (range.array_of_unicode_codepoints[i] == ' ')
+                //     continue;   // skip space (we already recorded its size in the header)
                 // Check if this glyph was actually packed
                 stbtt_packedchar *ch = &range.chardata_for_range[i];
                 if (ch->x1 != 0) {
@@ -514,6 +554,8 @@ int convert(const char *infn, const char *outfn, int point_size, int *ranges)
     return 0;
 }
 
+#include "mkfont_bmfont.c"
+
 int main(int argc, char *argv[])
 {
     char *infn = NULL, *outdir = ".", *outfn = NULL;
@@ -611,7 +653,19 @@ int main(int argc, char *argv[])
         if (flag_verbose)
             printf("Converting: %s -> %s\n",
                 infn, outfn);
-        if (convert(infn, outfn, flag_point_size, flag_ranges) != 0) {
+        
+        int ret;
+        if (strcasestr(infn, ".ttf") || strcasestr(infn, ".otf")) {
+            ret = convert_ttf(infn, outfn, flag_point_size, flag_ranges);
+        } else if (strcasestr(infn, ".fnt")) {
+            compression = 0;
+            ret = convert_bmfont(infn, outfn);
+        } else {
+            fprintf(stderr, "Error: unknown input file type: %s\n", infn);
+            ret = 1;
+        }
+
+        if (ret != 0) {
             error = true;
         } else {
             if (compression) {

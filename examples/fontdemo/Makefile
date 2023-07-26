@@ -23,7 +23,7 @@ filesystem/%.sprite: assets/%.png
 	@echo "    [SPRITE] $@"
 	@$(N64_MKSPRITE) $(MKSPRITE_FLAGS) -o filesystem "$<"
 
-filesystem/Pacifico.font64: MKFONT_FLAGS+=--size 18
+filesystem/Pacifico.font64: MKFONT_FLAGS+=--size 12
 
 $(BUILD_DIR)/fontdemo.dfs: $(assets_conv)
 $(BUILD_DIR)/fontdemo.elf: $(src:%.c=$(BUILD_DIR)/%.o)
