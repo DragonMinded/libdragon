@@ -131,6 +131,8 @@ void gl_init()
     server_state->light_ambient[2] = 0x1999; // 0.2
     server_state->light_ambient[3] = 0x7FFF; // 1.0
 
+    server_state->dither_mode = (SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_SAME) >> 32;
+
     gl_overlay_id = rspq_overlay_register(&rsp_gl);
     glp_overlay_id = rspq_overlay_register(&rsp_gl_pipeline);
     gl_rsp_state = PhysicalAddr(rspq_overlay_get_state(&rsp_gl));
@@ -417,6 +419,10 @@ void glClearDepth(GLclampd d)
     
     color_t clear_depth = color_from_packed16(d * 0xFFFC);
     gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, clear_depth), color_to_packed32(clear_depth));
+}
+
+void glDitherModeN64(rdpq_dither_t mode){
+    gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, dither_mode), mode);
 }
 
 void glFlush(void)
