@@ -178,7 +178,7 @@ int rdpq_font_render_paragraph(const rdpq_font_t *fnt, const rdpq_paragraph_char
     draw_ctx.y = 0;
     draw_ctx.xscale = 1.0f;
     draw_ctx.yscale = 1.0f;
-#if 0
+#if 1
     const rdpq_paragraph_char_t *ch = chars;
     while (ch->font_id == font_id) {
         const glyph_t *g = &fnt->glyphs[ch->glyph];
@@ -219,31 +219,38 @@ int rdpq_font_render_paragraph(const rdpq_font_t *fnt, const rdpq_paragraph_char
 
 #else
     bool first_loop = true;
-    rdpq_paragraph_char_t *chlast;
-    rdpq_paragraph_char_t *chfirst = (rdpq_paragraph_char_t *)&chars[0];
-    while (chfirst) {
+    rdpq_paragraph_char_t *ch_last;
+    rdpq_paragraph_char_t *ch_next = (rdpq_paragraph_char_t *)&chars[0];
+    while (ch_next) {
         // Activate the atlas if it's changed
-        const glyph_t *g = &fnt->glyphs[chfirst->glyph];
+        const glyph_t *g = &fnt->glyphs[ch_next->glyph];
         if (g->natlas != cur_atlas) {
             rspq_block_run(fnt->atlases[g->natlas].up);
             cur_atlas = g->natlas;
         }
+        // Set the style if it's changed
+        if (ch_next->style_id != cur_style) {
+            assertf(fnt->styles[ch_next->style_id].block, "style %d not defined in this font", ch_next->style_id);
+            rspq_block_run(fnt->styles[ch_next->style_id].block);
+            cur_style = ch_next->style_id;
+        }
 
-        rdpq_paragraph_char_t *ch = chfirst; chfirst = NULL;
+        rdpq_paragraph_char_t *ch_next_atlas = NULL;
+        rdpq_paragraph_char_t *ch_next_style = NULL;
+        rdpq_paragraph_char_t *ch = ch_next; ch_next = NULL;
         for (; ch->font_id == font_id; ch++) {
             if (!first_loop && ch->drawn) continue;
             if (first_loop) ch->drawn = false;
+
+            // Fetch the glyph. Draw only glyphs in the same atlas and style
             const glyph_t *g = &fnt->glyphs[ch->glyph];
-            if (g->natlas != cur_atlas) {
-                if (!chfirst) chfirst = ch;
+            if (UNLIKELY(g->natlas != cur_atlas)) {
+                if (!ch_next_atlas) ch_next_atlas = ch;
                 continue;
             }
-
-            // Set the style if it's changed
-            if (ch->style_id != cur_style) {
-                assertf(fnt->styles[ch->style_id].block, "style %d not defined in this font", ch->style_id);
-                rspq_block_run(fnt->styles[ch->style_id].block);
-                cur_style = ch->style_id;
+            if (UNLIKELY(ch->style_id != cur_style)) {
+                if (!ch_next_style) ch_next_style = ch;
+                continue;
             }
 
             // Draw the glyph
@@ -268,11 +275,15 @@ int rdpq_font_render_paragraph(const rdpq_font_t *fnt, const rdpq_paragraph_char
             ch->drawn = true;
         }
 
-        chlast = ch;
+        // Go to the first character with a different style in the same
+        // atlas, or if none, to the first character with a different atlas
+        ch_next = ch_next_style ? ch_next_style : ch_next_atlas;
+
+        ch_last = ch;
         first_loop = false;
     }
 
-    return chlast - chars;
+    return ch_last - chars;
 #endif
 }
 
@@ -545,4 +556,4 @@ void rdpq_font_end(void)
 
 
 // extern inline void rdpq_font_print(rdpq_font_t *fnt, const char *text, const rdpq_parparms_t *parms);
-extern inline void __rdpq_font_glyph_metrics(const rdpq_font_t *fnt, int16_t index, float *xadvance, int8_t *xoff2, bool *has_kerning, uint8_t *sort_key);
+extern inline void __rdpq_font_glyph_metrics(const rdpq_font_t *fnt, int16_t index, float *xadvance, int8_t *xoff, int8_t *xoff2, bool *has_kerning, uint8_t *sort_key);

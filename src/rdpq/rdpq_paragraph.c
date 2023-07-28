@@ -8,6 +8,8 @@
 
 #define UNLIKELY(x) __builtin_expect(!!(x), 0)
 
+void __rdpq_paragraph_builder_newline(int ch_newline);
+
 static struct {
     rdpq_paragraph_t *layout;
     const rdpq_textparms_t *parms;
@@ -15,9 +17,8 @@ static struct {
     uint8_t font_id;
     uint8_t style_id;
     float xscale, yscale; // FIXME: this should be a drawing context
-    float xline;
-    float yline;
     float x, y;
+    int ch_line_start;
     bool skip_current_line;
     bool must_sort;
 } builder;
@@ -55,6 +56,8 @@ static uint32_t utf8_decode(const char **str)
 
 void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial_font_id, rdpq_paragraph_t *layout)
 {
+    assertf(initial_font_id > 0, "invalid usage of font ID 0 (reserved)");
+
     static const rdpq_textparms_t empty_parms = {0};
     memset(&builder, 0, sizeof(builder));
     builder.parms = parms ? parms : &empty_parms;
@@ -67,6 +70,7 @@ void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial
     builder.layout = layout;
     builder.font_id = initial_font_id;
     builder.font = rdpq_text_get_font(initial_font_id);
+    assertf(builder.font, "font %d not registered", initial_font_id);
     builder.xscale = 1.0f;
     builder.yscale = 1.0f;
     // start at center of pixel so that all rounds are to nearest
@@ -92,9 +96,11 @@ void rdpq_paragraph_builder_style(uint8_t style_id)
 
 static bool paragraph_wrap(int wrapchar, float *xcur, float *ycur)
 {
+    // Force a newline at wrapchar. If the newline doesn't fit vertically,
+    // there's nothing more to do and we can return false.
     builder.x = *xcur;
     builder.y = *ycur;
-    rdpq_paragraph_builder_newline();
+    __rdpq_paragraph_builder_newline(wrapchar);
     if (builder.skip_current_line) {
         builder.layout->nchars = wrapchar;
         return false;
@@ -102,22 +108,22 @@ static bool paragraph_wrap(int wrapchar, float *xcur, float *ycur)
 
     rdpq_paragraph_char_t *ch = &builder.layout->chars[wrapchar];
     rdpq_paragraph_char_t *end = &builder.layout->chars[builder.layout->nchars];
-    end->x = *xcur * 4;
-    end->y = *ycur * 4;
 
-    float x = builder.x;
-    float y = builder.y;
+    // Calculate wrap translation
+    float offx = builder.x - ch[0].x * 0.25f;
+    float offy = builder.y - ch[0].y * 0.25f;
+
+    // Translate all the characters between wrapchar and the end
     while (ch < end) {
-        float advance = (ch[1].x - ch[0].x) * 0.25f;
-        ch->x = x*4;
-        ch->y = y*4;
-        x += advance;
+        ch->x += offx * 4;
+        ch->y += offy * 4;
         ++ch;
     }
-    builder.x = x;
 
-    *xcur = builder.x;
-    *ycur = builder.y;
+    // Translate also the endpoint, so that it now points at the end of the
+    // translated characters
+    *xcur = *xcur + offx;
+    *ycur = *ycur + offy;
     return true;
 }
 
@@ -147,7 +153,7 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
         if (UNLIKELY(index < 0)) continue;
 
         float xadvance; int8_t xoff2; bool has_kerning; uint8_t sort_key;
-        __rdpq_font_glyph_metrics(fnt, index, &xadvance, &xoff2, &has_kerning, &sort_key);
+        __rdpq_font_glyph_metrics(fnt, index, &xadvance, NULL, &xoff2, &has_kerning, &sort_key);
 
         if (!is_space) {
             builder.layout->chars[builder.layout->nchars++] = (rdpq_paragraph_char_t) {
@@ -207,7 +213,7 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
     builder.y = ycur;
 }
 
-void rdpq_paragraph_builder_newline(void)
+void __rdpq_paragraph_builder_newline(int ch_newline)
 {
     float line_height = 0.0f;
     
@@ -218,12 +224,58 @@ void rdpq_paragraph_builder_newline(void)
     builder.x = 0.5f;
     builder.skip_current_line = builder.parms->height && builder.y - builder.font->descent >= builder.parms->height;
     builder.layout->nlines += 1;
+
+    int ix0 = builder.ch_line_start;
+    int ix1 = ch_newline;
+
+    // If there's at least one character on this line
+    if (ix0 != ix1) {
+        rdpq_paragraph_char_t* ch0 = &builder.layout->chars[ix0];
+        rdpq_paragraph_char_t* ch1 = &builder.layout->chars[ix1-1];
+
+        const rdpq_font_t *fnt0 = rdpq_text_get_font(ch0->font_id); assert(fnt0);
+        const rdpq_font_t *fnt1 = rdpq_text_get_font(ch1->font_id); assert(fnt1);
+
+        // Extract X of first pixel of first char, and last pixel of last char
+        // This is a slightly more accurate centering than just using the glyph position
+        int8_t off_x0, off_x1;
+        __rdpq_font_glyph_metrics(fnt0, ch0->glyph, NULL, &off_x0, NULL,    NULL, NULL);
+        __rdpq_font_glyph_metrics(fnt1, ch1->glyph, NULL, NULL,    &off_x1, NULL, NULL);
+
+        // Compute absolute x0/x1 in the paragraph
+        float x0 = ch0->x * 0.25f + off_x0 * builder.xscale;
+        float x1 = ch1->x * 0.25f + off_x1 * builder.xscale;
+
+        // Do right/center alignment of the row (and adjust extents)
+        if (UNLIKELY(builder.parms->width && builder.parms->align)) {
+            float offset = builder.parms->width - (x1 - x0);
+            if (builder.parms->align == ALIGN_CENTER) offset *= 0.5f;
+
+            int16_t offset_fx = offset * 4;
+            for (rdpq_paragraph_char_t *ch = ch0; ch <= ch1; ++ch)
+                ch->x += offset_fx;
+            x0 += offset;
+            x1 += offset;
+        }
+
+        // Update bounding box
+        if (builder.layout->bbox[0] > x0) builder.layout->bbox[0] = x0;
+        if (builder.layout->bbox[2] < x1) builder.layout->bbox[2] = x1;
+    }
+
+    builder.ch_line_start = ch_newline;
 }
+
+void rdpq_paragraph_builder_newline()
+{
+    __rdpq_paragraph_builder_newline(builder.layout->nchars);
+}
+
 
 static int char_compare(const void *a, const void *b)
 {
     const rdpq_paragraph_char_t *ca = a, *cb = b;
-    return (ca->fsg & 0xFFFF0000) - (cb->fsg & 0xFFFF0000);
+    return (ca->fsg & 0xFFFFFF00) - (cb->fsg & 0xFFFFFF00);
 }
 
 void insertion_sort_char_array(rdpq_paragraph_char_t *chars, int nchars)
@@ -246,8 +298,24 @@ void __rdpq_paragraph_builder_optimize(void)
 
 rdpq_paragraph_t* rdpq_paragraph_builder_end(void)
 {
+    // Update bounding box (vertically)
+    float y0 = builder.layout->chars[0].y * 0.25f - builder.font->ascent;
+    float y1 = builder.layout->chars[builder.layout->nchars-1].y * 0.25f - builder.font->descent + builder.font->line_gap + 1;
+
+    if (UNLIKELY(builder.parms->height && builder.parms->valign)) {
+        float offset = builder.parms->height - (y1 - y0);
+        if (builder.parms->valign == VALIGN_CENTER) offset *= 0.5f;
+
+        builder.layout->y0 = offset;
+        y0 += offset;
+        y1 += offset;
+    }
+
+    builder.layout->bbox[1] = y0;
+    builder.layout->bbox[3] = y1;
+
     // Sort the chars by font/style/glyph
-    if (builder.must_sort) {
+    if (builder.must_sort || 1) {
         if (builder.layout->nchars < 48) {
             insertion_sort_char_array(builder.layout->chars, builder.layout->nchars);
         } else {
@@ -338,10 +406,20 @@ void rdpq_paragraph_render(const rdpq_paragraph_t *layout, float x0, float y0)
 {
     const rdpq_paragraph_char_t *ch = layout->chars;
 
+    x0 += layout->x0;
+    y0 += layout->y0;
     while (ch->font_id != 0) {
         const rdpq_font_t *fnt = rdpq_text_get_font(ch->font_id);
         int n = rdpq_font_render_paragraph(fnt, ch, x0, y0);
         ch += n;
         assert(ch <= layout->chars + layout->nchars);
     }
+}
+
+void rdpq_paragraph_free(rdpq_paragraph_t *layout)
+{
+    #ifndef NDEBUG
+    memset(layout, 0, sizeof(*layout));
+    #endif
+    free(layout);
 }

@@ -130,13 +130,31 @@ typedef enum {
     WRAP_WORD = 3,         ///< Wrap at word boundaries 
 } rdpq_textwrap_t;
 
+/**
+ * @brief Print formatting parameters: horizontal alignment
+ */
+typedef enum {
+    ALIGN_LEFT = 0,         ///< Left alignment
+    ALIGN_CENTER = 1,       ///< Center alignment
+    ALIGN_RIGHT = 2,        ///< Right alignment
+} rdpq_align_t;
+
+/**
+ * @brief Print formatting parameters: horizontal alignment
+ */
+typedef enum {
+    VALIGN_TOP = 0,         ///< Top alignment
+    VALIGN_CENTER = 1,      ///< Center alignment
+    VALIGN_BOTTOM = 2,      ///< Vertical alignment
+} rdpq_valign_t;
+
 /** @brief Print formatting parameters */
 typedef struct rdpq_textparms_s {
     int16_t width;           ///< Maximum horizontal width of the paragraph, in pixels (0 if unbounded)
     int16_t height;          ///< Maximum vertical height of the paragraph, in pixels (0 if unbounded)
-    uint8_t align;           ///< Horizontal alignment (0=left, 1=center, 2=right)
-    uint8_t valign;          ///< Vertical alignment (0=top, 1=center, 2=bottom)
-    int16_t indent;          ///< Indentation of the first line, in pixels
+    rdpq_align_t align;      ///< Horizontal alignment (0=left, 1=center, 2=right)
+    rdpq_valign_t valign;    ///< Vertical alignment (0=top, 1=center, 2=bottom)
+    int16_t indent;          ///< Indentation of the first line, in pixels (only valid for left alignment)
     int16_t char_spacing;    ///< Extra spacing between chars (in addition to glyph width and kerning)
     int16_t line_spacing;    ///< Extra spacing between lines (in addition to font height)
     rdpq_textwrap_t wrap;    ///< Wrap mode
