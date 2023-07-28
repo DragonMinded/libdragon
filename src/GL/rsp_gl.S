@@ -682,7 +682,6 @@ gl_matrix_palette_loop:
     beqz t1, 1f
     li t0, (SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE) >> 32
     lw t0, %lo(GL_STATE_DITHER_MODE)
-    sll t0, SOM_ALPHADITHER_SHIFT - 32
 1:
     or modes0, t0
 
