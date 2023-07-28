@@ -7,6 +7,7 @@
 typedef struct surface_s surface_t;
 typedef struct sprite_s sprite_t;
 typedef struct rdpq_texparms_s rdpq_texparms_t;
+typedef enum   rdpq_dither_s rdpq_dither_t;
 
 #include <GL/gl_enums.h>
 
@@ -24,6 +25,7 @@ typedef struct rdpq_texparms_s rdpq_texparms_t;
 #define GL_N64_half_fixed_point         1
 #define GL_N64_reduced_aliasing         1
 #define GL_N64_interpenetrating         1
+#define GL_N64_dither_mode              1
 
 /* Data types */
 
@@ -471,6 +473,10 @@ void glFogf(GLenum pname, GLfloat param);
 
 void glFogiv(GLenum pname, const GLint *params);
 void glFogfv(GLenum pname, const GLfloat *params);
+
+/* Dithering */
+
+void glDitherModeN64(rdpq_dither_t mode);
 
 /* Scissor test */
 
