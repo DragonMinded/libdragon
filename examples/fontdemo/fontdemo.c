@@ -4,6 +4,77 @@ enum {
     FONT_PACIFICO = 1,
 };
 
+
+float measure(void (*func)(int), int arg)
+{
+    uint64_t samples = 0;
+
+    for (int i=0; i<16; i++) {
+        rspq_wait();
+        disable_interrupts();
+        uint32_t t0 = get_ticks();
+        func(arg);
+        uint32_t t1 = get_ticks();
+        enable_interrupts();
+        if (i > 0) // ignore first sample (cache warmup)
+            samples += t1-t0;
+    }
+    return TIMER_MICROS(samples) / 16.0f;
+}
+
+void run_benchmark(void)
+{
+    const char *text = 
+        "Two households, both alike in dignity,\n"
+        "In fair Verona, where we lay our scene,\n"
+        "From ancient grudge break to new mutiny,\n"
+        "Where civil blood makes civil hands unclean.\n"
+        "From forth the fatal loins of these two foes\n"
+        "A pair of star-cross'd lovers take their life;\n";
+    int len = strlen(text);
+    int sizes[7] = { 4, 8, 16, 32, 64, 128, len };
+    rdpq_paragraph_t *partext = NULL;
+
+    void text_noformat(int nchar)
+    {
+        rdpq_text_printn(NULL, FONT_PACIFICO, 10, 10, text, nchar);
+    }
+
+    void text_format(int nchar)
+    {
+        rdpq_text_printn(&(rdpq_textparms_t){
+            .line_spacing = -3,
+            .width = 200,
+            .wrap = WRAP_WORD,
+        }, FONT_PACIFICO, 10, 10, text, nchar);
+    }
+
+    void text_render(int nchar)
+    {
+        rdpq_paragraph_render(partext, 10, 10);
+    }
+
+    for (int i=0; i<7; i++) {
+        int nchar = sizes[i]; float t = measure(text_noformat, nchar);
+        debugf("text_noformat(%d): %d us\n", nchar, (int)(t+0.5f));
+    }
+    for (int i=0; i<7; i++) {
+        int nchar = sizes[i]; float t = measure(text_format, nchar);
+        debugf("text_wordwrap(%d): %d us\n", nchar, (int)(t+0.5f));
+    }
+    for (int i=0; i<7; i++) {
+        int nchar = sizes[i];
+        partext = rdpq_paragraph_build(&(rdpq_textparms_t){
+                .line_spacing = -3,
+                .width = 200,
+                .wrap = WRAP_WORD,
+            }, FONT_PACIFICO, text, nchar);
+        float t = measure(text_render, nchar);
+        debugf("text_render(%d): %d us\n", nchar, (int)(t+0.5f));
+        rdpq_paragraph_free(partext); partext = NULL;
+    }
+}
+
 int main()
 {
     debug_init_isviewer();
@@ -47,12 +118,21 @@ int main()
     int total_chars = strlen(text);
     int frame = 0;
 
-    rdpq_paragraph_t *partext = rdpq_paragraph_build(&(rdpq_textparms_t){
-            .line_spacing = -3,
-            .width = box_width,
-            .height = box_height,
-            .wrap = WRAP_WORD,
-        }, FONT_PACIFICO, text, strlen(text));
+    // rdpq_paragraph_t *partext = rdpq_paragraph_build(&(rdpq_textparms_t){
+    //         .line_spacing = -3,
+    //         .width = box_width,
+    //         .height = box_height,
+    //         .wrap = WRAP_WORD,
+    //     }, FONT_PACIFICO, text, strlen(text));
+
+    #if 0
+    surface_t *screen = display_get();
+    rdpq_attach_clear(screen, NULL);
+    run_benchmark();
+    rdpq_detach_show();
+    return 0;
+    #endif
+
 
     while (1) {
         ++frame;
@@ -64,7 +144,7 @@ int main()
         }
 
         controller_scan();
-        struct controller_data keys = get_keys_down();
+        struct controller_data keys = get_keys_held();
         if (keys.c[0].C_up) { box_height += 2; }
         if (keys.c[0].C_down) { box_height -= 2; }
         if (keys.c[0].C_left) { box_width += 2; }
@@ -77,15 +157,20 @@ int main()
         rdpq_set_mode_fill(RGBA32(0x30,0x63,0x8E,0xFF));
         rdpq_fill_rectangle((320-box_width)/2, (240-box_height)/2, (320+box_width)/2, (240+box_height)/2);
 
+        //rspq_wait();
+        disable_interrupts();
         uint32_t t0 = get_ticks();
-        // rdpq_text_print(&(rdpq_textparms_t){
-        //     .line_spacing = -3,
-        //     .width = box_width,
-        //     .height = box_height,
-        //     .wrap = WRAP_WORD,
-        // }, FONT_PACIFICO, (320-box_width)/2, (240-box_height)/2, text);
-        rdpq_paragraph_render(partext, (320-box_width)/2, (240-box_height)/2);
+        rdpq_text_print(&(rdpq_textparms_t){
+            .line_spacing = -3,
+            .align = ALIGN_LEFT,
+            .valign = VALIGN_CENTER,
+            .width = box_width,
+            .height = box_height,
+            .wrap = WRAP_WORD,
+        }, FONT_PACIFICO, (320-box_width)/2, (240-box_height)/2, text);
+        // rdpq_paragraph_render(partext, (320-box_width)/2, (240-box_height)/2);
         uint32_t t1 = get_ticks();
+        enable_interrupts();
         debugf("rdpq_text_print: %d us\n", TIMER_MICROS(t1-t0));
 
 #if 0
