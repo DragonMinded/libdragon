@@ -544,6 +544,7 @@ typedef struct {
     uint32_t clear_color;
     uint32_t clear_depth;
     uint32_t palette_ptr;
+    uint32_t dither_mode;
     uint16_t fb_size[2];
     uint16_t depth_func;
     uint16_t alpha_func;
