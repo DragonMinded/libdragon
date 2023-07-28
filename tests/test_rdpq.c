@@ -2071,4 +2071,19 @@ void test_rdpq_texrect_passthrough(TestContext *ctx) {
     ASSERT_EQUAL_HEX(texrect, 0xe4040040, "expected exclusive bounds");
     rspq_block_free(block);
     rspq_block_free(block_mode);
+
+    // Block with standard mode, with a sub-block that doesn't touch mode
+    rspq_block_begin();
+        rdpq_set_prim_color(RGBA32(0x00, 0x00, 0x00, 0x00));
+    block_mode = rspq_block_end();
+
+    rspq_block_begin();
+        rdpq_set_mode_standard();
+        rspq_block_run(block_mode);
+        rdpq_texture_rectangle(TILE0, 0, 0, 16, 16, 0, 0);
+    block = rspq_block_end();
+    texrect = find_block_texrect(block->rdp_block->cmds);
+    ASSERT_EQUAL_HEX(texrect, 0xe4040040, "expected exclusive bounds");
+    rspq_block_free(block);
+    rspq_block_free(block_mode);
 }

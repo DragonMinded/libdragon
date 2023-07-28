@@ -750,9 +750,18 @@ void __rdpq_block_run(rdpq_block_t *block)
     // and saved it into the block structure; set it as current,
     // because from now on we can assume the block would and the
     // state of the engine must match the state at the end of the block.
-    if (block)
+    if (block) {
+        rdpq_tracking_t prev = rdpq_tracking;
         rdpq_tracking = block->tracking;
-    else {
+
+        // If the data coming out of the block is "unknown", we can
+        // restore the previous value, because it means that the block didn't
+        // change it.
+        if (rdpq_tracking.cycle_type_known == 0)
+            rdpq_tracking.cycle_type_known = prev.cycle_type_known;
+        if (rdpq_tracking.cycle_type_frozen == 0)
+            rdpq_tracking.cycle_type_frozen = prev.cycle_type_frozen;
+    } else {
         // Initialize tracking state for unknown state
         rdpq_tracking = (rdpq_tracking_t){
             // current autosync status is unknown because blocks can be
