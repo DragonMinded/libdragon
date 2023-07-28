@@ -40,6 +40,7 @@
     GL_STATE_FILL_COLOR:    .word   0
     GL_STATE_FILL_DEPTH:    .word   0
     GL_STATE_PALETTE_PTR:   .word   0
+    GL_STATE_DITHER_MODE:   .word   0
     GL_STATE_FB_SIZE:       .half   0, 0
     GL_STATE_DEPTH_FUNC:    .half   0
     GL_STATE_ALPHA_FUNC:    .half   0
@@ -680,7 +681,7 @@ gl_matrix_palette_loop:
     andi t1, state_flags, FLAG_DITHER
     beqz t1, 1f
     li t0, (SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE) >> 32
-    li t0, (SOM_RGBDITHER_SQUARE | SOM_ALPHADITHER_SAME) >> 32
+    lw t0, %lo(GL_STATE_DITHER_MODE)
 1:
     or modes0, t0
 
