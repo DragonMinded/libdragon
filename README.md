@@ -1,8 +1,8 @@
 # Libdragon
 
 <p align="center">
-<img src="https://user-images.githubusercontent.com/1014109/256948937-8f3ed7fb-e5fe-499d-9fd0-5369c28747c5.png#gh-dark-mode-only" width="400">
-<img src="https://user-images.githubusercontent.com/1014109/256948972-d4fa6931-48fe-48ce-a35e-91b7ae5dc0a6.png#gh-light-mode-only" width="400">
+<img src="https://github.com/DragonMinded/libdragon/assets/127010686/8fe1bdcf-a21b-42d0-b383-502eaf048b50#gh-dark-mode-only" width="400">
+<img src="https://github.com/DragonMinded/libdragon/assets/127010686/1167a1e7-6773-4a67-97d4-d251c12ef8ba#gh-light-mode-only" width="400">
 </p>
 
 [![Build](https://github.com/DragonMinded/libdragon/actions/workflows/build-toolchain-library-and-roms.yml/badge.svg?branch=trunk)](https://github.com/DragonMinded/libdragon/actions/workflows/build-toolchain-library-and-roms.yml)
