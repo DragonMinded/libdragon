@@ -21,20 +21,21 @@ const rdpq_font_t* rdpq_text_get_font(uint8_t font_id) {
     return fonts[font_id];
 }
 
-extern rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t initial_font_id, const char *utf8_text, int nbytes, rdpq_paragraph_t *layout, bool optimize);
+extern rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t initial_font_id, const char *utf8_text, int *nbytes, rdpq_paragraph_t *layout, bool optimize);
 
-void rdpq_text_printn(const rdpq_textparms_t *parms, uint8_t initial_font_id, float x0, float y0, 
+int rdpq_text_printn(const rdpq_textparms_t *parms, uint8_t initial_font_id, float x0, float y0, 
     const char *utf8_text, int nbytes)
 {
     rdpq_paragraph_t *layout = alloca(sizeof(rdpq_paragraph_t) + sizeof(rdpq_paragraph_char_t) * (nbytes+1));
     memset(layout, 0, sizeof(*layout));
     layout->capacity = nbytes+1;
 
-    __rdpq_paragraph_build(parms, initial_font_id, utf8_text, nbytes, layout, false);
+    layout = __rdpq_paragraph_build(parms, initial_font_id, utf8_text, &nbytes, layout, false);
     rdpq_paragraph_render(layout, x0, y0);
+    return nbytes;
 }
 
-void rdpq_text_printf(const rdpq_textparms_t *parms, uint8_t font_id, float x0, float y0, 
+int rdpq_text_printf(const rdpq_textparms_t *parms, uint8_t font_id, float x0, float y0, 
     const char *utf8_fmt, ...)
 {
     char buf[512];
@@ -45,14 +46,10 @@ void rdpq_text_printf(const rdpq_textparms_t *parms, uint8_t font_id, float x0, 
     char *buf2 = vasnprintf(buf, &n, utf8_fmt, va);
     va_end(va);
 
-    rdpq_text_printn(parms, font_id, x0, y0, buf2, n);
+    int nbytes = rdpq_text_printn(parms, font_id, x0, y0, buf2, n);
     if (buf2 != buf) free(buf2);
+    return nbytes;
 }
 
-
-
-
-
-
 /* Extern inline declarations */
-extern inline void rdpq_text_print(const rdpq_textparms_t *parms, uint8_t font_id, float x0, float y0, const char *utf8_text);
+extern inline int rdpq_text_print(const rdpq_textparms_t *parms, uint8_t font_id, float x0, float y0, const char *utf8_text);

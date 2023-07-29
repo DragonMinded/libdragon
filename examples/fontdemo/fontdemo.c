@@ -2,6 +2,7 @@
 
 enum {
     FONT_PACIFICO = 1,
+    FONT_ZEROVELOCITY = 2,
 };
 
 
@@ -68,7 +69,7 @@ void run_benchmark(void)
                 .line_spacing = -3,
                 .width = 200,
                 .wrap = WRAP_WORD,
-            }, FONT_PACIFICO, text, nchar);
+            }, FONT_PACIFICO, text, &nchar);
         float t = measure(text_render, nchar);
         debugf("text_render(%d): %d us\n", nchar, (int)(t+0.5f));
         rdpq_paragraph_free(partext); partext = NULL;
@@ -88,10 +89,15 @@ int main()
     // rdpq_debug_log(true);
 
     rdpq_font_t *fnt1 = rdpq_font_load("rom:/Pacifico.font64");
+    rdpq_font_t *fnt5 = rdpq_font_load("rom:/FerriteCoreDX.font64");
     rdpq_font_style(fnt1, 0, &(rdpq_fontstyle_t){
         .color = RGBA32(0xED, 0xAE, 0x49, 0xFF),
     });
+    rdpq_font_style(fnt5, 0, &(rdpq_fontstyle_t){
+        .color = RGBA32(0x82, 0x30, 0x38, 0xFF),
+    });
     rdpq_text_register_font(FONT_PACIFICO, fnt1);
+    rdpq_text_register_font(FONT_ZEROVELOCITY, fnt5);
 
     // rdpq_font_t *fnt2 = rdpq_font_load("rom:/Acme.font64");
     // rdpq_font_t *fnt3 = rdpq_font_load("rom:/ComicSans.font64");
@@ -104,14 +110,14 @@ int main()
     // rdpq_font_t *fnt10 = rdpq_font_load("rom:/ArialUnicode.font64");
 
     const char *text = 
-        "Two households, both alike in dignity,\n"
-        "In fair Verona, where we lay our scene,\n"
-        "From ancient grudge break to new mutiny,\n"
-        "Where civil blood makes civil hands unclean.\n"
-        "From forth the fatal loins of these two foes\n"
-        "A pair of star-cross'd lovers take their life;\n";
+        "Two $02households$01, both alike in dignity,\n"
+        "In $02fair Verona$01, where we lay our scene,\n"
+        "From ancient grudge break to new $02mutiny$01,\n"
+        "Where $02civil blood$01 makes civil hands unclean.\n"
+        "From forth the fatal loins of these $02two foes$01\n"
+        "A pair of $02star-cross'd lovers$01 take their life;\n";
 
-    int box_width = 250;
+    int box_width = 262;
     int box_height = 150;
 
     int drawn_chars = 0;
@@ -160,8 +166,8 @@ int main()
         //rspq_wait();
         disable_interrupts();
         uint32_t t0 = get_ticks();
-        rdpq_text_print(&(rdpq_textparms_t){
-            .line_spacing = -3,
+        int nbytes = rdpq_text_print(&(rdpq_textparms_t){
+            // .line_spacing = -3,
             .align = ALIGN_LEFT,
             .valign = VALIGN_CENTER,
             .width = box_width,
@@ -171,7 +177,7 @@ int main()
         // rdpq_paragraph_render(partext, (320-box_width)/2, (240-box_height)/2);
         uint32_t t1 = get_ticks();
         enable_interrupts();
-        debugf("rdpq_text_print: %d us\n", TIMER_MICROS(t1-t0));
+        debugf("rdpq_text_print: %d us (%dx%d) - %d bytes\n", TIMER_MICROS(t1-t0), box_width, box_height, nbytes);
 
 #if 0
         rdpq_font_begin(RGBA32(0xED, 0xAE, 0x49, 0xFF));

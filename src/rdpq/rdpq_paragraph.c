@@ -56,6 +56,11 @@ static uint32_t utf8_decode(const char **str)
     return 0xFFFD;
 }
 
+bool rdpq_paragraph_builder_full(void)
+{
+    return builder.parms->height && builder.y - builder.font->descent >= builder.parms->height;
+}
+
 void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial_font_id, rdpq_paragraph_t *layout)
 {
     assertf(initial_font_id > 0, "invalid usage of font ID 0 (reserved)");
@@ -78,7 +83,7 @@ void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial
     // start at center of pixel so that all rounds are to nearest
     builder.x = 0.5f + builder.parms->indent;
     builder.y = 0.5f + builder.parms->height ? builder.font->ascent : 0;
-    builder.skip_current_line = builder.parms->height && builder.y - builder.font->descent >= builder.parms->height;
+    builder.skip_current_line = rdpq_paragraph_builder_full();
     builder.layout->nlines = 1;
     builder.ch_last_space = -1;
 }
@@ -137,7 +142,7 @@ static bool paragraph_wrap(int wrapchar, float *xcur, float *ycur)
     return true;
 }
 
-void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
+int rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
 {
     // We're skipping the current line, so this span isn't useful
     if (builder.skip_current_line) return;
@@ -351,12 +356,12 @@ static uint8_t must_hex_digit(uint8_t ch, bool *error)
     return 0;
 }
 
-rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t initial_font_id, const char *utf8_text, int nbytes, rdpq_paragraph_t *layout, bool optimize)
+rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t initial_font_id, const char *utf8_text, int *nbytes, rdpq_paragraph_t *layout, bool optimize)
 {
     rdpq_paragraph_builder_begin(parms, initial_font_id, layout);
 
     const char *buf = utf8_text;
-    const char *end = utf8_text + nbytes;
+    const char *end = utf8_text + *nbytes;
     const char *span = buf;
 
     while (buf < end) {
@@ -369,10 +374,13 @@ rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t 
                 bool error = false;
                 uint8_t font_id = must_hex_digit(buf[1], &error) << 4 | must_hex_digit(buf[2], &error);
                 assertf(!error, "invalid font id: %c%c at position %d", buf[1], buf[2], buf-utf8_text);
+                assertf(font_id > 0, "invalid usage of font ID 0 (reserved)");
                 rdpq_paragraph_builder_font(font_id);
                 span = buf + 3;
                 buf = span;
             }
+            if (UNLIKELY(rdpq_paragraph_builder_full()))
+                break;
             continue;
         } else if (UNLIKELY(buf[0] == '^')) {
             rdpq_paragraph_builder_span(span, buf - span);
@@ -381,19 +389,22 @@ rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t 
                 buf += 2; span = buf - 1;                
             } else {
                 bool error = false;
-                rdpq_paragraph_builder_span(span, buf - span);
                 uint8_t style_id = must_hex_digit(buf[1], &error) << 4 | must_hex_digit(buf[2], &error);
                 assertf(!error, "invalid style id: %c%c at position %d", buf[1], buf[2], buf-utf8_text);
                 rdpq_paragraph_builder_style(style_id);
                 span = buf + 3;
                 buf = span;
             }
+            if (UNLIKELY(rdpq_paragraph_builder_full()))
+                break;
             continue;
         } else if (UNLIKELY(buf[0] == '\n')) {
             rdpq_paragraph_builder_span(span, buf - span);
             rdpq_paragraph_builder_newline();
             span = buf + 1;
             buf = span;
+            if (UNLIKELY(rdpq_paragraph_builder_full()))
+                break;
             continue;
         } else {
             ++buf;
@@ -402,12 +413,13 @@ rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t 
 
     if (buf != span)
         rdpq_paragraph_builder_span(span, buf - span);
+    *nbytes = buf - utf8_text;
     if (optimize)
         __rdpq_paragraph_builder_optimize();
     return rdpq_paragraph_builder_end();
 }
 
-rdpq_paragraph_t* rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t initial_font_id, const char *utf8_text, int nbytes)
+rdpq_paragraph_t* rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t initial_font_id, const char *utf8_text, int *nbytes)
 {
     return __rdpq_paragraph_build(parms, initial_font_id, utf8_text, nbytes, NULL, true);
 }
