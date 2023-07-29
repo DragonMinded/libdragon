@@ -3,6 +3,7 @@
 #include "rdpq_font.h"
 #include "rdpq_font_internal.h"
 #include "debug.h"
+#include "fmath.h"
 #include <stdlib.h>
 #include <assert.h>
 
@@ -19,6 +20,7 @@ static struct {
     float xscale, yscale; // FIXME: this should be a drawing context
     float x, y;
     int ch_line_start;
+    int ch_last_space;
     bool skip_current_line;
     bool must_sort;
 } builder;
@@ -78,6 +80,7 @@ void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial
     builder.y = 0.5f + builder.parms->height ? builder.font->ascent : 0;
     builder.skip_current_line = builder.parms->height && builder.y - builder.font->descent >= builder.parms->height;
     builder.layout->nlines = 1;
+    builder.ch_last_space = -1;
 }
 
 void rdpq_paragraph_builder_font(uint8_t font_id)
@@ -104,6 +107,13 @@ static bool paragraph_wrap(int wrapchar, float *xcur, float *ycur)
     if (builder.skip_current_line) {
         builder.layout->nchars = wrapchar;
         return false;
+    }
+
+    // If the wrapchar is the last char, we're done
+    if (wrapchar == builder.layout->nchars) {
+        *xcur = builder.x;
+        *ycur = builder.y;
+        return true;
     }
 
     rdpq_paragraph_char_t *ch = &builder.layout->chars[wrapchar];
@@ -138,7 +148,6 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
     float xcur = builder.x;
     float ycur = builder.y;
     int16_t next_index = -1;
-    int last_space_index = -1;
     bool is_space = false;
 
     #define UTF8_DECODE_NEXT() ({ \
@@ -165,7 +174,7 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
                 .y = ycur*4,
             };
         } else {       
-            last_space_index = builder.layout->nchars;
+            builder.ch_last_space = builder.layout->nchars;
         }
 
         float last_pixel = xcur + xoff2 * builder.xscale;
@@ -190,10 +199,10 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
                     break;
                 case WRAP_WORD:
                     // Find the last space in the line
-                    if (last_space_index >= 0) {
-                        if (!paragraph_wrap(last_space_index, &xcur, &ycur))
+                    if (builder.ch_last_space >= 0) {
+                        if (!paragraph_wrap(builder.ch_last_space, &xcur, &ycur))
                             return;
-                        last_space_index = -1;
+                        builder.ch_last_space = -1;
                         break;
                     }
                     builder.layout->nchars -= 1;
@@ -305,6 +314,7 @@ rdpq_paragraph_t* rdpq_paragraph_builder_end(void)
     if (UNLIKELY(builder.parms->height && builder.parms->valign)) {
         float offset = builder.parms->height - (y1 - y0);
         if (builder.parms->valign == VALIGN_CENTER) offset *= 0.5f;
+        offset = fm_truncf(offset);
 
         builder.layout->y0 = offset;
         y0 += offset;
